@@ -198,8 +198,10 @@ NOX 用に以下を最初のマイグレーションで定義：
 6. staffing_needs は `weekday`→`dow smallint（0=日..6=土）`（T1.5 踏襲）・`required >= 0` CHECK。
 7. ソフト判定: lat/lng（端末申告）・ip（サーバ導出）・within_geofence（F1d は常に null）を記録のみ。
    ジオフェンス設定（BANZEN 0028 の enforce/座標/WiFi）は要件顕在化時に翻訳（台帳）。
-8. 勤怠系書込 RPC は manager 以上（capability §1.2 の castMng 準拠・安全側）。staff（黒服）への開放は
-   フロア実務の必要が確認された時点で F1f にて判断。
+8. 勤怠系書込 RPC は manager 以上で開始（capability §1.2 の castMng 準拠・安全側）。
+   **【F1f 確定（mig0011）】attendance_set は staff に開放**（出勤板の日次操作＝フロア実務・
+   「判断」層で修正可・audit 付き）。**punch_proxy は manager 維持**（代理打刻＝給与時間の事実生成・
+   なりすましリスクが質的に違う）。
 
 ### 2.6 申告・承認・通知・採用（M06 相当）
 

@@ -549,6 +549,60 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // F1f: ランキング RPC（順位/件数のみ・金額キー不在）＋ staff 開放（mig0011）
+  // ※ F1e より前に置く（golden 伝票が void される前の closed 状態で件数ゴールデンを固定）
+  // ══════════════════════════════════════════════════════════
+  {
+    const period = bizDateOf(new Date().toISOString(), "06:00").slice(0, 7);
+    const RANK_KEYS = ["rank", "cast_id", "cast_name", "hon_count", "jonai_count", "dohan_count", "is_self"].sort();
+    {
+      const c = await signIn("castA1a");
+      const { data: rows, error } = await c.rpc("get_cast_ranking", { p_store_id: storeA1Id, p_period: period });
+      check("F1f ranking castA1a 呼び出し成功（2行）", !error && Array.isArray(rows) && rows.length === 2, error?.message ?? `got ${(rows ?? []).length}`);
+      const rA = (rows ?? []).find((r: Record<string, unknown>) => r.cast_id === castIdA) as Record<string, unknown> | undefined;
+      const rB = (rows ?? []).find((r: Record<string, unknown>) => r.cast_id === castIdB) as Record<string, unknown> | undefined;
+      check("F1f ゴールデン castA1a: rank=1・hon=1・jonai=0・dohan=0",
+        rA?.rank === 1 && rA?.hon_count === 1 && rA?.jonai_count === 0 && rA?.dohan_count === 0, JSON.stringify(rA));
+      check("F1f ゴールデン castA1b: rank=2・hon=1", rB?.rank === 2 && rB?.hon_count === 1, JSON.stringify(rB));
+      check("F1f is_self: 自分の行のみ true", rA?.is_self === true && rB?.is_self === false,
+        JSON.stringify({ a: rA?.is_self, b: rB?.is_self }));
+      // 金額キー不在の能動 assert（Object.keys 検査＋金額系パターン）
+      const keys = Object.keys(rA ?? {}).sort();
+      check("F1f 返却キー完全一致（7列のみ）", JSON.stringify(keys) === JSON.stringify(RANK_KEYS), keys.join(","));
+      check("F1f 金額系キー不在", keys.every((k) => !/back|sales|amount|price|total|yen/i.test(k)), keys.join(","));
+      // cast の他店 p_store_id は forbidden
+      const admin2 = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: stB } = await admin2.from("stores").select("id").eq("name", STORE_B1).single();
+      const { error: eX } = await c.rpc("get_cast_ranking", { p_store_id: stB!.id, p_period: period });
+      check("F1f cast の他店 ranking = forbidden", !!eX?.message?.includes("forbidden"), eX?.message ?? "通ってしまった");
+      await c.auth.signOut();
+    }
+    {
+      const b = await signIn("castA1b");
+      const { data: rows } = await b.rpc("get_cast_ranking", { p_store_id: storeA1Id, p_period: period });
+      const rA = (rows ?? []).find((r: Record<string, unknown>) => r.cast_id === castIdA) as Record<string, unknown> | undefined;
+      const rB = (rows ?? []).find((r: Record<string, unknown>) => r.cast_id === castIdB) as Record<string, unknown> | undefined;
+      check("F1f castA1b 視点: 自分 true・castA1a 行 false", rB?.is_self === true && rA?.is_self === false,
+        JSON.stringify({ a: rA?.is_self, b: rB?.is_self }));
+      await b.auth.signOut();
+    }
+    {
+      const s = await signIn("staffA1");
+      const { data: aid, error: eA } = await s.rpc("attendance_set", {
+        p_cast_id: castIdA, p_date: "2026-07-16", p_status: "shukkin", p_eta: null, p_reason: null,
+      });
+      check("F1f staffA1 attendance_set 成功（台帳 #24 開放）", !eA && typeof aid === "string", eA?.message);
+      const { error: eP } = await s.rpc("punch_proxy", { p_cast_id: castIdA, p_type: "in", p_note: null });
+      check("F1f staffA1 punch_proxy 拒否（manager 維持）", !!eP?.message?.includes("forbidden"), eP?.message ?? "通ってしまった");
+      const { data: rows, error: eR } = await s.rpc("get_cast_ranking", { p_store_id: storeA1Id, p_period: period });
+      check("F1f staffA1 ranking 自店成功", !eR && (rows ?? []).length === 2, eR?.message ?? `got ${(rows ?? []).length}`);
+      await s.auth.signOut();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
   // F1e: 日報（ゴールデン・境界帰属 TS/DB 一致・p_force・冪等・reclose 追随）（mig0010）
   // ══════════════════════════════════════════════════════════
   {

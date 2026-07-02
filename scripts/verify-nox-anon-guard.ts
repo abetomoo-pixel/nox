@@ -117,6 +117,7 @@ async function main() {
   const F1E_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
     ["daily_report_close", { p_store_id: null, p_biz_date: null, p_expense: null, p_cash_payout: null, p_cash_float: null, p_counted_cash: null, p_note: null, p_force: null, p_idem_key: null }],
     ["daily_report_reclose", { p_report_id: null, p_expense: null, p_cash_payout: null, p_cash_float: null, p_counted_cash: null, p_note: null, p_force: null }],
+    ["get_cast_ranking", { p_store_id: null, p_period: null }], // F1f（mig0011）
   ];
   for (const [fn, args] of F1E_RPC_PROBES) {
     const { error } = await anon.rpc(fn, args);

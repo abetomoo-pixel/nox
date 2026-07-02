@@ -117,6 +117,11 @@ using (
 - その RPC は SECURITY DEFINER（RLS バイパス）で店全体を集計し、**cast に見せていい部分（順位・件数）だけ返す**。生の金額は返さない。
 - cast は生の金額テーブルには一切アクセスできない（パターン2で0行）。
 - 例：`get_cast_ranking(p_store_id, p_period)` → cast には `{rank, count}` のみ／manager 以上には金額込み（呼び出し元ロールで出し分け・冒頭で `auth_org_id() is null` 即拒否）。
+- **【F1f 実装確定（2026-07-02・mig0011）】**：`get_cast_ranking` は**全ロール同一の返却形**
+  （rank/cast_id/cast_name/hon_count/jonai_count/dohan_count/is_self・金額列なし）で実装。
+  「manager 以上には金額込み」は 1 RPC 内のロール分岐で事故る面を作らないため、
+  **F2 の pay/castMng 用の別 RPC に分離**する（本節の出し分け案からの意図的変更）。
+  読み取り専用 RPC は audit_log_write 対象外（CLAUDE.md 原則6は書込 RPC）・センシティブ閲覧（mynumber）は別枠でアクセスログ必須。
 
 ### 3.3 二段構えのまとめ
 ```

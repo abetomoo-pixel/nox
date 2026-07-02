@@ -97,7 +97,8 @@ $$;
 | 21 | daily.sales（cast 日次売上）の定義 | F1d plan §5 | payOf の日次売上按分の集計元（checks×check_nominations からの規則）を F2 冒頭で確定 |
 | 22 | fix_requests（打刻修正の申請→承認） | BANZEN 0005 | F1d は manager 代理打刻＋note で運用。申請承認フローは F3 の承認系と合わせて検討 |
 | 23 | ジオフェンス設定・打刻ハードモード | BANZEN 0028 | within_geofence は器のみ（常に null）。enforce/店座標/WiFi 台帳は要件顕在化時に 0028 を翻訳 |
-| 24 | staff（黒服）への勤怠書込開放 | F1d 決定（§2.5 追記8） | attendance_set / punch_proxy は manager 以上で開始。フロア実務の必要が確認されたら F1f で staff 追加（判定1行の変更） |
+| 24 | ~~staff（黒服）への勤怠書込開放~~ **クローズ（2026-07-02・mig0011）** | F1d 決定（§2.5 追記8） | **確定: attendance_set のみ staff に開放・punch_proxy は manager 維持**（mig0011 適用済み・verify で staffA1 の成功/拒否を実測） |
+| 28 | ドリンク申告（drink_claims）の F3 送り | F1f plan（2026-07-02） | 段階リリース計画の F1f 記載「ドリンク申告の基本」は、drink_claims テーブルが F3（mig0006 群・承認フローと不可分）のため **F3f へ移動**（cast セルフ pending 作成＋黒服承認をセットで実装） |
 | 25 | カードTAX の請求時上乗せ | F1e plan §3 | モックは日報集計のみ（請求に乗せない）。実店舗ヒアリング後に check_pay の card 上乗せへ変更するか判断 |
 | 26 | charge 行の細分類（charge_kind） | F1e mig0010 ヘッダー | 同伴料・セット・延長・指名料の金額分離集計に必要（現状 dohan_checks 件数のみ）。F1f UI か F2 日報拡張時に追加判断 |
 | 27 | reclose で実査（counted_cash）を null に戻す経路 | F1e レビュー（2026-07-02） | 現行 reclose は null=既存維持のため実査の取り消しができない。F1f の UI 設計時に再訪（記録のみ・対応不要） |
