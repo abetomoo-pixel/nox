@@ -259,6 +259,31 @@ export function productBackOf(p: Product, nom: NomType, qty: number): number {
   return (p.unit4[nom] ?? 0) * qty;
 }
 
+/**
+ * 数量の最大剰余法分配（精密仕様 §2.2.1・会計時のキャスト別バック分配の正本）。
+ * 床 = floor(qty×w_i/Σw)。残数は整数剰余 (qty×w_i) mod Σw の降順・同値は先頭（position 昇順）へ配布。
+ * 浮動小数を使わない＝DB 側（check_close）と決定的に同一結果。Σ返り値 = qty が恒等的に成立。
+ */
+export function allocateQty(qty: number, weights: number[]): number[] {
+  const n = weights.length;
+  if (n === 0) return [];
+  const sumW = weights.reduce((a, b) => a + b, 0);
+  const alloc = weights.map((w) => Math.floor((qty * w) / sumW));
+  const rem = weights.map((w) => (qty * w) % sumW);
+  let rest = qty - alloc.reduce((a, b) => a + b, 0);
+  const used = new Array<boolean>(n).fill(false);
+  while (rest > 0) {
+    let best = -1;
+    for (let i = 0; i < n; i++) {
+      if (!used[i] && (best === -1 || rem[i] > rem[best])) best = i;
+    }
+    used[best] = true;
+    alloc[best] += 1;
+    rest--;
+  }
+  return alloc;
+}
+
 /** 売上バック率（モック uS）: 降順テーブルの最初のマッチ */
 export function salesRateOf(
   sales: number,

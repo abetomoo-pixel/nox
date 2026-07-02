@@ -11,6 +11,10 @@
  * 段3（0003 適用後）: 6テーブルは anon の select 自体が permission denied（revoke all 済み）。
  * 段4（0005 適用後）: F1a の書込 RPC 3本（set_product/set_seat/product_stock_add）は anon BLOCKED 必須。
  *       新テーブル4本（products/seats/bottle_keeps/stock_logs）も anon select DENIED。
+ * 段5（0006/0007 適用後）: F1b の公開 RPC 7本（check_open/set_nominations/add_line/remove_line/
+ *       pay/close/void）は anon BLOCKED 必須。会計6テーブルも anon select DENIED。
+ *       内部3本（check_round_amount/check_group_due/check_recalc）は anon かつ authenticated の
+ *       両方で BLOCKED（pos_order_recalc 型）。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -73,10 +77,37 @@ async function main() {
     check("anon product_stock_add BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
-  // ── 段3＋段4b: 全テーブル anon select は permission denied ──
+  // ── 段5a: F1b 公開 RPC 7本 anon BLOCKED ──
+  const F1B_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["check_open", { p_seat_id: null, p_people: null, p_nom_type: null }],
+    ["check_set_nominations", { p_check_id: null, p_nom_type: null, p_nominations: null }],
+    ["check_add_line", { p_check_id: null, p_product_id: null, p_qty: null, p_kind: null, p_pay_group: null, p_name: null, p_unit_price: null }],
+    ["check_remove_line", { p_line_id: null }],
+    ["check_pay", { p_check_id: null, p_method: null, p_amount: null, p_pay_group: null, p_tendered: null, p_idem_key: null }],
+    ["check_close", { p_check_id: null, p_idem_key: null }],
+    ["check_void", { p_check_id: null, p_reason: null }],
+  ];
+  for (const [fn, args] of F1B_RPC_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
+  // ── 段5b: 内部3本は anon でも BLOCKED ──
+  const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
+    ["check_group_due", { p_check_id: null, p_pay_group: "A" }],
+    ["check_recalc", { p_check_id: null }],
+  ];
+  for (const [fn, args] of INTERNAL_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED（内部専用）`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
+  // ── 段3＋段4b＋段5c: 全テーブル anon select は permission denied ──
   for (const table of [
     "orgs", "stores", "users", "memberships", "casts", "audit_logs",
     "products", "seats", "bottle_keeps", "stock_logs",
+    "checks", "check_nominations", "check_lines", "payments", "check_cast_backs", "receivables",
   ]) {
     const { error } = await anon.from(table).select("id").limit(1);
     check(
@@ -99,6 +130,12 @@ async function main() {
   } else {
     const { error } = await authed.rpc("audit_log_write", { p_action: "probe" });
     check("authenticated audit_log_write BLOCKED（内部専用）", isFnBlocked(error), error?.message ?? "実行できてしまった");
+
+    // 段5b: 内部3本は authenticated でも BLOCKED（両ロール能動 assert）
+    for (const [fn, args] of INTERNAL_PROBES) {
+      const { error: eInt } = await authed.rpc(fn, args);
+      check(`authenticated ${fn} BLOCKED（内部専用）`, isFnBlocked(eInt), eInt?.message ?? "実行できてしまった");
+    }
 
     // 正常系対照: authenticated でヘルパーは実行可能・正しいロール
     const { data, error: eRole } = await authed.rpc("auth_role");

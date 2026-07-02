@@ -21,10 +21,12 @@
  *    部分ユニーク（1ユーザー1アクティブ）と干渉せず、F4 の複数 membership 時代でも壊れない書き方。
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import {
   ORG_A, ORG_B, STORE_A1, STORE_A2, STORE_B1, FIXTURE_USERS, loadEnvOrExit,
   type FixtureUserKey,
 } from "./fixtures-f0";
+import { allocateQty, productBackOf, type Product, type NomType } from "../lib/nox/pay";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -249,6 +251,203 @@ async function main() {
     check("F1a castA1a stock_logs = 0行（パターン2）", (slogs ?? []).length === 0, `got ${(slogs ?? []).length}`);
     const { data: bks } = await c.from("bottle_keeps").select("id");
     check("F1a castA1a bottle_keeps = 0行（パターン2）", (bks ?? []).length === 0, `got ${(bks ?? []).length}`);
+    await c.auth.signOut();
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // F1b: 会計ゴールデン（固定シナリオ）＋冪等3種＋TS/DB 一致（mig0006/0007）
+  // シナリオ: 卓 open（3名・hon）→ 指名 A:B=6:4 → 指名ドリンク(rate50%,1500)×3 ＋
+  //           シャンパン(unit4 hon7000,30000)×1（group A）＋ セット15000（group B）
+  //           → total 54400（A: 34500+3450→37900 / B: 15000+1500→16500）
+  //           → cash 20000 ＋ card 17900（A）・ar 16500（B）→ close
+  //           → backs: A={drink1500,champ7000,pt14} B={drink750,pt2}
+  // ══════════════════════════════════════════════════════════
+  let castIdA = "";
+  let castIdB = "";
+  {
+    const c = await signIn("managerA1");
+    const { data: castRows } = await c.from("casts").select("id, name");
+    castIdA = (castRows ?? []).find((r) => r.name === FIXTURE_USERS.castA1a.name)?.id as string;
+    castIdB = (castRows ?? []).find((r) => r.name === FIXTURE_USERS.castA1b.name)?.id as string;
+
+    // 再実行耐性: 残置 open 伝票を void
+    const { data: leftovers } = await c.from("checks").select("id").eq("seat_id", seatId).eq("status", "open");
+    for (const lo of leftovers ?? []) {
+      await c.rpc("check_void", { p_check_id: lo.id, p_reason: "verify cleanup" });
+    }
+
+    // シャンパン（unit4）商品を用意
+    const { data: stores } = await c.from("stores").select("id, name").eq("name", STORE_A1);
+    const storeA1 = stores?.[0]?.id as string;
+    const { data: champId, error: eCh } = await c.rpc("set_product", {
+      p_id: null, p_store_id: storeA1, p_type: "champ", p_category: "シャンパン",
+      p_name: "NOX-VERIFY-シャンパン", p_price: 30_000, p_cost: 9000,
+      p_back_mode: "unit4", p_back_value: null,
+      p_unit4: { hon: 7000, jonai: 6000, dohan: 6000, free: 5000 }, p_hon_pt: 10, p_is_active: true,
+    });
+    check("F1b シャンパン商品 作成", !eCh && typeof champId === "string", eCh?.message);
+
+    // open ＋ 二重 open（冪等①）
+    const { data: checkId, error: eO } = await c.rpc("check_open", { p_seat_id: seatId, p_people: 3, p_nom_type: "hon" });
+    check("F1b check_open 成功", !eO && typeof checkId === "string", eO?.message);
+    const { data: checkId2 } = await c.rpc("check_open", { p_seat_id: seatId, p_people: 3, p_nom_type: "hon" });
+    check("F1b open 二重実行＝同一 id（冪等）", checkId === checkId2, `got ${checkId2}`);
+
+    const { error: eN } = await c.rpc("check_set_nominations", {
+      p_check_id: checkId, p_nom_type: "hon",
+      p_nominations: [{ cast_id: castIdA, weight: 6 }, { cast_id: castIdB, weight: 4 }],
+    });
+    check("F1b set_nominations 成功", !eN, eN?.message);
+
+    const { error: eL1 } = await c.rpc("check_add_line", { p_check_id: checkId, p_product_id: productId, p_qty: 3, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
+    const { error: eL2 } = await c.rpc("check_add_line", { p_check_id: checkId, p_product_id: champId, p_qty: 1, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
+    const { error: eL3 } = await c.rpc("check_add_line", { p_check_id: checkId, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "B", p_name: "セット", p_unit_price: 15_000 });
+    check("F1b 明細3行 追加", !eL1 && !eL2 && !eL3, [eL1, eL2, eL3].map((e) => e?.message).join(" / "));
+
+    const { data: chk1 } = await c.from("checks").select("total, status").eq("id", checkId).single();
+    check("F1b ゴールデン total=54400（サ料10%・100円切捨・group 単位）", chk1?.total === 54_400, `got ${chk1?.total}`);
+
+    // 入金不足 close 拒否
+    const { error: eC0 } = await c.rpc("check_close", { p_check_id: checkId, p_idem_key: randomUUID() });
+    check("F1b 入金不足 close 拒否", !!eC0?.message?.includes("balance remaining"), eC0?.message ?? "通ってしまった");
+
+    // 冪等②: pay 同一キー再送
+    const k1 = randomUUID();
+    const { data: pay1 } = await c.rpc("check_pay", { p_check_id: checkId, p_method: "cash", p_amount: 20_000, p_pay_group: "A", p_tendered: 20_000, p_idem_key: k1 });
+    const { data: pay1b } = await c.rpc("check_pay", { p_check_id: checkId, p_method: "cash", p_amount: 20_000, p_pay_group: "A", p_tendered: 20_000, p_idem_key: k1 });
+    check("F1b pay 同一キー再送＝同一 id", typeof pay1 === "string" && pay1 === pay1b, `${pay1} vs ${pay1b}`);
+    const { data: pcnt } = await c.from("payments").select("id").eq("check_id", checkId);
+    check("F1b 再送で payments が増えない（1行）", (pcnt ?? []).length === 1, `got ${(pcnt ?? []).length}`);
+
+    // tendered 検証・残額超過
+    const { error: eT } = await c.rpc("check_pay", { p_check_id: checkId, p_method: "cash", p_amount: 1000, p_pay_group: "A", p_tendered: 500, p_idem_key: null });
+    check("F1b tendered < amount 拒否", !!eT?.message?.includes("bad tendered"), eT?.message ?? "通ってしまった");
+    const { error: eEx } = await c.rpc("check_pay", { p_check_id: checkId, p_method: "card", p_amount: 18_000, p_pay_group: "A", p_tendered: null, p_idem_key: null });
+    check("F1b group 残額超過 拒否", !!eEx?.message?.includes("exceeds balance"), eEx?.message ?? "通ってしまった");
+
+    const { error: eP2 } = await c.rpc("check_pay", { p_check_id: checkId, p_method: "card", p_amount: 17_900, p_pay_group: "A", p_tendered: null, p_idem_key: randomUUID() });
+    const { error: eP3 } = await c.rpc("check_pay", { p_check_id: checkId, p_method: "ar", p_amount: 16_500, p_pay_group: "B", p_tendered: null, p_idem_key: randomUUID() });
+    check("F1b card/ar 入金 成功", !eP2 && !eP3, [eP2, eP3].map((e) => e?.message).join(" / "));
+    const { data: recv1 } = await c.from("receivables").select("status, cast_id, amount").eq("check_id", checkId);
+    check(
+      "F1b 売掛 receivable 生成（open・先頭指名・16500）",
+      (recv1 ?? []).length === 1 && recv1?.[0]?.status === "open" && recv1?.[0]?.cast_id === castIdA && recv1?.[0]?.amount === 16_500,
+      JSON.stringify(recv1),
+    );
+
+    // close ＋ 冪等③（同一キー再送=成功・別キー=not open）
+    const kc = randomUUID();
+    const { data: cl1, error: eC1 } = await c.rpc("check_close", { p_check_id: checkId, p_idem_key: kc });
+    check("F1b close 成功", !eC1 && cl1 === checkId, eC1?.message);
+    const { data: cl2, error: eC2 } = await c.rpc("check_close", { p_check_id: checkId, p_idem_key: kc });
+    check("F1b close 同一キー再送＝成功", !eC2 && cl2 === checkId, eC2?.message);
+    const { error: eC3 } = await c.rpc("check_close", { p_check_id: checkId, p_idem_key: randomUUID() });
+    check("F1b close 別キー＝not open", !!eC3?.message?.includes("not open"), eC3?.message ?? "通ってしまった");
+
+    // ゴールデン: Σpayments・cast 別バック
+    const { data: pays } = await c.from("payments").select("amount").eq("check_id", checkId);
+    check("F1b Σpayments=54400", (pays ?? []).reduce((a, p) => a + p.amount, 0) === 54_400);
+    const { data: backs } = await c.from("check_cast_backs").select("cast_id, drink_back, champ_back, bottle_back, hon_pt_alloc").eq("check_id", checkId);
+    const bA = (backs ?? []).find((b) => b.cast_id === castIdA);
+    const bB = (backs ?? []).find((b) => b.cast_id === castIdB);
+    check("F1b ゴールデン backs A={1500,7000,0,pt14}",
+      bA?.drink_back === 1500 && bA?.champ_back === 7000 && bA?.bottle_back === 0 && bA?.hon_pt_alloc === 14,
+      JSON.stringify(bA));
+    check("F1b ゴールデン backs B={750,0,0,pt2}",
+      bB?.drink_back === 750 && bB?.champ_back === 0 && bB?.bottle_back === 0 && bB?.hon_pt_alloc === 2,
+      JSON.stringify(bB));
+
+    // TS/DB 一致: allocateQty＋productBackOf で同一入力から再計算し DB と照合（F1c 同値保証）
+    {
+      const { data: lines } = await c.from("check_lines").select("kind, qty, unit_price_snapshot, back_snapshot").eq("check_id", checkId);
+      const weights = [6, 4];
+      const castIds = [castIdA, castIdB];
+      const nomType: NomType = "hon";
+      const expected: Record<string, { drink: number; champ: number; bottle: number; pt: number }> = {
+        [castIdA]: { drink: 0, champ: 0, bottle: 0, pt: 0 },
+        [castIdB]: { drink: 0, champ: 0, bottle: 0, pt: 0 },
+      };
+      let sumOk = true;
+      for (const line of lines ?? []) {
+        const bs = line.back_snapshot as { back_mode: "rate" | "unit4"; back_value: number | null; unit4: Record<NomType, number> | null; hon_pt: number } | null;
+        if (!bs || !["drink", "champ", "bottle"].includes(line.kind)) continue;
+        const prod = {
+          id: "x", name: "x", price: line.unit_price_snapshot, rate: bs.back_value ?? 0,
+          backMode: bs.back_mode, unit4: bs.unit4 ?? { hon: 0, jonai: 0, dohan: 0, free: 0 }, type: line.kind,
+        } as Product;
+        const unit = productBackOf(prod, nomType, 1);
+        const alloc = allocateQty(line.qty, weights);
+        // Σ整合（条件2）: Σ分配額 = 単価×qty
+        if (alloc.reduce((a, k) => a + unit * k, 0) !== unit * line.qty) sumOk = false;
+        alloc.forEach((k, i) => {
+          const e = expected[castIds[i]];
+          e[line.kind as "drink" | "champ" | "bottle"] += unit * k;
+          e.pt += bs.hon_pt * k; // nomType='hon' のシナリオ
+        });
+      }
+      check("F1b Σ分配額=単価×qty（恒等・全行）", sumOk, "line 単位の分配合計が総額と不一致");
+      check("F1b TS/DB 一致（castA1a）",
+        expected[castIdA].drink === bA?.drink_back && expected[castIdA].champ === bA?.champ_back && expected[castIdA].pt === bA?.hon_pt_alloc,
+        JSON.stringify(expected[castIdA]));
+      check("F1b TS/DB 一致（castA1b）",
+        expected[castIdB].drink === bB?.drink_back && expected[castIdB].champ === bB?.champ_back && expected[castIdB].pt === bB?.hon_pt_alloc,
+        JSON.stringify(expected[castIdB]));
+    }
+    await c.auth.signOut();
+  }
+
+  // F1b: cast プライバシー（パターン2=0行・パターン1=自分の行のみ）
+  {
+    const c = await signIn("castA1a");
+    for (const table of ["checks", "check_lines", "payments", "check_nominations", "receivables"]) {
+      const { data, error } = await c.from(table).select("id");
+      check(`F1b castA1a ${table} = 0行（パターン2）`, !error && (data ?? []).length === 0, error?.message ?? `got ${(data ?? []).length}`);
+    }
+    const { data: myBacks } = await c.from("check_cast_backs").select("cast_id, drink_back, champ_back, hon_pt_alloc");
+    check("F1b castA1a check_cast_backs = 自分の行のみ（パターン1）",
+      (myBacks ?? []).length >= 1 && (myBacks ?? []).every((b) => b.cast_id === castIdA),
+      JSON.stringify(myBacks));
+    await c.auth.signOut();
+  }
+
+  // F1b: void 連動（open 売掛→voided・幻影バック消滅・settled 拒否・open→void）
+  {
+    const c = await signIn("managerA1");
+    // check2: ar 込みで close → void → 連動確認
+    const { data: check2 } = await c.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "jonai" });
+    await c.rpc("check_set_nominations", { p_check_id: check2, p_nom_type: "jonai", p_nominations: [{ cast_id: castIdA, weight: 1 }] });
+    await c.rpc("check_add_line", { p_check_id: check2, p_product_id: productId, p_qty: 2, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
+    await c.rpc("check_pay", { p_check_id: check2, p_method: "ar", p_amount: 3300, p_pay_group: "A", p_tendered: null, p_idem_key: randomUUID() });
+    await c.rpc("check_close", { p_check_id: check2, p_idem_key: randomUUID() });
+    const { data: b2 } = await c.from("check_cast_backs").select("id").eq("check_id", check2);
+    check("F1b check2 close で backs 生成", (b2 ?? []).length === 1, `got ${(b2 ?? []).length}`);
+    const { error: eV2 } = await c.rpc("check_void", { p_check_id: check2, p_reason: "検証取消" });
+    check("F1b closed→void 成功", !eV2, eV2?.message);
+    const { data: chk2 } = await c.from("checks").select("status").eq("id", check2).single();
+    const { data: recv2 } = await c.from("receivables").select("status").eq("check_id", check2);
+    const { data: b2after } = await c.from("check_cast_backs").select("id").eq("check_id", check2);
+    check("F1b void で status=void", chk2?.status === "void");
+    check("F1b void 連動: 売掛 open→voided", (recv2 ?? []).length === 1 && recv2?.[0]?.status === "voided", JSON.stringify(recv2));
+    check("F1b void で幻影バック消滅（0行）", (b2after ?? []).length === 0, `got ${(b2after ?? []).length}`);
+
+    // check3: 回収済み売掛は void 拒否
+    const { data: check3 } = await c.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+    await c.rpc("check_add_line", { p_check_id: check3, p_product_id: productId, p_qty: 1, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
+    await c.rpc("check_pay", { p_check_id: check3, p_method: "ar", p_amount: 1600, p_pay_group: "A", p_tendered: null, p_idem_key: randomUUID() });
+    await c.rpc("check_close", { p_check_id: check3, p_idem_key: randomUUID() });
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error: eCol } = await admin.from("receivables").update({ status: "collected" }).eq("check_id", check3);
+    check("F1b（準備）売掛を collected に", !eCol, eCol?.message);
+    const { error: eV3 } = await c.rpc("check_void", { p_check_id: check3, p_reason: "検証" });
+    check("F1b 回収済み売掛あり＝void 拒否", !!eV3?.message?.includes("receivable settled"), eV3?.message ?? "通ってしまった");
+
+    // check4: 空 open → void（誤開卓の解放）
+    const { data: check4 } = await c.rpc("check_open", { p_seat_id: seatId, p_people: null, p_nom_type: "free" });
+    const { error: eV4 } = await c.rpc("check_void", { p_check_id: check4, p_reason: "誤って開けた" });
+    const { data: chk4 } = await c.from("checks").select("status").eq("id", check4).single();
+    check("F1b 空 open→void 成功（卓解放）", !eV4 && chk4?.status === "void", eV4?.message ?? chk4?.status);
     await c.auth.signOut();
   }
 

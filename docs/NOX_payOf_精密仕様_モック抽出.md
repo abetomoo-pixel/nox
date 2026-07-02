@@ -119,6 +119,20 @@ type PayResult = {
 モックの `te` では商品バックは**事前集計済みの `G1[cast]`（`{drink,champ,bottle}`）から読む**。会計時に指名キャストへ配分され accumulate される構造（`vS` はマスタ率での理論値計算用ヘルパー）。
 → 本番：会計確定（F1b）時に check_lines の商品を指名キャストへ配分し、期間集計を給与入力に渡す。
 
+#### 2.2.1 会計時分配の端数規則（F1b 確定・2026-07-02・モック `zx` から抽出）
+
+- **金額ではなく数量を分配する**（最大剰余法）。伝票の指名 n 人（重み w_i・フリー卓は全員 1）に対し：
+  1. 床: `k_i = floor(qty × w_i / Σw)`
+  2. 残数 `qty − Σk_i` を配布。**タイブレーク（決定的規則・TS/SQL 同一実装）**：
+     整数剰余 `r_i = (qty × w_i) mod Σw` の**降順**、同値は指名 **position 昇順**。
+     ※モックは浮動小数の小数部を不安定 sort しており同値時の挙動が未定義＝本規則で決定化。
+  3. `バック額_i = バック単価 × k_i`（単価は §2.2 と同一：unit4[伝票nom_type] ／ rate は round(price×rate/100)）。
+- **Σk_i = qty が構造的に成立**するため、Σ分配額 = 単価×qty（金額側に端数が発生しない）。verify で恒等 assert。
+- **本指名商品pt（honPt×k_i）は伝票 nom_type='hon' のときのみ加算**（場内/同伴/フリー伝票では pt なし）。
+- 正本は `lib/nox/pay.ts` の純関数 `allocateQty(qty, weights): number[]`。DB（check_close 内の分配）は同一規則で実装し、
+  会計ゴールデン（verify）で TS/DB の一致を assert する。
+- 分配単価は **check_lines.back_snapshot**（add_line 時点コピー）から読む＝close 時点のマスタ変更に影響されない。
+
 ### 2.3 売上バック（率が売上帯でスライド）
 `uS(sales)`：
 ```

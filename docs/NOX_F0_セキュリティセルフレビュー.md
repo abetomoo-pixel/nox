@@ -92,6 +92,7 @@ $$;
 | 12 | シミュ係数の雇用 1.0 | pay.ts simAddedPay | 理論値で実装済み（モックは委託前提）。雇用モード導入時に確認 |
 | 13 | 玲奈ゴールデン二系統の扱い | 精密仕様 §6 追記・verify T1a/T1b | 正は T1b（pt込み5931）。T1a（5170）は設計書値の回帰として維持。F2 で本番プラン確定時に実データゴールデン追加を検討 |
 | 14 | cast_sensitive 分離 | mig0001 ヘッダー・認可設計 §2.4 | real_name/birthday/mynumber を別テーブル＋暗号化＋閲覧専用RPC＋アクセスログ（F2b） |
+| 14b | receivables の cast_id 索引 | F1b レビュー（2026-07-02） | F2 の給与天引き集計（deduct_from_cast）で cast_id 検索が必要になった時点で `create index on receivables (cast_id, status)` を F2 の mig に含める |
 
 ### F4 で対応
 | # | 項目 | 出典 | 内容 |

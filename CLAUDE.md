@@ -39,6 +39,13 @@
    異なるため監査系列から欠落させない。肥大が実測で問題になったら間引きを再判断＝mig0005 で確立）。
 7. `set_*` upsert RPC の boolean 引数（p_is_active 等）は **UI から常に明示値を渡す**
    （update 経路の `coalesce(p_x, true)` は null→true リセット挙動のため。F1f UI 実装時に遵守）。
+8. **内部専用関数の null guard の流儀（org 依存の有無で判断）**：auth_* を自ら読む・行を書く内部関数
+   （audit_log_write 型）は冒頭 null guard 必須。公開 RPC から渡された id で計算するだけの内部ヘルパー
+   （check_round_amount / check_group_due / check_recalc 型）は guard 不要＝呼び出し元の公開 RPC が
+   二重防御を済ませている前提（4ロール revoke で直呼び経路も無い）。
+9. **check_close の p_idem_key は UI から必ず送る**（省略すると再送時の冪等リプレイが効かず 'not open' になる。
+   原則7の boolean 明示値と同列の UI 規約）。冪等キー照合は org/ロール照合の**後**に置く
+   （照合前だと org 外ユーザーのキー存在確認に使える＝mig0007 レビューで確立）。
 
 ### 認可・RLS
 

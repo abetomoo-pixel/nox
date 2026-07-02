@@ -26,6 +26,7 @@ import {
   slideAt,
   applyOverride,
   productBackOf,
+  allocateQty,
   salesRateOf,
   customBacks,
   withholdingOf,
@@ -284,6 +285,24 @@ eq("T10 係数 雇用（源泉なし=1.0）", simAddedPay(5170, 5, 3, "雇用"),
   const simD = payOf({ ...REINA_INPUT, sim: { days: 24, dohan: 15 } });
   eq("T10 dohan 上書きで dohanBack 連動（15×4000）", simD.dohanBack, 60_000);
   eq("T10 全ノルマ達成で normPenalty=0", simD.normPenalty, 0);
+}
+
+// ── T11 allocateQty（最大剰余法・精密仕様 §2.2.1）────────────
+eq("T11 3個を6:4（剰余8>2で先頭+1）", allocateQty(3, [6, 4]), [2, 1]);
+eq("T11 1個を1:1（同値タイは先頭）", allocateQty(1, [1, 1]), [1, 0]);
+eq("T11 7個を1:1:1（floor2×3+先頭1）", allocateQty(7, [1, 1, 1]), [3, 2, 2]);
+eq("T11 割り切れは剰余配布なし", allocateQty(10, [3, 3, 4]), [3, 3, 4]);
+eq("T11 単独指名は全量", allocateQty(5, [5]), [5]);
+eq("T11 空 weights は空配列", allocateQty(3, []), []);
+{
+  const cases: Array<[number, number[]]> = [
+    [3, [6, 4]], [1, [1, 1]], [7, [1, 1, 1]], [10, [3, 3, 4]], [11, [7, 2, 5]], [2, [9, 1]],
+  ];
+  eq(
+    "T11 Σ分配 = qty（恒等・全ケース）",
+    cases.every(([q, w]) => allocateQty(q, w).reduce((a, b) => a + b, 0) === q),
+    true,
+  );
 }
 
 // ── 結果 ──────────────────────────────────────────────────────

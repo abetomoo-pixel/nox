@@ -131,6 +131,25 @@ NOX 用に以下を最初のマイグレーションで定義：
 - `id*`, `store_id*`, `customer_id?`, `cast_id?`, `amount`, `deduct_from_cast?`, `status`
 - ⚠ **風営法 2025 改正の売掛規制**。settings で売掛可否・上限を制御（コンプラフラグ）。
 
+**【F1b 実装確定（2026-07-02・mig0006/0007）】§2.4 の実装反映と逸脱の記録**
+1. **checks.status に `void` を追加**（open/closed/void）。確定後の訂正は金額書換でなく void（BANZEN 教訓）。
+2. **check_cast_backs を新設**：close 時に確定するキャスト別バック記録（drink/champ/bottle 額＋hon_pt_alloc）。
+   F2 給与入力（productBack/pointProducts）の集計元であり、**cast が「自分のバックだけ」を見るパターン1テーブル**。
+3. **check_lines.back_snapshot（jsonb）を追加**：add_line 時点の商品バック設定（back_mode/back_value/unit4/hon_pt）を
+   コピーし、close 時の分配計算をマスタ変更から凍結（スナップショット原則の適用範囲拡大）。
+4. **kind に `charge` を追加**（set/time/charge/drink/champ/bottle/custom）。時間制（セット/延長）・指名料・
+   同伴料等の料金行はすべて明細行として計上（モック実測）。
+5. **total の定義（モック実測）**：`total = Σ_pay_group Tp(Bx_g + round(Bx_g × service_rate%))`。
+   Bx_g=group 内 Σ(unit_price_snapshot×qty)。消費税計算なし（内税表記）。Tp=round_unit×round_mode（up/down/round）の
+   端数丸め。**サ料・丸めは pay_group 単位**。カードTAX は請求に乗せず日報集計（F1e）。
+   **service_rate/round_unit/round_mode は check_open 時に stores.settings_json から checks へスナップショット**し、
+   recalc・close 判定は凍結値のみを読む（open 中の設定変更で total が動く事故の防止）。
+6. 命名・型の確定：`group`→`pay_group`（SQL 予約語回避・BANZEN 0038 踏襲）／明細は `name_snapshot`/`unit_price_snapshot`／
+   `check_nominations.ratio`→**`ratio_weight int`（整数重み・6:4 等・正規化は計算時）**＋`position`（分配タイブレーク用）。
+7. **receivables に `check_id`（来歴）と status `voided` を追加**：check_void 時、由来する open 売掛を連動 void。
+   collected/deducted 済みの売掛が存在する伝票は void 拒否（回収済み売掛の宙吊り防止）。
+8. 入金は**残額クリップ（過入金なし・モック準拠）**：amount ≤ group 残額を RPC で強制。現金の釣銭は tendered−amount。
+
 ### 2.5 勤怠・シフト（M05 相当・BANZEN シフト資産が効く）
 
 **shift_wishes**（希望シフト）
