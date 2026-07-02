@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "verify:nox-pay": "tsx scripts/verify-nox-pay.ts"
+    "seed:f0": "tsx scripts/seed-f0.ts",
+    "verify:nox-pay": "tsx scripts/verify-nox-pay.ts",
+    "verify:nox-anon-guard": "tsx scripts/verify-nox-anon-guard.ts",
+    "verify:nox-rls": "tsx scripts/verify-nox-rls.ts",
+    "verify:nox-grants": "tsx scripts/verify-nox-grants.ts",
+    "verify:f0": "npm run verify:nox-pay && npm run verify:nox-anon-guard && npm run verify:nox-rls && npm run verify:nox-grants"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",
@@ -19,10 +24,12 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.18.0",
     "eslint-config-next": "^15.3.0",
+    "pg": "^8.22.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

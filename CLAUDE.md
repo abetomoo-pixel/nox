@@ -53,9 +53,12 @@
 
 ## verify
 
-- 機能完了ごとに verify スイート緑を確認してからコミット（`npm run verify:nox-pay` 等）。
+- 機能完了ごとに verify スイート緑を確認してからコミット（`npm run verify:f0` = pay + anon-guard + rls + grants）。
 - anon BLOCKED（"permission denied for function"）・他店0行・cast 0行を能動 assert。
 - 内部専用 RPC は anon かつ authenticated の両方で BLOCKED を assert。
+- `verify:nox-grants` は Postgres 直結（SUPABASE_DB_URL）で grant/ACL/RLS 有効を introspection
+  （「public 全体で authenticated=SELECT のみ」のスキーマ全体ガード＝テーブルが増えても自動回帰）。
+- **`seed:f0` は dev 専用・本番環境では実行しない**（verify 用 org/ユーザー NOX-VERIFY-* を nox-dev に常設）。
 
 ## コミット規約
 
