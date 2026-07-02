@@ -15,6 +15,8 @@
  *       pay/close/void）は anon BLOCKED 必須。会計6テーブルも anon select DENIED。
  *       内部3本（check_round_amount/check_group_due/check_recalc）は anon かつ authenticated の
  *       両方で BLOCKED（pos_order_recalc 型）。
+ * 段6（0008/0009 適用後）: F1d の RPC 9本（cast セルフ4＋管理系5）は anon BLOCKED 必須。
+ *       勤怠5テーブルも anon select DENIED。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -92,6 +94,23 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段6a: F1d RPC 9本 anon BLOCKED ──
+  const F1D_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["shift_wish_submit", { p_date: null, p_start_hm: null, p_end_hm: null }],
+    ["shift_wish_withdraw", { p_wish_id: null }],
+    ["punch_self", { p_type: null, p_lat: null, p_lng: null }],
+    ["attendance_set_self", { p_date: null, p_status: null, p_eta: null, p_reason: null }],
+    ["shift_wish_decide", { p_wish_id: null, p_accept: null }],
+    ["shift_set", { p_id: null, p_cast_id: null, p_date: null, p_start_hm: null, p_end_hm: null, p_status: null }],
+    ["punch_proxy", { p_cast_id: null, p_type: null, p_note: null }],
+    ["attendance_set", { p_cast_id: null, p_date: null, p_status: null, p_eta: null, p_reason: null }],
+    ["set_staffing_need", { p_store_id: null, p_dow: null, p_required: null }],
+  ];
+  for (const [fn, args] of F1D_RPC_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部3本は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
@@ -108,6 +127,7 @@ async function main() {
     "orgs", "stores", "users", "memberships", "casts", "audit_logs",
     "products", "seats", "bottle_keeps", "stock_logs",
     "checks", "check_nominations", "check_lines", "payments", "check_cast_backs", "receivables",
+    "shift_wishes", "shifts", "attendance", "punches", "staffing_needs",
   ]) {
     const { error } = await anon.from(table).select("id").limit(1);
     check(

@@ -93,6 +93,11 @@ $$;
 | 13 | 玲奈ゴールデン二系統の扱い | 精密仕様 §6 追記・verify T1a/T1b | 正は T1b（pt込み5931）。T1a（5170）は設計書値の回帰として維持。F2 で本番プラン確定時に実データゴールデン追加を検討 |
 | 14 | cast_sensitive 分離 | mig0001 ヘッダー・認可設計 §2.4 | real_name/birthday/mynumber を別テーブル＋暗号化＋閲覧専用RPC＋アクセスログ（F2b） |
 | 14b | receivables の cast_id 索引 | F1b レビュー（2026-07-02） | F2 の給与天引き集計（deduct_from_cast）で cast_id 検索が必要になった時点で `create index on receivables (cast_id, status)` を F2 の mig に含める |
+| 20 | 打刻突合純関数 | F1d 決定1（2026-07-02） | モック lx/vp を lib/nox に翻訳（F2a）。**in-in・孤立 out の解決仕様はこの純関数が正本**（punches は盲目記録）。シフト×打刻×attendance から days/lateN/absentN を確定 |
+| 21 | daily.sales（cast 日次売上）の定義 | F1d plan §5 | payOf の日次売上按分の集計元（checks×check_nominations からの規則）を F2 冒頭で確定 |
+| 22 | fix_requests（打刻修正の申請→承認） | BANZEN 0005 | F1d は manager 代理打刻＋note で運用。申請承認フローは F3 の承認系と合わせて検討 |
+| 23 | ジオフェンス設定・打刻ハードモード | BANZEN 0028 | within_geofence は器のみ（常に null）。enforce/店座標/WiFi 台帳は要件顕在化時に 0028 を翻訳 |
+| 24 | staff（黒服）への勤怠書込開放 | F1d 決定（§2.5 追記8） | attendance_set / punch_proxy は manager 以上で開始。フロア実務の必要が確認されたら F1f で staff 追加（判定1行の変更） |
 
 ### F4 で対応
 | # | 項目 | 出典 | 内容 |

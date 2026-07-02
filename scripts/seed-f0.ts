@@ -83,6 +83,11 @@ async function main() {
     await del("checks", "org_id", orgIds);
     await del("stock_logs", "org_id", orgIds);
     await del("bottle_keeps", "org_id", orgIds);
+    await del("punches", "org_id", orgIds);
+    await del("attendance", "org_id", orgIds);
+    await del("shifts", "org_id", orgIds);        // shift_wishes より先（wish_id FK）
+    await del("shift_wishes", "org_id", orgIds);
+    await del("staffing_needs", "org_id", orgIds);
     await del("casts", "org_id", orgIds);
     await del("memberships", "store_id", storeIds);
     await del("users", "org_id", orgIds);

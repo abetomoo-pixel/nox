@@ -8,7 +8,9 @@
 
 - スキーマ・RPC を先に確定し、それからコード。マイグレーションは `supabase/migrations/` に連番。
 - **マイグレーションは単一トランザクション**（begin〜commit）・冒頭コメントにマイグレーション名・翻訳元・検証クエリ。
-- 適用は人間が SQL Editor に手貼り。適用後は `select prosrc from pg_proc where proname='...'` 等で検証
+- 適用は人間が SQL Editor に手貼り。**Run 前に URL の ref（プロジェクト ID）を目視確認**
+  （貼り先ミス防止・2026-07-02 に発生・単一トランザクションでロールバックされ無傷だった実績も
+  「単一トランザクション必須」の根拠）。適用後は `select prosrc from pg_proc where proname='...'` 等で検証
   （"Success" 表示だけを信用しない）。
 - UUID は `gen_random_uuid()`（core）。pgcrypto が必要な関数のみ `set search_path = public, extensions`。
 

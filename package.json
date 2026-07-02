@@ -10,10 +10,11 @@
     "typecheck": "tsc --noEmit",
     "seed:f0": "tsx scripts/seed-f0.ts",
     "verify:nox-pay": "tsx scripts/verify-nox-pay.ts",
+    "verify:nox-shift-time": "tsx scripts/verify-nox-shift-time.ts",
     "verify:nox-anon-guard": "tsx scripts/verify-nox-anon-guard.ts",
     "verify:nox-rls": "tsx scripts/verify-nox-rls.ts",
     "verify:nox-grants": "tsx scripts/verify-nox-grants.ts",
-    "verify:f0": "npm run verify:nox-pay && npm run verify:nox-anon-guard && npm run verify:nox-rls && npm run verify:nox-grants"
+    "verify:f0": "npm run verify:nox-pay && npm run verify:nox-shift-time && npm run verify:nox-anon-guard && npm run verify:nox-rls && npm run verify:nox-grants"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",

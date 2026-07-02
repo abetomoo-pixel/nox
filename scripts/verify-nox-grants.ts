@@ -29,6 +29,7 @@ const TABLES = [
   "orgs", "stores", "users", "memberships", "casts", "audit_logs",
   "products", "seats", "bottle_keeps", "stock_logs", // F1a（mig0005）
   "checks", "check_nominations", "check_lines", "payments", "check_cast_backs", "receivables", // F1b（mig0006）
+  "shift_wishes", "shifts", "attendance", "punches", "staffing_needs", // F1d（mig0008）
 ];
 const HELPERS = ["auth_org_id", "auth_role", "auth_store_id", "auth_cast_id"];
 

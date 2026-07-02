@@ -170,6 +170,24 @@ NOX 用に以下を最初のマイグレーションで定義：
 - `store_id*`, `weekday`, `required`
 - ⚠ BANZEN の T1.5（必要人数の曜日7値化）がそのまま参考になる。
 
+**【F1d 実装確定（2026-07-02・mig0008/0009）】§2.5 の実装反映と逸脱の記録**
+1. **punches はイベント型**（`punched_at`（サーバ now()）＋`type ('in','out')`）。本書の clock_in/clock_out ペア行は
+   UPDATE が必須になり「0028-0029 踏襲・append-only」の指示と自己矛盾するため BANZEN イベント型を採用。
+2. **punch_self は盲目記録**（シーケンス検証なし）。3層モデル＝punches は事実／attendance は判断／給与入力は突合。
+   **in-in・孤立 out 等の異常系の解決は F2 突合純関数（モック lx/vp 翻訳）の仕様**とし、打刻時にはブロックしない。
+3. **attendance.status は ASCII キー**: shukkin=出勤 / dohan=同伴 / late=遅刻 / off=休み / absent=当欠。
+   `unique(cast_id, date)`（1日1状態・upsert）。cast セルフは late/absent（＋eta/reason）のみ。
+4. **shift_wish_decide(accept) は shifts 行を自動生成（status='planned'）**。二重入力の排除と wish→shift 来歴
+   （shifts.wish_id・部分ユニークで二重生成防止）のため。confirmed への昇格は別の意思決定（shift_set）。
+5. **時刻規約**: start_hm は 00:00〜23:59・end_hm は 00:00〜47:59（24h 超表記・営業日 D の 26:00=D+1 02:00）。
+   **意味論の正本は lib/nox/shift-time.ts**（end<=start は+24h＝crossesMidnight）。DB は正規表現の形式 CHECK のみで
+   時刻計算をしない。上限 47:59 の根拠: アフター・閉店後清算を含めても勤務終端は翌日中（48h 以上は別シフト）。
+6. staffing_needs は `weekday`→`dow smallint（0=日..6=土）`（T1.5 踏襲）・`required >= 0` CHECK。
+7. ソフト判定: lat/lng（端末申告）・ip（サーバ導出）・within_geofence（F1d は常に null）を記録のみ。
+   ジオフェンス設定（BANZEN 0028 の enforce/座標/WiFi）は要件顕在化時に翻訳（台帳）。
+8. 勤怠系書込 RPC は manager 以上（capability §1.2 の castMng 準拠・安全側）。staff（黒服）への開放は
+   フロア実務の必要が確認された時点で F1f にて判断。
+
 ### 2.6 申告・承認・通知・採用（M06 相当）
 
 **drink_claims**（ドリンク自己申告）

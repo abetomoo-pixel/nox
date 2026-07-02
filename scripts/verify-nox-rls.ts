@@ -451,6 +451,91 @@ async function main() {
     await c.auth.signOut();
   }
 
+  // ══════════════════════════════════════════════════════════
+  // F1d: 勤怠・シフト（cast セルフ／盲目記録／decide 自動生成／パターン1・2）（mig0008/0009）
+  // ══════════════════════════════════════════════════════════
+  let wishId = "";
+  {
+    // ── castA1a: セルフ経路 ──
+    const c = await signIn("castA1a");
+    // 希望提出（自分のみ・26:00 の 24h 超表記）
+    const { data: w1, error: eW } = await c.rpc("shift_wish_submit", { p_date: "2026-07-15", p_start_hm: "20:00", p_end_hm: "26:00" });
+    check("F1d wish_submit 成功", !eW && typeof w1 === "string", eW?.message);
+    wishId = w1 as string;
+    // 管理系 RPC は cast から forbidden（punch_proxy / attendance_set / shift_set / wish_decide）
+    const { error: eD } = await c.rpc("shift_wish_decide", { p_wish_id: wishId, p_accept: true });
+    check("F1d cast から wish_decide 拒否", !!eD?.message?.includes("forbidden"), eD?.message ?? "通ってしまった");
+    const { error: ePr } = await c.rpc("punch_proxy", { p_cast_id: castIdB, p_type: "in", p_note: null });
+    check("F1d cast から punch_proxy 拒否", !!ePr?.message?.includes("forbidden"), ePr?.message ?? "通ってしまった");
+    const { error: eAs } = await c.rpc("attendance_set", { p_cast_id: castIdB, p_date: "2026-07-15", p_status: "shukkin", p_eta: null, p_reason: null });
+    check("F1d cast から attendance_set 拒否", !!eAs?.message?.includes("forbidden"), eAs?.message ?? "通ってしまった");
+    const { error: eSs } = await c.rpc("shift_set", { p_id: null, p_cast_id: castIdA, p_date: "2026-07-15", p_start_hm: "20:00", p_end_hm: "26:00", p_status: "planned" });
+    check("F1d cast から shift_set 拒否", !!eSs?.message?.includes("forbidden"), eSs?.message ?? "通ってしまった");
+
+    // 盲目記録: in-in が両方記録される（決定1）
+    const { data: p1 } = await c.rpc("punch_self", { p_type: "in", p_lat: null, p_lng: null });
+    const { data: p2 } = await c.rpc("punch_self", { p_type: "in", p_lat: 35.66, p_lng: 139.7 });
+    check("F1d punch_self in-in 両方成功（盲目記録）", typeof p1 === "string" && typeof p2 === "string" && p1 !== p2);
+    const { data: myPunches } = await c.from("punches").select("id, type, cast_id").in("id", [p1, p2]);
+    check("F1d in-in が2行とも記録", (myPunches ?? []).length === 2 && (myPunches ?? []).every((r) => r.type === "in"));
+
+    // attendance_set_self: late+eta OK・shukkin は拒否（連絡は late/absent のみ）
+    const { error: eL } = await c.rpc("attendance_set_self", { p_date: "2026-07-15", p_status: "late", p_eta: "25:30", p_reason: "電車遅延" });
+    check("F1d attendance_set_self late+eta 成功", !eL, eL?.message);
+    const { error: eSh } = await c.rpc("attendance_set_self", { p_date: "2026-07-15", p_status: "shukkin", p_eta: null, p_reason: null });
+    check("F1d attendance_set_self shukkin 拒否", !!eSh?.message?.includes("bad status"), eSh?.message ?? "通ってしまった");
+
+    // punches の authenticated 直 INSERT 遮断（grant 面）
+    const { error: eIns } = await c.from("punches").insert({ org_id: "00000000-0000-0000-0000-000000000000", store_id: "00000000-0000-0000-0000-000000000000", cast_id: castIdA, type: "in" });
+    check("F1d punches 直 INSERT 遮断", !!eIns?.message?.includes("permission denied"), eIns?.message ?? "実行できてしまった");
+
+    // staffing_needs は cast 0行（パターン2）
+    const { data: needs } = await c.from("staffing_needs").select("id");
+    check("F1d castA1a staffing_needs = 0行（パターン2）", (needs ?? []).length === 0, `got ${(needs ?? []).length}`);
+    await c.auth.signOut();
+  }
+  {
+    // ── castA1b: 他 cast の行は見えない・触れない ──
+    const c = await signIn("castA1b");
+    const { data: wishes } = await c.from("shift_wishes").select("id");
+    check("F1d castA1b から castA1a の wish 不可視（0行）", (wishes ?? []).every((w) => w.id !== wishId) && (wishes ?? []).length === 0, `got ${(wishes ?? []).length}`);
+    const { data: punches } = await c.from("punches").select("id");
+    check("F1d castA1b から castA1a の punches 不可視（0行）", (punches ?? []).length === 0, `got ${(punches ?? []).length}`);
+    const { error: eWd } = await c.rpc("shift_wish_withdraw", { p_wish_id: wishId });
+    check("F1d 他 cast の wish 取り下げ拒否", !!eWd?.message?.includes("forbidden"), eWd?.message ?? "通ってしまった");
+    await c.auth.signOut();
+  }
+  {
+    // ── managerA1: decide 自動生成・二重生成防止・staffing ──
+    const c = await signIn("managerA1");
+    const { data: shiftId, error: eDec } = await c.rpc("shift_wish_decide", { p_wish_id: wishId, p_accept: true });
+    check("F1d wish_decide(accept) が shifts を自動生成", !eDec && typeof shiftId === "string", eDec?.message);
+    const { data: sRow } = await c.from("shifts").select("status, wish_id, cast_id, start_hm, end_hm").eq("id", shiftId).single();
+    check("F1d 生成 shift = planned・wish_id 来歴・内容一致",
+      sRow?.status === "planned" && sRow?.wish_id === wishId && sRow?.cast_id === castIdA && sRow?.start_hm === "20:00" && sRow?.end_hm === "26:00",
+      JSON.stringify(sRow));
+    const { error: eDec2 } = await c.rpc("shift_wish_decide", { p_wish_id: wishId, p_accept: true });
+    check("F1d 二重 decide = already decided", !!eDec2?.message?.includes("already decided"), eDec2?.message ?? "通ってしまった");
+    // 部分ユニークの物理防止（service キーで直 INSERT を試みても弾かれる）
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: sFull } = await admin.from("shifts").select("org_id, store_id").eq("id", shiftId).single();
+    const { error: eDup } = await admin.from("shifts").insert({
+      org_id: sFull!.org_id, store_id: sFull!.store_id, cast_id: castIdA,
+      date: "2026-07-15", start_hm: "20:00", end_hm: "26:00", status: "planned",
+      wish_id: wishId, created_by: (await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single()).data!.id,
+    });
+    check("F1d wish_id 部分ユニークで二重生成を物理防止", !!eDup?.message?.includes("duplicate") || !!eDup?.message?.includes("unique"), eDup?.message ?? "重複が通ってしまった");
+
+    // staffing_needs upsert・manager 可視
+    const { error: eN } = await c.rpc("set_staffing_need", { p_store_id: (await c.from("stores").select("id").eq("name", STORE_A1).single()).data!.id, p_dow: 5, p_required: 4 });
+    check("F1d set_staffing_need 成功", !eN, eN?.message);
+    const { data: needs } = await c.from("staffing_needs").select("dow, required");
+    check("F1d manager が staffing_needs 可視", (needs ?? []).some((n) => n.dow === 5 && n.required === 4), JSON.stringify(needs));
+    await c.auth.signOut();
+  }
+
   // ── managerB1: org B のみ・org A データ 0行 ──
   {
     const c = await signIn("managerB1");
