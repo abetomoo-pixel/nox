@@ -28,7 +28,9 @@
 
 1. 冒頭で `if auth_org_id() is null then raise exception 'forbidden'`（NULL 比較の素通り防止）。
 2. `revoke execute ... from public, anon`（public だけでは無効・anon に直 grant されるため必ず両方）
-   ＋ `grant execute ... to authenticated`。内部専用（audit_log_write 等）は authenticated も revoke・grant なし。
+   ＋ `grant execute ... to authenticated`。
+   **内部専用**（audit_log_write 等）は `public, anon, authenticated, service_role` の**4ロール明示 revoke**・grant なし
+   （Supabase 既定 grant は関数にも service_role を付ける＝0002 検証(3)で発覚・mig0004 で修正）。
 3. ロール判定は `auth_role()` のハードコード（capability テーブルは作らない＝認可設計 §1.2 案A）。
 4. お金が動く操作はサーバ再計算＋冪等キー＋トランザクション。
 5. cast セルフ RPC のみ `auth_cast_id()` 本人チェック（manager 代理操作には入れない）。
