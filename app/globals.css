@@ -1,0 +1,20 @@
+/* NOX 最小グローバルスタイル（F0 土台）。
+   デザインシステムは UI 実装フェーズで導入する。 */
+:root {
+  --ink: #171717;
+  --bg: #fafafa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  color: var(--ink);
+  background: var(--bg);
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", sans-serif;
+}
