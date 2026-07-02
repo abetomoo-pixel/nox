@@ -17,6 +17,8 @@
  *       両方で BLOCKED（pos_order_recalc 型）。
  * 段6（0008/0009 適用後）: F1d の RPC 9本（cast セルフ4＋管理系5）は anon BLOCKED 必須。
  *       勤怠5テーブルも anon select DENIED。
+ * 段7（0010 適用後）: F1e の daily_report_close/reclose は anon BLOCKED 必須。
+ *       daily_reports も anon select DENIED。内部 daily_report_aggregate は両ロール BLOCKED。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -111,11 +113,22 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段7a: F1e 日報 RPC 2本 anon BLOCKED ──
+  const F1E_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["daily_report_close", { p_store_id: null, p_biz_date: null, p_expense: null, p_cash_payout: null, p_cash_float: null, p_counted_cash: null, p_note: null, p_force: null, p_idem_key: null }],
+    ["daily_report_reclose", { p_report_id: null, p_expense: null, p_cash_payout: null, p_cash_float: null, p_counted_cash: null, p_note: null, p_force: null }],
+  ];
+  for (const [fn, args] of F1E_RPC_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部3本は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
     ["check_group_due", { p_check_id: null, p_pay_group: "A" }],
     ["check_recalc", { p_check_id: null }],
+    ["daily_report_aggregate", { p_store_id: null, p_biz_date: null, p_cutoff_hm: null, p_tax_rate: null }],
   ];
   for (const [fn, args] of INTERNAL_PROBES) {
     const { error } = await anon.rpc(fn, args);
@@ -128,6 +141,7 @@ async function main() {
     "products", "seats", "bottle_keeps", "stock_logs",
     "checks", "check_nominations", "check_lines", "payments", "check_cast_backs", "receivables",
     "shift_wishes", "shifts", "attendance", "punches", "staffing_needs",
+    "daily_reports",
   ]) {
     const { error } = await anon.from(table).select("id").limit(1);
     check(

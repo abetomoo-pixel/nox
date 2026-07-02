@@ -8,10 +8,11 @@
 
 - スキーマ・RPC を先に確定し、それからコード。マイグレーションは `supabase/migrations/` に連番。
 - **マイグレーションは単一トランザクション**（begin〜commit）・冒頭コメントにマイグレーション名・翻訳元・検証クエリ。
-- 適用は人間が SQL Editor に手貼り。**Run 前に URL の ref（プロジェクト ID）を目視確認**
+- 適用は人間が SQL Editor に手貼り。**Run 前に URL の ref（プロジェクト ID）を目視確認**し、
+  **検証クエリの先頭に貼り先証明 `select 'nox-project-proof', count(*) from public.orgs;` を含める**
   （貼り先ミス防止・2026-07-02 に発生・単一トランザクションでロールバックされ無傷だった実績も
-  「単一トランザクション必須」の根拠）。適用後は `select prosrc from pg_proc where proname='...'` 等で検証
-  （"Success" 表示だけを信用しない）。
+  「単一トランザクション必須」の根拠。自己証明クエリ方式は同日改訂）。
+  適用後は `select prosrc from pg_proc where proname='...'` 等で検証（"Success" 表示だけを信用しない）。
 - UUID は `gen_random_uuid()`（core）。pgcrypto が必要な関数のみ `set search_path = public, extensions`。
 
 ### テーブル追加の標準型（0003 で確立）
@@ -45,6 +46,8 @@
    （audit_log_write 型）は冒頭 null guard 必須。公開 RPC から渡された id で計算するだけの内部ヘルパー
    （check_round_amount / check_group_due / check_recalc 型）は guard 不要＝呼び出し元の公開 RPC が
    二重防御を済ませている前提（4ロール revoke で直呼び経路も無い）。
+   **ただし再利用が予想される集計ヘルパー（daily_report_aggregate 型）は org 条件を自ら含める**
+   （防御深度・呼び出し元照合に依存しない＝mig0010 レビューで確立）。
 9. **check_close の p_idem_key は UI から必ず送る**（省略すると再送時の冪等リプレイが効かず 'not open' になる。
    原則7の boolean 明示値と同列の UI 規約）。冪等キー照合は org/ロール照合の**後**に置く
    （照合前だと org 外ユーザーのキー存在確認に使える＝mig0007 レビューで確立）。

@@ -7,7 +7,7 @@ export const STORE_A1 = "NOX-VERIFY-A1";
 export const STORE_A2 = "NOX-VERIFY-A2";
 export const STORE_B1 = "NOX-VERIFY-B1";
 
-export type FixtureUserKey = "ownerA" | "managerA1" | "castA1a" | "castA1b" | "managerB1";
+export type FixtureUserKey = "ownerA" | "managerA1" | "staffA1" | "castA1a" | "castA1b" | "managerB1";
 
 export const FIXTURE_USERS: Record<
   FixtureUserKey,
@@ -24,6 +24,13 @@ export const FIXTURE_USERS: Record<
     email: "nox-verify-manager-a1@example.com",
     name: "検証店長A1",
     role: "manager",
+    store: STORE_A1,
+    org: ORG_A,
+  },
+  staffA1: {
+    email: "nox-verify-staff-a1@example.com",
+    name: "検証黒服A1",
+    role: "staff",
     store: STORE_A1,
     org: ORG_A,
   },

@@ -18,6 +18,7 @@ import {
   nominalSegment,
   fmtBand30,
 } from "../lib/nox/shift-time";
+import { addDays, bizDateRange, bizDateOf } from "../lib/nox/biz-date";
 
 let pass = 0;
 const fails: string[] = [];
@@ -105,6 +106,19 @@ eq(
 eq("band30 同日はそのまま", fmtBand30("20:00", "23:00"), "20:00–23:00");
 eq("band30 跨ぎ表記は+24h 描画", fmtBand30("23:00", "02:00"), "23:00–26:00");
 eq("band30 24h超表記はそのまま", fmtBand30("23:00", "26:00"), "23:00–26:00");
+
+// ── biz-date（営業日境界・F1e・DB 側 daily_report_aggregate と同一規則）──
+eq("addDays 月末", addDays("2026-06-30", 1), "2026-07-01");
+eq("addDays 年末", addDays("2026-12-31", 1), "2027-01-01");
+eq(
+  "bizDateRange 2026-07-02/06:00",
+  bizDateRange("2026-07-02", "06:00"),
+  { startIso: "2026-07-02T06:00:00+09:00", endIso: "2026-07-03T06:00:00+09:00" },
+);
+eq("bizDateOf 境界内（D+1 05:59 → D）", bizDateOf("2026-07-03T05:59:00+09:00", "06:00"), "2026-07-02");
+eq("bizDateOf 境界（D+1 06:00 → D+1）", bizDateOf("2026-07-03T06:00:00+09:00", "06:00"), "2026-07-03");
+eq("bizDateOf UTC 入力の等価性（20:59Z=翌05:59JST）", bizDateOf("2026-07-02T20:59:00Z", "06:00"), "2026-07-02");
+eq("bizDateOf cutoff 00:00 は暦日", bizDateOf("2026-07-03T00:00:00+09:00", "00:00"), "2026-07-03");
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);

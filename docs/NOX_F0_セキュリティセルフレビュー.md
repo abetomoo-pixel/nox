@@ -98,6 +98,9 @@ $$;
 | 22 | fix_requests（打刻修正の申請→承認） | BANZEN 0005 | F1d は manager 代理打刻＋note で運用。申請承認フローは F3 の承認系と合わせて検討 |
 | 23 | ジオフェンス設定・打刻ハードモード | BANZEN 0028 | within_geofence は器のみ（常に null）。enforce/店座標/WiFi 台帳は要件顕在化時に 0028 を翻訳 |
 | 24 | staff（黒服）への勤怠書込開放 | F1d 決定（§2.5 追記8） | attendance_set / punch_proxy は manager 以上で開始。フロア実務の必要が確認されたら F1f で staff 追加（判定1行の変更） |
+| 25 | カードTAX の請求時上乗せ | F1e plan §3 | モックは日報集計のみ（請求に乗せない）。実店舗ヒアリング後に check_pay の card 上乗せへ変更するか判断 |
+| 26 | charge 行の細分類（charge_kind） | F1e mig0010 ヘッダー | 同伴料・セット・延長・指名料の金額分離集計に必要（現状 dohan_checks 件数のみ）。F1f UI か F2 日報拡張時に追加判断 |
+| 27 | reclose で実査（counted_cash）を null に戻す経路 | F1e レビュー（2026-07-02） | 現行 reclose は null=既存維持のため実査の取り消しができない。F1f の UI 設計時に再訪（記録のみ・対応不要） |
 
 ### F4 で対応
 | # | 項目 | 出典 | 内容 |

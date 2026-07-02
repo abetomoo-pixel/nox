@@ -150,6 +150,19 @@ NOX 用に以下を最初のマイグレーションで定義：
    collected/deducted 済みの売掛が存在する伝票は void 拒否（回収済み売掛の宙吊り防止）。
 8. 入金は**残額クリップ（過入金なし・モック準拠）**：amount ≤ group 残額を RPC で強制。現金の釣銭は tendered−amount。
 
+### 2.4b 日報（F1e 確定・2026-07-02・mig0010。本書初版に無い新設テーブル）
+
+**daily_reports**（日次サマリーのスナップショット・行の存在＝締め済み）
+- 集計列（close 時にサーバ再集計して凍結）: `cash`, `card_gross`, `card_tax`（=round(card_gross×rate%)・**請求には乗せない＝モック忠実**・請求時上乗せは台帳 #25）, `uri`（売掛）, `other`, `drink_sales`（kind drink+champ）, `dohan_checks`（同伴伝票数・金額分離は charge_kind 待ち＝台帳 #26）, `slips`（closed 伝票数）, `guests`, `open_checks_count`（p_force 強行時の残 open 数）
+- 入力列: `expense`（諸経費）, `cash_payout`（現金支払＝送り・日払い等＝モック Mm）, `cash_float`（釣銭準備金）, `counted_cash`（実査）, `diff`（**サーバ計算 = counted − (float + cash − expense − payout)**＝モック H=Oi−q と同一）, `note`
+- スナップショット: `biz_cutoff_hm`・`card_tax_rate`（締め時点の店設定を凍結）
+- **営業日境界**: biz_date D = [D cutoff JST, D+1 cutoff JST) に **started_at** が入る closed 伝票。cutoff 既定 06:00。
+  意味論の正本は `lib/nox/biz-date.ts`（DB 側 daily_report_aggregate と TS/DB 同値保証＝verify 対象）。
+- **確定**: `daily_report_close`（owner/manager・冪等キー・open 残置は既定拒否＋p_force）。
+  **void への追随**は `daily_report_reclose`（凍結 cutoff/rate で再集計・before→after audit・reclosed_count++）＝黙って動く数字を作らない。
+- 閲覧はパターン2（cast 0行）。**staff は閲覧可**（capability §1.2 report ✓）・確定は manager 以上（report=閲覧 capability と解釈）。
+- 店合計のみ（cast 別数字は載せない＝check_cast_backs パターン1と capability 矩形を保つ）。
+
 ### 2.5 勤怠・シフト（M05 相当・BANZEN シフト資産が効く）
 
 **shift_wishes**（希望シフト）

@@ -27,6 +27,7 @@ import {
   type FixtureUserKey,
 } from "./fixtures-f0";
 import { allocateQty, productBackOf, type Product, type NomType } from "../lib/nox/pay";
+import { addDays, bizDateOf } from "../lib/nox/biz-date";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -78,7 +79,7 @@ async function main() {
     check("ownerA orgs = A のみ", sameSet(await names(c, "orgs"), [ORG_A]));
     check("ownerA stores = A1+A2（B1 不可視）", sameSet(await names(c, "stores"), [STORE_A1, STORE_A2]));
     const { data: mems } = await c.from("memberships").select("id");
-    check("ownerA memberships = org A の4行", (mems ?? []).length === 4, `got ${(mems ?? []).length}`);
+    check("ownerA memberships = org A の5行", (mems ?? []).length === 5, `got ${(mems ?? []).length}`);
     const { data: audits } = await c.from("audit_logs").select("id, action");
     check("ownerA audit_logs ≥1行（seed_marker）", (audits ?? []).some((a) => a.action === "seed_marker"), `got ${(audits ?? []).length}行`);
     const { data: role } = await c.rpc("auth_role");
@@ -96,16 +97,17 @@ async function main() {
       sameSet(await names(c, "casts"), [FIXTURE_USERS.castA1a.name, FIXTURE_USERS.castA1b.name]),
     );
     check(
-      "managerA1 users = A1 membership 保持者4人（managerB1 不可視）",
+      "managerA1 users = A1 membership 保持者5人（managerB1 不可視）",
       sameSet(await names(c, "users", "email"), [
         FIXTURE_USERS.ownerA.email,
         FIXTURE_USERS.managerA1.email,
+        FIXTURE_USERS.staffA1.email,
         FIXTURE_USERS.castA1a.email,
         FIXTURE_USERS.castA1b.email,
       ]),
     );
     const { data: mems } = await c.from("memberships").select("id");
-    check("managerA1 memberships = 自店4行", (mems ?? []).length === 4, `got ${(mems ?? []).length}`);
+    check("managerA1 memberships = 自店5行", (mems ?? []).length === 5, `got ${(mems ?? []).length}`);
     const { data: audits } = await c.from("audit_logs").select("id");
     check("managerA1 audit_logs = 0行（§1.2 owner 限定）", (audits ?? []).length === 0, `got ${(audits ?? []).length}`);
     const { data: castId } = await c.rpc("auth_cast_id");
@@ -264,6 +266,11 @@ async function main() {
   // ══════════════════════════════════════════════════════════
   let castIdA = "";
   let castIdB = "";
+  let goldenCheckId = "";
+  let check2Id = "";
+  let check3Id = "";
+  let check4Id = "";
+  let storeA1Id = "";
   {
     const c = await signIn("managerA1");
     const { data: castRows } = await c.from("casts").select("id, name");
@@ -279,6 +286,7 @@ async function main() {
     // シャンパン（unit4）商品を用意
     const { data: stores } = await c.from("stores").select("id, name").eq("name", STORE_A1);
     const storeA1 = stores?.[0]?.id as string;
+    storeA1Id = storeA1;
     const { data: champId, error: eCh } = await c.rpc("set_product", {
       p_id: null, p_store_id: storeA1, p_type: "champ", p_category: "シャンパン",
       p_name: "NOX-VERIFY-シャンパン", p_price: 30_000, p_cost: 9000,
@@ -290,6 +298,7 @@ async function main() {
     // open ＋ 二重 open（冪等①）
     const { data: checkId, error: eO } = await c.rpc("check_open", { p_seat_id: seatId, p_people: 3, p_nom_type: "hon" });
     check("F1b check_open 成功", !eO && typeof checkId === "string", eO?.message);
+    goldenCheckId = checkId as string;
     const { data: checkId2 } = await c.rpc("check_open", { p_seat_id: seatId, p_people: 3, p_nom_type: "hon" });
     check("F1b open 二重実行＝同一 id（冪等）", checkId === checkId2, `got ${checkId2}`);
 
@@ -415,6 +424,7 @@ async function main() {
     const c = await signIn("managerA1");
     // check2: ar 込みで close → void → 連動確認
     const { data: check2 } = await c.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "jonai" });
+    check2Id = check2 as string;
     await c.rpc("check_set_nominations", { p_check_id: check2, p_nom_type: "jonai", p_nominations: [{ cast_id: castIdA, weight: 1 }] });
     await c.rpc("check_add_line", { p_check_id: check2, p_product_id: productId, p_qty: 2, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
     await c.rpc("check_pay", { p_check_id: check2, p_method: "ar", p_amount: 3300, p_pay_group: "A", p_tendered: null, p_idem_key: randomUUID() });
@@ -432,6 +442,7 @@ async function main() {
 
     // check3: 回収済み売掛は void 拒否
     const { data: check3 } = await c.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+    check3Id = check3 as string;
     await c.rpc("check_add_line", { p_check_id: check3, p_product_id: productId, p_qty: 1, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
     await c.rpc("check_pay", { p_check_id: check3, p_method: "ar", p_amount: 1600, p_pay_group: "A", p_tendered: null, p_idem_key: randomUUID() });
     await c.rpc("check_close", { p_check_id: check3, p_idem_key: randomUUID() });
@@ -445,6 +456,7 @@ async function main() {
 
     // check4: 空 open → void（誤開卓の解放）
     const { data: check4 } = await c.rpc("check_open", { p_seat_id: seatId, p_people: null, p_nom_type: "free" });
+    check4Id = check4 as string;
     const { error: eV4 } = await c.rpc("check_void", { p_check_id: check4, p_reason: "誤って開けた" });
     const { data: chk4 } = await c.from("checks").select("status").eq("id", check4).single();
     check("F1b 空 open→void 成功（卓解放）", !eV4 && chk4?.status === "void", eV4?.message ?? chk4?.status);
@@ -534,6 +546,131 @@ async function main() {
     const { data: needs } = await c.from("staffing_needs").select("dow, required");
     check("F1d manager が staffing_needs 可視", (needs ?? []).some((n) => n.dow === 5 && n.required === 4), JSON.stringify(needs));
     await c.auth.signOut();
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // F1e: 日報（ゴールデン・境界帰属 TS/DB 一致・p_force・冪等・reclose 追随）（mig0010）
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const cutoff = "06:00";
+    const bizDate = bizDateOf(new Date().toISOString(), cutoff);
+    const nextDay = addDays(bizDate, 1);
+
+    // 決定性確保: 今回 run の伝票以外と既存日報を admin で除去（再実行耐性）
+    const keep = [goldenCheckId, check2Id, check3Id, check4Id].filter(Boolean);
+    const { data: allChecks } = await admin.from("checks").select("id").eq("store_id", storeA1Id);
+    const extras = (allChecks ?? []).map((r) => r.id as string).filter((id) => !keep.includes(id));
+    if (extras.length) {
+      for (const tbl of ["check_cast_backs", "check_nominations", "payments", "receivables", "check_lines"]) {
+        await admin.from(tbl).delete().in("check_id", extras);
+      }
+      await admin.from("checks").delete().in("id", extras);
+    }
+    await admin.from("daily_reports").delete().eq("store_id", storeA1Id);
+
+    // 境界2伝票（admin 直 INSERT で started_at を制御・空 closed 伝票）
+    const inIso = `${nextDay}T05:59:00+09:00`;   // 当営業日に帰属すべき
+    const outIso = `${nextDay}T06:00:00+09:00`;  // 翌営業日に帰属すべき
+    check("F1e TS 帰属: D+1 05:59 → D", bizDateOf(inIso, cutoff) === bizDate, bizDateOf(inIso, cutoff));
+    check("F1e TS 帰属: D+1 06:00 → D+1", bizDateOf(outIso, cutoff) === nextDay, bizDateOf(outIso, cutoff));
+    const { data: orgRow } = await admin.from("stores").select("org_id").eq("id", storeA1Id).single();
+    const { data: mgrRow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
+    for (const iso of [inIso, outIso]) {
+      const { error: eB } = await admin.from("checks").insert({
+        org_id: orgRow!.org_id, store_id: storeA1Id, seat_id: seatId, status: "closed",
+        started_at: iso, closed_at: iso, nom_type: "free",
+        service_rate: 10, round_unit: 100, round_mode: "down", created_by: mgrRow!.id,
+      });
+      check(`F1e 境界伝票 INSERT（${iso}）`, !eB, eB?.message);
+    }
+
+    const c = await signIn("managerA1");
+    // p_force: open 伝票（check5）を残すと既定拒否 → 強行で open_checks_count 記録
+    const { data: check5 } = await c.rpc("check_open", { p_seat_id: seatId, p_people: null, p_nom_type: "free" });
+    const closeArgs = {
+      p_store_id: storeA1Id, p_biz_date: bizDate,
+      p_expense: 3000, p_cash_payout: 3500, p_cash_float: 50_000,
+      p_counted_cash: 64_000, p_note: "verify 締め",
+    };
+    const kClose = randomUUID();
+    const { error: eNF } = await c.rpc("daily_report_close", { ...closeArgs, p_force: false, p_idem_key: kClose });
+    check("F1e open 残置＝既定拒否", !!eNF?.message?.includes("open checks remain"), eNF?.message ?? "通ってしまった");
+    const { data: reportId, error: eCl } = await c.rpc("daily_report_close", { ...closeArgs, p_force: true, p_idem_key: kClose });
+    check("F1e p_force 強行 close 成功", !eCl && typeof reportId === "string", eCl?.message);
+
+    // 日報ゴールデン（F1b シナリオ伝票＋境界内伝票の固定集計値）
+    const { data: rep } = await c.from("daily_reports").select("*").eq("id", reportId).single();
+    check("F1e ゴールデン slips=3（golden+check3+境界内）", rep?.slips === 3, `got ${rep?.slips}`);
+    check("F1e ゴールデン guests=4", rep?.guests === 4, `got ${rep?.guests}`);
+    check("F1e ゴールデン cash=20000", rep?.cash === 20_000, `got ${rep?.cash}`);
+    check("F1e ゴールデン card_gross=17900", rep?.card_gross === 17_900, `got ${rep?.card_gross}`);
+    check("F1e ゴールデン card_tax=895（5%凍結）", rep?.card_tax === 895 && rep?.card_tax_rate === 5, `got ${rep?.card_tax}/${rep?.card_tax_rate}`);
+    check("F1e ゴールデン uri=18100（16500+1600）", rep?.uri === 18_100, `got ${rep?.uri}`);
+    check("F1e ゴールデン drink_sales=36000", rep?.drink_sales === 36_000, `got ${rep?.drink_sales}`);
+    check("F1e ゴールデン dohan_checks=0・other=0", rep?.dohan_checks === 0 && rep?.other === 0);
+    check("F1e open_checks_count=1 記録（強行痕跡）", rep?.open_checks_count === 1, `got ${rep?.open_checks_count}`);
+    check("F1e diff=500（counted64000−(50000+20000−3000−3500)）", rep?.diff === 500, `got ${rep?.diff}`);
+    check("F1e cutoff スナップショット", rep?.biz_cutoff_hm === "06:00", rep?.biz_cutoff_hm);
+
+    // close 冪等: 同一キー→既存 id・別キー→already closed
+    const { data: replay } = await c.rpc("daily_report_close", { ...closeArgs, p_force: true, p_idem_key: kClose });
+    check("F1e close 同一キー再送＝同一 id", replay === reportId, `${replay}`);
+    const { error: eDup } = await c.rpc("daily_report_close", { ...closeArgs, p_force: true, p_idem_key: randomUUID() });
+    check("F1e close 別キー＝already closed", !!eDup?.message?.includes("already closed"), eDup?.message ?? "通ってしまった");
+
+    // DB 帰属: 境界外伝票は翌営業日の日報に入る（slips=1）
+    const { data: repNext, error: eNx } = await c.rpc("daily_report_close", {
+      p_store_id: storeA1Id, p_biz_date: nextDay, p_expense: 0, p_cash_payout: 0, p_cash_float: 0,
+      p_counted_cash: null, p_note: null, p_force: false, p_idem_key: randomUUID(),
+    });
+    check("F1e 翌営業日 close 成功", !eNx && typeof repNext === "string", eNx?.message);
+    const { data: repN } = await c.from("daily_reports").select("slips, cash").eq("id", repNext).single();
+    check("F1e DB 帰属: 境界外（06:00）は翌営業日 slips=1", repN?.slips === 1 && repN?.cash === 0, JSON.stringify(repN));
+
+    // reclose: void 追随（check5 と golden を void → 凍結 cutoff/rate で再集計）
+    await c.rpc("check_void", { p_check_id: check5, p_reason: "verify 解放" });
+    const { error: eVg } = await c.rpc("check_void", { p_check_id: goldenCheckId, p_reason: "verify 取消" });
+    check("F1e golden void 成功（open 売掛→voided 連動）", !eVg, eVg?.message);
+    const { data: reclosed, error: eRc } = await c.rpc("daily_report_reclose", { p_report_id: reportId });
+    check("F1e reclose 成功", !eRc && reclosed === reportId, eRc?.message);
+    const { data: rep2 } = await c.from("daily_reports").select("*").eq("id", reportId).single();
+    check("F1e reclose 後 slips=2・cash=0・card=0", rep2?.slips === 2 && rep2?.cash === 0 && rep2?.card_gross === 0, JSON.stringify({ s: rep2?.slips, c: rep2?.cash }));
+    check("F1e reclose 後 uri=1600・drink_sales=1500", rep2?.uri === 1600 && rep2?.drink_sales === 1500, `${rep2?.uri}/${rep2?.drink_sales}`);
+    check("F1e reclose 後 open_checks_count=0・reclosed_count=1", rep2?.open_checks_count === 0 && rep2?.reclosed_count === 1);
+    check("F1e reclose diff 再計算=20500", rep2?.diff === 20_500, `got ${rep2?.diff}`);
+    check("F1e reclose 凍結値維持（cutoff/rate 不変）", rep2?.biz_cutoff_hm === "06:00" && rep2?.card_tax_rate === 5);
+    await c.auth.signOut();
+  }
+  {
+    // F1e 権限: owner で audit・staff 可視・cast 0行
+    const c = await signIn("ownerA");
+    const { data: aud } = await c
+      .from("audit_logs")
+      .select("before_json, after_json")
+      .eq("action", "daily_report_reclose");
+    const a0 = aud?.[aud.length - 1];
+    check("F1e reclose audit（before slips=3 → after slips=2）",
+      (a0?.before_json as { slips?: number } | null)?.slips === 3 &&
+        (a0?.after_json as { slips?: number } | null)?.slips === 2,
+      JSON.stringify(a0));
+    await c.auth.signOut();
+    const s = await signIn("staffA1");
+    const { data: repsS } = await s.from("daily_reports").select("id");
+    check("F1e staff 日報 可視（§1.2 report ✓）", (repsS ?? []).length >= 1, `got ${(repsS ?? []).length}`);
+    const { error: eSc } = await s.rpc("daily_report_close", {
+      p_store_id: storeA1Id, p_biz_date: addDays(bizDateOf(new Date().toISOString(), "06:00"), 2),
+      p_expense: 0, p_cash_payout: 0, p_cash_float: 0, p_counted_cash: null, p_note: null,
+      p_force: false, p_idem_key: randomUUID(),
+    });
+    check("F1e staff から close 拒否（manager 以上）", !!eSc?.message?.includes("forbidden"), eSc?.message ?? "通ってしまった");
+    await s.auth.signOut();
+    const cc = await signIn("castA1a");
+    const { data: repsC } = await cc.from("daily_reports").select("id");
+    check("F1e castA1a daily_reports = 0行（パターン2）", (repsC ?? []).length === 0, `got ${(repsC ?? []).length}`);
+    await cc.auth.signOut();
   }
 
   // ── managerB1: org B のみ・org A データ 0行 ──
