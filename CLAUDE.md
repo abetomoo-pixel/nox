@@ -85,5 +85,6 @@
 
 ## 環境メモ
 
+- **dev サーバのポートは 3200 固定**（`next dev -p 3200`。3000/3100 は他プロジェクトで使用中）。
 - Dropbox 配下のため `node_modules` / `.next` に `com.dropbox.ignored=1` ストリームを設定（新クローン時に再設定）。
 - mock/ はモック実体（計算仕様の正本・ビルド対象外＝tsconfig exclude 済・参照専用）。
