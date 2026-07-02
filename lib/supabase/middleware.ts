@@ -35,9 +35,9 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // 保護パス: ログイン必須（/login と公開トップは除外）。
-  // フェーズごとに画面を追加したらここに足す（F1: register/mine/shift 等）。
+  // middleware は「認証のみ」判定（ロール判定は各エリアの layout ＋ DB 物理保証の2層＝F1f plan §2）。
   const path = request.nextUrl.pathname;
-  const PROTECTED = ["/whoami", "/dashboard", "/mine"];
+  const PROTECTED = ["/mine", "/register", "/shift", "/report", "/master"];
   const isProtected = PROTECTED.some((p) => path === p || path.startsWith(p + "/"));
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
