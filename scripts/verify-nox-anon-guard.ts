@@ -9,6 +9,8 @@
  * 段2（0002/0004 適用後）: audit_log_write は完全内部専用＝
  *       anon かつ authenticated の両方で BLOCKED を能動 assert（BANZEN pos_order_recalc 型）。
  * 段3（0003 適用後）: 6テーブルは anon の select 自体が permission denied（revoke all 済み）。
+ * 段4（0005 適用後）: F1a の書込 RPC 3本（set_product/set_seat/product_stock_add）は anon BLOCKED 必須。
+ *       新テーブル4本（products/seats/bottle_keeps/stock_logs）も anon select DENIED。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -49,8 +51,33 @@ async function main() {
     check("anon audit_log_write BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
-  // ── 段3: 6テーブル anon select は permission denied ──
-  for (const table of ["orgs", "stores", "users", "memberships", "casts", "audit_logs"]) {
+  // ── 段4a: F1a 書込 RPC 3本 anon BLOCKED ──
+  {
+    const { error } = await anon.rpc("set_product", {
+      p_id: null, p_store_id: null, p_type: null, p_category: null, p_name: null,
+      p_price: null, p_cost: null, p_back_mode: null, p_back_value: null,
+      p_unit4: null, p_hon_pt: null, p_is_active: null,
+    });
+    check("anon set_product BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+  {
+    const { error } = await anon.rpc("set_seat", {
+      p_id: null, p_store_id: null, p_name: null, p_kind: null, p_sort_order: null, p_is_active: null,
+    });
+    check("anon set_seat BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+  {
+    const { error } = await anon.rpc("product_stock_add", {
+      p_product_id: null, p_delta: null, p_reason: null,
+    });
+    check("anon product_stock_add BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
+  // ── 段3＋段4b: 全テーブル anon select は permission denied ──
+  for (const table of [
+    "orgs", "stores", "users", "memberships", "casts", "audit_logs",
+    "products", "seats", "bottle_keeps", "stock_logs",
+  ]) {
     const { error } = await anon.from(table).select("id").limit(1);
     check(
       `anon ${table} select DENIED`,

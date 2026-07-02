@@ -34,6 +34,11 @@
 3. ロール判定は `auth_role()` のハードコード（capability テーブルは作らない＝認可設計 §1.2 案A）。
 4. お金が動く操作はサーバ再計算＋冪等キー＋トランザクション。
 5. cast セルフ RPC のみ `auth_cast_id()` 本人チェック（manager 代理操作には入れない）。
+6. **全書込 RPC は本体処理後に `perform audit_log_write(...)`。例外を作らない**
+   （操作記録テーブル＝stock_logs 等への書込も対象。閲覧スコープが audit_logs=owner 限定と
+   異なるため監査系列から欠落させない。肥大が実測で問題になったら間引きを再判断＝mig0005 で確立）。
+7. `set_*` upsert RPC の boolean 引数（p_is_active 等）は **UI から常に明示値を渡す**
+   （update 経路の `coalesce(p_x, true)` は null→true リセット挙動のため。F1f UI 実装時に遵守）。
 
 ### 認可・RLS
 

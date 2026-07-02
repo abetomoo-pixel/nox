@@ -25,7 +25,10 @@ function check(label: string, ok: boolean, detail?: string) {
   else fails.push(`${label}${detail ? `: ${detail}` : ""}`);
 }
 
-const TABLES = ["orgs", "stores", "users", "memberships", "casts", "audit_logs"];
+const TABLES = [
+  "orgs", "stores", "users", "memberships", "casts", "audit_logs",
+  "products", "seats", "bottle_keeps", "stock_logs", // F1a（mig0005）
+];
 const HELPERS = ["auth_org_id", "auth_role", "auth_store_id", "auth_cast_id"];
 
 async function main() {
@@ -103,7 +106,7 @@ async function main() {
        where relnamespace = 'public'::regnamespace and relname = any($1)`,
       [TABLES],
     );
-    check("G5 6テーブルが存在", r.rowCount === 6, `got ${r.rowCount}`);
+    check(`G5 ${TABLES.length}テーブルが存在`, r.rowCount === TABLES.length, `got ${r.rowCount}`);
     for (const row of r.rows) {
       check(`G5 ${row.relname} RLS 有効`, row.relrowsecurity === true);
     }

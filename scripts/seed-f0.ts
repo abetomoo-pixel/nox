@@ -73,10 +73,15 @@ async function main() {
       const { error } = await admin.from(table).delete().in(col, ids);
       if (error) die(`${table} 削除失敗`, error);
     };
+    // FK 順: 参照する側から消す（stock_logs/bottle_keeps → products/seats → stores → orgs）
     await del("audit_logs", "org_id", orgIds);
+    await del("stock_logs", "org_id", orgIds);
+    await del("bottle_keeps", "org_id", orgIds);
     await del("casts", "org_id", orgIds);
     await del("memberships", "store_id", storeIds);
     await del("users", "org_id", orgIds);
+    await del("products", "org_id", orgIds);
+    await del("seats", "org_id", orgIds);
     await del("stores", "org_id", orgIds);
     await del("orgs", "id", orgIds);
   }
