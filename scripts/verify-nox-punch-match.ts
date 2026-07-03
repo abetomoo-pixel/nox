@@ -8,6 +8,8 @@
  *    「NOX の裁定後の値」でアンカーし、コメントにモック実測値を併記する。
  *  - 沈黙部 S1〜S6 の裁定（最初の in・孤立 out・raw/final 二段・0-47 域・期間走査・分粒度）
  *  - S3 status→final 対応表の5分岐（shukkin/dohan・late×punch 有無・absent・off・無し）
+ *    ＋適用条件の限定（裁定追補 2026-07-03: shift 無しの attendance は final に昇格せず
+ *    no_shift＋anomaly＝罰金は確定シフトの存在が前提）
  */
 import {
   matchPunches,
@@ -203,6 +205,29 @@ eq("G9 out 26:31（g=91）→ over min=91", one([pin("20:00"), pout("26:31")]).d
   const r = one([pin("20:44")]); // attendance 無し
   eq("S3-5 status 無し: raw のまま（late44）", r.days[0].final, { type: "late", min: 44, act: "20:44" });
   eq("S3-5 conflict 無し", r.days[0].anomalies, []);
+}
+
+// ── S3 適用条件の限定（裁定追補: shift 無しの attendance は final に昇格しない） ──
+{
+  const r = one([], { noShift: true, att: "late" });
+  eq("S3-6 shift無し att=late → final no_shift（lateN 不算入）", r.days[0].final, { type: "no_shift" });
+  eq("S3-6 anomaly 'attendance_conflict'（UI 要確認表示の土台）", r.days[0].anomalies, ["attendance_conflict"]);
+  eq("S3-6 counts", [r.lateN, r.absentN], [0, 0]);
+}
+{
+  const r = one([], { noShift: true, att: "absent" });
+  eq("S3-7 shift無し att=absent → final no_shift（absentN 不算入）", r.days[0].final, { type: "no_shift" });
+  eq("S3-7 anomaly 記録", r.days[0].anomalies, ["attendance_conflict"]);
+  eq("S3-7 counts", [r.lateN, r.absentN], [0, 0]);
+}
+{
+  // shift 無し＋punch 有り＋attendance 有り＝raw は no_shift のまま・final も no_shift・anomaly は付く
+  const r = one([pin("20:00"), pout("25:30")], { noShift: true, att: "shukkin" });
+  eq("S3-8 shift無し punch有り att=shukkin → raw/final とも no_shift", [r.days[0].raw.in, r.days[0].final], [
+    { type: "no_shift" },
+    { type: "no_shift" },
+  ]);
+  eq("S3-8 anomaly 記録・counts 不算入", [r.days[0].anomalies, r.lateN, r.absentN], [["attendance_conflict"], 0, 0]);
 }
 
 // ── 総合（複合期間・payOf の fine 入力になる counts のゴールデン） ──

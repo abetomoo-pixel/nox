@@ -16,6 +16,9 @@
  * attendance（判断層）は raw/final 二段（S3）: raw＝shift×punch のみを常に算出し、
  * status がある日は対応表で final を決める。raw と final の type が異なる日は
  * anomaly 'attendance_conflict'（呼び出し側が audit 痕跡・UI 警告に使う）。
+ * ★S3 対応表は確定シフトが存在する営業日のみ適用（裁定追補 2026-07-03）＝
+ *   shift 無しの attendance は final に昇格せず final=no_shift＋anomaly
+ *   （罰金は shift_set による予定の存在が前提・救済は F3 fix_requests＝台帳 #22）。
  * 閾値 10/30/90 は penalty_config の店設定化予定（S7・DB 化は F2a mig）＝ここでは既定値。 */
 
 import { hm2min } from "./shift-time";
@@ -68,7 +71,7 @@ export const LATE_GRACE_MIN_DEFAULT = 10;
 export const EARLY_GRACE_MIN_DEFAULT = 30;
 export const OVER_GRACE_MIN_DEFAULT = 90;
 
-// ── S3 status→final 対応表（§4.2・無条件適用＝shift の有無に依らない） ──
+// ── S3 status→final 対応表（§4.2・確定シフトが存在する営業日のみ適用） ──
 // late の min は punch 由来（in と start が揃えば max(0, in−start)・揃わなければ 0＝回数罰金のみ）。
 function applyAttendance(status: AttendanceStatus, raw: InVerdict, punchMin: number | null): InVerdict {
   switch (status) {
@@ -158,10 +161,19 @@ export function matchPunches(input: {
             : { type: "ok", out: outAt };
     }
 
-    // final（S3 対応表。status 無し＝raw のまま）
+    // final（S3 対応表。status 無し＝raw のまま。shift 無しの日は attendance が
+    // あっても昇格させず no_shift＋anomaly＝罰金は確定シフトの存在が前提・裁定追補）
     const att = attByDate.get(bizDate) ?? null;
-    const final = att ? applyAttendance(att.status, rawIn, punchMin) : rawIn;
-    if (att && final.type !== rawIn.type) anomalies.push("attendance_conflict");
+    let final: InVerdict;
+    if (!att) {
+      final = rawIn;
+    } else if (!shift) {
+      final = { type: "no_shift" };
+      anomalies.push("attendance_conflict");
+    } else {
+      final = applyAttendance(att.status, rawIn, punchMin);
+      if (final.type !== rawIn.type) anomalies.push("attendance_conflict");
+    }
 
     if (final.type === "late") lateN++;
     else if (final.type === "absent") absentN++;

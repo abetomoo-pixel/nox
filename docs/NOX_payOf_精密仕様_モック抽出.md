@@ -201,6 +201,8 @@ if (penalty.on) {
   | off | no_shift | 罰金不算入（店都合取り消し） |
   | （無し） | raw のまま | — |
 
+  **適用条件（裁定追補 2026-07-03）**：S3 対応表は**確定シフトが存在する営業日のみ適用**。shift 無しの attendance は final に昇格せず final=no_shift＋anomaly 'attendance_conflict'（罰金は shift_set による予定の存在が前提・救済は F3 fix_requests）。
+
 - **S4 深夜 in の遅刻判定**：比較は shift-time.ts の 0-47 域で行う（in の営業日帰属は biz-date.ts・cutoff。01:30 着＝25:30 として start と比較）。モックの fail-open（Zu 翌非対応で深夜着が ok 化・「翌」付きは NaN で ok 化）は**不採用**。
 - **S5 集計窓**：payroll_runs の給与期間で走査。モックの `be`＝表示中の週7日（週切替で罰金回数が変わる quirk）は**不採用**。
 - **S6 分丸め**：timestamptz→分未満切り捨て（floor to minute）で 'HH:MM' に落としてから突合（cast 有利側・秒差の罰金争いを作らない）。
