@@ -29,6 +29,7 @@ import {
 import { allocateQty, productBackOf, type Product, type NomType } from "../lib/nox/pay";
 import { addDays, bizDateOf } from "../lib/nox/biz-date";
 import { groupDue } from "../lib/nox/check-calc";
+import { allocDue, allocCastSales, type AllocCheck } from "../lib/nox/sales-alloc";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -624,6 +625,144 @@ async function main() {
       check("F1f staffA1 ranking 自店成功", !eR && (rows ?? []).length === 2, eR?.message ?? `got ${(rows ?? []).length}`);
       await s.auth.signOut();
     }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // F2a-2: cast 日次売上集計（mig0014・cast_sales_aggregate/get_cast_sales）
+  // ★F1e より前に配置（F1e 末尾で golden を void するため・golden は closed 非 void が前提）。
+  // §7-1: golden A:B=6:4 → A{37900×.6＋16500×.6=32640} B{21760}・Σ=54400=checks.total 恒等。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const cutoff = "06:00";
+    const bizDate = bizDateOf(new Date().toISOString(), cutoff);
+    const { data: orgRow } = await admin.from("stores").select("org_id").eq("id", storeA1Id).single();
+    const orgAId = orgRow!.org_id as string;
+
+    // 再実行冪等: 本節の遺物（3-way check とその子行・castC）を admin で除去
+    const cleanup3way = async () => {
+      // 3-way check は castC 参加で識別（誤削除防止・golden 等は castC を含まない）
+      const { data: cc } = await admin.from("casts").select("id").eq("store_id", storeA1Id).eq("name", "NOX-VERIFY-castC");
+      const ccId = cc?.[0]?.id as string | undefined;
+      if (ccId) {
+        const { data: twNoms } = await admin.from("check_nominations").select("check_id").eq("cast_id", ccId);
+        const twIds = (twNoms ?? []).map((r) => r.check_id as string);
+        for (const id of twIds) {
+          for (const tbl of ["check_cast_backs", "check_nominations", "payments", "check_lines"]) {
+            await admin.from(tbl).delete().eq("check_id", id);
+          }
+          await admin.from("checks").delete().eq("id", id);
+        }
+        await admin.from("casts").delete().eq("id", ccId);
+      }
+    };
+    await cleanup3way();
+
+    // ── ① golden ゴールデン（manager で get_cast_sales）──
+    const m = await signIn("managerA1");
+    const { data: gRows, error: eG } = await m.rpc("get_cast_sales", {
+      p_store_id: storeA1Id, p_from: bizDate, p_to: bizDate,
+    });
+    check("F2a-2 get_cast_sales 成功（manager）", !eG && Array.isArray(gRows), eG?.message);
+    type SalesRow = { cast_id: string; biz_date: string; sales: number; hon: number; jonai: number; dohan: number };
+    const rows = (gRows ?? []) as SalesRow[];
+    const rA = rows.find((r) => r.cast_id === castIdA);
+    const rB = rows.find((r) => r.cast_id === castIdB);
+    check("F2a-2 ゴールデン castA1a sales=32,640（37900×.6＋16500×.6）", rA?.sales === 32_640, `got ${rA?.sales}`);
+    check("F2a-2 ゴールデン castA1b sales=21,760（37900×.4＋16500×.4）", rB?.sales === 21_760, `got ${rB?.sales}`);
+    const sigmaSales = rows.reduce((s, r) => s + r.sales, 0);
+    check("F2a-2 Σ cast 売上=54,400＝checks.total 恒等", sigmaSales === 54_400, `got ${sigmaSales}`);
+    // void 除外: check2（jonai・castA1a・due 3,300・voided）が castA1a に不算入
+    //   （含まれていれば 32,640+3,300=35,940 になる）
+    check("F2a-2 void 除外（check2 の 3,300 が castA1a に不算入）", rA?.sales === 32_640, `got ${rA?.sales}`);
+    // フリー卓非帰属: check3（free・due 1,600・closed）が誰にも帰属しない
+    //   → Σ cast 売上 54,400 に 1,600 は含まれない（含まれれば 56,000）
+    check("F2a-2 フリー卓非帰属（check3 の 1,600 が Σ に不算入）", sigmaSales === 54_400, `got ${sigmaSales}`);
+    // D9a カウント列（golden は hon・伝票単位で A/B とも hon=1）
+    check("F2a-2 D9a カウント: castA1a hon=1/jonai=0/dohan=0", rA?.hon === 1 && rA?.jonai === 0 && rA?.dohan === 0, JSON.stringify(rA));
+    check("F2a-2 D9a カウント: castA1b hon=1", rB?.hon === 1, JSON.stringify(rB));
+
+    // ── TS/DB 同値（golden 単独・sales-alloc 鏡像）──
+    const goldenMirror: AllocCheck = {
+      checkId: goldenCheckId, bizDate, nomType: "hon",
+      groupDues: [{ payGroup: "A", due: 37_900 }, { payGroup: "B", due: 16_500 }],
+      noms: [{ castId: castIdA, weight: 6, position: 0 }, { castId: castIdB, weight: 4, position: 1 }],
+    };
+    const mir = allocCastSales([goldenMirror]);
+    const mA = mir.find((r) => r.castId === castIdA);
+    const mB = mir.find((r) => r.castId === castIdB);
+    check("F2a-2 TS/DB 同値: 鏡像 castA1a（32,640/hon1）", mA?.sales === rA?.sales && mA?.hon === rA?.hon, JSON.stringify(mA));
+    check("F2a-2 TS/DB 同値: 鏡像 castA1b（21,760/hon1）", mB?.sales === rB?.sales && mB?.hon === rB?.hon, JSON.stringify(mB));
+
+    // ── allocDue の Σ保存恒等（単体）──
+    const twoWay = allocDue(37_900, goldenMirror.noms);
+    check("F2a-2 allocDue Σ保存（37,900）", twoWay.reduce((s, x) => s + x.part, 0) === 37_900);
+    const three = allocDue(1_600, [
+      { castId: "c1", weight: 1, position: 0 },
+      { castId: "c2", weight: 1, position: 1 },
+      { castId: "c3", weight: 1, position: 2 },
+    ]);
+    check("F2a-2 allocDue 3-way 剰余（534/533/533・+1 は position 最小）",
+      three[0].part === 534 && three[1].part === 533 && three[2].part === 533, JSON.stringify(three));
+    check("F2a-2 allocDue 3-way Σ保存（1,600）", three.reduce((s, x) => s + x.part, 0) === 1_600);
+
+    // ── ② 3-way 剰余の DB 実測（castC を admin 作成 → 1:1:1・due 1,600）──
+    const { data: ccIns } = await admin.from("casts").insert({
+      org_id: orgAId, store_id: storeA1Id, name: "NOX-VERIFY-castC", is_active: true,
+    }).select("id").single();
+    const castIdC = ccIns!.id as string;
+    const { data: twId } = await m.rpc("check_open", { p_seat_id: seatId, p_people: 3, p_nom_type: "hon" });
+    // seat 上に既存 open があると同一 id が返る恐れ→ golden 等は closed 済みなので新規 open される
+    await m.rpc("check_set_nominations", {
+      p_check_id: twId, p_nom_type: "hon",
+      p_nominations: [{ cast_id: castIdA, weight: 1 }, { cast_id: castIdB, weight: 1 }, { cast_id: castIdC, weight: 1 }],
+    });
+    // group due=1,600 ← bx=1,500・サ料10%→1,650・round_unit100 down→1,600
+    await m.rpc("check_add_line", { p_check_id: twId, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "A", p_name: "3way", p_unit_price: 1_500 });
+    await m.rpc("check_pay", { p_check_id: twId, p_method: "cash", p_amount: 1_600, p_pay_group: "A", p_tendered: 1_600, p_idem_key: randomUUID() });
+    await m.rpc("check_close", { p_check_id: twId, p_idem_key: randomUUID() });
+
+    const { data: gRows2 } = await m.rpc("get_cast_sales", { p_store_id: storeA1Id, p_from: bizDate, p_to: bizDate });
+    const rows2 = (gRows2 ?? []) as SalesRow[];
+    const r2A = rows2.find((r) => r.cast_id === castIdA);
+    const r2B = rows2.find((r) => r.cast_id === castIdB);
+    const r2C = rows2.find((r) => r.cast_id === castIdC);
+    // +1 が position 最小（castA1a）に付く＝ A は golden 32,640 + 534、B は 21,760 + 533、C は 533
+    check("F2a-2 3-way 剰余 DB: castA1a += 534（+1 は position 最小）", (r2A?.sales ?? 0) === 32_640 + 534, `got ${r2A?.sales}`);
+    check("F2a-2 3-way 剰余 DB: castA1b += 533", (r2B?.sales ?? 0) === 21_760 + 533, `got ${r2B?.sales}`);
+    check("F2a-2 3-way 剰余 DB: castC = 533", (r2C?.sales ?? 0) === 533, `got ${r2C?.sales}`);
+    check("F2a-2 3-way Σ保存（534+533+533=1,600 が全体に加算）",
+      rows2.reduce((s, r) => s + r.sales, 0) === 54_400 + 1_600, `got ${rows2.reduce((s, r) => s + r.sales, 0)}`);
+
+    // ── ③ 期間ガード負アンカー（93日超 → 'bad range'）──
+    const { error: eRange } = await m.rpc("get_cast_sales", {
+      p_store_id: storeA1Id, p_from: bizDate, p_to: addDays(bizDate, 93),
+    });
+    check("F2a-2 期間ガード（93日超＝bad range）", !!eRange?.message?.includes("bad range"), eRange?.message ?? "通ってしまった");
+    await m.auth.signOut();
+
+    // ── ④ D6a ロール分岐 ──
+    const s = await signIn("staffA1");
+    const { error: eStaff } = await s.rpc("get_cast_sales", { p_store_id: storeA1Id, p_from: bizDate, p_to: bizDate });
+    check("F2a-2 D6a: staff get_cast_sales 拒否", !!eStaff?.message?.includes("forbidden"), eStaff?.message ?? "通ってしまった");
+    await s.auth.signOut();
+
+    const ca = await signIn("castA1a");
+    const { data: caRows, error: eCa } = await ca.rpc("get_cast_sales", { p_store_id: storeA1Id, p_from: bizDate, p_to: bizDate });
+    const caR = (caRows ?? []) as SalesRow[];
+    check("F2a-2 D6a: cast は本人行のみ（1 cast・castA1a）",
+      !eCa && caR.length >= 1 && caR.every((r) => r.cast_id === castIdA), eCa?.message ?? JSON.stringify(caR.map((r) => r.cast_id)));
+    await ca.auth.signOut();
+
+    const b = await signIn("managerB1");
+    const { error: eB } = await b.rpc("get_cast_sales", { p_store_id: storeA1Id, p_from: bizDate, p_to: bizDate });
+    check("F2a-2 D6a: 他 org manager 拒否", !!eB?.message?.includes("forbidden"), eB?.message ?? "通ってしまった");
+    await b.auth.signOut();
+
+    // ── 後片付け（3-way check とその子行・castC を除去＝F1e cleanup とも二重で安全）──
+    await cleanup3way();
   }
 
   // ══════════════════════════════════════════════════════════

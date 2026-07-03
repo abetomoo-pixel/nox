@@ -22,6 +22,8 @@
  * 段8（0012/0013 適用後）: F2a の報酬マスタ RPC 6本（set_comp_plan/set_cast_plan/set_cast_norm/
  *       set_deduction/set_penalty_config/set_custom_back_def）は anon BLOCKED 必須。
  *       マスタ6テーブルも anon select DENIED。内部 comp_plan_slide_check は両ロール BLOCKED。
+ * 段9（0014 適用後）: F2a-2 の get_cast_sales は anon BLOCKED 必須。
+ *       内部 cast_sales_aggregate は anon かつ authenticated の両方で BLOCKED。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -141,6 +143,12 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段9a: F2a-2 get_cast_sales anon BLOCKED ──
+  {
+    const { error } = await anon.rpc("get_cast_sales", { p_store_id: null, p_from: null, p_to: null });
+    check("anon get_cast_sales BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部関数は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
@@ -148,6 +156,7 @@ async function main() {
     ["check_recalc", { p_check_id: null }],
     ["daily_report_aggregate", { p_store_id: null, p_biz_date: null, p_cutoff_hm: null, p_tax_rate: null }],
     ["comp_plan_slide_check", { p_slide: null }], // 段8b（F2a 内部）
+    ["cast_sales_aggregate", { p_store_id: null, p_from: null, p_to: null }], // 段9b（F2a-2 内部）
   ];
   for (const [fn, args] of INTERNAL_PROBES) {
     const { error } = await anon.rpc(fn, args);
