@@ -172,6 +172,42 @@ if (penalty.on) {
   - 打刻 in − シフト start > 10分 → late
 - ★本番：punches（append-only）× shifts の照合を給与前に確定させ、その回数を payOf 入力に渡す（payOf 自体は回数を受け取る純関数）。
 
+### §4.1 実装確定追記：確定規則（モック `vp`/`lx`/`ux` 実測・2026-07-03・台帳 #20）
+
+モック生コード（line 26 の `Zu`/`tx`/`vp`/`lx`/`hp`/`sx`/`ux`）を逐語抽出したハーネスで実測した確定規則。初版の2行（in 無し→absent／in−start>10分→late）に優先する。
+
+- 判定対象＝**確定シフトが存在する営業日のみ**。shift 無し punch 有りの日は不算入（遅刻にも欠勤にもならない）。
+- absent＝in 無し（**out の有無は不問**）。
+- late＝`in − start > 10`（分・整数・**strict**）。h=10 ちょうどはセーフ・h=11 から late。`min` は超過素値（10 を引かない。例: 20:00 シフトに 20:44 着→min=44）。早出（負値）は ok。遅刻に上限なし（どれだけ遅くても late であり absent に転化しない）。
+- `lx` 集計＝期間内の営業日を走査して late/absent を数える（ok は数えない）→ `fine = absentN×fineAbsent + lateN×fineLate`。
+- 退勤側 `ux`＝noout／early（`close − out > 30` strict）／over（`out − close > 90` strict）／ok。−30/＋90 ちょうどは ok。**罰金に非接続・表示専用**（モックの `fa` は `lx` のみ参照）。
+- 時刻単位＝分（'HH:MM' 粒度・秒なし）。in 側 `Zu` は「翌」非対応（深夜着は負差で ok に化ける fail-open＝モックの穴・§4.2 S4 で不採用）。out 側 `hp` のみ「翌」接頭辞＋正午ヒューリスティック（hour<12→+1440）。
+- **`tx`/`sx` はデモデータ生成器＝翻訳対象外**。`ml[u][d].in || tx(u,d)` の `|| tx(u,d)` を逐語訳すると「欠勤日に in を捏造する」バグになる（実測で捏造動作を確認済み）。
+- モックの打刻データは日次単一ペア `{in, out}`・UI は「in 未→出勤ボタンのみ／in 済→退勤ボタンのみ／両方済→ボタン消滅」の一方向状態機械。**in-in・孤立 out はモック上表現不能＝沈黙**（解決規則は §4.2 で NOX が確定）。
+
+### §4.2 実装確定追記：NOX 確定（沈黙部の裁定・2026-07-03・台帳 #20 クローズ）
+
+モックに分岐が存在しない箇所（S1〜S8）の裁定結果。punches はイベント列（append-only・timestamptz）であるため、日次ペアへの解決規則が必要になる。
+
+- **S1 in-in**：最初の in を採用・後続 in は無視（イベントは全記録・anomaly 'in_in'）。後打ちで遅刻を消せない改ざん耐性＝punches 盲目記録の3層モデルと整合。
+- **S2 孤立 out**：absent 維持（out を出勤の証拠と認めない）＋ anomaly 'orphan_out' で店側 UI に要確認表示。救済は F3 fix_requests（台帳 #22）の管轄。
+- **S3 attendance（判断層）の参加**：**raw/final 二段**。raw＝shift×punch のみ（モック忠実）を常に算出し、attendance に明示 status がある日はそれを final として優先。raw≠final の日は anomaly 'attendance_conflict'＋audit 痕跡。**status→final 対応表（必須記載）**：
+
+  | attendance.status | final | 備考 |
+  |---|---|---|
+  | shukkin / dohan | ok | punch 由来の late を打ち消し・conflict は anomaly＋audit 痕跡 |
+  | late | late | min は punch 由来。punch 無しなら min=0（回数罰金のみ） |
+  | absent | absent | punch があっても absent |
+  | off | no_shift | 罰金不算入（店都合取り消し） |
+  | （無し） | raw のまま | — |
+
+- **S4 深夜 in の遅刻判定**：比較は shift-time.ts の 0-47 域で行う（in の営業日帰属は biz-date.ts・cutoff。01:30 着＝25:30 として start と比較）。モックの fail-open（Zu 翌非対応で深夜着が ok 化・「翌」付きは NaN で ok 化）は**不採用**。
+- **S5 集計窓**：payroll_runs の給与期間で走査。モックの `be`＝表示中の週7日（週切替で罰金回数が変わる quirk）は**不採用**。
+- **S6 分丸め**：timestamptz→分未満切り捨て（floor to minute）で 'HH:MM' に落としてから突合（cast 有利側・秒差の罰金争いを作らない）。
+- **S7 閾値の店設定化**：late_grace_min=10／early_grace_min=30／over_grace_min=90 を penalty_config（F2a マスタ・DB 化は F2a mig）に持たせる。既定値でモック忠実。punch-match.ts は config 引数に既定値を持つ。
+- **S8 early/over/noout の金銭化**：F2 ではしない（モック忠実・表示/anomaly まで）。要否は実店舗ヒアリング案件＝**台帳 #31**。
+- **配置**：`lib/nox/punch-match.ts`（DB を知らない純関数・pay.ts と同じ案1）。出力＝lateN/absentN（payOf の fine 入力）＋日次 DayResolution[]（raw/final/anomalies＝F3 fix_requests・店側 UI 警告の土台）。ゴールデン＝実測21ケース＋S3 対応表5分岐を verify に固定。
+
 ---
 
 ## 5. 純関数化の境界（重要・BANZEN 教訓の適用）

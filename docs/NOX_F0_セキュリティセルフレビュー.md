@@ -93,7 +93,7 @@ $$;
 | 13 | 玲奈ゴールデン二系統の扱い | 精密仕様 §6 追記・verify T1a/T1b | 正は T1b（pt込み5931）。T1a（5170）は設計書値の回帰として維持。F2 で本番プラン確定時に実データゴールデン追加を検討 |
 | 14 | cast_sensitive 分離 | mig0001 ヘッダー・認可設計 §2.4 | real_name/birthday/mynumber を別テーブル＋暗号化＋閲覧専用RPC＋アクセスログ（F2b） |
 | 14b | receivables の cast_id 索引 | F1b レビュー（2026-07-02） | F2 の給与天引き集計（deduct_from_cast）で cast_id 検索が必要になった時点で `create index on receivables (cast_id, status)` を F2 の mig に含める |
-| 20 | 打刻突合純関数 | F1d 決定1（2026-07-02） | モック lx/vp を lib/nox に翻訳（F2a）。**in-in・孤立 out の解決仕様はこの純関数が正本**（punches は盲目記録）。シフト×打刻×attendance から days/lateN/absentN を確定 |
+| 20 | ~~打刻突合純関数~~ **クローズ（2026-07-03・仕様確定＋punch-match.ts）** | F1d 決定1（2026-07-02） | モック lx/vp/ux を逐語ハーネスで実測し確定規則を精密仕様 §4.1 に、沈黙部 S1〜S8 の裁定（in-in=最初の in・孤立 out=absent＋anomaly・attendance=raw/final 二段＋対応表・0-47 域比較・給与期間走査・分 floor・閾値 penalty_config 化・early/over 金銭化せず）を §4.2 に固定。実装=lib/nox/punch-match.ts＋実測ゴールデン。penalty_config の DB 化は F2a mig |
 | 21 | daily.sales（cast 日次売上）の定義 | F1d plan §5 | payOf の日次売上按分の集計元（checks×check_nominations からの規則）を F2 冒頭で確定 |
 | 22 | fix_requests（打刻修正の申請→承認） | BANZEN 0005 | F1d は manager 代理打刻＋note で運用。申請承認フローは F3 の承認系と合わせて検討 |
 | 23 | ジオフェンス設定・打刻ハードモード | BANZEN 0028 | within_geofence は器のみ（常に null）。enforce/店座標/WiFi 台帳は要件顕在化時に 0028 を翻訳 |
@@ -104,6 +104,7 @@ $$;
 | 25 | カードTAX の請求時上乗せ | F1e plan §3 | モックは日報集計のみ（請求に乗せない）。実店舗ヒアリング後に check_pay の card 上乗せへ変更するか判断 |
 | 26 | charge 行の細分類（charge_kind） | F1e mig0010 ヘッダー | 同伴料・セット・延長・指名料の金額分離集計に必要（現状 dohan_checks 件数のみ）。F1f UI か F2 日報拡張時に追加判断 |
 | 27 | reclose で実査（counted_cash）を null に戻す経路 | F1e レビュー（2026-07-02） | 現行 reclose は null=既存維持のため実査の取り消しができない。F1f の UI 設計時に再訪（記録のみ・対応不要） |
+| 31 | early/over/noout の金銭化要否 | 精密仕様 §4.2 S8（2026-07-03） | モックは退勤照合（early=30分超早退・over=90分超残留・noout）を表示のみで金銭化しない。早退ペナルティ等を入れるかは**実店舗ヒアリング後に判断**（#25 カードTAX と同じ「プロダクト判断を憶測で入れない」裁定の踏襲）。それまで punch-match.ts の anomaly/表示まで |
 
 ### F4 で対応
 | # | 項目 | 出典 | 内容 |
