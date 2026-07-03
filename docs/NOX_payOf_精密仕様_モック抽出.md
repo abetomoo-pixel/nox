@@ -276,3 +276,32 @@ type PayInput = {
 | 丸め | Math.round | floor か → **税理士**（確定側で集約差替） |
 
 **いずれも AI 出力は補助。源泉・控除・最低賃金の最終判断は税理士/社労士。**（F2 ゲート）
+
+### §7-1 実装確定追記：daily[].sales（cast 日次売上）と cast 実績の定義（2026-07-03・台帳 #21 クローズ）
+
+**モック実測（逐語ハーネス・2026-07-03）**：
+
+- cast 売上は静的デモ値（`fl` の `sales:185e4` 等）＋生成器 `iS` の日割り分解であり、**伝票→cast 売上の変換パスはモックに存在しない**。レジ close の書込は杯数（Et）・商品バック（G1・最大剰余法）・hon 商品pt（Ci・`nom_type='hon'` のみ）・店単位日報（Ms）・売掛（zi）・ボトル（dt）の6系統のみで、cast の sales/hon/jonai/dohan/days はデモ初期値から不変（cast setter `dn` の全呼出は新規登録・本名編集・休会のみ）。
+- `iS` は tx/sx と同じ**デモ足場＝翻訳対象外**（期間 sales を重み [1.4,1,.6,1.1,.8,1.2] サイクルで日割り・最終日残差調整で **Σ daily.sales ≡ 期間 sales を厳密保存**）。verify:nox-pay の fixture `mockDaily` が iS の逐語訳であることを実測確認（JSON 完全一致・Σ=1,850,000・110.1h・T1b gross 1,387,150／T1a 5,170 再現）。玲奈の wbasis「売上0」の由来＝日次最大 115,625 円は salesSlide 80k 段（時給4,000）止まりで base 5,000 に勝てないため（売上入力が 0 なのではない）。
+- 確定している消費契約：①daily.sales→salesSlide 時給／②期間pt の日次按分 `J=round(pt×sales_d/Σ daily.sales×10)/10`（分母＝Σ daily.sales・fallback `u.sales‖1`）／③期間 sales→salesBack（uS 4段: ≥150万10%・≥80万7%・≥40万5%・他3%）・custom back basis 'sales'・ノルマ metric 'sales'。
+- **check_cast_backs（商品バック）とは非交差**：商品バック＝数量×back_snapshot 凍結単価（売上金額を経由しない・全 nom_type・unit4 は nom_type 別単価）。売上はスライド時給・pt 按分・salesBack・ノルマ判定専用の別系統で、既存 back 分配と入力（checks×check_nominations）を共有し出力は独立＝干渉なし。
+
+**NOX 定義（沈黙部 SL1〜SL8 の裁定・2026-07-03）**：
+
+- **SL1 帰属**：伝票 group の売上を在席 nomination 全員に weight（6:4）で按分・円は最大剰余法（バック分配と同一の帰属母数・Σ保存・合席で二重計上しない）。
+- **SL2 金額基盤**：group due（サ料込・100円丸め後の請求額＝`check_group_due` 既存関数）。カードTAX は含まない（台帳 #25 と整合）。Σ cast 売上＝Σ checks.total の会計恒等が立つ。
+- **SL3 nom_type 範囲**：全 nom_type 帰属（pt の hon 限定とは目的が違う：pt=指名の重み・売上=歩合の母数）。
+- **SL4 フリー卓**：nomination の無い伝票は誰にも帰属しない（店売上のみ）。
+- **SL5 日次帰属**：biz-date（started_at 帰属・日報と同一規則・cutoff 凍結値）。
+- **SL6 計上イベント**：close 時に計上・voided は除外（cast_backs 削除連動と同じ面）・open は未帰属。売掛は close 時計上＝発生主義（回収と無関係・日報と同じ）。
+- **SL7 Σ保存不変量**：期間売上（cast.sales）＝**Σ daily.sales の導出値**として定義（pt 按分の分母・salesBack の母数と構造的に一致させる。iS の厳密保存はこの不変量のデモ）。
+- **SL8 cast 実績の導出（定義表・一括確定）**：
+
+  | 実績 | 定義 |
+  |---|---|
+  | hon / jonai / dohan | closed かつ非 void の伝票の check_nominations を nom_type 別に**伝票単位**でカウント（同一伝票内の同 cast 同 nom_type は1）。営業日帰属・void 除外は sales と同一規則 |
+  | dohan の出所 | check_nominations の `nom_type='dohan'` **のみ**。attendance の `status='dohan'` は勤怠層（#20 S3 の罰金打ち消し）であり金銭集計の母数にしない——**同名別概念の混線を明示遮断** |
+  | days | #20 punch-match の **final ∈ {ok, late} の営業日数**（absent/no_shift 不算入・attendance 昇格後の final 基準） |
+
+- **凍結タイミング**：payroll_run 時にサーバが checks×check_nominations から再計算し payslips.breakdown_json に凍結（§5 準拠・void/reclose を自然に吸収・中間テーブルなし）。日常表示（/mine・castMng）は live 集計 RPC（金額込み・F2 新設）＝確定までは live が正・確定後は凍結値が正の二相（日報と同型）。台帳 #29 の集計期間注記とも整合。
+- 集計実装（SQL/RPC・verify ゴールデン）は F2a で別途（本追記は定義の正本化のみ）。

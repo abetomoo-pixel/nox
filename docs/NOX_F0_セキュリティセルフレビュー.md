@@ -94,7 +94,7 @@ $$;
 | 14 | cast_sensitive 分離 | mig0001 ヘッダー・認可設計 §2.4 | real_name/birthday/mynumber を別テーブル＋暗号化＋閲覧専用RPC＋アクセスログ（F2b） |
 | 14b | receivables の cast_id 索引 | F1b レビュー（2026-07-02） | F2 の給与天引き集計（deduct_from_cast）で cast_id 検索が必要になった時点で `create index on receivables (cast_id, status)` を F2 の mig に含める |
 | 20 | ~~打刻突合純関数~~ **クローズ（2026-07-03・仕様確定＋punch-match.ts）** | F1d 決定1（2026-07-02） | モック lx/vp/ux を逐語ハーネスで実測し確定規則を精密仕様 §4.1 に、沈黙部 S1〜S8 の裁定（in-in=最初の in・孤立 out=absent＋anomaly・attendance=raw/final 二段＋対応表・0-47 域比較・給与期間走査・分 floor・閾値 penalty_config 化・early/over 金銭化せず）を §4.2 に固定。実装=lib/nox/punch-match.ts＋実測ゴールデン。penalty_config の DB 化は F2a mig |
-| 21 | daily.sales（cast 日次売上）の定義 | F1d plan §5 | payOf の日次売上按分の集計元（checks×check_nominations からの規則）を F2 冒頭で確定 |
+| 21 | ~~daily.sales（cast 日次売上）の定義~~ **クローズ（2026-07-03・定義確定＝精密仕様 §7-1）** | F1d plan §5 | モック実測（伝票→cast 売上は非接続・iS は足場・T1b 1,387,150 再現）のうえ裁定：帰属＝在席 nomination weight 6:4 按分（最大剰余法）・基盤＝group due（カードTAX 除外）・全 nom_type・フリー卓非帰属・biz-date 帰属・void 除外 close 計上・期間売上＝Σ daily.sales 導出・hon/jonai/dohan/days 定義表（attendance の dohan は金銭母数にしない）・凍結＝payroll_run 時サーバ再計算（live 表示 RPC は F2 新設）。**集計実装（SQL/RPC・ゴールデン）は F2a で別途** |
 | 22 | fix_requests（打刻修正の申請→承認） | BANZEN 0005 | F1d は manager 代理打刻＋note で運用。申請承認フローは F3 の承認系と合わせて検討 |
 | 23 | ジオフェンス設定・打刻ハードモード | BANZEN 0028 | within_geofence は器のみ（常に null）。enforce/店座標/WiFi 台帳は要件顕在化時に 0028 を翻訳 |
 | 24 | ~~staff（黒服）への勤怠書込開放~~ **クローズ（2026-07-02・mig0011）** | F1d 決定（§2.5 追記8） | **確定: attendance_set のみ staff に開放・punch_proxy は manager 維持**（mig0011 適用済み・verify で staffA1 の成功/拒否を実測） |
