@@ -751,6 +751,202 @@ async function main() {
     await cc.auth.signOut();
   }
 
+  // ══════════════════════════════════════════════════════════
+  // F2a-1: 報酬マスタ（mig0012/0013）
+  // 成功経路（audit 行増加込み）・D3a・D1a・staff/クロス org/退職/inactive
+  // シードは本節内で RPC により投入（NOX-VERIFY-* 命名・再実行冪等・dev 専用の建付け維持）
+  // ══════════════════════════════════════════════════════════
+  let planAId = "";
+  let planXId = ""; // 廃止プラン（inactive 負アンカー用）
+  {
+    const o = await signIn("ownerA");
+    const auditCount = async (action: string): Promise<number> => {
+      const { count } = await o.from("audit_logs").select("id", { count: "exact", head: true }).eq("action", action);
+      return count ?? 0;
+    };
+    const SALES_SLIDE = [{ at: 80_000, wage: 4000 }, { at: 150_000, wage: 5500 }, { at: 250_000, wage: 7000 }];
+    const POINT_SLIDE = [{ at: 5, wage: 4000 }, { at: 10, wage: 5500 }, { at: 16, wage: 7000 }];
+
+    // ① set_comp_plan 成功経路（owner・insert or update → 上書き反映 → audit +2）
+    const { data: exA } = await o.from("comp_plans").select("id").eq("store_id", storeA1Id).eq("name", "NOX-VERIFY-プランA");
+    const cp0 = await auditCount("set_comp_plan");
+    const planArgs = {
+      p_store_id: storeA1Id, p_name: "NOX-VERIFY-プランA", p_hon_back: 4000, p_jonai_back: 1500,
+      p_dohan_back: 4000, p_sales_slide: SALES_SLIDE, p_point_slide: POINT_SLIDE, p_is_active: true,
+    };
+    const { data: pid1, error: eCp1 } = await o.rpc("set_comp_plan", { ...planArgs, p_id: exA?.[0]?.id ?? null, p_base: 5100 });
+    check("F2a set_comp_plan 成功（owner）", !eCp1 && typeof pid1 === "string", eCp1?.message);
+    planAId = pid1 as string;
+    const { data: prow1 } = await o.from("comp_plans").select("base, name").eq("id", planAId).single();
+    check("F2a comp_plans 行実在（base=5100）", prow1?.base === 5100 && prow1?.name === "NOX-VERIFY-プランA", JSON.stringify(prow1));
+    const { data: pid2, error: eCp2 } = await o.rpc("set_comp_plan", { ...planArgs, p_id: planAId, p_base: 5000 });
+    check("F2a set_comp_plan upsert 上書き（同一 id）", !eCp2 && pid2 === planAId, eCp2?.message);
+    const { data: prow2 } = await o.from("comp_plans").select("base").eq("id", planAId).single();
+    check("F2a upsert 上書き反映（base=5000）", prow2?.base === 5000, `got ${prow2?.base}`);
+    check("F2a set_comp_plan audit +2", (await auditCount("set_comp_plan")) === cp0 + 2);
+
+    // 廃止プラン（inactive）を用意
+    const { data: exX } = await o.from("comp_plans").select("id").eq("store_id", storeA1Id).eq("name", "NOX-VERIFY-廃止プラン");
+    const { data: pidX, error: eCpX } = await o.rpc("set_comp_plan", {
+      ...planArgs, p_id: exX?.[0]?.id ?? null, p_name: "NOX-VERIFY-廃止プラン", p_base: 3000, p_is_active: false,
+    });
+    check("F2a 廃止プラン作成（is_active=false）", !eCpX && typeof pidX === "string", eCpX?.message);
+    planXId = pidX as string;
+
+    // ② set_penalty_config 成功経路（owner・全引数明示・grace 3列反映・audit +1）
+    const pc0 = await auditCount("set_penalty_config");
+    const { error: ePc } = await o.rpc("set_penalty_config", {
+      p_store_id: storeA1Id, p_fine_absent: 10_000, p_fine_late: 3000, p_hours_per_shift: 5.0,
+      p_norm_on: true, p_norm_days_flat: 5000, p_norm_days_per: 2000, p_norm_dohan_flat: 3000,
+      p_norm_dohan_per: 1500, p_late_grace_min: 10, p_early_grace_min: 30, p_over_grace_min: 90,
+    });
+    check("F2a set_penalty_config 成功（owner）", !ePc, ePc?.message);
+    const { data: pcRow } = await o.from("penalty_config").select("fine_absent, late_grace_min, early_grace_min, over_grace_min").eq("store_id", storeA1Id).single();
+    check("F2a penalty_config 行実在（10000/10/30/90）",
+      pcRow?.fine_absent === 10_000 && pcRow?.late_grace_min === 10 && pcRow?.early_grace_min === 30 && pcRow?.over_grace_min === 90,
+      JSON.stringify(pcRow));
+    check("F2a set_penalty_config audit +1", (await auditCount("set_penalty_config")) === pc0 + 1);
+    await o.auth.signOut();
+  }
+  {
+    const m = await signIn("managerA1");
+    // audit カウント用に owner セッションを1本だけ張って使い回す（サインイン連打はレート制限に当たる）
+    const o2 = await signIn("ownerA");
+    const oAudit = async (action: string): Promise<number> => {
+      const { count } = await o2.from("audit_logs").select("id", { count: "exact", head: true }).eq("action", action);
+      return count ?? 0;
+    };
+
+    // ③ D3a 分岐: manager から賃金原本2本は forbidden
+    const { error: eD3a } = await m.rpc("set_comp_plan", {
+      p_id: null, p_store_id: storeA1Id, p_name: "不正", p_base: 1, p_hon_back: 0, p_jonai_back: 0,
+      p_dohan_back: 0, p_sales_slide: [], p_point_slide: [], p_is_active: true,
+    });
+    check("F2a D3a: manager set_comp_plan 拒否", !!eD3a?.message?.includes("forbidden"), eD3a?.message ?? "通ってしまった");
+    const { error: eD3b } = await m.rpc("set_penalty_config", {
+      p_store_id: storeA1Id, p_fine_absent: 0, p_fine_late: 0, p_hours_per_shift: 5,
+      p_norm_on: false, p_norm_days_flat: 0, p_norm_days_per: 0, p_norm_dohan_flat: 0,
+      p_norm_dohan_per: 0, p_late_grace_min: 0, p_early_grace_min: 0, p_over_grace_min: 0,
+    });
+    check("F2a D3a: manager set_penalty_config 拒否", !!eD3b?.message?.includes("forbidden"), eD3b?.message ?? "通ってしまった");
+
+    // ④ set_cast_plan 成功経路（manager・castA1a→プランA・overrides 反映・audit +1）
+    const scp0 = await oAudit("set_cast_plan");
+    const { data: cpid, error: eScp } = await m.rpc("set_cast_plan", {
+      p_cast_id: castIdA, p_plan_id: planAId, p_overrides: { honBack: 4500 },
+    });
+    check("F2a set_cast_plan 成功（manager）", !eScp && cpid === castIdA, eScp?.message);
+    const { data: cpRow } = await m.from("cast_plan").select("plan_id, overrides_json").eq("cast_id", castIdA).single();
+    check("F2a cast_plan 行実在（plan_id・overrides 反映）",
+      cpRow?.plan_id === planAId && JSON.stringify(cpRow?.overrides_json) === JSON.stringify({ honBack: 4500 }),
+      JSON.stringify(cpRow));
+    check("F2a set_cast_plan audit +1", (await oAudit("set_cast_plan")) === scp0 + 1);
+
+    // ⑤ inactive プランへの割当 → 'plan inactive' 拒否
+    const { error: eInact } = await m.rpc("set_cast_plan", { p_cast_id: castIdA, p_plan_id: planXId, p_overrides: {} });
+    check("F2a inactive プラン割当拒否（plan inactive）", !!eInact?.message?.includes("plan inactive"), eInact?.message ?? "通ってしまった");
+
+    // ⑥ set_cast_norm 成功経路（upsert・値反映・audit +1）
+    const scn0 = await oAudit("set_cast_norm");
+    const { data: nid, error: eNorm } = await m.rpc("set_cast_norm", {
+      p_cast_id: castIdA, p_period: "2026-07", p_days_target: 24, p_dohan_target: 15,
+    });
+    check("F2a set_cast_norm 成功（manager）", !eNorm && typeof nid === "string", eNorm?.message);
+    const { data: nRow } = await m.from("cast_norms").select("days_target, dohan_target").eq("id", nid).single();
+    check("F2a cast_norms 行実在（24/15）", nRow?.days_target === 24 && nRow?.dohan_target === 15, JSON.stringify(nRow));
+    check("F2a set_cast_norm audit +1", (await oAudit("set_cast_norm")) === scn0 + 1);
+
+    // ⑦ set_deduction 成功経路（audit +1）
+    const { data: exD } = await m.from("deductions").select("id").eq("store_id", storeA1Id).eq("name", "NOX-VERIFY-送り代");
+    const sd0 = await oAudit("set_deduction");
+    const { data: did, error: eDed } = await m.rpc("set_deduction", {
+      p_id: exD?.[0]?.id ?? null, p_store_id: storeA1Id, p_name: "NOX-VERIFY-送り代",
+      p_amount: 2000, p_per: "day", p_is_active: true,
+    });
+    check("F2a set_deduction 成功（manager）", !eDed && typeof did === "string", eDed?.message);
+    const { data: dRow } = await m.from("deductions").select("amount, per").eq("id", did).single();
+    check("F2a deductions 行実在（2000/day）", dRow?.amount === 2000 && dRow?.per === "day", JSON.stringify(dRow));
+    check("F2a set_deduction audit +1", (await oAudit("set_deduction")) === sd0 + 1);
+
+    // ⑧ set_custom_back_def 成功経路（cond 深検証の成功系・audit +1）
+    const { data: exB } = await m.from("custom_back_defs").select("id").eq("store_id", storeA1Id).eq("name", "NOX-VERIFY-売上2%");
+    const sb0 = await oAudit("set_custom_back_def");
+    const { data: bid, error: eBk } = await m.rpc("set_custom_back_def", {
+      p_id: exB?.[0]?.id ?? null, p_store_id: storeA1Id, p_name: "NOX-VERIFY-売上2%",
+      p_basis: "sales", p_value: 2, p_cond: { metric: "sales", min: 1_500_000 }, p_is_active: true,
+    });
+    check("F2a set_custom_back_def 成功（manager・cond あり）", !eBk && typeof bid === "string", eBk?.message);
+    const { data: bRow } = await m.from("custom_back_defs").select("basis, value, cond_json").eq("id", bid).single();
+    // jsonb はキー順を正規化する（短いキー順）ため stringify 比較でなくフィールド比較
+    const bCond = bRow?.cond_json as { metric?: string; min?: number } | null;
+    check("F2a custom_back_defs 行実在（sales/2/cond）",
+      bRow?.basis === "sales" && bRow?.value === 2 && bCond?.metric === "sales" && bCond?.min === 1_500_000,
+      JSON.stringify(bRow));
+    check("F2a set_custom_back_def audit +1", (await oAudit("set_custom_back_def")) === sb0 + 1);
+
+    // D1a: manager は comp_plans 全行（プランA＋廃止プラン）
+    const { data: mPlans } = await m.from("comp_plans").select("id");
+    check("F2a D1a: manager comp_plans 全行（2本以上・A/廃止 含む）",
+      (mPlans ?? []).length >= 2 && !!mPlans?.find((r) => r.id === planAId) && !!mPlans?.find((r) => r.id === planXId),
+      `got ${(mPlans ?? []).length}`);
+    await o2.auth.signOut();
+    await m.auth.signOut();
+  }
+  {
+    // D1a: castA1a＝割当プランのみ可視・cast_plan 自分行のみ・パターン3可視
+    const c = await signIn("castA1a");
+    const { data: cPlans } = await c.from("comp_plans").select("id");
+    check("F2a D1a: castA1a comp_plans = 自プランのみ（1行・廃止プラン不可視）",
+      (cPlans ?? []).length === 1 && cPlans?.[0]?.id === planAId, `got ${(cPlans ?? []).length}`);
+    const { data: cCp } = await c.from("cast_plan").select("cast_id");
+    check("F2a castA1a cast_plan = 自分の1行", (cCp ?? []).length === 1 && cCp?.[0]?.cast_id === castIdA, `got ${(cCp ?? []).length}`);
+    const { data: cPc } = await c.from("penalty_config").select("id");
+    check("F2a castA1a penalty_config 可視（パターン3）", (cPc ?? []).length === 1, `got ${(cPc ?? []).length}`);
+    await c.auth.signOut();
+
+    // D1a: castA1b（未割当）＝comp_plans 0行・cast_plan 0行
+    const c2 = await signIn("castA1b");
+    const { data: c2Plans } = await c2.from("comp_plans").select("id");
+    check("F2a D1a: castA1b comp_plans = 0行（未割当）", (c2Plans ?? []).length === 0, `got ${(c2Plans ?? []).length}`);
+    const { data: c2Cp } = await c2.from("cast_plan").select("cast_id");
+    check("F2a castA1b cast_plan = 0行", (c2Cp ?? []).length === 0, `got ${(c2Cp ?? []).length}`);
+    await c2.auth.signOut();
+
+    // staffA1: cast_plan 0行（差し戻し裁定＝賃金条件の原本は staff 遮断）
+    const s = await signIn("staffA1");
+    const { data: sCp } = await s.from("cast_plan").select("cast_id");
+    check("F2a staffA1 cast_plan = 0行（staff 遮断）", (sCp ?? []).length === 0, `got ${(sCp ?? []).length}`);
+    await s.auth.signOut();
+  }
+  {
+    // 退職 cast: capture-and-restore で castA1a を失効 → comp_plans/cast_plan 0行 → 復元
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: urow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.castA1a.email).single();
+    const castUserId = urow!.id as string;
+    const { data: act } = await admin.from("memberships").select("id").eq("user_id", castUserId).eq("is_active", true);
+    const capturedIds = (act ?? []).map((r) => r.id as string);
+    check("F2a 退職回帰 capture: アクティブ membership ≥1", capturedIds.length >= 1, `got ${capturedIds.length}`);
+    await admin.from("memberships").update({ is_active: false }).eq("user_id", castUserId);
+    try {
+      const c = await signIn("castA1a");
+      const { data: rPlans } = await c.from("comp_plans").select("id");
+      const { data: rCp } = await c.from("cast_plan").select("cast_id");
+      check("F2a 退職 cast: comp_plans = 0行", (rPlans ?? []).length === 0, `got ${(rPlans ?? []).length}`);
+      check("F2a 退職 cast: cast_plan = 0行", (rCp ?? []).length === 0, `got ${(rCp ?? []).length}`);
+      await c.auth.signOut();
+    } finally {
+      if (capturedIds.length) {
+        await admin.from("memberships").update({ is_active: true }).in("id", capturedIds);
+      }
+    }
+    const c2 = await signIn("castA1a");
+    const { data: rPlans2 } = await c2.from("comp_plans").select("id");
+    check("F2a 退職回帰 復元後: comp_plans 再可視（1行）", (rPlans2 ?? []).length === 1, `got ${(rPlans2 ?? []).length}`);
+    await c2.auth.signOut();
+  }
+
   // ── managerB1: org B のみ・org A データ 0行 ──
   {
     const c = await signIn("managerB1");
@@ -762,6 +958,9 @@ async function main() {
     check("managerB1 memberships = 自店1行", (mems ?? []).length === 1, `got ${(mems ?? []).length}`);
     const { data: prods } = await c.from("products").select("id");
     check("managerB1 products = 0行（org A 商品の不可視）", (prods ?? []).length === 0, `got ${(prods ?? []).length}`);
+    // F2a クロス org: org A の cast への set_cast_plan は forbidden（cast org 照合）
+    const { error: eX } = await c.rpc("set_cast_plan", { p_cast_id: castIdA, p_plan_id: planAId, p_overrides: {} });
+    check("F2a クロス org set_cast_plan 拒否", !!eX?.message?.includes("forbidden"), eX?.message ?? "通ってしまった");
     await c.auth.signOut();
   }
 

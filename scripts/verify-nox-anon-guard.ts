@@ -19,6 +19,9 @@
  *       勤怠5テーブルも anon select DENIED。
  * 段7（0010 適用後）: F1e の daily_report_close/reclose は anon BLOCKED 必須。
  *       daily_reports も anon select DENIED。内部 daily_report_aggregate は両ロール BLOCKED。
+ * 段8（0012/0013 適用後）: F2a の報酬マスタ RPC 6本（set_comp_plan/set_cast_plan/set_cast_norm/
+ *       set_deduction/set_penalty_config/set_custom_back_def）は anon BLOCKED 必須。
+ *       マスタ6テーブルも anon select DENIED。内部 comp_plan_slide_check は両ロール BLOCKED。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -124,12 +127,27 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
-  // ── 段5b: 内部3本は anon でも BLOCKED ──
+  // ── 段8a: F2a 報酬マスタ RPC 6本 anon BLOCKED ──
+  const F2A_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["set_comp_plan", { p_id: null, p_store_id: null, p_name: null, p_base: null, p_hon_back: null, p_jonai_back: null, p_dohan_back: null, p_sales_slide: null, p_point_slide: null, p_is_active: null }],
+    ["set_cast_plan", { p_cast_id: null, p_plan_id: null, p_overrides: null }],
+    ["set_cast_norm", { p_cast_id: null, p_period: null, p_days_target: null, p_dohan_target: null }],
+    ["set_deduction", { p_id: null, p_store_id: null, p_name: null, p_amount: null, p_per: null, p_is_active: null }],
+    ["set_penalty_config", { p_store_id: null, p_fine_absent: null, p_fine_late: null, p_hours_per_shift: null, p_norm_on: null, p_norm_days_flat: null, p_norm_days_per: null, p_norm_dohan_flat: null, p_norm_dohan_per: null, p_late_grace_min: null, p_early_grace_min: null, p_over_grace_min: null }],
+    ["set_custom_back_def", { p_id: null, p_store_id: null, p_name: null, p_basis: null, p_value: null, p_cond: null, p_is_active: null }],
+  ];
+  for (const [fn, args] of F2A_RPC_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
+  // ── 段5b: 内部関数は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
     ["check_group_due", { p_check_id: null, p_pay_group: "A" }],
     ["check_recalc", { p_check_id: null }],
     ["daily_report_aggregate", { p_store_id: null, p_biz_date: null, p_cutoff_hm: null, p_tax_rate: null }],
+    ["comp_plan_slide_check", { p_slide: null }], // 段8b（F2a 内部）
   ];
   for (const [fn, args] of INTERNAL_PROBES) {
     const { error } = await anon.rpc(fn, args);
@@ -143,8 +161,10 @@ async function main() {
     "checks", "check_nominations", "check_lines", "payments", "check_cast_backs", "receivables",
     "shift_wishes", "shifts", "attendance", "punches", "staffing_needs",
     "daily_reports",
+    "comp_plans", "cast_plan", "cast_norms", "deductions", "penalty_config", "custom_back_defs",
   ]) {
-    const { error } = await anon.from(table).select("id").limit(1);
+    // cast_plan のみ PK=cast_id（id 列なし）。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
+    const { error } = await anon.from(table).select(table === "cast_plan" ? "cast_id" : "id").limit(1);
     check(
       `anon ${table} select DENIED`,
       !!error?.message?.includes("permission denied"),
