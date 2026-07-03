@@ -1,8 +1,23 @@
-export default function Page() {
+import { createClient } from "@/lib/supabase/server";
+import { getSessionRole } from "@/lib/nox/auth";
+import ReportBoard from "./report-board";
+
+export const dynamic = "force-dynamic";
+
+// 日報（staff=閲覧・manager 以上=締め/再締め）。
+// プレビュー集計はクライアント TS＋biz-date 純関数（daily_report_aggregate は内部専用のまま＝呼ばない）。
+export default async function ReportPage() {
+  const supabase = await createClient();
+  const { role } = await getSessionRole();
+  const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name").limit(1);
+  const store = stores?.[0];
+  const settings = (store?.settings_json ?? {}) as Record<string, unknown>;
   return (
-    <div>
-      <h1 style={{ fontSize: 20 }}>日報</h1>
-      <p style={{ color: "#6b6b6b" }}>F1f-4 で実装（プレビュー・締め・再締め）</p>
-    </div>
+    <ReportBoard
+      storeId={store?.id ?? ""}
+      cutoff={typeof settings.biz_cutoff_hm === "string" && settings.biz_cutoff_hm ? (settings.biz_cutoff_hm as string) : "06:00"}
+      cardTaxRate={Number(settings.card_tax_rate ?? 5)}
+      isManagerUp={role === "owner" || role === "manager"}
+    />
   );
 }
