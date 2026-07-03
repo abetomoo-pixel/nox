@@ -28,6 +28,7 @@ import {
 } from "./fixtures-f0";
 import { allocateQty, productBackOf, type Product, type NomType } from "../lib/nox/pay";
 import { addDays, bizDateOf } from "../lib/nox/biz-date";
+import { groupDue } from "../lib/nox/check-calc";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -313,7 +314,11 @@ async function main() {
     const { error: eL3 } = await c.rpc("check_add_line", { p_check_id: checkId, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "B", p_name: "セット", p_unit_price: 15_000 });
     check("F1b 明細3行 追加", !eL1 && !eL2 && !eL3, [eL1, eL2, eL3].map((e) => e?.message).join(" / "));
 
-    const { data: chk1 } = await c.from("checks").select("total, status").eq("id", checkId).single();
+    const { data: chk1 } = await c
+      .from("checks")
+      .select("total, status, service_rate, round_unit, round_mode")
+      .eq("id", checkId)
+      .single();
     check("F1b ゴールデン total=54400（サ料10%・100円切捨・group 単位）", chk1?.total === 54_400, `got ${chk1?.total}`);
 
     // 入金不足 close 拒否
@@ -368,7 +373,26 @@ async function main() {
 
     // TS/DB 一致: allocateQty＋productBackOf で同一入力から再計算し DB と照合（F1c 同値保証）
     {
-      const { data: lines } = await c.from("check_lines").select("kind, qty, unit_price_snapshot, back_snapshot").eq("check_id", checkId);
+      const { data: lines } = await c
+        .from("check_lines")
+        .select("kind, qty, unit_price_snapshot, back_snapshot, pay_group, line_total")
+        .eq("check_id", checkId);
+
+      // check-calc（UI 表示用 due・register 画面の鏡像）と DB check_group_due の同値保証。
+      // 内部関数は直接呼べないため、①group ごとの固定ゴールデン ②Σdue = checks.total
+      // （DB 側 check_recalc = Σ check_group_due のサーバ計算値）の両面で縛る。
+      const dueOf = (g: string) =>
+        groupDue(
+          (lines ?? []).filter((l) => l.pay_group === g).reduce((a, l) => a + l.line_total, 0),
+          { service_rate: chk1!.service_rate, round_unit: chk1!.round_unit, round_mode: chk1!.round_mode },
+        );
+      check("F1f check-calc 同値: group A due=37900", dueOf("A") === 37_900, `got ${dueOf("A")}`);
+      check("F1f check-calc 同値: group B due=16500", dueOf("B") === 16_500, `got ${dueOf("B")}`);
+      check(
+        "F1f check-calc 同値: Σdue = checks.total（DB サーバ計算との鏡像縛り）",
+        dueOf("A") + dueOf("B") === chk1?.total,
+        `${dueOf("A") + dueOf("B")} vs ${chk1?.total}`,
+      );
       const weights = [6, 4];
       const castIds = [castIdA, castIdB];
       const nomType: NomType = "hon";
