@@ -71,14 +71,14 @@ $$;
 
 ## 5. 先送り事項の引き継ぎ台帳（全件）
 
-### F1 で対応
+### F1 で対応（F1 完了時の状態・2026-07-03 更新）
 | # | 項目 | 出典 | 内容 |
 |---|---|---|---|
-| 1 | **auth_org_id() の membership join 化（§3）** | 本報告書 | mig0005 冒頭に同梱・verify 退職ケース追加 |
-| 2 | middleware PROTECTED リスト拡張 | lib/supabase/middleware.ts | F1 の画面追加ごとに保護パスを足す |
-| 3 | cast プライバシー パターン1/2/3 の本適用＋集計 RPC（順位/件数のみ） | 認可設計 §2.3/§3 | F1f。casts の型を金額系テーブルへ複製 |
-| 4 | 日次データの実データ化 | scripts/verify-nox-pay.ts（iS はテスト fixture） | 本番 daily は実 punch＋実売上（F1d 勤怠→F2 給与） |
-| 5 | 新 RPC 追加ごとの anon-guard 追記運用 | verify:nox-anon-guard.ts | BANZEN の段階追記と同じ（会計 RPC 等） |
+| 1 | ~~auth_org_id() の membership join 化（§3）~~ **クローズ** | 本報告書 | mig0005 で方式A適用・verify 退職回帰（capture-and-restore）で恒久 assert |
+| 2 | ~~middleware PROTECTED リスト拡張~~ **クローズ** | lib/supabase/middleware.ts | F1f-1 で5パス（mine/register/shift/report/master）に拡張・確認①で実測 |
+| 3 | ~~cast プライバシー パターン1/2/3 の本適用＋集計 RPC~~ **クローズ** | 認可設計 §2.3/§3 | パターン1=check_cast_backs/勤怠4テーブル・パターン2=会計/日報系・パターン3=products で新設時適用済み。集計 RPC=get_cast_ranking（mig0011・金額列なし）。notices のパターン3は F3 |
+| 4 | 日次データの実データ化 | scripts/verify-nox-pay.ts | **器は完了**（punches=実打刻・checks=実売上）。**payOf 入力への結線（突合純関数＝#20・daily.sales 定義＝#21）は F2 冒頭**へ |
+| 5 | 新 RPC 追加ごとの anon-guard 追記運用 | verify:nox-anon-guard.ts | **運用定着**（段1〜7・公開22 RPC＋内部4関数をカバー・以後も新 RPC ごとに追記） |
 
 ### F2 で対応（コンプラゲート：税理士・社労士）
 | # | 項目 | 出典 | 内容 |
