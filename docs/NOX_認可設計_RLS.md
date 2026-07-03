@@ -100,6 +100,11 @@ using (
 )
 ```
 
+**【F2a 追記（2026-07-03・mig0012）】§2.3 パターン分類への追加**
+- **cast_plan＝パターン1変形（staff 遮断）**：`auth_role() in ('owner','manager') or cast_id = auth_cast_id()`。cast は自分の行のみ・**staff は 0行**（overrides_json は個別賃金情報であり、staff の業務範囲＝attendance_set のみ（台帳 #24）に参照不要。get_cast_sales の staff 拒否（F2a 裁定 D6a）と方向統一）。staff は末尾条件の `auth_cast_id()=null` 比較で fail-closed。初版のパターン1対象リストにある cast_plan はこの変形に置き換え。
+- **comp_plans＝パターン1変形（割当限定）**：cast は `exists (select 1 from cast_plan cp where cp.cast_id=auth_cast_id() and cp.plan_id=comp_plans.id)` で自分に割当てられたプランのみ可視（F2a 裁定 D1a・初版パターン3欄の「自分のプランのみ」注記の実装形）。サブクエリは cast_plan の RLS を通る**一方向参照**（users↔memberships 型の相互参照ではない＝再帰なし）。
+- cast_norms＝パターン1（初版どおり）／deductions・penalty_config・custom_back_defs＝パターン3（罰金・控除・バック規定は周知情報＝F2a 裁定 D2a）。
+
 ### 2.4 列レベルの制御（RLSの行制御だけでは不十分）
 - **real_name / mynumber**：cast の SELECT では返さない。**列マスク or 別テーブル分離**。
   - 推奨：mynumber は casts/cast_tax_profiles から分離した別テーブル `cast_sensitive`（real_name/birthday/mynumber）に置き、**閲覧専用 SECURITY DEFINER RPC ＋ アクセスログ必須**でのみ取得。通常クエリでは触れない。

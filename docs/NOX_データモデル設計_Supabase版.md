@@ -97,6 +97,13 @@ NOX 用に以下を最初のマイグレーションで定義：
 **penalty_config**（罰金・ノルマペナルティ設定）
 - `store_id*`, `fine_absent`, `fine_late`, `norm_on`, `norm_days_flat`, `norm_days_per`, `norm_dohan_flat`, `norm_dohan_per`
 
+**【F2a 実装確定（2026-07-03・mig0012）】§2.2 の実装反映と逸脱の記録**
+1. **comp_plans の `slides_json` は不採用**。pay.ts CompPlan（payOf 入力の正本）と1対1にするため `sales_slide`/`point_slide` の jsonb 2列に確定（[{at,wage}×3]・深い形式検証は set_comp_plan RPC・DB は array 型 CHECK のみ）。
+2. **penalty_config に4列追加**：`hours_per_shift`（シミュレーター基準時間・モック zu.hoursPerShift=5）＋`late_grace_min`/`early_grace_min`/`over_grace_min`（既定 10/30/90・精密仕様 §4.2 S7 の店設定化・punch-match.ts の config 供給元。early/over は表示専用＝金銭化は台帳 #31）。店1行（unique store_id）。
+3. **custom_back_defs を新設**（本書初版に無い）：payOf の customBackDefs 必須入力（モック Xa/Vy 自由バック）。basis/cond の値域は pay.ts MetricKey リテラル＋'flat'。
+4. **cast_plan は PK=cast_id**（1 cast=1 plan・変更履歴は audit_logs＝F2a 裁定 D5a）。cast_norms は (cast_id, period) ユニーク・period は 'YYYY-MM' text＋正規表現 CHECK（時刻規約と同流儀）。
+5. **cast プライバシー**：**cast_plan＝パターン1変形（cast は自分の行のみ＋staff 0行**＝overrides_json は個別賃金情報・#24/D6a と方向統一**）**・cast_norms＝パターン1・**comp_plans＝パターン1変形（cast は自分に割当てられたプランのみ可視＝exists(cast_plan) サブクエリ・一方向参照で再帰なし＝D1a）**・deductions/penalty_config/custom_back_defs＝パターン3（周知情報＝D2a）。書込は全て RPC 専任（mig0013）。
+
 ### 2.3 商品・在庫（M03 相当）
 
 **products**
