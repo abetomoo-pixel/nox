@@ -100,6 +100,7 @@ $$;
 | 24 | ~~staff（黒服）への勤怠書込開放~~ **クローズ（2026-07-02・mig0011）** | F1d 決定（§2.5 追記8） | **確定: attendance_set のみ staff に開放・punch_proxy は manager 維持**（mig0011 適用済み・verify で staffA1 の成功/拒否を実測） |
 | 28 | ドリンク申告（drink_claims）の F3 送り | F1f plan（2026-07-02） | 段階リリース計画の F1f 記載「ドリンク申告の基本」は、drink_claims テーブルが F3（mig0006 群・承認フローと不可分）のため **F3f へ移動**（cast セルフ pending 作成＋黒服承認をセットで実装） |
 | 29 | /mine バック表示の created_at 近似 | F1f-2（2026-07-02） | cast は checks を読めない（パターン2）ため月帰属は check_cast_backs.created_at≒close 時刻の営業日変換で近似。**F2 給与明細 UI 設計時に、境界日ズレへの注記表示（集計期間の明示）を検討**。給与の厳密集計は F2 サーバ集計が正 |
+| 30 | bottle_keeps の閲覧・操作 UI | F1f-4（2026-07-03） | テーブル・RLS（パターン2）は mig0005 で整備済みだが F1f では画面未実装。**F2 以降で customers（F3）と合わせて導線を設計**（ボトルは顧客に紐づく運用のため単独画面より顧客詳細への統合が自然） |
 | 25 | カードTAX の請求時上乗せ | F1e plan §3 | モックは日報集計のみ（請求に乗せない）。実店舗ヒアリング後に check_pay の card 上乗せへ変更するか判断 |
 | 26 | charge 行の細分類（charge_kind） | F1e mig0010 ヘッダー | 同伴料・セット・延長・指名料の金額分離集計に必要（現状 dohan_checks 件数のみ）。F1f UI か F2 日報拡張時に追加判断 |
 | 27 | reclose で実査（counted_cash）を null に戻す経路 | F1e レビュー（2026-07-02） | 現行 reclose は null=既存維持のため実査の取り消しができない。F1f の UI 設計時に再訪（記録のみ・対応不要） |
