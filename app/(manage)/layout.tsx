@@ -27,7 +27,10 @@ export default async function ManageLayout({ children }: { children: React.React
           <Link href="/shift" style={{ color: "#fff" }}>シフト</Link>
           <Link href="/report" style={{ color: "#fff" }}>日報</Link>
           {isManagerUp && (
-            <Link href="/master" style={{ color: "#fff" }}>マスタ</Link>
+            <>
+              <Link href="/payroll" style={{ color: "#fff" }}>給与</Link>
+              <Link href="/master" style={{ color: "#fff" }}>マスタ</Link>
+            </>
           )}
         </nav>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#8f8f8f" }}>{role}</span>

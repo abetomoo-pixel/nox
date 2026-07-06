@@ -22,6 +22,7 @@ import type {
   ShiftDay,
   AttendanceDay,
   AttendanceStatus,
+  DayResolution,
 } from "./punch-match";
 
 // DB 生行（RPC/SELECT の素の形。punches はイベント型＝mig0008）
@@ -41,6 +42,21 @@ export function liftPunchAt(atIso: string, cutoffHm: string): { bizDate: string;
   const cutoffMin = hm2min(cutoffHm);
   if (mm < cutoffMin) mm += 1440;
   return { bizDate, hm: min2hm(mm) };
+}
+
+/** 実働時間（時間・小数可）。raw の in/out（0-47 域 'HH:MM'）の差から算出。
+ *  in 無し or out 欠損（noout）は 0（#20 S8: noout は非金銭化＝時給も付けない・論点3 承認）。
+ *  final でなく raw を使う（final は罰金分類・実働は実打刻の時刻差）。 */
+export function dayWorkedHours(day: DayResolution): number {
+  const inAt =
+    day.raw.in.type === "ok" || day.raw.in.type === "late" ? day.raw.in.act : null;
+  const outAt =
+    day.raw.out.type === "ok" || day.raw.out.type === "early" || day.raw.out.type === "over"
+      ? day.raw.out.out
+      : null;
+  if (!inAt || !outAt) return 0;
+  const mins = hm2min(outAt) - hm2min(inAt);
+  return mins > 0 ? mins / 60 : 0;
 }
 
 /** punches/shifts/attendance 生行 → matchPunches 入力（cutoff は店設定・既定 06:00）。 */

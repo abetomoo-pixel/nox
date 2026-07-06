@@ -1,0 +1,251 @@
+// 期間データの読み取り（給与確定サーバの権威読み）。
+// 按分の DB 権威（D7a）を保つため get_cast_sales は「ユーザー文脈（manager）クライアント」で呼ぶ
+//   （service キーは auth_org_id() null で forbidden＝admin では呼べない）。
+// 他の生読み取り（会計バック・打刻・マスタ）は admin（service・RLS バイパス・検証済み store）で読む。
+// 対象 cast（裁定C）= get_cast_sales の cast ∪ 窓内 punches の cast（is_active 不問・稼働ゼロは除外）。
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PayrollWindow } from "./window";
+import type { CastRaw, StoreMasters } from "./assemble";
+import type { CompPlan, PlanOverride, Deduction, BackDef, TaxMode } from "../pay";
+import { buildMatchInput, dayWorkedHours, type PunchRow, type ShiftRow, type AttendanceRow } from "../punch-io";
+import { matchPunches } from "../punch-match";
+
+type SalesRow = { cast_id: string; biz_date: string; sales: number; hon: number; jonai: number; dohan: number };
+
+export type CollectResult = { casts: CastRaw[]; masters: StoreMasters };
+
+// 店共通マスタ＋cast 個別マスタ（plan/norm/tax）を1回読む。
+async function loadMasters(admin: SupabaseClient, storeId: string, period: string) {
+  const [plansR, castPlanR, penR, dedR, cbR, normR, taxR] = await Promise.all([
+    admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide").eq("store_id", storeId),
+    admin.from("cast_plan").select("cast_id, plan_id, overrides_json").eq("store_id", storeId),
+    admin.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
+    admin.from("deductions").select("id, name, amount, per").eq("store_id", storeId).eq("is_active", true),
+    admin.from("custom_back_defs").select("id, name, basis, value, cond_json").eq("store_id", storeId).eq("is_active", true),
+    admin.from("cast_norms").select("cast_id, days_target, dohan_target").eq("store_id", storeId).eq("period", period),
+    admin.from("cast_tax_profiles").select("cast_id, mode").eq("store_id", storeId),
+  ]);
+  for (const r of [plansR, castPlanR, penR, dedR, cbR, normR, taxR]) {
+    if (r.error) throw new Error(`マスタ読み取り: ${r.error.message}`);
+  }
+  const plansById = new Map<string, CompPlan>();
+  for (const p of (plansR.data ?? []) as Record<string, unknown>[]) {
+    plansById.set(p.id as string, {
+      id: p.id as string,
+      name: p.name as string,
+      base: p.base as number,
+      honBack: p.hon_back as number,
+      jonaiBack: p.jonai_back as number,
+      dohanBack: p.dohan_back as number,
+      salesSlide: (p.sales_slide ?? []) as CompPlan["salesSlide"],
+      pointSlide: (p.point_slide ?? []) as CompPlan["pointSlide"],
+    });
+  }
+  const castPlanByCast = new Map<string, { planId: string; override: PlanOverride }>();
+  for (const c of (castPlanR.data ?? []) as Record<string, unknown>[]) {
+    castPlanByCast.set(c.cast_id as string, { planId: c.plan_id as string, override: (c.overrides_json ?? {}) as PlanOverride });
+  }
+  const pen = penR.data as Record<string, unknown> | null;
+  const masters: StoreMasters = {
+    penalty: {
+      fineAbsent: (pen?.fine_absent as number) ?? 0,
+      fineLate: (pen?.fine_late as number) ?? 0,
+      hoursPerShift: Number(pen?.hours_per_shift ?? 5),
+    },
+    normConfig: {
+      on: (pen?.norm_on as boolean) ?? false,
+      daysFlat: (pen?.norm_days_flat as number) ?? 0,
+      daysPer: (pen?.norm_days_per as number) ?? 0,
+      dohanFlat: (pen?.norm_dohan_flat as number) ?? 0,
+      dohanPer: (pen?.norm_dohan_per as number) ?? 0,
+    },
+    deductions: ((dedR.data ?? []) as Record<string, unknown>[]).map((d) => ({
+      id: d.id as string, name: d.name as string, amount: d.amount as number, per: d.per as Deduction["per"],
+    })),
+    customBackDefs: ((cbR.data ?? []) as Record<string, unknown>[]).map((b) => ({
+      id: b.id as string, name: b.name as string, basis: b.basis as BackDef["basis"], value: b.value as number,
+      cond: (b.cond_json ?? undefined) as BackDef["cond"],
+    })),
+  };
+  const normByCast = new Map<string, { days: number; dohan: number }>();
+  for (const n of (normR.data ?? []) as Record<string, unknown>[]) {
+    normByCast.set(n.cast_id as string, { days: n.days_target as number, dohan: n.dohan_target as number });
+  }
+  const taxByCast = new Map<string, TaxMode>();
+  for (const t of (taxR.data ?? []) as Record<string, unknown>[]) {
+    taxByCast.set(t.cast_id as string, t.mode as TaxMode);
+  }
+  const lateGrace = (pen?.late_grace_min as number) ?? undefined;
+  const earlyGrace = (pen?.early_grace_min as number) ?? undefined;
+  const overGrace = (pen?.over_grace_min as number) ?? undefined;
+  return { plansById, castPlanByCast, masters, normByCast, taxByCast, grace: { lateGrace, earlyGrace, overGrace } };
+}
+
+// 窓内 closed 非 void の会計から cast 別のバック・pt・champ/bottle 本数を集計。
+// champ/bottle 判定は check_lines.kind ∈ {'champ','bottle'}（会計確定時スナップショット・商品マスタ属性でなく明細 kind が正）。
+// 帰属は check_nominations（sales 按分と同じ在席集合）。本数は重み分割しない＝各在席 cast に満額計上。
+async function loadAccounting(admin: SupabaseClient, storeId: string, win: PayrollWindow) {
+  const { data: checks, error: eC } = await admin
+    .from("checks").select("id").eq("store_id", storeId).eq("status", "closed")
+    .gte("started_at", win.startTs).lt("started_at", win.endTs);
+  if (eC) throw new Error(`checks: ${eC.message}`);
+  const checkIds = ((checks ?? []) as { id: string }[]).map((c) => c.id);
+  const backByCast = new Map<string, { drink: number; champ: number; bottle: number; pt: number }>();
+  const champBottleByCast = new Map<string, { champCnt: number; bottleCnt: number }>();
+  if (checkIds.length === 0) return { backByCast, champBottleByCast };
+
+  const [nomsR, linesR, backsR] = await Promise.all([
+    admin.from("check_nominations").select("check_id, cast_id").in("check_id", checkIds),
+    admin.from("check_lines").select("check_id, kind, qty").in("check_id", checkIds),
+    admin.from("check_cast_backs").select("cast_id, drink_back, champ_back, bottle_back, hon_pt_alloc").in("check_id", checkIds),
+  ]);
+  for (const r of [nomsR, linesR, backsR]) if (r.error) throw new Error(`会計明細: ${r.error.message}`);
+
+  for (const b of (backsR.data ?? []) as Record<string, unknown>[]) {
+    const cid = b.cast_id as string;
+    const cur = backByCast.get(cid) ?? { drink: 0, champ: 0, bottle: 0, pt: 0 };
+    cur.drink += b.drink_back as number;
+    cur.champ += b.champ_back as number;
+    cur.bottle += b.bottle_back as number;
+    cur.pt += b.hon_pt_alloc as number;
+    backByCast.set(cid, cur);
+  }
+  // check_id → {champ,bottle} qty
+  const qtyByCheck = new Map<string, { champ: number; bottle: number }>();
+  for (const l of (linesR.data ?? []) as Record<string, unknown>[]) {
+    const kind = l.kind as string;
+    if (kind !== "champ" && kind !== "bottle") continue;
+    const cur = qtyByCheck.get(l.check_id as string) ?? { champ: 0, bottle: 0 };
+    if (kind === "champ") cur.champ += l.qty as number;
+    else cur.bottle += l.qty as number;
+    qtyByCheck.set(l.check_id as string, cur);
+  }
+  for (const n of (nomsR.data ?? []) as Record<string, unknown>[]) {
+    const q = qtyByCheck.get(n.check_id as string);
+    if (!q) continue;
+    const cid = n.cast_id as string;
+    const cur = champBottleByCast.get(cid) ?? { champCnt: 0, bottleCnt: 0 };
+    cur.champCnt += q.champ;
+    cur.bottleCnt += q.bottle;
+    champBottleByCast.set(cid, cur);
+  }
+  return { backByCast, champBottleByCast };
+}
+
+// 窓内の shifts（確定）/attendance/punches を cast 別に読み、punch-io→matchPunches で days/lateN/absentN/日次hours を得る。
+async function loadPunch(admin: SupabaseClient, storeId: string, win: PayrollWindow, grace: { lateGrace?: number; earlyGrace?: number; overGrace?: number }) {
+  const [shiftsR, attR, punchR] = await Promise.all([
+    admin.from("shifts").select("cast_id, date, start_hm, end_hm").eq("store_id", storeId).eq("status", "confirmed").gte("date", win.periodStart).lte("date", win.periodEnd),
+    admin.from("attendance").select("cast_id, date, status").eq("store_id", storeId).gte("date", win.periodStart).lte("date", win.periodEnd),
+    admin.from("punches").select("cast_id, punched_at, type").eq("store_id", storeId).gte("punched_at", win.startTs).lt("punched_at", win.endTs),
+  ]);
+  for (const r of [shiftsR, attR, punchR]) if (r.error) throw new Error(`打刻: ${r.error.message}`);
+  const byCast = new Map<string, { shifts: ShiftRow[]; att: AttendanceRow[]; punches: PunchRow[] }>();
+  const ensure = (cid: string) => {
+    let e = byCast.get(cid);
+    if (!e) { e = { shifts: [], att: [], punches: [] }; byCast.set(cid, e); }
+    return e;
+  };
+  for (const s of (shiftsR.data ?? []) as Record<string, unknown>[]) ensure(s.cast_id as string).shifts.push({ date: s.date as string, start_hm: s.start_hm as string, end_hm: s.end_hm as string });
+  for (const a of (attR.data ?? []) as Record<string, unknown>[]) ensure(a.cast_id as string).att.push({ date: a.date as string, status: a.status as AttendanceRow["status"] });
+  for (const p of (punchR.data ?? []) as Record<string, unknown>[]) ensure(p.cast_id as string).punches.push({ punched_at: p.punched_at as string, type: p.type as "in" | "out" });
+
+  const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; hoursByDate: Map<string, number> }>();
+  for (const [cid, raw] of byCast) {
+    const built = buildMatchInput({ cutoffHm: win.cutoffHm, shifts: raw.shifts, attendance: raw.att, punches: raw.punches });
+    const m = matchPunches({ ...built, config: { close: win.closeHm, lateGraceMin: grace.lateGrace, earlyGraceMin: grace.earlyGrace, overGraceMin: grace.overGrace } });
+    const hoursByDate = new Map<string, number>();
+    let days = 0;
+    let anomalyCount = 0;
+    for (const d of m.days) {
+      hoursByDate.set(d.bizDate, dayWorkedHours(d));
+      if (d.final.type === "ok" || d.final.type === "late") days += 1;
+      const outAnom = d.raw.out.type === "noout" || d.raw.out.type === "early" || d.raw.out.type === "over";
+      if (d.anomalies.length > 0 || outAnom) anomalyCount += 1;
+    }
+    result.set(cid, { days, lateN: m.lateN, absentN: m.absentN, anomalyCount, hoursByDate });
+  }
+  return result;
+}
+
+// 期間データ一括収集 → CastRaw[]（対象 cast 列挙・裁定C）。
+export async function collectPeriod(
+  admin: SupabaseClient,
+  managerClient: SupabaseClient,
+  storeId: string,
+  win: PayrollWindow,
+): Promise<CollectResult> {
+  // 按分 DB 権威: get_cast_sales は manager クライアントで（D7a）。
+  const { data: salesData, error: eS } = await managerClient.rpc("get_cast_sales", {
+    p_store_id: storeId, p_from: win.periodStart, p_to: win.periodEnd,
+  });
+  if (eS) throw new Error(`get_cast_sales: ${eS.message}`);
+  const salesRows = (salesData ?? []) as SalesRow[];
+
+  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, punch] = await Promise.all([
+    loadMasters(admin, storeId, win.period),
+    loadAccounting(admin, storeId, win),
+    // grace はマスタ読み後に確定するので、punch は下で個別に呼ぶ（Promise.all のため grace を先に取る必要）
+    Promise.resolve(null),
+  ]);
+  const punchByCast = await loadPunch(admin, storeId, win, grace);
+
+  // sales を cast 別に集計＋日次
+  const salesByCast = new Map<string, { sales: number; hon: number; jonai: number; dohan: number; daily: Map<string, number> }>();
+  for (const r of salesRows) {
+    const cur = salesByCast.get(r.cast_id) ?? { sales: 0, hon: 0, jonai: 0, dohan: 0, daily: new Map() };
+    cur.sales += r.sales; cur.hon += r.hon; cur.jonai += r.jonai; cur.dohan += r.dohan;
+    cur.daily.set(r.biz_date, (cur.daily.get(r.biz_date) ?? 0) + r.sales);
+    salesByCast.set(r.cast_id, cur);
+  }
+
+  // 対象 cast = sales ∪ punch（is_active 不問・稼働ゼロ除外）
+  const targetIds = new Set<string>([...salesByCast.keys(), ...punchByCast.keys()]);
+  if (targetIds.size === 0) return { casts: [], masters };
+
+  // cast 名（is_active 不問＝退職者含む）
+  const { data: castRows, error: eN } = await admin.from("casts").select("id, name").in("id", [...targetIds]);
+  if (eN) throw new Error(`casts: ${eN.message}`);
+  const nameById = new Map<string, string>();
+  for (const c of (castRows ?? []) as { id: string; name: string }[]) nameById.set(c.id, c.name);
+
+  const casts: CastRaw[] = [];
+  for (const cid of targetIds) {
+    const s = salesByCast.get(cid);
+    const p = punchByCast.get(cid);
+    const back = acct.backByCast.get(cid) ?? { drink: 0, champ: 0, bottle: 0, pt: 0 };
+    const cb = acct.champBottleByCast.get(cid) ?? { champCnt: 0, bottleCnt: 0 };
+    const cp = castPlanByCast.get(cid);
+    const plan = cp ? plansById.get(cp.planId) ?? null : null;
+    // 日次 = sales 日 ∪ punch 日（hours>0 or sales>0）
+    const dateSet = new Set<string>([...(s?.daily.keys() ?? []), ...(p?.hoursByDate.keys() ?? [])]);
+    const daily = [...dateSet].sort().map((bizDate) => ({
+      bizDate,
+      sales: s?.daily.get(bizDate) ?? 0,
+      hours: p?.hoursByDate.get(bizDate) ?? 0,
+    })).filter((d) => d.sales > 0 || d.hours > 0);
+    casts.push({
+      castId: cid,
+      castName: nameById.get(cid) ?? "(不明)",
+      sales: s?.sales ?? 0,
+      hon: s?.hon ?? 0,
+      jonai: s?.jonai ?? 0,
+      dohan: s?.dohan ?? 0,
+      daily,
+      productBack: { drink: back.drink, champ: back.champ, bottle: back.bottle },
+      pointProducts: back.pt,
+      champCnt: cb.champCnt,
+      bottleCnt: cb.bottleCnt,
+      days: p?.days ?? 0,
+      lateN: p?.lateN ?? 0,
+      absentN: p?.absentN ?? 0,
+      anomalyCount: p?.anomalyCount ?? 0,
+      plan,
+      override: cp?.override,
+      norm: normByCast.get(cid) ?? { days: 0, dohan: 0 },
+      taxProfileMode: taxByCast.get(cid) ?? null,
+    });
+  }
+  return { casts, masters };
+}
