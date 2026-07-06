@@ -141,6 +141,64 @@ async function main() {
     check("G7 cast_sensitive ポリシー = 0行（意図・閲覧 RPC のみ）", p.rowCount === 0, p.rows.map((x) => x.policyname).join(", "));
   }
 
+  // G8: F2c 給与確定（mig0016）— RLS・ポリシー・関数 ACL の proacl 実測
+  {
+    const r = await db.query(
+      `select relname, relrowsecurity from pg_class
+       where relnamespace = 'public'::regnamespace and relname = any($1)`,
+      [["payroll_runs", "payslips"]],
+    );
+    check("G8 payroll_runs/payslips 2テーブル存在", r.rowCount === 2, `got ${r.rowCount}`);
+    for (const row of r.rows) check(`G8 ${row.relname} RLS 有効`, row.relrowsecurity === true);
+
+    const p = await db.query(
+      `select tablename, policyname, cmd from pg_policies
+       where schemaname = 'public' and tablename = any($1) order by tablename`,
+      [["payroll_runs", "payslips"]],
+    );
+    check(
+      "G8 payroll_runs/payslips ポリシー = 各1本 SELECT",
+      p.rowCount === 2 && p.rows.every((x) => x.cmd === "SELECT"),
+      p.rows.map((x) => `${x.tablename}:${x.cmd}`).join(", "),
+    );
+
+    const roleOf = async (fn: string): Promise<string[]> => {
+      const q = await db.query(
+        `select r.rolname from pg_proc p
+         join aclexplode(p.proacl) a on true
+         join pg_roles r on r.oid = a.grantee
+         where p.pronamespace = 'public'::regnamespace and p.proname = $1`,
+        [fn],
+      );
+      return q.rows.map((x) => x.rolname as string);
+    };
+    // finalize/mark_paid = service_role のみ（anon/authenticated/public 不在）
+    for (const fn of ["payroll_finalize", "payroll_mark_paid"]) {
+      const roles = await roleOf(fn);
+      const leaked = roles.filter((x) => ["anon", "authenticated", "public"].includes(x));
+      check(
+        `G8 ${fn} EXECUTE = service_role のみ`,
+        roles.includes("service_role") && leaked.length === 0,
+        `保持者: ${roles.join(", ") || "(なし)"}`,
+      );
+    }
+    // audit_log_write_service = 内部専用（anon/authenticated/service_role/public 不在＝owner のみ）
+    {
+      const roles = await roleOf("audit_log_write_service");
+      const leaked = roles.filter((x) => ["anon", "authenticated", "service_role", "public"].includes(x));
+      check("G8 audit_log_write_service EXECUTE = owner のみ（内部専用）", leaked.length === 0, `保持者: ${roles.join(", ") || "(owner のみ)"}`);
+    }
+    // period_bounds = authenticated + service_role（anon 不在）
+    {
+      const roles = await roleOf("period_bounds");
+      check(
+        "G8 period_bounds EXECUTE = authenticated+service_role・anon 不在",
+        roles.includes("authenticated") && roles.includes("service_role") && !roles.includes("anon"),
+        `保持者: ${roles.join(", ")}`,
+      );
+    }
+  }
+
   await db.end();
 
   if (fails.length) {

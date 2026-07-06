@@ -120,6 +120,12 @@ using (
 - **cast_tax_profiles（T4a）**：パターン2（cast 0行・manager 以上）。`mode`（委託/雇用）が payOf taxMode の正本・`invoice`/`reg_no` は F2d 前提。casts.employment は残置（T3a・非正規化表示用・drop しない）。
 - **verify:nox-grants G1 の整合（T5a）**：G1 は「authenticated は SELECT 以下」の意（SELECT 以外の権限が 0）。cast_sensitive は **0 grant の明示例外**として、authenticated 権限が皆無であることを専用 assert で positive に固定。
 
+**【F2c 実装確定（2026-07-06・mig0016）】給与凍結テーブルの認可（裁定 F1c〜F4c）**
+- **payslips＝金額系＋staff 遮断**：§3.2 金額系（`auth_role()<>'cast' or cast_id=auth_cast_id()`）に **staff 遮断**を加える＝店スコープ `and auth_role()<>'staff' and (auth_role()<>'cast' or cast_id=auth_cast_id())`。owner=自店全・manager=自店・cast=本人のみ・**staff=0行**（個別賃金明細は黒服にも出さない＝cast_plan／get_cast_sales の staff 遮断と方向統一）。cast は自分の payslip を /mine で読むため `period` を payslips に非正規化（run へのアクセス不要）。
+- **payroll_runs＝店スコープ管理オブジェクト**：owner/manager のみ可視（cast/staff 0行）。status は `draft/finalized/paid` の3状態・`period_start/period_end`（解決済み窓）を finalize が凍結。
+- **確定書き込みの権威（裁定 F1c）**：payOf は TS 純関数（案1）ゆえ確定はサーバ再計算が権威。サーバ（Next.js API・service_role）が payslip 群を算出→**service_role 限定 RPC `payroll_finalize` に渡し原子的に凍結**（payslips 差し替え＋run 確定＋監査を1トランザクション）。`payroll_mark_paid` も service_role 限定（finalized→paid・箱のみ・実結線は F2e）。authenticated は payslip 値を注入不可。
+- **#6 service 経路監査＝`audit_log_write_service`（mig0002 の宿題の解）**：service キーは auth.uid()/auth_org_id() を持たず既存 audit_log_write が使えないため、`p_org_id`/`p_actor` を明示に受ける**完全内部専用**（4ロール revoke・grant なし）ヘルパーを新設。finalize/mark_paid（SECURITY DEFINER・owner=postgres）内部の perform のみで通る＝service_role は監査を finalize/mark_paid 経由でしか書けない（任意監査書込を許さない）。
+
 ---
 
 ## 3. 集計の安全提供（RLSだけでは完結しない部分）

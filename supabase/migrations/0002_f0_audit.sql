@@ -21,6 +21,11 @@
 --    service キー呼び出しは常に forbidden で落ちる＝grant しても使えない経路になる。
 --    F2 の service_role 監査書込（給与確定）は「RLS バイパス直 INSERT か p_org_id 明示の
 --    service 専用 RPC か」を F2c で決定する。
+--    ★F2c 決定（2026-07-06・mig0016・台帳 #6 クローズ）: 後者を採る＝audit_log_write_service を新設
+--    （p_org_id/p_actor 明示・完全内部専用の4ロール revoke・grant なし）。service キーに直 grant せず、
+--    payroll_finalize/payroll_mark_paid（SECURITY DEFINER・service_role 限定）内部の perform のみで通す
+--    ＝service キーは監査を確定 RPC 経由でしか書けない（任意監査書込を許さない・本 audit_log_write より
+--    引数で org/actor を明示に受ける点のみが差分）。
 --  - 閲覧 RLS: 認可設計 §1.2 capability マトリクスで audit は owner のみ（manager 不可）。
 --    §2.3 パターン2（cast 0行）の対象でもあるが、owner 限定はパターン2を包含する
 --    （manager/staff/cast すべて 0 行）＝厳しい方を採用。

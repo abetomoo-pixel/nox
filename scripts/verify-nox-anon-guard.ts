@@ -162,6 +162,20 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段11a: F2c 給与確定 RPC anon BLOCKED（mig0016）──
+  //   payroll_run_create=authenticated grant／finalize・mark_paid=service_role 限定／
+  //   period_bounds=authenticated+service_role grant。いずれも anon には grant なし＝BLOCKED。
+  const F2C_ANON_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["payroll_run_create", { p_store_id: null, p_period: null }],
+    ["payroll_finalize", { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null, p_payslips: null }],
+    ["payroll_mark_paid", { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null }],
+    ["period_bounds", { p_period: null }],
+  ];
+  for (const [fn, args] of F2C_ANON_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部関数は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
@@ -185,6 +199,7 @@ async function main() {
     "daily_reports",
     "comp_plans", "cast_plan", "cast_norms", "deductions", "penalty_config", "custom_back_defs",
     "cast_sensitive", "cast_tax_profiles",
+    "payroll_runs", "payslips",
   ]) {
     // PK=cast_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
     const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles"].includes(table);
@@ -214,6 +229,16 @@ async function main() {
     for (const [fn, args] of INTERNAL_PROBES) {
       const { error: eInt } = await authed.rpc(fn, args);
       check(`authenticated ${fn} BLOCKED（内部専用）`, isFnBlocked(eInt), eInt?.message ?? "実行できてしまった");
+    }
+
+    // 段11b: F2c finalize/mark_paid は service_role 限定＝authenticated でも BLOCKED（positive assert）
+    const F2C_SVC_ONLY: Array<[string, Record<string, unknown>]> = [
+      ["payroll_finalize", { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null, p_payslips: null }],
+      ["payroll_mark_paid", { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null }],
+    ];
+    for (const [fn, args] of F2C_SVC_ONLY) {
+      const { error: eSvc } = await authed.rpc(fn, args);
+      check(`authenticated ${fn} BLOCKED（service_role 限定）`, isFnBlocked(eSvc), eSvc?.message ?? "実行できてしまった");
     }
 
     // 正常系対照: authenticated でヘルパーは実行可能・正しいロール

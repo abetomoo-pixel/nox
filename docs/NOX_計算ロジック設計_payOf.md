@@ -131,6 +131,14 @@ SPEC §6.2 準拠。クライアントで `payOf` を呼ぶ：
 - 書き込みは **service_role でトランザクション**（payslips INSERT ＋ 天引き消し込み ＋ run status 更新を 1 トランザクション）。
 - ⚠ BANZEN メモリ：「給与/課金/確定系は RPC 非経由（RLS+直書込）で穴なし」とあるが、NOX は計算が TS にあるため**サーバ API（service_role）経由が自然**。RLS で cast/manager の閲覧を守りつつ、確定書き込みはサーバ権威。この方式の是非は CC 実装時に再確認。
 
+**【F2c 実装確定（2026-07-06・mig0016）＝§4.3 の結論（裁定 F1c〜F4c）】**
+- **F1c 確定経路**：サーバ（Next.js API・service_role）が DB 実績を読み→payOf(TS) を cast ごとに再計算→算出済み payslip 群を **service_role 限定 RPC `payroll_finalize(p_org_id, p_actor, p_run_id, p_idem_key, p_payslips jsonb)`** に渡し、payslips 差し替え＋run 確定＋監査を**1トランザクションで原子的に**書く。純 service 直書き（原子性/監査形式をアプリ側で担保）でも authenticated 経由 RPC（値偽造余地）でもなく、この形＝authenticated は payslip 値を注入不可・原子性は RPC 本体で担保。`payroll_mark_paid` も service_role 限定（finalized→paid・箱のみ・実消し込みは F2e）。
+- **F2c 状態**：draft→finalized→paid の3状態。finalize は paid でない限り再実行可（payslips 原子的差し替え・差し替え前 breakdown を `audit_log_write_service` に退避）。冪等キーは二重実行防止のみ（正当な再確定は別キー）。
+- **F3c 器**：`breakdown_json = { pay: PayResult, extras: Extra[] }`。extras は F2c 空配列（#32 出勤インセンティブ等の独立行受け皿）。`payslips.net` は extras 込みの最終差引（F2c は extras 空＝pay.net と一致）。
+- **F4c period**：'YYYY-MM'（暦月ラベル・C案）＋ `period_start`/`period_end`（解決済み窓）を run に凍結。'YYYY-MM'→date の写像は `period_bounds` を単一ソースに（finalize が窓解決に使い、get_cast_ranking も period_bounds 経由に再宣言＝窓は数学的に不変）。
+- **#6 service 監査経路**：`audit_log_write_service`（p_org_id/p_actor 明示・完全内部専用）＝mig0002 の宿題をクローズ。
+- 天引き（arDeduct/advanceDeduct/okuriDeduct）は F2c では 0 凍結（供給元 advances/transport の消し込み・二重控除ガード #8 は F2e）。専門家ゲート暫定既定は #7 源泉日数=出勤日数・#10 丸め=round・#11 雇用係数=1.0（pay.ts 既定・TODO 維持）。
+
 ---
 
 ## 5. 源泉・支払調書（確定値から生成）

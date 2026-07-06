@@ -952,6 +952,189 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // F2c-1: 給与確定（mig0016・payroll_runs/payslips/finalize/mark_paid/period_bounds）
+  // service キーで finalize 動作アンカー＋実ユーザーで payroll_runs/payslips の RLS 物理保証。
+  // 写像ゴールデン（period_bounds）＋get_cast_ranking 回帰は F1f 順位ゴールデン（上記）で係留。
+  // ══════════════════════════════════════════════════════════
+  {
+    const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: orgRow } = await svc.from("stores").select("org_id").eq("id", storeA1Id).single();
+    const orgAId = orgRow!.org_id as string;
+    const { data: mgrRow } = await svc.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
+    const actorId = mgrRow!.id as string;
+    const period = "2026-07";
+    type RunRow = { id: string; status: string };
+    const ps = (castId: string, net: number) => ({ cast_id: castId, net, breakdown: { pay: { net }, extras: [] } });
+
+    // 再実行冪等: 当店の既存 run/payslips を admin 除去（FK 順: payslips → payroll_runs）
+    const { data: exRuns } = await svc.from("payroll_runs").select("id").eq("store_id", storeA1Id);
+    const exRunIds = (exRuns ?? []).map((r) => r.id as string);
+    if (exRunIds.length) {
+      await svc.from("payslips").delete().in("run_id", exRunIds);
+      await svc.from("payroll_runs").delete().in("id", exRunIds);
+    }
+
+    // ── ① run_create（managerA1・戻り値 (id,status)・自然冪等）──
+    const m = await signIn("managerA1");
+    const { data: rc1, error: eRc1 } = await m.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: period });
+    const run1 = (rc1 ?? [])[0] as RunRow | undefined;
+    check("F2c run_create 成功・status=draft", !eRc1 && run1?.status === "draft" && typeof run1?.id === "string", eRc1?.message ?? JSON.stringify(rc1));
+    const runId = run1!.id;
+    const { data: rc2 } = await m.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: period });
+    const run2 = (rc2 ?? [])[0] as RunRow | undefined;
+    check("F2c run_create 冪等（同一 id・status draft を返す）", run2?.id === runId && run2?.status === "draft", JSON.stringify(run2));
+    await m.auth.signOut();
+
+    // ── ② クロス org finalize 拒否（p_org_id 不一致＝org 照合が先）──
+    const { error: eXorg } = await svc.rpc("payroll_finalize", {
+      p_org_id: randomUUID(), p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: [ps(castIdA, 1)],
+    });
+    check("F2c finalize クロス org 拒否（p_org_id 不一致→forbidden）", !!eXorg?.message?.includes("forbidden"), eXorg?.message ?? "通ってしまった");
+
+    // ── ③ 正常 finalize（2件・原子的 insert・net 凍結・窓凍結）──
+    const idem1 = randomUUID();
+    const { data: fc1, error: eF1 } = await svc.rpc("payroll_finalize", {
+      p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: idem1, p_payslips: [ps(castIdA, 100_000), ps(castIdB, 80_000)],
+    });
+    check("F2c finalize 成功（cast_count=2）", !eF1 && fc1 === 2, eF1?.message ?? `got ${fc1}`);
+    const { data: rRow } = await svc.from("payroll_runs").select("status, period_start, period_end").eq("id", runId).single();
+    check("F2c finalize 後 status=finalized・窓凍結（2026-07-01〜2026-07-31）",
+      rRow?.status === "finalized" && rRow?.period_start === "2026-07-01" && rRow?.period_end === "2026-07-31", JSON.stringify(rRow));
+    const { data: psRows } = await svc.from("payslips").select("cast_id, net, breakdown_json, paid, period").eq("run_id", runId);
+    const psA = (psRows ?? []).find((p) => p.cast_id === castIdA);
+    const psB = (psRows ?? []).find((p) => p.cast_id === castIdB);
+    check("F2c payslips 2件・net 凍結（A=100000/B=80000）・paid=false・period 非正規化",
+      (psRows ?? []).length === 2 && psA?.net === 100_000 && psB?.net === 80_000 &&
+      (psRows ?? []).every((p) => p.paid === false && p.period === period), JSON.stringify(psRows));
+    const bjA = psA?.breakdown_json as { pay?: { net?: number }; extras?: unknown[] } | null;
+    check("F2c breakdown_json 器 = {pay, extras[]}・extras 空・net=pay.net",
+      bjA?.pay?.net === 100_000 && Array.isArray(bjA?.extras) && bjA?.extras.length === 0, JSON.stringify(bjA));
+
+    // ── ④ 冪等（同一 idem_key・finalized 済み → 既存件数を返す）──
+    const { data: fRep, error: eRep } = await svc.rpc("payroll_finalize", {
+      p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: idem1, p_payslips: [ps(castIdA, 100_000), ps(castIdB, 80_000)],
+    });
+    check("F2c finalize 冪等（同一キー・finalized → 既存件数 2）", !eRep && fRep === 2, eRep?.message ?? `got ${fRep}`);
+
+    // ── ⑤ 空配列拒否（delete が走らない＝既存明細温存）──
+    const { error: eEmpty } = await svc.rpc("payroll_finalize", {
+      p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: [],
+    });
+    check("F2c 空配列拒否（empty payslips）", !!eEmpty?.message?.includes("empty payslips"), eEmpty?.message ?? "通ってしまった");
+    const { data: psKeep } = await svc.from("payslips").select("id").eq("run_id", runId);
+    check("F2c 空拒否で既存明細温存（2件維持）", (psKeep ?? []).length === 2, `got ${(psKeep ?? []).length}`);
+
+    // ── ⑥ 混入除去（他店/不存在 cast_id は casts join で除去）──
+    const bogus = randomUUID();
+    const { data: fInj, error: eInj } = await svc.rpc("payroll_finalize", {
+      p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: [ps(castIdA, 100_000), ps(bogus, 999_999)],
+    });
+    check("F2c 混入除去: 不存在 cast は casts join で除去（cast_count=1）", !eInj && fInj === 1, eInj?.message ?? `got ${fInj}`);
+    const { data: psInj } = await svc.from("payslips").select("cast_id").eq("run_id", runId);
+    check("F2c 混入除去: bogus cast_id 不在（castA1a のみ）", (psInj ?? []).length === 1 && psInj?.[0]?.cast_id === castIdA, JSON.stringify(psInj));
+
+    // ── ⑦ 再確定（未paid・別キー）→ 差し替え＋旧 breakdown が audit に退避（p_actor 記録）──
+    const idem2 = randomUUID();
+    const { data: fRe, error: eRe } = await svc.rpc("payroll_finalize", {
+      p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: idem2, p_payslips: [ps(castIdA, 111_000), ps(castIdB, 82_000)],
+    });
+    check("F2c 再確定（未paid・別キー）成功（cast_count=2 差し替え）", !eRe && fRe === 2, eRe?.message);
+    const { data: psRe } = await svc.from("payslips").select("cast_id, net").eq("run_id", runId);
+    check("F2c 再確定で net 差し替え（A=111000/B=82000）",
+      psRe?.find((p) => p.cast_id === castIdA)?.net === 111_000 && psRe?.find((p) => p.cast_id === castIdB)?.net === 82_000, JSON.stringify(psRe));
+    const { data: audRe } = await svc.from("audit_logs").select("before_json, actor_user_id")
+      .eq("action", "payroll_finalize").eq("target", "payroll_runs:" + runId).order("at", { ascending: false }).limit(1);
+    const beforeRe = audRe?.[0]?.before_json as { retired_payslips?: unknown[] } | null;
+    check("F2c 再確定 audit: 差し替え前 breakdown を退避（retired_payslips 非空・旧 net=100000 含む）",
+      Array.isArray(beforeRe?.retired_payslips) && (beforeRe?.retired_payslips?.length ?? 0) >= 1 && JSON.stringify(beforeRe).includes("100000"), JSON.stringify(beforeRe));
+    check("F2c 再確定 audit: actor=managerA1（p_actor 記録・null 固定でない）", audRe?.[0]?.actor_user_id === actorId, JSON.stringify(audRe?.[0]?.actor_user_id));
+
+    // ── ⑧ RLS 物理保証（payroll_runs=owner/manager のみ・payslips=金額系＋staff 遮断）──
+    {
+      const o = await signIn("ownerA");
+      const { data: oRuns } = await o.from("payroll_runs").select("id").eq("id", runId);
+      check("F2c RLS payroll_runs: owner 自店可視", (oRuns ?? []).length === 1, `got ${(oRuns ?? []).length}`);
+      const { data: oPs } = await o.from("payslips").select("cast_id").eq("run_id", runId);
+      check("F2c RLS payslips: owner 自店全（2件）", (oPs ?? []).length === 2, `got ${(oPs ?? []).length}`);
+      await o.auth.signOut();
+
+      const mm = await signIn("managerA1");
+      const { data: mRuns } = await mm.from("payroll_runs").select("id").eq("id", runId);
+      check("F2c RLS payroll_runs: manager 自店可視", (mRuns ?? []).length === 1, `got ${(mRuns ?? []).length}`);
+      const { data: mPs } = await mm.from("payslips").select("cast_id").eq("run_id", runId);
+      check("F2c RLS payslips: manager 自店全（2件）", (mPs ?? []).length === 2, `got ${(mPs ?? []).length}`);
+      await mm.auth.signOut();
+
+      const ca = await signIn("castA1a");
+      const { data: caRuns } = await ca.from("payroll_runs").select("id");
+      check("F2c RLS payroll_runs: cast 0行", (caRuns ?? []).length === 0, `got ${(caRuns ?? []).length}`);
+      const { data: caPs } = await ca.from("payslips").select("cast_id").eq("run_id", runId);
+      check("F2c RLS payslips: cast 本人のみ（1件・castA1a）", (caPs ?? []).length === 1 && caPs?.[0]?.cast_id === castIdA, JSON.stringify(caPs));
+      await ca.auth.signOut();
+
+      const cb = await signIn("castA1b");
+      const { data: cbPs } = await cb.from("payslips").select("cast_id").eq("run_id", runId);
+      check("F2c RLS payslips: castA1b 本人のみ（1件・castA1b）", (cbPs ?? []).length === 1 && cbPs?.[0]?.cast_id === castIdB, JSON.stringify(cbPs));
+      await cb.auth.signOut();
+
+      const s = await signIn("staffA1");
+      const { data: sRuns } = await s.from("payroll_runs").select("id");
+      check("F2c RLS payroll_runs: staff 0行", (sRuns ?? []).length === 0, `got ${(sRuns ?? []).length}`);
+      const { data: sPs } = await s.from("payslips").select("cast_id").eq("run_id", runId);
+      check("F2c RLS payslips: staff 0行（金額系＋staff 遮断の positive assert）", (sPs ?? []).length === 0, `got ${(sPs ?? []).length}`);
+      await s.auth.signOut();
+
+      const b = await signIn("managerB1");
+      const { data: bRuns } = await b.from("payroll_runs").select("id");
+      check("F2c RLS payroll_runs: 他 org 0行（クロス org 拒否）", (bRuns ?? []).length === 0, `got ${(bRuns ?? []).length}`);
+      const { data: bPs } = await b.from("payslips").select("cast_id");
+      check("F2c RLS payslips: 他 org 0行（クロス org 拒否）", (bPs ?? []).length === 0, `got ${(bPs ?? []).length}`);
+      await b.auth.signOut();
+    }
+
+    // ── ⑨ mark_paid（finalized→paid のみ・draft/paid から拒否・payslips.paid 一括）──
+    // draft→paid 拒否: 別 period の draft run を用意
+    const mk = await signIn("managerA1");
+    const { data: rcD } = await mk.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2026-08" });
+    const runDraftId = ((rcD ?? [])[0] as RunRow | undefined)!.id;
+    await mk.auth.signOut();
+    const { error: eMkDraft } = await svc.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runDraftId, p_idem_key: randomUUID() });
+    check("F2c mark_paid: draft から拒否（not finalized）", !!eMkDraft?.message?.includes("not finalized"), eMkDraft?.message ?? "通ってしまった");
+
+    const idemPaid = randomUUID();
+    const { data: mkOk, error: eMk } = await svc.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: idemPaid });
+    check("F2c mark_paid: finalized→paid 成功", !eMk && mkOk === "paid", eMk?.message ?? `got ${mkOk}`);
+    const { data: paidRun } = await svc.from("payroll_runs").select("status").eq("id", runId).single();
+    check("F2c mark_paid 後 run.status=paid", paidRun?.status === "paid", JSON.stringify(paidRun));
+    const { data: paidPs } = await svc.from("payslips").select("paid").eq("run_id", runId);
+    check("F2c mark_paid 後 payslips.paid 一括 true", (paidPs ?? []).length === 2 && (paidPs ?? []).every((p) => p.paid === true), JSON.stringify(paidPs));
+    // 冪等: 同一キー再送 → 'paid'
+    const { data: mkRep } = await svc.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: idemPaid });
+    check("F2c mark_paid 冪等（同一キー→paid）", mkRep === "paid", `got ${mkRep}`);
+    // paid 済み再確定拒否
+    const { error: ePaidF } = await svc.rpc("payroll_finalize", {
+      p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: [ps(castIdA, 1)],
+    });
+    check("F2c paid 済み再確定拒否（run paid）", !!ePaidF?.message?.includes("run paid"), ePaidF?.message ?? "通ってしまった");
+
+    // ── ⑩ 写像ゴールデン（period_bounds・cutoff 非依存の暦月境界・不正 period 例外）──
+    const { data: pb1, error: ePb1 } = await svc.rpc("period_bounds", { p_period: "2026-07" });
+    const pbr1 = (pb1 ?? [])[0] as { period_start?: string; period_end?: string } | undefined;
+    check("F2c period_bounds('2026-07')=(2026-07-01,2026-07-31)", !ePb1 && pbr1?.period_start === "2026-07-01" && pbr1?.period_end === "2026-07-31", JSON.stringify(pb1));
+    const { data: pb2 } = await svc.rpc("period_bounds", { p_period: "2024-02" });
+    const pbr2 = (pb2 ?? [])[0] as { period_start?: string; period_end?: string } | undefined;
+    check("F2c period_bounds('2024-02')=(2024-02-01,2024-02-29 閏)", pbr2?.period_start === "2024-02-01" && pbr2?.period_end === "2024-02-29", JSON.stringify(pb2));
+    const { error: ePbBad } = await svc.rpc("period_bounds", { p_period: "2026-13" });
+    check("F2c period_bounds 不正 period 例外（bad period）", !!ePbBad?.message?.includes("bad period"), ePbBad?.message ?? "通ってしまった");
+
+    // 後片付け（再実行耐性は冒頭 wipe が担保・ここでも掃除して他節と非干渉に）
+    await svc.from("payslips").delete().in("run_id", [runId, runDraftId]);
+    await svc.from("payroll_runs").delete().in("id", [runId, runDraftId]);
+  }
+
+  // ══════════════════════════════════════════════════════════
   // F1e: 日報（ゴールデン・境界帰属 TS/DB 一致・p_force・冪等・reclose 追随）（mig0010）
   // ══════════════════════════════════════════════════════════
   {

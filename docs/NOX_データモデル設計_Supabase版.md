@@ -252,6 +252,14 @@ NOX 用に以下を最初のマイグレーションで定義：
 - `id*`, `run_id*→payroll_runs`, `cast_id*`, `breakdown_json`（wage/各バック/控除/罰金/ノルマ未達/源泉/天引き/net を**確定時点の値で凍結**）, `net`, `paid`（bool）
 - ⚠ BANZEN payslip スナップショットと同一。確定後はマスタ変更の影響を受けない。
 
+**【F2c 実装確定（2026-07-06・mig0016）】payroll_runs/payslips の実装反映（裁定 F1c〜F4c）**
+- **payroll_runs**：`id*`, `org_id*`, `store_id*`, `period`（'YYYY-MM' 暦月ラベル）, **`period_start`/`period_end`（date・解決済み窓＝finalize が `period_bounds` で凍結。run_create では null・再確定時は再解決し旧値を audit 退避）**, `status`（**draft/finalized/paid の3状態**）, `finalize_idem_key`, `finalized_at`, `paid_idem_key`, `paid_at`, `created_by`。部分ユニーク `(store_id, period)`＝1店1期間1 run。
+- **payslips**：初版に加え `org_id*`, `store_id*`, `period`（cast 自己表示用に非正規化）。`breakdown_json` は **`{ pay: PayResult, extras: Extra[] }` の器**（extras は F2c 空配列＝#32 出勤インセンティブ等の受け皿）。`net` は extras 込みの最終差引（F2c は extras 空＝pay.net と一致）。`paid` は **F2e 部分支払いの予約列**（F2c は run.status が唯一の paid ゲート・mark_paid が一括で立てるのみ）。ユニーク `(run_id, cast_id)`。
+- **RLS**：payroll_runs=owner/manager のみ（cast/staff 0行）／payslips=金額系＋staff 遮断（owner 自店全・manager 自店・cast 本人のみ・staff 0行）＝認可設計 §3.2 F2c 追記。
+- **確定経路（裁定 F1c）**：payOf は TS 権威ゆえ確定はサーバ（service_role）が再計算→**service_role 限定 RPC `payroll_finalize`（payslips 原子的差し替え＋run 確定＋監査）／`payroll_mark_paid`（finalized→paid・箱のみ）**。#6 service 監査は `audit_log_write_service`（p_org_id/p_actor 明示・完全内部専用）。
+- **写像単一ソース（裁定 F4c）**：'YYYY-MM'→[月初,月末] date は `period_bounds` を唯一の実装に（finalize が窓解決に・get_cast_ranking も period_bounds 経由に再宣言＝窓は数学的に不変）。
+- 天引き（arDeduct/advanceDeduct/okuriDeduct）は F2c では 0 凍結（供給元の消し込み・二重控除ガード #8 は F2e）。
+
 **payment_records**（支払調書）
 - `id*`, `cast_id*`, `period`, `amount`, `withholding`, `reg_no`
 - ⚠ 源泉(10.21%)・区分・支払調書は確定値から生成。**税率/計算は税理士確認**。
