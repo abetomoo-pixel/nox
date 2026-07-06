@@ -30,6 +30,8 @@ import { allocateQty, productBackOf, type Product, type NomType } from "../lib/n
 import { addDays, bizDateOf } from "../lib/nox/biz-date";
 import { groupDue } from "../lib/nox/check-calc";
 import { allocDue, allocCastSales, type AllocCheck } from "../lib/nox/sales-alloc";
+import { buildMatchInput, type PunchRow, type ShiftRow, type AttendanceRow } from "../lib/nox/punch-io";
+import { matchPunches } from "../lib/nox/punch-match";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -763,6 +765,79 @@ async function main() {
 
     // ── 後片付け（3-way check とその子行・castC を除去＝F1e cleanup とも二重で安全）──
     await cleanup3way();
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // F2a-3: 打刻突合の DB 結線（punch-io → matchPunches・mig 不要）
+  // DB の生 punches/shifts/attendance（admin で punched_at 制御）→ 持ち上げ → lateN/absentN。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const cutoff = "06:00";
+    const D = "2026-07-20"; // 固定営業日（seed と衝突しない未来日）
+    const { data: orgRow } = await admin.from("stores").select("org_id").eq("id", storeA1Id).single();
+    const orgAId = orgRow!.org_id as string;
+    const { data: mgrRow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
+    const mgrId = mgrRow!.id as string;
+
+    // 再実行冪等: 当日の shifts/punches/attendance を admin 除去
+    const wipe = async () => {
+      await admin.from("shifts").delete().eq("store_id", storeA1Id).eq("date", D);
+      await admin.from("attendance").delete().eq("store_id", storeA1Id).eq("date", D);
+      // punches は当日の biz 窓（D 06:00 〜 D+1 06:00 JST）
+      await admin.from("punches").delete().eq("store_id", storeA1Id)
+        .gte("punched_at", `${D}T06:00:00+09:00`).lt("punched_at", `2026-07-21T06:00:00+09:00`);
+    };
+    await wipe();
+
+    // 確定シフト2本（A=遅刻シナリオ・B=当欠シナリオ）
+    for (const cid of [castIdA, castIdB]) {
+      const { error: eSh } = await admin.from("shifts").insert({
+        org_id: orgAId, store_id: storeA1Id, cast_id: cid, date: D,
+        start_hm: "20:00", end_hm: "25:00", status: "confirmed", created_by: mgrId,
+      });
+      check(`F2a-3 shift 投入（${cid === castIdA ? "A" : "B"}）`, !eSh, eSh?.message);
+    }
+    // A の punch（in 20:30＝遅刻30・out 翌01:00）を punched_at 制御で投入。B は punch 無し＝当欠。
+    const { error: ePin } = await admin.from("punches").insert([
+      { org_id: orgAId, store_id: storeA1Id, cast_id: castIdA, punched_at: `${D}T20:30:00+09:00`, type: "in", source: "manager" },
+      { org_id: orgAId, store_id: storeA1Id, cast_id: castIdA, punched_at: `2026-07-21T01:00:00+09:00`, type: "out", source: "manager" },
+    ]);
+    check("F2a-3 punch 投入（A: in 20:30 / out 翌01:00）", !ePin, ePin?.message);
+
+    // DB から生行を読み、punch-io → matchPunches に通す（cast ごと）
+    const runCast = async (cid: string) => {
+      const { data: sh } = await admin.from("shifts").select("date, start_hm, end_hm").eq("store_id", storeA1Id).eq("cast_id", cid).eq("date", D);
+      const { data: at } = await admin.from("attendance").select("date, status").eq("store_id", storeA1Id).eq("cast_id", cid).eq("date", D);
+      const { data: pu } = await admin.from("punches").select("punched_at, type").eq("store_id", storeA1Id).eq("cast_id", cid)
+        .gte("punched_at", `${D}T06:00:00+09:00`).lt("punched_at", `2026-07-21T06:00:00+09:00`).order("punched_at");
+      const built = buildMatchInput({
+        cutoffHm: cutoff,
+        shifts: (sh ?? []) as ShiftRow[],
+        attendance: (at ?? []) as AttendanceRow[],
+        punches: (pu ?? []) as PunchRow[],
+      });
+      return matchPunches({ ...built, config: { close: "25:00" } });
+    };
+
+    const rA = await runCast(castIdA);
+    check("F2a-3 DB 結線 A: 帰属 biz_date=D・in 20:30→late30", rA.days[0]?.bizDate === D && JSON.stringify(rA.days[0]?.raw.in) === JSON.stringify({ type: "late", min: 30, act: "20:30" }), JSON.stringify(rA.days[0]));
+    check("F2a-3 DB 結線 A: lateN=1/absentN=0", rA.lateN === 1 && rA.absentN === 0, JSON.stringify([rA.lateN, rA.absentN]));
+
+    const rB = await runCast(castIdB);
+    check("F2a-3 DB 結線 B: shift 有り punch 無し→absent（absentN=1）", rB.absentN === 1 && rB.lateN === 0, JSON.stringify([rB.lateN, rB.absentN]));
+
+    // attendance 適用（B に shukkin を入れると final ok に昇格＝S3 対応表の DB 結線）
+    const { error: eAt } = await admin.from("attendance").insert({
+      org_id: orgAId, store_id: storeA1Id, cast_id: castIdB, date: D, status: "shukkin", source: "staff",
+    });
+    check("F2a-3 attendance 投入（B: shukkin）", !eAt, eAt?.message);
+    const rB2 = await runCast(castIdB);
+    check("F2a-3 DB 結線 B: attendance shukkin で final ok・absentN=0", rB2.absentN === 0 && rB2.days[0]?.final.type === "ok", JSON.stringify(rB2.days[0]));
+
+    await wipe();
   }
 
   // ══════════════════════════════════════════════════════════

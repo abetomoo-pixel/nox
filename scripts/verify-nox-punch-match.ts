@@ -16,6 +16,7 @@ import {
   type PunchEvent,
   type PunchMatchConfig,
 } from "../lib/nox/punch-match";
+import { liftPunchAt, buildMatchInput } from "../lib/nox/punch-io";
 
 let pass = 0;
 const fails: string[] = [];
@@ -252,6 +253,42 @@ eq("G9 out 26:31（g=91）→ over min=91", one([pin("20:00"), pout("26:31")]).d
     [[], [], ["orphan_out"], ["attendance_conflict"], ["in_in"]],
   );
   eq("総合 fine 入力（当欠1万・遅刻3千 → 16,000 円相当の回数）", [r.absentN * 10000 + r.lateN * 3000], [16000]);
+}
+
+// ── IO 段（punch-io.ts・timestamptz→0-47 域持ち上げ・F2a-3）──
+// cutoff 06:00。bizDateOf の既存規約: cutoff ちょうど（06:00:00）は当日側＝新しい営業日に帰属。
+{
+  const CO = "06:00";
+  // 帰属＋分 floor＋0-47 域化の境界（liftPunchAt）
+  eq("IO 通常 20:00→当日20:00", liftPunchAt("2026-07-08T20:00:00+09:00", CO), { bizDate: "2026-07-08", hm: "20:00" });
+  eq("IO S4 深夜01:30→前営業日25:30", liftPunchAt("2026-07-09T01:30:00+09:00", CO), { bizDate: "2026-07-08", hm: "25:30" });
+  eq("IO cutoff ちょうど06:00:00→当日側（新営業日06:00）", liftPunchAt("2026-07-09T06:00:00+09:00", CO), { bizDate: "2026-07-09", hm: "06:00" });
+  eq("IO cutoff 直前05:59:59→前営業日・floor 秒切捨て・29:59", liftPunchAt("2026-07-09T05:59:59+09:00", CO), { bizDate: "2026-07-08", hm: "29:59" });
+  eq("IO cutoff 直後06:01:00→当日06:01", liftPunchAt("2026-07-09T06:01:00+09:00", CO), { bizDate: "2026-07-09", hm: "06:01" });
+  eq("IO S6 floor 秒切捨て 19:59:59→19:59", liftPunchAt("2026-07-08T19:59:59+09:00", CO), { bizDate: "2026-07-08", hm: "19:59" });
+  eq("IO JST 日跨ぎ（22:00Z→翌JST07:00・UTC でなく JST 基準）", liftPunchAt("2026-07-08T22:00:00Z", CO), { bizDate: "2026-07-09", hm: "07:00" });
+  // 別 cutoff（正本 biz-date.ts に委譲していることの裏取り）
+  eq("IO cutoff 00:00 は暦日境界（00:00 据置）", liftPunchAt("2026-07-09T00:00:00+09:00", "00:00"), { bizDate: "2026-07-09", hm: "00:00" });
+
+  // buildMatchInput → matchPunches 統合（深夜シフトが 0-47 域で正しく ok になる）
+  const built = buildMatchInput({
+    cutoffHm: CO,
+    shifts: [
+      { date: "2026-07-08", start_hm: "20:00", end_hm: "25:00" }, // 通常
+      { date: "2026-07-09", start_hm: "25:00", end_hm: "30:00" }, // 深夜開始シフト
+    ],
+    attendance: [],
+    punches: [
+      { punched_at: "2026-07-08T20:30:00+09:00", type: "in" }, // biz 07-08 20:30 → late30
+      { punched_at: "2026-07-08T20:29:59+09:00", type: "in" }, // 同日 in-in（先着 20:29 採用）
+      { punched_at: "2026-07-10T01:05:00+09:00", type: "in" }, // biz 07-09 25:05 vs start25:00 → ok
+    ],
+  });
+  eq("IO 統合: punches が営業日別に束ねられる", Object.keys(built.punches).sort(), ["2026-07-08", "2026-07-09"]);
+  const res = matchPunches({ ...built, config: { close: "30:00" } });
+  eq("IO 統合: 07-08 は先着 in 20:29 採用で late19・in_in anomaly", res.days[0].raw.in, { type: "late", min: 29, act: "20:29" });
+  eq("IO 統合: 07-09 深夜 25:05 は 0-47 域比較で ok（fail-open せず）", res.days[1].raw.in, { type: "ok", act: "25:05" });
+  eq("IO 統合: lateN=1/absentN=0", [res.lateN, res.absentN], [1, 0]);
 }
 
 if (fails.length) {
