@@ -1035,7 +1035,14 @@ async function main() {
     const { data: psInj } = await svc.from("payslips").select("cast_id").eq("run_id", runId);
     check("F2c 混入除去: bogus cast_id 不在（castA1a のみ）", (psInj ?? []).length === 1 && psInj?.[0]?.cast_id === castIdA, JSON.stringify(psInj));
 
-    // ── ⑦ 再確定（未paid・別キー）→ 差し替え＋旧 breakdown が audit に退避（p_actor 記録）──
+    // ── ⑦ 再確定（未paid・別キー）→ 差し替え＋旧 breakdown が audit に退避（実値一致・p_actor 記録）──
+    // 差し替え前 payslips を実値キャプチャ（退避の実値一致検証用＝「行が増えた」でなく中身の一致を assert）
+    type RetSlip = { cast_id: string; net: number; breakdown: unknown };
+    const { data: preSwap } = await svc.from("payslips").select("cast_id, net, breakdown_json").eq("run_id", runId);
+    const preNorm: RetSlip[] = (preSwap ?? []).map((p) => ({ cast_id: p.cast_id as string, net: p.net as number, breakdown: p.breakdown_json }));
+    const normSlips = (arr: RetSlip[]) =>
+      [...arr].sort((a, b) => a.cast_id.localeCompare(b.cast_id)).map((r) => `${r.cast_id}|${r.net}|${JSON.stringify(r.breakdown)}`).join(";");
+
     const idem2 = randomUUID();
     const { data: fRe, error: eRe } = await svc.rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: idem2, p_payslips: [ps(castIdA, 111_000), ps(castIdB, 82_000)],
@@ -1046,10 +1053,13 @@ async function main() {
       psRe?.find((p) => p.cast_id === castIdA)?.net === 111_000 && psRe?.find((p) => p.cast_id === castIdB)?.net === 82_000, JSON.stringify(psRe));
     const { data: audRe } = await svc.from("audit_logs").select("before_json, actor_user_id")
       .eq("action", "payroll_finalize").eq("target", "payroll_runs:" + runId).order("at", { ascending: false }).limit(1);
-    const beforeRe = audRe?.[0]?.before_json as { retired_payslips?: unknown[] } | null;
-    check("F2c 再確定 audit: 差し替え前 breakdown を退避（retired_payslips 非空・旧 net=100000 含む）",
-      Array.isArray(beforeRe?.retired_payslips) && (beforeRe?.retired_payslips?.length ?? 0) >= 1 && JSON.stringify(beforeRe).includes("100000"), JSON.stringify(beforeRe));
-    check("F2c 再確定 audit: actor=managerA1（p_actor 記録・null 固定でない）", audRe?.[0]?.actor_user_id === actorId, JSON.stringify(audRe?.[0]?.actor_user_id));
+    const beforeRe = audRe?.[0]?.before_json as { retired_payslips?: RetSlip[] } | null;
+    const retired = (beforeRe?.retired_payslips ?? []) as RetSlip[];
+    // 実値一致: retired_payslips が差し替え前 payslips（cast_id/net/breakdown_json）と完全一致
+    check("F2c 再確定 audit: retired_payslips が差し替え前 payslips と実値一致（cast_id/net/breakdown 完全）",
+      retired.length >= 1 && retired.length === preNorm.length && normSlips(retired) === normSlips(preNorm),
+      `retired=${JSON.stringify(retired)} / pre=${JSON.stringify(preNorm)}`);
+    check("F2c 再確定 audit: actor=managerA1（p_actor が渡した値で記録・null 固定でない）", audRe?.[0]?.actor_user_id === actorId, JSON.stringify(audRe?.[0]?.actor_user_id));
 
     // ── ⑧ RLS 物理保証（payroll_runs=owner/manager のみ・payslips=金額系＋staff 遮断）──
     {
