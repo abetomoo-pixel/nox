@@ -21,6 +21,7 @@ export async function POST(req: Request) {
         breakdown: { pay: r.pay, extras: r.extras },
       })),
       blockers: draft.blockers,
+      incentives: draft.incentives, // #32 可視化: 総配分額・受給者数・warnEmptyPool
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

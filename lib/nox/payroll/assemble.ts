@@ -15,8 +15,9 @@ import type {
   TaxMode,
 } from "../pay";
 
-// breakdown_json の器: { pay: PayResult, extras: Extra[] }。extras は F2c では常に空。
-export type Extra = { kind: string; amount: number; label?: string };
+// breakdown_json の器: { pay: PayResult, extras: Extra[] }。
+// #32 出勤インセンティブは extras に {kind:'attendance_bonus', amount, label, source:incentive行id} を乗せる。
+export type Extra = { kind: string; amount: number; label?: string; source?: string };
 
 // cast 1人分の集計済み raw（collect.ts が組む）。taxMode は core が解決して別引数で渡す。
 export type CastRaw = {

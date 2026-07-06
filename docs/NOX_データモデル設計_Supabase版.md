@@ -264,6 +264,11 @@ NOX 用に以下を最初のマイグレーションで定義：
 - `id*`, `cast_id*`, `period`, `amount`, `withholding`, `reg_no`
 - ⚠ 源泉(10.21%)・区分・支払調書は確定値から生成。**税率/計算は税理士確認**。
 
+**【F2c 実装確定（2026-07-06・mig0017）】attendance_incentives（台帳 #32・出勤インセンティブ）**
+- 列：`id*`, `org_id*`, `store_id*`, `biz_date`, `kind`（'bonus' のみ実装・'drink_boost' は enum 予約）, `amount_mode`（'per_head'|'pooled'）, `amount`（円）, `status`（'published'|'cancelled'）, `created_by`, `created_at`, `cancelled_by`, `cancelled_at`。**部分ユニーク `(store_id, biz_date) where status='published'`**（同日1本・cancel で解放＝再発行可）。staffing_needs と FK なし疎結合。
+- **凍結記録**（編集不可・cancel＋新規のみ）。RLS＝**パターン3（周知）**。発行/取消は manager 以上の RPC（`incentive_publish`／`incentive_cancel`・二重防御＋audit＋**publish/cancel とも paid 期間ガード**＝to_char(biz_date,'YYYY-MM')=period が payroll_runs.status='paid' なら拒否）。`incentive_publish` は **on conflict do nothing→returning 空で 'already published'**（exists→insert の TOCTOU を排除）。
+- **給与結線**：payOf の外側＝payslips.breakdown_json の `extras[]` に `{kind:'attendance_bonus', amount, label, source:incentive行id}` として乗る（`net=pay.net+Σextras`）。受給者＝finalize 時点の `final∈{ok,late}`（確定シフト出勤・当欠/シフト無し raw は対象外）。per_head=定額／pooled=最大剰余法按分（allocDue 再利用・端数+1=cast_id 最小）。再確定で extras 更新＋旧値は payroll_finalize 退避で audit（Y）。
+
 ### 2.9 監査（M09 相当・全 org 横断）
 
 **audit_logs**

@@ -126,6 +126,10 @@ using (
 - **確定書き込みの権威（裁定 F1c）**：payOf は TS 純関数（案1）ゆえ確定はサーバ再計算が権威。サーバ（Next.js API・service_role）が payslip 群を算出→**service_role 限定 RPC `payroll_finalize` に渡し原子的に凍結**（payslips 差し替え＋run 確定＋監査を1トランザクション）。`payroll_mark_paid` も service_role 限定（finalized→paid・箱のみ・実結線は F2e）。authenticated は payslip 値を注入不可。
 - **#6 service 経路監査＝`audit_log_write_service`（mig0002 の宿題の解）**：service キーは auth.uid()/auth_org_id() を持たず既存 audit_log_write が使えないため、`p_org_id`/`p_actor` を明示に受ける**完全内部専用**（4ロール revoke・grant なし）ヘルパーを新設。finalize/mark_paid（SECURITY DEFINER・owner=postgres）内部の perform のみで通る＝service_role は監査を finalize/mark_paid 経由でしか書けない（任意監査書込を許さない）。
 
+**【F2c 実装確定（2026-07-06・mig0017）】attendance_incentives（台帳 #32）の認可**
+- **パターン3（周知）**：`SELECT to authenticated using (org_id=auth_org_id() and (auth_role()='owner' or store_id=auth_store_id()))`（cast プライバシー条件なし＝全ロールが自店 published を可視）。書込ポリシーなし＝発行/取消は RPC 経由のみ。
+- **`incentive_publish`／`incentive_cancel`＝manager 以上**（二重防御標準型・null guard・org 照合・ロール判定・audit）。paid 期間は publish/cancel とも拒否（凍結済み payslip との不整合防止）。staff/cast は発行/取消不可（RLS 可視は周知のため全ロール可）。
+
 ---
 
 ## 3. 集計の安全提供（RLSだけでは完結しない部分）

@@ -170,6 +170,9 @@ async function main() {
     ["payroll_finalize", { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null, p_payslips: null }],
     ["payroll_mark_paid", { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null }],
     ["period_bounds", { p_period: null }],
+    // #32 出勤インセンティブ（mig0017・authenticated grant＝anon のみ BLOCKED）
+    ["incentive_publish", { p_store_id: null, p_biz_date: null, p_kind: null, p_amount_mode: null, p_amount: null }],
+    ["incentive_cancel", { p_incentive_id: null }],
   ];
   for (const [fn, args] of F2C_ANON_PROBES) {
     const { error } = await anon.rpc(fn, args);
@@ -200,6 +203,7 @@ async function main() {
     "comp_plans", "cast_plan", "cast_norms", "deductions", "penalty_config", "custom_back_defs",
     "cast_sensitive", "cast_tax_profiles",
     "payroll_runs", "payslips",
+    "attendance_incentives",
   ]) {
     // PK=cast_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
     const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles"].includes(table);

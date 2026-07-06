@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { fmtWin } from "@/lib/nox/shift-time";
+import IncentivePanel from "./incentive-panel";
 
 type Cast = { id: string; name: string };
 type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string };
@@ -109,6 +110,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     <div style={{ maxWidth: 760 }}>
       <h1 style={{ fontSize: 20 }}>シフト管理</h1>
       {msg && <p style={{ fontSize: 13, color: "#404040" }}>{msg}</p>}
+
+      {isManagerUp && <IncentivePanel storeId={storeId} />}
 
       <section style={card}>
         <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>希望（審査待ち）</h2>

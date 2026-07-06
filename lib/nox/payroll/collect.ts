@@ -13,7 +13,16 @@ import { matchPunches } from "../punch-match";
 
 type SalesRow = { cast_id: string; biz_date: string; sales: number; hon: number; jonai: number; dohan: number };
 
-export type CollectResult = { casts: CastRaw[]; masters: StoreMasters };
+// #32 出勤インセンティブ（published・当該期間の biz_date）
+export type Incentive = { id: string; bizDate: string; amountMode: "per_head" | "pooled"; amount: number };
+
+export type CollectResult = {
+  casts: CastRaw[];
+  masters: StoreMasters;
+  incentives: Incentive[];
+  // bizDate → 受給者 cast_id（final∈{ok,late}・cast_id 昇順＝pooled 端数 +1 の順序＝確認1）
+  recipientsByDate: Map<string, string[]>;
+};
 
 // 店共通マスタ＋cast 個別マスタ（plan/norm/tax）を1回読む。
 async function loadMasters(admin: SupabaseClient, storeId: string, period: string) {
@@ -152,6 +161,8 @@ async function loadPunch(admin: SupabaseClient, storeId: string, win: PayrollWin
   for (const p of (punchR.data ?? []) as Record<string, unknown>[]) ensure(p.cast_id as string).punches.push({ punched_at: p.punched_at as string, type: p.type as "in" | "out" });
 
   const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; hoursByDate: Map<string, number> }>();
+  // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
+  const recipientsByDate = new Map<string, string[]>();
   for (const [cid, raw] of byCast) {
     const built = buildMatchInput({ cutoffHm: win.cutoffHm, shifts: raw.shifts, attendance: raw.att, punches: raw.punches });
     const m = matchPunches({ ...built, config: { close: win.closeHm, lateGraceMin: grace.lateGrace, earlyGraceMin: grace.earlyGrace, overGraceMin: grace.overGrace } });
@@ -160,13 +171,32 @@ async function loadPunch(admin: SupabaseClient, storeId: string, win: PayrollWin
     let anomalyCount = 0;
     for (const d of m.days) {
       hoursByDate.set(d.bizDate, dayWorkedHours(d));
-      if (d.final.type === "ok" || d.final.type === "late") days += 1;
+      if (d.final.type === "ok" || d.final.type === "late") {
+        days += 1;
+        (recipientsByDate.get(d.bizDate) ?? recipientsByDate.set(d.bizDate, []).get(d.bizDate)!).push(cid);
+      }
       const outAnom = d.raw.out.type === "noout" || d.raw.out.type === "early" || d.raw.out.type === "over";
       if (d.anomalies.length > 0 || outAnom) anomalyCount += 1;
     }
     result.set(cid, { days, lateN: m.lateN, absentN: m.absentN, anomalyCount, hoursByDate });
   }
-  return result;
+  // pooled 端数 +1 の順序を確定させるため cast_id 昇順にソート
+  for (const [d, list] of recipientsByDate) recipientsByDate.set(d, list.sort());
+  return { byCast: result, recipientsByDate };
+}
+
+// #32: published の attendance_incentives を biz_date∈[periodStart,periodEnd] で読む（確認2: biz_date 基準統一）。
+async function loadIncentives(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Incentive[]> {
+  const { data, error } = await admin
+    .from("attendance_incentives")
+    .select("id, biz_date, amount_mode, amount")
+    .eq("store_id", storeId).eq("status", "published")
+    .gte("biz_date", win.periodStart).lte("biz_date", win.periodEnd);
+  if (error) throw new Error(`attendance_incentives: ${error.message}`);
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: r.id as string, bizDate: r.biz_date as string,
+    amountMode: r.amount_mode as "per_head" | "pooled", amount: r.amount as number,
+  }));
 }
 
 // 期間データ一括収集 → CastRaw[]（対象 cast 列挙・裁定C）。
@@ -183,13 +213,12 @@ export async function collectPeriod(
   if (eS) throw new Error(`get_cast_sales: ${eS.message}`);
   const salesRows = (salesData ?? []) as SalesRow[];
 
-  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, punch] = await Promise.all([
+  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives] = await Promise.all([
     loadMasters(admin, storeId, win.period),
     loadAccounting(admin, storeId, win),
-    // grace はマスタ読み後に確定するので、punch は下で個別に呼ぶ（Promise.all のため grace を先に取る必要）
-    Promise.resolve(null),
+    loadIncentives(admin, storeId, win),
   ]);
-  const punchByCast = await loadPunch(admin, storeId, win, grace);
+  const { byCast: punchByCast, recipientsByDate } = await loadPunch(admin, storeId, win, grace);
 
   // sales を cast 別に集計＋日次
   const salesByCast = new Map<string, { sales: number; hon: number; jonai: number; dohan: number; daily: Map<string, number> }>();
@@ -202,7 +231,7 @@ export async function collectPeriod(
 
   // 対象 cast = sales ∪ punch（is_active 不問・稼働ゼロ除外）
   const targetIds = new Set<string>([...salesByCast.keys(), ...punchByCast.keys()]);
-  if (targetIds.size === 0) return { casts: [], masters };
+  if (targetIds.size === 0) return { casts: [], masters, incentives, recipientsByDate };
 
   // cast 名（is_active 不問＝退職者含む）
   const { data: castRows, error: eN } = await admin.from("casts").select("id, name").in("id", [...targetIds]);
@@ -247,5 +276,5 @@ export async function collectPeriod(
       taxProfileMode: taxByCast.get(cid) ?? null,
     });
   }
-  return { casts, masters };
+  return { casts, masters, incentives, recipientsByDate };
 }

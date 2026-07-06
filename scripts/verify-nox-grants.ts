@@ -197,6 +197,19 @@ async function main() {
         `保持者: ${roles.join(", ")}`,
       );
     }
+    // G8b: attendance_incentives（mig0017・#32）RLS 有効・パターン3 SELECT 1本
+    const ai = await db.query(
+      `select relrowsecurity from pg_class where relnamespace='public'::regnamespace and relname='attendance_incentives'`,
+    );
+    check("G8 attendance_incentives RLS 有効", ai.rowCount === 1 && ai.rows[0].relrowsecurity === true, `got ${JSON.stringify(ai.rows)}`);
+    const aip = await db.query(
+      `select policyname, cmd from pg_policies where schemaname='public' and tablename='attendance_incentives'`,
+    );
+    check("G8 attendance_incentives ポリシー = SELECT 1本（パターン3）", aip.rowCount === 1 && aip.rows[0].cmd === "SELECT", aip.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "));
+    for (const fn of ["incentive_publish", "incentive_cancel"]) {
+      const roles = await roleOf(fn);
+      check(`G8 ${fn} EXECUTE = authenticated（anon 不在）`, roles.includes("authenticated") && !roles.includes("anon"), `保持者: ${roles.join(", ")}`);
+    }
   }
 
   await db.end();

@@ -5,6 +5,7 @@ import { useState } from "react";
 type Store = { id: string; name: string };
 type Row = { castId: string; castName: string; net: number; taxMode: string; anomalyCount: number };
 type Blocker = { castName: string; reason: string };
+type Incentive = { id: string; bizDate: string; amountMode: string; amount: number; recipientCount: number; distributedTotal: number; warnEmptyPool: boolean };
 
 // 3段フロー（期間選択→プレビュー→確定）。プレビューは参考値（確定時点で再計算が正）。
 export default function PayrollBoard({ stores }: { stores: Store[] }) {
@@ -12,6 +13,7 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [rows, setRows] = useState<Row[] | null>(null);
   const [blockers, setBlockers] = useState<Blocker[]>([]);
+  const [incentives, setIncentives] = useState<Incentive[]>([]);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [finalized, setFinalized] = useState<string | null>(null);
@@ -30,11 +32,13 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
       if (!res.ok) {
         setRows(null);
         setBlockers([]);
+        setIncentives([]);
         setMsg(`エラー(${res.status}): ${j.error ?? ""}`);
         return;
       }
       setRows(j.rows as Row[]);
       setBlockers((j.blockers ?? []) as Blocker[]);
+      setIncentives((j.incentives ?? []) as Incentive[]);
     } catch (e) {
       setMsg(`通信エラー: ${(e as Error).message}`);
     } finally {
@@ -111,6 +115,20 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
             </div>
           )}
           <p style={{ fontSize: 12, color: "#777" }}>※参考値です。確定時点で再計算した値が正となります。</p>
+          {incentives.length > 0 && (
+            <div style={{ background: "#eef7f0", border: "1px solid #cde8d4", borderRadius: 6, padding: 10, marginBottom: 12, fontSize: 13 }}>
+              <strong>出勤ボーナス（給与へ加算済み）</strong>
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                {incentives.map((inc) => (
+                  <li key={inc.id} style={{ color: inc.warnEmptyPool ? "#b8860b" : undefined }}>
+                    {inc.bizDate} {inc.amountMode === "per_head" ? "定額/人" : "プール按分"} ¥{inc.amount.toLocaleString()} →
+                    {" "}総配分 ¥{inc.distributedTotal.toLocaleString()}・受給 {inc.recipientCount} 人
+                    {inc.warnEmptyPool && " ⚠ 受給者0人（プール未配分）"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {anomalyTotal > 0 && (
             <p style={{ fontSize: 12, color: "#b8860b" }}>打刻 anomaly（out 欠損等）: 計 {anomalyTotal} 件。確定は止まりませんが内容をご確認ください。</p>
           )}

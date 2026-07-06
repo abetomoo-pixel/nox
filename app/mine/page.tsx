@@ -60,6 +60,16 @@ export default async function MinePage() {
     .order("date", { ascending: false })
     .limit(10);
 
+  // 今月の出勤ボーナス（attendance_incentives＝パターン3・店の published を可視）。
+  // 受給は当日の確定シフト出勤（final∈{ok,late}）が条件・確定額は給与確定時。pooled は受給者数で変動＝暫定表示。
+  const { data: incentives } = await supabase
+    .from("attendance_incentives")
+    .select("biz_date, amount_mode, amount")
+    .eq("status", "published")
+    .gte("biz_date", `${month}-01`)
+    .order("biz_date", { ascending: false })
+    .limit(20);
+
   const card: React.CSSProperties = {
     border: "1px solid #ebebeb", borderRadius: 8, padding: 16, background: "#fff", marginBottom: 16,
   };
@@ -77,6 +87,24 @@ export default async function MinePage() {
           <span>ボトル {yen(sum.bottle)}</span>
           <span>本指名商品 {sum.pt}pt</span>
         </div>
+      </section>
+
+      <section style={card}>
+        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>今月の出勤ボーナス（{month}）</h2>
+        {(incentives ?? []).length === 0 && <p style={{ fontSize: 13, color: "#8f8f8f" }}>発行なし</p>}
+        <ul style={{ paddingLeft: 18, fontSize: 13 }}>
+          {(incentives ?? []).map((r, i) => (
+            <li key={i}>
+              {r.biz_date}{" "}
+              {r.amount_mode === "per_head"
+                ? `定額 ${yen(r.amount as number)}`
+                : `プール ${yen(r.amount as number)}（受給者数により変動・暫定）`}
+            </li>
+          ))}
+        </ul>
+        <p style={{ fontSize: 12, color: "#8f8f8f", margin: 0 }}>
+          ※受給は当日の確定シフト出勤が条件・確定額は給与確定時に算出。
+        </p>
       </section>
 
       <section style={card}>

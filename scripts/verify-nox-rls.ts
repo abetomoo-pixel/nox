@@ -1145,6 +1145,64 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // F2c-3: 出勤インセンティブ（mig0017・パターン3可視・発行/cancel 権限・部分ユニーク・kind 予約）
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const wipeInc = () => admin.from("attendance_incentives").delete().eq("store_id", storeA1Id).gte("biz_date", "2026-11-01").lte("biz_date", "2026-11-30");
+    await wipeInc();
+    const bizD = "2026-11-15";
+
+    // manager 発行 成功・二重発行拒否・drink_boost 予約拒否
+    const m = await signIn("managerA1");
+    const { data: pid, error: ePub } = await m.rpc("incentive_publish", { p_store_id: storeA1Id, p_biz_date: bizD, p_kind: "bonus", p_amount_mode: "per_head", p_amount: 3000 });
+    check("F2c-3 manager incentive_publish 成功", !ePub && typeof pid === "string", ePub?.message);
+    const { error: eDup } = await m.rpc("incentive_publish", { p_store_id: storeA1Id, p_biz_date: bizD, p_kind: "bonus", p_amount_mode: "pooled", p_amount: 1000 });
+    check("F2c-3 同日二重発行拒否（already published＝TOCTOU 修正）", !!eDup?.message?.includes("already published"), eDup?.message ?? "通ってしまった");
+    const { error: eKind } = await m.rpc("incentive_publish", { p_store_id: storeA1Id, p_biz_date: "2026-11-16", p_kind: "drink_boost", p_amount_mode: "per_head", p_amount: 1000 });
+    check("F2c-3 kind='drink_boost' 拒否（予約値・kind reserved）", !!eKind?.message?.includes("kind reserved"), eKind?.message ?? "通ってしまった");
+    await m.auth.signOut();
+
+    // パターン3 可視性: 全ロールが store の published を可視
+    for (const key of ["ownerA", "managerA1", "staffA1", "castA1a"] as const) {
+      const c = await signIn(key);
+      const { data } = await c.from("attendance_incentives").select("id").eq("id", pid as string);
+      check(`F2c-3 パターン3 可視: ${key} が published を可視`, (data ?? []).length === 1, `got ${(data ?? []).length}`);
+      await c.auth.signOut();
+    }
+
+    // staff/cast は発行/cancel 不可
+    const s = await signIn("staffA1");
+    const { error: eS } = await s.rpc("incentive_publish", { p_store_id: storeA1Id, p_biz_date: "2026-11-17", p_kind: "bonus", p_amount_mode: "per_head", p_amount: 1000 });
+    check("F2c-3 staff incentive_publish 拒否", !!eS?.message?.includes("forbidden"), eS?.message ?? "通ってしまった");
+    const { error: eSc } = await s.rpc("incentive_cancel", { p_incentive_id: pid as string });
+    check("F2c-3 staff incentive_cancel 拒否", !!eSc?.message?.includes("forbidden"), eSc?.message ?? "通ってしまった");
+    await s.auth.signOut();
+    const ca = await signIn("castA1a");
+    const { error: eCa } = await ca.rpc("incentive_publish", { p_store_id: storeA1Id, p_biz_date: "2026-11-17", p_kind: "bonus", p_amount_mode: "per_head", p_amount: 1000 });
+    check("F2c-3 cast incentive_publish 拒否", !!eCa?.message?.includes("forbidden"), eCa?.message ?? "通ってしまった");
+    await ca.auth.signOut();
+
+    // クロス org: managerB1 は org A store へ発行不可
+    const b = await signIn("managerB1");
+    const { error: eB } = await b.rpc("incentive_publish", { p_store_id: storeA1Id, p_biz_date: "2026-11-18", p_kind: "bonus", p_amount_mode: "per_head", p_amount: 1000 });
+    check("F2c-3 クロス org: managerB1 が org A へ発行拒否", !!eB?.message?.includes("forbidden"), eB?.message ?? "通ってしまった");
+    await b.auth.signOut();
+
+    // cancel → 同日再発行可（部分ユニーク解放）
+    const m2 = await signIn("managerA1");
+    const { error: eCan } = await m2.rpc("incentive_cancel", { p_incentive_id: pid as string });
+    check("F2c-3 manager incentive_cancel 成功", !eCan, eCan?.message);
+    const { data: pid2, error: eRe } = await m2.rpc("incentive_publish", { p_store_id: storeA1Id, p_biz_date: bizD, p_kind: "bonus", p_amount_mode: "per_head", p_amount: 2000 });
+    check("F2c-3 cancel 後 同日再発行可（部分ユニーク解放）", !eRe && typeof pid2 === "string", eRe?.message);
+    await m2.auth.signOut();
+
+    await wipeInc();
+  }
+
+  // ══════════════════════════════════════════════════════════
   // F1e: 日報（ゴールデン・境界帰属 TS/DB 一致・p_force・冪等・reclose 追随）（mig0010）
   // ══════════════════════════════════════════════════════════
   {
