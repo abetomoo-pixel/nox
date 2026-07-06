@@ -5,7 +5,7 @@
  * route は薄いラッパなので core/pure を直接 import して係留（seed は本節内で admin 投入・NOX-VERIFY-pay* 命名・
  * 未来の空 period 2026-09/2026-10 に隔離・再実行冪等・dev 専用の建付け維持）。
  *
- * 係留（plan §7 の7項目＋確定拒否ガード）:
+ * 係留（plan §7 の7項目＋確定拒否ガード＋セルフレビュー確認2点）:
  *  1 PayInput 組み立ての正しさ（窓・cast.sales/hon・daily.hours・taxMode）
  *  2 champCnt ゴールデン（check_lines kind から集計・既知会計→champCnt=2）
  *  3 net 恒等（extras 空 ⇒ row.net===pay.net・computeNet 単体）
@@ -13,11 +13,12 @@
  *  5 プレビューが書き込まない（computePayrollDraft 前後で payroll_runs 件数不変）
  *  6 退職者 cast の確定（is_active=false でも対象列挙→finalize で payslip 生成）
  *  7 稼働ゼロ除外（売上も打刻も無い cast は行に出ない）
- *  8 確定拒否ガード（税区分未登録 cast 混在→blockers に no_tax・確定は route が 422）
+ *  8 確定拒否ガード（税区分未登録=no_tax／プラン未設定=no_plan を cast 名つき blockers・route は 422）
+ *  9 get_cast_sales store スコープ（owner は org 内他店の全 cast 売上・manager は自店のみ＝確認1）
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
-import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
+import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
 import { payOf } from "../lib/nox/pay";
 import { resolvePayrollWindow } from "../lib/nox/payroll/window";
 import { collectPeriod } from "../lib/nox/payroll/collect";
@@ -39,48 +40,52 @@ function check(label: string, ok: boolean, detail?: string) {
   else fails.push(`${label}${detail ? `: ${detail}` : ""}`);
 }
 
+const P = "2026-09"; // 完全期間（P1 完備＋P2 退職＋A2 owner×他店）
+const P2 = "2026-10"; // 未登録（P3=no_tax・P4=no_plan）
+const CAST_NAMES = ["NOX-VERIFY-payP1", "NOX-VERIFY-payP2", "NOX-VERIFY-payP3", "NOX-VERIFY-payP4", "NOX-VERIFY-payNo", "NOX-VERIFY-payA2"];
+const SEATS = ["NOX-VERIFY-paySeat", "NOX-VERIFY-paySeat2"];
+const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2"];
+
 async function main() {
   const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const manager = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { error: eSignIn } = await manager.auth.signInWithPassword({
-    email: FIXTURE_USERS.managerA1.email,
-    password: env.SEED_PASSWORD,
-  });
-  if (eSignIn) {
-    console.error(`✗ managerA1 サインイン失敗（seed:f0 実行済みか確認）: ${eSignIn.message}`);
-    process.exit(1);
-  }
+  const signIn = async (key: "managerA1" | "ownerA") => {
+    const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error } = await c.auth.signInWithPassword({ email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD });
+    if (error) {
+      console.error(`✗ ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
+      process.exit(1);
+    }
+    return c;
+  };
+  const manager = await signIn("managerA1");
+  const owner = await signIn("ownerA");
 
-  const { data: store } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
-  const storeA1Id = store!.id as string;
-  const orgAId = store!.org_id as string;
+  const { data: sA1 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+  const storeA1Id = sA1!.id as string;
+  const orgAId = sA1!.org_id as string;
+  const { data: sA2 } = await admin.from("stores").select("id").eq("name", STORE_A2).single();
+  const storeA2Id = sA2!.id as string;
   const { data: mgr } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
   const actorId = mgr!.id as string;
 
-  const P = "2026-09"; // 完全期間（P1 完備＋P2 退職）
-  const P2 = "2026-10"; // 税区分未登録（P3）
-  const NAMES = ["NOX-VERIFY-payP1", "NOX-VERIFY-payP2", "NOX-VERIFY-payP3", "NOX-VERIFY-payNo"];
-  const SEAT = "NOX-VERIFY-paySeat";
-  const PLAN = "NOX-VERIFY-payPlan";
-
-  // ── teardown（再実行冪等・start と end で呼ぶ）──
+  // ── teardown（名前ベース・両店横断・再実行冪等）──
   async function teardown() {
-    const { data: cs } = await admin.from("casts").select("id").eq("store_id", storeA1Id).in("name", NAMES);
+    const { data: cs } = await admin.from("casts").select("id").in("name", CAST_NAMES);
     const castIds = (cs ?? []).map((r) => r.id as string);
-    const { data: runs } = await admin.from("payroll_runs").select("id").eq("store_id", storeA1Id).in("period", [P, P2]);
+    const { data: runs } = await admin.from("payroll_runs").select("id").in("period", [P, P2]).in("store_id", [storeA1Id, storeA2Id]);
     const runIds = (runs ?? []).map((r) => r.id as string);
     if (runIds.length) {
       await admin.from("payslips").delete().in("run_id", runIds);
       await admin.from("payroll_runs").delete().in("id", runIds);
     }
-    const { data: seat } = await admin.from("seats").select("id").eq("store_id", storeA1Id).eq("name", SEAT);
-    const seatId = seat?.[0]?.id as string | undefined;
-    if (seatId) {
-      const { data: chks } = await admin.from("checks").select("id").eq("seat_id", seatId);
+    const { data: seats } = await admin.from("seats").select("id").in("name", SEATS);
+    const seatIds = (seats ?? []).map((r) => r.id as string);
+    if (seatIds.length) {
+      const { data: chks } = await admin.from("checks").select("id").in("seat_id", seatIds);
       const chkIds = (chks ?? []).map((r) => r.id as string);
       if (chkIds.length) {
         for (const t of ["check_cast_backs", "check_nominations", "check_lines"]) await admin.from(t).delete().in("check_id", chkIds);
@@ -93,67 +98,74 @@ async function main() {
       }
       await admin.from("casts").delete().in("id", castIds);
     }
-    if (seatId) await admin.from("seats").delete().eq("id", seatId);
-    await admin.from("comp_plans").delete().eq("store_id", storeA1Id).eq("name", PLAN);
+    if (seatIds.length) await admin.from("seats").delete().in("id", seatIds);
+    await admin.from("comp_plans").delete().in("name", PLANS);
   }
   await teardown();
 
   // ── seed ──────────────────────────────────────────────────────
-  const mkCast = async (name: string, active: boolean) => {
-    const { data } = await admin.from("casts").insert({ org_id: orgAId, store_id: storeA1Id, name, is_active: active }).select("id").single();
+  const mkCast = async (name: string, active: boolean, storeId = storeA1Id) => {
+    const { data } = await admin.from("casts").insert({ org_id: orgAId, store_id: storeId, name, is_active: active }).select("id").single();
     return data!.id as string;
   };
-  const p1 = await mkCast(NAMES[0], true);
-  const p2 = await mkCast(NAMES[1], false); // 退職
-  const p3 = await mkCast(NAMES[2], true);
-  const pNo = await mkCast(NAMES[3], true); // 稼働ゼロ
-  const { data: seatRow } = await admin.from("seats").insert({ org_id: orgAId, store_id: storeA1Id, name: SEAT, kind: "卓", sort_order: 0, is_active: true }).select("id").single();
-  const seatId = seatRow!.id as string;
-  const { data: planRow } = await admin.from("comp_plans").insert({
-    org_id: orgAId, store_id: storeA1Id, name: PLAN, base: 5000, hon_back: 4000, jonai_back: 1500, dohan_back: 4000,
-    sales_slide: [], point_slide: [], is_active: true,
-  }).select("id").single();
-  const planId = planRow!.id as string;
-  // cast_plan: P1/P2/P3 に割当（P3 は plan あり・tax 無し＝no_tax blocker）
-  for (const cid of [p1, p2, p3]) {
-    await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {} });
-  }
-  // tax: P1/P2 のみ登録（P3 未登録）
-  for (const cid of [p1, p2]) {
-    await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, mode: "委託" });
-  }
-
-  // 会計: P1 の champ 伝票（set10000＋champ4000×2）single nominee → sales=19800・champCnt=2
-  const mkCheck = async (startedAt: string, nomCast: string, lines: { kind: string; unit: number; qty: number }[]) => {
+  const mkSeat = async (name: string, storeId: string) => {
+    const { data } = await admin.from("seats").insert({ org_id: orgAId, store_id: storeId, name, kind: "卓", sort_order: 0, is_active: true }).select("id").single();
+    return data!.id as string;
+  };
+  const mkPlan = async (name: string, storeId: string) => {
+    const { data } = await admin.from("comp_plans").insert({
+      org_id: orgAId, store_id: storeId, name, base: 5000, hon_back: 4000, jonai_back: 1500, dohan_back: 4000, sales_slide: [], point_slide: [], is_active: true,
+    }).select("id").single();
+    return data!.id as string;
+  };
+  const mkCheck = async (storeId: string, seatId: string, startedAt: string, nomCast: string, lines: { kind: string; unit: number; qty: number }[]) => {
     const { data: c } = await admin.from("checks").insert({
-      org_id: orgAId, store_id: storeA1Id, seat_id: seatId, status: "closed",
+      org_id: orgAId, store_id: storeId, seat_id: seatId, status: "closed",
       started_at: startedAt, closed_at: startedAt, nom_type: "hon", service_rate: 10, round_unit: 100, round_mode: "down", created_by: actorId,
     }).select("id").single();
     const checkId = c!.id as string;
     let sort = 0;
     for (const l of lines) {
       await admin.from("check_lines").insert({
-        org_id: orgAId, store_id: storeA1Id, check_id: checkId, kind: l.kind, pay_group: "A",
+        org_id: orgAId, store_id: storeId, check_id: checkId, kind: l.kind, pay_group: "A",
         name_snapshot: l.kind, unit_price_snapshot: l.unit, qty: l.qty, line_total: l.unit * l.qty, sort_order: sort++,
       });
     }
-    await admin.from("check_nominations").insert({ org_id: orgAId, store_id: storeA1Id, check_id: checkId, cast_id: nomCast, ratio_weight: 1, position: 0 });
+    await admin.from("check_nominations").insert({ org_id: orgAId, store_id: storeId, check_id: checkId, cast_id: nomCast, ratio_weight: 1, position: 0 });
     return checkId;
   };
-  await mkCheck("2026-09-10T22:00:00+09:00", p1, [{ kind: "set", unit: 10000, qty: 1 }, { kind: "champ", unit: 4000, qty: 2 }]);
-  await mkCheck("2026-09-12T22:00:00+09:00", p2, [{ kind: "set", unit: 10000, qty: 1 }]); // P2 退職・sales=11000
-
-  // 打刻: P1（2026-09-10 shift 20:00-25:00・in 20:00 out 翌01:00＝hours5・ok）
-  const mkPunchDay = async (cid: string, date: string, nextDay: string) => {
-    await admin.from("shifts").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, date, start_hm: "20:00", end_hm: "25:00", status: "confirmed", created_by: actorId });
+  const mkPunchDay = async (cid: string, date: string, nextDay: string, storeId = storeA1Id) => {
+    await admin.from("shifts").insert({ org_id: orgAId, store_id: storeId, cast_id: cid, date, start_hm: "20:00", end_hm: "25:00", status: "confirmed", created_by: actorId });
     await admin.from("punches").insert([
-      { org_id: orgAId, store_id: storeA1Id, cast_id: cid, punched_at: `${date}T20:00:00+09:00`, type: "in", source: "manager" },
-      { org_id: orgAId, store_id: storeA1Id, cast_id: cid, punched_at: `${nextDay}T01:00:00+09:00`, type: "out", source: "manager" },
+      { org_id: orgAId, store_id: storeId, cast_id: cid, punched_at: `${date}T20:00:00+09:00`, type: "in", source: "manager" },
+      { org_id: orgAId, store_id: storeId, cast_id: cid, punched_at: `${nextDay}T01:00:00+09:00`, type: "out", source: "manager" },
     ]);
   };
+
+  // store A1: P1（完備）・P2（退職）・P3（no_tax）・P4（no_plan）・pNo（稼働ゼロ）
+  const p1 = await mkCast(CAST_NAMES[0], true);
+  const p2 = await mkCast(CAST_NAMES[1], false);
+  const p3 = await mkCast(CAST_NAMES[2], true);
+  const p4 = await mkCast(CAST_NAMES[3], true);
+  const pNo = await mkCast(CAST_NAMES[4], true);
+  const seatId = await mkSeat(SEATS[0], storeA1Id);
+  const planId = await mkPlan(PLANS[0], storeA1Id);
+  for (const cid of [p1, p2, p3]) await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {} });
+  // p4 は plan 無し（no_plan blocker）。p1/p2 のみ tax 登録（p3=no_tax）。
+  for (const cid of [p1, p2]) await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, mode: "委託" });
+  await mkCheck(storeA1Id, seatId, "2026-09-10T22:00:00+09:00", p1, [{ kind: "set", unit: 10000, qty: 1 }, { kind: "champ", unit: 4000, qty: 2 }]);
+  await mkCheck(storeA1Id, seatId, "2026-09-12T22:00:00+09:00", p2, [{ kind: "set", unit: 10000, qty: 1 }]);
   await mkPunchDay(p1, "2026-09-10", "2026-09-11");
-  // P3（2026-10-05 打刻のみ・tax 無し）
-  await mkPunchDay(p3, "2026-10-05", "2026-10-06");
+  await mkPunchDay(p3, "2026-10-05", "2026-10-06"); // no_tax（P2 期間）
+  await mkPunchDay(p4, "2026-10-06", "2026-10-07"); // no_plan（P2 期間・plan 無し）
+
+  // store A2: owner×他店 確認用（castA2 完備・sales 11000）
+  const a2 = await mkCast(CAST_NAMES[5], true, storeA2Id);
+  const seat2 = await mkSeat(SEATS[1], storeA2Id);
+  const plan2 = await mkPlan(PLANS[1], storeA2Id);
+  await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2, plan_id: plan2, overrides_json: {} });
+  await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2, mode: "委託" });
+  await mkCheck(storeA2Id, seat2, "2026-09-14T22:00:00+09:00", a2, [{ kind: "set", unit: 10000, qty: 1 }]);
 
   // ── 1 窓解決（period_bounds 単一ソース）──
   const win = await resolvePayrollWindow(admin, storeA1Id, P);
@@ -170,7 +182,6 @@ async function main() {
     check("F2c-2 champCnt ゴールデン=2（check_lines kind='champ' の qty）", rawP1.champCnt === 2, `got ${rawP1.champCnt}`);
     check("F2c-2 daily: 1日・hours=5・sales=19800", rawP1.daily.length === 1 && rawP1.daily[0].hours === 5 && rawP1.daily[0].sales === 19_800, JSON.stringify(rawP1.daily));
     check("F2c-2 taxProfileMode=委託（P1 登録済み）", rawP1.taxProfileMode === "委託", `got ${rawP1.taxProfileMode}`);
-    // buildPayInput の写像
     const input = buildPayInput(rawP1, rawP1.taxProfileMode ?? "委託", collected.masters);
     check("F2c-2 PayInput: cast.sales/hon/days・metrics.champCnt=2・taxMode・plan.base=5000",
       input.cast.sales === 19_800 && input.cast.hon === 1 && input.cast.days === 1 &&
@@ -179,7 +190,7 @@ async function main() {
     check("F2c-2 PayInput: 天引き3種=0（F2c 暫定）", input.arDeduct === 0 && input.advanceDeduct === 0 && input.okuriDeduct === 0);
   }
 
-  // ── 3 net 恒等（computeNet 単体＋computePayrollDraft の row）──
+  // ── 3 net 恒等（computeNet 単体）──
   {
     const anyPay = payOf(buildPayInput(rawP1!, "委託", collected.masters));
     check("F2c-2 computeNet: extras 空 ⇒ net===pay.net", computeNet(anyPay, []) === anyPay.net, `${computeNet(anyPay, [])} vs ${anyPay.net}`);
@@ -196,7 +207,6 @@ async function main() {
   const after = await runCount();
   check("F2c-2 プレビューが書き込まない（payroll_runs 件数不変）", before === after, `${before}→${after}`);
 
-  // draft の row: P1/P2 が計算され net===pay.net・稼働ゼロ pNo は不在
   const rowP1 = draft.rows.find((r) => r.castId === p1);
   const rowP2 = draft.rows.find((r) => r.castId === p2);
   check("F2c-2 net 恒等（row.net===pay.net・extras 空）", !!rowP1 && rowP1.net === rowP1.pay.net, JSON.stringify({ net: rowP1?.net, p: rowP1?.pay.net }));
@@ -216,15 +226,34 @@ async function main() {
   const { data: ps } = await admin.from("payslips").select("cast_id").eq("run_id", runId);
   check("F2c-2 退職者 P2 の payslip が生成される", (ps ?? []).some((r) => r.cast_id === p2), JSON.stringify(ps));
 
-  // ── 8 確定拒否ガード（P2 期間＝P3 tax 未登録 → blockers no_tax）──
+  // ── 8 確定拒否ガード（P2 期間: P3=no_tax・P4=no_plan の両方が cast 名つき blockers）──
   const draft10 = await computePayrollDraft(admin, manager, storeA1Id, P2, { previewDefaults: false });
   const blkP3 = draft10.blockers.find((b) => b.castId === p3 && b.reason === "no_tax");
-  check("F2c-2 確定拒否ガード: 税区分未登録 P3 が blockers(no_tax)（route は 422）", !!blkP3, JSON.stringify(draft10.blockers));
-  check("F2c-2 確定拒否ガード: strict で P3 の行は作られない（税区分必須）", !draft10.rows.find((r) => r.castId === p3), "P3 行が出た");
+  const blkP4 = draft10.blockers.find((b) => b.castId === p4 && b.reason === "no_plan");
+  check("F2c-2 確定拒否ガード: 税区分未登録 P3 が blockers(no_tax)＋cast 名", !!blkP3 && blkP3.castName === CAST_NAMES[2], JSON.stringify(draft10.blockers));
+  check("F2c-2 確定拒否ガード: プラン未設定 P4 が blockers(no_plan)＋cast 名（確認2）", !!blkP4 && blkP4.castName === CAST_NAMES[3], JSON.stringify(draft10.blockers));
+  check("F2c-2 確定拒否ガード: strict で P3/P4 の行は作られない", !draft10.rows.find((r) => r.castId === p3 || r.castId === p4), JSON.stringify(draft10.rows.map((r) => r.castId)));
   const draft10p = await computePayrollDraft(admin, manager, storeA1Id, P2, { previewDefaults: true });
-  check("F2c-2 プレビューは既定委託で試算＋blocker 警告（P3 行あり・blocker も返る）",
+  check("F2c-2 プレビューは既定委託で試算（P3 行あり・taxMode 委託）＋blocker 警告",
     !!draft10p.rows.find((r) => r.castId === p3 && r.taxMode === "委託") && draft10p.blockers.some((b) => b.castId === p3),
-    JSON.stringify({ rows: draft10p.rows.map((r) => r.castId), blk: draft10p.blockers }));
+    JSON.stringify({ rows: draft10p.rows.map((r) => r.castId), blk: draft10p.blockers.map((b) => b.reason) }));
+  check("F2c-2 プレビューでも no_plan(P4) は行に出ない（計算不能）", !draft10p.rows.find((r) => r.castId === p4), "P4 行が出た");
+
+  // ── 9 get_cast_sales store スコープ（確認1: owner×他店）──
+  {
+    // owner（auth_store_id=STORE_A1）が STORE_A2 の売上を引ける（owner 分岐＝org 全店）
+    const { data: oSales, error: eO } = await owner.rpc("get_cast_sales", { p_store_id: storeA2Id, p_from: "2026-09-01", p_to: "2026-09-30" });
+    const a2Row = ((oSales ?? []) as { cast_id: string; sales: number }[]).find((r) => r.cast_id === a2);
+    check("F2c-2 確認1: owner が他店(A2)の get_cast_sales を引ける（sales=11000）", !eO && a2Row?.sales === 11_000, eO?.message ?? JSON.stringify(oSales));
+    // manager（A1）は他店 A2 を引けない（自店のみ）
+    const { error: eM } = await manager.rpc("get_cast_sales", { p_store_id: storeA2Id, p_from: "2026-09-01", p_to: "2026-09-30" });
+    check("F2c-2 確認1: manager は他店(A2) get_cast_sales 拒否（自店のみ）", !!eM?.message?.includes("forbidden"), eM?.message ?? "通ってしまった");
+    // owner が他店 A2 を確定ドラフト計算（owner クライアント経路で全 cast 行が出る）
+    const draftA2 = await computePayrollDraft(admin, owner, storeA2Id, P, { previewDefaults: false });
+    const rowA2 = draftA2.rows.find((r) => r.castId === a2);
+    check("F2c-2 確認1: owner×他店 の確定ドラフトに castA2 行（net===pay.net・blocker 無し）",
+      !!rowA2 && rowA2.net === rowA2.pay.net && draftA2.blockers.length === 0, JSON.stringify({ row: !!rowA2, blk: draftA2.blockers }));
+  }
 
   // ── 4 権限拒否（decidePayrollAccess 純関数）──
   check("F2c-2 authz: owner=ok", decidePayrollAccess("owner", "s2", "s1") === "ok");
