@@ -77,7 +77,7 @@ $$;
 | 1 | ~~auth_org_id() の membership join 化（§3）~~ **クローズ** | 本報告書 | mig0005 で方式A適用・verify 退職回帰（capture-and-restore）で恒久 assert |
 | 2 | ~~middleware PROTECTED リスト拡張~~ **クローズ** | lib/supabase/middleware.ts | F1f-1 で5パス（mine/register/shift/report/master）に拡張・確認①で実測 |
 | 3 | ~~cast プライバシー パターン1/2/3 の本適用＋集計 RPC~~ **クローズ** | 認可設計 §2.3/§3 | パターン1=check_cast_backs/勤怠4テーブル・パターン2=会計/日報系・パターン3=products で新設時適用済み。集計 RPC=get_cast_ranking（mig0011・金額列なし）。notices のパターン3は F3 |
-| 4 | 日次データの実データ化 | scripts/verify-nox-pay.ts | **器は完了**（punches=実打刻・checks=実売上）。**payOf 入力への結線（突合純関数＝#20・daily.sales 定義＝#21）は F2 冒頭**へ |
+| 4 | 日次データの実データ化 | scripts/verify-nox-pay.ts | **器は完了**（punches=実打刻・checks=実売上）。**payOf 入力への結線（突合純関数＝#20・daily.sales 定義＝#21）は F2 冒頭**へ。**F2c 設計前提**: payslips.breakdown_json は #32 出勤インセンティブの独立行を将来受け入れる構造とする（payOf 外側で突合・明細に別行追記） |
 | 5 | 新 RPC 追加ごとの anon-guard 追記運用 | verify:nox-anon-guard.ts | **運用定着**（段1〜7・公開22 RPC＋内部4関数をカバー・以後も新 RPC ごとに追記） |
 
 ### F2 で対応（コンプラゲート：税理士・社労士）
@@ -105,6 +105,7 @@ $$;
 | 26 | charge 行の細分類（charge_kind） | F1e mig0010 ヘッダー | 同伴料・セット・延長・指名料の金額分離集計に必要（現状 dohan_checks 件数のみ）。F1f UI か F2 日報拡張時に追加判断 |
 | 27 | reclose で実査（counted_cash）を null に戻す経路 | F1e レビュー（2026-07-02） | 現行 reclose は null=既存維持のため実査の取り消しができない。F1f の UI 設計時に再訪（記録のみ・対応不要） |
 | 31 | early/over/noout の金銭化要否 | 精密仕様 §4.2 S8（2026-07-03） | モックは退勤照合（early=30分超早退・over=90分超残留・noout）を表示のみで金銭化しない。早退ペナルティ等を入れるかは**実店舗ヒアリング後に判断**（#25 カードTAX と同じ「プロダクト判断を憶測で入れない」裁定の踏襲）。それまで punch-match.ts の anomaly/表示まで |
+| 32 | 出勤インセンティブ（**設計ロック済み 2026-07-03・実装は F2c 完了後**） | F2a 論点整理 | **attendance_incentives**：1行=1 store×biz_date（I1）・kind enum は `'bonus'` のみ F2 実装／`'drink_boost'` は予約のみ＝back_snapshot 経路のため別途（I2）・status published/cancelled。**行自体が凍結記録**＝編集不可・cancel（audit 痕跡）＋新規発行のみ・同一 (store, biz_date, kind) の published は部分ユニーク（I5）。**支払条件**＝punch-match final ∈ {ok, late}（I3）・当日出勤者**全員**＝発行前確定者も含む（I4）。**給与結線**＝payOf 外側・payroll_run 時に published×final 突合→payslips.breakdown_json の独立行（I6・台帳 #4 前提）。**権限**＝発行/取消 manager 以上・閲覧パターン3（I7）・staffing_needs とは FK なし疎結合（I9）。**最小版**＝/shift 発行 UI＋/mine/wishes 表示（notices 不要）・告知プッシュは F3 接続（I8） |
 
 ### F4 で対応
 | # | 項目 | 出典 | 内容 |
