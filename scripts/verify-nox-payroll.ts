@@ -189,6 +189,8 @@ async function main() {
   await admin.from("shifts").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: i2, date: "2026-11-10", start_hm: "20:00", end_hm: "25:00", status: "confirmed", created_by: actorId });
   await admin.from("attendance").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: i2, date: "2026-11-10", status: "absent", source: "manager" });
   await mkPunchDay(i3, "2026-11-20", "2026-11-21");
+  await mkPunchDay(i1, "2026-11-22", "2026-11-23"); // 日ごと独立按分の2日目（I1,I3 の2人）
+  await mkPunchDay(i3, "2026-11-22", "2026-11-23");
   await mkPunchDay(i4, "2026-11-30", "2026-12-01"); // in 20:00 / out 翌01:00＝biz 11-30（cutoff 跨ぎ・確認2）
   await mkCheck(storeA1Id, seatId, "2026-11-12T22:00:00+09:00", i5, [{ kind: "set", unit: 10000, qty: 1 }]); // I5 sales-only（punch 無し）
   const mkInc = async (bizDate: string, mode: "per_head" | "pooled", amount: number) => {
@@ -200,6 +202,7 @@ async function main() {
   const inc10 = await mkInc("2026-11-10", "per_head", 3000);
   const inc12 = await mkInc("2026-11-12", "per_head", 5000);
   const inc20 = await mkInc("2026-11-20", "pooled", 1000);
+  const inc22 = await mkInc("2026-11-22", "pooled", 1000); // 2人（I1,I3）→ 500/500（11-20 の3人按分と独立）
   const inc25 = await mkInc("2026-11-25", "pooled", 800);
   const inc30 = await mkInc("2026-11-30", "per_head", 2000);
 
@@ -310,6 +313,21 @@ async function main() {
     check("F2c-3 pooled Σ保存=1000", shares.reduce((s, x) => s + x.part, 0) === 1000, JSON.stringify(shares));
     check("F2c-3 pooled 最大剰余法: 334/333/333・端数 +1 は cast_id 最小",
       byCid[0].part === 334 && byCid[1].part === 333 && byCid[2].part === 333, JSON.stringify(byCid));
+
+    // pooled 日ごと独立按分（確認）: I1 が 11-20（3人）と 11-22（2人）を各日の人数で独立に受給・期間で混ざらない
+    const d20 = extOf(i1, inc20)?.amount ?? -1; // 3人按分＝333 or 334
+    const d22 = extOf(i1, inc22)?.amount ?? -1; // 2人均等＝500
+    check("F2c-3 pooled 日ごと独立: I1 の 11-22 は 2人均等=500", d22 === 500, `got ${d22}`);
+    check("F2c-3 pooled 日ごと独立: I1 の 11-20 は 3人按分∈{333,334}・11-22(500) と別値", (d20 === 333 || d20 === 334) && d20 !== d22, `d20=${d20} d22=${d22}`);
+    const sum20 = [i1, i2, i3].reduce((s, cid) => s + (extOf(cid, inc20)?.amount ?? 0), 0);
+    const sum22 = [i1, i3].reduce((s, cid) => s + (extOf(cid, inc22)?.amount ?? 0), 0);
+    check("F2c-3 pooled 日ごと独立: 11-20 の Σ=1000・11-22 の Σ=1000（各日独立・混ざらない）", sum20 === 1000 && sum22 === 1000, `${sum20}/${sum22}`);
+    const i1Bonuses = ((rowOf(i1)?.extras as Ext[] | undefined) ?? []).filter((e) => e.kind === "attendance_bonus");
+    check("F2c-3 pooled 独立: I1 は attendance_bonus 3行（11-10:3000＋11-20＋11-22）・net に合算",
+      i1Bonuses.length === 3 && i1Bonuses.reduce((s, e) => s + e.amount, 0) === 3000 + d20 + 500, JSON.stringify(i1Bonuses));
+    const i3d20 = extOf(i3, inc20)?.amount ?? -1;
+    check("F2c-3 pooled 独立: I3 も 11-20∈{333,334} と 11-22=500 を各日独立按分",
+      (i3d20 === 333 || i3d20 === 334) && extOf(i3, inc22)?.amount === 500, JSON.stringify({ d20: i3d20, d22: extOf(i3, inc22)?.amount }));
 
     // 受給者判定: I5 は sales-only（11-12）で受給なし／I2 は 11-10 absent で受給なし・11-20 は受給あり
     check("F2c-3 受給者判定: I5 は sales-only で受給なし（11-12 の inc 無し）", !extOf(i5, inc12), JSON.stringify(rowOf(i5)?.extras));
