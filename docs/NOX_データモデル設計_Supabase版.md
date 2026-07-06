@@ -144,6 +144,14 @@ NOX 用に以下を最初のマイグレーションで定義：
 - `id*`, `store_id*`, `customer_id?`, `cast_id?`, `amount`, `deduct_from_cast?`, `status`
 - ⚠ **風営法 2025 改正の売掛規制**。settings で売掛可否・上限を制御（コンプラフラグ）。
 
+**【F2e-1 実装確定（2026-07-06・mig0018）】売掛天引き（モデルP・P-a-2・partial）**
+- receivables に **`deduct_period text`（'YYYY-MM'|null・繰越材料化）** と **`deducted_amount int not null default 0`（部分天引き累計・`<=amount` 制約）** を追加。索引 `(cast_id,status)`。1 receivable=1 cast（先頭指名・按分なし）。
+- **arDeduct 結線（E9・core.ts）**：対象＝`status='open' and deduct_from_cast and (deduct_period=P or (null and biz_date(started_at)→'YYYY-MM'=P))`。古い順（coalesce(deduct_period,biz)→created_at→id）に**残額 partial** を budget=`max(0,available−takeHomeFloor())` まで引く（**手取り0下限**・floor=0 は money.ts の social gate TODO）。全額で `status='deducted'`・部分は `open` のまま `deduct_period=翌 period`（繰越）。#8 は `status='open'` 集計で deducted 除外。
+- **payroll_finalize 改修**：payslip 凍結と同一トランザクションで receivable を deducted/部分/繰越に遷移。p_payslips 各要素に `ar_deducted:[{receivable_id,amount}]`/`ar_carried:[{receivable_id}]` 同梱。**再確定は退避 payslip の breakdown.ar から prev を条件付き（applied 一致時のみ）復元→再マーク**（drift は触らない・paid は 'run paid' で不可）。原子性は単一関数本体で担保。
+- **check_void 改修**：`deducted_amount>0`（一部でも給与反映済み）の売掛がある伝票は void 拒否（幻影/宙吊り防止）。
+- **advanceDeduct/okuriDeduct は 0 固定**（前借り/送りテーブル新設は F2e-2）。売掛規制の上限/可否 enforcement は F3 弁護士ゲート留保。
+- ⚠ **未実装（要裁定）**：/mine の cast 自己売掛表示は receivables が**パターン2（cast 0行）**のため不可＝RLS 変更（パターン1変形）or 閲覧 RPC が別途必要（本 mig の対象外）。
+
 **【F1b 実装確定（2026-07-02・mig0006/0007）】§2.4 の実装反映と逸脱の記録**
 1. **checks.status に `void` を追加**（open/closed/void）。確定後の訂正は金額書換でなく void（BANZEN 教訓）。
 2. **check_cast_backs を新設**：close 時に確定するキャスト別バック記録（drink/champ/bottle 額＋hon_pt_alloc）。

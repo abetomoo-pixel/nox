@@ -55,7 +55,9 @@ function dayNum(bizDate: string): number {
   return Number.parseInt(bizDate.slice(8, 10), 10);
 }
 
-export function buildPayInput(raw: CastRaw, taxMode: TaxMode, masters: StoreMasters): PayInput {
+// arDeduct は F2e-1 で結線（二段 payOf: 1回目 arDeduct=0 で available 算出→E9→確定 arDeduct で再計算）。
+// advanceDeduct/okuriDeduct は F2e-2（前借り/送りテーブル新設）まで 0 固定。
+export function buildPayInput(raw: CastRaw, taxMode: TaxMode, masters: StoreMasters, arDeduct = 0): PayInput {
   if (!raw.plan) throw new Error(`buildPayInput: plan 未設定（cast ${raw.castId}）`);
   return {
     cast: { hon: raw.hon, jonai: raw.jonai, dohan: raw.dohan, days: raw.days, sales: raw.sales },
@@ -71,7 +73,7 @@ export function buildPayInput(raw: CastRaw, taxMode: TaxMode, masters: StoreMast
     normConfig: masters.normConfig,
     norm: raw.norm,
     fine: { absentN: raw.absentN, lateN: raw.lateN },
-    arDeduct: 0, // F2e で結線
+    arDeduct, // F2e-1 売掛天引き（E9 で算出した確定額）
     advanceDeduct: 0,
     okuriDeduct: 0,
     taxMode,

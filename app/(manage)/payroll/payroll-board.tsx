@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 type Store = { id: string; name: string };
-type Row = { castId: string; castName: string; net: number; taxMode: string; anomalyCount: number };
+type Row = { castId: string; castName: string; net: number; taxMode: string; anomalyCount: number; arDeductTotal?: number; arCarriedTotal?: number };
 type Blocker = { castName: string; reason: string };
 type Incentive = { id: string; bizDate: string; amountMode: string; amount: number; recipientCount: number; distributedTotal: number; warnEmptyPool: boolean };
 
@@ -137,6 +137,7 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
               <tr style={{ background: "#f2f2f2" }}>
                 <th style={th}>キャスト</th>
                 <th style={th}>税区分</th>
+                <th style={{ ...th, textAlign: "right" }}>売掛天引き</th>
                 <th style={{ ...th, textAlign: "right" }}>差引支給(net)</th>
                 <th style={{ ...th, textAlign: "right" }}>anomaly</th>
               </tr>
@@ -146,12 +147,16 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
                 <tr key={r.castId}>
                   <td style={td}>{r.castName}</td>
                   <td style={td}>{r.taxMode}</td>
+                  <td style={{ ...td, textAlign: "right", color: r.arDeductTotal ? "#c0392b" : "#ccc" }}>
+                    {r.arDeductTotal ? `−${r.arDeductTotal.toLocaleString()}` : "-"}
+                    {r.arCarriedTotal ? <span style={{ color: "#b8860b", fontSize: 11 }}>（繰越 {r.arCarriedTotal.toLocaleString()}）</span> : null}
+                  </td>
                   <td style={{ ...td, textAlign: "right" }}>{r.net.toLocaleString()}</td>
                   <td style={{ ...td, textAlign: "right", color: r.anomalyCount ? "#b8860b" : "#ccc" }}>{r.anomalyCount || "-"}</td>
                 </tr>
               ))}
               <tr style={{ fontWeight: "bold", background: "#fafafa" }}>
-                <td style={td} colSpan={2}>合計（{rows.length} 名）</td>
+                <td style={td} colSpan={3}>合計（{rows.length} 名）</td>
                 <td style={{ ...td, textAlign: "right" }}>{total.toLocaleString()}</td>
                 <td style={td} />
               </tr>

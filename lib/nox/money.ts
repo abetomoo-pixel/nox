@@ -11,3 +11,12 @@ export function roundYen(n: number): number {
 export function roundPt1(n: number): number {
   return Math.round(n * 10) / 10;
 }
+
+/**
+ * 手取りの下限（F2e-1 売掛天引きの budget 計算に使用）。
+ * 暫定 0（＝手取り0まで天引き可）。★社労士ゲート TODO: 最低手取り保証額に差し替え可能な1箇所
+ * （roundYen と同型の集約点＝呼び出し側 core.ts は不変で下限だけ差替）。
+ */
+export function takeHomeFloor(): number {
+  return 0;
+}

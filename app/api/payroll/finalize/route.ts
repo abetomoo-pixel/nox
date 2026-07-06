@@ -31,7 +31,13 @@ export async function POST(req: Request) {
     const { data: actor, error: eA } = await g.admin.from("users").select("id").eq("auth_user_id", g.authUserId).single();
     if (eA || !actor) return NextResponse.json({ error: "actor resolve failed" }, { status: 500 });
 
-    const payslips = draft.rows.map((r) => ({ cast_id: r.castId, net: r.net, breakdown: { pay: r.pay, extras: r.extras } }));
+    const payslips = draft.rows.map((r) => ({
+      cast_id: r.castId,
+      net: r.net,
+      breakdown: { pay: r.pay, extras: r.extras },
+      ar_deducted: r.arDeducted, // F2e-1: {receivable_id, amount}[]（finalize が deducted/部分/繰越に遷移）
+      ar_carried: r.arCarried, // F2e-1: {receivable_id}[]（deduct_period→翌 period）
+    }));
     const { data: count, error: eFin } = await g.admin.rpc("payroll_finalize", {
       p_org_id: g.orgId, // サーバ導出（auth_org_id）
       p_actor: actor.id, // p_actor = users.id

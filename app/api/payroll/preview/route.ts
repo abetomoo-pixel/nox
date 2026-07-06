@@ -19,6 +19,8 @@ export async function POST(req: Request) {
         taxMode: r.taxMode,
         anomalyCount: r.anomalyCount,
         breakdown: { pay: r.pay, extras: r.extras },
+        arDeductTotal: r.arDeductTotal, // F2e-1 天引き明細
+        arCarriedTotal: r.arCarriedTotal,
       })),
       blockers: draft.blockers,
       incentives: draft.incentives, // #32 可視化: 総配分額・受給者数・warnEmptyPool

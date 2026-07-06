@@ -10,11 +10,23 @@ import type { CastRaw, StoreMasters } from "./assemble";
 import type { CompPlan, PlanOverride, Deduction, BackDef, TaxMode } from "../pay";
 import { buildMatchInput, dayWorkedHours, type PunchRow, type ShiftRow, type AttendanceRow } from "../punch-io";
 import { matchPunches } from "../punch-match";
+import { bizDateOf } from "../biz-date";
 
 type SalesRow = { cast_id: string; biz_date: string; sales: number; hon: number; jonai: number; dohan: number };
 
 // #32 出勤インセンティブ（published・当該期間の biz_date）
 export type Incentive = { id: string; bizDate: string; amountMode: "per_head" | "pooled"; amount: number };
+
+// F2e-1 売掛天引き（E9 対象＝open・deduct_from_cast・当該 period 帰属）。remaining=amount−deducted_amount。
+export type Receivable = {
+  id: string;
+  castId: string;
+  amount: number;
+  deductedAmount: number;
+  remaining: number;
+  effPeriod: string; // coalesce(deduct_period, biz_date→'YYYY-MM')
+  createdAt: string;
+};
 
 export type CollectResult = {
   casts: CastRaw[];
@@ -22,6 +34,8 @@ export type CollectResult = {
   incentives: Incentive[];
   // bizDate → 受給者 cast_id（final∈{ok,late}・cast_id 昇順＝pooled 端数 +1 の順序＝確認1）
   recipientsByDate: Map<string, string[]>;
+  // cast_id → 当該 period の E9 対象 receivable（古い順）
+  receivablesByCast: Map<string, Receivable[]>;
 };
 
 // 店共通マスタ＋cast 個別マスタ（plan/norm/tax）を1回読む。
@@ -185,6 +199,43 @@ async function loadPunch(admin: SupabaseClient, storeId: string, win: PayrollWin
   return { byCast: result, recipientsByDate };
 }
 
+// F2e-1: E9 対象 receivable を cast 別・古い順で読む。
+//   対象＝status='open' and deduct_from_cast=true で、当該 period P に帰属：
+//     deduct_period = P  OR  (deduct_period is null and biz_date(started_at)→'YYYY-MM' = P)。
+//   古い順＝coalesce(deduct_period, biz_date-period) asc, created_at asc, id asc。
+//   remaining = amount − deducted_amount（open ゆえ >0）。deducted は #8 で status によりここで除外済み。
+async function loadReceivables(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Map<string, Receivable[]>> {
+  const { data, error } = await admin
+    .from("receivables")
+    .select("id, cast_id, amount, deducted_amount, deduct_period, created_at, check_id, checks(started_at)")
+    .eq("store_id", storeId).eq("status", "open").eq("deduct_from_cast", true);
+  if (error) throw new Error(`receivables: ${error.message}`);
+  const rows: Receivable[] = [];
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    if (r.cast_id == null) continue; // cast 未紐付けは天引き対象外
+    const deductPeriod = (r.deduct_period as string | null) ?? null;
+    // biz_date→period（started_at を cutoff 正規化・biz-date.ts が正本＝確認2 の started_at→biz_date 基準）
+    const chk = r.checks as { started_at?: string } | null;
+    const bizPeriod = chk?.started_at ? bizDateOf(chk.started_at, win.cutoffHm).slice(0, 7) : null;
+    const effPeriod = deductPeriod ?? bizPeriod;
+    if (effPeriod !== win.period) continue; // 当該 period 帰属のみ
+    const amount = r.amount as number;
+    const deductedAmount = (r.deducted_amount as number) ?? 0;
+    rows.push({
+      id: r.id as string, castId: r.cast_id as string, amount, deductedAmount,
+      remaining: amount - deductedAmount, effPeriod, createdAt: r.created_at as string,
+    });
+  }
+  // 古い順（effPeriod asc, created_at asc, id asc）
+  rows.sort((a, b) =>
+    a.effPeriod < b.effPeriod ? -1 : a.effPeriod > b.effPeriod ? 1 :
+    a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 :
+    a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const byCast = new Map<string, Receivable[]>();
+  for (const r of rows) (byCast.get(r.castId) ?? byCast.set(r.castId, []).get(r.castId)!).push(r);
+  return byCast;
+}
+
 // #32: published の attendance_incentives を biz_date∈[periodStart,periodEnd] で読む（確認2: biz_date 基準統一）。
 async function loadIncentives(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Incentive[]> {
   const { data, error } = await admin
@@ -213,10 +264,11 @@ export async function collectPeriod(
   if (eS) throw new Error(`get_cast_sales: ${eS.message}`);
   const salesRows = (salesData ?? []) as SalesRow[];
 
-  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives] = await Promise.all([
+  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast] = await Promise.all([
     loadMasters(admin, storeId, win.period),
     loadAccounting(admin, storeId, win),
     loadIncentives(admin, storeId, win),
+    loadReceivables(admin, storeId, win),
   ]);
   const { byCast: punchByCast, recipientsByDate } = await loadPunch(admin, storeId, win, grace);
 
@@ -231,7 +283,7 @@ export async function collectPeriod(
 
   // 対象 cast = sales ∪ punch（is_active 不問・稼働ゼロ除外）
   const targetIds = new Set<string>([...salesByCast.keys(), ...punchByCast.keys()]);
-  if (targetIds.size === 0) return { casts: [], masters, incentives, recipientsByDate };
+  if (targetIds.size === 0) return { casts: [], masters, incentives, recipientsByDate, receivablesByCast };
 
   // cast 名（is_active 不問＝退職者含む）
   const { data: castRows, error: eN } = await admin.from("casts").select("id, name").in("id", [...targetIds]);
@@ -276,5 +328,5 @@ export async function collectPeriod(
       taxProfileMode: taxByCast.get(cid) ?? null,
     });
   }
-  return { casts, masters, incentives, recipientsByDate };
+  return { casts, masters, incentives, recipientsByDate, receivablesByCast };
 }
