@@ -56,6 +56,23 @@
 | /report 締め・再締め | **UI 非描画 ✅**＋RPC forbidden | ✅（プレビューと凍結値の全項目一致・reclosed_count 表示） |
 | /master 操作フォーム | 非描画（isManagerUp ガード）＋RPC forbidden | ✅（商品編集・席・在庫 Σdelta） |
 
+### 報酬設計マスタ /master 拡張（確認⑤・F2a-4・mig0012〜0014）
+
+CC 実機トレース（owner=nox-verify-owner-a／manager=nox-verify-manager-a1 実ログイン・DOM/a11y スナップショット）。★は Agoora 目視の確定対象。
+
+| # | 項目 | CC トレース |
+|---|---|---|
+| 1 | 6タブ描画（プラン/割当/ノルマ/控除/罰金・閾値/自由バック） | ✅ owner で6タブ全出現 |
+| 2 | ★プランタブ: owner は編集フォーム（保証時給・本/場内/同伴・売上/ptスライド）表示 | ✅ owner 表示・「オーナーのみ」注記なし |
+| 3 | ★D3a プランタブ: manager は編集フォーム非描画＋「オーナーのみ」注記 | ✅ manager で確認 |
+| 4 | ★罰金・閾値タブ: owner は設定11項目（数値10＋norm_on）＋保存 | ✅ 保存実行→「保存しました」（RPC 往復） |
+| 5 | ★D3a 罰金タブ: manager は入力非描画＋注記＋現在値の読取表示 | ✅ manager で確認 |
+| 6 | 割当/ノルマ/控除/自由バックは manager 以上で編集可 | ✅ 割当セレクト2種表示・注記なし |
+| 7 | ★割当のプラン選択肢が inactive を除外（廃止プラン非表示） | ✅ 「有効のみ」＝プランAのみ・廃止プラン不在 |
+| 8 | slide 3段入力（各段 at/時給・at=0 段は送信時除外・昇順strictは RPC 検証） | ✅ 形式確認 |
+| 9 | 原則7: p_is_active（3本）＋p_norm_on＋penalty 全11値の明示送信 | ✅ grep 機械確認 |
+| 10 | cast/staff の弾き（cast=layout で /mine・staff=nav 非表示・最終防衛は RPC forbidden） | ✅ layout 分岐＋verify:nox-rls D3a 実測 |
+
 ## 補足
 
 - スクリーンショット採取はこの環境の preview キャプチャ層が不調のため、DOM 検査トレース（CC）＋ Agoora のブラウザ目視で代替した（レンダリング自体は正常）。

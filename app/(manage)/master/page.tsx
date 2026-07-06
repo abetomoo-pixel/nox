@@ -9,5 +9,11 @@ export default async function MasterPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
   const { data: stores } = await supabase.from("stores").select("id, name").order("name").limit(1);
-  return <MasterBoard storeId={stores?.[0]?.id ?? ""} isManagerUp={role === "owner" || role === "manager"} />;
+  return (
+    <MasterBoard
+      storeId={stores?.[0]?.id ?? ""}
+      isManagerUp={role === "owner" || role === "manager"}
+      isOwner={role === "owner"}
+    />
+  );
 }

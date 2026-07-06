@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import CompMaster from "./comp-master";
 
 type Product = {
   id: string; type: string; category: string | null; name: string; price: number; cost: number | null;
@@ -18,7 +19,7 @@ const btnLight: React.CSSProperties = { padding: "4px 10px", borderRadius: 6, bo
 
 const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
 
-export default function MasterBoard({ storeId, isManagerUp }: { storeId: string; isManagerUp: boolean }) {
+export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId: string; isManagerUp: boolean; isOwner: boolean }) {
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>([]);
   const [seats, setSeats] = useState<Seat[]>([]);
@@ -211,6 +212,8 @@ export default function MasterBoard({ storeId, isManagerUp }: { storeId: string;
           </div>
         </section>
       )}
+
+      <CompMaster storeId={storeId} isManagerUp={isManagerUp} isOwner={isOwner} />
     </div>
   );
 }
