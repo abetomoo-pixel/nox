@@ -91,6 +91,12 @@ NOX 用に以下を最初のマイグレーションで定義：
 **cast_tax_profiles**（税務プロファイル）
 - `cast_id*`, `mode`（報酬/給与）, `invoice`（課税/免税）, `reg_no`（適格請求書番号）, `mynumber`（**暗号化・閲覧は別権限＋アクセスログ必須**）
 
+**【F2b 実装確定（2026-07-06・mig0015）】§2.2 の整合と逸脱**
+- **mynumber の置き場を認可設計 §2.4 に整合**：本節初版は mynumber を cast_tax_profiles に置くが、§2.4（機密設計の正本）に従い **mynumber は `cast_sensitive`（real_name/birthday/mynumber_enc）に分離**する。cast_tax_profiles には mynumber を持たせない（機密度が異なるため物理分離）。
+- **cast_tax_profiles の列（実装）**：`cast_id*`, `org_id`, `store_id`, `mode`（**委託/雇用**＝payOf taxMode の正本・初版の「報酬/給与」表記を委託/雇用に統一）, `invoice`（課税/免税・F2d）, `reg_no`（F2d）。パターン2（cast 0行・manager 以上）。
+- **casts.employment は残置（T3a）**：既存の casts.employment（委託/雇用）は非正規化の表示用として残し、給与計算の正本は cast_tax_profiles.mode とする（employment を drop する非冪等 mig を避ける）。
+- **cast_sensitive（新設・§2.4 の物理形）**：`cast_id*`, `org_id`, `store_id`, `real_name`, `birthday`, `mynumber_enc bytea`（F2b は null 運用）。RLS 有効・**SELECT ポリシー無し・grant 0**＝直 SELECT 全ロール不可・閲覧 RPC のみ。
+
 **deductions**（控除マスタ）
 - `id*`, `store_id*`, `name`, `amount`, `per`（day/month/rate）… 送り代/厚生費
 

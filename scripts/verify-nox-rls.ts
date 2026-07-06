@@ -52,7 +52,15 @@ function sameSet(actual: string[], expected: string[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+// セッションをユーザーごとにキャッシュ＝1 run 1認証（Supabase auth のレート制限回避）。
+// 各セクションの signOut() は衛生目的でしか呼ばれず、共有セッションを殺すとキャッシュが無効化して
+// 再認証→レート制限→process.exit で退職回帰テストの finally が飛び membership が壊れる事故の温床
+// （2026-07-06 に発生）。そこで signOut を no-op 化してキャッシュを生かす。RLS は毎クエリで
+// auth_org_id() 等を live 評価するため、キャッシュしても退職回帰（membership flip→0行）は正しく動く。
+const sessionCache = new Map<FixtureUserKey, SupabaseClient>();
 async function signIn(key: FixtureUserKey): Promise<SupabaseClient> {
+  const cached = sessionCache.get(key);
+  if (cached) return cached;
   const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -64,6 +72,9 @@ async function signIn(key: FixtureUserKey): Promise<SupabaseClient> {
     console.error(`✗ ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
     process.exit(1);
   }
+  // 共有セッションを保つ（signOut を無害化）＝以後 signIn(key) はキャッシュを返す
+  c.auth.signOut = (async () => ({ error: null })) as typeof c.auth.signOut;
+  sessionCache.set(key, c);
   return c;
 }
 
@@ -838,6 +849,106 @@ async function main() {
     check("F2a-3 DB 結線 B: attendance shukkin で final ok・absentN=0", rB2.absentN === 0 && rB2.days[0]?.final.type === "ok", JSON.stringify(rB2.days[0]));
 
     await wipe();
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // F2b: 機密分離（cast_sensitive）＋税務（cast_tax_profiles）（mig0015）
+  // T1a 物理封鎖（grant0）・T6a 権限分岐・全閲覧ログ・平文非リーク・null 消去検出・パターン2。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const auditCount = async (action: string, target: string): Promise<number> => {
+      const { count } = await admin.from("audit_logs").select("id", { count: "exact", head: true }).eq("action", action).eq("target", target);
+      return count ?? 0;
+    };
+    const tgt = "cast_sensitive:" + castIdA;
+    const denied = (e: { message?: string } | null) => !!e?.message?.includes("permission denied");
+    const forbidden = (e: { message?: string } | null) => !!e?.message?.includes("forbidden");
+
+    // ── manager: set 成功（採用時登録）・get 拒否（T6a）・直 SELECT 遮断・tax は可視 ──
+    {
+      const m = await signIn("managerA1");
+      const { error: eSet } = await m.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "田中玲奈", p_birthday: "1998-04-15", p_mynumber_enc: null });
+      check("F2b manager set_cast_sensitive 成功", !eSet, eSet?.message);
+      const { error: eTax } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "免税", p_reg_no: null });
+      check("F2b manager set_cast_tax_profile 成功", !eTax, eTax?.message);
+      const { error: eGet } = await m.rpc("get_cast_sensitive", { p_cast_id: castIdA });
+      check("F2b T6a: manager get_cast_sensitive 拒否", forbidden(eGet), eGet?.message ?? "通ってしまった");
+      const { error: eSel } = await m.from("cast_sensitive").select("cast_id").limit(1);
+      check("F2b 物理封鎖: manager 直 SELECT permission denied（grant0）", denied(eSel), eSel?.message ?? "読めてしまった");
+      const { data: tax } = await m.from("cast_tax_profiles").select("cast_id, mode").eq("cast_id", castIdA);
+      check("F2b cast_tax_profiles: manager 可視（パターン2）", (tax ?? []).length === 1 && tax?.[0]?.mode === "委託", JSON.stringify(tax));
+      await m.auth.signOut();
+    }
+
+    // ── owner: get 成功＋ログ+1・直 SELECT 遮断・平文非リーク・null 消去検出 ──
+    {
+      const o = await signIn("ownerA");
+      const readBefore = await auditCount("read_cast_sensitive", tgt);
+      const { data: g, error: eGet } = await o.rpc("get_cast_sensitive", { p_cast_id: castIdA });
+      const grow = (g ?? [])[0] as { real_name?: string } | undefined;
+      check("F2b T6a: owner get_cast_sensitive 成功（real_name 復元）", !eGet && grow?.real_name === "田中玲奈", eGet?.message ?? JSON.stringify(g));
+      check("F2b 全閲覧ログ: owner get で read_cast_sensitive +1", (await auditCount("read_cast_sensitive", tgt)) === readBefore + 1);
+      const { error: eSel } = await o.from("cast_sensitive").select("cast_id").limit(1);
+      check("F2b 物理封鎖: owner 直 SELECT permission denied（grant0）", denied(eSel), eSel?.message ?? "読めてしまった");
+      // 平文非リーク: set の audit after_json は fields_changed のみ・実値を含まない
+      const { data: aud } = await o.from("audit_logs").select("after_json").eq("action", "set_cast_sensitive").eq("target", tgt).order("at", { ascending: false }).limit(1);
+      const after0 = aud?.[0]?.after_json as { fields_changed?: string[] } | null;
+      check("F2b 平文非リーク: after_json に fields_changed のみ", Array.isArray(after0?.fields_changed) && !JSON.stringify(after0).includes("田中玲奈"), JSON.stringify(after0));
+      // null 消去アンカー: 実値ありの行を null 上書き → fields_changed に real_name/birthday が載る
+      await o.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: null, p_birthday: null, p_mynumber_enc: null });
+      const { data: audE } = await o.from("audit_logs").select("after_json").eq("action", "set_cast_sensitive").eq("target", tgt).order("at", { ascending: false }).limit(1);
+      const erased = (audE?.[0]?.after_json as { fields_changed?: string[] } | null)?.fields_changed ?? [];
+      check("F2b null 消去検出: fields_changed に real_name・birthday", erased.includes("real_name") && erased.includes("birthday"), JSON.stringify(erased));
+      // 同値 upsert（既に null）→ fields_changed 空
+      await o.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: null, p_birthday: null, p_mynumber_enc: null });
+      const { data: audS } = await o.from("audit_logs").select("after_json").eq("action", "set_cast_sensitive").eq("target", tgt).order("at", { ascending: false }).limit(1);
+      const same = (audS?.[0]?.after_json as { fields_changed?: string[] } | null)?.fields_changed ?? ["x"];
+      check("F2b 同値 upsert: fields_changed 空", same.length === 0, JSON.stringify(same));
+      await o.auth.signOut();
+    }
+
+    // ── staff: get 拒否・直 SELECT 遮断 ──
+    {
+      const s = await signIn("staffA1");
+      const { error: eGet } = await s.rpc("get_cast_sensitive", { p_cast_id: castIdA });
+      check("F2b T6a: staff get_cast_sensitive 拒否", forbidden(eGet), eGet?.message ?? "通ってしまった");
+      const { error: eSel } = await s.from("cast_sensitive").select("cast_id").limit(1);
+      check("F2b 物理封鎖: staff 直 SELECT permission denied", denied(eSel), eSel?.message ?? "読めてしまった");
+      await s.auth.signOut();
+    }
+
+    // ── cast: 本人のみ get 成功（自己閲覧もログ+1）・他人拒否・直 SELECT 遮断・tax 0行 ──
+    {
+      const ca = await signIn("castA1a");
+      const readBefore = await auditCount("read_cast_sensitive", tgt);
+      const { data: g, error: eSelf } = await ca.rpc("get_cast_sensitive", { p_cast_id: castIdA });
+      check("F2b T6a: cast 本人 get 成功", !eSelf && (g ?? []).length === 1, eSelf?.message ?? JSON.stringify(g));
+      check("F2b 全閲覧ログ: cast 本人自己閲覧でも +1（例外なし）", (await auditCount("read_cast_sensitive", tgt)) === readBefore + 1);
+      const { error: eOther } = await ca.rpc("get_cast_sensitive", { p_cast_id: castIdB });
+      check("F2b T6a: cast 他人 get 拒否", forbidden(eOther), eOther?.message ?? "通ってしまった");
+      const { error: eSel } = await ca.from("cast_sensitive").select("cast_id").limit(1);
+      check("F2b 物理封鎖: cast 直 SELECT permission denied", denied(eSel), eSel?.message ?? "読めてしまった");
+      const { data: tax } = await ca.from("cast_tax_profiles").select("cast_id").limit(1);
+      check("F2b cast_tax_profiles: cast 0行（パターン2）", (tax ?? []).length === 0, `got ${(tax ?? []).length}`);
+      await ca.auth.signOut();
+    }
+
+    // ── クロス org: managerB1 は org A の cast へ set/get 拒否・tax 0行 ──
+    {
+      const b = await signIn("managerB1");
+      const { error: eG } = await b.rpc("get_cast_sensitive", { p_cast_id: castIdA });
+      check("F2b クロス org: managerB1 get 拒否", forbidden(eG), eG?.message ?? "通ってしまった");
+      const { error: eS } = await b.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "x", p_birthday: null, p_mynumber_enc: null });
+      check("F2b クロス org: managerB1 set 拒否", forbidden(eS), eS?.message ?? "通ってしまった");
+      const { error: eT } = await b.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: null, p_reg_no: null });
+      check("F2b クロス org: managerB1 tax set 拒否", forbidden(eT), eT?.message ?? "通ってしまった");
+      const { data: tax } = await b.from("cast_tax_profiles").select("cast_id").eq("cast_id", castIdA);
+      check("F2b クロス org: managerB1 tax 0行", (tax ?? []).length === 0, `got ${(tax ?? []).length}`);
+      await b.auth.signOut();
+    }
   }
 
   // ══════════════════════════════════════════════════════════

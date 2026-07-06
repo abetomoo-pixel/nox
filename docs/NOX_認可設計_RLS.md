@@ -110,6 +110,16 @@ using (
   - 推奨：mynumber は casts/cast_tax_profiles から分離した別テーブル `cast_sensitive`（real_name/birthday/mynumber）に置き、**閲覧専用 SECURITY DEFINER RPC ＋ アクセスログ必須**でのみ取得。通常クエリでは触れない。
   - real_name は castMng（manager 以上）のキャスト詳細でのみ表示。
 
+**【F2b 実装確定（2026-07-06・mig0015）】§2.4 の実装反映（裁定 T1〜T8）**
+- **cast_sensitive の分離強度＝最強形（T1a）**：RLS 有効・**SELECT ポリシーを一切作らない**・**grant を SELECT すら戻さない（authenticated に 0 grant）**。結果として anon/authenticated/owner/manager/cast 本人の**全ロールが直 SELECT 不可**（pattern2 の「cast 0行」より厳しい）。取得は閲覧専用 SECURITY DEFINER RPC `get_cast_sensitive` のみ。
+- **閲覧権限（T6a）**：get＝owner ＋ cast 本人の自己閲覧のみ（**manager も直閲覧不可**＝最小権限）。set＝manager 以上（採用時登録）。
+- **アクセスログ（T7a・§2.4 確定路線）**：`get_cast_sensitive` は**全閲覧を audit_logs に記録**（action='read_cast_sensitive'・target=cast_sensitive:id・値なし＝誰が誰の機密をいつ見たかのみ）。**本人の自己閲覧も例外なく記録**（補強2）。
+- **原則6 の脚注（唯一の例外）**：原則6「書込 RPC は audit」に対し、`get_cast_sensitive` は**読取だが §2.4 がログを明示要求する唯一の例外**。読取 RPC は原則6 対象外（get_cast_ranking/get_cast_sales が前例）だが、機密閲覧のみ「読取でも記録」。
+- **平文リーク遮断（逸脱）**：`set_cast_sensitive` の audit は before/after に平文を入れず `{fields_changed:[…]}` のマスク形式（audit_logs に real_name/mynumber 平文を残さない）。
+- **mynumber（T2a）**：`mynumber_enc bytea` 列を用意するが F2b では **null 運用**（実暗号化は鍵管理確定後の F2d）。RPC の search_path は **public のみ**（extensions 不要＝攻撃面を広げない）。F2d 暗号化導入時に `public, extensions` へ変更（pgcrypto トラップ回避）の TODO を RPC ヘッダーに明記。
+- **cast_tax_profiles（T4a）**：パターン2（cast 0行・manager 以上）。`mode`（委託/雇用）が payOf taxMode の正本・`invoice`/`reg_no` は F2d 前提。casts.employment は残置（T3a・非正規化表示用・drop しない）。
+- **verify:nox-grants G1 の整合（T5a）**：G1 は「authenticated は SELECT 以下」の意（SELECT 以外の権限が 0）。cast_sensitive は **0 grant の明示例外**として、authenticated 権限が皆無であることを専用 assert で positive に固定。
+
 ---
 
 ## 3. 集計の安全提供（RLSだけでは完結しない部分）

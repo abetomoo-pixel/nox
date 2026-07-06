@@ -24,6 +24,8 @@
  *       マスタ6テーブルも anon select DENIED。内部 comp_plan_slide_check は両ロール BLOCKED。
  * 段9（0014 適用後）: F2a-2 の get_cast_sales は anon BLOCKED 必須。
  *       内部 cast_sales_aggregate は anon かつ authenticated の両方で BLOCKED。
+ * 段10（0015 適用後）: F2b の set/get_cast_sensitive・set_cast_tax_profile は anon BLOCKED 必須。
+ *       cast_sensitive/cast_tax_profiles も anon select DENIED（cast_sensitive は grant0＝全ロール）。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -149,6 +151,17 @@ async function main() {
     check("anon get_cast_sales BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段10a: F2b 機密/税務 RPC 3本 anon BLOCKED ──
+  const F2B_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["set_cast_sensitive", { p_cast_id: null, p_real_name: null, p_birthday: null, p_mynumber_enc: null }],
+    ["get_cast_sensitive", { p_cast_id: null }],
+    ["set_cast_tax_profile", { p_cast_id: null, p_mode: null, p_invoice: null, p_reg_no: null }],
+  ];
+  for (const [fn, args] of F2B_RPC_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部関数は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
@@ -171,9 +184,11 @@ async function main() {
     "shift_wishes", "shifts", "attendance", "punches", "staffing_needs",
     "daily_reports",
     "comp_plans", "cast_plan", "cast_norms", "deductions", "penalty_config", "custom_back_defs",
+    "cast_sensitive", "cast_tax_profiles",
   ]) {
-    // cast_plan のみ PK=cast_id（id 列なし）。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
-    const { error } = await anon.from(table).select(table === "cast_plan" ? "cast_id" : "id").limit(1);
+    // PK=cast_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
+    const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles"].includes(table);
+    const { error } = await anon.from(table).select(pkCastId ? "cast_id" : "id").limit(1);
     check(
       `anon ${table} select DENIED`,
       !!error?.message?.includes("permission denied"),

@@ -128,6 +128,19 @@ async function main() {
     );
   }
 
+  // G7: cast_sensitive は authenticated 権限 0（T5a 明示例外・grant0 の positive assert）＋ポリシー0行
+  {
+    const g = await db.query(
+      `select privilege_type from information_schema.role_table_grants
+       where table_schema = 'public' and table_name = 'cast_sensitive' and grantee = 'authenticated'`,
+    );
+    check("G7 cast_sensitive の authenticated 権限 = 0（grant0 明示例外）", g.rowCount === 0, g.rows.map((x) => x.privilege_type).join(", "));
+    const p = await db.query(
+      `select policyname from pg_policies where schemaname = 'public' and tablename = 'cast_sensitive'`,
+    );
+    check("G7 cast_sensitive ポリシー = 0行（意図・閲覧 RPC のみ）", p.rowCount === 0, p.rows.map((x) => x.policyname).join(", "));
+  }
+
   await db.end();
 
   if (fails.length) {
