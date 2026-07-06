@@ -55,7 +55,7 @@ async function main() {
   const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const signIn = async (key: "managerA1" | "ownerA") => {
+  const signIn = async (key: "managerA1" | "ownerA" | "castA1a") => {
     const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
@@ -499,10 +499,28 @@ async function main() {
     const { error: eVoid } = await manager.rpc("check_void", { p_check_id: chkV, p_reason: "verify partial-deduct void" });
     check("F2e-1 void 連動: 部分天引き済み receivable の伝票 void 拒否（receivable settled）", !!eVoid?.message?.includes("receivable settled"), eVoid?.message ?? "通ってしまった");
 
+    // ── /mine 代替: cast 本人が確定 payslip の breakdown_json.ar（売掛天引き）を可視（RLS 不変・payslip cast 自己可視）──
+    const { data: caRow } = await admin.from("casts").select("id").eq("store_id", storeA1Id).eq("name", FIXTURE_USERS.castA1a.name).single();
+    const castA1aId = caRow!.id as string;
+    const rMine = await mkRecv(castA1aId, 3000, {});
+    // 2027-03 の fresh run（core E9 テストは preview で run 未作成）。admin craft で castA1a payslip を ar 付き凍結
+    const { data: rcM } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-03" });
+    const runM = ((rcM ?? [])[0] as { id: string }).id;
+    await admin.rpc("payroll_finalize", {
+      p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: randomUUID(),
+      p_payslips: [{ cast_id: castA1aId, net: 2000, breakdown: { pay: { net: 5000 }, extras: [] }, ar_deducted: [{ receivable_id: rMine, amount: 3000 }], ar_carried: [] }],
+    });
+    const ca = await signIn("castA1a");
+    const { data: myPs } = await ca.from("payslips").select("period, net, breakdown_json").eq("period", "2027-03");
+    const mine = (myPs ?? [])[0] as { net: number; breakdown_json: { ar?: { action?: string; amount?: number }[] } } | undefined;
+    const arSeen = (mine?.breakdown_json?.ar ?? []).filter((e) => e.action === "deducted").reduce((s, e) => s + (e.amount ?? 0), 0);
+    check("F2e-1 /mine 代替: cast 本人が確定 payslip の breakdown_json.ar（売掛天引き −3000）を可視", !!mine && mine.net === 2000 && arSeen === 3000, JSON.stringify({ net: mine?.net, arSeen }));
+    await ca.auth.signOut();
+
     // 掃除
-    await admin.from("payslips").delete().in("run_id", [runF, runV]);
-    await admin.from("payroll_runs").delete().in("id", [runF, runV]);
-    await admin.from("receivables").delete().in("cast_id", [fed, fe1, fe2, fe3, fev]);
+    await admin.from("payslips").delete().in("run_id", [runF, runV, runM]);
+    await admin.from("payroll_runs").delete().in("id", [runF, runV, runM]);
+    await admin.from("receivables").delete().in("cast_id", [fed, fe1, fe2, fe3, fev, castA1aId]);
   }
 
   // ── 4 権限拒否（decidePayrollAccess 純関数）──

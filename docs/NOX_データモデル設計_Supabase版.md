@@ -150,7 +150,7 @@ NOX 用に以下を最初のマイグレーションで定義：
 - **payroll_finalize 改修**：payslip 凍結と同一トランザクションで receivable を deducted/部分/繰越に遷移。p_payslips 各要素に `ar_deducted:[{receivable_id,amount}]`/`ar_carried:[{receivable_id}]` 同梱。**再確定は退避 payslip の breakdown.ar から prev を条件付き（applied 一致時のみ）復元→再マーク**（drift は触らない・paid は 'run paid' で不可）。原子性は単一関数本体で担保。
 - **check_void 改修**：`deducted_amount>0`（一部でも給与反映済み）の売掛がある伝票は void 拒否（幻影/宙吊り防止）。
 - **advanceDeduct/okuriDeduct は 0 固定**（前借り/送りテーブル新設は F2e-2）。売掛規制の上限/可否 enforcement は F3 弁護士ゲート留保。
-- ⚠ **未実装（要裁定）**：/mine の cast 自己売掛表示は receivables が**パターン2（cast 0行）**のため不可＝RLS 変更（パターン1変形）or 閲覧 RPC が別途必要（本 mig の対象外）。
+- **cast 向け表示（裁定・延期）**：receivables は**パターン2（cast 0行）を維持**（客情報 customer_id が絡むため生売掛を cast に見せない）。/mine の**確定給与明細**に `payslips.breakdown_json.ar` の売掛天引き額（−¥X）を表示して代替（payslips は cast 本人可視＝RLS 変更不要）。cast 向け売掛「未収リアルタイム閲覧」RPC は将来 F2e-2 以降。
 
 **【F1b 実装確定（2026-07-02・mig0006/0007）】§2.4 の実装反映と逸脱の記録**
 1. **checks.status に `void` を追加**（open/closed/void）。確定後の訂正は金額書換でなく void（BANZEN 教訓）。

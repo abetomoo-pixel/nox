@@ -70,6 +70,18 @@ export default async function MinePage() {
     .order("biz_date", { ascending: false })
     .limit(20);
 
+  // 確定済み給与明細（payslips＝金額系・cast 本人可視）。breakdown_json.ar の売掛天引き額を表示（F2e-1）。
+  const { data: slips } = await supabase
+    .from("payslips")
+    .select("period, net, breakdown_json")
+    .order("period", { ascending: false })
+    .limit(6);
+  type ArEntry = { action?: string; amount?: number };
+  const arTotal = (bj: unknown): number => {
+    const ar = (bj as { ar?: ArEntry[] } | null)?.ar ?? [];
+    return ar.reduce((s, e) => s + (e.action === "deducted" ? e.amount ?? 0 : 0), 0);
+  };
+
   const card: React.CSSProperties = {
     border: "1px solid #ebebeb", borderRadius: 8, padding: 16, background: "#fff", marginBottom: 16,
   };
@@ -77,6 +89,23 @@ export default async function MinePage() {
   return (
     <div style={{ maxWidth: 560 }}>
       <h1 style={{ fontSize: 20 }}>マイページ</h1>
+
+      <section style={card}>
+        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>確定給与明細</h2>
+        {(slips ?? []).length === 0 && <p style={{ fontSize: 13, color: "#8f8f8f" }}>確定分なし</p>}
+        <ul style={{ paddingLeft: 18, fontSize: 13 }}>
+          {(slips ?? []).map((s, i) => {
+            const ar = arTotal(s.breakdown_json);
+            return (
+              <li key={i}>
+                {s.period}: 手取り {yen(s.net as number)}
+                {ar > 0 ? <span style={{ color: "#c0392b" }}>（売掛天引き −{yen(ar)}）</span> : null}
+              </li>
+            );
+          })}
+        </ul>
+        <p style={{ fontSize: 12, color: "#8f8f8f", margin: 0 }}>※確定後の明細です。売掛の未収残は店にご確認ください。</p>
+      </section>
 
       <section style={card}>
         <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>今月のバック（{month}）</h2>
