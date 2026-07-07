@@ -23,7 +23,7 @@ import { payOf } from "../lib/nox/pay";
 import { resolvePayrollWindow } from "../lib/nox/payroll/window";
 import { collectPeriod } from "../lib/nox/payroll/collect";
 import { buildPayInput, computeNet } from "../lib/nox/payroll/assemble";
-import { computePayrollDraft } from "../lib/nox/payroll/core";
+import { computePayrollDraft, allocateCategory } from "../lib/nox/payroll/core";
 import { decidePayrollAccess } from "../lib/nox/payroll/authz";
 
 const env = loadEnvOrExit([
@@ -46,8 +46,10 @@ const CAST_NAMES = [
   "NOX-VERIFY-payP1", "NOX-VERIFY-payP2", "NOX-VERIFY-payP3", "NOX-VERIFY-payP4", "NOX-VERIFY-payNo", "NOX-VERIFY-payA2",
   "NOX-VERIFY-payI1", "NOX-VERIFY-payI2", "NOX-VERIFY-payI3", "NOX-VERIFY-payI4", "NOX-VERIFY-payI5", // #32 incentive 係留用
   "NOX-VERIFY-payFED", "NOX-VERIFY-payFE1", "NOX-VERIFY-payFE2", "NOX-VERIFY-payFE3", "NOX-VERIFY-payFEV", // F2e-1 売掛天引き
+  "NOX-VERIFY-payORD", "NOX-VERIFY-payAD1", "NOX-VERIFY-payOK1", "NOX-VERIFY-payBW", "NOX-VERIFY-payALL", // F2e-2 前借り/送り
 ];
 const AR_PERIODS = ["2027-01", "2027-03", "2027-05"]; // F2e-1 隔離 period
+const F2E2_PERIODS = ["2027-07", "2027-08", "2027-09", "2027-11", "2027-12"]; // F2e-2 隔離 period（前借り/送り）
 const SEATS = ["NOX-VERIFY-paySeat", "NOX-VERIFY-paySeat2"];
 const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2"];
 
@@ -81,9 +83,13 @@ async function main() {
   async function teardown() {
     const { data: cs } = await admin.from("casts").select("id").in("name", CAST_NAMES);
     const castIds = (cs ?? []).map((r) => r.id as string);
-    // F2e-1: receivables は checks/casts を参照するため最初に削除
-    if (castIds.length) await admin.from("receivables").delete().in("cast_id", castIds);
-    const { data: runs } = await admin.from("payroll_runs").select("id").in("period", [P, P2, ...AR_PERIODS]).in("store_id", [storeA1Id, storeA2Id]);
+    // F2e-1/F2e-2: receivables/advances/transport は casts を参照するため最初に削除
+    if (castIds.length) {
+      await admin.from("receivables").delete().in("cast_id", castIds);
+      await admin.from("advances").delete().in("cast_id", castIds);
+      await admin.from("transport").delete().in("cast_id", castIds);
+    }
+    const { data: runs } = await admin.from("payroll_runs").select("id").in("period", [P, P2, ...AR_PERIODS, ...F2E2_PERIODS]).in("store_id", [storeA1Id, storeA2Id]);
     const runIds = (runs ?? []).map((r) => r.id as string);
     if (runIds.length) {
       await admin.from("payslips").delete().in("run_id", runIds);
@@ -521,6 +527,179 @@ async function main() {
     await admin.from("payslips").delete().in("run_id", [runF, runV, runM]);
     await admin.from("payroll_runs").delete().in("id", [runF, runV, runM]);
     await admin.from("receivables").delete().in("cast_id", [fed, fe1, fe2, fe3, fev, castA1aId]);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // F2e-2 前借り(advances)/送り実費(transport) 天引きの係留（隔離 period 2027-07/08/09/11/12）
+  // ══════════════════════════════════════════════════════════
+  {
+    type AdvSt = { deducted_amount: number; status: string; deduct_period: string | null };
+    const advState = async (id: string): Promise<AdvSt> =>
+      (await admin.from("advances").select("deducted_amount, status, deduct_period").eq("id", id).single()).data as AdvSt;
+    const trState = async (id: string): Promise<{ deducted_amount: number; status: string }> =>
+      (await admin.from("transport").select("deducted_amount, status").eq("id", id).single()).data as { deducted_amount: number; status: string };
+    const addC = async (name: string) => {
+      const cid = await mkCast(name, true);
+      await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {} });
+      await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, mode: "委託" });
+      return cid;
+    };
+    const mkAdv = async (castId: string, amount: number, opts: { advancedOn?: string; deductPeriod?: string; deductedAmount?: number; status?: string } = {}) => {
+      const { data } = await admin.from("advances").insert({
+        org_id: orgAId, store_id: storeA1Id, cast_id: castId, amount,
+        advanced_on: opts.advancedOn ?? "2027-07-15", deduct_period: opts.deductPeriod ?? null,
+        deducted_amount: opts.deductedAmount ?? 0, status: opts.status ?? "open", created_by: actorId,
+      }).select("id").single();
+      return data!.id as string;
+    };
+    const mkTr = async (castId: string, amount: number, opts: { bizDate?: string; deductedAmount?: number; status?: string } = {}) => {
+      const { data } = await admin.from("transport").insert({
+        org_id: orgAId, store_id: storeA1Id, cast_id: castId, amount,
+        biz_date: opts.bizDate ?? "2027-07-10", deducted_amount: opts.deductedAmount ?? 0,
+        status: opts.status ?? "open", created_by: actorId,
+      }).select("id").single();
+      return data!.id as string;
+    };
+    const insRecv = async (castId: string, amount: number, deductPeriod: string) => {
+      const { data } = await admin.from("receivables").insert({
+        org_id: orgAId, store_id: storeA1Id, cast_id: castId, amount,
+        deduct_from_cast: true, status: "open", deduct_period: deductPeriod, deducted_amount: 0,
+      }).select("id").single();
+      return data!.id as string;
+    };
+
+    // ── Block 0: allocateCategory 純関数の判別的テスト（DB 非依存・takeHomeFloor()=0 でも floor/順序を判別）──
+    //   セルフレビュー指摘対応: 統合テスト（Block A）は budget 潤沢/floor=0 ゆえ「floor 遵守」「送り先行」を判別できない。
+    //   純関数を tight budget で直接叩き、budget cap（L2 の実体）とカテゴリ順序（L4）を判別的に係留する。
+    {
+      // L2 floor cap: rem=7000（＝available 10000 − floor 3000 相当）で 9999 要求 → 7000 でキャップ・残 2999 は繰越。
+      //   floor を無視する実装なら 9999 引けてしまう＝この assert が「budget を超えて引かない＝floor 遵守」を判別する。
+      const cap = allocateCategory([{ id: "x", remaining: 9999 }], 7000, true);
+      check("F2e-2 L2 floor cap（判別）: budget=7000 で 9999 要求は 7000 でキャップ（残2999 繰越）",
+        cap.deduct === 7000 && cap.remAfter === 0 && cap.carriedTotal === 2999 && cap.deducted[0].amount === 7000, JSON.stringify(cap));
+      // L4 順序（判別）: tight budget=800 を 送り→前借り の順で消費。送り先行なら okuri=500 全額・adv=300 部分。
+      //   逆順（前借り先行）なら adv=700 全額・okuri=100 部分になる＝この2 assert が「送りが前借りより先」を固定する。
+      const okFirst = allocateCategory([{ id: "t", remaining: 500 }], 800, false);
+      const advSecond = allocateCategory([{ id: "a", remaining: 700 }], okFirst.remAfter, true);
+      check("F2e-2 L4 順序（判別）: 送り先行 okuri=500 全額・remAfter=300", okFirst.deduct === 500 && okFirst.remAfter === 300, JSON.stringify(okFirst));
+      check("F2e-2 L4 順序（判別）: 前借りは残 budget 300 だけ部分天引き（逆順なら 700＝順序固定の証拠）",
+        advSecond.deduct === 300 && advSecond.carriedTotal === 400, JSON.stringify(advSecond));
+      // carryable=false（transport＝繰越なし）: rem 切れは carried に入れず据置。carryable=true（advances）は carried へ。
+      const noCarry = allocateCategory([{ id: "t1", remaining: 1000 }, { id: "t2", remaining: 1000 }], 500, false);
+      check("F2e-2 allocateCategory carryable=false: rem 切れは carried 空（繰越なし・据置）・各 item 1回のみ",
+        noCarry.deducted.length === 1 && noCarry.deducted[0].amount === 500 && noCarry.carried.length === 0, JSON.stringify(noCarry));
+      const withCarry = allocateCategory([{ id: "a1", remaining: 1000 }, { id: "a2", remaining: 1000 }], 500, true);
+      check("F2e-2 allocateCategory carryable=true: rem 切れは carried へ（繰越あり）・deducted∩carried 空",
+        withCarry.deducted.length === 1 && withCarry.carried.length === 1 && withCarry.carried[0].id === "a2" && withCarry.deducted[0].id === "a1", JSON.stringify(withCarry));
+    }
+
+    // ── Block A: 3カテゴリ順序（送り→前借り→売掛）＋手取り0下限（L2/L4・特に重要）2027-07 ──
+    // available より天引き合計を大きくし、共通 budget が 送り→前借り→売掛 の順に消費されることを係留。
+    const ord = await addC(CAST_NAMES[16]);
+    await mkPunchDay(ord, "2027-07-10", "2027-07-11");
+    const dPre = await computePayrollDraft(admin, manager, storeA1Id, "2027-07", { previewDefaults: false });
+    const availOrd = dPre.rows.find((r) => r.castId === ord)!.net; // 天引き前 net = available
+    check("F2e-2 順序 前提: ORD available>2000（送り500+前借り700 を上回る）", availOrd > 2000, `avail=${availOrd}`);
+    await mkTr(ord, 500, { bizDate: "2027-07-10" }); // 送り 500
+    await mkAdv(ord, 700, { advancedOn: "2027-07-12" }); // 前借り 700
+    await insRecv(ord, availOrd, "2027-07"); // 売掛 availOrd（budget を超過させ partial+繰越を発生）
+    const dOrd = await computePayrollDraft(admin, manager, storeA1Id, "2027-07", { previewDefaults: false });
+    const rOrd = dOrd.rows.find((r) => r.castId === ord)!;
+    check("F2e-2 順序①送り最優先: okuriDeductTotal=500（全額・繰越なし）", rOrd.okuriDeductTotal === 500 && rOrd.okuriDeducted.length === 1, JSON.stringify(rOrd.okuriDeducted));
+    check("F2e-2 順序②前借り2番目: advDeductTotal=700（全額）", rOrd.advDeductTotal === 700, JSON.stringify(rOrd.advDeducted));
+    check("F2e-2 順序③売掛は残 budget だけ: arDeductTotal=available-1200", rOrd.arDeductTotal === availOrd - 1200, JSON.stringify({ ar: rOrd.arDeductTotal, avail: availOrd }));
+    check("F2e-2 売掛繰越=1200（budget 切れの残）", rOrd.arCarriedTotal === 1200, `got ${rOrd.arCarriedTotal}`);
+    check("F2e-2 手取り0下限（L2）: net=0（3カテゴリ合算で floor を割らない）", rOrd.net === 0, `net=${rOrd.net}`);
+    check("F2e-2 net 恒等: net===pay.net+Σextras（3天引き込み）", rOrd.net === rOrd.pay.net + rOrd.extras.reduce((s, e) => s + e.amount, 0), JSON.stringify({ net: rOrd.net, p: rOrd.pay.net }));
+
+    // ── Block B: adv 段階遷移（繰越あり）＋#8 超過ガード＋原子性（direct-craft finalize・2027-08）──
+    const ad1 = await addC(CAST_NAMES[17]);
+    const A = await mkAdv(ad1, 10000, { advancedOn: "2027-08-05" });
+    const { data: rcA } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-08" });
+    const runA = ((rcA ?? [])[0] as { id: string }).id;
+    const psAdv = (amt: number) => [{ cast_id: ad1, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [{ advance_id: A, amount: amt }], adv_carried: [], okuri_deducted: [] }];
+    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runA, p_idem_key: randomUUID(), p_payslips: psAdv(3000) });
+    let asA = await advState(A);
+    check("F2e-2 adv 段階遷移 r1: deducted=3000/open/繰越2027-09（繰越あり）", asA.deducted_amount === 3000 && asA.status === "open" && asA.deduct_period === "2027-09", JSON.stringify(asA));
+    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runA, p_idem_key: randomUUID(), p_payslips: psAdv(10000) });
+    asA = await advState(A);
+    check("F2e-2 adv 段階遷移 r2: deducted=10000/deducted/period=null（巻き戻し→再マーク・累積でない）", asA.deducted_amount === 10000 && asA.status === "deducted" && asA.deduct_period === null, JSON.stringify(asA));
+    // #8 各カテゴリ内 超過ガード＋原子性: 別の advance A8(5000) を 6000 天引き → bad advance・全ロールバック
+    const A8 = await mkAdv(ad1, 5000, { advancedOn: "2027-08-06" });
+    const { error: eOverA } = await admin.rpc("payroll_finalize", {
+      p_org_id: orgAId, p_actor: actorId, p_run_id: runA, p_idem_key: randomUUID(),
+      p_payslips: [{ cast_id: ad1, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [{ advance_id: A8, amount: 6000 }], adv_carried: [], okuri_deducted: [] }],
+    });
+    check("F2e-2 #8 adv 超過ガード: deducted+amount>amount で 'bad advance'", !!eOverA?.message?.includes("bad advance"), eOverA?.message ?? "通ってしまった");
+    const a8s = await advState(A8);
+    check("F2e-2 adv 原子性: 全ロールバック（A8=0/open 未着手・A=10000/deducted 維持）",
+      a8s.deducted_amount === 0 && a8s.status === "open" && (await advState(A)).deducted_amount === 10000, JSON.stringify(a8s));
+
+    // ── Block C: okuri 段階遷移（部分は open 据置・繰越なし）＋#8（direct-craft・2027-09）──
+    const ok1 = await addC(CAST_NAMES[18]);
+    const T = await mkTr(ok1, 10000, { bizDate: "2027-09-08" });
+    const { data: rcB } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-09" });
+    const runB = ((rcB ?? [])[0] as { id: string }).id;
+    const psOku = (amt: number) => [{ cast_id: ok1, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [], adv_carried: [], okuri_deducted: [{ transport_id: T, amount: amt }] }];
+    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runB, p_idem_key: randomUUID(), p_payslips: psOku(3000) });
+    let ts = await trState(T);
+    check("F2e-2 okuri 段階遷移 r1: deducted=3000/open 据置（繰越なし＝deduct_period 列なし・部分は再回収されない）", ts.deducted_amount === 3000 && ts.status === "open", JSON.stringify(ts));
+    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runB, p_idem_key: randomUUID(), p_payslips: psOku(10000) });
+    ts = await trState(T);
+    check("F2e-2 okuri 段階遷移 r2: deducted=10000/deducted（全額・巻き戻し→再マーク）", ts.deducted_amount === 10000 && ts.status === "deducted", JSON.stringify(ts));
+    const T8 = await mkTr(ok1, 4000, { bizDate: "2027-09-09" });
+    const { error: eOverT } = await admin.rpc("payroll_finalize", {
+      p_org_id: orgAId, p_actor: actorId, p_run_id: runB, p_idem_key: randomUUID(),
+      p_payslips: [{ cast_id: ok1, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [], adv_carried: [], okuri_deducted: [{ transport_id: T8, amount: 5000 }] }],
+    });
+    check("F2e-2 #8 okuri 超過ガード: amount>amount で 'bad transport'・全ロールバック（T=10000/deducted 維持）",
+      !!eOverT?.message?.includes("bad transport") && (await trState(T)).deducted_amount === 10000, eOverT?.message ?? "通ってしまった");
+
+    // ── Block D: 3カテゴリ再確定巻き戻し（ar+adv+okuri を同時に巻き戻し→再マーク）2027-11 ──
+    const all = await addC(CAST_NAMES[19]);
+    const rAll = await insRecv(all, 8000, "2027-11");
+    const aAll = await mkAdv(all, 8000, { advancedOn: "2027-11-05" });
+    const tAll = await mkTr(all, 8000, { bizDate: "2027-11-06" });
+    const { data: rcC } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-11" });
+    const runC = ((rcC ?? [])[0] as { id: string }).id;
+    const psAll = (ar: number, ad: number, ok: number) => [{
+      cast_id: all, net: 0, breakdown: { pay: { net: 0 }, extras: [] },
+      ar_deducted: [{ receivable_id: rAll, amount: ar }], ar_carried: [],
+      adv_deducted: [{ advance_id: aAll, amount: ad }], adv_carried: [],
+      okuri_deducted: [{ transport_id: tAll, amount: ok }],
+    }];
+    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runC, p_idem_key: randomUUID(), p_payslips: psAll(2000, 3000, 4000) });
+    check("F2e-2 3カテゴリ確定1: ar=2000/adv=3000/okuri=4000（各 open・部分）",
+      (await advState(aAll)).deducted_amount === 3000 && (await trState(tAll)).deducted_amount === 4000 &&
+      ((await admin.from("receivables").select("deducted_amount").eq("id", rAll).single()).data as { deducted_amount: number }).deducted_amount === 2000, "初回確定");
+    // 再確定（別 idem）: 各カテゴリを巻き戻して新値へ再マーク（累積でなく置き換え）
+    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runC, p_idem_key: randomUUID(), p_payslips: psAll(5000, 8000, 1000) });
+    const rAllS = ((await admin.from("receivables").select("deducted_amount, status, deduct_period").eq("id", rAll).single()).data as AdvSt);
+    check("F2e-2 再確定 ar 巻き戻し→再マーク: deducted=5000（累積10000でない）/open/繰越", rAllS.deducted_amount === 5000 && rAllS.status === "open" && rAllS.deduct_period === "2027-12", JSON.stringify(rAllS));
+    check("F2e-2 再確定 adv 巻き戻し→再マーク: deducted=8000/deducted/period=null（全額）", (await advState(aAll)).deducted_amount === 8000 && (await advState(aAll)).status === "deducted", JSON.stringify(await advState(aAll)));
+    check("F2e-2 再確定 okuri 巻き戻し→再マーク: deducted=1000/open 据置（累積5000でない・繰越なし）",
+      (await trState(tAll)).deducted_amount === 1000 && (await trState(tAll)).status === "open", JSON.stringify(await trState(tAll)));
+
+    // ── Block E: 後方互換（adv/okuri キー欠落 payload は skip・既存 open を触らない）2027-12 ──
+    const bw = await addC(CAST_NAMES[20]);
+    const aBw = await mkAdv(bw, 5000, { advancedOn: "2027-12-03" });
+    const { data: rcD } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-12" });
+    const runD = ((rcD ?? [])[0] as { id: string }).id;
+    // adv_deducted/okuri_deducted キーを持たない payslip（F2e-1 形）で確定 → jsonb_typeof guard で skip
+    await admin.rpc("payroll_finalize", {
+      p_org_id: orgAId, p_actor: actorId, p_run_id: runD, p_idem_key: randomUUID(),
+      p_payslips: [{ cast_id: bw, net: 5000, breakdown: { pay: { net: 5000 }, extras: [] }, ar_deducted: [], ar_carried: [] }],
+    });
+    const aBwS = await advState(aBw);
+    check("F2e-2 後方互換: adv/okuri キー欠落 payload は skip（open 前借りは未着手 0/open 維持）",
+      aBwS.deducted_amount === 0 && aBwS.status === "open", JSON.stringify(aBwS));
+
+    // 掃除
+    await admin.from("payslips").delete().in("run_id", [runA, runB, runC, runD]);
+    await admin.from("payroll_runs").delete().in("id", [runA, runB, runC, runD]);
+    await admin.from("advances").delete().in("cast_id", [ord, ad1, ok1, all, bw]);
+    await admin.from("transport").delete().in("cast_id", [ord, ad1, ok1, all, bw]);
+    await admin.from("receivables").delete().in("cast_id", [ord, all]);
   }
 
   // ── 4 権限拒否（decidePayrollAccess 純関数）──

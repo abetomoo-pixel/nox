@@ -1,7 +1,7 @@
 // PayInput 組み立て（純関数・DB を知らない＝verify で直接叩ける）。
 // collect.ts が読んだ cast 1人分の raw ＋ 店共通マスタ → payOf の入力 object を作る。
-// 天引き3種（arDeduct/advanceDeduct/okuriDeduct）は F2c では 0（供給元の消し込みは F2e で結線）。
-// net = pay.net + Σ extras.amount（B: サーバが net の責務・F2c は extras 空＝net===pay.net）。
+// 天引き3種（arDeduct/advanceDeduct/okuriDeduct）は二段 payOf の確定天引き額（F2e-1 で ar・F2e-2 で adv/okuri を結線）。
+// net = pay.net + Σ extras.amount（B: サーバが net の責務・extras 空なら net===pay.net）。
 
 import type {
   PayInput,
@@ -55,9 +55,16 @@ function dayNum(bizDate: string): number {
   return Number.parseInt(bizDate.slice(8, 10), 10);
 }
 
-// arDeduct は F2e-1 で結線（二段 payOf: 1回目 arDeduct=0 で available 算出→E9→確定 arDeduct で再計算）。
-// advanceDeduct/okuriDeduct は F2e-2（前借り/送りテーブル新設）まで 0 固定。
-export function buildPayInput(raw: CastRaw, taxMode: TaxMode, masters: StoreMasters, arDeduct = 0): PayInput {
+// 二段 payOf の確定天引き額を注入（1回目 全0 で available 算出→送り→前借り→売掛の順に共通 budget 消費→
+//   確定額で再計算）。arDeduct=F2e-1・advanceDeduct/okuriDeduct=F2e-2。positional 追加＝既存4引数呼び出しと後方互換。
+export function buildPayInput(
+  raw: CastRaw,
+  taxMode: TaxMode,
+  masters: StoreMasters,
+  arDeduct = 0,
+  advanceDeduct = 0,
+  okuriDeduct = 0,
+): PayInput {
   if (!raw.plan) throw new Error(`buildPayInput: plan 未設定（cast ${raw.castId}）`);
   return {
     cast: { hon: raw.hon, jonai: raw.jonai, dohan: raw.dohan, days: raw.days, sales: raw.sales },
@@ -73,9 +80,9 @@ export function buildPayInput(raw: CastRaw, taxMode: TaxMode, masters: StoreMast
     normConfig: masters.normConfig,
     norm: raw.norm,
     fine: { absentN: raw.absentN, lateN: raw.lateN },
-    arDeduct, // F2e-1 売掛天引き（E9 で算出した確定額）
-    advanceDeduct: 0,
-    okuriDeduct: 0,
+    arDeduct, // 売掛天引き（E9 で算出した確定額）
+    advanceDeduct, // 前借り天引き（F2e-2・E9 同型）
+    okuriDeduct, // 送り実費天引き（F2e-2・繰越なし）
     taxMode,
   };
 }

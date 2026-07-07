@@ -85,7 +85,7 @@ $$;
 |---|---|---|---|
 | 6 | service_role 監査経路 | mig0002 ヘッダー | 給与確定（service）の監査書込＝「RLS バイパス直 INSERT か p_org_id 明示 service 専用 RPC か」を F2c で決定 |
 | 7 | 源泉の日数定義 | pay.ts L9・精密仕様 §7 | 出勤日数（現実装）か暦日数か → **税理士** |
-| 8 | 二重控除ガード | pay.ts L10 | 送り実費 vs 一律送り代（現状モック忠実の両取り）。okuriDeduct/deductions 分離入力済み＝payOf 内1箇所で追加可 |
+| 8 | 二重控除ガード | pay.ts L10 | 送り実費 vs 一律送り代（現状モック忠実の両取り）。okuriDeduct/deductions 分離入力済み＝payOf 内1箇所で追加可。**F2e-2 裁定 L3'（2026-07-07・相談役承認）**：payOf 内ガードでなく**店設定 `okuri_mode`（'flat'＝一律送り代／'actual'＝実費）で構造的排他**（'flat' 店は `transport_issue` を弾き併存不可・fail-closed）。deductions に kind 列は足さない（汎用マスタ不変）。'actual' 店で一律送り代を deductions に入れた場合は /payroll で warning のみ（block しない）。売掛の #8（売掛内二重控除）は mig0018 でクローズ済み・送り/前借りの各カテゴリ内二重控除は mig0020 finalize ガードで担保。mig0019/0020 適用で結線 |
 | 9 | 売上バック率テーブルの店設定化 | pay.ts L12/L110 | 現状モック値（3/5/7/10%）をデフォルト引数。店マスタ化するか F2 判断 |
 | 10 | 丸め round vs floor | money.ts L3 | **税理士** floor 指定なら roundYen 1箇所差替 |
 | 11 | 雇用（給与）の源泉・社保 | pay.ts withholdingOf（雇用=0） | **社労士**確認のうえ実装 |
@@ -106,6 +106,7 @@ $$;
 | 27 | reclose で実査（counted_cash）を null に戻す経路 | F1e レビュー（2026-07-02） | 現行 reclose は null=既存維持のため実査の取り消しができない。F1f の UI 設計時に再訪（記録のみ・対応不要） |
 | 31 | early/over/noout の金銭化要否 | 精密仕様 §4.2 S8（2026-07-03） | モックは退勤照合（early=30分超早退・over=90分超残留・noout）を表示のみで金銭化しない。早退ペナルティ等を入れるかは**実店舗ヒアリング後に判断**（#25 カードTAX と同じ「プロダクト判断を憶測で入れない」裁定の踏襲）。それまで punch-match.ts の anomaly/表示まで |
 | 32 | 出勤インセンティブ（**設計ロック済み 2026-07-03・実装は F2c 完了後**） | F2a 論点整理 | **attendance_incentives**：1行=1 store×biz_date（I1）・kind enum は `'bonus'` のみ F2 実装／`'drink_boost'` は予約のみ＝back_snapshot 経路のため別途（I2）・status published/cancelled。**行自体が凍結記録**＝編集不可・cancel（audit 痕跡）＋新規発行のみ・同一 (store, biz_date, kind) の published は部分ユニーク（I5）。**支払条件**＝punch-match final ∈ {ok, late}（I3）・当日出勤者**全員**＝発行前確定者も含む（I4）。**給与結線**＝payOf 外側・payroll_run 時に published×final 突合→payslips.breakdown_json の独立行（I6・台帳 #4 前提）。**権限**＝発行/取消 manager 以上・閲覧パターン3（I7）・staffing_needs とは FK なし疎結合（I9）。**最小版**＝/shift 発行 UI＋/mine/wishes 表示（notices 不要）・告知プッシュは F3 接続（I8） |
+| 33 | 送り実費 open 据置 transport の掃除機構（**F2e-2 起票 2026-07-07・後続フェーズ留保**） | F2e-2 plan 裁定⑤（相談役承認） | `transport` は繰越なし（送り実費＝当期精算・deduct_period 列を持たない）ゆえ、cast 手取り不足で引き切れない月の残は `status='open'` のまま永久据置になり得る（実質未回収＝店が被る・open 行が蓄積）。**F2e-2 は現行（open 据置）で確定**＝意図した挙動（送り実費は繰越機構を持たない）。open 据置 transport の蓄積が運用問題化した場合の掃除機構（一定期間後 auto-close ジョブ or 手動 write-off RPC）を**後続フェーズで検討**。mig0020 実装ノート【5】に同記載。cf. 前借り（advances）は繰越あり＝receivables 同型で deduct_period 繰越するため据置蓄積は起きない |
 
 ### F4 で対応
 | # | 項目 | 出典 | 内容 |

@@ -28,6 +28,29 @@ export type Receivable = {
   createdAt: string;
 };
 
+// F2e-2 前借り天引き（E9 同型・open・当該 period 帰属＝coalesce(deduct_period, advanced_on→'YYYY-MM')・繰越あり）。
+export type Advance = {
+  id: string;
+  castId: string;
+  amount: number;
+  deductedAmount: number;
+  remaining: number;
+  effPeriod: string;
+  createdAt: string;
+};
+
+// F2e-2 送り実費天引き（open・当該 period 帰属＝biz_date→'YYYY-MM'・繰越なし＝deduct_period 列を持たない）。
+export type Transport = {
+  id: string;
+  castId: string;
+  amount: number;
+  deductedAmount: number;
+  remaining: number;
+  effPeriod: string; // biz_date→'YYYY-MM'（固定・繰越しない）
+  bizDate: string; // 古い順ソート用（同一 period 内は日付順 FIFO）
+  createdAt: string;
+};
+
 export type CollectResult = {
   casts: CastRaw[];
   masters: StoreMasters;
@@ -36,6 +59,9 @@ export type CollectResult = {
   recipientsByDate: Map<string, string[]>;
   // cast_id → 当該 period の E9 対象 receivable（古い順）
   receivablesByCast: Map<string, Receivable[]>;
+  // cast_id → 当該 period の前借り（古い順）／送り実費（biz_date 古い順・繰越なし）
+  advancesByCast: Map<string, Advance[]>;
+  transportByCast: Map<string, Transport[]>;
 };
 
 // 店共通マスタ＋cast 個別マスタ（plan/norm/tax）を1回読む。
@@ -236,6 +262,68 @@ async function loadReceivables(admin: SupabaseClient, storeId: string, win: Payr
   return byCast;
 }
 
+// F2e-2: E9 同型で前借り（advances）を cast 別・古い順で読む（receivables の写し）。
+//   対象＝status='open' で当該 period P に帰属：deduct_period = P OR (null and to_char(advanced_on,'YYYY-MM') = P)。
+//   古い順＝coalesce(deduct_period, advanced_on-period) asc, created_at asc, id asc。remaining=amount−deducted_amount。
+//   cast_id は not null（1 advance=1 cast）。繰越あり（finalize が partial 時に deduct_period=翌 period を設定）。
+async function loadAdvances(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Map<string, Advance[]>> {
+  const { data, error } = await admin
+    .from("advances")
+    .select("id, cast_id, amount, deducted_amount, deduct_period, advanced_on, created_at")
+    .eq("store_id", storeId).eq("status", "open");
+  if (error) throw new Error(`advances: ${error.message}`);
+  const rows: Advance[] = [];
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const deductPeriod = (r.deduct_period as string | null) ?? null;
+    const advancedOn = r.advanced_on as string; // 'YYYY-MM-DD'（date・cutoff 非依存）
+    const effPeriod = deductPeriod ?? advancedOn.slice(0, 7);
+    if (effPeriod !== win.period) continue; // 当該 period 帰属のみ
+    const amount = r.amount as number;
+    const deductedAmount = (r.deducted_amount as number) ?? 0;
+    rows.push({
+      id: r.id as string, castId: r.cast_id as string, amount, deductedAmount,
+      remaining: amount - deductedAmount, effPeriod, createdAt: r.created_at as string,
+    });
+  }
+  rows.sort((a, b) =>
+    a.effPeriod < b.effPeriod ? -1 : a.effPeriod > b.effPeriod ? 1 :
+    a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 :
+    a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const byCast = new Map<string, Advance[]>();
+  for (const r of rows) (byCast.get(r.castId) ?? byCast.set(r.castId, []).get(r.castId)!).push(r);
+  return byCast;
+}
+
+// F2e-2: 送り実費（transport）を cast 別・古い順（biz_date FIFO）で読む。繰越なし＝period は biz_date→'YYYY-MM' 固定。
+//   対象＝status='open' で to_char(biz_date,'YYYY-MM') = P。古い順＝biz_date asc, created_at asc, id asc。
+async function loadTransport(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Map<string, Transport[]>> {
+  const { data, error } = await admin
+    .from("transport")
+    .select("id, cast_id, amount, deducted_amount, biz_date, created_at")
+    .eq("store_id", storeId).eq("status", "open");
+  if (error) throw new Error(`transport: ${error.message}`);
+  const rows: Transport[] = [];
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const bizDate = r.biz_date as string; // 'YYYY-MM-DD'（cutoff 正規化済み・繰越なし）
+    const effPeriod = bizDate.slice(0, 7);
+    if (effPeriod !== win.period) continue; // 当該 period 帰属のみ
+    const amount = r.amount as number;
+    const deductedAmount = (r.deducted_amount as number) ?? 0;
+    rows.push({
+      id: r.id as string, castId: r.cast_id as string, amount, deductedAmount,
+      remaining: amount - deductedAmount, effPeriod, bizDate, createdAt: r.created_at as string,
+    });
+  }
+  // 古い順（biz_date asc, created_at asc, id asc）＝送り実費の発生日 FIFO
+  rows.sort((a, b) =>
+    a.bizDate < b.bizDate ? -1 : a.bizDate > b.bizDate ? 1 :
+    a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 :
+    a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const byCast = new Map<string, Transport[]>();
+  for (const r of rows) (byCast.get(r.castId) ?? byCast.set(r.castId, []).get(r.castId)!).push(r);
+  return byCast;
+}
+
 // #32: published の attendance_incentives を biz_date∈[periodStart,periodEnd] で読む（確認2: biz_date 基準統一）。
 async function loadIncentives(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Incentive[]> {
   const { data, error } = await admin
@@ -264,11 +352,13 @@ export async function collectPeriod(
   if (eS) throw new Error(`get_cast_sales: ${eS.message}`);
   const salesRows = (salesData ?? []) as SalesRow[];
 
-  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast] = await Promise.all([
+  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast] = await Promise.all([
     loadMasters(admin, storeId, win.period),
     loadAccounting(admin, storeId, win),
     loadIncentives(admin, storeId, win),
     loadReceivables(admin, storeId, win),
+    loadAdvances(admin, storeId, win),
+    loadTransport(admin, storeId, win),
   ]);
   const { byCast: punchByCast, recipientsByDate } = await loadPunch(admin, storeId, win, grace);
 
@@ -283,7 +373,7 @@ export async function collectPeriod(
 
   // 対象 cast = sales ∪ punch（is_active 不問・稼働ゼロ除外）
   const targetIds = new Set<string>([...salesByCast.keys(), ...punchByCast.keys()]);
-  if (targetIds.size === 0) return { casts: [], masters, incentives, recipientsByDate, receivablesByCast };
+  if (targetIds.size === 0) return { casts: [], masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast };
 
   // cast 名（is_active 不問＝退職者含む）
   const { data: castRows, error: eN } = await admin.from("casts").select("id, name").in("id", [...targetIds]);
@@ -328,5 +418,5 @@ export async function collectPeriod(
       taxProfileMode: taxByCast.get(cid) ?? null,
     });
   }
-  return { casts, masters, incentives, recipientsByDate, receivablesByCast };
+  return { casts, masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast };
 }

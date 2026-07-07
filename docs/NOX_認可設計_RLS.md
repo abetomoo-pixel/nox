@@ -105,6 +105,10 @@ using (
 - **comp_plans＝パターン1変形（割当限定）**：cast は `exists (select 1 from cast_plan cp where cp.cast_id=auth_cast_id() and cp.plan_id=comp_plans.id)` で自分に割当てられたプランのみ可視（F2a 裁定 D1a・初版パターン3欄の「自分のプランのみ」注記の実装形）。サブクエリは cast_plan の RLS を通る**一方向参照**（users↔memberships 型の相互参照ではない＝再帰なし）。
 - cast_norms＝パターン1（初版どおり）／deductions・penalty_config・custom_back_defs＝パターン3（罰金・控除・バック規定は周知情報＝F2a 裁定 D2a）。
 
+**【F2e-2 追記（2026-07-07・mig0019）】§2.3 パターン分類への追加**
+- **advances／transport＝パターン1**（`auth_role()<>'cast' or cast_id=auth_cast_id()`・check_cast_backs と同型）。receivables はパターン2（客情報 customer_id 保護）だが、前借り/送りは **customer_id を持たず cast 本人が自分の債務を /mine で照合すべき**ため**パターン1**（cast 自己可視）。書込ポリシー0＝発行/取消は RPC 経由のみ。
+- **set_store_okuri_mode＝owner 限定（D3a）**：`okuri_mode`（送り方式）は店ポリシー＝comp_plan/penalty_config と同格で owner のみ変更可。`transport_issue` は `okuri_mode='actual'` でのみ受理（fail-closed＝#8 一律送り代 vs 送り実費の**構造的排他**・payOf 内ガードでなく設定で排他）。
+
 ### 2.4 列レベルの制御（RLSの行制御だけでは不十分）
 - **real_name / mynumber**：cast の SELECT では返さない。**列マスク or 別テーブル分離**。
   - 推奨：mynumber は casts/cast_tax_profiles から分離した別テーブル `cast_sensitive`（real_name/birthday/mynumber）に置き、**閲覧専用 SECURITY DEFINER RPC ＋ アクセスログ必須**でのみ取得。通常クエリでは触れない。

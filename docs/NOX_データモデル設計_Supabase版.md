@@ -152,6 +152,13 @@ NOX 用に以下を最初のマイグレーションで定義：
 - **advanceDeduct/okuriDeduct は 0 固定**（前借り/送りテーブル新設は F2e-2）。売掛規制の上限/可否 enforcement は F3 弁護士ゲート留保。
 - **cast 向け表示（裁定・延期）**：receivables は**パターン2（cast 0行）を維持**（客情報 customer_id が絡むため生売掛を cast に見せない）。/mine の**確定給与明細**に `payslips.breakdown_json.ar` の売掛天引き額（−¥X）を表示して代替（payslips は cast 本人可視＝RLS 変更不要）。cast 向け売掛「未収リアルタイム閲覧」RPC は将来 F2e-2 以降。
 
+**【F2e-2 実装確定（2026-07-07・mig0019/0020）】前借り(advances)／送り実費(transport) 天引き**
+- **advances**（前借り・cast 債務・パターン1）：`id*`, `org_id*`, `store_id*`, `cast_id*`(not null), `amount`(>0), `deducted_amount`(default 0・`<=amount`), `status`('open'/'deducted'/'cancelled'), `deduct_period`('YYYY-MM'|null・**繰越あり**), `advanced_on`(date・period 帰属基準), `note`, 監査列。receivables 同型 partial。**cast 向け表示＝パターン1**（customer_id を持たないため cast が自分の前借りを /mine で照合可・check_cast_backs 型）。
+- **transport**（送り実費・cast 負担・パターン1）：advances と同型だが **`deduct_period` 列を持たない＝繰越なし**。`biz_date`(date・cutoff 正規化済み・period=to_char(biz_date,'YYYY-MM'))。手取り不足で引き切れない残は `open` 据置＝再回収しない（**台帳 #33 留保**：蓄積の掃除機構は後続フェーズ）。
+- **stores.settings_json.okuri_mode**（'flat'＝一律送り代[deductions 内・fixedDed]／'actual'＝実費[transport→okuriDeduct]）：**#8 排他を店設定で構造的に担保**（'flat' 店は `transport_issue` を弾く＝併存不可）。owner のみ `set_store_okuri_mode`（jsonb_set・D3a）。deductions マスタに kind 列は足さない。
+- **RPC**：`adv_issue`/`adv_cancel`/`transport_issue`/`transport_cancel`（manager+・audit・cast は org+store 照合・発行は paid 期間ガード・cancel は未天引き[deducted_amount=0]のみ）。`transport_issue` は okuri_mode='actual' でのみ受理（fail-closed）。
+- **arDeduct/advanceDeduct/okuriDeduct の3天引き結線（core.ts 二段 payOf）**：budget=`max(0,available−takeHomeFloor())` を **送り→前借り→売掛の順（L4）** に単一 rem で消費（`allocateCategory`・カテゴリ内 FIFO・net≥floor=L2）。**payroll_finalize は ar に対称な adv/okuri 遷移**（p_payslips に `adv_deducted`/`adv_carried`/`okuri_deducted`・okuri は繰越なしで carried なし・巻き戻し3カテゴリ・原子性）。
+
 **【F1b 実装確定（2026-07-02・mig0006/0007）】§2.4 の実装反映と逸脱の記録**
 1. **checks.status に `void` を追加**（open/closed/void）。確定後の訂正は金額書換でなく void（BANZEN 教訓）。
 2. **check_cast_backs を新設**：close 時に確定するキャスト別バック記録（drink/champ/bottle 額＋hon_pt_alloc）。

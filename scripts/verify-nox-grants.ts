@@ -210,6 +210,30 @@ async function main() {
       const roles = await roleOf(fn);
       check(`G8 ${fn} EXECUTE = authenticated（anon 不在）`, roles.includes("authenticated") && !roles.includes("anon"), `保持者: ${roles.join(", ")}`);
     }
+
+    // G9: F2e-2 前借り/送り（mig0019）— RLS 有効・パターン1 SELECT 1本ずつ・RPC5本 ACL（authenticated・anon 不在）。
+    //   G1（スキーマ全体で authenticated=SELECT のみ）が advances/transport の grant 面を自動回帰済み＝ここは positive assert。
+    const t = await db.query(
+      `select relname, relrowsecurity from pg_class
+       where relnamespace = 'public'::regnamespace and relname = any($1)`,
+      [["advances", "transport"]],
+    );
+    check("G9 advances/transport 2テーブル存在", t.rowCount === 2, `got ${t.rowCount}`);
+    for (const row of t.rows) check(`G9 ${row.relname} RLS 有効`, row.relrowsecurity === true);
+    const tp = await db.query(
+      `select tablename, policyname, cmd from pg_policies
+       where schemaname = 'public' and tablename = any($1) order by tablename`,
+      [["advances", "transport"]],
+    );
+    check(
+      "G9 advances/transport ポリシー = 各1本 SELECT（パターン1）",
+      tp.rowCount === 2 && tp.rows.every((x) => x.cmd === "SELECT"),
+      tp.rows.map((x) => `${x.tablename}:${x.cmd}`).join(", "),
+    );
+    for (const fn of ["adv_issue", "adv_cancel", "transport_issue", "transport_cancel", "set_store_okuri_mode"]) {
+      const roles = await roleOf(fn);
+      check(`G9 ${fn} EXECUTE = authenticated（anon 不在）`, roles.includes("authenticated") && !roles.includes("anon"), `保持者: ${roles.join(", ")}`);
+    }
   }
 
   await db.end();

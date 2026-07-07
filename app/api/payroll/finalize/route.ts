@@ -37,6 +37,9 @@ export async function POST(req: Request) {
       breakdown: { pay: r.pay, extras: r.extras },
       ar_deducted: r.arDeducted, // F2e-1: {receivable_id, amount}[]（finalize が deducted/部分/繰越に遷移）
       ar_carried: r.arCarried, // F2e-1: {receivable_id}[]（deduct_period→翌 period）
+      adv_deducted: r.advDeducted, // F2e-2: {advance_id, amount}[]（deducted/部分/繰越）
+      adv_carried: r.advCarried, // F2e-2: {advance_id}[]（deduct_period→翌 period）
+      okuri_deducted: r.okuriDeducted, // F2e-2: {transport_id, amount}[]（繰越なし＝carried 無し）
     }));
     const { data: count, error: eFin } = await g.admin.rpc("payroll_finalize", {
       p_org_id: g.orgId, // サーバ導出（auth_org_id）

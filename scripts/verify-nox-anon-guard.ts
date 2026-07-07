@@ -179,6 +179,19 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段12a: F2e-2 前借り/送り/okuri_mode RPC 5本 anon BLOCKED（mig0019・authenticated grant）──
+  const F2E2_ANON_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["adv_issue", { p_store_id: null, p_cast_id: null, p_amount: null, p_advanced_on: null, p_note: null }],
+    ["adv_cancel", { p_advance_id: null }],
+    ["transport_issue", { p_store_id: null, p_cast_id: null, p_amount: null, p_biz_date: null, p_note: null }],
+    ["transport_cancel", { p_transport_id: null }],
+    ["set_store_okuri_mode", { p_store_id: null, p_mode: null }],
+  ];
+  for (const [fn, args] of F2E2_ANON_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部関数は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
@@ -204,6 +217,7 @@ async function main() {
     "cast_sensitive", "cast_tax_profiles",
     "payroll_runs", "payslips",
     "attendance_incentives",
+    "advances", "transport",
   ]) {
     // PK=cast_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
     const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles"].includes(table);

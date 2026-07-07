@@ -1203,6 +1203,120 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // F2e-2: 前借り(advances)/送り(transport)（mig0019・パターン1・発行/取消権限・okuri_mode 排他・paid ガード・
+  //         set_store_okuri_mode owner 限定）
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const forbidden = (e: { message?: string } | null) => !!e?.message?.includes("forbidden");
+    const { data: sA1 } = await admin.from("stores").select("org_id").eq("name", STORE_A1).single();
+    const orgAId = sA1!.org_id as string;
+    const { data: mgrU } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
+    const actorId = mgrU!.id as string;
+    const wipe = async () => {
+      await admin.from("advances").delete().in("cast_id", [castIdA, castIdB]);
+      await admin.from("transport").delete().in("cast_id", [castIdA, castIdB]);
+    };
+    await wipe();
+
+    const owner = await signIn("ownerA");
+    const m = await signIn("managerA1");
+    const s = await signIn("staffA1");
+    const ca = await signIn("castA1a");
+
+    // set_store_okuri_mode: manager 拒否（owner 限定 D3a）・不正 mode 拒否
+    const { error: eModeM } = await m.rpc("set_store_okuri_mode", { p_store_id: storeA1Id, p_mode: "actual" });
+    check("F2e-2 set_store_okuri_mode manager 拒否（owner 限定）", forbidden(eModeM), eModeM?.message ?? "通ってしまった");
+    const { error: eBadMode } = await owner.rpc("set_store_okuri_mode", { p_store_id: storeA1Id, p_mode: "bogus" });
+    check("F2e-2 set_store_okuri_mode 不正 mode 拒否（bad mode）", !!eBadMode?.message?.includes("bad mode"), eBadMode?.message ?? "通ってしまった");
+
+    // 前借り発行: manager 成功・staff/cast 拒否
+    const { data: advA, error: eAdvM } = await m.rpc("adv_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 5000, p_advanced_on: "2028-01-05", p_note: null });
+    check("F2e-2 manager adv_issue 成功", !eAdvM && typeof advA === "string", eAdvM?.message);
+    const { data: advB } = await m.rpc("adv_issue", { p_store_id: storeA1Id, p_cast_id: castIdB, p_amount: 5000, p_advanced_on: "2028-01-05", p_note: null });
+    const { error: eAdvS } = await s.rpc("adv_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 1000, p_advanced_on: "2028-01-05", p_note: null });
+    check("F2e-2 staff adv_issue 拒否", forbidden(eAdvS), eAdvS?.message ?? "通ってしまった");
+    const { error: eAdvC } = await ca.rpc("adv_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 1000, p_advanced_on: "2028-01-05", p_note: null });
+    check("F2e-2 cast adv_issue 拒否", forbidden(eAdvC), eAdvC?.message ?? "通ってしまった");
+
+    // 送り実費: okuri_mode='flat'（既定）は transport_issue 拒否（構造的排他 L3'）→ owner が actual 切替で成功
+    const { error: eTrFlat } = await m.rpc("transport_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 3000, p_biz_date: "2028-01-05", p_note: null });
+    check("F2e-2 transport_issue okuri flat 拒否（okuri not actual）", !!eTrFlat?.message?.includes("okuri not actual"), eTrFlat?.message ?? "通ってしまった");
+    const { error: eModeO } = await owner.rpc("set_store_okuri_mode", { p_store_id: storeA1Id, p_mode: "actual" });
+    check("F2e-2 owner set_store_okuri_mode='actual' 成功", !eModeO, eModeO?.message);
+    const { data: trA, error: eTrM } = await m.rpc("transport_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 3000, p_biz_date: "2028-01-05", p_note: null });
+    check("F2e-2 manager transport_issue 成功（actual 店）", !eTrM && typeof trA === "string", eTrM?.message);
+    await m.rpc("transport_issue", { p_store_id: storeA1Id, p_cast_id: castIdB, p_amount: 3000, p_biz_date: "2028-01-05", p_note: null });
+
+    // パターン1: castA1a は自分の advance/transport のみ可視（castB 不可視）
+    const { data: advSeen } = await ca.from("advances").select("id, cast_id");
+    check("F2e-2 パターン1: castA1a advances=自分の行のみ（castB 不可視）",
+      (advSeen ?? []).length === 1 && (advSeen ?? [])[0].cast_id === castIdA, JSON.stringify(advSeen));
+    const { data: trSeen } = await ca.from("transport").select("id, cast_id");
+    check("F2e-2 パターン1: castA1a transport=自分の行のみ",
+      (trSeen ?? []).length === 1 && (trSeen ?? [])[0].cast_id === castIdA, JSON.stringify(trSeen));
+
+    // クロス org: managerB1 は org A の advance/transport 0行＋発行拒否
+    const b = await signIn("managerB1");
+    const { data: advB1 } = await b.from("advances").select("id");
+    const { data: trB1 } = await b.from("transport").select("id");
+    check("F2e-2 クロス org: managerB1 advances/transport=0行（org A 不可視）",
+      (advB1 ?? []).length === 0 && (trB1 ?? []).length === 0, JSON.stringify({ a: (advB1 ?? []).length, t: (trB1 ?? []).length }));
+    const { error: eAdvB } = await b.rpc("adv_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 1000, p_advanced_on: "2028-01-05", p_note: null });
+    check("F2e-2 クロス org: managerB1 adv_issue 拒否", forbidden(eAdvB), eAdvB?.message ?? "通ってしまった");
+
+    // パターン1 他店次元（同 org・別店 A2・非 owner）: storeA2 の advance/transport を storeA1 の manager/cast は不可視。
+    //   store_id=auth_store_id() 述語の回帰（他店漏洩の検出）。A2 に一時 cast＋行を admin で作り検証後に掃除。
+    {
+      const { data: sA2 } = await admin.from("stores").select("id").eq("name", STORE_A2).single();
+      const storeA2Id = sA2!.id as string;
+      const { data: a2c } = await admin.from("casts").insert({ org_id: orgAId, store_id: storeA2Id, name: "NOX-VERIFY-rlsA2ded", is_active: true }).select("id").single();
+      const a2CastId = a2c!.id as string;
+      const { data: a2adv } = await admin.from("advances").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2CastId, amount: 5000, advanced_on: "2028-01-05", status: "open", created_by: actorId }).select("id").single();
+      const a2AdvId = a2adv!.id as string;
+      await admin.from("transport").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2CastId, amount: 3000, biz_date: "2028-01-05", status: "open", created_by: actorId });
+      const { data: mAdv } = await m.from("advances").select("id");
+      check("F2e-2 パターン1 他店: managerA1(非owner) は storeA2 の advance 不可視（他店漏洩なし）", !(mAdv ?? []).some((r) => r.id === a2AdvId), JSON.stringify((mAdv ?? []).map((r) => r.id)));
+      const { data: mTr } = await m.from("transport").select("store_id").eq("store_id", storeA2Id);
+      check("F2e-2 パターン1 他店: managerA1 は storeA2 の transport 0行", (mTr ?? []).length === 0, `got ${(mTr ?? []).length}`);
+      const { data: caAdv2 } = await ca.from("advances").select("store_id").eq("store_id", storeA2Id);
+      check("F2e-2 パターン1 他店: castA1a は storeA2 の advance 0行（cast＋他店の二重遮断）", (caAdv2 ?? []).length === 0, `got ${(caAdv2 ?? []).length}`);
+      await admin.from("advances").delete().eq("cast_id", a2CastId);
+      await admin.from("transport").delete().eq("cast_id", a2CastId);
+      await admin.from("casts").delete().eq("id", a2CastId);
+    }
+
+    // cancel の settled 拒否（部分天引き済み）＋未天引きは成功
+    await admin.from("advances").update({ deducted_amount: 1000 }).eq("id", advA as string);
+    const { error: eCanSettled } = await m.rpc("adv_cancel", { p_advance_id: advA as string });
+    check("F2e-2 adv_cancel settled 拒否（deducted_amount>0）", !!eCanSettled?.message?.includes("advance settled"), eCanSettled?.message ?? "通ってしまった");
+    const { error: eCanOk } = await m.rpc("adv_cancel", { p_advance_id: advB as string });
+    check("F2e-2 adv_cancel 未天引きは成功", !eCanOk, eCanOk?.message);
+
+    // transport_issue paid 期間ガード（paid run を作り、その period の biz_date で拒否）
+    {
+      const { data: rcP } = await m.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2028-03" });
+      const runP = ((rcP ?? [])[0] as { id: string }).id;
+      await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runP, p_idem_key: randomUUID(),
+        p_payslips: [{ cast_id: castIdA, net: 0, breakdown: { pay: { net: 0 }, extras: [] } }] });
+      await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runP, p_idem_key: randomUUID() });
+      const { error: eTrPaid } = await m.rpc("transport_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 1000, p_biz_date: "2028-03-15", p_note: null });
+      check("F2e-2 transport_issue paid 期間拒否（paid period）", !!eTrPaid?.message?.includes("paid period"), eTrPaid?.message ?? "通ってしまった");
+      // adv_issue も対称の paid ガード（advanced_on→period が paid なら拒否＝mig0019 の adv/transport 対称化）
+      const { error: eAdvPaid } = await m.rpc("adv_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 1000, p_advanced_on: "2028-03-15", p_note: null });
+      check("F2e-2 adv_issue paid 期間拒否（paid period・transport と対称）", !!eAdvPaid?.message?.includes("paid period"), eAdvPaid?.message ?? "通ってしまった");
+      await admin.from("payslips").delete().eq("run_id", runP);
+      await admin.from("payroll_runs").delete().eq("id", runP);
+    }
+
+    // okuri_mode を既定 flat に戻す（共有 state リセット）＋掃除
+    await owner.rpc("set_store_okuri_mode", { p_store_id: storeA1Id, p_mode: "flat" });
+    await wipe();
+  }
+
+  // ══════════════════════════════════════════════════════════
   // F1e: 日報（ゴールデン・境界帰属 TS/DB 一致・p_force・冪等・reclose 追随）（mig0010）
   // ══════════════════════════════════════════════════════════
   {

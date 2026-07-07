@@ -3,7 +3,12 @@
 import { useState } from "react";
 
 type Store = { id: string; name: string };
-type Row = { castId: string; castName: string; net: number; taxMode: string; anomalyCount: number; arDeductTotal?: number; arCarriedTotal?: number };
+type Row = {
+  castId: string; castName: string; net: number; taxMode: string; anomalyCount: number;
+  arDeductTotal?: number; arCarriedTotal?: number;
+  advDeductTotal?: number; advCarriedTotal?: number; // F2e-2 前借り（繰越あり）
+  okuriDeductTotal?: number; // F2e-2 送り実費（繰越なし）
+};
 type Blocker = { castName: string; reason: string };
 type Incentive = { id: string; bizDate: string; amountMode: string; amount: number; recipientCount: number; distributedTotal: number; warnEmptyPool: boolean };
 
@@ -137,7 +142,9 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
               <tr style={{ background: "#f2f2f2" }}>
                 <th style={th}>キャスト</th>
                 <th style={th}>税区分</th>
-                <th style={{ ...th, textAlign: "right" }}>売掛天引き</th>
+                <th style={{ ...th, textAlign: "right" }}>売掛</th>
+                <th style={{ ...th, textAlign: "right" }}>前借り</th>
+                <th style={{ ...th, textAlign: "right" }}>送り</th>
                 <th style={{ ...th, textAlign: "right" }}>差引支給(net)</th>
                 <th style={{ ...th, textAlign: "right" }}>anomaly</th>
               </tr>
@@ -147,16 +154,15 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
                 <tr key={r.castId}>
                   <td style={td}>{r.castName}</td>
                   <td style={td}>{r.taxMode}</td>
-                  <td style={{ ...td, textAlign: "right", color: r.arDeductTotal ? "#c0392b" : "#ccc" }}>
-                    {r.arDeductTotal ? `−${r.arDeductTotal.toLocaleString()}` : "-"}
-                    {r.arCarriedTotal ? <span style={{ color: "#b8860b", fontSize: 11 }}>（繰越 {r.arCarriedTotal.toLocaleString()}）</span> : null}
-                  </td>
+                  {dedCell(r.arDeductTotal, r.arCarriedTotal)}
+                  {dedCell(r.advDeductTotal, r.advCarriedTotal)}
+                  {dedCell(r.okuriDeductTotal)}
                   <td style={{ ...td, textAlign: "right" }}>{r.net.toLocaleString()}</td>
                   <td style={{ ...td, textAlign: "right", color: r.anomalyCount ? "#b8860b" : "#ccc" }}>{r.anomalyCount || "-"}</td>
                 </tr>
               ))}
               <tr style={{ fontWeight: "bold", background: "#fafafa" }}>
-                <td style={td} colSpan={3}>合計（{rows.length} 名）</td>
+                <td style={td} colSpan={5}>合計（{rows.length} 名）</td>
                 <td style={{ ...td, textAlign: "right" }}>{total.toLocaleString()}</td>
                 <td style={td} />
               </tr>
@@ -177,3 +183,13 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
 const btn: React.CSSProperties = { padding: "8px 16px", background: "#2c3e50", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" };
 const th: React.CSSProperties = { border: "1px solid #ddd", padding: "6px 10px", textAlign: "left" };
 const td: React.CSSProperties = { border: "1px solid #eee", padding: "6px 10px" };
+
+// 天引きセル（−¥X ＋ 繰越表示）。carried 未指定（送り実費＝繰越なし）は繰越を出さない。
+function dedCell(deduct?: number, carried?: number) {
+  return (
+    <td style={{ ...td, textAlign: "right", color: deduct ? "#c0392b" : "#ccc" }}>
+      {deduct ? `−${deduct.toLocaleString()}` : "-"}
+      {carried ? <span style={{ color: "#b8860b", fontSize: 11 }}>（繰越 {carried.toLocaleString()}）</span> : null}
+    </td>
+  );
+}

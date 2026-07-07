@@ -76,10 +76,11 @@ export default async function MinePage() {
     .select("period, net, breakdown_json")
     .order("period", { ascending: false })
     .limit(6);
-  type ArEntry = { action?: string; amount?: number };
-  const arTotal = (bj: unknown): number => {
-    const ar = (bj as { ar?: ArEntry[] } | null)?.ar ?? [];
-    return ar.reduce((s, e) => s + (e.action === "deducted" ? e.amount ?? 0 : 0), 0);
+  // breakdown_json の ar/adv/okuri（各要素は {action:'deducted'|'carried', amount}）から今期天引き合計（deducted 分）を出す。
+  type DeductEntry = { action?: string; amount?: number };
+  const deductTotal = (bj: unknown, key: "ar" | "adv" | "okuri"): number => {
+    const arr = (bj as Record<string, DeductEntry[]> | null)?.[key] ?? [];
+    return arr.reduce((s, e) => s + (e.action === "deducted" ? e.amount ?? 0 : 0), 0);
   };
 
   const card: React.CSSProperties = {
@@ -95,16 +96,20 @@ export default async function MinePage() {
         {(slips ?? []).length === 0 && <p style={{ fontSize: 13, color: "#8f8f8f" }}>確定分なし</p>}
         <ul style={{ paddingLeft: 18, fontSize: 13 }}>
           {(slips ?? []).map((s, i) => {
-            const ar = arTotal(s.breakdown_json);
+            const ar = deductTotal(s.breakdown_json, "ar");
+            const adv = deductTotal(s.breakdown_json, "adv");
+            const okuri = deductTotal(s.breakdown_json, "okuri");
             return (
               <li key={i}>
                 {s.period}: 手取り {yen(s.net as number)}
-                {ar > 0 ? <span style={{ color: "#c0392b" }}>（売掛天引き −{yen(ar)}）</span> : null}
+                {ar > 0 ? <span style={{ color: "#c0392b" }}>（売掛 −{yen(ar)}）</span> : null}
+                {adv > 0 ? <span style={{ color: "#c0392b" }}>（前借り −{yen(adv)}）</span> : null}
+                {okuri > 0 ? <span style={{ color: "#c0392b" }}>（送り −{yen(okuri)}）</span> : null}
               </li>
             );
           })}
         </ul>
-        <p style={{ fontSize: 12, color: "#8f8f8f", margin: 0 }}>※確定後の明細です。売掛の未収残は店にご確認ください。</p>
+        <p style={{ fontSize: 12, color: "#8f8f8f", margin: 0 }}>※確定後の明細です。売掛・前借り・送りの未収残は店にご確認ください。</p>
       </section>
 
       <section style={card}>

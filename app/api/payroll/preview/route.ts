@@ -19,8 +19,11 @@ export async function POST(req: Request) {
         taxMode: r.taxMode,
         anomalyCount: r.anomalyCount,
         breakdown: { pay: r.pay, extras: r.extras },
-        arDeductTotal: r.arDeductTotal, // F2e-1 天引き明細
+        arDeductTotal: r.arDeductTotal, // F2e-1 売掛天引き明細
         arCarriedTotal: r.arCarriedTotal,
+        advDeductTotal: r.advDeductTotal, // F2e-2 前借り天引き
+        advCarriedTotal: r.advCarriedTotal,
+        okuriDeductTotal: r.okuriDeductTotal, // F2e-2 送り実費天引き（繰越なし）
       })),
       blockers: draft.blockers,
       incentives: draft.incentives, // #32 可視化: 総配分額・受給者数・warnEmptyPool
