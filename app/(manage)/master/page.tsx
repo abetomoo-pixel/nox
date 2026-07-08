@@ -37,7 +37,7 @@ export default async function MasterPage() {
         <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
       )}
       {sim && (
-        <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" />
+        <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" variant="dark" />
       )}
     </>
   );

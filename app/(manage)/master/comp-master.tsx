@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import * as t from "@/lib/nox/ui/theme";
 
 // F2a-4: 報酬設計マスタ 6タブ（プラン/割当/ノルマ/控除/罰金・閾値/自由バック）。
 // 3層防御の UI 層: layout でロール分岐（cast は到達不能）＋本コンポーネントで D3a 出し分け。
@@ -26,15 +27,16 @@ type Penalty = {
 
 const METRICS = ["hon", "jonai", "dohan", "days", "sales", "pt", "champCnt", "bottleCnt"] as const;
 
-const card: React.CSSProperties = { border: "1px solid #ebebeb", borderRadius: 8, padding: 14, background: "#fff", marginBottom: 14 };
-const input: React.CSSProperties = { padding: 6, border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 13 };
-const btnDark: React.CSSProperties = { padding: "6px 14px", borderRadius: 6, border: "none", background: "#16161a", color: "#fff", cursor: "pointer", fontSize: 13 };
-const btnLight: React.CSSProperties = { padding: "4px 10px", borderRadius: 6, border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer", fontSize: 12 };
+const card: React.CSSProperties = t.card;
+const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
+const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
+const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
+const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
 const tabBtn = (on: boolean): React.CSSProperties => ({
-  padding: "6px 12px", borderRadius: 6, border: "1px solid " + (on ? "#16161a" : "#e0e0e0"),
-  background: on ? "#16161a" : "#fff", color: on ? "#fff" : "#404040", cursor: "pointer", fontSize: 13,
+  padding: "7px 12px", borderRadius: 9, border: "1px solid " + (on ? "var(--gold)" : "var(--line2)"),
+  background: on ? "linear-gradient(135deg,var(--gold2),#B8893A)" : "transparent", color: on ? "#0B0B0F" : "var(--ink)", cursor: "pointer", fontSize: 13, fontWeight: 700,
 });
-const note: React.CSSProperties = { fontSize: 12, color: "#8f8f8f" };
+const note: React.CSSProperties = { fontSize: 12, color: "var(--sub)" };
 
 const DEFAULT_PENALTY: Penalty = {
   fine_absent: 10000, fine_late: 3000, hours_per_shift: 5, norm_on: true,
@@ -81,14 +83,14 @@ export default function CompMaster({ storeId, isManagerUp, isOwner }: { storeId:
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <section style={card}>
-      <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>報酬設計マスタ</h2>
+    <section className="nox-cardtop" style={card}>
+      <h2 style={secTitle}>報酬設計マスタ</h2>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
         {([["plan", "プラン"], ["assign", "割当"], ["norm", "ノルマ"], ["deduction", "控除"], ["penalty", "罰金・閾値"], ["back", "自由バック"]] as [Tab, string][]).map(([t, label]) => (
           <button key={t} style={tabBtn(tab === t)} onClick={() => { setTab(t); setMsg(null); }}>{label}</button>
         ))}
       </div>
-      {msg && <p style={{ fontSize: 13, color: "#404040" }}>{msg}</p>}
+      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
 
       {tab === "plan" && <PlanTab plans={plans} isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={load} />}
       {tab === "assign" && <AssignTab plans={plans} casts={casts} castPlans={castPlans} isManagerUp={isManagerUp} setMsg={setMsg} reload={load} />}
@@ -154,18 +156,18 @@ function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Plan[]; i
   return (
     <div>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid #e0e0e0" }}>{["名称", "保証", "本", "場内", "同伴", "売上段", "pt段", "状態"].map((h) => <th key={h} style={{ padding: 6 }}>{h}</th>)}</tr></thead>
+        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["名称", "保証", "本", "場内", "同伴", "売上段", "pt段", "状態"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
         <tbody>
           {plans.map((p) => (
-            <tr key={p.id} onClick={() => isOwner && edit(p)} style={{ borderBottom: "1px solid #f4f4f5", cursor: isOwner ? "pointer" : "default" }}>
+            <tr key={p.id} onClick={() => isOwner && edit(p)} style={{ borderBottom: "1px solid var(--line)", cursor: isOwner ? "pointer" : "default" }}>
               <td style={{ padding: 6 }}>{p.name}</td>
-              <td style={{ padding: 6 }}>{p.base}</td>
-              <td style={{ padding: 6 }}>{p.hon_back}</td>
-              <td style={{ padding: 6 }}>{p.jonai_back}</td>
-              <td style={{ padding: 6 }}>{p.dohan_back}</td>
-              <td style={{ padding: 6 }}>{(p.sales_slide ?? []).length}段</td>
-              <td style={{ padding: 6 }}>{(p.point_slide ?? []).length}段</td>
-              <td style={{ padding: 6 }}>{p.is_active ? "有効" : "無効"}</td>
+              <td style={{ padding: 6, ...t.num }}>{p.base}</td>
+              <td style={{ padding: 6, ...t.num }}>{p.hon_back}</td>
+              <td style={{ padding: 6, ...t.num }}>{p.jonai_back}</td>
+              <td style={{ padding: 6, ...t.num }}>{p.dohan_back}</td>
+              <td style={{ padding: 6, ...t.num }}>{(p.sales_slide ?? []).length}段</td>
+              <td style={{ padding: 6, ...t.num }}>{(p.point_slide ?? []).length}段</td>
+              <td style={{ padding: 6, color: p.is_active ? "var(--ok)" : "var(--sub)" }}>{p.is_active ? "有効" : "無効"}</td>
             </tr>
           ))}
         </tbody>
@@ -214,10 +216,10 @@ function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload }: { p
   return (
     <div>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid #e0e0e0" }}>{["キャスト", "プラン", "上書き"].map((h) => <th key={h} style={{ padding: 6 }}>{h}</th>)}</tr></thead>
+        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["キャスト", "プラン", "上書き"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
         <tbody>
           {castPlans.map((cp) => (
-            <tr key={cp.cast_id} style={{ borderBottom: "1px solid #f4f4f5" }}>
+            <tr key={cp.cast_id} style={{ borderBottom: "1px solid var(--line)" }}>
               <td style={{ padding: 6 }}>{castName(cp.cast_id)}</td>
               <td style={{ padding: 6 }}>{planName(cp.plan_id)}</td>
               <td style={{ padding: 6 }}>{Object.keys(cp.overrides_json ?? {}).length ? JSON.stringify(cp.overrides_json) : "—"}</td>
@@ -262,14 +264,14 @@ function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: CastRow
   return (
     <div>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid #e0e0e0" }}>{["キャスト", "期間", "日数目標", "同伴目標"].map((h) => <th key={h} style={{ padding: 6 }}>{h}</th>)}</tr></thead>
+        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["キャスト", "期間", "日数目標", "同伴目標"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
         <tbody>
           {norms.map((n) => (
-            <tr key={n.id} style={{ borderBottom: "1px solid #f4f4f5" }}>
+            <tr key={n.id} style={{ borderBottom: "1px solid var(--line)" }}>
               <td style={{ padding: 6 }}>{castName(n.cast_id)}</td>
-              <td style={{ padding: 6 }}>{n.period}</td>
-              <td style={{ padding: 6 }}>{n.days_target}</td>
-              <td style={{ padding: 6 }}>{n.dohan_target}</td>
+              <td style={{ padding: 6, ...t.num }}>{n.period}</td>
+              <td style={{ padding: 6, ...t.num }}>{n.days_target}</td>
+              <td style={{ padding: 6, ...t.num }}>{n.dohan_target}</td>
             </tr>
           ))}
         </tbody>
@@ -307,14 +309,14 @@ function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload }: { de
   return (
     <div>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid #e0e0e0" }}>{["名称", "額", "単位", "状態"].map((h) => <th key={h} style={{ padding: 6 }}>{h}</th>)}</tr></thead>
+        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["名称", "額", "単位", "状態"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
         <tbody>
           {deductions.map((d) => (
-            <tr key={d.id} onClick={() => isManagerUp && edit(d)} style={{ borderBottom: "1px solid #f4f4f5", cursor: isManagerUp ? "pointer" : "default" }}>
+            <tr key={d.id} onClick={() => isManagerUp && edit(d)} style={{ borderBottom: "1px solid var(--line)", cursor: isManagerUp ? "pointer" : "default" }}>
               <td style={{ padding: 6 }}>{d.name}</td>
-              <td style={{ padding: 6 }}>{d.per === "rate" ? `${d.amount}%` : d.amount}</td>
+              <td style={{ padding: 6, ...t.num }}>{d.per === "rate" ? `${d.amount}%` : d.amount}</td>
               <td style={{ padding: 6 }}>{d.per}</td>
-              <td style={{ padding: 6 }}>{d.is_active ? "有効" : "無効"}</td>
+              <td style={{ padding: 6, color: d.is_active ? "var(--ok)" : "var(--sub)" }}>{d.is_active ? "有効" : "無効"}</td>
             </tr>
           ))}
         </tbody>
@@ -369,7 +371,7 @@ function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, rel
           <button style={btnDark} onClick={save}>保存</button>
         </div>
       ) : (
-        <div style={{ fontSize: 12, color: "#404040" }}>
+        <div style={{ fontSize: 12, color: "var(--ink)" }}>
           <p style={note}>罰金・閾値の編集はオーナーのみ可能です（閲覧のみ）。</p>
           当欠 {penalty.fine_absent} / 遅刻 {penalty.fine_late} / 遅刻猶予 {penalty.late_grace_min}分 / 早退 {penalty.early_grace_min}分 / 残留 {penalty.over_grace_min}分
         </div>
@@ -406,15 +408,15 @@ function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs: BackD
   return (
     <div>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid #e0e0e0" }}>{["名称", "基準", "値", "条件", "状態"].map((h) => <th key={h} style={{ padding: 6 }}>{h}</th>)}</tr></thead>
+        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["名称", "基準", "値", "条件", "状態"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
         <tbody>
           {backs.map((b) => (
-            <tr key={b.id} onClick={() => isManagerUp && edit(b)} style={{ borderBottom: "1px solid #f4f4f5", cursor: isManagerUp ? "pointer" : "default" }}>
+            <tr key={b.id} onClick={() => isManagerUp && edit(b)} style={{ borderBottom: "1px solid var(--line)", cursor: isManagerUp ? "pointer" : "default" }}>
               <td style={{ padding: 6 }}>{b.name}</td>
               <td style={{ padding: 6 }}>{b.basis}</td>
-              <td style={{ padding: 6 }}>{b.basis === "sales" ? `${b.value}%` : b.value}</td>
+              <td style={{ padding: 6, ...t.num }}>{b.basis === "sales" ? `${b.value}%` : b.value}</td>
               <td style={{ padding: 6 }}>{b.cond_json ? `${b.cond_json.metric}≥${b.cond_json.min}` : "—"}</td>
-              <td style={{ padding: 6 }}>{b.is_active ? "有効" : "無効"}</td>
+              <td style={{ padding: 6, color: b.is_active ? "var(--ok)" : "var(--sub)" }}>{b.is_active ? "有効" : "無効"}</td>
             </tr>
           ))}
         </tbody>

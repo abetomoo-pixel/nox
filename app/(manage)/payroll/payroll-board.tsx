@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import * as t from "@/lib/nox/ui/theme";
 import PaymentPanel from "./payment-panel";
 
 type Store = { id: string; name: string };
@@ -85,50 +86,52 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
 
   return (
     <div style={{ maxWidth: 720 }}>
-      <h1 style={{ fontSize: 20, marginBottom: 12 }}>給与確定</h1>
+      <div style={{ margin: "2px 0 14px" }}>
+        <h1 style={t.pheadH1}>給与確定</h1>
+      </div>
 
       {/* 段1: 期間選択 */}
-      <section style={{ display: "flex", gap: 12, alignItems: "flex-end", marginBottom: 16 }}>
-        <label style={{ fontSize: 13 }}>
+      <section className="nox-cardtop" style={{ ...t.card, display: "flex", gap: 12, alignItems: "flex-end" }}>
+        <label style={t.fieldLabel}>
           店舗
           <br />
-          <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={{ padding: 6 }}>
+          <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={{ ...t.input, width: "auto", marginTop: 5 }}>
             {stores.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
         </label>
-        <label style={{ fontSize: 13 }}>
+        <label style={t.fieldLabel}>
           期間（YYYY-MM）
           <br />
-          <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ padding: 6 }} />
+          <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ ...t.input, width: "auto", marginTop: 5 }} />
         </label>
-        <button onClick={preview} disabled={busy || !storeId} style={btn}>
+        <button onClick={preview} disabled={busy || !storeId} style={t.btnGold}>
           プレビュー
         </button>
       </section>
 
-      {msg && <p style={{ color: "#c0392b", fontSize: 13 }}>{msg}</p>}
-      {finalized && <p style={{ color: "#1e824c", fontSize: 14, fontWeight: "bold" }}>{finalized}</p>}
+      {msg && <p style={{ color: "var(--bad)", fontSize: 13 }}>{msg}</p>}
+      {finalized && <p style={{ color: "var(--champ)", fontSize: 14, fontWeight: "bold" }}>{finalized}</p>}
 
       {/* 段2: プレビュー（参考値） */}
       {rows && (
         <>
           {blockers.length > 0 && (
-            <div style={{ background: "#fff3cd", border: "1px solid #ffe08a", borderRadius: 6, padding: 10, marginBottom: 12, fontSize: 13 }}>
+            <div style={t.alert}>
               ⚠ 確定不可の cast（要 税区分/プラン登録）:{" "}
               {blockers.map((b) => `${b.castName}(${b.reason === "no_tax" ? "税区分未登録" : "プラン未設定"})`).join("、")}
             </div>
           )}
-          <p style={{ fontSize: 12, color: "#777" }}>※参考値です。確定時点で再計算した値が正となります。</p>
+          <p style={{ fontSize: 12, color: "var(--sub)" }}>※参考値です。確定時点で再計算した値が正となります。</p>
           {incentives.length > 0 && (
-            <div style={{ background: "#eef7f0", border: "1px solid #cde8d4", borderRadius: 6, padding: 10, marginBottom: 12, fontSize: 13 }}>
-              <strong>出勤ボーナス（給与へ加算済み）</strong>
+            <div className="nox-cardtop" style={{ ...t.card, border: "1px solid var(--line2)", fontSize: 13 }}>
+              <strong style={{ color: "var(--champ)" }}>出勤ボーナス（給与へ加算済み）</strong>
               <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                 {incentives.map((inc) => (
-                  <li key={inc.id} style={{ color: inc.warnEmptyPool ? "#b8860b" : undefined }}>
-                    {inc.bizDate} {inc.amountMode === "per_head" ? "定額/人" : "プール按分"} ¥{inc.amount.toLocaleString()} →
-                    {" "}総配分 ¥{inc.distributedTotal.toLocaleString()}・受給 {inc.recipientCount} 人
+                  <li key={inc.id} style={{ color: inc.warnEmptyPool ? "var(--bad)" : undefined }}>
+                    {inc.bizDate} {inc.amountMode === "per_head" ? "定額/人" : "プール按分"} <span style={t.num}>¥{inc.amount.toLocaleString()}</span> →
+                    {" "}総配分 <span style={t.num}>¥{inc.distributedTotal.toLocaleString()}</span>・受給 <span style={t.num}>{inc.recipientCount}</span> 人
                     {inc.warnEmptyPool && " ⚠ 受給者0人（プール未配分）"}
                   </li>
                 ))}
@@ -136,45 +139,45 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
             </div>
           )}
           {anomalyTotal > 0 && (
-            <p style={{ fontSize: 12, color: "#b8860b" }}>打刻 anomaly（out 欠損等）: 計 {anomalyTotal} 件。確定は止まりませんが内容をご確認ください。</p>
+            <p style={{ fontSize: 12, color: "var(--bad)" }}>打刻 anomaly（out 欠損等）: 計 <span style={t.num}>{anomalyTotal}</span> 件。確定は止まりませんが内容をご確認ください。</p>
           )}
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginBottom: 12 }}>
             <thead>
-              <tr style={{ background: "#f2f2f2" }}>
-                <th style={th}>キャスト</th>
-                <th style={th}>税区分</th>
-                <th style={{ ...th, textAlign: "right" }}>売掛</th>
-                <th style={{ ...th, textAlign: "right" }}>前借り</th>
-                <th style={{ ...th, textAlign: "right" }}>送り</th>
-                <th style={{ ...th, textAlign: "right" }}>差引支給(net)</th>
-                <th style={{ ...th, textAlign: "right" }}>anomaly</th>
+              <tr>
+                <th style={t.th}>キャスト</th>
+                <th style={t.th}>税区分</th>
+                <th style={{ ...t.th, textAlign: "right" }}>売掛</th>
+                <th style={{ ...t.th, textAlign: "right" }}>前借り</th>
+                <th style={{ ...t.th, textAlign: "right" }}>送り</th>
+                <th style={{ ...t.th, textAlign: "right" }}>差引支給(net)</th>
+                <th style={{ ...t.th, textAlign: "right" }}>anomaly</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.castId}>
-                  <td style={td}>{r.castName}</td>
-                  <td style={td}>{r.taxMode}</td>
+                  <td style={t.td}>{r.castName}</td>
+                  <td style={t.td}>{r.taxMode}</td>
                   {dedCell(r.arDeductTotal, r.arCarriedTotal)}
                   {dedCell(r.advDeductTotal, r.advCarriedTotal)}
                   {dedCell(r.okuriDeductTotal)}
-                  <td style={{ ...td, textAlign: "right" }}>{r.net.toLocaleString()}</td>
-                  <td style={{ ...td, textAlign: "right", color: r.anomalyCount ? "#b8860b" : "#ccc" }}>{r.anomalyCount || "-"}</td>
+                  <td style={{ ...t.td, ...t.num, textAlign: "right" }}>{r.net.toLocaleString()}</td>
+                  <td style={{ ...t.td, ...t.num, textAlign: "right", color: r.anomalyCount ? "var(--bad)" : "var(--sub)" }}>{r.anomalyCount || "-"}</td>
                 </tr>
               ))}
-              <tr style={{ fontWeight: "bold", background: "#fafafa" }}>
-                <td style={td} colSpan={5}>合計（{rows.length} 名）</td>
-                <td style={{ ...td, textAlign: "right" }}>{total.toLocaleString()}</td>
-                <td style={td} />
+              <tr style={{ fontWeight: "bold" }}>
+                <td style={t.td} colSpan={5}>合計（{rows.length} 名）</td>
+                <td style={{ ...t.td, ...t.num, textAlign: "right", color: "var(--champ)" }}>{total.toLocaleString()}</td>
+                <td style={t.td} />
               </tr>
             </tbody>
           </table>
 
           {/* 段3: 確定 */}
-          <button onClick={finalize} disabled={busy || blockers.length > 0 || rows.length === 0} style={{ ...btn, background: blockers.length ? "#aaa" : "#c0392b" }}>
+          <button onClick={finalize} disabled={busy || blockers.length > 0 || rows.length === 0} style={blockers.length ? { ...t.btnGhost } : { ...t.btnGold }}>
             この期間を確定する
           </button>
-          {blockers.length > 0 && <span style={{ marginLeft: 10, fontSize: 12, color: "#c0392b" }}>未登録 cast を解消してください</span>}
+          {blockers.length > 0 && <span style={{ marginLeft: 10, fontSize: 12, color: "var(--bad)" }}>未登録 cast を解消してください</span>}
         </>
       )}
 
@@ -184,16 +187,12 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
   );
 }
 
-const btn: React.CSSProperties = { padding: "8px 16px", background: "#2c3e50", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" };
-const th: React.CSSProperties = { border: "1px solid #ddd", padding: "6px 10px", textAlign: "left" };
-const td: React.CSSProperties = { border: "1px solid #eee", padding: "6px 10px" };
-
 // 天引きセル（−¥X ＋ 繰越表示）。carried 未指定（送り実費＝繰越なし）は繰越を出さない。
 function dedCell(deduct?: number, carried?: number) {
   return (
-    <td style={{ ...td, textAlign: "right", color: deduct ? "#c0392b" : "#ccc" }}>
+    <td style={{ ...t.td, ...t.num, textAlign: "right", color: deduct ? "var(--bad)" : "var(--sub)" }}>
       {deduct ? `−${deduct.toLocaleString()}` : "-"}
-      {carried ? <span style={{ color: "#b8860b", fontSize: 11 }}>（繰越 {carried.toLocaleString()}）</span> : null}
+      {carried ? <span style={{ color: "var(--champ)", fontSize: 11 }}>（繰越 {carried.toLocaleString()}）</span> : null}
     </td>
   );
 }

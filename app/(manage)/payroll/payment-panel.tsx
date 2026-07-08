@@ -5,14 +5,9 @@
 //   ここは表示と入力のみ。読取は RLS で manager+ が payslips/payment_records/casts を直読（パターン1・金額系）。
 import { useCallback, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import * as t from "@/lib/nox/ui/theme";
 
 type Line = { castId: string; castName: string; net: number; paid: number };
-
-const th: React.CSSProperties = { border: "1px solid #ddd", padding: "6px 10px", textAlign: "left" };
-const td: React.CSSProperties = { border: "1px solid #eee", padding: "6px 10px" };
-const input: React.CSSProperties = { padding: 5, border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 13 };
-const btn: React.CSSProperties = { padding: "8px 16px", background: "#2c3e50", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" };
-const btnSm: React.CSSProperties = { padding: "3px 10px", background: "#16161a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 12 };
 
 export default function PaymentPanel({ storeId, period }: { storeId: string; period: string }) {
   const supabase = createClient();
@@ -93,23 +88,23 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
   }
 
   return (
-    <section style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #eee" }}>
-      <h2 style={{ fontSize: 17, margin: "0 0 8px" }}>支払記録（確定済み）</h2>
-      <p style={{ fontSize: 12, color: "#777", margin: "0 0 10px" }}>
+    <section className="nox-cardtop" style={{ ...t.card, marginTop: 24 }}>
+      <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>支払記録（確定済み）</h2>
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>
         選択中の店舗・期間（{period}）の確定給与に対して、実際の支払い（現金/振込）を記録します。部分支払い可・合計は net が上限。
       </p>
-      <button onClick={load} disabled={busy || !storeId} style={btn}>支払状況を表示</button>
-      {msg && <p style={{ color: msg.includes("エラー") || msg.includes("超え") ? "#c0392b" : "#555", fontSize: 13 }}>{msg}</p>}
+      <button onClick={load} disabled={busy || !storeId} style={t.btnGold}>支払状況を表示</button>
+      {msg && <p style={{ color: msg.includes("エラー") || msg.includes("超え") ? "var(--bad)" : "var(--sub)", fontSize: 13 }}>{msg}</p>}
 
       {lines && lines.length > 0 && (
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginTop: 10 }}>
           <thead>
-            <tr style={{ background: "#f2f2f2" }}>
-              <th style={th}>キャスト</th>
-              <th style={{ ...th, textAlign: "right" }}>差引支給(net)</th>
-              <th style={{ ...th, textAlign: "right" }}>支払済</th>
-              <th style={{ ...th, textAlign: "right" }}>残</th>
-              <th style={th}>支払記録</th>
+            <tr>
+              <th style={t.th}>キャスト</th>
+              <th style={{ ...t.th, textAlign: "right" }}>差引支給(net)</th>
+              <th style={{ ...t.th, textAlign: "right" }}>支払済</th>
+              <th style={{ ...t.th, textAlign: "right" }}>残</th>
+              <th style={t.th}>支払記録</th>
             </tr>
           </thead>
           <tbody>
@@ -118,13 +113,13 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
               const done = remaining <= 0;
               return (
                 <tr key={l.castId}>
-                  <td style={td}>{l.castName}</td>
-                  <td style={{ ...td, textAlign: "right" }}>{l.net.toLocaleString()}</td>
-                  <td style={{ ...td, textAlign: "right" }}>{l.paid.toLocaleString()}</td>
-                  <td style={{ ...td, textAlign: "right", color: done ? "#1e824c" : "#c0392b" }}>{done ? "完了" : remaining.toLocaleString()}</td>
-                  <td style={td}>
+                  <td style={t.td}>{l.castName}</td>
+                  <td style={{ ...t.td, ...t.num, textAlign: "right" }}>{l.net.toLocaleString()}</td>
+                  <td style={{ ...t.td, ...t.num, textAlign: "right" }}>{l.paid.toLocaleString()}</td>
+                  <td style={{ ...t.td, ...t.num, textAlign: "right", color: done ? "var(--champ)" : "var(--bad)" }}>{done ? "完了" : remaining.toLocaleString()}</td>
+                  <td style={t.td}>
                     {done ? (
-                      <span style={{ color: "#1e824c", fontSize: 12 }}>支払完了</span>
+                      <span style={{ color: "var(--champ)", fontSize: 12 }}>支払完了</span>
                     ) : (
                       <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                         <input
@@ -132,21 +127,21 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
                           value={amt[l.castId] ?? ""}
                           placeholder={String(remaining)}
                           onChange={(e) => setAmt((s) => ({ ...s, [l.castId]: e.target.value }))}
-                          style={{ ...input, width: 90 }}
+                          style={{ ...t.input, width: 90 }}
                         />
                         <input
                           type="date"
                           value={pdate[l.castId] ?? ""}
                           onChange={(e) => setPdate((s) => ({ ...s, [l.castId]: e.target.value }))}
-                          style={{ ...input, width: 140 }}
+                          style={{ ...t.input, width: 140 }}
                         />
                         <input
                           value={pmethod[l.castId] ?? ""}
                           placeholder="方法(振込等)"
                           onChange={(e) => setPmethod((s) => ({ ...s, [l.castId]: e.target.value }))}
-                          style={{ ...input, width: 90 }}
+                          style={{ ...t.input, width: 90 }}
                         />
-                        <button onClick={() => record(l.castId, remaining)} disabled={busy} style={btnSm}>記録</button>
+                        <button onClick={() => record(l.castId, remaining)} disabled={busy} style={{ ...t.btnGold, ...t.btnSm }}>記録</button>
                       </span>
                     )}
                   </td>

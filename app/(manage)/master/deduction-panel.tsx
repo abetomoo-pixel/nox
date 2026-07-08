@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import * as t from "@/lib/nox/ui/theme";
 
 type Cast = { id: string; name: string };
 type OkuriMode = "flat" | "actual";
@@ -47,24 +48,24 @@ export default function DeductionPanel({
 
   return (
     <div style={{ maxWidth: 720, marginTop: 24 }}>
-      <h2 style={{ fontSize: 16 }}>天引き（前借り・送り実費）</h2>
+      <h2 style={{ ...t.pheadH1, fontSize: 16 }}>天引き（前借り・送り実費）</h2>
 
       {/* 送り方式トグル（owner のみ操作可・manager は現在値のみ） */}
-      <section style={card}>
+      <section className="nox-cardtop" style={card}>
         <h3 style={h3}>送り方式（okuri_mode）</h3>
         <p style={{ fontSize: 13, margin: "4px 0" }}>
-          現在: <strong>{okuriMode === "actual" ? "実費（送り実費を給与天引き）" : "一律送り代（控除マスタで管理）"}</strong>
+          現在: <strong style={{ color: "var(--champ)" }}>{okuriMode === "actual" ? "実費（送り実費を給与天引き）" : "一律送り代（控除マスタで管理）"}</strong>
         </p>
         {isOwner ? (
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button onClick={() => switchMode("flat")} disabled={modeBusy || okuriMode === "flat"} style={okuriMode === "flat" ? btnOn : btn}>一律送り代</button>
             <button onClick={() => switchMode("actual")} disabled={modeBusy || okuriMode === "actual"} style={okuriMode === "actual" ? btnOn : btn}>実費</button>
-            <span style={{ fontSize: 12, color: "#8f8f8f" }}>※「実費」にすると送り実費の発行が有効になります（一律送り代との二重取り防止）。</span>
+            <span style={{ fontSize: 12, color: "var(--sub)" }}>※「実費」にすると送り実費の発行が有効になります（一律送り代との二重取り防止）。</span>
           </div>
         ) : (
-          <p style={{ fontSize: 12, color: "#8f8f8f", margin: 0 }}>※送り方式の変更は owner のみ可能です。</p>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>※送り方式の変更は owner のみ可能です。</p>
         )}
-        {modeMsg && <p style={{ fontSize: 12, color: modeMsg.startsWith("エラー") || modeMsg.startsWith("通信") ? "#c0392b" : "#1e824c", margin: "6px 0 0" }}>{modeMsg}</p>}
+        {modeMsg && <p style={{ fontSize: 12, color: modeMsg.startsWith("エラー") || modeMsg.startsWith("通信") ? "var(--bad)" : "var(--ok)", margin: "6px 0 0" }}>{modeMsg}</p>}
       </section>
 
       {/* 前借り発行 */}
@@ -141,7 +142,7 @@ function IssueForm({
   }
 
   return (
-    <section style={{ ...card, opacity: disabled ? 0.6 : 1 }}>
+    <section className="nox-cardtop" style={{ ...card, opacity: disabled ? 0.6 : 1 }}>
       <h3 style={h3}>{title}</h3>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
         <label style={lbl}>キャスト<br />
@@ -161,15 +162,15 @@ function IssueForm({
         </label>
         <button onClick={submit} disabled={busy || disabled} style={btn}>発行</button>
       </div>
-      <p style={{ fontSize: 12, color: "#8f8f8f", margin: "6px 0 0" }}>{hint}</p>
-      {msg && <p style={{ fontSize: 12, color: msg.startsWith("エラー") || msg.startsWith("通信") || msg.includes("ください") ? "#c0392b" : "#1e824c", margin: "6px 0 0" }}>{msg}</p>}
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>{hint}</p>
+      {msg && <p style={{ fontSize: 12, color: msg.startsWith("エラー") || msg.startsWith("通信") || msg.includes("ください") ? "var(--bad)" : "var(--ok)", margin: "6px 0 0" }}>{msg}</p>}
     </section>
   );
 }
 
-const card: React.CSSProperties = { border: "1px solid #ebebeb", borderRadius: 8, padding: 14, background: "#fff", marginBottom: 14 };
-const h3: React.CSSProperties = { fontSize: 13, color: "#6b6b6b", marginTop: 0, marginBottom: 8 };
-const lbl: React.CSSProperties = { fontSize: 12, color: "#404040" };
-const inp: React.CSSProperties = { padding: 6, border: "1px solid #ccc", borderRadius: 4 };
-const btn: React.CSSProperties = { padding: "8px 14px", background: "#2c3e50", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" };
-const btnOn: React.CSSProperties = { ...btn, background: "#1e824c" };
+const card: React.CSSProperties = t.card;
+const h3: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", marginTop: 0, marginBottom: 8 };
+const lbl: React.CSSProperties = { fontSize: 12, color: "var(--sub)" };
+const inp: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
+const btn: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
+const btnOn: React.CSSProperties = { ...t.btnGold, ...t.btnSm };

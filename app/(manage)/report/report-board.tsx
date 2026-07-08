@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import { roundYen } from "@/lib/nox/money";
+import * as t from "@/lib/nox/ui/theme";
 
 type Preview = {
   open: number; slips: number; guests: number; dohan: number;
@@ -17,10 +18,11 @@ type Report = {
 };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
-const card: React.CSSProperties = { border: "1px solid #ebebeb", borderRadius: 8, padding: 14, background: "#fff", marginBottom: 14 };
-const input: React.CSSProperties = { padding: 6, border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 13 };
-const btnDark: React.CSSProperties = { padding: "6px 14px", borderRadius: 6, border: "none", background: "#16161a", color: "#fff", cursor: "pointer", fontSize: 13 };
-const btnLight: React.CSSProperties = { padding: "4px 10px", borderRadius: 6, border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer", fontSize: 12 };
+const card: React.CSSProperties = t.card;
+const input: React.CSSProperties = { ...t.input, width: "auto" };
+const btnDark: React.CSSProperties = t.btnGold;
+const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
+const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
 
 export default function ReportBoard({
   storeId, cutoff, cardTaxRate, isManagerUp,
@@ -98,17 +100,17 @@ export default function ReportBoard({
 
   return (
     <div style={{ maxWidth: 860 }}>
-      <h1 style={{ fontSize: 20 }}>日報</h1>
-      {msg && <p style={{ fontSize: 13, color: "#404040" }}>{msg}</p>}
+      <h1 style={t.pheadH1}>日報</h1>
+      {msg && <p style={{ ...t.sub, fontSize: 13 }}>{msg}</p>}
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>
+      <section className="nox-cardtop" style={card}>
+        <h2 style={secTitle}>
           プレビュー（クライアント集計・確定値は締め時のサーバ再集計が正）
         </h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontSize: 13 }}>営業日</span>
+          <span style={{ fontSize: 13, color: "var(--ink)" }}>営業日</span>
           <input type="date" value={bizDate} onChange={(e) => setBizDate(e.target.value)} style={input} />
-          <span style={{ fontSize: 12, color: "#8f8f8f" }}>区切り {cutoff}（範囲: 当日{cutoff}〜翌日{cutoff}）</span>
+          <span style={{ ...t.sub, fontSize: 12 }}>区切り {cutoff}（範囲: 当日{cutoff}〜翌日{cutoff}）</span>
         </div>
         {preview && (
           <table style={{ borderCollapse: "collapse", fontSize: 13 }}>
@@ -119,9 +121,9 @@ export default function ReportBoard({
                   ["現金", yen(preview.cash)], ["カード", yen(preview.card)], ["カードTAX", yen(preview.cardTax)],
                   ["売掛", yen(preview.uri)], ["その他", yen(preview.other)], ["ドリンク/シャンパン売上", yen(preview.drink)],
                 ].map(([label, v]) => (
-                  <td key={label as string} style={{ padding: "4px 12px", borderRight: "1px solid #f4f4f5" }}>
-                    <div style={{ fontSize: 11, color: "#8f8f8f" }}>{label}</div>
-                    <div style={{ fontWeight: 700 }}>{v}</div>
+                  <td key={label as string} style={{ padding: "4px 12px", borderRight: "1px solid var(--line)" }}>
+                    <div style={{ ...t.sub, fontSize: 11 }}>{label}</div>
+                    <div style={{ ...t.num, fontWeight: 700, color: "var(--ink)" }}>{v}</div>
                   </td>
                 ))}
               </tr>
@@ -132,15 +134,15 @@ export default function ReportBoard({
 
       {/* 締めは manager 以上のみ（RPC 側も owner/manager 強制＝二重） */}
       {isManagerUp && (
-        <section style={card}>
-          <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>締め（{bizDate}）</h2>
+        <section className="nox-cardtop" style={card}>
+          <h2 style={secTitle}>締め（{bizDate}）</h2>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <label style={{ fontSize: 12 }}>諸経費 <input type="number" min={0} value={expense} onChange={(e) => setExpense(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
-            <label style={{ fontSize: 12 }}>現金支払（送り・日払い等） <input type="number" min={0} value={payout} onChange={(e) => setPayout(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
-            <label style={{ fontSize: 12 }}>釣銭準備金 <input type="number" min={0} value={cashFloat} onChange={(e) => setCashFloat(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
-            <label style={{ fontSize: 12 }}>実査（数えた現金） <input type="number" min={0} value={counted} onChange={(e) => setCounted(e.target.value)} placeholder="未入力可" style={{ ...input, width: 110 }} /></label>
+            <label style={{ ...t.fieldLabel, fontSize: 12 }}>諸経費 <input type="number" min={0} value={expense} onChange={(e) => setExpense(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
+            <label style={{ ...t.fieldLabel, fontSize: 12 }}>現金支払（送り・日払い等） <input type="number" min={0} value={payout} onChange={(e) => setPayout(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
+            <label style={{ ...t.fieldLabel, fontSize: 12 }}>釣銭準備金 <input type="number" min={0} value={cashFloat} onChange={(e) => setCashFloat(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
+            <label style={{ ...t.fieldLabel, fontSize: 12 }}>実査（数えた現金） <input type="number" min={0} value={counted} onChange={(e) => setCounted(e.target.value)} placeholder="未入力可" style={{ ...input, width: 110 }} /></label>
             <input placeholder="メモ" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...input, width: 160 }} />
-            <label style={{ fontSize: 12 }}>
+            <label style={{ ...t.fieldLabel, fontSize: 12 }}>
               <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} /> 未会計があっても強行
             </label>
             <button style={btnDark} onClick={closeDay}>締め確定</button>
@@ -148,35 +150,35 @@ export default function ReportBoard({
         </section>
       )}
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>締め済み日報</h2>
+      <section className="nox-cardtop" style={card}>
+        <h2 style={secTitle}>締め済み日報</h2>
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
           <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #e0e0e0" }}>
+            <tr>
               {["営業日", "伝票", "客数", "現金", "カード", "TAX", "売掛", "ドリンク売上", "未会計", "諸経費", "現金支払", "実査差", "再締め回数", ""].map((h) => (
-                <th key={h} style={{ padding: 6 }}>{h}</th>
+                <th key={h} style={t.th}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {reports.map((r) => (
-              <tr key={r.id} style={{ borderBottom: "1px solid #f4f4f5" }}>
-                <td style={{ padding: 6 }}>{r.biz_date}</td>
-                <td style={{ padding: 6 }}>{r.slips}</td>
-                <td style={{ padding: 6 }}>{r.guests}</td>
-                <td style={{ padding: 6 }}>{yen(r.cash)}</td>
-                <td style={{ padding: 6 }}>{yen(r.card_gross)}</td>
-                <td style={{ padding: 6 }}>{yen(r.card_tax)}</td>
-                <td style={{ padding: 6 }}>{yen(r.uri)}</td>
-                <td style={{ padding: 6 }}>{yen(r.drink_sales)}</td>
-                <td style={{ padding: 6 }}>{r.open_checks_count}</td>
-                <td style={{ padding: 6 }}>{yen(r.expense)}</td>
-                <td style={{ padding: 6 }}>{yen(r.cash_payout)}</td>
-                <td style={{ padding: 6, color: (r.diff ?? 0) < 0 ? "#e5484d" : undefined }}>
+              <tr key={r.id}>
+                <td style={{ ...t.td, ...t.num }}>{r.biz_date}</td>
+                <td style={{ ...t.td, ...t.num }}>{r.slips}</td>
+                <td style={{ ...t.td, ...t.num }}>{r.guests}</td>
+                <td style={{ ...t.td, ...t.num }}>{yen(r.cash)}</td>
+                <td style={{ ...t.td, ...t.num }}>{yen(r.card_gross)}</td>
+                <td style={{ ...t.td, ...t.num }}>{yen(r.card_tax)}</td>
+                <td style={{ ...t.td, ...t.num }}>{yen(r.uri)}</td>
+                <td style={{ ...t.td, ...t.num }}>{yen(r.drink_sales)}</td>
+                <td style={{ ...t.td, ...t.num }}>{r.open_checks_count}</td>
+                <td style={{ ...t.td, ...t.num }}>{yen(r.expense)}</td>
+                <td style={{ ...t.td, ...t.num }}>{yen(r.cash_payout)}</td>
+                <td style={{ ...t.td, ...t.num, color: (r.diff ?? 0) < 0 ? "var(--bad)" : undefined }}>
                   {r.diff == null ? "—" : yen(r.diff)}
                 </td>
-                <td style={{ padding: 6 }}>{r.reclosed_count}</td>
-                <td style={{ padding: 6 }}>
+                <td style={{ ...t.td, ...t.num }}>{r.reclosed_count}</td>
+                <td style={t.td}>
                   {isManagerUp && <button style={btnLight} onClick={() => reclose(r.id)}>再締め</button>}
                 </td>
               </tr>

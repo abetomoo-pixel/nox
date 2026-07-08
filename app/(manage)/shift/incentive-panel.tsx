@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
+import * as t from "@/lib/nox/ui/theme";
 
 // #32 出勤インセンティブの発行/取消（manager+）。読みはパターン3（RLS 可視）、書きは RPC 経由の route。
 type Incentive = { id: string; biz_date: string; amount_mode: string; amount: number; status: string };
 
-const card: React.CSSProperties = { border: "1px solid #ebebeb", borderRadius: 8, padding: 14, background: "#fff", marginBottom: 14 };
-const input: React.CSSProperties = { padding: 6, border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 13 };
-const btnDark: React.CSSProperties = { padding: "6px 14px", borderRadius: 6, border: "none", background: "#16161a", color: "#fff", cursor: "pointer", fontSize: 13 };
-const btnLight: React.CSSProperties = { padding: "4px 10px", borderRadius: 6, border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer", fontSize: 12 };
+const card: React.CSSProperties = t.card;
+const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", borderRadius: 9 };
+const btnDark: React.CSSProperties = { ...t.btnGold, padding: "8px 16px" };
+const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
+const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
 
 export default function IncentivePanel({ storeId }: { storeId: string }) {
   const supabase = createClient();
@@ -59,9 +61,9 @@ export default function IncentivePanel({ storeId }: { storeId: string }) {
   const modeLabel = (m: string) => (m === "per_head" ? "定額/人" : "プール按分");
 
   return (
-    <section style={card}>
-      <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>出勤ボーナス（当日出勤者に給与へ加算・manager 以上）</h2>
-      {msg && <p style={{ fontSize: 13, color: "#404040" }}>{msg}</p>}
+    <section className="nox-cardtop" style={card}>
+      <h2 style={secTitle}>出勤ボーナス（当日出勤者に給与へ加算・manager 以上）</h2>
+      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} />
         <select value={mode} onChange={(e) => setMode(e.target.value as "per_head" | "pooled")} style={input}>
@@ -69,18 +71,18 @@ export default function IncentivePanel({ storeId }: { storeId: string }) {
           <option value="pooled">プール按分（総額を受給者数で分配）</option>
         </select>
         <input type="number" value={amount} min={0} onChange={(e) => setAmount(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 100 }} />
-        <span style={{ fontSize: 12, color: "#8f8f8f" }}>円</span>
+        <span style={{ fontSize: 12, color: "var(--sub)" }}>円</span>
         <button style={btnDark} onClick={publish}>発行</button>
       </div>
-      <p style={{ fontSize: 12, color: "#8f8f8f", margin: "4px 0" }}>
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0" }}>
         受給者＝当日の確定シフトに出勤した cast（遅刻含む・当欠除外）。確定額は給与確定時に算出。
       </p>
-      {rows.length === 0 && <p style={{ fontSize: 13, color: "#8f8f8f" }}>発行済みなし</p>}
+      {rows.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>発行済みなし</p>}
       {rows.map((r) => (
-        <div key={r.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f4f4f5", fontSize: 13 }}>
-          <span style={{ width: 100 }}>{r.biz_date}</span>
+        <div key={r.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
+          <span style={{ ...t.num, width: 100 }}>{r.biz_date}</span>
           <span style={{ width: 110 }}>{modeLabel(r.amount_mode)}</span>
-          <span>¥{r.amount.toLocaleString()}</span>
+          <span style={t.num}>¥{r.amount.toLocaleString()}</span>
           <button style={{ ...btnLight, marginLeft: "auto" }} onClick={() => cancel(r.id)}>取消</button>
         </div>
       ))}

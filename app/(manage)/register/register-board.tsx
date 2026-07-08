@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { groupDue } from "@/lib/nox/check-calc";
+import * as t from "@/lib/nox/ui/theme";
 
 type Seat = { id: string; name: string; kind: string | null };
 type Product = { id: string; name: string; type: string; price: number };
@@ -35,16 +36,10 @@ const yen = (n: number) => "¥" + n.toLocaleString();
 const METHOD_LABEL: Record<string, string> = { cash: "現金", card: "カード", ar: "売掛", other: "その他" };
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
 
-const card: React.CSSProperties = {
-  border: "1px solid #ebebeb", borderRadius: 8, padding: 14, background: "#fff", marginBottom: 14,
-};
-const input: React.CSSProperties = { padding: 6, border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 13 };
-const btnDark: React.CSSProperties = {
-  padding: "6px 14px", borderRadius: 6, border: "none", background: "#16161a", color: "#fff", cursor: "pointer", fontSize: 13,
-};
-const btnLight: React.CSSProperties = {
-  padding: "6px 14px", borderRadius: 6, border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer", fontSize: 13,
-};
+const card: React.CSSProperties = t.card;
+const input: React.CSSProperties = { ...t.input, width: "auto" };
+const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
+const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 
 export default function RegisterBoard({
   seats, products, casts, isManagerUp,
@@ -208,36 +203,37 @@ export default function RegisterBoard({
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
       {/* 卓一覧 */}
-      <section style={{ ...card, width: 220 }}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>卓</h2>
+      <section className="nox-cardtop" style={{ ...card, width: 220 }}>
+        <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>卓</h2>
         {seats.map((s) => (
           <button
             key={s.id}
             onClick={() => openSeat(s)}
             style={{
               ...btnLight, display: "block", width: "100%", textAlign: "left", marginBottom: 8,
-              borderColor: check?.seat_id === s.id ? "#e8623a" : openMap[s.id] ? "#c9a24a" : "#e0e0e0",
+              borderColor: check?.seat_id === s.id ? "var(--gold)" : openMap[s.id] ? "var(--champ)" : "var(--line2)",
+              color: check?.seat_id === s.id ? "var(--champ)" : "var(--ink)",
             }}
           >
             {s.name} {s.kind ? `(${s.kind})` : ""} {openMap[s.id] ? "● 使用中" : "空"}
           </button>
         ))}
-        {msg && <p style={{ fontSize: 12, color: "#404040" }}>{msg}</p>}
+        {msg && <p style={{ fontSize: 12, color: "var(--sub)" }}>{msg}</p>}
       </section>
 
       {/* 伝票 */}
       {check && (
         <section style={{ flex: 1, minWidth: 480 }}>
-          <div style={card}>
+          <div className="nox-cardtop" style={card}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <h2 style={{ fontSize: 16, margin: 0 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--champ)", margin: 0 }}>
                 伝票（{seats.find((s) => s.id === check.seat_id)?.name}）
               </h2>
-              <span style={{ fontSize: 13, color: "#6b6b6b" }}>{NOM_LABEL[check.nom_type]}</span>
-              <span style={{ marginLeft: "auto", fontSize: 18, fontWeight: 700 }}>{yen(check.total)}</span>
+              <span style={{ fontSize: 13, color: "var(--sub)" }}>{NOM_LABEL[check.nom_type]}</span>
+              <span style={{ ...t.num, marginLeft: "auto", fontSize: 18, fontWeight: 700, color: "var(--champ)" }}>{yen(check.total)}</span>
               {/* void は manager 以上のみ表示（RPC 側でも owner/manager を強制＝二重） */}
               {isManagerUp && (
-                <button onClick={voidCheck} style={{ ...btnLight, color: "#e5484d", borderColor: "#e5484d" }}>
+                <button onClick={voidCheck} style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)" }}>
                   取消
                 </button>
               )}
@@ -245,8 +241,8 @@ export default function RegisterBoard({
           </div>
 
           {/* 指名 */}
-          <div style={card}>
-            <h3 style={{ fontSize: 13, color: "#6b6b6b", marginTop: 0 }}>指名（重み比で分配）</h3>
+          <div className="nox-cardtop" style={card}>
+            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>指名（重み比で分配）</h3>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               <select value={nomType} onChange={(e) => setNomType(e.target.value)} style={input}>
                 <option value="hon">本指名</option>
@@ -255,7 +251,7 @@ export default function RegisterBoard({
                 <option value="free">フリー</option>
               </select>
               {casts.map((ca) => (
-                <label key={ca.id} style={{ fontSize: 13, display: "flex", gap: 4, alignItems: "center" }}>
+                <label key={ca.id} style={{ fontSize: 13, color: "var(--ink)", display: "flex", gap: 4, alignItems: "center" }}>
                   <input
                     type="checkbox"
                     checked={(nomWeights[ca.id] ?? 0) > 0}
@@ -280,8 +276,8 @@ export default function RegisterBoard({
           </div>
 
           {/* 明細追加 */}
-          <div style={card}>
-            <h3 style={{ fontSize: 13, color: "#6b6b6b", marginTop: 0 }}>明細追加</h3>
+          <div className="nox-cardtop" style={card}>
+            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>明細追加</h3>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
               <select value={prodId} onChange={(e) => setProdId(e.target.value)} style={{ ...input, maxWidth: 220 }}>
                 <option value="">商品を選択</option>
@@ -292,7 +288,7 @@ export default function RegisterBoard({
                 ))}
               </select>
               <input type="number" min={1} value={prodQty} onChange={(e) => setProdQty(Number(e.target.value))} style={{ ...input, width: 60 }} />
-              <span style={{ fontSize: 12 }}>伝票</span>
+              <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
               <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} style={{ ...input, width: 40 }} />
               <button onClick={addProductLine} style={btnDark}>追加</button>
             </div>
@@ -305,23 +301,23 @@ export default function RegisterBoard({
               </select>
               <input placeholder="名称（例 セット60分）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
               <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
-              <span style={{ fontSize: 12 }}>伝票</span>
+              <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
               <input value={cGroup} onChange={(e) => setCGroup(e.target.value)} style={{ ...input, width: 40 }} />
               <button onClick={addCustomLine} style={btnDark}>追加</button>
             </div>
           </div>
 
           {/* 明細 */}
-          <div style={card}>
-            <h3 style={{ fontSize: 13, color: "#6b6b6b", marginTop: 0 }}>明細</h3>
+          <div className="nox-cardtop" style={card}>
+            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>明細</h3>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <tbody>
                 {lines.map((l) => (
-                  <tr key={l.id} style={{ borderBottom: "1px solid #f4f4f5" }}>
-                    <td style={{ padding: 6 }}>[{l.pay_group}]</td>
-                    <td style={{ padding: 6 }}>{l.name_snapshot}</td>
-                    <td style={{ padding: 6, textAlign: "right" }}>{yen(l.unit_price_snapshot)} × {l.qty}</td>
-                    <td style={{ padding: 6, textAlign: "right" }}>{yen(l.line_total)}</td>
+                  <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: 6, color: "var(--sub)" }}>[{l.pay_group}]</td>
+                    <td style={{ padding: 6, color: "var(--ink)" }}>{l.name_snapshot}</td>
+                    <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>{yen(l.unit_price_snapshot)} × {l.qty}</td>
+                    <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--ink)" }}>{yen(l.line_total)}</td>
                     <td style={{ padding: 6 }}>
                       <button
                         onClick={() => removeLine(l.id)}
@@ -339,32 +335,32 @@ export default function RegisterBoard({
           </div>
 
           {/* 会計 */}
-          <div style={card}>
-            <h3 style={{ fontSize: 13, color: "#6b6b6b", marginTop: 0 }}>会計（伝票グループ別）</h3>
+          <div className="nox-cardtop" style={card}>
+            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>会計（伝票グループ別）</h3>
             <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
               <thead>
-                <tr style={{ textAlign: "left", borderBottom: "1px solid #e0e0e0" }}>
-                  <th style={{ padding: 6 }}>伝票</th>
-                  <th style={{ padding: 6 }}>小計</th>
-                  <th style={{ padding: 6 }}>請求（サ料込）</th>
-                  <th style={{ padding: 6 }}>入金済</th>
-                  <th style={{ padding: 6 }}>残額</th>
+                <tr>
+                  <th style={t.th}>伝票</th>
+                  <th style={t.th}>小計</th>
+                  <th style={t.th}>請求（サ料込）</th>
+                  <th style={t.th}>入金済</th>
+                  <th style={t.th}>残額</th>
                 </tr>
               </thead>
               <tbody>
                 {groupInfo.map((gi) => (
-                  <tr key={gi.g} style={{ borderBottom: "1px solid #f4f4f5" }}>
-                    <td style={{ padding: 6 }}>{gi.g}</td>
-                    <td style={{ padding: 6 }}>{yen(gi.bx)}</td>
-                    <td style={{ padding: 6, fontWeight: 700 }}>{yen(gi.due)}</td>
-                    <td style={{ padding: 6 }}>{yen(gi.paid)}</td>
-                    <td style={{ padding: 6, color: gi.remaining > 0 ? "#e5484d" : "#2e7d32" }}>{yen(gi.remaining)}</td>
+                  <tr key={gi.g}>
+                    <td style={t.td}>{gi.g}</td>
+                    <td style={{ ...t.td, ...t.num }}>{yen(gi.bx)}</td>
+                    <td style={{ ...t.td, ...t.num, fontWeight: 700, color: "var(--champ)" }}>{yen(gi.due)}</td>
+                    <td style={{ ...t.td, ...t.num }}>{yen(gi.paid)}</td>
+                    <td style={{ ...t.td, ...t.num, color: gi.remaining > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(gi.remaining)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 12 }}>伝票</span>
+              <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
               <input value={payGroup} onChange={(e) => setPayGroup(e.target.value)} style={{ ...input, width: 40 }} />
               <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} style={input}>
                 {Object.entries(METHOD_LABEL).map(([v, l]) => (
@@ -387,7 +383,7 @@ export default function RegisterBoard({
             </div>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               {payments.map((p) => (
-                <span key={p.id} style={{ fontSize: 12, color: "#404040" }}>
+                <span key={p.id} style={{ ...t.num, fontSize: 12, color: "var(--sub)" }}>
                   [{p.pay_group}] {METHOD_LABEL[p.method]} {yen(p.amount)}
                   {p.tendered != null ? `（預 ${yen(p.tendered)}・釣 ${yen(p.tendered - p.amount)}）` : ""}
                 </span>
@@ -403,7 +399,7 @@ export default function RegisterBoard({
           </div>
         </section>
       )}
-      {!check && <p style={{ fontSize: 13, color: "#8f8f8f", padding: 16 }}>卓を選択してください。</p>}
+      {!check && <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>}
     </div>
   );
 }

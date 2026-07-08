@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { fmtWin } from "@/lib/nox/shift-time";
+import * as t from "@/lib/nox/ui/theme";
 import IncentivePanel from "./incentive-panel";
 
 type Cast = { id: string; name: string };
@@ -17,10 +18,11 @@ const ATT_OPTIONS = [
   ["", "—"], ["shukkin", "出勤"], ["dohan", "同伴"], ["late", "遅刻"], ["off", "休み"], ["absent", "当欠"],
 ] as const;
 
-const card: React.CSSProperties = { border: "1px solid #ebebeb", borderRadius: 8, padding: 14, background: "#fff", marginBottom: 14 };
-const input: React.CSSProperties = { padding: 6, border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 13 };
-const btnDark: React.CSSProperties = { padding: "6px 14px", borderRadius: 6, border: "none", background: "#16161a", color: "#fff", cursor: "pointer", fontSize: 13 };
-const btnLight: React.CSSProperties = { padding: "4px 10px", borderRadius: 6, border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer", fontSize: 12 };
+const card: React.CSSProperties = t.card;
+const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", borderRadius: 9 };
+const btnDark: React.CSSProperties = { ...t.btnGold, padding: "8px 16px" };
+const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
+const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
 
 export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: string; casts: Cast[]; isManagerUp: boolean }) {
   const supabase = createClient();
@@ -108,19 +110,19 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <h1 style={{ fontSize: 20 }}>シフト管理</h1>
-      {msg && <p style={{ fontSize: 13, color: "#404040" }}>{msg}</p>}
+      <h1 style={t.pheadH1}>シフト管理</h1>
+      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
 
       {isManagerUp && <IncentivePanel storeId={storeId} />}
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>希望（審査待ち）</h2>
-        {wishes.length === 0 && <p style={{ fontSize: 13, color: "#8f8f8f" }}>なし</p>}
+      <section className="nox-cardtop" style={card}>
+        <h2 style={secTitle}>希望（審査待ち）</h2>
+        {wishes.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>なし</p>}
         {wishes.map((w) => (
-          <div key={w.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f4f4f5", fontSize: 13 }}>
-            <span style={{ width: 90 }}>{w.date}</span>
+          <div key={w.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
+            <span style={{ ...t.num, width: 90 }}>{w.date}</span>
             <span style={{ width: 110 }}>{castName(w.cast_id)}</span>
-            <span>{fmtWin(w.start_hm, w.end_hm)}</span>
+            <span style={t.num}>{fmtWin(w.start_hm, w.end_hm)}</span>
             {/* 採否は manager 以上のみ（RPC 側も owner/manager 強制＝二重） */}
             {isManagerUp && (
               <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
@@ -132,8 +134,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
         ))}
       </section>
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>確定シフト（今後）</h2>
+      <section className="nox-cardtop" style={card}>
+        <h2 style={secTitle}>確定シフト（今後）</h2>
         {isManagerUp && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
             <select value={fCast} onChange={(e) => setFCast(e.target.value)} style={input}>
@@ -142,7 +144,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             </select>
             <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={input} />
             <input value={fStart} onChange={(e) => setFStart(e.target.value)} style={{ ...input, width: 70 }} />
-            <span style={{ fontSize: 13 }}>〜</span>
+            <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
             <input value={fEnd} onChange={(e) => setFEnd(e.target.value)} style={{ ...input, width: 70 }} />
             <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={input}>
               <option value="planned">予定</option>
@@ -151,13 +153,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             <button style={btnDark} onClick={addShift}>登録</button>
           </div>
         )}
-        {shifts.length === 0 && <p style={{ fontSize: 13, color: "#8f8f8f" }}>なし</p>}
+        {shifts.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>なし</p>}
         {shifts.map((s) => (
-          <div key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f4f4f5", fontSize: 13 }}>
-            <span style={{ width: 90 }}>{s.date}</span>
+          <div key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
+            <span style={{ ...t.num, width: 90 }}>{s.date}</span>
             <span style={{ width: 110 }}>{castName(s.cast_id)}</span>
-            <span>{fmtWin(s.start_hm, s.end_hm)}</span>
-            <span style={{ color: s.status === "confirmed" ? "#2e7d32" : "#c9a24a" }}>
+            <span style={t.num}>{fmtWin(s.start_hm, s.end_hm)}</span>
+            <span style={{ color: s.status === "confirmed" ? "var(--ok)" : "var(--champ)" }}>
               {s.status === "confirmed" ? "確定" : "予定"}
             </span>
             {isManagerUp && s.status === "planned" && (
@@ -167,8 +169,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
         ))}
       </section>
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>
+      <section className="nox-cardtop" style={card}>
+        <h2 style={secTitle}>
           出勤板（staff も操作可＝attendance のみ開放・台帳 #24）
         </h2>
         <input type="date" value={attDate} onChange={(e) => setAttDate(e.target.value)} style={{ ...input, marginBottom: 8 }} />
@@ -180,20 +182,20 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               <select value={a?.status ?? ""} onChange={(e) => setAtt(c.id, e.target.value)} style={input}>
                 {ATT_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
-              {a?.eta && <span style={{ color: "#8f8f8f" }}>見込み {a.eta}</span>}
+              {a?.eta && <span style={{ ...t.num, color: "var(--sub)" }}>見込み {a.eta}</span>}
             </div>
           );
         })}
       </section>
 
       {isManagerUp && (
-        <section style={card}>
-          <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>必要人数（曜日別）</h2>
+        <section className="nox-cardtop" style={card}>
+          <h2 style={secTitle}>必要人数（曜日別）</h2>
           <div style={{ display: "flex", gap: 10 }}>
             {DOW.map((label, dow) => {
               const n = needs.find((x) => x.dow === dow);
               return (
-                <label key={dow} style={{ fontSize: 12, textAlign: "center" }}>
+                <label key={dow} style={{ fontSize: 12, textAlign: "center", color: "var(--sub)" }}>
                   {label}
                   <input
                     type="number" min={0} defaultValue={n?.required ?? 0}
@@ -204,7 +206,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               );
             })}
           </div>
-          <p style={{ fontSize: 11, color: "#8f8f8f" }}>変更はフォーカスアウトで保存</p>
+          <p style={{ fontSize: 11, color: "var(--sub)" }}>変更はフォーカスアウトで保存</p>
         </section>
       )}
     </div>

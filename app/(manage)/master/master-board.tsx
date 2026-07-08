@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import * as t from "@/lib/nox/ui/theme";
 import CompMaster from "./comp-master";
 
 type Product = {
@@ -12,10 +13,11 @@ type Seat = { id: string; name: string; kind: string | null; sort_order: number;
 type StockLog = { product_id: string; delta: number; reason: string | null; at: string };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
-const card: React.CSSProperties = { border: "1px solid #ebebeb", borderRadius: 8, padding: 14, background: "#fff", marginBottom: 14 };
-const input: React.CSSProperties = { padding: 6, border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 13 };
-const btnDark: React.CSSProperties = { padding: "6px 14px", borderRadius: 6, border: "none", background: "#16161a", color: "#fff", cursor: "pointer", fontSize: 13 };
-const btnLight: React.CSSProperties = { padding: "4px 10px", borderRadius: 6, border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer", fontSize: 12 };
+const card: React.CSSProperties = t.card;
+const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
+const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
+const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
+const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
 
 const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
 
@@ -111,29 +113,29 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
 
   return (
     <div style={{ maxWidth: 860 }}>
-      <h1 style={{ fontSize: 20 }}>マスタ管理</h1>
-      {msg && <p style={{ fontSize: 13, color: "#404040" }}>{msg}</p>}
+      <h1 style={t.pheadH1}>マスタ管理</h1>
+      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>商品（クリックで編集）</h2>
+      <section className="nox-cardtop" style={card}>
+        <h2 style={secTitle}>商品（クリックで編集）</h2>
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
           <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #e0e0e0" }}>
-              {["種別", "名称", "価格", "バック", "本指名pt", "在庫", "状態"].map((h) => <th key={h} style={{ padding: 6 }}>{h}</th>)}
+            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
+              {["種別", "名称", "価格", "バック", "本指名pt", "在庫", "状態"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
             {products.map((p) => (
-              <tr key={p.id} onClick={() => isManagerUp && editProduct(p)} style={{ borderBottom: "1px solid #f4f4f5", cursor: isManagerUp ? "pointer" : "default" }}>
+              <tr key={p.id} onClick={() => isManagerUp && editProduct(p)} style={{ borderBottom: "1px solid var(--line)", cursor: isManagerUp ? "pointer" : "default" }}>
                 <td style={{ padding: 6 }}>{p.type}</td>
                 <td style={{ padding: 6 }}>{p.name}</td>
-                <td style={{ padding: 6 }}>{yen(p.price)}</td>
+                <td style={{ padding: 6, ...t.num }}>{yen(p.price)}</td>
                 <td style={{ padding: 6 }}>
                   {p.back_mode === "rate" ? `${p.back_value}%` : `単価表（本${p.unit4_json?.hon ?? 0}…）`}
                 </td>
-                <td style={{ padding: 6 }}>{p.hon_pt}</td>
-                <td style={{ padding: 6 }}>{stock[p.id] ?? 0}</td>
-                <td style={{ padding: 6 }}>{p.is_active ? "有効" : "無効"}</td>
+                <td style={{ padding: 6, ...t.num }}>{p.hon_pt}</td>
+                <td style={{ padding: 6, ...t.num }}>{stock[p.id] ?? 0}</td>
+                <td style={{ padding: 6, color: p.is_active ? "var(--ok)" : "var(--sub)" }}>{p.is_active ? "有効" : "無効"}</td>
               </tr>
             ))}
           </tbody>
@@ -141,7 +143,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
         {/* 操作 UI は manager 以上のみ（RPC 側も拒否＝二重） */}
         {isManagerUp && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "#8f8f8f" }}>{pId ? "編集中" : "新規"}</span>
+            <span style={{ fontSize: 12, color: "var(--sub)" }}>{pId ? "編集中" : "新規"}</span>
             <select value={pType} onChange={(e) => setPType(e.target.value)} style={input}>
               <option value="drink">drink</option><option value="champ">champ</option><option value="bottle">bottle</option>
             </select>
@@ -170,23 +172,23 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
         )}
       </section>
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>席（クリックで編集）</h2>
+      <section className="nox-cardtop" style={card}>
+        <h2 style={secTitle}>席（クリックで編集）</h2>
         <table style={{ borderCollapse: "collapse", fontSize: 12, marginBottom: 10 }}>
           <tbody>
             {seats.map((s) => (
               <tr key={s.id} onClick={() => isManagerUp && (setSId(s.id), setSName(s.name), setSKind(s.kind ?? "卓"), setSSort(s.sort_order), setSActive(s.is_active))}
-                style={{ borderBottom: "1px solid #f4f4f5", cursor: isManagerUp ? "pointer" : "default" }}>
+                style={{ borderBottom: "1px solid var(--line)", cursor: isManagerUp ? "pointer" : "default" }}>
                 <td style={{ padding: 6 }}>{s.name}</td>
                 <td style={{ padding: 6 }}>{s.kind}</td>
-                <td style={{ padding: 6 }}>{s.is_active ? "有効" : "無効"}</td>
+                <td style={{ padding: 6, color: s.is_active ? "var(--ok)" : "var(--sub)" }}>{s.is_active ? "有効" : "無効"}</td>
               </tr>
             ))}
           </tbody>
         </table>
         {isManagerUp && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "#8f8f8f" }}>{sId ? "編集中" : "新規"}</span>
+            <span style={{ fontSize: 12, color: "var(--sub)" }}>{sId ? "編集中" : "新規"}</span>
             <input placeholder="席名" value={sName} onChange={(e) => setSName(e.target.value)} style={{ ...input, width: 140 }} />
             <select value={sKind} onChange={(e) => setSKind(e.target.value)} style={input}>
               <option value="卓">卓</option><option value="カウンター">カウンター</option><option value="VIP">VIP</option>
@@ -199,8 +201,8 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
       </section>
 
       {isManagerUp && (
-        <section style={card}>
-          <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>在庫の入出庫（append-only）</h2>
+        <section className="nox-cardtop" style={card}>
+          <h2 style={secTitle}>在庫の入出庫（append-only）</h2>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <select value={stProd} onChange={(e) => setStProd(e.target.value)} style={{ ...input, maxWidth: 220 }}>
               <option value="">商品を選択</option>

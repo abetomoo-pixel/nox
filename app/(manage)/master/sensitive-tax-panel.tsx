@@ -8,14 +8,15 @@
 //   ■ 税務は manager+: cast_tax_profiles はパターン2（manager+ 可視）。
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import * as t from "@/lib/nox/ui/theme";
 
 type Cast = { id: string; name: string };
 
-const card: React.CSSProperties = { border: "1px solid #ebebeb", borderRadius: 8, padding: 14, background: "#fff", marginBottom: 14 };
-const input: React.CSSProperties = { padding: 6, border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 13 };
-const btnDark: React.CSSProperties = { padding: "6px 14px", borderRadius: 6, border: "none", background: "#16161a", color: "#fff", cursor: "pointer", fontSize: 13 };
-const btnLight: React.CSSProperties = { padding: "4px 10px", borderRadius: 6, border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer", fontSize: 12 };
-const label: React.CSSProperties = { fontSize: 12, color: "#555", display: "block" };
+const card: React.CSSProperties = t.card;
+const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
+const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
+const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
+const label: React.CSSProperties = { fontSize: 12, color: "var(--sub)", display: "block" };
 
 export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; isOwner: boolean }) {
   const supabase = createClient();
@@ -119,8 +120,8 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
   if (casts.length === 0) return null;
 
   return (
-    <section style={card}>
-      <h2 style={{ fontSize: 16, margin: "0 0 10px" }}>機密・税務情報</h2>
+    <section className="nox-cardtop" style={card}>
+      <h2 style={{ ...t.pheadH1, fontSize: 16, margin: "0 0 10px" }}>機密・税務情報</h2>
       <label style={label}>
         キャスト
         <br />
@@ -131,12 +132,12 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
         </select>
       </label>
 
-      {msg && <p style={{ fontSize: 13, color: msg.includes("エラー") ? "#c0392b" : "#1e824c", marginTop: 8 }}>{msg}</p>}
+      {msg && <p style={{ fontSize: 13, color: msg.includes("エラー") ? "var(--bad)" : "var(--ok)", marginTop: 8 }}>{msg}</p>}
 
       {/* 機密（owner のみ・manager は封印で読めないため非表示） */}
       {isOwner && (
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f0f0f0" }}>
-          <h3 style={{ fontSize: 14, margin: "0 0 8px" }}>機密（本名・生年月日・マイナンバー）</h3>
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+          <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>機密（本名・生年月日・マイナンバー）</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 480 }}>
             <label style={label}>本名<input value={realName} onChange={(e) => setRealName(e.target.value)} style={{ ...input, width: "100%" }} /></label>
             <label style={label}>生年月日<input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} style={{ ...input, width: "100%" }} /></label>
@@ -145,28 +146,28 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
               <input value={mynumber} onChange={(e) => setMynumber(e.target.value)} placeholder={mynumberSet ? "登録済み（変更する場合のみ入力）" : "未登録"} inputMode="numeric" style={{ ...input, width: "100%" }} />
             </label>
           </div>
-          <p style={{ fontSize: 12, color: "#777", margin: "6px 0" }}>
-            登録状態: <strong style={{ color: mynumberSet ? "#1e824c" : "#999" }}>{mynumberSet ? "登録済み（暗号化）" : "未登録"}</strong>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0" }}>
+            登録状態: <strong style={{ color: mynumberSet ? "var(--ok)" : "var(--sub)" }}>{mynumberSet ? "登録済み（暗号化）" : "未登録"}</strong>
             {"　"}※ マイナンバーは暗号化保存され、管理者（manager）は閲覧できません（封印）。
           </p>
           <button onClick={saveSensitive} disabled={!castId || !sensitiveReady} style={btnDark}>機密を保存</button>
 
           {/* 支払調書（full 平文・全件 audit） */}
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #e5e5e5" }}>
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--line2)" }}>
             <button onClick={reveal} disabled={!castId || !mynumberSet} style={btnLight}>支払調書用にマイナンバーを表示</button>
             {revealed && (
-              <span style={{ marginLeft: 10, fontFamily: "monospace", fontSize: 14, background: "#fff8e1", padding: "2px 8px", borderRadius: 4 }}>
+              <span style={{ marginLeft: 10, fontFamily: "monospace", fontSize: 14, background: "var(--bg2)", color: "var(--champ)", border: "1px solid var(--line2)", padding: "2px 8px", borderRadius: 4 }}>
                 {revealed}
               </span>
             )}
-            <p style={{ fontSize: 11, color: "#b8860b", margin: "4px 0 0" }}>※ 表示は法定調書作成の用途に限定。閲覧は全件 audit_logs に記録されます。</p>
+            <p style={{ fontSize: 11, color: "var(--champ)", margin: "4px 0 0" }}>※ 表示は法定調書作成の用途に限定。閲覧は全件 audit_logs に記録されます。</p>
           </div>
         </div>
       )}
 
       {/* 税務（manager+） */}
-      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #f0f0f0" }}>
-        <h3 style={{ fontSize: 14, margin: "0 0 8px" }}>税務（雇用区分・インボイス）</h3>
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+        <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>税務（雇用区分・インボイス）</h3>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={label}>雇用区分<br />
             <select value={mode} onChange={(e) => setMode(e.target.value)} style={input}>
@@ -186,7 +187,7 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
           </label>
           <button onClick={saveTax} disabled={!castId || !taxReady} style={btnDark}>税務を保存</button>
         </div>
-        {!isOwner && <p style={{ fontSize: 11, color: "#999", margin: "8px 0 0" }}>※ 本名・マイナンバー等の機密情報の登録・閲覧はオーナーのみ可能です。</p>}
+        {!isOwner && <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>※ 本名・マイナンバー等の機密情報の登録・閲覧はオーナーのみ可能です。</p>}
       </div>
     </section>
   );
