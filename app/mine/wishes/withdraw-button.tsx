@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import * as t from "@/lib/nox/ui/theme";
 
 export default function WithdrawButton({ wishId }: { wishId: string }) {
   const router = useRouter();
@@ -20,10 +21,7 @@ export default function WithdrawButton({ wishId }: { wishId: string }) {
     <button
       onClick={withdraw}
       disabled={busy}
-      style={{
-        marginLeft: "auto", padding: "2px 10px", fontSize: 12, borderRadius: 6,
-        border: "1px solid #e0e0e0", background: "#fff", cursor: "pointer",
-      }}
+      style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto", padding: "3px 11px", opacity: busy ? 0.7 : 1 }}
     >
       取り下げ
     </button>
