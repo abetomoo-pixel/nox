@@ -4,6 +4,7 @@ import { loadStoreSimData } from "@/lib/nox/payroll/sim-data";
 import SimulatorPanel from "@/components/simulator-panel";
 import MasterBoard from "./master-board";
 import DeductionPanel from "./deduction-panel";
+import SensitiveTaxPanel from "./sensitive-tax-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,9 @@ export default async function MasterPage() {
           isOwner={role === "owner"}
           initialOkuriMode={okuriMode}
         />
+      )}
+      {isManagerUp && (
+        <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
       )}
       {sim && (
         <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" />

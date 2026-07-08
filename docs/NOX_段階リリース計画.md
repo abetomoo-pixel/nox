@@ -91,7 +91,7 @@ NOX の差別化の核。お金が確定する最重要フェーズ。BANZEN の
 | F2a | 報酬設計マスタ（comp_plans/cast_plan/cast_norms/deductions/penalty_config） | 0002 | – |
 | F2b | 税プロファイル（cast_tax_profiles）＋ cast_sensitive（mynumber 別テーブル＋閲覧RPC＋アクセスログ） | 0002+ | – |
 | F2c | **給与確定**（payroll_runs/payslips）＋確定フロー（サーバが payOf 再計算→breakdown_json 凍結・冪等・トランザクション・天引き消し込み） | 0008 | ★★★ |
-| F2d | 源泉・インボイス・支払調書（payment_records）＝確定値から生成 | 0008+ | ★★ |
+| F2d | 源泉・インボイス・支払調書（payment_records）＝確定値から生成 ✅**実装済**（mig0021・2026-07-08＝mynumber pgp_sym 暗号化/Vault 鍵・get_cast_mynumber〔service・支払調書〕/masked〔cast 本人末尾4桁〕・reg_no 形式・payment_records パターン1＋Σ≤net/idem。源泉日数 D4 は現状維持で社労士回答待ち。F2 グループ締め） | 0008+ | ★★ |
 | F2e | 前借り/送り実費/売掛の天引き（advances/transport/receivables）＋二重控除ガード | 0006 一部 | ★★ |
 | F2f | 報酬シミュレーター（Mine・payOf をクライアントで・確定と一致） | – | – |
 

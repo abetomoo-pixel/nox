@@ -153,7 +153,7 @@ async function main() {
 
   // ── 段10a: F2b 機密/税務 RPC 3本 anon BLOCKED ──
   const F2B_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
-    ["set_cast_sensitive", { p_cast_id: null, p_real_name: null, p_birthday: null, p_mynumber_enc: null }],
+    ["set_cast_sensitive", { p_cast_id: null, p_real_name: null, p_birthday: null, p_mynumber: null }],
     ["get_cast_sensitive", { p_cast_id: null }],
     ["set_cast_tax_profile", { p_cast_id: null, p_mode: null, p_invoice: null, p_reg_no: null }],
   ];
@@ -192,6 +192,19 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段13a: F2d mynumber/payment RPC anon BLOCKED（mig0021）──
+  //   get_cast_mynumber=service_role 限定（anon grant なし）／masked=authenticated＋service_role／
+  //   payment_record_add=authenticated。いずれも anon には grant なし＝BLOCKED。
+  const F2D_ANON_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["get_cast_mynumber", { p_org_id: null, p_actor: null, p_cast_id: null }],
+    ["get_cast_mynumber_masked", { p_cast_id: null }],
+    ["payment_record_add", { p_run_id: null, p_cast_id: null, p_amount: null, p_paid_at: null, p_method: null, p_note: null, p_idem_key: null }],
+  ];
+  for (const [fn, args] of F2D_ANON_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部関数は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
@@ -218,6 +231,7 @@ async function main() {
     "payroll_runs", "payslips",
     "attendance_incentives",
     "advances", "transport",
+    "payment_records",
   ]) {
     // PK=cast_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
     const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles"].includes(table);
@@ -257,6 +271,12 @@ async function main() {
     for (const [fn, args] of F2C_SVC_ONLY) {
       const { error: eSvc } = await authed.rpc(fn, args);
       check(`authenticated ${fn} BLOCKED（service_role 限定）`, isFnBlocked(eSvc), eSvc?.message ?? "実行できてしまった");
+    }
+
+    // 段13b: F2d get_cast_mynumber（full 平文）は service_role 限定＝authenticated でも BLOCKED（positive assert）
+    {
+      const { error: eFull } = await authed.rpc("get_cast_mynumber", { p_org_id: null, p_actor: null, p_cast_id: null });
+      check("authenticated get_cast_mynumber BLOCKED（service_role 限定・full 平文封鎖）", isFnBlocked(eFull), eFull?.message ?? "実行できてしまった");
     }
 
     // 正常系対照: authenticated でヘルパーは実行可能・正しいロール

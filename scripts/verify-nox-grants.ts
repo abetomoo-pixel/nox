@@ -234,6 +234,39 @@ async function main() {
       const roles = await roleOf(fn);
       check(`G9 ${fn} EXECUTE = authenticated（anon 不在）`, roles.includes("authenticated") && !roles.includes("anon"), `保持者: ${roles.join(", ")}`);
     }
+
+    // G10: F2d mynumber 暗号化/payment（mig0021）— payment_records RLS・パターン1・crypto RPC ACL。
+    //   G1（authenticated=SELECT のみ）が payment_records の書込面を自動回帰済み＝ここは positive assert。
+    const pr = await db.query(
+      `select relrowsecurity from pg_class where relnamespace='public'::regnamespace and relname='payment_records'`,
+    );
+    check("G10 payment_records RLS 有効", pr.rowCount === 1 && pr.rows[0].relrowsecurity === true, `got ${JSON.stringify(pr.rows)}`);
+    const prp = await db.query(
+      `select policyname, cmd from pg_policies where schemaname='public' and tablename='payment_records'`,
+    );
+    check("G10 payment_records ポリシー = SELECT 1本（パターン1）", prp.rowCount === 1 && prp.rows[0].cmd === "SELECT", prp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "));
+    // get_cast_mynumber（full 平文）= service_role のみ（anon/authenticated/public 不在）
+    {
+      const roles = await roleOf("get_cast_mynumber");
+      const leaked = roles.filter((x) => ["anon", "authenticated", "public"].includes(x));
+      check("G10 get_cast_mynumber EXECUTE = service_role のみ（full 平文封鎖）", roles.includes("service_role") && leaked.length === 0, `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    // get_cast_mynumber_masked / payment_record_add = authenticated（anon 不在）
+    for (const fn of ["get_cast_mynumber_masked", "payment_record_add"]) {
+      const roles = await roleOf(fn);
+      check(`G10 ${fn} EXECUTE = authenticated（anon 不在）`, roles.includes("authenticated") && !roles.includes("anon"), `保持者: ${roles.join(", ")}`);
+    }
+    // crypto RPC 3本の search_path=public,extensions 固定（pgcrypto 罠回避の恒久回帰）
+    {
+      const cfg = await db.query(
+        `select proname, coalesce(array_to_string(proconfig,','),'') as config from pg_proc
+         where pronamespace='public'::regnamespace and proname = any($1)`,
+        [["set_cast_sensitive", "get_cast_mynumber", "get_cast_mynumber_masked"]],
+      );
+      for (const row of cfg.rows) {
+        check(`G10 ${row.proname} search_path=public,extensions 固定（pgcrypto 罠回避）`, (row.config as string).includes("search_path=public, extensions") || (row.config as string).includes("search_path=public,extensions"), row.config);
+      }
+    }
   }
 
   await db.end();

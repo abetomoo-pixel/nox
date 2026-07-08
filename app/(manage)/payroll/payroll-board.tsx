@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import PaymentPanel from "./payment-panel";
 
 type Store = { id: string; name: string };
 type Row = {
@@ -176,6 +177,9 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
           {blockers.length > 0 && <span style={{ marginLeft: 10, fontSize: 12, color: "#c0392b" }}>未登録 cast を解消してください</span>}
         </>
       )}
+
+      {/* 確定済み給与の支払記録（選択中の店舗・期間に対して） */}
+      {storeId && <PaymentPanel storeId={storeId} period={period} />}
     </div>
   );
 }

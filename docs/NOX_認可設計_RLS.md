@@ -124,6 +124,14 @@ using (
 - **cast_tax_profiles（T4a）**：パターン2（cast 0行・manager 以上）。`mode`（委託/雇用）が payOf taxMode の正本・`invoice`/`reg_no` は F2d 前提。casts.employment は残置（T3a・非正規化表示用・drop しない）。
 - **verify:nox-grants G1 の整合（T5a）**：G1 は「authenticated は SELECT 以下」の意（SELECT 以外の権限が 0）。cast_sensitive は **0 grant の明示例外**として、authenticated 権限が皆無であることを専用 assert で positive に固定。
 
+**【F2d 実装確定（2026-07-08・mig0021）】mynumber 暗号化・支払調書経路・payment_records の認可（T2a の TODO クローズ）**
+- **mynumber 暗号化（D1）**：T2a の null 運用を解消。`mynumber_enc` を **pgp_sym（対称）＋Vault 鍵**で暗号化・鍵はコード/mig に非埋込。暗号化3 RPC（set_cast_sensitive/get_cast_mynumber/get_cast_mynumber_masked）は **search_path=`public, extensions`**（T2a 予告どおり pgcrypto 罠回避）。
+- **閲覧3段の権限分離（D1-c）**：① `get_cast_sensitive`＝owner/cast 本人（**mynumber_enc は返さず `mynumber_set boolean` のみ**）。② `get_cast_mynumber`（full 平文）＝**service_role 限定**（owner route ゲート・p_org_id 明示照合・**復号は全件 audit**〔read_cast_mynumber・§2.4 のログ要求を service 版 audit_log_write_service で担保〕・cast 本人も平文不可）。③ `get_cast_mynumber_masked`＝**cast 本人のみ・末尾4桁**（owner/manager 取得不可・読取だが audit）。**封印（grant0・policy0）は暗号化後も不変**。
+- **インボイス（D2）**：`set_cast_tax_profile` に `reg_no ^T[0-9]{13}$` 形式チェック追加（RPC＋列制約 not valid）。
+- **payment_records＝パターン1（D3）**：§2.3 パターン1（cast 本人が自分の支払記録を可視・customer_id なし）。`payment_record_add`（manager+・org/store 照合・run finalized/paid ガード・**Σ paid_amount ≤ payslip.net**〔payslip FOR UPDATE 直列化〕・冪等キー・audit）。書込ポリシー0＝RPC 経由のみ（advances/transport と同流儀）。
+- **UI の権限整合**：機密（real_name/birthday/mynumber）編集は **owner 限定**（get_cast_sensitive が owner/本人限定＝manager は封印で現値を読めず、real_name/birthday の上書き更新で blind write が既存を消す事故を回避）。税務（mode/invoice/reg_no）は manager+（cast_tax_profiles パターン2）。支払調書 reveal（/api/cast/mynumber）は owner のみ・service 経路。
+- **verify**：RPC 往復（auth 込み・F2d 完了条件）＝暗号化往復平文一致・masked 末尾4桁・full service 限定・reg_no・payment Σ≤net/idem・パターン1・封印不変。grants G10 で payment_records RLS/proacl/search_path を introspection 恒久回帰。
+
 **【F2c 実装確定（2026-07-06・mig0016）】給与凍結テーブルの認可（裁定 F1c〜F4c）**
 - **payslips＝金額系＋staff 遮断**：§3.2 金額系（`auth_role()<>'cast' or cast_id=auth_cast_id()`）に **staff 遮断**を加える＝店スコープ `and auth_role()<>'staff' and (auth_role()<>'cast' or cast_id=auth_cast_id())`。owner=自店全・manager=自店・cast=本人のみ・**staff=0行**（個別賃金明細は黒服にも出さない＝cast_plan／get_cast_sales の staff 遮断と方向統一）。cast は自分の payslip を /mine で読むため `period` を payslips に非正規化（run へのアクセス不要）。
 - **payroll_runs＝店スコープ管理オブジェクト**：owner/manager のみ可視（cast/staff 0行）。status は `draft/finalized/paid` の3状態・`period_start/period_end`（解決済み窓）を finalize が凍結。

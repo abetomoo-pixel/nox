@@ -95,7 +95,7 @@ NOX 用に以下を最初のマイグレーションで定義：
 - **mynumber の置き場を認可設計 §2.4 に整合**：本節初版は mynumber を cast_tax_profiles に置くが、§2.4（機密設計の正本）に従い **mynumber は `cast_sensitive`（real_name/birthday/mynumber_enc）に分離**する。cast_tax_profiles には mynumber を持たせない（機密度が異なるため物理分離）。
 - **cast_tax_profiles の列（実装）**：`cast_id*`, `org_id`, `store_id`, `mode`（**委託/雇用**＝payOf taxMode の正本・初版の「報酬/給与」表記を委託/雇用に統一）, `invoice`（課税/免税・F2d）, `reg_no`（F2d）。パターン2（cast 0行・manager 以上）。
 - **casts.employment は残置（T3a）**：既存の casts.employment（委託/雇用）は非正規化の表示用として残し、給与計算の正本は cast_tax_profiles.mode とする（employment を drop する非冪等 mig を避ける）。
-- **cast_sensitive（新設・§2.4 の物理形）**：`cast_id*`, `org_id`, `store_id`, `real_name`, `birthday`, `mynumber_enc bytea`（F2b は null 運用）。RLS 有効・**SELECT ポリシー無し・grant 0**＝直 SELECT 全ロール不可・閲覧 RPC のみ。
+- **cast_sensitive（新設・§2.4 の物理形）**：`cast_id*`, `org_id`, `store_id`, `real_name`, `birthday`, `mynumber_enc bytea`（**F2d で pgp_sym 暗号化を実装**＝F2b の null 運用から前進・平文は DB に一切残さない）。RLS 有効・**SELECT ポリシー無し・grant 0**＝直 SELECT 全ロール不可・閲覧 RPC のみ。
 
 **deductions**（控除マスタ）
 - `id*`, `store_id*`, `name`, `amount`, `per`（day/month/rate）… 送り代/厚生費
@@ -283,6 +283,15 @@ NOX 用に以下を最初のマイグレーションで定義：
 - 列：`id*`, `org_id*`, `store_id*`, `biz_date`, `kind`（'bonus' のみ実装・'drink_boost' は enum 予約）, `amount_mode`（'per_head'|'pooled'）, `amount`（円）, `status`（'published'|'cancelled'）, `created_by`, `created_at`, `cancelled_by`, `cancelled_at`。**部分ユニーク `(store_id, biz_date) where status='published'`**（同日1本・cancel で解放＝再発行可）。staffing_needs と FK なし疎結合。
 - **凍結記録**（編集不可・cancel＋新規のみ）。RLS＝**パターン3（周知）**。発行/取消は manager 以上の RPC（`incentive_publish`／`incentive_cancel`・二重防御＋audit＋**publish/cancel とも paid 期間ガード**＝to_char(biz_date,'YYYY-MM')=period が payroll_runs.status='paid' なら拒否）。`incentive_publish` は **on conflict do nothing→returning 空で 'already published'**（exists→insert の TOCTOU を排除）。
 - **給与結線**：payOf の外側＝payslips.breakdown_json の `extras[]` に `{kind:'attendance_bonus', amount, label, source:incentive行id}` として乗る（`net=pay.net+Σextras`）。受給者＝finalize 時点の `final∈{ok,late}`（確定シフト出勤・当欠/シフト無し raw は対象外）。per_head=定額／pooled=最大剰余法按分（allocDue 再利用・端数+1=cast_id 最小）。再確定で extras 更新＋旧値は payroll_finalize 退避で audit（Y）。
+
+**【F2d 実装確定（2026-07-08・mig0021）】mynumber 暗号化・支払調書経路・payment_records（F2 グループ締め）**
+- **mynumber 暗号化（D1）**：`cast_sensitive.mynumber_enc` を **pgcrypto `pgp_sym_encrypt`（対称）＋Supabase Vault 鍵 `nox_mynumber_key`** で暗号化。鍵はコード/mig/ファイルに一切残さない（Vault のみ・`vault.decrypted_secrets` を definer=postgres が読む）。暗号化3 RPC は `search_path=public, extensions`（pgcrypto 罠回避）。`set_cast_sensitive(p_mynumber text)` が **DB 内で暗号化**（平文はサーバに渡すが保存されない）。**空 p_mynumber=変更なし**（既存 enc 温存＝real_name のみ更新時の誤消去防止）・real_name/birthday は上書き。
+- **閲覧3段（D1-c）**：① `get_cast_sensitive` は **mynumber_enc を返さず `mynumber_set boolean` のみ**（登録有無）。② `get_cast_mynumber`（full 平文・**service_role 限定**＝支払調書経路・owner route ゲート・p_org_id 明示照合で他 org 復号不可・**復号は全件 audit**・cast 本人も平文不可）。③ `get_cast_mynumber_masked`（**cast 本人のみ・末尾4桁のみ**＝`********＋下4桁`・先頭は返さない・owner/manager 取得不可）。暗号化後も **cast_sensitive の封印（grant0・policy0）は不変**。
+- **インボイス仕上げ（D2）**：`set_cast_tax_profile` に **`reg_no ^T[0-9]{13}$` 形式チェック**（RPC＋列制約 not valid）。invoice 課税/免税チェックは F2b 既存。
+- **payment_records（D3・支払記録）**：`id*`, `org_id*`, `store_id*`, `run_id*`, `cast_id*`, `paid_amount int(>0)`, `paid_at date`, `method`, `note`, `idem_key uuid`, `created_by`, `created_at`。**1確定 run×cast に複数行可**（**D3-b 案1＝L5 部分支払いを器で先取り**）。**パターン1**（cast 本人が自分の支払記録を可視・客情報なし）。`payment_record_add`（manager+・org/store 照合・**run finalized/paid ガード**・**Σ paid_amount ≤ payslip.net**〔過払いガード・payslip FOR UPDATE 行ロックで直列化〕・**冪等キー**〔UI 生成 uuid・二重挿入防止〕・audit）。
+- **源泉日数（D4）**：現状維持（`withholdingOf` 未変更・社労士回答待ち＝pay.ts 1箇所差替で追従）。
+- **UI**：/master に機密・税務パネル（**機密＝owner 限定**〔get_cast_sensitive が owner/本人限定＝manager は封印で読めず blind write が既存を消す事故を回避〕・支払調書 reveal は owner・**税務＝manager+**）。/payroll に支払記録パネル（確定 run×cast の net/支払済/残・部分支払い記録）。route＝`/api/cast/mynumber`（owner 限定・service 経路）／`/api/payment/record`（manager+・DB 再計算）。
+- **verify**：RPC 往復（auth 込み）＝set(平文)→get_cast_mynumber(service) 平文一致・masked 末尾4桁・service 限定・reg_no・payment Σ≤net/idem/パターン1・封印不変。verify:f0 816 全緑（rls337/anon104/grants67）。
 
 ### 2.9 監査（M09 相当・全 org 横断）
 

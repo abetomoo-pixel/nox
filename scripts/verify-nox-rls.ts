@@ -871,7 +871,7 @@ async function main() {
     // ── manager: set 成功（採用時登録）・get 拒否（T6a）・直 SELECT 遮断・tax は可視 ──
     {
       const m = await signIn("managerA1");
-      const { error: eSet } = await m.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "田中玲奈", p_birthday: "1998-04-15", p_mynumber_enc: null });
+      const { error: eSet } = await m.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "田中玲奈", p_birthday: "1998-04-15", p_mynumber: null });
       check("F2b manager set_cast_sensitive 成功", !eSet, eSet?.message);
       const { error: eTax } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "免税", p_reg_no: null });
       check("F2b manager set_cast_tax_profile 成功", !eTax, eTax?.message);
@@ -899,12 +899,12 @@ async function main() {
       const after0 = aud?.[0]?.after_json as { fields_changed?: string[] } | null;
       check("F2b 平文非リーク: after_json に fields_changed のみ", Array.isArray(after0?.fields_changed) && !JSON.stringify(after0).includes("田中玲奈"), JSON.stringify(after0));
       // null 消去アンカー: 実値ありの行を null 上書き → fields_changed に real_name/birthday が載る
-      await o.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: null, p_birthday: null, p_mynumber_enc: null });
+      await o.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: null, p_birthday: null, p_mynumber: null });
       const { data: audE } = await o.from("audit_logs").select("after_json").eq("action", "set_cast_sensitive").eq("target", tgt).order("at", { ascending: false }).limit(1);
       const erased = (audE?.[0]?.after_json as { fields_changed?: string[] } | null)?.fields_changed ?? [];
       check("F2b null 消去検出: fields_changed に real_name・birthday", erased.includes("real_name") && erased.includes("birthday"), JSON.stringify(erased));
       // 同値 upsert（既に null）→ fields_changed 空
-      await o.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: null, p_birthday: null, p_mynumber_enc: null });
+      await o.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: null, p_birthday: null, p_mynumber: null });
       const { data: audS } = await o.from("audit_logs").select("after_json").eq("action", "set_cast_sensitive").eq("target", tgt).order("at", { ascending: false }).limit(1);
       const same = (audS?.[0]?.after_json as { fields_changed?: string[] } | null)?.fields_changed ?? ["x"];
       check("F2b 同値 upsert: fields_changed 空", same.length === 0, JSON.stringify(same));
@@ -942,7 +942,7 @@ async function main() {
       const b = await signIn("managerB1");
       const { error: eG } = await b.rpc("get_cast_sensitive", { p_cast_id: castIdA });
       check("F2b クロス org: managerB1 get 拒否", forbidden(eG), eG?.message ?? "通ってしまった");
-      const { error: eS } = await b.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "x", p_birthday: null, p_mynumber_enc: null });
+      const { error: eS } = await b.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "x", p_birthday: null, p_mynumber: null });
       check("F2b クロス org: managerB1 set 拒否", forbidden(eS), eS?.message ?? "通ってしまった");
       const { error: eT } = await b.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: null, p_reg_no: null });
       check("F2b クロス org: managerB1 tax set 拒否", forbidden(eT), eT?.message ?? "通ってしまった");
@@ -950,6 +950,108 @@ async function main() {
       check("F2b クロス org: managerB1 tax 0行", (tax ?? []).length === 0, `got ${(tax ?? []).length}`);
       await b.auth.signOut();
     }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // F2d: mynumber 暗号化往復・末尾4桁マスク・支払調書 service 復号・reg_no・payment_records（mig0021）
+  // Vault 対称鍵 pgp_sym で set(平文)→enc→get_cast_mynumber(service)=平文一致を RPC 往復で係留。
+  // masked は cast 本人のみ末尾4桁・full 平文は service_role 限定・封印(grant0)は暗号化後も不変。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: orgRow } = await admin.from("stores").select("org_id").eq("id", storeA1Id).single();
+    const orgAId = orgRow!.org_id as string;
+    const { data: mgrRow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
+    const actorId = mgrRow!.id as string;
+    const forbidden = (e: { message?: string } | null) => !!e?.message?.includes("forbidden");
+    const blocked = (e: { message?: string } | null) => !!e?.message?.includes("permission denied for function");
+
+    const m = await signIn("managerA1");
+    const owner = await signIn("ownerA");
+    const ca = await signIn("castA1a");
+
+    // ── 暗号化往復（F2d 完了条件）: manager が平文 set → service get_cast_mynumber で平文一致 ──
+    const MY = "123456789012"; // 仮マイナンバー（12桁・verify 専用）
+    const { error: eSet } = await m.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "田中玲奈", p_birthday: "1998-04-15", p_mynumber: MY });
+    check("F2d set_cast_sensitive(平文入力→DB 内 pgp_sym 暗号化) 成功", !eSet, eSet?.message);
+    // get_cast_sensitive は mynumber_set boolean のみ（平文/enc は返さない）
+    const { data: gs } = await owner.rpc("get_cast_sensitive", { p_cast_id: castIdA });
+    const gsRow = ((gs ?? [])[0] ?? {}) as Record<string, unknown>;
+    check("F2d get_cast_sensitive: mynumber_set=true・real_name 復元・平文/enc は非返却",
+      gsRow.mynumber_set === true && gsRow.real_name === "田中玲奈" && !("mynumber_enc" in gsRow) && !("mynumber" in gsRow), JSON.stringify(gsRow));
+    // service_role（admin）で full 平文復号 → 平文一致（Vault 鍵）
+    const { data: full, error: eFull } = await admin.rpc("get_cast_mynumber", { p_org_id: orgAId, p_actor: actorId, p_cast_id: castIdA });
+    check("F2d 往復: get_cast_mynumber(service) が平文一致（Vault 鍵で復号）", !eFull && full === MY, eFull?.message ?? `got ${full}`);
+    // full 平文は service_role 限定＝authenticated（manager）は BLOCKED
+    const { error: eFullM } = await m.rpc("get_cast_mynumber", { p_org_id: orgAId, p_actor: actorId, p_cast_id: castIdA });
+    check("F2d get_cast_mynumber(full 平文) は service_role のみ＝manager BLOCKED", blocked(eFullM), eFullM?.message ?? "通ってしまった");
+    // masked: cast 本人 → 末尾4桁のみ（先頭 ******** ・full 平文は含まない）
+    const { data: mask, error: eMask } = await ca.rpc("get_cast_mynumber_masked", { p_cast_id: castIdA });
+    // 先頭8桁が一切現れないことを独立に assert（!includes(MY) は12桁一致の系で常真＝非判別なので先頭8桁で判別化）。
+    check("F2d masked: cast 本人が末尾4桁のみ取得（********＋下4桁・先頭8桁は非漏洩）",
+      !eMask && mask === "********" + MY.slice(-4) && !String(mask).includes(MY.slice(0, 8)), eMask?.message ?? `got ${mask}`);
+    // masked: cast 他人拒否
+    const { error: eMaskOther } = await ca.rpc("get_cast_mynumber_masked", { p_cast_id: castIdB });
+    check("F2d masked: cast 他人拒否（本人 cast_id 限定）", forbidden(eMaskOther), eMaskOther?.message ?? "通ってしまった");
+    // masked: manager 拒否（cast 本人限定・owner/manager 不可）
+    const { error: eMaskMgr } = await m.rpc("get_cast_mynumber_masked", { p_cast_id: castIdA });
+    check("F2d masked: manager 拒否（cast 本人限定 RPC）", forbidden(eMaskMgr), eMaskMgr?.message ?? "通ってしまった");
+    // ★封印不変: 暗号化後も cast_sensitive 直 SELECT は permission denied（grant0 維持）
+    const { error: eSel } = await ca.from("cast_sensitive").select("cast_id").limit(1);
+    check("F2d 封印不変: 暗号化後も cast 直 SELECT permission denied（grant0 維持）", !!eSel?.message?.includes("permission denied"), eSel?.message ?? "読めてしまった");
+
+    // ── null=保持: real_name のみ更新（p_mynumber=null）で mynumber が消えない（誤消去防止）──
+    const { error: eKeep } = await m.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "田中改名", p_birthday: "1998-04-15", p_mynumber: null });
+    check("F2d null=保持 set 成功", !eKeep, eKeep?.message);
+    const { data: full2 } = await admin.rpc("get_cast_mynumber", { p_org_id: orgAId, p_actor: actorId, p_cast_id: castIdA });
+    check("F2d null=保持: p_mynumber=null の更新で mynumber は消えない（enc 温存）", full2 === MY, `got ${full2}`);
+
+    // ── reg_no 形式チェック（^T[0-9]{13}$）──
+    const { error: eBadReg } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "課税", p_reg_no: "T123" });
+    check("F2d reg_no 形式拒否（T+13桁でない → bad reg_no）", !!eBadReg?.message?.includes("bad reg_no"), eBadReg?.message ?? "通ってしまった");
+    const { error: eOkReg } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "課税", p_reg_no: "T1234567890123" });
+    check("F2d reg_no 形式 OK（T+13桁 受理）", !eOkReg, eOkReg?.message);
+
+    // ── payment_records: 部分支払い（Σ≤net）＋idem 冪等＋パターン1 cast 本人可視 ──
+    {
+      const { data: rcP } = await m.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2029-12" });
+      const runP = ((rcP ?? [])[0] as { id: string }).id;
+      const { error: eFinP } = await admin.rpc("payroll_finalize", {
+        p_org_id: orgAId, p_actor: actorId, p_run_id: runP, p_idem_key: randomUUID(),
+        p_payslips: [{ cast_id: castIdA, net: 10_000, breakdown: { pay: { net: 10_000 }, extras: [] } }],
+      });
+      check("F2d payment: 前提 run finalize（castIdA net=10000）", !eFinP, eFinP?.message);
+      const idemP = randomUUID();
+      const { data: pr1, error: ePr1 } = await m.rpc("payment_record_add", { p_run_id: runP, p_cast_id: castIdA, p_amount: 6_000, p_paid_at: "2030-01-10", p_method: "振込", p_note: null, p_idem_key: idemP });
+      check("F2d payment: 部分支払い 6000 成功", !ePr1 && typeof pr1 === "string", ePr1?.message);
+      const { data: pr1b } = await m.rpc("payment_record_add", { p_run_id: runP, p_cast_id: castIdA, p_amount: 6_000, p_paid_at: "2030-01-10", p_method: "振込", p_note: null, p_idem_key: idemP });
+      check("F2d payment idem: 同一 idem_key は既存 id を返す（二重挿入なし）", pr1b === pr1, `${pr1b} vs ${pr1}`);
+      const { error: eOver } = await m.rpc("payment_record_add", { p_run_id: runP, p_cast_id: castIdA, p_amount: 5_000, p_paid_at: "2030-01-11", p_method: null, p_note: null, p_idem_key: randomUUID() });
+      check("F2d payment Σ≤net: 6000+5000>net(10000) で exceeds net 拒否", !!eOver?.message?.includes("exceeds net"), eOver?.message ?? "通ってしまった");
+      const { error: eOk2 } = await m.rpc("payment_record_add", { p_run_id: runP, p_cast_id: castIdA, p_amount: 4_000, p_paid_at: "2030-01-11", p_method: null, p_note: null, p_idem_key: randomUUID() });
+      check("F2d payment Σ≤net: 残額 4000 は成功（Σ=10000=net）", !eOk2, eOk2?.message);
+      const { data: prSeen } = await ca.from("payment_records").select("paid_amount").eq("run_id", runP).order("paid_amount");
+      check("F2d payment パターン1: cast 本人が自分の支払記録を可視（2件=4000+6000）",
+        (prSeen ?? []).length === 2 && (prSeen ?? [])[0]?.paid_amount === 4_000 && (prSeen ?? [])[1]?.paid_amount === 6_000, JSON.stringify(prSeen));
+      // 同店の別 cast（castA1b）は castIdA の支払記録を 0行（パターン1: cast_id=本人のみ）
+      const cb = await signIn("castA1b");
+      const { data: prX } = await cb.from("payment_records").select("id").eq("run_id", runP);
+      check("F2d payment パターン1: 同店の別 cast は他人の支払記録 0行", (prX ?? []).length === 0, `got ${(prX ?? []).length}`);
+      await cb.auth.signOut();
+      // 掃除（FK 順: payment_records → payslips → payroll_runs）
+      await admin.from("payment_records").delete().eq("run_id", runP);
+      await admin.from("payslips").delete().eq("run_id", runP);
+      await admin.from("payroll_runs").delete().eq("id", runP);
+    }
+
+    await m.auth.signOut();
+    await owner.auth.signOut();
+    await ca.auth.signOut();
+    // 掃除（castIdA の cast_sensitive/tax を初期状態へ・後続ブロック非依存）
+    await admin.from("cast_sensitive").delete().eq("cast_id", castIdA);
+    await admin.from("cast_tax_profiles").delete().eq("cast_id", castIdA);
   }
 
   // ══════════════════════════════════════════════════════════
