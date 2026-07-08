@@ -104,6 +104,13 @@ SPEC §6.2 準拠。クライアントで `payOf` を呼ぶ：
 
 ※ 0.8979 等の係数は SPEC のモック値。精密化時に pay.ts で確認。
 
+**【F2f 実装確定（2026-07-08）＝報酬シミュレーター・mig ゼロ・payOf 再利用】**
+- **純経路の再利用**：`lib/nox/payroll/sim.ts` の `simulate(SimInput)＝仮パラメータ→CastRaw→buildPayInput→payOf`（DB 非依存・確定と同じ payOf を共有＝表示と確定でズレない）。collect/computePayrollDraft（DB 層）は通さない。daily は「days 個の均等シフト（各 hours=hoursPerDay・sales=総売上÷days）」に合成し、wageDetail の per-day slide 判定に載せる。**保存なし（使い捨て・mig ゼロ）**。
+- **用途C（cast/店 両対応・1画面役割分岐）**：cast＝自分のプラン(pattern1変形)＋override・店マスタを RLS client 読取でマスタ固定・**open 前借り/送り残（adv/okuri）を pattern1 で反映**。店(manager/owner)＝プラン選択＋base/バック編集で任意プラン試算・天引きなし。実データは server 側 `sim-data.ts`（loadCastSimData/loadStoreSimData・**store_id 明示スコープ**＝owner の org 全店 RLS 対策）で読む。
+- **(a) 裁定：売掛(ar)は反映しない**＝receivables はパターン2 で cast 読取不可（客情報 customer_id 保護）。cast 向け ar 残 RPC は F2e-1 で延期・弁護士ゲート後が安全ゆえ F2f では扱わず、確定給与明細（payslip.breakdown_json.ar）参照へ注記誘導。
+- **#12 雇用係数は暫定 1.0（S5）**＝payOf 内 `withholdingOf`（委託 10.21%／雇用 0）と `simAddedPay`（委託 1−0.1021／雇用 1.0）が既に taxMode 分岐済み。社労士回答は pay.ts 当該1箇所差替で自動追従。
+- **セルフレビュー是正**：当初の「あと1日 +¥X」限界額表示は full-model（days 変更で per-day sales/slide が再計算される）と不整合（hours 基準ズレ・売上スライド段落ちで符号反転）のため**撤去**。marginal は将来「同一 per-night レート据置」モデルで再検討可（留保）。
+
 ---
 
 ## 4. 給与確定（サーバ・お金が動く・凍結）

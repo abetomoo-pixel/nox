@@ -19,11 +19,13 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
-import { payOf } from "../lib/nox/pay";
+import { payOf, simAddedPay, type CompPlan } from "../lib/nox/pay";
+import { roundYen } from "../lib/nox/money";
 import { resolvePayrollWindow } from "../lib/nox/payroll/window";
 import { collectPeriod } from "../lib/nox/payroll/collect";
-import { buildPayInput, computeNet } from "../lib/nox/payroll/assemble";
+import { buildPayInput, computeNet, type StoreMasters } from "../lib/nox/payroll/assemble";
 import { computePayrollDraft, allocateCategory } from "../lib/nox/payroll/core";
+import { simulate, type SimInput } from "../lib/nox/payroll/sim";
 import { decidePayrollAccess } from "../lib/nox/payroll/authz";
 
 const env = loadEnvOrExit([
@@ -700,6 +702,81 @@ async function main() {
     await admin.from("advances").delete().in("cast_id", [ord, ad1, ok1, all, bw]);
     await admin.from("transport").delete().in("cast_id", [ord, ad1, ok1, all, bw]);
     await admin.from("receivables").delete().in("cast_id", [ord, all]);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // F2f 報酬シミュレーター（純関数・DB 非依存・sim.simulate/simAddedPay/marginalDayPay を直叩き）
+  // ══════════════════════════════════════════════════════════
+  {
+    const simPlan: CompPlan = { id: "p", name: "sim", base: 5000, honBack: 0, jonaiBack: 0, dohanBack: 0, salesSlide: [], pointSlide: [] };
+    const simMasters: StoreMasters = {
+      penalty: { fineAbsent: 0, fineLate: 0, hoursPerShift: 5 },
+      normConfig: { on: false, daysFlat: 0, daysPer: 0, dohanFlat: 0, dohanPer: 0 },
+      deductions: [], customBackDefs: [],
+    };
+    const baseInp: SimInput = {
+      days: 10, hoursPerDay: 6, sales: 0, hon: 0, jonai: 0, dohan: 0,
+      productBack: { drink: 0, champ: 0, bottle: 0 }, pointProducts: 0, champCnt: 0, bottleCnt: 0,
+      lateN: 0, absentN: 0, norm: { days: 0, dohan: 0 }, plan: simPlan, masters: simMasters, taxMode: "委託",
+    };
+
+    // 観点1: 純経路ゴールデン（base 5000・10日×6h・委託・売上0・控除0）＝timePay 300000・wage 5000・gross 300000
+    const r = simulate(baseInp);
+    check("F2f 純経路ゴールデン: timePay=300000・wage=5000・gross=300000（時給×時間の合成が正）",
+      r.timePay === 300_000 && r.wage === 5000 && r.gross === 300_000, JSON.stringify({ t: r.timePay, w: r.wage, g: r.gross }));
+    check("F2f 委託源泉=round((300000−5000×10日)×0.1021)・net=gross−源泉",
+      r.withholding === roundYen((300_000 - 50_000) * 0.1021) && r.net === 300_000 - r.withholding, JSON.stringify({ wh: r.withholding, net: r.net }));
+
+    // 観点2: cast の adv/okuri open残 が net に反映・ar は反映しない（(a) 裁定＝receivables パターン2 で読まない）
+    const rDed = simulate({ ...baseInp, advanceDeduct: 10_000, okuriDeduct: 5_000 });
+    check("F2f 天引き反映: 前借り10000・送り5000 が net に反映（net=ゴールデン−15000）",
+      rDed.net === r.net - 15_000 && rDed.advanceDeduct === 10_000 && rDed.okuriDeduct === 5_000, JSON.stringify({ net: rDed.net, adv: rDed.advanceDeduct, ok: rDed.okuriDeduct }));
+    check("F2f (a)裁定 ar 非反映: arDeduct は常に 0（cast は売掛を読まない・確定明細参照へ誘導）",
+      r.arDeduct === 0 && rDed.arDeduct === 0, JSON.stringify({ ar0: r.arDeduct, ar1: rDed.arDeduct }));
+
+    // 観点3: 店モード任意プラン試算（base 編集が結果に反映）
+    const rEdit = simulate({ ...baseInp, plan: { ...simPlan, base: 8000 } });
+    check("F2f 店モード任意プラン: base 8000 で wage=8000・gross=480000（編集プランが反映）",
+      rEdit.wage === 8000 && rEdit.gross === 480_000, JSON.stringify({ w: rEdit.wage, g: rEdit.gross }));
+
+    // 観点4: 雇用/委託係数の分岐（withholding＋simAddedPay）
+    const koyo = simulate({ ...baseInp, taxMode: "雇用" });
+    check("F2f 税区分分岐: 雇用は源泉0・委託より net 高い（withholdingOf の taxMode 分岐）",
+      koyo.withholding === 0 && koyo.net > r.net, JSON.stringify({ wh: koyo.withholding, net: koyo.net }));
+    check("F2f pay.ts #12 雇用係数（S5 ゲート・simAddedPay）: 雇用=round(wage×hoursPerShift×1.0)=25000・委託=×0.8979(=1−0.1021)<雇用",
+      simAddedPay(5000, 5, 1, "雇用") === 25_000 && simAddedPay(5000, 5, 1, "委託") === roundYen(5000 * 5 * 0.8979) && simAddedPay(5000, 5, 1, "委託") < 25_000,
+      JSON.stringify({ ko: simAddedPay(5000, 5, 1, "雇用"), it: simAddedPay(5000, 5, 1, "委託") }));
+
+    // 観点: days=0 縮退（daily 空・timePay 0・wage=base・0除算なし）
+    const rZero = simulate({ ...baseInp, days: 0 });
+    check("F2f days=0 縮退: timePay=0・wage=base(5000)・0除算なし", rZero.timePay === 0 && rZero.wage === 5000, JSON.stringify({ t: rZero.timePay, w: rZero.wage }));
+
+    // 観点7（セルフレビュー指摘対応）: 複合ゴールデン＝sales>0・perDaySales slide・deductions・fine・normPenalty・salesBack を全て有効化し手計算 pin。
+    //   sales=0 の単純ゴールデンでは未カバーだった sim 経路（総売上÷days の per-day slide 判定等）を判別的に係留。
+    const cxPlan: CompPlan = { id: "cx", name: "cx", base: 3000, honBack: 2000, jonaiBack: 1000, dohanBack: 4000,
+      salesSlide: [{ at: 100_000, wage: 5000 }, { at: 300_000, wage: 8000 }], pointSlide: [] };
+    const cxMasters: StoreMasters = {
+      penalty: { fineAbsent: 5000, fineLate: 2000, hoursPerShift: 5 },
+      normConfig: { on: true, daysFlat: 5000, daysPer: 2000, dohanFlat: 3000, dohanPer: 1500 },
+      deductions: [{ id: "d1", name: "送り代", amount: 2000, per: "day" }], customBackDefs: [],
+    };
+    const cx = simulate({
+      days: 10, hoursPerDay: 6, sales: 3_000_000, // per-day=300000 → salesSlide 300000 段（wage 8000）
+      hon: 10, jonai: 5, dohan: 3,
+      productBack: { drink: 1000, champ: 2000, bottle: 500 }, pointProducts: 0, champCnt: 0, bottleCnt: 0,
+      lateN: 2, absentN: 1, norm: { days: 12, dohan: 5 }, // 未達（10<12・3<5）→ normPenalty
+      plan: cxPlan, masters: cxMasters, taxMode: "委託",
+    });
+    // 手計算: wage=8000（per-day 300000 が slide 300000 段）/timePay=8000×6×10=480000/salesBack=round(3000000×0.10)=300000（3M≥1.5M 段）
+    //   /honBack 20000・jonaiBack 5000・dohanBack 12000・drink1000+champ2000+bottle500/gross=820500
+    //   /fixedDed=2000×10=20000・fine=1×5000+2×2000=9000・withholding=round((820500−50000)×0.1021)=78668
+    //   /normPenalty=(5000+2×2000)+(3000+2×1500)=9000+6000=15000 → net=820500−20000−9000−78668−15000=697832
+    check("F2f 複合ゴールデン: wage=8000（総売上÷days の per-day slide 判定＝sim 経路の要）・timePay=480000・salesBack=300000",
+      cx.wage === 8000 && cx.timePay === 480_000 && cx.salesBack === 300_000, JSON.stringify({ w: cx.wage, t: cx.timePay, sb: cx.salesBack }));
+    check("F2f 複合ゴールデン: gross=820500・fixedDed=20000（送り代×days）・fine=9000・normPenalty=15000・withholding=78668",
+      cx.gross === 820_500 && cx.fixedDed === 20_000 && cx.fine === 9000 && cx.normPenalty === 15_000 && cx.withholding === 78_668,
+      JSON.stringify({ g: cx.gross, fd: cx.fixedDed, fn: cx.fine, np: cx.normPenalty, wh: cx.withholding }));
+    check("F2f 複合ゴールデン: net=697832（gross−fixedDed−fine−withholding−normPenalty）", cx.net === 697_832, `got ${cx.net}`);
   }
 
   // ── 4 権限拒否（decidePayrollAccess 純関数）──

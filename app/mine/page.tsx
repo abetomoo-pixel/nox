@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { fmtWin } from "@/lib/nox/shift-time";
+import { loadCastSimData } from "@/lib/nox/payroll/sim-data";
+import SimulatorPanel from "@/components/simulator-panel";
 import PunchActions from "./punch-actions";
 import AttendanceForm from "./attendance-form";
 
@@ -83,6 +85,9 @@ export default async function MinePage() {
     return arr.reduce((s, e) => s + (e.action === "deducted" ? e.amount ?? 0 : 0), 0);
   };
 
+  // F2f 報酬シミュレーター用データ（自分のプラン＋店マスタ＋open 前借り/送り残・RLS 読取・売掛は読まない）。
+  const sim = await loadCastSimData(supabase);
+
   const card: React.CSSProperties = {
     border: "1px solid #ebebeb", borderRadius: 8, padding: 16, background: "#fff", marginBottom: 16,
   };
@@ -111,6 +116,16 @@ export default async function MinePage() {
         </ul>
         <p style={{ fontSize: 12, color: "#8f8f8f", margin: 0 }}>※確定後の明細です。売掛・前借り・送りの未収残は店にご確認ください。</p>
       </section>
+
+      <SimulatorPanel
+        mode="cast"
+        plans={sim.plans}
+        masters={sim.masters}
+        openAdv={sim.openAdv}
+        openOkuri={sim.openOkuri}
+        override={sim.override}
+        defaultTaxMode="委託"
+      />
 
       <section style={card}>
         <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>今月のバック（{month}）</h2>

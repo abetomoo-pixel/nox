@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
+import { loadStoreSimData } from "@/lib/nox/payroll/sim-data";
+import SimulatorPanel from "@/components/simulator-panel";
 import MasterBoard from "./master-board";
 import DeductionPanel from "./deduction-panel";
 
@@ -17,6 +19,8 @@ export default async function MasterPage() {
   const okuriMode = (store?.settings_json as Record<string, unknown> | null)?.okuri_mode === "actual" ? "actual" : "flat";
   // 発行パネル用の cast 一覧（RLS で自店のみ・manager+ 可視）。
   const { data: casts } = await supabase.from("casts").select("id, name").eq("store_id", storeId).eq("is_active", true).order("name");
+  // F2f 報酬シミュレーター（店モード・任意プラン試算・天引きなし）用データ（storeId を明示スコープ＝owner の org 全店 RLS 対策）。
+  const sim = isManagerUp && storeId ? await loadStoreSimData(supabase, storeId) : null;
   return (
     <>
       <MasterBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} />
@@ -27,6 +31,9 @@ export default async function MasterPage() {
           isOwner={role === "owner"}
           initialOkuriMode={okuriMode}
         />
+      )}
+      {sim && (
+        <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" />
       )}
     </>
   );

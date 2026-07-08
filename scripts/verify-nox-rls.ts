@@ -32,6 +32,7 @@ import { groupDue } from "../lib/nox/check-calc";
 import { allocDue, allocCastSales, type AllocCheck } from "../lib/nox/sales-alloc";
 import { buildMatchInput, type PunchRow, type ShiftRow, type AttendanceRow } from "../lib/nox/punch-io";
 import { matchPunches } from "../lib/nox/punch-match";
+import { loadCastSimData, loadStoreSimData } from "../lib/nox/payroll/sim-data";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -1257,6 +1258,25 @@ async function main() {
     const { data: trSeen } = await ca.from("transport").select("id, cast_id");
     check("F2e-2 パターン1: castA1a transport=自分の行のみ",
       (trSeen ?? []).length === 1 && (trSeen ?? [])[0].cast_id === castIdA, JSON.stringify(trSeen));
+
+    // F2f: シミュレーターの実データ経路を本番関数（loadCastSimData/loadStoreSimData）で実検証＝inline 再実装でなく経路そのものを叩く。
+    //   cast: open 前借り5000/送り3000 を pattern1 で読み（新規 RLS 不要・mig ゼロ）・masters が throw されず完走。
+    const caSim = await loadCastSimData(ca);
+    check("F2f loadCastSimData: castA1a の open 前借り残=5000（pattern1・sim と同一経路）", caSim.openAdv === 5000, `got ${caSim.openAdv}`);
+    check("F2f loadCastSimData: castA1a の open 送り残=3000", caSim.openOkuri === 3000, `got ${caSim.openOkuri}`);
+    check("F2f loadCastSimData: masters が単一店解決で完走（penalty.hoursPerShift が number）", typeof caSim.masters.penalty.hoursPerShift === "number", JSON.stringify(caSim.masters.penalty));
+    // owner の store モード: store_id 明示スコープ（owner は org 全店 RLS ゆえ他店混入・maybeSingle 破綻を防ぐ）。
+    //   A2 に判別用プランを admin で作り、owner の loadStoreSimData(A1) に混入しない＋throw なし完走を確認。
+    const { data: sA2p } = await admin.from("stores").select("id").eq("name", STORE_A2).single();
+    const { data: a2plan } = await admin.from("comp_plans").insert({
+      org_id: orgAId, store_id: sA2p!.id as string, name: "NOX-VERIFY-rlsA2plan", base: 9999,
+      hon_back: 0, jonai_back: 0, dohan_back: 0, sales_slide: [], point_slide: [], is_active: true,
+    }).select("id").single();
+    const owSim = await loadStoreSimData(owner, storeA1Id);
+    check("F2f loadStoreSimData(owner, A1): 他店(A2)プランが混入しない（store_id 明示スコープ・owner org全店RLS 対策）",
+      !owSim.plans.some((p) => p.name === "NOX-VERIFY-rlsA2plan") && typeof owSim.masters.penalty.hoursPerShift === "number",
+      JSON.stringify(owSim.plans.map((p) => p.name)));
+    await admin.from("comp_plans").delete().eq("id", a2plan!.id as string);
 
     // クロス org: managerB1 は org A の advance/transport 0行＋発行拒否
     const b = await signIn("managerB1");
