@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import * as t from "@/lib/nox/ui/theme";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,53 +30,47 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ maxWidth: 360, margin: "80px auto", padding: 24 }}>
-      <h1 style={{ fontSize: 24, marginBottom: 4 }}>NOX</h1>
-      <p style={{ color: "#6b6b6b", marginTop: 0 }}>ログイン</p>
-      <form onSubmit={onSubmit}>
-        <label style={{ display: "block", marginBottom: 12 }}>
-          <span style={{ display: "block", fontSize: 12, color: "#6b6b6b" }}>メールアドレス</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="username"
-            style={{ width: "100%", padding: 8, border: "1px solid #e0e0e0", borderRadius: 6 }}
-          />
-        </label>
-        <label style={{ display: "block", marginBottom: 16 }}>
-          <span style={{ display: "block", fontSize: 12, color: "#6b6b6b" }}>パスワード</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            style={{ width: "100%", padding: 8, border: "1px solid #e0e0e0", borderRadius: 6 }}
-          />
-        </label>
-        {error && (
-          <p role="alert" style={{ color: "#e5484d", fontSize: 13 }}>
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={busy}
-          style={{
-            width: "100%",
-            padding: 10,
-            background: "#16161a",
-            color: "#fff",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-          }}
-        >
-          {busy ? "確認中…" : "ログイン"}
-        </button>
-      </form>
+    <main className="nox-dark" style={t.loginBg}>
+      <div className="nox-lcardtop" style={t.lcard}>
+        <div style={t.logo}>
+          <span style={{ fontFamily: t.font.brand, fontWeight: 700, fontSize: 24, color: "var(--champ)", lineHeight: 1 }}>N</span>
+        </div>
+        <h1 style={{ ...t.brand, fontSize: 30, textAlign: "center", margin: 0 }}>NOX</h1>
+        <p style={{ textAlign: "center", color: "var(--sub)", fontSize: 12, margin: "6px 0 2px" }}>ナイトワーク経営 管理</p>
+
+        <form onSubmit={onSubmit}>
+          <div style={{ marginTop: 14 }}>
+            <label style={t.fieldLabel}>メールアドレス</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="username"
+              style={{ ...t.input, marginTop: 5 }}
+            />
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <label style={t.fieldLabel}>パスワード</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              style={{ ...t.input, marginTop: 5 }}
+            />
+          </div>
+          {error && (
+            <p role="alert" style={{ color: "var(--bad)", fontSize: 13, marginTop: 12, marginBottom: 0 }}>
+              {error}
+            </p>
+          )}
+          <button type="submit" disabled={busy} style={{ ...t.btnGold, width: "100%", marginTop: 18, opacity: busy ? 0.7 : 1 }}>
+            {busy ? "確認中…" : "ログイン"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

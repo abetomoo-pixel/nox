@@ -3,6 +3,7 @@ import { bizDateOf } from "@/lib/nox/biz-date";
 import { fmtWin } from "@/lib/nox/shift-time";
 import { loadCastSimData } from "@/lib/nox/payroll/sim-data";
 import SimulatorPanel from "@/components/simulator-panel";
+import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
 import AttendanceForm from "./attendance-form";
 
@@ -38,7 +39,7 @@ export default async function MinePage() {
   );
   const total = sum.drink + sum.champ + sum.bottle;
 
-  // 最終打刻（自分の行のみ）
+  // 最終打刻(自分の行のみ)
   const { data: punches } = await supabase
     .from("punches")
     .select("type, punched_at")
@@ -88,33 +89,36 @@ export default async function MinePage() {
   // F2f 報酬シミュレーター用データ（自分のプラン＋店マスタ＋open 前借り/送り残・RLS 読取・売掛は読まない）。
   const sim = await loadCastSimData(supabase);
 
-  const card: React.CSSProperties = {
-    border: "1px solid #ebebeb", borderRadius: 8, padding: 16, background: "#fff", marginBottom: 16,
-  };
+  const title: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+  const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
+  const noteP: React.CSSProperties = { fontSize: 12, color: "var(--sub)", margin: 0 };
 
   return (
-    <div style={{ maxWidth: 560 }}>
-      <h1 style={{ fontSize: 20 }}>マイページ</h1>
+    <div>
+      <div style={{ margin: "2px 0 14px" }}>
+        <h1 style={t.pheadH1}>マイページ</h1>
+        <p style={t.pheadP}>ノルマと今月の収支</p>
+      </div>
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>確定給与明細</h2>
-        {(slips ?? []).length === 0 && <p style={{ fontSize: 13, color: "#8f8f8f" }}>確定分なし</p>}
-        <ul style={{ paddingLeft: 18, fontSize: 13 }}>
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={title}>確定給与明細</h2>
+        {(slips ?? []).length === 0 && <p style={noneP}>確定分なし</p>}
+        <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
           {(slips ?? []).map((s, i) => {
             const ar = deductTotal(s.breakdown_json, "ar");
             const adv = deductTotal(s.breakdown_json, "adv");
             const okuri = deductTotal(s.breakdown_json, "okuri");
             return (
-              <li key={i}>
-                {s.period}: 手取り {yen(s.net as number)}
-                {ar > 0 ? <span style={{ color: "#c0392b" }}>（売掛 −{yen(ar)}）</span> : null}
-                {adv > 0 ? <span style={{ color: "#c0392b" }}>（前借り −{yen(adv)}）</span> : null}
-                {okuri > 0 ? <span style={{ color: "#c0392b" }}>（送り −{yen(okuri)}）</span> : null}
+              <li key={i} style={{ padding: "3px 0" }}>
+                {s.period}: 手取り <span style={t.num}>{yen(s.net as number)}</span>
+                {ar > 0 ? <span style={{ color: "var(--bad)" }}>（売掛 −{yen(ar)}）</span> : null}
+                {adv > 0 ? <span style={{ color: "var(--bad)" }}>（前借り −{yen(adv)}）</span> : null}
+                {okuri > 0 ? <span style={{ color: "var(--bad)" }}>（送り −{yen(okuri)}）</span> : null}
               </li>
             );
           })}
         </ul>
-        <p style={{ fontSize: 12, color: "#8f8f8f", margin: 0 }}>※確定後の明細です。売掛・前借り・送りの未収残は店にご確認ください。</p>
+        <p style={{ ...noteP, marginTop: 6 }}>※確定後の明細です。売掛・前借り・送りの未収残は店にご確認ください。</p>
       </section>
 
       <SimulatorPanel
@@ -125,40 +129,41 @@ export default async function MinePage() {
         openOkuri={sim.openOkuri}
         override={sim.override}
         defaultTaxMode="委託"
+        variant="dark"
       />
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>今月のバック（{month}）</h2>
-        <div style={{ fontSize: 28, fontWeight: 700 }}>{yen(total)}</div>
-        <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#404040", marginTop: 8 }}>
-          <span>ドリンク {yen(sum.drink)}</span>
-          <span>シャンパン {yen(sum.champ)}</span>
-          <span>ボトル {yen(sum.bottle)}</span>
-          <span>本指名商品 {sum.pt}pt</span>
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={title}>今月のバック（{month}）</h2>
+        <div style={{ ...t.num, fontSize: 28, fontWeight: 700, color: "var(--champ)" }}>{yen(total)}</div>
+        <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--sub)", marginTop: 8, flexWrap: "wrap" }}>
+          <span>ドリンク <span style={{ ...t.num, color: "var(--ink)" }}>{yen(sum.drink)}</span></span>
+          <span>シャンパン <span style={{ ...t.num, color: "var(--ink)" }}>{yen(sum.champ)}</span></span>
+          <span>ボトル <span style={{ ...t.num, color: "var(--ink)" }}>{yen(sum.bottle)}</span></span>
+          <span>本指名商品 <span style={{ ...t.num, color: "var(--ink)" }}>{sum.pt}</span>pt</span>
         </div>
       </section>
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>今月の出勤ボーナス（{month}）</h2>
-        {(incentives ?? []).length === 0 && <p style={{ fontSize: 13, color: "#8f8f8f" }}>発行なし</p>}
-        <ul style={{ paddingLeft: 18, fontSize: 13 }}>
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={title}>今月の出勤ボーナス（{month}）</h2>
+        {(incentives ?? []).length === 0 && <p style={noneP}>発行なし</p>}
+        <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
           {(incentives ?? []).map((r, i) => (
-            <li key={i}>
+            <li key={i} style={{ padding: "3px 0" }}>
               {r.biz_date}{" "}
               {r.amount_mode === "per_head"
-                ? `定額 ${yen(r.amount as number)}`
-                : `プール ${yen(r.amount as number)}（受給者数により変動・暫定）`}
+                ? <>定額 <span style={t.num}>{yen(r.amount as number)}</span></>
+                : <>プール <span style={t.num}>{yen(r.amount as number)}</span>（受給者数により変動・暫定）</>}
             </li>
           ))}
         </ul>
-        <p style={{ fontSize: 12, color: "#8f8f8f", margin: 0 }}>
+        <p style={{ ...noteP, marginTop: 6 }}>
           ※受給は当日の確定シフト出勤が条件・確定額は給与確定時に算出。
         </p>
       </section>
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>打刻</h2>
-        <p style={{ fontSize: 13, color: "#404040" }}>
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={title}>打刻</h2>
+        <p style={{ fontSize: 13, color: "var(--sub)", marginTop: 0 }}>
           最終打刻:{" "}
           {last
             ? `${last.type === "in" ? "出勤" : "退勤"}（${new Date(last.punched_at as string).toLocaleString("ja-JP")}）`
@@ -167,30 +172,30 @@ export default async function MinePage() {
         <PunchActions />
       </section>
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>遅刻・当欠の連絡</h2>
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={title}>遅刻・当欠の連絡</h2>
         <AttendanceForm defaultDate={bizToday} />
       </section>
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>直近のシフト</h2>
-        {(shifts ?? []).length === 0 && <p style={{ fontSize: 13, color: "#8f8f8f" }}>予定なし</p>}
-        <ul style={{ paddingLeft: 18, fontSize: 13 }}>
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={title}>直近のシフト</h2>
+        {(shifts ?? []).length === 0 && <p style={noneP}>予定なし</p>}
+        <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
           {(shifts ?? []).map((s, i) => (
-            <li key={i}>
+            <li key={i} style={{ padding: "3px 0" }}>
               {s.date} {fmtWin(s.start_hm as string, s.end_hm as string)}{" "}
-              <span style={{ color: "#8f8f8f" }}>（{s.status === "confirmed" ? "確定" : "予定"}）</span>
+              <span style={{ color: "var(--sub)" }}>（{s.status === "confirmed" ? "確定" : "予定"}）</span>
             </li>
           ))}
         </ul>
       </section>
 
-      <section style={card}>
-        <h2 style={{ fontSize: 14, color: "#6b6b6b", marginTop: 0 }}>今月の勤怠</h2>
-        {(att ?? []).length === 0 && <p style={{ fontSize: 13, color: "#8f8f8f" }}>記録なし</p>}
-        <ul style={{ paddingLeft: 18, fontSize: 13 }}>
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={title}>今月の勤怠</h2>
+        {(att ?? []).length === 0 && <p style={noneP}>記録なし</p>}
+        <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
           {(att ?? []).map((a, i) => (
-            <li key={i}>
+            <li key={i} style={{ padding: "3px 0" }}>
               {a.date} {ATT_LABEL[a.status as string] ?? a.status}
               {a.eta ? `（出勤見込み ${a.eta}）` : ""}
             </li>

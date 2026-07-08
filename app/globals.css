@@ -1,5 +1,9 @@
-/* NOX 最小グローバルスタイル（F0 土台）。
-   デザインシステムは UI 実装フェーズで導入する。 */
+/* NOX グローバルスタイル。
+   正本＝docs/NOX_デザインシステム.md（出典 mock/nox-nightwork-app.html）。
+   方針（DS2'）: ダークは body 全体に敷かず opt-in ラッパー .nox-dark に閉じる。
+   未移行画面はライト（:root/body 従来値）のまま無変更＝崩れた過渡状態を作らない。 */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Outfit:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap');
+
 :root {
   --ink: #171717;
   --bg: #fafafa;
@@ -17,4 +21,52 @@ body {
   background: var(--bg);
   font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN",
     "Noto Sans JP", sans-serif;
+}
+
+/* ── opt-in ダーク（移行済み画面/シェルがまとう）──────────────────────────
+   13 トークン（正本 §1・mock line 38 と一字一致）。子孫の var() がダーク値に解決される。 */
+.nox-dark {
+  --bg: #0B0B0F;
+  --bg2: #101017;
+  --card: #16161E;
+  --card2: #1D1D27;
+  --line: #272732;
+  --line2: #34343F;
+  --gold: #C9A24A;
+  --gold2: #D9BC6A;
+  --champ: #E6D6A8;
+  --ink: #ECECEF;
+  --sub: #9A9AA8;
+  --ok: #7FC79B;
+  --bad: #D98A8A;
+  color: var(--ink);
+  font-family: "Zen Kaku Gothic New", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 数値は Outfit tabular（金額・件数・日付） */
+.nox-num {
+  font-family: "Outfit", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+/* カード上端の gold の細い光（::before は inline 不可＝ここだけ CSS）。要 position:relative;overflow:hidden（theme.card が付与）。 */
+.nox-cardtop::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(201, 162, 74, 0.55), transparent);
+}
+/* login カード上端（2px・gold） */
+.nox-lcardtop::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }

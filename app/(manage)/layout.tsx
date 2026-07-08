@@ -4,6 +4,8 @@ import { getSessionRole } from "@/lib/nox/auth";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
 // cast は /mine へ（利便のためのリダイレクト・真の防御はパターン2 RLS＝checks 系 0行）。
+// D0（デザイン）: manage 配下ページは未移行（light）のため、シェルも light を維持（DS2'＝崩れた中間状態を作らない）。
+//   D1 で register/shift/report/payroll/master を .nox-dark 化する際に、このシェルも mine シェルと同型のダークへ移行する。
 export default async function ManageLayout({ children }: { children: React.ReactNode }) {
   const { role } = await getSessionRole();
   if (!role) redirect("/login");

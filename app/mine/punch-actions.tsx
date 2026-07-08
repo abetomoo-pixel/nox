@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import * as t from "@/lib/nox/ui/theme";
 
 export default function PunchActions() {
   const router = useRouter();
@@ -19,20 +20,17 @@ export default function PunchActions() {
     router.refresh();
   }
 
-  const btn: React.CSSProperties = {
-    padding: "10px 24px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 14,
-  };
   return (
     <div>
       <div style={{ display: "flex", gap: 12 }}>
-        <button style={{ ...btn, background: "#16161a", color: "#fff" }} disabled={busy} onClick={() => punch("in")}>
+        <button style={{ ...t.btnGold, padding: "10px 24px", fontSize: 14, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={() => punch("in")}>
           出勤
         </button>
-        <button style={{ ...btn, background: "#fff", border: "1px solid #e0e0e0" }} disabled={busy} onClick={() => punch("out")}>
+        <button style={{ ...t.btnGhost, padding: "10px 24px", fontSize: 14, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={() => punch("out")}>
           退勤
         </button>
       </div>
-      {msg && <p style={{ fontSize: 13, color: "#404040" }}>{msg}</p>}
+      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
     </div>
   );
 }

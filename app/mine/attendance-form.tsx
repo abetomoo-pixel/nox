@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import * as t from "@/lib/nox/ui/theme";
 
 // cast セルフ連絡は遅刻/当欠のみ（RPC 側でも enforce＝attendance_set_self）。
 export default function AttendanceForm({ defaultDate }: { defaultDate: string }) {
@@ -30,7 +31,7 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
     router.refresh();
   }
 
-  const input: React.CSSProperties = { padding: 6, border: "1px solid #e0e0e0", borderRadius: 6, fontSize: 13 };
+  const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", borderRadius: 9 };
   return (
     <form onSubmit={submit} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
       <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required style={input} />
@@ -52,14 +53,10 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
         onChange={(e) => setReason(e.target.value)}
         style={{ ...input, width: 160 }}
       />
-      <button
-        type="submit"
-        disabled={busy}
-        style={{ padding: "6px 16px", borderRadius: 6, border: "none", background: "#16161a", color: "#fff", cursor: "pointer" }}
-      >
+      <button type="submit" disabled={busy} style={{ ...t.btnGold, padding: "8px 16px", opacity: busy ? 0.7 : 1 }}>
         送信
       </button>
-      {msg && <span style={{ fontSize: 13, color: "#404040" }}>{msg}</span>}
+      {msg && <span style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</span>}
     </form>
   );
 }
