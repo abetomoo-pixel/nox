@@ -64,7 +64,7 @@ using (
 - 軸の増加は `can_xxx boolean not null default false` を1列追加するだけ。
 - フラグ変更は audit_log に記録（誰がいつ ON にしたか）。※フラグ書込 RPC（set_staff_perms）は束3で実装・それまでの変更は service 経路。
 - 安全設計＝default deny＋監査＋系統的 verify（フラグ×テーブル×RPC の組み合わせ穴をテストで潰す＝verify:nox-rls の 0行 assert・verify:nox-anon-guard の runtime forbidden/実 INSERT・verify:nox-grants の G4/G4b）。
-- 適用状況: `can_register`＝会計6表＋bottle_keeps の RLS と会計6RPC（mig0022・束1・既存 staff は backfill で true）。`can_crm`＝customers（束2・器のみ先置き）。`can_shift`＝シフト側（束3・器のみ先置き）。
+- 適用状況: `can_register`＝会計6表＋bottle_keeps の RLS と会計6RPC（mig0022・束1・既存 staff は backfill で true）＋bottle_keep_register（mig0023・会計オペ準拠）。`can_crm`＝**適用済み（mig0023・束2）**＝customers SELECT RLS＋書込RPC（customer_register/customer_update）＋集計RPC（customer_summary/customer_list_summary）。`can_shift`＝シフト側（束3・器のみ先置き）。
 
 この層の導入により、案A が懸念した「事故リスク・RLS 複雑化」は default deny・staff 枝限定・verify で抑える。role 固定の堅さは owner/manager/cast で維持される。
 
@@ -95,7 +95,8 @@ using (
 → cast は自分の行だけ。manager 以上は店スコープで全行。BANZEN の staff セルフ RLS と同型。
 
 #### パターン2：cast が全く見えない（レジ・店舗総額・他者管理）
-対象：checks, check_lines, payments, receivables, customers, stock_logs, approvals, audit_logs, seats（レジ世界）
+対象：checks, check_lines, payments, receivables, stock_logs, approvals, audit_logs, seats（レジ世界）
+※初版でここに列挙していた customers は束2（mig0023）で**パターン1変形へ移行**（cast は指名客のみ可視・下記 F3a-2 追記）。
 ```sql
 using (
   org_id = auth_org_id()
@@ -123,6 +124,14 @@ using (
 **【F2e-2 追記（2026-07-07・mig0019）】§2.3 パターン分類への追加**
 - **advances／transport＝パターン1**（`auth_role()<>'cast' or cast_id=auth_cast_id()`・check_cast_backs と同型）。receivables はパターン2（客情報 customer_id 保護）だが、前借り/送りは **customer_id を持たず cast 本人が自分の債務を /mine で照合すべき**ため**パターン1**（cast 自己可視）。書込ポリシー0＝発行/取消は RPC 経由のみ。
 - **set_store_okuri_mode＝owner 限定（D3a）**：`okuri_mode`（送り方式）は店ポリシー＝comp_plan/penalty_config と同格で owner のみ変更可。`transport_issue` は `okuri_mode='actual'` でのみ受理（fail-closed＝#8 一律送り代 vs 送り実費の**構造的排他**・payOf 内ガードでなく設定で排他）。
+
+**【F3a-2 追記（2026-07-09・mig0023）】§2.3 パターン分類への追加（customers・束2）**
+- **customers＝パターン1変形（staff は can_crm・cast は指名客のみ）**：初版パターン2対象リストの customers はこの変形に置き換え（束2で新設・§1.5 can_crm 適用）。
+  SELECT: owner=org 全店全客 / manager=自店全客 / staff=自店∧can_crm（false は **0行**）/ cast=自店の**指名客のみ**（`cast_id = auth_cast_id()`・列1本で RLS 物理保証＝解釈A・check_nominations は辿らない）。店スコープ必須。anon 0行。
+- **INSERT/UPDATE/DELETE policy なし**（書込は SECURITY DEFINER RPC・casts/checks 型）：customer_register（owner/manager/staff can_crm・担当付与は owner/manager のみ）/ customer_update（同権限・is_active 休眠切替＝物理削除なし・cast_id は触らない）/ customer_assign_cast（**owner/manager のみ**・staff can_crm でも不可・越境 cast は 'invalid cast'）。
+- **集計**：customer_summary（単一）/ customer_list_summary（一覧）。visits / last_visit / total_spend / active_bottles / open_receivable は**列に持たず都度集計**。definer で RLS を迂回するため、cast の担当客スコープ・org/店スコープを RPC 冒頭ガード／CTE で再現（物理保証・規約8）。
+- **churn**：last_visit から 30日以上=離反（30-59=中 / 60以上=高・モック準拠）。customer_list_summary が churn_tier（none/mid/high）を返し、新規/リピート/優良のラベルは UI 側判定。
+- **会計連動**：check_open に `p_customer_id uuid default null` 末尾追加（null=フリー客＝従来動作・非 null は同 org かつ卓の店と同店を検証＝'invalid customer'）。receivables.customer_id は check_pay が伝票（v_chk.customer_id）から導出＝**F1b から連動済み・mig0023 では無改修**。bottle_keep_register は can_register 準拠（ボトルは会計オペ・product 検証は check_add_line 同型）。
 
 ### 2.4 列レベルの制御（RLSの行制御だけでは不十分）
 - **real_name / mynumber**：cast の SELECT では返さない。**列マスク or 別テーブル分離**。
@@ -210,7 +219,8 @@ NOX の全 SECURITY DEFINER RPC に適用：
 
 - **店スコープ**：他店データを引けない（manager A 店 → B 店データ 0 行）。
 - **castプライバシー パターン1**：cast が自分の payslip だけ見える・他 cast の payslip は 0 行。
-- **castプライバシー パターン2**：cast が checks/payments/customers/audit_logs を 0 行。
+- **castプライバシー パターン2**：cast が checks/payments/audit_logs を 0 行。
+- **customers（パターン1変形・束2）**：cast は指名客のみ（他 cast の指名客・フリー客は 0 行）・staff can_crm=false は 0 行・他店の客は manager/staff から 0 行（店スコープ）。
 - **castプライバシー パターン3**：cast が notices（all/cast）は見える・staff 宛は見えない。
 - **列制御**：cast クエリで real_name/mynumber が返らない。
 - **集計 RPC**：cast には順位/件数のみ・金額が返らない／manager 以上は金額込み。

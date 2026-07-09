@@ -32,6 +32,7 @@ const TABLES = [
   "checks", "check_nominations", "check_lines", "payments", "check_cast_backs", "receivables", // F1b（mig0006）
   "shift_wishes", "shifts", "attendance", "punches", "staffing_needs", // F1d（mig0008）
   "daily_reports", // F1e（mig0010）
+  "customers", // F3a-2（mig0023）
 ];
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
@@ -290,6 +291,27 @@ async function main() {
       for (const row of cfg.rows) {
         check(`G10 ${row.proname} search_path=public,extensions 固定（pgcrypto 罠回避）`, (row.config as string).includes("search_path=public, extensions") || (row.config as string).includes("search_path=public,extensions"), row.config);
       }
+    }
+
+    // G11: F3a-2 顧客CRM（mig0023）— customers ポリシー・新 RPC 6本の EXECUTE ACL。
+    //   customers の RLS 有効と grant 面（authenticated=SELECT のみ・anon 0）は
+    //   TABLES 配列追加により G1/G2/G5 が自動回帰＝ここは positive assert。
+    const cup = await db.query(
+      `select policyname, cmd from pg_policies where schemaname='public' and tablename='customers'`,
+    );
+    check(
+      "G11 customers ポリシー = customers_select（SELECT）1本のみ（書込 policy なし＝RPC 経由）",
+      cup.rowCount === 1 && cup.rows[0].cmd === "SELECT" && cup.rows[0].policyname === "customers_select",
+      cup.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
+    );
+    for (const fn of [
+      "customer_register", "customer_update", "customer_assign_cast",
+      "customer_summary", "customer_list_summary", "bottle_keep_register",
+    ]) {
+      const roles = await roleOf(fn);
+      check(`G11 ${fn} EXECUTE = authenticated（anon/public 不在）`,
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
     }
   }
 

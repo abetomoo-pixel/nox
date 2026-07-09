@@ -7,18 +7,23 @@
  * 作るもの:
  *   orgs: NOX-VERIFY-A / NOX-VERIFY-B
  *   stores: A1・A2（org A）・B1（org B）
- *   auth users 8人（固定 email・SEED_PASSWORD・確認済み扱い）
- *   users/memberships（ownerA/managerA1/staffA1/staffRegOnA1/staffRegOffA1/castA1a/castA1b → A・managerB1 → B）
+ *   auth users 9人（固定 email・SEED_PASSWORD・確認済み扱い）
+ *   users/memberships（ownerA/managerA1/staffA1/staffRegOnA1/staffRegOffA1/staffCrmOnA1/castA1a/castA1b → A・managerB1 → B）
  *   staff 機能別フラグ（mig0022・F3a-1）: memberships に can_register/can_crm/can_shift を明示値で書く
- *     （staffRegOnA1=会計のみ ON・staffRegOffA1=全 OFF・他は全 false＝規約7 boolean 明示値）
+ *     （staffRegOnA1=会計のみ ON・staffRegOffA1=全 OFF・staffCrmOnA1=顧客のみ ON＝2軸独立・他は全 false＝規約7 boolean 明示値）
  *   casts: castA1a/castA1b（store A1・user_id 紐付け）
+ *   customers 6行（F3a-2・mig0023）: 指名A/指名B/フリー/休眠（A1）＋他店 A2＋他 org B1
+ *     ＋ churn 用 closed checks（started_at=5/40/70/100 日前・専用卓 NOX-VERIFY-CRM卓・
+ *     指名/payments なし＝ランキング・売上集計・日報ゴールデンに非干渉）
  *   audit_logs 1行（org A・action=seed_marker・owner 閲覧テスト用）
  *
  * 冪等化: NOX-VERIFY-* の org 配下データを削除→再投入。auth ユーザーは再利用。
  * 書込はすべて service キー（RLS バイパスの正規経路・0003 後も service_role は ALL 保持）。
  */
 import { createClient } from "@supabase/supabase-js";
-import { ORG_A, ORG_B, STORE_A1, STORE_A2, STORE_B1, FIXTURE_USERS, loadEnvOrExit } from "./fixtures-f0";
+import {
+  ORG_A, ORG_B, STORE_A1, STORE_A2, STORE_B1, FIXTURE_USERS, FIXTURE_CUSTOMERS, loadEnvOrExit,
+} from "./fixtures-f0";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -86,6 +91,7 @@ async function main() {
     await del("checks", "org_id", orgIds);
     await del("stock_logs", "org_id", orgIds);
     await del("bottle_keeps", "org_id", orgIds);
+    await del("customers", "org_id", orgIds);     // F3a-2（checks/bottle_keeps/receivables の FK は set null・会計系削除の後）
     await del("punches", "org_id", orgIds);
     await del("attendance", "org_id", orgIds);
     await del("shifts", "org_id", orgIds);        // shift_wishes より先（wish_id FK）
@@ -169,8 +175,52 @@ async function main() {
       employment: "委託",
     };
   });
-  const { error: e7 } = await admin.from("casts").insert(castRows);
-  if (e7) die("casts 投入失敗", e7);
+  const { data: casts, error: e7 } = await admin.from("casts").insert(castRows).select("id, name");
+  if (e7 || !casts) die("casts 投入失敗", e7);
+  const castId = (key: "castA1a" | "castA1b") =>
+    casts.find((c) => c.name === FIXTURE_USERS[key].name)!.id;
+
+  // ── 4.5 F3a-2（束2・mig0023）: customers ＋ churn 用 closed checks ──
+  // customers は実体属性のみ（visits/last_visit/total_spend は列に持たない）。集計 RPC の
+  // ゴールデンは closed checks を started_at 逆算で投入して作る。指名・payments・当日 biz_date を
+  // 一切持たない（ランキング/get_cast_sales/日報の既存ゴールデンと構造的に非干渉）。
+  const { data: crmSeat, error: eSeat } = await admin.from("seats").insert({
+    org_id: orgA, store_id: storeId(STORE_A1), name: "NOX-VERIFY-CRM卓", kind: "卓",
+    sort_order: 998, is_active: true,
+  }).select("id").single();
+  if (eSeat || !crmSeat) die("CRM卓 投入失敗", eSeat);
+
+  const custRows = Object.values(FIXTURE_CUSTOMERS).map((cu) => ({
+    org_id: orgIdOf(cu.org),
+    store_id: storeId(cu.store),
+    name: cu.name,
+    cast_id: cu.cast ? castId(cu.cast) : null,
+    is_active: cu.active,
+  }));
+  const { data: custs, error: eCu } = await admin.from("customers").insert(custRows).select("id, name");
+  if (eCu || !custs) die("customers 投入失敗", eCu);
+  const custId = (name: string) => custs.find((c) => c.name === name)!.id;
+
+  const churnCheckRows = Object.values(FIXTURE_CUSTOMERS).flatMap((cu) =>
+    cu.checks.map((ck) => {
+      const startedAt = new Date(Date.now() - ck.daysAgo * 86_400_000).toISOString();
+      return {
+        org_id: orgIdOf(cu.org),
+        store_id: storeId(cu.store),
+        seat_id: crmSeat.id,
+        status: "closed",
+        started_at: startedAt,
+        closed_at: startedAt,
+        nom_type: "free",
+        customer_id: custId(cu.name),
+        total: ck.total,
+        service_rate: 10, round_unit: 100, round_mode: "down",
+        created_by: userId(FIXTURE_USERS.managerA1.email),
+      };
+    }),
+  );
+  const { error: eCk } = await admin.from("checks").insert(churnCheckRows);
+  if (eCk) die("churn 用 closed checks 投入失敗", eCk);
 
   // ── 5. audit_logs マーカー（owner 閲覧テスト用・service 直 INSERT）──
   const { error: e8 } = await admin.from("audit_logs").insert({
@@ -188,6 +238,7 @@ async function main() {
   console.log(`  stores: ${STORE_A1} / ${STORE_A2} / ${STORE_B1}`);
   console.log(`  users: ${Object.values(FIXTURE_USERS).map((u) => u.email).join(", ")}`);
   console.log("  casts: 2（A1）・audit_logs marker: 1（org A）");
+  console.log(`  customers: ${custs.length}（A1×4・A2×1・B1×1）・churn checks: ${churnCheckRows.length}（CRM卓・5/40/70/100日前）`);
 }
 
 main().catch((e) => die("seed:f0 異常終了", e));

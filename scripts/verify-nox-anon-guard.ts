@@ -30,12 +30,23 @@
  *       本体 raise 'forbidden'（grant はあるので permission denied でなく flag ゲートの実測）・
  *       can_register=true staff は open→add/remove→nominations→pay→close の実 INSERT が通る
  *       （★prosrc green ≠ runtime success）。専用卓を service で用意し前後で伝票を全消し＝他 verify と非干渉。
+ * 段15（0023 適用後）: F3a-2 顧客CRM の実効ゲート（runtime 実測）。
+ *       customer_register/update＝owner/manager/staff(can_crm) 実 INSERT/UPDATE 成功・
+ *       can_crm=false staff（can_register=true でも）/cast は forbidden。
+ *       customer_assign_cast＝owner/manager のみ（staff は can_crm でも forbidden・不在 cast は invalid cast）。
+ *       customer_summary/list_summary＝cast は担当客のみ（他 cast 客は forbidden/不可視）・
+ *       can_crm=false staff は summary forbidden/list 0行・churn_tier ゴールデン（none/mid/high）。
+ *       bottle_keep_register＝can_register 準拠（会計オペ）・越境客 invalid customer・
+ *       不在/inactive product は bad item/inactive item。
+ *       link 回帰＝check_open customer 紐付きで open→pay(ar) の receivables.customer_id 連動・
+ *       他店/他 org 客は invalid customer・customer 省略（null）は従来どおり開ける（回帰）。
+ *       生成した customers/bottle_keeps/伝票は末尾で全消し＝verify:nox-rls の固定カウントと非干渉。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
-import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
+import { FIXTURE_USERS, FIXTURE_CUSTOMERS, STORE_A1, STORE_A2, loadEnvOrExit, type FixtureUserKey } from "./fixtures-f0";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -211,6 +222,20 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段15a: F3a-2 顧客CRM RPC 6本 anon BLOCKED（mig0023・authenticated grant）──
+  const F3A2_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["customer_register", { p_store_id: null, p_name: null, p_furigana: null, p_birthday: null, p_tel: null, p_prefs: null, p_memo: null, p_cast_id: null }],
+    ["customer_update", { p_id: null, p_name: null, p_furigana: null, p_birthday: null, p_tel: null, p_prefs: null, p_memo: null, p_is_active: null }],
+    ["customer_assign_cast", { p_id: null, p_cast_id: null }],
+    ["customer_summary", { p_customer_id: null }],
+    ["customer_list_summary", { p_store_id: null }],
+    ["bottle_keep_register", { p_store_id: null, p_customer_id: null, p_product_id: null, p_note: null }],
+  ];
+  for (const [fn, args] of F3A2_RPC_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部関数は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
@@ -238,6 +263,7 @@ async function main() {
     "attendance_incentives",
     "advances", "transport",
     "payment_records",
+    "customers", // F3a-2（mig0023）
   ]) {
     // PK=cast_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
     const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles"].includes(table);
@@ -398,6 +424,301 @@ async function main() {
       await wipeSeatChecks();
       await on.auth.signOut();
       await off.auth.signOut();
+    }
+  }
+
+  // ── 段15: F3a-2（mig0023）顧客CRM RPC の実効ゲート＋link 回帰（runtime 実測）──
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const sessions = new Map<FixtureUserKey, SupabaseClient>();
+    const signInUser = async (key: FixtureUserKey) => {
+      const cached = sessions.get(key);
+      if (cached) return cached;
+      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { error } = await c.auth.signInWithPassword({
+        email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD,
+      });
+      if (error) {
+        fails.push(`段15 ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
+        return null;
+      }
+      sessions.set(key, c);
+      return c;
+    };
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+
+    // 準備（service）: 固定 fixture の id を取得＋前回失敗遺物の掃除（段15 生成物は名前で識別）
+    const { data: storeRows } = await admin.from("stores").select("id, name, org_id")
+      .in("name", [STORE_A1, STORE_A2]);
+    const storeA1 = storeRows?.find((s) => s.name === STORE_A1);
+    const storeA2 = storeRows?.find((s) => s.name === STORE_A2);
+    const { data: custRows } = await admin.from("customers").select("id, name")
+      .like("name", "NOX-VERIFY-顧客%");
+    const custIdOf = (name: string) => custRows?.find((c) => c.name === name)?.id as string;
+    const custCastA = custIdOf(FIXTURE_CUSTOMERS.custCastA.name);
+    const custCastB = custIdOf(FIXTURE_CUSTOMERS.custCastB.name);
+    const custA2 = custIdOf(FIXTURE_CUSTOMERS.custA2.name);
+    const custB1 = custIdOf(FIXTURE_CUSTOMERS.custB1.name);
+    const { data: castRows } = await admin.from("casts").select("id, name")
+      .eq("name", FIXTURE_USERS.castA1a.name).eq("store_id", storeA1!.id);
+    const castA1aId = castRows?.[0]?.id as string;
+    check("段15（準備）fixture 顧客/店/cast の id 解決",
+      !!storeA1 && !!storeA2 && !!custCastA && !!custCastB && !!custA2 && !!custB1 && !!castA1aId);
+    // 前回失敗遺物の掃除（再実行冪等）
+    await admin.from("bottle_keeps").delete().eq("note", "NOX-VERIFY-段15");
+    await admin.from("customers").delete().like("name", "NOX-VERIFY-段15%");
+    await admin.from("products").delete().like("name", "NOX-VERIFY-段15%");
+
+    const owner = await signInUser("ownerA");
+    const mgr = await signInUser("managerA1");
+    const crm = await signInUser("staffCrmOnA1");
+    const regOn = await signInUser("staffRegOnA1");
+    const regOff = await signInUser("staffRegOffA1");
+    const cast = await signInUser("castA1a");
+    if (owner && mgr && crm && regOn && regOff && cast) {
+      const createdCustIds: string[] = [];
+
+      // ① customer_register 権限マトリクス（★実 INSERT を physical row で確認）
+      const { data: cO, error: eRO } = await owner.rpc("customer_register", {
+        p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-客owner",
+      });
+      check("段15 owner customer_register 成功（実 INSERT）", !eRO && typeof cO === "string", eRO?.message);
+      if (typeof cO === "string") createdCustIds.push(cO);
+      // owner は org 内他店（A2）にも登録できる（org 全店スコープの positive）
+      const { data: cO2, error: eRO2 } = await owner.rpc("customer_register", {
+        p_store_id: storeA2!.id, p_name: "NOX-VERIFY-段15-客ownerA2",
+      });
+      check("段15 owner 他店 A2 へ customer_register 成功（org 全店）", !eRO2 && typeof cO2 === "string", eRO2?.message);
+      if (typeof cO2 === "string") createdCustIds.push(cO2);
+      const { data: cM, error: eRM } = await mgr.rpc("customer_register", {
+        p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-客manager", p_cast_id: castA1aId,
+      });
+      check("段15 manager customer_register 成功（担当 cast 付き）", !eRM && typeof cM === "string", eRM?.message);
+      if (typeof cM === "string") createdCustIds.push(cM);
+      // manager の他店（A2）登録は forbidden（自店スコープ）
+      const { error: eRMx } = await mgr.rpc("customer_register", { p_store_id: storeA2!.id, p_name: "NOX-VERIFY-段15-越境" });
+      check("段15 manager 他店 A2 へ register forbidden（店スコープ）", forbidden(eRMx), eRMx?.message ?? "通ってしまった");
+      // staff can_crm=true 成功。p_cast_id を渡しても無視（null 化）される
+      const { data: cS, error: eRS } = await crm.rpc("customer_register", {
+        p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-客staff", p_cast_id: castA1aId,
+      });
+      check("段15 staff(can_crm) customer_register 成功", !eRS && typeof cS === "string", eRS?.message);
+      if (typeof cS === "string") {
+        createdCustIds.push(cS);
+        const { data: sRow } = await admin.from("customers").select("cast_id").eq("id", cS).single();
+        check("段15 staff の p_cast_id は無視（null 化）＝担当割当は owner/manager のみ", sRow?.cast_id === null, JSON.stringify(sRow));
+      }
+      const { error: eRRegOn } = await regOn.rpc("customer_register", { p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-侵入1" });
+      check("段15 staff(can_register=true/can_crm=false) register forbidden（2軸独立）", forbidden(eRRegOn), eRRegOn?.message ?? "通ってしまった");
+      const { error: eRRegOff } = await regOff.rpc("customer_register", { p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-侵入2" });
+      check("段15 staff(can_crm=false) register forbidden", forbidden(eRRegOff), eRRegOff?.message ?? "通ってしまった");
+      const { error: eRCast } = await cast.rpc("customer_register", { p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-侵入3" });
+      check("段15 cast register forbidden", forbidden(eRCast), eRCast?.message ?? "通ってしまった");
+      // 不在 cast の割当は invalid cast（越境 cast と同じ exists 検証の枝）
+      const { error: eRBadCast } = await mgr.rpc("customer_register", {
+        p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-badcast", p_cast_id: randomUUID(),
+      });
+      check("段15 register 不在/越境 cast = invalid cast", has(eRBadCast, "invalid cast"), eRBadCast?.message ?? "通ってしまった");
+
+      // ② customer_update 権限マトリクス（規約7: p_is_active 明示値・実 UPDATE を physical で確認）
+      const updArgs = {
+        p_id: cM, p_name: "NOX-VERIFY-段15-客manager改", p_furigana: "だんじゅうご",
+        p_birthday: "1990-01-15", p_tel: "090-0000-0000", p_prefs: "シャンパン（白）", p_memo: "verify",
+        p_is_active: true,
+      };
+      const { error: eUM } = await mgr.rpc("customer_update", updArgs);
+      check("段15 manager customer_update 成功", !eUM, eUM?.message);
+      const { data: uRow } = await admin.from("customers").select("name, prefs, is_active").eq("id", cM).single();
+      check("段15 customer_update 実 UPDATE 確認（name/prefs 反映）",
+        uRow?.name === "NOX-VERIFY-段15-客manager改" && uRow?.prefs === "シャンパン（白）" && uRow?.is_active === true,
+        JSON.stringify(uRow));
+      const { error: eUS } = await crm.rpc("customer_update", { ...updArgs, p_memo: "staff編集" });
+      check("段15 staff(can_crm) customer_update 成功", !eUS, eUS?.message);
+      const { error: eUOff } = await regOff.rpc("customer_update", updArgs);
+      check("段15 staff(can_crm=false) update forbidden", forbidden(eUOff), eUOff?.message ?? "通ってしまった");
+      const { error: eUCast } = await cast.rpc("customer_update", updArgs);
+      check("段15 cast update forbidden", forbidden(eUCast), eUCast?.message ?? "通ってしまった");
+
+      // ③ customer_assign_cast（owner/manager のみ・staff は can_crm でも不可）
+      const { error: eAO } = await owner.rpc("customer_assign_cast", { p_id: cM, p_cast_id: castA1aId });
+      check("段15 owner assign_cast 成功", !eAO, eAO?.message);
+      const { data: aRow } = await admin.from("customers").select("cast_id").eq("id", cM).single();
+      check("段15 assign_cast 実 UPDATE 確認（cast_id 設定）", aRow?.cast_id === castA1aId, JSON.stringify(aRow));
+      const { error: eAM } = await mgr.rpc("customer_assign_cast", { p_id: cM, p_cast_id: null });
+      check("段15 manager assign_cast(null=解除) 成功", !eAM, eAM?.message);
+      const { error: eAS } = await crm.rpc("customer_assign_cast", { p_id: cM, p_cast_id: castA1aId });
+      check("段15 staff(can_crm でも) assign_cast forbidden", forbidden(eAS), eAS?.message ?? "通ってしまった");
+      const { error: eACast } = await cast.rpc("customer_assign_cast", { p_id: cM, p_cast_id: castA1aId });
+      check("段15 cast assign_cast forbidden", forbidden(eACast), eACast?.message ?? "通ってしまった");
+      const { error: eABad } = await mgr.rpc("customer_assign_cast", { p_id: cM, p_cast_id: randomUUID() });
+      check("段15 assign_cast 不在/越境 cast = invalid cast", has(eABad, "invalid cast"), eABad?.message ?? "通ってしまった");
+
+      // 生成客を除去（以降の list ゴールデンを seed 固定 fixture だけで縛るため）
+      if (createdCustIds.length) await admin.from("customers").delete().in("id", createdCustIds);
+
+      // ④ customer_summary（definer 迂回の可視ガード＋seed ゴールデン）
+      const { data: sumO, error: eSO } = await owner.rpc("customer_summary", { p_customer_id: custCastA });
+      const sO = (sumO ?? [])[0] as { visits?: number; total_spend?: number; last_visit?: string; active_bottles?: number; open_receivable?: number } | undefined;
+      check("段15 owner summary(指名A客) 成功", !eSO && !!sO, eSO?.message);
+      check("段15 summary ゴールデン: visits=2・total_spend=30000（closed 2伝票の都度集計）",
+        sO?.visits === 2 && Number(sO?.total_spend) === 30_000 && !!sO?.last_visit,
+        JSON.stringify(sO));
+      check("段15 summary ゴールデン: active_bottles=0・open_receivable=0（seed 時点）",
+        Number(sO?.active_bottles) === 0 && Number(sO?.open_receivable) === 0, JSON.stringify(sO));
+      const { data: sumCa, error: eSCa } = await cast.rpc("customer_summary", { p_customer_id: custCastA });
+      check("段15 cast summary(自分の担当客) 成功", !eSCa && ((sumCa ?? [])[0] as { visits?: number })?.visits === 2, eSCa?.message);
+      const { error: eSCb } = await cast.rpc("customer_summary", { p_customer_id: custCastB });
+      check("段15 cast summary(他 cast の客) forbidden（担当客スコープの物理保証）", forbidden(eSCb), eSCb?.message ?? "通ってしまった");
+      const { error: eSOff } = await regOff.rpc("customer_summary", { p_customer_id: custCastA });
+      check("段15 staff(can_crm=false) summary forbidden", forbidden(eSOff), eSOff?.message ?? "通ってしまった");
+      const { data: sumCrm, error: eSCrm } = await crm.rpc("customer_summary", { p_customer_id: custCastA });
+      check("段15 staff(can_crm) summary 成功", !eSCrm && ((sumCrm ?? [])[0] as { visits?: number })?.visits === 2, eSCrm?.message);
+      const { error: eSB1 } = await owner.rpc("customer_summary", { p_customer_id: custB1 });
+      check("段15 owner summary(他 org 客) not found（org 遮断）", has(eSB1, "not found"), eSB1?.message ?? "通ってしまった");
+
+      // ⑤ customer_list_summary（churn ゴールデン＋可視スコープ＋休眠除外）
+      type ListRow = { customer_id: string; name: string; visits: number; total_spend: number; days_since: number | null; churn_tier: string };
+      const { data: listO, error: eLO } = await owner.rpc("customer_list_summary", {});
+      const lo = (listO ?? []) as ListRow[];
+      check("段15 owner list 成功（org A 全店の active 4客・休眠は除外）",
+        !eLO && lo.length === 4, eLO?.message ?? `got ${lo.length}: ${lo.map((r) => r.name).join(",")}`);
+      const rowOf = (name: string) => lo.find((r) => r.name === name);
+      const rCastA = rowOf(FIXTURE_CUSTOMERS.custCastA.name);
+      const rCastB = rowOf(FIXTURE_CUSTOMERS.custCastB.name);
+      const rFree = rowOf(FIXTURE_CUSTOMERS.custFree.name);
+      check("段15 churn ゴールデン: 指名A客 tier='none'（5日前・visits=2・spend=30000）",
+        rCastA?.churn_tier === "none" && rCastA?.visits === 2 && Number(rCastA?.total_spend) === 30_000, JSON.stringify(rCastA));
+      check("段15 churn ゴールデン: フリー客 tier='mid'（40日前=30-59）",
+        rFree?.churn_tier === "mid" && (rFree?.days_since ?? 0) >= 39 && (rFree?.days_since ?? 99) <= 41, JSON.stringify(rFree));
+      check("段15 churn ゴールデン: 指名B客 tier='high'（70日前=60+）",
+        rCastB?.churn_tier === "high" && (rCastB?.days_since ?? 0) >= 69 && (rCastB?.days_since ?? 99) <= 71, JSON.stringify(rCastB));
+      // owner の店絞り込み（p_store_id=A2 → A2 の1客のみ）
+      const { data: listOA2 } = await owner.rpc("customer_list_summary", { p_store_id: storeA2!.id });
+      check("段15 owner list p_store_id=A2 絞り込み（1客）",
+        ((listOA2 ?? []) as ListRow[]).length === 1 && ((listOA2 ?? []) as ListRow[])[0]?.name === FIXTURE_CUSTOMERS.custA2.name,
+        JSON.stringify((listOA2 ?? []).map((r: ListRow) => r.name)));
+      const { data: listCa, error: eLCa } = await cast.rpc("customer_list_summary", {});
+      const lca = (listCa ?? []) as ListRow[];
+      check("段15 cast list = 担当客のみ1行（他 cast 客/フリー客/休眠 不可視）",
+        !eLCa && lca.length === 1 && lca[0]?.name === FIXTURE_CUSTOMERS.custCastA.name,
+        eLCa?.message ?? JSON.stringify(lca.map((r) => r.name)));
+      const { data: listCrm } = await crm.rpc("customer_list_summary", {});
+      check("段15 staff(can_crm) list = 自店 active 3客", ((listCrm ?? []) as ListRow[]).length === 3,
+        JSON.stringify(((listCrm ?? []) as ListRow[]).map((r) => r.name)));
+      const { data: listOff, error: eLOff } = await regOff.rpc("customer_list_summary", {});
+      check("段15 staff(can_crm=false) list = 0行", !eLOff && ((listOff ?? []) as ListRow[]).length === 0,
+        eLOff?.message ?? `got ${((listOff ?? []) as ListRow[]).length}`);
+
+      // ⑥ bottle_keep_register（can_register 準拠＝会計オペ・product 検証は check_add_line 同型）
+      const { data: bkProd } = await admin.from("products").insert({
+        org_id: storeA1!.org_id, store_id: storeA1!.id, type: "bottle", name: "NOX-VERIFY-段15-ボトル",
+        price: 30_000, back_mode: "rate", back_value: 0, hon_pt: 0, is_active: true,
+      }).select("id").single();
+      const { data: bkProdOff } = await admin.from("products").insert({
+        org_id: storeA1!.org_id, store_id: storeA1!.id, type: "bottle", name: "NOX-VERIFY-段15-廃番ボトル",
+        price: 30_000, back_mode: "rate", back_value: 0, hon_pt: 0, is_active: false,
+      }).select("id").single();
+      const createdBottleIds: string[] = [];
+      const bkArgs = { p_store_id: storeA1!.id, p_customer_id: custCastA, p_product_id: bkProd!.id, p_note: "NOX-VERIFY-段15" };
+      const { data: bO, error: eBO } = await owner.rpc("bottle_keep_register", bkArgs);
+      check("段15 owner bottle_keep_register 成功（実 INSERT）", !eBO && typeof bO === "string", eBO?.message);
+      if (typeof bO === "string") createdBottleIds.push(bO);
+      const { data: bM, error: eBM } = await mgr.rpc("bottle_keep_register", bkArgs);
+      check("段15 manager bottle_keep_register 成功", !eBM && typeof bM === "string", eBM?.message);
+      if (typeof bM === "string") createdBottleIds.push(bM);
+      const { data: bR, error: eBR } = await regOn.rpc("bottle_keep_register", bkArgs);
+      check("段15 staff(can_register=true) bottle_keep_register 成功（会計オペ準拠）", !eBR && typeof bR === "string", eBR?.message);
+      if (typeof bR === "string") createdBottleIds.push(bR);
+      const { error: eBOff } = await regOff.rpc("bottle_keep_register", bkArgs);
+      check("段15 staff(can_register=false) bottle forbidden", forbidden(eBOff), eBOff?.message ?? "通ってしまった");
+      const { error: eBCrm } = await crm.rpc("bottle_keep_register", bkArgs);
+      check("段15 staff(can_crm=true/can_register=false) bottle forbidden（顧客権限では会計オペ不可）", forbidden(eBCrm), eBCrm?.message ?? "通ってしまった");
+      const { error: eBCast } = await cast.rpc("bottle_keep_register", bkArgs);
+      check("段15 cast bottle forbidden", forbidden(eBCast), eBCast?.message ?? "通ってしまった");
+      const { error: eBX1 } = await mgr.rpc("bottle_keep_register", { ...bkArgs, p_customer_id: custA2 });
+      check("段15 bottle 他店客 = invalid customer（店越境封鎖）", has(eBX1, "invalid customer"), eBX1?.message ?? "通ってしまった");
+      const { error: eBX2 } = await mgr.rpc("bottle_keep_register", { ...bkArgs, p_customer_id: custB1 });
+      check("段15 bottle 他 org 客 = invalid customer（org 越境封鎖）", has(eBX2, "invalid customer"), eBX2?.message ?? "通ってしまった");
+      const { error: eBP1 } = await mgr.rpc("bottle_keep_register", { ...bkArgs, p_product_id: randomUUID() });
+      check("段15 bottle 不在 product = bad item", has(eBP1, "bad item"), eBP1?.message ?? "通ってしまった");
+      const { error: eBP2 } = await mgr.rpc("bottle_keep_register", { ...bkArgs, p_product_id: bkProdOff!.id });
+      check("段15 bottle inactive product = inactive item", has(eBP2, "inactive item"), eBP2?.message ?? "通ってしまった");
+      // 集計連動: 登録3本が active_bottles に反映（runtime の都度集計を実測）
+      const { data: sumB } = await owner.rpc("customer_summary", { p_customer_id: custCastA });
+      check("段15 summary: bottle 登録後 active_bottles=3（都度集計の連動）",
+        Number(((sumB ?? [])[0] as { active_bottles?: number })?.active_bottles) === 3, JSON.stringify((sumB ?? [])[0]));
+      // 後片付け（ボトル・検証用 products 除去）
+      if (createdBottleIds.length) await admin.from("bottle_keeps").delete().in("id", createdBottleIds);
+      await admin.from("products").delete().in("id", [bkProd!.id, bkProdOff!.id]);
+
+      // ⑦ link 回帰: check_open の customer 紐付け（専用卓・前後 wipe＝日報/売上ゴールデンと非干渉）
+      let seatId = "";
+      {
+        const { data: sExist } = await admin.from("seats").select("id")
+          .eq("store_id", storeA1!.id).eq("name", "NOX-VERIFY-PERM卓").limit(1);
+        if (sExist?.length) seatId = sExist[0].id as string;
+        else {
+          const { data: sNew } = await admin.from("seats").insert({
+            org_id: storeA1!.org_id, store_id: storeA1!.id, name: "NOX-VERIFY-PERM卓", kind: "卓", sort_order: 999,
+          }).select("id").single();
+          seatId = sNew!.id as string;
+        }
+      }
+      const wipeSeatChecks = async () => {
+        const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
+        const ids = (cs ?? []).map((c) => c.id as string);
+        if (!ids.length) return;
+        for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+          await admin.from(t).delete().in("check_id", ids);
+        }
+        await admin.from("checks").delete().in("id", ids);
+      };
+      await wipeSeatChecks();
+
+      // 越境客は open 自体を拒否（既存 open の有無に依らず検証が先＝fail-closed）
+      const { error: eOX1 } = await mgr.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free", p_customer_id: custA2 });
+      check("段15 check_open 他店客 = invalid customer", has(eOX1, "invalid customer"), eOX1?.message ?? "通ってしまった");
+      const { error: eOX2 } = await mgr.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free", p_customer_id: custB1 });
+      check("段15 check_open 他 org 客 = invalid customer", has(eOX2, "invalid customer"), eOX2?.message ?? "通ってしまった");
+
+      // customer 紐付き open → pay(ar) → receivables.customer_id 連動（check_pay は F1b から連動済み）
+      const { data: chkId, error: eOpen } = await mgr.rpc("check_open", {
+        p_seat_id: seatId, p_people: 2, p_nom_type: "free", p_customer_id: custCastA,
+      });
+      check("段15 customer 紐付き check_open 成功", !eOpen && typeof chkId === "string", eOpen?.message);
+      const { data: chkRow } = await mgr.from("checks").select("customer_id").eq("id", chkId as string).single();
+      check("段15 checks.customer_id が物理設定（実 INSERT）", chkRow?.customer_id === custCastA, JSON.stringify(chkRow));
+      const { error: eLn } = await mgr.rpc("check_add_line", {
+        p_check_id: chkId, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "A", p_name: "CRM検証セット", p_unit_price: 5_000,
+      });
+      check("段15 行追加 成功", !eLn, eLn?.message);
+      // due = 5000 + サ10% → 100円切捨 = 5500
+      const { error: ePay } = await mgr.rpc("check_pay", {
+        p_check_id: chkId, p_method: "ar", p_amount: 5_500, p_pay_group: "A", p_tendered: null, p_idem_key: randomUUID(),
+      });
+      check("段15 ar 入金 成功", !ePay, ePay?.message);
+      const { data: recvRow } = await mgr.from("receivables").select("customer_id, amount, status").eq("check_id", chkId as string);
+      check("段15 receivables.customer_id = 伝票の customer（check_pay サーバ導出の連動）",
+        (recvRow ?? []).length === 1 && recvRow?.[0]?.customer_id === custCastA
+          && recvRow?.[0]?.amount === 5_500 && recvRow?.[0]?.status === "open",
+        JSON.stringify(recvRow));
+      const { error: eCl } = await mgr.rpc("check_close", { p_check_id: chkId, p_idem_key: randomUUID() });
+      check("段15 customer 紐付き伝票 close 成功", !eCl, eCl?.message);
+      await wipeSeatChecks();
+
+      // 回帰: p_customer_id 省略（null）で従来どおり開ける＝フリー客・既存 UI 無改修動作
+      const { data: chkNull, error: eNull } = await mgr.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+      check("段15 回帰: customer 省略 open 成功（default null）", !eNull && typeof chkNull === "string", eNull?.message);
+      const { data: chkNullRow } = await mgr.from("checks").select("customer_id").eq("id", chkNull as string).single();
+      check("段15 回帰: customer_id=null（フリー客）", chkNullRow?.customer_id === null, JSON.stringify(chkNullRow));
+      await wipeSeatChecks();
+
+      for (const c of sessions.values()) await c.auth.signOut();
     }
   }
 

@@ -23,7 +23,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import {
-  ORG_A, ORG_B, STORE_A1, STORE_A2, STORE_B1, FIXTURE_USERS, loadEnvOrExit,
+  ORG_A, ORG_B, STORE_A1, STORE_A2, STORE_B1, FIXTURE_USERS, FIXTURE_CUSTOMERS, loadEnvOrExit,
   type FixtureUserKey,
 } from "./fixtures-f0";
 import { allocateQty, productBackOf, type Product, type NomType } from "../lib/nox/pay";
@@ -95,7 +95,7 @@ async function main() {
     check("ownerA orgs = A のみ", sameSet(await names(c, "orgs"), [ORG_A]));
     check("ownerA stores = A1+A2（B1 不可視）", sameSet(await names(c, "stores"), [STORE_A1, STORE_A2]));
     const { data: mems } = await c.from("memberships").select("id");
-    check("ownerA memberships = org A の7行", (mems ?? []).length === 7, `got ${(mems ?? []).length}`);
+    check("ownerA memberships = org A の8行", (mems ?? []).length === 8, `got ${(mems ?? []).length}`);
     const { data: audits } = await c.from("audit_logs").select("id, action");
     check("ownerA audit_logs ≥1行（seed_marker）", (audits ?? []).some((a) => a.action === "seed_marker"), `got ${(audits ?? []).length}行`);
     const { data: role } = await c.rpc("auth_role");
@@ -113,19 +113,20 @@ async function main() {
       sameSet(await names(c, "casts"), [FIXTURE_USERS.castA1a.name, FIXTURE_USERS.castA1b.name]),
     );
     check(
-      "managerA1 users = A1 membership 保持者7人（managerB1 不可視）",
+      "managerA1 users = A1 membership 保持者8人（managerB1 不可視）",
       sameSet(await names(c, "users", "email"), [
         FIXTURE_USERS.ownerA.email,
         FIXTURE_USERS.managerA1.email,
         FIXTURE_USERS.staffA1.email,
         FIXTURE_USERS.staffRegOnA1.email,
         FIXTURE_USERS.staffRegOffA1.email,
+        FIXTURE_USERS.staffCrmOnA1.email,
         FIXTURE_USERS.castA1a.email,
         FIXTURE_USERS.castA1b.email,
       ]),
     );
     const { data: mems } = await c.from("memberships").select("id");
-    check("managerA1 memberships = 自店7行", (mems ?? []).length === 7, `got ${(mems ?? []).length}`);
+    check("managerA1 memberships = 自店8行", (mems ?? []).length === 8, `got ${(mems ?? []).length}`);
     const { data: audits } = await c.from("audit_logs").select("id");
     check("managerA1 audit_logs = 0行（§1.2 owner 限定）", (audits ?? []).length === 0, `got ${(audits ?? []).length}`);
     const { data: castId } = await c.rpc("auth_cast_id");
@@ -526,6 +527,76 @@ async function main() {
 
     // 後片付け（マーカー除去＝以降の節・F1a cast 0行 assert と非干渉）
     await admin.from("bottle_keeps").delete().eq("id", bkRow!.id as string);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // F3a-2: customers SELECT RLS（mig0023・束2）— 可視マトリクスの系統 assert
+  // owner=org 全店全客 / manager=自店全客 / staff can_crm=true=自店全客 / can_crm=false=0行 /
+  // cast=自分の指名客のみ（他 cast 客・フリー客 0行）/ 店スコープ（他店客不可視の positive）。
+  // RLS は is_active を絞らない＝休眠客も SELECT では見える（一覧除外は list_summary の責務）。
+  // ＋2軸独立性: can_crm=true∧can_register=false は「顧客可視・会計0行」（最も厳しい独立 assert）。
+  // ══════════════════════════════════════════════════════════
+  {
+    const CU = FIXTURE_CUSTOMERS;
+    const A1_ALL = [CU.custCastA.name, CU.custCastB.name, CU.custFree.name, CU.custDormant.name];
+
+    // owner: org A 全店（A1×4＋A2）・org B 客は不可視
+    const o = await signIn("ownerA");
+    check("F3a-2 ownerA customers = org A 全5客（B1 客不可視）",
+      sameSet(await names(o, "customers"), [...A1_ALL, CU.custA2.name]));
+    await o.auth.signOut();
+
+    // managerA1: 自店 A1 の4客のみ（A2/B1 不可視＝店スコープ positive・休眠含む）
+    const m = await signIn("managerA1");
+    check("F3a-2 managerA1 customers = 自店4客（A2 客不可視＝店スコープ）",
+      sameSet(await names(m, "customers"), A1_ALL));
+    await m.auth.signOut();
+
+    // staffCrmOnA1: can_crm=true → 自店全客。かつ can_register=false → 会計0行（2軸独立）
+    const crm = await signIn("staffCrmOnA1");
+    check("F3a-2 staffCrmOnA1 customers = 自店4客（can_crm=true）",
+      sameSet(await names(crm, "customers"), A1_ALL));
+    const { data: crmChecks } = await crm.from("checks").select("id");
+    check("F3a-2 staffCrmOnA1 checks = 0行（can_register=false＝顧客可視でも会計0行・2軸独立）",
+      (crmChecks ?? []).length === 0, `got ${(crmChecks ?? []).length}`);
+    const { data: hCrm } = await crm.rpc("auth_staff_can_crm");
+    const { data: hReg } = await crm.rpc("auth_staff_can_register");
+    check("F3a-2 staffCrmOnA1 helpers: can_crm=true / can_register=false",
+      hCrm === true && hReg === false, `crm=${JSON.stringify(hCrm)} reg=${JSON.stringify(hReg)}`);
+    await crm.auth.signOut();
+
+    // staffRegOnA1: can_register=true でも can_crm=false → customers 0行（独立の逆方向）
+    const regOn = await signIn("staffRegOnA1");
+    const { data: regOnCust } = await regOn.from("customers").select("id");
+    check("F3a-2 staffRegOnA1 customers = 0行（can_register=true でも can_crm=false＝逆方向の独立）",
+      (regOnCust ?? []).length === 0, `got ${(regOnCust ?? []).length}`);
+    await regOn.auth.signOut();
+
+    // staffRegOffA1: 全フラグ false → customers 0行（会計0行は F3a-1 で担保済み）
+    const off = await signIn("staffRegOffA1");
+    const { data: offCust } = await off.from("customers").select("id");
+    check("F3a-2 staffRegOffA1 customers = 0行（can_crm=false）",
+      (offCust ?? []).length === 0, `got ${(offCust ?? []).length}`);
+    await off.auth.signOut();
+
+    // castA1a: 自分の指名客のみ（指名A＋休眠＝cast_id 列1本・is_active は絞らない）。
+    // 他 cast 客（指名B）・フリー客は不可視。
+    const ca = await signIn("castA1a");
+    check("F3a-2 castA1a customers = 自分の指名客2行のみ（指名B/フリー不可視）",
+      sameSet(await names(ca, "customers"), [CU.custCastA.name, CU.custDormant.name]));
+    await ca.auth.signOut();
+
+    // castA1b: 指名B の1行のみ
+    const cb = await signIn("castA1b");
+    check("F3a-2 castA1b customers = 指名B の1行のみ",
+      sameSet(await names(cb, "customers"), [CU.custCastB.name]));
+    await cb.auth.signOut();
+
+    // managerB1: org B の B1 客のみ（org A 客が一切見えない＝org 遮断 positive）
+    const mb = await signIn("managerB1");
+    check("F3a-2 managerB1 customers = B1 客のみ（org A 客不可視）",
+      sameSet(await names(mb, "customers"), [CU.custB1.name]));
+    await mb.auth.signOut();
   }
 
   // F1b: void 連動（open 売掛→voided・幻影バック消滅・settled 拒否・open→void）
@@ -1519,10 +1590,18 @@ async function main() {
     const bizDate = bizDateOf(new Date().toISOString(), cutoff);
     const nextDay = addDays(bizDate, 1);
 
-    // 決定性確保: 今回 run の伝票以外と既存日報を admin で除去（再実行耐性）
+    // 決定性確保: 今回 run の伝票以外と既存日報を admin で除去（再実行耐性）。
+    // ★F3a-2（束2）: CRM卓の churn 用 closed checks（seed:f0 固定・過去日付）は保持＝
+    //   日報は biz_date 単位の集計なので当日/翌日ゴールデンに非干渉。消すと anon-guard 段15 の
+    //   customer_summary/churn ゴールデンが seed 再実行まで壊れる（2026-07-09 に発生）。
     const keep = [goldenCheckId, check2Id, check3Id, check4Id].filter(Boolean);
-    const { data: allChecks } = await admin.from("checks").select("id").eq("store_id", storeA1Id);
-    const extras = (allChecks ?? []).map((r) => r.id as string).filter((id) => !keep.includes(id));
+    const { data: crmSeatRow } = await admin.from("seats").select("id")
+      .eq("store_id", storeA1Id).eq("name", "NOX-VERIFY-CRM卓").limit(1);
+    const crmSeatId = crmSeatRow?.[0]?.id as string | undefined;
+    const { data: allChecks } = await admin.from("checks").select("id, seat_id").eq("store_id", storeA1Id);
+    const extras = (allChecks ?? [])
+      .filter((r) => !keep.includes(r.id as string) && (r.seat_id as string) !== crmSeatId)
+      .map((r) => r.id as string);
     if (extras.length) {
       for (const tbl of ["check_cast_backs", "check_nominations", "payments", "receivables", "check_lines"]) {
         await admin.from(tbl).delete().in("check_id", extras);
