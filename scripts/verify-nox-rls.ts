@@ -95,7 +95,7 @@ async function main() {
     check("ownerA orgs = A のみ", sameSet(await names(c, "orgs"), [ORG_A]));
     check("ownerA stores = A1+A2（B1 不可視）", sameSet(await names(c, "stores"), [STORE_A1, STORE_A2]));
     const { data: mems } = await c.from("memberships").select("id");
-    check("ownerA memberships = org A の5行", (mems ?? []).length === 5, `got ${(mems ?? []).length}`);
+    check("ownerA memberships = org A の7行", (mems ?? []).length === 7, `got ${(mems ?? []).length}`);
     const { data: audits } = await c.from("audit_logs").select("id, action");
     check("ownerA audit_logs ≥1行（seed_marker）", (audits ?? []).some((a) => a.action === "seed_marker"), `got ${(audits ?? []).length}行`);
     const { data: role } = await c.rpc("auth_role");
@@ -113,17 +113,19 @@ async function main() {
       sameSet(await names(c, "casts"), [FIXTURE_USERS.castA1a.name, FIXTURE_USERS.castA1b.name]),
     );
     check(
-      "managerA1 users = A1 membership 保持者5人（managerB1 不可視）",
+      "managerA1 users = A1 membership 保持者7人（managerB1 不可視）",
       sameSet(await names(c, "users", "email"), [
         FIXTURE_USERS.ownerA.email,
         FIXTURE_USERS.managerA1.email,
         FIXTURE_USERS.staffA1.email,
+        FIXTURE_USERS.staffRegOnA1.email,
+        FIXTURE_USERS.staffRegOffA1.email,
         FIXTURE_USERS.castA1a.email,
         FIXTURE_USERS.castA1b.email,
       ]),
     );
     const { data: mems } = await c.from("memberships").select("id");
-    check("managerA1 memberships = 自店5行", (mems ?? []).length === 5, `got ${(mems ?? []).length}`);
+    check("managerA1 memberships = 自店7行", (mems ?? []).length === 7, `got ${(mems ?? []).length}`);
     const { data: audits } = await c.from("audit_logs").select("id");
     check("managerA1 audit_logs = 0行（§1.2 owner 限定）", (audits ?? []).length === 0, `got ${(audits ?? []).length}`);
     const { data: castId } = await c.rpc("auth_cast_id");
@@ -456,6 +458,74 @@ async function main() {
       (myBacks ?? []).length >= 1 && (myBacks ?? []).every((b) => b.cast_id === castIdA),
       JSON.stringify(myBacks));
     await c.auth.signOut();
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // F3a-1: staff 機能別フラグ（mig0022・can_register）— RLS 可視の系統 assert
+  // golden 伝票が生きている位置で実測: OFF staff=7表0行 / ON staff=可視（backfill 相当）/
+  // owner 無条件 / manager は自分の行の can_register=false でも可視（role 固定＝フラグ無視の positive）。
+  // cast 不変（checks系0行・check_cast_backs 自己行のみ）は直前の F1b 節が担保。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    // bottle_keeps は書込 RPC 未実装（束2）＝可視テスト用マーカーを service で投入→末尾で除去
+    const { data: orgRow } = await admin.from("stores").select("org_id").eq("id", storeA1Id).single();
+    const { data: bkRow, error: eBk } = await admin.from("bottle_keeps").insert({
+      org_id: orgRow!.org_id, store_id: storeA1Id, product_id: productId, note: "NOX-VERIFY-PERM-BOTTLE",
+    }).select("id").single();
+    check("F3a-1（準備）bottle_keeps マーカー投入", !eBk && !!bkRow?.id, eBk?.message);
+
+    const PERM_TABLES = ["checks", "check_lines", "check_nominations", "payments", "receivables", "check_cast_backs", "bottle_keeps"];
+
+    // OFF: 7表すべて0行（会計世界が丸ごと閉じる）
+    const off = await signIn("staffRegOffA1");
+    for (const table of PERM_TABLES) {
+      const { data, error } = await off.from(table).select("id");
+      check(`F3a-1 can_register=false staff ${table} = 0行`, !error && (data ?? []).length === 0, error?.message ?? `got ${(data ?? []).length}`);
+    }
+    // ヘルパー実測: OFF は3フラグとも false
+    for (const [fn, exp] of [["auth_staff_can_register", false], ["auth_staff_can_crm", false], ["auth_staff_can_shift", false]] as const) {
+      const { data, error } = await off.rpc(fn);
+      check(`F3a-1 staffRegOffA1 ${fn}()=${exp}`, !error && data === exp, error?.message ?? `got ${JSON.stringify(data)}`);
+    }
+    await off.auth.signOut();
+
+    // ON: golden の実データが見える（従来 staff と同じ可視＝backfill 相当の保存確認）
+    const on = await signIn("staffRegOnA1");
+    const cnt = async (table: string) => {
+      const { data, error } = await on.from(table).select("id");
+      if (error) fails.push(`F3a-1 ON ${table} select エラー: ${error.message}`);
+      return (data ?? []).length;
+    };
+    check("F3a-1 can_register=true staff checks 可視（golden ≥1）", (await cnt("checks")) >= 1);
+    check("F3a-1 can_register=true staff check_lines 可視（golden ≥3）", (await cnt("check_lines")) >= 3);
+    check("F3a-1 can_register=true staff payments 可視（golden ≥3）", (await cnt("payments")) >= 3);
+    check("F3a-1 can_register=true staff check_nominations 可視（golden ≥2）", (await cnt("check_nominations")) >= 2);
+    check("F3a-1 can_register=true staff check_cast_backs 可視（golden ≥2）", (await cnt("check_cast_backs")) >= 2);
+    check("F3a-1 can_register=true staff receivables 可視（golden ar ≥1）", (await cnt("receivables")) >= 1);
+    check("F3a-1 can_register=true staff bottle_keeps 可視（マーカー ≥1）", (await cnt("bottle_keeps")) >= 1);
+    const { data: onReg } = await on.rpc("auth_staff_can_register");
+    check("F3a-1 staffRegOnA1 auth_staff_can_register()=true", onReg === true, `got ${JSON.stringify(onReg)}`);
+    const { data: onCrm } = await on.rpc("auth_staff_can_crm");
+    check("F3a-1 staffRegOnA1 auth_staff_can_crm()=false（opt-in 据置）", onCrm === false, `got ${JSON.stringify(onCrm)}`);
+    await on.auth.signOut();
+
+    // owner/manager 無条件（不変・role 固定）
+    const o = await signIn("ownerA");
+    const { data: oChecks } = await o.from("checks").select("id");
+    check("F3a-1 owner checks 無条件可視（不変）", (oChecks ?? []).length >= 1, `got ${(oChecks ?? []).length}`);
+    await o.auth.signOut();
+    const m = await signIn("managerA1");
+    const { data: mReg } = await m.rpc("auth_staff_can_register");
+    const { data: mChecks } = await m.from("checks").select("id");
+    check("F3a-1 manager 自分の行の can_register=false でも checks 可視（role 固定＝フラグ無視）",
+      mReg === false && (mChecks ?? []).length >= 1, `flag=${JSON.stringify(mReg)} rows=${(mChecks ?? []).length}`);
+    await m.auth.signOut();
+
+    // 後片付け（マーカー除去＝以降の節・F1a cast 0行 assert と非干渉）
+    await admin.from("bottle_keeps").delete().eq("id", bkRow!.id as string);
   }
 
   // F1b: void 連動（open 売掛→voided・幻影バック消滅・settled 拒否・open→void）

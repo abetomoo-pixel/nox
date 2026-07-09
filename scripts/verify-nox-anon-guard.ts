@@ -26,15 +26,21 @@
  *       内部 cast_sales_aggregate は anon かつ authenticated の両方で BLOCKED。
  * 段10（0015 適用後）: F2b の set/get_cast_sensitive・set_cast_tax_profile は anon BLOCKED 必須。
  *       cast_sensitive/cast_tax_profiles も anon select DENIED（cast_sensitive は grant0＝全ロール）。
+ * 段14（0022 適用後）: F3a-1 staff 機能別フラグの実効ゲート。can_register=false staff は会計6RPC が
+ *       本体 raise 'forbidden'（grant はあるので permission denied でなく flag ゲートの実測）・
+ *       can_register=true staff は open→add/remove→nominations→pay→close の実 INSERT が通る
+ *       （★prosrc green ≠ runtime success）。専用卓を service で用意し前後で伝票を全消し＝他 verify と非干渉。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
 import { createClient } from "@supabase/supabase-js";
-import { FIXTURE_USERS, loadEnvOrExit } from "./fixtures-f0";
+import { randomUUID } from "node:crypto";
+import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "SUPABASE_SECRET_KEY", // 段14 専用（専用卓の用意と伝票掃除・service 経路）
   "SEED_PASSWORD",
 ]);
 
@@ -283,6 +289,116 @@ async function main() {
     const { data, error: eRole } = await authed.rpc("auth_role");
     check("authenticated auth_role EXECUTABLE（対照）", !eRole && data === "cast", eRole?.message ?? `got ${JSON.stringify(data)}`);
     await authed.auth.signOut();
+  }
+
+  // ── 段14: F3a-1（mig0022）staff 機能別フラグの実効ゲート（runtime 実測）──
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const signInStaff = async (key: "staffRegOnA1" | "staffRegOffA1") => {
+      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { error } = await c.auth.signInWithPassword({
+        email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD,
+      });
+      if (error) {
+        fails.push(`段14 ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
+        return null;
+      }
+      return c;
+    };
+    const forbidden = (e: { message?: string } | null) => !!e?.message?.includes("forbidden");
+
+    // 準備（service）: 専用卓を query-or-insert（再実行で増殖させない）
+    const { data: storeRow } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    let seatId = "";
+    {
+      const { data: sExist } = await admin.from("seats").select("id")
+        .eq("store_id", storeRow!.id).eq("name", "NOX-VERIFY-PERM卓").limit(1);
+      if (sExist?.length) {
+        seatId = sExist[0].id as string;
+      } else {
+        const { data: sNew, error: eS } = await admin.from("seats").insert({
+          org_id: storeRow!.org_id, store_id: storeRow!.id, name: "NOX-VERIFY-PERM卓", kind: "卓", sort_order: 999,
+        }).select("id").single();
+        if (eS || !sNew) fails.push(`段14 専用卓の用意失敗: ${eS?.message}`);
+        else seatId = sNew.id as string;
+      }
+    }
+    // 再実行冪等: 専用卓の伝票を service で全消し（子→親の FK 順）
+    const wipeSeatChecks = async () => {
+      const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
+      const ids = (cs ?? []).map((c) => c.id as string);
+      if (!ids.length) return;
+      for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+        await admin.from(t).delete().in("check_id", ids);
+      }
+      await admin.from("checks").delete().in("id", ids);
+    };
+    await wipeSeatChecks();
+
+    const on = seatId ? await signInStaff("staffRegOnA1") : null;
+    const off = seatId ? await signInStaff("staffRegOffA1") : null;
+    if (on && off) {
+      // ① ON: check_open 実 INSERT（伝票行が物理生成される）
+      const { data: chkId, error: eOpen } = await on.rpc("check_open", { p_seat_id: seatId, p_people: 2, p_nom_type: "free" });
+      check("段14 can_register=true staff check_open 成功（実 INSERT）", !eOpen && typeof chkId === "string", eOpen?.message);
+      // ② ON: 行追加（OFF の remove_line プローブ対象に使う実在行）
+      const { data: lineTmp, error: eL0 } = await on.rpc("check_add_line", {
+        p_check_id: chkId, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "A", p_name: "PERM検証セットA", p_unit_price: 5_000,
+      });
+      check("段14 can_register=true staff check_add_line 成功（実 INSERT）", !eL0 && typeof lineTmp === "string", eL0?.message);
+
+      // ③ OFF: 実在 seat/check/line に対して 6RPC 全て本体 raise 'forbidden'
+      //    （実在 id・org/店一致＝ゲートまで確実に到達し flag だけで落ちる。open の再利用ルックアップより前にゲート）
+      const { error: eO1 } = await off.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+      check("段14 can_register=false staff check_open forbidden", forbidden(eO1), eO1?.message ?? "通ってしまった");
+      const { error: eO2 } = await off.rpc("check_set_nominations", { p_check_id: chkId, p_nom_type: "free", p_nominations: [] });
+      check("段14 can_register=false staff check_set_nominations forbidden", forbidden(eO2), eO2?.message ?? "通ってしまった");
+      const { error: eO3 } = await off.rpc("check_add_line", {
+        p_check_id: chkId, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "A", p_name: "侵入", p_unit_price: 100,
+      });
+      check("段14 can_register=false staff check_add_line forbidden", forbidden(eO3), eO3?.message ?? "通ってしまった");
+      const { error: eO4 } = await off.rpc("check_remove_line", { p_line_id: lineTmp });
+      check("段14 can_register=false staff check_remove_line forbidden", forbidden(eO4), eO4?.message ?? "通ってしまった");
+      const { error: eO5 } = await off.rpc("check_pay", {
+        p_check_id: chkId, p_method: "cash", p_amount: 1000, p_pay_group: "A", p_tendered: 1000, p_idem_key: null,
+      });
+      check("段14 can_register=false staff check_pay forbidden", forbidden(eO5), eO5?.message ?? "通ってしまった");
+      const { error: eO6 } = await off.rpc("check_close", { p_check_id: chkId, p_idem_key: null });
+      check("段14 can_register=false staff check_close forbidden", forbidden(eO6), eO6?.message ?? "通ってしまった");
+
+      // ④ ON: 残り4RPC を実運転で完走（remove→再追加→指名→pay→close＝6RPC 全て実行済みに）
+      const { error: eRm } = await on.rpc("check_remove_line", { p_line_id: lineTmp });
+      check("段14 can_register=true staff check_remove_line 成功（実 DELETE）", !eRm, eRm?.message);
+      const { error: eL1 } = await on.rpc("check_add_line", {
+        p_check_id: chkId, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "A", p_name: "PERM検証セットB", p_unit_price: 10_000,
+      });
+      check("段14 can_register=true staff 行再追加 成功", !eL1, eL1?.message);
+      const { data: castRows } = await on.from("casts").select("id").eq("name", FIXTURE_USERS.castA1a.name).limit(1);
+      const castId = castRows?.[0]?.id as string | undefined;
+      const { error: eNom } = await on.rpc("check_set_nominations", {
+        p_check_id: chkId, p_nom_type: "jonai", p_nominations: [{ cast_id: castId, weight: 1 }],
+      });
+      check("段14 can_register=true staff check_set_nominations 成功", !eNom, eNom?.message);
+      // due = 10,000 + サ10% → 100円切捨 = 11,000（NOX-VERIFY 店は settings 未設定＝既定 10/100/down）
+      const { error: ePay } = await on.rpc("check_pay", {
+        p_check_id: chkId, p_method: "cash", p_amount: 11_000, p_pay_group: "A", p_tendered: 11_000, p_idem_key: randomUUID(),
+      });
+      check("段14 can_register=true staff check_pay 成功（実 INSERT）", !ePay, ePay?.message);
+      const { data: closed, error: eCl } = await on.rpc("check_close", { p_check_id: chkId, p_idem_key: randomUUID() });
+      check("段14 can_register=true staff check_close 成功", !eCl && closed === chkId, eCl?.message ?? `got ${JSON.stringify(closed)}`);
+      // 実 INSERT の物理確認（ON staff の SELECT 可視で status/total を実測）
+      const { data: chkRow } = await on.from("checks").select("status, total").eq("id", chkId as string).single();
+      check("段14 実 INSERT 確認: status=closed・total=11000", chkRow?.status === "closed" && chkRow?.total === 11_000, JSON.stringify(chkRow));
+
+      // 後片付け（専用卓の伝票を除去＝verify:nox-rls の F1e 伝票棚卸しと非干渉）
+      await wipeSeatChecks();
+      await on.auth.signOut();
+      await off.auth.signOut();
+    }
   }
 
   if (fails.length) {

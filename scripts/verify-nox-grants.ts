@@ -9,7 +9,8 @@
  *  G1 public スキーマ全体で authenticated が SELECT 以外のテーブル権限を持たない（0行）
  *  G2 anon にテーブル権限が一切ない（0行）
  *  G3 audit_log_write の EXECUTE 保持者 = owner のみ（anon/authenticated/service_role 不在）
- *  G4 認可ヘルパー4本: 存在・SECURITY DEFINER・search_path=public 固定
+ *  G4 認可ヘルパー7本（基本4＋F3a-1 staff フラグ3）: 存在・SECURITY DEFINER・search_path=public 固定
+ *     ＋ G4b: EXECUTE ACL（authenticated 保持・anon 不在＝mig0022 の revoke/grant 恒久化）
  *  G5 6テーブルすべて RLS 有効（relrowsecurity=true）
  *  G6 audit_logs のポリシーは select 1本のみ（insert/update/delete ポリシー不在）
  */
@@ -32,7 +33,10 @@ const TABLES = [
   "shift_wishes", "shifts", "attendance", "punches", "staffing_needs", // F1d（mig0008）
   "daily_reports", // F1e（mig0010）
 ];
-const HELPERS = ["auth_org_id", "auth_role", "auth_store_id", "auth_cast_id"];
+const HELPERS = [
+  "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
+  "auth_staff_can_register", "auth_staff_can_crm", "auth_staff_can_shift", // F3a-1（mig0022）
+];
 
 async function main() {
   const db = new Client({
@@ -94,10 +98,30 @@ async function main() {
        where pronamespace = 'public'::regnamespace and proname = any($1)`,
       [HELPERS],
     );
-    check("G4 ヘルパー4本が存在", r.rowCount === 4, `got ${r.rowCount}: ${r.rows.map((x) => x.proname).join(", ")}`);
+    check(`G4 ヘルパー${HELPERS.length}本が存在`, r.rowCount === HELPERS.length, `got ${r.rowCount}: ${r.rows.map((x) => x.proname).join(", ")}`);
     for (const row of r.rows) {
       check(`G4 ${row.proname} SECURITY DEFINER`, row.prosecdef === true);
       check(`G4 ${row.proname} search_path=public 固定`, (row.config as string).includes("search_path=public"), row.config);
+    }
+
+    // G4b: ヘルパーの EXECUTE ACL（authenticated 保持・anon 不在＝mig0001/0022 の revoke/grant 恒久化）
+    const acl = await db.query(
+      `select p.proname, array_agg(r.rolname::text order by r.rolname) as roles
+       from pg_proc p
+       join aclexplode(p.proacl) a on true
+       join pg_roles r on r.oid = a.grantee
+       where p.pronamespace = 'public'::regnamespace and p.proname = any($1)
+       group by p.proname`,
+      [HELPERS],
+    );
+    check(`G4b ヘルパー${HELPERS.length}本の ACL 実在`, acl.rowCount === HELPERS.length, `got ${acl.rowCount}`);
+    for (const row of acl.rows) {
+      const roles = row.roles as string[];
+      check(
+        `G4b ${row.proname} EXECUTE = authenticated 保持・anon 不在`,
+        roles.includes("authenticated") && !roles.includes("anon"),
+        roles.join(", "),
+      );
     }
   }
 

@@ -41,7 +41,7 @@ NOX の認可は2層。第1層は BANZEN と同型、第2層が NOX 固有。
 | audit（監査ログ） | ✓ | – | – | – |
 
 - capability は**テーブルに持たない**。RLS ポリシー・RPC 内で `auth_role()` を直接判定（ハードコード）。
-- 案A 採用理由：NOX はコンプラ要件が最重（お金/マイナンバー/源泉/風営法）＝認可は柔軟性より堅さ優先。可変 capability は事故リスク＋RLS 複雑化を持ち込む。第2層（castプライバシー）が既に複雑なので第1層は単純に保つ。capability 可変は将来ニーズが顕在化してから追加（YAGNI）。
+- 案A 採用理由：NOX はコンプラ要件が最重（お金/マイナンバー/源泉/風営法）＝認可は柔軟性より堅さ優先。可変 capability は事故リスク＋RLS 複雑化を持ち込む。第2層（castプライバシー）が既に複雑なので第1層は単純に保つ。capability 可変は将来ニーズが顕在化してから追加（YAGNI）。→ **2026-07-09 に但し書き発動＝§1.5（staff 機能別フラグ層・mig0022）**。owner/manager/cast の role 固定は不変。
 
 ### 1.3 標準店スコープ RLS（大半のテーブル）
 ```sql
@@ -52,6 +52,21 @@ using (
 )
 ```
 書き込みは SECURITY DEFINER RPC 経由（直 INSERT/UPDATE/DELETE ポリシーは原則作らない・BANZEN 0030-0033 踏襲）。
+
+### 1.5 staff 機能別フラグ層（2026-07-09 追加・YAGNI 但し書き発動・mig0022）
+
+案A の但し書き「将来ニーズが顕在化してから追加」に基づき、staff（黒服）についてのみ機能別の可否をデータで持つ層を追加する（Agoora が顕在化を認定＝「黒服の権限は人ごとに会計・顧客の2軸で ON/OFF できる」要件）。**role 固定（第1層）は維持**。
+
+- フラグは memberships の明示列（JSON 不採用・頑丈さ優先）＝ `can_register`（会計）/ `can_crm`（顧客CRM）/ `can_shift`（シフト管理）。**default false（fail-closed）**＝立て忘れは「見えない」に倒れる。
+- **owner/manager/cast は role 固定でフラグを参照しない。staff のみがフラグ対象**（他 role の行のフラグ値は無意味）。
+- 参照は SECURITY DEFINER ヘルパー（`auth_staff_can_register()` / `auth_staff_can_crm()` / `auth_staff_can_shift()`）経由（memberships 直読みの無限再帰回避・既存4本と同型・revoke public/anon＋grant authenticated）。
+- RLS/RPC での型: 第3連結を `auth_role() in ('owner','manager') or (auth_role()='staff' and auth_staff_can_*())`（＋パターン1テーブルは cast 自己行枝を保持）に置換。
+- 軸の増加は `can_xxx boolean not null default false` を1列追加するだけ。
+- フラグ変更は audit_log に記録（誰がいつ ON にしたか）。※フラグ書込 RPC（set_staff_perms）は束3で実装・それまでの変更は service 経路。
+- 安全設計＝default deny＋監査＋系統的 verify（フラグ×テーブル×RPC の組み合わせ穴をテストで潰す＝verify:nox-rls の 0行 assert・verify:nox-anon-guard の runtime forbidden/実 INSERT・verify:nox-grants の G4/G4b）。
+- 適用状況: `can_register`＝会計6表＋bottle_keeps の RLS と会計6RPC（mig0022・束1・既存 staff は backfill で true）。`can_crm`＝customers（束2・器のみ先置き）。`can_shift`＝シフト側（束3・器のみ先置き）。
+
+この層の導入により、案A が懸念した「事故リスク・RLS 複雑化」は default deny・staff 枝限定・verify で抑える。role 固定の堅さは owner/manager/cast で維持される。
 
 ---
 

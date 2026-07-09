@@ -7,8 +7,10 @@
  * 作るもの:
  *   orgs: NOX-VERIFY-A / NOX-VERIFY-B
  *   stores: A1・A2（org A）・B1（org B）
- *   auth users 5人（固定 email・SEED_PASSWORD・確認済み扱い）
- *   users/memberships（ownerA/managerA1/castA1a/castA1b → A・managerB1 → B）
+ *   auth users 8人（固定 email・SEED_PASSWORD・確認済み扱い）
+ *   users/memberships（ownerA/managerA1/staffA1/staffRegOnA1/staffRegOffA1/castA1a/castA1b → A・managerB1 → B）
+ *   staff 機能別フラグ（mig0022・F3a-1）: memberships に can_register/can_crm/can_shift を明示値で書く
+ *     （staffRegOnA1=会計のみ ON・staffRegOffA1=全 OFF・他は全 false＝規約7 boolean 明示値）
  *   casts: castA1a/castA1b（store A1・user_id 紐付け）
  *   audit_logs 1行（org A・action=seed_marker・owner 閲覧テスト用）
  *
@@ -89,6 +91,21 @@ async function main() {
     await del("shifts", "org_id", orgIds);        // shift_wishes より先（wish_id FK）
     await del("shift_wishes", "org_id", orgIds);
     await del("staffing_needs", "org_id", orgIds);
+    // F2 系（mig0012〜0021）: casts/stores を参照する側から先に消す（F2 実装後の seed 再実行対応）
+    await del("payment_records", "org_id", orgIds);       // → payroll_runs/casts 参照
+    await del("payslips", "org_id", orgIds);              // → payroll_runs/casts 参照
+    await del("payroll_runs", "org_id", orgIds);
+    await del("advances", "org_id", orgIds);
+    await del("transport", "org_id", orgIds);
+    await del("attendance_incentives", "org_id", orgIds);
+    await del("cast_plan", "org_id", orgIds);             // → casts/comp_plans 参照
+    await del("cast_norms", "org_id", orgIds);
+    await del("cast_tax_profiles", "org_id", orgIds);
+    await del("cast_sensitive", "org_id", orgIds);
+    await del("comp_plans", "org_id", orgIds);            // cast_plan の後
+    await del("deductions", "org_id", orgIds);
+    await del("penalty_config", "org_id", orgIds);
+    await del("custom_back_defs", "org_id", orgIds);
     await del("casts", "org_id", orgIds);
     await del("memberships", "store_id", storeIds);
     await del("users", "org_id", orgIds);
@@ -134,6 +151,10 @@ async function main() {
     user_id: userId(u.email),
     store_id: storeId(u.store),
     role: u.role,
+    // F3a-1（mig0022）: staff 機能別フラグは常に明示値（規約7・perms 未指定 fixture は全 false）
+    can_register: u.perms?.can_register ?? false,
+    can_crm: u.perms?.can_crm ?? false,
+    can_shift: u.perms?.can_shift ?? false,
   }));
   const { error: e6 } = await admin.from("memberships").insert(memberRows);
   if (e6) die("memberships 投入失敗", e6);
