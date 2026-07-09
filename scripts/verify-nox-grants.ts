@@ -313,6 +313,24 @@ async function main() {
         roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
         `保持者: ${roles.join(", ") || "(なし)"}`);
     }
+
+    // G12: F3a 束3-1（mig0024）— set_staff_perms ACL・memberships policy 不変。
+    //   read RPC（list_staff_perms）は不採用（既存 memberships_select で owner/manager が読める）＝
+    //   memberships の policy は memberships_select 1本のみが不変条件（認可土台の非汚染 assert）。
+    {
+      const roles = await roleOf("set_staff_perms");
+      check("G12 set_staff_perms EXECUTE = authenticated（anon/public 不在）",
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    const memp = await db.query(
+      `select policyname, cmd from pg_policies where schemaname='public' and tablename='memberships'`,
+    );
+    check(
+      "G12 memberships ポリシー = memberships_select（SELECT）1本のみ不変（read RPC 不採用・土台非汚染）",
+      memp.rowCount === 1 && memp.rows[0].cmd === "SELECT" && memp.rows[0].policyname === "memberships_select",
+      memp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
+    );
   }
 
   await db.end();

@@ -62,9 +62,16 @@ using (
 - 参照は SECURITY DEFINER ヘルパー（`auth_staff_can_register()` / `auth_staff_can_crm()` / `auth_staff_can_shift()`）経由（memberships 直読みの無限再帰回避・既存4本と同型・revoke public/anon＋grant authenticated）。
 - RLS/RPC での型: 第3連結を `auth_role() in ('owner','manager') or (auth_role()='staff' and auth_staff_can_*())`（＋パターン1テーブルは cast 自己行枝を保持）に置換。
 - 軸の増加は `can_xxx boolean not null default false` を1列追加するだけ。
-- フラグ変更は audit_log に記録（誰がいつ ON にしたか）。※フラグ書込 RPC（set_staff_perms）は束3で実装・それまでの変更は service 経路。
+- フラグ変更は audit_log に記録（誰がいつ ON にしたか）。**フラグ書込RPC: set_staff_perms（束3-1・mig0024・2026-07-09 実装済み）**
+  - owner=org 内全店 / manager=自店のみ / staff・cast=自他とも forbidden（権限昇格封じ）
+  - 対象は staff のみ（role<>'staff' は 'not a staff'＝owner/manager/cast のフラグは触らせない）
+  - 規約7: p_can_register/p_can_crm/p_can_shift は明示 boolean・null は 'bad flag'（UI は3値全送信）
+  - 越境: memberships に org_id 列は無い＝stores join で org 照合（他 org は not found・存在オラクル封じ）
+  - audit_log_write で before/after 記録。memberships UPDATE のみ（INSERT/DELETE=スタッフ追加は束3-2）
+  - フラグ read: 追加なし＝既存 memberships_select（owner=org 全店/manager=自店）で読める（live 確認済み・
+    読み取り RPC 不採用・memberships の policy は 1本のまま不変＝認可土台の非汚染は verify G12 で恒久 assert）
 - 安全設計＝default deny＋監査＋系統的 verify（フラグ×テーブル×RPC の組み合わせ穴をテストで潰す＝verify:nox-rls の 0行 assert・verify:nox-anon-guard の runtime forbidden/実 INSERT・verify:nox-grants の G4/G4b）。
-- 適用状況: `can_register`＝会計6表＋bottle_keeps の RLS と会計6RPC（mig0022・束1・既存 staff は backfill で true）＋bottle_keep_register（mig0023・会計オペ準拠）。`can_crm`＝**適用済み（mig0023・束2）**＝customers SELECT RLS＋書込RPC（customer_register/customer_update）＋集計RPC（customer_summary/customer_list_summary）。`can_shift`＝シフト側（束3・器のみ先置き）。
+- 適用状況: `can_register`＝会計6表＋bottle_keeps の RLS と会計6RPC（mig0022・束1・既存 staff は backfill で true）＋bottle_keep_register（mig0023・会計オペ準拠）。`can_crm`＝**適用済み（mig0023・束2）**＝customers SELECT RLS＋書込RPC（customer_register/customer_update）＋集計RPC（customer_summary/customer_list_summary）。`can_shift`＝シフト側は器のみ（トグル手段は set_staff_perms で束3-1 実装済み・シフト管理 RPC 群への実適用は将来フェーズ・店一律トグルは NOX 未実装＝backfill 不要を 2026-07-09 に現物確認）。
 
 この層の導入により、案A が懸念した「事故リスク・RLS 複雑化」は default deny・staff 枝限定・verify で抑える。role 固定の堅さは owner/manager/cast で維持される。
 

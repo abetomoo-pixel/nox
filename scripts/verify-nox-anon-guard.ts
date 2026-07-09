@@ -41,6 +41,15 @@
  *       link 回帰＝check_open customer 紐付きで open→pay(ar) の receivables.customer_id 連動・
  *       他店/他 org 客は invalid customer・customer 省略（null）は従来どおり開ける（回帰）。
  *       生成した customers/bottle_keeps/伝票は末尾で全消し＝verify:nox-rls の固定カウントと非干渉。
+ * 段16（0024 適用後）: F3a 束3-1 set_staff_perms の実効ゲート（runtime 実測）。
+ *       owner=自 org staff 成功（実 UPDATE 物理確認・3フラグ任意組合せ）/ manager=自店成功・他店 forbidden /
+ *       staff（can_register/can_crm 問わず）・cast=自他とも forbidden（権限昇格封じ）。
+ *       規約7=3フラグいずれか null で bad flag。対象 role<>'staff' は not a staff。
+ *       越境=他 org membership は not found（存在オラクル封じ）。audit=before/after フラグ記録。
+ *       ★結合テスト＝フラグ変更が束1（会計6RPC ゲート）・束2（customers RLS）の可否に実反映。
+ *       他店 staff は fixture に無いため A2 ダミー staff を service で生成（auth 不要・users.auth_user_id
+ *       に FK なし＝live 確認済み）。フラグ復元＋ダミー削除＋伝票 wipe は try/finally で保証＝
+ *       verify:nox-rls の固定カウント（memberships 8行・F3a-1 フラグ前提）と非干渉。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -230,6 +239,7 @@ async function main() {
     ["customer_summary", { p_customer_id: null }],
     ["customer_list_summary", { p_store_id: null }],
     ["bottle_keep_register", { p_store_id: null, p_customer_id: null, p_product_id: null, p_note: null }],
+    ["set_staff_perms", { p_membership_id: null, p_can_register: null, p_can_crm: null, p_can_shift: null }], // 段16a（mig0024）
   ];
   for (const [fn, args] of F3A2_RPC_PROBES) {
     const { error } = await anon.rpc(fn, args);
@@ -718,6 +728,244 @@ async function main() {
       check("段15 回帰: customer_id=null（フリー客）", chkNullRow?.customer_id === null, JSON.stringify(chkNullRow));
       await wipeSeatChecks();
 
+      for (const c of sessions.values()) await c.auth.signOut();
+    }
+  }
+
+  // ── 段16: F3a 束3-1（mig0024）set_staff_perms の実効ゲート＋束1/束2 結合テスト ──
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const sessions = new Map<FixtureUserKey, SupabaseClient>();
+    const signInUser = async (key: FixtureUserKey) => {
+      const cached = sessions.get(key);
+      if (cached) return cached;
+      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { error } = await c.auth.signInWithPassword({
+        email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD,
+      });
+      if (error) {
+        fails.push(`段16 ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
+        return null;
+      }
+      sessions.set(key, c);
+      return c;
+    };
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+
+    // 準備（service）: fixture の membership id・ベースラインフラグを取得
+    type MemRow = { id: string; store_id: string; role: string; can_register: boolean; can_crm: boolean; can_shift: boolean };
+    const memOf = async (key: FixtureUserKey): Promise<MemRow | null> => {
+      const { data: u } = await admin.from("users").select("id").eq("email", FIXTURE_USERS[key].email).single();
+      if (!u) return null;
+      const { data: mm } = await admin.from("memberships")
+        .select("id, store_id, role, can_register, can_crm, can_shift").eq("user_id", u.id).limit(1);
+      return (mm?.[0] as MemRow | undefined) ?? null;
+    };
+    const memRegOn = await memOf("staffRegOnA1");   // baseline (true, false, false)
+    const memRegOff = await memOf("staffRegOffA1"); // baseline (false, false, false)
+    const memOwner = await memOf("ownerA");
+    const memManager = await memOf("managerA1");
+    const memCast = await memOf("castA1a");
+    const memB1 = await memOf("managerB1");         // 他 org（not found 検証用）
+    const { data: storeRows } = await admin.from("stores").select("id, name, org_id")
+      .in("name", [STORE_A1, STORE_A2]);
+    const storeA1 = storeRows?.find((s) => s.name === STORE_A1);
+    const storeA2 = storeRows?.find((s) => s.name === STORE_A2);
+    check("段16（準備）membership/店 id 解決",
+      !!memRegOn && !!memRegOff && !!memOwner && !!memManager && !!memCast && !!memB1 && !!storeA1 && !!storeA2);
+
+    // 他店 staff ダミー（A2）: fixture に無いため service で生成（auth 不要・users.auth_user_id に FK なし）。
+    // 前回失敗遺物の掃除（再実行冪等）→ 生成。
+    const DUMMY_EMAIL = "nox-verify-staff-a2-dummy@example.com";
+    {
+      const { data: oldU } = await admin.from("users").select("id").eq("email", DUMMY_EMAIL);
+      const oldIds = (oldU ?? []).map((r) => r.id as string);
+      if (oldIds.length) {
+        await admin.from("memberships").delete().in("user_id", oldIds);
+        await admin.from("users").delete().in("id", oldIds);
+      }
+    }
+    const { data: uA2 } = await admin.from("users").insert({
+      org_id: storeA1!.org_id, auth_user_id: randomUUID(), email: DUMMY_EMAIL, name: "検証黒服A2ダミー",
+    }).select("id").single();
+    const { data: memA2 } = await admin.from("memberships").insert({
+      user_id: uA2!.id, store_id: storeA2!.id, role: "staff",
+      can_register: false, can_crm: false, can_shift: false,
+    }).select("id").single();
+    check("段16（準備）他店 A2 ダミー staff 生成", !!memA2?.id);
+
+    const owner = await signInUser("ownerA");
+    const mgr = await signInUser("managerA1");
+    const staffOn = await signInUser("staffRegOnA1");
+    const staffCrm = await signInUser("staffCrmOnA1");
+    const staffOff = await signInUser("staffRegOffA1");
+    const cast = await signInUser("castA1a");
+    if (memRegOn && memRegOff && owner && mgr && staffOn && staffCrm && staffOff && cast) {
+      try {
+        // ① owner: 任意組合せ（can_shift のみ true）の実 UPDATE ＋ 物理確認 ＋ audit
+        const { error: e1 } = await owner.rpc("set_staff_perms", {
+          p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: false, p_can_shift: true,
+        });
+        check("段16 owner set_staff_perms 成功（can_shift のみ true）", !e1, e1?.message);
+        const { data: m1 } = await admin.from("memberships")
+          .select("can_register, can_crm, can_shift").eq("id", memRegOff.id).single();
+        check("段16 実 UPDATE 物理確認: (false,false,true) が正確に反映",
+          m1?.can_register === false && m1?.can_crm === false && m1?.can_shift === true, JSON.stringify(m1));
+        // audit: before/after のフラグが記録される（owner 閲覧）
+        const { data: aud } = await owner.from("audit_logs")
+          .select("before_json, after_json")
+          .eq("action", "set_staff_perms")
+          .eq("target", `memberships:${memRegOff.id}`)
+          .order("at", { ascending: false }).limit(1);
+        const aRow = aud?.[0] as { before_json?: { can_shift?: boolean }; after_json?: { can_shift?: boolean } } | undefined;
+        check("段16 audit: before.can_shift=false / after.can_shift=true が記録",
+          aRow?.before_json?.can_shift === false && aRow?.after_json?.can_shift === true, JSON.stringify(aRow));
+
+        // ② manager: 自店 staff 成功（3フラグ全 true）・他店 A2 staff は forbidden
+        const { error: e2 } = await mgr.rpc("set_staff_perms", {
+          p_membership_id: memRegOff.id, p_can_register: true, p_can_crm: true, p_can_shift: true,
+        });
+        check("段16 manager 自店 staff 成功（全 true）", !e2, e2?.message);
+        const { data: m2 } = await admin.from("memberships")
+          .select("can_register, can_crm, can_shift").eq("id", memRegOff.id).single();
+        check("段16 実 UPDATE 物理確認: (true,true,true)",
+          m2?.can_register === true && m2?.can_crm === true && m2?.can_shift === true, JSON.stringify(m2));
+        const { error: e3 } = await mgr.rpc("set_staff_perms", {
+          p_membership_id: memA2!.id, p_can_register: true, p_can_crm: false, p_can_shift: false,
+        });
+        check("段16 manager 他店 A2 staff forbidden（店スコープ）", forbidden(e3), e3?.message ?? "通ってしまった");
+        // owner は org 内他店 A2 staff も変更可（org 全店スコープの positive）
+        const { error: e4 } = await owner.rpc("set_staff_perms", {
+          p_membership_id: memA2!.id, p_can_register: true, p_can_crm: false, p_can_shift: false,
+        });
+        check("段16 owner 他店 A2 staff 成功（org 全店）", !e4, e4?.message);
+
+        // ③ staff/cast 呼び出し＝forbidden（権限昇格封じ・自分にも他人にも）
+        const { error: e5 } = await staffOn.rpc("set_staff_perms", {
+          p_membership_id: memRegOn.id, p_can_register: true, p_can_crm: true, p_can_shift: true,
+        });
+        check("段16 staff(can_register=true) 自分に forbidden（昇格封じ）", forbidden(e5), e5?.message ?? "通ってしまった");
+        const { error: e6 } = await staffCrm.rpc("set_staff_perms", {
+          p_membership_id: memRegOff.id, p_can_register: true, p_can_crm: true, p_can_shift: true,
+        });
+        check("段16 staff(can_crm=true) 他人に forbidden", forbidden(e6), e6?.message ?? "通ってしまった");
+        const { error: e7 } = await cast.rpc("set_staff_perms", {
+          p_membership_id: memRegOff.id, p_can_register: true, p_can_crm: true, p_can_shift: true,
+        });
+        check("段16 cast forbidden", forbidden(e7), e7?.message ?? "通ってしまった");
+
+        // ④ 規約7: 3フラグいずれか null で bad flag
+        for (const [label, args] of [
+          ["can_register null", { p_membership_id: memRegOff.id, p_can_register: null, p_can_crm: false, p_can_shift: false }],
+          ["can_crm null", { p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: null, p_can_shift: false }],
+          ["can_shift null", { p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: false, p_can_shift: null }],
+        ] as const) {
+          const { error } = await owner.rpc("set_staff_perms", args as Record<string, unknown>);
+          check(`段16 規約7: ${label} = bad flag`, has(error, "bad flag"), error?.message ?? "通ってしまった");
+        }
+
+        // ⑤ 対象 role: owner/manager/cast の membership は not a staff
+        for (const [label, mem] of [["owner", memOwner], ["manager", memManager], ["cast", memCast]] as const) {
+          const { error } = await owner.rpc("set_staff_perms", {
+            p_membership_id: mem!.id, p_can_register: false, p_can_crm: false, p_can_shift: false,
+          });
+          check(`段16 対象 ${label} membership = not a staff`, has(error, "not a staff"), error?.message ?? "通ってしまった");
+        }
+
+        // ⑥ 越境: 他 org の membership は not found（存在オラクル封じ）
+        const { error: eX } = await owner.rpc("set_staff_perms", {
+          p_membership_id: memB1!.id, p_can_register: false, p_can_crm: false, p_can_shift: false,
+        });
+        check("段16 他 org membership = not found", has(eX, "not found"), eX?.message ?? "通ってしまった");
+        const { error: eX2 } = await owner.rpc("set_staff_perms", {
+          p_membership_id: randomUUID(), p_can_register: false, p_can_crm: false, p_can_shift: false,
+        });
+        check("段16 不在 membership = not found", has(eX2, "not found"), eX2?.message ?? "通ってしまった");
+
+        // ⑦ ★結合テスト（束1連動・会計ゲート）: staffRegOnA1 の can_register を落とすと会計RPC が forbidden
+        //    → 復元すると再び通る（実 INSERT）。専用卓＋前後 wipe＝日報/売上ゴールデンと非干渉。
+        let seatId = "";
+        {
+          const { data: sExist } = await admin.from("seats").select("id")
+            .eq("store_id", storeA1!.id).eq("name", "NOX-VERIFY-PERM卓").limit(1);
+          if (sExist?.length) seatId = sExist[0].id as string;
+          else {
+            const { data: sNew } = await admin.from("seats").insert({
+              org_id: storeA1!.org_id, store_id: storeA1!.id, name: "NOX-VERIFY-PERM卓", kind: "卓", sort_order: 999,
+            }).select("id").single();
+            seatId = sNew!.id as string;
+          }
+        }
+        const wipeSeatChecks = async () => {
+          const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
+          const ids = (cs ?? []).map((c) => c.id as string);
+          if (!ids.length) return;
+          for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+            await admin.from(t).delete().in("check_id", ids);
+          }
+          await admin.from("checks").delete().in("id", ids);
+        };
+        await wipeSeatChecks();
+
+        const { error: eOff1 } = await owner.rpc("set_staff_perms", {
+          p_membership_id: memRegOn.id, p_can_register: false, p_can_crm: false, p_can_shift: false,
+        });
+        check("段16 結合（準備）staffRegOnA1 の can_register を false に", !eOff1, eOff1?.message);
+        const { error: eOpenOff } = await staffOn.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+        check("段16 ★結合: can_register=false 化した staff の check_open が forbidden（束1ゲート実反映）",
+          forbidden(eOpenOff), eOpenOff?.message ?? "通ってしまった");
+        const { error: eOn1 } = await owner.rpc("set_staff_perms", {
+          p_membership_id: memRegOn.id,
+          p_can_register: memRegOn.can_register, p_can_crm: memRegOn.can_crm, p_can_shift: memRegOn.can_shift,
+        });
+        check("段16 結合（復元）staffRegOnA1 をベースラインへ", !eOn1, eOn1?.message);
+        const { data: chkOn, error: eOpenOn } = await staffOn.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+        check("段16 ★結合: 復元後 check_open 成功（実 INSERT・フラグが runtime に実反映）",
+          !eOpenOn && typeof chkOn === "string", eOpenOn?.message);
+        await wipeSeatChecks();
+
+        // ⑧ ★結合テスト（束2連動・customers RLS）: staffRegOffA1 に can_crm を付けると customers が見える
+        //    → 復元（全 false）で 0行に戻る。
+        const { error: eCrm1 } = await owner.rpc("set_staff_perms", {
+          p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: true, p_can_shift: false,
+        });
+        check("段16 結合（準備）staffRegOffA1 に can_crm=true", !eCrm1, eCrm1?.message);
+        const { data: custOn } = await staffOff.from("customers").select("id");
+        check("段16 ★結合: can_crm=true 化した staff が customers 可視（束2 RLS 実反映・自店4客）",
+          (custOn ?? []).length === 4, `got ${(custOn ?? []).length}`);
+        const { error: eCrm0 } = await owner.rpc("set_staff_perms", {
+          p_membership_id: memRegOff.id,
+          p_can_register: memRegOff.can_register, p_can_crm: memRegOff.can_crm, p_can_shift: memRegOff.can_shift,
+        });
+        check("段16 結合（復元）staffRegOffA1 をベースラインへ", !eCrm0, eCrm0?.message);
+        const { data: custOff } = await staffOff.from("customers").select("id");
+        check("段16 ★結合: 復元後 customers 0行に戻る", (custOff ?? []).length === 0, `got ${(custOff ?? []).length}`);
+      } finally {
+        // フラグ復元の最終保証（service 直・途中失敗でも rls の F3a-1/F3a-2 前提を汚さない）
+        await admin.from("memberships").update({
+          can_register: memRegOn.can_register, can_crm: memRegOn.can_crm, can_shift: memRegOn.can_shift,
+        }).eq("id", memRegOn.id);
+        await admin.from("memberships").update({
+          can_register: memRegOff.can_register, can_crm: memRegOff.can_crm, can_shift: memRegOff.can_shift,
+        }).eq("id", memRegOff.id);
+        // ダミー staff の除去（memberships 8行の固定カウント維持）
+        if (memA2?.id) await admin.from("memberships").delete().eq("id", memA2.id);
+        if (uA2?.id) await admin.from("users").delete().eq("id", uA2.id);
+      }
+      // 復元の物理確認（rls 前提の positive）
+      const { data: mFin1 } = await admin.from("memberships")
+        .select("can_register, can_crm, can_shift").eq("id", memRegOn.id).single();
+      const { data: mFin2 } = await admin.from("memberships")
+        .select("can_register, can_crm, can_shift").eq("id", memRegOff.id).single();
+      check("段16 復元確認: staffRegOnA1=(true,false,false) / staffRegOffA1=(false,false,false)",
+        mFin1?.can_register === true && mFin1?.can_crm === false && mFin1?.can_shift === false
+          && mFin2?.can_register === false && mFin2?.can_crm === false && mFin2?.can_shift === false,
+        JSON.stringify([mFin1, mFin2]));
       for (const c of sessions.values()) await c.auth.signOut();
     }
   }
