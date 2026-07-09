@@ -165,13 +165,13 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
                   <td style={{ ...t.td, ...t.num, textAlign: "right", color: r.anomalyCount ? "var(--bad)" : "var(--sub)" }}>{r.anomalyCount || "-"}</td>
                 </tr>
               ))}
-              <tr style={{ fontWeight: "bold" }}>
-                <td style={t.td} colSpan={5}>合計（{rows.length} 名）</td>
-                <td style={{ ...t.td, ...t.num, textAlign: "right", color: "var(--champ)" }}>{total.toLocaleString()}</td>
-                <td style={t.td} />
-              </tr>
             </tbody>
           </table>
+          {/* 複数キャスト表の「締め」＝合計行を slipFoot バー化（gold バー・net は slipFootVal tabular）。表本体は t.th/t.td 維持。 */}
+          <div style={t.slipFoot}>
+            <span>合計（{rows.length} 名）</span>
+            <b style={t.slipFootVal}>¥{total.toLocaleString()}</b>
+          </div>
 
           {/* 段3: 確定 */}
           <button onClick={finalize} disabled={busy || blockers.length > 0 || rows.length === 0} style={blockers.length ? { ...t.btnGhost } : { ...t.btnGold }}>

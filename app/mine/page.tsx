@@ -85,6 +85,17 @@ export default async function MinePage() {
     const arr = (bj as Record<string, DeductEntry[]> | null)?.[key] ?? [];
     return arr.reduce((s, e) => s + (e.action === "deducted" ? e.amount ?? 0 : 0), 0);
   };
+  // breakdown_json の器 = { pay: PayResult, extras: Extra[] } ＋ finalize が足す ar/adv/okuri（上の deductTotal）。
+  // full slip は pay の実フィールドのみ落とす（欠損は行を出さない＝捏造しない）。cast は自分の payslips 行のみ（RLS パターン1）。
+  type SlipPay = {
+    wage?: number; wHours?: number; timePay?: number;
+    honBack?: number; jonaiBack?: number; dohanBack?: number;
+    drinkBack?: number; champBack?: number; bottleBack?: number; salesBack?: number; customTotal?: number;
+    gross?: number; fixedDed?: number; fine?: number; withholding?: number; normPenalty?: number;
+  };
+  type SlipExtra = { kind: string; amount: number; label?: string };
+  const payOf = (bj: unknown): SlipPay => (bj as { pay?: SlipPay } | null)?.pay ?? {};
+  const extrasOf = (bj: unknown): SlipExtra[] => (bj as { extras?: SlipExtra[] } | null)?.extras ?? [];
 
   // F2f 報酬シミュレーター用データ（自分のプラン＋店マスタ＋open 前借り/送り残・RLS 読取・売掛は読まない）。
   const sim = await loadCastSimData(supabase);
@@ -103,21 +114,54 @@ export default async function MinePage() {
       <section className="nox-cardtop" style={t.card}>
         <h2 style={title}>確定給与明細</h2>
         {(slips ?? []).length === 0 && <p style={noneP}>確定分なし</p>}
-        <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
-          {(slips ?? []).map((s, i) => {
-            const ar = deductTotal(s.breakdown_json, "ar");
-            const adv = deductTotal(s.breakdown_json, "adv");
-            const okuri = deductTotal(s.breakdown_json, "okuri");
-            return (
-              <li key={i} style={{ padding: "3px 0" }}>
-                {s.period}: 手取り <span style={t.num}>{yen(s.net as number)}</span>
-                {ar > 0 ? <span style={{ color: "var(--bad)" }}>（売掛 −{yen(ar)}）</span> : null}
-                {adv > 0 ? <span style={{ color: "var(--bad)" }}>（前借り −{yen(adv)}）</span> : null}
-                {okuri > 0 ? <span style={{ color: "var(--bad)" }}>（送り −{yen(okuri)}）</span> : null}
-              </li>
-            );
-          })}
-        </ul>
+        {(slips ?? []).map((s, i) => {
+          const pay = payOf(s.breakdown_json);
+          const extras = extrasOf(s.breakdown_json);
+          const ar = deductTotal(s.breakdown_json, "ar");
+          const adv = deductTotal(s.breakdown_json, "adv");
+          const okuri = deductTotal(s.breakdown_json, "okuri");
+          const nominBack = (pay.honBack ?? 0) + (pay.jonaiBack ?? 0) + (pay.dohanBack ?? 0);
+          const prodBack = (pay.drinkBack ?? 0) + (pay.champBack ?? 0) + (pay.bottleBack ?? 0) + (pay.salesBack ?? 0) + (pay.customTotal ?? 0);
+          const hasDed = (pay.fixedDed ?? 0) > 0 || (pay.fine ?? 0) > 0 || (pay.withholding ?? 0) > 0 || (pay.normPenalty ?? 0) > 0 || ar > 0 || adv > 0 || okuri > 0;
+          // 支給行（＞0 のみ）／控除行（＞0 のみ・bad 減算）。gross = 上の支給の和・net = gross − 控除 ＋ extras（＝s.net）。
+          const earn = (label: string, v: number) => (
+            <div style={t.slipRow}><span>{label}</span><span style={t.num}>{yen(v)}</span></div>
+          );
+          const ded = (label: string, v: number) =>
+            v > 0 ? <div style={t.slipRow}><span>{label}</span><span style={{ ...t.num, color: "var(--bad)" }}>−{yen(v)}</span></div> : null;
+          return (
+            <div key={i} style={{ marginBottom: 14 }}>
+              <div style={t.slipHd}>{s.period}</div>
+
+              <div style={t.slipSec}>支給</div>
+              {(pay.timePay ?? 0) > 0 && earn(`時給 ${yen(pay.wage ?? 0)}/h × ${pay.wHours ?? 0}h`, pay.timePay ?? 0)}
+              {nominBack > 0 && earn("指名バック（本/場内/同伴）", nominBack)}
+              {prodBack > 0 && earn("商品・売上・自由バック", prodBack)}
+              {(pay.gross ?? 0) > 0 && (
+                <div style={t.slipRowB}><span>総支給（gross）</span><span style={t.num}>{yen(pay.gross ?? 0)}</span></div>
+              )}
+
+              {hasDed && <div style={t.slipSec}>控除</div>}
+              {ded("固定控除", pay.fixedDed ?? 0)}
+              {ded("罰金", pay.fine ?? 0)}
+              {ded("源泉", pay.withholding ?? 0)}
+              {ded("ノルマ未達", pay.normPenalty ?? 0)}
+              {ded("売掛", ar)}
+              {ded("前借り", adv)}
+              {ded("送り", okuri)}
+
+              {extras.length > 0 && <div style={t.slipSec}>加算</div>}
+              {extras.map((e, j) => (
+                <div key={j} style={t.slipRow}>
+                  <span>{e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind)}</span>
+                  <span style={t.num}>{yen(e.amount)}</span>
+                </div>
+              ))}
+
+              <div style={t.slipFoot}><span>手取り</span><b style={t.slipFootVal}>{yen(s.net as number)}</b></div>
+            </div>
+          );
+        })}
         <p style={{ ...noteP, marginTop: 6 }}>※確定後の明細です。売掛・前借り・送りの未収残は店にご確認ください。</p>
       </section>
 

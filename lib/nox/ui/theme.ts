@@ -152,3 +152,14 @@ export const logo: CSSProperties = {
   width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#1F1B12,#0B0B0F)",
   border: "1px solid var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px",
 };
+
+// ── 給与/支払明細（slip・mock .slip 系写経）──────────────────────────
+// .slip は無スタイルのセマンティック容器（素の <div>）。以下は各要素へ直付けする inline プリミティブ。
+// ::before/擬似要素・子孫セレクタ依存が無いため globals.css 追加は不要（nox-cardtop と異なる）。
+export const slipHd: CSSProperties = { textAlign: "center", fontWeight: 800, letterSpacing: 3, background: "#0E0E14", border: "1px solid var(--line2)", borderRadius: 8, padding: 7 };
+export const slipSub: CSSProperties = { textAlign: "center", fontSize: 11.5, color: "var(--sub)", margin: "8px 0 10px" };
+export const slipSec: CSSProperties = { fontWeight: 800, fontSize: 12, background: "var(--card2)", borderLeft: "3px solid var(--gold)", padding: "4px 9px", margin: "10px 0 4px" };
+export const slipRow: CSSProperties = { display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: 4, borderBottom: "1px dashed var(--line)" };
+export const slipRowB: CSSProperties = { ...slipRow, fontWeight: 800, color: "var(--champ)", borderBottom: "1px solid var(--line2)" }; // .sliprow.b（強調行）
+export const slipFoot: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, background: "linear-gradient(135deg,var(--gold),var(--gold2))", color: "#0B0B0F", borderRadius: 9, padding: "9px 13px", fontWeight: 800 };
+export const slipFootVal: CSSProperties = { fontFamily: font.num, fontSize: 19, fontVariantNumeric: "tabular-nums" }; // .slipfoot b（Outfit・NOX num 規約で tabular 付与）
