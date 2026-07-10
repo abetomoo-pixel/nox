@@ -19,6 +19,7 @@
  *  - 退職回帰（方式A・capture-and-restore）: アクティブ membership の id 集合をキャプチャ→全行 false→
  *    orgs/users/stores/products 0行→キャプチャ集合のみ復元→再可視。
  *    部分ユニーク（1ユーザー1アクティブ）と干渉せず、F4 の複数 membership 時代でも壊れない書き方。
+ *  - seat 蓄積対策: 末尾で旧 run の「卓1/卓1改」を参照ゼロ限定で service 削除（seats は3行で定常・累積しない）。
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
@@ -1983,6 +1984,29 @@ async function main() {
     const c2 = await signIn("managerA1");
     check("退職回帰: 復元後 orgs 再可視", sameSet(await names(c2, "orgs"), [ORG_A]));
     await c2.auth.signOut();
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // seat 蓄積の恒久掃除: 旧 run の「NOX-VERIFY-卓1/卓1改」を参照ゼロ限定で削除。
+  // F1a は audit assert（target=seats:<id> が「ちょうど1行」）の前提として run 毎に
+  // 新規 seat を作る＝query-or-insert 化は seatId 再利用で assert が崩れるため不採用。
+  // 当 run の seat は F1e 境界伝票等が参照して残り、次 run の F1e wipe で参照ゼロに
+  // なってここで消える＝定常状態は CRM卓/PERM卓/当 run 卓1改 の3行で安定（累積しない）。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: oldSeats } = await admin.from("seats").select("id")
+      .eq("store_id", storeA1Id)
+      .in("name", ["NOX-VERIFY-卓1", "NOX-VERIFY-卓1改"])
+      .neq("id", seatId);
+    for (const s of oldSeats ?? []) {
+      const { data: refs } = await admin.from("checks").select("id").eq("seat_id", s.id as string).limit(1);
+      if ((refs ?? []).length === 0) {
+        await admin.from("seats").delete().eq("id", s.id as string);
+      }
+    }
   }
 
   if (fails.length) {
