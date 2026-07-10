@@ -33,6 +33,7 @@ const TABLES = [
   "shift_wishes", "shifts", "attendance", "punches", "staffing_needs", // F1d（mig0008）
   "daily_reports", // F1e（mig0010）
   "customers", // F3a-2（mig0023）
+  "reservations", // F3a-3（mig0027）
 ];
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
@@ -360,6 +361,26 @@ async function main() {
       "G14 users ポリシー = users_select（SELECT）1本のみ不変（書込 policy なし＝RPC 経由）",
       usp.rowCount === 1 && usp.rows[0].cmd === "SELECT" && usp.rows[0].policyname === "users_select",
       usp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
+    );
+
+    // G15: F3a-3 予約（mig0027）— 予約 RPC 4本の EXECUTE ACL＋reservations policy。
+    //   reservations の RLS 有効と grant 面（authenticated=SELECT のみ・anon 0）は
+    //   TABLES 配列追加により G1/G2/G5 が自動回帰＝ここは positive assert。
+    for (const fn of [
+      "reservation_create", "reservation_update", "reservation_set_status", "reservation_to_check",
+    ]) {
+      const roles = await roleOf(fn);
+      check(`G15 ${fn} EXECUTE = authenticated（anon/public 不在）`,
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    const rsp = await db.query(
+      `select policyname, cmd from pg_policies where schemaname='public' and tablename='reservations'`,
+    );
+    check(
+      "G15 reservations ポリシー = reservations_select（SELECT）1本のみ（書込 policy なし＝RPC 経由）",
+      rsp.rowCount === 1 && rsp.rows[0].cmd === "SELECT" && rsp.rows[0].policyname === "reservations_select",
+      rsp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
     );
   }
 
