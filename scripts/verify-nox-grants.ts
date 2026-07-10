@@ -331,6 +331,18 @@ async function main() {
       memp.rowCount === 1 && memp.rows[0].cmd === "SELECT" && memp.rows[0].policyname === "memberships_select",
       memp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
     );
+
+    // G13: F3a 束3-2 Q-1（mig0025）— スタッフ編集 RPC 5本の EXECUTE ACL（authenticated 保持・anon/public 不在）。
+    //   memberships policy 不変（memberships_select 1本のみ）は G12 が恒久 assert 済み＝ここは ACL のみ。
+    for (const fn of [
+      "staff_update_profile", "staff_transfer_store", "staff_change_role",
+      "staff_deactivate", "staff_reactivate",
+    ]) {
+      const roles = await roleOf(fn);
+      check(`G13 ${fn} EXECUTE = authenticated（anon/public 不在）`,
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
   }
 
   await db.end();

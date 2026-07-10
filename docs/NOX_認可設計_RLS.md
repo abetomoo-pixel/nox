@@ -72,6 +72,14 @@ using (
     読み取り RPC 不採用・memberships の policy は 1本のまま不変＝認可土台の非汚染は verify G12 で恒久 assert）
 - 安全設計＝default deny＋監査＋系統的 verify（フラグ×テーブル×RPC の組み合わせ穴をテストで潰す＝verify:nox-rls の 0行 assert・verify:nox-anon-guard の runtime forbidden/実 INSERT・verify:nox-grants の G4/G4b）。
 - 適用状況: `can_register`＝会計6表＋bottle_keeps の RLS と会計6RPC（mig0022・束1・既存 staff は backfill で true）＋bottle_keep_register（mig0023・会計オペ準拠）。`can_crm`＝**適用済み（mig0023・束2）**＝customers SELECT RLS＋書込RPC（customer_register/customer_update）＋集計RPC（customer_summary/customer_list_summary）。`can_shift`＝シフト側は器のみ（トグル手段は set_staff_perms で束3-1 実装済み・シフト管理 RPC 群への実適用は将来フェーズ・店一律トグルは NOX 未実装＝backfill 不要を 2026-07-09 に現物確認）。
+- **スタッフ編集RPC 5本（束3-2 Q-1・mig0025・2026-07-10 実装済み）**：
+  - `staff_update_profile`（名前変更・owner/manager 自店・users.name 1箇所＝1ユーザー1アクティブで不整合は構造上起きない・対象 staff/manager のみ）
+  - `staff_transfer_store`（異動・**owner のみ**＝店跨ぎ操作・同一 org 限定。★出戻り分岐＝UNIQUE(user_id,store_id) は active/inactive 問わず効くため、新店に既存行あれば reactivate（**フラグ既存値維持**・role は異動元引き継ぎ）・なければ INSERT（フラグ default false=fail-closed）。旧を false→新を active の順で 1ユーザー1アクティブの両立瞬間を作らない。inactive 行の異動は 'inactive membership' 明示拒否＝復帰は staff_reactivate に一本化）
+  - `staff_change_role`（昇降格・**owner のみ**＝権限昇格経路。p_new_role と現 role の二重ガードで staff↔manager のみ＝owner 増殖・cast 混入封じ。フラグ現状維持＝降格で参照再開・default false なら fail-closed）
+  - `staff_deactivate`（在籍解除・owner/manager 自店・is_active=false のみ＝物理削除なし。owner は 'bad target' 保護。解除で membership 経由の認可が全倒れ＝auth_role() null）
+  - `staff_reactivate`（再雇用・owner/manager 自店・同店復帰。他 active membership があれば 'already active elsewhere'＝1ユーザー1アクティブ・二重防御は部分ユニーク index。フラグは残存値のまま復帰）
+  - 共通ゲート: 対象 membership は stores join で org 照合（他 org・不在は not found＝存在オラクル封じ）・対象 role ∈ (staff,manager)・audit_log_write before/after（old は UPDATE 前確保）。memberships の policy は memberships_select 1本のまま不変（verify G12/G13 で恒久 assert）。
+  - verify: 段17（権限マトリクス・出戻り分岐・昇降格のフラグ参照 停止/再開・在籍解除の認可倒れ→reactivate 復帰＝すべて signIn runtime 実測）＋grants G13。スタッフ追加（auth 生成）は束3-2 Q-2（staff_create・mig0026 予定）。
 
 この層の導入により、案A が懸念した「事故リスク・RLS 複雑化」は default deny・staff 枝限定・verify で抑える。role 固定の堅さは owner/manager/cast で維持される。
 
@@ -234,6 +242,7 @@ NOX の全 SECURITY DEFINER RPC に適用：
 - **cast セルフ**：cast が自分の attendance(self)/shift_wishes/drink_claims を作れる・他 cast の行は作れない。
 - **anon ガード**：全 RPC が anon で BLOCKED（rpc-anon-guard 相当）。
 - **マイナンバー RPC**：呼び出しが audit_logs に記録される。
+- **スタッフ編集（束3-2 Q-1・段17）**：編集5RPC の権限マトリクス（owner 成功／manager 自店成功・他店 forbidden／異動・昇降格は owner のみ／staff・cast forbidden）・出戻り分岐（reactivate＝membership id 同一・フラグ既存値維持）・昇降格でフラグ参照の停止/再開・deactivate 後 auth_role()=null＋RLS 全倒れ 0行（認可倒れ）を runtime 実測。
 
 ---
 
