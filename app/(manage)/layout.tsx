@@ -27,6 +27,7 @@ export default async function ManageLayout({ children }: { children: React.React
     ...(isManagerUp || staffCrm ? [{ href: "/customers", label: "顧客" }] : []),
     ...(isManagerUp
       ? [
+          { href: "/analytics", label: "分析" },
           { href: "/payroll", label: "給与" },
           { href: "/staff", label: "スタッフ" },
           { href: "/master", label: "マスタ" },
