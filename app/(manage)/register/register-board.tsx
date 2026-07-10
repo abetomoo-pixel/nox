@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { groupDue } from "@/lib/nox/check-calc";
 import * as t from "@/lib/nox/ui/theme";
+import ReservationPanel from "./reservation-panel";
 
-type Seat = { id: string; name: string; kind: string | null };
+type Seat = { id: string; name: string; kind: string | null; store_id: string };
 type Product = { id: string; name: string; type: string; price: number };
 type Cast = { id: string; name: string };
 
@@ -42,11 +43,14 @@ const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 
 export default function RegisterBoard({
-  seats, products, casts, isManagerUp,
+  seats, products, casts, isManagerUp, showReserve, storeId,
 }: {
   seats: Seat[]; products: Product[]; casts: Cast[]; isManagerUp: boolean;
+  showReserve: boolean; storeId: string;
 }) {
   const supabase = createClient();
+  // タブ（canonical の register セグメント。顧客・ボトルタブは顧客 UI 実装時に追加）
+  const [tab, setTab] = useState<"tables" | "reserve">("tables");
   const [openMap, setOpenMap] = useState<Record<string, string>>({});
   const [check, setCheck] = useState<CheckRow | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
@@ -200,7 +204,30 @@ export default function RegisterBoard({
   });
   const allCovered = groups.length > 0 && groupInfo.every((gi) => gi.paid >= gi.due);
 
+  // タブセグメント（canonical の .seg 相当を inline で）
+  const segBtn = (on: boolean): React.CSSProperties => ({
+    flex: 1, fontFamily: "inherit", fontWeight: 800, fontSize: 13, padding: "9px 10px",
+    borderRadius: 9, cursor: "pointer",
+    border: on ? "1px solid var(--gold)" : "1px solid var(--line2)",
+    background: on ? "linear-gradient(135deg,#1F1B12,#14120C)" : "transparent",
+    color: on ? "var(--champ)" : "var(--sub)",
+  });
+
   return (
+    <div>
+      {showReserve && (
+        <div className="nox-cardtop" style={{ ...card, padding: 11 }}>
+          <div style={{ display: "flex", gap: 8, width: "100%", maxWidth: 480 }}>
+            {/* 会計タブへ戻るとき openMap を再読込（予約タブの to_check で開いた伝票を反映） */}
+            <button style={segBtn(tab === "tables")} onClick={() => { setTab("tables"); void loadOpenMap(); }}>卓席・会計</button>
+            <button style={segBtn(tab === "reserve")} onClick={() => setTab("reserve")}>予約</button>
+          </div>
+        </div>
+      )}
+
+      {tab === "reserve" && showReserve ? (
+        <ReservationPanel storeId={storeId} seats={seats} casts={casts} />
+      ) : (
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
       {/* 卓一覧 */}
       <section className="nox-cardtop" style={{ ...card, width: 220 }}>
@@ -400,6 +427,8 @@ export default function RegisterBoard({
         </section>
       )}
       {!check && <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>}
+    </div>
+      )}
     </div>
   );
 }
