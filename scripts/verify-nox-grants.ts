@@ -382,6 +382,16 @@ async function main() {
       rsp.rowCount === 1 && rsp.rows[0].cmd === "SELECT" && rsp.rows[0].policyname === "reservations_select",
       rsp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
     );
+
+    // G16: F3b-A 塊2-1（mig0028）— customer_visit_history の EXECUTE ACL。
+    //   読み取り専用 definer（checks の can_register 軸 → can_crm 軸への橋渡し）＝
+    //   テーブル/policy 変更なし・関数 ACL の1点のみが不変条件。
+    {
+      const roles = await roleOf("customer_visit_history");
+      check("G16 customer_visit_history EXECUTE = authenticated（anon/public 不在）",
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
   }
 
   await db.end();

@@ -119,6 +119,32 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // 共有セッションキャッシュ＝1 run 1認証/ユーザー（Supabase auth レート制限対策）。
+  // verify-nox-rls の 2026-07-06 パターンを anon-guard へ展開: 従来は段14〜20 が毎段 7人前後を
+  // 再サインイン（1 run ≈ 47回）し、連続実行や f0 2連続で "Request rate limit reached" に接触していた。
+  // 各段の signOut は衛生目的のみ＝共有セッションを殺すと後段が死んだキャッシュを掴むため
+  // signOut を no-op 化して生かす。RLS/ゲートは毎クエリ live 評価のためキャッシュしても
+  // 各段の判定（membership flip 含む）は不変（rls スイートで実証済み）。
+  const sessionCache = new Map<FixtureUserKey, SupabaseClient>();
+  const signInShared = async (label: string, key: FixtureUserKey): Promise<SupabaseClient | null> => {
+    const cached = sessionCache.get(key);
+    if (cached) return cached;
+    const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error } = await c.auth.signInWithPassword({
+      email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD,
+    });
+    if (error) {
+      fails.push(`${label} ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
+      return null;
+    }
+    // 共有セッションを保つ（signOut を無害化）＝以後 signInShared(key) はキャッシュを返す
+    c.auth.signOut = (async () => ({ error: null })) as typeof c.auth.signOut;
+    sessionCache.set(key, c);
+    return c;
+  };
+
   // ── 段1: 認可ヘルパー4本 anon BLOCKED ──
   for (const fn of ["auth_org_id", "auth_role", "auth_store_id", "auth_cast_id"]) {
     const { error } = await anon.rpc(fn);
@@ -359,16 +385,8 @@ async function main() {
   }
 
   // ── 段2b: authenticated（castA1a）でも audit_log_write BLOCKED（内部専用）──
-  const authed = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { error: eSignIn } = await authed.auth.signInWithPassword({
-    email: FIXTURE_USERS.castA1a.email,
-    password: env.SEED_PASSWORD,
-  });
-  if (eSignIn) {
-    fails.push(`castA1a サインイン失敗（seed:f0 実行済みか確認）: ${eSignIn.message}`);
-  } else {
+  const authed = await signInShared("段2b", "castA1a");
+  if (authed) {
     const { error } = await authed.rpc("audit_log_write", { p_action: "probe" });
     check("authenticated audit_log_write BLOCKED（内部専用）", isFnBlocked(error), error?.message ?? "実行できてしまった");
 
@@ -405,19 +423,7 @@ async function main() {
     const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const signInStaff = async (key: "staffRegOnA1" | "staffRegOffA1") => {
-      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const { error } = await c.auth.signInWithPassword({
-        email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD,
-      });
-      if (error) {
-        fails.push(`段14 ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
-        return null;
-      }
-      return c;
-    };
+    const signInStaff = async (key: "staffRegOnA1" | "staffRegOffA1") => signInShared("段14", key);
     const forbidden = (e: { message?: string } | null) => !!e?.message?.includes("forbidden");
 
     // 準備（service）: 専用卓を query-or-insert（再実行で増殖させない）
@@ -519,17 +525,8 @@ async function main() {
     const signInUser = async (key: FixtureUserKey) => {
       const cached = sessions.get(key);
       if (cached) return cached;
-      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const { error } = await c.auth.signInWithPassword({
-        email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD,
-      });
-      if (error) {
-        fails.push(`段15 ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
-        return null;
-      }
-      sessions.set(key, c);
+      const c = await signInShared("段15", key);
+      if (c) sessions.set(key, c);
       return c;
     };
     const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
@@ -814,17 +811,8 @@ async function main() {
     const signInUser = async (key: FixtureUserKey) => {
       const cached = sessions.get(key);
       if (cached) return cached;
-      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const { error } = await c.auth.signInWithPassword({
-        email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD,
-      });
-      if (error) {
-        fails.push(`段16 ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
-        return null;
-      }
-      sessions.set(key, c);
+      const c = await signInShared("段16", key);
+      if (c) sessions.set(key, c);
       return c;
     };
     const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
@@ -1052,17 +1040,8 @@ async function main() {
     const signInUser = async (key: FixtureUserKey) => {
       const cached = sessions.get(key);
       if (cached) return cached;
-      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const { error } = await c.auth.signInWithPassword({
-        email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD,
-      });
-      if (error) {
-        fails.push(`段17 ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
-        return null;
-      }
-      sessions.set(key, c);
+      const c = await signInShared("段17", key);
+      if (c) sessions.set(key, c);
       return c;
     };
     const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
@@ -1378,17 +1357,8 @@ async function main() {
     const signInUser = async (key: FixtureUserKey) => {
       const cached = sessions.get(key);
       if (cached) return cached;
-      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const { error } = await c.auth.signInWithPassword({
-        email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD,
-      });
-      if (error) {
-        fails.push(`段18 ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
-        return null;
-      }
-      sessions.set(key, c);
+      const c = await signInShared("段18", key);
+      if (c) sessions.set(key, c);
       return c;
     };
     const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
@@ -1665,17 +1635,8 @@ async function main() {
     const signInUser = async (key: FixtureUserKey) => {
       const cached = sessions.get(key);
       if (cached) return cached;
-      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const { error } = await c.auth.signInWithPassword({
-        email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD,
-      });
-      if (error) {
-        fails.push(`段19 ${key} サインイン失敗（seed:f0 実行済みか確認）: ${error.message}`);
-        return null;
-      }
-      sessions.set(key, c);
+      const c = await signInShared("段19", key);
+      if (c) sessions.set(key, c);
       return c;
     };
     const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
@@ -1946,6 +1907,174 @@ async function main() {
       check("段19 掃除確認: reservations/ダミー cast 0行（非汚染）",
         (resLeft ?? []).length === 0 && (dLeft ?? []).length === 0,
         `res=${(resLeft ?? []).length}, cast=${(dLeft ?? []).length}`);
+      for (const c of sessions.values()) await c.auth.signOut();
+    }
+  }
+
+  // ── 段20: F3b-A 塊2-1（mig0028）customer_visit_history の実効ゲート＋実データ照合 ──
+  //   checks 直 SELECT（can_register 軸）→ CRM 軸（can_crm）への definer 橋渡しを実測。
+  //   fixture は段19 方式＝service 生成→try/finally 全消し（seed 常設しない・memberships 9行維持）。
+  //   custCastA には束2 固定の closed 2伝票（CRM卓・5日前/100日前）が常設＝消さない。
+  //   本段の 21伝票は全て直近21時間内＝降順で固定伝票より前に並び LIMIT 20 の実測を汚さない。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const sessions = new Map<FixtureUserKey, SupabaseClient>();
+    const signInUser = async (key: FixtureUserKey) => {
+      const cached = sessions.get(key);
+      if (cached) return cached;
+      const c = await signInShared("段20", key);
+      if (c) sessions.set(key, c);
+      return c;
+    };
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+    type VisitRow = {
+      check_id: string; visited_at: string; total: number;
+      seat_name: string | null; nom_casts: string[] | null; status: string;
+    };
+
+    // 準備（service）: 店・顧客（担当/非担当）・cast・manager users.id の解決
+    const { data: s20StoreRow } = await admin.from("stores").select("id, name, org_id").eq("name", STORE_A1).single();
+    const s20Store = s20StoreRow as { id: string; org_id: string } | null;
+    const { data: s20Custs } = await admin.from("customers").select("id, name")
+      .in("name", [FIXTURE_CUSTOMERS.custCastA.name, FIXTURE_CUSTOMERS.custCastB.name]);
+    const s20CustA = s20Custs?.find((c) => c.name === FIXTURE_CUSTOMERS.custCastA.name)?.id as string;
+    const s20CustB = s20Custs?.find((c) => c.name === FIXTURE_CUSTOMERS.custCastB.name)?.id as string;
+    const { data: s20CastRow } = await admin.from("casts").select("id")
+      .eq("name", FIXTURE_USERS.castA1a.name).eq("store_id", s20Store?.id ?? "").single();
+    const s20CastA1a = s20CastRow?.id as string;
+    const { data: s20MgrRow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
+    const s20MgrId = s20MgrRow?.id as string;
+    check("段20（準備）店/顧客2/cast/manager の id 解決", !!s20Store && !!s20CustA && !!s20CustB && !!s20CastA1a && !!s20MgrId);
+
+    // PERM卓（段14〜19 と同一卓を再利用）
+    let s20Seat = "";
+    {
+      const { data: sExist } = await admin.from("seats").select("id")
+        .eq("store_id", s20Store!.id).eq("name", "NOX-VERIFY-PERM卓").limit(1);
+      if (sExist?.length) s20Seat = sExist[0].id as string;
+      else {
+        const { data: sNew } = await admin.from("seats").insert({
+          org_id: s20Store!.org_id, store_id: s20Store!.id, name: "NOX-VERIFY-PERM卓", kind: "卓", sort_order: 999,
+        }).select("id").single();
+        s20Seat = sNew!.id as string;
+      }
+    }
+    const wipeSeat20Checks = async () => {
+      const { data: cs } = await admin.from("checks").select("id").eq("seat_id", s20Seat);
+      const ids = (cs ?? []).map((c) => c.id as string);
+      if (!ids.length) return;
+      await admin.from("reservations").update({ check_id: null }).in("check_id", ids);
+      for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+        await admin.from(t).delete().in("check_id", ids);
+      }
+      await admin.from("checks").delete().in("id", ids);
+    };
+    // 前回失敗遺物の掃除（再実行冪等・nominations→cast の FK 順は wipe 内で処理済み）
+    await wipeSeat20Checks();
+    await admin.from("casts").delete().like("name", "NOX-VERIFY-段20%");
+    const { data: s20DCastRow } = await admin.from("casts").insert({
+      org_id: s20Store!.org_id, store_id: s20Store!.id, name: "NOX-VERIFY-段20退店cast", is_active: true,
+    }).select("id").single();
+    const s20DCast = s20DCastRow?.id as string;
+    check("段20（準備）退店テスト用ダミー cast 生成", !!s20DCast);
+
+    const owner = await signInUser("ownerA");
+    const mgr = await signInUser("managerA1");
+    const crm = await signInUser("staffCrmOnA1");
+    const regOn = await signInUser("staffRegOnA1");
+    const regOff = await signInUser("staffRegOffA1");
+    const cast = await signInUser("castA1a");
+    const mgrB1 = await signInUser("managerB1");
+    if (s20Store && s20CustA && s20CustB && s20CastA1a && s20MgrId && s20DCast
+        && owner && mgr && crm && regOn && regOff && cast && mgrB1) {
+      try {
+        // 投入: closed 21件（started_at=i 時間前・total=1000+i で一意）＋ void 1件（total=99999）
+        const base = {
+          org_id: s20Store.org_id, store_id: s20Store.id, seat_id: s20Seat, customer_id: s20CustA,
+          nom_type: "free", service_rate: 10, round_unit: 100, round_mode: "down", created_by: s20MgrId,
+        };
+        const startedOf = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3600_000).toISOString();
+        const rows21 = Array.from({ length: 21 }, (_, k) => {
+          const i = k + 1;
+          return { ...base, status: "closed", started_at: startedOf(i), closed_at: startedOf(i), total: 1000 + i };
+        });
+        const { data: ins21, error: eIns } = await admin.from("checks").insert(rows21).select("id, total");
+        const { error: eInsV } = await admin.from("checks").insert({
+          ...base, status: "void", started_at: startedOf(2), voided_at: startedOf(1), total: 99_999,
+        });
+        check("段20（準備）closed 21件＋void 1件 投入", !eIns && (ins21 ?? []).length === 21 && !eInsV,
+          eIns?.message ?? eInsV?.message);
+        // 最新伝票（total=1001）に指名2行: position 1=ダミー cast（後で退店）・2=castA1a
+        const newestId = ins21?.find((r) => r.total === 1001)?.id as string;
+        const { error: eNom } = await admin.from("check_nominations").insert([
+          { org_id: s20Store.org_id, store_id: s20Store.id, check_id: newestId, cast_id: s20DCast, ratio_weight: 1, position: 1 },
+          { org_id: s20Store.org_id, store_id: s20Store.id, check_id: newestId, cast_id: s20CastA1a, ratio_weight: 1, position: 2 },
+        ]);
+        await admin.from("casts").update({ is_active: false }).eq("id", s20DCast); // 指名を残して退店
+        check("段20（準備）最新伝票に指名2行（position 1=退店予定 cast・2=castA1a）", !eNom, eNom?.message);
+
+        // ═══ 20-1: anon BLOCKED（公開 RPC の anon 軸）═══
+        const { error: eAnon } = await anon.rpc("customer_visit_history", { p_customer_id: s20CustA });
+        check("段20-1 anon customer_visit_history BLOCKED", isFnBlocked(eAnon), eAnon?.message ?? "実行できてしまった");
+
+        // ═══ 20-2: 権限マトリクス ═══
+        const callAs = async (c: SupabaseClient, cid: string) => await c.rpc("customer_visit_history", { p_customer_id: cid });
+        const rOwner = await callAs(owner, s20CustA);
+        check("段20-2 owner = 可視（20行）", !rOwner.error && (rOwner.data ?? []).length === 20,
+          rOwner.error?.message ?? `got ${(rOwner.data ?? []).length}`);
+        const rMgr = await callAs(mgr, s20CustA);
+        check("段20-2 manager（自店客）= 可視（20行）", !rMgr.error && (rMgr.data ?? []).length === 20,
+          rMgr.error?.message ?? `got ${(rMgr.data ?? []).length}`);
+        const rCrm = await callAs(crm, s20CustA);
+        check("段20-2 staff(can_crm) = 可視（20行）", !rCrm.error && (rCrm.data ?? []).length === 20,
+          rCrm.error?.message ?? `got ${(rCrm.data ?? []).length}`);
+        const rRegOn = await callAs(regOn, s20CustA);
+        check("段20-2 staff(can_register のみ) = forbidden（crm 軸独立）", forbidden(rRegOn.error), rRegOn.error?.message ?? "通ってしまった");
+        const rRegOff = await callAs(regOff, s20CustA);
+        check("段20-2 staff(フラグなし) = forbidden", forbidden(rRegOff.error), rRegOff.error?.message ?? "通ってしまった");
+        const rCastOk = await callAs(cast, s20CustA);
+        check("段20-2 cast × 担当客（指名A）= 可視（20行）", !rCastOk.error && (rCastOk.data ?? []).length === 20,
+          rCastOk.error?.message ?? `got ${(rCastOk.data ?? []).length}`);
+        const rCastNg = await callAs(cast, s20CustB);
+        check("段20-2 cast × 非担当客（指名B）= forbidden（customer_summary live 一致確認済みの挙動）",
+          forbidden(rCastNg.error), rCastNg.error?.message ?? "通ってしまった");
+        const rB1 = await callAs(mgrB1, s20CustA);
+        check("段20-2 他 org（managerB1 × org A 客）= not found（存在オラクル封じ）",
+          has(rB1.error, "not found"), rB1.error?.message ?? "通ってしまった");
+
+        // ═══ 20-3: LIMIT 20 頭打ち・降順・最古が落ちる ═══
+        const vs = (rOwner.data ?? []) as VisitRow[];
+        const desc = vs.every((r, i) => i === 0 || new Date(vs[i - 1].visited_at).getTime() >= new Date(r.visited_at).getTime());
+        check("段20-3 started_at 降順", desc, JSON.stringify(vs.map((r) => r.visited_at).slice(0, 3)));
+        check("段20-3 先頭=最新（total=1001）・末尾=20件目（total=1020）",
+          vs[0]?.total === 1001 && vs[19]?.total === 1020, JSON.stringify({ first: vs[0]?.total, last: vs[19]?.total }));
+        check("段20-3 21件目（最古 total=1021）が LIMIT 20 で落ちる", !vs.some((r) => r.total === 1021),
+          JSON.stringify(vs.map((r) => r.total)));
+
+        // ═══ 20-4: 実データ照合（金額・指名 cast 名・卓名・void 不算入）═══
+        check("段20-4 void 伝票（total=99999）不算入（closed のみ）", !vs.some((r) => r.total === 99_999),
+          JSON.stringify(vs.map((r) => r.total)));
+        const newest = vs[0];
+        check("段20-4 nom_casts = 投入値一致（position 順・退店 cast 名が先頭に出る）",
+          JSON.stringify(newest?.nom_casts) === JSON.stringify(["NOX-VERIFY-段20退店cast", FIXTURE_USERS.castA1a.name]),
+          JSON.stringify(newest?.nom_casts));
+        check("段20-4 卓名/status 一致（PERM卓・closed）", newest?.seat_name === "NOX-VERIFY-PERM卓" && newest?.status === "closed",
+          JSON.stringify({ seat: newest?.seat_name, status: newest?.status }));
+        check("段20-4 指名なし伝票の nom_casts = null", vs[1]?.nom_casts === null, JSON.stringify(vs[1]?.nom_casts));
+      } finally {
+        // 全消し（checks 子テーブル→checks→ダミー cast の順・段19 方式）
+        await wipeSeat20Checks();
+        if (s20DCast) await admin.from("casts").delete().eq("id", s20DCast);
+      }
+      // 掃除の物理確認（固定カウント非汚染の positive・custCastA の CRM 固定 2伝票は不接触）
+      const { data: chkLeft20 } = await admin.from("checks").select("id").eq("seat_id", s20Seat);
+      const { data: dLeft20 } = await admin.from("casts").select("id").like("name", "NOX-VERIFY-段20%");
+      check("段20 掃除確認: PERM卓 checks/ダミー cast 0行（非汚染）",
+        (chkLeft20 ?? []).length === 0 && (dLeft20 ?? []).length === 0,
+        `chk=${(chkLeft20 ?? []).length}, cast=${(dLeft20 ?? []).length}`);
       for (const c of sessions.values()) await c.auth.signOut();
     }
   }
