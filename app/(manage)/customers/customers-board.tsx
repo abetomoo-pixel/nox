@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
 type Store = { id: string; name: string };
-type Cast = { id: string; name: string };
+type Cast = { id: string; name: string; store_id: string; is_active: boolean };
 type Row = {
   customer_id: string; name: string; furigana: string | null; cast_id: string | null;
   is_active: boolean; visits: number; last_visit: string | null; total_spend: number;
@@ -38,15 +38,28 @@ function fmtLastVisit(iso: string): string {
 }
 
 export default function CustomersBoard({
-  isOwner, stores, casts,
+  isOwner, isManagerUp, stores, casts, myStoreId,
 }: {
-  isOwner: boolean; stores: Store[]; casts: Cast[];
+  isOwner: boolean; isManagerUp: boolean; stores: Store[]; casts: Cast[]; myStoreId: string;
 }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [storeSel, setStoreSel] = useState(""); // owner のみ・'' = 全店（p_store_id null）
   const [tier, setTier] = useState<Tier>("all");
   const [q, setQ] = useState("");
+
+  // 客追加フォーム（customer_register）。担当 cast は owner/manager のみ表示
+  // （staff は RPC 側で p_cast_id が null 化される既存仕様＝出さない）。
+  const [addOpen, setAddOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [aName, setAName] = useState("");
+  const [aFuri, setAFuri] = useState("");
+  const [aTel, setATel] = useState("");
+  const [aPrefs, setAPrefs] = useState("");
+  const [aMemo, setAMemo] = useState("");
+  const [aStore, setAStore] = useState(myStoreId || stores[0]?.id || "");
+  const [aCast, setACast] = useState("");
 
   const castName = useMemo(() => {
     const m = new Map(casts.map((c) => [c.id, c.name]));
@@ -74,6 +87,34 @@ export default function CustomersBoard({
   const highCount = rows.filter((r) => r.churn_tier === "high").length;
   const midCount = rows.filter((r) => r.churn_tier === "mid").length;
 
+  function openAdd() {
+    setAName(""); setAFuri(""); setATel(""); setAPrefs(""); setAMemo("");
+    setAStore(isOwner ? (storeSel || myStoreId || stores[0]?.id || "") : myStoreId);
+    setACast(""); setMsg(null); setAddOpen(true);
+  }
+
+  async function submitAdd() {
+    setBusy(true); setMsg(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("customer_register", {
+      p_store_id: aStore,
+      p_name: aName.trim(),
+      p_furigana: aFuri.trim() || null,
+      p_birthday: null,
+      p_tel: aTel.trim() || null,
+      p_prefs: aPrefs.trim() || null,
+      p_memo: aMemo.trim() || null,
+      p_cast_id: isManagerUp ? (aCast || null) : null, // staff は RPC 側でも null 化（二重）
+    });
+    setBusy(false);
+    if (error) { setMsg(`登録に失敗: ${error.message}`); return; }
+    setMsg("登録しました");
+    setAddOpen(false);
+    await load();
+  }
+
+  const addCastOptions = casts.filter((c) => c.store_id === aStore && c.is_active);
+
   return (
     <div>
       <div style={{ margin: "2px 0 14px" }}>
@@ -82,7 +123,61 @@ export default function CustomersBoard({
       </div>
 
       <section className="nox-cardtop" style={t.card}>
-        <h2 style={secTitle}>顧客一覧</h2>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 11 }}>
+          <h2 style={{ ...secTitle, margin: 0 }}>顧客一覧</h2>
+          <button
+            style={{ ...(addOpen ? t.btnGhost : t.btnGold), ...t.btnSm, marginLeft: "auto" }}
+            onClick={() => (addOpen ? setAddOpen(false) : openAdd())}
+          >
+            {addOpen ? "閉じる" : "＋客を追加"}
+          </button>
+        </div>
+        {msg && <p style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes("失敗") ? "var(--bad)" : "var(--ok)", margin: "0 0 8px" }}>{msg}</p>}
+
+        {addOpen && (
+          <div style={{ display: "grid", gap: 10, marginBottom: 14, padding: "11px 12px", background: "var(--bg2)", borderRadius: 12, border: "1px solid var(--line2)" }}>
+            {isOwner && stores.length > 1 && (
+              <div>
+                <label style={t.fieldLabel}>店舗</label>
+                <select value={aStore} onChange={(e) => { setAStore(e.target.value); setACast(""); }} style={{ ...input, width: "100%", marginTop: 4 }}>
+                  {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            )}
+            <div>
+              <label style={t.fieldLabel}>名前（必須）</label>
+              <input value={aName} onChange={(e) => setAName(e.target.value)} style={{ ...input, width: "100%", marginTop: 4 }} />
+            </div>
+            <div>
+              <label style={t.fieldLabel}>ふりがな</label>
+              <input value={aFuri} onChange={(e) => setAFuri(e.target.value)} style={{ ...input, width: "100%", marginTop: 4 }} />
+            </div>
+            <div>
+              <label style={t.fieldLabel}>電話</label>
+              <input value={aTel} onChange={(e) => setATel(e.target.value)} style={{ ...input, width: "100%", marginTop: 4 }} />
+            </div>
+            <div>
+              <label style={t.fieldLabel}>好み</label>
+              <input value={aPrefs} onChange={(e) => setAPrefs(e.target.value)} style={{ ...input, width: "100%", marginTop: 4 }} />
+            </div>
+            <div>
+              <label style={t.fieldLabel}>備考</label>
+              <input value={aMemo} onChange={(e) => setAMemo(e.target.value)} style={{ ...input, width: "100%", marginTop: 4 }} />
+            </div>
+            {isManagerUp && (
+              <div>
+                <label style={t.fieldLabel}>初期担当キャスト（任意）</label>
+                <select value={aCast} onChange={(e) => setACast(e.target.value)} style={{ ...input, width: "100%", marginTop: 4 }}>
+                  <option value="">担当なし（フリー客）</option>
+                  {addCastOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            )}
+            <button style={{ ...t.btnGold, opacity: busy || !aName.trim() ? 0.6 : 1 }} disabled={busy || !aName.trim()} onClick={() => void submitAdd()}>
+              {busy ? "登録中…" : "登録する"}
+            </button>
+          </div>
+        )}
 
         {isOwner && stores.length > 1 && (
           <div style={{ marginBottom: 10 }}>

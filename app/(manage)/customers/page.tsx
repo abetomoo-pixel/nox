@@ -18,12 +18,15 @@ export default async function CustomersPage() {
     if (canCrm !== true) redirect("/register");
   }
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
-  const { data: casts } = await supabase.from("casts").select("id, name");
+  const { data: casts } = await supabase.from("casts").select("id, name, store_id, is_active");
+  const { data: myStoreId } = await supabase.rpc("auth_store_id");
   return (
     <CustomersBoard
       isOwner={role === "owner"}
+      isManagerUp={isManagerUp}
       stores={(stores ?? []) as { id: string; name: string }[]}
-      casts={(casts ?? []) as { id: string; name: string }[]}
+      casts={(casts ?? []) as { id: string; name: string; store_id: string; is_active: boolean }[]}
+      myStoreId={(myStoreId as string | null) ?? ""}
     />
   );
 }
