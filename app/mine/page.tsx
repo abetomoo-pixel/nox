@@ -97,6 +97,28 @@ export default async function MinePage() {
   const payOf = (bj: unknown): SlipPay => (bj as { pay?: SlipPay } | null)?.pay ?? {};
   const extrasOf = (bj: unknown): SlipExtra[] => (bj as { extras?: SlipExtra[] } | null)?.extras ?? [];
 
+  // 自分指名の予約（F3a-3・read-only）。RLS が cast_id=auth_cast_id() の行のみ返す＝可視性の物理保証（段19-11）。
+  // 表示は今営業日（06:00 起点）以降の booked のみ＝cast は予約に行動できないため過去/確定状態は出さない。
+  // 客名は customers embed（cast は担当客のみ可視＝customers RLS）→不可視/フリー予約は guest_name フォールバック。
+  const { data: rsv } = await supabase
+    .from("reservations")
+    .select("id, reserved_at, guest_name, party_size, nom_type, memo, customers(name)")
+    .eq("status", "booked")
+    .gte("reserved_at", `${bizToday}T06:00:00+09:00`)
+    .order("reserved_at", { ascending: true });
+  type RsvCustomer = { name: string } | { name: string }[] | null;
+  // 名前が取れたら「◯◯ 様」・取れない（担当外客=RLS 不可視かつ guest_name なし）は敬称を重ねず「お客様」。
+  const rsvName = (customers: RsvCustomer, guest: string | null): string => {
+    const c = Array.isArray(customers) ? customers[0] : customers;
+    const name = c?.name ?? guest;
+    return name ? `${name} 様` : "お客様";
+  };
+  const rsvWhen = (iso: string): string =>
+    new Date(iso).toLocaleString("ja-JP", {
+      timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+  const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
+
   // F2f 報酬シミュレーター用データ（自分のプラン＋店マスタ＋open 前借り/送り残・RLS 読取・売掛は読まない）。
   const sim = await loadCastSimData(supabase);
 
@@ -232,6 +254,30 @@ export default async function MinePage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={title}>指名予約（今日以降）</h2>
+        {(rsv ?? []).length === 0 && <p style={noneP}>予約なし</p>}
+        {(rsv ?? []).map((r) => (
+          <div key={r.id as string} style={{ padding: "7px 0", borderBottom: "1px solid var(--line2)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+              <span style={{ ...t.num, fontWeight: 700 }}>{rsvWhen(r.reserved_at as string)}</span>
+              <span style={{ fontWeight: 700 }}>{rsvName(r.customers as RsvCustomer, r.guest_name as string | null)}</span>
+              {r.party_size != null && <span style={{ color: "var(--sub)" }}>{r.party_size}名</span>}
+              <span style={{
+                fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
+                color: "#C9A24A", background: "#23232B", border: "1px solid var(--line2)",
+                whiteSpace: "nowrap", marginLeft: "auto",
+              }}>予約</span>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--sub)", marginTop: 2 }}>
+              {NOM_LABEL[r.nom_type as string] ?? "指名種別は来店時に決定"}
+              {r.memo ? `・${r.memo}` : ""}
+            </div>
+          </div>
+        ))}
+        <p style={{ ...noteP, marginTop: 6 }}>※予約の変更・取消は店舗にご連絡ください。</p>
       </section>
 
       <section className="nox-cardtop" style={t.card}>
