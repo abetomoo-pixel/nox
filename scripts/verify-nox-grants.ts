@@ -343,6 +343,24 @@ async function main() {
         roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
         `保持者: ${roles.join(", ") || "(なし)"}`);
     }
+
+    // G14: F3a 束3-2 Q-2（mig0026）— staff_create の EXECUTE ACL＋users policy 不変。
+    //   memberships policy 不変は G12 が恒久 assert 済み。users も書込 policy を作らない
+    //   （staff_create は SECURITY DEFINER 内で INSERT＝users_select 1本のみが不変条件）。
+    {
+      const roles = await roleOf("staff_create");
+      check("G14 staff_create EXECUTE = authenticated（anon/public 不在）",
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    const usp = await db.query(
+      `select policyname, cmd from pg_policies where schemaname='public' and tablename='users'`,
+    );
+    check(
+      "G14 users ポリシー = users_select（SELECT）1本のみ不変（書込 policy なし＝RPC 経由）",
+      usp.rowCount === 1 && usp.rows[0].cmd === "SELECT" && usp.rows[0].policyname === "users_select",
+      usp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
+    );
   }
 
   await db.end();

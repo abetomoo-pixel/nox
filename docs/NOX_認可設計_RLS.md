@@ -79,7 +79,14 @@ using (
   - `staff_deactivate`（在籍解除・owner/manager 自店・is_active=false のみ＝物理削除なし。owner は 'bad target' 保護。解除で membership 経由の認可が全倒れ＝auth_role() null）
   - `staff_reactivate`（再雇用・owner/manager 自店・同店復帰。他 active membership があれば 'already active elsewhere'＝1ユーザー1アクティブ・二重防御は部分ユニーク index。フラグは残存値のまま復帰）
   - 共通ゲート: 対象 membership は stores join で org 照合（他 org・不在は not found＝存在オラクル封じ）・対象 role ∈ (staff,manager)・audit_log_write before/after（old は UPDATE 前確保）。memberships の policy は memberships_select 1本のまま不変（verify G12/G13 で恒久 assert）。
-  - verify: 段17（権限マトリクス・出戻り分岐・昇降格のフラグ参照 停止/再開・在籍解除の認可倒れ→reactivate 復帰＝すべて signIn runtime 実測）＋grants G13。スタッフ追加（auth 生成）は束3-2 Q-2（staff_create・mig0026 予定）。
+  - verify: 段17（権限マトリクス・出戻り分岐・昇降格のフラグ参照 停止/再開・在籍解除の認可倒れ→reactivate 復帰＝すべて signIn runtime 実測）＋grants G13。
+- **スタッフ追加RPC staff_create（束3-2 Q-2・mig0026・2026-07-10 実装済み）**＝スタッフ管理 RPC はこれで計6本（Q-1 編集5本＋Q-2 追加1本）:
+  - **責務分離**: auth 生成（admin.createUser・案B 即時作成・email_confirm:true）は API route（app 層・payroll finalize と同じ両クライアントパターン）管轄。RPC は users＋membership 生成に閉じる。route が auth 生成 → **呼び出し owner/manager のセッションで RPC**（auth_org_id/role が効き権限検証は RPC 内で完結・audit actor=auth.uid()）→ RPC 失敗時は route が deleteUser で補償（孤児 auth を残さない・補償失敗はログで顕在化）。
+  - **ログイン ID**: 実 email 任意入力・空なら合成 email 自動生成（`s-<8桁>@o-<org先頭8hex>.nox.local`＝送信不能予約ドメイン・orgs に slug 列は無いため org_id 先頭 8hex）。合成の8桁は idemKey 由来＝同一 idemKey の再送は同一 email→先引きが 409 で止める（RPC に p_idem_key は無く二重 POST 対策は route 層）。初期パスワードはサーバ自動生成 16文字・レスポンスで一度だけ返す。
+  - **権限差（論点3）**: owner=org 内全店に staff/manager 作成可 / manager=自店に staff のみ（同格増殖封じ） / staff・cast は forbidden。
+  - **既存 user 分岐（確定D・UNIQUE(org_id,email)）**: 同 org 同 email は既存 user_id 使用＝users INSERT せず membership のみ追加。名前/auth_user_id は上書きしない（route が事前先引きで auth 二重作成も防ぐ）。**membership 出戻り分岐は Q-1 transfer 同型**＝既存 inactive→reactivate（フラグ既存値維持）/ active→already member / 他店 active→already active elsewhere（1ユーザー1アクティブ・二重防御は部分ユニーク index）。新規 membership はフラグ default false（fail-closed・opt-in は set_staff_perms）。
+  - **追加ガード【9】〜【13】**: 【9】出戻り reactivate は対象 role ∈ (staff,manager) のみ（cast/owner 行の役職転換復帰封じ）【10】cast/owner 人材（role ∉ staff/manager の membership を持つ user）の email は bad target（役職追加付与封じ・元 cast の雇い直しは合成 email の完全新規で成立）【11】users.is_active=false の既存 user は inactive user 明示拒否（auth ヘルパーが u.is_active を要求＝沈黙の半死に防止）【12】email は lower(trim()) 正規化・lower 比較（auth 側の小文字化保存と整合）【13】auth uid 重複は UNIQUE(auth_user_id) の 23505 物理拒否に委ねる。
+  - verify: 段18（RPC 単体＝ダミー uuid・権限マトリクス・既存 user/出戻り分岐・【10】【11】発火・実 auth 1人での結合＝フラグ fail-closed→set_staff_perms 付与→Q-1 deactivate/reactivate 噛み合い）＋grants G14（ACL＋users policy=users_select 1本不変）＋route E2E スモーク（scripts/smoke-staff-create.ts＝合成 email・リプレイ 409・実ログイン・★補償の巻き戻り）。
 
 この層の導入により、案A が懸念した「事故リスク・RLS 複雑化」は default deny・staff 枝限定・verify で抑える。role 固定の堅さは owner/manager/cast で維持される。
 
@@ -243,6 +250,7 @@ NOX の全 SECURITY DEFINER RPC に適用：
 - **anon ガード**：全 RPC が anon で BLOCKED（rpc-anon-guard 相当）。
 - **マイナンバー RPC**：呼び出しが audit_logs に記録される。
 - **スタッフ編集（束3-2 Q-1・段17）**：編集5RPC の権限マトリクス（owner 成功／manager 自店成功・他店 forbidden／異動・昇降格は owner のみ／staff・cast forbidden）・出戻り分岐（reactivate＝membership id 同一・フラグ既存値維持）・昇降格でフラグ参照の停止/再開・deactivate 後 auth_role()=null＋RLS 全倒れ 0行（認可倒れ）を runtime 実測。
+- **スタッフ追加（束3-2 Q-2・段18）**：staff_create の権限マトリクス（owner=org 全店 staff/manager／manager=自店 staff のみ）・完全新規/既存 user/出戻りの3分岐・【10】【11】ガード発火・実 auth 生成スタッフの結合（fail-closed→フラグ付与→Q-1 編集と噛み合い）を runtime 実測＋route E2E スモーク（補償＝auth 巻き戻りの物理確認）。
 
 ---
 
