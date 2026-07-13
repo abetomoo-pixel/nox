@@ -10,18 +10,19 @@ export const dynamic = "force-dynamic";
 // staff/cast はナビ非表示＋直打ち redirect（payroll 同型・真の防御は RPC ゲート）。
 // 店セレクタ=具体店必須（両 RPC とも p_store_id null 非対応＝store 解決失敗で forbidden。
 // 全店合算は RPC 改修が要るためスコープ外）。casts は売上貢献側の名前解決用
-// （is_active で絞らない＝退店 cast の過去実績も名前を出す。ranking は RPC が cast_name を返す）。
+// （is_active で絞らない＝退店 cast の過去実績も名前を出す。ranking は RPC が cast_name を返す）
+// 兼 section3 主要客リストの cast select 候補（B-2・store_id∧is_active でクライアント絞り）。
 export default async function AnalyticsPage() {
   const { role } = await getSessionRole();
   if (!role) redirect("/login");
   if (role !== "owner" && role !== "manager") redirect("/register");
   const supabase = await createClient();
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
-  const { data: casts } = await supabase.from("casts").select("id, name");
+  const { data: casts } = await supabase.from("casts").select("id, name, store_id, is_active");
   return (
     <AnalyticsBoard
       stores={(stores ?? []) as { id: string; name: string }[]}
-      casts={(casts ?? []) as { id: string; name: string }[]}
+      casts={(casts ?? []) as { id: string; name: string; store_id: string; is_active: boolean }[]}
     />
   );
 }
