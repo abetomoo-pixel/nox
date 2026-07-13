@@ -41,6 +41,10 @@ F3a-3 確定版と対で読むこと。
 
 ### 2-2. EXCLUDE 排他制約（二層防御の一層目）
 
+```sql
+EXCLUDE USING gist (seat_id WITH =, stay WITH &&)
+  WHERE (seat_id IS NOT NULL AND status = 'booked')
+```
 
 - 同一卓・時間帯重複を DB レベルで排他（発火時 23P01）。
 - btree_gist（extensions スキーマ・v1.7）を schema extensions と共にインストール。
