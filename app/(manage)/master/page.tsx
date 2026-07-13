@@ -5,6 +5,7 @@ import SimulatorPanel from "@/components/simulator-panel";
 import MasterBoard from "./master-board";
 import DeductionPanel from "./deduction-panel";
 import SensitiveTaxPanel from "./sensitive-tax-panel";
+import BusinessHoursPanel from "./business-hours-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,8 @@ export default async function MasterPage() {
   const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name").limit(1);
   const store = stores?.[0];
   const storeId = store?.id ?? "";
+  // 営業時間パネル用の全店リスト（B-5・owner=org 全店で store select・manager=RLS で自店1件）
+  const { data: allStores } = await supabase.from("stores").select("id, name").order("name");
   // okuri_mode は settings_json 相乗り（既定 'flat'）。owner のみトグル可（set_store_okuri_mode）。
   const okuriMode = (store?.settings_json as Record<string, unknown> | null)?.okuri_mode === "actual" ? "actual" : "flat";
   // 発行パネル用の cast 一覧（RLS で自店のみ・manager+ 可視）。
@@ -25,6 +28,9 @@ export default async function MasterPage() {
   return (
     <>
       <MasterBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} />
+      {isManagerUp && (
+        <BusinessHoursPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
+      )}
       {isManagerUp && (
         <DeductionPanel
           storeId={storeId}

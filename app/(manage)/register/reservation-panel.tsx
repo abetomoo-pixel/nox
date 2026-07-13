@@ -9,9 +9,14 @@
 //   (g) 一覧=席予約は卓名+時間枠を表示（卓なし予約と混在・reserved_at 昇順は不変）
 //   (h) 来店=予約卓を既定選択（使用中卓は候補除外=予約卓が埋まっていれば自然に別卓選択・実来店が勝つ）
 //   (i) 編集（新設・booked のみ）=卓/時間変更・トグル OFF=卓クリア（全フィールド明示送信=規約7）。
+// B-5 スライスA（mig0032）: (j) 定休日=UI 一次ブロック（保存ボタン無効+明示・二層目は RPC 'closed day'）
+//   (k) 営業時間外=黄色警告のみで送信可（RPC は通す=非対称・段25-9）・未設定の曜日は判定なし（後方互換）。
+//   判定は lib/nox/business-hours.ts（DB helper と同じ cutoff 変換・深夜帯=前営業日）。
+//   編集は予約の店が register の店と一致する場合のみ UI 判定（不一致=owner の他店予約は RPC 二層目が守る）。
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import { businessHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 type Cast = { id: string; name: string };
@@ -58,6 +63,7 @@ function rpcErrJa(msg: string | undefined): string {
   if (msg.includes("bad seat")) return "その卓は使用できません";
   if (msg.includes("invalid store")) return "卓の店舗が一致しません";
   if (msg.includes("not editable")) return "この予約は変更できません（確定済み）";
+  if (msg.includes("closed day")) return "選択された日は定休日です";
   return msg;
 }
 
@@ -93,6 +99,9 @@ export default function ReservationPanel({
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showClosed, setShowClosed] = useState(false); // cancelled はデフォルトで畳む（§3-E）
+  // B-5: 営業時間マスタ（register の店）＋cutoff（store settings・既定 06:00）
+  const [bhRows, setBhRows] = useState<BusinessHourRow[]>([]);
+  const [cutoffHm, setCutoffHm] = useState("06:00");
 
   // 新規予約フォーム
   const [fDate, setFDate] = useState(todayLocal());
@@ -142,6 +151,13 @@ export default function ReservationPanel({
     const m: Record<string, string> = {};
     for (const r of oc ?? []) m[r.seat_id as string] = r.id as string;
     setOpenSeats(m);
+    // B-5: 営業時間（行なし=未設定・判定なし）と cutoff（biz_cutoff_hm 既定 06:00）
+    const { data: bh } = await supabase.from("store_business_hours")
+      .select("dow, is_closed, open_hm, close_hm").eq("store_id", storeId);
+    setBhRows((bh ?? []) as BusinessHourRow[]);
+    const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
+    const cut = ((st?.settings_json as Record<string, unknown> | null)?.biz_cutoff_hm as string | undefined) ?? "";
+    setCutoffHm(/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(cut) ? cut : "06:00");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -165,6 +181,8 @@ export default function ReservationPanel({
     setMsg(null);
     const reservedAt = new Date(`${fDate}T${fTime || "20:00"}:00`);
     if (Number.isNaN(reservedAt.getTime())) { setMsg("日付/時刻が不正です"); return; }
+    // B-5: 定休日は送信もしない（ボタン無効の保険・二層目は RPC 'closed day'）
+    if (businessHoursStatus(reservedAt, bhRows, cutoffHm).status === "closed") { setMsg("選択された日は定休日です"); return; }
     if (fSeatOn && !fSeat) { setMsg("確保する卓を選択してください"); return; }
     setBusy(true);
     const { error } = await supabase.rpc("reservation_create", {
@@ -208,6 +226,11 @@ export default function ReservationPanel({
   async function updateReservation(r: Reservation) {
     const reservedAt = new Date(`${eDate}T${eTime || "20:00"}:00`);
     if (Number.isNaN(reservedAt.getTime())) { setMsg("日付/時刻が不正です"); return; }
+    // B-5: 定休日は送信もしない（判定は register の店と同店の予約のみ・他店は RPC 二層目が守る）
+    if (r.store_id === storeId
+        && businessHoursStatus(reservedAt, bhRows, cutoffHm).status === "closed") {
+      setMsg("選択された日は定休日です"); return;
+    }
     if (eSeatOn && !eSeat) { setMsg("確保する卓を選択してください"); return; }
     setMsg(null); setBusy(true);
     const { error } = await supabase.rpc("reservation_update", {
@@ -258,6 +281,25 @@ export default function ReservationPanel({
 
   // 来店処理の卓候補: 予約と同じ店・空き卓のみ（使用中は seat occupied で拒否される＝UI でも先に絞る）
   const seatOptions = (r: Reservation) => seats.filter((s) => s.store_id === r.store_id && !openSeats[s.id]);
+
+  // B-5: フォーム日時の営業時間判定（date+time のローカル解釈は既存 createReservation と同一）
+  const hoursStatusOf = (date: string, time: string) => {
+    const d = new Date(`${date}T${time || "20:00"}:00`);
+    return Number.isNaN(d.getTime()) ? null : businessHoursStatus(d, bhRows, cutoffHm);
+  };
+  const fHours = hoursStatusOf(fDate, fTime);
+  const fClosedDay = fHours?.status === "closed";
+  // 定休日=赤（一次ブロック）／時間外=黄（警告のみ・送信可）／営業時間内・未設定=表示なし
+  const hoursNote = (st: ReturnType<typeof hoursStatusOf>) => {
+    if (!st) return null;
+    if (st.status === "closed") {
+      return <span style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700 }}>この日は定休日です（予約できません）</span>;
+    }
+    if (st.status === "outside" && st.row) {
+      return <span style={{ fontSize: 11.5, color: "var(--gold2)", fontWeight: 700 }}>営業時間外です（営業 {fmtHoursLabel(st.row)}）</span>;
+    }
+    return null;
+  };
 
   return (
     <div style={{ maxWidth: 720 }}>
@@ -351,6 +393,7 @@ export default function ReservationPanel({
                     <input type="time" value={eTime} onChange={(ev) => setETime(ev.target.value)} style={{ ...input, maxWidth: 110 }} />
                     <span style={t.fieldLabel}>人数</span>
                     <input type="number" min={0} value={ePeople} onChange={(ev) => setEPeople(Number(ev.target.value))} style={{ ...input, width: 60 }} />
+                    {r.store_id === storeId && hoursNote(hoursStatusOf(eDate, eTime))}
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                     <span style={t.fieldLabel}>客</span>
@@ -414,7 +457,13 @@ export default function ReservationPanel({
                     </div>
                   )}
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button style={btnDark} disabled={busy} onClick={() => void updateReservation(r)}>保存</button>
+                    {(() => {
+                      const eClosed = r.store_id === storeId && hoursStatusOf(eDate, eTime)?.status === "closed";
+                      return (
+                        <button style={{ ...btnDark, opacity: busy || eClosed ? 0.6 : 1 }} disabled={busy || eClosed}
+                          onClick={() => void updateReservation(r)}>保存</button>
+                      );
+                    })()}
                     <button style={btnLight} onClick={() => setEditId(null)}>閉じる</button>
                   </div>
                 </div>
@@ -434,6 +483,7 @@ export default function ReservationPanel({
           <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} style={{ ...input, maxWidth: 110 }} />
           <span style={t.fieldLabel}>人数</span>
           <input type="number" min={1} value={fPeople} onChange={(e) => setFPeople(Number(e.target.value))} style={{ ...input, width: 60 }} />
+          {hoursNote(fHours)}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
           <span style={t.fieldLabel}>客</span>
@@ -493,7 +543,8 @@ export default function ReservationPanel({
             {Object.entries(NOM_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
           <input placeholder="備考（卓希望・接待など）" value={fMemo} onChange={(e) => setFMemo(e.target.value)} style={{ ...input, width: 220 }} />
-          <button style={btnDark} disabled={busy} onClick={() => void createReservation()}>予約を追加</button>
+          <button style={{ ...btnDark, opacity: busy || fClosedDay ? 0.6 : 1 }} disabled={busy || fClosedDay}
+            onClick={() => void createReservation()}>予約を追加</button>
         </div>
         <p style={{ ...t.sub, margin: 0 }}>
           当日の予約は出勤・卓の準備に活用。「席を確保する」で卓と時間枠を押さえられます（枠が被る予約は登録できません）。
