@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 // owner=org 全店（p_store_id 絞り任意）/manager=自店/staff=自店∧can_crm/cast=担当客のみ。
 // ここの redirect は利便＝真の防御は RPC 内の可視ガード（staff can_crm なしは 0行）。
 // casts は担当名の解決用（is_active で絞らない＝退店 cast が担当のままの客も名前を出す）。
+// 休眠込みトグル（B-3・mig0030）は cast に出さない（canDormant）＝cast はそもそも本ページに
+// 到達しない（上の redirect）が一次ガードとして明示。真の防御は RPC の v_role<>'cast'（段23-3 実測）。
 export default async function CustomersPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
@@ -27,6 +29,7 @@ export default async function CustomersPage() {
       stores={(stores ?? []) as { id: string; name: string }[]}
       casts={(casts ?? []) as { id: string; name: string; store_id: string; is_active: boolean }[]}
       myStoreId={(myStoreId as string | null) ?? ""}
+      canDormant={role !== "cast"}
     />
   );
 }

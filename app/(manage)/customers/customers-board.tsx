@@ -1,8 +1,13 @@
 "use client";
 
-// 顧客一覧ボード（F3b-A 塊1）。一覧＝customer_list_summary RPC（可視スコープ・churn 判定とも RPC 内確定＝
-// アプリ側で再判定しない）。絞り込み（churn/検索）はクライアント側・店絞りは owner のみ p_store_id 再取得。
+// 顧客一覧ボード（F3b-A 塊1＋B-3 休眠込み）。一覧＝customer_list_summary RPC（可視スコープ・churn 判定とも
+// RPC 内確定＝アプリ側で再判定しない）。絞り込み（churn/検索）はクライアント側・店絞りは owner のみ p_store_id 再取得。
 // 行タップ＝顧客詳細（塊2）への遷移構造。書込ボタンなし（登録/編集/担当割当は塊2）。
+// B-3（mig0030）: 「休眠客を含む」トグル＝p_include_dormant を常に明示 boolean で送る（規約7 同列）。
+// 既定 OFF=従来・状態は画面ローカル（永続化しない）。休眠行は詳細ヘッダと同型の休眠 pill。
+// 掘り起こし＝休眠込み時のみ「来店が古い順」ソート（クライアント側 sort・RPC の既定順は触らない。
+// 来店なし（last_visit null）は掘り起こし対象外に近いため末尾に置く）。可視スコープは RPC CTE が担保＝
+// cast は RPC 側で true でも休眠不可視（段23-3 実測）・UI でもトグルを出さない（canDormant 一次ガード）。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -31,6 +36,11 @@ const churnPill = (tier: "mid" | "high"): React.CSSProperties => ({
   color: tier === "high" ? "var(--bad)" : "var(--gold2)",
   background: "#23232B", border: "1px solid var(--line2)", whiteSpace: "nowrap",
 });
+// 休眠 pill（詳細ヘッダの同型・B-3）
+const dormantPill: React.CSSProperties = {
+  fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
+  color: "var(--sub)", background: "#23232B", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+};
 
 function fmtLastVisit(iso: string): string {
   const d = new Date(iso);
@@ -38,15 +48,17 @@ function fmtLastVisit(iso: string): string {
 }
 
 export default function CustomersBoard({
-  isOwner, isManagerUp, stores, casts, myStoreId,
+  isOwner, isManagerUp, stores, casts, myStoreId, canDormant,
 }: {
-  isOwner: boolean; isManagerUp: boolean; stores: Store[]; casts: Cast[]; myStoreId: string;
+  isOwner: boolean; isManagerUp: boolean; stores: Store[]; casts: Cast[]; myStoreId: string; canDormant: boolean;
 }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [storeSel, setStoreSel] = useState(""); // owner のみ・'' = 全店（p_store_id null）
   const [tier, setTier] = useState<Tier>("all");
   const [q, setQ] = useState("");
+  const [incDormant, setIncDormant] = useState(false);  // B-3: 休眠込み（既定 OFF=従来・画面ローカル）
+  const [sortOldest, setSortOldest] = useState(false);  // B-3: 掘り起こし順（休眠込み時のみ有効）
 
   // 客追加フォーム（customer_register）。担当 cast は owner/manager のみ表示
   // （staff は RPC 側で p_cast_id が null 化される既存仕様＝出さない）。
@@ -69,10 +81,13 @@ export default function CustomersBoard({
   const load = useCallback(async () => {
     const supabase = createClient();
     setErr(null);
-    const { data, error } = await supabase.rpc("customer_list_summary", { p_store_id: storeSel || null });
+    // p_include_dormant は常に明示 boolean（規約7 同列・省略に頼らない）
+    const { data, error } = await supabase.rpc("customer_list_summary", {
+      p_store_id: storeSel || null, p_include_dormant: incDormant,
+    });
     if (error) { setErr(`読み込みに失敗: ${error.message}`); setRows([]); return; }
     setRows((data ?? []) as Row[]);
-  }, [storeSel]);
+  }, [storeSel, incDormant]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -83,6 +98,15 @@ export default function CustomersBoard({
       (needle === "" || r.name.includes(needle) || (r.furigana ?? "").includes(needle)),
     );
   }, [rows, tier, q]);
+
+  // 掘り起こし順（休眠込み時のみ）: 最終来店が古い順・来店なし（null）は末尾＝掘り起こし対象外に近い扱い。
+  // OFF 時は RPC の既定順（last_visit desc nulls last）をそのまま維持＝再ソートしない。
+  const display = useMemo(() => {
+    if (!(incDormant && sortOldest)) return filtered;
+    const visited = filtered.filter((r) => r.last_visit !== null)
+      .sort((a, b) => new Date(a.last_visit!).getTime() - new Date(b.last_visit!).getTime());
+    return [...visited, ...filtered.filter((r) => r.last_visit === null)];
+  }, [filtered, incDormant, sortOldest]);
 
   const highCount = rows.filter((r) => r.churn_tier === "high").length;
   const midCount = rows.filter((r) => r.churn_tier === "mid").length;
@@ -193,6 +217,20 @@ export default function CustomersBoard({
           <button style={segBtn(tier === "high")} onClick={() => setTier("high")}>離反リスク高（{highCount}）</button>
           <button style={segBtn(tier === "mid")} onClick={() => setTier("mid")}>中（{midCount}）</button>
         </div>
+        {canDormant && (
+          <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={incDormant} onChange={(e) => setIncDormant(e.target.checked)} />
+              休眠客を含む
+            </label>
+            {incDormant && (
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                <button style={segBtn(!sortOldest)} onClick={() => setSortOldest(false)}>新しい順</button>
+                <button style={segBtn(sortOldest)} onClick={() => setSortOldest(true)}>掘り起こし順（来店が古い順）</button>
+              </div>
+            )}
+          </div>
+        )}
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -201,9 +239,9 @@ export default function CustomersBoard({
         />
 
         {err && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{err}</p>}
-        {!err && filtered.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>該当する顧客がいません</p>}
+        {!err && display.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>該当する顧客がいません</p>}
 
-        {filtered.map((r) => (
+        {display.map((r) => (
           <Link
             key={r.customer_id}
             href={`/customers/${r.customer_id}`}
@@ -212,7 +250,8 @@ export default function CustomersBoard({
             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
               <span style={{ fontWeight: 700, fontSize: 14 }}>{r.name}</span>
               {r.furigana && <span style={{ fontSize: 11, color: "var(--sub)" }}>{r.furigana}</span>}
-              <span style={{ marginLeft: "auto" }}>
+              <span style={{ marginLeft: "auto", display: "flex", gap: 5 }}>
+                {!r.is_active && <span style={dormantPill}>休眠</span>}
                 {r.churn_tier === "high" && <span style={churnPill("high")}>離反リスク高</span>}
                 {r.churn_tier === "mid" && <span style={churnPill("mid")}>離反リスク中</span>}
               </span>
@@ -234,7 +273,8 @@ export default function CustomersBoard({
         ))}
 
         <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
-          {filtered.length}件{tier !== "all" || q ? `（全${rows.length}件）` : ""}・休眠中の顧客は表示されません
+          {display.length}件{tier !== "all" || q ? `（全${rows.length}件）` : ""}・
+          {incDormant ? "休眠客を含めて表示中" : "休眠中の顧客は表示されません"}
         </p>
       </section>
     </div>
