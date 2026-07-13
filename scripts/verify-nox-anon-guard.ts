@@ -2739,6 +2739,131 @@ async function main() {
     }
   }
 
+  // ── 段26: B-5 スライスB（mig0033）シフトの定休日バリデーション（real signIn 実測）──
+  //   shift_is_closed_day 経由の「定休日ハード拒否・時間外は通す・未設定は通す」の非対称を
+  //   3挿入点（shift_wish_submit / shift_set create・update / shift_wish_decide accept）で実測。
+  //   ★営業日 dow はシフトの date そのもの（cutoff 変換なし＝mig0008 決定3 の営業日宣言・裁定B-2）。
+  //   ★汚染防止: store_business_hours の残存は段21 や verify:nox-rls（2026-07-15 固定日 wish）を
+  //   'closed day' で壊すため try/finally 全消し＋残0 の物理確認 assert。シフト/希望は
+  //   castA1a×当月15/17/18日の窓に限定して生成し窓 wipe（shifts→shift_wishes の FK 順）。
+  //   15/17/18 は差が 7 未満＝dow は常に相異なる（月替わりでも自壊しない）。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+
+    const { data: s26Stores } = await admin.from("stores").select("id, name").in("name", [STORE_A1, STORE_A2]);
+    const s26A1 = s26Stores?.find((s) => s.name === STORE_A1);
+    const s26A2 = s26Stores?.find((s) => s.name === STORE_A2);
+    const { data: s26CastRows } = await admin.from("casts").select("id")
+      .eq("name", FIXTURE_USERS.castA1a.name).eq("store_id", s26A1?.id ?? "");
+    const s26CastId = s26CastRows?.[0]?.id as string;
+
+    const jst26 = new Date(Date.now() + 9 * 3600_000);
+    const s26Y = jst26.getUTCFullYear();
+    const s26M = jst26.getUTCMonth();
+    const dowOf26 = (day: number) => new Date(Date.UTC(s26Y, s26M, day)).getUTCDay();  // JS getDay = pg extract(dow)
+    const d26 = (day: number) => `${s26Y}-${String(s26M + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const dowClosed26 = dowOf26(15);  // 定休日にする dow
+    const dowOpen26 = dowOf26(17);    // 営業日 20:00-30:00（時間外通過テスト）
+    const dowLate26 = dowOf26(18);    // 提出時は未設定→26-7 で後から定休日化（decide 競合）
+
+    // 前回失敗遺物の掃除（再実行冪等）
+    const s26Wipe = async () => {
+      if (s26CastId) {
+        await admin.from("shifts").delete().eq("cast_id", s26CastId).in("date", [d26(15), d26(17), d26(18)]);
+        await admin.from("shift_wishes").delete().eq("cast_id", s26CastId).in("date", [d26(15), d26(17), d26(18)]);
+      }
+      if (s26A1 && s26A2) await admin.from("store_business_hours").delete().in("store_id", [s26A1.id, s26A2.id]);
+    };
+    await s26Wipe();
+
+    check("段26（準備）店2・castA1a 解決", !!s26A1 && !!s26A2 && !!s26CastId);
+
+    const owner26 = await signInShared("段26", "ownerA");
+    const mgr26 = await signInShared("段26", "managerA1");
+    const cast26 = await signInShared("段26", "castA1a");
+    if (s26A1 && s26A2 && s26CastId && owner26 && mgr26 && cast26) {
+      try {
+        // 準備: 15日dow=定休・17日dow=20:00-30:00（set 自体の権限/検証は段25 で実証済み）
+        const { error: eS1 } = await owner26.rpc("set_store_business_hours",
+          { p_store_id: s26A1.id, p_dow: dowClosed26, p_is_closed: true, p_open_hm: null, p_close_hm: null });
+        const { error: eS2 } = await owner26.rpc("set_store_business_hours",
+          { p_store_id: s26A1.id, p_dow: dowOpen26, p_is_closed: false, p_open_hm: "20:00", p_close_hm: "30:00" });
+        check("段26（準備）営業時間 set（15日dow=定休・17日dow=20:00-30:00）", !eS1 && !eS2, eS1?.message ?? eS2?.message);
+
+        // 26-0 anon は新設ヘルパー BLOCKED
+        const { error: eAnon26 } = await anon.rpc("shift_is_closed_day", { p_store_id: s26A1.id, p_date: d26(15) });
+        check("段26-0 anon shift_is_closed_day BLOCKED", isFnBlocked(eAnon26), eAnon26?.message ?? "実行できてしまった");
+
+        // 26-1 ★cast の定休日 wish = closed day（raise=トランザクション巻き戻し＝実 INSERT なしも物理確認）
+        const { error: e1 } = await cast26.rpc("shift_wish_submit",
+          { p_date: d26(15), p_start_hm: "20:00", p_end_hm: "26:00" });
+        check("段26-1 ★定休日の shift_wish_submit = closed day", has(e1, "closed day"), e1?.message ?? "通ってしまった");
+        const { data: r1 } = await admin.from("shift_wishes").select("id").eq("cast_id", s26CastId).eq("date", d26(15));
+        check("段26-1 物理確認: wish 0行（INSERT されていない）", (r1 ?? []).length === 0, `got ${(r1 ?? []).length}`);
+
+        // 26-2 ★営業時間外 wish は通る（17日 12:00-15:00＝20:00-30:00 の窓外・非対称）
+        const { data: id2, error: e2 } = await cast26.rpc("shift_wish_submit",
+          { p_date: d26(17), p_start_hm: "12:00", p_end_hm: "15:00" });
+        check("段26-2 ★営業時間外の wish = 成功（定休日拒否との非対称・警告は経営側 UI の責務）",
+          !e2 && typeof id2 === "string", e2?.message);
+
+        // 26-3 ★未設定 dow の wish は通る（18日＝行なし＝後方互換）
+        const { data: id3, error: e3 } = await cast26.rpc("shift_wish_submit",
+          { p_date: d26(18), p_start_hm: "20:00", p_end_hm: "26:00" });
+        check("段26-3 ★未設定 dow の wish = 成功（行なし=通す）", !e3 && typeof id3 === "string", e3?.message);
+
+        // 26-4 manager shift_set(create) で定休日 = closed day
+        const { error: e4 } = await mgr26.rpc("shift_set",
+          { p_id: null, p_cast_id: s26CastId, p_date: d26(15), p_start_hm: "20:00", p_end_hm: "26:00", p_status: "planned" });
+        check("段26-4 ★定休日の shift_set(create) = closed day", has(e4, "closed day"), e4?.message ?? "通ってしまった");
+
+        // 26-5 create は営業日（時間外）で成功 → update で定休日へ移動 = closed day（既存行は不変）
+        const { data: id5, error: e5a } = await mgr26.rpc("shift_set",
+          { p_id: null, p_cast_id: s26CastId, p_date: d26(17), p_start_hm: "12:00", p_end_hm: "15:00", p_status: "planned" });
+        check("段26-5 営業時間外の shift_set(create) = 成功（非対称）", !e5a && typeof id5 === "string", e5a?.message);
+        const { error: e5b } = await mgr26.rpc("shift_set",
+          { p_id: id5, p_cast_id: s26CastId, p_date: d26(15), p_start_hm: "20:00", p_end_hm: "26:00", p_status: "planned" });
+        check("段26-5 ★update で定休日へ移動 = closed day", has(e5b, "closed day"), e5b?.message ?? "通ってしまった");
+        const { data: r5 } = await admin.from("shifts").select("date").eq("id", id5).single();
+        check("段26-5 物理確認: シフトは 17日 のまま（update 不成立）", r5?.date === d26(17), JSON.stringify(r5));
+
+        // 26-6 ★cast から helper 直呼び（grant authenticated＝boolean のみの専用経路・裁定3 の最小形）
+        const { data: h6a, error: e6a } = await cast26.rpc("shift_is_closed_day", { p_store_id: s26A1.id, p_date: d26(15) });
+        const { data: h6b, error: e6b } = await cast26.rpc("shift_is_closed_day", { p_store_id: s26A1.id, p_date: d26(18) });
+        check("段26-6 cast helper 直呼び: 定休日=true・未設定=false", !e6a && h6a === true && !e6b && h6b === false,
+          e6a?.message ?? e6b?.message ?? `got ${h6a},${h6b}`);
+
+        // 26-7 ★decide 競合: 提出済み wish（18日=提出時未設定）の dow を後から定休日化 →
+        //       accept は closed day・wish は pending のまま・shifts 未生成 → reject は定休日でも可
+        const { error: eS3 } = await owner26.rpc("set_store_business_hours",
+          { p_store_id: s26A1.id, p_dow: dowLate26, p_is_closed: true, p_open_hm: null, p_close_hm: null });
+        const { error: e7a } = await mgr26.rpc("shift_wish_decide", { p_wish_id: id3, p_accept: true });
+        check("段26-7 ★提出後に定休日化された wish の accept = closed day", !eS3 && has(e7a, "closed day"),
+          eS3?.message ?? e7a?.message ?? "通ってしまった");
+        const { data: r7w } = await admin.from("shift_wishes").select("status").eq("id", id3).single();
+        const { data: r7s } = await admin.from("shifts").select("id").eq("wish_id", id3);
+        check("段26-7 物理確認: wish は pending のまま・shifts 未生成", r7w?.status === "pending" && (r7s ?? []).length === 0,
+          `status=${r7w?.status}, shifts=${(r7s ?? []).length}`);
+        const { error: e7b } = await mgr26.rpc("shift_wish_decide", { p_wish_id: id3, p_accept: false });
+        const { data: r7r } = await admin.from("shift_wishes").select("status").eq("id", id3).single();
+        check("段26-7 reject は定休日でも可（rejected へ）", !e7b && r7r?.status === "rejected",
+          e7b?.message ?? `status=${r7r?.status}`);
+      } finally {
+        await s26Wipe();
+      }
+      // 掃除の物理確認（★営業時間行の残存は段21 や verify:nox-rls の固定日 wish を 'closed day' で壊すため必須）
+      const { data: bhLeft26 } = await admin.from("store_business_hours").select("id").in("store_id", [s26A1.id, s26A2.id]);
+      const { data: wLeft26 } = await admin.from("shift_wishes").select("id").eq("cast_id", s26CastId).in("date", [d26(15), d26(17), d26(18)]);
+      const { data: sLeft26 } = await admin.from("shifts").select("id").eq("cast_id", s26CastId).in("date", [d26(15), d26(17), d26(18)]);
+      check("段26 掃除確認: 営業時間/希望/シフト 0行（非汚染）",
+        (bhLeft26 ?? []).length === 0 && (wLeft26 ?? []).length === 0 && (sLeft26 ?? []).length === 0,
+        `bh=${(bhLeft26 ?? []).length}, wish=${(wLeft26 ?? []).length}, shift=${(sLeft26 ?? []).length}`);
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
