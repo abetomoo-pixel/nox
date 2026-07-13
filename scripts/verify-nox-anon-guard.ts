@@ -673,10 +673,13 @@ async function main() {
       const rFree = rowOf(FIXTURE_CUSTOMERS.custFree.name);
       check("段15 churn ゴールデン: 指名A客 tier='none'（5日前・visits=2・spend=30000）",
         rCastA?.churn_tier === "none" && rCastA?.visits === 2 && Number(rCastA?.total_spend) === 30_000, JSON.stringify(rCastA));
-      check("段15 churn ゴールデン: フリー客 tier='mid'（40日前=30-59）",
-        rFree?.churn_tier === "mid" && (rFree?.days_since ?? 0) >= 39 && (rFree?.days_since ?? 99) <= 41, JSON.stringify(rFree));
-      check("段15 churn ゴールデン: 指名B客 tier='high'（70日前=60+）",
-        rCastB?.churn_tier === "high" && (rCastB?.days_since ?? 0) >= 69 && (rCastB?.days_since ?? 99) <= 71, JSON.stringify(rCastB));
+      // days_since は seed 実行日からの経過で毎日 +1 ドリフトする＝厳格レンジ（±1）だと seed 後
+      // 2日で偽 fail（2026-07-13 実測 44/74 で発生）。fixture の設計意図（40/70=境界 30/60 を避けた
+      // マージン）どおり tier 安全域で assert する（tier が本当に動く seed+20日超は seed:f0 再実行が前提）。
+      check("段15 churn ゴールデン: フリー客 tier='mid'（seed 時 40日前・30-59 の安全域）",
+        rFree?.churn_tier === "mid" && (rFree?.days_since ?? 0) >= 40 && (rFree?.days_since ?? 99) < 60, JSON.stringify(rFree));
+      check("段15 churn ゴールデン: 指名B客 tier='high'（seed 時 70日前・60+ の安全域）",
+        rCastB?.churn_tier === "high" && (rCastB?.days_since ?? 0) >= 70, JSON.stringify(rCastB));
       // owner の店絞り込み（p_store_id=A2 → A2 の1客のみ）
       const { data: listOA2 } = await owner.rpc("customer_list_summary", { p_store_id: storeA2!.id });
       check("段15 owner list p_store_id=A2 絞り込み（1客）",
@@ -2076,6 +2079,177 @@ async function main() {
         (chkLeft20 ?? []).length === 0 && (dLeft20 ?? []).length === 0,
         `chk=${(chkLeft20 ?? []).length}, cast=${(dLeft20 ?? []).length}`);
       for (const c of sessions.values()) await c.auth.signOut();
+    }
+  }
+
+  // ── 段21: F3b-B（mig0029）席予約＝EXCLUDE 排他＋RPC 事前検証＋to_check 予約卓解決 ──
+  //   fixture は段19 方式＝service/RPC 生成→try/finally 全消し（memberships 9行維持）。
+  //   時間枠は now+30h 起点の相対構築（未来枠＝既存データと非干渉・境界は分演算で正確）。
+  //   21-8（段19 既存13 assert の回帰）は同一 run 内で段19 が先に全 pass していること自体が実証。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+
+    // 準備（service）: 店・PERM卓・段21 専用卓（A1b=別卓通し用／A2=invalid store 用・finally で削除）
+    const { data: s21Stores } = await admin.from("stores").select("id, name, org_id").in("name", [STORE_A1, STORE_A2]);
+    const s21A1 = s21Stores?.find((s) => s.name === STORE_A1);
+    const s21A2 = s21Stores?.find((s) => s.name === STORE_A2);
+    let s21Seat = "";
+    {
+      const { data: sExist } = await admin.from("seats").select("id")
+        .eq("store_id", s21A1!.id).eq("name", "NOX-VERIFY-PERM卓").limit(1);
+      if (sExist?.length) s21Seat = sExist[0].id as string;
+      else {
+        const { data: sNew } = await admin.from("seats").insert({
+          org_id: s21A1!.org_id, store_id: s21A1!.id, name: "NOX-VERIFY-PERM卓", kind: "卓", sort_order: 999,
+        }).select("id").single();
+        s21Seat = sNew!.id as string;
+      }
+    }
+    const s21WipeSeatChecks = async (seatId: string) => {
+      const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
+      const ids = (cs ?? []).map((c) => c.id as string);
+      if (!ids.length) return;
+      await admin.from("reservations").update({ check_id: null }).in("check_id", ids);
+      for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+        await admin.from(t).delete().in("check_id", ids);
+      }
+      await admin.from("checks").delete().in("id", ids);
+    };
+    const s21WipeReservations = async () => {
+      await admin.from("reservations").delete().in("store_id", [s21A1!.id, s21A2!.id]);
+    };
+    // 前回失敗遺物の掃除（再実行冪等）
+    await s21WipeSeatChecks(s21Seat);
+    await s21WipeReservations();
+    await admin.from("seats").delete().like("name", "NOX-VERIFY-段21卓%");
+    const { data: s21A1bRow } = await admin.from("seats").insert({
+      org_id: s21A1!.org_id, store_id: s21A1!.id, name: "NOX-VERIFY-段21卓A1b", kind: "卓", sort_order: 998,
+    }).select("id").single();
+    const s21SeatA1b = s21A1bRow?.id as string;
+    const { data: s21A2Row } = await admin.from("seats").insert({
+      org_id: s21A2!.org_id, store_id: s21A2!.id, name: "NOX-VERIFY-段21卓A2", kind: "卓", sort_order: 999,
+    }).select("id").single();
+    const s21SeatA2 = s21A2Row?.id as string;
+    check("段21（準備）店/PERM卓/専用卓2 の解決", !!s21A1 && !!s21A2 && !!s21Seat && !!s21SeatA1b && !!s21SeatA2);
+
+    const mgr = await signInShared("段21", "managerA1");
+    if (s21A1 && s21A2 && s21Seat && s21SeatA1b && s21SeatA2 && mgr) {
+      // 時間枠: now+30h 起点・分オフセットで構築（[t(0), t(120)) 等・未来枠=既存 checks/予約と非干渉）
+      const BASE = Date.now() + 30 * 3600_000;
+      const t = (min: number) => new Date(BASE + min * 60_000).toISOString();
+      const mkArgs = (label: string, startMin: number, seat: string | null, stayMin: number | null) => ({
+        p_store_id: s21A1.id, p_reserved_at: t(startMin), p_guest_name: label,
+        p_seat_id: seat, p_stay_minutes: stayMin,
+      });
+      try {
+        // ═══ 席予約 create 正常（r1=[t0, t0+2h) PERM卓）═══
+        const { data: r1, error: e1 } = await mgr.rpc("reservation_create", mkArgs("段21-r1", 0, s21Seat, 120));
+        check("段21（準備）席予約 create 成功（seat+stay 120分）", !e1 && typeof r1 === "string", e1?.message);
+
+        // ═══ 21-3a: create の事前検証（重複枠→'seat time conflict' が制約より先）═══
+        const { error: e3a } = await mgr.rpc("reservation_create", mkArgs("段21-衝突", 60, s21Seat, 120));
+        check("段21-3 create 重複枠 = seat time conflict（事前検証が 23P01 より先）",
+          has(e3a, "seat time conflict"), e3a?.message ?? "通ってしまった");
+
+        // ═══ 21-3b: update の事前検証（別枠の予約を重複枠へ移動）═══
+        const { data: r2, error: e2 } = await mgr.rpc("reservation_create", mkArgs("段21-r2", 240, s21Seat, 120));
+        check("段21（準備）後続枠 create 成功（[t0+4h, t0+6h)）", !e2 && typeof r2 === "string", e2?.message);
+        const { error: e3b } = await mgr.rpc("reservation_update", {
+          p_reservation_id: r2, p_reserved_at: t(60), p_customer_id: null, p_cast_id: null,
+          p_guest_name: "段21-r2", p_party_size: null, p_nom_type: null, p_memo: null,
+          p_seat_id: s21Seat, p_stay_minutes: 120,
+        });
+        check("段21-3 update 重複枠へ移動 = seat time conflict", has(e3b, "seat time conflict"), e3b?.message ?? "通ってしまった");
+
+        // ═══ 21-1: EXCLUDE 実発火（RPC を迂回した service 直挿入＝制約が最終防衛）═══
+        const { error: eX } = await admin.from("reservations").insert({
+          org_id: s21A1.org_id, store_id: s21A1.id, guest_name: "段21-直挿入",
+          reserved_at: t(30), seat_id: s21Seat, stay: `[${t(30)},${t(150)})`, status: "booked",
+        });
+        check("段21-1 EXCLUDE 実発火: 直挿入の重複 booked = 23P01 拒否",
+          (eX as { code?: string } | null)?.code === "23P01" && has(eX, "reservations_seat_stay_excl"),
+          eX ? `code=${(eX as { code?: string }).code} ${eX.message}` : "通ってしまった");
+
+        // ═══ 21-2: cancelled 同枠 OK（WHERE 除外の実証）═══
+        const { error: eCan } = await mgr.rpc("reservation_set_status", { p_reservation_id: r1, p_status: "cancelled" });
+        const { data: r1b, error: e1b } = await mgr.rpc("reservation_create", mkArgs("段21-r1b", 0, s21Seat, 120));
+        check("段21-2 cancelled 後の同卓同枠 = 再 booked 成功（WHERE 除外）",
+          !eCan && !e1b && typeof r1b === "string", eCan?.message ?? e1b?.message);
+
+        // ═══ 21-5: 隣接枠境界（[t0,2h)+[2h,4h)+[4h,6h) が3連で共存＝上端排他 [) の実証）═══
+        const { data: r3, error: e5 } = await mgr.rpc("reservation_create", mkArgs("段21-r3", 120, s21Seat, 120));
+        check("段21-5 隣接枠 [t0+2h, t0+4h) = 非重複で booked 可（前後と上端/下端が接する）",
+          !e5 && typeof r3 === "string", e5?.message);
+
+        // ═══ 21-4: seat_id null 非干渉（卓なし予約は同時刻に何件でも・排他に掛からない）═══
+        const { data: n1, error: eN1 } = await mgr.rpc("reservation_create", mkArgs("段21-卓なし1", 0, null, null));
+        const { data: n2, error: eN2 } = await mgr.rpc("reservation_create", mkArgs("段21-卓なし2", 0, null, null));
+        check("段21-4 卓なし予約×2（同時刻）= EXCLUDE 非干渉で両方成功",
+          !eN1 && !eN2 && !!n1 && !!n2, eN1?.message ?? eN2?.message);
+
+        // ═══ 滞在時間ホワイトリスト（60/90/120/180 以外は bad stay・seat のみ/stay のみも bad stay）═══
+        const { error: eW1 } = await mgr.rpc("reservation_create", mkArgs("段21-45分", 600, s21Seat, 45));
+        check("段21 滞在 45分 = bad stay（ホワイトリスト外）", has(eW1, "bad stay"), eW1?.message ?? "通ってしまった");
+        const { error: eW2 } = await mgr.rpc("reservation_create", mkArgs("段21-200分", 600, s21Seat, 200));
+        check("段21 滞在 200分 = bad stay", has(eW2, "bad stay"), eW2?.message ?? "通ってしまった");
+        const { error: eW3 } = await mgr.rpc("reservation_create", mkArgs("段21-片方のみ", 600, s21Seat, null));
+        check("段21 seat のみ（stay なし）= bad stay（both-or-neither）", has(eW3, "bad stay"), eW3?.message ?? "通ってしまった");
+
+        // ═══ update 自分除外（同値 update で seat time conflict が誤発火しない）═══
+        const { error: eSelf } = await mgr.rpc("reservation_update", {
+          p_reservation_id: r3, p_reserved_at: t(120), p_customer_id: null, p_cast_id: null,
+          p_guest_name: "段21-r3", p_party_size: null, p_nom_type: null, p_memo: null,
+          p_seat_id: s21Seat, p_stay_minutes: 120,
+        });
+        check("段21 update 自分除外: 同値 update が誤衝突しない（r.id <> 自分の実証）", !eSelf, eSelf?.message);
+
+        // ═══ 21-7: ★【10】invalid store（A1 予約 × A2 卓・create/update 両方）═══
+        const { error: e7c } = await mgr.rpc("reservation_create", mkArgs("段21-他店卓", 600, s21SeatA2, 120));
+        check("段21-7 ★【10】create: A1 予約 × A2 卓 = invalid store", has(e7c, "invalid store"), e7c?.message ?? "通ってしまった");
+        const { error: e7u } = await mgr.rpc("reservation_update", {
+          p_reservation_id: r3, p_reserved_at: t(120), p_customer_id: null, p_cast_id: null,
+          p_guest_name: "段21-r3", p_party_size: null, p_nom_type: null, p_memo: null,
+          p_seat_id: s21SeatA2, p_stay_minutes: 120,
+        });
+        check("段21-7 ★【10】update: A2 卓へ変更 = invalid store", has(e7u, "invalid store"), e7u?.message ?? "通ってしまった");
+
+        // ═══ 21-6: to_check の予約卓解決（p_seat_id null=予約卓）＋ stay と checks の独立 ═══
+        const { data: chk3, error: eT3 } = await mgr.rpc("reservation_to_check", { p_reservation_id: r3, p_seat_id: null });
+        check("段21-6 to_check（p_seat_id null）= 予約卓で開店成功（論点4 既定解決）", !eT3 && typeof chk3 === "string", eT3?.message);
+        const { data: chk3Row } = await admin.from("checks")
+          .select("seat_id, status, started_at").eq("id", chk3 as string).single();
+        const startedBeforeStay = chk3Row ? new Date(chk3Row.started_at as string).getTime() < BASE + 120 * 60_000 : false;
+        check("段21-6 物理確認: check は予約卓・open・started_at は stay 窓外（stay は重複判定専用＝checks の時間を制約しない）",
+          chk3Row?.seat_id === s21Seat && chk3Row?.status === "open" && startedBeforeStay, JSON.stringify(chk3Row));
+
+        // ═══ 確認(A): 予約卓が open で埋まる → seat occupied → 明示 p_seat_id で別卓に通す ═══
+        const { error: eOcc } = await mgr.rpc("reservation_to_check", { p_reservation_id: r2, p_seat_id: null });
+        check("段21 確認(A): 予約卓に open あり = seat occupied（発見1 が解決後の卓に効く）",
+          has(eOcc, "seat occupied"), eOcc?.message ?? "通ってしまった");
+        const { data: chk2, error: eOv } = await mgr.rpc("reservation_to_check", { p_reservation_id: r2, p_seat_id: s21SeatA1b });
+        check("段21 確認(A): p_seat_id 明示で別卓に通す = 成功（実来店が勝つ）", !eOv && typeof chk2 === "string", eOv?.message);
+        const { data: r2Row } = await admin.from("reservations").select("status, check_id").eq("id", r2 as string).single();
+        const { data: chk2Row } = await admin.from("checks").select("seat_id").eq("id", chk2 as string).single();
+        check("段21 確認(A) 物理確認: 実卓=A1b・予約は visited⇔check_id 1:1 維持",
+          chk2Row?.seat_id === s21SeatA1b && r2Row?.status === "visited" && r2Row?.check_id === chk2,
+          JSON.stringify({ seat: chk2Row?.seat_id, r2: r2Row }));
+      } finally {
+        // 全消し（checks 参照を外して checks → reservations → 専用卓・段19 方式）
+        await s21WipeSeatChecks(s21Seat);
+        await s21WipeSeatChecks(s21SeatA1b);
+        await s21WipeSeatChecks(s21SeatA2);
+        await s21WipeReservations();
+        await admin.from("seats").delete().in("id", [s21SeatA1b, s21SeatA2]);
+      }
+      // 掃除の物理確認（rls 固定カウント非汚染の positive）
+      const { data: resLeft21 } = await admin.from("reservations").select("id").in("store_id", [s21A1.id, s21A2.id]);
+      const { data: seatLeft21 } = await admin.from("seats").select("id").like("name", "NOX-VERIFY-段21卓%");
+      check("段21 掃除確認: reservations/専用卓 0行（非汚染）",
+        (resLeft21 ?? []).length === 0 && (seatLeft21 ?? []).length === 0,
+        `res=${(resLeft21 ?? []).length}, seat=${(seatLeft21 ?? []).length}`);
     }
   }
 
