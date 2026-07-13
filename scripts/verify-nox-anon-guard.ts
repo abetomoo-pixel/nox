@@ -2253,6 +2253,85 @@ async function main() {
     }
   }
 
+  // ── 段22: F3b-B-1 担当割当 UI 接続（mig なし）＝customer_assign_cast の runtime 権限マトリクス ──
+  //   段15 の既存 assert（owner 成功/staff・cast forbidden/不在 cast=invalid cast）に対し、本段は
+  //   UI 裁定の残余分岐を固定: manager 自店割当成功（段15 は null 解除のみ）・他店「実在 active」cast の
+  //   invalid cast（段15 は randomUUID 不在＝exists 述語の store 条件を実在行で実証・UI 構造上選べない経路の
+  //   二層目）・staff 拒否後の不変物理確認・null 解除の物理確認。
+  //   fixture は段19 方式＝service 生成（専用客・他店ダミー cast）→try/finally 全消し＝rls 固定カウント非汚染。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+
+    // 準備（service）: 店・fixture cast の解決＋前回失敗遺物の掃除（再実行冪等）＋専用客/他店ダミー cast 生成
+    const { data: s22Stores } = await admin.from("stores").select("id, name, org_id").in("name", [STORE_A1, STORE_A2]);
+    const s22A1 = s22Stores?.find((s) => s.name === STORE_A1);
+    const s22A2 = s22Stores?.find((s) => s.name === STORE_A2);
+    const { data: s22Casts } = await admin.from("casts").select("id, name")
+      .eq("store_id", s22A1!.id).in("name", [FIXTURE_USERS.castA1a.name, FIXTURE_USERS.castA1b.name]);
+    const s22CastA1a = s22Casts?.find((c) => c.name === FIXTURE_USERS.castA1a.name)?.id as string;
+    const s22CastA1b = s22Casts?.find((c) => c.name === FIXTURE_USERS.castA1b.name)?.id as string;
+    await admin.from("customers").delete().like("name", "NOX-VERIFY-段22%");
+    await admin.from("casts").delete().like("name", "NOX-VERIFY-段22%");
+    const { data: s22CustRow } = await admin.from("customers").insert({
+      org_id: s22A1!.org_id, store_id: s22A1!.id, name: "NOX-VERIFY-段22-客",
+    }).select("id").single();
+    const s22Cust = s22CustRow?.id as string;
+    const { data: s22DCastRow } = await admin.from("casts").insert({
+      org_id: s22A2!.org_id, store_id: s22A2!.id, name: "NOX-VERIFY-段22他店cast", is_active: true,
+    }).select("id").single();
+    const s22CastA2 = s22DCastRow?.id as string;
+    check("段22（準備）店/fixture cast/専用客/他店ダミー cast の解決",
+      !!s22A1 && !!s22A2 && !!s22CastA1a && !!s22CastA1b && !!s22Cust && !!s22CastA2);
+
+    const owner22 = await signInShared("段22", "ownerA");
+    const mgr22 = await signInShared("段22", "managerA1");
+    const crm22 = await signInShared("段22", "staffCrmOnA1");
+    if (s22A1 && s22A2 && s22CastA1a && s22CastA1b && s22Cust && s22CastA2 && owner22 && mgr22 && crm22) {
+      try {
+        // 22-1 owner 割当成功（実 UPDATE 物理確認）
+        const { error: e1 } = await owner22.rpc("customer_assign_cast", { p_id: s22Cust, p_cast_id: s22CastA1a });
+        check("段22-1 owner 割当成功", !e1, e1?.message);
+        const { data: r1 } = await admin.from("customers").select("cast_id").eq("id", s22Cust).single();
+        check("段22-1 物理確認: cast_id=castA1a", r1?.cast_id === s22CastA1a, JSON.stringify(r1));
+
+        // 22-2 manager 自店割当成功（UI の主経路・段15 は null 解除のみだった）
+        const { error: e2 } = await mgr22.rpc("customer_assign_cast", { p_id: s22Cust, p_cast_id: s22CastA1b });
+        check("段22-2 manager 自店割当成功（A1a→A1b 付け替え）", !e2, e2?.message);
+        const { data: r2 } = await admin.from("customers").select("cast_id").eq("id", s22Cust).single();
+        check("段22-2 物理確認: cast_id=castA1b", r2?.cast_id === s22CastA1b, JSON.stringify(r2));
+
+        // 22-3 他店「実在 active」cast = invalid cast（UI は候補を自店 active に絞る＝選べない経路の二層目）
+        const { error: e3 } = await mgr22.rpc("customer_assign_cast", { p_id: s22Cust, p_cast_id: s22CastA2 });
+        check("段22-3 manager × 他店実在 cast = invalid cast", has(e3, "invalid cast"), e3?.message ?? "通ってしまった");
+
+        // 22-4 staff（can_crm=true でも）拒否＝UI ボタン非表示の二層目
+        const { error: e4 } = await crm22.rpc("customer_assign_cast", { p_id: s22Cust, p_cast_id: s22CastA1a });
+        check("段22-4 staff(can_crm) 拒否 = forbidden", forbidden(e4), e4?.message ?? "通ってしまった");
+        const { data: r4 } = await admin.from("customers").select("cast_id").eq("id", s22Cust).single();
+        check("段22-4 物理確認: 拒否後も cast_id=castA1b 不変", r4?.cast_id === s22CastA1b, JSON.stringify(r4));
+
+        // 22-5 null 解除（UI「フリー（担当解除）」経路）
+        const { error: e5 } = await mgr22.rpc("customer_assign_cast", { p_id: s22Cust, p_cast_id: null });
+        check("段22-5 manager null 解除成功", !e5, e5?.message);
+        const { data: r5 } = await admin.from("customers").select("cast_id").eq("id", s22Cust).single();
+        check("段22-5 物理確認: cast_id=null（フリー）", r5?.cast_id === null, JSON.stringify(r5));
+      } finally {
+        await admin.from("customers").delete().like("name", "NOX-VERIFY-段22%");
+        await admin.from("casts").delete().like("name", "NOX-VERIFY-段22%");
+      }
+      // 掃除の物理確認（rls 固定カウント非汚染の positive）
+      const { data: custLeft22 } = await admin.from("customers").select("id").like("name", "NOX-VERIFY-段22%");
+      const { data: castLeft22 } = await admin.from("casts").select("id").like("name", "NOX-VERIFY-段22%");
+      check("段22 掃除確認: 専用客/他店ダミー cast 0行（非汚染）",
+        (custLeft22 ?? []).length === 0 && (castLeft22 ?? []).length === 0,
+        `cust=${(custLeft22 ?? []).length}, cast=${(castLeft22 ?? []).length}`);
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
