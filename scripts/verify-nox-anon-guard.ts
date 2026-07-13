@@ -2332,6 +2332,98 @@ async function main() {
     }
   }
 
+  // ── 段23: B-3（mig0030）customer_list_summary p_include_dormant の実効挙動（real signIn 実測）──
+  //   段15 は省略時の従来挙動（active のみ・休眠除外ゴールデン 4/3/1/3）を既にカバー＝本段は新分岐のみ:
+  //   owner/manager の休眠込み（店スコープ維持）・★cast は true でも休眠が返らない（prosrc の
+  //   v_role<>'cast' を real session で実測＝二層目）・false 明示=従来件数・staff(can_crm) は
+  //   owner/manager と同扱いで休眠込み（裁定どおり）。
+  //   fixture＝段19 方式: service 生成の休眠客3（A1 担当付き/A1 フリー/A2）→try/finally 全消し。
+  //   seed 常設の custDormant（A1・castA1a 担当・is_active=false）はカウントに含めて検証し、触らない。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    // 準備（service）: 店・castA1a 解決＋前回失敗遺物の掃除（再実行冪等）＋休眠客3件生成
+    const { data: s23Stores } = await admin.from("stores").select("id, name, org_id").in("name", [STORE_A1, STORE_A2]);
+    const s23A1 = s23Stores?.find((s) => s.name === STORE_A1);
+    const s23A2 = s23Stores?.find((s) => s.name === STORE_A2);
+    const { data: s23CastRows } = await admin.from("casts").select("id")
+      .eq("store_id", s23A1!.id).eq("name", FIXTURE_USERS.castA1a.name);
+    const s23CastA1a = s23CastRows?.[0]?.id as string;
+    await admin.from("customers").delete().like("name", "NOX-VERIFY-段23%");
+    const { data: s23Ins, error: e23Ins } = await admin.from("customers").insert([
+      // D1: castA1a 担当付き休眠（★cast 二層目テスト用＝担当 cast で叩いても返らないこと）
+      { org_id: s23A1!.org_id, store_id: s23A1!.id, name: "NOX-VERIFY-段23-休眠A1担当", cast_id: s23CastA1a, is_active: false },
+      // D2: フリー休眠（A1）
+      { org_id: s23A1!.org_id, store_id: s23A1!.id, name: "NOX-VERIFY-段23-休眠A1フリー", is_active: false },
+      // D3: 他店休眠（A2）＝manager の店スコープ維持テスト用
+      { org_id: s23A2!.org_id, store_id: s23A2!.id, name: "NOX-VERIFY-段23-休眠A2", is_active: false },
+    ]).select("id, name");
+    check("段23（準備）店/castA1a/休眠客3件の生成", !e23Ins && !!s23A1 && !!s23A2 && !!s23CastA1a && (s23Ins ?? []).length === 3,
+      e23Ins?.message ?? `ins=${(s23Ins ?? []).length}`);
+
+    const owner23 = await signInShared("段23", "ownerA");
+    const mgr23 = await signInShared("段23", "managerA1");
+    const crm23 = await signInShared("段23", "staffCrmOnA1");
+    const cast23 = await signInShared("段23", "castA1a");
+    if (s23A1 && s23A2 && s23CastA1a && (s23Ins ?? []).length === 3 && owner23 && mgr23 && crm23 && cast23) {
+      type Row23 = { customer_id: string; name: string; is_active: boolean };
+      const names = (rows: unknown) => ((rows ?? []) as Row23[]).map((r) => r.name);
+      // 期待件数の基準（段15 ゴールデン）: active = owner 4（org A 全店）/ manager・staff 自店3 / cast 担当1。
+      // 休眠 = seed 常設 custDormant（A1）＋本段生成 D1・D2（A1）・D3（A2）＝A1 に3・A2 に1・org A 計4。
+      try {
+        // 23-1 owner true = active 4 + 休眠4（org 全店・休眠込み）
+        const { data: o1, error: eO1 } = await owner23.rpc("customer_list_summary", { p_include_dormant: true });
+        check("段23-1 owner include=true = 8行（active 4 + 休眠4）", !eO1 && names(o1).length === 8,
+          eO1?.message ?? `got ${names(o1).length}: ${names(o1).join(",")}`);
+        const o1n = names(o1);
+        check("段23-1 休眠4件の名前含有（custDormant + 段23 生成3件）",
+          [FIXTURE_CUSTOMERS.custDormant.name, "NOX-VERIFY-段23-休眠A1担当", "NOX-VERIFY-段23-休眠A1フリー", "NOX-VERIFY-段23-休眠A2"]
+            .every((n) => o1n.includes(n)), o1n.join(","));
+
+        // 23-2 manager true = 自店 A1 のみ休眠込み（active 3 + A1 休眠3・他店休眠 D3 は返らない）
+        const { data: m1, error: eM1 } = await mgr23.rpc("customer_list_summary", { p_include_dormant: true });
+        check("段23-2 manager include=true = 6行（自店 active 3 + 自店休眠3）", !eM1 && names(m1).length === 6,
+          eM1?.message ?? `got ${names(m1).length}: ${names(m1).join(",")}`);
+        check("段23-2 他店休眠（A2）は返らない（店スコープ維持）", !names(m1).includes("NOX-VERIFY-段23-休眠A2"), names(m1).join(","));
+
+        // 23-3 ★cast true = 休眠が返らない（担当付き休眠 D1・custDormant とも castA1a 担当なのに不可視＝二層目）
+        const { data: c1, error: eC1 } = await cast23.rpc("customer_list_summary", { p_include_dormant: true });
+        check("段23-3 cast include=true = 担当 active 1行のみ（省略時と同件数）",
+          !eC1 && names(c1).length === 1 && names(c1)[0] === FIXTURE_CUSTOMERS.custCastA.name,
+          eC1?.message ?? names(c1).join(","));
+        check("段23-3 ★担当付き休眠（D1/custDormant）が cast に返らない（v_role<>'cast' の実測）",
+          !names(c1).includes("NOX-VERIFY-段23-休眠A1担当") && !names(c1).includes(FIXTURE_CUSTOMERS.custDormant.name),
+          names(c1).join(","));
+
+        // 23-4 false 明示 = 従来件数（段15 ゴールデン一致・既定値と同挙動）
+        const { data: o0, error: eO0 } = await owner23.rpc("customer_list_summary", { p_include_dormant: false });
+        check("段23-4 owner include=false 明示 = 4行（段15 ゴールデン一致）", !eO0 && names(o0).length === 4,
+          eO0?.message ?? `got ${names(o0).length}`);
+        const { data: m0, error: eM0 } = await mgr23.rpc("customer_list_summary", { p_include_dormant: false });
+        check("段23-4 manager include=false 明示 = 自店3行", !eM0 && names(m0).length === 3,
+          eM0?.message ?? `got ${names(m0).length}`);
+
+        // 23-5 staff(can_crm) true = 休眠込み（cast と違い owner/manager 同扱い＝裁定どおり）
+        const { data: s1, error: eS1 } = await crm23.rpc("customer_list_summary", { p_include_dormant: true });
+        check("段23-5 staff(can_crm) include=true = 6行（自店 active 3 + 休眠3）", !eS1 && names(s1).length === 6,
+          eS1?.message ?? `got ${names(s1).length}: ${names(s1).join(",")}`);
+        const s1Dormant = ((s1 ?? []) as Row23[]).find((r) => r.name === FIXTURE_CUSTOMERS.custDormant.name);
+        check("段23-5 休眠行の is_active=false フラグ返却（UI トグル表示の根拠）", s1Dormant?.is_active === false,
+          JSON.stringify(s1Dormant));
+      } finally {
+        await admin.from("customers").delete().like("name", "NOX-VERIFY-段23%");
+      }
+      // 掃除の物理確認（rls 固定カウント非汚染の positive・seed 常設 custDormant は残っていること）
+      const { data: custLeft23 } = await admin.from("customers").select("id").like("name", "NOX-VERIFY-段23%");
+      const { data: dormantKept } = await admin.from("customers").select("id").eq("name", FIXTURE_CUSTOMERS.custDormant.name);
+      check("段23 掃除確認: 段23 生成客 0行＋seed 常設 custDormant 残存（非汚染）",
+        (custLeft23 ?? []).length === 0 && (dormantKept ?? []).length === 1,
+        `left=${(custLeft23 ?? []).length}, dormant=${(dormantKept ?? []).length}`);
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
