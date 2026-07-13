@@ -2600,6 +2600,145 @@ async function main() {
     }
   }
 
+  // ── 段25: B-5 スライスA（mig0032）store_business_hours＋予約の定休日バリデーション（real signIn 実測）──
+  //   set_store_business_hours の権限/検証/upsert＋reservation_is_closed_day 経由の
+  //   「定休日ハード拒否・時間外は通す・未設定は通す」の非対称を実測。
+  //   ★汚染防止が最重要: store_business_hours の行が残ると段21 等の予約 verify が 'closed day' で
+  //   落ちるため、try/finally 全消し＋残0 の物理確認 assert。予約もマーカー guest_name で全消し。
+  //   時刻＝当月 15-18日（JST 正午基準・cutoff 06:00 の月境界非接触・dow は実日付から動的解決）。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+
+    const { data: s25Stores } = await admin.from("stores").select("id, name, org_id").in("name", [STORE_A1, STORE_A2]);
+    const s25A1 = s25Stores?.find((s) => s.name === STORE_A1);
+    const s25A2 = s25Stores?.find((s) => s.name === STORE_A2);
+    // 前回失敗遺物の掃除（再実行冪等）
+    const s25Wipe = async () => {
+      await admin.from("reservations").delete().like("guest_name", "NOX-VERIFY-段25%");
+      if (s25A1 && s25A2) await admin.from("store_business_hours").delete().in("store_id", [s25A1.id, s25A2.id]);
+    };
+    await s25Wipe();
+
+    // 当月（JST）の 15日=定休日テスト対象 / 17日=営業日（時間外通過）/ 18日=未設定通過
+    const jst25 = new Date(Date.now() + 9 * 3600_000);
+    const s25Y = jst25.getUTCFullYear();
+    const s25M = jst25.getUTCMonth();
+    const dowOf = (day: number) => new Date(Date.UTC(s25Y, s25M, day)).getUTCDay();  // JS getDay = pg extract(dow)
+    const atJst = (day: number, hourJst: number, min = 0) => new Date(Date.UTC(s25Y, s25M, day, hourJst - 9, min)).toISOString();
+    const dowClosed = dowOf(15);   // 定休日に設定する dow
+    const dowOpen = dowOf(17);     // 営業日（20:00-30:00）に設定する dow
+    const dowMgr = dowOf(16);      // manager set 用（予約テストの営業日解決とは非干渉）
+    check("段25（準備）店2 解決・dow 3種が相異なる", !!s25A1 && !!s25A2
+      && dowClosed !== dowOpen && dowOpen !== dowMgr && dowMgr !== dowClosed,
+      `dow=${dowClosed},${dowMgr},${dowOpen}`);
+
+    const owner25 = await signInShared("段25", "ownerA");
+    const mgr25 = await signInShared("段25", "managerA1");
+    const crm25 = await signInShared("段25", "staffCrmOnA1");
+    const cast25 = await signInShared("段25", "castA1a");
+    if (s25A1 && s25A2 && owner25 && mgr25 && crm25 && cast25) {
+      try {
+        // 25-0 anon BLOCKED（新設 RPC の anon 軸）
+        const { error: eAnon25 } = await anon.rpc("set_store_business_hours",
+          { p_store_id: s25A1.id, p_dow: 0, p_is_closed: true });
+        check("段25-0 anon set_store_business_hours BLOCKED", isFnBlocked(eAnon25), eAnon25?.message ?? "実行できてしまった");
+
+        // 25-1 owner 営業日 set（open 20:00・close 30:00＝24h 超 close の成功を兼ねる）
+        const { error: e1 } = await owner25.rpc("set_store_business_hours",
+          { p_store_id: s25A1.id, p_dow: dowOpen, p_is_closed: false, p_open_hm: "20:00", p_close_hm: "30:00" });
+        check("段25-1 owner 営業日 set 成功（close 30:00=24h超表記）", !e1, e1?.message);
+        const { data: r1 } = await admin.from("store_business_hours").select("is_closed, open_hm, close_hm")
+          .eq("store_id", s25A1.id).eq("dow", dowOpen);
+        check("段25-1 物理確認: 1行・20:00-30:00・is_closed=false",
+          (r1 ?? []).length === 1 && r1![0].is_closed === false && r1![0].open_hm === "20:00" && r1![0].close_hm === "30:00",
+          JSON.stringify(r1));
+
+        // 25-2 owner 定休日 set（open/close null）
+        const { error: e2 } = await owner25.rpc("set_store_business_hours",
+          { p_store_id: s25A1.id, p_dow: dowClosed, p_is_closed: true, p_open_hm: null, p_close_hm: null });
+        check("段25-2 owner 定休日 set 成功", !e2, e2?.message);
+        const { data: r2 } = await admin.from("store_business_hours").select("is_closed, open_hm, close_hm")
+          .eq("store_id", s25A1.id).eq("dow", dowClosed).single();
+        check("段25-2 物理確認: is_closed=true・open/close null",
+          r2?.is_closed === true && r2?.open_hm === null && r2?.close_hm === null, JSON.stringify(r2));
+
+        // 25-6 upsert（同 store・同 dow 2回目＝行増えず値上書き）
+        const { error: e6 } = await owner25.rpc("set_store_business_hours",
+          { p_store_id: s25A1.id, p_dow: dowOpen, p_is_closed: false, p_open_hm: "21:00", p_close_hm: "29:00" });
+        const { data: r6 } = await admin.from("store_business_hours").select("open_hm, close_hm")
+          .eq("store_id", s25A1.id).eq("dow", dowOpen);
+        check("段25-6 upsert: 行増えず 21:00-29:00 へ上書き", !e6 && (r6 ?? []).length === 1
+          && r6![0].open_hm === "21:00" && r6![0].close_hm === "29:00", e6?.message ?? JSON.stringify(r6));
+
+        // 25-3 manager 自店成功／他店 forbidden
+        const { error: e3a } = await mgr25.rpc("set_store_business_hours",
+          { p_store_id: s25A1.id, p_dow: dowMgr, p_is_closed: false, p_open_hm: "20:00", p_close_hm: "28:00" });
+        check("段25-3 manager 自店 set 成功", !e3a, e3a?.message);
+        const { error: e3b } = await mgr25.rpc("set_store_business_hours",
+          { p_store_id: s25A2.id, p_dow: dowMgr, p_is_closed: true });
+        check("段25-3 manager × 他店 store = forbidden", forbidden(e3b), e3b?.message ?? "通ってしまった");
+
+        // 25-4 staff（can_crm でも）forbidden
+        const { error: e4 } = await crm25.rpc("set_store_business_hours",
+          { p_store_id: s25A1.id, p_dow: dowMgr, p_is_closed: true });
+        check("段25-4 staff(can_crm) set = forbidden", forbidden(e4), e4?.message ?? "通ってしまった");
+
+        // 25-5 bad hours（片方 null／close<=open。24h 超の成功は 25-1 で実証済み）
+        const { error: e5a } = await owner25.rpc("set_store_business_hours",
+          { p_store_id: s25A1.id, p_dow: dowMgr, p_is_closed: false, p_open_hm: "20:00", p_close_hm: null });
+        check("段25-5 営業日で close null = bad hours", has(e5a, "bad hours"), e5a?.message ?? "通ってしまった");
+        const { error: e5b } = await owner25.rpc("set_store_business_hours",
+          { p_store_id: s25A1.id, p_dow: dowMgr, p_is_closed: false, p_open_hm: "20:00", p_close_hm: "18:00" });
+        check("段25-5 close<=open（20:00→18:00）= bad hours", has(e5b, "bad hours"), e5b?.message ?? "通ってしまった");
+
+        // 25-7 ★定休日ハード拒否（15日 21:00 JST＝営業日 15日・dowClosed）
+        const { error: e7 } = await mgr25.rpc("reservation_create",
+          { p_store_id: s25A1.id, p_reserved_at: atJst(15, 21), p_guest_name: "NOX-VERIFY-段25-定休" });
+        check("段25-7 ★定休日の予約 = closed day", has(e7, "closed day"), e7?.message ?? "通ってしまった");
+
+        // 25-8 ★深夜帯の営業日解決（16日 03:00 JST＝cutoff 前＝前営業日 15日=定休日として拒否）
+        const { error: e8 } = await mgr25.rpc("reservation_create",
+          { p_store_id: s25A1.id, p_reserved_at: atJst(16, 3), p_guest_name: "NOX-VERIFY-段25-深夜" });
+        check("段25-8 ★定休日翌日未明（cutoff 前）= 前営業日として closed day", has(e8, "closed day"), e8?.message ?? "通ってしまった");
+
+        // 25-9 ★営業時間外は通る（17日 12:00 JST＝営業日 17日・21:00-29:00 の窓外だが RPC は拒否しない）
+        const { data: id9, error: e9 } = await mgr25.rpc("reservation_create",
+          { p_store_id: s25A1.id, p_reserved_at: atJst(17, 12), p_guest_name: "NOX-VERIFY-段25-時間外" });
+        check("段25-9 ★営業時間外の予約 = 成功（定休日拒否との非対称・時間外は UI 警告の責務）",
+          !e9 && typeof id9 === "string", e9?.message);
+
+        // 25-10 ★未設定 dow は通る（18日 21:00＝行なし＝後方互換）
+        const { data: id10, error: e10 } = await mgr25.rpc("reservation_create",
+          { p_store_id: s25A1.id, p_reserved_at: atJst(18, 21), p_guest_name: "NOX-VERIFY-段25-未設定" });
+        check("段25-10 ★営業時間未設定 dow の予約 = 成功（行なし=通す）", !e10 && typeof id10 === "string", e10?.message);
+
+        // 25-11 update でも定休日拒否（成功予約を定休日へ移動）
+        const { error: e11 } = await mgr25.rpc("reservation_update", {
+          p_reservation_id: id10, p_reserved_at: atJst(15, 22), p_customer_id: null, p_cast_id: null,
+          p_guest_name: "NOX-VERIFY-段25-未設定", p_party_size: null, p_nom_type: null, p_memo: null,
+        });
+        check("段25-11 update で定休日へ移動 = closed day", has(e11, "closed day"), e11?.message ?? "通ってしまった");
+
+        // 25-12 cast は store_business_hours 0行（RLS パターン2）
+        const { data: r12, error: e12 } = await cast25.from("store_business_hours").select("id");
+        check("段25-12 cast SELECT = 0行（パターン2）", !e12 && (r12 ?? []).length === 0,
+          e12?.message ?? `got ${(r12 ?? []).length}`);
+      } finally {
+        await s25Wipe();
+      }
+      // 掃除の物理確認（★営業時間行の残存は段21 等の予約 verify を 'closed day' で壊すため必須）
+      const { data: bhLeft25 } = await admin.from("store_business_hours").select("id").in("store_id", [s25A1.id, s25A2.id]);
+      const { data: resLeft25 } = await admin.from("reservations").select("id").like("guest_name", "NOX-VERIFY-段25%");
+      check("段25 掃除確認: store_business_hours/予約 0行（非汚染）",
+        (bhLeft25 ?? []).length === 0 && (resLeft25 ?? []).length === 0,
+        `bh=${(bhLeft25 ?? []).length}, res=${(resLeft25 ?? []).length}`);
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
