@@ -11,7 +11,7 @@
  *  - closed（定休日）= UI 一次ブロック（RPC も 'closed day' で拒否＝二層）。
  *  - outside（時間外）= UI 警告のみ（RPC は通す）。
  *  - unset（行なし）= 判定なし（後方互換・警告もブロックもしない）。 */
-import { hm2min, min2hm } from "@/lib/nox/shift-time";
+import { hm2min, min2hm, spanMinutes } from "@/lib/nox/shift-time";
 
 export type BusinessHourRow = {
   dow: number; is_closed: boolean; open_hm: string | null; close_hm: string | null;
@@ -46,4 +46,35 @@ export function fmtHoursLabel(row: BusinessHourRow): string {
   if (row.is_closed || !row.open_hm || !row.close_hm) return "定休日";
   const close = hm2min(row.close_hm);
   return `${row.open_hm}-${close >= 1440 ? `翌${min2hm(close - 1440)}` : row.close_hm}`;
+}
+
+/* ── B-5 スライスB: シフト用判定（date 直・cutoff 変換なし） ──
+ * shifts/shift_wishes の date は mig0008 決定3 で「営業日 D」を宣言済み（深夜帯は 24h超 end_hm で表現）＝
+ * DB helper shift_is_closed_day（mig0033）と同じく date の曜日をそのまま使う。
+ * ★予約用 businessHoursStatus（実時刻→cutoff 変換）をシフトに使うと深夜帯で1日ズレる＝
+ *   シフトには必ずこちらを使う（二重変換の禁止・段26 で DB 側の date 直を実測済み）。 */
+
+// 'YYYY-MM-DD' → dow（0=日..6=土・pg extract(dow) と一致・UTC 純日付演算＝TZ 非依存）
+export function shiftDateDow(date: string): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+// シフト（date＋start/end・24h超表記/跨ぎ表記とも可）の営業時間判定。
+// inside＝シフト全体が営業時間内（open <= start かつ end <= close）／
+// outside＝一部でもはみ出す（早入り・居残り含む＝警告のみで登録可・RPC は定休日のみ拒否＝非対称）。
+// 形式不正の date は unset（判定なし・RPC 側の bad date に委譲）。
+export function shiftHoursStatus(
+  date: string, startHm: string, endHm: string, rows: BusinessHourRow[],
+): { status: HoursStatus; row: BusinessHourRow | null; dow: number } {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { status: "unset", row: null, dow: -1 };
+  const dow = shiftDateDow(date);
+  const row = rows.find((r) => r.dow === dow) ?? null;
+  if (!row) return { status: "unset", row: null, dow };
+  if (row.is_closed) return { status: "closed", row, dow };
+  const start = hm2min(startHm);
+  const end = start + spanMinutes(startHm, endHm); // 跨ぎ表記（end<start）も 24h超表記も同一正規化
+  const open = hm2min(row.open_hm ?? "00:00");
+  const close = hm2min(row.close_hm ?? "00:00");
+  return { status: open <= start && end <= close ? "inside" : "outside", row, dow };
 }
