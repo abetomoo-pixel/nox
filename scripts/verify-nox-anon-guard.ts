@@ -2424,6 +2424,182 @@ async function main() {
     }
   }
 
+  // ── 段24: B-2（mig0031）get_cast_customer_ranking の実効ゲート＋窓一致の脱落差分（real signIn 実測）──
+  //   集計元は get_cast_ranking と同一（check_nominations×checks・cutoff 窓・nom_type は checks 側）。
+  //   ★専用 cast（段24 生成）を対象にする＝seed は指名を作らない（seed-f0 は del のみ）ため件数が完全決定的。
+  //   fixture＝段19 方式: service 生成（専用 cast 2・専用客 2・closed 伝票5＝客付き指名4/客なし指名1/
+  //   他 cast 指名1）→try/finally 全消し。窓＝当月 15日 12:00 JST 起点（cutoff 06:00 の月境界に非接触）。
+  //   ★仕様メモ: 「他店 cast」は mig0031 に cast の store 検証なし＝自店 checks に他店 cast の指名が
+  //   構造上存在しないため 0行（forbidden ではない・漏洩なし）。実測どおり 0行を固定する。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+
+    // 準備（service）: 店2・PERM卓・manager users.id・専用 cast/客の生成＋前回遺物掃除（再実行冪等）
+    const { data: s24Stores } = await admin.from("stores").select("id, name, org_id").in("name", [STORE_A1, STORE_A2]);
+    const s24A1 = s24Stores?.find((s) => s.name === STORE_A1);
+    const s24A2 = s24Stores?.find((s) => s.name === STORE_A2);
+    let s24Seat = "";
+    {
+      const { data: sExist } = await admin.from("seats").select("id")
+        .eq("store_id", s24A1!.id).eq("name", "NOX-VERIFY-PERM卓").limit(1);
+      if (sExist?.length) s24Seat = sExist[0].id as string;
+      else {
+        const { data: sNew } = await admin.from("seats").insert({
+          org_id: s24A1!.org_id, store_id: s24A1!.id, name: "NOX-VERIFY-PERM卓", kind: "卓", sort_order: 999,
+        }).select("id").single();
+        s24Seat = sNew!.id as string;
+      }
+    }
+    const { data: s24MgrRow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
+    const s24MgrId = s24MgrRow?.id as string;
+    const { data: s24CastA1aRow } = await admin.from("casts").select("id")
+      .eq("name", FIXTURE_USERS.castA1a.name).eq("store_id", s24A1!.id).single();
+    const s24CastA1a = s24CastA1aRow?.id as string;
+    // 前回失敗遺物の掃除（マーカー total 範囲の伝票起点＝c5 型「他 cast 指名の伝票」も漏らさない。
+    // nominations→checks→cast/客 の FK 順）
+    const s24Wipe = async () => {
+      const { data: oldChks } = await admin.from("checks").select("id")
+        .eq("seat_id", s24Seat).gte("total", 245_000).lte("total", 245_010);
+      const chkIds = (oldChks ?? []).map((c) => c.id as string);
+      if (chkIds.length) {
+        await admin.from("check_nominations").delete().in("check_id", chkIds);
+        await admin.from("checks").delete().in("id", chkIds);
+      }
+      await admin.from("casts").delete().like("name", "NOX-VERIFY-段24%");
+      await admin.from("customers").delete().like("name", "NOX-VERIFY-段24%");
+    };
+    await s24Wipe();
+    const { data: s24CastRow } = await admin.from("casts").insert({
+      org_id: s24A1!.org_id, store_id: s24A1!.id, name: "NOX-VERIFY-段24cast", is_active: true,
+    }).select("id").single();
+    const s24Cast = s24CastRow?.id as string;
+    const { data: s24CastA2Row } = await admin.from("casts").insert({
+      org_id: s24A2!.org_id, store_id: s24A2!.id, name: "NOX-VERIFY-段24他店cast", is_active: true,
+    }).select("id").single();
+    const s24CastOther = s24CastA2Row?.id as string;
+    const { data: s24Custs, error: e24Cust } = await admin.from("customers").insert([
+      { org_id: s24A1!.org_id, store_id: s24A1!.id, name: "NOX-VERIFY-段24客1" },
+      { org_id: s24A1!.org_id, store_id: s24A1!.id, name: "NOX-VERIFY-段24客2" },
+    ]).select("id, name");
+    const s24C1 = s24Custs?.find((c) => c.name === "NOX-VERIFY-段24客1")?.id as string;
+    const s24C2 = s24Custs?.find((c) => c.name === "NOX-VERIFY-段24客2")?.id as string;
+    check("段24（準備）店2/PERM卓/manager id/castA1a/専用 cast2/専用客2 の解決",
+      !!s24A1 && !!s24A2 && !!s24Seat && !!s24MgrId && !!s24CastA1a && !!s24Cast && !!s24CastOther && !e24Cust && !!s24C1 && !!s24C2,
+      e24Cust?.message);
+
+    // 窓: 当月（JST）・15日 12:00 JST 起点＝cutoff 06:00 の月境界に確実に非接触
+    const jstNow = new Date(Date.now() + 9 * 3600_000);
+    const s24Y = jstNow.getUTCFullYear();
+    const s24M = jstNow.getUTCMonth(); // 0-based
+    const s24Period = `${s24Y}-${String(s24M + 1).padStart(2, "0")}`;
+    const s24At = (min: number) => new Date(Date.UTC(s24Y, s24M, 15, 3, min, 0)).toISOString(); // 12:00 JST + min
+
+    const owner24 = await signInShared("段24", "ownerA");
+    const mgr24 = await signInShared("段24", "managerA1");
+    const crm24 = await signInShared("段24", "staffCrmOnA1");
+    const cast24 = await signInShared("段24", "castA1a");
+    if (s24A1 && s24A2 && s24Seat && s24MgrId && s24CastA1a && s24Cast && s24CastOther && s24C1 && s24C2
+        && owner24 && mgr24 && crm24 && cast24) {
+      type CRow = {
+        customer_id: string; customer_name: string;
+        hon_count: number; jonai_count: number; dohan_count: number; total_count: number;
+      };
+      const rankArgs = { p_store_id: s24A1.id, p_period: s24Period, p_cast_id: s24Cast };
+      try {
+        // 投入: closed 5伝票（c1/c2=客1 hon×2・c3=客2 jonai・c4=客なし dohan・c5=客2 hon だが指名は castA1a）
+        const base = {
+          org_id: s24A1.org_id, store_id: s24A1.id, seat_id: s24Seat,
+          service_rate: 10, round_unit: 100, round_mode: "down", created_by: s24MgrId, status: "closed",
+        };
+        // total=245000+min はマーカー（wipe と掃除確認が範囲一致で拾う・他段の total 帯と非衝突）
+        const mkChk = (min: number, cust: string | null, nomType: string) => ({
+          ...base, customer_id: cust, nom_type: nomType,
+          started_at: s24At(min), closed_at: s24At(min + 30), total: 245_000 + min,
+        });
+        const { data: ins24, error: eIns24 } = await admin.from("checks").insert([
+          mkChk(0, s24C1, "hon"), mkChk(1, s24C1, "hon"), mkChk(2, s24C2, "jonai"),
+          mkChk(3, null, "dohan"), mkChk(4, s24C2, "hon"),
+        ]).select("id, total");
+        const chkIdOf = (min: number) => ins24?.find((r) => r.total === 245_000 + min)?.id as string;
+        const nomOf = (min: number, castId: string) => ({
+          org_id: s24A1.org_id, store_id: s24A1.id, check_id: chkIdOf(min), cast_id: castId, ratio_weight: 1, position: 1,
+        });
+        const { error: eNom24 } = await admin.from("check_nominations").insert([
+          nomOf(0, s24Cast), nomOf(1, s24Cast), nomOf(2, s24Cast), nomOf(3, s24Cast),
+          nomOf(4, s24CastA1a), // 他 cast の指名＝対象 cast の集計に混ざらないことの実証
+        ]);
+        check("段24（準備）closed 5伝票＋指名5行 投入（窓内・客付き4/客なし1/他cast1）",
+          !eIns24 && (ins24 ?? []).length === 5 && !eNom24, eIns24?.message ?? eNom24?.message);
+
+        // 24-0 anon BLOCKED（公開 RPC の anon 軸）
+        const { error: eAnon24 } = await anon.rpc("get_cast_customer_ranking", rankArgs);
+        check("段24-0 anon get_cast_customer_ranking BLOCKED", isFnBlocked(eAnon24), eAnon24?.message ?? "実行できてしまった");
+
+        // 24-1 owner: 客付き指名が回数順で返る（客1=hon2 → 客2=jonai1・c5 の他 cast 指名は混ざらない）
+        const { data: rO, error: eO } = await owner24.rpc("get_cast_customer_ranking", rankArgs);
+        const ro = (rO ?? []) as CRow[];
+        check("段24-1 owner = 2行・total_count 降順（客1=2 → 客2=1・他 cast 指名 c5 は不算入）",
+          !eO && ro.length === 2 && ro[0]?.customer_id === s24C1 && ro[0]?.total_count === 2
+            && ro[1]?.customer_id === s24C2 && ro[1]?.total_count === 1,
+          eO?.message ?? JSON.stringify(ro.map((r) => [r.customer_name, r.total_count])));
+        check("段24-1 customer_name 解決（RPC 内 join）", ro[0]?.customer_name === "NOX-VERIFY-段24客1"
+          && ro[1]?.customer_name === "NOX-VERIFY-段24客2", JSON.stringify(ro.map((r) => r.customer_name)));
+
+        // 24-6 nom_type 内訳（checks.nom_type 起点で客ごとに振り分く）
+        check("段24-6 内訳: 客1=hon2/jonai0/dohan0・客2=hon0/jonai1/dohan0",
+          ro[0]?.hon_count === 2 && ro[0]?.jonai_count === 0 && ro[0]?.dohan_count === 0
+            && ro[1]?.hon_count === 0 && ro[1]?.jonai_count === 1 && ro[1]?.dohan_count === 0,
+          JSON.stringify(ro));
+
+        // 24-2 manager: 自店成功／他店 store=forbidden／他店 cast=0行（実測仕様・漏洩なし）
+        const { data: rM, error: eM } = await mgr24.rpc("get_cast_customer_ranking", rankArgs);
+        check("段24-2 manager 自店 = owner と同一 2行", !eM && ((rM ?? []) as CRow[]).length === 2, eM?.message);
+        const { error: eMA2 } = await mgr24.rpc("get_cast_customer_ranking", { ...rankArgs, p_store_id: s24A2.id });
+        check("段24-2 manager × 他店 store = forbidden", forbidden(eMA2), eMA2?.message ?? "通ってしまった");
+        const { data: rMOther, error: eMOther } = await mgr24.rpc("get_cast_customer_ranking", { ...rankArgs, p_cast_id: s24CastOther });
+        check("段24-2 manager × 他店 cast = 0行（自店 checks に他店 cast の指名は構造上不在・エラーではない）",
+          !eMOther && ((rMOther ?? []) as CRow[]).length === 0, eMOther?.message ?? `got ${((rMOther ?? []) as CRow[]).length}`);
+
+        // 24-3 ★staff（can_crm でも）= forbidden（D6a・二層目の real session 実測）
+        const { error: eS24 } = await crm24.rpc("get_cast_customer_ranking", rankArgs);
+        check("段24-3 staff(can_crm) = forbidden（D6a）", forbidden(eS24), eS24?.message ?? "通ってしまった");
+
+        // 24-4 ★cast 本人 = forbidden（初版は経営側限定）
+        const { error: eC24 } = await cast24.rpc("get_cast_customer_ranking", { ...rankArgs, p_cast_id: s24CastA1a });
+        check("段24-4 cast 本人 = forbidden（v_role not in owner/manager）", forbidden(eC24), eC24?.message ?? "通ってしまった");
+
+        // 24-5 ★窓一致の脱落差分: get_cast_ranking の総数 − 客付き合計 = 客なし指名数（=1）
+        const { data: rRank, error: eRank } = await owner24.rpc("get_cast_ranking", { p_store_id: s24A1.id, p_period: s24Period });
+        const rankRow = ((rRank ?? []) as { cast_id: string; hon_count: number; jonai_count: number; dohan_count: number }[])
+          .find((r) => r.cast_id === s24Cast);
+        const rankTotal = (rankRow?.hon_count ?? 0) + (rankRow?.jonai_count ?? 0) + (rankRow?.dohan_count ?? 0);
+        const custTotal = ro.reduce((a, r) => a + r.total_count, 0);
+        check("段24-5 get_cast_ranking 側: 段24cast = hon2/jonai1/dohan1（総数4・窓一致）",
+          !eRank && rankRow?.hon_count === 2 && rankRow?.jonai_count === 1 && rankRow?.dohan_count === 1,
+          eRank?.message ?? JSON.stringify(rankRow));
+        check("段24-5 ★脱落差分成立: 総数4 − 客付き合計3 = 客なし指名1（正の値）",
+          rankTotal - custTotal === 1 && rankTotal - custTotal > 0, `rank=${rankTotal}, cust=${custTotal}`);
+
+        // 24-7 bad period
+        const { error: eBad } = await owner24.rpc("get_cast_customer_ranking", { ...rankArgs, p_period: "2026-13" });
+        check("段24-7 bad period（2026-13）", has(eBad, "bad period"), eBad?.message ?? "通ってしまった");
+      } finally {
+        await s24Wipe();
+      }
+      // 掃除の物理確認（rls 固定カウント非汚染の positive）
+      const { data: castLeft24 } = await admin.from("casts").select("id").like("name", "NOX-VERIFY-段24%");
+      const { data: custLeft24 } = await admin.from("customers").select("id").like("name", "NOX-VERIFY-段24%");
+      const { data: chkLeft24 } = await admin.from("checks").select("id").eq("seat_id", s24Seat).gte("total", 245_000).lte("total", 245_010);
+      check("段24 掃除確認: 専用 cast/客/伝票 0行（非汚染）",
+        (castLeft24 ?? []).length === 0 && (custLeft24 ?? []).length === 0 && (chkLeft24 ?? []).length === 0,
+        `cast=${(castLeft24 ?? []).length}, cust=${(custLeft24 ?? []).length}, chk=${(chkLeft24 ?? []).length}`);
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
