@@ -4,7 +4,10 @@
 // （直近20件・definer が can_crm 軸へ橋渡し）・実体属性=customers 直 SELECT（RLS）。
 // 編集=customer_update（規約7: is_active は常に明示 boolean・全フィールド明示送信＝
 // birthday は UI 非編集のため現在値をそのまま返送＝null 化クリア事故を作らない）。
-// 担当の付け替え UI・ボトル明細/登録・客×cast クロスはスコープ外（裁定済み）。
+// 担当付け替え=customer_assign_cast（F3b-B-1・owner/manager のみ表示＝UI 一次ガード・
+// 真の防御は RPC 側ゲート。候補は自店∧is_active の cast のみ・「フリー」= p_cast_id null 解除。
+// customer_update は cast_id 非関与のまま＝担当変更をこの RPC 以外に混ぜない）。
+// ボトル明細/登録・客×cast クロスはスコープ外（裁定済み）。
 // ボトルは件数のみ（bottle_keeps の SELECT は can_register 軸＝crm 軸の明細経路が現状無い）。
 // churn tier の再判定はしない（しきい値は RPC 側の責務）＝詳細は days_since 数値のみ。
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -12,7 +15,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
-type Cast = { id: string; name: string };
+type Cast = { id: string; name: string; store_id: string; is_active: boolean };
 type CustRow = {
   id: string; store_id: string; name: string; furigana: string | null; birthday: string | null;
   tel: string | null; prefs: string | null; memo: string | null; cast_id: string | null; is_active: boolean;
@@ -45,9 +48,9 @@ function daysSince(iso: string): number {
 }
 
 export default function CustomerDetail({
-  customerId, casts,
+  customerId, casts, canAssign,
 }: {
-  customerId: string; casts: Cast[];
+  customerId: string; casts: Cast[]; canAssign: boolean;
 }) {
   const [cust, setCust] = useState<CustRow | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -65,10 +68,22 @@ export default function CustomerDetail({
   const [eMemo, setEMemo] = useState("");
   const [eActive, setEActive] = useState(true);
 
+  // 担当付け替え（customer_assign_cast・owner/manager のみ）
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignSel, setAssignSel] = useState("");   // "" = フリー（担当解除）
+  const [assignMsg, setAssignMsg] = useState<string | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
+
   const castName = useMemo(() => {
     const m = new Map(casts.map((c) => [c.id, c.name]));
     return (id: string | null) => (id ? m.get(id) ?? "—" : "フリー");
   }, [casts]);
+
+  // 付け替え候補 = 客の店の在籍 cast のみ（名前解決とは別軸: 退店 cast は候補に出さない）
+  const assignCandidates = useMemo(
+    () => (cust ? casts.filter((c) => c.is_active && c.store_id === cust.store_id) : []),
+    [casts, cust],
+  );
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -89,6 +104,36 @@ export default function CustomerDetail({
   }, [customerId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  function openAssign() {
+    if (!cust) return;
+    // 現担当を既定選択（退店等で候補外なら「フリー」既定＝誤解除を避けるため保存は明示操作のみ）
+    setAssignSel(cust.cast_id && assignCandidates.some((c) => c.id === cust.cast_id) ? cust.cast_id : "");
+    setAssignMsg(null);
+    setAssignOpen(true);
+  }
+
+  // RPC の実 raise: 'invalid cast'（別店/退店ではなく不在/越境）/ 'forbidden' / 'not found'
+  function jaAssignError(m: string): string {
+    if (m.includes("invalid cast")) return "担当に指定できないキャストです（同じ店のキャストのみ指定できます）";
+    if (m.includes("forbidden")) return "担当を変更する権限がありません";
+    if (m.includes("not found")) return "顧客が見つかりません";
+    return `保存に失敗: ${m}`;
+  }
+
+  async function saveAssign() {
+    if (!cust) return;
+    setAssignBusy(true); setAssignMsg(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("customer_assign_cast", {
+      p_id: cust.id,
+      p_cast_id: assignSel || null,   // "" = フリー（担当解除）
+    });
+    setAssignBusy(false);
+    if (error) { setAssignMsg(jaAssignError(error.message)); return; }
+    setAssignOpen(false);
+    await load();   // ヘッダの担当名は再取得した cust.cast_id で更新
+  }
 
   function openEdit() {
     if (!cust) return;
@@ -144,10 +189,40 @@ export default function CustomerDetail({
           {cust.name}
           {!cust.is_active && <span style={dormantPill}>休眠</span>}
         </h1>
-        <p style={t.pheadP}>
-          {cust.furigana ? `${cust.furigana}・` : ""}担当 {castName(cust.cast_id)}
-          {cust.tel ? `・${cust.tel}` : ""}
+        <p style={{ ...t.pheadP, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span>
+            {cust.furigana ? `${cust.furigana}・` : ""}担当 {castName(cust.cast_id)}
+            {cust.tel ? `・${cust.tel}` : ""}
+          </span>
+          {canAssign && (
+            <button
+              style={{ ...t.btnGhost, ...t.btnSm }}
+              onClick={() => (assignOpen ? setAssignOpen(false) : openAssign())}
+            >
+              {assignOpen ? "閉じる" : "担当変更"}
+            </button>
+          )}
         </p>
+        {canAssign && assignOpen && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <select value={assignSel} onChange={(e) => setAssignSel(e.target.value)} style={{ ...input, minWidth: 200 }}>
+              <option value="">フリー（担当解除）</option>
+              {assignCandidates.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button
+              style={{ ...t.btnGold, ...t.btnSm, opacity: assignBusy ? 0.6 : 1 }}
+              disabled={assignBusy}
+              onClick={() => void saveAssign()}
+            >
+              {assignBusy ? "保存中…" : "保存"}
+            </button>
+          </div>
+        )}
+        {assignMsg && (
+          <p style={{ fontSize: 12.5, fontWeight: 700, color: "var(--bad)", margin: "6px 0 0" }}>{assignMsg}</p>
+        )}
       </div>
 
       <section className="nox-cardtop" style={t.card}>
