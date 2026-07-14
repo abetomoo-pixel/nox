@@ -9,7 +9,7 @@ mig0032 + verify 段25 + UI（lib/nox/business-hours.ts, master 設定パネル,
 予約・（将来）シフトがそれを参照する。目的は単一でなく複数機能の共通土台。
 
 - **スライスA（本doc・完結）**: ④営業時間マスタ + ①予約バリデーション（定休日拒否・時間外警告）
-- **スライスB（未着手）**: ②シフト連携（営業時間外シフト制御）
+- **スライスB（完結）**: ②シフト連携（営業時間外シフト制御）
 - **スライスC（未着手）**: ③時間帯別集計
 
 ## 1. 確定裁定（4論点）
@@ -108,15 +108,61 @@ mig0032 + verify 段25 + UI（lib/nox/business-hours.ts, master 設定パネル,
   同一run内で段21（席予約）緑＝営業時間行の非汚染を実証。時刻は当月中旬基準・dow は実日付動的解決。
 - f0 1272 全緑・grants 105 緑（grant 独立検証）。
 
-## 7. スライスB（②シフト連携）への含み
+## 7. スライスB（②シフト連携）確定版
 
-- 挿入点: shift_wish_submit / shift_set / shift_wish_decide の3本＋UI。
-- シフト時刻は既に24h超表記（shift_wishes/shifts の start_hm/end_hm）＝store_business_hours と同表現。
-  営業時間突合は lib/nox/shift-time.ts で成立（時刻変換の再実装不要）。
-- store_business_hours を読んで「営業時間外シフトを弾く/警告」を実装。
-  定休日/時間外の拒否・警告の方針はスライスA裁定1を踏襲するか、シフト固有の裁定を起こすかは要検討。
-- staffing_needs（曜日別必要人数）と store_business_hours（曜日別営業時間）が揃うので、
-  「営業する曜日の必要人数」の整合も視野。
+実装済み・origin/main e793e65（mig0033 + verify 段26 = 35ac886 → UI）。スライスA裁定を踏襲しつつシフト固有の2裁定を追加。
+
+### 裁定B-1: 定休日=RPC拒否 / 時間外=経営側UI警告（非対称・スライスA裁定1踏襲）
+- 定休日のシフトは RPC が raise 'closed day' で拒否（server 強制・二層目）。
+- 営業時間外のシフトは拒否しない。経営側 UI が黄警告を出すのみ（登録は成立）。
+- 早入り・準備・残業は夜職の日常＝時間外拒否は予約以上に不適。定休日（店が閉まる日）のみ拒否。
+- ★cast は store_business_hours 0行（裁定3）＝cast セルフ UI に時間外警告は構造的に出せない。
+  サーバ拒否（定休日）だけが cast に効く層、の点でも裁定1の非対称と整合。未設定 dow は通す（後方互換）。
+
+### 裁定B-2: シフトの営業日 dow = date 直（cutoff 変換なし）
+- shifts/shift_wishes の date は mig0008 決定3 で「営業日 D」を宣言済み（深夜は 24h超 end_hm で表現）。
+  よって date の曜日をそのまま extract(dow) で使う（予約の実時刻→cutoff 変換とは別物）。
+- ★予約用 reservation_is_closed_day（cutoff 変換）とは別ヘルパー shift_is_closed_day を新設。
+  予約用をシフトに流用すると深夜帯で1日ズレる（二重変換）＝別関数で誤用防止（UI 側も別関数で同型）。
+
+### 裁定B-3: 挿入点3本（shift_wish_submit / shift_set / shift_wish_decide）
+- shift_wish_submit: cast の誤提出を即拒否（casts 解決直後）。
+- shift_set: create/update 共通。ロール照合の**後**に判定（他店曜日の probing 防止＝mig0007 の照合順の流儀）。
+- shift_wish_decide: **accept のみ**拒否（提出後に定休日設定された競合の防波堤）。
+  reject は定休日でも可（accept 拒否時は raise でロールバック＝wish は pending のまま・reject は rejected へ遷移）。
+
+## 7-2. mig0033 / verify 段26（35ac886）
+
+### mig0033（dev/本番とも適用済み）
+- ヘルパー shift_is_closed_day(store_id, date)＝date の extract(dow) で store_business_hours を突合。
+  行なし=false（後方互換）。grant authenticated（reservation_is_closed_day と同格・boolean のみ返る）
+  ＝cast UI の定休日事前判定の専用経路を兼ねる（裁定3「将来 cast 表示が要れば専用経路」の最小形）。
+- 3 RPC 書き直しは live（=mig0009 全文）＋挿入1ブロックのみ。挿入以外の完全一致を正規化 diff で機械証明済み。
+
+### verify 段26（anon-guard・16 assert）
+- anon BLOCKED / 定休日 wish=closed day＋wish 0行（ロールバック実証）/ 時間外 wish 成功（非対称）/
+  未設定 dow 成功（後方互換）/ 定休日 shift_set(create)=closed day /
+  時間外 create 成功→update で定休日へ=closed day＋既存行 date 不変の物理確認 /
+  cast helper 直呼び=定休日 true・未設定 false（authenticated grant の boolean 専用経路）/
+  decide 競合=accept 拒否・wish pending 維持・shifts 未生成／reject は定休日でも可=rejected。
+- ★汚染防止: 営業時間行の残存は段21 や verify:nox-rls（2026-07-15 固定日 wish）を closed day で壊すため
+  try/finally 全消し＋残0 の物理確認 assert。f0 1288 全緑（旧1272+16）・grants/rls 非汚染。
+
+## 7-3. UI（e793e65・純フロント・mig なし）
+
+- lib/nox/business-hours.ts: シフト用に shiftDateDow（date→dow）＋shiftHoursStatus（4値・date 直）を追加。
+  時間内判定は shift-time の hm2min/spanMinutes 再利用（24h超/跨ぎ表記を同一正規化・inside=シフト全体が営業時間内）。
+  予約用 businessHoursStatus（cutoff 変換）は無変更（★シフトに流用禁止をコメント明記）。
+- シフト管理（shift-board）: 新規フォーム＝定休日は赤注記＋登録無効（一次ブロック・二層目は RPC）・
+  時間外は黄警告のみで登録可（20:00-翌06:00 の逆変換表示・非対称）・未設定は無注記。
+  確定シフト一覧＝定休日化された行に赤チップ＋確定無効（update 経路）。
+  希望採否＝定休日 wish は「採用不可・見送り可」チップ＋採用のみ無効（裁定B-3 の非対称を UI に明示）。rpcErrJa で closed day 日本語化。
+- cast 希望提出（wish-form）: shift_is_closed_day を直呼びして定休日を事前ブロック（boolean のみ＝営業時間帯は漏れない）。
+  時間外警告は cast に出せない（テーブル 0行＝構造的制約）。二層目は RPC 'closed day' の日本語化フォールバック。
+
+### staffing_needs との整合（スライスC への含み）
+- staffing_needs（曜日別必要人数）と store_business_hours（曜日別営業時間）が揃った。
+  「営業する曜日の必要人数」の整合はスライスC 以降で視野。
 
 ## 8. スライスC（③時間帯別集計）
 
