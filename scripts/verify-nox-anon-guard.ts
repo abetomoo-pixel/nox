@@ -2864,6 +2864,189 @@ async function main() {
     }
   }
 
+  // ── 段27: F3e（mig0034）notices の P3 可視範囲＋書込 RPC 権限＋実 INSERT（real signIn 実測）──
+  //   ★prosrc green ≠ runtime success（0077 教訓）: SQL Editor はサービスロール実行で auth ガードが
+  //   発火しないため、RLS 可視範囲（P3・cast=all/cast のみ）と RPC 権限（owner/manager のみ投稿）は
+  //   real signIn セッションでしか検証できない。owner/manager の notice_create は uuid 返却＋行生成＋
+  //   created_by 充填まで物理確認（実 INSERT 完走）。
+  //   ★汚染防止: 生成 notices は title 前置 'NOX-VERIFY-段27' で try/finally 全消し＋残0 物理確認。
+  //   notices は新規（他段・rls/grants は未参照）だが将来汚染を断つため残0 を能動 assert。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+    const denied = (e: { message?: string } | null) => has(e, "permission denied");
+    const P = "NOX-VERIFY-段27";
+
+    const { data: s27Stores } = await admin.from("stores").select("id, name, org_id").in("name", [STORE_A1, STORE_A2, STORE_B1]);
+    const s27A1 = s27Stores?.find((s) => s.name === STORE_A1);
+    const s27A2 = s27Stores?.find((s) => s.name === STORE_A2);
+    const s27B1 = s27Stores?.find((s) => s.name === STORE_B1);
+    // created_by（NOT NULL FK to users）用に有効な users.id を org 毎に1つ解決
+    const uidOf = async (storeName: string) => {
+      const { data } = await admin.from("stores").select("id").eq("name", storeName).single();
+      const { data: m } = await admin.from("memberships").select("user_id").eq("store_id", data?.id ?? "").eq("is_active", true).limit(1);
+      return m?.[0]?.user_id as string | undefined;
+    };
+    const s27UserA = await uidOf(STORE_A1);
+    const s27UserB = await uidOf(STORE_B1);
+
+    const s27Wipe = async () => { await admin.from("notices").delete().like("title", `${P}%`); };
+    await s27Wipe();
+
+    check("段27（準備）店3・created_by ユーザー解決",
+      !!s27A1 && !!s27A2 && !!s27B1 && !!s27UserA && !!s27UserB);
+
+    const owner27 = await signInShared("段27", "ownerA");
+    const mgr27 = await signInShared("段27", "managerA1");
+    const staff27 = await signInShared("段27", "staffA1");
+    const cast27 = await signInShared("段27", "castA1a");
+    const mgrB27 = await signInShared("段27", "managerB1");
+
+    if (s27A1 && s27A2 && s27B1 && s27UserA && s27UserB && owner27 && mgr27 && staff27 && cast27 && mgrB27) {
+      // fixture notices を service INSERT（RLS バイパス＝store_id/audience/until を厳密設定）
+      const mk = (store: { id: string; org_id: string }, aud: string, tag: string, until: string | null, by: string) =>
+        ({ org_id: store.org_id, store_id: store.id, title: `${P}-${tag}`, body: "本文", audience: aud, pinned: false, until, created_by: by });
+      const { data: ins, error: eIns } = await admin.from("notices").insert([
+        mk(s27A1, "all", "A1-all", null, s27UserA),
+        mk(s27A1, "cast", "A1-cast", null, s27UserA),
+        mk(s27A1, "staff", "A1-staff", null, s27UserA),
+        mk(s27A1, "all", "A1-expired", "2020-01-01", s27UserA),   // 期限切れ（過去日）
+        mk(s27A2, "all", "A2-all", null, s27UserA),               // 他店（同 org）
+        mk(s27B1, "all", "B1-all", null, s27UserB),               // 他 org
+      ]).select("id, title");
+      const byTag = (t: string) => ins?.find((r) => r.title === `${P}-${t}`)?.id as string;
+      const id1 = byTag("A1-all"), id2 = byTag("A1-cast"), id3 = byTag("A1-staff"),
+            id4 = byTag("A1-expired"), id5 = byTag("A2-all"), id6 = byTag("B1-all");
+      check("段27（準備）fixture notices 6件 生成", !eIns && (ins ?? []).length === 6, eIns?.message ?? `got ${(ins ?? []).length}`);
+
+      try {
+        const idset = async (c: SupabaseClient) => {
+          const { data, error } = await c.from("notices").select("id").like("title", `${P}%`);
+          return { set: new Set((data ?? []).map((r) => r.id as string)), error };
+        };
+
+        // 27-1 ★cast: all/cast のみ可視・staff/他店/他org 不可視（正本 §6 の P3 検証）
+        const c1 = await idset(cast27);
+        check("段27-1 ★cast SELECT = all/cast のみ（staff・他店・他org 不可視）",
+          c1.set.has(id1) && c1.set.has(id2) && c1.set.has(id4)
+          && !c1.set.has(id3) && !c1.set.has(id5) && !c1.set.has(id6),
+          `size=${c1.set.size}`);
+
+        // 27-2 staff（黒服）: all/cast/staff 全可視（自店のみ）
+        const s2 = await idset(staff27);
+        check("段27-2 staff SELECT = all/cast/staff 全可視（他店・他org 不可視）",
+          s2.set.has(id1) && s2.set.has(id2) && s2.set.has(id3) && s2.set.has(id4)
+          && !s2.set.has(id5) && !s2.set.has(id6), `size=${s2.set.size}`);
+
+        // 27-3 manager: 全 audience 可視（自店）
+        const m3 = await idset(mgr27);
+        check("段27-3 manager SELECT = 全 audience 可視（他店・他org 不可視）",
+          m3.set.has(id1) && m3.set.has(id2) && m3.set.has(id3) && m3.set.has(id4)
+          && !m3.set.has(id5) && !m3.set.has(id6), `size=${m3.set.size}`);
+
+        // 27-4 owner: 自店の全 audience 可視（owner も auth_store_id() スコープ＝A2 不可視）
+        const o4 = await idset(owner27);
+        check("段27-4 owner SELECT = 自店の全 audience 可視（A2 不可視＝owner も自店スコープ）",
+          o4.set.has(id1) && o4.set.has(id2) && o4.set.has(id3) && o4.set.has(id4)
+          && !o4.set.has(id5) && !o4.set.has(id6), `size=${o4.set.size}`);
+
+        // 27-5 anon: SELECT 拒否 or 0行
+        const a5 = await idset(anon);
+        check("段27-5 anon SELECT = 拒否 or 0行", !!a5.error || a5.set.size === 0,
+          a5.error?.message ?? `got ${a5.set.size}`);
+
+        // 27-6 ★他店スコープ: managerB1 は B1 のみ・A 系不可視／managerA1 は B1 不可視
+        const b6 = await idset(mgrB27);
+        check("段27-6 ★managerB1 SELECT = B1 のみ（A1/A2 不可視＝store スコープ物理保証）",
+          b6.set.has(id6) && !b6.set.has(id1) && !b6.set.has(id2) && !b6.set.has(id3)
+          && !b6.set.has(id4) && !b6.set.has(id5), `size=${b6.set.size}`);
+        check("段27-6 ★managerA1 は B1 notice 不可視（双方向 store 隔離）", !m3.set.has(id6));
+
+        // 27-7 anon: 書込 RPC 3本 BLOCKED（grant revoke）
+        const { error: e7c } = await anon.rpc("notice_create", { p_title: "x", p_body: "y", p_audience: "all", p_pinned: false, p_until: null });
+        const { error: e7u } = await anon.rpc("notice_update", { p_notice_id: id1, p_title: "x", p_body: "y", p_audience: "all", p_pinned: false, p_until: null });
+        const { error: e7d } = await anon.rpc("notice_delete", { p_notice_id: id1 });
+        check("段27-7 anon notice_create/update/delete BLOCKED",
+          isFnBlocked(e7c) && isFnBlocked(e7u) && isFnBlocked(e7d),
+          `${e7c?.message} | ${e7u?.message} | ${e7d?.message}`);
+
+        // 27-8 cast: notice_create forbidden（投稿不可）
+        const { error: e8 } = await cast27.rpc("notice_create", { p_title: `${P}-castNG`, p_body: "y", p_audience: "all", p_pinned: false, p_until: null });
+        check("段27-8 cast notice_create = forbidden（投稿不可）", forbidden(e8), e8?.message ?? "通ってしまった");
+
+        // 27-9 staff（黒服）: notice_create forbidden（閲覧のみ＝owner/manager のみ投稿）
+        const { error: e9 } = await staff27.rpc("notice_create", { p_title: `${P}-staffNG`, p_body: "y", p_audience: "all", p_pinned: false, p_until: null });
+        check("段27-9 staff notice_create = forbidden（owner/manager のみ投稿）", forbidden(e9), e9?.message ?? "通ってしまった");
+
+        // 27-10 ★manager notice_create 成功＝uuid 返却＋行生成＋created_by 充填（prosrc green≠runtime success）
+        const { data: gu } = await mgr27.auth.getUser();
+        const { data: mgrUser } = await admin.from("users").select("id").eq("auth_user_id", gu?.user?.id ?? "").single();
+        const { data: newId, error: e10 } = await mgr27.rpc("notice_create",
+          { p_title: `${P}-mgrOK`, p_body: "本文", p_audience: "staff", p_pinned: true, p_until: null });
+        check("段27-10 ★manager notice_create 成功＝uuid 返却", !e10 && typeof newId === "string", e10?.message);
+        const { data: row10 } = await admin.from("notices").select("store_id, audience, pinned, created_by").eq("id", newId ?? "").single();
+        check("段27-10 ★物理確認: 行生成・store=A1・audience=staff・pinned=true・created_by=呼び手 users.id",
+          row10?.store_id === s27A1.id && row10?.audience === "staff" && row10?.pinned === true
+          && row10?.created_by === mgrUser?.id, JSON.stringify(row10));
+        // owner も成功（owner/manager 双方が投稿可）
+        const { data: ownId, error: e10o } = await owner27.rpc("notice_create",
+          { p_title: `${P}-ownOK`, p_body: "本文", p_audience: "all", p_pinned: false, p_until: null });
+        check("段27-10 owner notice_create 成功＝uuid 返却", !e10o && typeof ownId === "string", e10o?.message);
+
+        // 27-11 notice_update: 自店成功／他店 forbidden（store 不一致）／他org forbidden（存在オラクル封じ）
+        const { error: e11a } = await mgr27.rpc("notice_update",
+          { p_notice_id: newId, p_title: `${P}-mgrOK2`, p_body: "改", p_audience: "cast", p_pinned: false, p_until: null });
+        const { data: row11 } = await admin.from("notices").select("title, audience").eq("id", newId ?? "").single();
+        check("段27-11 manager notice_update 自店成功（title/audience 反映）",
+          !e11a && row11?.title === `${P}-mgrOK2` && row11?.audience === "cast", e11a?.message ?? JSON.stringify(row11));
+        const { error: e11b } = await mgr27.rpc("notice_update",
+          { p_notice_id: id5, p_title: `${P}-x`, p_body: "y", p_audience: "all", p_pinned: false, p_until: null });
+        check("段27-11 manager × 他店(A2) notice_update = forbidden（store 不一致）", forbidden(e11b), e11b?.message ?? "通ってしまった");
+        const { error: e11c } = await mgr27.rpc("notice_update",
+          { p_notice_id: id6, p_title: `${P}-x`, p_body: "y", p_audience: "all", p_pinned: false, p_until: null });
+        check("段27-11 manager × 他org(B1) notice_update = forbidden（存在オラクル封じ）", forbidden(e11c), e11c?.message ?? "通ってしまった");
+
+        // 27-12 notice_delete: 自店成功（行消滅の物理確認）／他店 forbidden
+        const { error: e12a } = await mgr27.rpc("notice_delete", { p_notice_id: newId });
+        const { data: row12 } = await admin.from("notices").select("id").eq("id", newId ?? "");
+        check("段27-12 manager notice_delete 自店成功＝行消滅", !e12a && (row12 ?? []).length === 0, e12a?.message ?? `残 ${(row12 ?? []).length}`);
+        const { error: e12b } = await mgr27.rpc("notice_delete", { p_notice_id: id5 });
+        check("段27-12 manager × 他店(A2) notice_delete = forbidden", forbidden(e12b), e12b?.message ?? "通ってしまった");
+
+        // 27-13 audience 不正値 = bad audience
+        const { error: e13 } = await mgr27.rpc("notice_create", { p_title: `${P}-badAud`, p_body: "y", p_audience: "xxx", p_pinned: false, p_until: null });
+        check("段27-13 audience 不正値 = bad audience", has(e13, "bad audience"), e13?.message ?? "通ってしまった");
+
+        // 27-14 title 空 / body 空
+        const { error: e14t } = await mgr27.rpc("notice_create", { p_title: "  ", p_body: "y", p_audience: "all", p_pinned: false, p_until: null });
+        check("段27-14 title 空 = bad title", has(e14t, "bad title"), e14t?.message ?? "通ってしまった");
+        const { error: e14b } = await mgr27.rpc("notice_create", { p_title: `${P}-t`, p_body: "  ", p_audience: "all", p_pinned: false, p_until: null });
+        check("段27-14 body 空 = bad body", has(e14b, "bad body"), e14b?.message ?? "通ってしまった");
+
+        // 27-15 ★期限切れ行の保持（until 過去日でも SELECT で返る＝削除も raise もされない）
+        check("段27-15 ★期限切れ notice(until=2020-01-01) が manager SELECT で返る（行保持）", m3.set.has(id4));
+        const { data: row15 } = await admin.from("notices").select("until").eq("id", id4 ?? "").single();
+        check("段27-15 ★物理確認: 期限切れ行が DB に保持（until=2020-01-01）", row15?.until === "2020-01-01", JSON.stringify(row15));
+
+        // 27-16 ★authenticated 直書込の遮断（grant 教訓＝RPC 経由でしか書けない）
+        const { error: e16i } = await mgr27.from("notices").insert(
+          { org_id: s27A1.org_id, store_id: s27A1.id, title: `${P}-direct`, body: "y", audience: "all", created_by: s27UserA });
+        check("段27-16 ★authenticated 直 INSERT = permission denied（RPC 経由のみ）", denied(e16i), e16i?.message ?? "書けてしまった");
+        const { error: e16u } = await mgr27.from("notices").update({ pinned: true }).eq("id", id1);
+        check("段27-16 ★authenticated 直 UPDATE = permission denied", denied(e16u), e16u?.message ?? "書けてしまった");
+        const { error: e16d } = await mgr27.from("notices").delete().eq("id", id1);
+        check("段27-16 ★authenticated 直 DELETE = permission denied", denied(e16d), e16d?.message ?? "書けてしまった");
+      } finally {
+        await s27Wipe();
+      }
+      const { data: left27 } = await admin.from("notices").select("id").like("title", `${P}%`);
+      check("段27 掃除確認: notices 0行（非汚染）", (left27 ?? []).length === 0, `残 ${(left27 ?? []).length}`);
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
