@@ -13,6 +13,7 @@ export default async function MineLayout({ children }: { children: React.ReactNo
     { href: "/mine", label: "マイ" },
     { href: "/mine/wishes", label: "希望" },
     { href: "/mine/ranking", label: "ランキング" },
+    { href: "/mine/notices", label: "お知らせ" },
   ];
   return (
     <div className="nox-dark" style={t.appBg}>

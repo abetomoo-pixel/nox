@@ -24,6 +24,7 @@ export default async function ManageLayout({ children }: { children: React.React
     { href: "/register", label: "レジ" },
     { href: "/shift", label: "シフト" },
     { href: "/report", label: "日報" },
+    { href: "/notices", label: "お知らせ" },
     ...(isManagerUp || staffCrm ? [{ href: "/customers", label: "顧客" }] : []),
     ...(isManagerUp
       ? [
