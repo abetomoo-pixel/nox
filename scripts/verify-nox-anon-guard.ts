@@ -3047,6 +3047,276 @@ async function main() {
     }
   }
 
+  // ── 段28: F3c（mig0035/0036）approvals の実挙動＋会計反映（real signIn 実測）──
+  //   ★prosrc green ≠ runtime success の実践＋会計中核改修の実効果確認: 申請→承認で discount line が
+  //   実生成され、改修 check_group_due により check の total が実際に割引後になることを物理確認。
+  //   さらに close/pay 整合（割引後 due で close 成功）・group 別割引・cast 売上波及（(a)許容）・
+  //   バック不変（discount kind は按分ループ外）を実測。認可（申請=can_register/承認=owner/manager）と
+  //   grant（authenticated 直書込遮断・approval_apply 内部専用）も確認。
+  //   ★汚染防止: 生成した approvals/discount line/check/専用 cast は try/finally 全消し＋残0 物理確認。
+  //   ★wipe 順: approvals（line_id→check_lines・check_id→checks の RESTRICT FK 参照元）を最初に消す。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+    const denied = (e: { message?: string } | null) => has(e, "permission denied");
+
+    const { data: s28Store } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    // 専用卓4面（query-or-insert・再実行で増殖させない）
+    const seatOf = async (tag: string, sort: number): Promise<string> => {
+      const nm = `NOX-VERIFY-段28卓${tag}`;
+      const { data: ex } = await admin.from("seats").select("id").eq("store_id", s28Store!.id).eq("name", nm).limit(1);
+      if (ex?.length) return ex[0].id as string;
+      const { data: nw } = await admin.from("seats").insert({
+        org_id: s28Store!.org_id, store_id: s28Store!.id, name: nm, kind: "卓", sort_order: sort,
+      }).select("id").single();
+      return nw!.id as string;
+    };
+    const seat1 = await seatOf("1", 9981), seat2 = await seatOf("2", 9982),
+          seat3 = await seatOf("3", 9983), seat4 = await seatOf("4", 9984);
+    // cast_sales 波及の isolation 用に専用 cast（他段の castA1a/b を汚染しない・集計に他伝票が混ざらない）
+    const s28CastName = "NOX-VERIFY-段28-cast";
+    const ensureCast = async (): Promise<string> => {
+      const { data: ex } = await admin.from("casts").select("id").eq("store_id", s28Store!.id).eq("name", s28CastName).limit(1);
+      if (ex?.length) return ex[0].id as string;
+      const { data: nw } = await admin.from("casts").insert({
+        org_id: s28Store!.org_id, store_id: s28Store!.id, name: s28CastName, is_active: true,
+      }).select("id").single();
+      return nw!.id as string;
+    };
+    const s28CastId = await ensureCast();
+    // drink 商品（バック不変テスト用・price/back を実物から取得）
+    const { data: drinkP } = await admin.from("products").select("id, price, back_mode, back_value")
+      .eq("store_id", s28Store!.id).eq("type", "drink").eq("is_active", true).limit(1);
+    const drink = drinkP?.[0];
+
+    const seatIds = [seat1, seat2, seat3, seat4];
+    const s28Wipe = async () => {
+      const { data: cs } = await admin.from("checks").select("id").in("seat_id", seatIds);
+      const ids = (cs ?? []).map((c) => c.id as string);
+      if (ids.length) {
+        await admin.from("approvals").delete().in("check_id", ids);          // ★最初（FK 参照元）
+        for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+          await admin.from(t).delete().in("check_id", ids);
+        }
+        await admin.from("checks").delete().in("id", ids);
+      }
+    };
+    await s28Wipe();
+
+    check("段28（準備）店・専用卓4・専用 cast・drink 商品の解決",
+      !!s28Store && !!seat1 && !!seat2 && !!seat3 && !!seat4 && !!s28CastId && !!drink);
+
+    const owner28 = await signInShared("段28", "ownerA");
+    const mgr28 = await signInShared("段28", "managerA1");
+    const staffOn28 = await signInShared("段28", "staffRegOnA1");
+    const staffOff28 = await signInShared("段28", "staffRegOffA1");
+    const cast28 = await signInShared("段28", "castA1a");
+    const mgrB28 = await signInShared("段28", "managerB1");
+
+    if (s28Store && seat1 && seat2 && seat3 && seat4 && s28CastId && drink
+        && owner28 && mgr28 && staffOn28 && staffOff28 && cast28 && mgrB28) {
+      // staffRegOnA1 の users.id（assert1 の requested_by 物理確認用）
+      const { data: guOn } = await staffOn28.auth.getUser();
+      const { data: uOn } = await admin.from("users").select("id").eq("auth_user_id", guOn?.user?.id ?? "").single();
+      // custom（set）行で check を開く helper
+      const openSet = async (sess: SupabaseClient, seatId: string, lines: Array<{ grp: string; name: string; price: number }>) => {
+        const { data: cid } = await sess.rpc("check_open", { p_seat_id: seatId, p_people: 2, p_nom_type: "free" });
+        for (const l of lines) {
+          await sess.rpc("check_add_line", { p_check_id: cid, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: l.grp, p_name: l.name, p_unit_price: l.price });
+        }
+        return cid as string;
+      };
+      const totalOf = async (cid: string) => (await admin.from("checks").select("total").eq("id", cid).single()).data?.total as number;
+      const discLines = async (cid: string, grp?: string) => {
+        let q = admin.from("check_lines").select("id, kind, unit_price_snapshot, line_total, pay_group, name_snapshot").eq("check_id", cid).eq("kind", "discount");
+        if (grp) q = q.eq("pay_group", grp);
+        return (await q).data ?? [];
+      };
+
+      try {
+        // ═══ シナリオ1（卓1）: 申請フロー + 承認で discount line 生成 + total 割引後 ═══
+        // 卓1: group A=10000 / group B=6000（既定 サ10%/100切捨＝due A=11000, B=6600, total=17600）
+        const c1 = await openSet(mgr28, seat1, [{ grp: "A", name: "段28-A", price: 10_000 }, { grp: "B", name: "段28-B", price: 6_000 }]);
+        check("段28（準備）卓1 open+2 group（total=17600）", (await totalOf(c1)) === 17_600, `total=${await totalOf(c1)}`);
+
+        // 1 黒服 can_register 申請成功=pending・requested_by=本人・discount line なし
+        const { data: ap1, error: e1 } = await staffOn28.rpc("approval_request",
+          { p_check_id: c1, p_pay_group: "A", p_type: "discount", p_amount: 3_000, p_reason: "段28-1" });
+        check("段28-1 黒服 can_register approval_request 成功=uuid", !e1 && typeof ap1 === "string", e1?.message);
+        const { data: r1 } = await admin.from("approvals").select("status, requested_by, line_id").eq("id", ap1 ?? "").single();
+        check("段28-1 物理確認: pending・requested_by=本人 users.id・line_id null・discount line なし",
+          r1?.status === "pending" && r1?.requested_by === uOn?.id && r1?.line_id === null && (await discLines(c1)).length === 0,
+          JSON.stringify(r1));
+
+        // 5 free 申請=amount に group 小計焼付け（B=6000）
+        const { data: ap5, error: e5 } = await staffOn28.rpc("approval_request",
+          { p_check_id: c1, p_pay_group: "B", p_type: "free", p_amount: null, p_reason: null });
+        const { data: r5 } = await admin.from("approvals").select("amount, type").eq("id", ap5 ?? "").single();
+        check("段28-5 free 申請=amount に group 小計焼付け（6000）", !e5 && r5?.amount === 6_000 && r5?.type === "free", e5?.message ?? JSON.stringify(r5));
+
+        // 6/7 amount 超過・no such group
+        const { error: e6 } = await staffOn28.rpc("approval_request", { p_check_id: c1, p_pay_group: "A", p_type: "discount", p_amount: 99_999, p_reason: null });
+        check("段28-6 amount > group 小計 = amount exceeds group total", has(e6, "amount exceeds group total"), e6?.message ?? "通ってしまった");
+        const { error: e7 } = await staffOn28.rpc("approval_request", { p_check_id: c1, p_pay_group: "Z", p_type: "discount", p_amount: 100, p_reason: null });
+        check("段28-7 存在しない pay_group = no such group", has(e7, "no such group"), e7?.message ?? "通ってしまった");
+
+        // 2/3/4 申請の認可（staff can_register OFF / cast / anon）
+        const { error: e2 } = await staffOff28.rpc("approval_request", { p_check_id: c1, p_pay_group: "A", p_type: "discount", p_amount: 100, p_reason: null });
+        check("段28-2 staff can_register OFF approval_request = forbidden", forbidden(e2), e2?.message ?? "通ってしまった");
+        const { error: e3 } = await cast28.rpc("approval_request", { p_check_id: c1, p_pay_group: "A", p_type: "discount", p_amount: 100, p_reason: null });
+        check("段28-3 cast approval_request = forbidden", forbidden(e3), e3?.message ?? "通ってしまった");
+        const { error: e4 } = await anon.rpc("approval_request", { p_check_id: c1, p_pay_group: "A", p_type: "discount", p_amount: 100, p_reason: null });
+        check("段28-4 anon approval_request BLOCKED", isFnBlocked(e4), e4?.message ?? "実行できてしまった");
+
+        // 10 ★承認=discount line 実生成 + total 割引後（ap1 の group A 3000 割引を承認）
+        const before10 = await totalOf(c1);
+        const { error: e10 } = await mgr28.rpc("approval_decide", { p_approval_id: ap1, p_approve: true });
+        const { data: r10 } = await admin.from("approvals").select("status, line_id, decided_by").eq("id", ap1 ?? "").single();
+        const dl10 = await discLines(c1, "A");
+        check("段28-10a ★approval_decide(approve) 成功=approved・line_id 埋まる・decided_by",
+          !e10 && r10?.status === "approved" && typeof r10?.line_id === "string" && !!r10?.decided_by, e10?.message ?? JSON.stringify(r10));
+        check("段28-10b ★discount line 実生成（kind=discount・unit_price=line_total=3000・pay_group=A・name=割引（承認済））",
+          dl10.length === 1 && dl10[0].unit_price_snapshot === 3_000 && dl10[0].line_total === 3_000
+          && dl10[0].pay_group === "A" && dl10[0].name_snapshot === "割引（承認済）" && dl10[0].id === r10?.line_id, JSON.stringify(dl10));
+        // total: A=7000→due7700, B=6600, total=14300（before 17600 − 3300＝3000割引+300サ料）
+        check("段28-10c ★total が割引後に（17600→14300・差3300=割引3000+サ料300）",
+          before10 === 17_600 && (await totalOf(c1)) === 14_300, `before=${before10}, after=${await totalOf(c1)}`);
+
+        // 12 却下=line 挿入なし（ap5 free-B を reject）
+        const before12 = (await discLines(c1)).length;
+        const { error: e12 } = await mgr28.rpc("approval_decide", { p_approval_id: ap5, p_approve: false });
+        const { data: r12 } = await admin.from("approvals").select("status, decided_by, line_id").eq("id", ap5 ?? "").single();
+        check("段28-12 却下=rejected・line_id null・discount line 増えず・decided_by 埋まる",
+          !e12 && r12?.status === "rejected" && r12?.line_id === null && !!r12?.decided_by && (await discLines(c1)).length === before12,
+          e12?.message ?? JSON.stringify(r12));
+
+        // 13/14 承認の認可（staff=承認不可 / cast / anon）— fresh pending を1件作る
+        const { data: apX } = await staffOn28.rpc("approval_request", { p_check_id: c1, p_pay_group: "A", p_type: "discount", p_amount: 500, p_reason: null });
+        const { error: e13 } = await staffOn28.rpc("approval_decide", { p_approval_id: apX, p_approve: true });
+        check("段28-13 staff(黒服) approval_decide = forbidden（承認は owner/manager のみ）", forbidden(e13), e13?.message ?? "通ってしまった");
+        const { error: e14c } = await cast28.rpc("approval_decide", { p_approval_id: apX, p_approve: true });
+        const { error: e14a } = await anon.rpc("approval_decide", { p_approval_id: apX, p_approve: true });
+        check("段28-14 cast=forbidden・anon=BLOCKED（approval_decide）", forbidden(e14c) && isFnBlocked(e14a), `${e14c?.message} | ${e14a?.message}`);
+
+        // 15 already decided（ap1 は approved 済み）
+        const { error: e15 } = await mgr28.rpc("approval_decide", { p_approval_id: ap1, p_approve: true });
+        check("段28-15 decided 済みの再 decide = already decided", has(e15, "already decided"), e15?.message ?? "通ってしまった");
+
+        // 16 他 org の approval を decide = forbidden（存在オラクル封じ）＋不在 id も forbidden
+        const { error: e16b } = await mgrB28.rpc("approval_decide", { p_approval_id: apX, p_approve: true });
+        const { error: e16n } = await mgr28.rpc("approval_decide", { p_approval_id: randomUUID(), p_approve: true });
+        check("段28-16 他org decide=forbidden・不在id=forbidden（存在オラクル封じ）", forbidden(e16b) && forbidden(e16n), `${e16b?.message} | ${e16n?.message}`);
+
+        // 24 authenticated 直書込遮断（RPC 経由のみ）
+        const { error: e24i } = await mgr28.from("approvals").insert({ org_id: s28Store.org_id, store_id: s28Store.id, check_id: c1, pay_group: "A", type: "discount", amount: 100, requested_by: uOn?.id });
+        const { error: e24u } = await mgr28.from("approvals").update({ amount: 1 }).eq("id", ap1);
+        const { error: e24d } = await mgr28.from("approvals").delete().eq("id", ap1);
+        check("段28-24 ★authenticated 直 INSERT/UPDATE/DELETE on approvals = permission denied",
+          denied(e24i) && denied(e24u) && denied(e24d), `${e24i?.message} | ${e24u?.message} | ${e24d?.message}`);
+
+        // 25 cast は approvals SELECT 0行（P2）
+        const { data: r25, error: e25 } = await cast28.from("approvals").select("id");
+        check("段28-25 cast approvals SELECT = 0行（P2・cast 0行）", !e25 && (r25 ?? []).length === 0, e25?.message ?? `got ${(r25 ?? []).length}`);
+
+        // 26 approval_apply を authenticated 直呼び = BLOCKED（内部専用）
+        const { error: e26 } = await mgr28.rpc("approval_apply", { p_approval_id: ap1 });
+        check("段28-26 ★approval_apply authenticated 直呼び BLOCKED（内部専用・4ロール revoke）", isFnBlocked(e26), e26?.message ?? "実行できてしまった");
+
+        // ═══ シナリオ2（卓2）: 直接承認 + group 別割引 + close 整合 ═══
+        const c2 = await openSet(mgr28, seat2, [{ grp: "A", name: "段28-2A", price: 10_000 }, { grp: "B", name: "段28-2B", price: 6_000 }]);
+        // 20 direct の検証（amount 超過・not open は request 同様に効く＝代表1件）
+        const { error: e20 } = await mgr28.rpc("approval_direct", { p_check_id: c2, p_pay_group: "A", p_type: "discount", p_amount: 99_999, p_reason: null });
+        check("段28-20 approval_direct でも amount 超過拒否", has(e20, "amount exceeds group total"), e20?.message ?? "通ってしまった");
+        // 18 owner/manager 直接承認=approved・requested_by=decided_by=本人・discount line・total 割引後（B に 2000 割引）
+        const { data: ap18, error: e18 } = await mgr28.rpc("approval_direct", { p_check_id: c2, p_pay_group: "B", p_type: "discount", p_amount: 2_000, p_reason: "段28-18" });
+        const { data: r18 } = await admin.from("approvals").select("status, requested_by, decided_by, line_id").eq("id", ap18 ?? "").single();
+        check("段28-18 ★approval_direct 成功=approved・requested_by=decided_by=本人・line_id 埋まる",
+          !e18 && r18?.status === "approved" && r18?.requested_by === r18?.decided_by && typeof r18?.line_id === "string", e18?.message ?? JSON.stringify(r18));
+        // 22 ★group 別割引: A の due 不変（11000）・B のみ割引（4400）→ total=15400
+        check("段28-22 ★group 別割引: A 不変+B のみ割引 → total=15400（A due11000+B due4400）",
+          (await totalOf(c2)) === 15_400 && (await discLines(c2, "A")).length === 0 && (await discLines(c2, "B")).length === 1,
+          `total=${await totalOf(c2)}`);
+        // 21 ★close 整合: 割引後 due で pay → close 成功（balance remaining にならない）
+        const { error: ePayA } = await mgr28.rpc("check_pay", { p_check_id: c2, p_method: "cash", p_amount: 11_000, p_pay_group: "A", p_tendered: 11_000, p_idem_key: randomUUID() });
+        const { error: ePayB } = await mgr28.rpc("check_pay", { p_check_id: c2, p_method: "cash", p_amount: 4_400, p_pay_group: "B", p_tendered: 4_400, p_idem_key: randomUUID() });
+        const { data: closed2, error: eClose2 } = await mgr28.rpc("check_close", { p_check_id: c2, p_idem_key: randomUUID() });
+        check("段28-21 ★discount 反映後 close 整合: 割引後 due(A11000+B4400) で pay→close 成功",
+          !ePayA && !ePayB && !eClose2 && closed2 === c2, `${ePayA?.message} | ${ePayB?.message} | ${eClose2?.message}`);
+
+        // ═══ シナリオ3（卓3）: free→group due 0 + cast 売上波及 + バック不変 ═══
+        const P = drink.price as number, BV = drink.back_value as number, D = P - 1_000; // v_net=1000→due=1100
+        const { data: c3 } = await mgr28.rpc("check_open", { p_seat_id: seat3, p_people: 1, p_nom_type: "jonai" });
+        await mgr28.rpc("check_add_line", { p_check_id: c3, p_product_id: drink.id, p_qty: 1, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
+        await mgr28.rpc("check_set_nominations", { p_check_id: c3, p_nom_type: "jonai", p_nominations: [{ cast_id: s28CastId, weight: 1 }] });
+        // 直接 discount D（v_net=1000・due=1100）→ close → backs/cast_sales 確認
+        const { error: e3d } = await mgr28.rpc("approval_direct", { p_check_id: c3 as string, p_pay_group: "A", p_type: "discount", p_amount: D, p_reason: null });
+        check("段28（準備）卓3 drink+cast+discount direct 成功", !e3d, e3d?.message);
+        const { error: ePay3 } = await mgr28.rpc("check_pay", { p_check_id: c3, p_method: "cash", p_amount: 1_100, p_pay_group: "A", p_tendered: 1_100, p_idem_key: randomUUID() });
+        const { data: closed3, error: eClose3 } = await mgr28.rpc("check_close", { p_check_id: c3, p_idem_key: randomUUID() });
+        check("段28-21b 割引後 due=1100 で pay→close 成功（drink 伝票）", !ePay3 && !eClose3 && closed3 === c3, `${ePay3?.message} | ${eClose3?.message}`);
+        // 23a ★バック不変: discount kind は按分ループ外＝drink_back は割引の影響なし（= round(price*back/100)・専用 cast）
+        const { data: backs } = await admin.from("check_cast_backs").select("drink_back").eq("check_id", c3 as string).eq("cast_id", s28CastId).single();
+        const expDrinkBack = drink.back_mode === "rate" ? Math.round((P * BV) / 100) : (backs?.drink_back as number);
+        check("段28-23a ★バック不変: drink_back=割引非依存（round(price*back/100)・discount kind は按分ループ外）",
+          backs?.drink_back === expDrinkBack && (backs?.drink_back ?? 0) > 0, `drink_back=${backs?.drink_back}, exp=${expDrinkBack}`);
+        // 23b ★cast 売上波及（(a)許容）: 専用 cast の get_cast_sales が割引後 due=1100（他伝票なし=isolation）
+        // get_cast_sales は range ≤ 92日制約＝今営業日を含む46日窓（専用 cast は c3 のみ＝集計に混ざらない）
+        const jst28 = new Date(Date.now() + 9 * 3600_000);
+        const isoD28 = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+        const s28From = isoD28(new Date(jst28.getTime() - 45 * 86400_000));
+        const s28To = isoD28(new Date(jst28.getTime() + 1 * 86400_000));
+        const { data: cs, error: eCs } = await mgr28.rpc("get_cast_sales", { p_store_id: s28Store.id, p_from: s28From, p_to: s28To });
+        const s28Row = (cs ?? []).filter((r: { cast_id: string }) => r.cast_id === s28CastId);
+        const s28Sales = s28Row.reduce((a: number, r: { sales: number }) => a + r.sales, 0);
+        check("段28-23b ★cast 売上波及=割引後（専用 cast の get_cast_sales sales=割引後 due 1100）",
+          !eCs && s28Sales === 1_100, eCs?.message ?? `sales=${s28Sales}`);
+
+        // ═══ シナリオ4（卓4）: 競合(not applicable) + not open + no group total + direct 認可 ═══
+        const c4 = await openSet(mgr28, seat4, [{ grp: "A", name: "段28-4A", price: 5_000 }]);
+        // 19 direct の認可（staff/cast/anon）
+        const { error: e19s } = await staffOn28.rpc("approval_direct", { p_check_id: c4, p_pay_group: "A", p_type: "discount", p_amount: 100, p_reason: null });
+        const { error: e19c } = await cast28.rpc("approval_direct", { p_check_id: c4, p_pay_group: "A", p_type: "discount", p_amount: 100, p_reason: null });
+        const { error: e19a } = await anon.rpc("approval_direct", { p_check_id: c4, p_pay_group: "A", p_type: "discount", p_amount: 100, p_reason: null });
+        check("段28-19 approval_direct: staff/cast=forbidden・anon=BLOCKED",
+          forbidden(e19s) && forbidden(e19c) && isFnBlocked(e19a), `${e19s?.message} | ${e19c?.message} | ${e19a?.message}`);
+        // 9 no group total: group 'X' に discount line だけを service 挿入（通常明細なし）→ 申請=no group total
+        await admin.from("check_lines").insert({
+          org_id: s28Store.org_id, store_id: s28Store.id, check_id: c4, product_id: null, kind: "discount",
+          pay_group: "X", name_snapshot: "段28-孤立割引", unit_price_snapshot: 500, qty: 1, line_total: 500, back_snapshot: null, sort_order: 900,
+        });
+        const { error: e9 } = await mgr28.rpc("approval_direct", { p_check_id: c4, p_pay_group: "X", p_type: "discount", p_amount: 100, p_reason: null });
+        check("段28-9 通常明細ゼロ（discount のみ）の group = no group total", has(e9, "no group total"), e9?.message ?? "通ってしまった");
+        // 17 ★競合: pending 申請 → check を void → decide(approve) = not applicable
+        const { data: ap17 } = await mgr28.rpc("approval_request", { p_check_id: c4, p_pay_group: "A", p_type: "discount", p_amount: 500, p_reason: null });
+        await mgr28.rpc("check_void", { p_check_id: c4, p_reason: "段28-17 競合" });
+        const { error: e17 } = await mgr28.rpc("approval_decide", { p_approval_id: ap17, p_approve: true });
+        const { data: r17 } = await admin.from("approvals").select("status").eq("id", ap17 ?? "").single();
+        check("段28-17 ★競合: void 後の approve = not applicable・approval は pending 維持",
+          has(e17, "not applicable") && r17?.status === "pending", e17?.message ?? `status=${r17?.status}`);
+        // 8 not open: void 済み check への申請 = not open
+        const { error: e8 } = await mgr28.rpc("approval_request", { p_check_id: c4, p_pay_group: "A", p_type: "discount", p_amount: 100, p_reason: null });
+        check("段28-8 closed/void の check への申請 = not open", has(e8, "not open"), e8?.message ?? "通ってしまった");
+        // 11 free→group due 0: void 済み卓4 に新規 open（open 1枚制約は void をカウント外）→ free 全額割引 → total=0
+        const c11 = await openSet(mgr28, seat4, [{ grp: "A", name: "段28-11A", price: 4_000 }]);
+        const { error: e11 } = await mgr28.rpc("approval_direct", { p_check_id: c11, p_pay_group: "A", p_type: "free", p_amount: null, p_reason: null });
+        check("段28-11 ★free 承認=group 全額割引で group due 0（total=0・v_net=0）",
+          !e11 && (await totalOf(c11)) === 0 && (await discLines(c11, "A")).length === 1, e11?.message ?? `total=${await totalOf(c11)}`);
+      } finally {
+        await s28Wipe();
+        // 専用 cast は参照（nominations/backs）除去後に削除
+        await admin.from("casts").delete().eq("id", s28CastId);
+      }
+      const { data: chkLeft } = await admin.from("checks").select("id").in("seat_id", seatIds);
+      const { data: castLeft } = await admin.from("casts").select("id").eq("id", s28CastId);
+      check("段28 掃除確認: check/専用cast 0行（approvals は check の FK 連動で消去済・非汚染）",
+        (chkLeft ?? []).length === 0 && (castLeft ?? []).length === 0,
+        `chk=${(chkLeft ?? []).length}, cast=${(castLeft ?? []).length}`);
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
