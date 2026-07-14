@@ -32,10 +32,33 @@ type Line = {
 };
 type Payment = { id: string; pay_group: string; method: string; amount: number; tendered: number | null };
 type Nom = { cast_id: string; ratio_weight: number };
+// F3c 二重承認（approvals・mig0035/0036）
+type Approval = {
+  id: string; pay_group: string; type: string; amount: number; status: string;
+  reason: string | null; requested_by: string; created_at: string;
+};
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 const METHOD_LABEL: Record<string, string> = { cash: "現金", card: "カード", ar: "売掛", other: "その他" };
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
+const AP_STATUS_LABEL: Record<string, string> = { pending: "承認待ち", approved: "承認済", rejected: "却下" };
+const AP_STATUS_COLOR: Record<string, string> = { pending: "var(--gold2)", approved: "var(--ok)", rejected: "var(--sub)" };
+
+// approval RPC エラーの日本語化（F3c）
+function apErrJa(msg: string | undefined): string {
+  if (!msg) return "不明なエラー";
+  if (msg.includes("amount exceeds group total")) return "割引額が対象伝票の小計を超えています";
+  if (msg.includes("no group total")) return "対象伝票に割引できる金額がありません";
+  if (msg.includes("no such group")) return "対象の伝票グループが存在しません";
+  if (msg.includes("not applicable")) return "承認前に伝票が締められたため適用できません";
+  if (msg.includes("not open")) return "この伝票は締められています（申請できません）";
+  if (msg.includes("already decided")) return "この申請は処理済みです";
+  if (msg.includes("bad type")) return "種別が不正です";
+  if (msg.includes("bad amount")) return "割引額の指定が不正です";
+  if (msg.includes("bad reason")) return "理由は200字以内で入力してください";
+  if (msg.includes("forbidden")) return "権限がありません";
+  return msg;
+}
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto" };
@@ -56,6 +79,7 @@ export default function RegisterBoard({
   const [lines, setLines] = useState<Line[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [noms, setNoms] = useState<Nom[]>([]);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
 
   // フォーム状態
@@ -72,6 +96,11 @@ export default function RegisterBoard({
   const [payMethod, setPayMethod] = useState("cash");
   const [payAmount, setPayAmount] = useState(0);
   const [payTendered, setPayTendered] = useState("");
+  // F3c: 割引/無料 申請・適用フォーム
+  const [apType, setApType] = useState<"discount" | "free">("discount");
+  const [apGroup, setApGroup] = useState("A");
+  const [apAmount, setApAmount] = useState(0);
+  const [apReason, setApReason] = useState("");
 
   const loadOpenMap = useCallback(async () => {
     const { data } = await supabase.from("checks").select("id, seat_id").eq("status", "open");
@@ -90,15 +119,21 @@ export default function RegisterBoard({
       .from("payments").select("id, pay_group, method, amount, tendered").eq("check_id", checkId).order("paid_at");
     const { data: ns } = await supabase
       .from("check_nominations").select("cast_id, ratio_weight").eq("check_id", checkId).order("position");
+    const { data: aps } = await supabase
+      .from("approvals").select("id, pay_group, type, amount, status, reason, requested_by, created_at")
+      .eq("check_id", checkId).order("created_at", { ascending: false });
     setCheck(c as CheckRow);
     setLines((ls ?? []) as Line[]);
     setPayments((ps ?? []) as Payment[]);
     setNoms((ns ?? []) as Nom[]);
+    setApprovals((aps ?? []) as Approval[]);
     if (c) {
       setNomType((c as CheckRow).nom_type);
       const w: Record<string, number> = {};
       for (const n of (ns ?? []) as Nom[]) w[n.cast_id] = n.ratio_weight;
       setNomWeights(w);
+      // 割引申請の既定 group＝この伝票に存在する最初の pay_group（分割会計対応）
+      setApGroup(Array.from(new Set(((ls ?? []) as Line[]).map((l) => l.pay_group))).sort()[0] ?? "A");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -194,15 +229,47 @@ export default function RegisterBoard({
     await loadOpenMap();
   }
 
+  // F3c: 割引/無料 申請（黒服 can_register）・適用（owner/manager 直接）
+  async function requestOrApply() {
+    if (!check) return;
+    setMsg(null);
+    const rpc = isManagerUp ? "approval_direct" : "approval_request";
+    const { error } = await supabase.rpc(rpc, {
+      p_check_id: check.id, p_pay_group: apGroup, p_type: apType,
+      p_amount: apType === "discount" ? apAmount : null,
+      p_reason: apReason.trim() || null,
+    });
+    if (error) { setMsg(`${isManagerUp ? "適用" : "申請"}に失敗: ${apErrJa(error.message)}`); return; }
+    setMsg(isManagerUp ? "割引/無料を適用しました" : "割引/無料を申請しました（承認待ち）");
+    setApAmount(0); setApReason("");
+    await loadCheck(check.id);
+  }
+
+  // F3c: 承認/却下（owner/manager のみ）
+  async function decide(approvalId: string, approve: boolean) {
+    if (!check) return;
+    setMsg(null);
+    const { error } = await supabase.rpc("approval_decide", { p_approval_id: approvalId, p_approve: approve });
+    if (error) { setMsg(`${approve ? "承認" : "却下"}に失敗: ${apErrJa(error.message)}`); return; }
+    setMsg(approve ? "承認しました（伝票に反映）" : "却下しました");
+    await loadCheck(check.id);
+  }
+
   // group 集計（表示用・権威はサーバ＝check_pay/close が最終判定）
+  // ★F3c: discount line（kind='discount'・正の値）を小計から減算＝改修 check_group_due と同一規則。
   const groups = Array.from(new Set(lines.map((l) => l.pay_group))).sort();
   const groupInfo = groups.map((g) => {
-    const bx = lines.filter((l) => l.pay_group === g).reduce((a, l) => a + l.line_total, 0);
-    const due = check ? groupDue(bx, check) : 0;
+    const gl = lines.filter((l) => l.pay_group === g);
+    const bx = gl.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0);
+    const disc = gl.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0);
+    const net = Math.max(0, bx - disc);
+    const due = check ? groupDue(net, check) : 0;
     const paid = payments.filter((p) => p.pay_group === g).reduce((a, p) => a + p.amount, 0);
-    return { g, bx, due, paid, remaining: Math.max(0, due - paid) };
+    return { g, bx, disc, net, due, paid, remaining: Math.max(0, due - paid) };
   });
   const allCovered = groups.length > 0 && groupInfo.every((gi) => gi.paid >= gi.due);
+  // 割引申請フォームの上限＝選択 group の割引前小計（既存 discount を除いた bx）
+  const apGroupBx = groupInfo.find((gi) => gi.g === apGroup)?.bx ?? 0;
 
   // タブセグメント（canonical の .seg 相当を inline で）
   const segBtn = (on: boolean): React.CSSProperties => ({
@@ -339,26 +406,93 @@ export default function RegisterBoard({
             <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>明細</h3>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <tbody>
-                {lines.map((l) => (
-                  <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                    <td style={{ padding: 6, color: "var(--sub)" }}>[{l.pay_group}]</td>
-                    <td style={{ padding: 6, color: "var(--ink)" }}>{l.name_snapshot}</td>
-                    <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>{yen(l.unit_price_snapshot)} × {l.qty}</td>
-                    <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--ink)" }}>{yen(l.line_total)}</td>
-                    <td style={{ padding: 6 }}>
-                      <button
-                        onClick={() => removeLine(l.id)}
-                        disabled={payments.length > 0}
-                        title={payments.length > 0 ? "入金後の訂正は取消（void）で" : ""}
-                        style={{ ...btnLight, padding: "2px 8px", fontSize: 12 }}
-                      >
-                        削除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {lines.map((l) => {
+                  const isDisc = l.kind === "discount"; // ★F3c: 承認割引（正の値・表示は −・削除不可＝承認経由のみ）
+                  return (
+                    <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                      <td style={{ padding: 6, color: "var(--sub)" }}>[{l.pay_group}]</td>
+                      <td style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>{l.name_snapshot}</td>
+                      <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>{isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}`}</td>
+                      <td style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
+                        {isDisc ? `−${yen(l.line_total)}` : yen(l.line_total)}
+                      </td>
+                      <td style={{ padding: 6 }}>
+                        {isDisc ? (
+                          <span style={{ fontSize: 11, color: "var(--sub)" }}>承認割引</span>
+                        ) : (
+                          <button
+                            onClick={() => removeLine(l.id)}
+                            disabled={payments.length > 0}
+                            title={payments.length > 0 ? "入金後の訂正は取消（void）で" : ""}
+                            style={{ ...btnLight, padding: "2px 8px", fontSize: 12 }}
+                          >
+                            削除
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+
+          {/* 割引・無料（承認ワークフロー・F3c） */}
+          <div className="nox-cardtop" style={card}>
+            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>
+              割引・無料（{isManagerUp ? "適用・承認" : "申請"}）
+            </h3>
+            {/* 申請（黒服 can_register）／適用（owner/manager 直接）フォーム */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+              <select value={apType} onChange={(e) => setApType(e.target.value as "discount" | "free")} style={input}>
+                <option value="discount">割引</option>
+                <option value="free">無料</option>
+              </select>
+              <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
+              <select value={apGroup} onChange={(e) => setApGroup(e.target.value)} style={{ ...input, width: 60 }}>
+                {(groups.length ? groups : ["A"]).map((g) => <option key={g} value={g}>{g}</option>)}
+              </select>
+              {apType === "discount" && (
+                <>
+                  <input
+                    type="number" min={1} max={apGroupBx || undefined} value={apAmount}
+                    onChange={(e) => setApAmount(Number(e.target.value))} placeholder="割引額"
+                    style={{ ...input, width: 100 }}
+                  />
+                  <span style={{ fontSize: 11, color: "var(--sub)" }}>上限 {yen(apGroupBx)}</span>
+                </>
+              )}
+              <input
+                value={apReason} onChange={(e) => setApReason(e.target.value)}
+                placeholder="理由（任意）" maxLength={200} style={{ ...input, width: 160 }}
+              />
+              <button
+                onClick={requestOrApply}
+                disabled={apType === "discount" && (apAmount <= 0 || apAmount > apGroupBx)}
+                style={{ ...btnDark, opacity: apType === "discount" && (apAmount <= 0 || apAmount > apGroupBx) ? 0.4 : 1 }}
+              >
+                {isManagerUp ? "適用" : "申請"}
+              </button>
+            </div>
+            {/* この伝票の申請一覧（pending は owner/manager が承認/却下・staff は閲覧のみ） */}
+            {approvals.length === 0
+              ? <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>申請はありません。</p>
+              : approvals.map((a) => (
+                  <div key={a.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderTop: "1px solid var(--line)", fontSize: 12.5 }}>
+                    <span style={{ color: "var(--sub)" }}>[{a.pay_group}]</span>
+                    <span style={{ color: "var(--ink)" }}>{a.type === "free" ? "無料" : "割引"} <span style={t.num}>{yen(a.amount)}</span></span>
+                    {a.reason && <span style={{ color: "var(--sub)" }}>（{a.reason}）</span>}
+                    <span style={{ marginLeft: "auto", fontWeight: 700, color: AP_STATUS_COLOR[a.status] ?? "var(--sub)" }}>
+                      {AP_STATUS_LABEL[a.status] ?? a.status}
+                    </span>
+                    {a.status === "pending" && isManagerUp && (
+                      <span style={{ display: "flex", gap: 6 }}>
+                        <button style={btnDark} onClick={() => decide(a.id, true)}>承認</button>
+                        <button style={btnLight} onClick={() => decide(a.id, false)}>却下</button>
+                      </span>
+                    )}
+                  </div>
+                ))}
           </div>
 
           {/* 会計 */}
@@ -369,6 +503,7 @@ export default function RegisterBoard({
                 <tr>
                   <th style={t.th}>伝票</th>
                   <th style={t.th}>小計</th>
+                  <th style={t.th}>割引</th>
                   <th style={t.th}>請求（サ料込）</th>
                   <th style={t.th}>入金済</th>
                   <th style={t.th}>残額</th>
@@ -379,6 +514,7 @@ export default function RegisterBoard({
                   <tr key={gi.g}>
                     <td style={t.td}>{gi.g}</td>
                     <td style={{ ...t.td, ...t.num }}>{yen(gi.bx)}</td>
+                    <td style={{ ...t.td, ...t.num, color: gi.disc > 0 ? "var(--bad)" : "var(--sub)" }}>{gi.disc > 0 ? `−${yen(gi.disc)}` : "—"}</td>
                     <td style={{ ...t.td, ...t.num, fontWeight: 700, color: "var(--champ)" }}>{yen(gi.due)}</td>
                     <td style={{ ...t.td, ...t.num }}>{yen(gi.paid)}</td>
                     <td style={{ ...t.td, ...t.num, color: gi.remaining > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(gi.remaining)}</td>
