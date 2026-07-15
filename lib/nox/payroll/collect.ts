@@ -134,15 +134,32 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
 // 窓内 closed 非 void の会計から cast 別のバック・pt・champ/bottle 本数を集計。
 // champ/bottle 判定は check_lines.kind ∈ {'champ','bottle'}（会計確定時スナップショット・商品マスタ属性でなく明細 kind が正）。
 // 帰属は check_nominations（sales 按分と同じ在席集合）。本数は重み分割しない＝各在席 cast に満額計上。
+// ★F3f: 承認済 drink_claims（自己申告バック・独立枠）を drink バックへ合流。
+//   期間フィルタは「対象 check の started_at」＝check_cast_backs と同一の営業日基準（給与サイクル一致）。
+//   close 非依存（申告は独立枠＝check_cast_backs を書かない）。承認済0件なら合流額0＝既存 payslip 不変。
 async function loadAccounting(admin: SupabaseClient, storeId: string, win: PayrollWindow) {
+  const backByCast = new Map<string, { drink: number; champ: number; bottle: number; pt: number }>();
+  const champBottleByCast = new Map<string, { champCnt: number; bottleCnt: number }>();
+
+  // ★F3f: 承認済 drink_claims の back_amount を cast 別に drink バックへ合流（対象 check の営業日で期間フィルタ）
+  const { data: claims, error: eDc } = await admin
+    .from("drink_claims").select("cast_id, back_amount, checks!inner(started_at)")
+    .eq("store_id", storeId).eq("status", "approved")
+    .gte("checks.started_at", win.startTs).lt("checks.started_at", win.endTs);
+  if (eDc) throw new Error(`drink_claims: ${eDc.message}`);
+  for (const c of (claims ?? []) as Record<string, unknown>[]) {
+    const cid = c.cast_id as string;
+    const cur = backByCast.get(cid) ?? { drink: 0, champ: 0, bottle: 0, pt: 0 };
+    cur.drink += c.back_amount as number;
+    backByCast.set(cid, cur);
+  }
+
   const { data: checks, error: eC } = await admin
     .from("checks").select("id").eq("store_id", storeId).eq("status", "closed")
     .gte("started_at", win.startTs).lt("started_at", win.endTs);
   if (eC) throw new Error(`checks: ${eC.message}`);
   const checkIds = ((checks ?? []) as { id: string }[]).map((c) => c.id);
-  const backByCast = new Map<string, { drink: number; champ: number; bottle: number; pt: number }>();
-  const champBottleByCast = new Map<string, { champCnt: number; bottleCnt: number }>();
-  if (checkIds.length === 0) return { backByCast, champBottleByCast };
+  if (checkIds.length === 0) return { backByCast, champBottleByCast };  // ★drink_claims は既に合流済み
 
   const [nomsR, linesR, backsR] = await Promise.all([
     admin.from("check_nominations").select("check_id, cast_id").in("check_id", checkIds),

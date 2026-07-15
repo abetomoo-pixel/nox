@@ -3317,6 +3317,237 @@ async function main() {
     }
   }
 
+  // ── 段29: F3f（mig0037）drink_claims の実挙動＋★承認焼付けが check_close の drink_back と同値（real signIn）──
+  //   ★核心（assert 10）: 同 product・同 nom_type・同 qty で drink_claim_decide の back_amount が
+  //   check_close の check_cast_backs.drink_back / champ_back と一致＝「申告バックが既存会計バックと同一計算規則」。
+  //   drink（rate: round(price*back_value/100)）と champ（unit4: unit4_json[nom_type]）両モードで実測。
+  //   ★汚染防止: 生成 drink_claims/check/check_cast_backs は try/finally 全消し＋残0。
+  //   wipe 順: drink_claims（check_id/cast_id FK 参照元）を最初に消す。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+    const denied = (e: { message?: string } | null) => has(e, "permission denied");
+
+    const { data: s29Store } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    const { data: s29A2 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A2).single();
+    const { data: s29Casts } = await admin.from("casts").select("id, name").eq("store_id", s29Store?.id ?? "")
+      .in("name", [FIXTURE_USERS.castA1a.name, FIXTURE_USERS.castA1b.name]);
+    const s29CastA = s29Casts?.find((c) => c.name === FIXTURE_USERS.castA1a.name)?.id as string;
+    const s29CastB = s29Casts?.find((c) => c.name === FIXTURE_USERS.castA1b.name)?.id as string;
+    const { data: s29Prods } = await admin.from("products").select("id, type, price, back_mode, back_value, unit4_json")
+      .eq("store_id", s29Store?.id ?? "").in("type", ["drink", "champ"]).eq("is_active", true);
+    const drinkP = s29Prods?.find((p) => p.type === "drink" && p.back_mode === "rate");
+    const champP = s29Prods?.find((p) => p.type === "champ" && p.back_mode === "unit4");
+
+    const seatOf29 = async (tag: string, sort: number, storeRow: { id: string; org_id: string }): Promise<string> => {
+      const nm = `NOX-VERIFY-段29卓${tag}`;
+      const { data: ex } = await admin.from("seats").select("id").eq("store_id", storeRow.id).eq("name", nm).limit(1);
+      if (ex?.length) return ex[0].id as string;
+      const { data: nw } = await admin.from("seats").insert({ org_id: storeRow.org_id, store_id: storeRow.id, name: nm, kind: "卓", sort_order: sort }).select("id").single();
+      return nw!.id as string;
+    };
+    const seat1 = await seatOf29("1", 9971, s29Store!), seat2 = await seatOf29("2", 9972, s29Store!),
+          seat3 = await seatOf29("3", 9973, s29Store!), seat4 = await seatOf29("4", 9974, s29Store!),
+          seatA2 = s29A2 ? await seatOf29("A2", 9975, s29A2) : "";
+    const seatIds = [seat1, seat2, seat3, seat4, seatA2].filter(Boolean);
+
+    const s29Wipe = async () => {
+      const { data: cs } = await admin.from("checks").select("id").in("seat_id", seatIds);
+      const ids = (cs ?? []).map((c) => c.id as string);
+      if (ids.length) {
+        await admin.from("drink_claims").delete().in("check_id", ids);      // ★最初（check_id/cast_id FK 参照元）
+        for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+          await admin.from(t).delete().in("check_id", ids);
+        }
+        await admin.from("checks").delete().in("id", ids);
+      }
+    };
+    await s29Wipe();
+
+    check("段29（準備）店2・cast2・drink(rate)/champ(unit4) 商品・専用卓の解決",
+      !!s29Store && !!s29A2 && !!s29CastA && !!s29CastB && !!drinkP && !!champP && !!seat1 && !!seatA2);
+
+    const owner29 = await signInShared("段29", "ownerA");
+    const mgr29 = await signInShared("段29", "managerA1");
+    const staffOn29 = await signInShared("段29", "staffRegOnA1");
+    const staffOff29 = await signInShared("段29", "staffRegOffA1");
+    const castA29 = await signInShared("段29", "castA1a");
+    const castB29 = await signInShared("段29", "castA1b");
+    const mgrB29 = await signInShared("段29", "managerB1");
+
+    if (s29Store && s29A2 && s29CastA && s29CastB && drinkP && champP && seat1 && seatA2
+        && owner29 && mgr29 && staffOn29 && staffOff29 && castA29 && castB29 && mgrB29) {
+      const { data: guCa } = await castA29.auth.getUser();
+      const { data: uCa } = await admin.from("users").select("id").eq("auth_user_id", guCa?.user?.id ?? "").single();
+      // A2 の open check（assert6 他店 check 用・service 生成）
+      const { data: a2Chk } = await admin.from("checks").insert({
+        org_id: s29A2.org_id, store_id: s29A2.id, seat_id: seatA2, status: "open", nom_type: "free",
+        people: 1, service_rate: 10, round_unit: 100, round_mode: "down", created_by: uCa?.id,
+      }).select("id").single();
+      // 期待バック（承認焼付け＝check_close と同一規則）
+      const drinkUnit = Math.round((drinkP.price * drinkP.back_value) / 100);           // rate
+      const champUnitHon = ((champP.unit4_json as Record<string, number>).hon) as number; // unit4[hon]
+
+      // 会計フロー helper
+      const openNom = async (seatId: string, nom: string, castId: string) => {
+        const { data: cid } = await mgr29.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: nom });
+        await mgr29.rpc("check_set_nominations", { p_check_id: cid, p_nom_type: nom, p_nominations: [{ cast_id: castId, weight: 1 }] });
+        return cid as string;
+      };
+
+      try {
+        // 卓1: 申告フロー用の open check（nom hon・castA を指名）
+        const c1 = await openNom(seat1, "hon", s29CastA);
+
+        // 1 ★cast セルフ申告成功＝pending・cast_id自己・requested_by=本人・back_amount=0（実 INSERT 完走）
+        const { data: cl1, error: e1 } = await castA29.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: drinkP.id, p_qty: 2 });
+        check("段29-1 ★cast drink_claim_submit 成功=uuid", !e1 && typeof cl1 === "string", e1?.message);
+        const { data: r1 } = await admin.from("drink_claims").select("status, cast_id, requested_by, back_amount, qty").eq("id", cl1 ?? "").single();
+        check("段29-1 物理確認: pending・cast_id=自己・requested_by=本人・back_amount=0・qty=2",
+          r1?.status === "pending" && r1?.cast_id === s29CastA && r1?.requested_by === uCa?.id && r1?.back_amount === 0 && r1?.qty === 2, JSON.stringify(r1));
+
+        // 2 非 cast（owner/mgr/staff）= no cast for caller
+        const nc = (e: { message?: string } | null) => has(e, "no cast for caller");
+        const { error: e2o } = await owner29.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: drinkP.id, p_qty: 1 });
+        const { error: e2m } = await mgr29.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: drinkP.id, p_qty: 1 });
+        const { error: e2s } = await staffOn29.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: drinkP.id, p_qty: 1 });
+        check("段29-2 非 cast(owner/manager/staff) submit = no cast for caller", nc(e2o) && nc(e2m) && nc(e2s), `${e2o?.message}|${e2m?.message}|${e2s?.message}`);
+
+        // 3 anon BLOCKED
+        const { error: e3 } = await anon.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: drinkP.id, p_qty: 1 });
+        check("段29-3 anon drink_claim_submit BLOCKED", isFnBlocked(e3), e3?.message ?? "実行できてしまった");
+
+        // 5 bad product（不在 product uuid）／7 bad qty
+        const { error: e5 } = await castA29.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: randomUUID(), p_qty: 1 });
+        check("段29-5 type が drink/champ 以外(不在) = bad product", has(e5, "bad product"), e5?.message ?? "通ってしまった");
+        const { error: e7 } = await castA29.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: drinkP.id, p_qty: 0 });
+        check("段29-7 qty<=0 = bad qty", has(e7, "bad qty"), e7?.message ?? "通ってしまった");
+
+        // 6 他店 check への申告 = forbidden（castA は A1・check は A2）
+        const { error: e6 } = await castA29.rpc("drink_claim_submit", { p_check_id: a2Chk?.id, p_product_id: drinkP.id, p_qty: 1 });
+        check("段29-6 他店 check への申告 = forbidden（自店 check のみ）", forbidden(e6), e6?.message ?? "通ってしまった");
+
+        // 8 ★非指名 cast も申告可（castB は c1 の指名でない・A1・open → 成功）
+        const { data: cl8, error: e8 } = await castB29.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: drinkP.id, p_qty: 1 });
+        check("段29-8 ★非指名 cast も申告可（指名有無問わず自店なら OK）", !e8 && typeof cl8 === "string", e8?.message);
+
+        // 9 黒服 can_register 承認成功＝approved・decided_by・back_amount 焼付け
+        const { error: e9 } = await staffOn29.rpc("drink_claim_decide", { p_claim_id: cl1, p_approve: true });
+        const { data: r9 } = await admin.from("drink_claims").select("status, decided_by, back_amount").eq("id", cl1 ?? "").single();
+        check("段29-9 ★黒服 can_register 承認=approved・decided_by・back_amount 焼付け（drink rate: 750×2=1500）",
+          !e9 && r9?.status === "approved" && !!r9?.decided_by && r9?.back_amount === drinkUnit * 2, e9?.message ?? JSON.stringify(r9));
+
+        // 10 ★★check_close 同値（drink rate）: 同 product/nom/qty で close の drink_back == 申告 back_amount
+        const cD = await openNom(seat2, "hon", s29CastA);
+        const { data: clD } = await castA29.rpc("drink_claim_submit", { p_check_id: cD, p_product_id: drinkP.id, p_qty: 2 });
+        await mgr29.rpc("drink_claim_decide", { p_claim_id: clD, p_approve: true });
+        const { data: rD } = await admin.from("drink_claims").select("back_amount").eq("id", clD ?? "").single();
+        await mgr29.rpc("check_add_line", { p_check_id: cD, p_product_id: drinkP.id, p_qty: 2, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
+        // pay+close（drink 2杯 price1500×2=3000 → +サ10% → 3300）
+        await mgr29.rpc("check_pay", { p_check_id: cD, p_method: "cash", p_amount: 3_300, p_pay_group: "A", p_tendered: 3_300, p_idem_key: randomUUID() });
+        await mgr29.rpc("check_close", { p_check_id: cD, p_idem_key: randomUUID() });
+        const { data: backD } = await admin.from("check_cast_backs").select("drink_back").eq("check_id", cD).eq("cast_id", s29CastA).single();
+        check("段29-10 ★★check_close 同値（drink/rate）: 申告 back_amount == close drink_back == 750×2=1500",
+          rD?.back_amount === drinkUnit * 2 && backD?.drink_back === drinkUnit * 2 && rD?.back_amount === backD?.drink_back,
+          `claim=${rD?.back_amount}, close=${backD?.drink_back}, exp=${drinkUnit * 2}`);
+
+        // 10b ★★check_close 同値（champ unit4・nom hon）: 申告 back_amount == close champ_back == unit4[hon]×2
+        const cC = await openNom(seat3, "hon", s29CastA);
+        const { data: clC } = await castA29.rpc("drink_claim_submit", { p_check_id: cC, p_product_id: champP.id, p_qty: 2 });
+        await mgr29.rpc("drink_claim_decide", { p_claim_id: clC, p_approve: true });
+        const { data: rC } = await admin.from("drink_claims").select("back_amount").eq("id", clC ?? "").single();
+        await mgr29.rpc("check_add_line", { p_check_id: cC, p_product_id: champP.id, p_qty: 2, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
+        // champ price30000×2=60000 → +サ10% → 66000
+        await mgr29.rpc("check_pay", { p_check_id: cC, p_method: "cash", p_amount: 66_000, p_pay_group: "A", p_tendered: 66_000, p_idem_key: randomUUID() });
+        await mgr29.rpc("check_close", { p_check_id: cC, p_idem_key: randomUUID() });
+        const { data: backC } = await admin.from("check_cast_backs").select("champ_back").eq("check_id", cC).eq("cast_id", s29CastA).single();
+        check("段29-10b ★★check_close 同値（champ/unit4 hon）: 申告 back_amount == close champ_back == unit4[hon]×2",
+          rC?.back_amount === champUnitHon * 2 && backC?.champ_back === champUnitHon * 2 && rC?.back_amount === backC?.champ_back,
+          `claim=${rC?.back_amount}, close=${backC?.champ_back}, exp=${champUnitHon * 2}`);
+
+        // 11 杯数修正（p_qty_override）: qty 上書き＋back_amount=unit×override
+        const { data: cl11 } = await castA29.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: drinkP.id, p_qty: 5 });
+        await mgr29.rpc("drink_claim_decide", { p_claim_id: cl11, p_approve: true, p_qty_override: 3 });
+        const { data: r11 } = await admin.from("drink_claims").select("qty, back_amount, status").eq("id", cl11 ?? "").single();
+        check("段29-11 杯数修正: qty=3 上書き・back_amount=750×3=2250・approved",
+          r11?.qty === 3 && r11?.back_amount === drinkUnit * 3 && r11?.status === "approved", JSON.stringify(r11));
+
+        // 12 却下: rejected・back_amount 0・decided_by
+        const { data: cl12 } = await castA29.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: drinkP.id, p_qty: 1 });
+        const { error: e12 } = await mgr29.rpc("drink_claim_decide", { p_claim_id: cl12, p_approve: false });
+        const { data: r12 } = await admin.from("drink_claims").select("status, back_amount, decided_by").eq("id", cl12 ?? "").single();
+        check("段29-12 却下=rejected・back_amount=0・decided_by", !e12 && r12?.status === "rejected" && r12?.back_amount === 0 && !!r12?.decided_by, JSON.stringify(r12));
+
+        // 13/14/15 decide 認可（cast・staff can_register OFF・anon）— fresh pending
+        const { data: clX } = await castA29.rpc("drink_claim_submit", { p_check_id: c1, p_product_id: drinkP.id, p_qty: 1 });
+        const { error: e13 } = await castA29.rpc("drink_claim_decide", { p_claim_id: clX, p_approve: true });
+        const { error: e14 } = await staffOff29.rpc("drink_claim_decide", { p_claim_id: clX, p_approve: true });
+        const { error: e15 } = await anon.rpc("drink_claim_decide", { p_claim_id: clX, p_approve: true });
+        check("段29-13/14/15 decide 認可: cast=forbidden・staff can_register OFF=forbidden・anon=BLOCKED",
+          forbidden(e13) && forbidden(e14) && isFnBlocked(e15), `${e13?.message}|${e14?.message}|${e15?.message}`);
+
+        // 16 already decided（cl1 は approved 済）
+        const { error: e16 } = await mgr29.rpc("drink_claim_decide", { p_claim_id: cl1, p_approve: true });
+        check("段29-16 decided 済みの再 decide = already decided", has(e16, "already decided"), e16?.message ?? "通ってしまった");
+
+        // 17 他org decide=forbidden・不在id=forbidden（存在オラクル封じ）
+        const { error: e17b } = await mgrB29.rpc("drink_claim_decide", { p_claim_id: clX, p_approve: true });
+        const { error: e17n } = await mgr29.rpc("drink_claim_decide", { p_claim_id: randomUUID(), p_approve: true });
+        check("段29-17 他org decide=forbidden・不在id=forbidden（存在オラクル封じ）", forbidden(e17b) && forbidden(e17n), `${e17b?.message}|${e17n?.message}`);
+
+        // 18 ★void された check の申告承認も可（裁定3・status 問わず・nom_type 読むだけ）
+        const c4 = await openNom(seat4, "hon", s29CastA);
+        const { data: cl18 } = await castA29.rpc("drink_claim_submit", { p_check_id: c4, p_product_id: drinkP.id, p_qty: 2 });
+        await mgr29.rpc("check_void", { p_check_id: c4, p_reason: "段29-18 競合" });
+        const { error: e18 } = await mgr29.rpc("drink_claim_decide", { p_claim_id: cl18, p_approve: true });
+        const { data: r18 } = await admin.from("drink_claims").select("status, back_amount").eq("id", cl18 ?? "").single();
+        check("段29-18 ★void 済み check の申告承認も可（会計不整合なし）=approved・back_amount 焼付け",
+          !e18 && r18?.status === "approved" && r18?.back_amount === drinkUnit * 2, e18?.message ?? JSON.stringify(r18));
+        // 4 void 済み check への新規申告 = not open
+        const { error: e4 } = await castA29.rpc("drink_claim_submit", { p_check_id: c4, p_product_id: drinkP.id, p_qty: 1 });
+        check("段29-4 closed/void の check への申告 = not open", has(e4, "not open"), e4?.message ?? "通ってしまった");
+
+        // 19 cast は自分の申告のみ可視（castB の申告は castA から見えない）
+        const { data: aView } = await castA29.from("drink_claims").select("id, cast_id");
+        const aSet = new Set((aView ?? []).map((r) => r.cast_id));
+        check("段29-19 cast SELECT = 自分の申告のみ（他 cast 不可視・P1 変形）",
+          aSet.size === 1 && aSet.has(s29CastA) && !aSet.has(s29CastB), `casts=${[...aSet].join(",")}`);
+
+        // 20 黒服 can_register は自店の全 drink_claims 可視（castA/castB 両方）
+        const { data: sView } = await staffOn29.from("drink_claims").select("cast_id");
+        const sSet = new Set((sView ?? []).map((r) => r.cast_id));
+        check("段29-20 staff can_register SELECT = 自店の全申告（castA/castB 両方可視）",
+          sSet.has(s29CastA) && sSet.has(s29CastB), `casts=${[...sSet].join(",")}`);
+
+        // 21 staff can_register OFF は 0行
+        const { data: offView } = await staffOff29.from("drink_claims").select("id");
+        check("段29-21 staff can_register OFF SELECT = 0行（cast でも can_register でもない）", (offView ?? []).length === 0, `got ${(offView ?? []).length}`);
+
+        // 22 ★authenticated 直書込遮断
+        const { error: e22i } = await mgr29.from("drink_claims").insert({ org_id: s29Store.org_id, store_id: s29Store.id, check_id: c1, cast_id: s29CastA, product_id: drinkP.id, qty: 1, requested_by: uCa?.id });
+        const { error: e22u } = await mgr29.from("drink_claims").update({ back_amount: 1 }).eq("id", cl1);
+        const { error: e22d } = await mgr29.from("drink_claims").delete().eq("id", cl1);
+        check("段29-22 ★authenticated 直 INSERT/UPDATE/DELETE on drink_claims = permission denied",
+          denied(e22i) && denied(e22u) && denied(e22d), `${e22i?.message}|${e22u?.message}|${e22d?.message}`);
+
+        // 23 payroll 合流素地: 承認済 drink_claims（back_amount>0）が cast 別に集計可能（collect.ts が読む形）
+        const { data: approved } = await admin.from("drink_claims").select("cast_id, back_amount").eq("status", "approved").eq("cast_id", s29CastA).gt("back_amount", 0);
+        check("段29-23 payroll 合流素地: 承認済 drink_claims(back_amount>0) を cast 別に集計可能",
+          (approved ?? []).length >= 1 && (approved ?? []).every((r) => (r.back_amount as number) > 0), `rows=${(approved ?? []).length}`);
+      } finally {
+        await admin.from("checks").delete().eq("id", a2Chk?.id ?? "");   // A2 check（seatIds 経由でも消えるが明示）
+        await s29Wipe();
+      }
+      const { data: dcLeft } = await admin.from("drink_claims").select("id").in("cast_id", [s29CastA, s29CastB]);
+      const { data: chkLeft } = await admin.from("checks").select("id").in("seat_id", seatIds);
+      check("段29 掃除確認: drink_claims/check 0行（非汚染）",
+        (dcLeft ?? []).length === 0 && (chkLeft ?? []).length === 0, `dc=${(dcLeft ?? []).length}, chk=${(chkLeft ?? []).length}`);
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
