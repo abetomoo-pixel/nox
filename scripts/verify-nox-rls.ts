@@ -1152,6 +1152,20 @@ async function main() {
     const { data: full2 } = await admin.rpc("get_cast_mynumber", { p_org_id: orgAId, p_actor: actorId, p_cast_id: castIdA });
     check("F2d null=保持: p_mynumber=null の更新で mynumber は消えない（enc 温存）", full2 === MY, `got ${full2}`);
 
+    // ── ★get_cast_mynumber は呼ぶ度に read_cast_mynumber 監査（F2d 支払調書CSV が cast 人数分 audit する根拠）──
+    const mynAuditCount = async (): Promise<number> => {
+      const { count } = await admin.from("audit_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("action", "read_cast_mynumber").eq("target", `cast_sensitive:${castIdA}`);
+      return count ?? 0;
+    };
+    const beforeAudit = await mynAuditCount();
+    await admin.rpc("get_cast_mynumber", { p_org_id: orgAId, p_actor: actorId, p_cast_id: castIdA });
+    await admin.rpc("get_cast_mynumber", { p_org_id: orgAId, p_actor: actorId, p_cast_id: castIdA });
+    const afterAudit = await mynAuditCount();
+    check("F2d ★get_cast_mynumber は呼ぶ度に read_cast_mynumber 監査（+2＝支払調書CSV の人数分 audit 根拠）",
+      afterAudit - beforeAudit === 2, `Δ${afterAudit - beforeAudit}`);
+
     // ── reg_no 形式チェック（^T[0-9]{13}$）──
     const { error: eBadReg } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "課税", p_reg_no: "T123" });
     check("F2d reg_no 形式拒否（T+13桁でない → bad reg_no）", !!eBadReg?.message?.includes("bad reg_no"), eBadReg?.message ?? "通ってしまった");

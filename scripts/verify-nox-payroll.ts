@@ -26,7 +26,7 @@ import { collectPeriod } from "../lib/nox/payroll/collect";
 import { buildPayInput, computeNet, type StoreMasters } from "../lib/nox/payroll/assemble";
 import { computePayrollDraft, allocateCategory } from "../lib/nox/payroll/core";
 import { simulate, type SimInput } from "../lib/nox/payroll/sim";
-import { decidePayrollAccess } from "../lib/nox/payroll/authz";
+import { decidePayrollAccess, decideTaxReportAccess } from "../lib/nox/payroll/authz";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -786,6 +786,14 @@ async function main() {
   check("F2c-2 authz: staff=forbidden", decidePayrollAccess("staff", "s1", "s1") === "forbidden");
   check("F2c-2 authz: cast=forbidden", decidePayrollAccess("cast", "s1", "s1") === "forbidden");
   check("F2c-2 authz: null role=forbidden", decidePayrollAccess(null, null, "s1") === "forbidden");
+
+  // ── F2d 支払調書CSV authz（decideTaxReportAccess 純関数・★owner 限定＝manager も forbidden）──
+  check("F2d taxReport authz: owner=ok", decideTaxReportAccess("owner", "s1") === "ok");
+  check("F2d taxReport authz: ★manager=forbidden（給与確定より最狭）", decideTaxReportAccess("manager", "s1") === "forbidden");
+  check("F2d taxReport authz: staff=forbidden", decideTaxReportAccess("staff", "s1") === "forbidden");
+  check("F2d taxReport authz: cast=forbidden", decideTaxReportAccess("cast", "s1") === "forbidden");
+  check("F2d taxReport authz: null role=forbidden", decideTaxReportAccess(null, "s1") === "forbidden");
+  check("F2d taxReport authz: store 空=forbidden", decideTaxReportAccess("owner", "") === "forbidden");
 
   await teardown();
 
