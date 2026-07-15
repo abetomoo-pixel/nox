@@ -6,6 +6,8 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 // リクエストごとに Supabase セッションを更新し、Cookie を載せ直す。
 // 認証が必要なパスは未ログインなら /login へ。
 export async function updateSession(request: NextRequest) {
+  // 現在パスを server component（(manage) layout の cast ゲート）へ渡す（Next は layout に pathname を渡さない）。
+  request.headers.set("x-pathname", request.nextUrl.pathname);
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

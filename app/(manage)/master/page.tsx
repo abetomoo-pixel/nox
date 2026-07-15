@@ -6,6 +6,7 @@ import MasterBoard from "./master-board";
 import DeductionPanel from "./deduction-panel";
 import SensitiveTaxPanel from "./sensitive-tax-panel";
 import BusinessHoursPanel from "./business-hours-panel";
+import CastRegisterPanel from "./cast-register-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,21 @@ export default async function MasterPage() {
   // okuri_mode は settings_json 相乗り（既定 'flat'）。owner のみトグル可（set_store_okuri_mode）。
   const okuriMode = (store?.settings_json as Record<string, unknown> | null)?.okuri_mode === "actual" ? "actual" : "flat";
   // 発行パネル用の cast 一覧（RLS で自店のみ・manager+ 可視）。
-  const { data: casts } = await supabase.from("casts").select("id, name").eq("store_id", storeId).eq("is_active", true).order("name");
+  const { data: casts } = await supabase.from("casts").select("id, name, user_id").eq("store_id", storeId).eq("is_active", true).order("name");
+  // F3g キャスト会計（mig0039）: 店フラグ（settings_json.cast_register_enabled・owner トグル）＋
+  //   cast 別 can_register（membership・owner/manager トグル）。真の防御は会計 RLS/RPC の 2段ゲート。
+  const castRegEnabled = (store?.settings_json as Record<string, unknown> | null)?.cast_register_enabled === true;
+  const castUserIds = (casts ?? []).map((c) => c.user_id).filter(Boolean) as string[];
+  const { data: castMems } = castUserIds.length
+    ? await supabase.from("memberships").select("id, user_id, can_register").eq("store_id", storeId).eq("role", "cast").in("user_id", castUserIds)
+    : { data: [] as { id: string; user_id: string; can_register: boolean }[] };
+  const memByUser = new Map((castMems ?? []).map((m) => [m.user_id, m]));
+  const castRegRows = (casts ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    membershipId: (memByUser.get(c.user_id)?.id as string | undefined) ?? null,
+    canRegister: (memByUser.get(c.user_id)?.can_register as boolean | undefined) ?? false,
+  }));
   // F2f 報酬シミュレーター（店モード・任意プラン試算・天引きなし）用データ（storeId を明示スコープ＝owner の org 全店 RLS 対策）。
   const sim = isManagerUp && storeId ? await loadStoreSimData(supabase, storeId) : null;
   return (
@@ -37,6 +52,14 @@ export default async function MasterPage() {
           casts={(casts ?? []) as { id: string; name: string }[]}
           isOwner={role === "owner"}
           initialOkuriMode={okuriMode}
+        />
+      )}
+      {isManagerUp && (
+        <CastRegisterPanel
+          storeId={storeId}
+          isOwner={role === "owner"}
+          initialEnabled={castRegEnabled}
+          casts={castRegRows}
         />
       )}
       {isManagerUp && (

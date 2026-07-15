@@ -27,7 +27,7 @@ export default async function RegisterPage() {
     .select("id, name")
     .eq("is_active", true)
     .order("name");
-  // 予約タブの可視判定（staff は can_crm）と予約作成先の店（自分の membership の店）
+  // 予約タブの可視判定（staff は can_crm・cast は予約不可＝会計のみ）と予約作成先の店（自分の membership の店）
   const { data: canCrm } = role === "staff" ? await supabase.rpc("auth_staff_can_crm") : { data: false };
   const { data: myStoreId } = await supabase.rpc("auth_store_id");
   return (
@@ -36,7 +36,7 @@ export default async function RegisterPage() {
       products={products ?? []}
       casts={casts ?? []}
       isManagerUp={isManagerUp}
-      showReserve={isManagerUp || canCrm === true}
+      showReserve={role !== "cast" && (isManagerUp || canCrm === true)}
       storeId={(myStoreId as string | null) ?? ""}
     />
   );
