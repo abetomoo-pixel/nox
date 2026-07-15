@@ -464,7 +464,9 @@ async function main() {
 
   // ══════════════════════════════════════════════════════════
   // F3a-1: staff 機能別フラグ（mig0022・can_register）— RLS 可視の系統 assert
-  // golden 伝票が生きている位置で実測: OFF staff=7表0行 / ON staff=可視（backfill 相当）/
+  // golden 伝票が生きている位置で実測: OFF staff=7表0行 / ON staff=会計6表可視（backfill 相当）/
+  // ★check_cast_backs のみ mig0038 で can_register→can_view_backs へ分離＝ON staff（can_view_backs=false）
+  //   は backs 0行（分離の物理確認は anon-guard 段30 が担う・ここは回帰固定）/
   // owner 無条件 / manager は自分の行の can_register=false でも可視（role 固定＝フラグ無視の positive）。
   // cast 不変（checks系0行・check_cast_backs 自己行のみ）は直前の F1b 節が担保。
   // ══════════════════════════════════════════════════════════
@@ -505,7 +507,7 @@ async function main() {
     check("F3a-1 can_register=true staff check_lines 可視（golden ≥3）", (await cnt("check_lines")) >= 3);
     check("F3a-1 can_register=true staff payments 可視（golden ≥3）", (await cnt("payments")) >= 3);
     check("F3a-1 can_register=true staff check_nominations 可視（golden ≥2）", (await cnt("check_nominations")) >= 2);
-    check("F3a-1 can_register=true staff check_cast_backs 可視（golden ≥2）", (await cnt("check_cast_backs")) >= 2);
+    check("F3a-1 can_register=true/can_view_backs=false staff check_cast_backs 0行（mig0038 バック分離）", (await cnt("check_cast_backs")) === 0);
     check("F3a-1 can_register=true staff receivables 可視（golden ar ≥1）", (await cnt("receivables")) >= 1);
     check("F3a-1 can_register=true staff bottle_keeps 可視（マーカー ≥1）", (await cnt("bottle_keeps")) >= 1);
     const { data: onReg } = await on.rpc("auth_staff_can_register");

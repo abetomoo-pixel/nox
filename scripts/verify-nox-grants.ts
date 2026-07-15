@@ -38,6 +38,7 @@ const TABLES = [
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
   "auth_staff_can_register", "auth_staff_can_crm", "auth_staff_can_shift", // F3a-1（mig0022）
+  "auth_staff_can_view_backs", // バック可視是正（mig0038）
 ];
 
 async function main() {
