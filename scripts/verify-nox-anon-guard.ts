@@ -96,6 +96,14 @@
  *       can_view_backs=true 付与→同一セッションで可視（≥1・実反映）→復元で 0行／両 false staff=0行／
  *       owner=org 全店可視／manager=自店可視／managerB1=他 org 0行／cast 本人=自己行のみ（③ cast 枝不変）／
  *       anon=BLOCKED。生成伝票・専用卓は try/finally 全消し＋残0＝verify:nox-rls 固定カウント非汚染。
+ * 段31（0039 適用後）: キャスト会計 — cast にレジ会計を開く 2段ゲート（store settings.cast_register_enabled
+ *       ∧ membership.can_register）の実効マトリクス。段18 の実 auth 動的生成で一時 cast 一式（seed 常設せず
+ *       ＝rls 固定カウント非汚染）。a. 店OFF×castON=A群6表＋seats 0行・casts 自己1行・会計RPC forbidden／
+ *       b. 店ON×castOFF=同上（既存 castA1a 据置でも店 ON 下 0行＝反転ゼロ実証）／c. 店ON×castON=checks/seats
+ *       可視・casts 全同僚可視・check_open→add_line→pay→close 実走（23502 回帰）／d. ★mig0038 整合＝有効 cast
+ *       でも check_cast_backs 自己行のみ（会計は開くがバック分離）／set_store_cast_register=owner 限定/null 拒否／
+ *       set_cast_register=cast 限定 not a cast/他 org not found/null 拒否/owner・manager 正常系（audit）。
+ *       finally=一時 cast 一式＋伝票＋実 auth 全消し・store settings_json 厳密復元。anon は段31a で 3関数 BLOCKED。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -347,6 +355,17 @@ async function main() {
     ["reservation_to_check", { p_reservation_id: null, p_seat_id: null, p_nom_type: null }],
   ];
   for (const [fn, args] of F3A3_RPC_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
+  // ── 段31a: キャスト会計（mig0039）ヘルパー＋書込 RPC 2本 anon BLOCKED ──
+  const F0039_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["auth_cast_can_register", {}],
+    ["set_store_cast_register", { p_store_id: null, p_enabled: null }],
+    ["set_cast_register", { p_membership_id: null, p_can_register: null }],
+  ];
+  for (const [fn, args] of F0039_PROBES) {
     const { error } = await anon.rpc(fn, args);
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
@@ -3701,6 +3720,221 @@ async function main() {
       }
       const { data: chkLeft } = await admin.from("checks").select("id").eq("seat_id", seatId);
       check("段30 掃除確認: 生成伝票/backs 0行（非汚染）", (chkLeft ?? []).length === 0, `got ${(chkLeft ?? []).length}`);
+    }
+  }
+
+  // ── 段31: F3 キャスト会計（mig0039）2段ゲートマトリクス（店 settings ∧ cast membership）──
+  //   段18 の実 auth 動的生成パターン＝一時 cast 一式（users/memberships[role=cast]/casts・実 auth）を
+  //   service 生成→signIn→matrix→finally 全消し（seed 常設せず＝verify:nox-rls 固定カウント非汚染）。
+  //   ★2段ゲート: auth_cast_can_register() = membership.can_register ∧ store settings.cast_register_enabled。
+  //   マトリクス（段内で set_store_cast_register / set_cast_register を実行してフラグ切替＝RPC 正常系兼務）:
+  //   a. 店OFF×castON → A群6表＋seats=0行・casts=自己1行（★self 例外は register 非依存で保持）・会計RPC forbidden
+  //   b. 店ON×castOFF → 同上（既存 castA1a セッションでも二重確認＝fixture cast は据置で 0/self）
+  //   c. 店ON×castON → checks/seats 可視・casts=全同僚可視・check_open→add_line→pay→close 実走
+  //      （uuid 返却＋NOT NULL 充填＝23502 回帰の常設 assert）
+  //   d. ★mig0038 整合: 有効 cast でも check_cast_backs は自分の行のみ（会計は開くがバックは分離＝
+  //      mig0039 は check_cast_backs に触れない・golden の他 cast backs は不可視）
+  //   e. anon BLOCKED（段31a で 3関数）＋ f. set_store_cast_register=owner 限定/null 拒否 ＋
+  //   g. set_cast_register=対象 cast 限定 'not a cast'/他 org not found/null 拒否/owner・manager 正常系（audit）
+  //   finally: 生成 cast 一式＋伝票＋実 auth 全消し・store A1 settings_json を厳密復元（後続 rls 非汚染）。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+
+    const { data: s31Store } = await admin.from("stores").select("id, org_id, settings_json").eq("name", STORE_A1).single();
+    const { data: s31Drinks } = await admin.from("products")
+      .select("id, price, back_mode, back_value").eq("store_id", s31Store?.id ?? "")
+      .eq("type", "drink").eq("back_mode", "rate").eq("is_active", true).limit(1);
+    const drinkP = s31Drinks?.[0];
+    const { data: castA1aRow } = await admin.from("casts").select("id")
+      .eq("store_id", s31Store?.id ?? "").eq("name", FIXTURE_USERS.castA1a.name).single();
+    const baselineSettings = (s31Store?.settings_json ?? null) as Record<string, unknown> | null;
+
+    // 専用卓（段31 専用）
+    const SEAT_NAME = "NOX-VERIFY-段31卓";
+    let seatId = "";
+    if (s31Store) {
+      const { data: ex } = await admin.from("seats").select("id").eq("store_id", s31Store.id).eq("name", SEAT_NAME).limit(1);
+      if (ex?.length) seatId = ex[0].id as string;
+      else {
+        const { data: nw } = await admin.from("seats")
+          .insert({ org_id: s31Store.org_id, store_id: s31Store.id, name: SEAT_NAME, kind: "卓", sort_order: 9931 })
+          .select("id").single();
+        seatId = (nw?.id as string) ?? "";
+      }
+    }
+    const wipeSeat = async () => {
+      const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
+      const ids = (cs ?? []).map((c) => c.id as string);
+      if (!ids.length) return;
+      for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+        await admin.from(t).delete().in("check_id", ids);
+      }
+      await admin.from("checks").delete().in("id", ids);
+    };
+    await wipeSeat();
+
+    // 一時 cast 一式（実 auth・前回遺物掃除→生成）
+    const TMP_EMAIL = "nox-verify-cast-reg-tmp@example.com";
+    {
+      const { data: oldU } = await admin.from("users").select("id").eq("email", TMP_EMAIL);
+      const oldIds = (oldU ?? []).map((r) => r.id as string);
+      if (oldIds.length) {
+        await admin.from("casts").delete().in("user_id", oldIds);
+        await admin.from("memberships").delete().in("user_id", oldIds);
+        await admin.from("users").delete().in("id", oldIds);
+      }
+    }
+    let tmpAuthId = "";
+    const { data: cuTmp, error: eCuTmp } = await admin.auth.admin.createUser({
+      email: TMP_EMAIL, password: env.SEED_PASSWORD, email_confirm: true,
+    });
+    if (eCuTmp || !cuTmp?.user) { fails.push(`段31 実 auth 生成失敗: ${eCuTmp?.message}`); }
+    tmpAuthId = cuTmp?.user?.id ?? "";
+    const { data: uTmp } = tmpAuthId
+      ? await admin.from("users").insert({ org_id: s31Store!.org_id, auth_user_id: tmpAuthId, email: TMP_EMAIL, name: "検証キャスト会計TMP" }).select("id").single()
+      : { data: null };
+    const { data: mTmp } = uTmp
+      ? await admin.from("memberships").insert({ user_id: uTmp.id, store_id: s31Store!.id, role: "cast", can_register: false, can_crm: false, can_shift: false }).select("id").single()
+      : { data: null };
+    const { data: cTmp } = uTmp
+      ? await admin.from("casts").insert({ org_id: s31Store!.org_id, store_id: s31Store!.id, user_id: uTmp.id, name: "検証キャスト会計TMP", employment: "委託", is_active: true }).select("id").single()
+      : { data: null };
+
+    check("段31（準備）店/drink商品/専用卓/castA1a/一時 cast 一式 解決",
+      !!s31Store && !!drinkP && !!seatId && !!castA1aRow && !!uTmp && !!mTmp && !!cTmp);
+
+    const owner = await signInShared("段31", "ownerA");
+    const mgr = await signInShared("段31", "managerA1");
+    const mgrB = await signInShared("段31", "managerB1");
+    const staffOff = await signInShared("段31", "staffRegOffA1");
+    const castA1a = await signInShared("段31", "castA1a");
+    const castTmp = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error: eSignTmp } = tmpAuthId
+      ? await castTmp.auth.signInWithPassword({ email: TMP_EMAIL, password: env.SEED_PASSWORD })
+      : { error: { message: "no tmp auth" } as { message?: string } };
+    check("段31（準備）一時 cast で signIn 成功（auth↔users↔casts 連鎖）", !eSignTmp, eSignTmp?.message);
+
+    const A6 = ["checks", "check_lines", "check_nominations", "payments", "receivables", "bottle_keeps"];
+    let accCheckId = "";
+
+    if (s31Store && drinkP && seatId && castA1aRow && uTmp && mTmp && cTmp && owner && mgr && mgrB && staffOff && castA1a && !eSignTmp) {
+      try {
+        // ═══ a. 店OFF × castON ═══（store flag は seed 未設定＝OFF・castTmp を register ON に）
+        const { error: eSetCastOn } = await owner.rpc("set_cast_register", { p_membership_id: mTmp.id, p_can_register: true });
+        check("段31-a owner set_cast_register(cast, true) 成功（正常系＝audit 対象）", !eSetCastOn, eSetCastOn?.message);
+        const { data: audCast } = await owner.from("audit_logs").select("action").eq("action", "set_cast_register")
+          .eq("target", `memberships:${mTmp.id}`).order("at", { ascending: false }).limit(1);
+        check("段31-a audit: set_cast_register 行生成", (audCast ?? []).length === 1, JSON.stringify(audCast));
+        // auth_cast_can_register = true(can_register) ∧ false(store flag) = false
+        const { data: canA } = await castTmp.rpc("auth_cast_can_register");
+        check("段31-a 店OFF×castON → auth_cast_can_register()=false（AND 不成立）", canA === false, `got ${JSON.stringify(canA)}`);
+        for (const t of A6) {
+          const { data } = await castTmp.from(t).select("id");
+          check(`段31-a 店OFF×castON ${t} = 0行`, (data ?? []).length === 0, `got ${(data ?? []).length}`);
+        }
+        const { data: seatsA } = await castTmp.from("seats").select("id");
+        check("段31-a 店OFF×castON seats = 0行", (seatsA ?? []).length === 0, `got ${(seatsA ?? []).length}`);
+        const { data: castsA } = await castTmp.from("casts").select("id");
+        check("段31-a casts = 自己1行のみ（self 例外は register 非依存で保持）",
+          (castsA ?? []).length === 1 && (castsA ?? [])[0]?.id === cTmp.id, JSON.stringify(castsA));
+        const { error: eOpenA } = await castTmp.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "hon" });
+        check("段31-a 店OFF×castON check_open forbidden", forbidden(eOpenA), eOpenA?.message ?? "通ってしまった");
+
+        // ═══ c. 店ON × castON ═══（store flag を owner RPC で ON）
+        const { error: eStoreOn } = await owner.rpc("set_store_cast_register", { p_store_id: s31Store.id, p_enabled: true });
+        check("段31-c owner set_store_cast_register(store, true) 成功（owner 限定・正常系）", !eStoreOn, eStoreOn?.message);
+        const { data: canC } = await castTmp.rpc("auth_cast_can_register");
+        check("段31-c 店ON×castON → auth_cast_can_register()=true（2段 AND 成立）", canC === true, `got ${JSON.stringify(canC)}`);
+        const { data: chkVis } = await castTmp.from("checks").select("id");
+        check("段31-c checks 可視（golden ≥1・store A1 全伝票）", (chkVis ?? []).length >= 1, `got ${(chkVis ?? []).length}`);
+        const { data: seatsC } = await castTmp.from("seats").select("id");
+        check("段31-c seats 可視（≥1）", (seatsC ?? []).length >= 1, `got ${(seatsC ?? []).length}`);
+        const { data: castsC } = await castTmp.from("casts").select("id");
+        check("段31-c casts 全同僚可視（castA1a/castA1b/自己 ≥3＝指名の前提）", (castsC ?? []).length >= 3, `got ${(castsC ?? []).length}`);
+
+        // ★会計フロー実走（castTmp を自己指名→drink→pay→close＝uuid 返却+NOT NULL 充填=23502 回帰）
+        const { data: openId, error: eOpen } = await castTmp.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "hon" });
+        check("段31-c check_open 成功（uuid 返却・cast 実 INSERT）", !eOpen && typeof openId === "string", eOpen?.message);
+        accCheckId = openId as string;
+        const { error: eNom } = await castTmp.rpc("check_set_nominations", { p_check_id: accCheckId, p_nom_type: "hon", p_nominations: [{ cast_id: cTmp.id, weight: 1 }] });
+        check("段31-c check_set_nominations 成功（自己指名）", !eNom, eNom?.message);
+        const { data: lineId, error: eLine } = await castTmp.rpc("check_add_line", { p_check_id: accCheckId, p_product_id: drinkP.id, p_qty: 2, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
+        check("段31-c check_add_line 成功（uuid 返却・NOT NULL 充填）", !eLine && typeof lineId === "string", eLine?.message);
+        const { data: chkRow } = await admin.from("checks").select("total").eq("id", accCheckId).single();
+        const due = (chkRow?.total as number) ?? 0;
+        const { data: payId, error: ePay } = await castTmp.rpc("check_pay", { p_check_id: accCheckId, p_method: "cash", p_amount: due, p_pay_group: "A", p_tendered: due, p_idem_key: randomUUID() });
+        check("段31-c check_pay 成功（uuid 返却）", !ePay && typeof payId === "string", ePay?.message);
+        const { data: closeId, error: eClose } = await castTmp.rpc("check_close", { p_check_id: accCheckId, p_idem_key: randomUUID() });
+        check("段31-c check_close 成功（cast 会計フロー完走）", !eClose && closeId === accCheckId, eClose?.message);
+        const { data: chkFin } = await admin.from("checks").select("status, total").eq("id", accCheckId).single();
+        check("段31-c 実 INSERT 物理確認: status=closed・total NOT NULL（23502 回帰）",
+          chkFin?.status === "closed" && chkFin?.total != null, JSON.stringify(chkFin));
+
+        // ═══ d. ★mig0038 整合: 有効 cast でも check_cast_backs は自分の行のみ ═══
+        const { data: backsVis } = await castTmp.from("check_cast_backs").select("cast_id");
+        check("段31-d ★check_cast_backs = 自分の行のみ（会計は開くがバックは分離・mig0039 は非接触）",
+          (backsVis ?? []).length >= 1 && (backsVis ?? []).every((b) => b.cast_id === cTmp.id), JSON.stringify(backsVis));
+        check("段31-d ★golden 他 cast（castA1a）の backs は不可視（cast_id 混入なし）",
+          !(backsVis ?? []).some((b) => b.cast_id === castA1aRow.id), JSON.stringify(backsVis));
+        await wipeSeat();
+        accCheckId = "";
+
+        // ═══ b. 店ON × castOFF ═══（castTmp を register OFF に戻す＝store は ON のまま）
+        const { error: eSetCastOff } = await owner.rpc("set_cast_register", { p_membership_id: mTmp.id, p_can_register: false });
+        check("段31-b owner set_cast_register(cast, false) 成功", !eSetCastOff, eSetCastOff?.message);
+        const { data: canB } = await castTmp.rpc("auth_cast_can_register");
+        check("段31-b 店ON×castOFF → auth_cast_can_register()=false", canB === false, `got ${JSON.stringify(canB)}`);
+        for (const t of A6) {
+          const { data } = await castTmp.from(t).select("id");
+          check(`段31-b 店ON×castOFF ${t} = 0行`, (data ?? []).length === 0, `got ${(data ?? []).length}`);
+        }
+        const { error: eOpenB } = await castTmp.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "hon" });
+        check("段31-b 店ON×castOFF check_open forbidden", forbidden(eOpenB), eOpenB?.message ?? "通ってしまった");
+        // 既存 fixture cast（castA1a・can_register=false 据置）でも店 ON 下で 0行（反転ゼロの実証）
+        const { data: a1aChecks } = await castA1a.from("checks").select("id");
+        check("段31-b 既存 castA1a（据置 OFF）は店 ON でも checks 0行（反転ゼロ実証）", (a1aChecks ?? []).length === 0, `got ${(a1aChecks ?? []).length}`);
+
+        // ═══ f. set_store_cast_register 認可: manager forbidden（owner 限定）・null 拒否 ═══
+        const { error: eStoreMgr } = await mgr.rpc("set_store_cast_register", { p_store_id: s31Store.id, p_enabled: true });
+        check("段31-f set_store_cast_register manager forbidden（owner 限定）", forbidden(eStoreMgr), eStoreMgr?.message ?? "通ってしまった");
+        const { error: eStoreNull } = await owner.rpc("set_store_cast_register", { p_store_id: s31Store.id, p_enabled: null });
+        check("段31-f set_store_cast_register null = bad enabled", has(eStoreNull, "bad enabled"), eStoreNull?.message ?? "通ってしまった");
+
+        // ═══ g. set_cast_register 認可: 対象 staff='not a cast'・他 org=not found・null 拒否・manager 正常系 ═══
+        const { data: mStaffOff } = await admin.from("memberships").select("id")
+          .eq("user_id", (await admin.from("users").select("id").eq("email", FIXTURE_USERS.staffRegOffA1.email).single()).data?.id ?? "").limit(1);
+        const { error: eNotCast } = await owner.rpc("set_cast_register", { p_membership_id: mStaffOff?.[0]?.id, p_can_register: true });
+        check("段31-g 対象 staff membership = not a cast（cast 限定）", has(eNotCast, "not a cast"), eNotCast?.message ?? "通ってしまった");
+        const { error: eOtherOrg } = await mgrB.rpc("set_cast_register", { p_membership_id: mTmp.id, p_can_register: true });
+        check("段31-g 他 org manager = not found（存在オラクル封じ）", has(eOtherOrg, "not found"), eOtherOrg?.message ?? "通ってしまった");
+        const { error: eCastNull } = await owner.rpc("set_cast_register", { p_membership_id: mTmp.id, p_can_register: null });
+        check("段31-g set_cast_register null = bad flag（規約7）", has(eCastNull, "bad flag"), eCastNull?.message ?? "通ってしまった");
+        const { error: eMgrOk } = await mgr.rpc("set_cast_register", { p_membership_id: mTmp.id, p_can_register: false });
+        check("段31-g manager 自店 cast set_cast_register 成功（正常系）", !eMgrOk, eMgrOk?.message);
+      } finally {
+        // store A1 settings_json を厳密復元（後続 rls の castA1a 0行前提を汚さない）
+        await admin.from("stores").update({ settings_json: baselineSettings }).eq("id", s31Store!.id);
+        // 生成伝票→cast 一式→実 auth の順で全消し
+        await wipeSeat();
+        if (cTmp?.id) await admin.from("casts").delete().eq("id", cTmp.id);
+        if (mTmp?.id) await admin.from("memberships").delete().eq("id", mTmp.id);
+        if (uTmp?.id) await admin.from("users").delete().eq("id", uTmp.id);
+        if (tmpAuthId) await admin.auth.admin.deleteUser(tmpAuthId).catch(() => undefined);
+      }
+      // 非汚染の物理確認（一時 cast 全消し＋店フラグ復元）
+      const { data: tmpLeft } = await admin.from("users").select("id").eq("email", TMP_EMAIL);
+      const { data: stFin } = await admin.from("stores").select("settings_json").eq("id", s31Store.id).single();
+      check("段31 掃除確認: 一時 cast 0行・store settings_json 復元（rls 非汚染）",
+        (tmpLeft ?? []).length === 0
+          && ((stFin?.settings_json as Record<string, unknown> | null)?.cast_register_enabled ?? undefined) === (baselineSettings?.cast_register_enabled ?? undefined),
+        `tmp=${(tmpLeft ?? []).length}, settings=${JSON.stringify(stFin?.settings_json)}`);
+      await castTmp.auth.signOut();
     }
   }
 

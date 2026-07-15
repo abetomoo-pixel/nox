@@ -39,6 +39,7 @@ const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
   "auth_staff_can_register", "auth_staff_can_crm", "auth_staff_can_shift", // F3a-1（mig0022）
   "auth_staff_can_view_backs", // バック可視是正（mig0038）
+  "auth_cast_can_register", // キャスト会計（mig0039・2段ゲート）
 ];
 
 async function main() {
@@ -390,6 +391,16 @@ async function main() {
     {
       const roles = await roleOf("customer_visit_history");
       check("G16 customer_visit_history EXECUTE = authenticated（anon/public 不在）",
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+
+    // G17: キャスト会計（mig0039）— 店/cast フラグ書込 RPC 2本の EXECUTE ACL。
+    //   auth_cast_can_register の属性/ACL は G4/G4b が HELPERS 配列追加で自動回帰＝ここは書込 RPC のみ。
+    //   RLS cast 枝（8表）と会計8RPC の cast 枝は runtime（anon-guard 段31）で実測＝ここは positive ACL。
+    for (const fn of ["set_store_cast_register", "set_cast_register"]) {
+      const roles = await roleOf(fn);
+      check(`G17 ${fn} EXECUTE = authenticated（anon/public 不在）`,
         roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
         `保持者: ${roles.join(", ") || "(なし)"}`);
     }
