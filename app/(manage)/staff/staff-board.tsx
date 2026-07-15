@@ -10,7 +10,7 @@ import * as t from "@/lib/nox/ui/theme";
 
 type Mem = {
   id: string; user_id: string; store_id: string; role: string; is_active: boolean;
-  can_register: boolean; can_crm: boolean; can_shift: boolean;
+  can_register: boolean; can_crm: boolean; can_shift: boolean; can_view_backs: boolean;
 };
 type UserRow = { id: string; name: string | null; email: string; auth_user_id: string };
 type Store = { id: string; name: string };
@@ -67,7 +67,7 @@ export default function StaffBoard({
     // 一覧＝staff/manager のみ（cast は女の子管理で別画面）。inactive（在籍解除済み）も表示＝再雇用の入口。
     const { data: mm } = await supabase
       .from("memberships")
-      .select("id, user_id, store_id, role, is_active, can_register, can_crm, can_shift")
+      .select("id, user_id, store_id, role, is_active, can_register, can_crm, can_shift, can_view_backs")
       .in("role", ["staff", "manager"]);
     const rows = (mm ?? []) as Mem[];
     const userIds = [...new Set(rows.map((m) => m.user_id))];
@@ -99,12 +99,16 @@ export default function StaffBoard({
     return !error;
   }
 
-  // トグル＝規約7: 3フラグとも明示 boolean を常に全送信（部分更新しない）
-  async function toggleFlag(m: Mem, key: "can_register" | "can_crm" | "can_shift") {
-    const next = { can_register: m.can_register, can_crm: m.can_crm, can_shift: m.can_shift, [key]: !m[key] };
+  // トグル＝規約7: 4フラグとも明示 boolean を常に全送信（部分更新しない）
+  async function toggleFlag(m: Mem, key: "can_register" | "can_crm" | "can_shift" | "can_view_backs") {
+    const next = {
+      can_register: m.can_register, can_crm: m.can_crm, can_shift: m.can_shift, can_view_backs: m.can_view_backs,
+      [key]: !m[key],
+    };
     await rpc("権限を更新", "set_staff_perms", {
       p_membership_id: m.id,
       p_can_register: next.can_register, p_can_crm: next.can_crm, p_can_shift: next.can_shift,
+      p_can_view_backs: next.can_view_backs,
     });
   }
 
@@ -167,7 +171,7 @@ export default function StaffBoard({
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
             <thead>
               <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
-                {["名前", "ログインID", ...(isOwner ? ["店"] : []), "役職", "会計", "顧客", "シフト*", "状態"].map((h) => (
+                {["名前", "ログインID", ...(isOwner ? ["店"] : []), "役職", "会計", "顧客", "シフト*", "バック†", "状態"].map((h) => (
                   <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -185,7 +189,7 @@ export default function StaffBoard({
                     <td style={{ padding: 6, color: "var(--sub)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u?.email ?? "—"}</td>
                     {isOwner && <td style={{ padding: 6, whiteSpace: "nowrap" }}>{storeName(m.store_id)}</td>}
                     <td style={{ padding: 6 }}><span style={rolePillMini(m.role)}>{t.roleLabelJa(m.role)}</span></td>
-                    {(["can_register", "can_crm", "can_shift"] as const).map((k) => (
+                    {(["can_register", "can_crm", "can_shift", "can_view_backs"] as const).map((k) => (
                       <td key={k} style={{ padding: 6, textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
                         {m.role === "staff" ? (
                           <input type="checkbox" checked={m[k]} disabled={busy || !m.is_active}
@@ -205,6 +209,7 @@ export default function StaffBoard({
           </table>
         </div>
         <p style={{ ...t.sub, margin: "8px 0 0" }}>* シフト権限のシフト管理画面への適用は将来リリース（トグルは保存されます）。</p>
+        <p style={{ ...t.sub, margin: "3px 0 0" }}>† バック＝キャストのバック金額（報酬）の閲覧権限。会計権限とは独立です（既定オフ・必要な黒服のみ付与）。</p>
       </section>
 
       {/* 編集パネル（Q-1 編集5RPC） */}
