@@ -104,6 +104,16 @@
  *       でも check_cast_backs 自己行のみ（会計は開くがバック分離）／set_store_cast_register=owner 限定/null 拒否／
  *       set_cast_register=cast 限定 not a cast/他 org not found/null 拒否/owner・manager 正常系（audit）。
  *       finally=一時 cast 一式＋伝票＋実 auth 全消し・store settings_json 厳密復元。anon は段31a で 3関数 BLOCKED。
+ * 段32（0040 適用後）: F3d 体入採用（trials＋RPC5本＋内部 cast_create_apply）。trials は owner/manager 限定
+ *       の新形 RLS（staff/cast 0行）。a. trial_register 認可（owner/manager 自店成功・他店/staff/cast forbidden・
+ *       ★満18歳未満 under 18・bad birthday）／b. 可視（owner/manager のみ）／c. trial_update 部分更新
+ *       （rating/documents/memo/tier・bad rating/bad documents［未知キー・非boolean］・not trial）／
+ *       d. ★本採用（書類不備 documents incomplete→全書類で casts＋cast_sensitive 実生成・kind←tier・user_id null・
+ *       cast_id 焼付け・status=hired・★audit PII マスク＝real_name/birthday が audit に無い・cast_create_sensitive
+ *       は fields_changed のみ）／e. 見送り（rejected・行残置＝台帳#35）／f. 他 org not found／
+ *       g. cast_create 直接登録（casts+cast_sensitive・under 18・認可）。★trial_hire/cast_create の生成物は
+ *       段31 方式で全消し（trials→cast_sensitive→casts の依存順・name prefix backstop）＝casts 固定カウント
+ *       反転ゼロ。anon は段32a で公開5本 BLOCKED・cast_create_apply は段5b で anon/authenticated 両 BLOCKED。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -370,6 +380,19 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段32a: F3d 体入採用（mig0040）公開 RPC 5本 anon BLOCKED ──
+  const F0040_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["trial_register", { p_store_id: null, p_name: null, p_birthday: null }],
+    ["trial_update", { p_trial_id: null }],
+    ["trial_hire", { p_trial_id: null }],
+    ["trial_reject", { p_trial_id: null }],
+    ["cast_create", { p_store_id: null, p_name: null, p_birthday: null }],
+  ];
+  for (const [fn, args] of F0040_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部関数は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
@@ -378,6 +401,7 @@ async function main() {
     ["daily_report_aggregate", { p_store_id: null, p_biz_date: null, p_cutoff_hm: null, p_tax_rate: null }],
     ["comp_plan_slide_check", { p_slide: null }], // 段8b（F2a 内部）
     ["cast_sales_aggregate", { p_store_id: null, p_from: null, p_to: null }], // 段9b（F2a-2 内部）
+    ["cast_create_apply", { p_org_id: null, p_store_id: null, p_name: null, p_kind: null, p_real_name: null, p_birthday: null }], // 段32（F3d 内部）
   ];
   for (const [fn, args] of INTERNAL_PROBES) {
     const { error } = await anon.rpc(fn, args);
@@ -3935,6 +3959,176 @@ async function main() {
           && ((stFin?.settings_json as Record<string, unknown> | null)?.cast_register_enabled ?? undefined) === (baselineSettings?.cast_register_enabled ?? undefined),
         `tmp=${(tmpLeft ?? []).length}, settings=${JSON.stringify(stFin?.settings_json)}`);
       await castTmp.auth.signOut();
+    }
+  }
+
+  // ── 段32: F3d 体入採用（mig0040）trials フロー＋casts 連鎖の実効マトリクス ──
+  //   trials は owner/manager 限定（staff/cast 0行の新形 RLS）。書込は trial_* / cast_create RPC。
+  //   ★trial_hire / cast_create は casts＋cast_sensitive を生成するため、段31 方式で全消し
+  //   （trials→cast_sensitive→casts の依存順・name prefix backstop）＝rls の casts 固定カウント反転ゼロ。
+  //   a. 認可（owner/manager 自店成功・他店/staff/cast forbidden・under 18・bad 系）／b. 可視（owner/manager
+  //   のみ・staff/cast 0行）／c. 部分更新（rating/documents/memo/tier・bad rating/documents・not trial）／
+  //   d. ★本採用（書類不備 raise→全書類で casts＋cast_sensitive 実生成・cast_id 焼付け・status=hired・
+  //   ★audit PII マスク＝real_name/birthday が audit に無い・cast_create_sensitive は fields_changed のみ）／
+  //   e. 見送り（rejected・行残置）／f. 他 org not found／g. cast_create 直接登録（casts+cast_sensitive・under 18）。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+
+    const { data: s32Store } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    const { data: s32A2 } = await admin.from("stores").select("id").eq("name", STORE_A2).single();
+
+    const PREFIX = "NOX-VERIFY-段32";
+    const createdCastIds: string[] = [];
+    const wipe = async () => {
+      // 依存順: trials（cast_id FK）→ cast_sensitive（cast_id FK）→ casts
+      await admin.from("trials").delete().like("name", PREFIX + "%");
+      const { data: cByName } = await admin.from("casts").select("id").like("name", PREFIX + "%");
+      const ids = [...new Set([...(createdCastIds), ...((cByName ?? []).map((c) => c.id as string))])];
+      if (ids.length) {
+        await admin.from("cast_sensitive").delete().in("cast_id", ids);
+        await admin.from("casts").delete().in("id", ids);
+      }
+    };
+    await wipe();
+
+    // 満年齢の birthday（JST 基準は RPC 側・ここは Jan1 固定で境界安全）
+    const yr = new Date().getFullYear();
+    const validBday = `${yr - 25}-01-01`;
+    const under18Bday = `${yr - 17}-01-01`;
+
+    const owner = await signInShared("段32", "ownerA");
+    const mgr = await signInShared("段32", "managerA1");
+    const mgrB = await signInShared("段32", "managerB1");
+    const staffOn = await signInShared("段32", "staffRegOnA1");
+    const castA = await signInShared("段32", "castA1a");
+
+    check("段32（準備）store A1/A2 解決", !!s32Store && !!s32A2);
+
+    if (s32Store && s32A2 && owner && mgr && mgrB && staffOn && castA) {
+      try {
+        // ═══ a. trial_register 認可 ＋ under 18 ＋ bad ═══
+        const { data: t1, error: e1 } = await owner.rpc("trial_register", {
+          p_store_id: s32Store.id, p_name: `${PREFIX}-ねね`, p_birthday: validBday,
+          p_real_name: "本名テスト", p_tier: "レギュラー", p_trial_date: validBday, p_memo: "初日メモ",
+        });
+        check("段32-a owner trial_register 成功（uuid 返却）", !e1 && typeof t1 === "string", e1?.message);
+        // ★audit PII マスク（real_name/birthday が after_json に無い）
+        const { data: aud1 } = await owner.from("audit_logs").select("after_json")
+          .eq("action", "trial_register").eq("target", `trials:${t1}`).order("at", { ascending: false }).limit(1);
+        const aj1 = aud1?.[0]?.after_json as Record<string, unknown> | undefined;
+        check("段32-a ★audit PII マスク: real_name/birthday が after_json に無い（name は在る）",
+          !!aj1 && aj1.real_name === undefined && aj1.birthday === undefined && aj1.name !== undefined, JSON.stringify(aj1));
+
+        const { data: t2, error: e2 } = await mgr.rpc("trial_register", {
+          p_store_id: s32Store.id, p_name: `${PREFIX}-ふうか`, p_birthday: validBday,
+        });
+        check("段32-a manager 自店 trial_register 成功", !e2 && typeof t2 === "string", e2?.message);
+        const { error: e3 } = await mgr.rpc("trial_register", { p_store_id: s32A2.id, p_name: `${PREFIX}-越境`, p_birthday: validBday });
+        check("段32-a manager 他店 A2 forbidden（店スコープ）", forbidden(e3), e3?.message ?? "通ってしまった");
+        const { error: e4 } = await staffOn.rpc("trial_register", { p_store_id: s32Store.id, p_name: `${PREFIX}-s`, p_birthday: validBday });
+        check("段32-a staff forbidden（owner/manager のみ）", forbidden(e4), e4?.message ?? "通ってしまった");
+        const { error: e5 } = await castA.rpc("trial_register", { p_store_id: s32Store.id, p_name: `${PREFIX}-c`, p_birthday: validBday });
+        check("段32-a cast forbidden", forbidden(e5), e5?.message ?? "通ってしまった");
+        const { error: e6 } = await owner.rpc("trial_register", { p_store_id: s32Store.id, p_name: `${PREFIX}-u18`, p_birthday: under18Bday });
+        check("段32-a ★満18歳未満 = under 18（風営法）", has(e6, "under 18"), e6?.message ?? "通ってしまった");
+        const { error: e7 } = await owner.rpc("trial_register", { p_store_id: s32Store.id, p_name: `${PREFIX}-nb`, p_birthday: null });
+        check("段32-a birthday null = bad birthday", has(e7, "bad birthday"), e7?.message ?? "通ってしまった");
+
+        // ═══ b. trials 可視（owner/manager のみ・staff/cast 0行）═══
+        const { data: ownerView } = await owner.from("trials").select("id").like("name", `${PREFIX}%`);
+        check("段32-b owner trials 可視（≥2）", (ownerView ?? []).length >= 2, `got ${(ownerView ?? []).length}`);
+        const { data: mgrView } = await mgr.from("trials").select("id").like("name", `${PREFIX}%`);
+        check("段32-b manager 自店 trials 可視（≥2）", (mgrView ?? []).length >= 2, `got ${(mgrView ?? []).length}`);
+        const { data: staffView, error: eSV } = await staffOn.from("trials").select("id");
+        check("段32-b staff trials = 0行（★owner/manager 限定 RLS）", !eSV && (staffView ?? []).length === 0, eSV?.message ?? `got ${(staffView ?? []).length}`);
+        const { data: castView, error: eCV } = await castA.from("trials").select("id");
+        check("段32-b cast trials = 0行", !eCV && (castView ?? []).length === 0, eCV?.message ?? `got ${(castView ?? []).length}`);
+
+        // ═══ c. trial_update 部分更新 ═══
+        const { error: eU1 } = await owner.rpc("trial_update", {
+          p_trial_id: t1, p_rating: 5, p_documents: { id_doc: true, contract: true, pledge: true, bank: true }, p_memo: "更新メモ", p_tier: "人気",
+        });
+        check("段32-c trial_update 成功（評価/書類/メモ/tier）", !eU1, eU1?.message);
+        const { data: uRow } = await admin.from("trials").select("rating, documents, tier, memo").eq("id", t1 ?? "").single();
+        check("段32-c 部分更新 物理確認: rating=5・documents 4件 true・tier=人気",
+          uRow?.rating === 5 && (uRow?.documents as Record<string, unknown>)?.id_doc === true && uRow?.tier === "人気", JSON.stringify(uRow));
+        const { error: eU2 } = await owner.rpc("trial_update", { p_trial_id: t1, p_rating: 6 });
+        check("段32-c rating 6 = bad rating（1-5）", has(eU2, "bad rating"), eU2?.message ?? "通ってしまった");
+        const { error: eU3 } = await owner.rpc("trial_update", { p_trial_id: t1, p_documents: { foo: true } });
+        check("段32-c 未知キー documents = bad documents", has(eU3, "bad documents"), eU3?.message ?? "通ってしまった");
+        const { error: eU3b } = await owner.rpc("trial_update", { p_trial_id: t1, p_documents: { id_doc: "yes" } });
+        check("段32-c 非 boolean documents = bad documents", has(eU3b, "bad documents"), eU3b?.message ?? "通ってしまった");
+
+        // ═══ d. ★本採用（書類不備→全書類→casts+cast_sensitive 生成）═══
+        const { error: eH0 } = await owner.rpc("trial_hire", { p_trial_id: t2 });  // t2 は書類なし
+        check("段32-d 書類不備 = documents incomplete", has(eH0, "documents incomplete"), eH0?.message ?? "通ってしまった");
+        const { data: castHired, error: eH1 } = await owner.rpc("trial_hire", { p_trial_id: t1 });  // t1 は全書類 true
+        check("段32-d ★trial_hire 成功（casts uuid 返却）", !eH1 && typeof castHired === "string", eH1?.message);
+        if (typeof castHired === "string") createdCastIds.push(castHired);
+        const { data: cRow } = await admin.from("casts").select("name, kind, user_id, is_active").eq("id", castHired ?? "").single();
+        check("段32-d ★casts 生成物理確認: name=源氏名・kind←tier・user_id null・active",
+          cRow?.name === `${PREFIX}-ねね` && cRow?.kind === "人気" && cRow?.user_id === null && cRow?.is_active === true, JSON.stringify(cRow));
+        const { data: csRow } = await admin.from("cast_sensitive").select("real_name, birthday, mynumber_enc").eq("cast_id", castHired ?? "").single();
+        check("段32-d ★cast_sensitive 生成物理確認: real_name/birthday 焼付け・mynumber_enc null",
+          csRow?.real_name === "本名テスト" && csRow?.birthday != null && csRow?.mynumber_enc === null, JSON.stringify(csRow));
+        const { data: tHRow } = await admin.from("trials").select("status, cast_id").eq("id", t1 ?? "").single();
+        check("段32-d trials 物理確認: status=hired・cast_id 焼付け", tHRow?.status === "hired" && tHRow?.cast_id === castHired, JSON.stringify(tHRow));
+        const { data: audH } = await owner.from("audit_logs").select("after_json")
+          .eq("action", "trial_hire").eq("target", `trials:${t1}`).order("at", { ascending: false }).limit(1);
+        const ajH = audH?.[0]?.after_json as Record<string, unknown> | undefined;
+        check("段32-d ★audit(trial_hire) PII マスク: real_name/birthday 無し", !!ajH && ajH.real_name === undefined && ajH.birthday === undefined, JSON.stringify(ajH));
+        const { data: audCS } = await owner.from("audit_logs").select("after_json")
+          .eq("action", "cast_create_sensitive").eq("target", `cast_sensitive:${castHired}`).order("at", { ascending: false }).limit(1);
+        const csFields = (audCS?.[0]?.after_json as Record<string, unknown> | undefined)?.fields_changed as string[] | undefined;
+        check("段32-d ★audit(cast_create_sensitive) = fields_changed マスクのみ（平文 PII なし）",
+          Array.isArray(csFields) && csFields.includes("real_name") && csFields.includes("birthday"), JSON.stringify(audCS));
+        const { error: eH2 } = await owner.rpc("trial_hire", { p_trial_id: t1 });
+        check("段32-d 本採用済み 再 hire = not trial", has(eH2, "not trial"), eH2?.message ?? "通ってしまった");
+        const { error: eU4 } = await owner.rpc("trial_update", { p_trial_id: t1, p_rating: 3 });
+        check("段32-d hired 済み trial_update = not trial", has(eU4, "not trial"), eU4?.message ?? "通ってしまった");
+
+        // ═══ e. 見送り（rejected・行残置）═══
+        const { error: eR1 } = await owner.rpc("trial_reject", { p_trial_id: t2 });
+        check("段32-e trial_reject 成功", !eR1, eR1?.message);
+        const { data: t2Row } = await admin.from("trials").select("status").eq("id", t2 ?? "").single();
+        check("段32-e status=rejected・行残置（削除 RPC なし＝台帳 #35）", t2Row?.status === "rejected", JSON.stringify(t2Row));
+        const { error: eR2 } = await owner.rpc("trial_reject", { p_trial_id: t2 });
+        check("段32-e rejected 再 reject = not trial", has(eR2, "not trial"), eR2?.message ?? "通ってしまった");
+
+        // ═══ f. 他 org not found（存在オラクル封じ）═══
+        const { error: eF1 } = await mgrB.rpc("trial_hire", { p_trial_id: t1 });
+        check("段32-f 他 org manager trial_hire = not found", has(eF1, "not found"), eF1?.message ?? "通ってしまった");
+        const { error: eF2 } = await owner.rpc("trial_update", { p_trial_id: randomUUID(), p_rating: 3 });
+        check("段32-f 不在 trial = not found", has(eF2, "not found"), eF2?.message ?? "通ってしまった");
+
+        // ═══ g. cast_create 直接登録 ═══
+        const { data: castDirect, error: eC1 } = await owner.rpc("cast_create", {
+          p_store_id: s32Store.id, p_name: `${PREFIX}-直接`, p_birthday: validBday, p_real_name: "直接本名", p_kind: "レギュラー",
+        });
+        check("段32-g cast_create 成功（casts uuid）", !eC1 && typeof castDirect === "string", eC1?.message);
+        if (typeof castDirect === "string") createdCastIds.push(castDirect);
+        const { data: cdRow } = await admin.from("casts").select("user_id").eq("id", castDirect ?? "").single();
+        const { data: cdsRow } = await admin.from("cast_sensitive").select("real_name").eq("cast_id", castDirect ?? "").single();
+        check("段32-g cast_create 物理確認: casts+cast_sensitive 生成・user_id null（ログインなし cast）",
+          cdRow?.user_id === null && cdsRow?.real_name === "直接本名", `${JSON.stringify(cdRow)} / ${JSON.stringify(cdsRow)}`);
+        const { error: eC2 } = await owner.rpc("cast_create", { p_store_id: s32Store.id, p_name: `${PREFIX}-u18`, p_birthday: under18Bday });
+        check("段32-g cast_create under 18 拒否", has(eC2, "under 18"), eC2?.message ?? "通ってしまった");
+        const { error: eC3 } = await staffOn.rpc("cast_create", { p_store_id: s32Store.id, p_name: `${PREFIX}-s`, p_birthday: validBday });
+        check("段32-g staff cast_create forbidden", forbidden(eC3), eC3?.message ?? "通ってしまった");
+        const { error: eC4 } = await mgr.rpc("cast_create", { p_store_id: s32A2.id, p_name: `${PREFIX}-x`, p_birthday: validBday });
+        check("段32-g manager 他店 cast_create forbidden", forbidden(eC4), eC4?.message ?? "通ってしまった");
+      } finally {
+        await wipe();
+      }
+      // 非汚染の物理確認（trials/casts 全消し＝rls 固定カウント［A1=2人・ranking 2行］反転ゼロ）
+      const { data: tLeft } = await admin.from("trials").select("id").like("name", `${PREFIX}%`);
+      const { data: cLeft } = await admin.from("casts").select("id").like("name", `${PREFIX}%`);
+      check("段32 掃除確認: trials/casts 0行（casts 固定カウント非汚染）",
+        (tLeft ?? []).length === 0 && (cLeft ?? []).length === 0, `trials=${(tLeft ?? []).length}, casts=${(cLeft ?? []).length}`);
     }
   }
 

@@ -34,6 +34,7 @@ const TABLES = [
   "daily_reports", // F1e（mig0010）
   "customers", // F3a-2（mig0023）
   "reservations", // F3a-3（mig0027）
+  "trials", // F3d 体入採用（mig0040）
 ];
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
@@ -403,6 +404,22 @@ async function main() {
       check(`G17 ${fn} EXECUTE = authenticated（anon/public 不在）`,
         roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
         `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+
+    // G18: F3d 体入採用（mig0040）— 公開 RPC 5本 ＋ 内部 cast_create_apply の EXECUTE ACL。
+    //   trials の RLS 有効・grant 面（authenticated=SELECT のみ・anon 0）は TABLES 追加で G1/G2/G5 が自動回帰。
+    for (const fn of ["trial_register", "trial_update", "trial_hire", "trial_reject", "cast_create"]) {
+      const roles = await roleOf(fn);
+      check(`G18 ${fn} EXECUTE = authenticated（anon/public 不在）`,
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    // cast_create_apply = 内部専用（anon/authenticated/service_role/public 不在＝owner のみ）
+    {
+      const roles = await roleOf("cast_create_apply");
+      const leaked = roles.filter((x) => ["anon", "authenticated", "service_role", "public"].includes(x));
+      check("G18 cast_create_apply EXECUTE = owner のみ（内部専用・4ロール revoke）",
+        leaked.length === 0, `保持者: ${roles.join(", ") || "(owner のみ)"}`);
     }
   }
 
