@@ -19,12 +19,19 @@ export default async function CastsPage() {
     .order("created_at", { ascending: false });
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
   const { data: myStoreId } = await supabase.rpc("auth_store_id");
+  // F3g' castログイン招待（mig0041）: 在籍 cast の結線状態（user_id の有無のみ・RLS 自動スコープ）。
+  const { data: loginCasts } = await supabase
+    .from("casts")
+    .select("id, name, user_id")
+    .eq("is_active", true)
+    .order("name");
   return (
     <CastsBoard
       isOwner={role === "owner"}
       stores={(stores ?? []) as { id: string; name: string }[]}
       myStoreId={(myStoreId as string | null) ?? ""}
       initialTrials={(trials ?? []) as Trial[]}
+      initialLoginCasts={(loginCasts ?? []) as CastLogin[]}
     />
   );
 }
@@ -34,3 +41,5 @@ export type Trial = {
   tier: string | null; rating: number | null; documents: Record<string, boolean> | null;
   memo: string | null; status: string; trial_date: string | null;
 };
+
+export type CastLogin = { id: string; name: string; user_id: string | null };

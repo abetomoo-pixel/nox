@@ -6,9 +6,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
-import type { Trial } from "./page";
+import type { Trial, CastLogin } from "./page";
 
 type Store = { id: string; name: string };
+
+type InviteResult = { login_email: string; initial_password: string | null };
 
 // 書類4種の正本キー（mig0040 の documents jsonb と共有）。
 const DOC_KEYS = [
@@ -27,6 +29,13 @@ const btnGold: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnGhost: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const lbl: React.CSSProperties = { fontSize: 12, color: "var(--sub)" };
+// 招待モーダル（staff-board の追加モーダル雛形）
+const overlay: React.CSSProperties = {
+  position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.62)",
+  backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+  display: "flex", alignItems: "center", justifyContent: "center", padding: 18,
+};
+const modalCard: React.CSSProperties = { ...t.card, width: "100%", maxWidth: 430, marginBottom: 0 };
 
 function ageOf(birthday: string | null): string {
   if (!birthday) return "—";
@@ -39,14 +48,24 @@ function ageOf(birthday: string | null): string {
 }
 
 export default function CastsBoard({
-  isOwner, stores, myStoreId, initialTrials,
+  isOwner, stores, myStoreId, initialTrials, initialLoginCasts,
 }: {
-  isOwner: boolean; stores: Store[]; myStoreId: string; initialTrials: Trial[];
+  isOwner: boolean; stores: Store[]; myStoreId: string; initialTrials: Trial[]; initialLoginCasts: CastLogin[];
 }) {
   const supabase = createClient();
   const [trials, setTrials] = useState<Trial[]>(initialTrials);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // F3g' castログイン招待（mig0041）: 招待/PW再発行モーダル
+  const [loginCasts, setLoginCasts] = useState<CastLogin[]>(initialLoginCasts);
+  const [invTarget, setInvTarget] = useState<CastLogin | null>(null);
+  const [invMode, setInvMode] = useState<"invite" | "reset">("invite");
+  const [invEmail, setInvEmail] = useState("");
+  const [invIdemKey, setInvIdemKey] = useState("");
+  const [invErr, setInvErr] = useState<string | null>(null);
+  const [invResult, setInvResult] = useState<InviteResult | null>(null);
+  const [invCopied, setInvCopied] = useState(false);
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -71,6 +90,48 @@ export default function CastsBoard({
 
   const docs = (tr: Trial) => tr.documents ?? {};
   const allDocs = (tr: Trial) => DOC_KEYS.every((d) => docs(tr)[d.key] === true);
+
+  // ── F3g' castログイン招待（招待=未結線 / PW再発行=結線済み・POST /api/cast/invite） ──
+  const reloadLoginCasts = useCallback(async () => {
+    const { data } = await supabase.from("casts").select("id, name, user_id").eq("is_active", true).order("name");
+    setLoginCasts((data ?? []) as CastLogin[]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function openInvite(c: CastLogin, mode: "invite" | "reset") {
+    setInvTarget(c); setInvMode(mode); setInvEmail(""); setInvErr(null); setInvResult(null); setInvCopied(false);
+    setInvIdemKey(crypto.randomUUID()); // 送信意図ごとに1つ＝リトライは同キー（route が二重作成を止める）
+  }
+
+  async function submitInvite() {
+    if (!invTarget) return;
+    setBusy(true); setInvErr(null);
+    try {
+      const res = await fetch("/api/cast/invite", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          castId: invTarget.id,
+          action: invMode,
+          email: invMode === "invite" && invEmail.trim() ? invEmail.trim() : undefined, // 空なら送らない＝合成 email を route が自動発行
+          idemKey: invMode === "invite" ? invIdemKey : undefined,
+        }),
+      });
+      const body = (await res.json()) as InviteResult & { error?: string };
+      if (!res.ok) setInvErr(body.error ?? `失敗しました（${res.status}）`);
+      else { setInvResult(body); await reloadLoginCasts(); }
+    } catch (e) {
+      setInvErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyInvite() {
+    if (!invResult?.initial_password) return;
+    await navigator.clipboard.writeText(`${invResult.login_email}\n${invResult.initial_password}`);
+    setInvCopied(true);
+  }
 
   async function toggleDoc(tr: Trial, key: string) {
     const next = { id_doc: false, contract: false, pledge: false, bank: false, ...docs(tr), [key]: !docs(tr)[key] };
@@ -162,6 +223,102 @@ export default function CastsBoard({
           onSubmit={(a) => rpc("キャストを登録", "cast_create", a)}
         />
       </section>
+
+      {/* F3g' ログイン招待（マイページ）＝招待（未結線）/ PW再発行（結線済み）の出し分け */}
+      <section className="nox-cardtop" style={card}>
+        <h2 style={secTitle}>ログイン招待（マイページ）</h2>
+        <p style={{ ...t.sub, margin: "0 0 10px" }}>
+          キャストにログインアカウントを発行します。招待するとマイページ（出勤・報酬の確認）が使えます。
+        </p>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+            <thead>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
+                {["キャスト", "状態", "操作"].map((h) => (
+                  <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loginCasts.length === 0 && (
+                <tr><td colSpan={3} style={{ padding: 8, color: "var(--sub)" }}>（在籍キャストがいません）</td></tr>
+              )}
+              {loginCasts.map((c) => (
+                <tr key={c.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                  <td style={{ padding: 6, fontWeight: 700, whiteSpace: "nowrap" }}>{c.name}</td>
+                  <td style={{ padding: 6, color: c.user_id ? "var(--ok)" : "var(--sub)", whiteSpace: "nowrap" }}>
+                    {c.user_id ? "招待済み" : "未招待"}
+                  </td>
+                  <td style={{ padding: 6 }}>
+                    {c.user_id ? (
+                      <button style={btnGhost} disabled={busy} onClick={() => openInvite(c, "reset")}>PW再発行</button>
+                    ) : (
+                      <button style={btnGold} disabled={busy} onClick={() => openInvite(c, "invite")}>招待</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 招待/PW再発行モーダル（staff-board の追加モーダル雛形・PW は一度だけ表示） */}
+      {invTarget && (
+        <div style={overlay} onClick={() => !busy && !invResult && setInvTarget(null)}>
+          <div className="nox-cardtop" style={modalCard} onClick={(e) => e.stopPropagation()}>
+            {!invResult ? (
+              <>
+                <h2 style={secTitle}>{invMode === "invite" ? `${invTarget.name} を招待` : `${invTarget.name} のパスワード再発行`}</h2>
+                {invMode === "invite" ? (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <label style={{ display: "grid", gap: 4 }}>
+                      <span style={t.fieldLabel}>メールアドレス（任意）</span>
+                      <input value={invEmail} onChange={(e) => setInvEmail(e.target.value)} style={t.input}
+                        placeholder="未入力なら自動でログインIDを発行" type="email" />
+                    </label>
+                    <p style={{ ...t.sub, margin: 0 }}>発行した初期パスワードは次の画面で一度だけ表示されます。</p>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
+                    新しいパスワードを発行します（現在のパスワードは使えなくなります）。新パスワードは次の画面で一度だけ表示されます。
+                  </p>
+                )}
+                {invErr && <p style={{ ...t.bad, fontSize: 12.5, margin: "8px 0 0" }}>{invErr}</p>}
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+                  <button style={btnGhost} disabled={busy} onClick={() => setInvTarget(null)}>キャンセル</button>
+                  <button style={btnGold} disabled={busy} onClick={() => void submitInvite()}>
+                    {busy ? "処理中…" : invMode === "invite" ? "招待する" : "再発行する"}
+                  </button>
+                </div>
+              </>
+            ) : invResult.initial_password ? (
+              <>
+                <h2 style={secTitle}>{invMode === "invite" ? "招待しました" : "パスワードを再発行しました"}</h2>
+                <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
+                  <div style={t.bdRow}><span style={t.bdKey}>ログインID</span><span style={{ ...t.bdVal, wordBreak: "break-all" }}>{invResult.login_email}</span></div>
+                  <div style={t.bdRow}><span style={t.bdKey}>{invMode === "invite" ? "初期パスワード" : "新パスワード"}</span><span style={{ ...t.bdVal, color: "var(--champ)", letterSpacing: 1 }}>{invResult.initial_password}</span></div>
+                </div>
+                <p style={{ ...t.alert, marginBottom: 10 }}>このパスワードは再表示できません。キャストに安全に渡してください。</p>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button style={btnGhost} onClick={() => void copyInvite()}>{invCopied ? "コピーしました ✓" : "ID とパスワードをコピー"}</button>
+                  <button style={btnGold} onClick={() => setInvTarget(null)}>閉じる</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 style={secTitle}>既存アカウントに結線しました</h2>
+                <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
+                  {invResult.login_email} は登録済みのため、既存のログイン情報のまま結線しました（パスワードの再発行はありません）。
+                </p>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button style={btnGold} onClick={() => setInvTarget(null)}>閉じる</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
