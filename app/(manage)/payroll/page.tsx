@@ -11,5 +11,5 @@ export default async function PayrollPage() {
   if (role !== "owner" && role !== "manager") redirect("/register");
   const supabase = await createClient();
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
-  return <PayrollBoard stores={(stores ?? []) as { id: string; name: string }[]} />;
+  return <PayrollBoard stores={(stores ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />;
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
 import PaymentPanel from "./payment-panel";
+import InvoicePanel from "./invoice-panel";
 
 type Store = { id: string; name: string };
 type Row = {
@@ -15,7 +16,7 @@ type Blocker = { castName: string; reason: string };
 type Incentive = { id: string; bizDate: string; amountMode: string; amount: number; recipientCount: number; distributedTotal: number; warnEmptyPool: boolean };
 
 // 3段フロー（期間選択→プレビュー→確定）。プレビューは参考値（確定時点で再計算が正）。
-export default function PayrollBoard({ stores }: { stores: Store[] }) {
+export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isOwner: boolean }) {
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -183,6 +184,9 @@ export default function PayrollBoard({ stores }: { stores: Store[] }) {
 
       {/* 確定済み給与の支払記録（選択中の店舗・期間に対して） */}
       {storeId && <PaymentPanel storeId={storeId} period={period} />}
+
+      {/* F2d インボイス・支払調書（税区分管理＋支払調書CSV・源泉計算には非接触） */}
+      {storeId && <InvoicePanel storeId={storeId} period={period} isOwner={isOwner} />}
     </div>
   );
 }
