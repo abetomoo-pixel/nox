@@ -114,6 +114,15 @@
  *       g. cast_create 直接登録（casts+cast_sensitive・under 18・認可）。★trial_hire/cast_create の生成物は
  *       段31 方式で全消し（trials→cast_sensitive→casts の依存順・name prefix backstop）＝casts 固定カウント
  *       反転ゼロ。anon は段32a で公開5本 BLOCKED・cast_create_apply は段5b で anon/authenticated 両 BLOCKED。
+ * 段33（0041 適用後）: castログイン招待（cast_invite＝users＋membership[role='cast']＋casts.user_id 結線）。
+ *       段18 実 auth 動的生成＝createUser→owner cast_invite→物理確認（users 生成・membership role=cast/
+ *       store=cast.store_id 導出＝store 整合・casts.user_id 結線・audit）→signInWithPassword→
+ *       ★auth_role='cast'（memberships 土台）・auth_cast_id=対象 cast（casts.user_id 土台）・
+ *       check_cast_backs 0行＝自己行のみ（golden 他 cast 不可視・/mine 相当 RLS 実測）。負系＝
+ *       already linked（再招待）/already active elsewhere（既存 active membership 持ち）/bad target
+ *       （staff 人材 email への cast 結線封じ）/not found（他 org）/forbidden（他店 manager・staff・cast）。
+ *       finally=casts（name prefix）→memberships→users→auth deleteUser の順で全消し＝固定カウント反転ゼロ。
+ *       anon は段33a で BLOCKED。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -391,6 +400,12 @@ async function main() {
   for (const [fn, args] of F0040_PROBES) {
     const { error } = await anon.rpc(fn, args);
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
+  // ── 段33a: castログイン招待（mig0041）cast_invite anon BLOCKED ──
+  {
+    const { error } = await anon.rpc("cast_invite", { p_auth_user_id: null, p_email: null, p_cast_id: null });
+    check("anon cast_invite BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
   // ── 段5b: 内部関数は anon でも BLOCKED ──
@@ -4129,6 +4144,120 @@ async function main() {
       const { data: cLeft } = await admin.from("casts").select("id").like("name", `${PREFIX}%`);
       check("段32 掃除確認: trials/casts 0行（casts 固定カウント非汚染）",
         (tLeft ?? []).length === 0 && (cLeft ?? []).length === 0, `trials=${(tLeft ?? []).length}, casts=${(cLeft ?? []).length}`);
+    }
+  }
+
+  // ── 段33: castログイン招待（mig0041）cast_invite の実効フロー＋/mine 土台実測 ──
+  //   段18 実 auth 動的生成パターン＝createUser→cast_invite→signIn→auth_role/auth_cast_id/RLS 実測→
+  //   finally 全消し（casts[name prefix]→memberships→users→auth deleteUser の依存順）＝固定カウント反転ゼロ。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+
+    const { data: s33A1 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    const { data: s33A2 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A2).single();
+
+    const PREFIX = "NOX-VERIFY-段33";
+    const TMP_EMAIL = "nox-verify-cast-invite-tmp@example.com";
+    // 前回遺物掃除（casts[FK: user_id→users]を先に消してから users）
+    const wipe33 = async () => {
+      await admin.from("casts").delete().like("name", PREFIX + "%");
+      const { data: oldU } = await admin.from("users").select("id").eq("email", TMP_EMAIL);
+      const ids = (oldU ?? []).map((r) => r.id as string);
+      if (ids.length) {
+        await admin.from("memberships").delete().in("user_id", ids);
+        await admin.from("users").delete().in("id", ids);
+      }
+    };
+    await wipe33();
+
+    // 結線対象の一時 cast（user_id null＝招待可能・A1 に2体＋A2 に1体=店スコープ負系用）
+    const { data: c1 } = await admin.from("casts")
+      .insert({ org_id: s33A1!.org_id, store_id: s33A1!.id, name: `${PREFIX}-cast1`, is_active: true }).select("id").single();
+    const { data: c2 } = await admin.from("casts")
+      .insert({ org_id: s33A1!.org_id, store_id: s33A1!.id, name: `${PREFIX}-cast2`, is_active: true }).select("id").single();
+    const { data: c3 } = await admin.from("casts")
+      .insert({ org_id: s33A2!.org_id, store_id: s33A2!.id, name: `${PREFIX}-castA2`, is_active: true }).select("id").single();
+
+    // 実 auth（route の createUser 相当・seed と同一プリミティブ）
+    let authId = "";
+    const { data: cuTmp, error: eCuTmp } = await admin.auth.admin.createUser({
+      email: TMP_EMAIL, password: env.SEED_PASSWORD, email_confirm: true,
+    });
+    if (eCuTmp || !cuTmp?.user) fails.push(`段33 実 auth 生成失敗: ${eCuTmp?.message}`);
+    authId = cuTmp?.user?.id ?? "";
+
+    const owner = await signInShared("段33", "ownerA");
+    const mgr = await signInShared("段33", "managerA1");
+    const mgrB = await signInShared("段33", "managerB1");
+    const staffOn = await signInShared("段33", "staffRegOnA1");
+    const castA = await signInShared("段33", "castA1a");
+    const castTmp = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    check("段33（準備）店/一時 cast 3体/実 auth 解決", !!s33A1 && !!s33A2 && !!c1 && !!c2 && !!c3 && !!authId);
+
+    if (s33A1 && s33A2 && c1 && c2 && c3 && authId && owner && mgr && mgrB && staffOn && castA) {
+      try {
+        // ═══ 正常系: owner が cast1 を招待（users＋membership＋casts.user_id の3点結線）═══
+        const { data: memId, error: eInv } = await owner.rpc("cast_invite", {
+          p_auth_user_id: authId, p_email: TMP_EMAIL, p_cast_id: c1.id,
+        });
+        check("段33 ★owner cast_invite 成功（membership uuid 返却）", !eInv && typeof memId === "string", eInv?.message);
+        const { data: uRow } = await admin.from("users").select("id, auth_user_id, name").eq("email", TMP_EMAIL).single();
+        check("段33 users 生成物理確認: auth_user_id 結線・name=源氏名",
+          uRow?.auth_user_id === authId && uRow?.name === `${PREFIX}-cast1`, JSON.stringify(uRow));
+        const { data: mRow } = await admin.from("memberships").select("role, store_id, is_active").eq("id", memId as string).single();
+        check("段33 membership 物理確認: role=cast・store=対象 cast.store_id 導出（store 整合）・active",
+          mRow?.role === "cast" && mRow?.store_id === s33A1.id && mRow?.is_active === true, JSON.stringify(mRow));
+        const { data: cRow } = await admin.from("casts").select("user_id").eq("id", c1.id).single();
+        check("段33 casts.user_id 結線物理確認", cRow?.user_id === uRow?.id, JSON.stringify(cRow));
+        const { data: aud } = await owner.from("audit_logs").select("action").eq("action", "cast_invite")
+          .eq("target", `casts:${c1.id}`).limit(1);
+        check("段33 audit: cast_invite 行生成", (aud ?? []).length === 1, JSON.stringify(aud));
+
+        // ═══ ★招待した cast で signIn → /mine 土台の実測 ═══
+        const { error: eSign } = await castTmp.auth.signInWithPassword({ email: TMP_EMAIL, password: env.SEED_PASSWORD });
+        check("段33 ★招待 cast で signIn 成功（auth↔users↔memberships↔casts 連鎖）", !eSign, eSign?.message);
+        if (!eSign) {
+          const { data: roleV } = await castTmp.rpc("auth_role");
+          check("段33 ★auth_role='cast'（memberships 土台）", roleV === "cast", `got ${JSON.stringify(roleV)}`);
+          const { data: cidV } = await castTmp.rpc("auth_cast_id");
+          check("段33 ★auth_cast_id=対象 cast（casts.user_id 土台）", cidV === c1.id, `got ${JSON.stringify(cidV)}`);
+          const { data: backs, error: eB } = await castTmp.from("check_cast_backs").select("cast_id");
+          check("段33 ★check_cast_backs=自己行のみ（自分0行・golden 他 cast 不可視＝パターン1 実測）",
+            !eB && (backs ?? []).length === 0, eB?.message ?? `got ${(backs ?? []).length}`);
+        }
+
+        // ═══ 負系 ═══
+        const { error: eAl } = await owner.rpc("cast_invite", { p_auth_user_id: randomUUID(), p_email: "nox-verify-s33-x1@example.com", p_cast_id: c1.id });
+        check("段33 結線済み cast への再招待 = already linked", has(eAl, "already linked"), eAl?.message ?? "通ってしまった");
+        const { error: eEls } = await owner.rpc("cast_invite", { p_auth_user_id: randomUUID(), p_email: TMP_EMAIL, p_cast_id: c2.id });
+        check("段33 既存 active membership 持ち user = already active elsewhere", has(eEls, "already active elsewhere"), eEls?.message ?? "通ってしまった");
+        const { error: eBt } = await owner.rpc("cast_invite", { p_auth_user_id: randomUUID(), p_email: FIXTURE_USERS.staffRegOffA1.email, p_cast_id: c2.id });
+        check("段33 staff 人材 email = bad target（役職二重化の鏡像封じ）", has(eBt, "bad target"), eBt?.message ?? "通ってしまった");
+        const { error: eNf } = await mgrB.rpc("cast_invite", { p_auth_user_id: randomUUID(), p_email: "nox-verify-s33-x2@example.com", p_cast_id: c2.id });
+        check("段33 他 org manager = not found（存在オラクル封じ）", has(eNf, "not found"), eNf?.message ?? "通ってしまった");
+        const { error: eOs } = await mgr.rpc("cast_invite", { p_auth_user_id: randomUUID(), p_email: "nox-verify-s33-x3@example.com", p_cast_id: c3.id });
+        check("段33 manager 他店 cast = forbidden（店スコープ）", forbidden(eOs), eOs?.message ?? "通ってしまった");
+        const { error: eSt } = await staffOn.rpc("cast_invite", { p_auth_user_id: randomUUID(), p_email: "nox-verify-s33-x4@example.com", p_cast_id: c2.id });
+        check("段33 staff forbidden", forbidden(eSt), eSt?.message ?? "通ってしまった");
+        const { error: eCa } = await castA.rpc("cast_invite", { p_auth_user_id: randomUUID(), p_email: "nox-verify-s33-x5@example.com", p_cast_id: c2.id });
+        check("段33 cast forbidden", forbidden(eCa), eCa?.message ?? "通ってしまった");
+      } finally {
+        await castTmp.auth.signOut().catch(() => undefined);
+        await wipe33();
+        if (authId) await admin.auth.admin.deleteUser(authId).catch(() => undefined);
+      }
+      // 非汚染の物理確認（users/casts 全消し＝rls 固定カウント［memberships 9行・casts A1=2人・ranking 2行］反転ゼロ）
+      const { data: uLeft } = await admin.from("users").select("id").eq("email", TMP_EMAIL);
+      const { data: cLeft } = await admin.from("casts").select("id").like("name", `${PREFIX}%`);
+      check("段33 掃除確認: 一時 users/casts 0行（固定カウント非汚染）",
+        (uLeft ?? []).length === 0 && (cLeft ?? []).length === 0, `users=${(uLeft ?? []).length}, casts=${(cLeft ?? []).length}`);
     }
   }
 

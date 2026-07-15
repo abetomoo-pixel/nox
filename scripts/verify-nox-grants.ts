@@ -421,6 +421,15 @@ async function main() {
       check("G18 cast_create_apply EXECUTE = owner のみ（内部専用・4ロール revoke）",
         leaked.length === 0, `保持者: ${roles.join(", ") || "(owner のみ)"}`);
     }
+
+    // G19: castログイン招待（mig0041）— cast_invite の EXECUTE ACL。
+    //   users/memberships/casts の policy 不変（select 各1本）は G12/G14 と mig0041 検証3 が担保。
+    {
+      const roles = await roleOf("cast_invite");
+      check("G19 cast_invite EXECUTE = authenticated（anon/public 不在）",
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
   }
 
   await db.end();
