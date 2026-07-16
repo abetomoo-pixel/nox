@@ -6,6 +6,7 @@ import SimulatorPanel from "@/components/simulator-panel";
 import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
 import AttendanceForm from "./attendance-form";
+import NormCard from "./norm-card";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +133,9 @@ export default async function MinePage() {
         <h1 style={t.pheadH1}>マイページ</h1>
         <p style={t.pheadP}>ノルマと今月の収支</p>
       </div>
+
+      {/* ノルマ進捗（mig0042・表示のみ）: 採用軸かつ目標>0 の軸だけ・全非表示ならカード自体出ない */}
+      <NormCard />
 
       <section className="nox-cardtop" style={t.card}>
         <h2 style={title}>確定給与明細</h2>

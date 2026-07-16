@@ -7,6 +7,7 @@ import DeductionPanel from "./deduction-panel";
 import SensitiveTaxPanel from "./sensitive-tax-panel";
 import BusinessHoursPanel from "./business-hours-panel";
 import CastRegisterPanel from "./cast-register-panel";
+import NormConfigPanel from "./norm-config-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,14 @@ export default async function MasterPage() {
   // 営業時間パネル用の全店リスト（B-5・owner=org 全店で store select・manager=RLS で自店1件）
   const { data: allStores } = await supabase.from("stores").select("id, name").order("name");
   // okuri_mode は settings_json 相乗り（既定 'flat'）。owner のみトグル可（set_store_okuri_mode）。
-  const okuriMode = (store?.settings_json as Record<string, unknown> | null)?.okuri_mode === "actual" ? "actual" : "flat";
+  const sj = store?.settings_json as Record<string, unknown> | null;
+  const okuriMode = sj?.okuri_mode === "actual" ? "actual" : "flat";
+  // mig0042: 送りベース額（発行プリフィル専用）＋ノルマ採用フラグ（fail-closed＝明示 true のみ有効）。
+  const okuriBase = typeof sj?.okuri_base_amount === "number" && sj.okuri_base_amount > 0 ? (sj.okuri_base_amount as number) : 0;
+  const salesNormEnabled = sj?.sales_norm_enabled === true;
+  const shimeiNormEnabled = sj?.shimei_norm_enabled === true;
+  const shimeiNormScope: "hon" | "hon_jonai" =
+    (typeof sj?.shimei_norm_scope === "string" ? (sj.shimei_norm_scope as string).trim() : "") === "hon_jonai" ? "hon_jonai" : "hon";
   // 発行パネル用の cast 一覧（RLS で自店のみ・manager+ 可視）。
   const { data: casts } = await supabase.from("casts").select("id, name, user_id").eq("store_id", storeId).eq("is_active", true).order("name");
   // F3g キャスト会計（mig0039）: 店フラグ（settings_json.cast_register_enabled・owner トグル）＋
@@ -44,6 +52,15 @@ export default async function MasterPage() {
     <>
       <MasterBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} />
       {isManagerUp && (
+        <NormConfigPanel
+          storeId={storeId}
+          isOwner={role === "owner"}
+          initialSalesEnabled={salesNormEnabled}
+          initialShimeiEnabled={shimeiNormEnabled}
+          initialShimeiScope={shimeiNormScope}
+        />
+      )}
+      {isManagerUp && (
         <BusinessHoursPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
       )}
       {isManagerUp && (
@@ -52,6 +69,7 @@ export default async function MasterPage() {
           casts={(casts ?? []) as { id: string; name: string }[]}
           isOwner={role === "owner"}
           initialOkuriMode={okuriMode}
+          initialOkuriBase={okuriBase}
         />
       )}
       {isManagerUp && (

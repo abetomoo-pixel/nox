@@ -16,7 +16,7 @@ type Plan = {
 };
 type CastRow = { id: string; name: string };
 type CastPlan = { cast_id: string; plan_id: string; overrides_json: Record<string, number> };
-type Norm = { id: string; cast_id: string; period: string; days_target: number; dohan_target: number };
+type Norm = { id: string; cast_id: string; period: string; days_target: number; dohan_target: number; sales_target: number; shimei_target: number };
 type Deduction = { id: string; name: string; amount: number; per: string; is_active: boolean };
 type BackDef = { id: string; name: string; basis: string; value: number; cond_json: { metric: string; min: number } | null; is_active: boolean };
 type Penalty = {
@@ -65,7 +65,7 @@ export default function CompMaster({ storeId, isManagerUp, isOwner }: { storeId:
       supabase.from("comp_plans").select("*").order("name"),
       supabase.from("casts").select("id, name").eq("is_active", true).order("name"),
       supabase.from("cast_plan").select("cast_id, plan_id, overrides_json"),
-      supabase.from("cast_norms").select("id, cast_id, period, days_target, dohan_target").order("period"),
+      supabase.from("cast_norms").select("id, cast_id, period, days_target, dohan_target, sales_target, shimei_target").order("period"),
       supabase.from("deductions").select("id, name, amount, per, is_active").order("name"),
       supabase.from("custom_back_defs").select("id, name, basis, value, cond_json, is_active").order("name"),
       supabase.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
@@ -247,24 +247,32 @@ function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload }: { p
   );
 }
 
-// ── ノルマ（manager 以上）──
+// ── ノルマ（manager 以上・mig0042 で4軸＝日数/同伴＋売上/指名）──
+//   売上・指名の新2軸は表示のみ（payOf/normPenalty 非接続＝/mine の進捗表示用）。
+//   罰金に効くのは従来どおり日数・同伴のみ（罰金・閾値タブの norm_on 配下）。
 function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: CastRow[]; norms: Norm[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
   const [castId, setCastId] = useState("");
   const [period, setPeriod] = useState("");
   const [days, setDays] = useState(0);
   const [dohan, setDohan] = useState(0);
+  const [sales, setSales] = useState(0);
+  const [shimei, setShimei] = useState(0);
   const castName = (cid: string) => casts.find((c) => c.id === cid)?.name ?? cid;
 
   async function save() {
-    const { error } = await supabase.rpc("set_cast_norm", { p_cast_id: castId, p_period: period, p_days_target: days, p_dohan_target: dohan });
+    // 6引数を常に明示送信（mig0042 で4引数版は drop 済・部分省略は関数不一致で失敗する）
+    const { error } = await supabase.rpc("set_cast_norm", {
+      p_cast_id: castId, p_period: period, p_days_target: days, p_dohan_target: dohan,
+      p_sales_target: sales, p_shimei_target: shimei,
+    });
     setMsg(error ? error.message : "ノルマを保存しました");
     if (!error) await reload();
   }
   return (
     <div>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["キャスト", "期間", "日数目標", "同伴目標"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
+        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["キャスト", "期間", "日数目標", "同伴目標", "売上目標", "指名目標"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
         <tbody>
           {norms.map((n) => (
             <tr key={n.id} style={{ borderBottom: "1px solid var(--line)" }}>
@@ -272,21 +280,31 @@ function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: CastRow
               <td style={{ padding: 6, ...t.num }}>{n.period}</td>
               <td style={{ padding: 6, ...t.num }}>{n.days_target}</td>
               <td style={{ padding: 6, ...t.num }}>{n.dohan_target}</td>
+              <td style={{ padding: 6, ...t.num }}>{(n.sales_target ?? 0).toLocaleString()}</td>
+              <td style={{ padding: 6, ...t.num }}>{n.shimei_target}</td>
             </tr>
           ))}
         </tbody>
       </table>
       {isManagerUp ? (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <select value={castId} onChange={(e) => setCastId(e.target.value)} style={input}>
-            <option value="">キャスト選択</option>
-            {casts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <input placeholder="2026-07" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ ...input, width: 90 }} />
-          <label style={{ fontSize: 12 }}>日数 <input type="number" min={0} value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ ...input, width: 64 }} /></label>
-          <label style={{ fontSize: 12 }}>同伴 <input type="number" min={0} value={dohan} onChange={(e) => setDohan(Number(e.target.value))} style={{ ...input, width: 64 }} /></label>
-          <button style={btnDark} onClick={save} disabled={!castId || !period}>保存</button>
-        </div>
+        <>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <select value={castId} onChange={(e) => setCastId(e.target.value)} style={input}>
+              <option value="">キャスト選択</option>
+              {casts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <input placeholder="2026-07" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ ...input, width: 90 }} />
+            <label style={{ fontSize: 12 }}>日数 <input type="number" min={0} value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ ...input, width: 64 }} /></label>
+            <label style={{ fontSize: 12 }}>同伴 <input type="number" min={0} value={dohan} onChange={(e) => setDohan(Number(e.target.value))} style={{ ...input, width: 64 }} /></label>
+            <label style={{ fontSize: 12 }}>売上(円) <input type="number" min={0} value={sales} onChange={(e) => setSales(Number(e.target.value))} style={{ ...input, width: 100 }} /></label>
+            <label style={{ fontSize: 12 }}>指名 <input type="number" min={0} value={shimei} onChange={(e) => setShimei(Number(e.target.value))} style={{ ...input, width: 64 }} /></label>
+            <button style={btnDark} onClick={save} disabled={!castId || !period}>保存</button>
+          </div>
+          <p style={{ ...note, marginTop: 8 }}>
+            ※売上・指名ノルマは表示のみ（本人のマイページ進捗表示用・罰金には接続されません）。
+            店として採用する軸と指名のカウント定義は「ノルマ設定（店）」パネルで切り替えます。
+          </p>
+        </>
       ) : <p style={note}>ノルマはマネージャー以上のみ可能です。</p>}
     </div>
   );
