@@ -123,6 +123,15 @@
  *       （staff 人材 email への cast 結線封じ）/not found（他 org）/forbidden（他店 manager・staff・cast）。
  *       finally=casts（name prefix）→memberships→users→auth deleteUser の順で全消し＝固定カウント反転ゼロ。
  *       anon は段33a で BLOCKED。
+ * 段34（0042 適用後）: ノルマ拡張（cast_norms 4軸化＝sales_target/shimei_target 追加・表示のみ＝payOf 非接続）
+ *       ＋店設定 setter 2本（set_store_norm_config／set_store_okuri_base・owner 限定）。
+ *       a. manager set_cast_norm 6引数 正系（uuid 返却・4軸充填・行生成・audit）＝段内動的 period（2031-12）で
+ *       固定 fixture（2026-07＝rls ⑥）と衝突回避／b. cast 自行 SELECT で新列可視（パターン1）＋ cast setter
+ *       3本 forbidden／c. owner set_store_norm_config／set_store_okuri_base 正系（settings_json 4キー反映＝
+ *       sales_norm_enabled/shimei_norm_enabled/shimei_norm_scope/okuri_base_amount）／d. manager 店設定 setter
+ *       forbidden（owner 限定＝段31-f 型）・null/不正値拒否（bad sales_enabled/bad shimei_scope/bad amount/
+ *       bad sales_target/bad shimei_target）。finally=cast_norms 一時行削除＋store settings_json 厳密復元
+ *       ＝固定カウント反転ゼロ。anon は set_cast_norm 6引数＝段8a（probe 更新）・店設定2本＝段34a で BLOCKED。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -260,7 +269,7 @@ async function main() {
   const F2A_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
     ["set_comp_plan", { p_id: null, p_store_id: null, p_name: null, p_base: null, p_hon_back: null, p_jonai_back: null, p_dohan_back: null, p_sales_slide: null, p_point_slide: null, p_is_active: null }],
     ["set_cast_plan", { p_cast_id: null, p_plan_id: null, p_overrides: null }],
-    ["set_cast_norm", { p_cast_id: null, p_period: null, p_days_target: null, p_dohan_target: null }],
+    ["set_cast_norm", { p_cast_id: null, p_period: null, p_days_target: null, p_dohan_target: null, p_sales_target: null, p_shimei_target: null }], // mig0042 で 6引数へ置換（4引数版 drop 済）
     ["set_deduction", { p_id: null, p_store_id: null, p_name: null, p_amount: null, p_per: null, p_is_active: null }],
     ["set_penalty_config", { p_store_id: null, p_fine_absent: null, p_fine_late: null, p_hours_per_shift: null, p_norm_on: null, p_norm_days_flat: null, p_norm_days_per: null, p_norm_dohan_flat: null, p_norm_dohan_per: null, p_late_grace_min: null, p_early_grace_min: null, p_over_grace_min: null }],
     ["set_custom_back_def", { p_id: null, p_store_id: null, p_name: null, p_basis: null, p_value: null, p_cond: null, p_is_active: null }],
@@ -406,6 +415,17 @@ async function main() {
   {
     const { error } = await anon.rpc("cast_invite", { p_auth_user_id: null, p_email: null, p_cast_id: null });
     check("anon cast_invite BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
+  // ── 段34a: ノルマ拡張＋送りベース（mig0042）店設定 setter 2本 anon BLOCKED ──
+  //   set_cast_norm 6引数版の anon BLOCKED は段8a（probe を 6引数へ更新済み）。
+  const F0042_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["set_store_norm_config", { p_store_id: null, p_sales_enabled: null, p_shimei_enabled: null, p_shimei_scope: null }],
+    ["set_store_okuri_base", { p_store_id: null, p_amount: null }],
+  ];
+  for (const [fn, args] of F0042_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
   // ── 段5b: 内部関数は anon でも BLOCKED ──
@@ -4258,6 +4278,124 @@ async function main() {
       const { data: cLeft } = await admin.from("casts").select("id").like("name", `${PREFIX}%`);
       check("段33 掃除確認: 一時 users/casts 0行（固定カウント非汚染）",
         (uLeft ?? []).length === 0 && (cLeft ?? []).length === 0, `users=${(uLeft ?? []).length}, casts=${(cLeft ?? []).length}`);
+    }
+  }
+
+  // ── 段34: ノルマ拡張＋送りベース（mig0042）実書込＋認可マトリクス ──
+  //   新2軸（sales_target/shimei_target）＝表示のみ（payOf/normPenalty/collect 非接続）＝ここでは器と認可のみ検証。
+  //   period は段内動的（2031-12）＝rls ⑥ の固定 fixture（castA1a×2026-07）と衝突させない。
+  //   finally: cast_norms 一時行削除＋store A1 settings_json 厳密復元（固定カウント反転ゼロ・段31 方式）。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+    const S34_PERIOD = "2031-12";
+
+    const { data: s34Store } = await admin.from("stores").select("id, org_id, settings_json").eq("name", STORE_A1).single();
+    const baseline34 = (s34Store?.settings_json ?? null) as Record<string, unknown> | null;
+
+    const owner = await signInShared("段34", "ownerA");
+    const mgr = await signInShared("段34", "managerA1");
+    const castA = await signInShared("段34", "castA1a");
+    // 対象 cast＝castA1a 本人（auth_cast_id で解決＝fixture 名依存を作らない）
+    const { data: castIdA } = castA ? await castA.rpc("auth_cast_id") : { data: null };
+
+    // 前回遺物掃除（段内動的 period の行のみ）
+    await admin.from("cast_norms").delete().eq("period", S34_PERIOD);
+
+    check("段34（準備）店/セッション/castA1a cast_id 解決", !!s34Store && !!owner && !!mgr && !!castA && typeof castIdA === "string");
+
+    if (s34Store && owner && mgr && castA && typeof castIdA === "string") {
+      try {
+        // ═══ a. manager set_cast_norm 6引数 正系（uuid 返却・4軸充填・行生成）═══
+        const { data: nid, error: eScn } = await mgr.rpc("set_cast_norm", {
+          p_cast_id: castIdA, p_period: S34_PERIOD, p_days_target: 10, p_dohan_target: 3,
+          p_sales_target: 1_500_000, p_shimei_target: 8,
+        });
+        check("段34 ★manager set_cast_norm 6引数 成功（uuid 返却＝自店可）", !eScn && typeof nid === "string", eScn?.message);
+        const { data: nRow } = await admin.from("cast_norms")
+          .select("days_target, dohan_target, sales_target, shimei_target").eq("id", nid as string).single();
+        check("段34 cast_norms 行生成（4軸充填 10/3/1500000/8）",
+          nRow?.days_target === 10 && nRow?.dohan_target === 3
+          && nRow?.sales_target === 1_500_000 && nRow?.shimei_target === 8, JSON.stringify(nRow));
+        const { data: aud34 } = await owner.from("audit_logs").select("action").eq("action", "set_cast_norm")
+          .eq("target", `cast_norms:${nid}`).limit(1);
+        check("段34 audit: set_cast_norm 行生成", (aud34 ?? []).length === 1, JSON.stringify(aud34));
+
+        // ═══ b. cast 自行 SELECT＝新列可視（パターン1）＋ cast setter forbidden ═══
+        const { data: selfRows, error: eSelf } = await castA.from("cast_norms")
+          .select("days_target, dohan_target, sales_target, shimei_target").eq("period", S34_PERIOD);
+        check("段34 ★cast 自行 SELECT＝新列可視（パターン1・sales/shimei 読める）",
+          !eSelf && (selfRows ?? []).length === 1
+          && selfRows?.[0]?.sales_target === 1_500_000 && selfRows?.[0]?.shimei_target === 8,
+          eSelf?.message ?? JSON.stringify(selfRows));
+        const { error: eCa1 } = await castA.rpc("set_cast_norm", {
+          p_cast_id: castIdA, p_period: S34_PERIOD, p_days_target: 0, p_dohan_target: 0,
+          p_sales_target: 0, p_shimei_target: 0,
+        });
+        check("段34 cast set_cast_norm forbidden", forbidden(eCa1), eCa1?.message ?? "通ってしまった");
+        const { error: eCa2 } = await castA.rpc("set_store_norm_config", {
+          p_store_id: s34Store.id, p_sales_enabled: true, p_shimei_enabled: true, p_shimei_scope: "hon",
+        });
+        check("段34 cast set_store_norm_config forbidden", forbidden(eCa2), eCa2?.message ?? "通ってしまった");
+        const { error: eCa3 } = await castA.rpc("set_store_okuri_base", { p_store_id: s34Store.id, p_amount: 1000 });
+        check("段34 cast set_store_okuri_base forbidden", forbidden(eCa3), eCa3?.message ?? "通ってしまった");
+
+        // ═══ c. owner 店設定 setter 正系（settings_json 4キー反映）═══
+        const { error: eNc } = await owner.rpc("set_store_norm_config", {
+          p_store_id: s34Store.id, p_sales_enabled: true, p_shimei_enabled: true, p_shimei_scope: "hon_jonai",
+        });
+        check("段34 ★owner set_store_norm_config 成功", !eNc, eNc?.message);
+        const { error: eOb } = await owner.rpc("set_store_okuri_base", { p_store_id: s34Store.id, p_amount: 3000 });
+        check("段34 ★owner set_store_okuri_base 成功", !eOb, eOb?.message);
+        const { data: stAfter } = await admin.from("stores").select("settings_json").eq("id", s34Store.id).single();
+        const sj = (stAfter?.settings_json ?? {}) as Record<string, unknown>;
+        check("段34 settings_json 4キー反映（sales/shimei enabled・scope=hon_jonai・okuri_base=3000）",
+          sj.sales_norm_enabled === true && sj.shimei_norm_enabled === true
+          && sj.shimei_norm_scope === "hon_jonai" && sj.okuri_base_amount === 3000, JSON.stringify(sj));
+
+        // ═══ d. 負系: manager 店設定 setter forbidden（owner 限定＝段31-f 型）＋ null/不正値拒否 ═══
+        const { error: eM1 } = await mgr.rpc("set_store_norm_config", {
+          p_store_id: s34Store.id, p_sales_enabled: false, p_shimei_enabled: false, p_shimei_scope: "hon",
+        });
+        check("段34 manager set_store_norm_config forbidden（owner 限定）", forbidden(eM1), eM1?.message ?? "通ってしまった");
+        const { error: eM2 } = await mgr.rpc("set_store_okuri_base", { p_store_id: s34Store.id, p_amount: 500 });
+        check("段34 manager set_store_okuri_base forbidden（owner 限定）", forbidden(eM2), eM2?.message ?? "通ってしまった");
+        const { error: eN1 } = await owner.rpc("set_store_norm_config", {
+          p_store_id: s34Store.id, p_sales_enabled: null, p_shimei_enabled: true, p_shimei_scope: "hon",
+        });
+        check("段34 set_store_norm_config null = bad sales_enabled", has(eN1, "bad sales_enabled"), eN1?.message ?? "通ってしまった");
+        const { error: eN2 } = await owner.rpc("set_store_norm_config", {
+          p_store_id: s34Store.id, p_sales_enabled: true, p_shimei_enabled: true, p_shimei_scope: "both",
+        });
+        check("段34 set_store_norm_config 不正 scope = bad shimei_scope", has(eN2, "bad shimei_scope"), eN2?.message ?? "通ってしまった");
+        const { error: eN3 } = await owner.rpc("set_store_okuri_base", { p_store_id: s34Store.id, p_amount: null });
+        check("段34 set_store_okuri_base null = bad amount", has(eN3, "bad amount"), eN3?.message ?? "通ってしまった");
+        const { error: eN4 } = await owner.rpc("set_cast_norm", {
+          p_cast_id: castIdA, p_period: S34_PERIOD, p_days_target: 0, p_dohan_target: 0,
+          p_sales_target: null, p_shimei_target: 0,
+        });
+        check("段34 set_cast_norm null = bad sales_target", has(eN4, "bad sales_target"), eN4?.message ?? "通ってしまった");
+        const { error: eN5 } = await owner.rpc("set_cast_norm", {
+          p_cast_id: castIdA, p_period: S34_PERIOD, p_days_target: 0, p_dohan_target: 0,
+          p_sales_target: 0, p_shimei_target: null,
+        });
+        check("段34 set_cast_norm null = bad shimei_target", has(eN5, "bad shimei_target"), eN5?.message ?? "通ってしまった");
+      } finally {
+        await admin.from("cast_norms").delete().eq("period", S34_PERIOD);
+        // store A1 settings_json を厳密復元（後続 rls・段31 前提を汚さない）
+        await admin.from("stores").update({ settings_json: baseline34 }).eq("id", s34Store.id);
+      }
+      // 非汚染の物理確認（cast_norms 一時行 0行・settings_json 復元）
+      const { data: nLeft } = await admin.from("cast_norms").select("id").eq("period", S34_PERIOD);
+      const { data: stFin34 } = await admin.from("stores").select("settings_json").eq("id", s34Store.id).single();
+      const fin34 = (stFin34?.settings_json ?? null) as Record<string, unknown> | null;
+      check("段34 掃除確認: cast_norms 一時行 0行・store settings_json 復元（固定カウント非汚染）",
+        (nLeft ?? []).length === 0
+        && JSON.stringify(fin34 ?? null) === JSON.stringify(baseline34 ?? null),
+        `norms=${(nLeft ?? []).length}, settings=${JSON.stringify(fin34)}`);
     }
   }
 

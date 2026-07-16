@@ -1825,13 +1825,17 @@ async function main() {
     check("F2a inactive プラン割当拒否（plan inactive）", !!eInact?.message?.includes("plan inactive"), eInact?.message ?? "通ってしまった");
 
     // ⑥ set_cast_norm 成功経路（upsert・値反映・audit +1）
+    //    mig0042 で 6引数へ置換（4引数版 drop 済）。新2軸（sales/shimei）は表示のみ＝payOf 非接続。
     const scn0 = await oAudit("set_cast_norm");
     const { data: nid, error: eNorm } = await m.rpc("set_cast_norm", {
       p_cast_id: castIdA, p_period: "2026-07", p_days_target: 24, p_dohan_target: 15,
+      p_sales_target: 1_000_000, p_shimei_target: 10,
     });
-    check("F2a set_cast_norm 成功（manager）", !eNorm && typeof nid === "string", eNorm?.message);
-    const { data: nRow } = await m.from("cast_norms").select("days_target, dohan_target").eq("id", nid).single();
-    check("F2a cast_norms 行実在（24/15）", nRow?.days_target === 24 && nRow?.dohan_target === 15, JSON.stringify(nRow));
+    check("F2a set_cast_norm 成功（manager・6引数）", !eNorm && typeof nid === "string", eNorm?.message);
+    const { data: nRow } = await m.from("cast_norms").select("days_target, dohan_target, sales_target, shimei_target").eq("id", nid).single();
+    check("F2a cast_norms 行実在（4軸 24/15/1000000/10）",
+      nRow?.days_target === 24 && nRow?.dohan_target === 15
+      && nRow?.sales_target === 1_000_000 && nRow?.shimei_target === 10, JSON.stringify(nRow));
     check("F2a set_cast_norm audit +1", (await oAudit("set_cast_norm")) === scn0 + 1);
 
     // ⑦ set_deduction 成功経路（audit +1）
