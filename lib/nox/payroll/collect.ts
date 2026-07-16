@@ -200,7 +200,9 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
 }
 
 // 窓内の shifts（確定）/attendance/punches を cast 別に読み、punch-io→matchPunches で days/lateN/absentN/日次hours を得る。
-async function loadPunch(admin: SupabaseClient, storeId: string, win: PayrollWindow, grace: { lateGrace?: number; earlyGrace?: number; overGrace?: number }) {
+// export: /api/mine/norm-progress が同一定義（final∈{ok,late}）で days を再利用（SQL 再実装しない＝定義乖離防止）。
+//   cast セッションの client を渡すと RLS パターン1 で自分の行のみ＝self スコープに自然に縮む。
+export async function loadPunch(admin: SupabaseClient, storeId: string, win: PayrollWindow, grace: { lateGrace?: number; earlyGrace?: number; overGrace?: number }) {
   const [shiftsR, attR, punchR] = await Promise.all([
     admin.from("shifts").select("cast_id, date, start_hm, end_hm").eq("store_id", storeId).eq("status", "confirmed").gte("date", win.periodStart).lte("date", win.periodEnd),
     admin.from("attendance").select("cast_id, date, status").eq("store_id", storeId).gte("date", win.periodStart).lte("date", win.periodEnd),
