@@ -35,12 +35,14 @@ const TABLES = [
   "customers", // F3a-2（mig0023）
   "reservations", // F3a-3（mig0027）
   "trials", // F3d 体入採用（mig0040）
+  "kiosk_devices", "cast_pin", // F4a キオスク打刻（mig0043・deny-all＝SELECT すら grant なし。G1/G2/G5 自動回帰＋G20 で policy 0本を能動 assert）
 ];
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
   "auth_staff_can_register", "auth_staff_can_crm", "auth_staff_can_shift", // F3a-1（mig0022）
   "auth_staff_can_view_backs", // バック可視是正（mig0038）
   "auth_cast_can_register", // キャスト会計（mig0039・2段ゲート）
+  "auth_kiosk_store_id", "auth_kiosk_org_id", // F4a キオスク（mig0043・kiosk_devices 起点＝auth_cast_id 同型）
 ];
 
 async function main() {
@@ -429,6 +431,33 @@ async function main() {
       check("G19 cast_invite EXECUTE = authenticated（anon/public 不在）",
         roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
         `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+
+    // G20: F4a キオスク打刻（mig0043）— RPC 5本の EXECUTE ACL ＋ deny-all 2表の policy 0本 ＋ source 3値。
+    //   auth_kiosk_store_id/org_id の属性/ACL は HELPERS 追加で G4/G4b が自動回帰。
+    //   kiosk_devices/cast_pin の RLS 有効・grant 0 は TABLES 追加で G1/G2/G5 が自動回帰＝ここは policy 0本（deny-all）を能動 assert。
+    for (const fn of ["kiosk_provision", "kiosk_deactivate", "set_cast_pin", "kiosk_punch", "kiosk_cast_list"]) {
+      const roles = await roleOf(fn);
+      check(`G20 ${fn} EXECUTE = authenticated（anon/public 不在）`,
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    {
+      const r = await db.query(
+        `select tablename, count(*) as n from pg_policies
+         where schemaname = 'public' and tablename in ('kiosk_devices','cast_pin')
+         group by tablename`,
+      );
+      check("G20 kiosk_devices/cast_pin policy 0本（deny-all＝RPC 専任）", r.rowCount === 0,
+        JSON.stringify(r.rows));
+    }
+    {
+      const r = await db.query(
+        `select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'punches_source_check'`,
+      );
+      const def = (r.rows[0]?.def as string | undefined) ?? "";
+      check("G20 punches_source_check = self/manager/kiosk の3値",
+        def.includes("'self'") && def.includes("'manager'") && def.includes("'kiosk'"), def || "(missing)");
     }
   }
 

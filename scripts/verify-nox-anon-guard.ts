@@ -132,6 +132,20 @@
  *       forbidden（owner 限定＝段31-f 型）・null/不正値拒否（bad sales_enabled/bad shimei_scope/bad amount/
  *       bad sales_target/bad shimei_target）。finally=cast_norms 一時行削除＋store settings_json 厳密復元
  *       ＝固定カウント反転ゼロ。anon は set_cast_norm 6引数＝段8a（probe 更新）・店設定2本＝段34a で BLOCKED。
+ * 段35（0043 適用後）: F4a キオスク打刻（kiosk_devices 方式＝users/memberships 非作成）。
+ *       核心＝★遮断マトリクス: kiosk セッションは auth_org_id() null → 既存 RLS 7表 0行・deny-all 2表
+ *       permission denied・既存 RPC 代表3本（punch_self/get_cast_sales/set_cast_norm）forbidden 系拒否
+ *       ＝構成証明の実測。b. kiosk_cast_list＝kiosk 自店 active のみ（他店/inactive 不可視・has_pin 正値）
+ *       ／owner・cast から呼ぶと 0行（fail-closed）。c. set_cast_pin＝owner/manager 自店 正系（upsert）・
+ *       manager 他店/cast forbidden・bad pin/inactive cast 拒否・★audit に PIN/ハッシュ非含有。
+ *       d. kiosk_punch 状態遷移＝正PIN ok（punches 実INSERT・source='kiosk'・NOT NULL 充足）→誤PIN×4
+ *       wrong_pin（fail_count 実値）→5回目 locked（locked_until）→ロック中は正PINも locked→admin で
+ *       locked_until 過去化→正PIN ok＋カウンタ復元。bad_pin（形式不正）は fail_count 非増加・
+ *       not_found（他店）・no_pin。audit は actor null の直接 INSERT（audit_log_write 非経由）を実測。
+ *       e. provision 負系＝bad target（実在人物 uid）/already provisioned（1店1台）/manager forbidden・
+ *       deactivate 後は kiosk_cast_list 0行＋kiosk_punch forbidden（is_active 失効）。
+ *       finally=kiosk punches→cast_pin→kiosk_devices→一時 casts→auth deleteUser の依存順全消し
+ *       ＝固定カウント反転ゼロ（audit_logs は append-only のため残置＝従来どおり）。anon は段35a で 7署名 BLOCKED。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -428,6 +442,21 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段35a: F4a キオスク打刻（mig0043）kiosk 系 RPC 全署名 anon BLOCKED ──
+  const F0043_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["auth_kiosk_store_id", {}],
+    ["auth_kiosk_org_id", {}],
+    ["kiosk_provision", { p_auth_user_id: null, p_store_id: null, p_label: null }],
+    ["kiosk_deactivate", { p_device_id: null }],
+    ["set_cast_pin", { p_cast_id: null, p_pin: null }],
+    ["kiosk_punch", { p_cast_id: null, p_pin: null, p_type: null }],
+    ["kiosk_cast_list", {}],
+  ];
+  for (const [fn, args] of F0043_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部関数は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
@@ -458,9 +487,10 @@ async function main() {
     "payment_records",
     "customers", // F3a-2（mig0023）
     "reservations", // F3a-3（mig0027）
+    "kiosk_devices", "cast_pin", // F4a キオスク（mig0043・deny-all＝authenticated ですら SELECT 不可）
   ]) {
     // PK=cast_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
-    const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles"].includes(table);
+    const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles", "cast_pin"].includes(table);
     const { error } = await anon.from(table).select(pkCastId ? "cast_id" : "id").limit(1);
     check(
       `anon ${table} select DENIED`,
@@ -4396,6 +4426,260 @@ async function main() {
         (nLeft ?? []).length === 0
         && JSON.stringify(fin34 ?? null) === JSON.stringify(baseline34 ?? null),
         `norms=${(nLeft ?? []).length}, settings=${JSON.stringify(fin34)}`);
+    }
+  }
+
+  // ── 段35: F4a キオスク打刻（mig0043）遮断マトリクス＋PIN 状態遷移＋認可 ──
+  //   kiosk_devices 方式＝users/memberships 非作成。kiosk セッションは auth_org_id() null
+  //   → 既存 RLS/RPC 全遮断（構成証明）をここで実測する。
+  //   finally: kiosk punches→cast_pin→kiosk_devices→一時 casts→auth deleteUser の依存順全消し。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+    const PREFIX = "NOX-VERIFY-段35";
+
+    const { data: s35A1 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    const { data: s35A2 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A2).single();
+
+    // 合成 email（cast/invite の c- 同型・kiosk は k- プレフィクス・送信不能予約ドメイン）
+    const kEmail = s35A1
+      ? `k-verify35@o-${(s35A1.org_id as string).replace(/-/g, "").slice(0, 8)}.nox.local`
+      : "k-verify35@o-unknown.nox.local";
+
+    // 前回遺物掃除（依存順: punches→cast_pin→kiosk_devices→一時 casts。auth user は device 行から回収）
+    const wipe35 = async () => {
+      if (s35A1) await admin.from("punches").delete().eq("source", "kiosk").eq("store_id", s35A1.id);
+      if (s35A1) {
+        const { data: a1Casts } = await admin.from("casts").select("id").eq("store_id", s35A1.id);
+        const ids = (a1Casts ?? []).map((r) => r.id as string);
+        if (ids.length) await admin.from("cast_pin").delete().in("cast_id", ids);
+      }
+      const { data: oldDev } = await admin.from("kiosk_devices").select("auth_user_id").like("label", PREFIX + "%");
+      for (const d of oldDev ?? []) await admin.auth.admin.deleteUser(d.auth_user_id as string).catch(() => undefined);
+      await admin.from("kiosk_devices").delete().like("label", PREFIX + "%");
+      await admin.from("casts").delete().like("name", PREFIX + "%");
+    };
+    await wipe35();
+
+    // 一時 cast: A2（同 org 他店＝not_found/他店 manager 用）・A1 inactive（inactive cast 拒否用）
+    const { data: cA2tmp } = s35A2
+      ? await admin.from("casts").insert({ org_id: s35A2.org_id, store_id: s35A2.id, name: `${PREFIX}-castA2`, is_active: true }).select("id").single()
+      : { data: null };
+    const { data: cInactive } = s35A1
+      ? await admin.from("casts").insert({ org_id: s35A1.org_id, store_id: s35A1.id, name: `${PREFIX}-inactive`, is_active: false }).select("id").single()
+      : { data: null };
+
+    // kiosk 用 auth user（実 auth・users/memberships 行は作らない＝kiosk_devices 方式）
+    let kioskAuthId = "";
+    {
+      const { data: cu, error: eCu } = await admin.auth.admin.createUser({
+        email: kEmail, password: env.SEED_PASSWORD, email_confirm: true,
+      });
+      if (!eCu && cu?.user) kioskAuthId = cu.user.id;
+      else if (/already|registered|exists/i.test(eCu?.message ?? "")) {
+        // 前回 run が createUser 後に落ちた孤児 → listUsers で回収して作り直し
+        const { data: lu } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const orphan = lu?.users?.find((u) => u.email === kEmail);
+        if (orphan) {
+          await admin.auth.admin.deleteUser(orphan.id).catch(() => undefined);
+          const { data: cu2 } = await admin.auth.admin.createUser({
+            email: kEmail, password: env.SEED_PASSWORD, email_confirm: true,
+          });
+          kioskAuthId = cu2?.user?.id ?? "";
+        }
+      }
+      if (!kioskAuthId) fails.push("段35 kiosk auth 生成失敗");
+    }
+
+    const owner = await signInShared("段35", "ownerA");
+    const mgr = await signInShared("段35", "managerA1");
+    const castA = await signInShared("段35", "castA1a");
+    const { data: castIdA } = castA ? await castA.rpc("auth_cast_id") : { data: null };
+    // castA1b = A1 のもう1人の active cast（rls 固定カウント A1=2人前提）＝PIN 未設定のまま no_pin/has_pin=false 用
+    const { data: a1Active } = s35A1
+      ? await admin.from("casts").select("id, name").eq("store_id", s35A1.id).eq("is_active", true)
+      : { data: null };
+    const castIdB = ((a1Active ?? []) as { id: string }[]).map((r) => r.id).find((id) => id !== castIdA) ?? null;
+
+    const kiosk = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    check("段35（準備）店2/一時 cast 2/auth/セッション/castA1a・A1b 解決",
+      !!s35A1 && !!s35A2 && !!cA2tmp && !!cInactive && !!kioskAuthId && !!owner && !!mgr && !!castA
+      && typeof castIdA === "string" && typeof castIdB === "string");
+
+    if (s35A1 && s35A2 && cA2tmp && cInactive && kioskAuthId && owner && mgr && castA
+        && typeof castIdA === "string" && typeof castIdB === "string") {
+      let deviceId: string | null = null;
+      try {
+        // ═══ provision 正系（owner）＋ kiosk signIn ═══
+        const { data: devId, error: eProv } = await owner.rpc("kiosk_provision", {
+          p_auth_user_id: kioskAuthId, p_store_id: s35A1.id, p_label: `${PREFIX}-dev1`,
+        });
+        check("段35 ★owner kiosk_provision 成功（uuid 返却）", !eProv && typeof devId === "string", eProv?.message);
+        deviceId = (devId as string) ?? null;
+        const { data: audProv } = await owner.from("audit_logs").select("action").eq("action", "kiosk_provision")
+          .eq("target", `kiosk_devices:${devId}`).limit(1);
+        check("段35 audit: kiosk_provision 行生成", (audProv ?? []).length === 1, JSON.stringify(audProv));
+
+        const { error: eKSign } = await kiosk.auth.signInWithPassword({ email: kEmail, password: env.SEED_PASSWORD });
+        check("段35 ★kiosk アカウントで signIn 成功（users/memberships 非作成のまま）", !eKSign, eKSign?.message);
+
+        // ═══ e-1〜3. provision 負系（deactivate 前に実施）═══
+        const { data: ownerUidRow } = await admin.from("users").select("auth_user_id")
+          .eq("email", FIXTURE_USERS.ownerA.email).single();
+        const { error: eBt } = await owner.rpc("kiosk_provision", {
+          p_auth_user_id: ownerUidRow!.auth_user_id, p_store_id: s35A1.id, p_label: "x",
+        });
+        check("段35 実在人物 auth uid = bad target（人物アカウントの kiosk 化封じ）", has(eBt, "bad target"), eBt?.message ?? "通ってしまった");
+        const { error: eDup } = await owner.rpc("kiosk_provision", {
+          p_auth_user_id: randomUUID(), p_store_id: s35A1.id, p_label: "x",
+        });
+        check("段35 同店2台目 = already provisioned（1店1台）", has(eDup, "already provisioned"), eDup?.message ?? "通ってしまった");
+        const { error: eMgrProv } = await mgr.rpc("kiosk_provision", {
+          p_auth_user_id: randomUUID(), p_store_id: s35A1.id, p_label: "x",
+        });
+        check("段35 manager kiosk_provision forbidden（owner 限定）", forbidden(eMgrProv), eMgrProv?.message ?? "通ってしまった");
+
+        // ═══ a. ★遮断マトリクス（kiosk セッション＝auth_org_id() null の構成証明を実測）═══
+        for (const tbl of ["casts", "punches", "shifts", "attendance", "cast_norms", "payslips", "checks"]) {
+          const { data: rows, error: eT } = await kiosk.from(tbl).select("id").limit(5);
+          check(`段35 ★kiosk ${tbl} SELECT = 0行（RLS 遮断）`, !eT && (rows ?? []).length === 0,
+            eT?.message ?? `got ${(rows ?? []).length}行`);
+        }
+        {
+          const { error: eP } = await kiosk.from("cast_pin").select("cast_id").limit(1);
+          check("段35 ★kiosk cast_pin SELECT = permission denied（deny-all）", has(eP, "permission denied"), eP?.message ?? "実行できてしまった");
+          const { error: eD } = await kiosk.from("kiosk_devices").select("id").limit(1);
+          check("段35 ★kiosk kiosk_devices SELECT = permission denied（deny-all）", has(eD, "permission denied"), eD?.message ?? "実行できてしまった");
+        }
+        {
+          const { error: e1 } = await kiosk.rpc("punch_self", { p_type: "in", p_lat: null, p_lng: null });
+          check("段35 ★kiosk punch_self 拒否（forbidden/no cast 系）",
+            !!e1 && /forbidden|no cast/.test(e1.message ?? ""), e1?.message ?? "通ってしまった");
+          const { error: e2 } = await kiosk.rpc("get_cast_sales", { p_store_id: s35A1.id, p_from: "2026-07-01", p_to: "2026-07-02" });
+          check("段35 ★kiosk get_cast_sales forbidden", forbidden(e2), e2?.message ?? "通ってしまった");
+          const { error: e3 } = await kiosk.rpc("set_cast_norm", {
+            p_cast_id: castIdA, p_period: "2031-11", p_days_target: 0, p_dohan_target: 0,
+            p_sales_target: 0, p_shimei_target: 0,
+          });
+          check("段35 ★kiosk set_cast_norm forbidden", forbidden(e3), e3?.message ?? "通ってしまった");
+        }
+
+        // ═══ c. set_cast_pin（castA1a のみ設定・castA1b は未設定のまま no_pin 用）═══
+        const { error: ePinO } = await owner.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "5678" });
+        check("段35 owner set_cast_pin 成功", !ePinO, ePinO?.message);
+        const { data: audPin } = await owner.from("audit_logs").select("before_json, after_json")
+          .eq("action", "set_cast_pin").eq("target", `cast_pin:${castIdA}`).limit(1);
+        const audPinStr = JSON.stringify(audPin ?? []);
+        check("段35 ★audit に PIN/ハッシュ非含有（'5678'/'pin_hash' 不在・行は存在）",
+          (audPin ?? []).length === 1 && !audPinStr.includes("5678") && !audPinStr.includes("pin_hash"), audPinStr);
+        const { error: ePinM } = await mgr.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "1234" });
+        check("段35 manager 自店 set_cast_pin 成功（upsert 上書き）", !ePinM, ePinM?.message);
+        const { error: ePinOs } = await mgr.rpc("set_cast_pin", { p_cast_id: cA2tmp.id, p_pin: "1234" });
+        check("段35 manager 他店 set_cast_pin forbidden", forbidden(ePinOs), ePinOs?.message ?? "通ってしまった");
+        const { error: ePinC } = await castA.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "1234" });
+        check("段35 cast set_cast_pin forbidden", forbidden(ePinC), ePinC?.message ?? "通ってしまった");
+        const { error: ePinBad } = await owner.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "12a4" });
+        check("段35 set_cast_pin '12a4' = bad pin", has(ePinBad, "bad pin"), ePinBad?.message ?? "通ってしまった");
+        const { error: ePinIn } = await owner.rpc("set_cast_pin", { p_cast_id: cInactive.id, p_pin: "1234" });
+        check("段35 inactive cast = inactive cast 拒否", has(ePinIn, "inactive cast"), ePinIn?.message ?? "通ってしまった");
+
+        // ═══ b. kiosk_cast_list（kiosk 唯一の読み口）═══
+        const { data: klist, error: eKl } = await kiosk.rpc("kiosk_cast_list");
+        type KRow = { cast_id: string; cast_name: string; has_pin: boolean };
+        const kRows = (klist ?? []) as KRow[];
+        check("段35 ★kiosk_cast_list = 自店 active のみ（A1=2人・A1a has_pin=true・A1b false）",
+          !eKl && kRows.length === 2
+          && kRows.find((r) => r.cast_id === castIdA)?.has_pin === true
+          && kRows.find((r) => r.cast_id === castIdB)?.has_pin === false,
+          eKl?.message ?? JSON.stringify(kRows));
+        check("段35 kiosk_cast_list に他店/inactive 不可視",
+          !kRows.some((r) => r.cast_id === cA2tmp.id) && !kRows.some((r) => r.cast_id === cInactive.id),
+          JSON.stringify(kRows.map((r) => r.cast_name)));
+        const { data: oList } = await owner.rpc("kiosk_cast_list");
+        check("段35 owner kiosk_cast_list = 0行（fail-closed）", ((oList ?? []) as KRow[]).length === 0, JSON.stringify(oList));
+        const { data: cList } = await castA.rpc("kiosk_cast_list");
+        check("段35 cast kiosk_cast_list = 0行（fail-closed）", ((cList ?? []) as KRow[]).length === 0, JSON.stringify(cList));
+
+        // ═══ d. kiosk_punch 状態遷移（castA1a・正 PIN='1234'）═══
+        type KPunch = { ok: boolean; reason?: string; punch_id?: string; locked_until?: string };
+        const kp = async (pin: string, type = "in"): Promise<KPunch> => {
+          const { data, error } = await kiosk.rpc("kiosk_punch", { p_cast_id: castIdA, p_pin: pin, p_type: type });
+          if (error) return { ok: false, reason: `RPC_ERROR:${error.message}` };
+          return data as KPunch;
+        };
+        const pinRow = async () => {
+          const { data } = await admin.from("cast_pin").select("fail_count, locked_until").eq("cast_id", castIdA).single();
+          return data as { fail_count: number; locked_until: string | null };
+        };
+
+        const r1 = await kp("1234");
+        check("段35 ★正PIN = ok:true（punch_id uuid 返却）", r1.ok === true && typeof r1.punch_id === "string", JSON.stringify(r1));
+        const { data: pRow1 } = await admin.from("punches")
+          .select("cast_id, store_id, org_id, type, source, punched_at").eq("id", r1.punch_id ?? "").single();
+        check("段35 ★punches 実INSERT検証（source='kiosk'・NOT NULL 充足＝0077教訓）",
+          pRow1?.source === "kiosk" && pRow1?.type === "in" && pRow1?.cast_id === castIdA
+          && pRow1?.store_id === s35A1.id && !!pRow1?.org_id && !!pRow1?.punched_at, JSON.stringify(pRow1));
+        const { data: audKp } = await owner.from("audit_logs").select("action")
+          .eq("action", "kiosk_punch").eq("target", `punches:${r1.punch_id}`).limit(1);
+        check("段35 audit: kiosk_punch 直接 INSERT（actor null 経路）行生成", (audKp ?? []).length === 1, JSON.stringify(audKp));
+
+        const wrongs: KPunch[] = [];
+        for (let i = 0; i < 4; i++) wrongs.push(await kp("9999"));
+        check("段35 誤PIN×4 = 全て wrong_pin", wrongs.every((w) => w.ok === false && w.reason === "wrong_pin"), JSON.stringify(wrongs));
+        const st4 = await pinRow();
+        check("段35 fail_count 実値 = 4", st4.fail_count === 4, JSON.stringify(st4));
+
+        const r5 = await kp("9999");
+        check("段35 5回目 = locked＋locked_until 返却", r5.ok === false && r5.reason === "locked" && !!r5.locked_until, JSON.stringify(r5));
+        const stL = await pinRow();
+        check("段35 cast_pin: fail_count 0 リセット＋locked_until 未来", stL.fail_count === 0 && !!stL.locked_until && new Date(stL.locked_until) > new Date(), JSON.stringify(stL));
+
+        const rL = await kp("1234");
+        check("段35 ロック中は正PINでも locked", rL.ok === false && rL.reason === "locked", JSON.stringify(rL));
+
+        // テスト解除: locked_until を過去へ（admin 直接 UPDATE）
+        await admin.from("cast_pin").update({ locked_until: new Date(Date.now() - 60_000).toISOString() }).eq("cast_id", castIdA);
+        const r6 = await kp("1234");
+        check("段35 ★ロック解除後 正PIN = ok:true", r6.ok === true && typeof r6.punch_id === "string", JSON.stringify(r6));
+        const st6 = await pinRow();
+        check("段35 成功でカウンタ復元（fail_count 0・locked_until null）", st6.fail_count === 0 && st6.locked_until === null, JSON.stringify(st6));
+
+        const rB = await kp("123");
+        const stB = await pinRow();
+        check("段35 bad_pin（3桁・形式不正）= fail_count 非増加", rB.ok === false && rB.reason === "bad_pin" && stB.fail_count === 0, JSON.stringify({ rB, stB }));
+        const { data: rNf } = await kiosk.rpc("kiosk_punch", { p_cast_id: cA2tmp.id, p_pin: "1234", p_type: "in" });
+        check("段35 他店 cast = not_found（存在オラクル封じ）", (rNf as KPunch)?.reason === "not_found", JSON.stringify(rNf));
+        const { data: rNp } = await kiosk.rpc("kiosk_punch", { p_cast_id: castIdB, p_pin: "1234", p_type: "in" });
+        check("段35 PIN 未設定 cast = no_pin", (rNp as KPunch)?.reason === "no_pin", JSON.stringify(rNp));
+
+        // ═══ e-4. deactivate → 失効実測 ═══
+        const { error: eNf } = await owner.rpc("kiosk_deactivate", { p_device_id: randomUUID() });
+        check("段35 kiosk_deactivate 不明 id = not found", has(eNf, "not found"), eNf?.message ?? "通ってしまった");
+        const { error: eDeact } = await owner.rpc("kiosk_deactivate", { p_device_id: deviceId });
+        check("段35 ★owner kiosk_deactivate 成功", !eDeact, eDeact?.message);
+        const { data: klist2 } = await kiosk.rpc("kiosk_cast_list");
+        check("段35 ★deactivate 後 kiosk_cast_list = 0行（is_active 失効）", ((klist2 ?? []) as KRow[]).length === 0, JSON.stringify(klist2));
+        const { error: eKpDead } = await kiosk.rpc("kiosk_punch", { p_cast_id: castIdA, p_pin: "1234", p_type: "out" });
+        check("段35 ★deactivate 後 kiosk_punch forbidden", forbidden(eKpDead), eKpDead?.message ?? "通ってしまった");
+      } finally {
+        await kiosk.auth.signOut().catch(() => undefined);
+        await wipe35();
+        if (kioskAuthId) await admin.auth.admin.deleteUser(kioskAuthId).catch(() => undefined);
+      }
+      // 非汚染の物理確認（punches source=kiosk 0行・cast_pin 0行・kiosk_devices 0行・一時 casts 0行）
+      const { data: pLeft } = await admin.from("punches").select("id").eq("source", "kiosk").eq("store_id", s35A1.id);
+      const { data: pinLeft } = await admin.from("cast_pin").select("cast_id").in("cast_id", [castIdA, castIdB]);
+      const { data: dLeft } = await admin.from("kiosk_devices").select("id").like("label", `${PREFIX}%`);
+      const { data: cLeft } = await admin.from("casts").select("id").like("name", `${PREFIX}%`);
+      check("段35 掃除確認: kiosk punches/cast_pin/kiosk_devices/一時 casts 全消し（固定カウント非汚染）",
+        (pLeft ?? []).length === 0 && (pinLeft ?? []).length === 0 && (dLeft ?? []).length === 0 && (cLeft ?? []).length === 0,
+        `punches=${(pLeft ?? []).length}, pin=${(pinLeft ?? []).length}, devices=${(dLeft ?? []).length}, casts=${(cLeft ?? []).length}`);
     }
   }
 
