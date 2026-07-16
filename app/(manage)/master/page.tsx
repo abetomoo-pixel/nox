@@ -8,6 +8,7 @@ import SensitiveTaxPanel from "./sensitive-tax-panel";
 import BusinessHoursPanel from "./business-hours-panel";
 import CastRegisterPanel from "./cast-register-panel";
 import NormConfigPanel from "./norm-config-panel";
+import KioskPanel from "./kiosk-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +83,9 @@ export default async function MasterPage() {
       )}
       {isManagerUp && (
         <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
+      )}
+      {role === "owner" && (
+        <KioskPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
       )}
       {sim && (
         <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" variant="dark" />

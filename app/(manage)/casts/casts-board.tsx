@@ -67,6 +67,22 @@ export default function CastsBoard({
   const [invResult, setInvResult] = useState<InviteResult | null>(null);
   const [invCopied, setInvCopied] = useState(false);
 
+  // F4a キオスク打刻 PIN（mig0043 set_cast_pin・owner/manager 自店・4桁）
+  const [pinTarget, setPinTarget] = useState<CastLogin | null>(null);
+  const [pinVal, setPinVal] = useState("");
+  const [pinErr, setPinErr] = useState<string | null>(null);
+  const [pinDone, setPinDone] = useState(false);
+
+  async function submitPin() {
+    if (!pinTarget) return;
+    if (!/^[0-9]{4}$/.test(pinVal)) { setPinErr("PIN は数字4桁で入力してください"); return; }
+    setBusy(true); setPinErr(null);
+    const { error } = await supabase.rpc("set_cast_pin", { p_cast_id: pinTarget.id, p_pin: pinVal });
+    setBusy(false);
+    if (error) setPinErr(error.message);
+    else setPinDone(true); // PIN 自体は再表示しない（DB は bcrypt のみ・audit にも非搭載）
+  }
+
   const load = useCallback(async () => {
     const { data } = await supabase
       .from("trials")
@@ -249,12 +265,17 @@ export default function CastsBoard({
                   <td style={{ padding: 6, color: c.user_id ? "var(--ok)" : "var(--sub)", whiteSpace: "nowrap" }}>
                     {c.user_id ? "招待済み" : "未招待"}
                   </td>
-                  <td style={{ padding: 6 }}>
+                  <td style={{ padding: 6, whiteSpace: "nowrap" }}>
                     {c.user_id ? (
                       <button style={btnGhost} disabled={busy} onClick={() => openInvite(c, "reset")}>PW再発行</button>
                     ) : (
                       <button style={btnGold} disabled={busy} onClick={() => openInvite(c, "invite")}>招待</button>
                     )}
+                    {/* F4a: キオスク打刻 PIN（ログイン結線の有無と独立＝招待していない子も打刻できる） */}
+                    <button style={{ ...btnGhost, marginLeft: 6 }} disabled={busy}
+                      onClick={() => { setPinTarget(c); setPinVal(""); setPinErr(null); setPinDone(false); }}>
+                      打刻PIN
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -313,6 +334,46 @@ export default function CastsBoard({
                 </p>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   <button style={btnGold} onClick={() => setInvTarget(null)}>閉じる</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* F4a 打刻PIN 設定モーダル（set_cast_pin＝owner/manager 自店・4桁・上書きでロック解除） */}
+      {pinTarget && (
+        <div style={overlay} onClick={() => !busy && setPinTarget(null)}>
+          <div className="nox-cardtop" style={modalCard} onClick={(e) => e.stopPropagation()}>
+            {!pinDone ? (
+              <>
+                <h2 style={secTitle}>{pinTarget.name} の打刻PIN</h2>
+                <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
+                  キオスク端末（タブレット）で打刻するときの4桁の数字です。
+                  設定し直すと失敗カウント・ロックもリセットされます。
+                </p>
+                <label style={{ display: "grid", gap: 4 }}>
+                  <span style={t.fieldLabel}>PIN（数字4桁）</span>
+                  <input value={pinVal} onChange={(e) => setPinVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                    inputMode="numeric" autoComplete="off" placeholder="0000"
+                    style={{ ...t.input, width: 120, letterSpacing: 6, fontSize: 18, textAlign: "center" }} />
+                </label>
+                {pinErr && <p style={{ ...t.bad, fontSize: 12.5, margin: "8px 0 0" }}>{pinErr}</p>}
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+                  <button style={btnGhost} disabled={busy} onClick={() => setPinTarget(null)}>キャンセル</button>
+                  <button style={btnGold} disabled={busy || pinVal.length !== 4} onClick={() => void submitPin()}>
+                    {busy ? "処理中…" : "設定する"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 style={secTitle}>PIN を設定しました</h2>
+                <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
+                  {pinTarget.name} さんに PIN を口頭で伝えてください（画面・記録には残りません）。
+                </p>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button style={btnGold} onClick={() => setPinTarget(null)}>閉じる</button>
                 </div>
               </>
             )}
