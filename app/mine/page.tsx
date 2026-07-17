@@ -200,7 +200,6 @@ export default async function MinePage() {
         openOkuri={sim.openOkuri}
         override={sim.override}
         defaultTaxMode="委託"
-        variant="dark"
       />
 
       <section className="nox-cardtop" style={t.card}>

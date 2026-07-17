@@ -100,7 +100,7 @@ export default async function MasterPage() {
         />
       )}
       {sim && (
-        <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" variant="dark" />
+        <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" />
       )}
     </>
   );

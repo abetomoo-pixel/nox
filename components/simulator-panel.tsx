@@ -4,13 +4,16 @@ import { useMemo, useState } from "react";
 import type { CompPlan, PlanOverride, TaxMode } from "@/lib/nox/pay";
 import type { StoreMasters } from "@/lib/nox/payroll/assemble";
 import { simulate, type SimInput } from "@/lib/nox/payroll/sim";
+import * as t from "@/lib/nox/ui/theme";
 
 // F2f 報酬シミュレーター（cast/店 1画面・役割分岐）。
 //   cast モード＝自分のプラン/店マスタ固定・open 残（前借り/送り）を反映・売掛は確定明細参照の注記誘導。
 //   店モード＝プラン選択＋base/バック編集で任意プラン試算・天引きなし。
 //   計算は確定と同じ payOf を共有（lib/nox/payroll/sim.simulate＝純関数）＝表示と確定でズレない。
 // 使い捨て（保存なし・mig ゼロ）。実データは props（server 側で RLS 読取）で受け取る。
-// variant: 見た目のみ（"dark"＝.nox-dark 配下用／"light"＝従来・既定）。計算・ロジックは variant 非依存。
+// D-4（2026-07-17）: light variant を廃止。使用箇所は master/page.tsx と mine/page.tsx の 2 つだけで、
+//   どちらも .nox-dark 配下かつ variant="dark" 明示＝light 側は一度も描画されない死にコードだった。
+//   合わせて variant prop も削除（"dark" 固定＝分岐が無いなら受け取る意味がない）。見た目は dark 側のまま不変。
 export default function SimulatorPanel({
   mode,
   plans,
@@ -19,7 +22,6 @@ export default function SimulatorPanel({
   openOkuri,
   defaultTaxMode,
   override,
-  variant = "light",
 }: {
   mode: "cast" | "store";
   plans: CompPlan[];
@@ -28,7 +30,6 @@ export default function SimulatorPanel({
   openOkuri: number; // cast の open 送り実費残（店=0）
   defaultTaxMode: TaxMode;
   override?: PlanOverride; // cast の cast_plan.overrides_json（店モードは未使用）
-  variant?: "light" | "dark";
 }) {
   const [planId, setPlanId] = useState(plans[0]?.id ?? "");
   const [taxMode, setTaxMode] = useState<TaxMode>(defaultTaxMode);
@@ -82,9 +83,6 @@ export default function SimulatorPanel({
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   const yen = (n: number) => "¥" + Math.round(n).toLocaleString();
 
-  const dark = variant === "dark";
-  const s = styleSet(dark);
-
   if (!selectedPlan) {
     return (
       <div style={{ ...s.card, maxWidth: 620 }}>
@@ -97,7 +95,7 @@ export default function SimulatorPanel({
   }
 
   return (
-    <div className={dark ? "nox-cardtop" : undefined} style={{ ...s.card, maxWidth: 620 }}>
+    <div className="nox-cardtop" style={{ ...s.card, maxWidth: 620 }}>
       <h2 style={{ fontSize: 16, marginTop: 0 }}>報酬シミュレーター（{mode === "cast" ? "自分の見込み" : "採用・プラン試算"}）</h2>
       <p style={{ fontSize: 12, color: s.sub, marginTop: 0 }}>
         ※確定給与と同じ計算式で試算します（保存されません）。実績ではなく仮の数字を入れて手取りの目安を見るものです。
@@ -194,21 +192,21 @@ export default function SimulatorPanel({
         <div style={{ ...s.card, ...s.resultCard }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <span style={{ fontSize: 13, color: s.body }}>差引支給（手取り）</span>
-            <span style={{ fontSize: 28, fontWeight: 700, color: s.net, fontFamily: dark ? "'Outfit', sans-serif" : undefined }}>{yen(result.pay.net)}</span>
+            <span style={{ fontSize: 28, fontWeight: 700, color: s.net, fontFamily: t.font.num }}>{yen(result.pay.net)}</span>
           </div>
           <table style={{ width: "100%", fontSize: 13, marginTop: 8, borderCollapse: "collapse" }}>
             <tbody>
-              <Line dark={dark} label="時給（加重平均）" v={`¥${Math.round(result.pay.wage).toLocaleString()}/h × ${result.pay.wHours}h`} />
-              <Line dark={dark} label="時給給与" v={yen(result.pay.timePay)} />
-              <Line dark={dark} label="指名バック（本/場内/同伴）" v={yen(result.pay.honBack + result.pay.jonaiBack + result.pay.dohanBack)} />
-              <Line dark={dark} label="商品・売上・自由バック" v={yen(result.pay.drinkBack + result.pay.champBack + result.pay.bottleBack + result.pay.salesBack + result.pay.customTotal)} />
-              <Line dark={dark} label="総支給（gross）" v={yen(result.pay.gross)} bold />
-              <Line dark={dark} label="− 固定控除" v={`−${yen(result.pay.fixedDed)}`} minus />
-              <Line dark={dark} label="− 罰金" v={`−${yen(result.pay.fine)}`} minus />
-              <Line dark={dark} label={`− 源泉（${taxMode}）`} v={`−${yen(result.pay.withholding)}`} minus />
-              <Line dark={dark} label="− ノルマ未達" v={`−${yen(result.pay.normPenalty)}`} minus />
-              {result.pay.advanceDeduct > 0 && <Line dark={dark} label="− 前借り" v={`−${yen(result.pay.advanceDeduct)}`} minus />}
-              {result.pay.okuriDeduct > 0 && <Line dark={dark} label="− 送り実費" v={`−${yen(result.pay.okuriDeduct)}`} minus />}
+              <Line label="時給（加重平均）" v={`¥${Math.round(result.pay.wage).toLocaleString()}/h × ${result.pay.wHours}h`} />
+              <Line label="時給給与" v={yen(result.pay.timePay)} />
+              <Line label="指名バック（本/場内/同伴）" v={yen(result.pay.honBack + result.pay.jonaiBack + result.pay.dohanBack)} />
+              <Line label="商品・売上・自由バック" v={yen(result.pay.drinkBack + result.pay.champBack + result.pay.bottleBack + result.pay.salesBack + result.pay.customTotal)} />
+              <Line label="総支給（gross）" v={yen(result.pay.gross)} bold />
+              <Line label="− 固定控除" v={`−${yen(result.pay.fixedDed)}`} minus />
+              <Line label="− 罰金" v={`−${yen(result.pay.fine)}`} minus />
+              <Line label={`− 源泉（${taxMode}）`} v={`−${yen(result.pay.withholding)}`} minus />
+              <Line label="− ノルマ未達" v={`−${yen(result.pay.normPenalty)}`} minus />
+              {result.pay.advanceDeduct > 0 && <Line label="− 前借り" v={`−${yen(result.pay.advanceDeduct)}`} minus />}
+              {result.pay.okuriDeduct > 0 && <Line label="− 送り実費" v={`−${yen(result.pay.okuriDeduct)}`} minus />}
             </tbody>
           </table>
           {mode === "cast" && (
@@ -222,51 +220,42 @@ export default function SimulatorPanel({
   );
 }
 
-function Line({ label, v, bold, minus, dark }: { label: string; v: string; bold?: boolean; minus?: boolean; dark?: boolean }) {
-  const labelColor = minus ? (dark ? "var(--bad)" : "#c0392b") : (dark ? "var(--sub)" : "#4a4a4a");
-  const valColor = minus ? (dark ? "var(--bad)" : "#c0392b") : (dark ? "var(--ink)" : "#222");
+function Line({ label, v, bold, minus }: { label: string; v: string; bold?: boolean; minus?: boolean }) {
+  const labelColor = minus ? "var(--bad)" : "var(--sub)";
+  const valColor = minus ? "var(--bad)" : "var(--ink)";
   return (
     <tr>
       <td style={{ padding: "3px 0", color: labelColor }}>{label}</td>
-      <td style={{ padding: "3px 0", textAlign: "right", fontWeight: bold ? 700 : 400, color: valColor, fontFamily: dark ? "'Outfit', sans-serif" : undefined }}>{v}</td>
+      {/* 数値は Outfit（t.font.num = "'Outfit', sans-serif" と一字一致＝完全同値のため委譲） */}
+      <td style={{ padding: "3px 0", textAlign: "right", fontWeight: bold ? 700 : 400, color: valColor, fontFamily: t.font.num }}>{v}</td>
     </tr>
   );
 }
 
-// 見た目のみ（light＝従来／dark＝.nox-dark 配下用・CSS 変数参照）。ロジックは variant 非依存。
-function styleSet(dark: boolean) {
-  if (!dark) {
-    return {
-      card: { border: "1px solid #ebebeb", borderRadius: 8, padding: 16, background: "#fff", marginBottom: 16 } as React.CSSProperties,
-      row: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 } as React.CSSProperties,
-      lbl: { fontSize: 12, color: "#404040" } as React.CSSProperties,
-      inp: { padding: 6, border: "1px solid #ccc", borderRadius: 4, width: 140 } as React.CSSProperties,
-      inpS: { padding: 6, border: "1px solid #ccc", borderRadius: 4, width: 84 } as React.CSSProperties,
-      fs: { border: "1px solid #eee", borderRadius: 6, padding: "6px 10px 10px", marginBottom: 12 } as React.CSSProperties,
-      lg: { fontSize: 12, color: "#6b6b6b", padding: "0 4px" } as React.CSSProperties,
-      btnSm: { padding: "4px 10px", background: "#2c3e50", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", fontSize: 12 } as React.CSSProperties,
-      sub: "#8f8f8f",
-      body: "#4a4a4a",
-      fixedBg: "#f7f7f7",
-      nestBg: "#fafafa",
-      resultCard: { background: "#f6f9f7", border: "1px solid #cde8d4" } as React.CSSProperties,
-      net: "#1e824c",
-    };
-  }
-  return {
-    card: { background: "linear-gradient(180deg,var(--card2),var(--card))", border: "1px solid var(--line)", borderRadius: 16, padding: 16, marginBottom: 16, position: "relative", overflow: "hidden" } as React.CSSProperties,
-    row: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 } as React.CSSProperties,
-    lbl: { fontSize: 12, color: "var(--sub)" } as React.CSSProperties,
-    inp: { padding: 8, border: "1px solid var(--line2)", borderRadius: 9, width: 140, background: "var(--bg2)", color: "var(--ink)", fontFamily: "inherit" } as React.CSSProperties,
-    inpS: { padding: 8, border: "1px solid var(--line2)", borderRadius: 9, width: 84, background: "var(--bg2)", color: "var(--ink)", fontFamily: "inherit" } as React.CSSProperties,
-    fs: { border: "1px solid var(--line)", borderRadius: 11, padding: "6px 10px 10px", marginBottom: 12 } as React.CSSProperties,
-    lg: { fontSize: 12, color: "var(--sub)", padding: "0 4px" } as React.CSSProperties,
-    btnSm: { padding: "6px 12px", background: "transparent", color: "var(--ink)", border: "1px solid var(--line2)", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 800 } as React.CSSProperties,
-    sub: "var(--sub)",
-    body: "var(--ink)",
-    fixedBg: "var(--bg2)",
-    nestBg: "var(--bg)",
-    resultCard: { background: "linear-gradient(180deg,var(--card2),var(--card))", border: "1px solid var(--line2)" } as React.CSSProperties,
-    net: "var(--champ)",
-  };
-}
+// D-4（2026-07-17）: 旧 styleSet(dark) を廃止し、dark 側の値だけをここへ移した（light 分岐は死にコードのため削除）。
+//   ★視覚は 1px も変えない。theme へ委譲したのは「完全同値のもの」だけ:
+//     - card = t.card の派生（差分は padding 15→16・marginBottom 13→16 の 2 つだけ＝明示上書きで同値を保つ）
+//     - Outfit 指定は t.font.num（"'Outfit', sans-serif" と一字一致）＝呼び出し側で参照
+//   以下は theme に近い物があるが値が違うため据置（寄せると視覚が動く）:
+//     - inp/inpS: t.input と radius 11→9・padding "11px 12px"→8・width "100%"→140/84 が違い、
+//       かつ t.input の fontSize:13 を持たない（足すと文字サイズが変わる）
+//     - btnSm: t.btnGhost+t.btnSm と padding "7px 11px"→"6px 12px" が違い、
+//       かつ display:inline-flex/gap を持たない（足すとボタンの箱が変わる）
+//     - lbl/lg: fontSize 12（t.sub は 11）
+//     - row/fs/resultCard: theme に同等プリミティブなし（simulator 固有）
+const s = {
+  card: { ...t.card, padding: 16, marginBottom: 16 } as React.CSSProperties,
+  row: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 } as React.CSSProperties,
+  lbl: { fontSize: 12, color: "var(--sub)" } as React.CSSProperties,
+  inp: { padding: 8, border: "1px solid var(--line2)", borderRadius: 9, width: 140, background: "var(--bg2)", color: "var(--ink)", fontFamily: "inherit" } as React.CSSProperties,
+  inpS: { padding: 8, border: "1px solid var(--line2)", borderRadius: 9, width: 84, background: "var(--bg2)", color: "var(--ink)", fontFamily: "inherit" } as React.CSSProperties,
+  fs: { border: "1px solid var(--line)", borderRadius: 11, padding: "6px 10px 10px", marginBottom: 12 } as React.CSSProperties,
+  lg: { fontSize: 12, color: "var(--sub)", padding: "0 4px" } as React.CSSProperties,
+  btnSm: { padding: "6px 12px", background: "transparent", color: "var(--ink)", border: "1px solid var(--line2)", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 800 } as React.CSSProperties,
+  sub: "var(--sub)",
+  body: "var(--ink)",
+  fixedBg: "var(--bg2)",
+  nestBg: "var(--bg)",
+  resultCard: { background: "linear-gradient(180deg,var(--card2),var(--card))", border: "1px solid var(--line2)" } as React.CSSProperties,
+  net: "var(--champ)",
+};
