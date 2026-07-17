@@ -6,6 +6,7 @@ import { groupDue } from "@/lib/nox/check-calc";
 import * as t from "@/lib/nox/ui/theme";
 import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
+import BottleKeepPanel from "./bottle-keep-panel";
 
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 type Product = { id: string; name: string; type: string; price: number };
@@ -655,6 +656,8 @@ export default function RegisterBoard({
         </section>
       )}
       {!check && <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>}
+      {/* A2（裁定8）: ボトルキープ登録＝checkout フロー内（NOX8 裁定）。会計タブ末尾の全幅カード */}
+      <BottleKeepPanel storeId={storeId} products={products} />
     </div>
       )}
     </div>
