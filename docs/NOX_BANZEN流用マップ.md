@@ -1,5 +1,10 @@
 # NOX ← BANZEN 流用マップ（ファイル単位・CC 参照指示）
 
+> **改訂 2026-07-17**：本マップは F0a（2026-07-02）から docs/ に収載済みだったが、2026-07-13 の
+> 「BANZEN と NOX は別チャット」分離ルール（過剰・裁定台帳で再定義済み）により参照が途絶え、
+> シフト等が BANZEN 資産を開かずに薄く実装された。§7（シフト詳細・ファイル単位）と §8（実測注記）を
+> BANZEN repo の実測（読み取り専用）に基づき追補。参照ルール＝**BANZEN は読み取り専用・書込とコミットは一切禁止・
+> 持ち込むのは実装パターンのみ（設計判断・推奨・課題は持ち込まない）**。
 > 前提：CC は両リポジトリを参照可能。NOX 実装時、CC は「BANZEN の該当ファイルを読む → NOX に翻訳する」で進める。ゼロから書かない。
 > 記法：◎そのまま翻訳（構造・命名を写して用語だけ tenant→org 等に置換）／○構造参考（骨格を借りて中身は NOX 仕様）／△新規（BANZEN に無い・NOX 固有）。
 > 命名の基本置換：`tenant`→`org`、`auth_tenant_id`→`auth_org_id`、`auth_staff_id`→`auth_cast_id`、`staff`→`cast`（該当箇所）、`punch`→`punch`（同じ）、`makanai-shift`→`nox`。
@@ -48,7 +53,7 @@
 | 会計確定 RPC（checks/check_lines/payments・冪等・トランザクション） | BANZEN POS P1-P3 ＋ P5 テーブル管理（orders/order_items/payments・open ライフサイクル・卓モード RPC・分割会計 group・部分入金） | ◎ | **NOX の checks 構造は BANZEN P5 とほぼ同型**（設計書が「拡張で到達」と判明済み）。P5 の open/add_line/pay/close＋group 分割を写す |
 | 席マスタ seats | BANZEN P5 の seats | ◎ | そのまま |
 | 名前スナップショット（会計時の値凍結） | BANZEN の name_snapshot/unit_price_snapshot | ◎ | check_lines に写す |
-| シフト（shift_wishes/shifts/attendance/staffing_needs・希望→確定→打刻） | BANZEN シフト機能群 T1-T4b（月カレンダー・必要人数曜日別 T1.5・自動配置 T2/T3・日跨ぎ T4a/b） | ○ | 構造参考。必要人数の曜日7値化（T1.5・方式X）と日跨ぎ（shift-time.ts の crossesMidnight 等）が特に効く |
+| シフト（shift_wishes/shifts/attendance/staffing_needs・希望→確定→打刻） | BANZEN シフト機能群 T1-T4b（月カレンダー・必要人数曜日別 T1.5・自動配置 T2/T3・日跨ぎ T4a/b） | ○ | **★§7 のファイル単位マップが正**（2026-07-17 追補）。F1d は「希望→確定→打刻」のみ実装済み＝月カレンダー/割当グリッド/自動配置は未輸入 |
 | 打刻 punches（append-only・ジオフェンス/IPソフト判定） | BANZEN punches（0028-0029・append-only・ソフト判定） | ◎ | UPDATE/DELETE ポリシー無し。ハードブロックしない |
 | 日跨ぎ時刻の単一ソース | BANZEN `lib/shift-time.ts`（crossesMidnight/spanMinutes/netMinutes/nominalSegment） | ◎ | NOX は営業が深夜帯中心＝日跨ぎ必須。この純関数を写す価値が高い |
 | cast プライバシー RLS（パターン1/2/3） | （BANZEN に無い・NOX 固有） | △ | 新規。ただし staff セルフ RLS（自分の打刻/希望のみ）の型は流用可 |
@@ -101,7 +106,72 @@
 
 ---
 
-## 7. CC への1行指示テンプレ（流用時に使う）
+## 7. シフト再実装の詳細マップ（ファイル単位・2026-07-17 実測）
+
+BANZEN 側は下記全ファイルを現物確認済み（読み取り専用）。翻訳時は必ず実ファイルを開くこと。
+NOX 側の現状＝shift-board.tsx 285行（希望承認/1件フォーム/確定/出勤板/必要人数）のみ。
+
+### UI（app/(app)/shift/）
+
+| BANZEN ファイル | 行数 | 度 | NOX への翻訳メモ |
+|---|---|---|---|
+| `shift-planner.tsx` | 1211 | ○ | 親。月カレンダー＋確定バー（不足X日/充足Y日/余剰Z日=:768-770）＋自動配置3モード（チェック一括/優先順/1人ずつ仮置き=:158）＋一括取消（source='auto' のみ削除=:363）＋人件費見込み（:286・NOX は payOf sim 接続）。band/position 次元を落として縮退翻訳 |
+| `_components/shift-month-grid.tsx` | 95 | ◎ | 月グリッド（次元非依存）。そのまま翻訳 |
+| `_components/shift-month-pager.tsx` | 46 | ◎ | 月送り。そのまま |
+| `_components/shift-date-utils.ts` | 35 | ◎ | 日付ユーティリティ。そのまま |
+| `_components/shift-matrix-view.tsx` | 115 | ○ | スタッフ×日マトリクス（不足バッジ=:52）。staff→cast |
+| `_components/shift-day-detail.tsx` | 139 | ○ | 日詳細シート。3状態の判定式は :63（assigned<required→不足 / >→余剰 / =→充足） |
+| `_components/shift-request-processing.tsx` | 402 | ○ | 希望処理（配置済み/未処理の判定）。NOX shift_wishes へ写像 |
+| `_components/req-config-editor.tsx` | 121 | ○ | 必要人数エディタ（band×position×dow→min・平日一括/週末一括=:48-51）。NOX は staffing_needs（dow×required）＝行次元を落とす |
+| `_components/priority-reorder.tsx` | 144 | ○ | 自動配置モードB の優先順 D&D（@dnd-kit・遅延チャンク） |
+| `_components/shift-swap-review.tsx` | 108 | △判断 | 交代申請。NOX モックに無い＝導入は裁定待ち |
+| `_components/shift-types.ts` | 45 | △ | 型は NOX スキーマから書き直し |
+
+### lib（純関数）
+
+| BANZEN | 度 | メモ |
+|---|---|---|
+| `lib/shift-autoassign.ts` | ○ | 貪欲法・説明可能・純関数 DB 非依存（走査=日→帯→職種・候補=希望あり∧未割当・ソート=①最低月間時間未達②割当少=公平③目標金額・出力=割当+不足枠+希望過多）。NOX は帯/職種を落とし「日→必要数→候補→公平」へ縮退 |
+| `lib/shift-time.ts` | ◎ | **実装済み**（NOX lib/nox/shift-time.ts・verify 44 緑・fmtBand30 等の夜職拡張差分あり） |
+| `lib/shift-estimate.ts` | ○ | 人件費見込み。NOX は payOf sim（F2f）接続に差し替え |
+| `lib/shift-month.ts` / `lib/shift-bridge.ts` | 未読 | 役割未確認＝翻訳着手時に開く（このマップの実測対象外だった） |
+| `app/api/shift/auto-assign` route | ○ | planner:390 から fetch。サーバ側で lib を呼ぶ構造 |
+
+### DB（supabase/migrations/）
+
+| BANZEN | NOX 対応 | 度 | メモ |
+|---|---|---|---|
+| `shift_periods`（0003・期間/締切/status collecting→drafting→published） | 無し | △判断 | NOX は period 概念なし（shifts.status planned/confirmed のみ）。募集締切・一括公開を入れるなら新規 mig |
+| `req_config`（0003 weekday_min/weekend_min → 0027 で dow 7値化・**min＝下限**） | staffing_needs（dow×required）実装済み | ○ | 概念差は §8。NOX は band/position 無し |
+| `shift_requests`（pref 3値 preferred/available/unavailable＋req_from/to） | shift_wishes（date+start/end+status）実装済み | ○ | NOX に pref 概念なし（提出＝出たい日のみ）。「×の日」を扱うなら要拡張 |
+| `shift_assignments`（band/position/break_min/**source auto\|manual**） | shifts 実装済み | ○ | NOX に source 列なし＝自動配置を入れるなら「auto のみ一括取消」のため source 列追加が必須 |
+| RPC 群（submit_shift_requests/request_accept・reject・propose/requests_review/shift_request_store_propose・accept・reject/auto_submit_expired_drafts） | shift_wish_submit/decide/withdraw・shift_set 実装済み | ○ | 打診（store_propose）は NOX 未実装・モックにも無い＝裁定待ち |
+
+## 8. 実測注記（2026-07-17・両 repo 現物）
+
+**必要人数の概念差（実測で確定）**：
+- NOX `staffing_needs` = dow×required の**下限のみ**。UI は編集のみで充足判定の表示なし。
+- BANZEN `req_config` = band×position×dow の **min（同じく下限）**。ただし判定は**3状態**＝
+  `assigned < required → 不足 / > → 余剰 / = → 充足`（shift-day-detail.tsx:63）で、**余剰（希望過多・人件費超過）も警告**する。
+- 「NOX は最低・BANZEN は逆」という直感の実体は「両方とも下限。ただし BANZEN は余剰も出す（飲食＝人件費抑制）、
+  NOX は出さない（夜職＝出勤は多いほど良い）」。翻訳時は余剰表示の要否を裁定してから。
+
+**POS 追補（モック照合 2026-07-17 で判明した欠落の流用可否）**：
+- 相席（同一会計）・席移動・時間料金自動計算 → **BANZEN に対応物なし**（相席 grep 0件・飲食に時間制なし）＝△NOX 新規。
+- GPS/IP 在席判定 → `lib/geofence.ts` が**◎そのまま翻訳**。RestrictMode（gps/ip/both/either/tablet）は
+  NOX モックの在席判定4値（GPSのみ/IPのみ/両方一致/いずれか一致）と完全対応。純関数・サーバ側判定・「抑止＋記録」思想も同じ。
+- punches.lat/lng は NOX に受け口実装済み（punch_self が p_lat/p_lng を受ける・現状 null 送信＝判定なし）。
+
+**実装済み注記（本マップの ◎/○ のうち検証済みのもの）**：
+§1 認可ヘルパー/二重防御/RLS/verify＝実装済み（verify:f0 1785 緑）。§3 会計 RPC/seats/スナップショット＝実装済み（F1b）。
+§4 キオスク＝実装済み（F4a mig0043・app/kiosk）。§5 給与確定・凍結・二重承認・自己申告承認＝実装済み（F2c/F3c/F3f）。
+
+**BANZEN のモックは pack されていない**（\uXXXX エスケープ 0件・生 UTF-8 日本語＝grep 可能）。
+NOX canonical のみが pack 済み（11,003件・grep 不能）＝**モック判定は必ずエスケープ復元後に行う**こと。
+
+---
+
+## 9. CC への1行指示テンプレ（流用時に使う）
 
 各サブフェーズで CC にこう投げる（スラッシュ始まり・パス風トークン禁止に注意）：
 
