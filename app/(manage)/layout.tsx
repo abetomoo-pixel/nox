@@ -54,6 +54,8 @@ export default async function ManageLayout({ children }: { children: React.React
               { href: "/master", label: "マスタ" },
             ]
           : []),
+        // 監査ログは owner 限定（RLS も owner 限定＝mig0002・非 owner は 0行。ここは表示ナビ）
+        ...(role === "owner" ? [{ href: "/audit", label: "監査" }] : []),
       ];
   return (
     <div className="nox-dark" style={t.appBg}>
