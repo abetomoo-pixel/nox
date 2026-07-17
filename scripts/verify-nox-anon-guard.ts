@@ -258,7 +258,7 @@ async function main() {
     ["check_set_nominations", { p_check_id: null, p_nom_type: null, p_nominations: null }],
     ["check_add_line", { p_check_id: null, p_product_id: null, p_qty: null, p_kind: null, p_pay_group: null, p_name: null, p_unit_price: null }],
     ["check_remove_line", { p_line_id: null }],
-    ["check_pay", { p_check_id: null, p_method: null, p_amount: null, p_pay_group: null, p_tendered: null, p_idem_key: null }],
+    ["check_pay", { p_check_id: null, p_method: null, p_amount: null, p_pay_group: null, p_tendered: null, p_idem_key: null, p_method_detail: null }], // mig0046 で 7引数へ置換（旧6引数版 drop 済）
     ["check_close", { p_check_id: null, p_idem_key: null }],
     ["check_void", { p_check_id: null, p_reason: null }],
   ];
@@ -648,10 +648,48 @@ async function main() {
       });
       check("段14 can_register=true staff check_set_nominations 成功", !eNom, eNom?.message);
       // due = 10,000 + サ10% → 100円切捨 = 11,000（NOX-VERIFY 店は settings 未設定＝既定 10/100/down）
-      const { error: ePay } = await on.rpc("check_pay", {
-        p_check_id: chkId, p_method: "cash", p_amount: 11_000, p_pay_group: "A", p_tendered: 11_000, p_idem_key: randomUUID(),
+      // ★F4c（mig0046）: method_detail の負系を先に通す（bad detail は INSERT 前に raise＝残額を消費しない）。
+      const { error: eD51 } = await on.rpc("check_pay", {
+        p_check_id: chkId, p_method: "card", p_amount: 11_000, p_pay_group: "A", p_idem_key: randomUUID(),
+        p_method_detail: "x".repeat(51),
       });
-      check("段14 can_register=true staff check_pay 成功（実 INSERT）", !ePay, ePay?.message);
+      check("段14 F4c check_pay 51字 detail = bad detail", !!eD51?.message?.includes("bad detail"), eD51?.message ?? "通ってしまった");
+      // 6引数呼び（p_method_detail 省略）＝後方互換の実測。default null が効き 1,000 円だけ充当する。
+      const { data: payCompat, error: ePayCompat } = await on.rpc("check_pay", {
+        p_check_id: chkId, p_method: "cash", p_amount: 1_000, p_pay_group: "A", p_tendered: 1_000, p_idem_key: randomUUID(),
+      });
+      check("段14 F4c 6引数呼び（detail 省略）成功＝後方互換", !ePayCompat && typeof payCompat === "string", ePayCompat?.message);
+      {
+        const { data: pr } = await admin.from("payments").select("method_detail").eq("id", payCompat as string).single();
+        check("段14 F4c 6引数呼びは method_detail = null", pr?.method_detail === null, JSON.stringify(pr));
+      }
+      // 空白のみ detail → null 格納（nullif(trim(...)) の実測）
+      const { data: payBlank, error: ePayBlank } = await on.rpc("check_pay", {
+        p_check_id: chkId, p_method: "other", p_amount: 1_000, p_pay_group: "A", p_idem_key: randomUUID(),
+        p_method_detail: "   ",
+      });
+      check("段14 F4c 空白のみ detail 成功", !ePayBlank && typeof payBlank === "string", ePayBlank?.message);
+      {
+        const { data: pr } = await admin.from("payments").select("method_detail").eq("id", payBlank as string).single();
+        check("段14 F4c 空白のみ detail = null 格納", pr?.method_detail === null, JSON.stringify(pr));
+      }
+      // detail あり → 格納＋audit の after_json に載る（to_jsonb(p) 経路＝列追加が自動で乗る）。
+      // 残額を使い切る 9,000（1,000+1,000+9,000=11,000）＝close 前提は不変。既存ラベルはこの実呼びが担う。
+      const { data: payDetail, error: ePay } = await on.rpc("check_pay", {
+        p_check_id: chkId, p_method: "other", p_amount: 9_000, p_pay_group: "A", p_idem_key: randomUUID(),
+        p_method_detail: "PayPay",
+      });
+      check("段14 can_register=true staff check_pay 成功（実 INSERT）", !ePay && typeof payDetail === "string", ePay?.message);
+      {
+        const { data: pr } = await admin.from("payments").select("method, method_detail").eq("id", payDetail as string).single();
+        check("段14 F4c method_detail 格納（other/PayPay）",
+          pr?.method === "other" && pr?.method_detail === "PayPay", JSON.stringify(pr));
+        const { data: aud } = await admin.from("audit_logs").select("after_json")
+          .eq("action", "check_pay").eq("target", `payments:${payDetail}`).limit(1);
+        const after = (aud ?? [])[0]?.after_json as Record<string, unknown> | undefined;
+        check("段14 F4c audit の after_json に method_detail が含まれる",
+          (aud ?? []).length === 1 && after?.method_detail === "PayPay", JSON.stringify(aud));
+      }
       const { data: closed, error: eCl } = await on.rpc("check_close", { p_check_id: chkId, p_idem_key: randomUUID() });
       check("段14 can_register=true staff check_close 成功", !eCl && closed === chkId, eCl?.message ?? `got ${JSON.stringify(closed)}`);
       // 実 INSERT の物理確認（ON staff の SELECT 可視で status/total を実測）

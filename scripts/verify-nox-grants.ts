@@ -485,6 +485,43 @@ async function main() {
       check("G21 printer_config/print_jobs policy 0本（deny-all＝RPC/service_role 専任）", r.rowCount === 0,
         JSON.stringify(r.rows));
     }
+
+    // G22: F4c 決済手段内訳（mig0046）— check_pay の署名一意性＋ACL＋method_detail 制約。
+    //   ★署名一意性を先に assert する: roleOf は proname 引きのため、旧6引数版が残ると ACL が
+    //   2署名ぶん混ざって静かに通ってしまう（＝drop 漏れを検知できない）。
+    {
+      const r = await db.query(
+        `select pg_get_function_identity_arguments(oid) as args from pg_proc
+         where pronamespace = 'public'::regnamespace and proname = 'check_pay'`,
+      );
+      const argsList = r.rows.map((x) => x.args as string);
+      check("G22 check_pay = 7引数1本のみ（旧6引数版 drop 済＝オーバーロード無し）",
+        r.rowCount === 1 && argsList[0].includes("p_method_detail"), JSON.stringify(argsList));
+      const roles = await roleOf("check_pay");
+      check("G22 check_pay EXECUTE = authenticated（anon/public 不在）",
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    {
+      const r = await db.query(
+        `select pg_get_constraintdef(oid) as def from pg_constraint
+         where conrelid = 'public.payments'::regclass and conname = 'payments_method_detail_check'`,
+      );
+      const def = (r.rows[0]?.def as string | undefined) ?? "";
+      check("G22 payments_method_detail_check = null 可・50字上限",
+        def.includes("IS NULL") && def.includes("50"), def || "(missing)");
+    }
+    // G22b: 語彙は4値維持（F4c 裁定＝台帳 #36）。値域が動いたら 5点セット改修の合図＝ここで検知する。
+    {
+      const r = await db.query(
+        `select pg_get_constraintdef(oid) as def from pg_constraint
+         where conrelid = 'public.payments'::regclass and conname = 'payments_method_check'`,
+      );
+      const def = (r.rows[0]?.def as string | undefined) ?? "";
+      check("G22b payments_method_check = cash/card/ar/other の4値維持（拡張時は 5点セット同時改修）",
+        def.includes("'cash'") && def.includes("'card'") && def.includes("'ar'") && def.includes("'other'")
+        && (def.match(/'/g) ?? []).length === 8, def || "(missing)");
+    }
   }
 
   await db.end();
