@@ -7,9 +7,11 @@ import Toast from "@/components/ui/toast";
 import CompMaster from "./comp-master";
 
 type Product = {
-  id: string; type: string; category: string | null; name: string; price: number; cost: number | null;
+  id: string; type: string; category: string | null; name: string; price: number;
   back_mode: string; back_value: number | null; unit4_json: Record<string, number> | null; hon_pt: number; is_active: boolean;
 };
+// 原価は products に無い（台帳#40＝product_costs へ分離）。RLS は owner∨manager自店 のみ返す＝cast/staff は空。
+type ProductCost = { product_id: string; cost: number };
 type Seat = { id: string; name: string; kind: string | null; sort_order: number; is_active: boolean };
 type StockLog = { product_id: string; delta: number; reason: string | null; at: string };
 
@@ -25,6 +27,7 @@ const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
 export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId: string; isManagerUp: boolean; isOwner: boolean }) {
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>([]);
+  const [costs, setCosts] = useState<Record<string, number>>({});
   const [seats, setSeats] = useState<Seat[]>([]);
   const [stock, setStock] = useState<Record<string, number>>({});
   const [msg, setMsg] = useState<string | null>(null);
@@ -56,11 +59,15 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
 
   const load = useCallback(async () => {
     const { data: ps } = await supabase.from("products").select("*").order("type").order("name");
+    const { data: cs } = await supabase.from("product_costs").select("product_id, cost");
     const { data: ss } = await supabase.from("seats").select("id, name, kind, sort_order, is_active").order("sort_order");
     const { data: logs } = await supabase.from("stock_logs").select("product_id, delta, reason, at");
     const st: Record<string, number> = {};
     for (const l of (logs ?? []) as StockLog[]) st[l.product_id] = (st[l.product_id] ?? 0) + l.delta;
+    const cm: Record<string, number> = {};
+    for (const c of (cs ?? []) as ProductCost[]) cm[c.product_id] = c.cost;
     setProducts((ps ?? []) as Product[]);
+    setCosts(cm);
     setSeats((ss ?? []) as Seat[]);
     setStock(st);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -70,7 +77,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
 
   function editProduct(p: Product) {
     setPId(p.id); setPType(p.type); setPCategory(p.category ?? ""); setPName(p.name);
-    setPPrice(p.price); setPCost(p.cost == null ? "" : String(p.cost));
+    setPPrice(p.price); setPCost(costs[p.id] == null ? "" : String(costs[p.id]));
     setPBackMode(p.back_mode); setPBackValue(p.back_value ?? 0);
     setPUnit4(p.unit4_json ?? { ...EMPTY_UNIT4 }); setPHonPt(p.hon_pt); setPActive(p.is_active);
   }
