@@ -511,6 +511,15 @@ async function main() {
       check("G22 payments_method_detail_check = null 可・50字上限",
         def.includes("IS NULL") && def.includes("50"), def || "(missing)");
     }
+    // G23: F3f 申告導線（mig0048）— cast_open_checks の EXECUTE ACL。
+    //   最小開示 RPC（自店 open 伝票の席名/開始時刻のみ）＝cast セルフ専用。返却列の金額系不在は段29-25 で実測。
+    {
+      const roles = await roleOf("cast_open_checks");
+      check("G23 cast_open_checks EXECUTE = authenticated（anon/public 不在）",
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+
     // G22b: 語彙は4値維持（F4c 裁定＝台帳 #36）。値域が動いたら 5点セット改修の合図＝ここで検知する。
     {
       const r = await db.query(

@@ -3522,6 +3522,10 @@ async function main() {
   //     18e approved は残置（給与除外は collect の void フィルタが単一責任点）／
   //     24 collect 実関数を差分方式で通し「void 除外」と「close 非依存の維持（open は乗る）」を同時に押さえる。
   //     ※旧 assert「18 void 済み check の申告承認も可（mig0037 裁定3）」は 0047 が塞いだため廃止。
+  //   ★mig0048（申告導線）: 25 cast_open_checks＝cast セルフ専用の最小開示 RPC。
+  //     25a 自店 open が返る＋★返却キー4つのみ（金額/明細/客/指名が構造的に不在）／25b 他店非混入／
+  //     25c closed・void は返らない／25d owner/manager/staff(can_register=true) は no cast for caller・anon BLOCKED。
+  //     ACL は grants G23。この段の fixture（open2/closed2/void2/他店 open1）がそのまま a〜c の実測材料。
   //   ★汚染防止: 生成 drink_claims/check/check_cast_backs は try/finally 全消し＋残0。
   //   wipe 順: drink_claims（check_id/cast_id FK 参照元）を最初に消す。
   {
@@ -3821,6 +3825,53 @@ async function main() {
           check("段29-24 ★collect 実測: delta = open 伝票の承認済のみ（void 伝票の approved は乗らない・close 非依存は維持）",
             after - base === drinkUnit * 1,
             `base=${base} after=${after} delta=${after - base} / open期待=${drinkUnit * 1} / void分(乗ってはいけない)=${drinkUnit * 3}`);
+
+          // ══════════════════════════════════════════════════════════════
+          // 25（0048）★cast_open_checks: 申告先を選ぶための最小開示 RPC。
+          //   この時点の 段29 fixture が a〜c の理想形:
+          //     自店 A1 open   = c1(seat1) / cOpen24(seat2)      → 返るべき
+          //     自店 A1 closed = cD(seat2) / cC(seat3)           → 返らない
+          //     自店 A1 void   = c4(seat4) / cVoid24(seat3)      → 返らない
+          //     他店 A2 open   = a2Chk                            → 返らない（店スコープ）
+          //   ※他段の残伝票が混じり得るため exact 一致ではなく包含/非包含で assert（決定的）。
+          // ══════════════════════════════════════════════════════════════
+          type OpenRow = { check_id: string; seat_name: string; seat_kind: string | null; started_at: string };
+          const { data: ocRaw, error: eOc } = await castA29.rpc("cast_open_checks");
+          const oc = (ocRaw ?? []) as OpenRow[];
+          const ids25 = new Set(oc.map((r) => r.check_id));
+
+          // 25a 正系: 自店 open が {check_id, seat_name, seat_kind, started_at} で返る
+          check("段29-25a ★cast cast_open_checks 正系: 自店 open 伝票が返る（c1・cOpen24 を含む）",
+            !eOc && ids25.has(c1) && ids25.has(cOpen24), eOc?.message ?? `ids=${[...ids25].length}件`);
+          const row25 = oc.find((r) => r.check_id === c1);
+          check("段29-25a' 返却行の形: seat_name 実値・started_at 実値（seat_id NOT NULL＝席名は必ず在る）",
+            !!row25 && typeof row25.seat_name === "string" && row25.seat_name.length > 0 && !!row25.started_at,
+            JSON.stringify(row25));
+          // ★最小開示の構造的証明: 返却キーが4つだけ＝金額/明細/客/指名は列として存在しない
+          const keys25 = Object.keys(row25 ?? {}).sort();
+          check("段29-25a'' ★返却列に金額系が構造的に不在（キーは check_id/seat_kind/seat_name/started_at の4つのみ）",
+            JSON.stringify(keys25) === JSON.stringify(["check_id", "seat_kind", "seat_name", "started_at"]),
+            JSON.stringify(keys25));
+
+          // 25b 他店/他 org 非混入
+          check("段29-25b ★他店（A2）の open 伝票が混入しない（店スコープ）", !ids25.has(a2Chk?.id as string), `a2Chk=${a2Chk?.id}`);
+          const { data: ocB } = await castB29.rpc("cast_open_checks");
+          check("段29-25b' 他 org は構造的に不可（castB=同店のため件数一致＝org/店スコープの対照）",
+            ((ocB ?? []) as OpenRow[]).every((r) => ids25.has(r.check_id)), `castB=${((ocB ?? []) as OpenRow[]).length}件`);
+
+          // 25c closed/void は返らない
+          check("段29-25c ★closed 伝票は返らない（cD・cC）", !ids25.has(cD) && !ids25.has(cC), `cD=${ids25.has(cD)} cC=${ids25.has(cC)}`);
+          check("段29-25c' ★void 伝票は返らない（c4・cVoid24）", !ids25.has(c4) && !ids25.has(cVoid24), `c4=${ids25.has(c4)} cVoid24=${ids25.has(cVoid24)}`);
+
+          // 25d 負系: 非 cast は全て 'no cast for caller'（staff は can_register=true でも不可＝cast セルフ専用）
+          const { error: eO25 } = await owner29.rpc("cast_open_checks");
+          const { error: eM25 } = await mgr29.rpc("cast_open_checks");
+          const { error: eS25 } = await staffOn29.rpc("cast_open_checks");
+          check("段29-25d ★owner/manager/staff(can_register=true) = no cast for caller（cast セルフ専用）",
+            has(eO25, "no cast for caller") && has(eM25, "no cast for caller") && has(eS25, "no cast for caller"),
+            `owner="${eO25?.message}" mgr="${eM25?.message}" staffOn="${eS25?.message}"`);
+          const { error: eA25 } = await anon.rpc("cast_open_checks");
+          check("段29-25d' anon cast_open_checks BLOCKED", isFnBlocked(eA25), eA25?.message ?? "実行できてしまった");
         }
       } finally {
         await admin.from("checks").delete().eq("id", a2Chk?.id ?? "");   // A2 check（seatIds 経由でも消えるが明示）
