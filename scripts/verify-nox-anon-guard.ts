@@ -146,6 +146,22 @@
  *       deactivate 後は kiosk_cast_list 0行＋kiosk_punch forbidden（is_active 失効）。
  *       finally=kiosk punches→cast_pin→kiosk_devices→一時 casts→auth deleteUser の依存順全消し
  *       ＝固定カウント反転ゼロ（audit_logs は append-only のため残置＝従来どおり）。anon は段35a で 7署名 BLOCKED。
+ * 段36（0044/0045 適用後）: F4b レシート印刷（printer_config 隔離＋print_jobs キュー＝両 deny-all）。
+ *       段内で closed/open 伝票を admin 直 INSERT（check_open 系 RPC 非経由＝固定カウント制御）。
+ *       a. printer disabled（config 無し/enabled=false）で enqueue 拒否／b. set_printer_config 正系＋
+ *       get_printer_config（has_token=false→rotate 後 true・★token 値は get 返却に非含有・24hex 形式）／
+ *       c. owner 限定負系（manager set/rotate/get forbidden・null enabled 拒否）／d. enqueue 失敗系
+ *       （open 伝票=not closed・不在 pay_group=bad pay_group・cast[can_register off]=forbidden＝4枝実測）／
+ *       e. ★状態遷移: enqueue→queued（行検証 NOT NULL/print_token 24hex/created_by）→二度押し
+ *       already_queued:true（同 job_id）→result(queued)=bad_state→claim=printing（claimed_at）→
+ *       result(success)=printed（printed_at）→再 result=idempotent:true→再 enqueue=is_reprint:true／
+ *       f. serial: 設定後の claim 不一致=serial_mismatch・一致で printing・token は set_printer_config で不変／
+ *       g. claim 偽 token（24hex）=unknown_token・形式不正=bad token raise・queued 空=found:false／
+ *       h. ★claim/result は authenticated（owner）から permission denied（service_role 限定の実測）／
+ *       i. set_store_receipt_profile: owner 正系（settings_json 4キー）・manager forbidden・
+ *       T+14桁=bad reg_no・空 reg_no 可／j. pay_group 'B' の enqueue は is_reprint:false（(check,group) 単位）。
+ *       finally=print_jobs→check_lines→checks→printer_config 行削除＋settings_json 厳密復元＝反転ゼロ。
+ *       anon は段36a で 7署名 BLOCKED（claim/result は service_role 限定＝anon にも grant なし）。
  * 正常系対照: authenticated では auth_role() が実行可能で正しいロールを返す
  *       （プローブ手法が BLOCKED と EXECUTABLE を区別できている裏取り）。
  */
@@ -457,6 +473,22 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段36a: F4b レシート印刷（mig0044/0045）RPC anon BLOCKED ──
+  //   claim/result は service_role 限定（内部専用型）＝anon に加え authenticated 負系を段36 本体で実測。
+  const F0044_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["set_printer_config", { p_store_id: null, p_enabled: null, p_serial: null }],
+    ["rotate_store_token", { p_store_id: null }],
+    ["get_printer_config", { p_store_id: null }],
+    ["set_store_receipt_profile", { p_store_id: null, p_address: null, p_tel: null, p_reg_no: null, p_footer: null }],
+    ["print_enqueue", { p_check_id: null, p_pay_group: null }],
+    ["print_claim", { p_store_token: null, p_serial: null }], // service_role 限定
+    ["print_result", { p_store_token: null, p_print_token: null, p_success: null, p_error_code: null }], // service_role 限定
+  ];
+  for (const [fn, args] of F0044_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段5b: 内部関数は anon でも BLOCKED ──
   const INTERNAL_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_round_amount", { p_amount: 1, p_unit: 1, p_mode: "down" }],
@@ -488,10 +520,12 @@ async function main() {
     "customers", // F3a-2（mig0023）
     "reservations", // F3a-3（mig0027）
     "kiosk_devices", "cast_pin", // F4a キオスク（mig0043・deny-all＝authenticated ですら SELECT 不可）
+    "printer_config", "print_jobs", // F4b レシート印刷（mig0044/0045・deny-all）
   ]) {
-    // PK=cast_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
+    // PK=cast_id/store_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
     const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles", "cast_pin"].includes(table);
-    const { error } = await anon.from(table).select(pkCastId ? "cast_id" : "id").limit(1);
+    const pkStoreId = table === "printer_config";
+    const { error } = await anon.from(table).select(pkCastId ? "cast_id" : pkStoreId ? "store_id" : "id").limit(1);
     check(
       `anon ${table} select DENIED`,
       !!error?.message?.includes("permission denied"),
@@ -4680,6 +4714,227 @@ async function main() {
       check("段35 掃除確認: kiosk punches/cast_pin/kiosk_devices/一時 casts 全消し（固定カウント非汚染）",
         (pLeft ?? []).length === 0 && (pinLeft ?? []).length === 0 && (dLeft ?? []).length === 0 && (cLeft ?? []).length === 0,
         `punches=${(pLeft ?? []).length}, pin=${(pinLeft ?? []).length}, devices=${(dLeft ?? []).length}, casts=${(cLeft ?? []).length}`);
+    }
+  }
+
+  // ── 段36: F4b レシート印刷（mig0044/0045）設定→enqueue→claim→result の実書込フロー＋認可 ──
+  //   printer_config/print_jobs は deny-all＝経路は RPC（enqueue=4枝）と service_role（claim/result）のみ。
+  //   伝票は admin 直 INSERT（RPC 非経由＝バック分配等の副作用なし・固定カウント制御）。
+  //   finally: print_jobs→check_lines→checks→printer_config 行削除＋settings_json 厳密復元。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+    const HEX24 = /^[0-9a-f]{24}$/;
+
+    const { data: s36A1 } = await admin.from("stores").select("id, org_id, settings_json").eq("name", STORE_A1).single();
+    const baseline36 = (s36A1?.settings_json ?? null) as Record<string, unknown> | null;
+    const { data: seat36 } = s36A1
+      ? await admin.from("seats").select("id").eq("store_id", s36A1.id).limit(1).single()
+      : { data: null };
+    const { data: ownerRow36 } = await admin.from("users").select("id")
+      .eq("email", FIXTURE_USERS.ownerA.email).single();
+
+    const owner = await signInShared("段36", "ownerA");
+    const mgr = await signInShared("段36", "managerA1");
+    const castA = await signInShared("段36", "castA1a");
+
+    // 段内動的伝票: closed（pay_group A×2 + B×1）と open（'not closed' 負系用）
+    let ch1: string | null = null; // closed
+    let ch2: string | null = null; // open
+    const wipe36 = async () => {
+      const ids = [ch1, ch2].filter(Boolean) as string[];
+      if (ids.length) {
+        await admin.from("print_jobs").delete().in("check_id", ids);
+        await admin.from("check_lines").delete().in("check_id", ids);
+        await admin.from("checks").delete().in("id", ids);
+      }
+      if (s36A1) await admin.from("printer_config").delete().eq("store_id", s36A1.id);
+    };
+
+    if (s36A1 && seat36 && ownerRow36) {
+      const mk = async (status: "closed" | "open"): Promise<string | null> => {
+        const { data } = await admin.from("checks").insert({
+          org_id: s36A1.org_id, store_id: s36A1.id, seat_id: seat36.id,
+          status, started_at: new Date().toISOString(),
+          closed_at: status === "closed" ? new Date().toISOString() : null,
+          total: 11000, service_rate: 10, round_unit: 100, round_mode: "down",
+          created_by: ownerRow36.id,
+        }).select("id").single();
+        return (data?.id as string) ?? null;
+      };
+      ch1 = await mk("closed");
+      ch2 = await mk("open");
+      if (ch1) {
+        await admin.from("check_lines").insert([
+          { org_id: s36A1.org_id, store_id: s36A1.id, check_id: ch1, kind: "set", pay_group: "A", name_snapshot: "NOX-VERIFY-段36セット", unit_price_snapshot: 5000, qty: 1, line_total: 5000 },
+          { org_id: s36A1.org_id, store_id: s36A1.id, check_id: ch1, kind: "drink", pay_group: "A", name_snapshot: "NOX-VERIFY-段36ドリンク", unit_price_snapshot: 1500, qty: 2, line_total: 3000 },
+          { org_id: s36A1.org_id, store_id: s36A1.id, check_id: ch1, kind: "set", pay_group: "B", name_snapshot: "NOX-VERIFY-段36セットB", unit_price_snapshot: 3000, qty: 1, line_total: 3000 },
+        ]);
+      }
+      if (ch2) {
+        await admin.from("check_lines").insert([
+          { org_id: s36A1.org_id, store_id: s36A1.id, check_id: ch2, kind: "set", pay_group: "A", name_snapshot: "NOX-VERIFY-段36オープン", unit_price_snapshot: 5000, qty: 1, line_total: 5000 },
+        ]);
+      }
+    }
+
+    check("段36（準備）店/seat/owner行/伝票2/セッション解決",
+      !!s36A1 && !!seat36 && !!ownerRow36 && !!ch1 && !!ch2 && !!owner && !!mgr && !!castA);
+
+    if (s36A1 && seat36 && ownerRow36 && ch1 && ch2 && owner && mgr && castA) {
+      try {
+        // ═══ a. printer disabled（config 無し→enabled=false とも拒否）═══
+        const { error: eDis1 } = await owner.rpc("print_enqueue", { p_check_id: ch1, p_pay_group: "A" });
+        check("段36 config 無し enqueue = printer disabled", has(eDis1, "printer disabled"), eDis1?.message ?? "通ってしまった");
+        const { error: eSet0 } = await owner.rpc("set_printer_config", { p_store_id: s36A1.id, p_enabled: false, p_serial: null });
+        check("段36 set_printer_config(false) 成功", !eSet0, eSet0?.message);
+        const { error: eDis2 } = await owner.rpc("print_enqueue", { p_check_id: ch1, p_pay_group: "A" });
+        check("段36 enabled=false enqueue = printer disabled", has(eDis2, "printer disabled"), eDis2?.message ?? "通ってしまった");
+
+        // ═══ b. 正系設定＋rotate（★token 値は get に非含有）═══
+        const { error: eSet1 } = await owner.rpc("set_printer_config", { p_store_id: s36A1.id, p_enabled: true, p_serial: null });
+        check("段36 ★set_printer_config(true) 成功", !eSet1, eSet1?.message);
+        const { data: cfg0 } = await owner.rpc("get_printer_config", { p_store_id: s36A1.id });
+        const c0 = cfg0 as { printer_enabled: boolean; has_token: boolean };
+        check("段36 get_printer_config: enabled=true・has_token=false", c0?.printer_enabled === true && c0?.has_token === false, JSON.stringify(cfg0));
+        const { data: tok, error: eRot } = await owner.rpc("rotate_store_token", { p_store_id: s36A1.id });
+        check("段36 ★rotate_store_token = 24hex 一度返し", !eRot && typeof tok === "string" && HEX24.test(tok), eRot?.message ?? String(tok));
+        const token = tok as string;
+        const { data: cfg1 } = await owner.rpc("get_printer_config", { p_store_id: s36A1.id });
+        check("段36 ★get: has_token=true かつ token 値非含有",
+          (cfg1 as { has_token: boolean })?.has_token === true && !JSON.stringify(cfg1).includes(token), JSON.stringify(cfg1));
+
+        // ═══ c. owner 限定負系 ═══
+        const { error: eM1 } = await mgr.rpc("set_printer_config", { p_store_id: s36A1.id, p_enabled: true, p_serial: null });
+        check("段36 manager set_printer_config forbidden", forbidden(eM1), eM1?.message ?? "通ってしまった");
+        const { error: eM2 } = await mgr.rpc("rotate_store_token", { p_store_id: s36A1.id });
+        check("段36 manager rotate_store_token forbidden", forbidden(eM2), eM2?.message ?? "通ってしまった");
+        const { error: eM3 } = await mgr.rpc("get_printer_config", { p_store_id: s36A1.id });
+        check("段36 manager get_printer_config forbidden", forbidden(eM3), eM3?.message ?? "通ってしまった");
+        const { error: eN1 } = await owner.rpc("set_printer_config", { p_store_id: s36A1.id, p_enabled: null, p_serial: null });
+        check("段36 set_printer_config null = bad enabled", has(eN1, "bad enabled"), eN1?.message ?? "通ってしまった");
+
+        // ═══ d. enqueue 失敗系（4枝実測含む）═══
+        const { error: eOpen } = await owner.rpc("print_enqueue", { p_check_id: ch2, p_pay_group: "A" });
+        check("段36 open 伝票 enqueue = not closed", has(eOpen, "not closed"), eOpen?.message ?? "通ってしまった");
+        const { error: eBadG } = await owner.rpc("print_enqueue", { p_check_id: ch1, p_pay_group: "Z" });
+        check("段36 不在 pay_group = bad pay_group", has(eBadG, "bad pay_group"), eBadG?.message ?? "通ってしまった");
+        const { error: eCast } = await castA.rpc("print_enqueue", { p_check_id: ch1, p_pay_group: "A" });
+        check("段36 cast（can_register off）enqueue forbidden（4枝実測）", forbidden(eCast), eCast?.message ?? "通ってしまった");
+
+        // ═══ e. ★状態遷移: enqueue→already_queued→bad_state→claim→result→idempotent→is_reprint ═══
+        type EnqRes = { job_id: string; is_reprint: boolean; already_queued: boolean };
+        const { data: j1raw, error: eJ1 } = await owner.rpc("print_enqueue", { p_check_id: ch1, p_pay_group: "A" });
+        const j1 = j1raw as EnqRes;
+        check("段36 ★enqueue 成功（is_reprint=false・already_queued=false）",
+          !eJ1 && typeof j1?.job_id === "string" && j1.is_reprint === false && j1.already_queued === false,
+          eJ1?.message ?? JSON.stringify(j1raw));
+        const { data: jRow1 } = await admin.from("print_jobs")
+          .select("org_id, store_id, check_id, pay_group, status, is_reprint, print_token, created_by").eq("id", j1.job_id).single();
+        check("段36 ★job 行検証（NOT NULL 充足・queued・print_token 24hex・created_by=owner）",
+          !!jRow1?.org_id && jRow1?.store_id === s36A1.id && jRow1?.check_id === ch1 && jRow1?.pay_group === "A"
+          && jRow1?.status === "queued" && HEX24.test((jRow1?.print_token as string) ?? "")
+          && jRow1?.created_by === ownerRow36.id, JSON.stringify(jRow1));
+        const { data: j1again } = await owner.rpc("print_enqueue", { p_check_id: ch1, p_pay_group: "A" });
+        check("段36 二度押し = already_queued:true（同 job_id・二重印刷封じ）",
+          (j1again as EnqRes)?.already_queued === true && (j1again as EnqRes)?.job_id === j1.job_id, JSON.stringify(j1again));
+
+        const pt1 = jRow1!.print_token as string;
+        const { data: rBad } = await admin.rpc("print_result", { p_store_token: token, p_print_token: pt1, p_success: true, p_error_code: null });
+        check("段36 queued へ result = bad_state（printing のみ受理）",
+          (rBad as { ok: boolean; reason?: string })?.reason === "bad_state", JSON.stringify(rBad));
+
+        const { data: cl1 } = await admin.rpc("print_claim", { p_store_token: token, p_serial: null });
+        type ClaimRes = { ok: boolean; found?: boolean; job_id?: string; print_token?: string; reason?: string };
+        check("段36 ★claim = found:true（同 job・print_token 返却）",
+          (cl1 as ClaimRes)?.found === true && (cl1 as ClaimRes)?.job_id === j1.job_id && (cl1 as ClaimRes)?.print_token === pt1,
+          JSON.stringify(cl1));
+        const { data: jRow2 } = await admin.from("print_jobs").select("status, claimed_at").eq("id", j1.job_id).single();
+        check("段36 claim 後 = printing＋claimed_at 非null", jRow2?.status === "printing" && !!jRow2?.claimed_at, JSON.stringify(jRow2));
+
+        const { data: rOk } = await admin.rpc("print_result", { p_store_token: token, p_print_token: pt1, p_success: true, p_error_code: null });
+        check("段36 ★result(success) = printed", (rOk as { status?: string })?.status === "printed", JSON.stringify(rOk));
+        const { data: jRow3 } = await admin.from("print_jobs").select("status, printed_at").eq("id", j1.job_id).single();
+        check("段36 result 後 = printed＋printed_at 非null", jRow3?.status === "printed" && !!jRow3?.printed_at, JSON.stringify(jRow3));
+        const { data: rIdem } = await admin.rpc("print_result", { p_store_token: token, p_print_token: pt1, p_success: true, p_error_code: null });
+        check("段36 ★同 token 再 result = idempotent:true（プリンタ再送に安全）",
+          (rIdem as { idempotent?: boolean })?.idempotent === true, JSON.stringify(rIdem));
+
+        const { data: j2raw } = await owner.rpc("print_enqueue", { p_check_id: ch1, p_pay_group: "A" });
+        const j2 = j2raw as EnqRes;
+        check("段36 ★printed 後の再 enqueue = is_reprint:true（新規 job）",
+          j2?.is_reprint === true && j2?.already_queued === false && j2?.job_id !== j1.job_id, JSON.stringify(j2raw));
+
+        // ═══ f. serial 照合（設定は token 不変・不一致 mismatch・一致で printing）═══
+        const { error: eSer } = await owner.rpc("set_printer_config", { p_store_id: s36A1.id, p_enabled: true, p_serial: "TM-M30-001" });
+        check("段36 serial 設定成功", !eSer, eSer?.message);
+        const { data: cfg2 } = await owner.rpc("get_printer_config", { p_store_id: s36A1.id });
+        check("段36 serial 設定は token 不変（has_token=true 維持）", (cfg2 as { has_token: boolean })?.has_token === true, JSON.stringify(cfg2));
+        const { data: clMis } = await admin.rpc("print_claim", { p_store_token: token, p_serial: "WRONG-SERIAL" });
+        check("段36 serial 不一致 = serial_mismatch", (clMis as ClaimRes)?.reason === "serial_mismatch", JSON.stringify(clMis));
+        const { data: cl2 } = await admin.rpc("print_claim", { p_store_token: token, p_serial: "TM-M30-001" });
+        check("段36 serial 一致 claim = J2 printing", (cl2 as ClaimRes)?.found === true && (cl2 as ClaimRes)?.job_id === j2.job_id, JSON.stringify(cl2));
+
+        // ═══ g. claim 偽 token / 形式不正 / queued 空 ═══
+        const { data: clUnk } = await admin.rpc("print_claim", { p_store_token: "deadbeefdeadbeefdeadbeef", p_serial: null });
+        check("段36 偽 token（24hex）= unknown_token", (clUnk as ClaimRes)?.reason === "unknown_token", JSON.stringify(clUnk));
+        const { error: eTokFmt } = await admin.rpc("print_claim", { p_store_token: "xyz", p_serial: null });
+        check("段36 形式不正 token = bad token（raise）", has(eTokFmt, "bad token"), eTokFmt?.message ?? "通ってしまった");
+        const { data: clEmpty } = await admin.rpc("print_claim", { p_store_token: token, p_serial: "TM-M30-001" });
+        check("段36 queued 空 = found:false（空ポーリング応答の素）", (clEmpty as ClaimRes)?.ok === true && (clEmpty as ClaimRes)?.found === false, JSON.stringify(clEmpty));
+
+        // ═══ h. ★claim/result は authenticated から呼べない（service_role 限定の実測）═══
+        const { error: eAu1 } = await owner.rpc("print_claim", { p_store_token: token, p_serial: null });
+        check("段36 ★owner print_claim = permission denied（service_role 限定）", isFnBlocked(eAu1), eAu1?.message ?? "実行できてしまった");
+        const { error: eAu2 } = await owner.rpc("print_result", { p_store_token: token, p_print_token: pt1, p_success: true, p_error_code: null });
+        check("段36 ★owner print_result = permission denied（service_role 限定）", isFnBlocked(eAu2), eAu2?.message ?? "実行できてしまった");
+
+        // ═══ i. set_store_receipt_profile（settings_json 4キー）═══
+        const { error: eRp } = await owner.rpc("set_store_receipt_profile", {
+          p_store_id: s36A1.id, p_address: "東京都新宿区歌舞伎町1-2-3", p_tel: "03-1234-5678",
+          p_reg_no: "T1234567890123", p_footer: "またのご来店をお待ちしております",
+        });
+        check("段36 ★set_store_receipt_profile 成功", !eRp, eRp?.message);
+        const { data: st36 } = await admin.from("stores").select("settings_json").eq("id", s36A1.id).single();
+        const sj36 = (st36?.settings_json ?? {}) as Record<string, unknown>;
+        check("段36 settings_json 4キー反映",
+          sj36.receipt_address === "東京都新宿区歌舞伎町1-2-3" && sj36.receipt_tel === "03-1234-5678"
+          && sj36.invoice_reg_no === "T1234567890123" && sj36.receipt_footer === "またのご来店をお待ちしております",
+          JSON.stringify(sj36));
+        const { error: eRpM } = await mgr.rpc("set_store_receipt_profile", {
+          p_store_id: s36A1.id, p_address: "", p_tel: "", p_reg_no: "", p_footer: "",
+        });
+        check("段36 manager set_store_receipt_profile forbidden", forbidden(eRpM), eRpM?.message ?? "通ってしまった");
+        const { error: eReg } = await owner.rpc("set_store_receipt_profile", {
+          p_store_id: s36A1.id, p_address: "", p_tel: "", p_reg_no: "T12345678901234", p_footer: "",
+        });
+        check("段36 T+14桁 = bad reg_no", has(eReg, "bad reg_no"), eReg?.message ?? "通ってしまった");
+        const { error: eRegE } = await owner.rpc("set_store_receipt_profile", {
+          p_store_id: s36A1.id, p_address: "住所のみ", p_tel: "", p_reg_no: "", p_footer: "",
+        });
+        check("段36 空 reg_no 可（未登録店対応）", !eRegE, eRegE?.message);
+
+        // ═══ j. pay_group 'B' は独立（(check_id, pay_group) 単位の実証）═══
+        const { data: j3raw } = await owner.rpc("print_enqueue", { p_check_id: ch1, p_pay_group: "B" });
+        const j3 = j3raw as EnqRes;
+        check("段36 ★pay_group B enqueue = is_reprint:false（group 独立）",
+          j3?.is_reprint === false && j3?.already_queued === false, JSON.stringify(j3raw));
+      } finally {
+        await wipe36();
+        await admin.from("stores").update({ settings_json: baseline36 }).eq("id", s36A1.id);
+      }
+      // 非汚染の物理確認
+      const { data: jLeft } = await admin.from("print_jobs").select("id").in("check_id", [ch1, ch2]);
+      const { data: cLeft36 } = await admin.from("checks").select("id").in("id", [ch1, ch2]);
+      const { data: pcLeft } = await admin.from("printer_config").select("store_id").eq("store_id", s36A1.id);
+      const { data: stFin36 } = await admin.from("stores").select("settings_json").eq("id", s36A1.id).single();
+      check("段36 掃除確認: print_jobs/checks/printer_config 全消し＋settings_json 復元（固定カウント非汚染）",
+        (jLeft ?? []).length === 0 && (cLeft36 ?? []).length === 0 && (pcLeft ?? []).length === 0
+        && JSON.stringify((stFin36?.settings_json ?? null)) === JSON.stringify(baseline36 ?? null),
+        `jobs=${(jLeft ?? []).length}, checks=${(cLeft36 ?? []).length}, cfg=${(pcLeft ?? []).length}, settings=${JSON.stringify(stFin36?.settings_json)}`);
     }
   }
 

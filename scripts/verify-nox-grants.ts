@@ -36,6 +36,7 @@ const TABLES = [
   "reservations", // F3a-3（mig0027）
   "trials", // F3d 体入採用（mig0040）
   "kiosk_devices", "cast_pin", // F4a キオスク打刻（mig0043・deny-all＝SELECT すら grant なし。G1/G2/G5 自動回帰＋G20 で policy 0本を能動 assert）
+  "printer_config", "print_jobs", // F4b レシート印刷（mig0044/0045・deny-all。G21 で policy 0本＋service_role 限定 ACL を能動 assert）
 ];
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
@@ -458,6 +459,31 @@ async function main() {
       const def = (r.rows[0]?.def as string | undefined) ?? "";
       check("G20 punches_source_check = self/manager/kiosk の3値",
         def.includes("'self'") && def.includes("'manager'") && def.includes("'kiosk'"), def || "(missing)");
+    }
+
+    // G21: F4b レシート印刷（mig0044/0045）— RPC ACL ＋ deny-all 2表の policy 0本。
+    //   printer_config/print_jobs の RLS 有効・grant 0 は TABLES 追加で G1/G2/G5 が自動回帰。
+    //   ★print_claim/print_result は service_role 限定（認証外 route 専用＝anon/authenticated/public 不在を能動 assert）。
+    for (const fn of ["set_printer_config", "rotate_store_token", "get_printer_config", "set_store_receipt_profile", "print_enqueue"]) {
+      const roles = await roleOf(fn);
+      check(`G21 ${fn} EXECUTE = authenticated（anon/public 不在）`,
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    for (const fn of ["print_claim", "print_result"]) {
+      const roles = await roleOf(fn);
+      check(`G21 ${fn} EXECUTE = service_role のみ（anon/authenticated/public 不在）`,
+        roles.includes("service_role") && !roles.includes("anon") && !roles.includes("authenticated") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    {
+      const r = await db.query(
+        `select tablename, count(*) as n from pg_policies
+         where schemaname = 'public' and tablename in ('printer_config','print_jobs')
+         group by tablename`,
+      );
+      check("G21 printer_config/print_jobs policy 0本（deny-all＝RPC/service_role 専任）", r.rowCount === 0,
+        JSON.stringify(r.rows));
     }
   }
 
