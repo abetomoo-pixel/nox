@@ -11,6 +11,7 @@ import { bizDateOf } from "@/lib/nox/biz-date";
 import { fmtWin } from "@/lib/nox/shift-time";
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
+import Toast from "@/components/ui/toast";
 import IncentivePanel from "./incentive-panel";
 
 type Cast = { id: string; name: string };
@@ -148,7 +149,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   return (
     <div style={{ maxWidth: 760 }}>
       <h1 style={t.pheadH1}>シフト管理</h1>
-      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
+      <Toast msg={msg} />
 
       {isManagerUp && <IncentivePanel storeId={storeId} />}
 

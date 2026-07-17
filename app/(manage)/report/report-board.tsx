@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
+import Toast from "@/components/ui/toast";
 
 type Preview = {
   open: number; slips: number; guests: number; dohan: number;
@@ -101,7 +102,7 @@ export default function ReportBoard({
   return (
     <div style={{ maxWidth: 860 }}>
       <h1 style={t.pheadH1}>日報</h1>
-      {msg && <p style={{ ...t.sub, fontSize: 13 }}>{msg}</p>}
+      <Toast msg={msg} />
 
       <section className="nox-cardtop" style={card}>
         <h2 style={secTitle}>

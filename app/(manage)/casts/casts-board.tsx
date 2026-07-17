@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import type { Trial, CastLogin } from "./page";
 
@@ -156,7 +157,7 @@ export default function CastsBoard({
     <div style={{ maxWidth: 860 }}>
       <h1 style={t.pheadH1}>女の子管理</h1>
       <p style={t.pheadP}>体入の評価・書類確認から本採用まで。本採用でキャストに登録されます（実績はゼロから）。</p>
-      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
+      <Toast msg={msg} />
 
       {/* 体入・採用管理 */}
       <section className="nox-cardtop" style={{ ...card, marginTop: 13 }}>

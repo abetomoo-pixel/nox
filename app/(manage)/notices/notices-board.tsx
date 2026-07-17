@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, addDays } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
+import Toast from "@/components/ui/toast";
 
 type Notice = {
   id: string; title: string; body: string; audience: string;
@@ -122,7 +123,7 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
         <h1 style={t.pheadH1}>お知らせ</h1>
         <p style={t.pheadP}>店舗の連絡ボード（{isManagerUp ? "投稿・編集可" : "閲覧のみ"}）</p>
       </div>
-      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
+      <Toast msg={msg} />
 
       {isManagerUp && (
         <section className="nox-cardtop" style={card}>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Toast from "@/components/ui/toast";
 
 // F2a-4: 報酬設計マスタ 6タブ（プラン/割当/ノルマ/控除/罰金・閾値/自由バック）。
 // 3層防御の UI 層: layout でロール分岐（cast は到達不能）＋本コンポーネントで D3a 出し分け。
@@ -90,7 +91,7 @@ export default function CompMaster({ storeId, isManagerUp, isOwner }: { storeId:
           <button key={t} style={tabBtn(tab === t)} onClick={() => { setTab(t); setMsg(null); }}>{label}</button>
         ))}
       </div>
-      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
+      <Toast msg={msg} />
 
       {tab === "plan" && <PlanTab plans={plans} isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={load} />}
       {tab === "assign" && <AssignTab plans={plans} casts={casts} castPlans={castPlans} isManagerUp={isManagerUp} setMsg={setMsg} reload={load} />}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Toast from "@/components/ui/toast";
 
 export default function PunchActions() {
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function PunchActions() {
           退勤
         </button>
       </div>
-      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
+      <Toast msg={msg} />
     </div>
   );
 }

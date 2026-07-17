@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 
 type Mem = {
@@ -158,7 +159,7 @@ export default function StaffBoard({
         <button style={{ ...btnGold, marginLeft: "auto" }} onClick={openAdd} disabled={busy}>＋ スタッフを追加</button>
       </div>
       <p style={t.pheadP}>黒服・店長の権限と在籍を管理します（キャストはマスタ側で管理）。</p>
-      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
+      <Toast msg={msg} />
 
       <section className="nox-cardtop" style={{ ...t.card, marginTop: 13 }}>
         <h2 style={secTitle}>スタッフ一覧（行クリックで編集）</h2>

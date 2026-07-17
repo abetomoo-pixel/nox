@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Toast from "@/components/ui/toast";
 import CompMaster from "./comp-master";
 
 type Product = {
@@ -114,7 +115,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   return (
     <div style={{ maxWidth: 860 }}>
       <h1 style={t.pheadH1}>マスタ管理</h1>
-      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
+      <Toast msg={msg} />
 
       <section className="nox-cardtop" style={card}>
         <h2 style={secTitle}>商品（クリックで編集）</h2>

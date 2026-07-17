@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
+import Toast from "@/components/ui/toast";
 
 // #32 出勤インセンティブの発行/取消（manager+）。読みはパターン3（RLS 可視）、書きは RPC 経由の route。
 type Incentive = { id: string; biz_date: string; amount_mode: string; amount: number; status: string };
@@ -63,7 +64,7 @@ export default function IncentivePanel({ storeId }: { storeId: string }) {
   return (
     <section className="nox-cardtop" style={card}>
       <h2 style={secTitle}>出勤ボーナス（当日出勤者に給与へ加算・manager 以上）</h2>
-      {msg && <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>}
+      <Toast msg={msg} />
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} />
         <select value={mode} onChange={(e) => setMode(e.target.value as "per_head" | "pooled")} style={input}>
