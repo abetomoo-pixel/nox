@@ -522,6 +522,7 @@ async function main() {
     "payment_records",
     "customers", // F3a-2（mig0023）
     "reservations", // F3a-3（mig0027）
+    "trials", // F3d 体入採用（mig0040・PK=id＝既定の id 列でよい）
     "kiosk_devices", "cast_pin", // F4a キオスク（mig0043・deny-all＝authenticated ですら SELECT 不可）
     "printer_config", "print_jobs", // F4b レシート印刷（mig0044/0045・deny-all）
     "product_costs", // 台帳#40（mig0049/0050・原価分離）

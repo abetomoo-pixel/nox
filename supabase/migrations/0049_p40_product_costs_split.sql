@@ -133,7 +133,7 @@ begin
     v_id := p_id;
   end if;
 
-  -- 原価は別テーブル（台帳#40）。null は「原価なし」＝行を消す（旧 products.cost の null と同義）。
+  -- 原価は別テーブル（台帳#40）。null は「原価なし」＝行を消す（products.cost の null と同義）。
   if p_cost is null then
     delete from public.product_costs where product_id = v_id;
   else
