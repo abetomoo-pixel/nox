@@ -18,14 +18,14 @@ export default async function MineLayout({ children }: { children: React.ReactNo
   return (
     <div className="nox-dark" style={t.appBg}>
       <div style={t.wrap}>
-        <header style={t.topBar}>
+        <header className="nox-topbar">
           <span style={t.brand}>NOX</span>
           <span style={{ marginLeft: "auto", ...t.rolePill }}>{t.roleLabelJa(role as string)}</span>
           <form action="/auth/signout" method="post" style={{ display: "flex" }}>
             <button type="submit" style={{ ...t.btnGhost, ...t.btnSm }}>ログアウト</button>
           </form>
         </header>
-        <main style={t.main}>{children}</main>
+        <main className="nox-main">{children}</main>
         <TabBar items={items} />
       </div>
     </div>

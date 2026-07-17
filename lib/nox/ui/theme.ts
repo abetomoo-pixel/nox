@@ -43,7 +43,9 @@ export function roleLabelJa(role: string): string {
 // ── canvas（アプリ背景・ログイン背景。.nox-dark と同要素に置くと var(--bg) が解決）─────────
 export const appBg: CSSProperties = {
   minHeight: "100dvh",
-  background: "radial-gradient(120% 60% at 50% 0%, #15131C 0%, var(--bg) 60%)",
+  // R-2（2026-07-17）: 900+ はサイドバー化に合わせ広く平たいグラデへ（--app-bg は globals.css の @media 900 が定義）。
+  //   フォールバック＝従来値の逐語＝≤899 は 1px も変わらない（R-1 の --wrap-max と同じ変数橋渡し）。
+  background: "var(--app-bg, radial-gradient(120% 60% at 50% 0%, #15131C 0%, var(--bg) 60%))",
 };
 export const loginBg: CSSProperties = {
   minHeight: "100dvh",
@@ -55,39 +57,21 @@ export const loginBg: CSSProperties = {
 };
 // アプリフレーム（中央寄せ・縦フレックス）。
 // R-1（D-3 2026-07-17）: 上限を CSS 変数へ逃がして可変化した。inline style に @media は書けないため、
-//   実値は globals.css の .nox-dark が持つ（≤640=520px 据置／641+=760／1024+=900）。
+//   実値は globals.css の .nox-dark が持つ（R-2 2026-07-17 で再設計＝≤640=520px 据置／641–899=760／900+=100%）。
 //   ★これ以前は 520 固定で、配下 board の maxWidth 720/760/860 宣言が全て死んでいた（親 520−padding32=488 で頭打ち）。
 //   フォールバック 520px は .nox-dark 配下でない場合の保険（＝従来値と同じ＝崩さない）。
 export const wrap: CSSProperties = { maxWidth: "var(--wrap-max, 520px)", margin: "0 auto", minHeight: "100dvh", display: "flex", flexDirection: "column" };
 
 // ── ブランド・シェル ─────────────────────────────────────────────
 export const brand: CSSProperties = { fontFamily: font.brand, fontWeight: 700, fontSize: 22, letterSpacing: 3, color: "var(--champ)", lineHeight: 1 };
-export const topBar: CSSProperties = {
-  position: "sticky", top: 0, zIndex: 20, display: "flex", alignItems: "center", gap: 10,
-  padding: "13px 16px", background: "rgba(11,11,15,.82)", backdropFilter: "blur(10px)",
-  WebkitBackdropFilter: "blur(10px)", borderBottom: "1px solid var(--line)",
-};
-export const main: CSSProperties = { flex: 1, padding: "16px 16px calc(96px + env(safe-area-inset-bottom))" };
+// topBar / main / tabBar / tab は R-2（2026-07-17）で globals.css の実クラスへ全面移行した
+// （.nox-topbar / .nox-main / .nox-tabbar / .nox-tab）。900+ のサイドバー化が擬似要素・:hover・
+// 子孫セレクタ・複数プロパティの @media 分岐を要し、inline style では表現できないため（R-2 裁定1）。
+// 基底はここにあった inline 値の逐語＝≤899 の描画は不変。
 export const rolePill: CSSProperties = {
   fontSize: 10.5, fontWeight: 800, letterSpacing: 1, color: "#0B0B0F",
   background: "linear-gradient(135deg,var(--gold2),#B8893A)", padding: "4px 9px", borderRadius: radius.pill,
 };
-// 下部タブナビ
-export const tabBar: CSSProperties = {
-  position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 30, display: "flex", justifyContent: "space-around",
-  padding: "9px 2px calc(9px + env(safe-area-inset-bottom))", background: "rgba(13,13,18,.92)",
-  backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderTop: "1px solid var(--line)",
-  // R-1（D-3 2026-07-17）: wrap と同じ上限を参照する。元々 wrap と同値の 520 固定＝「タブバーはアプリ枠と一致する」
-  //   という不変条件だったため、wrap だけ広げると枠 900・バー 520 で食い違う。var 参照で不変条件を保つ
-  //   （≤640 では --wrap-max=520 に解決＝従来と一字一句同じ）。
-  maxWidth: "var(--wrap-max, 520px)", margin: "0 auto",
-};
-export const tab = (on: boolean): CSSProperties => ({
-  display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: 0,
-  color: on ? "var(--champ)" : "var(--sub)", fontFamily: "inherit", fontSize: 9, fontWeight: 700, cursor: "pointer",
-  padding: "3px 3px", textDecoration: "none",
-});
-
 // ── ページ見出し ─────────────────────────────────────────────────
 export const pheadH1: CSSProperties = { fontSize: 19, fontWeight: 900, margin: 0 };
 export const pheadP: CSSProperties = { margin: "4px 0 0", fontSize: 12, color: "var(--sub)" };
@@ -126,7 +110,9 @@ export const fieldLabel: CSSProperties = { fontSize: 11, color: "var(--sub)", fo
 // 実態収束 D-1 2026-07-17・正本は描画実態: 判定 a（現行値を維持）。
 //   customer-detail.tsx:230-247 が kpiGrid/kpi/kpiLabel/kpiVal/kpiValGold を実使用中＝この値で描画されている。
 //   モック .kpi（bg:var(--card2)/radius:11/padding:9px 6px）との微差は許容し触らない（触ると当該画面の視覚が変わる）。
-export const kpiGrid: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11, marginBottom: 13 };
+// R-2（2026-07-17）: 900+ で 4列（モック .kgrid の読み替え＝裁定5・--kpi-cols は globals.css の @media 900 が定義）。
+//   フォールバック＝従来値の逐語＝≤899 は 2列のまま不変。
+export const kpiGrid: CSSProperties = { display: "grid", gridTemplateColumns: "var(--kpi-cols, 1fr 1fr)", gap: 11, marginBottom: 13 };
 export const kpi: CSSProperties = { background: "linear-gradient(180deg,var(--card2),var(--card))", border: "1px solid var(--line)", borderRadius: radius.kpi, padding: 14 };
 export const kpiLabel: CSSProperties = { fontSize: 11, color: "var(--sub)", display: "flex", alignItems: "center", gap: 6 };
 export const kpiVal: CSSProperties = { fontFamily: font.num, fontSize: 24, fontWeight: 700, marginTop: 5, fontVariantNumeric: "tabular-nums" };
@@ -176,9 +162,11 @@ export const alert: CSSProperties = {
 };
 
 // ── ログインカード ─────────────────────────────────────────────────
+// R-2（2026-07-17）: 900+ で max-width 420 / padding 30px 28px（モック .login .lcard・globals.css の @media 900 が定義）。
+//   フォールバック＝従来値の逐語＝≤899 は不変。
 export const lcard: CSSProperties = {
-  width: "100%", maxWidth: 380, background: "linear-gradient(180deg,var(--card2),var(--card))",
-  border: "1px solid var(--line2)", borderRadius: 20, padding: "26px 22px", position: "relative", overflow: "hidden",
+  width: "100%", maxWidth: "var(--lcard-max, 380px)", background: "linear-gradient(180deg,var(--card2),var(--card))",
+  border: "1px solid var(--line2)", borderRadius: 20, padding: "var(--lcard-pad, 26px 22px)", position: "relative", overflow: "hidden",
 };
 export const logo: CSSProperties = {
   width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#1F1B12,#0B0B0F)",

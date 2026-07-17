@@ -48,18 +48,162 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── R-1 レスポンシブ（D-3 2026-07-17・アプリ初の @media）─────────────────
+/* ── アプリシェル4部品（R-2 2026-07-17・モック準拠サイドバー化のためクラス化）──────
+   出典＝mock/nox-nightwork-app-responsive.html の responsive 層（実CSS 5,077字・ロゴ層は台帳#41 で除外）。
+   900+ の仕様（擬似要素 ::after・:hover・子孫 > *・複数プロパティの同時 @media 分岐）は
+   inline style に書けないため、topbar/main/tabbar/tab の4つを theme.ts からここへ全面移行した
+   （他の theme 定義は inline 据置＝併存を許容・R-2 裁定1）。
+   ★基底（@media 外）は移行前の inline 値の逐語＝≤899 の描画は 1px も変えない。
+   .nox-tab の font-size 10.5px は旧 nav.tsx が inline 上書きしていた実効値を取り込んだもの
+   （theme.ts の旧定義 9px は常に上書きされる死に値だった）。 */
+.nox-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  background: rgba(11, 11, 15, .82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.nox-main {
+  flex: 1;
+  padding: 16px 16px calc(96px + env(safe-area-inset-bottom));
+}
+.nox-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: space-around;
+  padding: 9px 2px calc(9px + env(safe-area-inset-bottom));
+  background: rgba(13, 13, 18, .92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+  /* R-1: wrap と同じ上限を参照＝「nav 幅 = アプリ枠幅」の不変条件（R-2 で ≤899 限定に再定義。900+ はサイドバー化で意図的に破棄） */
+  max-width: var(--wrap-max, 520px);
+  margin: 0 auto;
+}
+.nox-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: 0;
+  color: var(--sub);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 3px 3px;
+  text-decoration: none;
+}
+.nox-tab.on {
+  color: var(--champ);
+}
+
+/* ── レスポンシブ断点（R-1 2026-07-17 → R-2 で再設計）──────────────────────
    ≤640px は一切触れない（--wrap-max: 520px のまま＝モバイル完全不変）。
-   641px 以上でのみ上限を上げ、board 側が既に宣言していた 720/760/860 を生かす。
-   ここで増やすのは「器の上限」だけ＝レイアウト（グリッド段数・タブバー等）は変えない（新デザインは D-4 以降）。 */
+   641–899 ＝ R-1 の成果を維持：上限 760px・下部タブバーのまま（実機タブレット縦 744/820/834 を
+   サイドバー化しない＝モックの断点 768 を 900 に引き上げた設計判断・Agoora 承認 2026-07-17）。
+   900+ ＝ モック準拠のサイドバー化（下記ブロック）。R-1 の 1024（--wrap-max:900px）は
+   900+ の max-width:100% に包含されるため削除した。1024 断点（.cal/.calc）は repo に対応物が無く実装しない。 */
 @media (min-width: 641px) {
   .nox-dark {
     --wrap-max: 760px;
   }
 }
-@media (min-width: 1024px) {
+
+/* ── 900+：サイドバー化（モック @media 768 ブロックの翻訳・R-2 裁定2〜5）──────────
+   モックの !important 45件は持ち込まない（あれは基底 CSS が <script> 内注入というモック都合の上書き層）。
+   ::before の PNG ロゴと .tab svg は移植対象外（台帳#41 未確定・アイコン非導入＝裁定2/3）。
+   ロゴ不在のため ::after "NOX" の left はモックの 58px から 16px へ左詰め（裁定2）。
+   toast / tblgrid / tblgrid2 / roles / cal / calc は repo に対応物が無いか裁定保留のため移植しない（裁定4/6）。 */
+@media (min-width: 900px) {
   .nox-dark {
-    --wrap-max: 900px;
+    --wrap-max: 100%;
+    /* t.appBg のフレームグラデ（モック .wrap の 900+ 版）。モバイル値は theme.ts のフォールバックが正 */
+    --app-bg: radial-gradient(1200px 480px at 50% -80px, #15131C 0%, var(--bg) 62%);
+    /* t.kpiGrid（モック .kgrid 読み替え＝裁定5）。1180+ も 4列のためこの1段のみ */
+    --kpi-cols: repeat(4, 1fr);
+    /* t.lcard（login カード） */
+    --lcard-max: 420px;
+    --lcard-pad: 30px 28px;
+  }
+  .nox-topbar {
+    padding-left: 236px;
+  }
+  .nox-main {
+    padding: 26px 32px 40px 244px;
+  }
+  /* 作業カラムを 1120 で cap しセンタリング（ウルトラワイドで間延びさせない） */
+  .nox-main > * {
+    max-width: 1120px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  /* 下部タブバー → 左サイドバー */
+  .nox-tabbar {
+    left: 0;
+    right: auto;
+    top: 0;
+    bottom: 0;
+    width: 212px;
+    max-width: 212px;
+    margin: 0;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 76px 14px calc(18px + env(safe-area-inset-bottom));
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    background: rgba(13, 13, 18, .96);
+    overflow-y: auto;
+  }
+  /* サイドバー見出し（テキストのみ・PNG ロゴは #41 確定後に ::before で追加予定） */
+  .nox-tabbar::after {
+    content: "NOX";
+    position: absolute;
+    top: 24px;
+    left: 16px;
+    font-family: "Cormorant Garamond", serif;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 4px;
+    color: var(--champ);
+    line-height: 1;
+  }
+  /* タブ＝アイコン無しの左寄せテキスト行（裁定3。gap:12px と svg 19x19 は非移植） */
+  .nox-tab {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 11px;
+    font-size: 13px;
+    text-align: left;
+  }
+  .nox-tab.on {
+    background: linear-gradient(135deg, rgba(201, 162, 74, .16), rgba(201, 162, 74, .05));
+    box-shadow: inset 0 0 0 1px rgba(201, 162, 74, .28);
+  }
+  /* モック同順（.on の後）＝active タブも hover 中は白微光が勝つ挙動まで一致させる */
+  .nox-tab:hover {
+    background: rgba(255, 255, 255, .04);
+  }
+}
+@media (min-width: 1180px) {
+  .nox-main {
+    padding-left: 252px;
+    padding-right: 44px;
   }
 }
 
