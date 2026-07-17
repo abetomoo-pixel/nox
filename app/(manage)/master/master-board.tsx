@@ -28,6 +28,9 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>([]);
   const [costs, setCosts] = useState<Record<string, number>>({});
+  // 0行（＝原価なし・RLS で返らない）と 取得失敗 を区別する。失敗のときだけ保存を止める＝
+  // 原価欄が空のまま p_cost=null を送って cost 行を消す事故を構造的に作らない。
+  const [costsError, setCostsError] = useState(false);
   const [seats, setSeats] = useState<Seat[]>([]);
   const [stock, setStock] = useState<Record<string, number>>({});
   const [msg, setMsg] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
 
   const load = useCallback(async () => {
     const { data: ps } = await supabase.from("products").select("*").order("type").order("name");
-    const { data: cs } = await supabase.from("product_costs").select("product_id, cost");
+    const { data: cs, error: eCs } = await supabase.from("product_costs").select("product_id, cost");
     const { data: ss } = await supabase.from("seats").select("id, name, kind, sort_order, is_active").order("sort_order");
     const { data: logs } = await supabase.from("stock_logs").select("product_id, delta, reason, at");
     const st: Record<string, number> = {};
@@ -68,6 +71,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
     for (const c of (cs ?? []) as ProductCost[]) cm[c.product_id] = c.cost;
     setProducts((ps ?? []) as Product[]);
     setCosts(cm);
+    setCostsError(!!eCs);
     setSeats((ss ?? []) as Seat[]);
     setStock(st);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,6 +88,8 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
 
   async function saveProduct() {
     setMsg(null);
+    // 原価が読めていない状態の保存は p_cost の値が不明＝送れば cost 行を消しうる。ボタン無効化と二重で止める。
+    if (costsError) { setMsg("原価を読み込めませんでした。再読込してください"); return; }
     const { error } = await supabase.rpc("set_product", {
       p_id: pId, p_store_id: storeId, p_type: pType, p_category: pCategory || null,
       p_name: pName, p_price: pPrice, p_cost: pCost === "" ? null : Number(pCost),
@@ -157,7 +163,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
             </select>
             <input placeholder="名称" value={pName} onChange={(e) => setPName(e.target.value)} style={{ ...input, width: 160 }} />
             <label style={{ fontSize: 12 }}>価格 <input type="number" min={0} value={pPrice} onChange={(e) => setPPrice(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
-            <label style={{ fontSize: 12 }}>原価 <input type="number" min={0} value={pCost} onChange={(e) => setPCost(e.target.value)} placeholder="任意" style={{ ...input, width: 80 }} /></label>
+            <label style={{ fontSize: 12 }}>原価 <input type="number" min={0} value={pCost} onChange={(e) => setPCost(e.target.value)} placeholder="任意" disabled={costsError} style={{ ...input, width: 80 }} /></label>
             <select value={pBackMode} onChange={(e) => setPBackMode(e.target.value)} style={input}>
               <option value="rate">率%</option><option value="unit4">指名別単価</option>
             </select>
@@ -174,8 +180,9 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
             )}
             <label style={{ fontSize: 12 }}>本指名pt <input type="number" min={0} value={pHonPt} onChange={(e) => setPHonPt(Number(e.target.value))} style={{ ...input, width: 56 }} /></label>
             <label style={{ fontSize: 12 }}><input type="checkbox" checked={pActive} onChange={(e) => setPActive(e.target.checked)} /> 有効</label>
-            <button style={btnDark} onClick={saveProduct}>{pId ? "更新" : "登録"}</button>
+            <button style={btnDark} disabled={costsError} onClick={saveProduct}>{pId ? "更新" : "登録"}</button>
             {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); }}>新規に戻す</button>}
+            {costsError && <span style={{ fontSize: 12, color: "var(--bad)" }}>原価を読み込めませんでした。再読込してください</span>}
           </div>
         )}
       </section>
