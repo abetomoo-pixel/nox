@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { groupDue } from "@/lib/nox/check-calc";
 import * as t from "@/lib/nox/ui/theme";
 import ReservationPanel from "./reservation-panel";
+import DrinkClaimQueue from "./drink-claim-queue";
 
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 type Product = { id: string; name: string; type: string; price: number };
@@ -345,6 +346,8 @@ export default function RegisterBoard({
         <ReservationPanel storeId={storeId} seats={seats} casts={casts} />
       ) : (
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+      {/* F3f: ドリンク申告の承認キュー（pending 0 件 or 権限なしなら自身で非表示＝RLS 任せ） */}
+      <DrinkClaimQueue />
       {/* F4b: 会計クローズ後のレシート印刷カード（printer_enabled の店のみ表示＝fail-closed） */}
       {printCard && (
         <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
