@@ -5,6 +5,7 @@
 // 初期パスワードは cast 招待と同じ「一度だけ表示」モーダル。真の防御は RPC（owner 限定・1店1台・bad target）。
 import { useCallback, useEffect, useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
+import Modal from "@/components/ui/modal";
 
 type Store = { id: string; name: string };
 type Device = { id: string; store_id: string; label: string | null; is_active: boolean; created_at: string };
@@ -16,12 +17,6 @@ const h3: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(-
 const btn: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const btnOn: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const inp: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
-const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.62)",
-  backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
-  display: "flex", alignItems: "center", justifyContent: "center", padding: 18,
-};
-const modalCard: React.CSSProperties = { ...t.card, width: "100%", maxWidth: 430, marginBottom: 0 };
 
 export default function KioskPanel({ stores }: { stores: Store[] }) {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -145,8 +140,7 @@ export default function KioskPanel({ stores }: { stores: Store[] }) {
 
       {/* 発行結果モーダル（PW は一度だけ表示＝cast 招待と同パターン） */}
       {issued && (
-        <div style={overlay} onClick={() => setIssued(null)}>
-          <div className="nox-cardtop" style={modalCard} onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => setIssued(null)}>
             <h3 style={h3}>キオスク端末を発行しました</h3>
             <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
               <div style={t.bdRow}><span style={t.bdKey}>ログインID</span><span style={{ ...t.bdVal, wordBreak: "break-all" }}>{issued.login_email}</span></div>
@@ -157,8 +151,7 @@ export default function KioskPanel({ stores }: { stores: Store[] }) {
               <button style={btn} onClick={() => void copyIssued()}>{copied ? "コピーしました ✓" : "ID とパスワードをコピー"}</button>
               <button style={btnOn} onClick={() => setIssued(null)}>閉じる</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

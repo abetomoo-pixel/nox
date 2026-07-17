@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Modal from "@/components/ui/modal";
 
 type Mem = {
   id: string; user_id: string; store_id: string; role: string; is_active: boolean;
@@ -21,12 +22,6 @@ const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10
 const btnGold: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnGhost: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
-const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.62)",
-  backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
-  display: "flex", alignItems: "center", justifyContent: "center", padding: 18,
-};
-const modalCard: React.CSSProperties = { ...t.card, width: "100%", maxWidth: 430, marginBottom: 0 };
 const rolePillMini = (role: string): React.CSSProperties => ({
   fontSize: 10, fontWeight: 800, letterSpacing: 0.5, borderRadius: 999, padding: "2px 8px",
   color: role === "manager" ? "#0B0B0F" : "var(--ink)",
@@ -268,8 +263,7 @@ export default function StaffBoard({
 
       {/* 追加モーダル（Q-2・POST /api/staff/create） */}
       {addOpen && (
-        <div style={overlay} onClick={() => !busy && !aResult && setAddOpen(false)}>
-          <div className="nox-cardtop" style={modalCard} onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => !busy && !aResult && setAddOpen(false)}>
             {!aResult ? (
               <>
                 <h2 style={secTitle}>スタッフを追加</h2>
@@ -335,8 +329,7 @@ export default function StaffBoard({
                 </div>
               </>
             )}
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

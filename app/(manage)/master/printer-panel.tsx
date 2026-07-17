@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Modal from "@/components/ui/modal";
 
 type Profile = { address: string; tel: string; regNo: string; footer: string };
 type Job = {
@@ -22,12 +23,6 @@ const h3: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(-
 const btn: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const btnOn: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const inp: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
-const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.62)",
-  backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
-  display: "flex", alignItems: "center", justifyContent: "center", padding: 18,
-};
-const modalCard: React.CSSProperties = { ...t.card, width: "100%", maxWidth: 520, marginBottom: 0 };
 const STATUS_JA: Record<string, string> = {
   queued: "待機中", printing: "印刷中", printed: "印刷済", failed: "失敗", canceled: "取消",
 };
@@ -185,8 +180,7 @@ export default function PrinterPanel({ storeId, initialProfile }: { storeId: str
 
       {/* 受信URL 一度表示モーダル（kiosk PW 同型・再表示不可） */}
       {issuedToken && (
-        <div style={overlay} onClick={() => setIssuedToken(null)}>
-          <div className="nox-cardtop" style={modalCard} onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => setIssuedToken(null)} maxWidth={520}>
             <h3 style={h3}>受信URLを発行しました</h3>
             <div style={{ display: "grid", gap: 6, marginBottom: 10, fontSize: 12 }}>
               <div><span style={t.bdKey}>印刷リクエストURL</span><div style={{ ...t.num, wordBreak: "break-all" }}>{pollUrl(issuedToken)}</div></div>
@@ -197,8 +191,7 @@ export default function PrinterPanel({ storeId, initialProfile }: { storeId: str
               <button style={btn} onClick={() => void copyUrls()}>{copied ? "コピーしました ✓" : "URL をコピー"}</button>
               <button style={btnOn} onClick={() => setIssuedToken(null)}>閉じる</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

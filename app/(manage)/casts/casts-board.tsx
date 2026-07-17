@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Modal from "@/components/ui/modal";
 import type { Trial, CastLogin } from "./page";
 
 type Store = { id: string; name: string };
@@ -30,12 +31,6 @@ const btnGhost: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const lbl: React.CSSProperties = { fontSize: 12, color: "var(--sub)" };
 // 招待モーダル（staff-board の追加モーダル雛形）
-const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.62)",
-  backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
-  display: "flex", alignItems: "center", justifyContent: "center", padding: 18,
-};
-const modalCard: React.CSSProperties = { ...t.card, width: "100%", maxWidth: 430, marginBottom: 0 };
 
 function ageOf(birthday: string | null): string {
   if (!birthday) return "—";
@@ -286,8 +281,7 @@ export default function CastsBoard({
 
       {/* 招待/PW再発行モーダル（staff-board の追加モーダル雛形・PW は一度だけ表示） */}
       {invTarget && (
-        <div style={overlay} onClick={() => !busy && !invResult && setInvTarget(null)}>
-          <div className="nox-cardtop" style={modalCard} onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => !busy && !invResult && setInvTarget(null)}>
             {!invResult ? (
               <>
                 <h2 style={secTitle}>{invMode === "invite" ? `${invTarget.name} を招待` : `${invTarget.name} のパスワード再発行`}</h2>
@@ -337,14 +331,12 @@ export default function CastsBoard({
                 </div>
               </>
             )}
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* F4a 打刻PIN 設定モーダル（set_cast_pin＝owner/manager 自店・4桁・上書きでロック解除） */}
       {pinTarget && (
-        <div style={overlay} onClick={() => !busy && setPinTarget(null)}>
-          <div className="nox-cardtop" style={modalCard} onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => !busy && setPinTarget(null)}>
             {!pinDone ? (
               <>
                 <h2 style={secTitle}>{pinTarget.name} の打刻PIN</h2>
@@ -377,8 +369,7 @@ export default function CastsBoard({
                 </div>
               </>
             )}
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
