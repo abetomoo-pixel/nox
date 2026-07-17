@@ -137,14 +137,18 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
 // ★F3f: 承認済 drink_claims（自己申告バック・独立枠）を drink バックへ合流。
 //   期間フィルタは「対象 check の started_at」＝check_cast_backs と同一の営業日基準（給与サイクル一致）。
 //   close 非依存（申告は独立枠＝check_cast_backs を書かない）。承認済0件なら合流額0＝既存 payslip 不変。
+//   ★close 非依存は維持（open 伝票の承認済 claim は当月給与に乗る）・void のみ除外（0047 裁定 2026-07-17）。
+//     void 伝票の approved は行としては残置される（mig0047 が reject するのは pending のみ）ため、
+//     給与から外す単一責任点がこの void フィルタ＝finalize 済み給与への遡及改変を構造的に回避する。
 async function loadAccounting(admin: SupabaseClient, storeId: string, win: PayrollWindow) {
   const backByCast = new Map<string, { drink: number; champ: number; bottle: number; pt: number }>();
   const champBottleByCast = new Map<string, { champCnt: number; bottleCnt: number }>();
 
   // ★F3f: 承認済 drink_claims の back_amount を cast 別に drink バックへ合流（対象 check の営業日で期間フィルタ）
   const { data: claims, error: eDc } = await admin
-    .from("drink_claims").select("cast_id, back_amount, checks!inner(started_at)")
+    .from("drink_claims").select("cast_id, back_amount, checks!inner(started_at, status)")
     .eq("store_id", storeId).eq("status", "approved")
+    .neq("checks.status", "void") // 0047: void 伝票の承認済 claim は給与に乗せない（closed 限定にはしない＝close 非依存の維持）
     .gte("checks.started_at", win.startTs).lt("checks.started_at", win.endTs);
   if (eDc) throw new Error(`drink_claims: ${eDc.message}`);
   for (const c of (claims ?? []) as Record<string, unknown>[]) {

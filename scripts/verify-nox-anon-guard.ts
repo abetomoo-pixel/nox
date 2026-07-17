@@ -168,6 +168,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { FIXTURE_USERS, FIXTURE_CUSTOMERS, STORE_A1, STORE_A2, STORE_B1, loadEnvOrExit, type FixtureUserKey } from "./fixtures-f0";
+// 段29-0047d 専用: collect の void フィルタを実関数で実測する（クエリを写経すると乖離を検知できないため本物を通す）
+import { resolvePayrollWindow } from "../lib/nox/payroll/window";
+import { collectPeriod } from "../lib/nox/payroll/collect";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -3509,10 +3512,16 @@ async function main() {
     }
   }
 
-  // ── 段29: F3f（mig0037）drink_claims の実挙動＋★承認焼付けが check_close の drink_back と同値（real signIn）──
+  // ── 段29: F3f（mig0037＋mig0047）drink_claims の実挙動＋★承認焼付けが check_close の drink_back と同値（real signIn）──
   //   ★核心（assert 10）: 同 product・同 nom_type・同 qty で drink_claim_decide の back_amount が
   //   check_close の check_cast_backs.drink_back / champ_back と一致＝「申告バックが既存会計バックと同一計算規則」。
   //   drink（rate: round(price*back_value/100)）と champ（unit4: unit4_json[nom_type]）両モードで実測。
+  //   ★mig0047（裁定 2026-07-17）で void×claim の非対称2件を修正＝18 系を差し替え:
+  //     18a void で pending は自動 reject（decided_by=void 実行者）／18b audit before に pending_claims／
+  //     18c void 済み check への decide は 'check voided'（approve/reject 両方向・人工 pending 復元で実測）／
+  //     18e approved は残置（給与除外は collect の void フィルタが単一責任点）／
+  //     24 collect 実関数を差分方式で通し「void 除外」と「close 非依存の維持（open は乗る）」を同時に押さえる。
+  //     ※旧 assert「18 void 済み check の申告承認も可（mig0037 裁定3）」は 0047 が塞いだため廃止。
   //   ★汚染防止: 生成 drink_claims/check/check_cast_backs は try/finally 全消し＋残0。
   //   wipe 順: drink_claims（check_id/cast_id FK 参照元）を最初に消す。
   {
@@ -3690,14 +3699,61 @@ async function main() {
         const { error: e17n } = await mgr29.rpc("drink_claim_decide", { p_claim_id: randomUUID(), p_approve: true });
         check("段29-17 他org decide=forbidden・不在id=forbidden（存在オラクル封じ）", forbidden(e17b) && forbidden(e17n), `${e17b?.message}|${e17n?.message}`);
 
-        // 18 ★void された check の申告承認も可（裁定3・status 問わず・nom_type 読むだけ）
+        // ══════════════════════════════════════════════════════════════
+        // 18（0047 で裁定変更）: ★void 時 pending は自動 reject・void 伝票への事後 decide は封じる
+        //   旧 assert「void 済み check の申告承認も可（mig0037 裁定3）」は mig0047 が
+        //   バグとして塞いだため差し替え（0047 冒頭コメント: (1) decide が check status を見ない /
+        //   (2) check_void が drink_claims を触らず pending 宙吊り）。approved の残置は維持（下記 18e）。
+        // ══════════════════════════════════════════════════════════════
         const c4 = await openNom(seat4, "hon", s29CastA);
         const { data: cl18 } = await castA29.rpc("drink_claim_submit", { p_check_id: c4, p_product_id: drinkP.id, p_qty: 2 });
-        await mgr29.rpc("check_void", { p_check_id: c4, p_reason: "段29-18 競合" });
-        const { error: e18 } = await mgr29.rpc("drink_claim_decide", { p_claim_id: cl18, p_approve: true });
-        const { data: r18 } = await admin.from("drink_claims").select("status, back_amount").eq("id", cl18 ?? "").single();
-        check("段29-18 ★void 済み check の申告承認も可（会計不整合なし）=approved・back_amount 焼付け",
-          !e18 && r18?.status === "approved" && r18?.back_amount === drinkUnit * 2, e18?.message ?? JSON.stringify(r18));
+        // 18e 準備: 同一 check に approved も1件作る（void 後の残置確認用）
+        const { data: cl18ok } = await castA29.rpc("drink_claim_submit", { p_check_id: c4, p_product_id: drinkP.id, p_qty: 1 });
+        await mgr29.rpc("drink_claim_decide", { p_claim_id: cl18ok, p_approve: true });
+        const { data: r18okBefore } = await admin.from("drink_claims").select("status, back_amount").eq("id", cl18ok ?? "").single();
+
+        const { error: eV18 } = await mgr29.rpc("check_void", { p_check_id: c4, p_reason: "段29-18 競合" });
+        check("段29-18 check_void 成功（pending 残置ありの伝票）", !eV18, eV18?.message);
+
+        // 18a ★void→pending の自動 reject（decided_by=void 実行者・decided_at 記録）
+        const { data: uMgr29 } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
+        const { data: r18 } = await admin.from("drink_claims")
+          .select("status, back_amount, decided_by, decided_at").eq("id", cl18 ?? "").single();
+        check("段29-18a ★void で pending claim が自動 reject（decided_by=void 実行者・decided_at 記録・back_amount 0 のまま）",
+          r18?.status === "rejected" && r18?.decided_by === uMgr29?.id && !!r18?.decided_at && r18?.back_amount === 0,
+          JSON.stringify(r18));
+
+        // 18e ★approved は void 後も残置（給与除外は collect の void フィルタが単一責任点＝0047 裁定）
+        const { data: r18ok } = await admin.from("drink_claims").select("status, back_amount").eq("id", cl18ok ?? "").single();
+        check("段29-18e ★void 後も approved claim は approved のまま残置（back_amount 不変）",
+          r18ok?.status === "approved" && r18ok?.back_amount === drinkUnit * 1
+          && r18ok?.back_amount === r18okBefore?.back_amount, JSON.stringify(r18ok));
+
+        // 18b ★check_void の audit before に pending_claims 配列が入る（cast_backs と同型の監査痕跡）
+        const { data: aud18 } = await owner29.from("audit_logs").select("before_json")
+          .eq("action", "check_void").eq("target", `checks:${c4}`).limit(1);
+        const before18 = (aud18 ?? [])[0]?.before_json as Record<string, unknown> | undefined;
+        const pc18 = (before18?.pending_claims ?? []) as Record<string, unknown>[];
+        check("段29-18b ★check_void audit before に pending_claims（自動 reject 対象の申告）が含まれる",
+          (aud18 ?? []).length === 1 && Array.isArray(pc18) && pc18.length === 1
+          && pc18[0]?.id === cl18 && pc18[0]?.status === "pending",
+          JSON.stringify(before18?.pending_claims));
+        check("段29-18b' audit before に cast_backs も従来どおり同居（既存の監査痕跡を壊していない）",
+          Array.isArray(before18?.cast_backs), JSON.stringify(Object.keys(before18 ?? {})));
+
+        // 18c ★void 済み check への decide は 'check voided'
+        //   自動 reject 済み＝自然には pending が残らないため、service_role で pending へ人工復元して
+        //   ガード本体（decide の check status 判定）に到達させる（掃除は s29Wipe が担う）。
+        await admin.from("drink_claims").update({ status: "pending", decided_by: null, decided_at: null }).eq("id", cl18 ?? "");
+        const { error: e18c } = await mgr29.rpc("drink_claim_decide", { p_claim_id: cl18, p_approve: true });
+        check("段29-18c ★void 済み check の pending への decide = check voided（事後承認を封じる）",
+          has(e18c, "check voided"), e18c?.message ?? "通ってしまった");
+        const { error: e18cRej } = await mgr29.rpc("drink_claim_decide", { p_claim_id: cl18, p_approve: false });
+        check("段29-18c' 却下も同様に check voided（approve/reject 両方向を封じる）",
+          has(e18cRej, "check voided"), e18cRej?.message ?? "通ってしまった");
+        // 復元（人工 pending を元の rejected へ戻す＝以降の assert/掃除の前提を汚さない）
+        await admin.from("drink_claims").update({ status: "rejected", decided_by: uMgr29?.id, decided_at: new Date().toISOString() }).eq("id", cl18 ?? "");
+
         // 4 void 済み check への新規申告 = not open
         const { error: e4 } = await castA29.rpc("drink_claim_submit", { p_check_id: c4, p_product_id: drinkP.id, p_qty: 1 });
         check("段29-4 closed/void の check への申告 = not open", has(e4, "not open"), e4?.message ?? "通ってしまった");
@@ -3729,6 +3785,43 @@ async function main() {
         const { data: approved } = await admin.from("drink_claims").select("cast_id, back_amount").eq("status", "approved").eq("cast_id", s29CastA).gt("back_amount", 0);
         check("段29-23 payroll 合流素地: 承認済 drink_claims(back_amount>0) を cast 別に集計可能",
           (approved ?? []).length >= 1 && (approved ?? []).every((r) => (r.back_amount as number) > 0), `rows=${(approved ?? []).length}`);
+
+        // ══════════════════════════════════════════════════════════════
+        // 24（0047d）★collect の void フィルタを実関数で実測（クエリ写経では乖離を検知できない）。
+        //   差分方式: baseline 採取 → open 伝票に approved（乗るべき）＋void 伝票に approved（乗らないべき）を
+        //   足して再集計 → delta が open 分ちょうどであることを assert。
+        //   これで「void 除外」と「close 非依存の維持（open が乗る）」を1発で押さえる。
+        //   ※他 fixture の drink バックが同期間に居ても差分なら決定的。
+        // ══════════════════════════════════════════════════════════════
+        {
+          const now = new Date();
+          const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+          const win = await resolvePayrollWindow(admin, s29Store.id, period);
+          const drinkOf = async (): Promise<number> => {
+            const res = await collectPeriod(admin, mgr29, s29Store.id, win);
+            return res.casts.find((c) => c.castId === s29CastA)?.productBack.drink ?? 0;
+          };
+          const base = await drinkOf();
+
+          // open 伝票（close しない＝close 非依存の維持を見る）に approved 1杯
+          const cOpen24 = await openNom(seat2, "hon", s29CastA);
+          const { data: clOpen24 } = await castA29.rpc("drink_claim_submit", { p_check_id: cOpen24, p_product_id: drinkP.id, p_qty: 1 });
+          await mgr29.rpc("drink_claim_decide", { p_claim_id: clOpen24, p_approve: true });
+
+          // void 伝票に approved 3杯（void 前に承認しておく＝approved は残置される）
+          const cVoid24 = await openNom(seat3, "hon", s29CastA);
+          const { data: clVoid24 } = await castA29.rpc("drink_claim_submit", { p_check_id: cVoid24, p_product_id: drinkP.id, p_qty: 3 });
+          await mgr29.rpc("drink_claim_decide", { p_claim_id: clVoid24, p_approve: true });
+          await mgr29.rpc("check_void", { p_check_id: cVoid24, p_reason: "段29-24 void 除外の実測" });
+          const { data: rVoid24 } = await admin.from("drink_claims").select("status, back_amount").eq("id", clVoid24 ?? "").single();
+          check("段29-24（準備）void 伝票の claim は approved 残置・back_amount=単価×3",
+            rVoid24?.status === "approved" && rVoid24?.back_amount === drinkUnit * 3, JSON.stringify(rVoid24));
+
+          const after = await drinkOf();
+          check("段29-24 ★collect 実測: delta = open 伝票の承認済のみ（void 伝票の approved は乗らない・close 非依存は維持）",
+            after - base === drinkUnit * 1,
+            `base=${base} after=${after} delta=${after - base} / open期待=${drinkUnit * 1} / void分(乗ってはいけない)=${drinkUnit * 3}`);
+        }
       } finally {
         await admin.from("checks").delete().eq("id", a2Chk?.id ?? "");   // A2 check（seatIds 経由でも消えるが明示）
         await s29Wipe();
