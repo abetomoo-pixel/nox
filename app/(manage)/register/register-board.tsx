@@ -78,6 +78,34 @@ export default function RegisterBoard({
   const [check, setCheck] = useState<CheckRow | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+
+  // F4b レシート印刷: printer_enabled は route 経由（printer_config は deny-all）＝false/取得失敗ならボタン非表示（fail-closed）
+  const [printerEnabled, setPrinterEnabled] = useState(false);
+  // クローズ成功時に立つ印刷カード（closeCheck は伝票画面を閉じるため、印刷はこのカードから）
+  const [printCard, setPrintCard] = useState<{ checkId: string; groups: string[] } | null>(null);
+  const [printMsg, setPrintMsg] = useState<Record<string, string>>({}); // pay_group → 状態表示
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/print/jobs")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (alive && j) setPrinterEnabled(j.printer_enabled === true); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function enqueuePrint(checkId: string, g: string) {
+    const { data, error } = await supabase.rpc("print_enqueue", { p_check_id: checkId, p_pay_group: g });
+    if (error) {
+      setPrintMsg((m) => ({ ...m, [g]: error.message.includes("printer disabled") ? "プリンタが無効です" : `失敗: ${error.message}` }));
+      return;
+    }
+    const r = data as { is_reprint: boolean; already_queued: boolean };
+    setPrintMsg((m) => ({
+      ...m,
+      [g]: r.already_queued ? "印刷待ちに追加済みです" : r.is_reprint ? "印刷します（再発行）" : "印刷します",
+    }));
+  }
   const [noms, setNoms] = useState<Nom[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -214,6 +242,12 @@ export default function RegisterBoard({
     const { error } = await supabase.rpc("check_close", { p_check_id: check.id, p_idem_key: crypto.randomUUID() });
     if (error) { setMsg(error.message); return; }
     setMsg(`会計完了 ${yen(check.total)}`);
+    // F4b: クローズ後のレシート印刷カード（printer_enabled の店のみ・pay_group ごと）
+    if (printerEnabled) {
+      const gs = Array.from(new Set(lines.map((l) => l.pay_group))).sort();
+      setPrintCard({ checkId: check.id, groups: gs });
+      setPrintMsg({});
+    }
     setCheck(null);
     await loadOpenMap();
   }
@@ -296,6 +330,31 @@ export default function RegisterBoard({
         <ReservationPanel storeId={storeId} seats={seats} casts={casts} />
       ) : (
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+      {/* F4b: 会計クローズ後のレシート印刷カード（printer_enabled の店のみ表示＝fail-closed） */}
+      {printCard && (
+        <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: 0 }}>
+              レシート印刷（伝票 {printCard.checkId.replace(/-/g, "").slice(0, 8)}）
+            </h2>
+            {printCard.groups.map((g) => (
+              <span key={g} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <button style={btnDark} onClick={() => void enqueuePrint(printCard.checkId, g)}>
+                  {printCard.groups.length > 1 ? `グループ${g} を印刷` : "レシート印刷"}
+                </button>
+                {printMsg[g] && (
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "2px 9px",
+                    color: printMsg[g].startsWith("失敗") || printMsg[g].includes("無効") ? "var(--bad)" : "#C9A24A",
+                    background: "#23232B", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+                  }}>{printMsg[g]}</span>
+                )}
+              </span>
+            ))}
+            <button style={{ ...btnLight, marginLeft: "auto" }} onClick={() => setPrintCard(null)}>閉じる</button>
+          </div>
+        </section>
+      )}
       {/* 卓一覧 */}
       <section className="nox-cardtop" style={{ ...card, width: 220 }}>
         <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>卓</h2>

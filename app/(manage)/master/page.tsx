@@ -9,6 +9,7 @@ import BusinessHoursPanel from "./business-hours-panel";
 import CastRegisterPanel from "./cast-register-panel";
 import NormConfigPanel from "./norm-config-panel";
 import KioskPanel from "./kiosk-panel";
+import PrinterPanel from "./printer-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,17 @@ export default async function MasterPage() {
       )}
       {role === "owner" && (
         <KioskPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
+      )}
+      {role === "owner" && storeId && (
+        <PrinterPanel
+          storeId={storeId}
+          initialProfile={{
+            address: typeof sj?.receipt_address === "string" ? (sj.receipt_address as string) : "",
+            tel: typeof sj?.receipt_tel === "string" ? (sj.receipt_tel as string) : "",
+            regNo: typeof sj?.invoice_reg_no === "string" ? (sj.invoice_reg_no as string) : "",
+            footer: typeof sj?.receipt_footer === "string" ? (sj.receipt_footer as string) : "",
+          }}
+        />
       )}
       {sim && (
         <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" variant="dark" />
