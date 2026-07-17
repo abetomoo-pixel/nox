@@ -5,7 +5,9 @@
 //   CSS 変数 var(--x) を参照＝単一ソース（drift 防止）。プリミティブは .nox-dark 配下でのみ正しく解決する
 //   （＝opt-in ダークの契約。未移行画面には持ち込まない）。
 //
-// 既存 15 コンポーネントの重複 const（card/input/btnDark…）を D1/D2 で theme.* へ差し替える橋渡し。
+// 移行状況（D-1 実態収束 2026-07-17 時点）: card/input/btn 等の差し替えは完了済み（`const card = t.card` 委譲が 15 ファイル）。
+//   .nox-dark も (manage)/mine/login/kiosk の 4 シェルに適用済み＝ライトのまま残るのは app/page.tsx（F0 プレースホルダ）のみ。
+//   残る重複は画面側のリテラル（secTitle ×35・overlay/modalCard ×4）＝D-2 で本モジュールへ寄せる。
 import type { CSSProperties } from "react";
 
 // raw hex（JS 計算が要る箇所＝アバター背景色の生成等でのみ使う。表示スタイルは下の var() 参照プリミティブを優先）。
@@ -90,7 +92,10 @@ export const card: CSSProperties = {
   border: "1px solid var(--line)", borderRadius: radius.card, padding: 15, marginBottom: 13,
   position: "relative", overflow: "hidden",
 };
-export const cardTitle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800, margin: "0 0 11px" };
+// 実態収束 D-1 2026-07-17・正本は描画実態: 画面側 35 箇所（27 ファイル）のリテラルへ合わせた
+//   （旧値は color 欠落＋flex 3 プロパティ有りで実態と乖離し、使用は primitives.tsx の 1 箇所のみだった）。
+//   flex 系は「アイコン併置」用途の画面が個別に足す（既存リテラルは素の見出し＝flex なし）。D-2 で 35 箇所を本定数へ置換する。
+export const cardTitle: CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
 
 // ── ボタン ───────────────────────────────────────────────────────
 const btnBase: CSSProperties = {
@@ -106,9 +111,14 @@ export const input: CSSProperties = {
   background: "var(--bg2)", border: "1px solid var(--line2)", borderRadius: radius.input,
   padding: "11px 12px", color: "var(--ink)", fontFamily: "inherit", fontSize: 13, width: "100%",
 };
+// 実態収束 D-1 2026-07-17・正本は描画実態: fontSize 11 を維持（変更しない）。
+//   64 箇所中 59 箇所が上書きなし＝11px が実態。12px 上書きは report-board の 5 箇所のみ（例外側）。
 export const fieldLabel: CSSProperties = { fontSize: 11, color: "var(--sub)", fontWeight: 700 };
 
 // ── KPI ──────────────────────────────────────────────────────────
+// 実態収束 D-1 2026-07-17・正本は描画実態: 判定 a（現行値を維持）。
+//   customer-detail.tsx:230-247 が kpiGrid/kpi/kpiLabel/kpiVal/kpiValGold を実使用中＝この値で描画されている。
+//   モック .kpi（bg:var(--card2)/radius:11/padding:9px 6px）との微差は許容し触らない（触ると当該画面の視覚が変わる）。
 export const kpiGrid: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11, marginBottom: 13 };
 export const kpi: CSSProperties = { background: "linear-gradient(180deg,var(--card2),var(--card))", border: "1px solid var(--line)", borderRadius: radius.kpi, padding: 14 };
 export const kpiLabel: CSSProperties = { fontSize: 11, color: "var(--sub)", display: "flex", alignItems: "center", gap: 6 };
@@ -117,6 +127,9 @@ export const kpiValGold: CSSProperties = { ...kpiVal, color: "var(--champ)" };
 
 // ── 数値・テキスト ─────────────────────────────────────────────────
 export const num: CSSProperties = { fontFamily: font.num, fontVariantNumeric: "tabular-nums" };
+// 実態収束 D-1 2026-07-17・正本は描画実態: fontSize 11 を維持（変更しない）。
+//   調査時の「実装実態 12/13px」は画面側のローカル const（noneP/noteP/lbl 等）＝本定数を参照しない別語彙で、
+//   t.sub 自体は 23 箇所が上書きなしで 11px のまま描画中＝12/13 へ動かすとその 23 箇所の視覚が変わる。
 export const sub: CSSProperties = { fontSize: 11, color: "var(--sub)" };
 
 // ── 行リスト ─────────────────────────────────────────────────────
@@ -134,6 +147,18 @@ export const bdTotalVal: CSSProperties = { fontFamily: font.num, color: "var(--c
 // ── テーブル ─────────────────────────────────────────────────────
 export const th: CSSProperties = { textAlign: "left", padding: "6px 10px", borderBottom: "1px solid var(--line2)", fontSize: 11, color: "var(--sub)", fontWeight: 700 };
 export const td: CSSProperties = { padding: "6px 10px", borderBottom: "1px solid var(--line)", fontSize: 13 };
+// 実態収束 D-1 2026-07-17: 数値列（右寄せ＋Outfit tabular）。同値の複製が 2 箇所にあったため正本化＝
+//   analytics-board.tsx:120-121 / mine/ranking/page.tsx:29-30（どちらも `{...t.th, textAlign:"right"}` の派生）。D-2 で置換。
+export const thNum: CSSProperties = { ...th, textAlign: "right" };
+export const tdNum: CSSProperties = { ...td, textAlign: "right", fontFamily: font.num };
+
+// ── バッジ基底（mock .tag 実測 2026-07-17 = 10.5/800/3px 9px/999/border 1px transparent）──
+// 実態収束 D-1: 基底のみ正本化。色は用途別＝呼び出し側が color/background/borderColor を重ねる。
+//   画面側の独自バッジ関数（churnPill/dormantPill/pill/rolePillMini 等）は D-1 では触らない（置換は D-2 の判断）。
+export const tag: CSSProperties = {
+  fontSize: 10.5, fontWeight: 800, padding: "3px 9px", borderRadius: radius.pill,
+  whiteSpace: "nowrap", border: "1px solid transparent",
+};
 
 // ── ステータス（ok/bad 色）─────────────────────────────────────────
 export const ok: CSSProperties = { color: "var(--ok)" };
