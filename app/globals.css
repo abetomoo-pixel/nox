@@ -26,6 +26,10 @@ body {
 /* ── opt-in ダーク（移行済み画面/シェルがまとう）──────────────────────────
    13 トークン（正本 §1・mock line 38 と一字一致）。子孫の var() がダーク値に解決される。 */
 .nox-dark {
+  /* R-1（D-3 2026-07-17）: アプリフレーム上限。theme.ts の t.wrap が var(--wrap-max) で参照する
+     （inline style に @media を書けないための橋渡し）。既定 520px＝モバイルは従来と一字一句同じ。
+     広げるのは 641px 以上のみ＝配下 board の maxWidth 720/760/860 宣言（520 に潰されて死んでいた）が生き返る。 */
+  --wrap-max: 520px;
   --bg: #0B0B0F;
   --bg2: #101017;
   --card: #16161E;
@@ -42,6 +46,21 @@ body {
   color: var(--ink);
   font-family: "Zen Kaku Gothic New", sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ── R-1 レスポンシブ（D-3 2026-07-17・アプリ初の @media）─────────────────
+   ≤640px は一切触れない（--wrap-max: 520px のまま＝モバイル完全不変）。
+   641px 以上でのみ上限を上げ、board 側が既に宣言していた 720/760/860 を生かす。
+   ここで増やすのは「器の上限」だけ＝レイアウト（グリッド段数・タブバー等）は変えない（新デザインは D-4 以降）。 */
+@media (min-width: 641px) {
+  .nox-dark {
+    --wrap-max: 760px;
+  }
+}
+@media (min-width: 1024px) {
+  .nox-dark {
+    --wrap-max: 900px;
+  }
 }
 
 /* 数値は Outfit tabular（金額・件数・日付） */
