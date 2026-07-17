@@ -30,7 +30,7 @@ type Line = {
   qty: number;
   line_total: number;
 };
-type Payment = { id: string; pay_group: string; method: string; amount: number; tendered: number | null };
+type Payment = { id: string; pay_group: string; method: string; amount: number; tendered: number | null; method_detail: string | null };
 type Nom = { cast_id: string; ratio_weight: number };
 // F3c 二重承認（approvals・mig0035/0036）
 type Approval = {
@@ -39,7 +39,17 @@ type Approval = {
 };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
+// ★台帳 #36（F4c 裁定 2026-07-17）: 決済手段の語彙は4値で確定（端末カード=card・QR/電子マネー=other に収容し、
+//   手段の内訳は payments.method_detail の自由記述で drill-down する＝mig0046）。
+//   語彙を増やす場合は5点セットの同時改修が必須:
+//     ① payments_method_check（CHECK 値域） ② check_pay のハードコード検証（not in (...)）
+//     ③ daily_report_aggregate の名指し集計 ④ daily_reports の凍結列 ⑤ report-board.tsx の再集計
+//   ★最大の罠＝③は cash/card/ar/other を名指しで集計しているため、新語彙は other にも落ちず
+//     日次サマリからサイレント欠落する（一方 ⑤ は else other に落ちるため、プレビューと確定値がズレる）。
+//   表示語彙は3箇所（本 METHOD_LABEL / receipt.ts の METHOD_JA / receipt.ts の型コメント）。
 const METHOD_LABEL: Record<string, string> = { cash: "現金", card: "カード", ar: "売掛", other: "その他" };
+// 内訳メモを出す手段（cash/ar は出さない＝現金は内訳不要・売掛は receivables が台帳）
+const DETAIL_METHODS = new Set(["card", "other"]);
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
 const AP_STATUS_LABEL: Record<string, string> = { pending: "承認待ち", approved: "承認済", rejected: "却下" };
 const AP_STATUS_COLOR: Record<string, string> = { pending: "var(--gold2)", approved: "var(--ok)", rejected: "var(--sub)" };
@@ -124,6 +134,7 @@ export default function RegisterBoard({
   const [payMethod, setPayMethod] = useState("cash");
   const [payAmount, setPayAmount] = useState(0);
   const [payTendered, setPayTendered] = useState("");
+  const [payDetail, setPayDetail] = useState(""); // F4c: 手段内訳メモ（card/other のみ・50字・空は null 送信）
   // F3c: 割引/無料 申請・適用フォーム
   const [apType, setApType] = useState<"discount" | "free">("discount");
   const [apGroup, setApGroup] = useState("A");
@@ -144,7 +155,7 @@ export default function RegisterBoard({
       .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total")
       .eq("check_id", checkId).order("sort_order");
     const { data: ps } = await supabase
-      .from("payments").select("id, pay_group, method, amount, tendered").eq("check_id", checkId).order("paid_at");
+      .from("payments").select("id, pay_group, method, amount, tendered, method_detail").eq("check_id", checkId).order("paid_at");
     const { data: ns } = await supabase
       .from("check_nominations").select("cast_id, ratio_weight").eq("check_id", checkId).order("position");
     const { data: aps } = await supabase
@@ -225,14 +236,18 @@ export default function RegisterBoard({
   async function pay() {
     if (!check) return;
     setMsg(null);
+    // F4c: detail は card/other のときだけ送る（空/空白のみは null＝RPC 側も nullif(trim()) で二重に守る）
+    const detail = DETAIL_METHODS.has(payMethod) && payDetail.trim() ? payDetail.trim() : null;
     const { error } = await supabase.rpc("check_pay", {
       p_check_id: check.id, p_method: payMethod, p_amount: payAmount,
       p_pay_group: payGroup || "A",
       p_tendered: payMethod === "cash" && payTendered ? Number(payTendered) : null,
       p_idem_key: crypto.randomUUID(),
+      p_method_detail: detail,
     });
     setMsg(error ? error.message : "入金しました");
     setPayTendered("");
+    setPayDetail("");
     await loadCheck(check.id);
   }
 
@@ -584,7 +599,11 @@ export default function RegisterBoard({
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
               <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
               <input value={payGroup} onChange={(e) => setPayGroup(e.target.value)} style={{ ...input, width: 40 }} />
-              <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} style={input}>
+              <select
+                value={payMethod}
+                onChange={(e) => { setPayMethod(e.target.value); if (!DETAIL_METHODS.has(e.target.value)) setPayDetail(""); }}
+                style={input}
+              >
                 {Object.entries(METHOD_LABEL).map(([v, l]) => (
                   <option key={v} value={v}>{l}</option>
                 ))}
@@ -601,12 +620,23 @@ export default function RegisterBoard({
                   style={{ ...input, width: 100 }}
                 />
               )}
+              {/* F4c: 手段内訳（任意・端末名やQR事業者名の控え＝突合用メモ。金額・集計には一切影響しない） */}
+              {DETAIL_METHODS.has(payMethod) && (
+                <input
+                  placeholder="内訳（任意）例: stera端末 / PayPay"
+                  value={payDetail} maxLength={50}
+                  onChange={(e) => setPayDetail(e.target.value)}
+                  style={{ ...input, width: 200 }}
+                />
+              )}
               <button onClick={pay} style={btnDark}>入金</button>
             </div>
+            {/* ★台帳 #37（裁定 2026-07-17）: void 伝票の payments は無印（status 列を持たない）＝
+                日次集計は checks.status='closed' の join で自動除外・端末側の返金で端末日計も減るため突合は成立する。 */}
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               {payments.map((p) => (
                 <span key={p.id} style={{ ...t.num, fontSize: 12, color: "var(--sub)" }}>
-                  [{p.pay_group}] {METHOD_LABEL[p.method]} {yen(p.amount)}
+                  [{p.pay_group}] {METHOD_LABEL[p.method]}{p.method_detail ? `（${p.method_detail}）` : ""} {yen(p.amount)}
                   {p.tendered != null ? `（預 ${yen(p.tendered)}・釣 ${yen(p.tendered - p.amount)}）` : ""}
                 </span>
               ))}
