@@ -37,6 +37,7 @@ const TABLES = [
   "trials", // F3d 体入採用（mig0040）
   "kiosk_devices", "cast_pin", // F4a キオスク打刻（mig0043・deny-all＝SELECT すら grant なし。G1/G2/G5 自動回帰＋G20 で policy 0本を能動 assert）
   "printer_config", "print_jobs", // F4b レシート印刷（mig0044/0045・deny-all。G21 で policy 0本＋service_role 限定 ACL を能動 assert）
+  "product_costs", // 台帳#40 案C（mig0049/0050・原価分離。G24 で policy 逐語＋grant 実体を能動 assert）
 ];
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
@@ -530,6 +531,67 @@ async function main() {
       check("G22b payments_method_check = cash/card/ar/other の4値維持（拡張時は 5点セット同時改修）",
         def.includes("'cash'") && def.includes("'card'") && def.includes("'ar'") && def.includes("'other'")
         && (def.match(/'/g) ?? []).length === 8, def || "(missing)");
+    }
+
+    // G24: 台帳#40 案C（mig0049/0050）— 原価を product_costs へ分離し products.cost を drop。
+    //   cast/staff には列そのものが存在しない＝select("*") でも導出不能（構造的非開示）。
+    //   ★署名一意性を先に assert する（G22 と同型）: roleOf は proname 引きのため、旧署名が残ると
+    //   ACL が2署名ぶん混ざって静かに通る。set_product は12引数据置＝create or replace で置換した。
+    {
+      const r = await db.query(
+        `select pg_get_function_identity_arguments(oid) as args from pg_proc
+         where pronamespace = 'public'::regnamespace and proname = 'set_product'`,
+      );
+      const argsList = r.rows.map((x) => x.args as string);
+      check("G24 set_product = 12引数1本のみ（署名据置＝オーバーロード無し）",
+        r.rowCount === 1 && argsList[0].includes("p_cost"), JSON.stringify(argsList));
+      const roles = await roleOf("set_product");
+      check("G24 set_product EXECUTE = authenticated（anon/public 不在）",
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    // products.cost の不在＝#40 のスキーマガード（将来の列復活を機械検知する）
+    {
+      const r = await db.query(
+        `select column_name from information_schema.columns
+         where table_schema = 'public' and table_name = 'products' and column_name = 'cost'`,
+      );
+      check("G24 products.cost 列が存在しない（原価は product_costs へ分離＝#40）", r.rowCount === 0);
+      const c = await db.query(
+        `select conname from pg_constraint where conname = 'products_cost_check'`,
+      );
+      check("G24 products_cost_check 消滅（drop column で自動消滅＝CASCADE 不要だった）", c.rowCount === 0);
+    }
+    // product_costs の policy 逐語（polqual と polroles の両方＝CLAUDE.md 規約）
+    {
+      const r = await db.query(
+        `select polname, polroles::regrole[]::text[] as roles, pg_get_expr(polqual, polrelid) as qual
+         from pg_policy where polrelid = 'public.product_costs'::regclass`,
+      );
+      check("G24 product_costs ポリシー = product_costs_select 1本のみ（書込 policy なし）",
+        r.rowCount === 1 && r.rows[0].polname === "product_costs_select",
+        r.rows.map((x) => x.polname).join(", ") || "(なし)");
+      const roles = (r.rows[0]?.roles ?? []) as string[];
+      check("G24 product_costs policy roles = {authenticated} 逐語",
+        roles.length === 1 && roles[0] === "authenticated", roles.join(", ") || "(なし)");
+      const qual = (r.rows[0]?.qual as string | undefined) ?? "";
+      check("G24 product_costs policy qual = owner ∨（manager ∧ 自店）逐語",
+        qual.includes("org_id = auth_org_id()") && qual.includes("auth_role() = 'owner'")
+        && qual.includes("auth_role() = 'manager'") && qual.includes("store_id = auth_store_id()"),
+        qual || "(missing)");
+    }
+    // grant 実体＝authenticated:SELECT の単独。DML 列挙 revoke が取りこぼす REFERENCES/TRIGGER の不在も
+    // ここで見る（0049 で実際に踏み 0050 で補正＝恒久回帰）。
+    {
+      const r = await db.query(
+        `select grantee, privilege_type from information_schema.role_table_grants
+         where table_schema = 'public' and table_name = 'product_costs'
+           and grantee in ('anon', 'authenticated', 'public')
+         order by grantee, privilege_type`,
+      );
+      const got = r.rows.map((x) => `${x.grantee}:${x.privilege_type}`);
+      check("G24 product_costs grant = authenticated:SELECT のみ（REFERENCES/TRIGGER 不在＝mig0050 補正）",
+        got.length === 1 && got[0] === "authenticated:SELECT", got.join(", ") || "(なし)");
     }
   }
 

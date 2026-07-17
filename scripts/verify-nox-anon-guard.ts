@@ -524,11 +524,14 @@ async function main() {
     "reservations", // F3a-3（mig0027）
     "kiosk_devices", "cast_pin", // F4a キオスク（mig0043・deny-all＝authenticated ですら SELECT 不可）
     "printer_config", "print_jobs", // F4b レシート印刷（mig0044/0045・deny-all）
+    "product_costs", // 台帳#40（mig0049/0050・原価分離）
   ]) {
-    // PK=cast_id/store_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
+    // PK=cast_id/store_id/product_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
     const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles", "cast_pin"].includes(table);
     const pkStoreId = table === "printer_config";
-    const { error } = await anon.from(table).select(pkCastId ? "cast_id" : pkStoreId ? "store_id" : "id").limit(1);
+    const pkProductId = table === "product_costs";
+    const { error } = await anon.from(table)
+      .select(pkCastId ? "cast_id" : pkStoreId ? "store_id" : pkProductId ? "product_id" : "id").limit(1);
     check(
       `anon ${table} select DENIED`,
       !!error?.message?.includes("permission denied"),

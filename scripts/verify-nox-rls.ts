@@ -277,6 +277,92 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // 台帳#40: 原価分離（product_costs・mig0049/0050）
+  //   products.cost を drop し product_costs へ退避＝cast/staff には列そのものが無い（構造的非開示）。
+  //   set_product は12引数据置（p_cost を受け続け書き先だけ product_costs へ）＝呼び側は無改修。
+  //   ★絶対件数で assert しない: products は 1 run で A1 に2件積み上がる（＝product_costs も増える）。
+  //   必ず product_id 指定の filter で見る。他店対照は A2 に商品が無いためここで作る。
+  // ══════════════════════════════════════════════════════════
+  let productA2Id = "";
+  {
+    const c = await signIn("ownerA");
+    const { data: stores } = await c.from("stores").select("id, name").eq("name", STORE_A2);
+    const storeA2 = stores?.[0]?.id as string;
+    const { data: pid, error } = await c.rpc("set_product", {
+      p_id: null, p_store_id: storeA2, p_type: "drink", p_category: null,
+      p_name: "NOX-VERIFY-原価A2", p_price: 2000, p_cost: 500,
+      p_back_mode: "rate", p_back_value: 50, p_unit4: null, p_hon_pt: 0, p_is_active: true,
+    });
+    check("#40 owner が他店(A2)に原価つき商品を作成（manager 店スコープの対照）", !error && typeof pid === "string", error?.message);
+    productA2Id = pid as string;
+    const { data: both } = await c.from("product_costs").select("product_id, cost").in("product_id", [productId, productA2Id]);
+    check("#40 ownerA product_costs = org 内全店が見える（A1+A2 の2行）", (both ?? []).length === 2, `got ${(both ?? []).length}`);
+    await c.auth.signOut();
+  }
+  {
+    const c = await signIn("managerA1");
+    const { data: mine } = await c.from("product_costs").select("product_id, cost").eq("product_id", productId);
+    check("#40 managerA1 自店(A1)の原価 = 1行・cost 充填", (mine ?? []).length === 1 && mine?.[0]?.cost === 300, JSON.stringify(mine));
+    const { data: other } = await c.from("product_costs").select("product_id").eq("product_id", productA2Id);
+    check("#40 managerA1 他店(A2)の原価 = 0行（店スコープ）", (other ?? []).length === 0, `got ${(other ?? []).length}`);
+    await c.auth.signOut();
+  }
+  {
+    const c = await signIn("castA1a");
+    // error も見る: data=null（クエリ自体の失敗）でも「0行」判定は通ってしまうため、
+    // 「RLS が空を返した」ことと「クエリが壊れた」ことを区別する（空の理由を固定する）。
+    const { data: pc, error: ePc } = await c.from("product_costs").select("product_id");
+    check("#40 castA1a product_costs = 0行（#40 の本丸＝原価は cast に構造的非開示）",
+      !ePc && (pc ?? []).length === 0, ePc?.message ?? `got ${(pc ?? []).length}`);
+    const { data: prods } = await c.from("products").select("id").eq("id", productId);
+    check("#40 castA1a products は従来どおり可視（案C は cast の3経路を壊さない）", (prods ?? []).length === 1);
+    await c.auth.signOut();
+  }
+  {
+    const c = await signIn("staffA1");
+    const { data: pc, error: ePc } = await c.from("product_costs").select("product_id");
+    check("#40 staffA1 product_costs = 0行（/master 直打ちでも原価はネットワークに乗らない）",
+      !ePc && (pc ?? []).length === 0, ePc?.message ?? `got ${(pc ?? []).length}`);
+    await c.auth.signOut();
+  }
+  {
+    // 原価ライフサイクルの実呼び（prosrc 緑 ≠ runtime success＝行を作る RPC は必ず実呼びで見る）
+    const c = await signIn("ownerA");
+    const { data: stores } = await c.from("stores").select("id, name").eq("name", STORE_A2);
+    const storeA2 = stores?.[0]?.id as string;
+    const setCost = (cost: number | null) => c.rpc("set_product", {
+      p_id: productA2Id, p_store_id: storeA2, p_type: "drink", p_category: null,
+      p_name: "NOX-VERIFY-原価A2", p_price: 2000, p_cost: cost,
+      p_back_mode: "rate", p_back_value: 50, p_unit4: null, p_hon_pt: 0, p_is_active: true,
+    });
+
+    const { error: e1 } = await setCost(900);
+    check("#40 set_product 更新（p_cost=900）成功", !e1, e1?.message);
+    const { data: c900 } = await c.from("product_costs").select("cost").eq("product_id", productA2Id);
+    check("#40 p_cost 指定 → product_costs 行が cost=900 で充填（upsert）", (c900 ?? []).length === 1 && c900?.[0]?.cost === 900, JSON.stringify(c900));
+
+    const { error: e2 } = await setCost(null);
+    check("#40 set_product 更新（p_cost=null）成功", !e2, e2?.message);
+    const { data: cNull } = await c.from("product_costs").select("cost").eq("product_id", productA2Id);
+    check("#40 p_cost=null → product_costs 行が消える（旧 products.cost の null と同義）", (cNull ?? []).length === 0, `got ${(cNull ?? []).length}`);
+
+    // 監査の形（設計ロック3）: before/after に cost キーを合成＝過去 audit 行と形が揃う。
+    // null でも「キーが存在して値が null」であること（キー欠落ではない）を見る。
+    const { data: aNew } = await c.from("audit_logs").select("after_json")
+      .eq("action", "set_product").eq("target", `products:${productId}`);
+    check("#40 audit 新規の after_json.cost = 300（形の互換）",
+      (aNew?.[0]?.after_json as { cost?: number } | null)?.cost === 300, JSON.stringify(aNew?.[0]?.after_json));
+    const { data: aUpd } = await c.from("audit_logs").select("before_json, after_json")
+      .eq("action", "set_product").eq("target", `products:${productA2Id}`)
+      .not("before_json", "is", null).order("at", { ascending: false }).limit(1);
+    const b = aUpd?.[0]?.before_json as Record<string, unknown> | null;
+    const a = aUpd?.[0]?.after_json as Record<string, unknown> | null;
+    check("#40 audit 更新の before_json に cost キー（=900）", !!b && "cost" in b && b.cost === 900, JSON.stringify(b));
+    check("#40 audit 更新の after_json に cost キー（=null・キー欠落ではない）", !!a && "cost" in a && a.cost === null, JSON.stringify(a));
+    await c.auth.signOut();
+  }
+
+  // ══════════════════════════════════════════════════════════
   // F1b: 会計ゴールデン（固定シナリオ）＋冪等3種＋TS/DB 一致（mig0006/0007）
   // シナリオ: 卓 open（3名・hon）→ 指名 A:B=6:4 → 指名ドリンク(rate50%,1500)×3 ＋
   //           シャンパン(unit4 hon7000,30000)×1（group A）＋ セット15000（group B）
