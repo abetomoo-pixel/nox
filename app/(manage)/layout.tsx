@@ -39,6 +39,7 @@ export default async function ManageLayout({ children }: { children: React.React
   const items: NavItem[] = role === "cast"
     ? [{ href: "/register", label: "レジ" }]
     : [
+        { href: "/dashboard", label: "ホーム" },
         { href: "/register", label: "レジ" },
         { href: "/shift", label: "シフト" },
         { href: "/report", label: "日報" },

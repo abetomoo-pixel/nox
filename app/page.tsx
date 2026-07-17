@@ -1,9 +1,12 @@
-// 公開トップ（F0 プレースホルダ）。認証必須画面はフェーズごとに追加する。
-export default function Home() {
-  return (
-    <main style={{ padding: 24 }}>
-      <h1>NOX</h1>
-      <p>ナイトワーク向け 会計・シフト・報酬管理（開発中）</p>
-    </main>
-  );
+import { redirect } from "next/navigation";
+import { getSessionRole } from "@/lib/nox/auth";
+
+export const dynamic = "force-dynamic";
+
+// トップ（E5・裁定8）：F0 プレースホルダを解消し、ロール別の起点へ振り分けるだけの薄い入口。
+// モックのログイン後遷移（cast→clock 相当・それ以外→dashboard）と同型。未ログインは /login。
+export default async function Home() {
+  const { role } = await getSessionRole();
+  if (!role) redirect("/login");
+  redirect(role === "cast" ? "/mine" : "/dashboard");
 }

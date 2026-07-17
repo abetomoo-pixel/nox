@@ -39,7 +39,7 @@ export async function updateSession(request: NextRequest) {
   // 保護パス: ログイン必須（/login と公開トップは除外）。
   // middleware は「認証のみ」判定（ロール判定は各エリアの layout ＋ DB 物理保証の2層＝F1f plan §2）。
   const path = request.nextUrl.pathname;
-  const PROTECTED = ["/mine", "/register", "/shift", "/report", "/master"];
+  const PROTECTED = ["/mine", "/register", "/shift", "/report", "/master", "/dashboard"];
   const isProtected = PROTECTED.some((p) => path === p || path.startsWith(p + "/"));
   if (!user && isProtected) {
     const url = request.nextUrl.clone();

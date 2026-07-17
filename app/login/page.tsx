@@ -23,9 +23,10 @@ export default function LoginPage() {
       setBusy(false);
       return;
     }
-    // ロールで着地先を分ける（真の防御は RLS/RPC・これは利便のための振り分け）
+    // ロールで着地先を分ける（真の防御は RLS/RPC・これは利便のための振り分け）。
+    // E5（裁定8）: cast 以外の着地はホーム（モックのログイン後遷移と同型）。
     const { data: role } = await supabase.rpc("auth_role");
-    router.replace(role === "cast" ? "/mine" : "/register");
+    router.replace(role === "cast" ? "/mine" : "/dashboard");
     router.refresh();
   }
 
