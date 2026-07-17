@@ -7,6 +7,7 @@ import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
 import AttendanceForm from "./attendance-form";
 import NormCard from "./norm-card";
+import DrinkClaimForm from "./drink-claim-form";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +213,9 @@ export default async function MinePage() {
           <span>本指名商品 <span style={{ ...t.num, color: "var(--ink)" }}>{sum.pt}</span>pt</span>
         </div>
       </section>
+
+      {/* F3f 自己申告ドリンク（独立枠＝上の「今月のバック」には出ない・承認後に給与明細へ合算） */}
+      <DrinkClaimForm month={month} />
 
       <section className="nox-cardtop" style={t.card}>
         <h2 style={title}>今月の出勤ボーナス（{month}）</h2>
