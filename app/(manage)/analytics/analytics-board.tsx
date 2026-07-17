@@ -29,7 +29,7 @@ type CustRankRow = {
 };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
-const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+const secTitle: React.CSSProperties = t.cardTitle;
 const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
 
 function lastDayOf(period: string): string {

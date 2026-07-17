@@ -71,7 +71,7 @@ const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+const secTitle: React.CSSProperties = t.cardTitle;
 const pill = (status: string): React.CSSProperties => ({
   fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
   color: STATUS_COLOR[status] ?? "var(--sub)", background: "#23232B", border: "1px solid var(--line2)",

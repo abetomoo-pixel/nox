@@ -16,7 +16,7 @@ export default async function MineNoticesPage() {
     .order("pinned", { ascending: false })
     .order("created_at", { ascending: false });
 
-  const title: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+  const title: React.CSSProperties = t.cardTitle;
   const when = (iso: string) =>
     new Date(iso).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" });
 

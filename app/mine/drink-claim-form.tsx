@@ -79,7 +79,7 @@ export default function DrinkClaimForm({ month }: { month: string }) {
     await load();
   }
 
-  const title: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+  const title: React.CSSProperties = t.cardTitle;
   const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
   const noteP: React.CSSProperties = { fontSize: 12, color: "var(--sub)", margin: 0 };
   const inp: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };

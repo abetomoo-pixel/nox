@@ -90,7 +90,7 @@ export default function DrinkClaimQueue() {
 
   return (
     <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
-      <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>
+      <h2 style={t.cardTitle}>
         ドリンク申告（承認待ち {claims.length}件）
       </h2>
       {claims.length === 0 && (

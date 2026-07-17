@@ -22,7 +22,7 @@ export default async function WishesPage() {
     .order("date", { ascending: false })
     .limit(20);
 
-  const title: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+  const title: React.CSSProperties = t.cardTitle;
 
   return (
     <div>

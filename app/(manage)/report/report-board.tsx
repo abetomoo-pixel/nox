@@ -23,7 +23,7 @@ const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto" };
 const btnDark: React.CSSProperties = t.btnGold;
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+const secTitle: React.CSSProperties = t.cardTitle;
 
 export default function ReportBoard({
   storeId, cutoff, cardTaxRate, isManagerUp,

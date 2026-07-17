@@ -35,7 +35,7 @@ const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+const secTitle: React.CSSProperties = t.cardTitle;
 const chkLabel: React.CSSProperties = { ...t.fieldLabel, display: "flex", alignItems: "center", gap: 5, cursor: "pointer" };
 
 export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) {

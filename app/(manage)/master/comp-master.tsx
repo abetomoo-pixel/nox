@@ -32,7 +32,7 @@ const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+const secTitle: React.CSSProperties = t.cardTitle;
 const tabBtn = (on: boolean): React.CSSProperties => ({
   padding: "7px 12px", borderRadius: 9, border: "1px solid " + (on ? "var(--gold)" : "var(--line2)"),
   background: on ? "linear-gradient(135deg,var(--gold2),#B8893A)" : "transparent", color: on ? "#0B0B0F" : "var(--ink)", cursor: "pointer", fontSize: 13, fontWeight: 700,

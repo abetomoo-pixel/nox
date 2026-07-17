@@ -16,7 +16,7 @@ import { DOW_LABELS, type BusinessHourRow } from "@/lib/nox/business-hours";
 type Store = { id: string; name: string };
 type DowForm = { exists: boolean; closed: boolean; open: string; close: string; nextDay: boolean };
 
-const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 
 const emptyForm = (): DowForm => ({ exists: false, closed: false, open: "20:00", close: "06:00", nextDay: true });

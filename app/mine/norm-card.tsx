@@ -45,7 +45,7 @@ export default function NormCard() {
 
   if (axes.length === 0) return null;
 
-  const title: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+  const title: React.CSSProperties = t.cardTitle;
 
   return (
     <section className="nox-cardtop" style={t.card}>

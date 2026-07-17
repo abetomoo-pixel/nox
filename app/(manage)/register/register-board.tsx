@@ -375,7 +375,7 @@ export default function RegisterBoard({
       )}
       {/* 卓一覧 */}
       <section className="nox-cardtop" style={{ ...card, width: 220 }}>
-        <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>卓</h2>
+        <h2 style={t.cardTitle}>卓</h2>
         {seats.map((s) => (
           <button
             key={s.id}
@@ -413,7 +413,7 @@ export default function RegisterBoard({
 
           {/* 指名 */}
           <div className="nox-cardtop" style={card}>
-            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>指名（重み比で分配）</h3>
+            <h3 style={t.cardTitle}>指名（重み比で分配）</h3>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               <select value={nomType} onChange={(e) => setNomType(e.target.value)} style={input}>
                 <option value="hon">本指名</option>
@@ -448,7 +448,7 @@ export default function RegisterBoard({
 
           {/* 明細追加 */}
           <div className="nox-cardtop" style={card}>
-            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>明細追加</h3>
+            <h3 style={t.cardTitle}>明細追加</h3>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
               <select value={prodId} onChange={(e) => setProdId(e.target.value)} style={{ ...input, maxWidth: 220 }}>
                 <option value="">商品を選択</option>
@@ -480,7 +480,7 @@ export default function RegisterBoard({
 
           {/* 明細 */}
           <div className="nox-cardtop" style={card}>
-            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>明細</h3>
+            <h3 style={t.cardTitle}>明細</h3>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <tbody>
                 {lines.map((l) => {
@@ -516,7 +516,7 @@ export default function RegisterBoard({
 
           {/* 割引・無料（承認ワークフロー・F3c） */}
           <div className="nox-cardtop" style={card}>
-            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>
+            <h3 style={t.cardTitle}>
               割引・無料（{isManagerUp ? "適用・承認" : "申請"}）
             </h3>
             {/* 申請（黒服 can_register）／適用（owner/manager 直接）フォーム */}
@@ -574,7 +574,7 @@ export default function RegisterBoard({
 
           {/* 会計 */}
           <div className="nox-cardtop" style={card}>
-            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" }}>会計（伝票グループ別）</h3>
+            <h3 style={t.cardTitle}>会計（伝票グループ別）</h3>
             <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
               <thead>
                 <tr>

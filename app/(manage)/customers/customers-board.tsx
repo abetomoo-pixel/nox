@@ -24,7 +24,7 @@ type Row = {
 type Tier = "all" | "high" | "mid";
 
 const yen = (n: number) => "¥" + n.toLocaleString();
-const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, padding: "8px 10px", fontSize: 13 };
 const segBtn = (on: boolean): React.CSSProperties => ({
   ...t.btnGhost, ...t.btnSm,

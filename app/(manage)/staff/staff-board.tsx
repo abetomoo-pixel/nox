@@ -22,7 +22,7 @@ type CreateResult = { membership_id: string; login_email: string; initial_passwo
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnGold: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnGhost: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+const secTitle: React.CSSProperties = t.cardTitle;
 const rolePillMini = (role: string): React.CSSProperties => ({
   fontSize: 10, fontWeight: 800, letterSpacing: 0.5, borderRadius: 999, padding: "2px 8px",
   color: role === "manager" ? "#0B0B0F" : "var(--ink)",

@@ -29,7 +29,7 @@ const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", borderRadius: 9 };
 const btnDark: React.CSSProperties = { ...t.btnGold, padding: "8px 16px" };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
+const secTitle: React.CSSProperties = t.cardTitle;
 
 // RPC エラーの日本語化（シフト系・B-5②）
 function rpcErrJa(msg: string | undefined): string {
