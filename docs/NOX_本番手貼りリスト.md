@@ -8,7 +8,7 @@
 
 ## 適用範囲
 
-**0001 〜 0052**（2026-07-21 現在）
+**0001 〜 0053**（2026-07-21 現在）
 
 ## 特記事項
 
@@ -18,6 +18,7 @@
 | 0050_p40_product_costs_grant_fix | 再適用可構成だが手貼りは1回（0049 の grant 補正） |
 | 0051_e1_store_pricing | 再適用可構成だが手貼りは1回。**検証 G の期待値が dev と本番で異なる**：dev は settings_json に該当キー不在＝G=0 が正常。本番は settings_json に service_rate/round_unit/round_mode/card_tax_rate キーが居れば **G>0 が正常**（backfill が列へ移送する・json 旧値は残置）。json に不正値が居た場合は列 CHECK が UPDATE を落とし全体 rollback＝手貼りが失敗するのでその場で値を修正してから再貼り |
 | 0052_b4_time_charge | 再適用可構成だが手貼りは1回。**backfill 無し**（stores 時間制6列・checks スナップ5列は本 mig で同時生成し双方 default で自動一致＝dev/本番差なし・0051 のような G 期待値差は生じない）。手貼り後 `notify pgrst, 'reload schema';` で列追加＋新 RPC 2本を反映 |
+| 0053_b1b2_check_seats | 再適用可構成だが手貼りは1回。**backfill 無し**（check_seats 新設のみ・既存 open 伝票は追加席ゼロから開始）。既存4関数（check_open/check_close/check_void/reservation_to_check）を create or replace で置換＝**ACL は PostgreSQL 仕様で保持され再 grant 不要**。手貼り後 `notify pgrst, 'reload schema';` で新テーブル＋新 RPC 3本＋関数置換を反映 |
 
 ## 恒久注意
 

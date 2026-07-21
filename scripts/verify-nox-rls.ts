@@ -2417,6 +2417,129 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // B1/B2: 相席・席移動（mig0053・check_seats/check_open consult/move/add/remove）
+  //   ★専用席4卓を service 生成＝fixture seats（3行定常）と非干渉。started_at は service で
+  //   隔離日（2019-01-01）へ巻き戻して get_cast_sales を他区間から隔離。実呼び必須。
+  //   finally: check_nominations→payments→check_seats→check_lines→checks→専用席 の依存順全消し。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: orgRow } = await admin.from("stores").select("org_id").eq("id", storeA1Id).single();
+    const orgId = orgRow?.org_id as string;
+    const ca = await signIn("castA1a");
+    const { data: castA1aId } = await ca.rpc("auth_cast_id");
+
+    const seatNames = ["NOX-B1B2-RLS-卓1", "NOX-B1B2-RLS-卓2", "NOX-B1B2-RLS-卓3", "NOX-B1B2-RLS-卓4", "NOX-B1B2-RLS-卓5"];
+    const { data: seatRows } = await admin.from("seats")
+      .insert(seatNames.map((name) => ({ org_id: orgId, store_id: storeA1Id, name, kind: "卓" })))
+      .select("id, name");
+    const sid = (n: string) => (seatRows ?? []).find((r) => r.name === n)?.id as string;
+    const X = sid(seatNames[0]), Y = sid(seatNames[1]), Z = sid(seatNames[2]), W = sid(seatNames[3]), Xc = sid(seatNames[4]);
+    const seatIds = [X, Y, Z, W, Xc];
+    const made: string[] = [];
+    const wipeChk = async (id: string) => {
+      await admin.from("check_nominations").delete().eq("check_id", id);
+      await admin.from("payments").delete().eq("check_id", id);
+      await admin.from("check_seats").delete().eq("check_id", id);
+      await admin.from("check_lines").delete().eq("check_id", id);
+      await admin.from("check_cast_backs").delete().eq("check_id", id);
+      await admin.from("checks").delete().eq("id", id);
+    };
+
+    try {
+      const mg = await signIn("managerA1");
+      // ── 認可拒否（can_register 無し staff/cast・他 org manager）──
+      const { data: c1 } = await mg.rpc("check_open", { p_seat_id: X, p_people: 2, p_nom_type: "free" });
+      const chk1 = c1 as string; made.push(chk1);
+      {
+        const st = await signIn("staffA1"); // can_register=false
+        const { error } = await st.rpc("check_add_seat", { p_check_id: chk1, p_seat_id: Y });
+        check("B1/B2 staffA1（can_register無）check_add_seat 拒否", !!error?.message?.includes("forbidden"), error?.message ?? "通ってしまった");
+        const { error: eC } = await ca.rpc("check_add_seat", { p_check_id: chk1, p_seat_id: Y });
+        check("B1/B2 castA1a（can_register無）check_add_seat 拒否", !!eC?.message?.includes("forbidden"), eC?.message ?? "通ってしまった");
+        const mb = await signIn("managerB1");
+        const { error: eB } = await mb.rpc("check_move_seat", { p_check_id: chk1, p_to_seat_id: Z });
+        check("B1/B2 managerB1（他org）check_move_seat 拒否", !!eB?.message?.includes("forbidden"), eB?.message ?? "通ってしまった");
+      }
+
+      // ── 相席追加（add_seat）＋ union consult ＋ 占有ガード ──
+      const { data: addId, error: eA } = await mg.rpc("check_add_seat", { p_check_id: chk1, p_seat_id: Y });
+      check("B1/B2 check_add_seat(Y) 成功・uuid 返却", !eA && typeof addId === "string", eA?.message);
+      const { data: cs1 } = await admin.from("check_seats").select("*").eq("check_id", chk1);
+      const CS = (cs1 ?? [])[0] as Record<string, unknown> | undefined;
+      const NN = ["id", "org_id", "store_id", "check_id", "seat_id", "created_at"];
+      check("B1/B2 check_seats = 1本・NOT NULL 全列・seat=Y・返値=行id",
+        (cs1 ?? []).length === 1 && NN.every((k) => CS?.[k] != null) && CS?.seat_id === Y && addId === CS?.id, JSON.stringify(CS));
+      const { data: cUnion } = await mg.rpc("check_open", { p_seat_id: Y });
+      check("B1/B2 check_open(追加席Y) = ホスト伝票 id（union consult）", cUnion === chk1, `got ${cUnion}`);
+      const { data: c2 } = await mg.rpc("check_open", { p_seat_id: W, p_people: 1, p_nom_type: "free" });
+      const chk2 = c2 as string; made.push(chk2);
+      const { error: eOcc } = await mg.rpc("check_add_seat", { p_check_id: chk2, p_seat_id: Y });
+      check("B1/B2 別伝票から add_seat(占有済Y) 拒否（'seat occupied'）", !!eOcc?.message?.includes("seat occupied"), eOcc?.message ?? "通ってしまった");
+
+      // ── 席移動（move）＋ start/スナップ据置 ＋ 占有ガード ──
+      const { data: b0 } = await admin.from("checks")
+        .select("started_at, set_min, set_fee, ext_min, ext_fee, time_per, service_rate, round_unit, round_mode, total").eq("id", chk1);
+      const s0 = b0?.[0] as Record<string, unknown>;
+      const { error: eM } = await mg.rpc("check_move_seat", { p_check_id: chk1, p_to_seat_id: Z });
+      check("B1/B2 check_move_seat(Z) 成功", !eM, eM?.message);
+      const { data: b1 } = await admin.from("checks")
+        .select("seat_id, started_at, set_min, set_fee, ext_min, ext_fee, time_per, service_rate, round_unit, round_mode, total").eq("id", chk1);
+      const s1 = b1?.[0] as Record<string, unknown>;
+      check("B1/B2 move: seat_id=Z・started_at 据置・B4スナップ5列 据置・サ料/丸め/total 据置",
+        s1?.seat_id === Z && s1?.started_at === s0?.started_at
+        && s1?.set_min === s0?.set_min && s1?.set_fee === s0?.set_fee && s1?.ext_min === s0?.ext_min
+        && s1?.ext_fee === s0?.ext_fee && s1?.time_per === s0?.time_per
+        && s1?.service_rate === s0?.service_rate && s1?.round_unit === s0?.round_unit
+        && s1?.round_mode === s0?.round_mode && s1?.total === s0?.total, JSON.stringify({ s0, s1 }));
+      const { error: eM2 } = await mg.rpc("check_move_seat", { p_check_id: chk2, p_to_seat_id: Z });
+      check("B1/B2 move → 主席占有席 Z 拒否（'seat occupied'）", !!eM2?.message?.includes("seat occupied"), eM2?.message ?? "通ってしまった");
+      const { error: eM3 } = await mg.rpc("check_move_seat", { p_check_id: chk1, p_to_seat_id: Y });
+      check("B1/B2 move → 自伝票の追加席 Y も拒否（'seat occupied'）", !!eM3?.message?.includes("seat occupied"), eM3?.message ?? "通ってしまった");
+
+      // ── 相席解除（remove）＝主席拒否 / 追加席削除 ──
+      const { error: eR1 } = await mg.rpc("check_remove_seat", { p_check_id: chk1, p_seat_id: Z });
+      check("B1/B2 主席 Z 指定 → 'home seat'", !!eR1?.message?.includes("home seat"), eR1?.message ?? "通ってしまった");
+      const { error: eR2 } = await mg.rpc("check_remove_seat", { p_check_id: chk1, p_seat_id: Y });
+      const { data: csA } = await admin.from("check_seats").select("id").eq("check_id", chk1);
+      check("B1/B2 追加席 Y 解除成功・0行", !eR2 && (csA ?? []).length === 0, eR2?.message ?? `残 ${(csA ?? []).length}`);
+
+      // ── ★会計無改修: 相席後 check_group_due(=total) 不変 ＋ get_cast_sales 不変 ＋ close cleanup ──
+      const { data: cC } = await mg.rpc("check_open", { p_seat_id: Xc, p_people: 2, p_nom_type: "hon" });
+      const chkC = cC as string; made.push(chkC);
+      await mg.rpc("check_set_nominations", { p_check_id: chkC, p_nom_type: "hon",
+        p_nominations: [{ cast_id: castA1aId, weight: 1 }] });
+      await mg.rpc("check_add_line", { p_check_id: chkC, p_product_id: null, p_qty: 1, p_kind: "set",
+        p_pay_group: "A", p_name: "B1B2会計無改修", p_unit_price: 1000 });
+      const { data: t0 } = await admin.from("checks").select("total").eq("id", chkC);
+      const totalBefore = t0?.[0]?.total as number; // 1000 + サ料10%（既定・E1 復元後）→ round100down = 1100
+      const { error: eAS } = await mg.rpc("check_add_seat", { p_check_id: chkC, p_seat_id: Y });
+      check("B1/B2 会計無改修 前提: add_seat 成功", !eAS, eAS?.message);
+      const { data: t1 } = await admin.from("checks").select("total").eq("id", chkC);
+      check("B1/B2 ★相席後 total（check_group_due）不変・1100",
+        totalBefore === 1100 && t1?.[0]?.total === 1100, `before=${totalBefore} after=${t1?.[0]?.total}`);
+      // 隔離日へ巻き戻し → 入金 → close（追加席あり伝票の締め）
+      await admin.from("checks").update({ started_at: "2019-01-01T12:00:00+09:00" }).eq("id", chkC);
+      const { error: eP } = await mg.rpc("check_pay", { p_check_id: chkC, p_method: "cash", p_amount: 1100,
+        p_pay_group: "A", p_tendered: null, p_idem_key: randomUUID(), p_method_detail: null });
+      check("B1/B2 会計無改修 前提: 入金1100 成功", !eP, eP?.message);
+      const { error: eCl } = await mg.rpc("check_close", { p_check_id: chkC, p_idem_key: randomUUID() });
+      check("B1/B2 会計無改修 前提: close 成功", !eCl, eCl?.message);
+      const { data: csC } = await admin.from("check_seats").select("id").eq("check_id", chkC);
+      check("B1/B2 ★close で check_seats 全解放（transient）", (csC ?? []).length === 0, `残 ${(csC ?? []).length}`);
+      const { data: gcs, error: eG } = await mg.rpc("get_cast_sales", { p_store_id: storeA1Id, p_from: "2019-01-01", p_to: "2019-01-01" });
+      const row = (gcs as Array<Record<string, unknown>> | null)?.find((r) => r.cast_id === castA1aId);
+      check("B1/B2 ★相席伝票の get_cast_sales 不変・1100（追加席は按分に非混入）",
+        !eG && row?.sales === 1100, eG?.message ?? JSON.stringify(row));
+    } finally {
+      for (const id of made) await wipeChk(id);
+      if ((seatRows ?? []).length) await admin.from("seats").delete().in("id", seatIds);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
   // seat 蓄積の恒久掃除: 旧 run の「NOX-VERIFY-卓1/卓1改」を参照ゼロ限定で削除。
   // F1a は audit assert（target=seats:<id> が「ちょうど1行」）の前提として run 毎に
   // 新規 seat を作る＝query-or-insert 化は seatId 再利用で assert が崩れるため不採用。

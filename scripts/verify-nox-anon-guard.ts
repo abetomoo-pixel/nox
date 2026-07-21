@@ -332,6 +332,16 @@ async function main() {
     check("anon check_time_charge_apply BLOCKED", isFnBlocked(e2), e2?.message ?? "実行できてしまった");
   }
 
+  // ── 段9-B1B2: 相席・席移動 新 RPC 3本（mig0053）anon BLOCKED ──
+  {
+    const { error: e1 } = await anon.rpc("check_move_seat", { p_check_id: null, p_to_seat_id: null });
+    check("anon check_move_seat BLOCKED", isFnBlocked(e1), e1?.message ?? "実行できてしまった");
+    const { error: e2 } = await anon.rpc("check_add_seat", { p_check_id: null, p_seat_id: null });
+    check("anon check_add_seat BLOCKED", isFnBlocked(e2), e2?.message ?? "実行できてしまった");
+    const { error: e3 } = await anon.rpc("check_remove_seat", { p_check_id: null, p_seat_id: null });
+    check("anon check_remove_seat BLOCKED", isFnBlocked(e3), e3?.message ?? "実行できてしまった");
+  }
+
   // ── 段9a: F2a-2 get_cast_sales anon BLOCKED ──
   {
     const { error } = await anon.rpc("get_cast_sales", { p_store_id: null, p_from: null, p_to: null });

@@ -38,6 +38,7 @@ const TABLES = [
   "kiosk_devices", "cast_pin", // F4a キオスク打刻（mig0043・deny-all＝SELECT すら grant なし。G1/G2/G5 自動回帰＋G20 で policy 0本を能動 assert）
   "printer_config", "print_jobs", // F4b レシート印刷（mig0044/0045・deny-all。G21 で policy 0本＋service_role 限定 ACL を能動 assert）
   "product_costs", // 台帳#40 案C（mig0049/0050・原価分離。G24 で policy 逐語＋grant 実体を能動 assert）
+  "check_seats", // B1/B2 相席・席移動（mig0053・追加席の占有台帳。G27 で policy 逐語＋unique index＋grant 実体を能動 assert。.length 参照ゆえ G1/G2/G5 自動被覆＝裁定台帳 裁定9 教訓）
 ];
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
@@ -695,6 +696,54 @@ async function main() {
       check("G26 check_time_charge_apply EXECUTE = authenticated（anon/public 不在）",
         r2.includes("authenticated") && !r2.includes("anon") && !r2.includes("public"),
         `保持者: ${r2.join(", ") || "(なし)"}`);
+    }
+
+    // G27: B1/B2 相席・席移動（mig0053）— check_seats の RLS/policy 逐語＋占有 unique index 逐語＋
+    //   grant 実体（authenticated:SELECT のみ）＋新 RPC 3本の署名一意＋ACL。TABLES への追加で
+    //   G1/G2/G5 は自動被覆済み＝ここは占有構造と RPC 面を能動 assert。
+    {
+      // RLS 有効＋SELECT ポリシー1本（checks_select 逐語ミラー）
+      const rls = await db.query(
+        `select relrowsecurity from pg_class where oid = 'public.check_seats'::regclass`,
+      );
+      check("G27 check_seats RLS 有効", rls.rows[0]?.relrowsecurity === true, JSON.stringify(rls.rows));
+      const pol = await db.query(
+        `select polname, polcmd from pg_policy where polrelid = 'public.check_seats'::regclass`,
+      );
+      check("G27 check_seats ポリシー = SELECT 1本（check_seats_select）",
+        pol.rowCount === 1 && pol.rows[0].polcmd === "r" && pol.rows[0].polname === "check_seats_select",
+        pol.rows.map((x) => `${x.polname}:${x.polcmd}`).join(", "));
+      // 占有 unique index 逐語（追加席は同時1伝票の構造保証）
+      const ix = await db.query(
+        `select indexdef from pg_indexes where schemaname = 'public' and indexname = 'check_seats_seat_occupancy'`,
+      );
+      check("G27 check_seats_seat_occupancy unique index 逐語",
+        ix.rowCount === 1 && ix.rows[0].indexdef ===
+          "CREATE UNIQUE INDEX check_seats_seat_occupancy ON public.check_seats USING btree (seat_id)",
+        ix.rows[0]?.indexdef ?? "(missing)");
+      // grant 実体（authenticated:SELECT のみ＝REFERENCES/TRIGGER 不在＝mig0049→0050 教訓）
+      const g = await db.query(
+        `select grantee, privilege_type from information_schema.role_table_grants
+         where table_schema = 'public' and table_name = 'check_seats' and grantee = 'authenticated'
+         order by privilege_type`,
+      );
+      const got = g.rows.map((x) => `${x.grantee}:${x.privilege_type}`);
+      check("G27 check_seats grant = authenticated:SELECT のみ（REFERENCES/TRIGGER 不在）",
+        got.length === 1 && got[0] === "authenticated:SELECT", got.join(", ") || "(なし)");
+      // 新 RPC 3本の署名一意＋ACL
+      for (const fn of ["check_move_seat", "check_add_seat", "check_remove_seat"]) {
+        const sig = await db.query(
+          `select pg_get_function_identity_arguments(oid) as args, pronargs from pg_proc
+           where pronamespace = 'public'::regnamespace and proname = $1`,
+          [fn],
+        );
+        check(`G27 ${fn} = 2引数1本のみ（署名一意）`,
+          sig.rowCount === 1 && sig.rows[0].pronargs === 2, JSON.stringify(sig.rows.map((x) => x.args)));
+        const roles = await roleOf(fn);
+        check(`G27 ${fn} EXECUTE = authenticated（anon/public 不在）`,
+          roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+          `保持者: ${roles.join(", ") || "(なし)"}`);
+      }
     }
   }
 
