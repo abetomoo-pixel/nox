@@ -9,14 +9,15 @@ export const dynamic = "force-dynamic";
 export default async function ReportPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
-  const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name").limit(1);
+  // cutoff は settings_json（E1 対象外）／card_tax_rate は stores 列（E1 mig0051 で移行）。
+  const { data: stores } = await supabase.from("stores").select("id, name, settings_json, card_tax_rate").order("name").limit(1);
   const store = stores?.[0];
   const settings = (store?.settings_json ?? {}) as Record<string, unknown>;
   return (
     <ReportBoard
       storeId={store?.id ?? ""}
       cutoff={typeof settings.biz_cutoff_hm === "string" && settings.biz_cutoff_hm ? (settings.biz_cutoff_hm as string) : "06:00"}
-      cardTaxRate={Number(settings.card_tax_rate ?? 5)}
+      cardTaxRate={Number(store?.card_tax_rate ?? 5)}
       isManagerUp={role === "owner" || role === "manager"}
     />
   );

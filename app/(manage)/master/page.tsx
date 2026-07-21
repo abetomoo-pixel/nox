@@ -10,6 +10,7 @@ import CastRegisterPanel from "./cast-register-panel";
 import NormConfigPanel from "./norm-config-panel";
 import KioskPanel from "./kiosk-panel";
 import PrinterPanel from "./printer-panel";
+import PricingPanel from "./pricing-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,9 @@ export default async function MasterPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
-  const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name").limit(1);
+  const { data: stores } = await supabase.from("stores")
+    .select("id, name, settings_json, hon_fee, jonai_fee, dohan_fee, service_rate, card_tax_rate, round_unit, round_mode")
+    .order("name").limit(1);
   const store = stores?.[0];
   const storeId = store?.id ?? "";
   // 営業時間パネル用の全店リスト（B-5・owner=org 全店で store select・manager=RLS で自店1件）
@@ -53,6 +56,17 @@ export default async function MasterPage() {
   return (
     <>
       <MasterBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} />
+      {isManagerUp && storeId && (
+        <PricingPanel
+          storeId={storeId}
+          initial={{
+            hon_fee: Number(store?.hon_fee ?? 0), jonai_fee: Number(store?.jonai_fee ?? 0),
+            dohan_fee: Number(store?.dohan_fee ?? 0), service_rate: Number(store?.service_rate ?? 10),
+            card_tax_rate: Number(store?.card_tax_rate ?? 5), round_unit: Number(store?.round_unit ?? 100),
+            round_mode: typeof store?.round_mode === "string" ? store.round_mode : "down",
+          }}
+        />
+      )}
       {isManagerUp && (
         <NormConfigPanel
           storeId={storeId}
