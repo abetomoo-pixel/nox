@@ -11,6 +11,7 @@ import NormConfigPanel from "./norm-config-panel";
 import KioskPanel from "./kiosk-panel";
 import PrinterPanel from "./printer-panel";
 import PricingPanel from "./pricing-panel";
+import TimePricingPanel from "./time-pricing-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function MasterPage() {
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   const { data: stores } = await supabase.from("stores")
-    .select("id, name, settings_json, hon_fee, jonai_fee, dohan_fee, service_rate, card_tax_rate, round_unit, round_mode")
+    .select("id, name, settings_json, hon_fee, jonai_fee, dohan_fee, service_rate, card_tax_rate, round_unit, round_mode, set_min, set_fee, ext_min, ext_fee, time_mode, time_per")
     .order("name").limit(1);
   const store = stores?.[0];
   const storeId = store?.id ?? "";
@@ -64,6 +65,17 @@ export default async function MasterPage() {
             dohan_fee: Number(store?.dohan_fee ?? 0), service_rate: Number(store?.service_rate ?? 10),
             card_tax_rate: Number(store?.card_tax_rate ?? 5), round_unit: Number(store?.round_unit ?? 100),
             round_mode: typeof store?.round_mode === "string" ? store.round_mode : "down",
+          }}
+        />
+      )}
+      {isManagerUp && storeId && (
+        <TimePricingPanel
+          storeId={storeId}
+          initial={{
+            set_min: Number(store?.set_min ?? 60), set_fee: Number(store?.set_fee ?? 0),
+            ext_min: Number(store?.ext_min ?? 30), ext_fee: Number(store?.ext_fee ?? 0),
+            time_mode: typeof store?.time_mode === "string" ? store.time_mode : "manual",
+            time_per: typeof store?.time_per === "string" ? store.time_per : "table",
           }}
         />
       )}

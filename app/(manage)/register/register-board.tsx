@@ -14,6 +14,7 @@ type Cast = { id: string; name: string };
 
 type CheckRow = {
   id: string;
+  store_id: string;
   seat_id: string;
   status: string;
   people: number | null;
@@ -22,7 +23,16 @@ type CheckRow = {
   service_rate: number;
   round_unit: number;
   round_mode: string;
+  started_at: string;
+  // B4（mig0052）: 時間料金の open 時スナップ5値（非遡及＝time_mode は非スナップ・stores live 判定）
+  set_min: number;
+  set_fee: number;
+  ext_min: number;
+  ext_fee: number;
+  time_per: string;
 };
+// check_time_charge_apply の返値 jsonb（サーバ再計算の内訳・表示専用）
+type TimeCalc = { elapsed_min: number; units: number; blocks: number; set_c: number; ext_c: number; total: number; line_id: string };
 type Line = {
   id: string;
   kind: string;
@@ -68,6 +78,16 @@ function apErrJa(msg: string | undefined): string {
   if (msg.includes("bad type")) return "種別が不正です";
   if (msg.includes("bad amount")) return "割引額の指定が不正です";
   if (msg.includes("bad reason")) return "理由は200字以内で入力してください";
+  if (msg.includes("forbidden")) return "権限がありません";
+  return msg;
+}
+
+// B4（mig0052）check_time_charge_apply エラーの日本語化（握り潰さない＝裁定準拠）
+function timeErrJa(msg: string | undefined): string {
+  if (!msg) return "不明なエラー";
+  if (msg.includes("has payments")) return "入金後は時間料金を反映できません（訂正は取消から）";
+  if (msg.includes("not open")) return "この伝票は締められています（反映できません）";
+  if (msg.includes("bad time settings")) return "店の時間料金設定が不正です（マスタで確認してください）";
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
 }
@@ -121,6 +141,18 @@ export default function RegisterBoard({
   const [noms, setNoms] = useState<Nom[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  // B4（mig0052）時間料金: time_mode は非スナップ＝伝票の store の live 値で判定（裁定(g)）。
+  //   timeCalc は check_time_charge_apply の返値内訳（表示専用）。timeMsg はカード内エラー。
+  const [timeMode, setTimeMode] = useState("manual");
+  const [timeCalc, setTimeCalc] = useState<TimeCalc | null>(null);
+  const [timeMsg, setTimeMsg] = useState<string | null>(null);
+  // 経過時間の分表示用の時刻 tick（open 伝票がある間だけ 30 秒ごと更新＝分単位で十分）
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!check || check.status !== "open") return;
+    const id = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [check]);
 
   // フォーム状態
   const [nomType, setNomType] = useState("hon");
@@ -163,6 +195,13 @@ export default function RegisterBoard({
     const { data: aps } = await supabase
       .from("approvals").select("id, pay_group, type, amount, status, reason, requested_by, created_at")
       .eq("check_id", checkId).order("created_at", { ascending: false });
+    // B4: 伝票の store の time_mode を live 取得（非スナップ＝裁定(g)。RLS で自店/自 org のみ可視）
+    if (c) {
+      const { data: st } = await supabase.from("stores").select("time_mode").eq("id", (c as CheckRow).store_id).single();
+      setTimeMode((st?.time_mode as string | undefined) ?? "manual");
+    }
+    setTimeCalc(null);
+    setTimeMsg(null);
     setCheck(c as CheckRow);
     setLines((ls ?? []) as Line[]);
     setPayments((ps ?? []) as Payment[]);
@@ -233,6 +272,19 @@ export default function RegisterBoard({
     const { error } = await supabase.rpc("check_remove_line", { p_line_id: lineId });
     setMsg(error ? error.message : null);
     await loadCheck(check.id);
+  }
+
+  // B4（mig0052）: 時間料金を明細へ反映/更新（サーバ再計算・自然冪等 upsert＝1本を更新）。
+  //   金額はクライアントから送らない（引数は check_id のみ）。返値 jsonb の内訳を表示。
+  //   裁定(f): ボタン起点のみ（伝票表示時の自動 apply はしない）。
+  async function applyTimeCharge() {
+    if (!check) return;
+    setTimeMsg(null);
+    const { data, error } = await supabase.rpc("check_time_charge_apply", { p_check_id: check.id });
+    if (error) { setTimeMsg(timeErrJa(error.message)); return; }
+    setTimeCalc(data as TimeCalc);
+    await loadCheck(check.id); // 明細・合計を再読込（timeCalc は loadCheck でクリアされるため下で再設定）
+    setTimeCalc(data as TimeCalc);
   }
 
   async function pay() {
@@ -447,6 +499,38 @@ export default function RegisterBoard({
             </div>
           </div>
 
+          {/* B4: 時間制（自動）カード＝stores.time_mode='auto' かつ open 伝票のときのみ。
+              裁定(f): ボタン起点のみ（自動 apply しない）。内訳は checks スナップ5列＋返値 jsonb。 */}
+          {timeMode === "auto" && check.status === "open" && (
+            <div className="nox-cardtop" style={card}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（自動）</h3>
+                <span style={{ fontSize: 12, color: "var(--sub)" }}>
+                  経過 <span style={t.num}>{Math.max(0, Math.floor((nowMs - new Date(check.started_at).getTime()) / 60000))}</span> 分
+                  （着席 {new Date(check.started_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）
+                </span>
+              </div>
+              <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0", lineHeight: 1.7 }}>
+                セット <span style={t.num}>{yen(check.set_fee)}</span> / {check.set_min}分・
+                延長 <span style={t.num}>{yen(check.ext_fee)}</span> / {check.ext_min}分・
+                単位 {check.time_per === "person" ? "名（人数倍）" : "卓"}
+                <span style={{ display: "block", marginTop: 2 }}>この伝票を開いた時点の料金表で計算します（設定変更は次に開く伝票から）。</span>
+              </p>
+              <button onClick={applyTimeCharge} style={btnDark} disabled={payments.length > 0}
+                title={payments.length > 0 ? "入金後は反映できません（取消で訂正）" : ""}>
+                時間料金を明細へ反映／更新
+              </button>
+              {timeCalc && (
+                <p style={{ fontSize: 12, color: "var(--ink)", margin: "10px 0 0" }}>
+                  経過 <span style={t.num}>{timeCalc.elapsed_min}</span> 分・単位 <span style={t.num}>{timeCalc.units}</span>・
+                  延長 <span style={t.num}>{timeCalc.blocks}</span> 回 → セット <span style={t.num}>{yen(timeCalc.set_c)}</span>＋
+                  延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--champ)" }}>{yen(timeCalc.total)}</span>
+                </p>
+              )}
+              {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
+            </div>
+          )}
+
           {/* 明細追加 */}
           <div className="nox-cardtop" style={card}>
             <h3 style={t.cardTitle}>明細追加</h3>
@@ -645,6 +729,13 @@ export default function RegisterBoard({
                 </span>
               ))}
             </div>
+            {/* B4 裁定(f): close フローの促し注記のみ（自動実行しない）。auto かつ open のときだけ表示。 */}
+            {timeMode === "auto" && check.status === "open" && (
+              <p style={{ fontSize: 11.5, color: "var(--gold2)", margin: "10px 0 0", lineHeight: 1.6 }}>
+                時間制（自動）の店です。時間料金が未反映または古い可能性があります。
+                必要なら上の「時間料金を明細へ反映／更新」を押してから会計してください。
+              </p>
+            )}
             <button
               onClick={closeCheck}
               disabled={!allCovered}
