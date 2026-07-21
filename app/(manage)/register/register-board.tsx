@@ -11,6 +11,8 @@ import BottleKeepPanel from "./bottle-keep-panel";
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 type Product = { id: string; name: string; type: string; price: number };
 type Cast = { id: string; name: string };
+// B1/B2（mig0053）: 追加席の占有行（伝票の追加席一覧・フロアの「同一会計」表示に使う）
+type CheckSeatRow = { id: string; seat_id: string; check_id: string };
 
 type CheckRow = {
   id: string;
@@ -92,6 +94,19 @@ function timeErrJa(msg: string | undefined): string {
   return msg;
 }
 
+// B1/B2（mig0053）席操作エラーの日本語化（握り潰さない）
+function seatErrJa(msg: string | undefined): string {
+  if (!msg) return "不明なエラー";
+  if (msg.includes("seat occupied")) return "その席は使用中です";
+  if (msg.includes("home seat")) return "主席は解除できません（席移動を使ってください）";
+  if (msg.includes("not open")) return "締められています";
+  if (msg.includes("same seat")) return "同じ席です";
+  if (msg.includes("inactive seat")) return "無効な席です";
+  if (msg.includes("bad seat")) return "席の指定が不正です";
+  if (msg.includes("forbidden")) return "権限がありません";
+  return msg;
+}
+
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto" };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
@@ -107,6 +122,12 @@ export default function RegisterBoard({
   // タブ（canonical の register セグメント。顧客・ボトルタブは顧客 UI 実装時に追加）
   const [tab, setTab] = useState<"tables" | "reserve">("tables");
   const [openMap, setOpenMap] = useState<Record<string, string>>({});
+  // B1/B2: 追加席（相席）の占有マップ seat_id→ホスト伝票 id（フロアの「同一会計」表示・タップで
+  //   union consult がホスト伝票を返す）。primaryOf は checkId→主席 seat_id（ホスト名の解決用）。
+  const [addMap, setAddMap] = useState<Record<string, string>>({});
+  const [primaryOf, setPrimaryOf] = useState<Record<string, string>>({});
+  const [checkSeats, setCheckSeats] = useState<CheckSeatRow[]>([]);
+  const [seatMsg, setSeatMsg] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckRow | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -177,9 +198,14 @@ export default function RegisterBoard({
 
   const loadOpenMap = useCallback(async () => {
     const { data } = await supabase.from("checks").select("id, seat_id").eq("status", "open");
-    const m: Record<string, string> = {};
-    for (const r of data ?? []) m[r.seat_id as string] = r.id as string;
-    setOpenMap(m);
+    const m: Record<string, string> = {};      // 主席 seat_id → checkId
+    const pm: Record<string, string> = {};      // checkId → 主席 seat_id（ホスト名解決）
+    for (const r of data ?? []) { m[r.seat_id as string] = r.id as string; pm[r.id as string] = r.seat_id as string; }
+    // B1/B2: 追加席の占有（check_seats は transient＝open 伝票分のみ・RLS で自店/自 org 可視＝G27 検証済み）
+    const { data: cs } = await supabase.from("check_seats").select("seat_id, check_id");
+    const am: Record<string, string> = {};
+    for (const r of cs ?? []) am[r.seat_id as string] = r.check_id as string;
+    setOpenMap(m); setPrimaryOf(pm); setAddMap(am);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -195,6 +221,8 @@ export default function RegisterBoard({
     const { data: aps } = await supabase
       .from("approvals").select("id, pay_group, type, amount, status, reason, requested_by, created_at")
       .eq("check_id", checkId).order("created_at", { ascending: false });
+    // B1/B2: この伝票の追加席一覧（席セクションの表示＋解除ボタン）
+    const { data: cs } = await supabase.from("check_seats").select("id, seat_id, check_id").eq("check_id", checkId);
     // B4: 伝票の store の time_mode を live 取得（非スナップ＝裁定(g)。RLS で自店/自 org のみ可視）
     if (c) {
       const { data: st } = await supabase.from("stores").select("time_mode").eq("id", (c as CheckRow).store_id).single();
@@ -202,6 +230,8 @@ export default function RegisterBoard({
     }
     setTimeCalc(null);
     setTimeMsg(null);
+    setSeatMsg(null);
+    setCheckSeats((cs ?? []) as CheckSeatRow[]);
     setCheck(c as CheckRow);
     setLines((ls ?? []) as Line[]);
     setPayments((ps ?? []) as Payment[]);
@@ -222,7 +252,8 @@ export default function RegisterBoard({
 
   async function openSeat(seat: Seat) {
     setMsg(null);
-    const existing = openMap[seat.id];
+    // B1/B2: 主席 ∪ 追加席の占有ならその伝票を開く（追加席は union consult でホスト伝票＝addMap で直接解決）
+    const existing = openMap[seat.id] ?? addMap[seat.id];
     if (existing) { await loadCheck(existing); return; }
     const { data, error } = await supabase.rpc("check_open", { p_seat_id: seat.id, p_people: null, p_nom_type: "free" });
     if (error) { setMsg(error.message); return; }
@@ -285,6 +316,53 @@ export default function RegisterBoard({
     setTimeCalc(data as TimeCalc);
     await loadCheck(check.id); // 明細・合計を再読込（timeCalc は loadCheck でクリアされるため下で再設定）
     setTimeCalc(data as TimeCalc);
+  }
+
+  // B1/B2（mig0053）: 予約 soft 警告（裁定 d・拒否しない）。当日・booked・seat 一致の最小クエリ。
+  //   RLS で reservations が読めない role（staff/cast）は data=null→警告なしで続行（エラーにしない）。
+  async function reservedNote(seatId: string): Promise<string> {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+    const { data } = await supabase.from("reservations").select("id")
+      .eq("seat_id", seatId).eq("status", "booked")
+      .gte("reserved_at", start).lt("reserved_at", end);
+    return (data ?? []).length > 0 ? "この席には本日の予約があります。" : "";
+  }
+
+  // B1 相席追加（check_add_seat）。予約 soft 警告を添えて続行。
+  async function addSeat(seatId: string) {
+    if (!check || !seatId) return;
+    setSeatMsg(null);
+    const warn = await reservedNote(seatId);
+    const { error } = await supabase.rpc("check_add_seat", { p_check_id: check.id, p_seat_id: seatId });
+    if (error) { setSeatMsg(seatErrJa(error.message)); return; }
+    setSeatMsg((warn ? warn + " " : "") + "相席（同一会計）に追加しました。");
+    await loadOpenMap();
+    await loadCheck(check.id);
+  }
+
+  // B1 相席解除（check_remove_seat・追加席のみ・主席は home seat 拒否）
+  async function removeSeat(seatId: string) {
+    if (!check) return;
+    setSeatMsg(null);
+    const { error } = await supabase.rpc("check_remove_seat", { p_check_id: check.id, p_seat_id: seatId });
+    if (error) { setSeatMsg(seatErrJa(error.message)); return; }
+    setSeatMsg("相席を解除しました。");
+    await loadOpenMap();
+    await loadCheck(check.id);
+  }
+
+  // B2 席移動（check_move_seat）。予約 soft 警告を添えて続行。成功文言はモック Ix 準拠。
+  async function moveSeat(seatId: string) {
+    if (!check || !seatId) return;
+    setSeatMsg(null);
+    const warn = await reservedNote(seatId);
+    const { error } = await supabase.rpc("check_move_seat", { p_check_id: check.id, p_to_seat_id: seatId });
+    if (error) { setSeatMsg(seatErrJa(error.message)); return; }
+    setSeatMsg((warn ? warn + " " : "") + "席を移動しました。");
+    await loadOpenMap();
+    await loadCheck(check.id);
   }
 
   async function pay() {
@@ -435,11 +513,16 @@ export default function RegisterBoard({
             onClick={() => openSeat(s)}
             style={{
               ...btnLight, display: "block", width: "100%", textAlign: "left", marginBottom: 8,
-              borderColor: check?.seat_id === s.id ? "var(--gold)" : openMap[s.id] ? "var(--champ)" : "var(--line2)",
+              borderColor: check?.seat_id === s.id ? "var(--gold)" : (openMap[s.id] || addMap[s.id]) ? "var(--champ)" : "var(--line2)",
               color: check?.seat_id === s.id ? "var(--champ)" : "var(--ink)",
             }}
           >
-            {s.name} {s.kind ? `(${s.kind})` : ""} {openMap[s.id] ? "● 使用中" : "空"}
+            {s.name} {s.kind ? `(${s.kind})` : ""}{" "}
+            {openMap[s.id]
+              ? "● 使用中"
+              : addMap[s.id]
+                ? `● ${seats.find((h) => h.id === primaryOf[addMap[s.id]])?.name ?? "他卓"} と同一会計`
+                : "空"}
           </button>
         ))}
         {msg && <p style={{ fontSize: 12, color: "var(--sub)" }}>{msg}</p>}
@@ -498,6 +581,42 @@ export default function RegisterBoard({
               <button onClick={saveNoms} style={btnDark}>保存</button>
             </div>
           </div>
+
+          {/* B1/B2: 席（相席・席移動）＝open 伝票のみ。候補は同店の空席（主open/追加占有を除外）。
+              予約 soft 警告つき（裁定 d・拒否しない）。エラーは seatErrJa で日本語表示（握り潰さない）。 */}
+          {check.status === "open" && (() => {
+            const emptySeats = seats.filter((s) => s.store_id === check.store_id && !openMap[s.id] && !addMap[s.id]);
+            return (
+              <div className="nox-cardtop" style={card}>
+                <h3 style={t.cardTitle}>席</h3>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: "var(--sub)" }}>現在</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--champ)" }}>
+                    {seats.find((s) => s.id === check.seat_id)?.name ?? "—"}
+                    <span style={{ fontSize: 11, color: "var(--sub)", fontWeight: 400 }}> （主席）</span>
+                  </span>
+                  {checkSeats.map((cs) => (
+                    <span key={cs.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--ink)" }}>
+                      ＋{seats.find((s) => s.id === cs.seat_id)?.name ?? "他卓"}（同一会計）
+                      <button onClick={() => removeSeat(cs.seat_id)} title="相席を解除"
+                        style={{ ...btnLight, padding: "1px 7px", fontSize: 12, color: "var(--bad)", borderColor: "var(--bad)" }}>×</button>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <select value="" onChange={(e) => { if (e.target.value) void addSeat(e.target.value); }} style={{ ...input, maxWidth: 200 }}>
+                    <option value="">相席（同一会計）に席を追加</option>
+                    {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
+                  </select>
+                  <select value="" onChange={(e) => { if (e.target.value) void moveSeat(e.target.value); }} style={{ ...input, maxWidth: 200 }}>
+                    <option value="">席移動（移動先を選択）</option>
+                    {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
+                  </select>
+                </div>
+                {seatMsg && <p style={{ fontSize: 12, fontWeight: 700, color: seatMsg.includes("できません") || seatMsg.includes("使用中") || seatMsg.includes("無効") || seatMsg.includes("同じ席") ? "var(--bad)" : "var(--sub)", margin: "8px 0 0" }}>{seatMsg}</p>}
+              </div>
+            );
+          })()}
 
           {/* B4: 時間制（自動）カード＝stores.time_mode='auto' かつ open 伝票のときのみ。
               裁定(f): ボタン起点のみ（自動 apply しない）。内訳は checks スナップ5列＋返値 jsonb。 */}
