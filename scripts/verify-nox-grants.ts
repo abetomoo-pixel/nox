@@ -593,6 +593,41 @@ async function main() {
       check("G24 product_costs grant = authenticated:SELECT のみ（REFERENCES/TRIGGER 不在＝mig0050 補正）",
         got.length === 1 && got[0] === "authenticated:SELECT", got.join(", ") || "(なし)");
     }
+
+    // G25: E1 料金設定（mig0051）— stores 料金列7本の CHECK 逐語＋set_store_pricing。
+    //   defaults 現行実効値と同値＝golden 不変の構造保証（設計 §1）。round_unit は上限 10000
+    //   つき（相談役注記採用＝誤入力で全会計が極端丸めになる事故を構造で止める）。
+    {
+      const r = await db.query(
+        `select conname, pg_get_constraintdef(oid) as def from pg_constraint
+         where conrelid = 'public.stores'::regclass and contype = 'c'
+           and conname like 'stores_%_check' order by conname`,
+      );
+      const defs = new Map(r.rows.map((x) => [x.conname as string, x.def as string]));
+      const expects: Array<[string, string]> = [
+        ["stores_hon_fee_check", "CHECK ((hon_fee >= 0))"],
+        ["stores_jonai_fee_check", "CHECK ((jonai_fee >= 0))"],
+        ["stores_dohan_fee_check", "CHECK ((dohan_fee >= 0))"],
+        ["stores_service_rate_check", "CHECK (((service_rate >= 0) AND (service_rate <= 100)))"],
+        ["stores_card_tax_rate_check", "CHECK (((card_tax_rate >= 0) AND (card_tax_rate <= 100)))"],
+        ["stores_round_unit_check", "CHECK (((round_unit >= 1) AND (round_unit <= 10000)))"],
+        ["stores_round_mode_check", "CHECK ((round_mode = ANY (ARRAY['up'::text, 'down'::text, 'round'::text])))"],
+      ];
+      check("G25 stores 料金 CHECK = 7本", defs.size === 7, [...defs.keys()].join(", "));
+      for (const [name, want] of expects) {
+        check(`G25 ${name} 逐語`, defs.get(name) === want, defs.get(name) ?? "(missing)");
+      }
+      const sig = await db.query(
+        `select pg_get_function_identity_arguments(oid) as args, pronargs from pg_proc
+         where pronamespace = 'public'::regnamespace and proname = 'set_store_pricing'`,
+      );
+      check("G25 set_store_pricing = 8引数1本のみ（署名一意）",
+        sig.rowCount === 1 && sig.rows[0].pronargs === 8, JSON.stringify(sig.rows.map((x) => x.args)));
+      const roles = await roleOf("set_store_pricing");
+      check("G25 set_store_pricing EXECUTE = authenticated（anon/public 不在）",
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
   }
 
   await db.end();

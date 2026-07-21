@@ -2093,6 +2093,133 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // E1: 料金設定（mig0051・set_store_pricing/スナップショット非遡及/日報凍結）
+  //   ★全ゴールデンの後に配置＝A1 の料金を一時変更して末尾で defaults へ復元する
+  //   （途中で落ちても次 run 冒頭の goldens は checks スナップショット参照＝伝票単位で自己完結、
+  //    かつ本セクション再走で復元される）。実呼び必須＝prosrc 緑 ≠ runtime success（承認条件2）。
+  //   values: 変更セット 100/200/300/15/8/500/up → 復元 0/0/0/10/5/100/down（=列 defaults）。
+  // ══════════════════════════════════════════════════════════
+  {
+    const PRICING_KEYS = ["hon_fee", "jonai_fee", "dohan_fee", "service_rate", "card_tax_rate", "round_unit", "round_mode"];
+    const setPricing = (c: SupabaseClient, storeId: string, v: [number, number, number, number, number, number, string]) =>
+      c.rpc("set_store_pricing", {
+        p_store_id: storeId, p_hon_fee: v[0], p_jonai_fee: v[1], p_dohan_fee: v[2],
+        p_service_rate: v[3], p_card_tax_rate: v[4], p_round_unit: v[5], p_round_mode: v[6],
+      });
+    const DEFAULTS: [number, number, number, number, number, number, string] = [0, 0, 0, 10, 5, 100, "down"];
+    const CHANGED: [number, number, number, number, number, number, string] = [100, 200, 300, 15, 8, 500, "up"];
+
+    // ── 拒否系（staff/cast/他org manager/同org 他店 manager）──
+    {
+      const st = await signIn("staffA1");
+      const { error } = await setPricing(st, storeA1Id, CHANGED);
+      check("E1 staffA1 set_store_pricing 拒否", !!error?.message?.includes("forbidden"), error?.message ?? "通ってしまった");
+      const ca = await signIn("castA1a");
+      const { error: eC } = await setPricing(ca, storeA1Id, CHANGED);
+      check("E1 castA1a set_store_pricing 拒否", !!eC?.message?.includes("forbidden"), eC?.message ?? "通ってしまった");
+      const mb = await signIn("managerB1");
+      const { error: eB } = await setPricing(mb, storeA1Id, CHANGED);
+      check("E1 managerB1（他org）set_store_pricing 拒否", !!eB?.message?.includes("forbidden"), eB?.message ?? "通ってしまった");
+    }
+    {
+      // 同 org 他店: managerA1 → A2（store id は ownerA で解決＝manager からは stores 不可視でも RPC は id 指定で叩ける）
+      const ow = await signIn("ownerA");
+      const { data: a2 } = await ow.from("stores").select("id").eq("name", STORE_A2);
+      const storeA2Id = a2?.[0]?.id as string;
+      const mg = await signIn("managerA1");
+      const { error } = await setPricing(mg, storeA2Id, CHANGED);
+      check("E1 managerA1（同org 他店）set_store_pricing 拒否", !!error?.message?.includes("forbidden"), error?.message ?? "通ってしまった");
+      // owner は org 内他店に設定可（成功→即 defaults 復元）
+      const { error: eO } = await setPricing(ow, storeA2Id, CHANGED);
+      check("E1 ownerA が A2 に設定可", !eO, eO?.message);
+      const { error: eR } = await setPricing(ow, storeA2Id, DEFAULTS);
+      check("E1 ownerA A2 復元", !eR, eR?.message);
+    }
+
+    // ── 本線（managerA1・A1）: 非遡及 → 変更 → 7列 → audit → 新規スナップショット ──
+    {
+      const mg = await signIn("managerA1");
+      // 変更前に open（既存 open 再利用でも当 run は defaults 期＝10/100/down）
+      const { data: chk1, error: eOpen1 } = await mg.rpc("check_open", { p_seat_id: seatId });
+      check("E1 変更前 check_open 成功", !eOpen1 && typeof chk1 === "string", eOpen1?.message);
+      const { data: s1 } = await mg.from("checks").select("service_rate, round_unit, round_mode").eq("id", chk1 as string);
+      check("E1 変更前伝票のスナップショット = 10/100/down",
+        s1?.[0]?.service_rate === 10 && s1?.[0]?.round_unit === 100 && s1?.[0]?.round_mode === "down", JSON.stringify(s1));
+
+      const { error: eSet } = await setPricing(mg, storeA1Id, CHANGED);
+      check("E1 managerA1（自店）set_store_pricing 成功", !eSet, eSet?.message);
+
+      const { data: st } = await mg.from("stores")
+        .select("hon_fee, jonai_fee, dohan_fee, service_rate, card_tax_rate, round_unit, round_mode")
+        .eq("id", storeA1Id);
+      const r = st?.[0] as Record<string, unknown> | undefined;
+      check("E1 stores 7列が送信値に更新",
+        r?.hon_fee === 100 && r?.jonai_fee === 200 && r?.dohan_fee === 300 && r?.service_rate === 15
+        && r?.card_tax_rate === 8 && r?.round_unit === 500 && r?.round_mode === "up", JSON.stringify(r));
+
+      // audit: action='set_store_pricing'・before/after が7キー合成 jsonb（承認条件2）
+      const ow = await signIn("ownerA");
+      const { data: al } = await ow.from("audit_logs").select("before_json, after_json")
+        .eq("action", "set_store_pricing").eq("target", `stores:${storeA1Id}`)
+        .order("at", { ascending: false }).limit(1);
+      const bj = al?.[0]?.before_json as Record<string, unknown> | null;
+      const aj = al?.[0]?.after_json as Record<string, unknown> | null;
+      check("E1 audit 行生成（action=set_store_pricing）", (al ?? []).length === 1, `got ${(al ?? []).length}`);
+      check("E1 audit before = 7キー合成 jsonb（settings_json 非混入）",
+        !!bj && sameSet(Object.keys(bj), PRICING_KEYS), JSON.stringify(bj && Object.keys(bj)));
+      check("E1 audit after = 7キー合成 jsonb・変更後値",
+        !!aj && sameSet(Object.keys(aj), PRICING_KEYS) && aj.service_rate === 15 && aj.round_unit === 500,
+        JSON.stringify(aj));
+      check("E1 audit before に変更前値（service_rate=10）", bj?.service_rate === 10, JSON.stringify(bj));
+
+      // 非遡及: open 中伝票は旧値のまま
+      const { data: s2 } = await mg.from("checks").select("service_rate, round_unit, round_mode").eq("id", chk1 as string);
+      check("E1 ★非遡及: open 中伝票のスナップショットは旧値のまま（10/100/down）",
+        s2?.[0]?.service_rate === 10 && s2?.[0]?.round_unit === 100 && s2?.[0]?.round_mode === "down", JSON.stringify(s2));
+
+      // 新規 open は新値をスナップショット（同一卓は open 再利用のため一旦 void して開け直す）
+      const { error: eV1 } = await mg.rpc("check_void", { p_check_id: chk1, p_reason: "E1検証" });
+      check("E1 変更前伝票 void", !eV1, eV1?.message);
+      const { data: chk2, error: eOpen2 } = await mg.rpc("check_open", { p_seat_id: seatId });
+      check("E1 変更後 check_open 成功", !eOpen2 && typeof chk2 === "string" && chk2 !== chk1, eOpen2?.message);
+      const { data: s3 } = await mg.from("checks").select("service_rate, round_unit, round_mode").eq("id", chk2 as string);
+      check("E1 ★変更後の新規伝票は新値をスナップショット（15/500/up）",
+        s3?.[0]?.service_rate === 15 && s3?.[0]?.round_unit === 500 && s3?.[0]?.round_mode === "up", JSON.stringify(s3));
+      const { error: eV2 } = await mg.rpc("check_void", { p_check_id: chk2, p_reason: "E1検証" });
+      check("E1 変更後伝票 void（掃除）", !eV2, eV2?.message);
+
+      // 復元（列 defaults と同値）
+      const { error: eRes } = await setPricing(mg, storeA1Id, DEFAULTS);
+      check("E1 A1 復元", !eRes, eRes?.message);
+      const { data: st2 } = await mg.from("stores").select("service_rate, round_unit, round_mode").eq("id", storeA1Id);
+      check("E1 復元後 = defaults", st2?.[0]?.service_rate === 10 && st2?.[0]?.round_unit === 100 && st2?.[0]?.round_mode === "down", JSON.stringify(st2));
+    }
+
+    // ── 日報凍結（B1・org B＝A1 の goldens と完全独立）──
+    // 固定 idem key で再走冪等（初回=card_tax 9 で締め→凍結。以後の run は already-closed を
+    // 同一キーで成功リプレイ＝行は初回の 9 のまま）。2020-01-01 は伝票ゼロ日＝open_checks 0。
+    {
+      const mb = await signIn("managerB1");
+      const { data: b1 } = await mb.from("stores").select("id").eq("name", STORE_B1);
+      const storeB1Id = b1?.[0]?.id as string;
+      const { error: eSet } = await setPricing(mb, storeB1Id, [0, 0, 0, 10, 9, 100, "down"]);
+      check("E1 managerB1（自店 B1）set_store_pricing 成功", !eSet, eSet?.message);
+      const { error: eClose } = await mb.rpc("daily_report_close", {
+        p_store_id: storeB1Id, p_biz_date: "2020-01-01",
+        p_idem_key: "e1510000-0000-4000-8000-000000000051",
+      });
+      check("E1 B1 日報締め成功（初回 or 冪等リプレイ）", !eClose, eClose?.message);
+      const { data: dr } = await mb.from("daily_reports").select("card_tax_rate").eq("store_id", storeB1Id).eq("biz_date", "2020-01-01");
+      check("E1 ★日報は締め時点の税率を凍結（card_tax_rate=9・以後の設定変更に非追随）",
+        dr?.[0]?.card_tax_rate === 9, JSON.stringify(dr));
+      const { error: eRes } = await setPricing(mb, storeB1Id, DEFAULTS);
+      check("E1 B1 復元", !eRes, eRes?.message);
+      const { data: st3 } = await mb.from("stores").select("card_tax_rate").eq("id", storeB1Id);
+      check("E1 B1 復元後 card_tax_rate=5・凍結行は 9 のまま独立", st3?.[0]?.card_tax_rate === 5, JSON.stringify(st3));
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
   // seat 蓄積の恒久掃除: 旧 run の「NOX-VERIFY-卓1/卓1改」を参照ゼロ限定で削除。
   // F1a は audit assert（target=seats:<id> が「ちょうど1行」）の前提として run 毎に
   // 新規 seat を作る＝query-or-insert 化は seatId 再利用で assert が崩れるため不採用。

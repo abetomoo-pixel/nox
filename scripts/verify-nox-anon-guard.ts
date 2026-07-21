@@ -312,6 +312,15 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段9-E1: set_store_pricing（mig0051・料金7列の唯一の書き手）anon BLOCKED ──
+  {
+    const { error } = await anon.rpc("set_store_pricing", {
+      p_store_id: null, p_hon_fee: null, p_jonai_fee: null, p_dohan_fee: null,
+      p_service_rate: null, p_card_tax_rate: null, p_round_unit: null, p_round_mode: null,
+    });
+    check("anon set_store_pricing BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段9a: F2a-2 get_cast_sales anon BLOCKED ──
   {
     const { error } = await anon.rpc("get_cast_sales", { p_store_id: null, p_from: null, p_to: null });
