@@ -292,6 +292,7 @@ async function main() {
     ["daily_report_close", { p_store_id: null, p_biz_date: null, p_expense: null, p_cash_payout: null, p_cash_float: null, p_counted_cash: null, p_note: null, p_force: null, p_idem_key: null }],
     ["daily_report_reclose", { p_report_id: null, p_expense: null, p_cash_payout: null, p_cash_float: null, p_counted_cash: null, p_note: null, p_force: null }],
     ["get_cast_ranking", { p_store_id: null, p_period: null }], // F1f（mig0011）
+    ["get_store_nom_counts", { p_store_id: null, p_from: null, p_to: null }], // A4 月報（mig0054・店合計 指名件数 読取）
   ];
   for (const [fn, args] of F1E_RPC_PROBES) {
     const { error } = await anon.rpc(fn, args);

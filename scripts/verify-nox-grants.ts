@@ -745,6 +745,26 @@ async function main() {
           `保持者: ${roles.join(", ") || "(なし)"}`);
       }
     }
+
+    // G28: A4 月報（mig0054）— get_store_nom_counts の署名一意（3引数1本）＋返り列3本＋ACL。
+    //   読取専用 RPC（checks/check_nominations SELECT のみ）＝会計非改修・daily_report_aggregate 非改修。
+    {
+      const sig = await db.query(
+        `select pg_get_function_identity_arguments(oid) as args, pronargs, prosecdef, provolatile,
+                pg_get_function_result(oid) as ret
+         from pg_proc where pronamespace = 'public'::regnamespace and proname = 'get_store_nom_counts'`,
+      );
+      check("G28 get_store_nom_counts = 3引数1本のみ（署名一意・secdef・STABLE）",
+        sig.rowCount === 1 && sig.rows[0].pronargs === 3 && sig.rows[0].prosecdef === true
+        && sig.rows[0].provolatile === "s", JSON.stringify(sig.rows.map((x) => x.args)));
+      check("G28 返り列 = hon_count/jonai_count/dohan_count 逐語",
+        sig.rows[0]?.ret === "TABLE(hon_count integer, jonai_count integer, dohan_count integer)",
+        sig.rows[0]?.ret ?? "(missing)");
+      const roles = await roleOf("get_store_nom_counts");
+      check("G28 get_store_nom_counts EXECUTE = authenticated（anon/public 不在）",
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
   }
 
   await db.end();

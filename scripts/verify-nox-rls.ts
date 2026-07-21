@@ -2540,6 +2540,95 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // A4: 月報の指名店合計（mig0054・get_store_nom_counts）
+  //   隔離日 2017-04 に closed 伝票を service 投入（相席の複数指名を1本含む）→ 店合計・半期split・
+  //   ★get_cast_ranking の店合算と同値（縮退が値を変えない）・cast 自店可（店合計のみ）・他org forbidden・
+  //   bad range を実測。finally で check_nominations→checks→専用席 の依存順全消し。既存段の期待値不変。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: orgRow } = await admin.from("stores").select("org_id").eq("id", storeA1Id).single();
+    const orgId = orgRow?.org_id as string;
+    const { data: castRows } = await admin.from("casts").select("id").eq("store_id", storeA1Id).eq("is_active", true).limit(2);
+    const c1 = castRows?.[0]?.id as string, c2 = castRows?.[1]?.id as string;
+    const { data: uRow } = await admin.from("users").select("id").limit(1);
+    const actor = uRow?.[0]?.id as string;
+    const { data: a4Seats } = await admin.from("seats")
+      .insert([1, 2].map((i) => ({ org_id: orgId, store_id: storeA1Id, name: `NOX-A4-RLS-卓${i}`, kind: "卓" }))).select("id, name");
+    const seat = (n: number) => (a4Seats ?? []).find((r) => r.name === `NOX-A4-RLS-卓${n}`)?.id as string;
+    const made: string[] = [];
+    const mk = async (seatId: string, nomType: string, startedAt: string, noms: string[]) => {
+      const { data: chk } = await admin.from("checks").insert({
+        org_id: orgId, store_id: storeA1Id, seat_id: seatId, status: "closed", nom_type: nomType,
+        started_at: startedAt, service_rate: 10, round_unit: 100, round_mode: "down", total: 1000,
+        created_by: actor, closed_at: startedAt,
+      }).select("id").single();
+      const id = chk!.id as string; made.push(id);
+      let pos = 1;
+      for (const cid of noms) await admin.from("check_nominations").insert({ org_id: orgId, store_id: storeA1Id, check_id: id, cast_id: cid, ratio_weight: 1, position: pos++ });
+      return id;
+    };
+    type NC = { hon_count: number; jonai_count: number; dohan_count: number };
+    const call = (c: SupabaseClient, from: string, to: string) => c.rpc("get_store_nom_counts", { p_store_id: storeA1Id, p_from: from, p_to: to });
+    try {
+      const mg = await signIn("managerA1");
+      // 前期(04-10): hon(c1,c2の2指名), jonai(c1) ／ 後期(04-20): dohan(c1), hon(c1)
+      await mk(seat(1), "hon", "2017-04-10T12:00:00+09:00", [c1, c2]);
+      await mk(seat(2), "jonai", "2017-04-10T13:00:00+09:00", [c1]);
+      await mk(seat(1), "dohan", "2017-04-20T12:00:00+09:00", [c1]);
+      await mk(seat(2), "hon", "2017-04-20T13:00:00+09:00", [c1]);
+      // 期待（指名行数）: 前期 hon2/jonai1/dohan0 ／ 後期 hon1/jonai0/dohan1 ／ 通期 hon3/jonai1/dohan1
+
+      const { data: h1, error: e1 } = await call(mg, "2017-04-01", "2017-04-15");
+      const r1 = (h1 as NC[])?.[0];
+      check("A4 前期 hon2/jonai1/dohan0（相席の複数指名を指名行数でカウント）",
+        !e1 && r1?.hon_count === 2 && r1?.jonai_count === 1 && r1?.dohan_count === 0, e1?.message ?? JSON.stringify(r1));
+      check("A4 返り列＝3件数のみ（cast_id/名は漏れない）",
+        !!r1 && Object.keys(r1).length === 3 && "hon_count" in r1 && !("cast_id" in r1) && !("cast_name" in r1),
+        JSON.stringify(r1 && Object.keys(r1)));
+      const { data: h2 } = await call(mg, "2017-04-16", "2017-04-30");
+      const { data: h3 } = await call(mg, "2017-04-01", "2017-04-30");
+      const r2 = (h2 as NC[])?.[0], r3 = (h3 as NC[])?.[0];
+      check("A4 後期 hon1/jonai0/dohan1", r2?.hon_count === 1 && r2?.jonai_count === 0 && r2?.dohan_count === 1, JSON.stringify(r2));
+      check("A4 通期 hon3/jonai1/dohan1", r3?.hon_count === 3 && r3?.jonai_count === 1 && r3?.dohan_count === 1, JSON.stringify(r3));
+      check("A4 ★前期+後期=通期（半期split 整合）",
+        r1.hon_count + r2.hon_count === r3.hon_count && r1.jonai_count + r2.jonai_count === r3.jonai_count
+        && r1.dohan_count + r2.dohan_count === r3.dohan_count, JSON.stringify({ r1, r2, r3 }));
+      // ★検算: get_cast_ranking の店合算と同値（縮退が値を変えていない）
+      const { data: rk } = await mg.rpc("get_cast_ranking", { p_store_id: storeA1Id, p_period: "2017-04" });
+      const sh = (rk as NC[]).reduce((a, r) => a + r.hon_count, 0);
+      const sj = (rk as NC[]).reduce((a, r) => a + r.jonai_count, 0);
+      const sd = (rk as NC[]).reduce((a, r) => a + r.dohan_count, 0);
+      check("A4 ★検算 通期 == get_cast_ranking 店合算（縮退が値を変えない）",
+        r3.hon_count === sh && r3.jonai_count === sj && r3.dohan_count === sd,
+        `nom=${JSON.stringify(r3)} rankSum={hon:${sh},jonai:${sj},dohan:${sd}}`);
+      // cast 自店可だが店合計のみ（cast 個別漏洩なし）
+      const ca = await signIn("castA1a");
+      const { data: hc, error: ec } = await call(ca, "2017-04-01", "2017-04-30");
+      const rc = (hc as NC[])?.[0];
+      check("A4 castA1a（自店）呼出可・店合計のみ返る（cast 個別なし）",
+        !ec && rc?.hon_count === 3 && Object.keys(rc).length === 3, ec?.message ?? JSON.stringify(rc));
+      // 他 org forbidden
+      const mb = await signIn("managerB1");
+      const { error: eB } = await call(mb, "2017-04-01", "2017-04-30");
+      check("A4 managerB1（他org）が A1 店指定 → forbidden", !!eB?.message?.includes("forbidden"), eB?.message ?? "通ってしまった");
+      // bad range
+      const { error: eR1 } = await call(mg, "2017-01-01", "2017-12-31");
+      check("A4 92日超 → 'bad range'", !!eR1?.message?.includes("bad range"), eR1?.message ?? "通ってしまった");
+      const { error: eR2 } = await call(mg, "2017-04-30", "2017-04-01");
+      check("A4 from>to → 'bad range'", !!eR2?.message?.includes("bad range"), eR2?.message ?? "通ってしまった");
+    } finally {
+      for (const id of made) {
+        await admin.from("check_nominations").delete().eq("check_id", id);
+        await admin.from("checks").delete().eq("id", id);
+      }
+      if ((a4Seats ?? []).length) await admin.from("seats").delete().in("id", (a4Seats ?? []).map((r) => r.id));
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
   // seat 蓄積の恒久掃除: 旧 run の「NOX-VERIFY-卓1/卓1改」を参照ゼロ限定で削除。
   // F1a は audit assert（target=seats:<id> が「ちょうど1行」）の前提として run 毎に
   // 新規 seat を作る＝query-or-insert 化は seatId 再利用で assert が崩れるため不採用。
