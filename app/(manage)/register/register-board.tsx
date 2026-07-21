@@ -230,7 +230,9 @@ export default function RegisterBoard({
     }
     setTimeCalc(null);
     setTimeMsg(null);
-    setSeatMsg(null);
+    // B1/B2: seatMsg（席操作の成功/予約警告）は loadCheck ではクリアしない＝loadCheck は
+    //   リロードユーティリティでメッセージ生存期間を持たない（順序入替案だと将来の loadCheck 呼び足しで
+    //   再発する）。クリアは席切替（openSeat）でのみ行う。
     setCheckSeats((cs ?? []) as CheckSeatRow[]);
     setCheck(c as CheckRow);
     setLines((ls ?? []) as Line[]);
@@ -252,6 +254,7 @@ export default function RegisterBoard({
 
   async function openSeat(seat: Seat) {
     setMsg(null);
+    setSeatMsg(null); // B1/B2: 席操作メッセージのクリアは席切替のここでのみ（loadCheck では消さない）
     // B1/B2: 主席 ∪ 追加席の占有ならその伝票を開く（追加席は union consult でホスト伝票＝addMap で直接解決）
     const existing = openMap[seat.id] ?? addMap[seat.id];
     if (existing) { await loadCheck(existing); return; }
