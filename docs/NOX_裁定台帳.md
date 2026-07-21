@@ -175,6 +175,11 @@ merged_into は未使用のまま保全＝drop しない）。
 締めた get_cast_sales も按分に非混入（seat 参照 0 の構造＝money 関数は check_id 単位）。check_close/void
 への追補は status 更新直後の check_seats delete 1文のみ（money 計算 1文字不変）。
 
+**既知・軽微（2026-07-21 巡回で観測・post-launch 改善候補・今回は直さない）**：監査ログ画面（A1）は
+コールドスタート直後の初回ロードで client セッション hydration が間に合わず一瞬「履歴はありません」を
+出す（再読込で解消・データは 23,222 行健在）。恒久バグではないため今回は非修正。初回フラッシュ抑制
+（loading 状態表示など）を post-launch の改善候補として記録。
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。

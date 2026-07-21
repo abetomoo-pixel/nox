@@ -14,7 +14,8 @@ import DrinkClaimQueue from "../register/drink-claim-queue";
 type Cast = { id: string; name: string };
 type Att = { cast_id: string; status: string; eta: string | null };
 type ReportRow = { biz_date: string; cash: number; card_gross: number; uri: number; other: number };
-type RankRow = { rank: number; cast_id: string; cast_name: string; hon: number; jonai: number; dohan: number };
+// get_cast_ranking の返り列に一致（hon_count/jonai_count/dohan_count・不一致だと NaN になっていた）
+type RankRow = { rank: number; cast_id: string; cast_name: string; hon_count: number; jonai_count: number; dohan_count: number };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 const card: React.CSSProperties = t.card;
@@ -53,7 +54,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts }: {
   const castName = (id: string) => casts.find((c) => c.id === id)?.name ?? "?";
   const present = atts.filter((a) => PRESENT.has(a.status));
   const dohanToday = atts.filter((a) => a.status === "dohan").length;
-  const honMonth = ranking.reduce((a, r) => a + r.hon, 0);
+  const honMonth = ranking.reduce((a, r) => a + r.hon_count, 0);
 
   return (
     <div style={{ maxWidth: 760 }}>
@@ -101,7 +102,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts }: {
           <div key={r.cast_id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
             <span style={{ ...t.num, width: 26, color: r.rank <= 3 ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}>{r.rank}</span>
             <span style={{ width: 140 }}>{r.cast_name}</span>
-            <span style={{ ...t.num, color: "var(--sub)" }}>本指名 {r.hon} ・ 場内 {r.jonai} ・ 同伴 {r.dohan}</span>
+            <span style={{ ...t.num, color: "var(--sub)" }}>本指名 {r.hon_count} ・ 場内 {r.jonai_count} ・ 同伴 {r.dohan_count}</span>
           </div>
         ))}
       </section>
