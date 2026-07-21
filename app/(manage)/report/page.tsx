@@ -10,7 +10,9 @@ export default async function ReportPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
   // cutoff は settings_json（E1 対象外）／card_tax_rate は stores 列（E1 mig0051 で移行）。
-  const { data: stores } = await supabase.from("stores").select("id, name, settings_json, card_tax_rate").order("name").limit(1);
+  // RLS スコープの店一覧（owner=org 全店・manager/staff=自店1件）＝月報タブの店セレクタ用。
+  //   日報タブは先頭店（[0]）を従来どおり使う。
+  const { data: stores } = await supabase.from("stores").select("id, name, settings_json, card_tax_rate").order("name");
   const store = stores?.[0];
   const settings = (store?.settings_json ?? {}) as Record<string, unknown>;
   return (
@@ -19,6 +21,7 @@ export default async function ReportPage() {
       cutoff={typeof settings.biz_cutoff_hm === "string" && settings.biz_cutoff_hm ? (settings.biz_cutoff_hm as string) : "06:00"}
       cardTaxRate={Number(store?.card_tax_rate ?? 5)}
       isManagerUp={role === "owner" || role === "manager"}
+      stores={(stores ?? []).map((s) => ({ id: s.id as string, name: s.name as string }))}
     />
   );
 }

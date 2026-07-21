@@ -6,6 +6,7 @@ import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
+import MonthReport from "./month-report";
 
 type Preview = {
   open: number; slips: number; guests: number; dohan: number;
@@ -26,9 +27,10 @@ const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 
 export default function ReportBoard({
-  storeId, cutoff, cardTaxRate, isManagerUp,
-}: { storeId: string; cutoff: string; cardTaxRate: number; isManagerUp: boolean }) {
+  storeId, cutoff, cardTaxRate, isManagerUp, stores,
+}: { storeId: string; cutoff: string; cardTaxRate: number; isManagerUp: boolean; stores: { id: string; name: string }[] }) {
   const supabase = createClient();
+  const [tab, setTab] = useState<"day" | "month">("day"); // A4: 日報/月報 タブ（分析/会計連携/本部連結は A4 の外）
   const [bizDate, setBizDate] = useState(bizDateOf(new Date().toISOString(), cutoff));
   const [preview, setPreview] = useState<Preview | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
@@ -101,9 +103,27 @@ export default function ReportBoard({
 
   return (
     <div style={{ maxWidth: 860 }}>
-      <h1 style={t.pheadH1}>日報</h1>
+      <h1 style={t.pheadH1}>レポート</h1>
       <Toast msg={msg} />
 
+      {/* A4: 日報/月報 タブ（モックの segment のうち月報のみ実装・分析=C5/会計連携=C3/本部連結=C2 は A4 の外） */}
+      <div className="nox-cardtop" style={{ ...card, padding: 11 }}>
+        <div style={{ display: "flex", gap: 8, maxWidth: 320 }}>
+          {(["day", "month"] as const).map((k) => (
+            <button key={k} onClick={() => setTab(k)}
+              style={{
+                flex: 1, fontFamily: "inherit", fontWeight: 800, fontSize: 13, padding: "9px 10px", borderRadius: 9, cursor: "pointer",
+                border: tab === k ? "1px solid var(--gold)" : "1px solid var(--line2)",
+                background: tab === k ? "linear-gradient(135deg,#1F1B12,#14120C)" : "transparent",
+                color: tab === k ? "var(--champ)" : "var(--sub)",
+              }}>{k === "day" ? "日報" : "月報"}</button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "month" && <MonthReport stores={stores} defaultStoreId={storeId} isManagerUp={isManagerUp} />}
+
+      {tab === "day" && (<>
       <section className="nox-cardtop" style={card}>
         <h2 style={secTitle}>
           プレビュー（クライアント集計・確定値は締め時のサーバ再集計が正）
@@ -187,6 +207,7 @@ export default function ReportBoard({
           </tbody>
         </table>
       </section>
+      </>)}
     </div>
   );
 }
