@@ -321,6 +321,17 @@ async function main() {
     check("anon set_store_pricing BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段9-B4: 時間料金 新 RPC 2本（mig0052）anon BLOCKED ──
+  {
+    const { error: e1 } = await anon.rpc("set_store_time_pricing", {
+      p_store_id: null, p_set_min: null, p_set_fee: null, p_ext_min: null,
+      p_ext_fee: null, p_time_mode: null, p_time_per: null,
+    });
+    check("anon set_store_time_pricing BLOCKED", isFnBlocked(e1), e1?.message ?? "実行できてしまった");
+    const { error: e2 } = await anon.rpc("check_time_charge_apply", { p_check_id: null });
+    check("anon check_time_charge_apply BLOCKED", isFnBlocked(e2), e2?.message ?? "実行できてしまった");
+  }
+
   // ── 段9a: F2a-2 get_cast_sales anon BLOCKED ──
   {
     const { error } = await anon.rpc("get_cast_sales", { p_store_id: null, p_from: null, p_to: null });

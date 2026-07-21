@@ -2220,6 +2220,203 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // B4: 時間料金自動計算（mig0052・set_store_time_pricing/check_time_charge_apply）
+  //   E1 の直後・A1 の pricing は E1 で defaults 復元済み。時間制6設定を一時変更し、finally で
+  //   check_lines→checks→設定 defaults の依存順で全消しする（段内動的生成の原則）。
+  //   実呼び必須＝prosrc 緑 ≠ runtime success。started_at は service キーで巻き戻し（RPC 経路に
+  //   時計操作は無い＝伝票 UPDATE ポリシーは authenticated に無く service のみ）。境界 90/120 を避けた
+  //   100分/160分（プローブと同一の決定的値）。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const TIME_KEYS = ["set_min", "set_fee", "ext_min", "ext_fee", "time_mode", "time_per"];
+    type TP = [number, number, number, number, string, string];
+    const setTP = (c: SupabaseClient, storeId: string, v: TP) =>
+      c.rpc("set_store_time_pricing", {
+        p_store_id: storeId, p_set_min: v[0], p_set_fee: v[1], p_ext_min: v[2],
+        p_ext_fee: v[3], p_time_mode: v[4], p_time_per: v[5],
+      });
+    const TIME_DEFAULTS: TP = [60, 0, 30, 0, "manual", "table"];
+    const rewind = (id: string, min: number) =>
+      admin.from("checks").update({ started_at: new Date(Date.now() - min * 60_000).toISOString() }).eq("id", id);
+    const wipe = async (id: string) => {
+      await admin.from("payments").delete().eq("check_id", id);
+      await admin.from("check_lines").delete().eq("check_id", id);
+      await admin.from("checks").delete().eq("id", id);
+    };
+    const opened: string[] = [];
+
+    try {
+      // storeA2Id を owner で解決（manager からは stores 不可視・RPC は id 指定で叩ける＝E1 と同型）
+      const ow = await signIn("ownerA");
+      const { data: a2 } = await ow.from("stores").select("id").eq("name", STORE_A2);
+      const storeA2Id = a2?.[0]?.id as string;
+
+      // ── 認可拒否（staff/cast/他org manager/同org 他店 manager）──
+      const CHG: TP = [90, 6000, 20, 3000, "auto", "person"];
+      {
+        const st = await signIn("staffA1");
+        const { error } = await setTP(st, storeA1Id, CHG);
+        check("B4 staffA1 set_store_time_pricing 拒否", !!error?.message?.includes("forbidden"), error?.message ?? "通ってしまった");
+        const ca = await signIn("castA1a");
+        const { error: eC } = await setTP(ca, storeA1Id, CHG);
+        check("B4 castA1a set_store_time_pricing 拒否", !!eC?.message?.includes("forbidden"), eC?.message ?? "通ってしまった");
+        const mb = await signIn("managerB1");
+        const { error: eB } = await setTP(mb, storeA1Id, CHG);
+        check("B4 managerB1（他org）set_store_time_pricing 拒否", !!eB?.message?.includes("forbidden"), eB?.message ?? "通ってしまった");
+        const mg = await signIn("managerA1");
+        const { error: eS } = await setTP(mg, storeA2Id, CHG);
+        check("B4 managerA1（同org 他店）set_store_time_pricing 拒否", !!eS?.message?.includes("forbidden"), eS?.message ?? "通ってしまった");
+      }
+
+      // ── bad values（列 CHECK と同値の raise 'bad time pricing'）──
+      {
+        const mg = await signIn("managerA1");
+        const bad = async (label: string, v: TP) => {
+          const { error } = await setTP(mg, storeA1Id, v);
+          check(`B4 bad values 拒否: ${label}`, !!error?.message?.includes("bad time pricing"), error?.message ?? "通ってしまった");
+        };
+        await bad("ext_min=0（除算ガード）", [60, 0, 0, 0, "manual", "table"]);
+        await bad("set_min=2000（>1440）", [2000, 0, 30, 0, "manual", "table"]);
+        await bad("time_mode 不正トークン", [60, 0, 30, 0, "xx", "table"]);
+        await bad("time_per 不正トークン", [60, 0, 30, 0, "manual", "xx"]);
+      }
+
+      // ── manager 自店成功 + 6値読み戻し + audit 6キー合成 ──
+      {
+        const mg = await signIn("managerA1");
+        const READBACK: TP = [90, 6000, 20, 3000, "auto", "person"];
+        const { error: eSet } = await setTP(mg, storeA1Id, READBACK);
+        check("B4 managerA1（自店）set_store_time_pricing 成功", !eSet, eSet?.message);
+        const { data: st } = await mg.from("stores")
+          .select("set_min, set_fee, ext_min, ext_fee, time_mode, time_per").eq("id", storeA1Id);
+        const r = st?.[0] as Record<string, unknown> | undefined;
+        check("B4 stores 時間制6列が送信値に更新",
+          r?.set_min === 90 && r?.set_fee === 6000 && r?.ext_min === 20 && r?.ext_fee === 3000
+          && r?.time_mode === "auto" && r?.time_per === "person", JSON.stringify(r));
+        const { data: al } = await ow.from("audit_logs").select("before_json, after_json")
+          .eq("action", "set_store_time_pricing").eq("target", `stores:${storeA1Id}`)
+          .order("at", { ascending: false }).limit(1);
+        const bj = al?.[0]?.before_json as Record<string, unknown> | null;
+        const aj = al?.[0]?.after_json as Record<string, unknown> | null;
+        check("B4 audit 行生成（action=set_store_time_pricing）", (al ?? []).length === 1, `got ${(al ?? []).length}`);
+        check("B4 audit before = 6キー合成 jsonb（settings_json 非混入）",
+          !!bj && sameSet(Object.keys(bj), TIME_KEYS), JSON.stringify(bj && Object.keys(bj)));
+        check("B4 audit after = 6キー合成 jsonb・変更後値（set_fee=6000/time_per=person）",
+          !!aj && sameSet(Object.keys(aj), TIME_KEYS) && aj.set_fee === 6000 && aj.time_per === "person",
+          JSON.stringify(aj));
+      }
+
+      // ── 実呼び本丸（table モード・units=1）: open スナップ → apply → 再 apply（重複しない）──
+      let cid1 = "";
+      {
+        const mg = await signIn("managerA1");
+        const BILLING: TP = [60, 5000, 30, 2000, "auto", "table"];
+        const { error: eB } = await setTP(mg, storeA1Id, BILLING);
+        check("B4 本丸 billing 設定成功（60/5000/30/2000/auto/table）", !eB, eB?.message);
+        const { data: c1, error: eO } = await mg.rpc("check_open", { p_seat_id: seatId, p_people: 3, p_nom_type: "free" });
+        check("B4 本丸 check_open 成功", !eO && typeof c1 === "string", eO?.message);
+        cid1 = c1 as string; opened.push(cid1);
+        const { data: sn } = await mg.from("checks").select("set_min, set_fee, ext_min, ext_fee, time_per").eq("id", cid1);
+        check("B4 open スナップ5値 = 60/5000/30/2000/table",
+          sn?.[0]?.set_min === 60 && sn?.[0]?.set_fee === 5000 && sn?.[0]?.ext_min === 30
+          && sn?.[0]?.ext_fee === 2000 && sn?.[0]?.time_per === "table", JSON.stringify(sn?.[0]));
+
+        await rewind(cid1, 100);
+        const { data: r1, error: eA1 } = await mg.rpc("check_time_charge_apply", { p_check_id: cid1 });
+        const j1 = r1 as Record<string, unknown> | null;
+        check("B4 apply 1回目: units=1/blocks=2/total=9000（elapsed≈100）",
+          !eA1 && j1?.units === 1 && j1?.blocks === 2 && j1?.set_c === 5000 && j1?.ext_c === 4000
+          && j1?.total === 9000 && (j1?.elapsed_min as number) >= 100 && (j1?.elapsed_min as number) <= 101,
+          eA1?.message ?? JSON.stringify(j1));
+        const { data: l1 } = await admin.from("check_lines").select("*").eq("check_id", cid1).eq("time_auto", true);
+        const L = (l1 ?? [])[0] as Record<string, unknown> | undefined;
+        check("B4 自動行 = 1本・kind=time・pay_group=A・単価=計=9000・名称=時間料金(セット+延長)",
+          (l1 ?? []).length === 1 && L?.kind === "time" && L?.pay_group === "A" && L?.unit_price_snapshot === 9000
+          && L?.line_total === 9000 && L?.name_snapshot === "時間料金(セット+延長)" && L?.time_auto === true,
+          JSON.stringify(L));
+
+        await rewind(cid1, 160);
+        const { data: r2, error: eA2 } = await mg.rpc("check_time_charge_apply", { p_check_id: cid1 });
+        const j2 = r2 as Record<string, unknown> | null;
+        check("B4 apply 2回目: blocks=4/total=13000", !eA2 && j2?.blocks === 4 && j2?.total === 13000, eA2?.message ?? JSON.stringify(j2));
+        const { data: l2 } = await admin.from("check_lines").select("id, line_total").eq("check_id", cid1).eq("time_auto", true);
+        check("B4 再呼びで自動行 = 1本のまま（重複しない・同一 id・13000 更新）",
+          (l2 ?? []).length === 1 && l2?.[0]?.id === L?.id && l2?.[0]?.line_total === 13000, JSON.stringify(l2));
+      }
+
+      // ── 非遡及: 店の時間制を変えても open 中伝票はスナップ値で計算し続ける ──
+      {
+        const mg = await signIn("managerA1");
+        await rewind(cid1, 160); // 決定的に 160分へ再アンカー
+        const { error: eChg } = await setTP(mg, storeA1Id, [120, 9999, 15, 9999, "auto", "table"]);
+        check("B4 非遡及: 店の時間制を変更（120/9999/15/9999）", !eChg, eChg?.message);
+        const { data: r3, error: eA3 } = await mg.rpc("check_time_charge_apply", { p_check_id: cid1 });
+        const j3 = r3 as Record<string, unknown> | null;
+        check("B4 ★非遡及: 変更後 apply も total=13000（open スナップ値で計算・店の新値に非追随）",
+          !eA3 && j3?.total === 13000, eA3?.message ?? JSON.stringify(j3));
+        const { data: sn } = await mg.from("checks").select("set_fee").eq("id", cid1);
+        check("B4 非遡及: 伝票スナップの set_fee は 5000 のまま", sn?.[0]?.set_fee === 5000, JSON.stringify(sn?.[0]));
+      }
+      await wipe(cid1);
+
+      // ── person モード: units=people ──
+      {
+        const mg = await signIn("managerA1");
+        const { error: eSet } = await setTP(mg, storeA1Id, [60, 5000, 30, 2000, "auto", "person"]);
+        check("B4 person モード 設定成功", !eSet, eSet?.message);
+        const { data: c2, error: eO } = await mg.rpc("check_open", { p_seat_id: seatId, p_people: 3, p_nom_type: "free" });
+        check("B4 person モード check_open（people=3）", !eO && typeof c2 === "string", eO?.message);
+        const cid2 = c2 as string; opened.push(cid2);
+        await rewind(cid2, 100);
+        const { data: r4, error: eA4 } = await mg.rpc("check_time_charge_apply", { p_check_id: cid2 });
+        const j4 = r4 as Record<string, unknown> | null;
+        // units=3・blocks=2 → set_c=15000・ext_c=12000・total=27000
+        check("B4 ★person: units=3/total=27000（5000×3 + 2×2000×3）",
+          !eA4 && j4?.units === 3 && j4?.total === 27000 && j4?.set_c === 15000 && j4?.ext_c === 12000,
+          eA4?.message ?? JSON.stringify(j4));
+        await wipe(cid2);
+      }
+
+      // ── closed 拒否（status<>open が先・'not open'）──
+      {
+        const mg = await signIn("managerA1");
+        const { data: c3 } = await mg.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+        const cid3 = c3 as string; opened.push(cid3);
+        await admin.from("checks").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", cid3);
+        const { error: eA } = await mg.rpc("check_time_charge_apply", { p_check_id: cid3 });
+        check("B4 closed 伝票は apply 拒否（'not open'）", !!eA?.message?.includes("not open"), eA?.message ?? "通ってしまった");
+        await wipe(cid3);
+      }
+
+      // ── has payments 拒否（入金後は合計を動かさない）──
+      {
+        const mg = await signIn("managerA1");
+        const { data: c4 } = await mg.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+        const cid4 = c4 as string; opened.push(cid4);
+        const { data: crow } = await admin.from("checks").select("org_id, store_id, created_by").eq("id", cid4);
+        const cr = crow?.[0] as Record<string, unknown>;
+        await admin.from("payments").insert({
+          org_id: cr.org_id, store_id: cr.store_id, check_id: cid4, pay_group: "A",
+          method: "cash", amount: 1000, by_user_id: cr.created_by,
+        });
+        const { error: eA } = await mg.rpc("check_time_charge_apply", { p_check_id: cid4 });
+        check("B4 payments 有りは apply 拒否（'has payments'）", !!eA?.message?.includes("has payments"), eA?.message ?? "通ってしまった");
+        await wipe(cid4);
+      }
+    } finally {
+      // 依存順で全消し（check_lines→checks は wipe が内包）＋設定 defaults へ復元（service 直・確実）
+      for (const id of opened) await wipe(id);
+      await admin.from("stores").update({
+        set_min: TIME_DEFAULTS[0], set_fee: TIME_DEFAULTS[1], ext_min: TIME_DEFAULTS[2],
+        ext_fee: TIME_DEFAULTS[3], time_mode: TIME_DEFAULTS[4], time_per: TIME_DEFAULTS[5],
+      }).eq("id", storeA1Id);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
   // seat 蓄積の恒久掃除: 旧 run の「NOX-VERIFY-卓1/卓1改」を参照ゼロ限定で削除。
   // F1a は audit assert（target=seats:<id> が「ちょうど1行」）の前提として run 毎に
   // 新規 seat を作る＝query-or-insert 化は seatId 再利用で assert が崩れるため不採用。

@@ -613,7 +613,10 @@ async function main() {
         ["stores_round_unit_check", "CHECK (((round_unit >= 1) AND (round_unit <= 10000)))"],
         ["stores_round_mode_check", "CHECK ((round_mode = ANY (ARRAY['up'::text, 'down'::text, 'round'::text])))"],
       ];
-      check("G25 stores 料金 CHECK = 7本", defs.size === 7, [...defs.keys()].join(", "));
+      // 2026-07-21 B4: count→named スコープ化（無関係列とのカップリング解除）。stores へ B4 の
+      //   時間制6 CHECK が増えても E1 の7本の逐語 assert は不変（B4 分は G26 が専任）。裁定台帳 裁定9。
+      const e1Names = expects.map(([n]) => n);
+      check("G25 stores 料金 CHECK = E1 の7本", e1Names.every((n) => defs.has(n)), [...defs.keys()].join(", "));
       for (const [name, want] of expects) {
         check(`G25 ${name} 逐語`, defs.get(name) === want, defs.get(name) ?? "(missing)");
       }
@@ -627,6 +630,71 @@ async function main() {
       check("G25 set_store_pricing EXECUTE = authenticated（anon/public 不在）",
         roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
         `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+
+    // G26: B4 時間料金自動計算（mig0052）— stores 時間制6 CHECK 逐語＋checks スナップ5 CHECK 逐語＋
+    //   check_lines 部分ユニークインデックス逐語＋新 RPC 2本の署名一意＋ACL。逐語は live 正規化表現
+    //   （between→>= AND <=・in→= ANY(ARRAY[]) 展開）。G22/G24/G25 と同型＝旧署名残置で ACL が
+    //   2署名混ざる事故を署名一意 assert で先に潰す。
+    {
+      const rs = await db.query(
+        `select conname, pg_get_constraintdef(oid) as def from pg_constraint
+         where conrelid = 'public.stores'::regclass and contype = 'c' order by conname`,
+      );
+      const sdefs = new Map(rs.rows.map((x) => [x.conname as string, x.def as string]));
+      const storeExpects: Array<[string, string]> = [
+        ["stores_set_min_check", "CHECK (((set_min >= 1) AND (set_min <= 1440)))"],
+        ["stores_set_fee_check", "CHECK ((set_fee >= 0))"],
+        ["stores_ext_min_check", "CHECK (((ext_min >= 1) AND (ext_min <= 1440)))"],
+        ["stores_ext_fee_check", "CHECK ((ext_fee >= 0))"],
+        ["stores_time_mode_check", "CHECK ((time_mode = ANY (ARRAY['manual'::text, 'auto'::text])))"],
+        ["stores_time_per_check", "CHECK ((time_per = ANY (ARRAY['table'::text, 'person'::text])))"],
+      ];
+      for (const [name, want] of storeExpects) {
+        check(`G26 ${name} 逐語`, sdefs.get(name) === want, sdefs.get(name) ?? "(missing)");
+      }
+      const rc = await db.query(
+        `select conname, pg_get_constraintdef(oid) as def from pg_constraint
+         where conrelid = 'public.checks'::regclass and contype = 'c' order by conname`,
+      );
+      const cdefs = new Map(rc.rows.map((x) => [x.conname as string, x.def as string]));
+      const checkExpects: Array<[string, string]> = [
+        ["checks_set_min_check", "CHECK ((set_min >= 1))"],
+        ["checks_set_fee_check", "CHECK ((set_fee >= 0))"],
+        ["checks_ext_min_check", "CHECK ((ext_min >= 1))"],
+        ["checks_ext_fee_check", "CHECK ((ext_fee >= 0))"],
+        ["checks_time_per_check", "CHECK ((time_per = ANY (ARRAY['table'::text, 'person'::text])))"],
+      ];
+      for (const [name, want] of checkExpects) {
+        check(`G26 ${name} 逐語`, cdefs.get(name) === want, cdefs.get(name) ?? "(missing)");
+      }
+      const ix = await db.query(
+        `select indexdef from pg_indexes where schemaname = 'public' and indexname = 'check_lines_one_time_auto'`,
+      );
+      check("G26 check_lines_one_time_auto 部分ユニーク逐語",
+        ix.rowCount === 1 && ix.rows[0].indexdef ===
+          "CREATE UNIQUE INDEX check_lines_one_time_auto ON public.check_lines USING btree (check_id) WHERE time_auto",
+        ix.rows[0]?.indexdef ?? "(missing)");
+      const s1 = await db.query(
+        `select pg_get_function_identity_arguments(oid) as args, pronargs from pg_proc
+         where pronamespace = 'public'::regnamespace and proname = 'set_store_time_pricing'`,
+      );
+      check("G26 set_store_time_pricing = 7引数1本のみ（署名一意）",
+        s1.rowCount === 1 && s1.rows[0].pronargs === 7, JSON.stringify(s1.rows.map((x) => x.args)));
+      const r1 = await roleOf("set_store_time_pricing");
+      check("G26 set_store_time_pricing EXECUTE = authenticated（anon/public 不在）",
+        r1.includes("authenticated") && !r1.includes("anon") && !r1.includes("public"),
+        `保持者: ${r1.join(", ") || "(なし)"}`);
+      const s2 = await db.query(
+        `select pg_get_function_identity_arguments(oid) as args, pronargs from pg_proc
+         where pronamespace = 'public'::regnamespace and proname = 'check_time_charge_apply'`,
+      );
+      check("G26 check_time_charge_apply = 1引数1本のみ（署名一意）",
+        s2.rowCount === 1 && s2.rows[0].pronargs === 1, JSON.stringify(s2.rows.map((x) => x.args)));
+      const r2 = await roleOf("check_time_charge_apply");
+      check("G26 check_time_charge_apply EXECUTE = authenticated（anon/public 不在）",
+        r2.includes("authenticated") && !r2.includes("anon") && !r2.includes("public"),
+        `保持者: ${r2.join(", ") || "(なし)"}`);
     }
   }
 
