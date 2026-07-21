@@ -259,6 +259,39 @@ F4a 回帰を prosrc で確認**。
 - 指名(本)＝**hon+jonai**（同伴=dohan は別行ゆえ除外・二重計上回避）。モックの `shimei` は合成データで
   分解不能のため、同伴別行との整合からこの解釈を採用。
 
+## 裁定13：C1 手渡し＝案A（既実装で充足・クローズ）（Agoora 承認・2026-07-21）
+
+C1 照合フェーズ（Opus・読取のみ・live DB ＋ repo 現物照合）の結果、**C1 は新規 mig・UI ゼロで
+クローズ**。C1 の実体（日報／レジ現金実査／per-cast 手渡し）は DB・write RPC・UI 結線とも既に
+存在し稼働している。
+
+**既実装の内訳（照合フェーズ実測・現物根拠）**：
+- **②レジ締め（現金実査）＝`daily_report_close`／`daily_report_reclose`**（`report-board.tsx` に結線済）。
+  `diff = counted − (float + cash − expense − payout)`（prosrc コメント逐語「モック H=Oi−q と同一」）。
+- **③per-cast 手渡し＝`payment_record_add`**（`payslips.net` 読取で `Σpaid_amount ≤ net` を構造保証＝
+  モック「残り＝net−手渡し累計」を担保／run finalized ガード）。payroll の `payment-panel.tsx` に結線済。
+- **①日報集計＝`daily_reports`**（`expense`/`cash_payout`/`cash_float`/`counted_cash`/`diff` 列完備・
+  集計は `daily_report_aggregate`＝STABLE 読取）。
+- いずれも **checks/payments 中核を変異させない**（daily_report_close は daily_reports へ INSERT のみ・
+  payment_record_add は payment_records へ INSERT のみ）。二重防御／監査（audit_log_write）／冪等 完備。
+  ACL＝authenticated（anon revoke 済）。
+
+**★裁定8 の式の訂正（教訓D 適用）**：裁定8 は C1 を「現金売上−諸経費−現金支払＝当日支給」と定義して
+いたが、**モック canonical 現物の復元走査の結果、この式に対応する単一ブロックはモックに存在しない**
+（「当日支給」の語は 0 件）。モック現物は
+(a)**残現金＝現金−諸経費**（本日の日報）、
+(b)**レジ締め理論在高＝釣銭準備金＋現金売上−諸経費−現金支払**（レジ金の締め・現金実査）、
+(c)**per-cast 手渡し／残り＝net−手渡し累計**（手渡し給料の記録）
+——の **3 別物**。→ **モック現物を正とし、裁定8 の C1 式は「上記 (a)(b)(c) の 3 ブロックを指す」と訂正**。
+
+**モックとの配置差＝post-launch 候補として記録**：モックは 3 ブロックを report（日報）1 画面に同居させるが、
+NOX は ③ のみ payroll 画面に分散配置。**機能欠落ではなくレイアウト差**。日次（biz_date）画面から
+月次（payroll_run）スコープの手渡しを触らせる**意味論衝突を避けるため現状の分散配置を維持**。
+UI 統合は post-launch の UX 改善候補。
+
+**このクローズは docs 追記のみ＝コード/mig 変更なし**（HEAD 37d7d90・verify:f0 1915 全緑・3ゲート
+83/52/112 不変を照合フェーズで実測済み）。
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。
