@@ -292,6 +292,64 @@ UI 統合は post-launch の UX 改善候補。
 **このクローズは docs 追記のみ＝コード/mig 変更なし**（HEAD 37d7d90・verify:f0 1915 全緑・3ゲート
 83/52/112 不変を照合フェーズで実測済み）。
 
+## 裁定14：B6 売掛回収＝完全形（方向1確定・Opus 起草）（Agoora 承認・2026-07-22）
+
+B6 設計提案フェーズ（相談役レビュー完了・推奨案一式承認）の裁定。DB 層＝mig0055（起草着手・Downloads 残置・
+相談役レビュー→承認→手貼りの順・本裁定時点で手貼り未指示）。
+
+**要件（Agoora 確定・除外なし）**：回収→帳簿反映まで・給与天引き（本人同意）含む**完全形**。法務は並行相談中で
+**実装をブロックしない**（enforcement は差し替え1箇所で後付け）。
+
+**★方向1 確定**：回収した日の帳簿に現金 in を計上・**発生日（元売上日）の凍結日報 daily_reports は不可侵**
+（遡及不可）・snapshot モデル（daily_report_aggregate は payments を biz_date 窓集計する派生値）を壊さない。
+方向2（発生日遡及）は不採用。
+
+**★money-core 接触＝空**：checks / check_lines / payments を**1文字も変異させない**。慎重域は report-layer
+（daily_report_aggregate/close/reclose）のみ＝**Opus 起草可**（Fable 5 はキオスク＝裁定11 の真性案件に温存）。
+
+**設計1〜7 の確定（推奨案一式）**：
+- 設計1＝**案1-A 全額回収のみ**（partial なし・collected_amount 列を作らない＝payroll_finalize の
+  deducted_amount 上限式に非波及・モック「回収」全額と教訓D 一致）。RPC＝`receivable_collect`。
+- 設計2＝**案c 独立テーブル `ar_collections`**（payments/checks 不変）。★**現金は別掲**（cash 売上に混ぜない
+  `daily_reports.ar_collected` 新列）／`daily_report_close` の diff 式に ar_collected を加算し理論在高を整合
+  （`diff = counted − (float + cash + ar_collected − expense − payout)`・ar_collected=0 で従前式に一致＝後方互換）。
+  現金回収のみ理論在高加算（method='cash'）。遅延回収は `daily_report_reclose` が再集計で拾う。
+- 設計3＝**案3-A 受領単位 consent**（`receivables.consent_at/consent_by`）。RPC＝`receivable_mark_deduct`
+  （deduct_from_cast 印付け＋consent 記録・状態冪等）。実減算は既存 `payroll_finalize`（ar_deducted 消費）で
+  **無改修**。差し替え1箇所＝`consent_ok(receivable_id, consent)` 単一関数。
+- 設計4＝**案4-A `receivables_select` の cast 腕を除去**（cast＝receivables 0行・pattern2 復帰）。
+- 設計5＝**check_void 既済**（回収済 `status in ('collected','deducted')` 拒否ガードが live に存在＝**改修なし**）。
+- 設計6＝**案6-B 発生 enforcement は `ar_policy_ok(store, amount)` 空フックのみ設置・★check_pay へは結線しない**
+  （money-core 保全）。#38 弁護士後に別 mig で check_pay の ar 分岐 INSERT 直前へ1行挿入（差し替え1箇所）。
+- 設計7＝**案7-A report 画面に暫定売掛タブ**（UI フェーズ・post-launch で C3 仕訳画面へ移設）。
+
+**★cast RLS 案4-A は「放置不可の必須」**：現状 `receivables_select` は cast(can_register) に SELECT を許し、
+**cast が他人の客売掛＋customer_id を閲覧可能＝live に存在するプライバシー設計違反**（payOf 設計 §110 の
+「cast パターン2＝生売掛 0行」に反する）。mig0055 で cast 腕を除去して是正。cast は payslip.breakdown_json.ar
+で自分の天引き額のみ参照（既存・/mine は生 receivables を読まない＝app 実測）。
+
+**差し替え1箇所（法務後・署名不変で本体差替）**：
+- `ar_policy_ok(store, amount)`＝#38 風営法2025 売掛規制（可否/上限）。現状 無条件許可・未結線。
+- `consent_ok(receivable_id, consent)`＝労基法（全額払い・本人同意・撤回）。現状 渡された同意フラグ要求のみ。
+- 記録保持期間（#38 Q2）＝ar_collections/receivables の保持ポリシー（運用・別軸）。
+
+**段1 会計一貫性の検算（起草前・read-only・三者突合が閉じる根拠）**：
+- daily_report_aggregate の live prosrc 再確認＝`uri` は method='ar' の payments を**発生日（checks.started_at の
+  biz_date 窓）で集計**＝掛売は**発生日日報の売上（uri）に既に計上済み**（Yes）。
+- 突合の閉じ：**発生日**＝uri に売掛計上（売上・一度きり）／**回収日**＝ar_collected に現金 in（別掲・売上非計上・
+  理論在高加算）／**未回収残高**＝receivables 直 SELECT で `Σopen(amount − deducted_amount)`。回収で売上を立てない
+  （別掲）ため**発生日 uri との二重計上が構造的に起きない**。残高（receivables 直）と日報集計（uri/ar_collected）は
+  別経路だが、uri＝発生の売上・ar_collected＝現金化イベントで**意味が直交**し矛盾しない（突合可）。
+- 天引き整合：payroll_finalize が `deduct_from_cast=true ∧ status='open'` を消費し全額で `status='deducted'`＝
+  未回収残高の open 条件から正しく落ちる（回収 collected と天引き deducted は排他的終端）。
+- 判定＝**閉じる**（案c で三者突合が会計的に成立・UI に「回収現金と売上現金の別掲表示」要件が付くのみ＝
+  日次サマリで cash と ar_collected を分けて見せる）。
+
+**起草状態（2026-07-22）**：mig0055 全文起草済（Downloads・sha256 52cdce50…dadf4e9・35293 bytes）。money-core
+非改修は本文の check_pay/check_close/check_void 非収載で構造保証。**相談役レビュー→承認→Agoora 手貼り**の順
+（手貼り未指示）。verify 追加（TABLES 配列へ ar_collections・rls の cast 0行・anon-guard 新2 RPC・grants G29）は
+適用後フェーズ。
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。
