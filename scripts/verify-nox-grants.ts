@@ -40,6 +40,7 @@ const TABLES = [
   "product_costs", // 台帳#40 案C（mig0049/0050・原価分離。G24 で policy 逐語＋grant 実体を能動 assert）
   "check_seats", // B1/B2 相席・席移動（mig0053・追加席の占有台帳。G27 で policy 逐語＋unique index＋grant 実体を能動 assert。.length 参照ゆえ G1/G2/G5 自動被覆＝裁定台帳 裁定9 教訓）
   "ar_collections", // B6 売掛回収消込台帳（mig0055・authenticated=SELECT のみ。G1/G2/G5 が .length で自動被覆＝教訓B。G29 で policy/grant/RPC ACL を能動 assert）
+  "staff_pin", "kiosk_sessions", // K レジ用キオスク（mig0056・deny-all。.length 参照ゆえ G1/G2/G5 が自動被覆＝教訓B。G30 で policy 0本/purpose CHECK/index/provision 署名を能動 assert）
 ];
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
@@ -47,6 +48,7 @@ const HELPERS = [
   "auth_staff_can_view_backs", // バック可視是正（mig0038）
   "auth_cast_can_register", // キャスト会計（mig0039・2段ゲート）
   "auth_kiosk_store_id", "auth_kiosk_org_id", // F4a キオスク（mig0043・kiosk_devices 起点＝auth_cast_id 同型）
+  "auth_kiosk_register_store_id", "auth_kiosk_operator", // K レジ用キオスク（mig0056・register device 識別＋operator セッション解決＝G4/G4b が secdef/search_path/ACL を自動回帰）
 ];
 
 async function main() {
@@ -802,6 +804,105 @@ async function main() {
       const acGot = acg.rows.map((x) => `${x.grantee}:${x.privilege_type}`);
       check("G29 ar_collections grant = authenticated:SELECT のみ（REFERENCES/TRIGGER 不在）",
         acGot.length === 1 && acGot[0] === "authenticated:SELECT", acGot.join(", ") || "(なし)");
+    }
+
+    // G30: レジ用キオスク 基盤層（mig0056）— 新 RPC 4本 ACL＋deny-all 2表 policy 0本＋purpose CHECK＋
+    //   index 差し替え（旧不在/新逐語）＋kiosk_sessions 部分ユニーク逐語＋provision 4引数一意。
+    //   auth_kiosk_register_store_id/auth_kiosk_operator の属性/ACL は HELPERS 追加で G4/G4b が自動回帰。
+    //   staff_pin/kiosk_sessions の RLS 有効・grant 0 は TABLES 追加で G1/G2/G5 が自動回帰＝ここは policy 0本を能動 assert。
+    for (const fn of ["kiosk_login", "kiosk_logout", "kiosk_operator_list", "set_staff_pin"]) {
+      const roles = await roleOf(fn);
+      check(`G30 ${fn} EXECUTE = authenticated（anon/public 不在）`,
+        roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+        `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+    {
+      const r = await db.query(
+        `select tablename, count(*) as n from pg_policies
+         where schemaname = 'public' and tablename in ('staff_pin','kiosk_sessions')
+         group by tablename`,
+      );
+      check("G30 staff_pin/kiosk_sessions policy 0本（deny-all＝RPC 専任）", r.rowCount === 0, JSON.stringify(r.rows));
+    }
+    {
+      const r = await db.query(
+        `select pg_get_constraintdef(oid) as def from pg_constraint
+         where conrelid = 'public.kiosk_devices'::regclass and conname = 'kiosk_devices_purpose_check'`,
+      );
+      const def = (r.rows[0]?.def as string | undefined) ?? "";
+      check("G30 kiosk_devices_purpose_check = punch/register の2値",
+        def.includes("'punch'") && def.includes("'register'") && (def.match(/'/g) ?? []).length === 4, def || "(missing)");
+    }
+    {
+      const old = await db.query(
+        `select 1 from pg_indexes where schemaname = 'public' and indexname = 'kiosk_devices_one_active_per_store_idx'`,
+      );
+      check("G30 旧 kiosk_devices_one_active_per_store_idx 不在（0056 で drop）", old.rowCount === 0);
+      const nw = await db.query(
+        `select indexdef from pg_indexes where schemaname = 'public' and indexname = 'kiosk_devices_one_active_per_store_purpose_idx'`,
+      );
+      check("G30 kiosk_devices_one_active_per_store_purpose_idx 逐語（(store_id, purpose) WHERE is_active）",
+        nw.rowCount === 1 && nw.rows[0].indexdef ===
+          "CREATE UNIQUE INDEX kiosk_devices_one_active_per_store_purpose_idx ON public.kiosk_devices USING btree (store_id, purpose) WHERE is_active",
+        nw.rows[0]?.indexdef ?? "(missing)");
+      const ks = await db.query(
+        `select indexdef from pg_indexes where schemaname = 'public' and indexname = 'kiosk_sessions_one_active_per_device'`,
+      );
+      check("G30 kiosk_sessions_one_active_per_device 部分ユニーク逐語（(device_id) WHERE (ended_at IS NULL)）",
+        ks.rowCount === 1 && ks.rows[0].indexdef ===
+          "CREATE UNIQUE INDEX kiosk_sessions_one_active_per_device ON public.kiosk_sessions USING btree (device_id) WHERE (ended_at IS NULL)",
+        ks.rows[0]?.indexdef ?? "(missing)");
+    }
+    {
+      const r = await db.query(
+        `select pg_get_function_identity_arguments(oid) as args from pg_proc
+         where pronamespace = 'public'::regnamespace and proname = 'kiosk_provision'`,
+      );
+      const argsList = r.rows.map((x) => x.args as string);
+      check("G30 kiosk_provision = 4引数1本のみ（旧3引数 drop 済＝オーバーロード無し）",
+        r.rowCount === 1 && argsList[0] === "p_auth_user_id uuid, p_store_id uuid, p_label text, p_purpose text",
+        JSON.stringify(argsList));
+    }
+
+    // G31: レジ用キオスク arms＋gate（mig0057/0058）— kiosk 腕の集合一致＋check_void 非対象＋
+    //   ★ゲート fail-closed 逐語（0058）。人間セッションの runtime では検出不能な回帰（fail-open への逆行）を
+    //   prosrc で機械検知する＝再発防止の本体。prokind='f' で pg_get_functiondef の集約関数エラーを回避。
+    {
+      const reg = await db.query(
+        `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+         where ns.nspname = 'public' and p.prokind = 'f'
+           and pg_get_functiondef(p.oid) ilike '%auth_kiosk_register_store_id()%'
+           and p.proname not in ('auth_kiosk_register_store_id','kiosk_operator_list')`,
+      );
+      check("G31 register helper を使う会計RPC = 12本（check_open〜check_remove_seat 10＋print_enqueue＋bottle_keep_register）",
+        reg.rows[0].n === 12, `got ${reg.rows[0].n}`);
+      const op = await db.query(
+        `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+         where ns.nspname = 'public' and p.prokind = 'f'
+           and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator()%'
+           and p.proname <> 'auth_kiosk_operator'`,
+      );
+      check("G31 operator を使う関数 = 13本（上記12＋audit_log_write の actor coalesce）", op.rows[0].n === 13, `got ${op.rows[0].n}`);
+      const cv = await db.query(
+        `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+         where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'
+           and pg_get_functiondef(p.oid) ilike '%kiosk%'`,
+      );
+      check("G31 check_void に kiosk トークン 0件（確定①＝取消は manager 権限・腕を足さない）", cv.rows[0].n === 0, `got ${cv.rows[0].n}`);
+      const fixed = await db.query(
+        `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+         where ns.nspname = 'public' and p.prokind = 'f'
+           and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator() is not null)) is not true then%'`,
+      );
+      check("G31 ★kiosk ゲート fail-closed = 12本が (OR連鎖) is not true 形（0058・null-auth 呼び手を拒否）",
+        fixed.rows[0].n === 12, `got ${fixed.rows[0].n}`);
+      const openGate = await db.query(
+        `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+         where ns.nspname = 'public' and p.prokind = 'f'
+           and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator() is not null)) then%'`,
+      );
+      check("G31 ★旧 fail-open 形（裸の )) then）= 0本（if not(OR) の NULL 伝播＝0057 回帰の逆行を検知）",
+        openGate.rows[0].n === 0, `got ${openGate.rows[0].n}`);
     }
   }
 

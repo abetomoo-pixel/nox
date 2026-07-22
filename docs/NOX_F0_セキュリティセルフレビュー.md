@@ -131,3 +131,13 @@ $$;
 F0 完了条件（認可ヘルパーが効く・他店0行・anon BLOCKED・payOf 全項目緑・build 緑）は充足。
 **残指摘は §3（退職者の orgs 1行可視・実害低・F1 mig0005 で方式A対応）のみ**で、F0 の push をブロックする水準ではないと自己評価する。
 相談役レビュー通過の連絡をもって main を push する。
+
+## 7. 追記教訓（フェーズ横断・セキュリティパターン）
+
+> F0 以降に発見・確定した横断的セキュリティ教訓を、正本としてここへ追記する（発見フェーズ問わず）。
+
+### 7.1 `if not (OR連鎖) then raise` は null-auth 呼び手に fail-open（N1-b・裁定15・2026-07-22）
+- **事象**：SECURITY DEFINER RPC の認可ゲート `if not (auth_role()='owner' or … ) then raise 'forbidden'` は、`auth_role()` が NULL になる呼び手（kiosk 端末セッション等＝membership を持たない）に対し、OR 連鎖が `(NULL or … or FALSE) = NULL`・`not NULL = NULL` となり **raise が不発＝fail-open**。レジ用キオスク register device で **他店 seat・idle 失効後・logout 後**でも会計 RPC がゲートを通過し、他店 checks への INSERT が実際に成立した（Phase 3 実 device runtime probe で検出）。0043 以前は素の `auth_org_id() is null → raise` の null-guard が null-auth 呼び手を全弾いていたため露呈せず、mig0057 が guard を `auth_org_id() is null AND auth_kiosk_register_store_id() is null` に coalesce 弱体化した結果、ゲートに到達して顕在化。
+- **対策**：`if (OR連鎖) is not true then raise` に統一。`is not true` は NULL/FALSE の双方で TRUE を返す＝**null-auth も未認可も fail-closed**。人間（`auth_role()` 非null）は挙動不変（TRUE/FALSE のまま）。mig0058 で kiosk ゲート12関数へ適用（`not (` → `(` と `)) then` → `)) is not true then` の1トークン×12・money 計算/kiosk 腕は mig0057 と byte 同一＝差分は12ゲート×2行のみ）。
+- **同族**：既知 #2/#28（相談役 cross-ref）。素の boolean 述語に「NULL を返し得る部品」（`auth_role()` 等）を混ぜる箇所は同じ三値論理の罠を持つ。
+- **verify 原則（再発防止の本体）**：この穴は**人間セッションでは検出不能**（`auth_role()` 非null ゆえゲートが正常動作し、既存 verify は全緑のまま通る）。ゆえに **null-auth セッションで「拒否」を能動 assert** する段を必ず持つ＝anon-guard 段37（register kiosk で 他店/idle/logout の `forbidden` を runtime 実測・正経路の allow も対照）。さらに prosrc を機械検知＝grants G31（kiosk 12ゲートが `(OR) is not true` 形・裸の `)) then` が 0本）。**prosrc 緑 ≠ runtime success**（0077 教訓）の実例。

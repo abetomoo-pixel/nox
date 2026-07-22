@@ -516,6 +516,20 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段35b: レジ用キオスク（mig0056）新6署名 anon BLOCKED ──
+  const F0056_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["kiosk_login", { p_membership_id: null, p_pin: null }],
+    ["kiosk_logout", {}],
+    ["kiosk_operator_list", {}],
+    ["set_staff_pin", { p_membership_id: null, p_pin: null }],
+    ["auth_kiosk_register_store_id", {}],
+    ["auth_kiosk_operator", {}],
+  ];
+  for (const [fn, args] of F0056_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段36a: F4b レシート印刷（mig0044/0045）RPC anon BLOCKED ──
   //   claim/result は service_role 限定（内部専用型）＝anon に加え authenticated 負系を段36 本体で実測。
   const F0044_PROBES: Array<[string, Record<string, unknown>]> = [
@@ -567,13 +581,15 @@ async function main() {
     "printer_config", "print_jobs", // F4b レシート印刷（mig0044/0045・deny-all）
     "product_costs", // 台帳#40（mig0049/0050・原価分離）
     "ar_collections", // B6 売掛回収消込台帳（mig0055・authenticated=SELECT のみ・anon DENIED）
+    "staff_pin", "kiosk_sessions", // K レジ用キオスク（mig0056・deny-all＝authenticated ですら SELECT 不可・staff_pin は PK=membership_id）
   ]) {
-    // PK=cast_id/store_id/product_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
+    // PK=cast_id/store_id/product_id/membership_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
     const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles", "cast_pin"].includes(table);
     const pkStoreId = table === "printer_config";
     const pkProductId = table === "product_costs";
+    const pkMembershipId = table === "staff_pin";
     const { error } = await anon.from(table)
-      .select(pkCastId ? "cast_id" : pkStoreId ? "store_id" : pkProductId ? "product_id" : "id").limit(1);
+      .select(pkCastId ? "cast_id" : pkStoreId ? "store_id" : pkProductId ? "product_id" : pkMembershipId ? "membership_id" : "id").limit(1);
     check(
       `anon ${table} select DENIED`,
       !!error?.message?.includes("permission denied"),
@@ -5162,6 +5178,151 @@ async function main() {
         (jLeft ?? []).length === 0 && (cLeft36 ?? []).length === 0 && (pcLeft ?? []).length === 0
         && JSON.stringify((stFin36?.settings_json ?? null)) === JSON.stringify(baseline36 ?? null),
         `jobs=${(jLeft ?? []).length}, checks=${(cLeft36 ?? []).length}, cfg=${(pcLeft ?? []).length}, settings=${JSON.stringify(stFin36?.settings_json)}`);
+    }
+  }
+
+  // ── 段37: レジ用キオスク register device（mig0056/0057/0058）null-auth 拒否経路の恒久固定 ──
+  //   ★人間セッション（auth_role 非null）では検出不能な拒否経路をここで固定する（_tmp probe の K-P1/K-P3/K-P5 昇格）。
+  //   0057 の kiosk ゲートは auth_role()=null（kiosk 端末）呼び手に対し if not(OR連鎖) が NULL 伝播で fail-open
+  //   していた（他店 seat・idle 失効・logout 後でも INSERT が通る芽）。0058 で if (OR連鎖) is not true 化＝fail-closed。
+  //   本段は register kiosk セッションで
+  //     (1) 正経路（kiosk_arm=true）= check_open 成功・created_by=operator（ゲートは operator 有効時 正しく通す）
+  //     (2) 他店 seat = 'forbidden'（store 不一致・active session）
+  //     (3) idle 15分超 = 'forbidden'（operator null）
+  //     (4) logout 後 = 'forbidden'（operator null）
+  //   を能動 assert。fixture は段内生成→finally 依存順全消し（checks→kiosk_sessions→staff_pin→kiosk_devices→
+  //   一時 seats→auth deleteUser）＋固定カウント非汚染の物理確認。
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+    const PREFIX = "NOX-VERIFY-段37";
+
+    const { data: s37A1 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    const { data: s37A2 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A2).single();
+    const kEmail = s37A1
+      ? `k-verify37@o-${(s37A1.org_id as string).replace(/-/g, "").slice(0, 8)}.nox.local`
+      : "k-verify37@o-unknown.nox.local";
+
+    const { data: ownerUserRow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.ownerA.email).single();
+    const ownerUserId = ownerUserRow?.id as string | undefined;
+    const { data: ownerMemRow } = s37A1 && ownerUserId
+      ? await admin.from("memberships").select("id").eq("user_id", ownerUserId).eq("store_id", s37A1.id).single()
+      : { data: null };
+    const ownerMem = (ownerMemRow?.id as string | undefined) ?? undefined;
+
+    const cnt = async (tbl: string): Promise<number> => {
+      const { count } = await admin.from(tbl).select("*", { count: "exact", head: true });
+      return count ?? 0;
+    };
+    const wipe37 = async () => {
+      const { data: devs } = await admin.from("kiosk_devices").select("id, auth_user_id").like("label", PREFIX + "%");
+      const devIds = (devs ?? []).map((d) => d.id as string);
+      if (devIds.length) await admin.from("kiosk_sessions").delete().in("device_id", devIds);
+      const { data: seats } = await admin.from("seats").select("id").like("name", PREFIX + "%");
+      const seatIds = (seats ?? []).map((r) => r.id as string);
+      if (seatIds.length) {
+        const { data: chs } = await admin.from("checks").select("id").in("seat_id", seatIds);
+        const chIds = (chs ?? []).map((r) => r.id as string);
+        if (chIds.length) {
+          await admin.from("check_nominations").delete().in("check_id", chIds);
+          await admin.from("check_lines").delete().in("check_id", chIds);
+          await admin.from("checks").delete().in("id", chIds);
+        }
+      }
+      if (ownerMem) await admin.from("staff_pin").delete().eq("membership_id", ownerMem);
+      for (const d of devs ?? []) await admin.auth.admin.deleteUser(d.auth_user_id as string).catch(() => undefined);
+      await admin.from("kiosk_devices").delete().like("label", PREFIX + "%");
+      await admin.from("seats").delete().like("name", PREFIX + "%");
+    };
+    await wipe37();
+
+    const base37 = {
+      checks: await cnt("checks"), seats: await cnt("seats"), kdev: await cnt("kiosk_devices"),
+      kses: await cnt("kiosk_sessions"), spin: await cnt("staff_pin"),
+    };
+
+    let kAuth = "";
+    if (s37A1) {
+      const { data: cu, error: eCu } = await admin.auth.admin.createUser({ email: kEmail, password: env.SEED_PASSWORD, email_confirm: true });
+      if (!eCu && cu?.user) kAuth = cu.user.id;
+      else if (/already|registered|exists/i.test(eCu?.message ?? "")) {
+        const { data: lu } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const orphan = lu?.users?.find((u) => u.email === kEmail);
+        if (orphan) {
+          await admin.auth.admin.deleteUser(orphan.id).catch(() => undefined);
+          const { data: cu2 } = await admin.auth.admin.createUser({ email: kEmail, password: env.SEED_PASSWORD, email_confirm: true });
+          kAuth = cu2?.user?.id ?? "";
+        }
+      }
+    }
+    const { data: seatA1row } = s37A1
+      ? await admin.from("seats").insert({ org_id: s37A1.org_id, store_id: s37A1.id, name: `${PREFIX}-seatA1`, kind: "卓", sort_order: 990, is_active: true }).select("id").single()
+      : { data: null };
+    const { data: seatA2row } = s37A2
+      ? await admin.from("seats").insert({ org_id: s37A2.org_id, store_id: s37A2.id, name: `${PREFIX}-seatA2`, kind: "卓", sort_order: 991, is_active: true }).select("id").single()
+      : { data: null };
+
+    const owner = await signInShared("段37", "ownerA");
+    const kiosk = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    check("段37（準備）店2/owner membership/kiosk auth/seats 解決",
+      !!s37A1 && !!s37A2 && !!ownerMem && !!ownerUserId && !!kAuth && !!owner && !!seatA1row && !!seatA2row,
+      JSON.stringify({ ownerMem, ownerUserId, kAuth: !!kAuth, seatA1: seatA1row?.id, seatA2: seatA2row?.id }));
+
+    if (s37A1 && s37A2 && ownerMem && ownerUserId && kAuth && owner && seatA1row && seatA2row) {
+      const seatA1 = seatA1row.id as string;
+      const seatA2 = seatA2row.id as string;
+      try {
+        const { data: devId, error: eProv } = await owner.rpc("kiosk_provision", {
+          p_auth_user_id: kAuth, p_store_id: s37A1.id, p_label: `${PREFIX}-reg`, p_purpose: "register",
+        });
+        check("段37 owner kiosk_provision(register) 成功", !eProv && typeof devId === "string", eProv?.message);
+        const { error: eKSign } = await kiosk.auth.signInWithPassword({ email: kEmail, password: env.SEED_PASSWORD });
+        check("段37 kiosk register device signIn 成功", !eKSign, eKSign?.message);
+        const { error: ePin } = await owner.rpc("set_staff_pin", { p_membership_id: ownerMem, p_pin: "4321" });
+        check("段37 set_staff_pin(owner) 成功", !ePin, ePin?.message);
+        const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "4321" });
+        check("段37 kiosk_login(owner) ok:true", (rLogin as { ok?: boolean } | null)?.ok === true, JSON.stringify(rLogin));
+
+        // (1) 正経路: kiosk_arm=true → check_open 成功・created_by=operator（ゲートは operator 有効時 通す）
+        const { data: chkId, error: eOpen } = await kiosk.rpc("check_open", { p_seat_id: seatA1, p_people: 1, p_nom_type: "free" });
+        check("段37 ★正経路 check_open 成功（ゲートは operator 有効時 通す）", !eOpen && typeof chkId === "string", eOpen?.message);
+        const { data: chkRow } = await admin.from("checks").select("created_by").eq("id", (chkId as string) ?? "").single();
+        check("段37 ★created_by = operator(owner users.id)（NOT NULL runtime 充足）", chkRow?.created_by === ownerUserId, JSON.stringify(chkRow));
+
+        // (2) 他店 seat = forbidden（store 不一致・active session＝gate 第5腕 store 一致が効く）
+        const { error: eCross } = await kiosk.rpc("check_open", { p_seat_id: seatA2, p_people: 1, p_nom_type: "free" });
+        check("段37 ★他店 seat check_open = forbidden（null-auth × store 不一致・認可で拒否・他店 checks に INSERT 通らず）",
+          forbidden(eCross), eCross?.message ?? "通ってしまった（fail-open 回帰の疑い）");
+
+        // (3) idle 16分 = forbidden（operator null・NOT NULL 制約でなく認可で拒否）
+        await admin.from("kiosk_sessions").update({ last_seen_at: new Date(Date.now() - 16 * 60_000).toISOString() }).eq("device_id", devId).is("ended_at", null);
+        const { error: eIdle } = await kiosk.rpc("check_open", { p_seat_id: seatA1, p_people: 1, p_nom_type: "free" });
+        check("段37 ★idle 16分 check_open = forbidden（NOT NULL 制約でなく認可で拒否）", forbidden(eIdle), eIdle?.message ?? "通ってしまった（fail-open 回帰の疑い）");
+
+        // (4) logout 後 = forbidden（operator null）
+        const { error: eLo } = await kiosk.rpc("kiosk_logout");
+        check("段37 kiosk_logout 成功", !eLo, eLo?.message);
+        const { error: eAfter } = await kiosk.rpc("check_open", { p_seat_id: seatA1, p_people: 1, p_nom_type: "free" });
+        check("段37 ★logout 後 check_open = forbidden（gate 第5腕 operator null・認可で拒否）", forbidden(eAfter), eAfter?.message ?? "通ってしまった（fail-open 回帰の疑い）");
+      } finally {
+        await kiosk.auth.signOut().catch(() => undefined);
+        await wipe37();
+        if (kAuth) await admin.auth.admin.deleteUser(kAuth).catch(() => undefined);
+      }
+      const after37 = {
+        checks: await cnt("checks"), seats: await cnt("seats"), kdev: await cnt("kiosk_devices"),
+        kses: await cnt("kiosk_sessions"), spin: await cnt("staff_pin"),
+      };
+      check("段37 掃除確認: checks/seats/kiosk_devices/kiosk_sessions/staff_pin 前後カウント一致（固定カウント非汚染）",
+        after37.checks === base37.checks && after37.seats === base37.seats && after37.kdev === base37.kdev
+        && after37.kses === base37.kses && after37.spin === base37.spin,
+        JSON.stringify({ base37, after37 }));
     }
   }
 
