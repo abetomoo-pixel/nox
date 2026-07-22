@@ -343,6 +343,15 @@ async function main() {
     check("anon check_remove_seat BLOCKED", isFnBlocked(e3), e3?.message ?? "実行できてしまった");
   }
 
+  // ── 段9-B6: 売掛回収 新 RPC 2本（mig0055）anon BLOCKED ──
+  //   consent_ok/ar_policy_ok（内部専用・4ロール revoke）の ACL は grants G29 が担保＝ここは公開2本のみ。
+  {
+    const { error: e1 } = await anon.rpc("receivable_collect", { p_receivable_id: null, p_biz_date: null, p_method: null, p_note: null, p_idem_key: null });
+    check("anon receivable_collect BLOCKED", isFnBlocked(e1), e1?.message ?? "実行できてしまった");
+    const { error: e2 } = await anon.rpc("receivable_mark_deduct", { p_receivable_id: null, p_consent: null, p_note: null });
+    check("anon receivable_mark_deduct BLOCKED", isFnBlocked(e2), e2?.message ?? "実行できてしまった");
+  }
+
   // ── 段9a: F2a-2 get_cast_sales anon BLOCKED ──
   {
     const { error } = await anon.rpc("get_cast_sales", { p_store_id: null, p_from: null, p_to: null });
@@ -557,6 +566,7 @@ async function main() {
     "kiosk_devices", "cast_pin", // F4a キオスク（mig0043・deny-all＝authenticated ですら SELECT 不可）
     "printer_config", "print_jobs", // F4b レシート印刷（mig0044/0045・deny-all）
     "product_costs", // 台帳#40（mig0049/0050・原価分離）
+    "ar_collections", // B6 売掛回収消込台帳（mig0055・authenticated=SELECT のみ・anon DENIED）
   ]) {
     // PK=cast_id/store_id/product_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
     const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles", "cast_pin"].includes(table);

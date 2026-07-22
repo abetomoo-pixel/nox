@@ -688,6 +688,56 @@ async function main() {
     await mb.auth.signOut();
   }
 
+  // ══════════════════════════════════════════════════════════
+  // B6 売掛回収（mig0055）— cast プライバシー是正（案4-A）の能動 assert。
+  //   receivables_select の cast 腕除去＝cast は receivables/ar_collections 0行（pattern2 復帰）。
+  //   manager 対照＝可視（≥1）。段内で receivable→回収を生成し finally で依存順全消し（固定カウント非汚染）。
+  //   ※旧 cast 可視前提の assert は harness に存在しない（cast 腕は runtime 未テストだった）＝純追加。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const m = await signIn("managerA1");
+    let b6Check = "";
+    let b6Recv = "";
+    try {
+      const { data: co } = await m.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+      b6Check = co as string;
+      await m.rpc("check_add_line", { p_check_id: b6Check, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "A", p_name: "NOX-B6-RLS", p_unit_price: 5_000 });
+      const { data: chk } = await m.from("checks").select("total").eq("id", b6Check).single();
+      await m.rpc("check_pay", { p_check_id: b6Check, p_method: "ar", p_amount: chk!.total, p_pay_group: "A", p_tendered: null, p_idem_key: randomUUID() });
+      await m.rpc("check_close", { p_check_id: b6Check, p_idem_key: randomUUID() });
+      const { data: rv } = await m.from("receivables").select("id").eq("check_id", b6Check).single();
+      b6Recv = rv!.id as string;
+      const { data: acId, error: eCol } = await m.rpc("receivable_collect", { p_receivable_id: b6Recv, p_biz_date: "2020-03-16", p_method: "cash", p_note: null, p_idem_key: randomUUID() });
+      check("B6（準備）manager receivable_collect 成功（ar_collections 生成）", !eCol && typeof acId === "string", eCol?.message);
+
+      // manager 対照＝可視（≥1）
+      const { data: mRecv } = await m.from("receivables").select("id").eq("id", b6Recv);
+      check("B6 manager receivables 可視（対照・≥1）", (mRecv ?? []).length >= 1, `got ${(mRecv ?? []).length}`);
+      const { data: mAc } = await m.from("ar_collections").select("id").eq("id", acId as string);
+      check("B6 manager ar_collections 可視（対照・≥1）", (mAc ?? []).length >= 1, `got ${(mAc ?? []).length}`);
+
+      // ★cast=0行（案4-A 是正・pattern2 復帰）
+      const ca = await signIn("castA1a");
+      const { data: cRecv, error: eCR } = await ca.from("receivables").select("id");
+      check("B6 ★cast receivables SELECT = 0行（案4-A・pattern2 復帰）", !eCR && (cRecv ?? []).length === 0, eCR?.message ?? `got ${(cRecv ?? []).length}`);
+      const { data: cAc, error: eCA } = await ca.from("ar_collections").select("id");
+      check("B6 cast ar_collections SELECT = 0行", !eCA && (cAc ?? []).length === 0, eCA?.message ?? `got ${(cAc ?? []).length}`);
+      await ca.auth.signOut();
+    } finally {
+      if (b6Recv) await admin.from("ar_collections").delete().eq("receivable_id", b6Recv);
+      if (b6Check) {
+        await admin.from("receivables").delete().eq("check_id", b6Check);
+        for (const tbl of ["check_cast_backs", "check_nominations", "payments", "check_lines", "check_seats"]) {
+          await admin.from(tbl).delete().eq("check_id", b6Check);
+        }
+        await admin.from("checks").delete().eq("id", b6Check);
+      }
+    }
+  }
+
   // F1b: void 連動（open 売掛→voided・幻影バック消滅・settled 拒否・open→void）
   {
     const c = await signIn("managerA1");

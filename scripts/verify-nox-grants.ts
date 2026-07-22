@@ -39,6 +39,7 @@ const TABLES = [
   "printer_config", "print_jobs", // F4b レシート印刷（mig0044/0045・deny-all。G21 で policy 0本＋service_role 限定 ACL を能動 assert）
   "product_costs", // 台帳#40 案C（mig0049/0050・原価分離。G24 で policy 逐語＋grant 実体を能動 assert）
   "check_seats", // B1/B2 相席・席移動（mig0053・追加席の占有台帳。G27 で policy 逐語＋unique index＋grant 実体を能動 assert。.length 参照ゆえ G1/G2/G5 自動被覆＝裁定台帳 裁定9 教訓）
+  "ar_collections", // B6 売掛回収消込台帳（mig0055・authenticated=SELECT のみ。G1/G2/G5 が .length で自動被覆＝教訓B。G29 で policy/grant/RPC ACL を能動 assert）
 ];
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
@@ -764,6 +765,43 @@ async function main() {
       check("G28 get_store_nom_counts EXECUTE = authenticated（anon/public 不在）",
         roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
         `保持者: ${roles.join(", ") || "(なし)"}`);
+    }
+
+    // G29: B6 売掛回収（mig0055）— 新 RPC 2本＋空フック2本の EXECUTE ACL＋ar_collections の policy/grant。
+    //   ar_collections の RLS 有効・grant 面（authenticated=SELECT のみ・anon 0）は TABLES 配列追加で
+    //   G1/G2/G5 が自動回帰＝ここは policy 1本＋grant 実体＋RPC/フック ACL を能動 assert。
+    {
+      // 公開 RPC 2本＝authenticated 保持・anon/public 不在
+      for (const fn of ["receivable_collect", "receivable_mark_deduct"]) {
+        const roles = await roleOf(fn);
+        check(`G29 ${fn} EXECUTE = authenticated（anon/public 不在）`,
+          roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+          `保持者: ${roles.join(", ") || "(なし)"}`);
+      }
+      // 空フック2本＝内部専用（anon/authenticated/service_role/public 不在＝postgres のみ＝差し替え1箇所）
+      for (const fn of ["consent_ok", "ar_policy_ok"]) {
+        const roles = await roleOf(fn);
+        const leaked = roles.filter((x) => ["anon", "authenticated", "service_role", "public"].includes(x));
+        check(`G29 ${fn} EXECUTE = 内部専用（4ロール revoke・postgres のみ）`,
+          leaked.length === 0, `保持者: ${roles.join(", ") || "(postgres のみ)"}`);
+      }
+      // ar_collections policy = ar_collections_select（SELECT）1本のみ（書込 policy なし＝RPC 経由）
+      const acp = await db.query(
+        `select policyname, cmd from pg_policies where schemaname='public' and tablename='ar_collections'`,
+      );
+      check("G29 ar_collections ポリシー = ar_collections_select（SELECT）1本のみ",
+        acp.rowCount === 1 && acp.rows[0].cmd === "SELECT" && acp.rows[0].policyname === "ar_collections_select",
+        acp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "));
+      // ar_collections grant = authenticated:SELECT のみ（INSERT/UPDATE/DELETE/REFERENCES/TRIGGER 不在＝mig0049→0050 教訓）
+      const acg = await db.query(
+        `select grantee, privilege_type from information_schema.role_table_grants
+         where table_schema = 'public' and table_name = 'ar_collections'
+           and grantee in ('anon', 'authenticated', 'public')
+         order by grantee, privilege_type`,
+      );
+      const acGot = acg.rows.map((x) => `${x.grantee}:${x.privilege_type}`);
+      check("G29 ar_collections grant = authenticated:SELECT のみ（REFERENCES/TRIGGER 不在）",
+        acGot.length === 1 && acGot[0] === "authenticated:SELECT", acGot.join(", ") || "(なし)");
     }
   }
 

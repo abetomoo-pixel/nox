@@ -8,7 +8,7 @@
 
 ## 適用範囲
 
-**0001 〜 0054**（2026-07-21 現在）
+**0001 〜 0055**（2026-07-22 現在）
 
 ## 特記事項
 
@@ -20,6 +20,7 @@
 | 0052_b4_time_charge | 再適用可構成だが手貼りは1回。**backfill 無し**（stores 時間制6列・checks スナップ5列は本 mig で同時生成し双方 default で自動一致＝dev/本番差なし・0051 のような G 期待値差は生じない）。手貼り後 `notify pgrst, 'reload schema';` で列追加＋新 RPC 2本を反映 |
 | 0053_b1b2_check_seats | 再適用可構成だが手貼りは1回。**backfill 無し**（check_seats 新設のみ・既存 open 伝票は追加席ゼロから開始）。既存4関数（check_open/check_close/check_void/reservation_to_check）を create or replace で置換＝**ACL は PostgreSQL 仕様で保持され再 grant 不要**。手貼り後 `notify pgrst, 'reload schema';` で新テーブル＋新 RPC 3本＋関数置換を反映 |
 | 0054_a4_store_nom_counts | 再適用可構成だが手貼りは1回。**backfill 無し・新テーブルなし**（読取専用 RPC `get_store_nom_counts` 1本の新設のみ・A4 月報の指名店合計）。会計非改修（checks/check_nominations の SELECT のみ・daily_report_aggregate 非改修）。手貼り後 `notify pgrst, 'reload schema';` で新 RPC を反映 |
+| 0055_b6_ar_collections | 再適用可構成だが手貼りは1回（`create table if not exists` / `add column if not exists` / `create or replace` 主体）。**RLS drop/create 含む**（`receivables_select` を置換＝cast 腕除去の案4-A・`ar_collections_select` 新設）＝再貼り時も policy は drop→create で冪等。**backfill は列 default 相当**（`daily_reports.ar_collected` NOT NULL default 0＝既存行は自動 0・dev/本番差なし）。**★会計 write 中核 非改修**（checks/check_lines/payments 不変・発生経路 check_pay 無改修・回収済 void 拒否は既存 check_void ガードが被覆）。改修は report-layer（daily_report_aggregate/close/reclose に ar_collected を加算＝ar_collected=0 で従前 diff 一致の後方互換）。空フック `consent_ok`/`ar_policy_ok` は内部専用（4ロール revoke）。手貼り後 `notify pgrst, 'reload schema';` で新テーブル＋consent 2列＋ar_collected 列＋新 RPC 2本＋フック2本＋関数置換3本を反映。sha256 `01deab05fc937b997f9d11f9ae743ec61e1f2ea90fcfae81e39dd29861c6b63d`（36048 bytes・repo=Downloads 一致） |
 
 ## 恒久注意
 
