@@ -16,8 +16,9 @@
     "verify:nox-rls": "tsx scripts/verify-nox-rls.ts",
     "verify:nox-grants": "tsx scripts/verify-nox-grants.ts",
     "verify:nox-payroll": "tsx scripts/verify-nox-payroll.ts",
+    "verify:nox-payroll-csv": "tsx scripts/verify-nox-payroll-csv.ts",
     "verify:nox-receipt": "tsx scripts/verify-nox-receipt.ts",
-    "verify:f0": "npm run verify:nox-pay && npm run verify:nox-shift-time && npm run verify:nox-punch-match && npm run verify:nox-receipt && npm run verify:nox-anon-guard && npm run verify:nox-rls && npm run verify:nox-grants && npm run verify:nox-payroll"
+    "verify:f0": "npm run verify:nox-pay && npm run verify:nox-shift-time && npm run verify:nox-punch-match && npm run verify:nox-receipt && npm run verify:nox-anon-guard && npm run verify:nox-rls && npm run verify:nox-grants && npm run verify:nox-payroll && npm run verify:nox-payroll-csv"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",

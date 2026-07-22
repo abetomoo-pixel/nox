@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import { buildPayrollCsv, type PayrollCsvRow, type PayrollCsvPay } from "@/lib/nox/payroll/csv";
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
 
 type Store = { id: string; name: string };
+// D3: payslips.breakdown_json（finalize が凍結）の CSV が使う部分。back 内訳の生値は CSV に出さず合算のみ。
+type BreakdownPay = PayrollCsvPay;
+type BreakdownExtra = { amount: number };
+type BreakdownJson = { pay: BreakdownPay; extras?: BreakdownExtra[] };
 type Row = {
   castId: string; castName: string; net: number; taxMode: string; anomalyCount: number;
   arDeductTotal?: number; arCarriedTotal?: number;
@@ -17,6 +23,7 @@ type Incentive = { id: string; bizDate: string; amountMode: string; amount: numb
 
 // 3段フロー（期間選択→プレビュー→確定）。プレビューは参考値（確定時点で再計算が正）。
 export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isOwner: boolean }) {
+  const supabase = createClient();
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -25,6 +32,71 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [finalized, setFinalized] = useState<string | null>(null);
+  // D3 給与明細CSV: 選択中 store/period の run 状態（finalized/paid のみ CSV 活性）
+  const [runInfo, setRunInfo] = useState<{ id: string; status: string } | null>(null);
+  const [csvMsg, setCsvMsg] = useState("");
+
+  // run 状態を読む（payroll_runs は owner/manager RLS 可視）。store/period 変更・確定完了で再読込。
+  const loadRun = useCallback(async () => {
+    if (!storeId || !period) { setRunInfo(null); return; }
+    const { data } = await supabase.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period).maybeSingle();
+    setRunInfo(data ? { id: data.id as string, status: data.status as string } : null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, period]);
+  useEffect(() => { void loadRun(); }, [loadRun, finalized]);
+
+  const storeName = stores.find((s) => s.id === storeId)?.name ?? "店舗";
+
+  // D3: 確定済み run の payslips を owner/manager 直読みして給与明細CSVを生成（client Blob・BOM UTF-8）。
+  //   機微（口座/マイナンバー/back 内訳生値）は含めない＝合算のみ。tax-report（支払調書）とは別物。
+  async function exportPayrollCsv() {
+    if (!runInfo || (runInfo.status !== "finalized" && runInfo.status !== "paid")) return;
+    setCsvMsg(""); setBusy(true);
+    try {
+      const runId = runInfo.id;
+      const [{ data: ps }, { data: prs }] = await Promise.all([
+        supabase.from("payslips").select("cast_id, period, net, breakdown_json").eq("run_id", runId),
+        supabase.from("payment_records").select("cast_id, paid_amount").eq("run_id", runId),
+      ]);
+      const slips = (ps ?? []) as { cast_id: string; period: string; net: number; breakdown_json: BreakdownJson }[];
+      if (slips.length === 0) { setCsvMsg("この期間に給与明細がありません（確定済みの run が空です）。"); return; }
+      const castIds = slips.map((s) => s.cast_id);
+      const [{ data: cs }, { data: tp }] = await Promise.all([
+        supabase.from("casts").select("id, name").in("id", castIds),
+        supabase.from("cast_tax_profiles").select("cast_id, mode").in("cast_id", castIds),
+      ]);
+      const nameOf = new Map((cs ?? []).map((c) => [c.id as string, c.name as string]));
+      const modeOf = new Map((tp ?? []).map((r) => [r.cast_id as string, r.mode as string]));
+      const paidOf = new Map<string, number>();
+      for (const r of (prs ?? []) as { cast_id: string; paid_amount: number }[]) {
+        paidOf.set(r.cast_id, (paidOf.get(r.cast_id) ?? 0) + r.paid_amount);
+      }
+      const csvRows: PayrollCsvRow[] = slips
+        .slice()
+        .sort((a, b) => (nameOf.get(a.cast_id) ?? "").localeCompare(nameOf.get(b.cast_id) ?? "", "ja"))
+        .map((s) => ({
+          castName: nameOf.get(s.cast_id) ?? "(不明)",
+          taxMode: modeOf.get(s.cast_id) ?? "—",
+          period: s.period,
+          pay: s.breakdown_json.pay,
+          extrasTotal: (s.breakdown_json.extras ?? []).reduce((sum, e) => sum + (e.amount ?? 0), 0),
+          net: s.net,
+          paidTotal: paidOf.get(s.cast_id) ?? 0,
+        }));
+      const csv = buildPayrollCsv(csvRows);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `給与明細_${storeName}_${period}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setCsvMsg(`給与明細CSVを出力しました（${csvRows.length} 名分）。`);
+    } catch (e) {
+      setCsvMsg(`出力に失敗: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function preview() {
     setBusy(true);
@@ -181,6 +253,29 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
           {blockers.length > 0 && <span style={{ marginLeft: 10, fontSize: 12, color: "var(--bad)" }}>未登録 cast を解消してください</span>}
         </>
       )}
+
+      {/* D3 給与明細CSV（確定済み run のみ活性・全cast の支給/控除/差引・振込フォーマットではない＝口座なし）。
+          支払調書CSV（invoice-panel＝源泉/インボイス・委託のみ・暦年）とは別物。 */}
+      {storeId && (
+        <section className="nox-cardtop" style={{ ...t.card, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 4px" }}>給与明細CSV</h3>
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>
+              確定済み（{period}）の全キャストの支給・控除・差引を CSV 出力します（BOM UTF-8）。
+              口座・マイナンバーは含みません（振込用フォーマットは別）。支払調書CSVとは別物です。
+            </p>
+          </div>
+          <button
+            onClick={() => void exportPayrollCsv()}
+            disabled={busy || !runInfo || (runInfo.status !== "finalized" && runInfo.status !== "paid")}
+            style={runInfo && (runInfo.status === "finalized" || runInfo.status === "paid") ? { ...t.btnGold } : { ...t.btnGhost, opacity: 0.5 }}
+            title={runInfo ? "" : "この期間はまだ確定されていません"}
+          >
+            給与明細CSVを出力
+          </button>
+        </section>
+      )}
+      {csvMsg && <p style={{ fontSize: 12, color: csvMsg.includes("失敗") || csvMsg.includes("ありません") ? "var(--bad)" : "var(--ok)" }}>{csvMsg}</p>}
 
       {/* 確定済み給与の支払記録（選択中の店舗・期間に対して） */}
       {storeId && <PaymentPanel storeId={storeId} period={period} />}
