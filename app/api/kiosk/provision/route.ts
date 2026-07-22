@@ -57,7 +57,7 @@ export async function GET() {
     const admin = createAdminClient();
     const { data, error } = await admin
       .from("kiosk_devices")
-      .select("id, store_id, label, is_active, created_at")
+      .select("id, store_id, label, purpose, is_active, created_at")
       .eq("org_id", g.orgId)
       .order("created_at", { ascending: false });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
   const g = await guardOwner();
   if (!g.ok) return NextResponse.json(g.body, { status: g.status });
 
-  let body: { action?: unknown; storeId?: unknown; label?: unknown; idemKey?: unknown; deviceId?: unknown };
+  let body: { action?: unknown; storeId?: unknown; label?: unknown; idemKey?: unknown; deviceId?: unknown; purpose?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -122,6 +122,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "idemKey required (uuid)" }, { status: 400 });
     const label =
       typeof body.label === "string" && body.label.trim().length > 0 ? body.label.trim().slice(0, 100) : null;
+    // K（mig0056）: 用途＝'punch'（打刻）/'register'（レジ）。省略は 'punch'（既存呼び手の後方互換・RPC default と同値）。
+    const purpose = body.purpose === "register" ? "register" : body.purpose === "punch" || body.purpose === undefined ? "punch" : null;
+    if (purpose === null) return NextResponse.json({ error: "purpose must be punch or register" }, { status: 400 });
 
     // 合成 email（idemKey 由来＝再送で同一 email → createUser 重複がリプレイ検知を兼ねる）
     const loginEmail = syntheticEmail(g.orgId, body.idemKey);
@@ -143,6 +146,7 @@ export async function POST(req: Request) {
       p_auth_user_id: authUserId,
       p_store_id: storeId,
       p_label: label,
+      p_purpose: purpose,
     });
     if (eRpc) {
       // 補償: 今回作った auth user を巻き戻す
