@@ -8,7 +8,7 @@
 
 ## 適用範囲
 
-**0001 〜 0058**（2026-07-22 現在）
+**0001 〜 0059**（2026-07-22 現在）
 
 ## 特記事項
 
@@ -24,6 +24,7 @@
 | 0056_k_kiosk_register_base | 再適用可構成だが手貼りは1回。**★drop index / drop function を含む＝非idempotent 要素あり**（`kiosk_devices_one_active_per_store_idx` を drop→`_one_active_per_store_purpose_idx` 新設・旧3引数 `kiosk_provision(uuid,uuid,text)` を drop→4引数版 `(uuid,uuid,text,text)` へ置換）。2回貼ると drop 対象不在で無害だが**検証は初回基準**。新テーブル2（`staff_pin`/`kiosk_sessions`・deny-all＝RLS 有効/policy 0本/grant 0）・`kiosk_devices.purpose` 列（NOT NULL default 'punch'・既存行 backfill='punch'）・打刻締め（`kiosk_punch`/`auth_kiosk_store_id` に purpose='punch'）・新ヘルパー2（`auth_kiosk_register_store_id`/`auth_kiosk_operator`）＋新RPC4（`kiosk_login`/`kiosk_logout`/`kiosk_operator_list`/`set_staff_pin`）。**単独適用時は register kiosk が「ログインできるが何も操作できない」不活性状態**（会計 kiosk 腕は 0057）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `278c92ab5b1b69b6d594645c66f0cff3125e1c1baaffdc4afd62e875a24e59be`（34196 bytes・repo=Downloads 一致） |
 | 0057_k_kiosk_register_arms | 再適用可構成だが手貼りは1回（`create or replace` 主体）。会計RPC12本＋`audit_log_write` に kiosk 腕を追加（money 写経逐語＝3ゲート pay83/receipt52/payroll112 不変）。**★0058 に supersede される**（下記）＝本 mig 単独では kiosk ゲートが `if not(OR連鎖)` の NULL 伝播で null-auth 呼び手に fail-open。**0058 と必ずセットで適用**（0057→0058 の順）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `9d30f9f5c09cc0e60de4316bbf51cd98ac4129f0c9ad5fc245bf6ef5c930e567`（60590 bytes・repo=Downloads 一致） |
 | 0058_k_kiosk_register_gate_nullsafe | 再適用可構成だが手貼りは1回（`create or replace` 主体・**0057 の12関数を再 replace**）。**★0057 を supersede**＝12ゲートの `if not(OR連鎖) then raise` → `if (OR連鎖) is not true then raise`（null-auth 呼び手の fail-open を fail-closed 化・money 計算/kiosk 腕は 0057 と byte 同一＝差分は12ゲート×2行のみ）。**0057 と重複関数を再 replace するが冪等ではないので順序どおり適用し飛ばさない**（必ず 0057→0058）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `9d3b18dd4b52f7c1cdf5aec89dbbbc6a10b9fba6a407cae8e762aa577f48058b`（60686 bytes・repo=Downloads 一致） |
+| 0059_k_kiosk_register_read | 再適用可構成だが手貼りは1回（`create or replace` のみ・新規読取 RPC 2本＝`kiosk_register_state`/`kiosk_check_detail`・既存オブジェクト接触ゼロ）。**★0056〜0058 適用済みが前提**（`auth_kiosk_register_store_id`/`auth_kiosk_operator` を参照）。kiosk 専用読取（正ガード先行のみ＝OR連鎖ゲート禁止・F0 §7.1 教訓準拠）・back/customer/by_user_id 系 非開示・**money-core 非接触**（SELECT 集約のみ・書込文ゼロ）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `e6f90283658ce54f952a4f6c88e57bc6e9304cfbb1b3e9cee023e9baac59b0fb`（12842 bytes・repo=Downloads 一致） |
 
 ## 恒久注意
 

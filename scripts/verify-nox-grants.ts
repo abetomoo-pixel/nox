@@ -867,12 +867,15 @@ async function main() {
     // G31: レジ用キオスク arms＋gate（mig0057/0058）— kiosk 腕の集合一致＋check_void 非対象＋
     //   ★ゲート fail-closed 逐語（0058）。人間セッションの runtime では検出不能な回帰（fail-open への逆行）を
     //   prosrc で機械検知する＝再発防止の本体。prokind='f' で pg_get_functiondef の集約関数エラーを回避。
+    //   除外リスト＝helper 自身・kiosk_operator_list（WHERE 用途）・0059 read layer 2本（G32 専任）＝
+    //   G31 の意味論は「0057 write-arm 集合」のまま不変（count 棚卸し 2026-07-22・期待値 12/13 は書換えない）。
     {
       const reg = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_register_store_id()%'
-           and p.proname not in ('auth_kiosk_register_store_id','kiosk_operator_list')`,
+           and p.proname not in ('auth_kiosk_register_store_id','kiosk_operator_list',
+                                 'kiosk_register_state','kiosk_check_detail')`,
       );
       check("G31 register helper を使う会計RPC = 12本（check_open〜check_remove_seat 10＋print_enqueue＋bottle_keep_register）",
         reg.rows[0].n === 12, `got ${reg.rows[0].n}`);
@@ -880,7 +883,7 @@ async function main() {
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator()%'
-           and p.proname <> 'auth_kiosk_operator'`,
+           and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
       check("G31 operator を使う関数 = 13本（上記12＋audit_log_write の actor coalesce）", op.rows[0].n === 13, `got ${op.rows[0].n}`);
       const cv = await db.query(
@@ -903,6 +906,52 @@ async function main() {
       );
       check("G31 ★旧 fail-open 形（裸の )) then）= 0本（if not(OR) の NULL 伝播＝0057 回帰の逆行を検知）",
         openGate.rows[0].n === 0, `got ${openGate.rows[0].n}`);
+    }
+
+    // G32: レジ用キオスク read layer（mig0059）— 2本の ACL・署名一意・VOLATILE・正ガード prosrc 逐語・
+    //   機微トークン0。0058 教訓（F0 §7.1＝OR連鎖ゲート禁止）の恒久機械検知を read layer にも適用。
+    //   runtime（自店読取/他店 forbidden/不存在 not found/idle・logout forbidden）は anon-guard 段37 が実測。
+    {
+      for (const fn of ["kiosk_register_state", "kiosk_check_detail"]) {
+        const roles = await roleOf(fn);
+        check(`G32 ${fn} EXECUTE = authenticated（anon/public 不在）`,
+          roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
+          `保持者: ${roles.join(", ") || "(なし)"}`);
+      }
+      const sig = await db.query(
+        `select proname, pg_get_function_identity_arguments(oid) as args, provolatile from pg_proc
+         where pronamespace = 'public'::regnamespace
+           and proname in ('kiosk_register_state','kiosk_check_detail') order by proname`,
+      );
+      check("G32 署名一意 = kiosk_check_detail(p_check_id uuid) / kiosk_register_state() の各1本",
+        sig.rowCount === 2
+        && sig.rows[0].proname === "kiosk_check_detail" && sig.rows[0].args === "p_check_id uuid"
+        && sig.rows[1].proname === "kiosk_register_state" && sig.rows[1].args === "",
+        JSON.stringify(sig.rows.map((x) => `${x.proname}(${x.args})`)));
+      check("G32 両 RPC VOLATILE（auth_kiosk_operator の touch UPDATE 内包＝STABLE 宣言不可）",
+        sig.rowCount === 2 && sig.rows.every((x) => x.provolatile === "v"),
+        JSON.stringify(sig.rows.map((x) => x.provolatile)));
+      const guard = await db.query(
+        `select count(*)::int as n from pg_proc
+         where pronamespace = 'public'::regnamespace
+           and proname in ('kiosk_register_state','kiosk_check_detail')
+           and prosrc like '%if v_store is null or public.auth_kiosk_operator() is null then%'`,
+      );
+      check("G32 ★正ガード形 逐語 = 2本（0058/F0 §7.1 教訓の read layer 適用）", guard.rows[0].n === 2, `got ${guard.rows[0].n}`);
+      const ifnot = await db.query(
+        `select count(*)::int as n from pg_proc
+         where pronamespace = 'public'::regnamespace
+           and proname in ('kiosk_register_state','kiosk_check_detail')
+           and prosrc ilike '%if not (%'`,
+      );
+      check("G32 ★OR連鎖ゲート（if not( ）= 0本（fail-open 逆行の機械検知）", ifnot.rows[0].n === 0, `got ${ifnot.rows[0].n}`);
+      const tok = await db.query(
+        `select count(*)::int as n from pg_proc
+         where pronamespace = 'public'::regnamespace
+           and proname in ('kiosk_register_state','kiosk_check_detail')
+           and (prosrc ilike '%back%' or prosrc ilike '%customer%' or prosrc ilike '%by_user_id%')`,
+      );
+      check("G32 機微トークン（back/customer/by_user_id）= 0（#34 同族の非開示恒久化）", tok.rows[0].n === 0, `got ${tok.rows[0].n}`);
     }
   }
 

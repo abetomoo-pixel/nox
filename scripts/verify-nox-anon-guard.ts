@@ -530,6 +530,16 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段35c: レジ用キオスク read layer（mig0059）新2署名 anon BLOCKED ──
+  const F0059_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["kiosk_register_state", {}],
+    ["kiosk_check_detail", { p_check_id: null }],
+  ];
+  for (const [fn, args] of F0059_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段36a: F4b レシート印刷（mig0044/0045）RPC anon BLOCKED ──
   //   claim/result は service_role 限定（内部専用型）＝anon に加え authenticated 負系を段36 本体で実測。
   const F0044_PROBES: Array<[string, Record<string, unknown>]> = [
@@ -5181,15 +5191,17 @@ async function main() {
     }
   }
 
-  // ── 段37: レジ用キオスク register device（mig0056/0057/0058）null-auth 拒否経路の恒久固定 ──
+  // ── 段37: レジ用キオスク register device（mig0056/0057/0058/0059）null-auth 拒否経路の恒久固定 ──
   //   ★人間セッション（auth_role 非null）では検出不能な拒否経路をここで固定する（_tmp probe の K-P1/K-P3/K-P5 昇格）。
   //   0057 の kiosk ゲートは auth_role()=null（kiosk 端末）呼び手に対し if not(OR連鎖) が NULL 伝播で fail-open
   //   していた（他店 seat・idle 失効・logout 後でも INSERT が通る芽）。0058 で if (OR連鎖) is not true 化＝fail-closed。
   //   本段は register kiosk セッションで
   //     (1) 正経路（kiosk_arm=true）= check_open 成功・created_by=operator（ゲートは operator 有効時 正しく通す）
+  //     (1b) 0059 read layer 正経路対照 = kiosk_register_state に open 伝票・kiosk_check_detail の集約整合
   //     (2) 他店 seat = 'forbidden'（store 不一致・active session）
-  //     (3) idle 15分超 = 'forbidden'（operator null）
-  //     (4) logout 後 = 'forbidden'（operator null）
+  //     (2b) 0059 読取写像 = 他店 check detail 'forbidden'・不存在 uuid 'not found'
+  //     (3) idle 15分超 = 'forbidden'（operator null・write と read の両方）
+  //     (4) logout 後 = 'forbidden'（operator null・write と read の両方）
   //   を能動 assert。fixture は段内生成→finally 依存順全消し（checks→kiosk_sessions→staff_pin→kiosk_devices→
   //   一時 seats→auth deleteUser）＋固定カウント非汚染の物理確認。
   {
@@ -5295,21 +5307,53 @@ async function main() {
         const { data: chkRow } = await admin.from("checks").select("created_by").eq("id", (chkId as string) ?? "").single();
         check("段37 ★created_by = operator(owner users.id)（NOT NULL runtime 充足）", chkRow?.created_by === ownerUserId, JSON.stringify(chkRow));
 
+        // (1b) 0059 read layer 正経路対照: state に open 伝票・detail の集約整合（balance = total − paid_total）
+        const { data: st59raw, error: eSt59 } = await kiosk.rpc("kiosk_register_state");
+        const st59 = st59raw as { checks?: Array<{ id: string }> } | null;
+        check("段37 ★kiosk_register_state 正経路（checks に open 伝票・0059）",
+          !eSt59 && (st59?.checks ?? []).some((c) => c.id === chkId),
+          eSt59?.message ?? JSON.stringify(st59?.checks));
+        const { data: dt59raw, error: eDt59 } = await kiosk.rpc("kiosk_check_detail", { p_check_id: chkId });
+        const dt59 = dt59raw as { check?: { total?: number }; paid_total?: number; balance?: number } | null;
+        check("段37 ★kiosk_check_detail 正経路（balance = total − paid_total・0059）",
+          !eDt59 && typeof dt59?.check?.total === "number" && typeof dt59?.paid_total === "number"
+          && dt59?.balance === dt59.check.total - dt59.paid_total,
+          eDt59?.message ?? JSON.stringify({ t: dt59?.check?.total, p: dt59?.paid_total, b: dt59?.balance }));
+
         // (2) 他店 seat = forbidden（store 不一致・active session＝gate 第5腕 store 一致が効く）
         const { error: eCross } = await kiosk.rpc("check_open", { p_seat_id: seatA2, p_people: 1, p_nom_type: "free" });
         check("段37 ★他店 seat check_open = forbidden（null-auth × store 不一致・認可で拒否・他店 checks に INSERT 通らず）",
           forbidden(eCross), eCross?.message ?? "通ってしまった（fail-open 回帰の疑い）");
 
+        // (2b) 0059 読取写像: 他店 check detail = forbidden・不存在 uuid = not found
+        const { data: a2chk59 } = await admin.from("checks").insert({
+          org_id: s37A2.org_id, store_id: s37A2.id, seat_id: seatA2, status: "open", nom_type: "free",
+          started_at: new Date().toISOString(), total: 11_000,
+          service_rate: 10, round_unit: 100, round_mode: "down", created_by: ownerUserId,
+        }).select("id").single();
+        const { error: eXd59 } = await kiosk.rpc("kiosk_check_detail", { p_check_id: a2chk59?.id ?? randomUUID() });
+        check("段37 ★他店 check detail = forbidden（0059 store 照合）", forbidden(eXd59), eXd59?.message ?? "通ってしまった");
+        const { error: eNf59 } = await kiosk.rpc("kiosk_check_detail", { p_check_id: randomUUID() });
+        check("段37 不存在 check detail = not found（0059 写像）", has(eNf59, "not found"), eNf59?.message ?? "通ってしまった");
+
         // (3) idle 16分 = forbidden（operator null・NOT NULL 制約でなく認可で拒否）
         await admin.from("kiosk_sessions").update({ last_seen_at: new Date(Date.now() - 16 * 60_000).toISOString() }).eq("device_id", devId).is("ended_at", null);
         const { error: eIdle } = await kiosk.rpc("check_open", { p_seat_id: seatA1, p_people: 1, p_nom_type: "free" });
         check("段37 ★idle 16分 check_open = forbidden（NOT NULL 制約でなく認可で拒否）", forbidden(eIdle), eIdle?.message ?? "通ってしまった（fail-open 回帰の疑い）");
+        const { error: eIdleSt59 } = await kiosk.rpc("kiosk_register_state");
+        check("段37 ★idle 16分 kiosk_register_state = forbidden（0059 読取も失効）", forbidden(eIdleSt59), eIdleSt59?.message ?? "通ってしまった");
+        const { error: eIdleDt59 } = await kiosk.rpc("kiosk_check_detail", { p_check_id: chkId });
+        check("段37 ★idle 16分 kiosk_check_detail = forbidden（0059 読取も失効）", forbidden(eIdleDt59), eIdleDt59?.message ?? "通ってしまった");
 
         // (4) logout 後 = forbidden（operator null）
         const { error: eLo } = await kiosk.rpc("kiosk_logout");
         check("段37 kiosk_logout 成功", !eLo, eLo?.message);
         const { error: eAfter } = await kiosk.rpc("check_open", { p_seat_id: seatA1, p_people: 1, p_nom_type: "free" });
         check("段37 ★logout 後 check_open = forbidden（gate 第5腕 operator null・認可で拒否）", forbidden(eAfter), eAfter?.message ?? "通ってしまった（fail-open 回帰の疑い）");
+        const { error: eLoSt59 } = await kiosk.rpc("kiosk_register_state");
+        check("段37 ★logout 後 kiosk_register_state = forbidden（0059 読取も遮断）", forbidden(eLoSt59), eLoSt59?.message ?? "通ってしまった");
+        const { error: eLoDt59 } = await kiosk.rpc("kiosk_check_detail", { p_check_id: chkId });
+        check("段37 ★logout 後 kiosk_check_detail = forbidden（0059 読取も遮断）", forbidden(eLoDt59), eLoDt59?.message ?? "通ってしまった");
       } finally {
         await kiosk.auth.signOut().catch(() => undefined);
         await wipe37();
