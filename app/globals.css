@@ -233,3 +233,47 @@ body {
   height: 2px;
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }
+
+/* ── D2 報酬明細：印刷（白地黒字・A4・1人1枚）── presentation-only ────────────
+   ★全ルールを @media print 内に閉じる＝画面表示は 1px も変えない。
+   隔離＝.nox-printpage 直下で .nox-print 以外を display:none（絶対配置は使わない＝通常フローで
+   複数ページが正しく改ページし空白ページを作らない）。色は .nox-dark の CSS 変数を印刷用に
+   上書きして var() 依存の inline を一括で白地反転し、literal-hex の slipHd/slipFoot はクラスで反転。
+   使う所＝/mine（cast 自己）と payroll-board（owner/manager 全員分）。RPC/RLS/payOf は非改変。 */
+@media print {
+  @page { size: A4; margin: 14mm; }
+
+  html, body { background: #fff !important; color: #000 !important; }
+
+  /* var() 依存の inline（card / slip 各所）を白地へ一括反転 */
+  .nox-dark {
+    color-scheme: light;
+    --app-bg: #fff;
+    --bg: #fff; --bg2: #fff; --card: #fff; --card2: #fff;
+    --line: #c8c8c8; --line2: #a6a6a6;
+    --gold: #e6dcc0; --gold2: #efe6cf; --champ: #000;
+    --ink: #000; --sub: #333; --ok: #000; --bad: #000;
+  }
+
+  /* 画面専用シェル/要素は印刷しない */
+  .nox-topbar, .nox-tabbar, .nox-noprint { display: none !important; }
+  .nox-main { padding: 0 !important; }
+  .nox-main > * { max-width: none !important; margin: 0 !important; }
+
+  /* 隔離：印刷ページ内は .nox-print 以外を落とす（通常フロー維持＝正しい改ページ・空白ページ無し） */
+  .nox-printpage > *:not(.nox-print) { display: none !important; }
+
+  /* 印刷対象の器はカード装飾を外して素の帳票に */
+  .nox-print { background: #fff !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; }
+  .nox-print.nox-cardtop::before { display: none !important; } /* nox-cardtop の gold 細線を消す */
+
+  /* スリップの literal-hex 要素を白地黒字に（var 化していない #0E0E14 / #0B0B0F を上書き） */
+  .nox-payslip { break-inside: avoid; page-break-inside: avoid; margin: 0 0 8mm !important; }
+  .ps-hd { background: #fff !important; color: #000 !important; }
+  .ps-foot { background: #fff !important; color: #000 !important; border: 2px solid #000 !important; }
+  .ps-foot, .ps-foot * { color: #000 !important; }
+
+  /* manage 全員分＝1人1ページ */
+  .nox-print-page { break-after: page; page-break-after: always; }
+  .nox-print-page:last-child { break-after: auto; page-break-after: auto; }
+}

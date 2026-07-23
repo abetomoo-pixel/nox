@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { buildPayrollCsv, type PayrollCsvRow, type PayrollCsvPay } from "@/lib/nox/payroll/csv";
+import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
 
@@ -35,9 +36,14 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   // D3 給与明細CSV: 選択中 store/period の run 状態（finalized/paid のみ CSV 活性）
   const [runInfo, setRunInfo] = useState<{ id: string; status: string } | null>(null);
   const [csvMsg, setCsvMsg] = useState("");
+  // D2 報酬明細（印刷）: finalized/paid run の payslips を per-cast スリップで表示→window.print（A4・1人1枚）。
+  const [printRows, setPrintRows] = useState<{ castName: string; slip: PayslipRow }[] | null>(null);
+  const [printMsg, setPrintMsg] = useState("");
 
   // run 状態を読む（payroll_runs は owner/manager RLS 可視）。store/period 変更・確定完了で再読込。
+  //   ★store/period が変わったら印刷プレビューは破棄（別店の明細を刷らない）。
   const loadRun = useCallback(async () => {
+    setPrintRows(null); setPrintMsg("");
     if (!storeId || !period) { setRunInfo(null); return; }
     const { data } = await supabase.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period).maybeSingle();
     setRunInfo(data ? { id: data.id as string, status: data.status as string } : null);
@@ -93,6 +99,32 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       setCsvMsg(`給与明細CSVを出力しました（${csvRows.length} 名分）。`);
     } catch (e) {
       setCsvMsg(`出力に失敗: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // D2: 確定済み run の payslips＋cast 名を読み、per-cast スリップを画面表示（印刷は別ボタン＝window.print）。
+  //   データ源は D3 CSV と同じ payslips.breakdown_json＝CSV の合算列とスリップ行内訳は同数値。RLS: owner=全店/manager=自店。
+  async function loadPayslipsForPrint() {
+    if (!runInfo || (runInfo.status !== "finalized" && runInfo.status !== "paid")) return;
+    setPrintMsg(""); setPrintRows(null); setBusy(true);
+    try {
+      const { data: ps } = await supabase
+        .from("payslips")
+        .select("cast_id, period, net, breakdown_json")
+        .eq("run_id", runInfo.id);
+      const slips = (ps ?? []) as { cast_id: string; period: string; net: number; breakdown_json: unknown }[];
+      if (slips.length === 0) { setPrintRows([]); setPrintMsg("この期間に給与明細がありません（確定済みの run が空です）。"); return; }
+      const { data: cs } = await supabase.from("casts").select("id, name").in("id", slips.map((s) => s.cast_id));
+      const nameOf = new Map((cs ?? []).map((c) => [c.id as string, c.name as string]));
+      const rows = slips
+        .map((s) => ({ castName: nameOf.get(s.cast_id) ?? "(不明)", slip: { period: s.period, net: s.net, breakdown_json: s.breakdown_json } }))
+        .sort((a, b) => a.castName.localeCompare(b.castName, "ja"));
+      setPrintRows(rows);
+      setPrintMsg(`報酬明細を読み込みました（${rows.length} 名分）。印刷は A4・1人1枚で出力されます。`);
+    } catch (e) {
+      setPrintMsg(`読込に失敗: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -158,7 +190,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   const anomalyTotal = rows?.reduce((s, r) => s + r.anomalyCount, 0) ?? 0;
 
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div className="nox-printpage" style={{ maxWidth: 720 }}>
       <div style={{ margin: "2px 0 14px" }}>
         <h1 style={t.pheadH1}>給与確定</h1>
       </div>
@@ -276,6 +308,48 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
         </section>
       )}
       {csvMsg && <p style={{ fontSize: 12, color: csvMsg.includes("失敗") || csvMsg.includes("ありません") ? "var(--bad)" : "var(--ok)" }}>{csvMsg}</p>}
+
+      {/* D2 報酬明細（印刷/PDF）: 確定済み run の per-cast スリップを A4・1人1枚で印刷。
+          読込後のみ nox-print（印刷対象）＝未読込時は nox-noprint で印刷経路から外す。数値は D3 CSV と同一 breakdown_json 源。 */}
+      {storeId && (
+        <section
+          className={printRows && printRows.length > 0 ? "nox-cardtop nox-print" : "nox-cardtop nox-noprint"}
+          style={{ ...t.card }}
+        >
+          <div className="nox-noprint" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 4px" }}>報酬明細（印刷 / PDF）</h3>
+              <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>
+                確定済み（{period}）の全キャストの明細を1人1枚の A4 で印刷します（白地・依存なし）。
+                「PDFで保存」も可。給与明細CSV（合算）と同じ確定値です。
+              </p>
+            </div>
+            <button
+              onClick={() => void loadPayslipsForPrint()}
+              disabled={busy || !runInfo || (runInfo.status !== "finalized" && runInfo.status !== "paid")}
+              style={runInfo && (runInfo.status === "finalized" || runInfo.status === "paid") ? { ...t.btnGhost } : { ...t.btnGhost, opacity: 0.5 }}
+              title={runInfo ? "" : "この期間はまだ確定されていません"}
+            >
+              報酬明細を読み込む
+            </button>
+            {printRows && printRows.length > 0 && (
+              <button onClick={() => window.print()} style={{ ...t.btnGold }}>印刷 / PDFで保存</button>
+            )}
+          </div>
+          {printMsg && (
+            <p className="nox-noprint" style={{ fontSize: 12, margin: "8px 0 0", color: printMsg.includes("失敗") || printMsg.includes("ありません") ? "var(--bad)" : "var(--ok)" }}>{printMsg}</p>
+          )}
+          {printRows && printRows.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              {printRows.map((r, i) => (
+                <div key={i} className="nox-print-page">
+                  <PayslipSlip slip={r.slip} castName={r.castName} />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* 確定済み給与の支払記録（選択中の店舗・期間に対して） */}
       {storeId && <PaymentPanel storeId={storeId} period={period} />}
