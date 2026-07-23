@@ -4155,6 +4155,18 @@ async function main() {
 
     // 一時 cast 一式（実 auth・前回遺物掃除→生成）
     const TMP_EMAIL = "nox-verify-cast-reg-tmp@example.com";
+    // ★孤児 auth の自己修復（段18 deleteAuthByEmail と同型）: DB 行が無くても auth 単独残りを email で除去。
+    //   これが無いと、中断で finally teardown が飛んだ場合に残った TMP_EMAIL の auth が
+    //   次回 createUser を 'already registered' で落とす（2026-07-23 顕在化の実在穴）。
+    const deleteAuthByEmail = async (email: string) => {
+      for (let page = 1; page <= 20; page++) {
+        const { data: list, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+        if (error) return;
+        const hit = list.users.find((u) => u.email === email);
+        if (hit) { await admin.auth.admin.deleteUser(hit.id); return; }
+        if (list.users.length < 200) return;
+      }
+    };
     {
       const { data: oldU } = await admin.from("users").select("id").eq("email", TMP_EMAIL);
       const oldIds = (oldU ?? []).map((r) => r.id as string);
@@ -4164,6 +4176,7 @@ async function main() {
         await admin.from("users").delete().in("id", oldIds);
       }
     }
+    await deleteAuthByEmail(TMP_EMAIL);
     let tmpAuthId = "";
     const { data: cuTmp, error: eCuTmp } = await admin.auth.admin.createUser({
       email: TMP_EMAIL, password: env.SEED_PASSWORD, email_confirm: true,
