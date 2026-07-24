@@ -39,14 +39,23 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   // D2 報酬明細（印刷）: finalized/paid run の payslips を per-cast スリップで表示→window.print（A4・1人1枚）。
   const [printRows, setPrintRows] = useState<{ castName: string; slip: PayslipRow }[] | null>(null);
   const [printMsg, setPrintMsg] = useState("");
+  // D1 確定解除（owner のみ・finalized のみ）: 支払記録件数（>0 で解除無効化）とメッセージ。
+  const [payCount, setPayCount] = useState<number | null>(null);
+  const [reopenMsg, setReopenMsg] = useState("");
 
   // run 状態を読む（payroll_runs は owner/manager RLS 可視）。store/period 変更・確定完了で再読込。
-  //   ★store/period が変わったら印刷プレビューは破棄（別店の明細を刷らない）。
+  //   ★store/period が変わったら印刷プレビュー/解除状態は破棄（別店の明細を刷らない・別 run の payCount を残さない）。
+  //   finalized/paid なら支払記録件数も読む（D1 解除の無効化判定＝物理前提と同じく payment_records の有無）。
   const loadRun = useCallback(async () => {
-    setPrintRows(null); setPrintMsg("");
+    setPrintRows(null); setPrintMsg(""); setReopenMsg(""); setPayCount(null);
     if (!storeId || !period) { setRunInfo(null); return; }
     const { data } = await supabase.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period).maybeSingle();
-    setRunInfo(data ? { id: data.id as string, status: data.status as string } : null);
+    const info = data ? { id: data.id as string, status: data.status as string } : null;
+    setRunInfo(info);
+    if (info && (info.status === "finalized" || info.status === "paid")) {
+      const { count } = await supabase.from("payment_records").select("id", { count: "exact", head: true }).eq("run_id", info.id);
+      setPayCount(count ?? 0);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, period]);
   useEffect(() => { void loadRun(); }, [loadRun, finalized]);
@@ -186,6 +195,39 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
     }
   }
 
+  // D1 確定解除（owner のみ）: finalized→draft。天引き（売掛/前借り/送り）は取り消し・確定明細は削除。
+  //   真の防御は payroll_reopen（service・owner authz は route＝decideTaxReportAccess）。成功後 loadRun 再発火（1c）。
+  async function reopen() {
+    if (!runInfo || runInfo.status !== "finalized") return;
+    if (!confirm(`${period} の確定を解除して draft に戻します。天引き（売掛・前借り・送り）は取り消され、確定明細は削除されます。よろしいですか？`)) return;
+    setReopenMsg("");
+    setBusy(true);
+    try {
+      const idemKey = crypto.randomUUID();
+      const res = await fetch("/api/payroll/reopen", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ storeId, period, idemKey }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setReopenMsg(
+          res.status === 409 && String(j.error ?? "").includes("payments exist") ? "支払記録があるため解除できません。"
+            : res.status === 409 ? `解除できません: ${j.error ?? ""}`
+            : `エラー(${res.status}): ${j.error ?? ""}`,
+        );
+        return;
+      }
+      setReopenMsg("確定を解除しました（draft に戻しました）。もう一度プレビューから確定できます。");
+      setRows(null); // 旧プレビュー表を消す（再プレビューを促す）
+      await loadRun(); // 1c: runInfo 再読込→CSV/印刷/支払/この解除セクションが draft 状態へ反転
+    } catch (e) {
+      setReopenMsg(`通信エラー: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const total = rows?.reduce((s, r) => s + r.net, 0) ?? 0;
   const anomalyTotal = rows?.reduce((s, r) => s + r.anomalyCount, 0) ?? 0;
 
@@ -284,6 +326,29 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
           </button>
           {blockers.length > 0 && <span style={{ marginLeft: 10, fontSize: 12, color: "var(--bad)" }}>未登録 cast を解消してください</span>}
         </>
+      )}
+
+      {/* D1 確定を解除（★owner のみ・finalized のみ・支払記録ありは無効化＋理由表示）。draft へ戻し天引きを取り消す。 */}
+      {isOwner && runInfo?.status === "finalized" && (
+        <section className="nox-cardtop" style={{ ...t.card, borderColor: "var(--bad)" }}>
+          <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--bad)", margin: "0 0 4px" }}>確定を解除</h3>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>
+            確定（{period}）を draft に戻します。売掛・前借り・送りの天引きは取り消され、確定明細は削除されます。
+            支払記録がある期間は解除できません。
+          </p>
+          <button
+            onClick={() => void reopen()}
+            disabled={busy || payCount === null || payCount > 0}
+            style={payCount === 0 ? { ...t.btnGhost, borderColor: "var(--bad)", color: "var(--bad)" } : { ...t.btnGhost, opacity: 0.5 }}
+            title={payCount && payCount > 0 ? "支払記録があるため解除できません" : ""}
+          >
+            確定を解除
+          </button>
+          {payCount !== null && payCount > 0 && (
+            <span style={{ marginLeft: 10, fontSize: 12, color: "var(--bad)" }}>支払記録が {payCount} 件あるため解除できません（先に支払記録をご確認ください）</span>
+          )}
+          {reopenMsg && <p style={{ fontSize: 12, marginTop: 8, color: reopenMsg.includes("エラー") || reopenMsg.includes("できません") ? "var(--bad)" : "var(--ok)" }}>{reopenMsg}</p>}
+        </section>
       )}
 
       {/* D3 給与明細CSV（確定済み run のみ活性・全cast の支給/控除/差引・振込フォーマットではない＝口座なし）。
