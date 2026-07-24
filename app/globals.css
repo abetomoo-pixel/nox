@@ -443,6 +443,32 @@ body {
 }
 @media (prefers-reduced-motion: reduce) { .nox-detailwrap { animation: none; } }
 
+/* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
+   既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
+   列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */
+.nox-wgrid {
+  display: grid;
+  grid-template-columns: 54px repeat(7, 1fr);
+  gap: 4px;
+  align-items: center;
+}
+.nox-whead { font-size: 9.5px; color: var(--sub); text-align: center; line-height: 1.35; }
+.nox-wname { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nox-wcell {
+  aspect-ratio: 1;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  color: var(--sub);
+}
+.nox-wcell.on { color: #0B0B0F; background: linear-gradient(135deg, var(--gold2), #B8893A); border-color: transparent; }
+.nox-wcell.planned { color: var(--champ); background: #1B1710; border-color: var(--gold); }
+
 /* ── D2 報酬明細：印刷（白地黒字・A4・1人1枚）── presentation-only ────────────
    ★全ルールを @media print 内に閉じる＝画面表示は 1px も変えない。
    隔離＝.nox-printpage 直下で .nox-print 以外を display:none（絶対配置は使わない＝通常フローで

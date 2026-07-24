@@ -5,7 +5,7 @@
 //   ★シフトの営業日判定は shiftHoursStatus（date 直＝cutoff 変換なし・mig0008 決定3）。
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { fmtWin } from "@/lib/nox/shift-time";
@@ -146,6 +146,21 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const closedOf = (date: string, startHm: string, endHm: string) =>
     shiftHoursStatus(date, startHm, endHm, bhRows).status === "closed";
 
+  // 段C: 週グリッド overview＝既存 shifts の client 再形（cast × 次7日・新規取得/RPC/集計なし・読取専用）。
+  const weekDays: { ymd: string; dow: number; dom: number }[] = (() => {
+    const [y, m, d] = bizToday.split("-").map(Number);
+    const base = new Date(y, m - 1, d);
+    return Array.from({ length: 7 }, (_, i) => {
+      const dt = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+      const ymd = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+      return { ymd, dow: dt.getDay(), dom: dt.getDate() };
+    });
+  })();
+  const weekSet = new Set(weekDays.map((w) => w.ymd));
+  const weekShifts = shifts.filter((s) => weekSet.has(s.date));
+  const gridCasts = casts.filter((c) => weekShifts.some((s) => s.cast_id === c.id));
+  const shiftsAt = (castId: string, ymd: string) => weekShifts.filter((s) => s.cast_id === castId && s.date === ymd);
+
   return (
     <div style={{ maxWidth: 760 }}>
       <h1 style={t.pheadH1}>シフト管理</h1>
@@ -181,6 +196,40 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             </div>
           );
         })}
+      </section>
+
+      {/* 段C: 週グリッド overview（既存 shifts の client 再形・読取専用・DESIGN_MASTER .wgrid 準拠・新規取得なし） */}
+      <section className="nox-cardtop" style={card}>
+        <h2 style={secTitle}>今週のシフト（{weekDays[0]?.ymd} 〜 次7日）</h2>
+        {gridCasts.length === 0 ? (
+          <p style={{ fontSize: 13, color: "var(--sub)" }}>今後7日の確定・予定シフトはありません</p>
+        ) : (
+          <>
+            <div className="nox-wgrid">
+              <div />
+              {weekDays.map((w) => (
+                <div key={w.ymd} className="nox-whead">{DOW[w.dow]}<br />{w.dom}</div>
+              ))}
+              {gridCasts.map((c) => (
+                <Fragment key={c.id}>
+                  <div className="nox-wname" title={c.name}>{c.name}</div>
+                  {weekDays.map((w) => {
+                    const ss = shiftsAt(c.id, w.ymd);
+                    const confirmed = ss.some((s) => s.status === "confirmed");
+                    const cls = ss.length === 0 ? "nox-wcell" : confirmed ? "nox-wcell on" : "nox-wcell planned";
+                    const title = ss.map((s) => fmtWin(s.start_hm, s.end_hm)).join(" / ");
+                    return (
+                      <div key={c.id + w.ymd} className={cls} title={title || undefined}>
+                        {ss.length ? (confirmed ? "確" : "予") : ""}
+                      </div>
+                    );
+                  })}
+                </Fragment>
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: "var(--sub)", marginTop: 8 }}>確＝確定・予＝予定（詳細と操作は下の一覧）。読取専用の週表示。</p>
+          </>
+        )}
       </section>
 
       <section className="nox-cardtop" style={card}>
