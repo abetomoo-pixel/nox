@@ -190,6 +190,31 @@ function isFnBlocked(error: { message?: string } | null): boolean {
   return !!error?.message?.includes("permission denied for function");
 }
 
+// ── ES256 kid <nil> 間欠対策（ハーネス堅牢化 2026-07-24）──────────────────────────────
+// dev auth の非対称 JWT 署名鍵ローテーション/JWKS 伝播途上で、admin.createUser が稀に
+// "unrecognized JWT kid <nil> for algorithm ES256" を返す（Supabase 側事象・断続的・createUser 限定）。
+// この過渡だけを厳密文字列一致で有界リトライ（最大3回・2s→5s）。他エラーは即返し＝本物の回帰を隠さない。
+const ES256_KID_NIL = "unrecognized JWT kid <nil>";
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+async function createUserWithRetry(
+  client: SupabaseClient,
+  attrs: { email: string; password: string; email_confirm: boolean },
+) {
+  const backoff = [2000, 5000]; // attempt1 失敗→2s→attempt2 失敗→5s→attempt3（最大3回）
+  let res = await client.auth.admin.createUser(attrs);
+  let attempt = 1;
+  while (res.error?.message?.includes(ES256_KID_NIL) && attempt <= backoff.length) {
+    await sleep(backoff[attempt - 1]);
+    attempt++;
+    console.log(`[retry] ES256 kid <nil> transient (attempt ${attempt})`);
+    res = await client.auth.admin.createUser(attrs);
+  }
+  // 失敗を返す時（kid<nil> リトライ尽き／別エラー即返し 双方）はエラー本文をログに出す
+  //（呼び出し側 assert は「kAuth:false」等しか出さず根因特定に一往復かかるため・ログのみ・assert 不変）。
+  if (res.error) console.log(`[createUser error] ${res.error.message ?? String(res.error)}`);
+  return res;
+}
+
 async function main() {
   const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -1842,7 +1867,7 @@ async function main() {
 
         // ═══ ⑦ ★結合テスト: 実 auth で作った staff が既存ゲート網（束1/束2/束3-1/Q-1）に乗る ═══
         {
-          const { data: cu, error: eCu } = await admin.auth.admin.createUser({
+          const { data: cu, error: eCu } = await createUserWithRetry(admin, {
             email: LINK_EMAIL, password: env.SEED_PASSWORD, email_confirm: true,
           });
           if (eCu || !cu?.user) {
@@ -4187,7 +4212,7 @@ async function main() {
     }
     await deleteAuthByEmail(TMP_EMAIL);
     let tmpAuthId = "";
-    const { data: cuTmp, error: eCuTmp } = await admin.auth.admin.createUser({
+    const { data: cuTmp, error: eCuTmp } = await createUserWithRetry(admin, {
       email: TMP_EMAIL, password: env.SEED_PASSWORD, email_confirm: true,
     });
     if (eCuTmp || !cuTmp?.user) { fails.push(`段31 実 auth 生成失敗: ${eCuTmp?.message}`); }
@@ -4521,7 +4546,10 @@ async function main() {
 
     const PREFIX = "NOX-VERIFY-段33";
     const TMP_EMAIL = "nox-verify-cast-invite-tmp@example.com";
-    // 前回遺物掃除（casts[FK: user_id→users]を先に消してから users）
+    // 前回遺物掃除（casts[FK: user_id→users]を先に消してから users）。
+    // ★ハーネス堅牢化 2026-07-24: PREFIX+"%"（="NOX-VERIFY-段33%"）は一時 cast の
+    //   ${PREFIX}-cast1 / -cast2 / -castA2 を包含する＝createUser が3回リトライとも失敗して
+    //   teardown が走らなかった場合の残骸を、次回実行冒頭のこの pre-clean が掃く（安価な再発防止）。
     const wipe33 = async () => {
       await admin.from("casts").delete().like("name", PREFIX + "%");
       const { data: oldU } = await admin.from("users").select("id").eq("email", TMP_EMAIL);
@@ -4543,7 +4571,7 @@ async function main() {
 
     // 実 auth（route の createUser 相当・seed と同一プリミティブ）
     let authId = "";
-    const { data: cuTmp, error: eCuTmp } = await admin.auth.admin.createUser({
+    const { data: cuTmp, error: eCuTmp } = await createUserWithRetry(admin, {
       email: TMP_EMAIL, password: env.SEED_PASSWORD, email_confirm: true,
     });
     if (eCuTmp || !cuTmp?.user) fails.push(`段33 実 auth 生成失敗: ${eCuTmp?.message}`);
@@ -4784,7 +4812,7 @@ async function main() {
     // kiosk 用 auth user（実 auth・users/memberships 行は作らない＝kiosk_devices 方式）
     let kioskAuthId = "";
     {
-      const { data: cu, error: eCu } = await admin.auth.admin.createUser({
+      const { data: cu, error: eCu } = await createUserWithRetry(admin, {
         email: kEmail, password: env.SEED_PASSWORD, email_confirm: true,
       });
       if (!eCu && cu?.user) kioskAuthId = cu.user.id;
@@ -5280,7 +5308,7 @@ async function main() {
 
     let kAuth = "";
     if (s37A1) {
-      const { data: cu, error: eCu } = await admin.auth.admin.createUser({ email: kEmail, password: env.SEED_PASSWORD, email_confirm: true });
+      const { data: cu, error: eCu } = await createUserWithRetry(admin, { email: kEmail, password: env.SEED_PASSWORD, email_confirm: true });
       if (!eCu && cu?.user) kAuth = cu.user.id;
       else if (/already|registered|exists/i.test(eCu?.message ?? "")) {
         const { data: lu } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
