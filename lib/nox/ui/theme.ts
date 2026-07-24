@@ -35,6 +35,21 @@ export const font = {
   ui: "'Zen Kaku Gothic New', sans-serif",
 } as const;
 
+// ── アバター（段E/F/G デザイン移植 2026-07-24・presentation-only）───────────────────
+// 頭文字＋名前から決定的な gradient 背景を client 生成する純関数＝★新情報を一切持たない
+//   （既存 name の1文字と、name から算出した色のみ・新規フィールド取得なし・privacy 不変）。
+// 使い方: <span className="nox-ava" style={{ background: t.avatarBg(name) }}>{t.avatarInitial(name)}</span>
+export function avatarInitial(name: string): string {
+  const s = (name ?? "").trim();
+  return s ? Array.from(s)[0] : "?";
+}
+export function avatarBg(name: string): string {
+  let h = 0;
+  for (const ch of Array.from(name ?? "")) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const hue = h % 360;
+  return `linear-gradient(135deg, hsl(${hue} 42% 58%), hsl(${(hue + 36) % 360} 38% 42%))`;
+}
+
 // ロール表示ラベル（server/client 両用の純関数＝ここは "use client" なし）。
 export function roleLabelJa(role: string): string {
   return role === "owner" ? "オーナー" : role === "manager" ? "店長" : role === "staff" ? "黒服" : role === "cast" ? "キャスト" : role;

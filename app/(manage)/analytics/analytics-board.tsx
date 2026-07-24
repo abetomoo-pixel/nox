@@ -168,7 +168,8 @@ export default function AnalyticsBoard({
             <tbody>
               {salesRanking.map((r, i) => (
                 <tr key={r.castId}>
-                  <td style={{ ...t.td, fontFamily: t.font.num }}>{i + 1}</td>
+                  {/* 段E: 順位メダル（top3=金銀銅・既存 rank のみ・新情報なし） */}
+                  <td style={t.td}><span className={`nox-medal ${i === 0 ? "g1" : i === 1 ? "g2" : i === 2 ? "g3" : "gx"}`}>{i + 1}</span></td>
                   <td style={t.td}>{r.name}</td>
                   <td style={{ ...tdNum, color: "var(--champ)", fontWeight: 700 }}>{yen(r.sales)}</td>
                   <td style={tdNum}>{r.hon}</td>
@@ -201,7 +202,8 @@ export default function AnalyticsBoard({
             <tbody>
               {ranking.map((r) => (
                 <tr key={r.cast_id}>
-                  <td style={{ ...t.td, fontFamily: t.font.num }}>{r.rank}</td>
+                  {/* 段E: 順位メダル（top3=金銀銅・既存 rank のみ・新情報なし） */}
+                  <td style={t.td}><span className={`nox-medal ${r.rank === 1 ? "g1" : r.rank === 2 ? "g2" : r.rank === 3 ? "g3" : "gx"}`}>{r.rank}</span></td>
                   <td style={t.td}>{r.cast_name}</td>
                   <td style={tdNum}>{r.hon_count}</td>
                   <td style={tdNum}>{r.jonai_count}</td>

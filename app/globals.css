@@ -469,6 +469,41 @@ body {
 .nox-wcell.on { color: #0B0B0F; background: linear-gradient(135deg, var(--gold2), #B8893A); border-color: transparent; }
 .nox-wcell.planned { color: var(--champ); background: #1B1710; border-color: var(--gold); }
 
+/* ── 段E アバター＋メダル（DESIGN_MASTER .ava/.medal 準拠）── presentation-only 2026-07-24 ──
+   既存 name/rank のみで生成＝新規取得/RPC/集計/新情報ゼロ（title/aria にも新情報を出さない）。canonical トークン。
+   .nox-ava は段F(casts)/段G(staff) でも再利用・.nox-medal は段F(ranking) でも再利用。 */
+.nox-ava {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Cormorant Garamond", serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #0B0B0F;
+  flex-shrink: 0;
+}
+.nox-medal {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Outfit", sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  flex-shrink: 0;
+  color: #0B0B0F;
+  background: var(--card2);
+}
+.nox-medal.g1 { background: linear-gradient(135deg, #F0D58A, #C9A24A); }
+.nox-medal.g2 { background: linear-gradient(135deg, #E6E6EC, #A6A6B2); }
+.nox-medal.g3 { background: linear-gradient(135deg, #E0B27A, #B07B45); }
+.nox-medal.gx { background: var(--card2); color: var(--sub); }
+
 /* ── D2 報酬明細：印刷（白地黒字・A4・1人1枚）── presentation-only ────────────
    ★全ルールを @media print 内に閉じる＝画面表示は 1px も変えない。
    隔離＝.nox-printpage 直下で .nox-print 以外を display:none（絶対配置は使わない＝通常フローで

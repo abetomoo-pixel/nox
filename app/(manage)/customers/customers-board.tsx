@@ -245,8 +245,11 @@ export default function CustomersBoard({
           <Link
             key={r.customer_id}
             href={`/customers/${r.customer_id}`}
-            style={{ display: "block", textDecoration: "none", color: "inherit", padding: "9px 0", borderBottom: "1px solid var(--line)" }}
+            style={{ display: "flex", gap: 10, alignItems: "flex-start", textDecoration: "none", color: "inherit", padding: "9px 0", borderBottom: "1px solid var(--line)" }}
           >
+            {/* 段E: 頭文字アバター（既存 name の1文字＋name 由来の色のみ・新情報なし・装飾） */}
+            <span className="nox-ava" style={{ background: t.avatarBg(r.name), marginTop: 1 }} aria-hidden="true">{t.avatarInitial(r.name)}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
               <span style={{ fontWeight: 700, fontSize: 14 }}>{r.name}</span>
               {r.furigana && <span style={{ fontSize: 11, color: "var(--sub)" }}>{r.furigana}</span>}
@@ -268,6 +271,7 @@ export default function CustomersBoard({
               <span style={{ ...t.num, color: "var(--champ)", fontWeight: 700 }}>{yen(r.total_spend)}</span>
               {r.active_bottles > 0 && <span style={{ color: "var(--sub)" }}>ボトル <span style={t.num}>{r.active_bottles}</span></span>}
               {r.open_receivable > 0 && <span style={{ color: "var(--bad)" }}>売掛 <span style={t.num}>{yen(r.open_receivable)}</span></span>}
+            </div>
             </div>
           </Link>
         ))}
