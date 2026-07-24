@@ -110,6 +110,8 @@ body {
 }
 
 /* ── レスポンシブ断点（R-1 2026-07-17 → R-2 で再設計）──────────────────────
+   ★断点の正＝641 / 900 / 1180（裁定5）。DESIGN_MASTER v1.2.0 の 768 は非拘束＝採用しない
+     （900 は実機タブレット縦をサイドバー化しない意図的判断＝迷い再発防止の 1 行）。
    ≤640px は一切触れない（--wrap-max: 520px のまま＝モバイル完全不変）。
    641–899 ＝ R-1 の成果を維持：上限 760px・下部タブバーのまま（実機タブレット縦 744/820/834 を
    サイドバー化しない＝モックの断点 768 を 900 に引き上げた設計判断・Agoora 承認 2026-07-17）。
@@ -232,6 +234,61 @@ body {
   right: 0;
   height: 2px;
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+/* ── 共通モーダル（components/ui/modal.tsx）── 段A デザイン移植 2026-07-24・presentation-only ──
+   >900px＝中央オーバーレイ（基底値＝移行前 inline overlay と一字一致・1px 不変）。
+   ≤900px＝ボトムシート（下からスライド・上部ハンドル・角丸は上のみ・safe-area 下余白）。
+   可変3値（幅／角丸／下 padding）は inline から CSS 変数橋渡しで受ける（--wrap-max と同流儀・!important 不使用）。
+   断点 900 は上のレスポンシブ節と同一（裁定5）。右ドロワー variant は段B。 */
+.nox-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, .62);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+.nox-modal-card {
+  width: 100%;
+  max-width: var(--nox-modal-max, 430px);
+}
+/* ハンドルは >900（中央ダイアログ）では出さない。≤900 のシートでのみ表示 */
+.nox-modal-handle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .nox-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .nox-modal-card {
+    max-width: none;
+    /* inline の var() をここで解決＝角丸は上端のみ・下 padding に safe-area を加算 */
+    --nox-modal-radius: 16px 16px 0 0;
+    --nox-modal-pad-b: calc(15px + env(safe-area-inset-bottom));
+    animation: nox-sheet-up .22s ease;
+  }
+  .nox-modal-handle {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: -3px auto 11px;
+    border-radius: 999px;
+    background: var(--line2);
+  }
+}
+@keyframes nox-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nox-modal-card { animation: none; }
 }
 
 /* ── D2 報酬明細：印刷（白地黒字・A4・1人1枚）── presentation-only ────────────
