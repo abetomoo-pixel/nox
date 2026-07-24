@@ -19,12 +19,39 @@ export default async function DashboardPage() {
   const store = stores?.[0];
   const settings = (store?.settings_json ?? {}) as Record<string, unknown>;
   const { data: casts } = await supabase.from("casts").select("id, name").eq("is_active", true).order("name");
+
+  // 段H: home コマンドセンター化のショートカット（クイックアクション）＝既存ルートへの純ナビ。
+  // role gate は (manage)/layout の nav と同一（逐語据置ラベル・ホーム/スタッフ/監査は除外）。
+  // 顧客の staff∧can_crm 判定は nav と同型の既存 RPC 再利用（新規 RPC/集計なし＝表示ゲートのみ）。
+  const isManagerUp = role === "owner" || role === "manager";
+  let staffCrm = false;
+  if (role === "staff") {
+    const { data } = await supabase.rpc("auth_staff_can_crm");
+    staffCrm = data === true;
+  }
+  const shortcuts: { href: string; label: string }[] = [
+    { href: "/register", label: "レジ" },
+    { href: "/shift", label: "シフト" },
+    { href: "/report", label: "日報" },
+    { href: "/notices", label: "お知らせ" },
+    ...(isManagerUp || staffCrm ? [{ href: "/customers", label: "顧客" }] : []),
+    ...(isManagerUp
+      ? [
+          { href: "/analytics", label: "分析" },
+          { href: "/payroll", label: "給与" },
+          { href: "/casts", label: "女の子" },
+          { href: "/master", label: "マスタ" },
+        ]
+      : []),
+  ];
+
   return (
     <DashboardBoard
       storeId={store?.id ?? ""}
       storeName={store?.name ?? ""}
       cutoff={typeof settings.biz_cutoff_hm === "string" && settings.biz_cutoff_hm ? (settings.biz_cutoff_hm as string) : "06:00"}
       casts={(casts ?? []) as { id: string; name: string }[]}
+      shortcuts={shortcuts}
     />
   );
 }

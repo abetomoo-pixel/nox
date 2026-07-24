@@ -6,6 +6,7 @@
 // 今月売上は「締め済み日報の積み上げ」＝現金+カードグロス+売掛+その他（モック日報の売上4分類と同型）。
 // 未締め当日分は含まない（会計中の変動値を KPI に出さない＝日報が正）。
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
@@ -24,8 +25,9 @@ const secTitle: React.CSSProperties = t.cardTitle;
 const ATT_LABEL: Record<string, string> = { shukkin: "出勤", dohan: "同伴", late: "遅刻", off: "休み", absent: "当欠" };
 const PRESENT = new Set(["shukkin", "dohan", "late"]);
 
-export default function DashboardBoard({ storeId, storeName, cutoff, casts }: {
+export default function DashboardBoard({ storeId, storeName, cutoff, casts, shortcuts }: {
   storeId: string; storeName: string; cutoff: string; casts: Cast[];
+  shortcuts: { href: string; label: string }[];
 }) {
   const supabase = createClient();
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
@@ -60,6 +62,18 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts }: {
     <div style={{ maxWidth: 760 }}>
       <h1 style={t.pheadH1}>ホーム</h1>
       <p style={t.pheadP}>{storeName}・営業日 {bizToday}</p>
+
+      {/* 段H: クイックアクション＝既存ルートへの純ナビ（役割ゲートは nav と同一・page で算出済み）。 */}
+      {shortcuts.length > 0 && (
+        <section style={{ marginTop: 14 }}>
+          <h2 style={{ ...t.cardTitle, margin: "0 0 9px" }}>クイックアクション</h2>
+          <div className="nox-quickgrid">
+            {shortcuts.map((s) => (
+              <Link key={s.href} href={s.href} className="nox-quicktile">{s.label}</Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div style={{ ...t.kpiGrid, marginTop: 13 }}>
         <div style={t.kpi}>

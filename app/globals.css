@@ -291,6 +291,45 @@ body {
   .nox-modal-card { animation: none; }
 }
 
+/* ── 段H home ショートカット（クイックアクション）── presentation-only 2026-07-24 ──
+   既存ルートへの純ナビ・canonical トークンのみ。列数は断点 641/900/1180（裁定5）で 2→3→4→5。
+   アイコン非導入（裁定2/3）＝テキストタイル。 */
+.nox-quickgrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 13px;
+}
+@media (min-width: 641px)  { .nox-quickgrid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 900px)  { .nox-quickgrid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1180px) { .nox-quickgrid { grid-template-columns: repeat(5, 1fr); } }
+.nox-quicktile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: 14px 8px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--card2), var(--card));
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease;
+}
+.nox-quicktile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(201, 162, 74, .35);
+  background: linear-gradient(180deg, var(--card2), var(--card2));
+}
+@media (prefers-reduced-motion: reduce) {
+  .nox-quicktile:hover { transform: none; }
+}
+
 /* ── D2 報酬明細：印刷（白地黒字・A4・1人1枚）── presentation-only ────────────
    ★全ルールを @media print 内に閉じる＝画面表示は 1px も変えない。
    隔離＝.nox-printpage 直下で .nox-print 以外を display:none（絶対配置は使わない＝通常フローで
