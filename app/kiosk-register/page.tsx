@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { groupDue } from "@/lib/nox/check-calc";
+import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import * as t from "@/lib/nox/ui/theme";
 
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
@@ -40,6 +41,10 @@ const yen = (n: number) => "¥" + n.toLocaleString();
 const METHOD_LABEL: Record<string, string> = { cash: "現金", card: "カード", ar: "売掛", other: "その他" };
 const DETAIL_METHODS = new Set(["card", "other"]);
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
+// 段B: 商品タイルの type 別見出し（products.type＝drink/champ/bottle・既存カラム）・滞在経過は started_at から算出。
+const TYPE_LABEL: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
+const TYPE_ORDER = ["drink", "champ", "bottle"] as const;
+const elapsedMin = (started: string, now: number) => Math.max(0, Math.floor((now - new Date(started).getTime()) / 60000));
 const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "黒服" };
 const IDLE_MS = 15 * 60_000; // サーバ側 15分失効（確定④）のローカル鏡像＝表示と自動ロックのみ
 
@@ -105,9 +110,7 @@ export default function KioskRegisterPage() {
   // フォーム状態（register-board 写経）
   const [nomType, setNomType] = useState("hon");
   const [nomWeights, setNomWeights] = useState<Record<string, number>>({});
-  const [prodId, setProdId] = useState("");
-  const [prodQty, setProdQty] = useState(1);
-  const [prodGroup, setProdGroup] = useState("A");
+  const [prodGroup, setProdGroup] = useState("A"); // 段B: タイル追加先の伝票グループ（既定 A）
   const [cName, setCName] = useState("");
   const [cPrice, setCPrice] = useState(0);
   const [cKind, setCKind] = useState("set");
@@ -204,6 +207,25 @@ export default function KioskRegisterPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionLostIf]);
 
+  // 段B タップ注文: 商品タイル連打を束ねて check_add_line(p_qty=N) を1回（直列 flush・単一 pending・権威はサーバ）。
+  const commitLine = useCallback(
+    async (pid: string, qty: number): Promise<{ error: { message?: string } | null }> => {
+      if (!detail) return { error: { message: "伝票がありません" } };
+      const { error } = await supabase.rpc("check_add_line", {
+        p_check_id: detail.check.id, p_product_id: pid, p_qty: qty, p_kind: null,
+        p_pay_group: prodGroup || "A", p_name: null, p_unit_price: null,
+      });
+      if (error) sessionLostIf(error); // forbidden＝セッション失効→operator へ（それ以外は無害）
+      return { error };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [detail, prodGroup, sessionLostIf],
+  );
+  const reloadCurrent = useCallback(async () => {
+    if (detail) { await loadDetail(detail.check.id); await refreshState(); }
+  }, [detail, loadDetail, refreshState]);
+  const tb = useTapBatch(commitLine, reloadCurrent, (m) => setMsg(m));
+
   // ── 操作担当（PIN セッション）──
   function pickOperator(o: OpRow) {
     if (!o.has_pin) return;
@@ -249,7 +271,9 @@ export default function KioskRegisterPage() {
     (state?.checks ?? []).find((c) => c.seat_id === seatId || c.extra_seat_ids.includes(seatId));
 
   async function openSeat(seat: StateSeat) {
-    markAction(); setMsg(null); setSeatMsg(null);
+    markAction();
+    if (!(await tb.flush())) return; // 別 check へ切替前に保留を現 check へ確定（失敗＝中止）
+    setMsg(null); setSeatMsg(null);
     const existing = openBySeat(seat.id);
     if (existing) { await loadDetail(existing.id); return; }
     const { data, error } = await supabase.rpc("check_open", { p_seat_id: seat.id, p_people: null, p_nom_type: "free" });
@@ -260,7 +284,9 @@ export default function KioskRegisterPage() {
 
   async function saveNoms() {
     if (!detail) return;
-    markAction(); setMsg(null);
+    markAction();
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setMsg(null);
     const list = Object.entries(nomWeights)
       .filter(([, w]) => w > 0)
       .map(([cast_id, weight]) => ({ cast_id, weight }));
@@ -272,22 +298,13 @@ export default function KioskRegisterPage() {
     await loadDetail(detail.check.id);
   }
 
-  async function addProductLine() {
-    if (!detail || !prodId) return;
-    markAction(); setMsg(null);
-    const { error } = await supabase.rpc("check_add_line", {
-      p_check_id: detail.check.id, p_product_id: prodId, p_qty: prodQty, p_kind: null,
-      p_pay_group: prodGroup || "A", p_name: null, p_unit_price: null,
-    });
-    if (error && sessionLostIf(error)) return;
-    setMsg(error ? error.message : null);
-    await loadDetail(detail.check.id);
-    await refreshState();
-  }
+  // （段B: 商品プルダウンの addProductLine は廃止＝タイル tap→tb.flush の check_add_line に置換）
 
   async function addCustomLine() {
     if (!detail || !cName) return;
-    markAction(); setMsg(null);
+    markAction();
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setMsg(null);
     const { error } = await supabase.rpc("check_add_line", {
       p_check_id: detail.check.id, p_product_id: null, p_qty: 1, p_kind: cKind,
       p_pay_group: cGroup || "A", p_name: cName, p_unit_price: cPrice,
@@ -301,7 +318,9 @@ export default function KioskRegisterPage() {
 
   async function removeLine(lineId: string) {
     if (!detail) return;
-    markAction(); setMsg(null);
+    markAction();
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setMsg(null);
     const { error } = await supabase.rpc("check_remove_line", { p_line_id: lineId });
     if (error && sessionLostIf(error)) return;
     setMsg(error ? error.message : null);
@@ -311,7 +330,9 @@ export default function KioskRegisterPage() {
 
   async function applyTimeCharge() {
     if (!detail) return;
-    markAction(); setTimeMsg(null);
+    markAction();
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setTimeMsg(null);
     const { data, error } = await supabase.rpc("check_time_charge_apply", { p_check_id: detail.check.id });
     if (error) { if (!sessionLostIf(error)) setTimeMsg(timeErrJa(error.message)); return; }
     await loadDetail(detail.check.id); // timeCalc は loadDetail でクリアされるため下で再設定
@@ -322,7 +343,9 @@ export default function KioskRegisterPage() {
   // B1/B2 席操作（kiosk は reservations を読めない＝予約 soft 警告なし・拒否系は RPC が握る）
   async function addSeat(seatId: string) {
     if (!detail || !seatId) return;
-    markAction(); setSeatMsg(null);
+    markAction();
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setSeatMsg(null);
     const { error } = await supabase.rpc("check_add_seat", { p_check_id: detail.check.id, p_seat_id: seatId });
     if (error) { if (!sessionLostIf(error)) setSeatMsg(seatErrJa(error.message)); return; }
     setSeatMsg("相席（同一会計）に追加しました。");
@@ -331,7 +354,9 @@ export default function KioskRegisterPage() {
   }
   async function removeSeat(seatId: string) {
     if (!detail) return;
-    markAction(); setSeatMsg(null);
+    markAction();
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setSeatMsg(null);
     const { error } = await supabase.rpc("check_remove_seat", { p_check_id: detail.check.id, p_seat_id: seatId });
     if (error) { if (!sessionLostIf(error)) setSeatMsg(seatErrJa(error.message)); return; }
     setSeatMsg("相席を解除しました。");
@@ -340,7 +365,9 @@ export default function KioskRegisterPage() {
   }
   async function moveSeat(seatId: string) {
     if (!detail || !seatId) return;
-    markAction(); setSeatMsg(null);
+    markAction();
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setSeatMsg(null);
     const { error } = await supabase.rpc("check_move_seat", { p_check_id: detail.check.id, p_to_seat_id: seatId });
     if (error) { if (!sessionLostIf(error)) setSeatMsg(seatErrJa(error.message)); return; }
     setSeatMsg("席を移動しました。");
@@ -350,7 +377,9 @@ export default function KioskRegisterPage() {
 
   async function pay() {
     if (!detail) return;
-    markAction(); setMsg(null);
+    markAction();
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止・入金前提）
+    setMsg(null);
     const dtl = DETAIL_METHODS.has(payMethod) && payDetail.trim() ? payDetail.trim() : null;
     const { error } = await supabase.rpc("check_pay", {
       p_check_id: detail.check.id, p_method: payMethod, p_amount: payAmount,
@@ -367,7 +396,9 @@ export default function KioskRegisterPage() {
 
   async function closeCheck() {
     if (!detail) return;
-    markAction(); setMsg(null);
+    markAction();
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止・締め前提）
+    setMsg(null);
     const { error } = await supabase.rpc("check_close", { p_check_id: detail.check.id, p_idem_key: crypto.randomUUID() });
     if (error) { if (!sessionLostIf(error)) setMsg(error.message); return; }
     setMsg(`会計完了 ${yen(detail.check.total)}`);
@@ -392,6 +423,12 @@ export default function KioskRegisterPage() {
       ...m,
       [g]: r.already_queued ? "印刷待ちに追加済みです" : r.is_reprint ? "印刷します（再発行）" : "印刷します",
     }));
+  }
+
+  // 段B: 伝票詳細シート（≤900）の背景タップで閉じる＝保留を確定してから閉じる（失敗＝中止・シート維持）
+  async function closeDetail() {
+    if (!(await tb.flush())) return;
+    setDetail(null);
   }
 
   // group 集計（register-board 写経・権威はサーバ＝check_pay/close が最終判定）
@@ -575,15 +612,22 @@ export default function KioskRegisterPage() {
               {msg && <p style={{ fontSize: 12, color: "var(--sub)" }}>{msg}</p>}
             </section>
 
-            {/* 伝票（読取は 0059 detail） */}
+            {/* 伝票（読取は 0059 detail・≤900px はボトムシート＝段A nox-sheet-up 流用／>900px は現行 inline を 1px 不変で維持） */}
             {detail && (
-              <section style={{ flex: 1, minWidth: 480 }}>
+              <>
+              <div className="nox-detail-backdrop" onClick={() => void closeDetail()} aria-hidden="true" />
+              <div className="nox-detailwrap">
+                <div className="nox-detail-handle" aria-hidden="true" />
+                <section>
                 <div className="nox-cardtop" style={card}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--champ)", margin: 0 }}>
                       伝票（{seats.find((s) => s.id === detail.check.seat_id)?.name ?? "—"}）
                     </h2>
                     <span style={{ fontSize: 13, color: "var(--sub)" }}>{NOM_LABEL[detail.check.nom_type]}</span>
+                    {detail.check.status === "open" && (
+                      <span style={{ fontSize: 12, color: "var(--sub)" }}>滞在 <span style={t.num}>{elapsedMin(detail.check.started_at, nowMs)}</span> 分</span>
+                    )}
                     <span style={{ ...t.num, marginLeft: "auto", fontSize: 18, fontWeight: 700, color: "var(--champ)" }}>{yen(detail.check.total)}</span>
                     {/* 取消（void）はレジ端末に出さない＝裁定11 確定①（責任者操作） */}
                   </div>
@@ -599,23 +643,29 @@ export default function KioskRegisterPage() {
                       <option value="dohan">同伴</option>
                       <option value="free">フリー</option>
                     </select>
-                    {(state?.casts ?? []).map((ca) => (
-                      <label key={ca.id} style={{ fontSize: 13, color: "var(--ink)", display: "flex", gap: 4, alignItems: "center" }}>
-                        <input
-                          type="checkbox"
-                          checked={(nomWeights[ca.id] ?? 0) > 0}
-                          onChange={(e) => setNomWeights((w) => ({ ...w, [ca.id]: e.target.checked ? 1 : 0 }))}
-                        />
-                        {ca.name}
-                        {(nomWeights[ca.id] ?? 0) > 0 && nomType !== "free" && (
-                          <input
-                            type="number" min={1} value={nomWeights[ca.id]}
-                            onChange={(e) => setNomWeights((w) => ({ ...w, [ca.id]: Number(e.target.value) }))}
-                            style={{ ...input, width: 52 }}
-                          />
-                        )}
-                      </label>
-                    ))}
+                    {/* 段B: cast チップ化（タップで選択トグル・重みは選択時のみ inline input＝データ形 nomWeights は不変） */}
+                    {(state?.casts ?? []).map((ca) => {
+                      const w = nomWeights[ca.id] ?? 0;
+                      const on = w > 0;
+                      return (
+                        <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <button
+                            type="button"
+                            className={on ? "nox-chip on" : "nox-chip"}
+                            onClick={() => setNomWeights((prev) => ({ ...prev, [ca.id]: on ? 0 : 1 }))}
+                          >
+                            {ca.name}
+                          </button>
+                          {on && nomType !== "free" && (
+                            <input
+                              type="number" min={1} value={w} aria-label={`${ca.name} 重み`}
+                              onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
+                              style={{ ...input, width: 46, padding: "6px 6px" }}
+                            />
+                          )}
+                        </span>
+                      );
+                    })}
                     <button onClick={() => void saveNoms()} style={btnDark}>保存</button>
                   </div>
                 </div>
@@ -679,20 +729,36 @@ export default function KioskRegisterPage() {
 
                 {/* 明細追加 */}
                 <div className="nox-cardtop" style={card}>
-                  <h3 style={t.cardTitle}>明細追加</h3>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-                    <select value={prodId} onChange={(e) => setProdId(e.target.value)} style={{ ...input, maxWidth: 220 }}>
-                      <option value="">商品を選択</option>
-                      {(state?.products ?? []).map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}（{yen(p.price)}）</option>
-                      ))}
-                    </select>
-                    <input type="number" min={1} value={prodQty} onChange={(e) => setProdQty(Number(e.target.value))} style={{ ...input, width: 60 }} />
-                    <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
-                    <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} style={{ ...input, width: 40 }} />
-                    <button onClick={() => void addProductLine()} style={btnDark}>追加</button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                    <h3 style={{ ...t.cardTitle, margin: 0 }}>商品（タップで追加）</h3>
+                    <span style={{ fontSize: 12, color: "var(--sub)", marginLeft: "auto" }}>伝票グループ</span>
+                    <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} aria-label="伝票グループ" style={{ ...input, width: 40 }} />
                   </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  {/* type 別（drink/champ/bottle）タイル。タップ＝連打束ね（700ms・p_qty=N の1行）。バッジ=pre-commit。 */}
+                  {TYPE_ORDER.map((ty) => {
+                    const items = (state?.products ?? []).filter((p) => p.type === ty);
+                    if (items.length === 0) return null;
+                    return (
+                      <div key={ty} style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--sub)", margin: "0 0 6px" }}>{TYPE_LABEL[ty]}</div>
+                        <div className="nox-tilegrid">
+                          {items.map((p) => {
+                            const n = tb.badgeOf(p.id);
+                            return (
+                              <button key={p.id} type="button" className="nox-tile" onClick={() => tb.tap(p.id)}>
+                                {n > 0 && <span className="nox-tile-badge">+{n}</span>}
+                                <span className="nox-tile-name">{p.name}</span>
+                                <span className="nox-tile-price">{yen(p.price)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {(state?.products ?? []).length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>商品が未登録です。</p>}
+                  {/* カスタム明細（kind/名称/価格）＝据置 */}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
                     <select value={cKind} onChange={(e) => setCKind(e.target.value)} style={input}>
                       <option value="set">セット</option>
                       <option value="time">延長</option>
@@ -818,7 +884,9 @@ export default function KioskRegisterPage() {
                     </button>
                   )}
                 </div>
-              </section>
+                </section>
+              </div>
+              </>
             )}
           </div>
         )}

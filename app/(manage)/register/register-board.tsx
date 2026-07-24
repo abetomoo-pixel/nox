@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { groupDue } from "@/lib/nox/check-calc";
+import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import * as t from "@/lib/nox/ui/theme";
 import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
@@ -53,6 +54,10 @@ type Approval = {
 };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
+// 段B: 商品タイルの type 別見出し（products.type＝drink/champ/bottle・既存カラム）。滞在経過は started_at から算出。
+const TYPE_LABEL: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
+const TYPE_ORDER = ["drink", "champ", "bottle"] as const;
+const elapsedMin = (started: string, now: number) => Math.max(0, Math.floor((now - new Date(started).getTime()) / 60000));
 // ★台帳 #36（F4c 裁定 2026-07-17）: 決済手段の語彙は4値で確定（端末カード=card・QR/電子マネー=other に収容し、
 //   手段の内訳は payments.method_detail の自由記述で drill-down する＝mig0046）。
 //   語彙を増やす場合は5点セットの同時改修が必須:
@@ -126,6 +131,7 @@ export default function RegisterBoard({
   //   union consult がホスト伝票を返す）。primaryOf は checkId→主席 seat_id（ホスト名の解決用）。
   const [addMap, setAddMap] = useState<Record<string, string>>({});
   const [primaryOf, setPrimaryOf] = useState<Record<string, string>>({});
+  const [openStarted, setOpenStarted] = useState<Record<string, string>>({}); // 段B: 主席 seat_id→started_at（floor 滞在）
   const [checkSeats, setCheckSeats] = useState<CheckSeatRow[]>([]);
   const [seatMsg, setSeatMsg] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckRow | null>(null);
@@ -168,19 +174,19 @@ export default function RegisterBoard({
   const [timeCalc, setTimeCalc] = useState<TimeCalc | null>(null);
   const [timeMsg, setTimeMsg] = useState<string | null>(null);
   // 経過時間の分表示用の時刻 tick（open 伝票がある間だけ 30 秒ごと更新＝分単位で十分）
+  // 経過時間の分表示用の時刻 tick（open 伝票 or 占有卓がある間だけ 30 秒ごと更新＝分単位で十分・段B floor 滞在にも使う）
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
-    if (!check || check.status !== "open") return;
+    const hasLive = (check && check.status === "open") || Object.keys(openMap).length > 0;
+    if (!hasLive) return;
     const id = setInterval(() => setNowMs(Date.now()), 30_000);
     return () => clearInterval(id);
-  }, [check]);
+  }, [check, openMap]);
 
   // フォーム状態
   const [nomType, setNomType] = useState("hon");
   const [nomWeights, setNomWeights] = useState<Record<string, number>>({});
-  const [prodId, setProdId] = useState("");
-  const [prodQty, setProdQty] = useState(1);
-  const [prodGroup, setProdGroup] = useState("A");
+  const [prodGroup, setProdGroup] = useState("A"); // 段B: タイル追加先の伝票グループ（既定 A）
   const [cName, setCName] = useState("");
   const [cPrice, setCPrice] = useState(0);
   const [cKind, setCKind] = useState("set");
@@ -197,15 +203,17 @@ export default function RegisterBoard({
   const [apReason, setApReason] = useState("");
 
   const loadOpenMap = useCallback(async () => {
-    const { data } = await supabase.from("checks").select("id, seat_id").eq("status", "open");
+    // 段B 滞在タイマー: started_at を追加取得（クライアント直 SELECT の列追加＝presentation 扱い・RPC 非改変）。
+    const { data } = await supabase.from("checks").select("id, seat_id, started_at").eq("status", "open");
     const m: Record<string, string> = {};      // 主席 seat_id → checkId
     const pm: Record<string, string> = {};      // checkId → 主席 seat_id（ホスト名解決）
-    for (const r of data ?? []) { m[r.seat_id as string] = r.id as string; pm[r.id as string] = r.seat_id as string; }
+    const st: Record<string, string> = {};      // 主席 seat_id → started_at（席タイルの経過表示）
+    for (const r of data ?? []) { m[r.seat_id as string] = r.id as string; pm[r.id as string] = r.seat_id as string; st[r.seat_id as string] = r.started_at as string; }
     // B1/B2: 追加席の占有（check_seats は transient＝open 伝票分のみ・RLS で自店/自 org 可視＝G27 検証済み）
     const { data: cs } = await supabase.from("check_seats").select("seat_id, check_id");
     const am: Record<string, string> = {};
     for (const r of cs ?? []) am[r.seat_id as string] = r.check_id as string;
-    setOpenMap(m); setPrimaryOf(pm); setAddMap(am);
+    setOpenMap(m); setPrimaryOf(pm); setAddMap(am); setOpenStarted(st);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -252,7 +260,24 @@ export default function RegisterBoard({
 
   useEffect(() => { void loadOpenMap(); }, [loadOpenMap]);
 
+  // 段B タップ注文: 商品タイル連打を束ねて check_add_line(p_qty=N) を1回（直列 flush・単一 pending・権威はサーバ）。
+  const commitLine = useCallback(
+    async (pid: string, qty: number): Promise<{ error: { message?: string } | null }> => {
+      if (!check) return { error: { message: "伝票がありません" } };
+      const { error } = await supabase.rpc("check_add_line", {
+        p_check_id: check.id, p_product_id: pid, p_qty: qty, p_kind: null,
+        p_pay_group: prodGroup || "A", p_name: null, p_unit_price: null,
+      });
+      return { error };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [check, prodGroup],
+  );
+  const reloadCurrent = useCallback(async () => { if (check) await loadCheck(check.id); }, [check, loadCheck]);
+  const tb = useTapBatch(commitLine, reloadCurrent, (m) => setMsg(m));
+
   async function openSeat(seat: Seat) {
+    if (!(await tb.flush())) return; // 別 check へ切替前に保留を現 check へ確定（失敗＝中止）
     setMsg(null);
     setSeatMsg(null); // B1/B2: 席操作メッセージのクリアは席切替のここでのみ（loadCheck では消さない）
     // B1/B2: 主席 ∪ 追加席の占有ならその伝票を開く（追加席は union consult でホスト伝票＝addMap で直接解決）
@@ -266,6 +291,7 @@ export default function RegisterBoard({
 
   async function saveNoms() {
     if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     const list = Object.entries(nomWeights)
       .filter(([, w]) => w > 0)
@@ -277,19 +303,11 @@ export default function RegisterBoard({
     await loadCheck(check.id);
   }
 
-  async function addProductLine() {
-    if (!check || !prodId) return;
-    setMsg(null);
-    const { error } = await supabase.rpc("check_add_line", {
-      p_check_id: check.id, p_product_id: prodId, p_qty: prodQty, p_kind: null,
-      p_pay_group: prodGroup || "A", p_name: null, p_unit_price: null,
-    });
-    setMsg(error ? error.message : null);
-    await loadCheck(check.id);
-  }
+  // （段B: 商品プルダウンの addProductLine は廃止＝タイル tap→tb.flush の check_add_line に置換）
 
   async function addCustomLine() {
     if (!check || !cName) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     const { error } = await supabase.rpc("check_add_line", {
       p_check_id: check.id, p_product_id: null, p_qty: 1, p_kind: cKind,
@@ -302,6 +320,7 @@ export default function RegisterBoard({
 
   async function removeLine(lineId: string) {
     if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     const { error } = await supabase.rpc("check_remove_line", { p_line_id: lineId });
     setMsg(error ? error.message : null);
@@ -313,6 +332,7 @@ export default function RegisterBoard({
   //   裁定(f): ボタン起点のみ（伝票表示時の自動 apply はしない）。
   async function applyTimeCharge() {
     if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setTimeMsg(null);
     const { data, error } = await supabase.rpc("check_time_charge_apply", { p_check_id: check.id });
     if (error) { setTimeMsg(timeErrJa(error.message)); return; }
@@ -336,6 +356,7 @@ export default function RegisterBoard({
   // B1 相席追加（check_add_seat）。予約 soft 警告を添えて続行。
   async function addSeat(seatId: string) {
     if (!check || !seatId) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setSeatMsg(null);
     const warn = await reservedNote(seatId);
     const { error } = await supabase.rpc("check_add_seat", { p_check_id: check.id, p_seat_id: seatId });
@@ -348,6 +369,7 @@ export default function RegisterBoard({
   // B1 相席解除（check_remove_seat・追加席のみ・主席は home seat 拒否）
   async function removeSeat(seatId: string) {
     if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setSeatMsg(null);
     const { error } = await supabase.rpc("check_remove_seat", { p_check_id: check.id, p_seat_id: seatId });
     if (error) { setSeatMsg(seatErrJa(error.message)); return; }
@@ -359,6 +381,7 @@ export default function RegisterBoard({
   // B2 席移動（check_move_seat）。予約 soft 警告を添えて続行。成功文言はモック Ix 準拠。
   async function moveSeat(seatId: string) {
     if (!check || !seatId) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setSeatMsg(null);
     const warn = await reservedNote(seatId);
     const { error } = await supabase.rpc("check_move_seat", { p_check_id: check.id, p_to_seat_id: seatId });
@@ -370,6 +393,7 @@ export default function RegisterBoard({
 
   async function pay() {
     if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止・入金前提）
     setMsg(null);
     // F4c: detail は card/other のときだけ送る（空/空白のみは null＝RPC 側も nullif(trim()) で二重に守る）
     const detail = DETAIL_METHODS.has(payMethod) && payDetail.trim() ? payDetail.trim() : null;
@@ -388,6 +412,7 @@ export default function RegisterBoard({
 
   async function closeCheck() {
     if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止・締め前提）
     setMsg(null);
     const { error } = await supabase.rpc("check_close", { p_check_id: check.id, p_idem_key: crypto.randomUUID() });
     if (error) { setMsg(error.message); return; }
@@ -404,6 +429,7 @@ export default function RegisterBoard({
 
   async function voidCheck() {
     if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     const reason = window.prompt("取消理由を入力してください");
     if (!reason) return;
     const { error } = await supabase.rpc("check_void", { p_check_id: check.id, p_reason: reason });
@@ -413,9 +439,16 @@ export default function RegisterBoard({
     await loadOpenMap();
   }
 
+  // 段B: 伝票詳細シート（≤900）の背景タップで閉じる＝保留を確定してから閉じる（失敗＝中止・シート維持）
+  async function closeDetail() {
+    if (!(await tb.flush())) return;
+    setCheck(null);
+  }
+
   // F3c: 割引/無料 申請（黒服 can_register）・適用（owner/manager 直接）
   async function requestOrApply() {
     if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（割引は総額に依存・失敗＝中止）
     setMsg(null);
     const rpc = isManagerUp ? "approval_direct" : "approval_request";
     const { error } = await supabase.rpc(rpc, {
@@ -432,6 +465,7 @@ export default function RegisterBoard({
   // F3c: 承認/却下（owner/manager のみ）
   async function decide(approvalId: string, approve: boolean) {
     if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     const { error } = await supabase.rpc("approval_decide", { p_approval_id: approvalId, p_approve: approve });
     if (error) { setMsg(`${approve ? "承認" : "却下"}に失敗: ${apErrJa(error.message)}`); return; }
@@ -522,7 +556,7 @@ export default function RegisterBoard({
           >
             {s.name} {s.kind ? `(${s.kind})` : ""}{" "}
             {openMap[s.id]
-              ? "● 使用中"
+              ? `● 使用中${openStarted[s.id] ? ` ・ 滞在 ${elapsedMin(openStarted[s.id], nowMs)}分` : ""}`
               : addMap[s.id]
                 ? `● ${seats.find((h) => h.id === primaryOf[addMap[s.id]])?.name ?? "他卓"} と同一会計`
                 : "空"}
@@ -531,15 +565,22 @@ export default function RegisterBoard({
         {msg && <p style={{ fontSize: 12, color: "var(--sub)" }}>{msg}</p>}
       </section>
 
-      {/* 伝票 */}
+      {/* 伝票（≤900px はボトムシート＝段A nox-sheet-up 流用／>900px は現行 inline を 1px 不変で維持） */}
       {check && (
-        <section style={{ flex: 1, minWidth: 480 }}>
+        <>
+        <div className="nox-detail-backdrop" onClick={() => void closeDetail()} aria-hidden="true" />
+        <div className="nox-detailwrap">
+          <div className="nox-detail-handle" aria-hidden="true" />
+          <section>
           <div className="nox-cardtop" style={card}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--champ)", margin: 0 }}>
                 伝票（{seats.find((s) => s.id === check.seat_id)?.name}）
               </h2>
               <span style={{ fontSize: 13, color: "var(--sub)" }}>{NOM_LABEL[check.nom_type]}</span>
+              {check.status === "open" && (
+                <span style={{ fontSize: 12, color: "var(--sub)" }}>滞在 <span style={t.num}>{elapsedMin(check.started_at, nowMs)}</span> 分</span>
+              )}
               <span style={{ ...t.num, marginLeft: "auto", fontSize: 18, fontWeight: 700, color: "var(--champ)" }}>{yen(check.total)}</span>
               {/* void は manager 以上のみ表示（RPC 側でも owner/manager を強制＝二重） */}
               {isManagerUp && (
@@ -560,27 +601,29 @@ export default function RegisterBoard({
                 <option value="dohan">同伴</option>
                 <option value="free">フリー</option>
               </select>
-              {casts.map((ca) => (
-                <label key={ca.id} style={{ fontSize: 13, color: "var(--ink)", display: "flex", gap: 4, alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={(nomWeights[ca.id] ?? 0) > 0}
-                    onChange={(e) =>
-                      setNomWeights((w) => ({ ...w, [ca.id]: e.target.checked ? 1 : 0 }))
-                    }
-                  />
-                  {ca.name}
-                  {(nomWeights[ca.id] ?? 0) > 0 && nomType !== "free" && (
-                    <input
-                      type="number"
-                      min={1}
-                      value={nomWeights[ca.id]}
-                      onChange={(e) => setNomWeights((w) => ({ ...w, [ca.id]: Number(e.target.value) }))}
-                      style={{ ...input, width: 52 }}
-                    />
-                  )}
-                </label>
-              ))}
+              {/* 段B: cast チップ化（タップで選択トグル・重みは選択時のみ inline input＝データ形 nomWeights は不変） */}
+              {casts.map((ca) => {
+                const w = nomWeights[ca.id] ?? 0;
+                const on = w > 0;
+                return (
+                  <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <button
+                      type="button"
+                      className={on ? "nox-chip on" : "nox-chip"}
+                      onClick={() => setNomWeights((prev) => ({ ...prev, [ca.id]: on ? 0 : 1 }))}
+                    >
+                      {ca.name}
+                    </button>
+                    {on && nomType !== "free" && (
+                      <input
+                        type="number" min={1} value={w} aria-label={`${ca.name} 重み`}
+                        onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
+                        style={{ ...input, width: 46, padding: "6px 6px" }}
+                      />
+                    )}
+                  </span>
+                );
+              })}
               <button onClick={saveNoms} style={btnDark}>保存</button>
             </div>
           </div>
@@ -655,22 +698,36 @@ export default function RegisterBoard({
 
           {/* 明細追加 */}
           <div className="nox-cardtop" style={card}>
-            <h3 style={t.cardTitle}>明細追加</h3>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-              <select value={prodId} onChange={(e) => setProdId(e.target.value)} style={{ ...input, maxWidth: 220 }}>
-                <option value="">商品を選択</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}（{yen(p.price)}）
-                  </option>
-                ))}
-              </select>
-              <input type="number" min={1} value={prodQty} onChange={(e) => setProdQty(Number(e.target.value))} style={{ ...input, width: 60 }} />
-              <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
-              <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} style={{ ...input, width: 40 }} />
-              <button onClick={addProductLine} style={btnDark}>追加</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <h3 style={{ ...t.cardTitle, margin: 0 }}>商品（タップで追加）</h3>
+              <span style={{ fontSize: 12, color: "var(--sub)", marginLeft: "auto" }}>伝票グループ</span>
+              <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} aria-label="伝票グループ" style={{ ...input, width: 40 }} />
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {/* type 別（drink/champ/bottle）タイル。タップ＝連打束ね（700ms・p_qty=N の1行）。バッジ=pre-commit。 */}
+            {TYPE_ORDER.map((ty) => {
+              const items = products.filter((p) => p.type === ty);
+              if (items.length === 0) return null;
+              return (
+                <div key={ty} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--sub)", margin: "0 0 6px" }}>{TYPE_LABEL[ty]}</div>
+                  <div className="nox-tilegrid">
+                    {items.map((p) => {
+                      const n = tb.badgeOf(p.id);
+                      return (
+                        <button key={p.id} type="button" className="nox-tile" onClick={() => tb.tap(p.id)}>
+                          {n > 0 && <span className="nox-tile-badge">+{n}</span>}
+                          <span className="nox-tile-name">{p.name}</span>
+                          <span className="nox-tile-price">{yen(p.price)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {products.length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>商品が未登録です（マスタで登録してください）。</p>}
+            {/* カスタム明細（kind/名称/価格）＝据置 */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
               <select value={cKind} onChange={(e) => setCKind(e.target.value)} style={input}>
                 <option value="set">セット</option>
                 <option value="time">延長</option>
@@ -866,7 +923,9 @@ export default function RegisterBoard({
               会計完了（close）
             </button>
           </div>
-        </section>
+          </section>
+        </div>
+        </>
       )}
       {!check && <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>}
       {/* A2（裁定8）: ボトルキープ登録＝checkout フロー内（NOX8 裁定）。会計タブ末尾の全幅カード */}
