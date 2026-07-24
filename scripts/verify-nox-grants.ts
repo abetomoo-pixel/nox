@@ -234,6 +234,30 @@ async function main() {
         `保持者: ${roles.join(", ")}`,
       );
     }
+    // G8c: D1 給与確定解除 payroll_reopen（mig0060）= service_role のみ＋署名一意＋reopen_idem_key 列
+    {
+      const roles = await roleOf("payroll_reopen");
+      const leaked = roles.filter((x) => ["anon", "authenticated", "public"].includes(x));
+      check("G8 payroll_reopen EXECUTE = service_role のみ", roles.includes("service_role") && leaked.length === 0, `保持者: ${roles.join(", ") || "(なし)"}`);
+      const sig = await db.query(
+        `select pg_get_function_identity_arguments(p.oid) as args, p.prosecdef
+           from pg_proc p where p.pronamespace='public'::regnamespace and p.proname='payroll_reopen'`,
+      );
+      check(
+        "G8 payroll_reopen 署名一意（4 uuid・secdef）",
+        sig.rowCount === 1 && sig.rows[0].args === "p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid" && sig.rows[0].prosecdef === true,
+        JSON.stringify(sig.rows),
+      );
+      const col = await db.query(
+        `select data_type, is_nullable from information_schema.columns
+          where table_schema='public' and table_name='payroll_runs' and column_name='reopen_idem_key'`,
+      );
+      check(
+        "G8 reopen_idem_key 列（uuid/nullable）",
+        col.rowCount === 1 && col.rows[0].data_type === "uuid" && col.rows[0].is_nullable === "YES",
+        JSON.stringify(col.rows),
+      );
+    }
     // G8b: attendance_incentives（mig0017・#32）RLS 有効・パターン3 SELECT 1本
     const ai = await db.query(
       `select relrowsecurity from pg_class where relnamespace='public'::regnamespace and relname='attendance_incentives'`,

@@ -629,6 +629,15 @@ async function main() {
       check(`authenticated ${fn} BLOCKED（service_role 限定）`, isFnBlocked(eSvc), eSvc?.message ?? "実行できてしまった");
     }
 
+    // 段11c: D1 給与確定解除 payroll_reopen（mig0060）も service_role 限定＝anon/authenticated 両 BLOCKED（新署名）
+    {
+      const reArgs = { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null };
+      const { error: eAuthedRe } = await authed.rpc("payroll_reopen", reArgs);
+      check("authenticated payroll_reopen BLOCKED（service_role 限定）", isFnBlocked(eAuthedRe), eAuthedRe?.message ?? "実行できてしまった");
+      const { error: eAnonRe } = await anon.rpc("payroll_reopen", reArgs);
+      check("anon payroll_reopen BLOCKED（service_role 限定）", isFnBlocked(eAnonRe), eAnonRe?.message ?? "実行できてしまった");
+    }
+
     // 段13b: F2d get_cast_mynumber（full 平文）は service_role 限定＝authenticated でも BLOCKED（positive assert）
     {
       const { error: eFull } = await authed.rpc("get_cast_mynumber", { p_org_id: null, p_actor: null, p_cast_id: null });

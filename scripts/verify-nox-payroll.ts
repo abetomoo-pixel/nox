@@ -49,9 +49,11 @@ const CAST_NAMES = [
   "NOX-VERIFY-payI1", "NOX-VERIFY-payI2", "NOX-VERIFY-payI3", "NOX-VERIFY-payI4", "NOX-VERIFY-payI5", // #32 incentive 係留用
   "NOX-VERIFY-payFED", "NOX-VERIFY-payFE1", "NOX-VERIFY-payFE2", "NOX-VERIFY-payFE3", "NOX-VERIFY-payFEV", // F2e-1 売掛天引き
   "NOX-VERIFY-payORD", "NOX-VERIFY-payAD1", "NOX-VERIFY-payOK1", "NOX-VERIFY-payBW", "NOX-VERIFY-payALL", // F2e-2 前借り/送り
+  "NOX-VERIFY-payReopen", // D1 給与確定解除 reopen サイクル段
 ];
 const AR_PERIODS = ["2027-01", "2027-03", "2027-05"]; // F2e-1 隔離 period
 const F2E2_PERIODS = ["2027-07", "2027-08", "2027-09", "2027-11", "2027-12"]; // F2e-2 隔離 period（前借り/送り）
+const REOPEN_PERIODS = ["2029-01"]; // D1 reopen サイクル段 隔離 period
 const SEATS = ["NOX-VERIFY-paySeat", "NOX-VERIFY-paySeat2"];
 const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2"];
 
@@ -91,9 +93,10 @@ async function main() {
       await admin.from("advances").delete().in("cast_id", castIds);
       await admin.from("transport").delete().in("cast_id", castIds);
     }
-    const { data: runs } = await admin.from("payroll_runs").select("id").in("period", [P, P2, ...AR_PERIODS, ...F2E2_PERIODS]).in("store_id", [storeA1Id, storeA2Id]);
+    const { data: runs } = await admin.from("payroll_runs").select("id").in("period", [P, P2, ...AR_PERIODS, ...F2E2_PERIODS, ...REOPEN_PERIODS]).in("store_id", [storeA1Id, storeA2Id]);
     const runIds = (runs ?? []).map((r) => r.id as string);
     if (runIds.length) {
+      await admin.from("payment_records").delete().in("run_id", runIds);
       await admin.from("payslips").delete().in("run_id", runIds);
       await admin.from("payroll_runs").delete().in("id", runIds);
     }
@@ -794,6 +797,50 @@ async function main() {
   check("F2d taxReport authz: cast=forbidden", decideTaxReportAccess("cast", "s1") === "forbidden");
   check("F2d taxReport authz: null role=forbidden", decideTaxReportAccess(null, "s1") === "forbidden");
   check("F2d taxReport authz: store 空=forbidden", decideTaxReportAccess("owner", "") === "forbidden");
+
+  // ══════════════════════════════════════════════════════════
+  // D1 給与確定解除 payroll_reopen（mig0060）恒久サイクル段
+  //   finalize（ar 天引き）→ reopen → receivable prev 復元・payslips 0・run draft 全 NULL＋reopen_idem 記録
+  //   → draft 冪等（同 idem→'draft'）／別 idem→'not finalized'／再 finalize 同結果（サイクル冪等）／paid→'run paid'。
+  //   ※ step4 単発プローブ 28/28 の恒久固定（drift/audit/anon は grants+anon-guard+プローブで被覆）。掃除は末尾 teardown。
+  // ══════════════════════════════════════════════════════════
+  {
+    const rState = async (id: string) => (await admin.from("receivables").select("deducted_amount, status, deduct_period").eq("id", id).single()).data as { deducted_amount: number; status: string; deduct_period: string | null };
+    const rRow = async (id: string) => (await admin.from("payroll_runs").select("status, finalized_at, finalize_idem_key, period_start, period_end, reopen_idem_key").eq("id", id).single()).data as Record<string, unknown>;
+    const psN = async (id: string) => (await admin.from("payslips").select("id", { count: "exact", head: true }).eq("run_id", id)).count ?? -1;
+
+    const cRe = await mkCast("NOX-VERIFY-payReopen", true);
+    const { data: recIns } = await admin.from("receivables").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cRe, amount: 10000, deduct_from_cast: true, status: "open", deduct_period: null, deducted_amount: 0 }).select("id").single();
+    const Rr = recIns!.id as string;
+    const { data: rcRe } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2029-01" });
+    const runRe = ((rcRe ?? [])[0] as { id: string }).id;
+    const psRe = [{ cast_id: cRe, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [{ receivable_id: Rr, amount: 3000 }], ar_carried: [], adv_deducted: [], adv_carried: [], okuri_deducted: [] }];
+    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_payslips: psRe });
+
+    const K_re = randomUUID();
+    const { data: reRes } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: K_re });
+    check("D1 reopen → 'reopened'", reRes === "reopened", JSON.stringify(reRes));
+    const rr = await rState(Rr);
+    check("D1 reopen: receivable prev 復元（0/open/null）", rr.deducted_amount === 0 && rr.status === "open" && rr.deduct_period === null, JSON.stringify(rr));
+    check("D1 reopen: payslips 0行", (await psN(runRe)) === 0);
+    const rw = await rRow(runRe);
+    check("D1 reopen: run draft＋4列 NULL＋reopen_idem 記録",
+      rw.status === "draft" && rw.finalized_at === null && rw.finalize_idem_key === null && rw.period_start === null && rw.period_end === null && rw.reopen_idem_key === K_re,
+      JSON.stringify(rw));
+    const { data: reIdem } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: K_re });
+    check("D1 reopen draft 冪等（同 idem→'draft' 静か返し）", reIdem === "draft", JSON.stringify(reIdem));
+    const { error: eNF } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID() });
+    check("D1 reopen draft 別 idem→'not finalized'", !!eNF?.message?.includes("not finalized"), eNF?.message ?? "通ってしまった");
+
+    const { error: eReFin } = await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_payslips: psRe });
+    const rr2 = await rState(Rr);
+    check("D1 再 finalize 同結果（R=3000/open/2029-02・payslips 1行・サイクル冪等）",
+      !eReFin && rr2.deducted_amount === 3000 && rr2.status === "open" && rr2.deduct_period === "2029-02" && (await psN(runRe)) === 1, JSON.stringify(rr2));
+
+    await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID() });
+    const { error: ePaid } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID() });
+    check("D1 reopen: paid → 'run paid'", !!ePaid?.message?.includes("run paid"), ePaid?.message ?? "通ってしまった");
+  }
 
   await teardown();
 

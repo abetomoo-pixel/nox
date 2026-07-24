@@ -387,6 +387,22 @@ Agoora が別ツールで生成させ持参した `nox-v1.0.0`（Vite+React19 SP
 
 **N1-c 進捗（現物・2026-07-23 時点で更新）：** D3 給与明細CSV は **landed 済み**（HEAD `fb1f217`・`lib/nox/payroll/csv.ts`＋`payroll-board` UI＋純関数テスト25本・**verify:f0 1990→2015**・golden 54400 不変）。裁定8 の N1-c ＝D3→D2→D1 のうち **次は D2 報酬明細PDF**、その次 **D1 給与確定解除**（money-core の確定状態を触る＝相談役設計必須・Fable 5 案件）。
 
+## 裁定17：D1 給与確定解除 payroll_reopen＝finalize (B) 逆適用・6裁定（相談役設計・Agoora 承認・2026-07-24）
+
+N1-c 給与レーンの最終 RPC（D3 給与明細CSV / D2 報酬明細PDF に続く D1）。money-core の確定状態を触るため **Fable 5 起草**・Opus は段階0 調査／route／プローブ／恒久 verify／UI を担当（相談役案内どおりの分担）。**mig0060 単一**（`reopen_idem_key` 列＋`payroll_reopen` 関数）。
+
+**設計確定6点：**
+1. **対象 = finalized のみ**。paid は `'run paid'` で全面拒否（paid→finalized の逆遷移は作らない＝完全ロック・finalize の 'run paid' と同語）。
+2. **payment_records 1行でも `'payments exist'` 拒否**（finalized run にも支払記録が付きうる＝payment_record_add が finalized/paid で記録可・Σ≤net は RPC 内制約のみ・DB 制約/トリガなし。draft へ戻すと不整合ゆえ）。
+3. **逆適用 = finalize (B) 巻き戻しの逐語写経**（live `pg_get_functiondef` から機械抽出51行・byte 一致・migファイル非経由）＝ar/adv/okuri を drift-safe 条件付き UPDATE（`WHERE status=applied_status AND deducted_amount=applied_deducted_amount AND deduct_period is not distinct from applied_deduct_period`）で `prev_*` へ復元。**手で動いた行は非接触**（found のみ `rolled_back_*` 記録）→ payslips delete →run を draft 不変量（`period_start/end`・`finalized_at`・`finalize_idem_key` 全 NULL）＋`reopen_idem_key=p_idem_key`。
+4. **原則9 ガード順序**：null-guard → run not found → org 照合 forbidden → paid → 冪等 replay（draft＋同 idem→`'draft'` 静か返し）→ not finalized → payments exist。F0 §7.1 適合（否定 OR 連鎖ゲートなし）。
+5. **service 経路**：`SECURITY DEFINER`・`revoke from public,anon,authenticated`・`grant service_role のみ`。route `/api/payroll/reopen` は **owner 限定**（`decideTaxReportAccess`＝支払調書CSV と同じ最狭・finalize の manager+ より狭い）・idemKey 必須。
+6. **監査**：`audit_log_write_service` action='payroll_reopen'・before `{retired_payslips, old_finalize_idem_key, old_period_start/end, rolled_back_receivables/advances/transport}`・after `{status:'draft', reopen_idem_key}`＝finalize と対称の完全記録。
+
+**冪等キー型**：`reopen_idem_key uuid`（起票 text 表記だが finalize_idem_key/paid_idem_key uuid・`p_idem_key uuid` との対称・無 cast 比較のため uuid＝相談役承認）。
+
+**検証**：runtime プローブ 28/28（正経路サイクル ar+adv+okuri prev 復元・payslips 0・run draft 全 NULL＋reopen_idem・再 finalize 同結果＝サイクル冪等・拒否6種・drift 非接触＝rolled_back 不掲載・監査 before/after・anon/authenticated BLOCKED）。恒久 verify＝grants G8c（service_role のみ/署名一意/reopen_idem_key 列 +3）・anon-guard 段11c（anon/authenticated 両 BLOCKED +2）・payroll reopen サイクル段（+8）＝**verify:f0 2015→2028 全緑**（3ゲート pay83/receipt52・golden 54400 不変・payroll は 112→120 で reopen 段追加）。mig0060 repo 収載 byte 一致 sha256 `9c19b931…e85651`。UI＝payroll-board「確定を解除」（owner のみ・finalized のみ・payment_records ありは無効化＋理由・確認ダイアログ・成功後 loadRun 再発火）。
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。

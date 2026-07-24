@@ -8,7 +8,7 @@
 
 ## 適用範囲
 
-**0001 〜 0059**（2026-07-22 現在）
+**0001 〜 0060**（2026-07-24 現在）
 
 ## 特記事項
 
@@ -25,6 +25,7 @@
 | 0057_k_kiosk_register_arms | 再適用可構成だが手貼りは1回（`create or replace` 主体）。会計RPC12本＋`audit_log_write` に kiosk 腕を追加（money 写経逐語＝3ゲート pay83/receipt52/payroll112 不変）。**★0058 に supersede される**（下記）＝本 mig 単独では kiosk ゲートが `if not(OR連鎖)` の NULL 伝播で null-auth 呼び手に fail-open。**0058 と必ずセットで適用**（0057→0058 の順）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `9d30f9f5c09cc0e60de4316bbf51cd98ac4129f0c9ad5fc245bf6ef5c930e567`（60590 bytes・repo=Downloads 一致） |
 | 0058_k_kiosk_register_gate_nullsafe | 再適用可構成だが手貼りは1回（`create or replace` 主体・**0057 の12関数を再 replace**）。**★0057 を supersede**＝12ゲートの `if not(OR連鎖) then raise` → `if (OR連鎖) is not true then raise`（null-auth 呼び手の fail-open を fail-closed 化・money 計算/kiosk 腕は 0057 と byte 同一＝差分は12ゲート×2行のみ）。**0057 と重複関数を再 replace するが冪等ではないので順序どおり適用し飛ばさない**（必ず 0057→0058）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `9d3b18dd4b52f7c1cdf5aec89dbbbc6a10b9fba6a407cae8e762aa577f48058b`（60686 bytes・repo=Downloads 一致） |
 | 0059_k_kiosk_register_read | 再適用可構成だが手貼りは1回（`create or replace` のみ・新規読取 RPC 2本＝`kiosk_register_state`/`kiosk_check_detail`・既存オブジェクト接触ゼロ）。**★0056〜0058 適用済みが前提**（`auth_kiosk_register_store_id`/`auth_kiosk_operator` を参照）。kiosk 専用読取（正ガード先行のみ＝OR連鎖ゲート禁止・F0 §7.1 教訓準拠）・back/customer/by_user_id 系 非開示・**money-core 非接触**（SELECT 集約のみ・書込文ゼロ）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `e6f90283658ce54f952a4f6c88e57bc6e9304cfbb1b3e9cee023e9baac59b0fb`（12842 bytes・repo=Downloads 一致） |
+| 0060_d1_payroll_reopen | 再適用可構成だが手貼りは1回（`alter table add column if not exists reopen_idem_key uuid` ＋ `create or replace function payroll_reopen`）。**D1 給与確定解除**＝finalized→draft の逆 RPC（service_role 限定）。**★(B) 巻き戻しブロックは payroll_finalize の live prosrc（`pg_get_functiondef`）から機械抽出51行の逐語写経**（migファイル非経由・記憶再構成なし）＝ar/adv/okuri を drift-safe 条件付き UPDATE で `prev_*` へ復元→payslips delete→run を draft 不変量（`period_start/end`・`finalized_at`・`finalize_idem_key` 全 NULL）＋`reopen_idem_key` 記録。**paid は 'run paid' で全面拒否・payment_records 1行でも 'payments exist' 拒否**。監査 `audit_log_write_service` action='payroll_reopen'（before/after 完全記録）。**money-core 非接触**（finalize/mark_paid/payment_record_add は byte 同一・新規関数1＋列1のみ）。ヘッダ検証0〜4（署名4uuid/prosecdef=t・ACL=service_role のみ・列uuid/YES・正ガード prosrc）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `9c19b9315a6f696ac1b8e51991109c69890eed496de85c5ef6124990c7e85651`（9996 bytes・repo=Downloads 一致） |
 
 ## 恒久注意
 
