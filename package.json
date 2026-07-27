@@ -21,7 +21,8 @@
     "verify:ci": "npm run verify:nox-pay && npm run verify:nox-shift-time && npm run verify:nox-punch-match && npm run verify:nox-receipt && npm run verify:nox-payroll-csv",
     "verify:f0": "npm run verify:nox-pay && npm run verify:nox-shift-time && npm run verify:nox-punch-match && npm run verify:nox-receipt && npm run verify:nox-anon-guard && npm run verify:nox-rls && npm run verify:nox-grants && npm run verify:nox-payroll && npm run verify:nox-payroll-csv && npm run verify:nox-inventory && npm run verify:nox-categories",
     "verify:nox-inventory": "tsx scripts/verify-nox-inventory.ts",
-    "verify:nox-categories": "tsx scripts/verify-nox-categories.ts"
+    "verify:nox-categories": "tsx scripts/verify-nox-categories.ts",
+    "backup:schema": "tsx scripts/backup-schema.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",

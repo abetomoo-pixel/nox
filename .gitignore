@@ -37,5 +37,8 @@ yarn-error.log*
 # vercel
 .vercel
 
+# backups（backup:schema の出力＝ローカル保持・コミットしない）
+/backups
+
 # claude code（ローカル設定はコミットしない）
 .claude/settings.local.json
