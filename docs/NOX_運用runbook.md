@@ -106,6 +106,22 @@ npm run backup:schema
   - `eslint` 系は **`eslint@10`(major)** か **`eslint-config-next@12`(ダウングレード)** 要求＝**採らない**。
 - **運用**：**next のマイナー追従を定期タスク化**する（追従のたびに `npm run verify:f0` フルで回帰確認）。
 
+### 3-4b. ★dev サーバ稼働中に `next build` を実行しない（実障害・2026-07-27）
+- **症状**：`/master` などの画面が **完全に無スタイル（素の HTML）** になり、さらに
+  **一覧が「0 件」** に見える（例：商品 303 件あるのに「すべて 0 件・該当する商品がありません」）。
+- **原因**：`next build` が **dev と同じ `.next` を本番出力で上書き**するため、
+  dev が HTML に埋めた `/_next/static/css/app/layout.css` と JS チャンクが **404** になる。
+  → CSS が当たらない（無スタイル）＋ **クライアントが hydrate されず `useEffect` の取得が走らない**
+  （一覧はクライアント取得なので初期状態の 0 件のまま固まる）。**コード側の不具合ではない**。
+- **復旧**：dev を停止 → **`.next` を削除** → dev を再起動（`/_next/static/css/...` が 200 に戻る）。
+- **予防**：検証ビルドは**別ディレクトリ**へ出す。`next.config.ts` の `distDir` は
+  `NEXT_DIST_DIR` で切替可能にしてある。
+  ```bash
+  NEXT_DIST_DIR=.next-build npx next build
+  ```
+- **切り分けの決め手**：ブラウザで `link[rel=stylesheet]` の href を直接 GET する。
+  **404 なら本症状**（CSS の中身やコードを疑う前にここを見る）。
+
 ### 3-5. 運用ルール：verify 実行中はデモ org を触らない
 - `verify:nox-anon-guard` の段37 は **service role による全表カウントの前後差分**
   （`checks`/`seats`/`kiosk_devices`/`kiosk_sessions`/`staff_pin`）で非汚染を確認している。
