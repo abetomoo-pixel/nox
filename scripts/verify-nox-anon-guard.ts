@@ -190,6 +190,22 @@ function isFnBlocked(error: { message?: string } | null): boolean {
   return !!error?.message?.includes("permission denied for function");
 }
 
+// ── 純増① 在庫台帳 v1（mig0061）: fixture 由来の stock_logs 掃除（append-only 肥大対策）──────────
+// check_lines の INSERT/DELETE トリガと checks→void トリガが 'sale'/'sale_remove'/'void_recredit' を積む。
+// ★stock_logs に check_id 列は無い（既存 wipe の .in("check_id", ids) では消せない）ため
+//   「verify 店スコープ × トリガ3 reason」で絞る＝手動入出庫（reason='入荷' 等）と seed 行は保護。
+// 現行 assert は行数非依存（cast 0行は RLS 由来・他は id 絞り）＝本掃除は肥大対策であって assert 保護ではない。
+const STOCK_TRIG_REASONS = ["sale", "sale_remove", "void_recredit"];
+let stockWipeStoreIds: string[] | null = null;
+async function wipeStockTrig(admin: SupabaseClient): Promise<void> {
+  if (!stockWipeStoreIds) {
+    const { data } = await admin.from("stores").select("id").in("name", [STORE_A1, STORE_A2, STORE_B1]);
+    stockWipeStoreIds = (data ?? []).map((r) => r.id as string);
+  }
+  if (!stockWipeStoreIds.length) return;
+  await admin.from("stock_logs").delete().in("store_id", stockWipeStoreIds).in("reason", STOCK_TRIG_REASONS);
+}
+
 // ── ES256 kid <nil> 間欠対策（ハーネス堅牢化 2026-07-24 → 裁定C 強化 2026-07-24）──────────
 // dev auth の非対称 JWT 署名鍵ローテーション/JWKS 伝播途上で、admin.createUser が稀に
 // "unrecognized JWT kid <nil> for algorithm ES256" を返す（Supabase 側事象・断続的・createUser 限定）。
@@ -730,6 +746,7 @@ async function main() {
       for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
         await admin.from(t).delete().in("check_id", ids);
       }
+      await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
       await admin.from("checks").delete().in("id", ids);
     };
     await wipeSeatChecks();
@@ -1077,6 +1094,7 @@ async function main() {
         for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
           await admin.from(t).delete().in("check_id", ids);
         }
+        await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
         await admin.from("checks").delete().in("id", ids);
       };
       await wipeSeatChecks();
@@ -1291,6 +1309,7 @@ async function main() {
           for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
             await admin.from(t).delete().in("check_id", ids);
           }
+          await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
           await admin.from("checks").delete().in("id", ids);
         };
         await wipeSeatChecks();
@@ -1451,6 +1470,7 @@ async function main() {
         for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
           await admin.from(t).delete().in("check_id", ids);
         }
+        await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
         await admin.from("checks").delete().in("id", ids);
       };
       await wipeSeatChecks();
@@ -1755,6 +1775,7 @@ async function main() {
         for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
           await admin.from(t).delete().in("check_id", ids);
         }
+        await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
         await admin.from("checks").delete().in("id", ids);
       };
       await wipeSeatChecks();
@@ -2022,6 +2043,7 @@ async function main() {
       for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
         await admin.from(t).delete().in("check_id", ids);
       }
+      await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
       await admin.from("checks").delete().in("id", ids);
     };
     await wipeSeatChecks(seatA1);
@@ -2296,6 +2318,7 @@ async function main() {
       for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
         await admin.from(t).delete().in("check_id", ids);
       }
+      await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
       await admin.from("checks").delete().in("id", ids);
     };
     // 前回失敗遺物の掃除（再実行冪等・nominations→cast の FK 順は wipe 内で処理済み）
@@ -2439,6 +2462,7 @@ async function main() {
       for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
         await admin.from(t).delete().in("check_id", ids);
       }
+      await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
       await admin.from("checks").delete().in("id", ids);
     };
     const s21WipeReservations = async () => {
@@ -3424,6 +3448,7 @@ async function main() {
         for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
           await admin.from(t).delete().in("check_id", ids);
         }
+        await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
         await admin.from("checks").delete().in("id", ids);
       }
     };
@@ -3695,6 +3720,7 @@ async function main() {
         for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
           await admin.from(t).delete().in("check_id", ids);
         }
+        await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
         await admin.from("checks").delete().in("id", ids);
       }
     };
@@ -4054,6 +4080,7 @@ async function main() {
       for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
         await admin.from(t).delete().in("check_id", ids);
       }
+      await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
       await admin.from("checks").delete().in("id", ids);
     };
     await s30Wipe();
@@ -4206,6 +4233,7 @@ async function main() {
       for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
         await admin.from(t).delete().in("check_id", ids);
       }
+      await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
       await admin.from("checks").delete().in("id", ids);
     };
     await wipeSeat();
@@ -5075,6 +5103,7 @@ async function main() {
       if (ids.length) {
         await admin.from("print_jobs").delete().in("check_id", ids);
         await admin.from("check_lines").delete().in("check_id", ids);
+        await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
         await admin.from("checks").delete().in("id", ids);
       }
       if (s36A1) await admin.from("printer_config").delete().eq("store_id", s36A1.id);
@@ -5314,6 +5343,7 @@ async function main() {
         if (chIds.length) {
           await admin.from("check_nominations").delete().in("check_id", chIds);
           await admin.from("check_lines").delete().in("check_id", chIds);
+          await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
           await admin.from("checks").delete().in("id", chIds);
         }
       }

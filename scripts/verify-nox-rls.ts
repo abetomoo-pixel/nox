@@ -54,6 +54,22 @@ function sameSet(actual: string[], expected: string[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+// ── 純増① 在庫台帳 v1（mig0061）: fixture 由来の stock_logs 掃除（append-only 肥大対策）──────────
+// check_lines の INSERT/DELETE トリガと checks→void トリガが 'sale'/'sale_remove'/'void_recredit' を積む。
+// ★stock_logs に check_id 列は無いため「verify 店スコープ × トリガ3 reason」で絞る
+//   （手動入出庫 reason='入荷' 等は保護・seed は stock_logs を作らない）。
+// 現行 assert は行数非依存（castA1a 0行は RLS 由来・他は id 絞り）＝本掃除は肥大対策であって assert 保護ではない。
+const STOCK_TRIG_REASONS = ["sale", "sale_remove", "void_recredit"];
+let stockWipeStoreIds: string[] | null = null;
+async function wipeStockTrig(admin: SupabaseClient): Promise<void> {
+  if (!stockWipeStoreIds) {
+    const { data } = await admin.from("stores").select("id").in("name", [STORE_A1, STORE_A2, STORE_B1]);
+    stockWipeStoreIds = (data ?? []).map((r) => r.id as string);
+  }
+  if (!stockWipeStoreIds.length) return;
+  await admin.from("stock_logs").delete().in("store_id", stockWipeStoreIds).in("reason", STOCK_TRIG_REASONS);
+}
+
 // セッションをユーザーごとにキャッシュ＝1 run 1認証（Supabase auth のレート制限回避）。
 // 各セクションの signOut() は衛生目的でしか呼ばれず、共有セッションを殺すとキャッシュが無効化して
 // 再認証→レート制限→process.exit で退職回帰テストの finally が飛び membership が壊れる事故の温床
@@ -733,6 +749,7 @@ async function main() {
         for (const tbl of ["check_cast_backs", "check_nominations", "payments", "check_lines", "check_seats"]) {
           await admin.from(tbl).delete().eq("check_id", b6Check);
         }
+        await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
         await admin.from("checks").delete().eq("id", b6Check);
       }
     }
@@ -947,6 +964,7 @@ async function main() {
           for (const tbl of ["check_cast_backs", "check_nominations", "payments", "check_lines"]) {
             await admin.from(tbl).delete().eq("check_id", id);
           }
+          await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
           await admin.from("checks").delete().eq("id", id);
         }
         await admin.from("casts").delete().eq("id", ccId);
@@ -1759,6 +1777,7 @@ async function main() {
       for (const tbl of ["check_cast_backs", "check_nominations", "payments", "receivables", "check_lines"]) {
         await admin.from(tbl).delete().in("check_id", extras);
       }
+      await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
       await admin.from("checks").delete().in("id", extras);
     }
     await admin.from("daily_reports").delete().eq("store_id", storeA1Id);
@@ -2294,6 +2313,7 @@ async function main() {
     const wipe = async (id: string) => {
       await admin.from("payments").delete().eq("check_id", id);
       await admin.from("check_lines").delete().eq("check_id", id);
+      await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
       await admin.from("checks").delete().eq("id", id);
     };
     const opened: string[] = [];
@@ -2374,7 +2394,12 @@ async function main() {
           sn?.[0]?.set_min === 60 && sn?.[0]?.set_fee === 5000 && sn?.[0]?.ext_min === 30
           && sn?.[0]?.ext_fee === 2000 && sn?.[0]?.time_per === "table", JSON.stringify(sn?.[0]));
 
-        await rewind(cid1, 100);
+        // ★時計スキュー余裕（2026-07-27）: rewind は client 時刻で started_at を置き、elapsed は
+        //   サーバ now() で floor される。client が僅かに進んでいると 100分巻戻し→elapsed 99 となり
+        //   直下の `>=100` がゼロ余裕で落ちる（実測スキュー ≈215ms）。101 へ +1 して余裕を作る。
+        //   ★期待値は不変: blocks=(v_d-set_min+ext_min-1)/ext_min（整数除算・set60/ext30）＝
+        //     blocks=2 の区間は v_d∈[91,120] ゆえ 100 も 101 も同区間＝units=1/set_c=5000/ext_c=4000/total=9000 は同値。
+        await rewind(cid1, 101);
         const { data: r1, error: eA1 } = await mg.rpc("check_time_charge_apply", { p_check_id: cid1 });
         const j1 = r1 as Record<string, unknown> | null;
         check("B4 apply 1回目: units=1/blocks=2/total=9000（elapsed≈100）",
@@ -2494,6 +2519,7 @@ async function main() {
       await admin.from("payments").delete().eq("check_id", id);
       await admin.from("check_seats").delete().eq("check_id", id);
       await admin.from("check_lines").delete().eq("check_id", id);
+      await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
       await admin.from("check_cast_backs").delete().eq("check_id", id);
       await admin.from("checks").delete().eq("id", id);
     };

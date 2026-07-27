@@ -8,7 +8,7 @@
 
 ## 適用範囲
 
-**0001 〜 0060**（2026-07-24 現在）
+**0001 〜 0061**（2026-07-27 現在）
 
 ## 特記事項
 
@@ -26,6 +26,7 @@
 | 0058_k_kiosk_register_gate_nullsafe | 再適用可構成だが手貼りは1回（`create or replace` 主体・**0057 の12関数を再 replace**）。**★0057 を supersede**＝12ゲートの `if not(OR連鎖) then raise` → `if (OR連鎖) is not true then raise`（null-auth 呼び手の fail-open を fail-closed 化・money 計算/kiosk 腕は 0057 と byte 同一＝差分は12ゲート×2行のみ）。**0057 と重複関数を再 replace するが冪等ではないので順序どおり適用し飛ばさない**（必ず 0057→0058）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `9d3b18dd4b52f7c1cdf5aec89dbbbc6a10b9fba6a407cae8e762aa577f48058b`（60686 bytes・repo=Downloads 一致） |
 | 0059_k_kiosk_register_read | 再適用可構成だが手貼りは1回（`create or replace` のみ・新規読取 RPC 2本＝`kiosk_register_state`/`kiosk_check_detail`・既存オブジェクト接触ゼロ）。**★0056〜0058 適用済みが前提**（`auth_kiosk_register_store_id`/`auth_kiosk_operator` を参照）。kiosk 専用読取（正ガード先行のみ＝OR連鎖ゲート禁止・F0 §7.1 教訓準拠）・back/customer/by_user_id 系 非開示・**money-core 非接触**（SELECT 集約のみ・書込文ゼロ）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `e6f90283658ce54f952a4f6c88e57bc6e9304cfbb1b3e9cee023e9baac59b0fb`（12842 bytes・repo=Downloads 一致） |
 | 0060_d1_payroll_reopen | 再適用可構成だが手貼りは1回（`alter table add column if not exists reopen_idem_key uuid` ＋ `create or replace function payroll_reopen`）。**D1 給与確定解除**＝finalized→draft の逆 RPC（service_role 限定）。**★(B) 巻き戻しブロックは payroll_finalize の live prosrc（`pg_get_functiondef`）から機械抽出51行の逐語写経**（migファイル非経由・記憶再構成なし）＝ar/adv/okuri を drift-safe 条件付き UPDATE で `prev_*` へ復元→payslips delete→run を draft 不変量（`period_start/end`・`finalized_at`・`finalize_idem_key` 全 NULL）＋`reopen_idem_key` 記録。**paid は 'run paid' で全面拒否・payment_records 1行でも 'payments exist' 拒否**。監査 `audit_log_write_service` action='payroll_reopen'（before/after 完全記録）。**money-core 非接触**（finalize/mark_paid/payment_record_add は byte 同一・新規関数1＋列1のみ）。ヘッダ検証0〜4（署名4uuid/prosecdef=t・ACL=service_role のみ・列uuid/YES・正ガード prosrc）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `9c19b9315a6f696ac1b8e51991109c69890eed496de85c5ef6124990c7e85651`（9996 bytes・repo=Downloads 一致） |
+| 0061_inventory_v1 | 再適用可構成だが手貼りは1回（`add column if not exists reorder_point` ＋ `create or replace function` ×2 ＋ `drop trigger if exists`→`create trigger` ×3）。**純増① 在庫台帳 v1**＝`products.reorder_point`（発注点しきい・null=しきい無し）＋**売上結線トリガ2系統**。★**money-core RPC は byte 非改変**（`check_add_line`/`check_remove_line`/`check_void` に一切触れず、結線は全てトリガ側）＝`check_lines` AFTER INSERT→`stock_logs` に `delta=-qty, reason='sale'`／AFTER DELETE→`+qty, 'sale_remove'`（WHEN `product_id is not null and qty<>0`＝**カスタム明細は非発火**）、`checks` AFTER UPDATE **WHEN `old.status<>'void' and new.status='void'`**→`'void_recredit'` で商品明細を product 別 `sum(qty)` 一括再クレジット（**check_void は明細を残し status のみ変える現物ゆえ DELETE トリガでは拾えない**＝専用経路・`checks_touch_updated_at` が毎 UPDATE で走るため status 遷移 WHEN ガード必須）。`by_user_id` は `product_stock_add` と同型で解決不能なら null（`stock_logs.by_user_id` は NULLABLE・FK なし）＝**kiosk 経路でも会計が落ちない**。トリガ関数は `revoke execute from public, anon, authenticated`（postgres/service_role のみ）。sha256 `cf95bbbdad3f29352869f22c8330941dfb34c3045d44005e2bbf0c45510ae991`（3451 bytes・repo=Downloads 一致）。**reorder_point の編集経路は未実装**＝`set_product` に `p_reorder_point` が無く現状は表示のみ（追加は 0062 で別途） |
 
 ## 恒久注意
 

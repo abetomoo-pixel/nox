@@ -1,0 +1,259 @@
+/**
+ * verify:nox-inventory — 純増① 在庫台帳 v1（mig0061）の runtime 実証
+ *   実行: npm run verify:nox-inventory（env: .env.local）
+ *
+ * ★prosrc 緑 ≠ runtime 緑：mig0061 の結線は「トリガ」＝money-core RPC を byte 非改変のまま
+ *   check_lines AFTER INSERT/DELETE と checks AFTER UPDATE(→void) で stock_logs を積む。
+ *   トリガは WHEN 句・security definer・NOT NULL/CHECK 制約の全てを実セッションで通して初めて
+ *   「会計を落とさずに在庫が動く」ことが言える（特に kiosk 経路の by_user_id null）。
+ *
+ * 段構成（すべて実セッション・実 RPC）:
+ *   (a) check_add_line(qty=3)      → stock_logs に delta=-3 / reason='sale'
+ *   (b) check_remove_line          → delta=+3 / reason='sale_remove'（物理 delete が DELETE トリガを引く）
+ *   (c) 商品行ありの check を void → reason='void_recredit' で +qty（★check_void は明細を残し status のみ
+ *                                    変えるため DELETE トリガでは拾えない＝checks 側 WHEN ガードの実証）
+ *   (d) カスタム明細（product_id null）の add/remove → stock_logs 増分ゼロ（WHEN 句の実証）
+ *   (e) kiosk register セッションで add_line → 会計が落ちず・by_user_id null で行が入る
+ *       （kiosk は users 行を持たない＝トリガの v_actor が null。stock_logs.by_user_id が NULLABLE/FK なし
+ *         でなければここで NOT NULL 違反→check_add_line ごと rollback していた）
+ *   (f) 通し Σdelta が初期値へ復帰（在庫が増減で保存されている＝台帳としての健全性）
+ *
+ * fixture は段内動的生成→finally 全消し（checks/check_lines/seat/kiosk 一式＋自分が積んだ stock_logs）。
+ *   ★stock_logs の掃除は「verify 店 × トリガ3 reason」で絞る（手動入出庫 reason='入荷' 等は保護）。
+ */
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
+
+const env = loadEnvOrExit([
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "SUPABASE_SECRET_KEY",
+  "SEED_PASSWORD",
+]);
+
+let pass = 0;
+const fails: string[] = [];
+function check(label: string, ok: boolean, detail?: string) {
+  if (ok) pass++;
+  else fails.push(`${label}${detail ? `: ${detail}` : ""}`);
+}
+
+const PREFIX = "NOX-VERIFY-INV";
+const TRIG_REASONS = ["sale", "sale_remove", "void_recredit"];
+
+async function main() {
+  const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // ── 準備: 店 / 商品 / 専用卓 / manager セッション ─────────────────────────
+  const { data: store } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+  // 在庫対象＝実商品（type drink/champ/bottle・active）。カスタム明細対照のため1つで足りる。
+  const { data: prod } = store
+    ? await admin.from("products").select("id, name, price").eq("store_id", store.id).eq("is_active", true).in("type", ["drink", "champ", "bottle"]).order("name").limit(1).maybeSingle()
+    : { data: null };
+
+  const wipeFixture = async () => {
+    const { data: seats } = await admin.from("seats").select("id").like("name", `${PREFIX}%`);
+    const seatIds = (seats ?? []).map((r) => r.id as string);
+    if (seatIds.length) {
+      const { data: chs } = await admin.from("checks").select("id").in("seat_id", seatIds);
+      const chIds = (chs ?? []).map((r) => r.id as string);
+      if (chIds.length) {
+        for (const tbl of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables", "check_seats"]) {
+          await admin.from(tbl).delete().in("check_id", chIds);
+        }
+        await admin.from("checks").delete().in("id", chIds);
+      }
+    }
+    // ★check_lines の delete が DELETE トリガを引く＝stock 掃除は必ず明細削除の「後」に行う。
+    if (store) {
+      await admin.from("stock_logs").delete().eq("store_id", store.id).in("reason", TRIG_REASONS);
+    }
+    if (seatIds.length) await admin.from("seats").delete().in("id", seatIds);
+    // kiosk 一式（段(e)）
+    const { data: devs } = await admin.from("kiosk_devices").select("id, auth_user_id").like("label", `${PREFIX}%`);
+    const devIds = (devs ?? []).map((d) => d.id as string);
+    if (devIds.length) await admin.from("kiosk_sessions").delete().in("device_id", devIds);
+    for (const d of devs ?? []) await admin.auth.admin.deleteUser(d.auth_user_id as string).catch(() => undefined);
+    await admin.from("kiosk_devices").delete().like("label", `${PREFIX}%`);
+  };
+  await wipeFixture(); // 前回遺物（中断時）を先に掃く＝再実行冪等
+
+  const { data: seatRow } = store
+    ? await admin.from("seats").insert({ org_id: store.org_id, store_id: store.id, name: `${PREFIX}-卓`, kind: "卓", sort_order: 995, is_active: true }).select("id").single()
+    : { data: null };
+
+  const mgr = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error: eSign } = await mgr.auth.signInWithPassword({
+    email: FIXTURE_USERS.managerA1.email, password: env.SEED_PASSWORD,
+  });
+
+  check("（準備）店/商品/専用卓/manager セッション 解決",
+    !!store && !!prod && !!seatRow && !eSign,
+    JSON.stringify({ store: !!store, prod: prod?.name, seat: !!seatRow, signIn: eSign?.message ?? "ok" }));
+
+  if (!store || !prod || !seatRow) {
+    report();
+    return;
+  }
+  const seatId = seatRow.id as string;
+  const productId = prod.id as string;
+
+  // stock_logs ヘルパー（この商品の行のみ・Σdelta と最新行）
+  const sumDelta = async (): Promise<number> => {
+    const { data } = await admin.from("stock_logs").select("delta").eq("product_id", productId);
+    return (data ?? []).reduce((s, r) => s + (r.delta as number), 0);
+  };
+  const rowsOf = async (reason: string) => {
+    const { data } = await admin.from("stock_logs")
+      .select("id, delta, reason, by_user_id, at").eq("product_id", productId).eq("reason", reason)
+      .order("at", { ascending: false });
+    return (data ?? []) as { id: string; delta: number; reason: string; by_user_id: string | null }[];
+  };
+  const countAll = async (): Promise<number> => {
+    const { count } = await admin.from("stock_logs").select("id", { count: "exact", head: true }).eq("product_id", productId);
+    return count ?? 0;
+  };
+
+  const base = await sumDelta();          // (f) の基準＝トリガ以外の在庫（入荷等）
+  let kioskAuthId = "";
+
+  try {
+    // ═══ (a) 売上で在庫が減る: check_add_line(qty=3) → delta=-3 / 'sale' ═══
+    const { data: ch1, error: eOpen1 } = await mgr.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+    check("(a) check_open 成功", !eOpen1 && typeof ch1 === "string", eOpen1?.message);
+    const { data: line1, error: eAdd1 } = await mgr.rpc("check_add_line", {
+      p_check_id: ch1, p_product_id: productId, p_qty: 3, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null,
+    });
+    check("(a) ★check_add_line(qty=3) が落ちない（トリガ同居でも会計成功）", !eAdd1 && typeof line1 === "string", eAdd1?.message);
+    const sale = await rowsOf("sale");
+    check("(a) ★stock_logs に sale 行 delta=-3（売上で在庫が減る）",
+      sale.length === 1 && sale[0].delta === -3, JSON.stringify(sale.slice(0, 2)));
+    check("(a) Σdelta = 基準 −3", (await sumDelta()) === base - 3, `got ${await sumDelta()} / base ${base}`);
+
+    // ═══ (b) 明細取消で戻る: check_remove_line → delta=+3 / 'sale_remove' ═══
+    const { error: eRm } = await mgr.rpc("check_remove_line", { p_line_id: line1 });
+    check("(b) check_remove_line 成功", !eRm, eRm?.message);
+    const rem = await rowsOf("sale_remove");
+    check("(b) ★stock_logs に sale_remove 行 delta=+3（物理 delete が DELETE トリガを引く）",
+      rem.length === 1 && rem[0].delta === 3, JSON.stringify(rem.slice(0, 2)));
+    check("(b) Σdelta が基準へ復帰（add→remove で正味0）", (await sumDelta()) === base, `got ${await sumDelta()} / base ${base}`);
+
+    // ═══ (c) void で戻る: 商品行ありの check を void → 'void_recredit' ═══
+    //   ★check_void は check_lines を消さず status のみ変える（現物確認済）＝DELETE トリガでは拾えない。
+    const { data: line2, error: eAdd2 } = await mgr.rpc("check_add_line", {
+      p_check_id: ch1, p_product_id: productId, p_qty: 2, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null,
+    });
+    check("(c) 準備 check_add_line(qty=2)", !eAdd2 && typeof line2 === "string", eAdd2?.message);
+    check("(c) 準備後 Σdelta = 基準 −2", (await sumDelta()) === base - 2, `got ${await sumDelta()}`);
+    const { error: eVoid } = await mgr.rpc("check_void", { p_check_id: ch1, p_reason: `${PREFIX} void 検証` });
+    check("(c) check_void 成功", !eVoid, eVoid?.message);
+    const vr = await rowsOf("void_recredit");
+    check("(c) ★stock_logs に void_recredit 行 delta=+2（明細は残るが在庫は戻る）",
+      vr.length === 1 && vr[0].delta === 2, JSON.stringify(vr.slice(0, 2)));
+    check("(c) ★void 後 Σdelta が基準へ復帰（正味0）", (await sumDelta()) === base, `got ${await sumDelta()} / base ${base}`);
+    // void 済み伝票の明細は保持されている（前提の実証＝DELETE トリガでは戻せない根拠）
+    const { count: lineCnt } = await admin.from("check_lines").select("id", { count: "exact", head: true }).eq("check_id", ch1 as string);
+    check("(c) ★void 後も check_lines は保持（status のみ変わる前提の実証）", (lineCnt ?? 0) === 1, `got ${lineCnt}`);
+
+    // ═══ (d) カスタム明細は在庫を動かさない（product_id null → WHEN 句で非発火）═══
+    const cntBefore = await countAll();
+    const { data: ch2, error: eOpen2 } = await mgr.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
+    check("(d) 準備 check_open（2枚目）", !eOpen2 && typeof ch2 === "string", eOpen2?.message);
+    const { data: cLine, error: eCustom } = await mgr.rpc("check_add_line", {
+      p_check_id: ch2, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "A", p_name: `${PREFIX}-セット`, p_unit_price: 5000,
+    });
+    check("(d) カスタム明細 add 成功", !eCustom && typeof cLine === "string", eCustom?.message);
+    const { error: eCustomRm } = await mgr.rpc("check_remove_line", { p_line_id: cLine });
+    check("(d) カスタム明細 remove 成功", !eCustomRm, eCustomRm?.message);
+    check("(d) ★カスタム明細の add/remove で stock_logs 増分ゼロ（product_id null は非発火）",
+      (await countAll()) === cntBefore, `got ${await countAll()} / before ${cntBefore}`);
+    check("(d) Σdelta 不変", (await sumDelta()) === base, `got ${await sumDelta()}`);
+
+    // ═══ (e) kiosk セッション: by_user_id null でも行が入り会計が落ちない ═══
+    const kEmail = `k-verify-inv@o-${(store.org_id as string).replace(/-/g, "").slice(0, 8)}.nox.local`;
+    const { data: ownerUserRow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.ownerA.email).single();
+    const { data: ownerMemRow } = ownerUserRow
+      ? await admin.from("memberships").select("id").eq("user_id", ownerUserRow.id).eq("store_id", store.id).single()
+      : { data: null };
+    const ownerMem = ownerMemRow?.id as string | undefined;
+    const { data: lu } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const leftover = lu?.users?.find((u) => u.email === kEmail);
+    if (leftover) await admin.auth.admin.deleteUser(leftover.id).catch(() => undefined);
+    const { data: cu } = await admin.auth.admin.createUser({ email: kEmail, password: env.SEED_PASSWORD, email_confirm: true });
+    kioskAuthId = cu?.user?.id ?? "";
+
+    const owner = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    await owner.auth.signInWithPassword({ email: FIXTURE_USERS.ownerA.email, password: env.SEED_PASSWORD });
+    const kiosk = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    if (kioskAuthId && ownerMem) {
+      const { error: eProv } = await owner.rpc("kiosk_provision", {
+        p_auth_user_id: kioskAuthId, p_store_id: store.id, p_label: `${PREFIX}-reg`, p_purpose: "register",
+      });
+      check("(e) 準備 kiosk_provision(register)", !eProv, eProv?.message);
+      const { error: eKSign } = await kiosk.auth.signInWithPassword({ email: kEmail, password: env.SEED_PASSWORD });
+      check("(e) 準備 kiosk device signIn", !eKSign, eKSign?.message);
+      const { error: ePin } = await owner.rpc("set_staff_pin", { p_membership_id: ownerMem, p_pin: "4321" });
+      check("(e) 準備 set_staff_pin", !ePin, ePin?.message);
+      const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "4321" });
+      check("(e) 準備 kiosk_login ok:true", (rLogin as { ok?: boolean } | null)?.ok === true, JSON.stringify(rLogin));
+
+      const sumBeforeK = await sumDelta();
+      const { data: kLine, error: eKAdd } = await kiosk.rpc("check_add_line", {
+        p_check_id: ch2, p_product_id: productId, p_qty: 1, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null,
+      });
+      check("(e) ★kiosk セッションの check_add_line が落ちない（by_user_id null 許容の実証）",
+        !eKAdd && typeof kLine === "string", eKAdd?.message);
+      const kSale = (await rowsOf("sale"))[0];
+      check("(e) ★kiosk 由来の sale 行が入り by_user_id は null（users 行を持たない経路）",
+        !!kSale && kSale.delta === -1 && kSale.by_user_id === null, JSON.stringify(kSale));
+      check("(e) Σdelta = 直前 −1", (await sumDelta()) === sumBeforeK - 1, `got ${await sumDelta()}`);
+
+      // (f) 復帰のため kiosk 明細を戻す（remove＝DELETE トリガ）
+      const { error: eKRm } = await kiosk.rpc("check_remove_line", { p_line_id: kLine });
+      check("(e) kiosk セッションの check_remove_line 成功", !eKRm, eKRm?.message);
+    } else {
+      check("(e) 準備 kiosk auth/owner membership 解決", false, JSON.stringify({ kioskAuthId: !!kioskAuthId, ownerMem }));
+    }
+
+    // ═══ (f) 通しの保存則: Σdelta が初期値へ復帰 ═══
+    check("(f) ★通し Σdelta が初期値へ復帰（増減が保存されている＝台帳として健全）",
+      (await sumDelta()) === base, `got ${await sumDelta()} / base ${base}`);
+  } finally {
+    await wipeFixture();
+    if (kioskAuthId) await admin.auth.admin.deleteUser(kioskAuthId).catch(() => undefined);
+    // 非汚染の物理確認（fixture 由来の行が残っていない）
+    const { count: leftSeat } = await admin.from("seats").select("id", { count: "exact", head: true }).like("name", `${PREFIX}%`);
+    const { data: leftStock } = await admin.from("stock_logs").select("id").eq("store_id", store.id).in("reason", TRIG_REASONS);
+    check("（掃除）専用卓 0・fixture 由来 stock_logs 0（append-only 非汚染）",
+      (leftSeat ?? 0) === 0 && (leftStock ?? []).length === 0,
+      `seats ${leftSeat} / stock ${(leftStock ?? []).length}`);
+    check("（掃除）Σdelta が基準に一致（掃除後も在庫の真実は不変）",
+      (await sumDelta()) === base, `got ${await sumDelta()} / base ${base}`);
+  }
+
+  report();
+}
+
+function report() {
+  if (fails.length) {
+    console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
+    for (const f of fails) console.error(` - ${f}`);
+    process.exit(1);
+  }
+  console.log(`verify:nox-inventory ALL PASS (${pass} assertions)`);
+  console.log("在庫台帳 v1: sale(-qty) / sale_remove(+qty) / void_recredit(+Σqty)・カスタム明細 非発火・kiosk by_user_id null 許容");
+}
+
+main().catch((e) => {
+  console.error("verify:nox-inventory 実行エラー", e);
+  process.exit(1);
+});
