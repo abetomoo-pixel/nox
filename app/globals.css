@@ -504,6 +504,33 @@ body {
 .nox-medal.g3 { background: linear-gradient(135deg, #E0B27A, #B07B45); }
 .nox-medal.gx { background: var(--card2); color: var(--sub); }
 
+/* ── 段G スイッチ（既存 boolean 設定の表示 UI・DESIGN_MASTER .switch 準拠）── presentation-only 2026-07-24 ──
+   既存 boolean（is_active 等）のトグルの見た目のみ＝新規取得/集計/新情報ゼロ。canonical トークン。 */
+.nox-switch {
+  width: 46px;
+  height: 26px;
+  border-radius: 99px;
+  border: 1px solid var(--line2);
+  background: var(--bg2);
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 0;
+}
+.nox-switch.on { background: linear-gradient(135deg, #B8893A, #E6D6A8); border-color: transparent; }
+.nox-switch i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ECECEF;
+  transition: .15s;
+}
+.nox-switch.on i { left: 22px; background: #0B0B0F; }
+@media (prefers-reduced-motion: reduce) { .nox-switch i { transition: none; } }
+
 /* ── D2 報酬明細：印刷（白地黒字・A4・1人1枚）── presentation-only ────────────
    ★全ルールを @media print 内に閉じる＝画面表示は 1px も変えない。
    隔離＝.nox-printpage 直下で .nox-print 以外を display:none（絶対配置は使わない＝通常フローで

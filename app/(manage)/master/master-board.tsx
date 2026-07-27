@@ -179,7 +179,11 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
               ))
             )}
             <label style={{ fontSize: 12 }}>本指名pt <input type="number" min={0} value={pHonPt} onChange={(e) => setPHonPt(Number(e.target.value))} style={{ ...input, width: 56 }} /></label>
-            <label style={{ fontSize: 12 }}><input type="checkbox" checked={pActive} onChange={(e) => setPActive(e.target.checked)} /> 有効</label>
+            {/* 段G: 既存 boolean(is_active) のトグルを canonical スイッチ表示へ（状態・挙動は不変） */}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12 }}>
+              <button type="button" className={`nox-switch ${pActive ? "on" : ""}`} onClick={() => setPActive(!pActive)} aria-pressed={pActive} aria-label="有効"><i /></button>
+              有効
+            </span>
             <button style={btnDark} disabled={costsError} onClick={saveProduct}>{pId ? "更新" : "登録"}</button>
             {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); }}>新規に戻す</button>}
             {costsError && <span style={{ fontSize: 12, color: "var(--bad)" }}>原価を読み込めませんでした。再読込してください</span>}
@@ -209,7 +213,11 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
               <option value="卓">卓</option><option value="カウンター">カウンター</option><option value="VIP">VIP</option>
             </select>
             <label style={{ fontSize: 12 }}>表示順 <input type="number" min={0} value={sSort} onChange={(e) => setSSort(Number(e.target.value))} style={{ ...input, width: 56 }} /></label>
-            <label style={{ fontSize: 12 }}><input type="checkbox" checked={sActive} onChange={(e) => setSActive(e.target.checked)} /> 有効</label>
+            {/* 段G: 既存 boolean(is_active) のトグルを canonical スイッチ表示へ（状態・挙動は不変） */}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12 }}>
+              <button type="button" className={`nox-switch ${sActive ? "on" : ""}`} onClick={() => setSActive(!sActive)} aria-pressed={sActive} aria-label="有効"><i /></button>
+              有効
+            </span>
             <button style={btnDark} onClick={saveSeat}>{sId ? "更新" : "登録"}</button>
           </div>
         )}

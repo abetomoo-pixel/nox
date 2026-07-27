@@ -180,7 +180,11 @@ export default function StaffBoard({
                   <tr key={m.id} onClick={() => openEdit(m)}
                     style={{ borderBottom: "1px solid var(--line)", cursor: "pointer", opacity: dim ? 0.55 : 1, background: sel?.id === m.id ? "var(--card2)" : "transparent" }}>
                     <td style={{ padding: 6, fontWeight: 700, whiteSpace: "nowrap" }}>
-                      {u?.name ?? "—"}{isSelf(m) && <span style={{ ...t.sub, marginLeft: 5 }}>(自分)</span>}
+                      {/* 段G: 頭文字アバター（既存 name の1文字＋name 由来の色のみ・新情報なし・装飾） */}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        <span className="nox-ava" style={{ background: t.avatarBg(u?.name ?? ""), width: 28, height: 28, fontSize: 13 }} aria-hidden="true">{t.avatarInitial(u?.name ?? "")}</span>
+                        <span>{u?.name ?? "—"}{isSelf(m) && <span style={{ ...t.sub, marginLeft: 5 }}>(自分)</span>}</span>
+                      </span>
                     </td>
                     <td style={{ padding: 6, color: "var(--sub)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u?.email ?? "—"}</td>
                     {isOwner && <td style={{ padding: 6, whiteSpace: "nowrap" }}>{storeName(m.store_id)}</td>}
