@@ -299,13 +299,20 @@ async function main() {
 
   // ── 段4a: F1a 書込 RPC 3本 anon BLOCKED ──
   {
-    // mig0062: p_reorder_point 追加で13引数版へ差替（旧12引数版は drop 済み）＝新署名でも anon は BLOCKED。
+    // mig0062→0063: p_reorder_point＋p_category_id で14引数版へ差替（旧13引数版は drop 済み）＝新署名でも anon は BLOCKED。
     const { error } = await anon.rpc("set_product", {
       p_id: null, p_store_id: null, p_type: null, p_category: null, p_name: null,
       p_price: null, p_cost: null, p_back_mode: null, p_back_value: null,
-      p_unit4: null, p_hon_pt: null, p_is_active: null, p_reorder_point: null,
+      p_unit4: null, p_hon_pt: null, p_is_active: null, p_reorder_point: null, p_category_id: null,
     });
-    check("anon set_product BLOCKED（mig0062 13引数版）", isFnBlocked(error), error?.message ?? "実行できてしまった");
+    check("anon set_product BLOCKED（mig0063 14引数版）", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+  {
+    // 純増⑦（mig0063）: カテゴリ書込 RPC も anon BLOCKED（revoke from public, anon）
+    const { error } = await anon.rpc("set_product_category", {
+      p_id: null, p_store_id: null, p_name: null, p_sort_order: null, p_is_active: null,
+    });
+    check("anon set_product_category BLOCKED（mig0063）", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
   {
     const { error } = await anon.rpc("set_seat", {

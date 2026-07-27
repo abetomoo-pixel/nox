@@ -233,7 +233,7 @@ async function main() {
     //   （★money 系 price/back/hon_pt/cost は現物の値をそのまま往復させる＝この段で値を変えない）。
     {
       const { data: p0 } = await admin.from("products")
-        .select("id, store_id, type, category, name, price, back_mode, back_value, unit4_json, hon_pt, is_active, reorder_point")
+        .select("id, store_id, type, category, name, price, back_mode, back_value, unit4_json, hon_pt, is_active, reorder_point, category_id")
         .eq("id", productId).single();
       const { data: c0 } = await admin.from("product_costs").select("cost").eq("product_id", productId).maybeSingle();
       const origReorder = (p0?.reorder_point ?? null) as number | null;
@@ -242,6 +242,8 @@ async function main() {
         p_name: p0!.name, p_price: p0!.price, p_cost: (c0?.cost ?? null) as number | null,
         p_back_mode: p0!.back_mode, p_back_value: p0!.back_value, p_unit4: p0!.unit4_json,
         p_hon_pt: p0!.hon_pt, p_is_active: p0!.is_active, p_reorder_point: reorder,
+        // mig0063: 14引数版。この段はカテゴリを扱わないので現値を明示往復（原則7＝省略に頼らない）。
+        p_category_id: (p0 as { category_id?: string | null }).category_id ?? null,
       });
       const reorderNow = async () => {
         const { data } = await admin.from("products").select("reorder_point").eq("id", productId).single();

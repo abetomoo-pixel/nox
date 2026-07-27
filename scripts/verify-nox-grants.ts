@@ -41,6 +41,7 @@ const TABLES = [
   "check_seats", // B1/B2 相席・席移動（mig0053・追加席の占有台帳。G27 で policy 逐語＋unique index＋grant 実体を能動 assert。.length 参照ゆえ G1/G2/G5 自動被覆＝裁定台帳 裁定9 教訓）
   "ar_collections", // B6 売掛回収消込台帳（mig0055・authenticated=SELECT のみ。G1/G2/G5 が .length で自動被覆＝教訓B。G29 で policy/grant/RPC ACL を能動 assert）
   "staff_pin", "kiosk_sessions", // K レジ用キオスク（mig0056・deny-all。.length 参照ゆえ G1/G2/G5 が自動被覆＝教訓B。G30 で policy 0本/purpose CHECK/index/provision 署名を能動 assert）
+  "product_categories", // 純増⑦ 商品カテゴリマスタ（mig0063・authenticated=SELECT のみ＝products_select 同型パターン3。.length 参照ゆえ G1/G2/G5 が自動被覆＝教訓B）
 ];
 const HELPERS = [
   "auth_org_id", "auth_role", "auth_store_id", "auth_cast_id",
