@@ -8,7 +8,7 @@
 
 ## 適用範囲
 
-**0001 〜 0063**（2026-07-27 現在）
+**0001 〜 0065**（2026-07-27 現在）
 
 ## 特記事項
 
@@ -29,6 +29,121 @@
 | 0061_inventory_v1 | 再適用可構成だが手貼りは1回（`add column if not exists reorder_point` ＋ `create or replace function` ×2 ＋ `drop trigger if exists`→`create trigger` ×3）。**純増① 在庫台帳 v1**＝`products.reorder_point`（発注点しきい・null=しきい無し）＋**売上結線トリガ2系統**。★**money-core RPC は byte 非改変**（`check_add_line`/`check_remove_line`/`check_void` に一切触れず、結線は全てトリガ側）＝`check_lines` AFTER INSERT→`stock_logs` に `delta=-qty, reason='sale'`／AFTER DELETE→`+qty, 'sale_remove'`（WHEN `product_id is not null and qty<>0`＝**カスタム明細は非発火**）、`checks` AFTER UPDATE **WHEN `old.status<>'void' and new.status='void'`**→`'void_recredit'` で商品明細を product 別 `sum(qty)` 一括再クレジット（**check_void は明細を残し status のみ変える現物ゆえ DELETE トリガでは拾えない**＝専用経路・`checks_touch_updated_at` が毎 UPDATE で走るため status 遷移 WHEN ガード必須）。`by_user_id` は `product_stock_add` と同型で解決不能なら null（`stock_logs.by_user_id` は NULLABLE・FK なし）＝**kiosk 経路でも会計が落ちない**。トリガ関数は `revoke execute from public, anon, authenticated`（postgres/service_role のみ）。sha256 `cf95bbbdad3f29352869f22c8330941dfb34c3045d44005e2bbf0c45510ae991`（3451 bytes・repo=Downloads 一致）。**reorder_point の編集経路は未実装**＝`set_product` に `p_reorder_point` が無く現状は表示のみ（追加は 0062 で別途） |
 | 0062_set_product_reorder_point | 再適用可構成だが手貼りは1回（`drop function if exists`（旧12引数版）→13引数版 `create or replace` ＋ ACL 再適用）。**在庫台帳 v1 の発注点編集経路**＝`set_product` に `p_reorder_point integer DEFAULT NULL` を末尾追加。**★底本は dev live `pg_get_functiondef` 逐語**で、差分は reorder_point の**4点のみ**（引数末尾追加／入力検証 `p_reorder_point < 0` で `'bad reorder_point'`／insert 列／update 列）＝他は一字不変（money/back/unit4/原価分離 #40 の挙動は非改変）。**署名変更のため旧12引数版を drop**（mig0021 前例）＝`revoke execute from public, anon` ＋ `grant execute to authenticated` を13引数版へ再適用（**PostgreSQL は署名が変わると ACL を引き継がないため再 grant 必須**）。null=しきい無し（`products.reorder_point` は NULLABLE）。手貼り後 `notify pgrst, 'reload schema';`（PostgREST の関数署名キャッシュ更新）。sha256 `cec4c683c43738ceb397898a28585d2b4abdd8285ad347c64b41f51ea546fbd1`（5506 bytes・repo=Downloads 一致） |
 | 0063_product_categories_and_kiosk_state_v2 | 再適用可構成だが手貼りは1回（`create table if not exists` ＋ `add column if not exists` ＋ `create or replace` ×3 ＋ **`drop function`（旧13引数 set_product）** ＋ ACL 再適用）。**純増⑦ 商品カテゴリマスタ＋kiosk_register_state v2**＝(1) `product_categories` 新設（`unique (store_id, lower(name))`・**RLS は `products_select` 同型＝パターン3で cast も見える**・書込ポリシー無し）＋ **grants 標準型**（`revoke all from public, anon, authenticated` → `grant select to authenticated`＝0055 規範逐語・REFERENCES/TRIGGER 取りこぼし防止の 0049→0050 教訓）(2) `products.category_id uuid FK on delete set null`（**旧 `category` text は据置＝deprecated**・`comment on column` で明示）(3) `set_product_category` 新設（owner∨manager自店・二重防御・**同店重複名は `'duplicate name'` を明示 raise**＋unique index が backstop・audit あり・`revoke from public, anon`＋`grant to authenticated`）(4) **`set_product` を14引数へ**＝`p_category_id uuid DEFAULT NULL` 追加・**★署名変更ゆえ旧13引数版を `drop function` → ACL 再適用が必須**（PostgreSQL は署名が変わると ACL を引き継がない＝0062 と同じ手順）・底本は 0062 逐語で差分は category_id の4点のみ（入力検証 `'bad category'`＝**同 org かつ同一店のカテゴリのみ許可＝クロス店割当遮断**／insert 列／update 列／引数）(5) `kiosk_register_state` **v2（署名不変・`create or replace` のみ）**＝`categories` 配列（active のみ・`order by sort_order, name`）＋`products.category_id`＋**`checks.started_at`**（kiosk floor 滞在タイマー用）を追加。**非開示原則（back/customer/by_user_id）は不変・0059(b) のタイマー契約に非抵触**（値は state 取得時に渡るだけでポーリングを増やさない）。手貼り後 `notify pgrst, 'reload schema';`（新テーブル＋新 RPC＋`set_product` 署名変更の反映）。sha256 `88892cbb6ec10b6d131925af3ca65424ccec5d51e16d9912d0c524efda8a228e`（13538 bytes・repo=Downloads 一致） |
+| 0064_cast_photo_updated_at | 通常適用（`add column if not exists` のみ・冪等）。**段P キャスト写真**＝`casts.photo_updated_at timestamptz NULL`（**null=写真なし**の判定 兼 **キャッシュバスター**）。★**URL は保存しない**＝実体パスは規約 `cast-photos/{org_id}/{cast_id}.jpg` から導出する。**Storage 側（バケット＋ポリシー3本）は本 mig に含まれない**＝下の「Storage（段P）」節の手順を別途実施すること。sha256 `b0f398d8a3f626394de1ae8c0de8dfb54b9ed4ec02f315a83bfbfff7ad3605fd`（repo=Downloads 一致） |
+| 0065_set_cast_photo_updated_at | 再適用可（`create or replace` のみ）。**写真アップロード完了後の打刻 RPC** `set_cast_photo_updated_at(p_cast_id uuid) returns timestamptz`。★**必要になった理由**＝`casts` は `authenticated` に **SELECT しか grant されておらず UPDATE ポリシーも無い**（書込は RPC 経由のみという全体設計）ため、クライアント直 update は **grant 面と RLS 面の二重で不可**。★**authz は storage の `cast_photos_insert/update` と同一式**（owner ∨ manager∧自店 ∨ cast 本人）＝**片側だけ通る不整合を構造的に作らない**。二重防御（冒頭 `auth_org_id()` null guard・`revoke execute from public, anon`＋`grant to authenticated`）＋`audit_log_write('set_cast_photo', ...)`（原則6）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `06b04afe7e10286a13da55a30e7edcbc48525d5ea74f59c32cd3c370728f8827`（repo=Downloads 一致） |
+
+## Storage（段P・キャスト写真）
+
+> **mig には含まれない**（`storage.buckets` / `storage.objects` は Supabase 管理スキーマで、
+> バケット作成は Dashboard、ポリシーは SQL Editor で貼る）。**0064 と対で必ず実施**。
+> 貼らないと写真は「アップロードできない／見えない」だけで、**会計・給与には一切影響しない**
+> （`photo_updated_at` が null のまま＝全キャストが頭文字アバター表示にフォールバックする）。
+
+### (1) バケット作成（Dashboard → Storage → New bucket）
+
+| 項目 | 値 | 理由 |
+|---|---|---|
+| Name | `cast-photos` | パス規約 `cast-photos/{org_id}/{cast_id}.jpg` の前提 |
+| Public bucket | **OFF（private）** | ★キャスト写真は個人情報。public だと URL を知る誰でも閲覧可になる。**閲覧は署名 URL（有効期限つき）経由のみ** |
+| File size limit | `2 MB`（= 2097152 bytes） | クライアント側で 512px/JPEG q0.85 に縮小して送るため実際は数十 KB。**上限はサーバ側の最後の砦** |
+| Allowed MIME types | `image/jpeg` | 単一形式に固定（SVG 等の混入＝XSS 面を断つ）。クライアントも canvas から `image/jpeg` で出す |
+
+作成後に確認:
+```sql
+select id, public, file_size_limit, allowed_mime_types from storage.buckets where id = 'cast-photos';
+-- 期待: public=false / 2097152 / {image/jpeg}
+```
+
+### (2) ポリシー3本（SQL Editor に手貼り・下記を逐語）
+
+★**下は dev live（`pg_get_expr`）からの逐語**。**delete ポリシーは意図的に作らない**
+（写真の消去は上書き＝`upsert` で足り、削除経路を持たない方が事故が少ない）。
+★**authz は mig0065 の `set_cast_photo_updated_at` と同一式**（owner ∨ manager∧自店 ∨ cast 本人）＝
+**片方だけ通る不整合（ファイルは置けたが打刻できない／その逆）を構造的に作らない**。
+
+```sql
+-- 閲覧: 同 org のキャスト写真は org 内の authenticated 全員が見える（署名 URL 発行の前提）。
+-- 店をまたいだ閲覧を許すのは、シフト/顧客画面が owner 視点で全店を出すため（org 境界は厳守）。
+create policy cast_photos_select on storage.objects
+  for select to authenticated
+  using (
+    bucket_id = 'cast-photos'
+    and (storage.foldername(name))[1] = auth_org_id()::text
+  );
+
+-- 新規アップロード: owner ∨ manager(自店の cast) ∨ cast 本人（自分のファイル名のみ）
+create policy cast_photos_insert on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'cast-photos'
+    and (storage.foldername(name))[1] = auth_org_id()::text
+    and (
+      exists (
+        select 1 from public.casts c
+        where c.id::text || '.jpg' = storage.filename(objects.name)
+          and c.org_id = auth_org_id()
+          and (auth_role() = 'owner' or (auth_role() = 'manager' and c.store_id = auth_store_id()))
+      )
+      or (auth_cast_id() is not null and storage.filename(name) = auth_cast_id()::text || '.jpg')
+    )
+  );
+
+-- 上書き（upsert の実体）: using と with check の両方に同じ式が要る
+--   （using だけだと「既存行が見えない」で落ち、with check だけだと他人の行を書き換えられる）
+create policy cast_photos_update on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'cast-photos'
+    and (storage.foldername(name))[1] = auth_org_id()::text
+    and (
+      exists (
+        select 1 from public.casts c
+        where c.id::text || '.jpg' = storage.filename(objects.name)
+          and c.org_id = auth_org_id()
+          and (auth_role() = 'owner' or (auth_role() = 'manager' and c.store_id = auth_store_id()))
+      )
+      or (auth_cast_id() is not null and storage.filename(name) = auth_cast_id()::text || '.jpg')
+    )
+  )
+  with check (
+    bucket_id = 'cast-photos'
+    and (storage.foldername(name))[1] = auth_org_id()::text
+    and (
+      exists (
+        select 1 from public.casts c
+        where c.id::text || '.jpg' = storage.filename(objects.name)
+          and c.org_id = auth_org_id()
+          and (auth_role() = 'owner' or (auth_role() = 'manager' and c.store_id = auth_store_id()))
+      )
+      or (auth_cast_id() is not null and storage.filename(name) = auth_cast_id()::text || '.jpg')
+    )
+  );
+```
+
+### (3) 検証クエリ
+
+```sql
+select 'nox-project-proof', count(*) from public.orgs;  -- 貼り先証明（先頭に必ず）
+
+select polname,
+  case polcmd when 'r' then 'select' when 'a' then 'insert' when 'w' then 'update' when 'd' then 'delete' end cmd,
+  (select array_agg(x.rolname) from pg_roles x where x.oid = any(p.polroles)) roles
+from pg_policy p join pg_class c on c.oid = p.polrelid join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'storage' and c.relname = 'objects' and polname like 'cast_photos%'
+order by polname;
+-- 期待: 3行ちょうど（insert / select / update）・roles は全て {authenticated}・delete は無い
+```
+
+### 注意
+
+- **`storage.objects` の所有者は `supabase_storage_admin`**。SQL Editor は権限を持つ接続で走るため
+  上記の `create policy` はそのまま通るが、**`psql` の `postgres` 直結では権限不足で失敗しうる**
+  （dev では SQL Editor 手貼りで成功を実測）。失敗したら Dashboard の Storage → Policies から
+  同じ式を貼る。
+- **RLS は Supabase 既定で `storage.objects` に有効**（別途 `enable row level security` は不要）。
+- ポリシーが片方でも欠けると症状が分かれる: **select 欠落＝写真が出ない**／
+  **insert・update 欠落＝アップロード時に `new row violates row-level security policy`**。
+
 
 ## 恒久注意
 
