@@ -403,6 +403,25 @@ N1-c 給与レーンの最終 RPC（D3 給与明細CSV / D2 報酬明細PDF に�
 
 **検証**：runtime プローブ 28/28（正経路サイクル ar+adv+okuri prev 復元・payslips 0・run draft 全 NULL＋reopen_idem・再 finalize 同結果＝サイクル冪等・拒否6種・drift 非接触＝rolled_back 不掲載・監査 before/after・anon/authenticated BLOCKED）。恒久 verify＝grants G8c（service_role のみ/署名一意/reopen_idem_key 列 +3）・anon-guard 段11c（anon/authenticated 両 BLOCKED +2）・payroll reopen サイクル段（+8）＝**verify:f0 2015→2028 全緑**（3ゲート pay83/receipt52・golden 54400 不変・payroll は 112→120 で reopen 段追加）。mig0060 repo 収載 byte 一致 sha256 `9c19b931…e85651`。UI＝payroll-board「確定を解除」（owner のみ・finalized のみ・payment_records ありは無効化＋理由・確認ダイアログ・成功後 loadRun 再発火）。
 
+## 裁定18：デザイン移植レーン完了（正本 DESIGN_MASTER.html v1.2.0・全段 presentation-only・Agoora 目視OK・2026-07-27）
+
+正本＝`Downloads/nox-v1.2.0-design-master/DESIGN_MASTER.html`（v1.2.0）。全段 **presentation-only**（RPC/RLS/payOf/golden 非改変・**verify:f0 2028 不変が gate**・canonical 13トークン維持・断点 641/900/1180・裁定5＝DESIGN_MASTER の 768 は非拘束）。共有 canonical＝`lib/nox/ui/theme` の `avatarInitial/avatarBg`＋`globals.css` の `.nox-modal-*`/`.nox-detailwrap`/`.nox-quickgrid`/`.nox-tilegrid`/`.nox-wgrid`/`.nox-chip`/`.nox-ava`/`.nox-medal`/`.nox-switch`。
+
+**完了段（push 済み・前半 `90e7846..420df53`／後半 `420df53..8b6fd40`）：**
+- **段A 基盤**（`05a0c80`）：`ui/modal` を ≤900px ボトムシート化（`.nox-modal-*`・可変値は `--wrap-max` 流儀の CSS 変数橋渡し・>900 は中央オーバーレイ 1px 不変）・断点明文化・canonical 13トークン byte 一致再確認。
+- **段H home**（`e4acc48`）：home コマンドセンター化＝クイックアクション9本（既存ルートへの純ナビ・role gate は nav 逐語同一）＋情報整列。「すべて見る」Modal は二重化ゆえ不採用。
+- **段B register**（`420df53` 束）：商品プルダウン→ `type` 別タイル＋**連打束ね**（共有フック `use-tap-batch`＝直列 flush の in-flight promise チェーン・700ms・`p_qty=N` で1行・不変量「タイルバッジ=pre-commit／明細行=commit 済＝二重計上しない」）・指名チップ・伝票詳細 ≤900 ボトムシート・滞在タイマー（register floor は `loadOpenMap` select に `started_at` 追加）。
+- **段C shift**（`ee7b1f6`）：週グリッド overview（既存 `shifts` の client 再形・`.nox-wgrid`・読取専用）。
+- **段E 売上顧客分析**（`40173b0`）：customers 一覧に頭文字アバター・analytics 2ランキング表の順位にメダル。report 日報は締め workflow で対象外。
+- **段F casts/mine**（`631359b`）：casts 一覧にアバター・mine ranking にメダル。**★cast privacy＝情報集合を現行と完全一致**（アバターは既存 name 頭文字のみ・title/aria にも新情報を出さない）。
+- **段G master/staff**（`8b6fd40`）：master の `is_active` トグルを canonical スイッチ化・staff 名簿にアバター。
+
+**段D payroll＝対象外裁定**：`payroll-board`／`components/payslip-slip`（`/mine` と共用）は既に DESIGN_MASTER `.slip` 系の canonical 翻訳・**D2 印刷 CSS が payroll-board ルート `.nox-printpage` の直下構造 `> *:not(.nox-print)` に依存**・**money 表示中枢（数値・計算・丸め・並び・集合を1文字も変えない）**＝restyle は印刷/両 consumer/数値に波及するため**保守側で現行維持**（相談役裁定・2026-07-27）。
+
+**対象外／純増起票（新規データ取得・RPC・集計を要するもの）**：notices（連絡ボード＝当てる component なし）・audit（現行 canonical）・analytics チャート/ヒートマップ/AI再来店DM/予測・shift 月間出勤実績カレンダ/週間 attendance グリッド/日週月ナビ/AI最適化/打刻照合・kiosk floor 滞在タイマー（`kiosk_register_state`(0059) 拡張要・純増⑦）・「会計待ちN分」（スキーマ不在）・register カテゴリマスタ（`products.category` フリーテキスト＝type 分類で presentation 成立）。
+
+**付随ハーネス修繕（verify のみ・デザイン外）**：dev auth の **ES256 kid<nil> 間欠**（admin API 全般＝createUser/deleteUser/listUsers に波及しうる）＝`verify-nox-anon-guard` の `createUserWithRetry` に有界リトライ（`b3a4118`/前半束）＋**succeeded-but-errored の lookup 救済**（裁定C・`a2687d6`＝kid<nil> 後の `already registered` は該当 email を lookup して成功返し・誤吸収防止に `sawKidNil` ガード）。`audit_logs` は append-only ゆえ多数 run で肥大（1 org 39390行→`seed_marker` が select 1000 窓外→rls 落ち）＝verify org の非 `seed_marker` を service role で掃いて復旧（`seed_marker` 保持）。
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。
