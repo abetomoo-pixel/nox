@@ -223,10 +223,16 @@ async function main() {
   ).select("id, name");
   if (eSeats || !seats) die("seats 投入失敗", eSeats);
 
-  // ── 8. 初期在庫（ボトル/シャンパン系のみ・reason='入荷'＝トリガ由来の sale 系と区別できる）──
-  const stockRows = DEMO_PRODUCTS.filter((p) => p.type !== "drink").map((p) => ({
+  // ── 8. 初期在庫（reason='入荷'＝トリガ由来の sale 系と区別できる）──
+  //   ボトル/シャンパン系＝5〜10本（発注点つき＝残量バーが出る）。
+  //   ★グラス/割りもの/フード＝60〜120（発注点は null＝バーなし数値のみ）。
+  //     mig0061 のトリガは product_id を持つ全明細で sale を積むため、入荷ゼロだと販売で
+  //     Σdelta が負になる（負在庫は許容設計だが、デモでは赤いマイナスが並んで不自然）。
+  //     実運用でもグラス売りは原資（ボトル/樽）から出るため、まとまった入荷を初期値として持たせる。
+  const stockRows = DEMO_PRODUCTS.map((p) => ({
     org_id: orgId, store_id: storeId, product_id: prodId(p.name),
-    delta: between(5, 10), reason: "入荷", by_user_id: userId(DEMO_STAFF[0].email),
+    delta: p.type === "drink" ? between(60, 120) : between(5, 10),
+    reason: "入荷", by_user_id: userId(DEMO_STAFF[0].email),
   }));
   const { error: eStock } = await admin.from("stock_logs").insert(stockRows);
   if (eStock) die("stock_logs 投入失敗", eStock);
