@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import { groupProducts } from "@/lib/nox/ui/product-groups";
 import Toast from "@/components/ui/toast";
 import CompMaster from "./comp-master";
 
@@ -29,6 +30,8 @@ const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 
 const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
+const PAGE = 40; // 逐次表示の1ページ分（「もっと見る」で +PAGE）
+const TYPE_LABEL_JA: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
 
 // 純増①（mig0061）在庫セル: 数値＋残量バー。バーは reorder_point 比（満位＝発注点×2）で、
 //   reorder_point null＝しきい無しゆえバーを出さず数値のみ。低在庫（≤発注点）と負在庫を色で示す。
@@ -83,6 +86,13 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   // 純増⑦（mig0063）: カテゴリ。""＝未分類（null 送信）＝原則7 同列で常に明示値。
   const [pCatId, setPCatId] = useState("");
 
+  // ── マスタ刷新（情報設計）: ハブ選択・一覧フィルタ・逐次表示・フォーム段組み ──
+  //   すべて presentation（絞り込みと表示件数の話）＝送る引数・権限・数値は不変。
+  const [selCat, setSelCat] = useState<string>("__all"); // "__all" | "__uncat" | category_id | type key
+  const [showInactive, setShowInactive] = useState(false); // 既定＝有効のみ
+  const [visible, setVisible] = useState(PAGE); // 逐次表示（verify org 297件でも破綻しない）
+  const [detailOpen, setDetailOpen] = useState(false); // 商品フォームの「詳細」節（既定 閉）
+
   // カテゴリ管理フォーム（set_product_category）
   const [cId, setCId] = useState<string | null>(null);
   const [cCatName, setCCatName] = useState("");
@@ -131,6 +141,10 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
     setPUnit4(p.unit4_json ?? { ...EMPTY_UNIT4 }); setPHonPt(p.hon_pt); setPActive(p.is_active);
     setPReorder(p.reorder_point == null ? "" : String(p.reorder_point));
     setPCatId(p.category_id ?? "");
+    // 「詳細」は既定 閉。ただし編集時に値が入っている（＝運用で使っている）なら自動で開く。
+    const hasDetail = costs[p.id] != null || p.reorder_point != null || p.hon_pt > 0
+      || p.back_mode === "unit4" || (p.back_value ?? 0) !== 0;
+    setDetailOpen(hasDetail);
   }
 
   // 純増⑦（mig0063）: カテゴリ upsert（set_product_category・owner/manager 自店＝RPC 側も二重で拒否）
@@ -196,39 +210,97 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
     await load();
   }
 
+  // ── ハブの並び（⑥）: アクティブなカテゴリが1件以上ならカテゴリ別、0件なら type 別へ
+  //   （★判定は register/kiosk のタイル分類 lib/nox/ui/product-groups と同一ルール＝画面間で分類がぶれない）。
+  const activeCats = categories.filter((c) => c.is_active).slice().sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, "ja"));
+  const catMode = activeCats.length > 0;
+  const knownCatIds = new Set(activeCats.map((c) => c.id));
+  // 一覧の母集合（有効/無効フィルタ＝既定は有効のみ）
+  const pool = products.filter((p) => showInactive || p.is_active);
+  const inHub = (p: Product, key: string) =>
+    key === "__all" ? true
+      : key === "__uncat" ? (!p.category_id || !knownCatIds.has(p.category_id))
+        : catMode ? p.category_id === key : p.type === key;
+  // ハブカード（カテゴリは0件でも出す＝マスタ管理では空カテゴリも見えている方が正しい）
+  const hubCards = catMode
+    ? [
+        ...activeCats.map((c) => ({ key: c.id, label: c.name, n: pool.filter((p) => p.category_id === c.id).length })),
+        { key: "__uncat", label: "未分類", n: pool.filter((p) => !p.category_id || !knownCatIds.has(p.category_id)).length },
+      ]
+    : groupProducts(pool, []).map((g) => ({ key: g.key, label: g.label, n: g.items.length }));
+  const filtered = pool.filter((p) => inHub(p, selCat));
+  const shown = filtered.slice(0, visible);
+  const selectHub = (key: string) => { setSelCat(key); setVisible(PAGE); };
+
   return (
     <div style={{ maxWidth: 860 }}>
       <h1 style={t.pheadH1}>マスタ管理</h1>
       <Toast msg={msg} />
 
+      {/* ④ 系統分離: ここから「商品」（カテゴリ／商品／在庫）── 各パネルの機能は不変・配置の整理のみ */}
+      <h2 style={{ ...t.cardTitle, fontSize: 12, letterSpacing: 1, color: "var(--sub)", margin: "16px 0 8px" }}>商品</h2>
+
+      {/* ⑥ ハブ: カテゴリカード → クリックでその分類に絞る（すべて／未分類つき）。
+          カテゴリ0件の店は type 別カードへフォールバック（register のタイル分類と同じ判定）。 */}
       <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>商品（クリックで編集）</h2>
-        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
-              {["種別", "名称", "価格", "バック", "本指名pt", "在庫", "状態"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.id} onClick={() => isManagerUp && editProduct(p)} style={{ borderBottom: "1px solid var(--line)", cursor: isManagerUp ? "pointer" : "default" }}>
-                <td style={{ padding: 6 }}>{p.type}</td>
-                <td style={{ padding: 6 }}>{p.name}</td>
-                <td style={{ padding: 6, ...t.num }}>{yen(p.price)}</td>
-                <td style={{ padding: 6 }}>
-                  {p.back_mode === "rate" ? `${p.back_value}%` : `単価表（本${p.unit4_json?.hon ?? 0}…）`}
-                </td>
-                <td style={{ padding: 6, ...t.num }}>{p.hon_pt}</td>
-                {/* 純増①（mig0061）: 残量バー＝Σdelta と reorder_point のみ（新規取得なし・表示のみ）。
-                    低在庫（≤発注点）は警告色・負在庫は赤（Σdelta は負になり得る＝許容設計）。 */}
-                <td style={{ padding: 6 }}>{stockCell(stock[p.id] ?? 0, p.reorder_point)}</td>
-                <td style={{ padding: 6, color: p.is_active ? "var(--ok)" : "var(--sub)" }}>{p.is_active ? "有効" : "無効"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {/* 操作 UI は manager 以上のみ（RPC 側も拒否＝二重） */}
+        <h2 style={secTitle}>商品</h2>
+        <div className="nox-hubgrid">
+          <button type="button" className={`nox-hubcard${selCat === "__all" ? " on" : ""}`} onClick={() => selectHub("__all")}>
+            <span className="nox-hubcard-name">すべて</span>
+            <span className="nox-hubcard-n">{pool.length}<span className="nox-hubcard-unit"> 件</span></span>
+          </button>
+          {hubCards.map((h) => (
+            <button key={h.key} type="button" className={`nox-hubcard${selCat === h.key ? " on" : ""}`} onClick={() => selectHub(h.key)}>
+              <span className="nox-hubcard-name">{h.label}</span>
+              <span className="nox-hubcard-n">{h.n}<span className="nox-hubcard-unit"> 件</span></span>
+            </button>
+          ))}
+        </div>
+
+        {/* ③ 一覧: 運用で見る情報だけの行（名称・価格・原価と利益率・在庫・状態）。詳細は編集フォームへ寄せた。 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+          <span style={{ fontSize: 12, color: "var(--sub)" }}>
+            {filtered.length} 件{filtered.length > shown.length ? `（${shown.length} 件表示中）` : ""}
+          </span>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, cursor: "pointer", marginLeft: "auto" }}>
+            <button type="button" role="switch" aria-checked={showInactive} aria-label="無効も表示"
+              className={showInactive ? "nox-switch on" : "nox-switch"}
+              onClick={() => { setShowInactive((v) => !v); setVisible(PAGE); }}><i /></button>
+            無効も表示
+          </label>
+        </div>
+        {filtered.length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>該当する商品がありません。</p>}
+        {shown.map((p) => {
+          const cost = costs[p.id];
+          const margin = cost != null && p.price > 0 ? Math.round(((p.price - cost) / p.price) * 100) : null;
+          return (
+            <button key={p.id} type="button" className="nox-prodrow"
+              onClick={() => isManagerUp && editProduct(p)} style={{ cursor: isManagerUp ? "pointer" : "default" }}>
+              <span className="nox-prodrow-main">
+                <span className="nox-prodrow-name">
+                  {p.name}
+                  {!p.is_active && <span style={{ ...t.tag, marginLeft: 7, color: "var(--sub)", background: "#23232B", borderColor: "var(--line2)" }}>無効</span>}
+                </span>
+                <span className="nox-prodrow-sub">
+                  {TYPE_LABEL_JA[p.type] ?? p.type}
+                  {cost != null && <> ・原価 <span style={t.num}>{yen(cost)}</span>{margin != null && <>（利益率 <span style={t.num}>{margin}</span>%）</>}</>}
+                </span>
+              </span>
+              <span style={{ ...t.num, fontSize: 13.5, fontWeight: 700, color: "var(--champ)", whiteSpace: "nowrap" }}>{yen(p.price)}</span>
+              {/* 純増①（mig0061）: 残量バー＝Σdelta と reorder_point のみ（新規取得なし・表示のみ）。 */}
+              <span style={{ minWidth: 86, textAlign: "right" }}>{stockCell(stock[p.id] ?? 0, p.reorder_point)}</span>
+            </button>
+          );
+        })}
+        {filtered.length > shown.length && (
+          <button style={{ ...btnLight, marginTop: 10 }} onClick={() => setVisible((v) => v + PAGE)}>
+            もっと見る（残り {filtered.length - shown.length} 件）
+          </button>
+        )}
+        {/* ⑤ 編集フォーム: 基本＝常時表示／詳細＝折り畳み（既定 閉・編集時は値が入っていれば自動で開く）。
+            ★送る引数・原則7（明示値）は完全に不変＝並べ方だけを変えている。 */}
         {isManagerUp && (
+          <div style={{ borderTop: "1px solid var(--line2)", marginTop: 12, paddingTop: 12 }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 12, color: "var(--sub)" }}>{pId ? "編集中" : "新規"}</span>
             <select value={pType} onChange={(e) => setPType(e.target.value)} style={input}>
@@ -243,34 +315,48 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
             </select>
             <input placeholder="名称" value={pName} onChange={(e) => setPName(e.target.value)} style={{ ...input, width: 160 }} />
             <label style={{ fontSize: 12 }}>価格 <input type="number" min={0} value={pPrice} onChange={(e) => setPPrice(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
-            <label style={{ fontSize: 12 }}>原価 <input type="number" min={0} value={pCost} onChange={(e) => setPCost(e.target.value)} placeholder="任意" disabled={costsError} style={{ ...input, width: 80 }} /></label>
-            <select value={pBackMode} onChange={(e) => setPBackMode(e.target.value)} style={input}>
-              <option value="rate">率%</option><option value="unit4">指名別単価</option>
-            </select>
-            {pBackMode === "rate" ? (
-              <label style={{ fontSize: 12 }}>率% <input type="number" min={0} value={pBackValue} onChange={(e) => setPBackValue(Number(e.target.value))} style={{ ...input, width: 60 }} /></label>
-            ) : (
-              (["hon", "jonai", "dohan", "free"] as const).map((k) => (
-                <label key={k} style={{ fontSize: 12 }}>
-                  {k} <input type="number" min={0} value={pUnit4[k] ?? 0}
-                    onChange={(e) => setPUnit4((u) => ({ ...u, [k]: Number(e.target.value) }))}
-                    style={{ ...input, width: 70 }} />
-                </label>
-              ))
-            )}
-            <label style={{ fontSize: 12 }}>本指名pt <input type="number" min={0} value={pHonPt} onChange={(e) => setPHonPt(Number(e.target.value))} style={{ ...input, width: 56 }} /></label>
-            {/* 純増①（mig0062）: 発注点。空欄＝しきい無し（在庫バー非表示）＝null 送信 */}
-            <label style={{ fontSize: 12 }} title="空欄＝しきい無し">
-              発注点 <input type="number" min={0} value={pReorder} onChange={(e) => setPReorder(e.target.value)} placeholder="任意" style={{ ...input, width: 70 }} />
-            </label>
-            {/* 段G: 既存 boolean(is_active) のトグルを canonical スイッチ表示へ（状態・挙動は不変） */}
+          </div>
+
+          {/* 詳細（原価/発注点/バック設定/unit4/本指名pt）＝日常運用では触らない項目をここへ寄せた */}
+          <button type="button" onClick={() => setDetailOpen((v) => !v)}
+            style={{ ...btnLight, marginTop: 10, fontSize: 12 }}>
+            {detailOpen ? "▾ 詳細（原価・発注点・バック）" : "▸ 詳細（原価・発注点・バック）"}
+          </button>
+          {detailOpen && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10, padding: "10px 11px", background: "var(--bg2)", borderRadius: 11, border: "1px solid var(--line2)" }}>
+              <label style={{ fontSize: 12 }}>原価 <input type="number" min={0} value={pCost} onChange={(e) => setPCost(e.target.value)} placeholder="任意" disabled={costsError} style={{ ...input, width: 80 }} /></label>
+              {/* 純増①（mig0062）: 発注点。空欄＝しきい無し（在庫バー非表示）＝null 送信 */}
+              <label style={{ fontSize: 12 }} title="空欄＝しきい無し">
+                発注点 <input type="number" min={0} value={pReorder} onChange={(e) => setPReorder(e.target.value)} placeholder="任意" style={{ ...input, width: 70 }} />
+              </label>
+              <select value={pBackMode} onChange={(e) => setPBackMode(e.target.value)} style={input}>
+                <option value="rate">率%</option><option value="unit4">指名別単価</option>
+              </select>
+              {pBackMode === "rate" ? (
+                <label style={{ fontSize: 12 }}>率% <input type="number" min={0} value={pBackValue} onChange={(e) => setPBackValue(Number(e.target.value))} style={{ ...input, width: 60 }} /></label>
+              ) : (
+                (["hon", "jonai", "dohan", "free"] as const).map((k) => (
+                  <label key={k} style={{ fontSize: 12 }}>
+                    {k} <input type="number" min={0} value={pUnit4[k] ?? 0}
+                      onChange={(e) => setPUnit4((u) => ({ ...u, [k]: Number(e.target.value) }))}
+                      style={{ ...input, width: 70 }} />
+                  </label>
+                ))
+              )}
+              <label style={{ fontSize: 12 }}>本指名pt <input type="number" min={0} value={pHonPt} onChange={(e) => setPHonPt(Number(e.target.value))} style={{ ...input, width: 56 }} /></label>
+            </div>
+          )}
+
+          {/* 有効スイッチと保存は常時（段G: canonical スイッチ・状態と挙動は不変） */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12 }}>
               <button type="button" className={`nox-switch ${pActive ? "on" : ""}`} onClick={() => setPActive(!pActive)} aria-pressed={pActive} aria-label="有効"><i /></button>
               有効
             </span>
             <button style={btnDark} disabled={costsError} onClick={saveProduct}>{pId ? "更新" : "登録"}</button>
-            {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); setPReorder(""); }}>新規に戻す</button>}
+            {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); setPReorder(""); setPCatId(""); setDetailOpen(false); }}>新規に戻す</button>}
             {costsError && <span style={{ fontSize: 12, color: "var(--bad)" }}>原価を読み込めませんでした。再読込してください</span>}
+          </div>
           </div>
         )}
       </section>
@@ -318,6 +404,24 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
         )}
       </section>
 
+      {isManagerUp && (
+        <section className="nox-cardtop" style={card}>
+          <h2 style={secTitle}>在庫の入出庫（append-only）</h2>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <select value={stProd} onChange={(e) => setStProd(e.target.value)} style={{ ...input, maxWidth: 220 }}>
+              <option value="">商品を選択</option>
+              {products.map((p) => <option key={p.id} value={p.id}>{p.name}（現在 {stock[p.id] ?? 0}）</option>)}
+            </select>
+            <label style={{ fontSize: 12 }}>増減 <input type="number" value={stDelta} onChange={(e) => setStDelta(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+            <input placeholder="理由（入荷・棚卸等）" value={stReason} onChange={(e) => setStReason(e.target.value)} style={{ ...input, width: 160 }} />
+            <button style={btnDark} onClick={addStock}>記録</button>
+          </div>
+        </section>
+      )}
+
+      {/* ④ 系統分離: ここから「店舗設定」（席・待遇プラン・以降の各種パネル）── 機能は不変・配置の整理のみ */}
+      <h2 style={{ ...t.cardTitle, fontSize: 12, letterSpacing: 1, color: "var(--sub)", margin: "22px 0 8px" }}>店舗設定</h2>
+
       <section className="nox-cardtop" style={card}>
         <h2 style={secTitle}>席（クリックで編集）</h2>
         <table style={{ borderCollapse: "collapse", fontSize: 12, marginBottom: 10 }}>
@@ -350,20 +454,6 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
         )}
       </section>
 
-      {isManagerUp && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>在庫の入出庫（append-only）</h2>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <select value={stProd} onChange={(e) => setStProd(e.target.value)} style={{ ...input, maxWidth: 220 }}>
-              <option value="">商品を選択</option>
-              {products.map((p) => <option key={p.id} value={p.id}>{p.name}（現在 {stock[p.id] ?? 0}）</option>)}
-            </select>
-            <label style={{ fontSize: 12 }}>増減 <input type="number" value={stDelta} onChange={(e) => setStDelta(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
-            <input placeholder="理由（入荷・棚卸等）" value={stReason} onChange={(e) => setStReason(e.target.value)} style={{ ...input, width: 160 }} />
-            <button style={btnDark} onClick={addStock}>記録</button>
-          </div>
-        </section>
-      )}
 
       <CompMaster storeId={storeId} isManagerUp={isManagerUp} isOwner={isOwner} />
     </div>

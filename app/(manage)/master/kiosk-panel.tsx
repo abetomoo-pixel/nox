@@ -150,7 +150,7 @@ export default function KioskPanel({ stores }: { stores: Store[] }) {
       <section className="nox-cardtop" style={card}>
         <h3 style={h3}>端末アカウントの発行（1店1台×用途）</h3>
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
-          店に置くタブレット用のログインアカウントを発行します。用途「打刻」は名前選択＋PIN（4桁・「女の子管理」で設定）、
+          店に置くタブレット用のログインアカウントを発行します。用途「打刻」は名前選択＋PIN（4桁・「キャスト管理」で設定）、
           用途「レジ」は操作担当選択＋PIN（4桁・下の「操作担当 PIN」で設定）です。初期パスワードは発行時に一度だけ表示されます。
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>

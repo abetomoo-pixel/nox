@@ -552,6 +552,68 @@ body {
 .nox-stockbar.low i { background: linear-gradient(90deg, #8A5A2B, var(--gold2)); }
 .nox-stockbar.neg i { background: var(--bad); }
 
+/* ── マスタ刷新（/master の情報設計）── presentation-only 2026-07-27 ──
+   ハブカード（カテゴリ選択）＋商品のリッチ行。canonical トークンのみ・断点 641/900/1180。
+   RPC/RLS/mig 非改変＝並べ替えと見せ方だけを変える。 */
+.nox-hubgrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 9px;
+  margin-bottom: 12px;
+}
+@media (min-width: 641px)  { .nox-hubgrid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 900px)  { .nox-hubgrid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1180px) { .nox-hubgrid { grid-template-columns: repeat(5, 1fr); } }
+.nox-hubcard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 64px;
+  padding: 11px 12px;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--card2), var(--card));
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .16s ease, background .16s ease;
+}
+.nox-hubcard:hover { border-color: rgba(201, 162, 74, .35); }
+.nox-hubcard.on {
+  border-color: var(--gold);
+  background: linear-gradient(180deg, #1B1710, var(--card));
+  color: var(--champ);
+}
+.nox-hubcard-name { font-size: 12.5px; font-weight: 700; line-height: 1.3; }
+.nox-hubcard-n {
+  font-family: "Outfit", sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  font-weight: 700;
+}
+.nox-hubcard-unit { font-size: 10.5px; color: var(--sub); font-weight: 400; }
+
+/* 商品のリッチ行（DB 調の全列テーブルをやめ、運用で見る情報だけを1行に） */
+.nox-prodrow {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nox-prodrow:hover { background: rgba(255, 255, 255, .025); }
+.nox-prodrow-main { flex: 1; min-width: 0; }
+.nox-prodrow-name { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nox-prodrow-sub { font-size: 11px; color: var(--sub); margin-top: 2px; }
+
 /* ── D2 報酬明細：印刷（白地黒字・A4・1人1枚）── presentation-only ────────────
    ★全ルールを @media print 内に閉じる＝画面表示は 1px も変えない。
    隔離＝.nox-printpage 直下で .nox-print 以外を display:none（絶対配置は使わない＝通常フローで
