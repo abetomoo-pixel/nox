@@ -190,27 +190,50 @@ function isFnBlocked(error: { message?: string } | null): boolean {
   return !!error?.message?.includes("permission denied for function");
 }
 
-// ── ES256 kid <nil> 間欠対策（ハーネス堅牢化 2026-07-24）──────────────────────────────
+// ── ES256 kid <nil> 間欠対策（ハーネス堅牢化 2026-07-24 → 裁定C 強化 2026-07-24）──────────
 // dev auth の非対称 JWT 署名鍵ローテーション/JWKS 伝播途上で、admin.createUser が稀に
 // "unrecognized JWT kid <nil> for algorithm ES256" を返す（Supabase 側事象・断続的・createUser 限定）。
 // この過渡だけを厳密文字列一致で有界リトライ（最大3回・2s→5s）。他エラーは即返し＝本物の回帰を隠さない。
+// ★裁定C: kid<nil> は「サーバ側では作成済みなのにクライアントへ error を返す」ことがある（succeeded-but-errored）。
+//   その後のリトライが "already been registered" を返したら＝先行 kid<nil> 試行がサーバ側で成功していた証拠として
+//   admin API で email lookup し、その user を成功として返す。★誤吸収防止＝同一ヘルパー呼出内で先行試行が
+//   kid<nil> で失敗していた場合のみ吸収。初回からの already registered（先行 kid<nil> なし）は従来どおりエラーを返す。
 const ES256_KID_NIL = "unrecognized JWT kid <nil>";
+const ALREADY_REG = "already been registered";
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+async function lookupUserByEmail(client: SupabaseClient, email: string) {
+  try {
+    const { data } = await client.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    return data?.users?.find((u) => u.email === email) ?? null;
+  } catch {
+    return null;
+  }
+}
 async function createUserWithRetry(
   client: SupabaseClient,
   attrs: { email: string; password: string; email_confirm: boolean },
 ) {
   const backoff = [2000, 5000]; // attempt1 失敗→2s→attempt2 失敗→5s→attempt3（最大3回）
+  let sawKidNil = false;
   let res = await client.auth.admin.createUser(attrs);
-  let attempt = 1;
-  while (res.error?.message?.includes(ES256_KID_NIL) && attempt <= backoff.length) {
-    await sleep(backoff[attempt - 1]);
-    attempt++;
-    console.log(`[retry] ES256 kid <nil> transient (attempt ${attempt})`);
+  for (let i = 0; i < backoff.length; i++) {
+    if (!res.error?.message?.includes(ES256_KID_NIL)) break; // 成功 or kid<nil> 以外のエラーは即抜け
+    sawKidNil = true;
+    await sleep(backoff[i]);
+    console.log(`[retry] ES256 kid <nil> transient (attempt ${i + 2})`);
     res = await client.auth.admin.createUser(attrs);
   }
-  // 失敗を返す時（kid<nil> リトライ尽き／別エラー即返し 双方）はエラー本文をログに出す
-  //（呼び出し側 assert は「kAuth:false」等しか出さず根因特定に一往復かかるため・ログのみ・assert 不変）。
+  // ★succeeded-but-errored 救済: 先行が kid<nil> で落ちた後の "already registered" は、その kid<nil> 試行が
+  //   サーバ側で成功していた証拠＝email lookup で該当 user を成功として返す（取れなければ従来どおり失敗を返す）。
+  //   sawKidNil=false（初回からの already registered）は本物の重複＝吸収しない。
+  if (sawKidNil && res.error?.message?.includes(ALREADY_REG)) {
+    const found = await lookupUserByEmail(client, attrs.email);
+    if (found) {
+      console.log("[retry] kid<nil> masked a successful create; resolved by lookup");
+      return { ...res, data: { user: found }, error: null };
+    }
+  }
+  // 失敗を返す時（kid<nil> リトライ尽き／別エラー即返し／lookup 不発 双方）はエラー本文をログに出す（ログのみ・assert 不変）。
   if (res.error) console.log(`[createUser error] ${res.error.message ?? String(res.error)}`);
   return res;
 }
