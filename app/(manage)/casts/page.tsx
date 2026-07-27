@@ -20,9 +20,10 @@ export default async function CastsPage() {
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
   const { data: myStoreId } = await supabase.rpc("auth_store_id");
   // F3g' castログイン招待（mig0041）: 在籍 cast の結線状態（user_id の有無のみ・RLS 自動スコープ）。
+  // 段P: photo_updated_at を追加（null=写真なし。実体パスは規約導出＝URL は保存しない）。
   const { data: loginCasts } = await supabase
     .from("casts")
-    .select("id, name, user_id")
+    .select("id, name, user_id, photo_updated_at")
     .eq("is_active", true)
     .order("name");
   return (
@@ -42,4 +43,4 @@ export type Trial = {
   memo: string | null; status: string; trial_date: string | null;
 };
 
-export type CastLogin = { id: string; name: string; user_id: string | null };
+export type CastLogin = { id: string; name: string; user_id: string | null; photo_updated_at: string | null };

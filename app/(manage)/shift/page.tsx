@@ -10,7 +10,12 @@ export default async function ShiftPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
   const { data: stores } = await supabase.from("stores").select("id, name").order("name").limit(1);
-  const { data: casts } = await supabase.from("casts").select("id, name").eq("is_active", true).order("name");
+  // 段P: photo_updated_at を追加（日詳細のアバターを写真にするため。null=写真なし＝頭文字にフォールバック）。
+  const { data: casts } = await supabase
+    .from("casts")
+    .select("id, name, photo_updated_at")
+    .eq("is_active", true)
+    .order("name");
   return (
     <ShiftBoard
       storeId={stores?.[0]?.id ?? ""}

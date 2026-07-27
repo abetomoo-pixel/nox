@@ -12,9 +12,11 @@ import { fmtWin, fmtBand30, hm2min } from "@/lib/nox/shift-time";
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
+import CastAvatar from "@/components/ui/cast-avatar";
+import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import IncentivePanel from "./incentive-panel";
 
-type Cast = { id: string; name: string };
+type Cast = { id: string; name: string; photo_updated_at: string | null };
 type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string };
 type Shift = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string };
 type Att = { cast_id: string; status: string; eta: string | null };
@@ -80,6 +82,21 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const [fStatus, setFStatus] = useState("planned");
 
   const castName = (id: string) => casts.find((c) => c.id === id)?.name ?? "?";
+
+  // 段P: キャスト写真の署名 URL（private バケット＝毎回発行・1時間）。写真ありの行だけまとめて 1 リクエスト。
+  //   失敗しても Map が空のままで頭文字表示に落ちるだけ＝シフト画面の機能には影響しない。
+  const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const orgId = await resolveOrgId(supabase);
+      if (!orgId) return;
+      const m = await signCastPhotos(supabase, orgId, casts);
+      if (alive) setPhotoUrls(m);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casts]);
 
   const load = useCallback(async () => {
     const { data: ws } = await supabase
@@ -313,7 +330,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 </div>
                 {b.items.map((s) => (
                   <div key={s.id} className="nox-crow">
-                    <span className="nox-ava2" aria-hidden="true">{t.avatarInitial(castName(s.cast_id))}</span>
+                    <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
                     <span style={{ flex: 1, minWidth: 0 }}>{castName(s.cast_id)}</span>
                     <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{fmtWin(s.start_hm, s.end_hm)}</span>
                     <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`}>{s.status === "confirmed" ? "確定" : "予定"}</span>

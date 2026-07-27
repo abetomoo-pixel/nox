@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
+import CastAvatar from "@/components/ui/cast-avatar";
+import { resolveOrgId, signCastPhotos, uploadCastPhoto } from "@/lib/nox/cast-photo";
 import type { Trial, CastLogin } from "./page";
 
 type Store = { id: string; name: string };
@@ -69,6 +71,55 @@ export default function CastsBoard({
   const [pinErr, setPinErr] = useState<string | null>(null);
   const [pinDone, setPinDone] = useState(false);
 
+  // ── 段P キャスト写真（mig0064/0065＋Storage ポリシー3本）──
+  //   実体は private バケット cast-photos の {org_id}/{cast_id}.jpg 固定（1キャスト1ファイル・上書き運用）。
+  //   ここは操作面。真の防御は Storage ポリシー（owner ∨ manager∧自店 ∨ 本人）と
+  //   set_cast_photo_updated_at の同一 authz＝UI を通さない直叩きでも他店の子は差し替えられない。
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
+  const [phTarget, setPhTarget] = useState<CastLogin | null>(null);
+  const [phFile, setPhFile] = useState<File | null>(null);
+  const [phPreview, setPhPreview] = useState<string | null>(null);
+  const [phErr, setPhErr] = useState<string | null>(null);
+
+  useEffect(() => { void resolveOrgId(supabase).then(setOrgId); }, [supabase]);
+  useEffect(() => {
+    if (!orgId) return;
+    let alive = true;
+    void signCastPhotos(supabase, orgId, loginCasts).then((m) => { if (alive) setPhotoUrls(m); });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, loginCasts]);
+
+  function openPhoto(c: CastLogin) {
+    setPhTarget(c); setPhFile(null); setPhErr(null);
+    setPhPreview(null);
+  }
+  function closePhoto() {
+    if (phPreview) URL.revokeObjectURL(phPreview);
+    setPhTarget(null); setPhFile(null); setPhPreview(null); setPhErr(null);
+  }
+  function pickPhoto(f: File | null) {
+    if (phPreview) URL.revokeObjectURL(phPreview);
+    setPhFile(f);
+    setPhPreview(f ? URL.createObjectURL(f) : null);
+    setPhErr(null);
+  }
+  async function submitPhoto() {
+    if (!phTarget || !phFile || !orgId) return;
+    setBusy(true); setPhErr(null);
+    try {
+      await uploadCastPhoto(supabase, orgId, phTarget.id, phFile);
+      await reloadLoginCasts(); // photo_updated_at を取り直す＝署名 URL も新しい v= で張り直る
+      setMsg("写真を保存しました");
+      closePhoto();
+    } catch (e) {
+      setPhErr(e instanceof Error ? e.message : "保存に失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submitPin() {
     if (!pinTarget) return;
     if (!/^[0-9]{4}$/.test(pinVal)) { setPinErr("PIN は数字4桁で入力してください"); return; }
@@ -105,7 +156,7 @@ export default function CastsBoard({
 
   // ── F3g' castログイン招待（招待=未結線 / PW再発行=結線済み・POST /api/cast/invite） ──
   const reloadLoginCasts = useCallback(async () => {
-    const { data } = await supabase.from("casts").select("id, name, user_id").eq("is_active", true).order("name");
+    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at").eq("is_active", true).order("name");
     setLoginCasts((data ?? []) as CastLogin[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -167,8 +218,10 @@ export default function CastsBoard({
           {trials.map((tr) => (
             <div key={tr.id} style={{ ...t.card, marginBottom: 0, background: "var(--card2)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                {/* 段F: 頭文字アバター（既存 name のみ由来・新情報なし・装飾） */}
-                <span className="nox-ava" style={{ background: t.avatarBg(tr.name), width: 30, height: 30, fontSize: 13 }} aria-hidden="true">{t.avatarInitial(tr.name)}</span>
+                {/* 段F: 頭文字アバター（既存 name のみ由来・新情報なし・装飾）。
+                    段P: 共有部品へ寄せたが★体入は写真なし固定＝trials は casts 行がまだ無く
+                    （写真パスは cast_id 由来）、採用 cast_create 後に初めて写真を持てる。 */}
+                <CastAvatar name={tr.name} size={30} />
                 <strong style={{ fontSize: 14 }}>{tr.name}</strong>
                 <span style={{ ...t.sub }}>体入中</span>
                 <span style={{ ...t.sub, marginLeft: "auto" }}>
@@ -262,7 +315,7 @@ export default function CastsBoard({
                   {/* 段F: 頭文字アバター（既存 name の1文字＋name 由来の色のみ・新情報なし・装飾） */}
                   <td style={{ padding: 6, fontWeight: 700, whiteSpace: "nowrap" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      <span className="nox-ava" style={{ background: t.avatarBg(c.name), width: 28, height: 28, fontSize: 13 }} aria-hidden="true">{t.avatarInitial(c.name)}</span>
+                      <CastAvatar name={c.name} url={photoUrls.get(c.id)} size={28} />
                       {c.name}
                     </span>
                   </td>
@@ -279,6 +332,10 @@ export default function CastsBoard({
                     <button style={{ ...btnGhost, marginLeft: 6 }} disabled={busy}
                       onClick={() => { setPinTarget(c); setPinVal(""); setPinErr(null); setPinDone(false); }}>
                       打刻PIN
+                    </button>
+                    {/* 段P: 写真（未登録なら「写真」・登録済みなら「写真変更」） */}
+                    <button style={{ ...btnGhost, marginLeft: 6 }} disabled={busy || !orgId} onClick={() => openPhoto(c)}>
+                      {c.photo_updated_at ? "写真変更" : "写真"}
                     </button>
                   </td>
                 </tr>
@@ -378,6 +435,41 @@ export default function CastsBoard({
                 </div>
               </>
             )}
+        </Modal>
+      )}
+
+      {/* 段P: 写真アップロードモーダル（現在の写真→ファイル選択→プレビュー→保存。削除経路は持たない＝差し替えは上書き） */}
+      {phTarget && (
+        <Modal onClose={() => !busy && closePhoto()}>
+          <h2 style={secTitle}>{phTarget.name} の写真</h2>
+          <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
+            一覧やシフトのアバターに表示されます。自動で縮小・JPEG 化されます（元画像はそのままです）。
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {/* 左＝現在（写真 or 頭文字）・右＝選択中プレビュー。選択前は現在のみ */}
+            <CastAvatar name={phTarget.name} url={photoUrls.get(phTarget.id)} size={64} />
+            {phPreview && (
+              <>
+                <span style={{ color: "var(--sub)", fontSize: 13 }} aria-hidden="true">→</span>
+                <span className="nox-ava" style={{ width: 64, height: 64, overflow: "hidden", padding: 0, background: "var(--v2-ava)" }} aria-hidden="true">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- ローカル blob プレビュー */}
+                  <img src={phPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                </span>
+              </>
+            )}
+          </div>
+          <label style={{ display: "grid", gap: 4, marginTop: 12 }}>
+            <span style={t.fieldLabel}>画像を選択（JPEG/PNG）</span>
+            <input type="file" accept="image/*" disabled={busy}
+              onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)} style={{ fontSize: 13 }} />
+          </label>
+          {phErr && <p style={{ ...t.bad, fontSize: 12.5, margin: "8px 0 0" }}>{phErr}</p>}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+            <button style={btnGhost} disabled={busy} onClick={closePhoto}>キャンセル</button>
+            <button style={btnGold} disabled={busy || !phFile} onClick={() => void submitPhoto()}>
+              {busy ? "処理中…" : "保存する"}
+            </button>
+          </div>
         </Modal>
       )}
     </div>

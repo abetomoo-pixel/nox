@@ -6,6 +6,7 @@ import SimulatorPanel from "@/components/simulator-panel";
 import PayslipSlip from "@/components/payslip-slip";
 import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
+import PhotoCard from "./photo-card";
 import AttendanceForm from "./attendance-form";
 import NormCard from "./norm-card";
 import DrinkClaimForm from "./drink-claim-form";
@@ -120,6 +121,9 @@ export default async function MinePage() {
         <h1 style={t.pheadH1}>マイページ</h1>
         <p style={t.pheadP}>ノルマと今月の収支</p>
       </div>
+
+      {/* 段P: プロフィール写真（本人スコープのみ・client 自己完結＝他カードの取得に影響しない） */}
+      <PhotoCard />
 
       {/* ノルマ進捗（mig0042・表示のみ）: 採用軸かつ目標>0 の軸だけ・全非表示ならカード自体出ない */}
       <NormCard />
