@@ -1,6 +1,6 @@
 "use client";
 
-// 女の子管理ボード（F3d 体入採用 UI・モック「体入・採用管理」＋「新規キャスト登録」準拠）。
+// キャスト管理ボード（F3d 体入採用 UI・モック「体入・採用管理」＋「新規キャスト登録」準拠）。
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
 import { useCallback, useEffect, useState } from "react";
@@ -155,7 +155,7 @@ export default function CastsBoard({
 
   return (
     <div style={{ maxWidth: 860 }}>
-      <h1 style={t.pheadH1}>女の子管理</h1>
+      <h1 style={t.pheadH1}>キャスト管理</h1>
       <p style={t.pheadP}>体入の評価・書類確認から本採用まで。本採用でキャストに登録されます（実績はゼロから）。</p>
       <Toast msg={msg} />
 

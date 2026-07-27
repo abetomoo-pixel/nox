@@ -60,7 +60,7 @@ export default function StaffBoard({
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? "—";
 
   const load = useCallback(async () => {
-    // 一覧＝staff/manager のみ（cast は女の子管理で別画面）。inactive（在籍解除済み）も表示＝再雇用の入口。
+    // 一覧＝staff/manager のみ（cast はキャスト管理で別画面）。inactive（在籍解除済み）も表示＝再雇用の入口。
     const { data: mm } = await supabase
       .from("memberships")
       .select("id, user_id, store_id, role, is_active, can_register, can_crm, can_shift, can_view_backs")

@@ -5,7 +5,7 @@ import CastsBoard from "./casts-board";
 
 export const dynamic = "force-dynamic";
 
-// 女の子管理（F3d 体入採用 UI・owner/manager のみ）。staff/cast は nav 非表示＋直打ちリダイレクト
+// キャスト管理（F3d 体入採用 UI・owner/manager のみ）。staff/cast は nav 非表示＋直打ちリダイレクト
 // （真の防御は trials RLS owner/manager 限定＋trial_*/cast_create RPC ゲート）。
 // 一覧は trials の直接 SELECT（RLS: owner=org 全店/manager=自店）。stores も同スコープ＝登録先候補。
 export default async function CastsPage() {

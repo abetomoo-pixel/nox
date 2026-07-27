@@ -39,7 +39,7 @@ export default async function DashboardPage() {
       ? [
           { href: "/analytics", label: "分析" },
           { href: "/payroll", label: "給与" },
-          { href: "/casts", label: "女の子" },
+          { href: "/casts", label: "キャスト" },
           { href: "/master", label: "マスタ" },
         ]
       : []),

@@ -717,6 +717,62 @@ body {
 .nox-stpill.warn { color: var(--gold2); border-color: rgba(201, 162, 74, .45); }
 .nox-stpill.ng   { color: var(--bad); border-color: rgba(217, 138, 138, .45); }
 
+/* ── UI刷新v2 段N（ナビ再編）── presentation-only 2026-07-27 ──
+   正本＝nox-nav-redesign-mock-v2.html。★ルート/URL/ページ実体/権限ゲートは非改変＝
+   「並び・群見出し・ラベル」と出し分けだけ。断点は 900（裁定5）。
+   ≤899＝ボトムタブ（4本＋その他）／900+＝群見出しつきサイドバー。両方を DOM に出し CSS で切替
+   （SSR とハイドレーションで差が出ないようにするため＝JS で断点を判定しない）。 */
+.nox-nav-side { display: none; }          /* ≤899 は隠す（900+ の @media で出す） */
+.nox-nav-bottom { display: flex; }        /* ≤899 の下部タブ（既存 .nox-tabbar の見た目を継承） */
+.nox-navgroup { display: contents; }      /* ≤899 では群のラッパを無視＝従来の横並びを壊さない */
+.nox-navgroup-h { display: none; }        /* 群見出しは 900+ のサイドバーでのみ表示 */
+
+@media (min-width: 900px) {
+  .nox-nav-side { display: flex; }
+  .nox-nav-bottom { display: none; }
+  /* サイドバーでは群を縦ブロックとして扱う（見出し＋項目） */
+  .nox-navgroup { display: block; width: 100%; }
+  .nox-navgroup + .nox-navgroup { margin-top: 10px; }
+  .nox-navgroup-h {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: var(--v2-muted);
+    padding: 4px 12px 5px;
+  }
+}
+
+/* 「その他」シート（段A の .nox-modal-* を土台に、ナビ用の一覧を載せる） */
+.nox-navsheet { max-width: 520px; }
+.nox-navsheet-h { font-size: 13.5px; font-weight: 800; color: var(--champ); margin: 0 0 10px; }
+.nox-navsheet-g + .nox-navsheet-g { margin-top: 10px; }
+.nox-navsheet .nox-navgroup-h {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: var(--v2-muted);
+  padding: 2px 2px 6px;
+}
+.nox-navsheet-i {
+  display: block;
+  padding: 11px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--v2-line);
+  background: var(--v2-panel2);
+  color: var(--v2-text);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+  margin-bottom: 7px;
+}
+.nox-navsheet-i.on {
+  border-color: var(--gold);
+  background: #1B1710;
+  color: var(--champ);
+}
+
 /* ── D2 報酬明細：印刷（白地黒字・A4・1人1枚）── presentation-only ────────────
    ★全ルールを @media print 内に閉じる＝画面表示は 1px も変えない。
    隔離＝.nox-printpage 直下で .nox-print 以外を display:none（絶対配置は使わない＝通常フローで
