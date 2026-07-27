@@ -635,6 +635,88 @@ body {
 .nox-prodrow-name { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nox-prodrow-sub { font-size: 11px; color: var(--sub); margin-top: 2px; }
 
+/* ── UI刷新v2 段S-1（シフト）── presentation-only 2026-07-27 ──
+   正本＝NOX_UI刷新v2_デザインガイド.md ＋ nox-shift-redesign-mock-v2.html。
+   既存 shifts/wishes/staffing_needs/attendance の client 再形のみ＝RPC/RLS/mig 非改変。
+   金は3役（選択状態・主ボタン・バッジ）だけ＝見出しや数値は --v2-text で読ませる。 */
+
+/* サブナビ（今日/カレンダー/シフト作成）＝タブ。非選択 transparent+muted／選択 gold-weak 地+gold 文字 */
+.nox-subnav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 13px; }
+.nox-subnav button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--v2-muted);
+  cursor: pointer;
+}
+.nox-subnav button.on { background: #1B1710; border-color: var(--gold); color: var(--champ); }
+
+/* KPI 帯（4枚・数値は .num で読ませる） */
+.nox-kpirow { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; margin-bottom: 13px; }
+@media (min-width: 641px) { .nox-kpirow { grid-template-columns: repeat(4, 1fr); } }
+.nox-kpi2 {
+  background: linear-gradient(180deg, var(--card2), var(--card));
+  border: 1px solid var(--v2-line);
+  border-radius: 13px;
+  padding: 11px 12px;
+}
+.nox-kpi2-l { font-size: 11px; color: var(--v2-muted); }
+.nox-kpi2-v { font-size: 21px; color: var(--v2-text); margin-top: 3px; }
+.nox-kpi2-v small { font-size: 12px; color: var(--v2-muted); margin-left: 3px; font-weight: 400; }
+.nox-kpi2-s { font-size: 11px; color: var(--v2-muted); margin-top: 2px; }
+
+/* 月カレンダー（7列・状態色は green/gold/red の3つのみ） */
+.nox-calhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 9px; }
+.nox-calgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.nox-calh { font-size: 10px; color: var(--v2-muted); text-align: center; padding-bottom: 3px; }
+.nox-cald {
+  min-height: 52px;
+  border-radius: 9px;
+  border: 1px solid var(--v2-line);
+  background: var(--v2-panel2);
+  padding: 5px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--v2-text);
+}
+.nox-cald:disabled { cursor: default; opacity: .35; }
+.nox-cald-n { font-size: 11.5px; }
+.nox-cald-c { font-size: 11px; color: var(--v2-muted); }
+.nox-cald.ok   { border-color: rgba(127, 199, 155, .5); }
+.nox-cald.warn { border-color: rgba(201, 162, 74, .55); }
+.nox-cald.ng   { border-color: rgba(217, 138, 138, .55); }
+.nox-cald.ok .nox-cald-c   { color: var(--ok); }
+.nox-cald.warn .nox-cald-c { color: var(--gold2); }
+.nox-cald.ng .nox-cald-c   { color: var(--bad); }
+.nox-cald.sel { background: #1B1710; border-color: var(--gold); }
+.nox-cald.today .nox-cald-n { color: var(--champ); font-weight: 700; }
+.nox-callegend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--v2-muted); margin-top: 9px; }
+.nox-callegend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; border: 1px solid var(--v2-line); }
+
+/* 日詳細（時間帯バンド＋キャスト行） */
+.nox-band { border: 1px solid var(--v2-line); border-radius: 11px; padding: 9px 10px; margin-bottom: 9px; background: var(--v2-panel2); }
+.nox-bandh { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 7px; }
+.nox-bandh .t { font-size: 13px; color: var(--v2-text); }
+.nox-crow { display: flex; align-items: center; gap: 9px; padding: 5px 0; font-size: 12.5px; color: var(--v2-text); }
+.nox-ava2 {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--v2-ava); color: var(--v2-muted);
+  font-family: "Cormorant Garamond", serif; font-weight: 700; font-size: 12px; flex-shrink: 0;
+}
+.nox-stpill { font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--v2-line); color: var(--v2-muted); white-space: nowrap; }
+.nox-stpill.ok   { color: var(--ok); border-color: rgba(127, 199, 155, .45); }
+.nox-stpill.warn { color: var(--gold2); border-color: rgba(201, 162, 74, .45); }
+.nox-stpill.ng   { color: var(--bad); border-color: rgba(217, 138, 138, .45); }
+
 /* ── D2 報酬明細：印刷（白地黒字・A4・1人1枚）── presentation-only ────────────
    ★全ルールを @media print 内に閉じる＝画面表示は 1px も変えない。
    隔離＝.nox-printpage 直下で .nox-print 以外を display:none（絶対配置は使わない＝通常フローで

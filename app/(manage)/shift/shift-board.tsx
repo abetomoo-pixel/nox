@@ -5,10 +5,10 @@
 //   ★シフトの営業日判定は shiftHoursStatus（date 直＝cutoff 変換なし・mig0008 決定3）。
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
-import { fmtWin } from "@/lib/nox/shift-time";
+import { fmtWin, fmtBand30, hm2min } from "@/lib/nox/shift-time";
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -21,6 +21,20 @@ type Att = { cast_id: string; status: string; eta: string | null };
 type Need = { dow: number; required: number };
 
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
+
+// ── UI刷新v2 段S-1 ヘルパー（表示専用・DB 非改変）────────────────────────────
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const ymdOf = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+/** 'YYYY-MM-DD' → その暦日の曜日（0=日）。ローカル TZ 依存を避け UTC で解く。 */
+const dowOf = (ymd: string) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+};
+/** 充足判定（ガイド §1-4 の3色のみ）: required 0=未設定 / >=必要=充足 / 1人不足=やや不足 / 2人以上不足=不足 */
+type Fill = "none" | "ok" | "warn" | "ng";
+const fillOf = (assigned: number, required: number): Fill =>
+  required <= 0 ? "none" : assigned >= required ? "ok" : required - assigned === 1 ? "warn" : "ng";
+const FILL_LABEL: Record<Fill, string> = { none: "未設定", ok: "充足", warn: "やや不足", ng: "不足" };
 const ATT_OPTIONS = [
   ["", "—"], ["shukkin", "出勤"], ["dohan", "同伴"], ["late", "遅刻"], ["off", "休み"], ["absent", "当欠"],
 ] as const;
@@ -51,6 +65,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const [attDate, setAttDate] = useState(bizToday);
   const [atts, setAtts] = useState<Att[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  // ── UI刷新v2 段S-1: サブナビ（今日/カレンダー/シフト作成）・表示月・選択日 ──
+  //   すべて presentation（どの範囲を読むか・どこを見せるか）＝RPC/RLS/mig 非改変。
+  const [tab, setTab] = useState<"today" | "calendar" | "build">("today");
+  const [month, setMonth] = useState(bizToday.slice(0, 7)); // 'YYYY-MM'
+  const [selDate, setSelDate] = useState(bizToday);
   // B-5②: 営業時間マスタ（行なし=未設定・判定なし。cast 0行だが本画面は staff 以上のみ到達）
   const [bhRows, setBhRows] = useState<BusinessHourRow[]>([]);
   // 新規シフトフォーム（manager）
@@ -66,9 +85,17 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     const { data: ws } = await supabase
       .from("shift_wishes").select("id, cast_id, date, start_hm, end_hm, status")
       .eq("status", "pending").order("date");
+    // 段S-1: 月カレンダー化に伴い取得範囲を「今日から30件」→「表示月の全日」へ変更。
+    //   ★client 直 SELECT の範囲変更のみ（shifts の SELECT RLS はそのまま＝店スコープ）。
+    //   今日を含む月以外を見ているときも「今日」タブの KPI が出せるよう、当月と表示月の和を取る。
+    const [my, mm] = month.split("-").map(Number);
+    const monthFrom = `${month}-01`;
+    const monthTo = ymdOf(new Date(my, mm, 0)); // 当月末日（翌月0日）
+    const from = monthFrom < bizToday ? monthFrom : bizToday;
+    const to = monthTo > bizToday ? monthTo : bizToday;
     const { data: ss } = await supabase
       .from("shifts").select("id, cast_id, date, start_hm, end_hm, status")
-      .gte("date", bizToday).order("date").limit(30);
+      .gte("date", from).lte("date", to).order("date").limit(2000);
     const { data: ns } = await supabase.from("staffing_needs").select("dow, required").order("dow");
     // B-5②: 営業時間（シフトは date 直判定＝cutoff 不要なので stores.settings_json は読まない）
     const { data: bh } = await supabase.from("store_business_hours")
@@ -78,7 +105,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     setNeeds((ns ?? []) as Need[]);
     setBhRows((bh ?? []) as BusinessHourRow[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bizToday]);
+  }, [bizToday, month]);
 
   const loadAtt = useCallback(async (d: string) => {
     const { data } = await supabase.from("attendance").select("cast_id, status, eta").eq("date", d);
@@ -146,28 +173,161 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const closedOf = (date: string, startHm: string, endHm: string) =>
     shiftHoursStatus(date, startHm, endHm, bhRows).status === "closed";
 
-  // 段C: 週グリッド overview＝既存 shifts の client 再形（cast × 次7日・新規取得/RPC/集計なし・読取専用）。
-  const weekDays: { ymd: string; dow: number; dom: number }[] = (() => {
-    const [y, m, d] = bizToday.split("-").map(Number);
-    const base = new Date(y, m - 1, d);
-    return Array.from({ length: 7 }, (_, i) => {
-      const dt = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-      const ymd = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
-      return { ymd, dow: dt.getDay(), dom: dt.getDate() };
-    });
-  })();
-  const weekSet = new Set(weekDays.map((w) => w.ymd));
-  const weekShifts = shifts.filter((s) => weekSet.has(s.date));
-  const gridCasts = casts.filter((c) => weekShifts.some((s) => s.cast_id === c.id));
-  const shiftsAt = (castId: string, ymd: string) => weekShifts.filter((s) => s.cast_id === castId && s.date === ymd);
+  // ── 段S-1 派生値（すべて既存 shifts / staffing_needs の client 再形＝新規取得なし）──
+  //   ★必要人数は曜日別マスタ（staffing_needs は (store_id, dow) UNIQUE）を dow で引く。
+  //     日別の個別上書きは現スキーマに無い（モック注記「必要人数は既存『必要人数（曜日別）』設定を参照」と一致）。
+  const requiredOf = (ymd: string) => needs.find((n) => n.dow === dowOf(ymd))?.required ?? 0;
+  const shiftsOn = (ymd: string) => shifts.filter((s) => s.date === ymd);
+  const dayStat = (ymd: string) => {
+    const list = shiftsOn(ymd);
+    const confirmed = list.filter((s) => s.status === "confirmed").length;
+    const required = requiredOf(ymd);
+    return { assigned: list.length, confirmed, planned: list.length - confirmed, required, fill: fillOf(list.length, required) };
+  };
+
+  // 月グリッド（前後の空白セル込み・7列）
+  const [my, mm] = month.split("-").map(Number);
+  const monthDays = new Date(my, mm, 0).getDate();
+  const leadBlanks = new Date(Date.UTC(my, mm - 1, 1)).getUTCDay();
+  const calCells: (string | null)[] = [
+    ...Array.from({ length: leadBlanks }, () => null),
+    ...Array.from({ length: monthDays }, (_, i) => `${month}-${pad2(i + 1)}`),
+  ];
+  const shiftMonth = (delta: number) => {
+    const d = new Date(my, mm - 1 + delta, 1);
+    setMonth(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
+  };
+
+  // 「今日」の KPI（予想人件費は S-2＝Fable 5・本段では出さない）
+  const todayStat = dayStat(bizToday);
+  const fillRate = todayStat.required > 0 ? Math.round((todayStat.assigned / todayStat.required) * 100) : null;
+  const shortage = Math.max(0, todayStat.required - todayStat.assigned);
+
+  // 日詳細＝選択日のシフトを「時間帯」でグルーピング（表示のみ・fmtBand30 で 30時間制表記）
+  const selShifts = shiftsOn(selDate);
+  const bandKey = (s: Shift) => `${s.start_hm}|${s.end_hm}`;
+  const bands = Array.from(new Set(selShifts.map(bandKey)))
+    .map((key) => {
+      const [start, end] = key.split("|");
+      const items = selShifts.filter((s) => bandKey(s) === key);
+      return { key, start, end, items, confirmed: items.filter((s) => s.status === "confirmed").length };
+    })
+    .sort((a, b) => hm2min(a.start) - hm2min(b.start));
+  const selStat = dayStat(selDate);
 
   return (
     <div style={{ maxWidth: 760 }}>
       <h1 style={t.pheadH1}>シフト管理</h1>
       <Toast msg={msg} />
 
-      {isManagerUp && <IncentivePanel storeId={storeId} />}
+      {/* 段S-1 サブナビ（今日／カレンダー／シフト作成）＝ページ内の収容先を切り替えるだけ。
+          ルート・URL・権限ゲートは不変。 */}
+      <nav className="nox-subnav">
+        {([["today", "今日"], ["calendar", "カレンダー"], ["build", "シフト作成"]] as const).map(([k, label]) => (
+          <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{label}</button>
+        ))}
+      </nav>
 
+      {/* 段S-1 KPI 帯（当日）。★予想人件費は S-2（Fable 5・money 慎重域）＝本段では出さない。 */}
+      <div className="nox-kpirow">
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">出勤予定</div>
+          <div className="nox-kpi2-v num">{todayStat.assigned}<small>人</small></div>
+          <div className="nox-kpi2-s">必要 {todayStat.required}人</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">確定</div>
+          <div className="nox-kpi2-v num">{todayStat.confirmed}<small>人</small></div>
+          <div className="nox-kpi2-s">{fillRate === null ? "必要人数 未設定" : `充足率 ${fillRate}%`}</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">未承認</div>
+          <div className="nox-kpi2-v num">{wishes.length}<small>件</small></div>
+          <div className="nox-kpi2-s">承認待ち</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">不足</div>
+          <div className="nox-kpi2-v num">{shortage}<small>人</small></div>
+          <div className="nox-kpi2-s">{shortage > 0 ? `あと${shortage}人必要` : "充足しています"}</div>
+        </div>
+      </div>
+
+      {/* ── タブ「今日」＝当日運用（出勤板・出勤ボーナス）── */}
+      {tab === "today" && isManagerUp && <IncentivePanel storeId={storeId} />}
+
+      {/* ── タブ「カレンダー」＝月カレンダー＋日詳細 ── */}
+      {tab === "calendar" && (
+        <>
+          <section className="nox-cardtop" style={card}>
+            <div className="nox-calhead">
+              <button style={btnLight} onClick={() => shiftMonth(-1)} aria-label="前の月">‹</button>
+              <h2 style={{ ...secTitle, margin: 0 }}>{my}年{mm}月</h2>
+              <button style={btnLight} onClick={() => shiftMonth(1)} aria-label="次の月">›</button>
+              <button style={{ ...btnLight, marginLeft: "auto" }}
+                onClick={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }}>今日</button>
+            </div>
+            <div className="nox-calgrid">
+              {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}
+              {calCells.map((ymd, i) => {
+                if (!ymd) return <div key={`b${i}`} />;
+                const st = dayStat(ymd);
+                const cls = ["nox-cald", st.fill, ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
+                return (
+                  <button key={ymd} className={cls} onClick={() => setSelDate(ymd)}
+                    title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/予定${st.planned}）`}>
+                    <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
+                    {st.required > 0 && <span className="nox-cald-c num">{st.assigned}/{st.required}</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="nox-callegend">
+              <span><i style={{ borderColor: "rgba(127,199,155,.5)" }} />充足</span>
+              <span><i style={{ borderColor: "rgba(201,162,74,.55)" }} />やや不足(-1)</span>
+              <span><i style={{ borderColor: "rgba(217,138,138,.55)" }} />不足(-2以上)</span>
+              <span><i />未設定</span>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+              セル＝状態色＋確定/必要人数。必要人数は「シフト作成」タブの「必要人数（曜日別）」設定を参照します。
+            </p>
+          </section>
+
+          <section className="nox-cardtop" style={card}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
+              <h2 style={{ ...secTitle, margin: 0 }}>{selDate} の割当</h2>
+              <span className={`nox-stpill ${selStat.fill === "none" ? "" : selStat.fill}`}>
+                {FILL_LABEL[selStat.fill]}{selStat.required > 0 ? ` ${selStat.assigned}/${selStat.required}` : ""}
+              </span>
+              <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {selStat.confirmed} / 予定 {selStat.planned}</span>
+            </div>
+            {bands.length === 0 && (
+              <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
+                この日の割当はありません。「シフト作成」タブの確定シフト登録から追加できます。
+              </p>
+            )}
+            {bands.map((b) => (
+              <div key={b.key} className="nox-band">
+                <div className="nox-bandh">
+                  <span className="t num">{fmtBand30(b.start, b.end)}</span>
+                  <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {b.confirmed} / 予定 {b.items.length - b.confirmed}</span>
+                </div>
+                {b.items.map((s) => (
+                  <div key={s.id} className="nox-crow">
+                    <span className="nox-ava2" aria-hidden="true">{t.avatarInitial(castName(s.cast_id))}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>{castName(s.cast_id)}</span>
+                    <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{fmtWin(s.start_hm, s.end_hm)}</span>
+                    <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`}>{s.status === "confirmed" ? "確定" : "予定"}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </section>
+        </>
+      )}
+
+      {/* ── タブ「シフト作成」＝承認待ち・確定シフト登録・必要人数 ── */}
+      {tab === "build" && (
+      <>
       <section className="nox-cardtop" style={card}>
         <h2 style={secTitle}>希望（審査待ち）</h2>
         {wishes.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>なし</p>}
@@ -196,40 +356,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             </div>
           );
         })}
-      </section>
-
-      {/* 段C: 週グリッド overview（既存 shifts の client 再形・読取専用・DESIGN_MASTER .wgrid 準拠・新規取得なし） */}
-      <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>今週のシフト（{weekDays[0]?.ymd} 〜 次7日）</h2>
-        {gridCasts.length === 0 ? (
-          <p style={{ fontSize: 13, color: "var(--sub)" }}>今後7日の確定・予定シフトはありません</p>
-        ) : (
-          <>
-            <div className="nox-wgrid">
-              <div />
-              {weekDays.map((w) => (
-                <div key={w.ymd} className="nox-whead">{DOW[w.dow]}<br />{w.dom}</div>
-              ))}
-              {gridCasts.map((c) => (
-                <Fragment key={c.id}>
-                  <div className="nox-wname" title={c.name}>{c.name}</div>
-                  {weekDays.map((w) => {
-                    const ss = shiftsAt(c.id, w.ymd);
-                    const confirmed = ss.some((s) => s.status === "confirmed");
-                    const cls = ss.length === 0 ? "nox-wcell" : confirmed ? "nox-wcell on" : "nox-wcell planned";
-                    const title = ss.map((s) => fmtWin(s.start_hm, s.end_hm)).join(" / ");
-                    return (
-                      <div key={c.id + w.ymd} className={cls} title={title || undefined}>
-                        {ss.length ? (confirmed ? "確" : "予") : ""}
-                      </div>
-                    );
-                  })}
-                </Fragment>
-              ))}
-            </div>
-            <p style={{ fontSize: 11, color: "var(--sub)", marginTop: 8 }}>確＝確定・予＝予定（詳細と操作は下の一覧）。読取専用の週表示。</p>
-          </>
-        )}
       </section>
 
       <section className="nox-cardtop" style={card}>
@@ -288,11 +414,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           );
         })}
       </section>
+      </>
+      )}
 
+      {/* ── タブ「今日」＝出勤板（staff も操作可＝attendance のみ開放・台帳 #24）── */}
+      {tab === "today" && (
       <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>
-          出勤板（staff も操作可＝attendance のみ開放・台帳 #24）
-        </h2>
+        <h2 style={secTitle}>出勤板</h2>
         <input type="date" value={attDate} onChange={(e) => setAttDate(e.target.value)} style={{ ...input, marginBottom: 8 }} />
         {casts.map((c) => {
           const a = atts.find((x) => x.cast_id === c.id);
@@ -307,8 +435,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           );
         })}
       </section>
+      )}
 
-      {isManagerUp && (
+      {/* ── タブ「シフト作成」＝必要人数（曜日別）── */}
+      {tab === "build" && isManagerUp && (
         <section className="nox-cardtop" style={card}>
           <h2 style={secTitle}>必要人数（曜日別）</h2>
           <div style={{ display: "flex", gap: 10 }}>
