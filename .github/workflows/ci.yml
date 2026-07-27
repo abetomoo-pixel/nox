@@ -1,0 +1,49 @@
+name: CI
+
+# 純増⑤ 段1: 最小 CI（secrets 不要構成）。
+# ★DB を触る verify（anon-guard / rls / payroll / inventory / categories）と grants は入れない：
+#   - 前者は共有 dev DB へ実書込＋auth ユーザー作成を伴い、並行実行で相互汚染する。
+#   - grants は読取のみだが SUPABASE_DB_URL を GitHub に置かない裁定（純増⑤ 段1）。
+#   → CI で回すのは env/DB 不要の純関数スイート（verify:ci = 279 assertions）＋型/lint のみ。
+#   → DB 系（verify:f0 = 2090）は従来どおり手元で実行し、コミット前ゲートとして維持する。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同一ブランチの多重実行を打ち切る（後勝ち・CI 時間の無駄打ち防止）
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: typecheck / lint / verify:ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install (npm ci)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # A群のみ＝pay / shift-time / punch-match / receipt / payroll-csv（env も DB も不要）。
+      # 玲奈ゴールデン（wage=5931）と 3ゲートのうち pay83 / receipt52 はここで恒久回帰する。
+      - name: Verify (pure suites)
+        run: npm run verify:ci
