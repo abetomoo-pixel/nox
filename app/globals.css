@@ -43,9 +43,30 @@ body {
   --sub: #9A9AA8;
   --ok: #7FC79B;
   --bad: #D98A8A;
+
+  /* ── UI刷新v2 ガイド §1 可読性サブトークン（2026-07-27・正本 NOX_UI刷新v2_デザインガイド.md）──
+     ★canonical 13トークンの値は不変（上の13行は1文字も変えない）。ここは v2 画面が参照する
+     「明度系サブトークン」の追加のみ＝既存画面の見た目は一切動かさない（未参照なら無影響）。
+     ルール: 読む情報（金額/名前/数量/件数/日付）は --v2-text＋.num（Outfit 600）で読ませる。
+             金（--gold）は3役だけ＝①選択状態 ②主ボタン（1画面1つ）③バッジ。見出し/金額/アイコン地の常用は禁止。
+             状態色は green(充足)/gold(やや不足)/red(不足・警告) の3つのみ＝新色を作らない。 */
+  --v2-text: #F2F0EB;    /* 読ませる文字（旧 #E8E6E1 相当を明るく） */
+  --v2-muted: #9C9BA6;   /* 補助文字（旧 #8B8A94 相当を明るく） */
+  --v2-panel2: #20202A;  /* 一段沈めた面（旧 #1B1B24 相当） */
+  --v2-line: #2C2C38;    /* 境界（旧 #26262F 相当） */
+  --v2-ava: #2A2A36;     /* アバター地（非選択）＝neutral。選択時のみ gold */
+
   color: var(--ink);
   font-family: "Zen Kaku Gothic New", sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* UI刷新v2: 数値は Outfit 600・tabular（ガイド §1-5）。既存 t.num（inline）と併用可＝
+   このクラスを付けた要素だけが 600 になる（既存の描画には影響しない）。 */
+.nox-dark .num {
+  font-family: "Outfit", sans-serif;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── アプリシェル4部品（R-2 2026-07-17・モック準拠サイドバー化のためクラス化）──────
