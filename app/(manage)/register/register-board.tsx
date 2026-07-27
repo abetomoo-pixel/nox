@@ -4,13 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { groupDue } from "@/lib/nox/check-calc";
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
+import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
 import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
 
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
-type Product = { id: string; name: string; type: string; price: number };
+// 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
+type Product = { id: string; name: string; type: string; price: number; category_id: string | null };
+type Category = { id: string; name: string; sort_order: number };
 type Cast = { id: string; name: string };
 // B1/B2（mig0053）: 追加席の占有行（伝票の追加席一覧・フロアの「同一会計」表示に使う）
 type CheckSeatRow = { id: string; seat_id: string; check_id: string };
@@ -55,8 +58,7 @@ type Approval = {
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 // 段B: 商品タイルの type 別見出し（products.type＝drink/champ/bottle・既存カラム）。滞在経過は started_at から算出。
-const TYPE_LABEL: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
-const TYPE_ORDER = ["drink", "champ", "bottle"] as const;
+// 純増⑦: type 別の見出し/順序は lib/nox/ui/product-groups へ移設（カテゴリ未登録時のフォールバックとして同居）
 const elapsedMin = (started: string, now: number) => Math.max(0, Math.floor((now - new Date(started).getTime()) / 60000));
 // ★台帳 #36（F4c 裁定 2026-07-17）: 決済手段の語彙は4値で確定（端末カード=card・QR/電子マネー=other に収容し、
 //   手段の内訳は payments.method_detail の自由記述で drill-down する＝mig0046）。
@@ -118,9 +120,9 @@ const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 
 export default function RegisterBoard({
-  seats, products, casts, isManagerUp, showReserve, storeId,
+  seats, products, categories, casts, isManagerUp, showReserve, storeId,
 }: {
-  seats: Seat[]; products: Product[]; casts: Cast[]; isManagerUp: boolean;
+  seats: Seat[]; products: Product[]; categories: Category[]; casts: Cast[]; isManagerUp: boolean;
   showReserve: boolean; storeId: string;
 }) {
   const supabase = createClient();
@@ -703,13 +705,13 @@ export default function RegisterBoard({
               <span style={{ fontSize: 12, color: "var(--sub)", marginLeft: "auto" }}>伝票グループ</span>
               <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} aria-label="伝票グループ" style={{ ...input, width: 40 }} />
             </div>
-            {/* type 別（drink/champ/bottle）タイル。タップ＝連打束ね（700ms・p_qty=N の1行）。バッジ=pre-commit。 */}
-            {TYPE_ORDER.map((ty) => {
-              const items = products.filter((p) => p.type === ty);
-              if (items.length === 0) return null;
+            {/* 純増⑦: カテゴリ別タイル（sort_order 順＋末尾に未分類）。カテゴリ未登録なら type 別へフォールバック。
+                タップ＝連打束ね（700ms・p_qty=N の1行）。バッジ=pre-commit。 */}
+            {groupProducts(products, categories).map((g) => {
+              const items = g.items;
               return (
-                <div key={ty} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--sub)", margin: "0 0 6px" }}>{TYPE_LABEL[ty]}</div>
+                <div key={g.key} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--sub)", margin: "0 0 6px" }}>{g.label}</div>
                   <div className="nox-tilegrid">
                     {items.map((p) => {
                       const n = tb.badgeOf(p.id);

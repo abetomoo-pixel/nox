@@ -14,14 +14,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { groupDue } from "@/lib/nox/check-calc";
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
+import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
 
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
 type StateSeat = { id: string; name: string; kind: string | null };
-type StateProduct = { id: string; name: string; type: string; price: number };
+// 純増⑦（0059 v2）: products.category_id / categories 配列 / checks.started_at が追加された
+type StateProduct = { id: string; name: string; type: string; price: number; category_id: string | null };
+type StateCategory = { id: string; name: string; sort_order: number };
 type StateCast = { id: string; name: string };
-type StateCheck = { id: string; seat_id: string; extra_seat_ids: string[]; total: number };
-type RegState = { seats: StateSeat[]; products: StateProduct[]; casts: StateCast[]; checks: StateCheck[] };
+type StateCheck = { id: string; seat_id: string; extra_seat_ids: string[]; total: number; started_at: string };
+type RegState = { seats: StateSeat[]; products: StateProduct[]; categories: StateCategory[]; casts: StateCast[]; checks: StateCheck[] };
 type DetailCheck = {
   id: string; seat_id: string; status: string; people: number | null; nom_type: string;
   started_at: string; total: number; service_rate: number; round_unit: number; round_mode: string;
@@ -42,8 +45,7 @@ const METHOD_LABEL: Record<string, string> = { cash: "現金", card: "カード"
 const DETAIL_METHODS = new Set(["card", "other"]);
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
 // 段B: 商品タイルの type 別見出し（products.type＝drink/champ/bottle・既存カラム）・滞在経過は started_at から算出。
-const TYPE_LABEL: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
-const TYPE_ORDER = ["drink", "champ", "bottle"] as const;
+// 純増⑦: type 別の見出し/順序は lib/nox/ui/product-groups へ移設（カテゴリ未登録時のフォールバックとして同居）
 const elapsedMin = (started: string, now: number) => Math.max(0, Math.floor((now - new Date(started).getTime()) / 60000));
 const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "黒服" };
 const IDLE_MS = 15 * 60_000; // サーバ側 15分失効（確定④）のローカル鏡像＝表示と自動ロックのみ
@@ -604,7 +606,13 @@ export default function KioskRegisterPage() {
                       }}
                     >
                       {s.name} {s.kind ? `(${s.kind})` : ""}{" "}
-                      {oc ? (isPrimary ? "● 使用中" : `● ${hostName} と同一会計`) : "空"}
+                      {/* 純増⑦: floor 滞在タイマー（0059 v2 の started_at＋ローカル時計 tick のみ＝
+                          タイマーから RPC は呼ばない＝0059(b) 契約維持。register-board floor と同表示）。 */}
+                      {oc
+                        ? (isPrimary
+                            ? `● 使用中${oc.started_at ? ` ・ 滞在 ${elapsedMin(oc.started_at, nowMs)}分` : ""}`
+                            : `● ${hostName} と同一会計`)
+                        : "空"}
                     </button>
                   );
                 })}
@@ -734,13 +742,13 @@ export default function KioskRegisterPage() {
                     <span style={{ fontSize: 12, color: "var(--sub)", marginLeft: "auto" }}>伝票グループ</span>
                     <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} aria-label="伝票グループ" style={{ ...input, width: 40 }} />
                   </div>
-                  {/* type 別（drink/champ/bottle）タイル。タップ＝連打束ね（700ms・p_qty=N の1行）。バッジ=pre-commit。 */}
-                  {TYPE_ORDER.map((ty) => {
-                    const items = (state?.products ?? []).filter((p) => p.type === ty);
-                    if (items.length === 0) return null;
+                  {/* 純増⑦: カテゴリ別タイル（0059 v2 の categories・sort_order 順＋末尾に未分類）。
+                      カテゴリ未登録なら type 別へフォールバック（register-board と同一ロジック＝共有フック）。 */}
+                  {groupProducts(state?.products ?? [], state?.categories ?? []).map((g) => {
+                    const items = g.items;
                     return (
-                      <div key={ty} style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--sub)", margin: "0 0 6px" }}>{TYPE_LABEL[ty]}</div>
+                      <div key={g.key} style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--sub)", margin: "0 0 6px" }}>{g.label}</div>
                         <div className="nox-tilegrid">
                           {items.map((p) => {
                             const n = tb.badgeOf(p.id);

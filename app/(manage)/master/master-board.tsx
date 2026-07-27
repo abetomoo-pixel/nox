@@ -9,10 +9,13 @@ import CompMaster from "./comp-master";
 type Product = {
   id: string; type: string; category: string | null; name: string; price: number;
   back_mode: string; back_value: number | null; unit4_json: Record<string, number> | null; hon_pt: number; is_active: boolean;
-  // 純増①（mig0061）: 発注点しきい（null=しきい無し）。load の select("*") で既に取得済み＝新規取得なし。
-  //   ★編集経路は未実装（set_product に p_reorder_point が無い＝表示のみ・追加は別 mig）。
+  // 純増①（mig0061/0062）: 発注点しきい（null=しきい無し）。load の select("*") で取得。
   reorder_point: number | null;
+  // 純増⑦（mig0063）: カテゴリ FK（null=未分類）。旧 category text は deprecated（現値往復のみ）。
+  category_id: string | null;
 };
+// 純増⑦（mig0063）: 商品カテゴリマスタ（store スコープ・sort_order 順・is_active で有効/無効）
+type Category = { id: string; name: string; sort_order: number; is_active: boolean };
 // 原価は products に無い（台帳#40＝product_costs へ分離）。RLS は owner∨manager自店 のみ返す＝cast/staff は空。
 type ProductCost = { product_id: string; cost: number };
 type Seat = { id: string; name: string; kind: string | null; sort_order: number; is_active: boolean };
@@ -54,6 +57,7 @@ function stockCell(qty: number, reorderPoint: number | null) {
 export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId: string; isManagerUp: boolean; isOwner: boolean }) {
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [costs, setCosts] = useState<Record<string, number>>({});
   // 0行（＝原価なし・RLS で返らない）と 取得失敗 を区別する。失敗のときだけ保存を止める＝
   // 原価欄が空のまま p_cost=null を送って cost 行を消す事故を構造的に作らない。
@@ -76,6 +80,14 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   const [pActive, setPActive] = useState(true);
   // 純増①（mig0062）: 発注点。空欄＝しきい無し（null 送信）＝原則7どおり常に明示値を送る。
   const [pReorder, setPReorder] = useState("");
+  // 純増⑦（mig0063）: カテゴリ。""＝未分類（null 送信）＝原則7 同列で常に明示値。
+  const [pCatId, setPCatId] = useState("");
+
+  // カテゴリ管理フォーム（set_product_category）
+  const [cId, setCId] = useState<string | null>(null);
+  const [cCatName, setCCatName] = useState("");
+  const [cSort, setCSort] = useState(0);
+  const [cActive, setCActive] = useState(true);
 
   // 席フォーム
   const [sId, setSId] = useState<string | null>(null);
@@ -92,6 +104,9 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   const load = useCallback(async () => {
     const { data: ps } = await supabase.from("products").select("*").order("type").order("name");
     const { data: cs, error: eCs } = await supabase.from("product_costs").select("product_id, cost");
+    // 純増⑦（mig0063）: カテゴリ一覧（RLS で自店/自 org のみ・無効も含めて管理表に出す）
+    const { data: cats } = await supabase.from("product_categories")
+      .select("id, name, sort_order, is_active").order("sort_order").order("name");
     const { data: ss } = await supabase.from("seats").select("id, name, kind, sort_order, is_active").order("sort_order");
     const { data: logs } = await supabase.from("stock_logs").select("product_id, delta, reason, at");
     const st: Record<string, number> = {};
@@ -99,6 +114,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
     const cm: Record<string, number> = {};
     for (const c of (cs ?? []) as ProductCost[]) cm[c.product_id] = c.cost;
     setProducts((ps ?? []) as Product[]);
+    setCategories((cats ?? []) as Category[]);
     setCosts(cm);
     setCostsError(!!eCs);
     setSeats((ss ?? []) as Seat[]);
@@ -114,6 +130,25 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
     setPBackMode(p.back_mode); setPBackValue(p.back_value ?? 0);
     setPUnit4(p.unit4_json ?? { ...EMPTY_UNIT4 }); setPHonPt(p.hon_pt); setPActive(p.is_active);
     setPReorder(p.reorder_point == null ? "" : String(p.reorder_point));
+    setPCatId(p.category_id ?? "");
+  }
+
+  // 純増⑦（mig0063）: カテゴリ upsert（set_product_category・owner/manager 自店＝RPC 側も二重で拒否）
+  async function saveCategory() {
+    if (!cCatName.trim()) return;
+    setMsg(null);
+    const { error } = await supabase.rpc("set_product_category", {
+      p_id: cId, p_store_id: storeId, p_name: cCatName.trim(), p_sort_order: cSort,
+      p_is_active: cActive, // 明示 boolean（原則7）
+    });
+    setMsg(error
+      ? (error.message.includes("duplicate name") ? "同じ名前のカテゴリが既にあります"
+        : error.message.includes("bad name") ? "カテゴリ名は40字以内で入力してください"
+        : error.message.includes("forbidden") ? "権限がありません"
+        : error.message)
+      : cId ? "カテゴリを更新しました" : "カテゴリを登録しました");
+    if (!error) { setCId(null); setCCatName(""); setCSort(0); setCActive(true); }
+    await load();
   }
 
   async function saveProduct() {
@@ -129,9 +164,13 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
       p_hon_pt: pHonPt, p_is_active: pActive, // 明示 boolean（原則7）
       // mig0062: 発注点も常に明示値（空欄＝null＝しきい無し）。省略に頼らない＝原則7 同列。
       p_reorder_point: pReorder.trim() === "" ? null : Number(pReorder),
+      // mig0063: カテゴリも常に明示値（""＝未分類＝null）。旧 p_category（text）は現値往復のみ＝deprecated。
+      p_category_id: pCatId === "" ? null : pCatId,
     });
-    setMsg(error ? error.message : pId ? "商品を更新しました" : "商品を登録しました");
-    setPId(null); setPName(""); setPPrice(0); setPReorder("");
+    setMsg(error
+      ? (error.message.includes("bad category") ? "カテゴリの指定が不正です（他店のカテゴリは選べません）" : error.message)
+      : pId ? "商品を更新しました" : "商品を登録しました");
+    setPId(null); setPName(""); setPPrice(0); setPReorder(""); setPCatId("");
     await load();
   }
 
@@ -195,6 +234,13 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
             <select value={pType} onChange={(e) => setPType(e.target.value)} style={input}>
               <option value="drink">drink</option><option value="champ">champ</option><option value="bottle">bottle</option>
             </select>
+            {/* 純増⑦（mig0063）: カテゴリ（未分類＝null）。無効カテゴリは現在値のときだけ選択肢に残す。 */}
+            <select value={pCatId} onChange={(e) => setPCatId(e.target.value)} style={input} title="レジのタイル見出しに使われます">
+              <option value="">未分類</option>
+              {categories.filter((c) => c.is_active || c.id === pCatId).map((c) => (
+                <option key={c.id} value={c.id}>{c.name}{c.is_active ? "" : "（無効）"}</option>
+              ))}
+            </select>
             <input placeholder="名称" value={pName} onChange={(e) => setPName(e.target.value)} style={{ ...input, width: 160 }} />
             <label style={{ fontSize: 12 }}>価格 <input type="number" min={0} value={pPrice} onChange={(e) => setPPrice(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
             <label style={{ fontSize: 12 }}>原価 <input type="number" min={0} value={pCost} onChange={(e) => setPCost(e.target.value)} placeholder="任意" disabled={costsError} style={{ ...input, width: 80 }} /></label>
@@ -225,6 +271,49 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
             <button style={btnDark} disabled={costsError} onClick={saveProduct}>{pId ? "更新" : "登録"}</button>
             {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); setPReorder(""); }}>新規に戻す</button>}
             {costsError && <span style={{ fontSize: 12, color: "var(--bad)" }}>原価を読み込めませんでした。再読込してください</span>}
+          </div>
+        )}
+      </section>
+
+      {/* 純増⑦（mig0063）: カテゴリ管理（レジ/キオスクのタイル見出し・sort_order 順）。書込は set_product_category のみ。 */}
+      <section className="nox-cardtop" style={card}>
+        <h2 style={secTitle}>商品カテゴリ（クリックで編集）</h2>
+        {categories.length === 0 && (
+          <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>
+            カテゴリ未登録です。登録するとレジの商品タイルがカテゴリ別に並びます（未登録なら種別 drink/champ/bottle で並びます）。
+          </p>
+        )}
+        {categories.length > 0 && (
+          <table style={{ borderCollapse: "collapse", fontSize: 12, marginBottom: 10 }}>
+            <tbody>
+              {categories.map((c) => (
+                <tr key={c.id}
+                  onClick={() => isManagerUp && (setCId(c.id), setCCatName(c.name), setCSort(c.sort_order), setCActive(c.is_active))}
+                  style={{ borderBottom: "1px solid var(--line)", cursor: isManagerUp ? "pointer" : "default" }}>
+                  <td style={{ padding: 6, fontWeight: 700 }}>{c.name}</td>
+                  <td style={{ padding: 6, ...t.num, color: "var(--sub)" }}>並び {c.sort_order}</td>
+                  <td style={{ padding: 6, ...t.num, color: "var(--sub)" }}>
+                    商品 {products.filter((p) => p.category_id === c.id).length}
+                  </td>
+                  <td style={{ padding: 6, color: c.is_active ? "var(--ok)" : "var(--sub)" }}>{c.is_active ? "有効" : "無効"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {isManagerUp && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "var(--sub)" }}>{cId ? "編集中" : "新規"}</span>
+            <input placeholder="カテゴリ名（例 焼酎）" value={cCatName} onChange={(e) => setCCatName(e.target.value)} maxLength={40} style={{ ...input, width: 170 }} />
+            <label style={{ fontSize: 12 }}>並び順 <input type="number" value={cSort} onChange={(e) => setCSort(Number(e.target.value))} style={{ ...input, width: 60 }} /></label>
+            {/* 有効トグル＝段G の canonical スイッチ（既存 boolean のみ・見た目のみ） */}
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, cursor: "pointer" }}>
+              <button type="button" role="switch" aria-checked={cActive} aria-label="有効"
+                className={cActive ? "nox-switch on" : "nox-switch"} onClick={() => setCActive((v) => !v)}><i /></button>
+              有効
+            </label>
+            <button style={btnDark} disabled={!cCatName.trim()} onClick={saveCategory}>{cId ? "更新" : "登録"}</button>
+            {cId && <button style={btnLight} onClick={() => { setCId(null); setCCatName(""); setCSort(0); setCActive(true); }}>新規に戻す</button>}
           </div>
         )}
       </section>

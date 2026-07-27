@@ -17,11 +17,18 @@ export default async function RegisterPage() {
     .select("id, name, kind, store_id")
     .eq("is_active", true)
     .order("sort_order");
+  // 純増⑦（mig0063）: タイル見出しのカテゴリ化＝products に category_id を1列追加＋カテゴリ一覧（active のみ）。
   const { data: products } = await supabase
     .from("products")
-    .select("id, name, type, price")
+    .select("id, name, type, price, category_id")
     .eq("is_active", true)
     .order("type");
+  const { data: categories } = await supabase
+    .from("product_categories")
+    .select("id, name, sort_order")
+    .eq("is_active", true)
+    .order("sort_order")
+    .order("name");
   const { data: casts } = await supabase
     .from("casts")
     .select("id, name")
@@ -34,6 +41,7 @@ export default async function RegisterPage() {
     <RegisterBoard
       seats={seats ?? []}
       products={products ?? []}
+      categories={categories ?? []}
       casts={casts ?? []}
       isManagerUp={isManagerUp}
       showReserve={role !== "cast" && (isManagerUp || canCrm === true)}
