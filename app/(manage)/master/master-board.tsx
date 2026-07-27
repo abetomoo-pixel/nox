@@ -74,6 +74,8 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   const [pUnit4, setPUnit4] = useState<Record<string, number>>({ ...EMPTY_UNIT4 });
   const [pHonPt, setPHonPt] = useState(0);
   const [pActive, setPActive] = useState(true);
+  // 純増①（mig0062）: 発注点。空欄＝しきい無し（null 送信）＝原則7どおり常に明示値を送る。
+  const [pReorder, setPReorder] = useState("");
 
   // 席フォーム
   const [sId, setSId] = useState<string | null>(null);
@@ -111,6 +113,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
     setPPrice(p.price); setPCost(costs[p.id] == null ? "" : String(costs[p.id]));
     setPBackMode(p.back_mode); setPBackValue(p.back_value ?? 0);
     setPUnit4(p.unit4_json ?? { ...EMPTY_UNIT4 }); setPHonPt(p.hon_pt); setPActive(p.is_active);
+    setPReorder(p.reorder_point == null ? "" : String(p.reorder_point));
   }
 
   async function saveProduct() {
@@ -124,9 +127,11 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
       p_back_value: pBackMode === "rate" ? pBackValue : null,
       p_unit4: pBackMode === "unit4" ? pUnit4 : null,
       p_hon_pt: pHonPt, p_is_active: pActive, // 明示 boolean（原則7）
+      // mig0062: 発注点も常に明示値（空欄＝null＝しきい無し）。省略に頼らない＝原則7 同列。
+      p_reorder_point: pReorder.trim() === "" ? null : Number(pReorder),
     });
     setMsg(error ? error.message : pId ? "商品を更新しました" : "商品を登録しました");
-    setPId(null); setPName(""); setPPrice(0);
+    setPId(null); setPName(""); setPPrice(0); setPReorder("");
     await load();
   }
 
@@ -208,13 +213,17 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
               ))
             )}
             <label style={{ fontSize: 12 }}>本指名pt <input type="number" min={0} value={pHonPt} onChange={(e) => setPHonPt(Number(e.target.value))} style={{ ...input, width: 56 }} /></label>
+            {/* 純増①（mig0062）: 発注点。空欄＝しきい無し（在庫バー非表示）＝null 送信 */}
+            <label style={{ fontSize: 12 }} title="空欄＝しきい無し">
+              発注点 <input type="number" min={0} value={pReorder} onChange={(e) => setPReorder(e.target.value)} placeholder="任意" style={{ ...input, width: 70 }} />
+            </label>
             {/* 段G: 既存 boolean(is_active) のトグルを canonical スイッチ表示へ（状態・挙動は不変） */}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12 }}>
               <button type="button" className={`nox-switch ${pActive ? "on" : ""}`} onClick={() => setPActive(!pActive)} aria-pressed={pActive} aria-label="有効"><i /></button>
               有効
             </span>
             <button style={btnDark} disabled={costsError} onClick={saveProduct}>{pId ? "更新" : "登録"}</button>
-            {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); }}>新規に戻す</button>}
+            {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); setPReorder(""); }}>新規に戻す</button>}
             {costsError && <span style={{ fontSize: 12, color: "var(--bad)" }}>原価を読み込めませんでした。再読込してください</span>}
           </div>
         )}

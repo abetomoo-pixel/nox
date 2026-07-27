@@ -227,6 +227,56 @@ async function main() {
     // ═══ (f) 通しの保存則: Σdelta が初期値へ復帰 ═══
     check("(f) ★通し Σdelta が初期値へ復帰（増減が保存されている＝台帳として健全）",
       (await sumDelta()) === base, `got ${await sumDelta()} / base ${base}`);
+
+    // ═══ (g) 発注点の往復（mig0062: set_product の13引数版）═══
+    //   set_product は upsert＝既存商品の全列を送り直す形。reorder_point 以外は現値を送って不変を保つ
+    //   （★money 系 price/back/hon_pt/cost は現物の値をそのまま往復させる＝この段で値を変えない）。
+    {
+      const { data: p0 } = await admin.from("products")
+        .select("id, store_id, type, category, name, price, back_mode, back_value, unit4_json, hon_pt, is_active, reorder_point")
+        .eq("id", productId).single();
+      const { data: c0 } = await admin.from("product_costs").select("cost").eq("product_id", productId).maybeSingle();
+      const origReorder = (p0?.reorder_point ?? null) as number | null;
+      const argsOf = (reorder: number | null) => ({
+        p_id: productId, p_store_id: p0!.store_id, p_type: p0!.type, p_category: p0!.category,
+        p_name: p0!.name, p_price: p0!.price, p_cost: (c0?.cost ?? null) as number | null,
+        p_back_mode: p0!.back_mode, p_back_value: p0!.back_value, p_unit4: p0!.unit4_json,
+        p_hon_pt: p0!.hon_pt, p_is_active: p0!.is_active, p_reorder_point: reorder,
+      });
+      const reorderNow = async () => {
+        const { data } = await admin.from("products").select("reorder_point").eq("id", productId).single();
+        return (data?.reorder_point ?? null) as number | null;
+      };
+
+      const { error: eSet12 } = await mgr.rpc("set_product", argsOf(12));
+      check("(g) ★set_product(p_reorder_point=12) 成功（mig0062 13引数版）", !eSet12, eSet12?.message);
+      check("(g) ★products.reorder_point = 12（設定が反映される）", (await reorderNow()) === 12, `got ${await reorderNow()}`);
+
+      const { error: eSet0 } = await mgr.rpc("set_product", argsOf(0));
+      check("(g) 発注点 0 も設定できる（0 と null は別物）", !eSet0 && (await reorderNow()) === 0, eSet0?.message ?? `got ${await reorderNow()}`);
+
+      const { error: eNeg } = await mgr.rpc("set_product", argsOf(-1));
+      check("(g) ★負の発注点は 'bad reorder_point' で拒否（入口検証）",
+        !!eNeg?.message?.includes("bad reorder_point"), eNeg?.message ?? "通ってしまった");
+      check("(g) 拒否後も値は 0 のまま（ロールバック）", (await reorderNow()) === 0, `got ${await reorderNow()}`);
+
+      const { error: eNull } = await mgr.rpc("set_product", argsOf(null));
+      check("(g) ★null 戻し＝しきい無しへ戻せる（原則7: UI は常に明示値を送る）",
+        !eNull && (await reorderNow()) === null, eNull?.message ?? `got ${await reorderNow()}`);
+
+      // 現物復元（この段で商品マスタを汚さない）＋ money 系列の不変確認
+      const { error: eRestore } = await mgr.rpc("set_product", argsOf(origReorder));
+      check("(g) 現物復元（reorder_point を元値へ戻す）", !eRestore && (await reorderNow()) === origReorder,
+        eRestore?.message ?? `got ${await reorderNow()} / orig ${origReorder}`);
+      const { data: p1 } = await admin.from("products").select("price, back_mode, back_value, hon_pt, is_active").eq("id", productId).single();
+      check("(g) ★往復で money 系（price/back/hon_pt/is_active）が不変",
+        p1?.price === p0?.price && p1?.back_mode === p0?.back_mode && p1?.back_value === p0?.back_value
+        && p1?.hon_pt === p0?.hon_pt && p1?.is_active === p0?.is_active,
+        JSON.stringify({ before: p0, after: p1 }));
+      const { data: c1 } = await admin.from("product_costs").select("cost").eq("product_id", productId).maybeSingle();
+      check("(g) 往復で原価（product_costs・台帳#40）が不変",
+        (c1?.cost ?? null) === (c0?.cost ?? null), `before ${c0?.cost ?? null} / after ${c1?.cost ?? null}`);
+    }
   } finally {
     await wipeFixture();
     if (kioskAuthId) await admin.auth.admin.deleteUser(kioskAuthId).catch(() => undefined);
