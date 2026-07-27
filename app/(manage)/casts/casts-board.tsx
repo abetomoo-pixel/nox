@@ -166,7 +166,9 @@ export default function CastsBoard({
         <div style={{ display: "grid", gap: 12 }}>
           {trials.map((tr) => (
             <div key={tr.id} style={{ ...t.card, marginBottom: 0, background: "var(--card2)" }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {/* 段F: 頭文字アバター（既存 name のみ由来・新情報なし・装飾） */}
+                <span className="nox-ava" style={{ background: t.avatarBg(tr.name), width: 30, height: 30, fontSize: 13 }} aria-hidden="true">{t.avatarInitial(tr.name)}</span>
                 <strong style={{ fontSize: 14 }}>{tr.name}</strong>
                 <span style={{ ...t.sub }}>体入中</span>
                 <span style={{ ...t.sub, marginLeft: "auto" }}>
@@ -257,7 +259,13 @@ export default function CastsBoard({
               )}
               {loginCasts.map((c) => (
                 <tr key={c.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                  <td style={{ padding: 6, fontWeight: 700, whiteSpace: "nowrap" }}>{c.name}</td>
+                  {/* 段F: 頭文字アバター（既存 name の1文字＋name 由来の色のみ・新情報なし・装飾） */}
+                  <td style={{ padding: 6, fontWeight: 700, whiteSpace: "nowrap" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <span className="nox-ava" style={{ background: t.avatarBg(c.name), width: 28, height: 28, fontSize: 13 }} aria-hidden="true">{t.avatarInitial(c.name)}</span>
+                      {c.name}
+                    </span>
+                  </td>
                   <td style={{ padding: 6, color: c.user_id ? "var(--ok)" : "var(--sub)", whiteSpace: "nowrap" }}>
                     {c.user_id ? "招待済み" : "未招待"}
                   </td>
