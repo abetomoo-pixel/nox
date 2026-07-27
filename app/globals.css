@@ -531,6 +531,27 @@ body {
 .nox-switch.on i { left: 22px; background: #0B0B0F; }
 @media (prefers-reduced-motion: reduce) { .nox-switch i { transition: none; } }
 
+/* ── 純増① 在庫台帳 v1（mig0061）: 残量バー（Night Ops 吸収・canonical .bar 準拠）── presentation-only ──
+   値は既存の Σdelta（stock_logs 直 SELECT）と products.reorder_point のみ＝新規 RPC/集計なし。
+   スケールは reorder_point 比（満位＝発注点×2）。reorder_point null はバーを出さず数値のみ。 */
+.nox-stockbar {
+  height: 6px;
+  width: 72px;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 3px;
+}
+.nox-stockbar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #B8893A, #E6D6A8);
+}
+/* 低在庫（残量 ≤ 発注点）＝バーも数値も警告色。負在庫は赤（許容設計＝在庫は Σdelta で負になり得る） */
+.nox-stockbar.low i { background: linear-gradient(90deg, #8A5A2B, var(--gold2)); }
+.nox-stockbar.neg i { background: var(--bad); }
+
 /* ── D2 報酬明細：印刷（白地黒字・A4・1人1枚）── presentation-only ────────────
    ★全ルールを @media print 内に閉じる＝画面表示は 1px も変えない。
    隔離＝.nox-printpage 直下で .nox-print 以外を display:none（絶対配置は使わない＝通常フローで

@@ -9,6 +9,9 @@ import CompMaster from "./comp-master";
 type Product = {
   id: string; type: string; category: string | null; name: string; price: number;
   back_mode: string; back_value: number | null; unit4_json: Record<string, number> | null; hon_pt: number; is_active: boolean;
+  // 純増①（mig0061）: 発注点しきい（null=しきい無し）。load の select("*") で既に取得済み＝新規取得なし。
+  //   ★編集経路は未実装（set_product に p_reorder_point が無い＝表示のみ・追加は別 mig）。
+  reorder_point: number | null;
 };
 // 原価は products に無い（台帳#40＝product_costs へ分離）。RLS は owner∨manager自店 のみ返す＝cast/staff は空。
 type ProductCost = { product_id: string; cost: number };
@@ -23,6 +26,30 @@ const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 
 const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
+
+// 純増①（mig0061）在庫セル: 数値＋残量バー。バーは reorder_point 比（満位＝発注点×2）で、
+//   reorder_point null＝しきい無しゆえバーを出さず数値のみ。低在庫（≤発注点）と負在庫を色で示す。
+//   ★表示のみ＝計算/取得は既存（Σdelta と products.reorder_point）。
+function stockCell(qty: number, reorderPoint: number | null) {
+  const neg = qty < 0;
+  const low = reorderPoint !== null && qty <= reorderPoint;
+  const color = neg ? "var(--bad)" : low ? "var(--gold2)" : "var(--ink)";
+  const full = reorderPoint !== null && reorderPoint > 0 ? reorderPoint * 2 : null;
+  const pct = full ? Math.max(0, Math.min(100, (qty / full) * 100)) : 0;
+  return (
+    <span style={{ display: "inline-block", minWidth: 76 }}>
+      <span style={{ ...t.num, color, fontWeight: neg || low ? 700 : 400 }}>{qty}</span>
+      {reorderPoint !== null && (
+        <>
+          <span style={{ fontSize: 10, color: "var(--sub)", marginLeft: 5 }}>/ 発注点 {reorderPoint}</span>
+          <span className={`nox-stockbar${neg ? " neg" : low ? " low" : ""}`} aria-hidden="true">
+            <i style={{ width: `${neg ? 100 : pct}%` }} />
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
 
 export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId: string; isManagerUp: boolean; isOwner: boolean }) {
   const supabase = createClient();
@@ -148,7 +175,9 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
                   {p.back_mode === "rate" ? `${p.back_value}%` : `単価表（本${p.unit4_json?.hon ?? 0}…）`}
                 </td>
                 <td style={{ padding: 6, ...t.num }}>{p.hon_pt}</td>
-                <td style={{ padding: 6, ...t.num }}>{stock[p.id] ?? 0}</td>
+                {/* 純増①（mig0061）: 残量バー＝Σdelta と reorder_point のみ（新規取得なし・表示のみ）。
+                    低在庫（≤発注点）は警告色・負在庫は赤（Σdelta は負になり得る＝許容設計）。 */}
+                <td style={{ padding: 6 }}>{stockCell(stock[p.id] ?? 0, p.reorder_point)}</td>
                 <td style={{ padding: 6, color: p.is_active ? "var(--ok)" : "var(--sub)" }}>{p.is_active ? "有効" : "無効"}</td>
               </tr>
             ))}
