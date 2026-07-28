@@ -339,6 +339,84 @@ async function main() {
     }
   }
 
+  // ── 9b. シフト系（段0R・2026-07-28）: 当月全体＋来月頭のシフト／希望／必要人数／待遇プラン ──
+  //   ★伝票（checks/check_lines/payments）には一切触れない＝上の 9 で作った会計データはそのまま。
+  //   目的は「シフト画面がモックと同じ密度に見える」こと＝全て admin 直 insert のデモデータ生成で、
+  //   アプリのロジック（充足判定・予想人件費）は既存の実装がそのまま計算する。
+  {
+    const dow = (ymd: string) => {
+      const [y, m, d] = ymd.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    };
+    const ymd = (dt: Date) =>
+      `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+
+    // 必要人数（曜日別・7曜日すべて）＝週末を厚く。充足/やや不足/不足が混ざるように設定する。
+    // shifts.created_by は NOT NULL＝デモの店長ユーザーを作成者にする（実運用と同じ形）
+    const managerUserId = (users.find((u) => u.email === DEMO_OWNER_EMAIL) ?? users[0]).id as string;
+    const NEED: number[] = [4, 3, 3, 4, 4, 5, 6]; // 日..土
+    await admin.from("staffing_needs").insert(
+      NEED.map((required, d) => ({ org_id: orgId, store_id: storeId, dow: d, required })),
+    );
+
+    // 待遇プラン2本＋全 cast への割当（予想人件費 KPI/セル¥ の材料）。
+    //   ★金額は payOf の入力になるが、ここは「デモ用の設定値」であって計算式には触れない。
+    const { data: plans } = await admin.from("comp_plans").insert([
+      { org_id: orgId, store_id: storeId, name: "レギュラー", base: 3000, hon_back: 3000, jonai_back: 1000, dohan_back: 2000,
+        sales_slide: [{ at: 0, wage: 3000 }, { at: 100000, wage: 3500 }], point_slide: [] },
+      { org_id: orgId, store_id: storeId, name: "エース", base: 4000, hon_back: 4000, jonai_back: 1500, dohan_back: 2500,
+        sales_slide: [{ at: 0, wage: 4000 }, { at: 150000, wage: 5000 }], point_slide: [] },
+    ]).select("id, name");
+    if (plans && plans.length === 2) {
+      await admin.from("cast_plan").insert(
+        casts.map((c, i) => ({
+          org_id: orgId, store_id: storeId, cast_id: c.id as string,
+          plan_id: (i % 3 === 0 ? plans[1] : plans[0]).id as string, overrides_json: {},
+        })),
+      );
+    }
+
+    // シフト＝当月1日〜来月10日。曜日の必要人数に対して 充足/やや不足/不足 が混ざる人数を割り当てる。
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 10);
+    const BANDS: Array<[string, string]> = [["20:00", "25:00"], ["20:30", "25:30"], ["21:00", "26:00"]];
+    const shiftRows: Record<string, unknown>[] = [];
+    const wishRows: Record<string, unknown>[] = [];
+    let di = 0;
+    for (let dt = new Date(first); dt <= last; dt.setDate(dt.getDate() + 1), di++) {
+      const date = ymd(dt);
+      const need = NEED[dow(date)];
+      // 3日周期で 充足(=need) / やや不足(need-1) / 不足(need-2) を回す＝カレンダーが3色に染まる
+      const n = Math.max(1, need - (di % 3));
+      for (let k = 0; k < n && k < casts.length; k++) {
+        const c = casts[(di + k) % casts.length];
+        const [st, en] = BANDS[k % BANDS.length];
+        shiftRows.push({
+          org_id: orgId, store_id: storeId, cast_id: c.id as string, date, created_by: managerUserId,
+          start_hm: st, end_hm: en,
+          // 過去〜今日は確定・先の日は予定を混ぜる（確定/予定バッジが両方見えるように）
+          status: dt <= now || k % 3 !== 2 ? "confirmed" : "planned",
+        });
+      }
+      // 希望（pending）＝来月ぶんだけ少量。承認待ちの件数バッジが 0 にならないように。
+      if (dt > new Date(now.getFullYear(), now.getMonth() + 1, 0) && di % 2 === 0) {
+        const c = casts[di % casts.length];
+        wishRows.push({
+          org_id: orgId, store_id: storeId, cast_id: c.id as string, date,
+          start_hm: "20:00", end_hm: "25:00", status: "pending",
+        });
+      }
+    }
+    const { error: eSh } = await admin.from("shifts").insert(shiftRows);
+    if (eSh) die("shifts 投入失敗", eSh);
+    if (wishRows.length) {
+      const { error: eW } = await admin.from("shift_wishes").insert(wishRows);
+      if (eW) die("shift_wishes 投入失敗", eW);
+    }
+    console.log(`  シフト ${shiftRows.length}件 / 希望 ${wishRows.length}件 / 必要人数 7曜日 / 待遇プラン 2本を投入`);
+  }
+
   // ── 10. audit マーカー（seed:f0 と同型・デモ判別用）──
   await admin.from("audit_logs").insert({
     org_id: orgId, store_id: storeId, action: "seed_marker", target: "seed:demo",

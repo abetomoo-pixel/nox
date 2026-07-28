@@ -890,6 +890,138 @@ body {
 .nox-stat .val { font-size: 16px; font-weight: 700; color: var(--ink); margin-top: 2px; font-family: "Outfit", sans-serif; font-variant-numeric: tabular-nums; }
 .nox-stat.ng .val { color: var(--bad); }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   UI刷新v2R 段0R＝基準シェル（正本 aaa.html sha256 dc2da951…ad9c・2026-07-28）
+   ★aaa は「見た目の質感」の正本。既存モック11枚は「構成・データ・裁定」の正本として維持。
+   ★色は aaa の値を使わず canonical トークンへマッピングする（Agoora 指示）:
+       aaa --panel  #131319 → var(--card)     aaa --panel2 #191920 → var(--card2)
+       aaa --text   #f5f5f7 → var(--ink)      aaa --muted  #a4a4ae → var(--sub)
+       aaa --line   #2a2a34 → var(--line)     aaa --gold2  #e7c86f → var(--gold2)
+       aaa --ok     #68c58b → var(--ok)       aaa --bad    #e07575 → var(--bad)
+       aaa --warn   #e7b95b → var(--gold2)（状態色は green/gold/red の3つのみ＝新色を作らない）
+   ★フォントも canonical 維持（aaa のシステムフォント指定は持ち込まない＝ガイド §0）。
+   ★断点は aaa の 980/620 を NOX の 900/641 へ読み替え（裁定5）。
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── トップバー（aaa .topbar/.brand/.logo/.top-actions）──────────────── */
+.nox-tb {
+  position: sticky; top: 0; z-index: 20; height: 64px;
+  background: rgba(11, 11, 15, .94); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; padding: 0 24px; gap: 12px;
+}
+.nox-tb .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.nox-tb .logo {
+  width: 36px; height: 36px; border: 1px solid var(--gold); border-radius: 10px;
+  display: grid; place-items: center; color: var(--gold2); font-weight: 900; letter-spacing: .08em; flex-shrink: 0;
+  font-family: "Cormorant Garamond", serif;
+}
+.nox-tb .brand b { font-size: 18px; color: var(--ink); }
+.nox-tb .brand span { font-size: 12px; color: var(--sub); display: block; margin-top: 2px; }
+.nox-tb .acts { display: flex; gap: 8px; flex-shrink: 0; }
+@media (max-width: 641px) {
+  .nox-tb { padding: 0 14px; }
+  .nox-tb .brand span { display: none; }
+}
+
+/* ── ボタン（aaa .btn/.btn.gold）＝金は主ボタン1つだけ（3役②）───────── */
+.nox-btn {
+  border: 1px solid var(--line); background: var(--card2); color: var(--ink);
+  border-radius: 10px; padding: 10px 14px; cursor: pointer; font-family: inherit; font-size: 13px;
+}
+.nox-btn:hover { border-color: var(--line2); }
+.nox-btn.gold { background: var(--gold); color: #15120A; border-color: var(--gold); font-weight: 800; }
+
+/* ── レイアウト（aaa .layout/.side/.main）＝220px サイドバー＋フルード本体 ── */
+.nox-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: calc(100vh - 64px); }
+.nox-side {
+  position: sticky; top: 64px; height: calc(100vh - 64px); overflow-y: auto;
+  border-right: 1px solid var(--line); padding: 20px 14px; background: var(--bg2);
+}
+.nox-side a {
+  display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--sub);
+  padding: 11px 12px; border-radius: 10px; margin-bottom: 4px; font-size: 14px;
+}
+.nox-side a:hover, .nox-side a.active { background: var(--card2); color: var(--ink); }
+.nox-side .group { font-size: 11px; color: #6F6F79; padding: 14px 12px 6px; letter-spacing: .08em; }
+/* aaa .main＝フルード＋上限。上限は aaa の 1480px を採用（段0 の 1180 から昇格）。 */
+.nox-mainarea { padding: 28px; max-width: 1480px; width: 100%; margin: 0 auto; }
+@media (max-width: 900px) {
+  .nox-layout { grid-template-columns: 1fr; }
+  .nox-side { display: none; }
+  .nox-mainarea { padding: 20px; }
+}
+@media (max-width: 641px) { .nox-mainarea { padding: 16px; } }
+
+/* ── ヒーロー（aaa .hero/.search）＝ページ名＋説明＋検索 ────────────── */
+.nox-hero { display: flex; justify-content: space-between; gap: 20px; align-items: flex-end; margin-bottom: 24px; }
+.nox-hero h1 { font-size: 28px; margin: 0 0 8px; color: var(--ink); font-weight: 700; }
+.nox-hero p { margin: 0; color: var(--sub); font-size: 14px; }
+.nox-search {
+  width: min(420px, 100%); background: var(--card); border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px 14px; color: var(--ink); font-family: inherit;
+}
+@media (max-width: 900px) { .nox-hero { align-items: stretch; flex-direction: column; } }
+@media (max-width: 641px) { .nox-hero h1 { font-size: 23px; } }
+
+/* ── KPI ステートカード（aaa .summary/.stat）────────────────────────── */
+.nox-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+.nox-stat2 { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.nox-stat2 small { color: var(--sub); font-size: 12px; }
+.nox-stat2 strong {
+  display: block; font-size: 24px; margin-top: 7px; color: var(--ink);
+  font-family: "Outfit", sans-serif; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.nox-stat2 em { font-style: normal; font-size: 11px; color: var(--ok); }
+.nox-stat2 em.warn { color: var(--gold2); }
+.nox-stat2 em.ng { color: var(--bad); }
+.nox-stat2 em.mute { color: var(--sub); }
+@media (max-width: 900px) { .nox-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 641px) { .nox-summary { grid-template-columns: 1fr; } }
+
+/* ── セクション見出し（aaa .section/.section-head）──────────────────── */
+.nox-sec { scroll-margin-top: 88px; margin-top: 28px; }
+.nox-sechead { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.nox-sechead h2 { font-size: 18px; margin: 0; color: var(--ink); font-weight: 700; }
+.nox-sechead p { margin: 0; color: var(--sub); font-size: 12px; }
+
+/* ── 機能カード（aaa .grid/.card/.icon/.count/.card-footer）─────────── */
+.nox-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 900px) { .nox-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 641px) { .nox-grid3 { grid-template-columns: 1fr; } }
+.nox-fcard {
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px;
+  min-height: 174px; display: flex; flex-direction: column;
+  text-align: left; width: 100%; font-family: inherit; color: var(--ink);
+  cursor: pointer; text-decoration: none; transition: transform .12s ease, border-color .12s ease;
+}
+.nox-fcard:hover { border-color: var(--line2); transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) { .nox-fcard:hover { transform: none; } }
+.nox-fcard .top { display: flex; justify-content: space-between; gap: 12px; }
+.nox-fcard .icon {
+  width: 42px; height: 42px; border-radius: 12px; background: #211D14; border: 1px solid #504323;
+  display: grid; place-items: center; color: var(--gold2); font-size: 18px; flex-shrink: 0;
+}
+.nox-fcard .count {
+  font-size: 12px; color: var(--sub); background: var(--card2);
+  padding: 6px 9px; border-radius: 99px; height: max-content; white-space: nowrap;
+}
+.nox-fcard h3 { margin: 14px 0 6px; font-size: 16px; color: var(--ink); font-weight: 700; }
+.nox-fcard p { margin: 0; color: var(--sub); font-size: 13px; line-height: 1.65; }
+.nox-fcard .foot { margin-top: auto; padding-top: 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.nox-fcard .status { font-size: 11px; color: var(--ok); }
+.nox-fcard .status.warn { color: var(--gold2); }
+.nox-fcard .status.ng { color: var(--bad); }
+.nox-fcard .status.mute { color: var(--sub); }
+.nox-fcard .link { color: var(--gold2); font-size: 13px; font-weight: 700; white-space: nowrap; }
+@media (max-width: 641px) { .nox-fcard { min-height: 154px; } }
+
+/* ── 警告バナー（aaa .alert）＝gold 系1色のみ（新色を作らない）───────── */
+.nox-alert {
+  border: 1px solid #5B4927; background: #211B10; border-radius: 12px;
+  padding: 12px 14px; color: #EAD28E; font-size: 13px; margin-bottom: 16px; line-height: 1.7;
+}
+
 /* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
    既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
    列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */
