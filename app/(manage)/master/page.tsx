@@ -58,6 +58,7 @@ export default async function MasterPage() {
     <>
       <MasterBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} />
       {isManagerUp && storeId && (
+        <Fold id="m-pricing" title="料金・会計設定">
         <PricingPanel
           storeId={storeId}
           initial={{
@@ -67,8 +68,10 @@ export default async function MasterPage() {
             round_mode: typeof store?.round_mode === "string" ? store.round_mode : "down",
           }}
         />
+        </Fold>
       )}
       {isManagerUp && storeId && (
+        <Fold id="m-timeprice" title="時間料金（セット・延長）">
         <TimePricingPanel
           storeId={storeId}
           initial={{
@@ -78,8 +81,10 @@ export default async function MasterPage() {
             time_per: typeof store?.time_per === "string" ? store.time_per : "table",
           }}
         />
+        </Fold>
       )}
       {isManagerUp && (
+        <Fold id="m-norm" title="ノルマ設定">
         <NormConfigPanel
           storeId={storeId}
           isOwner={role === "owner"}
@@ -87,11 +92,15 @@ export default async function MasterPage() {
           initialShimeiEnabled={shimeiNormEnabled}
           initialShimeiScope={shimeiNormScope}
         />
+        </Fold>
       )}
       {isManagerUp && (
+        <Fold id="m-hours" title="営業時間・定休日">
         <BusinessHoursPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
+        </Fold>
       )}
       {isManagerUp && (
+        <Fold id="m-deduct" title="控除・送りの設定">
         <DeductionPanel
           storeId={storeId}
           casts={(casts ?? []) as { id: string; name: string }[]}
@@ -99,22 +108,30 @@ export default async function MasterPage() {
           initialOkuriMode={okuriMode}
           initialOkuriBase={okuriBase}
         />
+        </Fold>
       )}
       {isManagerUp && (
+        <Fold id="m-castreg" title="キャスト会計の許可">
         <CastRegisterPanel
           storeId={storeId}
           isOwner={role === "owner"}
           initialEnabled={castRegEnabled}
           casts={castRegRows}
         />
+        </Fold>
       )}
       {isManagerUp && (
+        <Fold id="m-tax" title="機密・税務情報">
         <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
+        </Fold>
       )}
       {role === "owner" && (
+        <Fold id="m-kiosk" title="キオスク端末">
         <KioskPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
+        </Fold>
       )}
       {role === "owner" && storeId && (
+        <Fold id="m-printer" title="レシート・プリンタ">
         <PrinterPanel
           storeId={storeId}
           initialProfile={{
@@ -124,10 +141,28 @@ export default async function MasterPage() {
             footer: typeof sj?.receipt_footer === "string" ? (sj.receipt_footer as string) : "",
           }}
         />
+        </Fold>
       )}
       {sim && (
+        <Fold id="m-sim" title="待遇プラン・報酬シミュレーター">
         <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" />
+        </Fold>
       )}
     </>
+  );
+}
+
+// 段0R その3 ⑥: マスタのセクション折り畳み（既定閉・ハブの「管理する →」で開く）。
+//   ★JS ゼロ＝CSS の :target だけで開閉する。server component のままで動く。
+//   ★パネル本体（children）には一切触れていない＝機能も RPC も送る引数も不変。
+function Fold({ id, title, hint, children }: { id: string; title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className="nox-fold">
+      <a className="nox-foldh" href={`#${id}`}>
+        {title}
+        <span className="hint">{hint ?? "開く"}</span>
+      </a>
+      <div className="nox-foldb">{children}</div>
+    </section>
   );
 }

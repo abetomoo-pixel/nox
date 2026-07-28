@@ -1053,6 +1053,23 @@ body {
 }
 .nox-side .group + a { margin-top: 2px; }
 
+/* ── 段0R その3 ⑥: マスタのセクション折り畳み（既定閉・ハブの「管理する →」で開く）──
+   ★JS ゼロ＝CSS の :target だけで開閉する（page.tsx は server component のまま・機能/RPC 不変）。
+   ハブカードの href="#id" で該当セクションが :target になり、そのセクションだけが開く
+   （他は閉じる＝アコーディオン）。見出し自体も同じ id へのリンクなので、見出しクリックでも開く。 */
+.nox-fold { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; background: var(--card); scroll-margin-top: 80px; }
+.nox-foldh {
+  display: flex; align-items: center; gap: 10px; padding: 13px 15px;
+  text-decoration: none; color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.nox-foldh .hint { margin-left: auto; font-size: 11px; color: var(--sub); font-weight: 400; white-space: nowrap; }
+.nox-foldh::before { content: "▸"; color: var(--sub); font-size: 11px; }
+.nox-fold:target > .nox-foldh { border-bottom: 1px solid var(--line); color: var(--gold); }
+.nox-fold:target > .nox-foldh::before { content: "▾"; color: var(--gold); }
+.nox-fold:target > .nox-foldh .hint::after { content: "（閉じるにはもう一度ハブから）"; }
+.nox-foldb { display: none; padding: 0 15px 4px; }
+.nox-fold:target > .nox-foldb { display: block; }
+
 /* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
    既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
    列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */
