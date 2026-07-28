@@ -18,11 +18,12 @@ export default async function AnalyticsPage() {
   if (role !== "owner" && role !== "manager") redirect("/register");
   const supabase = await createClient();
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
-  const { data: casts } = await supabase.from("casts").select("id, name, store_id, is_active");
+  const { data: casts } = await supabase.from("casts")// 段P/A2: photo_updated_at＝ランキングのアバターを写真にする（null=写真なし＝頭文字）。
+    .select("id, name, store_id, is_active, photo_updated_at");
   return (
     <AnalyticsBoard
       stores={(stores ?? []) as { id: string; name: string }[]}
-      casts={(casts ?? []) as { id: string; name: string; store_id: string; is_active: boolean }[]}
+      casts={(casts ?? []) as { id: string; name: string; store_id: string; is_active: boolean; photo_updated_at: string | null }[]}
     />
   );
 }
