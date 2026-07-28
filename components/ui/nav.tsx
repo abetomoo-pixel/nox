@@ -18,7 +18,9 @@ export type NavItem = { href: string; label: string };
 /** 群（label=null は見出しを出さない＝ホームや /mine のようなフラット表示） */
 export type NavGroup = { label: string | null; items: NavItem[] };
 
-export function TabBar({ groups, spPriority }: { groups: NavGroup[]; spPriority?: string[] }) {
+// 段0R その2: hideSide＝900+ のサイドバーを (manage)/layout の .nox-side（aaa 基準シェル）へ移したため
+//   TabBar 側の .nox-nav-side を出さないためのフラグ。既定 false＝/mine は従来どおり両方出す。
+export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGroup[]; spPriority?: string[]; hideSide?: boolean }) {
   const path = usePathname() ?? "";
   const [sheet, setSheet] = useState(false);
   const flat = groups.flatMap((g) => g.items);
@@ -40,6 +42,7 @@ export function TabBar({ groups, spPriority }: { groups: NavGroup[]; spPriority?
   return (
     <>
       {/* 900+ ＝ サイドバー（群見出しつき）。≤899 は CSS で非表示。 */}
+      {!hideSide && (
       <nav className="nox-tabbar nox-nav-side">
         {groups.map((g, gi) => (
           <div key={g.label ?? `g${gi}`} className="nox-navgroup">
@@ -52,6 +55,7 @@ export function TabBar({ groups, spPriority }: { groups: NavGroup[]; spPriority?
           </div>
         ))}
       </nav>
+      )}
 
       {/* ≤899 ＝ ボトムタブ（4本＋その他）。900+ は CSS で非表示。 */}
       <nav className="nox-tabbar nox-nav-bottom">

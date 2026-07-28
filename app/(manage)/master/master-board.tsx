@@ -66,6 +66,8 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   // 原価欄が空のまま p_cost=null を送って cost 行を消す事故を構造的に作らない。
   const [costsError, setCostsError] = useState(false);
   const [seats, setSeats] = useState<Seat[]>([]);
+  // 段0R その2: ハブカードの絞り込み（aaa .search）＝表示フィルタのみ・取得は不変
+  const [hubSearch, setHubSearch] = useState("");
   const [stock, setStock] = useState<Record<string, number>>({});
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -232,13 +234,103 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   const shown = filtered.slice(0, visible);
   const selectHub = (key: string) => { setSelCat(key); setVisible(PAGE); };
 
+  // ── 段0R その2: aaa 基準シェルのハブ層（presentation-only）──
+  //   ★カードは既存パネルへのページ内アンカーで、パネルの中身・機能・RPC は一切変えていない。
+  //   ★aaa にあって実在しない項目（税率・Wi-Fi/GPS・権限ロール・変更履歴）は作らず、
+  //     実在するパネル（商品／カテゴリ／在庫／席／待遇プラン／スタッフ）へ対応づけた。
+  const activeProds = products.filter((p) => p.is_active).length;
+  const lowStock = products.filter((p) => p.reorder_point != null && (stock[p.id] ?? 0) <= (p.reorder_point ?? 0)).length;
+  const activeSeats = seats.filter((x) => x.is_active).length;
+  const hubQ = hubSearch.trim().toLowerCase();
+  const HUBS: Array<{ sec: string; secDesc: string; cards: Array<{ id: string; icon: string; count: string; title: string; desc: string; status: string; tone: string }> }> = [
+    {
+      sec: "商品・料金", secDesc: "レジ・会計で利用する項目",
+      cards: [
+        { id: "m-prod", icon: "◇", count: `${products.length}件`, title: "商品マスター",
+          desc: "ドリンク、シャンパン、ボトル、フード、在庫数、発注基準を管理。",
+          status: lowStock > 0 ? `● ${lowStock}件 要補充` : "● 在庫は基準内", tone: lowStock > 0 ? "warn" : "" },
+        { id: "m-cat", icon: "▤", count: `${categories.length}件`, title: "商品カテゴリ",
+          desc: "レジのタイル見出しになる分類。並び順と有効/無効を管理。",
+          status: categories.length > 0 ? "● 全件有効" : "● 未登録", tone: categories.length > 0 ? "" : "mute" },
+        { id: "m-stock", icon: "⬚", count: "追記のみ", title: "在庫の入出庫",
+          desc: "入荷・棚卸の記録（append-only）。売上による減算は会計から自動。", status: "● 記録可", tone: "" },
+      ],
+    },
+    {
+      sec: "店舗・卓", secDesc: "フロアと席の設定",
+      cards: [
+        { id: "m-seat", icon: "▦", count: `${seats.length}卓`, title: "席・卓マスター",
+          desc: "卓／カウンター／VIP の登録と並び順、稼働の有効切替。",
+          status: `● 稼働可能 ${activeSeats}卓`, tone: "" },
+      ],
+    },
+  ];
+  const hubHit = (c: { title: string; desc: string }) =>
+    hubQ === "" || c.title.toLowerCase().includes(hubQ) || c.desc.toLowerCase().includes(hubQ);
+
   return (
     <div>
-      <h1 style={t.pheadH1}>マスタ管理</h1>
+      {/* aaa .hero＝ページ名＋説明＋検索 */}
+      <div className="nox-hero">
+        <div>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>マスタ管理</h1>
+          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>店舗運営に必要な設定を、用途ごとにまとめて管理します。</p>
+        </div>
+        <input className="nox-search" value={hubSearch} onChange={(e) => setHubSearch(e.target.value)}
+          placeholder="設定名を検索（例：商品、カテゴリ、卓）" aria-label="設定名を検索" />
+      </div>
       <Toast msg={msg} />
 
+      {/* aaa .alert＝低在庫の警告バナー（実在する reorder_point 判定・0件なら出さない） */}
+      {lowStock > 0 && (
+        <div className="nox-alert">
+          在庫が発注基準を下回っている商品が {lowStock} 件あります。商品マスターから補充基準を確認してください。
+        </div>
+      )}
+
+      {/* aaa .summary＝KPI ステートカード（すべて実在件数） */}
+      <section className="nox-summary">
+        <div className="nox-stat2"><small>商品マスター</small><strong>{products.length}</strong><em>公開中 {activeProds}件</em></div>
+        <div className="nox-stat2"><small>商品カテゴリ</small><strong>{categories.length}</strong><em>{categories.length > 0 ? "全件有効" : "未登録"}</em></div>
+        <div className="nox-stat2"><small>卓・席</small><strong>{seats.length}</strong><em>稼働可能 {activeSeats}卓</em></div>
+        <div className="nox-stat2">
+          <small>要補充の商品</small><strong>{lowStock}</strong>
+          <em className={lowStock > 0 ? "warn" : ""}>{lowStock > 0 ? "発注基準以下" : "基準内"}</em>
+        </div>
+      </section>
+
+      {/* aaa .section + .grid + .card＝機能カードのハブ。クリックで下の実パネルへスクロール。 */}
+      {HUBS.map((h) => {
+        const cards = h.cards.filter(hubHit);
+        if (cards.length === 0) return null;
+        return (
+          <section key={h.sec} className="nox-sec">
+            <div className="nox-sechead">
+              <h2>{h.sec}</h2>
+              <p>{h.secDesc}</p>
+            </div>
+            <div className="nox-grid3">
+              {cards.map((c) => (
+                <a key={c.id} className="nox-fcard" href={`#${c.id}`}>
+                  <div className="top">
+                    <div className="icon" aria-hidden="true">{c.icon}</div>
+                    <div className="count">{c.count}</div>
+                  </div>
+                  <h3>{c.title}</h3>
+                  <p>{c.desc}</p>
+                  <div className="foot">
+                    <span className={`status ${c.tone}`}>{c.status}</span>
+                    <span className="link">管理する →</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+
       {/* ④ 系統分離: ここから「商品」（カテゴリ／商品／在庫）── 各パネルの機能は不変・配置の整理のみ */}
-      <h2 style={{ ...t.cardTitle, fontSize: 12, letterSpacing: 1, color: "var(--sub)", margin: "16px 0 8px" }}>商品</h2>
+      <h2 id="m-prod" style={{ ...t.cardTitle, fontSize: 12, letterSpacing: 1, color: "var(--sub)", margin: "28px 0 8px" }}>商品</h2>
 
       {/* ⑥ ハブ: カテゴリカード → クリックでその分類に絞る（すべて／未分類つき）。
           カテゴリ0件の店は type 別カードへフォールバック（register のタイル分類と同じ判定）。 */}
@@ -363,7 +455,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
 
       {/* 純増⑦（mig0063）: カテゴリ管理（レジ/キオスクのタイル見出し・sort_order 順）。書込は set_product_category のみ。 */}
       <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>商品カテゴリ（クリックで編集）</h2>
+        <h2 id="m-cat" style={secTitle}>商品カテゴリ（クリックで編集）</h2>
         {categories.length === 0 && (
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>
             カテゴリ未登録です。登録するとレジの商品タイルがカテゴリ別に並びます（未登録なら種別 drink/champ/bottle で並びます）。
@@ -406,7 +498,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
 
       {isManagerUp && (
         <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>在庫の入出庫（append-only）</h2>
+          <h2 id="m-stock" style={secTitle}>在庫の入出庫（append-only）</h2>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <select value={stProd} onChange={(e) => setStProd(e.target.value)} style={{ ...input, maxWidth: 220 }}>
               <option value="">商品を選択</option>
@@ -423,7 +515,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
       <h2 style={{ ...t.cardTitle, fontSize: 12, letterSpacing: 1, color: "var(--sub)", margin: "22px 0 8px" }}>店舗設定</h2>
 
       <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>席（クリックで編集）</h2>
+        <h2 id="m-seat" style={secTitle}>席（クリックで編集）</h2>
         <table style={{ borderCollapse: "collapse", fontSize: 12, marginBottom: 10 }}>
           <tbody>
             {seats.map((s) => (

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
+import Link from "next/link";
 import { TabBar, type NavGroup } from "@/components/ui/nav";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -28,6 +29,10 @@ export default async function ManageLayout({ children }: { children: React.React
     }
     if (!(onRegister && castReg)) redirect("/mine");
   }
+
+  // 段0R その2: トップバーのサブ行に出す店名（aaa の .brand span）。既存 stores の RLS 読取1本。
+  const { data: storeRows } = await supabase.from("stores").select("name").order("name").limit(1);
+  const storeLabel = (storeRows?.[0]?.name as string | undefined) ?? "店舗";
 
   const isManagerUp = role === "owner" || role === "manager";
   let staffCrm = false;
@@ -67,20 +72,45 @@ export default async function ManageLayout({ children }: { children: React.React
         ] },
       ].filter((g) => g.items.length > 0); // 権限で空になった群は見出しごと出さない
   return (
+    /* ── UI刷新v2R 段0R その2: 基準シェル aaa.html の構造へ載せ替え（presentation-only）──
+       トップバー（.nox-tb）＋ 220px サイドバー＋フルード本体（.nox-layout / .nox-side / .nox-mainarea）。
+       ★ルート・URL・role ゲート・nav の項目集合は段N から1文字も変えていない＝殻だけを差し替えた。
+       ★≤900 はサイドバーを CSS で隠し、従来どおり TabBar のボトムタブが出る（hideSide で
+         TabBar 側の 900+ サイドバーは描画しない＝二重サイドバーにしない）。 */
     <div className="nox-dark" style={t.appBg}>
-      <div style={t.wrap}>
-        <header className="nox-topbar">
-          <span style={t.brand}>NOX</span>
-          <span style={{ marginLeft: "auto", ...t.rolePill }}>{t.roleLabelJa(role as string)}</span>
+      <header className="nox-tb">
+        <div className="brand">
+          <div className="logo" aria-hidden="true">N</div>
+          <div>
+            <b>NOX</b>
+            <span>{storeLabel}</span>
+          </div>
+        </div>
+        <div className="acts">
+          <span style={t.rolePill}>{t.roleLabelJa(role as string)}</span>
           <form action="/auth/signout" method="post" style={{ display: "flex" }}>
-            <button type="submit" style={{ ...t.btnGhost, ...t.btnSm }}>ログアウト</button>
+            <button type="submit" className="nox-btn">ログアウト</button>
           </form>
-        </header>
-        <main className="nox-main">{children}</main>
-        {/* 段N: SP（≤899）はボトムタブ4本（ホーム/レジ/シフト/キャスト）＋「その他」シート。
-            900+ は群見出しつきサイドバー。cast は項目が レジ 1本のみ＝その他は出ない（従来と同一）。 */}
-        <TabBar groups={groups} spPriority={["/dashboard", "/register", "/shift", "/casts"]} />
+        </div>
+      </header>
+      <div className="nox-layout">
+        {/* 900+ のサイドバー＝段N の5群をそのまま描く（aaa に無い項目は作らない）。
+            ★1項目しかない群は見出しを出さない＝「顧客/顧客」「分析/分析」の重複表示を解消（S-1R ⑧）。 */}
+        <aside className="nox-side">
+          {groups.map((g, gi) => (
+            <div key={g.label ?? `g${gi}`}>
+              {g.label && g.items.length > 1 && <div className="group">{g.label}</div>}
+              {g.items.map((it) => (
+                <Link key={it.href} href={it.href}>{it.label}</Link>
+              ))}
+            </div>
+          ))}
+        </aside>
+        <main className="nox-mainarea">{children}</main>
       </div>
+      {/* 段N: SP（≤899）はボトムタブ4本（ホーム/レジ/シフト/キャスト）＋「その他」シート。
+          cast は項目が レジ 1本のみ＝その他は出ない（従来と同一）。 */}
+      <TabBar groups={groups} spPriority={["/dashboard", "/register", "/shift", "/casts"]} hideSide />
     </div>
   );
 }
