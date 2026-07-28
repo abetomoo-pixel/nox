@@ -422,6 +422,56 @@ N1-c 給与レーンの最終 RPC（D3 給与明細CSV / D2 報酬明細PDF に�
 
 **付随ハーネス修繕（verify のみ・デザイン外）**：dev auth の **ES256 kid<nil> 間欠**（admin API 全般＝createUser/deleteUser/listUsers に波及しうる）＝`verify-nox-anon-guard` の `createUserWithRetry` に有界リトライ（`b3a4118`/前半束）＋**succeeded-but-errored の lookup 救済**（裁定C・`a2687d6`＝kid<nil> 後の `already registered` は該当 email を lookup して成功返し・誤吸収防止に `sawKidNil` ガード）。`audit_logs` は append-only ゆえ多数 run で肥大（1 org 39390行→`seed_marker` が select 1000 窓外→rls 落ち）＝verify org の非 `seed_marker` を service role で掃いて復旧（`seed_marker` 保持）。
 
+## 裁定19：UI刷新v2 レーン完走（全13段 push 済み・presentation-only・Agoora 目視OK・2026-07-28）
+
+正本＝`NOX_UI刷新v2_デザインガイド.md`（sha256 `01096c7b…2407`）＋**モック12枚**。
+全段 **presentation-only**（RPC/RLS/payOf/golden 非改変・**verify:f0 全緑が gate**＝2028→**2136**）。
+canonical 13トークンの**値は不変**で、変えたのは運用ルールと明度系サブトークン（`--v2-text/-muted/-panel2/-line/-ava`）のみ。断点 641/900/1180（裁定5）。
+
+**完了段（実装順どおり・すべて push 済み `2568c92..8a3e584`）：**
+S-1 シフト → N ナビ再編＋文言統一 → P キャスト写真 → S-2 予想人件費 → H2 ホーム → R2 レジ →
+C2 キャスト → U2 顧客 → A2 分析 → L2 軽量4頁（日報/お知らせ/スタッフ/監査）→ M2 マイページ →
+K2 キオスク（restyle は R2 で先行・K2 は残差分）→ **Y2 給与（最後・最厳格）**。
+
+**本レーンで確立した横断ルール：**
+
+- **可読性ルール（案A・ガイド §1）**＝①読む情報（金額・名前・数量）は白 `#F2F0EB`・Outfit 600・一回り大きく
+  ②**金 `#C9A24A` は3役だけ**（選択状態／主ボタン／バッジ）＝見出し・金額の常用は禁止
+  ③明度系サブトークンを1段明るく ④状態色は green/gold/red のみで**新色を作らない**
+  ⑤最重要数値（合計・net）は 20〜24px。適用時は機械 grep（`var(--champ)`）で洗い出して逐一判断する。
+- **段P＝Storage 初導入**：private バケット `cast-photos`（2MiB・image/jpeg）＋`storage.objects` ポリシー3本
+  （select=同 org／insert・update=**owner ∨ manager∧自店 ∨ cast 本人**・**delete なし**＝上書き運用）
+  ＋`mig0064`（`casts.photo_updated_at`＝null で写真なし 兼 キャッシュ世代）＋`mig0065`（打刻 RPC
+  `set_cast_photo_updated_at`）。★**`casts` は authenticated に SELECT しか grant されておらず UPDATE
+  ポリシーも無い**ため client 直 update は grant/RLS の二重で不可＝申告停止→RPC 化で解決。
+  **Storage 側と RPC 側の authz は同一式**（片肺状態を構造的に作らない）。手貼りリストに Storage 節を新設。
+- **S-2＝労務予測の純関数**（起草 Fable 5）：`lib/nox/labor-forecast.ts` `forecastDay()`。
+  ★時給解決は **`pay.ts` の既存 export を再利用**（シフト1本を sales=0/pts=0 の `DailyRecord` として
+  `wageDetail` に渡す）＝参照実装を書かないためドリフトが構造的に起きない。丸めは payOf 規約
+  （cast ごと `roundYen` の整数和）。**golden 55233**（payOf の 54400/wage5931 とは別系統・非接触）。
+- **Y2＝凍結値 Σ は presentation 扱い**（裁定）：確定済み `payslips.breakdown_json` の合計だけを
+  カード化してよい。定義は **D3 CSV の `payrollCsvCells` と逐語同一**にすること。
+  ★**率計算・丸め直し・net との整合補正は禁止**。★`payroll_finalize` は実績ゼロの cast に
+  `pay = {"net":0}`（他17キー欠落）を書くため**欠落キーは 0 扱い**（`?? 0` の既定のみ許可）。
+  導入時は **Σnet と Σgross−Σ控除計 の一致を dev 実データで検算**して数値を残す
+  （実測＝2026-09 run 33,924−4,953=28,971=Σnet ／ 2029-01 run 0−0=0=Σnet・不一致 0 件）。
+
+**「現物に無いものは作らない」で見送った項目（各段で明示・発明しない原則）：**
+H2 の時間帯別不足（`staffing_needs` は store×dow のみ）／C2 の待遇編集（マスタ管理が現行）／
+A2 の売上内訳4分類（`daily_reports` の内訳列は `drink_sales` のみ→2分類に留置）／
+R2・K2 の kiosk 低在庫「残N」と着卓キャスト顔（**0059 が在庫も指名も返さない＝0059 非改変を優先**）／
+K2 のカテゴリチップ化（絞り込み機能の新設になるため未実装・要裁定）／
+L2 のスタッフ写真（段P は cast_id 由来のキャスト専用）／M2 の「1位まであと3件」（他人の数字）。
+
+**運用上の教訓：**
+- **正本名が指示と一致しないときは必ず止める**（R2＝`planA-readable` が未配置で v1 しか無く、
+  kiosk モックが「案A 可読性ルール」を参照していたことが決め手＝申告停止→配置後に着手）。
+- **段の取り違えも止める**（C2 完了時に「U2 push」と指示され、未 push の実体が C2 だったため
+  push は実行しつつ U2 未着手を申告＝台帳に虚偽を書かない）。
+
+**別レーン切り出し（バックログ）**：`payrollCsvCells` は `breakdown_json` の欠落キーで **NaN 露出**
+（実績ゼロ cast を含む確定 run の D3 CSV で発生）＝凍結値 `?? 0` の同型修正＋csv25 gate で別途。
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。
