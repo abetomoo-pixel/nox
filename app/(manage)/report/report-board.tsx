@@ -34,6 +34,13 @@ const btnDark: React.CSSProperties = t.btnGold;
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 
+// 段L2: 当日ヘッダの曜日表示（表示専用・保存や計算には触れない）
+const DOW = ["日", "月", "火", "水", "木", "金", "土"];
+const dowOf = (ymd: string) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+};
+
 export default function ReportBoard({
   storeId, cutoff, cardTaxRate, isManagerUp, stores,
 }: { storeId: string; cutoff: string; cardTaxRate: number; isManagerUp: boolean; stores: { id: string; name: string }[] }) {
@@ -103,6 +110,11 @@ export default function ReportBoard({
   useEffect(() => { void loadPreview(bizDate); }, [bizDate, loadPreview]);
   useEffect(() => { void loadReports(); }, [loadReports]);
   useEffect(() => { if (isManagerUp) void loadRecvs(); }, [isManagerUp, loadRecvs]);
+
+  // 段L2: 表示中の営業日が締め済みか（既に取得済みの reports から引くだけ＝新規取得なし）
+  const closedReport = reports.find((r) => r.biz_date === bizDate) ?? null;
+  // 当日サマリの「売上（暫定）」＝現金＋カード＋売掛＋その他（締め済み日報の売上式と同じ組み立て）
+  const previewSales = preview ? preview.cash + preview.card + preview.uri + preview.other : 0;
 
   async function closeDay() {
     setMsg(null);
@@ -222,11 +234,46 @@ export default function ReportBoard({
 
       {tab === "day" && (<>
       <section className="nox-cardtop" style={card}>
+        {/* 段L2: 当日ヘッダ＝営業日＋状態バッジ＋open 伝票警告＋締めボタン（モック .repstate）。
+            ★状態は「その営業日の daily_reports 行があるか」だけで判定（締め RPC も確定値も非改変）。
+            締めボタンは下の「締め」節へスクロールさせるのではなく、同じ closeDay をそのまま呼ぶ＝
+            送る引数も経路も現行と1文字も変えていない。 */}
+        <div className="nox-repstate">
+          <span className="num" style={{ fontSize: 15, fontWeight: 700, color: "var(--v2-text)" }}>
+            {bizDate}（{DOW[dowOf(bizDate)]}）
+          </span>
+          <span className={`nox-stbadge ${closedReport ? "closed" : "open"}`}>
+            {closedReport ? "締め済み" : "営業中（未締め）"}
+          </span>
+          {!closedReport && (preview?.open ?? 0) > 0 && (
+            <span className="nox-repwarn">
+              open 伝票 {preview?.open}件 — 締めるには全伝票の会計が必要（強行も可）
+            </span>
+          )}
+          {closedReport && closedReport.reclosed_count > 0 && (
+            <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>再締め {closedReport.reclosed_count}回</span>
+          )}
+          {isManagerUp && !closedReport && (
+            <button style={{ ...btnDark, marginLeft: "auto" }} onClick={closeDay}>日報を締める</button>
+          )}
+        </div>
+
+        {/* 段L2 ★唯一の新設: 当日暫定サマリ4カード。値は既存 preview state の再形だけ＝新規 SELECT ゼロ。
+            「暫定」＝クライアント集計であり、確定値は締め時のサーバ再集計が正（下の注記と同じ扱い）。 */}
+        {preview && (
+          <div className="nox-repsum">
+            <div className="nox-rs"><div className="l">売上（暫定）</div><div className="v num">{yen(previewSales)}</div></div>
+            <div className="nox-rs"><div className="l">組数</div><div className="v num">{preview.slips}組</div></div>
+            <div className="nox-rs"><div className="l">現金</div><div className="v num">{yen(preview.cash)}</div></div>
+            <div className="nox-rs"><div className="l">カード</div><div className="v num">{yen(preview.card)}</div></div>
+          </div>
+        )}
+
         <h2 style={secTitle}>
           プレビュー（クライアント集計・確定値は締め時のサーバ再集計が正）
         </h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontSize: 13, color: "var(--ink)" }}>営業日</span>
+          <span style={{ fontSize: 13, color: "var(--v2-text)" }}>営業日</span>
           <input type="date" value={bizDate} onChange={(e) => setBizDate(e.target.value)} style={input} />
           <span style={{ ...t.sub, fontSize: 12 }}>区切り {cutoff}（範囲: 当日{cutoff}〜翌日{cutoff}）</span>
         </div>
@@ -270,6 +317,19 @@ export default function ReportBoard({
 
       <section className="nox-cardtop" style={card}>
         <h2 style={secTitle}>締め済み日報</h2>
+        {/* 段L2: リッチ行（モック .histrow）＝直近7日を「日付・組数・現金/カード・売上」で読みやすく。
+            ★下の全列テーブルはそのまま残す（実査差・再締め等の運用列を落とさない＝情報を減らさない）。 */}
+        {reports.slice(0, 7).map((r) => (
+          <div key={`h-${r.id}`} className="nox-histrow">
+            <span className="d num">{r.biz_date.slice(5).replace("-", "/")}（{DOW[dowOf(r.biz_date)]}）</span>
+            <span style={{ color: "var(--v2-muted)", fontSize: 12 }}>
+              {r.slips}組・現金 {yen(r.cash)} / カード {yen(r.card_gross)}
+              {r.uri > 0 ? ` / 売掛 ${yen(r.uri)}` : ""}
+            </span>
+            <span className="a num">{yen(r.cash + r.card_gross + r.uri + r.other)}</span>
+          </div>
+        ))}
+        <p style={{ ...t.sub, fontSize: 11, margin: "10px 0 6px" }}>全列（実査差・再締め等）は下の表で確認できます。</p>
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
           <thead>
             <tr>

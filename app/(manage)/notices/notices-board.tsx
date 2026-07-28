@@ -156,7 +156,7 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
 
       <section className="nox-cardtop" style={card}>
         <h2 style={secTitle}>お知らせ一覧</h2>
-        {rows.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>お知らせはありません。</p>}
+        {rows.length === 0 && <p style={{ fontSize: 13, color: "var(--v2-muted)" }}>お知らせはありません。</p>}
         {rows.map((n) => editId === n.id ? (
           <div key={n.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
             <input value={eTitle} onChange={(e) => setETitle(e.target.value)} maxLength={80} style={input} />
@@ -178,18 +178,19 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
             </div>
           </div>
         ) : (
-          <div key={n.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              {n.pinned && <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--gold2)" }}>ピン</span>}
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>{n.title}</span>
-              <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--sub)", border: "1px solid var(--line2)", borderRadius: 999, padding: "1px 8px" }}>
-                {AUD_LABEL[n.audience] ?? n.audience}
-              </span>
+          /* 段L2: 一覧行のリッチ化（モック .nrow/.nhead/.aud/.nbody）。
+             ★出す情報は現行と完全に同一（ピン・件名・公開範囲・期限切れ・投稿日時・本文・掲載期限・編集/削除）。
+             audience の出し分けは RLS と RPC が担い、ここは表示だけ＝機能不変。 */
+          <div key={n.id} className="nox-nrow">
+            <div className="nox-nhead">
+              {n.pinned && <span className="nox-aud" style={{ borderColor: "var(--gold)", color: "var(--gold)", fontWeight: 700 }}>ピン</span>}
+              <span className="t">{n.title}</span>
+              <span className="nox-aud">{AUD_LABEL[n.audience] ?? n.audience}</span>
               {isExpired(n) && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--bad)" }}>期限切れ</span>}
-              <span style={{ marginLeft: "auto", ...t.num, fontSize: 11.5, color: "var(--sub)" }}>{when(n.created_at)}</span>
+              <span className="when num">{when(n.created_at)}</span>
             </div>
-            <p style={{ fontSize: 13, color: "var(--sub)", margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{n.body}</p>
-            {n.until && <p style={{ ...t.num, fontSize: 11, color: "var(--sub)", margin: "3px 0 0" }}>掲載期限 {n.until}</p>}
+            <p className="nox-nbody">{n.body}</p>
+            {n.until && <p className="num" style={{ fontSize: 11, color: "var(--v2-muted)", margin: "3px 0 0" }}>掲載期限 {n.until}</p>}
             {isManagerUp && (
               <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                 <button style={btnLight} onClick={() => startEdit(n)}>編集</button>

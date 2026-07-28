@@ -696,6 +696,58 @@ body {
 /* 金額＝読む情報ゆえ白（金にしない） */
 .nox-rk2 .amt { font-size: 14px; font-weight: 600; color: var(--v2-text); white-space: nowrap; }
 
+/* ── UI刷新v2 段L2（軽量4頁＝日報/お知らせ/スタッフ/監査）── presentation-only 2026-07-28 ──
+   正本＝nox-light4-redesign-mock-v1.html。いずれも既存機能の再配置＋可読性ルールのみ
+   （新設は日報の当日サマリ4カードだけ＝既存 preview state の再形で新規 SELECT ゼロ）。
+   canonical＋v2 サブトークンのみ・断点 641/900/1180（裁定5）。金は3役（選択・主ボタン・バッジ）。 */
+/* 日報：当日ヘッダ（モック .repstate/.stbadge/.warn） */
+.nox-repstate { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.nox-stbadge { font-size: 11px; border-radius: 6px; padding: 2px 10px; font-weight: 700; white-space: nowrap; }
+.nox-stbadge.open { border: 1px solid var(--gold); color: var(--gold); }
+.nox-stbadge.closed { background: rgba(201, 162, 74, .14); color: var(--gold); }
+.nox-repwarn { font-size: 11px; color: var(--bad); }
+/* 日報：当日サマリ4カード（モック .repsum/.rs）＝★唯一の新設。既存 preview の値を並べ替えただけ。 */
+.nox-repsum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+@media (max-width: 641px) { .nox-repsum { grid-template-columns: repeat(2, 1fr); } }
+.nox-rs { background: var(--v2-panel2); border: 1px solid var(--v2-line); border-radius: 10px; padding: 10px; text-align: center; }
+.nox-rs .l { font-size: 10px; color: var(--v2-muted); }
+/* 金額は「読む情報」ゆえ白（金3役の原則） */
+.nox-rs .v { font-size: 17px; font-weight: 700; color: var(--v2-text); margin-top: 2px; }
+/* 日報：締め済み履歴のリッチ行（モック .histrow） */
+.nox-histrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--v2-line); font-size: 13px; color: var(--v2-text); }
+.nox-histrow:last-child { border-bottom: 0; }
+.nox-histrow .d { flex: 0 0 92px; color: var(--v2-muted); }
+.nox-histrow .a { margin-left: auto; font-weight: 700; color: var(--v2-text); white-space: nowrap; }
+/* お知らせ（モック .nrow/.nhead/.aud/.nbody） */
+.nox-nrow { padding: 10px 0; border-bottom: 1px solid var(--v2-line); }
+.nox-nrow:last-child { border-bottom: 0; }
+.nox-nhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--v2-text); }
+.nox-nhead .t { font-weight: 700; }
+.nox-aud { font-size: 10px; border: 1px solid var(--v2-line); color: var(--v2-muted); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+.nox-nhead .when { margin-left: auto; font-size: 11px; color: var(--v2-muted); white-space: nowrap; }
+.nox-nbody { font-size: 12px; color: var(--v2-muted); margin-top: 4px; line-height: 1.7; white-space: pre-wrap; }
+/* スタッフ（モック .srow/.perms/.perm） */
+.nox-srow2 { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid var(--v2-line); font-size: 13px; color: var(--v2-text); }
+.nox-srow2:last-child { border-bottom: 0; }
+.nox-srow2 .nm { font-weight: 700; color: var(--v2-text); }
+.nox-srow2 .role { font-size: 11px; color: var(--v2-muted); }
+.nox-perms { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+/* 権限チップ＝金の3役③（状態バッジ）。off は neutral。 */
+.nox-perm { font-size: 10px; border-radius: 4px; padding: 2px 8px; border: 1px solid var(--v2-line); color: var(--v2-muted); background: transparent; font-family: inherit; cursor: pointer; }
+.nox-perm.on { background: rgba(201, 162, 74, .14); border-color: var(--gold); color: var(--gold); font-weight: 700; }
+.nox-perm:disabled { cursor: default; opacity: .75; }
+/* 監査（モック .atool/.arow/.tm/.act/.tgt） */
+.nox-atool { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.nox-arow { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--v2-line); font-size: 12px; color: var(--v2-text); }
+.nox-arow:last-child { border-bottom: 0; }
+.nox-arow .tm { flex: 0 0 112px; font-size: 11px; color: var(--v2-muted); }
+.nox-arow .act { flex: 0 0 168px; font-weight: 600; color: var(--v2-text); overflow: hidden; text-overflow: ellipsis; }
+.nox-arow .tgt { color: var(--v2-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+@media (max-width: 641px) {
+  .nox-arow { flex-wrap: wrap; }
+  .nox-arow .act { flex-basis: auto; }
+}
+
 /* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
    既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
    列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */
