@@ -4,6 +4,7 @@
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -24,6 +25,8 @@ const DOC_KEYS = [
   { key: "bank", label: "振込口座" },
 ] as const;
 const TIERS = ["エース", "人気", "レギュラー", "体入"] as const;
+// 段C2: 「出勤した日」の集合＝出勤板（shift-board）/ホームと同一定義（新しい判定を作らない）。
+const PRESENT = new Set(["shukkin", "dohan", "late"]);
 
 const card: React.CSSProperties = t.card;
 const h2: React.CSSProperties = { ...t.pheadH1, fontSize: 16 };
@@ -82,7 +85,44 @@ export default function CastsBoard({
   const [phPreview, setPhPreview] = useState<string | null>(null);
   const [phErr, setPhErr] = useState<string | null>(null);
 
+  // ── 段C2（キャスト刷新・正本 nox-casts-redesign-mock-v1.html）──
+  //   テーブル→カードグリッド＋詳細3タブ。フィルタ/検索/月次2数値はすべて既存データの client 再形。
+  //   ★機微情報（本名・生年月日・マイナンバー等）はこの画面に持ち込まない＝現行の分離設計を維持。
+  const [filter, setFilter] = useState<"active" | "trial" | "left">("active");
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState<{ kind: "cast" | "trial"; id: string } | null>(null);
+  const [dtab, setDtab] = useState<"basic" | "comp" | "account">("basic");
+  const [showAdd, setShowAdd] = useState(false);
+  // 月次2数値（相談役メモ②）＝現物確認の結果★どちらも新規 RPC なしで取れる:
+  //   今月指名＝既存 get_cast_ranking（cast_id 付きで hon/jonai/dohan を返す・dashboard と同じ呼び方）
+  //   今月出勤＝attendance を月範囲で引いて cast_id 別に数える（(cast_id,date) UNIQUE ゆえ行数＝日数）
+  const [rankOf, setRankOf] = useState<Record<string, { hon: number; jonai: number; dohan: number }>>({});
+  const [attDaysOf, setAttDaysOf] = useState<Record<string, number>>({});
+  const month = new Date().toISOString().slice(0, 7);
+
   useEffect(() => { void resolveOrgId(supabase).then(setOrgId); }, [supabase]);
+
+  const loadStats = useCallback(async () => {
+    const storeId = myStoreId || stores[0]?.id || "";
+    if (storeId) {
+      const { data: rk } = await supabase.rpc("get_cast_ranking", { p_store_id: storeId, p_period: month });
+      const m: Record<string, { hon: number; jonai: number; dohan: number }> = {};
+      for (const r of (rk ?? []) as Record<string, unknown>[]) {
+        m[r.cast_id as string] = { hon: (r.hon_count as number) ?? 0, jonai: (r.jonai_count as number) ?? 0, dohan: (r.dohan_count as number) ?? 0 };
+      }
+      setRankOf(m);
+    }
+    // 出勤日数＝出勤/同伴/遅刻を「出勤した日」とみなす（出勤板 shift-board / home と同じ PRESENT 集合）
+    const { data: at } = await supabase
+      .from("attendance").select("cast_id, status").gte("date", `${month}-01`).lte("date", `${month}-31`);
+    const d: Record<string, number> = {};
+    for (const r of (at ?? []) as Record<string, unknown>[]) {
+      if (PRESENT.has(r.status as string)) d[r.cast_id as string] = (d[r.cast_id as string] ?? 0) + 1;
+    }
+    setAttDaysOf(d);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, myStoreId, stores]);
+  useEffect(() => { void loadStats(); }, [loadStats]);
   useEffect(() => {
     if (!orgId) return;
     let alive = true;
@@ -204,146 +244,246 @@ export default function CastsBoard({
     await rpc("評価を更新", "trial_update", { p_trial_id: tr.id, p_rating: r });
   }
 
+  // ── 段C2 派生値（すべて既存データの client 再形＝新規取得なし）──
+  const hit = (name: string) => !q.trim() || name.toLowerCase().includes(q.trim().toLowerCase());
+  const shownCasts = loginCasts.filter((c) => c.is_active === (filter === "active") && hit(c.name));
+  const shownTrials = trials.filter((tr) => hit(tr.name));
+  const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? "—";
+  const nomTotal = (id: string) => { const r = rankOf[id]; return r ? r.hon + r.jonai + r.dohan : 0; };
+  const selCast = sel?.kind === "cast" ? loginCasts.find((c) => c.id === sel.id) ?? null : null;
+  const selTrial = sel?.kind === "trial" ? trials.find((tr) => tr.id === sel.id) ?? null : null;
+
   return (
-    <div style={{ maxWidth: 860 }}>
-      <h1 style={t.pheadH1}>キャスト管理</h1>
-      <p style={t.pheadP}>体入の評価・書類確認から本採用まで。本採用でキャストに登録されます（実績はゼロから）。</p>
+    <div style={{ maxWidth: 1180 }}>
+      <h1 style={t.pheadH1}>キャスト</h1>
+      <p style={t.pheadP}>在籍キャストと体入の管理。カードを選ぶと詳細（基本／待遇・バック／アカウント）が開きます。</p>
       <Toast msg={msg} />
 
-      {/* 体入・採用管理 */}
-      <section className="nox-cardtop" style={{ ...card, marginTop: 13 }}>
-        <h2 style={secTitle}>体入・採用管理</h2>
-        {trials.length === 0 && <p style={{ ...t.sub, margin: 0 }}>体入中のキャストはいません。</p>}
-        <div style={{ display: "grid", gap: 12 }}>
-          {trials.map((tr) => (
-            <div key={tr.id} style={{ ...t.card, marginBottom: 0, background: "var(--card2)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                {/* 段F: 頭文字アバター（既存 name のみ由来・新情報なし・装飾）。
-                    段P: 共有部品へ寄せたが★体入は写真なし固定＝trials は casts 行がまだ無く
-                    （写真パスは cast_id 由来）、採用 cast_create 後に初めて写真を持てる。 */}
-                <CastAvatar name={tr.name} size={30} />
-                <strong style={{ fontSize: 14 }}>{tr.name}</strong>
-                <span style={{ ...t.sub }}>体入中</span>
-                <span style={{ ...t.sub, marginLeft: "auto" }}>
-                  体入 {tr.trial_date ?? "—"}・{tr.tier ?? "—"}・{ageOf(tr.birthday)}
-                </span>
-              </div>
-
-              {/* 評価（星） */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-                <span style={lbl}>評価</span>
-                {[1, 2, 3, 4, 5].map((r) => (
-                  <button key={r} disabled={busy} onClick={() => void setRating(tr, r)}
-                    style={{ ...btnGhost, padding: "2px 8px", color: (tr.rating ?? 0) >= r ? "var(--champ)" : "var(--sub)" }}>
-                    ★
-                  </button>
-                ))}
-              </div>
-
-              {/* 書類チェック */}
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 8 }}>
-                {DOC_KEYS.map((d) => (
-                  <label key={d.key} style={{ ...lbl, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-                    <input type="checkbox" checked={docs(tr)[d.key] === true} disabled={busy}
-                      onChange={() => void toggleDoc(tr, d.key)} style={{ accentColor: "#C9A24A", cursor: "pointer" }} />
-                    {d.label}
-                  </label>
-                ))}
-              </div>
-
-              {/* メモ */}
-              <MemoField tr={tr} busy={busy} onSave={(m) => rpc("メモを更新", "trial_update", { p_trial_id: tr.id, p_memo: m })} />
-
-              {/* 本採用 / 見送り */}
-              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
-                <button style={btnGold} disabled={busy || !allDocs(tr)} onClick={async () => {
-                  if (!confirm(`${tr.name} を本採用しますか？（キャストに登録され、実績ゼロから開始します）`)) return;
-                  await rpc("本採用", "trial_hire", { p_trial_id: tr.id });
-                }}>本採用</button>
-                <button style={{ ...btnGhost, color: "var(--bad)", borderColor: "#5A2E2E" }} disabled={busy} onClick={async () => {
-                  if (!confirm(`${tr.name} を見送りますか？`)) return;
-                  await rpc("見送り", "trial_reject", { p_trial_id: tr.id });
-                }}>見送り</button>
-                {!allDocs(tr) && <span style={{ ...t.sub }}>本採用には全書類のチェックが必要です。</span>}
-              </div>
-            </div>
+      {/* ツールバー＝検索＋在籍/体入/退店済み（既存 is_active と trials の再形・新規取得なし） */}
+      <div className="nox-ctoolbar">
+        <input
+          value={q} onChange={(e) => setQ(e.target.value)} placeholder="名前で検索"
+          style={{ ...input, width: 200 }} aria-label="名前で検索"
+        />
+        <div className="nox-seg">
+          {([["active", "在籍"], ["trial", "体入"], ["left", "退店済み"]] as const).map(([k, label]) => (
+            <button key={k} className={filter === k ? "on" : ""}
+              onClick={() => { setFilter(k); setSel(null); }}>{label}</button>
           ))}
         </div>
+        <button style={{ ...btnGold, marginLeft: "auto" }} onClick={() => setShowAdd((v) => !v)}>
+          ＋ {filter === "trial" ? "体入を追加" : "キャスト登録"}
+        </button>
+      </div>
 
-        {/* 体入を追加 */}
-        <div style={{ marginTop: 14 }}>
-          <h3 style={h3}>体入を追加</h3>
+      {/* 登録フォーム（トグル）＝送る RPC も引数も現行のまま（体入=trial_register／本登録=cast_create） */}
+      {showAdd && (
+        <section className="nox-cardtop" style={card}>
+          <h2 style={secTitle}>{filter === "trial" ? "体入を追加" : "新規キャスト登録"}</h2>
+          <p style={{ ...t.sub, margin: "0 0 10px" }}>
+            {filter === "trial"
+              ? "体入として登録します（本採用でキャストに登録されます）。"
+              : "体入を経ずに直接登録します（実績はゼロから）。"}
+          </p>
           <RegisterForm
-            stores={stores} isOwner={isOwner} myStoreId={myStoreId} busy={busy}
-            withTrialFields
-            onSubmit={(a) => rpc("体入を登録", "trial_register", a)}
+            key={filter} stores={stores} isOwner={isOwner} myStoreId={myStoreId} busy={busy}
+            withTrialFields={filter === "trial"}
+            onSubmit={(a) => filter === "trial"
+              ? rpc("体入を登録", "trial_register", a)
+              : rpc("キャストを登録", "cast_create", a)}
           />
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* 新規キャスト登録（体入を経ず直接） */}
-      <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>新規キャスト登録</h2>
-        <p style={{ ...t.sub, margin: "0 0 10px" }}>体入を経ずに直接登録します（実績はゼロから）。</p>
-        <RegisterForm
-          stores={stores} isOwner={isOwner} myStoreId={myStoreId} busy={busy}
-          onSubmit={(a) => rpc("キャストを登録", "cast_create", a)}
-        />
-      </section>
-
-      {/* F3g' ログイン招待（マイページ）＝招待（未結線）/ PW再発行（結線済み）の出し分け */}
-      <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>ログイン招待（マイページ）</h2>
-        <p style={{ ...t.sub, margin: "0 0 10px" }}>
-          キャストにログインアカウントを発行します。招待するとマイページ（出勤・報酬の確認）が使えます。
-        </p>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
-            <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
-                {["キャスト", "状態", "操作"].map((h) => (
-                  <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loginCasts.length === 0 && (
-                <tr><td colSpan={3} style={{ padding: 8, color: "var(--sub)" }}>（在籍キャストがいません）</td></tr>
-              )}
-              {loginCasts.map((c) => (
-                <tr key={c.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                  {/* 段F: 頭文字アバター（既存 name の1文字＋name 由来の色のみ・新情報なし・装飾） */}
-                  <td style={{ padding: 6, fontWeight: 700, whiteSpace: "nowrap" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      <CastAvatar name={c.name} url={photoUrls.get(c.id)} size={28} />
-                      {c.name}
-                    </span>
-                  </td>
-                  <td style={{ padding: 6, color: c.user_id ? "var(--ok)" : "var(--sub)", whiteSpace: "nowrap" }}>
-                    {c.user_id ? "招待済み" : "未招待"}
-                  </td>
-                  <td style={{ padding: 6, whiteSpace: "nowrap" }}>
-                    {c.user_id ? (
-                      <button style={btnGhost} disabled={busy} onClick={() => openInvite(c, "reset")}>PW再発行</button>
-                    ) : (
-                      <button style={btnGold} disabled={busy} onClick={() => openInvite(c, "invite")}>招待</button>
-                    )}
-                    {/* F4a: キオスク打刻 PIN（ログイン結線の有無と独立＝招待していない子も打刻できる） */}
-                    <button style={{ ...btnGhost, marginLeft: 6 }} disabled={busy}
-                      onClick={() => { setPinTarget(c); setPinVal(""); setPinErr(null); setPinDone(false); }}>
-                      打刻PIN
-                    </button>
-                    {/* 段P: 写真（未登録なら「写真」・登録済みなら「写真変更」） */}
-                    <button style={{ ...btnGhost, marginLeft: 6 }} disabled={busy || !orgId} onClick={() => openPhoto(c)}>
-                      {c.photo_updated_at ? "写真変更" : "写真"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* カードグリッド（モック .cards）＝写真・名前・状態・月次2数値だけ。機微情報は出さない。 */}
+      {filter === "trial" ? (
+        <div className="nox-cardgrid">
+          {shownTrials.length === 0 && <p style={{ ...t.sub, margin: 0 }}>体入中のキャストはいません。</p>}
+          {shownTrials.map((tr) => (
+            <button key={tr.id} className={`nox-ccard ${sel?.kind === "trial" && sel.id === tr.id ? "sel" : ""}`}
+              onClick={() => { setSel({ kind: "trial", id: tr.id }); setDtab("basic"); }}>
+              <span className="nox-ctag">体入</span>
+              <div className="chead">
+                {/* ★体入は写真なし固定＝trials に casts 行がまだ無い（写真パスは cast_id 由来）。 */}
+                <CastAvatar name={tr.name} size={44} />
+                <div>
+                  <div className="cname">{tr.name}</div>
+                  <div className="csub">体入 {tr.trial_date ?? "—"}</div>
+                </div>
+              </div>
+              <div className="cstats">
+                <div className="cstat"><div className="l">書類</div><div className="v">{allDocs(tr) ? "完了" : "未完了"}</div></div>
+                <div className="cstat"><div className="l">評価</div><div className="v num">{tr.rating ? `★${tr.rating}` : "—"}</div></div>
+              </div>
+            </button>
+          ))}
         </div>
-      </section>
+      ) : (
+        <div className="nox-cardgrid">
+          {shownCasts.length === 0 && (
+            <p style={{ ...t.sub, margin: 0 }}>
+              {filter === "active" ? "在籍キャストがいません。" : "退店済みのキャストはいません。"}
+            </p>
+          )}
+          {shownCasts.map((c) => (
+            <button key={c.id} className={`nox-ccard ${sel?.kind === "cast" && sel.id === c.id ? "sel" : ""}`}
+              onClick={() => { setSel({ kind: "cast", id: c.id }); setDtab("basic"); }}>
+              {!c.is_active && <span className="nox-ctag off">退店</span>}
+              <div className="chead">
+                <CastAvatar name={c.name} url={photoUrls.get(c.id)} size={44} />
+                <div>
+                  <div className="cname">{c.name}</div>
+                  <div className="csub">{c.is_active ? "在籍" : "退店"} / {c.user_id ? "ログイン済み" : "未招待"}</div>
+                </div>
+              </div>
+              <div className="cstats">
+                <div className="cstat"><div className="l">今月指名</div><div className="v num">{nomTotal(c.id)}件</div></div>
+                <div className="cstat"><div className="l">今月出勤</div><div className="v num">{attDaysOf[c.id] ?? 0}日</div></div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── 詳細（カード選択で開く）＝現行の編集・招待・PW再発行・体入採否を3タブへ再配置 ── */}
+      {selCast && (
+        <section className="nox-cardtop" style={{ ...card, maxWidth: 560 }}>
+          <div className="nox-cdrawer">
+            <div style={{ textAlign: "center" }}>
+              <CastAvatar name={selCast.name} url={photoUrls.get(selCast.id)} size={64} />
+              {/* 段P 実装済みの写真変更を流用（送る RPC も同じ） */}
+              <button style={{ ...btnGhost, display: "block", marginTop: 6, fontSize: 11, padding: "2px 8px" }}
+                disabled={busy || !orgId} onClick={() => openPhoto(selCast)}>写真を変更</button>
+            </div>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--v2-text)" }}>{selCast.name}</div>
+              <div style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
+                {selCast.is_active ? "在籍" : "退店"} / {selCast.user_id ? "ログイン済み" : "未招待"}
+              </div>
+            </div>
+            <button style={{ ...btnGhost, marginLeft: "auto" }} onClick={() => setSel(null)}>閉じる</button>
+          </div>
+
+          <div className="nox-dtabs">
+            {([["basic", "基本"], ["comp", "待遇・バック"], ["account", "アカウント"]] as const).map(([k, label]) => (
+              <button key={k} className={dtab === k ? "on" : ""} onClick={() => setDtab(k)}>{label}</button>
+            ))}
+          </div>
+
+          {dtab === "basic" && (
+            <>
+              <div className="nox-frow"><span className="k">源氏名</span><span className="v">{selCast.name}</span></div>
+              <div className="nox-frow"><span className="k">所属店</span><span className="v">{storeName(selCast.store_id)}</span></div>
+              <div className="nox-frow"><span className="k">状態</span><span className="v">{selCast.is_active ? "在籍" : "退店"}</span></div>
+              <div className="nox-frow">
+                <span className="k">今月指名</span>
+                <span className="v num">
+                  {nomTotal(selCast.id)}件
+                  <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 6 }}>
+                    本{rankOf[selCast.id]?.hon ?? 0}・場内{rankOf[selCast.id]?.jonai ?? 0}・同伴{rankOf[selCast.id]?.dohan ?? 0}
+                  </span>
+                </span>
+              </div>
+              <div className="nox-frow"><span className="k">今月出勤</span><span className="v num">{attDaysOf[selCast.id] ?? 0}日</span></div>
+              {/* ★機微情報の分離を明示（モックの .lockrow 逐語）＝この画面には出さない */}
+              <div className="nox-lockrow">
+                本名・生年月日・マイナンバー等の機微情報は「機密・税務情報」（owner/manager 限定・閲覧ログ記録）でのみ扱います。この画面には表示しません。
+              </div>
+            </>
+          )}
+
+          {dtab === "comp" && (
+            <>
+              {/* ★待遇プランの編集経路は現行この画面に存在しない（マスタ側）。
+                  新規 RPC も新規フォームも作らず、管理場所への案内だけを置く＝機能不変。 */}
+              <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px", lineHeight: 1.8 }}>
+                待遇プラン（保証時給・スライド・指名バック単価）とキャストへの割当は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。
+                この画面からは変更できません（現行どおり）。
+              </p>
+              <Link href="/master" style={{ ...btnGhost, display: "inline-block", textDecoration: "none" }}>マスタへ</Link>
+            </>
+          )}
+
+          {dtab === "account" && (
+            <>
+              <div className="nox-frow">
+                <span className="k">ログイン（マイページ）</span>
+                <span className="v" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span style={{ color: selCast.user_id ? "var(--ok)" : "var(--v2-muted)" }}>
+                    {selCast.user_id ? "招待済み" : "未招待"}
+                  </span>
+                  {selCast.user_id
+                    ? <button style={btnGhost} disabled={busy} onClick={() => openInvite(selCast, "reset")}>PW再発行</button>
+                    : <button style={btnGold} disabled={busy} onClick={() => openInvite(selCast, "invite")}>招待</button>}
+                </span>
+              </div>
+              <div className="nox-frow">
+                <span className="k">キオスク打刻 PIN</span>
+                <span className="v">
+                  {/* F4a: 打刻 PIN（ログイン結線と独立＝招待していない子も打刻できる） */}
+                  <button style={btnGhost} disabled={busy}
+                    onClick={() => { setPinTarget(selCast); setPinVal(""); setPinErr(null); setPinDone(false); }}>
+                    打刻PIN を設定
+                  </button>
+                </span>
+              </div>
+              <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
+                招待するとマイページ（出勤・報酬の確認）が使えます。PIN はキオスク端末での打刻に使い、画面にも記録にも残りません。
+              </p>
+            </>
+          )}
+        </section>
+      )}
+
+      {/* 体入の詳細＝評価・書類・メモ・採否（現行 UI をそのまま移設＝送る RPC も引数も不変） */}
+      {selTrial && (
+        <section className="nox-cardtop" style={{ ...card, maxWidth: 560 }}>
+          <div className="nox-cdrawer">
+            <CastAvatar name={selTrial.name} size={64} />
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--v2-text)" }}>{selTrial.name}</div>
+              <div style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
+                体入 {selTrial.trial_date ?? "—"}・{selTrial.tier ?? "—"}・{ageOf(selTrial.birthday)}
+              </div>
+            </div>
+            <button style={{ ...btnGhost, marginLeft: "auto" }} onClick={() => setSel(null)}>閉じる</button>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={lbl}>評価</span>
+            {[1, 2, 3, 4, 5].map((r) => (
+              <button key={r} disabled={busy} onClick={() => void setRating(selTrial, r)}
+                style={{ ...btnGhost, padding: "2px 8px", color: (selTrial.rating ?? 0) >= r ? "var(--gold)" : "var(--v2-muted)" }}>
+                ★
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
+            {DOC_KEYS.map((d) => (
+              <label key={d.key} style={{ ...lbl, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                <input type="checkbox" checked={docs(selTrial)[d.key] === true} disabled={busy}
+                  onChange={() => void toggleDoc(selTrial, d.key)} style={{ accentColor: "#C9A24A", cursor: "pointer" }} />
+                {d.label}
+              </label>
+            ))}
+          </div>
+
+          <MemoField tr={selTrial} busy={busy} onSave={(m) => rpc("メモを更新", "trial_update", { p_trial_id: selTrial.id, p_memo: m })} />
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+            <button style={btnGold} disabled={busy || !allDocs(selTrial)} onClick={async () => {
+              if (!confirm(`${selTrial.name} を本採用しますか？（キャストに登録され、実績ゼロから開始します）`)) return;
+              if (await rpc("本採用", "trial_hire", { p_trial_id: selTrial.id })) { setSel(null); await reloadLoginCasts(); }
+            }}>本採用</button>
+            <button style={{ ...btnGhost, color: "var(--bad)", borderColor: "#5A2E2E" }} disabled={busy} onClick={async () => {
+              if (!confirm(`${selTrial.name} を見送りますか？`)) return;
+              if (await rpc("見送り", "trial_reject", { p_trial_id: selTrial.id })) setSel(null);
+            }}>見送り</button>
+            {!allDocs(selTrial) && <span style={{ ...t.sub }}>本採用には全書類のチェックが必要です。</span>}
+          </div>
+        </section>
+      )}
 
       {/* 招待/PW再発行モーダル（staff-board の追加モーダル雛形・PW は一度だけ表示） */}
       {invTarget && (

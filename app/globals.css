@@ -566,6 +566,50 @@ body {
 .nox-kiosk .nox-tile-name { font-size: 13px; }
 .nox-kiosk .nox-dtotal { font-size: 24px; }
 
+/* ── UI刷新v2 段C2（キャスト刷新）── presentation-only 2026-07-28 ──
+   正本＝nox-casts-redesign-mock-v1.html。テーブル→カードグリッド化＋詳細3タブ。
+   ★機微情報（本名・生年月日・マイナンバー等）はこの画面に出さない＝現行の分離設計を維持。
+   canonical＋v2 サブトークンのみ・断点 641/900/1180（裁定5）。金は3役（選択・主ボタン・バッジ）。 */
+.nox-ctoolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+/* 在籍/体入/退店 セグメント（モック .seg） */
+.nox-seg { display: flex; border: 1px solid var(--v2-line); border-radius: 8px; overflow: hidden; }
+.nox-seg button {
+  background: transparent; border: none; color: var(--v2-muted);
+  padding: 7px 14px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+/* 金の3役①＝選択状態 */
+.nox-seg button.on { background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
+/* カードグリッド（モック .cards）＝4→3(≤1180)→1(≤641) */
+.nox-cardgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+@media (max-width: 1180px) { .nox-cardgrid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 641px)  { .nox-cardgrid { grid-template-columns: 1fr; } }
+.nox-ccard {
+  position: relative; background: var(--card); border: 1px solid var(--v2-line);
+  border-radius: 12px; padding: 14px; cursor: pointer; font-family: inherit;
+  text-align: left; width: 100%; color: var(--v2-text); display: block;
+}
+.nox-ccard:hover { border-color: var(--v2-muted); }
+.nox-ccard.sel { outline: 2px solid var(--gold); outline-offset: -2px; }
+.nox-ccard .chead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.nox-ccard .cname { font-size: 15px; font-weight: 700; color: var(--v2-text); }
+.nox-ccard .csub { font-size: 11px; color: var(--v2-muted); }
+.nox-ccard .cstats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; }
+.nox-ccard .cstat .l { color: var(--v2-muted); font-size: 10px; }
+.nox-ccard .cstat .v { font-size: 14px; font-weight: 600; color: var(--v2-text); margin-top: 1px; }
+/* 金の3役③＝バッジ（体入タグ） */
+.nox-ctag { position: absolute; top: 12px; right: 12px; font-size: 10px; border-radius: 4px; padding: 1px 6px; background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
+.nox-ctag.off { background: var(--v2-panel2); color: var(--v2-muted); font-weight: 400; }
+/* 詳細（モック .drawer/.dhd/.frow/.lockrow） */
+.nox-cdrawer { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.nox-frow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--v2-line); font-size: 13px; }
+.nox-frow:last-child { border-bottom: 0; }
+.nox-frow .k { color: var(--v2-muted); }
+.nox-frow .v { color: var(--v2-text); text-align: right; }
+.nox-lockrow {
+  background: var(--v2-panel2); border: 1px solid var(--v2-line); border-radius: 8px;
+  padding: 8px 10px; font-size: 11px; color: var(--v2-muted); margin-top: 10px; line-height: 1.7;
+}
+
 /* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
    既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
    列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */
