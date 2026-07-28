@@ -326,6 +326,8 @@ body {
 @media (min-width: 1180px) { .nox-quickgrid { grid-template-columns: repeat(5, 1fr); } }
 .nox-quicktile {
   display: flex;
+  /* 段H2: アイコン＋ラベルの縦積みへ（モック .qtile/.qi）。段H の見た目・寸法・hover はそのまま。 */
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 64px;
@@ -350,6 +352,44 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .nox-quicktile:hover { transform: none; }
 }
+
+/* 段H2: クイックアクションのアイコン（モック .qi 逐語＝Unicode 字形のみ・アイコンライブラリ非導入）。 */
+.nox-quickicon { display: block; font-size: 16px; color: var(--v2-muted); margin-bottom: 4px; line-height: 1; }
+
+/* ── UI刷新v2 段H2（ホーム刷新）── presentation-only 2026-07-28 ──
+   正本＝nox-home-redesign-mock-v2.html。既存取得データの再配置＋導線のみ（新規集計ゼロ）。
+   canonical＋v2 サブトークンのみ・断点は 641/900/1180（裁定5）。 */
+/* パネル見出しの右端リンク（モック .more） */
+.nox-more { margin-left: auto; font-size: 11px; color: var(--v2-muted); text-decoration: none; white-space: nowrap; }
+.nox-more:hover { color: var(--gold2); }
+/* 件数バッジ（モック .cnt） */
+.nox-cnt {
+  display: inline-block; min-width: 16px; text-align: center;
+  background: var(--bad); color: var(--bg); border-radius: 8px;
+  font-size: 10px; padding: 0 4px; font-weight: 700;
+}
+/* 今日のシフト概況の1行（モック .shiftline） */
+.nox-hshift {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--v2-panel2); border: 1px solid var(--v2-line);
+  border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 8px;
+  color: var(--v2-text);
+}
+/* 出勤キャストの写真チップ（モック .avarow/.avachip） */
+.nox-avarow { display: flex; flex-wrap: wrap; gap: 8px; }
+.nox-avachip {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--v2-panel2); border: 1px solid var(--v2-line);
+  border-radius: 20px; padding: 4px 12px 4px 4px; font-size: 12px; color: var(--v2-text);
+}
+.nox-avachip .tm { color: var(--v2-muted); font-size: 10px; }
+/* ランキング行（モック .rk/.pt） */
+.nox-rk { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--v2-line); font-size: 13px; }
+.nox-rk:last-child { border-bottom: 0; }
+.nox-rk .pt { margin-left: auto; color: var(--v2-muted); font-size: 12px; }
+/* お知らせ行（モック .qrow の軽量版） */
+.nox-hrow { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--v2-line); font-size: 12.5px; color: var(--v2-text); }
+.nox-hrow:last-child { border-bottom: 0; }
 
 /* ── 段B register タップ注文（商品タイル/バッジ/指名チップ/伝票詳細シート）── presentation-only 2026-07-24 ──
    canonical トークンのみ。列数は断点 641/900/1180 で 2→3→4→5。RPC/RLS/mig 非改変（表示 UI の置換のみ）。 */

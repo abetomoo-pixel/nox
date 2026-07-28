@@ -18,7 +18,9 @@ export default async function DashboardPage() {
   const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name").limit(1);
   const store = stores?.[0];
   const settings = (store?.settings_json ?? {}) as Record<string, unknown>;
-  const { data: casts } = await supabase.from("casts").select("id, name").eq("is_active", true).order("name");
+  // 段P/H2: photo_updated_at＝出勤チップ・ランキングのアバターを写真にする（null=写真なし＝頭文字）。
+  const { data: casts } = await supabase
+    .from("casts").select("id, name, photo_updated_at").eq("is_active", true).order("name");
 
   // 段H: home コマンドセンター化のショートカット（クイックアクション）＝既存ルートへの純ナビ。
   // role gate は (manage)/layout の nav と同一（逐語据置ラベル・ホーム/スタッフ/監査は除外）。
@@ -29,18 +31,20 @@ export default async function DashboardPage() {
     const { data } = await supabase.rpc("auth_staff_can_crm");
     staffCrm = data === true;
   }
-  const shortcuts: { href: string; label: string }[] = [
-    { href: "/register", label: "レジ" },
-    { href: "/shift", label: "シフト" },
-    { href: "/report", label: "日報" },
-    { href: "/notices", label: "お知らせ" },
-    ...(isManagerUp || staffCrm ? [{ href: "/customers", label: "顧客" }] : []),
+  // 段H2: アイコンはモック .qi の Unicode 字形を逐語（アイコンライブラリは導入しない＝裁定3・段N と同じ）。
+  //   ★href/label/role ゲートは段H から1文字も変えない＝増えたのは icon だけ。
+  const shortcuts: { href: string; label: string; icon: string }[] = [
+    { href: "/register", label: "レジ", icon: "◻" },
+    { href: "/shift", label: "シフト", icon: "☾" },
+    { href: "/report", label: "日報", icon: "▤" },
+    { href: "/notices", label: "お知らせ", icon: "◌" },
+    ...(isManagerUp || staffCrm ? [{ href: "/customers", label: "顧客", icon: "◉" }] : []),
     ...(isManagerUp
       ? [
-          { href: "/analytics", label: "分析" },
-          { href: "/payroll", label: "給与" },
-          { href: "/casts", label: "キャスト" },
-          { href: "/master", label: "マスタ" },
+          { href: "/analytics", label: "分析", icon: "▲" },
+          { href: "/payroll", label: "給与", icon: "¥" },
+          { href: "/casts", label: "キャスト", icon: "♦" },
+          { href: "/master", label: "マスタ", icon: "✦" },
         ]
       : []),
   ];
@@ -50,7 +54,7 @@ export default async function DashboardPage() {
       storeId={store?.id ?? ""}
       storeName={store?.name ?? ""}
       cutoff={typeof settings.biz_cutoff_hm === "string" && settings.biz_cutoff_hm ? (settings.biz_cutoff_hm as string) : "06:00"}
-      casts={(casts ?? []) as { id: string; name: string }[]}
+      casts={(casts ?? []) as { id: string; name: string; photo_updated_at: string | null }[]}
       shortcuts={shortcuts}
     />
   );
