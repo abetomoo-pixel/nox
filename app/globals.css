@@ -698,6 +698,21 @@ body {
 .nox-cald.ng .nox-cald-c   { color: var(--bad); }
 .nox-cald.sel { background: #1B1710; border-color: var(--gold); }
 .nox-cald.today .nox-cald-n { color: var(--champ); font-weight: 700; }
+/* 段S-2: セル内の予想人件費（モック .yen 逐語＝10px muted）。★≤641 は非表示＝スマホは色＋コマ数のみ
+   （モック @media (max-width:641px) の .grid .yen{display:none} と同じ。人数 .nox-cald-c は S-1 のまま触らない）。 */
+.nox-cald-y { font-size: 10px; color: var(--v2-muted); }
+@media (max-width: 641px) { .nox-cald-y { display: none; } }
+/* 段S-2: KPI 帯5枚目「予想人件費」＝モック .kpi.money の span 2（2列時は全幅・4列時は2枠ぶん）。 */
+.nox-kpi2.money { grid-column: span 2; }
+/* 段S-2: 日詳細の金額行（モック .moneyrow 逐語）。直下の注記は常時表示（設計§1 の必須注記）。 */
+.nox-moneyrow {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  background: var(--v2-panel2); border: 1px solid var(--v2-line);
+  border-radius: 10px; padding: 8px 10px; font-size: 12px; color: var(--v2-muted);
+}
+.nox-moneyrow b { color: var(--v2-text); font-size: 15px; font-weight: 700; }
+.nox-moneynote { font-size: 11px; color: var(--v2-muted); margin: 6px 0 12px; }
+
 .nox-callegend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--v2-muted); margin-top: 9px; }
 .nox-callegend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; border: 1px solid var(--v2-line); }
 

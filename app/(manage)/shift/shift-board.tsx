@@ -5,7 +5,7 @@
 //   ★シフトの営業日判定は shiftHoursStatus（date 直＝cutoff 変換なし・mig0008 決定3）。
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { fmtWin, fmtBand30, hm2min } from "@/lib/nox/shift-time";
@@ -14,6 +14,8 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
+import { forecastDay, type ForecastComp, type DayForecast } from "@/lib/nox/labor-forecast";
+import type { CompPlan } from "@/lib/nox/pay";
 import IncentivePanel from "./incentive-panel";
 
 type Cast = { id: string; name: string; photo_updated_at: string | null };
@@ -97,6 +99,42 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [casts]);
+
+  // ── UI刷新v2 段S-2: 予想人件費（設計正本 §1〜§2・計算の正は lib/nox/labor-forecast.ts）──
+  //   ★表示は manager 以上のみ。理由は2つで、どちらも現物由来:
+  //     (1) cast_plan の SELECT RLS は「owner/manager ∨ cast_id=auth_cast_id()」＝
+  //         staff（黒服）は 0行になる。出しても必ず「¥0・時給未設定 N人」になり誤情報にしかならない。
+  //     (2) cast は (manage)/layout が /mine へ戻すため本画面に到達しないが、
+  //         到達しても isManagerUp=false ゆえ3箇所とも出ない（設計§3 の「cast に見せない」を構造で担保）。
+  //   ★真の防御は RLS（cast は自分の cast_plan/comp_plans しか引けない）＝ここは表示ゲート。
+  const [comps, setComps] = useState<Record<string, ForecastComp>>({});
+  const loadComps = useCallback(async () => {
+    if (!isManagerUp) return; // staff/cast は取得もしない（0行になるが呼ばない方が意図が明確）
+    // ★月内 comps は「日×cast のループ」ではなく2クエリで一括取得し、全日の forecastDay で使い回す。
+    //   待遇は日付に依存しないので月が変わっても取り直す必要はない（依存は isManagerUp のみ）。
+    const [cpR, planR] = await Promise.all([
+      supabase.from("cast_plan").select("cast_id, plan_id, overrides_json"),
+      supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide"),
+    ]);
+    const planById = new Map<string, CompPlan>();
+    for (const p of (planR.data ?? []) as Record<string, unknown>[]) {
+      planById.set(p.id as string, {
+        id: p.id as string, name: p.name as string, base: p.base as number,
+        honBack: p.hon_back as number, jonaiBack: p.jonai_back as number, dohanBack: p.dohan_back as number,
+        salesSlide: (p.sales_slide ?? []) as CompPlan["salesSlide"],
+        pointSlide: (p.point_slide ?? []) as CompPlan["pointSlide"],
+      });
+    }
+    const next: Record<string, ForecastComp> = {};
+    for (const cp of (cpR.data ?? []) as Record<string, unknown>[]) {
+      const plan = planById.get(cp.plan_id as string);
+      // プラン未割当／プランが引けない cast は載せない＝forecastDay 側で unknownComp に数えられる
+      if (plan) next[cp.cast_id as string] = { plan, override: (cp.overrides_json ?? undefined) as ForecastComp["override"] };
+    }
+    setComps(next);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManagerUp]);
+  useEffect(() => { void loadComps(); }, [loadComps]);
 
   const load = useCallback(async () => {
     const { data: ws } = await supabase
@@ -215,8 +253,28 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     setMonth(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
   };
 
-  // 「今日」の KPI（予想人件費は S-2＝Fable 5・本段では出さない）
+  // 段S-2: 日→予想人件費。★日ごとに1回だけ計算して KPI・カレンダー・日詳細で使い回す
+  //   （表示のたびに再計算しない・SELECT は loadComps の2本きり）。manager 未満は空 Map＝どこにも出ない。
+  const fcByDate = useMemo(() => {
+    const m = new Map<string, DayForecast>();
+    if (!isManagerUp) return m;
+    const byDate = new Map<string, Shift[]>();
+    for (const s of shifts) {
+      const list = byDate.get(s.date);
+      if (list) list.push(s); else byDate.set(s.date, [s]);
+    }
+    for (const [date, list] of byDate) {
+      // status（confirmed/planned）は金額に影響しない＝両方渡す（設計§2）
+      m.set(date, forecastDay(list.map((x) => ({ castId: x.cast_id, startHm: x.start_hm, endHm: x.end_hm })), comps));
+    }
+    return m;
+  }, [shifts, comps, isManagerUp]);
+  const fcOf = (ymd: string) => fcByDate.get(ymd);
+  const yen = (n: number) => "¥" + n.toLocaleString();
+
+  // 「今日」の KPI（段S-2 で予想人件費を5枚目に追加）
   const todayStat = dayStat(bizToday);
+  const todayFc = fcOf(bizToday);
   const fillRate = todayStat.required > 0 ? Math.round((todayStat.assigned / todayStat.required) * 100) : null;
   const shortage = Math.max(0, todayStat.required - todayStat.assigned);
 
@@ -231,6 +289,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     })
     .sort((a, b) => hm2min(a.start) - hm2min(b.start));
   const selStat = dayStat(selDate);
+  const selFc = fcOf(selDate);
 
   return (
     <div style={{ maxWidth: 760 }}>
@@ -267,6 +326,17 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           <div className="nox-kpi2-v num">{shortage}<small>人</small></div>
           <div className="nox-kpi2-s">{shortage > 0 ? `あと${shortage}人必要` : "充足しています"}</div>
         </div>
+        {/* 段S-2: 予想人件費（今日）＝5枚目。manager 以上のみ（staff は cast_plan が 0行・cast は本画面に来ない）。
+            時給未設定の cast が居たら人数を出す＝0円で混ざっていることを隠さない（設計§2）。 */}
+        {isManagerUp && todayFc && (
+          <div className="nox-kpi2 money">
+            <div className="nox-kpi2-l">予想人件費（今日）</div>
+            <div className="nox-kpi2-v num">{yen(todayFc.total)}</div>
+            <div className="nox-kpi2-s">
+              {todayFc.unknownComp > 0 ? `時給未設定 ${todayFc.unknownComp}人` : "シフト×時給ベースの概算"}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── タブ「今日」＝当日運用（出勤板・出勤ボーナス）── */}
@@ -288,12 +358,19 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               {calCells.map((ymd, i) => {
                 if (!ymd) return <div key={`b${i}`} />;
                 const st = dayStat(ymd);
+                const fc = fcOf(ymd);
                 const cls = ["nox-cald", st.fill, ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                 return (
                   <button key={ymd} className={cls} onClick={() => setSelDate(ymd)}
                     title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/予定${st.planned}）`}>
                     <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
                     {st.required > 0 && <span className="nox-cald-c num">{st.assigned}/{st.required}</span>}
+                    {/* 段S-2: 日別の予想人件費（manager 以上・割当のある日のみ）。
+                        ★≤641 は CSS で非表示＝スマホは色＋コマ数のみ・詳細は日をタップして日詳細で見る。
+                        title は付けない（≤641 で見えない情報を tooltip で復活させない）。 */}
+                    {isManagerUp && fc && fc.total > 0 && (
+                      <span className="nox-cald-y num">{yen(fc.total)}</span>
+                    )}
                   </button>
                 );
               })}
@@ -317,6 +394,19 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               </span>
               <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {selStat.confirmed} / 予定 {selStat.planned}</span>
             </div>
+            {/* 段S-2: 選択日の予想人件費（モック .moneyrow）＋★必須注記（設計§1・常時表示）。
+                注記は moneyrow 直下に固定＝金額だけが独り歩きしない（BANZEN W1 §3.1 と同思想）。 */}
+            {isManagerUp && selFc && (
+              <>
+                <div className="nox-moneyrow">
+                  <span>予想人件費{selFc.unknownComp > 0 ? `（時給未設定 ${selFc.unknownComp}人を除く）` : ""}</span>
+                  <b className="num">{yen(selFc.total)}</b>
+                </div>
+                <p className="nox-moneynote">
+                  シフト時間×時給の概算です。バック・控除は含みません。実際の給与とは異なります。
+                </p>
+              </>
+            )}
             {bands.length === 0 && (
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
                 この日の割当はありません。「シフト作成」タブの確定シフト登録から追加できます。
