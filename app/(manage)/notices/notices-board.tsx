@@ -118,7 +118,7 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
   const isExpired = (n: Notice) => !!n.until && n.until < bizToday;
 
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div>
       <div style={{ margin: "2px 0 14px" }}>
         <h1 style={t.pheadH1}>お知らせ</h1>
         <p style={t.pheadP}>店舗の連絡ボード（{isManagerUp ? "投稿・編集可" : "閲覧のみ"}）</p>

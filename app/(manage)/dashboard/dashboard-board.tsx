@@ -129,7 +129,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   };
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div>
       <h1 style={t.pheadH1}>ホーム</h1>
       <p style={t.pheadP}>{storeName}・営業日 {bizToday}</p>
 

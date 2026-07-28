@@ -163,7 +163,7 @@ export default function StaffBoard({
   }
 
   return (
-    <div style={{ maxWidth: 860 }}>
+    <div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         <h1 style={t.pheadH1}>スタッフ管理</h1>
         <button style={{ ...btnGold, marginLeft: "auto" }} onClick={openAdd} disabled={busy}>＋ スタッフを追加</button>

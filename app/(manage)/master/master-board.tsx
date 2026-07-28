@@ -233,7 +233,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   const selectHub = (key: string) => { setSelCat(key); setVisible(PAGE); };
 
   return (
-    <div style={{ maxWidth: 860 }}>
+    <div>
       <h1 style={t.pheadH1}>マスタ管理</h1>
       <Toast msg={msg} />
 

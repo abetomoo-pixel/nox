@@ -159,7 +159,7 @@ export default function ReportBoard({
   }
 
   return (
-    <div style={{ maxWidth: 860 }}>
+    <div>
       <h1 style={t.pheadH1}>レポート</h1>
       <Toast msg={msg} />
 

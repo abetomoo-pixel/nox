@@ -254,7 +254,7 @@ export default function CastsBoard({
   const selTrial = sel?.kind === "trial" ? trials.find((tr) => tr.id === sel.id) ?? null : null;
 
   return (
-    <div style={{ maxWidth: 1180 }}>
+    <div>
       <h1 style={t.pheadH1}>キャスト</h1>
       <p style={t.pheadP}>在籍キャストと体入の管理。カードを選ぶと詳細（基本／待遇・バック／アカウント）が開きます。</p>
       <Toast msg={msg} />

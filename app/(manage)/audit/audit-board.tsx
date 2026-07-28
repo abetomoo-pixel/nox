@@ -84,7 +84,7 @@ export default function AuditBoard({ users, stores }: {
   );
 
   return (
-    <div style={{ maxWidth: 860 }}>
+    <div>
       <h1 style={t.pheadH1}>操作履歴（不正防止）</h1>
       <p style={t.pheadP}>金額・杯数の承認/修正・締め・マスタ変更などの操作が記録されます（追記専用・編集不可）</p>
 

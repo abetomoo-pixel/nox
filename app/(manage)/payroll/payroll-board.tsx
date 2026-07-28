@@ -291,7 +291,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   const anomalyTotal = rows?.reduce((s, r) => s + r.anomalyCount, 0) ?? 0;
 
   return (
-    <div className="nox-printpage" style={{ maxWidth: 720 }}>
+    <div className="nox-printpage">
       <div style={{ margin: "2px 0 14px" }}>
         <h1 style={t.pheadH1}>給与確定</h1>
       </div>

@@ -29,18 +29,22 @@ body {
   /* R-1（D-3 2026-07-17）: アプリフレーム上限。theme.ts の t.wrap が var(--wrap-max) で参照する
      （inline style に @media を書けないための橋渡し）。既定 520px＝モバイルは従来と一字一句同じ。
      広げるのは 641px 以上のみ＝配下 board の maxWidth 720/760/860 宣言（520 に潰されて死んでいた）が生き返る。 */
-  --wrap-max: 520px;
+  --wrap-max: 1180px;   /* 段0: 全画面共通の上限。幅は % フルードで、この値で頭打ちにするだけ */
   --bg: #0B0B0F;
   --bg2: #101017;
   --card: #16161E;
-  --card2: #1D1D27;
-  --line: #272732;
+  --card2: #20202A;   /* 旧 #1D1D27 → ガイド §1-3（一段沈めた面） */
+  /* ★UI刷新v2R 段0（2026-07-28）: 可読性トークンを「定義」から「全画面の実参照」へ昇格。
+     ガイド §1-3 の明度系「旧→新」を canonical 変数そのものに適用する＝
+     var(--ink)/--sub/--line/--card2 を参照している既存 334 箇所が個別置換なしで新色になる。
+     ★ブランド色（--bg / --gold / --gold2 / --champ / --ok / --bad）とフォントは不変。 */
+  --line: #2C2C38;    /* 旧 #272732 → ガイド §1-3 */
   --line2: #34343F;
   --gold: #C9A24A;
   --gold2: #D9BC6A;
   --champ: #E6D6A8;
-  --ink: #ECECEF;
-  --sub: #9A9AA8;
+  --ink: #F2F0EB;     /* 旧 #ECECEF → ガイド §1-3（読ませる文字） */
+  --sub: #9C9BA6;     /* 旧 #9A9AA8 → ガイド §1-3（補助文字） */
   --ok: #7FC79B;
   --bad: #D98A8A;
 
@@ -50,10 +54,12 @@ body {
      ルール: 読む情報（金額/名前/数量/件数/日付）は --v2-text＋.num（Outfit 600）で読ませる。
              金（--gold）は3役だけ＝①選択状態 ②主ボタン（1画面1つ）③バッジ。見出し/金額/アイコン地の常用は禁止。
              状態色は green(充足)/gold(やや不足)/red(不足・警告) の3つのみ＝新色を作らない。 */
-  --v2-text: #F2F0EB;    /* 読ませる文字（旧 #E8E6E1 相当を明るく） */
-  --v2-muted: #9C9BA6;   /* 補助文字（旧 #8B8A94 相当を明るく） */
-  --v2-panel2: #20202A;  /* 一段沈めた面（旧 #1B1B24 相当） */
-  --v2-line: #2C2C38;    /* 境界（旧 #26262F 相当） */
+  /* 段0 以降は canonical と同値＝v2 クラスと既存 inline のどちらを参照しても同じ色になる
+     （別名として残すのは、v2 で書いたクラス群を書き換えずに済ませるため）。 */
+  --v2-text: var(--ink);
+  --v2-muted: var(--sub);
+  --v2-panel2: var(--card2);
+  --v2-line: var(--line);
   --v2-ava: #2A2A36;     /* アバター地（非選択）＝neutral。選択時のみ gold */
 
   color: var(--ink);
@@ -138,11 +144,8 @@ body {
    サイドバー化しない＝モックの断点 768 を 900 に引き上げた設計判断・Agoora 承認 2026-07-17）。
    900+ ＝ モック準拠のサイドバー化（下記ブロック）。R-1 の 1024（--wrap-max:900px）は
    900+ の max-width:100% に包含されるため削除した。1024 断点（.cal/.calc）は repo に対応物が無く実装しない。 */
-@media (min-width: 641px) {
-  .nox-dark {
-    --wrap-max: 760px;
-  }
-}
+/* 段0: 641+ の上限引き上げは廃止＝素の 1180px 上限＋フルードに一本化した
+   （旧: 520 → 760 → 100% の3段。board 側の固定 px 殻と二重に効いて画面ごとに幅が違っていた）。 */
 
 /* ── 900+：サイドバー化（モック @media 768 ブロックの翻訳・R-2 裁定2〜5）──────────
    モックの !important 45件は持ち込まない（あれは基底 CSS が <script> 内注入というモック都合の上書き層）。
@@ -151,7 +154,6 @@ body {
    toast / tblgrid / tblgrid2 / roles / cal / calc は repo に対応物が無いか裁定保留のため移植しない（裁定4/6）。 */
 @media (min-width: 900px) {
   .nox-dark {
-    --wrap-max: 100%;
     /* t.appBg のフレームグラデ（モック .wrap の 900+ 版）。モバイル値は theme.ts のフォールバックが正 */
     --app-bg: radial-gradient(1200px 480px at 50% -80px, #15131C 0%, var(--bg) 62%);
     /* t.kpiGrid（モック .kgrid 読み替え＝裁定5）。1180+ も 4列のためこの1段のみ */
@@ -803,6 +805,90 @@ body {
 @media (max-width: 641px) {
   .nox-paytable .fold { display: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   UI刷新v2R 段0＝共通骨格（2026-07-28・presentation-only）
+   モック群で繰り返し使われる骨格クラスを CSS から忠実移植したもの。
+   ★nox- prefix の新設のみ＝既存クラスと衝突しない。機能・データ・RPC には無関係。
+   断点は 641/900/1180（裁定5）。色は canonical トークンのみ（段0 でガイド §1-3 の値へ昇格済み）。
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── ページ見出し（モック h1 + .note）────────────────────────────── */
+.nox-h1 { font-size: 18px; font-weight: 700; color: var(--ink); margin: 0 0 4px; }
+.nox-note { font-size: 11px; color: var(--sub); margin-bottom: 14px; line-height: 1.7; }
+
+/* ── サブナビ（モック .subnav）＝ページ内タブ。金は選択状態のみ ──────── */
+.nox-subnav2 { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.nox-subnav2 button {
+  background: transparent; border: 1px solid var(--line); color: var(--sub);
+  border-radius: 9px; padding: 7px 14px; font-size: 12.5px; cursor: pointer;
+  font-family: inherit; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.nox-subnav2 button.on { background: rgba(201, 162, 74, .14); border-color: var(--gold); color: var(--gold); font-weight: 700; }
+/* 件数バッジ（モック .cnt）＝金の3役③ */
+.nox-subnav2 .cnt {
+  min-width: 16px; text-align: center; background: var(--gold); color: var(--bg);
+  border-radius: 8px; font-size: 10px; padding: 0 5px; font-weight: 700; line-height: 16px;
+}
+
+/* ── KPI 帯（モック .kpis/.kpi）＝1180 で 5列まで伸びる ─────────────── */
+.nox-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+@media (min-width: 641px)  { .nox-kpis { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 900px)  { .nox-kpis { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1180px) { .nox-kpis { grid-template-columns: repeat(5, 1fr); } }
+.nox-kpi { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.nox-kpi .lbl { font-size: 11px; color: var(--sub); }
+.nox-kpi .val { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 2px; font-family: "Outfit", sans-serif; font-variant-numeric: tabular-nums; }
+.nox-kpi .val small { font-size: 13px; font-weight: 400; margin-left: 2px; }
+.nox-kpi .sub { font-size: 10px; color: var(--sub); margin-top: 2px; }
+/* 状態つき KPI（モック .kpi.warn / .kpi.money） */
+.nox-kpi.warn .val { color: var(--gold2); }
+.nox-kpi.money { border-color: rgba(201, 162, 74, .35); }
+
+/* ── パネル（モック .panel）＝見出し＋右端リンクの共通カード ────────── */
+.nox-panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+.nox-panel > h3 { font-size: 13px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--ink); font-weight: 700; }
+/* 2ペイン／下段2枚（モック .main / .lower） */
+.nox-2col { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+@media (min-width: 900px) { .nox-2col { grid-template-columns: 1fr 380px; } }
+.nox-lower { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 900px) { .nox-lower { grid-template-columns: 1fr 1fr; } }
+
+/* ── リスト行（モック .crow/.qrow/.arow の共通形）──────────────────── */
+.nox-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--line);
+  font-size: 13px; color: var(--ink);
+}
+.nox-row:last-child { border-bottom: 0; }
+.nox-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nox-row .tail { margin-left: auto; white-space: nowrap; }
+
+/* ── バッジ（モック .st/.pill/.tag の共通形）＝状態3色のみ・新色を作らない ── */
+.nox-badge {
+  font-size: 10.5px; font-weight: 700; border-radius: 6px; padding: 2px 9px;
+  border: 1px solid var(--line); color: var(--sub); white-space: nowrap; display: inline-block;
+}
+.nox-badge.ok   { color: var(--ok);   border-color: rgba(127, 199, 155, .45); }
+.nox-badge.warn { color: var(--gold); border-color: rgba(201, 162, 74, .45); }
+.nox-badge.ng   { color: var(--bad);  border-color: rgba(217, 138, 138, .45); }
+.nox-badge.none { color: var(--sub);  border-color: var(--line); }
+
+/* ── 凡例（モック .legend/.dot）──────────────────────────────────── */
+.nox-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 10.5px; color: var(--sub); align-items: center; }
+.nox-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.nox-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.nox-dot.ok { background: var(--ok); }
+.nox-dot.warn { background: var(--gold); }
+.nox-dot.ng { background: var(--bad); }
+.nox-dot.none { background: var(--line2); }
+
+/* ── 3stat（モック .stats/.stat）＝日詳細などの小指標 ────────────── */
+.nox-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+.nox-stat { background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; text-align: center; }
+.nox-stat .lbl { font-size: 10px; color: var(--sub); }
+.nox-stat .val { font-size: 16px; font-weight: 700; color: var(--ink); margin-top: 2px; font-family: "Outfit", sans-serif; font-variant-numeric: tabular-nums; }
+.nox-stat.ng .val { color: var(--bad); }
 
 /* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
    既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。

@@ -292,7 +292,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const selFc = fcOf(selDate);
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div>
       <h1 style={t.pheadH1}>シフト管理</h1>
       <Toast msg={msg} />
 
