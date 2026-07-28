@@ -20,7 +20,8 @@ export default async function RegisterPage() {
   // 純増⑦（mig0063）: タイル見出しのカテゴリ化＝products に category_id を1列追加＋カテゴリ一覧（active のみ）。
   const { data: products } = await supabase
     .from("products")
-    .select("id, name, type, price, category_id")
+    // 段R2: reorder_point＝タイルの低在庫「残N」判定に使う（在庫 v1 mig0061 の列・presentation）。
+    .select("id, name, type, price, category_id, reorder_point")
     .eq("is_active", true)
     .order("type");
   const { data: categories } = await supabase
@@ -31,7 +32,8 @@ export default async function RegisterPage() {
     .order("name");
   const { data: casts } = await supabase
     .from("casts")
-    .select("id, name")
+    // 段P/R2: photo_updated_at＝指名チップと席タイルの着卓キャスト顔を写真にする（null=頭文字）。
+    .select("id, name, photo_updated_at")
     .eq("is_active", true)
     .order("name");
   // 予約タブの可視判定（staff は can_crm・cast は予約不可＝会計のみ）と予約作成先の店（自分の membership の店）

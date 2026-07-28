@@ -6,15 +6,18 @@ import { groupDue } from "@/lib/nox/check-calc";
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
+import CastAvatar from "@/components/ui/cast-avatar";
+import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
 
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
-type Product = { id: string; name: string; type: string; price: number; category_id: string | null };
+// 段R2: reorder_point＝低在庫「残N」のしきい（null=しきい無し＝表示しない）
+type Product = { id: string; name: string; type: string; price: number; category_id: string | null; reorder_point: number | null };
 type Category = { id: string; name: string; sort_order: number };
-type Cast = { id: string; name: string };
+type Cast = { id: string; name: string; photo_updated_at: string | null };
 // B1/B2（mig0053）: 追加席の占有行（伝票の追加席一覧・フロアの「同一会計」表示に使う）
 type CheckSeatRow = { id: string; seat_id: string; check_id: string };
 
@@ -129,6 +132,14 @@ export default function RegisterBoard({
   // タブ（canonical の register セグメント。顧客・ボトルタブは顧客 UI 実装時に追加）
   const [tab, setTab] = useState<"tables" | "reserve">("tables");
   const [openMap, setOpenMap] = useState<Record<string, string>>({});
+  // 段R2: 伝票詳細の3タブ（注文／指名・席／会計）＝現行カード縦積みの収容先を切り替えるだけ。
+  //   ★どのカードも中身・RPC・引数は1文字も変えていない（表示位置だけの再配置）。
+  const [dtab, setDtab] = useState<"order" | "nom" | "pay">("order");
+  // 段R2: 席タイルの会計金額・着卓キャスト・低在庫（いずれも既存テーブルの読取＝presentation）
+  const [openTotal, setOpenTotal] = useState<Record<string, number>>({});
+  const [openNoms, setOpenNoms] = useState<Record<string, string[]>>({});
+  const [stockOf, setStockOf] = useState<Record<string, number>>({});
+  const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
   // B1/B2: 追加席（相席）の占有マップ seat_id→ホスト伝票 id（フロアの「同一会計」表示・タップで
   //   union consult がホスト伝票を返す）。primaryOf は checkId→主席 seat_id（ホスト名の解決用）。
   const [addMap, setAddMap] = useState<Record<string, string>>({});
@@ -206,11 +217,26 @@ export default function RegisterBoard({
 
   const loadOpenMap = useCallback(async () => {
     // 段B 滞在タイマー: started_at を追加取得（クライアント直 SELECT の列追加＝presentation 扱い・RPC 非改変）。
-    const { data } = await supabase.from("checks").select("id, seat_id, started_at").eq("status", "open");
+    // 段R2: total も追加（席タイルの会計金額）。★列を1つ増やしただけで RPC も RLS も触っていない。
+    const { data } = await supabase.from("checks").select("id, seat_id, started_at, total").eq("status", "open");
     const m: Record<string, string> = {};      // 主席 seat_id → checkId
     const pm: Record<string, string> = {};      // checkId → 主席 seat_id（ホスト名解決）
     const st: Record<string, string> = {};      // 主席 seat_id → started_at（席タイルの経過表示）
-    for (const r of data ?? []) { m[r.seat_id as string] = r.id as string; pm[r.id as string] = r.seat_id as string; st[r.seat_id as string] = r.started_at as string; }
+    const tt: Record<string, number> = {};      // checkId → total（席タイルの会計金額）
+    for (const r of data ?? []) { m[r.seat_id as string] = r.id as string; pm[r.id as string] = r.seat_id as string; st[r.seat_id as string] = r.started_at as string; tt[r.id as string] = (r.total as number) ?? 0; }
+    // 段R2: 着卓キャスト（open 伝票の指名）＝席タイルの顔チップ。check_nominations の RLS は
+    //   register を使えるロールと同じゲート＝ここでロール判定を書かない（真の防御は RLS）。
+    const openIds = Object.values(m);
+    const nm: Record<string, string[]> = {};    // checkId → cast_id[]（position 順）
+    if (openIds.length > 0) {
+      const { data: noms } = await supabase
+        .from("check_nominations").select("check_id, cast_id").in("check_id", openIds).order("position");
+      for (const r of noms ?? []) {
+        const k = r.check_id as string;
+        (nm[k] ??= []).push(r.cast_id as string);
+      }
+    }
+    setOpenTotal(tt); setOpenNoms(nm);
     // B1/B2: 追加席の占有（check_seats は transient＝open 伝票分のみ・RLS で自店/自 org 可視＝G27 検証済み）
     const { data: cs } = await supabase.from("check_seats").select("seat_id, check_id");
     const am: Record<string, string> = {};
@@ -261,6 +287,42 @@ export default function RegisterBoard({
   }, []);
 
   useEffect(() => { void loadOpenMap(); }, [loadOpenMap]);
+
+  // 段R2: 在庫（Σdelta）＝低在庫「残N」の材料。在庫台帳 v1（mig0061）の stock_logs を素で集計する。
+  //   ★stock_logs の SELECT RLS は cast を除外＝cast セッションでは 0行になり「残N」は出ない
+  //     （エラーではなく単に非表示＝fail-closed）。register 自体は有効 cast も使うのでこれで正しい。
+  //   ★キオスク（kiosk_register_state・0059）は在庫を返さないので低在庫は register 側だけ＝0059 非改変。
+  const loadStock = useCallback(async () => {
+    const { data } = await supabase.from("stock_logs").select("product_id, delta");
+    const m: Record<string, number> = {};
+    for (const r of data ?? []) m[r.product_id as string] = (m[r.product_id as string] ?? 0) + (r.delta as number);
+    setStockOf(m);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => { void loadStock(); }, [loadStock]);
+
+  // 段P: キャスト写真の署名 URL（写真ありの行だけ 1 リクエスト・失敗時は頭文字に落ちるだけ）
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const orgId = await resolveOrgId(supabase);
+      if (!orgId) return;
+      const m = await signCastPhotos(supabase, orgId, casts);
+      if (alive) setPhotoUrls(m);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casts]);
+
+  const castName = (id: string) => casts.find((c) => c.id === id)?.name ?? "?";
+
+  /** 段R2: 低在庫の残数。reorder_point 未設定なら null（＝表示しない）。しきい以下のときだけ数を返す。 */
+  const lowStockOf = (p: Product): number | null => {
+    if (p.reorder_point == null) return null;
+    const n = stockOf[p.id];
+    if (n == null) return null;
+    return n <= p.reorder_point ? n : null;
+  };
 
   // 段B タップ注文: 商品タイル連打を束ねて check_add_line(p_qty=N) を1回（直列 flush・単一 pending・権威はサーバ）。
   const commitLine = useCallback(
@@ -522,7 +584,8 @@ export default function RegisterBoard({
       {printCard && (
         <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: 0 }}>
+            {/* 段R2 可読性: 見出しは白（金は選択・主ボタン・バッジの3役のみ） */}
+            <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--v2-text)", margin: 0 }}>
               レシート印刷（伝票 {printCard.checkId.replace(/-/g, "").slice(0, 8)}）
             </h2>
             {printCard.groups.map((g) => (
@@ -543,28 +606,55 @@ export default function RegisterBoard({
           </div>
         </section>
       )}
-      {/* 卓一覧 */}
-      <section className="nox-cardtop" style={{ ...card, width: 220 }}>
-        <h2 style={t.cardTitle}>卓</h2>
-        {seats.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => openSeat(s)}
-            style={{
-              ...btnLight, display: "block", width: "100%", textAlign: "left", marginBottom: 8,
-              borderColor: check?.seat_id === s.id ? "var(--gold)" : (openMap[s.id] || addMap[s.id]) ? "var(--champ)" : "var(--line2)",
-              color: check?.seat_id === s.id ? "var(--champ)" : "var(--ink)",
-            }}
-          >
-            {s.name} {s.kind ? `(${s.kind})` : ""}{" "}
-            {openMap[s.id]
-              ? `● 使用中${openStarted[s.id] ? ` ・ 滞在 ${elapsedMin(openStarted[s.id], nowMs)}分` : ""}`
-              : addMap[s.id]
-                ? `● ${seats.find((h) => h.id === primaryOf[addMap[s.id]])?.name ?? "他卓"} と同一会計`
-                : "空"}
-          </button>
-        ))}
-        {msg && <p style={{ fontSize: 12, color: "var(--sub)" }}>{msg}</p>}
+      {/* 卓一覧（段R2: 縦積みリスト → タイルグリッド。正本 planA の .seats/.seat）。
+          ★onClick は openSeat のまま＝押したときの挙動は1文字も変えていない。
+          追加表示は 会計金額（checks.total）と 着卓キャスト顔（check_nominations）＝どちらも既存可視面。 */}
+      <section className="nox-cardtop" style={{ ...card, flex: "1 1 320px", minWidth: 280 }}>
+        <h2 style={{ ...t.cardTitle, display: "flex", alignItems: "center", gap: 8 }}>
+          卓
+          <span style={{ fontSize: 11.5, fontWeight: 400, color: "var(--v2-muted)" }}>
+            使用中 <span className="num" style={{ color: "var(--v2-text)" }}>{Object.keys(openMap).length}</span> / {seats.length}卓
+          </span>
+        </h2>
+        <div className="nox-seatgrid">
+          {seats.map((s) => {
+            const cid = openMap[s.id];
+            const busy = !!(cid || addMap[s.id]);
+            const heads = cid ? (openNoms[cid] ?? []) : [];
+            return (
+              <button
+                key={s.id}
+                onClick={() => openSeat(s)}
+                className={["nox-seat", busy ? "busy" : "", check?.seat_id === s.id ? "sel" : ""].filter(Boolean).join(" ")}
+              >
+                <div className="nm">{s.name}</div>
+                <div className="kind">{s.kind ?? " "}</div>
+                {cid ? (
+                  <>
+                    <div className="stay num">
+                      {openStarted[s.id] ? `滞在 ${elapsedMin(openStarted[s.id], nowMs)}分` : "使用中"}
+                    </div>
+                    {heads.length > 0 && (
+                      <div className="heads">
+                        {heads.slice(0, 4).map((cid2) => (
+                          <CastAvatar key={cid2} name={castName(cid2)} url={photoUrls.get(cid2)} variant="flat" size={22} />
+                        ))}
+                      </div>
+                    )}
+                    <div className="amt num">{yen(openTotal[cid] ?? 0)}</div>
+                  </>
+                ) : addMap[s.id] ? (
+                  <div className="stay">
+                    {seats.find((h) => h.id === primaryOf[addMap[s.id]])?.name ?? "他卓"} と同一会計
+                  </div>
+                ) : (
+                  <div className="empty">空席</div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {msg && <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "10px 0 0" }}>{msg}</p>}
       </section>
 
       {/* 伝票（≤900px はボトムシート＝段A nox-sheet-up 流用／>900px は現行 inline を 1px 不変で維持） */}
@@ -576,14 +666,16 @@ export default function RegisterBoard({
           <section>
           <div className="nox-cardtop" style={card}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--champ)", margin: 0 }}>
+              {/* 段R2 可読性（案A・ガイド §1）: 見出しと合計は「読む情報」＝白。金は選択・主ボタン・バッジの3役のみ。 */}
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--v2-text)", margin: 0 }}>
                 伝票（{seats.find((s) => s.id === check.seat_id)?.name}）
               </h2>
-              <span style={{ fontSize: 13, color: "var(--sub)" }}>{NOM_LABEL[check.nom_type]}</span>
+              <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{NOM_LABEL[check.nom_type]}</span>
               {check.status === "open" && (
-                <span style={{ fontSize: 12, color: "var(--sub)" }}>滞在 <span style={t.num}>{elapsedMin(check.started_at, nowMs)}</span> 分</span>
+                <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>滞在 <span className="num">{elapsedMin(check.started_at, nowMs)}</span> 分</span>
               )}
-              <span style={{ ...t.num, marginLeft: "auto", fontSize: 18, fontWeight: 700, color: "var(--champ)" }}>{yen(check.total)}</span>
+              {/* ガイド §1-5「最重要数値は 20〜24px」＝合計は 24px 白太（planA の .dh .total 逐語） */}
+              <span className="nox-dtotal num"><small>合計</small>{yen(check.total)}</span>
               {/* void は manager 以上のみ表示（RPC 側でも owner/manager を強制＝二重） */}
               {isManagerUp && (
                 <button onClick={voidCheck} style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)" }}>
@@ -593,7 +685,16 @@ export default function RegisterBoard({
             </div>
           </div>
 
+          {/* 段R2: 3タブ（planA .dtabs）。★収容先を変えるだけでカードの中身は不変。
+              注文＝商品タイル＋明細／指名・席＝指名＋席／会計＝時間料金・カスタム明細・割引承認・会計。 */}
+          <div className="nox-dtabs">
+            {([["order", "注文"], ["nom", "指名・席"], ["pay", "会計"]] as const).map(([k, label]) => (
+              <button key={k} type="button" className={dtab === k ? "on" : ""} onClick={() => setDtab(k)}>{label}</button>
+            ))}
+          </div>
+
           {/* 指名 */}
+          {dtab === "nom" && (<>
           <div className="nox-cardtop" style={card}>
             <h3 style={t.cardTitle}>指名（重み比で分配）</h3>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -614,6 +715,8 @@ export default function RegisterBoard({
                       className={on ? "nox-chip on" : "nox-chip"}
                       onClick={() => setNomWeights((prev) => ({ ...prev, [ca.id]: on ? 0 : 1 }))}
                     >
+                      {/* 段P/R2: チップのアバターを写真に（写真なしは頭文字）。押下時の挙動は不変。 */}
+                      <CastAvatar name={ca.name} url={photoUrls.get(ca.id)} variant="flat" size={22} />
                       {ca.name}
                     </button>
                     {on && nomType !== "free" && (
@@ -639,7 +742,7 @@ export default function RegisterBoard({
                 <h3 style={t.cardTitle}>席</h3>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
                   <span style={{ fontSize: 12, color: "var(--sub)" }}>現在</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--champ)" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)" }}>
                     {seats.find((s) => s.id === check.seat_id)?.name ?? "—"}
                     <span style={{ fontSize: 11, color: "var(--sub)", fontWeight: 400 }}> （主席）</span>
                   </span>
@@ -665,10 +768,12 @@ export default function RegisterBoard({
               </div>
             );
           })()}
+          </>)}
 
+          {/* ── 会計タブ（段R2）＝時間料金・カスタム明細・割引/承認・会計を集約 ── */}
           {/* B4: 時間制（自動）カード＝stores.time_mode='auto' かつ open 伝票のときのみ。
               裁定(f): ボタン起点のみ（自動 apply しない）。内訳は checks スナップ5列＋返値 jsonb。 */}
-          {timeMode === "auto" && check.status === "open" && (
+          {dtab === "pay" && timeMode === "auto" && check.status === "open" && (
             <div className="nox-cardtop" style={card}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（自動）</h3>
@@ -691,14 +796,15 @@ export default function RegisterBoard({
                 <p style={{ fontSize: 12, color: "var(--ink)", margin: "10px 0 0" }}>
                   経過 <span style={t.num}>{timeCalc.elapsed_min}</span> 分・単位 <span style={t.num}>{timeCalc.units}</span>・
                   延長 <span style={t.num}>{timeCalc.blocks}</span> 回 → セット <span style={t.num}>{yen(timeCalc.set_c)}</span>＋
-                  延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--champ)" }}>{yen(timeCalc.total)}</span>
+                  延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(timeCalc.total)}</span>
                 </p>
               )}
               {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
             </div>
           )}
 
-          {/* 明細追加 */}
+          {/* 明細追加（段R2: 注文タブ。カスタム明細フォームだけは会計タブへ移設） */}
+          {dtab === "order" && (
           <div className="nox-cardtop" style={card}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
               <h3 style={{ ...t.cardTitle, margin: 0 }}>商品（タップで追加）</h3>
@@ -715,11 +821,15 @@ export default function RegisterBoard({
                   <div className="nox-tilegrid">
                     {items.map((p) => {
                       const n = tb.badgeOf(p.id);
+                      const low = lowStockOf(p);
                       return (
                         <button key={p.id} type="button" className="nox-tile" onClick={() => tb.tap(p.id)}>
                           {n > 0 && <span className="nox-tile-badge">+{n}</span>}
                           <span className="nox-tile-name">{p.name}</span>
                           <span className="nox-tile-price">{yen(p.price)}</span>
+                          {/* 段R2: 低在庫「残N」＝Σdelta が reorder_point 以下のときだけ（在庫 v1 の流用・表示のみ）。
+                              ★タップの挙動には一切関与しない（在庫切れでも売れる＝現物の運用を変えない）。 */}
+                          {low != null && <span className="nox-tile-low num">残{low}</span>}
                         </button>
                       );
                     })}
@@ -728,23 +838,11 @@ export default function RegisterBoard({
               );
             })}
             {products.length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>商品が未登録です（マスタで登録してください）。</p>}
-            {/* カスタム明細（kind/名称/価格）＝据置 */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
-              <select value={cKind} onChange={(e) => setCKind(e.target.value)} style={input}>
-                <option value="set">セット</option>
-                <option value="time">延長</option>
-                <option value="charge">料金</option>
-                <option value="custom">その他</option>
-              </select>
-              <input placeholder="名称（例 セット60分）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
-              <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
-              <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
-              <input value={cGroup} onChange={(e) => setCGroup(e.target.value)} style={{ ...input, width: 40 }} />
-              <button onClick={addCustomLine} style={btnDark}>追加</button>
-            </div>
           </div>
+          )}
 
-          {/* 明細 */}
+          {/* 明細（段R2: 注文タブ＝タップの結果をその場で確認する） */}
+          {dtab === "order" && (
           <div className="nox-cardtop" style={card}>
             <h3 style={t.cardTitle}>明細</h3>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -779,8 +877,30 @@ export default function RegisterBoard({
               </tbody>
             </table>
           </div>
+          )}
 
-          {/* 割引・無料（承認ワークフロー・F3c） */}
+          {/* カスタム明細（kind/名称/価格）＝段R2 で会計タブへ移設（フォームの中身・送る引数は不変） */}
+          {dtab === "pay" && (
+          <div className="nox-cardtop" style={card}>
+            <h3 style={t.cardTitle}>カスタム明細</h3>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <select value={cKind} onChange={(e) => setCKind(e.target.value)} style={input}>
+                <option value="set">セット</option>
+                <option value="time">延長</option>
+                <option value="charge">料金</option>
+                <option value="custom">その他</option>
+              </select>
+              <input placeholder="名称（例 セット60分）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
+              <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
+              <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
+              <input value={cGroup} onChange={(e) => setCGroup(e.target.value)} style={{ ...input, width: 40 }} />
+              <button onClick={addCustomLine} style={btnDark}>追加</button>
+            </div>
+          </div>
+          )}
+
+          {/* 割引・無料（承認ワークフロー・F3c）＝段R2 で会計タブへ */}
+          {dtab === "pay" && (
           <div className="nox-cardtop" style={card}>
             <h3 style={t.cardTitle}>
               割引・無料（{isManagerUp ? "適用・承認" : "申請"}）
@@ -837,8 +957,10 @@ export default function RegisterBoard({
                   </div>
                 ))}
           </div>
+          )}
 
-          {/* 会計 */}
+          {/* 会計（段R2: 会計タブ） */}
+          {dtab === "pay" && (
           <div className="nox-cardtop" style={card}>
             <h3 style={t.cardTitle}>会計（伝票グループ別）</h3>
             <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
@@ -858,7 +980,7 @@ export default function RegisterBoard({
                     <td style={t.td}>{gi.g}</td>
                     <td style={{ ...t.td, ...t.num }}>{yen(gi.bx)}</td>
                     <td style={{ ...t.td, ...t.num, color: gi.disc > 0 ? "var(--bad)" : "var(--sub)" }}>{gi.disc > 0 ? `−${yen(gi.disc)}` : "—"}</td>
-                    <td style={{ ...t.td, ...t.num, fontWeight: 700, color: "var(--champ)" }}>{yen(gi.due)}</td>
+                    <td style={{ ...t.td, ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(gi.due)}</td>
                     <td style={{ ...t.td, ...t.num }}>{yen(gi.paid)}</td>
                     <td style={{ ...t.td, ...t.num, color: gi.remaining > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(gi.remaining)}</td>
                   </tr>
@@ -925,6 +1047,7 @@ export default function RegisterBoard({
               会計完了（close）
             </button>
           </div>
+          )}
           </section>
         </div>
         </>

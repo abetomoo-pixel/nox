@@ -504,6 +504,48 @@ body {
 }
 @media (prefers-reduced-motion: reduce) { .nox-detailwrap { animation: none; } }
 
+/* ── UI刷新v2 段R2（レジ刷新）── presentation-only 2026-07-28 ──
+   正本＝nox-register-mock-planA-readable.html（案A 可読性ルール）＋ガイド §1。
+   ★可読性ルール: 読む情報（金額・名前・数量）は白 var(--v2-text)・Outfit 600・一回り大きく。
+     金 var(--gold) は3役だけ＝①選択状態 ②主ボタン ③バッジ。見出し・金額に金は使わない。
+   ★挙動は一切変えない（連打束ね・money 導線・RPC は非接触）＝見た目と配置のみ。 */
+/* 席タイル（モック .seats/.seat）。列は 4→3(≤900)→2(≤641)＝断点は裁定5。 */
+.nox-seatgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 900px) { .nox-seatgrid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 641px) { .nox-seatgrid { grid-template-columns: repeat(2, 1fr); } }
+.nox-seat {
+  position: relative; min-height: 92px; padding: 10px;
+  border: 1px solid var(--v2-line); border-radius: 12px;
+  background: var(--v2-panel2); color: var(--v2-text);
+  cursor: pointer; font-family: inherit; text-align: left; display: block; width: 100%;
+}
+.nox-seat.busy { border-color: #4A4436; background: #1A1820; }
+/* 金の3役①＝選択状態。枠線ではなく outline で（レイアウトを動かさない） */
+.nox-seat.sel { outline: 2px solid var(--gold); outline-offset: -2px; }
+.nox-seat .nm { font-size: 14px; font-weight: 700; color: var(--v2-text); }
+.nox-seat .kind { font-size: 10px; color: var(--v2-muted); }
+.nox-seat .stay { font-size: 11px; color: var(--v2-muted); margin-top: 4px; }
+.nox-seat .empty { font-size: 11px; color: var(--v2-muted); margin-top: 12px; opacity: .65; }
+/* 会計金額＝読む情報ゆえ白・太（金にしない） */
+.nox-seat .amt { position: absolute; right: 10px; bottom: 8px; font-size: 15px; font-weight: 700; color: var(--v2-text); }
+/* 着卓キャストの顔（重ねて並べる＝席の狭い面積に複数人を出す） */
+.nox-seat .heads { display: flex; margin-top: 6px; }
+.nox-seat .heads > * { margin-right: -6px; border: 1.5px solid #1A1820; }
+
+/* 商品タイルの低在庫「残N」（モック .tile .low）。在庫 v1 の Σdelta が reorder_point 以下のときだけ。 */
+.nox-tile-low { position: absolute; right: 6px; bottom: 4px; font-size: 9px; color: var(--bad); }
+
+/* 伝票詳細の3タブ（モック .dtabs）。金の3役①＝選択状態。 */
+.nox-dtabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.nox-dtabs button {
+  flex: 1; background: transparent; border: 1px solid var(--v2-line); color: var(--v2-muted);
+  border-radius: 8px; padding: 7px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.nox-dtabs button.on { background: rgba(201, 162, 74, .14); border-color: var(--gold); color: var(--gold); font-weight: 700; }
+/* 伝票ヘッダの合計＝ガイド §1-5「最重要数値は 20〜24px」・白太（モック .dh .total） */
+.nox-dtotal { margin-left: auto; font-size: 24px; font-weight: 700; color: var(--v2-text); }
+.nox-dtotal small { font-size: 12px; color: var(--v2-muted); font-weight: 400; margin-right: 2px; }
+
 /* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
    既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
    列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */
