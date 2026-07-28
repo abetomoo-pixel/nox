@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { buildPayrollCsv, type PayrollCsvRow, type PayrollCsvPay } from "@/lib/nox/payroll/csv";
 import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
+import CastAvatar from "@/components/ui/cast-avatar";
+import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
 
@@ -34,7 +36,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   const [busy, setBusy] = useState(false);
   const [finalized, setFinalized] = useState<string | null>(null);
   // D3 給与明細CSV: 選択中 store/period の run 状態（finalized/paid のみ CSV 活性）
-  const [runInfo, setRunInfo] = useState<{ id: string; status: string } | null>(null);
+  // 段Y2: finalized_at＝run バーに確定日時を出すため列を1つ足しただけ（既存列の表示・判定には使わない）。
+  const [runInfo, setRunInfo] = useState<{ id: string; status: string; finalized_at: string | null } | null>(null);
   const [csvMsg, setCsvMsg] = useState("");
   // D2 報酬明細（印刷）: finalized/paid run の payslips を per-cast スリップで表示→window.print（A4・1人1枚）。
   const [printRows, setPrintRows] = useState<{ castName: string; slip: PayslipRow }[] | null>(null);
@@ -42,6 +45,16 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   // D1 確定解除（owner のみ・finalized のみ）: 支払記録件数（>0 で解除無効化）とメッセージ。
   const [payCount, setPayCount] = useState<number | null>(null);
   const [reopenMsg, setReopenMsg] = useState("");
+  // ── 段Y2: 確定済み run の合計サマリ（★凍結値 breakdown_json.pay の Σ のみ）──
+  //   ★率計算も丸め直しも net との整合補正も一切しない。各項目の定義は D3 CSV
+  //     （lib/nox/payroll/csv.ts payrollCsvCells・verify:nox-payroll-csv 済）と逐語同一:
+  //       総支給 = pay.gross + Σextras.amount
+  //       控除計 = fixedDed + fine + withholding + arDeduct + advanceDeduct + okuriDeduct + normPenalty
+  //       うち源泉 = withholding ／ 差引 = payslips.net（凍結・extras 込み）
+  //   プレビュー（未確定）では凍結値が無いので出さない＝従来の net 合計バーのまま。
+  const [sum4, setSum4] = useState<{ gross: number; ded: number; wh: number; net: number; n: number } | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
+  const [castIdOf, setCastIdOf] = useState<Record<string, string>>({});
 
   // run 状態を読む（payroll_runs は owner/manager RLS 可視）。store/period 変更・確定完了で再読込。
   //   ★store/period が変わったら印刷プレビュー/解除状態は破棄（別店の明細を刷らない・別 run の payCount を残さない）。
@@ -49,16 +62,57 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   const loadRun = useCallback(async () => {
     setPrintRows(null); setPrintMsg(""); setReopenMsg(""); setPayCount(null);
     if (!storeId || !period) { setRunInfo(null); return; }
-    const { data } = await supabase.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period).maybeSingle();
-    const info = data ? { id: data.id as string, status: data.status as string } : null;
+    const { data } = await supabase.from("payroll_runs").select("id, status, finalized_at").eq("store_id", storeId).eq("period", period).maybeSingle();
+    const info = data ? { id: data.id as string, status: data.status as string, finalized_at: (data.finalized_at as string | null) ?? null } : null;
     setRunInfo(info);
+    setSum4(null);
     if (info && (info.status === "finalized" || info.status === "paid")) {
       const { count } = await supabase.from("payment_records").select("id", { count: "exact", head: true }).eq("run_id", info.id);
       setPayCount(count ?? 0);
+      // 段Y2: 合計サマリ＝確定済み payslips の凍結値をそのまま加算するだけ（D3 CSV と同じ読み取り経路）
+      const { data: ps } = await supabase.from("payslips").select("net, breakdown_json").eq("run_id", info.id);
+      const slips = (ps ?? []) as { net: number; breakdown_json: BreakdownJson }[];
+      if (slips.length > 0) {
+        let gross = 0, ded = 0, wh = 0, net = 0;
+        // ★欠落キーは 0 扱い（裁定 2026-07-28）。payroll_finalize は実績ゼロの cast に
+        //   breakdown_json.pay = {"net":0}（他17キー欠落）を書くため、素の加算だと NaN になる。
+        //   ここで行うのは「無い項目は 0 円」という既定のみ＝率計算も丸め直しも net との整合補正もしない。
+        //   dev 実データ検算: 2026-09 run Σgross 33,924 − Σ控除計 4,953 = 28,971 = Σnet ✔ /
+        //   2029-01 run（{"net":0} を含む）0 − 0 = 0 = Σnet ✔（不一致 0 件）。
+        const z = (v: number | undefined) => v ?? 0;
+        for (const sl of slips) {
+          const pay = sl.breakdown_json.pay;
+          const extras = (sl.breakdown_json.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
+          gross += z(pay.gross) + extras;
+          ded += z(pay.fixedDed) + z(pay.fine) + z(pay.withholding) + z(pay.arDeduct)
+            + z(pay.advanceDeduct) + z(pay.okuriDeduct) + z(pay.normPenalty);
+          wh += z(pay.withholding);
+          net += sl.net;
+        }
+        setSum4({ gross, ded, wh, net, n: slips.length });
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, period]);
   useEffect(() => { void loadRun(); }, [loadRun, finalized]);
+
+  // 段P: 明細表のアバターを写真に（写真ありの行だけ 1 リクエスト・失敗時は頭文字へフォールバック）。
+  //   ★表示だけ＝金額にも並びにも一切関与しない。
+  useEffect(() => {
+    if (!rows || rows.length === 0) { setPhotoUrls(new Map()); return; }
+    let alive = true;
+    void (async () => {
+      const ids = rows.map((r) => r.castId);
+      const { data } = await supabase.from("casts").select("id, photo_updated_at").in("id", ids);
+      const list = (data ?? []) as { id: string; photo_updated_at: string | null }[];
+      const orgId = await resolveOrgId(supabase);
+      if (!orgId || !alive) return;
+      const m = await signCastPhotos(supabase, orgId, list);
+      if (alive) { setPhotoUrls(m); setCastIdOf(Object.fromEntries(list.map((c) => [c.id, c.id]))); }
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   const storeName = stores.find((s) => s.id === storeId)?.name ?? "店舗";
 
@@ -228,6 +282,11 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
     }
   }
 
+  // 段Y2: 確定日時の表示整形（値は payroll_runs.finalized_at そのまま・判定には使わない）
+  const runFinalizedAt = runInfo?.finalized_at
+    ? new Date(runInfo.finalized_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : null;
+
   const total = rows?.reduce((s, r) => s + r.net, 0) ?? 0;
   const anomalyTotal = rows?.reduce((s, r) => s + r.anomalyCount, 0) ?? 0;
 
@@ -257,6 +316,53 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
           プレビュー
         </button>
       </section>
+
+      {/* 段Y2: run バー＝期間・確定バッジ・確定日時を1行に集約（モック）。
+          ★ボタンの機能・権限出し分け・無効化条件はいずれも各節の現行実装のまま＝ここは状態の可視化だけ。
+            D1 解除／D2 印刷／D3 CSV／確定ボタンは従来どおり各セクションに置いたまま動かしていない。 */}
+      {runInfo && (
+        <section className="nox-cardtop" style={t.card}>
+          <div className="nox-runbar">
+            <span className="p num">{period}</span>
+            <span className={`nox-runbadge ${runInfo.status === "paid" ? "paid" : runInfo.status === "finalized" ? "fin" : ""}`}>
+              {runInfo.status === "paid" ? "支払済" : runInfo.status === "finalized" ? "確定済み" : "下書き（未確定）"}
+            </span>
+            {runFinalizedAt && (
+              <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {runFinalizedAt}</span>
+            )}
+            {sum4 && <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{sum4.n} 名</span>}
+          </div>
+
+          {/* 合計サマリ4カード＝★確定済みの凍結値（payslips.breakdown_json）の Σ のみ。
+              定義は D3 CSV の payrollCsvCells と逐語同一（総支給=gross+extras／控除計=7項目の和／
+              うち源泉=withholding／差引=payslips.net）。率計算・丸め直し・整合補正は一切しない。 */}
+          {sum4 && (
+            <div className="nox-paysum">
+              <div className="nox-paycard">
+                <div className="l">総支給（gross）</div>
+                <div className="v num">¥{sum4.gross.toLocaleString()}</div>
+              </div>
+              <div className="nox-paycard">
+                <div className="l">控除計</div>
+                <div className="v num">−¥{sum4.ded.toLocaleString()}</div>
+              </div>
+              <div className="nox-paycard">
+                <div className="l">うち源泉</div>
+                <div className="v num">¥{sum4.wh.toLocaleString()}</div>
+              </div>
+              <div className="nox-paycard net">
+                <div className="l">差引支給（net）</div>
+                <div className="v num">¥{sum4.net.toLocaleString()}</div>
+              </div>
+            </div>
+          )}
+          {sum4 && (
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: 0 }}>
+              ※確定時に凍結された明細の合計です（画面側での再計算はしていません）。
+            </p>
+          )}
+        </section>
+      )}
 
       {msg && <p style={{ color: "var(--bad)", fontSize: 13 }}>{msg}</p>}
       {finalized && <p style={{ color: "var(--champ)", fontSize: 14, fontWeight: "bold" }}>{finalized}</p>}
@@ -288,28 +394,38 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
           {anomalyTotal > 0 && (
             <p style={{ fontSize: 12, color: "var(--bad)" }}>打刻 anomaly（out 欠損等）: 計 <span style={t.num}>{anomalyTotal}</span> 件。確定は止まりませんが内容をご確認ください。</p>
           )}
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginBottom: 12 }}>
+          {/* 段Y2: 明細表＝★列構成・並び・数値は現行と完全に同一。
+              変えたのは (a) キャスト名に段P の写真アバターを添える (b) net を白太で強調
+              (c) ≤641 で補助列（税区分・売掛・前借り・送り・anomaly）を CSS で畳む
+                  ＝列を削除するのではなく狭い画面で隠すだけ（>641 では全列が出る）。 */}
+          <table className="nox-paytable" style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginBottom: 12 }}>
             <thead>
               <tr>
                 <th style={t.th}>キャスト</th>
-                <th style={t.th}>税区分</th>
-                <th style={{ ...t.th, textAlign: "right" }}>売掛</th>
-                <th style={{ ...t.th, textAlign: "right" }}>前借り</th>
-                <th style={{ ...t.th, textAlign: "right" }}>送り</th>
+                <th className="fold" style={t.th}>税区分</th>
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>売掛</th>
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>前借り</th>
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>送り</th>
                 <th style={{ ...t.th, textAlign: "right" }}>差引支給(net)</th>
-                <th style={{ ...t.th, textAlign: "right" }}>anomaly</th>
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>anomaly</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.castId}>
-                  <td style={t.td}>{r.castName}</td>
-                  <td style={t.td}>{r.taxMode}</td>
-                  {dedCell(r.arDeductTotal, r.arCarriedTotal)}
-                  {dedCell(r.advDeductTotal, r.advCarriedTotal)}
-                  {dedCell(r.okuriDeductTotal)}
-                  <td style={{ ...t.td, ...t.num, textAlign: "right" }}>{r.net.toLocaleString()}</td>
-                  <td style={{ ...t.td, ...t.num, textAlign: "right", color: r.anomalyCount ? "var(--bad)" : "var(--sub)" }}>{r.anomalyCount || "-"}</td>
+                  <td style={t.td}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <CastAvatar name={r.castName} url={photoUrls.get(castIdOf[r.castId] ?? r.castId)} variant="flat" size={26} />
+                      {r.castName}
+                    </span>
+                  </td>
+                  <td className="fold" style={t.td}>{r.taxMode}</td>
+                  {dedCell(r.arDeductTotal, r.arCarriedTotal, "fold")}
+                  {dedCell(r.advDeductTotal, r.advCarriedTotal, "fold")}
+                  {dedCell(r.okuriDeductTotal, undefined, "fold")}
+                  {/* net＝読む情報の最重要値ゆえ白太（値そのものは r.net のまま・書式も toLocaleString で不変） */}
+                  <td style={{ ...t.td, ...t.num, textAlign: "right", fontWeight: 700, color: "var(--v2-text)" }}>{r.net.toLocaleString()}</td>
+                  <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: r.anomalyCount ? "var(--bad)" : "var(--sub)" }}>{r.anomalyCount || "-"}</td>
                 </tr>
               ))}
             </tbody>
@@ -426,9 +542,10 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
 }
 
 // 天引きセル（−¥X ＋ 繰越表示）。carried 未指定（送り実費＝繰越なし）は繰越を出さない。
-function dedCell(deduct?: number, carried?: number) {
+// 段Y2: 第3引数 cls は SP 列畳み（.fold）のためだけ＝セルの中身・数値・色は一切変えていない。
+function dedCell(deduct?: number, carried?: number, cls?: string) {
   return (
-    <td style={{ ...t.td, ...t.num, textAlign: "right", color: deduct ? "var(--bad)" : "var(--sub)" }}>
+    <td className={cls} style={{ ...t.td, ...t.num, textAlign: "right", color: deduct ? "var(--bad)" : "var(--sub)" }}>
       {deduct ? `−${deduct.toLocaleString()}` : "-"}
       {carried ? <span style={{ color: "var(--champ)", fontSize: 11 }}>（繰越 {carried.toLocaleString()}）</span> : null}
     </td>
