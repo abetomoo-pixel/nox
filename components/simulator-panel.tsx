@@ -187,6 +187,33 @@ export default function SimulatorPanel({
         </label>
       )}
 
+      {/* 段M2: 今月の報酬（見込み）カード＝★既に計算済みの result.pay を並べ替えて出すだけ
+          （新しい計算も新しい取得もゼロ・下の内訳表はそのまま残す＝情報を減らさない）。
+          cast モードのみ＝店の試算モードでは出さない。 */}
+      {result && mode === "cast" && (
+        <div className="nox-paysub">
+          <div className="nox-ps">
+            <div className="l">時給分</div>
+            <div className="v num">{yen(result.pay.timePay)}</div>
+          </div>
+          <div className="nox-ps">
+            <div className="l">バック</div>
+            <div className="v num">
+              {yen(result.pay.honBack + result.pay.jonaiBack + result.pay.dohanBack
+                + result.pay.drinkBack + result.pay.champBack + result.pay.bottleBack
+                + result.pay.salesBack + result.pay.customTotal)}
+            </div>
+          </div>
+          <div className="nox-ps">
+            <div className="l">控除</div>
+            <div className="v num">
+              −{yen(result.pay.fixedDed + result.pay.fine + result.pay.withholding + result.pay.normPenalty
+                + result.pay.advanceDeduct + result.pay.okuriDeduct)}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 結果 */}
       {result && (
         <div style={{ ...s.card, ...s.resultCard }}>

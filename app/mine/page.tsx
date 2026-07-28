@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { fmtWin } from "@/lib/nox/shift-time";
@@ -86,6 +87,19 @@ export default async function MinePage() {
     .limit(6);
   // breakdown_json の解釈と1件描画は共有 PayslipSlip へ移設（D2＝表示の移設のみ・数値ロジック非改変）。
 
+  // 段M2: 所属店（ヘッダ表示用）。cast の可視 store は自店のみ（RLS）＝先頭行が自店（/mine/ranking と同型）。
+  const { data: myStores } = await supabase.from("stores").select("id, name").limit(1);
+  const myStore = myStores?.[0];
+
+  // 段M2: 指名ランキングの★自分の行だけ（get_cast_ranking＝金額列を構造的に持たない既存 RPC・
+  //   /mine/ranking が既に使っている経路と同一）。他キャストの数字は一切描画しない（順位と母数のみ）。
+  const { data: rankAll } = myStore
+    ? await supabase.rpc("get_cast_ranking", { p_store_id: myStore.id as string, p_period: month })
+    : { data: null };
+  type MyRank = { rank: number; hon_count: number; jonai_count: number; dohan_count: number; is_self: boolean };
+  const rankRows = (rankAll ?? []) as MyRank[];
+  const myRank = rankRows.find((r) => r.is_self) ?? null;
+
   // 自分指名の予約（F3a-3・read-only）。RLS が cast_id=auth_cast_id() の行のみ返す＝可視性の物理保証（段19-11）。
   // 表示は今営業日（06:00 起点）以降の booked のみ＝cast は予約に行動できないため過去/確定状態は出さない。
   // 客名は customers embed（cast は担当客のみ可視＝customers RLS）→不可視/フリー予約は guest_name フォールバック。
@@ -122,10 +136,25 @@ export default async function MinePage() {
         <p style={t.pheadP}>ノルマと今月の収支</p>
       </div>
 
-      {/* 段P: プロフィール写真（本人スコープのみ・client 自己完結＝他カードの取得に影響しない） */}
-      <PhotoCard />
+      {/* 段P: プロフィール写真（本人スコープのみ・client 自己完結＝他カードの取得に影響しない）
+          段M2: モックの .me ヘッダ（写真＋名前＋店）へ。店名は上で引いた自店を渡すだけ。 */}
+      <PhotoCard storeName={myStore?.name as string | undefined} />
 
-      {/* ノルマ進捗（mig0042・表示のみ）: 採用軸かつ目標>0 の軸だけ・全非表示ならカード自体出ない */}
+      {/* 段M2: 打刻はスマホで一番使うのでヘッダ直後へ（section の中身・PunchActions・最終打刻の
+          文言はそのまま＝移設のみ）。 */}
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={title}>打刻</h2>
+        <PunchActions />
+        <p className="nox-pstate">
+          最終打刻:{" "}
+          {last
+            ? `${last.type === "in" ? "出勤" : "退勤"}（${new Date(last.punched_at as string).toLocaleString("ja-JP")}）`
+            : "なし"}
+        </p>
+      </section>
+
+      {/* ノルマ進捗（mig0042・表示のみ）: 採用軸かつ目標>0 の軸だけ・全非表示ならカード自体出ない
+          ★店が採用している軸のときだけ出る現行条件はそのまま（部品側の判定に一切触れていない）。 */}
       <NormCard />
 
       <section className="nox-cardtop nox-print" style={t.card}>
@@ -187,16 +216,6 @@ export default async function MinePage() {
         </p>
       </section>
 
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={title}>打刻</h2>
-        <p style={{ fontSize: 13, color: "var(--sub)", marginTop: 0 }}>
-          最終打刻:{" "}
-          {last
-            ? `${last.type === "in" ? "出勤" : "退勤"}（${new Date(last.punched_at as string).toLocaleString("ja-JP")}）`
-            : "なし"}
-        </p>
-        <PunchActions />
-      </section>
 
       <section className="nox-cardtop" style={t.card}>
         <h2 style={title}>遅刻・当欠の連絡</h2>
@@ -204,7 +223,13 @@ export default async function MinePage() {
       </section>
 
       <section className="nox-cardtop" style={t.card}>
-        <h2 style={title}>直近のシフト</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h2 style={{ ...title, margin: 0 }}>直近のシフト</h2>
+          {/* 段M2: 希望提出への導線（既存 /mine/wishes へのリンクのみ＝新しい提出 UI は作らない） */}
+          <Link href="/mine/wishes" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto", textDecoration: "none" }}>
+            ＋ 希望を提出
+          </Link>
+        </div>
         {(shifts ?? []).length === 0 && <p style={noneP}>予定なし</p>}
         <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
           {(shifts ?? []).map((s, i) => (
@@ -215,6 +240,29 @@ export default async function MinePage() {
           ))}
         </ul>
       </section>
+
+      {/* 段M2: 指名ランキング＝★自分の順位のみ。順位・母数・自分の件数だけを出し、
+          他キャストの名前も数字も描画しない（1位との差のような他人由来の値も出さない）。
+          値は /mine/ranking が既に使っている get_cast_ranking の自分の行そのもの＝情報は増えない。 */}
+      {myRank && (
+        <section className="nox-cardtop" style={t.card}>
+          <h2 style={title}>指名ランキング（{month}）</h2>
+          <div className="nox-myrank">
+            <span className={`nox-medal ${myRank.rank === 1 ? "g1" : myRank.rank === 2 ? "g2" : myRank.rank === 3 ? "g3" : "gx"}`}>
+              {myRank.rank}
+            </span>
+            <div>
+              <div className="t num">{myRank.rank}位 / {rankRows.length}人中</div>
+              <div className="n num">
+                本指名 {myRank.hon_count}件・場内 {myRank.jonai_count}件・同伴 {myRank.dohan_count}件
+              </div>
+            </div>
+            <Link href="/mine/ranking" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto", textDecoration: "none" }}>
+              一覧 ›
+            </Link>
+          </div>
+        </section>
+      )}
 
       <section className="nox-cardtop" style={t.card}>
         <h2 style={title}>指名予約（今日以降）</h2>

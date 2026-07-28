@@ -12,7 +12,7 @@ import { resolveOrgId, signCastPhoto, uploadCastPhoto } from "@/lib/nox/cast-pho
 
 type Me = { id: string; name: string; photo_updated_at: string | null };
 
-export default function PhotoCard() {
+export default function PhotoCard({ storeName }: { storeName?: string }) {
   const [supabase] = useState(() => createClient());
   const [me, setMe] = useState<Me | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -65,23 +65,29 @@ export default function PhotoCard() {
   if (!me) return null;
 
   return (
+    /* 段M2: モックの .me ヘッダ＝写真＋名前＋店。★出す情報は現行と同じ（自分の名前と自分の写真だけ）で、
+       店名は server 側で既に引いている stores の名前を prop で受けるだけ＝client の取得は増やさない。 */
     <section className="nox-cardtop" style={t.card}>
-      <h2 style={t.cardTitle}>プロフィール写真</h2>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 10 }}>
-        <CastAvatar name={me.name} url={url} size={64} />
-        <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ display: "grid", gap: 4 }}>
-            <span style={t.fieldLabel}>{me.photo_updated_at ? "写真を変更（JPEG/PNG）" : "写真を登録（JPEG/PNG）"}</span>
+      <div className="nox-me">
+        <div style={{ textAlign: "center" }}>
+          <CastAvatar name={me.name} url={url} size={64} />
+          <label style={{ display: "block", marginTop: 6 }}>
+            <span style={{ ...t.btnGhost, ...t.btnSm, display: "inline-block", fontSize: 11, cursor: busy ? "default" : "pointer" }}>
+              {busy ? "保存中…" : me.photo_updated_at ? "写真を変更" : "写真を登録"}
+            </span>
             <input type="file" accept="image/*" disabled={busy}
               onChange={(e) => { void onPick(e.target.files?.[0] ?? null); e.target.value = ""; }}
-              style={{ fontSize: 13 }} />
+              style={{ display: "none" }} />
           </label>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>
-            自動で縮小されます。シフトなど店内の画面に表示されます。
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div className="nm">{me.name}</div>
+          <div className="sub">{storeName ? `${storeName} / 在籍` : "在籍"}</div>
+          <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>
+            写真は自動で縮小されます。シフトなど店内の画面に表示されます。
           </p>
-          {busy && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>保存中…</p>}
-          {done && !busy && <p style={{ fontSize: 12.5, color: "var(--ok)", margin: 0 }}>保存しました</p>}
-          {err && <p style={{ ...t.bad, fontSize: 12.5, margin: 0 }}>{err}</p>}
+          {done && !busy && <p style={{ fontSize: 12.5, color: "var(--ok)", margin: "4px 0 0" }}>保存しました</p>}
+          {err && <p style={{ ...t.bad, fontSize: 12.5, margin: "4px 0 0" }}>{err}</p>}
         </div>
       </div>
     </section>
