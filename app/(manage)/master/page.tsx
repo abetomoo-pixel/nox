@@ -55,10 +55,17 @@ export default async function MasterPage() {
   // F2f 報酬シミュレーター（店モード・任意プラン試算・天引きなし）用データ（storeId を明示スコープ＝owner の org 全店 RLS 対策）。
   const sim = isManagerUp && storeId ? await loadStoreSimData(supabase, storeId) : null;
   return (
-    <>
-      <MasterBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} />
+    /* 段0R その4: ハブ⇄セクションの「その場で切り替え」。パネルは従来どおりここ（server）で
+       props を組んで生成し、表示単位ごとに MasterBoard へ ReactNode で渡す。
+       ★コンポーネント・機能・RPC・引数はいずれも1文字も変えていない（Fold ラッパは撤去）。 */
+    <MasterBoard
+      storeId={storeId}
+      isManagerUp={isManagerUp}
+      isOwner={role === "owner"}
+      panels={{
+        pricing: (
+          <>
       {isManagerUp && storeId && (
-        <Fold id="m-pricing" title="料金・会計設定">
         <PricingPanel
           storeId={storeId}
           initial={{
@@ -68,10 +75,8 @@ export default async function MasterPage() {
             round_mode: typeof store?.round_mode === "string" ? store.round_mode : "down",
           }}
         />
-        </Fold>
       )}
       {isManagerUp && storeId && (
-        <Fold id="m-timeprice" title="時間料金（セット・延長）">
         <TimePricingPanel
           storeId={storeId}
           initial={{
@@ -81,26 +86,15 @@ export default async function MasterPage() {
             time_per: typeof store?.time_per === "string" ? store.time_per : "table",
           }}
         />
-        </Fold>
+      )}
+          </>
+        ),
+        cast: (
+          <>
+      {sim && (
+        <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" />
       )}
       {isManagerUp && (
-        <Fold id="m-norm" title="ノルマ設定">
-        <NormConfigPanel
-          storeId={storeId}
-          isOwner={role === "owner"}
-          initialSalesEnabled={salesNormEnabled}
-          initialShimeiEnabled={shimeiNormEnabled}
-          initialShimeiScope={shimeiNormScope}
-        />
-        </Fold>
-      )}
-      {isManagerUp && (
-        <Fold id="m-hours" title="営業時間・定休日">
-        <BusinessHoursPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
-        </Fold>
-      )}
-      {isManagerUp && (
-        <Fold id="m-deduct" title="控除・送りの設定">
         <DeductionPanel
           storeId={storeId}
           casts={(casts ?? []) as { id: string; name: string }[]}
@@ -108,30 +102,39 @@ export default async function MasterPage() {
           initialOkuriMode={okuriMode}
           initialOkuriBase={okuriBase}
         />
-        </Fold>
       )}
       {isManagerUp && (
-        <Fold id="m-castreg" title="キャスト会計の許可">
+        <NormConfigPanel
+          storeId={storeId}
+          isOwner={role === "owner"}
+          initialSalesEnabled={salesNormEnabled}
+          initialShimeiEnabled={shimeiNormEnabled}
+          initialShimeiScope={shimeiNormScope}
+        />
+      )}
+      {isManagerUp && (
         <CastRegisterPanel
           storeId={storeId}
           isOwner={role === "owner"}
           initialEnabled={castRegEnabled}
           casts={castRegRows}
         />
-        </Fold>
       )}
+          </>
+        ),
+        hours: (
+          <>
       {isManagerUp && (
-        <Fold id="m-tax" title="機密・税務情報">
-        <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
-        </Fold>
+        <BusinessHoursPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
       )}
+          </>
+        ),
+        system: (
+          <>
       {role === "owner" && (
-        <Fold id="m-kiosk" title="キオスク端末">
         <KioskPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
-        </Fold>
       )}
       {role === "owner" && storeId && (
-        <Fold id="m-printer" title="レシート・プリンタ">
         <PrinterPanel
           storeId={storeId}
           initialProfile={{
@@ -141,28 +144,13 @@ export default async function MasterPage() {
             footer: typeof sj?.receipt_footer === "string" ? (sj.receipt_footer as string) : "",
           }}
         />
-        </Fold>
       )}
-      {sim && (
-        <Fold id="m-sim" title="待遇プラン・報酬シミュレーター">
-        <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" />
-        </Fold>
+      {isManagerUp && (
+        <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
       )}
-    </>
-  );
-}
-
-// 段0R その3 ⑥: マスタのセクション折り畳み（既定閉・ハブの「管理する →」で開く）。
-//   ★JS ゼロ＝CSS の :target だけで開閉する。server component のままで動く。
-//   ★パネル本体（children）には一切触れていない＝機能も RPC も送る引数も不変。
-function Fold({ id, title, hint, children }: { id: string; title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section id={id} className="nox-fold">
-      <a className="nox-foldh" href={`#${id}`}>
-        {title}
-        <span className="hint">{hint ?? "開く"}</span>
-      </a>
-      <div className="nox-foldb">{children}</div>
-    </section>
+          </>
+        ),
+      }}
+    />
   );
 }

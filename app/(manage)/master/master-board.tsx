@@ -57,7 +57,15 @@ function stockCell(qty: number, reorderPoint: number | null) {
   );
 }
 
-export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId: string; isManagerUp: boolean; isOwner: boolean }) {
+// 段0R その4: ハブ⇄セクションの「その場で切り替え」。
+//   ★パネル本体は page.tsx（server）が従来どおり props を組んで生成し、ここは ReactNode を
+//     受け取って描き分けるだけ＝コンポーネントも機能も RPC も送る引数も1文字も変えていない。
+export type MasterView = "products" | "pricing" | "cast" | "seat" | "hours" | "system";
+export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
+  storeId: string; isManagerUp: boolean; isOwner: boolean;
+  /** server で生成済みのパネル群（表示単位ごと）。未指定の単位はカードを出さない。 */
+  panels?: Partial<Record<Exclude<MasterView, "products" | "seat">, React.ReactNode>>;
+}) {
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -68,6 +76,8 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   const [seats, setSeats] = useState<Seat[]>([]);
   // 段0R その2: ハブカードの絞り込み（aaa .search）＝表示フィルタのみ・取得は不変
   const [hubSearch, setHubSearch] = useState("");
+  // 段0R その4: null=ハブ／それ以外=そのセクションだけを表示（ハブは隠す）
+  const [view, setView] = useState<MasterView | null>(null);
   const [stock, setStock] = useState<Record<string, number>>({});
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -242,55 +252,55 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   const lowStock = products.filter((p) => p.reorder_point != null && (stock[p.id] ?? 0) <= (p.reorder_point ?? 0)).length;
   const activeSeats = seats.filter((x) => x.is_active).length;
   const hubQ = hubSearch.trim().toLowerCase();
-  const HUBS: Array<{ sec: string; secDesc: string; cards: Array<{ id: string; icon: string; count: string; title: string; desc: string; status: string; tone: string }> }> = [
+  const HUBS: Array<{ sec: string; secDesc: string; cards: Array<{ view: MasterView; id: string; icon: string; count: string; title: string; desc: string; status: string; tone: string }> }> = [
     {
       sec: "商品・料金", secDesc: "レジ・会計で利用する項目",
       cards: [
-        { id: "m-prod", icon: "◇", count: `${products.length}件`, title: "商品マスター",
+        { view: "products" as MasterView, id: "m-prod", icon: "◇", count: `${products.length}件`, title: "商品マスター",
           desc: "ドリンク、シャンパン、ボトル、フード、在庫数、発注基準を管理。",
           status: lowStock > 0 ? `● ${lowStock}件 要補充` : "● 在庫は基準内", tone: lowStock > 0 ? "warn" : "" },
-        { id: "m-cat", icon: "▤", count: `${categories.length}件`, title: "商品カテゴリ",
+        { view: "products" as MasterView, id: "m-cat", icon: "▤", count: `${categories.length}件`, title: "商品カテゴリ",
           desc: "レジのタイル見出しになる分類。並び順と有効/無効を管理。",
           status: categories.length > 0 ? "● 全件有効" : "● 未登録", tone: categories.length > 0 ? "" : "mute" },
-        { id: "m-stock", icon: "⬚", count: "追記のみ", title: "在庫の入出庫",
+        { view: "products" as MasterView, id: "m-stock", icon: "⬚", count: "追記のみ", title: "在庫の入出庫",
           desc: "入荷・棚卸の記録（append-only）。売上による減算は会計から自動。", status: "● 記録可", tone: "" },
-        { id: "m-pricing", icon: "¥", count: "7設定", title: "料金・会計設定",
+        { view: "pricing" as MasterView, id: "m-pricing", icon: "¥", count: "7設定", title: "料金・会計設定",
           desc: "指名料、サービス料、カード手数料、丸め単位・丸め方を設定。", status: "● 有効", tone: "" },
-        { id: "m-timeprice", icon: "◷", count: "6設定", title: "時間料金（セット・延長）",
+        { view: "pricing" as MasterView, id: "m-timeprice", icon: "◷", count: "6設定", title: "時間料金（セット・延長）",
           desc: "セット時間と料金、延長単位と料金、自動/手動、卓単位/人数倍を設定。", status: "● 有効", tone: "" },
       ],
     },
     {
       sec: "キャスト・報酬", secDesc: "給与計算とキャスト運用の設定",
       cards: [
-        { id: "m-sim", icon: "▲", count: "試算", title: "待遇プラン・報酬シミュレーター",
+        { view: "cast" as MasterView, id: "m-sim", icon: "▲", count: "試算", title: "待遇プラン・報酬シミュレーター",
           desc: "保証時給、スライド、指名バック単価を試算。プラン割当は給与側で管理。", status: "● 試算可", tone: "" },
-        { id: "m-deduct", icon: "▽", count: "控除", title: "控除・送りの設定",
+        { view: "cast" as MasterView, id: "m-deduct", icon: "▽", count: "控除", title: "控除・送りの設定",
           desc: "固定控除の種別と金額、送り実費/一律の扱いを管理。", status: "● 有効", tone: "" },
-        { id: "m-norm", icon: "◎", count: "ノルマ", title: "ノルマ設定",
+        { view: "cast" as MasterView, id: "m-norm", icon: "◎", count: "ノルマ", title: "ノルマ設定",
           desc: "売上ノルマ・指名ノルマの採用可否と範囲を設定（マイページの進捗に反映）。", status: "● 設定可", tone: "" },
-        { id: "m-castreg", icon: "◈", count: "会計権限", title: "キャスト会計の許可",
+        { view: "cast" as MasterView, id: "m-castreg", icon: "◈", count: "会計権限", title: "キャスト会計の許可",
           desc: "キャスト本人がレジを使えるようにする設定（対象キャストの個別許可）。", status: "● 設定可", tone: "" },
       ],
     },
     {
       sec: "店舗・卓", secDesc: "フロアと営業時間の設定",
       cards: [
-        { id: "m-seat", icon: "▦", count: `${seats.length}卓`, title: "席・卓マスター",
+        { view: "seat" as MasterView, id: "m-seat", icon: "▦", count: `${seats.length}卓`, title: "席・卓マスター",
           desc: "卓／カウンター／VIP の登録と並び順、稼働の有効切替。",
           status: `● 稼働可能 ${activeSeats}卓`, tone: "" },
-        { id: "m-hours", icon: "☾", count: "曜日別", title: "営業時間・定休日",
+        { view: "hours" as MasterView, id: "m-hours", icon: "☾", count: "曜日別", title: "営業時間・定休日",
           desc: "曜日ごとの営業時間と定休日。シフト登録の警告・ブロックに使われます。", status: "● 設定可", tone: "" },
       ],
     },
     {
       sec: "スタッフ・システム", secDesc: "端末と機微情報の管理",
       cards: [
-        { id: "m-kiosk", icon: "▣", count: "端末", title: "キオスク端末",
+        { view: "system" as MasterView, id: "m-kiosk", icon: "▣", count: "端末", title: "キオスク端末",
           desc: "打刻端末・レジ端末の発行と失効（オーナー限定）。", status: "● オーナー限定", tone: "mute" },
-        { id: "m-printer", icon: "⎙", count: "レシート", title: "レシート・プリンタ",
+        { view: "system" as MasterView, id: "m-printer", icon: "⎙", count: "レシート", title: "レシート・プリンタ",
           desc: "レシートの店舗情報（住所・電話・登録番号・フッタ）と印刷設定。", status: "● オーナー限定", tone: "mute" },
-        { id: "m-tax", icon: "🔒", count: "機密", title: "機密・税務情報",
+        { view: "system" as MasterView, id: "m-tax", icon: "🔒", count: "機密", title: "機密・税務情報",
           desc: "本名・生年月日・マイナンバー等。閲覧はログに記録されます。", status: "● 閲覧ログあり", tone: "warn" },
       ],
     },
@@ -298,9 +308,24 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
   const hubHit = (c: { title: string; desc: string }) =>
     hubQ === "" || c.title.toLowerCase().includes(hubQ) || c.desc.toLowerCase().includes(hubQ);
 
+  const VIEW_TITLE: Record<MasterView, string> = {
+    products: "商品・在庫", pricing: "料金・会計", cast: "キャスト・報酬",
+    seat: "席・卓", hours: "営業時間・定休日", system: "スタッフ・システム",
+  };
+
   return (
     <div>
-      {/* aaa .hero＝ページ名＋説明＋検索 */}
+      {/* 段0R その4: セクション表示中は上部に戻り導線＋見出しを出す（ハブは隠す）。 */}
+      {view && (
+        <div className="nox-secbar">
+          <button type="button" className="nox-backlink" onClick={() => setView(null)}>← マスタ概要</button>
+          <h1 className="nox-sectitle">{VIEW_TITLE[view]}</h1>
+        </div>
+      )}
+
+      {/* aaa .hero＝ページ名＋説明＋検索（ハブのみ） */}
+      {view === null && (
+      <>
       <div className="nox-hero">
         <div>
           <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>マスタ管理</h1>
@@ -341,7 +366,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
             </div>
             <div className="nox-grid3">
               {cards.map((c) => (
-                <a key={c.id} className="nox-fcard" href={`#${c.id}`}>
+                <button key={c.id} type="button" className="nox-fcard" onClick={() => setView(c.view)}>
                   <div className="top">
                     <div className="icon" aria-hidden="true">{c.icon}</div>
                     <div className="count">{c.count}</div>
@@ -352,15 +377,18 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
                     <span className={`status ${c.tone}`}>{c.status}</span>
                     <span className="link">管理する →</span>
                   </div>
-                </a>
+                </button>
               ))}
             </div>
           </section>
         );
       })}
+      </>
+      )}
 
-      {/* ④ 系統分離: ここから「商品」（カテゴリ／商品／在庫）── 各パネルの機能は不変・配置の整理のみ */}
-      <h2 id="m-prod" style={{ ...t.cardTitle, fontSize: 12, letterSpacing: 1, color: "var(--sub)", margin: "28px 0 8px" }}>商品</h2>
+      {/* ── 表示単位「商品・在庫」＝商品／カテゴリ／在庫の3パネル（カード3枚に対応）── */}
+      {view === "products" && (
+      <>
 
       {/* ⑥ ハブ: カテゴリカード → クリックでその分類に絞る（すべて／未分類つき）。
           カテゴリ0件の店は type 別カードへフォールバック（register のタイル分類と同じ判定）。 */}
@@ -541,9 +569,11 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
         </section>
       )}
 
-      {/* ④ 系統分離: ここから「店舗設定」（席・待遇プラン・以降の各種パネル）── 機能は不変・配置の整理のみ */}
-      <h2 style={{ ...t.cardTitle, fontSize: 12, letterSpacing: 1, color: "var(--sub)", margin: "22px 0 8px" }}>店舗設定</h2>
+      </>
+      )}
 
+      {/* ── 表示単位「席・卓」＝席パネル（カード1枚に対応）── */}
+      {view === "seat" && (
       <section className="nox-cardtop" style={card}>
         <h2 id="m-seat" style={secTitle}>席（クリックで編集）</h2>
         <table style={{ borderCollapse: "collapse", fontSize: 12, marginBottom: 10 }}>
@@ -575,9 +605,17 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner }: { storeId
           </div>
         )}
       </section>
+      )}
 
+      {/* ── 外部パネル（page.tsx が server で組んだ ReactNode をそのまま描く）──
+          ★コンポーネントも props も page.tsx 側のまま＝ここは表示単位で出し分けるだけ。 */}
+      {view === "pricing" && panels?.pricing}
+      {view === "cast" && panels?.cast}
+      {view === "hours" && panels?.hours}
+      {view === "system" && panels?.system}
 
-      <CompMaster storeId={storeId} isManagerUp={isManagerUp} isOwner={isOwner} />
+      {/* 待遇プランのマスタ（CompMaster）は「キャスト・報酬」に属する */}
+      {view === "cast" && <CompMaster storeId={storeId} isManagerUp={isManagerUp} isOwner={isOwner} />}
     </div>
   );
 }
