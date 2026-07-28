@@ -610,6 +610,54 @@ body {
   padding: 8px 10px; font-size: 11px; color: var(--v2-muted); margin-top: 10px; line-height: 1.7;
 }
 
+/* ── UI刷新v2 段U2（顧客刷新）── presentation-only 2026-07-28 ──
+   正本＝nox-customers-redesign-mock-v1.html。既存 CRM（customers＋集計 RPC＋bottle_keeps）の再配置。
+   ★可視性は現行のまま＝一覧/集計は customer_list_summary・customer_summary・customer_visit_history
+     （いずれも definer の可視ガード）に従い、アプリ側で churn 判定も可視判定もしない。
+   canonical＋v2 サブトークンのみ・断点 641/900/1180（裁定5）。金は3役（選択・主ボタン・バッジ）。 */
+/* 2ペイン（モック .main）＝>900 は リスト＋右詳細・≤900 は1カラム（詳細は下に続けて出す） */
+.nox-2pane { display: grid; grid-template-columns: 1fr 400px; gap: 14px; align-items: start; }
+@media (max-width: 900px) { .nox-2pane { grid-template-columns: 1fr; } }
+/* 顧客リスト行（モック .crow） */
+.nox-crow2 {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 11px 0; border-bottom: 1px solid var(--v2-line);
+  cursor: pointer; background: transparent; border-left: 0; border-right: 0; border-top: 0;
+  font-family: inherit; text-align: left; color: var(--v2-text);
+}
+.nox-crow2:last-child { border-bottom: 0; }
+/* 金の3役①＝選択状態 */
+.nox-crow2.sel { background: rgba(201, 162, 74, .14); border-radius: 8px; padding-left: 10px; padding-right: 10px; }
+.nox-crow2 .cinfo { min-width: 0; }
+.nox-crow2 .nm { font-size: 14px; font-weight: 700; color: var(--v2-text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nox-crow2 .sub { font-size: 11px; color: var(--v2-muted); }
+.nox-crow2 .stats { margin-left: auto; text-align: right; flex-shrink: 0; }
+/* 累計金額＝読む情報ゆえ白（金にしない） */
+.nox-crow2 .spend { font-size: 15px; font-weight: 600; color: var(--v2-text); }
+.nox-crow2 .visits { font-size: 12px; color: var(--v2-muted); }
+/* リスク/新規バッジ（モック .risk）＝金の3役③ */
+.nox-risk { font-size: 10px; border-radius: 4px; padding: 1px 7px; font-weight: 700; white-space: nowrap; }
+.nox-risk.mid { background: rgba(201, 162, 74, .14); color: var(--gold); }
+.nox-risk.hi  { background: rgba(217, 138, 138, .16); color: var(--bad); }
+.nox-risk.new { border: 1px solid var(--ok); color: var(--ok); }
+.nox-risk.off { background: var(--v2-panel2); color: var(--v2-muted); font-weight: 400; }
+/* 詳細ペイン（モック .dstats/.sect/.btl/.visit/.memo） */
+.nox-dstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+.nox-dstat { background: var(--v2-panel2); border: 1px solid var(--v2-line); border-radius: 10px; padding: 9px 10px; }
+.nox-dstat .l { font-size: 10px; color: var(--v2-muted); }
+.nox-dstat .v { font-size: 16px; font-weight: 700; color: var(--v2-text); margin-top: 2px; }
+.nox-sect { font-size: 12px; color: var(--v2-muted); margin: 14px 0 6px; }
+.nox-btl { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--v2-line); font-size: 13px; color: var(--v2-text); }
+.nox-btl:last-child { border-bottom: 0; }
+.nox-btl .st { font-size: 10px; border-radius: 4px; padding: 1px 7px; margin-left: auto; white-space: nowrap; }
+.nox-btl .st.act { background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
+.nox-btl .st.emp { border: 1px solid var(--v2-line); color: var(--v2-muted); }
+.nox-visit { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--v2-line); font-size: 12.5px; color: var(--v2-text); }
+.nox-visit:last-child { border-bottom: 0; }
+.nox-visit .d { color: var(--v2-muted); flex-shrink: 0; }
+.nox-visit .a { margin-left: auto; font-weight: 600; color: var(--v2-text); flex-shrink: 0; }
+.nox-memo { background: var(--v2-panel2); border: 1px solid var(--v2-line); border-radius: 8px; padding: 10px; font-size: 12px; color: var(--v2-text); line-height: 1.7; }
+
 /* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
    既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
    列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */

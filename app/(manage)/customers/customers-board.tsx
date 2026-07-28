@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import CastAvatar from "@/components/ui/cast-avatar";
 
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
@@ -21,7 +22,16 @@ type Row = {
   active_bottles: number; open_receivable: number; days_since: number | null;
   churn_tier: "none" | "mid" | "high";
 };
-type Tier = "all" | "high" | "mid";
+// 段U2: セグメントに「新規/リピート」を追加。churn は RPC 側の判定（churn_tier）をそのまま使い、
+//   new/repeat は既存 visits の閾値だけで出し分ける（★新しい離反判定は作らない・相談役メモ①の「新規 visits≤1」）。
+type Tier = "all" | "risk" | "new" | "repeat";
+// 段U2: 詳細ペインで使う既存 RPC の返り（席・指名は customer_visit_history に元から含まれる＝実測済み）
+type Visit = {
+  check_id: string; visited_at: string; total: number;
+  seat_name: string | null; nom_casts: string[] | null; status: string;
+};
+type Bottle = { id: string; product_id: string | null; status: string; opened_at: string | null; note: string | null };
+type CustRow = { id: string; name: string; furigana: string | null; birthday: string | null; memo: string | null };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 const secTitle: React.CSSProperties = t.cardTitle;
@@ -30,17 +40,13 @@ const segBtn = (on: boolean): React.CSSProperties => ({
   ...t.btnGhost, ...t.btnSm,
   ...(on ? { background: "linear-gradient(135deg,var(--gold2),#B8893A)", color: "#0B0B0F", border: 0, fontWeight: 800 } : {}),
 });
-// churn pill: high=赤 / mid=黄（gold2）/ none=pill なし（無印）
-const churnPill = (tier: "mid" | "high"): React.CSSProperties => ({
-  fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
-  color: tier === "high" ? "var(--bad)" : "var(--gold2)",
-  background: "#23232B", border: "1px solid var(--line2)", whiteSpace: "nowrap",
-});
-// 休眠 pill（詳細ヘッダの同型・B-3）
-const dormantPill: React.CSSProperties = {
-  fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
-  color: "var(--sub)", background: "#23232B", border: "1px solid var(--line2)", whiteSpace: "nowrap",
-};
+// 段U2: churn pill / 休眠 pill の inline style は .nox-risk（mid=金・hi=赤・off=neutral）へ移した
+//   ＝色の意味（high=赤 / mid=金 / 休眠=neutral）は現行と同一・判定は引き続き RPC の churn_tier のみ。
+
+function fmtBirthday(d: string): string {
+  const [, m, day] = d.split("-");
+  return `${Number(m)}/${Number(day)}`;
+}
 
 function fmtLastVisit(iso: string): string {
   const d = new Date(iso);
@@ -59,6 +65,13 @@ export default function CustomersBoard({
   const [q, setQ] = useState("");
   const [incDormant, setIncDormant] = useState(false);  // B-3: 休眠込み（既定 OFF=従来・画面ローカル）
   const [sortOldest, setSortOldest] = useState(false);  // B-3: 掘り起こし順（休眠込み時のみ有効）
+  // ── 段U2: 右詳細ペイン（正本 nox-customers-redesign-mock-v1.html）──
+  //   ★編集・担当割当は現行どおり /customers/[id] のまま＝ここは読取と導線だけ（機能/RPC 不変）。
+  const [sel, setSel] = useState<string | null>(null);
+  const [dCust, setDCust] = useState<CustRow | null>(null);
+  const [dVisits, setDVisits] = useState<Visit[]>([]);
+  const [dBottles, setDBottles] = useState<Bottle[]>([]);
+  const [prodName, setProdName] = useState<Record<string, string>>({});
 
   // 客追加フォーム（customer_register）。担当 cast は owner/manager のみ表示
   // （staff は RPC 側で p_cast_id が null 化される既存仕様＝出さない）。
@@ -91,12 +104,46 @@ export default function CustomersBoard({
 
   useEffect(() => { void load(); }, [load]);
 
+  // 段U2: 選択顧客の詳細（既存 RPC＋既存テーブルの素の SELECT・新規 RPC ゼロ）。
+  //   来店履歴＝customer_visit_history（★席 seat_name と指名 nom_casts は元から返る＝現物実測で確認済み・
+  //     現行の詳細ページでも既に描画している＝新情報ではない）。
+  //   ボトルキープ＝bottle_keeps の直 SELECT（bottle-keep-panel と同じ経路）。★RLS は can_register 軸ゆえ
+  //     can_crm だけの staff は 0行になりうる＝そのときは明細を出さず件数（RPC 集計 active_bottles）だけが残る。
+  const loadDetail = useCallback(async (id: string) => {
+    const supabase = createClient();
+    const [cRes, vRes, bRes] = await Promise.all([
+      supabase.from("customers").select("id, name, furigana, birthday, memo").eq("id", id).maybeSingle(),
+      supabase.rpc("customer_visit_history", { p_customer_id: id }),
+      supabase.from("bottle_keeps").select("id, product_id, status, opened_at, note").eq("customer_id", id).order("created_at", { ascending: false }),
+    ]);
+    setDCust((cRes.data ?? null) as CustRow | null);
+    setDVisits(((vRes.data ?? []) as Visit[]).slice(0, 5));
+    const bs = (bRes.data ?? []) as Bottle[];
+    setDBottles(bs);
+    const pids = [...new Set(bs.map((b) => b.product_id).filter(Boolean) as string[])];
+    if (pids.length) {
+      const { data: ps } = await supabase.from("products").select("id, name").in("id", pids);
+      const m: Record<string, string> = {};
+      for (const x of (ps ?? []) as { id: string; name: string }[]) m[x.id] = x.name;
+      setProdName(m);
+    }
+  }, []);
+  useEffect(() => {
+    if (!sel) { setDCust(null); setDVisits([]); setDBottles([]); return; }
+    void loadDetail(sel);
+  }, [sel, loadDetail]);
+
   const filtered = useMemo(() => {
     const needle = q.trim();
-    return rows.filter((r) =>
-      (tier === "all" || r.churn_tier === tier) &&
-      (needle === "" || r.name.includes(needle) || (r.furigana ?? "").includes(needle)),
-    );
+    return rows.filter((r) => {
+      // ★churn の判定は RPC が返す churn_tier をそのまま使う（アプリ側で再判定しない＝現行方針）。
+      const okTier =
+        tier === "all" ? true
+        : tier === "risk" ? (r.churn_tier === "high" || r.churn_tier === "mid")
+        : tier === "new" ? r.visits <= 1
+        : r.visits > 1;
+      return okTier && (needle === "" || r.name.includes(needle) || (r.furigana ?? "").includes(needle));
+    });
   }, [rows, tier, q]);
 
   // 掘り起こし順（休眠込み時のみ）: 最終来店が古い順・来店なし（null）は末尾＝掘り起こし対象外に近い扱い。
@@ -110,6 +157,11 @@ export default function CustomersBoard({
 
   const highCount = rows.filter((r) => r.churn_tier === "high").length;
   const midCount = rows.filter((r) => r.churn_tier === "mid").length;
+  // 段U2 KPI: いずれも rows（customer_list_summary の返り）からの再掲＝新規取得も新規集計もしない。
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const monthVisited = rows.filter((r) => r.last_visit && r.last_visit.slice(0, 7) === thisMonth).length;
+  const bottleTotal = rows.reduce((a, r) => a + (r.active_bottles ?? 0), 0);
+  const selRow = sel ? rows.find((r) => r.customer_id === sel) ?? null : null;
 
   function openAdd() {
     setAName(""); setAFuri(""); setATel(""); setAPrefs(""); setAMemo("");
@@ -144,6 +196,32 @@ export default function CustomersBoard({
       <div style={{ margin: "2px 0 14px" }}>
         <h1 style={t.pheadH1}>顧客</h1>
         <p style={t.pheadP}>来店状況と離反リスク（60日/30日）</p>
+      </div>
+
+      {/* 段U2: KPI 帯＝すべて customer_list_summary の再掲（新規集計ゼロ）。
+          顧客数＝取得行数／今月来店＝last_visit が今月の人数／離反リスク高＝churn_tier='high'／
+          ボトルキープ中＝active_bottles の合計（RPC の definer 集計値をそのまま足すだけ）。 */}
+      <div className="nox-kpirow">
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">顧客数</div>
+          <div className="nox-kpi2-v num">{rows.length}<small>人</small></div>
+          <div className="nox-kpi2-s">{incDormant ? "休眠を含む" : "休眠を除く"}</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">今月来店</div>
+          <div className="nox-kpi2-v num">{monthVisited}<small>人</small></div>
+          <div className="nox-kpi2-s">最終来店が今月</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">離反リスク高（60日〜）</div>
+          <div className="nox-kpi2-v num">{highCount}<small>人</small></div>
+          <div className="nox-kpi2-s">中（30日〜） {midCount}人</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">ボトルキープ中</div>
+          <div className="nox-kpi2-v num">{bottleTotal}<small>本</small></div>
+          <div className="nox-kpi2-s">未開栓の合計</div>
+        </div>
       </div>
 
       <section className="nox-cardtop" style={t.card}>
@@ -212,10 +290,13 @@ export default function CustomersBoard({
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 7, marginBottom: 10, flexWrap: "wrap" }}>
-          <button style={segBtn(tier === "all")} onClick={() => setTier("all")}>全て</button>
-          <button style={segBtn(tier === "high")} onClick={() => setTier("high")}>離反リスク高（{highCount}）</button>
-          <button style={segBtn(tier === "mid")} onClick={() => setTier("mid")}>中（{midCount}）</button>
+        {/* 段U2: すべて/離反リスク/新規/リピート（モック .seg）。
+            ★離反の判定は RPC の churn_tier をそのまま使う＝アプリ側で再判定しない（現行方針）。 */}
+        <div className="nox-seg" style={{ marginBottom: 10, width: "fit-content" }}>
+          {([["all", `すべて（${rows.length}）`], ["risk", `離反リスク（${highCount + midCount}）`],
+             ["new", "新規"], ["repeat", "リピート"]] as const).map(([k, label]) => (
+            <button key={k} className={tier === k ? "on" : ""} onClick={() => setTier(k)}>{label}</button>
+          ))}
         </div>
         {canDormant && (
           <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
@@ -239,47 +320,114 @@ export default function CustomersBoard({
         />
 
         {err && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{err}</p>}
-        {!err && display.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>該当する顧客がいません</p>}
+        {!err && display.length === 0 && <p style={{ fontSize: 13, color: "var(--v2-muted)" }}>該当する顧客がいません</p>}
 
-        {display.map((r) => (
-          <Link
-            key={r.customer_id}
-            href={`/customers/${r.customer_id}`}
-            style={{ display: "flex", gap: 10, alignItems: "flex-start", textDecoration: "none", color: "inherit", padding: "9px 0", borderBottom: "1px solid var(--line)" }}
-          >
-            {/* 段E: 頭文字アバター（既存 name の1文字＋name 由来の色のみ・新情報なし・装飾） */}
-            <span className="nox-ava" style={{ background: t.avatarBg(r.name), marginTop: 1 }} aria-hidden="true">{t.avatarInitial(r.name)}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{r.name}</span>
-              {r.furigana && <span style={{ fontSize: 11, color: "var(--sub)" }}>{r.furigana}</span>}
-              <span style={{ marginLeft: "auto", display: "flex", gap: 5 }}>
-                {!r.is_active && <span style={dormantPill}>休眠</span>}
-                {r.churn_tier === "high" && <span style={churnPill("high")}>離反リスク高</span>}
-                {r.churn_tier === "mid" && <span style={churnPill("mid")}>離反リスク中</span>}
-              </span>
-            </div>
-            <div style={{ fontSize: 12, color: "var(--sub)", marginTop: 3 }}>
-              担当 {castName(r.cast_id)}・来店 <span style={t.num}>{r.visits}</span>回・
-              {r.last_visit
-                ? (r.churn_tier === "none"
-                    ? <>最終 {fmtLastVisit(r.last_visit)}（<span style={t.num}>{r.days_since}</span>日前）</>
-                    : <><span style={{ ...t.num, color: r.churn_tier === "high" ? "var(--bad)" : "var(--gold2)" }}>{r.days_since}</span>日未再来</>)
-                : "来店なし"}
-            </div>
-            <div style={{ display: "flex", gap: 14, fontSize: 12.5, marginTop: 3, flexWrap: "wrap" }}>
-              <span style={{ ...t.num, color: "var(--champ)", fontWeight: 700 }}>{yen(r.total_spend)}</span>
-              {r.active_bottles > 0 && <span style={{ color: "var(--sub)" }}>ボトル <span style={t.num}>{r.active_bottles}</span></span>}
-              {r.open_receivable > 0 && <span style={{ color: "var(--bad)" }}>売掛 <span style={t.num}>{yen(r.open_receivable)}</span></span>}
-            </div>
-            </div>
-          </Link>
-        ))}
+        {/* 段U2: リスト＋右詳細の2ペイン（>900）。≤900 は CSS で1カラム＝詳細はリストの下に続けて出る。
+            ★行タップは「右詳細を開く」に変わったが、編集・担当割当は従来どおり /customers/[id]（導線を残す）。 */}
+        <div className="nox-2pane">
+          <div>
+            {display.map((r) => (
+              <button
+                key={r.customer_id}
+                className={`nox-crow2 ${sel === r.customer_id ? "sel" : ""}`}
+                onClick={() => setSel(sel === r.customer_id ? null : r.customer_id)}
+              >
+                {/* 段E: 頭文字アバター（既存 name のみ由来・新情報なし・装飾）＝顧客は写真を持たない */}
+                <CastAvatar name={r.name} size={38} />
+                <div className="cinfo">
+                  <div className="nm">
+                    {r.name}
+                    {!r.is_active && <span className="nox-risk off">休眠</span>}
+                    {r.churn_tier === "high" && <span className="nox-risk hi">60日〜</span>}
+                    {r.churn_tier === "mid" && <span className="nox-risk mid">30日〜</span>}
+                    {r.visits <= 1 && r.churn_tier === "none" && <span className="nox-risk new">新規</span>}
+                  </div>
+                  <div className="sub">
+                    担当：{castName(r.cast_id)}{r.furigana ? `・${r.furigana}` : ""}
+                    {r.open_receivable > 0 && <span style={{ color: "var(--bad)" }}>・売掛 {yen(r.open_receivable)}</span>}
+                  </div>
+                </div>
+                <div className="stats">
+                  {/* 累計金額＝読む情報ゆえ白（金3役の原則・可視性は RPC の返却仕様のまま） */}
+                  <div className="spend num">{yen(r.total_spend)}</div>
+                  <div className="visits num">
+                    来店{r.visits}回{r.last_visit ? `・最終 ${fmtLastVisit(r.last_visit)}` : "・来店なし"}
+                  </div>
+                </div>
+              </button>
+            ))}
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+              {display.length}件{tier !== "all" || q ? `（全${rows.length}件）` : ""}・
+              {incDormant ? "休眠客を含めて表示中" : "休眠中の顧客は表示されません"}
+            </p>
+          </div>
 
-        <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
-          {display.length}件{tier !== "all" || q ? `（全${rows.length}件）` : ""}・
-          {incDormant ? "休眠客を含めて表示中" : "休眠中の顧客は表示されません"}
-        </p>
+          {/* 右詳細＝3stat／ボトルキープ／来店履歴／メモ（すべて既存データ・編集は [id] へ） */}
+          {selRow && (
+            <div style={{ ...t.card, marginBottom: 0, background: "var(--card2)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <CastAvatar name={selRow.name} size={44} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--v2-text)" }}>{selRow.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>
+                    {[dCust?.furigana, `担当：${castName(selRow.cast_id)}`,
+                      dCust?.birthday ? `誕生日 ${fmtBirthday(dCust.birthday)}` : null]
+                      .filter(Boolean).join(" / ")}
+                  </div>
+                </div>
+                <button style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} onClick={() => setSel(null)}>閉じる</button>
+              </div>
+
+              <div className="nox-dstats">
+                <div className="nox-dstat"><div className="l">来店</div><div className="v num">{selRow.visits}回</div></div>
+                <div className="nox-dstat"><div className="l">累計</div><div className="v num">{yen(selRow.total_spend)}</div></div>
+                <div className="nox-dstat">
+                  <div className="l">最終来店</div>
+                  <div className="v num">{selRow.last_visit ? fmtLastVisit(selRow.last_visit) : "—"}</div>
+                </div>
+              </div>
+
+              <div className="nox-sect">ボトルキープ（{selRow.active_bottles}本）</div>
+              {dBottles.length === 0
+                ? <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>
+                    {selRow.active_bottles > 0 ? "明細は表示できません（権限の範囲外）" : "キープなし"}
+                  </p>
+                : dBottles.map((b) => (
+                    <div key={b.id} className="nox-btl">
+                      <span>{(b.product_id && prodName[b.product_id]) || b.note || "（銘柄不明）"}</span>
+                      <span className={`st ${b.status === "active" ? "act" : "emp"}`}>
+                        {b.status === "active" ? "キープ中" : "空"}
+                        {b.opened_at ? `（${fmtLastVisit(b.opened_at)}）` : ""}
+                      </span>
+                    </div>
+                  ))}
+
+              <div className="nox-sect">来店履歴（直近5件）</div>
+              {dVisits.length === 0
+                ? <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>来店履歴なし</p>
+                : dVisits.map((v) => (
+                    <div key={v.check_id} className="nox-visit">
+                      <span className="d num">{fmtLastVisit(v.visited_at)}</span>
+                      {/* ★席・指名は customer_visit_history が元から返す列（現行の詳細ページでも描画済み） */}
+                      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {[v.seat_name, v.nom_casts?.length ? v.nom_casts.join("、") : null].filter(Boolean).join("・") || "—"}
+                      </span>
+                      <span className="a num">{yen(v.total)}</span>
+                    </div>
+                  ))}
+
+              <div className="nox-sect">メモ</div>
+              {dCust?.memo
+                ? <div className="nox-memo">{dCust.memo}</div>
+                : <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>メモなし</p>}
+
+              <Link href={`/customers/${selRow.customer_id}`}
+                style={{ ...t.btnGhost, ...t.btnSm, display: "inline-block", marginTop: 12, textDecoration: "none" }}>
+                詳細・編集を開く ›
+              </Link>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
