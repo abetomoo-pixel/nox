@@ -16,6 +16,7 @@ import { groupDue } from "@/lib/nox/check-calc";
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
+import CastAvatar from "@/components/ui/cast-avatar";
 
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
 type StateSeat = { id: string; name: string; kind: string | null };
@@ -452,22 +453,32 @@ export default function KioskRegisterPage() {
   const idleMin = Math.floor((nowMs - lastActionRef.current) / 60_000);
 
   return (
-    <main className="nox-dark" style={{ ...t.loginBg, minHeight: "100dvh", position: "relative", padding: 20 }}>
+    <main className="nox-dark nox-kiosk" style={{ ...t.loginBg, minHeight: "100dvh", position: "relative", padding: 20 }}>
       <div style={{ maxWidth: phase === "register" ? 1100 : 720, margin: "0 auto", paddingTop: 20 }}>
+        {/* 段K2 先行: 操作者バーの整理（モック .khead）＝端末名/モードを左、操作者と交代を右に集約。
+            ★出す情報は現行と同一（名前・ロール・無操作分・交代ボタン）＝並べ方だけを変えた。
+            操作中の表示は「読む情報（名前）」ゆえ白（金3役の原則）。 */}
+        {phase === "register" && session ? (
+          <div className="nox-khead">
+            <div>
+              <div className="store">NOX — レジ端末</div>
+              <div className="mode">キオスクモード / レジ</div>
+            </div>
+            <div className="op">
+              <CastAvatar name={session.name} size={32} variant="flat" />
+              <span style={{ color: "var(--v2-text)", fontWeight: 700 }}>
+                {session.name}（{ROLE_LABEL[session.role] ?? session.role}）
+              </span>
+              <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
+                無操作 <span className="num">{Math.max(0, idleMin)}</span> 分（15分で自動ロック）
+              </span>
+              <button onClick={() => void operatorLogout()} style={btnLight}>交代／離席</button>
+            </div>
+          </div>
+        ) : (
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
           <span style={{ ...t.brand, fontSize: 24 }}>NOX</span>
           <span style={{ fontSize: 13, color: "var(--sub)" }}>レジ</span>
-          {phase === "register" && session && (
-            <>
-              <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--champ)", fontWeight: 700 }}>
-                {session.name}（{ROLE_LABEL[session.role] ?? session.role}）
-              </span>
-              <span style={{ fontSize: 11.5, color: "var(--sub)" }}>
-                無操作 <span style={t.num}>{Math.max(0, idleMin)}</span> 分（15分で自動ロック）
-              </span>
-              <button onClick={() => void operatorLogout()} style={btnLight}>交代／離席</button>
-            </>
-          )}
           {(phase === "operator" || phase === "pin" || phase === "denied") && (
             <button
               onClick={async () => { await supabase.auth.signOut(); setOperators([]); setPhase("login"); }}
@@ -477,6 +488,7 @@ export default function KioskRegisterPage() {
             </button>
           )}
         </div>
+        )}
 
         {phase === "loading" && <p style={{ textAlign: "center", color: "var(--sub)" }}>読み込み中…</p>}
 
@@ -508,7 +520,8 @@ export default function KioskRegisterPage() {
 
         {phase === "operator" && (
           <>
-            <p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 8px" }}>
+            {/* 段K2 先行 可読性: 見出し・案内は白（金は選択・主ボタン・バッジの3役のみ） */}
+            <p style={{ textAlign: "center", fontSize: 15, color: "var(--v2-text)", fontWeight: 700, margin: "0 0 8px" }}>
               操作担当を選んでください
             </p>
             {lockMsg && <p style={{ textAlign: "center", fontSize: 12.5, color: "var(--sub)", margin: "0 0 14px" }}>{lockMsg}</p>}
@@ -562,7 +575,7 @@ export default function KioskRegisterPage() {
             {printCard && (
               <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: 0 }}>
+                  <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--v2-text)", margin: 0 }}>
                     レシート印刷（伝票 {printCard.checkId.replace(/-/g, "").slice(0, 8)}）
                   </h2>
                   {printCard.groups.map((g) => (
@@ -585,12 +598,18 @@ export default function KioskRegisterPage() {
             )}
 
             {/* 卓一覧（state.checks＝0059。更新ボタン＝操作起点の再読取・自動ポーリングはしない） */}
-            <section className="nox-cardtop" style={{ ...card, width: 220 }}>
-              <div style={{ display: "flex", alignItems: "center" }}>
+            <section className="nox-cardtop" style={{ ...card, flex: "1 1 340px", minWidth: 300 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <h2 style={{ ...t.cardTitle, margin: 0 }}>卓</h2>
-                <button onClick={() => { markAction(); void refreshState(); }} style={{ ...btnLight, marginLeft: "auto", padding: "2px 9px", fontSize: 11.5 }}>更新</button>
+                <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
+                  使用中 <span className="num" style={{ color: "var(--v2-text)" }}>{(state?.checks ?? []).length}</span> / {seats.length}卓
+                </span>
+                <button onClick={() => { markAction(); void refreshState(); }} style={{ ...btnLight, marginLeft: "auto", padding: "4px 12px", fontSize: 12 }}>更新</button>
               </div>
-              <div style={{ marginTop: 8 }}>
+              {/* 段K2 先行: 縦積みリスト → register と同系のタイルグリッド（タップ標的は .nox-kiosk 側 CSS で拡大）。
+                  ★着卓キャスト顔と低在庫「残N」は出さない＝kiosk_register_state（0059）が指名も在庫も返さないため
+                    （0059 契約 非改変の裁定維持）。onClick は openSeat のままで挙動不変。 */}
+              <div className="nox-seatgrid" style={{ marginTop: 10 }}>
                 {seats.map((s) => {
                   const oc = openBySeat(s.id);
                   const isPrimary = oc?.seat_id === s.id;
@@ -599,25 +618,31 @@ export default function KioskRegisterPage() {
                     <button
                       key={s.id}
                       onClick={() => void openSeat(s)}
-                      style={{
-                        ...btnLight, display: "block", width: "100%", textAlign: "left", marginBottom: 8,
-                        borderColor: detail?.check.seat_id === s.id ? "var(--gold)" : oc ? "var(--champ)" : "var(--line2)",
-                        color: detail?.check.seat_id === s.id ? "var(--champ)" : "var(--ink)",
-                      }}
+                      className={["nox-seat", oc ? "busy" : "", detail?.check.seat_id === s.id ? "sel" : ""].filter(Boolean).join(" ")}
                     >
-                      {s.name} {s.kind ? `(${s.kind})` : ""}{" "}
+                      <div className="nm">{s.name}</div>
+                      <div className="kind">{s.kind ?? " "}</div>
                       {/* 純増⑦: floor 滞在タイマー（0059 v2 の started_at＋ローカル時計 tick のみ＝
                           タイマーから RPC は呼ばない＝0059(b) 契約維持。register-board floor と同表示）。 */}
-                      {oc
-                        ? (isPrimary
-                            ? `● 使用中${oc.started_at ? ` ・ 滞在 ${elapsedMin(oc.started_at, nowMs)}分` : ""}`
-                            : `● ${hostName} と同一会計`)
-                        : "空"}
+                      {oc ? (
+                        isPrimary ? (
+                          <>
+                            <div className="stay num">
+                              {oc.started_at ? `滞在 ${elapsedMin(oc.started_at, nowMs)}分` : "使用中"}
+                            </div>
+                            <div className="amt num">{yen(oc.total)}</div>
+                          </>
+                        ) : (
+                          <div className="stay">{hostName} と同一会計</div>
+                        )
+                      ) : (
+                        <div className="empty">空席</div>
+                      )}
                     </button>
                   );
                 })}
               </div>
-              {msg && <p style={{ fontSize: 12, color: "var(--sub)" }}>{msg}</p>}
+              {msg && <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "10px 0 0" }}>{msg}</p>}
             </section>
 
             {/* 伝票（読取は 0059 detail・≤900px はボトムシート＝段A nox-sheet-up 流用／>900px は現行 inline を 1px 不変で維持） */}
@@ -629,14 +654,15 @@ export default function KioskRegisterPage() {
                 <section>
                 <div className="nox-cardtop" style={card}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--champ)", margin: 0 }}>
+                    {/* 段K2 先行 可読性（案A・register と同系）: 見出しと合計は白・合計は 24px。 */}
+                    <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--v2-text)", margin: 0 }}>
                       伝票（{seats.find((s) => s.id === detail.check.seat_id)?.name ?? "—"}）
                     </h2>
-                    <span style={{ fontSize: 13, color: "var(--sub)" }}>{NOM_LABEL[detail.check.nom_type]}</span>
+                    <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{NOM_LABEL[detail.check.nom_type]}</span>
                     {detail.check.status === "open" && (
-                      <span style={{ fontSize: 12, color: "var(--sub)" }}>滞在 <span style={t.num}>{elapsedMin(detail.check.started_at, nowMs)}</span> 分</span>
+                      <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>滞在 <span className="num">{elapsedMin(detail.check.started_at, nowMs)}</span> 分</span>
                     )}
-                    <span style={{ ...t.num, marginLeft: "auto", fontSize: 18, fontWeight: 700, color: "var(--champ)" }}>{yen(detail.check.total)}</span>
+                    <span className="nox-dtotal num"><small>合計</small>{yen(detail.check.total)}</span>
                     {/* 取消（void）はレジ端末に出さない＝裁定11 確定①（責任者操作） */}
                   </div>
                 </div>
@@ -684,7 +710,7 @@ export default function KioskRegisterPage() {
                     <h3 style={t.cardTitle}>席</h3>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
                       <span style={{ fontSize: 12, color: "var(--sub)" }}>現在</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--champ)" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)" }}>
                         {seats.find((s) => s.id === detail.check.seat_id)?.name ?? "—"}
                         <span style={{ fontSize: 11, color: "var(--sub)", fontWeight: 400 }}> （主席）</span>
                       </span>
@@ -728,7 +754,7 @@ export default function KioskRegisterPage() {
                       <p style={{ fontSize: 12, color: "var(--ink)", margin: "10px 0 0" }}>
                         経過 <span style={t.num}>{timeCalc.elapsed_min}</span> 分・単位 <span style={t.num}>{timeCalc.units}</span>・
                         延長 <span style={t.num}>{timeCalc.blocks}</span> 回 → セット <span style={t.num}>{yen(timeCalc.set_c)}</span>＋
-                        延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--champ)" }}>{yen(timeCalc.total)}</span>
+                        延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(timeCalc.total)}</span>
                       </p>
                     )}
                     {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
@@ -837,7 +863,7 @@ export default function KioskRegisterPage() {
                           <td style={t.td}>{gi.g}</td>
                           <td style={{ ...t.td, ...t.num }}>{yen(gi.bx)}</td>
                           <td style={{ ...t.td, ...t.num, color: gi.disc > 0 ? "var(--bad)" : "var(--sub)" }}>{gi.disc > 0 ? `−${yen(gi.disc)}` : "—"}</td>
-                          <td style={{ ...t.td, ...t.num, fontWeight: 700, color: "var(--champ)" }}>{yen(gi.due)}</td>
+                          <td style={{ ...t.td, ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(gi.due)}</td>
                           <td style={{ ...t.td, ...t.num }}>{yen(gi.paid)}</td>
                           <td style={{ ...t.td, ...t.num, color: gi.remaining > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(gi.remaining)}</td>
                         </tr>

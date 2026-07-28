@@ -546,6 +546,26 @@ body {
 .nox-dtotal { margin-left: auto; font-size: 24px; font-weight: 700; color: var(--v2-text); }
 .nox-dtotal small { font-size: 12px; color: var(--v2-muted); font-weight: 400; margin-right: 2px; }
 
+/* ── UI刷新v2 段K2 先行分（キオスク restyle）── presentation-only 2026-07-28 ──
+   正本＝nox-kiosk-redesign-mock-v1.html。「register 刷新（案A 可読性ルール）に完全追随＝同 CSS 系」。
+   キオスク固有＝①操作者バーの整理 ②タップ標的の拡大（席 104px・タイル 64px）。
+   ★低在庫「残N」と着卓キャスト顔は出さない＝kiosk_register_state（0059）が在庫も指名も返さないため
+     （0059 契約 非改変の裁定維持・モックの相談役メモと一致）。 */
+.nox-khead {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--v2-line);
+  border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
+}
+.nox-khead .store { font-size: 14px; font-weight: 700; color: var(--v2-text); }
+.nox-khead .mode { font-size: 11px; color: var(--v2-muted); }
+.nox-khead .op { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+/* タップ標的拡大: 席は min-height 104px・padding 14px（register の .nox-seat を上書き） */
+.nox-kiosk .nox-seatgrid { gap: 12px; }
+.nox-kiosk .nox-seat { min-height: 104px; padding: 14px; border-radius: 14px; }
+.nox-kiosk .nox-tile { min-height: 64px; padding: 12px 10px; border-radius: 12px; }
+.nox-kiosk .nox-tile-name { font-size: 13px; }
+.nox-kiosk .nox-dtotal { font-size: 24px; }
+
 /* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
    既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
    列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */
