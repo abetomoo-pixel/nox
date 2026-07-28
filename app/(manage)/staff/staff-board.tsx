@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import CastAvatar from "@/components/ui/cast-avatar";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 
@@ -29,6 +30,15 @@ const rolePillMini = (role: string): React.CSSProperties => ({
   background: role === "manager" ? "linear-gradient(135deg,var(--gold2),#B8893A)" : "var(--card2)",
   border: role === "manager" ? "0" : "1px solid var(--line2)",
 });
+
+// 段L2: 権限チップの定義＝現行テーブルの見出し語彙をそのまま使う（会計/顧客/シフト*/バック†）。
+//   4つとも出す＝can_view_backs を落とさない（表示項目を減らさない）。
+const PERM_DEFS: Array<[ "can_register" | "can_crm" | "can_shift" | "can_view_backs", string ]> = [
+  ["can_register", "会計"],
+  ["can_crm", "顧客"],
+  ["can_shift", "シフト"],
+  ["can_view_backs", "バック"],
+];
 
 export default function StaffBoard({
   isOwner, stores, myStoreId, myAuthUserId,
@@ -163,51 +173,50 @@ export default function StaffBoard({
 
       <section className="nox-cardtop" style={{ ...t.card, marginTop: 13 }}>
         <h2 style={secTitle}>スタッフ一覧（行クリックで編集）</h2>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
-            <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
-                {["名前", "ログインID", ...(isOwner ? ["店"] : []), "役職", "会計", "顧客", "シフト*", "バック†", "状態"].map((h) => (
-                  <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
+        {/* 段L2: テーブル→名簿行＋権限チップ（モック .srow/.perms/.perm）。
+            ★出す情報は現行と完全に同一＝名前(自分)・ログインID・店(owner)・役職・4権限・在籍状態。
+              権限は can_view_backs も含めて4つとも出す（列を落とさない）。
+            ★トグルは既存 toggleFlag → set_staff_perms をそのまま呼ぶ＝送る引数も経路も不変。
+              staff 以外は役職で固定＝チップを押せない（現行の「固定」表示と同義）。
+            ★アバターは共通部品を使うが写真は無い＝段P の写真は cast_id 由来のキャスト専用で、
+              スタッフ（users）の写真は現スキーマに存在しない。頭文字フォールバックのまま。 */}
+        {mems.map((m) => {
+          const u = users[m.user_id];
+          const dim = !m.is_active;
+          return (
+            <div key={m.id} className="nox-srow2" onClick={() => openEdit(m)}
+              style={{ cursor: "pointer", opacity: dim ? 0.55 : 1, background: sel?.id === m.id ? "var(--card2)" : "transparent" }}>
+              <CastAvatar name={u?.name ?? ""} size={34} />
+              <div style={{ minWidth: 0 }}>
+                <div className="nm">
+                  {u?.name ?? "—"}
+                  {isSelf(m) && <span style={{ ...t.sub, marginLeft: 5 }}>(自分)</span>}
+                  <span style={{ ...rolePillMini(m.role), marginLeft: 6 }}>{t.roleLabelJa(m.role)}</span>
+                  <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: m.is_active ? "var(--ok)" : "var(--bad)" }}>
+                    {m.is_active ? "在籍" : "解除"}
+                  </span>
+                </div>
+                <div className="role">
+                  {u?.email ?? "—"}{isOwner ? ` / ${storeName(m.store_id)}` : ""}
+                </div>
+              </div>
+              <div className="nox-perms" onClick={(e) => e.stopPropagation()}>
+                {PERM_DEFS.map(([k, label]) => (
+                  <button
+                    key={k} type="button"
+                    className={`nox-perm ${m[k] ? "on" : ""}`}
+                    disabled={m.role !== "staff" || busy || !m.is_active}
+                    title={m.role !== "staff" ? "オーナー/店長は役職で権限固定（フラグ対象外）" : `${label}権限を切り替え`}
+                    onClick={() => void toggleFlag(m, k)}
+                  >
+                    {label}
+                  </button>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {mems.map((m) => {
-                const u = users[m.user_id];
-                const dim = !m.is_active;
-                return (
-                  <tr key={m.id} onClick={() => openEdit(m)}
-                    style={{ borderBottom: "1px solid var(--line)", cursor: "pointer", opacity: dim ? 0.55 : 1, background: sel?.id === m.id ? "var(--card2)" : "transparent" }}>
-                    <td style={{ padding: 6, fontWeight: 700, whiteSpace: "nowrap" }}>
-                      {/* 段G: 頭文字アバター（既存 name の1文字＋name 由来の色のみ・新情報なし・装飾） */}
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                        <span className="nox-ava" style={{ background: t.avatarBg(u?.name ?? ""), width: 28, height: 28, fontSize: 13 }} aria-hidden="true">{t.avatarInitial(u?.name ?? "")}</span>
-                        <span>{u?.name ?? "—"}{isSelf(m) && <span style={{ ...t.sub, marginLeft: 5 }}>(自分)</span>}</span>
-                      </span>
-                    </td>
-                    <td style={{ padding: 6, color: "var(--sub)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u?.email ?? "—"}</td>
-                    {isOwner && <td style={{ padding: 6, whiteSpace: "nowrap" }}>{storeName(m.store_id)}</td>}
-                    <td style={{ padding: 6 }}><span style={rolePillMini(m.role)}>{t.roleLabelJa(m.role)}</span></td>
-                    {(["can_register", "can_crm", "can_shift", "can_view_backs"] as const).map((k) => (
-                      <td key={k} style={{ padding: 6, textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
-                        {m.role === "staff" ? (
-                          <input type="checkbox" checked={m[k]} disabled={busy || !m.is_active}
-                            onChange={() => void toggleFlag(m, k)} style={{ accentColor: "#C9A24A", cursor: "pointer" }} />
-                        ) : (
-                          <span style={t.sub} title="オーナー/店長は役職で権限固定（フラグ対象外）">固定</span>
-                        )}
-                      </td>
-                    ))}
-                    <td style={{ padding: 6, color: m.is_active ? "var(--ok)" : "var(--bad)", whiteSpace: "nowrap" }}>
-                      {m.is_active ? "在籍" : "解除"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                {m.role !== "staff" && <span style={{ ...t.sub, fontSize: 10, alignSelf: "center" }}>固定</span>}
+              </div>
+            </div>
+          );
+        })}
         <p style={{ ...t.sub, margin: "8px 0 0" }}>* シフト権限のシフト管理画面への適用は将来リリース（トグルは保存されます）。</p>
         <p style={{ ...t.sub, margin: "3px 0 0" }}>† バック＝キャストのバック金額（報酬）の閲覧権限。会計権限とは独立です（既定オフ・必要な黒服のみ付与）。</p>
       </section>

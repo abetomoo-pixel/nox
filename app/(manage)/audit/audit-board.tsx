@@ -33,6 +33,15 @@ function diffKeys(before: Record<string, unknown> | null, after: Record<string, 
 
 const fmtAt = (iso: string) => iso.replace("T", " ").slice(0, 19);
 
+// 段L2: 「操作系統」＝action 名の接頭辞による client 側の分類だけ（DB にカテゴリ列は無い・作らない）。
+//   どれにも当たらない action は「その他」に入る＝取りこぼしても行が消えないようにする。
+const KIND_DEFS: Array<[string, string, RegExp]> = [
+  ["check", "会計系", /^(check_|drink_claim|receivable_|reservation_)/],
+  ["payroll", "給与系", /^(payroll_|payslip|advance_|transport_)/],
+  ["master", "設定系", /^(set_|store_|product_|seat_|notice_|staff_|cast_|trial_|kiosk_|stock_)/],
+];
+const kindOf = (action: string): string => KIND_DEFS.find(([, , re]) => re.test(action))?.[0] ?? "other";
+
 export default function AuditBoard({ users, stores }: {
   users: { id: string; name: string }[]; stores: { id: string; name: string }[];
 }) {
@@ -41,6 +50,11 @@ export default function AuditBoard({ users, stores }: {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [actionFilter, setActionFilter] = useState("");
+  // 段L2: 読み取り専用ビューの絞り込み（モック .atool）。★すべて client 側の絞り込みで、
+  //   取得クエリ（range / order / action eq）は現行のまま＝RLS も owner/manager ゲートも非改変。
+  const [kindFilter, setKindFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
+  const [targetQ, setTargetQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
 
   const load = useCallback(async (p: number, action: string) => {
@@ -62,6 +76,12 @@ export default function AuditBoard({ users, stores }: {
   const storeName = (id: string | null) => (id && stores.find((s) => s.id === id)?.name) ?? "—";
   // フィルタ候補は表示中ページの action から（専用マスタを持たない＝軽く）
   const actions = [...new Set(logs.map((l) => l.action))].sort();
+  // 段L2: 表示行の絞り込み（取得済み logs に対してのみ＝情報量は現行と同一・増えも減りもしない）
+  const shown = logs.filter((l) =>
+    (kindFilter === "" || kindOf(l.action) === kindFilter) &&
+    (dateFilter === "" || l.at.slice(0, 10) === dateFilter) &&
+    (targetQ.trim() === "" || (l.target ?? "").toLowerCase().includes(targetQ.trim().toLowerCase())),
+  );
 
   return (
     <div style={{ maxWidth: 860 }}>
@@ -77,20 +97,42 @@ export default function AuditBoard({ users, stores }: {
             {actions.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
+        {/* 段L2: 操作系統／日付／対象 の絞り込み（モック .atool）。★client 側のみ＝取得も権限も現行のまま。 */}
+        <div className="nox-atool">
+          <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}
+            style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12 }}>
+            <option value="">すべての操作</option>
+            {KIND_DEFS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            <option value="other">その他</option>
+          </select>
+          <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
+            aria-label="日付で絞り込み" style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12 }} />
+          <input value={targetQ} onChange={(e) => setTargetQ(e.target.value)} placeholder="対象で絞り込み"
+            style={{ ...t.input, width: 180, padding: "6px 9px", fontSize: 12 }} />
+          {(kindFilter || dateFilter || targetQ) && (
+            <button style={{ ...t.btnGhost, ...t.btnSm }}
+              onClick={() => { setKindFilter(""); setDateFilter(""); setTargetQ(""); }}>絞り込み解除</button>
+          )}
+        </div>
 
-        {logs.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>履歴はありません。</p>}
-        {logs.map((l) => {
+        {logs.length === 0 && <p style={{ fontSize: 13, color: "var(--v2-muted)" }}>履歴はありません。</p>}
+        {logs.length > 0 && shown.length === 0 && (
+          <p style={{ fontSize: 13, color: "var(--v2-muted)" }}>この絞り込みに該当する履歴はありません（このページ内）。</p>
+        )}
+        {/* 段L2: 行を .nox-arow へ整理。★出す情報は現行と完全に同一
+            （日時・action・対象・操作者・新規/変更項目数、開くと 店舗/IP と before→after 差分）。 */}
+        {shown.map((l) => {
           const diffs = diffKeys(l.before_json, l.after_json);
           const isOpen = open === l.id;
           return (
-            <div key={l.id} style={{ borderBottom: "1px solid var(--line)", padding: "7px 0", fontSize: 12.5 }}>
-              <div style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}
+            <div key={l.id} style={{ borderBottom: "1px solid var(--v2-line)", padding: "7px 0", fontSize: 12.5 }}>
+              <div className="nox-arow" style={{ cursor: "pointer", border: 0, padding: 0 }}
                 onClick={() => setOpen(isOpen ? null : l.id)}>
-                <span style={{ ...t.num, color: "var(--sub)", width: 138 }}>{fmtAt(l.at)}</span>
-                <span style={{ fontWeight: 700, width: 170 }}>{l.action}</span>
-                <span style={{ color: "var(--sub)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.target}</span>
-                <span style={{ width: 110 }}>{userName(l.actor_user_id)}</span>
-                <span style={{ color: l.before_json === null ? "var(--ok)" : "var(--champ)", fontSize: 11.5, fontWeight: 700 }}>
+                <span className="tm num">{fmtAt(l.at)}</span>
+                <span className="act">{l.action}</span>
+                <span className="tgt" style={{ flex: 1 }}>{l.target}</span>
+                <span style={{ flex: "0 0 96px", color: "var(--v2-text)" }}>{userName(l.actor_user_id)}</span>
+                <span style={{ color: l.before_json === null ? "var(--ok)" : "var(--gold2)", fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap" }}>
                   {l.before_json === null ? "新規" : `変更 ${diffs.length}項目`}
                 </span>
               </div>
