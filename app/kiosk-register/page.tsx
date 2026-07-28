@@ -810,19 +810,22 @@ export default function KioskRegisterPage() {
                 {/* 明細 */}
                 <div className="nox-cardtop" style={card}>
                   <h3 style={t.cardTitle}>明細</h3>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  {/* 段K2: 明細行の余白と字をモック .line（padding 9px・font-size 14px）に合わせる＝
+                      タブレットで指が当たりやすく読みやすい。★kiosk のこのテーブルだけ（register 側は不変）。
+                      列も値の出し方も削除ボタンの挙動も1文字も変えていない。 */}
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                     <tbody>
                       {lines.map((l) => {
                         const isDisc = l.kind === "discount"; // 承認割引（責任者画面で適用されたもの＝表示のみ）
                         return (
-                          <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                            <td style={{ padding: 6, color: "var(--sub)" }}>[{l.pay_group}]</td>
-                            <td style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>{l.name_snapshot}</td>
-                            <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>{isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}`}</td>
-                            <td style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
+                          <tr key={l.id} style={{ borderBottom: "1px solid var(--v2-line)" }}>
+                            <td style={{ padding: "9px 6px", color: "var(--v2-muted)" }}>[{l.pay_group}]</td>
+                            <td style={{ padding: "9px 6px", color: isDisc ? "var(--bad)" : "var(--v2-text)" }}>{l.name_snapshot}</td>
+                            <td style={{ ...t.num, padding: "9px 6px", textAlign: "right", color: "var(--v2-muted)" }}>{isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}`}</td>
+                            <td style={{ ...t.num, padding: "9px 6px", textAlign: "right", color: isDisc ? "var(--bad)" : "var(--v2-text)" }}>
                               {isDisc ? `−${yen(l.line_total)}` : yen(l.line_total)}
                             </td>
-                            <td style={{ padding: 6 }}>
+                            <td style={{ padding: "9px 6px" }}>
                               {isDisc ? (
                                 <span style={{ fontSize: 11, color: "var(--sub)" }}>承認割引</span>
                               ) : (
