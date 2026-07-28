@@ -71,7 +71,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const [msg, setMsg] = useState<string | null>(null);
   // ── UI刷新v2 段S-1: サブナビ（今日/カレンダー/シフト作成）・表示月・選択日 ──
   //   すべて presentation（どの範囲を読むか・どこを見せるか）＝RPC/RLS/mig 非改変。
-  const [tab, setTab] = useState<"today" | "calendar" | "build">("today");
+  // 段0R その3: タブ5本（モック .subnav 逐語）。収容は S-1 指示どおり＝
+  //   today=出勤板 / calendar=月カレンダー+日詳細 / build=確定シフト登録+必要人数 /
+   // queue=希望の審査（承認待ち・件数バッジ） / roster=確定シフト一覧
+  const [tab, setTab] = useState<"today" | "calendar" | "build" | "queue" | "roster">("today");
   const [month, setMonth] = useState(bizToday.slice(0, 7)); // 'YYYY-MM'
   const [selDate, setSelDate] = useState(bizToday);
   // B-5②: 営業時間マスタ（行なし=未設定・判定なし。cast 0行だが本画面は staff 以上のみ到達）
@@ -299,8 +302,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
       {/* 段S-1 サブナビ（今日／カレンダー／シフト作成）＝ページ内の収容先を切り替えるだけ。
           ルート・URL・権限ゲートは不変。 */}
       <nav className="nox-subnav">
-        {([["today", "今日"], ["calendar", "カレンダー"], ["build", "シフト作成"]] as const).map(([k, label]) => (
-          <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{label}</button>
+        {([["today", "今日"], ["calendar", "カレンダー"], ["build", "シフト作成"],
+           ["queue", "承認待ち"], ["roster", "確定シフト"]] as const).map(([k, label]) => (
+          <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
+            {label}
+            {k === "queue" && wishes.length > 0 && (
+              <span className="nox-tabcnt num">{wishes.length}</span>
+            )}
+          </button>
         ))}
       </nav>
 
@@ -343,8 +352,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
       {tab === "today" && isManagerUp && <IncentivePanel storeId={storeId} />}
 
       {/* ── タブ「カレンダー」＝月カレンダー＋日詳細 ── */}
+      {/* 段0R その3: >900 はカレンダーと日詳細を横並び（モックの2カラム）・≤900 は縦積み。 */}
       {tab === "calendar" && (
-        <>
+        <div className="nox-2col">
           <section className="nox-cardtop" style={card}>
             <div className="nox-calhead">
               <button style={btnLight} onClick={() => shiftMonth(-1)} aria-label="前の月">‹</button>
@@ -364,6 +374,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   <button key={ymd} className={cls} onClick={() => setSelDate(ymd)}
                     title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/予定${st.planned}）`}>
                     <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
+                    {/* 段0R その3: 状態バッジ文字（モック .st ok/warn/ng/none 逐語）。色だけでなく語で伝える。 */}
+                    <span className={`nox-caldst ${st.fill}`}>{FILL_LABEL[st.fill]}</span>
                     {st.required > 0 && <span className="nox-cald-c num">{st.assigned}/{st.required}</span>}
                     {/* 段S-2: 日別の予想人件費（manager 以上・割当のある日のみ）。
                         ★≤641 は CSS で非表示＝スマホは色＋コマ数のみ・詳細は日をタップして日詳細で見る。
@@ -375,11 +387,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 );
               })}
             </div>
-            <div className="nox-callegend">
-              <span><i style={{ borderColor: "rgba(127,199,155,.5)" }} />充足</span>
-              <span><i style={{ borderColor: "rgba(201,162,74,.55)" }} />やや不足(-1)</span>
-              <span><i style={{ borderColor: "rgba(217,138,138,.55)" }} />不足(-2以上)</span>
-              <span><i />未設定</span>
+            {/* 段0R その3: 凡例＝色ドット（モック .legend/.dot 逐語）。枠線ではなく塗りで示す。 */}
+            <div className="nox-legend" style={{ marginTop: 10 }}>
+              <span><span className="nox-dot ok" />充足</span>
+              <span><span className="nox-dot warn" />やや不足(-1)</span>
+              <span><span className="nox-dot ng" />不足(-2以上)</span>
+              <span><span className="nox-dot none" />未設定</span>
             </div>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
               セル＝状態色＋確定/必要人数。必要人数は「シフト作成」タブの「必要人数（曜日別）」設定を参照します。
@@ -412,6 +425,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 この日の割当はありません。「シフト作成」タブの確定シフト登録から追加できます。
               </p>
             )}
+            {/* 段0R その3: 追加導線＝選択日を登録フォームへプリセットして「シフト作成」タブへ送るだけ。
+                ★新しい登録 UI は作らない（送る RPC も引数も既存の確定シフト登録のまま）。 */}
+            {isManagerUp && (
+              <button className="nox-addc" onClick={() => { setFDate(selDate); setTab("build"); }}>
+                ＋ キャストを追加
+              </button>
+            )}
             {bands.map((b) => (
               <div key={b.key} className="nox-band">
                 <div className="nox-bandh">
@@ -429,12 +449,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               </div>
             ))}
           </section>
-        </>
+        </div>
       )}
 
-      {/* ── タブ「シフト作成」＝承認待ち・確定シフト登録・必要人数 ── */}
-      {tab === "build" && (
-      <>
+      {/* ── タブ「承認待ち」＝希望の審査（段0R その3 でタブを独立させた・中身と RPC は不変）── */}
+      {tab === "queue" && (
       <section className="nox-cardtop" style={card}>
         <h2 style={secTitle}>希望（審査待ち）</h2>
         {wishes.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>なし</p>}
@@ -464,7 +483,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           );
         })}
       </section>
+      )}
 
+      {/* ── タブ「確定シフト」＝登録フォーム＋今後の一覧（段0R その3 でタブを独立させた・中身と RPC は不変）── */}
+      {(tab === "build" || tab === "roster") && (
+      <>
       <section className="nox-cardtop" style={card}>
         <h2 style={secTitle}>確定シフト（今後）</h2>
         {isManagerUp && (
