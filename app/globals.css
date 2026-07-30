@@ -531,10 +531,13 @@ body {
 .nox-kiosk .nox-seat .nm { font-size: 17px; }
 .nox-kiosk .nox-tile { min-height: 66px; padding: 13px 11px; border-radius: 12px; }
 .nox-kiosk .nox-tile-name { font-size: 13px; }
-/* planB モック逐語（kiosk scope 限定＝register の .nox-backbtn / .nox-cat は不変）:
-   戻るボタンとカテゴリチップも一回り大（backbar の卓名/滞在/合計サイズは register 逐語を維持） */
+/* planB モック逐語（kiosk scope 限定＝register の .nox-backbtn / .nox-cat / .nox-backbar は不変）:
+   戻るボタン・カテゴリチップ・backbar 文字（卓名17/滞在12/合計26・.total small の 12px は共通のまま）を一回り大 */
 .nox-kiosk .nox-backbtn { padding: 12px 20px; font-size: 14px; border-radius: 10px; }
 .nox-kiosk .nox-cat { padding: 6px 15px; font-size: 13px; }
+.nox-kiosk .nox-backbar .t { font-size: 17px; }
+.nox-kiosk .nox-backbar .stay { font-size: 12px; }
+.nox-kiosk .nox-backbar .total { font-size: 26px; }
 
 /* ── UI刷新v2 段C2（キャスト刷新）── presentation-only 2026-07-28 ──
    正本＝nox-casts-redesign-mock-v1.html。テーブル→カードグリッド化＋詳細3タブ。
