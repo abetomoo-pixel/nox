@@ -15,8 +15,7 @@ type Log = {
 };
 
 const PAGE = 50;
-const card: React.CSSProperties = t.card;
-const secTitle: React.CSSProperties = t.cardTitle;
+// 段0R 第3陣: 器は共通クラス nox-panel・見出しは nox-panel > h3（白）へ統一＝card/secTitle は撤去。
 
 // 変更キーの抽出（値の JSON 表現が異なるキーのみ・順序は after 側→before 固有の順）
 function diffKeys(before: Record<string, unknown> | null, after: Record<string, unknown> | null): Array<[string, string, string]> {
@@ -85,18 +84,26 @@ export default function AuditBoard({ users, stores }: {
 
   return (
     <div>
-      <h1 style={t.pheadH1}>操作履歴（不正防止）</h1>
-      <p style={t.pheadP}>金額・杯数の承認/修正・締め・マスタ変更などの操作が記録されます（追記専用・編集不可）</p>
+      {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
+      <div className="nox-hero">
+        <div>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>操作履歴</h1>
+          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
+            金額・杯数の承認/修正・締め・マスタ変更などの操作が記録されます（追記専用・編集不可）。
+          </p>
+        </div>
+      </div>
 
-      <section className="nox-cardtop" style={{ ...card, marginTop: 13 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
-          <h2 style={{ ...secTitle, margin: 0 }}>履歴</h2>
+      <section className="nox-panel">
+        <h3>
+          履歴
           <select value={actionFilter} onChange={(e) => { setPage(0); setActionFilter(e.target.value); }}
-            style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12, marginLeft: "auto" }}>
+            aria-label="action で絞り込み"
+            style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12, marginLeft: "auto", fontWeight: 400 }}>
             <option value="">全 action</option>
             {actions.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
-        </div>
+        </h3>
         {/* 段L2: 操作系統／日付／対象 の絞り込み（モック .atool）。★client 側のみ＝取得も権限も現行のまま。 */}
         <div className="nox-atool">
           <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}
