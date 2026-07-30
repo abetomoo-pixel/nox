@@ -31,11 +31,10 @@ function rpcErrJa(msg: string | undefined): string {
   return msg;
 }
 
-const card: React.CSSProperties = t.card;
+// 段0R 第3陣: 器は共通クラス nox-panel・見出しは nox-panel > h3（白）へ統一＝card/secTitle は撤去。
 const input: React.CSSProperties = { ...t.input, fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = t.cardTitle;
 const chkLabel: React.CSSProperties = { ...t.fieldLabel, display: "flex", alignItems: "center", gap: 5, cursor: "pointer" };
 
 export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) {
@@ -119,15 +118,20 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
 
   return (
     <div>
-      <div style={{ margin: "2px 0 14px" }}>
-        <h1 style={t.pheadH1}>お知らせ</h1>
-        <p style={t.pheadP}>店舗の連絡ボード（{isManagerUp ? "投稿・編集可" : "閲覧のみ"}）</p>
+      {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
+      <div className="nox-hero">
+        <div>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>お知らせ</h1>
+          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
+            店舗の連絡ボード（{isManagerUp ? "投稿・編集可" : "閲覧のみ"}）
+          </p>
+        </div>
       </div>
       <Toast msg={msg} />
 
       {isManagerUp && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>お知らせを投稿</h2>
+        <section className="nox-panel">
+          <h3>お知らせを投稿</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="件名（80字まで）" maxLength={80} style={input} />
             <textarea value={fBody} onChange={(e) => setFBody(e.target.value)} placeholder="本文（4000字まで）" maxLength={4000} rows={3}
@@ -154,8 +158,8 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
         </section>
       )}
 
-      <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>お知らせ一覧</h2>
+      <section className="nox-panel">
+        <h3>お知らせ一覧</h3>
         {rows.length === 0 && <p style={{ fontSize: 13, color: "var(--v2-muted)" }}>お知らせはありません。</p>}
         {rows.map((n) => editId === n.id ? (
           <div key={n.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
