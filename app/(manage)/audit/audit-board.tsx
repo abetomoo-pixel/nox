@@ -100,7 +100,9 @@ export default function AuditBoard({ users, stores }: {
           <select value={actionFilter} onChange={(e) => { setPage(0); setActionFilter(e.target.value); }}
             aria-label="action で絞り込み"
             style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12, marginLeft: "auto", fontWeight: 400 }}>
-            <option value="">全 action</option>
+            {/* 段0R 第3陣: 文言のみ＝下の「操作系統」セレクトと役割を見分けられるようにする
+                （こちらは取得クエリ側＝個別 action 名で DB から絞る。state も経路も不変）。 */}
+            <option value="">action で絞り込み</option>
             {actions.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </h3>
@@ -108,7 +110,9 @@ export default function AuditBoard({ users, stores }: {
         <div className="nox-atool">
           <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}
             style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12 }}>
-            <option value="">すべての操作</option>
+            {/* 段0R 第3陣: 文言のみ＝上の action セレクトとの違い（適用範囲）を明記。
+                こちらは取得済みページに対する client 側の系統絞り込み（判定も経路も不変）。 */}
+            <option value="">操作系統（表示中のページ）</option>
             {KIND_DEFS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             <option value="other">その他</option>
           </select>
