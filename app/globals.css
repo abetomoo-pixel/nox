@@ -1095,7 +1095,18 @@ body {
 /* ── UI刷新v2R 第1陣: /register の planA 残差分（presentation-only）── */
 /* planA .main＝フロア＋伝票の2カラム（>900 で 1fr 380px・≤900 は縦積み） */
 .nox-regmain { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
-@media (min-width: 900px) { .nox-regmain { grid-template-columns: minmax(0, 1fr) 380px; } }
+@media (min-width: 900px) {
+  /* ★2列目は「伝票を開いているときだけ」作る（.withdetail）＝伝票が無いのに 380px を確保すると
+     フロアが残り幅までしか伸びず右に空白が残る（kiosk の nox-kmain と同じ是正）。 */
+  .nox-regmain.withdetail { grid-template-columns: minmax(0, 1fr) 380px; }
+  /* ★既定はフル幅＝承認キュー・レシート印刷カードのような「フロアでも伝票でもない子」が
+     1列目に入ってフロアを 380px 側へ押し出すのを防ぐ（列は下の2本だけが受け持つ）。 */
+  .nox-regmain.withdetail > * { grid-column: 1 / -1; }
+  .nox-regmain.withdetail > .nox-regfloor { grid-column: 1; }
+  /* min-width 0＝旧 flex 時代の .nox-detailwrap { min-width: 480px } が 380px 列を 100px 超過して
+     右へはみ出していたのを是正（実測 480px / 列 380px）。kiosk の nox-kmain と同じ扱い。 */
+  .nox-regmain.withdetail > .nox-detailwrap { grid-column: 2; min-width: 0; }
+}
 /* planA .cats/.cat＝カテゴリチップ（金は選択状態のみ＝3役①） */
 .nox-cats { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .nox-cat {

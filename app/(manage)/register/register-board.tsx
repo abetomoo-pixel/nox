@@ -586,8 +586,11 @@ export default function RegisterBoard({
         <ReservationPanel storeId={storeId} seats={seats} casts={casts} />
       ) : (
     /* 段0R 第1陣: planA .main＝フロアと伝票の2カラム grid（>900 で 1fr 380px・≤900 は縦積み）。
-       ★flex+min-width から grid へ変えただけで、伝票シート（≤900 の nox-detailwrap）の挙動は不変。 */
-    <div className="nox-regmain">
+       ★flex+min-width から grid へ変えただけで、伝票シート（≤900 の nox-detailwrap）の挙動は不変。
+       ★withdetail＝伝票を開いているときだけ2列にする（開いていないときに 380px 列を確保すると
+         フロアが残り幅までしか伸びず右に空白を残す）。列を受け持つのは nox-regfloor と
+         nox-detailwrap の2つだけで、承認キュー等の他の子は CSS 既定でフル幅になる。表示条件のみ。 */
+    <div className={check ? "nox-regmain withdetail" : "nox-regmain"}>
       {/* F3f: ドリンク申告の承認キュー（pending 0 件 or 権限なしなら自身で非表示＝RLS 任せ） */}
       <DrinkClaimQueue />
       {/* F4b: 会計クローズ後のレシート印刷カード（printer_enabled の店のみ表示＝fail-closed） */}
@@ -619,7 +622,9 @@ export default function RegisterBoard({
       {/* 卓一覧（段R2: 縦積みリスト → タイルグリッド。正本 planA の .seats/.seat）。
           ★onClick は openSeat のまま＝押したときの挙動は1文字も変えていない。
           追加表示は 会計金額（checks.total）と 着卓キャスト顔（check_nominations）＝どちらも既存可視面。 */}
-      <section className="nox-cardtop" style={{ ...card, flex: "1 1 320px", minWidth: 280 }}>
+      {/* nox-regfloor＝2カラム時に1列目を受け持つマーカー。旧 flex 時代の flex/minWidth 指定は
+          grid では死んでいる（幅は列が決める）ので撤去＝段0R その5「幅は親が決める」と同型。 */}
+      <section className="nox-cardtop nox-regfloor" style={card}>
         <h2 style={{ ...t.cardTitle, display: "flex", alignItems: "center", gap: 8 }}>
           卓
           <span style={{ fontSize: 11.5, fontWeight: 400, color: "var(--v2-muted)" }}>
