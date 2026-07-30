@@ -574,8 +574,10 @@ export default function KioskRegisterPage() {
 
         {phase === "register" && (
           /* 段0R 第3陣: モック .main＝フロア 1fr＋伝票 400px の2カラム grid（nox-kmain）。
-             ★flex+min-width からの載せ替えのみで、≤900 の伝票ボトムシート（nox-detailwrap）の挙動は不変。 */
-          <div className="nox-kmain">
+             ★flex+min-width からの載せ替えのみで、≤900 の伝票ボトムシート（nox-detailwrap）の挙動は不変。
+             ★withdetail＝伝票を開いているときだけ2列にする（開いていないときに 400px 列を確保すると
+               フロアが残り幅までしか伸びず右に空白を残す＝d728d79 の不発を是正）。表示条件のみ。 */
+          <div className={detail ? "nox-kmain withdetail" : "nox-kmain"}>
             {printCard && (
               <section className="nox-cardtop" style={{ ...card, width: "100%", gridColumn: "1 / -1" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

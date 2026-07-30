@@ -562,12 +562,13 @@ body {
 .nox-khead .mode { font-size: 11px; color: var(--v2-muted); }
 .nox-khead .op { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
 /* モック .main＝フロア 1fr＋伝票 400px の2カラム（≤900 は縦積み・伝票はボトムシートのまま）。
-   register の .nox-regmain と同型・幅だけモック逐語の 400px。 */
+   ★2列目は「伝票を開いているときだけ」作る（.withdetail）＝伝票が無いのに 400px を確保すると
+     フロアが 1fr＝残り幅までしか伸びず、右に空白を残して痩せて見える（d728d79 の不発原因）。 */
 .nox-kmain { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
 @media (min-width: 900px) {
-  .nox-kmain { grid-template-columns: minmax(0, 1fr) 400px; }
+  .nox-kmain.withdetail { grid-template-columns: minmax(0, 1fr) 400px; }
   /* 旧 flex 時代の min-width 480px は 400px 列で溢れるため kiosk 側だけ解除（register 非影響） */
-  .nox-kmain > .nox-detailwrap { min-width: 0; }
+  .nox-kmain.withdetail > .nox-detailwrap { min-width: 0; }
 }
 /* モック .payrow＝伝票下部の大ボタン2列（締める＝主ボタン金・閉じる＝ghost） */
 .nox-payrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
