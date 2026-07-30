@@ -34,7 +34,7 @@ type Bottle = { id: string; product_id: string | null; status: string; opened_at
 type CustRow = { id: string; name: string; furigana: string | null; birthday: string | null; memo: string | null };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
-const secTitle: React.CSSProperties = t.cardTitle;
+// 段0R 第2陣: 見出しは nox-panel > h3（白）と nox-hero h1 に寄せたので t.cardTitle 由来の secTitle は撤去。
 const input: React.CSSProperties = { ...t.input, padding: "8px 10px", fontSize: 13 };
 const segBtn = (on: boolean): React.CSSProperties => ({
   ...t.btnGhost, ...t.btnSm,
@@ -193,51 +193,101 @@ export default function CustomersBoard({
 
   return (
     <div>
-      <div style={{ margin: "2px 0 14px" }}>
-        <h1 style={t.pheadH1}>顧客</h1>
-        <p style={t.pheadP}>来店状況と離反リスク（60日/30日）</p>
+      {/* 段0R 第2陣: モック .head を新シェルの nox-hero へ（/master・/home・/casts と同基準） */}
+      <div className="nox-hero">
+        <div>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>顧客</h1>
+          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
+            来店状況と離反リスク（60日/30日）。行を選ぶと右に詳細（ボトルキープ・来店履歴・メモ）が開きます。
+          </p>
+        </div>
       </div>
 
       {/* 段U2: KPI 帯＝すべて customer_list_summary の再掲（新規集計ゼロ）。
           顧客数＝取得行数／今月来店＝last_visit が今月の人数／離反リスク高＝churn_tier='high'／
-          ボトルキープ中＝active_bottles の合計（RPC の definer 集計値をそのまま足すだけ）。 */}
-      <div className="nox-kpirow">
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">顧客数</div>
-          <div className="nox-kpi2-v num">{rows.length}<small>人</small></div>
-          <div className="nox-kpi2-s">{incDormant ? "休眠を含む" : "休眠を除く"}</div>
+          ボトルキープ中＝active_bottles の合計（RPC の definer 集計値をそのまま足すだけ）。
+          段0R 第2陣: S-1 由来の nox-kpirow/nox-kpi2 から aaa 基準の共通骨格 nox-kpis/nox-kpi へ
+          載せ替え（lbl/val/sub のモック逐語構造）。★材料も式も4枚の内容も一切変えていない。 */}
+      <div className="nox-kpis">
+        <div className="nox-kpi">
+          <div className="lbl">顧客数</div>
+          <div className="val num">{rows.length}<small>人</small></div>
+          <div className="sub">{incDormant ? "休眠を含む" : "休眠を除く"}</div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">今月来店</div>
-          <div className="nox-kpi2-v num">{monthVisited}<small>人</small></div>
-          <div className="nox-kpi2-s">最終来店が今月</div>
+        <div className="nox-kpi">
+          <div className="lbl">今月来店</div>
+          <div className="val num">{monthVisited}<small>人</small></div>
+          <div className="sub">最終来店が今月</div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">離反リスク高（60日〜）</div>
-          <div className="nox-kpi2-v num">{highCount}<small>人</small></div>
-          <div className="nox-kpi2-s">中（30日〜） {midCount}人</div>
+        {/* モック .kpi.warn＝離反リスク高だけ数値を赤（--bad）。金は選択・主ボタン・バッジの3役のみ。 */}
+        <div className="nox-kpi warn">
+          <div className="lbl">離反リスク高（60日〜）</div>
+          <div className="val num">{highCount}<small>人</small></div>
+          <div className="sub">中（30日〜） {midCount}人</div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">ボトルキープ中</div>
-          <div className="nox-kpi2-v num">{bottleTotal}<small>本</small></div>
-          <div className="nox-kpi2-s">未開栓の合計</div>
+        <div className="nox-kpi">
+          <div className="lbl">ボトルキープ中</div>
+          <div className="val num">{bottleTotal}<small>本</small></div>
+          <div className="sub">未開栓の合計</div>
         </div>
       </div>
 
-      <section className="nox-cardtop" style={t.card}>
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 11 }}>
-          <h2 style={{ ...secTitle, margin: 0 }}>顧客一覧</h2>
-          <button
-            style={{ ...(addOpen ? t.btnGhost : t.btnGold), ...t.btnSm, marginLeft: "auto" }}
-            onClick={() => (addOpen ? setAddOpen(false) : openAdd())}
-          >
-            {addOpen ? "閉じる" : "＋客を追加"}
-          </button>
+      {/* 段0R 第2陣: モック .toolbar＝検索＋セグメント＋右端の顧客登録を1行に（/casts と同じ nox-ctoolbar）。
+          ★従来は「顧客一覧」見出し行の追加ボタン／セグメント／検索が縦に散っていたのを並べ替えただけで、
+            送る RPC も引数も出し分け条件も1文字も変えていない。 */}
+      <div className="nox-ctoolbar">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="名前・ふりがなで検索"
+          aria-label="名前・ふりがなで検索"
+          style={{ ...input, width: 220 }}
+        />
+        {/* 段U2: すべて/離反リスク/新規/リピート（モック .seg）。
+            ★離反の判定は RPC の churn_tier をそのまま使う＝アプリ側で再判定しない（現行方針）。 */}
+        <div className="nox-seg">
+          {([["all", `すべて（${rows.length}）`], ["risk", `離反リスク（${highCount + midCount}）`],
+             ["new", "新規"], ["repeat", "リピート"]] as const).map(([k, label]) => (
+            <button key={k} className={tier === k ? "on" : ""} onClick={() => setTier(k)}>{label}</button>
+          ))}
         </div>
-        {msg && <p style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes("失敗") ? "var(--bad)" : "var(--ok)", margin: "0 0 8px" }}>{msg}</p>}
+        {isOwner && stores.length > 1 && (
+          <select value={storeSel} onChange={(e) => setStoreSel(e.target.value)} aria-label="店舗" style={{ ...input, width: 150 }}>
+            <option value="">全店</option>
+            {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        )}
+        <button
+          style={{ ...(addOpen ? t.btnGhost : t.btnGold), ...t.btnSm, marginLeft: "auto" }}
+          onClick={() => (addOpen ? setAddOpen(false) : openAdd())}
+        >
+          {addOpen ? "閉じる" : "＋ 顧客登録"}
+        </button>
+      </div>
 
-        {addOpen && (
-          <div style={{ display: "grid", gap: 10, marginBottom: 14, padding: "11px 12px", background: "var(--bg2)", borderRadius: 12, border: "1px solid var(--line2)" }}>
+      {/* B-3: 休眠込み＋掘り起こし順＝モックには無いが現行機能なので残置（cast には出さない＝canDormant） */}
+      {canDormant && (
+        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, cursor: "pointer" }}>
+            <input type="checkbox" checked={incDormant} onChange={(e) => setIncDormant(e.target.checked)} />
+            休眠客を含む
+          </label>
+          {incDormant && (
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              <button style={segBtn(!sortOldest)} onClick={() => setSortOldest(false)}>新しい順</button>
+              <button style={segBtn(sortOldest)} onClick={() => setSortOldest(true)}>掘り起こし順（来店が古い順）</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {msg && <p style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes("失敗") ? "var(--bad)" : "var(--ok)", margin: "0 0 8px" }}>{msg}</p>}
+
+      {/* 登録フォーム＝トグルで独立パネル（/casts と同型）。★送る RPC customer_register も引数も不変。 */}
+      {addOpen && (
+        <section className="nox-panel">
+          <h3>顧客登録</h3>
+          <div style={{ display: "grid", gap: 10 }}>
             {isOwner && stores.length > 1 && (
               <div>
                 <label style={t.fieldLabel}>店舗</label>
@@ -279,53 +329,18 @@ export default function CustomersBoard({
               {busy ? "登録中…" : "登録する"}
             </button>
           </div>
-        )}
+        </section>
+      )}
 
-        {isOwner && stores.length > 1 && (
-          <div style={{ marginBottom: 10 }}>
-            <select value={storeSel} onChange={(e) => setStoreSel(e.target.value)} style={{ ...input, width: "100%" }}>
-              <option value="">全店</option>
-              {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-        )}
+      {err && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{err}</p>}
 
-        {/* 段U2: すべて/離反リスク/新規/リピート（モック .seg）。
-            ★離反の判定は RPC の churn_tier をそのまま使う＝アプリ側で再判定しない（現行方針）。 */}
-        <div className="nox-seg" style={{ marginBottom: 10, width: "fit-content" }}>
-          {([["all", `すべて（${rows.length}）`], ["risk", `離反リスク（${highCount + midCount}）`],
-             ["new", "新規"], ["repeat", "リピート"]] as const).map(([k, label]) => (
-            <button key={k} className={tier === k ? "on" : ""} onClick={() => setTier(k)}>{label}</button>
-          ))}
-        </div>
-        {canDormant && (
-          <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, cursor: "pointer" }}>
-              <input type="checkbox" checked={incDormant} onChange={(e) => setIncDormant(e.target.checked)} />
-              休眠客を含む
-            </label>
-            {incDormant && (
-              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                <button style={segBtn(!sortOldest)} onClick={() => setSortOldest(false)}>新しい順</button>
-                <button style={segBtn(sortOldest)} onClick={() => setSortOldest(true)}>掘り起こし順（来店が古い順）</button>
-              </div>
-            )}
-          </div>
-        )}
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="名前・ふりがなで検索"
-          style={{ ...input, width: "100%", marginBottom: 4 }}
-        />
-
-        {err && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{err}</p>}
-        {!err && display.length === 0 && <p style={{ fontSize: 13, color: "var(--v2-muted)" }}>該当する顧客がいません</p>}
-
-        {/* 段U2: リスト＋右詳細の2ペイン（>900）。≤900 は CSS で1カラム＝詳細はリストの下に続けて出る。
-            ★行タップは「右詳細を開く」に変わったが、編集・担当割当は従来どおり /customers/[id]（導線を残す）。 */}
-        <div className="nox-2pane">
-          <div>
+      {/* 段U2: リスト＋右詳細の2ペイン（>900）。≤900 は CSS で1カラム＝詳細はリストの下に続けて出る。
+          ★行タップは「右詳細を開く」に変わったが、編集・担当割当は従来どおり /customers/[id]（導線を残す）。
+          段0R 第2陣: モックどおり .list と .detail をそれぞれ独立カード（nox-panel）にし、
+          2ペインを1枚の大カードの中に入れる従来の入れ子をやめた（器だけの変更）。 */}
+      <div className="nox-2pane">
+        <div className="nox-panel">
+            {!err && display.length === 0 && <p style={{ fontSize: 13, color: "var(--v2-muted)", margin: 0 }}>該当する顧客がいません</p>}
             {display.map((r) => (
               <button
                 key={r.customer_id}
@@ -362,9 +377,10 @@ export default function CustomersBoard({
             </p>
           </div>
 
-          {/* 右詳細＝3stat／ボトルキープ／来店履歴／メモ（すべて既存データ・編集は [id] へ） */}
+          {/* 右詳細＝3stat／ボトルキープ／来店履歴／メモ（すべて既存データ・編集は [id] へ）。
+              段0R 第2陣: 器を inline t.card から共通クラス nox-panel へ（背景だけ card2 を維持）。 */}
           {selRow && (
-            <div style={{ ...t.card, marginBottom: 0, background: "var(--card2)" }}>
+            <div className="nox-panel" style={{ marginBottom: 0, background: "var(--card2)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CastAvatar name={selRow.name} size={44} />
                 <div style={{ minWidth: 0 }}>
@@ -427,8 +443,7 @@ export default function CustomersBoard({
               </Link>
             </div>
           )}
-        </div>
-      </section>
+      </div>
     </div>
   );
 }
