@@ -585,12 +585,437 @@ export default function RegisterBoard({
       {tab === "reserve" && showReserve ? (
         <ReservationPanel storeId={storeId} seats={seats} casts={casts} />
       ) : (
-    /* 段0R 第1陣: planA .main＝フロアと伝票の2カラム grid（>900 で 1fr 380px・≤900 は縦積み）。
-       ★flex+min-width から grid へ変えただけで、伝票シート（≤900 の nox-detailwrap）の挙動は不変。
-       ★withdetail＝伝票を開いているときだけ2列にする（開いていないときに 380px 列を確保すると
-         フロアが残り幅までしか伸びず右に空白を残す）。列を受け持つのは nox-regfloor と
-         nox-detailwrap の2つだけで、承認キュー等の他の子は CSS 既定でフル幅になる。表示条件のみ。 */
-    <div className={check ? "nox-regmain withdetail" : "nox-regmain"}>
+    /* 動線改修v3（案B・選択駆動ビュー切替）: 正本 nox-register-mock-planB-viewswitch.html。
+       ★state は既存の check 1本のみ＝URL 遷移なし・伝票 state も連打束ね 700ms も会計 RPC も不変。
+       未選択＝フロア全幅／選択＝伝票全面（フロアは描画しない）＝2列を常時確保しない（v2R の grid 教訓）。 */
+    <div className="nox-regmain">
+      {check ? (
+      /* ── 伝票ビュー（全面）── */
+      <div className="nox-checkview">
+        {/* backbar（sticky）＝「← フロア」は既存 closeDetail の再利用（新規ロジックなし）＋卓名・滞在・合計 */}
+        <div className="nox-backbar">
+          <button type="button" className="nox-backbtn" onClick={() => void closeDetail()}>← フロア</button>
+          <span className="t">{seats.find((s) => s.id === check.seat_id)?.name}</span>
+          <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{NOM_LABEL[check.nom_type]}</span>
+          {check.status === "open" && (
+            <span className="stay">滞在 <span className="num">{elapsedMin(check.started_at, nowMs)}</span> 分</span>
+          )}
+          <span className="total num"><small>合計</small>{yen(check.total)}</span>
+          {/* void は manager 以上のみ表示（RPC 側でも owner/manager を強制＝二重） */}
+          {isManagerUp && (
+            <button onClick={voidCheck} style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)" }}>
+              取消
+            </button>
+          )}
+        </div>
+
+        {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。 */}
+        <div className="nox-dtabs">
+          {([["order", "注文"], ["nom", "指名・席"], ["pay", "会計"]] as const).map(([k, label]) => (
+            <button key={k} type="button" className={dtab === k ? "on" : ""} onClick={() => setDtab(k)}>{label}</button>
+          ))}
+        </div>
+
+        {/* planB .checkcols＝左 1.4fr（操作）／右 1fr（明細・会計）。★各カードの dtab 条件は 1文字も変えていない。
+            指名・席タブは右カラムに出るカードが無いため split を付けない＝空列を作らない（v2R の grid 教訓）。 */}
+        <div className={dtab === "nom" ? "nox-checkcols" : "nox-checkcols split"}>
+          <div>
+        {dtab === "nom" && (<>
+        <div className="nox-cardtop" style={card}>
+          <h3 style={t.cardTitle}>指名（重み比で分配）</h3>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <select value={nomType} onChange={(e) => setNomType(e.target.value)} style={input}>
+              <option value="hon">本指名</option>
+              <option value="jonai">場内</option>
+              <option value="dohan">同伴</option>
+              <option value="free">フリー</option>
+            </select>
+            {/* 段B: cast チップ化（タップで選択トグル・重みは選択時のみ inline input＝データ形 nomWeights は不変） */}
+            {casts.map((ca) => {
+              const w = nomWeights[ca.id] ?? 0;
+              const on = w > 0;
+              return (
+                <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <button
+                    type="button"
+                    className={on ? "nox-chip on" : "nox-chip"}
+                    onClick={() => setNomWeights((prev) => ({ ...prev, [ca.id]: on ? 0 : 1 }))}
+                  >
+                    {/* 段P/R2: チップのアバターを写真に（写真なしは頭文字）。押下時の挙動は不変。 */}
+                    <CastAvatar name={ca.name} url={photoUrls.get(ca.id)} variant="flat" size={22} />
+                    {ca.name}
+                  </button>
+                  {on && nomType !== "free" && (
+                    <input
+                      type="number" min={1} value={w} aria-label={`${ca.name} 重み`}
+                      onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
+                      style={{ ...input, width: 46, padding: "6px 6px" }}
+                    />
+                  )}
+                </span>
+              );
+            })}
+            <button onClick={saveNoms} style={btnDark}>保存</button>
+          </div>
+        </div>
+
+        {/* B1/B2: 席（相席・席移動）＝open 伝票のみ。候補は同店の空席（主open/追加占有を除外）。
+            予約 soft 警告つき（裁定 d・拒否しない）。エラーは seatErrJa で日本語表示（握り潰さない）。 */}
+        {check.status === "open" && (() => {
+          const emptySeats = seats.filter((s) => s.store_id === check.store_id && !openMap[s.id] && !addMap[s.id]);
+          return (
+            <div className="nox-cardtop" style={card}>
+              <h3 style={t.cardTitle}>席</h3>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: "var(--sub)" }}>現在</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)" }}>
+                  {seats.find((s) => s.id === check.seat_id)?.name ?? "—"}
+                  <span style={{ fontSize: 11, color: "var(--sub)", fontWeight: 400 }}> （主席）</span>
+                </span>
+                {checkSeats.map((cs) => (
+                  <span key={cs.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--ink)" }}>
+                    ＋{seats.find((s) => s.id === cs.seat_id)?.name ?? "他卓"}（同一会計）
+                    <button onClick={() => removeSeat(cs.seat_id)} title="相席を解除"
+                      style={{ ...btnLight, padding: "1px 7px", fontSize: 12, color: "var(--bad)", borderColor: "var(--bad)" }}>×</button>
+                  </span>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <select value="" onChange={(e) => { if (e.target.value) void addSeat(e.target.value); }} style={{ ...input, maxWidth: 200 }}>
+                  <option value="">相席（同一会計）に席を追加</option>
+                  {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
+                </select>
+                <select value="" onChange={(e) => { if (e.target.value) void moveSeat(e.target.value); }} style={{ ...input, maxWidth: 200 }}>
+                  <option value="">席移動（移動先を選択）</option>
+                  {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
+                </select>
+              </div>
+              {seatMsg && <p style={{ fontSize: 12, fontWeight: 700, color: seatMsg.includes("できません") || seatMsg.includes("使用中") || seatMsg.includes("無効") || seatMsg.includes("同じ席") ? "var(--bad)" : "var(--sub)", margin: "8px 0 0" }}>{seatMsg}</p>}
+            </div>
+          );
+        })()}
+        </>)}
+
+        {/* ── 会計タブ（段R2）＝時間料金・カスタム明細・割引/承認・会計を集約 ── */}
+        {/* B4: 時間制（自動）カード＝stores.time_mode='auto' かつ open 伝票のときのみ。
+            裁定(f): ボタン起点のみ（自動 apply しない）。内訳は checks スナップ5列＋返値 jsonb。 */}
+        {dtab === "pay" && timeMode === "auto" && check.status === "open" && (
+          <div className="nox-cardtop" style={card}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（自動）</h3>
+              <span style={{ fontSize: 12, color: "var(--sub)" }}>
+                経過 <span style={t.num}>{Math.max(0, Math.floor((nowMs - new Date(check.started_at).getTime()) / 60000))}</span> 分
+                （着席 {new Date(check.started_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）
+              </span>
+            </div>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0", lineHeight: 1.7 }}>
+              セット <span style={t.num}>{yen(check.set_fee)}</span> / {check.set_min}分・
+              延長 <span style={t.num}>{yen(check.ext_fee)}</span> / {check.ext_min}分・
+              単位 {check.time_per === "person" ? "名（人数倍）" : "卓"}
+              <span style={{ display: "block", marginTop: 2 }}>この伝票を開いた時点の料金表で計算します（設定変更は次に開く伝票から）。</span>
+            </p>
+            <button onClick={applyTimeCharge} style={btnDark} disabled={payments.length > 0}
+              title={payments.length > 0 ? "入金後は反映できません（取消で訂正）" : ""}>
+              時間料金を明細へ反映／更新
+            </button>
+            {timeCalc && (
+              <p style={{ fontSize: 12, color: "var(--ink)", margin: "10px 0 0" }}>
+                経過 <span style={t.num}>{timeCalc.elapsed_min}</span> 分・単位 <span style={t.num}>{timeCalc.units}</span>・
+                延長 <span style={t.num}>{timeCalc.blocks}</span> 回 → セット <span style={t.num}>{yen(timeCalc.set_c)}</span>＋
+                延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(timeCalc.total)}</span>
+              </p>
+            )}
+            {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
+          </div>
+        )}
+
+        {/* 明細追加（段R2: 注文タブ。カスタム明細フォームだけは会計タブへ移設） */}
+        {dtab === "order" && (
+        <div className="nox-cardtop" style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+            <h3 style={{ ...t.cardTitle, margin: 0 }}>商品（タップで追加）</h3>
+            <span style={{ fontSize: 12, color: "var(--sub)", marginLeft: "auto" }}>伝票グループ</span>
+            <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} aria-label="伝票グループ" style={{ ...input, width: 40 }} />
+          </div>
+          {/* 純増⑦: カテゴリ別タイル（sort_order 順＋末尾に未分類）。カテゴリ未登録なら type 別へフォールバック。
+              タップ＝連打束ね（700ms・p_qty=N の1行）。バッジ=pre-commit。 */}
+          {/* 段0R 第1陣: planA .cats＝カテゴリチップ。★表示の絞り込みだけで、
+              タップ注文（連打束ね・check_add_line）の挙動と送る引数は1文字も変えていない。
+              「すべて」で全群を出す＝従来の見え方（全カテゴリ縦並び）も残す。 */}
+          {(() => {
+            const gs = groupProducts(products, categories);
+            return gs.length > 1 ? (
+              <div className="nox-cats">
+                <button type="button" className={`nox-cat${catFilter === "" ? " on" : ""}`}
+                  onClick={() => setCatFilter("")}>すべて</button>
+                {gs.map((g) => (
+                  <button key={g.key} type="button" className={`nox-cat${catFilter === g.key ? " on" : ""}`}
+                    onClick={() => setCatFilter(g.key)}>{g.label}</button>
+                ))}
+              </div>
+            ) : null;
+          })()}
+          {groupProducts(products, categories).filter((g) => catFilter === "" || g.key === catFilter).map((g) => {
+            const items = g.items;
+            return (
+              <div key={g.key} style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--sub)", margin: "0 0 6px" }}>{g.label}</div>
+                <div className="nox-tilegrid">
+                  {items.map((p) => {
+                    const n = tb.badgeOf(p.id);
+                    const low = lowStockOf(p);
+                    return (
+                      <button key={p.id} type="button" className="nox-tile" onClick={() => tb.tap(p.id)}>
+                        {n > 0 && <span className="nox-tile-badge">+{n}</span>}
+                        <span className="nox-tile-name">{p.name}</span>
+                        <span className="nox-tile-price">{yen(p.price)}</span>
+                        {/* 段R2: 低在庫「残N」＝Σdelta が reorder_point 以下のときだけ（在庫 v1 の流用・表示のみ）。
+                            ★タップの挙動には一切関与しない（在庫切れでも売れる＝現物の運用を変えない）。 */}
+                        {low != null && <span className="nox-tile-low num">残{low}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {products.length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>商品が未登録です（マスタで登録してください）。</p>}
+        </div>
+        )}
+
+        {/* カスタム明細（kind/名称/価格）＝段R2 で会計タブへ移設（フォームの中身・送る引数は不変） */}
+        {dtab === "pay" && (
+        <div className="nox-cardtop" style={card}>
+          <h3 style={t.cardTitle}>カスタム明細</h3>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <select value={cKind} onChange={(e) => setCKind(e.target.value)} style={input}>
+              <option value="set">セット</option>
+              <option value="time">延長</option>
+              <option value="charge">料金</option>
+              <option value="custom">その他</option>
+            </select>
+            <input placeholder="名称（例 セット60分）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
+            <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
+            <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
+            <input value={cGroup} onChange={(e) => setCGroup(e.target.value)} style={{ ...input, width: 40 }} />
+            <button onClick={addCustomLine} style={btnDark}>追加</button>
+          </div>
+        </div>
+        )}
+
+        {/* 割引・無料（承認ワークフロー・F3c）＝段R2 で会計タブへ */}
+        {dtab === "pay" && (
+        <div className="nox-cardtop" style={card}>
+          <h3 style={t.cardTitle}>
+            割引・無料（{isManagerUp ? "適用・承認" : "申請"}）
+          </h3>
+          {/* 申請（黒服 can_register）／適用（owner/manager 直接）フォーム */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+            <select value={apType} onChange={(e) => setApType(e.target.value as "discount" | "free")} style={input}>
+              <option value="discount">割引</option>
+              <option value="free">無料</option>
+            </select>
+            <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
+            <select value={apGroup} onChange={(e) => setApGroup(e.target.value)} style={{ ...input, width: 60 }}>
+              {(groups.length ? groups : ["A"]).map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+            {apType === "discount" && (
+              <>
+                <input
+                  type="number" min={1} max={apGroupBx || undefined} value={apAmount}
+                  onChange={(e) => setApAmount(Number(e.target.value))} placeholder="割引額"
+                  style={{ ...input, width: 100 }}
+                />
+                <span style={{ fontSize: 11, color: "var(--sub)" }}>上限 {yen(apGroupBx)}</span>
+              </>
+            )}
+            <input
+              value={apReason} onChange={(e) => setApReason(e.target.value)}
+              placeholder="理由（任意）" maxLength={200} style={{ ...input, width: 160 }}
+            />
+            <button
+              onClick={requestOrApply}
+              disabled={apType === "discount" && (apAmount <= 0 || apAmount > apGroupBx)}
+              style={{ ...btnDark, opacity: apType === "discount" && (apAmount <= 0 || apAmount > apGroupBx) ? 0.4 : 1 }}
+            >
+              {isManagerUp ? "適用" : "申請"}
+            </button>
+          </div>
+          {/* この伝票の申請一覧（pending は owner/manager が承認/却下・staff は閲覧のみ） */}
+          {approvals.length === 0
+            ? <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>申請はありません。</p>
+            : approvals.map((a) => (
+                <div key={a.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderTop: "1px solid var(--line)", fontSize: 12.5 }}>
+                  <span style={{ color: "var(--sub)" }}>[{a.pay_group}]</span>
+                  <span style={{ color: "var(--ink)" }}>{a.type === "free" ? "無料" : "割引"} <span style={t.num}>{yen(a.amount)}</span></span>
+                  {a.reason && <span style={{ color: "var(--sub)" }}>（{a.reason}）</span>}
+                  <span style={{ marginLeft: "auto", fontWeight: 700, color: AP_STATUS_COLOR[a.status] ?? "var(--sub)" }}>
+                    {AP_STATUS_LABEL[a.status] ?? a.status}
+                  </span>
+                  {a.status === "pending" && isManagerUp && (
+                    <span style={{ display: "flex", gap: 6 }}>
+                      <button style={btnDark} onClick={() => decide(a.id, true)}>承認</button>
+                      <button style={btnLight} onClick={() => decide(a.id, false)}>却下</button>
+                    </span>
+                  )}
+                </div>
+              ))}
+        </div>
+        )}
+
+          </div>
+          <div>
+        {/* 明細（段R2: 注文タブ＝タップの結果をその場で確認する） */}
+        {dtab === "order" && (
+        <div className="nox-cardtop" style={card}>
+          <h3 style={t.cardTitle}>明細</h3>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <tbody>
+              {lines.map((l) => {
+                const isDisc = l.kind === "discount"; // ★F3c: 承認割引（正の値・表示は −・削除不可＝承認経由のみ）
+                return (
+                  <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: 6, color: "var(--sub)" }}>[{l.pay_group}]</td>
+                    <td style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>{l.name_snapshot}</td>
+                    <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>{isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}`}</td>
+                    <td style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
+                      {isDisc ? `−${yen(l.line_total)}` : yen(l.line_total)}
+                    </td>
+                    <td style={{ padding: 6 }}>
+                      {isDisc ? (
+                        <span style={{ fontSize: 11, color: "var(--sub)" }}>承認割引</span>
+                      ) : (
+                        <button
+                          onClick={() => removeLine(l.id)}
+                          disabled={payments.length > 0}
+                          title={payments.length > 0 ? "入金後の訂正は取消（void）で" : ""}
+                          style={{ ...btnLight, padding: "2px 8px", fontSize: 12 }}
+                        >
+                          削除
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {/* 段0R 第1陣: planA .sumrow＝明細の下に伝票サマリ。★表示のみ。
+              値は会計タブの「会計（伝票グループ別）」と同一の groupInfo（小計 bx・割引 disc・
+              請求 due＝groupDue）を group 横断で合計しただけで、新しい計算ロジックは作っていない。
+              合計行（.total）は白太 22px＝planA の見出し扱い。会計タブのテーブルは従来どおり残置。 */}
+          <div className="nox-sumrow"><span>小計</span><span className="num">{yen(sumBx)}</span></div>
+          <div className="nox-sumrow">
+            <span>割引</span>
+            <span className="num" style={sumDisc > 0 ? { color: "var(--bad)" } : undefined}>
+              {sumDisc > 0 ? `−${yen(sumDisc)}` : "—"}
+            </span>
+          </div>
+          <div className="nox-sumrow total"><span>合計（請求・サ料込）</span><span className="num">{yen(sumDue)}</span></div>
+        </div>
+        )}
+
+        {/* 会計（段R2: 会計タブ） */}
+        {dtab === "pay" && (
+        <div className="nox-cardtop" style={card}>
+          <h3 style={t.cardTitle}>会計（伝票グループ別）</h3>
+          <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
+            <thead>
+              <tr>
+                <th style={t.th}>伝票</th>
+                <th style={t.th}>小計</th>
+                <th style={t.th}>割引</th>
+                <th style={t.th}>請求（サ料込）</th>
+                <th style={t.th}>入金済</th>
+                <th style={t.th}>残額</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groupInfo.map((gi) => (
+                <tr key={gi.g}>
+                  <td style={t.td}>{gi.g}</td>
+                  <td style={{ ...t.td, ...t.num }}>{yen(gi.bx)}</td>
+                  <td style={{ ...t.td, ...t.num, color: gi.disc > 0 ? "var(--bad)" : "var(--sub)" }}>{gi.disc > 0 ? `−${yen(gi.disc)}` : "—"}</td>
+                  <td style={{ ...t.td, ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(gi.due)}</td>
+                  <td style={{ ...t.td, ...t.num }}>{yen(gi.paid)}</td>
+                  <td style={{ ...t.td, ...t.num, color: gi.remaining > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(gi.remaining)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
+            <input value={payGroup} onChange={(e) => setPayGroup(e.target.value)} style={{ ...input, width: 40 }} />
+            <select
+              value={payMethod}
+              onChange={(e) => { setPayMethod(e.target.value); if (!DETAIL_METHODS.has(e.target.value)) setPayDetail(""); }}
+              style={input}
+            >
+              {Object.entries(METHOD_LABEL).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+            <input
+              type="number" min={1} value={payAmount}
+              onChange={(e) => setPayAmount(Number(e.target.value))}
+              style={{ ...input, width: 110 }}
+            />
+            {payMethod === "cash" && (
+              <input
+                placeholder="お預かり" value={payTendered}
+                onChange={(e) => setPayTendered(e.target.value)}
+                style={{ ...input, width: 100 }}
+              />
+            )}
+            {/* F4c: 手段内訳（任意・端末名やQR事業者名の控え＝突合用メモ。金額・集計には一切影響しない） */}
+            {DETAIL_METHODS.has(payMethod) && (
+              <input
+                placeholder="内訳（任意）例: stera端末 / PayPay"
+                value={payDetail} maxLength={50}
+                onChange={(e) => setPayDetail(e.target.value)}
+                style={{ ...input, width: 200 }}
+              />
+            )}
+            <button onClick={pay} style={btnDark}>入金</button>
+          </div>
+          {/* ★台帳 #37（裁定 2026-07-17）: void 伝票の payments は無印（status 列を持たない）＝
+              日次集計は checks.status='closed' の join で自動除外・端末側の返金で端末日計も減るため突合は成立する。 */}
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            {payments.map((p) => (
+              <span key={p.id} style={{ ...t.num, fontSize: 12, color: "var(--sub)" }}>
+                [{p.pay_group}] {METHOD_LABEL[p.method]}{p.method_detail ? `（${p.method_detail}）` : ""} {yen(p.amount)}
+                {p.tendered != null ? `（預 ${yen(p.tendered)}・釣 ${yen(p.tendered - p.amount)}）` : ""}
+              </span>
+            ))}
+          </div>
+          {/* B4 裁定(f): close フローの促し注記のみ（自動実行しない）。auto かつ open のときだけ表示。 */}
+          {timeMode === "auto" && check.status === "open" && (
+            <p style={{ fontSize: 11.5, color: "var(--gold2)", margin: "10px 0 0", lineHeight: 1.6 }}>
+              時間制（自動）の店です。時間料金が未反映または古い可能性があります。
+              必要なら上の「時間料金を明細へ反映／更新」を押してから会計してください。
+            </p>
+          )}
+          {/* 動線改修v3: モック .payrow＝主ボタン＋戻るの2列（≤641 で下部 sticky・safe-area 対応）。
+              ★会計完了はハンドラも充足判定による disabled も文言も1文字も変えていない。
+                「← フロア」は backbar と同じ既存 closeDetail の再利用（新規ロジックなし）。 */}
+          <div className="nox-payrow">
+          <button
+            onClick={closeCheck}
+            disabled={!allCovered}
+            style={{ ...btnDark, padding: "13px 28px", opacity: allCovered ? 1 : 0.4 }}
+          >
+            会計完了（close）
+          </button>
+          <button type="button" className="nox-backbtn" onClick={() => void closeDetail()}>← フロア</button>
+          </div>
+        </div>
+        )}
+          </div>
+        </div>
+      </div>
+      ) : (
+      /* ── フロアビュー（全幅）＝承認キュー・レシート印刷・卓・ボトルキープはこちらに残置 ── */
+      <>
       {/* F3f: ドリンク申告の承認キュー（pending 0 件 or 権限なしなら自身で非表示＝RLS 任せ） */}
       <DrinkClaimQueue />
       {/* F4b: 会計クローズ後のレシート印刷カード（printer_enabled の店のみ表示＝fail-closed） */}
@@ -636,11 +1061,13 @@ export default function RegisterBoard({
             const cid = openMap[s.id];
             const busy = !!(cid || addMap[s.id]);
             const heads = cid ? (openNoms[cid] ?? []) : [];
+            // 動線改修v3: 選択中ハイライト sel は撤去＝伝票を開くとフロア自体を描画しないため
+            //   構造的に true になり得ない（TS も check を null に絞る）。モックも .seat:hover のみ。
             return (
               <button
                 key={s.id}
                 onClick={() => openSeat(s)}
-                className={["nox-seat", busy ? "busy" : "", check?.seat_id === s.id ? "sel" : ""].filter(Boolean).join(" ")}
+                className={["nox-seat", busy ? "busy" : ""].filter(Boolean).join(" ")}
               >
                 <div className="nm">{s.name}</div>
                 <div className="kind">{s.kind ?? " "}</div>
@@ -671,433 +1098,11 @@ export default function RegisterBoard({
         </div>
         {msg && <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "10px 0 0" }}>{msg}</p>}
       </section>
-
-      {/* 伝票（≤900px はボトムシート＝段A nox-sheet-up 流用／>900px は現行 inline を 1px 不変で維持） */}
-      {check && (
-        <>
-        <div className="nox-detail-backdrop" onClick={() => void closeDetail()} aria-hidden="true" />
-        <div className="nox-detailwrap">
-          <div className="nox-detail-handle" aria-hidden="true" />
-          <section>
-          <div className="nox-cardtop" style={card}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              {/* 段R2 可読性（案A・ガイド §1）: 見出しと合計は「読む情報」＝白。金は選択・主ボタン・バッジの3役のみ。 */}
-              <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--v2-text)", margin: 0 }}>
-                伝票（{seats.find((s) => s.id === check.seat_id)?.name}）
-              </h2>
-              <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{NOM_LABEL[check.nom_type]}</span>
-              {check.status === "open" && (
-                <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>滞在 <span className="num">{elapsedMin(check.started_at, nowMs)}</span> 分</span>
-              )}
-              {/* ガイド §1-5「最重要数値は 20〜24px」＝合計は 24px 白太（planA の .dh .total 逐語） */}
-              <span className="nox-dtotal num"><small>合計</small>{yen(check.total)}</span>
-              {/* void は manager 以上のみ表示（RPC 側でも owner/manager を強制＝二重） */}
-              {isManagerUp && (
-                <button onClick={voidCheck} style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)" }}>
-                  取消
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* 段R2: 3タブ（planA .dtabs）。★収容先を変えるだけでカードの中身は不変。
-              注文＝商品タイル＋明細／指名・席＝指名＋席／会計＝時間料金・カスタム明細・割引承認・会計。 */}
-          <div className="nox-dtabs">
-            {([["order", "注文"], ["nom", "指名・席"], ["pay", "会計"]] as const).map(([k, label]) => (
-              <button key={k} type="button" className={dtab === k ? "on" : ""} onClick={() => setDtab(k)}>{label}</button>
-            ))}
-          </div>
-
-          {/* 指名 */}
-          {dtab === "nom" && (<>
-          <div className="nox-cardtop" style={card}>
-            <h3 style={t.cardTitle}>指名（重み比で分配）</h3>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <select value={nomType} onChange={(e) => setNomType(e.target.value)} style={input}>
-                <option value="hon">本指名</option>
-                <option value="jonai">場内</option>
-                <option value="dohan">同伴</option>
-                <option value="free">フリー</option>
-              </select>
-              {/* 段B: cast チップ化（タップで選択トグル・重みは選択時のみ inline input＝データ形 nomWeights は不変） */}
-              {casts.map((ca) => {
-                const w = nomWeights[ca.id] ?? 0;
-                const on = w > 0;
-                return (
-                  <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <button
-                      type="button"
-                      className={on ? "nox-chip on" : "nox-chip"}
-                      onClick={() => setNomWeights((prev) => ({ ...prev, [ca.id]: on ? 0 : 1 }))}
-                    >
-                      {/* 段P/R2: チップのアバターを写真に（写真なしは頭文字）。押下時の挙動は不変。 */}
-                      <CastAvatar name={ca.name} url={photoUrls.get(ca.id)} variant="flat" size={22} />
-                      {ca.name}
-                    </button>
-                    {on && nomType !== "free" && (
-                      <input
-                        type="number" min={1} value={w} aria-label={`${ca.name} 重み`}
-                        onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
-                        style={{ ...input, width: 46, padding: "6px 6px" }}
-                      />
-                    )}
-                  </span>
-                );
-              })}
-              <button onClick={saveNoms} style={btnDark}>保存</button>
-            </div>
-          </div>
-
-          {/* B1/B2: 席（相席・席移動）＝open 伝票のみ。候補は同店の空席（主open/追加占有を除外）。
-              予約 soft 警告つき（裁定 d・拒否しない）。エラーは seatErrJa で日本語表示（握り潰さない）。 */}
-          {check.status === "open" && (() => {
-            const emptySeats = seats.filter((s) => s.store_id === check.store_id && !openMap[s.id] && !addMap[s.id]);
-            return (
-              <div className="nox-cardtop" style={card}>
-                <h3 style={t.cardTitle}>席</h3>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, color: "var(--sub)" }}>現在</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)" }}>
-                    {seats.find((s) => s.id === check.seat_id)?.name ?? "—"}
-                    <span style={{ fontSize: 11, color: "var(--sub)", fontWeight: 400 }}> （主席）</span>
-                  </span>
-                  {checkSeats.map((cs) => (
-                    <span key={cs.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--ink)" }}>
-                      ＋{seats.find((s) => s.id === cs.seat_id)?.name ?? "他卓"}（同一会計）
-                      <button onClick={() => removeSeat(cs.seat_id)} title="相席を解除"
-                        style={{ ...btnLight, padding: "1px 7px", fontSize: 12, color: "var(--bad)", borderColor: "var(--bad)" }}>×</button>
-                    </span>
-                  ))}
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <select value="" onChange={(e) => { if (e.target.value) void addSeat(e.target.value); }} style={{ ...input, maxWidth: 200 }}>
-                    <option value="">相席（同一会計）に席を追加</option>
-                    {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
-                  </select>
-                  <select value="" onChange={(e) => { if (e.target.value) void moveSeat(e.target.value); }} style={{ ...input, maxWidth: 200 }}>
-                    <option value="">席移動（移動先を選択）</option>
-                    {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
-                  </select>
-                </div>
-                {seatMsg && <p style={{ fontSize: 12, fontWeight: 700, color: seatMsg.includes("できません") || seatMsg.includes("使用中") || seatMsg.includes("無効") || seatMsg.includes("同じ席") ? "var(--bad)" : "var(--sub)", margin: "8px 0 0" }}>{seatMsg}</p>}
-              </div>
-            );
-          })()}
-          </>)}
-
-          {/* ── 会計タブ（段R2）＝時間料金・カスタム明細・割引/承認・会計を集約 ── */}
-          {/* B4: 時間制（自動）カード＝stores.time_mode='auto' かつ open 伝票のときのみ。
-              裁定(f): ボタン起点のみ（自動 apply しない）。内訳は checks スナップ5列＋返値 jsonb。 */}
-          {dtab === "pay" && timeMode === "auto" && check.status === "open" && (
-            <div className="nox-cardtop" style={card}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（自動）</h3>
-                <span style={{ fontSize: 12, color: "var(--sub)" }}>
-                  経過 <span style={t.num}>{Math.max(0, Math.floor((nowMs - new Date(check.started_at).getTime()) / 60000))}</span> 分
-                  （着席 {new Date(check.started_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）
-                </span>
-              </div>
-              <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0", lineHeight: 1.7 }}>
-                セット <span style={t.num}>{yen(check.set_fee)}</span> / {check.set_min}分・
-                延長 <span style={t.num}>{yen(check.ext_fee)}</span> / {check.ext_min}分・
-                単位 {check.time_per === "person" ? "名（人数倍）" : "卓"}
-                <span style={{ display: "block", marginTop: 2 }}>この伝票を開いた時点の料金表で計算します（設定変更は次に開く伝票から）。</span>
-              </p>
-              <button onClick={applyTimeCharge} style={btnDark} disabled={payments.length > 0}
-                title={payments.length > 0 ? "入金後は反映できません（取消で訂正）" : ""}>
-                時間料金を明細へ反映／更新
-              </button>
-              {timeCalc && (
-                <p style={{ fontSize: 12, color: "var(--ink)", margin: "10px 0 0" }}>
-                  経過 <span style={t.num}>{timeCalc.elapsed_min}</span> 分・単位 <span style={t.num}>{timeCalc.units}</span>・
-                  延長 <span style={t.num}>{timeCalc.blocks}</span> 回 → セット <span style={t.num}>{yen(timeCalc.set_c)}</span>＋
-                  延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(timeCalc.total)}</span>
-                </p>
-              )}
-              {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
-            </div>
-          )}
-
-          {/* 明細追加（段R2: 注文タブ。カスタム明細フォームだけは会計タブへ移設） */}
-          {dtab === "order" && (
-          <div className="nox-cardtop" style={card}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-              <h3 style={{ ...t.cardTitle, margin: 0 }}>商品（タップで追加）</h3>
-              <span style={{ fontSize: 12, color: "var(--sub)", marginLeft: "auto" }}>伝票グループ</span>
-              <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} aria-label="伝票グループ" style={{ ...input, width: 40 }} />
-            </div>
-            {/* 純増⑦: カテゴリ別タイル（sort_order 順＋末尾に未分類）。カテゴリ未登録なら type 別へフォールバック。
-                タップ＝連打束ね（700ms・p_qty=N の1行）。バッジ=pre-commit。 */}
-            {/* 段0R 第1陣: planA .cats＝カテゴリチップ。★表示の絞り込みだけで、
-                タップ注文（連打束ね・check_add_line）の挙動と送る引数は1文字も変えていない。
-                「すべて」で全群を出す＝従来の見え方（全カテゴリ縦並び）も残す。 */}
-            {(() => {
-              const gs = groupProducts(products, categories);
-              return gs.length > 1 ? (
-                <div className="nox-cats">
-                  <button type="button" className={`nox-cat${catFilter === "" ? " on" : ""}`}
-                    onClick={() => setCatFilter("")}>すべて</button>
-                  {gs.map((g) => (
-                    <button key={g.key} type="button" className={`nox-cat${catFilter === g.key ? " on" : ""}`}
-                      onClick={() => setCatFilter(g.key)}>{g.label}</button>
-                  ))}
-                </div>
-              ) : null;
-            })()}
-            {groupProducts(products, categories).filter((g) => catFilter === "" || g.key === catFilter).map((g) => {
-              const items = g.items;
-              return (
-                <div key={g.key} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--sub)", margin: "0 0 6px" }}>{g.label}</div>
-                  <div className="nox-tilegrid">
-                    {items.map((p) => {
-                      const n = tb.badgeOf(p.id);
-                      const low = lowStockOf(p);
-                      return (
-                        <button key={p.id} type="button" className="nox-tile" onClick={() => tb.tap(p.id)}>
-                          {n > 0 && <span className="nox-tile-badge">+{n}</span>}
-                          <span className="nox-tile-name">{p.name}</span>
-                          <span className="nox-tile-price">{yen(p.price)}</span>
-                          {/* 段R2: 低在庫「残N」＝Σdelta が reorder_point 以下のときだけ（在庫 v1 の流用・表示のみ）。
-                              ★タップの挙動には一切関与しない（在庫切れでも売れる＝現物の運用を変えない）。 */}
-                          {low != null && <span className="nox-tile-low num">残{low}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-            {products.length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>商品が未登録です（マスタで登録してください）。</p>}
-          </div>
-          )}
-
-          {/* 明細（段R2: 注文タブ＝タップの結果をその場で確認する） */}
-          {dtab === "order" && (
-          <div className="nox-cardtop" style={card}>
-            <h3 style={t.cardTitle}>明細</h3>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <tbody>
-                {lines.map((l) => {
-                  const isDisc = l.kind === "discount"; // ★F3c: 承認割引（正の値・表示は −・削除不可＝承認経由のみ）
-                  return (
-                    <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                      <td style={{ padding: 6, color: "var(--sub)" }}>[{l.pay_group}]</td>
-                      <td style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>{l.name_snapshot}</td>
-                      <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>{isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}`}</td>
-                      <td style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
-                        {isDisc ? `−${yen(l.line_total)}` : yen(l.line_total)}
-                      </td>
-                      <td style={{ padding: 6 }}>
-                        {isDisc ? (
-                          <span style={{ fontSize: 11, color: "var(--sub)" }}>承認割引</span>
-                        ) : (
-                          <button
-                            onClick={() => removeLine(l.id)}
-                            disabled={payments.length > 0}
-                            title={payments.length > 0 ? "入金後の訂正は取消（void）で" : ""}
-                            style={{ ...btnLight, padding: "2px 8px", fontSize: 12 }}
-                          >
-                            削除
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {/* 段0R 第1陣: planA .sumrow＝明細の下に伝票サマリ。★表示のみ。
-                値は会計タブの「会計（伝票グループ別）」と同一の groupInfo（小計 bx・割引 disc・
-                請求 due＝groupDue）を group 横断で合計しただけで、新しい計算ロジックは作っていない。
-                合計行（.total）は白太 22px＝planA の見出し扱い。会計タブのテーブルは従来どおり残置。 */}
-            <div className="nox-sumrow"><span>小計</span><span className="num">{yen(sumBx)}</span></div>
-            <div className="nox-sumrow">
-              <span>割引</span>
-              <span className="num" style={sumDisc > 0 ? { color: "var(--bad)" } : undefined}>
-                {sumDisc > 0 ? `−${yen(sumDisc)}` : "—"}
-              </span>
-            </div>
-            <div className="nox-sumrow total"><span>合計（請求・サ料込）</span><span className="num">{yen(sumDue)}</span></div>
-          </div>
-          )}
-
-          {/* カスタム明細（kind/名称/価格）＝段R2 で会計タブへ移設（フォームの中身・送る引数は不変） */}
-          {dtab === "pay" && (
-          <div className="nox-cardtop" style={card}>
-            <h3 style={t.cardTitle}>カスタム明細</h3>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <select value={cKind} onChange={(e) => setCKind(e.target.value)} style={input}>
-                <option value="set">セット</option>
-                <option value="time">延長</option>
-                <option value="charge">料金</option>
-                <option value="custom">その他</option>
-              </select>
-              <input placeholder="名称（例 セット60分）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
-              <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
-              <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
-              <input value={cGroup} onChange={(e) => setCGroup(e.target.value)} style={{ ...input, width: 40 }} />
-              <button onClick={addCustomLine} style={btnDark}>追加</button>
-            </div>
-          </div>
-          )}
-
-          {/* 割引・無料（承認ワークフロー・F3c）＝段R2 で会計タブへ */}
-          {dtab === "pay" && (
-          <div className="nox-cardtop" style={card}>
-            <h3 style={t.cardTitle}>
-              割引・無料（{isManagerUp ? "適用・承認" : "申請"}）
-            </h3>
-            {/* 申請（黒服 can_register）／適用（owner/manager 直接）フォーム */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-              <select value={apType} onChange={(e) => setApType(e.target.value as "discount" | "free")} style={input}>
-                <option value="discount">割引</option>
-                <option value="free">無料</option>
-              </select>
-              <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
-              <select value={apGroup} onChange={(e) => setApGroup(e.target.value)} style={{ ...input, width: 60 }}>
-                {(groups.length ? groups : ["A"]).map((g) => <option key={g} value={g}>{g}</option>)}
-              </select>
-              {apType === "discount" && (
-                <>
-                  <input
-                    type="number" min={1} max={apGroupBx || undefined} value={apAmount}
-                    onChange={(e) => setApAmount(Number(e.target.value))} placeholder="割引額"
-                    style={{ ...input, width: 100 }}
-                  />
-                  <span style={{ fontSize: 11, color: "var(--sub)" }}>上限 {yen(apGroupBx)}</span>
-                </>
-              )}
-              <input
-                value={apReason} onChange={(e) => setApReason(e.target.value)}
-                placeholder="理由（任意）" maxLength={200} style={{ ...input, width: 160 }}
-              />
-              <button
-                onClick={requestOrApply}
-                disabled={apType === "discount" && (apAmount <= 0 || apAmount > apGroupBx)}
-                style={{ ...btnDark, opacity: apType === "discount" && (apAmount <= 0 || apAmount > apGroupBx) ? 0.4 : 1 }}
-              >
-                {isManagerUp ? "適用" : "申請"}
-              </button>
-            </div>
-            {/* この伝票の申請一覧（pending は owner/manager が承認/却下・staff は閲覧のみ） */}
-            {approvals.length === 0
-              ? <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>申請はありません。</p>
-              : approvals.map((a) => (
-                  <div key={a.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderTop: "1px solid var(--line)", fontSize: 12.5 }}>
-                    <span style={{ color: "var(--sub)" }}>[{a.pay_group}]</span>
-                    <span style={{ color: "var(--ink)" }}>{a.type === "free" ? "無料" : "割引"} <span style={t.num}>{yen(a.amount)}</span></span>
-                    {a.reason && <span style={{ color: "var(--sub)" }}>（{a.reason}）</span>}
-                    <span style={{ marginLeft: "auto", fontWeight: 700, color: AP_STATUS_COLOR[a.status] ?? "var(--sub)" }}>
-                      {AP_STATUS_LABEL[a.status] ?? a.status}
-                    </span>
-                    {a.status === "pending" && isManagerUp && (
-                      <span style={{ display: "flex", gap: 6 }}>
-                        <button style={btnDark} onClick={() => decide(a.id, true)}>承認</button>
-                        <button style={btnLight} onClick={() => decide(a.id, false)}>却下</button>
-                      </span>
-                    )}
-                  </div>
-                ))}
-          </div>
-          )}
-
-          {/* 会計（段R2: 会計タブ） */}
-          {dtab === "pay" && (
-          <div className="nox-cardtop" style={card}>
-            <h3 style={t.cardTitle}>会計（伝票グループ別）</h3>
-            <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
-              <thead>
-                <tr>
-                  <th style={t.th}>伝票</th>
-                  <th style={t.th}>小計</th>
-                  <th style={t.th}>割引</th>
-                  <th style={t.th}>請求（サ料込）</th>
-                  <th style={t.th}>入金済</th>
-                  <th style={t.th}>残額</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupInfo.map((gi) => (
-                  <tr key={gi.g}>
-                    <td style={t.td}>{gi.g}</td>
-                    <td style={{ ...t.td, ...t.num }}>{yen(gi.bx)}</td>
-                    <td style={{ ...t.td, ...t.num, color: gi.disc > 0 ? "var(--bad)" : "var(--sub)" }}>{gi.disc > 0 ? `−${yen(gi.disc)}` : "—"}</td>
-                    <td style={{ ...t.td, ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(gi.due)}</td>
-                    <td style={{ ...t.td, ...t.num }}>{yen(gi.paid)}</td>
-                    <td style={{ ...t.td, ...t.num, color: gi.remaining > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(gi.remaining)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
-              <input value={payGroup} onChange={(e) => setPayGroup(e.target.value)} style={{ ...input, width: 40 }} />
-              <select
-                value={payMethod}
-                onChange={(e) => { setPayMethod(e.target.value); if (!DETAIL_METHODS.has(e.target.value)) setPayDetail(""); }}
-                style={input}
-              >
-                {Object.entries(METHOD_LABEL).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
-                ))}
-              </select>
-              <input
-                type="number" min={1} value={payAmount}
-                onChange={(e) => setPayAmount(Number(e.target.value))}
-                style={{ ...input, width: 110 }}
-              />
-              {payMethod === "cash" && (
-                <input
-                  placeholder="お預かり" value={payTendered}
-                  onChange={(e) => setPayTendered(e.target.value)}
-                  style={{ ...input, width: 100 }}
-                />
-              )}
-              {/* F4c: 手段内訳（任意・端末名やQR事業者名の控え＝突合用メモ。金額・集計には一切影響しない） */}
-              {DETAIL_METHODS.has(payMethod) && (
-                <input
-                  placeholder="内訳（任意）例: stera端末 / PayPay"
-                  value={payDetail} maxLength={50}
-                  onChange={(e) => setPayDetail(e.target.value)}
-                  style={{ ...input, width: 200 }}
-                />
-              )}
-              <button onClick={pay} style={btnDark}>入金</button>
-            </div>
-            {/* ★台帳 #37（裁定 2026-07-17）: void 伝票の payments は無印（status 列を持たない）＝
-                日次集計は checks.status='closed' の join で自動除外・端末側の返金で端末日計も減るため突合は成立する。 */}
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              {payments.map((p) => (
-                <span key={p.id} style={{ ...t.num, fontSize: 12, color: "var(--sub)" }}>
-                  [{p.pay_group}] {METHOD_LABEL[p.method]}{p.method_detail ? `（${p.method_detail}）` : ""} {yen(p.amount)}
-                  {p.tendered != null ? `（預 ${yen(p.tendered)}・釣 ${yen(p.tendered - p.amount)}）` : ""}
-                </span>
-              ))}
-            </div>
-            {/* B4 裁定(f): close フローの促し注記のみ（自動実行しない）。auto かつ open のときだけ表示。 */}
-            {timeMode === "auto" && check.status === "open" && (
-              <p style={{ fontSize: 11.5, color: "var(--gold2)", margin: "10px 0 0", lineHeight: 1.6 }}>
-                時間制（自動）の店です。時間料金が未反映または古い可能性があります。
-                必要なら上の「時間料金を明細へ反映／更新」を押してから会計してください。
-              </p>
-            )}
-            <button
-              onClick={closeCheck}
-              disabled={!allCovered}
-              style={{ ...btnDark, marginTop: 10, padding: "10px 28px", opacity: allCovered ? 1 : 0.4 }}
-            >
-              会計完了（close）
-            </button>
-          </div>
-          )}
-          </section>
-        </div>
-        </>
-      )}
-      {!check && <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>}
+      <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>
       {/* A2（裁定8）: ボトルキープ登録＝checkout フロー内（NOX8 裁定）。会計タブ末尾の全幅カード */}
       <BottleKeepPanel storeId={storeId} products={products} />
+      </>
+      )}
     </div>
       )}
     </div>

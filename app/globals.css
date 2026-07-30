@@ -1093,19 +1093,45 @@ body {
 .nox-sectitle { font-size: 22px; font-weight: 700; color: var(--ink); margin: 0; }
 
 /* ── UI刷新v2R 第1陣: /register の planA 残差分（presentation-only）── */
-/* planA .main＝フロア＋伝票の2カラム（>900 で 1fr 380px・≤900 は縦積み） */
+/* planA .main の器。★動線改修v3（案B）でフロアと伝票は排他表示になったため2列指定は不要
+   （.withdetail 一式は撤去＝どちらか一方しか子に来ない＝常に1カラムでフル幅）。 */
 .nox-regmain { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
-@media (min-width: 900px) {
-  /* ★2列目は「伝票を開いているときだけ」作る（.withdetail）＝伝票が無いのに 380px を確保すると
-     フロアが残り幅までしか伸びず右に空白が残る（kiosk の nox-kmain と同じ是正）。 */
-  .nox-regmain.withdetail { grid-template-columns: minmax(0, 1fr) 380px; }
-  /* ★既定はフル幅＝承認キュー・レシート印刷カードのような「フロアでも伝票でもない子」が
-     1列目に入ってフロアを 380px 側へ押し出すのを防ぐ（列は下の2本だけが受け持つ）。 */
-  .nox-regmain.withdetail > * { grid-column: 1 / -1; }
-  .nox-regmain.withdetail > .nox-regfloor { grid-column: 1; }
-  /* min-width 0＝旧 flex 時代の .nox-detailwrap { min-width: 480px } が 380px 列を 100px 超過して
-     右へはみ出していたのを是正（実測 480px / 列 380px）。kiosk の nox-kmain と同じ扱い。 */
-  .nox-regmain.withdetail > .nox-detailwrap { grid-column: 2; min-width: 0; }
+
+/* ── 動線改修v3（案B・選択駆動ビュー切替）── 正本 nox-register-mock-planB-viewswitch.html ──
+   質感は planA を完全継承し、変えたのは動線だけ（未選択=フロア全幅／選択=伝票全面）。 */
+.nox-checkview { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+/* 戻る帯＝/master の「← マスタ概要」と同型・sticky で常時見える（モック .backbar 逐語） */
+.nox-backbar {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+  position: sticky; top: 0; background: var(--card); z-index: 5; padding: 4px 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+.nox-backbtn {
+  background: transparent; border: 1px solid var(--line); color: var(--sub);
+  border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; font-family: inherit;
+  flex: 0 0 auto;
+}
+.nox-backbtn:hover { border-color: var(--gold); color: var(--gold); }
+.nox-backbar .t { font-size: 16px; font-weight: 700; color: var(--ink); }
+.nox-backbar .stay { font-size: 11px; color: var(--sub); }
+.nox-backbar .total { margin-left: auto; font-size: 24px; font-weight: 700; color: var(--ink); }
+.nox-backbar .total small { font-size: 12px; color: var(--sub); font-weight: 400; margin-right: 4px; }
+/* モック .checkcols＝左 1.4fr（操作）／右 1fr（明細・会計）。★split が付いたときだけ2列
+   （右カラムに出るカードが無いタブで空列を作らない＝v2R の grid 教訓）。 */
+.nox-checkcols { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+@media (min-width: 900px) { .nox-checkcols.split { grid-template-columns: 1.4fr 1fr; } }
+/* 伝票が幅の全部を使えるので、商品タイルはモックどおり PC 4列（≤900 3列・≤641 2列）。
+   ★scope は .nox-checkview 内のみ＝kiosk の .nox-tilegrid（2/3列）には影響しない。 */
+@media (min-width: 900px) { .nox-checkview .nox-tilegrid { grid-template-columns: repeat(4, 1fr); } }
+/* SP は会計ボタンを下部 sticky（BANZEN /requests 下部固定バーと同思想・safe-area 対応）。
+   ★scope は .nox-checkview 内のみ＝kiosk の .nox-payrow は現状のまま。 */
+@media (max-width: 641px) {
+  .nox-checkview .nox-payrow {
+    position: sticky; bottom: 0; background: var(--card); z-index: 4;
+    margin: 0 -14px -14px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+  }
+  .nox-backbar .total { font-size: 20px; }
 }
 /* planA .cats/.cat＝カテゴリチップ（金は選択状態のみ＝3役①） */
 .nox-cats { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
