@@ -439,10 +439,15 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
               ))}
             </tbody>
           </table>
-          {/* 複数キャスト表の「締め」＝合計行を slipFoot バー化（gold バー・net は slipFootVal tabular）。表本体は t.th/t.td 維持。 */}
-          <div style={t.slipFoot}>
+          {/* 複数キャスト表の「締め」＝合計バー。段0R 第3陣: 金ベタ地＋黒文字（t.slipFoot 共用）をやめ、
+              panel 地＋白太金額へ＝金は選択・主ボタン・バッジの3役のみの裁定に一致。
+              ★合計値と行数の式は不変。t.slipFoot 自体は非改変＝payslip 帳票（ps-foot・
+                print CSS が .ps-foot で反転）側の見た目に影響させない（print 側に slipFoot の参照なしを grep 確認済み）。 */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10,
+                        background: "var(--card2)", border: "1px solid var(--line)", color: "var(--ink)",
+                        borderRadius: 9, padding: "9px 13px", fontWeight: 800 }}>
             <span>合計（{rows.length} 名）</span>
-            <b style={t.slipFootVal}>¥{total.toLocaleString()}</b>
+            <b style={{ ...t.slipFootVal, color: "var(--ink)" }}>¥{total.toLocaleString()}</b>
           </div>
 
           {/* 段3: 確定 */}
