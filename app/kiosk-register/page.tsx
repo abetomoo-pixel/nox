@@ -114,6 +114,8 @@ export default function KioskRegisterPage() {
   const [nomType, setNomType] = useState("hon");
   const [nomWeights, setNomWeights] = useState<Record<string, number>>({});
   const [prodGroup, setProdGroup] = useState("A"); // 段B: タイル追加先の伝票グループ（既定 A）
+  // 段0R 第3陣: カテゴリチップの絞り込み（""=すべて）。register 8c07e5b と同一＝表示のみ・取得も RPC も不変。
+  const [catFilter, setCatFilter] = useState("");
   const [cName, setCName] = useState("");
   const [cPrice, setCPrice] = useState(0);
   const [cKind, setCKind] = useState("set");
@@ -571,9 +573,11 @@ export default function KioskRegisterPage() {
         )}
 
         {phase === "register" && (
-          <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+          /* 段0R 第3陣: モック .main＝フロア 1fr＋伝票 400px の2カラム grid（nox-kmain）。
+             ★flex+min-width からの載せ替えのみで、≤900 の伝票ボトムシート（nox-detailwrap）の挙動は不変。 */
+          <div className="nox-kmain">
             {printCard && (
-              <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
+              <section className="nox-cardtop" style={{ ...card, width: "100%", gridColumn: "1 / -1" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--v2-text)", margin: 0 }}>
                     レシート印刷（伝票 {printCard.checkId.replace(/-/g, "").slice(0, 8)}）
@@ -598,7 +602,7 @@ export default function KioskRegisterPage() {
             )}
 
             {/* 卓一覧（state.checks＝0059。更新ボタン＝操作起点の再読取・自動ポーリングはしない） */}
-            <section className="nox-cardtop" style={{ ...card, flex: "1 1 340px", minWidth: 300 }}>
+            <section className="nox-cardtop" style={card}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <h2 style={{ ...t.cardTitle, margin: 0 }}>卓</h2>
                 <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
@@ -770,7 +774,23 @@ export default function KioskRegisterPage() {
                   </div>
                   {/* 純増⑦: カテゴリ別タイル（0059 v2 の categories・sort_order 順＋末尾に未分類）。
                       カテゴリ未登録なら type 別へフォールバック（register-board と同一ロジック＝共有フック）。 */}
-                  {groupProducts(state?.products ?? [], state?.categories ?? []).map((g) => {
+                  {/* 段0R 第3陣: モック .cats＝カテゴリチップ（register 8c07e5b の写経）。★表示の絞り込みだけで、
+                      タップ注文（連打束ね→行追加 RPC）の挙動と送る引数は1文字も変えていない。
+                      「すべて」で全群を出す＝従来の見え方（全カテゴリ縦並び）も残る。1群以下ならチップを出さない。 */}
+                  {(() => {
+                    const gs = groupProducts(state?.products ?? [], state?.categories ?? []);
+                    return gs.length > 1 ? (
+                      <div className="nox-cats">
+                        <button type="button" className={`nox-cat${catFilter === "" ? " on" : ""}`}
+                          onClick={() => setCatFilter("")}>すべて</button>
+                        {gs.map((g) => (
+                          <button key={g.key} type="button" className={`nox-cat${catFilter === g.key ? " on" : ""}`}
+                            onClick={() => setCatFilter(g.key)}>{g.label}</button>
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+                  {groupProducts(state?.products ?? [], state?.categories ?? []).filter((g) => catFilter === "" || g.key === catFilter).map((g) => {
                     const items = g.items;
                     return (
                       <div key={g.key} style={{ marginBottom: 10 }}>
@@ -911,14 +931,22 @@ export default function KioskRegisterPage() {
                     ))}
                   </div>
                   {detail.check.status === "open" && (
-                    <button
-                      onClick={() => void closeCheck()}
-                      disabled={groups.length === 0 || groupInfo.some((gi) => gi.paid < gi.due)}
-                      style={{ ...t.btnGold, marginTop: 12, padding: "12px 26px", fontSize: 15, fontWeight: 800,
-                               opacity: groups.length === 0 || groupInfo.some((gi) => gi.paid < gi.due) ? 0.4 : 1 }}
-                    >
-                      会計を締める（クローズ）
-                    </button>
+                    /* 段0R 第3陣: モック .payrow＝大ボタン2列。締めるは従来と同一の onClick/disabled/文言のまま
+                       padding をモック 14px へ。閉じるは既存の閉じ関数（≤900 の背景タップと同じ経路）の再利用
+                       ＝保留の連打束ねを flush してから閉じる挙動も同一。 */
+                    <div className="nox-payrow">
+                      <button
+                        onClick={() => void closeCheck()}
+                        disabled={groups.length === 0 || groupInfo.some((gi) => gi.paid < gi.due)}
+                        style={{ ...t.btnGold, padding: 14, fontSize: 15, fontWeight: 800,
+                                 opacity: groups.length === 0 || groupInfo.some((gi) => gi.paid < gi.due) ? 0.4 : 1 }}
+                      >
+                        会計を締める（クローズ）
+                      </button>
+                      <button onClick={() => void closeDetail()} style={{ ...t.btnGhost, padding: 14, fontSize: 15 }}>
+                        閉じる
+                      </button>
+                    </div>
                   )}
                 </div>
                 </section>

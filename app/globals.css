@@ -561,6 +561,16 @@ body {
 .nox-khead .store { font-size: 14px; font-weight: 700; color: var(--v2-text); }
 .nox-khead .mode { font-size: 11px; color: var(--v2-muted); }
 .nox-khead .op { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+/* モック .main＝フロア 1fr＋伝票 400px の2カラム（≤900 は縦積み・伝票はボトムシートのまま）。
+   register の .nox-regmain と同型・幅だけモック逐語の 400px。 */
+.nox-kmain { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
+@media (min-width: 900px) {
+  .nox-kmain { grid-template-columns: minmax(0, 1fr) 400px; }
+  /* 旧 flex 時代の min-width 480px は 400px 列で溢れるため kiosk 側だけ解除（register 非影響） */
+  .nox-kmain > .nox-detailwrap { min-width: 0; }
+}
+/* モック .payrow＝伝票下部の大ボタン2列（締める＝主ボタン金・閉じる＝ghost） */
+.nox-payrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 /* タップ標的拡大: 席は min-height 104px・padding 14px（register の .nox-seat を上書き） */
 .nox-kiosk .nox-seatgrid { gap: 12px; }
 .nox-kiosk .nox-seat { min-height: 104px; padding: 14px; border-radius: 14px; }
