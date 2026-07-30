@@ -164,15 +164,25 @@ export default function StaffBoard({
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-        <h1 style={t.pheadH1}>スタッフ管理</h1>
-        <button style={{ ...btnGold, marginLeft: "auto" }} onClick={openAdd} disabled={busy}>＋ スタッフを追加</button>
+      {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ）。
+          ＋追加ボタンは casts/customers と同じくツールバー行（nox-ctoolbar）の右端へ＝
+          onClick も disabled 条件も文言も1文字も変えていない。 */}
+      <div className="nox-hero">
+        <div>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>スタッフ</h1>
+          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
+            黒服・店長の権限と在籍を管理します（キャストはマスタ側で管理）。
+          </p>
+        </div>
       </div>
-      <p style={t.pheadP}>黒服・店長の権限と在籍を管理します（キャストはマスタ側で管理）。</p>
       <Toast msg={msg} />
 
-      <section className="nox-cardtop" style={{ ...t.card, marginTop: 13 }}>
-        <h2 style={secTitle}>スタッフ一覧（行クリックで編集）</h2>
+      <div className="nox-ctoolbar">
+        <button style={{ ...btnGold, marginLeft: "auto" }} onClick={openAdd} disabled={busy}>＋ スタッフを追加</button>
+      </div>
+
+      <section className="nox-panel">
+        <h3>スタッフ一覧（行クリックで編集）</h3>
         {/* 段L2: テーブル→名簿行＋権限チップ（モック .srow/.perms/.perm）。
             ★出す情報は現行と完全に同一＝名前(自分)・ログインID・店(owner)・役職・4権限・在籍状態。
               権限は can_view_backs も含めて4つとも出す（列を落とさない）。
@@ -223,11 +233,11 @@ export default function StaffBoard({
 
       {/* 編集パネル（Q-1 編集5RPC） */}
       {sel && (
-        <section className="nox-cardtop" style={t.card}>
-          <h2 style={secTitle}>
+        <section className="nox-panel">
+          <h3>
             編集: {users[sel.user_id]?.name ?? "—"}
             <span style={{ ...t.sub, marginLeft: 8 }}>{storeName(sel.store_id)} / {t.roleLabelJa(sel.role)} / {sel.is_active ? "在籍" : "解除"}</span>
-          </h2>
+          </h3>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input placeholder="名前" value={eName} onChange={(e) => setEName(e.target.value)} style={{ ...input, width: 170 }} />
             <button style={btnGold} disabled={busy} onClick={async () => {
