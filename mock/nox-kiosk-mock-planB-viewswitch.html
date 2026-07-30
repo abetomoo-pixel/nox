@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0B0B0F" />
+<title>NOX キオスク 案B 追随（選択駆動ビュー切替）— v3 モック</title>
+<style>
+  /* planA トークン継承・kiosk は register 案B と同構造・タップ標的一回り大 */
+  :root{
+    --bg:#0B0B0F; --panel:#14141B; --panel2:#20202A; --line:#2C2C38;
+    --gold:#C9A24A; --gold-weak:rgba(201,162,74,.14);
+    --green:#7FC79B; --red:#D98A8A;
+    --text:#F2F0EB; --muted:#9C9BA6;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:'Zen Kaku Gothic New','Outfit',sans-serif;font-size:15px}
+  .num{font-family:'Outfit',sans-serif;font-weight:600}
+  .wrap{max-width:1180px;margin:0 auto;padding:14px}
+  .note{font-size:11px;color:var(--muted);margin-bottom:12px}
+  .sect{font-size:12px;color:var(--gold);margin:24px 0 8px;letter-spacing:.06em}
+  .divider{border:none;border-top:1px solid var(--line);margin:20px 0}
+
+  /* khead 操作者バー＝現行のまま（非改変） */
+  .khead{display:flex;align-items:center;gap:12px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:12px}
+  .khead .store{font-size:14px;font-weight:700}
+  .khead .mode{font-size:11px;color:var(--muted)}
+  .op{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px}
+  .pava{width:32px;height:32px;border-radius:50%;background:#2A2A36;color:var(--muted);
+    display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+  .op .sw{font-size:11px;color:var(--muted);border:1px solid var(--line);
+    border-radius:8px;padding:5px 12px;cursor:pointer}
+
+  /* ビュー1: フロア全幅・タップ標的大 */
+  .floorview{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .floorview h3{font-size:13px;margin:0 0 10px;color:var(--muted)}
+  .floorview h3 b{color:var(--text)}
+  .seats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .seat{border:1px solid var(--line);border-radius:14px;padding:16px;min-height:112px;
+    cursor:pointer;background:var(--panel2);position:relative}
+  .seat.busy{border-color:#4A4436;background:#1A1820}
+  .seat .nm{font-size:17px;font-weight:700}
+  .seat .kind{font-size:11px;color:var(--muted)}
+  .seat .stay{font-size:12px;color:var(--muted);margin-top:6px}
+  .seat .amt{position:absolute;right:14px;bottom:12px;font-size:18px;color:var(--text);font-weight:700}
+  .seat .empty{font-size:12px;color:var(--muted);margin-top:18px;opacity:.65}
+
+  /* ビュー2: 伝票全幅 */
+  .checkview{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .backbar{display:flex;align-items:center;gap:12px;margin-bottom:12px;
+    position:sticky;top:0;background:var(--panel);z-index:5;padding:4px 0 12px;
+    border-bottom:1px solid var(--line)}
+  .backbtn{background:transparent;border:1px solid var(--line);color:var(--muted);
+    border-radius:10px;padding:12px 20px;font-size:14px;cursor:pointer;font-family:inherit}
+  .backbar .t{font-size:17px;font-weight:700}
+  .backbar .stay{font-size:12px;color:var(--muted)}
+  .backbar .total{margin-left:auto;font-size:26px;font-weight:700;color:var(--text)}
+  .backbar .total small{font-size:12px;color:var(--muted);font-weight:400;margin-right:4px}
+
+  .checkcols{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start}
+  .cats{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+  .cat{border:1px solid var(--line);border-radius:14px;padding:6px 15px;font-size:13px;
+    cursor:pointer;color:var(--muted);background:transparent}
+  .cat.on{border-color:var(--gold);color:var(--gold)}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .tile{background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+    padding:13px 11px;cursor:pointer;position:relative;min-height:66px}
+  .tile .tn{font-size:13px;line-height:1.3;color:var(--text)}
+  .tile .tp{font-size:14px;color:var(--muted);margin-top:4px;font-weight:600}
+  .tile .bq{position:absolute;top:-7px;right:-7px;background:var(--gold);color:var(--bg);
+    min-width:22px;height:22px;border-radius:11px;display:flex;align-items:center;
+    justify-content:center;font-size:12px;font-weight:700}
+
+  .linepanel{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:13px}
+  .linepanel h4{font-size:12px;color:var(--muted);margin:0 0 8px;font-weight:400}
+  .line{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .line .a{margin-left:auto;font-weight:600}
+  .sumrow{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:5px 0}
+  .sumrow.total{font-size:14px;color:var(--text);padding-top:10px;align-items:baseline}
+  .sumrow.total .num{font-size:24px;font-weight:700;color:var(--text)}
+  .payrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .payrow button{border:none;border-radius:12px;padding:15px;font-weight:700;
+    font-size:15px;cursor:pointer;font-family:inherit}
+  .pay{background:var(--gold);color:var(--bg)}
+  .close{background:transparent;color:var(--muted);border:1px solid var(--line)!important}
+
+  @media (max-width:900px){
+    .seats{grid-template-columns:repeat(3,1fr)}
+    .checkcols{grid-template-columns:1fr}
+    .tiles{grid-template-columns:repeat(3,1fr)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note"><b>キオスク 案B 追随 v3</b> — register 案B と同構造（選択駆動ビュー切替）・
+    タップ標的一回り大（席 112px/タイル 66px/ボタン 15px padding）。
+    khead 操作者バー・kiosk auth・0059 契約（非開示原則・kiosk_register_state 5キー・非ポーリング）は<b>非改変</b>。
+    SP ボトムシート挙動は kiosk では元々不要（タブレット横持ち前提）＝ビュー切替に統一。</div>
+
+  <div class="khead">
+    <div><div class="store">CLUB NOX — レジ端末</div><div class="mode">キオスクモード / 打刻・レジ</div></div>
+    <div class="op"><span class="pava">田</span>操作中：田村（黒服）<span class="sw">交代／離席</span></div>
+  </div>
+
+  <div class="sect">■ ビュー1：フロア全幅（卓未選択）</div>
+  <div class="floorview">
+    <h3>フロア <b>使用中 3 / 8卓</b></h3>
+    <div class="seats">
+      <div class="seat busy"><div class="nm">VIP1</div><div class="kind">VIP</div>
+        <div class="stay num">滞在 84分</div><div class="amt num">¥68,500</div></div>
+      <div class="seat busy"><div class="nm">テーブル2</div><div class="kind">卓</div>
+        <div class="stay num">滞在 41分</div><div class="amt num">¥23,000</div></div>
+      <div class="seat busy"><div class="nm">カウンター1</div><div class="kind">カウンター</div>
+        <div class="stay num">滞在 12分</div><div class="amt num">¥6,500</div></div>
+      <div class="seat"><div class="nm">VIP2</div><div class="kind">VIP</div><div class="empty">空席</div></div>
+      <div class="seat"><div class="nm">テーブル1</div><div class="kind">卓</div><div class="empty">空席</div></div>
+      <div class="seat"><div class="nm">テーブル3</div><div class="kind">卓</div><div class="empty">空席</div></div>
+      <div class="seat"><div class="nm">テーブル4</div><div class="kind">卓</div><div class="empty">空席</div></div>
+      <div class="seat"><div class="nm">カウンター2</div><div class="kind">カウンター</div><div class="empty">空席</div></div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="sect">■ ビュー2：伝票全幅（卓タップ後）</div>
+  <div class="checkview">
+    <div class="backbar">
+      <button class="backbtn">← フロア</button>
+      <span class="t">VIP1</span>
+      <span class="stay num">滞在 84分</span>
+      <span class="total num"><small>合計</small>¥68,500</span>
+    </div>
+    <div class="checkcols">
+      <div>
+        <div class="cats">
+          <span class="cat on">シャンパン</span><span class="cat">グラス</span>
+          <span class="cat">ボトル</span><span class="cat">割りもの</span><span class="cat">フード</span>
+        </div>
+        <div class="tiles">
+          <div class="tile"><div class="tn">モエ・エ・シャンドン</div><div class="tp num">¥30,000</div><span class="bq num">2</span></div>
+          <div class="tile"><div class="tn">ヴーヴ イエロー</div><div class="tp num">¥40,000</div></div>
+          <div class="tile"><div class="tn">ドン・ペリニヨン</div><div class="tp num">¥130,000</div></div>
+          <div class="tile"><div class="tn">ソウメイ</div><div class="tp num">¥140,000</div></div>
+          <div class="tile"><div class="tn">クリュッグ</div><div class="tp num">¥220,000</div></div>
+          <div class="tile"><div class="tn">アルマンド G</div><div class="tp num">¥260,000</div></div>
+        </div>
+      </div>
+      <div class="linepanel">
+        <h4>明細</h4>
+        <div class="line"><span>セット料金 ×2</span><span class="a num">¥10,000</span></div>
+        <div class="line"><span>モエ・エ・シャンドン ×1</span><span class="a num">¥30,000</span></div>
+        <div class="line"><span>ハイボール ×4</span><span class="a num">¥6,000</span></div>
+        <div class="line"><span>指名料 ×2</span><span class="a num">¥6,000</span></div>
+        <div class="sumrow"><span>小計</span><span class="num">¥52,000</span></div>
+        <div class="sumrow total"><span>合計（サ料込）</span><span class="num">¥68,500</span></div>
+        <div class="payrow">
+          <button class="pay">会計する</button>
+          <button class="close">← フロア</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+    <b>相談役メモ</b>：
+    ①register 4ea7f17 の写経（check state 切替・backbar sticky・checkcols 1.4fr/1fr・会計後フロア復帰）
+    ②kiosk 固有＝タップ標的増（数値は上記 CSS）・khead 非改変・detailwrap/withdetail は kiosk 側からも撤去
+    （register で globals 残置した CSS は kiosk 移行後に共に削除可）
+    ③低在庫「残N」・着卓顔＝引き続き出さない（0059 非開示）
+    ④kiosk_check_detail の取得タイミング＝現行のまま（卓タップ時・非ポーリング契約不変）
+  </div>
+</div>
+</body>
+</html>

@@ -464,47 +464,8 @@ body {
 }
 .nox-chip.on { border-color: var(--gold); color: var(--champ); background: #1B1710; }
 
-/* 伝票詳細の responsive 提示（段A ボトムシート実戦投入）。
-   >900px＝現行 inline（flex 子・1px 不変）。≤900px＝下からのボトムシート（backdrop＋ハンドル・nox-sheet-up 流用）。 */
-.nox-detailwrap { flex: 1; min-width: 480px; }
-.nox-detail-backdrop, .nox-detail-handle { display: none; }
-@media (max-width: 900px) {
-  .nox-detailwrap {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 51;
-    flex: none;
-    min-width: 0;
-    max-height: 88dvh;
-    overflow-y: auto;
-    border-radius: 16px 16px 0 0;
-    border-top: 1px solid var(--line2);
-    background: linear-gradient(180deg, var(--card2), var(--bg2));
-    padding: 4px 14px calc(16px + env(safe-area-inset-bottom));
-    box-shadow: 0 -14px 44px rgba(0, 0, 0, .55);
-    animation: nox-sheet-up .22s ease;
-  }
-  .nox-detail-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    background: rgba(0, 0, 0, .55);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
-  }
-  .nox-detail-handle {
-    display: block;
-    width: 36px;
-    height: 4px;
-    margin: 4px auto 8px;
-    border-radius: 999px;
-    background: var(--line2);
-  }
-}
-@media (prefers-reduced-motion: reduce) { .nox-detailwrap { animation: none; } }
+/* （旧 .nox-detailwrap ボトムシート一式は撤去＝動線改修v3 で register・kiosk とも
+   選択駆動ビュー切替（.nox-checkview 全幅）へ移行し、最後の利用者だった kiosk も追随済み。 */
 
 /* ── UI刷新v2 段R2（レジ刷新）── presentation-only 2026-07-28 ──
    正本＝nox-register-mock-planA-readable.html（案A 可読性ルール）＋ガイド §1。
@@ -544,9 +505,7 @@ body {
   border-radius: 8px; padding: 7px; font-size: 12px; cursor: pointer; font-family: inherit;
 }
 .nox-dtabs button.on { background: rgba(201, 162, 74, .14); border-color: var(--gold); color: var(--gold); font-weight: 700; }
-/* 伝票ヘッダの合計＝ガイド §1-5「最重要数値は 20〜24px」・白太（モック .dh .total） */
-.nox-dtotal { margin-left: auto; font-size: 24px; font-weight: 700; color: var(--v2-text); }
-.nox-dtotal small { font-size: 12px; color: var(--v2-muted); font-weight: 400; margin-right: 2px; }
+/* （旧 .nox-dtotal は撤去＝register 4ea7f17・kiosk v3 追随とも合計は .nox-backbar .total へ移行し参照ゼロ） */
 
 /* ── UI刷新v2 段K2 先行分（キオスク restyle）── presentation-only 2026-07-28 ──
    正本＝nox-kiosk-redesign-mock-v1.html。「register 刷新（案A 可読性ルール）に完全追随＝同 CSS 系」。
@@ -561,23 +520,21 @@ body {
 .nox-khead .store { font-size: 14px; font-weight: 700; color: var(--v2-text); }
 .nox-khead .mode { font-size: 11px; color: var(--v2-muted); }
 .nox-khead .op { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
-/* モック .main＝フロア 1fr＋伝票 400px の2カラム（≤900 は縦積み・伝票はボトムシートのまま）。
-   ★2列目は「伝票を開いているときだけ」作る（.withdetail）＝伝票が無いのに 400px を確保すると
-     フロアが 1fr＝残り幅までしか伸びず、右に空白を残して痩せて見える（d728d79 の不発原因）。 */
+/* 動線改修v3 追随（案B）: フロアと伝票は排他表示＝器は常に1カラム（.withdetail 一式は撤去・
+   register .nox-regmain と同型）。正本 nox-kiosk-mock-planB-viewswitch.html。 */
 .nox-kmain { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
-@media (min-width: 900px) {
-  .nox-kmain.withdetail { grid-template-columns: minmax(0, 1fr) 400px; }
-  /* 旧 flex 時代の min-width 480px は 400px 列で溢れるため kiosk 側だけ解除（register 非影響） */
-  .nox-kmain.withdetail > .nox-detailwrap { min-width: 0; }
-}
-/* モック .payrow＝伝票下部の大ボタン2列（締める＝主ボタン金・閉じる＝ghost） */
+/* モック .payrow＝伝票下部の大ボタン2列（締める＝主ボタン金・戻る＝ghost） */
 .nox-payrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-/* タップ標的拡大: 席は min-height 104px・padding 14px（register の .nox-seat を上書き） */
+/* タップ標的拡大（planB モック逐語）: 席 112px/padding 16px・席名 17px・タイル 66px/13px 11px */
 .nox-kiosk .nox-seatgrid { gap: 12px; }
-.nox-kiosk .nox-seat { min-height: 104px; padding: 14px; border-radius: 14px; }
-.nox-kiosk .nox-tile { min-height: 64px; padding: 12px 10px; border-radius: 12px; }
+.nox-kiosk .nox-seat { min-height: 112px; padding: 16px; border-radius: 14px; }
+.nox-kiosk .nox-seat .nm { font-size: 17px; }
+.nox-kiosk .nox-tile { min-height: 66px; padding: 13px 11px; border-radius: 12px; }
 .nox-kiosk .nox-tile-name { font-size: 13px; }
-.nox-kiosk .nox-dtotal { font-size: 24px; }
+/* planB モック逐語（kiosk scope 限定＝register の .nox-backbtn / .nox-cat は不変）:
+   戻るボタンとカテゴリチップも一回り大（backbar の卓名/滞在/合計サイズは register 逐語を維持） */
+.nox-kiosk .nox-backbtn { padding: 12px 20px; font-size: 14px; border-radius: 10px; }
+.nox-kiosk .nox-cat { padding: 6px 15px; font-size: 13px; }
 
 /* ── UI刷新v2 段C2（キャスト刷新）── presentation-only 2026-07-28 ──
    正本＝nox-casts-redesign-mock-v1.html。テーブル→カードグリッド化＋詳細3タブ。

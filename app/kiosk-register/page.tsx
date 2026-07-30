@@ -573,13 +573,15 @@ export default function KioskRegisterPage() {
         )}
 
         {phase === "register" && (
-          /* 段0R 第3陣: モック .main＝フロア 1fr＋伝票 400px の2カラム grid（nox-kmain）。
-             ★flex+min-width からの載せ替えのみで、≤900 の伝票ボトムシート（nox-detailwrap）の挙動は不変。
-             ★withdetail＝伝票を開いているときだけ2列にする（開いていないときに 400px 列を確保すると
-               フロアが残り幅までしか伸びず右に空白を残す＝d728d79 の不発を是正）。表示条件のみ。 */
-          <div className={detail ? "nox-kmain withdetail" : "nox-kmain"}>
+          /* 動線改修v3 追随（案B・選択駆動ビュー切替）: 正本 nox-kiosk-mock-planB-viewswitch.html。
+             ★state は既存の detail 1本のみ＝連打束ね・0059 読取（卓タップ時・非ポーリング）・会計 RPC は不変。
+             未選択＝フロア全幅／選択＝伝票全面（フロアは描画しない）＝2列を常時確保しない（v2R の grid 教訓）。 */
+          <div className="nox-kmain">
+            {!detail ? (
+            /* ── フロアビュー（全幅）＝レシート印刷カードはこちらに残置（会計完了→復帰後に見える）── */
+            <>
             {printCard && (
-              <section className="nox-cardtop" style={{ ...card, width: "100%", gridColumn: "1 / -1" }}>
+              <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--v2-text)", margin: 0 }}>
                     レシート印刷（伝票 {printCard.checkId.replace(/-/g, "").slice(0, 8)}）
@@ -604,7 +606,7 @@ export default function KioskRegisterPage() {
             )}
 
             {/* 卓一覧（state.checks＝0059。更新ボタン＝操作起点の再読取・自動ポーリングはしない） */}
-            <section className="nox-cardtop" style={card}>
+            <section className="nox-cardtop nox-floorview" style={card}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <h2 style={{ ...t.cardTitle, margin: 0 }}>卓</h2>
                 <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
@@ -624,7 +626,7 @@ export default function KioskRegisterPage() {
                     <button
                       key={s.id}
                       onClick={() => void openSeat(s)}
-                      className={["nox-seat", oc ? "busy" : "", detail?.check.seat_id === s.id ? "sel" : ""].filter(Boolean).join(" ")}
+                      className={["nox-seat", oc ? "busy" : ""].filter(Boolean).join(" ")}
                     >
                       <div className="nm">{s.name}</div>
                       <div className="kind">{s.kind ?? " "}</div>
@@ -650,28 +652,28 @@ export default function KioskRegisterPage() {
               </div>
               {msg && <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "10px 0 0" }}>{msg}</p>}
             </section>
+            </>
+            ) : (
+            /* ── 伝票ビュー（全面）＝正本 .checkview。読取は 0059 detail のまま（卓タップ時・非ポーリング）── */
+            <div className="nox-checkview">
+              {/* backbar（sticky）＝「← フロア」は既存 closeDetail の再利用（新規ロジックなし）。
+                  従来の 伝票（卓名）h2 と nox-dtotal は backbar へ移した（register 4ea7f17 と同型）。
+                  取消（void）はレジ端末に出さない＝裁定11 確定①（責任者操作）のまま。 */}
+              <div className="nox-backbar">
+                <button type="button" className="nox-backbtn" onClick={() => void closeDetail()}>← フロア</button>
+                <span className="t">{seats.find((s) => s.id === detail.check.seat_id)?.name ?? "—"}</span>
+                <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{NOM_LABEL[detail.check.nom_type]}</span>
+                {detail.check.status === "open" && (
+                  <span className="stay">滞在 <span className="num">{elapsedMin(detail.check.started_at, nowMs)}</span> 分</span>
+                )}
+                <span className="total num"><small>合計</small>{yen(detail.check.total)}</span>
+              </div>
 
-            {/* 伝票（読取は 0059 detail・≤900px はボトムシート＝段A nox-sheet-up 流用／>900px は現行 inline を 1px 不変で維持） */}
-            {detail && (
-              <>
-              <div className="nox-detail-backdrop" onClick={() => void closeDetail()} aria-hidden="true" />
-              <div className="nox-detailwrap">
-                <div className="nox-detail-handle" aria-hidden="true" />
-                <section>
-                <div className="nox-cardtop" style={card}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                    {/* 段K2 先行 可読性（案A・register と同系）: 見出しと合計は白・合計は 24px。 */}
-                    <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--v2-text)", margin: 0 }}>
-                      伝票（{seats.find((s) => s.id === detail.check.seat_id)?.name ?? "—"}）
-                    </h2>
-                    <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{NOM_LABEL[detail.check.nom_type]}</span>
-                    {detail.check.status === "open" && (
-                      <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>滞在 <span className="num">{elapsedMin(detail.check.started_at, nowMs)}</span> 分</span>
-                    )}
-                    <span className="nox-dtotal num"><small>合計</small>{yen(detail.check.total)}</span>
-                    {/* 取消（void）はレジ端末に出さない＝裁定11 確定①（責任者操作） */}
-                  </div>
-                </div>
+              {/* planB .checkcols＝左 1.4fr（指名・席・時間料金・商品）／右 1fr（明細・会計）。
+                  ★各カードの表示条件・中身は不変＝収容先だけ変更。kiosk はタブが無く右カラム（明細・会計）が
+                  常に出るため split 常時＝空列は生じない（v2R の grid 教訓）。 */}
+              <div className="nox-checkcols split">
+                <div>
 
                 {/* 指名 */}
                 <div className="nox-cardtop" style={card}>
@@ -828,6 +830,8 @@ export default function KioskRegisterPage() {
                     <button onClick={() => void addCustomLine()} style={btnDark}>追加</button>
                   </div>
                 </div>
+                </div>
+                <div>
 
                 {/* 明細 */}
                 <div className="nox-cardtop" style={card}>
@@ -933,27 +937,27 @@ export default function KioskRegisterPage() {
                     ))}
                   </div>
                   {detail.check.status === "open" && (
-                    /* 段0R 第3陣: モック .payrow＝大ボタン2列。締めるは従来と同一の onClick/disabled/文言のまま
-                       padding をモック 14px へ。閉じるは既存の閉じ関数（≤900 の背景タップと同じ経路）の再利用
-                       ＝保留の連打束ねを flush してから閉じる挙動も同一。 */
+                    /* planB モック .payrow＝大ボタン2列（padding 15px・15px）。締めるは従来と同一の
+                       onClick/disabled/文言のまま。「← フロア」は backbar と同じ既存 closeDetail の再利用
+                       ＝保留の連打束ねを flush してから戻る挙動も同一（新規ロジックなし）。 */
                     <div className="nox-payrow">
                       <button
                         onClick={() => void closeCheck()}
                         disabled={groups.length === 0 || groupInfo.some((gi) => gi.paid < gi.due)}
-                        style={{ ...t.btnGold, padding: 14, fontSize: 15, fontWeight: 800,
+                        style={{ ...t.btnGold, padding: 15, fontSize: 15, fontWeight: 800,
                                  opacity: groups.length === 0 || groupInfo.some((gi) => gi.paid < gi.due) ? 0.4 : 1 }}
                       >
                         会計を締める（クローズ）
                       </button>
-                      <button onClick={() => void closeDetail()} style={{ ...t.btnGhost, padding: 14, fontSize: 15 }}>
-                        閉じる
+                      <button onClick={() => void closeDetail()} style={{ ...t.btnGhost, padding: 15, fontSize: 15 }}>
+                        ← フロア
                       </button>
                     </div>
                   )}
                 </div>
-                </section>
+                </div>
               </div>
-              </>
+            </div>
             )}
           </div>
         )}
