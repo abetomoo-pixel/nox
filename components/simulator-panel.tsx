@@ -85,7 +85,7 @@ export default function SimulatorPanel({
 
   if (!selectedPlan) {
     return (
-      <div style={{ ...s.card, maxWidth: 620 }}>
+      <div style={{ ...s.card }}>
         <h2 style={{ fontSize: 16, marginTop: 0 }}>報酬シミュレーター</h2>
         <p style={{ fontSize: 13, color: s.sub }}>
           {mode === "cast" ? "報酬プランが未割当です。店にご確認ください。" : "報酬プランが未登録です。プラン管理から作成してください。"}
@@ -95,7 +95,7 @@ export default function SimulatorPanel({
   }
 
   return (
-    <div className="nox-cardtop" style={{ ...s.card, maxWidth: 620 }}>
+    <div className="nox-cardtop" style={{ ...s.card }}>
       <h2 style={{ fontSize: 16, marginTop: 0 }}>報酬シミュレーター（{mode === "cast" ? "自分の見込み" : "採用・プラン試算"}）</h2>
       <p style={{ fontSize: 12, color: s.sub, marginTop: 0 }}>
         ※確定給与と同じ計算式で試算します（保存されません）。実績ではなく仮の数字を入れて手取りの目安を見るものです。

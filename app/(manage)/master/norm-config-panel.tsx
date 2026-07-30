@@ -47,7 +47,7 @@ export default function NormConfigPanel({
   }
 
   return (
-    <div style={{ maxWidth: 720, marginTop: 24 }}>
+    <div style={{ marginTop: 24 }}>
       <h2 style={h2}>ノルマ設定（店）</h2>
       <section className="nox-cardtop" style={card}>
         <h3 style={h3}>売上・指名ノルマの採用</h3>

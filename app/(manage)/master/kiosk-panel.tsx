@@ -144,7 +144,7 @@ export default function KioskPanel({ stores }: { stores: Store[] }) {
   }
 
   return (
-    <div style={{ maxWidth: 720, marginTop: 24 }}>
+    <div style={{ marginTop: 24 }}>
       <h2 style={h2}>キオスク端末（打刻・レジ）</h2>
 
       <section className="nox-cardtop" style={card}>

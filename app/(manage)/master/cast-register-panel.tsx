@@ -52,7 +52,7 @@ export default function CastRegisterPanel({
   }
 
   return (
-    <div style={{ maxWidth: 720, marginTop: 24 }}>
+    <div style={{ marginTop: 24 }}>
       <h2 style={h2}>キャスト会計（レジ操作）</h2>
 
       {/* 店フラグ（owner のみ操作可・manager は現在値のみ） */}
