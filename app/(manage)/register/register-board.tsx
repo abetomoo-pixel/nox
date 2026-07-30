@@ -199,9 +199,9 @@ export default function RegisterBoard({
   // フォーム状態
   const [nomType, setNomType] = useState("hon");
   const [nomWeights, setNomWeights] = useState<Record<string, number>>({});
-  const [prodGroup, setProdGroup] = useState("A");
+  const [prodGroup, setProdGroup] = useState("A"); // 段B: タイル追加先の伝票グループ（既定 A）
   // 段0R 第1陣: カテゴリチップの絞り込み（""=すべて）。表示のみ・取得も RPC も不変。
-  const [catFilter, setCatFilter] = useState(""); // 段B: タイル追加先の伝票グループ（既定 A）
+  const [catFilter, setCatFilter] = useState("");
   const [cName, setCName] = useState("");
   const [cPrice, setCPrice] = useState(0);
   const [cKind, setCKind] = useState("set");
@@ -552,6 +552,12 @@ export default function RegisterBoard({
     return { g, bx, disc, net, due, paid, remaining: Math.max(0, due - paid) };
   });
   const allCovered = groups.length > 0 && groupInfo.every((gi) => gi.paid >= gi.due);
+  // 段0R 第1陣: planA .sumrow（注文タブの伝票サマリ）用の伝票全体合計。
+  // ★会計タブ「会計（伝票グループ別）」が描いている groupInfo を group 横断で足すだけ＝
+  //   小計 bx / 割引 disc / 請求（サ料込）due はテーブルの各列と同一値。新しい計算はしていない。
+  const sumBx = groupInfo.reduce((a, gi) => a + gi.bx, 0);
+  const sumDisc = groupInfo.reduce((a, gi) => a + gi.disc, 0);
+  const sumDue = groupInfo.reduce((a, gi) => a + gi.due, 0);
   // 割引申請フォームの上限＝選択 group の割引前小計（既存 discount を除いた bx）
   const apGroupBx = groupInfo.find((gi) => gi.g === apGroup)?.bx ?? 0;
 
@@ -896,6 +902,18 @@ export default function RegisterBoard({
                 })}
               </tbody>
             </table>
+            {/* 段0R 第1陣: planA .sumrow＝明細の下に伝票サマリ。★表示のみ。
+                値は会計タブの「会計（伝票グループ別）」と同一の groupInfo（小計 bx・割引 disc・
+                請求 due＝groupDue）を group 横断で合計しただけで、新しい計算ロジックは作っていない。
+                合計行（.total）は白太 22px＝planA の見出し扱い。会計タブのテーブルは従来どおり残置。 */}
+            <div className="nox-sumrow"><span>小計</span><span className="num">{yen(sumBx)}</span></div>
+            <div className="nox-sumrow">
+              <span>割引</span>
+              <span className="num" style={sumDisc > 0 ? { color: "var(--bad)" } : undefined}>
+                {sumDisc > 0 ? `−${yen(sumDisc)}` : "—"}
+              </span>
+            </div>
+            <div className="nox-sumrow total"><span>合計（請求・サ料込）</span><span className="num">{yen(sumDue)}</span></div>
           </div>
           )}
 
