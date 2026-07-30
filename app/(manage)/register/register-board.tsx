@@ -199,7 +199,9 @@ export default function RegisterBoard({
   // フォーム状態
   const [nomType, setNomType] = useState("hon");
   const [nomWeights, setNomWeights] = useState<Record<string, number>>({});
-  const [prodGroup, setProdGroup] = useState("A"); // 段B: タイル追加先の伝票グループ（既定 A）
+  const [prodGroup, setProdGroup] = useState("A");
+  // 段0R 第1陣: カテゴリチップの絞り込み（""=すべて）。表示のみ・取得も RPC も不変。
+  const [catFilter, setCatFilter] = useState(""); // 段B: タイル追加先の伝票グループ（既定 A）
   const [cName, setCName] = useState("");
   const [cPrice, setCPrice] = useState(0);
   const [cKind, setCKind] = useState("set");
@@ -577,7 +579,9 @@ export default function RegisterBoard({
       {tab === "reserve" && showReserve ? (
         <ReservationPanel storeId={storeId} seats={seats} casts={casts} />
       ) : (
-    <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+    /* 段0R 第1陣: planA .main＝フロアと伝票の2カラム grid（>900 で 1fr 380px・≤900 は縦積み）。
+       ★flex+min-width から grid へ変えただけで、伝票シート（≤900 の nox-detailwrap）の挙動は不変。 */
+    <div className="nox-regmain">
       {/* F3f: ドリンク申告の承認キュー（pending 0 件 or 権限なしなら自身で非表示＝RLS 任せ） */}
       <DrinkClaimQueue />
       {/* F4b: 会計クローズ後のレシート印刷カード（printer_enabled の店のみ表示＝fail-closed） */}
@@ -813,7 +817,23 @@ export default function RegisterBoard({
             </div>
             {/* 純増⑦: カテゴリ別タイル（sort_order 順＋末尾に未分類）。カテゴリ未登録なら type 別へフォールバック。
                 タップ＝連打束ね（700ms・p_qty=N の1行）。バッジ=pre-commit。 */}
-            {groupProducts(products, categories).map((g) => {
+            {/* 段0R 第1陣: planA .cats＝カテゴリチップ。★表示の絞り込みだけで、
+                タップ注文（連打束ね・check_add_line）の挙動と送る引数は1文字も変えていない。
+                「すべて」で全群を出す＝従来の見え方（全カテゴリ縦並び）も残す。 */}
+            {(() => {
+              const gs = groupProducts(products, categories);
+              return gs.length > 1 ? (
+                <div className="nox-cats">
+                  <button type="button" className={`nox-cat${catFilter === "" ? " on" : ""}`}
+                    onClick={() => setCatFilter("")}>すべて</button>
+                  {gs.map((g) => (
+                    <button key={g.key} type="button" className={`nox-cat${catFilter === g.key ? " on" : ""}`}
+                      onClick={() => setCatFilter(g.key)}>{g.label}</button>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+            {groupProducts(products, categories).filter((g) => catFilter === "" || g.key === catFilter).map((g) => {
               const items = g.items;
               return (
                 <div key={g.key} style={{ marginBottom: 10 }}>

@@ -1070,6 +1070,23 @@ body {
 .nox-backlink:hover { border-color: var(--gold); color: var(--gold); }
 .nox-sectitle { font-size: 22px; font-weight: 700; color: var(--ink); margin: 0; }
 
+/* ── UI刷新v2R 第1陣: /register の planA 残差分（presentation-only）── */
+/* planA .main＝フロア＋伝票の2カラム（>900 で 1fr 380px・≤900 は縦積み） */
+.nox-regmain { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
+@media (min-width: 900px) { .nox-regmain { grid-template-columns: minmax(0, 1fr) 380px; } }
+/* planA .cats/.cat＝カテゴリチップ（金は選択状態のみ＝3役①） */
+.nox-cats { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.nox-cat {
+  background: transparent; border: 1px solid var(--line); border-radius: 14px;
+  padding: 5px 13px; font-size: 12px; cursor: pointer; color: var(--sub); font-family: inherit; white-space: nowrap;
+}
+.nox-cat.on { border-color: var(--gold); color: var(--gold); font-weight: 700; }
+/* planA .sumrow / .sumrow.total＝小計・割引・請求（合計は白太で一回り大きく） */
+.nox-sumrow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px; color: var(--sub); padding: 5px 0; }
+.nox-sumrow .num { font-size: 13px; color: var(--ink); }
+.nox-sumrow.total { font-size: 14px; color: var(--ink); padding-top: 10px; border-top: 1px solid var(--line); margin-top: 4px; }
+.nox-sumrow.total .num { font-size: 22px; font-weight: 700; color: var(--ink); }
+
 /* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
    既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
    列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */
