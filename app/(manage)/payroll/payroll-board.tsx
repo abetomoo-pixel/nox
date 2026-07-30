@@ -292,8 +292,15 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
 
   return (
     <div className="nox-printpage">
-      <div style={{ margin: "2px 0 14px" }}>
-        <h1 style={t.pheadH1}>給与確定</h1>
+      {/* 段0R 第2陣: ヘッダを新シェルの nox-hero へ（master/home/casts/customers/analytics と同基準・表示のみ）。
+          印刷時は印刷ページ直下の隔離ルールで従来どおり自動的に落ちる（旧ヘッダと同じ扱い）。 */}
+      <div className="nox-hero">
+        <div>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>給与</h1>
+          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
+            プレビュー → 確定 → 明細（印刷・CSV）・支払記録。確定後の金額は凍結された明細の値です。
+          </p>
+        </div>
       </div>
 
       {/* 段1: 期間選択 */}
@@ -343,7 +350,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
                 <div className="v num">¥{sum4.gross.toLocaleString()}</div>
               </div>
               <div className="nox-paycard">
-                <div className="l">控除計</div>
+                {/* 段0R 第2陣: ラベルのみモック逐語へ（値の定義＝7項目の和に源泉を含む事実と一致）。数値は不変。 */}
+                <div className="l">控除計（源泉含む）</div>
                 <div className="v num">−¥{sum4.ded.toLocaleString()}</div>
               </div>
               <div className="nox-paycard">
@@ -414,9 +422,10 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
               {rows.map((r) => (
                 <tr key={r.castId}>
                   <td style={t.td}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      <CastAvatar name={r.castName} url={photoUrls.get(castIdOf[r.castId] ?? r.castId)} variant="flat" size={26} />
-                      {r.castName}
+                    {/* 段0R 第2陣: モック .castcell 逐語（アバター30px・gap9・名前 bold）。表示のみ・値と並びは不変。 */}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+                      <CastAvatar name={r.castName} url={photoUrls.get(castIdOf[r.castId] ?? r.castId)} variant="flat" size={30} />
+                      <span style={{ fontWeight: 700 }}>{r.castName}</span>
                     </span>
                   </td>
                   <td className="fold" style={t.td}>{r.taxMode}</td>
