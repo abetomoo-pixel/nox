@@ -1087,6 +1087,15 @@ body {
 .nox-sumrow.total { font-size: 14px; color: var(--ink); padding-top: 10px; border-top: 1px solid var(--line); margin-top: 4px; }
 .nox-sumrow.total .num { font-size: 22px; font-weight: 700; color: var(--ink); }
 
+/* ── UI刷新v2R 第1陣: /casts のモック残差分（.photoedit＝点線の写真変更チップ）── */
+.nox-photoedit {
+  display: inline-block; margin-top: 6px; font-size: 10px; color: var(--sub);
+  border: 1px dashed var(--line2); border-radius: 6px; padding: 3px 9px;
+  background: transparent; cursor: pointer; font-family: inherit;
+}
+.nox-photoedit:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.nox-photoedit:disabled { opacity: .5; cursor: default; }
+
 /* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
    既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
    列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */

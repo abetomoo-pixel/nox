@@ -255,8 +255,15 @@ export default function CastsBoard({
 
   return (
     <div>
-      <h1 style={t.pheadH1}>キャスト</h1>
-      <p style={t.pheadP}>在籍キャストと体入の管理。カードを選ぶと詳細（基本／待遇・バック／アカウント）が開きます。</p>
+      {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（/master・/home と同基準） */}
+      <div className="nox-hero">
+        <div>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>キャスト</h1>
+          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
+            在籍キャストと体入の管理。カードを選ぶと詳細（基本／待遇・バック／アカウント）が開きます。
+          </p>
+        </div>
+      </div>
       <Toast msg={msg} />
 
       {/* ツールバー＝検索＋在籍/体入/退店済み（既存 is_active と trials の再形・新規取得なし） */}
@@ -347,13 +354,15 @@ export default function CastsBoard({
 
       {/* ── 詳細（カード選択で開く）＝現行の編集・招待・PW再発行・体入採否を3タブへ再配置 ── */}
       {selCast && (
-        <section className="nox-cardtop" style={{ ...card, maxWidth: 560 }}>
+        <section className="nox-cardtop" style={card}>
           <div className="nox-cdrawer">
             <div style={{ textAlign: "center" }}>
               <CastAvatar name={selCast.name} url={photoUrls.get(selCast.id)} size={64} />
               {/* 段P 実装済みの写真変更を流用（送る RPC も同じ） */}
-              <button style={{ ...btnGhost, display: "block", marginTop: 6, fontSize: 11, padding: "2px 8px" }}
-                disabled={busy || !orgId} onClick={() => openPhoto(selCast)}>写真を変更</button>
+              {/* モック .photoedit＝点線チップ（送る RPC は段P の openPhoto のまま） */}
+              <button className="nox-photoedit" disabled={busy || !orgId} onClick={() => openPhoto(selCast)}>
+                写真を変更
+              </button>
             </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: "var(--v2-text)" }}>{selCast.name}</div>
@@ -437,7 +446,7 @@ export default function CastsBoard({
 
       {/* 体入の詳細＝評価・書類・メモ・採否（現行 UI をそのまま移設＝送る RPC も引数も不変） */}
       {selTrial && (
-        <section className="nox-cardtop" style={{ ...card, maxWidth: 560 }}>
+        <section className="nox-cardtop" style={card}>
           <div className="nox-cdrawer">
             <CastAvatar name={selTrial.name} size={64} />
             <div>
