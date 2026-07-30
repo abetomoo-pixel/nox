@@ -472,6 +472,62 @@ L2 のスタッフ写真（段P は cast_id 由来のキャスト専用）／M2 
 **別レーン切り出し（バックログ）**：`payrollCsvCells` は `breakdown_json` の欠落キーで **NaN 露出**
 （実績ゼロ cast を含む確定 run の D3 CSV で発生）＝凍結値 `?? 0` の同型修正＋csv25 gate で別途。
 
+## 裁定19-b：UI刷新v2R レーン完走（裁定19 の補正・土台リワーク＋全14画面の載せ替え・2026-07-30）
+
+裁定19（v2）は**画面単位の restyle**だったが、シェルとトークンの土台が画面ごとに揺れていた。
+v2R は**土台を先に作り直し（段0R）、そこへ全画面を載せ替える**方針に補正したもの。
+**すべて presentation-only**（RPC/RLS/payOf/golden 非改変・**verify:f0 2136 全緑が gate**・golden 54400 / wage 5931 不変）。
+正本＝質感 `aaa.html`（sha256 `dc2da951…ad9c`）＋構成モック（画面別 redesign-mock）。断点 641/900/1180（裁定5）。
+
+**完了区分（すべて push 済み `7c26602..30d2c6b`）：**
+段0R 土台（共通シェル `.nox-tb`／`.nox-layout`／`.nox-mainarea` max-width 1480・/master ハブ＆ビュー切替・
+`:target` 折り畳み全廃・パネル最外殻 `maxWidth` 撤去＝**幅は親が決める**）→
+**第1陣** home（実体は `/dashboard`）・register・casts → **第2陣** customers・analytics・payroll →
+**第3陣** light4（日報/お知らせ/スタッフ/監査）・mine（`nox-minewrap` 430px 1カラム）・kiosk-register。
+共通骨格＝`nox-hero`／`nox-kpis`+`nox-kpi`／`nox-panel`>h3（白）／`nox-ctoolbar`／`nox-seg`。
+
+**本レーンで確定した追加裁定：**
+
+- **金の3役に「KPI 強調」「バー強調」は含まれない**（裁定19 の可読性ルール②の適用範囲を確定）。
+  `.nox-kpi.money` の gold 枠は撤去（class は意味づけマーカーとして残置）／`.nox-kpi.warn .val` は `--bad`／
+  `.nox-bar.hi` は薄金の面＋金の枠（ベタ金グラデを廃止）／payroll 合計バーは panel 地＋白太。
+  ★`theme.ts` の `slipFoot`（金帯＋黒文字 `#0B0B0F`＝6ec1235 の公認 hex）と `payslip-slip.tsx` は**非改変**＝
+  帳票（`ps-foot`・print CSS が反転）の配色を変えるかは別裁定。
+- **payroll runbar の acts は現状維持**（モックの「runbar 内に CSV/印刷/解除/確定の4ボタン」は**不採用**）。
+  理由＝D1 解除は説明文＋支払記録メッセージ付きの赤枠カード、D2 印刷は「読み込む→印刷」の2段フロー、
+  確定はプレビュー後のみ出現であり、忠実な格納はボタン重複・危険操作の最上部昇格・確定ボタンの常時表示化の
+  いずれかを要して「ボタン/機能/権限出し分け完全不変」と衝突する＝**money 安全設計を見た目より優先**。
+- **kiosk のカテゴリチップは実装可**（裁定19 では「絞り込み機能の新設＝要裁定」として見送っていた）。
+  register 側で先に実装し、**表示フィルタに限定＝タップ注文の連打束ねと送る引数は不変**と確認できたため。
+  0059 非改変（低在庫「残N」・着卓キャスト顔を出さない）は**引き続き維持**。
+
+**★grid の defect class（水平展開の対象・以後の設計則）：**
+`grid-template-columns: 1fr Npx` を**無条件**に当て、右ペインを条件描画すると、未描画時に空列が残り
+左カラムが痩せる（実測＝kiosk フロア 684/1100・register 1044/1440）。さらに**旧 flex 時代の `min-width` は
+grid では列を超過してはみ出す**（register 伝票 480px vs 列 380px＝**100px 超過**）。
+**是正型**＝`.withdetail` 修飾子で**開いているときだけ2列**にし、`> *` を `grid-column: 1 / -1` 既定にして
+**列を受け持つ子だけ**に明示割当（`> .nox-regfloor` / `> .nox-detailwrap` ＋ `min-width: 0`）。
+★1箇所直したら**同型を全画面 grep して水平展開**する（kiosk `nox-kmain` → register `nox-regmain` の順で是正）。
+
+**★検収の教訓：**
+- **CSS を入れても JSX が使わなければ見た目は変わらない**（`nox-sumrow` が CSS のみ landed で JSX 未適用・
+  `nox-punchrow` も同型）。**完了報告は「ソース参照数＋ビルド成果物 server/client 両方の文字列出現数」まで**。
+- **データ状態依存の見た目バグは空状態の検収では捕まらない**。`DrinkClaimQueue` が grid 直下の子だったため
+  pending≥1 で「キュー→1列目・フロア→380px」に崩れたが、検収時 pending 0 件で潜伏した。
+  **「0件」だけでなく「1件以上」の状態も検収項目に含める**。
+- **dev 稼働中は `next build` 禁止**＝検証ビルドは `NEXT_DIST_DIR=.next-build` で分離し、
+  build が書き換える `tsconfig.json`（`.next-build/types` の include 追加）は**復元して非コミット**。
+- **ログイン後画面の実測は合成計測で代替可**（配信 CSS を実 DOM 構造に当てて幾何を測る）。
+  実データ確認は人間の検収に回す。
+
+**運用検収へ持ち越した項目：** analytics 日別バーの目視（要 締め済み日報）／payroll 宿題＝sums 4カード目視・
+段Y2 金額突合・D2 印刷・D1 解除（要 税区分登録→2026-07 確定）／mine スマホ実機／kiosk の2状態／
+register の承認キュー1件表示。
+
+**未解決として残した項目：** audit の2セレクトは**別機能**（① `actionFilter`＝サーバクエリの `eq("action")`／
+② `kindFilter`＝取得済みページの client 系統絞り込み）＝重複ではないためラベルで解決（「action で絞り込み」/
+「操作系統（表示中のページ）」）。payslip 帳票の金帯配色は別裁定。
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。
