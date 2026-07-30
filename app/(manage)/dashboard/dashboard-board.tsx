@@ -32,7 +32,6 @@ type Need = { dow: number; required: number };
 type Notice = { id: string; title: string; created_at: string };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
-const card: React.CSSProperties = t.card;
 const secTitle: React.CSSProperties = t.cardTitle;
 // 出勤板（shift-board）と同じ語彙＝ATT_OPTIONS の表示側
 const ATT_LABEL: Record<string, string> = { shukkin: "出勤", dohan: "同伴", late: "遅刻", off: "休み", absent: "当欠" };
@@ -130,8 +129,14 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
 
   return (
     <div>
-      <h1 style={t.pheadH1}>ホーム</h1>
-      <p style={t.pheadP}>{storeName}・営業日 {bizToday}</p>
+      {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（ページ名＋店名＋営業日） */}
+      <div className="nox-hero">
+        <div>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>ホーム</h1>
+          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>{storeName}</p>
+        </div>
+        <span className="num" style={{ fontSize: 13, color: "var(--sub)" }}>営業日 {bizToday}</span>
+      </div>
 
       {/* 段H: クイックアクション＝既存ルートへの純ナビ（役割ゲートは nav と同一・page で算出済み）。
           段H2: アイコンを追加（モック .qi の Unicode 字形・href/label/ゲートは段H から不変）。 */}
@@ -151,33 +156,37 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
 
       {/* 段H2: KPI 帯＝既存4KPI のまま（材料も式も不変）。S-1 の .nox-kpi2 へ寄せ、
           モック .cmp にあたる補足行を既存データから足しただけ（新規取得なし）。 */}
-      <div className="nox-kpirow">
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">本日の出勤</div>
-          <div className="nox-kpi2-v num">{present.length}<small>名</small></div>
-          <div className="nox-kpi2-s">確定シフト {confirmedToday}人</div>
+      <div className="nox-kpis">
+        <div className="nox-kpi">
+          <div className="lbl">本日の出勤</div>
+          <div className="val num">{present.length}<small>名</small></div>
+          <div className="sub">確定シフト {confirmedToday}人</div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">本日の同伴</div>
-          <div className="nox-kpi2-v num">{dohanToday}<small>件</small></div>
-          <div className="nox-kpi2-s">出勤のうち同伴</div>
+        <div className="nox-kpi">
+          <div className="lbl">本日の同伴</div>
+          <div className="val num">{dohanToday}<small>件</small></div>
+          <div className="sub">出勤のうち同伴</div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">今月売上（締め済み日報）</div>
-          <div className="nox-kpi2-v num">{yen(monthSales)}</div>
-          <div className="nox-kpi2-s">日報 {reportDays}日分</div>
+        <div className="nox-kpi money">
+          <div className="lbl">今月売上（締め済み日報）</div>
+          <div className="val num">{yen(monthSales)}</div>
+          <div className="sub">日報 {reportDays}日分</div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">本指名（今月）</div>
-          <div className="nox-kpi2-v num">{honMonth}<small>本</small></div>
-          <div className="nox-kpi2-s">ランキング上位5名の合計</div>
+        <div className="nox-kpi">
+          <div className="lbl">本指名（今月）</div>
+          <div className="val num">{honMonth}<small>本</small></div>
+          <div className="sub">ランキング上位5名の合計</div>
         </div>
       </div>
 
+      {/* 段0R 第1陣: モック .cols＝左（今日のシフト＋承認待ち）／右（ランキング＋お知らせ）の2カラム。
+          900+ で横並び・≤900 は縦積み（.nox-2col）。 */}
+      <div className="nox-2col">
+      <div>
       {/* 段H2: 今日のシフト概況＝S-1 の充足導出の流用＋出勤キャストの写真チップ＋シフトへの導線。
           ★必要人数は曜日別マスタ（staffing_needs は (store_id, dow) UNIQUE）＝日別・時間帯別の
             必要人数は現スキーマに無いので「◯◯帯が-1」のような時間帯単位の不足は出さない。 */}
-      <section className="nox-cardtop" style={card}>
+      <section className="nox-panel">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
           <h2 style={{ ...secTitle, margin: 0 }}>今日のシフト</h2>
           <Link href="/shift" className="nox-more">シフト管理へ ›</Link>
@@ -213,8 +222,10 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
 
       {/* 承認待ちドリンク申告（既存部品の再掲載＝0件なら部品側が非表示にする） */}
       <DrinkClaimQueue />
+      </div>
+      <div>
 
-      <section className="nox-cardtop" style={card}>
+      <section className="nox-panel">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
           <h2 style={{ ...secTitle, margin: 0 }}>指名ランキング（{month}・件数）</h2>
           <Link href="/analytics" className="nox-more">分析へ ›</Link>
@@ -232,7 +243,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
       </section>
 
       {/* 段H2: お知らせ最新2件＋一覧への導線（notices-board と同じ並び・本文は出さず件名のみ） */}
-      <section className="nox-cardtop" style={card}>
+      <section className="nox-panel">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
           <h2 style={{ ...secTitle, margin: 0 }}>お知らせ</h2>
           <Link href="/notices" className="nox-more">すべて ›</Link>
@@ -245,6 +256,8 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           </div>
         ))}
       </section>
+      </div>
+      </div>
     </div>
   );
 }
