@@ -22,12 +22,14 @@ export default function PunchActions() {
   }
 
   return (
+    /* 段0R 第3陣: モック .punchrow＝2カラムの大ボタン（スマホの親指操作前提・16px/15px）。
+       ★送る打刻 RPC も引数も disabled 条件も文言も1文字も変えていない（見た目のみ）。 */
     <div>
-      <div style={{ display: "flex", gap: 12 }}>
-        <button style={{ ...t.btnGold, padding: "10px 24px", fontSize: 14, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={() => punch("in")}>
+      <div className="nox-punchrow">
+        <button style={{ ...t.btnGold, padding: 16, fontSize: 15, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={() => punch("in")}>
           出勤
         </button>
-        <button style={{ ...t.btnGhost, padding: "10px 24px", fontSize: 14, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={() => punch("out")}>
+        <button style={{ ...t.btnGhost, padding: 16, fontSize: 15, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={() => punch("out")}>
           退勤
         </button>
       </div>

@@ -125,25 +125,22 @@ export default async function MinePage() {
   // F2f 報酬シミュレーター用データ（自分のプラン＋店マスタ＋open 前借り/送り残・RLS 読取・売掛は読まない）。
   const sim = await loadCastSimData(supabase);
 
-  const title: React.CSSProperties = t.cardTitle;
   const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
   const noteP: React.CSSProperties = { fontSize: 12, color: "var(--sub)", margin: 0 };
 
   return (
-    <div className="nox-printpage">
-      <div style={{ margin: "2px 0 14px" }}>
-        <h1 style={t.pheadH1}>マイページ</h1>
-        <p style={t.pheadP}>ノルマと今月の収支</p>
-      </div>
-
+    /* 段0R 第3陣: モック正本どおりモバイルファースト1カラム（max-width 430・nox-minewrap）。
+       印刷時は既存の .nox-main > * { max-width none } が幅を戻すため payslip の A4 印刷に影響しない。
+       ページ見出しはモックどおり撤去＝.me ヘッダ（写真＋名前＋店）が先頭。 */
+    <div className="nox-printpage nox-minewrap">
       {/* 段P: プロフィール写真（本人スコープのみ・client 自己完結＝他カードの取得に影響しない）
           段M2: モックの .me ヘッダ（写真＋名前＋店）へ。店名は上で引いた自店を渡すだけ。 */}
       <PhotoCard storeName={myStore?.name as string | undefined} />
 
       {/* 段M2: 打刻はスマホで一番使うのでヘッダ直後へ（section の中身・PunchActions・最終打刻の
           文言はそのまま＝移設のみ）。 */}
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={title}>打刻</h2>
+      <section className="nox-panel">
+        <h3>打刻</h3>
         <PunchActions />
         <p className="nox-pstate">
           最終打刻:{" "}
@@ -157,11 +154,12 @@ export default async function MinePage() {
           ★店が採用している軸のときだけ出る現行条件はそのまま（部品側の判定に一切触れていない）。 */}
       <NormCard />
 
-      <section className="nox-cardtop nox-print" style={t.card}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <h2 style={{ ...title, margin: 0 }}>確定給与明細</h2>
-          {(slips ?? []).length > 0 && <PrintPayslipButton />}
-        </div>
+      {/* 印刷隔離の対象マーカーは維持（器だけ差し替え・明細スリップ部品は非改変） */}
+      <section className="nox-panel nox-print">
+        <h3>
+          確定給与明細
+          <span style={{ marginLeft: "auto" }}>{(slips ?? []).length > 0 && <PrintPayslipButton />}</span>
+        </h3>
         {(slips ?? []).length === 0 && <p style={{ ...noneP, marginTop: 11 }}>確定分なし</p>}
         <div style={{ marginTop: 11 }}>
           {(slips ?? []).map((s, i) => (
@@ -184,8 +182,8 @@ export default async function MinePage() {
         defaultTaxMode="委託"
       />
 
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={title}>今月のバック（{month}）</h2>
+      <section className="nox-panel">
+        <h3>今月のバック（{month}）</h3>
         <div style={{ ...t.num, fontSize: 28, fontWeight: 700, color: "var(--champ)" }}>{yen(total)}</div>
         <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--sub)", marginTop: 8, flexWrap: "wrap" }}>
           <span>ドリンク <span style={{ ...t.num, color: "var(--ink)" }}>{yen(sum.drink)}</span></span>
@@ -198,8 +196,8 @@ export default async function MinePage() {
       {/* F3f 自己申告ドリンク（独立枠＝上の「今月のバック」には出ない・承認後に給与明細へ合算） */}
       <DrinkClaimForm month={month} />
 
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={title}>今月の出勤ボーナス（{month}）</h2>
+      <section className="nox-panel">
+        <h3>今月の出勤ボーナス（{month}）</h3>
         {(incentives ?? []).length === 0 && <p style={noneP}>発行なし</p>}
         <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
           {(incentives ?? []).map((r, i) => (
@@ -217,19 +215,19 @@ export default async function MinePage() {
       </section>
 
 
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={title}>遅刻・当欠の連絡</h2>
+      <section className="nox-panel">
+        <h3>遅刻・当欠の連絡</h3>
         <AttendanceForm defaultDate={bizToday} />
       </section>
 
-      <section className="nox-cardtop" style={t.card}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <h2 style={{ ...title, margin: 0 }}>直近のシフト</h2>
+      <section className="nox-panel">
+        <h3>
+          直近のシフト
           {/* 段M2: 希望提出への導線（既存 /mine/wishes へのリンクのみ＝新しい提出 UI は作らない） */}
           <Link href="/mine/wishes" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto", textDecoration: "none" }}>
             ＋ 希望を提出
           </Link>
-        </div>
+        </h3>
         {(shifts ?? []).length === 0 && <p style={noneP}>予定なし</p>}
         <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
           {(shifts ?? []).map((s, i) => (
@@ -245,8 +243,8 @@ export default async function MinePage() {
           他キャストの名前も数字も描画しない（1位との差のような他人由来の値も出さない）。
           値は /mine/ranking が既に使っている get_cast_ranking の自分の行そのもの＝情報は増えない。 */}
       {myRank && (
-        <section className="nox-cardtop" style={t.card}>
-          <h2 style={title}>指名ランキング（{month}）</h2>
+        <section className="nox-panel">
+          <h3>指名ランキング（{month}）</h3>
           <div className="nox-myrank">
             <span className={`nox-medal ${myRank.rank === 1 ? "g1" : myRank.rank === 2 ? "g2" : myRank.rank === 3 ? "g3" : "gx"}`}>
               {myRank.rank}
@@ -264,8 +262,8 @@ export default async function MinePage() {
         </section>
       )}
 
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={title}>指名予約（今日以降）</h2>
+      <section className="nox-panel">
+        <h3>指名予約（今日以降）</h3>
         {(rsv ?? []).length === 0 && <p style={noneP}>予約なし</p>}
         {(rsv ?? []).map((r) => (
           <div key={r.id as string} style={{ padding: "7px 0", borderBottom: "1px solid var(--line2)" }}>
@@ -288,8 +286,8 @@ export default async function MinePage() {
         <p style={{ ...noteP, marginTop: 6 }}>※予約の変更・取消は店舗にご連絡ください。</p>
       </section>
 
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={title}>今月の勤怠</h2>
+      <section className="nox-panel">
+        <h3>今月の勤怠</h3>
         {(att ?? []).length === 0 && <p style={noneP}>記録なし</p>}
         <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
           {(att ?? []).map((a, i) => (

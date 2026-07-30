@@ -45,11 +45,10 @@ export default function NormCard() {
 
   if (axes.length === 0) return null;
 
-  const title: React.CSSProperties = t.cardTitle;
 
   return (
-    <section className="nox-cardtop" style={t.card}>
-      <h2 style={title}>今月のノルマ進捗（{data.period}）</h2>
+    <section className="nox-panel">
+      <h3>今月のノルマ進捗（{data.period}）</h3>
       {axes.map((a) => {
         const pct = Math.min(100, Math.floor((a.actual / a.target) * 100));
         const done = a.actual >= a.target;

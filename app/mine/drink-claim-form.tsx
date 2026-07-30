@@ -79,14 +79,13 @@ export default function DrinkClaimForm({ month }: { month: string }) {
     await load();
   }
 
-  const title: React.CSSProperties = t.cardTitle;
   const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
   const noteP: React.CSSProperties = { fontSize: 12, color: "var(--sub)", margin: 0 };
   const inp: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 
   return (
-    <section className="nox-cardtop" style={t.card}>
-      <h2 style={title}>ドリンクの申告</h2>
+    <section className="nox-panel">
+      <h3>ドリンクの申告</h3>
 
       {opens.length === 0 ? (
         <p style={noneP}>いま開いている伝票がありません（お客様がご案内されると選べるようになります）。</p>
@@ -124,7 +123,7 @@ export default function DrinkClaimForm({ month }: { month: string }) {
       )}
       {msg && <p style={{ fontSize: 12.5, color: msg.startsWith("申告しました") ? "var(--ok)" : "var(--bad)", margin: "8px 0 0" }}>{msg}</p>}
 
-      <h2 style={{ ...title, marginTop: 16 }}>今月の申告（{month}）</h2>
+      <h3 style={{ marginTop: 16 }}>今月の申告（{month}）</h3>
       {claims.length === 0 && <p style={noneP}>申告はまだありません</p>}
       {claims.map((c) => (
         <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>

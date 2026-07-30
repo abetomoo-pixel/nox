@@ -757,6 +757,9 @@ body {
    ★可視性は本人スコープのみ（RLS パターン1）＝現行の情報集合を1つも増やさない・減らさない。
    canonical＋v2 サブトークンのみ。金は3役（選択・主ボタン・バッジ）。 */
 /* ヘッダ（モック .me）＝写真＋名前＋店 */
+/* /mine＝キャスト個人スマホ前提の1カラム（モック .wrap 430px）。
+   印刷は @media print の .nox-main > * { max-width none } が幅を戻す＝payslip A4 に影響しない。 */
+.nox-minewrap { max-width: 430px; margin: 0 auto; }
 .nox-me { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .nox-me .nm { font-size: 18px; font-weight: 700; color: var(--v2-text); }
 .nox-me .sub { font-size: 11.5px; color: var(--v2-muted); }
