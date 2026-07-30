@@ -671,11 +671,13 @@ body {
 }
 .nox-bar {
   flex: 1 1 0; min-width: 8px; position: relative;
-  background: linear-gradient(180deg, #3A3A48, #2A2A36);
+  background: var(--v2-panel2); border: 1px solid var(--v2-line);
   border-radius: 3px 3px 0 0;
 }
-/* 土日ハイライト＝gold（状態強調＝金3役③の範囲。新色は作らない） */
-.nox-bar.hi { background: linear-gradient(180deg, var(--gold), #8A6E32); }
+/* 土日ハイライト＝モック .bar.hi 逐語（薄い金の面＋金の枠）。
+   ★段0R 第2陣: 従来はベタ金のグラデーションだったが、金の面は選択・主ボタン・バッジの3役に寄せる
+     裁定（第1陣 KPI 枠と同じ）に合わせて正本どおりへ戻した。 */
+.nox-bar.hi { background: rgba(201, 162, 74, .14); border-color: var(--gold); }
 .nox-bar .bl {
   position: absolute; left: 50%; transform: translateX(-50%); top: 100%;
   margin-top: 3px; font-size: 9px; color: var(--v2-muted); white-space: nowrap;
@@ -854,6 +856,9 @@ body {
 /* 2ペイン／下段2枚（モック .main / .lower） */
 .nox-2col { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
 @media (min-width: 900px) { .nox-2col { grid-template-columns: 1fr 380px; } }
+/* 分析モック .cols＝左 1.2fr（日別バー＋支払構成）／右 1fr（貢献ランキング＋内訳） */
+.nox-acols { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+@media (min-width: 900px) { .nox-acols { grid-template-columns: 1.2fr 1fr; } }
 .nox-lower { display: grid; grid-template-columns: 1fr; gap: 14px; }
 @media (min-width: 900px) { .nox-lower { grid-template-columns: 1fr 1fr; } }
 

@@ -40,7 +40,7 @@ type CustRankRow = {
 const yen = (n: number) => "¥" + n.toLocaleString();
 // 段A2: 日別バーの土日ハイライト用（曜日ラベル）
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
-const secTitle: React.CSSProperties = t.cardTitle;
+// 段0R 第2陣: 見出しは nox-panel > h3（白）へ統一したので t.cardTitle 由来の secTitle は撤去。
 const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
 
 function lastDayOf(period: string): string {
@@ -231,33 +231,23 @@ export default function AnalyticsBoard({
 
   return (
     <div>
-      <div style={{ margin: "2px 0 14px" }}>
-        <h1 style={t.pheadH1}>分析</h1>
-        <p style={t.pheadP}>売上貢献と指名のキャスト別集計</p>
+      {/* 段0R 第2陣: モック .head を新シェルの nox-hero へ（/master・/home・/casts と同基準） */}
+      <div className="nox-hero">
+        <div>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>分析</h1>
+          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
+            締め済み日報ベースの売上と、キャスト別の売上貢献・指名の集計。
+          </p>
+        </div>
       </div>
 
-      <section className="nox-cardtop" style={{ ...t.card, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-        {stores.length > 1 && (
-          <label style={t.fieldLabel}>
-            店舗
-            <br />
-            <select
-              value={storeId}
-              onChange={(e) => { setStoreId(e.target.value); setCastSel(""); }}  // 店切替で cast 選択リセット
-              style={{ ...t.input, width: "auto", marginTop: 5 }}
-            >
-              {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </label>
-        )}
-        <label style={t.fieldLabel}>
-          対象月（YYYY-MM）
-          <br />
-          <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ ...t.input, width: "auto", marginTop: 5 }} />
-        </label>
+      {/* 段0R 第2陣: モック .toolbar＝セグメントを左・期間表示を右端（.period）に。
+          ★従来カードの中にあった 店舗select・対象月input・セグメントを1行へ並べ替えただけで、
+            period state も storeId state も送る引数も1文字も変えていない。 */}
+      <div className="nox-ctoolbar">
         {/* 段A2: 期間セグメント（今月/先月）＝既存の period state を切り替えるだけ。
             任意月を選べる既存の月入力はそのまま残す（機能を減らさない）。 */}
-        <div className="nox-seg" style={{ height: "fit-content" }}>
+        <div className="nox-seg">
           {([["today", "今月"], ["prev", "先月"]] as const).map(([k, label]) => {
             const target = k === "today" ? thisMonth : prevPeriodOf(thisMonth);
             return (
@@ -267,44 +257,67 @@ export default function AnalyticsBoard({
             );
           })}
         </div>
-      </section>
+        <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="対象月（YYYY-MM）" style={{ ...t.input, width: "auto" }} />
+        {stores.length > 1 && (
+          <select
+            value={storeId}
+            onChange={(e) => { setStoreId(e.target.value); setCastSel(""); }}  // 店切替で cast 選択リセット
+            aria-label="店舗"
+            style={{ ...t.input, width: "auto" }}
+          >
+            {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        )}
+        {/* モック .period＝右端の期間表示。★既に下段バーの footer で出している daily.length の再掲のみ。 */}
+        <span className="num" style={{ marginLeft: "auto", fontSize: 12, color: "var(--sub)" }}>
+          {period}・締め済み {daily.length}日分
+        </span>
+      </div>
 
       {err && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{err}</p>}
 
       {/* 段A2: KPI 帯4枚＝すべて締め済み daily_reports の再形（売上式は dashboard / month-report と同一）。
           前月同期は「同じ SELECT を前月分も引いて、当月と同じ締め済み日数ぶんで比べる」だけ＝新規 RPC なし。 */}
-      <div className="nox-kpirow">
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">売上（締め済み）</div>
-          <div className="nox-kpi2-v num">{yen(curSales)}</div>
-          <div className="nox-kpi2-s">
+      {/* 段0R 第2陣: S-1 由来の nox-kpirow/nox-kpi2 から aaa 基準の共通骨格 nox-kpis/nox-kpi へ
+          載せ替え（lbl/val/sub＝モック .kpi の lbl/val/cmp 相当）。★4枚の材料も式も内容も不変。 */}
+      <div className="nox-kpis">
+        <div className="nox-kpi">
+          <div className="lbl">売上（締め済み）</div>
+          <div className="val num">{yen(curSales)}</div>
+          <div className="sub">
             前月同期 {yen(prevSales)}{cmp(curSales, prevSales) !== null ? `（${cmp(curSales, prevSales)! >= 0 ? "+" : ""}${cmp(curSales, prevSales)}%）` : ""}
           </div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">組数</div>
-          <div className="nox-kpi2-v num">{curSlips}<small>組</small></div>
-          <div className="nox-kpi2-s">前月同期 {prevSlips}組</div>
+        <div className="nox-kpi">
+          <div className="lbl">組数</div>
+          <div className="val num">{curSlips}<small>組</small></div>
+          <div className="sub">前月同期 {prevSlips}組</div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">組単価</div>
-          <div className="nox-kpi2-v num">{yen(per(curSales, curSlips))}</div>
-          <div className="nox-kpi2-s">前月同期 {yen(per(prevSales, prevSlips))}</div>
+        <div className="nox-kpi">
+          <div className="lbl">組単価</div>
+          <div className="val num">{yen(per(curSales, curSlips))}</div>
+          <div className="sub">前月同期 {yen(per(prevSales, prevSlips))}</div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">人件費率（概算）</div>
-          <div className="nox-kpi2-v num">{laborRate == null ? "—" : `${laborRate}%`}</div>
+        <div className="nox-kpi">
+          <div className="lbl">人件費率（概算）</div>
+          <div className="val num">{laborRate == null ? "—" : `${laborRate}%`}</div>
           {/* ★既存の概算（/report 月報）と同じ定義＝確定給与の源泉前 gross ÷ 売上。
               給与が未確定の月は率を出さない（S-2 の「予想人件費」とは別物・そちらは触っていない）。 */}
-          <div className="nox-kpi2-s">
+          <div className="sub">
             {labor.state === "final" ? `給与確定 ${yen(labor.gross)} ÷ 売上` : labor.state === "draft" ? "給与が未確定" : "給与データなし"}
           </div>
         </div>
       </div>
 
+      {/* 段0R 第2陣: モック .cols＝左 1.2fr（日別売上バー＋支払構成）／右 1fr（売上貢献ランキング＋売上内訳）。
+          900+ で横並び・≤900 は縦積み（.nox-acols）。モックに無い 指名件数ランキング／主要客リストは
+          情報を減らさないため 2カラムの下にフル幅で残置する。 */}
+      <div className="nox-acols">
+        <div>
+
       {/* 段A2: 日別売上（締め済み）＝CSS バーのみ。★チャートライブラリは導入しない。 */}
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={secTitle}>日別売上（締め済み・{period}）</h2>
+      <section className="nox-panel">
+        <h3>日別売上（締め済み・{period}）</h3>
         {daily.length === 0
           ? <p style={noneP}>この月の締め済み日報がありません。</p>
           : (
@@ -341,8 +354,8 @@ export default function AnalyticsBoard({
       </section>
 
       {/* 段A2: 支払構成／売上内訳＝締め済み日報の既存列そのまま（新規集計ゼロ） */}
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={secTitle}>支払構成（{period}）</h2>
+      <section className="nox-panel">
+        <h3>支払構成（{period}）</h3>
         {daily.length === 0
           ? <p style={noneP}>この月の締め済み日報がありません。</p>
           : payMix.map((x) => (
@@ -356,26 +369,12 @@ export default function AnalyticsBoard({
         </p>
       </section>
 
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={secTitle}>売上内訳（{period}）</h2>
-        {daily.length === 0
-          ? <p style={noneP}>この月の締め済み日報がありません。</p>
-          : breakdown.map((x) => (
-              <div key={x.k} className="nox-srow">
-                <span>{x.k}</span>
-                <span className="v num">{yen(x.v)}</span>
-              </div>
-            ))}
-        {/* ★モックはセット・時間料金／指名料／ドリンク・ボトル／サービス料 の4分類だが、
-            締め済み日報が持つ内訳列は drink_sales のみ。4分類は明細 kind 別の新規集計が要るため作らず、
-            既存列で確実に言える2分類に留めている（発明しない）。 */}
-        <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
-          ※日報が持つ内訳はドリンク・ボトルのみのため、それ以外は「その他」にまとめています。
-        </p>
-      </section>
+        </div>
+        <div>
 
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={secTitle}>売上貢献ランキング（{period}・按分ベース）</h2>
+      {/* 段0R 第2陣: モックでは右カラムが 売上貢献ランキング → 売上内訳 の順（並べ替えのみ） */}
+      <section className="nox-panel">
+        <h3>売上貢献ランキング（{period}・按分ベース）</h3>
         {salesRanking.length === 0 && <p style={noneP}>該当なし（対象月に帰属売上のある伝票がありません）</p>}
         {/* 段A2: テーブル→メダル＋写真チップの行へ（表示列は従来と同じ＝売上・本・場内・同伴）。
             金額は「読む情報」ゆえ白（金3役の原則）。 */}
@@ -393,8 +392,30 @@ export default function AnalyticsBoard({
         </p>
       </section>
 
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={secTitle}>指名件数ランキング（{period}）</h2>
+      <section className="nox-panel">
+        <h3>売上内訳（{period}）</h3>
+        {daily.length === 0
+          ? <p style={noneP}>この月の締め済み日報がありません。</p>
+          : breakdown.map((x) => (
+              <div key={x.k} className="nox-srow">
+                <span>{x.k}</span>
+                <span className="v num">{yen(x.v)}</span>
+              </div>
+            ))}
+        {/* ★モックはセット・時間料金／指名料／ドリンク・ボトル／サービス料 の4分類だが、
+            締め済み日報が持つ内訳列は drink_sales のみ。4分類は明細 kind 別の新規集計が要るため作らず、
+            既存列で確実に言える2分類に留めている（発明しない）。 */}
+        <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+          ※日報が持つ内訳はドリンク・ボトルのみのため、それ以外は「その他」にまとめています。
+        </p>
+      </section>
+
+        </div>
+      </div>
+
+      {/* ここから下＝モックに無い既存セクション（情報を減らさないためフル幅で残置） */}
+      <section className="nox-panel">
+        <h3>指名件数ランキング（{period}）</h3>
         {ranking.length === 0 && <p style={noneP}>該当なし（アクティブなキャストがいません）</p>}
         {ranking.length > 0 && (
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
@@ -426,8 +447,8 @@ export default function AnalyticsBoard({
         </p>
       </section>
 
-      <section className="nox-cardtop" style={t.card}>
-        <h2 style={secTitle}>主要客リスト（{period}・キャスト別指名客）</h2>
+      <section className="nox-panel">
+        <h3>主要客リスト（{period}・キャスト別指名客）</h3>
         <div style={{ marginBottom: 10 }}>
           <label style={t.fieldLabel}>
             キャスト
