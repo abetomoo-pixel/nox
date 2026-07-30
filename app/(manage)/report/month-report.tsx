@@ -16,7 +16,6 @@ type Split = { sales: number; groups: number; guests: number; dohan: number; dri
 type Labor = { state: "final" | "draft" | "none"; gross: number };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
-const card: React.CSSProperties = t.card;
 const empty = (): Split => ({ sales: 0, groups: 0, guests: 0, dohan: 0, drink: 0, shimei: 0 });
 const per = (s: Split) => (s.guests > 0 ? Math.round(s.sales / s.guests) : 0); // 客単価＝売上/来客数（モック準拠）
 function currentMonth(): string {
@@ -110,17 +109,18 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
   const td: React.CSSProperties = { ...t.num, textAlign: "right", padding: "5px 6px", fontSize: 13 };
 
   return (
-    <section className="nox-cardtop" style={card}>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-        <h2 style={{ ...t.cardTitle, margin: 0 }}>月報</h2>
+    // 段0R 第3陣: 器のみ nox-panel へ（同一画面の日報タブと器を揃える・集計/取得は非改変）
+    <section className="nox-panel">
+      <h3>
+        月報
         {stores.length > 1 && (
-          <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={{ ...t.input, width: "auto", fontSize: 13 }}>
+          <select value={storeId} onChange={(e) => setStoreId(e.target.value)} aria-label="店舗" style={{ ...t.input, width: "auto", fontSize: 13, fontWeight: 400 }}>
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
-        <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ ...t.input, width: "auto", fontSize: 13 }} />
-        <span style={{ fontSize: 11, color: "var(--sub)" }}>営業月・半期は営業日15日で分割</span>
-      </div>
+        <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="対象月" style={{ ...t.input, width: "auto", fontSize: 13, fontWeight: 400 }} />
+        <span style={{ fontSize: 11, color: "var(--sub)", fontWeight: 400 }}>営業月・半期は営業日15日で分割</span>
+      </h3>
       {msg && <p style={{ fontSize: 12, color: "var(--bad)" }}>{msg}</p>}
 
       <div style={{ display: "grid", gridTemplateColumns: "1.15fr 1fr 1fr 1fr", gap: "4px 4px", alignItems: "center" }}>

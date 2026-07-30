@@ -28,11 +28,10 @@ type Recv = {
 };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
-const card: React.CSSProperties = t.card;
+// 段0R 第3陣: 器は共通クラス nox-panel・見出しは nox-panel > h3（白）へ統一＝card/secTitle は撤去。
 const input: React.CSSProperties = { ...t.input, width: "auto" };
 const btnDark: React.CSSProperties = t.btnGold;
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = t.cardTitle;
 
 // 段L2: 当日ヘッダの曜日表示（表示専用・保存や計算には触れない）
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
@@ -160,20 +159,26 @@ export default function ReportBoard({
 
   return (
     <div>
-      <h1 style={t.pheadH1}>レポート</h1>
+      {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
+      <div className="nox-hero">
+        <div>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>レポート</h1>
+          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
+            日報の締めと締め済み履歴、月報、売掛の回収。確定値は締め時のサーバ再集計が正です。
+          </p>
+        </div>
+      </div>
       <Toast msg={msg} />
 
-      {/* A4: 日報/月報 タブ（モックの segment のうち月報のみ実装・分析=C5/会計連携=C3/本部連結=C2 は A4 の外） */}
-      <div className="nox-cardtop" style={{ ...card, padding: 11 }}>
-        <div style={{ display: "flex", gap: 8, maxWidth: 480 }}>
+      {/* A4: 日報/月報 タブ（モックの segment のうち月報のみ実装・分析=C5/会計連携=C3/本部連結=C2 は A4 の外）。
+          段0R 第3陣: カード包みの独自セグメントを canonical の nox-seg（nox-ctoolbar 内）へ載せ替え。
+          ★キー・ラベル・isManagerUp の出し分け・setTab は1文字も変えていない。 */}
+      <div className="nox-ctoolbar">
+        <div className="nox-seg">
           {(isManagerUp ? (["day", "month", "ar"] as const) : (["day", "month"] as const)).map((k) => (
-            <button key={k} onClick={() => setTab(k)}
-              style={{
-                flex: 1, fontFamily: "inherit", fontWeight: 800, fontSize: 13, padding: "9px 10px", borderRadius: 9, cursor: "pointer",
-                border: tab === k ? "1px solid var(--gold)" : "1px solid var(--line2)",
-                background: tab === k ? "linear-gradient(135deg,#1F1B12,#14120C)" : "transparent",
-                color: tab === k ? "var(--champ)" : "var(--sub)",
-              }}>{k === "day" ? "日報" : k === "month" ? "月報" : "売掛"}</button>
+            <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
+              {k === "day" ? "日報" : k === "month" ? "月報" : "売掛"}
+            </button>
           ))}
         </div>
       </div>
@@ -182,10 +187,10 @@ export default function ReportBoard({
 
       {/* B6 売掛タブ（案7-A・owner/manager のみ・post-launch で C3 仕訳画面へ移設）。文言はモック現物（教訓D）。 */}
       {tab === "ar" && isManagerUp && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>
+        <section className="nox-panel">
+          <h3>
             売掛（未回収）残高 {yen(recvs.reduce((a, r) => a + (r.amount - r.deducted_amount), 0))}
-          </h2>
+          </h3>
           {recvs.length === 0 ? (
             <p style={{ ...t.sub, margin: 0 }}>未回収の売掛はありません。</p>
           ) : (
@@ -233,7 +238,7 @@ export default function ReportBoard({
       )}
 
       {tab === "day" && (<>
-      <section className="nox-cardtop" style={card}>
+      <section className="nox-panel">
         {/* 段L2: 当日ヘッダ＝営業日＋状態バッジ＋open 伝票警告＋締めボタン（モック .repstate）。
             ★状態は「その営業日の daily_reports 行があるか」だけで判定（締め RPC も確定値も非改変）。
             締めボタンは下の「締め」節へスクロールさせるのではなく、同じ closeDay をそのまま呼ぶ＝
@@ -269,9 +274,9 @@ export default function ReportBoard({
           </div>
         )}
 
-        <h2 style={secTitle}>
+        <h3>
           プレビュー（クライアント集計・確定値は締め時のサーバ再集計が正）
-        </h2>
+        </h3>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
           <span style={{ fontSize: 13, color: "var(--v2-text)" }}>営業日</span>
           <input type="date" value={bizDate} onChange={(e) => setBizDate(e.target.value)} style={input} />
@@ -299,8 +304,8 @@ export default function ReportBoard({
 
       {/* 締めは manager 以上のみ（RPC 側も owner/manager 強制＝二重） */}
       {isManagerUp && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>締め（{bizDate}）</h2>
+        <section className="nox-panel">
+          <h3>締め（{bizDate}）</h3>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <label style={{ ...t.fieldLabel, fontSize: 12 }}>諸経費 <input type="number" min={0} value={expense} onChange={(e) => setExpense(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
             <label style={{ ...t.fieldLabel, fontSize: 12 }}>現金支払（送り・日払い等） <input type="number" min={0} value={payout} onChange={(e) => setPayout(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
@@ -315,8 +320,8 @@ export default function ReportBoard({
         </section>
       )}
 
-      <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>締め済み日報</h2>
+      <section className="nox-panel">
+        <h3>締め済み日報</h3>
         {/* 段L2: リッチ行（モック .histrow）＝直近7日を「日付・組数・現金/カード・売上」で読みやすく。
             ★下の全列テーブルはそのまま残す（実査差・再締め等の運用列を落とさない＝情報を減らさない）。 */}
         {reports.slice(0, 7).map((r) => (
