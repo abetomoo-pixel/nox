@@ -138,24 +138,10 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
         <span className="num" style={{ fontSize: 13, color: "var(--sub)" }}>営業日 {bizToday}</span>
       </div>
 
-      {/* 段H: クイックアクション＝既存ルートへの純ナビ（役割ゲートは nav と同一・page で算出済み）。
-          段H2: アイコンを追加（モック .qi の Unicode 字形・href/label/ゲートは段H から不変）。 */}
-      {shortcuts.length > 0 && (
-        <section style={{ marginTop: 14 }}>
-          <h2 style={{ ...t.cardTitle, margin: "0 0 9px" }}>クイックアクション</h2>
-          <div className="nox-quickgrid">
-            {shortcuts.map((s) => (
-              <Link key={s.href} href={s.href} className="nox-quicktile">
-                <span className="nox-quickicon" aria-hidden="true">{s.icon}</span>
-                {s.label}
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* 段H2: KPI 帯＝既存4KPI のまま（材料も式も不変）。S-1 の .nox-kpi2 へ寄せ、
-          モック .cmp にあたる補足行を既存データから足しただけ（新規取得なし）。 */}
+          モック .cmp にあたる補足行を既存データから足しただけ（新規取得なし）。
+          段0R 第1陣その2: モック v2 の並び（KPI 帯 → クイックアクション → 2カラム）へ移動。
+          ★JSX の並び替えだけで、材料・式・4枚の内容は1文字も変えていない。 */}
       <div className="nox-kpis">
         <div className="nox-kpi">
           <div className="lbl">本日の出勤</div>
@@ -167,6 +153,9 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           <div className="val num">{dohanToday}<small>件</small></div>
           <div className="sub">出勤のうち同伴</div>
         </div>
+        {/* money＝売上カードの意味づけ（モック .kpi.money と同じマーカー）。
+            段0R 第1陣その2: 金の3役（選択・主ボタン・バッジ）に KPI 強調は含まれないため
+            gold 枠は撤去し、枠は他カードと同一・数値は白（.val の var(--ink)）。 */}
         <div className="nox-kpi money">
           <div className="lbl">今月売上（締め済み日報）</div>
           <div className="val num">{yen(monthSales)}</div>
@@ -178,6 +167,24 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           <div className="sub">ランキング上位5名の合計</div>
         </div>
       </div>
+
+      {/* 段H: クイックアクション＝既存ルートへの純ナビ（役割ゲートは nav と同一・page で算出済み）。
+          段H2: アイコンを追加（モック .qi の Unicode 字形・href/label/ゲートは段H から不変）。
+          段0R 第1陣その2: KPI 帯の下へ移動（モック順）。上の marginTop は KPI 帯の
+          margin-bottom 14px と二重になるため marginBottom 14 に付け替え＝14px 刻みで揃える。 */}
+      {shortcuts.length > 0 && (
+        <section style={{ marginBottom: 14 }}>
+          <h2 style={{ ...t.cardTitle, margin: "0 0 9px" }}>クイックアクション</h2>
+          <div className="nox-quickgrid">
+            {shortcuts.map((s) => (
+              <Link key={s.href} href={s.href} className="nox-quicktile">
+                <span className="nox-quickicon" aria-hidden="true">{s.icon}</span>
+                {s.label}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 段0R 第1陣: モック .cols＝左（今日のシフト＋承認待ち）／右（ランキング＋お知らせ）の2カラム。
           900+ で横並び・≤900 は縦積み（.nox-2col）。 */}
