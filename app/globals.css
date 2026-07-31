@@ -1115,31 +1115,9 @@ body {
 .nox-photoedit:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
 .nox-photoedit:disabled { opacity: .5; cursor: default; }
 
-/* ── 段C shift 週グリッド overview（DESIGN_MASTER .wgrid 準拠）── presentation-only 2026-07-24 ──
-   既存 shifts の client 再形（cast × 次7日）＝新規取得/RPC/集計ゼロ・読取専用。canonical トークンのみ。
-   列は 名前54px＋7日（1fr）で固定＝7日は不変ゆえ断点での列数変更は不要（cells は 1fr で流動）。 */
-.nox-wgrid {
-  display: grid;
-  grid-template-columns: 54px repeat(7, 1fr);
-  gap: 4px;
-  align-items: center;
-}
-.nox-whead { font-size: 9.5px; color: var(--sub); text-align: center; line-height: 1.35; }
-.nox-wname { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nox-wcell {
-  aspect-ratio: 1;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
-  background: var(--bg2);
-  border: 1px solid var(--line);
-  color: var(--sub);
-}
-.nox-wcell.on { color: #0B0B0F; background: linear-gradient(135deg, var(--gold2), #B8893A); border-color: transparent; }
-.nox-wcell.planned { color: var(--champ); background: #1B1710; border-color: var(--gold); }
+/* （段C の週グリッド overview 一式＝.nox-wgrid/.nox-whead/.nox-wname/.nox-wcell は撤去。
+   段S-1（2568c92）が月カレンダーへ吸収して JSX を削除した時点で参照ゼロになっており、
+   当時は「他段で未使用のため据置」としていたが v2R 完走後も復活の見込みがないため掃除した。 */
 
 /* ── 段E アバター＋メダル（DESIGN_MASTER .ava/.medal 準拠）── presentation-only 2026-07-24 ──
    既存 name/rank のみで生成＝新規取得/RPC/集計/新情報ゼロ（title/aria にも新情報を出さない）。canonical トークン。
