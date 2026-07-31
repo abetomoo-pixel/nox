@@ -97,9 +97,14 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
             適格請求書 登録 <b style={{ color: "var(--champ)" }}>{registered}</b> 名 ／ 免税事業者 <b style={{ color: "var(--champ)" }}>{exempt}</b> 名
             {!finalized && <span style={{ marginLeft: 8, color: "var(--sub)" }}>※源泉は当該期間の給与確定後に表示されます。</span>}
           </p>
+          {/* ★本システムはマイナンバーを保管しない（入力欄を持たず CSV にも出さない＝機微を列に出さない方針）。
+              システムが管理しないものを「未取得」と警告し続けるのは画面と実態の食い違いになるため、
+              警告（t.alert）ではなく通常の注記トーンで「書面等で別途管理」を案内する。
+              名前の列挙は残す＝誰の分を書面で揃えるべきかは実務上有用な情報。 */}
           {noMynumber.length > 0 && (
-            <p style={{ ...t.alert, fontSize: 12 }}>
-              マイナンバー未取得（支払調書・源泉に必要）: {noMynumber.map((r) => r.castName).join("、")}
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0", lineHeight: 1.7 }}>
+              支払調書の提出にはマイナンバーが必要です。本システムでは保管しませんので、書面等で別途ご管理ください
+              （対象: {noMynumber.map((r) => r.castName).join("、")}）。
             </p>
           )}
           <div style={{ overflowX: "auto" }}>
@@ -119,8 +124,14 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
                     <td style={t.td}>{r.castName}</td>
                     <td style={{ ...t.td, ...t.num, textAlign: "right" }}>{r.withholding != null ? `¥${r.withholding.toLocaleString()}` : "—"}</td>
                     <td style={t.td}>
-                      <select value={r.mode ?? "委託"} disabled={busy} onChange={(e) => void saveTax(r, { mode: e.target.value })}
+                      {/* ★未登録は「未設定」を選択状態にする（invoice セレクトと同じ形）。
+                          value={r.mode ?? "委託"} だと未登録でも「報酬」が選択済みに見え、
+                          そのまま「報酬」を選んでも値が変わらず change が発火せず保存されない
+                          （＝画面は報酬なのに blocker は税区分未登録、という食い違いの原因）。 */}
+                      <select value={r.mode ?? ""} disabled={busy}
+                        onChange={(e) => { if (!e.target.value) return; void saveTax(r, { mode: e.target.value }); }}
                         style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12 }}>
+                        <option value="">未設定</option>
                         <option value="委託">報酬</option>
                         <option value="雇用">給与</option>
                       </select>
