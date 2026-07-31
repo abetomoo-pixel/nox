@@ -55,7 +55,7 @@ export default async function ManageLayout({ children }: { children: React.React
         ] },
         { label: "スタッフ", items: [
           { href: "/shift", label: "シフト" },
-          // 文言統一（Agoora 裁定確定）: 「女の子」→「キャスト」
+          // 文言統一（Agoora 裁定確定）: 旧称を廃し「キャスト」表記に統一
           ...(isManagerUp ? [{ href: "/casts", label: "キャスト" }, { href: "/staff", label: "スタッフ" }, { href: "/payroll", label: "給与" }] : []),
         ] },
         { label: "顧客", items: [
