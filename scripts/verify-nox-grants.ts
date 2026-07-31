@@ -565,14 +565,16 @@ async function main() {
     // G24: 台帳#40 案C（mig0049/0050）— 原価を product_costs へ分離し products.cost を drop。
     //   cast/staff には列そのものが存在しない＝select("*") でも導出不能（構造的非開示）。
     //   ★署名一意性を先に assert する（G22 と同型）: roleOf は proname 引きのため、旧署名が残ると
-    //   ACL が2署名ぶん混ざって静かに通る。set_product は12引数据置＝create or replace で置換した。
+    //   ACL が2署名ぶん混ざって静かに通る。set_product は #40 当時 12引数据置＝create or replace で置換した。
+    //   ★引数はその後 mig0062(p_reorder_point)・0063(p_category_id)・0069(p_back_exempt_from_split)で 15 へ。
+    //     0071 が旧 v14 を drop 済み＝ここが assert する「1本のみ」は署名一意性の担保として現役。
     {
       const r = await db.query(
         `select pg_get_function_identity_arguments(oid) as args from pg_proc
          where pronamespace = 'public'::regnamespace and proname = 'set_product'`,
       );
       const argsList = r.rows.map((x) => x.args as string);
-      check("G24 set_product = 12引数1本のみ（署名据置＝オーバーロード無し）",
+      check("G24 set_product = 15引数1本のみ（mig0071 で旧 v14 drop 済＝オーバーロード無し）",
         r.rowCount === 1 && argsList[0].includes("p_cost"), JSON.stringify(argsList));
       const roles = await roleOf("set_product");
       check("G24 set_product EXECUTE = authenticated（anon/public 不在）",
