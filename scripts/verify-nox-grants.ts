@@ -90,6 +90,47 @@ async function main() {
     );
   }
 
+  // G2b: SECURITY DEFINER 関数の EXECUTE スキーマ全体ガード（G1/G2 のテーブル版と同型・関数版）。
+  //   ★由来: mig0069 が引数追加で set_product を「新署名」として作った際に revoke/grant を書かず、
+  //     Supabase の既定 grant が付き直して anon/PUBLIC に EXECUTE が開いた（mig0072 で是正）。
+  //     create or replace は ACL を保持するが、引数を足すと別署名＝新規作成となり既定 grant が付く。
+  //     この class の事故を関数の増減へ自動追随する全数走査で恒久検知する（個別 assert の棚卸しに頼らない）。
+  //   ★SECURITY DEFINER に限定する理由: definer は RLS をバイパスするため anon から到達可能であってはならない。
+  //     invoker 関数は RLS が効くので同列に禁じない（将来 anon 公開が要るケースを誤検知しない）。
+  {
+    const r = await db.query(
+      `select p.oid::regprocedure as sig
+       from pg_proc p
+       where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.prosecdef
+         and has_function_privilege('anon', p.oid, 'EXECUTE')
+       order by 1`,
+    );
+    check(
+      "G2b anon が EXECUTE できる SECURITY DEFINER 関数 = 0本（スキーマ全体）",
+      r.rowCount === 0,
+      r.rows.map((x) => x.sig as string).join(", "),
+    );
+  }
+  {
+    // PUBLIC への grant は has_function_privilege では引けない（public はロールではない）ため
+    // aclexplode の grantee = 0 で見る。★proacl IS NULL＝ACL 未設定＝既定で PUBLIC 実行可なので同罪に数える
+    //   （revoke を一度も当てていない関数がここに落ちる＝まさに 0069 の事故形）。
+    const r = await db.query(
+      `select p.oid::regprocedure as sig
+       from pg_proc p
+       where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.prosecdef
+         and (p.proacl is null
+              or exists (select 1 from aclexplode(p.proacl) a
+                          where a.grantee = 0 and a.privilege_type = 'EXECUTE'))
+       order by 1`,
+    );
+    check(
+      "G2b PUBLIC に EXECUTE がある SECURITY DEFINER 関数 = 0本（proacl 未設定＝既定 grant も同罪）",
+      r.rowCount === 0,
+      r.rows.map((x) => x.sig as string).join(", "),
+    );
+  }
+
   // G3: audit_log_write は owner のみ（0004 の恒久化）
   {
     const r = await db.query(
