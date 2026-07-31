@@ -1443,6 +1443,15 @@ body {
   .nox-main { padding: 0 !important; }
   .nox-main > * { max-width: none !important; margin: 0 !important; }
 
+  /* ★UI刷新v2R 追随（上3行は /mine の旧シェル .nox-topbar/.nox-main 用＝そのまま生かす）。
+     (manage) は .nox-tb/.nox-side/.nox-layout/.nox-mainarea へ載せ替わったのに印刷側が旧名のままで、
+     どの印刷ルールにも捕まらず素通りしていた（CSSOM の matches 実測で確認）。
+     ★末尾空白ページの実犯＝.nox-mainarea の padding-bottom 28px（実測 mainarea.bottom 1932 −
+     最終スリップ 1904 ＝ 28px。最終スリップより下に高さを持つ要素はゼロ）。 */
+  .nox-tb, .nox-side { display: none !important; }
+  .nox-layout { min-height: 0 !important; }
+  .nox-mainarea { padding: 0 !important; }
+
   /* 隔離：印刷ページ内は .nox-print 以外を落とす（通常フロー維持＝正しい改ページ・空白ページ無し） */
   .nox-printpage > *:not(.nox-print) { display: none !important; }
 
