@@ -894,6 +894,10 @@ async function main() {
     //   prosrc で機械検知する＝再発防止の本体。prokind='f' で pg_get_functiondef の集約関数エラーを回避。
     //   除外リスト＝helper 自身・kiosk_operator_list（WHERE 用途）・0059 read layer 2本（G32 専任）＝
     //   G31 の意味論は「0057 write-arm 集合」のまま不変（count 棚卸し 2026-07-22・期待値 12/13 は書換えない）。
+    //   ★2026-07-31 更新: mig0066 が新設したトリガ関数 drink_claims_on_line_delete が actor 解決で
+    //     auth_kiosk_operator() を coalesce するため operator 側のみ 13→14。増分の正体を特定したうえでの
+    //     更新であり、根拠なく数字を合わせたものではない（「12/13 は書換えない」の原則自体は維持＝
+    //     write-arm 集合を測る register helper 側 12本は不変・こちらは1本も動かしていない）。
     {
       const reg = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
@@ -910,7 +914,8 @@ async function main() {
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator()%'
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
-      check("G31 operator を使う関数 = 13本（上記12＋audit_log_write の actor coalesce）", op.rows[0].n === 13, `got ${op.rows[0].n}`);
+      check("G31 operator を使う関数 = 14本（上記12＋audit_log_write＋drink_claims_on_line_delete＝いずれも actor coalesce）",
+        op.rows[0].n === 14, `got ${op.rows[0].n}`);
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'
