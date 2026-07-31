@@ -1459,4 +1459,5 @@ body {
   /* manage 全員分＝1人1ページ */
   .nox-print-page { break-after: page; page-break-after: always; }
   .nox-print-page:last-child { break-after: auto; page-break-after: auto; }
+  .nox-print-page:last-child .nox-payslip { margin-bottom: 0 !important; } /* 最終スリップ直後の 8mm が溢れて白紙1枚を生むのを止める */
 }
