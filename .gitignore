@@ -16,6 +16,7 @@ next-env.d.ts
 .DS_Store
 *.pem
 Thumbs.db
+~$*
 
 # debug
 npm-debug.log*
