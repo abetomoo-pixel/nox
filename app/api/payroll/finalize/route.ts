@@ -34,7 +34,11 @@ export async function POST(req: Request) {
     const payslips = draft.rows.map((r) => ({
       cast_id: r.castId,
       net: r.net,
-      breakdown: { pay: r.pay, extras: r.extras },
+      // (a) 発行時点キャスト名の凍結: 確定後に源氏名を改名しても、この明細の表示名は発行時のまま。
+      //   ★DB 変更は不要＝payroll_finalize は breakdown をそのまま採用し ar/adv/okuri だけを注入する
+      //     （器の検証も pay/extras の存在チェックのみ＝余分なキーを拒否しない）。予約キー5つ
+      //     （pay/extras/ar/adv/okuri）とは衝突せず、reopen の巻き戻しも cast_name を参照しない。
+      breakdown: { pay: r.pay, extras: r.extras, cast_name: r.castName },
       ar_deducted: r.arDeducted, // F2e-1: {receivable_id, amount}[]（finalize が deducted/部分/繰越に遷移）
       ar_carried: r.arCarried, // F2e-1: {receivable_id}[]（deduct_period→翌 period）
       adv_deducted: r.advDeducted, // F2e-2: {advance_id, amount}[]（deducted/部分/繰越）

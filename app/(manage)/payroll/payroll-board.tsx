@@ -14,7 +14,13 @@ type Store = { id: string; name: string };
 // D3: payslips.breakdown_json（finalize が凍結）の CSV が使う部分。back 内訳の生値は CSV に出さず合算のみ。
 type BreakdownPay = PayrollCsvPay;
 type BreakdownExtra = { amount: number };
-type BreakdownJson = { pay: BreakdownPay; extras?: BreakdownExtra[] };
+// cast_name＝(a) 発行時点の源氏名（finalize route が凍結）。旧データには無いので optional。
+type BreakdownJson = { pay: BreakdownPay; extras?: BreakdownExtra[]; cast_name?: string };
+// 明細に出す名前の解決＝凍結名 → casts の現在名 → "(不明)" の3段。
+//   ★確定後に改名しても発行済み明細の表示名は変わらない（凍結名が最優先）。
+//   cast_name を持たない旧 payslip は従来どおり現在名で描画する（後方互換）。
+const slipCastName = (bj: unknown, current: string | undefined): string =>
+  (bj as { cast_name?: string } | null)?.cast_name ?? current ?? "(不明)";
 type Row = {
   castId: string; castName: string; net: number; taxMode: string; anomalyCount: number;
   arDeductTotal?: number; arCarriedTotal?: number;
@@ -144,7 +150,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
         .slice()
         .sort((a, b) => (nameOf.get(a.cast_id) ?? "").localeCompare(nameOf.get(b.cast_id) ?? "", "ja"))
         .map((s) => ({
-          castName: nameOf.get(s.cast_id) ?? "(不明)",
+          castName: slipCastName(s.breakdown_json, nameOf.get(s.cast_id)),
           taxMode: modeOf.get(s.cast_id) ?? "—",
           period: s.period,
           pay: s.breakdown_json.pay,
@@ -182,7 +188,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       const { data: cs } = await supabase.from("casts").select("id, name").in("id", slips.map((s) => s.cast_id));
       const nameOf = new Map((cs ?? []).map((c) => [c.id as string, c.name as string]));
       const rows = slips
-        .map((s) => ({ castName: nameOf.get(s.cast_id) ?? "(不明)", slip: { period: s.period, net: s.net, breakdown_json: s.breakdown_json } }))
+        .map((s) => ({ castName: slipCastName(s.breakdown_json, nameOf.get(s.cast_id)), slip: { period: s.period, net: s.net, breakdown_json: s.breakdown_json } }))
         .sort((a, b) => a.castName.localeCompare(b.castName, "ja"));
       setPrintRows(rows);
       setPrintMsg(`報酬明細を読み込みました（${rows.length} 名分）。印刷は A4・1人1枚で出力されます。`);
