@@ -280,6 +280,47 @@ async function main() {
   const { data: ps } = await admin.from("payslips").select("cast_id").eq("run_id", runId);
   check("F2c-2 退職者 P2 の payslip が生成される", (ps ?? []).some((r) => r.cast_id === p2), JSON.stringify(ps));
 
+  // ── (a) 発行時点キャスト名の凍結（app/api/payroll/finalize が breakdown.cast_name を焼く）──
+  //   ★ここで検証するのは DB 側の性質2つ:
+  //     ① payroll_finalize は breakdown の余分なキーを落とさず保持する（器の検証は pay/extras の存在のみ）
+  //     ② 確定後に casts.name を改名しても、凍結された cast_name は変わらない（＝発行時点の名前が残る）
+  //   route 経由の注入そのものは型と実装で担保し、ここは「凍結が効く」ことを実 RPC で押さえる。
+  {
+    const FROZEN = "NOX-VERIFY-凍結名-発行時";
+    const RENAMED = "NOX-VERIFY-凍結名-改名後";
+    const { data: origRow } = await admin.from("casts").select("name").eq("id", p1).single();
+    const origName = (origRow?.name ?? "") as string;
+    try {
+      // finalize（route と同じ形＝breakdown に cast_name を1キー載せる）
+      const psFrozen = strict.rows.map((r) => ({
+        cast_id: r.castId, net: r.net,
+        breakdown: { pay: r.pay, extras: r.extras, cast_name: r.castId === p1 ? FROZEN : r.castName },
+      }));
+      const { error: eF2 } = await admin.rpc("payroll_finalize", {
+        p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: psFrozen,
+      });
+      const { data: f1 } = await admin.from("payslips").select("breakdown_json").eq("run_id", runId).eq("cast_id", p1).single();
+      const bd1 = f1?.breakdown_json as Record<string, unknown>;
+      check("(a) finalize が breakdown.cast_name を落とさず焼く（余分キーを保持）",
+        !eF2 && bd1?.cast_name === FROZEN, eF2?.message ?? JSON.stringify(bd1?.cast_name));
+      check("(a) 予約キー5つ（pay/extras/ar/adv/okuri）は cast_name 追加後も揃う",
+        !!bd1?.pay && Array.isArray(bd1?.extras) && Array.isArray(bd1?.ar) && Array.isArray(bd1?.adv) && Array.isArray(bd1?.okuri),
+        JSON.stringify(Object.keys(bd1 ?? {})));
+
+      // ★改名しても凍結名は不変（＝発行済み明細の表示名が遡って変わらない）
+      const { error: eRen } = await admin.from("casts").update({ name: RENAMED }).eq("id", p1);
+      const { data: f2 } = await admin.from("payslips").select("breakdown_json").eq("run_id", runId).eq("cast_id", p1).single();
+      const { data: c2 } = await admin.from("casts").select("name").eq("id", p1).single();
+      check("(a) ★改名しても凍結 cast_name は変わらない（casts.name は改名済み）",
+        !eRen && (f2?.breakdown_json as Record<string, unknown>)?.cast_name === FROZEN && c2?.name === RENAMED,
+        JSON.stringify({ frozen: (f2?.breakdown_json as Record<string, unknown>)?.cast_name, current: c2?.name }));
+    } finally {
+      await admin.from("casts").update({ name: origName }).eq("id", p1); // 改名を必ず戻す
+    }
+    const { data: cBack } = await admin.from("casts").select("name").eq("id", p1).single();
+    check("(a) 掃除: cast 名を元に戻した", cBack?.name === origName, `got ${cBack?.name}`);
+  }
+
   // ── 8 確定拒否ガード（P2 期間: P3=no_tax・P4=no_plan の両方が cast 名つき blockers）──
   const draft10 = await computePayrollDraft(admin, manager, storeA1Id, P2, { previewDefaults: false });
   const blkP3 = draft10.blockers.find((b) => b.castId === p3 && b.reason === "no_tax");
