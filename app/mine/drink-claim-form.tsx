@@ -20,8 +20,9 @@ type Claim = {
 };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
-const STATUS_LABEL: Record<string, string> = { pending: "審査中", approved: "承認済", rejected: "却下" };
-const STATUS_COLOR: Record<string, string> = { pending: "var(--gold2)", approved: "var(--ok)", rejected: "var(--sub)" };
+// mig0066: 'void'＝店側が取り消した付与（却下 rejected とは別＝申告そのものは正当だった行）。
+const STATUS_LABEL: Record<string, string> = { pending: "審査中", approved: "承認済", rejected: "却下", void: "取消" };
+const STATUS_COLOR: Record<string, string> = { pending: "var(--gold2)", approved: "var(--ok)", rejected: "var(--sub)", void: "var(--sub)" };
 
 const hhmm = (iso: string) =>
   new Date(iso).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" });

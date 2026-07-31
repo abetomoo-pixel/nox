@@ -50,7 +50,16 @@ type Line = {
   unit_price_snapshot: number;
   qty: number;
   line_total: number;
+  // キャストドリンク（mig0070）: 按分除外の判定は back_snapshot の凍結値で行う。
+  //   ★products.back_exempt_from_split（現価）では判定しない＝行を打った後にマスタのフラグを
+  //     切り替えても伝票の帰属経路は変わらない、が 0070 の設計（check_close と
+  //     drink_claim_submit_proxy が同一の凍結値を見る）。UI もその凍結値に従う＝
+  //     「ボタンは出るのに RPC が not exempt product で弾く」ズレを構造的に作らない。
+  //   ★キー無し（0070 以前に打たれた行）は false 相当＝按分経路（DB 側の coalesce と同じ）。
+  back_snapshot: { back_exempt?: boolean } | null;
 };
+// キャストドリンク（mig0066/0067）: 明細行に紐づく確定済み claim（status='approved' のみ引く）
+type DrinkClaim = { id: string; check_line_id: string | null; cast_id: string; back_amount: number };
 type Payment = { id: string; pay_group: string; method: string; amount: number; tendered: number | null; method_detail: string | null };
 type Nom = { cast_id: string; ratio_weight: number };
 // F3c 二重承認（approvals・mig0035/0036）
@@ -77,6 +86,19 @@ const DETAIL_METHODS = new Set(["card", "other"]);
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
 const AP_STATUS_LABEL: Record<string, string> = { pending: "承認待ち", approved: "承認済", rejected: "却下" };
 const AP_STATUS_COLOR: Record<string, string> = { pending: "var(--gold2)", approved: "var(--ok)", rejected: "var(--sub)" };
+
+// キャストドリンク（mig0067）代理起票・取消のエラー日本語化（握り潰さない＝seatErrJa と同流儀）
+function claimErrJa(msg: string | undefined): string {
+  if (!msg) return "不明なエラー";
+  if (msg.includes("not exempt product")) return "この商品はキャストドリンク指定ではありません（マスタで指定してください）";
+  if (msg.includes("already claimed")) return "この行にはすでにキャストが付いています";
+  if (msg.includes("not approved")) return "この付与はすでに取り消されています";
+  if (msg.includes("not open")) return "この伝票は締められています";
+  if (msg.includes("bad cast")) return "そのキャストは選べません（在籍・自店を確認してください）";
+  if (msg.includes("bad line")) return "この明細行にはキャストを付けられません";
+  if (msg.includes("forbidden")) return "権限がありません";
+  return msg;
+}
 
 // approval RPC エラーの日本語化（F3c）
 function apErrJa(msg: string | undefined): string {
@@ -150,6 +172,12 @@ export default function RegisterBoard({
   const [check, setCheck] = useState<CheckRow | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  // キャストドリンク（mig0066/0067）: この伝票の確定済み claim（line_id → claim）と、
+  //   キャスト選択を開いている行（null=閉）。どちらも表示状態のみ＝money 導線は RPC が権威。
+  const [claims, setClaims] = useState<DrinkClaim[]>([]);
+  const [claimPick, setClaimPick] = useState<string | null>(null);
+  const [claimMsg, setClaimMsg] = useState<string | null>(null);
+  const [claimBusy, setClaimBusy] = useState(false);
 
   // F4b レシート印刷: printer_enabled は route 経由（printer_config は deny-all）＝false/取得失敗ならボタン非表示（fail-closed）
   const [printerEnabled, setPrinterEnabled] = useState(false);
@@ -250,8 +278,13 @@ export default function RegisterBoard({
   const loadCheck = useCallback(async (checkId: string) => {
     const { data: c } = await supabase.from("checks").select("*").eq("id", checkId).single();
     const { data: ls } = await supabase
-      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total")
+      // back_snapshot＝キャストドリンク判定の凍結値（mig0070）。中身は back_exempt だけを見る。
+      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot")
       .eq("check_id", checkId).order("sort_order");
+    // キャストドリンク: 確定済み（approved）の claim だけを引く。void/rejected は行に紐づけない。
+    const { data: dcs } = await supabase
+      .from("drink_claims").select("id, check_line_id, cast_id, back_amount")
+      .eq("check_id", checkId).eq("status", "approved");
     const { data: ps } = await supabase
       .from("payments").select("id, pay_group, method, amount, tendered, method_detail").eq("check_id", checkId).order("paid_at");
     const { data: ns } = await supabase
@@ -274,6 +307,8 @@ export default function RegisterBoard({
     setCheckSeats((cs ?? []) as CheckSeatRow[]);
     setCheck(c as CheckRow);
     setLines((ls ?? []) as Line[]);
+    setClaims((dcs ?? []) as DrinkClaim[]);
+    setClaimPick(null);
     setPayments((ps ?? []) as Payment[]);
     setNoms((ns ?? []) as Nom[]);
     setApprovals((aps ?? []) as Approval[]);
@@ -390,6 +425,30 @@ export default function RegisterBoard({
     setMsg(null);
     const { error } = await supabase.rpc("check_remove_line", { p_line_id: lineId });
     setMsg(error ? error.message : null);
+    await loadCheck(check.id);
+  }
+
+  // キャストドリンク（mig0067）: 明細行にキャストを付ける／取り消す。
+  //   ★バック額はサーバが行の凍結値（back_snapshot）から焼き付ける＝金額は一切送らない。
+  //   ★連打束ねの保留を先に確定してから呼ぶ（起票対象の行が確定していないと紐付け先がぶれる）。
+  async function claimAssign(lineId: string, castId: string) {
+    if (!check || claimBusy) return;
+    setClaimBusy(true);
+    if (!(await tb.flush())) { setClaimBusy(false); return; }
+    setClaimMsg(null);
+    const { error } = await supabase.rpc("drink_claim_submit_proxy", { p_line_id: lineId, p_cast_id: castId });
+    setClaimMsg(error ? claimErrJa(error.message) : null);
+    setClaimBusy(false);
+    await loadCheck(check.id);
+  }
+  async function claimVoid(claimId: string) {
+    if (!check || claimBusy) return;
+    setClaimBusy(true);
+    if (!(await tb.flush())) { setClaimBusy(false); return; }
+    setClaimMsg(null);
+    const { error } = await supabase.rpc("drink_claim_void", { p_claim_id: claimId });
+    setClaimMsg(error ? claimErrJa(error.message) : null);
+    setClaimBusy(false);
     await loadCheck(check.id);
   }
 
@@ -873,6 +932,9 @@ export default function RegisterBoard({
             <tbody>
               {lines.map((l) => {
                 const isDisc = l.kind === "discount"; // ★F3c: 承認割引（正の値・表示は −・削除不可＝承認経由のみ）
+                // キャストドリンク（mig0070）: 凍結値で判定＝DB（check_close / proxy）と同じ真実を見る。
+                const isExempt = l.back_snapshot?.back_exempt === true;
+                const claim = claims.find((c) => c.check_line_id === l.id);
                 return (
                   <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
                     <td style={{ padding: 6, color: "var(--sub)" }}>[{l.pay_group}]</td>
@@ -880,6 +942,45 @@ export default function RegisterBoard({
                     <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>{isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}`}</td>
                     <td style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
                       {isDisc ? `−${yen(l.line_total)}` : yen(l.line_total)}
+                    </td>
+                    {/* キャストドリンク列＝除外指定の行だけに出す（非除外は空セル＝既存行の見え方は不変） */}
+                    <td style={{ padding: 6 }}>
+                      {isExempt && (claim ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--champ)" }}>
+                            {castName(claim.cast_id)}
+                          </span>
+                          <span style={{ ...t.num, fontSize: 11, color: "var(--sub)" }}>{yen(claim.back_amount)}</span>
+                          {/* 取消は open のときだけ描画＝close 後は導線ごと消す（押せるのに弾かれる形にしない） */}
+                          {check?.status === "open" && (
+                            <button onClick={() => void claimVoid(claim.id)} disabled={claimBusy}
+                              style={{ ...btnLight, padding: "1px 7px", fontSize: 11 }}>取消</button>
+                          )}
+                        </span>
+                      ) : check?.status === "open" ? (
+                        claimPick === l.id ? (
+                          <select autoFocus defaultValue=""
+                            onChange={(e) => { if (e.target.value) void claimAssign(l.id, e.target.value); else setClaimPick(null); }}
+                            style={{ ...input, fontSize: 11.5, padding: "2px 6px", maxWidth: 150 }}>
+                            <option value="">キャストを選ぶ…</option>
+                            {/* 着卓中（この伝票の指名）を先頭に寄せる。選択自体は制限しない＝
+                                指名に入っていないキャストが運んだケースも実務では起きるため。 */}
+                            {[...casts].sort((a, b) => {
+                              const av = nomWeights[a.id] > 0 ? 0 : 1, bv = nomWeights[b.id] > 0 ? 0 : 1;
+                              return av - bv || a.name.localeCompare(b.name, "ja");
+                            }).map((ca) => (
+                              <option key={ca.id} value={ca.id}>
+                                {nomWeights[ca.id] > 0 ? `★着卓 ${ca.name}` : ca.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <button onClick={() => { setClaimMsg(null); setClaimPick(l.id); }} disabled={claimBusy}
+                            style={{ ...btnLight, padding: "2px 8px", fontSize: 11.5, whiteSpace: "nowrap" }}>
+                            キャストに付ける
+                          </button>
+                        )
+                      ) : null)}
                     </td>
                     <td style={{ padding: 6 }}>
                       {isDisc ? (
@@ -900,6 +1001,8 @@ export default function RegisterBoard({
               })}
             </tbody>
           </table>
+          {/* キャストドリンクの起票/取消エラー（握り潰さない＝seatMsg と同流儀で行の直下に出す） */}
+          {claimMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{claimMsg}</p>}
           {/* 段0R 第1陣: planA .sumrow＝明細の下に伝票サマリ。★表示のみ。
               値は会計タブの「会計（伝票グループ別）」と同一の groupInfo（小計 bx・割引 disc・
               請求 due＝groupDue）を group 横断で合計しただけで、新しい計算ロジックは作っていない。

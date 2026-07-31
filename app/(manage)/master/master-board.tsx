@@ -14,6 +14,9 @@ type Product = {
   reorder_point: number | null;
   // 純増⑦（mig0063）: カテゴリ FK（null=未分類）。旧 category text は deprecated（現値往復のみ）。
   category_id: string | null;
+  // キャストドリンク（mig0066/0069）: true=check_close の指名按分から除外し、バックは drink_claims 経路のみ。
+  //   経路は商品単位で排他＝二重計上が構造的に起きない。CHECK products_exempt_hon_pt_chk で hon_pt=0 が必須。
+  back_exempt_from_split: boolean;
 };
 // 純増⑦（mig0063）: 商品カテゴリマスタ（store スコープ・sort_order 順・is_active で有効/無効）
 type Category = { id: string; name: string; sort_order: number; is_active: boolean };
@@ -92,6 +95,8 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
   const [pBackValue, setPBackValue] = useState(50);
   const [pUnit4, setPUnit4] = useState<Record<string, number>>({ ...EMPTY_UNIT4 });
   const [pHonPt, setPHonPt] = useState(0);
+  // キャストドリンク（mig0069）: 按分除外フラグ。常に明示送信（原則7）。
+  const [pExempt, setPExempt] = useState(false);
   const [pActive, setPActive] = useState(true);
   // 純増①（mig0062）: 発注点。空欄＝しきい無し（null 送信）＝原則7どおり常に明示値を送る。
   const [pReorder, setPReorder] = useState("");
@@ -153,9 +158,10 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
     setPUnit4(p.unit4_json ?? { ...EMPTY_UNIT4 }); setPHonPt(p.hon_pt); setPActive(p.is_active);
     setPReorder(p.reorder_point == null ? "" : String(p.reorder_point));
     setPCatId(p.category_id ?? "");
+    setPExempt(p.back_exempt_from_split);
     // 「詳細」は既定 閉。ただし編集時に値が入っている（＝運用で使っている）なら自動で開く。
     const hasDetail = costs[p.id] != null || p.reorder_point != null || p.hon_pt > 0
-      || p.back_mode === "unit4" || (p.back_value ?? 0) !== 0;
+      || p.back_mode === "unit4" || (p.back_value ?? 0) !== 0 || p.back_exempt_from_split;
     setDetailOpen(hasDetail);
   }
 
@@ -187,7 +193,11 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
       p_back_mode: pBackMode,
       p_back_value: pBackMode === "rate" ? pBackValue : null,
       p_unit4: pBackMode === "unit4" ? pUnit4 : null,
-      p_hon_pt: pHonPt, p_is_active: pActive, // 明示 boolean（原則7）
+      p_hon_pt: pExempt ? 0 : pHonPt, p_is_active: pActive, // 明示 boolean（原則7）
+      // mig0069: キャストドリンク指定も常に明示値（原則7）。★ON のとき hon_pt は 0 を送る＝
+      //   CHECK products_exempt_hon_pt_chk（exempt なら hon_pt=0）に UI 側で先に合わせ、
+      //   'exempt requires hon_pt 0' を発生させない（入力欄も disabled で 0 表示にしてある）。
+      p_back_exempt_from_split: pExempt,
       // mig0062: 発注点も常に明示値（空欄＝null＝しきい無し）。省略に頼らない＝原則7 同列。
       p_reorder_point: pReorder.trim() === "" ? null : Number(pReorder),
       // mig0063: カテゴリも常に明示値（""＝未分類＝null）。旧 p_category（text）は現値往復のみ＝deprecated。
@@ -196,7 +206,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
     setMsg(error
       ? (error.message.includes("bad category") ? "カテゴリの指定が不正です（他店のカテゴリは選べません）" : error.message)
       : pId ? "商品を更新しました" : "商品を登録しました");
-    setPId(null); setPName(""); setPPrice(0); setPReorder(""); setPCatId("");
+    setPId(null); setPName(""); setPPrice(0); setPReorder(""); setPCatId(""); setPExempt(false);
     await load();
   }
 
@@ -493,7 +503,24 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
                   </label>
                 ))
               )}
-              <label style={{ fontSize: 12 }}>本指名pt <input type="number" min={0} value={pHonPt} onChange={(e) => setPHonPt(Number(e.target.value))} style={{ ...input, width: 56 }} /></label>
+              <label style={{ fontSize: 12, opacity: pExempt ? 0.45 : 1 }}>
+                本指名pt <input type="number" min={0} value={pExempt ? 0 : pHonPt} disabled={pExempt}
+                  onChange={(e) => setPHonPt(Number(e.target.value))} style={{ ...input, width: 56 }} />
+              </label>
+              {/* キャストドリンク（mig0066/0069/0070）＝按分除外。ON の行は check_close の指名按分を通らず、
+                  バックは drink_claims 経路（レジの「キャストに付ける」）だけで帰属する＝経路が排他。
+                  ★hon_pt は 0 に強制する（CHECK products_exempt_hon_pt_chk）＝按分ループを通らない商品は
+                    本指名ptの分配経路も持たないため、値を持ったまま除外指定すると pt が黙って消える。 */}
+              <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <input type="checkbox" checked={pExempt}
+                  onChange={(e) => { setPExempt(e.target.checked); if (e.target.checked) setPHonPt(0); }} />
+                キャストドリンク（按分除外）
+              </label>
+              {pExempt && (
+                <span style={{ fontSize: 11, color: "var(--sub)", flexBasis: "100%" }}>
+                  キャストドリンクは本指名ptを持てません（0 で保存されます）。バックはレジで「キャストに付ける」と確定します。
+                </span>
+              )}
             </div>
           )}
 
