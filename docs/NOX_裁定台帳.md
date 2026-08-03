@@ -800,6 +800,15 @@ claude/wizardly-sanderson-9c96e8（67996c9・基準1172時代）はマージし�
 
 migration プリフライトの影響調査は「app の書き手」だけでなく「verify スクリプト内の書き手」も列挙対象とする（本件で is_active 単独書込 3箇所の見落としが発生）。
 
+### runtime 検証の追加＝verify:f0 合計の張り替え（裁定26 書式）
+
+- 旧合計 **2142 → 新合計 2152**（+10・すべて `verify:nox-anon-guard` 918→928）
+- 理由：mig0074 の runtime 検証追加（prosrc 緑 ≠ runtime 成功）
+- 内訳：**段38a（+2）** anon BLOCKED（`cast_leave` / `cast_rejoin`・自動列挙ではないため明示追加）／**段38（+8）** 準備1・(a) owner 退店＝is_active=false・left_on=指定日・(b) 二重退店 `already inactive`・(e) 同一 user の active 行あり復活 `already active elsewhere`・(c) 復活＝is_active=true・left_on=null・(d) 二重復活 `already active`・(f) CHECK が service_role 直 UPDATE も拒否・(g) manager の他店退店 `forbidden`
+- fixture 3原則：①動的生成のみ（固定 fixture の casts を退店させない）②`p_left_on` 明示（当日 JST 非依存＝時限装置化しない・`2026-02-20` 固定）③拒否系は状態不変ゆえ復元不要。finally は `like 'NOX-VERIFY-段38%'` の削除で閉じる
+- golden 5値（wage 5931 / withholding 125802 / rls F1b 54400 / labor-forecast 55233 / receipt 52）は不変
+- 張り替えコミット：**本コミット（コミット②）**。収蔵＋UI は先行の コミット① `af75632`
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。

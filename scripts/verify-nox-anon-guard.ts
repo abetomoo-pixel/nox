@@ -5481,6 +5481,105 @@ async function main() {
     }
   }
 
+  // ── 段38a: mig0074 入退店 RPC 2本 anon BLOCKED（(h)・自動列挙ではないため明示追加）──
+  {
+    const M0074_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
+      ["cast_leave", { p_cast_id: null, p_left_on: null }],
+      ["cast_rejoin", { p_cast_id: null }],
+    ];
+    for (const [fn, args] of M0074_RPC_PROBES) {
+      const { error } = await anon.rpc(fn, args);
+      check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+    }
+  }
+
+  // ── 段38: mig0074 入退店（cast_leave / cast_rejoin）runtime 検証 ──
+  //   ★prosrc 緑 ≠ runtime 成功。実セッション（owner/manager）で叩き、CHECK と unique index の
+  //     実効も service_role 直で確認する。fixture 3原則:
+  //     ①動的生成のみ（固定 fixture の casts を退店させない＝他段の固定カウントを汚さない）
+  //     ②p_left_on 明示（当日 JST に依存させない＝時限装置化しない）
+  //     ③拒否系（forbidden/already 系）は状態を変えないため復元不要
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const has = (e: { message?: string } | null, t: string) => !!e?.message?.includes(t);
+    const forbidden = (e: { message?: string } | null) => has(e, "forbidden");
+    const PRE = "NOX-VERIFY-段38";
+    const LEFT = "2026-02-20"; // ②固定日付
+    const { data: s38A1 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    const { data: s38A2 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A2).single();
+    const wipe38 = async () => { await admin.from("casts").delete().like("name", `${PRE}%`); };
+    await wipe38(); // 前回遺物
+
+    const owner = await signInShared("段38", "ownerA");
+    const mgr = await signInShared("段38", "managerA1");
+    let cMain: string | null = null, cA2: string | null = null, cDup: string | null = null;
+    try {
+      // ①動的生成: A1 に主対象・A2 に他店対象（manager 越境用）
+      const { data: m } = s38A1
+        ? await admin.from("casts").insert({ org_id: s38A1.org_id, store_id: s38A1.id, name: `${PRE}-main`, is_active: true }).select("id").single()
+        : { data: null };
+      cMain = (m?.id as string) ?? null;
+      const { data: a2 } = s38A2
+        ? await admin.from("casts").insert({ org_id: s38A2.org_id, store_id: s38A2.id, name: `${PRE}-a2`, is_active: true }).select("id").single()
+        : { data: null };
+      cA2 = (a2?.id as string) ?? null;
+      check("段38（準備）店2・動的 cast 2・owner/manager セッション解決",
+        !!s38A1 && !!s38A2 && !!cMain && !!cA2 && !!owner && !!mgr);
+
+      if (owner && mgr && cMain && cA2 && s38A1) {
+        // (a) owner が退店 → is_active=false・left_on=指定日
+        const { error: eLv } = await owner.rpc("cast_leave", { p_cast_id: cMain, p_left_on: LEFT });
+        const { data: r1 } = await admin.from("casts").select("is_active, left_on").eq("id", cMain).single();
+        check("段38(a) owner cast_leave 成功＝is_active=false・left_on=指定日",
+          !eLv && r1?.is_active === false && r1?.left_on === LEFT, eLv?.message ?? JSON.stringify(r1));
+
+        // (b) 二重退店は拒否（③状態不変）
+        const { error: eLv2 } = await owner.rpc("cast_leave", { p_cast_id: cMain, p_left_on: LEFT });
+        check("段38(b) 二重 cast_leave = already inactive", has(eLv2, "already inactive"), eLv2?.message ?? "通ってしまった");
+
+        // (e) 復活前に「同一 user の別 active 行」を作って先取り拒否を確認
+        const { data: uRow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.castA1a.email).maybeSingle();
+        const uid = (uRow?.id as string | undefined) ?? null;
+        await admin.from("casts").update({ user_id: uid }).eq("id", cMain); // 退店行に user を結ぶ（active ではないので index 非抵触）
+        const { data: d } = uid
+          ? await admin.from("casts").insert({ org_id: s38A1.org_id, store_id: s38A1.id, name: `${PRE}-dup`, is_active: true, user_id: uid }).select("id").single()
+          : { data: null };
+        cDup = (d?.id as string) ?? null;
+        const { error: eDup } = await owner.rpc("cast_rejoin", { p_cast_id: cMain });
+        check("段38(e) 同一 user に active 行がある復活 = already active elsewhere",
+          has(eDup, "already active elsewhere"), eDup?.message ?? "通ってしまった（unique index 抵触の先取りが効いていない）");
+        if (cDup) { await admin.from("casts").delete().eq("id", cDup); cDup = null; }
+        await admin.from("casts").update({ user_id: null }).eq("id", cMain);
+
+        // (c) 復活 → is_active=true・left_on=null
+        const { error: eRj } = await owner.rpc("cast_rejoin", { p_cast_id: cMain });
+        const { data: r2 } = await admin.from("casts").select("is_active, left_on").eq("id", cMain).single();
+        check("段38(c) cast_rejoin 成功＝is_active=true・left_on=null",
+          !eRj && r2?.is_active === true && r2?.left_on === null, eRj?.message ?? JSON.stringify(r2));
+
+        // (d) 二重復活は拒否（③状態不変）
+        const { error: eRj2 } = await owner.rpc("cast_rejoin", { p_cast_id: cMain });
+        check("段38(d) 二重 cast_rejoin = already active", has(eRj2, "already active"), eRj2?.message ?? "通ってしまった");
+
+        // (f) service_role 直で CHECK 違反 UPDATE（is_active=true かつ left_on 非null）→ 拒否
+        const { error: eChk } = await admin.from("casts").update({ is_active: true, left_on: LEFT }).eq("id", cMain);
+        const { data: r3 } = await admin.from("casts").select("is_active, left_on").eq("id", cMain).single();
+        check("段38(f) ★CHECK casts_active_left_on_chk が service_role 直 UPDATE も拒否（状態は不変）",
+          !!eChk && r3?.is_active === true && r3?.left_on === null, eChk?.message ?? "通ってしまった（制約が効いていない）");
+
+        // (g) manager が他店 cast を退店 → forbidden（③状態不変）
+        const { error: eXs } = await mgr.rpc("cast_leave", { p_cast_id: cA2, p_left_on: LEFT });
+        const { data: r4 } = await admin.from("casts").select("is_active").eq("id", cA2).single();
+        check("段38(g) manager の他店 cast_leave = forbidden（対象は在籍のまま）",
+          forbidden(eXs) && r4?.is_active === true, eXs?.message ?? "通ってしまった");
+      }
+    } finally {
+      await wipe38(); // ①動的生成ゆえ削除で完全復元（固定 fixture は一切触っていない）
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
