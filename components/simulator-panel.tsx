@@ -36,6 +36,9 @@ export default function SimulatorPanel({
   // 店モードのみ base/バック編集（任意プラン試算）。cast は選択プランを固定。
   const [edit, setEdit] = useState<{ base: string; honBack: string; jonaiBack: string; dohanBack: string } | null>(null);
   const [f, setF] = useState({
+    // ★periodDays は既定値を置かない（裁定23＝源泉の 5,000円×日数 は計算期間の暦日数で、
+    //   店・期間ごとに異なる。既定値を置くと誤った日数のまま試算されるため未入力はエラーにする）。
+    periodDays: "",
     days: "20", hoursPerDay: "6", sales: "600000",
     hon: "10", jonai: "5", dohan: "3",
     drink: "0", champ: "0", bottle: "0",
@@ -62,9 +65,15 @@ export default function SimulatorPanel({
     };
   }, [selectedPlan, mode, edit]);
 
+  // ★計算期間の日数は必須入力（未入力・0以下は試算しない＝源泉が過大になる誤表示を作らない）。
+  const periodDaysNum = Number(f.periodDays);
+  const periodDaysOk = f.periodDays.trim() !== "" && Number.isFinite(periodDaysNum) && periodDaysNum > 0;
+
   const result = useMemo(() => {
     if (!effPlan) return null;
+    if (!periodDaysOk) return null;
     const input: SimInput = {
+      periodDays: periodDaysNum,
       days: num(f.days), hoursPerDay: num(f.hoursPerDay), sales: num(f.sales),
       hon: num(f.hon), jonai: num(f.jonai), dohan: num(f.dohan),
       productBack: { drink: num(f.drink), champ: num(f.champ), bottle: num(f.bottle) },
@@ -78,7 +87,7 @@ export default function SimulatorPanel({
       arDeduct: 0,
     };
     return { pay: simulate(input) };
-  }, [effPlan, f, mode, override, masters, taxMode, applyDeducts, openAdv, openOkuri]);
+  }, [effPlan, f, mode, override, masters, taxMode, applyDeducts, openAdv, openOkuri, periodDaysOk, periodDaysNum]);
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   const yen = (n: number) => "¥" + Math.round(n).toLocaleString();
@@ -144,10 +153,19 @@ export default function SimulatorPanel({
       {/* 勤務・売上 */}
       <fieldset style={s.fs}><legend style={s.lg}>勤務・売上</legend>
         <div style={s.row}>
+          {/* ★源泉の 5,000円×日数 に使う「計算期間の日数」（暦日数・両端含む）。出勤日数とは別物。 */}
+          <label style={s.lbl}>計算期間の日数<br />
+            <input type="number" value={f.periodDays} onChange={set("periodDays")} placeholder="例 31" style={s.inpS} />
+          </label>
           <label style={s.lbl}>出勤日数<br /><input type="number" value={f.days} onChange={set("days")} style={s.inpS} /></label>
           <label style={s.lbl}>1日の時間<br /><input type="number" value={f.hoursPerDay} onChange={set("hoursPerDay")} style={s.inpS} /></label>
           <label style={s.lbl}>総売上(円)<br /><input type="number" value={f.sales} onChange={set("sales")} style={s.inp} /></label>
         </div>
+        {!periodDaysOk && (
+          <p style={{ fontSize: 12, color: "var(--bad)", margin: "6px 0 0" }}>
+            計算期間の日数を入力してください（源泉の 5,000円×日数 に使う暦日数・両端含む。例: 7月なら 31）。
+          </p>
+        )}
       </fieldset>
 
       {/* 指名・バック */}

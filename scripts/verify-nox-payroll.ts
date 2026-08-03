@@ -8,7 +8,7 @@
  * 係留（plan §7 の7項目＋確定拒否ガード＋セルフレビュー確認2点）:
  *  1 PayInput 組み立ての正しさ（窓・cast.sales/hon・daily.hours・taxMode）
  *  2 champCnt ゴールデン（check_lines kind から集計・既知会計→champCnt=2）
- *  3 net 恒等（extras 空 ⇒ row.net===pay.net・computeNet 単体）
+ *  3 net 恒等（net===pay.net・extras は gross 内在化＝裁定26）
  *  4 権限拒否（decidePayrollAccess 純関数）
  *  5 プレビューが書き込まない（computePayrollDraft 前後で payroll_runs 件数不変）
  *  6 退職者 cast の確定（is_active=false でも対象列挙→finalize で payslip 生成）
@@ -20,10 +20,10 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
 import { payOf, simAddedPay, type CompPlan } from "../lib/nox/pay";
-import { roundYen } from "../lib/nox/money";
+import { roundYen, floorYen } from "../lib/nox/money";
 import { resolvePayrollWindow } from "../lib/nox/payroll/window";
 import { collectPeriod } from "../lib/nox/payroll/collect";
-import { buildPayInput, computeNet, type StoreMasters } from "../lib/nox/payroll/assemble";
+import { buildPayInput, type StoreMasters } from "../lib/nox/payroll/assemble";
 import { computePayrollDraft, allocateCategory } from "../lib/nox/payroll/core";
 import { simulate, type SimInput } from "../lib/nox/payroll/sim";
 import { decidePayrollAccess, decideTaxReportAccess } from "../lib/nox/payroll/authz";
@@ -236,7 +236,7 @@ async function main() {
     check("F2c-2 champCnt ゴールデン=2（check_lines kind='champ' の qty）", rawP1.champCnt === 2, `got ${rawP1.champCnt}`);
     check("F2c-2 daily: 1日・hours=5・sales=19800", rawP1.daily.length === 1 && rawP1.daily[0].hours === 5 && rawP1.daily[0].sales === 19_800, JSON.stringify(rawP1.daily));
     check("F2c-2 taxProfileMode=委託（P1 登録済み）", rawP1.taxProfileMode === "委託", `got ${rawP1.taxProfileMode}`);
-    const input = buildPayInput(rawP1, rawP1.taxProfileMode ?? "委託", collected.masters);
+    const input = buildPayInput(rawP1, rawP1.taxProfileMode ?? "委託", collected.masters, 31, 0);
     check("F2c-2 PayInput: cast.sales/hon/days・metrics.champCnt=2・taxMode・plan.base=5000",
       input.cast.sales === 19_800 && input.cast.hon === 1 && input.cast.days === 1 &&
       input.metrics?.champCnt === 2 && input.taxMode === "委託" && input.plan.base === 5000 && input.plan.honBack === 4000,
@@ -244,11 +244,15 @@ async function main() {
     check("F2c-2 PayInput: 天引き3種=0（F2c 暫定）", input.arDeduct === 0 && input.advanceDeduct === 0 && input.okuriDeduct === 0);
   }
 
-  // ── 3 net 恒等（computeNet 単体）──
+  // ── 3 net 恒等（★裁定26: extras は payOf の gross に内在化＝外側加算なし）──
   {
-    const anyPay = payOf(buildPayInput(rawP1!, "委託", collected.masters));
-    check("F2c-2 computeNet: extras 空 ⇒ net===pay.net", computeNet(anyPay, []) === anyPay.net, `${computeNet(anyPay, [])} vs ${anyPay.net}`);
-    check("F2c-2 computeNet: extras 加算（+100）", computeNet(anyPay, [{ kind: "x", amount: 100 }]) === anyPay.net + 100);
+    const anyPay = payOf(buildPayInput(rawP1!, "委託", collected.masters, 31, 0));
+    const withEx = payOf(buildPayInput(rawP1!, "委託", collected.masters, 31, 100));
+    check("F2c-2 extrasTotal は gross に内在する（+100 で gross も +100・外側加算をしない）",
+      withEx.gross - anyPay.gross === 100, JSON.stringify({ g0: anyPay.gross, g100: withEx.gross }));
+    check("F2c-2 extras は gross→源泉→net を通る（Δnet = Δextras − Δ源泉）",
+      withEx.net - anyPay.net === 100 - (withEx.withholding - anyPay.withholding),
+      JSON.stringify({ n0: anyPay.net, n100: withEx.net, w0: anyPay.withholding, w100: withEx.withholding }));
   }
 
   // ── 5 プレビューが書き込まない（前後で payroll_runs 件数不変）──
@@ -390,10 +394,10 @@ async function main() {
     check("F2c-3 受給者判定: I2 は 11-10 absent で受給なし・11-20 pooled は受給あり",
       !extOf(i2, inc10) && !!extOf(i2, inc20), JSON.stringify(rowOf(i2)?.extras));
 
-    // extras 経由 net 恒等（非空 extras で net===pay.net+Σextras）
+    // extras 経由 net 恒等（★裁定26: extras は gross 内在化＝net===pay.net。外側加算はしない）
     const rI1 = rowOf(i1)!;
-    check("F2c-3 extras 経由 net 恒等: I1 net===pay.net+Σextras（非空）",
-      rI1.extras.length > 0 && rI1.net === rI1.pay.net + (rI1.extras as Ext[]).reduce((s, e) => s + e.amount, 0),
+    check("F2c-3 extras 経由 net 恒等: I1 net===pay.net（extras 非空でも外側加算なし）",
+      rI1.extras.length > 0 && rI1.net === rI1.pay.net,
       JSON.stringify({ net: rI1.net, p: rI1.pay.net, ex: rI1.extras }));
 
     // 可視化: per_head 総配分=amount×N・受給者0 pooled は警告＋0配分
@@ -759,6 +763,7 @@ async function main() {
       deductions: [], customBackDefs: [],
     };
     const baseInp: SimInput = {
+      periodDays: 15,
       days: 10, hoursPerDay: 6, sales: 0, hon: 0, jonai: 0, dohan: 0,
       productBack: { drink: 0, champ: 0, bottle: 0 }, pointProducts: 0, champCnt: 0, bottleCnt: 0,
       lateN: 0, absentN: 0, norm: { days: 0, dohan: 0 }, plan: simPlan, masters: simMasters, taxMode: "委託",
@@ -768,8 +773,8 @@ async function main() {
     const r = simulate(baseInp);
     check("F2f 純経路ゴールデン: timePay=300000・wage=5000・gross=300000（時給×時間の合成が正）",
       r.timePay === 300_000 && r.wage === 5000 && r.gross === 300_000, JSON.stringify({ t: r.timePay, w: r.wage, g: r.gross }));
-    check("F2f 委託源泉=round((300000−5000×10日)×0.1021)・net=gross−源泉",
-      r.withholding === roundYen((300_000 - 50_000) * 0.1021) && r.net === 300_000 - r.withholding, JSON.stringify({ wh: r.withholding, net: r.net }));
+    check("F2f 委託源泉=floor((300000−5000×15日※計算期間)×0.1021)・net=gross−源泉",
+      r.withholding === floorYen(Math.max(0, 300_000 - 5_000 * 15) * 0.1021) && r.net === 300_000 - r.withholding, JSON.stringify({ wh: r.withholding, net: r.net }));
 
     // 観点2: cast の adv/okuri open残 が net に反映・ar は反映しない（(a) 裁定＝receivables パターン2 で読まない）
     const rDed = simulate({ ...baseInp, advanceDeduct: 10_000, okuriDeduct: 5_000 });
@@ -805,6 +810,7 @@ async function main() {
       deductions: [{ id: "d1", name: "送り代", amount: 2000, per: "day" }], customBackDefs: [],
     };
     const cx = simulate({
+      periodDays: 15,
       days: 10, hoursPerDay: 6, sales: 3_000_000, // per-day=300000 → salesSlide 300000 段（wage 8000）
       hon: 10, jonai: 5, dohan: 3,
       productBack: { drink: 1000, champ: 2000, bottle: 500 }, pointProducts: 0, champCnt: 0, bottleCnt: 0,
@@ -813,14 +819,14 @@ async function main() {
     });
     // 手計算: wage=8000（per-day 300000 が slide 300000 段）/timePay=8000×6×10=480000/salesBack=round(3000000×0.10)=300000（3M≥1.5M 段）
     //   /honBack 20000・jonaiBack 5000・dohanBack 12000・drink1000+champ2000+bottle500/gross=820500
-    //   /fixedDed=2000×10=20000・fine=1×5000+2×2000=9000・withholding=round((820500−50000)×0.1021)=78668
-    //   /normPenalty=(5000+2×2000)+(3000+2×1500)=9000+6000=15000 → net=820500−20000−9000−78668−15000=697832
+    //   /fixedDed=2000×10=20000・fine=1×5000+2×2000=9000・withholding=floor((820500−5000×15日※計算期間)×0.1021)=76115
+    //   /normPenalty=(5000+2×2000)+(3000+2×1500)=9000+6000=15000 → net=820500−20000−9000−76115−15000=700385
     check("F2f 複合ゴールデン: wage=8000（総売上÷days の per-day slide 判定＝sim 経路の要）・timePay=480000・salesBack=300000",
       cx.wage === 8000 && cx.timePay === 480_000 && cx.salesBack === 300_000, JSON.stringify({ w: cx.wage, t: cx.timePay, sb: cx.salesBack }));
-    check("F2f 複合ゴールデン: gross=820500・fixedDed=20000（送り代×days）・fine=9000・normPenalty=15000・withholding=78668",
-      cx.gross === 820_500 && cx.fixedDed === 20_000 && cx.fine === 9000 && cx.normPenalty === 15_000 && cx.withholding === 78_668,
+    check("F2f 複合ゴールデン: gross=820500・fixedDed=20000（送り代×days）・fine=9000・normPenalty=15000・withholding=76115",
+      cx.gross === 820_500 && cx.fixedDed === 20_000 && cx.fine === 9000 && cx.normPenalty === 15_000 && cx.withholding === 76_115,
       JSON.stringify({ g: cx.gross, fd: cx.fixedDed, fn: cx.fine, np: cx.normPenalty, wh: cx.withholding }));
-    check("F2f 複合ゴールデン: net=697832（gross−fixedDed−fine−withholding−normPenalty）", cx.net === 697_832, `got ${cx.net}`);
+    check("F2f 複合ゴールデン: net=700385（gross−fixedDed−fine−withholding−normPenalty）", cx.net === 700_385, `got ${cx.net}`);
   }
 
   // ── 4 権限拒否（decidePayrollAccess 純関数）──

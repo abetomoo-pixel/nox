@@ -7,6 +7,13 @@ export function roundYen(n: number): number {
   return Math.round(n);
 }
 
+/** 円未満切捨（源泉徴収税額の専用丸め＝裁定23・タックスアンサー No.2807 注記）。
+ *  ★roundYen とは別系統。源泉以外の金額は roundYen（四捨五入・モック忠実）のまま。
+ *  負値は Math.floor が絶対値を大きくするため、呼び出し側で max(0, …) を先に取ること。 */
+export function floorYen(n: number): number {
+  return Math.floor(n);
+}
+
 /** 0.1 単位の丸め（日次pt按分・労働時間の集計に使用） */
 export function roundPt1(n: number): number {
   return Math.round(n * 10) / 10;

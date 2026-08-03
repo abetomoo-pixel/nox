@@ -1,11 +1,10 @@
 // PayInput 組み立て（純関数・DB を知らない＝verify で直接叩ける）。
 // collect.ts が読んだ cast 1人分の raw ＋ 店共通マスタ → payOf の入力 object を作る。
 // 天引き3種（arDeduct/advanceDeduct/okuriDeduct）は二段 payOf の確定天引き額（F2e-1 で ar・F2e-2 で adv/okuri を結線）。
-// net = pay.net + Σ extras.amount（B: サーバが net の責務・extras 空なら net===pay.net）。
+// net = pay.net（B: サーバが net の責務）。★extras は gross に内在化され源泉対象＝外側加算は行わない（裁定26）。
 
 import type {
   PayInput,
-  PayResult,
   CompPlan,
   PlanOverride,
   Deduction,
@@ -57,10 +56,15 @@ function dayNum(bizDate: string): number {
 
 // 二段 payOf の確定天引き額を注入（1回目 全0 で available 算出→送り→前借り→売掛の順に共通 budget 消費→
 //   確定額で再計算）。arDeduct=F2e-1・advanceDeduct/okuriDeduct=F2e-2。positional 追加＝既存4引数呼び出しと後方互換。
+// ★periodDays / extrasTotal は必須（既定値を置かない＝呼び出し側が必ず明示する）。
+//   periodDays は「計算期間の暦日数（両端含む）」＝源泉の 5,000円×日数 の日数（裁定23）。
+//   extrasTotal は出勤ボーナス等の加算合計＝gross に入り源泉対象になる（裁定23-b ①）。
 export function buildPayInput(
   raw: CastRaw,
   taxMode: TaxMode,
   masters: StoreMasters,
+  periodDays: number,
+  extrasTotal: number,
   arDeduct = 0,
   advanceDeduct = 0,
   okuriDeduct = 0,
@@ -83,11 +87,11 @@ export function buildPayInput(
     arDeduct, // 売掛天引き（E9 で算出した確定額）
     advanceDeduct, // 前借り天引き（F2e-2・E9 同型）
     okuriDeduct, // 送り実費天引き（F2e-2・繰越なし）
+    periodDays, // ★計算期間の暦日数（源泉専用・出勤日数 raw.days とは別物）
+    extrasTotal, // ★加算合計（gross に入る＝源泉対象）
     taxMode,
   };
 }
 
-// net 恒等（B）: サーバが net = pay.net + Σ extras.amount を算出。F2c は extras=[] ⇒ net===pay.net。
-export function computeNet(pay: PayResult, extras: Extra[]): number {
-  return pay.net + extras.reduce((s, e) => s + e.amount, 0);
-}
+// ★computeNet は削除した（裁定26・①実施）。extras は payOf の gross に内在化され源泉対象になったため、
+//   「pay.net に extras を外側で足す」関数は二重加算の罠にしかならない。net は常に payOf の結果そのもの。

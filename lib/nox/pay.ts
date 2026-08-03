@@ -11,7 +11,7 @@
 //    okuriDeduct と deductions は分離入力なのでガード追加は payOf 内1箇所で済む）
 //  - 売上バック率テーブル = モック値をデフォルト引数に（店設定化は F2 判断）
 
-import { roundYen, roundPt1 } from "./money";
+import { roundYen, roundPt1, floorYen } from "./money";
 
 // ── 型 ────────────────────────────────────────────────────────
 
@@ -145,6 +145,8 @@ export type PayInput = {
   arDeduct: number; // 売掛天引き（集計済み）
   advanceDeduct: number; // 前借り天引き
   okuriDeduct: number; // 送り実費天引き
+  periodDays: number; // ★源泉の 5,000円×日数 に使う「計算期間の日数」（暦日数・両端含む）。出勤日数ではない（裁定23）
+  extrasTotal: number; // ★出勤ボーナス等の加算合計（源泉対象＝gross に含める・裁定23-b ①）
   taxMode: TaxMode; // cast_tax_profiles.mode
   salesBackTable?: SalesBackStep[];
   sim?: { days?: number; dohan?: number }; // シミュレーター上書き（days は timePay を変えない）
@@ -334,14 +336,18 @@ export function fixedDedOf(
   );
 }
 
-/** 源泉（精密仕様 §0.3）: 委託のみ・days は出勤日数（暦日数か否かは税理士確認＝F2） */
+/** 源泉（精密仕様 §0.3・裁定23/23-b で確定）: 委託のみ。
+ *  ★日数 = **計算期間の日数**（暦日数・両端含む）。営業日数でも出勤日数でもない
+ *    （タックスアンサー No.2807 の例示・最判平成22年3月2日で決着）。
+ *  ★丸め = **円未満切捨**（同ページ注記）＝floorYen。roundYen は使わない。
+ *  ★課税ベース = 報酬総額（時給・各種バック・売上バック・出勤ボーナスの合算＝payOf の gross）。 */
 export function withholdingOf(
   gross: number,
-  days: number,
+  periodDays: number,
   taxMode: TaxMode,
 ): number {
   return taxMode === "委託"
-    ? Math.max(0, roundYen((gross - 5000 * days) * 0.1021))
+    ? floorYen(Math.max(0, gross - 5000 * periodDays) * 0.1021)
     : 0;
 }
 
@@ -418,7 +424,7 @@ export function payOf(input: PayInput): PayResult {
   const cbacks = customBacks(input.customBackDefs, metrics);
   const customTotal = cbacks.reduce((sum, c) => sum + c.amount, 0);
 
-  // 総支給
+  // 総支給（★extrasTotal＝出勤ボーナス等の報奨金も役務提供の対価＝報酬総額に含める・裁定23-b ①）
   const gross =
     wd.timePay +
     honBack +
@@ -428,14 +434,16 @@ export function payOf(input: PayInput): PayResult {
     champBack +
     bottleBack +
     salesBack +
-    customTotal;
+    customTotal +
+    input.extrasTotal;
 
   // 控除
   const fixedDed = fixedDedOf(input.deductions, effDays, cast.sales);
   const fine =
     input.fine.absentN * input.penalty.fineAbsent +
     input.fine.lateN * input.penalty.fineLate;
-  const withholding = withholdingOf(gross, effDays, input.taxMode);
+  // ★源泉のみ periodDays（計算期間の暦日数）。fixedDedOf / normPenaltyOf は実出勤日数 effDays のまま（裁定23 #3）。
+  const withholding = withholdingOf(gross, input.periodDays, input.taxMode);
   const normPenalty = normPenaltyOf(input.normConfig, input.norm, effDays, effDohan);
 
   const net =

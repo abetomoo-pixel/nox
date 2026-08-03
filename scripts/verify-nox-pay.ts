@@ -106,6 +106,10 @@ const P_HI: CompPlan = {
 
 const REINA = { hon: 48, jonai: 30, dohan: 12, days: 22, sales: 1_850_000 };
 const REINA_INPUT: PayInput = {
+  // ★periodDays＝計算期間の暦日数（源泉の 5,000円×日数・裁定23）。玲奈 fixture は 2026-07（31日）想定。
+  //   出勤日数 REINA.days=22 とは別物（22 は fixedDedOf / normPenaltyOf 側で使う）。
+  periodDays: 31,
+  extrasTotal: 0, // 玲奈 fixture に出勤ボーナスは無い
   cast: REINA,
   daily: mockDaily(REINA, 5),
   plan: P_HI,
@@ -157,8 +161,8 @@ eq("T1a wbasis ポイント=7", reinaDoc.wbasis["ポイント"], 7);
 eq("T1a wbasis 保証=15", reinaDoc.wbasis["保証"], 15);
 eq("T1a timePay", reinaDoc.timePay, 569_200);
 eq("T1a gross", reinaDoc.gross, 1_303_300);
-eq("T1a withholding", reinaDoc.withholding, 121_836);
-eq("T1a net", reinaDoc.net, 1_112_464);
+eq("T1a withholding（periodDays=31・切捨）", reinaDoc.withholding, 117_241);
+eq("T1a net", reinaDoc.net, 1_117_059);
 
 // ── T1b 玲奈ケース回帰（モック完全再現＝本指名商品pt 110 を含む）──
 // mock/nox-nightwork-app.html の live 実装（Py + te・Ci[1]=110）と同値。
@@ -180,8 +184,8 @@ eq("T1b normPenalty（days 9000 + dohan 7500）", reina.normPenalty, 16_500);
 eq("T1b okuriDeduct", reina.okuriDeduct, 3500);
 eq("T1b timePay（ゴールデン）", reina.timePay, 653_050);
 eq("T1b gross（ゴールデン）", reina.gross, 1_387_150);
-eq("T1b withholding（ゴールデン）", reina.withholding, 130_397);
-eq("T1b net（ゴールデン）", reina.net, 1_187_753);
+eq("T1b withholding（ゴールデン・periodDays=31・切捨）", reina.withholding, 125_802);
+eq("T1b net（ゴールデン）", reina.net, 1_192_348);
 
 // ── T2 階段関数 ───────────────────────────────────────────────
 eq("T2 at ちょうど（80k→4000）", slideAt(P_HI.salesSlide, 80_000), 4000);
@@ -238,7 +242,7 @@ eq("T5 0→3%", salesRateOf(0), 0.03);
 }
 
 // ── T7 源泉 ───────────────────────────────────────────────────
-eq("T7 委託（(500000−110000)×0.1021）", withholdingOf(500_000, 22, "委託"), 39_819);
+eq("T7 委託 floor((500000−5000×22日※計算期間)×0.1021)＝端数ゼロで旧値と同値", withholdingOf(500_000, 22, "委託"), 39_819);
 eq("T7 雇用=0", withholdingOf(500_000, 22, "雇用"), 0);
 eq("T7 マイナスは 0 クランプ", withholdingOf(50_000, 22, "委託"), 0);
 

@@ -11,6 +11,7 @@ import { payOf, type PayResult, type CompPlan, type PlanOverride, type TaxMode }
 import { buildPayInput, type CastRaw, type StoreMasters } from "./assemble";
 
 export type SimInput = {
+  periodDays: number; // ★計算期間の暦日数（源泉の 5,000円×日数）＝出勤日数 days とは別物・必須（裁定23）
   days: number; // 出勤日数
   hoursPerDay: number; // 1日あたり勤務時間
   sales: number; // 期間の総売上（円・per-day slide には days で均等割）
@@ -67,6 +68,7 @@ export function simulate(inp: SimInput): PayResult {
     taxProfileMode: inp.taxMode,
   };
   return payOf(
-    buildPayInput(raw, inp.taxMode, inp.masters, inp.arDeduct ?? 0, inp.advanceDeduct ?? 0, inp.okuriDeduct ?? 0),
+    // ★extrasTotal=0＝シミュレータは出勤ボーナスを扱わない（確定側の incentives は DB 由来で仮パラメータに無い）。
+    buildPayInput(raw, inp.taxMode, inp.masters, inp.periodDays, 0, inp.arDeduct ?? 0, inp.advanceDeduct ?? 0, inp.okuriDeduct ?? 0),
   );
 }

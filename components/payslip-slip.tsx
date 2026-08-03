@@ -38,7 +38,9 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
   const nominBack = (pay.honBack ?? 0) + (pay.jonaiBack ?? 0) + (pay.dohanBack ?? 0);
   const prodBack = (pay.drinkBack ?? 0) + (pay.champBack ?? 0) + (pay.bottleBack ?? 0) + (pay.salesBack ?? 0) + (pay.customTotal ?? 0);
   const hasDed = (pay.fixedDed ?? 0) > 0 || (pay.fine ?? 0) > 0 || (pay.withholding ?? 0) > 0 || (pay.normPenalty ?? 0) > 0 || ar > 0 || adv > 0 || okuri > 0;
-  // 支給行（＞0 のみ）／控除行（＞0 のみ・bad 減算）。gross = 支給の和・net = gross − 控除 ＋ extras（＝slip.net）。
+  // 支給行（＞0 のみ）／控除行（＞0 のみ・bad 減算）。
+  // ★裁定26: extras（出勤ボーナス等）は gross に内在＝net = gross − 控除（外側加算はしない）。
+  //   「加算」節の明細行は gross の内訳表示であって、控除後に足し戻す金額ではない。
   const earn = (label: string, v: number) => (
     <div style={t.slipRow}><span>{label}</span><span style={t.num}>{yen(v)}</span></div>
   );
@@ -53,7 +55,7 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
       {nominBack > 0 && earn("指名バック（本/場内/同伴）", nominBack)}
       {prodBack > 0 && earn("商品・売上・自由バック", prodBack)}
       {(pay.gross ?? 0) > 0 && (
-        <div style={t.slipRowB}><span>総支給（gross）</span><span style={t.num}>{yen(pay.gross ?? 0)}</span></div>
+        <div style={t.slipRowB}><span>総支給（賞与等含む）</span><span style={t.num}>{yen(pay.gross ?? 0)}</span></div>
       )}
 
       {hasDed && <div style={t.slipSec}>控除</div>}
@@ -65,7 +67,7 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
       {ded("前借り", adv)}
       {ded("送り", okuri)}
 
-      {extras.length > 0 && <div style={t.slipSec}>加算</div>}
+      {extras.length > 0 && <div style={t.slipSec}>加算（総支給の内訳）</div>}
       {extras.map((e, j) => (
         <div key={j} style={t.slipRow}>
           <span>{e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind)}</span>

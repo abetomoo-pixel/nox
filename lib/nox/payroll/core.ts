@@ -9,7 +9,7 @@ import { allocDue } from "../sales-alloc"; // #32 pooled の最大剰余法（sa
 import { takeHomeFloor } from "../money"; // F2e-1 手取り0下限（social gate TODO）
 import { resolvePayrollWindow } from "./window";
 import { collectPeriod } from "./collect";
-import { buildPayInput, computeNet, type Extra } from "./assemble";
+import { buildPayInput, type Extra } from "./assemble";
 
 // 天引きの消し込み計画（finalize に同梱＝receivable/advance/transport 遷移の指示）
 export type ArDeducted = { receivable_id: string; amount: number };
@@ -82,6 +82,15 @@ export async function computePayrollDraft(
   opts: { previewDefaults: boolean },
 ): Promise<PayrollDraft> {
   const win = await resolvePayrollWindow(admin, storeId, period);
+  // ★源泉の「計算期間の日数」＝window の両端を含む暦日数（裁定23）。
+  //   period_bounds が月初/月末を返すため 28〜31。UTC 正午起点で差を取り DST/TZ 由来のズレを作らない。
+  const periodDays =
+    Math.round(
+      (Date.parse(`${win.periodEnd}T00:00:00Z`) - Date.parse(`${win.periodStart}T00:00:00Z`)) / 86_400_000,
+    ) + 1;
+  if (!Number.isFinite(periodDays) || periodDays <= 0) {
+    throw new Error(`periodDays 解決不能（period ${period} / ${win.periodStart}〜${win.periodEnd}）`);
+  }
   const { casts, masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast } = await collectPeriod(admin, managerClient, storeId, win);
 
   // #32: cast の出勤インセンティブ extras を算出（受給者=final∈{ok,late}・確認1／pooled は最大剰余法・端数+1=cast_id 最小）。
@@ -123,9 +132,10 @@ export async function computePayrollDraft(
     //  2) budget rem0 = max(0, available − takeHomeFloor())。allocateCategory を送り→前借り→売掛の順に呼び、
     //     remAfter を次へ渡す＝高優先カテゴリが先に budget を消費・売掛は残りだけ（transport は繰越なし）。
     //  3) 確定額（ar/adv/okuri）で再 payOf → net = available − (okuri+adv+ar) ≥ floor（L2）。
-    const pay0 = payOf(buildPayInput(c, taxMode, masters, 0, 0, 0));
     const extrasTotal = extras.reduce((s, e) => s + e.amount, 0);
-    const available = pay0.net + extrasTotal;
+    const pay0 = payOf(buildPayInput(c, taxMode, masters, periodDays, extrasTotal, 0, 0, 0));
+    // ★extras は gross に入った（＝源泉後の pay0.net に既に反映）。外側での再加算は二重計上になるため撤去。
+    const available = pay0.net;
     const rem0 = Math.max(0, available - takeHomeFloor());
 
     const trs = transportByCast.get(c.castId) ?? [];
@@ -141,10 +151,10 @@ export async function computePayrollDraft(
     const arDeducted: ArDeducted[] = arPlan.deducted.map((x) => ({ receivable_id: x.id, amount: x.amount }));
     const arCarried: ArCarried[] = arPlan.carried.map((x) => ({ receivable_id: x.id }));
 
-    const pay = payOf(buildPayInput(c, taxMode, masters, arPlan.deduct, advPlan.deduct, okuriPlan.deduct));
-    const net = computeNet(pay, extras); // = available − (okuri+adv+ar)（pay.net が3天引き込み）
-    // net 恒等（B・必須ステップ）: 凍結する net は必ず pay.net + Σextras を通す（クライアント値を使わない）。
-    if (net !== pay.net + extras.reduce((s, e) => s + e.amount, 0)) {
+    const pay = payOf(buildPayInput(c, taxMode, masters, periodDays, extrasTotal, arPlan.deduct, advPlan.deduct, okuriPlan.deduct));
+    const net = pay.net; // = available − (okuri+adv+ar)（pay.net が3天引き込み・extras は gross 側で計上済み）
+    // net 恒等（B・必須ステップ）: 凍結する net は必ず payOf の結果そのものを通す（クライアント値を使わない）。
+    if (net !== pay.net) {
       throw new Error(`net 恒等崩れ（cast ${c.castId}）`);
     }
     rows.push({
