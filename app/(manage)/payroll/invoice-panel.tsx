@@ -11,6 +11,8 @@ import * as t from "@/lib/nox/ui/theme";
 type Row = {
   castId: string; castName: string;
   mode: string | null; invoice: string | null; regNo: string | null;
+  // mig0073: 登録の効力期間・通知受領日（date 'YYYY-MM-DD'・null=未入力）
+  regValidFrom: string | null; regValidTo: string | null; regNotifiedOn: string | null;
   withholding: number | null; gross: number | null; hasMynumber: boolean;
 };
 
@@ -40,14 +42,26 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
   }
 
   // 区分/インボイス/登録番号の保存（規約: 全フィールド明示送信。mode 未登録は既定 委託）。
-  async function saveTax(r: Row, patch: { mode?: string; invoice?: string | null; regNo?: string | null }) {
+  async function saveTax(r: Row, patch: {
+    mode?: string; invoice?: string | null; regNo?: string | null;
+    regValidFrom?: string | null; regValidTo?: string | null; regNotifiedOn?: string | null;
+  }) {
     const mode = patch.mode ?? r.mode ?? "委託";
     const invoice = patch.invoice !== undefined ? patch.invoice : r.invoice;
     const regNo = patch.regNo !== undefined ? patch.regNo : r.regNo;
+    // mig0073: 3日付も「未指定なら現在値を再送」＝全フィールド明示送信（RPC は upsert で excluded を代入するため）
+    const regValidFrom = patch.regValidFrom !== undefined ? patch.regValidFrom : r.regValidFrom;
+    const regValidTo = patch.regValidTo !== undefined ? patch.regValidTo : r.regValidTo;
+    const regNotifiedOn = patch.regNotifiedOn !== undefined ? patch.regNotifiedOn : r.regNotifiedOn;
     if (regNo && !REG_RE.test(regNo)) { setMsg(`登録番号は「T」+13桁で入力してください（${r.castName}）`); return; }
+    // RPC 側 'bad reg period' の手前で止める（メッセージを日本語で返すため）
+    if (regValidFrom && regValidTo && regValidFrom > regValidTo) {
+      setMsg(`失効日は登録の効力発生日以降にしてください（${r.castName}）`); return;
+    }
     setBusy(true); setMsg("");
     const { error } = await supabase.rpc("set_cast_tax_profile", {
       p_cast_id: r.castId, p_mode: mode, p_invoice: invoice, p_reg_no: regNo || null,
+      p_reg_valid_from: regValidFrom || null, p_reg_valid_to: regValidTo || null, p_reg_notified_on: regNotifiedOn || null,
     });
     if (error) setMsg(`${r.castName} の更新に失敗: ${error.message}`);
     else await load();
@@ -116,6 +130,9 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
                   <th style={t.th}>区分</th>
                   <th style={t.th}>インボイス</th>
                   <th style={t.th}>登録番号</th>
+                  <th style={t.th}>登録の効力発生日</th>
+                  <th style={t.th}>失効日</th>
+                  <th style={t.th}>登録通知受領日</th>
                 </tr>
               </thead>
               <tbody>
@@ -149,6 +166,28 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
                     <td style={t.td}>
                       {r.invoice === "課税" ? (
                         <RegNoInput initial={r.regNo ?? ""} disabled={busy} onSave={(v) => void saveTax(r, { regNo: v })} />
+                      ) : <span style={t.sub}>—</span>}
+                    </td>
+                    {/* mig0073: 登録の効力期間・通知受領日（登録＝課税のときだけ意味を持つ＝登録番号と同じ出し分け） */}
+                    <td style={t.td}>
+                      {r.invoice === "課税" ? (
+                        <input type="date" value={r.regValidFrom ?? ""} disabled={busy}
+                          onChange={(e) => void saveTax(r, { regValidFrom: e.target.value || null })}
+                          style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12 }} />
+                      ) : <span style={t.sub}>—</span>}
+                    </td>
+                    <td style={t.td}>
+                      {r.invoice === "課税" ? (
+                        <input type="date" value={r.regValidTo ?? ""} disabled={busy}
+                          onChange={(e) => void saveTax(r, { regValidTo: e.target.value || null })}
+                          style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12 }} />
+                      ) : <span style={t.sub}>—</span>}
+                    </td>
+                    <td style={t.td}>
+                      {r.invoice === "課税" ? (
+                        <input type="date" value={r.regNotifiedOn ?? ""} disabled={busy}
+                          onChange={(e) => void saveTax(r, { regNotifiedOn: e.target.value || null })}
+                          style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12 }} />
                       ) : <span style={t.sub}>—</span>}
                     </td>
                   </tr>

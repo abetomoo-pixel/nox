@@ -38,6 +38,12 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
   const [mode, setMode] = useState("委託");
   const [invoice, setInvoice] = useState(""); // ''=未設定
   const [regNo, setRegNo] = useState("");
+  // mig0073: 登録の効力期間・通知受領日。★本パネルに入力 UI は持たない（編集は payroll のインボイス欄）が、
+  //   set_cast_tax_profile は upsert で excluded を無条件代入するため、読んだ現値をそのまま送り返さないと
+  //   ここから保存した瞬間に3日付が null で消える（＝素通し必須）。
+  const [regValidFrom, setRegValidFrom] = useState<string | null>(null);
+  const [regValidTo, setRegValidTo] = useState<string | null>(null);
+  const [regNotifiedOn, setRegNotifiedOn] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setMsg(null);
@@ -61,12 +67,16 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
       }
     }
     // 税務（cast_tax_profiles はパターン2＝manager+ 可視・直 SELECT で現状を読む）。成功時のみ ready。
-    const { data: t, error: eT } = await supabase.from("cast_tax_profiles").select("mode, invoice, reg_no").eq("cast_id", castId).maybeSingle();
+    const { data: t, error: eT } = await supabase.from("cast_tax_profiles")
+      .select("mode, invoice, reg_no, reg_valid_from, reg_valid_to, reg_notified_on").eq("cast_id", castId).maybeSingle();
     if (eT) { setMsg((prev) => prev ?? `税務読込エラー: ${eT.message}（もう一度キャストを選択してください）`); }
     else {
       setMode((t?.mode as string) ?? "委託");
       setInvoice((t?.invoice as string) ?? "");
       setRegNo((t?.reg_no as string) ?? "");
+      setRegValidFrom((t?.reg_valid_from as string | null) ?? null);
+      setRegValidTo((t?.reg_valid_to as string | null) ?? null);
+      setRegNotifiedOn((t?.reg_notified_on as string | null) ?? null);
       setTaxReady(true);
     }
   }, [castId, isOwner, supabase]);
@@ -98,6 +108,10 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
       p_mode: mode,
       p_invoice: invoice === "" ? null : invoice,
       p_reg_no,
+      // mig0073: 読んだ現値をそのまま返す（本パネルは3日付を編集しない＝素通しで消さない）
+      p_reg_valid_from: regValidFrom,
+      p_reg_valid_to: regValidTo,
+      p_reg_notified_on: regNotifiedOn,
     });
     if (error) { setMsg(`税務保存エラー: ${error.message}`); return; }
     setMsg("税務情報を保存しました");

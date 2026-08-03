@@ -1171,7 +1171,7 @@ async function main() {
       const m = await signIn("managerA1");
       const { error: eSet } = await m.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "田中玲奈", p_birthday: "1998-04-15", p_mynumber: null });
       check("F2b manager set_cast_sensitive 成功", !eSet, eSet?.message);
-      const { error: eTax } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "免税", p_reg_no: null });
+      const { error: eTax } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "免税", p_reg_no: null, p_reg_valid_from: null, p_reg_valid_to: null, p_reg_notified_on: null });
       check("F2b manager set_cast_tax_profile 成功", !eTax, eTax?.message);
       const { error: eGet } = await m.rpc("get_cast_sensitive", { p_cast_id: castIdA });
       check("F2b T6a: manager get_cast_sensitive 拒否", forbidden(eGet), eGet?.message ?? "通ってしまった");
@@ -1242,7 +1242,7 @@ async function main() {
       check("F2b クロス org: managerB1 get 拒否", forbidden(eG), eG?.message ?? "通ってしまった");
       const { error: eS } = await b.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "x", p_birthday: null, p_mynumber: null });
       check("F2b クロス org: managerB1 set 拒否", forbidden(eS), eS?.message ?? "通ってしまった");
-      const { error: eT } = await b.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: null, p_reg_no: null });
+      const { error: eT } = await b.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: null, p_reg_no: null, p_reg_valid_from: null, p_reg_valid_to: null, p_reg_notified_on: null });
       check("F2b クロス org: managerB1 tax set 拒否", forbidden(eT), eT?.message ?? "通ってしまった");
       const { data: tax } = await b.from("cast_tax_profiles").select("cast_id").eq("cast_id", castIdA);
       check("F2b クロス org: managerB1 tax 0行", (tax ?? []).length === 0, `got ${(tax ?? []).length}`);
@@ -1321,9 +1321,9 @@ async function main() {
       afterAudit - beforeAudit === 2, `Δ${afterAudit - beforeAudit}`);
 
     // ── reg_no 形式チェック（^T[0-9]{13}$）──
-    const { error: eBadReg } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "課税", p_reg_no: "T123" });
+    const { error: eBadReg } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "課税", p_reg_no: "T123", p_reg_valid_from: null, p_reg_valid_to: null, p_reg_notified_on: null });
     check("F2d reg_no 形式拒否（T+13桁でない → bad reg_no）", !!eBadReg?.message?.includes("bad reg_no"), eBadReg?.message ?? "通ってしまった");
-    const { error: eOkReg } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "課税", p_reg_no: "T1234567890123" });
+    const { error: eOkReg } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "課税", p_reg_no: "T1234567890123", p_reg_valid_from: null, p_reg_valid_to: null, p_reg_notified_on: null });
     check("F2d reg_no 形式 OK（T+13桁 受理）", !eOkReg, eOkReg?.message);
 
     // ── payment_records: 部分支払い（Σ≤net）＋idem 冪等＋パターン1 cast 本人可視 ──

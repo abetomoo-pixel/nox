@@ -434,7 +434,7 @@ async function main() {
   const F2B_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
     ["set_cast_sensitive", { p_cast_id: null, p_real_name: null, p_birthday: null, p_mynumber: null }],
     ["get_cast_sensitive", { p_cast_id: null }],
-    ["set_cast_tax_profile", { p_cast_id: null, p_mode: null, p_invoice: null, p_reg_no: null }],
+    ["set_cast_tax_profile", { p_cast_id: null, p_mode: null, p_invoice: null, p_reg_no: null, p_reg_valid_from: null, p_reg_valid_to: null, p_reg_notified_on: null }],
   ];
   for (const [fn, args] of F2B_RPC_PROBES) {
     const { error } = await anon.rpc(fn, args);

@@ -17,15 +17,21 @@ export async function POST(req: Request) {
     // cast（在籍・自店）・税プロファイル・確定 run の payslip・mynumber 有無を並行取得（admin=service・store 明示スコープ）。
     const [castsR, taxR, runR, csR] = await Promise.all([
       admin.from("casts").select("id, name").eq("store_id", storeId).eq("is_active", true).order("name"),
-      admin.from("cast_tax_profiles").select("cast_id, mode, invoice, reg_no").eq("store_id", storeId),
+      admin.from("cast_tax_profiles").select("cast_id, mode, invoice, reg_no, reg_valid_from, reg_valid_to, reg_notified_on").eq("store_id", storeId),
       admin.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period).maybeSingle(),
       admin.from("cast_sensitive").select("cast_id").eq("store_id", storeId).not("mynumber_enc", "is", null),
     ]);
     for (const r of [castsR, taxR, runR, csR]) if (r.error) throw new Error(r.error.message);
 
-    const taxByCast = new Map<string, { mode: string; invoice: string | null; regNo: string | null }>();
+    // mig0073: 登録の効力発生日/失効日/通知受領日（date・null 可）も返す＝UI が全フィールド明示送信できるようにする。
+    const taxByCast = new Map<string, { mode: string; invoice: string | null; regNo: string | null; regValidFrom: string | null; regValidTo: string | null; regNotifiedOn: string | null }>();
     for (const t of (taxR.data ?? []) as Record<string, unknown>[]) {
-      taxByCast.set(t.cast_id as string, { mode: t.mode as string, invoice: (t.invoice as string | null) ?? null, regNo: (t.reg_no as string | null) ?? null });
+      taxByCast.set(t.cast_id as string, {
+        mode: t.mode as string, invoice: (t.invoice as string | null) ?? null, regNo: (t.reg_no as string | null) ?? null,
+        regValidFrom: (t.reg_valid_from as string | null) ?? null,
+        regValidTo: (t.reg_valid_to as string | null) ?? null,
+        regNotifiedOn: (t.reg_notified_on as string | null) ?? null,
+      });
     }
     const hasMy = new Set<string>(((csR.data ?? []) as { cast_id: string }[]).map((r) => r.cast_id));
 
@@ -51,6 +57,9 @@ export async function POST(req: Request) {
         mode: tax?.mode ?? null,          // 委託/雇用（null=未登録）
         invoice: tax?.invoice ?? null,     // 課税/免税（null=未設定）
         regNo: tax?.regNo ?? null,
+        regValidFrom: tax?.regValidFrom ?? null,   // 登録の効力発生日（null=未入力）
+        regValidTo: tax?.regValidTo ?? null,       // 失効日（null=有効中）
+        regNotifiedOn: tax?.regNotifiedOn ?? null, // 登録通知受領日
         withholding: wh?.withholding ?? null, // 確定時のみ（未確定は null）
         gross: wh?.gross ?? null,
         hasMynumber: hasMy.has(c.id),
