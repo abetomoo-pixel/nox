@@ -8,7 +8,7 @@
 
 ## 適用範囲
 
-**0001 〜 0075**（2026-08-03 現在）
+**0001 〜 0076**（2026-08-03 現在）
 
 ## 特記事項
 
@@ -41,6 +41,7 @@
 | 0073_f2f_invoice_registration_period | 通常適用（非冪等要素なし・列は if not exists）。インボイス登録の効力期間3列＋期間 CHECK＋set_cast_tax_profile 4→7引数化＝**旧4引数版を drop ＋ ACL 再適用（0062 前例＝署名変更で ACL は引き継がれない）**。依存 0015/0021。手貼り後 notify pgrst, 'reload schema';。sha256 `dd9fdec1…0e55`（5170 bytes・repo=Downloads 一致） |
 | 0074_cast_leave_rejoin | 通常適用（`add column if not exists` ＋ `set default` ＋ do-block constraint ＋ `create or replace` ＋ revoke/grant＝**非冪等要素なし・再適用可**）。**#4 入退店**＝`casts.joined_on` / `casts.left_on`（date・NULL 可・**backfill なし**）＋整合 CHECK `casts_active_left_on_chk`（`is_active = (left_on is null)`・既存行 全件通過を実測確認済み）＋ `cast_leave(uuid, date)` / `cast_rejoin(uuid)`（owner 全店 / manager 自店＝`staff_deactivate` 同型・**復活方式A＝履歴なし**・`cast_rejoin` は `casts_one_active_per_user_idx` 抵触を `'already active elsewhere'` で先取り・両者 `audit_log_write` あり）。★**`joined_on` の default は列追加と分離**（`add column` に volatile default を同居させると既存行へ評価値が書き込まれ「backfill なし」に反するため・既存行は null のまま／以後の新規行のみ JST 作成日が入る）。ACL は2本とも `revoke execute from public, anon` ＋ `grant execute to authenticated`。手貼り後 `notify pgrst, 'reload schema';`（列追加＋新 RPC 2本の反映）。sha256 `6c001185…39d9`（4575 bytes・repo=Downloads 一致） |
 | 0075_withholding_payment | 通常適用（`create table if not exists` ＋ `create or replace` ×2 ＋ revoke/grant＝**非冪等要素なし・再適用可**）。**納付管理**＝`withholding_payments`（org×対象月×税区分・`unique (org_id, target_month, tax_category)`・実質 append-only＝取消 RPC は post-launch）＋ `withholding_payment_record(text,text,date)` / `withholding_monthly_summary()`（**ともに owner 限定**）。★**要点は新テーブルの権限剥がし**＝Supabase は新規テーブルに authenticated へ ALL を既定 grant するため、`enable row level security` ＋ `revoke all … from public, anon` ＋ **`revoke all … from authenticated`** で全て剥がし、**policy 0本の deny-all**（`staff_pin`/`kiosk_sessions` 同型＝RPC 専任テーブル）にする。★TRUNCATE は RLS が効かないため grant 面で締めるのが必須（0002 検証(4)の教訓）。RPC の ACL は2本とも `revoke execute from public, anon` ＋ `grant execute to authenticated`。集計は **paid run のみ**・税区分は `payslips.breakdown_json->'pay'->>'taxMode'` の**凍結値のみ**（現在値フォールバックなし＝未凍結は `'(未凍結)'` として表面化）。手貼り後 `notify pgrst, 'reload schema';`（新テーブル＋新 RPC 2本の反映）。sha256 `e6667de1…2d57`（5076 bytes・repo=Downloads 一致） |
+| 0076_withholding_summary_bigint_fix | 通常適用（`create or replace` のみ＝**非冪等要素なし・再適用可**）。**★0075 とセットで適用**（0075→0076 の順・0057→0058 と同型の supersede 関係）。`withholding_monthly_summary` の**型不一致是正**＝`sum(bigint)` は PostgreSQL では **numeric に昇格**するため、`returns table` の宣言 `gross_total bigint` / `withholding_total bigint` と食い違い、**1行でも返すと `structure of query does not match function result type` で必ず失敗**していた。集計2列に `::bigint` を明示キャスト（宣言・ACL・他ロジックは 0075 と byte 同一）。★**潜伏条件＝paid run がゼロの環境では発火しない**（0行なら行を組み立てないため）。dev では paid run が無く 0075 手貼り時の検証を通過してしまい、F2g runtime 検証で初回検出。**0075 単独適用の状態で paid 給与が発生すると納付管理が全滅する**ため、必ず対で貼る。手貼り後 `notify pgrst, 'reload schema';`。sha256 `9666827f…e690`（2497 bytes・repo=Downloads 一致） |
 
 ## Storage（段P・キャスト写真）
 

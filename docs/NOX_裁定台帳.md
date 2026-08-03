@@ -819,6 +819,23 @@ migration プリフライトの影響調査は「app の書き手」だけでな
 
 → DEMO 2026-07 の治癒は Agoora が UI から手動実施（解除→再確定＝D1 初実戦・実施後に '(未凍結)' 警告消滅を目視検収）。verify は VERIFY org の動的生成のみで DEMO 不干渉（案A）。
 
+→ 是正（mig0076・本コミット）：sum(bigint)→numeric 昇格により宣言 bigint と不一致＝1行でも返すと必ず失敗する潜伏バグ（paid run ゼロ環境では発火せず）。F2g runtime 検証が初回検出。集計2列を ::bigint 明示キャスト。
+
+### 教訓12
+
+returns table を持つ集計 RPC は「行を返す状態」での runtime 実行が検証必須（sum/avg の型昇格は 0行では発火しない）。prosrc 緑≠runtime 成功の集計版。
+
+### runtime 検証の追加＝verify:f0 合計の張り替え（裁定26 書式）
+
+- 旧合計 **2152 → 新合計 2161**（+9・すべて `verify:nox-payroll` 124→133）
+- 理由：mig0075/0076 納付管理の runtime 検証追加（8観点＋凍結の runtime 証明）
+- 内訳（F2g・全9件）：(b) paid 化の差分が自 run の gross と一致＝paid 限定の証明／★taxMode が breakdown_json.pay に凍結（app 計算経路の runtime 証明）／(a) 委託・雇用が区分別に出る＋期限=翌月10日＋差分一致／(a) 自 run の payslips は全件凍結済み／(c) payment_record→paid_on 反映／(d) 同月同区分の再記録 `already recorded`／(e) `bad month`／(e) `bad category`／(f) manager は両 RPC forbidden／(h) authenticated 直の SELECT/INSERT 拒否
+- fixture 3原則：①動的生成のみ（専用 period 2027-05・専用 cast 2名）②支払月/期限は RPC と同式で導出（リテラル固定にしない）③拒否系は状態不変ゆえ復元不要
+- ★**org 合算 RPC ゆえ他段の paid run が混ざる**＝件数固定の assert は不成立。差分（前後の gross 差）と「自 run の全件凍結」で不変量を取る形にした
+- ★**後始末の教訓（裁定24③ の同型を再演）**：`mkPunchDay` が `shifts` も作るため、shifts を消さないと FK で casts の delete が失敗し cast が蓄積、anon-guard 段35 の固定カウント（A1=2人）を壊した。finally は FK 参照元を全て消し、削除失敗時は `fails.push` で表面化させる形に是正
+- golden 5値（wage 5931 / withholding 125802 / rls F1b 54400 / labor-forecast 55233 / receipt 52）は不変
+- 張り替えコミット：**本コミット（コミット②）**。収蔵＋凍結＋パネルは先行の コミット① `72ab3f2`
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。

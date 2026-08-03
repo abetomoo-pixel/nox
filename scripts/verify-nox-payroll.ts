@@ -890,6 +890,122 @@ async function main() {
     check("D1 reopen: paid → 'run paid'", !!ePaid?.message?.includes("run paid"), ePaid?.message ?? "通ってしまった");
   }
 
+  // ── F2g 納付管理（mig0075・裁定28）runtime 検証 ────────────────────────
+  //   fixture 3原則: ①動的生成のみ（専用 period / 専用 cast）②固定日付（当日依存なし）
+  //   ③拒否系は状態不変ゆえ復元不要。finally は作成行の削除で閉じる。
+  {
+    const NP = "2027-05";               // ①専用 period（他段と衝突しない）
+    const NPAID = "2027-06-05";         // ②固定日付
+    const hasT = (e: { message?: string } | null, t: string) => !!e?.message?.includes(t);
+    // paid_at は now()＝実行時刻。RPC と同じ JST 月/期限をここでも導出する（リテラル固定にしない＝時限装置化しない）。
+    const payMonthJst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 7);
+    const deadlineOf = (m: string) => {
+      const [y, mo] = m.split("-").map(Number);
+      const d = new Date(Date.UTC(y, mo, 10)); // mo は 0-index ゆえ翌月・10日
+      return d.toISOString().slice(0, 10);
+    };
+    const npCasts: string[] = [];
+    let npRunId: string | null = null;
+    try {
+      // 委託1名＋雇用1名を動的生成（税区分は cast_tax_profiles に登録＝draft 計算の入力）
+      const cItaku = await mkCast("NOX-VERIFY-F2g-委託", true);
+      const cKoyo = await mkCast("NOX-VERIFY-F2g-雇用", true);
+      npCasts.push(cItaku, cKoyo);
+      await admin.from("cast_tax_profiles").insert([
+        { org_id: orgAId, store_id: storeA1Id, cast_id: cItaku, mode: "委託" },
+        { org_id: orgAId, store_id: storeA1Id, cast_id: cKoyo, mode: "雇用" },
+      ]);
+      for (const cid of npCasts) {
+        await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId });
+        await mkPunchDay(cid, "2027-05-10", "2027-05-11", storeA1Id);
+      }
+
+      // (b) paid になる前は集計 0 行（paid 限定の確認）
+      const { data: rcNp } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: NP });
+      npRunId = ((rcNp ?? [])[0] as { id: string } | undefined)?.id ?? null; // ★既存流儀＝行配列で返る
+      const strictNp = await computePayrollDraft(admin, manager, storeA1Id, NP, { previewDefaults: false });
+      const psNp = strictNp.rows.map((r) => ({ cast_id: r.castId, net: r.net, breakdown: { pay: r.pay, extras: r.extras } }));
+      await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: npRunId, p_idem_key: randomUUID(), p_payslips: psNp });
+      // ★org 合算 RPC ゆえ他段の paid run も混ざる。差分で「paid 限定」を証明する。
+      type SumRow0 = { target_month: string; tax_category: string; headcount: number; gross_total: number; withholding_total: number; deadline: string; paid_on: string | null };
+      const grossOf = (rows: SumRow0[], m: string) => rows.filter((r) => r.target_month === m).reduce((x, r) => x + Number(r.gross_total), 0);
+      const { data: sumFin } = await owner.rpc("withholding_monthly_summary");
+      const beforeGross = grossOf((sumFin ?? []) as SumRow0[], payMonthJst());
+
+      // ★凍結の runtime 証明: app 計算経路（computePayrollDraft→payOf）が taxMode を breakdown へ載せる
+      const { data: frz } = await admin.from("payslips").select("cast_id, breakdown_json").eq("run_id", npRunId);
+      const modeOf = (cid: string) => ((frz ?? []) as { cast_id: string; breakdown_json: { pay?: { taxMode?: string } } }[])
+        .find((r) => r.cast_id === cid)?.breakdown_json?.pay?.taxMode;
+      check("F2g ★taxMode が breakdown_json.pay に凍結される（委託/雇用の別が payslip 側で確定）",
+        modeOf(cItaku) === "委託" && modeOf(cKoyo) === "雇用", JSON.stringify({ i: modeOf(cItaku), k: modeOf(cKoyo) }));
+
+      // (a) paid にすると税区分別に集計される（期限＝翌月10日）
+      await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: npRunId, p_idem_key: randomUUID() });
+      type SumRow = { target_month: string; tax_category: string; headcount: number; withholding_total: number; deadline: string; paid_on: string | null };
+      const { data: sumPaid, error: eSum } = await owner.rpc("withholding_monthly_summary");
+      const rowsPaid = ((sumPaid ?? []) as SumRow[]).filter((r) => r.target_month === payMonthJst());
+      const itaku = rowsPaid.find((r) => r.tax_category === "委託");
+      const koyo = rowsPaid.find((r) => r.tax_category === "雇用");
+      const myGross = psNp.reduce((x, r) => x + Number((r.breakdown.pay as { gross?: number }).gross ?? 0), 0);
+      check("F2g(a) owner summary: 委託/雇用が区分別に出る・期限=翌月10日・★paid 化で自 run の gross 分だけ増える（paid 限定）",
+        !eSum && !!itaku && !!koyo && itaku.deadline === deadlineOf(payMonthJst())
+        && grossOf((sumPaid ?? []) as SumRow0[], payMonthJst()) - beforeGross === myGross,
+        eSum?.message ?? JSON.stringify({ before: beforeGross, after: grossOf((sumPaid ?? []) as SumRow0[], payMonthJst()), myGross, rowsPaid }));
+      check("F2g(a) 自 run の payslips は全件 taxMode 凍結済み（'(未凍結)' に落ちない）",
+        // ★件数は固定しない（org 内の他 fixture が同じ窓に入りうる）。「1件以上あり全件が凍結済み」が検証したい不変量。
+        ((frz ?? []) as { breakdown_json: { pay?: { taxMode?: string } } }[]).length > 0
+        && ((frz ?? []) as { breakdown_json: { pay?: { taxMode?: string } } }[]).every((r) => !!r.breakdown_json?.pay?.taxMode),
+        JSON.stringify((frz ?? []).map((r) => (r as { breakdown_json: { pay?: { taxMode?: string } } }).breakdown_json?.pay?.taxMode)));
+
+      // (c) 納付記録 → summary に paid_on が反映
+      const { error: eRec } = await owner.rpc("withholding_payment_record",
+        { p_target_month: payMonthJst(), p_tax_category: "委託", p_paid_on: NPAID });
+      const { data: sum2 } = await owner.rpc("withholding_monthly_summary");
+      const after = ((sum2 ?? []) as SumRow[]).find((r) => r.target_month === payMonthJst() && r.tax_category === "委託");
+      check("F2g(c) owner payment_record 成功＝summary の paid_on に反映",
+        !eRec && after?.paid_on === NPAID, eRec?.message ?? JSON.stringify(after));
+
+      // (d) 同月同区分の再記録は拒否（③状態不変）
+      const { error: eDup } = await owner.rpc("withholding_payment_record",
+        { p_target_month: payMonthJst(), p_tax_category: "委託", p_paid_on: NPAID });
+      check("F2g(d) 同月同区分の再記録 = already recorded", hasT(eDup, "already recorded"), eDup?.message ?? "通ってしまった");
+
+      // (e) 入力検証（③状態不変）
+      const { error: eBadM } = await owner.rpc("withholding_payment_record", { p_target_month: "2027-13", p_tax_category: "委託", p_paid_on: NPAID });
+      check("F2g(e) bad month 拒否", hasT(eBadM, "bad month"), eBadM?.message ?? "通ってしまった");
+      const { error: eBadC } = await owner.rpc("withholding_payment_record", { p_target_month: "2027-07", p_tax_category: "報酬", p_paid_on: NPAID });
+      check("F2g(e) bad category 拒否", hasT(eBadC, "bad category"), eBadC?.message ?? "通ってしまった");
+
+      // (f) manager は両 RPC とも forbidden（owner 限定）（③状態不変）
+      const { error: eMs } = await manager.rpc("withholding_monthly_summary");
+      const { error: eMr } = await manager.rpc("withholding_payment_record", { p_target_month: "2027-08", p_tax_category: "委託", p_paid_on: NPAID });
+      check("F2g(f) manager は summary / record とも forbidden（owner 限定）",
+        hasT(eMs, "forbidden") && hasT(eMr, "forbidden"), JSON.stringify({ s: eMs?.message, r: eMr?.message }));
+
+      // (h) authenticated 直の SELECT / INSERT は拒否（テーブル権限剥がしの runtime 証明）
+      const { error: eSel } = await owner.from("withholding_payments").select("id").limit(1);
+      const { error: eIns } = await owner.from("withholding_payments")
+        .insert({ org_id: orgAId, target_month: "2027-09", tax_category: "委託", paid_on: NPAID, recorded_by: actorId });
+      check("F2g(h) ★authenticated 直の withholding_payments SELECT/INSERT は拒否（RPC 専任テーブル）",
+        !!eSel && !!eIns, JSON.stringify({ sel: eSel?.message, ins: eIns?.message }));
+    } finally {
+      // ①動的生成ゆえ削除で復元（DEMO・固定 fixture には一切触れていない）
+      await admin.from("withholding_payments").delete().eq("org_id", orgAId).in("target_month", [payMonthJst(), "2027-05", "2027-06", "2027-07", "2027-08", "2027-09"]);
+      if (npRunId) { await admin.from("payslips").delete().eq("run_id", npRunId); await admin.from("payroll_runs").delete().eq("id", npRunId); }
+      if (npCasts.length) {
+        // ★FK 参照元を全て先に消す（mkPunchDay は shifts も作る＝これを消し忘れると casts の delete が
+        //   FK で失敗し、cast が蓄積して他段の固定カウント assert を壊す＝裁定24③ の同型）。
+        await admin.from("cast_plan").delete().in("cast_id", npCasts);
+        await admin.from("cast_tax_profiles").delete().in("cast_id", npCasts);
+        await admin.from("punches").delete().in("cast_id", npCasts);
+        await admin.from("attendance").delete().in("cast_id", npCasts);
+        await admin.from("shifts").delete().in("cast_id", npCasts);
+        const { error: eDelCast } = await admin.from("casts").delete().in("id", npCasts);
+        if (eDelCast) fails.push(`F2g 後始末: cast 削除失敗（残骸が他段を壊す）: ${eDelCast.message}`);
+      }
+    }
+  }
+
   await teardown();
 
   if (fails.length) {
