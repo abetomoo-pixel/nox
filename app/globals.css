@@ -546,12 +546,17 @@ body {
 .nox-ctoolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 /* 在籍/体入/退店 セグメント（モック .seg） */
 .nox-seg { display: flex; border: 1px solid var(--v2-line); border-radius: 8px; overflow: hidden; }
-.nox-seg button {
+/* マスタIA再編 レーン①: セグメントを実 URL のリンクでも使えるようにした（a を button と同値に）。
+   ★button 側の宣言は1文字も変えていない＝既存 5 画面の描画は不変。新しい色値も足していない。 */
+.nox-seg button,
+.nox-seg a {
   background: transparent; border: none; color: var(--v2-muted);
   padding: 7px 14px; font-size: 12px; cursor: pointer; font-family: inherit;
 }
+.nox-seg a { text-decoration: none; white-space: nowrap; }
 /* 金の3役①＝選択状態 */
-.nox-seg button.on { background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
+.nox-seg button.on,
+.nox-seg a.on { background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
 /* カードグリッド（モック .cards）＝4→3(≤1180)→1(≤641) */
 .nox-cardgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
 @media (max-width: 1180px) { .nox-cardgrid { grid-template-columns: repeat(3, 1fr); } }
