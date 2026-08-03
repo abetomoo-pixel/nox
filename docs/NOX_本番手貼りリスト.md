@@ -8,7 +8,7 @@
 
 ## 適用範囲
 
-**0001 〜 0065**（2026-07-27 現在）
+**0001 〜 0073**（2026-08-03 現在）
 
 ## 特記事項
 
@@ -31,6 +31,14 @@
 | 0063_product_categories_and_kiosk_state_v2 | 再適用可構成だが手貼りは1回（`create table if not exists` ＋ `add column if not exists` ＋ `create or replace` ×3 ＋ **`drop function`（旧13引数 set_product）** ＋ ACL 再適用）。**純増⑦ 商品カテゴリマスタ＋kiosk_register_state v2**＝(1) `product_categories` 新設（`unique (store_id, lower(name))`・**RLS は `products_select` 同型＝パターン3で cast も見える**・書込ポリシー無し）＋ **grants 標準型**（`revoke all from public, anon, authenticated` → `grant select to authenticated`＝0055 規範逐語・REFERENCES/TRIGGER 取りこぼし防止の 0049→0050 教訓）(2) `products.category_id uuid FK on delete set null`（**旧 `category` text は据置＝deprecated**・`comment on column` で明示）(3) `set_product_category` 新設（owner∨manager自店・二重防御・**同店重複名は `'duplicate name'` を明示 raise**＋unique index が backstop・audit あり・`revoke from public, anon`＋`grant to authenticated`）(4) **`set_product` を14引数へ**＝`p_category_id uuid DEFAULT NULL` 追加・**★署名変更ゆえ旧13引数版を `drop function` → ACL 再適用が必須**（PostgreSQL は署名が変わると ACL を引き継がない＝0062 と同じ手順）・底本は 0062 逐語で差分は category_id の4点のみ（入力検証 `'bad category'`＝**同 org かつ同一店のカテゴリのみ許可＝クロス店割当遮断**／insert 列／update 列／引数）(5) `kiosk_register_state` **v2（署名不変・`create or replace` のみ）**＝`categories` 配列（active のみ・`order by sort_order, name`）＋`products.category_id`＋**`checks.started_at`**（kiosk floor 滞在タイマー用）を追加。**非開示原則（back/customer/by_user_id）は不変・0059(b) のタイマー契約に非抵触**（値は state 取得時に渡るだけでポーリングを増やさない）。手貼り後 `notify pgrst, 'reload schema';`（新テーブル＋新 RPC＋`set_product` 署名変更の反映）。sha256 `88892cbb6ec10b6d131925af3ca65424ccec5d51e16d9912d0c524efda8a228e`（13538 bytes・repo=Downloads 一致） |
 | 0064_cast_photo_updated_at | 通常適用（`add column if not exists` のみ・冪等）。**段P キャスト写真**＝`casts.photo_updated_at timestamptz NULL`（**null=写真なし**の判定 兼 **キャッシュバスター**）。★**URL は保存しない**＝実体パスは規約 `cast-photos/{org_id}/{cast_id}.jpg` から導出する。**Storage 側（バケット＋ポリシー3本）は本 mig に含まれない**＝下の「Storage（段P）」節の手順を別途実施すること。sha256 `b0f398d8a3f626394de1ae8c0de8dfb54b9ed4ec02f315a83bfbfff7ad3605fd`（repo=Downloads 一致） |
 | 0065_set_cast_photo_updated_at | 再適用可（`create or replace` のみ）。**写真アップロード完了後の打刻 RPC** `set_cast_photo_updated_at(p_cast_id uuid) returns timestamptz`。★**必要になった理由**＝`casts` は `authenticated` に **SELECT しか grant されておらず UPDATE ポリシーも無い**（書込は RPC 経由のみという全体設計）ため、クライアント直 update は **grant 面と RLS 面の二重で不可**。★**authz は storage の `cast_photos_insert/update` と同一式**（owner ∨ manager∧自店 ∨ cast 本人）＝**片側だけ通る不整合を構造的に作らない**。二重防御（冒頭 `auth_org_id()` null guard・`revoke execute from public, anon`＋`grant to authenticated`）＋`audit_log_write('set_cast_photo', ...)`（原則6）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `06b04afe7e10286a13da55a30e7edcbc48525d5ea74f59c32cd3c370728f8827`（repo=Downloads 一致） |
+| 0066_cast_drink_attribution_a | 通常適用（破壊的 DDL は全て if exists＝冪等）。キャストドリンク帰属のスキーマ拡張（products 按分除外フラグ・drink_claims 制約/FK 張り替え・トリガ2本）。**0067/0068 の前提＝0066→0067→0068 の順で適用**。内部トリガ関数へ revoke all from public, anon あり。sha256 `66235ef1…2df0`（5129 bytes・repo=Downloads 一致） |
+| 0067_cast_drink_attribution_b | 通常適用（create or replace＝冪等）。ドリンク claim の代理起票/取消 RPC 2本を新設し revoke from public, anon＋grant to authenticated。**0066 必須**。sha256 `bc3dc0b5…b23f`（5510 bytes・repo=Downloads 一致） |
+| 0068_cast_drink_attribution_c | 通常適用（冪等）。check_close の按分ループに除外条件（実差分は not exists 2行・他は live 全文の逐語再掲）。**money 経路＝0066/0067 とセットで適用**。sha256 `846b55f9…1937`（6688 bytes・repo=Downloads 一致） |
+| 0069_set_product_back_exempt | ★**単独適用厳禁＝0069→0070→0071→0072 の4本を連続で適用し途中で止めない**。set_product 14→15引数化だが **ACL 文の書き忘れ欠陥を含む**＝適用時点で新署名に既定 grant が付き anon/public に EXECUTE が付く（**0072 が是正＝0057→0058 と同じ supersede 型**）。sha256 `2229f2e1…ced4`（6342 bytes・repo=Downloads 一致） |
+| 0070_freeze_back_exempt_in_snapshot | 通常適用（冪等）。back_exempt を check_lines.back_snapshot に凍結し check_close と drink_claim_submit_proxy が同一凍結値を参照。backfill なし（裁定どおり）。sha256 `3cb2c4e0…e8ec`（15403 bytes・repo=Downloads 一致） |
+| 0071_drop_set_product_v14 | 通常適用（if exists で drop＝冪等・適用後「15引数1本」を assert）。**0069 が生んだ14引数オーバーロードの削除＝飛ばすと呼び出し解決が function is not unique で落ちる**。sha256 `6350bb08…a910`（1638 bytes・repo=Downloads 一致） |
+| 0072_set_product_v15_acl | ★**セキュリティ必須＝絶対に飛ばさない**。0069 の ACL 欠落を是正＝set_product v15 へ revoke execute from public, anon＋grant execute to authenticated（verify:nox-anon-guard がこの回帰を検知した実績＝917/918）。手貼り後 notify pgrst, 'reload schema';（0069 の署名変更分を含む）。sha256 `f2786cc7…ecf4`（2225 bytes・repo=Downloads 一致） |
+| 0073_f2f_invoice_registration_period | 通常適用（非冪等要素なし・列は if not exists）。インボイス登録の効力期間3列＋期間 CHECK＋set_cast_tax_profile 4→7引数化＝**旧4引数版を drop ＋ ACL 再適用（0062 前例＝署名変更で ACL は引き継がれない）**。依存 0015/0021。手貼り後 notify pgrst, 'reload schema';。sha256 `dd9fdec1…0e55`（5170 bytes・repo=Downloads 一致） |
 
 ## Storage（段P・キャスト写真）
 
