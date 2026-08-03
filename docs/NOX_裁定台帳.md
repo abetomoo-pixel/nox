@@ -809,6 +809,16 @@ migration プリフライトの影響調査は「app の書き手」だけでな
 - golden 5値（wage 5931 / withholding 125802 / rls F1b 54400 / labor-forecast 55233 / receipt 52）は不変
 - 張り替えコミット：**本コミット（コミット②）**。収蔵＋UI は先行の コミット① `af75632`
 
+## 裁定28（2026-08-03）納付管理の設計確定（mig0075）
+
+- 税区分（委託/雇用）は payslip の breakdown_json.pay に凍結＝納付集計の根拠は凍結値のみ・現在値フォールバックなし（'(未凍結)' として表面化）。凍結は app（payOf 出力）・mig 不要と判明
+- 集計対象＝paid run のみ（paid_at＝キャストへ支払った日・JST月で帰属）。finalized 未払は注意行で可視化
+- org 合算のみ（納付書＝源泉徴収義務者単位）。店別内訳は post-launch
+- 納付記録＝withholding_payments（org×月×区分 unique・実質append-only）。取消RPC と audit_log_write は post-launch に対で導入（org単位操作への audit 適用は live def 起点で設計してから）
+- 期限＝翌月10日固定（納期の特例はホステス報酬に不適用・裁定23）。土日祝順延は表示課題として post-launch
+
+→ DEMO 2026-07 の治癒は Agoora が UI から手動実施（解除→再確定＝D1 初実戦・実施後に '(未凍結)' 警告消滅を目視検収）。verify は VERIFY org の動的生成のみで DEMO 不干渉（案A）。
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。

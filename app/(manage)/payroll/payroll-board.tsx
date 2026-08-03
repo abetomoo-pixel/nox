@@ -9,6 +9,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
+import PaymentTaxPanel from "./payment-tax-panel";
 
 type Store = { id: string; name: string };
 // D3: payslips.breakdown_json（finalize が凍結）の CSV が使う部分。back 内訳の生値は CSV に出さず合算のみ。
@@ -557,6 +558,10 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
 
       {/* F2d インボイス・支払調書（税区分管理＋支払調書CSV・源泉計算には非接触） */}
       {storeId && <InvoicePanel storeId={storeId} period={period} isOwner={isOwner} />}
+
+      {/* 裁定28 納付管理（owner のみ・org 合算＝store/period に依存しない）。
+          注意行の判定は既存の runInfo から導出＝新規取得を増やさない。 */}
+      {isOwner && <PaymentTaxPanel hasUnpaidFinalized={runInfo?.status === "finalized"} />}
     </div>
   );
 }

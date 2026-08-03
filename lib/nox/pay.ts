@@ -182,6 +182,10 @@ export type PayResult = {
   net: number;
   lateN: number;
   absentN: number;
+  // ★裁定28: 税区分を PayResult に載せ、payslips.breakdown_json->'pay' へ凍結する。
+  //   納付書は 委託（報酬・料金）／雇用（給与）で様式が別＝集計は凍結値のみを根拠にする
+  //   （cast_tax_profiles.mode は現在値で履歴を持たず、後から過去月の集計が動くため使わない）。
+  taxMode: TaxMode;
 };
 
 // ── 部品関数 ──────────────────────────────────────────────────
@@ -486,6 +490,7 @@ export function payOf(input: PayInput): PayResult {
     net,
     lateN: input.fine.lateN,
     absentN: input.fine.absentN,
+    taxMode: input.taxMode, // ★凍結（供給源は buildPayInput の input.taxMode）
   };
 }
 
