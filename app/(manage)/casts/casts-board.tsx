@@ -191,12 +191,36 @@ export default function CastsBoard({
     return !error;
   }
 
+  // ── mig0074 入退店（cast_leave / cast_rejoin・owner∨manager自店＝RPC 側が最終防御）──
+  //   本ページは page.tsx が owner/manager 以外を redirect 済み＝ボタンの出し分けは role ではなく状態で行う。
+  const LEAVE_MSG: Record<string, string> = {
+    "already inactive": "このキャストはすでに退店済みです。",
+    "already active": "このキャストはすでに在籍中です。",
+    "already active elsewhere": "同じユーザーの在籍キャストが既に存在します。",
+    "not found": "対象のキャストが見つかりません。",
+    forbidden: "この操作を行う権限がありません。",
+  };
+  async function castLeaveRejoin(c: CastLogin, kind: "leave" | "rejoin") {
+    const label = kind === "leave" ? "退店" : "復活";
+    if (!confirm(kind === "leave"
+      ? `${c.name} を退店にします。よろしいですか？（本人のログインとキオスク打刻ができなくなります）`
+      : `${c.name} を復活（在籍に戻す）します。よろしいですか？`)) return;
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc(kind === "leave" ? "cast_leave" : "cast_rejoin",
+      kind === "leave" ? { p_cast_id: c.id, p_left_on: null } : { p_cast_id: c.id });
+    const key = Object.keys(LEAVE_MSG).find((k) => (error?.message ?? "").includes(k));
+    setMsg(error ? (key ? LEAVE_MSG[key] : `${label}に失敗: ${error.message}`) : `${label}しました`);
+    setBusy(false);
+    await reloadLoginCasts();
+  }
+
   const docs = (tr: Trial) => tr.documents ?? {};
   const allDocs = (tr: Trial) => DOC_KEYS.every((d) => docs(tr)[d.key] === true);
 
   // ── F3g' castログイン招待（招待=未結線 / PW再発行=結線済み・POST /api/cast/invite） ──
   const reloadLoginCasts = useCallback(async () => {
-    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at").eq("is_active", true).order("name");
+    // mig0074: left_on を含め、page.tsx と同一の取得にする（.eq(is_active,true) を外す＝段C2 の在籍/退店タブ前提）。
+    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on").order("name");
     setLoginCasts((data ?? []) as CastLogin[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -335,7 +359,7 @@ export default function CastsBoard({
           {shownCasts.map((c) => (
             <button key={c.id} className={`nox-ccard ${sel?.kind === "cast" && sel.id === c.id ? "sel" : ""}`}
               onClick={() => { setSel({ kind: "cast", id: c.id }); setDtab("basic"); }}>
-              {!c.is_active && <span className="nox-ctag off">退店</span>}
+              {!c.is_active && <span className="nox-ctag off">{c.left_on ? `退店 ${c.left_on}` : "退店"}</span>}
               <div className="chead">
                 <CastAvatar name={c.name} url={photoUrls.get(c.id)} size={44} />
                 <div>
@@ -383,7 +407,15 @@ export default function CastsBoard({
             <>
               <div className="nox-frow"><span className="k">源氏名</span><span className="v">{selCast.name}</span></div>
               <div className="nox-frow"><span className="k">所属店</span><span className="v">{storeName(selCast.store_id)}</span></div>
-              <div className="nox-frow"><span className="k">状態</span><span className="v">{selCast.is_active ? "在籍" : "退店"}</span></div>
+              <div className="nox-frow">
+                <span className="k">状態</span>
+                <span className="v" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span>{selCast.is_active ? "在籍" : selCast.left_on ? `退店（${selCast.left_on}）` : "退店"}</span>
+                  {selCast.is_active
+                    ? <button style={btnGhost} disabled={busy} onClick={() => void castLeaveRejoin(selCast, "leave")}>退店</button>
+                    : <button style={btnGhost} disabled={busy} onClick={() => void castLeaveRejoin(selCast, "rejoin")}>復活</button>}
+                </span>
+              </div>
               <div className="nox-frow">
                 <span className="k">今月指名</span>
                 <span className="v num">

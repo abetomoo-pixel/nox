@@ -25,7 +25,7 @@ export default async function CastsPage() {
   //   （RLS スコープは不変＝取れる範囲は従来どおり自店/自 org）。
   const { data: loginCasts } = await supabase
     .from("casts")
-    .select("id, name, user_id, photo_updated_at, is_active, store_id")
+    .select("id, name, user_id, photo_updated_at, is_active, store_id, left_on")
     .order("name");
   return (
     <CastsBoard
@@ -45,4 +45,5 @@ export type Trial = {
 };
 
 // 段C2: 退店済み（is_active=false）も取ってフィルタで出し分けるため is_active/store_id を追加。
-export type CastLogin = { id: string; name: string; user_id: string | null; photo_updated_at: string | null; is_active: boolean; store_id: string };
+// mig0074: left_on（退店日・date "YYYY-MM-DD"）。null=在籍中（CHECK casts_active_left_on_chk で is_active と一対一）。
+export type CastLogin = { id: string; name: string; user_id: string | null; photo_updated_at: string | null; is_active: boolean; store_id: string; left_on: string | null };

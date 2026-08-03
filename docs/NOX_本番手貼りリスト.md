@@ -8,7 +8,7 @@
 
 ## 適用範囲
 
-**0001 〜 0073**（2026-08-03 現在）
+**0001 〜 0074**（2026-08-03 現在）
 
 ## 特記事項
 
@@ -39,6 +39,7 @@
 | 0071_drop_set_product_v14 | 通常適用（if exists で drop＝冪等・適用後「15引数1本」を assert）。**0069 が生んだ14引数オーバーロードの削除＝飛ばすと呼び出し解決が function is not unique で落ちる**。sha256 `6350bb08…a910`（1638 bytes・repo=Downloads 一致） |
 | 0072_set_product_v15_acl | ★**セキュリティ必須＝絶対に飛ばさない**。0069 の ACL 欠落を是正＝set_product v15 へ revoke execute from public, anon＋grant execute to authenticated（verify:nox-anon-guard がこの回帰を検知した実績＝917/918）。手貼り後 notify pgrst, 'reload schema';（0069 の署名変更分を含む）。sha256 `f2786cc7…ecf4`（2225 bytes・repo=Downloads 一致） |
 | 0073_f2f_invoice_registration_period | 通常適用（非冪等要素なし・列は if not exists）。インボイス登録の効力期間3列＋期間 CHECK＋set_cast_tax_profile 4→7引数化＝**旧4引数版を drop ＋ ACL 再適用（0062 前例＝署名変更で ACL は引き継がれない）**。依存 0015/0021。手貼り後 notify pgrst, 'reload schema';。sha256 `dd9fdec1…0e55`（5170 bytes・repo=Downloads 一致） |
+| 0074_cast_leave_rejoin | 通常適用（`add column if not exists` ＋ `set default` ＋ do-block constraint ＋ `create or replace` ＋ revoke/grant＝**非冪等要素なし・再適用可**）。**#4 入退店**＝`casts.joined_on` / `casts.left_on`（date・NULL 可・**backfill なし**）＋整合 CHECK `casts_active_left_on_chk`（`is_active = (left_on is null)`・既存行 全件通過を実測確認済み）＋ `cast_leave(uuid, date)` / `cast_rejoin(uuid)`（owner 全店 / manager 自店＝`staff_deactivate` 同型・**復活方式A＝履歴なし**・`cast_rejoin` は `casts_one_active_per_user_idx` 抵触を `'already active elsewhere'` で先取り・両者 `audit_log_write` あり）。★**`joined_on` の default は列追加と分離**（`add column` に volatile default を同居させると既存行へ評価値が書き込まれ「backfill なし」に反するため・既存行は null のまま／以後の新規行のみ JST 作成日が入る）。ACL は2本とも `revoke execute from public, anon` ＋ `grant execute to authenticated`。手貼り後 `notify pgrst, 'reload schema';`（列追加＋新 RPC 2本の反映）。sha256 `6c001185…39d9`（4575 bytes・repo=Downloads 一致） |
 
 ## Storage（段P・キャスト写真）
 

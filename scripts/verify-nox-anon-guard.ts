@@ -2156,7 +2156,7 @@ async function main() {
           p_store_id: storeA1.id, p_reserved_at: iso(2), p_cast_id: dCast, p_guest_name: "段19-3",
         });
         check("段19-3（準備）active cast 指名の予約作成", !eC3 && typeof r3 === "string", eC3?.message);
-        await admin.from("casts").update({ is_active: false }).eq("id", dCast); // 予約後に退店
+        await admin.from("casts").update({ is_active: false, left_on: "2026-01-15" }).eq("id", dCast); // 予約後に退店（mig0074 CHECK: is_active=(left_on is null) ゆえ対で書く・固定日付＝時限装置化しない）
         const { data: chk3, error: eT3 } = await mgr.rpc("reservation_to_check", { p_reservation_id: r3, p_seat_id: seatA1 });
         check("段19-3 退店 cast 指名でも開店成功（指名スキップ・bad cast で倒さない）", !eT3 && typeof chk3 === "string", eT3?.message);
         const { data: nom3 } = await admin.from("check_nominations").select("id").eq("check_id", chk3 as string);
@@ -2370,7 +2370,7 @@ async function main() {
           { org_id: s20Store.org_id, store_id: s20Store.id, check_id: newestId, cast_id: s20DCast, ratio_weight: 1, position: 1 },
           { org_id: s20Store.org_id, store_id: s20Store.id, check_id: newestId, cast_id: s20CastA1a, ratio_weight: 1, position: 2 },
         ]);
-        await admin.from("casts").update({ is_active: false }).eq("id", s20DCast); // 指名を残して退店
+        await admin.from("casts").update({ is_active: false, left_on: "2026-01-15" }).eq("id", s20DCast); // 指名を残して退店（mig0074 CHECK ゆえ対で書く）
         check("段20（準備）最新伝票に指名2行（position 1=退店予定 cast・2=castA1a）", !eNom, eNom?.message);
 
         // ═══ 20-1: anon BLOCKED（公開 RPC の anon 軸）═══
@@ -4865,7 +4865,7 @@ async function main() {
       ? await admin.from("casts").insert({ org_id: s35A2.org_id, store_id: s35A2.id, name: `${PREFIX}-castA2`, is_active: true }).select("id").single()
       : { data: null };
     const { data: cInactive } = s35A1
-      ? await admin.from("casts").insert({ org_id: s35A1.org_id, store_id: s35A1.id, name: `${PREFIX}-inactive`, is_active: false }).select("id").single()
+      ? await admin.from("casts").insert({ org_id: s35A1.org_id, store_id: s35A1.id, name: `${PREFIX}-inactive`, is_active: false, left_on: "2026-01-15" }).select("id").single()
       : { data: null };
 
     // kiosk 用 auth user（実 auth・users/memberships 行は作らない＝kiosk_devices 方式）

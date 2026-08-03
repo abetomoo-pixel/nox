@@ -125,7 +125,8 @@ async function main() {
 
   // ── seed ──────────────────────────────────────────────────────
   const mkCast = async (name: string, active: boolean, storeId = storeA1Id) => {
-    const { data } = await admin.from("casts").insert({ org_id: orgAId, store_id: storeId, name, is_active: active }).select("id").single();
+    // mig0074 CHECK casts_active_left_on_chk: is_active = (left_on is null) ゆえ対で書く（固定日付＝時限装置化しない）。
+    const { data } = await admin.from("casts").insert({ org_id: orgAId, store_id: storeId, name, is_active: active, left_on: active ? null : "2026-01-15" }).select("id").single();
     return data!.id as string;
   };
   const mkSeat = async (name: string, storeId: string) => {

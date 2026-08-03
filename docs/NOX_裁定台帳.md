@@ -783,6 +783,23 @@ claude/wizardly-sanderson-9c96e8（67996c9・基準1172時代）はマージし�
 
 文書内の行番号参照は腐る（off-by-one 2件発生）。指示・台帳とも置換対象はテキスト指定を正とし、行番号は補助情報に留める。本裁定の実装指示自体でも同事象が発生（行番号 250-251 とラベル F2c-3 が別箇所を指し、片方が書き換え漏れ）＝実例として記録。
 
+## 裁定27（2026-08-03）mig0074 入退店＝実施記録
+
+裁定23 #4 / 引き継ぎ §4-2 の実装。`casts.joined_on` / `casts.left_on`（date・NULL 可・**backfill なし**）＋整合 CHECK `casts_active_left_on_chk`（`is_active = (left_on is null)`）＋ `cast_leave(uuid, date)` / `cast_rejoin(uuid)`。dev 適用済み（2026-08-03 手貼り）・repo 収蔵 sha256 `6c001185…39d9`（4575 bytes・repo=Downloads 一致）・live の `pg_get_functiondef` と本文一致を機械確認。
+
+- **権限型**：owner 全店 / manager 自店＝`staff_deactivate` の逐語同型。両 RPC とも `audit_log_write` あり・ACL は `revoke from public, anon` ＋ `grant to authenticated`。
+- **復活方式A（履歴なし）**：`cast_rejoin` は `joined_on` を変えず `left_on` を null に戻す。`casts_one_active_per_user_idx`（`(user_id) where is_active`）への抵触は `'already active elsewhere'` で先取りする（`staff_reactivate` 同型）。
+- **★`joined_on` の default（JST 作成日）は相談役追加として採用**。ただし **`add column` とは分離して `set default` する**＝volatile default を列追加に同居させると既存行へ評価値が書き込まれ「backfill なし」に反するため。既存行は null のまま／以後の新規行のみ JST 作成日が入る。
+- **給与側は非改変**：`collect.ts:397-402` の「対象 cast＝sales ∪ punch（is_active 不問・退職者含む）」は変えない。`joined_on` / `left_on` は期間按分の材料であって可視性フィルタではない。
+- **退店で cast の自己経路は閉じる**：`auth_cast_id()` が `c.is_active` を見ているため、`cast_leave` 後は cast の自己 RPC が全滅する（意図どおり）。
+- **runtime 検証はコミット②で実施予定**（prosrc 緑 ≠ runtime 成功・8観点）。verify:f0 の合計が動く場合は裁定26 の書式で旧合計→新合計を本節に追記する。
+
+→ 附記（本コミット）：CHECK 追加により既存 verify fixture 3箇所（is_active 単独書込）が違反化＝fixture を is_active+left_on の対書込へ修正（assert の意味・件数不変）。制約が設計意図どおり不正パターンを検出した事例として記録。
+
+### 教訓11
+
+migration プリフライトの影響調査は「app の書き手」だけでなく「verify スクリプト内の書き手」も列挙対象とする（本件で is_active 単独書込 3箇所の見落としが発生）。
+
 ## （参考）本セッションで確定済み・他所に記録済みの裁定
 
 - **台帳#40 原価分離＝案C**（products.cost → product_costs・mig0049/0050・実装完了）＝mig ヘッダに記録済み。
