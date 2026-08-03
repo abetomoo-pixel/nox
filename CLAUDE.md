@@ -70,7 +70,7 @@
 
 ## verify
 
-- 機能完了ごとに verify スイート緑を確認してからコミット（`npm run verify:f0` = pay + anon-guard + rls + grants）。
+- 機能完了ごとに verify スイート緑を確認してからコミット（`npm run verify:f0` = 13本：pay / shift-time / punch-match / receipt / anon-guard / rls / grants / payroll / payroll-csv / inventory / categories / cast-photo / labor-forecast）。
 - anon BLOCKED（"permission denied for function"）・他店0行・cast 0行を能動 assert。
 - 内部専用 RPC は anon かつ authenticated の両方で BLOCKED を assert。
 - `verify:nox-grants` は Postgres 直結（SUPABASE_DB_URL）で grant/ACL/RLS 有効を introspection
