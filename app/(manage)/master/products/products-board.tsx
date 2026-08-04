@@ -6,7 +6,7 @@
 //   カテゴリ管理と在庫の入出庫はレーン③まで master-board.tsx に残る（ここには無い）。
 // ★初期値は page.tsx（server）が取得して props で渡す。保存後の再取得だけ client から
 //   同じ queries.ts の関数を呼ぶ＝取得内容は移設前の load() と同一。
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
@@ -20,9 +20,11 @@ import {
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 const card: React.CSSProperties = t.card;
-const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
-const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
+// ★④b-3: フォームモーダル用（縦積み・指で押せる寸法）。入力は min-height 46px、主ボタンは全幅。
+const inputLg: React.CSSProperties = { ...t.input, padding: "12px 13px", fontSize: 14, minHeight: 46 };
+const btnPrimaryLg: React.CSSProperties = { ...t.btnGold, width: "100%", padding: "14px", fontSize: 14 };
+const btnGhostLg: React.CSSProperties = { ...t.btnGhost, width: "100%", padding: "12px", fontSize: 13 };
 
 const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
 const PAGE = 40; // 逐次表示の1ページ分（「もっと見る」で +PAGE）
@@ -133,10 +135,24 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
   // ★レーン④a: 数値4列のソート。null=未ソート＝取得順のまま＝既定の並びは従来と同一。
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  // ★レーン④b-2: フォームは右ドロワーへ移設した（下部固定フォームは撤去）。
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  // 未保存判定の基準＝ドロワーを開いた時点の値の署名。現在値と違えば「変更あり」。
+  // ★レーン④b-2/④b-3: フォームはモーダルへ移設した（下部固定フォームは撤去）。
+  //   ④b-2 は右ドロワーだったが、実物では左の一覧が暗く落ちて読めず「一覧が見えたまま」という
+  //   ドロワーの利点が成立しなかったため、④b-3 で中央モーダルへ戻した
+  //   （variant="drawer" 自体は modal.tsx に残置＝他画面で使う余地がある。ここで使わないだけ）。
+  const [modalOpen, setModalOpen] = useState(false);
+  // 未保存判定の基準＝モーダルを開いた時点の値の署名。現在値と違えば「変更あり」。
   const [baseSig, setBaseSig] = useState("");
+  // ★④b-3: 保存した行を一瞬ハイライトする（閉じると結果が見えないため・トーストより強い）。
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // ハイライト対象が決まったらその行までスクロールし、1.6秒で自動解除する。
+  //   ★フィルタや「もっと見る」の外にある行は DOM に無い＝スクロールは起きない（解除だけ走る）。
+  useEffect(() => {
+    if (!highlightId) return;
+    document.getElementById("prow-" + highlightId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = setTimeout(() => setHighlightId(null), 1600);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
 
   // 保存後の再取得。取得内容は移設前の load() と同一（server の初期取得と同じ関数を使う）。
   async function reload() {
@@ -158,19 +174,20 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
     setPReorder(v.reorder); setPCatId(v.catId);
     setBaseSig(JSON.stringify(v));
   }
-  // 現在のフォーム値の署名。baseSig と違えば未保存の変更あり。
-  const currentSig = () => JSON.stringify({
+  const currentValues = (): FormValues => ({
     type: pType, category: pCategory, name: pName, price: pPrice, cost: pCost,
     backMode: pBackMode, backValue: pBackValue, unit4: pUnit4, honPt: pHonPt,
     exempt: pExempt, active: pActive, reorder: pReorder, catId: pCatId,
-  } satisfies FormValues);
+  });
+  // 現在のフォーム値の署名。baseSig と違えば未保存の変更あり。
+  const currentSig = () => JSON.stringify(currentValues());
 
   // ★④b-2「＋ 商品を追加」: 新規状態でドロワーを開く（旧: 下部フォームへスクロール）。
   function newProduct() {
     setPId(null);
     applyForm(EMPTY_FORM);
     setDetailOpen(false); // 新規は「詳細」閉じ＝編集時の hasDetail 自動展開と同じ規則
-    setDrawerOpen(true);
+    setModalOpen(true);
   }
 
   function editProduct(p: Product) {
@@ -189,20 +206,22 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
     const hasDetail = costs[p.id] != null || p.reorder_point != null || p.hon_pt > 0
       || p.back_mode === "unit4" || (p.back_value ?? 0) !== 0 || p.back_exempt_from_split;
     setDetailOpen(hasDetail);
-    setDrawerOpen(true);
+    setModalOpen(true);
   }
 
   // ★④b-2: 閉じる。未保存の変更があるときだけ確認する（overlay クリック・閉じるボタン共通）。
-  function closeDrawer() {
+  function closeModal() {
     if (currentSig() !== baseSig && !window.confirm("入力内容が保存されていません。閉じてよろしいですか？")) return;
-    setDrawerOpen(false);
+    setModalOpen(false);
   }
 
-  async function saveProduct() {
+  // keepOpen=true は「登録して続けて入力」。新規のときだけ使い、会計区分/表示カテゴリ等は
+  //   前回値のまま残し、名称と価格だけ空に戻して次の1件へ続ける。
+  async function saveProduct(keepOpen = false) {
     setMsg(null);
     // 原価が読めていない状態の保存は p_cost の値が不明＝送れば cost 行を消しうる。ボタン無効化と二重で止める。
     if (costsError) { setMsg("原価を読み込めませんでした。再読込してください"); return; }
-    const { error } = await supabase.rpc("set_product", {
+    const { data, error } = await supabase.rpc("set_product", {
       p_id: pId, p_store_id: storeId, p_type: pType, p_category: pCategory || null,
       p_name: pName, p_price: pPrice, p_cost: pCost === "" ? null : Number(pCost),
       p_back_mode: pBackMode,
@@ -222,10 +241,19 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
       ? (error.message.includes("bad category") ? "カテゴリの指定が不正です（他店のカテゴリは選べません）" : error.message)
       : pId ? "商品を更新しました" : "商品を登録しました");
     // ★④b-2: 成功時のみリセットして閉じる。移設前は error でもフォームを消していたが、
-    //   ドロワーでは「閉じずに中身だけ空になる」＝直す手がかりが消えるので、失敗時は入力を残す。
+    //   モーダルでは「閉じずに中身だけ空になる」＝直す手がかりが消えるので、失敗時は入力を残す。
     if (!error) {
-      setPId(null); setPName(""); setPPrice(0); setPReorder(""); setPCatId(""); setPExempt(false);
-      setDrawerOpen(false);
+      // set_product は id（新規/更新とも）を返す＝保存した行へスクロールして光らせる材料。
+      const savedId = typeof data === "string" ? data : pId;
+      if (keepOpen) {
+        // ★④b-3「登録して続けて入力」: 区分・カテゴリ・バック等は残し、名称と価格だけ空へ。
+        setPId(null);
+        applyForm({ ...currentValues(), name: "", price: 0 });
+      } else {
+        setPId(null); setPName(""); setPPrice(0); setPReorder(""); setPCatId(""); setPExempt(false);
+        setModalOpen(false);
+      }
+      if (savedId) setHighlightId(savedId);
     }
     await reload();
   }
@@ -335,8 +363,10 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
           <thead>
             <tr>
               <th className="col-name">商品名</th>
-              <th className="col-kind">会計区分</th>
-              <th className="col-cat">表示カテゴリ</th>
+              {/* ★④b-3: 2列の違いが伝わっていなかったので列見出しにも補足（title 属性）。
+                  フォーム側のセレクト下の1行と同趣旨を短くしたもの。 */}
+              <th className="col-kind" title="バック計算・日報の売上区分・キャストドリンク申請の可否を決めます。登録後は変更できません">会計区分</th>
+              <th className="col-cat" title="レジ画面での並び分類です。いつでも変更できます">表示カテゴリ</th>
               {/* ソート可能な4列。th は既定でフォーカスを受けないので tabIndex＋Enter/Space を足す
                   （マウス以外でも並べ替えられるようにする）。 */}
               {([["cost", "原価"], ["margin", "利益率"], ["price", "販売価格"], ["stock", "在庫"]] as [SortKey, string][]).map(([k, label]) => (
@@ -360,7 +390,9 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
               const cost = costs[p.id];
               const margin = marginOf(p);
               return (
-                <tr key={p.id} onClick={() => isManagerUp && editProduct(p)}
+                <tr key={p.id} id={`prow-${p.id}`}
+                  className={highlightId === p.id ? "nox-rowflash" : undefined}
+                  onClick={() => isManagerUp && editProduct(p)}
                   style={{ cursor: isManagerUp ? "pointer" : "default" }}>
                   <td className="col-name" data-label="商品名">
                     {/* ★④a-3: アイコン枠は撤去（会計区分は隣の列にあり、頭文字は同じ情報の二重表示だった）。
@@ -416,91 +448,152 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
         )}
       </section>
 
-      {/* ★④b-2: 商品フォームは右ドロワーへ移設（下部固定フォームは撤去）。
+      {/* ★④b-2/④b-3: 商品フォームはモーダルへ移設（下部固定フォームは撤去）。
           40件スクロールした先ではなく、行の「編集」を押したその場で開く＝
           「押しても画面外で何も起きていないように見える」を構造的に解消する。
           ★フォーム本体は移設前と同一（新規/編集は pId 1つで切替・単一実装・分割しない）。
-          ★>900px は右から幅460pxで出るので左の一覧が見えたまま。≤900px はボトムシート（④b-1）。 */}
-      {isManagerUp && drawerOpen && (
-        <Modal variant="drawer" onClose={closeDrawer}>
-          <div className="nox-drawerhead">
+          ★④b-3: 中央オーバーレイへ戻し、幅は 540（unit4 の4項目が 2×2 で入る）。
+            scroll でカードに高さ上限＋中身スクロールを与え、フッタの sticky を効かせる。 */}
+      {isManagerUp && modalOpen && (
+        <Modal onClose={closeModal} maxWidth={540} scroll>
+          <div className="nox-formmodal-head">
             <strong>{pId ? "商品を編集" : "商品を追加"}</strong>
-            <button type="button" className="nox-drawerx" onClick={closeDrawer} aria-label="閉じる">×</button>
+            <button type="button" className="nox-formmodal-x" onClick={closeModal} aria-label="閉じる">×</button>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "var(--sub)" }}>{pId ? "編集中" : "新規"}</span>
-            <select value={pType} onChange={(e) => setPType(e.target.value)} style={input}>
-              <option value="drink">drink</option><option value="champ">champ</option><option value="bottle">bottle</option>
+
+          {/* ★④b-3: 縦積み（ラベル→入力→補足）。ラベルと欄の対応を読み取れるようにする。 */}
+          <div className="nox-field">
+            <span className="lab">会計区分<span className="req">*</span></span>
+            {/* ★編集時はロック。塞いでいるのは UI だけで、DB は通す＝mig0069 の UPDATE 分岐が
+                `set type = p_type` で無条件に上書きする（0069:86 で確認済み）。RPC は変更しない方針の
+                ため、この非対称をここに記録しておく。過去の会計データは check_lines.kind に
+                凍結済みなので遡っては動かない（動くのは以後の分）。 */}
+            <select value={pType} onChange={(e) => setPType(e.target.value)} disabled={pId !== null}
+              style={{ ...inputLg, opacity: pId !== null ? 0.55 : 1 }}>
+              <option value="drink">ドリンク</option>
+              <option value="champ">シャンパン</option>
+              <option value="bottle">ボトル</option>
             </select>
+            <span className="hint">
+              バック計算・日報の売上区分・キャストドリンク申請の可否を決めます。
+              {pId !== null && "　会計区分を変えると、これ以降の売上区分・バック計算・キャストドリンク申請の可否が変わります。過去の会計データは変わりません。"}
+            </span>
+          </div>
+
+          <div className="nox-field">
+            <span className="lab">表示カテゴリ</span>
             {/* 純増⑦（mig0063）: カテゴリ（未分類＝null）。無効カテゴリは現在値のときだけ選択肢に残す。 */}
-            <select value={pCatId} onChange={(e) => setPCatId(e.target.value)} style={input} title="レジのタイル見出しに使われます">
+            <select value={pCatId} onChange={(e) => setPCatId(e.target.value)} style={inputLg}>
               <option value="">未分類</option>
               {categories.filter((c) => c.is_active || c.id === pCatId).map((c) => (
                 <option key={c.id} value={c.id}>{c.name}{c.is_active ? "" : "（無効）"}</option>
               ))}
             </select>
-            <input placeholder="名称" value={pName} onChange={(e) => setPName(e.target.value)} style={{ ...input, width: 160 }} />
-            <label style={{ fontSize: 12 }}>価格 <input type="number" min={0} value={pPrice} onChange={(e) => setPPrice(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
+            <span className="hint">レジ画面での並び分類です。いつでも変更できます。</span>
+          </div>
+
+          <div className="nox-field">
+            <span className="lab">商品名<span className="req">*</span></span>
+            <input placeholder="例 芋焼酎" value={pName} onChange={(e) => setPName(e.target.value)} style={inputLg} />
+          </div>
+
+          <div className="nox-field">
+            <span className="lab">販売価格<span className="req">*</span></span>
+            <input type="number" inputMode="numeric" min={0} value={pPrice}
+              onChange={(e) => setPPrice(Number(e.target.value))} style={inputLg} />
           </div>
 
           {/* 詳細（原価/発注点/バック設定/unit4/本指名pt）＝日常運用では触らない項目をここへ寄せた */}
           <button type="button" onClick={() => setDetailOpen((v) => !v)}
-            style={{ ...btnLight, marginTop: 10, fontSize: 12 }}>
+            style={{ ...btnLight, marginTop: 4, marginBottom: 4, fontSize: 12.5 }}>
             {detailOpen ? "▾ 詳細（原価・発注点・バック）" : "▸ 詳細（原価・発注点・バック）"}
           </button>
           {detailOpen && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10, padding: "10px 11px", background: "var(--bg2)", borderRadius: 11, border: "1px solid var(--line2)" }}>
-              <label style={{ fontSize: 12 }}>原価 <input type="number" min={0} value={pCost} onChange={(e) => setPCost(e.target.value)} placeholder="任意" disabled={costsError} style={{ ...input, width: 80 }} /></label>
-              {/* 純増①（mig0062）: 発注点。空欄＝しきい無し（在庫バー非表示）＝null 送信 */}
-              <label style={{ fontSize: 12 }} title="空欄＝しきい無し">
-                発注点 <input type="number" min={0} value={pReorder} onChange={(e) => setPReorder(e.target.value)} placeholder="任意" style={{ ...input, width: 70 }} />
-              </label>
-              <select value={pBackMode} onChange={(e) => setPBackMode(e.target.value)} style={input}>
-                <option value="rate">率%</option><option value="unit4">指名別単価</option>
-              </select>
+            <div style={{ marginTop: 12, padding: "14px 14px 2px", background: "var(--bg2)", borderRadius: 11, border: "1px solid var(--line2)" }}>
+              <div className="nox-field2">
+                <div className="nox-field">
+                  <span className="lab">原価</span>
+                  <input type="number" inputMode="numeric" min={0} value={pCost}
+                    onChange={(e) => setPCost(e.target.value)} placeholder="任意" disabled={costsError} style={inputLg} />
+                </div>
+                {/* 純増①（mig0062）: 発注点。空欄＝しきい無し（在庫バー非表示）＝null 送信 */}
+                <div className="nox-field">
+                  <span className="lab">発注点</span>
+                  <input type="number" inputMode="numeric" min={0} value={pReorder}
+                    onChange={(e) => setPReorder(e.target.value)} placeholder="空欄＝しきい無し" style={inputLg} />
+                </div>
+              </div>
+
+              <div className="nox-field">
+                <span className="lab">バックの決め方</span>
+                <select value={pBackMode} onChange={(e) => setPBackMode(e.target.value)} style={inputLg}>
+                  <option value="rate">率%（販売価格に対する割合）</option>
+                  <option value="unit4">指名別単価（4段階）</option>
+                </select>
+              </div>
+
               {pBackMode === "rate" ? (
-                <label style={{ fontSize: 12 }}>率% <input type="number" min={0} value={pBackValue} onChange={(e) => setPBackValue(Number(e.target.value))} style={{ ...input, width: 60 }} /></label>
+                <div className="nox-field">
+                  <span className="lab">バック率（%）</span>
+                  <input type="number" inputMode="numeric" min={0} value={pBackValue}
+                    onChange={(e) => setPBackValue(Number(e.target.value))} style={inputLg} />
+                </div>
               ) : (
-                (["hon", "jonai", "dohan", "free"] as const).map((k) => (
-                  <label key={k} style={{ fontSize: 12 }}>
-                    {k} <input type="number" min={0} value={pUnit4[k] ?? 0}
-                      onChange={(e) => setPUnit4((u) => ({ ...u, [k]: Number(e.target.value) }))}
-                      style={{ ...input, width: 70 }} />
-                  </label>
-                ))
+                // ★④b-3: unit4 は 2×2 のグリッド＝ラベルと欄の対応を明確にする（旧: 横一列4つ）。
+                <div className="nox-field2">
+                  {([["hon", "本指名"], ["jonai", "場内指名"], ["dohan", "同伴"], ["free", "フリー"]] as const).map(([k, label]) => (
+                    <div className="nox-field" key={k}>
+                      <span className="lab">{label}（円）</span>
+                      <input type="number" inputMode="numeric" min={0} value={pUnit4[k] ?? 0}
+                        onChange={(e) => setPUnit4((u) => ({ ...u, [k]: Number(e.target.value) }))} style={inputLg} />
+                    </div>
+                  ))}
+                </div>
               )}
-              <label style={{ fontSize: 12, opacity: pExempt ? 0.45 : 1 }}>
-                本指名pt <input type="number" min={0} value={pExempt ? 0 : pHonPt} disabled={pExempt}
-                  onChange={(e) => setPHonPt(Number(e.target.value))} style={{ ...input, width: 56 }} />
-              </label>
+
+              <div className="nox-field">
+                <span className="lab" style={{ opacity: pExempt ? 0.45 : 1 }}>本指名pt</span>
+                <input type="number" inputMode="numeric" min={0} value={pExempt ? 0 : pHonPt} disabled={pExempt}
+                  onChange={(e) => setPHonPt(Number(e.target.value))}
+                  style={{ ...inputLg, opacity: pExempt ? 0.45 : 1 }} />
+              </div>
+
               {/* キャストドリンク（mig0066/0069/0070）＝按分除外。ON の行は check_close の指名按分を通らず、
                   バックは drink_claims 経路（レジの「キャストに付ける」）だけで帰属する＝経路が排他。
                   ★hon_pt は 0 に強制する（CHECK products_exempt_hon_pt_chk）＝按分ループを通らない商品は
                     本指名ptの分配経路も持たないため、値を持ったまま除外指定すると pt が黙って消える。 */}
-              <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
-                <input type="checkbox" checked={pExempt}
-                  onChange={(e) => { setPExempt(e.target.checked); if (e.target.checked) setPHonPt(0); }} />
-                キャストドリンク（按分除外）
-              </label>
-              {pExempt && (
-                <span style={{ fontSize: 11, color: "var(--sub)", flexBasis: "100%" }}>
-                  キャストドリンクは本指名ptを持てません（0 で保存されます）。バックはレジで「キャストに付ける」と確定します。
-                </span>
-              )}
+              <div className="nox-field">
+                <label style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input type="checkbox" checked={pExempt} style={{ width: 18, height: 18 }}
+                    onChange={(e) => { setPExempt(e.target.checked); if (e.target.checked) setPHonPt(0); }} />
+                  キャストドリンク（按分除外）
+                </label>
+                {pExempt && (
+                  <span className="hint">
+                    キャストドリンクは本指名ptを持てません（0 で保存されます）。バックはレジで「キャストに付ける」と確定します。
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
           {/* 有効スイッチと保存は常時（段G: canonical スイッチ・状態と挙動は不変）。
-              ★④b-2: ドロワーの下端に貼り付ける（position:sticky）＝「詳細」を開いて中身が伸びても
-                 保存ボタンが常に見える。ドロワーのカード自身がスクロール容器（④b-1 の overflow-y:auto）。 */}
-          <div className="nox-drawerfoot">
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12 }}>
-              <button type="button" className={`nox-switch ${pActive ? "on" : ""}`} onClick={() => setPActive(!pActive)} aria-pressed={pActive} aria-label="有効"><i /></button>
-              有効
-            </span>
-            <button style={btnDark} disabled={costsError} onClick={saveProduct}>{pId ? "更新" : "登録"}</button>
-            {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); setPReorder(""); setPCatId(""); setDetailOpen(false); }}>新規に戻す</button>}
-            {costsError && <span style={{ fontSize: 12, color: "var(--bad)" }}>原価を読み込めませんでした。再読込してください</span>}
+              ★④b-2/④b-3: モーダル下端に貼り付ける（position:sticky）＝「詳細」を開いて中身が伸びても
+                 保存ボタンが常に見える。カード自身がスクロール容器（Modal の scroll オプション）。 */}
+          <div className="nox-formmodal-foot">
+            <div style={{ display: "flex", gap: 10, alignItems: "center", width: "100%", flexWrap: "wrap" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                <button type="button" className={`nox-switch ${pActive ? "on" : ""}`} onClick={() => setPActive(!pActive)} aria-pressed={pActive} aria-label="有効"><i /></button>
+                有効
+              </span>
+              {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); setPReorder(""); setPCatId(""); setDetailOpen(false); }}>新規に戻す</button>}
+            </div>
+            {costsError && <span style={{ fontSize: 12, color: "var(--bad)", width: "100%" }}>原価を読み込めませんでした。再読込してください</span>}
+            {/* ★④b-3: 主ボタンは横幅いっぱい。新規のときだけ「登録して続けて入力」を併置する。 */}
+            <button style={btnPrimaryLg} disabled={costsError} onClick={() => saveProduct(false)}>{pId ? "更新" : "登録"}</button>
+            {!pId && (
+              <button style={btnGhostLg} disabled={costsError} onClick={() => saveProduct(true)}>登録して続けて入力</button>
+            )}
           </div>
         </Modal>
       )}

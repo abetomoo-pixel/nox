@@ -347,31 +347,61 @@ body {
   to { transform: translateX(0); }
 }
 
-/* ── レーン④b-2: ドロワー中身の見出しと下端固定フッタ ── 2026-08-04 ──
-   カード自身がスクロール容器（上の overflow-y:auto）なので、フッタは position:sticky で
-   下端に貼り付く＝「詳細」を開いて中身が伸びても保存ボタンが常に見える。
-   左右の負マージンはカードの padding（t.card = 15px）を打ち消して端まで地を敷くため。 */
-.nox-drawerhead {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin-bottom: 14px;
+/* ── レーン④b-3: scroll オプション（高さ上限＋中身スクロール）── 2026-08-04 ──
+   ★.nox-modal-scroll 配下のみ＝scroll を渡さない既存6箇所には当たらない。
+   スクロール自体（overflow:auto）は modal.tsx が inline で当てる（t.card の inline
+   overflow:hidden は CSS から上書きできないため）。ここは高さ上限だけを与える。 */
+.nox-modal-scroll .nox-modal-card { max-height: calc(100vh - 36px); }  /* overlay の padding 18px×2 */
+@media (max-width: 900px) {
+  .nox-modal-scroll .nox-modal-card { max-height: 88vh; }
 }
-.nox-drawerhead strong { font-size: 15px; color: var(--champ); }
-.nox-drawerx {
+
+/* ── レーン④b-2/④b-3: フォームモーダルの見出しと下端固定フッタ ── 2026-08-04 ──
+   カード自身がスクロール容器（drawer か scroll のとき）なので、フッタは position:sticky で
+   下端に貼り付く＝「詳細」を開いて中身が伸びても保存ボタンが常に見える。
+   左右の負マージンはカードの padding（t.card = 15px）を打ち消して端まで地を敷くため。
+   ★④b-3 で中央モーダルへ戻したため、クラス名から drawer を外した（機構は同一）。 */
+.nox-formmodal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 16px;
+}
+.nox-formmodal-head strong { font-size: 17px; color: var(--champ); }
+.nox-formmodal-x {
   border: 1px solid var(--line2); background: transparent; color: var(--sub);
-  width: 30px; height: 30px; border-radius: 9px; cursor: pointer; font-family: inherit; font-size: 15px;
+  width: 32px; height: 32px; border-radius: 9px; cursor: pointer; font-family: inherit; font-size: 16px;
   line-height: 1; flex: 0 0 auto;
 }
-.nox-drawerx:hover { color: var(--ink); border-color: var(--gold); }
-.nox-drawerfoot {
+.nox-formmodal-x:hover { color: var(--ink); border-color: var(--gold); }
+.nox-formmodal-foot {
   /* bottom はカードの padding-bottom 分だけ負に振る。sticky の基準はスクロール容器の
      padding box なので、0 のままだとフッタが下端から padding 分浮き、その隙間を
      スクロール中の中身が通過して見える。 */
   position: sticky; bottom: calc(-1 * var(--nox-modal-pad-b, 15px)); z-index: 1;
-  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-  margin: 14px -15px calc(-1 * var(--nox-modal-pad-b, 15px));
-  padding: 12px 15px calc(12px + var(--nox-modal-pad-b, 15px));
+  display: flex; gap: 9px; flex-wrap: wrap; align-items: center;
+  margin: 16px -15px calc(-1 * var(--nox-modal-pad-b, 15px));
+  padding: 13px 15px calc(13px + var(--nox-modal-pad-b, 15px));
   background: var(--card);
   border-top: 1px solid var(--line2);
+}
+
+/* ── レーン④b-3: 縦積みフォーム（ラベル→入力→補足）── 2026-08-04 ──
+   横一列だとラベルと欄の対応が読み取れないため、1項目1ブロックに積む。
+   入力は指で押せる高さ（min-height 46px）＝タブレット運用の最低ライン。 */
+.nox-field { margin-bottom: 15px; }
+.nox-field > .lab { display: block; font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 7px; }
+.nox-field .req { color: var(--gold2); margin-left: 3px; }
+.nox-field .hint { display: block; font-size: 11.5px; color: var(--sub); margin-top: 6px; line-height: 1.65; }
+.nox-field2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+@media (max-width: 480px) { .nox-field2 { grid-template-columns: 1fr; } }
+
+/* 保存後のフィードバック: 該当行を一瞬だけ金でハイライト（トーストより強い） */
+@keyframes nox-rowflash {
+  from { background: rgba(201, 162, 74, .24); }
+  to   { background: transparent; }
+}
+.nox-ptable tbody tr.nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .nox-ptable tbody tr.nox-rowflash { animation: none; background: rgba(201, 162, 74, .14); }
 }
 
 @media (prefers-reduced-motion: reduce) {

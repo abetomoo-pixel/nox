@@ -25,8 +25,13 @@ import * as t from "@/lib/nox/ui/theme";
 //   ★≤900px はドロワー指定でも従来のボトムシートに落ちる。drawer の CSS を
 //     min-width:901px の中だけに置き、≤900 の既存 @media(max-width:900px) 節へ
 //     素通しする形で「既存分岐の再利用」を実現している（シート用の記述は新規に書いていない）。
+// ── レーン④b-3（2026-08-04）: scroll オプションを追加 ────────────────────────
+//   長いフォームを載せるモーダル向けに「高さ上限＋中身スクロール」を opt-in で足す。
+//   ★これも渡さなければ何も起きない＝既存6箇所（casts×3 / kiosk / printer / staff）は無改変。
+//   ★t.card が inline で overflow:hidden を当てているため CSS では上書きできない。
+//     drawer と同じく inline 対 inline で差し替える（④b-1 の教訓）。
 export default function Modal({
-  onClose, maxWidth = 430, variant = "center", children,
+  onClose, maxWidth = 430, variant = "center", scroll = false, children,
 }: {
   /** overlay クリック時に呼ばれる。閉じない条件（busy 等）は呼び出し側で判定する。 */
   onClose: () => void;
@@ -34,8 +39,13 @@ export default function Modal({
   maxWidth?: number;
   /** "center"（既定）=中央オーバーレイ／"drawer"=右端から全高スライドイン（>900px のみ・≤900 はシート）。 */
   variant?: "center" | "drawer";
+  /** true=カードに高さ上限を与えて中身をスクロールさせる（position:sticky のフッタが効くようになる）。 */
+  scroll?: boolean;
   children: ReactNode;
 }) {
+  const overlayCls = "nox-modal-overlay"
+    + (variant === "drawer" ? " nox-modal-drawer" : "")
+    + (scroll ? " nox-modal-scroll" : "");
   const cardStyle: CSSProperties = {
     ...t.card,
     marginBottom: 0,
@@ -45,13 +55,13 @@ export default function Modal({
     paddingBottom: "var(--nox-modal-pad-b, 15px)",
     // カード幅を .nox-modal-card の max-width へ橋渡し（>900 で有効。既定 430・printer のみ 520）。
     ...({ "--nox-modal-max": `${maxWidth}px` } as CSSProperties),
-    // ★drawer のみ中身をスクロールさせる。t.card が inline で overflow:hidden を持つため、
-    //   これは CSS では上書きできない（inline が勝つ）＝ここで inline 対 inline で差し替える。
-    //   center は t.card の hidden のまま＝既存6箇所は 1px も変わらない。
-    ...(variant === "drawer" ? { overflow: "auto" as const } : null),
+    // ★drawer / scroll のときだけ中身をスクロールさせる。t.card が inline で overflow:hidden を
+    //   持つため CSS では上書きできない（inline が勝つ）＝ここで inline 対 inline で差し替える。
+    //   どちらも渡さない既存6箇所は t.card の hidden のまま＝1px も変わらない。
+    ...(variant === "drawer" || scroll ? { overflow: "auto" as const } : null),
   };
   return (
-    <div className={variant === "drawer" ? "nox-modal-overlay nox-modal-drawer" : "nox-modal-overlay"} onClick={onClose}>
+    <div className={overlayCls} onClick={onClose}>
       <div className="nox-modal-card nox-cardtop" style={cardStyle} onClick={(e) => e.stopPropagation()}>
         <div className="nox-modal-handle" aria-hidden="true" />
         {children}
