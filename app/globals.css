@@ -330,15 +330,48 @@ body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    /* ★スクロール（overflow:auto）は modal.tsx が inline で当てる。t.card の inline
+       overflow:hidden は CSS からは上書きできないため（inline 同士で差し替えている）。 */
     /* 角丸は左側のみ（右端に貼り付くため）。inline の var() をここで解決＝シートと同じ流儀 */
     --nox-modal-radius: 16px 0 0 16px;
     animation: nox-drawer-in .22s ease;
   }
 }
+/* ≤900 のシートに落ちたときは高さが青天井になるので上限を与える（スクロールは inline の auto）。
+   ★この規則も .nox-modal-drawer 配下のみ＝既存6箇所のシートは従来どおり内容なりの高さ。 */
+@media (max-width: 900px) {
+  .nox-modal-drawer .nox-modal-card { max-height: 88vh; }
+}
 @keyframes nox-drawer-in {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
+}
+
+/* ── レーン④b-2: ドロワー中身の見出しと下端固定フッタ ── 2026-08-04 ──
+   カード自身がスクロール容器（上の overflow-y:auto）なので、フッタは position:sticky で
+   下端に貼り付く＝「詳細」を開いて中身が伸びても保存ボタンが常に見える。
+   左右の負マージンはカードの padding（t.card = 15px）を打ち消して端まで地を敷くため。 */
+.nox-drawerhead {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 14px;
+}
+.nox-drawerhead strong { font-size: 15px; color: var(--champ); }
+.nox-drawerx {
+  border: 1px solid var(--line2); background: transparent; color: var(--sub);
+  width: 30px; height: 30px; border-radius: 9px; cursor: pointer; font-family: inherit; font-size: 15px;
+  line-height: 1; flex: 0 0 auto;
+}
+.nox-drawerx:hover { color: var(--ink); border-color: var(--gold); }
+.nox-drawerfoot {
+  /* bottom はカードの padding-bottom 分だけ負に振る。sticky の基準はスクロール容器の
+     padding box なので、0 のままだとフッタが下端から padding 分浮き、その隙間を
+     スクロール中の中身が通過して見える。 */
+  position: sticky; bottom: calc(-1 * var(--nox-modal-pad-b, 15px)); z-index: 1;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  margin: 14px -15px calc(-1 * var(--nox-modal-pad-b, 15px));
+  padding: 12px 15px calc(12px + var(--nox-modal-pad-b, 15px));
+  background: var(--card);
+  border-top: 1px solid var(--line2);
 }
 
 @media (prefers-reduced-motion: reduce) {

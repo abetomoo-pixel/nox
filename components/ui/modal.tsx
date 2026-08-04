@@ -45,6 +45,10 @@ export default function Modal({
     paddingBottom: "var(--nox-modal-pad-b, 15px)",
     // カード幅を .nox-modal-card の max-width へ橋渡し（>900 で有効。既定 430・printer のみ 520）。
     ...({ "--nox-modal-max": `${maxWidth}px` } as CSSProperties),
+    // ★drawer のみ中身をスクロールさせる。t.card が inline で overflow:hidden を持つため、
+    //   これは CSS では上書きできない（inline が勝つ）＝ここで inline 対 inline で差し替える。
+    //   center は t.card の hidden のまま＝既存6箇所は 1px も変わらない。
+    ...(variant === "drawer" ? { overflow: "auto" as const } : null),
   };
   return (
     <div className={variant === "drawer" ? "nox-modal-overlay nox-modal-drawer" : "nox-modal-overlay"} onClick={onClose}>

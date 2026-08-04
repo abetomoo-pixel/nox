@@ -6,11 +6,12 @@
 //   カテゴリ管理と在庫の入出庫はレーン③まで master-board.tsx に残る（ここには無い）。
 // ★初期値は page.tsx（server）が取得して props で渡す。保存後の再取得だけ client から
 //   同じ queries.ts の関数を呼ぶ＝取得内容は移設前の load() と同一。
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import Toast from "@/components/ui/toast";
+import Modal from "@/components/ui/modal";
 import MasterPageHead from "../master-page-head";
 import {
   fetchProducts, fetchProductCategories, fetchProductCosts, fetchStockTotals,
@@ -70,6 +71,19 @@ function stockCell(qty: number, reorderPoint: number | null) {
 // ソート対象は数値4列のみ（原価・利益率・販売価格・在庫）。null=未ソート＝取得順（type→name）。
 type SortKey = "cost" | "margin" | "price" | "stock";
 
+// ★④b-2: フォームの入力値ひとまとめ。個々の state はそのまま（分割していない）で、
+//   「開いた時の値」と「今の値」を同じ形で作れるようにするための型＝未保存判定に使う。
+type FormValues = {
+  type: string; category: string; name: string; price: number; cost: string;
+  backMode: string; backValue: number; unit4: Record<string, number>; honPt: number;
+  exempt: boolean; active: boolean; reorder: string; catId: string;
+};
+const EMPTY_FORM: FormValues = {
+  type: "drink", category: "", name: "", price: 0, cost: "",
+  backMode: "rate", backValue: 50, unit4: { ...EMPTY_UNIT4 }, honPt: 0,
+  exempt: false, active: true, reorder: "", catId: "",
+};
+
 export type ProductsInitial = {
   products: Product[];
   categories: Category[];
@@ -119,8 +133,10 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
   // ★レーン④a: 数値4列のソート。null=未ソート＝取得順のまま＝既定の並びは従来と同一。
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  // 「＋ 商品を追加」のスクロール先（下部フォーム）。④b でドロワーへ移すまでの繋ぎ。
-  const formRef = useRef<HTMLDivElement>(null);
+  // ★レーン④b-2: フォームは右ドロワーへ移設した（下部固定フォームは撤去）。
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // 未保存判定の基準＝ドロワーを開いた時点の値の署名。現在値と違えば「変更あり」。
+  const [baseSig, setBaseSig] = useState("");
 
   // 保存後の再取得。取得内容は移設前の load() と同一（server の初期取得と同じ関数を使う）。
   async function reload() {
@@ -133,28 +149,53 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
     setStock(st);
   }
 
-  // ★④a-2「＋ 商品を追加」: 下部フォームを新規状態に戻してそこへスクロールする。
-  //   ドロワー化は④b＝ここではフォームの置き場所を変えず、結線だけを作る。
+  // ★④b-2: フォーム値をまとめて適用する。同じ値から署名（baseSig）も作るので、
+  //   「開いた直後は必ず未変更」が構造的に保証される（setter を個別に呼ぶ書き方だと取りこぼす）。
+  function applyForm(v: FormValues) {
+    setPType(v.type); setPCategory(v.category); setPName(v.name); setPPrice(v.price);
+    setPCost(v.cost); setPBackMode(v.backMode); setPBackValue(v.backValue);
+    setPUnit4(v.unit4); setPHonPt(v.honPt); setPExempt(v.exempt); setPActive(v.active);
+    setPReorder(v.reorder); setPCatId(v.catId);
+    setBaseSig(JSON.stringify(v));
+  }
+  // 現在のフォーム値の署名。baseSig と違えば未保存の変更あり。
+  const currentSig = () => JSON.stringify({
+    type: pType, category: pCategory, name: pName, price: pPrice, cost: pCost,
+    backMode: pBackMode, backValue: pBackValue, unit4: pUnit4, honPt: pHonPt,
+    exempt: pExempt, active: pActive, reorder: pReorder, catId: pCatId,
+  } satisfies FormValues);
+
+  // ★④b-2「＋ 商品を追加」: 新規状態でドロワーを開く（旧: 下部フォームへスクロール）。
   function newProduct() {
-    setPId(null); setPType("drink"); setPCategory(""); setPName(""); setPPrice(0); setPCost("");
-    setPBackMode("rate"); setPBackValue(50); setPUnit4({ ...EMPTY_UNIT4 }); setPHonPt(0);
-    setPExempt(false); setPActive(true); setPReorder(""); setPCatId("");
+    setPId(null);
+    applyForm(EMPTY_FORM);
     setDetailOpen(false); // 新規は「詳細」閉じ＝編集時の hasDetail 自動展開と同じ規則
-    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setDrawerOpen(true);
   }
 
   function editProduct(p: Product) {
-    setPId(p.id); setPType(p.type); setPCategory(p.category ?? ""); setPName(p.name);
-    setPPrice(p.price); setPCost(costs[p.id] == null ? "" : String(costs[p.id]));
-    setPBackMode(p.back_mode); setPBackValue(p.back_value ?? 0);
-    setPUnit4(p.unit4_json ?? { ...EMPTY_UNIT4 }); setPHonPt(p.hon_pt); setPActive(p.is_active);
-    setPReorder(p.reorder_point == null ? "" : String(p.reorder_point));
-    setPCatId(p.category_id ?? "");
-    setPExempt(p.back_exempt_from_split);
+    const v: FormValues = {
+      type: p.type, category: p.category ?? "", name: p.name, price: p.price,
+      cost: costs[p.id] == null ? "" : String(costs[p.id]),
+      backMode: p.back_mode, backValue: p.back_value ?? 0,
+      unit4: p.unit4_json ?? { ...EMPTY_UNIT4 }, honPt: p.hon_pt,
+      exempt: p.back_exempt_from_split, active: p.is_active,
+      reorder: p.reorder_point == null ? "" : String(p.reorder_point),
+      catId: p.category_id ?? "",
+    };
+    setPId(p.id);
+    applyForm(v);
     // 「詳細」は既定 閉。ただし編集時に値が入っている（＝運用で使っている）なら自動で開く。
     const hasDetail = costs[p.id] != null || p.reorder_point != null || p.hon_pt > 0
       || p.back_mode === "unit4" || (p.back_value ?? 0) !== 0 || p.back_exempt_from_split;
     setDetailOpen(hasDetail);
+    setDrawerOpen(true);
+  }
+
+  // ★④b-2: 閉じる。未保存の変更があるときだけ確認する（overlay クリック・閉じるボタン共通）。
+  function closeDrawer() {
+    if (currentSig() !== baseSig && !window.confirm("入力内容が保存されていません。閉じてよろしいですか？")) return;
+    setDrawerOpen(false);
   }
 
   async function saveProduct() {
@@ -180,7 +221,12 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
     setMsg(error
       ? (error.message.includes("bad category") ? "カテゴリの指定が不正です（他店のカテゴリは選べません）" : error.message)
       : pId ? "商品を更新しました" : "商品を登録しました");
-    setPId(null); setPName(""); setPPrice(0); setPReorder(""); setPCatId(""); setPExempt(false);
+    // ★④b-2: 成功時のみリセットして閉じる。移設前は error でもフォームを消していたが、
+    //   ドロワーでは「閉じずに中身だけ空になる」＝直す手がかりが消えるので、失敗時は入力を残す。
+    if (!error) {
+      setPId(null); setPName(""); setPPrice(0); setPReorder(""); setPCatId(""); setPExempt(false);
+      setDrawerOpen(false);
+    }
     await reload();
   }
 
@@ -368,10 +414,19 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
             もっと見る（残り {filtered.length - shown.length} 件）
           </button>
         )}
-        {/* ⑤ 編集フォーム: 基本＝常時表示／詳細＝折り畳み（既定 閉・編集時は値が入っていれば自動で開く）。
-            ★送る引数・原則7（明示値）は完全に不変＝並べ方だけを変えている。 */}
-        {isManagerUp && (
-          <div ref={formRef} style={{ borderTop: "1px solid var(--line2)", marginTop: 12, paddingTop: 12 }}>
+      </section>
+
+      {/* ★④b-2: 商品フォームは右ドロワーへ移設（下部固定フォームは撤去）。
+          40件スクロールした先ではなく、行の「編集」を押したその場で開く＝
+          「押しても画面外で何も起きていないように見える」を構造的に解消する。
+          ★フォーム本体は移設前と同一（新規/編集は pId 1つで切替・単一実装・分割しない）。
+          ★>900px は右から幅460pxで出るので左の一覧が見えたまま。≤900px はボトムシート（④b-1）。 */}
+      {isManagerUp && drawerOpen && (
+        <Modal variant="drawer" onClose={closeDrawer}>
+          <div className="nox-drawerhead">
+            <strong>{pId ? "商品を編集" : "商品を追加"}</strong>
+            <button type="button" className="nox-drawerx" onClick={closeDrawer} aria-label="閉じる">×</button>
+          </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 12, color: "var(--sub)" }}>{pId ? "編集中" : "新規"}</span>
             <select value={pType} onChange={(e) => setPType(e.target.value)} style={input}>
@@ -435,8 +490,10 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
             </div>
           )}
 
-          {/* 有効スイッチと保存は常時（段G: canonical スイッチ・状態と挙動は不変） */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+          {/* 有効スイッチと保存は常時（段G: canonical スイッチ・状態と挙動は不変）。
+              ★④b-2: ドロワーの下端に貼り付ける（position:sticky）＝「詳細」を開いて中身が伸びても
+                 保存ボタンが常に見える。ドロワーのカード自身がスクロール容器（④b-1 の overflow-y:auto）。 */}
+          <div className="nox-drawerfoot">
             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12 }}>
               <button type="button" className={`nox-switch ${pActive ? "on" : ""}`} onClick={() => setPActive(!pActive)} aria-pressed={pActive} aria-label="有効"><i /></button>
               有効
@@ -445,9 +502,8 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
             {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); setPReorder(""); setPCatId(""); setDetailOpen(false); }}>新規に戻す</button>}
             {costsError && <span style={{ fontSize: 12, color: "var(--bad)" }}>原価を読み込めませんでした。再読込してください</span>}
           </div>
-          </div>
-        )}
-      </section>
+        </Modal>
+      )}
     </div>
   );
 }
