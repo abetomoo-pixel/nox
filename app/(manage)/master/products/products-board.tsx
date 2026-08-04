@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import Toast from "@/components/ui/toast";
+import MasterPageHead from "../master-page-head";
 import {
   fetchProducts, fetchProductCategories, fetchProductCosts, fetchStockTotals,
   type MasterProduct as Product, type MasterCategory as Category,
@@ -21,14 +22,24 @@ const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = t.cardTitle;
 
 const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
 const PAGE = 40; // 逐次表示の1ページ分（「もっと見る」で +PAGE）
 const TYPE_LABEL_JA: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
-// ★④a-2: 商品名の左のアイコン枠に入れる文字。会計区分ラベルの頭文字を使う＝
-//   絵文字を使わず、記号（◇◈▯ 等）のようにフォントで欠けることもない。
-const TYPE_INITIAL: Record<string, string> = { drink: "ド", champ: "シ", bottle: "ボ" };
+
+// ★④a-3: 商品名セルの下段に出すバック設定。DB 現物（mig0005 の products DDL）は次のとおり:
+//   back_mode  text not null default 'rate' check (back_mode in ('rate','unit4'))   ← ★2値のみ
+//   back_value int  … rate モードの率(%)。CHECK products_rate_value_chk で rate なら非 null
+//   unit4_json jsonb … unit4 モードの {hon,jonai,dohan,free} 単価。CHECK products_unit4_json_chk で非 null
+// ★「固定額」モードは DB に存在しない（back_mode は rate/unit4 の2値・UI の select も2択）。
+//   よって実際に出るのは「率%」「4段階」の2パターンで、「未設定」は CHECK 違反の行が
+//   混入した場合の防御表示（構造上は起きない）。unit4 の4つ組はここでは展開しない（混むため）。
+// ★本指名pt はここに出さない（別軸の値）。
+function backLabel(p: Product): string {
+  if (p.back_mode === "rate") return p.back_value == null ? "バック 未設定" : `バック ${p.back_value}%`;
+  if (p.back_mode === "unit4") return p.unit4_json == null ? "バック 未設定" : "バック 4段階";
+  return "バック 未設定";
+}
 
 // 純増①（mig0061）在庫セル: バッジ（数値）＋残量バー。バーは reorder_point 比（満位＝発注点×2）で、
 //   reorder_point null＝しきい無しゆえバーを出さず数値のみ。
@@ -42,12 +53,15 @@ function stockCell(qty: number, reorderPoint: number | null) {
   return (
     <span style={{ display: "inline-block" }}>
       <span className={`nox-stkbadge${neg ? " neg" : low ? " low" : ""}`} style={t.num}>{qty}</span>
-      {/* ★④a-2: 「/ 発注点 n」の文字は商品名セルの下段へ移した（同じ行に2度出さない）。
-          バーは発注点比のスケールを持つ情報なのでここに残す＝情報量は落ちていない。 */}
+      {/* ★④a-3: 「/ 発注点 n」を在庫セルへ戻した（④a-2 で商品名下段へ移していた分。
+          下段はバック設定に使う）。発注点 null なら従来どおり何も出さない。 */}
       {reorderPoint !== null && (
-        <span className={`nox-stockbar${neg ? " neg" : low ? " low" : ""}`} aria-hidden="true">
-          <i style={{ width: `${qty < 0 ? 100 : pct}%` }} />
-        </span>
+        <>
+          <span style={{ fontSize: 10, color: "var(--sub)", marginLeft: 5 }}>/ 発注点 {reorderPoint}</span>
+          <span className={`nox-stockbar${neg ? " neg" : low ? " low" : ""}`} aria-hidden="true">
+            <i style={{ width: `${qty < 0 ? 100 : pct}%` }} />
+          </span>
+        </>
       )}
     </span>
   );
@@ -229,19 +243,15 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
       {/* ⑥ ハブ: カテゴリカード → クリックでその分類に絞る（すべて／未分類つき）。
           カテゴリ0件の店は type 別カードへフォールバック（register のタイル分類と同じ判定）。 */}
       <section className="nox-cardtop" style={card}>
-        {/* ★レーン④a-2 ヘッダ: 見出し＋件数バッジ＋説明1行、右端に「＋ 商品を追加」。 */}
-        <div className="nox-pthead">
-          <div>
-            <div className="title">
-              <h2 style={{ ...secTitle, margin: 0 }}>商品</h2>
-              <span className="nox-countbadge">{filtered.length}件</span>
-            </div>
-            <p className="desc">販売価格・原価・在庫・有効状態を一覧で確認できます。</p>
-          </div>
-          {isManagerUp && (
-            <button type="button" style={{ ...btnDark, marginLeft: "auto" }} onClick={newProduct}>＋ 商品を追加</button>
-          )}
-        </div>
+        {/* ★レーン④a-3 ヘッダ: 3ページ共通部品（MasterPageHead）へ寄せてスケールを揃える。 */}
+        <MasterPageHead
+          title="商品"
+          count={filtered.length}
+          desc="販売価格・原価・在庫・有効状態を一覧で確認できます。"
+          action={isManagerUp
+            ? <button type="button" style={t.btnGold} className="nox-pthead-act" onClick={newProduct}>＋ 商品を追加</button>
+            : undefined}
+        />
 
         {/* ⑥ ハブ（④a-2 でピル化）: クリックでその分類に絞る（すべて／未分類つき）。
             カテゴリ0件の店は type 別へフォールバック（register のタイル分類と同じ判定）。
@@ -307,16 +317,14 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                 <tr key={p.id} onClick={() => isManagerUp && editProduct(p)}
                   style={{ cursor: isManagerUp ? "pointer" : "default" }}>
                   <td className="col-name" data-label="商品名">
-                    {/* ★④a-2: 左に会計区分のアイコン枠（記号でなく区分名の頭文字＝フォント欠けが起きない）。
-                        名前セルは2段＝上に商品名、下に発注点（無ければ何も出さない）。 */}
+                    {/* ★④a-3: アイコン枠は撤去（会計区分は隣の列にあり、頭文字は同じ情報の二重表示だった）。
+                        名前セルは2段のまま＝上に商品名、下にバック設定。
+                        下段は「未設定」でも必ず文字を出す＝行高が行によって変わらない。 */}
                     <span className="nox-ptnamecell">
-                      <span className="nox-ptico" aria-hidden="true">{TYPE_INITIAL[p.type] ?? "？"}</span>
-                      <span style={{ minWidth: 0 }}>
-                        <span className="nox-pt-name">{p.name}</span>
-                        {/* 状態列を畳む幅（901〜1180）だけ、無効を名前の隣にバッジで戻す＝情報を消さない */}
-                        {!p.is_active && <span className="nox-statebadge nox-pt-inlinestate"><i />無効</span>}
-                        {p.reorder_point != null && <span className="nox-pt-sub">発注点 {p.reorder_point}</span>}
-                      </span>
+                      <span className="nox-pt-name">{p.name}</span>
+                      {/* 状態列を畳む幅（901〜1180）だけ、無効を名前の隣にバッジで戻す＝情報を消さない */}
+                      {!p.is_active && <span className="nox-statebadge nox-pt-inlinestate"><i />無効</span>}
+                      <span className="nox-pt-sub">{backLabel(p)}</span>
                     </span>
                   </td>
                   <td className="col-kind" data-label="会計区分">{TYPE_LABEL_JA[p.type] ?? p.type}</td>

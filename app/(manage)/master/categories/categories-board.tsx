@@ -8,6 +8,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
+import MasterPageHead from "../master-page-head";
 import {
   fetchProducts, fetchProductCategories,
   type MasterProduct as Product, type MasterCategory as Category,
@@ -17,7 +18,6 @@ const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = t.cardTitle;
 
 export type CategoriesInitial = { categories: Category[]; products: Product[] };
 
@@ -65,7 +65,13 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
 
       {/* 純増⑦（mig0063）: カテゴリ管理（レジ/キオスクのタイル見出し・sort_order 順）。書込は set_product_category のみ。 */}
       <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>商品カテゴリ（クリックで編集）</h2>
+        {/* ★④a-3: 3ページ共通ヘッダ（MasterPageHead）＝タブで行き来しても見出しの段差が出ない。
+            文言そのものは変えていない（ラベル見直しは④b）。 */}
+        <MasterPageHead
+          title="商品カテゴリ（クリックで編集）"
+          count={categories.length}
+          desc="レジ・キオスクの商品タイルの見出しになる分類です。並び順と有効／無効を管理します。"
+        />
         {categories.length === 0 && (
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>
             カテゴリ未登録です。登録するとレジの商品タイルがカテゴリ別に並びます（未登録なら種別 drink/champ/bottle で並びます）。

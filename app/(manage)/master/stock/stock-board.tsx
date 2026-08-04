@@ -9,12 +9,12 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
+import MasterPageHead from "../master-page-head";
 import { fetchProducts, fetchStockTotals, type MasterProduct as Product } from "@/lib/nox/master/queries";
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
-const secTitle: React.CSSProperties = t.cardTitle;
 
 export type StockInitial = { products: Product[]; stock: Record<string, number> };
 
@@ -54,7 +54,12 @@ export default function StockBoard({ isManagerUp, initial }: {
 
       {isManagerUp && (
         <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>在庫の入出庫（append-only）</h2>
+          {/* ★④a-3: 3ページ共通ヘッダ（MasterPageHead）。このページは記録フォーム1本で
+              「n 件」に相当する母数が無いため count は渡さない（部品側で省略可）。 */}
+          <MasterPageHead
+            title="在庫の入出庫（append-only）"
+            desc="入荷・棚卸を追記で記録します。売上による減算は会計から自動で入ります。"
+          />
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <select value={stProd} onChange={(e) => setStProd(e.target.value)} style={{ ...input, maxWidth: 220 }}>
               <option value="">商品を選択</option>

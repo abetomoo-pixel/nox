@@ -1223,25 +1223,38 @@ body {
      901〜1180    : 状態列だけ畳み、無効バッジを商品名の隣へ戻す（情報は消さない）
      ≤900         : 列テーブルを捨ててカード積み（8列を横スクロールさせない） */
 /* ── ④a-2: 密度と装飾をモックへ寄せる（列構成・ソート・断点は④a のまま）── 2026-08-04 ── */
-/* 一覧ヘッダ: 見出し＋件数バッジ＋説明1行／右端に主ボタン */
-.nox-pthead { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-.nox-pthead .title { display: flex; align-items: center; gap: 9px; }
-.nox-pthead .desc { margin: 5px 0 0; font-size: 12px; color: var(--sub); }
+/* ★④a-3: マスタ3ページ共通ヘッダ（app/(manage)/master/master-page-head.tsx）。
+   商品／商品カテゴリ／在庫の入出庫 でスケールを揃える＝第2ナビのタブ移動で段差が出ない。
+   見出し・件数バッジ・ボタンを一段大きくし、見出し行と説明文の間に余白を置いて階層にする。 */
+.nox-pthead {
+  display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;
+  padding-top: 4px; margin-bottom: 18px;
+}
+.nox-pthead-main { min-width: 0; }
+.nox-pthead .title { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
+.nox-pthead .title h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+.nox-pthead .desc { margin: 9px 0 0; font-size: 12.5px; color: var(--sub); line-height: 1.6; }
+.nox-pthead-act { margin-left: auto; }
 .nox-countbadge {
-  font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 99px;
+  font-size: 12.5px; font-weight: 700; padding: 4px 12px; border-radius: 99px;
   background: var(--bg2); border: 1px solid var(--line2); color: var(--sub);
 }
-/* ハブのピル（旧: 巨大カード3枚）。選択中は既存 .nox-seg と同じ金の流儀。 */
-.nox-pillbar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 3px; margin-bottom: 14px; }
+@media (max-width: 641px) {
+  .nox-pthead .title h2 { font-size: 18px; }
+  .nox-pthead-act { margin-left: 0; }
+}
+/* ハブのピル（旧: 巨大カード3枚）。選択中は既存 .nox-seg と同じ金の流儀。
+   ★高さ 40px 相当まで上げてタブレットのタップ標的にする。 */
+.nox-pillbar { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 16px; }
 .nox-pill {
-  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 12px; border-radius: 99px; border: 1px solid var(--line2);
-  background: transparent; color: var(--sub); font-family: inherit; font-size: 12px;
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 9px;
+  min-height: 40px; padding: 8px 16px; border-radius: 99px; border: 1px solid var(--line2);
+  background: transparent; color: var(--sub); font-family: inherit; font-size: 13px;
   cursor: pointer; white-space: nowrap;
 }
 .nox-pill:hover { color: var(--ink); }
 .nox-pill.on { border-color: var(--gold); background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
-.nox-pill .n { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--bg2); color: var(--sub); }
+.nox-pill .n { font-size: 12px; padding: 2px 9px; border-radius: 99px; background: var(--bg2); color: var(--sub); }
 .nox-pill.on .n { background: rgba(201, 162, 74, .18); color: var(--gold2); }
 /* テーブルを包むカード枠（一覧の輪郭をはっきりさせる） */
 .nox-ptwrap { border: 1px solid var(--line); border-radius: 14px; background: var(--card); overflow: hidden; }
@@ -1258,20 +1271,18 @@ body {
 .nox-ptable th .arrow { display: inline-flex; flex-direction: column; line-height: .72; margin-left: 5px; vertical-align: middle; }
 .nox-ptable th .arrow i { font-style: normal; font-size: 7px; color: var(--line2); }
 .nox-ptable th .arrow i.on { color: var(--gold2); }
+/* ★④a-3: アイコン枠（.nox-ptico）を撤去したぶん、td の縦 padding で行高を保つ
+   （38px のアイコンが担っていた高さを padding に移した＝行の厚みは④a-2 と同程度）。 */
 .nox-ptable td {
-  padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--ink);
+  padding: 15px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--ink);
 }
 .nox-ptable tbody tr:last-child td { border-bottom: 0; }
 .nox-ptable tbody tr:hover { background: rgba(255, 255, 255, .025); }
-/* 商品名セル: アイコン枠＋2段（商品名／発注点）。余った横幅はこの列に寄せる。 */
-.nox-ptnamecell { display: flex; align-items: center; gap: 11px; }
-.nox-ptico {
-  width: 38px; height: 38px; flex: 0 0 auto; border-radius: 11px;
-  background: var(--bg2); border: 1px solid var(--line2);
-  display: grid; place-items: center; color: var(--gold2); font-size: 13px; font-weight: 700;
-}
+/* 商品名セル: 2段（商品名／バック設定）。余った横幅はこの列に寄せる。 */
+.nox-ptnamecell { display: block; min-width: 0; }
 .nox-pt-name { font-size: 13.5px; font-weight: 700; }
-.nox-pt-sub { display: block; font-size: 11px; color: var(--sub); margin-top: 2px; }
+/* 下段は「バック 未設定」でも必ず描くので、行によって高さが変わらない（min-height は保険） */
+.nox-pt-sub { display: block; min-height: 15px; font-size: 11px; color: var(--sub); margin-top: 3px; }
 /* 数値列は右揃え＋内容幅に詰める（width:1% で余りを商品名列へ渡す） */
 .nox-ptable th.col-cost, .nox-ptable th.col-margin, .nox-ptable th.col-price,
 .nox-ptable td.col-cost, .nox-ptable td.col-margin, .nox-ptable td.col-price,
