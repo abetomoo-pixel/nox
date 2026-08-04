@@ -20,17 +20,18 @@ type Seat = { id: string; name: string; kind: string | null; sort_order: number;
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
-const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 
 // 段0R その4: ハブ⇄セクションの「その場で切り替え」。
 //   ★パネル本体は page.tsx（server）が従来どおり props を組んで生成し、ここは ReactNode を
 //     受け取って描き分けるだけ＝コンポーネントも機能も RPC も送る引数も1文字も変えていない。
-export type MasterView = "products" | "pricing" | "cast" | "seat" | "hours" | "system";
+// ★レーン③: "products" は実ページ3本（/master/products・/master/categories・/master/stock）へ
+//   完全移設したため view から削除した（残る view は5つ）。
+export type MasterView = "pricing" | "cast" | "seat" | "hours" | "system";
 export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean;
   /** server で生成済みのパネル群（表示単位ごと）。未指定の単位はカードを出さない。 */
-  panels?: Partial<Record<Exclude<MasterView, "products" | "seat">, React.ReactNode>>;
+  panels?: Partial<Record<Exclude<MasterView, "seat">, React.ReactNode>>;
 }) {
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>([]);
@@ -43,12 +44,6 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
   const [stock, setStock] = useState<Record<string, number>>({});
   const [msg, setMsg] = useState<string | null>(null);
 
-  // カテゴリ管理フォーム（set_product_category）
-  const [cId, setCId] = useState<string | null>(null);
-  const [cCatName, setCCatName] = useState("");
-  const [cSort, setCSort] = useState(0);
-  const [cActive, setCActive] = useState(true);
-
   // 席フォーム
   const [sId, setSId] = useState<string | null>(null);
   const [sName, setSName] = useState("");
@@ -56,14 +51,10 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
   const [sSort, setSSort] = useState(0);
   const [sActive, setSActive] = useState(true);
 
-  // 在庫フォーム
-  const [stProd, setStProd] = useState("");
-  const [stDelta, setStDelta] = useState(0);
-  const [stReason, setStReason] = useState("");
-
-  // ★レーン②: product_costs は商品リスト/フォーム専用だったのでここでは取らない。
-  //   products / product_categories / stock_logs / seats はこのページの残り（カード件数・KPI・
-  //   カテゴリ別件数・在庫の商品選択・席）がまだ使うため残す。
+  // ★レーン③: このページはハブ（概要）＋席のみになった。
+  //   products / product_categories / stock_logs は「概要＝ダッシュボード」の
+  //   KPI 4枚・低在庫アラート・カード件数がまだ読む＝設計どおり残す（実体は各実ページ側）。
+  //   seats は席 view が使う。product_costs はレーン②で落とした（原価表示がここに無い）。
   const load = useCallback(async () => {
     const [ps, cats, st] = await Promise.all([
       fetchProducts(supabase), fetchProductCategories(supabase), fetchStockTotals(supabase),
@@ -78,24 +69,6 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
 
   useEffect(() => { void load(); }, [load]);
 
-  // 純増⑦（mig0063）: カテゴリ upsert（set_product_category・owner/manager 自店＝RPC 側も二重で拒否）
-  async function saveCategory() {
-    if (!cCatName.trim()) return;
-    setMsg(null);
-    const { error } = await supabase.rpc("set_product_category", {
-      p_id: cId, p_store_id: storeId, p_name: cCatName.trim(), p_sort_order: cSort,
-      p_is_active: cActive, // 明示 boolean（原則7）
-    });
-    setMsg(error
-      ? (error.message.includes("duplicate name") ? "同じ名前のカテゴリが既にあります"
-        : error.message.includes("bad name") ? "カテゴリ名は40字以内で入力してください"
-        : error.message.includes("forbidden") ? "権限がありません"
-        : error.message)
-      : cId ? "カテゴリを更新しました" : "カテゴリを登録しました");
-    if (!error) { setCId(null); setCCatName(""); setCSort(0); setCActive(true); }
-    await load();
-  }
-
   async function saveSeat() {
     setMsg(null);
     const { error } = await supabase.rpc("set_seat", {
@@ -107,17 +80,6 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
     await load();
   }
 
-  async function addStock() {
-    if (!stProd || !stDelta) return;
-    setMsg(null);
-    const { error } = await supabase.rpc("product_stock_add", {
-      p_product_id: stProd, p_delta: stDelta, p_reason: stReason || null,
-    });
-    setMsg(error ? error.message : "在庫を記録しました");
-    setStDelta(0); setStReason("");
-    await load();
-  }
-
   // ── 段0R その2: aaa 基準シェルのハブ層（presentation-only）──
   //   ★カードは既存パネルへのページ内アンカーで、パネルの中身・機能・RPC は一切変えていない。
   //   ★aaa にあって実在しない項目（税率・Wi-Fi/GPS・権限ロール・変更履歴）は作らず、
@@ -126,19 +88,19 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
   const lowStock = products.filter((p) => p.reorder_point != null && (stock[p.id] ?? 0) <= (p.reorder_point ?? 0)).length;
   const activeSeats = seats.filter((x) => x.is_active).length;
   const hubQ = hubSearch.trim().toLowerCase();
-  // ★レーン②: href を持つカードは実 URL へ遷移し、持たないカードは従来どおり view 切替。
-  //   今回 href を付けたのは「商品マスター」1枚だけ（他13枚は setView のまま）。
-  const HUBS: Array<{ sec: string; secDesc: string; cards: Array<{ view: MasterView; href?: string; id: string; icon: string; count: string; title: string; desc: string; status: string; tone: string }> }> = [
+  // ★レーン②/③: href を持つカードは実 URL へ遷移し、持たないカードは従来どおり view 切替。
+  //   href を付けたのは商品・カテゴリ・在庫の3枚（＝実ページ化済み）。残り11枚は setView のまま。
+  const HUBS: Array<{ sec: string; secDesc: string; cards: Array<{ view?: MasterView; href?: string; id: string; icon: string; count: string; title: string; desc: string; status: string; tone: string }> }> = [
     {
       sec: "商品・料金", secDesc: "レジ・会計で利用する項目",
       cards: [
-        { view: "products" as MasterView, href: "/master/products", id: "m-prod", icon: "◇", count: `${products.length}件`, title: "商品マスター",
+        { href: "/master/products", id: "m-prod", icon: "◇", count: `${products.length}件`, title: "商品マスター",
           desc: "ドリンク、シャンパン、ボトル、フード、在庫数、発注基準を管理。",
           status: lowStock > 0 ? `● ${lowStock}件 要補充` : "● 在庫は基準内", tone: lowStock > 0 ? "warn" : "" },
-        { view: "products" as MasterView, id: "m-cat", icon: "▤", count: `${categories.length}件`, title: "商品カテゴリ",
+        { href: "/master/categories", id: "m-cat", icon: "▤", count: `${categories.length}件`, title: "商品カテゴリ",
           desc: "レジのタイル見出しになる分類。並び順と有効/無効を管理。",
           status: categories.length > 0 ? "● 全件有効" : "● 未登録", tone: categories.length > 0 ? "" : "mute" },
-        { view: "products" as MasterView, id: "m-stock", icon: "⬚", count: "追記のみ", title: "在庫の入出庫",
+        { href: "/master/stock", id: "m-stock", icon: "⬚", count: "追記のみ", title: "在庫の入出庫",
           desc: "入荷・棚卸の記録（append-only）。売上による減算は会計から自動。", status: "● 記録可", tone: "" },
         { view: "pricing" as MasterView, id: "m-pricing", icon: "¥", count: "7設定", title: "料金・会計設定",
           desc: "指名料、サービス料、カード手数料、丸め単位・丸め方を設定。", status: "● 有効", tone: "" },
@@ -185,7 +147,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
     hubQ === "" || c.title.toLowerCase().includes(hubQ) || c.desc.toLowerCase().includes(hubQ);
 
   const VIEW_TITLE: Record<MasterView, string> = {
-    products: "商品・在庫", pricing: "料金・会計", cast: "キャスト・報酬",
+    pricing: "料金・会計", cast: "キャスト・報酬",
     seat: "席・卓", hours: "営業時間・定休日", system: "スタッフ・システム",
   };
 
@@ -259,78 +221,12 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
                 // ★レーン②: 実ページを持つカードだけ Link（見た目は .nox-fcard のまま）。
                 return c.href
                   ? <Link key={c.id} href={c.href} className="nox-fcard">{inner}</Link>
-                  : <button key={c.id} type="button" className="nox-fcard" onClick={() => setView(c.view)}>{inner}</button>;
+                  : <button key={c.id} type="button" className="nox-fcard" onClick={() => c.view && setView(c.view)}>{inner}</button>;
               })}
             </div>
           </section>
         );
       })}
-      </>
-      )}
-
-      {/* ── 表示単位「商品・在庫」＝カテゴリ／在庫の2パネル（レーン②で商品は /master/products へ移設）──
-          ★カテゴリ・在庫はレーン③で実ページへ移すまでここに残る（カード2枚は setView のまま）。 */}
-      {view === "products" && (
-      <>
-
-      {/* 純増⑦（mig0063）: カテゴリ管理（レジ/キオスクのタイル見出し・sort_order 順）。書込は set_product_category のみ。 */}
-      <section className="nox-cardtop" style={card}>
-        <h2 id="m-cat" style={secTitle}>商品カテゴリ（クリックで編集）</h2>
-        {categories.length === 0 && (
-          <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>
-            カテゴリ未登録です。登録するとレジの商品タイルがカテゴリ別に並びます（未登録なら種別 drink/champ/bottle で並びます）。
-          </p>
-        )}
-        {categories.length > 0 && (
-          <table style={{ borderCollapse: "collapse", fontSize: 12, marginBottom: 10 }}>
-            <tbody>
-              {categories.map((c) => (
-                <tr key={c.id}
-                  onClick={() => isManagerUp && (setCId(c.id), setCCatName(c.name), setCSort(c.sort_order), setCActive(c.is_active))}
-                  style={{ borderBottom: "1px solid var(--line)", cursor: isManagerUp ? "pointer" : "default" }}>
-                  <td style={{ padding: 6, fontWeight: 700 }}>{c.name}</td>
-                  <td style={{ padding: 6, ...t.num, color: "var(--sub)" }}>並び {c.sort_order}</td>
-                  <td style={{ padding: 6, ...t.num, color: "var(--sub)" }}>
-                    商品 {products.filter((p) => p.category_id === c.id).length}
-                  </td>
-                  <td style={{ padding: 6, color: c.is_active ? "var(--ok)" : "var(--sub)" }}>{c.is_active ? "有効" : "無効"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {isManagerUp && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "var(--sub)" }}>{cId ? "編集中" : "新規"}</span>
-            <input placeholder="カテゴリ名（例 焼酎）" value={cCatName} onChange={(e) => setCCatName(e.target.value)} maxLength={40} style={{ ...input, width: 170 }} />
-            <label style={{ fontSize: 12 }}>並び順 <input type="number" value={cSort} onChange={(e) => setCSort(Number(e.target.value))} style={{ ...input, width: 60 }} /></label>
-            {/* 有効トグル＝段G の canonical スイッチ（既存 boolean のみ・見た目のみ） */}
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, cursor: "pointer" }}>
-              <button type="button" role="switch" aria-checked={cActive} aria-label="有効"
-                className={cActive ? "nox-switch on" : "nox-switch"} onClick={() => setCActive((v) => !v)}><i /></button>
-              有効
-            </label>
-            <button style={btnDark} disabled={!cCatName.trim()} onClick={saveCategory}>{cId ? "更新" : "登録"}</button>
-            {cId && <button style={btnLight} onClick={() => { setCId(null); setCCatName(""); setCSort(0); setCActive(true); }}>新規に戻す</button>}
-          </div>
-        )}
-      </section>
-
-      {isManagerUp && (
-        <section className="nox-cardtop" style={card}>
-          <h2 id="m-stock" style={secTitle}>在庫の入出庫（append-only）</h2>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <select value={stProd} onChange={(e) => setStProd(e.target.value)} style={{ ...input, maxWidth: 220 }}>
-              <option value="">商品を選択</option>
-              {products.map((p) => <option key={p.id} value={p.id}>{p.name}（現在 {stock[p.id] ?? 0}）</option>)}
-            </select>
-            <label style={{ fontSize: 12 }}>増減 <input type="number" value={stDelta} onChange={(e) => setStDelta(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
-            <input placeholder="理由（入荷・棚卸等）" value={stReason} onChange={(e) => setStReason(e.target.value)} style={{ ...input, width: 160 }} />
-            <button style={btnDark} onClick={addStock}>記録</button>
-          </div>
-        </section>
-      )}
-
       </>
       )}
 

@@ -21,9 +21,8 @@ export const MASTER_NAV: MasterNavGroup[] = [
     label: "商品・料金",
     pages: [
       { label: "商品", href: "/master/products" },
-      // ── 後続レーンでの追加位置（レーン③でこの下に足す）──
-      // { label: "商品カテゴリ", href: "/master/categories" },
-      // { label: "在庫の入出庫", href: "/master/stock" },
+      { label: "商品カテゴリ", href: "/master/categories" },
+      { label: "在庫の入出庫", href: "/master/stock" },
     ],
   },
 ];
