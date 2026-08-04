@@ -8,8 +8,10 @@ import type { ReactNode } from "react";
 const P: Record<string, ReactNode> = {
   // ホーム＝家
   "/dashboard": <><path d="M3 10.5 12 3l9 7.5" /><path d="M5.5 9.5V20h13V9.5" /></>,
-  // レジ＝カード（会計端末）
-  "/register": <><rect x="2.5" y="5" width="19" height="14" rx="2.5" /><path d="M2.5 10h19" /><path d="M6.5 15h4" /></>,
+  // レジ＝レシート（下端が波打った縦長の紙＋本文3行）。
+  //   ★カード型から差し替え（2026-08-04）: NOX のレジは現金会計も卓管理も含むため、
+  //     カードだと「決済手段」に読めて狭い。刻みは 4 区間・振幅 2px＝18px でも潰れない粒度。
+  "/register": <><path d="M6 3h12v17l-3-2-3 2-3-2-3 2z" /><path d="M9 8h6M9 11.5h6M9 15h4" /></>,
   // 日報＝書類
   "/report": <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /><path d="M9 12h6M9 16h6" /></>,
   // シフト＝カレンダー
