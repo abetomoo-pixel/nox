@@ -6,7 +6,7 @@
 //   カテゴリ管理と在庫の入出庫はレーン③まで master-board.tsx に残る（ここには無い）。
 // ★初期値は page.tsx（server）が取得して props で渡す。保存後の再取得だけ client から
 //   同じ queries.ts の関数を呼ぶ＝取得内容は移設前の load() と同一。
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
@@ -26,6 +26,9 @@ const secTitle: React.CSSProperties = t.cardTitle;
 const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
 const PAGE = 40; // 逐次表示の1ページ分（「もっと見る」で +PAGE）
 const TYPE_LABEL_JA: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
+// ★④a-2: 商品名の左のアイコン枠に入れる文字。会計区分ラベルの頭文字を使う＝
+//   絵文字を使わず、記号（◇◈▯ 等）のようにフォントで欠けることもない。
+const TYPE_INITIAL: Record<string, string> = { drink: "ド", champ: "シ", bottle: "ボ" };
 
 // 純増①（mig0061）在庫セル: バッジ（数値）＋残量バー。バーは reorder_point 比（満位＝発注点×2）で、
 //   reorder_point null＝しきい無しゆえバーを出さず数値のみ。
@@ -39,13 +42,12 @@ function stockCell(qty: number, reorderPoint: number | null) {
   return (
     <span style={{ display: "inline-block" }}>
       <span className={`nox-stkbadge${neg ? " neg" : low ? " low" : ""}`} style={t.num}>{qty}</span>
+      {/* ★④a-2: 「/ 発注点 n」の文字は商品名セルの下段へ移した（同じ行に2度出さない）。
+          バーは発注点比のスケールを持つ情報なのでここに残す＝情報量は落ちていない。 */}
       {reorderPoint !== null && (
-        <>
-          <span style={{ fontSize: 10, color: "var(--sub)", marginLeft: 5 }}>/ 発注点 {reorderPoint}</span>
-          <span className={`nox-stockbar${neg ? " neg" : low ? " low" : ""}`} aria-hidden="true">
-            <i style={{ width: `${qty < 0 ? 100 : pct}%` }} />
-          </span>
-        </>
+        <span className={`nox-stockbar${neg ? " neg" : low ? " low" : ""}`} aria-hidden="true">
+          <i style={{ width: `${qty < 0 ? 100 : pct}%` }} />
+        </span>
       )}
     </span>
   );
@@ -103,6 +105,8 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
   // ★レーン④a: 数値4列のソート。null=未ソート＝取得順のまま＝既定の並びは従来と同一。
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // 「＋ 商品を追加」のスクロール先（下部フォーム）。④b でドロワーへ移すまでの繋ぎ。
+  const formRef = useRef<HTMLDivElement>(null);
 
   // 保存後の再取得。取得内容は移設前の load() と同一（server の初期取得と同じ関数を使う）。
   async function reload() {
@@ -113,6 +117,16 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
     setProducts(ps); setCategories(cats);
     setCosts(cs.costs); setCostsError(cs.failed);
     setStock(st);
+  }
+
+  // ★④a-2「＋ 商品を追加」: 下部フォームを新規状態に戻してそこへスクロールする。
+  //   ドロワー化は④b＝ここではフォームの置き場所を変えず、結線だけを作る。
+  function newProduct() {
+    setPId(null); setPType("drink"); setPCategory(""); setPName(""); setPPrice(0); setPCost("");
+    setPBackMode("rate"); setPBackValue(50); setPUnit4({ ...EMPTY_UNIT4 }); setPHonPt(0);
+    setPExempt(false); setPActive(true); setPReorder(""); setPCatId("");
+    setDetailOpen(false); // 新規は「詳細」閉じ＝編集時の hasDetail 自動展開と同じ規則
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function editProduct(p: Product) {
@@ -201,7 +215,6 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(key); setSortDir("asc"); }
   };
-  const sortArrow = (key: SortKey) => (sortKey === key ? (sortDir === "asc" ? "▲" : "▼") : "");
   const ariaSort = (key: SortKey): "ascending" | "descending" | "none" =>
     sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : "none";
 
@@ -216,24 +229,38 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
       {/* ⑥ ハブ: カテゴリカード → クリックでその分類に絞る（すべて／未分類つき）。
           カテゴリ0件の店は type 別カードへフォールバック（register のタイル分類と同じ判定）。 */}
       <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>商品</h2>
-        <div className="nox-hubgrid">
-          <button type="button" className={`nox-hubcard${selCat === "__all" ? " on" : ""}`} onClick={() => selectHub("__all")}>
-            <span className="nox-hubcard-name">すべて</span>
-            <span className="nox-hubcard-n">{pool.length}<span className="nox-hubcard-unit"> 件</span></span>
+        {/* ★レーン④a-2 ヘッダ: 見出し＋件数バッジ＋説明1行、右端に「＋ 商品を追加」。 */}
+        <div className="nox-pthead">
+          <div>
+            <div className="title">
+              <h2 style={{ ...secTitle, margin: 0 }}>商品</h2>
+              <span className="nox-countbadge">{filtered.length}件</span>
+            </div>
+            <p className="desc">販売価格・原価・在庫・有効状態を一覧で確認できます。</p>
+          </div>
+          {isManagerUp && (
+            <button type="button" style={{ ...btnDark, marginLeft: "auto" }} onClick={newProduct}>＋ 商品を追加</button>
+          )}
+        </div>
+
+        {/* ⑥ ハブ（④a-2 でピル化）: クリックでその分類に絞る（すべて／未分類つき）。
+            カテゴリ0件の店は type 別へフォールバック（register のタイル分類と同じ判定）。
+            ★分類の判定・件数・選択の挙動は④a から一切変えていない＝形だけをピルにした。 */}
+        <div className="nox-pillbar">
+          <button type="button" className={`nox-pill${selCat === "__all" ? " on" : ""}`} onClick={() => selectHub("__all")}>
+            すべて<span className="n">{pool.length}</span>
           </button>
           {hubCards.map((h) => (
-            <button key={h.key} type="button" className={`nox-hubcard${selCat === h.key ? " on" : ""}`} onClick={() => selectHub(h.key)}>
-              <span className="nox-hubcard-name">{h.label}</span>
-              <span className="nox-hubcard-n">{h.n}<span className="nox-hubcard-unit"> 件</span></span>
+            <button key={h.key} type="button" className={`nox-pill${selCat === h.key ? " on" : ""}`} onClick={() => selectHub(h.key)}>
+              {h.label}<span className="n">{h.n}</span>
             </button>
           ))}
         </div>
 
-        {/* ③ 一覧: 運用で見る情報だけの行（名称・価格・原価と利益率・在庫・状態）。詳細は編集フォームへ寄せた。 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+        {/* ③ 一覧: 運用で見る情報だけの列（名称・区分・カテゴリ・原価・利益率・価格・在庫・状態）。 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
           <span style={{ fontSize: 12, color: "var(--sub)" }}>
-            {filtered.length} 件{filtered.length > shown.length ? `（${shown.length} 件表示中）` : ""}
+            {filtered.length > shown.length ? `${shown.length} / ${filtered.length} 件表示中` : `${filtered.length} 件`}
           </span>
           <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, cursor: "pointer", marginLeft: "auto" }}>
             <button type="button" role="switch" aria-checked={showInactive} aria-label="無効も表示"
@@ -247,6 +274,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
             見つけられる形にする。会計区分（products.type）と表示カテゴリ（product_categories）は
             必ず別列＝裁定F。利益率は原価の隣（原価との関係を示す値なので）。 */}
         {filtered.length > 0 && (
+        <div className="nox-ptwrap">
         <table className="nox-ptable">
           <thead>
             <tr>
@@ -259,7 +287,12 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                 <th key={k} className={`col-${k} sortable`} aria-sort={ariaSort(k)} tabIndex={0}
                   onClick={() => toggleSort(k)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort(k); } }}>
-                  {label}<span className="arrow">{sortArrow(k)}</span>
+                  {label}
+                  {/* ★④a-2: 矢印を常時表示（薄）し、アクティブな向きだけ金にする＝押せることが判る。 */}
+                  <span className="arrow" aria-hidden="true">
+                    <i className={sortKey === k && sortDir === "asc" ? "on" : ""}>▲</i>
+                    <i className={sortKey === k && sortDir === "desc" ? "on" : ""}>▼</i>
+                  </span>
                 </th>
               ))}
               <th className="col-state">状態</th>
@@ -274,15 +307,23 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                 <tr key={p.id} onClick={() => isManagerUp && editProduct(p)}
                   style={{ cursor: isManagerUp ? "pointer" : "default" }}>
                   <td className="col-name" data-label="商品名">
-                    <span className="nox-pt-name">{p.name}</span>
-                    {/* 状態列を畳む幅（901〜1180）だけ、無効を名前の隣にバッジで戻す＝情報を消さない */}
-                    {!p.is_active && <span className="nox-pt-inlinestate" style={{ ...t.tag, marginLeft: 7, color: "var(--sub)", background: "var(--card2)", borderColor: "var(--line2)" }}>無効</span>}
+                    {/* ★④a-2: 左に会計区分のアイコン枠（記号でなく区分名の頭文字＝フォント欠けが起きない）。
+                        名前セルは2段＝上に商品名、下に発注点（無ければ何も出さない）。 */}
+                    <span className="nox-ptnamecell">
+                      <span className="nox-ptico" aria-hidden="true">{TYPE_INITIAL[p.type] ?? "？"}</span>
+                      <span style={{ minWidth: 0 }}>
+                        <span className="nox-pt-name">{p.name}</span>
+                        {/* 状態列を畳む幅（901〜1180）だけ、無効を名前の隣にバッジで戻す＝情報を消さない */}
+                        {!p.is_active && <span className="nox-statebadge nox-pt-inlinestate"><i />無効</span>}
+                        {p.reorder_point != null && <span className="nox-pt-sub">発注点 {p.reorder_point}</span>}
+                      </span>
+                    </span>
                   </td>
                   <td className="col-kind" data-label="会計区分">{TYPE_LABEL_JA[p.type] ?? p.type}</td>
                   <td className="col-cat" data-label="表示カテゴリ">
-                    {p.category_id && catNameById.has(p.category_id)
-                      ? catNameById.get(p.category_id)
-                      : <span style={{ color: "var(--sub)" }}>未分類</span>}
+                    <span className="nox-catbadge">
+                      {p.category_id && catNameById.has(p.category_id) ? catNameById.get(p.category_id) : "未分類"}
+                    </span>
                   </td>
                   <td className="col-cost" data-label="原価">
                     {cost != null ? <span style={{ ...t.num, color: "var(--sub)" }}>{yen(cost)}</span> : <span style={{ color: "var(--sub)" }}>—</span>}
@@ -296,9 +337,8 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                   {/* 純増①（mig0061）: 残量バー＝Σdelta と reorder_point のみ（新規取得なし・表示のみ）。 */}
                   <td className="col-stock" data-label="在庫">{stockCell(stock[p.id] ?? 0, p.reorder_point)}</td>
                   <td className="col-state" data-label="状態">
-                    <span style={{ ...t.tag, color: p.is_active ? "var(--ok)" : "var(--sub)", background: "var(--card2)", borderColor: "var(--line2)" }}>
-                      {p.is_active ? "有効" : "無効"}
-                    </span>
+                    {/* ★④a-2: ●ドット付きバッジ（有効=--ok / 無効=--sub） */}
+                    <span className={`nox-statebadge${p.is_active ? " on" : ""}`}><i />{p.is_active ? "有効" : "無効"}</span>
                   </td>
                   <td className="col-act" data-label="操作">
                     {isManagerUp && (
@@ -313,6 +353,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
             })}
           </tbody>
         </table>
+        </div>
         )}
         {filtered.length > shown.length && (
           <button style={{ ...btnLight, marginTop: 10 }} onClick={() => setVisible((v) => v + PAGE)}>
@@ -322,7 +363,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
         {/* ⑤ 編集フォーム: 基本＝常時表示／詳細＝折り畳み（既定 閉・編集時は値が入っていれば自動で開く）。
             ★送る引数・原則7（明示値）は完全に不変＝並べ方だけを変えている。 */}
         {isManagerUp && (
-          <div style={{ borderTop: "1px solid var(--line2)", marginTop: 12, paddingTop: 12 }}>
+          <div ref={formRef} style={{ borderTop: "1px solid var(--line2)", marginTop: 12, paddingTop: 12 }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 12, color: "var(--sub)" }}>{pId ? "編集中" : "新規"}</span>
             <select value={pType} onChange={(e) => setPType(e.target.value)} style={input}>

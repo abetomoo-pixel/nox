@@ -1210,44 +1210,8 @@ body {
 /* ── マスタ刷新（/master の情報設計）── presentation-only 2026-07-27 ──
    ハブカード（カテゴリ選択）＋商品のリッチ行。canonical トークンのみ・断点 641/900/1180。
    RPC/RLS/mig 非改変＝並べ替えと見せ方だけを変える。 */
-.nox-hubgrid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 9px;
-  margin-bottom: 12px;
-}
-@media (min-width: 641px)  { .nox-hubgrid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 900px)  { .nox-hubgrid { grid-template-columns: repeat(4, 1fr); } }
-@media (min-width: 1180px) { .nox-hubgrid { grid-template-columns: repeat(5, 1fr); } }
-.nox-hubcard {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-height: 64px;
-  padding: 11px 12px;
-  border-radius: 13px;
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, var(--card2), var(--card));
-  color: var(--ink);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .16s ease, background .16s ease;
-}
-.nox-hubcard:hover { border-color: rgba(201, 162, 74, .35); }
-.nox-hubcard.on {
-  border-color: var(--gold);
-  background: linear-gradient(180deg, #1B1710, var(--card));
-  color: var(--champ);
-}
-.nox-hubcard-name { font-size: 12.5px; font-weight: 700; line-height: 1.3; }
-.nox-hubcard-n {
-  font-family: "Outfit", sans-serif;
-  font-variant-numeric: tabular-nums;
-  font-size: 17px;
-  font-weight: 700;
-}
-.nox-hubcard-unit { font-size: 10.5px; color: var(--sub); font-weight: 400; }
+/* ハブの巨大カード（.nox-hubgrid / .nox-hubcard*）はレーン④a-2 のピル化で参照ゼロになったため撤去
+   （2026-08-04・grep で app/components とも 0 件を確認）。後継は下の .nox-pillbar / .nox-pill。 */
 
 /* ── レーン④a: 商品リストの列構造化 ── presentation-only 2026-08-04 ──
    1本のテキスト行に連結していた 名称/種別/原価/利益率/価格/在庫 を列へ分解する。
@@ -1258,56 +1222,117 @@ body {
      >1180        : 全9列
      901〜1180    : 状態列だけ畳み、無効バッジを商品名の隣へ戻す（情報は消さない）
      ≤900         : 列テーブルを捨ててカード積み（8列を横スクロールさせない） */
+/* ── ④a-2: 密度と装飾をモックへ寄せる（列構成・ソート・断点は④a のまま）── 2026-08-04 ── */
+/* 一覧ヘッダ: 見出し＋件数バッジ＋説明1行／右端に主ボタン */
+.nox-pthead { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.nox-pthead .title { display: flex; align-items: center; gap: 9px; }
+.nox-pthead .desc { margin: 5px 0 0; font-size: 12px; color: var(--sub); }
+.nox-countbadge {
+  font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 99px;
+  background: var(--bg2); border: 1px solid var(--line2); color: var(--sub);
+}
+/* ハブのピル（旧: 巨大カード3枚）。選択中は既存 .nox-seg と同じ金の流儀。 */
+.nox-pillbar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 3px; margin-bottom: 14px; }
+.nox-pill {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 12px; border-radius: 99px; border: 1px solid var(--line2);
+  background: transparent; color: var(--sub); font-family: inherit; font-size: 12px;
+  cursor: pointer; white-space: nowrap;
+}
+.nox-pill:hover { color: var(--ink); }
+.nox-pill.on { border-color: var(--gold); background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
+.nox-pill .n { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--bg2); color: var(--sub); }
+.nox-pill.on .n { background: rgba(201, 162, 74, .18); color: var(--gold2); }
+/* テーブルを包むカード枠（一覧の輪郭をはっきりさせる） */
+.nox-ptwrap { border: 1px solid var(--line); border-radius: 14px; background: var(--card); overflow: hidden; }
+
 .nox-ptable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .nox-ptable th {
   text-align: left; font-size: 11px; font-weight: 700; color: var(--sub);
-  padding: 7px 8px; border-bottom: 1px solid var(--line2); white-space: nowrap;
+  padding: 10px 10px; border-bottom: 1px solid var(--line2); white-space: nowrap;
+  background: var(--bg2);
 }
 .nox-ptable th.sortable { cursor: pointer; user-select: none; }
 .nox-ptable th.sortable:hover { color: var(--ink); }
-.nox-ptable th .arrow { margin-left: 4px; color: var(--gold2); font-size: 9px; }
+/* ソート矢印は常時表示（薄）＝押せることが判る。アクティブな向きだけ金。 */
+.nox-ptable th .arrow { display: inline-flex; flex-direction: column; line-height: .72; margin-left: 5px; vertical-align: middle; }
+.nox-ptable th .arrow i { font-style: normal; font-size: 7px; color: var(--line2); }
+.nox-ptable th .arrow i.on { color: var(--gold2); }
 .nox-ptable td {
-  padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--ink);
+  padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--ink);
 }
+.nox-ptable tbody tr:last-child td { border-bottom: 0; }
 .nox-ptable tbody tr:hover { background: rgba(255, 255, 255, .025); }
-.nox-pt-name { font-size: 13px; font-weight: 700; }
-/* 数値列は右揃え（原価は控えめ・販売価格は金＝見る頻度の差に揃える。色は JSX 側のトークン） */
-.nox-ptable th.col-cost, .nox-ptable th.col-margin, .nox-ptable th.col-price,
-.nox-ptable td.col-cost, .nox-ptable td.col-margin, .nox-ptable td.col-price { text-align: right; }
-.nox-ptable .col-kind, .nox-ptable .col-cat, .nox-ptable .col-state, .nox-ptable .col-act { white-space: nowrap; }
-.nox-ptable .col-cat { color: var(--sub); }
-.nox-ptable .col-act { text-align: right; }
-/* 在庫バッジ: 0以下＝塗りの赤／発注点以下＝枠線の赤／通常＝地の色 */
-.nox-stkbadge {
-  display: inline-block; padding: 2px 8px; border-radius: 99px;
-  border: 1px solid var(--line2); background: var(--bg2); color: var(--ink); font-size: 11.5px;
+/* 商品名セル: アイコン枠＋2段（商品名／発注点）。余った横幅はこの列に寄せる。 */
+.nox-ptnamecell { display: flex; align-items: center; gap: 11px; }
+.nox-ptico {
+  width: 38px; height: 38px; flex: 0 0 auto; border-radius: 11px;
+  background: var(--bg2); border: 1px solid var(--line2);
+  display: grid; place-items: center; color: var(--gold2); font-size: 13px; font-weight: 700;
 }
-.nox-stkbadge.low { border-color: rgba(217, 138, 138, .5); color: var(--bad); font-weight: 700; }
-.nox-stkbadge.neg { border-color: var(--bad); background: rgba(217, 138, 138, .14); color: var(--bad); font-weight: 700; }
+.nox-pt-name { font-size: 13.5px; font-weight: 700; }
+.nox-pt-sub { display: block; font-size: 11px; color: var(--sub); margin-top: 2px; }
+/* 数値列は右揃え＋内容幅に詰める（width:1% で余りを商品名列へ渡す） */
+.nox-ptable th.col-cost, .nox-ptable th.col-margin, .nox-ptable th.col-price,
+.nox-ptable td.col-cost, .nox-ptable td.col-margin, .nox-ptable td.col-price,
+.nox-ptable th.col-stock, .nox-ptable td.col-stock { text-align: right; }
+.nox-ptable th.col-kind, .nox-ptable th.col-cat, .nox-ptable th.col-cost, .nox-ptable th.col-margin,
+.nox-ptable th.col-price, .nox-ptable th.col-stock, .nox-ptable th.col-state, .nox-ptable th.col-act {
+  width: 1%; white-space: nowrap;
+}
+.nox-ptable th.col-name { width: auto; }
+.nox-ptable .col-kind, .nox-ptable .col-cat, .nox-ptable .col-state, .nox-ptable .col-act { white-space: nowrap; }
+.nox-ptable .col-act { text-align: right; }
+/* 表示カテゴリ＝枠線ピル（「未分類」も同じ形）。会計区分は素のテキストのまま＝バッジを2つ並べない。 */
+.nox-catbadge {
+  display: inline-block; font-size: 11px; padding: 3px 9px; border-radius: 99px;
+  border: 1px solid var(--line2); background: var(--bg2); color: var(--sub); white-space: nowrap;
+}
+/* 状態＝●ドット付きバッジ（有効=--ok / 無効=--sub） */
+.nox-statebadge {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11px;
+  padding: 3px 10px; border-radius: 99px; border: 1px solid var(--line2);
+  background: var(--card2); color: var(--sub); white-space: nowrap;
+}
+.nox-statebadge i { width: 6px; height: 6px; border-radius: 99px; background: var(--sub); flex: 0 0 auto; }
+.nox-statebadge.on { color: var(--ok); }
+.nox-statebadge.on i { background: var(--ok); }
+/* 在庫バッジ: 角丸の四角。0以下＝塗りの赤／発注点以下＝枠線の赤／通常＝地の色 */
+.nox-stkbadge {
+  display: inline-block; min-width: 46px; text-align: center;
+  padding: 5px 10px; border-radius: 9px;
+  border: 1px solid var(--line2); background: var(--bg2); color: var(--ink);
+  font-size: 12.5px; font-weight: 700;
+}
+.nox-stkbadge.low { border-color: rgba(217, 138, 138, .5); color: var(--bad); }
+.nox-stkbadge.neg { border-color: var(--bad); background: rgba(217, 138, 138, .14); color: var(--bad); }
+.nox-ptable .nox-stockbar { margin: 4px 0 0 auto; }
 /* 901〜1180: 状態列を畳む（全9列は入らない）。無効は商品名の隣のバッジで残す。 */
 .nox-pt-inlinestate { display: none; }
 @media (max-width: 1180px) and (min-width: 901px) {
   .nox-ptable .col-state { display: none; }
-  .nox-pt-inlinestate { display: inline-block; }
+  .nox-pt-inlinestate { display: inline-flex; margin-left: 7px; }
 }
 /* ≤900: カード積み。thead を捨て、各セルに data-label を見出しとして出す。 */
 @media (max-width: 900px) {
+  .nox-ptwrap { border: 0; background: transparent; border-radius: 0; overflow: visible; }
   .nox-ptable, .nox-ptable tbody, .nox-ptable tr, .nox-ptable td { display: block; width: 100%; }
   .nox-ptable thead { display: none; }
   .nox-ptable tbody tr {
     border: 1px solid var(--line); border-radius: 12px; background: var(--card2);
-    padding: 10px 12px; margin-bottom: 9px;
+    padding: 11px 13px; margin-bottom: 9px;
   }
+  .nox-ptable tbody tr:last-child td { border-bottom: 0; }
   .nox-ptable td {
     border: 0; padding: 3px 0; display: flex; align-items: center;
     justify-content: space-between; gap: 12px; text-align: right;
   }
   .nox-ptable td::before { content: attr(data-label); color: var(--sub); font-size: 11px; flex: 0 0 auto; }
-  .nox-ptable td.col-name { padding-bottom: 7px; }
+  .nox-ptable td.col-name { padding: 0 0 9px; justify-content: flex-start; text-align: left; }
   .nox-ptable td.col-name::before { display: none; }
-  .nox-ptable td.col-name { justify-content: flex-start; text-align: left; }
   .nox-ptable .nox-pt-name { font-size: 14px; }
   .nox-ptable .nox-pt-inlinestate { display: none; }
+  .nox-ptable .nox-stockbar { margin: 0 0 0 8px; }
 }
 
 /* 商品のリッチ行（.nox-prodrow*）はレーン④a の列テーブル化で参照ゼロになったため撤去した
