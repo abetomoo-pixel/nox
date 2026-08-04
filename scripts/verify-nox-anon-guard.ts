@@ -5580,6 +5580,19 @@ async function main() {
     }
   }
 
+  // ── 段39: mig0077（product_category_reorder / set_product_active）は anon BLOCKED 必須 ──
+  //   revoke public,anon ＝ カテゴリの並び順とマスタの有効/無効を anon に開けない。
+  //   ★引数は全 null で投げる＝到達すれば例外文言が返るが、そもそも EXECUTE が無いので
+  //     'permission denied for function' に落ちるのが正（isFnBlocked が見るのはそこ）。
+  {
+    const { error } = await anon.rpc("product_category_reorder", { p_store_id: null, p_ids: null });
+    check("段39 anon product_category_reorder BLOCKED（mig0077）", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+  {
+    const { error } = await anon.rpc("set_product_active", { p_id: null, p_store_id: null, p_is_active: null });
+    check("段39 anon set_product_active BLOCKED（mig0077）", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);

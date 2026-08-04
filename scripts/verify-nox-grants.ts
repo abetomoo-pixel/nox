@@ -1028,6 +1028,32 @@ async function main() {
     }
   }
 
+  // G33: mig0077（product_category_reorder / set_product_active）の ACL 同型。
+  //   G2b は「anon / PUBLIC に開いていない」という負側をスキーマ全数走査で見る（新関数にも自動追随）。
+  //   ここは正側＝authenticated に EXECUTE が付いていること＝revoke だけ書いて grant を書き忘れる
+  //   逆向きの事故を明示的に塞ぐ。0069→0072 の ACL 回帰と対の関係。
+  {
+    const r = await db.query(
+      `select p.oid::regprocedure::text as sig,
+              has_function_privilege('authenticated', p.oid, 'EXECUTE') as authed,
+              has_function_privilege('anon', p.oid, 'EXECUTE') as anonx,
+              p.prosecdef, p.proconfig
+         from pg_proc p
+        where p.pronamespace = 'public'::regnamespace
+          and p.proname in ('product_category_reorder', 'set_product_active')
+        order by 1`,
+    );
+    check("G33 mig0077 の2本が存在し署名は各1本のみ（オーバーロード無し）",
+      r.rowCount === 2, r.rows.map((x) => x.sig as string).join(", ") || "0行");
+    check("G33 mig0077 ACL＝authenticated に EXECUTE あり / anon は無し（既存 RPC 同型）",
+      r.rowCount === 2 && r.rows.every((x) => x.authed === true && x.anonx === false),
+      JSON.stringify(r.rows.map((x) => ({ sig: x.sig, authed: x.authed, anon: x.anonx }))));
+    check("G33 mig0077 は SECURITY DEFINER＋search_path=public 固定（二重防御の前提）",
+      r.rowCount === 2 && r.rows.every((x) =>
+        x.prosecdef === true && Array.isArray(x.proconfig) && (x.proconfig as string[]).includes("search_path=public")),
+      JSON.stringify(r.rows.map((x) => ({ sig: x.sig, secdef: x.prosecdef, cfg: x.proconfig }))));
+  }
+
   await db.end();
 
   if (fails.length) {
