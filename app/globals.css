@@ -1249,25 +1249,69 @@ body {
 }
 .nox-hubcard-unit { font-size: 10.5px; color: var(--sub); font-weight: 400; }
 
-/* 商品のリッチ行（DB 調の全列テーブルをやめ、運用で見る情報だけを1行に） */
-.nox-prodrow {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  width: 100%;
-  padding: 9px 4px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
+/* ── レーン④a: 商品リストの列構造化 ── presentation-only 2026-08-04 ──
+   1本のテキスト行に連結していた 名称/種別/原価/利益率/価格/在庫 を列へ分解する。
+   目的は「40件を上から舐めて異常行（利益率など）を見つけられる」こと＝縦に揃えるのが本体。
+   ★色は既存トークンのみ（--card/--card2/--line/--line2/--sub/--ink/--gold2/--champ/--ok/--bad）。
+     rgba(217,138,138,.x) は --bad(#D98A8A) の透過＝既出の rgba(201,162,74,.14) と同じ流儀。
+   ★断点は既存に合わせて 900/1180。
+     >1180        : 全9列
+     901〜1180    : 状態列だけ畳み、無効バッジを商品名の隣へ戻す（情報は消さない）
+     ≤900         : 列テーブルを捨ててカード積み（8列を横スクロールさせない） */
+.nox-ptable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.nox-ptable th {
+  text-align: left; font-size: 11px; font-weight: 700; color: var(--sub);
+  padding: 7px 8px; border-bottom: 1px solid var(--line2); white-space: nowrap;
 }
-.nox-prodrow:hover { background: rgba(255, 255, 255, .025); }
-.nox-prodrow-main { flex: 1; min-width: 0; }
-.nox-prodrow-name { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nox-prodrow-sub { font-size: 11px; color: var(--sub); margin-top: 2px; }
+.nox-ptable th.sortable { cursor: pointer; user-select: none; }
+.nox-ptable th.sortable:hover { color: var(--ink); }
+.nox-ptable th .arrow { margin-left: 4px; color: var(--gold2); font-size: 9px; }
+.nox-ptable td {
+  padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--ink);
+}
+.nox-ptable tbody tr:hover { background: rgba(255, 255, 255, .025); }
+.nox-pt-name { font-size: 13px; font-weight: 700; }
+/* 数値列は右揃え（原価は控えめ・販売価格は金＝見る頻度の差に揃える。色は JSX 側のトークン） */
+.nox-ptable th.col-cost, .nox-ptable th.col-margin, .nox-ptable th.col-price,
+.nox-ptable td.col-cost, .nox-ptable td.col-margin, .nox-ptable td.col-price { text-align: right; }
+.nox-ptable .col-kind, .nox-ptable .col-cat, .nox-ptable .col-state, .nox-ptable .col-act { white-space: nowrap; }
+.nox-ptable .col-cat { color: var(--sub); }
+.nox-ptable .col-act { text-align: right; }
+/* 在庫バッジ: 0以下＝塗りの赤／発注点以下＝枠線の赤／通常＝地の色 */
+.nox-stkbadge {
+  display: inline-block; padding: 2px 8px; border-radius: 99px;
+  border: 1px solid var(--line2); background: var(--bg2); color: var(--ink); font-size: 11.5px;
+}
+.nox-stkbadge.low { border-color: rgba(217, 138, 138, .5); color: var(--bad); font-weight: 700; }
+.nox-stkbadge.neg { border-color: var(--bad); background: rgba(217, 138, 138, .14); color: var(--bad); font-weight: 700; }
+/* 901〜1180: 状態列を畳む（全9列は入らない）。無効は商品名の隣のバッジで残す。 */
+.nox-pt-inlinestate { display: none; }
+@media (max-width: 1180px) and (min-width: 901px) {
+  .nox-ptable .col-state { display: none; }
+  .nox-pt-inlinestate { display: inline-block; }
+}
+/* ≤900: カード積み。thead を捨て、各セルに data-label を見出しとして出す。 */
+@media (max-width: 900px) {
+  .nox-ptable, .nox-ptable tbody, .nox-ptable tr, .nox-ptable td { display: block; width: 100%; }
+  .nox-ptable thead { display: none; }
+  .nox-ptable tbody tr {
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card2);
+    padding: 10px 12px; margin-bottom: 9px;
+  }
+  .nox-ptable td {
+    border: 0; padding: 3px 0; display: flex; align-items: center;
+    justify-content: space-between; gap: 12px; text-align: right;
+  }
+  .nox-ptable td::before { content: attr(data-label); color: var(--sub); font-size: 11px; flex: 0 0 auto; }
+  .nox-ptable td.col-name { padding-bottom: 7px; }
+  .nox-ptable td.col-name::before { display: none; }
+  .nox-ptable td.col-name { justify-content: flex-start; text-align: left; }
+  .nox-ptable .nox-pt-name { font-size: 14px; }
+  .nox-ptable .nox-pt-inlinestate { display: none; }
+}
+
+/* 商品のリッチ行（.nox-prodrow*）はレーン④a の列テーブル化で参照ゼロになったため撤去した
+   （2026-08-04・grep で app/components とも 0 件を確認）。後継は上の .nox-ptable。 */
 
 /* ── UI刷新v2 段S-1（シフト）── presentation-only 2026-07-27 ──
    正本＝NOX_UI刷新v2_デザインガイド.md ＋ nox-shift-redesign-mock-v2.html。

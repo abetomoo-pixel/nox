@@ -27,29 +27,32 @@ const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
 const PAGE = 40; // 逐次表示の1ページ分（「もっと見る」で +PAGE）
 const TYPE_LABEL_JA: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
 
-// 純増①（mig0061）在庫セル: 数値＋残量バー。バーは reorder_point 比（満位＝発注点×2）で、
-//   reorder_point null＝しきい無しゆえバーを出さず数値のみ。低在庫（≤発注点）と負在庫を色で示す。
-//   ★表示のみ＝計算/取得は既存（Σdelta と products.reorder_point）。
+// 純増①（mig0061）在庫セル: バッジ（数値）＋残量バー。バーは reorder_point 比（満位＝発注点×2）で、
+//   reorder_point null＝しきい無しゆえバーを出さず数値のみ。
+//   ★レーン④a: 「0以下」と「発注点以下」を赤系バッジで自己主張させる（旧: 低在庫は金 --gold2）。
+//     0以下＝塗り、発注点以下＝枠線の2段階で区別する。数値・発注点・バーの情報量は落としていない。
 function stockCell(qty: number, reorderPoint: number | null) {
-  const neg = qty < 0;
-  const low = reorderPoint !== null && qty <= reorderPoint;
-  const color = neg ? "var(--bad)" : low ? "var(--gold2)" : "var(--ink)";
+  const neg = qty <= 0;
+  const low = !neg && reorderPoint !== null && qty <= reorderPoint;
   const full = reorderPoint !== null && reorderPoint > 0 ? reorderPoint * 2 : null;
   const pct = full ? Math.max(0, Math.min(100, (qty / full) * 100)) : 0;
   return (
-    <span style={{ display: "inline-block", minWidth: 76 }}>
-      <span style={{ ...t.num, color, fontWeight: neg || low ? 700 : 400 }}>{qty}</span>
+    <span style={{ display: "inline-block" }}>
+      <span className={`nox-stkbadge${neg ? " neg" : low ? " low" : ""}`} style={t.num}>{qty}</span>
       {reorderPoint !== null && (
         <>
           <span style={{ fontSize: 10, color: "var(--sub)", marginLeft: 5 }}>/ 発注点 {reorderPoint}</span>
           <span className={`nox-stockbar${neg ? " neg" : low ? " low" : ""}`} aria-hidden="true">
-            <i style={{ width: `${neg ? 100 : pct}%` }} />
+            <i style={{ width: `${qty < 0 ? 100 : pct}%` }} />
           </span>
         </>
       )}
     </span>
   );
 }
+
+// ソート対象は数値4列のみ（原価・利益率・販売価格・在庫）。null=未ソート＝取得順（type→name）。
+type SortKey = "cost" | "margin" | "price" | "stock";
 
 export type ProductsInitial = {
   products: Product[];
@@ -97,6 +100,9 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
   const [showInactive, setShowInactive] = useState(false); // 既定＝有効のみ
   const [visible, setVisible] = useState(PAGE); // 逐次表示（verify org 297件でも破綻しない）
   const [detailOpen, setDetailOpen] = useState(false); // 商品フォームの「詳細」節（既定 閉）
+  // ★レーン④a: 数値4列のソート。null=未ソート＝取得順のまま＝既定の並びは従来と同一。
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   // 保存後の再取得。取得内容は移設前の load() と同一（server の初期取得と同じ関数を使う）。
   async function reload() {
@@ -169,8 +175,39 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
       ]
     : groupProducts(pool, []).map((g) => ({ key: g.key, label: g.label, n: g.items.length }));
   const filtered = pool.filter((p) => inHub(p, selCat));
-  const shown = filtered.slice(0, visible);
   const selectHub = (key: string) => { setSelCat(key); setVisible(PAGE); };
+
+  // ── ★レーン④a: 列ソート（client 完結・取得も引数も不変）──
+  //   利益率は原価がある行だけ計算できる＝原価/利益率は null を持ち得る。null は方向によらず末尾へ寄せる
+  //  （昇順で先頭に空欄が並ぶと「安い順」を見に来た目的が達成できないため）。
+  const marginOf = (p: Product) => {
+    const c = costs[p.id];
+    return c != null && p.price > 0 ? Math.round(((p.price - c) / p.price) * 100) : null;
+  };
+  const sortValue = (p: Product, key: SortKey): number | null =>
+    key === "cost" ? (costs[p.id] ?? null)
+      : key === "margin" ? marginOf(p)
+        : key === "price" ? p.price
+          : (stock[p.id] ?? 0);
+  const sorted = sortKey === null ? filtered : filtered.slice().sort((a, b) => {
+    const va = sortValue(a, sortKey), vb = sortValue(b, sortKey);
+    if (va === null && vb === null) return 0;
+    if (va === null) return 1;   // null は常に末尾
+    if (vb === null) return -1;
+    return sortDir === "asc" ? va - vb : vb - va;
+  });
+  const shown = sorted.slice(0, visible);
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+  const sortArrow = (key: SortKey) => (sortKey === key ? (sortDir === "asc" ? "▲" : "▼") : "");
+  const ariaSort = (key: SortKey): "ascending" | "descending" | "none" =>
+    sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : "none";
+
+  // 表示カテゴリ名の解決（category_id → name。null／他店・削除済みを指す迷子は「未分類」）。
+  //   ★会計区分（products.type）とは別列。混ぜない（裁定F）。
+  const catNameById = new Map(categories.map((c) => [c.id, c.name]));
 
   return (
     <div>
@@ -206,28 +243,77 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
           </label>
         </div>
         {filtered.length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>該当する商品がありません。</p>}
-        {shown.map((p) => {
-          const cost = costs[p.id];
-          const margin = cost != null && p.price > 0 ? Math.round(((p.price - cost) / p.price) * 100) : null;
-          return (
-            <button key={p.id} type="button" className="nox-prodrow"
-              onClick={() => isManagerUp && editProduct(p)} style={{ cursor: isManagerUp ? "pointer" : "default" }}>
-              <span className="nox-prodrow-main">
-                <span className="nox-prodrow-name">
-                  {p.name}
-                  {!p.is_active && <span style={{ ...t.tag, marginLeft: 7, color: "var(--sub)", background: "#23232B", borderColor: "var(--line2)" }}>無効</span>}
-                </span>
-                <span className="nox-prodrow-sub">
-                  {TYPE_LABEL_JA[p.type] ?? p.type}
-                  {cost != null && <> ・原価 <span style={t.num}>{yen(cost)}</span>{margin != null && <>（利益率 <span style={t.num}>{margin}</span>%）</>}</>}
-                </span>
-              </span>
-              <span style={{ ...t.num, fontSize: 13.5, fontWeight: 700, color: "var(--champ)", whiteSpace: "nowrap" }}>{yen(p.price)}</span>
-              {/* 純増①（mig0061）: 残量バー＝Σdelta と reorder_point のみ（新規取得なし・表示のみ）。 */}
-              <span style={{ minWidth: 86, textAlign: "right" }}>{stockCell(stock[p.id] ?? 0, p.reorder_point)}</span>
-            </button>
-          );
-        })}
+        {/* ★レーン④a: 1本のテキスト行 → 列テーブル。40件を上から舐めて異常行（利益率など）を
+            見つけられる形にする。会計区分（products.type）と表示カテゴリ（product_categories）は
+            必ず別列＝裁定F。利益率は原価の隣（原価との関係を示す値なので）。 */}
+        {filtered.length > 0 && (
+        <table className="nox-ptable">
+          <thead>
+            <tr>
+              <th className="col-name">商品名</th>
+              <th className="col-kind">会計区分</th>
+              <th className="col-cat">表示カテゴリ</th>
+              {/* ソート可能な4列。th は既定でフォーカスを受けないので tabIndex＋Enter/Space を足す
+                  （マウス以外でも並べ替えられるようにする）。 */}
+              {([["cost", "原価"], ["margin", "利益率"], ["price", "販売価格"], ["stock", "在庫"]] as [SortKey, string][]).map(([k, label]) => (
+                <th key={k} className={`col-${k} sortable`} aria-sort={ariaSort(k)} tabIndex={0}
+                  onClick={() => toggleSort(k)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort(k); } }}>
+                  {label}<span className="arrow">{sortArrow(k)}</span>
+                </th>
+              ))}
+              <th className="col-state">状態</th>
+              <th className="col-act">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((p) => {
+              const cost = costs[p.id];
+              const margin = marginOf(p);
+              return (
+                <tr key={p.id} onClick={() => isManagerUp && editProduct(p)}
+                  style={{ cursor: isManagerUp ? "pointer" : "default" }}>
+                  <td className="col-name" data-label="商品名">
+                    <span className="nox-pt-name">{p.name}</span>
+                    {/* 状態列を畳む幅（901〜1180）だけ、無効を名前の隣にバッジで戻す＝情報を消さない */}
+                    {!p.is_active && <span className="nox-pt-inlinestate" style={{ ...t.tag, marginLeft: 7, color: "var(--sub)", background: "var(--card2)", borderColor: "var(--line2)" }}>無効</span>}
+                  </td>
+                  <td className="col-kind" data-label="会計区分">{TYPE_LABEL_JA[p.type] ?? p.type}</td>
+                  <td className="col-cat" data-label="表示カテゴリ">
+                    {p.category_id && catNameById.has(p.category_id)
+                      ? catNameById.get(p.category_id)
+                      : <span style={{ color: "var(--sub)" }}>未分類</span>}
+                  </td>
+                  <td className="col-cost" data-label="原価">
+                    {cost != null ? <span style={{ ...t.num, color: "var(--sub)" }}>{yen(cost)}</span> : <span style={{ color: "var(--sub)" }}>—</span>}
+                  </td>
+                  <td className="col-margin" data-label="利益率">
+                    {margin != null ? <span style={t.num}>{margin}%</span> : <span style={{ color: "var(--sub)" }}>—</span>}
+                  </td>
+                  <td className="col-price" data-label="販売価格">
+                    <span style={{ ...t.num, fontSize: 13.5, fontWeight: 700, color: "var(--champ)", whiteSpace: "nowrap" }}>{yen(p.price)}</span>
+                  </td>
+                  {/* 純増①（mig0061）: 残量バー＝Σdelta と reorder_point のみ（新規取得なし・表示のみ）。 */}
+                  <td className="col-stock" data-label="在庫">{stockCell(stock[p.id] ?? 0, p.reorder_point)}</td>
+                  <td className="col-state" data-label="状態">
+                    <span style={{ ...t.tag, color: p.is_active ? "var(--ok)" : "var(--sub)", background: "var(--card2)", borderColor: "var(--line2)" }}>
+                      {p.is_active ? "有効" : "無効"}
+                    </span>
+                  </td>
+                  <td className="col-act" data-label="操作">
+                    {isManagerUp && (
+                      // ★今回はボタンを置くだけ＝押下時の挙動は現行のまま（下部フォームに値が入る）。
+                      //   行クリックでも編集に入れる現行挙動は維持＝stopPropagation で二重発火だけ止める。
+                      <button type="button" style={btnLight}
+                        onClick={(e) => { e.stopPropagation(); editProduct(p); }}>編集</button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        )}
         {filtered.length > shown.length && (
           <button style={{ ...btnLight, marginTop: 10 }} onClick={() => setVisible((v) => v + PAGE)}>
             もっと見る（残り {filtered.length - shown.length} 件）
