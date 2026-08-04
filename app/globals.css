@@ -933,12 +933,22 @@ body {
   max-height: calc(100vh - 64px); overflow-y: auto;
   padding: 20px 14px; background: transparent; border-right: 0;
 }
+/* ★レーン④a-4: 項目を主役にする（--sub で沈んでいたのを --ink＋600 へ）。
+   群見出しは --sub のまま据え置き＝項目との明度・太さの差で階層を作る。 */
 .nox-side a {
-  display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--sub);
-  padding: 11px 12px; border-radius: 10px; margin-bottom: 4px; font-size: 14px;
+  display: flex; align-items: center; gap: 11px; text-decoration: none; color: var(--ink);
+  padding: 11px 12px; border-radius: 10px; margin-bottom: 4px; font-size: 14px; font-weight: 600;
 }
-.nox-side a:hover, .nox-side a.active { background: var(--card2); color: var(--ink); }
+/* アイコンは currentColor 継承＝通常/hover/現在地（金）にそのまま追随する */
+.nox-side a svg { flex: 0 0 auto; }
+.nox-side a:hover { background: var(--card2); color: var(--ink); }
+/* 現在地＝金の文字＋薄い金地の帯（既存 .nox-seg button.on と同じ流儀） */
+.nox-side a.active { background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
 .nox-side .group { font-size: 11px; color: #6F6F79; padding: 14px 12px 6px; letter-spacing: .08em; }
+/* 群の切れ目。見出しの無い群（項目1つの「顧客」「分析」）でも線で分かるよう、群の器に引く */
+.nox-side .nox-sidegroup + .nox-sidegroup {
+  border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px;
+}
 /* aaa .main＝フルード＋上限。上限は aaa の 1480px を採用（段0 の 1180 から昇格）。 */
 .nox-mainarea { padding: 28px; max-width: 1480px; width: 100%; margin: 0 auto; }
 @media (max-width: 900px) {
@@ -1041,10 +1051,11 @@ body {
   color: var(--sub); font-size: 12.5px; cursor: pointer; font-family: inherit;
 }
 .nox-addc:hover { border-color: var(--gold); color: var(--gold); }
-/* サイドバー群見出しの視覚調整（aaa .side .group 準拠＝小さく muted・項目と明確に差別化） */
+/* サイドバー群見出しの視覚調整（aaa .side .group 準拠＝小さく muted・項目と明確に差別化）。
+   ★④a-4: 項目側を --ink/600 へ上げたぶん、見出しはここの muted のまま据え置く＝階層差が広がる。 */
 .nox-side .group {
   font-size: 10.5px; color: #6F6F79; font-weight: 700;
-  padding: 16px 12px 6px; letter-spacing: .1em; text-transform: none;
+  padding: 10px 12px 6px; letter-spacing: .1em; text-transform: none;
 }
 .nox-side .group + a { margin-top: 2px; }
 

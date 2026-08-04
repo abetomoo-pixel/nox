@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
-import Link from "next/link";
 import { TabBar, type NavGroup } from "@/components/ui/nav";
+import SideNav from "@/components/ui/side-nav";
 import * as t from "@/lib/nox/ui/theme";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
@@ -95,17 +95,9 @@ export default async function ManageLayout({ children }: { children: React.React
       </header>
       <div className="nox-layout">
         {/* 900+ のサイドバー＝段N の5群をそのまま描く（aaa に無い項目は作らない）。
-            ★1項目しかない群は見出しを出さない＝「顧客/顧客」「分析/分析」の重複表示を解消（S-1R ⑧）。 */}
-        <aside className="nox-side">
-          {groups.map((g, gi) => (
-            <div key={g.label ?? `g${gi}`}>
-              {g.label && g.items.length > 1 && <div className="group">{g.label}</div>}
-              {g.items.map((it) => (
-                <Link key={it.href} href={it.href}>{it.label}</Link>
-              ))}
-            </div>
-          ))}
-        </aside>
+            ★レーン④a-4: 現在地ハイライトとアイコンのため client 部品 SideNav へ切り出した。
+              渡す groups は上で組んだものそのまま＝項目集合・順序・role ゲートは非改変。 */}
+        <SideNav groups={groups} />
         <main className="nox-mainarea">{children}</main>
       </div>
       {/* 段N: SP（≤899）はボトムタブ4本（ホーム/レジ/シフト/キャスト）＋「その他」シート。
