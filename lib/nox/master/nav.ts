@@ -16,12 +16,16 @@ export const MASTER_NAV: MasterNavGroup[] = [
     label: "概要",
     pages: [{ label: "マスタ概要", href: "/master" }],
   },
-  // ── 後続レーンでの追加位置（レーン②/③でこの下に群を足す）──
-  // { key: "products", label: "商品・料金", pages: [
-  //   { label: "商品",         href: "/master/products" },
-  //   { label: "商品カテゴリ", href: "/master/categories" },
-  //   { label: "在庫の入出庫", href: "/master/stock" },
-  // ] },
+  {
+    key: "products",
+    label: "商品・料金",
+    pages: [
+      { label: "商品", href: "/master/products" },
+      // ── 後続レーンでの追加位置（レーン③でこの下に足す）──
+      // { label: "商品カテゴリ", href: "/master/categories" },
+      // { label: "在庫の入出庫", href: "/master/stock" },
+    ],
+  },
 ];
 
 /**
