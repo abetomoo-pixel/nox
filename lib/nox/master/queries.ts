@@ -19,6 +19,8 @@ export type MasterProduct = {
   category_id: string | null;
   // キャストドリンク（mig0066/0069）: true=check_close の指名按分から除外し、バックは drink_claims 経路のみ。
   back_exempt_from_split: boolean;
+  // mig0081: カテゴリ内の並び順（レジ/kiosk のタイル順）。select("*") で取得。
+  sort_order: number;
 };
 
 // 純増⑦（mig0063）: 商品カテゴリマスタ（store スコープ・sort_order 順・is_active で有効/無効）

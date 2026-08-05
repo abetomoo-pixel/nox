@@ -16,7 +16,8 @@ import BottleKeepPanel from "./bottle-keep-panel";
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
 // 段R2: reorder_point＝低在庫「残N」のしきい（null=しきい無し＝表示しない）
-type Product = { id: string; name: string; type: string; price: number; category_id: string | null; reorder_point: number | null };
+// mig0081: sort_order＝カテゴリ内の並び順（groupProducts が sort_order→name で並べる）。
+type Product = { id: string; name: string; type: string; price: number; category_id: string | null; reorder_point: number | null; sort_order: number };
 type Category = { id: string; name: string; sort_order: number };
 type Cast = { id: string; name: string; photo_updated_at: string | null };
 // B1/B2（mig0053）: 追加席の占有行（伝票の追加席一覧・フロアの「同一会計」表示に使う）

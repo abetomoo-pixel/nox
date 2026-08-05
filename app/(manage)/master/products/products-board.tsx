@@ -339,6 +339,46 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
   const filtered = pool.filter((p) => inHub(p, selCat));
   const selectHub = (key: string) => { setSelCat(key); setVisible(PAGE); };
 
+  // ── mig0081 並び替え（裁定3）: 平坦一覧は type→name のまま。単一カテゴリに絞ったときだけ
+  //   行に ∧∨ を出し、その状態の並びを sort_order にする。
+  //   ★条件は3つとも必要:
+  //     ① catMode（カテゴリ運用の店）② selCat が単一カテゴリ or 未分類 ③ 数値列ソート未適用
+  //       （数値ソート中に ∧∨ を出すと「見えている順」と「保存される順」が食い違う）
+  //   ★未分類（__uncat）は RPC の p_category_id=null スコープに対応する。
+  const reorderMode = isManagerUp && catMode && sortKey === null
+    && (selCat === "__uncat" || knownCatIds.has(selCat));
+  const reorderCatId = selCat === "__uncat" ? null : selCat;
+  // 並び替えモードのときは「そのスコープの全商品」を sort_order 順で扱う
+  //   （is_active 不問＝RPC が全件要求するため。無効も表示 OFF でも配列には含める）
+  const scopeAll = reorderMode
+    ? products
+        .filter((p) => (reorderCatId === null ? (!p.category_id || !knownCatIds.has(p.category_id)) : p.category_id === reorderCatId))
+        .slice()
+        .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, "ja"))
+    : [];
+
+  /** ∧∨: scopeAll 内で i 番目を delta 方向へ入れ替え、全件配列を product_reorder に送る。 */
+  async function moveProduct(id: string, delta: -1 | 1) {
+    if (!reorderMode || busyId) return;
+    const idx = scopeAll.findIndex((p) => p.id === id);
+    const to = idx + delta;
+    if (idx < 0 || to < 0 || to >= scopeAll.length) return;
+    const ids = scopeAll.map((p) => p.id);
+    [ids[idx], ids[to]] = [ids[to], ids[idx]];
+    setBusyId(id);
+    setMsg(null);
+    const { error } = await supabase.rpc("product_reorder", {
+      p_store_id: storeId, p_category_id: reorderCatId, p_ids: ids,
+    });
+    setBusyId(null);
+    if (error) {
+      setMsg(error.message.includes("partial ids") ? "並び順を保存できませんでした（一覧を再読込してください）"
+        : error.message.includes("forbidden") ? "権限がありません" : error.message);
+      return;
+    }
+    await reload();
+  }
+
   // ── ★レーン④a: 列ソート（client 完結・取得も引数も不変）──
   //   利益率は原価がある行だけ計算できる＝原価/利益率は null を持ち得る。null は方向によらず末尾へ寄せる
   //  （昇順で先頭に空欄が並ぶと「安い順」を見に来た目的が達成できないため）。
@@ -351,7 +391,11 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
       : key === "margin" ? marginOf(p)
         : key === "price" ? p.price
           : (stock[p.id] ?? 0);
-  const sorted = sortKey === null ? filtered : filtered.slice().sort((a, b) => {
+  // mig0081: 並び替えモード中は sort_order 順で見せる（保存される順と見えている順を一致させる）。
+  //   ★モード外の平坦一覧は従来どおり取得順（type→name）＝裁定3。
+  const sorted = reorderMode
+    ? filtered.slice().sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, "ja"))
+    : sortKey === null ? filtered : filtered.slice().sort((a, b) => {
     const va = sortValue(a, sortKey), vb = sortValue(b, sortKey);
     if (va === null && vb === null) return 0;
     if (va === null) return 1;   // null は常に末尾
@@ -412,6 +456,13 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
           <span style={{ fontSize: 12, color: "var(--sub)" }}>
             {filtered.length > shown.length ? `${shown.length} / ${filtered.length} 件表示中` : `${filtered.length} 件`}
           </span>
+          {/* mig0081: 並び替えが効く状態であることを明示する（∧∨ が出る条件は文章で説明しない＝
+              「今この並びがレジに出る」という結果だけを伝える）。 */}
+          {reorderMode && (
+            <span style={{ fontSize: 11.5, color: "var(--gold2)" }}>
+              この並び順がレジ・キオスクのタイル順になります（∧∨ で変更）
+            </span>
+          )}
           <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, cursor: "pointer", marginLeft: "auto" }}>
             <button type="button" role="switch" aria-checked={showInactive} aria-label="無効も表示"
               className={showInactive ? "nox-switch on" : "nox-switch"}
@@ -504,6 +555,22 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                   <td className="col-act" data-label="操作">
                     {isManagerUp && (
                       <span style={{ display: "inline-flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                        {/* ★mig0081: 並び替え ∧∨。単一カテゴリ絞り込み＋数値ソート未適用のときだけ出す。
+                            端（先頭/末尾）は disabled＝押せるのに何も起きない状態を作らない。 */}
+                        {reorderMode && (() => {
+                          const i = scopeAll.findIndex((x) => x.id === p.id);
+                          return (
+                            <>
+                              <button type="button" style={btnLight} disabled={i <= 0 || busyId === p.id}
+                                title="上へ" aria-label={`${p.name} を上へ`}
+                                onClick={() => void moveProduct(p.id, -1)}>∧</button>
+                              <button type="button" style={btnLight}
+                                disabled={i < 0 || i >= scopeAll.length - 1 || busyId === p.id}
+                                title="下へ" aria-label={`${p.name} を下へ`}
+                                onClick={() => void moveProduct(p.id, 1)}>∨</button>
+                            </>
+                          );
+                        })()}
                         {/* ★④c（裁定L）: 入荷は行から。増減で入れる＝append-only の意味論そのまま。 */}
                         <button type="button" style={btnLight} disabled={busyId === p.id}
                           onClick={() => { setStockTarget(p); setStDelta(0); setStReason(""); }}>入荷</button>

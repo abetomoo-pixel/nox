@@ -21,7 +21,10 @@ export default async function RegisterPage() {
   const { data: products } = await supabase
     .from("products")
     // 段R2: reorder_point＝タイルの低在庫「残N」判定に使う（在庫 v1 mig0061 の列・presentation）。
-    .select("id, name, type, price, category_id, reorder_point")
+    // mig0081: sort_order＝カテゴリ内の並び順（groupProducts が sort_order→name で並べる）。
+    //   ★従来は .order("type") のみでカテゴリ内が実質不定だった。並びの決定は client 側
+    //     （groupProducts）に一本化する＝kiosk（0059/0063 の RPC 経由）と同じ並び規則になる。
+    .select("id, name, type, price, category_id, reorder_point, sort_order")
     .eq("is_active", true)
     .order("type");
   const { data: categories } = await supabase
