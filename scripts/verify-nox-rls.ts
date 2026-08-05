@@ -393,6 +393,8 @@ async function main() {
   let check3Id = "";
   let check4Id = "";
   let storeA1Id = "";
+  // 末尾の products 恒久掃除で「当 run の生成物」を除外するために外へ出す（assert には未使用）
+  let champProductId = "";
   {
     const c = await signIn("managerA1");
     const { data: castRows } = await c.from("casts").select("id, name");
@@ -416,6 +418,7 @@ async function main() {
       p_unit4: { hon: 7000, jonai: 6000, dohan: 6000, free: 5000 }, p_hon_pt: 10, p_is_active: true,
     });
     check("F1b シャンパン商品 作成", !eCh && typeof champId === "string", eCh?.message);
+    champProductId = champId as string;
 
     // open ＋ 二重 open（冪等①）
     const { data: checkId, error: eO } = await c.rpc("check_open", { p_seat_id: seatId, p_people: 3, p_nom_type: "hon" });
@@ -2723,6 +2726,52 @@ async function main() {
       const { data: refs } = await admin.from("checks").select("id").eq("seat_id", s.id as string).limit(1);
       if ((refs ?? []).length === 0) {
         await admin.from("seats").delete().eq("id", s.id as string);
+      }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // products 蓄積の恒久掃除（裁定a・2026-08-05）: 旧 run の「NOX-VERIFY-*」商品を
+  // 参照ゼロ限定で削除。★上の seat 掃除と完全同型の設計＝理由も同じ。
+  //
+  // F1a/F1b は audit assert（target=products:<id> が「ちょうど1行」）の前提として
+  // run 毎に新規商品を作る＝query-or-insert 化は productId 再利用で assert が崩れるため不採用。
+  // また productId/champId は F1b 伝票・PERM bottle_keeps・境界伝票が後続段で参照するため
+  // 「段内 finally」では消せない（消すと後続段が全滅する）。よって当 run 分は残し、
+  // 次 run 以降で参照ゼロになったところでここが消す＝定常状態は数件で安定（累積しない）。
+  //
+  // 削除の4重ガード（prefix 一致を許す代わりに他 fixture・他 org を巻き込まない）:
+  //   ① org A 限定 ② 名前が NOX-VERIFY- prefix ③ 当 run の3 id を除外 ④ 参照ゼロ
+  // FK 依存順（pg_constraint 実測・2026-08-05）:
+  //   stock_logs / check_lines / bottle_keeps / drink_claims = NO ACTION（残ると削除不可）
+  //   product_costs = CASCADE（products 削除で自動追随＝先行削除不要）
+  //   → stale な stock_logs（F1a の product_stock_add(+5,'入荷') 由来）だけ先行削除し、
+  //     伝票系（check_lines/bottle_keeps/drink_claims）が1行でも残る商品はスキップして次 run に委ねる。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: storeRow } = await admin.from("stores").select("org_id").eq("id", storeA1Id).single();
+    const orgAId = storeRow?.org_id as string | undefined;
+    const keepIds = [productId, champProductId, productA2Id].filter(Boolean);
+    if (orgAId) {
+      const { data: oldProds } = await admin.from("products").select("id")
+        .eq("org_id", orgAId)                       // ① org A 限定
+        .like("name", "NOX-VERIFY-%");              // ② prefix 一致
+      for (const p of oldProds ?? []) {
+        const pid = p.id as string;
+        if (keepIds.includes(pid)) continue;        // ③ 当 run の生成物は残す
+        // ④ 伝票系の参照が1行でもあれば触らない（次 run の各 wipe 後に参照ゼロで消える）
+        const [cl, bk, dc] = await Promise.all([
+          admin.from("check_lines").select("id").eq("product_id", pid).limit(1),
+          admin.from("bottle_keeps").select("id").eq("product_id", pid).limit(1),
+          admin.from("drink_claims").select("id").eq("product_id", pid).limit(1),
+        ]);
+        if ((cl.data ?? []).length || (bk.data ?? []).length || (dc.data ?? []).length) continue;
+        // FK 依存順: stock_logs（NO ACTION）を先に消してから products（product_costs は CASCADE）
+        await admin.from("stock_logs").delete().eq("product_id", pid);
+        await admin.from("products").delete().eq("id", pid);
       }
     }
   }
