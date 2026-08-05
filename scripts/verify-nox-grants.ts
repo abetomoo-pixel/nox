@@ -1141,6 +1141,78 @@ async function main() {
       JSON.stringify(c.rows[0] ?? "列なし"));
   }
 
+  // G37: mig0083（料金基盤）＝テーブル2＋関数8の ACL/RLS 恒久 assert。
+  //   ★A4 の教訓（_r2 改訂の理由）: 名指し revoke では Supabase 既定 grant の
+  //     TRUNCATE/REFERENCES/TRIGGER が残る。TRUNCATE は RLS 非適用＝全消し可能。
+  //     PostgREST からは TRUNCATE を発行できないため、runtime 面（段43(15)）では
+  //     INSERT/UPDATE/DELETE のみ実測し、TRUNCATE はここで宣言的に固定する。
+  {
+    const POLQUAL = "((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR "
+      + "((auth_role() = 'manager'::text) AND (store_id = auth_store_id()))))";
+    for (const t of ["pricing_rules", "cast_ranks"]) {
+      const acl = await db.query(
+        `select has_table_privilege('authenticated','public.${t}','SELECT') sel,
+                has_table_privilege('authenticated','public.${t}','INSERT') ins,
+                has_table_privilege('authenticated','public.${t}','UPDATE') upd,
+                has_table_privilege('authenticated','public.${t}','DELETE') del,
+                has_table_privilege('authenticated','public.${t}','TRUNCATE') trunc,
+                has_table_privilege('authenticated','public.${t}','REFERENCES') refs,
+                has_table_privilege('authenticated','public.${t}','TRIGGER') trg,
+                has_table_privilege('anon','public.${t}','SELECT') anon_sel`,
+      );
+      const a = acl.rows[0];
+      check(`G37 ${t} ACL＝authenticated SELECT のみ（★TRUNCATE/REFS/TRIGGER false・anon 全遮断）`,
+        a.sel === true && !a.ins && !a.upd && !a.del && !a.trunc && !a.refs && !a.trg && !a.anon_sel,
+        JSON.stringify(a));
+      const rls = await db.query(
+        `select relrowsecurity from pg_class where oid = ('public.${t}')::regclass`,
+      );
+      check(`G37 ${t} RLS 有効`, rls.rows[0]?.relrowsecurity === true, JSON.stringify(rls.rows[0]));
+      const pol = await db.query(
+        `select polname, polcmd::text cmd, pg_get_expr(polqual, polrelid) q,
+                -- rolname は name 型＝name[] を node-postgres がパースしないため ::text で受ける
+                (select array_agg(r.rolname::text order by r.rolname) from pg_roles r where r.oid = any(polroles)) roles
+           from pg_policy where polrelid = ('public.${t}')::regclass`,
+      );
+      check(`G37 ${t} policy は select 1本のみ・polroles={authenticated}`,
+        pol.rowCount === 1 && pol.rows[0].cmd === "r"
+        && JSON.stringify(pol.rows[0].roles) === JSON.stringify(["authenticated"]),
+        JSON.stringify(pol.rows.map((x) => ({ n: x.polname, c: x.cmd, r: x.roles }))));
+      check(`G37 ${t} polqual 逐語＝org 照合＋owner∨manager自店（cast/staff に見せない）`,
+        pol.rows[0]?.q === POLQUAL, String(pol.rows[0]?.q));
+    }
+
+    const FNS: Array<[string, string, boolean, string]> = [
+      // [proname, 期待署名の引数部, authenticated 実行可, 期待 volatility]
+      ["biz_minutes_of", "(uuid,timestamp with time zone)", false, "s"],
+      ["pricing_resolve", "(uuid,timestamp with time zone,text,text,uuid)", true, "s"],
+      ["set_pricing_rule", "(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean)", true, "v"],
+      ["delete_pricing_rule", "(uuid)", true, "v"],
+      ["pricing_rule_reorder", "(uuid,text,uuid[])", true, "v"],
+      ["set_cast_rank", "(uuid,uuid,text,boolean)", true, "v"],
+      ["cast_rank_reorder", "(uuid,uuid[])", true, "v"],
+      ["set_cast_rank_of", "(uuid,uuid)", true, "v"],
+    ];
+    for (const [fn, sigArgs, authedOk, vol] of FNS) {
+      const r = await db.query(
+        `select p.oid::regprocedure::text as sig,
+                has_function_privilege('authenticated', p.oid, 'EXECUTE') as authed,
+                has_function_privilege('anon', p.oid, 'EXECUTE') as anonx,
+                p.prosecdef, p.provolatile::text as v, p.proconfig
+           from pg_proc p
+          where p.pronamespace = 'public'::regnamespace and p.proname = $1`, [fn],
+      );
+      check(`G37 ${fn} が1本のみ・署名一致・secdef＋search_path 固定・${vol === "s" ? "STABLE" : "VOLATILE"}`,
+        r.rowCount === 1 && String(r.rows[0].sig) === `${fn}${sigArgs}`
+        && r.rows[0].prosecdef === true && r.rows[0].v === vol
+        && Array.isArray(r.rows[0].proconfig) && (r.rows[0].proconfig as string[]).includes("search_path=public"),
+        JSON.stringify(r.rows.map((x) => ({ sig: x.sig, v: x.v, cfg: x.proconfig }))));
+      check(`G37 ${fn} ACL＝authenticated ${authedOk ? "可" : "★不可（内部専用）"}・anon 不可`,
+        r.rowCount === 1 && r.rows[0].authed === authedOk && r.rows[0].anonx === false,
+        JSON.stringify({ authed: r.rows[0]?.authed, anon: r.rows[0]?.anonx }));
+    }
+  }
+
   await db.end();
 
   if (fails.length) {
