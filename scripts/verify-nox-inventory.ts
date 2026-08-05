@@ -40,6 +40,8 @@ function check(label: string, ok: boolean, detail?: string) {
 
 const PREFIX = "NOX-VERIFY-INV";
 const TRIG_REASONS = ["sale", "sale_remove", "void_recredit"];
+// 段40 で使う（他 verify と同型のヘルパ）
+const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
 
 async function main() {
   const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
@@ -290,6 +292,168 @@ async function main() {
       `seats ${leftSeat} / stock ${(leftStock ?? []).length}`);
     check("（掃除）Σdelta が基準に一致（掃除後も在庫の真実は不変）",
       (await sumDelta()) === base, `got ${await sumDelta()} / base ${base}`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 段40: mig0078 product_stock_totals の runtime 検証
+  //   ★教訓12 が直撃する箇所＝sum(integer) は bigint に昇格するため、returns table の
+  //     宣言 integer と食い違うと「1行返した瞬間」に落ちる。0行では発火しない。
+  //     よって本段は必ず「行が返る状態」で実行する（(2) で件数>0 を明示 assert）。
+  //   ★期待値は fixture から動的に算出して SQL 直集計と突き合わせる
+  //     （CLUB NOX の 40商品/1170 はデモ org の実測値であり fixture の値ではない）。
+  //   ★固定カウント非汚染: 生成は段内動的・削除は finally。
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    const P40 = "NOX-VERIFY-段40";
+    const { data: sA1 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    const { data: sA2 } = await admin.from("stores").select("id, org_id").eq("name", "NOX-VERIFY-A2").single();
+
+    const wipe40 = async () => {
+      const { data: ps } = await admin.from("products").select("id").like("name", `${P40}%`);
+      const ids = (ps ?? []).map((r) => r.id as string);
+      if (ids.length) await admin.from("stock_logs").delete().in("product_id", ids);
+      await admin.from("products").delete().like("name", `${P40}%`);
+    };
+    await wipe40();
+
+    const sess = async (key: keyof typeof FIXTURE_USERS) => {
+      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      await c.auth.signInWithPassword({ email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD });
+      return c;
+    };
+
+    try {
+      const owner = await sess("ownerA");
+      const mgr40 = await sess("managerA1");
+      const cast40 = await sess("castA1a");
+      check("段40（準備）店A1/A2・owner/manager/cast セッション解決",
+        !!sA1 && !!sA2, JSON.stringify({ a1: !!sA1, a2: !!sA2 }));
+
+      if (sA1 && sA2) {
+        // 動的 fixture: A1 に2商品（正負混在で積む）・A2 に1商品・A1 にログ無し商品1つ
+        const mkProd = async (store: { id: string; org_id: string }, nm: string) => {
+          const { data } = await admin.from("products").insert({
+            org_id: store.org_id, store_id: store.id, type: "drink", name: nm,
+            price: 1000, back_mode: "rate", back_value: 10, hon_pt: 0, is_active: true,
+          }).select("id").single();
+          return data?.id as string;
+        };
+        const pA = await mkProd(sA1, `${P40}-A`);
+        const pB = await mkProd(sA1, `${P40}-B`);
+        const pNone = await mkProd(sA1, `${P40}-ログ無し`);
+        const pA2 = await mkProd(sA2, `${P40}-他店`);
+        const addLog = async (store: { id: string; org_id: string }, pid: string, d: number, r: string) => {
+          await admin.from("stock_logs").insert({
+            org_id: store.org_id, store_id: store.id, product_id: pid, delta: d, reason: r,
+          });
+        };
+        // ★(10) 正負混在＝入荷の正と sale の負を両方入れる
+        await addLog(sA1, pA, 30, "入荷");
+        await addLog(sA1, pA, -4, "sale");
+        await addLog(sA1, pA, 2, "sale_remove");   // 期待 28
+        await addLog(sA1, pB, 7, "入荷");
+        await addLog(sA1, pB, -9, "sale");          // 期待 -2（負在庫も許容）
+        await addLog(sA2, pA2, 5, "入荷");          // 他店＝A1 スコープに混ざってはいけない
+        check("段40（準備）商品4件・ログ6件を動的生成",
+          !!pA && !!pB && !!pNone && !!pA2, JSON.stringify({ pA: !!pA, pB: !!pB, pNone: !!pNone, pA2: !!pA2 }));
+
+        // SQL 直集計（期待値の出どころ＝ハードコードしない）
+        const direct = async (storeId?: string) => {
+          let q = admin.from("stock_logs").select("product_id, delta").eq("org_id", sA1.org_id);
+          if (storeId) q = q.eq("store_id", storeId);
+          const { data } = await q;
+          const m = new Map<string, number>();
+          for (const r of (data ?? []) as { product_id: string; delta: number }[]) {
+            m.set(r.product_id, (m.get(r.product_id) ?? 0) + r.delta);
+          }
+          return m;
+        };
+        const asMap = (rows: unknown) => new Map(
+          ((rows ?? []) as { product_id: string; qty: number }[]).map((r) => [r.product_id, r.qty]));
+        const sameMap = (a: Map<string, number>, b: Map<string, number>) =>
+          a.size === b.size && [...a].every(([k, v]) => b.get(k) === v);
+
+        // ── (1)(2) owner / p_store_id=null → org 全体。行数>0 と Σqty の一致 ──
+        {
+          const { data, error } = await owner.rpc("product_stock_totals", { p_store_id: null });
+          const got = asMap(data);
+          const exp = await direct();
+          check("段40(1) owner・p_store_id=null＝org 全体が返り SQL 直集計と一致",
+            !error && sameMap(got, exp), `${error?.message ?? ""} rpc=${got.size} sql=${exp.size}`);
+          const sumGot = [...got.values()].reduce((a, b) => a + b, 0);
+          const sumExp = [...exp.values()].reduce((a, b) => a + b, 0);
+          check("段40(1) Σqty も一致", sumGot === sumExp, `rpc=${sumGot} sql=${sumExp}`);
+          // ★(2) 型昇格の発火確認＝0行では sum(integer)→bigint の不一致が出ない
+          check("段40(2) ★1行以上返る状態で成功（sum(integer)→bigint 昇格が発火する条件を満たす）",
+            !error && got.size > 0, `rows=${got.size}`);
+          check("段40(2) qty が number として返る（bigint 文字列化していない）",
+            [...got.values()].every((v) => typeof v === "number"),
+            JSON.stringify([...got.entries()].slice(0, 3)));
+        }
+
+        // ── (3) owner・p_store_id 指定 → その店だけ ──
+        {
+          const { data, error } = await owner.rpc("product_stock_totals", { p_store_id: sA1.id });
+          const got = asMap(data);
+          check("段40(3) owner・store 指定＝その店だけ（他店 A2 の商品を含まない）",
+            !error && sameMap(got, await direct(sA1.id)) && !got.has(pA2), error?.message ?? `rows=${got.size}`);
+        }
+
+        // ── (4) owner・他 org の store_id → forbidden ──
+        {
+          const { data: sB1 } = await admin.from("stores").select("id").eq("name", "NOX-VERIFY-B1").single();
+          const { error } = await owner.rpc("product_stock_totals", { p_store_id: sB1?.id });
+          check("段40(4) owner・他 org の store_id＝forbidden", has(error, "forbidden"), error?.message ?? "通ってしまった");
+        }
+
+        // ── (5)(7) manager・null / 自店明示 → 自店のみ・同一結果 ──
+        {
+          const { data: d1, error: e1 } = await mgr40.rpc("product_stock_totals", { p_store_id: null });
+          const { data: d2, error: e2 } = await mgr40.rpc("product_stock_totals", { p_store_id: sA1.id });
+          const g1 = asMap(d1), g2 = asMap(d2);
+          check("段40(5) manager・null＝自店のみ（他店の商品が混ざらない）",
+            !e1 && sameMap(g1, await direct(sA1.id)) && !g1.has(pA2), e1?.message ?? `rows=${g1.size}`);
+          check("段40(7) manager・自店 store_id 明示＝(5) と同じ結果",
+            !e2 && sameMap(g1, g2), e2?.message ?? `n1=${g1.size} n2=${g2.size}`);
+        }
+
+        // ── (6) manager・他店 store_id → forbidden ──
+        {
+          const { error } = await mgr40.rpc("product_stock_totals", { p_store_id: sA2.id });
+          check("段40(6) manager・他店 store_id＝forbidden", has(error, "forbidden"), error?.message ?? "通ってしまった");
+        }
+
+        // ── (8) cast → forbidden（stock_logs_select の auth_role() <> 'cast' と揃う）──
+        {
+          const { error } = await cast40.rpc("product_stock_totals", { p_store_id: null });
+          check("段40(8) ★cast＝forbidden（stock_logs_select のパターン2 と揃う）",
+            has(error, "forbidden"), error?.message ?? "通ってしまった");
+        }
+
+        // ── (9) 在庫ログが無い商品は行を返さない（呼び出し側の ?? 0 前提）──
+        {
+          const { data } = await mgr40.rpc("product_stock_totals", { p_store_id: sA1.id });
+          const got = asMap(data);
+          check("段40(9) 在庫ログ0件の商品は行を返さない（?? 0 で埋める前提が成立）",
+            !got.has(pNone) && got.has(pA), `pNone=${got.has(pNone)} pA=${got.has(pA)}`);
+        }
+
+        // ── (10) 正負混在の合計が正しい（負在庫も返す）──
+        {
+          const { data } = await mgr40.rpc("product_stock_totals", { p_store_id: sA1.id });
+          const got = asMap(data);
+          check("段40(10) ★正負混在の合計が正しい（+30 -4 +2 = 28）", got.get(pA) === 28, `got ${got.get(pA)}`);
+          check("段40(10) ★合計が負になる商品も行として返る（+7 -9 = -2）", got.get(pB) === -2, `got ${got.get(pB)}`);
+        }
+      }
+    } finally {
+      await wipe40();
+      const { count: left40 } = await admin.from("products")
+        .select("id", { count: "exact", head: true }).like("name", `${P40}%`);
+      check("段40（掃除）fixture 商品0件（固定カウント非汚染）", (left40 ?? 0) === 0, `left ${left40}`);
+    }
   }
 
   report();

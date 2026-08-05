@@ -1054,6 +1054,33 @@ async function main() {
       JSON.stringify(r.rows.map((x) => ({ sig: x.sig, secdef: x.prosecdef, cfg: x.proconfig }))));
   }
 
+  // G34: mig0078（product_stock_totals）の ACL 同型＋宣言。
+  //   ★provolatile は型 "char"（1バイト）＝text と直接連結すると
+  //     operator is not unique: "char" || unknown で落ちる（教訓15）。::text を挟む。
+  {
+    const r = await db.query(
+      `select p.oid::regprocedure::text as sig,
+              has_function_privilege('authenticated', p.oid, 'EXECUTE') as authed,
+              has_function_privilege('anon', p.oid, 'EXECUTE') as anonx,
+              p.prosecdef, p.provolatile::text as vol, p.proconfig,
+              pg_get_function_result(p.oid) as ret
+         from pg_proc p
+        where p.pronamespace = 'public'::regnamespace and p.proname = 'product_stock_totals'
+        order by 1`,
+    );
+    check("G34 mig0078 product_stock_totals が1本のみ（オーバーロード無し）",
+      r.rowCount === 1, r.rows.map((x) => x.sig as string).join(", ") || "0行");
+    check("G34 mig0078 ACL＝authenticated に EXECUTE あり / anon は無し（既存 RPC 同型）",
+      r.rowCount === 1 && r.rows[0].authed === true && r.rows[0].anonx === false,
+      JSON.stringify(r.rows.map((x) => ({ authed: x.authed, anon: x.anonx }))));
+    check("G34 mig0078 は SECURITY DEFINER＋STABLE＋search_path=public 固定",
+      r.rowCount === 1 && r.rows[0].prosecdef === true && r.rows[0].vol === "s"
+      && Array.isArray(r.rows[0].proconfig) && (r.rows[0].proconfig as string[]).includes("search_path=public"),
+      JSON.stringify({ secdef: r.rows[0]?.prosecdef, vol: r.rows[0]?.vol, cfg: r.rows[0]?.proconfig }));
+    check("G34 ★戻り型の qty は integer 宣言（sum(integer)→bigint 昇格を ::integer で受ける前提）",
+      r.rowCount === 1 && String(r.rows[0].ret).includes("qty integer"), String(r.rows[0]?.ret));
+  }
+
   await db.end();
 
   if (fails.length) {

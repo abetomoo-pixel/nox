@@ -5593,6 +5593,13 @@ async function main() {
     check("段39 anon set_product_active BLOCKED（mig0077）", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段40: mig0078（product_stock_totals）は anon BLOCKED 必須 ──
+  //   読取専用の集計 RPC だが、在庫は店の内部情報＝anon に開けない（revoke public, anon）。
+  {
+    const { error } = await anon.rpc("product_stock_totals", { p_store_id: null });
+    check("段40 anon product_stock_totals BLOCKED（mig0078）", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
