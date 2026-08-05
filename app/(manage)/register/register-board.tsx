@@ -8,6 +8,7 @@ import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
+import { fetchStockTotals } from "@/lib/nox/master/queries";
 import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
@@ -325,15 +326,13 @@ export default function RegisterBoard({
 
   useEffect(() => { void loadOpenMap(); }, [loadOpenMap]);
 
-  // 段R2: 在庫（Σdelta）＝低在庫「残N」の材料。在庫台帳 v1（mig0061）の stock_logs を素で集計する。
-  //   ★stock_logs の SELECT RLS は cast を除外＝cast セッションでは 0行になり「残N」は出ない
-  //     （エラーではなく単に非表示＝fail-closed）。register 自体は有効 cast も使うのでこれで正しい。
+  // 段R2: 在庫（Σdelta）＝低在庫「残N」の材料。④d-1: 独自集計を撤去し fetchStockTotals
+  //   （mig0078/0079 の product_stock_totals RPC・p_store_id=null）へ一本化。
+  //   ★スコープは RLS（stock_logs_select）と完全一致＝owner=org全体／manager・staff=自店。
+  //     cast は RPC が0行を返す（mig0079）＝「残N」は出ない（エラーではなく非表示＝fail-closed・従来同一）。
   //   ★キオスク（kiosk_register_state・0059）は在庫を返さないので低在庫は register 側だけ＝0059 非改変。
   const loadStock = useCallback(async () => {
-    const { data } = await supabase.from("stock_logs").select("product_id, delta");
-    const m: Record<string, number> = {};
-    for (const r of data ?? []) m[r.product_id as string] = (m[r.product_id as string] ?? 0) + (r.delta as number);
-    setStockOf(m);
+    setStockOf(await fetchStockTotals(supabase));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { void loadStock(); }, [loadStock]);

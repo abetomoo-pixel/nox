@@ -50,12 +50,16 @@ export async function fetchProductCosts(
   return { costs, failed: !!error };
 }
 
-/** 在庫は台帳（stock_logs）の Σdelta。append-only ゆえ現在庫という列は無い。 */
+/**
+ * 在庫は台帳（stock_logs）の Σdelta。append-only ゆえ現在庫という列は無い。
+ * ④d-1（mig0078/0079）: 全件 select＋JS 畳みを DB 側集約 RPC に置換（月1000件規模で破綻するため）。
+ * ★p_store_id は常に null＝スコープは RLS（stock_logs_select）と完全一致
+ *   （owner=org全体／manager・staff=自店／cast=0行）。店で絞る呼び出しは現状存在しない。
+ * 在庫ログが1件も無い商品は行が返らない＝呼び出し側は従来どおり `?? 0` で埋める。
+ */
 export async function fetchStockTotals(sb: SupabaseClient): Promise<Record<string, number>> {
-  const { data } = await sb.from("stock_logs").select("product_id, delta, reason, at");
+  const { data } = await sb.rpc("product_stock_totals", { p_store_id: null });
   const stock: Record<string, number> = {};
-  for (const l of (data ?? []) as { product_id: string; delta: number }[]) {
-    stock[l.product_id] = (stock[l.product_id] ?? 0) + l.delta;
-  }
+  for (const r of (data ?? []) as { product_id: string; qty: number }[]) stock[r.product_id] = r.qty;
   return stock;
 }
