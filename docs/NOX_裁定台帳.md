@@ -876,3 +876,14 @@ returns table を持つ集計 RPC は「行を返す状態」での runtime 実�
 一致を確認したうえで、live の `prosrc` と**関数本文が byte 一致**することを機械照合して収蔵した
 （引数・戻り型・SECURITY DEFINER・search_path・ACL も併せて一致）。教訓の「復元元は起草時の本文」
 のとおり、再構成物ではなく原本が収蔵されている。
+
+### 教訓15: pg_catalog の "char" 型列は || の前に ::text が要る
+
+- pg_proc.provolatile / pg_policy.polcmd などは型 "char"（1バイト文字型）で、
+  text と連結すると operator is not unique: "char" || unknown で落ちる。
+- ★検証バンドルは SQL Editor で一度しか走らせない前提のため、
+  この種の型エラーは「貼ってから気づく」＝手貼り工程を止める。
+  pg_catalog の列を連結する検証を書くときは型を確認してからにする。
+
+契機: 2026-08-04 mig0078 の検証バンドル E 行。相談役が
+p.provolatile を ::text なしで連結して構文エラー。
