@@ -21,7 +21,10 @@ import CastAvatar from "@/components/ui/cast-avatar";
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
 type StateSeat = { id: string; name: string; kind: string | null };
 // 純増⑦（0059 v2）: products.category_id / categories 配列 / checks.started_at が追加された
-type StateProduct = { id: string; name: string; type: string; price: number; category_id: string | null };
+// mig0082: sort_order＝カテゴリ内の並び順。RPC 側の order by で既に整列済みだが、
+//   groupProducts（register と共有）が同じ規則で並べ直せるよう実値を受け取る＝二重保険。
+//   ★0082 未適用の環境では undefined になり name 順へ縮退する（0081 client 実装と同じ挙動）。
+type StateProduct = { id: string; name: string; type: string; price: number; category_id: string | null; sort_order?: number };
 type StateCategory = { id: string; name: string; sort_order: number };
 type StateCast = { id: string; name: string };
 type StateCheck = { id: string; seat_id: string; extra_seat_ids: string[]; total: number; started_at: string };

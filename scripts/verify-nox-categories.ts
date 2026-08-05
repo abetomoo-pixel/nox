@@ -207,6 +207,64 @@ async function main() {
       const state2 = st2 as { categories?: { id: string }[] } | null;
       check("(i) ★無効カテゴリは kiosk categories から消える（active のみ）",
         !(state2?.categories ?? []).some((c) => c.id === catId), JSON.stringify(state2?.categories));
+
+      // ═══ (j) mig0082: products の並びが「カテゴリ sort_order → 商品 sort_order → name」 ═══
+      //   ★0081 は products.sort_order を足しただけで kiosk は .order("type") のまま＝
+      //     カテゴリ内が不定だった。本 assert は「返却配列の順序そのもの」を SQL 直取得と
+      //     突き合わせる＝jsonb_agg の order by が効いていることの唯一の実証手段。
+      //   ★未分類（category_id null）が末尾に来ることも見る（coalesce の番兵値 2147483647）。
+      {
+        // (i) でカテゴリを無効化したので、並び検証用に有効カテゴリを2つ作り直す
+        const { data: cA } = await admin.from("product_categories").insert({
+          org_id: sA1.org_id, store_id: sA1.id, name: `${PREFIX}-J1`, sort_order: 901, is_active: true,
+        }).select("id").single();
+        const { data: cB } = await admin.from("product_categories").insert({
+          org_id: sA1.org_id, store_id: sA1.id, name: `${PREFIX}-J2`, sort_order: 902, is_active: true,
+        }).select("id").single();
+        const mk = async (nm: string, cat: string | null, so: number) => (await admin.from("products").insert({
+          org_id: sA1.org_id, store_id: sA1.id, category_id: cat, type: "drink", name: nm,
+          price: 1000, back_mode: "rate", back_value: 10, hon_pt: 0, is_active: true, sort_order: so,
+        }).select("id").single()).data?.id as string;
+        // カテゴリ内は sort_order 降順で作る＝name 順でも作成順でもない並びを要求する
+        const jb2 = await mk(`${PREFIX}-J-b2`, cB!.id, 2);
+        const jb1 = await mk(`${PREFIX}-J-b1`, cB!.id, 1);
+        const ja2 = await mk(`${PREFIX}-J-a2`, cA!.id, 2);
+        const ja1 = await mk(`${PREFIX}-J-a1`, cA!.id, 1);
+        const jn  = await mk(`${PREFIX}-J-none`, null, 1);   // ★未分類＝必ず末尾
+
+        const { data: st3 } = await kiosk.rpc("kiosk_register_state");
+        const state3 = st3 as { products?: { id: string; sort_order?: number; category_id: string | null }[] } | null;
+        const got = (state3?.products ?? []).map((p) => p.id);
+        const idx = (id: string) => got.indexOf(id);
+
+        check("(j) ★kiosk products にカテゴリ sort_order 順が効く（J1 群が J2 群より前）",
+          idx(ja1) < idx(jb1) && idx(ja2) < idx(jb1),
+          JSON.stringify({ a1: idx(ja1), a2: idx(ja2), b1: idx(jb1), b2: idx(jb2) }));
+        check("(j) ★カテゴリ内は商品 sort_order 順（a1→a2・b1→b2＝作成順でも name 順でもない）",
+          idx(ja1) < idx(ja2) && idx(jb1) < idx(jb2),
+          JSON.stringify({ a1: idx(ja1), a2: idx(ja2), b1: idx(jb1), b2: idx(jb2) }));
+        check("(j) ★未分類（category_id null）は末尾（coalesce の番兵値）",
+          idx(jn) > idx(jb2) && idx(jn) >= 0, `none=${idx(jn)} b2=${idx(jb2)}`);
+        check("(j) ★返却要素に sort_order キーが載る（client の groupProducts が実値で並べられる）",
+          (state3?.products ?? []).find((p) => p.id === ja2)?.sort_order === 2,
+          JSON.stringify((state3?.products ?? []).find((p) => p.id === ja2)));
+
+        // SQL 直取得（同じ order by を SQL 側で組み立て）と配列順を全件突き合わせ
+        const { data: direct } = await admin.from("products")
+          .select("id, sort_order, category_id, name, product_categories(sort_order)")
+          .eq("store_id", sA1.id).eq("is_active", true);
+        const rows = (direct ?? []) as unknown as {
+          id: string; sort_order: number; name: string;
+          product_categories: { sort_order: number } | null;
+        }[];
+        const expected = rows.slice().sort((x, y) =>
+          (x.product_categories?.sort_order ?? 2147483647) - (y.product_categories?.sort_order ?? 2147483647)
+          || x.sort_order - y.sort_order
+          || x.name.localeCompare(y.name)).map((r) => r.id);
+        check("(j) ★返却順が SQL 直集計の並びと全件一致（jsonb_agg の order by が効いている）",
+          JSON.stringify(got) === JSON.stringify(expected),
+          `rpc=${got.length} sql=${expected.length} 先頭差=${got.findIndex((v, i) => v !== expected[i])}`);
+      }
     } else {
       check("(h) 準備 kiosk auth/owner membership/卓 解決", false, JSON.stringify({ kioskAuthId: !!kioskAuthId, ownerMem, seat: !!seatRow }));
     }
