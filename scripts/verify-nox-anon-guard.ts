@@ -5600,6 +5600,16 @@ async function main() {
     check("段40 anon product_stock_totals BLOCKED（mig0078）", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段41: mig0080（product_bulk_insert）は anon BLOCKED 必須 ──
+  //   ★書込 RPC（商品を最大300件作る）＝anon に開くと org 不明のまま DML が走る経路になる。
+  {
+    const { error } = await anon.rpc("product_bulk_insert", {
+      p_store_id: "00000000-0000-0000-0000-000000000000",
+      p_items: [{ name: "x", type: "drink", price: 100 }],
+    });
+    check("段41 anon product_bulk_insert BLOCKED（mig0080）", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);

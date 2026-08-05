@@ -477,6 +477,258 @@ async function main() {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 段41: mig0080 product_bulk_insert の runtime 検証
+  //   ★prosrc 緑 ≠ runtime 緑：本 RPC の肝は「検証ループと DML の分離＝部分成功なし」で、
+  //     これは実セッションで「1件不正 → 何も入らない（自動作成カテゴリも audit も残らない）」
+  //     を実測して初めて言える。カテゴリ解決（lower 衝突・無効同名）も unique index
+  //     (store_id, lower(name)) との相互作用ゆえ runtime でしか確かめられない。
+  //   ★固定カウント非汚染: 生成は段内動的・削除は finally（商品/カテゴリ/原価/audit）。
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    const P41 = "NOX-VERIFY-段41";
+    const C41 = "NOX-VERIFY-C41";  // カテゴリ名 prefix
+    const { data: sA1 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    const { data: sA2 } = await admin.from("stores").select("id, org_id").eq("name", "NOX-VERIFY-A2").single();
+
+    const wipe41 = async () => {
+      const { data: ps } = await admin.from("products").select("id").like("name", `${P41}%`);
+      const ids = (ps ?? []).map((r) => r.id as string);
+      if (ids.length) {
+        await admin.from("product_costs").delete().in("product_id", ids);
+        await admin.from("stock_logs").delete().in("product_id", ids);
+      }
+      await admin.from("products").delete().like("name", `${P41}%`);
+      await admin.from("product_categories").delete().like("name", `${C41}%`);
+      await admin.from("audit_logs").delete().eq("action", "product_bulk_insert");
+    };
+    await wipe41();
+
+    const sess41 = async (key: keyof typeof FIXTURE_USERS) => {
+      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      await c.auth.signInWithPassword({ email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD });
+      return c;
+    };
+
+    try {
+      const own41 = await sess41("ownerA");
+      const mgr41 = await sess41("managerA1");
+      const stf41 = await sess41("staffA1");
+      const cst41 = await sess41("castA1a");
+      check("段41（準備）店A1/A2・owner/manager/staff/cast セッション解決",
+        !!sA1 && !!sA2, JSON.stringify({ a1: !!sA1, a2: !!sA2 }));
+
+      // 商品件数・カテゴリ件数のスナップ（増分ゼロ assert 用）
+      const countProds = async () => (await admin.from("products")
+        .select("id", { count: "exact", head: true }).eq("store_id", sA1!.id)).count ?? 0;
+      const countCats = async () => (await admin.from("product_categories")
+        .select("id", { count: "exact", head: true }).eq("store_id", sA1!.id)).count ?? 0;
+      const countAudit = async () => (await admin.from("audit_logs")
+        .select("id", { count: "exact", head: true }).eq("action", "product_bulk_insert")).count ?? 0;
+
+      if (sA1 && sA2) {
+        // ── (1) owner 正常系: 新規カテゴリ2＋既存1・商品5件（3 type 混在・cost 有無混在）──
+        {
+          // 既存カテゴリを1つ先に作る（自動作成されないことの対照）
+          const { data: pre } = await admin.from("product_categories").insert({
+            org_id: sA1.org_id, store_id: sA1.id, name: `${C41}-既存`, sort_order: 900, is_active: true,
+          }).select("id").single();
+          const preId = pre?.id as string;
+
+          const items = [
+            { category: `${C41}-新規1`, name: `${P41}-a`, type: "drink",  price: 1000, cost: 300 },
+            { category: `${C41}-新規1`, name: `${P41}-b`, type: "champ",  price: 30000, cost: null },
+            { category: `${C41}-新規2`, name: `${P41}-c`, type: "bottle", price: 12000, cost: 4000 },
+            { category: `${C41}-既存`,  name: `${P41}-d`, type: "drink",  price: 800 },
+            { category: "",              name: `${P41}-e`, type: "drink",  price: 500, cost: 0 },
+          ];
+          const { data, error } = await own41.rpc("product_bulk_insert", { p_store_id: sA1.id, p_items: items });
+          const j = (data ?? {}) as { products_created?: number; categories_created?: string[]; by_type?: Record<string, number> };
+          check("段41(1) owner 正常系＝成功して戻り jsonb が返る", !error && !!data, error?.message ?? "data なし");
+          check("段41(1) products_created=5", j.products_created === 5, `got ${j.products_created}`);
+          check("段41(1) categories_created＝新規2件のみ（既存は含まない）",
+            Array.isArray(j.categories_created) && j.categories_created.length === 2
+            && !j.categories_created.includes(`${C41}-既存`),
+            JSON.stringify(j.categories_created));
+          check("段41(1) by_type＝drink3/champ1/bottle1",
+            j.by_type?.drink === 3 && j.by_type?.champ === 1 && j.by_type?.bottle === 1, JSON.stringify(j.by_type));
+
+          // SQL 直集計と照合
+          const { data: rows } = await admin.from("products")
+            .select("id, name, type, price, category_id, back_mode, back_value, hon_pt, back_exempt_from_split, reorder_point, is_active")
+            .like("name", `${P41}%`).order("name");
+          check("段41(1) products が5行入っている（SQL 直集計）", (rows ?? []).length === 5, `got ${(rows ?? []).length}`);
+          const byName = new Map((rows ?? []).map((r) => [r.name as string, r]));
+          check("段41(1) 価格と type が入力どおり",
+            byName.get(`${P41}-a`)?.price === 1000 && byName.get(`${P41}-b`)?.type === "champ"
+            && byName.get(`${P41}-c`)?.price === 12000,
+            JSON.stringify([...byName.values()].map((r) => `${r.name}:${r.type}:${r.price}`)));
+          check("段41(1) ★既存カテゴリは再利用され新規作成されない（同一 id）",
+            byName.get(`${P41}-d`)?.category_id === preId, `got ${byName.get(`${P41}-d`)?.category_id}`);
+
+          // 原価: cost 指定ありの3件のみ product_costs 行（null と未指定は行なし）
+          const ids = (rows ?? []).map((r) => r.id as string);
+          const { data: costs } = await admin.from("product_costs").select("product_id, cost, org_id, store_id").in("product_id", ids);
+          const costOf = new Map((costs ?? []).map((c) => [c.product_id as string, c.cost as number]));
+          check("段41(1) ★product_costs は cost 指定ありの3件のみ（null/未指定は行を作らない）",
+            (costs ?? []).length === 3, `got ${(costs ?? []).length}`);
+          check("段41(1) 原価の値が一致（300 / 4000 / 0）",
+            costOf.get(byName.get(`${P41}-a`)!.id as string) === 300
+            && costOf.get(byName.get(`${P41}-c`)!.id as string) === 4000
+            && costOf.get(byName.get(`${P41}-e`)!.id as string) === 0,
+            JSON.stringify([...costOf.values()]));
+          check("段41(1) ★product_costs の org_id/store_id が埋まる（_r2 の A2 改訂＝初版なら NOT NULL 違反）",
+            (costs ?? []).every((c) => !!c.org_id && c.store_id === sA1.id),
+            JSON.stringify((costs ?? []).map((c) => [c.org_id, c.store_id])));
+
+          // (7) 既定値
+          const a = byName.get(`${P41}-a`)!;
+          check("段41(7) ★既定値 back_mode='rate' / back_value=0 / hon_pt=0 / exempt=false / reorder_point=null",
+            a.back_mode === "rate" && a.back_value === 0 && a.hon_pt === 0
+            && a.back_exempt_from_split === false && a.reorder_point === null,
+            JSON.stringify({ bm: a.back_mode, bv: a.back_value, hp: a.hon_pt, ex: a.back_exempt_from_split, rp: a.reorder_point }));
+          check("段41(7) is_active は列 default の true", a.is_active === true, `got ${a.is_active}`);
+
+          // (5) カテゴリ空欄 → null
+          check("段41(5) ★カテゴリ空欄＝category_id null（未分類）",
+            byName.get(`${P41}-e`)?.category_id === null, `got ${byName.get(`${P41}-e`)?.category_id}`);
+
+          // 新規カテゴリの org_id（_r2 の A3 改訂）と sort_order 末尾採番
+          const { data: newCats } = await admin.from("product_categories")
+            .select("id, name, org_id, sort_order, is_active").like("name", `${C41}-新規%`);
+          check("段41(1) ★新規カテゴリの org_id が埋まる（_r2 の A3 改訂＝初版なら NOT NULL 違反）",
+            (newCats ?? []).length === 2 && (newCats ?? []).every((c) => !!c.org_id),
+            JSON.stringify((newCats ?? []).map((c) => c.org_id)));
+          check("段41(1) 新規カテゴリは既存 max(sort_order)=900 より後ろに採番される",
+            (newCats ?? []).every((c) => (c.sort_order as number) > 900),
+            JSON.stringify((newCats ?? []).map((c) => c.sort_order)));
+
+          // (9) audit 1操作1行
+          const { data: au } = await admin.from("audit_logs")
+            .select("target, before_json, after_json, store_id").eq("action", "product_bulk_insert");
+          check("段41(9) ★audit は1操作1行（商品5件でも1行）", (au ?? []).length === 1, `got ${(au ?? []).length}`);
+          const af = (au?.[0]?.after_json ?? {}) as Record<string, unknown>;
+          check("段41(9) audit の p_target/p_before は null（単一 target が無いため）",
+            au?.[0]?.target === null && au?.[0]?.before_json === null,
+            JSON.stringify({ t: au?.[0]?.target, b: au?.[0]?.before_json }));
+          check("段41(9) audit after に product_count/by_type/categories_created/products",
+            af.product_count === 5 && !!af.by_type && Array.isArray(af.categories_created) && Array.isArray(af.products),
+            JSON.stringify(Object.keys(af)));
+          check("段41(9) audit の store_id が対象店", au?.[0]?.store_id === sA1.id, `got ${au?.[0]?.store_id}`);
+        }
+
+        // ── (2) ★1件でも不正なら全ロールバック（自動作成カテゴリ・audit も残らない）──
+        {
+          const pBefore = await countProds();
+          const cBefore = await countCats();
+          const aBefore = await countAudit();
+          const items = [
+            { category: `${C41}-RB`, name: `${P41}-r1`, type: "drink", price: 100 },
+            { category: `${C41}-RB`, name: `${P41}-r2`, type: "drink", price: 200 },
+            { category: `${C41}-RB`, name: `${P41}-r3`, type: "drink", price: 300 },
+            { category: `${C41}-RB`, name: `${P41}-r4`, type: "drink", price: 400 },
+            { category: `${C41}-RB`, name: `${P41}-r5`, type: "drink", price: -1 },  // ★不正
+          ];
+          const { error } = await own41.rpc("product_bulk_insert", { p_store_id: sA1.id, p_items: items });
+          check("段41(2) 5件目 price=-1 で 'bad price'", has(error, "bad price"), error?.message ?? "通ってしまった");
+          check("段41(2) ★products は1件も増えていない（部分成功なし）",
+            (await countProds()) === pBefore, `${pBefore} → ${await countProds()}`);
+          check("段41(2) ★自動作成されるはずだったカテゴリも巻き戻る",
+            (await countCats()) === cBefore, `${cBefore} → ${await countCats()}`);
+          check("段41(2) ★audit 行も残らない（DML 後の perform ごとロールバック）",
+            (await countAudit()) === aBefore, `${aBefore} → ${await countAudit()}`);
+          const { count: rbCat } = await admin.from("product_categories")
+            .select("id", { count: "exact", head: true }).eq("name", `${C41}-RB`);
+          check("段41(2) ロールバック対象カテゴリ名が0件", (rbCat ?? 0) === 0, `got ${rbCat}`);
+        }
+
+        // ── (3) 無効カテゴリ同名 → 'duplicate name' ──
+        {
+          const { data: off } = await admin.from("product_categories").insert({
+            org_id: sA1.org_id, store_id: sA1.id, name: `${C41}-停止中`, sort_order: 950, is_active: false,
+          }).select("id").single();
+          const pBefore = await countProds();
+          const { error } = await own41.rpc("product_bulk_insert", {
+            p_store_id: sA1.id,
+            p_items: [{ category: `${C41}-停止中`, name: `${P41}-dup`, type: "drink", price: 100 }],
+          });
+          check("段41(3) ★無効カテゴリと同名＝'duplicate name'（set_product_category と統一）",
+            has(error, "duplicate name"), error?.message ?? "通ってしまった");
+          check("段41(3) 無効カテゴリは再有効化されない",
+            (await admin.from("product_categories").select("is_active").eq("id", off!.id).single()).data?.is_active === false);
+          check("段41(3) 商品も入っていない", (await countProds()) === pBefore, `${pBefore} → ${await countProds()}`);
+        }
+
+        // ── (4) カテゴリ lower 衝突: 既存「Bottle」に CSV「bottle」→ 既存 id に解決 ──
+        {
+          const { data: bt } = await admin.from("product_categories").insert({
+            org_id: sA1.org_id, store_id: sA1.id, name: `${C41}-Bottle`, sort_order: 960, is_active: true,
+          }).select("id").single();
+          const cBefore = await countCats();
+          const { data, error } = await own41.rpc("product_bulk_insert", {
+            p_store_id: sA1.id,
+            p_items: [{ category: `${C41}-bottle`.toLowerCase(), name: `${P41}-lc`, type: "bottle", price: 5000 }],
+          });
+          // ★prefix は大文字を含むため lower 化した名前で送る（unique は lower(name)）
+          const j = (data ?? {}) as { categories_created?: string[] };
+          check("段41(4) ★lower 衝突は既存カテゴリに解決＝成功する", !error, error?.message ?? "");
+          check("段41(4) ★新規カテゴリは作られない（categories_created 空・件数不変）",
+            (j.categories_created ?? []).length === 0 && (await countCats()) === cBefore,
+            `created=${JSON.stringify(j.categories_created)} ${cBefore} → ${await countCats()}`);
+          const { data: lc } = await admin.from("products").select("category_id").eq("name", `${P41}-lc`).single();
+          check("段41(4) ★商品は既存「Bottle」の id に紐づく（大小異なる表記でも同一カテゴリ）",
+            lc?.category_id === bt!.id, `got ${lc?.category_id} want ${bt!.id}`);
+        }
+
+        // ── (6) 上限 ──
+        {
+          const many = Array.from({ length: 301 }, (_, k) => ({ name: `${P41}-m${k}`, type: "drink", price: 100 }));
+          const { error: e1 } = await own41.rpc("product_bulk_insert", { p_store_id: sA1.id, p_items: many });
+          check("段41(6) 301件＝'too many items'", has(e1, "too many items"), e1?.message ?? "通ってしまった");
+          const cats31 = Array.from({ length: 31 }, (_, k) => ({
+            category: `${C41}-x${k}`, name: `${P41}-n${k}`, type: "drink", price: 100,
+          }));
+          const { error: e2 } = await own41.rpc("product_bulk_insert", { p_store_id: sA1.id, p_items: cats31 });
+          check("段41(6) distinct 31カテゴリ＝'too many categories'",
+            has(e2, "too many categories"), e2?.message ?? "通ってしまった");
+          const { error: e3 } = await own41.rpc("product_bulk_insert", { p_store_id: sA1.id, p_items: [] });
+          check("段41(6) 空配列＝'bad items'", has(e3, "bad items"), e3?.message ?? "通ってしまった");
+        }
+
+        // ── (8) 認可 ──
+        {
+          const one = (n: string) => [{ name: `${P41}-${n}`, type: "drink", price: 100 }];
+          const { error: eMgrOwn } = await mgr41.rpc("product_bulk_insert", { p_store_id: sA1.id, p_items: one("mgr") });
+          check("段41(8) manager 自店＝成功", !eMgrOwn, eMgrOwn?.message ?? "");
+          const { error: eMgrOther } = await mgr41.rpc("product_bulk_insert", { p_store_id: sA2.id, p_items: one("mgr2") });
+          check("段41(8) manager 他店＝forbidden", has(eMgrOther, "forbidden"), eMgrOther?.message ?? "通ってしまった");
+          const { error: eStf } = await stf41.rpc("product_bulk_insert", { p_store_id: sA1.id, p_items: one("stf") });
+          check("段41(8) ★staff＝forbidden（set_product と同型＝マスタ書込は manager 以上）",
+            has(eStf, "forbidden"), eStf?.message ?? "通ってしまった");
+          const { error: eCst } = await cst41.rpc("product_bulk_insert", { p_store_id: sA1.id, p_items: one("cst") });
+          check("段41(8) cast＝forbidden", has(eCst, "forbidden"), eCst?.message ?? "通ってしまった");
+          const { data: sB1 } = await admin.from("stores").select("id").eq("name", "NOX-VERIFY-B1").single();
+          const { error: eOrg } = await own41.rpc("product_bulk_insert", { p_store_id: sB1?.id, p_items: one("org") });
+          check("段41(8) ★owner でも他 org の store＝forbidden（org 跨ぎ遮断）",
+            has(eOrg, "forbidden"), eOrg?.message ?? "通ってしまった");
+        }
+      }
+    } finally {
+      await wipe41();
+      const { count: leftP } = await admin.from("products")
+        .select("id", { count: "exact", head: true }).like("name", `${P41}%`);
+      const { count: leftC } = await admin.from("product_categories")
+        .select("id", { count: "exact", head: true }).like("name", `${C41}%`);
+      const { count: leftA } = await admin.from("audit_logs")
+        .select("id", { count: "exact", head: true }).eq("action", "product_bulk_insert");
+      check("段41（掃除）fixture 商品/カテゴリ/audit すべて0件（固定カウント非汚染）",
+        (leftP ?? 0) === 0 && (leftC ?? 0) === 0 && (leftA ?? 0) === 0,
+        `products=${leftP} categories=${leftC} audit=${leftA}`);
+    }
+  }
+
   report();
 }
 

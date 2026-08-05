@@ -1081,6 +1081,33 @@ async function main() {
       r.rowCount === 1 && String(r.rows[0].ret).includes("qty integer"), String(r.rows[0]?.ret));
   }
 
+  // G35: mig0080（product_bulk_insert）の ACL 同型＋宣言。
+  //   ★product_stock_totals（読取・stable）と違い本 RPC は DML あり＝volatile であることも見る
+  //     （誤って stable を付けると PostgreSQL が計画上 DML を巻き込んで壊れうるため宣言を固定する）。
+  {
+    const r = await db.query(
+      `select p.oid::regprocedure::text as sig,
+              has_function_privilege('authenticated', p.oid, 'EXECUTE') as authed,
+              has_function_privilege('anon', p.oid, 'EXECUTE') as anonx,
+              p.prosecdef, p.provolatile::text as vol, p.proconfig,
+              pg_get_function_result(p.oid) as ret
+         from pg_proc p
+        where p.pronamespace = 'public'::regnamespace and p.proname = 'product_bulk_insert'
+        order by 1`,
+    );
+    check("G35 mig0080 product_bulk_insert が1本のみ（オーバーロード無し）",
+      r.rowCount === 1, r.rows.map((x) => x.sig as string).join(", ") || "0行");
+    check("G35 mig0080 ACL＝authenticated に EXECUTE あり / anon は無し（既存 RPC 同型）",
+      r.rowCount === 1 && r.rows[0].authed === true && r.rows[0].anonx === false,
+      JSON.stringify(r.rows.map((x) => ({ authed: x.authed, anon: x.anonx }))));
+    check("G35 mig0080 は SECURITY DEFINER＋★VOLATILE＋search_path=public 固定",
+      r.rowCount === 1 && r.rows[0].prosecdef === true && r.rows[0].vol === "v"
+      && Array.isArray(r.rows[0].proconfig) && (r.rows[0].proconfig as string[]).includes("search_path=public"),
+      JSON.stringify({ secdef: r.rows[0]?.prosecdef, vol: r.rows[0]?.vol, cfg: r.rows[0]?.proconfig }));
+    check("G35 戻り型は jsonb（UI トースト用サマリ）",
+      r.rowCount === 1 && String(r.rows[0].ret) === "jsonb", String(r.rows[0]?.ret));
+  }
+
   await db.end();
 
   if (fails.length) {
