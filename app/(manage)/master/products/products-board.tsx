@@ -17,6 +17,7 @@ import {
   fetchProducts, fetchProductCategories, fetchProductCosts, fetchStockTotals,
   type MasterProduct as Product, type MasterCategory as Category,
 } from "@/lib/nox/master/queries";
+import { STOCK_REASON_RESTOCK } from "@/lib/nox/stock/reasons";
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 const card: React.CSSProperties = t.card;
@@ -249,8 +250,10 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
     if (!stockTarget || !stDelta) return;
     setMsg(null);
     setBusyId(stockTarget.id);
+    // ★④d-2: 理由の既定値は lib/nox/stock/reasons.ts の定数（棚卸し側と1箇所に寄せる）。
+    //   自由入力されたときはその文字列を尊重する（DB は自由テキストのまま＝CHECK は足さない）。
     const { error } = await supabase.rpc("product_stock_add", {
-      p_product_id: stockTarget.id, p_delta: stDelta, p_reason: stReason || null,
+      p_product_id: stockTarget.id, p_delta: stDelta, p_reason: stReason.trim() || STOCK_REASON_RESTOCK,
     });
     setBusyId(null);
     if (error) { setMsg(error.message.includes("forbidden") ? "権限がありません" : error.message); return; }
@@ -525,7 +528,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
           </div>
           <p style={{ margin: "0 0 14px", fontSize: 12.5, color: "var(--sub)", lineHeight: 1.7 }}>
             {stockTarget.name}　現在 <span style={{ ...t.num, color: "var(--ink)", fontWeight: 700 }}>{stock[stockTarget.id] ?? 0}</span>
-            <br />増減で記録します（入荷は正の数・返品や破損は負の数）。棚卸しによる置き換えは在庫の入出庫ページで行います。
+            <br />増減で記録します（入荷は正の数・返品や破損は負の数）。棚卸しによる置き換えは在庫ページで行います。
           </p>
           <div className="nox-field">
             <span className="lab">増減<span className="req">*</span></span>

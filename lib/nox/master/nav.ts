@@ -22,7 +22,7 @@ export const MASTER_NAV: MasterNavGroup[] = [
     pages: [
       { label: "商品", href: "/master/products" },
       { label: "商品カテゴリ", href: "/master/categories" },
-      { label: "在庫の入出庫", href: "/master/stock" },
+      { label: "在庫", href: "/master/stock" },
     ],
   },
 ];
