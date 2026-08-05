@@ -6,7 +6,7 @@
 //   カテゴリ管理と在庫の入出庫はレーン③まで master-board.tsx に残る（ここには無い）。
 // ★初期値は page.tsx（server）が取得して props で渡す。保存後の再取得だけ client から
 //   同じ queries.ts の関数を呼ぶ＝取得内容は移設前の load() と同一。
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
@@ -18,6 +18,11 @@ import {
   type MasterProduct as Product, type MasterCategory as Category,
 } from "@/lib/nox/master/queries";
 import { STOCK_REASON_RESTOCK } from "@/lib/nox/stock/reasons";
+import {
+  parseProductBulk, duplicateWarnings, checkInactiveCategoryConflicts,
+  newCategories, countByType, TYPE_LABEL_JA as BULK_TYPE_LABEL_JA,
+  type ProductBulkItem,
+} from "@/lib/nox/product-bulk";
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 const card: React.CSSProperties = t.card;
@@ -145,6 +150,8 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
   const [highlightId, setHighlightId] = useState<string | null>(null);
   // ★④c: 行の1タップ操作（有効切替・入荷）。busyId は二度押し防止。
   const [busyId, setBusyId] = useState<string | null>(null);
+  // ⑤一括登録（裁定J・mig0080）
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [stockTarget, setStockTarget] = useState<Product | null>(null);
   const [stDelta, setStDelta] = useState(0);
   const [stReason, setStReason] = useState("");
@@ -376,7 +383,13 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
           count={filtered.length}
           desc="販売価格・原価・在庫・有効状態を一覧で確認できます。"
           action={isManagerUp
-            ? <button type="button" style={t.btnGold} className="nox-pthead-act" onClick={newProduct}>＋ 商品を追加</button>
+            ? (
+              <span className="nox-pthead-act" style={{ display: "inline-flex", gap: 8 }}>
+                {/* ⑤一括登録（裁定J）: 新規テナントが40件を手打ちしないための導線。 */}
+                <button type="button" style={t.btnGhost} onClick={() => setBulkOpen(true)}>一括登録</button>
+                <button type="button" style={t.btnGold} onClick={newProduct}>＋ 商品を追加</button>
+              </span>
+            )
             : undefined}
         />
 
@@ -695,6 +708,194 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
           </div>
         </Modal>
       )}
+
+      {/* ⑤一括登録（裁定J・mig0080 product_bulk_insert）。BANZEN BulkMenuModal の翻訳。 */}
+      {isManagerUp && bulkOpen && (
+        <BulkProductModal
+          storeId={storeId}
+          categories={categories}
+          existingNames={products.map((p) => p.name)}
+          onClose={() => setBulkOpen(false)}
+          onSaved={async (m) => { setBulkOpen(false); setMsg(m); await reload(); }}
+        />
+      )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⑤一括登録モーダル（裁定J）。CSV/表ペースト → 純関数パース（lib/nox/product-bulk）→
+//   プレビュー → client 直 product_bulk_insert（0080・原子的＝部分成功なし）。
+// ★保存をブロックするのは「パースエラー」と「停止中カテゴリとの同名衝突」の2つだけ。
+//   同名商品は警告のみ（DB に unique が無く、実際に同名運用がありうるため）。
+// ★文字コード問題は構造的に発生しない（ファイル読込ではなく貼り付け＝ブラウザが文字列で渡す）。
+// ─────────────────────────────────────────────────────────────────────────────
+function BulkProductModal({
+  storeId, categories, existingNames, onClose, onSaved,
+}: {
+  storeId: string;
+  categories: Category[];
+  existingNames: string[];
+  onClose: () => void;
+  onSaved: (msg: string) => Promise<void> | void;
+}) {
+  const supabase = createClient();
+  const [text, setText] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const parsed = useMemo(() => parseProductBulk(text), [text]);
+  const dups = useMemo(() => duplicateWarnings(parsed.items, existingNames), [parsed.items, existingNames]);
+  const conflicts = useMemo(
+    () => checkInactiveCategoryConflicts(parsed.categories, categories),
+    [parsed.categories, categories],
+  );
+  const newCats = useMemo(() => newCategories(parsed.categories, categories), [parsed.categories, categories]);
+  const byType = useMemo(() => countByType(parsed.items), [parsed.items]);
+
+  // カテゴリごとにグループ化（プレビュー用。未分類は末尾）
+  const groups = useMemo(() => {
+    const m = new Map<string, ProductBulkItem[]>();
+    for (const i of parsed.items) {
+      const k = i.category === "" ? "__none" : i.category;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(i);
+    }
+    const out = [...m.entries()].filter(([k]) => k !== "__none");
+    if (m.has("__none")) out.push(["__none", m.get("__none")!]);
+    return out;
+  }, [parsed.items]);
+
+  const canSave = text.trim() !== "" && parsed.errors.length === 0 && parsed.items.length > 0 && conflicts.length === 0;
+
+  async function submit() {
+    setErr(null);
+    if (!canSave) return;
+    setBusy(true);
+    const { data, error } = await supabase.rpc("product_bulk_insert", {
+      p_store_id: storeId,
+      p_items: parsed.items.map((i) => ({
+        category: i.category, name: i.name, type: i.type, price: i.price, cost: i.cost,
+      })),
+    });
+    setBusy(false);
+    if (error) {
+      // RPC は短い英字トークンで返す（行番号は client パーサ担当）＝日本語に翻訳して出す
+      const m = error.message;
+      setErr(
+        m.includes("duplicate name") ? "停止中のカテゴリと同名のカテゴリがあります。再有効化するか別名にしてください。"
+        : m.includes("too many items") ? "商品が多すぎます（300件まで）。"
+        : m.includes("too many categories") ? "カテゴリが多すぎます（30件まで）。"
+        : m.includes("forbidden") ? "権限がありません。"
+        : m,
+      );
+      return;
+    }
+    const j = (data ?? {}) as { products_created?: number; categories_created?: string[] };
+    const nc = (j.categories_created ?? []).length;
+    await onSaved(`商品${j.products_created ?? parsed.items.length}件を登録しました${nc > 0 ? `（新規カテゴリ${nc}件）` : ""}`);
+  }
+
+  return (
+    <Modal onClose={onClose} maxWidth={620} scroll>
+      <div className="nox-formmodal-head">
+        <strong>商品を一括登録</strong>
+        <button type="button" className="nox-formmodal-x" onClick={onClose} aria-label="閉じる">×</button>
+      </div>
+      <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "var(--sub)", lineHeight: 1.7 }}>
+        1行に1商品。列は「<strong>表示カテゴリ, 商品名, 会計区分, 価格, 原価</strong>」（原価は省略可）。
+        カンマ区切り・表からの貼り付け（タブ区切り）どちらも使えます。
+        会計区分は「ドリンク / シャンパン / ボトル」。カテゴリ空欄は未分類になります。
+        <br />バック設定と発注点は登録後に商品ごとに設定してください（一括では既定値で入ります）。
+      </p>
+
+      <div className="nox-field">
+        <span className="lab">CSV / 表の貼り付け</span>
+        <textarea
+          className="nox-input" rows={7} value={text} onChange={(e) => setText(e.target.value)}
+          placeholder={"グラス,ハイボール,ドリンク,800,200\nボトル（焼酎）,黒霧島,ボトル,12000,4000\nシャンパン,モエ,シャンパン,30000,9000"}
+          style={{ ...inputLg, resize: "vertical", fontFamily: "inherit", lineHeight: 1.7 }}
+        />
+      </div>
+
+      {parsed.errors.length > 0 && (
+        <div style={{ ...t.alert, background: "rgba(220,80,80,.10)", maxHeight: 120, overflowY: "auto", margin: "10px 0" }}>
+          {parsed.errors.slice(0, 8).map((e, i) => <div key={i} style={{ fontSize: 12.5, color: "var(--bad)" }}>{e}</div>)}
+          {parsed.errors.length > 8 && <div style={{ fontSize: 12.5, color: "var(--bad)" }}>…ほか {parsed.errors.length - 8} 件</div>}
+        </div>
+      )}
+
+      {/* ★停止中カテゴリとの同名衝突＝保存前ブロック（DB の unique(store_id, lower(name)) に当たる） */}
+      {conflicts.length > 0 && (
+        <div style={{ ...t.alert, background: "rgba(220,80,80,.10)", margin: "10px 0" }}>
+          {conflicts.map((c) => (
+            <div key={c} style={{ fontSize: 12.5, color: "var(--bad)" }}>
+              停止中のカテゴリ「{c}」と同名です。再有効化するか別名にしてください。
+            </div>
+          ))}
+        </div>
+      )}
+
+      {dups.length > 0 && (
+        <div style={{ ...t.alert, margin: "10px 0", fontSize: 12.5 }}>
+          同名の商品があります（登録はブロックしません）:{" "}
+          {dups.slice(0, 5).map((d) => `${d.name}（${d.count}件）`).join("・")}
+          {dups.length > 5 && ` ほか${dups.length - 5}件`}
+        </div>
+      )}
+
+      {/* プレビュー: カテゴリごとグループ・新規バッジ・★会計区分ごとの件数サマリ（裁定J） */}
+      <div style={{ ...card, padding: "10px 12px", margin: "10px 0 0" }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--sub)", marginBottom: 6 }}>
+          プレビュー　カテゴリ <span style={t.num}>{parsed.categories.length}</span>・
+          商品 <span style={t.num}>{parsed.items.length}</span> 件
+          {newCats.size > 0 && <span style={{ marginLeft: 8 }}>（新規カテゴリ {newCats.size} 件）</span>}
+        </div>
+        {parsed.items.length > 0 && (
+          <div style={{ fontSize: 11.5, color: "var(--sub)", marginBottom: 8 }}>
+            {(["drink", "champ", "bottle"] as const).map((k) => (
+              <span key={k} style={{ marginRight: 12 }}>
+                {BULK_TYPE_LABEL_JA[k]} <span style={{ ...t.num, color: "var(--ink)", fontWeight: 700 }}>{byType[k]}</span>
+              </span>
+            ))}
+          </div>
+        )}
+        {parsed.items.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>ここに登録内容が表示されます。</div>
+        ) : (
+          <div style={{ maxHeight: 200, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+            {groups.map(([cat, list]) => (
+              <div key={cat}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700 }}>
+                  {cat === "__none" ? <span style={{ color: "var(--sub)" }}>未分類</span> : cat}
+                  {cat !== "__none" && newCats.has(cat) && (
+                    <span className="nox-catbadge" style={{ fontSize: 10 }}>新規</span>
+                  )}
+                  <span style={{ color: "var(--sub)", fontWeight: 400 }}>{list.length}品</span>
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--sub)", lineHeight: 1.9, paddingLeft: 8 }}>
+                  {list.map((i, ix) => (
+                    <span key={ix} style={{ marginRight: 10, whiteSpace: "nowrap" }}>
+                      {i.name} <span style={t.num}>{yen(i.price)}</span>
+                      <span style={{ color: "var(--v2-muted)" }}>/{BULK_TYPE_LABEL_JA[i.type]}</span>
+                      {i.cost != null && <span style={{ color: "var(--v2-muted)" }}>（原価{yen(i.cost)}）</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {err && <p style={{ fontSize: 12.5, color: "var(--bad)", margin: "10px 0 0" }}>{err}</p>}
+
+      <div className="nox-formmodal-foot">
+        <button style={btnGhostLg} onClick={onClose}>キャンセル</button>
+        <button style={btnPrimaryLg} disabled={!canSave || busy} onClick={() => void submit()}>
+          {busy ? "登録中…" : `${parsed.items.length} 件を登録`}
+        </button>
+      </div>
+    </Modal>
   );
 }
