@@ -887,3 +887,13 @@ returns table を持つ集計 RPC は「行を返す状態」での runtime 実�
 
 契機: 2026-08-04 mig0078 の検証バンドル E 行。相談役が
 p.provolatile を ::text なしで連結して構文エラー。
+
+### 教訓16: 手貼り経由の live prosrc には CRLF が混入する
+
+- SQL Editor へのクリップボード貼付で改行が CRLF 化し、prosrc にそのまま残る。
+- 原本との byte 照合は改行正規化（CRLF→LF）後に行う。素の不一致で慌てない。
+- ★live pg_get_functiondef を起点に次の migration を起草するときは、
+  取得テキストを LF に正規化してから使う（CRLF を原稿に持ち込まない）。
+
+契機: 2026-08-05 mig0079 収蔵時の live 照合。素の byte 不一致（CRLF 45個）、
+正規化後に完全一致。
