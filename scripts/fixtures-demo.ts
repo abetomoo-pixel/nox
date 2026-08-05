@@ -9,6 +9,18 @@ export const DEMO_STORE = "CLUB NOX";
 export const DEMO_OWNER_EMAIL = "abetomoo@gmail.com";
 export const DEMO_OWNER_NAME = "阿部";
 
+/**
+ * ★手動作成の manager（seed:demo は作らない＝--reset でも再作成されない）:
+ *   `demo-manager@example.com` / 表示名「デモ店長」/ 配属 CLUB NOX / role=manager。
+ *   パスワードは SEED_PASSWORD と同値（作成は /staff 画面の正規経路＝staff_create 経由。
+ *   route が自動生成する初期パスワードを後から SEED_PASSWORD に揃えてある）。
+ *   ★存在理由: /master 配下と product_stock_add 等は manager 以上を要求するが、
+ *     デモ org は owner（Agoora 個人アカウント・パスワード非保持）と staff のみで、
+ *     実データ（CLUB NOX）でのマスタ系検収ができなかった（④d-1/④d-2 で2度停止）。
+ *   ★このアカウントを消すと同じ検収制約が再発する。消す場合は代替の manager を先に用意する。
+ */
+export const DEMO_MANAGER_EMAIL = "demo-manager@example.com";
+
 /** 黒服2名（can_register=true・1名のみ can_crm=true）。seed:demo が auth を作る＝SEED_PASSWORD */
 export const DEMO_STAFF = [
   { email: "demo-staff1@example.com", name: "田中", perms: { can_register: true, can_crm: true, can_shift: true } },
