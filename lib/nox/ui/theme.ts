@@ -111,12 +111,19 @@ const btnBase: CSSProperties = {
 export const btnGold: CSSProperties = { ...btnBase, border: 0, background: "linear-gradient(135deg,var(--gold2),#B8893A)", color: "#0B0B0F" };
 export const btnGhost: CSSProperties = { ...btnBase, border: "1px solid var(--line2)", background: "transparent", color: "var(--ink)" };
 export const btnSm: CSSProperties = { padding: "7px 11px", fontSize: 12, borderRadius: radius.btnSm };
+// ★レーン④c: フォームモーダル用の大きめ寸法（④b-3 で products-board のローカル定数として作ったもの）。
+//   カテゴリ側でも同じ形を使うため、複製せずここへ引き上げた（2画面で同じ「指で押せる寸法」を
+//   別々に持つと必ず片方だけ動いて食い違うため）。inputLg は input の宣言より後に置く（TDZ 回避）。
+export const btnPrimaryLg: CSSProperties = { ...btnGold, width: "100%", padding: "14px", fontSize: 14 };
+export const btnGhostLg: CSSProperties = { ...btnGhost, width: "100%", padding: "12px", fontSize: 13 };
 
 // ── フォーム ─────────────────────────────────────────────────────
 export const input: CSSProperties = {
   background: "var(--bg2)", border: "1px solid var(--line2)", borderRadius: radius.input,
   padding: "11px 12px", color: "var(--ink)", fontFamily: "inherit", fontSize: 13, width: "100%",
 };
+// ★レーン④c: フォームモーダルの入力（min-height 46px＝指で押せる最低ライン）。btnPrimaryLg と対。
+export const inputLg: CSSProperties = { ...input, padding: "12px 13px", fontSize: 14, minHeight: 46 };
 // 実態収束 D-1 2026-07-17・正本は描画実態: fontSize 11 を維持（変更しない）。
 //   64 箇所中 59 箇所が上書きなし＝11px が実態。12px 上書きは report-board の 5 箇所のみ（例外側）。
 export const fieldLabel: CSSProperties = { fontSize: 11, color: "var(--sub)", fontWeight: 700 };

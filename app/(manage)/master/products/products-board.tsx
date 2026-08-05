@@ -21,10 +21,8 @@ import {
 const yen = (n: number) => "¥" + n.toLocaleString();
 const card: React.CSSProperties = t.card;
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-// ★④b-3: フォームモーダル用（縦積み・指で押せる寸法）。入力は min-height 46px、主ボタンは全幅。
-const inputLg: React.CSSProperties = { ...t.input, padding: "12px 13px", fontSize: 14, minHeight: 46 };
-const btnPrimaryLg: React.CSSProperties = { ...t.btnGold, width: "100%", padding: "14px", fontSize: 14 };
-const btnGhostLg: React.CSSProperties = { ...t.btnGhost, width: "100%", padding: "12px", fontSize: 13 };
+// ★④c: inputLg / btnPrimaryLg / btnGhostLg は theme.ts へ引き上げた（カテゴリ側と共有）。
+const { inputLg, btnPrimaryLg, btnGhostLg } = t;
 
 const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
 const PAGE = 40; // 逐次表示の1ページ分（「もっと見る」で +PAGE）
@@ -144,6 +142,11 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
   const [baseSig, setBaseSig] = useState("");
   // ★④b-3: 保存した行を一瞬ハイライトする（閉じると結果が見えないため・トーストより強い）。
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  // ★④c: 行の1タップ操作（有効切替・入荷）。busyId は二度押し防止。
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [stockTarget, setStockTarget] = useState<Product | null>(null);
+  const [stDelta, setStDelta] = useState(0);
+  const [stReason, setStReason] = useState("");
 
   // ハイライト対象が決まったらその行までスクロールし、1.6秒で自動解除する。
   //   ★フィルタや「もっと見る」の外にある行は DOM に無い＝スクロールは起きない（解除だけ走る）。
@@ -207,6 +210,53 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
       || p.back_mode === "unit4" || (p.back_value ?? 0) !== 0 || p.back_exempt_from_split;
     setDetailOpen(hasDetail);
     setModalOpen(true);
+  }
+
+  // ★④c（裁定K）: 一覧の状態バッジを1タップで切り替える。
+  //   ★set_product は使わない。15引数を再送すると、その間に他端末が直した name/price/back_* を
+  //     last-write-wins で巻き戻す。set_product_active は is_active だけを更新する（mig0077）。
+  //   ★無効化は会計から消える操作なので確認を挟む。有効化は確認しない。
+  //   ★「無効も表示」が OFF のとき無効化すると行は一覧から消える。行が消えてから気づくのを避けるため、
+  //     確認文でその旨を先に伝え、成功後は商品名入りのトーストを残す（消えた理由が画面に残る）。
+  async function toggleActive(p: Product) {
+    const next = !p.is_active;
+    if (!next) {
+      const willVanish = !showInactive;
+      const msg = `「${p.name}」を無効にします。レジ・キオスクの商品タイルから外れ、会計に出せなくなります。`
+        + (willVanish ? "\n（「無効も表示」が OFF のため、この行は一覧から消えます）" : "");
+      if (!window.confirm(msg)) return;
+    }
+    setMsg(null);
+    setBusyId(p.id);
+    const { error } = await supabase.rpc("set_product_active", {
+      p_id: p.id, p_store_id: storeId, p_is_active: next, // 明示 boolean（原則7）
+    });
+    setBusyId(null);
+    if (error) {
+      // 失敗時は画面を触っていないので「元に戻す」処理は不要（楽観更新をしていない）
+      setMsg(error.message.includes("forbidden") ? "権限がありません"
+        : error.message.includes("not found") ? "対象が見つかりません。再読込してください"
+          : error.message);
+      return;
+    }
+    setMsg(next ? `「${p.name}」を有効にしました` : `「${p.name}」を無効にしました`);
+    await reload();
+  }
+
+  // ★④c（裁定L）: 行から入荷を記録する。★増減（delta）で入れる＝append-only の意味論そのまま。
+  //   現在庫の絶対値を書き換える形にはしない（棚卸しは /master/stock の仕事）。
+  async function addStock() {
+    if (!stockTarget || !stDelta) return;
+    setMsg(null);
+    setBusyId(stockTarget.id);
+    const { error } = await supabase.rpc("product_stock_add", {
+      p_product_id: stockTarget.id, p_delta: stDelta, p_reason: stReason || null,
+    });
+    setBusyId(null);
+    if (error) { setMsg(error.message.includes("forbidden") ? "権限がありません" : error.message); return; }
+    setMsg(`「${stockTarget.name}」の在庫を ${stDelta > 0 ? "+" : ""}${stDelta} 記録しました`);
+    setStockTarget(null); setStDelta(0); setStReason("");
+    await reload();
   }
 
   // ★④b-2: 閉じる。未保存の変更があるときだけ確認する（overlay クリック・閉じるボタン共通）。
@@ -359,7 +409,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
             必ず別列＝裁定F。利益率は原価の隣（原価との関係を示す値なので）。 */}
         {filtered.length > 0 && (
         <div className="nox-ptwrap">
-        <table className="nox-ptable">
+        <table className="nox-ptable is-products">
           <thead>
             <tr>
               <th className="col-name">商品名</th>
@@ -389,11 +439,11 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
             {shown.map((p) => {
               const cost = costs[p.id];
               const margin = marginOf(p);
+              // ★④c（裁定M）: 行クリックでの編集は廃止。行に有効トグルと入荷が乗るため、
+              //   押すつもりのない場所で編集モーダルが開くのを防ぐ＝編集は「編集」ボタンのみ。
               return (
                 <tr key={p.id} id={`prow-${p.id}`}
-                  className={highlightId === p.id ? "nox-rowflash" : undefined}
-                  onClick={() => isManagerUp && editProduct(p)}
-                  style={{ cursor: isManagerUp ? "pointer" : "default" }}>
+                  className={highlightId === p.id ? "nox-rowflash" : undefined}>
                   <td className="col-name" data-label="商品名">
                     {/* ★④a-3: アイコン枠は撤去（会計区分は隣の列にあり、頭文字は同じ情報の二重表示だった）。
                         名前セルは2段のまま＝上に商品名、下にバック設定。
@@ -423,15 +473,26 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                   {/* 純増①（mig0061）: 残量バー＝Σdelta と reorder_point のみ（新規取得なし・表示のみ）。 */}
                   <td className="col-stock" data-label="在庫">{stockCell(stock[p.id] ?? 0, p.reorder_point)}</td>
                   <td className="col-state" data-label="状態">
-                    {/* ★④a-2: ●ドット付きバッジ（有効=--ok / 無効=--sub） */}
-                    <span className={`nox-statebadge${p.is_active ? " on" : ""}`}><i />{p.is_active ? "有効" : "無効"}</span>
+                    {/* ★④c（裁定K）: ●ドット付きバッジを1タップのトグルに（set_product_active）。
+                        manager 未満は従来どおり表示のみ（span のまま）。 */}
+                    {isManagerUp ? (
+                      <button type="button" disabled={busyId === p.id}
+                        className={`nox-statebadge is-btn${p.is_active ? " on" : ""}`}
+                        title={p.is_active ? "クリックで無効にする" : "クリックで有効にする"}
+                        aria-pressed={p.is_active}
+                        onClick={() => toggleActive(p)}><i />{p.is_active ? "有効" : "無効"}</button>
+                    ) : (
+                      <span className={`nox-statebadge${p.is_active ? " on" : ""}`}><i />{p.is_active ? "有効" : "無効"}</span>
+                    )}
                   </td>
                   <td className="col-act" data-label="操作">
                     {isManagerUp && (
-                      // ★今回はボタンを置くだけ＝押下時の挙動は現行のまま（下部フォームに値が入る）。
-                      //   行クリックでも編集に入れる現行挙動は維持＝stopPropagation で二重発火だけ止める。
-                      <button type="button" style={btnLight}
-                        onClick={(e) => { e.stopPropagation(); editProduct(p); }}>編集</button>
+                      <span style={{ display: "inline-flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                        {/* ★④c（裁定L）: 入荷は行から。増減で入れる＝append-only の意味論そのまま。 */}
+                        <button type="button" style={btnLight} disabled={busyId === p.id}
+                          onClick={() => { setStockTarget(p); setStDelta(0); setStReason(""); }}>入荷</button>
+                        <button type="button" style={btnLight} onClick={() => editProduct(p)}>編集</button>
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -454,8 +515,39 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
           ★フォーム本体は移設前と同一（新規/編集は pId 1つで切替・単一実装・分割しない）。
           ★④b-3: 中央オーバーレイへ戻し、幅は 540（unit4 の4項目が 2×2 で入る）。
             scroll でカードに高さ上限＋中身スクロールを与え、フッタの sticky を効かせる。 */}
+      {/* ★④c（裁定L）: 入荷モーダル。既存 Modal を使い、行内ポップオーバーは新規に作らない。
+          現在庫は参考表示で、書き込むのは増減（delta）だけ＝絶対値の上書き経路を作らない。 */}
+      {isManagerUp && stockTarget && (
+        <Modal onClose={() => setStockTarget(null)} maxWidth={420}>
+          <div className="nox-formmodal-head">
+            <strong>入荷を記録</strong>
+            <button type="button" className="nox-formmodal-x" onClick={() => setStockTarget(null)} aria-label="閉じる">×</button>
+          </div>
+          <p style={{ margin: "0 0 14px", fontSize: 12.5, color: "var(--sub)", lineHeight: 1.7 }}>
+            {stockTarget.name}　現在 <span style={{ ...t.num, color: "var(--ink)", fontWeight: 700 }}>{stock[stockTarget.id] ?? 0}</span>
+            <br />増減で記録します（入荷は正の数・返品や破損は負の数）。棚卸しによる置き換えは在庫の入出庫ページで行います。
+          </p>
+          <div className="nox-field">
+            <span className="lab">増減<span className="req">*</span></span>
+            <input type="number" inputMode="numeric" value={stDelta}
+              onChange={(e) => setStDelta(Number(e.target.value))} style={inputLg} />
+            <span className="hint">
+              記録後の在庫 <span style={t.num}>{(stock[stockTarget.id] ?? 0) + stDelta}</span>
+            </span>
+          </div>
+          <div className="nox-field">
+            <span className="lab">理由</span>
+            <input placeholder="入荷・棚卸 など（任意）" value={stReason}
+              onChange={(e) => setStReason(e.target.value)} style={inputLg} />
+          </div>
+          <div className="nox-formmodal-foot">
+            <button style={btnPrimaryLg} disabled={!stDelta || busyId === stockTarget.id} onClick={addStock}>記録する</button>
+          </div>
+        </Modal>
+      )}
+
       {isManagerUp && modalOpen && (
-        <Modal onClose={closeModal} maxWidth={540} scroll>
+        <Modal onClose={closeModal} maxWidth={680} scroll>
           <div className="nox-formmodal-head">
             <strong>{pId ? "商品を編集" : "商品を追加"}</strong>
             <button type="button" className="nox-formmodal-x" onClick={closeModal} aria-label="閉じる">×</button>

@@ -1415,6 +1415,20 @@ body {
 .nox-statebadge i { width: 6px; height: 6px; border-radius: 99px; background: var(--sub); flex: 0 0 auto; }
 .nox-statebadge.on { color: var(--ok); }
 .nox-statebadge.on i { background: var(--ok); }
+/* ★④c: 1タップの有効/無効トグル（button 版）。見た目は span 版と同一で、押せることだけを足す。 */
+.nox-statebadge.is-btn { cursor: pointer; font-family: inherit; }
+.nox-statebadge.is-btn:hover { border-color: var(--gold); color: var(--gold); }
+.nox-statebadge.is-btn:hover i { background: var(--gold); }
+.nox-statebadge.is-btn:disabled { opacity: .5; cursor: default; }
+
+/* ★④c: カテゴリの ∧∨ 並び替えボタン（product_category_reorder へ全件配列を送る） */
+.nox-ordbtn {
+  width: 30px; height: 28px; border-radius: 8px; border: 1px solid var(--line2);
+  background: transparent; color: var(--sub); cursor: pointer; font-family: inherit;
+  font-size: 11px; line-height: 1; padding: 0;
+}
+.nox-ordbtn:hover:not(:disabled) { color: var(--gold); border-color: var(--gold); }
+.nox-ordbtn:disabled { opacity: .3; cursor: default; }
 /* 在庫バッジ: 角丸の四角。0以下＝塗りの赤／発注点以下＝枠線の赤／通常＝地の色 */
 .nox-stkbadge {
   display: inline-block; min-width: 46px; text-align: center;
@@ -1425,11 +1439,13 @@ body {
 .nox-stkbadge.low { border-color: rgba(217, 138, 138, .5); color: var(--bad); }
 .nox-stkbadge.neg { border-color: var(--bad); background: rgba(217, 138, 138, .14); color: var(--bad); }
 .nox-ptable .nox-stockbar { margin: 4px 0 0 auto; }
-/* 901〜1180: 状態列を畳む（全9列は入らない）。無効は商品名の隣のバッジで残す。 */
+/* 901〜1180: 状態列を畳む（全9列は入らない）。無効は商品名の隣のバッジで残す。
+   ★④c: セレクタを .is-products に限定した。カテゴリ表（5列）は畳む必要が無く、
+     畳むと代替表示（.nox-pt-inlinestate）を持たないぶん状態が消えてしまうため。 */
 .nox-pt-inlinestate { display: none; }
 @media (max-width: 1180px) and (min-width: 901px) {
-  .nox-ptable .col-state { display: none; }
-  .nox-pt-inlinestate { display: inline-flex; margin-left: 7px; }
+  .nox-ptable.is-products .col-state { display: none; }
+  .nox-ptable.is-products .nox-pt-inlinestate { display: inline-flex; margin-left: 7px; }
 }
 /* ≤900: カード積み。thead を捨て、各セルに data-label を見出しとして出す。 */
 @media (max-width: 900px) {
