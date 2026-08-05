@@ -327,8 +327,9 @@ async function main() {
     try {
       const owner = await sess("ownerA");
       const mgr40 = await sess("managerA1");
+      const staff40 = await sess("staffA1");
       const cast40 = await sess("castA1a");
-      check("段40（準備）店A1/A2・owner/manager/cast セッション解決",
+      check("段40（準備）店A1/A2・owner/manager/staff/cast セッション解決",
         !!sA1 && !!sA2, JSON.stringify({ a1: !!sA1, a2: !!sA2 }));
 
       if (sA1 && sA2) {
@@ -425,11 +426,31 @@ async function main() {
           check("段40(6) manager・他店 store_id＝forbidden", has(error, "forbidden"), error?.message ?? "通ってしまった");
         }
 
-        // ── (8) cast → forbidden（stock_logs_select の auth_role() <> 'cast' と揃う）──
+        // ── (5s)〜(6s) staff＝manager 同型4観点（mig0079 是正の本体・0078 は else→forbidden で
+        //     staff を落としていた＝レジの残N が消える挙動変化。RLS（stock_logs_select）は
+        //     cast のみ除外で staff は自店可視＝RPC もそれに揃ったことを実測する）──
         {
-          const { error } = await cast40.rpc("product_stock_totals", { p_store_id: null });
-          check("段40(8) ★cast＝forbidden（stock_logs_select のパターン2 と揃う）",
-            has(error, "forbidden"), error?.message ?? "通ってしまった");
+          const { data: d1, error: e1 } = await staff40.rpc("product_stock_totals", { p_store_id: null });
+          const { data: d2, error: e2 } = await staff40.rpc("product_stock_totals", { p_store_id: sA1.id });
+          const g1 = asMap(d1), g2 = asMap(d2);
+          check("段40(5s) ★staff・null＝自店のみ（SQL 直集計と一致・mig0079 是正）",
+            !e1 && sameMap(g1, await direct(sA1.id)), e1?.message ?? `rows=${g1.size}`);
+          check("段40(5s) ★staff・自店データのみ（他店 A2 の商品が混ざらない）",
+            !e1 && !g1.has(pA2), e1?.message ?? `pA2=${g1.has(pA2)}`);
+          check("段40(7s) ★staff・自店 store_id 明示＝null と同じ結果",
+            !e2 && sameMap(g1, g2), e2?.message ?? `n1=${g1.size} n2=${g2.size}`);
+          const { error: e3 } = await staff40.rpc("product_stock_totals", { p_store_id: sA2.id });
+          check("段40(6s) ★staff・他店 store_id＝forbidden",
+            has(e3, "forbidden"), e3?.message ?? "通ってしまった");
+        }
+
+        // ── (8) cast → 0行（mig0079: RLS は cast にエラーでなく0行を返すため RPC も0行で揃える
+        //     ＝呼び出し側 fetchStockTotals がエラー握りつぶしゼロの drop-in になる）──
+        {
+          const { data, error } = await cast40.rpc("product_stock_totals", { p_store_id: null });
+          check("段40(8) ★cast＝エラーでなく0行（mig0079・stock_logs_select の cast 0行と揃う）",
+            !error && Array.isArray(data) && data.length === 0,
+            error?.message ?? `rows=${(data as unknown[] | null)?.length}`);
         }
 
         // ── (9) 在庫ログが無い商品は行を返さない（呼び出し側の ?? 0 前提）──
