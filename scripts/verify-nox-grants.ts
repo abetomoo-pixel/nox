@@ -1108,6 +1108,39 @@ async function main() {
       r.rowCount === 1 && String(r.rows[0].ret) === "jsonb", String(r.rows[0]?.ret));
   }
 
+  // G36: mig0081（product_reorder＋products.sort_order）の ACL 同型＋列宣言。
+  //   ★列も見る＝sort_order は integer NOT NULL DEFAULT 0（既存3テーブルと同形）。
+  //     NULL 許容に緩むと並び順が非決定に戻るため、型と NOT NULL を恒久 assert する。
+  {
+    const r = await db.query(
+      `select p.oid::regprocedure::text as sig,
+              has_function_privilege('authenticated', p.oid, 'EXECUTE') as authed,
+              has_function_privilege('anon', p.oid, 'EXECUTE') as anonx,
+              p.prosecdef, p.provolatile::text as vol, p.proconfig,
+              pg_get_function_result(p.oid) as ret
+         from pg_proc p
+        where p.pronamespace = 'public'::regnamespace and p.proname = 'product_reorder'
+        order by 1`,
+    );
+    check("G36 mig0081 product_reorder が1本のみ（オーバーロード無し）",
+      r.rowCount === 1, r.rows.map((x) => x.sig as string).join(", ") || "0行");
+    check("G36 mig0081 ACL＝authenticated に EXECUTE あり / anon は無し（既存 RPC 同型）",
+      r.rowCount === 1 && r.rows[0].authed === true && r.rows[0].anonx === false,
+      JSON.stringify(r.rows.map((x) => ({ authed: x.authed, anon: x.anonx }))));
+    check("G36 mig0081 は SECURITY DEFINER＋VOLATILE＋search_path=public 固定",
+      r.rowCount === 1 && r.rows[0].prosecdef === true && r.rows[0].vol === "v"
+      && Array.isArray(r.rows[0].proconfig) && (r.rows[0].proconfig as string[]).includes("search_path=public"),
+      JSON.stringify({ secdef: r.rows[0]?.prosecdef, vol: r.rows[0]?.vol, cfg: r.rows[0]?.proconfig }));
+    const c = await db.query(
+      `select data_type, is_nullable, column_default from information_schema.columns
+        where table_schema='public' and table_name='products' and column_name='sort_order'`,
+    );
+    check("G36 ★products.sort_order は integer NOT NULL DEFAULT 0（既存3テーブルと同形）",
+      c.rowCount === 1 && c.rows[0].data_type === "integer"
+      && c.rows[0].is_nullable === "NO" && String(c.rows[0].column_default) === "0",
+      JSON.stringify(c.rows[0] ?? "列なし"));
+  }
+
   await db.end();
 
   if (fails.length) {

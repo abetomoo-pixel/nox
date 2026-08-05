@@ -5610,6 +5610,17 @@ async function main() {
     check("段41 anon product_bulk_insert BLOCKED（mig0080）", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段42: mig0081（product_reorder）は anon BLOCKED 必須 ──
+  //   ★書込 RPC（店の商品並びを一括更新）＝anon に開くと org 不明のまま UPDATE が走る。
+  {
+    const { error } = await anon.rpc("product_reorder", {
+      p_store_id: "00000000-0000-0000-0000-000000000000",
+      p_category_id: null,
+      p_ids: ["00000000-0000-0000-0000-000000000000"],
+    });
+    check("段42 anon product_reorder BLOCKED（mig0081）", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);

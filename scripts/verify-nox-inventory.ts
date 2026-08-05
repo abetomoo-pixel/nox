@@ -729,6 +729,236 @@ async function main() {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 段42: mig0081 product_reorder の runtime 検証
+  //   ★本 RPC の肝は「スコープが category_id の is not distinct from」で、
+  //     null（未分類）を1スコープとして扱えるかは = 比較では絶対に通らない＝
+  //     runtime で null スコープの並び替えが成功することを実測して初めて言える。
+  //   ★両方向件数検証（①実在 ②全件）も、is_active=false を含む全件を渡す運用契約
+  //     （0077 同型）ゆえ実セッションでしか確かめられない。
+  //   ★固定カウント非汚染: 生成は段内動的・削除は finally。
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    const P42 = "NOX-VERIFY-段42";
+    const C42 = "NOX-VERIFY-C42";
+    const { data: sA1 } = await admin.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+    const { data: sA2 } = await admin.from("stores").select("id, org_id").eq("name", "NOX-VERIFY-A2").single();
+
+    const wipe42 = async () => {
+      const { data: ps } = await admin.from("products").select("id").like("name", `${P42}%`);
+      const ids = (ps ?? []).map((r) => r.id as string);
+      if (ids.length) {
+        await admin.from("product_costs").delete().in("product_id", ids);
+        await admin.from("stock_logs").delete().in("product_id", ids);
+      }
+      await admin.from("products").delete().like("name", `${P42}%`);
+      await admin.from("product_categories").delete().like("name", `${C42}%`);
+      await admin.from("audit_logs").delete().eq("action", "product_reorder");
+    };
+    await wipe42();
+
+    const sess42 = async (key: keyof typeof FIXTURE_USERS) => {
+      const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      await c.auth.signInWithPassword({ email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD });
+      return c;
+    };
+
+    try {
+      const own42 = await sess42("ownerA");
+      const mgr42 = await sess42("managerA1");
+      const stf42 = await sess42("staffA1");
+      const cst42 = await sess42("castA1a");
+      check("段42（準備）店A1/A2 解決", !!sA1 && !!sA2, JSON.stringify({ a1: !!sA1, a2: !!sA2 }));
+
+      if (sA1 && sA2) {
+        // fixture: カテゴリ2つ（本命 X・別カテゴリ Y）＋ X に3商品（1件は無効）＋ 未分類に2商品
+        const mkCat = async (nm: string, so: number) => (await admin.from("product_categories").insert({
+          org_id: sA1.org_id, store_id: sA1.id, name: nm, sort_order: so, is_active: true,
+        }).select("id").single()).data?.id as string;
+        const catX = await mkCat(`${C42}-X`, 810);
+        const catY = await mkCat(`${C42}-Y`, 820);
+        const mkProd = async (nm: string, catId: string | null, active = true) =>
+          (await admin.from("products").insert({
+            org_id: sA1.org_id, store_id: sA1.id, category_id: catId, type: "drink", name: nm,
+            price: 1000, back_mode: "rate", back_value: 10, hon_pt: 0, is_active: active,
+          }).select("id").single()).data?.id as string;
+        const x1 = await mkProd(`${P42}-x1`, catX);
+        const x2 = await mkProd(`${P42}-x2`, catX);
+        const x3 = await mkProd(`${P42}-x3`, catX, false);  // ★無効商品（全件要求の対象）
+        const y1 = await mkProd(`${P42}-y1`, catY);
+        // 未分類スコープ: 既存の未分類商品も含めて全件を渡す必要がある
+        const n1 = await mkProd(`${P42}-n1`, null);
+        const n2 = await mkProd(`${P42}-n2`, null);
+        check("段42（準備）カテゴリ2・商品6件を動的生成",
+          !!catX && !!catY && !!x1 && !!x2 && !!x3 && !!y1 && !!n1 && !!n2);
+
+        const sortOf = async (ids: string[]) => {
+          const { data } = await admin.from("products").select("id, sort_order").in("id", ids);
+          return new Map((data ?? []).map((r) => [r.id as string, r.sort_order as number]));
+        };
+
+        // ── (1) owner 正常系: catX の3件（無効込み）を x3,x1,x2 の順へ ──
+        {
+          const { data, error } = await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catX, p_ids: [x3, x1, x2],
+          });
+          check("段42(1) owner 正常系＝成功（戻りは void）", !error && (data ?? null) === null, error?.message ?? `data=${JSON.stringify(data)}`);
+          const m = await sortOf([x1, x2, x3]);
+          check("段42(1) ★sort_order が配列順 1..3（SQL 直取得で照合）",
+            m.get(x3) === 1 && m.get(x1) === 2 && m.get(x2) === 3,
+            JSON.stringify({ x3: m.get(x3), x1: m.get(x1), x2: m.get(x2) }));
+        }
+
+        // ── (2) ★未分類スコープ（is not distinct from の実効確認）──
+        {
+          // 未分類の全件を取得して渡す（他段の残置があっても全件要求を満たす）
+          const { data: allNull } = await admin.from("products")
+            .select("id, created_at").eq("store_id", sA1.id).is("category_id", null).order("created_at");
+          const ids = (allNull ?? []).map((r) => r.id as string);
+          const reversed = [...ids].reverse();
+          const { error } = await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: null, p_ids: reversed,
+          });
+          check("段42(2) ★p_category_id=null（未分類）スコープの並び替えが成功する（= 比較なら絶対に通らない）",
+            !error, error?.message ?? "");
+          const m = await sortOf(ids);
+          check("段42(2) 未分類群の sort_order が配列順どおり",
+            reversed.every((id, i) => m.get(id) === i + 1),
+            JSON.stringify(reversed.map((id) => m.get(id))));
+        }
+
+        // ── (3) 部分配列 → 'partial ids' ──
+        {
+          const { error } = await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catX, p_ids: [x1, x2],  // x3 が欠け
+          });
+          check("段42(3) ★部分配列＝'partial ids'（スコープ全件必須）",
+            has(error, "partial ids"), error?.message ?? "通ってしまった");
+        }
+
+        // ── (4) 重複 id / 空配列 ──
+        {
+          const { error: e1 } = await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catX, p_ids: [x1, x1, x2],
+          });
+          check("段42(4) 重複 id＝'duplicate ids'", has(e1, "duplicate ids"), e1?.message ?? "通ってしまった");
+          const { error: e2 } = await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catX, p_ids: [],
+          });
+          check("段42(4) 空配列＝'bad ids'", has(e2, "bad ids"), e2?.message ?? "通ってしまった");
+        }
+
+        // ── (5) 他スコープの id 混入 → forbidden ──
+        {
+          const { error } = await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catX, p_ids: [x1, x2, y1],  // y1 は catY
+          });
+          check("段42(5) ★別カテゴリの商品 id 混入＝forbidden（①実在検証がスコープ限定）",
+            has(error, "forbidden"), error?.message ?? "通ってしまった");
+          // ★backfill（mig0081）は適用時点の既存行だけを埋める＝段内で新規生成した行は
+          //   列 default の 0 のまま。混入を弾いた以上その 0 が動いていないことを見る。
+          const m = await sortOf([y1]);
+          check("段42(5) 混入を弾いた結果 y1 の sort_order は動いていない（新規行は default 0 のまま）",
+            m.get(y1) === 0, `got ${m.get(y1)}`);
+        }
+
+        // ── (6) 認可 ──
+        {
+          const { error: eMgr } = await mgr42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catX, p_ids: [x1, x2, x3],
+          });
+          check("段42(6) manager 自店＝成功", !eMgr, eMgr?.message ?? "");
+          const { error: eMgr2 } = await mgr42.rpc("product_reorder", {
+            p_store_id: sA2.id, p_category_id: null, p_ids: [x1],
+          });
+          check("段42(6) manager 他店＝forbidden", has(eMgr2, "forbidden"), eMgr2?.message ?? "通ってしまった");
+          const { error: eStf } = await stf42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catX, p_ids: [x1, x2, x3],
+          });
+          check("段42(6) staff＝forbidden", has(eStf, "forbidden"), eStf?.message ?? "通ってしまった");
+          const { error: eCst } = await cst42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catX, p_ids: [x1, x2, x3],
+          });
+          check("段42(6) cast＝forbidden", has(eCst, "forbidden"), eCst?.message ?? "通ってしまった");
+          const { data: sB1 } = await admin.from("stores").select("id").eq("name", "NOX-VERIFY-B1").single();
+          const { error: eOrg } = await own42.rpc("product_reorder", {
+            p_store_id: sB1?.id, p_category_id: null, p_ids: [x1],
+          });
+          check("段42(6) ★owner でも他 org の store＝forbidden", has(eOrg, "forbidden"), eOrg?.message ?? "通ってしまった");
+          // 他店カテゴリ id（A2 のカテゴリを A1 スコープで指定）
+          const { data: catA2 } = await admin.from("product_categories").insert({
+            org_id: sA2.org_id, store_id: sA2.id, name: `${C42}-A2`, sort_order: 830, is_active: true,
+          }).select("id").single();
+          const { error: eCat } = await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catA2!.id, p_ids: [x1],
+          });
+          check("段42(6) ★他店カテゴリ id＝forbidden（カテゴリ実在照合が store 限定）",
+            has(eCat, "forbidden"), eCat?.message ?? "通ってしまった");
+          const { error: eNo } = await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: "00000000-0000-0000-0000-000000000000", p_ids: [x1],
+          });
+          check("段42(6) 存在しないカテゴリ id＝forbidden", has(eNo, "forbidden"), eNo?.message ?? "通ってしまった");
+        }
+
+        // ── (7) ★is_active=false 込みなら成功・除くと partial ids ──
+        {
+          const { error: eOk } = await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catX, p_ids: [x1, x3, x2],
+          });
+          check("段42(7) ★無効商品を含めた全件なら成功（is_active 不問の全件要求）", !eOk, eOk?.message ?? "");
+          const m = await sortOf([x1, x3, x2]);
+          check("段42(7) 無効商品にも sort_order が振られる", m.get(x3) === 2, `got ${m.get(x3)}`);
+          const { error: eNg } = await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: catX, p_ids: [x1, x2],
+          });
+          check("段42(7) ★無効商品を除くと 'partial ids'（有効分だけ渡す実装ミスを弾く）",
+            has(eNg, "partial ids"), eNg?.message ?? "通ってしまった");
+        }
+
+        // ── (8) audit ──
+        {
+          await admin.from("audit_logs").delete().eq("action", "product_reorder");
+          await own42.rpc("product_reorder", { p_store_id: sA1.id, p_category_id: catX, p_ids: [x2, x1, x3] });
+          const { data: au } = await admin.from("audit_logs")
+            .select("target, before_json, after_json, store_id").eq("action", "product_reorder");
+          check("段42(8) audit が1行", (au ?? []).length === 1, `got ${(au ?? []).length}`);
+          check("段42(8) ★target='products:store:<id>:category:<id>'",
+            au?.[0]?.target === `products:store:${sA1.id}:category:${catX}`, String(au?.[0]?.target));
+          const bef = au?.[0]?.before_json as Array<{ id: string; sort_order: number }> | null;
+          const aft = au?.[0]?.after_json as Array<{ id: string; sort_order: number }> | null;
+          check("段42(8) before/after に (id, sort_order) 配列（3件ずつ）",
+            Array.isArray(bef) && Array.isArray(aft) && bef.length === 3 && aft.length === 3
+            && bef.every((r) => "id" in r && "sort_order" in r),
+            JSON.stringify({ b: bef?.length, a: aft?.length }));
+          check("段42(8) audit の store_id が対象店", au?.[0]?.store_id === sA1.id, String(au?.[0]?.store_id));
+          // 未分類スコープの target は :category:null
+          await admin.from("audit_logs").delete().eq("action", "product_reorder");
+          const { data: allNull } = await admin.from("products")
+            .select("id").eq("store_id", sA1.id).is("category_id", null);
+          await own42.rpc("product_reorder", {
+            p_store_id: sA1.id, p_category_id: null, p_ids: (allNull ?? []).map((r) => r.id as string),
+          });
+          const { data: au2 } = await admin.from("audit_logs").select("target").eq("action", "product_reorder");
+          check("段42(8) ★未分類スコープの target は ':category:null'",
+            au2?.[0]?.target === `products:store:${sA1.id}:category:null`, String(au2?.[0]?.target));
+        }
+      }
+    } finally {
+      await wipe42();
+      const { count: leftP } = await admin.from("products")
+        .select("id", { count: "exact", head: true }).like("name", `${P42}%`);
+      const { count: leftC } = await admin.from("product_categories")
+        .select("id", { count: "exact", head: true }).like("name", `${C42}%`);
+      const { count: leftA } = await admin.from("audit_logs")
+        .select("id", { count: "exact", head: true }).eq("action", "product_reorder");
+      check("段42（掃除）fixture 商品/カテゴリ/audit すべて0件（固定カウント非汚染）",
+        (leftP ?? 0) === 0 && (leftC ?? 0) === 0 && (leftA ?? 0) === 0,
+        `products=${leftP} categories=${leftC} audit=${leftA}`);
+    }
+  }
+
   report();
 }
 
