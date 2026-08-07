@@ -179,6 +179,12 @@ export default function RegisterBoard({
   const [claims, setClaims] = useState<DrinkClaim[]>([]);
   const [claimPick, setClaimPick] = useState<string | null>(null);
   const [claimMsg, setClaimMsg] = useState<string | null>(null);
+  // 料金UIレーン C4（mig0084）: 指名料・同伴料の課金行（check_shimei_add / check_dohan_add）。
+  //   按分（check_set_nominations）とは別概念＝別カード・別 state。額のプレビューは出さない
+  //   （解決はサーバ＝押下で RPC・pricing_resolve は owner/manager 限定でレジの staff からは呼べない）。
+  const [feeCast, setFeeCast] = useState("");
+  const [dohanN, setDohanN] = useState(1);
+  const [feeBusy, setFeeBusy] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
 
   // F4b レシート印刷: printer_enabled は route 経由（printer_config は deny-all）＝false/取得失敗ならボタン非表示（fail-closed）
@@ -401,6 +407,46 @@ export default function RegisterBoard({
       p_check_id: check.id, p_nom_type: nomType, p_nominations: list,
     });
     setMsg(error ? error.message : "指名を保存しました");
+    await loadCheck(check.id);
+  }
+
+  // ── 料金UIレーン C4: 指名料・同伴料の課金行（mig0084）──
+  //   額はサーバが解決（開栓時凍結の checks.dohan_fee／指名は行追加時のランクで pricing_rules）。
+  //   入金済み・close 後は RPC 側でも拒否されるが、ボタンも disabled にして意図を明示する。
+  const chargeErrJa = (m: string | undefined): string => {
+    if (!m) return "不明なエラー";
+    if (m.includes("bad kind")) return "指名種別が不正です";
+    if (m.includes("bad count")) return "同伴人数は1以上で入力してください";
+    if (m.includes("inactive cast")) return "在籍していないキャストです";
+    if (m.includes("bad cast")) return "このお店のキャストを選んでください";
+    if (m.includes("not open")) return "この伝票は会計済みまたは取消済みです";
+    if (m.includes("has payments")) return "入金後は追加できません（入金を取り消してから操作してください）";
+    if (m.includes("forbidden")) return "権限がありません";
+    return m;
+  };
+  async function addShimeiFee(kind: "hon" | "jonai") {
+    if (!check || !feeCast || feeBusy) return;
+    if (!(await tb.flush())) return; // money 系: 保留タップを先に確定（失敗＝中止）
+    setMsg(null);
+    setFeeBusy(true);
+    const { error } = await supabase.rpc("check_shimei_add", {
+      p_check_id: check.id, p_cast_id: feeCast, p_kind: kind,
+    });
+    setFeeBusy(false);
+    setMsg(error ? chargeErrJa(error.message)
+      : `${kind === "hon" ? "本指名料" : "場内指名料"}を追加しました（${castName(feeCast)}）`);
+    await loadCheck(check.id);
+  }
+  async function addDohanFee() {
+    if (!check || feeBusy) return;
+    if (!(await tb.flush())) return;
+    setMsg(null);
+    setFeeBusy(true);
+    const { error } = await supabase.rpc("check_dohan_add", {
+      p_check_id: check.id, p_count: dohanN,
+    });
+    setFeeBusy(false);
+    setMsg(error ? chargeErrJa(error.message) : `同伴料を追加しました（${dohanN}名分）`);
     await loadCheck(check.id);
   }
 
@@ -717,6 +763,56 @@ export default function RegisterBoard({
             <button onClick={saveNoms} style={btnDark}>保存</button>
           </div>
         </div>
+
+        {/* 料金UIレーン C4（mig0084）: 指名料・同伴料の課金行。★按分カードとは別カード＝
+            上の「指名（重み比で分配）」はバック按分の重み・こちらは伝票への課金行の追加。 */}
+        {(() => {
+          const feeDisabled = feeBusy || check.status !== "open" || payments.length > 0;
+          return (
+            <div className="nox-cardtop" style={card}>
+              <h3 style={t.cardTitle}>指名料・同伴料（課金）</h3>
+              <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
+                ※按分の重みとは別に、伝票へ課金行を追加します。金額は料金設定
+                （時間帯・席種・キャストのランク）から自動で決まります。
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+                <select value={feeCast} onChange={(e) => setFeeCast(e.target.value)}
+                  aria-label="指名料のキャスト" style={{ ...input, maxWidth: 180 }}>
+                  <option value="">キャストを選択</option>
+                  {[...casts].sort((a, b) => {
+                    const av = nomWeights[a.id] > 0 ? 0 : 1, bv = nomWeights[b.id] > 0 ? 0 : 1;
+                    return av - bv || a.name.localeCompare(b.name, "ja");
+                  }).map((ca) => (
+                    <option key={ca.id} value={ca.id}>
+                      {nomWeights[ca.id] > 0 ? `★着卓 ${ca.name}` : ca.name}
+                    </option>
+                  ))}
+                </select>
+                <button style={btnDark} disabled={feeDisabled || !feeCast} onClick={() => void addShimeiFee("hon")}>
+                  本指名料を追加
+                </button>
+                <button style={btnLight} disabled={feeDisabled || !feeCast} onClick={() => void addShimeiFee("jonai")}>
+                  場内指名料を追加
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <label style={{ fontSize: 12 }}>同伴人数{" "}
+                  <input type="number" min={1} max={30} value={dohanN}
+                    onChange={(e) => setDohanN(Math.max(1, Number(e.target.value)))}
+                    style={{ ...input, width: 60 }} />
+                </label>
+                <button style={btnLight} disabled={feeDisabled} onClick={() => void addDohanFee()}>
+                  同伴料を追加（単価×人数）
+                </button>
+              </div>
+              {payments.length > 0 && check.status === "open" && (
+                <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
+                  入金済みのため追加できません（入金を取り消すと追加できます）。
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* B1/B2: 席（相席・席移動）＝open 伝票のみ。候補は同店の空席（主open/追加占有を除外）。
             予約 soft 警告つき（裁定 d・拒否しない）。エラーは seatErrJa で日本語表示（握り潰さない）。 */}
