@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090909">
+  <title>NOX | 料金設定</title>
+  <style>
+    :root{
+      --bg:#080808;--panel:#10100f;--panel2:#171714;--panel3:#20201c;
+      --line:#2c2b25;--line2:#3a382f;--gold:#d8ad55;--gold2:#f0cf82;
+      --goldbg:rgba(216,173,85,.1);--text:#f5f1e7;--muted:#99978f;
+      --red:#d86c64;--green:#77ba83;--shadow:0 18px 55px rgba(0,0,0,.35)
+    }
+    *{box-sizing:border-box}html{background:var(--bg);color-scheme:dark}
+    body{margin:0;background:radial-gradient(circle at 82% -15%,rgba(216,173,85,.11),transparent 29%),var(--bg);color:var(--text);font-family:Inter,"Noto Sans JP","Yu Gothic UI",sans-serif;font-size:14px;line-height:1.5}
+    button,input,select{font:inherit}button{color:inherit}.app{min-height:100vh;display:grid;grid-template-columns:238px minmax(0,1fr)}
+    .sidebar{position:sticky;top:0;height:100vh;border-right:1px solid var(--line);background:rgba(10,10,9,.94);padding:26px 18px;display:flex;flex-direction:column;z-index:10}
+    .brand{display:flex;align-items:center;gap:12px;padding:0 10px 28px}.brandmark{width:38px;height:38px;border:1px solid var(--gold);display:grid;place-items:center;transform:rotate(45deg)}.brandmark span{transform:rotate(-45deg);font-family:Georgia,serif;color:var(--gold2);font-size:18px}.brand b{font-family:Georgia,serif;letter-spacing:.28em;font-size:20px}.brand small{display:block;color:var(--muted);font-size:9px;letter-spacing:.18em;margin-top:1px}
+    .navlabel{color:#66645e;font-size:10px;letter-spacing:.16em;padding:8px 12px}.nav button{width:100%;border:0;background:transparent;padding:11px 12px;border-radius:8px;text-align:left;color:#96938b;display:flex;align-items:center;gap:11px;cursor:pointer;margin:2px 0}.nav button:hover{background:#151513;color:#eee}.nav button.active{background:linear-gradient(90deg,rgba(216,173,85,.17),rgba(216,173,85,.03));color:var(--gold2);box-shadow:inset 2px 0 var(--gold)}
+    .nav .ico{width:20px;text-align:center}.sidefoot{margin-top:auto;padding:14px 10px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}.statusdot{width:7px;height:7px;background:var(--green);border-radius:50%;display:inline-block;margin-right:7px;box-shadow:0 0 8px rgba(119,186,131,.6)}
+    main{min-width:0}.topbar{height:72px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 34px;background:rgba(8,8,8,.76);backdrop-filter:blur(12px);position:sticky;top:0;z-index:9}.breadcrumb{color:var(--muted);font-size:12px}.breadcrumb strong{color:var(--text);font-weight:600}.profile{display:flex;align-items:center;gap:11px}.avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--gold2),#765520);color:#17130c;display:grid;place-items:center;font-weight:800}.profile small{color:var(--muted)}
+    .content{max-width:1440px;margin:auto;padding:32px 34px 60px}.page{display:none}.page.active{display:block;animation:fade .2s ease}@keyframes fade{from{opacity:0;transform:translateY(3px)}}
+    .pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:24px}.eyebrow{font-size:10px;color:var(--gold);letter-spacing:.2em;margin-bottom:6px}.pagehead h1{font-size:26px;margin:0 0 4px;font-weight:650;letter-spacing:.02em}.pagehead p{margin:0;color:var(--muted);font-size:13px}.save-state{color:var(--muted);font-size:12px;white-space:nowrap}.check{color:var(--green);margin-right:5px}
+    .btn{height:38px;border:1px solid var(--line2);background:#171715;padding:0 15px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:600;transition:.16s}.btn:hover{border-color:#625e4c;background:#1e1e1a}.btn.primary{background:linear-gradient(135deg,#e2bd6b,#b48634);border-color:#d2a952;color:#17130c;box-shadow:0 6px 18px rgba(216,173,85,.12)}.btn.primary:hover{filter:brightness(1.08)}.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}.btn.danger{color:var(--red);border-color:rgba(216,108,100,.3);background:rgba(216,108,100,.05)}.btn.small{height:32px;padding:0 11px;font-size:12px}.iconbtn{width:34px;height:34px;border-radius:7px;background:transparent;border:1px solid transparent;color:var(--muted);cursor:pointer}.iconbtn:hover{background:var(--panel3);border-color:var(--line2);color:var(--text)}
+    .card{border:1px solid var(--line);border-radius:11px;background:linear-gradient(145deg,rgba(24,24,21,.92),rgba(15,15,14,.97));box-shadow:var(--shadow)}.cardhead{min-height:62px;border-bottom:1px solid var(--line);padding:15px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px}.cardhead h2{font-size:15px;margin:0;font-weight:650}.cardhead p{font-size:11px;color:var(--muted);margin:2px 0 0}.badge{padding:3px 8px;border:1px solid rgba(216,173,85,.28);background:var(--goldbg);color:var(--gold2);font-size:10px;border-radius:20px;white-space:nowrap}
+    .schedule-grid{display:grid;grid-template-columns:minmax(330px,.88fr) minmax(440px,1.12fr);gap:18px;align-items:start}.schedule-list{padding:8px}.schedule-item{display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:7px;padding:13px 10px;border:1px solid transparent;border-radius:8px;cursor:pointer}.schedule-item:hover{background:#1b1b18}.schedule-item.active{border-color:rgba(216,173,85,.4);background:var(--goldbg)}.drag{color:#67655e;letter-spacing:-2px;cursor:grab;font-size:16px}.schedule-item b{display:block;font-size:14px}.schedule-item small{display:block;color:var(--muted);margin-top:2px}.price{color:var(--gold2);font-weight:700;text-align:right}.order-btns{display:flex;gap:2px;justify-content:flex-end;margin-top:4px}.order-btns button{border:0;background:transparent;color:#77736a;padding:0 3px;cursor:pointer}.order-btns button:hover{color:var(--gold)}
+    .editor{padding:20px}.section-title{font-size:11px;color:var(--gold);letter-spacing:.12em;text-transform:uppercase;margin:1px 0 14px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.field{display:flex;flex-direction:column;gap:7px}.field.full{grid-column:1/-1}.field label{color:#bbb8ae;font-size:12px}.inputwrap{position:relative}.inputwrap input,.field select,.field input{width:100%;height:41px;border:1px solid var(--line2);background:#0d0d0c;color:var(--text);border-radius:7px;padding:0 12px;outline:none}.inputwrap input{padding-right:44px}.inputwrap span{position:absolute;right:12px;top:10px;color:var(--muted);font-size:12px}.field input:focus,.field select:focus,.inputwrap input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(216,173,85,.08)}
+    .seg{display:flex;background:#0c0c0b;border:1px solid var(--line);padding:3px;border-radius:7px;gap:2px}.seg label{flex:1}.seg input{position:absolute;opacity:0;pointer-events:none}.seg span{height:32px;display:grid;place-items:center;border-radius:5px;color:var(--muted);cursor:pointer;font-size:12px}.seg input:checked+span{background:var(--panel3);color:var(--gold2);box-shadow:0 1px 4px #000}
+    .divider{height:1px;background:var(--line);margin:20px 0}.actions{display:flex;justify-content:flex-end;gap:9px;margin-top:21px}.preview{margin-top:18px}.preview-body{padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:20px}.preview-controls{display:grid;grid-template-columns:1fr 1fr;gap:12px}.preview-controls .field label{font-size:11px}.receipt{border-left:1px solid var(--line);padding-left:20px}.receipt-row{display:flex;justify-content:space-between;padding:5px 0;color:#b1afa6;font-size:12px}.receipt-row.total{margin-top:7px;padding-top:12px;border-top:1px solid var(--line2);font-size:17px;color:var(--text);font-weight:700}.receipt-row.total span:last-child{color:var(--gold2);font-size:20px}
+    .pricing-toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:15px}.filtertabs{display:flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:8px;background:#0d0d0c}.filtertabs button{border:0;background:transparent;color:var(--muted);padding:7px 12px;border-radius:5px;cursor:pointer}.filtertabs button.active{background:var(--panel3);color:var(--text)}.pricing-list{display:grid;gap:12px}.pricing-card{box-shadow:none}.pricing-main{display:grid;grid-template-columns:190px minmax(0,1fr);min-height:128px}.pricing-name{padding:20px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between}.pricing-name h3{margin:0;font-size:16px}.pricing-name small{color:var(--muted)}.pricing-name .tag{color:var(--gold);font-size:10px;letter-spacing:.1em}.components{padding:15px;display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}.component{position:relative;min-width:165px;flex:1;border:1px solid var(--line);background:#0d0d0c;border-radius:8px;padding:12px}.component-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.component-type{font-size:11px;color:var(--muted)}.component input{width:100%;border:0;border-bottom:1px solid var(--line2);background:transparent;color:var(--text);font-size:17px;font-weight:650;padding:3px 24px 5px 0;outline:none}.component .unit{position:absolute;right:14px;bottom:17px;color:var(--muted);font-size:11px}.remove{border:0;background:transparent;color:#67645d;cursor:pointer}.remove:hover{color:var(--red)}.add-component{min-width:130px;border:1px dashed #444137;background:transparent;color:var(--gold);border-radius:8px;cursor:pointer;padding:14px}.add-component:hover{background:var(--goldbg);border-color:var(--gold)}
+    .reward-separation{padding:16px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:20px;border-color:rgba(216,173,85,.3);background:linear-gradient(110deg,rgba(216,173,85,.1),rgba(15,15,14,.95) 55%)}.reward-separation b{display:block;font-size:13px;color:var(--gold2)}.reward-separation p{margin:3px 0 0;color:var(--muted);font-size:11px}.reward-status{display:flex;align-items:center;gap:8px;white-space:nowrap;color:#c5c1b6;font-size:11px}.charge-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.charge-card{box-shadow:none;overflow:hidden}.charge-top{padding:16px 17px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.charge-top h3{font-size:15px;margin:0 0 3px}.charge-top p{font-size:11px;color:var(--muted);margin:0}.charge-fields{padding:15px 17px;display:grid;grid-template-columns:minmax(150px,1fr) minmax(120px,.7fr) minmax(120px,.7fr);gap:12px}.charge-card.inactive{opacity:.56}.charge-card.inactive .charge-fields{display:none}.rankcard{margin-top:18px}.rankbody{padding:18px}.rank-help{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;color:var(--muted);font-size:11px}.rank-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.rank{display:grid;grid-template-columns:minmax(60px,1fr) minmax(95px,.8fr) 26px;align-items:center;gap:9px;background:#0d0d0c;border:1px solid var(--line2);padding:10px;border-radius:8px}.rank input{width:100%;height:34px;background:#171714;border:1px solid var(--line);border-radius:6px;padding:0 9px;color:var(--text);font-weight:650;outline:none}.rank .surcharge{position:relative}.rank .surcharge input{padding-right:25px;color:var(--gold2);text-align:right}.rank .surcharge span{position:absolute;right:8px;top:8px;color:var(--muted);font-size:11px}
+    .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.setting-card{box-shadow:none}.setting-body{padding:5px 18px}.setting-row{min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:22px;border-bottom:1px solid var(--line)}.setting-row:last-child{border-bottom:0}.setting-info b{font-size:13px;font-weight:600}.setting-info p{margin:3px 0 0;color:var(--muted);font-size:11px;max-width:310px}.compact{width:155px}.compact select,.compact input{height:38px}.switch{position:relative;width:42px;height:24px;flex:none}.switch input{opacity:0}.switch span{position:absolute;inset:0;background:#34332e;border-radius:20px;cursor:pointer;transition:.2s}.switch span:after{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;border-radius:50%;background:#aaa;transition:.2s}.switch input:checked+span{background:#9e772f}.switch input:checked+span:after{transform:translateX(18px);background:#fff1cd}.radio-stack{display:flex;gap:4px}.radio-stack label{cursor:pointer}.radio-stack input{position:absolute;opacity:0}.radio-stack span{display:block;border:1px solid var(--line2);padding:8px 10px;color:var(--muted);font-size:11px}.radio-stack label:first-child span{border-radius:6px 0 0 6px}.radio-stack label:last-child span{border-radius:0 6px 6px 0}.radio-stack input:checked+span{border-color:var(--gold);color:var(--gold2);background:var(--goldbg)}.bottom-save{margin-top:18px;display:flex;align-items:center;justify-content:space-between;padding:17px 19px}.bottom-save p{margin:0;color:var(--muted);font-size:12px}
+    .toast{position:fixed;right:26px;bottom:26px;background:#222119;border:1px solid rgba(216,173,85,.45);box-shadow:var(--shadow);border-radius:9px;padding:13px 17px;display:flex;align-items:center;gap:10px;transform:translateY(25px);opacity:0;pointer-events:none;transition:.25s;z-index:30}.toast.show{transform:translateY(0);opacity:1}.toast i{color:var(--green);font-style:normal}.mobile-menu{display:none}
+    dialog{border:1px solid var(--line2);background:#151513;color:var(--text);border-radius:11px;padding:0;width:min(420px,calc(100vw - 30px));box-shadow:0 30px 100px #000}dialog::backdrop{background:rgba(0,0,0,.72);backdrop-filter:blur(3px)}.modalhead{padding:17px 19px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.modalhead h3{margin:0;font-size:15px}.modalbody{padding:19px}.typegrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.typegrid button{height:74px;border:1px solid var(--line2);background:#0e0e0d;border-radius:8px;color:var(--text);cursor:pointer;text-align:left;padding:12px}.typegrid button:hover{border-color:var(--gold);background:var(--goldbg)}.typegrid b{display:block;font-size:12px}.typegrid small{color:var(--muted)}
+    @media(max-width:1050px){.app{grid-template-columns:84px minmax(0,1fr)}.sidebar{padding:24px 12px}.brand{justify-content:center;padding:0 0 28px}.brand>div:last-child,.navlabel,.nav button span:not(.ico),.sidefoot{display:none}.nav button{justify-content:center}.schedule-grid{grid-template-columns:1fr}.settings-grid{grid-template-columns:1fr}}
+    @media(max-width:720px){.app{display:block}.sidebar{position:fixed;top:0;left:0;right:0;width:auto;height:62px;padding:0 14px;display:flex;flex-direction:row;align-items:center;border:0;border-bottom:1px solid var(--line)}.brand{padding:0;margin-right:14px}.brandmark{width:31px;height:31px}.brand b{font-size:16px}.brand>div:last-child{display:block}.brand small{display:none}.nav{display:flex;margin-left:auto}.nav button{width:42px;height:42px;margin:0;padding:0;justify-content:center}.nav button span:not(.ico){display:none}.topbar{top:62px;height:53px;padding:0 17px}.profile div:last-child{display:none}.content{padding:22px 15px 45px;margin-top:62px}.pagehead{align-items:flex-start}.pagehead h1{font-size:22px}.pagehead .save-state{display:none}.formgrid,.preview-body,.preview-controls,.charge-grid,.charge-fields,.rank-list{grid-template-columns:1fr}.receipt{border:0;border-top:1px solid var(--line);padding:16px 0 0}.pricing-toolbar{align-items:stretch;flex-direction:column}.filtertabs{overflow:auto}.filtertabs button{white-space:nowrap}.pricing-main{grid-template-columns:1fr}.pricing-name{border:0;border-bottom:1px solid var(--line);padding:15px;display:block}.pricing-name small{margin-left:8px}.components{padding:12px}.component{min-width:135px}.reward-separation{align-items:flex-start;flex-direction:column}.settings-grid{gap:12px}.setting-row{align-items:flex-start;flex-direction:column;padding:16px 0;gap:11px}.compact{width:100%}.bottom-save{align-items:flex-start;gap:14px}.bottom-save p{max-width:55%}.toast{left:15px;right:15px;bottom:15px}.cardhead{padding:13px 15px}.editor{padding:16px}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brandmark"><span>N</span></div><div><b>NOX</b><small>MANAGEMENT</small></div></div>
+    <div class="navlabel">PRICING SETTINGS</div>
+    <nav class="nav" aria-label="料金設定メニュー">
+      <button class="active" data-page="schedule"><span class="ico">◷</span><span>時間帯料金</span></button>
+      <button data-page="base"><span class="ico">◇</span><span>基本料金</span></button>
+      <button data-page="rules"><span class="ico">⌁</span><span>会計ルール</span></button>
+    </nav>
+    <div class="sidefoot"><span class="statusdot"></span>設定は正常に同期されています</div>
+  </aside>
+  <main>
+    <header class="topbar"><div class="breadcrumb">店舗設定&nbsp; / &nbsp;<strong id="crumb">時間帯料金</strong></div><div class="profile"><div class="avatar">A</div><div><strong>管理者</strong><small>　銀座本店</small></div></div></header>
+    <div class="content">
+      <section class="page active" id="schedule">
+        <div class="pagehead"><div><div class="eyebrow">TIME-BASED PRICING</div><h1>時間帯料金</h1><p>時間帯や曜日、席種ごとのセット料金を設定します。</p></div><div class="save-state"><span class="check">●</span>すべての変更を保存済み</div></div>
+        <div class="schedule-grid">
+          <div class="card">
+            <div class="cardhead"><div><h2>料金スケジュール</h2><p>上から順に優先して適用されます</p></div><button class="btn small" id="addSchedule">＋ 時間帯追加</button></div>
+            <div class="schedule-list" id="scheduleList"></div>
+          </div>
+          <div class="card">
+            <div class="cardhead"><div><h2>スケジュール編集</h2><p id="editSubtitle">20:00〜21:00 の設定</p></div><span class="badge">編集中</span></div>
+            <form class="editor" id="scheduleForm">
+              <div class="section-title">適用条件</div>
+              <div class="formgrid">
+                <div class="field"><label for="startTime">開始時刻</label><input id="startTime" type="time" value="20:00"></div>
+                <div class="field"><label for="endTime">終了時刻</label><input id="endTime" type="text" value="21:00" placeholder="LAST も入力できます"></div>
+                <div class="field"><label for="seat">席種</label><select id="seat"><option>全席種</option><option>メイン</option><option>VIP</option><option>カウンター</option></select></div>
+                <div class="field"><label>曜日</label><div class="seg"><label><input type="radio" name="day" value="毎日" checked><span>毎日</span></label><label><input type="radio" name="day" value="平日"><span>平日</span></label><label><input type="radio" name="day" value="金・土"><span>金・土</span></label></div></div>
+              </div>
+              <div class="divider"></div><div class="section-title">料金</div>
+              <div class="formgrid">
+                <div class="field"><label for="setPrice">セット料金（60分）</label><div class="inputwrap"><input id="setPrice" type="number" value="5000"><span>円</span></div></div>
+                <div class="field"><label for="extendPrice">延長料金（30分）</label><div class="inputwrap"><input id="extendPrice" type="number" value="3000"><span>円</span></div></div>
+                <div class="field"><label for="companionPrice">同伴料金（1名）</label><div class="inputwrap"><input id="companionPrice" type="number" value="4000"><span>円</span></div></div>
+                <div class="field"><label for="serviceRate">サービス料</label><div class="inputwrap"><input id="serviceRate" type="number" value="20"><span>%</span></div></div>
+              </div>
+              <div class="actions"><button class="btn danger" type="button" id="deleteSchedule">削除</button><button class="btn primary" type="submit">変更を保存</button></div>
+            </form>
+          </div>
+        </div>
+        <div class="card preview">
+          <div class="cardhead"><div><h2>料金プレビュー</h2><p>条件を変えると会計イメージを即時確認できます</p></div><span class="badge">LIVE</span></div>
+          <div class="preview-body">
+            <div class="preview-controls">
+              <div class="field"><label for="pvEntry">入店</label><input id="pvEntry" type="time" value="20:00"></div><div class="field"><label for="pvExit">退店</label><input id="pvExit" type="time" value="22:40"></div>
+              <div class="field"><label for="pvPeople">人数</label><select id="pvPeople"><option>1名</option><option>2名</option><option selected>3名</option><option>4名</option></select></div><div class="field"><label for="pvCompanion">同伴</label><select id="pvCompanion"><option>なし</option><option selected>1名</option><option>2名</option></select></div>
+            </div>
+            <div class="receipt" id="receipt"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="base">
+        <div class="pagehead"><div><div class="eyebrow">BASE CHARGES</div><h1>基本料金</h1><p>お客様の伝票に加算する基本料金と、ランク別の追加料金を設定します。</p></div><div class="save-state"><span class="check">●</span>すべての変更を保存済み</div></div>
+        <div class="card reward-separation"><div><b>キャスト報酬とは分けて管理されています</b><p>バック・ポイント・歩合・スライド・達成ボーナスは「キャスト・報酬 ＞ 待遇プラン」で設定済みです。</p></div><div class="reward-status"><span class="statusdot"></span>報酬設定 12コンポーネント</div></div>
+        <div class="pricing-toolbar"><div class="filtertabs" role="tablist" aria-label="料金区分"><button class="active">すべて</button><button>指名</button><button>来店</button><button>その他</button></div><button class="btn primary" id="addPriceItem">＋ 料金項目を追加</button></div>
+        <div class="charge-grid" id="pricingList"></div>
+        <div class="card rankcard"><div class="cardhead"><div><h2>キャストランク別料金</h2><p>基本の指名料金に加算する、お客様向けのランク料金です</p></div><button class="btn small" id="addRank">＋ ランク追加</button></div><div class="rankbody"><div class="rank-help"><span>ランク名と本指名・場内指名の追加料金を編集できます。</span><span>表示順に適用</span></div><div class="rank-list" id="rankList"></div></div></div>
+        <div class="card bottom-save"><p>キャストへの支給額には影響しません。新しく開く伝票から適用されます。</p><button class="btn primary save-all">基本料金を保存</button></div>
+      </section>
+
+      <section class="page" id="rules">
+        <div class="pagehead"><div><div class="eyebrow">ACCOUNTING RULES</div><h1>会計ルール</h1><p>営業日、税・サービス料、端数処理などの計算基準を管理します。</p></div><div class="save-state"><span class="check">●</span>すべての変更を保存済み</div></div>
+        <div class="settings-grid">
+          <div class="card setting-card"><div class="cardhead"><div><h2>営業日・時間計算</h2><p>伝票の日付と時間料金の基準</p></div><span class="badge">DATE & TIME</span></div><div class="setting-body">
+            <div class="setting-row"><div class="setting-info"><b>営業日の切替時刻</b><p>この時刻までは前日の売上として集計します。</p></div><div class="field compact"><select><option>05:00</option><option selected>06:00</option><option>07:00</option><option>08:00</option></select></div></div>
+            <div class="setting-row"><div class="setting-info"><b>時間課金の確定</b><p>料金表をどのタイミングで固定するか選択します。</p></div><div class="radio-stack"><label><input type="radio" name="timing" checked><span>伝票OPEN時</span></label><label><input type="radio" name="timing"><span>会計時</span></label></div></div>
+            <div class="setting-row"><div class="setting-info"><b>自動延長</b><p>セット時間超過時に延長料金を自動追加します。</p></div><label class="switch"><input type="checkbox" checked><span></span></label></div>
+          </div>
+          <div class="card setting-card"><div class="cardhead"><div><h2>税・サービス料</h2><p>伝票に加算する料率と計算順</p></div><span class="badge">TAX</span></div><div class="setting-body">
+            <div class="setting-row"><div class="setting-info"><b>サービス料</b><p>小計に対して加算される店舗サービス料です。</p></div><div class="field compact"><div class="inputwrap"><input type="number" value="20"><span>%</span></div></div></div>
+            <div class="setting-row"><div class="setting-info"><b>カード手数料</b><p>カード決済の場合のみ加算されます。</p></div><div class="field compact"><div class="inputwrap"><input type="number" value="5"><span>%</span></div></div></div>
+            <div class="setting-row"><div class="setting-info"><b>消費税</b><p>内税・外税の扱いを選択します。</p></div><div class="field compact"><select><option>内税（10%）</option><option selected>外税（10%）</option><option>適用しない</option></select></div></div>
+          </div>
+          <div class="card setting-card"><div class="cardhead"><div><h2>端数・精算</h2><p>最終金額の丸めと割引処理</p></div><span class="badge">ROUNDING</span></div><div class="setting-body">
+            <div class="setting-row"><div class="setting-info"><b>端数処理</b><p>最終合計に対して端数を処理します。</p></div><div class="field compact"><select><option>1円単位</option><option>10円単位</option><option selected>100円単位</option><option>1,000円単位</option></select></div></div>
+            <div class="setting-row"><div class="setting-info"><b>処理方法</b><p>指定単位未満の金額の扱いです。</p></div><div class="field compact"><select><option selected>切り上げ</option><option>切り捨て</option><option>四捨五入</option></select></div></div>
+            <div class="setting-row"><div class="setting-info"><b>値引きを税計算前に適用</b><p>OFFの場合は税込合計から値引きします。</p></div><label class="switch"><input type="checkbox" checked><span></span></label></div>
+          </div>
+          <div class="card setting-card"><div class="cardhead"><div><h2>確認・権限</h2><p>誤操作を防ぐ会計フロー</p></div><span class="badge">CONTROL</span></div><div class="setting-body">
+            <div class="setting-row"><div class="setting-info"><b>会計確定前の確認</b><p>確定前に内訳確認画面を表示します。</p></div><label class="switch"><input type="checkbox" checked><span></span></label></div>
+            <div class="setting-row"><div class="setting-info"><b>締め後の伝票修正</b><p>管理者のみ過去伝票を修正できます。</p></div><div class="field compact"><select><option>許可しない</option><option selected>管理者のみ</option><option>すべて許可</option></select></div></div>
+            <div class="setting-row"><div class="setting-info"><b>監査ログ</b><p>料金・伝票の変更履歴を90日間保存します。</p></div><label class="switch"><input type="checkbox" checked><span></span></label></div>
+          </div>
+        </div>
+        <div class="card bottom-save"><p>変更内容は保存後、新しく開く伝票から反映されます。</p><button class="btn primary save-all">会計ルールを保存</button></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"><i>●</i><span>変更を保存しました</span></div>
+<script>
+  const yen=n=>new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY',maximumFractionDigits:0}).format(n);
+  const schedules=[
+    {start:'20:00',end:'21:00',seat:'全席種',day:'毎日',set:5000,extend:3000,companion:4000,service:20},
+    {start:'21:00',end:'23:00',seat:'VIP',day:'金・土',set:8000,extend:4000,companion:4000,service:20},
+    {start:'23:00',end:'LAST',seat:'全席種',day:'毎日',set:7000,extend:3500,companion:5000,service:20}
+  ];
+  let selectedSchedule=0;
+  const el=id=>document.getElementById(id);
+  function renderSchedules(){
+    el('scheduleList').innerHTML=schedules.map((s,i)=>`<div class="schedule-item ${i===selectedSchedule?'active':''}" draggable="true" data-index="${i}"><span class="drag">⠿</span><div><b>${s.start}〜${s.end}</b><small>${s.seat} ・ ${s.day}</small></div><div><div class="price">${yen(s.set)}</div><div class="order-btns"><button aria-label="上へ" data-move="-1">↑</button><button aria-label="下へ" data-move="1">↓</button></div></div></div>`).join('');
+    document.querySelectorAll('.schedule-item').forEach(item=>{
+      item.addEventListener('click',e=>{if(e.target.dataset.move)return;selectedSchedule=+item.dataset.index;loadSchedule();renderSchedules()});
+      item.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',item.dataset.index));
+      item.addEventListener('dragover',e=>e.preventDefault());
+      item.addEventListener('drop',e=>{e.preventDefault();const from=+e.dataTransfer.getData('text/plain'),to=+item.dataset.index;if(from===to)return;const [m]=schedules.splice(from,1);schedules.splice(to,0,m);selectedSchedule=to;renderSchedules();notify('優先順位を変更しました')});
+    });
+    document.querySelectorAll('[data-move]').forEach(b=>b.onclick=e=>{e.stopPropagation();const i=+b.closest('.schedule-item').dataset.index,j=i+(+b.dataset.move);if(j<0||j>=schedules.length)return;[schedules[i],schedules[j]]=[schedules[j],schedules[i]];selectedSchedule=j;renderSchedules();notify('優先順位を変更しました')});
+  }
+  function loadSchedule(){const s=schedules[selectedSchedule];el('startTime').value=s.start;el('endTime').value=s.end;el('seat').value=s.seat;el('setPrice').value=s.set;el('extendPrice').value=s.extend;el('companionPrice').value=s.companion;el('serviceRate').value=s.service;document.querySelector(`[name="day"][value="${s.day}"]`).checked=true;el('editSubtitle').textContent=`${s.start}〜${s.end} の設定`;updateReceipt()}
+  el('scheduleForm').onsubmit=e=>{e.preventDefault();const s=schedules[selectedSchedule];Object.assign(s,{start:el('startTime').value,end:el('endTime').value,seat:el('seat').value,day:document.querySelector('[name="day"]:checked').value,set:+el('setPrice').value,extend:+el('extendPrice').value,companion:+el('companionPrice').value,service:+el('serviceRate').value});renderSchedules();loadSchedule();notify('時間帯料金を保存しました')};
+  el('addSchedule').onclick=()=>{schedules.push({start:'00:00',end:'LAST',seat:'全席種',day:'毎日',set:5000,extend:3000,companion:4000,service:20});selectedSchedule=schedules.length-1;renderSchedules();loadSchedule();notify('新しい時間帯を追加しました')};
+  el('deleteSchedule').onclick=()=>{if(schedules.length===1)return notify('最後の時間帯は削除できません');schedules.splice(selectedSchedule,1);selectedSchedule=Math.max(0,selectedSchedule-1);renderSchedules();loadSchedule();notify('時間帯を削除しました')};
+  function updateReceipt(){const s=schedules[selectedSchedule],people=parseInt(el('pvPeople').value),comp=parseInt(el('pvCompanion').value)||0;let [sh,sm]=el('pvEntry').value.split(':').map(Number),[eh,em]=el('pvExit').value.split(':').map(Number);let mins=(eh*60+em)-(sh*60+sm);if(mins<0)mins+=1440;const extensions=Math.max(0,Math.ceil((mins-60)/30)),base=s.set*people,ext=s.extend*extensions*people,compFee=s.companion*comp,subtotal=base+ext+compFee,service=Math.ceil(subtotal*s.service/100/100)*100,total=subtotal+service;el('receipt').innerHTML=`<div class="receipt-row"><span>セット料金 × ${people}名</span><span>${yen(base)}</span></div><div class="receipt-row"><span>延長 ${extensions?extensions*30+'分':'なし'}</span><span>${yen(ext)}</span></div><div class="receipt-row"><span>同伴料金 × ${comp}名</span><span>${yen(compFee)}</span></div><div class="receipt-row"><span>サービス料 ${s.service}%</span><span>${yen(service)}</span></div><div class="receipt-row total"><span>概算合計</span><span>${yen(total)}</span></div>`}
+  ['pvEntry','pvExit','pvPeople','pvCompanion','setPrice','extendPrice','companionPrice','serviceRate'].forEach(id=>el(id).addEventListener('input',updateReceipt));
+
+  const pricing=[
+    {name:'本指名料金',category:'指名',note:'指名キャスト1名・1セットごと',price:3000,unit:'1セット',tax:'課税',active:true},
+    {name:'場内指名料金',category:'指名',note:'場内指名キャスト1名・1セットごと',price:2000,unit:'1セット',tax:'課税',active:true},
+    {name:'同伴料金',category:'来店',note:'同伴者1名・1来店ごと',price:4000,unit:'1来店',tax:'課税',active:true},
+    {name:'入場料金',category:'来店',note:'お客様1名・1来店ごと',price:0,unit:'1来店',tax:'課税',active:false},
+    {name:'TAX込み調整',category:'その他',note:'指定伝票のみ手動で適用',price:0,unit:'1伝票',tax:'非課税',active:false}
+  ];
+  function renderPricing(filter='すべて'){
+    el('pricingList').innerHTML=pricing.map((p,i)=>({p,i})).filter(x=>filter==='すべて'||x.p.category===filter).map(({p,i})=>`<div class="card charge-card ${p.active?'':'inactive'}"><div class="charge-top"><div><h3>${p.name}</h3><p>${p.note}</p></div><label class="switch" title="有効／無効"><input type="checkbox" data-toggle-charge="${i}" ${p.active?'checked':''}><span></span></label></div><div class="charge-fields"><div class="field"><label>請求金額</label><div class="inputwrap"><input type="number" value="${p.price}" data-price="${i}"><span>円</span></div></div><div class="field"><label>課金単位</label><select data-unit="${i}"><option ${p.unit==='1セット'?'selected':''}>1セット</option><option ${p.unit==='1来店'?'selected':''}>1来店</option><option ${p.unit==='1伝票'?'selected':''}>1伝票</option></select></div><div class="field"><label>税区分</label><select data-tax="${i}"><option ${p.tax==='課税'?'selected':''}>課税</option><option ${p.tax==='非課税'?'selected':''}>非課税</option></select></div></div></div>`).join('');
+    document.querySelectorAll('[data-toggle-charge]').forEach(input=>input.onchange=()=>{pricing[+input.dataset.toggleCharge].active=input.checked;renderPricing(filter);notify(input.checked?'料金項目を有効にしました':'料金項目を無効にしました')});
+    document.querySelectorAll('[data-price]').forEach(input=>input.oninput=()=>pricing[+input.dataset.price].price=+input.value);
+    document.querySelectorAll('[data-unit]').forEach(input=>input.onchange=()=>pricing[+input.dataset.unit].unit=input.value);
+    document.querySelectorAll('[data-tax]').forEach(input=>input.onchange=()=>pricing[+input.dataset.tax].tax=input.value);
+  }
+  document.querySelectorAll('.filtertabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.filtertabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderPricing(b.textContent)});
+  el('addPriceItem').onclick=()=>{pricing.push({name:'新しい料金項目',category:'その他',note:'内容を確認して有効にしてください',price:1000,unit:'1伝票',tax:'課税',active:true});document.querySelectorAll('.filtertabs button').forEach(x=>x.classList.toggle('active',x.textContent==='すべて'));renderPricing();notify('料金項目を追加しました')};
+  const ranks=[['S',3000],['A',2000],['B',1000],['レギュラー',0],['新人',0]];
+  function renderRanks(){el('rankList').innerHTML=ranks.map((r,i)=>`<div class="rank"><input value="${r[0]}" aria-label="ランク名"><div class="surcharge"><input type="number" value="${r[1]}" aria-label="追加料金"><span>円</span></div><button class="remove" data-rank="${i}" aria-label="ランクを削除">×</button></div>`).join('');document.querySelectorAll('[data-rank]').forEach(b=>b.onclick=()=>{ranks.splice(+b.dataset.rank,1);renderRanks();notify('ランクを削除しました')})}
+  el('addRank').onclick=()=>{ranks.push(['新規ランク',0]);renderRanks();notify('ランクを追加しました')};
+  document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));b.classList.add('active');el(b.dataset.page).classList.add('active');el('crumb').textContent=b.querySelector('span:last-child').textContent;window.scrollTo({top:0,behavior:'smooth'})});
+  let toastTimer;function notify(message){el('toast').querySelector('span').textContent=message;el('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el('toast').classList.remove('show'),2200)}
+  document.querySelectorAll('.save-all').forEach(b=>b.onclick=()=>notify(b.textContent.replace('を保存','を保存しました')));
+  renderSchedules();loadSchedule();renderPricing();renderRanks();
+</script>
+</body>
+</html>
