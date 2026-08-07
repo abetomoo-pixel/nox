@@ -1,0 +1,1346 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NOX | 料金・会計マスタ 改善モック</title>
+<style>
+  :root{
+    --bg:#08090e;
+    --bg-soft:#0d0f16;
+    --sidebar:#0b0c12;
+    --panel:#171922;
+    --panel-2:#1b1e28;
+    --panel-3:#10121a;
+    --line:#2a2d39;
+    --line-soft:#222531;
+    --text:#f5f5f7;
+    --muted:#a5a8b4;
+    --subtle:#747886;
+    --gold:#d3a940;
+    --gold-2:#f0d682;
+    --gold-dim:rgba(211,169,64,.12);
+    --danger:#e37b7b;
+    --danger-dim:rgba(227,123,123,.11);
+    --success:#7ac89a;
+    --success-dim:rgba(122,200,154,.1);
+    --shadow:0 24px 80px rgba(0,0,0,.42);
+    --radius:14px;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
+    font-size:14px;
+    letter-spacing:.01em;
+  }
+  button,input,select{font:inherit}
+  button{color:inherit}
+  input[type="number"]{-moz-appearance:textfield}
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  [hidden]{display:none!important}
+
+  .app{min-height:100vh;background:linear-gradient(180deg,#090a0f 0%,#07080c 100%)}
+
+  .topbar{
+    height:58px;
+    position:fixed;
+    z-index:50;
+    top:0;left:0;right:0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:rgba(8,9,14,.97);
+    border-bottom:1px solid var(--line);
+    backdrop-filter:blur(12px);
+  }
+  .brand{
+    width:196px;
+    height:58px;
+    display:flex;
+    align-items:center;
+    gap:11px;
+    padding:0 18px;
+  }
+  .brand-mark{
+    width:30px;height:30px;
+    display:grid;place-items:center;
+    border:1px solid var(--gold);
+    color:var(--gold-2);
+    border-radius:9px;
+    font-size:14px;
+  }
+  .brand-name{font-size:16px;font-weight:700;line-height:1}
+  .brand-sub{font-size:9px;color:var(--subtle);margin-top:4px;letter-spacing:.04em}
+  .top-actions{display:flex;align-items:center;gap:10px;padding-right:16px}
+  .store-badge{
+    min-width:38px;height:38px;padding:0 9px;
+    border-radius:50%;
+    border:0;
+    background:var(--gold);
+    color:#15110a;
+    font-size:11px;
+    font-weight:800;
+    cursor:pointer;
+  }
+  .logout{
+    height:34px;padding:0 14px;
+    border:1px solid var(--line);
+    border-radius:9px;
+    background:#1b1d26;
+    color:#dddfe6;
+    cursor:pointer;
+  }
+
+  .sidebar{
+    position:fixed;
+    z-index:40;
+    top:58px;bottom:0;left:0;
+    width:196px;
+    background:var(--sidebar);
+    border-right:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    padding:14px 10px 12px;
+  }
+  .nav{display:flex;flex-direction:column;gap:3px}
+  .nav a{
+    position:relative;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-height:34px;
+    padding:0 10px;
+    border-radius:8px;
+    color:#969aa8;
+    text-decoration:none;
+    font-size:12px;
+  }
+  .nav a:hover{background:#11131b;color:#dddfe5}
+  .nav a.active{background:var(--gold-dim);color:var(--gold-2)}
+  .nav a.active:before{
+    content:"";
+    position:absolute;
+    left:-10px;top:7px;bottom:7px;
+    width:3px;
+    border-radius:0 3px 3px 0;
+    background:var(--gold);
+  }
+  .nav-ico{width:18px;text-align:center;color:inherit;font-size:13px;opacity:.9}
+  .sidebar-foot{margin-top:auto;display:flex;align-items:center;gap:9px;padding:8px 7px}
+  .mini-mark{width:28px;height:28px;border-radius:50%;border:1px solid #4b4e5a;display:grid;place-items:center;color:var(--gold-2);font-size:12px}
+  .sidebar-foot span{font-size:10px;color:#777b88}
+
+  .main{
+    margin-left:196px;
+    padding:82px 34px 56px;
+    min-height:100vh;
+  }
+  .content{max-width:1320px;margin:0 auto}
+  .crumbs{display:flex;align-items:center;gap:8px;color:#858997;font-size:12px;margin-bottom:12px}
+  .crumbs b{color:#d8dae1;font-weight:600}
+  .crumbs .arrow{color:#4e5260}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:16px}
+  .page-title{margin:0;font-size:24px;line-height:1.25;letter-spacing:.01em}
+  .page-desc{margin:7px 0 0;color:var(--muted);font-size:12px}
+  .page-actions{display:flex;align-items:center;gap:10px}
+  .save-state{font-size:11px;color:var(--subtle)}
+  .primary{
+    height:38px;padding:0 16px;border:1px solid #e0bb5b;border-radius:9px;
+    background:linear-gradient(180deg,#dfb84f 0%,#c99a2c 100%);
+    color:#181208;font-weight:800;font-size:12px;cursor:pointer;
+    box-shadow:0 7px 18px rgba(193,144,31,.16);
+  }
+  .primary:hover{filter:brightness(1.06)}
+  .primary:active{transform:translateY(1px)}
+  .secondary{
+    height:36px;padding:0 13px;
+    border:1px solid var(--line);
+    border-radius:9px;
+    background:#11131b;
+    color:#c8cad2;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .secondary:hover{border-color:#444855;background:#151821}
+  .ghost{
+    height:34px;padding:0 11px;
+    border:1px solid transparent;
+    border-radius:8px;
+    background:transparent;
+    color:#a9acb7;
+    font-size:11px;
+    cursor:pointer;
+  }
+  .ghost:hover{background:#11131a;color:#e6e7eb}
+  .danger{color:#f0a0a0!important}
+  .danger:hover{background:var(--danger-dim)!important}
+
+  .notice{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding:11px 13px;
+    margin-bottom:15px;
+    border:1px solid rgba(211,169,64,.28);
+    border-radius:10px;
+    background:rgba(211,169,64,.06);
+    color:#c9c1a9;
+    font-size:11px;
+    line-height:1.6;
+  }
+  .notice-mark{
+    width:19px;height:19px;flex:0 0 19px;
+    display:grid;place-items:center;
+    border-radius:50%;
+    background:var(--gold-dim);
+    color:var(--gold-2);
+    font-weight:800;
+  }
+
+  .tabs{
+    display:flex;align-items:center;gap:3px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:16px;
+  }
+  .tab{
+    position:relative;
+    height:41px;
+    padding:0 18px;
+    border:0;
+    background:transparent;
+    color:#8f93a0;
+    cursor:pointer;
+    font-size:12px;
+  }
+  .tab:hover{color:#d8dae0}
+  .tab.active{color:var(--gold-2);font-weight:700}
+  .tab.active:after{
+    content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;
+    background:var(--gold);border-radius:2px 2px 0 0;
+  }
+
+  .panel{
+    background:linear-gradient(180deg,var(--panel) 0%,#15171f 100%);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:0 12px 40px rgba(0,0,0,.18);
+    overflow:hidden;
+  }
+  .panel-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    padding:18px 18px 15px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .panel-title{margin:0;font-size:15px;font-weight:800}
+  .panel-copy{margin:6px 0 0;color:var(--muted);font-size:11px;line-height:1.6}
+  .head-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .compact-select{
+    height:34px;
+    padding:0 30px 0 10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:#11131a;
+    color:#d5d7dd;
+    outline:none;
+    font-size:11px;
+  }
+  .plan-name{
+    display:flex;align-items:center;gap:8px;
+    min-width:160px;height:34px;padding:0 11px;
+    border:1px solid var(--line);border-radius:8px;
+    background:#11131a;color:#d5d7dd;font-size:11px;
+  }
+  .plan-dot{width:7px;height:7px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px var(--success-dim)}
+
+  .rate-layout{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 310px;
+    gap:16px;
+    align-items:start;
+  }
+  .main-stack{display:flex;flex-direction:column;gap:14px}
+  .preview{
+    position:sticky;
+    top:78px;
+  }
+
+  .rule-strip{
+    display:grid;
+    grid-template-columns:1fr 1.25fr 1.25fr 1.25fr;
+    gap:1px;
+    background:var(--line-soft);
+    border-bottom:1px solid var(--line-soft);
+  }
+  .rule-item{
+    min-height:69px;
+    padding:13px 15px;
+    background:#15171f;
+  }
+  .rule-label{color:#7f8390;font-size:10px;margin-bottom:6px}
+  .rule-value{font-size:12px;font-weight:700;color:#e5e6ea}
+  .rule-value small{font-size:10px;color:#8f93a0;font-weight:500;margin-left:5px}
+
+  .timeline{
+    padding:17px 18px 15px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .timeline-title{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin-bottom:13px;
+  }
+  .section-kicker{font-size:11px;font-weight:800;color:#e1e3e8}
+  .demo-badge{
+    display:inline-flex;align-items:center;height:22px;padding:0 8px;
+    border:1px solid rgba(211,169,64,.28);border-radius:999px;
+    background:var(--gold-dim);color:var(--gold-2);font-size:9px;font-weight:700;
+  }
+  .time-axis{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    color:#6f7380;
+    font-size:9px;
+    margin:0 2px 7px;
+  }
+  .time-axis span:nth-child(2),
+  .time-axis span:nth-child(3),
+  .time-axis span:nth-child(4){text-align:center}
+  .time-axis span:last-child{text-align:right}
+  .timeline-track{
+    display:flex;
+    min-height:82px;
+    gap:4px;
+    padding:4px;
+    border:1px solid var(--line);
+    border-radius:11px;
+    background:#10121a;
+    overflow:hidden;
+  }
+  .slot{
+    position:relative;
+    min-width:90px;
+    padding:12px 12px 10px;
+    border:1px solid #343744;
+    border-radius:8px;
+    background:#181a23;
+    text-align:left;
+    cursor:pointer;
+    overflow:hidden;
+  }
+  .slot:hover{border-color:#6f5a28;background:#1b1d26}
+  .slot.active{border-color:#8e7128;background:linear-gradient(180deg,rgba(211,169,64,.15),rgba(211,169,64,.07))}
+  .slot:before{
+    content:"";position:absolute;left:0;right:0;top:0;height:2px;background:#505361;
+  }
+  .slot.active:before{background:var(--gold)}
+  .slot-name{font-size:10px;color:#b9bdc7;font-weight:800;letter-spacing:.04em}
+  .slot-time{font-size:9px;color:#787c89;margin-top:4px}
+  .slot-price{font-size:14px;color:#f3d77c;font-weight:800;margin-top:10px}
+  .slot-sub{font-size:9px;color:#8d919e;margin-top:3px}
+
+  .table-area{padding:0}
+  .table-toolbar{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:13px 18px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .toolbar-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .toolbar-copy{font-size:11px;color:#9da1ad}
+  .day-chip{
+    height:29px;padding:0 9px;border:1px solid var(--line);border-radius:7px;
+    background:#11131a;color:#969aa7;font-size:10px;cursor:pointer;
+  }
+  .day-chip.active{border-color:#806825;background:var(--gold-dim);color:var(--gold-2);font-weight:700}
+  .schedule-table{width:100%;border-collapse:collapse;table-layout:fixed}
+  .schedule-table th{
+    height:38px;padding:0 12px;
+    text-align:left;
+    color:#767a87;
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:.03em;
+    background:#12141c;
+    border-bottom:1px solid var(--line);
+  }
+  .schedule-table td{
+    height:72px;padding:10px 12px;
+    border-bottom:1px solid var(--line-soft);
+    color:#c9cbd2;
+    font-size:11px;
+    vertical-align:middle;
+  }
+  .schedule-table tbody tr{cursor:pointer}
+  .schedule-table tbody tr:hover{background:#191b24}
+  .schedule-table tbody tr:last-child td{border-bottom:0}
+  .time-cell{display:flex;align-items:center;gap:10px}
+  .drag{color:#4f5360;font-size:14px;letter-spacing:-2px}
+  .rate-name{font-size:11px;font-weight:800;color:#e6e7eb}
+  .rate-time{font-size:10px;color:#808491;margin-top:4px}
+  .price-cell strong{display:block;color:#f0d682;font-size:12px}
+  .price-cell span{display:block;color:#7f8390;font-size:9px;margin-top:4px}
+  .unit-cell{color:#afb2bc}
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;
+    height:24px;padding:0 9px;
+    border-radius:999px;
+    border:1px solid #6e5c25;
+    color:#e6c968;
+    background:rgba(211,169,64,.06);
+    font-size:9px;font-weight:700;
+  }
+  .badge:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--gold)}
+  .more{
+    width:30px;height:30px;border:0;border-radius:7px;background:transparent;color:#7c808d;cursor:pointer;font-size:16px;
+  }
+  .more:hover{background:#22242e;color:#e5e6ea}
+  .table-foot{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:13px 18px;
+    border-top:1px solid var(--line-soft);
+  }
+  .foot-note{font-size:10px;color:#7c808d;line-height:1.5}
+
+  .preview .panel-head{padding-bottom:13px}
+  .preview-body{padding:15px}
+  .preview-fields{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field.full{grid-column:1/-1}
+  .field label{font-size:9px;color:#818592;font-weight:700}
+  .input,.select-input{
+    width:100%;height:36px;
+    padding:0 10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:#10121a;
+    color:#e3e4e8;
+    outline:none;
+    font-size:11px;
+  }
+  .input:focus,.select-input:focus{border-color:#826a28;box-shadow:0 0 0 3px rgba(211,169,64,.07)}
+  .stepper{
+    display:grid;grid-template-columns:34px 1fr 34px;
+    height:36px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#10121a;
+  }
+  .stepper button{border:0;background:#171922;color:#aeb1bb;cursor:pointer}
+  .stepper button:hover{background:#20232c;color:#fff}
+  .stepper input{width:100%;border:0;background:transparent;color:#e8e9ec;text-align:center;outline:none;font-size:11px}
+  .toggle-line{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:#10121a;
+    font-size:10px;color:#b8bbc5;
+  }
+  .switch{position:relative;width:35px;height:20px;border:0;background:#343743;border-radius:999px;cursor:pointer;padding:0;transition:.2s}
+  .switch:before{content:"";position:absolute;width:14px;height:14px;left:3px;top:3px;border-radius:50%;background:#f6f6f7;transition:.2s}
+  .switch.on{background:var(--gold)}
+  .switch.on:before{left:18px;background:#17130a}
+  .applied{
+    margin-top:13px;padding:11px;
+    border:1px solid rgba(211,169,64,.28);
+    border-radius:9px;
+    background:rgba(211,169,64,.06);
+  }
+  .applied-label{font-size:9px;color:#95865a}
+  .applied-name{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:5px}
+  .applied-name strong{font-size:12px;color:#f0d682}
+  .applied-name span{font-size:9px;color:#8e919c}
+  .breakdown{margin-top:13px;padding-top:4px}
+  .break-row{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+    padding:7px 0;color:#9fa3ae;font-size:10px;
+  }
+  .break-row strong{color:#e4e5e9;font-size:10px;white-space:nowrap}
+  .break-row small{display:block;color:#6f7380;font-size:9px;margin-top:3px}
+  .break-row.subtotal{margin-top:4px;padding-top:11px;border-top:1px solid var(--line-soft)}
+  .total{
+    display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
+    margin-top:8px;padding-top:13px;border-top:1px solid var(--line);
+  }
+  .total span{font-size:10px;color:#9a9eaa}
+  .total strong{font-size:21px;color:#f1d475;line-height:1}
+  .preview-note{margin:11px 0 0;color:#6f7380;font-size:9px;line-height:1.5}
+
+  .empty-rule{
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:15px 17px;
+  }
+  .empty-rule-title{font-size:11px;font-weight:700;color:#d8dae0}
+  .empty-rule-copy{margin-top:4px;color:#7f8390;font-size:10px}
+
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .setting-card{padding:18px}
+  .setting-card h3{margin:0;font-size:14px}
+  .setting-card p{margin:6px 0 16px;color:#858996;font-size:10px;line-height:1.6}
+  .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+  .form-grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .form-field{display:flex;flex-direction:column;gap:7px}
+  .form-field label{font-size:10px;color:#8e929e}
+  .money-wrap,.suffix-wrap{position:relative}
+  .money-wrap:before{content:"¥";position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#717582;font-size:11px}
+  .money-wrap input{padding-left:26px}
+  .suffix-wrap span{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:9px;color:#777b88}
+  .suffix-wrap input{padding-right:37px}
+  .form-input,.form-select{
+    width:100%;height:40px;padding:0 11px;border:1px solid var(--line);border-radius:9px;background:#10121a;color:#e4e5e9;outline:none;font-size:12px;
+  }
+  .inline-message{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    margin-top:14px;padding:12px;border:1px solid var(--line-soft);border-radius:9px;background:#12141b;
+  }
+  .inline-message strong{font-size:10px}
+  .inline-message span{display:block;margin-top:4px;color:#7f8390;font-size:9px}
+  .segmented{display:flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:9px;background:#10121a}
+  .segmented button{flex:1;height:31px;border:0;border-radius:6px;background:transparent;color:#8f939f;font-size:10px;cursor:pointer}
+  .segmented button.active{background:var(--gold-dim);color:var(--gold-2);font-weight:700}
+  .rule-list{display:flex;flex-direction:column}
+  .rule-row{
+    display:grid;grid-template-columns:1fr 250px;gap:18px;align-items:center;
+    padding:15px 18px;border-bottom:1px solid var(--line-soft);
+  }
+  .rule-row:last-child{border-bottom:0}
+  .rule-row strong{font-size:11px}
+  .rule-row p{margin:5px 0 0;color:#7f8390;font-size:9px;line-height:1.5}
+
+  .overlay{
+    position:fixed;z-index:90;inset:0;background:rgba(0,0,0,.54);opacity:0;pointer-events:none;transition:.22s;
+  }
+  .overlay.open{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;z-index:100;top:0;right:0;bottom:0;width:470px;max-width:94vw;
+    background:#12141b;border-left:1px solid var(--line);box-shadow:var(--shadow);
+    transform:translateX(100%);transition:.25s ease;
+    display:flex;flex-direction:column;
+  }
+  .drawer.open{transform:translateX(0)}
+  .drawer-head{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:15px;
+    padding:19px 20px 16px;border-bottom:1px solid var(--line);
+  }
+  .drawer-title{margin:0;font-size:17px}
+  .drawer-copy{margin:5px 0 0;color:#7f8390;font-size:10px}
+  .close{
+    width:34px;height:34px;border:1px solid var(--line);border-radius:8px;background:#181a23;color:#aaaeba;cursor:pointer;font-size:17px;
+  }
+  .drawer-body{flex:1;overflow:auto;padding:18px 20px}
+  .drawer-section{padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid var(--line-soft)}
+  .drawer-section:last-child{border-bottom:0}
+  .drawer-section h4{margin:0 0 13px;font-size:11px;color:#dbdde2}
+  .drawer-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .drawer-grid .full{grid-column:1/-1}
+  .helper{margin-top:6px;color:#6f7380;font-size:9px;line-height:1.5}
+  .days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .day-btn{height:34px;border:1px solid var(--line);border-radius:7px;background:#10121a;color:#8e929e;font-size:10px;cursor:pointer}
+  .day-btn.active{border-color:#816926;background:var(--gold-dim);color:#efd475;font-weight:700}
+  .drawer-foot{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:13px 20px;border-top:1px solid var(--line);background:#101219;
+  }
+  .drawer-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+
+  .toast{
+    position:fixed;z-index:130;left:50%;bottom:28px;transform:translate(-50%,18px);
+    min-width:260px;padding:11px 14px;border:1px solid #3d414d;border-radius:9px;
+    background:#1a1d25;color:#e4e5e9;box-shadow:0 18px 46px rgba(0,0,0,.4);
+    opacity:0;pointer-events:none;transition:.2s;font-size:11px;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .toast strong{color:#f0d682}
+
+  @media (max-width:1080px){
+    .rate-layout{grid-template-columns:1fr}
+    .preview{position:static}
+    .preview-fields{grid-template-columns:repeat(4,1fr)}
+    .field.full{grid-column:auto}
+    .settings-grid{grid-template-columns:1fr}
+  }
+  @media (max-width:820px){
+    .topbar .brand{width:auto}
+    .sidebar{display:none}
+    .main{margin-left:0;padding:78px 16px 40px}
+    .page-head{align-items:flex-start;flex-direction:column}
+    .page-actions{width:100%;justify-content:flex-end}
+    .rule-strip{grid-template-columns:1fr 1fr}
+    .schedule-table{min-width:840px}
+    .table-area{overflow-x:auto}
+    .preview-fields{grid-template-columns:1fr 1fr}
+    .form-grid,.form-grid.cols-3{grid-template-columns:1fr}
+    .rule-row{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">N</div>
+      <div>
+        <div class="brand-name">NOX</div>
+        <div class="brand-sub">NOX-VERIFY-A1</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="store-badge">店長</button>
+      <button class="logout">ログアウト</button>
+    </div>
+  </header>
+
+  <aside class="sidebar">
+    <nav class="nav">
+      <a href="#"><span class="nav-ico">⌂</span>ホーム</a>
+      <a href="#"><span class="nav-ico">▥</span>営業</a>
+      <a href="#"><span class="nav-ico">▣</span>レジ</a>
+      <a href="#"><span class="nav-ico">◷</span>日報</a>
+      <a href="#"><span class="nav-ico">♙</span>スタッフ</a>
+      <a href="#"><span class="nav-ico">▤</span>シフト</a>
+      <a href="#"><span class="nav-ico">◇</span>キャスト</a>
+      <a href="#"><span class="nav-ico">♟</span>スタッフ</a>
+      <a href="#"><span class="nav-ico">¥</span>給与</a>
+      <a href="#"><span class="nav-ico">◎</span>顧客</a>
+      <a href="#"><span class="nav-ico">⌁</span>分析</a>
+      <a href="#"><span class="nav-ico">▱</span>店舗</a>
+      <a href="#" class="active"><span class="nav-ico">⚙</span>マスタ</a>
+      <a href="#"><span class="nav-ico">・</span>お知らせ</a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="mini-mark">N</div>
+      <span>NOX SYSTEM</span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="content">
+      <div class="crumbs"><span>マスタ</span><span class="arrow">›</span><b>料金・会計</b></div>
+
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">料金・会計</h1>
+          <p class="page-desc">時間帯ごとのセット・延長・同伴料金と、会計時の共通ルールを管理します。</p>
+        </div>
+        <div class="page-actions">
+          <span class="save-state" id="saveState">保存済み</span>
+          <button class="primary" id="saveAll">変更を保存</button>
+        </div>
+      </div>
+
+      <div class="notice">
+        <div class="notice-mark">i</div>
+        <div>変更した料金は、保存後に開始する新しい伝票から適用されます。営業中・確定済みの伝票金額は変更されません。</div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="timed">時間帯料金</button>
+        <button class="tab" data-tab="base">基本料金</button>
+        <button class="tab" data-tab="checkout">会計ルール</button>
+      </div>
+
+      <section class="tab-panel" id="tab-timed">
+        <div class="rate-layout">
+          <div class="main-stack">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2 class="panel-title">通常営業の料金スケジュール</h2>
+                  <p class="panel-copy">営業時間を区切り、セット・延長・同伴料金を時間帯ごとに設定します。</p>
+                </div>
+                <div class="head-tools">
+                  <div class="plan-name"><span class="plan-dot"></span>通常営業</div>
+                  <button class="secondary" id="addPlan">曜日別プランを追加</button>
+                </div>
+              </div>
+
+              <div class="rule-strip">
+                <div class="rule-item">
+                  <div class="rule-label">営業日の区切り</div>
+                  <div class="rule-value">翌 06:00<small>まで同一営業日</small></div>
+                </div>
+                <div class="rule-item">
+                  <div class="rule-label">セット料金の判定</div>
+                  <div class="rule-value">各セット開始時刻</div>
+                </div>
+                <div class="rule-item">
+                  <div class="rule-label">延長料金の判定</div>
+                  <div class="rule-value">延長開始時刻</div>
+                </div>
+                <div class="rule-item">
+                  <div class="rule-label">同伴料金の判定</div>
+                  <div class="rule-value">入店時刻</div>
+                </div>
+              </div>
+
+              <div class="timeline">
+                <div class="timeline-title">
+                  <div class="section-kicker">料金の切り替わり</div>
+                  <span class="demo-badge">表示金額はサンプル</span>
+                </div>
+                <div class="time-axis">
+                  <span>18:00</span><span>21:00</span><span>00:00</span><span>03:00</span><span>翌 06:00</span>
+                </div>
+                <div class="timeline-track" id="timelineTrack"></div>
+              </div>
+
+              <div class="table-area">
+                <div class="table-toolbar">
+                  <div class="toolbar-left">
+                    <span class="toolbar-copy">適用日</span>
+                    <button class="day-chip active">全曜日</button>
+                    <button class="day-chip">月〜木</button>
+                    <button class="day-chip">金</button>
+                    <button class="day-chip">土</button>
+                    <button class="day-chip">日・祝</button>
+                  </div>
+                  <button class="secondary" id="addRate">＋ 時間帯を追加</button>
+                </div>
+
+                <table class="schedule-table">
+                  <colgroup>
+                    <col style="width:25%">
+                    <col style="width:16%">
+                    <col style="width:16%">
+                    <col style="width:15%">
+                    <col style="width:10%">
+                    <col style="width:11%">
+                    <col style="width:7%">
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>時間帯</th>
+                      <th>セット料金</th>
+                      <th>延長料金</th>
+                      <th>同伴料金</th>
+                      <th>料金単位</th>
+                      <th>状態</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="scheduleBody"></tbody>
+                </table>
+
+                <div class="table-foot">
+                  <div class="foot-note">時刻が重複するルールは登録できません。未設定の時間帯は「基本料金」が適用されます。</div>
+                  <button class="ghost" id="openBase">基本料金を確認 →</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel empty-rule">
+              <div>
+                <div class="empty-rule-title">曜日・イベント別に料金を変える場合</div>
+                <div class="empty-rule-copy">金曜・土曜・祝前日などの例外プランを追加し、通常営業より優先して適用できます。</div>
+              </div>
+              <button class="secondary" id="addException">例外プランを追加</button>
+            </section>
+          </div>
+
+          <aside class="panel preview">
+            <div class="panel-head">
+              <div>
+                <h2 class="panel-title">料金プレビュー</h2>
+                <p class="panel-copy">入店条件を指定して適用料金を確認します。</p>
+              </div>
+            </div>
+            <div class="preview-body">
+              <div class="preview-fields">
+                <div class="field">
+                  <label for="previewDate">営業日</label>
+                  <input class="input" id="previewDate" type="date" value="2026-08-04">
+                </div>
+                <div class="field">
+                  <label for="previewTime">入店時刻</label>
+                  <input class="input" id="previewTime" type="time" value="20:30">
+                </div>
+                <div class="field">
+                  <label>人数</label>
+                  <div class="stepper">
+                    <button type="button" id="guestMinus">−</button>
+                    <input id="guestCount" type="number" min="1" max="30" value="2">
+                    <button type="button" id="guestPlus">＋</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>同伴</label>
+                  <div class="toggle-line">
+                    <span id="douhanText">あり</span>
+                    <button class="switch on" id="douhanSwitch" type="button" aria-label="同伴の有無"></button>
+                  </div>
+                </div>
+                <div class="field full">
+                  <label for="paymentType">支払方法</label>
+                  <select class="select-input" id="paymentType">
+                    <option value="cash">現金</option>
+                    <option value="card">カード</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="applied">
+                <div class="applied-label">適用される時間帯</div>
+                <div class="applied-name">
+                  <strong id="appliedName">EARLY</strong>
+                  <span id="appliedTime">18:00〜20:59</span>
+                </div>
+              </div>
+
+              <div class="breakdown">
+                <div class="break-row">
+                  <div>セット料金<small id="setDetail">¥5,000 × 2名</small></div>
+                  <strong id="setAmount">¥10,000</strong>
+                </div>
+                <div class="break-row" id="douhanRow">
+                  <div>同伴料金<small id="douhanDetail">¥3,000 × 2名</small></div>
+                  <strong id="douhanAmount">¥6,000</strong>
+                </div>
+                <div class="break-row subtotal">
+                  <div>小計</div>
+                  <strong id="subtotalAmount">¥16,000</strong>
+                </div>
+                <div class="break-row">
+                  <div>サービス料<small id="serviceDetail">10%</small></div>
+                  <strong id="serviceAmount">¥1,600</strong>
+                </div>
+                <div class="break-row" id="cardRow" hidden>
+                  <div>カードTAX<small id="cardDetail">5%</small></div>
+                  <strong id="cardAmount">¥0</strong>
+                </div>
+              </div>
+
+              <div class="total">
+                <span>初回セット概算</span>
+                <strong id="grandTotal">¥17,600</strong>
+              </div>
+              <p class="preview-note">商品・指名・消費税などは含まない簡易プレビューです。</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-base" hidden>
+        <div class="settings-grid">
+          <section class="panel setting-card">
+            <h3>指名料金</h3>
+            <p>時間帯によらず共通で加算する料金です。同伴料金は「時間帯料金」で設定します。</p>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="honShimei">本指名料</label>
+                <div class="money-wrap"><input class="form-input dirty-input" id="honShimei" type="number" value="2000"></div>
+              </div>
+              <div class="form-field">
+                <label for="jouShimei">場内指名料</label>
+                <div class="money-wrap"><input class="form-input dirty-input" id="jouShimei" type="number" value="1000"></div>
+              </div>
+            </div>
+            <div class="inline-message">
+              <div>
+                <strong>同伴料金は時間帯ごとに設定</strong>
+                <span>入店時刻に応じて自動で切り替わります。</span>
+              </div>
+              <button class="ghost goTimed">時間帯料金へ →</button>
+            </div>
+          </section>
+
+          <section class="panel setting-card">
+            <h3>サービス・カード料金</h3>
+            <p>伝票小計に対して会計時に加算する割合です。</p>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="serviceRate">サービス料率</label>
+                <div class="suffix-wrap"><input class="form-input dirty-input" id="serviceRate" type="number" value="10"><span>%</span></div>
+              </div>
+              <div class="form-field">
+                <label for="cardRate">カードTAX率</label>
+                <div class="suffix-wrap"><input class="form-input dirty-input" id="cardRate" type="number" value="5"><span>%</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel setting-card">
+            <h3>基本の時間料金</h3>
+            <p>時間帯が未設定の場合に使う予備料金です。</p>
+            <div class="form-grid cols-3">
+              <div class="form-field">
+                <label for="defaultSet">セット料金</label>
+                <div class="money-wrap"><input class="form-input dirty-input" id="defaultSet" type="number" value="5000"></div>
+              </div>
+              <div class="form-field">
+                <label for="defaultSetMin">セット時間</label>
+                <div class="suffix-wrap"><input class="form-input dirty-input" id="defaultSetMin" type="number" value="60"><span>分</span></div>
+              </div>
+              <div class="form-field">
+                <label for="defaultExtend">延長料金</label>
+                <div class="money-wrap"><input class="form-input dirty-input" id="defaultExtend" type="number" value="3000"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel setting-card">
+            <h3>端数処理</h3>
+            <p>サービス料・カード料金を含む最終金額に適用します。</p>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="roundUnit">丸め単位</label>
+                <select class="form-select dirty-input" id="roundUnit">
+                  <option value="1">1円</option>
+                  <option value="10">10円</option>
+                  <option value="100" selected>100円</option>
+                  <option value="1000">1,000円</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="roundMode">丸め方</label>
+                <select class="form-select dirty-input" id="roundMode">
+                  <option value="floor" selected>切り捨て</option>
+                  <option value="round">四捨五入</option>
+                  <option value="ceil">切り上げ</option>
+                </select>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-checkout" hidden>
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">時間課金と会計の運用ルール</h2>
+              <p class="panel-copy">現場でのセット更新方法と、料金を判定するタイミングを決めます。</p>
+            </div>
+          </div>
+          <div class="rule-list">
+            <div class="rule-row">
+              <div>
+                <strong>時間課金モード</strong>
+                <p>自動ではセット終了時に次の料金を付与し、手動ではスタッフが延長を確定します。</p>
+              </div>
+              <div class="segmented" data-segment>
+                <button class="active">手動</button><button>自動</button>
+              </div>
+            </div>
+            <div class="rule-row">
+              <div>
+                <strong>セット料金の単位</strong>
+                <p>「名」は在卓人数分、「卓」は1伝票につき1回の料金です。</p>
+              </div>
+              <div class="segmented" data-segment>
+                <button>卓</button><button class="active">名</button>
+              </div>
+            </div>
+            <div class="rule-row">
+              <div>
+                <strong>セット料金の判定時刻</strong>
+                <p>時間帯をまたいだ場合、どの時刻の料金を適用するかを指定します。</p>
+              </div>
+              <select class="form-select dirty-input">
+                <option selected>各セット開始時刻</option>
+                <option>初回入店時刻で固定</option>
+              </select>
+            </div>
+            <div class="rule-row">
+              <div>
+                <strong>同伴料金の判定時刻</strong>
+                <p>同伴入店した時刻を基準に、時間帯ごとの同伴料金を1回加算します。</p>
+              </div>
+              <select class="form-select dirty-input">
+                <option selected>入店時刻</option>
+                <option>伝票開始時刻</option>
+              </select>
+            </div>
+            <div class="rule-row">
+              <div>
+                <strong>営業日の区切り</strong>
+                <p>深夜0時以降の売上を前日の営業日に集計する終了時刻です。</p>
+              </div>
+              <select class="form-select dirty-input">
+                <option>翌 03:00</option>
+                <option selected>翌 06:00</option>
+                <option>翌 09:00</option>
+                <option>翌 12:00</option>
+              </select>
+            </div>
+          </div>
+        </section>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div>
+      <h2 class="drawer-title" id="drawerTitle">時間帯料金を編集</h2>
+      <p class="drawer-copy">時間帯と各料金をまとめて設定します。</p>
+    </div>
+    <button class="close" id="closeDrawer" aria-label="閉じる">×</button>
+  </div>
+
+  <div class="drawer-body">
+    <section class="drawer-section">
+      <h4>時間帯</h4>
+      <div class="drawer-grid">
+        <div class="form-field full">
+          <label for="editName">表示名</label>
+          <input class="form-input" id="editName" type="text" value="EARLY">
+        </div>
+        <div class="form-field">
+          <label for="editStart">開始</label>
+          <input class="form-input" id="editStart" type="time" value="18:00">
+        </div>
+        <div class="form-field">
+          <label for="editEnd">終了</label>
+          <input class="form-input" id="editEnd" type="time" value="21:00">
+        </div>
+      </div>
+      <div class="helper">0:00〜6:00は「翌日」の時刻として扱います。終了時刻の1分前までが適用範囲です。</div>
+    </section>
+
+    <section class="drawer-section">
+      <h4>料金</h4>
+      <div class="drawer-grid">
+        <div class="form-field">
+          <label for="editSetMin">セット時間</label>
+          <div class="suffix-wrap"><input class="form-input" id="editSetMin" type="number" value="60"><span>分</span></div>
+        </div>
+        <div class="form-field">
+          <label for="editSetPrice">セット料金</label>
+          <div class="money-wrap"><input class="form-input" id="editSetPrice" type="number" value="5000"></div>
+        </div>
+        <div class="form-field">
+          <label for="editExtMin">延長時間</label>
+          <div class="suffix-wrap"><input class="form-input" id="editExtMin" type="number" value="30"><span>分</span></div>
+        </div>
+        <div class="form-field">
+          <label for="editExtPrice">延長料金</label>
+          <div class="money-wrap"><input class="form-input" id="editExtPrice" type="number" value="3000"></div>
+        </div>
+        <div class="form-field full">
+          <label for="editDouhan">同伴料金</label>
+          <div class="money-wrap"><input class="form-input" id="editDouhan" type="number" value="3000"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="drawer-section">
+      <h4>適用日</h4>
+      <div class="days" id="drawerDays">
+        <button class="day-btn active">月</button>
+        <button class="day-btn active">火</button>
+        <button class="day-btn active">水</button>
+        <button class="day-btn active">木</button>
+        <button class="day-btn active">金</button>
+        <button class="day-btn active">土</button>
+        <button class="day-btn active">日</button>
+      </div>
+    </section>
+
+    <section class="drawer-section">
+      <h4>状態</h4>
+      <div class="toggle-line">
+        <span>この時間帯を有効にする</span>
+        <button class="switch on" id="editActive" type="button"></button>
+      </div>
+    </section>
+  </div>
+
+  <div class="drawer-foot">
+    <button class="ghost danger" id="deleteRate">削除</button>
+    <div class="drawer-actions">
+      <button class="secondary" id="cancelDrawer">キャンセル</button>
+      <button class="primary" id="saveRate">この時間帯を保存</button>
+    </div>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><strong>保存しました。</strong> 新しい伝票から適用されます。</div>
+
+<script>
+(function(){
+  const yen = n => '¥' + Math.max(0, Math.round(Number(n)||0)).toLocaleString('ja-JP');
+  const pad = n => String(n).padStart(2,'0');
+  const timeLabel = mins => {
+    const normalized = mins % 1440;
+    return (mins >= 1440 ? '翌 ' : '') + pad(Math.floor(normalized/60)) + ':' + pad(normalized%60);
+  };
+  const inputToBusinessMinutes = value => {
+    const parts = String(value || '00:00').split(':').map(Number);
+    let mins = (parts[0]||0)*60 + (parts[1]||0);
+    if(mins < 360) mins += 1440;
+    return mins;
+  };
+  const endDisplay = mins => {
+    const last = mins - 1;
+    return timeLabel(last);
+  };
+
+  let schedules = [
+    {id:1,name:'EARLY',start:1080,end:1260,setMin:60,setPrice:5000,extMin:30,extPrice:3000,douhan:3000,unit:'名',active:true},
+    {id:2,name:'STANDARD',start:1260,end:1440,setMin:60,setPrice:6000,extMin:30,extPrice:3500,douhan:4000,unit:'名',active:true},
+    {id:3,name:'LATE',start:1440,end:1800,setMin:60,setPrice:7000,extMin:30,extPrice:4000,douhan:5000,unit:'名',active:true}
+  ];
+  let currentId = null;
+  let douhanOn = true;
+  let dirty = false;
+
+  const body = document.getElementById('scheduleBody');
+  const track = document.getElementById('timelineTrack');
+  const overlay = document.getElementById('overlay');
+  const drawer = document.getElementById('drawer');
+  const toast = document.getElementById('toast');
+  const saveState = document.getElementById('saveState');
+
+  function markDirty(){
+    dirty = true;
+    saveState.textContent = '未保存の変更があります';
+    saveState.style.color = '#d8bd69';
+  }
+
+  function setSaved(){
+    dirty = false;
+    saveState.textContent = '保存済み';
+    saveState.style.color = '';
+  }
+
+  function sorted(){
+    return [...schedules].sort((a,b)=>a.start-b.start);
+  }
+
+  function render(){
+    const rows = sorted();
+    body.innerHTML = rows.map(r => `
+      <tr data-id="${r.id}">
+        <td>
+          <div class="time-cell">
+            <span class="drag">⋮⋮</span>
+            <div><div class="rate-name">${r.name}</div><div class="rate-time">${timeLabel(r.start)}〜${endDisplay(r.end)}</div></div>
+          </div>
+        </td>
+        <td class="price-cell"><strong>${yen(r.setPrice)}</strong><span>${r.setMin}分 / ${r.unit}</span></td>
+        <td class="price-cell"><strong>${yen(r.extPrice)}</strong><span>${r.extMin}分 / ${r.unit}</span></td>
+        <td class="price-cell"><strong>${yen(r.douhan)}</strong><span>入店時に1回 / ${r.unit}</span></td>
+        <td class="unit-cell">1${r.unit}ごと</td>
+        <td><span class="badge">${r.active?'有効':'無効'}</span></td>
+        <td><button class="more" aria-label="編集">•••</button></td>
+      </tr>
+    `).join('');
+
+    const totalSpan = 720;
+    track.innerHTML = rows.map((r,i)=>{
+      const width = Math.max(14, ((r.end-r.start)/totalSpan)*100);
+      return `<button class="slot ${i===0?'active':''}" data-id="${r.id}" style="flex:0 0 calc(${width}% - 3px)">
+        <div class="slot-name">${r.name}</div>
+        <div class="slot-time">${timeLabel(r.start)}〜${endDisplay(r.end)}</div>
+        <div class="slot-price">${yen(r.setPrice)}</div>
+        <div class="slot-sub">同伴 ${yen(r.douhan)}</div>
+      </button>`;
+    }).join('');
+
+    updatePreview();
+  }
+
+  function getPreviewMinutes(){
+    return inputToBusinessMinutes(document.getElementById('previewTime').value);
+  }
+
+  function getAppliedSchedule(){
+    const mins = getPreviewMinutes();
+    return sorted().find(r=>r.active && mins>=r.start && mins<r.end) || {
+      id:0,name:'基本料金',start:mins,end:mins+60,
+      setMin:Number(document.getElementById('defaultSetMin')?.value||60),
+      setPrice:Number(document.getElementById('defaultSet')?.value||5000),
+      extMin:30,extPrice:Number(document.getElementById('defaultExtend')?.value||3000),
+      douhan:0,unit:'名',active:true
+    };
+  }
+
+  function applyRounding(value){
+    const unit = Number(document.getElementById('roundUnit')?.value || 100);
+    const mode = document.getElementById('roundMode')?.value || 'floor';
+    if(unit<=1) return Math.round(value);
+    if(mode==='ceil') return Math.ceil(value/unit)*unit;
+    if(mode==='round') return Math.round(value/unit)*unit;
+    return Math.floor(value/unit)*unit;
+  }
+
+  function updatePreview(){
+    const r = getAppliedSchedule();
+    const guests = Math.max(1,Number(document.getElementById('guestCount').value)||1);
+    const serviceRate = Number(document.getElementById('serviceRate')?.value || 10);
+    const cardRate = Number(document.getElementById('cardRate')?.value || 5);
+    const isCard = document.getElementById('paymentType').value === 'card';
+
+    const setAmount = r.setPrice*guests;
+    const douhanAmount = douhanOn ? r.douhan*guests : 0;
+    const subtotal = setAmount + douhanAmount;
+    const service = Math.floor(subtotal*serviceRate/100);
+    const card = isCard ? Math.floor((subtotal+service)*cardRate/100) : 0;
+    const total = applyRounding(subtotal+service+card);
+
+    document.getElementById('appliedName').textContent = r.name;
+    document.getElementById('appliedTime').textContent = r.id ? `${timeLabel(r.start)}〜${endDisplay(r.end)}` : '未設定時間帯';
+    document.getElementById('setDetail').textContent = `${yen(r.setPrice)} × ${guests}名`;
+    document.getElementById('setAmount').textContent = yen(setAmount);
+    document.getElementById('douhanDetail').textContent = `${yen(r.douhan)} × ${guests}名`;
+    document.getElementById('douhanAmount').textContent = yen(douhanAmount);
+    document.getElementById('douhanRow').hidden = !douhanOn;
+    document.getElementById('subtotalAmount').textContent = yen(subtotal);
+    document.getElementById('serviceDetail').textContent = serviceRate+'%';
+    document.getElementById('serviceAmount').textContent = yen(service);
+    document.getElementById('cardRow').hidden = !isCard;
+    document.getElementById('cardDetail').textContent = cardRate+'%';
+    document.getElementById('cardAmount').textContent = yen(card);
+    document.getElementById('grandTotal').textContent = yen(total);
+
+    document.querySelectorAll('.slot').forEach(el=>{
+      el.classList.toggle('active', Number(el.dataset.id)===r.id);
+    });
+  }
+
+  function openDrawer(id){
+    currentId = id ?? null;
+    const r = schedules.find(x=>x.id===id);
+    document.getElementById('drawerTitle').textContent = r ? '時間帯料金を編集' : '時間帯料金を追加';
+    document.getElementById('deleteRate').hidden = !r;
+    document.getElementById('editName').value = r?.name || 'NEW SLOT';
+    document.getElementById('editStart').value = r ? `${pad(Math.floor((r.start%1440)/60))}:${pad(r.start%60)}` : '18:00';
+    document.getElementById('editEnd').value = r ? `${pad(Math.floor((r.end%1440)/60))}:${pad(r.end%60)}` : '21:00';
+    document.getElementById('editSetMin').value = r?.setMin ?? 60;
+    document.getElementById('editSetPrice').value = r?.setPrice ?? 5000;
+    document.getElementById('editExtMin').value = r?.extMin ?? 30;
+    document.getElementById('editExtPrice').value = r?.extPrice ?? 3000;
+    document.getElementById('editDouhan').value = r?.douhan ?? 3000;
+    document.getElementById('editActive').classList.toggle('on',r?.active ?? true);
+    drawer.classList.add('open');
+    overlay.classList.add('open');
+    drawer.setAttribute('aria-hidden','false');
+  }
+
+  function closeDrawer(){
+    drawer.classList.remove('open');
+    overlay.classList.remove('open');
+    drawer.setAttribute('aria-hidden','true');
+  }
+
+  function saveDrawer(){
+    let start = inputToBusinessMinutes(document.getElementById('editStart').value);
+    let endRaw = document.getElementById('editEnd').value;
+    let end = inputToBusinessMinutes(endRaw);
+    if(end <= start) end += 1440;
+    if(end-start > 720) end = start+720;
+
+    const payload = {
+      id: currentId || Date.now(),
+      name: document.getElementById('editName').value.trim() || '時間帯',
+      start, end,
+      setMin:Number(document.getElementById('editSetMin').value)||60,
+      setPrice:Number(document.getElementById('editSetPrice').value)||0,
+      extMin:Number(document.getElementById('editExtMin').value)||30,
+      extPrice:Number(document.getElementById('editExtPrice').value)||0,
+      douhan:Number(document.getElementById('editDouhan').value)||0,
+      unit:'名',
+      active:document.getElementById('editActive').classList.contains('on')
+    };
+
+    const overlap = schedules.some(x=>x.id!==payload.id && payload.start < x.end && payload.end > x.start);
+    if(overlap){
+      showToast('時間帯が重複しています。時刻を調整してください。', false);
+      return;
+    }
+    const index = schedules.findIndex(x=>x.id===payload.id);
+    if(index>=0) schedules[index]=payload; else schedules.push(payload);
+    markDirty();
+    render();
+    closeDrawer();
+  }
+
+  function showToast(message, success=true){
+    toast.innerHTML = success ? `<strong>${message}</strong>` : message;
+    toast.classList.add('show');
+    clearTimeout(showToast.timer);
+    showToast.timer=setTimeout(()=>toast.classList.remove('show'),2400);
+  }
+
+  document.querySelectorAll('.tab').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(p=>p.hidden=true);
+      document.getElementById('tab-'+btn.dataset.tab).hidden=false;
+    });
+  });
+  document.querySelectorAll('.goTimed').forEach(btn=>btn.addEventListener('click',()=>document.querySelector('[data-tab="timed"]').click()));
+  document.getElementById('openBase').addEventListener('click',()=>document.querySelector('[data-tab="base"]').click());
+
+  body.addEventListener('click',e=>{
+    const row=e.target.closest('tr[data-id]');
+    if(row) openDrawer(Number(row.dataset.id));
+  });
+  track.addEventListener('click',e=>{
+    const slot=e.target.closest('.slot[data-id]');
+    if(slot) openDrawer(Number(slot.dataset.id));
+  });
+
+  document.getElementById('addRate').addEventListener('click',()=>openDrawer(null));
+  document.getElementById('closeDrawer').addEventListener('click',closeDrawer);
+  document.getElementById('cancelDrawer').addEventListener('click',closeDrawer);
+  overlay.addEventListener('click',closeDrawer);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape') closeDrawer()});
+  document.getElementById('saveRate').addEventListener('click',saveDrawer);
+  document.getElementById('deleteRate').addEventListener('click',()=>{
+    if(currentId!==null){
+      schedules=schedules.filter(x=>x.id!==currentId);
+      markDirty();render();closeDrawer();
+    }
+  });
+  document.getElementById('editActive').addEventListener('click',e=>e.currentTarget.classList.toggle('on'));
+  document.querySelectorAll('.day-btn').forEach(btn=>btn.addEventListener('click',()=>btn.classList.toggle('active')));
+
+  document.getElementById('guestMinus').addEventListener('click',()=>{
+    const input=document.getElementById('guestCount');input.value=Math.max(1,Number(input.value||1)-1);updatePreview();
+  });
+  document.getElementById('guestPlus').addEventListener('click',()=>{
+    const input=document.getElementById('guestCount');input.value=Math.min(30,Number(input.value||1)+1);updatePreview();
+  });
+  document.getElementById('guestCount').addEventListener('input',updatePreview);
+  document.getElementById('previewTime').addEventListener('input',updatePreview);
+  document.getElementById('previewDate').addEventListener('input',updatePreview);
+  document.getElementById('paymentType').addEventListener('change',updatePreview);
+  document.getElementById('douhanSwitch').addEventListener('click',e=>{
+    douhanOn=!douhanOn;e.currentTarget.classList.toggle('on',douhanOn);
+    document.getElementById('douhanText').textContent=douhanOn?'あり':'なし';
+    updatePreview();
+  });
+
+  document.querySelectorAll('.dirty-input').forEach(el=>{
+    el.addEventListener('input',()=>{markDirty();updatePreview()});
+    el.addEventListener('change',()=>{markDirty();updatePreview()});
+  });
+  document.querySelectorAll('[data-segment]').forEach(group=>{
+    group.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{
+      group.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');markDirty();
+    }));
+  });
+  document.querySelectorAll('.day-chip').forEach(btn=>btn.addEventListener('click',()=>{
+    document.querySelectorAll('.day-chip').forEach(x=>x.classList.remove('active'));
+    btn.classList.add('active');
+    showToast(btn.textContent+'の料金プランを表示しています。');
+  }));
+
+  document.getElementById('saveAll').addEventListener('click',()=>{
+    setSaved();showToast('保存しました。');
+  });
+  ['addPlan','addException'].forEach(id=>document.getElementById(id).addEventListener('click',()=>{
+    showToast('曜日・イベント別プランの追加画面を開きます。');
+  }));
+
+  render();
+})();
+</script>
+</body>
+</html>
