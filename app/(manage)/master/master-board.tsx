@@ -27,7 +27,7 @@ const secTitle: React.CSSProperties = t.cardTitle;
 //     受け取って描き分けるだけ＝コンポーネントも機能も RPC も送る引数も1文字も変えていない。
 // ★レーン③: "products" は実ページ3本（/master/products・/master/categories・/master/stock）へ
 //   完全移設したため view から削除した（残る view は5つ）。
-export type MasterView = "pricing" | "cast" | "seat" | "hours" | "system";
+export type MasterView = "cast" | "seat" | "hours" | "system";
 export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean;
   /** server で生成済みのパネル群（表示単位ごと）。未指定の単位はカードを出さない。 */
@@ -102,10 +102,8 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
           status: categories.length > 0 ? "● 全件有効" : "● 未登録", tone: categories.length > 0 ? "" : "mute" },
         { href: "/master/stock", id: "m-stock", icon: "⬚", count: "追記のみ", title: "在庫",
           desc: "棚卸しの記録と入出庫の履歴（append-only）。売上による減算は会計から自動。", status: "● 記録可", tone: "" },
-        { view: "pricing" as MasterView, id: "m-pricing", icon: "¥", count: "7設定", title: "料金・会計設定",
-          desc: "指名料、サービス料、カード手数料、丸め単位・丸め方を設定。", status: "● 有効", tone: "" },
-        { view: "pricing" as MasterView, id: "m-timeprice", icon: "◷", count: "6設定", title: "時間料金（セット・延長）",
-          desc: "セット時間と料金、延長単位と料金、自動/手動、卓単位/人数倍を設定。", status: "● 有効", tone: "" },
+        { href: "/master/pricing", id: "m-pricing", icon: "¥", count: "3タブ", title: "料金設定",
+          desc: "時間帯・席種・曜日の料金ルール、ランク別指名料、基本料金、会計ルールを設定。", status: "● 有効", tone: "" },
       ],
     },
     {
@@ -147,7 +145,7 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
     hubQ === "" || c.title.toLowerCase().includes(hubQ) || c.desc.toLowerCase().includes(hubQ);
 
   const VIEW_TITLE: Record<MasterView, string> = {
-    pricing: "料金・会計", cast: "キャスト・報酬",
+    cast: "キャスト・報酬",
     seat: "席・卓", hours: "営業時間・定休日", system: "スタッフ・システム",
   };
 
@@ -267,7 +265,6 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
 
       {/* ── 外部パネル（page.tsx が server で組んだ ReactNode をそのまま描く）──
           ★コンポーネントも props も page.tsx 側のまま＝ここは表示単位で出し分けるだけ。 */}
-      {view === "pricing" && panels?.pricing}
       {view === "cast" && panels?.cast}
       {view === "hours" && panels?.hours}
       {view === "system" && panels?.system}

@@ -23,6 +23,7 @@ export const MASTER_NAV: MasterNavGroup[] = [
       { label: "商品", href: "/master/products" },
       { label: "商品カテゴリ", href: "/master/categories" },
       { label: "在庫", href: "/master/stock" },
+      { label: "料金設定", href: "/master/pricing" },
     ],
   },
 ];
