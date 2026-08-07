@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>待遇プラン・報酬シミュレーター</title>
+<style>
+:root{--bg:#080b10;--panel:#141923;--panel2:#0f141c;--line:#293140;--text:#f5f7fa;--muted:#98a3b4;--gold:#d4a532;--gold2:#f2c95e;--green:#70d492;--red:#ff778a;--blue:#73a7ff}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,"Noto Sans JP",system-ui,sans-serif;background:radial-gradient(circle at 72% 0,#121a29 0,#080b10 42%);color:var(--text)}button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}.app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}.sidebar{background:linear-gradient(180deg,#0c1017,#090c12);border-right:1px solid var(--line);padding:18px 14px;position:sticky;top:0;height:100vh}.brand{display:flex;gap:12px;align-items:center;padding:0 4px 20px;border-bottom:1px solid var(--line)}.logo{width:40px;height:40px;border:1px solid var(--gold);border-radius:10px;display:grid;place-items:center;color:var(--gold2);font-weight:800}.brand small{color:var(--muted)}.navsec{margin:18px 8px 8px;color:#657082;font-size:12px}.nav a{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:10px;color:#dce1e8;margin:2px 0}.nav a.active,.nav a:hover{background:linear-gradient(90deg,rgba(212,165,50,.22),rgba(212,165,50,.04));color:var(--gold2)}.main{min-width:0}.topbar{height:64px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;padding:0 28px;background:rgba(7,10,15,.84);backdrop-filter:blur(12px);position:sticky;top:0;z-index:10}.crumb{color:var(--muted);font-size:14px}.top-actions{display:flex;align-items:center;gap:14px}.pill{padding:8px 14px;border-radius:999px;background:linear-gradient(180deg,var(--gold2),var(--gold));color:#151108;font-weight:800;font-size:13px}.content{padding:28px;max-width:1540px;margin:auto}.pagehead{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:20px}.pagehead h1{margin:0 0 7px;font-size:30px}.pagehead p{margin:0;color:var(--muted)}.back{border:1px solid var(--line);padding:10px 14px;border-radius:10px;background:#0d1219}.card{background:linear-gradient(180deg,rgba(21,27,38,.97),rgba(13,18,26,.97));border:1px solid var(--line);border-radius:18px;box-shadow:0 16px 34px rgba(0,0,0,.18)}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}.kpi{padding:18px}.kpi small{color:var(--muted)}.kpi strong{display:block;font-size:21px;margin-top:8px}.panel{padding:20px}.section-head{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:16px}.section-head h2,.section-head h3{margin:0}.section-head p{margin:5px 0 0;color:var(--muted)}.badge{padding:5px 9px;border-radius:999px;font-size:12px;background:rgba(112,212,146,.12);color:var(--green)}.btn{border:1px solid #745b1c;background:linear-gradient(180deg,var(--gold2),var(--gold));color:#181207;padding:10px 16px;border-radius:9px;font-weight:800}.btn.secondary{background:#111722;color:#dde2ea;border-color:var(--line)}.btn.ghost{background:transparent;color:var(--gold2);border-color:#5c4819}.mt{margin-top:18px}.layout{display:grid;grid-template-columns:300px 1fr;gap:18px}.reward-list{padding:12px}.reward-item{display:flex;justify-content:space-between;align-items:center;padding:14px;border:1px solid transparent;border-radius:12px;color:#d8dee7;cursor:pointer}.reward-item:hover{background:#111722}.reward-item.active{background:rgba(212,165,50,.09);border-color:#6b531a;color:var(--gold2)}.reward-item span{font-size:13px;color:var(--muted)}.composer{padding:20px}.summary-line{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.chip{padding:7px 10px;border-radius:999px;background:#101720;border:1px solid var(--line);font-size:12px;color:#d7dce4}.chip.gold{border-color:#71591f;color:var(--gold2);background:rgba(212,165,50,.08)}.component{border:1px solid var(--line);border-radius:14px;background:#0d1219;margin-bottom:12px;overflow:hidden}.component-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06)}.component-title{display:flex;align-items:center;gap:10px}.handle{color:#697487}.type-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(212,165,50,.1);border:1px solid #665019;color:var(--gold2)}.component-actions{display:flex;gap:8px;align-items:center}.toggle{width:42px;height:24px;border-radius:999px;background:#313846;position:relative}.toggle:after{content:"";position:absolute;width:18px;height:18px;background:#fff;border-radius:50%;top:3px;left:3px;transition:.2s}.toggle.on{background:var(--gold)}.toggle.on:after{left:21px}.icon-btn{border:1px solid var(--line);background:#10151d;color:#cbd2dc;width:34px;height:34px;border-radius:8px}.component-body{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 16px}.field label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}.field input,.field select{width:100%;background:#0a0f16;border:1px solid var(--line);border-radius:8px;padding:10px 11px;color:var(--text)}.component-note{grid-column:1/-1;color:var(--muted);font-size:12px}.add-row{display:flex;gap:10px;flex-wrap:wrap;padding-top:4px}.add-type{padding:10px 12px;border-radius:10px;background:#10161f;border:1px dashed #465165;color:#dbe1ea}.add-type:hover{border-color:var(--gold);color:var(--gold2)}.preview{display:grid;grid-template-columns:1fr 340px;gap:18px;margin-top:18px}.calc{padding:20px}.calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.result{padding:20px}.result-row{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line)}.result .total{font-size:26px;color:var(--gold2);font-weight:800}.note{padding:14px;border:1px solid #5c491d;background:rgba(212,165,50,.06);border-radius:12px;color:#d8d1bd}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{text-align:left;padding:12px;border-bottom:1px solid var(--line);white-space:nowrap}.table th{color:var(--muted);font-size:12px}.type-pills{display:flex;gap:6px}.type-pill{padding:5px 8px;border-radius:999px;font-size:11px;background:rgba(212,165,50,.1);color:var(--gold2)}.empty{padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:12px}.savebar{position:sticky;bottom:16px;margin-top:18px;display:flex;justify-content:flex-end;gap:10px;padding:12px 14px;background:rgba(13,18,26,.92);border:1px solid var(--line);border-radius:14px;backdrop-filter:blur(10px)}
+@media(max-width:1100px){.app{grid-template-columns:1fr}.sidebar{display:none}.kpis,.layout,.preview{grid-template-columns:1fr}.component-body,.calc-grid{grid-template-columns:1fr 1fr}.content{padding:18px}}@media(max-width:640px){.component-body,.calc-grid,.kpis{grid-template-columns:1fr}.pagehead{display:block}.back{display:inline-block;margin-top:14px}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar"><div class="brand"><div class="logo">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div><div class="nav"><div class="navsec">スタッフ</div><a>◫ シフト</a><a class="active">♙ キャスト</a><a>◎ 給与</a><div class="navsec">店舗</div><a class="active">≋ マスタ</a><a>◉ 監査</a></div></aside>
+<main class="main">
+<header class="topbar"><div class="crumb">マスタ ＞ キャスト・報酬一覧 ＞ 待遇プラン</div><div class="top-actions"><span>🔔</span><span class="pill">オーナー</span><span>ログアウト</span></div></header>
+<section class="content">
+<div class="pagehead"><div><h1>待遇プラン・報酬シミュレーター</h1><p>報酬を「固定金額・ポイント・売上歩合・利益歩合・スライド」の組み合わせで設計します。</p></div><a class="back" href="index.html">← 一覧へ戻る</a></div>
+<div class="kpis"><div class="card kpi"><small>有効プラン数</small><strong>3件 / 全5件</strong></div><div class="card kpi"><small>組み合わせ設定</small><strong>12コンポーネント</strong></div><div class="card kpi"><small>対象報酬項目</small><strong>7種類</strong></div><div class="card kpi"><small>最終更新</small><strong>2026/08/05 17:38</strong></div></div>
+
+<div class="layout">
+<div class="card reward-list">
+<div class="section-head"><div><h3>報酬項目</h3><p>編集する項目を選択</p></div></div>
+<div class="reward-item active" data-name="本指名"><b>本指名</b><span>3方式</span></div>
+<div class="reward-item" data-name="場内指名"><b>場内指名</b><span>2方式</span></div>
+<div class="reward-item" data-name="同伴"><b>同伴</b><span>2方式</span></div>
+<div class="reward-item" data-name="ドリンク"><b>ドリンク</b><span>2方式</span></div>
+<div class="reward-item" data-name="ボトル・シャンパン"><b>ボトル・シャンパン</b><span>3方式</span></div>
+<div class="reward-item" data-name="売上バック"><b>売上バック</b><span>1方式</span></div>
+<div class="reward-item" data-name="その他"><b>その他</b><span>0方式</span></div>
+</div>
+
+<div class="card composer">
+<div class="section-head"><div><h2 id="rewardTitle">本指名の報酬設計</h2><p>複数の報酬コンポーネントを同時に有効化できます。</p></div><span class="badge">組み合わせ可</span></div>
+<div class="summary-line"><span class="chip gold">固定金額 ¥1,000 / 本</span><span class="chip gold">ポイント 1.0pt / 本</span><span class="chip gold">本指名売上 5%</span></div>
+<div id="components"></div>
+<div class="add-row">
+<button class="add-type" data-type="fixed">＋ 固定金額</button>
+<button class="add-type" data-type="point">＋ ポイント</button>
+<button class="add-type" data-type="sales">＋ 売上歩合</button>
+<button class="add-type" data-type="profit">＋ 利益歩合</button>
+<button class="add-type" data-type="slide">＋ スライド</button>
+<button class="add-type" data-type="bonus">＋ 達成ボーナス</button>
+</div>
+</div>
+</div>
+
+<div class="preview">
+<div class="card calc"><div class="section-head"><div><h3>報酬シミュレーター</h3><p>選択中の組み合わせで支給額を確認</p></div></div><div class="calc-grid"><div class="field"><label>本指名本数</label><input id="count" type="number" value="10"></div><div class="field"><label>本指名売上</label><input id="sales" type="number" value="300000"></div><div class="field"><label>粗利益</label><input id="profit" type="number" value="180000"></div><div class="field"><label>現在ポイント</label><input id="points" type="number" value="8"></div></div><div class="savebar"><button class="btn secondary" onclick="resetCalc()">リセット</button><button class="btn" onclick="simulate()">この条件で試算</button></div></div>
+<div class="card result"><h3>試算結果</h3><div class="result-row"><span>固定金額</span><b id="rFixed">¥10,000</b></div><div class="result-row"><span>ポイント加算</span><b id="rPoint">10.0pt</b></div><div class="result-row"><span>売上歩合</span><b id="rSales">¥15,000</b></div><div class="result-row"><span>利益歩合</span><b id="rProfit">¥0</b></div><div class="result-row"><span>達成ボーナス</span><b id="rBonus">¥0</b></div><div class="result-row"><span>金額バック合計</span><b id="rTotal" class="total">¥25,000</b></div><div class="note mt">ポイントは別集計です。金額バックとは重複して給与計算へ反映できます。</div></div>
+</div>
+
+<div class="card panel mt"><div class="section-head"><div><h3>待遇プラン一覧</h3><p>報酬項目ごとの組み合わせをプラン単位で保存</p></div><button class="btn">＋ プランを追加</button></div><div class="table-wrap"><table class="table"><tr><th>プラン名</th><th>保証</th><th>本指名</th><th>場内</th><th>同伴</th><th>ボトル</th><th>状態</th><th>操作</th></tr><tr><td>エース</td><td>¥4,000</td><td><div class="type-pills"><span class="type-pill">固定</span><span class="type-pill">pt</span><span class="type-pill">売上%</span></div></td><td><div class="type-pills"><span class="type-pill">固定</span><span class="type-pill">pt</span></div></td><td><span class="type-pill">固定</span></td><td><div class="type-pills"><span class="type-pill">売上%</span><span class="type-pill">pt</span></div></td><td><span class="badge">有効</span></td><td>編集　…</td></tr><tr><td>レギュラー</td><td>¥3,000</td><td><div class="type-pills"><span class="type-pill">pt</span><span class="type-pill">スライド</span></div></td><td><span class="type-pill">固定</span></td><td><span class="type-pill">固定</span></td><td><span class="type-pill">利益%</span></td><td><span class="badge">有効</span></td><td>編集　…</td></tr><tr><td>売上制</td><td>¥2,500</td><td><div class="type-pills"><span class="type-pill">売上%</span><span class="type-pill">達成B</span></div></td><td><span class="type-pill">売上%</span></td><td><div class="type-pills"><span class="type-pill">固定</span><span class="type-pill">pt</span></div></td><td><div class="type-pills"><span class="type-pill">利益%</span><span class="type-pill">スライド</span></div></td><td><span class="badge">有効</span></td><td>編集　…</td></tr></table></div></div>
+
+<div class="savebar"><button class="btn secondary">変更を破棄</button><button class="btn">報酬設計を保存</button></div>
+</section>
+</main>
+</div>
+<script>
+const defs={
+fixed:{icon:'¥',title:'固定金額',fields:[['単価','1000'],['単位','1本ごと'],['上限','上限なし'],['丸め','1円単位']]},
+point:{icon:'pt',title:'ポイント',fields:[['付与pt','1.0'],['単位','1本ごと'],['月間上限','上限なし'],['端数','小数1桁']]},
+sales:{icon:'%',title:'売上歩合',fields:[['歩合率','5'],['対象売上','本指名売上'],['税区分','税抜'],['上限','上限なし']]},
+profit:{icon:'利',title:'利益歩合',fields:[['歩合率','10'],['対象利益','粗利益'],['原価控除','控除後'],['上限','上限なし']]},
+slide:{icon:'↗',title:'スライド',fields:[['判定軸','本数'],['1段階','10本: ¥1,500'],['2段階','20本: ¥2,000'],['3段階','30本: ¥3,000']]},
+bonus:{icon:'★',title:'達成ボーナス',fields:[['達成条件','20本'],['支給額','10000'],['判定期間','月次'],['重複','他方式と併用']]}
+};
+let activeTypes=['fixed','point','sales'];
+function fieldHTML(label,value){const opts=['1本ごと','本指名売上','税抜','上限なし','小数1桁','粗利益','控除後','本数','月次','他方式と併用']; if(opts.includes(value)) return `<div class="field"><label>${label}</label><select><option>${value}</option></select></div>`; return `<div class="field"><label>${label}</label><input value="${value}"></div>`}
+function render(){const box=document.getElementById('components');box.innerHTML=''; if(!activeTypes.length){box.innerHTML='<div class="empty">報酬コンポーネントがありません。下のボタンから追加してください。</div>';return} activeTypes.forEach((type,idx)=>{const d=defs[type]; const el=document.createElement('div');el.className='component';el.dataset.type=type;el.innerHTML=`<div class="component-head"><div class="component-title"><span class="handle">⋮⋮</span><span class="type-icon">${d.icon}</span><div><b>${d.title}</b><div style="color:var(--muted);font-size:12px">他の方式と合算して支給</div></div></div><div class="component-actions"><div class="toggle on" onclick="this.classList.toggle('on')"></div><button class="icon-btn" onclick="removeType('${type}')">×</button></div></div><div class="component-body">${d.fields.map(f=>fieldHTML(f[0],f[1])).join('')}<div class="component-note">このコンポーネントは同じ報酬項目内の他方式と併用されます。</div></div>`;box.appendChild(el)})}
+function removeType(t){activeTypes=activeTypes.filter(x=>x!==t);render()}
+document.querySelectorAll('.add-type').forEach(btn=>btn.addEventListener('click',()=>{const t=btn.dataset.type;if(!activeTypes.includes(t)){activeTypes.push(t);render()}}));
+document.querySelectorAll('.reward-item').forEach(item=>item.addEventListener('click',()=>{document.querySelectorAll('.reward-item').forEach(x=>x.classList.remove('active'));item.classList.add('active');document.getElementById('rewardTitle').textContent=item.dataset.name+'の報酬設計'}));
+function yen(n){return '¥'+Math.round(n).toLocaleString('ja-JP')}
+function simulate(){const c=+document.getElementById('count').value||0,s=+document.getElementById('sales').value||0,p=+document.getElementById('profit').value||0;const fixed=activeTypes.includes('fixed')?c*1000:0;const pt=activeTypes.includes('point')?c*1:0;const sales=activeTypes.includes('sales')?s*.05:0;const profit=activeTypes.includes('profit')?p*.10:0;const bonus=activeTypes.includes('bonus')&&c>=20?10000:0;document.getElementById('rFixed').textContent=yen(fixed);document.getElementById('rPoint').textContent=pt.toFixed(1)+'pt';document.getElementById('rSales').textContent=yen(sales);document.getElementById('rProfit').textContent=yen(profit);document.getElementById('rBonus').textContent=yen(bonus);document.getElementById('rTotal').textContent=yen(fixed+sales+profit+bonus)}
+function resetCalc(){document.getElementById('count').value=10;document.getElementById('sales').value=300000;document.getElementById('profit').value=180000;document.getElementById('points').value=8;simulate()}
+render();simulate();
+</script>
+</body></html>
