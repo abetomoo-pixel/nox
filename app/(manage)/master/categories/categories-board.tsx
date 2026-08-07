@@ -14,6 +14,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import MasterPageHead from "../master-page-head";
+import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
 import {
   fetchProducts, fetchProductCategories,
   type MasterProduct as Product, type MasterCategory as Category,
@@ -95,20 +96,16 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
 
   // ★④c（裁定G）: 隣接入れ替え。押した瞬間に投げる（確定ボタンなし・楽観更新なし）。
   //   渡すのは常に全件の id を並べ替え後の順で。成功後に再取得して並びを反映する。
+  //   料金UIレーン C2: swap とエラー日本語化を共用ヘルパー（lib/nox/ui/reorder）へ集約。
+  //   busy の形（boolean 共有）と「失敗時も reload する」方針はこの画面の従来挙動のまま。
   async function move(index: number, dir: -1 | 1) {
-    const j = index + dir;
-    if (j < 0 || j >= ordered.length) return;
-    const ids = ordered.map((c) => c.id);
-    [ids[index], ids[j]] = [ids[j], ids[index]];
+    const ids = swapAdjacent(ordered.map((c) => c.id), index, dir);
+    if (!ids) return;
     setMsg(null);
     setBusy(true);
     const { error } = await supabase.rpc("product_category_reorder", { p_store_id: storeId, p_ids: ids });
     setBusy(false);
-    if (error) {
-      setMsg(error.message.includes("partial ids") ? "一覧が古くなっています。再読込してください"
-        : error.message.includes("forbidden") ? "権限がありません"
-          : error.message);
-    }
+    if (error) setMsg(reorderErrJa(error.message));
     await reload();
   }
 

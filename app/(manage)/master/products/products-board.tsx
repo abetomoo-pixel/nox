@@ -18,6 +18,7 @@ import {
   type MasterProduct as Product, type MasterCategory as Category,
 } from "@/lib/nox/master/queries";
 import { STOCK_REASON_RESTOCK } from "@/lib/nox/stock/reasons";
+import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
 import {
   parseProductBulk, duplicateWarnings, checkInactiveCategoryConflicts,
   newCategories, countByType, TYPE_LABEL_JA as BULK_TYPE_LABEL_JA,
@@ -357,14 +358,15 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
         .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, "ja"))
     : [];
 
-  /** ∧∨: scopeAll 内で i 番目を delta 方向へ入れ替え、全件配列を product_reorder に送る。 */
+  /** ∧∨: scopeAll 内で i 番目を delta 方向へ入れ替え、全件配列を product_reorder に送る。
+   *  料金UIレーン C2: swap とエラー日本語化を共用ヘルパー（lib/nox/ui/reorder）へ集約。
+   *  busy の形（busyId＝行単位）と「失敗時は reload しない」方針はこの画面の従来挙動のまま。
+   *  ★partial ids の文言だけ共通化で categories と同一文になる（表示差分はこの1点のみ）。 */
   async function moveProduct(id: string, delta: -1 | 1) {
     if (!reorderMode || busyId) return;
     const idx = scopeAll.findIndex((p) => p.id === id);
-    const to = idx + delta;
-    if (idx < 0 || to < 0 || to >= scopeAll.length) return;
-    const ids = scopeAll.map((p) => p.id);
-    [ids[idx], ids[to]] = [ids[to], ids[idx]];
+    const ids = swapAdjacent(scopeAll.map((p) => p.id), idx, delta);
+    if (!ids) return;
     setBusyId(id);
     setMsg(null);
     const { error } = await supabase.rpc("product_reorder", {
@@ -372,8 +374,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
     });
     setBusyId(null);
     if (error) {
-      setMsg(error.message.includes("partial ids") ? "並び順を保存できませんでした（一覧を再読込してください）"
-        : error.message.includes("forbidden") ? "権限がありません" : error.message);
+      setMsg(reorderErrJa(error.message));
       return;
     }
     await reload();
