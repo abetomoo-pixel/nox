@@ -26,6 +26,17 @@ export const MASTER_NAV: MasterNavGroup[] = [
       { label: "料金設定", href: "/master/pricing" },
     ],
   },
+  {
+    key: "cast-comp",
+    label: "キャスト・報酬",
+    pages: [
+      { label: "概要", href: "/master/cast-comp" },
+      { label: "待遇プラン", href: "/master/cast-comp/plan" },
+      { label: "控除・送り", href: "/master/cast-comp/deduction" },
+      { label: "ノルマ", href: "/master/cast-comp/norma" },
+      { label: "キャスト会計", href: "/master/cast-comp/register" },
+    ],
+  },
 ];
 
 /**

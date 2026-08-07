@@ -5,7 +5,6 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
-import CompMaster from "./comp-master";
 import {
   fetchProducts, fetchProductCategories, fetchStockTotals,
   type MasterProduct as Product, type MasterCategory as Category,
@@ -27,7 +26,7 @@ const secTitle: React.CSSProperties = t.cardTitle;
 //     受け取って描き分けるだけ＝コンポーネントも機能も RPC も送る引数も1文字も変えていない。
 // ★レーン③: "products" は実ページ3本（/master/products・/master/categories・/master/stock）へ
 //   完全移設したため view から削除した（残る view は5つ）。
-export type MasterView = "cast" | "seat" | "hours" | "system";
+export type MasterView = "seat" | "hours" | "system";
 export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean;
   /** server で生成済みのパネル群（表示単位ごと）。未指定の単位はカードを出さない。 */
@@ -109,13 +108,13 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
     {
       sec: "キャスト・報酬", secDesc: "給与計算とキャスト運用の設定",
       cards: [
-        { view: "cast" as MasterView, id: "m-sim", icon: "▲", count: "試算", title: "待遇プラン・報酬シミュレーター",
-          desc: "保証時給、スライド、指名バック単価を試算。プラン割当は給与側で管理。", status: "● 試算可", tone: "" },
-        { view: "cast" as MasterView, id: "m-deduct", icon: "▽", count: "控除", title: "控除・送りの設定",
+        { href: "/master/cast-comp/plan", id: "m-sim", icon: "▲", count: "試算", title: "待遇プラン・報酬シミュレーター",
+          desc: "保証時給、スライド、指名バック単価を試算。プラン割当・上書き・自由バックもここで管理。", status: "● 試算可", tone: "" },
+        { href: "/master/cast-comp/deduction", id: "m-deduct", icon: "▽", count: "控除", title: "控除・送りの設定",
           desc: "固定控除の種別と金額、送り実費/一律の扱いを管理。", status: "● 有効", tone: "" },
-        { view: "cast" as MasterView, id: "m-norm", icon: "◎", count: "ノルマ", title: "ノルマ設定",
+        { href: "/master/cast-comp/norma", id: "m-norm", icon: "◎", count: "ノルマ", title: "ノルマ設定",
           desc: "売上ノルマ・指名ノルマの採用可否と範囲を設定（マイページの進捗に反映）。", status: "● 設定可", tone: "" },
-        { view: "cast" as MasterView, id: "m-castreg", icon: "◈", count: "会計権限", title: "キャスト会計の許可",
+        { href: "/master/cast-comp/register", id: "m-castreg", icon: "◈", count: "会計権限", title: "キャスト会計の許可",
           desc: "キャスト本人がレジを使えるようにする設定（対象キャストの個別許可）。", status: "● 設定可", tone: "" },
       ],
     },
@@ -145,7 +144,6 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
     hubQ === "" || c.title.toLowerCase().includes(hubQ) || c.desc.toLowerCase().includes(hubQ);
 
   const VIEW_TITLE: Record<MasterView, string> = {
-    cast: "キャスト・報酬",
     seat: "席・卓", hours: "営業時間・定休日", system: "スタッフ・システム",
   };
 
@@ -265,12 +263,9 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
 
       {/* ── 外部パネル（page.tsx が server で組んだ ReactNode をそのまま描く）──
           ★コンポーネントも props も page.tsx 側のまま＝ここは表示単位で出し分けるだけ。 */}
-      {view === "cast" && panels?.cast}
       {view === "hours" && panels?.hours}
       {view === "system" && panels?.system}
 
-      {/* 待遇プランのマスタ（CompMaster）は「キャスト・報酬」に属する */}
-      {view === "cast" && <CompMaster storeId={storeId} isManagerUp={isManagerUp} isOwner={isOwner} />}
     </div>
   );
 }

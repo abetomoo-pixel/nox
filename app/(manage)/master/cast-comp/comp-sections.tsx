@@ -3,55 +3,49 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
-import Toast from "@/components/ui/toast";
 
-// F2a-4: 報酬設計マスタ 6タブ（プラン/割当/ノルマ/控除/罰金・閾値/自由バック）。
-// 3層防御の UI 層: layout でロール分岐（cast は到達不能）＋本コンポーネントで D3a 出し分け。
+// キャスト・報酬レーン D2-1: 旧 CompMaster（報酬設計マスタ 6タブ）の解体先。
+//   ★各タブ子コンポーネントは comp-master.tsx から**逐語移設**（JSX・RPC・引数・権限出し分けとも
+//     1文字も変えていない）。タブ切替の殻だけを撤去し、実ページ3枚（plan/norma/deduction）が
+//     必要なセクションを import して縦積みする（IA 分割＝裁定1・2）。
+//   データ取得は useCompData（旧 CompMaster の load を関数ごと移設）＝各ページで必要分を読む。
+// 3層防御の UI 層: layout でロール分岐（cast は到達不能）＋各セクションで D3a 出し分け。
 //   最終防衛は DB（set_comp_plan/set_penalty_config は owner のみ・他は manager 以上＝mig0013）。
-// owner 専用（D3a）: プランの編集フォーム・罰金/閾値フォーム。manager は閲覧のみ（フォーム非表示）。
 
-type Slide = { at: number; wage: number };
-type Plan = {
+export type Slide = { at: number; wage: number };
+export type Plan = {
   id: string; name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
   sales_slide: Slide[]; point_slide: Slide[]; is_active: boolean;
 };
-type CastRow = { id: string; name: string };
-type CastPlan = { cast_id: string; plan_id: string; overrides_json: Record<string, number> };
-type Norm = { id: string; cast_id: string; period: string; days_target: number; dohan_target: number; sales_target: number; shimei_target: number };
-type Deduction = { id: string; name: string; amount: number; per: string; is_active: boolean };
-type BackDef = { id: string; name: string; basis: string; value: number; cond_json: { metric: string; min: number } | null; is_active: boolean };
-type Penalty = {
+export type CastRow = { id: string; name: string };
+export type CastPlan = { cast_id: string; plan_id: string; overrides_json: Record<string, number> };
+export type Norm = { id: string; cast_id: string; period: string; days_target: number; dohan_target: number; sales_target: number; shimei_target: number };
+export type Deduction = { id: string; name: string; amount: number; per: string; is_active: boolean };
+export type BackDef = { id: string; name: string; basis: string; value: number; cond_json: { metric: string; min: number } | null; is_active: boolean };
+export type Penalty = {
   fine_absent: number; fine_late: number; hours_per_shift: number; norm_on: boolean;
   norm_days_flat: number; norm_days_per: number; norm_dohan_flat: number; norm_dohan_per: number;
   late_grace_min: number; early_grace_min: number; over_grace_min: number;
 };
 
-const METRICS = ["hon", "jonai", "dohan", "days", "sales", "pt", "champCnt", "bottleCnt"] as const;
+export const METRICS = ["hon", "jonai", "dohan", "days", "sales", "pt", "champCnt", "bottleCnt"] as const;
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const secTitle: React.CSSProperties = t.cardTitle;
-const tabBtn = (on: boolean): React.CSSProperties => ({
-  padding: "7px 12px", borderRadius: 9, border: "1px solid " + (on ? "var(--gold)" : "var(--line2)"),
-  background: on ? "linear-gradient(135deg,var(--gold2),#B8893A)" : "transparent", color: on ? "#0B0B0F" : "var(--ink)", cursor: "pointer", fontSize: 13, fontWeight: 700,
-});
+export const secTitle: React.CSSProperties = t.cardTitle;
 const note: React.CSSProperties = { fontSize: 12, color: "var(--sub)" };
 
-const DEFAULT_PENALTY: Penalty = {
+export const DEFAULT_PENALTY: Penalty = {
   fine_absent: 10000, fine_late: 3000, hours_per_shift: 5, norm_on: true,
   norm_days_flat: 5000, norm_days_per: 2000, norm_dohan_flat: 3000, norm_dohan_per: 1500,
   late_grace_min: 10, early_grace_min: 30, over_grace_min: 90,
 };
 
-type Tab = "plan" | "assign" | "norm" | "deduction" | "penalty" | "back";
-
-export default function CompMaster({ storeId, isManagerUp, isOwner }: { storeId: string; isManagerUp: boolean; isOwner: boolean }) {
+/** 旧 CompMaster の load を移設した共通データフック（読みは RLS・書きは各セクションの RPC）。 */
+export function useCompData(storeId: string) {
   const supabase = createClient();
-  const [tab, setTab] = useState<Tab>("plan");
-  const [msg, setMsg] = useState<string | null>(null);
-
   const [plans, setPlans] = useState<Plan[]>([]);
   const [casts, setCasts] = useState<CastRow[]>([]);
   const [castPlans, setCastPlans] = useState<CastPlan[]>([]);
@@ -83,28 +77,11 @@ export default function CompMaster({ storeId, isManagerUp, isOwner }: { storeId:
 
   useEffect(() => { void load(); }, [load]);
 
-  return (
-    <section className="nox-cardtop" style={card}>
-      <h2 style={secTitle}>報酬設計マスタ</h2>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-        {([["plan", "プラン"], ["assign", "割当"], ["norm", "ノルマ"], ["deduction", "控除"], ["penalty", "罰金・閾値"], ["back", "自由バック"]] as [Tab, string][]).map(([t, label]) => (
-          <button key={t} style={tabBtn(tab === t)} onClick={() => { setTab(t); setMsg(null); }}>{label}</button>
-        ))}
-      </div>
-      <Toast msg={msg} />
-
-      {tab === "plan" && <PlanTab plans={plans} isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={load} />}
-      {tab === "assign" && <AssignTab plans={plans} casts={casts} castPlans={castPlans} isManagerUp={isManagerUp} setMsg={setMsg} reload={load} />}
-      {tab === "norm" && <NormTab casts={casts} norms={norms} isManagerUp={isManagerUp} setMsg={setMsg} reload={load} />}
-      {tab === "deduction" && <DeductionTab deductions={deductions} isManagerUp={isManagerUp} storeId={storeId} setMsg={setMsg} reload={load} />}
-      {tab === "penalty" && <PenaltyTab penalty={penalty} setPenalty={setPenalty} exists={penaltyExists} isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={load} />}
-      {tab === "back" && <BackTab backs={backs} isManagerUp={isManagerUp} storeId={storeId} setMsg={setMsg} reload={load} />}
-    </section>
-  );
+  return { plans, casts, castPlans, norms, deductions, backs, penalty, setPenalty, penaltyExists, reload: load };
 }
 
 // ── プラン（owner のみ編集・D3a）──
-function SlideInput({ label, slide, setSlide }: { label: string; slide: Slide[]; setSlide: (s: Slide[]) => void }) {
+export function SlideInput({ label, slide, setSlide }: { label: string; slide: Slide[]; setSlide: (s: Slide[]) => void }) {
   // 3段固定入力（at 昇順 strict は RPC が検証・空段は送信時に除外）
   const rows: Slide[] = [0, 1, 2].map((i) => slide[i] ?? { at: 0, wage: 0 });
   const set = (i: number, key: "at" | "wage", v: number) => {
@@ -125,7 +102,7 @@ function SlideInput({ label, slide, setSlide }: { label: string; slide: Slide[];
   );
 }
 
-function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Plan[]; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Plan[]; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
   const [id, setId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -195,7 +172,7 @@ function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Plan[]; i
 }
 
 // ── 割当（manager 以上・inactive プランは選択肢に出さない）──
-function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload }: { plans: Plan[]; casts: CastRow[]; castPlans: CastPlan[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload }: { plans: Plan[]; casts: CastRow[]; castPlans: CastPlan[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
   const [castId, setCastId] = useState("");
   const [planId, setPlanId] = useState("");
@@ -251,7 +228,7 @@ function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload }: { p
 // ── ノルマ（manager 以上・mig0042 で4軸＝日数/同伴＋売上/指名）──
 //   売上・指名の新2軸は表示のみ（payOf/normPenalty 非接続＝/mine の進捗表示用）。
 //   罰金に効くのは従来どおり日数・同伴のみ（罰金・閾値タブの norm_on 配下）。
-function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: CastRow[]; norms: Norm[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: CastRow[]; norms: Norm[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
   const [castId, setCastId] = useState("");
   const [period, setPeriod] = useState("");
@@ -312,7 +289,7 @@ function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: CastRow
 }
 
 // ── 控除（manager 以上）──
-function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload }: { deductions: Deduction[]; isManagerUp: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload }: { deductions: Deduction[]; isManagerUp: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
   const [id, setId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -358,7 +335,7 @@ function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload }: { de
 }
 
 // ── 罰金・突合閾値（owner のみ・D3a・全12引数明示送信＝原則7）──
-function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, reload }: { penalty: Penalty; setPenalty: (p: Penalty) => void; exists: boolean; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, reload }: { penalty: Penalty; setPenalty: (p: Penalty) => void; exists: boolean; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
   const num = (k: keyof Penalty) => (
     <label style={{ fontSize: 12 }}>{k} <input type="number" min={0} value={penalty[k] as number}
@@ -400,7 +377,7 @@ function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, rel
 }
 
 // ── 自由バック（manager 以上・cond {metric,min} 任意）──
-function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs: BackDef[]; isManagerUp: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs: BackDef[]; isManagerUp: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
   const [id, setId] = useState<string | null>(null);
   const [name, setName] = useState("");
