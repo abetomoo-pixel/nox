@@ -1,0 +1,15 @@
+# mock/pages-2026-08/ 収蔵13枚の相談役側 sha256（先頭16桁）＋bytes
+# CC: README の実測 sha256 表と突き合わせ・全13一致で来歴クローズ
+nox-analytics-dashboard.html      36224  7456e5db19a82c49
+nox-announcement-management.html  31116  c9d67b543b07388b
+nox-audit-management.html         35704  e3a92792121b5d7b
+nox-business-hours-settings.html  21031  13504c7f7e421f95
+nox-cast-management.html          34192  99a4fc32b53d6098
+nox-customer-management.html      32796  9a4847c57010d911
+nox-daily-report.html             35676  a7513a48148e6fbb
+nox-payroll-management.html       30707  d9ed45abfe5ea53d
+nox-pricing-settings.html         37702  ec71ac2182253f44
+nox-register-pos.html             69864  d21bdac477e986d9
+nox-seat-table-settings.html      25026  5dbbb4cf75335022
+nox-shift-management.html         45914  1503c968ed25582f
+nox-staff-system-settings.html    29175  9bf1f9d70a07cb78

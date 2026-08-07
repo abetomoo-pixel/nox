@@ -450,12 +450,14 @@ async function main() {
   }
 
   // ── 結果 ──
+  // 成功行は他スイートと同書式（"ALL PASS (N assertions)"）＝集計 grep から漏れない（2026-08 是正）
   if (fails.length) {
-    console.error(`✗ verify:nox-rate-back FAIL ${fails.length}件 / PASS ${pass}件`);
-    for (const f of fails) console.error(`  - ${f}`);
+    for (const f of fails) console.error(`  FAIL: ${f}`);
+    console.error(`verify:nox-rate-back FAIL ${fails.length} / pass ${pass}`);
     process.exit(1);
   }
-  console.log(`✓ verify:nox-rate-back PASS ${pass}件（玲奈ゴールデン 5170/5931・withholding 125802 不変を含む）`);
+  console.log(`verify:nox-rate-back ALL PASS (${pass} assertions)`);
+  console.log("玲奈ゴールデン 5170/5931・withholding 125802 不変を含む");
 }
 
 main().catch((e) => {

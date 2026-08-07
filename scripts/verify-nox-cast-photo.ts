@@ -202,9 +202,13 @@ async function main() {
     await admin.from("casts").delete().eq("id", castIdA2);
   }
 
-  console.log(`verify:nox-cast-photo — pass ${pass} / fail ${fails.length}`);
+  // 成功行は他スイートと同書式（"ALL PASS (N assertions)"）に統一＝集計 grep から漏れない（2026-08 是正）
   for (const f of fails) console.error("  FAIL:", f);
-  if (fails.length) process.exit(1);
+  if (fails.length) {
+    console.error(`verify:nox-cast-photo FAIL ${fails.length} / pass ${pass}`);
+    process.exit(1);
+  }
+  console.log(`verify:nox-cast-photo ALL PASS (${pass} assertions)`);
 }
 
 main().catch((e) => {

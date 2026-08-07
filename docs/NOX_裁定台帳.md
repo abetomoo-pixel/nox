@@ -738,6 +738,13 @@ VERIFY org の drink/champ 商品は `verify-nox-rls.ts:198` が作る。しか�
 
 後始末コード（verify-nox-anon-guard.ts:3666 段28-cast / :4407 会計TMP）は存在するが、準備失敗で段が中断すると実行されない。今回 rls が6件落ちた直接原因（casts 2→4・memberships 8→9）。try/finally 化されていない段がある。恒久対処はバックログ。
 
+→ **①②③消化済み（2026-08-08・本コミット）**：
+- ①＝anon-guard 段15 冒頭で CRM卓 checks の started_at を「実行日 − daysAgo」へ再アンカー（customer_id×total で同定・seed 経過日数に非依存＝恒久化）。将来日付は「データ側を 30 日古くする」忠実シミュレーション（JS/DB の時計は同時に進むため時計モックでなくデータドリフトが等価）で自己修復を実証。
+- ②＝anon-guard 段28/29 が商品不在時に自給（query-or-insert の永続 fixture 流儀・値は rls 個体と同形。段30/31 の rate drink lookup は段28 の個体で充足＝段順前提をコメント明記）。**fresh seed → verify:f0 直行 17本全緑を実測**＝「seed:f0→rls 単体→フル」の復旧手順が不要化・launch 残債の解消。
+- ③＝段28/段31 を外側 try/finally 化（サインイン不成立＝ガード false／prep 例外でも 専用 cast・一時 cast 一式・store settings を残さない。正常経路では内側 finally 実施済み＝冪等 no-op）。
+- 附随＝cast-photo / rate-back の成功行を他スイート同書式「ALL PASS (N assertions)」へ統一（集計 grep 漏れの是正）。
+- verify:f0 合計 **2549 → 2550**（+1＝段15 再アンカー assert・anon-guard 933→934）。golden 5値（wage 5931 / withholding 125802 / rls F1b 54400 / labor-forecast 55233 / receipt 52）不変。
+
 ### 教訓9：セッションが日をまたぐと「本日」の実行記録が腐る
 
 CC の「本日4回緑だった」は誤認＝実際は 07-31 の実行（git log で確定）。セッション内の記憶も台帳・引き継ぎ文書と同様に腐る。**「本日」を根拠にする報告は git log / mtime 等の機械的時刻で裏を取ること**。裁定21（メモ腐敗）の同族。
@@ -818,6 +825,8 @@ migration プリフライトの影響調査は「app の書き手」だけでな
 - 期限＝翌月10日固定（納期の特例はホステス報酬に不適用・裁定23）。土日祝順延は表示課題として post-launch
 
 → DEMO 2026-07 の治癒は Agoora が UI から手動実施（解除→再確定＝D1 初実戦・実施後に '(未凍結)' 警告消滅を目視検収）。verify は VERIFY org の動的生成のみで DEMO 不干渉（案A）。
+
+→ **治癒実施済み（2026-08-08・C タスク）**：reopen＝admin 代行で payroll_reopen（owner の auth を開発側が持たないため・actor=DEMO owner の users.id・"reopened"＝draft 不変量へ）→ 再確定＝demo-manager の UI 実操作（/payroll 2026-07・確定完了 6名・**全 payslip に pay.taxMode 凍結**＝'(未凍結)' の根が解消・payslips 直読で確認）→ payroll_mark_paid＝admin 代行（"paid"・paid_at 記録）。net は新式再計算で旧値から変動（例 23135→25766）＝裁定26 附記どおりの仕様。各段で verify:nox-pay 83 全緑（golden 不変）。納付管理パネルの目視は owner 限定描画のため Agoora の次回ログイン時に確認可（データ条件は充足済み）。
 
 → 是正（mig0076・本コミット）：sum(bigint)→numeric 昇格により宣言 bigint と不一致＝1行でも返すと必ず失敗する潜伏バグ（paid run ゼロ環境では発火せず）。F2g runtime 検証が初回検出。集計2列を ::bigint 明示キャスト。
 

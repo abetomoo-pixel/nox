@@ -897,6 +897,34 @@ async function main() {
     await admin.from("customers").delete().like("name", "NOX-VERIFY-段15%");
     await admin.from("products").delete().like("name", "NOX-VERIFY-段15%");
 
+    // ★裁定24① 恒久対処（2026-08）: churn fixture の started_at を実行日から再アンカーする。
+    //   seed:f0 は Date.now() 相対で焼き込むため、以後の実日付経過で days_since が毎日 +1 ドリフトし
+    //   seed+20日で tier 安全域（40→60/70→…）を踏み越えて FAIL していた（2026-08-02 実測・台帳裁定24①）。
+    //   段の冒頭で CRM卓の closed checks を「実行日 − daysAgo」へ UPDATE すれば fixture 定義
+    //   （fixtures-f0 FIXTURE_CUSTOMERS）が常に成立＝seed:f0 再実行に依存しない自立（段内動的生成の流儀）。
+    //   行の同定は customer_id × total（fixtures-f0 の設計で顧客内 total は一意）。他の checks には触れない
+    //   （CRM卓 checks は指名・payments・当日 biz_date を持たない設計＝他ゴールデン非干渉は seed 時と同じ）。
+    {
+      const { data: crmSeat } = await admin.from("seats").select("id")
+        .eq("store_id", storeA1!.id).eq("name", "NOX-VERIFY-CRM卓").maybeSingle();
+      const anchorFails: string[] = [];
+      if (!crmSeat) anchorFails.push("CRM卓が見つからない（seed:f0 未実行?）");
+      for (const cu of Object.values(FIXTURE_CUSTOMERS)) {
+        if (!crmSeat || cu.checks.length === 0) continue;
+        const cid = custIdOf(cu.name);
+        if (!cid) { anchorFails.push(`顧客不在: ${cu.name}`); continue; }
+        for (const ck of cu.checks) {
+          const ts = new Date(Date.now() - ck.daysAgo * 86_400_000).toISOString();
+          const { error: eAnc } = await admin.from("checks")
+            .update({ started_at: ts, closed_at: ts })
+            .eq("seat_id", crmSeat.id).eq("customer_id", cid).eq("total", ck.total);
+          if (eAnc) anchorFails.push(`${cu.name}/total=${ck.total}: ${eAnc.message}`);
+        }
+      }
+      check("段15（準備）churn fixture 再アンカー（実行日 − daysAgo・裁定24① 恒久対処）",
+        anchorFails.length === 0, anchorFails.join(" | "));
+    }
+
     const owner = await signInUser("ownerA");
     const mgr = await signInUser("managerA1");
     const crm = await signInUser("staffCrmOnA1");
@@ -1016,9 +1044,9 @@ async function main() {
       const rFree = rowOf(FIXTURE_CUSTOMERS.custFree.name);
       check("段15 churn ゴールデン: 指名A客 tier='none'（5日前・visits=2・spend=30000）",
         rCastA?.churn_tier === "none" && rCastA?.visits === 2 && Number(rCastA?.total_spend) === 30_000, JSON.stringify(rCastA));
-      // days_since は seed 実行日からの経過で毎日 +1 ドリフトする＝厳格レンジ（±1）だと seed 後
-      // 2日で偽 fail（2026-07-13 実測 44/74 で発生）。fixture の設計意図（40/70=境界 30/60 を避けた
-      // マージン）どおり tier 安全域で assert する（tier が本当に動く seed+20日超は seed:f0 再実行が前提）。
+      // days_since は段冒頭の再アンカー（裁定24① 恒久対処）で常に実行日基準＝seed 経過日数に依存しない。
+      // assert は fixture の設計意図（40/70=境界 30/60 を避けたマージン）どおり tier 安全域のまま
+      // （再アンカーとの二重防御・日跨ぎ実行でも ±1 で tier は動かない）。
       check("段15 churn ゴールデン: フリー客 tier='mid'（seed 時 40日前・30-59 の安全域）",
         rFree?.churn_tier === "mid" && (rFree?.days_since ?? 0) >= 40 && (rFree?.days_since ?? 99) < 60, JSON.stringify(rFree));
       check("段15 churn ゴールデン: 指名B客 tier='high'（seed 時 70日前・60+ の安全域）",
@@ -3445,7 +3473,18 @@ async function main() {
     // drink 商品（バック不変テスト用・price/back を実物から取得）
     const { data: drinkP } = await admin.from("products").select("id, price, back_mode, back_value")
       .eq("store_id", s28Store!.id).eq("type", "drink").eq("is_active", true).limit(1);
-    const drink = drinkP?.[0];
+    let drink = drinkP?.[0];
+    // ★裁定24② 恒久対処: fresh seed 直後は商品が 0（seed:f0 は products を削除するが投入せず、
+    //   作る側の rls は実行順で anon-guard の後＝循環）。不在なら自給する（段28卓と同じ
+    //   query-or-insert の永続 fixture 流儀・値は rls の NOX-VERIFY-指名ドリンク と同形）。
+    //   ★段30/31 の rate drink lookup も本段の自給個体で満たされる（段順 28→30→31 が前提）。
+    if (!drink) {
+      const { data: nw } = await admin.from("products").insert({
+        org_id: s28Store!.org_id, store_id: s28Store!.id, type: "drink", category: "ドリンク",
+        name: "NOX-VERIFY-段28-drink", price: 1500, back_mode: "rate", back_value: 50, hon_pt: 0, is_active: true,
+      }).select("id, price, back_mode, back_value").single();
+      drink = nw ?? undefined;
+    }
 
     const seatIds = [seat1, seat2, seat3, seat4];
     const s28Wipe = async () => {
@@ -3461,6 +3500,10 @@ async function main() {
       }
     };
     await s28Wipe();
+    // ★裁定24③ 恒久対処: ここから段末まで外側 try/finally（finally は段末尾）。
+    //   従来はガード false（サインイン不成立等）の経路で後始末が走らず専用 cast が残留し、
+    //   同一チェーン後段 rls の casts 固定カウントを壊した（2026-08-03 実測）。本体は無改変（再インデントなし）。
+    try {
 
     check("段28（準備）店・専用卓4・専用 cast・drink 商品の解決",
       !!s28Store && !!seat1 && !!seat2 && !!seat3 && !!seat4 && !!s28CastId && !!drink);
@@ -3671,6 +3714,12 @@ async function main() {
         (chkLeft ?? []).length === 0 && (castLeft ?? []).length === 0,
         `chk=${(chkLeft ?? []).length}, cast=${(castLeft ?? []).length}`);
     }
+    } finally {
+      // ★裁定24③: ガード false／途中例外でも専用 cast・伝票を残さない。
+      //   正常経路では内側 finally が掃除済み＝ここは冪等 no-op（削除済み行の再 delete）。
+      await s28Wipe();
+      await admin.from("casts").delete().eq("id", s28CastId);
+    }
   }
 
   // ── 段29: F3f（mig0037＋mig0047）drink_claims の実挙動＋★承認焼付けが check_close の drink_back と同値（real signIn）──
@@ -3705,8 +3754,24 @@ async function main() {
     const s29CastB = s29Casts?.find((c) => c.name === FIXTURE_USERS.castA1b.name)?.id as string;
     const { data: s29Prods } = await admin.from("products").select("id, type, price, back_mode, back_value, unit4_json")
       .eq("store_id", s29Store?.id ?? "").in("type", ["drink", "champ"]).eq("is_active", true);
-    const drinkP = s29Prods?.find((p) => p.type === "drink" && p.back_mode === "rate");
-    const champP = s29Prods?.find((p) => p.type === "champ" && p.back_mode === "unit4");
+    let drinkP = s29Prods?.find((p) => p.type === "drink" && p.back_mode === "rate");
+    let champP = s29Prods?.find((p) => p.type === "champ" && p.back_mode === "unit4");
+    // ★裁定24② 恒久対処: fresh seed 直後は rate drink / unit4 champ が無い（段28 と同じ循環）。
+    //   不在なら自給（query-or-insert 流儀・値は rls の 指名ドリンク/シャンパン と同形）。
+    //   本段の期待バックは商品行の実値から導出するため、どの個体でも assert は成立する。
+    const mkProd29 = async (cols: Record<string, unknown>) =>
+      (await admin.from("products").insert({
+        org_id: s29Store!.org_id, store_id: s29Store!.id, hon_pt: 0, is_active: true, ...cols,
+      }).select("id, type, price, back_mode, back_value, unit4_json").single()).data ?? undefined;
+    if (s29Store && !drinkP) {
+      drinkP = await mkProd29({ type: "drink", category: "ドリンク", name: "NOX-VERIFY-段29-drink", price: 1500, back_mode: "rate", back_value: 50 });
+    }
+    if (s29Store && !champP) {
+      champP = await mkProd29({
+        type: "champ", category: "シャンパン", name: "NOX-VERIFY-段29-champ", price: 30_000,
+        back_mode: "unit4", back_value: null, unit4_json: { hon: 7000, jonai: 6000, dohan: 6000, free: 5000 },
+      });
+    }
 
     const seatOf29 = async (tag: string, sort: number, storeRow: { id: string; org_id: string }): Promise<string> => {
       const nm = `NOX-VERIFY-段29卓${tag}`;
@@ -4286,6 +4351,11 @@ async function main() {
       ? await admin.from("casts").insert({ org_id: s31Store!.org_id, store_id: s31Store!.id, user_id: uTmp.id, name: "検証キャスト会計TMP", employment: "委託", is_active: true }).select("id").single()
       : { data: null };
 
+    // ★裁定24③ 恒久対処: 一時 cast 一式の生成後から段末まで外側 try/finally（finally は段末尾）。
+    //   従来はガード false（サインイン不成立等）の経路で後始末が走らず、一時 casts/memberships が残留して
+    //   同一チェーン後段 rls の固定カウント（casts 2・memberships 8）を壊した（2026-08-03 実測）。本体は無改変。
+    try {
+
     check("段31（準備）店/drink商品/専用卓/castA1a/一時 cast 一式 解決",
       !!s31Store && !!drinkP && !!seatId && !!castA1aRow && !!uTmp && !!mTmp && !!cTmp);
 
@@ -4417,6 +4487,16 @@ async function main() {
           && ((stFin?.settings_json as Record<string, unknown> | null)?.cast_register_enabled ?? undefined) === (baselineSettings?.cast_register_enabled ?? undefined),
         `tmp=${(tmpLeft ?? []).length}, settings=${JSON.stringify(stFin?.settings_json)}`);
       await castTmp.auth.signOut();
+    }
+    } finally {
+      // ★裁定24③: ガード false／途中例外でも一時 cast 一式・店フラグを残さない。
+      //   正常経路では内側 finally が実施済み＝ここは冪等 no-op（settings は基準値の再書込・削除は no-op）。
+      if (s31Store) await admin.from("stores").update({ settings_json: baselineSettings }).eq("id", s31Store.id);
+      await wipeSeat();
+      if (cTmp?.id) await admin.from("casts").delete().eq("id", cTmp.id);
+      if (mTmp?.id) await admin.from("memberships").delete().eq("id", mTmp.id);
+      if (uTmp?.id) await admin.from("users").delete().eq("id", uTmp.id);
+      if (tmpAuthId) await admin.auth.admin.deleteUser(tmpAuthId).catch(() => undefined);
     }
   }
 
