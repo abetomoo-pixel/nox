@@ -16,7 +16,7 @@
 // ★モックから意図的に落としたもの: 帯の「表示名」（pricing_rules に列がない）・
 //   「料金単位 卓/名」列（stores.time_per＝店単位の設定でルール軸ではない＝基本料金タブで設定）。
 // ★書込は全て RPC 専任。エラーは fn_set_pricing_rule の bad 系トークン対応表で日本語化。
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -153,6 +153,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const [rankVals, setRankVals] = useState<Record<string, { hon: string; jonai: string }>>(
     () => buildRankVals(initial.rules, initial.ranks));
   const [newRankName, setNewRankName] = useState("");
+  // D2-4（mig0085）: ランク削除の参照数（casts.rank_id）。pricing_rules 側は手元の rules から数える。
+  const [rankCastRefs, setRankCastRefs] = useState<Record<string, number>>({});
 
   async function reload() {
     const [{ data: rs }, { data: rks }] = await Promise.all([
@@ -166,6 +168,11 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     setRules(nr);
     setRanks(nk);
     setRankVals(buildRankVals(nr, nk));
+    // D2-4: 割当キャスト数（RLS スコープ内・rank_id 非 null のみ）
+    const { data: cr } = await supabase.from("casts").select("rank_id").not("rank_id", "is", null);
+    const refs: Record<string, number> = {};
+    for (const c of (cr ?? []) as { rank_id: string }[]) refs[c.rank_id] = (refs[c.rank_id] ?? 0) + 1;
+    setRankCastRefs(refs);
   }
 
   const nextPriority = (fk: string) =>
@@ -369,6 +376,39 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     await reload();
   }
 
+  /** D2-4（mig0085）: ランク削除。RPC が参照ゼロを検証（'in use'）＝UI は件数を出して先回りする。
+   *  削除成功後は残り全件で cast_rank_reorder を呼び直し sort_order を 1..N へ正規化
+   *  （reorder の「全件配列」契約との整合＝欠番を残さない）。 */
+  async function deleteRank(r: CastRank) {
+    const castRefs = rankCastRefs[r.id] ?? 0;
+    const ruleRefs = rules.filter((x) => x.rank_id === r.id).length;
+    if (castRefs + ruleRefs > 0) {
+      setMsg(`使用中のため削除できません（割当${castRefs}件・ルール${ruleRefs}件）`);
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.rpc("delete_cast_rank", { p_id: r.id });
+    if (error) {
+      setBusy(false);
+      setMsg(error.message.includes("in use")
+        ? `使用中のため削除できません（割当${castRefs}件・ルール${ruleRefs}件）`
+        : error.message.includes("not found") ? "対象のランクが見つかりません（再読込してください）"
+        : ruleErrJa(error.message));
+      await reload();
+      return;
+    }
+    const rest = ranks.filter((x) => x.id !== r.id).map((x) => x.id);
+    if (rest.length > 0) {
+      const { error: eRo } = await supabase.rpc("cast_rank_reorder", { p_store_id: storeId, p_ids: rest });
+      if (eRo) setMsg(reorderErrJa(eRo.message));
+      else setMsg("ランクを削除しました");
+    } else {
+      setMsg("ランクを削除しました");
+    }
+    setBusy(false);
+    await reload();
+  }
+
   async function moveRank(index: number, dir: -1 | 1) {
     const ids = swapAdjacent(ranks.map((r) => r.id), index, dir);
     if (!ids || busy) return;
@@ -395,6 +435,17 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     units: number; net: number; svc: number; total: number; cardTax: number;
   } | null>(null);
   const [pvErr, setPvErr] = useState<string | null>(null);
+
+  // D2-4: 参照数の初期取得（initial props に含まれないため初回のみ reload と同じ読みを行う）
+  useEffect(() => {
+    void (async () => {
+      const { data: cr } = await supabase.from("casts").select("rank_id").not("rank_id", "is", null);
+      const refs: Record<string, number> = {};
+      for (const c of (cr ?? []) as { rank_id: string }[]) refs[c.rank_id] = (refs[c.rank_id] ?? 0) + 1;
+      setRankCastRefs(refs);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function runPreview() {
     setPvErr(null);
@@ -682,8 +733,28 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                           )}
                         </td>
                         <td className="col-act" data-label="操作">
-                          <button type="button" style={btnLight} disabled={busy}
-                            onClick={() => void saveRankRow(row.key)}>保存</button>
+                          <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <button type="button" style={btnLight} disabled={busy}
+                              onClick={() => void saveRankRow(row.key)}>保存</button>
+                            {rank && (() => {
+                              const castRefs = rankCastRefs[rank.id] ?? 0;
+                              const ruleRefs = rules.filter((x) => x.rank_id === rank.id).length;
+                              const inUse = castRefs + ruleRefs > 0;
+                              return (
+                                <>
+                                  <button type="button" disabled={busy || inUse}
+                                    title={inUse ? `使用中（割当${castRefs}件・ルール${ruleRefs}件）` : "このランクを削除"}
+                                    style={{ ...btnLight, color: inUse ? "var(--sub)" : "var(--bad)" }}
+                                    onClick={() => void deleteRank(rank)}>削除</button>
+                                  {inUse && (
+                                    <span style={{ fontSize: 10.5, color: "var(--sub)", display: "block" }}>
+                                      割当{castRefs}・ルール{ruleRefs}
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </span>
                         </td>
                       </tr>
                     );

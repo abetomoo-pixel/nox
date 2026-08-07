@@ -49,9 +49,10 @@ function ageOf(birthday: string | null): string {
 }
 
 export default function CastsBoard({
-  isOwner, stores, myStoreId, initialTrials, initialLoginCasts,
+  isOwner, stores, myStoreId, initialTrials, initialLoginCasts, ranks,
 }: {
   isOwner: boolean; stores: Store[]; myStoreId: string; initialTrials: Trial[]; initialLoginCasts: CastLogin[];
+  ranks: { id: string; name: string; is_active: boolean }[];
 }) {
   const supabase = createClient();
   const [trials, setTrials] = useState<Trial[]>(initialTrials);
@@ -220,10 +221,25 @@ export default function CastsBoard({
   // ── F3g' castログイン招待（招待=未結線 / PW再発行=結線済み・POST /api/cast/invite） ──
   const reloadLoginCasts = useCallback(async () => {
     // mig0074: left_on を含め、page.tsx と同一の取得にする（.eq(is_active,true) を外す＝段C2 の在籍/退店タブ前提）。
-    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on").order("name");
+    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id").order("name");
     setLoginCasts((data ?? []) as CastLogin[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // D2-4: 指名ランクの割当（set_cast_rank_of）。null=解除。失敗トークンは日本語化。
+  async function assignRank(c: CastLogin, rankId: string | null) {
+    setMsg(null);
+    setBusy(true);
+    const { error } = await supabase.rpc("set_cast_rank_of", { p_cast_id: c.id, p_rank_id: rankId });
+    setBusy(false);
+    setMsg(error
+      ? (error.message.includes("bad rank") ? "このお店のランクではありません"
+        : error.message.includes("not found") ? "キャストが見つかりません（再読込してください）"
+        : error.message.includes("forbidden") ? "権限がありません"
+        : error.message)
+      : rankId ? "指名ランクを割り当てました" : "指名ランクを解除しました");
+    await reloadLoginCasts();
+  }
 
   function openInvite(c: CastLogin, mode: "invite" | "reset") {
     setInvTarget(c); setInvMode(mode); setInvEmail(""); setInvErr(null); setInvResult(null); setInvCopied(false);
@@ -435,13 +451,35 @@ export default function CastsBoard({
 
           {dtab === "comp" && (
             <>
+              {/* D2-4（mig0083/0085）: 指名ランクの割当（set_cast_rank_of・null=ランクなし）。
+                  ランク別指名料（pricing_rules）の解決軸＝行追加時のキャストの現在ランクで決まる。 */}
+              <div className="nox-frow">
+                <span className="k">指名ランク</span>
+                <span className="v">
+                  <select
+                    value={selCast.rank_id ?? ""}
+                    disabled={busy}
+                    aria-label="指名ランク"
+                    onChange={(e) => void assignRank(selCast, e.target.value === "" ? null : e.target.value)}
+                    style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12.5 }}
+                  >
+                    <option value="">ランクなし（既定の指名料）</option>
+                    {ranks.filter((r) => r.is_active || r.id === selCast.rank_id).map((r) => (
+                      <option key={r.id} value={r.id}>{r.name}{r.is_active ? "" : "（無効）"}</option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 8 }}>
+                    ランク別の指名料は<Link href="/master/pricing" style={{ color: "var(--gold2)" }}>料金設定</Link>で管理
+                  </span>
+                </span>
+              </div>
               {/* ★待遇プランの編集経路は現行この画面に存在しない（マスタ側）。
                   新規 RPC も新規フォームも作らず、管理場所への案内だけを置く＝機能不変。 */}
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px", lineHeight: 1.8 }}>
                 待遇プラン（保証時給・スライド・指名バック単価）とキャストへの割当は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。
                 この画面からは変更できません（現行どおり）。
               </p>
-              <Link href="/master" style={{ ...btnGhost, display: "inline-block", textDecoration: "none" }}>マスタへ</Link>
+              <Link href="/master/cast-comp/plan" style={{ ...btnGhost, display: "inline-block", textDecoration: "none" }}>待遇プラン・報酬シミュレーターへ</Link>
             </>
           )}
 
