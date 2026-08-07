@@ -67,7 +67,7 @@ export type CollectResult = {
 // 店共通マスタ＋cast 個別マスタ（plan/norm/tax）を1回読む。
 async function loadMasters(admin: SupabaseClient, storeId: string, period: string) {
   const [plansR, castPlanR, penR, dedR, cbR, normR, taxR] = await Promise.all([
-    admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide").eq("store_id", storeId),
+    admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate").eq("store_id", storeId),
     admin.from("cast_plan").select("cast_id, plan_id, overrides_json").eq("store_id", storeId),
     admin.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
     admin.from("deductions").select("id, name, amount, per").eq("store_id", storeId).eq("is_active", true),
@@ -89,6 +89,11 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
       dohanBack: p.dohan_back as number,
       salesSlide: (p.sales_slide ?? []) as CompPlan["salesSlide"],
       pointSlide: (p.point_slide ?? []) as CompPlan["pointSlide"],
+      // mig0086: 指名バック方式（default 'per_count'＝既存プラン現行同値）
+      honBackMode: (p.hon_back_mode ?? "per_count") as CompPlan["honBackMode"],
+      honBackRate: (p.hon_back_rate ?? null) as number | null,
+      jonaiBackMode: (p.jonai_back_mode ?? "per_count") as CompPlan["jonaiBackMode"],
+      jonaiBackRate: (p.jonai_back_rate ?? null) as number | null,
     });
   }
   const castPlanByCast = new Map<string, { planId: string; override: PlanOverride }>();
@@ -201,6 +206,32 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
     champBottleByCast.set(cid, cur);
   }
   return { backByCast, champBottleByCast };
+}
+
+// mig0086: 率バックの母数＝窓内の指名料行（check_lines）を cast 別に集計（率バック設計 v1 裁定iii/vi）。
+//   fee_kind in ('hon_shimei','jonai_shimei') ∧ cast_id not null（0084 が凍結）・母数は line_total（サ料・丸め前）。
+//   ★窓と除外の系列＝drink_claims と同じ 0047 系列: checks!inner join・started_at [startTs, endTs)・
+//     neq checks.status 'void'＝close 非依存（open 伝票の指名料行も当月給与に乗る・void のみ除外）。
+//     per_count 系（get_cast_sales の本数）とは帰属系統が異なる＝rate はレジで「指名料を追加」した行のみが対象（裁定vi）。
+async function loadShimeiAmounts(admin: SupabaseClient, storeId: string, win: PayrollWindow) {
+  const { data, error } = await admin
+    .from("check_lines")
+    .select("cast_id, fee_kind, line_total, checks!inner(started_at, status)")
+    .eq("store_id", storeId)
+    .in("fee_kind", ["hon_shimei", "jonai_shimei"])
+    .not("cast_id", "is", null)
+    .neq("checks.status", "void")
+    .gte("checks.started_at", win.startTs)
+    .lt("checks.started_at", win.endTs);
+  if (error) throw new Error(`指名料行: ${error.message}`);
+  const byCast = new Map<string, { hon: number; jonai: number }>();
+  for (const r of (data ?? []) as { cast_id: string; fee_kind: string; line_total: number }[]) {
+    const cur = byCast.get(r.cast_id) ?? { hon: 0, jonai: 0 };
+    if (r.fee_kind === "hon_shimei") cur.hon += r.line_total;
+    else cur.jonai += r.line_total;
+    byCast.set(r.cast_id, cur);
+  }
+  return byCast;
 }
 
 // 窓内の shifts（確定）/attendance/punches を cast 別に読み、punch-io→matchPunches で days/lateN/absentN/日次hours を得る。
@@ -375,13 +406,14 @@ export async function collectPeriod(
   if (eS) throw new Error(`get_cast_sales: ${eS.message}`);
   const salesRows = (salesData ?? []) as SalesRow[];
 
-  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast] = await Promise.all([
+  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast] = await Promise.all([
     loadMasters(admin, storeId, win.period),
     loadAccounting(admin, storeId, win),
     loadIncentives(admin, storeId, win),
     loadReceivables(admin, storeId, win),
     loadAdvances(admin, storeId, win),
     loadTransport(admin, storeId, win),
+    loadShimeiAmounts(admin, storeId, win), // mig0086: 率バック母数
   ]);
   const { byCast: punchByCast, recipientsByDate } = await loadPunch(admin, storeId, win, grace);
 
@@ -426,6 +458,9 @@ export async function collectPeriod(
       hon: s?.hon ?? 0,
       jonai: s?.jonai ?? 0,
       dohan: s?.dohan ?? 0,
+      // mig0086: 率バック母数（指名料行なし=0＝rate プランでもバック0円が正・裁定vi）
+      honShimeiAmt: shimeiAmtByCast.get(cid)?.hon ?? 0,
+      jonaiShimeiAmt: shimeiAmtByCast.get(cid)?.jonai ?? 0,
       daily,
       productBack: { drink: back.drink, champ: back.champ, bottle: back.bottle },
       pointProducts: back.pt,

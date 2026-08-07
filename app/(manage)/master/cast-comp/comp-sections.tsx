@@ -13,12 +13,17 @@ import * as t from "@/lib/nox/ui/theme";
 //   最終防衛は DB（set_comp_plan/set_penalty_config は owner のみ・他は manager 以上＝mig0013）。
 
 export type Slide = { at: number; wage: number };
+export type BackModeRow = "per_count" | "rate";
 export type Plan = {
   id: string; name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
   sales_slide: Slide[]; point_slide: Slide[]; is_active: boolean;
+  // mig0086: 率バック方式（hon/jonai 独立・rate 中も円/本値は保持＝裁定v）
+  hon_back_mode: BackModeRow; hon_back_rate: number | null;
+  jonai_back_mode: BackModeRow; jonai_back_rate: number | null;
 };
 export type CastRow = { id: string; name: string };
-export type CastPlan = { cast_id: string; plan_id: string; overrides_json: Record<string, number> };
+// overrides_json: 数値4キー＋方式2キー（string）＋率2キー＝mig0086 の8キー
+export type CastPlan = { cast_id: string; plan_id: string; overrides_json: Record<string, number | string> };
 export type Norm = { id: string; cast_id: string; period: string; days_target: number; dohan_target: number; sales_target: number; shimei_target: number };
 export type Deduction = { id: string; name: string; amount: number; per: string; is_active: boolean };
 export type BackDef = { id: string; name: string; basis: string; value: number; cond_json: { metric: string; min: number } | null; is_active: boolean };
@@ -110,6 +115,11 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
   const [honBack, setHonBack] = useState(0);
   const [jonaiBack, setJonaiBack] = useState(0);
   const [dohanBack, setDohanBack] = useState(0);
+  // mig0086: 方式（円/本｜率）。率は mode='rate' のときだけ送る（排他 CHECK と同輪郭）。
+  const [honMode, setHonMode] = useState<BackModeRow>("per_count");
+  const [honRate, setHonRate] = useState(0);
+  const [jonaiMode, setJonaiMode] = useState<BackModeRow>("per_count");
+  const [jonaiRate, setJonaiRate] = useState(0);
   const [salesSlide, setSalesSlide] = useState<Slide[]>([]);
   const [pointSlide, setPointSlide] = useState<Slide[]>([]);
   const [active, setActive] = useState(true);
@@ -117,15 +127,21 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
   function edit(p: Plan) {
     setId(p.id); setName(p.name); setBase(p.base); setHonBack(p.hon_back);
     setJonaiBack(p.jonai_back); setDohanBack(p.dohan_back);
+    setHonMode(p.hon_back_mode ?? "per_count"); setHonRate(p.hon_back_rate ?? 0);
+    setJonaiMode(p.jonai_back_mode ?? "per_count"); setJonaiRate(p.jonai_back_rate ?? 0);
     setSalesSlide(p.sales_slide ?? []); setPointSlide(p.point_slide ?? []); setActive(p.is_active);
   }
   const clean = (s: Slide[]) => s.filter((r) => r.at > 0).map((r) => ({ at: r.at, wage: r.wage }));
   async function save() {
+    // ★14引数呼び（mig0086）。旧10引数のまま呼ぶと DEFAULT 'per_count' で rate プランの方式が
+    //   黙って戻る既知挙動があるため、方式・率は常に明示送信（原則7 の boolean 明示と同列）。
     const { error } = await supabase.rpc("set_comp_plan", {
       p_id: id, p_store_id: storeId, p_name: name, p_base: base,
       p_hon_back: honBack, p_jonai_back: jonaiBack, p_dohan_back: dohanBack,
       p_sales_slide: clean(salesSlide), p_point_slide: clean(pointSlide),
       p_is_active: active, // 明示 boolean（原則7）
+      p_hon_back_mode: honMode, p_hon_back_rate: honMode === "rate" ? honRate : null,
+      p_jonai_back_mode: jonaiMode, p_jonai_back_rate: jonaiMode === "rate" ? jonaiRate : null,
     });
     setMsg(error ? error.message : id ? "プランを更新しました" : "プランを登録しました");
     if (!error) { setId(null); setName(""); setBase(0); await reload(); }
@@ -140,8 +156,8 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
             <tr key={p.id} onClick={() => isOwner && edit(p)} style={{ borderBottom: "1px solid var(--line)", cursor: isOwner ? "pointer" : "default" }}>
               <td style={{ padding: 6 }}>{p.name}</td>
               <td style={{ padding: 6, ...t.num }}>{p.base}</td>
-              <td style={{ padding: 6, ...t.num }}>{p.hon_back}</td>
-              <td style={{ padding: 6, ...t.num }}>{p.jonai_back}</td>
+              <td style={{ padding: 6, ...t.num }}>{p.hon_back_mode === "rate" ? `率${p.hon_back_rate}%` : p.hon_back}</td>
+              <td style={{ padding: 6, ...t.num }}>{p.jonai_back_mode === "rate" ? `率${p.jonai_back_rate}%` : p.jonai_back}</td>
               <td style={{ padding: 6, ...t.num }}>{p.dohan_back}</td>
               <td style={{ padding: 6, ...t.num }}>{(p.sales_slide ?? []).length}段</td>
               <td style={{ padding: 6, ...t.num }}>{(p.point_slide ?? []).length}段</td>
@@ -155,9 +171,24 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
           <span style={note}>{id ? "編集中" : "新規"}</span>
           <input placeholder="プラン名" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} />
           <label style={{ fontSize: 12 }}>保証時給 <input type="number" min={0} value={base} onChange={(e) => setBase(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
-          <label style={{ fontSize: 12 }}>本 <input type="number" min={0} value={honBack} onChange={(e) => setHonBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
-          <label style={{ fontSize: 12 }}>場内 <input type="number" min={0} value={jonaiBack} onChange={(e) => setJonaiBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
-          <label style={{ fontSize: 12 }}>同伴 <input type="number" min={0} value={dohanBack} onChange={(e) => setDohanBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+          {/* mig0086: hon/jonai は方式トグル（円/本｜率）＋方式に応じた値入力。円/本値は率中も保持（裁定v）。 */}
+          <label style={{ fontSize: 12 }}>本指名方式 <select value={honMode} onChange={(e) => setHonMode(e.target.value as BackModeRow)} style={input}>
+            <option value="per_count">円/本</option><option value="rate">率(%)</option>
+          </select></label>
+          {honMode === "rate" ? (
+            <label style={{ fontSize: 12 }}>本 率(%) <input type="number" min={0} max={100} value={honRate} onChange={(e) => setHonRate(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+          ) : (
+            <label style={{ fontSize: 12 }}>本(円/本) <input type="number" min={0} value={honBack} onChange={(e) => setHonBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+          )}
+          <label style={{ fontSize: 12 }}>場内方式 <select value={jonaiMode} onChange={(e) => setJonaiMode(e.target.value as BackModeRow)} style={input}>
+            <option value="per_count">円/本</option><option value="rate">率(%)</option>
+          </select></label>
+          {jonaiMode === "rate" ? (
+            <label style={{ fontSize: 12 }}>場内 率(%) <input type="number" min={0} max={100} value={jonaiRate} onChange={(e) => setJonaiRate(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+          ) : (
+            <label style={{ fontSize: 12 }}>場内(円/本) <input type="number" min={0} value={jonaiBack} onChange={(e) => setJonaiBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+          )}
+          <label style={{ fontSize: 12 }}>同伴(円/本) <input type="number" min={0} value={dohanBack} onChange={(e) => setDohanBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
           <div style={{ display: "flex", gap: 16, width: "100%" }}>
             <SlideInput label="売上スライド" slide={salesSlide} setSlide={setSalesSlide} />
             <SlideInput label="ポイントスライド" slide={pointSlide} setSlide={setPointSlide} />
@@ -167,6 +198,10 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
           {id && <button style={btnLight} onClick={() => { setId(null); setName(""); }}>新規に戻す</button>}
         </div>
       ) : <p style={note}>プランの編集はオーナーのみ可能です（閲覧のみ）。</p>}
+      {/* ★裁定vi: 率方式の帰属系統は check_lines（レジで課金した指名料）＝本数カウントとは別系統。運用注記必須。 */}
+      <p style={{ ...note, marginTop: 8 }}>
+        ※率方式は、レジで「指名料を追加」した伝票の指名料額が対象です（指名料を課金しなかった伝票は率バックに入りません）。
+      </p>
     </div>
   );
 }
@@ -176,15 +211,37 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
   const supabase = createClient();
   const [castId, setCastId] = useState("");
   const [planId, setPlanId] = useState("");
-  const [ov, setOv] = useState<Record<string, string>>({ base: "", honBack: "", jonaiBack: "", dohanBack: "" });
+  const [ov, setOv] = useState<Record<string, string>>({ base: "", honBack: "", jonaiBack: "", dohanBack: "", honBackRate: "", jonaiBackRate: "" });
+  // mig0086: 方式 override（"" = 方式は上書きしない）。mode を選んだら対の値入力を必須表示＝原子性を UI で構造化。
+  const [ovHonMode, setOvHonMode] = useState<"" | BackModeRow>("");
+  const [ovJonaiMode, setOvJonaiMode] = useState<"" | BackModeRow>("");
   const activePlans = plans.filter((p) => p.is_active); // inactive は割当不可（DB も 'plan inactive' で拒否）
   const planName = (pid: string) => plans.find((p) => p.id === pid)?.name ?? "(不明)";
   const castName = (cid: string) => casts.find((c) => c.id === cid)?.name ?? cid;
 
   async function save() {
-    const overrides: Record<string, number> = {};
-    for (const k of ["base", "honBack", "jonaiBack", "dohanBack"]) {
-      if (ov[k] !== "") overrides[k] = Number(ov[k]);
+    const overrides: Record<string, number | string> = {};
+    if (ov.base !== "") overrides.base = Number(ov.base);
+    if (ov.dohanBack !== "") overrides.dohanBack = Number(ov.dohanBack);
+    // ★原子性（mig0086）: mode を送るときは対の値を必ず同送（RPC は片側合成を 'bad overrides' で拒否）。
+    //   mode 未選択（""）のときは従来どおり値単独 override（プラン方式のまま値だけ差し替え）。
+    if (ovHonMode === "rate") {
+      if (ov.honBackRate === "") { setMsg("本指名の率(%)を入力してください（方式と値はペアで保存）"); return; }
+      overrides.honBackMode = "rate"; overrides.honBackRate = Number(ov.honBackRate);
+    } else if (ovHonMode === "per_count") {
+      if (ov.honBack === "") { setMsg("本指名の円/本を入力してください（方式と値はペアで保存）"); return; }
+      overrides.honBackMode = "per_count"; overrides.honBack = Number(ov.honBack);
+    } else if (ov.honBack !== "") {
+      overrides.honBack = Number(ov.honBack);
+    }
+    if (ovJonaiMode === "rate") {
+      if (ov.jonaiBackRate === "") { setMsg("場内の率(%)を入力してください（方式と値はペアで保存）"); return; }
+      overrides.jonaiBackMode = "rate"; overrides.jonaiBackRate = Number(ov.jonaiBackRate);
+    } else if (ovJonaiMode === "per_count") {
+      if (ov.jonaiBack === "") { setMsg("場内の円/本を入力してください（方式と値はペアで保存）"); return; }
+      overrides.jonaiBackMode = "per_count"; overrides.jonaiBack = Number(ov.jonaiBack);
+    } else if (ov.jonaiBack !== "") {
+      overrides.jonaiBack = Number(ov.jonaiBack);
     }
     const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: planId, p_overrides: overrides });
     setMsg(error ? error.message : "割当を保存しました");
@@ -215,9 +272,25 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
             <option value="">プラン選択（有効のみ）</option>
             {activePlans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          {(["base", "honBack", "jonaiBack", "dohanBack"] as const).map((k) => (
-            <label key={k} style={{ fontSize: 12 }}>{k}↑ <input type="number" min={0} value={ov[k]} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, [k]: e.target.value }))} style={{ ...input, width: 64 }} /></label>
-          ))}
+          <label style={{ fontSize: 12 }}>base↑ <input type="number" min={0} value={ov.base} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, base: e.target.value }))} style={{ ...input, width: 64 }} /></label>
+          {/* mig0086: 方式 override は mode 選択→対の値入力を必須表示（原子性の UI 構造化）。既定=方式は上書きしない。 */}
+          <label style={{ fontSize: 12 }}>本 方式 <select value={ovHonMode} onChange={(e) => setOvHonMode(e.target.value as "" | BackModeRow)} style={input}>
+            <option value="">既定</option><option value="per_count">円/本</option><option value="rate">率(%)</option>
+          </select></label>
+          {ovHonMode === "rate" ? (
+            <label style={{ fontSize: 12 }}>本 率(%)※必須 <input type="number" min={0} max={100} value={ov.honBackRate} onChange={(e) => setOv((o) => ({ ...o, honBackRate: e.target.value }))} style={{ ...input, width: 64 }} /></label>
+          ) : (
+            <label style={{ fontSize: 12 }}>honBack↑{ovHonMode === "per_count" ? "※必須" : ""} <input type="number" min={0} value={ov.honBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, honBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
+          )}
+          <label style={{ fontSize: 12 }}>場内 方式 <select value={ovJonaiMode} onChange={(e) => setOvJonaiMode(e.target.value as "" | BackModeRow)} style={input}>
+            <option value="">既定</option><option value="per_count">円/本</option><option value="rate">率(%)</option>
+          </select></label>
+          {ovJonaiMode === "rate" ? (
+            <label style={{ fontSize: 12 }}>場内 率(%)※必須 <input type="number" min={0} max={100} value={ov.jonaiBackRate} onChange={(e) => setOv((o) => ({ ...o, jonaiBackRate: e.target.value }))} style={{ ...input, width: 64 }} /></label>
+          ) : (
+            <label style={{ fontSize: 12 }}>jonaiBack↑{ovJonaiMode === "per_count" ? "※必須" : ""} <input type="number" min={0} value={ov.jonaiBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, jonaiBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
+          )}
+          <label style={{ fontSize: 12 }}>dohanBack↑ <input type="number" min={0} value={ov.dohanBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, dohanBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           <button style={btnDark} onClick={save} disabled={!castId || !planId}>割当</button>
         </div>
       ) : <p style={note}>割当はマネージャー以上のみ可能です。</p>}

@@ -17,19 +17,30 @@ import { roundYen, roundPt1, floorYen } from "./money";
 
 export type Slide = { at: number; wage: number };
 
+/** 指名バック方式（mig0086・率バック設計 v1）。undefined は per_count と同義＝既存 fixture 無改変。 */
+export type BackMode = "per_count" | "rate";
+
 export type CompPlan = {
   id: string;
   name: string;
   base: number; // 保証時給
-  honBack: number; // 円/本
+  honBack: number; // 円/本（mode='rate' でも保持＝裁定v・切替往復で値が消えない）
   jonaiBack: number;
   dohanBack: number;
   salesSlide: Slide[]; // 日次売上→時給（3段・昇順・最後にマッチした段が有効）
   pointSlide: Slide[]; // 日次pt→時給
+  // mig0086: 指名バック方式（hon/jonai 独立＝裁定ii・dohan は円/本据え置き＝裁定i）。
+  //   optional＝未指定は per_count（既存プラン・既存テスト fixture が1バイト不変で通る）。
+  honBackMode?: BackMode;
+  honBackRate?: number | null; // %（0-100）。mode='rate' のとき非 null（RPC/CHECK が保証）
+  jonaiBackMode?: BackMode;
+  jonaiBackRate?: number | null;
 };
 
 export type PlanOverride = Partial<
-  Pick<CompPlan, "base" | "honBack" | "jonaiBack" | "dohanBack">
+  Pick<CompPlan,
+    "base" | "honBack" | "jonaiBack" | "dohanBack"
+    | "honBackMode" | "honBackRate" | "jonaiBackMode" | "jonaiBackRate">
 >;
 
 export type DailyRecord = { d: number; hours: number; sales: number };
@@ -129,7 +140,12 @@ export type Product = {
 };
 
 export type PayInput = {
-  cast: { hon: number; jonai: number; dohan: number; days: number; sales: number };
+  cast: {
+    hon: number; jonai: number; dohan: number; days: number; sales: number;
+    // mig0086: 率バックの母数＝窓内 Σcheck_lines.line_total（fee_kind 別・cast_id=本人・裁定iii/vi）。
+    //   per_count 経路では読まれない。未指定（既存呼び出し・fixture）は 0 扱い。
+    honShimeiAmt?: number; jonaiShimeiAmt?: number;
+  };
   daily: DailyRecord[]; // 日次（本番は実 punch＋実売上）
   plan: CompPlan;
   override?: PlanOverride; // cast_plan.overrides_json
@@ -212,6 +228,24 @@ export function applyOverride(
     jonaiBack: ov.jonaiBack ?? plan.jonaiBack,
     dohanBack: ov.dohanBack ?? plan.dohanBack,
   };
+  // mig0086: 方式はペア原子で適用（RPC の原子性検証と同輪郭＝TS 側でも片側合成を作らない）。
+  //   mode='rate' は rate が override に揃うときだけ・mode='per_count' は対の円/本値が揃うときだけ
+  //   反映し、揃わない不正 override は方式上書きごと無視（plan の方式のまま＝安全側）。
+  //   rate 単独（mode なし）も反映しない＝「mode だけ plan・値だけ override」の合成が生まれない。
+  if (ov.honBackMode === "rate" && typeof ov.honBackRate === "number") {
+    eplan.honBackMode = "rate";
+    eplan.honBackRate = ov.honBackRate;
+  } else if (ov.honBackMode === "per_count" && typeof ov.honBack === "number") {
+    eplan.honBackMode = "per_count";
+    eplan.honBackRate = null;
+  }
+  if (ov.jonaiBackMode === "rate" && typeof ov.jonaiBackRate === "number") {
+    eplan.jonaiBackMode = "rate";
+    eplan.jonaiBackRate = ov.jonaiBackRate;
+  } else if (ov.jonaiBackMode === "per_count" && typeof ov.jonaiBack === "number") {
+    eplan.jonaiBackMode = "per_count";
+    eplan.jonaiBackRate = null;
+  }
   return { eplan, hasOv: Object.keys(ov).length > 0 };
 }
 
@@ -400,8 +434,14 @@ export function payOf(input: PayInput): PayResult {
   const wd = wageDetail(input.daily, eplan, castPts(cast, input.pointProducts), cast.sales);
 
   // 指名バック（hon/jonai は実績・dohan は sim 上書き可＝モック te と同一）
-  const honBack = cast.hon * eplan.honBack;
-  const jonaiBack = cast.jonai * eplan.jonaiBack;
+  // mig0086: mode='rate' は Σ指名料行×%（母数=check_lines・裁定iii/vi・丸めは Σ後 roundYen 1回=裁定iv）。
+  //   ★per_count 側の式は従来と1バイト不変（玲奈 golden 5170/5931 の経路）。dohan は円/本のみ（裁定i）。
+  const honBack = eplan.honBackMode === "rate"
+    ? roundYen(((cast.honShimeiAmt ?? 0) * (eplan.honBackRate ?? 0)) / 100)
+    : cast.hon * eplan.honBack;
+  const jonaiBack = eplan.jonaiBackMode === "rate"
+    ? roundYen(((cast.jonaiShimeiAmt ?? 0) * (eplan.jonaiBackRate ?? 0)) / 100)
+    : cast.jonai * eplan.jonaiBack;
   const dohanBack = effDohan * eplan.dohanBack;
 
   // 商品バック（会計確定時に配分・集計済みの値を読む）

@@ -18,6 +18,9 @@ export type SimInput = {
   hon: number; // 本指名 回数
   jonai: number; // 場内指名 回数
   dohan: number; // 同伴 回数
+  // mig0086: 率バックの母数（期間の指名料額・rate プランのときのみ payOf が読む。未指定=0）
+  honShimeiAmt?: number;
+  jonaiShimeiAmt?: number;
   productBack: { drink: number; champ: number; bottle: number }; // 商品バック（円・集計済み想定）
   pointProducts: number; // 本指名商品pt
   champCnt: number; // シャンパン本数（自由バック metrics 用）
@@ -53,6 +56,8 @@ export function simulate(inp: SimInput): PayResult {
     hon: inp.hon,
     jonai: inp.jonai,
     dohan: inp.dohan,
+    honShimeiAmt: inp.honShimeiAmt ?? 0,
+    jonaiShimeiAmt: inp.jonaiShimeiAmt ?? 0,
     daily,
     productBack: inp.productBack,
     pointProducts: inp.pointProducts,

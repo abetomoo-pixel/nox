@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CompPlan, PlanOverride, TaxMode } from "@/lib/nox/pay";
+import type { BackMode, CompPlan, PlanOverride, TaxMode } from "@/lib/nox/pay";
 import type { StoreMasters } from "@/lib/nox/payroll/assemble";
 import { simulate, type SimInput } from "@/lib/nox/payroll/sim";
 import * as t from "@/lib/nox/ui/theme";
@@ -34,13 +34,19 @@ export default function SimulatorPanel({
   const [planId, setPlanId] = useState(plans[0]?.id ?? "");
   const [taxMode, setTaxMode] = useState<TaxMode>(defaultTaxMode);
   // 店モードのみ base/バック編集（任意プラン試算）。cast は選択プランを固定。
-  const [edit, setEdit] = useState<{ base: string; honBack: string; jonaiBack: string; dohanBack: string } | null>(null);
+  // D3: hon/jonai は方式（円/本｜率）も編集対象。率の値は mode='rate' のときだけ effPlan に載せる（排他 CHECK と同輪郭）。
+  const [edit, setEdit] = useState<{
+    base: string; honBack: string; jonaiBack: string; dohanBack: string;
+    honBackMode: BackMode; honBackRate: string; jonaiBackMode: BackMode; jonaiBackRate: string;
+  } | null>(null);
   const [f, setF] = useState({
     // ★periodDays は既定値を置かない（裁定23＝源泉の 5,000円×日数 は計算期間の暦日数で、
     //   店・期間ごとに異なる。既定値を置くと誤った日数のまま試算されるため未入力はエラーにする）。
     periodDays: "",
     days: "20", hoursPerDay: "6", sales: "600000",
     hon: "10", jonai: "5", dohan: "3",
+    honShimeiAmt: "0", jonaiShimeiAmt: "0", // D3: rate 方式の母数（期間の指名料額・円）
+
     drink: "0", champ: "0", bottle: "0",
     pointProducts: "0", champCnt: "0", bottleCnt: "0",
     lateN: "0", absentN: "0",
@@ -62,8 +68,25 @@ export default function SimulatorPanel({
     return {
       ...selectedPlan,
       base: num(edit.base), honBack: num(edit.honBack), jonaiBack: num(edit.jonaiBack), dohanBack: num(edit.dohanBack),
+      honBackMode: edit.honBackMode,
+      honBackRate: edit.honBackMode === "rate" ? num(edit.honBackRate) : null,
+      jonaiBackMode: edit.jonaiBackMode,
+      jonaiBackRate: edit.jonaiBackMode === "rate" ? num(edit.jonaiBackRate) : null,
     };
   }, [selectedPlan, mode, edit]);
+
+  // D3: 入力出し分け用の実効方式（per_count=本数入力・rate=期間の指名料額入力）。
+  //   cast モードは override が方式を差し替え得るため、pay.ts applyOverride と同じ
+  //   ペア原子判定（mode＋対の値が揃うときのみ採用）をここでも適用して表示とお金の計算を一致させる。
+  const ov = mode === "cast" ? override : undefined;
+  const effHonMode: BackMode =
+    ov?.honBackMode === "rate" && typeof ov.honBackRate === "number" ? "rate"
+    : ov?.honBackMode === "per_count" && typeof ov.honBack === "number" ? "per_count"
+    : (effPlan?.honBackMode ?? "per_count");
+  const effJonaiMode: BackMode =
+    ov?.jonaiBackMode === "rate" && typeof ov.jonaiBackRate === "number" ? "rate"
+    : ov?.jonaiBackMode === "per_count" && typeof ov.jonaiBack === "number" ? "per_count"
+    : (effPlan?.jonaiBackMode ?? "per_count");
 
   // ★計算期間の日数は必須入力（未入力・0以下は試算しない＝源泉が過大になる誤表示を作らない）。
   const periodDaysNum = Number(f.periodDays);
@@ -76,6 +99,7 @@ export default function SimulatorPanel({
       periodDays: periodDaysNum,
       days: num(f.days), hoursPerDay: num(f.hoursPerDay), sales: num(f.sales),
       hon: num(f.hon), jonai: num(f.jonai), dohan: num(f.dohan),
+      honShimeiAmt: num(f.honShimeiAmt), jonaiShimeiAmt: num(f.jonaiShimeiAmt),
       productBack: { drink: num(f.drink), champ: num(f.champ), bottle: num(f.bottle) },
       pointProducts: num(f.pointProducts), champCnt: num(f.champCnt), bottleCnt: num(f.bottleCnt),
       lateN: num(f.lateN), absentN: num(f.absentN),
@@ -134,17 +158,47 @@ export default function SimulatorPanel({
         <div style={{ ...s.card, background: s.nestBg, marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <strong style={{ fontSize: 13 }}>プラン値（編集して任意プランを試算）</strong>
-            <button onClick={() => setEdit(edit ? null : { base: String(selectedPlan.base), honBack: String(selectedPlan.honBack), jonaiBack: String(selectedPlan.jonaiBack), dohanBack: String(selectedPlan.dohanBack) })} style={s.btnSm}>
+            <button onClick={() => setEdit(edit ? null : {
+              base: String(selectedPlan.base), honBack: String(selectedPlan.honBack), jonaiBack: String(selectedPlan.jonaiBack), dohanBack: String(selectedPlan.dohanBack),
+              honBackMode: selectedPlan.honBackMode ?? "per_count",
+              honBackRate: selectedPlan.honBackRate != null ? String(selectedPlan.honBackRate) : "",
+              jonaiBackMode: selectedPlan.jonaiBackMode ?? "per_count",
+              jonaiBackRate: selectedPlan.jonaiBackRate != null ? String(selectedPlan.jonaiBackRate) : "",
+            })} style={s.btnSm}>
               {edit ? "元に戻す" : "編集する"}
             </button>
           </div>
           {edit && (
-            <div style={{ ...s.row, marginTop: 8 }}>
-              <label style={s.lbl}>保証時給<br /><input type="number" value={edit.base} onChange={(e) => setEdit({ ...edit, base: e.target.value })} style={s.inpS} /></label>
-              <label style={s.lbl}>本指名<br /><input type="number" value={edit.honBack} onChange={(e) => setEdit({ ...edit, honBack: e.target.value })} style={s.inpS} /></label>
-              <label style={s.lbl}>場内<br /><input type="number" value={edit.jonaiBack} onChange={(e) => setEdit({ ...edit, jonaiBack: e.target.value })} style={s.inpS} /></label>
-              <label style={s.lbl}>同伴<br /><input type="number" value={edit.dohanBack} onChange={(e) => setEdit({ ...edit, dohanBack: e.target.value })} style={s.inpS} /></label>
-            </div>
+            <>
+              <div style={{ ...s.row, marginTop: 8 }}>
+                <label style={s.lbl}>保証時給<br /><input type="number" value={edit.base} onChange={(e) => setEdit({ ...edit, base: e.target.value })} style={s.inpS} /></label>
+                <label style={s.lbl}>同伴(円/本)<br /><input type="number" value={edit.dohanBack} onChange={(e) => setEdit({ ...edit, dohanBack: e.target.value })} style={s.inpS} /></label>
+              </div>
+              <div style={s.row}>
+                <label style={s.lbl}>本指名方式<br />
+                  <select value={edit.honBackMode} onChange={(e) => setEdit({ ...edit, honBackMode: e.target.value as BackMode })} style={s.inpS}>
+                    <option value="per_count">円/本</option>
+                    <option value="rate">率(%)</option>
+                  </select>
+                </label>
+                {edit.honBackMode === "rate" ? (
+                  <label style={s.lbl}>本指名率(%)<br /><input type="number" value={edit.honBackRate} onChange={(e) => setEdit({ ...edit, honBackRate: e.target.value })} style={s.inpS} /></label>
+                ) : (
+                  <label style={s.lbl}>本指名(円/本)<br /><input type="number" value={edit.honBack} onChange={(e) => setEdit({ ...edit, honBack: e.target.value })} style={s.inpS} /></label>
+                )}
+                <label style={s.lbl}>場内方式<br />
+                  <select value={edit.jonaiBackMode} onChange={(e) => setEdit({ ...edit, jonaiBackMode: e.target.value as BackMode })} style={s.inpS}>
+                    <option value="per_count">円/本</option>
+                    <option value="rate">率(%)</option>
+                  </select>
+                </label>
+                {edit.jonaiBackMode === "rate" ? (
+                  <label style={s.lbl}>場内率(%)<br /><input type="number" value={edit.jonaiBackRate} onChange={(e) => setEdit({ ...edit, jonaiBackRate: e.target.value })} style={s.inpS} /></label>
+                ) : (
+                  <label style={s.lbl}>場内(円/本)<br /><input type="number" value={edit.jonaiBack} onChange={(e) => setEdit({ ...edit, jonaiBack: e.target.value })} style={s.inpS} /></label>
+                )}
+              </div>
+            </>
           )}
           <p style={{ fontSize: 11, color: s.sub, margin: "6px 0 0" }}>※売上/pt スライドは選択プランの設定をそのまま使用します。</p>
         </div>
@@ -170,12 +224,27 @@ export default function SimulatorPanel({
 
       {/* 指名・バック */}
       <fieldset style={s.fs}><legend style={s.lg}>指名・バック</legend>
+        {/* D3: 方式に合わせて入力を出し分け（per_count=本数・rate=期間の指名料額）。
+            rate の母数は「レジで指名料を追加した伝票の指名料額」（裁定vi）＝本数入力はバックに効かないため出さない。 */}
         <div style={s.row}>
-          <label style={s.lbl}>本指名<br /><input type="number" value={f.hon} onChange={set("hon")} style={s.inpS} /></label>
-          <label style={s.lbl}>場内<br /><input type="number" value={f.jonai} onChange={set("jonai")} style={s.inpS} /></label>
-          <label style={s.lbl}>同伴<br /><input type="number" value={f.dohan} onChange={set("dohan")} style={s.inpS} /></label>
+          {effHonMode === "rate" ? (
+            <label style={s.lbl}>本指名料額(円/期間)<br /><input type="number" value={f.honShimeiAmt} onChange={set("honShimeiAmt")} style={s.inp} /></label>
+          ) : (
+            <label style={s.lbl}>本指名(本)<br /><input type="number" value={f.hon} onChange={set("hon")} style={s.inpS} /></label>
+          )}
+          {effJonaiMode === "rate" ? (
+            <label style={s.lbl}>場内指名料額(円/期間)<br /><input type="number" value={f.jonaiShimeiAmt} onChange={set("jonaiShimeiAmt")} style={s.inp} /></label>
+          ) : (
+            <label style={s.lbl}>場内(本)<br /><input type="number" value={f.jonai} onChange={set("jonai")} style={s.inpS} /></label>
+          )}
+          <label style={s.lbl}>同伴(本)<br /><input type="number" value={f.dohan} onChange={set("dohan")} style={s.inpS} /></label>
           <label style={s.lbl}>本指名商品pt<br /><input type="number" value={f.pointProducts} onChange={set("pointProducts")} style={s.inpS} /></label>
         </div>
+        {(effHonMode === "rate" || effJonaiMode === "rate") && (
+          <p style={{ fontSize: 11, color: s.sub, margin: "0 0 6px" }}>
+            ※率方式は、レジで「指名料を追加」した伝票の指名料額が対象です。期間中の指名料額の合計を入れてください。
+          </p>
+        )}
         <div style={s.row}>
           <label style={s.lbl}>ドリンクバック(円)<br /><input type="number" value={f.drink} onChange={set("drink")} style={s.inpS} /></label>
           <label style={s.lbl}>シャンパン(円)<br /><input type="number" value={f.champ} onChange={set("champ")} style={s.inpS} /></label>

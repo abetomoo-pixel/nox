@@ -26,6 +26,10 @@ export type CastRaw = {
   hon: number;
   jonai: number;
   dohan: number;
+  // mig0086: 率バックの母数＝窓内 Σcheck_lines.line_total（fee_kind 別・cast_id=本人・裁定iii/vi）。
+  //   collect.ts が 0 埋めで必ず格納（per_count プランでは payOf が読まない）。
+  honShimeiAmt: number;
+  jonaiShimeiAmt: number;
   daily: { bizDate: string; sales: number; hours: number }[];
   productBack: { drink: number; champ: number; bottle: number };
   pointProducts: number;
@@ -71,7 +75,10 @@ export function buildPayInput(
 ): PayInput {
   if (!raw.plan) throw new Error(`buildPayInput: plan 未設定（cast ${raw.castId}）`);
   return {
-    cast: { hon: raw.hon, jonai: raw.jonai, dohan: raw.dohan, days: raw.days, sales: raw.sales },
+    cast: {
+      hon: raw.hon, jonai: raw.jonai, dohan: raw.dohan, days: raw.days, sales: raw.sales,
+      honShimeiAmt: raw.honShimeiAmt, jonaiShimeiAmt: raw.jonaiShimeiAmt, // mig0086
+    },
     daily: raw.daily.map((d) => ({ d: dayNum(d.bizDate), hours: d.hours, sales: d.sales })),
     plan: raw.plan,
     override: raw.override,
