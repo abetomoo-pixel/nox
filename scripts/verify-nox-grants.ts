@@ -941,6 +941,10 @@ async function main() {
     //     auth_kiosk_operator() を coalesce するため operator 側のみ 13→14。増分の正体を特定したうえでの
     //     更新であり、根拠なく数字を合わせたものではない（「12/13 は書換えない」の原則自体は維持＝
     //     write-arm 集合を測る register helper 側 12本は不変・こちらは1本も動かしていない）。
+    //   ★2026-08-07 更新: mig0084 が check_lines への INSERT 経路として新設した check_shimei_add /
+    //     check_dohan_add の2本が kiosk 腕（0057 の5腕逐語＋0058 fail-closed ゲート）を持つため
+    //     register 12→14・operator 14→16・fail-closed 12→14。設計書 v1.2 §3-2「kiosk 経路は既存
+    //     kiosk RPC の型に従う」どおりの正当な増分で、段44(7) が kiosk セッションの runtime も実測。
     {
       const reg = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
@@ -949,16 +953,16 @@ async function main() {
            and p.proname not in ('auth_kiosk_register_store_id','kiosk_operator_list',
                                  'kiosk_register_state','kiosk_check_detail')`,
       );
-      check("G31 register helper を使う会計RPC = 12本（check_open〜check_remove_seat 10＋print_enqueue＋bottle_keep_register）",
-        reg.rows[0].n === 12, `got ${reg.rows[0].n}`);
+      check("G31 register helper を使う会計RPC = 14本（0057 の12＋0084 check_shimei_add/check_dohan_add）",
+        reg.rows[0].n === 14, `got ${reg.rows[0].n}`);
       const op = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator()%'
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
-      check("G31 operator を使う関数 = 14本（上記12＋audit_log_write＋drink_claims_on_line_delete＝いずれも actor coalesce）",
-        op.rows[0].n === 14, `got ${op.rows[0].n}`);
+      check("G31 operator を使う関数 = 16本（write-arm 14＋audit_log_write＋drink_claims_on_line_delete）",
+        op.rows[0].n === 16, `got ${op.rows[0].n}`);
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'
@@ -970,8 +974,8 @@ async function main() {
          where ns.nspname = 'public' and p.prokind = 'f'
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator() is not null)) is not true then%'`,
       );
-      check("G31 ★kiosk ゲート fail-closed = 12本が (OR連鎖) is not true 形（0058・null-auth 呼び手を拒否）",
-        fixed.rows[0].n === 12, `got ${fixed.rows[0].n}`);
+      check("G31 ★kiosk ゲート fail-closed = 14本が (OR連鎖) is not true 形（0058・0084 の2本も同形）",
+        fixed.rows[0].n === 14, `got ${fixed.rows[0].n}`);
       const openGate = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
