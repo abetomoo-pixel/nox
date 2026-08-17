@@ -10,31 +10,21 @@
 //   残る重複は画面側のリテラル（secTitle ×35・overlay/modalCard ×4）＝D-2 で本モジュールへ寄せる。
 import type { CSSProperties } from "react";
 
-// raw hex（JS 計算が要る箇所＝アバター背景色の生成等でのみ使う。表示スタイルは下の var() 参照プリミティブを優先）。
-//
-// ★E1（2026-08-17）: globals.css .nox-dark と同値へ差し替え（正本 docs/NOX_デザインガイド_v1.md §1）。
-//   ★注意: このオブジェクトは **現時点で参照ゼロ**（theme.ts 外からの `colors.` 参照 0件）。
-//     そのため 2026-07-28 の段0 で .nox-dark 側だけが更新され、card2/line/ink/sub の4件が
-//     drift していた（＝ガイド §2 の教訓3「宣言 ≠ 実参照」の repo 側事例）。
-//     ここを揃えるのは「次に誰かが参照したとき古い色を引かない」ためで、
-//     **本質的には削除候補**＝E3 で採否を判断する。
-export const colors = {
-  bg: "#080808",
-  bg2: "#181815",
-  card: "#11110f",
-  card2: "#22221e",
-  line: "#2d2c27",
-  line2: "#3b3931",
-  gold: "#d8ad55",
-  gold2: "#f0cf82",
-  champ: "#E6D6A8", // ★非モック由来＝現行維持・暫定（E5 で再裁定）
-  ink: "#f3f0e8",
-  sub: "#99978f",
-  ok: "#77ba83",
-  bad: "#d86c64",
-} as const;
+// ★E3（2026-08-17）: `colors` オブジェクト（raw hex 13色）を**削除**した。
+//   理由＝**参照ゼロの死にコード**だったため（theme.ts 外からの `colors.` 参照 0件を2度実測）。
+//   実害もあった: 2026-07-28 の段0 で `.nox-dark` 側だけが更新され、card2/line/ink/sub の4件が
+//   drift したまま放置されていた（ガイド §2 の教訓3「宣言 ≠ 実参照」の repo 側事例）。
+//   ★色の正本は `globals.css .nox-dark` の CSS 変数ただ一つ。JS から色が要る場合も
+//     `var(--x)` を文字列で渡す（下のプリミティブがすべてその形）。
+//     JS 計算が要る唯一の箇所＝アバター背景は `avatarBg()` が HSL を自前生成しており色定数に依存しない。
 
-export const radius = { card: 16, kpi: 14, btn: 11, btnSm: 9, input: 11, pill: 999, icon: 8 } as const;
+// ★E3（2026-08-17）: 角丸をモック実測値へ揃えた（ガイド §4 部品輪郭）。
+//   card 16→**11**（モック .card border-radius:11px）／btn 11→**7**（.btn 7px）／
+//   input 11→**6**（.field input 6px）／kpi 14→**11**（モック .kpi は .card の派生＝同値）／
+//   btnSm 9→**7**（モック .btn.small は radius を上書きしない＝.btn を継ぐ）。
+//   icon 8 は据置（モック .brandmark border-radius:8px と一致）。pill は 999 のまま。
+//   ★全体に角が小さくなる＝モックの引き締まった見え方に寄る。
+export const radius = { card: 11, kpi: 11, btn: 7, btnSm: 7, input: 6, pill: 999, icon: 8 } as const;
 
 export const font = {
   brand: "'Cormorant Garamond', serif",
@@ -66,8 +56,10 @@ export function roleLabelJa(role: string): string {
 export const appBg: CSSProperties = {
   minHeight: "100dvh",
   // R-2（2026-07-17）: 900+ はサイドバー化に合わせ広く平たいグラデへ（--app-bg は globals.css の @media 900 が定義）。
-  //   フォールバック＝従来値の逐語＝≤899 は 1px も変わらない（R-1 の --wrap-max と同じ変数橋渡し）。
-  background: "var(--app-bg, radial-gradient(120% 60% at 50% 0%, #15131C 0%, var(--bg) 60%))",
+  // ★E3: 紫寄りの旧トーン（#15131C）を廃し、モック body の**右上からの淡い金グロー**へ
+  //   （モック実測: `radial-gradient(circle at 80% -10%, rgba(215,170,80,.1), transparent 28%), var(--bg)`）。
+  //   金の淡色は E1 で追加した **var(--goldbg)** を参照＝トークンのみで表現（リテラルを持たない）。
+  background: "var(--app-bg, radial-gradient(circle at 80% -10%, var(--goldbg), transparent 28%)), var(--bg)",
 };
 export const loginBg: CSSProperties = {
   minHeight: "100dvh",
@@ -75,7 +67,8 @@ export const loginBg: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: 22,
-  background: "radial-gradient(130% 55% at 50% 0%, #1A1622 0%, var(--bg) 55%)",
+  // ★E3: 同上（#1A1622 → 金グロー）。ログインは中央寄せなので glow も中央寄りに置く。
+  background: "radial-gradient(circle at 50% -10%, var(--goldbg), transparent 34%), var(--bg)",
 };
 // アプリフレーム（中央寄せ・縦フレックス）。
 // R-1（D-3 2026-07-17）: 上限を CSS 変数へ逃がして可変化した。inline style に @media は書けないため、
@@ -91,8 +84,10 @@ export const brand: CSSProperties = { fontFamily: font.brand, fontWeight: 700, f
 // 子孫セレクタ・複数プロパティの @media 分岐を要し、inline style では表現できないため（R-2 裁定1）。
 // 基底はここにあった inline 値の逐語＝≤899 の描画は不変。
 export const rolePill: CSSProperties = {
-  fontSize: 10.5, fontWeight: 800, letterSpacing: 1, color: "#0B0B0F",
-  background: "linear-gradient(135deg,var(--gold2),#B8893A)", padding: "4px 9px", borderRadius: radius.pill,
+  // ★E3: 旧 --bg のベタ書き #0B0B0F → モック .btn.primary の文字色 #17130c へ。
+  //   金の暗端 #B8893A → モック値 #b48634 へ（gold グラデの終点をモック正本に合わせる）。
+  fontSize: 10.5, fontWeight: 800, letterSpacing: 1, color: "#17130c",
+  background: "linear-gradient(135deg,var(--gold2),#b48634)", padding: "4px 9px", borderRadius: radius.pill,
 };
 // ── ページ見出し ─────────────────────────────────────────────────
 export const pheadH1: CSSProperties = { fontSize: 19, fontWeight: 900, margin: 0 };
@@ -100,9 +95,17 @@ export const pheadP: CSSProperties = { margin: "4px 0 0", fontSize: 12, color: "
 
 // ── カード ───────────────────────────────────────────────────────
 // className="nox-cardtop" を併用すると上端に gold の細線（::before）が付く。
+// ★E3（2026-08-17）: モック `.card` の実体グラデへ（ガイド §1-3 裁定2 の履行）。
+//   モック実測（9枚/3種の多数派）: border:1px solid var(--line); border-radius:11px;
+//     background:linear-gradient(145deg, rgba(25,25,22,.95), rgba(15,15,14,.98)); box-shadow:var(--shadow)
+//   ★角度が 180deg → **145deg**、面が「--card2→--card の2トークン」から
+//     **半透明リテラルのグラデ**へ変わる（下地 --bg が透ける＝モックの見え方）。
+//   ★radius.card は 16→11 へ更新済み（上の radius スケール）。影は E1 で追加した var(--shadow) を参照。
+//   padding/marginBottom は NOX 固有の余白規約＝据置（モックは .card に padding を持たない）。
 export const card: CSSProperties = {
-  background: "linear-gradient(180deg,var(--card2),var(--card))",
+  background: "linear-gradient(145deg, rgba(25,25,22,.95), rgba(15,15,14,.98))",
   border: "1px solid var(--line)", borderRadius: radius.card, padding: 15, marginBottom: 13,
+  boxShadow: "var(--shadow)",
   position: "relative", overflow: "hidden",
 };
 // 実態収束 D-1 2026-07-17・正本は描画実態: 画面側 35 箇所（27 ファイル）のリテラルへ合わせた
@@ -111,13 +114,29 @@ export const card: CSSProperties = {
 export const cardTitle: CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 11px" };
 
 // ── ボタン ───────────────────────────────────────────────────────
+// ★E3: モック `.btn` 輪郭へ（9枚/4種の多数派）:
+//   height:38px; border:1px solid var(--line2); background:#171715; padding:0 15px;
+//   border-radius:7px; inline-flex; gap:7px; font-weight:650
+//   ★NOX は高さを padding で作ってきた（height 指定なし）ため、**高さ 38px 相当の padding**
+//     （縦 10px＋fontSize 13＋border 2 ≒ 38）に寄せて height 指定は入れない
+//     （height を入れると既存の inline 上書き〔width/padding〕と衝突しうるため）。
+//   ★font-weight 800→650（モック値）。gap 7・radius は radius.btn(=7) を参照。
 const btnBase: CSSProperties = {
-  fontFamily: "inherit", fontWeight: 800, fontSize: 13, borderRadius: radius.btn, padding: "11px 14px",
+  fontFamily: "inherit", fontWeight: 650, fontSize: 13, borderRadius: radius.btn, padding: "10px 15px",
   cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
 };
-export const btnGold: CSSProperties = { ...btnBase, border: 0, background: "linear-gradient(135deg,var(--gold2),#B8893A)", color: "#0B0B0F" };
+// モック `.btn.primary`: linear-gradient(135deg,#e2bd6b,#b48634); border-color:#d2a952;
+//   color:#17130c; box-shadow:0 6px 18px rgba(216,173,85,.12)
+//   ★旧実装は文字色に **#0B0B0F（旧 --bg のベタ書き）** を使っていた（E1 の申し送り）。
+//     モックの #17130c（金地に対する暗褐色）へ置換＝トークン外だがモック正本の値。
+export const btnGold: CSSProperties = {
+  ...btnBase, border: "1px solid #d2a952", background: "linear-gradient(135deg,#e2bd6b,#b48634)",
+  color: "#17130c", boxShadow: "0 6px 18px rgba(216,173,85,.12)",
+};
+// モック `.btn.ghost`: background:transparent; color:var(--muted)＝NOX は --sub
 export const btnGhost: CSSProperties = { ...btnBase, border: "1px solid var(--line2)", background: "transparent", color: "var(--ink)" };
-export const btnSm: CSSProperties = { padding: "7px 11px", fontSize: 12, borderRadius: radius.btnSm };
+// モック `.btn.small`: height:30px; padding:0 10px（radius は .btn を継ぐ）
+export const btnSm: CSSProperties = { padding: "6px 10px", fontSize: 12, borderRadius: radius.btnSm };
 // ★レーン④c: フォームモーダル用の大きめ寸法（④b-3 で products-board のローカル定数として作ったもの）。
 //   カテゴリ側でも同じ形を使うため、複製せずここへ引き上げた（2画面で同じ「指で押せる寸法」を
 //   別々に持つと必ず片方だけ動いて食い違うため）。inputLg は input の宣言より後に置く（TDZ 回避）。
@@ -125,9 +144,17 @@ export const btnPrimaryLg: CSSProperties = { ...btnGold, width: "100%", padding:
 export const btnGhostLg: CSSProperties = { ...btnGhost, width: "100%", padding: "12px", fontSize: 13 };
 
 // ── フォーム ─────────────────────────────────────────────────────
+// ★E3: モック `.field input/.field select` 輪郭へ（register-pos 基準）:
+//   height:34px; border:1px solid var(--line2); border-radius:6px; background:#0c0c0b;
+//   padding:0 9px; outline:none
+//   ★地色 `#0c0c0b` に一致するトークンは無い（--bg #080808 と --card #11110f の中間）。
+//     入力欄は「面より沈む」のが要件なので、**カード面（--card）より暗い --bg** を採る
+//     ＝トークンのみ使用（ガイド §9-2 に記録）。旧値 --bg2(#181815) はカードより明るく、
+//     モックの「沈み」と逆になっていた。
+//   ★height ではなく padding で高さを作る（btnBase と同じ理由＝inline 上書きとの衝突回避）。
 export const input: CSSProperties = {
-  background: "var(--bg2)", border: "1px solid var(--line2)", borderRadius: radius.input,
-  padding: "11px 12px", color: "var(--ink)", fontFamily: "inherit", fontSize: 13, width: "100%",
+  background: "var(--bg)", border: "1px solid var(--line2)", borderRadius: radius.input,
+  padding: "9px 9px", color: "var(--ink)", fontFamily: "inherit", fontSize: 13, width: "100%",
 };
 // ★レーン④c: フォームモーダルの入力（min-height 46px＝指で押せる最低ライン）。btnPrimaryLg と対。
 export const inputLg: CSSProperties = { ...input, padding: "12px 13px", fontSize: 14, minHeight: 46 };

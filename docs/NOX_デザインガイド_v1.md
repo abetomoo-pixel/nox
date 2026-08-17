@@ -251,3 +251,77 @@ NOX 実装は `.nox-layout > (aside.nox-side | div.nox-mainwrap > header.nox-tb 
 - **権限出し分けの現状維持**を demo-manager（店長）で確認＝ナビ11項目・
   **owner 限定の「監査」が出ない**・群見出しは「営業/スタッフ/店舗」（1項目群の見出し抑止も従来どおり）
 - レスポンシブ 1280/768/375 で**横スクロールなし**・≤900 でサイドバー非表示＋ボトムタブ表示
+
+---
+
+## 9. 共通部品（E3 で実装確定・2026-08-17）
+
+§4 の「部品輪郭」を実装値として確定し、モックに定義が無かった**テーブル・入力欄を新規起草**した。
+★E3 の範囲は**部品を用意するまで**。各ページの構造・インライン style を本部品へ置き換えるのは **E4**。
+
+### 9-1. 確定値（モック実測 → NOX 実装）
+
+| 部品 | モック実測（base・多数派） | NOX 実装 | 旧値 |
+|---|---|---|---|
+| 角丸スケール | `.card` 11 / `.btn` 7 / `.field input` 6 / `.brandmark` 8 | `radius = {card:11, kpi:11, btn:7, btnSm:7, input:6, pill:999, icon:8}` | card 16 / btn 11 / input 11 / kpi 14 / btnSm 9 |
+| `.card`（theme.ts `card`） | `border:1px solid var(--line); border-radius:11px; background:linear-gradient(145deg, rgba(25,25,22,.95), rgba(15,15,14,.98)); box-shadow:var(--shadow)` | 同left（padding 15・marginBottom 13 は NOX の余白規約で据置） | `linear-gradient(180deg,var(--card2),var(--card))`・影なし |
+| `.nox-btn` / `btnBase` | `border:1px solid var(--line2); background:#171715; padding:0 15px; border-radius:7px; inline-flex; gap:7px; font-weight:650`（height:38px） | 同left（**地は `--card2`**・高さは padding 10px で作る） | `border:var(--line)`・`--card2`・radius 10・weight 800 |
+| `.btn.primary` / `btnGold` | `linear-gradient(135deg,#e2bd6b,#b48634); border-color:#d2a952; color:#17130c; box-shadow:0 6px 18px rgba(216,173,85,.12)` | 同left | 単色 `var(--gold)`・文字 `#15120A`／theme は `linear-gradient(135deg,var(--gold2),#B8893A)`・文字 **`#0B0B0F`（旧 --bg のベタ書き）** |
+| `.btn.ghost` / `.danger` / `.small` | `ghost{background:transparent;color:var(--muted)}` ／ `danger{color:var(--red);border-color:rgba(216,108,100,.28);background:rgba(216,108,100,.05)}` ／ `small{height:30px;padding:0 10px}` | 同left（`--muted`→`--sub`・`--red`→`--bad`） | ghost/danger/small とも**未定義**（新規） |
+| `.nox-badge` | `padding:3px 8px; border:1px solid rgba(216,173,85,.28); background:var(--goldbg); color:var(--gold2); font-size:10px; border-radius:20px` | 同left（状態クラス ok/warn/ng/none は地を透明にして色で区別） | radius 6・padding 2px 9px・地なし・`--sub` |
+| `.nox-toast`（新規） | `position:fixed; right:26px; bottom:26px; background:#222119; border:1px solid rgba(216,173,85,.45); box-shadow:var(--shadow); border-radius:9px; padding:13px 17px` | 同left（**地は `--card2`**）＋`.show` で `opacity/translateY` | **CSS 部品なし**（`components/ui/toast.tsx` は浮遊しない inline `<p>`） |
+| `.nox-modalhead/body/foot`（新規） | `head{padding:17px 19px;border-bottom:1px solid var(--line);flex space-between}` ／ `body{padding:18px}` ／ `foot{padding:13px 18px;border-top:1px solid var(--line);flex-end;gap:8px}` | 同left | 未定義（各モーダルが inline で持っていた） |
+| アプリ地 | body に `radial-gradient(circle at 80% -10%, rgba(215,170,80,.1), transparent 28%), var(--bg)` | 同left（**金の淡色は `var(--goldbg)` を参照**＝E1 追加トークンが実参照に） | 紫寄り `#15131C` / `#1A1622` の放射グラデ |
+
+### 9-2. ★新規起草（モックに共通部品定義が無い2種）
+
+モックは `table` / `input` の**共通部品を持たない**（各モックが個別セレクタで記述）。
+実例から輪郭を抽出して起草した。出典と逸脱は下記のとおり。
+
+**テーブル `.nox-tablewrap` / `.nox-table`**
+- 出典: analytics `.data-table th{text-align:left;padding:9px;color:var(--muted);font-size:8px;font-weight:500;border-bottom:1px solid var(--line);white-space:nowrap}` ／
+  audit 同型（`padding:9px 12px`）／payroll `.paytable td{padding:11px 12px}`・`th{position:sticky;top:0;background:#161613}` ／
+  shift `.table th,.table td{padding:12px 14px}` ／ staff-system `.table{width:100%;border-collapse:collapse}` ／ 共通 `tr:last-child td{border:0}`・`tbody tr:hover{background:#1b1b18〜#1d1d19}`・`.table-wrap{overflow:auto}`
+- 実装: `th{padding:10px 12px; font-size:11px; color:var(--sub); letter-spacing:.08em}` ／
+  `td{padding:11px 12px; font-size:12.5px; color:var(--ink)}` ／ `tbody tr:hover{background:var(--card2)}` ／
+  `.nox-table.sticky th{position:sticky; top:0; background:var(--bg2)}` ／ `.num` で右寄せ＋等幅数字
+- **★意図的な逸脱**: モックの `font-size:8〜9px` は**採らない**。13px 地に対する装飾的な縮小で、
+  実データ（金額・人数・日付）には小さすぎる。既存 `.nox-ptable` の実績値（th 11 / td 12.5）を採用。
+
+**入力欄 `.nox-field` / `.nox-input`**
+- 出典（register-pos 基準）: `.field{display:flex;flex-direction:column;gap:4px}` ／
+  `.field input,.field select{height:34px;border:1px solid var(--line2);border-radius:6px;background:#0c0c0b;padding:0 9px;outline:none}` ／
+  `.field input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(216,173,85,.08)}` ／
+  `.field textarea{height:112px;padding:10px;resize:vertical}` ／ `.field label{font-size:11px;color:#bbb8ae}`
+- 実装: 地 `var(--bg)`・枠 `var(--line2)`・radius 6・padding 9・focus は金枠＋淡い金リング・textarea は min-height 112 / padding 10
+- **★トークンに無い地色の扱い**: `#0c0c0b` は `--bg(#080808)` と `--card(#11110f)` の中間で一致トークンが無い。
+  入力は「面より沈む」のが要件なので **`--bg`** を採用（旧実装の `--bg2 #181815` はカードより明るく、沈みが逆だった）。
+  同様に `.btn` の `#171715` → **`--card2`**、`.toast` の `#222119` → **`--card2`**、
+  表 hover の `#1b1b18` → **`--card2`**、sticky th の `#161613` → **`--bg2`** に寄せた（**トークンのみ使用**）。
+- **高さの作り方**: モックは `height:34px`（btn は 38px）だが、NOX は **padding で高さを作る**。
+  既存のインライン style が width/padding を上書きする箇所があり、`height` を入れると衝突するため。
+
+### 9-3. theme.ts の後始末（E3 で実施）
+
+| 対象 | 処置 |
+|---|---|
+| `colors`（raw hex 13色） | **削除**。参照ゼロの死にコードで、2026-07-28 に `.nox-dark` だけ更新されて card2/line/ink/sub が drift していた（§2 教訓3 の実例）。色の正本は `.nox-dark` の CSS 変数ただ一つ |
+| `rolePill.color` `#0B0B0F` | → `#17130c`（モック `.btn.primary` の文字色） |
+| `rolePill.background` の `#B8893A` | → `#b48634`（モック値） |
+| `btnGold` の `#0B0B0F` / `#B8893A` | → モック `.btn.primary` 一式へ（`#e2bd6b→#b48634`・文字 `#17130c`・border `#d2a952`・影） |
+| `appBg` の `#15131C` / `loginBg` の `#1A1622` | → **`var(--goldbg)` の金グロー**（`globals.css` の `--app-bg` も同時に更新） |
+| `slipFoot.color` `#0B0B0F` ほか帳票系リテラル | **未処置**。印刷帳票（`slipHd`/`slipFoot`/`errBox`/`avatar`）は白地印刷の都合で独自色を持つ＝E5（金銭画面）で帳票ごと見直す |
+
+### 9-4. E3 の検収実績（2026-08-17）
+
+- build / tsc / lint 緑・**verify:f0 18本 2600 全緑**
+- 部品の計算済みスタイルを実測し**全項目がガイド値で解決**することを確認
+  （btn `radius:7px/padding:10px 15px/weight:650`・btnGold グラデと影・badge `radius:20px`＋`--goldbg` 地・
+  toast `fixed/right:26px/bottom:26px`＋`--shadow`・modal head/body/foot の padding・
+  table `th 10px 12px/11px`・`td 11px 12px/12.5px`・input `--bg`地/radius 6・textarea `min-height:112px`）
+- 既存カードへの波及も実測（`linear-gradient(145deg, rgba(25,25,22,.95), rgba(15,15,14,.98))`・`radius:11px`・`--shadow`）
+- アプリ地が `rgb(8,8,8)` ＋ `rgba(216,173,85,.1)` の金グローへ（`--goldbg` が**実参照**になった）
+- レスポンシブ 1280/768/375 で横スクロールなし
+- **重複セレクタ監査**（E2 教訓の適用）: 実装中に自分で作った重複2件
+  （`.nox-field textarea` の padding 競合・`.nox-badge` の状態クラス分割）を検出して1本化。
+  E3 終了時点で**新規導入の重複ゼロ**（残る5件は E3 以前からの既存＝`.nox-ptable` 列指定と `.nox-seg a`）

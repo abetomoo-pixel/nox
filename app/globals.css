@@ -170,8 +170,10 @@ body {
    toast / tblgrid / tblgrid2 / roles / cal / calc は repo に対応物が無いか裁定保留のため移植しない（裁定4/6）。 */
 @media (min-width: 900px) {
   .nox-dark {
-    /* t.appBg のフレームグラデ（モック .wrap の 900+ 版）。モバイル値は theme.ts のフォールバックが正 */
-    --app-bg: radial-gradient(1200px 480px at 50% -80px, #15131C 0%, var(--bg) 62%);
+    /* t.appBg のフレームグラデ（900+ 版）。モバイル値は theme.ts のフォールバックが正。
+       ★E3: 紫寄りの旧トーン（#15131C）を廃し、モック body の右上からの淡い金グローへ。
+         金の淡色は E1 追加の var(--goldbg) を参照＝リテラルを持たない。 */
+    --app-bg: radial-gradient(circle at 80% -10%, var(--goldbg), transparent 28%);
     /* t.kpiGrid（モック .kgrid 読み替え＝裁定5）。1180+ も 4列のためこの1段のみ */
     --kpi-cols: repeat(4, 1fr);
     /* t.lcard（login カード） */
@@ -326,6 +328,47 @@ body {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
+
+/* ── E3 新規: モーダル内部（モック .modalhead/.modalbody/.modalfoot）──────────
+   モック実測（base）:
+     .modalhead{padding:17px 19px;border-bottom:1px solid var(--line);display:flex;
+                justify-content:space-between;align-items:center}
+     .modalbody{padding:18px}
+     .modalfoot{padding:13px 18px;border-top:1px solid var(--line);display:flex;
+                justify-content:flex-end;gap:8px}
+   ★NOX の overlay/card（上）は SP=ボトムシート／PC=中央ダイアログという NOX 固有の作りで、
+     モックに対応物が無いため**触らない**。ここは「中身の3区画」だけを部品として足す。
+   ★E3 は用意するだけ＝各モーダルの中身を本部品へ置き換えるのは E4。 */
+.nox-modalhead {
+  padding: 17px 19px; border-bottom: 1px solid var(--line);
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.nox-modalbody { padding: 18px; }
+.nox-modalfoot {
+  padding: 13px 18px; border-top: 1px solid var(--line);
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+
+/* ── E3 新規: 浮遊トースト（モック .toast）────────────────────────────────
+   モック実測（8枚/4種の多数派）:
+     .toast{position:fixed;right:26px;bottom:26px;background:#222119;
+            border:1px solid rgba(216,173,85,.45);box-shadow:var(--shadow);
+            border-radius:9px;padding:13px 17px;display:flex;...}
+     .toast.show{transform:translateY(0);opacity:1}
+   ★地色 #222119 はトークンに無い（--card2 #22221e が最も近い）＝**--card2** を採る。
+   ★NOX の既存 `components/ui/toast.tsx` は**浮遊しない inline の <p>**（27箇所が
+     カード内に差し込む形）。浮遊化は 27箇所のレイアウトが動く＝**E4 の裁定**とし、
+     ここでは CSS 部品を用意するに留める（部品を用意する段と使う段を分ける）。 */
+.nox-toast {
+  position: fixed; right: 26px; bottom: 26px; z-index: 60;
+  background: var(--card2); border: 1px solid rgba(216, 173, 85, .45); box-shadow: var(--shadow);
+  border-radius: 9px; padding: 13px 17px; display: flex; align-items: center; gap: 10px;
+  color: var(--ink); font-size: 13px;
+  transform: translateY(8px); opacity: 0; transition: transform .18s ease, opacity .18s ease;
+  pointer-events: none;
+}
+.nox-toast.show { transform: translateY(0); opacity: 1; pointer-events: auto; }
+@media (max-width: 641px) { .nox-toast { left: 15px; right: 15px; bottom: 15px; } }
 
 /* ── レーン④b-1: 右ドロワー variant（オプトイン）── 2026-08-04 ──
    ★min-width:901px の中だけに置く。これが「≤900 はボトムシートに落ちる」の実装そのもので、
@@ -964,14 +1007,24 @@ body {
 .nox-row .tail { margin-left: auto; white-space: nowrap; }
 
 /* ── バッジ（モック .st/.pill/.tag の共通形）＝状態3色のみ・新色を作らない ── */
+/* ★E3: モック .badge 準拠（5枚/2種の多数派）
+     `.badge{padding:3px 8px;border:1px solid rgba(216,173,85,.28);background:var(--goldbg);
+             color:var(--gold2);font-size:10px;border-radius:20px;white-space:nowrap}`
+   ★モックの既定は「金のピル」。NOX は状態別（ok/warn/ng/none）の修飾を持つため、
+     **既定を金ピルに寄せつつ、状態クラスは従来どおり色を上書き**する形にした
+     （既定＝金＝ガイド §1 の「金は①選択②主ボタン③バッジ」の3役目と一致）。
+   ★角丸 6px → **20px（ピル）**・padding 2px 9px → 3px 8px・地に var(--goldbg) を参照。 */
 .nox-badge {
-  font-size: 10.5px; font-weight: 700; border-radius: 6px; padding: 2px 9px;
-  border: 1px solid var(--line); color: var(--sub); white-space: nowrap; display: inline-block;
+  font-size: 10px; font-weight: 700; border-radius: 20px; padding: 3px 8px;
+  border: 1px solid rgba(216, 173, 85, .28); background: var(--goldbg); color: var(--gold2);
+  white-space: nowrap; display: inline-block;
 }
-.nox-badge.ok   { color: var(--ok);   border-color: rgba(127, 199, 155, .45); }
-.nox-badge.warn { color: var(--gold); border-color: rgba(201, 162, 74, .45); }
-.nox-badge.ng   { color: var(--bad);  border-color: rgba(217, 138, 138, .45); }
-.nox-badge.none { color: var(--sub);  border-color: var(--line); }
+/* ★状態クラスは金地を外して色で区別する（既定の金ピルと衝突させない）。
+   background と color/border を別行に分けず**1本にまとめる**＝値の正本を1箇所に保つ（E2 教訓）。 */
+.nox-badge.ok   { color: var(--ok);   border-color: rgba(127, 199, 155, .45); background: transparent; }
+.nox-badge.warn { color: var(--gold); border-color: rgba(201, 162, 74, .45); background: transparent; }
+.nox-badge.ng   { color: var(--bad);  border-color: rgba(217, 138, 138, .45); background: transparent; }
+.nox-badge.none { color: var(--sub);  border-color: var(--line); background: transparent; }
 
 /* ── 凡例（モック .legend/.dot）──────────────────────────────────── */
 .nox-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 10.5px; color: var(--sub); align-items: center; }
@@ -981,6 +1034,70 @@ body {
 .nox-dot.warn { background: var(--gold); }
 .nox-dot.ng { background: var(--bad); }
 .nox-dot.none { background: var(--line2); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   E3 新規起草: テーブル / 入力欄の共通部品（2026-08-17）
+   ★モックには table / input の**共通部品定義が存在しない**（ガイド §4）。
+     各モックが個別セレクタで書いているため、実例から輪郭を抽出して起草した。
+   ★出典（base 規則・@media 除外）:
+     th   analytics `.data-table th{text-align:left;padding:9px;color:var(--muted);font-size:8px;
+          font-weight:500;border-bottom:1px solid var(--line);white-space:nowrap}`
+          audit 同型（padding:9px 12px）／staff-system `.table th{color:#77746c;font-size:9px;letter-spacing:.08em}`
+     td   analytics `padding:10px 9px;border-bottom:1px solid var(--line)` ／
+          payroll `.paytable td{padding:11px 12px}` ／ shift `.table td{padding:12px 14px}`
+     共通 `tr:last-child td{border:0}` ／ `tbody tr:hover{background:#1b1b18 or #1d1d19}` ／
+          `.table{width:100%;border-collapse:collapse}` ／ `.table-wrap{overflow:auto}` ／
+          payroll は `th{position:sticky;top:0;background:#161613}`
+   ★逸脱（意図的・ガイド §9-2 に記録）:
+     - **font-size はモックの 8〜9px を採らない**。モックは 13px 地に対する装飾的な縮小で、
+       実データ（金額・人数・日付）には小さすぎる。NOX は th 11px / td 12.5px（既存
+       `.nox-ptable` の実績値＝読める下限）を採る。
+     - 地色 `#1b1b18`/`#161613` はトークンに無い＝hover は `--card2`、sticky 地は `--bg2` を採る。
+   ★E3 の範囲は「部品を用意する」まで。各ページの表を本部品へ置き換えるのは E4。
+   ══════════════════════════════════════════════════════════════════════════ */
+.nox-tablewrap { overflow: auto; border: 1px solid var(--line); border-radius: 11px; background: var(--card); }
+.nox-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.nox-table th {
+  text-align: left; padding: 10px 12px; color: var(--sub); font-size: 11px; font-weight: 700;
+  letter-spacing: .08em; border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+/* payroll モックの「見出し固定」＝縦に長い表で使う（付けた表だけが sticky になる） */
+.nox-table.sticky th { position: sticky; top: 0; z-index: 1; background: var(--bg2); }
+.nox-table td { padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--ink); }
+.nox-table tbody tr:last-child td { border-bottom: 0; }
+.nox-table tbody tr:hover { background: var(--card2); }
+/* 数値列（右寄せ＋等幅数字）。モックの実例は列別クラスで書かれているため用途名で1つだけ用意する。 */
+.nox-table .num, .nox-table th.num, .nox-table td.num {
+  text-align: right; font-family: "Outfit", sans-serif; font-variant-numeric: tabular-nums;
+}
+
+/* 入力欄（モック .field input/.field select/.field textarea・register-pos 基準）
+     `.field{display:flex;flex-direction:column;gap:4px}`
+     `.field input,.field select{height:34px;border:1px solid var(--line2);border-radius:6px;
+      background:#0c0c0b;padding:0 9px;outline:none}`
+     `.field input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(216,173,85,.08)}`
+     `.field textarea{height:112px;padding:10px;resize:vertical}`
+     `.field label{font-size:11px;color:#bbb8ae}`
+   ★地色 `#0c0c0b` はトークンに無い（--bg と --card の中間）。入力は「面より沈む」のが要件なので
+     **--bg** を採る（旧実装の --bg2 はカードより明るく沈みが逆だった）。
+   ★高さは height ではなく padding で作る（inline の上書きと衝突させないため＝theme.ts と同流儀）。 */
+.nox-field { display: flex; flex-direction: column; gap: 5px; }
+.nox-field > label { font-size: 11px; color: var(--sub); font-weight: 700; }
+/* ★入力の地・枠・字は3要素で共通。textarea だけ寸法が違うので**別セレクタに分けず**
+   ここでは共通分のみを書き、textarea 固有は下の1本にまとめる（padding を2箇所で競合させない）。 */
+.nox-input, .nox-field input, .nox-field select {
+  width: 100%; background: var(--bg); border: 1px solid var(--line2); border-radius: 6px;
+  padding: 9px; color: var(--ink); font-family: inherit; font-size: 13px; outline: none;
+}
+.nox-field textarea {
+  width: 100%; background: var(--bg); border: 1px solid var(--line2); border-radius: 6px;
+  padding: 10px; color: var(--ink); font-family: inherit; font-size: 13px; outline: none;
+  min-height: 112px; resize: vertical;
+}
+.nox-input:focus, .nox-field input:focus, .nox-field select:focus, .nox-field textarea:focus {
+  border-color: var(--gold); box-shadow: 0 0 0 3px rgba(216, 173, 85, .08);
+}
+.nox-input:disabled, .nox-field input:disabled, .nox-field select:disabled { opacity: .55; cursor: not-allowed; }
 
 /* ── 3stat（モック .stats/.stat）＝日詳細などの小指標 ────────────── */
 .nox-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
@@ -1021,13 +1138,31 @@ body {
   .nox-tb { padding: 0 14px; }
 }
 
-/* ── ボタン（aaa .btn/.btn.gold）＝金は主ボタン1つだけ（3役②）───────── */
+/* ── ボタン（E3: モック .btn / .btn.primary / .btn.ghost / .btn.danger / .btn.small 準拠）──
+   モック実測（base・9枚/4種の多数派）:
+     .btn{height:38px;border:1px solid var(--line2);background:#171715;padding:0 15px;
+          border-radius:7px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:650}
+     .btn.primary{background:linear-gradient(135deg,#e2bd6b,#b48634);border-color:#d2a952;color:#17130c;
+                  box-shadow:0 6px 18px rgba(216,173,85,.12)}
+     .btn.ghost{background:transparent;color:var(--muted)}
+     .btn.danger{color:var(--red);border-color:rgba(216,108,100,.28);background:rgba(216,108,100,.05)}
+     .btn.small{height:30px;padding:0 10px}
+   ★地色 #171715 は --card(#11110f) と --card2(#22221e) の中間でトークンに無い。
+     「面から少し浮くボタン」の意図なので **--card2** を採る（トークンのみ使用・ガイド §9-2）。 */
 .nox-btn {
-  border: 1px solid var(--line); background: var(--card2); color: var(--ink);
-  border-radius: 10px; padding: 10px 14px; cursor: pointer; font-family: inherit; font-size: 13px;
+  border: 1px solid var(--line2); background: var(--card2); color: var(--ink);
+  border-radius: 7px; padding: 10px 15px; cursor: pointer; font-family: inherit; font-size: 13px;
+  font-weight: 650; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
 }
-.nox-btn:hover { border-color: var(--line2); }
-.nox-btn.gold { background: var(--gold); color: #15120A; border-color: var(--gold); font-weight: 800; }
+.nox-btn:hover { border-color: var(--gold); }
+/* 金は主ボタン1つだけ（3役②）。★E3: 単色 var(--gold) → モックのグラデ＋影へ。 */
+.nox-btn.gold {
+  background: linear-gradient(135deg, #e2bd6b, #b48634); border-color: #d2a952; color: #17130c;
+  font-weight: 800; box-shadow: 0 6px 18px rgba(216, 173, 85, .12);
+}
+.nox-btn.ghost { background: transparent; color: var(--sub); }
+.nox-btn.danger { color: var(--bad); border-color: rgba(216, 108, 100, .28); background: rgba(216, 108, 100, .05); }
+.nox-btn.small { padding: 6px 10px; font-size: 12px; }
 
 /* ── レイアウト（E2: モック .app / .sidebar / .content 準拠）────────────────
    モック実測（base 規則）:
