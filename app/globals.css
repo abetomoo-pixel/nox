@@ -1002,25 +1002,23 @@ body {
    ★断点は aaa の 980/620 を NOX の 900/641 へ読み替え（裁定5）。
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* ── トップバー（aaa .topbar/.brand/.logo/.top-actions）──────────────── */
+/* ── トップバー（E2: モック .topbar 準拠）──────────────────────────────
+   モック実測（base 規則・13枚から抽出）:
+     .topbar{height:64px;border-bottom:1px solid var(--line);padding:0 29px;
+             display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:rgba(...)}
+   ★E2 の変更点: 全幅ヘッダ → **main 列の中**へ移した（サイドバーが全高になるモック骨格）。
+     padding 24→29px・背景の rgba を新 --bg（#080808）基準へ。高さ 64px は据置（モックと同値）。 */
 .nox-tb {
   position: sticky; top: 0; z-index: 20; height: 64px;
-  background: rgba(11, 11, 15, .94); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: rgba(8, 8, 8, .94); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
-  display: flex; align-items: center; justify-content: space-between; padding: 0 24px; gap: 12px;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 29px; gap: 12px;
 }
-.nox-tb .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.nox-tb .logo {
-  width: 36px; height: 36px; border: 1px solid var(--gold); border-radius: 10px;
-  display: grid; place-items: center; color: var(--gold2); font-weight: 900; letter-spacing: .08em; flex-shrink: 0;
-  font-family: "Cormorant Garamond", serif;
-}
-.nox-tb .brand b { font-size: 18px; color: var(--ink); }
-.nox-tb .brand span { font-size: 12px; color: var(--sub); display: block; margin-top: 2px; }
-.nox-tb .acts { display: flex; gap: 8px; flex-shrink: 0; }
+/* モック .crumb 位置（左）。NOX は各ページが自前の見出しを持つため店名を置く。 */
+.nox-tb .crumb { font-size: 13px; color: var(--sub); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nox-tb .acts { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
 @media (max-width: 641px) {
   .nox-tb { padding: 0 14px; }
-  .nox-tb .brand span { display: none; }
 }
 
 /* ── ボタン（aaa .btn/.btn.gold）＝金は主ボタン1つだけ（3役②）───────── */
@@ -1031,40 +1029,62 @@ body {
 .nox-btn:hover { border-color: var(--line2); }
 .nox-btn.gold { background: var(--gold); color: #15120A; border-color: var(--gold); font-weight: 800; }
 
-/* ── レイアウト（aaa .layout/.side/.main）＝220px サイドバー＋フルード本体 ── */
+/* ── レイアウト（E2: モック .app / .sidebar / .content 準拠）────────────────
+   モック実測（base 規則）:
+     .app{min-height:100vh;display:grid;grid-template-columns:238px minmax(0,1fr)}
+     .sidebar{position:sticky;top:0;height:100vh;background:#0d0d0c;border-right:1px solid var(--line);
+              padding:22px 14px;display:flex;flex-direction:column;z-index:20}
+     .content{max-width:1540px;margin:auto;padding:24px 28px 50px}
+   ★E2 の変更点: 220→**238px**・サイドバーは**自前の地色と境界線**を持ち **全高（100vh・top:0）**へ。
+     これに伴い .nox-layout の「gradient で列を塗る」技法は不要になったので撤去した
+     （帯の切れ目対策＝段0R その5 の目的は、sticky 100vh のサイドバー自体が満たす）。 */
 .nox-layout {
-  display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: calc(100vh - 64px);
-  /* 左220px を bg2 で塗り、その右端に 1px の境界線を全高で引く（帯の切れ目を作らない） */
-  background: linear-gradient(to right, var(--bg2) 0 219px, var(--line) 219px 220px, transparent 220px);
+  display: grid; grid-template-columns: 238px minmax(0, 1fr); min-height: 100vh;
 }
-/* ★段0R その5: 高さ固定の「帯」をやめる＝align-self:start + max-height で内容分だけ確保し、
-   列の背景と境界線は .nox-layout 側で全高に敷く（本文が長いときに帯が中腹で切れて
-   「トップバー+サイドバーが再描画された」ように見えていたのを解消）。 */
+/* main 列（topbar＋content を積む器）。モックでは .app の第2列がこの役。 */
+.nox-mainwrap { min-width: 0; display: flex; flex-direction: column; }
 .nox-side {
-  position: sticky; top: 64px; align-self: start;
-  max-height: calc(100vh - 64px); overflow-y: auto;
-  padding: 20px 14px; background: transparent; border-right: 0;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  background: #0d0d0c; border-right: 1px solid var(--line);
+  padding: 22px 14px; display: flex; flex-direction: column; z-index: 20;
 }
-/* ★レーン④a-4: 項目を主役にする（--sub で沈んでいたのを --ink＋600 へ）。
-   群見出しは --sub のまま据え置き＝項目との明度・太さの差で階層を作る。 */
+/* モック .brand（brandmark 37px・Georgia serif 17px・gold 枠）＋ b/small。 */
+.nox-side .brand { display: flex; align-items: center; gap: 12px; padding: 0 10px 28px; }
+.nox-side .brandmark {
+  width: 37px; height: 37px; border: 1px solid var(--gold); border-radius: 8px;
+  display: grid; place-items: center; color: var(--gold2); font: 17px Georgia, serif; flex-shrink: 0;
+}
+.nox-side .brand b { font-size: 16px; color: var(--ink); }
+.nox-side .brand small { display: block; color: var(--sub); font-size: 9px; letter-spacing: .18em; }
+/* モック .nav button（padding 11px 12px・radius 8・gap 11・muted 文字）。NOX は <a> で描く。 */
 .nox-side a {
-  display: flex; align-items: center; gap: 11px; text-decoration: none; color: var(--ink);
-  padding: 11px 12px; border-radius: 10px; margin-bottom: 4px; font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; gap: 11px; text-decoration: none; color: var(--sub);
+  padding: 11px 12px; border-radius: 8px; margin: 2px 0; font-size: 13px; font-weight: 600;
 }
 /* アイコンは currentColor 継承＝通常/hover/現在地（金）にそのまま追随する */
 .nox-side a svg { flex: 0 0 auto; }
-.nox-side a:hover { background: var(--card2); color: var(--ink); }
-/* 現在地＝金の文字＋薄い金地の帯（既存 .nox-seg button.on と同じ流儀） */
-.nox-side a.active { background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
-.nox-side .group { font-size: 11px; color: #6F6F79; padding: 14px 12px 6px; letter-spacing: .08em; }
+.nox-side a:hover { background: #171715; color: var(--ink); }
+/* モック .nav button.active＝金のグラデ帯＋左端 2px の金線＋gold2 文字 */
+.nox-side a.active {
+  background: linear-gradient(90deg, rgba(216, 173, 85, .17), rgba(216, 173, 85, .03));
+  color: var(--gold2); box-shadow: inset 2px 0 var(--gold); font-weight: 700;
+}
+/* モック .navlabel（群見出し）＝9px・#66635d・letter-spacing .16em */
+.nox-side .group { font-size: 9px; color: #66635d; padding: 9px 12px 5px; letter-spacing: .16em; }
 /* 群の切れ目。見出しの無い群（項目1つの「顧客」「分析」）でも線で分かるよう、群の器に引く */
 .nox-side .nox-sidegroup + .nox-sidegroup {
   border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px;
 }
-/* aaa .main＝フルード＋上限。上限は aaa の 1480px を採用（段0 の 1180 から昇格）。 */
-.nox-mainarea { padding: 28px; max-width: 1480px; width: 100%; margin: 0 auto; }
+/* ★モック .sidefoot（ページ状態行）は NOX に対応データが無いため実装しない（side-nav.tsx の注記参照）。
+   E3 以降で状態行に載せる情報が決まったら、モック値
+   `margin-top:auto; padding:14px 10px; border-top:1px solid var(--line); color:var(--muted); font-size:9px`
+   をここに起こす。 */
+/* モック .content＝フルード＋上限 1540px（従来 1480 から）。padding 24px 28px 50px。 */
+.nox-mainarea { padding: 24px 28px 50px; max-width: 1540px; width: 100%; margin: 0 auto; }
 @media (max-width: 900px) {
-  .nox-layout { grid-template-columns: 1fr; background: none; }
+  /* ★SP はモックの「アイコン列の上部固定バー」には追随せず、NOX 既存のボトムタブを維持する
+     （ナビの構造を変えないため＝E2 の意図的な非追随）。サイドバーを隠して1列にするだけ。 */
+  .nox-layout { grid-template-columns: 1fr; }
   .nox-side { display: none; }
   .nox-mainarea { padding: 20px; }
 }
@@ -1163,11 +1183,12 @@ body {
   color: var(--sub); font-size: 12.5px; cursor: pointer; font-family: inherit;
 }
 .nox-addc:hover { border-color: var(--gold); color: var(--gold); }
-/* サイドバー群見出しの視覚調整（aaa .side .group 準拠＝小さく muted・項目と明確に差別化）。
-   ★④a-4: 項目側を --ink/600 へ上げたぶん、見出しはここの muted のまま据え置く＝階層差が広がる。 */
+/* ★E2: ここに後追いの `.nox-side .group` 重複定義があり、レイアウト節（上方）の指定を
+   カスケード順で上書きしていた（同一詳細度＝後勝ち）。モック .navlabel 値へ一本化する。
+   値の正本はレイアウト節側（font-size:9px / #66635d / padding:9px 12px 5px / ls .16em）。 */
 .nox-side .group {
-  font-size: 10.5px; color: #6F6F79; font-weight: 700;
-  padding: 10px 12px 6px; letter-spacing: .1em; text-transform: none;
+  font-size: 9px; color: #66635d; font-weight: 700;
+  padding: 9px 12px 5px; letter-spacing: .16em; text-transform: none;
 }
 .nox-side .group + a { margin-top: 2px; }
 

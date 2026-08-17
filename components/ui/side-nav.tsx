@@ -12,7 +12,15 @@ import { usePathname } from "next/navigation";
 import type { NavGroup } from "./nav";
 import { NavIcon } from "./nav-icons";
 
-export default function SideNav({ groups }: { groups: NavGroup[] }) {
+// E2（2026-08-17）: モック骨格に合わせ、サイドバー上部の**ブランド**を受け取る。
+//   ★受け取るのは表示文字列だけ＝groups（項目集合・順序・role ゲート）には一切触れていない。
+//   モックの `.brand`＝「N（brandmark 37px）／NOX／店名」と同一構成。
+//   ★モックの `.sidefoot` は**ページ状態行**（「最終更新 15:58」「LINE通知 正常」等）で、
+//     NOX に対応するデータが無いため**描かない**（無いものを埋めるとナビに新情報を足すことになる）。
+export default function SideNav({ groups, storeLabel }: {
+  groups: NavGroup[];
+  storeLabel?: string;
+}) {
   const path = usePathname() ?? "";
   const flat = groups.flatMap((g) => g.items);
   const active = flat.reduce<string>((best, it) => {
@@ -23,6 +31,14 @@ export default function SideNav({ groups }: { groups: NavGroup[] }) {
 
   return (
     <aside className="nox-side">
+      {/* E2: モック .brand（brandmark＋NOX＋店名）。リンクではない＝遷移を増やさない。 */}
+      <div className="brand">
+        <div className="brandmark" aria-hidden="true">N</div>
+        <div>
+          <b>NOX</b>
+          {storeLabel && <small>{storeLabel}</small>}
+        </div>
+      </div>
       {groups.map((g, gi) => (
         // 群ごとに包む＝見出しの無い群（項目1つの「顧客」「分析」）でも切れ目が線で分かる
         <div key={g.label ?? `g${gi}`} className="nox-sidegroup">

@@ -191,3 +191,63 @@ E6 が最後なのは、キオスクがレジの従属画面で**モックが無
 
 **要点**：レジは**機能差ではなく UI 構成差**。ただしレジを触ると**キオスク（`/kiosk-register` 970行）の
 追随判断が必ず発生する**（前例＝UI刷新v2 レーンで register 改修後に kiosk 追随を別コミットで実施）。
+
+---
+
+## 8. 共通シェル（E2 で実装確定・2026-08-17）
+
+モックの base 規則（`@media` を除いた素の値）を13枚から機械抽出し、実装で確定した値。
+
+### 8-1. 骨格
+
+```
+.app{min-height:100vh; display:grid; grid-template-columns:238px minmax(0,1fr)}
+  aside.sidebar   ← 左列・全高
+  （右列）header.topbar + .content
+```
+★**トップバーはサイドバーの右にだけ架かる**（全幅ヘッダではない）。
+NOX 実装は `.nox-layout > (aside.nox-side | div.nox-mainwrap > header.nox-tb + main.nox-mainarea)`。
+
+### 8-2. 確定値（モック実測 → NOX 実装）
+
+| 部位 | モック実測（base） | NOX 実装 | 旧値 |
+|---|---|---|---|
+| グリッド | `238px minmax(0,1fr)` | 同left | 220px |
+| サイドバー | `position:sticky; top:0; height:100vh; background:#0d0d0c; border-right:1px solid var(--line); padding:22px 14px; display:flex; flex-direction:column; z-index:20` | 同left | sticky top:64px・地色は `.nox-layout` の gradient で擬似的に塗っていた |
+| ブランド | `.brand{display:flex; align-items:center; gap:12px; padding:0 10px 28px}` ／ `.brandmark{37×37; border:1px solid var(--gold); border-radius:8px; display:grid; place-items:center; color:var(--gold2); font:17px Georgia,serif}` ／ `b{16px}` ／ `small{color:var(--muted); font-size:9px; letter-spacing:.18em}` | 同left（**topbar から サイドバー上部へ移設**） | topbar 内・logo 36px・radius 10・Cormorant Garamond |
+| 群見出し | `.navlabel{padding:9px 12px 5px; color:#66635d; font-size:9px; letter-spacing:.16em}` | 同left | 10.5px・#6F6F79・ls .1em |
+| ナビ項目 | `.nav button{padding:11px 12px; border-radius:8px; gap:11px; color:#96938b; margin:2px 0}` | 同left（色は `var(--sub)`・NOX は `<a>`） | radius 10・14px・`var(--ink)` |
+| 現在地 | `.nav button.active{background:linear-gradient(90deg,rgba(216,173,85,.17),rgba(216,173,85,.03)); color:var(--gold2); box-shadow:inset 2px 0 var(--gold)}` | 同left | `rgba(201,162,74,.14)` 地＋gold 文字（左線なし） |
+| hover | （モックに base 定義なし） | `background:#171715; color:var(--ink)` | `var(--card2)` |
+| トップバー | `.topbar{height:64px; padding:0 29px; border-bottom:1px solid var(--line); position:sticky; top:0; display:flex; justify-content:space-between}` | 同left（背景 rgba は新 `--bg` 基準 `rgba(8,8,8,.94)`） | 全幅・padding 0 24px・`rgba(11,11,15,.94)` |
+| 本文 | `.content{max-width:1540px; margin:auto; padding:24px 28px 50px}` | 同left | max-width 1480px・padding 28px |
+
+### 8-3. ★意図的な非追随（実装が先行発見した差の還流）
+
+1. **SP（≤900）のナビ**：モックはサイドバーを「アイコン列の上部固定バー」に変えるが、
+   **NOX は既存のボトムタブ（TabBar）を維持**する。ナビの構造そのものを変えることになり、
+   E2 の presentation-only を外れるため。→ ≤900 はサイドバーを隠して1列にするだけ。
+2. **`.sidefoot` は実装しない**：モックの中身は**ページ状態行**
+   （「最終更新 15:58」「LINE通知 正常」「監査ログ 正常」「設定は正常に同期されています」）で、
+   NOX に対応するデータが無い。無いものを埋めると**ナビに新情報を足す**ことになる。
+   → 載せる情報が決まった時点で、モック値（`margin-top:auto; padding:14px 10px;
+   border-top:1px solid var(--line); color:var(--muted); font-size:9px`）を起こす。
+3. **トップバー左（`.crumb`）は空**：モックは「営業 / レジ」のパンくずだが、NOX は各ページが
+   自前の見出しを持ち、パンくずに相当するデータを持たない。店名は**サイドバーの brand**
+   （モックと同じ「N / NOX / CLUB NOX」）にあるため、topbar には出さない＝同じ情報を2箇所に出さない。
+
+### 8-4. ★E2 で見つかった実装側の欠陥（是正済み）
+
+`globals.css` に **`.nox-side .group` の定義が2箇所**あり（レイアウト節と後方の「視覚調整」節）、
+同一詳細度のため**後方が先方を上書き**していた。E2 でモック `.navlabel` 値へ一本化。
+→ 教訓: 同じセレクタの再定義は「調整」の名で増えやすく、値の正本が分からなくなる。
+   E3 以降で部品値を変えるときは **同名セレクタの重複を先に grep する**。
+
+### 8-5. E2 の検収実績（2026-08-17）
+
+- build / tsc / lint 緑・**verify:f0 18本 2600 全緑**
+- **全29ルート到達**（200 またはロール由来のリダイレクト）・(manage) 配下は
+  シェル4要素（`nox-side` / `nox-tb` / `nox-mainwrap` / `nox-mainarea`）が全ページで揃う
+- **権限出し分けの現状維持**を demo-manager（店長）で確認＝ナビ11項目・
+  **owner 限定の「監査」が出ない**・群見出しは「営業/スタッフ/店舗」（1項目群の見出し抑止も従来どおり）
+- レスポンシブ 1280/768/375 で**横スクロールなし**・≤900 でサイドバー非表示＋ボトムタブ表示

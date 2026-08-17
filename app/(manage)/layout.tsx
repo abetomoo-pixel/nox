@@ -72,33 +72,41 @@ export default async function ManageLayout({ children }: { children: React.React
         ] },
       ].filter((g) => g.items.length > 0); // 権限で空になった群は見出しごと出さない
   return (
-    /* ── UI刷新v2R 段0R その2: 基準シェル aaa.html の構造へ載せ替え（presentation-only）──
-       トップバー（.nox-tb）＋ 220px サイドバー＋フルード本体（.nox-layout / .nox-side / .nox-mainarea）。
-       ★ルート・URL・role ゲート・nav の項目集合は段N から1文字も変えていない＝殻だけを差し替えた。
-       ★≤900 はサイドバーを CSS で隠し、従来どおり TabBar のボトムタブが出る（hideSide で
-         TabBar 側の 900+ サイドバーは描画しない＝二重サイドバーにしない）。 */
+    /* ── E2（2026-08-17）: 共通シェルを mock/pages-2026-08 の骨格へ寄せた（presentation-only）──
+       モック構造＝`.app{grid:238px minmax(0,1fr)}` の**左列にサイドバー（全高）**、
+       **右列に topbar＋content** を積む（＝トップバーはサイドバーの右にだけ架かる）。
+       これに合わせて DOM を `.nox-layout > (aside.nox-side | div.nox-mainwrap > header.nox-tb + main.nox-mainarea)`
+       へ組み替え、ブランドを**トップバーからサイドバー上部へ移設**・サイドバー脚（.nox-sidefoot）を追加した。
+       ★ルート・URL・role ゲート・nav の項目集合・groups の組み立ては1文字も変えていない
+         （上の groups 計算・redirect・rpc 呼び出しは E2 で非改変＝差分は殻のみ）。
+       ★≤900 は従来どおりサイドバーを CSS で隠し TabBar のボトムタブが出る。
+         モックは SP でサイドバーを「アイコン列の上部固定バー」に変えるが、**NOX は既存の
+         ボトムタブを維持する**＝ナビの構造そのものを変えないため（E2 の意図的な非追随・ガイド §8 に記録）。 */
     <div className="nox-dark" style={t.appBg}>
-      <header className="nox-tb">
-        <div className="brand">
-          <div className="logo" aria-hidden="true">N</div>
-          <div>
-            <b>NOX</b>
-            <span>{storeLabel}</span>
-          </div>
-        </div>
-        <div className="acts">
-          <span style={t.rolePill}>{t.roleLabelJa(role as string)}</span>
-          <form action="/auth/signout" method="post" style={{ display: "flex" }}>
-            <button type="submit" className="nox-btn">ログアウト</button>
-          </form>
-        </div>
-      </header>
       <div className="nox-layout">
-        {/* 900+ のサイドバー＝段N の5群をそのまま描く（aaa に無い項目は作らない）。
+        {/* 900+ のサイドバー＝段N の5群をそのまま描く（モックに無い項目は作らない）。
             ★レーン④a-4: 現在地ハイライトとアイコンのため client 部品 SideNav へ切り出した。
-              渡す groups は上で組んだものそのまま＝項目集合・順序・role ゲートは非改変。 */}
-        <SideNav groups={groups} />
-        <main className="nox-mainarea">{children}</main>
+              渡す groups は上で組んだものそのまま＝項目集合・順序・role ゲートは非改変。
+            ★E2: ブランド（店名）と脚の表示だけを props で渡す＝ナビのロジックには触れない。 */}
+        <SideNav groups={groups} storeLabel={storeLabel} />
+        <div className="nox-mainwrap">
+          <header className="nox-tb">
+            {/* モック topbar は「左＝パンくず（営業 / レジ）・右＝管理者チップ（A 管理者 店名）」。
+                ★NOX は各ページが自前の見出しを持ち、パンくずに相当するデータを持たないため**左は空**に留める
+                  （パンくずを作るとナビの情報を増やすことになり E2 の presentation-only を外れる）。
+                ★店名は**サイドバーの brand**（モックと同じ「N / NOX / CLUB NOX」）に置いたので
+                  topbar には出さない＝同じ情報を2箇所に出さない。
+                右は従来どおりロール表示＋ログアウト＝モックの管理者チップ位置と一致。 */}
+            <div className="crumb" aria-hidden="true" />
+            <div className="acts">
+              <span style={t.rolePill}>{t.roleLabelJa(role as string)}</span>
+              <form action="/auth/signout" method="post" style={{ display: "flex" }}>
+                <button type="submit" className="nox-btn">ログアウト</button>
+              </form>
+            </div>
+          </header>
+          <main className="nox-mainarea">{children}</main>
+        </div>
       </div>
       {/* 段N: SP（≤899）はボトムタブ4本（ホーム/レジ/シフト/キャスト）＋「その他」シート。
           cast は項目が レジ 1本のみ＝その他は出ない（従来と同一）。 */}
