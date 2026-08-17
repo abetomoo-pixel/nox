@@ -1,9 +1,10 @@
-# NOX 課金設計 v1.1（2026-08-17 起草・同日 v1.1＝ゲート確定リスト固定）
+# NOX 課金設計 v1.2（2026-08-17 起草・同日 v1.1 ゲート確定・v1.2 live 突合反映）
 
 正本規約: 本書ロック後は本書＋repo/live が正。BANZEN billing は型の供給元（対応表 §7）であり
 挙動の正本ではない。裁定 1–9 確定済み（推奨採用・相談役チャット 08-17）。
-v1.1 改訂（2026-08-17・保留16本の裁定反映）: §4 シフト系文言修正・§4.5 確定リスト（対象87/除外82）
-・open 伝票の付随裁定。原本 v1 の sha256 1453584a…（git 履歴 898f7bc が保持）。
+v1.1 改訂（保留16本の裁定反映）: §4 シフト系文言修正・§4.5 確定リスト・open 伝票の付随裁定。
+v1.2 改訂（live 突合反映）: §4.5 の母集団を live pg_proc 170 に置換（対象87/除外83）・
+§9 の突合ゲート通過を記録。原本 v1 の sha256 1453584a…（git 履歴 898f7bc が保持）。
 
 ## 1. 商流と課金モデル（裁定1–3）
 
@@ -81,9 +82,12 @@ raise exception 'billing locked'; end if;`（v_org 確定直後・auth ガード
 ★判定原理（迷ったらこの2行に還元）:
 **除外 = 清算・事実記録・セキュリティ・給与前提／対象 = 新規営業・拡大・金銭記録の作成改変**
 
-母集団 169 関数名（backup 2026-07-27 の 144＋mig0066-0086 補完25・全数照合済み・保留ゼロ）。
-全名列挙の作業台帳 = docs/tmp/billing_gate_list_draft.md v1.1（★live 突合後に pg_proc 実列挙と
-再照合してから mig0087 起草）。
+母集団 = **live pg_proc 実列挙 170 定義**（2026-08-17 02:22 UTC 採取・overload ゼロ）。
+全名列挙の作業台帳 = docs/tmp/billing_gate_list_draft.md v1.2。
+★**live 突合 完了**: orgs/stores の DDL・制約・index・RLS・grants は backup 2026-07-27 と**差分ゼロ**。
+RPC は暫定母集団 169 に対し差分2件を是正済み＝(1) set_cast_photo_updated_at（mig0065）の欠落を
+B(j) へ追加 (2) product_stock_totals の overload 注記誤り（live は1定義）。
+照合結果 = **対象87 ＋ 除外83 ＝ 170 が live と完全一致**（重複ゼロ・欠落ゼロ・保留ゼロ・機械検証）。
 
 **対象 87本**:
 | 分類 | 本数 | 内訳 |
@@ -100,7 +104,7 @@ raise exception 'billing locked'; end if;`（v_org 確定直後・auth ガード
 | スタッフ・キャスト管理 | 13 | staff_create/change_role/update_profile/transfer_store/reactivate・set_staff_perms・cast_create/cast_invite/**cast_rejoin**（復帰=拡大）・trial_register/update/hire/reject |
 | デバイス | 1 | kiosk_provision |
 
-**除外 82本**:
+**除外 83本**:
 | 分類 | 本数 | 代表（全名は作業台帳） |
 |---|---|---|
 | 構造除外（authenticated 実行不可） | 23 | payroll_finalize/mark_paid/reopen・audit_log_write 系・check_recalc/group_due/round_amount・stock トリガ・pricing_resolve_core 等 |
@@ -112,6 +116,7 @@ raise exception 'billing locked'; end if;`（v_org 確定直後・auth ガード
 | 印刷 | 1 | print_enqueue（「出せる」明文） |
 | セキュリティ/縮退専用 | 2 | staff_deactivate・kiosk_deactivate |
 | 裁定除外（2026-08-17） | 10 | receivable_collect/mark_deduct（清算）・daily_report_close/reclose（清算・事実記録）・shift_wish_submit/withdraw（事実記録）・set_cast_tax_profile/set_cast_sensitive（給与前提）・cast_leave（事実記録・縮退）・rotate_store_token（セキュリティ） |
+| live 突合で追加 | 1 | set_cast_photo_updated_at（**事実記録**＝Storage 実体の書込は Storage ポリシーが支配し本 RPC は打刻のみ。ゲートしても「書けない」を達成せず不整合だけ作る。写真の真の遮断は Storage ポリシー側＝post-launch。★対象への反転余地あり＝相談役確認事項） |
 
 ★付随裁定（open 伝票）: **失効を open のまま跨いだ伝票も check_pay / check_close はゲート対象**
 （read-only の徹底＝失効中は決済・是正（void）とも不能・閲覧のみ。writable 復帰後に通常どおり処理）。
@@ -160,8 +165,9 @@ raise exception 'billing locked'; end if;`（v_org 確定直後・auth ガード
 
 ## 9. 未決・順序
 
-1. Supabase 復旧 → 残置スクリプトで live 突合（orgs/stores/RPC 現物が backup と一致）
-   ＋ゲートリストの全数照合を pg_proc 実列挙で再実行（未知関数の取りこぼし防止）
-2. ~~ゲート対象の確定リスト~~ → **済み（v1.1 §4.5 固定・2026-08-17・対象87/除外82/保留0）**
+1. ~~Supabase 復旧 → live 突合~~ → **済み（2026-08-17・DDL 差分ゼロ・RPC 差分2件是正・
+   ゲートリスト全数照合が live 170 と完全一致）＝mig0087 起草ゲート通過**
+2. ~~ゲート対象の確定リスト~~ → **済み（§4.5 固定・対象87/除外83/保留0）**
 3. mig0087 起草 → CC 照合 → 手貼り → 段47 → app 実装（Fable 5）
+   ※起草時の注意: 対象 RPC は **live 全文起点**（backup は 2026-07-27 時点＝0065 以降の改稿を含まない）
 4. Stripe 本番物件（Product/Price 2本）は BANZEN Track B 後・dev は sk_test 先行
