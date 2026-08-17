@@ -102,7 +102,7 @@ export default function CastRegisterPanel({
                       checked={r.canRegister}
                       disabled={busy || !r.membershipId}
                       onChange={() => void toggleCast(r)}
-                      style={{ accentColor: "#C9A24A", cursor: "pointer" }}
+                      style={{ accentColor: "var(--gold)", cursor: "pointer" }}
                     />
                   </td>
                 </tr>

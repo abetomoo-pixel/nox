@@ -423,3 +423,38 @@ E4 は**部品値の適用のみ**とし表示位置は現行維持。採用す�
   4. `@keyframes` の `from/to` は false positive として除外する
 - この手順で全数再監査した結果、**E1〜E4 で導入した重複はゼロ**
   （残る既存6件＝`.nox-ptable` の列指定5件と `.nox-seg a`）。
+
+### 11-4. G5: 区切り線つきリスト行 `.nox-listrow` を新設（E4 群4）
+
+```
+.nox-listrow { display:flex; align-items:center; gap:10px;
+               padding:6px 0; border-bottom:1px solid var(--line); }
+.nox-listrow:last-child { border-bottom:0; }
+```
+- ★**非モック由来・実装起草**。モックのリストはページ固有クラス（`.split-preview-row` 等）で
+  共通部品を持たない。実装側で同型が **8箇所 / 7ファイル**に分散していたため起草した。
+- 既存部品が使えない理由: `.nox-table` は `<table>` 構造が要る（対象は div の flex 行で
+  `margin-left:auto` の右寄せ要素を含む）／`.nox-inset` は「囲む面」であって行区切りではない。
+- 適用済み（E4 群4 時点・4箇所）: shift-board の希望/確定シフト行 ×2・
+  mine/drink-claim-form の申告履歴行・mine/wishes の希望行
+  （gap/padding の 1〜2px 差は inline 上書きで保持＝視覚不変）。
+- **未適用＝E5/E6 送り**: register/bottle-keep-panel・shift/incentive-panel（金銭画面圏）。
+  notices-board:165 と customer-detail:266 は **flex 行ではなく縦積みブロック**のため対象外
+  （`flex-direction:column` / ブロック直下に複数行＝部品の輪郭と合わない。inline のまま）。
+- G4（マイナンバー値チップ）は**裁定＝意図的 inline 許容**（単発・機密表示特化。部品にすると
+  「等幅の機密値をどこでも置ける」語彙を作り、機密表示を増やさない方針と逆行するため）。
+
+### 11-5. E1 の取り残し＝旧パレットのリテラル 24箇所（E4 群4 で17箇所是正）
+
+E4 群4 の走査で、**E1 のトークン差し替えが届かなかった旧パレットのリテラル**が
+24箇所 / 14ファイルに残存していたことが判明した（`#C9A24A`（旧 gold）×10・`#23232B` ×7・
+`#0B0B0F` ×3・`#B8893A` ×4 ほか）。E1 は「トークン定義の差し替え」であり、
+**画面側が var() でなくリテラルで書いていた箇所は当然に取り残される**＝機械走査で全数を出した。
+
+- **是正 17箇所**（E4 対象圏）: checkbox の `accentColor` ×5 → `var(--gold)`／
+  ピル地 `#23232B` ×4 → `var(--card2)`／金グラデ終端 `#B8893A` ×4 → `var(--gold3)`／
+  金地の文字 `#0B0B0F` ×3 → `var(--on-gold)`／`viewport.themeColor` → `#080808`
+  （メタデータは CSS var 不可＝リテラル必須・新 `--bg` と同値）。
+- **残置 7箇所**: register-board ×2・reservation-panel ×3（**E5 送り**）／
+  kiosk-register ×2（**E6 送り**）。
+

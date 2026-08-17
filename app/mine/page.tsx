@@ -273,7 +273,7 @@ export default async function MinePage() {
               {r.party_size != null && <span style={{ color: "var(--sub)" }}>{r.party_size}名</span>}
               <span style={{
                 fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
-                color: "#C9A24A", background: "#23232B", border: "1px solid var(--line2)",
+                color: "var(--gold)", background: "var(--card2)", border: "1px solid var(--line2)",
                 whiteSpace: "nowrap", marginLeft: "auto",
               }}>予約</span>
             </div>

@@ -127,7 +127,7 @@ export default function DrinkClaimForm({ month }: { month: string }) {
       <h3 style={{ marginTop: 16 }}>今月の申告（{month}）</h3>
       {claims.length === 0 && <p style={noneP}>申告はまだありません</p>}
       {claims.map((c) => (
-        <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
+        <div key={c.id} className="nox-listrow" style={{ padding: "7px 0", fontSize: 13 }}>
           <span style={{ ...t.num, color: "var(--sub)", fontSize: 12 }}>
             {new Date(c.created_at).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" })}
           </span>
@@ -136,7 +136,7 @@ export default function DrinkClaimForm({ month }: { month: string }) {
           {c.status === "approved" && <span style={{ ...t.num, color: "var(--champ)", fontWeight: 700 }}>{yen(c.back_amount)}</span>}
           <span style={{
             marginLeft: "auto", fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
-            color: STATUS_COLOR[c.status] ?? "var(--sub)", background: "#23232B", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+            color: STATUS_COLOR[c.status] ?? "var(--sub)", background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
           }}>{STATUS_LABEL[c.status] ?? c.status}</span>
         </div>
       ))}

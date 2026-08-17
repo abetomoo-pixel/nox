@@ -62,14 +62,14 @@ export default function NormCard() {
               {done && (
                 <span style={{
                   fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
-                  color: "#C9A24A", background: "#23232B", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+                  color: "var(--gold)", background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
                 }}>達成</span>
               )}
             </div>
             <div style={{ height: 6, borderRadius: 999, background: "var(--line2)", marginTop: 4, overflow: "hidden" }}>
               <div style={{
                 height: "100%", width: `${pct}%`, borderRadius: 999,
-                background: "linear-gradient(135deg, var(--gold2), #B8893A)",
+                background: "linear-gradient(135deg, var(--gold2), var(--gold3))",
               }} />
             </div>
           </div>

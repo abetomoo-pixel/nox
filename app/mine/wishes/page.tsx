@@ -43,7 +43,7 @@ export default async function WishesPage() {
           {(wishes ?? []).map((w) => (
             <li
               key={w.id as string}
-              style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--line)" }}
+              className="nox-listrow" style={{ gap: 12, padding: "8px 0" }}
             >
               <span style={t.num}>{w.date}</span>
               <span style={t.num}>{fmtWin(w.start_hm as string, w.end_hm as string)}</span>

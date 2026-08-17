@@ -542,7 +542,7 @@ export default function CastsBoard({
             {DOC_KEYS.map((d) => (
               <label key={d.key} style={{ ...lbl, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
                 <input type="checkbox" checked={docs(selTrial)[d.key] === true} disabled={busy}
-                  onChange={() => void toggleDoc(selTrial, d.key)} style={{ accentColor: "#C9A24A", cursor: "pointer" }} />
+                  onChange={() => void toggleDoc(selTrial, d.key)} style={{ accentColor: "var(--gold)", cursor: "pointer" }} />
                 {d.label}
               </label>
             ))}

@@ -461,7 +461,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           // B-5②: 提出後に定休日設定された wish＝採用のみブロック・見送りは可（非対称・RPC 二層目は段26-7 実測）
           const wClosed = closedOf(w.date, w.start_hm, w.end_hm);
           return (
-            <div key={w.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
+            <div key={w.id} className="nox-listrow" style={{ fontSize: 13 }}>
               <span style={{ ...t.num, width: 90 }}>{w.date}</span>
               <span style={{ width: 110 }}>{castName(w.cast_id)}</span>
               <span style={t.num}>{fmtWin(w.start_hm, w.end_hm)}</span>
@@ -525,7 +525,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           // B-5②: 作成後に定休日化された日のシフト＝確定（update 経路）を事前ブロック（二層目は RPC・段26-5 実測）
           const sClosed = closedOf(s.date, s.start_hm, s.end_hm);
           return (
-            <div key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
+            <div key={s.id} className="nox-listrow" style={{ fontSize: 13 }}>
               <span style={{ ...t.num, width: 90 }}>{s.date}</span>
               <span style={{ width: 110 }}>{castName(s.cast_id)}</span>
               <span style={t.num}>{fmtWin(s.start_hm, s.end_hm)}</span>

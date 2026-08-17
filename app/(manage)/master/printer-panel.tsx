@@ -114,7 +114,7 @@ export default function PrinterPanel({ storeId, initialProfile }: { storeId: str
         </p>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <label style={{ fontSize: 13 }}>
-            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} style={{ accentColor: "#C9A24A" }} />
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} style={{ accentColor: "var(--gold)" }} />
             {" "}印刷を有効にする
           </label>
           <label style={{ fontSize: 12 }}>シリアル（任意・一致検証）{" "}

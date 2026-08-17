@@ -58,11 +58,11 @@ export default function NormConfigPanel({
         {isOwner ? (
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
             <label style={{ fontSize: 13 }}>
-              <input type="checkbox" checked={salesEnabled} onChange={(e) => setSalesEnabled(e.target.checked)} style={{ accentColor: "#C9A24A" }} />
+              <input type="checkbox" checked={salesEnabled} onChange={(e) => setSalesEnabled(e.target.checked)} style={{ accentColor: "var(--gold)" }} />
               {" "}売上ノルマを採用
             </label>
             <label style={{ fontSize: 13 }}>
-              <input type="checkbox" checked={shimeiEnabled} onChange={(e) => setShimeiEnabled(e.target.checked)} style={{ accentColor: "#C9A24A" }} />
+              <input type="checkbox" checked={shimeiEnabled} onChange={(e) => setShimeiEnabled(e.target.checked)} style={{ accentColor: "var(--gold)" }} />
               {" "}指名ノルマを採用
             </label>
             <label style={{ fontSize: 13 }}>

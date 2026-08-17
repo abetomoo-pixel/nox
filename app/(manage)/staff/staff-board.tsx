@@ -26,8 +26,8 @@ const btnGhost: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 const rolePillMini = (role: string): React.CSSProperties => ({
   fontSize: 10, fontWeight: 800, letterSpacing: 0.5, borderRadius: 999, padding: "2px 8px",
-  color: role === "manager" ? "#0B0B0F" : "var(--ink)",
-  background: role === "manager" ? "linear-gradient(135deg,var(--gold2),#B8893A)" : "var(--card2)",
+  color: role === "manager" ? "var(--on-gold)" : "var(--ink)",
+  background: role === "manager" ? "linear-gradient(135deg,var(--gold2),var(--gold3))" : "var(--card2)",
   border: role === "manager" ? "0" : "1px solid var(--line2)",
 });
 

@@ -38,7 +38,7 @@ const yen = (n: number) => "¥" + n.toLocaleString();
 const input: React.CSSProperties = { ...t.input, padding: "8px 10px", fontSize: 13 };
 const segBtn = (on: boolean): React.CSSProperties => ({
   ...t.btnGhost, ...t.btnSm,
-  ...(on ? { background: "linear-gradient(135deg,var(--gold2),#B8893A)", color: "#0B0B0F", border: 0, fontWeight: 800 } : {}),
+  ...(on ? { background: "linear-gradient(135deg,var(--gold2),var(--gold3))", color: "var(--on-gold)", border: 0, fontWeight: 800 } : {}),
 });
 // 段U2: churn pill / 休眠 pill の inline style は .nox-risk（mid=金・hi=赤・off=neutral）へ移した
 //   ＝色の意味（high=赤 / mid=金 / 休眠=neutral）は現行と同一・判定は引き続き RPC の churn_tier のみ。

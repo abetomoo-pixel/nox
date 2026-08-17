@@ -35,7 +35,7 @@ const input: React.CSSProperties = { ...t.input, padding: "8px 10px", fontSize: 
 const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
 const dormantPill: React.CSSProperties = {
   fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
-  color: "var(--sub)", background: "#23232B", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+  color: "var(--sub)", background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
 };
 
 function fmtWhen(iso: string): string {

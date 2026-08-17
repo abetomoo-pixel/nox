@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0B0B0F",   // canonical --bg（globals.css .nox-dark と同値）
+  themeColor: "#080808",   // canonical --bg（globals.css .nox-dark と同値・E4 群4 で新パレットへ追随。メタデータは CSS var 不可＝リテラル必須）
   viewportFit: "cover",    // env(safe-area-inset-*) を効かせる（段A のボトムシートが使用）
 };
 

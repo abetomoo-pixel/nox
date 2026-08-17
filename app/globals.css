@@ -1126,6 +1126,19 @@ body {
   background: var(--bg2); border: 1px solid var(--line); border-radius: 8px;
   padding: 14px; box-shadow: none;
 }
+
+/* ── E4 群4 新設: 区切り線つきリスト行 `.nox-listrow`（gaps G5 の裁定）──────────
+   ★**非モック由来・実装起草**。モックのリストはページ固有クラス（`.split-preview-row` 等）で
+     共通部品を持たない。実装側では同型が **8箇所 / 7ファイル**に分散していたため起草した。
+   既存部品が使えない理由: `.nox-table` は `<table>` 構造が要る（これらは div の flex 行で
+   `margin-left:auto` の右寄せ要素を含む）／`.nox-inset` は「囲む面」であって行区切りではない。
+   ★最終行の罫線は `:last-child` で消す＝リスト末尾に浮いた線を残さない。
+   ★新部品追加の前に、コメント除去済みソースで同名セレクタの実在を確認済み（0件・G3 の手順）。 */
+.nox-listrow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; border-bottom: 1px solid var(--line);
+}
+.nox-listrow:last-child { border-bottom: 0; }
 /* ★入力の地・枠・字は3要素で共通。textarea だけ寸法が違うので**別セレクタに分けず**
    ここでは共通分のみを書き、textarea 固有は下の1本にまとめる（padding を2箇所で競合させない）。 */
 .nox-input, .nox-formfield input, .nox-formfield select {
