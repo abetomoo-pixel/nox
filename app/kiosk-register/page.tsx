@@ -17,6 +17,7 @@ import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
+import Modal from "@/components/ui/modal";
 
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
 type StateSeat = { id: string; name: string; kind: string | null };
@@ -72,6 +73,7 @@ function timeErrJa(msg: string | undefined): string {
   if (msg.includes("has payments")) return "入金後は時間料金を反映できません（訂正は責任者へ）";
   if (msg.includes("not open")) return "この伝票は締められています（反映できません）";
   if (msg.includes("bad time settings")) return "店の時間料金設定が不正です（マスタで確認してください）";
+  if (msg.includes("billing locked")) return "ご利用プランの制限で更新できません（責任者にご確認ください）";
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
 }
@@ -112,6 +114,10 @@ export default function KioskRegisterPage() {
   const [timeMsg, setTimeMsg] = useState<string | null>(null);
   const [printCard, setPrintCard] = useState<{ checkId: string; groups: string[] } | null>(null);
   const [printMsg, setPrintMsg] = useState<Record<string, string>>({});
+  // レジ時間UX R1（register-board 同型）: 開卓モーダル（人数は任意＝空欄なら null 送信）
+  const [openSeatTarget, setOpenSeatTarget] = useState<StateSeat | null>(null);
+  const [openPeople, setOpenPeople] = useState("");
+  const [openBusy, setOpenBusy] = useState(false);
 
   // フォーム状態（register-board 写経）
   const [nomType, setNomType] = useState("hon");
@@ -284,8 +290,25 @@ export default function KioskRegisterPage() {
     setMsg(null); setSeatMsg(null);
     const existing = openBySeat(seat.id);
     if (existing) { await loadDetail(existing.id); return; }
-    const { data, error } = await supabase.rpc("check_open", { p_seat_id: seat.id, p_people: null, p_nom_type: "free" });
+    // レジ時間UX R1（裁定29・register-board 同型）: フリー卓は即 open せず開卓モーダルへ
+    //   （誤タップ開栓の防止・「何が始まるか」の明示）。nom_type は従来どおり 'free'。
+    setOpenPeople("");
+    setOpenSeatTarget(seat);
+  }
+
+  // レジ時間UX R1: 開卓の確定（check_open は既存 RPC・kiosk 腕＝0057(3)。p_people は空欄なら null＝従来と同値）。
+  async function confirmOpenSeat() {
+    const seat = openSeatTarget;
+    if (!seat || openBusy) return;
+    markAction();
+    const raw = openPeople.trim();
+    const n = raw === "" ? null : Number(raw);
+    if (n !== null && (!Number.isInteger(n) || n <= 0)) { setMsg("人数は正の整数で入力してください（空欄可）"); return; }
+    setOpenBusy(true);
+    const { data, error } = await supabase.rpc("check_open", { p_seat_id: seat.id, p_people: n, p_nom_type: "free" });
+    setOpenBusy(false);
     if (error) { if (!sessionLostIf(error)) setMsg(error.message); return; }
+    setOpenSeatTarget(null);
     await refreshState();
     await loadDetail(data as string);
   }
@@ -347,6 +370,22 @@ export default function KioskRegisterPage() {
     setTimeCalc(data as TimeCalc);
     await refreshState();
   }
+
+  // レジ時間UX R3（裁定29・register-board 同型）: 伝票を開いた時点で1回だけ自動反映（kiosk は
+  //   会計タブを持たない全面ビュー＝「伝票表示」が manage の pay タブ入場に相当）。
+  //   前置き＝open ∧ 入金0 ∧ time_mode='auto'。発火は check.id につき1回＝apply→loadDetail の
+  //   参照替えで再発火しないよう ref キーで抑止。伝票を閉じて開き直すと再反映（＝経過分へ更新）。
+  //   ★0059(b) 契約維持: 発火は卓タップ（操作起点）のみ・タイマーから RPC は呼ばない。
+  const autoTimeKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!detail) { autoTimeKeyRef.current = null; return; }
+    if (autoTimeKeyRef.current === detail.check.id) return;
+    autoTimeKeyRef.current = detail.check.id;
+    if (detail.check.status === "open" && detail.time_mode === "auto" && detail.payments.length === 0) {
+      void applyTimeCharge();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail]);
 
   // B1/B2 席操作（kiosk は reservations を読めない＝予約 soft 警告なし・拒否系は RPC が握る）
   async function addSeat(seatId: string) {
@@ -580,6 +619,29 @@ export default function KioskRegisterPage() {
              ★state は既存の detail 1本のみ＝連打束ね・0059 読取（卓タップ時・非ポーリング）・会計 RPC は不変。
              未選択＝フロア全幅／選択＝伝票全面（フロアは描画しない）＝2列を常時確保しない（v2R の grid 教訓）。 */
           <div className="nox-kmain">
+            {/* レジ時間UX R1（裁定29・register-board 同型）: 開卓モーダル＝フリー卓タップ→即 open を廃止。 */}
+            {openSeatTarget && (
+              <Modal onClose={() => { if (!openBusy) setOpenSeatTarget(null); }}>
+                <h3 style={{ ...t.cardTitle, margin: "0 0 6px" }}>{openSeatTarget.name} を開卓</h3>
+                <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
+                  開卓するとセット時間が始まり、伝票が作成されます。
+                </p>
+                <label style={{ ...t.fieldLabel, display: "block", marginBottom: 14 }}>
+                  人数（任意・空欄可）
+                  <input
+                    type="number" min={1} value={openPeople} placeholder="例: 2"
+                    onChange={(e) => setOpenPeople(e.target.value)}
+                    style={{ ...t.input, width: 110, display: "block", marginTop: 5 }}
+                  />
+                </label>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button style={btnLight} disabled={openBusy} onClick={() => setOpenSeatTarget(null)}>やめる</button>
+                  <button style={{ ...t.btnGold, fontWeight: 800 }} disabled={openBusy} onClick={() => void confirmOpenSeat()}>
+                    開卓（セット開始）
+                  </button>
+                </div>
+              </Modal>
+            )}
             {!detail ? (
             /* ── フロアビュー（全幅）＝レシート印刷カードはこちらに残置（会計完了→復帰後に見える）── */
             <>
@@ -752,7 +814,8 @@ export default function KioskRegisterPage() {
                   </div>
                 )}
 
-                {/* B4 時間制（自動）＝time_mode='auto' かつ open。内訳は返値 jsonb（0059 は料金表スナップ非開示） */}
+                {/* B4 時間制（自動）＝time_mode='auto' かつ open。内訳は返値 jsonb（0059 は料金表スナップ非開示）
+                    ★レジ時間UX R3（裁定29）: 手動ボタン廃止＝伝票を開いた時点で自動反映（register-board 同型）。 */}
                 {detail.time_mode === "auto" && detail.check.status === "open" && (
                   <div className="nox-cardtop" style={card}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -762,10 +825,11 @@ export default function KioskRegisterPage() {
                         （着席 {new Date(detail.check.started_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）
                       </span>
                     </div>
-                    <button onClick={() => void applyTimeCharge()} style={{ ...btnDark, marginTop: 8 }} disabled={payments.length > 0}
-                      title={payments.length > 0 ? "入金後は反映できません" : ""}>
-                      時間料金を明細へ反映／更新
-                    </button>
+                    <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0", lineHeight: 1.7 }}>
+                      {payments.length > 0
+                        ? "入金済みのため時間料金は凍結されています（訂正は責任者へ）。"
+                        : "伝票を開いた時点の経過分で自動反映されます。"}
+                    </p>
                     {timeCalc && (
                       <p style={{ fontSize: 12, color: "var(--ink)", margin: "10px 0 0" }}>
                         経過 <span style={t.num}>{timeCalc.elapsed_min}</span> 分・単位 <span style={t.num}>{timeCalc.units}</span>・

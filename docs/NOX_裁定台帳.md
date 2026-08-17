@@ -928,3 +928,49 @@ p.provolatile を ::text なしで連結して構文エラー。
 契機: 2026-08-17 mig0088_r2 の手貼りが全体 reject。**トランザクション外の全体失敗ゆえ
 dev は無傷**（検証バンドル全ゼロで確認）。r3 で `;` 付与＋検証 (e) を追加して是正。
 
+## 裁定29（2026-08-17）レジ時間UX＝旧裁定(f) の更新と見送り4件（app のみ・DB 不触）
+
+契機: Agoora 実機所感「卓タップ→何が始まったか分からない・セット/延長の状態が見えない」。
+実装は app のみ（RPC/RLS/スキーマ非改変・check_open の既存引数 p_people を使うだけ）。
+
+### 裁定(f) の更新: 時間料金は「会計タブを開いた時点で自動反映」へ（手動ボタン廃止）
+
+- 旧裁定(f)（mig0052 B4）「check_time_charge_apply はボタン起点のみ（自動 apply しない）」を更新。
+- **契機＝時間料金未計上のまま close できる構造の是正**: check_pay/check_close は時間料金に
+  触れない（close は Σpaid ≥ due を見るだけ）＝押し忘れると静かに未計上で締まる。UI 経路で塞ぐ。
+- 新: manage は会計タブ遷移時・kiosk は伝票表示時（会計タブを持たない全面ビューの等価点）に
+  **1回だけ** apply（check.id × 入場の ref キーで再発火抑止・タイマーからは呼ばない＝kiosk
+  0059(b) 契約維持）。前置き＝open ∧ 入金0 ∧ time_mode='auto'（RPC の has payments/not open
+  ガードの前置き）。RPC は自然冪等 upsert（部分ユニーク check_lines_one_time_auto）＝構造は非改変。
+- 留意: apply 1回ごとに audit_log_write 1行（タブ入場単位に絞って肥大を抑制・実測で問題になったら
+  mig0005 の間引き裁定と同じ土俵で再判断）。
+
+### 併せて実装（R1/R2）
+
+- R1 開卓モーダル: フリー卓タップ→即 check_open を廃し「開卓（セット開始）」確認＋人数入力
+  （任意・空欄=null＝従来同値）→ check_open(p_people)。manage/kiosk 同型。nom_type は 'free' 維持。
+- R2 時間ステータス（manage のみ）: lib/nox/check-calc.ts に blocks 式の**表示用鏡像**
+  timeBlocksOf/timeStatusOf を新設（★権威はサーバ・式改修は RPC と同時＝groupDue 3点セットと同じ規律）。
+  伝票ヘッダ「セット中 残りN分／延長N回目（次 HH:MM・--bad 色）」・卓タイルに超過バッジ
+  （loadOpenMap の checks 直 SELECT へ set_min/ext_min/time_per/people 列追加＝RLS 行スコープで素通り）。
+
+### 見送り4件（理由付き）
+
+1. **kiosk の時間ステータス表示**: kiosk_register_state / kiosk_check_detail（0059）が
+   スナップ5値（set_min/set_fee/ext_min/ext_fee/time_per）を返さない＝**0059 列追加（DB）待ち**。
+   加算的 jsonb キー追加で後方互換・相談役設計へ。
+2. **people の開栓後修正 RPC**: checks.people を update する経路が存在しない（全 mig 走査で確認）。
+   time_per='person' 店で①の入力ミス復旧に効くが、新 RPC＝DB 設計事項のため見送り。
+3. **close 時の時間料金防御**: R3 は UI 経路の是正であり、API 直呼びで会計タブを経ずに
+   close する経路は残る（time_mode=auto ∧ time_auto 行なしの close 拒否/警告は check_close 改稿）。
+   **既知負債として記録**・優先度は運用実測待ち。
+4. **空伝票の staff 自己取消**: 誤開卓の復旧は現状 manager の check_void（理由必須）一択。
+   R1 モーダルで誤爆自体が減るため、明細0・入金0 限定の緩和 RPC は運用実測を見てから。
+
+### runtime 検証の追加＝verify:f0 合計の張り替え（裁定26 書式）
+
+- verify:nox-pricing-apply へ段44(3b) を追加（+7）: 鏡像 timeBlocksOf を **RPC 返り値の
+  elapsed_min で突合**（時刻非依存で決定的）＋境界5点（経過<set／=set ちょうど／set+1／
+  set+ext ちょうど／+1）＋時計逆行 clamp。
+- **verify:nox-pricing-apply 44→51／verify:f0 合計 2600→2607（18本・全緑・実測）**。
+

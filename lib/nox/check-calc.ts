@@ -25,3 +25,34 @@ export function groupDue(bx: number, s: CheckRoundSettings): number {
   if (bx === 0) return 0;
   return roundAmount(bx + roundYen((bx * s.service_rate) / 100), s.round_unit, s.round_mode);
 }
+
+// ── レジ時間UX R2（2026-08-17）: 時間状態の表示計算 ────────────────────────────
+// check_time_charge_apply（mig0052 起草・mig0088 現行）の計算式の写し。★表示専用＝権威はサーバ
+//   （apply 時にサーバが now() で再計算する。ここがズレても金額は動かない）。
+//   RPC 現物: v_d = floor(epoch(now() - started_at) / 60)（負は 0 に丸め）
+//             v_blocks = d <= set_min ? 0 : (d - set_min + ext_min - 1) / ext_min（整数除算）
+//   ★式を変えるときは RPC と本鏡像を必ず同時改修（groupDue の3点セットと同じ規律）。
+export type TimeStatus = {
+  elapsedMin: number; // 経過分（完了分＝floor）
+  blocks: number;     // 延長回数（0＝セット時間内）
+  inSet: boolean;     // セット時間内か（経過 ≤ set_min。経過＝set_min ちょうどは「残り0分」のセット内）
+  remainMin: number;  // セット残り分（inSet のときのみ意味を持つ）
+  nextAtMs: number;   // 次の境界時刻（セット内＝セット終了時刻／延長N回目中＝そのブロックの終了時刻）
+};
+
+/** blocks のコア式（RPC の v_blocks と同一）。elapsedMin を直接受ける＝verify で RPC 返り値と突合できる形。 */
+export function timeBlocksOf(elapsedMin: number, setMin: number, extMin: number): number {
+  return elapsedMin <= setMin ? 0 : Math.floor((elapsedMin - setMin + extMin - 1) / extMin);
+}
+
+export function timeStatusOf(startedAtMs: number, nowMs: number, setMin: number, extMin: number): TimeStatus {
+  const elapsedMin = Math.max(0, Math.floor((nowMs - startedAtMs) / 60000));
+  const blocks = timeBlocksOf(elapsedMin, setMin, extMin);
+  return {
+    elapsedMin,
+    blocks,
+    inSet: blocks === 0,
+    remainMin: Math.max(0, setMin - elapsedMin),
+    nextAtMs: startedAtMs + (setMin + blocks * extMin) * 60_000,
+  };
+}

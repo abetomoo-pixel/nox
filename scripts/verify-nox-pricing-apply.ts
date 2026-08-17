@@ -28,6 +28,9 @@
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
+// レジ時間UX R5（裁定29）: 表示用クライアント鏡像（blocks 式の写し）の境界 assert と RPC 突合を
+// 本スイートに同居させる（time charge の正が既にここにあるため）。
+import { timeBlocksOf, timeStatusOf } from "../lib/nox/check-calc";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -197,7 +200,7 @@ async function main() {
     // ═══ (3) check_time_charge_apply 無改稿でルール由来 set_fee が効く ═══
     {
       const { data, error } = await mgr.rpc("check_time_charge_apply", { p_check_id: chkA1 });
-      const j = (data ?? {}) as { total?: number; set_c?: number; ext_c?: number; blocks?: number; line_id?: string };
+      const j = (data ?? {}) as { total?: number; set_c?: number; ext_c?: number; blocks?: number; elapsed_min?: number; line_id?: string };
       check("段44(3) check_time_charge_apply 成功（無改稿 RPC）", !error, error?.message);
       check("段44(3) ★経過0分＝blocks 0・total = ルール由来 set_fee 8000（スナップ経由で新料率が効く）",
         j.blocks === 0 && j.set_c === 8000 && j.ext_c === 0 && j.total === 8000, JSON.stringify(j));
@@ -205,6 +208,29 @@ async function main() {
       const { data: tl } = await admin.from("check_lines").select("line_total, time_auto, kind").eq("id", j.line_id!).single();
       check("段44(3) time_auto 行の line_total も 8000（kind='time'）",
         tl?.line_total === 8000 && tl?.time_auto === true && tl?.kind === "time", JSON.stringify(tl));
+
+      // ═══ (3b) レジ時間UX R5（裁定29）: クライアント鏡像の境界 assert ＋ RPC 返り値との突合 ═══
+      //   突合は「RPC が返した elapsed_min を鏡像へ入力」＝クライアント時計に依存せず決定的。
+      {
+        const { data: tchk } = await admin.from("checks").select("set_min, ext_min").eq("id", chkA1).single();
+        const sMin = tchk?.set_min as number, eMin = tchk?.ext_min as number;
+        check("段44(3b) 鏡像突合: timeBlocksOf(RPC.elapsed_min) = RPC.blocks（同式の実証）",
+          Number.isInteger(sMin) && Number.isInteger(eMin)
+          && timeBlocksOf(j.elapsed_min ?? 0, sMin, eMin) === j.blocks,
+          JSON.stringify({ j, sMin, eMin }));
+        // 境界5点＋時計逆行（set=40/ext=15 の固定値・RPC の v_blocks=(d-set+ext-1)/ext と同式）
+        const st0 = timeStatusOf(0, 39 * 60_000, 40, 15);
+        const st1 = timeStatusOf(0, 40 * 60_000, 40, 15);
+        const st2 = timeStatusOf(0, 41 * 60_000, 40, 15);
+        const st3 = timeStatusOf(0, 55 * 60_000, 40, 15);
+        const st4 = timeStatusOf(0, 56 * 60_000, 40, 15);
+        check("段44(3b) 鏡像境界: 経過39<set40＝セット内・残り1分", st0.inSet && st0.blocks === 0 && st0.remainMin === 1, JSON.stringify(st0));
+        check("段44(3b) 鏡像境界: 経過40=set ちょうど＝セット内・残り0分（RPC d<=set と同判定）", st1.inSet && st1.blocks === 0 && st1.remainMin === 0, JSON.stringify(st1));
+        check("段44(3b) 鏡像境界: 経過41＝延長1回目・次境界=set+ext", !st2.inSet && st2.blocks === 1 && st2.nextAtMs === (40 + 15) * 60_000, JSON.stringify(st2));
+        check("段44(3b) 鏡像境界: 経過55=set+ext ちょうど＝延長1回目のまま", st3.blocks === 1, JSON.stringify(st3));
+        check("段44(3b) 鏡像境界: 経過56＝延長2回目", st4.blocks === 2, JSON.stringify(st4));
+        check("段44(3b) 鏡像境界: 時計逆行＝経過0（RPC v_d<0→0 と同判定）", timeStatusOf(60_000, 0, 40, 15).elapsedMin === 0);
+      }
     }
 
     // ═══ (4) shimei ═══
