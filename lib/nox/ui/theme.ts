@@ -213,8 +213,10 @@ export const tag: CSSProperties = {
 // ── ステータス（ok/bad 色）─────────────────────────────────────────
 export const ok: CSSProperties = { color: "var(--ok)" };
 export const bad: CSSProperties = { color: "var(--bad)" };
+// ★E5c（I1 裁定）: errBox の面3値をトークン化（--bad-bg/--bad-bd/--bad-ink・globals.css に新設）。
+//   値は従来リテラルと同一＝見た目不変。印刷経路（.nox-print 配下）に alert は不在＝print 側の配慮不要。
 export const alert: CSSProperties = {
-  background: "#2C1B1B", border: "1px solid #5A2E2E", color: "#F0B9B9", borderRadius: 13,
+  background: "var(--bad-bg)", border: "1px solid var(--bad-bd)", color: "var(--bad-ink)", borderRadius: 13,
   padding: "12px 13px", fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 9, marginBottom: 13,
 };
 
@@ -243,8 +245,8 @@ export const slipRow: CSSProperties = { display: "flex", justifyContent: "space-
 export const slipRowB: CSSProperties = { ...slipRow, fontWeight: 800, color: "var(--champ)", borderBottom: "1px solid var(--line2)" }; // .sliprow.b（強調行）
 // ★E4-0: 金地の上の文字＝--on-gold へ（#0B0B0F は旧 --bg のベタ書きだった）。
 //   ★E5b で「白地印刷の都合」の実態を確定: slipHd は print 側がクラス反転＝分離可能でトークン化済（上記）。
-//     errBox（下の alert）は印刷経路（.nox-print 内）に登場せず印刷都合ではないが、面3値に対応トークンが
-//     無い＝新トークン起草は裁定事項のため現状維持（e5_gaps.md I1）。avatar は avatarBg() の name 由来 HSL
+//     errBox（上の alert）は印刷経路（.nox-print 内）に登場せず印刷都合ではなかった → E5c の I1 裁定で
+//     --bad-bg/--bad-bd/--bad-ink を新設しトークン化済。avatar は avatarBg() の name 由来 HSL
 //     ＝パレット色でなく機能色（identicon）・印刷経路にも不在＝是正対象外（e5_gaps.md I2）。
 export const slipFoot: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, background: "linear-gradient(135deg,var(--gold),var(--gold2))", color: "var(--on-gold)", borderRadius: 9, padding: "9px 13px", fontWeight: 800 };
 export const slipFootVal: CSSProperties = { fontFamily: font.num, fontSize: 19, fontVariantNumeric: "tabular-nums" }; // .slipfoot b（Outfit・NOX num 規約で tabular 付与）

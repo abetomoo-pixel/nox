@@ -268,7 +268,7 @@ export default function StaffBoard({
               }}>{sel.role === "staff" ? "店長に昇格" : "黒服に降格"}</button>
             )}
             {sel.is_active && !isSelf(sel) && (
-              <button style={{ ...btnGhost, color: "var(--bad)", borderColor: "#5A2E2E" }} disabled={busy} onClick={async () => {
+              <button style={{ ...btnGhost, color: "var(--bad)", borderColor: "var(--bad-bd)" }} disabled={busy} onClick={async () => {
                 if (!confirm(`${users[sel.user_id]?.name ?? ""} の在籍を解除しますか？（ログイン権限が即時に失効します・削除はされません）`)) return;
                 await rpc("在籍を解除", "staff_deactivate", { p_membership_id: sel.id });
                 setSel(null);

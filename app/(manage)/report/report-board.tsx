@@ -198,8 +198,10 @@ export default function ReportBoard({
               {recvs.map((r) => {
                 const remaining = r.amount - r.deducted_amount;
                 const dt = r.checks?.started_at ? bizDateOf(r.checks.started_at, cutoff) : "—";
+                // E5c: 区切り線flex行の手組みを .nox-listrow（G5 部品）へ。wrap/gap8/padding9 はローカル上書き。
+                //   罫は部品の border-bottom（最終行なし）方式になる＝旧 borderTop（見出し直下にも線）から部品の線位置へ統一
                 return (
-                  <div key={r.id} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "9px 0", borderTop: "1px solid var(--line)" }}>
+                  <div key={r.id} className="nox-listrow" style={{ flexWrap: "wrap", gap: 8, padding: "9px 0" }}>
                     <span style={{ fontSize: 13, color: "var(--ink)", flex: "1 1 260px" }}>
                       {dt}
                       {r.checks?.seats?.name ? ` ・ ${r.checks.seats.name}` : ""}
