@@ -586,7 +586,8 @@ export default function KioskRegisterPage() {
             {printCard && (
               <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--v2-text)", margin: 0 }}>
+                  {/* E6: t.cardTitle の再発明（13.5/800）を本定数へ。白文字（v2-text）と margin はローカル上書き＝算出値不変 */}
+                  <h2 style={{ ...t.cardTitle, color: "var(--v2-text)", margin: 0 }}>
                     レシート印刷（伝票 {printCard.checkId.replace(/-/g, "").slice(0, 8)}）
                   </h2>
                   {printCard.groups.map((g) => (
@@ -594,11 +595,15 @@ export default function KioskRegisterPage() {
                       <button style={btnDark} onClick={() => void enqueuePrint(printCard.checkId, g)}>
                         {printCard.groups.length > 1 ? `グループ${g} を印刷` : "レシート印刷"}
                       </button>
+                      {/* E6: E1 取り残しの旧パレットリテラル2箇所（§11-5 残置分）を E4 辞書どおり是正
+                          （#C9A24A→--gold・#23232B→--card2＝E5a の register-board 同型ピルと同じ扱い）。
+                          新 gold は旧値より明るい＝コントラストは上がる方向。ピル手組み自体は同型の
+                          register-board:1236 と同じく維持（状態色が動的なため t.tag 化は E5a 裁定踏襲）。 */}
                       {printMsg[g] && (
                         <span style={{
                           fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "2px 9px",
-                          color: printMsg[g].startsWith("失敗") || printMsg[g].includes("無効") ? "var(--bad)" : "#C9A24A",
-                          background: "#23232B", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+                          color: printMsg[g].startsWith("失敗") || printMsg[g].includes("無効") ? "var(--bad)" : "var(--gold)",
+                          background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
                         }}>{printMsg[g]}</span>
                       )}
                     </span>

@@ -11,7 +11,7 @@ E4-3 と同じ規律: **E3/E4 部品で表現できない意匠はその場で�
   presentation-only を超える構造変更＝別裁定。
 - **浮遊 toast の見送り継続**: 部品値の適用は E3 済み・位置（27箇所のレイアウト）は不触のまま。
 
-## H1. register-board の POS 明細表（:1027）は `.nox-table` へ寄せない（現状維持・裁定待ち）
+## H1. register-board の POS 明細表（:1027）は `.nox-table` へ寄せない →★E6 で裁定クローズ＝特化意匠として確定（ガイド §11-6 収載）
 
 - 現物: 注文タブの明細 `<table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>`
   ＋各セル `padding:6`・行罫線 `--line`。

@@ -460,4 +460,19 @@ E4 群4 の走査で、**E1 のトークン差し替えが届かなかった旧�
   （メタデータは CSS var 不可＝リテラル必須・新 `--bg` と同値）。
 - **残置 7箇所**: register-board ×2・reservation-panel ×3（**E5 送り**）／
   kiosk-register ×2（**E6 送り**）。
+  → **全数是正完了**: E5a で register-board ×2＋reservation-panel ×3（＋走査辞書外の
+  旧 ok 緑 `#7FC79B` 1件）・E6 で kiosk-register ×2。**旧パレットのリテラルは残ゼロ**
+  （意図的リテラルは viewport.themeColor `#080808`＝メタデータ CSS var 不可、のみ）。
+
+### 11-6. E5/E6 の裁定（レジ・給与・日報・帳票・kiosk）
+
+| # | 対象 | 裁定 | 実装 |
+|---|---|---|---|
+| 裁定0 | レジのビュー構成差・浮遊 toast | **不追随**（presentation-only を超える構造変更＝別レーン） | 現行のタブ構成・toast 位置を維持（E5a） |
+| H1 | register-board POS 明細表（:1027 padding 6 の高密度表） | **特化意匠として確定・クローズ**（E6） | `.nox-table` に寄せない。密度（注文しながら明細を一覧）と行内操作 UI（削除・キャスト付け・取消）が意匠＝G1 の `.nox-ptable` と同じ「特化表」枠。同ファイル会計タブ表は E3 の t.th/t.td 使用済み |
+| I1 | errBox（t.alert）の面3値 | **トークン新設**（実使用10箇所≥基準3） | `--bad-bg/--bad-bd/--bad-ink`（§1-2）。danger ボタン枠2箇所も参照化。印刷経路に不在＝print 上書き不要 |
+| I2 | avatar の HSL 生成色 | **恒久対象外**（機能色） | `avatarBg()` は name 由来の identicon＝パレット走査から除外 |
+| champ | `--champ`（65参照） | **gold2 別名**（§1-1 裁定1 の E5 再裁定） | 値 `#f0cf82` 同値化・名前と参照は不触 |
+| slipHd | 帳票見出しの `#0E0E14` | **画面側のみ --card へ是正** | 印刷は `.ps-hd` クラス反転で literal 非依存＝headless Chrome 印刷 PDF の描画 SHA256 一致で不変を証明（E5b） |
+| kiosk ピル | 印刷状態ピルの手組み | **維持**（E5a 裁定踏襲） | 状態色が動的なため t.tag 化しない。リテラルのみ是正（E6） |
 
