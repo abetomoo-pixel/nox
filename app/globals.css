@@ -982,7 +982,12 @@ body {
 @media (min-width: 641px)  { .nox-kpis { grid-template-columns: repeat(3, 1fr); } }
 @media (min-width: 900px)  { .nox-kpis { grid-template-columns: repeat(4, 1fr); } }
 @media (min-width: 1180px) { .nox-kpis { grid-template-columns: repeat(5, 1fr); } }
-.nox-kpi { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+/* ★E4 群1: モック `.kpi` は「.card の派生で影だけ消す」＝地とradius は card と同じ・影なし。
+   padding はモック 15px 17px だが、NOX の KPI は4枚横並びで文字量が多く 12px 14px が実績値＝据置。 */
+.nox-kpi {
+  background: linear-gradient(145deg, rgba(25, 25, 22, .95), rgba(15, 15, 14, .98));
+  border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; box-shadow: none;
+}
 .nox-kpi .lbl { font-size: 11px; color: var(--sub); }
 .nox-kpi .val { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 2px; font-family: "Outfit", sans-serif; font-variant-numeric: tabular-nums; }
 .nox-kpi .val small { font-size: 13px; font-weight: 400; margin-left: 2px; }
@@ -995,7 +1000,14 @@ body {
    モック .kpi.money と同じく「数値は白・枠は他カードと同一」＝専用の見た目は持たない。 */
 
 /* ── パネル（モック .panel）＝見出し＋右端リンクの共通カード ────────── */
-.nox-panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+/* ★E4 群1: ページ区画の器＝モック `.card` の輪郭へ（radius 12→11・単色→145deg グラデ・影を付与）。
+   `.nox-panel` は全画面で使う共通コンテナなので、ここを揃えると群2〜4 も同時にモック準拠になる
+   （＝部品を1箇所直して全ページへ効かせる E1〜E3 と同じ流儀）。padding/margin は NOX の余白規約で据置。 */
+.nox-panel {
+  background: linear-gradient(145deg, rgba(25, 25, 22, .95), rgba(15, 15, 14, .98));
+  border: 1px solid var(--line); border-radius: 11px; padding: 14px; margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
 .nox-panel > h3 { font-size: 13px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--ink); font-weight: 700; }
 /* 2ペイン／下段2枚（モック .main / .lower） */
 .nox-2col { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }

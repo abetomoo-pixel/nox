@@ -226,8 +226,8 @@ export default function AnalyticsBoard({
   ];
   const cmp = (cur: number, prev: number) => (prev > 0 ? Math.round(((cur - prev) / prev) * 1000) / 10 : null);
 
-  const thNum: React.CSSProperties = { ...t.th, textAlign: "right" };
-  const tdNum: React.CSSProperties = { ...t.td, textAlign: "right", fontFamily: t.font.num };
+  // ★E4 群1: 表は E3 の共通部品 `.nox-table`（＋数値列は `.num`）へ移した。
+  //   ローカルの thNum/tdNum（t.th/t.td の派生 inline）は不要になったため削除。
 
   return (
     <div>
@@ -257,13 +257,15 @@ export default function AnalyticsBoard({
             );
           })}
         </div>
-        <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="対象月（YYYY-MM）" style={{ ...t.input, width: "auto" }} />
+        {/* ★E4 群1: t.input の inline → E3 部品 .nox-input（幅だけ auto に上書き） */}
+        <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="対象月（YYYY-MM）" className="nox-input" style={{ width: "auto" }} />
         {stores.length > 1 && (
           <select
             value={storeId}
             onChange={(e) => { setStoreId(e.target.value); setCastSel(""); }}  // 店切替で cast 選択リセット
             aria-label="店舗"
-            style={{ ...t.input, width: "auto" }}
+            className="nox-input"
+            style={{ width: "auto" }}
           >
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
@@ -418,25 +420,25 @@ export default function AnalyticsBoard({
         <h3>指名件数ランキング（{period}）</h3>
         {ranking.length === 0 && <p style={noneP}>該当なし（アクティブなキャストがいません）</p>}
         {ranking.length > 0 && (
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+          <table className="nox-table">
             <thead>
               <tr>
-                <th style={t.th}>順位</th>
-                <th style={t.th}>名前</th>
-                <th style={thNum}>本指名</th>
-                <th style={thNum}>場内</th>
-                <th style={thNum}>同伴</th>
+                <th>順位</th>
+                <th>名前</th>
+                <th className="num">本指名</th>
+                <th className="num">場内</th>
+                <th className="num">同伴</th>
               </tr>
             </thead>
             <tbody>
               {ranking.map((r) => (
                 <tr key={r.cast_id}>
                   {/* 段E: 順位メダル（top3=金銀銅・既存 rank のみ・新情報なし） */}
-                  <td style={t.td}><span className={`nox-medal ${r.rank === 1 ? "g1" : r.rank === 2 ? "g2" : r.rank === 3 ? "g3" : "gx"}`}>{r.rank}</span></td>
-                  <td style={t.td}>{r.cast_name}</td>
-                  <td style={tdNum}>{r.hon_count}</td>
-                  <td style={tdNum}>{r.jonai_count}</td>
-                  <td style={tdNum}>{r.dohan_count}</td>
+                  <td><span className={`nox-medal ${r.rank === 1 ? "g1" : r.rank === 2 ? "g2" : r.rank === 3 ? "g3" : "gx"}`}>{r.rank}</span></td>
+                  <td>{r.cast_name}</td>
+                  <td className="num">{r.hon_count}</td>
+                  <td className="num">{r.jonai_count}</td>
+                  <td className="num">{r.dohan_count}</td>
                 </tr>
               ))}
             </tbody>
@@ -453,7 +455,7 @@ export default function AnalyticsBoard({
           <label style={t.fieldLabel}>
             キャスト
             <br />
-            <select value={castSel} onChange={(e) => setCastSel(e.target.value)} style={{ ...t.input, width: "auto", marginTop: 5 }}>
+            <select value={castSel} onChange={(e) => setCastSel(e.target.value)} className="nox-input" style={{ width: "auto", marginTop: 5 }}>
               <option value="">選択してください</option>
               {castOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -465,24 +467,25 @@ export default function AnalyticsBoard({
           <p style={noneP}>該当なし（この月に客に紐付いた指名がありません）</p>
         )}
         {castSel && custRank.length > 0 && (
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+          <table className="nox-table">
             <thead>
               <tr>
-                <th style={t.th}>客名</th>
-                <th style={thNum}>本指名</th>
-                <th style={thNum}>場内</th>
-                <th style={thNum}>同伴</th>
-                <th style={thNum}>合計</th>
+                <th>客名</th>
+                <th className="num">本指名</th>
+                <th className="num">場内</th>
+                <th className="num">同伴</th>
+                <th className="num">合計</th>
               </tr>
             </thead>
             <tbody>
               {custRank.map((r) => (
                 <tr key={r.customer_id}>
-                  <td style={t.td}>{r.customer_name}</td>
-                  <td style={tdNum}>{r.hon_count}</td>
-                  <td style={tdNum}>{r.jonai_count}</td>
-                  <td style={tdNum}>{r.dohan_count}</td>
-                  <td style={{ ...tdNum, color: "var(--champ)", fontWeight: 700 }}>{r.total_count}</td>
+                  <td>{r.customer_name}</td>
+                  <td className="num">{r.hon_count}</td>
+                  <td className="num">{r.jonai_count}</td>
+                  <td className="num">{r.dohan_count}</td>
+                  {/* 合計列だけ強調（champ・太字）＝部品の .num に色だけ足す */}
+                  <td className="num" style={{ color: "var(--champ)", fontWeight: 700 }}>{r.total_count}</td>
                 </tr>
               ))}
             </tbody>
