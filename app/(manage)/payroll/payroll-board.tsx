@@ -468,7 +468,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       {/* D1 確定を解除（★owner のみ・finalized のみ・支払記録ありは無効化＋理由表示）。draft へ戻し天引きを取り消す。 */}
       {isOwner && runInfo?.status === "finalized" && (
         <section className="nox-cardtop" style={{ ...t.card, borderColor: "var(--bad)" }}>
-          <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--bad)", margin: "0 0 4px" }}>確定を解除</h3>
+          {/* E5b: t.cardTitle の再発明（13.5/800）を本定数へ。margin と危険色 bad はローカル上書き＝算出値は不変 */}
+          <h3 style={{ ...t.cardTitle, margin: "0 0 4px", color: "var(--bad)" }}>確定を解除</h3>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>
             確定（{period}）を draft に戻します。売掛・前借り・送りの天引きは取り消され、確定明細は削除されます。
             支払記録がある期間は解除できません。
@@ -493,7 +494,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       {storeId && (
         <section className="nox-cardtop" style={{ ...t.card, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 220 }}>
-            <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 4px" }}>給与明細CSV</h3>
+            <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>給与明細CSV</h3>
             <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>
               確定済み（{period}）の全キャストの支給・控除・差引を CSV 出力します（BOM UTF-8）。
               口座・マイナンバーは含みません（振込用フォーマットは別）。支払調書CSVとは別物です。
@@ -520,7 +521,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
         >
           <div className="nox-noprint" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 220 }}>
-              <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 4px" }}>報酬明細（印刷 / PDF）</h3>
+              <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>報酬明細（印刷 / PDF）</h3>
               <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>
                 確定済み（{period}）の全キャストの明細を1人1枚の A4 で印刷します（白地・依存なし）。
                 「PDFで保存」も可。給与明細CSV（合算）と同じ確定値です。

@@ -233,12 +233,18 @@ export const logo: CSSProperties = {
 // ── 給与/支払明細（slip・mock .slip 系写経）──────────────────────────
 // .slip は無スタイルのセマンティック容器（素の <div>）。以下は各要素へ直付けする inline プリミティブ。
 // ::before/擬似要素・子孫セレクタ依存が無いため globals.css 追加は不要（nox-cardtop と異なる）。
-export const slipHd: CSSProperties = { textAlign: "center", fontWeight: 800, letterSpacing: 3, background: "#0E0E14", border: "1px solid var(--line2)", borderRadius: 8, padding: 7 };
+// ★E5b: 画面側の #0E0E14（旧パレットの青み暗色・非モック由来）を --card へ是正（最近傍トークン・
+//   E4 の #23232B→--card2 と同規模の是正）。印刷側は @media print の `.ps-hd { background:#fff!important }`
+//   が literal に依存せずクラスで反転するため、この変更は印刷出力に波及しない（分離を実測確認）。
+export const slipHd: CSSProperties = { textAlign: "center", fontWeight: 800, letterSpacing: 3, background: "var(--card)", border: "1px solid var(--line2)", borderRadius: 8, padding: 7 };
 export const slipSub: CSSProperties = { textAlign: "center", fontSize: 11.5, color: "var(--sub)", margin: "8px 0 10px" };
 export const slipSec: CSSProperties = { fontWeight: 800, fontSize: 12, background: "var(--card2)", borderLeft: "3px solid var(--gold)", padding: "4px 9px", margin: "10px 0 4px" };
 export const slipRow: CSSProperties = { display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: 4, borderBottom: "1px dashed var(--line)" };
 export const slipRowB: CSSProperties = { ...slipRow, fontWeight: 800, color: "var(--champ)", borderBottom: "1px solid var(--line2)" }; // .sliprow.b（強調行）
 // ★E4-0: 金地の上の文字＝--on-gold へ（#0B0B0F は旧 --bg のベタ書きだった）。
-//   他の帳票リテラル（slipHd の #0E0E14・errBox・avatar）は白地印刷の都合で独自色を持つため E5 送り。
+//   ★E5b で「白地印刷の都合」の実態を確定: slipHd は print 側がクラス反転＝分離可能でトークン化済（上記）。
+//     errBox（下の alert）は印刷経路（.nox-print 内）に登場せず印刷都合ではないが、面3値に対応トークンが
+//     無い＝新トークン起草は裁定事項のため現状維持（e5_gaps.md I1）。avatar は avatarBg() の name 由来 HSL
+//     ＝パレット色でなく機能色（identicon）・印刷経路にも不在＝是正対象外（e5_gaps.md I2）。
 export const slipFoot: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, background: "linear-gradient(135deg,var(--gold),var(--gold2))", color: "var(--on-gold)", borderRadius: 9, padding: "9px 13px", fontWeight: 800 };
 export const slipFootVal: CSSProperties = { fontFamily: font.num, fontSize: 19, fontVariantNumeric: "tabular-nums" }; // .slipfoot b（Outfit・NOX num 規約で tabular 付与）

@@ -41,6 +41,47 @@ E4-3 と同じ規律: **E3/E4 部品で表現できない意匠はその場で�
   - reservation-panel:361/388 沈み面（bg2/line2/radius11 手組み）→ **`.nox-inset`**
     （padding 10 上書き・G2 部品の3・4例目）。
 
+## I1. errBox（t.alert）の面3値は現状維持（E5b・裁定待ち）
+
+- 現物: `theme.ts alert` = `#2C1B1B`（地）/`#5A2E2E`（枠）/`#F0B9B9`（文字）。使用12箇所
+  （payroll-board 確定不可・payment-tax-panel 注意行・casts/staff PW 表示ほか）。
+- E4-0 の「白地印刷の都合で E5 送り」は**実態と不一致だった**: t.alert は印刷経路
+  （`.nox-print` 配下）に一切登場しない＝印刷都合ではない。
+- モック13枚走査: この3値は無い（非モック由来）。モックの警告面は `.card.kpi.warn` 等で
+  別意匠。**アプリの状態色は文字色 `--bad` のみで「警告の面（bg/border/text 3値）」の
+  トークンが存在しない**。
+- 提案: (a) `--bad-bg/--bad-bd/--bad-ink` の3トークン新設（products-board:892 の
+  `rgba(220,80,80,.10)` 上書きも吸収候補）か、(b) `.nox-alert` 部品化か、(c) 現状維持。
+  新トークン/新部品の起草は裁定事項のため E5b では不触。
+
+## I2. avatar の HSL 生成色は是正対象外（E5b・記録のみ）
+
+- `theme.ts avatarBg()` = name ハッシュ由来の HSL グラデ＝**パレット色ではなく機能色**
+  （identicon・同名同色の決定性が意匠）。印刷経路にも不在（payslip にアバター無し）。
+- パレット走査の対象から恒久に外す（E4-0 の「E5 送り」リストの3件目はこれで解消）。
+
+## E5b で置換・是正したもの（ギャップではない・記録のみ）
+
+- **--champ 裁定反映**: 値を `#E6D6A8`→`#f0cf82`（--gold2 同値）へ。名前・65箇所参照は
+  不触＝別名として存置（ガイド §1-1/§1-3 裁定1 を更新・暫定マーク解消）。
+- **slipHd の #0E0E14**（帳票3種の1件目）: 印刷側は `.ps-hd` の**クラス反転**で literal に
+  依存しない＝分離可能を確認し、画面側のみ `var(--card)` へ是正（#0E0E14→#11110f・
+  E4 の #23232B→--card2 と同規模の旧青み暗色の是正）。**印刷出力不変の証明**:
+  (a) 実機 /payroll で 2026-07 paid run のスリップ6枚を読み込み、@media print ルールを
+  同一詳細度で一時適用するカスケード実測＝ps-hd 白地黒字/ps-foot 白地黒枠/champ 参照行 黒。
+  (b) 実 DOM＋実 CSS のスナップショットを headless Chrome の印刷エンジンで PDF 化
+  （window.print() と同一レンダリングパス）＝6ページ・1人1枚・白地・print パレット
+  （#e6dcc0 の slipSec 罫のみ有彩）・暗色フィル 0 件。
+  (c) slipHd を旧値 #0E0E14 に戻した対照スナップショットの PDF と**描画コンテンツ
+  SHA256 完全一致**（メタデータ除く content stream 比較）＝1px どころかバイト同一。
+- **t.cardTitle 再発明 6箇所**を本定数へ（D-1 の「D-2 で 35 箇所を本定数へ置換する」の
+  payroll 圏分）: payroll-board:471（bad 変奏）/:496/:523・payment-panel:92・
+  payment-tax-panel:74（15px 変奏）・invoice-panel:98（同）。margin/fontSize/color は
+  ローカル上書きで**算出値は全箇所不変**。
+- payroll 圏の旧パレットリテラル: **ゼロ**（hex 走査で該当なし）。表は全て E3 の
+  t.th/t.td 使用済み＝部品再発明なし。合計バー（payroll-board:453）は段0R 第3陣の
+  裁定済み意匠＝不触。
+
 ## E5a 検収の制約（データ都合・構造確認で代替）
 
 - 予約タブ: 当日 booked 0件＝ステータスピル・来店/編集 inset の実描画は未確認

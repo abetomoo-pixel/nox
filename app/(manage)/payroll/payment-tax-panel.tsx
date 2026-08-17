@@ -71,7 +71,8 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
   return (
     <section className="nox-cardtop" style={{ ...t.card, marginTop: 18 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 800, color: "var(--champ)", margin: 0 }}>源泉所得税の納付管理</h2>
+        {/* E5b: t.cardTitle の再発明（800/champ）を本定数へ。パネル最上位見出しの 15px と margin はローカル上書き＝算出値は不変 */}
+        <h2 style={{ ...t.cardTitle, fontSize: 15, margin: 0 }}>源泉所得税の納付管理</h2>
         <button onClick={() => void load()} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }}>再読込</button>
       </div>
       <p style={{ ...t.sub, margin: "4px 0 0" }}>

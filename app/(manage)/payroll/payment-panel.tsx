@@ -89,7 +89,8 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
 
   return (
     <section className="nox-cardtop" style={{ ...t.card, marginTop: 24 }}>
-      <h2 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>支払記録（確定済み）</h2>
+      {/* E5b: t.cardTitle の再発明（13.5/800/champ）を本定数へ。margin のみローカル上書き＝算出値は不変 */}
+      <h2 style={{ ...t.cardTitle, margin: "0 0 8px" }}>支払記録（確定済み）</h2>
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>
         選択中の店舗・期間（{period}）の確定給与に対して、実際の支払い（現金/振込）を記録します。部分支払い可・合計は net が上限。
       </p>

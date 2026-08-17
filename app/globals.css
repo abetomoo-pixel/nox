@@ -46,8 +46,10 @@ body {
   --line2: #3b3931;   /* ← モック --line2（多数決 5/13・振れ幅最大 #3a382f〜#464238） */
   --gold: #d8ad55;    /* ← モック --gold（多数決 9/13） */
   --gold2: #f0cf82;   /* ← モック --gold2（多数決 6/13） */
-  --champ: #E6D6A8;   /* ★非モック由来＝現行維持・暫定（裁定1）。モックの金は gold/gold2 の2段しか持たず
-                             --champ は NOX 独自の3段目。2段に畳むかは E5（金銭画面）で再裁定する */
+  --champ: #f0cf82;   /* ＝--gold2 別名（裁定1 の E5 再裁定・2026-08-17）。モックの金は gold/gold2 の
+                             2段のみで --champ は非モック由来の3段目だったが、E5a 実測でコントラスト比 1.04
+                             （視覚上ほぼ同色）のため gold2 へ視覚統合。トークン名と65箇所の参照は不触＝
+                             値のみ同値化（印刷側 @media print の --champ:#000 上書きも従来どおり有効） */
   --ink: #f3f0e8;     /* ← モック --text（★同数 6:6 → register-pos tiebreaker） */
   --sub: #99978f;     /* ← モック --muted（多数決 6/13） */
   --ok: #77ba83;      /* ← モック --green（多数決 6/13） */
@@ -1898,7 +1900,9 @@ body {
   .nox-print { background: #fff !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; }
   .nox-print.nox-cardtop::before { display: none !important; } /* nox-cardtop の gold 細線を消す */
 
-  /* スリップの literal-hex 要素を白地黒字に（var 化していない #0E0E14 / #0B0B0F を上書き） */
+  /* スリップの見出し/フッタを白地黒字に（クラスで反転＝画面側の値に依存しない。
+     ★E4-0/E5b で画面側は var 化済み（slipHd=--card / slipFoot=金グラデ＋--on-gold）だが、
+     var 上書きだけに頼らずクラスで明示反転する従来方式を維持＝印刷出力は不変） */
   .nox-payslip { break-inside: avoid; page-break-inside: avoid; margin: 0 0 8mm !important; }
   .ps-hd { background: #fff !important; color: #000 !important; }
   .ps-foot { background: #fff !important; color: #000 !important; border: 2px solid #000 !important; }
