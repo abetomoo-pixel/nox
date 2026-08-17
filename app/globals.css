@@ -60,6 +60,16 @@ body {
   --blue: #74a6d8;                        /* ← モック --blue（多数決 4/11）＝状態色。採否は E3 */
   --orange: #df9956;                      /* ← モック --orange（多数決 2/3）＝状態色。採否は E3 */
   --linegreen: #06c755;                   /* ← モック --linegreen（単一定義・LINE ブランド色）＝LINE レーン用 */
+
+  /* ★E4-0（2026-08-17）: 金地の上に載る値をトークン化（E3 の指摘の履行）。
+     E3 ではモック .btn.primary の値をリテラルのまま置いていたが、金ボタン・ロールピル・
+     帳票フッタなど**複数箇所で同じ3値**を使うため、正本を1箇所に持たせる。
+     出典＝モック `.btn.primary{background:linear-gradient(135deg,#e2bd6b,#b48634);
+                    border-color:#d2a952; color:#17130c}` */
+  --on-gold: #17130c;   /* 金地の上の文字色（暗褐色）。--bg では黒すぎ・--ink では白すぎる */
+  --gold3:   #b48634;   /* 金グラデの暗端（--gold より暗い3段目） */
+  --gold1:   #e2bd6b;   /* 金グラデの明端（--gold2 と --gold の間） */
+  --gold-bd: #d2a952;   /* 金ボタンの枠線 */
   /* ★--purple は採用しない（裁定3）＝モック3枚が別々の値を宣言しながら参照ゼロ・アプリ側も
      宣言/参照とも元から存在しない。死にトークンを持ち込まない。 */
 
@@ -594,8 +604,8 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--gold2), #B8893A);
-  color: #0B0B0F;
+  background: linear-gradient(135deg, var(--gold2), var(--gold3));
+  color: var(--on-gold);   /* ★E4-0: 金地の上の文字＝トークン化 */
   font-family: "Outfit", sans-serif;
   font-weight: 800;
   font-size: 12px;
@@ -1157,7 +1167,7 @@ body {
 .nox-btn:hover { border-color: var(--gold); }
 /* 金は主ボタン1つだけ（3役②）。★E3: 単色 var(--gold) → モックのグラデ＋影へ。 */
 .nox-btn.gold {
-  background: linear-gradient(135deg, #e2bd6b, #b48634); border-color: #d2a952; color: #17130c;
+  background: linear-gradient(135deg, var(--gold1), var(--gold3)); border-color: var(--gold-bd); color: var(--on-gold);
   font-weight: 800; box-shadow: 0 6px 18px rgba(216, 173, 85, .12);
 }
 .nox-btn.ghost { background: transparent; color: var(--sub); }
@@ -1416,7 +1426,7 @@ body {
   font-family: "Cormorant Garamond", serif;
   font-weight: 700;
   font-size: 15px;
-  color: #0B0B0F;
+  color: var(--bg);   /* ★E4-0: 旧 --bg のベタ書き #0B0B0F を解消。地は avatarBg() の HSL グラデ＝金ではないため --on-gold は使わない */
   flex-shrink: 0;
 }
 .nox-medal {
@@ -1430,7 +1440,7 @@ body {
   font-weight: 800;
   font-size: 13px;
   flex-shrink: 0;
-  color: #0B0B0F;
+  color: var(--on-gold);   /* ★E4-0: メダル地（g1-g3 は金グラデ）の上の文字 */
   background: var(--card2);
 }
 .nox-medal.g1 { background: linear-gradient(135deg, #F0D58A, #C9A24A); }
@@ -1451,7 +1461,8 @@ body {
   cursor: pointer;
   padding: 0;
 }
-.nox-switch.on { background: linear-gradient(135deg, #B8893A, #E6D6A8); border-color: transparent; }
+/* ★E4-0: 金トラックをトークンへ（#B8893A→--gold3 / #E6D6A8→--champ）。ツマミは金地の上＝--on-gold。 */
+.nox-switch.on { background: linear-gradient(135deg, var(--gold3), var(--champ)); border-color: transparent; }
 .nox-switch i {
   position: absolute;
   top: 2px;
@@ -1462,7 +1473,7 @@ body {
   background: #ECECEF;
   transition: .15s;
 }
-.nox-switch.on i { left: 22px; background: #0B0B0F; }
+.nox-switch.on i { left: 22px; background: var(--on-gold); }
 @media (prefers-reduced-motion: reduce) { .nox-switch i { transition: none; } }
 
 /* ── 純増① 在庫台帳 v1（mig0061）: 残量バー（Night Ops 吸収・canonical .bar 準拠）── presentation-only ──
@@ -1480,7 +1491,7 @@ body {
 .nox-stockbar i {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #B8893A, #E6D6A8);
+  background: linear-gradient(90deg, var(--gold3), var(--champ));   /* ★E4-0: 金グラデをトークンへ */
 }
 /* 低在庫（残量 ≤ 発注点）＝バーも数値も警告色。負在庫は赤（許容設計＝在庫は Σdelta で負になり得る） */
 .nox-stockbar.low i { background: linear-gradient(90deg, #8A5A2B, var(--gold2)); }

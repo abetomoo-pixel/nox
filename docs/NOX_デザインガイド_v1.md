@@ -325,3 +325,43 @@ NOX 実装は `.nox-layout > (aside.nox-side | div.nox-mainwrap > header.nox-tb 
 - **重複セレクタ監査**（E2 教訓の適用）: 実装中に自分で作った重複2件
   （`.nox-field textarea` の padding 競合・`.nox-badge` の状態クラス分割）を検出して1本化。
   E3 終了時点で**新規導入の重複ゼロ**（残る5件は E3 以前からの既存＝`.nox-ptable` 列指定と `.nox-seg a`）
+
+---
+
+## 10. E4-0 先行2件（2026-08-17）
+
+### 10-1. 金地トークンの追加（E3 指摘の履行）
+
+E3 ではモック `.btn.primary` の値をリテラルのまま置いていたが、**金地の上に載る値は複数部品で共有**
+するため正本を1箇所へ集めた。
+
+| token | 値 | 用途 | 出典 |
+|---|---|---|---|
+| `--on-gold` | `#17130c` | **金地の上の文字色**（暗褐色）。`--bg` では黒すぎ・`--ink` では白すぎる | モック `.btn.primary{color:#17130c}` |
+| `--gold1` | `#e2bd6b` | 金グラデの明端 | モック `.btn.primary` グラデ始点 |
+| `--gold3` | `#b48634` | 金グラデの暗端（`--gold` より暗い3段目） | モック `.btn.primary` グラデ終点 |
+| `--gold-bd` | `#d2a952` | 金ボタンの枠線 | モック `.btn.primary{border-color}` |
+
+**置換した箇所（旧リテラル → トークン）**
+
+| 箇所 | 旧 | 新 |
+|---|---|---|
+| `.nox-btn.gold`（globals） | `#e2bd6b/#b48634/#d2a952/#17130c` | `--gold1/--gold3/--gold-bd/--on-gold` |
+| `theme.ts btnGold` | 同上 | 同上 |
+| `theme.ts rolePill` | `#17130c` / `#b48634` | `--on-gold` / `--gold3` |
+| `theme.ts slipFoot` | `#0B0B0F`（旧 `--bg` のベタ書き） | `--on-gold` |
+| `.nox-tile-badge` | `#B8893A` / `#0B0B0F` | `--gold3` / `--on-gold` |
+| `.nox-medal` | `#0B0B0F` | `--on-gold` |
+| `.nox-switch.on` / `.on i` | `#B8893A,#E6D6A8` / `#0B0B0F` | `--gold3,--champ` / `--on-gold` |
+| `.nox-stockbar i` | `#B8893A,#E6D6A8` | `--gold3,--champ` |
+| `.nox-ava` | `#0B0B0F` | **`--bg`**（地は `avatarBg()` の HSL グラデ＝**金ではない**ので `--on-gold` は使わない） |
+
+★未処置＝**E5 送り**: `slipHd` の `#0E0E14`・`errBox` の `#2C1B1B/#5A2E2E/#F0B9B9`・
+`avatar` の `#1F1B12`。いずれも**白地印刷の帳票**で独自色を持つため、帳票ごと E5 で見直す。
+
+### 10-2. 浮遊 toast は見送り（裁定4 の維持）
+
+E3 で CSS 部品 `.nox-toast` は用意済みだが、**移行しない**。
+理由＝27箇所のカード内レイアウトが同時に動き、「どの操作の結果か」の対応づけが弱くなる。
+E4 は**部品値の適用のみ**とし表示位置は現行維持。採用するなら全27箇所を同時に切り替える
+独立レーンが要る（台帳 裁定4 に同旨を追記済み＝post-launch 維持）。

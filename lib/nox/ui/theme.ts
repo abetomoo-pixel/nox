@@ -84,10 +84,10 @@ export const brand: CSSProperties = { fontFamily: font.brand, fontWeight: 700, f
 // 子孫セレクタ・複数プロパティの @media 分岐を要し、inline style では表現できないため（R-2 裁定1）。
 // 基底はここにあった inline 値の逐語＝≤899 の描画は不変。
 export const rolePill: CSSProperties = {
-  // ★E3: 旧 --bg のベタ書き #0B0B0F → モック .btn.primary の文字色 #17130c へ。
-  //   金の暗端 #B8893A → モック値 #b48634 へ（gold グラデの終点をモック正本に合わせる）。
-  fontSize: 10.5, fontWeight: 800, letterSpacing: 1, color: "#17130c",
-  background: "linear-gradient(135deg,var(--gold2),#b48634)", padding: "4px 9px", borderRadius: radius.pill,
+  // ★E3: 旧 --bg のベタ書き #0B0B0F → モック .btn.primary の文字色へ。
+  // ★E4-0: そのリテラルを **--on-gold / --gold3** としてトークン化した（正本は globals.css）。
+  fontSize: 10.5, fontWeight: 800, letterSpacing: 1, color: "var(--on-gold)",
+  background: "linear-gradient(135deg,var(--gold2),var(--gold3))", padding: "4px 9px", borderRadius: radius.pill,
 };
 // ── ページ見出し ─────────────────────────────────────────────────
 export const pheadH1: CSSProperties = { fontSize: 19, fontWeight: 900, margin: 0 };
@@ -128,10 +128,11 @@ const btnBase: CSSProperties = {
 // モック `.btn.primary`: linear-gradient(135deg,#e2bd6b,#b48634); border-color:#d2a952;
 //   color:#17130c; box-shadow:0 6px 18px rgba(216,173,85,.12)
 //   ★旧実装は文字色に **#0B0B0F（旧 --bg のベタ書き）** を使っていた（E1 の申し送り）。
-//     モックの #17130c（金地に対する暗褐色）へ置換＝トークン外だがモック正本の値。
+//   ★E4-0: モックの4値を **--gold1 / --gold3 / --gold-bd / --on-gold** としてトークン化
+//     （金地の上に載る値は複数部品で共有するため・正本は globals.css .nox-dark）。
 export const btnGold: CSSProperties = {
-  ...btnBase, border: "1px solid #d2a952", background: "linear-gradient(135deg,#e2bd6b,#b48634)",
-  color: "#17130c", boxShadow: "0 6px 18px rgba(216,173,85,.12)",
+  ...btnBase, border: "1px solid var(--gold-bd)", background: "linear-gradient(135deg,var(--gold1),var(--gold3))",
+  color: "var(--on-gold)", boxShadow: "0 6px 18px rgba(216,173,85,.12)",
 };
 // モック `.btn.ghost`: background:transparent; color:var(--muted)＝NOX は --sub
 export const btnGhost: CSSProperties = { ...btnBase, border: "1px solid var(--line2)", background: "transparent", color: "var(--ink)" };
@@ -237,5 +238,7 @@ export const slipSub: CSSProperties = { textAlign: "center", fontSize: 11.5, col
 export const slipSec: CSSProperties = { fontWeight: 800, fontSize: 12, background: "var(--card2)", borderLeft: "3px solid var(--gold)", padding: "4px 9px", margin: "10px 0 4px" };
 export const slipRow: CSSProperties = { display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: 4, borderBottom: "1px dashed var(--line)" };
 export const slipRowB: CSSProperties = { ...slipRow, fontWeight: 800, color: "var(--champ)", borderBottom: "1px solid var(--line2)" }; // .sliprow.b（強調行）
-export const slipFoot: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, background: "linear-gradient(135deg,var(--gold),var(--gold2))", color: "#0B0B0F", borderRadius: 9, padding: "9px 13px", fontWeight: 800 };
+// ★E4-0: 金地の上の文字＝--on-gold へ（#0B0B0F は旧 --bg のベタ書きだった）。
+//   他の帳票リテラル（slipHd の #0E0E14・errBox・avatar）は白地印刷の都合で独自色を持つため E5 送り。
+export const slipFoot: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, background: "linear-gradient(135deg,var(--gold),var(--gold2))", color: "var(--on-gold)", borderRadius: 9, padding: "9px 13px", fontWeight: 800 };
 export const slipFootVal: CSSProperties = { fontFamily: font.num, fontSize: 19, fontVariantNumeric: "tabular-nums" }; // .slipfoot b（Outfit・NOX num 規約で tabular 付与）
