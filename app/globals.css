@@ -1103,23 +1103,30 @@ body {
    ★地色 `#0c0c0b` はトークンに無い（--bg と --card の中間）。入力は「面より沈む」のが要件なので
      **--bg** を採る（旧実装の --bg2 はカードより明るく沈みが逆だった）。
    ★高さは height ではなく padding で作る（inline の上書きと衝突させないため＝theme.ts と同流儀）。 */
-.nox-field { display: flex; flex-direction: column; gap: 5px; }
-.nox-field > label { font-size: 11px; color: var(--sub); font-weight: 700; }
+/* ★E4 群2a で是正: E3 はこの部品を `.nox-field` と命名したが、**同名の既存クラスが 459 行に
+   実在**した（レーン④b-3 の縦積みフォーム＝`.lab` 子要素・`margin-bottom:15px` の規約・
+   products/categories/pricing の 23 箇所が使用中）。同一詳細度で後勝ちするため、
+   既存フォームが flex-column/gap:5 に化けていた＝**E3 の回帰**。
+   ★原因: E3 の重複監査スクリプトが「規則の直前のコメントを選択子に取り込む」バグを持ち、
+     `.nox-field` を別セレクタとして数えて見逃した（コメント除去後に再監査して検出）。
+   → 新部品を **`.nox-formfield`** へ改名し、既存 23 箇所には一切触れない。 */
+.nox-formfield { display: flex; flex-direction: column; gap: 5px; }
+.nox-formfield > label { font-size: 11px; color: var(--sub); font-weight: 700; }
 /* ★入力の地・枠・字は3要素で共通。textarea だけ寸法が違うので**別セレクタに分けず**
    ここでは共通分のみを書き、textarea 固有は下の1本にまとめる（padding を2箇所で競合させない）。 */
-.nox-input, .nox-field input, .nox-field select {
+.nox-input, .nox-formfield input, .nox-formfield select {
   width: 100%; background: var(--bg); border: 1px solid var(--line2); border-radius: 6px;
   padding: 9px; color: var(--ink); font-family: inherit; font-size: 13px; outline: none;
 }
-.nox-field textarea {
+.nox-formfield textarea {
   width: 100%; background: var(--bg); border: 1px solid var(--line2); border-radius: 6px;
   padding: 10px; color: var(--ink); font-family: inherit; font-size: 13px; outline: none;
   min-height: 112px; resize: vertical;
 }
-.nox-input:focus, .nox-field input:focus, .nox-field select:focus, .nox-field textarea:focus {
+.nox-input:focus, .nox-formfield input:focus, .nox-formfield select:focus, .nox-formfield textarea:focus {
   border-color: var(--gold); box-shadow: 0 0 0 3px rgba(216, 173, 85, .08);
 }
-.nox-input:disabled, .nox-field input:disabled, .nox-field select:disabled { opacity: .55; cursor: not-allowed; }
+.nox-input:disabled, .nox-formfield input:disabled, .nox-formfield select:disabled { opacity: .55; cursor: not-allowed; }
 
 /* ── 3stat（モック .stats/.stat）＝日詳細などの小指標 ────────────── */
 .nox-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
@@ -1340,13 +1347,10 @@ body {
   color: var(--sub); font-size: 12.5px; cursor: pointer; font-family: inherit;
 }
 .nox-addc:hover { border-color: var(--gold); color: var(--gold); }
-/* ★E2: ここに後追いの `.nox-side .group` 重複定義があり、レイアウト節（上方）の指定を
-   カスケード順で上書きしていた（同一詳細度＝後勝ち）。モック .navlabel 値へ一本化する。
-   値の正本はレイアウト節側（font-size:9px / #66635d / padding:9px 12px 5px / ls .16em）。 */
-.nox-side .group {
-  font-size: 9px; color: #66635d; font-weight: 700;
-  padding: 9px 12px 5px; letter-spacing: .16em; text-transform: none;
-}
+/* ★E2 で値をモック .navlabel に揃えたが**定義が2箇所に残っていた**（レイアウト節と本節）。
+   E4 群2a の重複再監査（コメント除去版）で検出し、**本節の重複定義を削除**して
+   レイアウト節（`.nox-side .group{font-size:9px; color:#66635d; padding:9px 12px 5px; ls:.16em}`）
+   を唯一の正本にした。ここには重複しない指定だけを残す。 */
 .nox-side .group + a { margin-top: 2px; }
 
 /* ── 段0R その4: ハブ⇄セクションの切替バー（:target 折り畳みは廃止）── */
