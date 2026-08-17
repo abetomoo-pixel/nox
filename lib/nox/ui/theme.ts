@@ -11,20 +11,27 @@
 import type { CSSProperties } from "react";
 
 // raw hex（JS 計算が要る箇所＝アバター背景色の生成等でのみ使う。表示スタイルは下の var() 参照プリミティブを優先）。
+//
+// ★E1（2026-08-17）: globals.css .nox-dark と同値へ差し替え（正本 docs/NOX_デザインガイド_v1.md §1）。
+//   ★注意: このオブジェクトは **現時点で参照ゼロ**（theme.ts 外からの `colors.` 参照 0件）。
+//     そのため 2026-07-28 の段0 で .nox-dark 側だけが更新され、card2/line/ink/sub の4件が
+//     drift していた（＝ガイド §2 の教訓3「宣言 ≠ 実参照」の repo 側事例）。
+//     ここを揃えるのは「次に誰かが参照したとき古い色を引かない」ためで、
+//     **本質的には削除候補**＝E3 で採否を判断する。
 export const colors = {
-  bg: "#0B0B0F",
-  bg2: "#101017",
-  card: "#16161E",
-  card2: "#1D1D27",
-  line: "#272732",
-  line2: "#34343F",
-  gold: "#C9A24A",
-  gold2: "#D9BC6A",
-  champ: "#E6D6A8",
-  ink: "#ECECEF",
-  sub: "#9A9AA8",
-  ok: "#7FC79B",
-  bad: "#D98A8A",
+  bg: "#080808",
+  bg2: "#181815",
+  card: "#11110f",
+  card2: "#22221e",
+  line: "#2d2c27",
+  line2: "#3b3931",
+  gold: "#d8ad55",
+  gold2: "#f0cf82",
+  champ: "#E6D6A8", // ★非モック由来＝現行維持・暫定（E5 で再裁定）
+  ink: "#f3f0e8",
+  sub: "#99978f",
+  ok: "#77ba83",
+  bad: "#d86c64",
 } as const;
 
 export const radius = { card: 16, kpi: 14, btn: 11, btnSm: 9, input: 11, pill: 999, icon: 8 } as const;
