@@ -152,25 +152,25 @@ export default function PrinterPanel({ storeId, initialProfile }: { storeId: str
           <button onClick={() => void loadJobs()} disabled={busy} style={{ ...btn, marginLeft: 10 }}>更新</button>
         </h3>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+          <table className="nox-table">
             <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
+              <tr>
                 {["伝票", "状態", "種別", "時刻", "エラー"].map((h) => (
-                  <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {jobs.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: 8, color: "var(--sub)" }}>（印刷ジョブはまだありません）</td></tr>
+                <tr><td colSpan={5} style={{ color: "var(--sub)" }}>（印刷ジョブはまだありません）</td></tr>
               )}
               {jobs.map((j) => (
-                <tr key={j.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                  <td style={{ padding: 6, ...t.num, whiteSpace: "nowrap" }}>{j.check_id.replace(/-/g, "").slice(0, 8)}-{j.pay_group}{j.is_reprint ? " 再" : ""}</td>
-                  <td style={{ padding: 6, color: j.status === "printed" ? "var(--ok)" : j.status === "failed" ? "var(--bad)" : "var(--ink)" }}>{STATUS_JA[j.status] ?? j.status}</td>
-                  <td style={{ padding: 6 }}>{j.is_reprint ? "再発行" : "初回"}</td>
-                  <td style={{ padding: 6, ...t.num, whiteSpace: "nowrap" }}>{new Date(j.created_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
-                  <td style={{ padding: 6, color: "var(--sub)" }}>{j.error_code ?? "—"}</td>
+                <tr key={j.id}>
+                  <td style={{ ...t.num, whiteSpace: "nowrap" }}>{j.check_id.replace(/-/g, "").slice(0, 8)}-{j.pay_group}{j.is_reprint ? " 再" : ""}</td>
+                  <td style={{ color: j.status === "printed" ? "var(--ok)" : j.status === "failed" ? "var(--bad)" : "var(--ink)" }}>{STATUS_JA[j.status] ?? j.status}</td>
+                  <td>{j.is_reprint ? "再発行" : "初回"}</td>
+                  <td style={{ ...t.num, whiteSpace: "nowrap" }}>{new Date(j.created_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+                  <td style={{ color: "var(--sub)" }}>{j.error_code ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

@@ -108,8 +108,7 @@ export default function BusinessHoursPanel({
       )}
       <div style={{ display: "grid", gap: 7 }}>
         {forms.map((f, dow) => (
-          <div key={dow} style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap",
-            padding: "7px 10px", background: "var(--bg2)", border: "1px solid var(--line2)", borderRadius: 10 }}>
+          <div key={dow} className="nox-inset" style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap", padding: "7px 10px" }}>
             <span style={{ fontWeight: 800, fontSize: 13, width: 22 }}>{DOW_LABELS[dow]}</span>
             {!f.exists && <span style={{ fontSize: 11, color: "var(--sub)" }}>未設定</span>}
             <label style={{ fontSize: 12.5, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>

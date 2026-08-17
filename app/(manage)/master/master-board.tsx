@@ -230,14 +230,14 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
       {view === "seat" && (
       <section className="nox-cardtop" style={card}>
         <h2 id="m-seat" style={secTitle}>席（クリックで編集）</h2>
-        <table style={{ borderCollapse: "collapse", fontSize: 12, marginBottom: 10 }}>
+        <table className="nox-table" style={{ marginBottom: 10 }}>
           <tbody>
             {seats.map((s) => (
               <tr key={s.id} onClick={() => isManagerUp && (setSId(s.id), setSName(s.name), setSKind(s.kind ?? "卓"), setSSort(s.sort_order), setSActive(s.is_active))}
-                style={{ borderBottom: "1px solid var(--line)", cursor: isManagerUp ? "pointer" : "default" }}>
-                <td style={{ padding: 6 }}>{s.name}</td>
-                <td style={{ padding: 6 }}>{s.kind}</td>
-                <td style={{ padding: 6, color: s.is_active ? "var(--ok)" : "var(--sub)" }}>{s.is_active ? "有効" : "無効"}</td>
+                style={{ cursor: isManagerUp ? "pointer" : "default" }}>
+                <td>{s.name}</td>
+                <td>{s.kind}</td>
+                <td style={{ color: s.is_active ? "var(--ok)" : "var(--sub)" }}>{s.is_active ? "有効" : "無効"}</td>
               </tr>
             ))}
           </tbody>
