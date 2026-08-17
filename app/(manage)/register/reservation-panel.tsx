@@ -30,7 +30,7 @@ type Reservation = {
 
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
 const STATUS_LABEL: Record<string, string> = { booked: "予約", visited: "来店済", no_show: "不来店", cancelled: "取消" };
-const STATUS_COLOR: Record<string, string> = { booked: "#C9A24A", visited: "#7FC79B", no_show: "#9A9AA8", cancelled: "#9A9AA8" };
+const STATUS_COLOR: Record<string, string> = { booked: "var(--gold)", visited: "var(--ok)", no_show: "var(--sub)", cancelled: "var(--sub)" };
 const STAY_OPTIONS: Array<[number, string]> = [[60, "1時間"], [90, "1時間30分"], [120, "2時間"], [180, "3時間"]];
 
 // tstzrange 文字列（PostgREST 返却・例 ["2026-07-14 09:00:00+00","2026-07-14 11:00:00+00")）のパース。
@@ -74,7 +74,7 @@ const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 const pill = (status: string): React.CSSProperties => ({
   fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
-  color: STATUS_COLOR[status] ?? "var(--sub)", background: "#23232B", border: "1px solid var(--line2)",
+  color: STATUS_COLOR[status] ?? "var(--sub)", background: "var(--card2)", border: "1px solid var(--line2)",
   whiteSpace: "nowrap",
 });
 
@@ -357,8 +357,7 @@ export default function ReservationPanel({
               </div>
               {/* 来店処理（卓選択 + nom_type 上書き → reservation_to_check・席予約は予約卓を既定選択） */}
               {visitId === r.id && r.status === "booked" && (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8,
-                  background: "var(--bg2)", border: "1px solid var(--line2)", borderRadius: 11, padding: 10 }}>
+                <div className="nox-inset" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8, padding: 10 }}>
                   <span style={t.fieldLabel}>卓</span>
                   <select value={vSeat} onChange={(e) => setVSeat(e.target.value)} style={input}>
                     <option value="">空き卓を選択</option>
@@ -384,8 +383,7 @@ export default function ReservationPanel({
               )}
               {/* 予約編集（F3b-B 新設・booked のみ・全フィールド明示送信＝規約7） */}
               {editId === r.id && r.status === "booked" && (
-                <div style={{ display: "grid", gap: 8, marginTop: 8,
-                  background: "var(--bg2)", border: "1px solid var(--line2)", borderRadius: 11, padding: 10 }}>
+                <div className="nox-inset" style={{ display: "grid", gap: 8, marginTop: 8, padding: 10 }}>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                     <span style={t.fieldLabel}>日付</span>
                     <input type="date" value={eDate} onChange={(ev) => setEDate(ev.target.value)} style={{ ...input, maxWidth: 156 }} />

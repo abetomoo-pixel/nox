@@ -86,7 +86,7 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
       {keeps.length > 0 && (
         <div>
           {keeps.map((k) => (
-            <div key={k.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "5px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}>
+            <div key={k.id} className="nox-listrow" style={{ padding: "5px 0", fontSize: 12.5 }}>
               <span style={{ width: 140 }}>{customerName(k.customer_id)}</span>
               <span style={{ flex: 1 }}>{productName(k.product_id)}</span>
               <span style={{ ...t.num, color: "var(--sub)" }}>{k.opened_at.slice(0, 10)}</span>

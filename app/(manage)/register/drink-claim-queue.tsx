@@ -97,12 +97,12 @@ export default function DrinkClaimQueue() {
         <p style={{ fontSize: 13, color: "var(--sub)", margin: 0 }}>承認待ちの申告はありません。</p>
       )}
       {claims.length > 0 && (
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+      <div className="nox-tablewrap">
+        <table className="nox-table">
           <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
+            <tr>
               {["申告時刻", "キャスト", "商品", "杯数", "バック（目安）", "杯数訂正", "操作"].map((h) => (
-                <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
+                <th key={h}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -111,18 +111,18 @@ export default function DrinkClaimQueue() {
               const raw = (qtyOv[c.id] ?? "").trim();
               const effQty = raw !== "" && Number(raw) > 0 ? Number(raw) : c.qty;
               return (
-                <tr key={c.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                  <td style={{ padding: 6, ...t.num, whiteSpace: "nowrap" }}>{hhmm(c.created_at)}</td>
-                  <td style={{ padding: 6, fontWeight: 700, whiteSpace: "nowrap" }}>{one(c.casts)?.name ?? "(不明)"}</td>
-                  <td style={{ padding: 6 }}>{one(c.products)?.name ?? "(商品不明)"}</td>
-                  <td style={{ padding: 6, ...t.num }}>{c.qty}</td>
-                  <td style={{ padding: 6, ...t.num, color: "var(--champ)", whiteSpace: "nowrap" }}>{yen(previewBack(c, effQty))}</td>
-                  <td style={{ padding: 6 }}>
+                <tr key={c.id}>
+                  <td className="num" style={{ textAlign: "left", whiteSpace: "nowrap" }}>{hhmm(c.created_at)}</td>
+                  <td style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{one(c.casts)?.name ?? "(不明)"}</td>
+                  <td>{one(c.products)?.name ?? "(商品不明)"}</td>
+                  <td className="num" style={{ textAlign: "left" }}>{c.qty}</td>
+                  <td className="num" style={{ textAlign: "left", color: "var(--champ)", whiteSpace: "nowrap" }}>{yen(previewBack(c, effQty))}</td>
+                  <td>
                     <input type="number" min={1} placeholder={String(c.qty)} value={qtyOv[c.id] ?? ""}
                       onChange={(e) => setQtyOv((m) => ({ ...m, [c.id]: e.target.value }))}
                       style={{ ...inp, width: 60 }} />
                   </td>
-                  <td style={{ padding: 6, whiteSpace: "nowrap" }}>
+                  <td style={{ whiteSpace: "nowrap" }}>
                     <button style={btnGold} disabled={busy} onClick={() => void decide(c, true)}>承認</button>
                     <button style={{ ...btnGhost, marginLeft: 6 }} disabled={busy} onClick={() => void decide(c, false)}>却下</button>
                   </td>

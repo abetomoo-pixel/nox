@@ -80,7 +80,7 @@ export default function IncentivePanel({ storeId }: { storeId: string }) {
       </p>
       {rows.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>発行済みなし</p>}
       {rows.map((r) => (
-        <div key={r.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
+        <div key={r.id} className="nox-listrow" style={{ fontSize: 13 }}>
           <span style={{ ...t.num, width: 100 }}>{r.biz_date}</span>
           <span style={{ width: 110 }}>{modeLabel(r.amount_mode)}</span>
           <span style={t.num}>¥{r.amount.toLocaleString()}</span>

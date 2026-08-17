@@ -666,23 +666,18 @@ export default function RegisterBoard({
   // 割引申請フォームの上限＝選択 group の割引前小計（既存 discount を除いた bx）
   const apGroupBx = groupInfo.find((gi) => gi.g === apGroup)?.bx ?? 0;
 
-  // タブセグメント（canonical の .seg 相当を inline で）
-  const segBtn = (on: boolean): React.CSSProperties => ({
-    flex: 1, fontFamily: "inherit", fontWeight: 800, fontSize: 13, padding: "9px 10px",
-    borderRadius: 9, cursor: "pointer",
-    border: on ? "1px solid var(--gold)" : "1px solid var(--line2)",
-    background: on ? "linear-gradient(135deg,#1F1B12,#14120C)" : "transparent",
-    color: on ? "var(--champ)" : "var(--sub)",
-  });
+  // タブセグメント（E5a: inline 再発明 segBtn を共通部品 .nox-seg へ。POS のタップ標的維持で
+  // flex:1 / fontSize 13 / padding 9px 10px のみローカル上書き＝旧リテラル #1F1B12/#14120C を廃止）
+  const segLocal: React.CSSProperties = { flex: 1, fontWeight: 800, fontSize: 13, padding: "9px 10px" };
 
   return (
     <div>
       {showReserve && (
         <div className="nox-cardtop" style={{ ...card, padding: 11 }}>
-          <div style={{ display: "flex", gap: 8, width: "100%", maxWidth: 480 }}>
+          <div className="nox-seg" style={{ width: "100%", maxWidth: 480 }}>
             {/* 会計タブへ戻るとき openMap を再読込（予約タブの to_check で開いた伝票を反映） */}
-            <button style={segBtn(tab === "tables")} onClick={() => { setTab("tables"); void loadOpenMap(); }}>卓席・会計</button>
-            <button style={segBtn(tab === "reserve")} onClick={() => setTab("reserve")}>予約</button>
+            <button className={tab === "tables" ? "on" : undefined} style={segLocal} onClick={() => { setTab("tables"); void loadOpenMap(); }}>卓席・会計</button>
+            <button className={tab === "reserve" ? "on" : undefined} style={segLocal} onClick={() => setTab("reserve")}>予約</button>
           </div>
         </div>
       )}
@@ -1233,8 +1228,8 @@ export default function RegisterBoard({
                 {printMsg[g] && (
                   <span style={{
                     fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "2px 9px",
-                    color: printMsg[g].startsWith("失敗") || printMsg[g].includes("無効") ? "var(--bad)" : "#C9A24A",
-                    background: "#23232B", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+                    color: printMsg[g].startsWith("失敗") || printMsg[g].includes("無効") ? "var(--bad)" : "var(--gold)",
+                    background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
                   }}>{printMsg[g]}</span>
                 )}
               </span>
