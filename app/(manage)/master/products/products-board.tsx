@@ -687,8 +687,10 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
             style={{ ...btnLight, marginTop: 4, marginBottom: 4, fontSize: 12.5 }}>
             {detailOpen ? "▾ 詳細（原価・発注点・バック）" : "▸ 詳細（原価・発注点・バック）"}
           </button>
+          {/* ★E4 群2b: 下の沈み面は手組み inline → 新部品 .nox-inset（gaps G2 の裁定で新設）。
+              下 padding だけは元の 2px を保つ（中の .nox-field が margin-bottom 15px を持つため）。 */}
           {detailOpen && (
-            <div style={{ marginTop: 12, padding: "14px 14px 2px", background: "var(--bg2)", borderRadius: 11, border: "1px solid var(--line2)" }}>
+            <div className="nox-inset" style={{ marginTop: 12, paddingBottom: 2 }}>
               <div className="nox-field2">
                 <div className="nox-field">
                   <span className="lab">原価</span>

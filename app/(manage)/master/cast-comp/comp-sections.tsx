@@ -149,19 +149,19 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
 
   return (
     <div>
-      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["名称", "保証", "本", "場内", "同伴", "売上段", "pt段", "状態"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
+      <table className="nox-table" style={{ marginBottom: 10 }}>
+        <thead><tr>{["名称", "保証", "本", "場内", "同伴", "売上段", "pt段", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
           {plans.map((p) => (
-            <tr key={p.id} onClick={() => isOwner && edit(p)} style={{ borderBottom: "1px solid var(--line)", cursor: isOwner ? "pointer" : "default" }}>
-              <td style={{ padding: 6 }}>{p.name}</td>
-              <td style={{ padding: 6, ...t.num }}>{p.base}</td>
-              <td style={{ padding: 6, ...t.num }}>{p.hon_back_mode === "rate" ? `率${p.hon_back_rate}%` : p.hon_back}</td>
-              <td style={{ padding: 6, ...t.num }}>{p.jonai_back_mode === "rate" ? `率${p.jonai_back_rate}%` : p.jonai_back}</td>
-              <td style={{ padding: 6, ...t.num }}>{p.dohan_back}</td>
-              <td style={{ padding: 6, ...t.num }}>{(p.sales_slide ?? []).length}段</td>
-              <td style={{ padding: 6, ...t.num }}>{(p.point_slide ?? []).length}段</td>
-              <td style={{ padding: 6, color: p.is_active ? "var(--ok)" : "var(--sub)" }}>{p.is_active ? "有効" : "無効"}</td>
+            <tr key={p.id} onClick={() => isOwner && edit(p)} style={{ cursor: isOwner ? "pointer" : "default" }}>
+              <td>{p.name}</td>
+              <td className="num">{p.base}</td>
+              <td className="num">{p.hon_back_mode === "rate" ? `率${p.hon_back_rate}%` : p.hon_back}</td>
+              <td className="num">{p.jonai_back_mode === "rate" ? `率${p.jonai_back_rate}%` : p.jonai_back}</td>
+              <td className="num">{p.dohan_back}</td>
+              <td className="num">{(p.sales_slide ?? []).length}段</td>
+              <td className="num">{(p.point_slide ?? []).length}段</td>
+              <td style={{ color: p.is_active ? "var(--ok)" : "var(--sub)" }}>{p.is_active ? "有効" : "無効"}</td>
             </tr>
           ))}
         </tbody>
@@ -250,14 +250,14 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
 
   return (
     <div>
-      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["キャスト", "プラン", "上書き"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
+      <table className="nox-table" style={{ marginBottom: 10 }}>
+        <thead><tr>{["キャスト", "プラン", "上書き"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
           {castPlans.map((cp) => (
-            <tr key={cp.cast_id} style={{ borderBottom: "1px solid var(--line)" }}>
-              <td style={{ padding: 6 }}>{castName(cp.cast_id)}</td>
-              <td style={{ padding: 6 }}>{planName(cp.plan_id)}</td>
-              <td style={{ padding: 6 }}>{Object.keys(cp.overrides_json ?? {}).length ? JSON.stringify(cp.overrides_json) : "—"}</td>
+            <tr key={cp.cast_id}>
+              <td>{castName(cp.cast_id)}</td>
+              <td>{planName(cp.plan_id)}</td>
+              <td>{Object.keys(cp.overrides_json ?? {}).length ? JSON.stringify(cp.overrides_json) : "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -322,17 +322,17 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
   }
   return (
     <div>
-      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["キャスト", "期間", "日数目標", "同伴目標", "売上目標", "指名目標"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
+      <table className="nox-table" style={{ marginBottom: 10 }}>
+        <thead><tr>{["キャスト", "期間", "日数目標", "同伴目標", "売上目標", "指名目標"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
           {norms.map((n) => (
-            <tr key={n.id} style={{ borderBottom: "1px solid var(--line)" }}>
-              <td style={{ padding: 6 }}>{castName(n.cast_id)}</td>
-              <td style={{ padding: 6, ...t.num }}>{n.period}</td>
-              <td style={{ padding: 6, ...t.num }}>{n.days_target}</td>
-              <td style={{ padding: 6, ...t.num }}>{n.dohan_target}</td>
-              <td style={{ padding: 6, ...t.num }}>{(n.sales_target ?? 0).toLocaleString()}</td>
-              <td style={{ padding: 6, ...t.num }}>{n.shimei_target}</td>
+            <tr key={n.id}>
+              <td>{castName(n.cast_id)}</td>
+              <td className="num">{n.period}</td>
+              <td className="num">{n.days_target}</td>
+              <td className="num">{n.dohan_target}</td>
+              <td className="num">{(n.sales_target ?? 0).toLocaleString()}</td>
+              <td className="num">{n.shimei_target}</td>
             </tr>
           ))}
         </tbody>
@@ -377,15 +377,15 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
   }
   return (
     <div>
-      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["名称", "額", "単位", "状態"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
+      <table className="nox-table" style={{ marginBottom: 10 }}>
+        <thead><tr>{["名称", "額", "単位", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
           {deductions.map((d) => (
-            <tr key={d.id} onClick={() => isManagerUp && edit(d)} style={{ borderBottom: "1px solid var(--line)", cursor: isManagerUp ? "pointer" : "default" }}>
-              <td style={{ padding: 6 }}>{d.name}</td>
-              <td style={{ padding: 6, ...t.num }}>{d.per === "rate" ? `${d.amount}%` : d.amount}</td>
-              <td style={{ padding: 6 }}>{d.per}</td>
-              <td style={{ padding: 6, color: d.is_active ? "var(--ok)" : "var(--sub)" }}>{d.is_active ? "有効" : "無効"}</td>
+            <tr key={d.id} onClick={() => isManagerUp && edit(d)} style={{ cursor: isManagerUp ? "pointer" : "default" }}>
+              <td>{d.name}</td>
+              <td className="num">{d.per === "rate" ? `${d.amount}%` : d.amount}</td>
+              <td>{d.per}</td>
+              <td style={{ color: d.is_active ? "var(--ok)" : "var(--sub)" }}>{d.is_active ? "有効" : "無効"}</td>
             </tr>
           ))}
         </tbody>
@@ -476,16 +476,16 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
   }
   return (
     <div>
-      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12, marginBottom: 10 }}>
-        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>{["名称", "基準", "値", "条件", "状態"].map((h) => <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700 }}>{h}</th>)}</tr></thead>
+      <table className="nox-table" style={{ marginBottom: 10 }}>
+        <thead><tr>{["名称", "基準", "値", "条件", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
           {backs.map((b) => (
-            <tr key={b.id} onClick={() => isManagerUp && edit(b)} style={{ borderBottom: "1px solid var(--line)", cursor: isManagerUp ? "pointer" : "default" }}>
-              <td style={{ padding: 6 }}>{b.name}</td>
-              <td style={{ padding: 6 }}>{b.basis}</td>
-              <td style={{ padding: 6, ...t.num }}>{b.basis === "sales" ? `${b.value}%` : b.value}</td>
-              <td style={{ padding: 6 }}>{b.cond_json ? `${b.cond_json.metric}≥${b.cond_json.min}` : "—"}</td>
-              <td style={{ padding: 6, color: b.is_active ? "var(--ok)" : "var(--sub)" }}>{b.is_active ? "有効" : "無効"}</td>
+            <tr key={b.id} onClick={() => isManagerUp && edit(b)} style={{ cursor: isManagerUp ? "pointer" : "default" }}>
+              <td>{b.name}</td>
+              <td>{b.basis}</td>
+              <td className="num">{b.basis === "sales" ? `${b.value}%` : b.value}</td>
+              <td>{b.cond_json ? `${b.cond_json.metric}≥${b.cond_json.min}` : "—"}</td>
+              <td style={{ color: b.is_active ? "var(--ok)" : "var(--sub)" }}>{b.is_active ? "有効" : "無効"}</td>
             </tr>
           ))}
         </tbody>

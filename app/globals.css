@@ -1112,6 +1112,20 @@ body {
    → 新部品を **`.nox-formfield`** へ改名し、既存 23 箇所には一切触れない。 */
 .nox-formfield { display: flex; flex-direction: column; gap: 5px; }
 .nox-formfield > label { font-size: 11px; color: var(--sub); font-weight: 700; }
+
+/* ── E4 群2b 新設: 沈み面 `.nox-inset`（gaps G2 の裁定）────────────────────
+   ★**非モック由来・実装起草**。モックには「カードの中にもう一段沈む面」の定義が無い
+     （`.card` は入れ子を持たず `.modalbody` は padding のみ）。実装側で必要になったため起草した。
+   用途: カード／モーダルの中に置く副ブロック（折りたたみ詳細・補足フォーム群など）。
+   値の根拠＝**階層の言語を既存部品と揃える**:
+     地   `--bg2`（card の面より沈む＝入力欄 `--bg` ほどは沈まない中間段）
+     radius 8（**card 11 > inset 8 > btn 7** の階に収める）
+     枠   1px `--line`（card と同じ罫線色）／影なし（沈む面は浮かせない）
+   ★新部品追加の前に、コメント除去済みソースで同名セレクタの実在を確認済み（0件・G3 の手順）。 */
+.nox-inset {
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 14px; box-shadow: none;
+}
 /* ★入力の地・枠・字は3要素で共通。textarea だけ寸法が違うので**別セレクタに分けず**
    ここでは共通分のみを書き、textarea 固有は下の1本にまとめる（padding を2箇所で競合させない）。 */
 .nox-input, .nox-formfield input, .nox-formfield select {
@@ -1563,12 +1577,17 @@ body {
 .nox-pill .n { font-size: 12px; padding: 2px 9px; border-radius: 99px; background: var(--bg2); color: var(--sub); }
 .nox-pill.on .n { background: rgba(201, 162, 74, .18); color: var(--gold2); }
 /* テーブルを包むカード枠（一覧の輪郭をはっきりさせる） */
-.nox-ptwrap { border: 1px solid var(--line); border-radius: 14px; background: var(--card); overflow: hidden; }
+/* ★E4 群2b（gaps G1 の裁定）: `.nox-ptable` は**特化表として2部品体制で正式採用**。
+   汎用 `.nox-table` と「同じ設計言語」であることを照合し、ズレていた3点を揃えた:
+     radius 14→**11**（card スケール・`.nox-tablewrap` と同値）／
+     th の下罫線 `--line2`→**`--line`**（汎用と同色）／th に letter-spacing .08em を付与。
+   ★padding は揃えない（td 15px＝行を厚く見せる特化表の意匠・汎用は 11px）＝これが特化の中身。 */
+.nox-ptwrap { border: 1px solid var(--line); border-radius: 11px; background: var(--card); overflow: hidden; }
 
 .nox-ptable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .nox-ptable th {
-  text-align: left; font-size: 11px; font-weight: 700; color: var(--sub);
-  padding: 10px 10px; border-bottom: 1px solid var(--line2); white-space: nowrap;
+  text-align: left; font-size: 11px; font-weight: 700; color: var(--sub); letter-spacing: .08em;
+  padding: 10px 10px; border-bottom: 1px solid var(--line); white-space: nowrap;
   background: var(--bg2);
 }
 .nox-ptable th.sortable { cursor: pointer; user-select: none; }
