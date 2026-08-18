@@ -76,4 +76,23 @@
 
 ## 既存プルダウンの発見列挙（置換対象候補・今回は列挙のみ）
 
-- casts-board.tsx: 指名ランク割当 select（詳細 comp タブ）／RegisterForm の配属店 select・区分 select
+指示「プルダウン新設禁止・既存は列挙のみ」に基づく機械列挙（`<select` の grep・27ファイル）。
+★店舗選択（owner 複数店）と数十択の対象選択（キャスト・商品等）は select が実用的で、
+セグ/チップ置換が向くのは**少数固定択**のみ＝置換候補に◆を付す。
+
+- casts-board: ◆区分（4択 TIERS）／指名ランク割当／配属店
+- customers-board: 店舗（全店+N）／初期担当キャスト ・ customer-detail: 担当変更
+- audit-board: action絞り込み（動的多択）／◆操作系統（4択・client絞り）
+- master-board: ◆席種（3択 卓/カウンター/VIP）
+- business-hours-panel: 店舗 ・ kiosk-panel: 店舗／◆用途（2択 打刻/レジ）
+- sensitive-tax-panel: ◆雇用区分（2択）／◆インボイス（3択）
+- pricing-board: ◆プレビュー席種（4択）／モーダル内の各種 ・ pricing-panel／deduction-panel／
+  norm-config-panel／comp-sections: 設定系 select 多数
+- payroll-board: 店舗 ・ invoice-panel: ◆区分（2択）
+- register-board: （E8-1 でセグ化済みの残り）bottle-keep-panel の顧客/ボトル選択 ・
+  reservation-panel: 状態絞り込み（E8-1 新設＝4択・◆セグ化候補）
+- report/month-report: 店舗 ・ shift-board: キャスト選択／◆状態（2択）・incentive-panel: ◆配分モード（2択）
+- products-board／stock-board: カテゴリ・種別系 ・ notices-board: 配信対象（T3 後送りページ）
+- staff-board: 店舗／◆権限ロール（3択）
+- master-subnav: 表示単位ナビ（select 型ナビ・◆タブ化候補）
+- analytics-board: 店舗
