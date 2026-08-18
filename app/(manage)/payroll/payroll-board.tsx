@@ -27,6 +27,9 @@ type Row = {
   arDeductTotal?: number; arCarriedTotal?: number;
   advDeductTotal?: number; advCarriedTotal?: number; // F2e-2 前借り（繰越あり）
   okuriDeductTotal?: number; // F2e-2 送り実費（繰越なし）
+  // E8-5 payroll#2: preview API が返している breakdown（route.ts:21）を Row 型が捨てていたのを復元。
+  //   ★値はサーバ計算のまま＝画面側での再計算はしない（wHours/gross と控除計の表示にだけ使う）。
+  breakdown?: { pay: PayrollCsvPay & { wHours?: number }; extras?: { amount: number }[] };
 };
 type Blocker = { castName: string; reason: string };
 type Incentive = { id: string; bizDate: string; amountMode: string; amount: number; recipientCount: number; distributedTotal: number; warnEmptyPool: boolean };
@@ -62,6 +65,14 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   const [sum4, setSum4] = useState<{ gross: number; ded: number; wh: number; net: number; n: number } | null>(null);
   const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
   const [castIdOf, setCastIdOf] = useState<Record<string, string>>({});
+  // E8-5 payroll#5（T1）: 未支払＝Σnet−Σpaid（PaymentPanel と同じ payment_records 直読）・
+  //   前月比＝前月 run（finalized/paid）の Σnet との比較。どちらも表示専用。
+  const [unpaid, setUnpaid] = useState<number | null>(null);
+  const [prevNet, setPrevNet] = useState<number | null>(null);
+  // E8-5 payroll#4（T2）: プレビュー表の名前検索（client フィルタ）
+  const [rowQ, setRowQ] = useState("");
+  // E8-5 payroll#3: 行タップ→個別内訳（preview breakdown の再掲・選択中 castId）
+  const [detailCast, setDetailCast] = useState<string | null>(null);
 
   // run 状態を読む（payroll_runs は owner/manager RLS 可視）。store/period 変更・確定完了で再読込。
   //   ★store/period が変わったら印刷プレビュー/解除状態は破棄（別店の明細を刷らない・別 run の payCount を残さない）。
@@ -73,9 +84,13 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
     const info = data ? { id: data.id as string, status: data.status as string, finalized_at: (data.finalized_at as string | null) ?? null } : null;
     setRunInfo(info);
     setSum4(null);
+    setUnpaid(null); setPrevNet(null);
     if (info && (info.status === "finalized" || info.status === "paid")) {
-      const { count } = await supabase.from("payment_records").select("id", { count: "exact", head: true }).eq("run_id", info.id);
-      setPayCount(count ?? 0);
+      // E8-5 payroll#5: 件数だけでなく paid_amount も読む（未支払 KPI＝Σnet−Σpaid）。件数判定は不変。
+      const { data: prRows } = await supabase.from("payment_records").select("paid_amount").eq("run_id", info.id);
+      const prs = (prRows ?? []) as { paid_amount: number }[];
+      setPayCount(prs.length);
+      const paidSum = prs.reduce((a, r) => a + r.paid_amount, 0);
       // 段Y2: 合計サマリ＝確定済み payslips の凍結値をそのまま加算するだけ（D3 CSV と同じ読み取り経路）
       const { data: ps } = await supabase.from("payslips").select("net, breakdown_json").eq("run_id", info.id);
       const slips = (ps ?? []) as { net: number; breakdown_json: BreakdownJson }[];
@@ -97,6 +112,17 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
           net += sl.net;
         }
         setSum4({ gross, ded, wh, net, n: slips.length });
+        // E8-5 payroll#5: 未支払 KPI（Σnet−Σpaid・PaymentPanel と同一定義）
+        setUnpaid(net - paidSum);
+      }
+      // E8-5 payroll#5: 前月比＝前月 run（finalized/paid）の Σnet（無ければ出さない）
+      const [y, m] = period.split("-").map(Number);
+      const prevPeriod = `${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, "0")}`;
+      const { data: prevRun } = await supabase.from("payroll_runs").select("id, status")
+        .eq("store_id", storeId).eq("period", prevPeriod).maybeSingle();
+      if (prevRun && (prevRun.status === "finalized" || prevRun.status === "paid")) {
+        const { data: pps } = await supabase.from("payslips").select("net").eq("run_id", prevRun.id as string);
+        setPrevNet(((pps ?? []) as { net: number }[]).reduce((a, r) => a + r.net, 0));
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -346,6 +372,31 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
             )}
             {sum4 && <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{sum4.n} 名</span>}
           </div>
+          {/* E8-5 payroll#1: 段の可視化（集計→確定→支払）＋次アクション。★状態の表示だけ＝
+              各操作ボタンは従来どおり各セクション（機能・権限・無効化条件は不変）。
+              モックの4段目「公開」（LINE 明細公開）は T3 後送りのため出さない。 */}
+          {(() => {
+            const stage = runInfo.status === "paid" ? 3 : runInfo.status === "finalized" ? 2 : 1;
+            const next = stage === 1 ? "次: プレビューを確認して「この期間を確定する」"
+              : stage === 2 ? "次: 下の「支払記録」で支払いを記録"
+              : "この期間は支払済みです";
+            return (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "8px 0 10px" }}>
+                {(["集計・確認", "確定", "支払"] as const).map((label, i) => (
+                  <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <span style={{
+                      fontSize: 11.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999,
+                      border: `1px solid ${i + 1 <= stage ? "var(--gold)" : "var(--line2)"}`,
+                      color: i + 1 <= stage ? "var(--champ)" : "var(--sub)",
+                      background: i + 1 <= stage ? "#1F1B12" : "transparent",
+                    }}>{i + 1} {label}</span>
+                    {i < 2 && <span style={{ color: "var(--sub)", fontSize: 11 }}>→</span>}
+                  </span>
+                ))}
+                <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{next}</span>
+              </div>
+            );
+          })()}
 
           {/* 合計サマリ4カード＝★確定済みの凍結値（payslips.breakdown_json）の Σ のみ。
               定義は D3 CSV の payrollCsvCells と逐語同一（総支給=gross+extras／控除計=7項目の和／
@@ -374,6 +425,23 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
           {sum4 && (
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: 0 }}>
               ※確定時に凍結された明細の合計です（画面側での再計算はしていません）。
+            </p>
+          )}
+          {/* E8-5 payroll#5（T1）: 未支払＋前月比（表示専用・定義は PaymentPanel / 前月 run Σnet と同一） */}
+          {sum4 && (unpaid !== null || prevNet !== null) && (
+            <p style={{ fontSize: 12, margin: "8px 0 0", display: "flex", gap: 16, flexWrap: "wrap" }}>
+              {unpaid !== null && (
+                <span style={{ color: unpaid > 0 ? "var(--bad)" : "var(--ok)", fontWeight: 700 }}>
+                  未支払 ¥{unpaid.toLocaleString()}{unpaid <= 0 && "（全額支払済み）"}
+                </span>
+              )}
+              {prevNet !== null && prevNet > 0 && (
+                <span style={{ color: "var(--sub)" }}>
+                  差引支給の前月比 <span className="num" style={{ fontWeight: 700, color: sum4.net >= prevNet ? "var(--ok)" : "var(--bad)" }}>
+                    {sum4.net >= prevNet ? "+" : ""}{Math.round(((sum4.net - prevNet) / prevNet) * 100)}%
+                  </span>（前月 ¥{prevNet.toLocaleString()}）
+                </span>
+              )}
             </p>
           )}
         </section>
@@ -413,11 +481,18 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
               変えたのは (a) キャスト名に段P の写真アバターを添える (b) net を白太で強調
               (c) ≤641 で補助列（税区分・売掛・前借り・送り・anomaly）を CSS で畳む
                   ＝列を削除するのではなく狭い画面で隠すだけ（>641 では全列が出る）。 */}
+          {/* E8-5 payroll#4（T2）: 名前検索＝client フィルタ（並び・数値は不変） */}
+          <input value={rowQ} onChange={(e) => setRowQ(e.target.value)} placeholder="キャスト名で絞り込み"
+            aria-label="キャスト名で絞り込み" style={{ ...t.input, width: 220, marginBottom: 8 }} />
           <table className="nox-paytable" style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginBottom: 12 }}>
             <thead>
               <tr>
                 <th style={t.th}>キャスト</th>
                 <th className="fold" style={t.th}>税区分</th>
+                {/* E8-5 payroll#2: preview breakdown の復元列（時間・総支給・控除計＝サーバ計算値の再掲のみ） */}
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>時間</th>
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>総支給</th>
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>控除計</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>売掛</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>前借り</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>送り</th>
@@ -426,8 +501,18 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.castId}>
+              {rows.filter((r) => !rowQ.trim() || r.castName.toLowerCase().includes(rowQ.trim().toLowerCase())).map((r) => {
+                const z = (v: number | undefined) => v ?? 0;
+                const pay = r.breakdown?.pay;
+                const extras = (r.breakdown?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
+                const gross = pay ? z(pay.gross) + extras : null;
+                const ded = pay
+                  ? z(pay.fixedDed) + z(pay.fine) + z(pay.withholding) + z(pay.arDeduct)
+                    + z(pay.advanceDeduct) + z(pay.okuriDeduct) + z(pay.normPenalty)
+                  : null;
+                return (
+                <tr key={r.castId} onClick={() => setDetailCast((v) => (v === r.castId ? null : r.castId))}
+                  style={{ cursor: "pointer", background: detailCast === r.castId ? "var(--card2)" : undefined }}>
                   <td style={t.td}>
                     {/* 段0R 第2陣: モック .castcell 逐語（アバター30px・gap9・名前 bold）。表示のみ・値と並びは不変。 */}
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
@@ -436,6 +521,9 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
                     </span>
                   </td>
                   <td className="fold" style={t.td}>{r.taxMode}</td>
+                  <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{pay?.wHours != null ? `${pay.wHours}h` : "-"}</td>
+                  <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{gross != null ? gross.toLocaleString() : "-"}</td>
+                  <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: ded ? "var(--bad)" : "var(--sub)" }}>{ded ? `−${ded.toLocaleString()}` : "-"}</td>
                   {dedCell(r.arDeductTotal, r.arCarriedTotal, "fold")}
                   {dedCell(r.advDeductTotal, r.advCarriedTotal, "fold")}
                   {dedCell(r.okuriDeductTotal, undefined, "fold")}
@@ -443,9 +531,54 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
                   <td style={{ ...t.td, ...t.num, textAlign: "right", fontWeight: 700, color: "var(--v2-text)" }}>{r.net.toLocaleString()}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: r.anomalyCount ? "var(--bad)" : "var(--sub)" }}>{r.anomalyCount || "-"}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
+          {/* E8-5 payroll#3: 行タップ→個別内訳（preview breakdown の再掲＝サーバ計算値のみ・確定時は再計算が正） */}
+          {(() => {
+            const r = detailCast ? rows.find((x) => x.castId === detailCast) : null;
+            const pay = r?.breakdown?.pay;
+            if (!r || !pay) return null;
+            const z = (v: number | undefined) => v ?? 0;
+            const items: [string, number][] = [
+              ["時給（timePay）", z(pay.timePay)],
+              ["本指名バック", z(pay.honBack)], ["場内バック", z(pay.jonaiBack)], ["同伴バック", z(pay.dohanBack)],
+              ["ドリンク", z(pay.drinkBack)], ["シャンパン", z(pay.champBack)], ["ボトル", z(pay.bottleBack)],
+              ["売上スライド", z(pay.salesBack)], ["自由バック", z(pay.customTotal)],
+            ];
+            const deds: [string, number][] = [
+              ["固定控除", z(pay.fixedDed)], ["罰金", z(pay.fine)], ["源泉", z(pay.withholding)],
+              ["売掛天引き", z(pay.arDeduct)], ["前借り", z(pay.advanceDeduct)], ["送り", z(pay.okuriDeduct)],
+              ["ノルマ", z(pay.normPenalty)],
+            ];
+            return (
+              <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
+                <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 8px", color: "var(--champ)" }}>
+                  {r.castName} の内訳（プレビュー参考値）
+                </p>
+                <div style={{ display: "flex", gap: 18, flexWrap: "wrap", fontSize: 12.5 }}>
+                  <div>
+                    {items.filter(([, v]) => v !== 0).map(([l, v]) => (
+                      <div key={l} style={{ display: "flex", justifyContent: "space-between", gap: 16, minWidth: 200 }}>
+                        <span style={{ color: "var(--sub)" }}>{l}</span><span className="num">¥{v.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    {deds.filter(([, v]) => v !== 0).map(([l, v]) => (
+                      <div key={l} style={{ display: "flex", justifyContent: "space-between", gap: 16, minWidth: 200 }}>
+                        <span style={{ color: "var(--sub)" }}>{l}</span><span className="num" style={{ color: "var(--bad)" }}>−¥{v.toLocaleString()}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16, minWidth: 200, marginTop: 4, fontWeight: 800 }}>
+                      <span>差引支給</span><span className="num" style={{ color: "var(--v2-text)" }}>¥{r.net.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           {/* 複数キャスト表の「締め」＝合計バー。段0R 第3陣: 金ベタ地＋黒文字（t.slipFoot 共用）をやめ、
               panel 地＋白太金額へ＝金は選択・主ボタン・バッジの3役のみの裁定に一致。
               ★合計値と行数の式は不変。t.slipFoot 自体は非改変＝payslip 帳票（ps-foot・

@@ -19,6 +19,8 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
   const [amt, setAmt] = useState<Record<string, string>>({});
   const [pdate, setPdate] = useState<Record<string, string>>({});
   const [pmethod, setPmethod] = useState<Record<string, string>>({});
+  // E8-5 payroll#8: 管理メモ（route/RPC は p_note を既に受ける＝入力欄の欠落だけを埋める）
+  const [pnote, setPnote] = useState<Record<string, string>>({});
   // 冪等キー（cast 単位で保持）。サーバ応答を受け取るまで同一キーを再利用＝ネットワーク断のリトライで二重挿入を防ぐ。
   const [idemKeys, setIdemKeys] = useState<Record<string, string>>({});
 
@@ -68,7 +70,7 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
       const res = await fetch("/api/payment/record", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ runId, castId, amount, paidAt, method: pmethod[castId] || null, idemKey }),
+        body: JSON.stringify({ runId, castId, amount, paidAt, method: pmethod[castId] || null, note: pnote[castId] || null, idemKey }),
       });
       const j = await res.json();
       if (!res.ok) {
@@ -78,6 +80,7 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
       }
       rotate(); // 成功＝挿入確定 → 次の別支払いは新キー
       setAmt((s) => ({ ...s, [castId]: "" }));
+      setPnote((s) => ({ ...s, [castId]: "" }));
       await load();
     } catch (e) {
       // 応答なし（ネットワーク断）＝帰結不明 → キーは保持（再送すると同一キーで dedupe＝二重記録なし）
@@ -141,6 +144,13 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
                           placeholder="方法(振込等)"
                           onChange={(e) => setPmethod((s) => ({ ...s, [l.castId]: e.target.value }))}
                           style={{ ...t.input, width: 90 }}
+                        />
+                        <input
+                          value={pnote[l.castId] ?? ""}
+                          placeholder="メモ（任意）"
+                          maxLength={200}
+                          onChange={(e) => setPnote((s) => ({ ...s, [l.castId]: e.target.value }))}
+                          style={{ ...t.input, width: 130 }}
                         />
                         <button onClick={() => record(l.castId, remaining)} disabled={busy} style={{ ...t.btnGold, ...t.btnSm }}>記録</button>
                       </span>
