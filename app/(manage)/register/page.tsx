@@ -24,7 +24,8 @@ export default async function RegisterPage() {
     // mig0081: sort_order＝カテゴリ内の並び順（groupProducts が sort_order→name で並べる）。
     //   ★従来は .order("type") のみでカテゴリ内が実質不定だった。並びの決定は client 側
     //     （groupProducts）に一本化する＝kiosk（0059/0063 の RPC 経由）と同じ並び規則になる。
-    .select("id, name, type, price, category_id, reorder_point, sort_order")
+    // E8-1 #8: back_exempt_from_split＝キャストドリンク対象のタップ時判定（mig0069 の列・表示判定のみ）。
+    .select("id, name, type, price, category_id, reorder_point, sort_order, back_exempt_from_split")
     .eq("is_active", true)
     .order("type");
   const { data: categories } = await supabase

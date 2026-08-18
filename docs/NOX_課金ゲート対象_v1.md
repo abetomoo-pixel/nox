@@ -10,6 +10,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 - ★**mig0089 追随（2026-08-18）**: `check_extension_add` 新設（manual 店の延長行＝金銭記録の作成・
   kiosk 腕あり・規則A形でゲート内蔵）→ **対象 88 本**へ改訂。live 実測＝'billing locked' **88**・
   'billing_writable_of' **89**。全数 = A 88 ＋ B 83 ＝ **171**（live pg_proc 171 定義と一致）。
+- ★**mig0090 追随（2026-08-18）**: `check_set_people` 新設（開卓後の人数修正＝金銭記録の改変・
+  kiosk 腕あり・規則A形でゲート内蔵）→ **対象 89 本**へ改訂。live 実測＝'billing locked' **89**・
+  'billing_writable_of' **90**。全数 = A 89 ＋ B 83 ＝ **172**（live pg_proc 172 定義と一致）。
 
 ## 作業版ヘッダ（v1.2・履歴として保持）
 
@@ -32,14 +35,15 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 - 補助基準（v1 起案時・裁定で維持）: B-補1=専用縮退 RPC（*_deactivate）は除外（セキュリティ）／B-補2=kiosk_login/logout は除外（打刻導線）／A-補1=汎用 set_*（is_active トグル内包）は対象。
 - ★付随裁定: **open のまま失効を跨いだ伝票の check_pay / check_close もゲート対象**（read-only の徹底＝失効中は決済・是正とも不能・閲覧のみ。writable 復帰後に処理する）。
 
-## A. 対象（88本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
+## A. 対象（89本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
 
-### A1. レジ・会計（18本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
+### A1. レジ・会計（19本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
 check_open[K] / check_add_line[K] / check_remove_line[K] / check_add_seat[K] / check_remove_seat[K] /
 check_move_seat[K] / check_set_nominations[K] / check_time_charge_apply[K] / check_shimei_add[K] /
 check_dohan_add[K] / check_pay[K] / check_close[K] / **check_void**（裁定D1＝金銭記録の改変） /
 approval_request / approval_direct / approval_decide / bottle_keep_register[K] /
-**check_extension_add[K]**（mig0089 新設＝manual 店の延長行の作成・ゲートは mig 本文に内蔵）
+**check_extension_add[K]**（mig0089 新設＝manual 店の延長行の作成・ゲートは mig 本文に内蔵） /
+**check_set_people[K]**（mig0090 新設＝開卓後の人数修正・ゲートは mig 本文に内蔵）
 
 ### A2. ドリンク申告（4本）
 drink_claim_submit / drink_claim_submit_proxy / drink_claim_decide /
@@ -135,10 +139,11 @@ staff_deactivate / kiosk_deactivate
 |---|---|
 | set_cast_photo_updated_at（mig0065） | **事実記録**（Storage への写真アップロード完了を casts.photo_updated_at に打刻するだけ。金銭・営業・拡大のいずれでもない）。★構造的補強＝**この RPC を塞いでも写真の書込自体は止まらない**（実体の書込は Storage ポリシー cast_photos_insert/update が支配）。ゲートすると「ファイルは差し替わったのに打刻だけ古い」＝キャッシュバスティングが壊れた不整合を作るだけで「書けない」を達成しない。写真の真の遮断は Storage ポリシー側の課題＝v1 スコープ外（post-launch）。**※相談役へ**: 対象（A10 staff_update_profile と同じ「プロフィール改変」と読む）へ反転する余地はある。反転する場合は Storage ポリシー側の同時ゲートが前提。 |
 
-## C. kiosk 腕を持つ対象（実装注意・14本）
+## C. kiosk 腕を持つ対象（実装注意・15本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /
-check_pay / check_close ＋ bottle_keep_register ＋ check_extension_add（mig0089）。
+check_pay / check_close ＋ bottle_keep_register ＋ check_extension_add（mig0089）＋
+check_set_people（mig0090）。
 （check_void は kiosk 腕なし＝manager 経路のみ。挿入は同じく billing_writable_of(v_org)）
 挿入は **billing_writable_of(v_org)**（引数版・auth 非依存）＝kiosk 腕でも v_org は 0057(2) で確定済み・罠なし。
 段47 (4) で kiosk 腕 locked 拒否を実測。
@@ -146,6 +151,7 @@ check_pay / check_close ＋ bottle_keep_register ＋ check_extension_add（mig00
 ## D. 保留 — なし（16本全て裁定済み・v1.1 で解消）
 
 ## E. 全数照合（live 実体との突合済み）
-A **88** ＋ B **83** ＝ **171** ＝ live pg_proc 実列挙（171 定義・overload ゼロ・mig0089 後）と**完全一致**。
+A **89** ＋ B **83** ＝ **172** ＝ live pg_proc 実列挙（172 定義・overload ゼロ・mig0090 後）と**完全一致**。
 重複なし・未仕分けなし・保留ゼロ。照合は機械実行（live 名集合 ⊖ リスト名集合 = ∅ を双方向で確認）。
-（v1 起草時は A 87＋B 83＝170。mig0089 の check_extension_add 追加で 171 へ＝上記ヘッダ 0089 追随を参照）
+（v1 起草時は A 87＋B 83＝170。mig0089 check_extension_add で 171・mig0090 check_set_people で 172 へ
+＝上記ヘッダの各追随を参照）

@@ -18,6 +18,7 @@ import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
+import CastPicker from "@/components/ui/cast-picker";
 
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
 type StateSeat = { id: string; name: string; kind: string | null };
@@ -794,29 +795,28 @@ export default function KioskRegisterPage() {
                       <option value="dohan">同伴</option>
                       <option value="free">フリー</option>
                     </select>
-                    {/* 段B: cast チップ化（タップで選択トグル・重みは選択時のみ inline input＝データ形 nomWeights は不変） */}
-                    {(state?.casts ?? []).map((ca) => {
-                      const w = nomWeights[ca.id] ?? 0;
-                      const on = w > 0;
-                      return (
-                        <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <button
-                            type="button"
-                            className={on ? "nox-chip on" : "nox-chip"}
-                            onClick={() => setNomWeights((prev) => ({ ...prev, [ca.id]: on ? 0 : 1 }))}
-                          >
-                            {ca.name}
-                          </button>
-                          {on && nomType !== "free" && (
-                            <input
-                              type="number" min={1} value={w} aria-label={`${ca.name} 重み`}
-                              onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
-                              style={{ ...input, width: 46, padding: "6px 6px" }}
-                            />
-                          )}
-                        </span>
-                      );
-                    })}
+                  </div>
+                  {/* E8-1 ⑤（register-board 同型）: 按分チップ → CastPicker（検索・グリッド・着卓中先頭）。
+                      kiosk は写真署名と punches が読めない＝頭文字アバター・出勤バッジなしで自動縮退。
+                      タップ＝選択トグル（重み 0⇔1）＝データ形 nomWeights と saveNoms の送る引数は不変。 */}
+                  <CastPicker
+                    casts={state?.casts ?? []}
+                    seatedIds={new Set(Object.entries(nomWeights).filter(([, w]) => w > 0).map(([id]) => id))}
+                    selectedIds={new Set(Object.entries(nomWeights).filter(([, w]) => w > 0).map(([id]) => id))}
+                    dense
+                    onPick={(id) => setNomWeights((prev) => ({ ...prev, [id]: (prev[id] ?? 0) > 0 ? 0 : 1 }))}
+                  />
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+                    {nomType !== "free" && (state?.casts ?? []).filter((ca) => (nomWeights[ca.id] ?? 0) > 0).map((ca) => (
+                      <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12.5 }}>
+                        {ca.name}
+                        <input
+                          type="number" min={1} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} 重み`}
+                          onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
+                          style={{ ...input, width: 46, padding: "6px 6px" }}
+                        />
+                      </span>
+                    ))}
                     <button onClick={() => void saveNoms()} style={btnDark}>保存</button>
                   </div>
                 </div>

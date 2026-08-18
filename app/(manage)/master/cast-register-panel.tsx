@@ -97,13 +97,25 @@ export default function CastRegisterPanel({
                 <tr key={r.id} style={{ borderBottom: "1px solid var(--line)" }}>
                   <td style={{ padding: 6, fontWeight: 700, whiteSpace: "nowrap" }}>{r.name}</td>
                   <td style={{ padding: 6, textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={r.canRegister}
-                      disabled={busy || !r.membershipId}
-                      onChange={() => void toggleCast(r)}
-                      style={{ accentColor: "var(--gold)", cursor: "pointer" }}
-                    />
+                    {/* E8-1 M7 是正（E8 裁定 §4-1）: membership が無い＝can_register の書き先が無い（防御は正）。
+                        従来は disabled のみで理由が出ず「押しても無反応」に見えた。黙って無反応は禁止＝
+                        未招待バッジ＋招待導線（/casts）を明示する。 */}
+                    {r.membershipId ? (
+                      <input
+                        type="checkbox"
+                        checked={r.canRegister}
+                        disabled={busy}
+                        onChange={() => void toggleCast(r)}
+                        style={{ accentColor: "var(--gold)", cursor: "pointer" }}
+                      />
+                    ) : (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+                        <span style={{ ...t.tag, color: "var(--sub)", borderColor: "var(--line2)" }}>未招待</span>
+                        <a href="/casts" style={{ fontSize: 11.5, color: "var(--gold2)" }}>
+                          キャスト管理で招待すると設定できます →
+                        </a>
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

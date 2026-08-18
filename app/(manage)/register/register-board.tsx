@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { groupDue, timeStatusOf } from "@/lib/nox/check-calc";
+import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
+import CastPicker from "@/components/ui/cast-picker";
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
@@ -18,7 +20,7 @@ type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
 // 段R2: reorder_point＝低在庫「残N」のしきい（null=しきい無し＝表示しない）
 // mig0081: sort_order＝カテゴリ内の並び順（groupProducts が sort_order→name で並べる）。
-type Product = { id: string; name: string; type: string; price: number; category_id: string | null; reorder_point: number | null; sort_order: number };
+type Product = { id: string; name: string; type: string; price: number; category_id: string | null; reorder_point: number | null; sort_order: number; back_exempt_from_split: boolean | null };
 type Category = { id: string; name: string; sort_order: number };
 type Cast = { id: string; name: string; photo_updated_at: string | null };
 // B1/B2（mig0053）: 追加席の占有行（伝票の追加席一覧・フロアの「同一会計」表示に使う）
@@ -181,6 +183,20 @@ export default function RegisterBoard({
   const [openSeatTarget, setOpenSeatTarget] = useState<Seat | null>(null);
   const [openPeople, setOpenPeople] = useState("");
   const [openBusy, setOpenBusy] = useState(false);
+  // E8-1 ⑤: 「本日出勤」＝最終打刻が 'in' のキャスト（直近20h の punches・表示順とバッジのみの近似）。
+  //   RLS は自店スコープ＝直 SELECT 可。金額・按分・RPC には一切関与しない。
+  const [todayIds, setTodayIds] = useState<Set<string>>(new Set());
+  // E8-1 #8/⑤: キャストドリンクの対象指定モーダル（product=タップ時・line=明細行の後付け）
+  const [drinkPick, setDrinkPick] = useState<{ mode: "line"; lineId: string } | { mode: "product"; product: Product } | null>(null);
+  // E8-1 ④: 入金モーダル（BANZEN register-table.tsx:360-483 写経・NOX 4値）
+  const [payModal, setPayModal] = useState(false);
+  // E8-1 #9: 人数±（check_set_people・mig0090）
+  const [peopleBusy, setPeopleBusy] = useState(false);
+  const [peopleMsg, setPeopleMsg] = useState<string | null>(null);
+  // E8-1 ⑦: 「＋会計を分ける」で作った未使用グループ（明細に載れば knownGroups へ自然合流）
+  const [extraGroups, setExtraGroups] = useState<string[]>([]);
+  // E8-1 ⑥: 卓起点予約（開卓モーダル→「予約を入れる」→予約タブへ卓プリフィル）
+  const [reservePrefillSeat, setReservePrefillSeat] = useState<string | null>(null);
   const [checkSeats, setCheckSeats] = useState<CheckSeatRow[]>([]);
   const [seatMsg, setSeatMsg] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckRow | null>(null);
@@ -189,7 +205,7 @@ export default function RegisterBoard({
   // キャストドリンク（mig0066/0067）: この伝票の確定済み claim（line_id → claim）と、
   //   キャスト選択を開いている行（null=閉）。どちらも表示状態のみ＝money 導線は RPC が権威。
   const [claims, setClaims] = useState<DrinkClaim[]>([]);
-  const [claimPick, setClaimPick] = useState<string | null>(null);
+  // E8-1 ⑤: 行内 select（旧 claimPick）は CastPicker モーダル（drinkPick）へ置換＝state 撤去
   const [claimMsg, setClaimMsg] = useState<string | null>(null);
   // 料金UIレーン C4（mig0084）: 指名料・同伴料の課金行（check_shimei_add / check_dohan_add）。
   //   按分（check_set_nominations）とは別概念＝別カード・別 state。額のプレビューは出さない
@@ -335,7 +351,7 @@ export default function RegisterBoard({
     setCheck(c as CheckRow);
     setLines((ls ?? []) as Line[]);
     setClaims((dcs ?? []) as DrinkClaim[]);
-    setClaimPick(null);
+    setDrinkPick(null); // E8-1 ⑤: 伝票再読込時はモーダルを閉じる（旧 claimPick と同じ生存期間）
     setPayments((ps ?? []) as Payment[]);
     setNoms((ns ?? []) as Nom[]);
     setApprovals((aps ?? []) as Approval[]);
@@ -362,6 +378,21 @@ export default function RegisterBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { void loadStock(); }, [loadStock]);
+
+  // E8-1 ⑤: 本日出勤の近似（最終打刻 'in'）。読取1本・表示専用。
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const since = new Date(Date.now() - 20 * 3600_000).toISOString();
+      const { data } = await supabase.from("punches")
+        .select("cast_id, type, punched_at").gte("punched_at", since).order("punched_at");
+      const last = new Map<string, string>();
+      for (const p of data ?? []) last.set(p.cast_id as string, p.type as string);
+      if (alive) setTodayIds(new Set([...last].filter(([, ty]) => ty === "in").map(([id]) => id)));
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 段P: キャスト写真の署名 URL（写真ありの行だけ 1 リクエスト・失敗時は頭文字に落ちるだけ）
   useEffect(() => {
@@ -573,6 +604,56 @@ export default function RegisterBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dtab, check, timeMode, payments]);
 
+  // E8-1 #9（mig0090）: 開卓後の人数修正。person 制は set 行をサーバが即時追随・
+  //   auto 店の延長側は次回 apply が再計算＝autoTimeKeyRef をリセットして会計タブ再入場で再反映させる。
+  async function setPeopleN(next: number | null) {
+    if (!check || peopleBusy) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setPeopleMsg(null);
+    setPeopleBusy(true);
+    const { error } = await supabase.rpc("check_set_people", { p_check_id: check.id, p_people: next });
+    setPeopleBusy(false);
+    if (error) {
+      const m = error.message ?? "";
+      setPeopleMsg(
+        m.includes("bad people") ? "人数は1以上で指定してください"
+          : m.includes("has payments") ? "入金後は人数を変更できません（訂正は取消から）"
+          : m.includes("not open") ? "この伝票は締められています"
+          : m.includes("billing locked") ? "ご利用プランの制限で更新できません（管理者にご確認ください）"
+          : m.includes("forbidden") ? "権限がありません" : m);
+      return;
+    }
+    autoTimeKeyRef.current = null; // 会計タブ再入場で時間料金を現人数へ再反映（0090 設計の app 側前提）
+    await loadCheck(check.id);
+    await loadOpenMap();
+  }
+
+  // E8-1 #8: キャストドリンク対象商品のタップ時指定＝1杯1行で追加→直後に claim を紐付け。
+  //   「指定しないで追加」は従来の連打束ね経路（tb.tap）＝未指定のまま会計も現行どおり可（ブロックしない）。
+  async function addExemptWithCast(p: Product, castId: string) {
+    if (!check || claimBusy) return;
+    setClaimBusy(true);
+    if (!(await tb.flush())) { setClaimBusy(false); return; }
+    setClaimMsg(null);
+    const { error } = await supabase.rpc("check_add_line", {
+      p_check_id: check.id, p_product_id: p.id, p_qty: 1, p_kind: null,
+      p_pay_group: prodGroup || "A", p_name: null, p_unit_price: null,
+    });
+    if (error) { setMsg(error.message); setClaimBusy(false); return; }
+    // 直近に追加した当該商品の行へ紐付け（claims の無い最新行＝1杯1行なので一意に決まる）
+    const { data: ls } = await supabase.from("check_lines").select("id")
+      .eq("check_id", check.id).eq("product_id", p.id)
+      .order("created_at", { ascending: false }).limit(3);
+    const claimed = new Set(claims.map((c) => c.check_line_id));
+    const lineId = (ls ?? []).map((l) => l.id as string).find((id) => !claimed.has(id));
+    if (lineId) {
+      const { error: e2 } = await supabase.rpc("drink_claim_submit_proxy", { p_line_id: lineId, p_cast_id: castId });
+      if (e2) setClaimMsg(claimErrJa(e2.message));
+    }
+    setClaimBusy(false);
+    await loadCheck(check.id);
+  }
+
   // B1/B2（mig0053）: 予約 soft 警告（裁定 d・拒否しない）。当日・booked・seat 一致の最小クエリ。
   //   RLS で reservations が読めない role（staff/cast）は data=null→警告なしで続行（エラーにしない）。
   async function reservedNote(seatId: string): Promise<string> {
@@ -623,9 +704,10 @@ export default function RegisterBoard({
     await loadCheck(check.id);
   }
 
-  async function pay() {
-    if (!check) return;
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止・入金前提）
+  // E8-1 ④: モーダルから呼ぶため成功可否を返す（送る引数は不変・失敗時はモーダルを閉じない）
+  async function pay(): Promise<boolean> {
+    if (!check) return false;
+    if (!(await tb.flush())) return false; // money 系: 保留を先に確定（失敗＝中止・入金前提）
     setMsg(null);
     // F4c: detail は card/other のときだけ送る（空/空白のみは null＝RPC 側も nullif(trim()) で二重に守る）
     const detail = DETAIL_METHODS.has(payMethod) && payDetail.trim() ? payDetail.trim() : null;
@@ -637,9 +719,9 @@ export default function RegisterBoard({
       p_method_detail: detail,
     });
     setMsg(error ? error.message : "入金しました");
-    setPayTendered("");
-    setPayDetail("");
+    if (!error) { setPayTendered(""); setPayDetail(""); }
     await loadCheck(check.id);
+    return !error;
   }
 
   async function closeCheck() {
@@ -727,6 +809,43 @@ export default function RegisterBoard({
   // 割引申請フォームの上限＝選択 group の割引前小計（既存 discount を除いた bx）
   const apGroupBx = groupInfo.find((gi) => gi.g === apGroup)?.bx ?? 0;
 
+  // ── E8-1 ⑦「会計分け」: 3箇所に散っていた英字テキスト入力をセグメント統一 ──
+  //   既知グループ＝明細の実在 group ∪ A ∪ 「＋会計を分ける」で作った未使用グループ。
+  //   ★pay_group の意味・送る引数は不変＝入力 UI の置換のみ（分割会計の実体は従来どおり行単位）。
+  const groupChoices = Array.from(new Set(["A", ...groups, ...extraGroups])).sort();
+  const splitOn = groupChoices.length > 1;
+  function addSplitGroup(apply: (g: string) => void) {
+    for (let i = 0; i < 26; i++) {
+      const g = String.fromCharCode(65 + i);
+      if (!groupChoices.includes(g)) { setExtraGroups((xs) => [...xs, g]); apply(g); return; }
+    }
+  }
+  const groupSeg = (value: string, onChange: (g: string) => void) => (
+    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      {splitOn && (
+        <span className="nox-seg" style={{ display: "inline-flex" }}>
+          {groupChoices.map((g) => (
+            <button key={g} type="button" className={value === g ? "on" : ""}
+              style={{ fontWeight: 800, fontSize: 12, padding: "6px 12px" }}
+              onClick={() => onChange(g)}>
+              会計{g}
+            </button>
+          ))}
+        </span>
+      )}
+      <button type="button" style={{ ...btnLight, fontSize: 11.5 }}
+        onClick={() => addSplitGroup(onChange)}>
+        ＋会計を分ける
+      </button>
+    </span>
+  );
+
+  // E8-1 ⑤: 着卓中（この伝票の按分重み>0）＝CastPicker の先頭グループ＋バッジ
+  const seatedIds = new Set(Object.entries(nomWeights).filter(([, w]) => w > 0).map(([id]) => id));
+  // E8-1 #14: 分配プレビュー（表示計算のみ・按分の権威は check_set_nominations→payOf 側で不変）
+  const nomSelected = casts.filter((ca) => (nomWeights[ca.id] ?? 0) > 0);
+  const nomTotalW = nomSelected.reduce((a, ca) => a + (nomWeights[ca.id] ?? 0), 0);
+
   // タブセグメント（E5a: inline 再発明 segBtn を共通部品 .nox-seg へ。POS のタップ標的維持で
   // flex:1 / fontSize 13 / padding 9px 10px のみローカル上書き＝旧リテラル #1F1B12/#14120C を廃止）
   const segLocal: React.CSSProperties = { flex: 1, fontWeight: 800, fontSize: 13, padding: "9px 10px" };
@@ -744,7 +863,12 @@ export default function RegisterBoard({
       )}
 
       {tab === "reserve" && showReserve ? (
-        <ReservationPanel storeId={storeId} seats={seats} casts={casts} />
+        <ReservationPanel
+          storeId={storeId} seats={seats} casts={casts}
+          photoUrls={photoUrls} todayIds={todayIds}
+          prefillSeatId={reservePrefillSeat}
+          onPrefillConsumed={() => setReservePrefillSeat(null)}
+        />
       ) : (
     /* 動線改修v3（案B・選択駆動ビュー切替）: 正本 nox-register-mock-planB-viewswitch.html。
        ★state は既存の check 1本のみ＝URL 遷移なし・伝票 state も連打束ね 700ms も会計 RPC も不変。
@@ -767,14 +891,162 @@ export default function RegisterBoard({
               style={{ ...t.input, width: 110, display: "block", marginTop: 5 }}
             />
           </label>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
             <button style={btnLight} disabled={openBusy} onClick={() => setOpenSeatTarget(null)}>やめる</button>
+            {/* E8-1 ⑥: 卓起点予約＝この卓をプリフィルして予約タブへ（reserve タブが出せるロールのみ） */}
+            {showReserve && (
+              <button style={btnLight} disabled={openBusy}
+                onClick={() => {
+                  setReservePrefillSeat(openSeatTarget.id);
+                  setOpenSeatTarget(null);
+                  setTab("reserve");
+                }}>
+                予約を入れる
+              </button>
+            )}
             <button style={{ ...t.btnGold, fontWeight: 800 }} disabled={openBusy} onClick={() => void confirmOpenSeat()}>
               開卓（セット開始）
             </button>
           </div>
         </Modal>
       )}
+      {/* ── E8-1 ⑤/#8: キャストドリンクの対象指定モーダル（タップ時＝product／行の後付け＝line）── */}
+      {drinkPick && (
+        <Modal onClose={() => { if (!claimBusy) setDrinkPick(null); }} scroll>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 6px" }}>
+            {drinkPick.mode === "product" ? `${drinkPick.product.name} を付けるキャスト` : "この明細を付けるキャスト"}
+          </h3>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
+            キャストドリンクの帰属先を選びます（バック額は行の凍結値からサーバが計算）。
+          </p>
+          <CastPicker
+            casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
+            onPick={(id) => {
+              const dp = drinkPick;
+              setDrinkPick(null);
+              if (dp.mode === "product") void addExemptWithCast(dp.product, id);
+              else void claimAssign(dp.lineId, id);
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+            {drinkPick.mode === "product" && (
+              <button style={btnLight} disabled={claimBusy}
+                onClick={() => { const p = drinkPick.product; setDrinkPick(null); tb.tap(p.id); }}>
+                指定しないで追加
+              </button>
+            )}
+            <button style={btnLight} disabled={claimBusy} onClick={() => setDrinkPick(null)}>閉じる</button>
+          </div>
+        </Modal>
+      )}
+      {/* ── E8-1 ④: 入金モーダル（BANZEN register-table.tsx:360-483 写経・NOX 4値＋detail・
+             均等割り2〜6＝ceil(残額÷N) をセットするだけ・お預かりプリセット・お釣り・不足ガード）── */}
+      {payModal && check && (() => {
+        const g = payGroup || "A";
+        const gi = groupInfo.find((x) => x.g === g);
+        const due = gi?.due ?? 0;
+        const paid = gi?.paid ?? 0;
+        const balance = gi?.remaining ?? 0;
+        const amtValid = Number.isInteger(payAmount) && payAmount > 0;
+        const tnum = payTendered.trim() === "" ? null : Number(payTendered);
+        const change = payMethod === "cash" && tnum != null && Number.isFinite(tnum) && amtValid ? tnum - payAmount : null;
+        const insufficient = payMethod === "cash" && tnum != null && Number.isFinite(tnum) && amtValid && tnum < payAmount;
+        const presets = Array.from(new Set([
+          amtValid ? payAmount : 0,
+          Math.ceil((amtValid ? payAmount : 0) / 1000) * 1000,
+          Math.ceil((amtValid ? payAmount : 0) / 5000) * 5000,
+          10000,
+        ])).filter((v) => amtValid && v >= payAmount).sort((a, b) => a - b).slice(0, 4);
+        return (
+          <Modal onClose={() => setPayModal(false)} scroll>
+            <h3 style={{ ...t.cardTitle, margin: "0 0 10px" }}>入金{splitOn ? `（会計${g}）` : ""}</h3>
+            {/* 合計／既入金／残額 */}
+            <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
+                <span>請求（サ料込）</span><span style={t.num}>{yen(due)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
+                <span>既入金</span><span style={t.num}>{yen(paid)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontWeight: 800 }}>残額</span>
+                <span style={{ ...t.num, fontSize: 20, fontWeight: 900, color: balance > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(balance)}</span>
+              </div>
+            </div>
+            {/* 支払方法（NOX 4値・台帳#36） */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+              {Object.entries(METHOD_LABEL).map(([v, l]) => (
+                <button key={v} type="button"
+                  style={payMethod === v ? { ...t.btnGold, justifyContent: "center", padding: "12px" } : { ...t.btnGhost, justifyContent: "center", padding: "12px" }}
+                  onClick={() => { setPayMethod(v); if (!DETAIL_METHODS.has(v)) setPayDetail(""); }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {/* 均等割り（案イ）: 押すと入金額に ceil(残額÷N) をセットするだけ。先払いが ceil 額・
+                最後の人は残額既定で少なく払う＝Σpayments ≥ due を必ず満たす（切り上げで不足しない） */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              <span style={{ fontSize: 12, color: "var(--sub)", fontWeight: 700 }}>均等割り</span>
+              {[2, 3, 4, 5, 6].map((n) => (
+                <button key={n} type="button" style={{ ...btnLight }} disabled={balance <= 0}
+                  onClick={() => setPayAmount(Math.ceil(balance / n))}>
+                  {n}分割
+                </button>
+              ))}
+              <span style={{ fontSize: 10.5, color: "var(--sub)", width: "100%", lineHeight: 1.6 }}>
+                1人分＝残額÷人数（切り上げ）をセット。最後の人は残額のまま（端数は最後が少なく）。
+              </span>
+            </div>
+            {/* 入金額（既定＝残額・部分入金は減らす） */}
+            <label style={{ ...t.fieldLabel, display: "block", marginBottom: 10 }}>
+              入金額
+              <input type="number" min={1} step={1} value={payAmount}
+                onChange={(e) => setPayAmount(Number(e.target.value))}
+                style={{ ...t.input, display: "block", marginTop: 5 }} inputMode="numeric" />
+              <span style={{ fontSize: 11, color: "var(--sub)", marginTop: 4, display: "block", lineHeight: 1.6 }}>
+                既定は残額（{yen(balance)}）。一部だけ受け取るときは金額を減らしてください。
+              </span>
+            </label>
+            {payMethod === "cash" && (
+              <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
+                <label style={{ ...t.fieldLabel, display: "block", marginBottom: 8 }}>
+                  お預かり
+                  <input type="number" min={0} step={1} value={payTendered}
+                    onChange={(e) => setPayTendered(e.target.value)}
+                    placeholder={amtValid ? String(payAmount) : ""}
+                    style={{ ...t.input, display: "block", marginTop: 5 }} inputMode="numeric" />
+                </label>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                  {presets.map((p) => (
+                    <button key={p} type="button" style={btnLight} onClick={() => setPayTendered(String(p))}>
+                      {amtValid && p === payAmount ? "ちょうど" : yen(p)}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span style={{ fontSize: 13, color: "var(--sub)" }}>お釣り</span>
+                  <span style={{ ...t.num, fontSize: 20, fontWeight: 800, color: insufficient ? "var(--bad)" : "var(--ok)" }}>
+                    {change == null ? "—" : insufficient ? "不足" : yen(change)}
+                  </span>
+                </div>
+              </div>
+            )}
+            {/* F4c: 手段内訳（card/other のみ・突合用メモ＝金額・集計には一切影響しない） */}
+            {DETAIL_METHODS.has(payMethod) && (
+              <input placeholder="内訳（任意）例: stera端末 / PayPay" value={payDetail} maxLength={50}
+                onChange={(e) => setPayDetail(e.target.value)}
+                style={{ ...t.input, marginBottom: 12 }} />
+            )}
+            {msg && <p style={{ fontSize: 12, fontWeight: 700, color: msg === "入金しました" ? "var(--ok)" : "var(--bad)", margin: "0 0 10px" }}>{msg}</p>}
+            <button
+              style={{ ...t.btnGold, width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 900, justifyContent: "center" }}
+              disabled={!amtValid || insufficient}
+              onClick={async () => { const ok = await pay(); if (ok) setPayModal(false); }}>
+              入金する（{amtValid ? yen(payAmount) : "—"}）
+            </button>
+          </Modal>
+        );
+      })()}
       {check ? (
       /* ── 伝票ビュー（全面）── */
       <div className="nox-checkview">
@@ -782,7 +1054,28 @@ export default function RegisterBoard({
         <div className="nox-backbar">
           <button type="button" className="nox-backbtn" onClick={() => void closeDetail()}>← フロア</button>
           <span className="t">{seats.find((s) => s.id === check.seat_id)?.name}</span>
+          {/* E8-1 #11: 席種バッジ（モック seatbadge・seats.kind は取得済み） */}
+          {(() => {
+            const kind = seats.find((s) => s.id === check.seat_id)?.kind;
+            return kind ? <span style={{ ...t.tag, color: "var(--sub)", borderColor: "var(--line2)" }}>{kind}</span> : null;
+          })()}
           <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{NOM_LABEL[check.nom_type]}</span>
+          {/* E8-1 #9（mig0090）: 人数±カウンタ。入金後はサーバ拒否＝ボタンも無効化して意図を明示 */}
+          {check.status === "open" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <button type="button" style={{ ...btnLight, padding: "2px 9px", fontWeight: 800 }}
+                disabled={peopleBusy || payments.length > 0 || (check.people ?? 0) <= 1}
+                onClick={() => void setPeopleN(Math.max(1, (check.people ?? 1) - 1))}
+                aria-label="人数を減らす">−</button>
+              <span className="num" style={{ fontSize: 13, fontWeight: 700, minWidth: 34, textAlign: "center" }}>
+                {check.people != null ? `${check.people}名` : "—名"}
+              </span>
+              <button type="button" style={{ ...btnLight, padding: "2px 9px", fontWeight: 800 }}
+                disabled={peopleBusy || payments.length > 0}
+                onClick={() => void setPeopleN((check.people ?? 0) + 1)}
+                aria-label="人数を増やす">＋</button>
+            </span>
+          )}
           {check.status === "open" && (
             <span className="stay">滞在 <span className="num">{elapsedMin(check.started_at, nowMs)}</span> 分</span>
           )}
@@ -807,6 +1100,7 @@ export default function RegisterBoard({
             </button>
           )}
         </div>
+        {peopleMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "6px 0 0" }}>{peopleMsg}</p>}
 
         {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。 */}
         <div className="nox-dtabs">
@@ -822,38 +1116,63 @@ export default function RegisterBoard({
         {dtab === "nom" && (<>
         <div className="nox-cardtop" style={card}>
           <h3 style={t.cardTitle}>指名（重み比で分配）</h3>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
             <select value={nomType} onChange={(e) => setNomType(e.target.value)} style={input}>
               <option value="hon">本指名</option>
               <option value="jonai">場内</option>
               <option value="dohan">同伴</option>
               <option value="free">フリー</option>
             </select>
-            {/* 段B: cast チップ化（タップで選択トグル・重みは選択時のみ inline input＝データ形 nomWeights は不変） */}
-            {casts.map((ca) => {
-              const w = nomWeights[ca.id] ?? 0;
-              const on = w > 0;
-              return (
-                <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <button
-                    type="button"
-                    className={on ? "nox-chip on" : "nox-chip"}
-                    onClick={() => setNomWeights((prev) => ({ ...prev, [ca.id]: on ? 0 : 1 }))}
-                  >
-                    {/* 段P/R2: チップのアバターを写真に（写真なしは頭文字）。押下時の挙動は不変。 */}
-                    <CastAvatar name={ca.name} url={photoUrls.get(ca.id)} variant="flat" size={22} />
+          </div>
+          {/* E8-1 ⑤: 按分チップ → CastPicker（検索・写真グリッド・着卓中→本日出勤→その他）。
+              タップ＝選択トグル（重み 0⇔1）＝データ形 nomWeights と saveNoms の送る引数は不変。 */}
+          <CastPicker
+            casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
+            selectedIds={seatedIds} dense
+            onPick={(id) => setNomWeights((prev) => ({ ...prev, [id]: (prev[id] ?? 0) > 0 ? 0 : 1 }))}
+          />
+          {/* E8-1 #14: 重み編集＋合計%＋均等配分＋分配結果プレビュー（表示計算のみ・権威は RPC→payOf 不変） */}
+          {nomSelected.length > 0 && (
+            <div className="nox-inset" style={{ marginTop: 10, padding: 10 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                {nomSelected.map((ca) => (
+                  <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12.5 }}>
                     {ca.name}
+                    {nomType !== "free" && (
+                      <input
+                        type="number" min={1} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} 重み`}
+                        onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
+                        style={{ ...input, width: 46, padding: "6px 6px" }}
+                      />
+                    )}
+                    {nomType !== "free" && nomTotalW > 0 && (
+                      <span className="num" style={{ fontSize: 11.5, color: "var(--champ)" }}>
+                        {Math.round(((nomWeights[ca.id] ?? 0) / nomTotalW) * 100)}%
+                      </span>
+                    )}
+                  </span>
+                ))}
+                {nomType !== "free" && (
+                  <button type="button" style={btnLight}
+                    onClick={() => setNomWeights((prev) => {
+                      const next = { ...prev };
+                      for (const ca of nomSelected) next[ca.id] = 1;
+                      return next;
+                    })}>
+                    均等に分配
                   </button>
-                  {on && nomType !== "free" && (
-                    <input
-                      type="number" min={1} value={w} aria-label={`${ca.name} 重み`}
-                      onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
-                      style={{ ...input, width: 46, padding: "6px 6px" }}
-                    />
-                  )}
-                </span>
-              );
-            })}
+                )}
+              </div>
+              {nomType !== "free" && nomTotalW > 0 && (
+                <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0", lineHeight: 1.7 }}>
+                  分配結果（実績・給与へ渡る比率）: {nomSelected.map((ca) =>
+                    `${ca.name} ${Math.round(((nomWeights[ca.id] ?? 0) / nomTotalW) * 100)}%`).join("・")}
+                  ／合計 100%（重み比＝金額の按分はサーバが会計時に計算）
+                </p>
+              )}
+            </div>
+          )}
+          <div style={{ marginTop: 10 }}>
             <button onClick={saveNoms} style={btnDark}>保存</button>
           </div>
         </div>
@@ -869,19 +1188,18 @@ export default function RegisterBoard({
                 ※按分の重みとは別に、伝票へ課金行を追加します。金額は料金設定
                 （時間帯・席種・キャストのランク）から自動で決まります。
               </p>
+              {/* E8-1 ⑤: 指名料の select → CastPicker（単選・タップで選択/解除） */}
+              <div style={{ marginBottom: 8 }}>
+                <CastPicker
+                  casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
+                  selectedIds={new Set(feeCast ? [feeCast] : [])} dense
+                  onPick={(id) => setFeeCast((cur) => (cur === id ? "" : id))}
+                />
+              </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-                <select value={feeCast} onChange={(e) => setFeeCast(e.target.value)}
-                  aria-label="指名料のキャスト" style={{ ...input, maxWidth: 180 }}>
-                  <option value="">キャストを選択</option>
-                  {[...casts].sort((a, b) => {
-                    const av = nomWeights[a.id] > 0 ? 0 : 1, bv = nomWeights[b.id] > 0 ? 0 : 1;
-                    return av - bv || a.name.localeCompare(b.name, "ja");
-                  }).map((ca) => (
-                    <option key={ca.id} value={ca.id}>
-                      {nomWeights[ca.id] > 0 ? `★着卓 ${ca.name}` : ca.name}
-                    </option>
-                  ))}
-                </select>
+                <span style={{ fontSize: 12, color: feeCast ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}>
+                  {feeCast ? `選択中: ${castName(feeCast)}` : "キャストを選択してください"}
+                </span>
                 <button style={btnDark} disabled={feeDisabled || !feeCast} onClick={() => void addShimeiFee("hon")}>
                   本指名料を追加
                 </button>
@@ -1008,8 +1326,8 @@ export default function RegisterBoard({
         <div className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
             <h3 style={{ ...t.cardTitle, margin: 0 }}>商品（タップで追加）</h3>
-            <span style={{ fontSize: 12, color: "var(--sub)", marginLeft: "auto" }}>伝票グループ</span>
-            <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} aria-label="伝票グループ" style={{ ...input, width: 40 }} />
+            {/* E8-1 ⑦: 英字テキスト入力 → 会計分けセグメント（A のみ時は「＋会計を分ける」だけを出す） */}
+            <span style={{ marginLeft: "auto" }}>{groupSeg(prodGroup || "A", setProdGroup)}</span>
           </div>
           {/* 純増⑦: カテゴリ別タイル（sort_order 順＋末尾に未分類）。カテゴリ未登録なら type 別へフォールバック。
               タップ＝連打束ね（700ms・p_qty=N の1行）。バッジ=pre-commit。 */}
@@ -1039,7 +1357,11 @@ export default function RegisterBoard({
                     const n = tb.badgeOf(p.id);
                     const low = lowStockOf(p);
                     return (
-                      <button key={p.id} type="button" className="nox-tile" onClick={() => tb.tap(p.id)}>
+                      <button key={p.id} type="button" className="nox-tile"
+                        onClick={() => (p.back_exempt_from_split === true
+                          // E8-1 #8: キャストドリンク対象＝タップ時にキャスト指定モーダル（指定しない追加も可）
+                          ? setDrinkPick({ mode: "product", product: p })
+                          : tb.tap(p.id))}>
                         {n > 0 && <span className="nox-tile-badge">+{n}</span>}
                         <span className="nox-tile-name">{p.name}</span>
                         <span className="nox-tile-price">{yen(p.price)}</span>
@@ -1070,8 +1392,8 @@ export default function RegisterBoard({
             </select>
             <input placeholder="名称（例 貸切料金）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
             <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
-            <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
-            <input value={cGroup} onChange={(e) => setCGroup(e.target.value)} style={{ ...input, width: 40 }} />
+            {/* E8-1 ⑦: 英字テキスト入力 → 会計分けセグメント */}
+            {groupSeg(cGroup || "A", setCGroup)}
             <button onClick={addCustomLine} style={btnDark}>追加</button>
           </div>
         </div>
@@ -1152,7 +1474,14 @@ export default function RegisterBoard({
                 const claim = claims.find((c) => c.check_line_id === l.id);
                 return (
                   <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                    <td style={{ padding: 6, color: "var(--sub)" }}>[{l.pay_group}]</td>
+                    {/* E8-1 ⑦: グループバッジ＝会計分けしているときだけ出す（A のみなら空＝視覚ノイズを増やさない） */}
+                    <td style={{ padding: 6 }}>
+                      {splitOn && (
+                        <span style={{ ...t.tag, fontSize: 10, color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>
+                          会計{l.pay_group}
+                        </span>
+                      )}
+                    </td>
                     <td style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>{l.name_snapshot}</td>
                     <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>{isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}`}</td>
                     <td style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
@@ -1173,28 +1502,13 @@ export default function RegisterBoard({
                           )}
                         </span>
                       ) : check?.status === "open" ? (
-                        claimPick === l.id ? (
-                          <select autoFocus defaultValue=""
-                            onChange={(e) => { if (e.target.value) void claimAssign(l.id, e.target.value); else setClaimPick(null); }}
-                            style={{ ...input, fontSize: 11.5, padding: "2px 6px", maxWidth: 150 }}>
-                            <option value="">キャストを選ぶ…</option>
-                            {/* 着卓中（この伝票の指名）を先頭に寄せる。選択自体は制限しない＝
-                                指名に入っていないキャストが運んだケースも実務では起きるため。 */}
-                            {[...casts].sort((a, b) => {
-                              const av = nomWeights[a.id] > 0 ? 0 : 1, bv = nomWeights[b.id] > 0 ? 0 : 1;
-                              return av - bv || a.name.localeCompare(b.name, "ja");
-                            }).map((ca) => (
-                              <option key={ca.id} value={ca.id}>
-                                {nomWeights[ca.id] > 0 ? `★着卓 ${ca.name}` : ca.name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <button onClick={() => { setClaimMsg(null); setClaimPick(l.id); }} disabled={claimBusy}
-                            style={{ ...btnLight, padding: "2px 8px", fontSize: 11.5, whiteSpace: "nowrap" }}>
-                            キャストに付ける
-                          </button>
-                        )
+                        /* E8-1 ⑤: 行内 select → CastPicker モーダル（#8 のタップ時モーダルと共用）。
+                           選択自体は制限しない＝指名外のキャストが運んだケースも実務では起きるため。 */
+                        <button onClick={() => { setClaimMsg(null); setDrinkPick({ mode: "line", lineId: l.id }); }}
+                          disabled={claimBusy}
+                          style={{ ...btnLight, padding: "2px 8px", fontSize: 11.5, whiteSpace: "nowrap" }}>
+                          キャストに付ける
+                        </button>
                       ) : null)}
                     </td>
                     <td style={{ padding: 6 }}>
@@ -1222,14 +1536,36 @@ export default function RegisterBoard({
               値は会計タブの「会計（伝票グループ別）」と同一の groupInfo（小計 bx・割引 disc・
               請求 due＝groupDue）を group 横断で合計しただけで、新しい計算ロジックは作っていない。
               合計行（.total）は白太 22px＝planA の見出し扱い。会計タブのテーブルは従来どおり残置。 */}
-          <div className="nox-sumrow"><span>小計</span><span className="num">{yen(sumBx)}</span></div>
-          <div className="nox-sumrow">
-            <span>割引</span>
-            <span className="num" style={sumDisc > 0 ? { color: "var(--bad)" } : undefined}>
-              {sumDisc > 0 ? `−${yen(sumDisc)}` : "—"}
-            </span>
-          </div>
-          <div className="nox-sumrow total"><span>合計（請求・サ料込）</span><span className="num">{yen(sumDue)}</span></div>
+          {/* E8-1 #7: モック totals の6行構成へ（セット・延長／商品・指名ほか／小計／割引／サ料・端数調整／
+              合計＋内消費税）。サ料は due−net の逆算＝丸め・端数調整込みで会計タブの請求と必ず一致。
+              内税は receipt.ts の taxOf（印刷レシートと同式）＝新しい計算は作らない。 */}
+          {(() => {
+            const timeSum = lines.filter((l) => l.kind === "time").reduce((a, l) => a + l.line_total, 0);
+            const prodSum = sumBx - timeSum;
+            const svcAndRound = sumDue - Math.max(0, sumBx - sumDisc);
+            return (
+              <>
+                <div className="nox-sumrow"><span>セット・延長</span><span className="num">{yen(timeSum)}</span></div>
+                <div className="nox-sumrow"><span>商品・指名ほか</span><span className="num">{yen(prodSum)}</span></div>
+                <div className="nox-sumrow"><span>小計</span><span className="num">{yen(sumBx)}</span></div>
+                <div className="nox-sumrow">
+                  <span>割引</span>
+                  <span className="num" style={sumDisc > 0 ? { color: "var(--bad)" } : undefined}>
+                    {sumDisc > 0 ? `−${yen(sumDisc)}` : "—"}
+                  </span>
+                </div>
+                <div className="nox-sumrow">
+                  <span>サービス料（{check.service_rate}%・端数調整込み）</span>
+                  <span className="num">{yen(svcAndRound)}</span>
+                </div>
+                <div className="nox-sumrow total"><span>合計（請求・サ料込）</span><span className="num">{yen(sumDue)}</span></div>
+                <div className="nox-sumrow" style={{ borderTop: 0 }}>
+                  <span style={{ color: "var(--sub)", fontSize: 11.5 }}>うち消費税（内税10%）</span>
+                  <span className="num" style={{ color: "var(--sub)", fontSize: 11.5 }}>{yen(taxOf(sumDue))}</span>
+                </div>
+              </>
+            );
+          })()}
         </div>
         )}
 
@@ -1261,40 +1597,29 @@ export default function RegisterBoard({
               ))}
             </tbody>
           </table>
+          {/* E8-1 ④/⑦: 1行フォーム → 会計分けセグメント（現行位置）＋入金モーダル（BANZEN 型）。
+              送る引数（check_pay の7引数）は不変＝入力 UI の置換のみ。 */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
-            <input value={payGroup} onChange={(e) => setPayGroup(e.target.value)} style={{ ...input, width: 40 }} />
-            <select
-              value={payMethod}
-              onChange={(e) => { setPayMethod(e.target.value); if (!DETAIL_METHODS.has(e.target.value)) setPayDetail(""); }}
-              style={input}
-            >
-              {Object.entries(METHOD_LABEL).map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
-              ))}
-            </select>
-            <input
-              type="number" min={1} value={payAmount}
-              onChange={(e) => setPayAmount(Number(e.target.value))}
-              style={{ ...input, width: 110 }}
-            />
-            {payMethod === "cash" && (
-              <input
-                placeholder="お預かり" value={payTendered}
-                onChange={(e) => setPayTendered(e.target.value)}
-                style={{ ...input, width: 100 }}
-              />
-            )}
-            {/* F4c: 手段内訳（任意・端末名やQR事業者名の控え＝突合用メモ。金額・集計には一切影響しない） */}
-            {DETAIL_METHODS.has(payMethod) && (
-              <input
-                placeholder="内訳（任意）例: stera端末 / PayPay"
-                value={payDetail} maxLength={50}
-                onChange={(e) => setPayDetail(e.target.value)}
-                style={{ ...input, width: 200 }}
-              />
-            )}
-            <button onClick={pay} style={btnDark}>入金</button>
+            {groupSeg(payGroup || "A", setPayGroup)}
+            {(() => {
+              const gi = groupInfo.find((x) => x.g === (payGroup || "A"));
+              const remaining = gi?.remaining ?? 0;
+              return (
+                <button
+                  style={btnDark}
+                  disabled={check.status !== "open" || remaining <= 0}
+                  title={remaining <= 0 ? "この会計の残額はありません" : ""}
+                  onClick={() => {
+                    setPayAmount(remaining);
+                    setPayTendered("");
+                    setPayDetail("");
+                    setPayModal(true);
+                  }}
+                >
+                  入金する{splitOn ? `（会計${payGroup || "A"}）` : ""}
+                </button>
+              );
+            })()}
           </div>
           {/* ★台帳 #37（裁定 2026-07-17）: void 伝票の payments は無印（status 列を持たない）＝
               日次集計は checks.status='closed' の join で自動除外・端末側の返金で端末日計も減るため突合は成立する。 */}
@@ -1391,7 +1716,9 @@ export default function RegisterBoard({
                 <div className="kind">{s.kind ?? " "}</div>
                 {cid ? (
                   <>
+                    {/* E8-1 #10: 人数（モック occupants・people は loadOpenMap で取得済み） */}
                     <div className="stay num">
+                      {openTime[s.id]?.people != null ? `${openTime[s.id].people}名 · ` : ""}
                       {openStarted[s.id] ? `滞在 ${elapsedMin(openStarted[s.id], nowMs)}分` : "使用中"}
                     </div>
                     {/* R-A4（0089）: 常時カウントダウン（両モード共通・凍結スナップのクライアント計算＝表示専用）。

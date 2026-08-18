@@ -954,16 +954,16 @@ async function main() {
            and p.proname not in ('auth_kiosk_register_store_id','kiosk_operator_list',
                                  'kiosk_register_state','kiosk_check_detail')`,
       );
-      check("G31 register helper を使う会計RPC = 15本（0057 の12＋0084 shimei/dohan＋0089 check_extension_add）",
-        reg.rows[0].n === 15, `got ${reg.rows[0].n}`);
+      check("G31 register helper を使う会計RPC = 16本（0057 の12＋0084 shimei/dohan＋0089 extension＋0090 set_people）",
+        reg.rows[0].n === 16, `got ${reg.rows[0].n}`);
       const op = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator()%'
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
-      check("G31 operator を使う関数 = 17本（write-arm 15＝0089 extension 込み＋audit_log_write＋drink_claims_on_line_delete）",
-        op.rows[0].n === 17, `got ${op.rows[0].n}`);
+      check("G31 operator を使う関数 = 18本（write-arm 16＝0089/0090 込み＋audit_log_write＋drink_claims_on_line_delete）",
+        op.rows[0].n === 18, `got ${op.rows[0].n}`);
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'
@@ -975,8 +975,8 @@ async function main() {
          where ns.nspname = 'public' and p.prokind = 'f'
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator() is not null)) is not true then%'`,
       );
-      check("G31 ★kiosk ゲート fail-closed = 15本が (OR連鎖) is not true 形（0058・0084・0089 extension も同形）",
-        fixed.rows[0].n === 15, `got ${fixed.rows[0].n}`);
+      check("G31 ★kiosk ゲート fail-closed = 16本が (OR連鎖) is not true 形（0058・0084・0089・0090 も同形）",
+        fixed.rows[0].n === 16, `got ${fixed.rows[0].n}`);
       const openGate = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
