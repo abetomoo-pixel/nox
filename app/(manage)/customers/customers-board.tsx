@@ -85,6 +85,10 @@ export default function CustomersBoard({
   const [aMemo, setAMemo] = useState("");
   const [aStore, setAStore] = useState(myStoreId || stores[0]?.id || "");
   const [aCast, setACast] = useState("");
+  // E8-5 customers#10: 誕生日（列は既存・p_birthday null 固定の実質バグ是正＝入力欄を新設）
+  const [aBirthday, setABirthday] = useState("");
+  // E8-5 customers#1（T2）: 担当キャスト絞り込み（client のみ・""=全担当／"free"=フリー客）
+  const [castFilter, setCastFilter] = useState("");
 
   const castName = useMemo(() => {
     const m = new Map(casts.map((c) => [c.id, c.name]));
@@ -142,9 +146,14 @@ export default function CustomersBoard({
         : tier === "risk" ? (r.churn_tier === "high" || r.churn_tier === "mid")
         : tier === "new" ? r.visits <= 1
         : r.visits > 1;
-      return okTier && (needle === "" || r.name.includes(needle) || (r.furigana ?? "").includes(needle));
+      // E8-5 customers#1（T2）: 担当キャストの AND 合成（"free"=担当なし）
+      const okCast =
+        castFilter === "" ? true
+        : castFilter === "free" ? r.cast_id === null
+        : r.cast_id === castFilter;
+      return okTier && okCast && (needle === "" || r.name.includes(needle) || (r.furigana ?? "").includes(needle));
     });
-  }, [rows, tier, q]);
+  }, [rows, tier, q, castFilter]);
 
   // 掘り起こし順（休眠込み時のみ）: 最終来店が古い順・来店なし（null）は末尾＝掘り起こし対象外に近い扱い。
   // OFF 時は RPC の既定順（last_visit desc nulls last）をそのまま維持＝再ソートしない。
@@ -164,7 +173,7 @@ export default function CustomersBoard({
   const selRow = sel ? rows.find((r) => r.customer_id === sel) ?? null : null;
 
   function openAdd() {
-    setAName(""); setAFuri(""); setATel(""); setAPrefs(""); setAMemo("");
+    setAName(""); setAFuri(""); setATel(""); setAPrefs(""); setAMemo(""); setABirthday("");
     setAStore(isOwner ? (storeSel || myStoreId || stores[0]?.id || "") : myStoreId);
     setACast(""); setMsg(null); setAddOpen(true);
   }
@@ -176,7 +185,8 @@ export default function CustomersBoard({
       p_store_id: aStore,
       p_name: aName.trim(),
       p_furigana: aFuri.trim() || null,
-      p_birthday: null,
+      // E8-5 customers#10: 実質バグ是正＝null 固定をやめ入力値を送る（空欄=null は従来同値）
+      p_birthday: aBirthday || null,
       p_tel: aTel.trim() || null,
       p_prefs: aPrefs.trim() || null,
       p_memo: aMemo.trim() || null,
@@ -265,6 +275,25 @@ export default function CustomersBoard({
         </button>
       </div>
 
+      {/* E8-5 customers#1（T2）: 担当キャスト絞り込み＝チップ（プルダウン新設禁止の規律・client のみ） */}
+      {casts.filter((c) => c.is_active && (!storeSel || c.store_id === storeSel)).length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 12px", alignItems: "center" }}>
+          <span style={{ fontSize: 11.5, color: "var(--sub)" }}>担当</span>
+          {[["", "すべて"], ["free", "フリー"] as const,
+            ...casts.filter((c) => c.is_active && (!storeSel || c.store_id === storeSel)).map((c) => [c.id, c.name] as const)]
+            .map(([v, label]) => (
+            <button key={v || "all"} type="button"
+              style={{
+                ...t.btnGhost, ...t.btnSm, padding: "4px 12px", fontSize: 12,
+                ...(castFilter === v ? { borderColor: "var(--gold)", color: "var(--champ)", background: "#1F1B12" } : {}),
+              }}
+              onClick={() => setCastFilter(v as string)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* B-3: 休眠込み＋掘り起こし順＝モックには無いが現行機能なので残置（cast には出さない＝canDormant） */}
       {canDormant && (
         <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
@@ -307,6 +336,11 @@ export default function CustomersBoard({
             <div>
               <label style={t.fieldLabel}>電話</label>
               <input value={aTel} onChange={(e) => setATel(e.target.value)} style={{ ...input, width: "100%", marginTop: 4 }} />
+            </div>
+            {/* E8-5 customers#10: 誕生日入力（列は既存・任意） */}
+            <div>
+              <label style={t.fieldLabel}>誕生日（任意）</label>
+              <input type="date" value={aBirthday} onChange={(e) => setABirthday(e.target.value)} style={{ ...input, marginTop: 4 }} />
             </div>
             <div>
               <label style={t.fieldLabel}>好み</label>

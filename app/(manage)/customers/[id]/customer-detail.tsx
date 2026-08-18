@@ -63,6 +63,8 @@ export default function CustomerDetail({
   const [editOpen, setEditOpen] = useState(false);
   const [eName, setEName] = useState("");
   const [eFuri, setEFuri] = useState("");
+  // E8-5 customers#10: 誕生日（列は既存・p_birthday を現在値返送のみで入力欄が無かった実質バグの是正）
+  const [eBirthday, setEBirthday] = useState("");
   const [eTel, setETel] = useState("");
   const [ePrefs, setEPrefs] = useState("");
   const [eMemo, setEMemo] = useState("");
@@ -139,6 +141,7 @@ export default function CustomerDetail({
     if (!cust) return;
     setEName(cust.name);
     setEFuri(cust.furigana ?? "");
+    setEBirthday(cust.birthday ?? "");
     setETel(cust.tel ?? "");
     setEPrefs(cust.prefs ?? "");
     setEMemo(cust.memo ?? "");
@@ -151,12 +154,13 @@ export default function CustomerDetail({
     if (!cust) return;
     setBusy(true); setMsg(null);
     const supabase = createClient();
-    // 規約7: 全フィールド明示送信・is_active は明示 boolean。birthday は UI 非編集＝現在値を返送。
+    // 規約7: 全フィールド明示送信・is_active は明示 boolean。
+    // E8-5 customers#10: birthday は入力欄から送る（空欄=null＝クリア可）。旧「現在値返送」を廃止。
     const { error } = await supabase.rpc("customer_update", {
       p_id: cust.id,
       p_name: eName.trim(),
       p_furigana: eFuri.trim() || null,
-      p_birthday: cust.birthday,
+      p_birthday: eBirthday || null,
       p_tel: eTel.trim() || null,
       p_prefs: ePrefs.trim() || null,
       p_memo: eMemo.trim() || null,
@@ -300,6 +304,11 @@ export default function CustomerDetail({
             <div>
               <label style={t.fieldLabel}>電話</label>
               <input value={eTel} onChange={(e) => setETel(e.target.value)} style={{ ...input, width: "100%", marginTop: 4 }} />
+            </div>
+            {/* E8-5 customers#10: 誕生日入力（列は既存・空欄=未登録に戻す） */}
+            <div>
+              <label style={t.fieldLabel}>誕生日（任意）</label>
+              <input type="date" value={eBirthday} onChange={(e) => setEBirthday(e.target.value)} style={{ ...input, marginTop: 4 }} />
             </div>
             <div>
               <label style={t.fieldLabel}>好み</label>
