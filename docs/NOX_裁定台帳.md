@@ -974,3 +974,14 @@ dev は無傷**（検証バンドル全ゼロで確認）。r3 で `;` 付与＋
   set+ext ちょうど／+1）＋時計逆行 clamp。
 - **verify:nox-pricing-apply 44→51／verify:f0 合計 2600→2607（18本・全緑・実測）**。
 
+### 裁定29 追補（mig0089 行分離・2026-08-18）
+
+1. **apply の audit target 変更**: `check_lines:<line_id>` → **`checks:<check_id>`**（before/after は
+   time_auto 行の **jsonb 配列**）。行が2本になり単一 line_id では系列を表せないための意図的変更＝
+   監査検索は 0089 適用時点を境に target キーが不連続（旧系列は 'check_lines:'・新系列は 'checks:'）。
+2. **check_remove_line と time_auto 行の関係（仕様確定）**: remove_line に kind/fee_kind/time_auto の
+   削除ガードは無い（従来どおり）。**auto 店**＝time_auto 行を削除しても次の apply（会計タブ遷移）が
+   再生成＝自己修復・実質消せない（総額保存則）。**manual 店**＝check_open が入れた set 行を削除すると
+   apply が動かないため**復活しない＝これを仕様とする**（セットを外したい営業判断を remove_line 1発で
+   表現できる。check_extension_add の延長行も同様に remove_line で取消）。
+
