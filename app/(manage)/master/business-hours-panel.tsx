@@ -106,6 +106,24 @@ export default function BusinessHoursPanel({
           {msg}
         </p>
       )}
+      {/* E8-5 営業時間#8（T1）: KPI 4枚＝forms の再形のみ（特別営業日件数は #7 後送りのため出さない） */}
+      {(() => {
+        const openDays = forms.filter((f) => f.exists && !f.closed);
+        const closedDays = forms.filter((f) => f.exists && f.closed).length;
+        const unset = forms.filter((f) => !f.exists).length;
+        const weekMin = openDays.reduce((a, f) => {
+          const c = hm2min(f.close) + (f.nextDay ? 1440 : 0);
+          return a + Math.max(0, c - hm2min(f.open));
+        }, 0);
+        return (
+          <div className="nox-repsum">
+            <div className="nox-rs"><div className="l">営業日 / 週</div><div className="v num">{openDays.length}日</div></div>
+            <div className="nox-rs"><div className="l">定休日 / 週</div><div className="v num">{closedDays}日</div></div>
+            <div className="nox-rs"><div className="l">未設定</div><div className="v num">{unset}日</div></div>
+            <div className="nox-rs"><div className="l">週の営業時間</div><div className="v num">{Math.floor(weekMin / 60)}時間{weekMin % 60 ? `${weekMin % 60}分` : ""}</div></div>
+          </div>
+        );
+      })()}
       <div style={{ display: "grid", gap: 7 }}>
         {forms.map((f, dow) => (
           <div key={dow} className="nox-inset" style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap", padding: "7px 10px" }}>

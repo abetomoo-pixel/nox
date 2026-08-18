@@ -39,6 +39,18 @@ export default function KioskPanel({ stores }: { stores: Store[] }) {
   const [opMembers, setOpMembers] = useState<OpMember[]>([]);
   const [pinInputs, setPinInputs] = useState<Record<string, string>>({});
   const [pinMsg, setPinMsg] = useState("");
+  // E8-5 staff#4: 端末設定の監査履歴（audit_logs は既に記録済み＝画面側の読取追加のみ・直近10件）
+  const [kioskAudit, setKioskAudit] = useState<{ id: string; action: string; target: string; at: string }[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    void supabase.from("audit_logs").select("id, action, target, at")
+      .in("action", ["kiosk_provision", "kiosk_deactivate"])
+      .order("at", { ascending: false }).limit(10)
+      .then(({ data }) => { if (alive) setKioskAudit((data ?? []) as typeof kioskAudit); });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? id;
 
@@ -195,6 +207,20 @@ export default function KioskPanel({ stores }: { stores: Store[] }) {
           </table>
         </div>
         {msg && <p style={{ fontSize: 12, color: msg.startsWith("エラー") || msg.startsWith("通信") ? "var(--bad)" : "var(--ok)", margin: "8px 0 0" }}>{msg}</p>}
+        {/* E8-5 staff#4: 端末設定の監査履歴（発行・無効化＝audit_logs 直近10件・読取のみ。全量は /audit へ） */}
+        {kioskAudit.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 4px" }}>端末設定の履歴（直近10件）</p>
+            {kioskAudit.map((a) => (
+              <div key={a.id} style={{ fontSize: 11.5, color: "var(--sub)", padding: "2px 0" }}>
+                <span className="num">{a.at.replace("T", " ").slice(0, 16)}</span>
+                {" "}{a.action === "kiosk_provision" ? "端末を発行" : "端末を無効化"}
+                <span style={{ marginLeft: 6, color: "var(--v2-muted)" }}>{a.target}</span>
+              </div>
+            ))}
+            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "4px 0 0" }}>すべての履歴は「操作履歴」ページ（権限・端末ビュー）で確認できます。</p>
+          </div>
+        )}
       </section>
 
       {/* 操作担当 PIN（レジ端末・set_staff_pin＝mig0056）。staff_pin は deny-all＝設定状況は表示できない

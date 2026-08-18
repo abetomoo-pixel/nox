@@ -44,6 +44,18 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
   const [regValidFrom, setRegValidFrom] = useState<string | null>(null);
   const [regValidTo, setRegValidTo] = useState<string | null>(null);
   const [regNotifiedOn, setRegNotifiedOn] = useState<string | null>(null);
+  // E8-5 staff#8: 機微アクセスの閲覧履歴（audit_logs は記録済み＝読取追加のみ・owner 限定表示・直近10件）
+  const [viewAudit, setViewAudit] = useState<{ id: string; action: string; target: string; at: string }[]>([]);
+  useEffect(() => {
+    if (!isOwner) return;
+    let alive = true;
+    void supabase.from("audit_logs").select("id, action, target, at")
+      .in("action", ["read_cast_sensitive", "read_cast_mynumber_masked"])
+      .order("at", { ascending: false }).limit(10)
+      .then(({ data }) => { if (alive) setViewAudit((data ?? []) as typeof viewAudit); });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner]);
 
   const load = useCallback(async () => {
     setMsg(null);
@@ -176,6 +188,21 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
             )}
             <p style={{ fontSize: 11, color: "var(--champ)", margin: "4px 0 0" }}>※ 表示は法定調書作成の用途に限定。閲覧は全件 audit_logs に記録されます。</p>
           </div>
+
+          {/* E8-5 staff#8: 閲覧履歴（記録は既存＝読取のみ・owner 限定・直近10件。全量は /audit 機微アクセスビューへ） */}
+          {viewAudit.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--line2)" }}>
+              <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 4px" }}>機微情報の閲覧履歴（直近10件）</p>
+              {viewAudit.map((a) => (
+                <div key={a.id} style={{ fontSize: 11.5, color: "var(--sub)", padding: "2px 0" }}>
+                  <span className="num">{a.at.replace("T", " ").slice(0, 16)}</span>
+                  {" "}{a.action === "read_cast_sensitive" ? "機密情報を閲覧" : "マイナンバー（マスク）を閲覧"}
+                  <span style={{ marginLeft: 6, color: "var(--v2-muted)" }}>{a.target}</span>
+                </div>
+              ))}
+              <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "4px 0 0" }}>すべての履歴は「操作履歴」ページ（機微アクセスビュー）で確認できます。</p>
+            </div>
+          )}
         </div>
       )}
 

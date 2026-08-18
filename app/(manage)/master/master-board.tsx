@@ -49,6 +49,9 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
   const [sKind, setSKind] = useState("卓");
   const [sSort, setSSort] = useState(0);
   const [sActive, setSActive] = useState(true);
+  // E8-5 席#5（T2）: 席一覧の検索・種別フィルタ（client のみ・取得と編集経路は不変）
+  const [seatQ, setSeatQ] = useState("");
+  const [seatKind, setSeatKind] = useState("");
 
   // ★レーン③: このページはハブ（概要）＋席のみになった。
   //   products / product_categories / stock_logs は「概要＝ダッシュボード」の
@@ -230,9 +233,30 @@ export default function MasterBoard({ storeId, isManagerUp, isOwner, panels }: {
       {view === "seat" && (
       <section className="nox-cardtop" style={card}>
         <h2 id="m-seat" style={secTitle}>席（クリックで編集）</h2>
+        {/* E8-5 席#2（T1）: 席 KPI 4枚＝seats state の再形のみ（ハブ統計は席ビューで消えるため再掲） */}
+        <div className="nox-repsum">
+          <div className="nox-rs"><div className="l">総席数</div><div className="v num">{seats.length}</div></div>
+          <div className="nox-rs"><div className="l">稼働可能</div><div className="v num">{seats.filter((s) => s.is_active).length}</div></div>
+          <div className="nox-rs"><div className="l">無効</div><div className="v num">{seats.filter((s) => !s.is_active).length}</div></div>
+          <div className="nox-rs"><div className="l">VIP</div><div className="v num">{seats.filter((s) => s.kind === "VIP").length}</div></div>
+        </div>
+        {/* E8-5 席#5（T2）: 検索＋種別フィルタ（表示のみ）。並べ替えは現行の表示順数値のまま
+            （↑↓は set_seat 2連続呼びの非原子になるため見送り＝skipped.md） */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+          <input value={seatQ} onChange={(e) => setSeatQ(e.target.value)} placeholder="席名で検索"
+            aria-label="席名で検索" style={{ ...input, width: 160 }} />
+          <div className="nox-seg">
+            {([["", "すべて"], ["卓", "卓"], ["カウンター", "カウンター"], ["VIP", "VIP"]] as const).map(([v, label]) => (
+              <button key={v || "all"} className={seatKind === v ? "on" : ""} onClick={() => setSeatKind(v)}>{label}</button>
+            ))}
+          </div>
+        </div>
         <table className="nox-table" style={{ marginBottom: 10 }}>
           <tbody>
-            {seats.map((s) => (
+            {seats.filter((s) =>
+              (!seatQ.trim() || s.name.toLowerCase().includes(seatQ.trim().toLowerCase())) &&
+              (seatKind === "" || s.kind === seatKind),
+            ).map((s) => (
               <tr key={s.id} onClick={() => isManagerUp && (setSId(s.id), setSName(s.name), setSKind(s.kind ?? "卓"), setSSort(s.sort_order), setSActive(s.is_active))}
                 style={{ cursor: isManagerUp ? "pointer" : "default" }}>
                 <td>{s.name}</td>

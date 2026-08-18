@@ -145,6 +145,28 @@ export default function PrinterPanel({ storeId, initialProfile }: { storeId: str
             <input value={profile.footer} onChange={(e) => setProfile({ ...profile, footer: e.target.value })} style={t.input} maxLength={200} /></label>
           <div><button onClick={() => void saveProfile()} disabled={busy} style={btnOn}>保存</button></div>
         </div>
+        {/* E8-5 staff#6: レシート実プレビュー＝入力中の profile state の再描画のみ（保存前でも反映・
+            白地黒字の直値は帳票プレビュー専用＝画面パレット対象外）。 */}
+        <div style={{ marginTop: 14 }}>
+          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 6px" }}>プレビュー（入力内容がそのまま印字ヘッダ・フッタに載ります）</p>
+          <div style={{
+            background: "#fff", color: "#000", width: 240, padding: "14px 12px", borderRadius: 4,
+            fontSize: 11, lineHeight: 1.7, fontFamily: "monospace", border: "1px solid var(--line2)",
+          }}>
+            <div style={{ textAlign: "center", fontWeight: 700, fontSize: 12 }}>領 収 書（レシート）</div>
+            <div style={{ textAlign: "center" }}>{profile.address || "（住所 未設定）"}</div>
+            <div style={{ textAlign: "center" }}>{profile.tel ? `TEL ${profile.tel}` : "（電話 未設定）"}</div>
+            {profile.regNo && <div style={{ textAlign: "center" }}>登録番号 {profile.regNo}</div>}
+            <div style={{ borderTop: "1px dashed #000", margin: "6px 0" }} />
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>小計</span><span>¥10,000</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>サービス料</span><span>¥1,000</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}><span>合計</span><span>¥11,000</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>（内消費税 10%</span><span>¥1,000）</span></div>
+            <div style={{ borderTop: "1px dashed #000", margin: "6px 0" }} />
+            <div style={{ textAlign: "center" }}>{profile.footer || "（フッタ 未設定）"}</div>
+          </div>
+          <p style={{ fontSize: 10.5, color: "var(--sub)", margin: "4px 0 0" }}>※金額はプレビュー用のサンプルです（実レシートは会計値）。</p>
+        </div>
       </section>
 
       <section className="nox-cardtop" style={card}>
