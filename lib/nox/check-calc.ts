@@ -56,3 +56,13 @@ export function timeStatusOf(startedAtMs: number, nowMs: number, setMin: number,
     nextAtMs: startedAtMs + (setMin + blocks * extMin) * 60_000,
   };
 }
+
+// ── E8-1c: 簡易領収書の分割割付（表示・印刷専用＝money-core 非接触・DB に書かない）──
+// モック register-pos の allocateReceiptDrafts と同式: base=floor(total/count)・余りは先頭から+1
+// ＝Σ=total を構造保証（不変量: 各枚 ≥1・合計一致。count > total のときは割れないため呼ばない）。
+export function receiptSplitOf(total: number, count: number): number[] {
+  const n = Math.max(1, Math.min(10, Math.floor(count)));
+  const base = Math.floor(total / n);
+  const remainder = total - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < remainder ? 1 : 0));
+}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { groupDue, timeStatusOf } from "@/lib/nox/check-calc";
+import { groupDue, receiptSplitOf, timeStatusOf } from "@/lib/nox/check-calc";
 import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
 import CastPicker from "@/components/ui/cast-picker";
@@ -207,8 +207,10 @@ export default function RegisterBoard({
   const [groupPick, setGroupPick] = useState<string | null>(null);
   // E8-1b F6: close 後モーダル（合計・お釣り・再印刷・簡易領収書）
   const [closeInfo, setCloseInfo] = useState<{ checkId: string; total: number; change: number | null; groups: string[] } | null>(null);
-  const [rcptName, setRcptName] = useState("");
-  const [rcptNote, setRcptNote] = useState("お飲食代として");
+  // E8-1c: 分割領収書ドラフト（モック register-pos 領収書ダイアログ準拠・1〜10枚・
+  //   均等割り＝receiptSplitOf・非最終行の手修正時は最終行=残額で合計一致を保証。
+  //   採番・QR は R2 送り＝ボタンも出さない。空欄フォールバック=上様/ご飲食代として）
+  const [rcptDrafts, setRcptDrafts] = useState<{ amount: number; name: string; note: string }[]>([]);
   const [storeName, setStoreName] = useState("");
   const [checkSeats, setCheckSeats] = useState<CheckSeatRow[]>([]);
   const [seatMsg, setSeatMsg] = useState<string | null>(null);
@@ -816,8 +818,7 @@ export default function RegisterBoard({
       change: lastCash ? (lastCash.tendered as number) - lastCash.amount : null,
       groups: gs,
     });
-    setRcptName("");
-    setRcptNote("お飲食代として");
+    setRcptDrafts(receiptSplitOf(check.total, 1).map((a) => ({ amount: a, name: "", note: "" })));
     // F4b: クローズ後のレシート印刷カード（printer_enabled の店のみ・pay_group ごと・フロア残置用）
     if (printerEnabled) {
       setPrintCard({ checkId: check.id, groups: gs });
@@ -1221,41 +1222,108 @@ export default function RegisterBoard({
               ))}
             </div>
           )}
-          {/* 簡易領収書＝宛名・但し書き→ブラウザ印刷（E5b の .nox-print 隔離を流用・A4）。
-              分割・QR・発行番号の採番つき領収書は後送り台帳のまま（E8 裁定 register#1）。 */}
-          <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
-            <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 8px", color: "var(--champ)" }}>簡易領収書</p>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <input placeholder="宛名（空欄可）" value={rcptName} onChange={(e) => setRcptName(e.target.value)}
-                style={{ ...t.input, width: 180 }} maxLength={40} />
-              <input placeholder="但し書き" value={rcptNote} onChange={(e) => setRcptNote(e.target.value)}
-                style={{ ...t.input, width: 200 }} maxLength={40} />
-              <button style={btnLight} onClick={() => window.print()}>領収書を印刷 / PDF</button>
-            </div>
-          </div>
+          {/* E8-1c: 簡易領収書の複数枚分割（モック register-pos 領収書ダイアログ準拠・app のみ）。
+              1〜10枚→均等割り（receiptSplitOf）・非最終行の手修正時は最終行=残額で合計一致を構造保証。
+              紙印刷=既存 .nox-print 隔離経路で枚数分（page-break）。発行番号採番・QR は R2 送り＝ボタンも出さない。 */}
+          {(() => {
+            const total = closeInfo.total;
+            const sum = rcptDrafts.reduce((a, d) => a + d.amount, 0);
+            const ok = rcptDrafts.length >= 1 && sum === total && rcptDrafts.every((d) => d.amount >= 1);
+            const setCount = (n: number) =>
+              setRcptDrafts(receiptSplitOf(total, n).map((a) => ({ amount: a, name: "", note: "" })));
+            const setAmount = (i: number, raw: number) => {
+              setRcptDrafts((ds) => {
+                const n = ds.length;
+                if (i >= n - 1) return ds; // 最終行=残額（手修正不可）
+                const others = ds.slice(0, n - 1).reduce((a, d, j) => a + (j === i ? 0 : d.amount), 0);
+                const v = Math.max(1, Math.min(Math.max(1, total - 1 - others), Math.floor(raw) || 1));
+                const next = ds.map((d, j) => (j === i ? { ...d, amount: v } : { ...d }));
+                next[n - 1].amount = total - next.slice(0, n - 1).reduce((a, d) => a + d.amount, 0);
+                return next;
+              });
+            };
+            return (
+              <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
+                <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 4px", color: "var(--champ)" }}>簡易領収書</p>
+                <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.6 }}>
+                  1〜10枚に分割できます。均等割り（最後の1枚は残額を自動計算）＝発行合計は会計金額と必ず一致します。
+                </p>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                    <button key={n} type="button"
+                      disabled={n > total}
+                      style={{
+                        ...btnLight, padding: "4px 10px", fontWeight: 800, fontSize: 12,
+                        ...(rcptDrafts.length === n
+                          ? { borderColor: "var(--gold)", color: "var(--champ)", background: "#1F1B12" } : {}),
+                      }}
+                      onClick={() => setCount(n)}>
+                      {n}枚
+                    </button>
+                  ))}
+                </div>
+                {rcptDrafts.map((d, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 800, minWidth: 66 }}>
+                      領収書 {i + 1}
+                      {rcptDrafts.length > 1 && i === rcptDrafts.length - 1 && (
+                        <small style={{ display: "block", fontWeight: 400, color: "var(--sub)" }}>残額を自動計算</small>
+                      )}
+                    </span>
+                    <input placeholder="宛名（空欄は上様）" value={d.name} maxLength={40}
+                      onChange={(e) => setRcptDrafts((ds) => ds.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                      style={{ ...t.input, width: 150 }} />
+                    <input type="number" min={1} value={d.amount}
+                      readOnly={rcptDrafts.length === 1 || i === rcptDrafts.length - 1}
+                      onChange={(e) => setAmount(i, Number(e.target.value))}
+                      className="num" style={{ ...t.input, width: 96, textAlign: "right" }} />
+                    <input placeholder="但し書き（空欄はご飲食代として）" value={d.note} maxLength={40}
+                      onChange={(e) => setRcptDrafts((ds) => ds.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))}
+                      style={{ ...t.input, width: 200 }} />
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+                  <button style={btnLight} disabled={!ok} onClick={() => window.print()}>
+                    領収書を印刷 / PDF{rcptDrafts.length > 1 ? `（${rcptDrafts.length}枚）` : ""}
+                  </button>
+                  <span style={{ fontSize: 11.5, color: ok ? "var(--sub)" : "var(--bad)", fontWeight: ok ? 400 : 700 }}>
+                    {rcptDrafts.length}枚・合計 {yen(sum)}{ok ? "（会計金額と一致）" : `（会計金額 ${yen(total)} と不一致）`}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
           <button style={{ ...t.btnGold, width: "100%", padding: "12px 0", fontWeight: 800, justifyContent: "center" }}
             onClick={() => setCloseInfo(null)}>
             閉じる
           </button>
         </Modal>
       )}
-      {/* E8-1b F6: 簡易領収書の印字実体（画面非表示・印刷時のみ＝.nox-print-only。白地黒字の直値は
-          帳票専用＝画面パレット対象外）。 */}
+      {/* E8-1b F6→E8-1c: 簡易領収書の印字実体（画面非表示・印刷時のみ＝.nox-print-only。白地黒字の
+          直値は帳票専用＝画面パレット対象外）。分割時は1枚=1ページ（最終枚以外 pageBreakAfter）。
+          空欄フォールバック=上様/ご飲食代として（モック receiptPaper と同値）。 */}
       {closeInfo && (
-        <div className="nox-print nox-print-only" style={{ background: "#fff", color: "#000", padding: "24mm 18mm", fontSize: 14, lineHeight: 1.9 }}>
-          <div style={{ textAlign: "center", fontSize: 22, fontWeight: 800, letterSpacing: 6, marginBottom: 18 }}>領　収　書</div>
-          <div style={{ fontSize: 16, borderBottom: "1px solid #000", paddingBottom: 4, marginBottom: 14 }}>
-            {rcptName ? `${rcptName} 様` : "　様"}
-          </div>
-          <div style={{ textAlign: "center", fontSize: 26, fontWeight: 900, margin: "18px 0" }}>
-            ￥{closeInfo.total.toLocaleString()}−
-          </div>
-          <div>但し {rcptNote || "お飲食代として"}</div>
-          <div>上記正に領収いたしました。</div>
-          <div style={{ marginTop: 18 }}>
-            {new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}
-          </div>
-          <div style={{ marginTop: 8, textAlign: "right", fontWeight: 700 }}>{storeName}</div>
+        <div className="nox-print nox-print-only" style={{ background: "#fff", color: "#000" }}>
+          {rcptDrafts.map((d, i) => (
+            <div key={i} style={{
+              padding: "24mm 18mm", fontSize: 14, lineHeight: 1.9,
+              pageBreakAfter: i < rcptDrafts.length - 1 ? "always" : "auto",
+            }}>
+              <div style={{ textAlign: "center", fontSize: 22, fontWeight: 800, letterSpacing: 6, marginBottom: 18 }}>領　収　書</div>
+              <div style={{ fontSize: 16, borderBottom: "1px solid #000", paddingBottom: 4, marginBottom: 14 }}>
+                {(d.name.trim() || "上") + " 様"}
+              </div>
+              <div style={{ textAlign: "center", fontSize: 26, fontWeight: 900, margin: "18px 0" }}>
+                ￥{d.amount.toLocaleString()}−
+              </div>
+              <div>但し {d.note.trim() || "ご飲食代として"}</div>
+              <div>上記正に領収いたしました。</div>
+              <div style={{ marginTop: 18 }}>
+                {new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}
+              </div>
+              <div style={{ marginTop: 8, textAlign: "right", fontWeight: 700 }}>{storeName}</div>
+            </div>
+          ))}
         </div>
       )}
       {check ? (
@@ -1312,6 +1380,16 @@ export default function RegisterBoard({
           )}
         </div>
         {peopleMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "6px 0 0" }}>{peopleMsg}</p>}
+        {/* E8-1c: 人数±の注記（person 制のみ＝table 制は人数が料金に効かないため出さない・嘘をつかない）。
+            auto 店=apply が set/ext とも現人数で再計算＝「全時間に反映」が事実。
+            manual 店=set 行のみ即時追随・押下済み延長行は凍結（0089/0090 設計）＝文言を分ける。 */}
+        {check.status === "open" && check.time_per === "person" && (
+          <p style={{ fontSize: 11, color: "var(--sub)", margin: "6px 0 0", lineHeight: 1.6 }}>
+            {timeMode === "auto"
+              ? "※セット中の人数変更はセット料金に反映されます。延長中の変更は現在は全時間に反映されます（延長時点からの加算は今後の改修で対応）"
+              : "※セット中の人数変更はセット料金に反映されます。追加済みの延長行には反映されません（延長は追加時点の人数で確定します）"}
+          </p>
+        )}
 
         {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。 */}
         <div className="nox-dtabs">
