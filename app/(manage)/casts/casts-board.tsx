@@ -100,6 +100,18 @@ export default function CastsBoard({
   const [rankOf, setRankOf] = useState<Record<string, { hon: number; jonai: number; dohan: number }>>({});
   const [attDaysOf, setAttDaysOf] = useState<Record<string, number>>({});
   const month = new Date().toISOString().slice(0, 7);
+  // E8-5 casts#2: ランク絞り込み（T2）。プルダウン新設禁止＝チップ（ボタン）で行う。
+  //   "" = 全ランク／"none" = ランクなし／それ以外 = rank_id。
+  const [rankFilter, setRankFilter] = useState<string>("");
+  // E8-5 casts#3/#5: プラン割当（cast_plan）とプラン実値（comp_plans）＝owner/manager は RLS で読める。
+  //   表示専用（編集経路はマスタのまま＝機能不変）。overrides_json は mig0086 の8キー。
+  const [castPlanOf, setCastPlanOf] = useState<Record<string, { planId: string; ov: Record<string, number | string> }>>({});
+  const [plansById, setPlansById] = useState<Record<string, {
+    name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
+    hon_back_mode: string; hon_back_rate: number | null; jonai_back_mode: string; jonai_back_rate: number | null;
+  }>>({});
+  // E8-5 casts#6（縮小）: 選択キャストの次回シフト（shifts 1行 select・表示専用）
+  const [nextShift, setNextShift] = useState<{ date: string; start_hm: string; end_hm: string; status: string } | null>(null);
 
   useEffect(() => { void resolveOrgId(supabase).then(setOrgId); }, [supabase]);
 
@@ -124,6 +136,46 @@ export default function CastsBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, myStoreId, stores]);
   useEffect(() => { void loadStats(); }, [loadStats]);
+  // E8-5 casts#3/#5: プラン割当＋実値の一括取得（表示専用・2 select のみ）
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const [{ data: cp }, { data: pl }] = await Promise.all([
+        supabase.from("cast_plan").select("cast_id, plan_id, overrides_json"),
+        supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate"),
+      ]);
+      if (!alive) return;
+      const m: Record<string, { planId: string; ov: Record<string, number | string> }> = {};
+      for (const r of (cp ?? []) as Record<string, unknown>[]) {
+        m[r.cast_id as string] = { planId: r.plan_id as string, ov: (r.overrides_json ?? {}) as Record<string, number | string> };
+      }
+      const p: typeof plansById = {};
+      for (const r of (pl ?? []) as Record<string, unknown>[]) {
+        p[r.id as string] = {
+          name: r.name as string, base: r.base as number,
+          hon_back: r.hon_back as number, jonai_back: r.jonai_back as number, dohan_back: r.dohan_back as number,
+          hon_back_mode: (r.hon_back_mode as string) ?? "per_count", hon_back_rate: r.hon_back_rate as number | null,
+          jonai_back_mode: (r.jonai_back_mode as string) ?? "per_count", jonai_back_rate: r.jonai_back_rate as number | null,
+        };
+      }
+      setCastPlanOf(m); setPlansById(p);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // E8-5 casts#6（縮小）: 選択キャストの次回シフト（今日以降の最初の1行）
+  useEffect(() => {
+    setNextShift(null);
+    const castId = sel?.kind === "cast" ? sel.id : null;
+    if (!castId) return;
+    let alive = true;
+    void supabase.from("shifts").select("date, start_hm, end_hm, status")
+      .eq("cast_id", castId).gte("date", new Date().toISOString().slice(0, 10))
+      .order("date").limit(1)
+      .then(({ data }) => { if (alive) setNextShift(((data ?? [])[0] as typeof nextShift) ?? null); });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel]);
   useEffect(() => {
     if (!orgId) return;
     let alive = true;
@@ -286,10 +338,20 @@ export default function CastsBoard({
 
   // ── 段C2 派生値（すべて既存データの client 再形＝新規取得なし）──
   const hit = (name: string) => !q.trim() || name.toLowerCase().includes(q.trim().toLowerCase());
-  const shownCasts = loginCasts.filter((c) => c.is_active === (filter === "active") && hit(c.name));
+  // E8-5 casts#2: ランク絞り込み（"none"=ランクなし）を検索に AND 合成
+  const rankHit = (c: CastLogin) =>
+    rankFilter === "" || (rankFilter === "none" ? !c.rank_id : c.rank_id === rankFilter);
+  const shownCasts = loginCasts.filter((c) => c.is_active === (filter === "active") && hit(c.name) && rankHit(c));
   const shownTrials = trials.filter((tr) => hit(tr.name));
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? "—";
   const nomTotal = (id: string) => { const r = rankOf[id]; return r ? r.hon + r.jonai + r.dohan : 0; };
+  // E8-5 casts#1: KPI 4枚（在籍/体入/未招待/今月出勤者）＝既存 state の再形のみ
+  const kpiActive = loginCasts.filter((c) => c.is_active).length;
+  const kpiUninvited = loginCasts.filter((c) => c.is_active && !c.user_id).length;
+  const kpiWorked = loginCasts.filter((c) => c.is_active && (attDaysOf[c.id] ?? 0) > 0).length;
+  // E8-5 casts#3: 副次情報のラベル（ランク名・プラン名）
+  const rankNameOf = (c: CastLogin) => (c.rank_id ? ranks.find((r) => r.id === c.rank_id)?.name ?? null : null);
+  const planNameOf = (id: string) => { const a = castPlanOf[id]; return a ? plansById[a.planId]?.name ?? null : null; };
   const selCast = sel?.kind === "cast" ? loginCasts.find((c) => c.id === sel.id) ?? null : null;
   const selTrial = sel?.kind === "trial" ? trials.find((tr) => tr.id === sel.id) ?? null : null;
 
@@ -305,6 +367,14 @@ export default function CastsBoard({
         </div>
       </div>
       <Toast msg={msg} />
+
+      {/* E8-5 casts#1（T1）: KPI 帯4枚＝既存 state の再形のみ（新規取得ゼロ） */}
+      <div className="nox-repsum">
+        <div className="nox-rs"><div className="l">在籍</div><div className="v num">{kpiActive}名</div></div>
+        <div className="nox-rs"><div className="l">体入中</div><div className="v num">{trials.length}名</div></div>
+        <div className="nox-rs"><div className="l">未招待</div><div className="v num">{kpiUninvited}名</div></div>
+        <div className="nox-rs"><div className="l">今月出勤者</div><div className="v num">{kpiWorked}名</div></div>
+      </div>
 
       {/* ツールバー＝検索＋在籍/体入/退店済み（既存 is_active と trials の再形・新規取得なし） */}
       <div className="nox-ctoolbar">
@@ -322,6 +392,23 @@ export default function CastsBoard({
           ＋ {filter === "trial" ? "体入を追加" : "キャスト登録"}
         </button>
       </div>
+      {/* E8-5 casts#2（T2）: ランク絞り込み＝チップ（プルダウン新設禁止の規律）。ranks が無い店は出さない */}
+      {filter !== "trial" && ranks.filter((r) => r.is_active).length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 12px" }}>
+          {[["", "全ランク"], ["none", "ランクなし"] as const,
+            ...ranks.filter((r) => r.is_active).map((r) => [r.id, r.name] as const)].map(([v, label]) => (
+            <button key={v || "all"} type="button"
+              className="nox-chip"
+              style={{
+                ...btnGhost, padding: "4px 12px", fontSize: 12,
+                ...(rankFilter === v ? { borderColor: "var(--gold)", color: "var(--champ)", background: "#1F1B12" } : {}),
+              }}
+              onClick={() => setRankFilter(v as string)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 登録フォーム（トグル）＝送る RPC も引数も現行のまま（体入=trial_register／本登録=cast_create） */}
       {showAdd && (
@@ -381,6 +468,12 @@ export default function CastsBoard({
                 <div>
                   <div className="cname">{c.name}</div>
                   <div className="csub">{c.is_active ? "在籍" : "退店"} / {c.user_id ? "ログイン済み" : "未招待"}</div>
+                  {/* E8-5 casts#3: 副次情報（ランク・プラン名）。LINE 連携は T3 後送り＝出さない */}
+                  {(rankNameOf(c) || planNameOf(c.id)) && (
+                    <div className="csub" style={{ color: "var(--gold2)" }}>
+                      {[rankNameOf(c), planNameOf(c.id)].filter(Boolean).join(" / ")}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="cstats">
@@ -442,6 +535,15 @@ export default function CastsBoard({
                 </span>
               </div>
               <div className="nox-frow"><span className="k">今月出勤</span><span className="v num">{attDaysOf[selCast.id] ?? 0}日</span></div>
+              {/* E8-5 casts#6（縮小）: 次回シフト（今日以降の最初の1行・表示専用） */}
+              <div className="nox-frow">
+                <span className="k">次回シフト</span>
+                <span className="v">
+                  {nextShift
+                    ? `${nextShift.date} ${nextShift.start_hm}〜${nextShift.end_hm}（${nextShift.status === "confirmed" ? "確定" : "予定"}）`
+                    : "予定なし"}
+                </span>
+              </div>
               {/* ★機微情報の分離を明示（モックの .lockrow 逐語）＝この画面には出さない */}
               <div className="nox-lockrow">
                 本名・生年月日・マイナンバー等の機微情報は「機密・税務情報」（owner/manager 限定・閲覧ログ記録）でのみ扱います。この画面には表示しません。
@@ -473,6 +575,40 @@ export default function CastsBoard({
                   </span>
                 </span>
               </div>
+              {/* E8-5 casts#5: 割当済みプランの実値表示（mig0086 データ・overrides 適用後の実効値・表示専用）。
+                  編集経路は現行どおりマスタ側＝この画面からは変更できない（機能不変）。 */}
+              {(() => {
+                const a = castPlanOf[selCast.id];
+                const p = a ? plansById[a.planId] : null;
+                if (!p) {
+                  return (
+                    <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px" }}>
+                      待遇プランは未割当です（既定条件で計算されます）。
+                    </p>
+                  );
+                }
+                const ov = a!.ov;
+                const num = (k: string, fallback: number) => (typeof ov[k] === "number" ? (ov[k] as number) : fallback);
+                const str = (k: string, fallback: string) => (typeof ov[k] === "string" ? (ov[k] as string) : fallback);
+                const honMode = str("honBackMode", p.hon_back_mode);
+                const jonaiMode = str("jonaiBackMode", p.jonai_back_mode);
+                const honLabel = honMode === "rate"
+                  ? `${num("honBackRate", p.hon_back_rate ?? 0)}%（率）`
+                  : `¥${num("honBack", p.hon_back).toLocaleString()}/本`;
+                const jonaiLabel = jonaiMode === "rate"
+                  ? `${num("jonaiBackRate", p.jonai_back_rate ?? 0)}%（率）`
+                  : `¥${num("jonaiBack", p.jonai_back).toLocaleString()}/本`;
+                const ovCount = Object.keys(ov).length;
+                return (
+                  <>
+                    <div className="nox-frow"><span className="k">待遇プラン</span><span className="v">{p.name}{ovCount > 0 && <span style={{ fontSize: 11, color: "var(--gold2)", marginLeft: 6 }}>個別上書きあり</span>}</span></div>
+                    <div className="nox-frow"><span className="k">保証時給</span><span className="v num">¥{num("base", p.base).toLocaleString()}</span></div>
+                    <div className="nox-frow"><span className="k">本指名バック</span><span className="v num">{honLabel}</span></div>
+                    <div className="nox-frow"><span className="k">場内バック</span><span className="v num">{jonaiLabel}</span></div>
+                    <div className="nox-frow"><span className="k">同伴バック</span><span className="v num">¥{num("dohanBack", p.dohan_back).toLocaleString()}/本</span></div>
+                  </>
+                );
+              })()}
               {/* ★待遇プランの編集経路は現行この画面に存在しない（マスタ側）。
                   新規 RPC も新規フォームも作らず、管理場所への案内だけを置く＝機能不変。 */}
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px", lineHeight: 1.8 }}>
