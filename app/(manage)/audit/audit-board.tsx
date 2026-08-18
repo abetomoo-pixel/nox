@@ -41,6 +41,32 @@ const KIND_DEFS: Array<[string, string, RegExp]> = [
 ];
 const kindOf = (action: string): string => KIND_DEFS.find(([, , re]) => re.test(action))?.[0] ?? "other";
 
+// E8-5 audit#1/#5: 用途別ビュー＝action の明示リスト（mig の audit_log_write 呼び出しを列挙して定義）。
+//   ★DB に系統列は無い・作らない（audit#3 不採用と同じ理由＝現行 audit_logs で足りる）。
+//   リスト外の新 action は「すべて」ビューには必ず出る＝取りこぼしで行が消えることはない。
+const VIEW_DEFS: Array<{ key: string; label: string; actions: string[] | null }> = [
+  { key: "all", label: "すべて", actions: null },
+  {
+    key: "cancel", label: "取消・巻き戻し",
+    actions: [
+      "check_void", "check_remove_line", "drink_claim_void", "drink_claim_void_by_line_delete",
+      "drink_claim_reject", "adv_cancel", "transport_cancel", "incentive_cancel",
+      "daily_report_reclose", "payroll_reopen", "shift_wish_withdraw", "trial_reject",
+    ],
+  },
+  {
+    key: "sensitive", label: "機微アクセス",
+    actions: ["read_cast_sensitive", "read_cast_mynumber_masked", "cast_create_sensitive"],
+  },
+  {
+    key: "perm", label: "権限・端末",
+    actions: [
+      "staff_change_role", "staff_create", "staff_deactivate", "staff_reactivate", "staff_transfer_store",
+      "cast_invite", "kiosk_provision", "kiosk_deactivate", "set_store_cast_register",
+    ],
+  },
+];
+
 export default function AuditBoard({ users, stores }: {
   users: { id: string; name: string }[]; stores: { id: string; name: string }[];
 }) {
@@ -55,13 +81,18 @@ export default function AuditBoard({ users, stores }: {
   const [dateFilter, setDateFilter] = useState("");
   const [targetQ, setTargetQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  // E8-5 audit#1/#5: 用途別ビュー（server 側 in フィルタ）＋ audit#2 KPI（当日 count）
+  const [view, setView] = useState("all");
+  const [kpi, setKpi] = useState<{ total: number; cancel: number; sensitive: number; perm: number } | null>(null);
 
-  const load = useCallback(async (p: number, action: string) => {
+  const load = useCallback(async (p: number, action: string, viewKey: string) => {
     let q = supabase.from("audit_logs")
       .select("id, store_id, actor_user_id, action, target, before_json, after_json, at, ip")
       .order("at", { ascending: false })
       .range(p * PAGE, p * PAGE + PAGE); // 1件余分に取って次ページ有無を判定
     if (action) q = q.eq("action", action);
+    const v = VIEW_DEFS.find((x) => x.key === viewKey);
+    if (v?.actions) q = q.in("action", v.actions);
     const { data } = await q;
     const rows = (data ?? []) as Log[];
     setHasMore(rows.length > PAGE);
@@ -69,7 +100,29 @@ export default function AuditBoard({ users, stores }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { void load(page, actionFilter); }, [page, actionFilter, load]);
+  useEffect(() => { void load(page, actionFilter, view); }, [page, actionFilter, view, load]);
+
+  // E8-5 audit#2（T1）: 当日 KPI＝audit_logs の count のみ（JST の日付境界・head クエリ4本・表示専用）
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const jstDay = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+      const since = `${jstDay}T00:00:00+09:00`;
+      const cnt = async (actions: string[] | null) => {
+        let q = supabase.from("audit_logs").select("id", { count: "exact", head: true }).gte("at", since);
+        if (actions) q = q.in("action", actions);
+        const { count } = await q;
+        return count ?? 0;
+      };
+      const [total, cancel, sensitive, perm] = await Promise.all([
+        cnt(null),
+        cnt(VIEW_DEFS[1].actions), cnt(VIEW_DEFS[2].actions), cnt(VIEW_DEFS[3].actions),
+      ]);
+      if (alive) setKpi({ total, cancel, sensitive, perm });
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const userName = (id: string | null) => (id && users.find((u) => u.id === id)?.name) ?? (id ? id.slice(0, 8) : "—");
   const storeName = (id: string | null) => (id && stores.find((s) => s.id === id)?.name) ?? "—";
@@ -92,6 +145,23 @@ export default function AuditBoard({ users, stores }: {
             金額・杯数の承認/修正・締め・マスタ変更などの操作が記録されます（追記専用・編集不可）。
           </p>
         </div>
+      </div>
+
+      {/* E8-5 audit#2（T1）: 当日 KPI 4枚（audit_logs count・表示専用） */}
+      {kpi && (
+        <div className="nox-repsum">
+          <div className="nox-rs"><div className="l">本日の記録</div><div className="v num">{kpi.total}件</div></div>
+          <div className="nox-rs"><div className="l">取消・巻き戻し</div><div className="v num" style={kpi.cancel > 0 ? { color: "var(--bad)" } : undefined}>{kpi.cancel}件</div></div>
+          <div className="nox-rs"><div className="l">機微アクセス</div><div className="v num">{kpi.sensitive}件</div></div>
+          <div className="nox-rs"><div className="l">権限・端末</div><div className="v num">{kpi.perm}件</div></div>
+        </div>
+      )}
+      {/* E8-5 audit#1/#5: 用途別ビュータブ（action 明示リストの server フィルタ・切替でページ先頭へ） */}
+      <div className="nox-seg" style={{ marginBottom: 12 }}>
+        {VIEW_DEFS.map((v) => (
+          <button key={v.key} className={view === v.key ? "on" : ""}
+            onClick={() => { setView(v.key); setPage(0); setActionFilter(""); }}>{v.label}</button>
+        ))}
       </div>
 
       <section className="nox-panel">
