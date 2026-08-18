@@ -267,14 +267,37 @@ export default function ReportBoard({
 
         {/* 段L2 ★唯一の新設: 当日暫定サマリ4カード。値は既存 preview state の再形だけ＝新規 SELECT ゼロ。
             「暫定」＝クライアント集計であり、確定値は締め時のサーバ再集計が正（下の注記と同じ扱い）。 */}
-        {preview && (
+        {preview && (() => {
+          // E8-5 report#3（T1 分のみ）: 前日比＋客単価＝reports（14日分取得済み）と preview の再形のみ。
+          //   前日が締め済み（daily_reports 行あり）のときだけ出す＝未締めの日と比べない。
+          //   E8-2 本体（5枚化・営業サマリ8指標等）は E8-2 段のまま不触。
+          const d = new Date(bizDate + "T00:00:00Z");
+          d.setUTCDate(d.getUTCDate() - 1);
+          const prevDate = d.toISOString().slice(0, 10);
+          const prev = reports.find((r) => r.biz_date === prevDate) ?? null;
+          const prevSales = prev ? prev.cash + prev.card_gross + prev.uri + prev.other : null;
+          const delta = prevSales != null && prevSales > 0
+            ? Math.round(((previewSales - prevSales) / prevSales) * 100) : null;
+          const perGuest = preview.guests > 0 ? Math.round(previewSales / preview.guests) : null;
+          return (
           <div className="nox-repsum">
-            <div className="nox-rs"><div className="l">売上（暫定）</div><div className="v num">{yen(previewSales)}</div></div>
-            <div className="nox-rs"><div className="l">組数</div><div className="v num">{preview.slips}組</div></div>
+            <div className="nox-rs">
+              <div className="l">売上（暫定）</div><div className="v num">{yen(previewSales)}</div>
+              {delta != null && (
+                <div className="l" style={{ marginTop: 2, color: delta >= 0 ? "var(--ok)" : "var(--bad)" }}>
+                  前日比 {delta >= 0 ? "+" : ""}{delta}%
+                </div>
+              )}
+            </div>
+            <div className="nox-rs">
+              <div className="l">組数</div><div className="v num">{preview.slips}組</div>
+              {perGuest != null && <div className="l" style={{ marginTop: 2 }}>客単価 {yen(perGuest)}</div>}
+            </div>
             <div className="nox-rs"><div className="l">現金</div><div className="v num">{yen(preview.cash)}</div></div>
             <div className="nox-rs"><div className="l">カード</div><div className="v num">{yen(preview.card)}</div></div>
           </div>
-        )}
+          );
+        })()}
 
         <h3>
           プレビュー（クライアント集計・確定値は締め時のサーバ再集計が正）

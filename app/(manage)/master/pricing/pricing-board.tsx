@@ -16,7 +16,8 @@
 // ★モックから意図的に落としたもの: 帯の「表示名」（pricing_rules に列がない）・
 //   「料金単位 卓/名」列（stores.time_per＝店単位の設定でルール軸ではない＝基本料金タブで設定）。
 // ★書込は全て RPC 専任。エラーは fn_set_pricing_rule の bad 系トークン対応表で日本語化。
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -435,6 +436,33 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     units: number; net: number; svc: number; total: number; cardTax: number;
   } | null>(null);
   const [pvErr, setPvErr] = useState<string | null>(null);
+  // E8-5 pricing（当日追加分⑥）: 「今開卓したら適用されるルール」＝現在時刻の pricing_resolve 直呼び
+  //   （owner/manager ページ・表示専用・権威は check_open 時のサーバ解決＝ここは同じ RPC の事前照会）。
+  const [liveNow, setLiveNow] = useState<{
+    at: string;
+    set: { amount: number; min: number; src: "rule" | "base" };
+    ext: { amount: number; min: number; src: "rule" | "base" };
+    dohan: { amount: number; src: "rule" | "base" };
+  } | null>(null);
+  const loadLiveNow = useCallback(async () => {
+    const at = new Date().toISOString();
+    const call = (fk: string) => supabase.rpc("pricing_resolve", {
+      p_store_id: storeId, p_at: at, p_fee_kind: fk, p_seat_kind: null, p_rank_id: null,
+    });
+    const [rs, re, rd] = await Promise.all([call("set"), call("extension"), call("dohan")]);
+    if (rs.error || re.error || rd.error) return; // 表示専用＝失敗時は区画ごと出さない
+    const row = (r: { data: unknown }) =>
+      Array.isArray(r.data) && r.data.length ? r.data[0] as { amount: number; duration_min: number | null } : null;
+    const s = row(rs), e = row(re), d = row(rd);
+    setLiveNow({
+      at: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+      set: { amount: s?.amount ?? store.set_fee, min: s?.duration_min ?? store.set_min, src: s ? "rule" : "base" },
+      ext: { amount: e?.amount ?? store.ext_fee, min: e?.duration_min ?? store.ext_min, src: e ? "rule" : "base" },
+      dohan: { amount: d?.amount ?? store.dohan_fee, src: d ? "rule" : "base" },
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
+  useEffect(() => { void loadLiveNow(); }, [loadLiveNow]);
 
   // D2-4: 参照数の初期取得（initial props に含まれないため初回のみ reload と同じ読みを行う）
   useEffect(() => {
@@ -489,6 +517,33 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   };
   const bandDowLabel = (b: Band) =>
     b.dow_mask === null ? "毎日" : DOW_LABELS.filter((_, i) => ((b.dow_mask as number) >> i) & 1).join("");
+
+  // E8-5 pricing（当日追加分⑥）: 重複帯の検出＝表示専用の警告（挙動は現行どおり priority 解決のまま）。
+  //   時間帯は 0083 の非対称営業日拡張（from < cutoff / to <= cutoff で +1440）と同じ式で比較する。
+  const bandOverlaps = (() => {
+    const adjRange = (b: Band): [number, number] => {
+      if (b.from === null) return [cutoffMin, cutoffMin + 1440]; // 終日
+      const f = (b.from as number) < cutoffMin ? (b.from as number) + 1440 : (b.from as number);
+      const tRaw = b.to === 0 ? 1440 : (b.to as number);
+      const tv = tRaw <= cutoffMin ? tRaw + 1440 : tRaw;
+      return [f, tv];
+    };
+    const mask = (b: Band) => b.dow_mask ?? 127;
+    const kinds = (b: Band) => Object.keys(b.cells);
+    const out: string[] = [];
+    for (let i = 0; i < bands.length; i++) {
+      for (let j = i + 1; j < bands.length; j++) {
+        const a = bands[i], b = bands[j];
+        if (a.seat_kind !== null && b.seat_kind !== null && a.seat_kind !== b.seat_kind) continue;
+        if ((mask(a) & mask(b)) === 0) continue;
+        const [af, at2] = adjRange(a); const [bf, bt] = adjRange(b);
+        if (!(af < bt && bf < at2)) continue;
+        if (!kinds(a).some((k) => kinds(b).includes(k))) continue;
+        out.push(`${bandTimeLabel(a)}（${a.seat_kind ?? "全席種"}・${bandDowLabel(a)}）と ${bandTimeLabel(b)}（${b.seat_kind ?? "全席種"}・${bandDowLabel(b)}）`);
+      }
+    }
+    return out;
+  })();
   const cellLabel = (r: PricingRule | undefined, withMin: boolean) => {
     if (!r) return <span style={{ color: "var(--v2-muted)" }}>—</span>;
     return (
@@ -514,6 +569,13 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         title="料金設定"
         desc="時間帯・席種・曜日ごとの料金ルールと、基本料金・会計ルールを設定します。料率は伝票オープン時に確定します。"
       />
+      {/* E8-5 pricing#4: 報酬設定への分離バナー（料金＝お客さまへの請求／報酬＝キャストへの支払いの混同防止） */}
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 14px", lineHeight: 1.7 }}>
+        ここで設定するのは<strong style={{ color: "var(--v2-text)" }}>お客さまへの請求額</strong>です。
+        キャストに支払う指名バック・時給は
+        <Link href="/master/cast-comp/plan" style={{ color: "var(--gold2)" }}>待遇プラン・報酬シミュレーター</Link>
+        で管理します（ランク別指名料の「請求額」はこのページ・「バック額」は待遇プラン側）。
+      </p>
 
       {/* 3タブ（モックの tab-timed / tab-base / tab-checkout） */}
       <div className="nox-pillbar" style={{ marginBottom: 12 }}>
@@ -527,6 +589,27 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
       {/* ═══ 時間帯料金 ═══ */}
       {tab === "timed" && (
         <>
+          {/* E8-5 pricing⑥: 今開卓したら適用されるルール（現在時刻・卓既定・pricing_resolve 直呼びの表示専用） */}
+          {liveNow && (
+            <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 14, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)" }}>
+                いま開卓したら（{liveNow.at}・卓）
+              </span>
+              <span style={{ fontSize: 12.5 }}>
+                セット <b className="num">{yen(liveNow.set.amount)}</b>
+                <small style={{ color: "var(--sub)" }}> /{liveNow.set.min}分・{liveNow.set.src === "rule" ? "ルール適用" : "基本料金"}</small>
+              </span>
+              <span style={{ fontSize: 12.5 }}>
+                延長 <b className="num">{yen(liveNow.ext.amount)}</b>
+                <small style={{ color: "var(--sub)" }}> /{liveNow.ext.min}分・{liveNow.ext.src === "rule" ? "ルール適用" : "基本料金"}</small>
+              </span>
+              <span style={{ fontSize: 12.5 }}>
+                同伴 <b className="num">{yen(liveNow.dohan.amount)}</b>
+                <small style={{ color: "var(--sub)" }}> ・{liveNow.dohan.src === "rule" ? "ルール適用" : "基本料金"}</small>
+              </span>
+              <button type="button" style={{ ...btnLight, marginLeft: "auto" }} onClick={() => void loadLiveNow()}>更新</button>
+            </div>
+          )}
           <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" }}>
               <h3 style={{ margin: 0, fontSize: 14 }}>通常営業の料金スケジュール</h3>
@@ -590,9 +673,24 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 </table>
               </div>
             )}
-            {/* 修正d: モックの「重複禁止」注記は撤回（裁定D）＝priority 表示＋この文言に置換 */}
+            {/* E8-5 pricing⑥: 重複帯の警告（表示のみ・解決は現行どおり priority）。 */}
+            {bandOverlaps.length > 0 && (
+              <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 9, border: "1px solid var(--bad-bd)", background: "var(--bad-bg)" }}>
+                <p style={{ fontSize: 12, fontWeight: 800, color: "var(--bad)", margin: 0 }}>
+                  条件が重複している時間帯があります（{bandOverlaps.length}組・優先順位の小さい行が適用されます）
+                </p>
+                {bandOverlaps.slice(0, 3).map((s, i) => (
+                  <p key={i} style={{ fontSize: 11, color: "var(--sub)", margin: "3px 0 0" }}>・{s}</p>
+                ))}
+                {bandOverlaps.length > 3 && <p style={{ fontSize: 11, color: "var(--sub)", margin: "3px 0 0" }}>…ほか {bandOverlaps.length - 3} 組</p>}
+              </div>
+            )}
+            {/* 修正d: モックの「重複禁止」注記は撤回（裁定D）＝priority 表示＋この文言に置換。
+                E8-5 pricing⑥: 「狭い条件を上に」のガイドを追記。 */}
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
-              条件が重複するときは優先順位（数字の小さい行）が適用されます。未設定の時間帯・席種は「基本料金」が適用されます。
+              条件が重複するときは優先順位（数字の小さい行）が適用されます。未設定の時間帯・席種は「基本料金」が適用されます。<br />
+              ★<strong style={{ color: "var(--v2-text)" }}>狭い条件ほど上に</strong>置いてください（例:
+              「金土のVIP」は「毎日・全席種」より上）。広い条件が上にあると、下の狭い条件には永久に届きません。
             </p>
           </section>
 
