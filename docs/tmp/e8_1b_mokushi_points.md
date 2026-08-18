@@ -55,6 +55,8 @@ E8-1 の目視ポイントに **F1〜F6 の是正分を加えた再発行版**�
 
 ## DB（mig0091）
 
-- dev 適用済み・CC 照合合格（'^[A-F]$' と pay_group CHECK の整合・group_due 任意文字・time_auto 拒否）。
-- ★**原本ファイル未受領＝未収蔵**。原本受領→live byte 一致確認→収蔵まで**本番手貼り禁止**
-  （手貼りリスト 0091 行を参照）。
+- dev 適用済み（Agoora 手貼り・検証3/3緑）・CC 事後照合合格（pay_group CHECK は length 1..20 で
+  RPC 層 '^[A-F]$' はその内側＝不整合なし・group_due 任意グループ文字OK・time_auto 拒否は設計妥当）。
+- **収蔵済み**: `supabase/migrations/0091_check_line_set_group.sql`（関数ブロック＝live prosrc byte 一致を
+  実測・掲出版ファイル未受領のため 0060/0082 方式＝live 機械抽出で収蔵・sha256 `0a5e19bd…2b70c` 3939 bytes）。
+  手貼りリストは 0001〜0091 へ更新済み。本番手貼り時は `notify pgrst, 'reload schema';` を別途実行。
