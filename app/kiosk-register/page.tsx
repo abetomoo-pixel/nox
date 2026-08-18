@@ -12,7 +12,7 @@
 // void・割引承認・ボトルキープは kiosk 非対象（裁定11 確定①②＋顧客系非開示）＝UI からも出さない。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { groupDue } from "@/lib/nox/check-calc";
+import { groupDue, timeStatusOf } from "@/lib/nox/check-calc";
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
@@ -28,11 +28,14 @@ type StateSeat = { id: string; name: string; kind: string | null };
 type StateProduct = { id: string; name: string; type: string; price: number; category_id: string | null; sort_order?: number };
 type StateCategory = { id: string; name: string; sort_order: number };
 type StateCast = { id: string; name: string };
-type StateCheck = { id: string; seat_id: string; extra_seat_ids: string[]; total: number; started_at: string };
+// R-A5（0089 E節）: state.checks へ加算的キー4つ（卓タイルの時間ステータス用スナップ）
+type StateCheck = { id: string; seat_id: string; extra_seat_ids: string[]; total: number; started_at: string; set_min: number; ext_min: number; time_per: string; people: number | null };
 type RegState = { seats: StateSeat[]; products: StateProduct[]; categories: StateCategory[]; casts: StateCast[]; checks: StateCheck[] };
+// R-A5（0089 F節）: check へスナップ5値を追加（伝票ヘッダの時間ステータス＋延長ボタンのラベル用）
 type DetailCheck = {
   id: string; seat_id: string; status: string; people: number | null; nom_type: string;
   started_at: string; total: number; service_rate: number; round_unit: number; round_mode: string;
+  set_min: number; set_fee: number; ext_min: number; ext_fee: number; time_per: string;
 };
 type DetailLine = { id: string; kind: string; pay_group: string; name_snapshot: string; unit_price_snapshot: number; qty: number; line_total: number };
 type DetailPayment = { id: string; pay_group: string; method: string; amount: number; tendered: number | null; method_detail: string | null };
@@ -41,7 +44,8 @@ type Detail = {
   check: DetailCheck; time_mode: string; lines: DetailLine[]; payments: DetailPayment[];
   nominations: DetailNom[]; extra_seat_ids: string[]; paid_total: number; balance: number;
 };
-type TimeCalc = { elapsed_min: number; units: number; blocks: number; set_c: number; ext_c: number; total: number; line_id: string };
+// mig0089 行分離: 返り値は line_id → set_line_id/ext_line_id（額0/blocks0 の側は null）
+type TimeCalc = { elapsed_min: number; units: number; blocks: number; set_c: number; ext_c: number; total: number; set_line_id: string | null; ext_line_id: string | null };
 type Phase = "loading" | "login" | "denied" | "operator" | "pin" | "register";
 type Session = { name: string; role: string };
 
@@ -73,6 +77,7 @@ function timeErrJa(msg: string | undefined): string {
   if (msg.includes("has payments")) return "入金後は時間料金を反映できません（訂正は責任者へ）";
   if (msg.includes("not open")) return "この伝票は締められています（反映できません）";
   if (msg.includes("bad time settings")) return "店の時間料金設定が不正です（マスタで確認してください）";
+  if (msg.includes("auto mode")) return "自動計算の店です（時間料金は自動で反映されます）"; // R-A5: check_extension_add の manual 専用ガード
   if (msg.includes("billing locked")) return "ご利用プランの制限で更新できません（責任者にご確認ください）";
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
@@ -127,7 +132,7 @@ export default function KioskRegisterPage() {
   const [catFilter, setCatFilter] = useState("");
   const [cName, setCName] = useState("");
   const [cPrice, setCPrice] = useState(0);
-  const [cKind, setCKind] = useState("set");
+  const [cKind, setCKind] = useState("charge"); // R-A2: 既定から set を外す（セットは 0089 で自動化＝手打ち封じ）
   const [cGroup, setCGroup] = useState("A");
   const [payGroup, setPayGroup] = useState("A");
   const [payMethod, setPayMethod] = useState("cash");
@@ -368,6 +373,18 @@ export default function KioskRegisterPage() {
     if (error) { if (!sessionLostIf(error)) setTimeMsg(timeErrJa(error.message)); return; }
     await loadDetail(detail.check.id); // timeCalc は loadDetail でクリアされるため下で再設定
     setTimeCalc(data as TimeCalc);
+    await refreshState();
+  }
+
+  // R-A5（0089・register-board 同型）: manual 店の延長ボタン＝check_extension_add（1押し=1行）。
+  async function addExtension() {
+    if (!detail) return;
+    markAction();
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setTimeMsg(null);
+    const { error } = await supabase.rpc("check_extension_add", { p_check_id: detail.check.id });
+    if (error) { if (!sessionLostIf(error)) setTimeMsg(timeErrJa(error.message)); return; }
+    await loadDetail(detail.check.id);
     await refreshState();
   }
 
@@ -708,6 +725,16 @@ export default function KioskRegisterPage() {
                             <div className="stay num">
                               {oc.started_at ? `滞在 ${elapsedMin(oc.started_at, nowMs)}分` : "使用中"}
                             </div>
+                            {/* R-A5（0089 E節）: 常時カウントダウン（両モード共通・manage R-A4 同型・表示専用） */}
+                            {oc.started_at && oc.set_min != null && (() => {
+                              const ts = timeStatusOf(new Date(oc.started_at).getTime(), nowMs, oc.set_min, oc.ext_min);
+                              const toNext = Math.max(0, Math.ceil((ts.nextAtMs - nowMs) / 60_000));
+                              return ts.inSet ? (
+                                <div className="stay num">あと {ts.remainMin} 分で延長</div>
+                              ) : (
+                                <div className="stay num" style={{ color: "var(--bad)", fontWeight: 700 }}>延長 {ts.blocks} 回目・次まであと {toNext} 分</div>
+                              );
+                            })()}
                             <div className="amt num">{yen(oc.total)}</div>
                           </>
                         ) : (
@@ -736,6 +763,18 @@ export default function KioskRegisterPage() {
                 {detail.check.status === "open" && (
                   <span className="stay">滞在 <span className="num">{elapsedMin(detail.check.started_at, nowMs)}</span> 分</span>
                 )}
+                {/* R-A5（0089 F節）: 伝票ヘッダの時間ステータス（両モード共通・manage R2/R-A4 同型・表示専用） */}
+                {detail.check.status === "open" && (() => {
+                  const ts = timeStatusOf(new Date(detail.check.started_at).getTime(), nowMs, detail.check.set_min, detail.check.ext_min);
+                  const next = new Date(ts.nextAtMs).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+                  return ts.inSet ? (
+                    <span className="stay">セット中 残り <span className="num">{ts.remainMin}</span> 分</span>
+                  ) : (
+                    <span className="stay" style={{ color: "var(--bad)", fontWeight: 700 }}>
+                      延長 <span className="num">{ts.blocks}</span> 回目（次 {next}）
+                    </span>
+                  );
+                })()}
                 <span className="total num"><small>合計</small>{yen(detail.check.total)}</span>
               </div>
 
@@ -841,6 +880,29 @@ export default function KioskRegisterPage() {
                   </div>
                 )}
 
+                {/* R-A5（0089・register-board 同型）: manual 店の時間料金カード＝延長1押し=1行。
+                    auto 店では非表示（RPC 側 'auto mode' 拒否と二重防御）。取消は明細の行削除。 */}
+                {detail.time_mode === "manual" && detail.check.status === "open" && (
+                  <div className="nox-cardtop" style={card}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（手動）</h3>
+                      <span style={{ fontSize: 12, color: "var(--sub)" }}>
+                        経過 <span style={t.num}>{Math.max(0, Math.floor((nowMs - new Date(detail.check.started_at).getTime()) / 60000))}</span> 分
+                        （着席 {new Date(detail.check.started_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0", lineHeight: 1.7 }}>
+                      セット料金は開卓時に明細へ入っています。延長はお客さま確認のうえボタンで追加してください
+                      （1回押すごとに1行・取り消しは明細の削除）。
+                    </p>
+                    <button onClick={() => void addExtension()} style={btnDark} disabled={payments.length > 0}
+                      title={payments.length > 0 ? "入金後は追加できません" : ""}>
+                      延長を追加（{yen(detail.check.ext_fee * (detail.check.time_per === "person" ? (detail.check.people ?? 1) : 1))} / {detail.check.ext_min}分）
+                    </button>
+                    {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
+                  </div>
+                )}
+
                 {/* 明細追加 */}
                 <div className="nox-cardtop" style={card}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
@@ -889,13 +951,13 @@ export default function KioskRegisterPage() {
                   {(state?.products ?? []).length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>商品が未登録です。</p>}
                   {/* カスタム明細（kind/名称/価格）＝据置 */}
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
+                    {/* R-A2（0089）: 種別から「セット」を除去＝開卓時の自動行と手打ちの二重計上を封じる */}
                     <select value={cKind} onChange={(e) => setCKind(e.target.value)} style={input}>
-                      <option value="set">セット</option>
-                      <option value="time">延長</option>
                       <option value="charge">料金</option>
+                      <option value="time">延長</option>
                       <option value="custom">その他</option>
                     </select>
-                    <input placeholder="名称（例 セット60分）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
+                    <input placeholder="名称（例 貸切料金）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
                     <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
                     <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
                     <input value={cGroup} onChange={(e) => setCGroup(e.target.value)} style={{ ...input, width: 40 }} />

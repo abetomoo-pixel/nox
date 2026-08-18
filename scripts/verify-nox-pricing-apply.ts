@@ -11,7 +11,8 @@
  *   (1) ルール0件店（A2）: open → スナップ8値 = stores 完全一致・dohan_fee is null
  *   (2) ルールあり店（A1）: 解決値凍結（set=額+分・extension=額のみ→分は stores）・
  *       open 後に stores/pricing_rules を変更しても伝票不変（★凍結の実証）
- *   (3) check_time_charge_apply 無改稿: ルール由来 set_fee が total に一致
+ *   (3) check_time_charge_apply（mig0089 行分離）: 開卓 set 行・legacy 移行・2行体制・
+ *       総額保存則（旧合算と同値）・額0で行なし・rewind で ext 行実体化＋鏡像突合
  *   (4) shimei: kind='charge'/fee_kind/cast_id/額・ランク別解決・rank 変更→新行=新額かつ
  *       既存行不変・ルール0件（jonai）= stores.jonai_fee・0円でも行が立つ
  *   (5) dohan: 凍結値×人数・null は stores フォールバック（legacy 経路＝0084 以前の伝票と同型）
@@ -197,27 +198,89 @@ async function main() {
       await admin.from("stores").update({ set_fee: orig.a1SetFee }).eq("id", sA1.id);
     }
 
-    // ═══ (3) check_time_charge_apply 無改稿でルール由来 set_fee が効く ═══
+    // ═══ (3) check_time_charge_apply（mig0089 行分離）: legacy 移行・2行体制・総額保存則 ═══
+    //   段48（R-A1）で旧「合算1行」仕様から張り替え（裁定26 書式・返り値 line_id →
+    //   set_line_id/ext_line_id）。総額は旧式と同値＝金額のゴールデンは据置で行構造だけ検証を差し替え。
     {
-      const { data, error } = await mgr.rpc("check_time_charge_apply", { p_check_id: chkA1 });
-      const j = (data ?? {}) as { total?: number; set_c?: number; ext_c?: number; blocks?: number; elapsed_min?: number; line_id?: string };
-      check("段44(3) check_time_charge_apply 成功（無改稿 RPC）", !error, error?.message);
-      check("段44(3) ★経過0分＝blocks 0・total = ルール由来 set_fee 8000（スナップ経由で新料率が効く）",
-        j.blocks === 0 && j.set_c === 8000 && j.ext_c === 0 && j.total === 8000, JSON.stringify(j));
-      if (j.line_id) lineIds.push(j.line_id);
-      const { data: tl } = await admin.from("check_lines").select("line_total, time_auto, kind").eq("id", j.line_id!).single();
-      check("段44(3) time_auto 行の line_total も 8000（kind='time'）",
-        tl?.line_total === 8000 && tl?.time_auto === true && tl?.kind === "time", JSON.stringify(tl));
+      type ApplyRet = {
+        total?: number; set_c?: number; ext_c?: number; blocks?: number; elapsed_min?: number;
+        set_line_id?: string | null; ext_line_id?: string | null;
+      };
+      // (3-0) ★0089 D節: check_open が set 行を既に自動挿入している（開卓直後から明細に見える）
+      const { data: atOpen } = await admin.from("check_lines")
+        .select("fee_kind, kind, line_total").eq("check_id", chkA1).eq("time_auto", true);
+      check("段44(3) ★開卓時 set 行が既に1本（0089 D節・ルール由来 8000・kind='time'）",
+        (atOpen ?? []).length === 1 && atOpen?.[0]?.fee_kind === "set"
+        && atOpen?.[0]?.kind === "time" && atOpen?.[0]?.line_total === 8000, JSON.stringify(atOpen));
 
-      // ═══ (3b) レジ時間UX R5（裁定29）: クライアント鏡像の境界 assert ＋ RPC 返り値との突合 ═══
-      //   突合は「RPC が返した elapsed_min を鏡像へ入力」＝クライアント時計に依存せず決定的。
+      // (3-1) legacy 合算1行（旧 apply の行形＝fee_kind null・time_auto）を admin で再現 → apply が吸収
+      const { data: lg, error: eLg } = await admin.from("check_lines").insert({
+        org_id: sA1.org_id, store_id: sA1.id, check_id: chkA1, product_id: null, kind: "time",
+        pay_group: "A", name_snapshot: "時間料金(セット+延長)", unit_price_snapshot: 9999, qty: 1,
+        line_total: 9999, sort_order: 90, time_auto: true, fee_kind: null,
+      }).select("id").single();
+      check("段44(3) legacy 合算1行を再現（fee_kind null・新ユニークは NULL distinct で許容）", !eLg && !!lg?.id, eLg?.message);
+
+      const { data, error } = await mgr.rpc("check_time_charge_apply", { p_check_id: chkA1 });
+      const j = (data ?? {}) as ApplyRet;
+      check("段44(3) check_time_charge_apply 成功（mig0089 行分離版）", !error, error?.message);
+      check("段44(3) ★経過0分＝blocks 0・set_c=ルール由来 8000・ext_c 0・total 8000（旧合算と総額同値）",
+        j.blocks === 0 && j.set_c === 8000 && j.ext_c === 0 && j.total === 8000, JSON.stringify(j));
+      check("段44(3) 返り値＝set_line_id あり・ext_line_id なし（blocks 0 で ext 行を立てない）",
+        typeof j.set_line_id === "string" && j.ext_line_id == null, JSON.stringify(j));
+      const { data: t1 } = await admin.from("check_lines")
+        .select("id, fee_kind, kind, name_snapshot, unit_price_snapshot, qty, line_total")
+        .eq("check_id", chkA1).eq("time_auto", true).order("sort_order");
+      const nullRows = (t1 ?? []).filter((l) => l.fee_kind === null);
+      const setRows = (t1 ?? []).filter((l) => l.fee_kind === "set");
+      const extRows = (t1 ?? []).filter((l) => l.fee_kind === "extension");
+      check("段44(3) ★legacy 移行＝fee_kind null 行 0（apply が delete）・set 1本・ext 0本",
+        nullRows.length === 0 && setRows.length === 1 && extRows.length === 0, JSON.stringify(t1));
+      check("段44(3) set 行の実体（unit=8000×qty1・name にセット料金と分数）",
+        setRows[0]?.unit_price_snapshot === 8000 && setRows[0]?.qty === 1 && setRows[0]?.line_total === 8000
+        && String(setRows[0]?.name_snapshot).includes("セット料金"), JSON.stringify(setRows[0]));
+      check("段44(3) ★総額保存則: Σtime_auto 行 = 返り値 total",
+        (t1 ?? []).reduce((a, l) => a + (l.line_total as number), 0) === j.total, JSON.stringify(t1));
+
+      // (3-2) 額0 ＝ 行を立てない（set 行も delete 分岐で消える）→ 原状復元
+      await admin.from("checks").update({ set_fee: 0 }).eq("id", chkA1);
+      const { data: d0, error: e0 } = await mgr.rpc("check_time_charge_apply", { p_check_id: chkA1 });
+      const j0 = (d0 ?? {}) as ApplyRet;
+      const { count: n0 } = await admin.from("check_lines")
+        .select("id", { count: "exact", head: true }).eq("check_id", chkA1).eq("time_auto", true);
+      check("段44(3) ★額0＝time_auto 行なし・total 0・set_line_id null（行を立てない/delete 分岐）",
+        !e0 && j0.total === 0 && j0.set_line_id == null && (n0 ?? -1) === 0, JSON.stringify({ j0, n0 }));
+      await admin.from("checks").update({ set_fee: 8000 }).eq("id", chkA1);
+
+      // (3-3) rewind（seed の started_at 後付けと同型）で ext 行の実体化＝blocks>0 の runtime 実証。
+      //   期待値は「RPC が返した elapsed_min を鏡像 timeBlocksOf へ入力」＝時刻非依存で決定的。
+      await admin.from("checks").update(
+        { started_at: new Date(Date.now() - 100 * 60_000).toISOString() }).eq("id", chkA1);
+      const { data: d2, error: e2 } = await mgr.rpc("check_time_charge_apply", { p_check_id: chkA1 });
+      const j2 = (d2 ?? {}) as ApplyRet;
+      const { data: tchk } = await admin.from("checks").select("set_min, ext_min, ext_fee").eq("id", chkA1).single();
+      const sMin = tchk?.set_min as number, eMin = tchk?.ext_min as number, eFee = tchk?.ext_fee as number;
+      const expBlocks = timeBlocksOf(j2.elapsed_min ?? 0, sMin, eMin);
+      check("段44(3) rewind 100分＝blocks ≥ 1・鏡像突合 timeBlocksOf(RPC.elapsed_min) = RPC.blocks",
+        !e2 && expBlocks >= 1 && j2.blocks === expBlocks, JSON.stringify({ j2, sMin, eMin }));
+      check("段44(3) ★超過時＝set/ext の2行・返り値に両 line_id",
+        typeof j2.set_line_id === "string" && typeof j2.ext_line_id === "string", JSON.stringify(j2));
+      if (j2.set_line_id) lineIds.push(j2.set_line_id);
+      if (j2.ext_line_id) lineIds.push(j2.ext_line_id);
+      const { data: t2 } = await admin.from("check_lines")
+        .select("fee_kind, unit_price_snapshot, qty, line_total, name_snapshot")
+        .eq("check_id", chkA1).eq("time_auto", true).order("sort_order");
+      const ext2 = (t2 ?? []).find((l) => l.fee_kind === "extension");
+      check("段44(3) ext 行の実体（unit=凍結 ext_fee 1500・qty=blocks×units・total=積・name に延長料金）",
+        ext2?.unit_price_snapshot === eFee && eFee === 1500 && ext2?.qty === expBlocks
+        && ext2?.line_total === eFee * expBlocks && String(ext2?.name_snapshot).includes("延長料金"),
+        JSON.stringify(ext2));
+      check("段44(3) ★総額保存則（超過）: Σtime_auto = total = set_c+ext_c（旧合算1行と同値）",
+        (t2 ?? []).reduce((a, l) => a + (l.line_total as number), 0) === j2.total
+        && j2.total === (j2.set_c ?? 0) + (j2.ext_c ?? 0), JSON.stringify({ t2, j2 }));
+
+      // ═══ (3b) レジ時間UX R5（裁定29）: クライアント鏡像の境界 assert（純関数・時刻非依存）═══
       {
-        const { data: tchk } = await admin.from("checks").select("set_min, ext_min").eq("id", chkA1).single();
-        const sMin = tchk?.set_min as number, eMin = tchk?.ext_min as number;
-        check("段44(3b) 鏡像突合: timeBlocksOf(RPC.elapsed_min) = RPC.blocks（同式の実証）",
-          Number.isInteger(sMin) && Number.isInteger(eMin)
-          && timeBlocksOf(j.elapsed_min ?? 0, sMin, eMin) === j.blocks,
-          JSON.stringify({ j, sMin, eMin }));
         // 境界5点＋時計逆行（set=40/ext=15 の固定値・RPC の v_blocks=(d-set+ext-1)/ext と同式）
         const st0 = timeStatusOf(0, 39 * 60_000, 40, 15);
         const st1 = timeStatusOf(0, 40 * 60_000, 40, 15);
@@ -443,7 +506,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-pricing-apply ALL PASS (${pass} assertions)`);
-  console.log("課金結線: ルール0件=stores完全同値・開栓時凍結・time_charge無改稿追随・shimei/dohan行・kiosk腕");
+  console.log("課金結線: ルール0件=stores完全同値・開栓時凍結・time行分離(0089)=legacy移行/総額保存則・shimei/dohan行・kiosk腕");
 }
 
 main().catch((e) => {

@@ -985,3 +985,17 @@ dev は無傷**（検証バンドル全ゼロで確認）。r3 で `;` 付与＋
    apply が動かないため**復活しない＝これを仕様とする**（セットを外したい営業判断を remove_line 1発で
    表現できる。check_extension_add の延長行も同様に remove_line で取消）。
 
+### 段48（R-A・2026-08-18）: 0089 の app 結線と verify 張り替え（裁定26 書式）
+
+- **pricing-apply 段44(3) 51→60**: 行分離仕様へ全面張り替え＝開卓 set 行（D節）・legacy 移行
+  （fee_kind null 行を admin 再現→apply が delete）・2行体制・総額保存則（Σtime_auto=total）・
+  額0で行なし（delete 分岐）・rewind 100分で ext 行実体化（qty=blocks×units・鏡像突合）。
+- **rls B4 2件置換**（本数不変 472）: 「自動行=1本」→「2本（set 5000×1・ext 2000×qty2）・
+  再呼びで同一 id 2本のまま・set 不変/ext 更新・Σ=total」。
+- **grants 4件更新**（本数不変 282）: G26 index 逐語を (check_id, fee_kind) 版へ・G31 の
+  register helper 14→15／operator 16→17／fail-closed 形 14→15（check_extension_add 増分）。
+- **billing 正本改訂＋5 pin 更新**（本数不変 50）: 課金ゲート対象 v1 を対象 88 本へ
+  （A1 18本・kiosk 腕 14本・全数 171＝live 一致）。check_extension_add はゲート内蔵（規則A形）が
+  段47-1 の双方向集合一致・挿入行形・段47-3 kiosk 腕で機械検証済み。
+- **verify:f0 合計 2607→2616（18本・全緑・実測）**。
+

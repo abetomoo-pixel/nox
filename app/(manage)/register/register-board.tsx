@@ -44,7 +44,8 @@ type CheckRow = {
   time_per: string;
 };
 // check_time_charge_apply の返値 jsonb（サーバ再計算の内訳・表示専用）
-type TimeCalc = { elapsed_min: number; units: number; blocks: number; set_c: number; ext_c: number; total: number; line_id: string };
+// mig0089 行分離: 返り値は line_id → set_line_id/ext_line_id（額0/blocks0 の側は null）
+type TimeCalc = { elapsed_min: number; units: number; blocks: number; set_c: number; ext_c: number; total: number; set_line_id: string | null; ext_line_id: string | null };
 type Line = {
   id: string;
   kind: string;
@@ -125,6 +126,7 @@ function timeErrJa(msg: string | undefined): string {
   if (msg.includes("has payments")) return "入金後は時間料金を反映できません（訂正は取消から）";
   if (msg.includes("not open")) return "この伝票は締められています（反映できません）";
   if (msg.includes("bad time settings")) return "店の時間料金設定が不正です（マスタで確認してください）";
+  if (msg.includes("auto mode")) return "自動計算の店です（時間料金は会計タブで自動反映されます）"; // R-A3: check_extension_add の manual 専用ガード
   if (msg.includes("billing locked")) return "ご利用プランの制限で更新できません（管理者にご確認ください）";
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
@@ -171,11 +173,10 @@ export default function RegisterBoard({
   const [addMap, setAddMap] = useState<Record<string, string>>({});
   const [primaryOf, setPrimaryOf] = useState<Record<string, string>>({});
   const [openStarted, setOpenStarted] = useState<Record<string, string>>({}); // 段B: 主席 seat_id→started_at（floor 滞在）
-  // レジ時間UX R2: 主席 seat_id→時間スナップ（卓タイルの超過バッジ用）。checks 直 SELECT の列追加のみ
+  // レジ時間UX R2: 主席 seat_id→時間スナップ（卓タイルの時間ステータス用）。checks 直 SELECT の列追加のみ
   //   （RLS は行スコープ＝列追加は素通り・段B started_at 追加と同じ presentation 扱い）。
+  //   ★R-A4（0089）: 表示は両モード共通（スナップは manual 店も凍結済み）＝store の time_mode 取得は不要になった。
   const [openTime, setOpenTime] = useState<Record<string, { setMin: number; extMin: number; timePer: string; people: number | null }>>({});
-  // レジ時間UX R2: 卓タイルの超過バッジは time_mode='auto' の店のみ（裁定(g)＝非スナップ・live 判定）。
-  const [storeTimeMode, setStoreTimeMode] = useState("manual");
   // レジ時間UX R1: 開卓モーダル（フリー卓タップ→即 open を廃止・人数は任意＝空欄なら null 送信）
   const [openSeatTarget, setOpenSeatTarget] = useState<Seat | null>(null);
   const [openPeople, setOpenPeople] = useState("");
@@ -251,7 +252,7 @@ export default function RegisterBoard({
   const [catFilter, setCatFilter] = useState("");
   const [cName, setCName] = useState("");
   const [cPrice, setCPrice] = useState(0);
-  const [cKind, setCKind] = useState("set");
+  const [cKind, setCKind] = useState("charge"); // R-A2: 既定から set を外す（セットは 0089 で自動化＝手打ち封じ）
   const [cGroup, setCGroup] = useState("A");
   const [payGroup, setPayGroup] = useState("A");
   const [payMethod, setPayMethod] = useState("cash");
@@ -547,18 +548,16 @@ export default function RegisterBoard({
     setTimeCalc(data as TimeCalc);
   }
 
-  // レジ時間UX R2: 卓タイルの超過バッジ用に store の time_mode を live 取得（裁定(g)＝非スナップ）。
-  //   伝票ヘッダは loadCheck が伝票の store で読む timeMode を使う＝ここはフロア（本店舗）専用。
-  useEffect(() => {
-    if (!storeId) return;
-    let alive = true;
-    void (async () => {
-      const { data } = await supabase.from("stores").select("time_mode").eq("id", storeId).single();
-      if (alive) setStoreTimeMode((data?.time_mode as string | undefined) ?? "manual");
-    })();
-    return () => { alive = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId]);
+  // R-A3（0089）: manual 店の延長ボタン＝check_extension_add（1押し=1行・auto 店は RPC 側でも拒否）。
+  //   取消は既存の行削除（remove_line）。エラーは時間カードの timeMsg へ（timeErrJa 共用）。
+  async function addExtension() {
+    if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setTimeMsg(null);
+    const { error } = await supabase.rpc("check_extension_add", { p_check_id: check.id });
+    if (error) { setTimeMsg(timeErrJa(error.message)); return; }
+    await loadCheck(check.id);
+  }
 
   // レジ時間UX R3（裁定29）: 会計タブへの遷移時に1回だけ自動反映。
   //   前置き＝open ∧ 入金0 ∧ time_mode='auto'（RPC の has payments/not open ガードの前置き）。
@@ -758,8 +757,7 @@ export default function RegisterBoard({
         <Modal onClose={() => { if (!openBusy) setOpenSeatTarget(null); }}>
           <h3 style={{ ...t.cardTitle, margin: "0 0 6px" }}>{openSeatTarget.name} を開卓</h3>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
-            開卓するとセット時間が始まり、伝票が作成されます。
-            {storeTimeMode === "auto" && "時間料金は会計時に自動で反映されます。"}
+            開卓するとセット時間が始まり、伝票が作成されます（セット料金は明細に自動で入ります）。
           </p>
           <label style={{ ...t.fieldLabel, display: "block", marginBottom: 14 }}>
             人数（任意・空欄可）
@@ -788,9 +786,9 @@ export default function RegisterBoard({
           {check.status === "open" && (
             <span className="stay">滞在 <span className="num">{elapsedMin(check.started_at, nowMs)}</span> 分</span>
           )}
-          {/* レジ時間UX R2: 時間ステータス常時表示（time_mode='auto' の店のみ・凍結スナップ＋nowMs tick の
-              クライアント計算＝表示専用・権威はサーバ）。超過は --bad 系で色替え。 */}
-          {check.status === "open" && timeMode === "auto" && (() => {
+          {/* レジ時間UX R2→R-A4（0089）: 時間ステータス常時表示＝両モード共通（凍結スナップは manual 店も
+              保持済み）。凍結スナップ＋nowMs tick のクライアント計算＝表示専用・権威はサーバ。超過は --bad。 */}
+          {check.status === "open" && (() => {
             const ts = timeStatusOf(new Date(check.started_at).getTime(), nowMs, check.set_min, check.ext_min);
             const next = new Date(ts.nextAtMs).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
             return ts.inSet ? (
@@ -982,6 +980,29 @@ export default function RegisterBoard({
           </div>
         )}
 
+        {/* R-A3（0089）: manual 店の時間料金カード＝延長を1押し=1行で追加（check_extension_add）。
+            auto 店では非表示（RPC 側 'auto mode' 拒否と二重防御）。取消は注文タブの行削除。 */}
+        {dtab === "pay" && timeMode === "manual" && check.status === "open" && (
+          <div className="nox-cardtop" style={card}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（手動）</h3>
+              <span style={{ fontSize: 12, color: "var(--sub)" }}>
+                経過 <span style={t.num}>{Math.max(0, Math.floor((nowMs - new Date(check.started_at).getTime()) / 60000))}</span> 分
+                （着席 {new Date(check.started_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）
+              </span>
+            </div>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0", lineHeight: 1.7 }}>
+              セット料金は開卓時に明細へ入っています。延長はお客さま確認のうえボタンで追加してください
+              （1回押すごとに1行・取り消しは注文タブの行削除）。
+            </p>
+            <button onClick={() => void addExtension()} style={btnDark} disabled={payments.length > 0}
+              title={payments.length > 0 ? "入金後は追加できません" : ""}>
+              延長を追加（{yen(check.ext_fee * (check.time_per === "person" ? (check.people ?? 1) : 1))} / {check.ext_min}分）
+            </button>
+            {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
+          </div>
+        )}
+
         {/* 明細追加（段R2: 注文タブ。カスタム明細フォームだけは会計タブへ移設） */}
         {dtab === "order" && (
         <div className="nox-cardtop" style={card}>
@@ -1041,13 +1062,13 @@ export default function RegisterBoard({
         <div className="nox-cardtop" style={card}>
           <h3 style={t.cardTitle}>カスタム明細</h3>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {/* R-A2（0089）: 種別から「セット」を除去＝開卓時の自動行と手打ちの二重計上を封じる */}
             <select value={cKind} onChange={(e) => setCKind(e.target.value)} style={input}>
-              <option value="set">セット</option>
-              <option value="time">延長</option>
               <option value="charge">料金</option>
+              <option value="time">延長</option>
               <option value="custom">その他</option>
             </select>
-            <input placeholder="名称（例 セット60分）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
+            <input placeholder="名称（例 貸切料金）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
             <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
             <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
             <input value={cGroup} onChange={(e) => setCGroup(e.target.value)} style={{ ...input, width: 40 }} />
@@ -1373,12 +1394,15 @@ export default function RegisterBoard({
                     <div className="stay num">
                       {openStarted[s.id] ? `滞在 ${elapsedMin(openStarted[s.id], nowMs)}分` : "使用中"}
                     </div>
-                    {/* レジ時間UX R2: セット超過バッジ（time_mode='auto' の店のみ・凍結スナップの
-                        クライアント計算＝表示専用）。セット内は出さない＝タイルの情報量を増やしすぎない。 */}
-                    {storeTimeMode === "auto" && openStarted[s.id] && openTime[s.id] && (() => {
+                    {/* R-A4（0089）: 常時カウントダウン（両モード共通・凍結スナップのクライアント計算＝表示専用）。
+                        セット内=「あとN分で延長」／超過=「延長N回目・次まであとN分」（--bad）。 */}
+                    {openStarted[s.id] && openTime[s.id] && (() => {
                       const ts = timeStatusOf(new Date(openStarted[s.id]).getTime(), nowMs, openTime[s.id].setMin, openTime[s.id].extMin);
-                      return ts.inSet ? null : (
-                        <div className="stay num" style={{ color: "var(--bad)", fontWeight: 700 }}>延長 {ts.blocks} 回目</div>
+                      const toNext = Math.max(0, Math.ceil((ts.nextAtMs - nowMs) / 60_000));
+                      return ts.inSet ? (
+                        <div className="stay num">あと {ts.remainMin} 分で延長</div>
+                      ) : (
+                        <div className="stay num" style={{ color: "var(--bad)", fontWeight: 700 }}>延長 {ts.blocks} 回目・次まであと {toNext} 分</div>
                       );
                     })()}
                     {heads.length > 0 && (
