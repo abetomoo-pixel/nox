@@ -56,6 +56,8 @@ type Line = {
   unit_price_snapshot: number;
   qty: number;
   line_total: number;
+  // E8-1b F5（mig0091）: グループ付け替えの可否判定（time_auto 行は 'A' 固定＝RPC 'time line' 拒否）
+  time_auto: boolean;
   // キャストドリンク（mig0070）: 按分除外の判定は back_snapshot の凍結値で行う。
   //   ★products.back_exempt_from_split（現価）では判定しない＝行を打った後にマスタのフラグを
   //     切り替えても伝票の帰属経路は変わらない、が 0070 の設計（check_close と
@@ -197,6 +199,17 @@ export default function RegisterBoard({
   const [extraGroups, setExtraGroups] = useState<string[]>([]);
   // E8-1 ⑥: 卓起点予約（開卓モーダル→「予約を入れる」→予約タブへ卓プリフィル）
   const [reservePrefillSeat, setReservePrefillSeat] = useState<string | null>(null);
+  // E8-1b F2: 指名カード内のローカルメッセージ（旧 setMsg はフロアでしか描画されない＝エラー非表示バグの是正）
+  const [feeMsg, setFeeMsg] = useState<string | null>(null);
+  // E8-1b F3: 席操作の視覚選択モーダル（相席追加 / 席移動）
+  const [seatPick, setSeatPick] = useState<"add" | "move" | null>(null);
+  // E8-1b F5（mig0091）: 明細グループ付け替えモーダル（対象行 id）
+  const [groupPick, setGroupPick] = useState<string | null>(null);
+  // E8-1b F6: close 後モーダル（合計・お釣り・再印刷・簡易領収書）
+  const [closeInfo, setCloseInfo] = useState<{ checkId: string; total: number; change: number | null; groups: string[] } | null>(null);
+  const [rcptName, setRcptName] = useState("");
+  const [rcptNote, setRcptNote] = useState("お飲食代として");
+  const [storeName, setStoreName] = useState("");
   const [checkSeats, setCheckSeats] = useState<CheckSeatRow[]>([]);
   const [seatMsg, setSeatMsg] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckRow | null>(null);
@@ -322,7 +335,7 @@ export default function RegisterBoard({
     const { data: c } = await supabase.from("checks").select("*").eq("id", checkId).single();
     const { data: ls } = await supabase
       // back_snapshot＝キャストドリンク判定の凍結値（mig0070）。中身は back_exempt だけを見る。
-      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot")
+      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto")
       .eq("check_id", checkId).order("sort_order");
     // キャストドリンク: 確定済み（approved）の claim だけを引く。void/rejected は行に紐づけない。
     const { data: dcs } = await supabase
@@ -378,6 +391,30 @@ export default function RegisterBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { void loadStock(); }, [loadStock]);
+
+  // E8-1b F4: サイドバー「レジ」再クリック＝フロアへ戻る（side-nav の nox:nav-reclick を受ける）
+  useEffect(() => {
+    const h = (e: Event) => {
+      if ((e as CustomEvent).detail !== "/register") return;
+      setTab("tables");
+      void closeDetail();
+    };
+    window.addEventListener("nox:nav-reclick", h);
+    return () => window.removeEventListener("nox:nav-reclick", h);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // E8-1b F6: 簡易領収書の店名（表示専用・1回取得）
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("stores").select("name").eq("id", storeId).single();
+      if (alive) setStoreName((data?.name as string | undefined) ?? "");
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
 
   // E8-1 ⑤: 本日出勤の近似（最終打刻 'in'）。読取1本・表示専用。
   useEffect(() => {
@@ -490,29 +527,69 @@ export default function RegisterBoard({
     if (m.includes("forbidden")) return "権限がありません";
     return m;
   };
-  async function addShimeiFee(kind: "hon" | "jonai") {
+  // E8-1b F2: 指名フロー1本化＝CastPicker で選んだキャストへ「本指名｜場内」1押しで
+  //   課金行（check_shimei_add）＋按分（check_set_nominations へ重み1で自動合流・種別も追随）。
+  //   ★エラー/結果はカード内 feeMsg に表示（旧 setMsg はフロアでしか描画されない＝非表示バグの是正）。
+  //   ★¥0 行は裁定①（行の存在が指名事実）のとおり立てたうえで、料金未設定を明示警告する。
+  async function addShimeiUnified(kind: "hon" | "jonai") {
     if (!check || !feeCast || feeBusy) return;
     if (!(await tb.flush())) return; // money 系: 保留タップを先に確定（失敗＝中止）
-    setMsg(null);
+    setFeeMsg(null);
     setFeeBusy(true);
-    const { error } = await supabase.rpc("check_shimei_add", {
+    const { data: lineId, error } = await supabase.rpc("check_shimei_add", {
       p_check_id: check.id, p_cast_id: feeCast, p_kind: kind,
     });
+    if (error) { setFeeMsg(chargeErrJa(error.message)); setFeeBusy(false); return; }
+    // 按分へ自動反映（既に居れば重み据置・居なければ 1 で追加）＋按分種別を課金種別へ
+    const merged: Record<string, number> = { ...nomWeights };
+    if (!((merged[feeCast] ?? 0) > 0)) merged[feeCast] = 1;
+    const list = Object.entries(merged).filter(([, w]) => w > 0).map(([cast_id, weight]) => ({ cast_id, weight }));
+    const { error: e2 } = await supabase.rpc("check_set_nominations", {
+      p_check_id: check.id, p_nom_type: kind, p_nominations: list,
+    });
+    // 追加行の額（¥0＝料金未設定の可視化。返値は行 id＝mig0084）
+    let amt: number | null = null;
+    if (typeof lineId === "string") {
+      const { data: lr } = await supabase.from("check_lines").select("line_total").eq("id", lineId).single();
+      amt = (lr?.line_total as number | undefined) ?? null;
+    }
     setFeeBusy(false);
-    setMsg(error ? chargeErrJa(error.message)
-      : `${kind === "hon" ? "本指名料" : "場内指名料"}を追加しました（${castName(feeCast)}）`);
+    setFeeMsg(e2
+      ? `指名料は追加しましたが按分の反映に失敗: ${e2.message}`
+      : `${castName(feeCast)} に${kind === "hon" ? "本指名料" : "場内指名料"}${amt != null ? ` ${yen(amt)}` : ""}を追加し、按分にも反映しました${
+          amt === 0 ? "。★¥0＝指名料が未設定です（マスタ→料金設定で単価を登録してください）" : ""}`);
     await loadCheck(check.id);
   }
   async function addDohanFee() {
     if (!check || feeBusy) return;
     if (!(await tb.flush())) return;
-    setMsg(null);
+    setFeeMsg(null);
     setFeeBusy(true);
     const { error } = await supabase.rpc("check_dohan_add", {
       p_check_id: check.id, p_count: dohanN,
     });
     setFeeBusy(false);
-    setMsg(error ? chargeErrJa(error.message) : `同伴料を追加しました（${dohanN}名分）`);
+    setFeeMsg(error ? chargeErrJa(error.message) : `同伴料を追加しました（${dohanN}名分）`);
+    await loadCheck(check.id);
+  }
+
+  // E8-1b F5（mig0091）: 明細行のグループ付け替え（time_auto 行は RPC が 'time line' で拒否＝UI も出さない）
+  async function setLineGroup(lineId: string, g: string) {
+    if (!check) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    setClaimMsg(null);
+    const { error } = await supabase.rpc("check_line_set_group", { p_line_id: lineId, p_group: g });
+    if (error) {
+      const m = error.message ?? "";
+      setClaimMsg(
+        m.includes("bad group") ? "会計グループは A〜F です"
+          : m.includes("time line") ? "時間料金の行は会計Aから動かせません"
+          : m.includes("has payments") ? "入金後は付け替えできません（訂正は取消から）"
+          : m.includes("not open") ? "この伝票は締められています"
+          : m.includes("billing locked") ? "ご利用プランの制限で更新できません"
+          : m.includes("forbidden") ? "権限がありません" : m);
+      return;
+    }
     await loadCheck(check.id);
   }
 
@@ -731,9 +808,18 @@ export default function RegisterBoard({
     const { error } = await supabase.rpc("check_close", { p_check_id: check.id, p_idem_key: crypto.randomUUID() });
     if (error) { setMsg(error.message); return; }
     setMsg(`会計完了 ${yen(check.total)}`);
-    // F4b: クローズ後のレシート印刷カード（printer_enabled の店のみ・pay_group ごと）
+    const gs = Array.from(new Set(lines.map((l) => l.pay_group))).sort();
+    // E8-1b F6: close 後モーダル（合計・お釣り＝最後の現金入金の預り−充当・再印刷・簡易領収書）
+    const lastCash = [...payments].reverse().find((p) => p.method === "cash" && p.tendered != null);
+    setCloseInfo({
+      checkId: check.id, total: check.total,
+      change: lastCash ? (lastCash.tendered as number) - lastCash.amount : null,
+      groups: gs,
+    });
+    setRcptName("");
+    setRcptNote("お飲食代として");
+    // F4b: クローズ後のレシート印刷カード（printer_enabled の店のみ・pay_group ごと・フロア残置用）
     if (printerEnabled) {
-      const gs = Array.from(new Set(lines.map((l) => l.pay_group))).sort();
       setPrintCard({ checkId: check.id, groups: gs });
       setPrintMsg({});
     }
@@ -814,8 +900,9 @@ export default function RegisterBoard({
   //   ★pay_group の意味・送る引数は不変＝入力 UI の置換のみ（分割会計の実体は従来どおり行単位）。
   const groupChoices = Array.from(new Set(["A", ...groups, ...extraGroups])).sort();
   const splitOn = groupChoices.length > 1;
+  // E8-1b F5: 上限は A〜F（mig0091 check_line_set_group の '^[A-F]$' に整合＝6分割まで）
   function addSplitGroup(apply: (g: string) => void) {
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < 6; i++) {
       const g = String.fromCharCode(65 + i);
       if (!groupChoices.includes(g)) { setExtraGroups((xs) => [...xs, g]); apply(g); return; }
     }
@@ -834,6 +921,8 @@ export default function RegisterBoard({
         </span>
       )}
       <button type="button" style={{ ...btnLight, fontSize: 11.5 }}
+        disabled={groupChoices.length >= 6}
+        title={groupChoices.length >= 6 ? "会計分けは最大6つ（A〜F）です" : ""}
         onClick={() => addSplitGroup(onChange)}>
         ＋会計を分ける
       </button>
@@ -851,7 +940,8 @@ export default function RegisterBoard({
   const segLocal: React.CSSProperties = { flex: 1, fontWeight: 800, fontSize: 13, padding: "9px 10px" };
 
   return (
-    <div>
+    // E8-1b F6: nox-printpage＝簡易領収書の印刷隔離（.nox-print 以外は印刷時に落ちる・E5b 機構の流用）
+    <div className="nox-printpage">
       {showReserve && (
         <div className="nox-cardtop" style={{ ...card, padding: 11 }}>
           <div className="nox-seg" style={{ width: "100%", maxWidth: 480 }}>
@@ -1047,6 +1137,127 @@ export default function RegisterBoard({
           </Modal>
         );
       })()}
+      {/* ── E8-1b F3: 席の視覚選択モーダル（相席追加 / 席移動・空席タイルをタップ）── */}
+      {seatPick && check && (() => {
+        const emptySeats = seats.filter((s) => s.store_id === check.store_id && !openMap[s.id] && !addMap[s.id]);
+        return (
+          <Modal onClose={() => setSeatPick(null)} scroll>
+            <h3 style={{ ...t.cardTitle, margin: "0 0 6px" }}>
+              {seatPick === "add" ? "相席にする卓を選択（同一会計）" : "移動先の卓を選択"}
+            </h3>
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>空いている卓だけ表示しています。</p>
+            <div className="nox-seatgrid">
+              {emptySeats.map((s) => (
+                <button key={s.id} type="button" className="nox-seat"
+                  onClick={() => {
+                    setSeatPick(null);
+                    if (seatPick === "add") void addSeat(s.id); else void moveSeat(s.id);
+                  }}>
+                  <div className="nm">{s.name}</div>
+                  <div className="kind">{s.kind ?? " "}</div>
+                  <div className="empty">空席</div>
+                </button>
+              ))}
+              {emptySeats.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)" }}>空席がありません</p>}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+              <button style={btnLight} onClick={() => setSeatPick(null)}>閉じる</button>
+            </div>
+          </Modal>
+        );
+      })()}
+      {/* ── E8-1b F5（mig0091）: 明細グループ付け替えモーダル ── */}
+      {groupPick && check && (
+        <Modal onClose={() => setGroupPick(null)}>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 6px" }}>この明細をどの会計へ？</h3>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>
+            {lines.find((l) => l.id === groupPick)?.name_snapshot ?? ""}
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {groupChoices.map((g) => (
+              <button key={g} type="button"
+                style={lines.find((l) => l.id === groupPick)?.pay_group === g
+                  ? { ...t.btnGold, ...t.btnSm } : { ...t.btnGhost, ...t.btnSm }}
+                onClick={() => { const id = groupPick; setGroupPick(null); void setLineGroup(id, g); }}>
+                会計{g}
+              </button>
+            ))}
+            <button type="button" style={{ ...btnLight, fontSize: 11.5 }}
+              disabled={groupChoices.length >= 6}
+              onClick={() => addSplitGroup((g) => { const id = groupPick; setGroupPick(null); void setLineGroup(id, g); })}>
+              ＋会計を分けてそこへ
+            </button>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+            <button style={btnLight} onClick={() => setGroupPick(null)}>閉じる</button>
+          </div>
+        </Modal>
+      )}
+      {/* ── E8-1b F6: close 後モーダル（合計・お釣り・レシート再印刷・簡易領収書）── */}
+      {closeInfo && (
+        <Modal onClose={() => setCloseInfo(null)} scroll>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 10px" }}>会計完了</h3>
+          <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontWeight: 800 }}>合計</span>
+              <span style={{ ...t.num, fontSize: 24, fontWeight: 900, color: "var(--champ)" }}>{yen(closeInfo.total)}</span>
+            </div>
+            {closeInfo.change != null && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
+                <span style={{ fontSize: 13, color: "var(--sub)" }}>お釣り（最後の現金入金）</span>
+                <span style={{ ...t.num, fontSize: 18, fontWeight: 800, color: "var(--ok)" }}>{yen(closeInfo.change)}</span>
+              </div>
+            )}
+          </div>
+          {printerEnabled && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+              {closeInfo.groups.map((g) => (
+                <span key={g} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <button style={btnDark} onClick={() => void enqueuePrint(closeInfo.checkId, g)}>
+                    {closeInfo.groups.length > 1 ? `会計${g} のレシート印刷` : "レシート印刷"}
+                  </button>
+                  {printMsg[g] && <span style={{ fontSize: 11, color: "var(--sub)" }}>{printMsg[g]}</span>}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* 簡易領収書＝宛名・但し書き→ブラウザ印刷（E5b の .nox-print 隔離を流用・A4）。
+              分割・QR・発行番号の採番つき領収書は後送り台帳のまま（E8 裁定 register#1）。 */}
+          <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
+            <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 8px", color: "var(--champ)" }}>簡易領収書</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input placeholder="宛名（空欄可）" value={rcptName} onChange={(e) => setRcptName(e.target.value)}
+                style={{ ...t.input, width: 180 }} maxLength={40} />
+              <input placeholder="但し書き" value={rcptNote} onChange={(e) => setRcptNote(e.target.value)}
+                style={{ ...t.input, width: 200 }} maxLength={40} />
+              <button style={btnLight} onClick={() => window.print()}>領収書を印刷 / PDF</button>
+            </div>
+          </div>
+          <button style={{ ...t.btnGold, width: "100%", padding: "12px 0", fontWeight: 800, justifyContent: "center" }}
+            onClick={() => setCloseInfo(null)}>
+            閉じる
+          </button>
+        </Modal>
+      )}
+      {/* E8-1b F6: 簡易領収書の印字実体（画面非表示・印刷時のみ＝.nox-print-only。白地黒字の直値は
+          帳票専用＝画面パレット対象外）。 */}
+      {closeInfo && (
+        <div className="nox-print nox-print-only" style={{ background: "#fff", color: "#000", padding: "24mm 18mm", fontSize: 14, lineHeight: 1.9 }}>
+          <div style={{ textAlign: "center", fontSize: 22, fontWeight: 800, letterSpacing: 6, marginBottom: 18 }}>領　収　書</div>
+          <div style={{ fontSize: 16, borderBottom: "1px solid #000", paddingBottom: 4, marginBottom: 14 }}>
+            {rcptName ? `${rcptName} 様` : "　様"}
+          </div>
+          <div style={{ textAlign: "center", fontSize: 26, fontWeight: 900, margin: "18px 0" }}>
+            ￥{closeInfo.total.toLocaleString()}−
+          </div>
+          <div>但し {rcptNote || "お飲食代として"}</div>
+          <div>上記正に領収いたしました。</div>
+          <div style={{ marginTop: 18 }}>
+            {new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}
+          </div>
+          <div style={{ marginTop: 8, textAlign: "right", fontWeight: 700 }}>{storeName}</div>
+        </div>
+      )}
       {check ? (
       /* ── 伝票ビュー（全面）── */
       <div className="nox-checkview">
@@ -1115,25 +1326,67 @@ export default function RegisterBoard({
           <div>
         {dtab === "nom" && (<>
         <div className="nox-cardtop" style={card}>
-          <h3 style={t.cardTitle}>指名（重み比で分配）</h3>
+          {/* E8-1b F2: 指名フロー1本化＝CastPicker→「本指名｜場内」で課金行＋按分へ自動反映。
+              種別プルダウンは廃止しセグメントへ。重み微調整は折りたたみに格納。 */}
+          <h3 style={t.cardTitle}>指名</h3>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-            <select value={nomType} onChange={(e) => setNomType(e.target.value)} style={input}>
-              <option value="hon">本指名</option>
-              <option value="jonai">場内</option>
-              <option value="dohan">同伴</option>
-              <option value="free">フリー</option>
-            </select>
+            <span className="nox-seg" style={{ display: "inline-flex" }}>
+              {([["hon", "本指名"], ["jonai", "場内"], ["dohan", "同伴"], ["free", "フリー"]] as const).map(([v, l]) => (
+                <button key={v} type="button" className={nomType === v ? "on" : ""}
+                  style={{ fontWeight: 700, fontSize: 12.5, padding: "7px 12px" }}
+                  onClick={() => setNomType(v)}>
+                  {l}
+                </button>
+              ))}
+            </span>
+            <span style={{ fontSize: 11.5, color: "var(--sub)" }}>按分の種別（保存・指名料ボタンで反映）</span>
           </div>
-          {/* E8-1 ⑤: 按分チップ → CastPicker（検索・写真グリッド・着卓中→本日出勤→その他）。
-              タップ＝選択トグル（重み 0⇔1）＝データ形 nomWeights と saveNoms の送る引数は不変。 */}
+          {/* ⑤: タップ＝按分トグル＋指名料の対象キャストとして記憶（feeCast） */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
             selectedIds={seatedIds} dense
-            onPick={(id) => setNomWeights((prev) => ({ ...prev, [id]: (prev[id] ?? 0) > 0 ? 0 : 1 }))}
+            onPick={(id) => {
+              const on = (nomWeights[id] ?? 0) > 0;
+              setNomWeights((prev) => ({ ...prev, [id]: on ? 0 : 1 }));
+              setFeeCast(on ? (feeCast === id ? "" : feeCast) : id);
+            }}
           />
-          {/* E8-1 #14: 重み編集＋合計%＋均等配分＋分配結果プレビュー（表示計算のみ・権威は RPC→payOf 不変） */}
+          {/* F2: 1本化ボタン＝課金行＋按分を同時に（対象＝最後にタップしたキャスト） */}
+          {(() => {
+            const feeDisabled = feeBusy || check.status !== "open" || payments.length > 0;
+            return (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+                <span style={{ fontSize: 12, color: feeCast ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}>
+                  {feeCast ? `対象: ${castName(feeCast)}` : "キャストをタップして選択"}
+                </span>
+                <button style={btnDark} disabled={feeDisabled || !feeCast} onClick={() => void addShimeiUnified("hon")}>
+                  本指名料を付ける（＋按分）
+                </button>
+                <button style={btnLight} disabled={feeDisabled || !feeCast} onClick={() => void addShimeiUnified("jonai")}>
+                  場内指名料を付ける（＋按分）
+                </button>
+                {payments.length > 0 && check.status === "open" && (
+                  <span style={{ fontSize: 11.5, color: "var(--sub)" }}>入金後は追加できません</span>
+                )}
+              </div>
+            );
+          })()}
+          {feeMsg && (
+            <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0", lineHeight: 1.7,
+              color: feeMsg.includes("失敗") || feeMsg.includes("できません") || feeMsg.includes("¥0") ? "var(--bad)" : "var(--ok)" }}>
+              {feeMsg}
+            </p>
+          )}
+          {/* E8-1 #14 → E8-1b F2: 重み微調整は折りたたみへ（既定閉・分配プレビューは開くと見える） */}
           {nomSelected.length > 0 && (
-            <div className="nox-inset" style={{ marginTop: 10, padding: 10 }}>
+          <details style={{ marginTop: 10 }}>
+            <summary style={{ fontSize: 12, color: "var(--sub)", cursor: "pointer", fontWeight: 700 }}>
+              按分の重みを微調整（{nomSelected.map((ca) => ca.name).join("・")}
+              {nomType !== "free" && nomTotalW > 0
+                ? `＝${nomSelected.map((ca) => `${Math.round(((nomWeights[ca.id] ?? 0) / nomTotalW) * 100)}%`).join("/")}`
+                : ""}）
+            </summary>
+            <div className="nox-inset" style={{ marginTop: 8, padding: 10 }}>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 {nomSelected.map((ca) => (
                   <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12.5 }}>
@@ -1170,11 +1423,15 @@ export default function RegisterBoard({
                   ／合計 100%（重み比＝金額の按分はサーバが会計時に計算）
                 </p>
               )}
+              <div style={{ marginTop: 10 }}>
+                <button onClick={saveNoms} style={btnDark}>按分を保存</button>
+                <span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>
+                  ※指名料ボタンを使った場合は自動保存済み（ここは手調整用）
+                </span>
+              </div>
             </div>
+          </details>
           )}
-          <div style={{ marginTop: 10 }}>
-            <button onClick={saveNoms} style={btnDark}>保存</button>
-          </div>
         </div>
 
         {/* 料金UIレーン C4（mig0084）: 指名料・同伴料の課金行。★按分カードとは別カード＝
@@ -1183,30 +1440,11 @@ export default function RegisterBoard({
           const feeDisabled = feeBusy || check.status !== "open" || payments.length > 0;
           return (
             <div className="nox-cardtop" style={card}>
-              <h3 style={t.cardTitle}>指名料・同伴料（課金）</h3>
+              {/* E8-1b F2: 指名料は上の「指名」カードへ1本化＝ここは同伴料の課金のみ残す */}
+              <h3 style={t.cardTitle}>同伴料（課金）</h3>
               <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
-                ※按分の重みとは別に、伝票へ課金行を追加します。金額は料金設定
-                （時間帯・席種・キャストのランク）から自動で決まります。
+                ※伝票へ同伴料の課金行を追加します。金額は料金設定（時間帯・席種）から自動で決まります。
               </p>
-              {/* E8-1 ⑤: 指名料の select → CastPicker（単選・タップで選択/解除） */}
-              <div style={{ marginBottom: 8 }}>
-                <CastPicker
-                  casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
-                  selectedIds={new Set(feeCast ? [feeCast] : [])} dense
-                  onPick={(id) => setFeeCast((cur) => (cur === id ? "" : id))}
-                />
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontSize: 12, color: feeCast ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}>
-                  {feeCast ? `選択中: ${castName(feeCast)}` : "キャストを選択してください"}
-                </span>
-                <button style={btnDark} disabled={feeDisabled || !feeCast} onClick={() => void addShimeiFee("hon")}>
-                  本指名料を追加
-                </button>
-                <button style={btnLight} disabled={feeDisabled || !feeCast} onClick={() => void addShimeiFee("jonai")}>
-                  場内指名料を追加
-                </button>
-              </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <label style={{ fontSize: 12 }}>同伴人数{" "}
                   <input type="number" min={1} max={30} value={dohanN}
@@ -1217,6 +1455,10 @@ export default function RegisterBoard({
                   同伴料を追加（単価×人数）
                 </button>
               </div>
+              {feeMsg && feeMsg.includes("同伴") && (
+                <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0",
+                  color: feeMsg.includes("できません") || feeMsg.includes("失敗") ? "var(--bad)" : "var(--ok)" }}>{feeMsg}</p>
+              )}
               {payments.length > 0 && check.status === "open" && (
                 <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
                   入金済みのため追加できません（入金を取り消すと追加できます）。
@@ -1247,15 +1489,15 @@ export default function RegisterBoard({
                   </span>
                 ))}
               </div>
+              {/* E8-1b F3: プルダウン2本 → ボタン2つ＋席タイルの視覚選択モーダル */}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <select value="" onChange={(e) => { if (e.target.value) void addSeat(e.target.value); }} style={{ ...input, maxWidth: 200 }}>
-                  <option value="">相席（同一会計）に席を追加</option>
-                  {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
-                </select>
-                <select value="" onChange={(e) => { if (e.target.value) void moveSeat(e.target.value); }} style={{ ...input, maxWidth: 200 }}>
-                  <option value="">席移動（移動先を選択）</option>
-                  {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
-                </select>
+                <button style={btnDark} disabled={emptySeats.length === 0} onClick={() => setSeatPick("add")}>
+                  相席を追加（同一会計）
+                </button>
+                <button style={btnLight} disabled={emptySeats.length === 0} onClick={() => setSeatPick("move")}>
+                  席を移動
+                </button>
+                {emptySeats.length === 0 && <span style={{ fontSize: 11.5, color: "var(--sub)" }}>空席がありません</span>}
               </div>
               {seatMsg && <p style={{ fontSize: 12, fontWeight: 700, color: seatMsg.includes("できません") || seatMsg.includes("使用中") || seatMsg.includes("無効") || seatMsg.includes("同じ席") ? "var(--bad)" : "var(--sub)", margin: "8px 0 0" }}>{seatMsg}</p>}
             </div>
@@ -1474,16 +1716,30 @@ export default function RegisterBoard({
                 const claim = claims.find((c) => c.check_line_id === l.id);
                 return (
                   <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                    {/* E8-1 ⑦: グループバッジ＝会計分けしているときだけ出す（A のみなら空＝視覚ノイズを増やさない） */}
+                    {/* E8-1 ⑦ → E8-1b F5: バッジタップで付け替え（mig0091・time_auto/discount/入金後は非活性） */}
                     <td style={{ padding: 6 }}>
                       {splitOn && (
-                        <span style={{ ...t.tag, fontSize: 10, color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>
-                          会計{l.pay_group}
-                        </span>
+                        l.time_auto || isDisc || payments.length > 0 || check?.status !== "open" ? (
+                          <span style={{ ...t.tag, fontSize: 10, color: "var(--sub)", borderColor: "var(--line2)" }}
+                            title={l.time_auto ? "時間料金は会計Aから動かせません" : ""}>
+                            会計{l.pay_group}
+                          </span>
+                        ) : (
+                          <button type="button"
+                            style={{ ...t.tag, fontSize: 10, color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)",
+                              background: "transparent", cursor: "pointer", fontFamily: "inherit" }}
+                            title="タップで会計を付け替え"
+                            onClick={() => setGroupPick(l.id)}>
+                            会計{l.pay_group} ▾
+                          </button>
+                        )
                       )}
                     </td>
                     <td style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>{l.name_snapshot}</td>
-                    <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>{isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}`}</td>
+                    {/* E8-1b F1: person 制の時間行は「×N名」（qty=units=人数の意味を明示） */}
+                    <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>
+                      {isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}${l.kind === "time" && check?.time_per === "person" ? "名" : ""}`}
+                    </td>
                     <td style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
                       {isDisc ? `−${yen(l.line_total)}` : yen(l.line_total)}
                     </td>

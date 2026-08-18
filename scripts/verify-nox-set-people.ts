@@ -204,6 +204,39 @@ async function main() {
       const { error: eAn } = await anon.rpc("check_set_people", { p_check_id: cidM, p_people: 2 });
       check("段49(5) anon BLOCKED（permission denied for function）", isFnBlocked(eAn), eAn?.message ?? "実行できてしまった");
     }
+
+    // ═══ (6) E8-1b: check_line_set_group（mig0091・会計分けの付け替え）═══
+    //   time_auto 行拒否・payments 後拒否・bad group・成功時の pay_group 更新と総額不変（recalc 整合）。
+    {
+      const { data: cid, error: eO } = await mgr.rpc("check_open", { p_seat_id: seatA, p_people: 2, p_nom_type: "free" });
+      check("段49(6) 付け替え用 check_open 成功（seatA 再利用＝(1)は closed 済み）", !eO && typeof cid === "string", eO?.message);
+      const cidG = cid as string; checkIds.push(cidG);
+      const { data: lineId, error: eL } = await mgr.rpc("check_add_line", {
+        p_check_id: cidG, p_product_id: null, p_qty: 1, p_kind: "custom",
+        p_pay_group: "A", p_name: "P49付替行", p_unit_price: 1000,
+      });
+      check("段49(6) カスタム行追加成功", !eL && typeof lineId === "string", eL?.message);
+      const before = await chk(cidG);
+      const { error: eG } = await mgr.rpc("check_line_set_group", { p_line_id: lineId as string, p_group: "B" });
+      check("段49(6) ★set_group('B') 成功", !eG, eG?.message);
+      const { data: lg } = await admin.from("check_lines").select("pay_group").eq("id", lineId as string).single();
+      const after = await chk(cidG);
+      check("段49(6) ★pay_group='B' へ更新・checks.total 不変（group 横断合算＝recalc 整合）",
+        lg?.pay_group === "B" && after.total === before.total, JSON.stringify({ lg, before: before.total, after: after.total }));
+      // time_auto 行（開卓時 set 行）は拒否
+      const { data: tset } = await admin.from("check_lines").select("id")
+        .eq("check_id", cidG).eq("time_auto", true).limit(1);
+      const { error: eT } = await mgr.rpc("check_line_set_group", { p_line_id: tset?.[0]?.id as string, p_group: "B" });
+      check("段49(6) ★time_auto 行は 'time line' 拒否（時間料金は会計A固定）", has(eT, "time line"), eT?.message ?? "通ってしまった");
+      // bad group（A-F 外）
+      const { error: eBg } = await mgr.rpc("check_line_set_group", { p_line_id: lineId as string, p_group: "G" });
+      check("段49(6) 'G' は bad group 拒否（'^[A-F]$'）", has(eBg, "bad group"), eBg?.message ?? "通ってしまった");
+      // payments 後拒否（cidM は (5) で入金済み・非 time_auto の延長行を対象に）
+      const { data: mext } = await admin.from("check_lines").select("id")
+        .eq("check_id", cidM).eq("time_auto", false).eq("fee_kind", "extension").limit(1);
+      const { error: eHp2 } = await mgr.rpc("check_line_set_group", { p_line_id: mext?.[0]?.id as string, p_group: "B" });
+      check("段49(6) ★入金後は 'has payments' 拒否", has(eHp2, "has payments"), eHp2?.message ?? "通ってしまった");
+    }
   } finally {
     await cleanup();
     // 掃除の自己検証（固定カウント非汚染＝段44 流儀）
@@ -225,7 +258,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-set-people ALL PASS (${pass} assertions)`);
-  console.log("人数修正(0090): person制set行追随・null許容・table制不変・manual延長行不触・payments/not open/locked/anon拒否");
+  console.log("人数修正(0090)+会計付替(0091): person制set行追随・table制不変・manual延長行不触・set_group=B移動/total不変/time line/bad group/has payments・locked/anon拒否");
 }
 
 main().catch((e) => {

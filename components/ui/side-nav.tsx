@@ -48,7 +48,12 @@ export default function SideNav({ groups, storeLabel }: {
             const on = it.href === active;
             return (
               <Link key={it.href} href={it.href} className={on ? "active" : undefined}
-                aria-current={on ? "page" : undefined}>
+                aria-current={on ? "page" : undefined}
+                onClick={() => {
+                  // E8-1b F4: アクティブ項目の再クリック＝同一 URL 遷移は App Router で no-op のため、
+                  // 画面側（register-board 等）がフロアへ戻る等のリセットに使えるイベントを流す。
+                  if (on) window.dispatchEvent(new CustomEvent("nox:nav-reclick", { detail: it.href }));
+                }}>
                 <NavIcon href={it.href} />
                 <span>{it.label}</span>
               </Link>

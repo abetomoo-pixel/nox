@@ -101,10 +101,14 @@ export default function TimePricingPanel({ storeId, initial }: { storeId: string
         {row("延長料金", minStepper(extMin, setExtMin), feeStepper(extFee, setExtFee))}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span style={{ fontSize: 12.5, color: "var(--sub)", minWidth: 84 }}>単位</span>
-          <button type="button" style={segBtn(per === "table")} onClick={() => setPer("table")}>卓</button>
-          <button type="button" style={segBtn(per === "person")} onClick={() => setPer("person")}>名</button>
-          <span style={{ fontSize: 11, color: "var(--sub)" }}>卓＝1伝票あたり・名＝人数倍</span>
+          <button type="button" style={segBtn(per === "table")} onClick={() => setPer("table")}>卓単位</button>
+          <button type="button" style={segBtn(per === "person")} onClick={() => setPer("person")}>人数単位</button>
         </div>
+        {/* E8-1b F1: 単位の説明を明文化（実機目視所感＝卓/名の意味が伝わらない） */}
+        <p style={{ fontSize: 11.5, color: "var(--sub)", margin: 0, lineHeight: 1.7 }}>
+          卓単位＝1伝票につきセット・延長を各1つ計上します（人数に関係なく同額）。<br />
+          人数単位＝伝票の人数 × 料金で計上します（開卓時の人数と、伝票ヘッダでの人数変更に自動で追随）。
+        </p>
       </div>
       <button style={{ ...t.btnGold, ...t.btnSm, marginTop: 16 }} disabled={busy} onClick={save}>保存</button>
     </section>

@@ -1413,12 +1413,17 @@ body {
   position: sticky; top: 0; background: var(--card); z-index: 5; padding: 4px 0 10px;
   border-bottom: 1px solid var(--line);
 }
+/* E8-1b F4: 「←フロア」を大型化（実機目視所感＝戻り導線が小さい）。kiosk は 709 行の拡大が引き続き優先。 */
 .nox-backbtn {
-  background: transparent; border: 1px solid var(--line); color: var(--sub);
-  border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; font-family: inherit;
+  background: transparent; border: 1px solid var(--line); color: var(--ink);
+  border-radius: 10px; padding: 12px 22px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
   flex: 0 0 auto;
 }
 .nox-backbtn:hover { border-color: var(--gold); color: var(--gold); }
+/* E8-1b F6: 画面では隠し・印刷時のみ出す（簡易領収書＝.nox-print と併用。印刷隔離は既存の
+   .nox-printpage > *:not(.nox-print) が担い、本クラスは「画面非表示」だけを足す） */
+.nox-print-only { display: none; }
+@media print { .nox-print-only { display: block; } }
 .nox-backbar .t { font-size: 16px; font-weight: 700; color: var(--ink); }
 .nox-backbar .stay { font-size: 11px; color: var(--sub); }
 .nox-backbar .total { margin-left: auto; font-size: 24px; font-weight: 700; color: var(--ink); }
