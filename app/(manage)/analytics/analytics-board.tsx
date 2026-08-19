@@ -22,7 +22,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
+import Modal from "@/components/ui/modal";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
+// E8-6 後半（mig0096）: T4 集計 RPC 3本の結線。5分類の写像は category-map 純関数（裁定 E8-6-8＝DB に焼かない）
+import { sumCategories, CATEGORY_ORDER, CATEGORY_LABEL, type CategoryLine } from "@/lib/nox/analytics/category-map";
 
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean; photo_updated_at: string | null };
@@ -48,14 +51,21 @@ type CustSummaryRow = {
   customer_id: string; name: string; visits: number; last_visit: string | null;
   total_spend: number; churn_tier: "none" | "mid" | "high";
 };
+// E8-6 後半（mig0096）: T4 集計 RPC の返り行
+type HourRow = {
+  biz_date: string; dow: number; hour: number; sales: number;
+  check_count: number; guest_count: number; stay_min_sum: number; stay_count: number;
+};
+type CatRow = { biz_date: string; kind: string; fee_kind: string | null; amount: number; line_count: number };
+type CohortRow = { cohort_month: string; month_offset: number; customer_count: number };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 // 段A2: 日別バーの土日ハイライト用（曜日ラベル）
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 // 段0R 第2陣: 見出しは nox-panel > h3（白）へ統一したので t.cardTitle 由来の secTitle は撤去。
 const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
-// E8-6: 集計経路が未提供の区画に出す製品文言（内部用語を画面に出さない＝E8-3 の教訓）
-const comingP: React.CSSProperties = { fontSize: 12.5, color: "var(--v2-muted)" };
+// E8-6: 集計経路が未提供の区画に出す製品文言（内部用語を画面に出さない＝E8-3 の教訓）。
+//   後半（mig0096）で主要区画は実装済み＝残りはキャスト詳細の延長率/杯数（cast 軸の集計が未提供）のみ。
 const COMING = "集計機能の提供開始後に表示されます。";
 
 function lastDayOf(period: string): string {
@@ -94,9 +104,9 @@ function downloadCsv(filename: string, rows: (string | number)[][]) {
 }
 
 export default function AnalyticsBoard({
-  stores, casts,
+  stores, casts, isOwner,
 }: {
-  stores: Store[]; casts: Cast[];
+  stores: Store[]; casts: Cast[]; isOwner: boolean;
 }) {
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -131,6 +141,20 @@ export default function AnalyticsBoard({
   // E8-6 #12: 顧客セグメント（customer_list_summary＝/customers と同じ RPC・顧客ビュー表示時のみ取得）
   const [custSummary, setCustSummary] = useState<CustSummaryRow[] | null>(null);
   const [custSummaryErr, setCustSummaryErr] = useState<string | null>(null);
+  // ── E8-6 後半（mig0096）: T4 集計の結線 ──
+  // #17: 全店合算トグル（owner のみ表示・T4 3本＝時間帯/カテゴリ/リテンションにのみ効く。
+  //   日報 KPI・按分ランキング等の既存経路は p_store_id null 非対応のため選択店のまま＝裁定 E8-6-4）
+  const [allStores, setAllStores] = useState(false);
+  const [hourly, setHourly] = useState<HourRow[] | null>(null);
+  const [catRows, setCatRows] = useState<CatRow[] | null>(null);
+  const [cohort, setCohort] = useState<CohortRow[] | null>(null);
+  const [t4Err, setT4Err] = useState<string | null>(null);
+  // #3: 月間売上目標（store_sales_targets 直読＝RLS owner/manager・目標は常に選択店単位）
+  const [target, setTarget] = useState<number | null>(null);
+  const [tgtOpen, setTgtOpen] = useState(false);
+  const [tgtInput, setTgtInput] = useState("");
+  const [tgtMsg, setTgtMsg] = useState<string | null>(null);
+  const [tgtBusy, setTgtBusy] = useState(false);
 
   const castName = useMemo(() => {
     const m = new Map(casts.map((c) => [c.id, c.name]));
@@ -240,6 +264,72 @@ export default function AnalyticsBoard({
   }, [view, storeId]);
   useEffect(() => { void loadCustSummary(); }, [loadCustSummary]);
 
+  // ── E8-6 後半: T4 集計3本＋目標の取得 ──
+  //   窓＝表示月（≤31日で RPC の 92日ガード内）。コホートは表示月を末尾に 6ヶ月。
+  //   scope: 全店合算（owner・null）か選択店。エラーは日本語1本にまとめて3区画共通で表示。
+  const t4ErrJa = (msg: string | undefined) => {
+    if (!msg) return "不明なエラー";
+    if (msg.includes("bad range")) return "期間の指定が不正です";
+    if (msg.includes("bad period")) return "対象月の指定が不正です";
+    if (msg.includes("bad store settings")) return "店舗の営業日設定が不正です（管理者にご確認ください）";
+    if (msg.includes("forbidden")) return "権限がありません";
+    return msg;
+  };
+  const loadT4 = useCallback(async () => {
+    if (!storeId || !/^\d{4}-\d{2}$/.test(period)) return;
+    const supabase = createClient();
+    setT4Err(null);
+    const scope = allStores && isOwner ? null : storeId;
+    const [h, cRes, coRes, tg] = await Promise.all([
+      supabase.rpc("store_hourly_aggregate", {
+        p_store_id: scope, p_from: `${period}-01`, p_to: lastDayOf(period), p_customer_id: null,
+      }),
+      supabase.rpc("store_category_aggregate", {
+        p_store_id: scope, p_from: `${period}-01`, p_to: lastDayOf(period),
+      }),
+      supabase.rpc("store_cohort_aggregate", {
+        p_store_id: scope, p_from_month: addMonths(period, -5), p_months: 6,
+      }),
+      supabase.from("store_sales_targets").select("sales_target")
+        .eq("store_id", storeId).eq("period", period).maybeSingle(),
+    ]);
+    if (h.error || cRes.error || coRes.error) {
+      setT4Err(t4ErrJa(h.error?.message ?? cRes.error?.message ?? coRes.error?.message));
+      setHourly([]); setCatRows([]); setCohort([]);
+    } else {
+      setHourly((h.data ?? []) as HourRow[]);
+      setCatRows((cRes.data ?? []) as CatRow[]);
+      setCohort((coRes.data ?? []) as CohortRow[]);
+    }
+    setTarget((tg.data?.sales_target as number | undefined) ?? null);
+  }, [storeId, period, allStores, isOwner]);
+  useEffect(() => { void loadT4(); }, [loadT4]);
+
+  // E8-6 #3: 目標の保存/クリア（store_sales_target_set＝billing ゲート入り・null=削除）
+  async function saveTarget(amount: number | null) {
+    if (amount !== null && (!Number.isInteger(amount) || amount < 0)) {
+      setTgtMsg("目標は 0 以上の整数（円）で入力してください");
+      return;
+    }
+    setTgtBusy(true);
+    setTgtMsg(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("store_sales_target_set", {
+      p_store_id: storeId, p_period: period, p_amount: amount,
+    });
+    setTgtBusy(false);
+    if (error) {
+      const m = error.message;
+      setTgtMsg(m.includes("billing locked") ? "ご利用プランの制限で更新できません（管理者にご確認ください）"
+        : m.includes("bad amount") ? "目標は 0 以上で入力してください"
+        : m.includes("bad period") ? "対象月の指定が不正です"
+        : m.includes("forbidden") ? "権限がありません" : m);
+      return;
+    }
+    setTgtOpen(false);
+    await loadT4();
+  }
+
   // 段P: ランキングの写真（写真ありの行だけ 1 リクエスト・失敗時は頭文字に落ちる）
   useEffect(() => {
     const supabase = createClient();
@@ -340,6 +430,48 @@ export default function AnalyticsBoard({
   const overlayMax = Math.max(1, ...daily.map(salesOf), ...prevDaily.map(salesOf));
   const trendMonthMax = Math.max(1, ...trendMonths.map((m) => m.sales));
 
+  // ── E8-6 後半: T4 派生値（すべて取得済み rows の client 再形）──
+  // #5: kind×fee_kind 生Σ → 5分類（写像は category-map 純関数＝E8-2 日報と同値・段53(7) で結線検証済み）
+  const catSums = useMemo(() => {
+    const lines: CategoryLine[] = (catRows ?? []).map((r) => ({ kind: r.kind, fee_kind: r.fee_kind, amount: Number(r.amount) }));
+    return sumCategories(lines);
+  }, [catRows]);
+  // #8: 時間帯別売上（月内 Σ・JST 時計時刻）— 非ゼロ時間のみ・営業実態の範囲で並べる
+  const hourBars = useMemo(() => {
+    const m = new Map<number, { sales: number; checks: number }>();
+    for (const r of hourly ?? []) {
+      const a = m.get(r.hour) ?? { sales: 0, checks: 0 };
+      a.sales += Number(r.sales); a.checks += r.check_count;
+      m.set(r.hour, a);
+    }
+    return [...m.entries()].map(([hour, a]) => ({ hour, ...a })).sort((x, y) => x.hour - y.hour);
+  }, [hourly]);
+  const hourMax = Math.max(1, ...hourBars.map((h) => h.sales));
+  // #7: 曜日×時間帯ヒートマップ（dow は RPC が biz_date から算出済み・0=日）
+  const heat = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of hourly ?? []) {
+      const k = `${r.dow}-${r.hour}`;
+      m.set(k, (m.get(k) ?? 0) + Number(r.sales));
+    }
+    return m;
+  }, [hourly]);
+  const heatMax = Math.max(1, ...heat.values());
+  // 平均滞在（月）＝closed_at を持つ伝票の (closed−started) 分和 ÷ 件数（RPC の stay 列）
+  const staySum = (hourly ?? []).reduce((a, r) => a + Number(r.stay_min_sum), 0);
+  const stayCnt = (hourly ?? []).reduce((a, r) => a + r.stay_count, 0);
+  const avgStay = stayCnt > 0 ? Math.round(staySum / stayCnt) : null;
+  // #13: コホート表（行=初来店月・列=offset 0..5・%は offset0 が分母）
+  const cohortTable = useMemo(() => {
+    const months = [...new Set((cohort ?? []).map((r) => r.cohort_month))].sort();
+    return months.map((m) => {
+      const cells = Array.from({ length: 6 }, (_, o) => (cohort ?? []).find((r) => r.cohort_month === m && r.month_offset === o)?.customer_count ?? 0);
+      return { month: m, cells, base: cells[0] };
+    });
+  }, [cohort]);
+  // #3: 目標進捗（分母=目標・分子=締め済み売上 curSales＝KPI 1枚目と同材料）
+  const targetPct = target && target > 0 ? Math.round((curSales / target) * 1000) / 10 : null;
+
   // E8-6 #15: CSV 出力（表示中データの再形のみ・金額の再計算をしない）
   function exportMonthlyCsv() {
     downloadCsv(`nox_report_${period}.csv`, [
@@ -412,6 +544,13 @@ export default function AnalyticsBoard({
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
+        {/* E8-6 #17: 全店合算（owner のみ・時間帯/カテゴリ/リテンションの3区画にのみ効く） */}
+        {isOwner && stores.length > 1 && (
+          <label style={{ fontSize: 12, color: "var(--sub)", display: "flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={allStores} onChange={(e) => setAllStores(e.target.checked)} />
+            全店舗で集計（時間帯・カテゴリ・リテンション）
+          </label>
+        )}
         <span className="num" style={{ marginLeft: "auto", fontSize: 12, color: "var(--sub)" }}>
           {period}・締め済み {daily.length}日分
         </span>
@@ -445,7 +584,26 @@ export default function AnalyticsBoard({
             {labor.state === "final" ? `給与確定 ${yen(labor.gross)} ÷ 売上` : labor.state === "draft" ? "給与が未確定" : "給与データなし"}
           </div>
         </div>
+        {/* E8-6 #3: 月間目標の進捗＝5枚目（分子は KPI 1枚目と同じ締め済み売上・目標は選択店単位） */}
+        <div className="nox-kpi">
+          <div className="lbl">月間目標</div>
+          <div className="val num">{target === null ? "未設定" : `${targetPct}%`}</div>
+          <div className="sub" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span className="num">{target === null ? "目標を設定すると進捗を表示" : `目標 ${yen(target)}`}</span>
+            <button
+              style={{ ...t.btnGhost, ...t.btnSm, padding: "1px 8px", fontSize: 10.5 }}
+              onClick={() => { setTgtInput(target === null ? "" : String(target)); setTgtMsg(null); setTgtOpen(true); }}
+            >設定</button>
+          </div>
+          {target !== null && target > 0 && (
+            <div style={{ marginTop: 6, height: 5, borderRadius: 3, background: "var(--line2)", overflow: "hidden" }}>
+              <div style={{ width: `${Math.min(100, targetPct ?? 0)}%`, height: "100%", background: (targetPct ?? 0) >= 100 ? "var(--ok)" : "var(--gold)" }} />
+            </div>
+          )}
+        </div>
       </div>
+
+      {t4Err && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{t4Err}</p>}
 
       {/* ── E8-6 #1: 4ビュー切替（モック view-tabs 準拠・既存セクションの再配置のみ）── */}
       <nav className="nox-subnav">
@@ -515,10 +673,35 @@ export default function AnalyticsBoard({
               ※日報が持つ内訳はドリンク・ボトルのみのため、それ以外は「その他」にまとめています。
             </p>
           </section>
-          {/* E8-6 #5 プレースホルダ（写像は確定済み・集計経路の提供待ち） */}
+          {/* E8-6 #5（mig0096 結線）: kind×fee_kind 生Σ → category-map 純関数で5分類（E8-2 日報と同じ写像）。
+              ★材料は明細（サービス料・丸め前）＝日報売上（丸め後・サ料込）とは一致しない＝注記で明示。 */}
           <section className="nox-panel">
-            <h3>売上カテゴリ（5分類）</h3>
-            <p style={comingP}>{COMING}セット・延長／ドリンク／シャンパン／ボトル／指名・その他の内訳を表示する予定です。</p>
+            <h3>売上カテゴリ（5分類・{period}{allStores && isOwner ? "・全店舗" : ""}）</h3>
+            {catRows === null && <p style={noneP}>読み込み中…</p>}
+            {catRows !== null && catSums.total === 0 && <p style={noneP}>この月の会計済み伝票がありません。</p>}
+            {catRows !== null && catSums.total > 0 && (
+              <>
+                {CATEGORY_ORDER.map((k) => {
+                  const v = catSums.cats[k];
+                  const pct = catSums.total > 0 ? Math.round((v / catSums.total) * 1000) / 10 : 0;
+                  const catMax = Math.max(1, ...CATEGORY_ORDER.map((x) => catSums.cats[x]));
+                  return (
+                    <div key={k} style={{ display: "flex", alignItems: "center", gap: 10, padding: "3px 0", fontSize: 12.5 }}>
+                      <span style={{ width: 92, flexShrink: 0, color: "var(--sub)" }}>{CATEGORY_LABEL[k]}</span>
+                      <div style={{ flex: 1, height: 8, borderRadius: 4, background: "var(--line2)", overflow: "hidden" }}>
+                        <div style={{ width: `${Math.round((v / catMax) * 100)}%`, height: "100%", background: "var(--gold)" }} />
+                      </div>
+                      <span className="num" style={{ width: 130, textAlign: "right", flexShrink: 0 }}>{yen(v)}（{pct}%）</span>
+                    </div>
+                  );
+                })}
+                <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+                  ※会計済み伝票の明細合計（サービス料・丸め前）＝締め済み日報の売上とは一致しません。
+                  値引き {yen(catSums.discount)} は別掲（5分類に含めていません）。
+                  指名・その他のうち指名料は 本{yen(catSums.nomFee.hon)}・場内{yen(catSums.nomFee.jonai)}・同伴{yen(catSums.nomFee.dohan)}。
+                </p>
+              </>
+            )}
           </section>
         </div>
       </div>
@@ -657,10 +840,66 @@ export default function AnalyticsBoard({
         </div>
       </div>
 
-      {/* E8-6 #7/#8 プレースホルダ */}
+      {/* E8-6 #8（mig0096 結線）: 時間帯別売上バー（JST 時計時刻・月内Σ・非ゼロ時間のみ） */}
       <section className="nox-panel">
-        <h3>時間帯別売上・曜日×時間帯ヒートマップ</h3>
-        <p style={comingP}>{COMING}時間帯ごとの売上と、曜日×時間帯の混雑傾向を表示する予定です。</p>
+        <h3>時間帯別売上（{period}{allStores && isOwner ? "・全店舗" : ""}）</h3>
+        {hourly === null && <p style={noneP}>読み込み中…</p>}
+        {hourly !== null && hourBars.length === 0 && <p style={noneP}>この月の会計済み伝票がありません。</p>}
+        {hourly !== null && hourBars.length > 0 && (
+          <>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 130, overflowX: "auto", padding: "4px 2px" }}>
+              {hourBars.map((h) => (
+                <div key={h.hour} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flexShrink: 0 }}
+                  title={`${h.hour}時台・${yen(h.sales)}・${h.checks}組`}>
+                  <div style={{ width: 26, borderRadius: "3px 3px 0 0", background: "var(--gold)", height: Math.max(3, Math.round((h.sales / hourMax) * 100)) }} />
+                  <span className="num" style={{ fontSize: 10.5, color: "var(--sub)" }}>{h.hour}時</span>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "6px 0 0" }}>
+              ※開卓時刻（時計時刻）ベースの卓合計（サ料込・丸め後）。
+              平均滞在 {avgStay === null ? "—" : `${avgStay}分`}（会計済み {stayCnt}組）。
+            </p>
+          </>
+        )}
+      </section>
+
+      {/* E8-6 #7（mig0096 結線）: 曜日×時間帯ヒートマップ＝7×24 の 168 グリッド client 展開 */}
+      <section className="nox-panel">
+        <h3>曜日×時間帯ヒートマップ（{period}{allStores && isOwner ? "・全店舗" : ""}）</h3>
+        {hourly === null && <p style={noneP}>読み込み中…</p>}
+        {hourly !== null && heat.size === 0 && <p style={noneP}>この月の会計済み伝票がありません。</p>}
+        {hourly !== null && heat.size > 0 && (
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "26px repeat(24, 22px)", gap: 2, alignItems: "center" }}>
+                <span />
+                {Array.from({ length: 24 }, (_, h) => (
+                  <span key={h} className="num" style={{ fontSize: 9.5, color: "var(--sub)", textAlign: "center" }}>{h}</span>
+                ))}
+                {DOW.map((label, d) => (
+                  <>
+                    <span key={`l${d}`} style={{ fontSize: 11, color: d === 0 ? "var(--bad)" : d === 6 ? "var(--champ)" : "var(--sub)" }}>{label}</span>
+                    {Array.from({ length: 24 }, (_, h) => {
+                      const v = heat.get(`${d}-${h}`) ?? 0;
+                      const alpha = v > 0 ? 0.15 + 0.85 * (v / heatMax) : 0;
+                      return (
+                        <div key={`${d}-${h}`}
+                          title={v > 0 ? `${label}曜 ${h}時台・${yen(v)}` : undefined}
+                          style={{ width: 22, height: 18, borderRadius: 3,
+                            background: v > 0 ? `rgba(201, 162, 74, ${alpha})` : "var(--card2)",
+                            border: "1px solid var(--line)" }} />
+                      );
+                    })}
+                  </>
+                ))}
+              </div>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+              ※濃いほど売上が大きい時間帯（開卓時刻ベース・曜日は営業日の曜日＝深夜帯は前営業日側）。
+            </p>
+          </>
+        )}
       </section>
       </>
       )}
@@ -842,12 +1081,71 @@ export default function AnalyticsBoard({
           </>
         )}
       </section>
-      {/* E8-6 #13 プレースホルダ */}
+      {/* E8-6 #13（mig0096 結線）: コホートリテンション表＝直近6ヶ月の初来店月×経過月。
+          初来店月は全履歴で確定（窓外に履歴のある客は新規に数えない＝段53(9) 実測） */}
       <section className="nox-panel">
-        <h3>リテンション（月別の再来店率）</h3>
-        <p style={comingP}>{COMING}初回来店月ごとの再来店状況を表示する予定です。</p>
+        <h3>リテンション（初来店月別の再来店・直近6ヶ月{allStores && isOwner ? "・全店舗" : ""}）</h3>
+        {cohort === null && <p style={noneP}>読み込み中…</p>}
+        {cohort !== null && cohortTable.length === 0 && (
+          <p style={noneP}>この期間に初来店した客がいません（顧客が紐付いた会計済み伝票が対象）。</p>
+        )}
+        {cohort !== null && cohortTable.length > 0 && (
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <table className="nox-table">
+                <thead>
+                  <tr>
+                    <th>初来店月</th>
+                    <th className="num">人数</th>
+                    {Array.from({ length: 5 }, (_, i) => <th key={i} className="num">＋{i + 1}ヶ月</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {cohortTable.map((r) => (
+                    <tr key={r.month}>
+                      <td className="num">{r.month}</td>
+                      <td className="num">{r.base}人</td>
+                      {r.cells.slice(1).map((v, i) => (
+                        <td key={i} className="num" style={{ color: v > 0 ? "var(--ok)" : "var(--v2-muted)" }}>
+                          {r.base > 0 && v > 0 ? `${v}人（${Math.round((v / r.base) * 100)}%）` : v > 0 ? `${v}人` : "—"}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+              ※各行＝その月に初来店した客の数と、n ヶ月後にも来店した人数（%は初来店人数比）。
+              顧客が紐付いていない伝票は対象外。初来店月は全期間の履歴で判定します。
+            </p>
+          </>
+        )}
       </section>
       </>
+      )}
+
+      {/* E8-6 #3: 目標設定モーダル（store_sales_target_set・空欄で保存=クリア） */}
+      {tgtOpen && (
+        <Modal onClose={() => setTgtOpen(false)}>
+          <h3 style={{ margin: "0 0 10px" }}>月間売上目標（{stores.find((s) => s.id === storeId)?.name ?? ""}・{period}）</h3>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              type="number" min={0} value={tgtInput} onChange={(e) => setTgtInput(e.target.value)}
+              placeholder="例 8000000" className="nox-input" style={{ width: 160 }} aria-label="月間売上目標（円）"
+            />
+            <span style={{ fontSize: 12, color: "var(--sub)" }}>円</span>
+            <button style={{ ...t.btnGold, padding: "8px 16px", opacity: tgtBusy ? 0.6 : 1 }} disabled={tgtBusy}
+              onClick={() => void saveTarget(tgtInput.trim() === "" ? null : Number(tgtInput))}>
+              {tgtInput.trim() === "" ? "クリア（目標なしに戻す）" : "保存"}
+            </button>
+            <button style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setTgtOpen(false)}>閉じる</button>
+          </div>
+          {tgtMsg && <p style={{ fontSize: 12, color: "var(--bad)", fontWeight: 700, margin: "8px 0 0" }}>{tgtMsg}</p>}
+          <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+            進捗の分子は締め済み日報の売上（KPI と同じ）。空欄で保存すると目標を外します。
+          </p>
+        </Modal>
       )}
     </div>
   );

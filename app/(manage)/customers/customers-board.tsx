@@ -37,9 +37,10 @@ type Bottle = {
   remaining_pct: number | null; expires_on: string | null; shelf_no: string | null;
 };
 // E8-3 #5/#6/#2: 右ペインのプロフィール材料（tel/prefs/grade を追加取得・表示専用）
+//   E8-6（mig0096）: store_id を追加取得＝来店傾向 RPC（store_hourly_aggregate）の p_store_id 解決用
 type CustRow = {
   id: string; name: string; furigana: string | null; birthday: string | null; memo: string | null;
-  tel: string | null; prefs: string | null; grade: string | null;
+  tel: string | null; prefs: string | null; grade: string | null; store_id: string;
 };
 // E8-3 #8（mig0094）: 顧客メモ履歴（customer_notes・is_removed 除外で取得）
 type Note = { id: string; body: string; author_user_id: string | null; created_at: string };
@@ -89,6 +90,8 @@ export default function CustomersBoard({
   const [gradeOf, setGradeOf] = useState<Record<string, string>>({});
   // E8-3 #8: メモ履歴（customer_notes）＋記入者名＋追記フォーム
   const [dNotes, setDNotes] = useState<Note[]>([]);
+  // E8-6 customers#5: 来店傾向の要約文（owner/manager のみ取得・staff は null=「—」）
+  const [dTrend, setDTrend] = useState<string | null>(null);
   const [authorNames, setAuthorNames] = useState<Record<string, string>>({});
   const [noteBody, setNoteBody] = useState("");
   // E8-3 #7: ボトル編集モーダル（bottle_keep_update・owner/manager）
@@ -140,8 +143,9 @@ export default function CustomersBoard({
   //     can_crm だけの staff は 0行になりうる＝そのときは明細を出さず件数（RPC 集計 active_bottles）だけが残る。
   const loadDetail = useCallback(async (id: string) => {
     const supabase = createClient();
+    setDTrend(null);
     const [cRes, vRes, bRes, nRes] = await Promise.all([
-      supabase.from("customers").select("id, name, furigana, birthday, memo, tel, prefs, grade").eq("id", id).maybeSingle(),
+      supabase.from("customers").select("id, name, furigana, birthday, memo, tel, prefs, grade, store_id").eq("id", id).maybeSingle(),
       supabase.rpc("customer_visit_history", { p_customer_id: id }),
       supabase.from("bottle_keeps").select("id, product_id, status, opened_at, note, remaining_pct, expires_on, shelf_no").eq("customer_id", id).order("created_at", { ascending: false }),
       // E8-3 #8: メモ履歴（is_removed 除外・新しい順。RLS で cast は 0行＝段51(14) 実測済み）
@@ -167,7 +171,33 @@ export default function CustomersBoard({
       const { data: us } = await supabase.from("users").select("id, name").in("id", uids);
       setAuthorNames(Object.fromEntries(((us ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name])));
     }
-  }, []);
+    // E8-6 customers#5（mig0096 結線）: 来店傾向＝store_hourly_aggregate の p_customer_id 絞込（直近92日）。
+    //   RPC は owner/manager のみ＝staff（can_crm）は呼ばない（呼べば forbidden＝表示は「—」のまま）。
+    const cRow = cRes.data as (CustRow & { store_id?: string }) | null;
+    if (isManagerUp && cRow?.store_id) {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const to = new Date();
+      const from = new Date(to.getTime() - 91 * 86_400_000); // RPC の 92日ガード内
+      const { data: hr } = await supabase.rpc("store_hourly_aggregate", {
+        p_store_id: cRow.store_id, p_from: ymd(from), p_to: ymd(to), p_customer_id: id,
+      });
+      const rows = (hr ?? []) as { dow: number; hour: number; check_count: number; stay_min_sum: number; stay_count: number }[];
+      const n = rows.reduce((a, r) => a + r.check_count, 0);
+      if (n === 0) setDTrend("直近3ヶ月の来店はありません");
+      else {
+        const DOWJ = ["日", "月", "火", "水", "木", "金", "土"];
+        const byCell = new Map<string, number>();
+        for (const r of rows) byCell.set(`${r.dow}-${r.hour}`, (byCell.get(`${r.dow}-${r.hour}`) ?? 0) + r.check_count);
+        const top = [...byCell.entries()].sort((a, b) => b[1] - a[1])[0];
+        const [d, h] = top[0].split("-").map(Number);
+        const staySum = rows.reduce((a, r) => a + Number(r.stay_min_sum), 0);
+        const stayCnt = rows.reduce((a, r) => a + r.stay_count, 0);
+        const stay = stayCnt > 0 ? `・平均滞在 ${Math.round(staySum / stayCnt)}分` : "";
+        setDTrend(`${DOWJ[d]}曜 ${h}時台が最多（直近3ヶ月 ${n}回中${top[1]}回）${stay}`);
+      }
+    }
+  }, [isManagerUp]);
   useEffect(() => {
     if (!sel) { setDCust(null); setDVisits([]); setDBottles([]); setDNotes([]); return; }
     setDtab("info"); setNoteBody("");
@@ -564,9 +594,12 @@ export default function CustomersBoard({
                     <span style={{ color: "var(--v2-text)", fontWeight: 700 }}>{v}</span>
                   </span>
                 ))}
+                {/* E8-6 customers#5（mig0096 結線）: 直近92日の来店傾向（最多の曜日×時間帯＋平均滞在） */}
                 <span style={{ gridColumn: "1 / -1" }}>
-                  <span style={{ color: "var(--v2-muted)", fontSize: 11 }}>来店傾向</span><br />
-                  <span style={{ color: "var(--v2-muted)" }}>E8-6（分析段）で実装予定＝時刻粒度の集計（T4）に従属</span>
+                  <span style={{ color: "var(--v2-muted)", fontSize: 11 }}>来店傾向（直近3ヶ月）</span><br />
+                  <span style={{ color: dTrend ? "var(--v2-text)" : "var(--v2-muted)", fontWeight: dTrend ? 700 : 400 }}>
+                    {dTrend ?? "—"}
+                  </span>
                 </span>
               </div>
               {/* E8-3 #6: 好み・接客チップ（prefs の表示形＝読点/カンマ/空白区切り。書込は現行どおり customer_update） */}

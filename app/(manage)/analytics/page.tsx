@@ -24,6 +24,7 @@ export default async function AnalyticsPage() {
     <AnalyticsBoard
       stores={(stores ?? []) as { id: string; name: string }[]}
       casts={(casts ?? []) as { id: string; name: string; store_id: string; is_active: boolean; photo_updated_at: string | null }[]}
+      isOwner={role === "owner"}  // E8-6 #17: 全店合算トグルの表示ゲート（真の防御は RPC の owner 判定）
     />
   );
 }
