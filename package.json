@@ -33,6 +33,7 @@
     "verify:nox-ar-partial": "tsx scripts/verify-nox-ar-partial.ts",
     "verify:nox-crm-base": "tsx scripts/verify-nox-crm-base.ts",
     "verify:nox-shift-bands": "tsx scripts/verify-nox-shift-bands.ts",
+    "verify:nox-category-map": "tsx scripts/verify-nox-category-map.ts",
     "backup:schema": "tsx scripts/backup-schema.ts",
     "seed:demo": "tsx scripts/seed-demo.ts"
   },
