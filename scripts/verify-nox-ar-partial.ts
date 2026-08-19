@@ -283,6 +283,36 @@ async function main() {
     check("段50(11) ★reopen 成功＝deducted 巻き戻し（0・open）・collected_amount=3000 不変・CHECK 非違反（行読取可）",
       !e11 && s11.deducted_amount === 0 && s11.status === "open" && s11.collected_amount === 3000,
       e11?.message ?? JSON.stringify(s11));
+
+    // ═══ (12) mig0093: receivable_set_due（期日の唯一の書込経路）═══
+    //   売掛C は (11) の reopen で open に戻っている＝設定対象に再利用（fixture 追加ゼロ）。
+    {
+      const auditCount = async () =>
+        (await admin.from("audit_logs").select("id", { count: "exact", head: true })
+          .eq("action", "receivable_set_due").eq("target", `receivables:${C.recvId}`)).count ?? 0;
+      const { error: eD1 } = await mgr.rpc("receivable_set_due", { p_receivable_id: C.recvId, p_due: "2028-07-10" });
+      const sD1 = await recvState(C.recvId);
+      check("段50(12) ★set_due 設定＝due='2028-07-10' 実測", !eD1 && sD1.due === "2028-07-10", eD1?.message ?? JSON.stringify(sD1));
+      const a1 = await auditCount();
+      check("段50(12) audit 1行（action=receivable_set_due）", a1 === 1, `got ${a1}`);
+      // 無変更呼び＝無音・audit 増えない
+      const { error: eD2 } = await mgr.rpc("receivable_set_due", { p_receivable_id: C.recvId, p_due: "2028-07-10" });
+      const a2 = await auditCount();
+      check("段50(12) ★無変更呼び＝無音 return・audit 不増", !eD2 && a2 === 1, eD2?.message ?? `audit ${a1}→${a2}`);
+      // null でクリア
+      const { error: eD3 } = await mgr.rpc("receivable_set_due", { p_receivable_id: C.recvId, p_due: null });
+      const sD3 = await recvState(C.recvId);
+      const a3 = await auditCount();
+      check("段50(12) ★null でクリア＝due=null・audit 2行目", !eD3 && sD3.due === null && a3 === 2,
+        eD3?.message ?? JSON.stringify({ sD3, a3 }));
+      // collected 行（売掛A）は not open
+      const { error: eD4 } = await mgr.rpc("receivable_set_due", { p_receivable_id: A.recvId, p_due: "2028-07-10" });
+      check("段50(12) collected 行は 'not open'", has(eD4, "not open"), eD4?.message ?? "通ってしまった");
+      // 他 org（managerB1）= forbidden（行実在・org 不一致の遮断）
+      const mgrB = await signIn("managerB1");
+      const { error: eD5 } = await mgrB.rpc("receivable_set_due", { p_receivable_id: C.recvId, p_due: "2028-07-10" });
+      check("段50(12) ★他 org は forbidden", has(eD5, "forbidden"), eD5?.message ?? "通ってしまった");
+    }
   } finally {
     await cleanup();
     // 掃除の自己検証（固定カウント非汚染＝段44 流儀）
@@ -307,7 +337,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-ar-partial ALL PASS (${pass} assertions)`);
-  console.log("部分回収(0092): 3000部分/idemリプレイ/残高超・0・負/null全額collected/not open/void settled/void成功/天引き新上限/新v_full/reopen不変量");
+  console.log("部分回収(0092)+期日(0093): 3000部分/idemリプレイ/残高超・0・負/null全額collected/not open/void settled/void成功/天引き新上限/新v_full/reopen不変量/set_due設定・無音・nullクリア・not open・他org forbidden");
 }
 
 main().catch((e) => {
