@@ -34,6 +34,13 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
   const [labor, setLabor] = useState<Labor>({ state: "none", gross: 0 });
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // E8-2 #9: 日別売上推移（daily_reports の日次行＝取得済みデータの保持のみ）
+  const [days, setDays] = useState<Array<{ d: string; sales: number }>>([]);
+  // E8-2 #10: キャスト別売上 TOP5（get_cast_sales の月合算・owner/manager のみ）
+  const [castTop, setCastTop] = useState<Array<{ name: string; sales: number }>>([]);
+  // E8-2 #11: KPI 追加材料（売掛残高・前年同月売上）
+  const [arBalance, setArBalance] = useState(0);
+  const [prevYearSales, setPrevYearSales] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!storeId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) return;
@@ -55,6 +62,37 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
       s.sales += r.cash + r.card_gross + r.uri + r.other; // 裁定③E5 踏襲
       s.groups += r.slips; s.guests += r.guests; s.dohan += r.dohan_checks; s.drink += r.drink_sales;
     }
+    // E8-2 #9: 日別売上（同じ drs の再形＝新規取得なし・biz_date 昇順）
+    setDays(((drs ?? []) as DR[])
+      .map((r) => ({ d: r.biz_date, sales: r.cash + r.card_gross + r.uri + r.other }))
+      .sort((a, b) => a.d.localeCompare(b.d)));
+    // E8-2 #10: キャスト別売上 TOP5（get_cast_sales を月範囲で1回・名前は casts へ1回）
+    if (isManagerUp) {
+      const { data: cs } = await supabase.rpc("get_cast_sales", { p_store_id: storeId, p_from: start, p_to: end });
+      const byCast = new Map<string, number>();
+      for (const r of (cs ?? []) as Array<{ cast_id: string; sales: number }>) {
+        byCast.set(r.cast_id, (byCast.get(r.cast_id) ?? 0) + r.sales);
+      }
+      const top = [...byCast.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+      if (top.length) {
+        const { data: cn } = await supabase.from("casts").select("id, name").in("id", top.map(([id]) => id));
+        const nameOf = new Map(((cn ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name]));
+        setCastTop(top.map(([id, sales]) => ({ name: nameOf.get(id) ?? "（不明）", sales })));
+      } else setCastTop([]);
+    }
+    // E8-2 #11: 売掛残高（open の残高式＝mig0092）・前年同月売上（daily_reports 1クエリ）
+    const { data: rv } = await supabase.from("receivables")
+      .select("amount, deducted_amount, collected_amount").eq("store_id", storeId).eq("status", "open");
+    setArBalance(((rv ?? []) as Array<{ amount: number; deducted_amount: number; collected_amount: number }>)
+      .reduce((a, r) => a + r.amount - r.deducted_amount - r.collected_amount, 0));
+    const py = `${Number(period.slice(0, 4)) - 1}${period.slice(4)}`;
+    const { data: pdrs } = await supabase.from("daily_reports")
+      .select("cash, card_gross, uri, other").eq("store_id", storeId)
+      .gte("biz_date", `${py}-01`).lte("biz_date", `${py}-31`);
+    setPrevYearSales((pdrs ?? []).length
+      ? ((pdrs ?? []) as Array<{ cash: number; card_gross: number; uri: number; other: number }>)
+          .reduce((a, r) => a + r.cash + r.card_gross + r.uri + r.other, 0)
+      : null);
     // 指名(本)＝hon+jonai（同伴=dohan は別行ゆえ除外・get_store_nom_counts を半期split で2回呼び）
     const nc = async (from: string, to: string): Promise<number> => {
       const { data } = await supabase.rpc("get_store_nom_counts", { p_store_id: storeId, p_from: from, p_to: to });
@@ -123,6 +161,29 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
       </h3>
       {msg && <p style={{ fontSize: 12, color: "var(--bad)" }}>{msg}</p>}
 
+      {/* E8-2 #11: 月報 KPI 5枚（売上/営業日数/平均日商/売掛残高/前年同月比＝取得済み材料の再形） */}
+      {(() => {
+        const bizDays = days.length;
+        const avgDaily = bizDays > 0 ? Math.round(full.sales / bizDays) : 0;
+        const yoy = prevYearSales != null && prevYearSales > 0
+          ? Math.round(((full.sales - prevYearSales) / prevYearSales) * 100) : null;
+        return (
+          <div className="nox-repsum five">
+            <div className="nox-rs"><div className="l">売上（通期）</div><div className="v num">{yen(full.sales)}</div></div>
+            <div className="nox-rs"><div className="l">営業日数</div><div className="v num">{bizDays}日</div></div>
+            <div className="nox-rs"><div className="l">平均日商</div><div className="v num">{yen(avgDaily)}</div></div>
+            <div className="nox-rs"><div className="l">売掛残高</div><div className="v num" style={arBalance > 0 ? { color: "var(--bad)" } : undefined}>{yen(arBalance)}</div></div>
+            <div className="nox-rs">
+              <div className="l">前年同月比</div>
+              <div className="v num" style={yoy != null ? { color: yoy >= 0 ? "var(--ok)" : "var(--bad)" } : undefined}>
+                {yoy != null ? `${yoy >= 0 ? "+" : ""}${yoy}%` : "—"}
+              </div>
+              {prevYearSales != null && <div className="l" style={{ marginTop: 2 }}>前年 {yen(prevYearSales)}</div>}
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ display: "grid", gridTemplateColumns: "1.15fr 1fr 1fr 1fr", gap: "4px 4px", alignItems: "center" }}>
         <div />
         <div style={th}>前期 1–15</div>
@@ -151,6 +212,48 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
           </div>
         ))}
       </div>
+
+      {/* E8-2 #9: 日別売上推移（締め済み daily_reports の日次バー＝取得済み drs の再形のみ） */}
+      {days.length > 0 && (() => {
+        const dayMax = Math.max(...days.map((x) => x.sales), 1);
+        return (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 11, color: "var(--sub)", marginBottom: 5 }}>日別売上（締め済み {days.length} 日）</div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 72, overflowX: "auto", paddingBottom: 2 }}>
+              {days.map((x) => (
+                <div key={x.d} title={`${x.d} ${yen(x.sales)}`}
+                  style={{ flex: "1 0 10px", minWidth: 10, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                  <div style={{
+                    width: "100%", borderRadius: "3px 3px 0 0", background: "var(--gold)",
+                    height: `${Math.max(3, Math.round((x.sales / dayMax) * 60))}px`,
+                  }} />
+                  <span className="num" style={{ fontSize: 8.5, color: "var(--sub)" }}>{Number(x.d.slice(8, 10))}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* E8-2 #10: キャスト別売上 TOP5（get_cast_sales 月合算・owner/manager のみ・金額按分は既存 RPC の定義どおり） */}
+      {isManagerUp && castTop.length > 0 && (() => {
+        const topMax = Math.max(...castTop.map((x) => x.sales), 1);
+        return (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 11, color: "var(--sub)", marginBottom: 5 }}>キャスト別売上 TOP5</div>
+            {castTop.map((x, i) => (
+              <div key={x.name + i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span className="num" style={{ fontSize: 11, color: i === 0 ? "var(--gold)" : "var(--sub)", width: 16, fontWeight: 800 }}>{i + 1}</span>
+                <span style={{ fontSize: 12, color: "var(--ink)", width: 86, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.name}</span>
+                <div style={{ flex: 1, height: 10, background: "var(--card2)", borderRadius: 5, overflow: "hidden" }}>
+                  <div style={{ width: `${Math.round((x.sales / topMax) * 100)}%`, height: "100%", background: i === 0 ? "var(--gold)" : "var(--gold2)" }} />
+                </div>
+                <span className="num" style={{ fontSize: 11.5, width: 90, textAlign: "right", color: "var(--ink)" }}>{yen(x.sales)}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       <p style={{ fontSize: 11, color: "var(--sub)", marginTop: 12, lineHeight: 1.7 }}>
         売上・組数・来客数・同伴・drink は締め済み日報の合算。指名は本指名+場内の件数（同伴は別行）。

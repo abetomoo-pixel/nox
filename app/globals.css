@@ -863,7 +863,9 @@ body {
 .nox-repwarn { font-size: 11px; color: var(--bad); }
 /* 日報：当日サマリ4カード（モック .repsum/.rs）＝★唯一の新設。既存 preview の値を並べ替えただけ。 */
 .nox-repsum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
-@media (max-width: 641px) { .nox-repsum { grid-template-columns: repeat(2, 1fr); } }
+/* E8-2 #3: 5枚版（日報 KPI）。≤641 は従来どおり2列へ畳む */
+.nox-repsum.five { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 641px) { .nox-repsum { grid-template-columns: repeat(2, 1fr); } .nox-repsum.five { grid-template-columns: repeat(2, 1fr); } }
 .nox-rs { background: var(--v2-panel2); border: 1px solid var(--v2-line); border-radius: 10px; padding: 10px; text-align: center; }
 .nox-rs .l { font-size: 10px; color: var(--v2-muted); }
 /* 金額は「読む情報」ゆえ白（金3役の原則） */
