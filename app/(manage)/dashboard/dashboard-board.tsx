@@ -16,7 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
-import { fmtWin } from "@/lib/nox/shift-time";
+import { fmtWin, hm2min } from "@/lib/nox/shift-time";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
@@ -28,7 +28,8 @@ type ReportRow = { biz_date: string; cash: number; card_gross: number; uri: numb
 // get_cast_ranking の返り列に一致（hon_count/jonai_count/dohan_count・不一致だと NaN になっていた）
 type RankRow = { rank: number; cast_id: string; cast_name: string; hon_count: number; jonai_count: number; dohan_count: number };
 type Shift = { cast_id: string; start_hm: string; end_hm: string; status: string };
-type Need = { dow: number; required: number };
+// E8-4（mig0095）: staffing_needs は時間帯バンド化（0/1440=終日・既存行は backfill 済み）
+type Need = { dow: number; required: number; from_min: number; to_min: number };
 type Notice = { id: string; title: string; created_at: string };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
@@ -79,7 +80,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
     // 段H2: 当日シフト＋必要人数（曜日別）＝S-1 と同じ列・同じ導出。日別の必要人数は現スキーマに無い。
     const { data: sh } = await supabase.from("shifts")
       .select("cast_id, start_hm, end_hm, status").eq("date", bizToday);
-    const { data: ns } = await supabase.from("staffing_needs").select("dow, required");
+    const { data: ns } = await supabase.from("staffing_needs").select("dow, required, from_min, to_min");
     // 段H2: お知らせ最新2件（notices-board と同じ並び＝pinned 優先→新しい順・RLS が可視範囲を保証）
     const { data: nt } = await supabase.from("notices")
       .select("id, title, created_at")
@@ -115,11 +116,20 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   const dohanToday = atts.filter((a) => a.status === "dohan").length;
   const honMonth = ranking.reduce((a, r) => a + r.hon_count, 0);
 
-  // 段H2: 今日のシフト概況＝S-1 と同一導出（確定数＋曜日別の必要人数＋3色の充足判定）。
+  // 段H2: 今日のシフト概況＝S-1 と同一導出（確定数＋必要人数＋3色の充足判定）。
+  //   E8-4（mig0095）: 時間帯バンド対応＝S-1（shift-board）と同式。バンド充足は
+  //   「当該時間帯に交差するシフト数 ÷ required」（半開区間交差）・日の状態はバンドの最悪値・
+  //   必要人数はピーク（max）・不足は最悪バンドの不足数（合算は跨ぎ勤務を二重計上するためしない）。
   const confirmedToday = todayShifts.filter((s) => s.status === "confirmed").length;
-  const requiredToday = needs.find((n) => n.dow === dowOf(bizToday))?.required ?? 0;
-  const todayFill = fillOf(todayShifts.length, requiredToday);
-  const shortageToday = Math.max(0, requiredToday - todayShifts.length);
+  const todayBands = needs.filter((n) => n.dow === dowOf(bizToday)).map((n) => {
+    const assigned = todayShifts.filter((s) => hm2min(s.start_hm) < n.to_min && n.from_min < hm2min(s.end_hm)).length;
+    return { ...n, assigned, fill: fillOf(assigned, n.required) };
+  });
+  const requiredToday = todayBands.reduce((m, b) => Math.max(m, b.required), 0);
+  const todayFill: Fill = todayBands.some((b) => b.fill === "ng") ? "ng"
+    : todayBands.some((b) => b.fill === "warn") ? "warn"
+    : todayBands.some((b) => b.fill === "ok") ? "ok" : "none";
+  const shortageToday = todayBands.reduce((m, b) => Math.max(m, Math.max(0, b.required - b.assigned)), 0);
   /** 出勤チップに出す開始時刻＝その cast の当日シフト（最も早い開始）。無ければ null。 */
   const startOf = (castId: string) => {
     const mine = todayShifts.filter((s) => s.cast_id === castId);

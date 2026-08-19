@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
-import { fmtWin, fmtBand30, hm2min } from "@/lib/nox/shift-time";
+import { fmtWin, fmtBand30, hm2min, min2hm } from "@/lib/nox/shift-time";
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -20,9 +20,11 @@ import IncentivePanel from "./incentive-panel";
 
 type Cast = { id: string; name: string; photo_updated_at: string | null };
 type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string };
-type Shift = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string };
+type Shift = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string; created_by: string };
 type Att = { cast_id: string; status: string; eta: string | null };
-type Need = { dow: number; required: number };
+// E8-4（mig0095）: staffing_needs は時間帯バンド化＝(store_id, dow, from_min) UNIQUE。
+//   from_min/to_min は 0..1440（分）・0/1440=終日（既存行は mig0095 backfill で終日バンド化済み）。
+type Need = { id: string; dow: number; required: number; from_min: number; to_min: number };
 
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -39,6 +41,33 @@ type Fill = "none" | "ok" | "warn" | "ng";
 const fillOf = (assigned: number, required: number): Fill =>
   required <= 0 ? "none" : assigned >= required ? "ok" : required - assigned === 1 ? "warn" : "ng";
 const FILL_LABEL: Record<Fill, string> = { none: "未設定", ok: "充足", warn: "やや不足", ng: "不足" };
+// E8-4 #2: 日の状態＝バンドの最悪値（ng > warn > ok > none）。日単位の必要人数はピーク（max required）。
+const worstFill = (fills: Fill[]): Fill =>
+  fills.includes("ng") ? "ng" : fills.includes("warn") ? "warn" : fills.includes("ok") ? "ok" : "none";
+const FILL_COLOR: Record<Fill, string> = { ok: "var(--ok)", warn: "var(--gold2)", ng: "var(--bad)", none: "var(--line2)" };
+const bandLabel = (n: { from_min: number; to_min: number }) =>
+  n.from_min === 0 && n.to_min === 1440 ? "終日" : `${min2hm(n.from_min)}〜${min2hm(n.to_min)}`;
+type BandStat = Need & { assigned: number; fill: Fill };
+// E8-4 #2: 時間帯別充足バー（今日タブ・日詳細で共用）。バー幅は assigned/required の頭打ち100%。
+function BandBars({ stats }: { stats: BandStat[] }) {
+  return (
+    <div>
+      {stats.map((b) => {
+        const pct = b.required > 0 ? Math.min(100, Math.round((b.assigned / b.required) * 100)) : 0;
+        return (
+          <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", fontSize: 12.5 }}>
+            <span className="num" style={{ width: 96, flexShrink: 0, color: "var(--sub)" }}>{bandLabel(b)}</span>
+            <div style={{ flex: 1, height: 8, borderRadius: 4, background: "var(--line2)", overflow: "hidden" }}>
+              <div style={{ width: `${pct}%`, height: "100%", background: FILL_COLOR[b.fill] }} />
+            </div>
+            <span className="num" style={{ width: 52, textAlign: "right", flexShrink: 0 }}>{b.assigned}/{b.required}</span>
+            <span className={`nox-stpill ${b.fill === "none" ? "" : b.fill}`}>{FILL_LABEL[b.fill]}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 const ATT_OPTIONS = [
   ["", "—"], ["shukkin", "出勤"], ["dohan", "同伴"], ["late", "遅刻"], ["off", "休み"], ["absent", "当欠"],
 ] as const;
@@ -57,6 +86,13 @@ function rpcErrJa(msg: string | undefined): string {
   if (msg.includes("already decided")) return "この希望は処理済みです";
   if (msg.includes("inactive cast")) return "このキャストは退店済みです";
   if (msg.includes("forbidden")) return "権限がありません";
+  // E8-4（mig0095）: 時間帯バンド系（set_staffing_need / staffing_need_remove）
+  if (msg.includes("billing locked")) return "ご利用プランの制限で更新できません（管理者にご確認ください）";
+  if (msg.includes("bad band")) return "時間帯の指定が不正です（00:00〜24:00・開始<終了）";
+  if (msg.includes("overlap")) return "他の時間帯と重複しています（同じ開始時刻の場合は上書きされます）";
+  if (msg.includes("bad required")) return "必要人数は 0 以上で入力してください";
+  if (msg.includes("bad dow")) return "曜日の指定が不正です";
+  if (msg.includes("not found")) return "対象の時間帯が見つかりません";
   return msg;
 }
 
@@ -85,6 +121,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const [fStart, setFStart] = useState("20:00");
   const [fEnd, setFEnd] = useState("26:00");
   const [fStatus, setFStatus] = useState("planned");
+  // E8-4 #10: shifts.created_by → users.name（確定シフト一覧の登録者列・CSV）
+  const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
+  // E8-4 #3: バンド追加フォーム（時間帯は HH:MM テキスト＝24:00 を許すため type=time にしない）
+  const [nDow, setNDow] = useState(0);
+  const [nAllDay, setNAllDay] = useState(false);
+  const [nFrom, setNFrom] = useState("20:00");
+  const [nTo, setNTo] = useState("24:00");
+  const [nReq, setNReq] = useState(3);
 
   const castName = (id: string) => casts.find((c) => c.id === id)?.name ?? "?";
 
@@ -151,10 +195,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     const monthTo = ymdOf(new Date(my, mm, 0)); // 当月末日（翌月0日）
     const from = monthFrom < bizToday ? monthFrom : bizToday;
     const to = monthTo > bizToday ? monthTo : bizToday;
+    // E8-4 #10: created_by を追加取得（確定シフト一覧の「登録者」列・下で users 名を1クエリ解決）
     const { data: ss } = await supabase
-      .from("shifts").select("id, cast_id, date, start_hm, end_hm, status")
+      .from("shifts").select("id, cast_id, date, start_hm, end_hm, status, created_by")
       .gte("date", from).lte("date", to).order("date").limit(2000);
-    const { data: ns } = await supabase.from("staffing_needs").select("dow, required").order("dow");
+    // E8-4（mig0095）: 時間帯バンド列を取得（dow → from_min の昇順＝バンド表示順）
+    const { data: ns } = await supabase.from("staffing_needs")
+      .select("id, dow, required, from_min, to_min").order("dow").order("from_min");
     // B-5②: 営業時間（シフトは date 直判定＝cutoff 不要なので stores.settings_json は読まない）
     const { data: bh } = await supabase.from("store_business_hours")
       .select("dow, is_closed, open_hm, close_hm").eq("store_id", storeId);
@@ -162,6 +209,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     setShifts((ss ?? []) as Shift[]);
     setNeeds((ns ?? []) as Need[]);
     setBhRows((bh ?? []) as BusinessHourRow[]);
+    // E8-4 #10: 登録者名の解決（E8-2 #8 の closed_by→users.name と同じ1クエリ流儀・失敗時は「—」に落ちるだけ）
+    const uids = Array.from(new Set(((ss ?? []) as Shift[]).map((s) => s.created_by).filter(Boolean)));
+    if (uids.length > 0) {
+      const { data: us } = await supabase.from("users").select("id, name").in("id", uids);
+      setUserNames(new Map(((us ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name])));
+    } else {
+      setUserNames(new Map());
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bizToday, month]);
 
@@ -218,11 +273,54 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     await loadAtt(attDate);
   }
 
-  async function saveNeed(dow: number, required: number) {
+  // E8-4 #3（mig0095）: 5引数＝時間帯バンドの upsert（同 store/dow/from_min は置換・交差は RPC 'overlap' 拒否）
+  async function saveNeed(dow: number, required: number, fromMin: number, toMin: number, okMsg?: string) {
     setMsg(null);
-    const { error } = await supabase.rpc("set_staffing_need", { p_store_id: storeId, p_dow: dow, p_required: required });
-    setMsg(error ? error.message : null);
+    const { error } = await supabase.rpc("set_staffing_need", {
+      p_store_id: storeId, p_dow: dow, p_required: required, p_from_min: fromMin, p_to_min: toMin,
+    });
+    setMsg(error ? rpcErrJa(error.message) : okMsg ?? null);
     await load();
+    return !error;
+  }
+
+  // E8-4 #3（mig0095）: バンド削除（staffing_need_remove・(store_id, dow, from_min) で特定）
+  async function removeNeed(dow: number, fromMin: number, label: string) {
+    if (!confirm(`${DOW[dow]}曜の「${label}」の必要人数設定を削除しますか？`)) return;
+    setMsg(null);
+    const { error } = await supabase.rpc("staffing_need_remove", { p_store_id: storeId, p_dow: dow, p_from_min: fromMin });
+    setMsg(error ? rpcErrJa(error.message) : "時間帯を削除しました");
+    await load();
+  }
+
+  // E8-4 #3: バンド追加（終日=0〜1440・時刻は HH:MM。検証の正は RPC＝ここは NaN の素通り防止のみ）
+  async function addNeed() {
+    const from = nAllDay ? 0 : hm2min(nFrom);
+    const to = nAllDay ? 1440 : hm2min(nTo);
+    if (!/^\d{1,2}:\d{2}$/.test(nAllDay ? "0:00" : nFrom) || !/^\d{1,2}:\d{2}$/.test(nAllDay ? "0:00" : nTo)) {
+      setMsg("時間は HH:MM 形式で入力してください（例 20:00〜24:00）");
+      return;
+    }
+    const ok = await saveNeed(nDow, nReq, from, to, "時間帯を追加しました");
+    if (ok) setNAllDay(false);
+  }
+
+  // E8-4 #10: 表示中の確定シフト一覧を CSV 出力（client 生成・BOM 付き UTF-8＝Excel 文字化け対策）。
+  //   列は画面と同じ＋登録者（created_by→users.name）。金額列なし＝閲覧できる人がそのまま持ち出せる範囲のみ。
+  function exportShiftsCsv() {
+    const head = ["日付", "曜日", "キャスト", "開始", "終了", "状態", "登録者"];
+    const lines = shifts.map((s) => [
+      s.date, DOW[dowOf(s.date)], castName(s.cast_id), s.start_hm, s.end_hm,
+      s.status === "confirmed" ? "確定" : "予定", userNames.get(s.created_by) ?? "",
+    ]);
+    const csv = [head, ...lines]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `nox_shifts_${month}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // B-5②: 新規シフトフォームの営業時間判定（date 直＝cutoff 変換なし・予約用とは別関数）
@@ -232,15 +330,26 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     shiftHoursStatus(date, startHm, endHm, bhRows).status === "closed";
 
   // ── 段S-1 派生値（すべて既存 shifts / staffing_needs の client 再形＝新規取得なし）──
-  //   ★必要人数は曜日別マスタ（staffing_needs は (store_id, dow) UNIQUE）を dow で引く。
-  //     日別の個別上書きは現スキーマに無い（モック注記「必要人数は既存『必要人数（曜日別）』設定を参照」と一致）。
-  const requiredOf = (ymd: string) => needs.find((n) => n.dow === dowOf(ymd))?.required ?? 0;
+  //   E8-4 #2（mig0095）: 必要人数は曜日×時間帯バンド。バンド充足＝「当該時間帯に交差するシフト数 ÷ required」。
+  //   交差は半開区間 [hm2min(start), hm2min(end)) × [from_min, to_min)＝RPC の overlap 判定と同式。
+  //   シフト終了は 47:59 まで（30時間制）だがバンド上限 1440 との交差はそのまま成立する。
   const shiftsOn = (ymd: string) => shifts.filter((s) => s.date === ymd);
+  const bandStatsOf = (ymd: string): BandStat[] => {
+    const list = shiftsOn(ymd);
+    return needs.filter((n) => n.dow === dowOf(ymd)).map((n) => {
+      const assigned = list.filter((s) => hm2min(s.start_hm) < n.to_min && n.from_min < hm2min(s.end_hm)).length;
+      return { ...n, assigned, fill: fillOf(assigned, n.required) };
+    });
+  };
+  // 日単位の状態＝バンドの最悪値。required はピーク（max）・shortage は最悪バンドの不足数（合算だと
+  // 同じキャストの跨ぎ勤務を二重計上するため合算しない）。
   const dayStat = (ymd: string) => {
     const list = shiftsOn(ymd);
     const confirmed = list.filter((s) => s.status === "confirmed").length;
-    const required = requiredOf(ymd);
-    return { assigned: list.length, confirmed, planned: list.length - confirmed, required, fill: fillOf(list.length, required) };
+    const bs = bandStatsOf(ymd);
+    const required = bs.reduce((m, b) => Math.max(m, b.required), 0);
+    const shortage = bs.reduce((m, b) => Math.max(m, Math.max(0, b.required - b.assigned)), 0);
+    return { assigned: list.length, confirmed, planned: list.length - confirmed, required, shortage, fill: worstFill(bs.map((b) => b.fill)) };
   };
 
   // 月グリッド（前後の空白セル込み・7列）
@@ -279,7 +388,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const todayStat = dayStat(bizToday);
   const todayFc = fcOf(bizToday);
   const fillRate = todayStat.required > 0 ? Math.round((todayStat.assigned / todayStat.required) * 100) : null;
-  const shortage = Math.max(0, todayStat.required - todayStat.assigned);
+  const shortage = todayStat.shortage; // E8-4 #2: 最悪バンドの不足数（バンド化に追随）
+  const todayBands = bandStatsOf(bizToday);
+
+  // E8-4 #4: 予想人件費の月次ロールアップ＝fcByDate（既算出）の表示月合算のみ。
+  //   labor-forecast の計算・golden には非干渉（forecastDay の出力を足すだけ）。
+  const monthFcTotal = Array.from(fcByDate.entries())
+    .filter(([d]) => d.startsWith(month)).reduce((a, [, f]) => a + f.total, 0);
+  const monthFcHasUnknown = Array.from(fcByDate.entries())
+    .some(([d, f]) => d.startsWith(month) && f.unknownComp > 0);
 
   // 日詳細＝選択日のシフトを「時間帯」でグルーピング（表示のみ・fmtBand30 で 30時間制表記）
   const selShifts = shiftsOn(selDate);
@@ -293,6 +410,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     .sort((a, b) => hm2min(a.start) - hm2min(b.start));
   const selStat = dayStat(selDate);
   const selFc = fcOf(selDate);
+  const selBands = bandStatsOf(selDate); // E8-4 #2: 日詳細にも時間帯別充足バー
 
   return (
     <div>
@@ -348,8 +466,36 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
         )}
       </div>
 
-      {/* ── タブ「今日」＝当日運用（出勤板・出勤ボーナス）── */}
-      {tab === "today" && isManagerUp && <IncentivePanel storeId={storeId} />}
+      {/* ── タブ「今日」＝当日運用（時間帯別充足・本日のシフト一覧・出勤板・出勤ボーナス）── */}
+      {/* E8-4 #2: 時間帯別充足バー（バンド未設定の日は案内のみ） */}
+      {tab === "today" && (
+        <section className="nox-cardtop" style={card}>
+          <h2 style={secTitle}>本日の充足（時間帯別）</h2>
+          {todayBands.length === 0 ? (
+            <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
+              この曜日の必要人数が未設定です。「シフト作成」タブの「必要人数（曜日・時間帯別）」から設定できます。
+            </p>
+          ) : (
+            <BandBars stats={todayBands} />
+          )}
+        </section>
+      )}
+      {/* E8-4 #1: 本日のシフト一覧（開始時刻順・確定/予定ピル） */}
+      {tab === "today" && (
+        <section className="nox-cardtop" style={card}>
+          <h2 style={secTitle}>本日のシフト（{bizToday}）</h2>
+          {shiftsOn(bizToday).length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>本日のシフトはありません</p>}
+          {shiftsOn(bizToday).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((s) => (
+            <div key={s.id} className="nox-crow">
+              <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
+              <span style={{ flex: 1, minWidth: 0 }}>{castName(s.cast_id)}</span>
+              <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{fmtWin(s.start_hm, s.end_hm)}</span>
+              <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`}>{s.status === "confirmed" ? "確定" : "予定"}</span>
+            </div>
+          ))}
+        </section>
+      )}
+      {tab === "today" && isManagerUp && <IncentivePanel storeId={storeId} casts={casts} />}
 
       {/* ── タブ「カレンダー」＝月カレンダー＋日詳細 ── */}
       {/* 段0R その3: >900 はカレンダーと日詳細を横並び（モックの2カラム）・≤900 は縦積み。 */}
@@ -395,8 +541,21 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               <span><span className="nox-dot none" />未設定</span>
             </div>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
-              セル＝状態色＋確定/必要人数。必要人数は「シフト作成」タブの「必要人数（曜日別）」設定を参照します。
+              セル＝状態色＋確定/必要人数（時間帯バンドのピーク値）。必要人数は「シフト作成」タブの
+              「必要人数（曜日・時間帯別）」設定を参照します。
             </p>
+            {/* E8-4 #4: 予想人件費の月次ロールアップ（fcByDate の表示月合算＝新規計算なし・manager 以上） */}
+            {isManagerUp && monthFcTotal > 0 && (
+              <>
+                <div className="nox-moneyrow" style={{ marginTop: 10 }}>
+                  <span>予想人件費（{my}年{mm}月合計{monthFcHasUnknown ? "・時給未設定の日あり" : ""}）</span>
+                  <b className="num">{yen(monthFcTotal)}</b>
+                </div>
+                <p className="nox-moneynote">
+                  表示月の全日のシフト時間×時給の概算合計です。バック・控除は含みません。実際の給与とは異なります。
+                </p>
+              </>
+            )}
           </section>
 
           <section className="nox-cardtop" style={card}>
@@ -419,6 +578,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   シフト時間×時給の概算です。バック・控除は含みません。実際の給与とは異なります。
                 </p>
               </>
+            )}
+            {/* E8-4 #2: 選択日の時間帯別充足バー（バンド設定のある曜日のみ） */}
+            {selBands.length > 0 && (
+              <div style={{ margin: "6px 0 8px" }}>
+                <BandBars stats={selBands} />
+              </div>
             )}
             {bands.length === 0 && (
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
@@ -489,7 +654,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
       {(tab === "build" || tab === "roster") && (
       <>
       <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>確定シフト（今後）</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h2 style={{ ...secTitle }}>確定シフト（今後）</h2>
+          {/* E8-4 #10: CSV 出力（表示中の一覧＝取得済みデータの再形のみ） */}
+          {shifts.length > 0 && (
+            <button style={{ ...btnLight, marginLeft: "auto", marginBottom: 9 }} onClick={exportShiftsCsv}>CSV 出力</button>
+          )}
+        </div>
         {isManagerUp && (
           <div style={{ marginBottom: 10 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -532,6 +703,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               <span style={{ color: s.status === "confirmed" ? "var(--ok)" : "var(--champ)" }}>
                 {s.status === "confirmed" ? "確定" : "予定"}
               </span>
+              {/* E8-4 #10: 登録者列（created_by→users.name・引けない場合は —） */}
+              <span style={{ fontSize: 11.5, color: "var(--v2-muted)", width: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                title={`登録者: ${userNames.get(s.created_by) ?? "—"}`}>
+                {userNames.get(s.created_by) ?? "—"}
+              </span>
               {sClosed && <span style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700 }}>定休日</span>}
               {isManagerUp && s.status === "planned" && (
                 <button
@@ -545,6 +721,60 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
         })}
       </section>
       </>
+      )}
+
+      {/* ── E8-4 #9: スタッフ別マトリクス（確定シフトタブ・表示月・取得済み shifts の再形のみ）── */}
+      {tab === "roster" && (
+        <section className="nox-cardtop" style={card}>
+          <h2 style={secTitle}>スタッフ別マトリクス（{my}年{mm}月）</h2>
+          {(() => {
+            const days = calCells.filter((d): d is string => d !== null);
+            const rows = casts.filter((c) => shifts.some((s) => s.cast_id === c.id && s.date.startsWith(month)));
+            if (rows.length === 0) {
+              return <p style={{ fontSize: 13, color: "var(--sub)" }}>この月のシフトはありません</p>;
+            }
+            const cellTd: React.CSSProperties = {
+              border: "1px solid var(--line)", padding: "3px 4px", textAlign: "center", minWidth: 22,
+            };
+            return (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ borderCollapse: "collapse", fontSize: 11 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...cellTd, textAlign: "left", minWidth: 90, color: "var(--sub)" }}>キャスト</th>
+                      {days.map((d) => (
+                        <th key={d} className="num" style={{ ...cellTd, color: dowOf(d) === 0 ? "var(--bad)" : dowOf(d) === 6 ? "var(--champ)" : "var(--sub)" }}>
+                          {Number(d.slice(8))}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((c) => (
+                      <tr key={c.id}>
+                        <td style={{ ...cellTd, textAlign: "left", whiteSpace: "nowrap" }}>{c.name}</td>
+                        {days.map((d) => {
+                          const mine = shifts.filter((s) => s.cast_id === c.id && s.date === d);
+                          const conf = mine.some((s) => s.status === "confirmed");
+                          return (
+                            <td key={d} className="num"
+                              style={{ ...cellTd, color: conf ? "var(--ok)" : "var(--champ)" }}
+                              title={mine.length > 0 ? `${d} ${mine.map((s) => fmtWin(s.start_hm, s.end_hm)).join(" / ")}` : undefined}>
+                              {mine.length === 0 ? "" : conf ? "●" : "○"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+          <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+            ●=確定 ○=予定。表示月にシフトのあるキャストのみ。セルにカーソルを合わせると時間帯を表示します。
+          </p>
+        </section>
       )}
 
       {/* ── タブ「今日」＝出勤板（staff も操作可＝attendance のみ開放・台帳 #24）── */}
@@ -567,26 +797,63 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
       </section>
       )}
 
-      {/* ── タブ「シフト作成」＝必要人数（曜日別）── */}
+      {/* ── タブ「シフト作成」＝必要人数（曜日・時間帯別）── E8-4 #3（mig0095 バンド化）
+          曜日ごとにバンドを列挙（終日=0〜1440・複数バンド可）。人数はフォーカスアウトで upsert 置換、
+          削除は staffing_need_remove。重複バンドは RPC 'overlap' が拒否（同じ開始時刻は上書き）。 */}
       {tab === "build" && isManagerUp && (
         <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>必要人数（曜日別）</h2>
-          <div style={{ display: "flex", gap: 10 }}>
-            {DOW.map((label, dow) => {
-              const n = needs.find((x) => x.dow === dow);
-              return (
-                <label key={dow} style={{ fontSize: 12, textAlign: "center", color: "var(--sub)" }}>
-                  {label}
-                  <input
-                    type="number" min={0} defaultValue={n?.required ?? 0}
-                    onBlur={(e) => saveNeed(dow, Number(e.target.value))}
-                    style={{ ...input, width: 52, display: "block", marginTop: 4 }}
-                  />
-                </label>
-              );
-            })}
+          <h2 style={secTitle}>必要人数（曜日・時間帯別）</h2>
+          {DOW.map((label, dow) => {
+            const bs = needs.filter((n) => n.dow === dow);
+            return (
+              <div key={dow} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "5px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}>
+                <span style={{ width: 20, color: dow === 0 ? "var(--bad)" : dow === 6 ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}>{label}</span>
+                {bs.length === 0 && <span style={{ color: "var(--v2-muted)" }}>未設定</span>}
+                {bs.map((n) => (
+                  <span key={`${n.id}:${n.required}:${n.to_min}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--line)", borderRadius: 8, padding: "3px 8px" }}>
+                    <span className="num" style={{ color: "var(--sub)" }}>{bandLabel(n)}</span>
+                    <input
+                      type="number" min={0} defaultValue={n.required}
+                      onBlur={(e) => {
+                        const v = Number(e.target.value);
+                        if (v !== n.required) void saveNeed(dow, v, n.from_min, n.to_min);
+                      }}
+                      style={{ ...input, width: 52, padding: "4px 6px" }}
+                    />
+                    <span style={{ color: "var(--sub)" }}>名</span>
+                    <button
+                      style={{ ...btnLight, padding: "2px 8px" }} aria-label={`${label}曜 ${bandLabel(n)} を削除`}
+                      onClick={() => removeNeed(dow, n.from_min, bandLabel(n))}
+                    >×</button>
+                  </span>
+                ))}
+              </div>
+            );
+          })}
+          {/* バンド追加フォーム（検証の正は RPC＝bad band / overlap を日本語で返す） */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+            <select value={nDow} onChange={(e) => setNDow(Number(e.target.value))} style={input}>
+              {DOW.map((l, d) => <option key={d} value={d}>{l}曜</option>)}
+            </select>
+            <label style={{ fontSize: 12.5, color: "var(--sub)", display: "flex", alignItems: "center", gap: 4 }}>
+              <input type="checkbox" checked={nAllDay} onChange={(e) => setNAllDay(e.target.checked)} />終日
+            </label>
+            {!nAllDay && (
+              <>
+                <input value={nFrom} onChange={(e) => setNFrom(e.target.value)} style={{ ...input, width: 64 }} placeholder="20:00" />
+                <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
+                <input value={nTo} onChange={(e) => setNTo(e.target.value)} style={{ ...input, width: 64 }} placeholder="24:00" />
+              </>
+            )}
+            <span style={{ fontSize: 12.5, color: "var(--sub)" }}>必要</span>
+            <input type="number" min={0} value={nReq} onChange={(e) => setNReq(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 60 }} />
+            <span style={{ fontSize: 12.5, color: "var(--sub)" }}>名</span>
+            <button style={btnDark} onClick={addNeed}>追加</button>
           </div>
-          <p style={{ fontSize: 11, color: "var(--sub)" }}>変更はフォーカスアウトで保存</p>
+          <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
+            人数の変更はフォーカスアウトで保存。時間は 00:00〜24:00（例 20:00〜24:00）。
+            同じ曜日で時間帯が重なる設定はできません（同じ開始時刻は上書き）。
+          </p>
         </section>
       )}
     </div>

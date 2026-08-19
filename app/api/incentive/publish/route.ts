@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  let body: { storeId?: unknown; bizDate?: unknown; amountMode?: unknown; amount?: unknown };
+  let body: { storeId?: unknown; bizDate?: unknown; amountMode?: unknown; amount?: unknown; reason?: unknown; targetCastIds?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -25,9 +25,21 @@ export async function POST(req: Request) {
   if (typeof bizDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(bizDate)) return NextResponse.json({ error: "bizDate must be YYYY-MM-DD" }, { status: 400 });
   if (amountMode !== "per_head" && amountMode !== "pooled") return NextResponse.json({ error: "amountMode must be per_head|pooled" }, { status: 400 });
   if (typeof amount !== "number" || !Number.isInteger(amount) || amount < 0) return NextResponse.json({ error: "amount must be a non-negative integer" }, { status: 400 });
+  // E8-4（mig0095）: reason（≤200字・任意）／targetCastIds（null=全員・非空 uuid[]=選択）。
+  //   空配列・重複・他店混入は RPC が 'bad target' で拒否＝route は型の素通り防止のみ。
+  const reason = body.reason ?? null;
+  if (reason !== null && (typeof reason !== "string" || reason.length > 200)) {
+    return NextResponse.json({ error: "reason must be a string of 200 chars or less" }, { status: 400 });
+  }
+  const targetCastIds = body.targetCastIds ?? null;
+  if (targetCastIds !== null && (!Array.isArray(targetCastIds) || targetCastIds.length === 0
+      || targetCastIds.some((x) => typeof x !== "string" || !x))) {
+    return NextResponse.json({ error: "targetCastIds must be null or a non-empty string array" }, { status: 400 });
+  }
 
   const { data, error } = await supabase.rpc("incentive_publish", {
     p_store_id: storeId, p_biz_date: bizDate, p_kind: "bonus", p_amount_mode: amountMode, p_amount: amount,
+    p_reason: reason, p_target_cast_ids: targetCastIds,
   });
   if (error) {
     const m = error.message;
