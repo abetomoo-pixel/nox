@@ -13,6 +13,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
+import Modal from "@/components/ui/modal";
 
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
@@ -30,8 +31,18 @@ type Visit = {
   check_id: string; visited_at: string; total: number;
   seat_name: string | null; nom_casts: string[] | null; status: string;
 };
-type Bottle = { id: string; product_id: string | null; status: string; opened_at: string | null; note: string | null };
-type CustRow = { id: string; name: string; furigana: string | null; birthday: string | null; memo: string | null };
+// E8-3 #7（mig0094）: 残量%・保管期限・棚番号（表示＋bottle_keep_update モーダル）
+type Bottle = {
+  id: string; product_id: string | null; status: string; opened_at: string | null; note: string | null;
+  remaining_pct: number | null; expires_on: string | null; shelf_no: string | null;
+};
+// E8-3 #5/#6/#2: 右ペインのプロフィール材料（tel/prefs/grade を追加取得・表示専用）
+type CustRow = {
+  id: string; name: string; furigana: string | null; birthday: string | null; memo: string | null;
+  tel: string | null; prefs: string | null; grade: string | null;
+};
+// E8-3 #8（mig0094）: 顧客メモ履歴（customer_notes・is_removed 除外で取得）
+type Note = { id: string; body: string; author_user_id: string | null; created_at: string };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 // 段0R 第2陣: 見出しは nox-panel > h3（白）と nox-hero h1 に寄せたので t.cardTitle 由来の secTitle は撤去。
@@ -72,6 +83,17 @@ export default function CustomersBoard({
   const [dVisits, setDVisits] = useState<Visit[]>([]);
   const [dBottles, setDBottles] = useState<Bottle[]>([]);
   const [prodName, setProdName] = useState<Record<string, string>>({});
+  // E8-3 #3: 右詳細の4タブ（モック detail-tabs 準拠＝概要/来店/ボトル/メモ）
+  const [dtab, setDtab] = useState<"info" | "visits" | "bottle" | "note">("info");
+  // E8-3 #2: 一覧バッジ用の grade map（customers 直 select 1本・表示専用）
+  const [gradeOf, setGradeOf] = useState<Record<string, string>>({});
+  // E8-3 #8: メモ履歴（customer_notes）＋記入者名＋追記フォーム
+  const [dNotes, setDNotes] = useState<Note[]>([]);
+  const [authorNames, setAuthorNames] = useState<Record<string, string>>({});
+  const [noteBody, setNoteBody] = useState("");
+  // E8-3 #7: ボトル編集モーダル（bottle_keep_update・owner/manager）
+  const [btlPick, setBtlPick] = useState<Bottle | null>(null);
+  const [btlForm, setBtlForm] = useState({ remaining: "", expires: "", shelf: "", status: "active", note: "" });
 
   // 客追加フォーム（customer_register）。担当 cast は owner/manager のみ表示
   // （staff は RPC 側で p_cast_id が null 化される既存仕様＝出さない）。
@@ -104,6 +126,9 @@ export default function CustomersBoard({
     });
     if (error) { setErr(`読み込みに失敗: ${error.message}`); setRows([]); return; }
     setRows((data ?? []) as Row[]);
+    // E8-3 #2: 一覧バッジ用 grade（customers 直 select・RLS スコープ内・表示専用）
+    const { data: gs } = await supabase.from("customers").select("id, grade").not("grade", "is", null);
+    setGradeOf(Object.fromEntries(((gs ?? []) as { id: string; grade: string }[]).map((g) => [g.id, g.grade])));
   }, [storeSel, incDormant]);
 
   useEffect(() => { void load(); }, [load]);
@@ -115,15 +140,20 @@ export default function CustomersBoard({
   //     can_crm だけの staff は 0行になりうる＝そのときは明細を出さず件数（RPC 集計 active_bottles）だけが残る。
   const loadDetail = useCallback(async (id: string) => {
     const supabase = createClient();
-    const [cRes, vRes, bRes] = await Promise.all([
-      supabase.from("customers").select("id, name, furigana, birthday, memo").eq("id", id).maybeSingle(),
+    const [cRes, vRes, bRes, nRes] = await Promise.all([
+      supabase.from("customers").select("id, name, furigana, birthday, memo, tel, prefs, grade").eq("id", id).maybeSingle(),
       supabase.rpc("customer_visit_history", { p_customer_id: id }),
-      supabase.from("bottle_keeps").select("id, product_id, status, opened_at, note").eq("customer_id", id).order("created_at", { ascending: false }),
+      supabase.from("bottle_keeps").select("id, product_id, status, opened_at, note, remaining_pct, expires_on, shelf_no").eq("customer_id", id).order("created_at", { ascending: false }),
+      // E8-3 #8: メモ履歴（is_removed 除外・新しい順。RLS で cast は 0行＝段51(14) 実測済み）
+      supabase.from("customer_notes").select("id, body, author_user_id, created_at")
+        .eq("customer_id", id).eq("is_removed", false).order("created_at", { ascending: false }),
     ]);
     setDCust((cRes.data ?? null) as CustRow | null);
     setDVisits(((vRes.data ?? []) as Visit[]).slice(0, 5));
     const bs = (bRes.data ?? []) as Bottle[];
     setDBottles(bs);
+    const notes = (nRes.data ?? []) as Note[];
+    setDNotes(notes);
     const pids = [...new Set(bs.map((b) => b.product_id).filter(Boolean) as string[])];
     if (pids.length) {
       const { data: ps } = await supabase.from("products").select("id, name").in("id", pids);
@@ -131,11 +161,79 @@ export default function CustomersBoard({
       for (const x of (ps ?? []) as { id: string; name: string }[]) m[x.id] = x.name;
       setProdName(m);
     }
+    // E8-3 #8: 記入者名（users 1クエリ・表示専用）
+    const uids = [...new Set(notes.map((n) => n.author_user_id).filter(Boolean) as string[])];
+    if (uids.length) {
+      const { data: us } = await supabase.from("users").select("id, name").in("id", uids);
+      setAuthorNames(Object.fromEntries(((us ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name])));
+    }
   }, []);
   useEffect(() => {
-    if (!sel) { setDCust(null); setDVisits([]); setDBottles([]); return; }
+    if (!sel) { setDCust(null); setDVisits([]); setDBottles([]); setDNotes([]); return; }
+    setDtab("info"); setNoteBody("");
     void loadDetail(sel);
   }, [sel, loadDetail]);
+
+  // ── E8-3 書込アクション（mig0094 の RPC 結線・すべて owner/manager UI ガード＋RPC 二重防御）──
+  async function setGrade(g: string | null) {
+    if (!sel) return;
+    setMsg(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("customer_set_grade", { p_id: sel, p_grade: g });
+    setMsg(error
+      ? (error.message.includes("bad grade") ? "ランクは VIP / VVIP のみです"
+        : error.message.includes("forbidden") ? "権限がありません" : error.message)
+      : g ? `ランクを ${g.toUpperCase()} にしました` : "ランクを解除しました");
+    await loadDetail(sel);
+    await load();
+  }
+  async function noteAdd() {
+    if (!sel || !noteBody.trim()) return;
+    setMsg(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("customer_note_add", { p_customer_id: sel, p_body: noteBody });
+    setMsg(error
+      ? (error.message.includes("bad body") ? "メモは1〜2000文字で入力してください" : error.message)
+      : "メモを追記しました");
+    if (!error) setNoteBody("");
+    await loadDetail(sel);
+  }
+  async function noteRemove(id: string) {
+    if (!sel) return;
+    if (!confirm("このメモを削除しますか？（履歴からは非表示になります）")) return;
+    setMsg(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("customer_note_remove", { p_note_id: id });
+    setMsg(error ? error.message : "メモを削除しました");
+    await loadDetail(sel);
+  }
+  function openBtl(b: Bottle) {
+    setBtlPick(b);
+    setBtlForm({
+      remaining: b.remaining_pct != null ? String(b.remaining_pct) : "",
+      expires: b.expires_on ?? "", shelf: b.shelf_no ?? "", status: b.status, note: b.note ?? "",
+    });
+  }
+  async function btlSave() {
+    if (!btlPick || !sel) return;
+    setMsg(null);
+    const supabase = createClient();
+    // 規約7: 素通し送信（全値明示＝空欄は null）。RPC 側が bad remaining / bad status を権威判定。
+    const { error } = await supabase.rpc("bottle_keep_update", {
+      p_id: btlPick.id,
+      p_remaining_pct: btlForm.remaining === "" ? null : Number(btlForm.remaining),
+      p_expires_on: btlForm.expires || null,
+      p_shelf_no: btlForm.shelf.trim() || null,
+      p_status: btlForm.status,
+      p_note: btlForm.note.trim() || null,
+    });
+    setMsg(error
+      ? (error.message.includes("bad remaining") ? "残量は 0〜100 の整数で入力してください"
+        : error.message.includes("bad status") ? "状態の指定が不正です" : error.message)
+      : "ボトル情報を更新しました");
+    if (!error) setBtlPick(null);
+    await loadDetail(sel);
+  }
 
   const filtered = useMemo(() => {
     const needle = q.trim();
@@ -386,6 +484,14 @@ export default function CustomersBoard({
                 <div className="cinfo">
                   <div className="nm">
                     {r.name}
+                    {/* E8-3 #2: ランクバッジ（VVIP=gold・VIP=gold2・無印は出さない） */}
+                    {gradeOf[r.customer_id] && (
+                      <span style={{
+                        ...t.tag, fontSize: 9.5, padding: "1px 7px", fontWeight: 800, marginLeft: 4,
+                        color: gradeOf[r.customer_id] === "vvip" ? "var(--gold)" : "var(--gold2)",
+                        borderColor: gradeOf[r.customer_id] === "vvip" ? "rgba(212,175,55,.5)" : "rgba(201,162,74,.45)",
+                      }}>{gradeOf[r.customer_id].toUpperCase()}</span>
+                    )}
                     {!r.is_active && <span className="nox-risk off">休眠</span>}
                     {r.churn_tier === "high" && <span className="nox-risk hi">60日〜</span>}
                     {r.churn_tier === "mid" && <span className="nox-risk mid">30日〜</span>}
@@ -428,30 +534,66 @@ export default function CustomersBoard({
                 <button style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} onClick={() => setSel(null)}>閉じる</button>
               </div>
 
+              {/* E8-3 #3: 詳細4タブ（モック detail-tabs 準拠＝概要/来店/ボトル/メモ・情報種別は現行と同一の再配置） */}
+              <div className="nox-dtabs" style={{ marginTop: 10 }}>
+                {([["info", "概要"], ["visits", "来店"], ["bottle", `ボトル（${selRow.active_bottles}）`], ["note", "メモ"]] as const).map(([k, label]) => (
+                  <button key={k} type="button" className={dtab === k ? "on" : ""} onClick={() => setDtab(k)}>{label}</button>
+                ))}
+              </div>
+
+              {dtab === "info" && (<>
               <div className="nox-dstats">
                 <div className="nox-dstat"><div className="l">来店</div><div className="v num">{selRow.visits}回</div></div>
                 <div className="nox-dstat"><div className="l">累計</div><div className="v num">{yen(selRow.total_spend)}</div></div>
+                {/* E8-3 #9: 平均会計＝total_spend / visits（RPC 集計値の再形のみ） */}
                 <div className="nox-dstat">
-                  <div className="l">最終来店</div>
-                  <div className="v num">{selRow.last_visit ? fmtLastVisit(selRow.last_visit) : "—"}</div>
+                  <div className="l">平均会計</div>
+                  <div className="v num">{selRow.visits > 0 ? yen(Math.round(selRow.total_spend / selRow.visits)) : "—"}</div>
                 </div>
               </div>
-
-              <div className="nox-sect">ボトルキープ（{selRow.active_bottles}本）</div>
-              {dBottles.length === 0
-                ? <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>
-                    {selRow.active_bottles > 0 ? "明細は表示できません（権限の範囲外）" : "キープなし"}
-                  </p>
-                : dBottles.map((b) => (
-                    <div key={b.id} className="nox-btl">
-                      <span>{(b.product_id && prodName[b.product_id]) || b.note || "（銘柄不明）"}</span>
-                      <span className={`st ${b.status === "active" ? "act" : "emp"}`}>
-                        {b.status === "active" ? "キープ中" : "空"}
-                        {b.opened_at ? `（${fmtLastVisit(b.opened_at)}）` : ""}
-                      </span>
-                    </div>
+              {/* E8-3 #5: PROFILE グリッド（電話・誕生日・担当・来店傾向）。来店傾向は T4 従属＝E8-6 で実装 */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", marginTop: 10, fontSize: 12 }}>
+                {([
+                  ["電話", dCust?.tel ?? "—"],
+                  ["誕生日", dCust?.birthday ? fmtBirthday(dCust.birthday) : "—"],
+                  ["担当", castName(selRow.cast_id)],
+                  ["最終来店", selRow.last_visit ? fmtLastVisit(selRow.last_visit) : "—"],
+                ] as const).map(([l, v]) => (
+                  <span key={l}>
+                    <span style={{ color: "var(--v2-muted)", fontSize: 11 }}>{l}</span><br />
+                    <span style={{ color: "var(--v2-text)", fontWeight: 700 }}>{v}</span>
+                  </span>
+                ))}
+                <span style={{ gridColumn: "1 / -1" }}>
+                  <span style={{ color: "var(--v2-muted)", fontSize: 11 }}>来店傾向</span><br />
+                  <span style={{ color: "var(--v2-muted)" }}>E8-6（分析段）で実装予定＝時刻粒度の集計（T4）に従属</span>
+                </span>
+              </div>
+              {/* E8-3 #6: 好み・接客チップ（prefs の表示形＝読点/カンマ/空白区切り。書込は現行どおり customer_update） */}
+              {dCust?.prefs && (
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 10 }}>
+                  {dCust.prefs.split(/[、,\s]+/).filter(Boolean).map((p, i) => (
+                    <span key={i} style={{ ...t.tag, fontSize: 10.5, padding: "2px 9px", color: "var(--gold2)" }}>{p}</span>
                   ))}
+                </div>
+              )}
+              {/* E8-3 #2: ランク設定（owner/manager のみ・customer_set_grade 結線） */}
+              {isManagerUp && (
+                <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 12 }}>
+                  <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>ランク</span>
+                  {([[null, "無印"], ["vip", "VIP"], ["vvip", "VVIP"]] as const).map(([v, label]) => (
+                    <button key={label} type="button"
+                      style={{
+                        ...t.btnGhost, ...t.btnSm, padding: "3px 12px", fontSize: 11.5,
+                        ...((dCust?.grade ?? null) === v ? { borderColor: "var(--gold)", color: "var(--champ)", background: "#1B1710" } : {}),
+                      }}
+                      onClick={() => void setGrade(v)}>{label}</button>
+                  ))}
+                </div>
+              )}
+              </>)}
 
+              {dtab === "visits" && (<>
               <div className="nox-sect">来店履歴（直近5件）</div>
               {dVisits.length === 0
                 ? <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>来店履歴なし</p>
@@ -465,17 +607,137 @@ export default function CustomersBoard({
                       <span className="a num">{yen(v.total)}</span>
                     </div>
                   ))}
+              </>)}
 
-              <div className="nox-sect">メモ</div>
-              {dCust?.memo
-                ? <div className="nox-memo">{dCust.memo}</div>
-                : <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>メモなし</p>}
+              {dtab === "bottle" && (<>
+              <div className="nox-sect">ボトルキープ（{selRow.active_bottles}本）</div>
+              {dBottles.length === 0
+                ? <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>
+                    {selRow.active_bottles > 0 ? "明細は表示できません（権限の範囲外）" : "キープなし"}
+                  </p>
+                : dBottles.map((b) => {
+                    // E8-3 #7: 期限接近ハイライト（超過=bad・14日以内=gold2）
+                    const today = new Date().toISOString().slice(0, 10);
+                    const soon = new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10);
+                    const expTone = b.expires_on
+                      ? (b.expires_on < today ? "var(--bad)" : b.expires_on <= soon ? "var(--gold2)" : "var(--v2-muted)")
+                      : null;
+                    return (
+                    <div key={b.id} className="nox-btl" style={{ flexWrap: "wrap", gap: 6 }}>
+                      <span>
+                        {(b.product_id && prodName[b.product_id]) || b.note || "（銘柄不明）"}
+                        {b.remaining_pct != null && (
+                          <span className="num" style={{ marginLeft: 6, fontSize: 11, color: b.remaining_pct <= 20 ? "var(--bad)" : "var(--v2-muted)" }}>
+                            残{b.remaining_pct}%
+                          </span>
+                        )}
+                        {b.shelf_no && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--v2-muted)" }}>棚 {b.shelf_no}</span>}
+                        {b.expires_on && (
+                          <span className="num" style={{ marginLeft: 6, fontSize: 11, color: expTone ?? undefined, fontWeight: b.expires_on < today ? 800 : 400 }}>
+                            期限 {b.expires_on}{b.expires_on < today ? "（超過）" : ""}
+                          </span>
+                        )}
+                      </span>
+                      <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                        <span className={`st ${b.status === "active" ? "act" : "emp"}`}>
+                          {b.status === "active" ? "キープ中" : b.status === "empty" ? "空" : "撤去"}
+                          {b.opened_at ? `（${fmtLastVisit(b.opened_at)}）` : ""}
+                        </span>
+                        {isManagerUp && (
+                          <button type="button" style={{ ...t.btnGhost, ...t.btnSm, padding: "2px 10px", fontSize: 11 }}
+                            onClick={() => openBtl(b)}>編集</button>
+                        )}
+                      </span>
+                    </div>
+                    );
+                  })}
+              </>)}
+
+              {dtab === "note" && (<>
+              {/* E8-3 #8: メモ履歴（customer_notes・新しい順・記入者名）。旧 memo は読み取り専用で残置＝移行しない */}
+              <div className="nox-sect">メモ履歴（{dNotes.length}件）</div>
+              {isManagerUp || dNotes.length > 0 ? null : (
+                <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>メモはありません</p>
+              )}
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                <input value={noteBody} onChange={(e) => setNoteBody(e.target.value)} maxLength={2000}
+                  placeholder="メモを追記（記入者・日時が残ります）" style={{ ...input, flex: 1 }} />
+                <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={!noteBody.trim()}
+                  onClick={() => void noteAdd()}>追記</button>
+              </div>
+              {dNotes.map((n) => (
+                <div key={n.id} style={{ borderBottom: "1px solid var(--v2-line)", padding: "6px 0", fontSize: 12.5 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                    <span className="num" style={{ fontSize: 11, color: "var(--v2-muted)" }}>
+                      {new Date(n.created_at).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" })}
+                    </span>
+                    <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>
+                      {n.author_user_id ? authorNames[n.author_user_id] ?? "—" : "—"}
+                    </span>
+                    {isManagerUp && (
+                      <button type="button" style={{ ...t.btnGhost, ...t.btnSm, padding: "1px 8px", fontSize: 10.5, marginLeft: "auto", color: "var(--bad)" }}
+                        onClick={() => void noteRemove(n.id)}>削除</button>
+                    )}
+                  </div>
+                  <div style={{ color: "var(--v2-text)", whiteSpace: "pre-wrap" }}>{n.body}</div>
+                </div>
+              ))}
+              {dCust?.memo && (
+                <div style={{ marginTop: 10 }}>
+                  <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>旧メモ（読み取り専用・移行はしません）</span>
+                  <div className="nox-memo">{dCust.memo}</div>
+                </div>
+              )}
+              </>)}
 
               <Link href={`/customers/${selRow.customer_id}`}
                 style={{ ...t.btnGhost, ...t.btnSm, display: "inline-block", marginTop: 12, textDecoration: "none" }}>
                 詳細・編集を開く ›
               </Link>
             </div>
+          )}
+
+          {/* E8-3 #7: ボトル編集モーダル（bottle_keep_update・素通し5値） */}
+          {btlPick && (
+            <Modal onClose={() => setBtlPick(null)}>
+              <h3 style={{ ...t.cardTitle, margin: "0 0 8px" }}>ボトル情報の編集</h3>
+              <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>
+                {(btlPick.product_id && prodName[btlPick.product_id]) || "（銘柄不明）"}
+              </p>
+              <div style={{ display: "grid", gap: 8 }}>
+                <label style={{ ...t.fieldLabel, fontSize: 12 }}>残量（%・空欄可）{" "}
+                  <input type="number" min={0} max={100} value={btlForm.remaining}
+                    onChange={(e) => setBtlForm((f) => ({ ...f, remaining: e.target.value }))} style={{ ...input, width: 90 }} />
+                </label>
+                <label style={{ ...t.fieldLabel, fontSize: 12 }}>保管期限（空欄可）{" "}
+                  <input type="date" value={btlForm.expires}
+                    onChange={(e) => setBtlForm((f) => ({ ...f, expires: e.target.value }))} style={input} />
+                </label>
+                <label style={{ ...t.fieldLabel, fontSize: 12 }}>棚番号（空欄可）{" "}
+                  <input value={btlForm.shelf} maxLength={20}
+                    onChange={(e) => setBtlForm((f) => ({ ...f, shelf: e.target.value }))} style={{ ...input, width: 120 }} />
+                </label>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "var(--sub)" }}>状態</span>
+                  {([["active", "キープ中"], ["empty", "空"], ["removed", "撤去"]] as const).map(([v, label]) => (
+                    <button key={v} type="button"
+                      style={{
+                        ...t.btnGhost, ...t.btnSm, padding: "3px 12px", fontSize: 11.5,
+                        ...(btlForm.status === v ? { borderColor: "var(--gold)", color: "var(--champ)", background: "#1B1710" } : {}),
+                      }}
+                      onClick={() => setBtlForm((f) => ({ ...f, status: v }))}>{label}</button>
+                  ))}
+                </div>
+                <label style={{ ...t.fieldLabel, fontSize: 12 }}>メモ{" "}
+                  <input value={btlForm.note} maxLength={200}
+                    onChange={(e) => setBtlForm((f) => ({ ...f, note: e.target.value }))} style={{ ...input, width: 240 }} />
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+                <button style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setBtlPick(null)}>キャンセル</button>
+                <button style={{ ...t.btnGold, ...t.btnSm }} onClick={() => void btlSave()}>保存する</button>
+              </div>
+            </Modal>
           )}
       </div>
     </div>
