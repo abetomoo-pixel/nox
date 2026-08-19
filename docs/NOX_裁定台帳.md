@@ -1035,3 +1035,52 @@ A1 ゲート4ブロック（0057(1)/(2)・0088 billing・0058 fail-closed 5腕�
 0089 の行構造と一致（apply の set 行と同式・**manual 延長行 time_auto=false と auto ext 行は非対象**）／
 A4 `audit_log_write` 5位置引数の型順一致。★**適用時は課金ゲート正本（対象88→89本・A1 19本・
 kiosk 腕 15本）と billing/grants の pin 張り替えが必要**（裁定29 追補の教訓と同型）。
+
+## 裁定31（2026-08-19）E8 実装レーンの裁定収蔵（E8-3/E8-4/E8-6 系）＋教訓18〜20
+
+E8-3〜E8-6 の各 mig ヘッダに「台帳収載済み」と記した裁定番号が実際には未収蔵だったため、
+本裁定で一括収蔵する（正本文言＝各 mig ヘッダ・本チャットの裁定を転記）。E8-2 系（mig0092/0093）は
+番号付き裁定なし＝「事実記録＝ゲート除外」等の裁定文言が mig ヘッダに直接記載済み。
+
+### E8-3 系（mig0094・顧客レーン）
+- **E8-3-1** grade text NULL可＋CHECK in ('vip','vvip')・null=無印・setter 専用 RPC（customer_update は不触）
+- **E8-3-2** bottle 3列（remaining_pct/expires_on/shelf_no）全 NULL可 default なし・register 引数拡張＋update 新設（owner/manager）
+- **E8-3-3** customer_notes append-only＋論理削除・RLS cast 腕なし（業務記録は担当 cast に非公開）・書込 RPC 専任
+
+### E8-4 系（mig0095・シフトレーン）
+- **E8-4-1** staffing_needs 時間帯化＝案A 行分割・from_min/to_min default 0/1440＝既存行は自動で終日バンド・backfill 不要
+- **E8-4-2** ポジション軸は今回入れない（純増候補パーク）
+- **E8-4-3** incentive の reason（≤200）＋target_cast_ids uuid[]（null=全員=現行完全互換）・明細テーブルなし
+- **E8-4-4** 0083 非対称流儀踏襲・バンド重複は RPC ガード 'overlap'（exclusion constraint なし・半開区間交差判定）
+
+### E8-6 系（mig0096・分析レーン）
+- **E8-6-1** 時刻粒度=1時間・hour は JST 時計時刻(0..23)・曜日=biz_date（店別 cutoff 起点の営業日）の曜日・非ゼロ行のみ返却
+- **E8-6-2** 返却形は returns table（jsonb 束ねにしない）
+- **E8-6-3** 用途別3本（store_hourly_aggregate / store_category_aggregate / store_cohort_aggregate）
+- **E8-6-4** 単層（内部+ラッパの2層にしない）・owner/manager のみ・p_store_id null=owner の org 合算（cutoff は店別適用）
+- **E8-6-5** レンジガード: hourly/category=from/to（≤92日・既存流儀）・cohort=YYYY-MM＋months≤12
+- **E8-6-6** store_sales_targets 新テーブル（cast_norms 対称＝UNIQUE(store_id,period)・period regex CHECK・bigint ≥0）＋setter（null=削除・なし→なし無音）
+- **E8-6-7** 読取3本は非ゲート（「見える・出せる」原則＝B(f) 相当）・setter のみ billing ゲート入り（対象 92本へ）
+- **E8-6-8** 5分類写像は DB に焼かない＝category RPC は kind×fee_kind 生Σ・写像は client 純関数
+  （lib/nox/analytics/category-map.ts＝E8-2 日報の出荷済み kindSums と同値・fee_kind set/extension のセット帰属は将来耐性）
+
+### 教訓18: mig の部分適用は「diff 差分0行」の顔で現れる（mig0092・2026-08-18）
+dev DB が mig0092 の一部関数だけ先行コミットされた中間状態になり、適用後照合の diff が「変化なし」に
+見えた（実際は check_void が不存在列を参照する壊れた状態）。手貼りは**開発・本番とも必ず1クエリで
+全文一括**（部分貼り・分割 Run 禁止）。照合で「差分0」が出たときは成功と部分適用の両方を疑い、
+事後診断値（オブジェクト数・引数数）で裏取りする。
+
+### 教訓19: React の state 反映前保存（同一 tick の切替→保存は空振りする・E8-1c 実機）
+トグル切替と保存ボタンを同一操作で押すと、保存が**切替前の state** で走って設定が空振りする。
+実機検収では「切替」→（再描画を待って）→「保存」を別ステップで踏む。UI 側は onChange 即保存か
+保存時に最新 state を ref で読む形が安全。
+
+### 教訓20: 全数照合 pin は「非ゲート新設」で静かにズレる（2026-08-19 実測）
+課金正本の全数（A+B）は、ゲート入り新設では pin 更新が波及で強制されるが、**非ゲート新設は
+どの pin も赤にしないまま名簿からだけ漏れる**。mig0093 receivable_set_due・mig0094 の4本が
+B 名簿未収載のまま「live 実列挙と完全一致」の表記が残っていた（E8-6 で live 185 vs 名簿 175 の
+残差10本として発覚・全て非ゲート＝ゲート判定の網羅性には非影響）。→ B 名簿の追補は**要裁定**
+（verify:nox-billing docExcluded=83 pin に波及）。恒久策の候補＝billing verify に「live 全数 −
+（A∪B）=既知の残差リスト」の機械 assert を足し、silent drift を赤にする。
+
+（契機: E8-6 後半 mig0096 適用後照合。0096 の読取3本＋setter で残差が 6→10 に拡大したことで顕在化）
