@@ -19,6 +19,11 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 - ★**mig0095 追随（2026-08-19）**: `staffing_need_remove` 新設（バンド削除＝set_staffing_need と対称の
   設定系書込・kiosk 腕なし・ゲート内蔵）→ **対象 91 本**へ改訂。live 実測＝'billing locked' **91**・
   'billing_writable_of' **92**。全数 = A 91 ＋ B 83 ＝ **174**。
+- ★**mig0096 追随（2026-08-19）**: `store_sales_target_set` 新設（月間売上目標の書込＝設定系・
+  kiosk 腕なし・ゲート内蔵・null=削除）→ **対象 92 本**へ改訂。live 実測＝'billing locked' **92**・
+  'billing_writable_of' **93**。全数 = A 92 ＋ B 83 ＝ **175**。★同 mig の読取集計3本
+  （store_hourly_aggregate / store_category_aggregate / store_cohort_aggregate）は裁定 E8-6-7 で
+  **非ゲート**（B(f) 相当）だが名簿への追補は未裁定＝下記 E 節の注記参照。
 
 ## 作業版ヘッダ（v1.2・履歴として保持）
 
@@ -41,7 +46,7 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 - 補助基準（v1 起案時・裁定で維持）: B-補1=専用縮退 RPC（*_deactivate）は除外（セキュリティ）／B-補2=kiosk_login/logout は除外（打刻導線）／A-補1=汎用 set_*（is_active トグル内包）は対象。
 - ★付随裁定: **open のまま失効を跨いだ伝票の check_pay / check_close もゲート対象**（read-only の徹底＝失効中は決済・是正とも不能・閲覧のみ。writable 復帰後に処理する）。
 
-## A. 対象（91本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
+## A. 対象（92本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
 
 ### A1. レジ・会計（20本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
 check_open[K] / check_add_line[K] / check_remove_line[K] / check_add_seat[K] / check_remove_seat[K] /
@@ -76,9 +81,10 @@ pricing_rule_reorder / set_store_pricing / set_store_time_pricing
 set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_comp_plan / set_cast_plan /
 set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config
 
-### A8. 店設定（9本）
+### A8. 店設定（10本）
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /
-set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin / set_staff_pin
+set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin / set_staff_pin /
+**store_sales_target_set**（mig0096＝月間売上目標・null=削除・E8-6）
 
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
@@ -158,8 +164,17 @@ check_set_people（mig0090）＋ check_line_set_group（mig0091）。
 
 ## D. 保留 — なし（16本全て裁定済み・v1.1 で解消）
 
-## E. 全数照合（live 実体との突合済み）
-A **91** ＋ B **83** ＝ **174** ＝ live pg_proc 実列挙（174 定義・overload ゼロ・mig0095 後）と**完全一致**。
-重複なし・未仕分けなし・保留ゼロ。照合は機械実行（live 名集合 ⊖ リスト名集合 = ∅ を双方向で確認）。
+## E. 全数照合（live 実体との突合）
+A **92** ＋ B **83** ＝ **175**（名簿上の全数）。
 （v1 起草時は A 87＋B 83＝170。0089 extension で 171・0090 set_people で 172・0091 line_set_group で
-173・0095 staffing_need_remove で 174 へ＝上記ヘッダの各追随を参照）
+173・0095 staffing_need_remove で 174・0096 store_sales_target_set で 175 へ＝上記ヘッダの各追随を参照）
+
+★**既知の残差（2026-08-19 実測・E8-6 で発覚・B 名簿の追補は未裁定）**: live pg_proc 実列挙は
+**185 本**（mig0096 後）で、名簿 175 との差 10 本はすべて**非ゲート**＝ゲート判定の網羅性
+（対象92 ⊆ live gated 92 の双方向一致）には影響しない。内訳＝
+(1) `auth_org_billing_writable`（0088 の zero-arg ラッパ・設計 §3 で存在自体は既知） /
+(2) mig0093 `receivable_set_due`・mig0094 `bottle_keep_update`/`customer_note_add`/`customer_note_remove`/
+`customer_set_grade`（いずれも新設時に B(f)/B 系へ未収載＝「174 完全一致」は 0093 以降ズレていた） /
+(3) mig0096 読取3本 `store_hourly_aggregate`/`store_category_aggregate`/`store_cohort_aggregate`
+（裁定 E8-6-7＝非ゲート）。→ B 名簿への正式追補（B(f) 拡張 or 新節）は**要裁定**
+（verify:nox-billing の docExcluded=83 pin に波及するため勝手に触らない）。
