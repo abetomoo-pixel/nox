@@ -58,6 +58,9 @@ type Line = {
   line_total: number;
   // E8-1b F5（mig0091）: グループ付け替えの可否判定（time_auto 行は 'A' 固定＝RPC 'time line' 拒否）
   time_auto: boolean;
+  // E8-1d: 指名種別バッジの判定材料（mig0084 の凍結列＝hon_shimei/jonai_shimei/dohan の課金行）
+  fee_kind: string | null;
+  cast_id: string | null;
   // キャストドリンク（mig0070）: 按分除外の判定は back_snapshot の凍結値で行う。
   //   ★products.back_exempt_from_split（現価）では判定しない＝行を打った後にマスタのフラグを
   //     切り替えても伝票の帰属経路は変わらない、が 0070 の設計（check_close と
@@ -337,7 +340,7 @@ export default function RegisterBoard({
     const { data: c } = await supabase.from("checks").select("*").eq("id", checkId).single();
     const { data: ls } = await supabase
       // back_snapshot＝キャストドリンク判定の凍結値（mig0070）。中身は back_exempt だけを見る。
-      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto")
+      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id")
       .eq("check_id", checkId).order("sort_order");
     // キャストドリンク: 確定済み（approved）の claim だけを引く。void/rejected は行に紐づけない。
     const { data: dcs } = await supabase
@@ -932,6 +935,38 @@ export default function RegisterBoard({
 
   // E8-1 ⑤: 着卓中（この伝票の按分重み>0）＝CastPicker の先頭グループ＋バッジ
   const seatedIds = new Set(Object.entries(nomWeights).filter(([, w]) => w > 0).map(([id]) => id));
+  // E8-1d: 指名種別の判定（表示専用・金額に一切関与しない）。
+  //   優先1＝課金行の凍結 fee_kind（hon_shimei > jonai_shimei > dohan・mig0084 の cast_id 付き行）
+  //   優先2＝按分に居るだけの場合は伝票の nom_type（check_set_nominations の check レベル値）
+  //   → 課金行だけで按分に居ない・按分だけで課金行が無い、のどちらでも破綻しない。
+  const castNomKind = (() => {
+    const pri: Record<string, number> = { hon: 3, jonai: 2, dohan: 1 };
+    const m = new Map<string, "hon" | "jonai" | "dohan">();
+    for (const l of lines) {
+      if (!l.cast_id) continue;
+      const k = l.fee_kind === "hon_shimei" ? "hon" : l.fee_kind === "jonai_shimei" ? "jonai" : l.fee_kind === "dohan" ? "dohan" : null;
+      if (!k) continue;
+      const cur = m.get(l.cast_id);
+      if (!cur || pri[k] > pri[cur]) m.set(l.cast_id, k);
+    }
+    return m;
+  })();
+  const nomKindOf = (id: string): "hon" | "jonai" | "dohan" | "free" | null => {
+    const fromLine = castNomKind.get(id);
+    if (fromLine) return fromLine;
+    if ((nomWeights[id] ?? 0) > 0) return nomType === "hon" || nomType === "jonai" || nomType === "dohan" ? nomType : "free";
+    return null;
+  };
+  // CastPicker へ渡す種別バッジ（本指名=gold／場内=gold2／同伴・フリー=muted）
+  const nomBadges = (() => {
+    const tone = (k: string) => (k === "hon" ? "gold" as const : k === "jonai" ? "gold2" as const : "muted" as const);
+    const m = new Map<string, { label: string; tone: "gold" | "gold2" | "muted" }>();
+    for (const ca of casts) {
+      const k = nomKindOf(ca.id);
+      if (k) m.set(ca.id, { label: NOM_LABEL[k], tone: tone(k) });
+    }
+    return m;
+  })();
   // E8-1 #14: 分配プレビュー（表示計算のみ・按分の権威は check_set_nominations→payOf 側で不変）
   const nomSelected = casts.filter((ca) => (nomWeights[ca.id] ?? 0) > 0);
   const nomTotalW = nomSelected.reduce((a, ca) => a + (nomWeights[ca.id] ?? 0), 0);
@@ -1422,7 +1457,7 @@ export default function RegisterBoard({
           {/* ⑤: タップ＝按分トグル＋指名料の対象キャストとして記憶（feeCast） */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
-            selectedIds={seatedIds} dense
+            selectedIds={seatedIds} badges={nomBadges} dense
             onPick={(id) => {
               const on = (nomWeights[id] ?? 0) > 0;
               setNomWeights((prev) => ({ ...prev, [id]: on ? 0 : 1 }));
@@ -1468,7 +1503,13 @@ export default function RegisterBoard({
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 {nomSelected.map((ca) => (
                   <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12.5 }}>
+                    {/* E8-1d: 種別併記（例: あべ（本指名）50%）＝nomKindOf の表示のみ */}
                     {ca.name}
+                    {(() => { const k = nomKindOf(ca.id); return k ? (
+                      <span style={{ fontSize: 11, color: k === "hon" ? "var(--gold)" : k === "jonai" ? "var(--gold2)" : "var(--sub)" }}>
+                        （{NOM_LABEL[k]}）
+                      </span>
+                    ) : null; })()}
                     {nomType !== "free" && (
                       <input
                         type="number" min={1} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} 重み`}

@@ -11,8 +11,17 @@ import * as t from "@/lib/nox/ui/theme";
 
 export type PickerCast = { id: string; name: string };
 
+// E8-1d: 種別付きバッジ（本指名=gold／場内=gold2／同伴・フリー=muted）。呼び出し側が判定して渡す＝
+//   本部品は表示のみ（判定ロジックを持たない）。エントリがある id は「着卓中」の代わりにこれを出す。
+export type PickerBadge = { label: string; tone: "gold" | "gold2" | "muted" };
+const BADGE_STYLE: Record<PickerBadge["tone"], { color: string; borderColor: string }> = {
+  gold: { color: "var(--gold)", borderColor: "rgba(212, 175, 55, .5)" },
+  gold2: { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" },
+  muted: { color: "var(--sub)", borderColor: "var(--line2)" },
+};
+
 export default function CastPicker({
-  casts, photoUrls, seatedIds, todayIds, selectedIds, onPick, size = 44, dense = false,
+  casts, photoUrls, seatedIds, todayIds, selectedIds, badges, onPick, size = 44, dense = false,
 }: {
   casts: PickerCast[];
   /** 署名 URL の Map（無い環境＝kiosk は頭文字アバターへ自動フォールバック） */
@@ -23,18 +32,20 @@ export default function CastPicker({
   todayIds?: Set<string>;
   /** 選択中（単選でも Set で渡す） */
   selectedIds?: Set<string>;
+  /** E8-1d: 種別付きバッジ（あれば「着卓中」より優先表示・並びは着卓中と同じ最優先群） */
+  badges?: Map<string, PickerBadge>;
   onPick: (id: string) => void;
   size?: number;
   dense?: boolean;
 }) {
   const [q, setQ] = useState("");
   const sorted = useMemo(() => {
-    const rank = (id: string) => (seatedIds?.has(id) ? 0 : todayIds?.has(id) ? 1 : 2);
+    const rank = (id: string) => (seatedIds?.has(id) || badges?.has(id) ? 0 : todayIds?.has(id) ? 1 : 2);
     const needle = q.trim();
     return [...casts]
       .filter((c) => needle === "" || c.name.includes(needle))
       .sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, "ja"));
-  }, [casts, q, seatedIds, todayIds]);
+  }, [casts, q, seatedIds, todayIds, badges]);
 
   return (
     <div>
@@ -50,6 +61,7 @@ export default function CastPicker({
           const sel = selectedIds?.has(c.id) ?? false;
           const seated = seatedIds?.has(c.id) ?? false;
           const today = todayIds?.has(c.id) ?? false;
+          const badge = badges?.get(c.id) ?? null;
           return (
             <button
               key={c.id}
@@ -67,7 +79,12 @@ export default function CastPicker({
             >
               <CastAvatar name={c.name} url={photoUrls?.get(c.id)} size={size} />
               <span style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{c.name}</span>
-              {(seated || today) && (
+              {badge ? (
+                // E8-1d: 種別付きバッジ（呼び出し側判定・「着卓中」より優先）
+                <span style={{ ...t.tag, fontSize: 9.5, padding: "1px 7px", ...BADGE_STYLE[badge.tone] }}>
+                  {badge.label}
+                </span>
+              ) : (seated || today) && (
                 <span style={{
                   ...t.tag, fontSize: 9.5, padding: "1px 7px",
                   color: seated ? "var(--gold2)" : "var(--ok)",
