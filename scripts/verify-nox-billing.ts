@@ -81,20 +81,20 @@ async function main() {
     const md = readFileSync(GATE_DOC, "utf8");
     const docTargets = docNames(md.slice(md.indexOf("## A. 対象"), md.indexOf("## B. 除外")), liveNames);
     const docExcluded = docNames(md.slice(md.indexOf("## B. 除外"), md.indexOf("## C. kiosk")), liveNames);
-    // ★mig0089/0090/0091（段48/49 張り替え）: extension_add・set_people・line_set_group 追加で
-    //   対象 87→90（正本ヘッダ参照）
-    check("段47-1 正本の対象90名を読めた", docTargets.size === 90, `got ${docTargets.size}`);
+    // ★mig0089/0090/0091/0095（段48/49/52 張り替え）: extension_add・set_people・line_set_group・
+    //   staffing_need_remove 追加で対象 87→91（正本ヘッダ参照）
+    check("段47-1 正本の対象91名を読めた", docTargets.size === 91, `got ${docTargets.size}`);
     check("段47-1 正本の除外83名を読めた", docExcluded.size === 83, `got ${docExcluded.size}`);
 
     const { rows: gated } = await db.query(`
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 90本", liveGated.size === 90, `got ${liveGated.size}`);
+    check("段47-1 live のゲート済み関数 = 91本", liveGated.size === 91, `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
     const extra = [...liveGated].filter((n) => !docTargets.has(n));
-    check("段47-1 ★対象→live: 正本の90本すべてにゲートが入っている", missing.length === 0, missing.join(","));
+    check("段47-1 ★対象→live: 正本の91本すべてにゲートが入っている", missing.length === 0, missing.join(","));
     check("段47-1 ★live→対象: ゲート済みに正本外の関数が混ざらない", extra.length === 0, extra.join(","));
     const leaked = [...docExcluded].filter((n) => liveGated.has(n));
     check("段47-1 ★除外83本にゲートが入っていない", leaked.length === 0, leaked.join(","));
@@ -109,14 +109,14 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 91（90 ＋ ラッパ自身）", refs[0].n === 91, `got ${refs[0].n}`);
+    check("段47-1 述語を参照する関数 = 92（91 ＋ ラッパ自身）", refs[0].n === 92, `got ${refs[0].n}`);
     // 挿入行の形が全88本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public'
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
-    check("段47-1 挿入行の形が全90本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 90, `got ${shapes[0].n}`);
+    check("段47-1 挿入行の形が全91本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 91, `got ${shapes[0].n}`);
   }
 
   // ══════════════════════════════════════════════════════════

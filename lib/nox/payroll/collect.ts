@@ -15,7 +15,11 @@ import { bizDateOf } from "../biz-date";
 type SalesRow = { cast_id: string; biz_date: string; sales: number; hon: number; jonai: number; dohan: number };
 
 // #32 出勤インセンティブ（published・当該期間の biz_date）
-export type Incentive = { id: string; bizDate: string; amountMode: "per_head" | "pooled"; amount: number };
+// E8-4（mig0095）: targetCastIds＝対象キャスト（null=全員=現行完全互換）・reason は表示専用
+export type Incentive = {
+  id: string; bizDate: string; amountMode: "per_head" | "pooled"; amount: number;
+  targetCastIds: string[] | null; reason: string | null;
+};
 
 // F2e-1 売掛天引き（E9 対象＝open・deduct_from_cast・当該 period 帰属）。remaining=amount−deducted_amount。
 export type Receivable = {
@@ -382,13 +386,16 @@ async function loadTransport(admin: SupabaseClient, storeId: string, win: Payrol
 async function loadIncentives(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Incentive[]> {
   const { data, error } = await admin
     .from("attendance_incentives")
-    .select("id, biz_date, amount_mode, amount")
+    .select("id, biz_date, amount_mode, amount, target_cast_ids, reason")
     .eq("store_id", storeId).eq("status", "published")
     .gte("biz_date", win.periodStart).lte("biz_date", win.periodEnd);
   if (error) throw new Error(`attendance_incentives: ${error.message}`);
   return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
     id: r.id as string, bizDate: r.biz_date as string,
     amountMode: r.amount_mode as "per_head" | "pooled", amount: r.amount as number,
+    // E8-4（mig0095）: null=全員（現行互換）。配列の交差は core 側＝ここは素通し。
+    targetCastIds: (r.target_cast_ids as string[] | null) ?? null,
+    reason: (r.reason as string | null) ?? null,
   }));
 }
 

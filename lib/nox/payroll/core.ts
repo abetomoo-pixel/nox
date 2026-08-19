@@ -97,13 +97,18 @@ export async function computePayrollDraft(
   const incentiveExtrasFor = (castId: string): Extra[] => {
     const out: Extra[] = [];
     for (const inc of incentives) {
-      const recips = recipientsByDate.get(inc.bizDate) ?? [];
+      // E8-4（mig0095）: 対象指定あり＝受給者は「出勤受給者 ∩ 対象」（出勤していない対象者は受給しない＝
+      //   現行の受給原則を維持）。targetCastIds=null は現行経路と完全同値（交差を作らない＝golden 構造保証）。
+      const attended = recipientsByDate.get(inc.bizDate) ?? [];
+      const recips = inc.targetCastIds === null
+        ? attended
+        : attended.filter((cid) => inc.targetCastIds!.includes(cid)); // 交差後も cast_id 昇順（attended が昇順ソート済み）
       if (!recips.includes(castId)) continue; // 受給者のみ（シフト無し raw は recipientsByDate に不在）
       let amt: number;
       if (inc.amountMode === "per_head") {
         amt = inc.amount; // 定額（確定と一致）
       } else {
-        // pooled: allocDue（weight=1・position=cast_id 昇順の索引＝端数 +1 は cast_id 最小へ）
+        // pooled: allocDue（weight=1・position=交差後 cast_id 昇順の索引＝端数 +1 は cast_id 最小へ）
         const parts = allocDue(inc.amount, recips.map((cid, i) => ({ castId: cid, weight: 1, position: i })));
         amt = parts.find((p) => p.castId === castId)?.part ?? 0;
       }

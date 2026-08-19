@@ -16,6 +16,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 - ★**mig0091 追随（2026-08-18）**: `check_line_set_group` 新設（明細の会計分け付け替え＝金銭記録の
   改変・kiosk 腕あり・規則A形でゲート内蔵・グループは '^[A-F]$'）→ **対象 90 本**へ改訂。
   live 実測＝'billing locked' **90**・'billing_writable_of' **91**。全数 = A 90 ＋ B 83 ＝ **173**。
+- ★**mig0095 追随（2026-08-19）**: `staffing_need_remove` 新設（バンド削除＝set_staffing_need と対称の
+  設定系書込・kiosk 腕なし・ゲート内蔵）→ **対象 91 本**へ改訂。live 実測＝'billing locked' **91**・
+  'billing_writable_of' **92**。全数 = A 91 ＋ B 83 ＝ **174**。
 
 ## 作業版ヘッダ（v1.2・履歴として保持）
 
@@ -38,7 +41,7 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 - 補助基準（v1 起案時・裁定で維持）: B-補1=専用縮退 RPC（*_deactivate）は除外（セキュリティ）／B-補2=kiosk_login/logout は除外（打刻導線）／A-補1=汎用 set_*（is_active トグル内包）は対象。
 - ★付随裁定: **open のまま失効を跨いだ伝票の check_pay / check_close もゲート対象**（read-only の徹底＝失効中は決済・是正とも不能・閲覧のみ。writable 復帰後に処理する）。
 
-## A. 対象（90本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
+## A. 対象（91本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
 
 ### A1. レジ・会計（20本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
 check_open[K] / check_add_line[K] / check_remove_line[K] / check_add_seat[K] / check_remove_seat[K] /
@@ -60,8 +63,9 @@ reservation_create / reservation_update / reservation_set_status / reservation_t
 adv_issue / transport_issue / incentive_publish /
 **adv_cancel / transport_cancel / incentive_cancel**（裁定D3＝金銭記録の改変。BANZEN de-escalation 前例より判定原理を優先）
 
-### A5. シフト（3本・owner/manager の確定系に限定＝設計 v1.1 §4 文言修正）
-shift_set / shift_wish_decide / set_staffing_need
+### A5. シフト（4本・owner/manager の確定系に限定＝設計 v1.1 §4 文言修正）
+shift_set / shift_wish_decide / set_staffing_need /
+**staffing_need_remove**（mig0095 新設＝バンド削除・ゲートは mig 本文に内蔵）
 
 ### A6. 商品・料金マスタ（13本）
 set_product / set_product_active / set_product_category / product_category_reorder / product_bulk_insert /
@@ -155,7 +159,7 @@ check_set_people（mig0090）＋ check_line_set_group（mig0091）。
 ## D. 保留 — なし（16本全て裁定済み・v1.1 で解消）
 
 ## E. 全数照合（live 実体との突合済み）
-A **90** ＋ B **83** ＝ **173** ＝ live pg_proc 実列挙（173 定義・overload ゼロ・mig0091 後）と**完全一致**。
+A **91** ＋ B **83** ＝ **174** ＝ live pg_proc 実列挙（174 定義・overload ゼロ・mig0095 後）と**完全一致**。
 重複なし・未仕分けなし・保留ゼロ。照合は機械実行（live 名集合 ⊖ リスト名集合 = ∅ を双方向で確認）。
 （v1 起草時は A 87＋B 83＝170。0089 extension で 171・0090 set_people で 172・0091 line_set_group で
-173 へ＝上記ヘッダの各追随を参照）
+173・0095 staffing_need_remove で 174 へ＝上記ヘッダの各追随を参照）
