@@ -23,6 +23,9 @@
  * 伝票番号 = check_id 先頭 8 桁 + '-' + pay_group（採番テーブルは作らない裁定）。
  * reg_no 空 = 登録番号行を出さない（未登録店）。is_reprint = 「再発行」表記（Q-b 裁定）。
  * XML エスケープ: name_snapshot 等の & < > " ' は必ず実体参照へ（ePOS XML 破壊防止）。
+ * ★mig0097（R2-b）: auto 延長はブロック行化（「延長料金(N分) #k」×ブロック数）＝本関数は明細を
+ *   素通し印字するだけなので無改修で複数行が正しく出る。金額段は Σline_total／groupDue 由来＝総額不変
+ *   （golden 52 の fixture は時間行を含まない＝pin も不変・段54 で実測確認）。
  */
 
 export type ReceiptStore = {
