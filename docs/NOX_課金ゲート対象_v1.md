@@ -24,6 +24,11 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   'billing_writable_of' **93**。全数 = A 92 ＋ B 83 ＝ **175**。★同 mig の読取集計3本
   （store_hourly_aggregate / store_category_aggregate / store_cohort_aggregate）は裁定 E8-6-7 で
   **非ゲート**（B(f) 相当）だが名簿への追補は未裁定＝下記 E 節の注記参照。
+- ★**E8-6c 追補（2026-08-19・裁定 E8-6-9）**: 教訓20 の残差10本を B 名簿へ収載＝
+  B(f) 39本化（mig0096 読取3本＋課金述語 billing_writable_of／zero-arg ラッパ auth_org_billing_writable）
+  ＋B(k) 新設5本（0093 receivable_set_due・0094 の4本）→ **B 93 本**へ改訂。
+  全数 = A 92 ＋ B 93 ＝ **185** ＝ live pg_proc 実列挙と一致。以後は verify:nox-billing の
+  「live 全数 = 正本 A∪B」機械 assert が silent drift を赤にする（教訓21＝手動追補の腐りを構造排除）。
 
 ## 作業版ヘッダ（v1.2・履歴として保持）
 
@@ -98,7 +103,7 @@ trial_register / trial_update / trial_hire / trial_reject
 ### A11. デバイス（1本）
 kiosk_provision（新規 kiosk の追加＝拡大操作）
 
-## B. 除外（83本）
+## B. 除外（93本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・23本）→ ゲート不要（B7 回避型(1)）
 approval_apply / ar_policy_ok / audit_log_write / audit_log_write_service / cast_create_apply /
@@ -121,7 +126,7 @@ kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解�
 payroll_run_create / payment_record_add / withholding_payment_record
 （finalize/mark_paid/reopen は B(a) で既に構造除外）
 
-### B(f) 読取 RPC（34本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
+### B(f) 読取 RPC（39本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
 auth_cast_can_register / auth_cast_id / auth_kiosk_org_id / auth_kiosk_register_store_id /
 auth_kiosk_store_id / auth_org_id / auth_role / auth_staff_can_crm / auth_staff_can_register /
 auth_staff_can_shift / auth_staff_can_view_backs / auth_store_id /
@@ -130,7 +135,11 @@ get_cast_customer_ranking / get_cast_mynumber_masked / get_cast_ranking / get_ca
 get_cast_sensitive / get_printer_config / get_store_nom_counts /
 kiosk_cast_list / kiosk_check_detail / kiosk_operator_list / kiosk_register_state /
 period_bounds / reservation_is_closed_day / shift_is_closed_day / withholding_monthly_summary /
-pricing_resolve / biz_minutes_of / product_stock_totals（★live は1定義＝0079 は同一シグネチャの supersede）
+pricing_resolve / biz_minutes_of / product_stock_totals（★live は1定義＝0079 は同一シグネチャの supersede）/
+store_hourly_aggregate / store_category_aggregate / store_cohort_aggregate /
+billing_writable_of / auth_org_billing_writable
+（末尾5本＝E8-6c 追補 2026-08-19: 前3本は mig0096 の T4 集計＝裁定 E8-6-7 で非ゲート・
+　後2本は 0088 の課金述語とその zero-arg ラッパ＝読取ヘルパー。教訓20 の残差是正）
 
 ### B(g) 印刷（1本・「出せる」原則の明文）
 print_enqueue[K]
@@ -153,6 +162,13 @@ staff_deactivate / kiosk_deactivate
 |---|---|
 | set_cast_photo_updated_at（mig0065） | **事実記録**（Storage への写真アップロード完了を casts.photo_updated_at に打刻するだけ。金銭・営業・拡大のいずれでもない）。★構造的補強＝**この RPC を塞いでも写真の書込自体は止まらない**（実体の書込は Storage ポリシー cast_photos_insert/update が支配）。ゲートすると「ファイルは差し替わったのに打刻だけ古い」＝キャッシュバスティングが壊れた不整合を作るだけで「書けない」を達成しない。写真の真の遮断は Storage ポリシー側の課題＝v1 スコープ外（post-launch）。**※相談役へ**: 対象（A10 staff_update_profile と同じ「プロフィール改変」と読む）へ反転する余地はある。反転する場合は Storage ポリシー側の同時ゲートが前提。 |
 
+### B(k) 非ゲート新設の追補（5本・2026-08-19・E8-6c＝教訓20 の是正）
+| 関数 | 適用原理 |
+|---|---|
+| receivable_set_due | **事実記録**（mig0093＝売掛の支払期日設定。receivable_collect と同列＝回収業務の周辺・止めると事故） |
+| bottle_keep_update / customer_set_grade | **事実記録**（mig0094＝ボトル残量/期限/棚と顧客ランク＝接客記録の更新。金銭・拡大のいずれでもない） |
+| customer_note_add / customer_note_remove | **事実記録**（mig0094＝接客メモの追記と論理削除＝append-only 運用） |
+
 ## C. kiosk 腕を持つ対象（実装注意・16本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /
@@ -164,17 +180,12 @@ check_set_people（mig0090）＋ check_line_set_group（mig0091）。
 
 ## D. 保留 — なし（16本全て裁定済み・v1.1 で解消）
 
-## E. 全数照合（live 実体との突合）
-A **92** ＋ B **83** ＝ **175**（名簿上の全数）。
+## E. 全数照合（live 実体との突合済み・機械 assert 化）
+A **92** ＋ B **93** ＝ **185** ＝ live pg_proc 実列挙（mig0096 後）と**完全一致**。
 （v1 起草時は A 87＋B 83＝170。0089 extension で 171・0090 set_people で 172・0091 line_set_group で
-173・0095 staffing_need_remove で 174・0096 store_sales_target_set で 175 へ＝上記ヘッダの各追随を参照）
+173・0095 staffing_need_remove で 174・0096 store_sales_target_set で 175・**E8-6c で B 93＝185** へ）
 
-★**既知の残差（2026-08-19 実測・E8-6 で発覚・B 名簿の追補は未裁定）**: live pg_proc 実列挙は
-**185 本**（mig0096 後）で、名簿 175 との差 10 本はすべて**非ゲート**＝ゲート判定の網羅性
-（対象92 ⊆ live gated 92 の双方向一致）には影響しない。内訳＝
-(1) `auth_org_billing_writable`（0088 の zero-arg ラッパ・設計 §3 で存在自体は既知） /
-(2) mig0093 `receivable_set_due`・mig0094 `bottle_keep_update`/`customer_note_add`/`customer_note_remove`/
-`customer_set_grade`（いずれも新設時に B(f)/B 系へ未収載＝「174 完全一致」は 0093 以降ズレていた） /
-(3) mig0096 読取3本 `store_hourly_aggregate`/`store_category_aggregate`/`store_cohort_aggregate`
-（裁定 E8-6-7＝非ゲート）。→ B 名簿への正式追補（B(f) 拡張 or 新節）は**要裁定**
-（verify:nox-billing の docExcluded=83 pin に波及するため勝手に触らない）。
+★**E8-6c（2026-08-19・裁定 E8-6-9）**: 教訓20 で発覚した残差10本（非ゲート新設5本＋mig0096 読取3本＋
+課金述語/ラッパ2本）を B(f)/B(k) へ追補して解消。全数一致は以後 **verify:nox-billing の
+「live 全数 = 正本 A∪B」機械 assert** が担保（silent drift は f0 が赤にする＝教訓21）。
+非ゲート新設 RPC も mig と同一コミットで B 名簿を追補する（ゲート入りの pin 波及と対称の運用）。

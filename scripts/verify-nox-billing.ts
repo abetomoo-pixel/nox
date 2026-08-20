@@ -84,7 +84,17 @@ async function main() {
     // ★mig0089/0090/0091/0095/0096（段48/49/52/53 張り替え）: extension_add・set_people・line_set_group・
     //   staffing_need_remove・store_sales_target_set 追加で対象 87→92（正本ヘッダ参照）
     check("段47-1 正本の対象92名を読めた", docTargets.size === 92, `got ${docTargets.size}`);
-    check("段47-1 正本の除外83名を読めた", docExcluded.size === 83, `got ${docExcluded.size}`);
+    // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
+    check("段47-1 正本の除外93名を読めた", docExcluded.size === 93, `got ${docExcluded.size}`);
+
+    // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
+    //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる
+    //   （0093/0094 で実証＝教訓20）。この assert が silent drift を恒久的に赤にする。
+    const docAll = new Set([...docTargets, ...docExcluded]);
+    const liveOnly = [...liveNames].filter((n) => !docAll.has(n));
+    check("段47-1 ★live 全数 = 正本 A∪B（非ゲート新設の名簿漏れゼロ・教訓21）",
+      liveOnly.length === 0 && docAll.size === liveNames.size,
+      `liveOnly=[${liveOnly.join(",")}] docAll=${docAll.size} live=${liveNames.size}`);
 
     const { rows: gated } = await db.query(`
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace

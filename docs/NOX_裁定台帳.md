@@ -1084,3 +1084,26 @@ B 名簿未収載のまま「live 実列挙と完全一致」の表記が残っ�
 （A∪B）=既知の残差リスト」の機械 assert を足し、silent drift を赤にする。
 
 （契機: E8-6 後半 mig0096 適用後照合。0096 の読取3本＋setter で残差が 6→10 に拡大したことで顕在化）
+
+## 裁定32（2026-08-19）E8-6c＝B 名簿追補・全数照合の機械化（E8-6-9）＋教訓21＋裁定30 の #6 確定
+
+### E8-6-9（裁定・B 名簿追補と恒久同期）
+教訓20 の残差10本を課金正本 B 名簿へ収載＝**B(f) 39本化**（mig0096 読取3本
+store_hourly_aggregate/store_category_aggregate/store_cohort_aggregate＋課金述語 billing_writable_of
+＋zero-arg ラッパ auth_org_billing_writable）＋**B(k) 新設5本**（0093 receivable_set_due・
+0094 bottle_keep_update/customer_set_grade/customer_note_add/customer_note_remove＝事実記録）。
+→ **A 92 ＋ B 93 ＝ 185 ＝ live pg_proc 実列挙と完全一致**。verify:nox-billing に
+「live 全数 = 正本 A∪B」の機械 assert を追加（50→51本・docExcluded pin 83→93）。
+以後、**非ゲート新設 RPC も mig と同一コミットで B 名簿を追補する**（ゲート入りの pin 波及と対称の運用）。
+※billing_writable_of 自体が名簿に居なかったのは「A 見出し行にのみ登場＝パーサは見出しをスキップ」のため
+（残差は当初報告の9本ではなく10本＝機械 assert が確定させた）。
+
+### 裁定30 の更新: analytics#6 自動インサイト＝後送り確定
+E8-6（分析段）の実機確認を経て再裁定＝**後送り（post-launch）で確定**（ペンディング解消）。
+閾値定義・文言生成のルール層は post-launch 台帳へ。E8 のペンディングは 0 件になった。
+
+### 教訓21: 名簿は機械 assert で live と同期を強制する（手動追補の腐りを構造排除）
+「正本に転記済み」という人手の宣言は、pin を赤にしない変更（非ゲート新設）で必ず腐る（教訓20）。
+live と一致すべきリストは、その一致自体を verify の assert にする＝教訓13「本数は実測のみ」の文書版。
+adversarial 実証: 名簿から1本欠いた想定へ一時改変 → `FAIL: liveOnly=[receivable_set_due]
+docAll=184 live=185` の赤を実測 → 復元 → 51本緑（残置なし）。
