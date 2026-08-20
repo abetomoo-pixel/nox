@@ -308,23 +308,26 @@ async function main() {
         && t8.find((l) => l.fee_kind === "set")?.qty === 3,
         e8p?.message ?? JSON.stringify(t8));
 
-      // ── (10) check_open の null set 行 → apply → block_no=0 の1本へ収束（0097b 吸収）──
+      // ── (10) check_open の set 行は block_no=0 で入る（★mig0098 R2-7c＝null 再生産の停止）──
+      //   0097b 前: check_open が null → apply の 0 行と二重化（実バグ）。0097b で apply が null を吸収し、
+      //   0098 で check_open 自身が 0 を書くようになった＝**発生源が根絶**。本 assert はその実測。
       const { data: c10d, error: e10o } = await mgr.rpc("check_open", { p_seat_id: seatF, p_people: 2, p_nom_type: "free" });
       const c10 = c10d as string;
       check("段54(10) 準備: check_open(people=2)", !e10o && !!c10, e10o?.message);
       checkIds.push(c10);
       const t10pre = await autoRows(c10);
-      check("段54(10) 前提の実測: check_open 由来の set 行は block_no=null（0098 で 0 化予定＝現状の再生産源）",
-        t10pre.length === 1 && t10pre[0].fee_kind === "set" && t10pre[0].block_no === null, JSON.stringify(t10pre));
+      check("段54(10) ★R2-7c: check_open 由来の set 行が block_no=0（null 再生産の停止＝二重化の発生源が根絶）",
+        t10pre.length === 1 && t10pre[0].fee_kind === "set" && t10pre[0].block_no === 0, JSON.stringify(t10pre));
       const { error: e10a } = await mgr.rpc("check_time_charge_apply", { p_check_id: c10 });
       const t10 = await autoRows(c10);
-      check("段54(10) ★apply 後は set 行1本（block_no=0・qty=2/10000）＝null 行は吸収され二重化しない",
+      check("段54(10) ★apply 後も set 行1本（block_no=0・qty=2/10000）＝3列 conflict が同一行を upsert",
         !e10a && t10.length === 1 && t10[0].fee_kind === "set" && t10[0].block_no === 0
         && t10[0].qty === 2 && t10[0].line_total === 10000, e10a?.message ?? JSON.stringify(t10));
 
-      // ── (11) null+0 二重化（過去バグ状態）の再現 → apply → 単一行収束・総額正常化 ──
-      //   0097b 前に開卓→apply された伝票の状態を admin 直 insert で再現（block_no=0 行を複製）。
-      //   ★seat は新規（check_open は同一 seat の open 伝票を自然冪等で返すため再利用不可＝(11) 初回実行で実測）
+      // ── (11) 旧形式（block_no=null）の set 行が残る伝票 → apply → 吸収されて単一行へ収束 ──
+      //   0097b の吸収 delete が「移行装置」として生き続けることの実証（0098 適用後は check_open が
+      //   null を作らないため、null 行は admin 直 insert で再現＝過去伝票の状態）。
+      //   ★3列ユニークは NULL distinct のため null+0 の併存自体は制約を通る（＝バグの機序そのもの）。
       const seatG = await mkSeat54(`${P49}-卓G`);
       const { data: c11d, error: e11o } = await mgr.rpc("check_open", { p_seat_id: seatG, p_people: 2, p_nom_type: "free" });
       const c11 = c11d as string;
@@ -333,16 +336,16 @@ async function main() {
       const { error: e11i } = await admin.from("check_lines").insert({
         org_id: sA1.org_id, store_id: sA1.id, check_id: c11, kind: "time", pay_group: "A",
         name_snapshot: "セット料金(40分)", unit_price_snapshot: 5000, qty: 2, line_total: 10000,
-        sort_order: 900, time_auto: true, fee_kind: "set", block_no: 0,
+        sort_order: 900, time_auto: true, fee_kind: "set", block_no: null, // ★旧形式＝0098 前の check_open 相当
       });
       const t11pre = await autoRows(c11);
-      check("段54(11) 準備: null+0 の set 2本＝二重化状態を再現（Σ20000 の過大）",
+      check("段54(11) 準備: 旧形式 null 行＋0098 の 0 行＝set 2本の二重化状態を再現（Σ20000 の過大）",
         !e11i && t11pre.filter((l) => l.fee_kind === "set").length === 2
         && t11pre.reduce((a, l) => a + l.line_total, 0) === 20000, e11i?.message ?? JSON.stringify(t11pre));
       const { error: e11a } = await mgr.rpc("check_time_charge_apply", { p_check_id: c11 });
       const t11 = await autoRows(c11);
       const c11total = (await chk(c11)).total;
-      check("段54(11) ★二重化伝票が apply で単一行へ収束（set 1本=10000）・checks.total も正常化（recalc 済み）",
+      check("段54(11) ★0097b 吸収が移行装置として機能＝apply で単一行へ収束（set 1本=10000）・total 正常化",
         !e11a && t11.filter((l) => l.fee_kind === "set").length === 1
         && t11[0].block_no === 0 && t11[0].line_total === 10000
         && c11total === 11000, // 10000+サ料10%（P49 店は round down 100・11000）
