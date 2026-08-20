@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { TabBar, type NavGroup } from "@/components/ui/nav";
 import SideNav from "@/components/ui/side-nav";
+import BillingBanner from "@/components/ui/billing-banner";
 import * as t from "@/lib/nox/ui/theme";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
@@ -35,6 +36,13 @@ export default async function ManageLayout({ children }: { children: React.React
   const storeLabel = (storeRows?.[0]?.name as string | undefined) ?? "店舗";
 
   const isManagerUp = role === "owner" || role === "manager";
+
+  // 課金失効バナー（課金 app 設計書 v1 §6）＝zero-arg ラッパの否定で判定。
+  //   ★org_billing の RLS SELECT は owner 限定（mig0087）＝行を読む実装だと owner にしか出ない。
+  //     本ラッパは authenticated 全員に grant されており boolean しか返さない＝
+  //     全ロールに告知でき、かつ課金情報は漏れない。述語は RPC ゲート94本と同一＝表示と実挙動が食い違わない。
+  const { data: billingWritable } = await supabase.rpc("auth_org_billing_writable");
+  const billingLocked = billingWritable === false;
   let staffCrm = false;
   if (role === "staff") {
     const { data } = await supabase.rpc("auth_staff_can_crm");
@@ -71,6 +79,8 @@ export default async function ManageLayout({ children }: { children: React.React
           { href: "/notices", label: "お知らせ" },
           // 監査ログは owner 限定（RLS も owner 限定＝mig0002・非 owner は 0行。ここは表示ナビ）
           ...(role === "owner" ? [{ href: "/audit", label: "監査" }] : []),
+          // 課金（設計書 §6）: owner 限定＝org_billing の RLS SELECT も owner 限定・route も requireOwner
+          ...(role === "owner" ? [{ href: "/billing", label: "ご契約" }] : []),
         ] },
       ].filter((g) => g.items.length > 0); // 権限で空になった群は見出しごと出さない
   return (
@@ -107,7 +117,10 @@ export default async function ManageLayout({ children }: { children: React.React
               </form>
             </div>
           </header>
-          <main className="nox-mainarea">{children}</main>
+          <main className="nox-mainarea">
+            {billingLocked && <BillingBanner isOwner={role === "owner"} />}
+            {children}
+          </main>
         </div>
       </div>
       {/* 段N: SP（≤899）はボトムタブ4本（ホーム/レジ/シフト/キャスト）＋「その他」シート。
