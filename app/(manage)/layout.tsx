@@ -63,6 +63,8 @@ export default async function ManageLayout({ children }: { children: React.React
         ] },
         { label: "分析", items: [
           ...(isManagerUp ? [{ href: "/analytics", label: "分析" }] : []),
+          // R2-c（mig0099）: 領収書の発行台帳（RLS select も owner/manager 自店＝表示ナビと二重）
+          ...(isManagerUp ? [{ href: "/receipts", label: "領収書" }] : []),
         ] },
         { label: "店舗", items: [
           ...(isManagerUp ? [{ href: "/master", label: "マスタ" }] : []),

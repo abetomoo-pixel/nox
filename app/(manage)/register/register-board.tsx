@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { groupDue, receiptSplitOf, timeStatusOf } from "@/lib/nox/check-calc";
+import { groupDue, timeStatusOf } from "@/lib/nox/check-calc";
+import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
 import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
 import CastPicker from "@/components/ui/cast-picker";
@@ -236,11 +237,17 @@ export default function RegisterBoard({
   const [groupPick, setGroupPick] = useState<string | null>(null);
   // E8-1b F6: close 後モーダル（合計・お釣り・再印刷・簡易領収書）
   const [closeInfo, setCloseInfo] = useState<{ checkId: string; total: number; change: number | null; groups: string[] } | null>(null);
-  // E8-1c: 分割領収書ドラフト（モック register-pos 領収書ダイアログ準拠・1〜10枚・
-  //   均等割り＝receiptSplitOf・非最終行の手修正時は最終行=残額で合計一致を保証。
-  //   採番・QR は R2 送り＝ボタンも出さない。空欄フォールバック=上様/ご飲食代として）
-  const [rcptDrafts, setRcptDrafts] = useState<{ amount: number; name: string; note: string }[]>([]);
+  // R2-c（mig0099）: 正式領収書の発行（E8-1c の揮発分割 UI を receipt_issue 結線へ置換）。
+  //   複数枚は「複数回発行」で表現（1枚=台帳1行・Σamount ≤ 伝票総額はサーバがガード）。
+  //   採番 R-連番・QR（公開 URL /r/{token}）・印刷は発行済み一覧から。
+  type RcptIssued = { id: string; serial: number; token: string; amount: number;
+    expires_on: string; biz_date: string; store_name: string; name: string; note: string };
+  const [rcptForm, setRcptForm] = useState<{ amount: string; name: string; note: string }>({ amount: "", name: "", note: "" });
+  const [rcptIssued, setRcptIssued] = useState<RcptIssued[]>([]);
+  const [rcptBusy, setRcptBusy] = useState(false);
+  const [rcptMsg, setRcptMsg] = useState<string | null>(null);
   const [storeName, setStoreName] = useState("");
+  const [invoiceRegNo, setInvoiceRegNo] = useState(""); // 適格請求書の登録番号（settings_json.invoice_reg_no・空=行を出さない）
   const [checkSeats, setCheckSeats] = useState<CheckSeatRow[]>([]);
   const [seatMsg, setSeatMsg] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckRow | null>(null);
@@ -435,13 +442,16 @@ export default function RegisterBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // E8-1b F6: 簡易領収書の店名（表示専用・1回取得）
+  // E8-1b F6→R2-c: 領収書の店名＋適格請求書 登録番号（settings_json.invoice_reg_no・表示専用・1回取得）
   useEffect(() => {
     if (!storeId) return;
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("stores").select("name").eq("id", storeId).single();
-      if (alive) setStoreName((data?.name as string | undefined) ?? "");
+      const { data } = await supabase.from("stores").select("name, settings_json").eq("id", storeId).single();
+      if (alive) {
+        setStoreName((data?.name as string | undefined) ?? "");
+        setInvoiceRegNo(((data?.settings_json as Record<string, unknown> | null)?.invoice_reg_no as string | undefined) ?? "");
+      }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -865,7 +875,9 @@ export default function RegisterBoard({
       change: lastCash ? (lastCash.tendered as number) - lastCash.amount : null,
       groups: gs,
     });
-    setRcptDrafts(receiptSplitOf(check.total, 1).map((a) => ({ amount: a, name: "", note: "" })));
+    setRcptIssued([]);
+    setRcptForm({ amount: "", name: "", note: "" });
+    setRcptMsg(null);
     // F4b: クローズ後のレシート印刷カード（printer_enabled の店のみ・pay_group ごと・フロア残置用）
     if (printerEnabled) {
       setPrintCard({ checkId: check.id, groups: gs });
@@ -1318,74 +1330,86 @@ export default function RegisterBoard({
               ))}
             </div>
           )}
-          {/* E8-1c: 簡易領収書の複数枚分割（モック register-pos 領収書ダイアログ準拠・app のみ）。
-              1〜10枚→均等割り（receiptSplitOf）・非最終行の手修正時は最終行=残額で合計一致を構造保証。
-              紙印刷=既存 .nox-print 隔離経路で枚数分（page-break）。発行番号採番・QR は R2 送り＝ボタンも出さない。 */}
+          {/* R2-c（mig0099）: 正式領収書の発行＝receipt_issue 結線（E8-1c の揮発分割 UI を置換）。
+              1枚=台帳1行・複数枚は複数回発行・Σamount ≤ 伝票総額はサーバがガード（FOR UPDATE 直列化）。
+              発行結果に R-連番＋公開 URL の QR。印刷は下の .nox-print-only（発行済み全枚・1枚=1ページ）。 */}
           {(() => {
-            const total = closeInfo.total;
-            const sum = rcptDrafts.reduce((a, d) => a + d.amount, 0);
-            const ok = rcptDrafts.length >= 1 && sum === total && rcptDrafts.every((d) => d.amount >= 1);
-            const setCount = (n: number) =>
-              setRcptDrafts(receiptSplitOf(total, n).map((a) => ({ amount: a, name: "", note: "" })));
-            const setAmount = (i: number, raw: number) => {
-              setRcptDrafts((ds) => {
-                const n = ds.length;
-                if (i >= n - 1) return ds; // 最終行=残額（手修正不可）
-                const others = ds.slice(0, n - 1).reduce((a, d, j) => a + (j === i ? 0 : d.amount), 0);
-                const v = Math.max(1, Math.min(Math.max(1, total - 1 - others), Math.floor(raw) || 1));
-                const next = ds.map((d, j) => (j === i ? { ...d, amount: v } : { ...d }));
-                next[n - 1].amount = total - next.slice(0, n - 1).reduce((a, d) => a + d.amount, 0);
-                return next;
+            const issuedSum = rcptIssued.reduce((a, r) => a + r.amount, 0);
+            const remain = closeInfo.total - issuedSum;
+            const doIssue = async () => {
+              if (rcptBusy) return;
+              const raw = rcptForm.amount.trim();
+              const amt = raw === "" ? null : Number(raw);
+              if (amt !== null && (!Number.isInteger(amt) || amt <= 0)) { setRcptMsg("金額は正の整数で入力してください（空欄=残額）"); return; }
+              setRcptBusy(true);
+              setRcptMsg(null);
+              const { data, error } = await supabase.rpc("receipt_issue", {
+                p_check_id: closeInfo.checkId, p_amount: amt,
+                p_recipient: rcptForm.name.trim() === "" ? null : rcptForm.name.trim(),
+                p_proviso: rcptForm.note.trim() === "" ? null : rcptForm.note.trim(),
               });
+              setRcptBusy(false);
+              if (error) {
+                const m = error.message;
+                setRcptMsg(m.includes("bad amount") ? `発行できる残額を超えています（残額 ${yen(remain)}）`
+                  : m.includes("not closed") ? "会計済みの伝票のみ発行できます"
+                  : m.includes("bad recipient") ? "宛名は100文字以内で入力してください"
+                  : m.includes("bad proviso") ? "但し書きは100文字以内で入力してください"
+                  : m.includes("billing locked") ? "ご利用プランの制限で発行できません（管理者にご確認ください）"
+                  : m.includes("busy") ? "発行が混み合っています。もう一度お試しください"
+                  : m.includes("forbidden") ? "権限がありません" : m);
+                return;
+              }
+              const r = data as { id: string; serial: number; token: string; amount: number; expires_on: string; biz_date: string; store_name: string };
+              setRcptIssued((xs) => [...xs, { ...r, name: rcptForm.name.trim(), note: rcptForm.note.trim() }]);
+              setRcptForm({ amount: "", name: "", note: "" });
             };
             return (
               <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
-                <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 4px", color: "var(--champ)" }}>簡易領収書</p>
+                <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 4px", color: "var(--champ)" }}>領収書発行（台帳記録・発行番号つき）</p>
                 <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.6 }}>
-                  1〜10枚に分割できます。均等割り（最後の1枚は残額を自動計算）＝発行合計は会計金額と必ず一致します。
+                  発行ごとに台帳へ記録され、発行番号と確認用 QR がつきます。分割するときは金額を入れて複数回発行してください
+                  （残額 <span style={{ ...t.num, fontWeight: 700 }}>{yen(remain)}</span>）。
                 </p>
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                    <button key={n} type="button"
-                      disabled={n > total}
-                      style={{
-                        ...btnLight, padding: "4px 10px", fontWeight: 800, fontSize: 12,
-                        ...(rcptDrafts.length === n
-                          ? { borderColor: "var(--gold)", color: "var(--champ)", background: "#1F1B12" } : {}),
-                      }}
-                      onClick={() => setCount(n)}>
-                      {n}枚
-                    </button>
-                  ))}
-                </div>
-                {rcptDrafts.map((d, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
-                    <span style={{ fontSize: 11.5, fontWeight: 800, minWidth: 66 }}>
-                      領収書 {i + 1}
-                      {rcptDrafts.length > 1 && i === rcptDrafts.length - 1 && (
-                        <small style={{ display: "block", fontWeight: 400, color: "var(--sub)" }}>残額を自動計算</small>
-                      )}
-                    </span>
-                    <input placeholder="宛名（空欄は上様）" value={d.name} maxLength={40}
-                      onChange={(e) => setRcptDrafts((ds) => ds.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                {remain > 0 && (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+                    <input type="number" min={1} value={rcptForm.amount} placeholder={`金額（空欄=残額 ${remain}）`}
+                      onChange={(e) => setRcptForm((f) => ({ ...f, amount: e.target.value }))}
+                      className="num" style={{ ...t.input, width: 150, textAlign: "right" }} />
+                    <input placeholder="宛名（空欄は上様）" value={rcptForm.name} maxLength={100}
+                      onChange={(e) => setRcptForm((f) => ({ ...f, name: e.target.value }))}
                       style={{ ...t.input, width: 150 }} />
-                    <input type="number" min={1} value={d.amount}
-                      readOnly={rcptDrafts.length === 1 || i === rcptDrafts.length - 1}
-                      onChange={(e) => setAmount(i, Number(e.target.value))}
-                      className="num" style={{ ...t.input, width: 96, textAlign: "right" }} />
-                    <input placeholder="但し書き（空欄はご飲食代として）" value={d.note} maxLength={40}
-                      onChange={(e) => setRcptDrafts((ds) => ds.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))}
+                    <input placeholder="但し書き（空欄はご飲食代として）" value={rcptForm.note} maxLength={100}
+                      onChange={(e) => setRcptForm((f) => ({ ...f, note: e.target.value }))}
                       style={{ ...t.input, width: 200 }} />
+                    <button style={btnDark} disabled={rcptBusy} onClick={() => void doIssue()}>発行</button>
+                  </div>
+                )}
+                {rcptMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "0 0 8px" }}>{rcptMsg}</p>}
+                {rcptIssued.map((r) => (
+                  <div key={r.id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
+                    <span style={{ ...t.num, fontWeight: 800 }}>R-{String(r.serial).padStart(6, "0")}</span>
+                    <span style={{ ...t.num }}>{yen(r.amount)}</span>
+                    <span style={{ fontSize: 12 }}>{r.name || "上様"}</span>
+                    {/* QR＝公開 URL（/r/{token}）。印刷面にも同じ QR が載る */}
+                    <span style={{ width: 44, height: 44, background: "#fff", padding: 2, borderRadius: 4 }}
+                      dangerouslySetInnerHTML={{ __html: renderSVG(`${window.location.origin}/r/${r.token}`, { border: 0 }) }} />
+                    <button style={{ ...btnLight, marginLeft: "auto" }}
+                      onClick={() => { void navigator.clipboard?.writeText(`${window.location.origin}/r/${r.token}`); setRcptMsg("確認用 URL をコピーしました"); }}>
+                      URL コピー
+                    </button>
                   </div>
                 ))}
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
-                  <button style={btnLight} disabled={!ok} onClick={() => window.print()}>
-                    領収書を印刷 / PDF{rcptDrafts.length > 1 ? `（${rcptDrafts.length}枚）` : ""}
-                  </button>
-                  <span style={{ fontSize: 11.5, color: ok ? "var(--sub)" : "var(--bad)", fontWeight: ok ? 400 : 700 }}>
-                    {rcptDrafts.length}枚・合計 {yen(sum)}{ok ? "（会計金額と一致）" : `（会計金額 ${yen(total)} と不一致）`}
-                  </span>
-                </div>
+                {rcptIssued.length > 0 && (
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8 }}>
+                    <button style={btnLight} onClick={() => window.print()}>
+                      領収書を印刷 / PDF{rcptIssued.length > 1 ? `（${rcptIssued.length}枚）` : ""}
+                    </button>
+                    <span style={{ fontSize: 11.5, color: "var(--sub)" }}>
+                      発行済み {rcptIssued.length}枚・計 {yen(issuedSum)}（取消は「領収書」ページから）
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -1395,29 +1419,43 @@ export default function RegisterBoard({
           </button>
         </Modal>
       )}
-      {/* E8-1b F6→E8-1c: 簡易領収書の印字実体（画面非表示・印刷時のみ＝.nox-print-only。白地黒字の
-          直値は帳票専用＝画面パレット対象外）。分割時は1枚=1ページ（最終枚以外 pageBreakAfter）。
-          空欄フォールバック=上様/ご飲食代として（モック receiptPaper と同値）。 */}
-      {closeInfo && (
+      {/* R2-c: 正式領収書の印字実体（画面非表示・印刷時のみ＝.nox-print-only。白地黒字は帳票専用）。
+          発行済み（rcptIssued）を1枚=1ページで印字。R-番号・発行日＋取引日併記（R2-12）・
+          適格請求書事項（登録番号・内税10%＝ePOS 既在項目と同型）・公開 URL の QR。 */}
+      {closeInfo && rcptIssued.length > 0 && (
         <div className="nox-print nox-print-only" style={{ background: "#fff", color: "#000" }}>
-          {rcptDrafts.map((d, i) => (
-            <div key={i} style={{
+          {rcptIssued.map((r, i) => (
+            <div key={r.id} style={{
               padding: "24mm 18mm", fontSize: 14, lineHeight: 1.9,
-              pageBreakAfter: i < rcptDrafts.length - 1 ? "always" : "auto",
+              pageBreakAfter: i < rcptIssued.length - 1 ? "always" : "auto",
             }}>
-              <div style={{ textAlign: "center", fontSize: 22, fontWeight: 800, letterSpacing: 6, marginBottom: 18 }}>領　収　書</div>
-              <div style={{ fontSize: 16, borderBottom: "1px solid #000", paddingBottom: 4, marginBottom: 14 }}>
-                {(d.name.trim() || "上") + " 様"}
+              <div style={{ textAlign: "center", fontSize: 22, fontWeight: 800, letterSpacing: 6, marginBottom: 6 }}>領　収　書</div>
+              <div style={{ textAlign: "right", fontSize: 12 }}>No. R-{String(r.serial).padStart(6, "0")}</div>
+              <div style={{ fontSize: 16, borderBottom: "1px solid #000", paddingBottom: 4, margin: "10px 0 14px" }}>
+                {(r.name || "上") + " 様"}
               </div>
-              <div style={{ textAlign: "center", fontSize: 26, fontWeight: 900, margin: "18px 0" }}>
-                ￥{d.amount.toLocaleString()}−
+              <div style={{ textAlign: "center", fontSize: 26, fontWeight: 900, margin: "18px 0 6px" }}>
+                ￥{r.amount.toLocaleString()}−
               </div>
-              <div>但し {d.note.trim() || "ご飲食代として"}</div>
+              <div style={{ textAlign: "center", fontSize: 11 }}>
+                （内消費税10% ￥{Math.floor((r.amount * 10) / 110).toLocaleString()}）
+              </div>
+              <div style={{ marginTop: 12 }}>但し {r.note || "ご飲食代として"}</div>
               <div>上記正に領収いたしました。</div>
-              <div style={{ marginTop: 18 }}>
-                {new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}
+              <div style={{ marginTop: 18, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                <div>
+                  <div>発行日 {new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</div>
+                  <div style={{ fontSize: 12 }}>取引日 {r.biz_date}</div>
+                </div>
+                {/* 確認用 QR（公開 URL /r/{token}・掲載期限90日） */}
+                <span style={{ width: "22mm", height: "22mm", display: "inline-block" }}
+                  dangerouslySetInnerHTML={{ __html: renderSVG(`${typeof window !== "undefined" ? window.location.origin : ""}/r/${r.token}`, { border: 0 }) }} />
               </div>
-              <div style={{ marginTop: 8, textAlign: "right", fontWeight: 700 }}>{storeName}</div>
+              <div style={{ marginTop: 8, textAlign: "right", fontWeight: 700 }}>{r.store_name || storeName}</div>
+              {invoiceRegNo && <div style={{ textAlign: "right", fontSize: 12 }}>登録番号 {invoiceRegNo}</div>}
+              <div style={{ fontSize: 10, color: "#555", marginTop: 4, textAlign: "right" }}>
+                QR から内容を確認できます（掲載期限: 発行から90日）
+              </div>
             </div>
           ))}
         </div>
