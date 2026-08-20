@@ -19,11 +19,11 @@
  *  (8) amount（契約金額の算出/整形/表示ラベル3分岐・degrade "—"）
  *  (9) messages（isBillingLocked の判定・文言定数）
  * (10) billingGate（スタブ client: writable true→null 素通し・false→402＋文言＋code・RPC error→500）
+ * (11) banner 出現条件の純関数（設計書 §6）＝SQL 述語 billing_writable_of の否定と全組合せで同値
  *
  * ★本スイートに入っていないもの（設計書 §9 のうち未実施・理由つき）:
  *   - 「gate 集合一致の静的 assert（§5）」＝適用対象が未確定（申告①・lib/billing/gate.ts 冒頭）。
  *     適用列挙が確定してから足す。今書くと、崩れている列挙をそのまま固定してしまう。
- *   - 「banner 出現条件の純関数化＋単体」＝banner 本体が未実装（実装順序⑥）。⑥ と同時に足す。
  *   - 「billingGate: 実 org fixture で 402」＝段47（verify:nox-billing）が同じ fixture org の
  *     org_billing を倒して戻す。同じ行を二重に触ると相互汚染するため、ここでは client をスタブ化して
  *     gate 自身の分岐のみを見る（述語の真理値表は段47 の観点2が実 DB で担保済み＝役割分担）。
@@ -40,6 +40,7 @@ import {
 } from "../lib/billing/amount";
 import { isBillingLocked, BILLING_LOCKED_MSG, BILLING_LOCKED_MSG_KIOSK, BILLING_LOCKED_CODE } from "../lib/billing/messages";
 import { billingGate } from "../lib/billing/gate";
+import { shouldShowBillingBanner, BILLING_BANNER_MSG } from "../lib/billing/banner";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 let pass = 0;
@@ -276,6 +277,53 @@ const jstMidnight = (y: number, m: number, d: number) => Date.UTC(y, m - 1, d, -
   eq("(9) kiosk 向けは責任者", BILLING_LOCKED_MSG_KIOSK, "ご利用プランの制限で更新できません（責任者にご確認ください）");
   eq("(9) code", BILLING_LOCKED_CODE, "billing_read_only");
   check("(9) 画面文言に英字トークンを混ぜない", !BILLING_LOCKED_MSG.includes("billing") && !BILLING_LOCKED_MSG_KIOSK.includes("billing"));
+}
+
+// ============================================================
+// (11) banner 出現条件（設計書 §6）＝SQL 述語 billing_writable_of の否定と同値であること
+// ============================================================
+{
+  eq("(11) バナー文言は設計書 §6 逐語", BILLING_BANNER_MSG,
+    "ご利用プランが失効しています。閲覧・出力は可能ですが、更新はできません。");
+
+  const now = new Date("2026-08-20T00:00:00Z");
+  const future = new Date("2026-09-20T00:00:00Z").toISOString();
+  const past = new Date("2026-08-19T00:00:00Z").toISOString();
+
+  check("(11) 行なし → 出す（fail-closed）", shouldShowBillingBanner(null, now));
+  check("(11) undefined → 出す", shouldShowBillingBanner(undefined, now));
+  check("(11) status なし → 出す", shouldShowBillingBanner({ status: null }, now));
+  check("(11) canceled → 出す", shouldShowBillingBanner({ status: "canceled" }, now));
+  check("(11) inactive → 出す", shouldShowBillingBanner({ status: "inactive" }, now));
+  check("(11) 未知 status → 出す", shouldShowBillingBanner({ status: "unpaid" }, now));
+  check("(11) active → 出さない", !shouldShowBillingBanner({ status: "active" }, now));
+  check("(11) past_due → 出さない（支払い待ちは止めない）", !shouldShowBillingBanner({ status: "past_due" }, now));
+  check("(11) active は trial 期限切れでも出さない（述語と同じく期限を見ない）",
+    !shouldShowBillingBanner({ status: "active", trial_ends_at: past }, now));
+  check("(11) trialing×期限が未来 → 出さない", !shouldShowBillingBanner({ status: "trialing", trial_ends_at: future }, now));
+  check("(11) trialing×期限切れ → 出す", shouldShowBillingBanner({ status: "trialing", trial_ends_at: past }, now));
+  check("(11) trialing×期限 null → 出す（fail-closed）", shouldShowBillingBanner({ status: "trialing", trial_ends_at: null }, now));
+  check("(11) trialing×期限が不正文字列 → 出す", shouldShowBillingBanner({ status: "trialing", trial_ends_at: "x" }, now));
+  check("(11) ★境界: trialing×期限がちょうど now → 出す（SQL は trial_ends_at > now()）",
+    shouldShowBillingBanner({ status: "trialing", trial_ends_at: now.toISOString() }, now));
+
+  // ★述語の否定との同値を全組合せで（status 5値＋未知 × 期限 未来/過去/なし）
+  //   期待値は SQL を逐語で写した参照実装（billing_writable_of の select 式そのもの）。
+  const sqlWritable = (status: string, trialEndsAt: string | null): boolean => {
+    const alive = status === "trialing" || status === "active" || status === "past_due";
+    const trialOk = status !== "trialing" || (!!trialEndsAt && new Date(trialEndsAt).getTime() > now.getTime());
+    return alive && trialOk;
+  };
+  let pairs = 0;
+  for (const s of ["trialing", "active", "past_due", "canceled", "inactive", "unpaid"]) {
+    for (const te of [future, past, null]) {
+      const banner = shouldShowBillingBanner({ status: s, trial_ends_at: te }, now);
+      check(`(11) 同値 ${s}/${te ? (te === future ? "未来" : "過去") : "なし"}`, banner === !sqlWritable(s, te),
+        `banner=${banner} / !sqlWritable=${!sqlWritable(s, te)}`);
+      pairs++;
+    }
+  }
+  eq("(11) 同値検査の組合せ数", pairs, 18);
 }
 
 // ============================================================
