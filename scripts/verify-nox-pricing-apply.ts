@@ -204,6 +204,7 @@ async function main() {
     {
       type ApplyRet = {
         total?: number; set_c?: number; ext_c?: number; blocks?: number; elapsed_min?: number;
+        units?: number; // ★mig0097（段54）: ブロック行 assert で参照
         set_line_id?: string | null; ext_line_id?: string | null;
       };
       // (3-0) ★0089 D節: check_open が set 行を既に自動挿入している（開卓直後から明細に見える）
@@ -263,18 +264,22 @@ async function main() {
       const expBlocks = timeBlocksOf(j2.elapsed_min ?? 0, sMin, eMin);
       check("段44(3) rewind 100分＝blocks ≥ 1・鏡像突合 timeBlocksOf(RPC.elapsed_min) = RPC.blocks",
         !e2 && expBlocks >= 1 && j2.blocks === expBlocks, JSON.stringify({ j2, sMin, eMin }));
-      check("段44(3) ★超過時＝set/ext の2行・返り値に両 line_id",
+      check("段44(3) ★超過時＝set 行と ext 末尾行の line_id が返る（mig0097: ext_line_id=block_no 最大行）",
         typeof j2.set_line_id === "string" && typeof j2.ext_line_id === "string", JSON.stringify(j2));
       if (j2.set_line_id) lineIds.push(j2.set_line_id);
-      if (j2.ext_line_id) lineIds.push(j2.ext_line_id);
       const { data: t2 } = await admin.from("check_lines")
-        .select("fee_kind, unit_price_snapshot, qty, line_total, name_snapshot")
+        .select("id, fee_kind, unit_price_snapshot, qty, line_total, name_snapshot, block_no")
         .eq("check_id", chkA1).eq("time_auto", true).order("sort_order");
-      const ext2 = (t2 ?? []).find((l) => l.fee_kind === "extension");
-      check("段44(3) ext 行の実体（unit=凍結 ext_fee 1500・qty=blocks×units・total=積・name に延長料金）",
-        ext2?.unit_price_snapshot === eFee && eFee === 1500 && ext2?.qty === expBlocks
-        && ext2?.line_total === eFee * expBlocks && String(ext2?.name_snapshot).includes("延長料金"),
-        JSON.stringify(ext2));
+      // ★mig0097（段54 張り替え）: extension はブロック行化＝行数=blocks・block_no=1..n・
+      //   各行 qty=units（この fixture は units=1）・unit=凍結 ext_fee・name に #k。
+      const exts2 = (t2 ?? []).filter((l) => l.fee_kind === "extension");
+      for (const l of exts2) lineIds.push(l.id as string);
+      check("段44(3) ★ext 行の実体（mig0097 ブロック行化＝行数=blocks・block_no=1..n・各行 qty=units・name #k）",
+        exts2.length === expBlocks && eFee === 1500
+        && exts2.every((l, i) => l.unit_price_snapshot === eFee && l.qty === (j2.units ?? 1)
+          && l.line_total === eFee * (j2.units ?? 1) && l.block_no === i + 1
+          && String(l.name_snapshot).includes(`延長料金`) && String(l.name_snapshot).includes(`#${i + 1}`)),
+        JSON.stringify(exts2));
       check("段44(3) ★総額保存則（超過）: Σtime_auto = total = set_c+ext_c（旧合算1行と同値）",
         (t2 ?? []).reduce((a, l) => a + (l.line_total as number), 0) === j2.total
         && j2.total === (j2.set_c ?? 0) + (j2.ext_c ?? 0), JSON.stringify({ t2, j2 }));

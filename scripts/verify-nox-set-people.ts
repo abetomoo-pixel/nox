@@ -237,6 +237,117 @@ async function main() {
       const { error: eHp2 } = await mgr.rpc("check_line_set_group", { p_line_id: mext?.[0]?.id as string, p_group: "B" });
       check("段49(6) ★入金後は 'has payments' 拒否", has(eHp2, "has payments"), eHp2?.message ?? "通ってしまった");
     }
+
+    // ═══ (7)〜(11) 段54（mig0097/0097b・R2-6/R2-7/R2-7b/R2-7c）: 時点起算＋二重化封鎖の直接検証 ═══
+    //   rewind 方式（pricing-apply 段44(3-3) の started_at 後付けと同型）で「確定ブロック凍結」を実測。
+    //   set40/ext30・経過115分 → blocks=(115-40+29)/30=3・#1(終端70)/#2(終端100)=終了済み・#3(終端130)=進行中。
+    {
+      await setStore({ set_min: 40, set_fee: 5000, ext_min: 30, ext_fee: 1500, time_mode: "auto", time_per: "person" });
+      const mkSeat54 = async (nm: string) => {
+        const id = (await admin.from("seats").insert({
+          org_id: sA1.org_id, store_id: sA1.id, name: nm, kind: "卓", sort_order: 986, is_active: true,
+        }).select("id").single()).data?.id as string;
+        seatIds.push(id);
+        return id;
+      };
+      const seatD = await mkSeat54(`${P49}-卓D`);
+      const seatE = await mkSeat54(`${P49}-卓E`);
+      const seatF = await mkSeat54(`${P49}-卓F`);
+      const autoRows = async (cid: string) =>
+        ((await admin.from("check_lines").select("id, fee_kind, qty, line_total, block_no")
+          .eq("check_id", cid).eq("time_auto", true).order("block_no")).data ?? []) as
+          Array<{ id: string; fee_kind: string | null; qty: number; line_total: number; block_no: number | null }>;
+      const rewind = async (cid: string, min: number) =>
+        admin.from("checks").update({ started_at: new Date(Date.now() - min * 60_000).toISOString() }).eq("id", cid);
+
+      // ── (7) apply 済み伝票の時点起算: 2ブロック確定（旧 units=2）→ people 3 → 確定分不変・進行中のみ3 ──
+      const { data: c7d, error: e7o } = await mgr.rpc("check_open", { p_seat_id: seatD, p_people: 2, p_nom_type: "free" });
+      const c7 = c7d as string;
+      check("段54(7) 準備: check_open(people=2)", !e7o && !!c7, e7o?.message);
+      checkIds.push(c7);
+      await rewind(c7, 115);
+      const { data: j7raw, error: e7a } = await mgr.rpc("check_time_charge_apply", { p_check_id: c7 });
+      const j7 = (j7raw ?? {}) as { blocks?: number; total?: number };
+      const t7pre = await autoRows(c7);
+      check("段54(7) 準備: 経過115分 apply＝blocks 3・ext 3行（全行 旧units qty=2）",
+        !e7a && j7.blocks === 3 && t7pre.filter((l) => l.fee_kind === "extension").length === 3
+        && t7pre.filter((l) => l.fee_kind === "extension").every((l) => l.qty === 2 && l.line_total === 3000),
+        e7a?.message ?? JSON.stringify(t7pre));
+      const { error: e7p } = await mgr.rpc("check_set_people", { p_check_id: c7, p_people: 3 });
+      const t7 = await autoRows(c7);
+      const extOf = (rows: typeof t7, k: number) => rows.find((l) => l.fee_kind === "extension" && l.block_no === k);
+      check("段54(7) ★時点起算: people 2→3 で確定 #1/#2 は qty=2/3000 のまま凍結・進行中 #3 のみ qty=3/4500",
+        !e7p
+        && extOf(t7, 1)?.qty === 2 && extOf(t7, 1)?.line_total === 3000
+        && extOf(t7, 2)?.qty === 2 && extOf(t7, 2)?.line_total === 3000
+        && extOf(t7, 3)?.qty === 3 && extOf(t7, 3)?.line_total === 4500,
+        e7p?.message ?? JSON.stringify(t7));
+      check("段54(7) ★set 行は全遡及のまま（block_no=0・qty=3/15000）",
+        t7.find((l) => l.fee_kind === "set")?.block_no === 0
+        && t7.find((l) => l.fee_kind === "set")?.qty === 3
+        && t7.find((l) => l.fee_kind === "set")?.line_total === 15000, JSON.stringify(t7));
+      // 総額保存則（新意味論＝確定分+進行分の和）: 再 apply の返り値 total = Σtime_auto 行
+      const { data: j7bRaw, error: e7r } = await mgr.rpc("check_time_charge_apply", { p_check_id: c7 });
+      const j7b = (j7bRaw ?? {}) as { total?: number; set_c?: number; ext_c?: number };
+      const sum7 = (await autoRows(c7)).reduce((a, l) => a + l.line_total, 0);
+      check("段54(7) ★総額保存則（確定分+進行分の和）: total=25500=Σtime_auto 行・set_c+ext_c と一致",
+        !e7r && j7b.total === 25500 && sum7 === 25500 && (j7b.set_c ?? 0) + (j7b.ext_c ?? 0) === 25500,
+        e7r?.message ?? JSON.stringify({ j7b, sum7 }));
+
+      // ── (8) 放置伝票: apply 未実行のまま 115分経過 → set_people(3) が2段 apply で旧 units を凍結 ──
+      const { data: c8d, error: e8o } = await mgr.rpc("check_open", { p_seat_id: seatE, p_people: 2, p_nom_type: "free" });
+      const c8 = c8d as string;
+      check("段54(8) 準備: check_open(people=2・apply は呼ばない)", !e8o && !!c8, e8o?.message);
+      checkIds.push(c8);
+      await rewind(c8, 115);
+      const { error: e8p } = await mgr.rpc("check_set_people", { p_check_id: c8, p_people: 3 });
+      const t8 = await autoRows(c8);
+      check("段54(8) ★放置伝票でも時点起算: ①事前 apply が旧2で凍結＝#1/#2=qty2・#3=qty3・set=qty3",
+        !e8p
+        && extOf(t8, 1)?.qty === 2 && extOf(t8, 2)?.qty === 2 && extOf(t8, 3)?.qty === 3
+        && t8.find((l) => l.fee_kind === "set")?.qty === 3,
+        e8p?.message ?? JSON.stringify(t8));
+
+      // ── (10) check_open の null set 行 → apply → block_no=0 の1本へ収束（0097b 吸収）──
+      const { data: c10d, error: e10o } = await mgr.rpc("check_open", { p_seat_id: seatF, p_people: 2, p_nom_type: "free" });
+      const c10 = c10d as string;
+      check("段54(10) 準備: check_open(people=2)", !e10o && !!c10, e10o?.message);
+      checkIds.push(c10);
+      const t10pre = await autoRows(c10);
+      check("段54(10) 前提の実測: check_open 由来の set 行は block_no=null（0098 で 0 化予定＝現状の再生産源）",
+        t10pre.length === 1 && t10pre[0].fee_kind === "set" && t10pre[0].block_no === null, JSON.stringify(t10pre));
+      const { error: e10a } = await mgr.rpc("check_time_charge_apply", { p_check_id: c10 });
+      const t10 = await autoRows(c10);
+      check("段54(10) ★apply 後は set 行1本（block_no=0・qty=2/10000）＝null 行は吸収され二重化しない",
+        !e10a && t10.length === 1 && t10[0].fee_kind === "set" && t10[0].block_no === 0
+        && t10[0].qty === 2 && t10[0].line_total === 10000, e10a?.message ?? JSON.stringify(t10));
+
+      // ── (11) null+0 二重化（過去バグ状態）の再現 → apply → 単一行収束・総額正常化 ──
+      //   0097b 前に開卓→apply された伝票の状態を admin 直 insert で再現（block_no=0 行を複製）。
+      //   ★seat は新規（check_open は同一 seat の open 伝票を自然冪等で返すため再利用不可＝(11) 初回実行で実測）
+      const seatG = await mkSeat54(`${P49}-卓G`);
+      const { data: c11d, error: e11o } = await mgr.rpc("check_open", { p_seat_id: seatG, p_people: 2, p_nom_type: "free" });
+      const c11 = c11d as string;
+      check("段54(11) 準備: check_open（新規卓 G・people=2）", !e11o && !!c11, e11o?.message);
+      checkIds.push(c11);
+      const { error: e11i } = await admin.from("check_lines").insert({
+        org_id: sA1.org_id, store_id: sA1.id, check_id: c11, kind: "time", pay_group: "A",
+        name_snapshot: "セット料金(40分)", unit_price_snapshot: 5000, qty: 2, line_total: 10000,
+        sort_order: 900, time_auto: true, fee_kind: "set", block_no: 0,
+      });
+      const t11pre = await autoRows(c11);
+      check("段54(11) 準備: null+0 の set 2本＝二重化状態を再現（Σ20000 の過大）",
+        !e11i && t11pre.filter((l) => l.fee_kind === "set").length === 2
+        && t11pre.reduce((a, l) => a + l.line_total, 0) === 20000, e11i?.message ?? JSON.stringify(t11pre));
+      const { error: e11a } = await mgr.rpc("check_time_charge_apply", { p_check_id: c11 });
+      const t11 = await autoRows(c11);
+      const c11total = (await chk(c11)).total;
+      check("段54(11) ★二重化伝票が apply で単一行へ収束（set 1本=10000）・checks.total も正常化（recalc 済み）",
+        !e11a && t11.filter((l) => l.fee_kind === "set").length === 1
+        && t11[0].block_no === 0 && t11[0].line_total === 10000
+        && c11total === 11000, // 10000+サ料10%（P49 店は round down 100・11000）
+        e11a?.message ?? JSON.stringify({ t11, c11total }));
+    }
   } finally {
     await cleanup();
     // 掃除の自己検証（固定カウント非汚染＝段44 流儀）

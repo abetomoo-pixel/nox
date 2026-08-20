@@ -743,10 +743,10 @@ async function main() {
       const ix = await db.query(
         `select indexdef from pg_indexes where schemaname = 'public' and indexname = 'check_lines_one_time_auto'`,
       );
-      // ★mig0089（段48 張り替え）: 行分離＝(check_id, fee_kind) の2列部分ユニークへ再定義
-      check("G26 check_lines_one_time_auto 部分ユニーク逐語（0089 行分離版）",
+      // ★mig0089（段48）2列 → ★mig0097（段54 張り替え）: ブロック行化＝(check_id, fee_kind, block_no) の3列部分ユニーク
+      check("G26 check_lines_one_time_auto 部分ユニーク逐語（0097 ブロック行版・3列）",
         ix.rowCount === 1 && ix.rows[0].indexdef ===
-          "CREATE UNIQUE INDEX check_lines_one_time_auto ON public.check_lines USING btree (check_id, fee_kind) WHERE time_auto",
+          "CREATE UNIQUE INDEX check_lines_one_time_auto ON public.check_lines USING btree (check_id, fee_kind, block_no) WHERE time_auto",
         ix.rows[0]?.indexdef ?? "(missing)");
       const s1 = await db.query(
         `select pg_get_function_identity_arguments(oid) as args, pronargs from pg_proc

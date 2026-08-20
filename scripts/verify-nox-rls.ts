@@ -2409,18 +2409,21 @@ async function main() {
           !eA1 && j1?.units === 1 && j1?.blocks === 2 && j1?.set_c === 5000 && j1?.ext_c === 4000
           && j1?.total === 9000 && (j1?.elapsed_min as number) >= 100 && (j1?.elapsed_min as number) <= 101,
           eA1?.message ?? JSON.stringify(j1));
-        // ★mig0089 行分離（段48 張り替え）: 合算1行 → set 行＋extension 行の2行体制。
-        //   set=開栓時凍結 5000×qty1・ext=2000×qty(blocks×units)・Σ=返り値 total（総額保存則＝旧合算と同値）
+        // ★mig0089 行分離→★mig0097 ブロック行化（段54 張り替え）: set 行＋extension ブロック行（#1..#n）。
+        //   set=開栓時凍結 5000×qty1（block_no=0）・ext=各ブロック 2000×qty(units)・Σ=返り値 total（総額保存則）
         const { data: l1 } = await admin.from("check_lines").select("*").eq("check_id", cid1).eq("time_auto", true).order("sort_order");
         const Ls = (l1 ?? []) as Record<string, unknown>[];
         const Lset = Ls.find((l) => l.fee_kind === "set");
-        const Lext = Ls.find((l) => l.fee_kind === "extension");
-        check("B4 自動行 = 2本（0089 行分離）: set=kind time/A/5000×1・ext=2000×qty2=4000・Σ=9000",
-          Ls.length === 2
+        const Lexts = Ls.filter((l) => l.fee_kind === "extension");
+        check("B4 自動行 = 3本（0097 ブロック行化）: set=5000×1(block0)・ext #1/#2=各2000×qty1・Σ=9000",
+          Ls.length === 3
           && Lset?.kind === "time" && Lset?.pay_group === "A" && Lset?.unit_price_snapshot === 5000
           && Lset?.qty === 1 && Lset?.line_total === 5000 && Lset?.name_snapshot === "セット料金(60分)"
-          && Lext?.kind === "time" && Lext?.pay_group === "A" && Lext?.unit_price_snapshot === 2000
-          && Lext?.qty === 2 && Lext?.line_total === 4000 && Lext?.name_snapshot === "延長料金(30分)"
+          && Lset?.block_no === 0
+          && Lexts.length === 2
+          && Lexts.every((l, i) => l.kind === "time" && l.pay_group === "A" && l.unit_price_snapshot === 2000
+            && l.qty === 1 && l.line_total === 2000 && l.block_no === i + 1
+            && l.name_snapshot === `延長料金(30分) #${i + 1}`)
           && Ls.reduce((a, l) => a + (l.line_total as number), 0) === 9000,
           JSON.stringify(Ls));
 
@@ -2428,12 +2431,15 @@ async function main() {
         const { data: r2, error: eA2 } = await mg.rpc("check_time_charge_apply", { p_check_id: cid1 });
         const j2 = r2 as Record<string, unknown> | null;
         check("B4 apply 2回目: blocks=4/total=13000", !eA2 && j2?.blocks === 4 && j2?.total === 13000, eA2?.message ?? JSON.stringify(j2));
-        const { data: l2 } = await admin.from("check_lines").select("id, fee_kind, line_total").eq("check_id", cid1).eq("time_auto", true);
+        const { data: l2 } = await admin.from("check_lines").select("id, fee_kind, line_total, block_no").eq("check_id", cid1).eq("time_auto", true);
         const L2set = (l2 ?? []).find((l) => l.fee_kind === "set");
-        const L2ext = (l2 ?? []).find((l) => l.fee_kind === "extension");
-        check("B4 再呼びで自動行 = 2本のまま（重複しない・同一 id・set 5000 不変・ext 8000 更新・Σ=13000）",
-          (l2 ?? []).length === 2 && L2set?.id === Lset?.id && L2ext?.id === Lext?.id
-          && L2set?.line_total === 5000 && L2ext?.line_total === 8000, JSON.stringify(l2));
+        const L2exts = (l2 ?? []).filter((l) => l.fee_kind === "extension");
+        // ★mig0097: 確定ブロック #1/#2 は初回 apply の行が同一 id のまま凍結・#3/#4 が増える＝計5本
+        check("B4 再呼びで set 同一 id 不変・確定 ext #1/#2 も同一 id で凍結・#3/#4 追加＝ext 4本 8000・Σ=13000",
+          (l2 ?? []).length === 5 && L2set?.id === Lset?.id && L2set?.line_total === 5000
+          && L2exts.length === 4
+          && Lexts.every((old) => L2exts.some((now) => now.id === old.id && now.block_no === old.block_no && now.line_total === 2000))
+          && L2exts.reduce((a, l) => a + (l.line_total as number), 0) === 8000, JSON.stringify(l2));
       }
 
       // ── 非遡及: 店の時間制を変えても open 中伝票はスナップ値で計算し続ける ──
