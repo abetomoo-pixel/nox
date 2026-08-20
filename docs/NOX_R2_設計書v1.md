@@ -22,15 +22,15 @@
 
 **R2-6（時点起算の正式裁定＝正本A を台帳収蔵）**: セット中の人数変更=全遡及（現行維持）・**延長ブロック確定後の変更=そのブロック以降のみ**。manual 店は既に時点起算＝不触。改修対象は **auto 店の apply のみ**。
 
-**R2-7（確定ブロックの表現）**: check_lines に **block_no integer**（NULL可・auto extension 行のみ使用）を追加し、auto 店の部分ユニークを **(check_id, fee_kind, block_no) where time_auto** へ張り替え。apply の意味論: 経過ブロック n 個のうち**確定済み（開始時刻が過ぎた）ブロックは初回生成時の units で行凍結・以後不触**、進行中ブロックのみ現況 units で upsert。set 行（block_no null）は従来どおり全遡及。鏡像3点セット（RPC/check-calc/receipt）同時改修の規律適用。
+**R2-7（確定ブロックの表現）**〔→ v1.1 改訂あり（§5・照合①）／R2-7b 新設（§5・照合②）〕: check_lines に **block_no integer**（NULL可・auto extension 行のみ使用）を追加し、auto 店の部分ユニークを **(check_id, fee_kind, block_no) where time_auto** へ張り替え。apply の意味論: 経過ブロック n 個のうち**確定済み（開始時刻が過ぎた）ブロックは初回生成時の units で行凍結・以後不触**、進行中ブロックのみ現況 units で upsert。set 行（block_no null）は従来どおり全遡及。鏡像3点セット（RPC/check-calc/receipt）同時改修の規律適用。
 
 **R2-8（verify 張り替え）**: 承認。pricing-apply 約19本＋set-people 6〜10本の期待値を新意味論へ張り替え・**rewind（started_at 後付け）方式**の持ち込み可。段49(4) は正解のまま残す。張り替え前後で「旧意味論なら緑・新意味論で赤」の adversarial を最低2本（遡及が消えたことの証明）。総額保存則 assertion は「確定分＋進行分の和」へ書き換え。
 
 **R2-9（発行台帳の器）**: **新テーブル receipt_issues**。ePOS の「採番テーブルは作らない」裁定はレシート（会計証跡・純関数）の話であり、領収書（金銭受領証・再発行管理が本体）は別物＝台帳が正当。列: id/org_id/store_id/check_id(FK)/serial(int)/amount/recipient(宛名)/proviso(但し書き)/issued_at/issued_by/token(uuid unique default gen_random_uuid())/expires_on(date default 発行+90日)/voided(boolean default false)。UNIQUE(store_id, serial)。grants 規範形・RLS select=owner/manager 自店。
 
-**R2-10（採番）**: **store×通し連番**（serial = 同 store の max+1 を FOR UPDATE 採番・表示形式 'R-{serial 6桁}'）。粒度 = **1枚1行**（分割発行は枚数分の行・各 amount 記録・Σamount ≤ 伝票総額を RPC ガード）。発行 RPC `receipt_issue`（closed 伝票のみ・owner/manager/staff-register・billing ゲート入り＝金銭記録の作成）・取消 `receipt_issue_void`（再発行管理・voided=true・理由 note）。
+**R2-10（採番）**〔→ v1.1 改訂あり（§5・照合③＝FOR UPDATE 撤回）〕: **store×通し連番**（serial = 同 store の max+1 を FOR UPDATE 採番・表示形式 'R-{serial 6桁}'）。粒度 = **1枚1行**（分割発行は枚数分の行・各 amount 記録・Σamount ≤ 伝票総額を RPC ガード）。発行 RPC `receipt_issue`（closed 伝票のみ・owner/manager/staff-register・billing ゲート入り＝金銭記録の作成）・取消 `receipt_issue_void`（再発行管理・voided=true・理由 note）。
 
-**R2-11（anon 面）**: NOX 初の anon grant。**白名単 = nox_receipt_public の1関数から開始**（正本B ①の最小原則。doc 版が要る時に2本目を裁定）。token で引き→ voided/期限切れ/不在は **null return**（正本B ③）。返却 = 店名・serial 表示形式・amount・発行日・取引日のみ（正本B ④）。anon-guard 934本は「BLOCKED 全数」から「白名単1件を除き BLOCKED」へ・grants 282本の pin 更新——**両方に白名単の機械 assert**（E8-6c 教訓21 と同型: 白名単は verify が live と同期強制）。
+**R2-11（anon 面）**〔→ v1.1 改訂あり（§5・照合④⑤＝pin 実態置換・門は DEFINER 白名単）〕: NOX 初の anon grant。**白名単 = nox_receipt_public の1関数から開始**（正本B ①の最小原則。doc 版が要る時に2本目を裁定）。token で引き→ voided/期限切れ/不在は **null return**（正本B ③）。返却 = 店名・serial 表示形式・amount・発行日・取引日のみ（正本B ④）。anon-guard 934本は「BLOCKED 全数」から「白名単1件を除き BLOCKED」へ・grants 282本の pin 更新——**両方に白名単の機械 assert**（E8-6c 教訓21 と同型: 白名単は verify が live と同期強制）。
 
 **R2-12（日付・インボイス）**: 領収書に**発行日（issued_at）と取引日（closed_at の biz_date）を併記**。適格請求書事項（登録番号・税率別内訳）は ePOS レシートの既在表示と同項目を簡易領収書にも印字（10%内税前提は receipt golden の現行前提を踏襲）。公開ページは金額・日付・発行番号のみ（インボイス表示は紙側）。
 
@@ -55,3 +55,37 @@
 ## 4. パーク（R2 に含めない）
 
 QR 印字レイアウト詳細（ライブラリ選定は実装時）・doc 版公開 RPC・領収書 PDF 化・インボイス税率混在（全品10%前提の変更は税理士回答後）・auto 店の複数メニュー。
+
+## 5. v1.1 改訂（照合5件の裁定反映・相談役 2026-08-20）
+
+★本節は CC 照合報告（申告①〜⑤）への裁定＝**相談役文言の逐語転記が正本**。
+§1 の原文は書き換えず、該当裁定に「→ v1.1 改訂あり」の参照注記のみ付す（改訂履歴を残す）。
+
+R2-7 改訂（照合①対応）: set 行は block_no=0 固定（null をやめる）。部分ユニークは
+(check_id, fee_kind, block_no) where time_auto のまま set 行にも自然に乗り、apply の
+on conflict は (check_id, fee_kind, block_no) where time_auto の3列推論で set/extension
+両対応。auto extension の確定ブロックは block_no=1..n。
+
+R2-7b 新設（照合②対応）: 凍結の意味論は「行が最初に生成された apply 時点の units で
+凍結・以後不触」。実効性の担保として check_set_people を2段 apply 化——①people 更新前に
+apply（旧 units で経過ブロックの行を生成・凍結）→②people 更新→③apply(進行中ブロック
+のみ新 units で upsert)。これにより放置伝票（apply 未発生のまま複数ブロック経過）でも、
+人数変更時点より前のブロックは旧人数で確定し、時点起算が厳密に成立する。裁定9(b) の
+自然冪等は「同一状態からの apply は決定的」へ意味を精緻化（呼び出し履歴依存は行凍結と
+いう明示状態に記録されるため、再現性は保たれる）。
+
+R2-10 改訂（照合③対応）: 採番は「FOR UPDATE」を撤回し UNIQUE(store_id, serial)
+衝突リトライ方式——coalesce(max(serial),0)+1 で insert・unique_violation を捕捉して
+最大3回リトライ・3回失敗は 'busy'。カウンタ行テーブルは作らない（器の追加なし・
+0053 注記の罠を回避）。
+
+R2-11 改訂（照合④⑤対応）: pin 作業の実態を照合実測どおりに置換——(A) grants G2b を
+「白名単（現在 nox_receipt_public の1件）を除き0本」へ改訂＋白名単の機械 assert 新設
+（教訓21 同型）・(B) anon-guard へ公開 RPC の正常系/異常系（anon 実行可・token 不一致
+null）を列挙追記（+2〜4本）。「934本を白名単方式に作り替える」文言は削除。
+門は (A) SECURITY DEFINER 白名単で開ける。理由: token ゲートは引数で受ける DEFINER
+のみが安全——invoker＋anon select ポリシーは token を policy 式に束縛できず、テーブル
+grant を開けた瞬間に全行列挙可能になる（G2 も赤になる）。G2b コメントの「将来の anon
+公開は invoker で」の記述は本裁定で上書き・コメント改訂。白名単 RPC の安全要件: 引数は
+token のみ・返却は正本B④の最小5項目・不在/期限切れ/voided は null return・STABLE・
+search_path 固定・receipt_issues 以外を読まない。

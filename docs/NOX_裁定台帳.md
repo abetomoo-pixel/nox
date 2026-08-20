@@ -1107,3 +1107,72 @@ E8-6（分析段）の実機確認を経て再裁定＝**後送り（post-launch
 live と一致すべきリストは、その一致自体を verify の assert にする＝教訓13「本数は実測のみ」の文書版。
 adversarial 実証: 名簿から1本欠いた想定へ一時改変 → `FAIL: liveOnly=[receivable_set_due]
 docAll=184 live=185` の赤を実測 → 復元 → 51本緑（残置なし）。
+
+## 裁定33（2026-08-20）R2 レジ第2弾 設計ロック（R2-1〜13＋v1.1 改訂4件）
+
+正本＝`docs/NOX_R2_設計書v1.md`（v1 本体＋§5 v1.1 改訂・CC 照合5件の裁定反映済み）。
+対象4テーマ: T-a 延長メニュー複数／T-a' 開卓時ルール手動選択／T-b 延長後合流の時点起算（money-core）
+／T-c 領収書本格版（採番・QR・発行台帳・匿名公開ページ）。**本裁定をもって設計ロック**＝
+以後の実装は mig0097→0098→0099 の順で恒久手順（底本逐語採取→起草→照合→手貼り→検証バンドル→
+app 実装→目視→push）。
+
+### 正本文言の供給（docs 不在分・本裁定で正本化）
+- **正本A（v8 §3 逐語）**: 延長メニュー複数（30分¥3000/60分¥5000・manual 店・pricing_rules extension
+  複数行が受け皿）／延長後合流の時点起算（セット中合流=遡及・延長後合流=そのブロックから加算）。
+- **正本B（BANZEN 資産）**: ①anon 面は公開専用 SECURITY DEFINER RPC のみ・**最小本数を白名単管理**
+  ②QR トークンは乱数 UUID・**有効期限90日** ③期限切れ・不在は **raise せず null/空 return**
+  ④公開ページは PII 最小（店名・金額・日付・発行番号のみ）。
+
+### R2-1〜13（要旨・逐語は設計書 §1）
+- **R2-1** checks.ext_menu_snap jsonb 新設（開栓時に有効 extension 全件を priority 順で凍結）＋
+  check_extension_add に p_rule_id default null（null=既定＝現行互換）・押下時はスナップから解決。
+- **R2-2** 一覧読取は新 RPC 不要（ext_menu_snap を読むだけ）。**R2-3** 複数メニューは manual 専用・
+  auto の 'auto mode' ガード維持。**R2-4** 開栓後のマスタ変更は既存伝票に非波及（凍結原則の拡張）。
+- **R2-5** check_open に p_set_rule_id default null（開卓時ルール手動選択・選び直し不可＝void→再開卓）。
+- **R2-6** セット中の人数変更=全遡及維持／延長ブロック確定後=そのブロック以降のみ。manual は既に
+  時点起算＝不触・改修対象は auto の apply のみ。
+- **R2-7** check_lines.block_no 追加＋部分ユニークを (check_id, fee_kind, block_no) where time_auto へ
+  張り替え〔→ v1.1 改訂〕。**R2-8** verify 張り替え承認（pricing-apply 約19本＋set-people 6〜10本・
+  rewind 方式・adversarial 最低2本＝遡及消滅の証明・段49(4) は正解のまま）。
+- **R2-9** 新テーブル receipt_issues（ePOS の「採番テーブルを作らない」裁定はレシート＝会計証跡の話で
+  あり領収書＝金銭受領証とは別物）。**R2-10** store×通し連番・1枚1行〔→ v1.1 改訂〕。
+- **R2-11** anon 面は nox_receipt_public の1関数から開始〔→ v1.1 改訂〕。**R2-12** 発行日と取引日を併記・
+  適格請求書事項は紙側。**R2-13** E8-1 分割領収書の既知欠落2点（伝票総額粒度・印刷実行日）は
+  receipt_issues 化で自然解消・揮発 UI は receipt_issue 結線へ置換。
+
+### v1.1 改訂4件（CC 照合5件への裁定・逐語は設計書 §5）
+1. **R2-7 改訂（照合①）**: set 行は **block_no=0 固定**（null をやめる）＝3列推論の on conflict が
+   set/extension 両対応。auto extension の確定ブロックは block_no=1..n。
+2. **R2-7b 新設（照合②）**: 凍結＝「最初に生成された apply 時点の units で凍結・以後不触」。
+   **check_set_people を2段 apply 化**（①更新前 apply で旧 units 凍結→②people 更新→③apply で
+   進行中ブロックのみ新 units）＝放置伝票でも時点起算が厳密成立。**裁定9(b) の自然冪等は
+   「同一状態からの apply は決定的」へ意味を精緻化**（履歴依存は行凍結という明示状態に記録）。
+3. **R2-10 改訂（照合③）**: FOR UPDATE を撤回し **UNIQUE(store_id, serial) 衝突リトライ**
+   （max+1 insert・unique_violation 捕捉・最大3回・3回失敗は 'busy'）。カウンタ行テーブルは作らない
+   （0053 注記の罠を回避）。
+4. **R2-11 改訂（照合④⑤）**: pin 実態を実測どおり置換＝(A) grants **G2b を「白名単1件を除き0本」**へ
+   改訂＋白名単の機械 assert 新設（教訓21 同型）(B) anon-guard へ公開 RPC の正常系/異常系を列挙追記
+   （+2〜4本）。「934本を白名単方式に作り替える」文言は削除。**門は SECURITY DEFINER 白名単**
+   （token ゲートは引数で受ける DEFINER のみ安全・invoker＋anon select ポリシーは token を policy 式に
+   束縛できずテーブル grant 開放の瞬間に全行列挙可能＝G2 も赤）。**G2b コメントの「将来の anon 公開は
+   invoker で」は本裁定で上書き・コメント改訂**。白名単 RPC の安全要件＝引数は token のみ・返却は
+   正本B④の最小5項目・不在/期限切れ/voided は null return・STABLE・search_path 固定・
+   receipt_issues 以外を読まない。
+
+### mig 分割と順序（設計書 §2）
+0097 R2-b（block_no＋部分ユニーク張り替え＋apply 改稿＋check_set_people 2段 apply 化）→
+0098 R2-a（ext_menu_snap＋check_open 拡張＋check_extension_add 拡張）→
+0099 R2-c（receipt_issues＋receipt_issue/void＋nox_receipt_public）。
+順序理由＝b が apply の意味論を確定してから a の複数メニューを載せる（逆順だと a の行生成を b で再改修）。
+検証は段54〜56。**billing pin は 0099 で 92→94**（receipt_issue／receipt_issue_void の2本＝ゲート入り新設
+＝pin 波及6回目・0096 と同型）。
+
+### mig0097 起草の前提（CC 照合の実測を受理・2026-08-20）
+- **on conflict 2箇所＋索引1本がセット**（現行 `check_lines_one_time_auto = UNIQUE(check_id, fee_kind)
+  WHERE time_auto`・apply の on conflict は set 行/extension 行の2箇所とも同3語）＝R2-7 の張り替えは3点同時。
+- **check_set_people の署名を変えなければ billing/grants pin は不動**（ACL は apply と同型＝
+  postgres|authenticated|service_role・VOLATILE・SECURITY DEFINER）。
+- **receipt golden 52 は不変**（fixture に時間行なし・金額段は Σline_total 由来＝行分割は総額に非波及）。
+  実伝票の印字行数のみ増える＝段54 の期待どおり。
+- 底本＝`nox_mig0097_live_defs.sql`（sha256 `2e9d8e48…7014c`・22130 bytes・348行・
+  check_time_charge_apply／check_set_people を各1回・app 側鏡像2点を末尾併録）。
