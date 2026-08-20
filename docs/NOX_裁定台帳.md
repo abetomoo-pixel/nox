@@ -1176,3 +1176,41 @@ app 実装→目視→push）。
   実伝票の印字行数のみ増える＝段54 の期待どおり。
 - 底本＝`nox_mig0097_live_defs.sql`（sha256 `2e9d8e48…7014c`・22130 bytes・348行・
   check_time_charge_apply／check_set_people を各1回・app 側鏡像2点を末尾併録）。
+
+## 裁定34（2026-08-20）mig0097/0097b＝R2-b 実装（時点起算）・set 行二重化バグの検出と封鎖（R2-7c）＋教訓22
+
+### 経緯（バグ検出→0097b）
+mig0097（block_no＋部分ユニーク3列化＋apply 改稿＋set_people 2段 apply 化）は手貼り前照合合格・
+適用後 byte 一致だったが、適用後の既存 verify 実測（自律チェック）で **set 行の二重化**が
+5 assert の赤として顕在化。機序＝**check_open（0097 改稿対象外）が set 行を block_no=null で
+insert し続ける**→3列ユニークは NULL distinct で null 行に効かない→apply の block_no=0 行が
+conflict 不発火で新規 insert＝同一伝票に auto set 行2本（set 額の過大計上）。
+手貼り前照合(5) は改稿対象の apply/set_people の中だけを見て、**改稿対象外の INSERT 経路
+（check_open）が旧形式の行を再生産し続ける**ことを見落とした。実店は全店 manual のため実運用被害ゼロ・
+verify fixture でのみ顕在化。→ **0097b（R2-7c）**: apply 冒頭に set null 行の無条件吸収 delete 1本
+（extension null 吸収と対称・再適用可・同一署名置換＝pin 不変）。check_open 側の block_no=0 化
+（再生産の停止）は 0098 同梱。0097b 適用で二重化系5赤は全治癒を実測。
+
+### 段54（verify 張り替え＋直接検証・実測）
+- pricing-apply: 60本不変（ext 行 assert をブロック行化へ張り替え＝行数=blocks・block_no=1..n・
+  各行 qty=units・name #k。旧「qty=blocks×units の1行」は廃止）。
+- set-people: 29→**42本**（+13＝段54 節）。(7) rewind 115分＝2ブロック確定+1進行中→people 2→3 で
+  **確定 #1/#2 は qty2 凍結・進行中 #3 のみ qty3**・set 行は全遡及（qty3）・総額保存則=25500=Σ実測。
+  (8) **放置伝票**（apply 未実行のまま 2ブロック経過）→set_people の2段 apply が旧 units で凍結＝
+  (7) と同一形。(10) check_open の null set 行→apply→block_no=0 の1本へ収束。(11) null+0 二重化の
+  再現→apply→単一行収束・checks.total 正常化（11000）。
+- adversarial 3本: (7) を遡及想定（#1 qty3）へ→FAIL 実測→復元／(8) を全遡及想定へ→FAIL→復元／
+  (10) を吸収無効化想定（set 2本）へ→FAIL→復元。いずれも残置なし。
+- 鏡像3点: blocks 式は逐語不変＝check-calc.ts は**無改修**（契約コメントのみ 0097 追随）・
+  receipt.ts は素通し印字で複数 ext 行が自動対応＝無改修（注記のみ・golden 52 不変を実測）・
+  register-board の人数注記文言を時点起算へ更新（「全時間に反映」→「確定済みの延長には反映されません」）。
+- ★段54(11) 初回実行の副次実測: **check_open は同一 seat の open 伝票を自然冪等で返す**
+  （seat 再利用で新伝票は作られない）＝fixture は新規 seat 必須。
+
+### 教訓22: 行形式を変える mig は「その行を INSERT する経路」を全数走査してから照合を閉じる
+mig0097 の見落としは「改稿した関数の中」だけを照合し、**同じ行形式を作る他の INSERT 経路**
+（check_open の set 行自動挿入）を走査しなかったこと。部分ユニークの推論列を変える・行に列を足す
+改修では、`grep insert into public.<table>` を**全 mig＋live prosrc に対して**実行し、経路ごとに
+「新形式で書くか・旧形式の吸収があるか」を表にしてから手貼り可を出す。NULL distinct なユニーク索引は
+「制約が効いている」という思い込みの死角になる（null 行はすり抜ける）＝3列化のとき null を残す設計は
+必ず「誰が null を作り続けるか」を問う。
