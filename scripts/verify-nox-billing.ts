@@ -82,10 +82,10 @@ async function main() {
     const docTargets = docNames(md.slice(md.indexOf("## A. 対象"), md.indexOf("## B. 除外")), liveNames);
     const docExcluded = docNames(md.slice(md.indexOf("## B. 除外"), md.indexOf("## C. kiosk")), liveNames);
     // ★mig0089/0090/0091/0095/0096（段48/49/52/53 張り替え）: extension_add・set_people・line_set_group・
-    //   staffing_need_remove・store_sales_target_set 追加で対象 87→92（正本ヘッダ参照）
-    check("段47-1 正本の対象92名を読めた", docTargets.size === 92, `got ${docTargets.size}`);
+    //   staffing_need_remove・store_sales_target_set・receipt_issue/receipt_issue_void 追加で対象 87→94（正本ヘッダ参照）
+    check("段47-1 正本の対象94名を読めた", docTargets.size === 94, `got ${docTargets.size}`);
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
-    check("段47-1 正本の除外93名を読めた", docExcluded.size === 93, `got ${docExcluded.size}`);
+    check("段47-1 正本の除外94名を読めた", docExcluded.size === 94, `got ${docExcluded.size}`);
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる
@@ -100,11 +100,11 @@ async function main() {
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 92本", liveGated.size === 92, `got ${liveGated.size}`);
+    check("段47-1 live のゲート済み関数 = 94本", liveGated.size === 94, `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
     const extra = [...liveGated].filter((n) => !docTargets.has(n));
-    check("段47-1 ★対象→live: 正本の92本すべてにゲートが入っている", missing.length === 0, missing.join(","));
+    check("段47-1 ★対象→live: 正本の94本すべてにゲートが入っている", missing.length === 0, missing.join(","));
     check("段47-1 ★live→対象: ゲート済みに正本外の関数が混ざらない", extra.length === 0, extra.join(","));
     const leaked = [...docExcluded].filter((n) => liveGated.has(n));
     check("段47-1 ★除外83本にゲートが入っていない", leaked.length === 0, leaked.join(","));
@@ -119,14 +119,14 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 93（92 ＋ ラッパ自身）", refs[0].n === 93, `got ${refs[0].n}`);
+    check("段47-1 述語を参照する関数 = 95（94 ＋ ラッパ自身）", refs[0].n === 95, `got ${refs[0].n}`);
     // 挿入行の形が全92本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public'
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
-    check("段47-1 挿入行の形が全92本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 92, `got ${shapes[0].n}`);
+    check("段47-1 挿入行の形が全94本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 94, `got ${shapes[0].n}`);
   }
 
   // ══════════════════════════════════════════════════════════

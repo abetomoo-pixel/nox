@@ -95,20 +95,33 @@ async function main() {
   //     Supabase の既定 grant が付き直して anon/PUBLIC に EXECUTE が開いた（mig0072 で是正）。
   //     create or replace は ACL を保持するが、引数を足すと別署名＝新規作成となり既定 grant が付く。
   //     この class の事故を関数の増減へ自動追随する全数走査で恒久検知する（個別 assert の棚卸しに頼らない）。
-  //   ★SECURITY DEFINER に限定する理由: definer は RLS をバイパスするため anon から到達可能であってはならない。
-  //     invoker 関数は RLS が効くので同列に禁じない（将来 anon 公開が要るケースを誤検知しない）。
+  //   ★R2-11 改訂（裁定33/34・mig0099）: anon 面は「公開専用 SECURITY DEFINER の白名単」で開ける。
+  //     token ゲートは引数で受ける DEFINER のみが安全——invoker＋anon select ポリシーは token を
+  //     policy 式に束縛できず、テーブル grant を開けた瞬間に全行列挙可能になる（G2 も赤になる）。
+  //     旧コメント「将来の anon 公開は invoker で」は本裁定で上書き。白名単は下の ANON_DEFINER_WHITELIST
+  //     が正本＝live と機械同期（教訓21: 名簿は assert で同期を強制）。PUBLIC 側 assert は白名単でも不変。
+  const ANON_DEFINER_WHITELIST = ["nox_receipt_public"]; // R2-11: 白名単1号（doc 版が要る時に2本目を裁定）
   {
     const r = await db.query(
-      `select p.oid::regprocedure as sig
+      `select p.proname, p.oid::regprocedure as sig
        from pg_proc p
        where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.prosecdef
          and has_function_privilege('anon', p.oid, 'EXECUTE')
        order by 1`,
     );
+    const names = r.rows.map((x) => x.proname as string);
     check(
-      "G2b anon が EXECUTE できる SECURITY DEFINER 関数 = 0本（スキーマ全体）",
-      r.rowCount === 0,
+      "G2b anon が EXECUTE できる SECURITY DEFINER 関数 = 白名単（nox_receipt_public）を除き0本",
+      names.every((n) => ANON_DEFINER_WHITELIST.includes(n)),
       r.rows.map((x) => x.sig as string).join(", "),
+    );
+    // ★白名単の機械 assert（教訓21 同型＝診断 anon_defs / anon_defs_name と同式）:
+    //   本数=白名単数 かつ 名前一致＝「白名単に載せたのに grant し忘れ」も「白名単外の漏れ」も赤にする。
+    check(
+      `G2b ★anon 白名単の live 同期（本数=${ANON_DEFINER_WHITELIST.length}・名前一致）`,
+      names.length === ANON_DEFINER_WHITELIST.length
+        && ANON_DEFINER_WHITELIST.every((n) => names.includes(n)),
+      `live=[${names.join(",")}] whitelist=[${ANON_DEFINER_WHITELIST.join(",")}]`,
     );
   }
   {

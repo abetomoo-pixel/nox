@@ -5701,6 +5701,31 @@ async function main() {
     check("段42 anon product_reorder BLOCKED（mig0081）", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段43 R2C_PUBLIC: mig0099（R2-11 改訂・裁定33/34）＝★NOX 初の anon 白名単の逆向き assert ──
+  //   本スイートの既存形は全て「anon で叩いて permission denied を期待」だが、nox_receipt_public は
+  //   **anon で実行できることが正**（白名単1号）。異常系（token 不一致）は raise せず **空**が返る
+  //   （error なし・rows 0＝存在推測を与えない・正本B③）。受領系（issue/void）は既存形で BLOCKED。
+  {
+    // 逆向き: anon 実行可・不一致 token は空（error なし）。実在 token の正常系5項目は段56 が担う。
+    const { data, error } = await anon.rpc("nox_receipt_public", {
+      p_token: "00000000-0000-0000-0000-000000000000",
+    });
+    check("段43 ★anon nox_receipt_public 実行可（白名単1号＝permission denied にならない）",
+      !error, error?.message ?? "");
+    check("段43 ★token 不一致＝空が返る（error なし・rows 0＝null return 原則）",
+      !error && Array.isArray(data) && data.length === 0, JSON.stringify({ data, err: error ?? null }));
+  }
+  {
+    const R2C_WRITE_PROBES: Array<[string, Record<string, unknown>]> = [
+      ["receipt_issue", { p_check_id: null, p_amount: null, p_recipient: null, p_proviso: null }],
+      ["receipt_issue_void", { p_issue_id: null, p_note: null }],
+    ];
+    for (const [fn, args] of R2C_WRITE_PROBES) {
+      const { error } = await anon.rpc(fn, args);
+      check(`段43 anon ${fn} BLOCKED（mig0099・受領系は従来どおり遮断）`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
