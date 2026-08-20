@@ -690,7 +690,10 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
               条件が重複するときは優先順位（数字の小さい行）が適用されます。未設定の時間帯・席種は「基本料金」が適用されます。<br />
               ★<strong style={{ color: "var(--v2-text)" }}>狭い条件ほど上に</strong>置いてください（例:
-              「金土のVIP」は「毎日・全席種」より上）。広い条件が上にあると、下の狭い条件には永久に届きません。
+              「金土のVIP」は「毎日・全席種」より上）。広い条件が上にあると、下の狭い条件には永久に届きません。<br />
+              {/* R2-a（mig0098）: 延長の複数メニュー運用の注記（指示文言） */}
+              延長は<strong style={{ color: "var(--v2-text)" }}>上から最初の一致が既定</strong>。
+              開卓時に有効な全行が伝票へ凍結され、レジで選択できます（開卓後のここの変更は既存伝票に影響しません）。
             </p>
           </section>
 

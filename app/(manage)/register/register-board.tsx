@@ -44,6 +44,8 @@ type CheckRow = {
   ext_min: number;
   ext_fee: number;
   time_per: string;
+  // R2-a（mig0098）: 開栓時凍結の延長メニュー（null=旧伝票＝既定のみ・2件以上でボタン群表示）
+  ext_menu_snap: { rule_id: string; duration_min: number; amount: number; label: string }[] | null;
 };
 // check_time_charge_apply の返値 jsonb（サーバ再計算の内訳・表示専用）
 // mig0089 行分離: 返り値は line_id → set_line_id/ext_line_id（額0/blocks0 の側は null）
@@ -188,6 +190,30 @@ export default function RegisterBoard({
   const [openSeatTarget, setOpenSeatTarget] = useState<Seat | null>(null);
   const [openPeople, setOpenPeople] = useState("");
   const [openBusy, setOpenBusy] = useState(false);
+  // R2-a（mig0098 R2-5）: 開卓時ルール手動選択。""=自動（優先順位で決定）＝p_set_rule_id 省略。
+  //   候補は当該店の有効 set ルール（pricing_rules 直読・owner/manager のみ取得＝staff/cast は既定固定）。
+  //   0〜1件の店はセレクタ非表示（現行と同じ見た目）。
+  const [setRules, setSetRules] = useState<{ id: string; amount: number; duration_min: number | null; seat_kind: string | null; time_from_min: number | null; time_to_min: number | null }[]>([]);
+  const [openRuleSel, setOpenRuleSel] = useState("");
+  useEffect(() => {
+    if (!isManagerUp) return;
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("pricing_rules")
+        .select("id, amount, duration_min, seat_kind, time_from_min, time_to_min")
+        .eq("store_id", storeId).eq("fee_kind", "set").eq("is_active", true)
+        .order("priority").order("created_at");
+      if (alive) setSetRules((data ?? []) as typeof setRules);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, isManagerUp]);
+  // ルールの表示ラベル: 「¥額/分」＋条件の要約（席種・時間帯）。pricing_rules に名前列は無い。
+  const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+  const setRuleLabel = (r: (typeof setRules)[number]) =>
+    `¥${r.amount.toLocaleString()}/${r.duration_min ?? "店既定"}分` +
+    (r.seat_kind ? `・${r.seat_kind}` : "") +
+    (r.time_from_min != null && r.time_to_min != null ? `・${hm(r.time_from_min)}-${hm(r.time_to_min)}` : "");
   // E8-1 ⑤: 「本日出勤」＝最終打刻が 'in' のキャスト（直近20h の punches・表示順とバッジのみの近似）。
   //   RLS は自店スコープ＝直 SELECT 可。金額・按分・RPC には一切関与しない。
   const [todayIds, setTodayIds] = useState<Set<string>>(new Set());
@@ -485,10 +511,12 @@ export default function RegisterBoard({
     // レジ時間UX R1（裁定29）: フリー卓は即 open せず開卓モーダルへ（誤タップ開栓の防止・
     //   「何が始まるか」の明示）。nom_type は従来どおり 'free'＝指名は開栓後の指名タブで。
     setOpenPeople("");
+    setOpenRuleSel(""); // R2-a: 卓を替えたら常に「自動」へ戻す（前回選択の持ち越し事故防止）
     setOpenSeatTarget(seat);
   }
 
   // レジ時間UX R1: 開卓の確定（check_open は既存 RPC・p_people は空欄なら null＝従来と同値）。
+  //   R2-a（mig0098 R2-5）: ルール選択時のみ p_set_rule_id を送る（省略＝自動一致＝現行同値）。
   async function confirmOpenSeat() {
     const seat = openSeatTarget;
     if (!seat || openBusy) return;
@@ -496,9 +524,17 @@ export default function RegisterBoard({
     const n = raw === "" ? null : Number(raw);
     if (n !== null && (!Number.isInteger(n) || n <= 0)) { setMsg("人数は正の整数で入力してください（空欄可）"); return; }
     setOpenBusy(true);
-    const { data, error } = await supabase.rpc("check_open", { p_seat_id: seat.id, p_people: n, p_nom_type: "free" });
+    const { data, error } = await supabase.rpc("check_open", {
+      p_seat_id: seat.id, p_people: n, p_nom_type: "free",
+      ...(openRuleSel ? { p_set_rule_id: openRuleSel } : {}),
+    });
     setOpenBusy(false);
-    if (error) { setMsg(error.message); return; }
+    if (error) {
+      setMsg(error.message.includes("bad rule")
+        ? "選択した料金ルールが使えません（無効化された可能性があります・自動で開卓し直してください）"
+        : error.message);
+      return;
+    }
     setOpenSeatTarget(null);
     await loadOpenMap();
     await loadCheck(data as string);
@@ -663,12 +699,20 @@ export default function RegisterBoard({
 
   // R-A3（0089）: manual 店の延長ボタン＝check_extension_add（1押し=1行・auto 店は RPC 側でも拒否）。
   //   取消は既存の行削除（remove_line）。エラーは時間カードの timeMsg へ（timeErrJa 共用）。
-  async function addExtension() {
+  //   R2-a（mig0098 R2-1）: ruleId 指定＝ext_menu_snap（開栓時凍結）から解決・省略＝既定スナップ。
+  async function addExtension(ruleId?: string) {
     if (!check) return;
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setTimeMsg(null);
-    const { error } = await supabase.rpc("check_extension_add", { p_check_id: check.id });
-    if (error) { setTimeMsg(timeErrJa(error.message)); return; }
+    const { error } = await supabase.rpc("check_extension_add", {
+      p_check_id: check.id, ...(ruleId ? { p_rule_id: ruleId } : {}),
+    });
+    if (error) {
+      setTimeMsg(error.message.includes("bad rule")
+        ? "この延長メニューはこの伝票では使えません（開卓時点のメニューのみ選べます）"
+        : timeErrJa(error.message));
+      return;
+    }
     await loadCheck(check.id);
   }
 
@@ -1017,6 +1061,23 @@ export default function RegisterBoard({
               style={{ ...t.input, width: 110, display: "block", marginTop: 5 }}
             />
           </label>
+          {/* R2-a（mig0098 R2-5）: 開卓時ルール選択（owner/manager・有効 set ルール2件以上の店のみ表示＝
+              0〜1件は現行と同じ見た目）。選び直しは不可（void→再開卓）＝RPC 側の裁定どおり。 */}
+          {isManagerUp && setRules.length >= 2 && (
+            <label style={{ ...t.fieldLabel, display: "block", marginBottom: 14 }}>
+              セット料金ルール
+              <select
+                value={openRuleSel} onChange={(e) => setOpenRuleSel(e.target.value)}
+                style={{ ...t.input, width: "100%", maxWidth: 280, display: "block", marginTop: 5 }}
+              >
+                <option value="">自動（優先順位で決定）</option>
+                {setRules.map((r) => <option key={r.id} value={r.id}>{setRuleLabel(r)}</option>)}
+              </select>
+              <span style={{ fontSize: 10.5, color: "var(--v2-muted)", display: "block", marginTop: 3 }}>
+                開卓後の変更はできません（選び直しは会計取消→再開卓）。
+              </span>
+            </label>
+          )}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
             <button style={btnLight} disabled={openBusy} onClick={() => setOpenSeatTarget(null)}>やめる</button>
             {/* E8-1 ⑥: 卓起点予約＝この卓をプリフィルして予約タブへ（reserve タブが出せるロールのみ） */}
@@ -1675,10 +1736,28 @@ export default function RegisterBoard({
               セット料金は開卓時に明細へ入っています。延長はお客さま確認のうえボタンで追加してください
               （1回押すごとに1行・取り消しは注文タブの行削除）。
             </p>
-            <button onClick={() => void addExtension()} style={btnDark} disabled={payments.length > 0}
-              title={payments.length > 0 ? "入金後は追加できません" : ""}>
-              延長を追加（{yen(check.ext_fee * (check.time_per === "person" ? (check.people ?? 1) : 1))} / {check.ext_min}分）
-            </button>
+            {/* R2-a（mig0098 R2-1）: ext_menu_snap が2件以上ならメニューボタン群（開栓時凍結の label・
+                p_rule_id 結線）・1件以下は現行の単一ボタン（p_rule_id なし＝既定スナップ）。
+                units（person 制の人数倍）はサーバが掛ける＝表示も同倍で合わせる。 */}
+            {(check.ext_menu_snap?.length ?? 0) >= 2 ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {check.ext_menu_snap!.map((m) => {
+                  const units = check.time_per === "person" ? (check.people ?? 1) : 1;
+                  return (
+                    <button key={m.rule_id} onClick={() => void addExtension(m.rule_id)} style={btnDark}
+                      disabled={payments.length > 0}
+                      title={payments.length > 0 ? "入金後は追加できません" : ""}>
+                      {m.label}{units > 1 ? `（×${units}名 ${yen(m.amount * units)}）` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <button onClick={() => void addExtension()} style={btnDark} disabled={payments.length > 0}
+                title={payments.length > 0 ? "入金後は追加できません" : ""}>
+                延長を追加（{yen(check.ext_fee * (check.time_per === "person" ? (check.people ?? 1) : 1))} / {check.ext_min}分）
+              </button>
+            )}
             {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
           </div>
         )}
