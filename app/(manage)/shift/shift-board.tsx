@@ -17,6 +17,7 @@ import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { forecastDay, type ForecastComp, type DayForecast } from "@/lib/nox/labor-forecast";
 import type { CompPlan } from "@/lib/nox/pay";
 import IncentivePanel from "./incentive-panel";
+import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
 type Cast = { id: string; name: string; photo_updated_at: string | null };
 type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string };
@@ -87,7 +88,7 @@ function rpcErrJa(msg: string | undefined): string {
   if (msg.includes("inactive cast")) return "このキャストは退店済みです";
   if (msg.includes("forbidden")) return "権限がありません";
   // E8-4（mig0095）: 時間帯バンド系（set_staffing_need / staffing_need_remove）
-  if (msg.includes("billing locked")) return "ご利用プランの制限で更新できません（管理者にご確認ください）";
+  if (isBillingLocked(msg)) return BILLING_LOCKED_MSG;
   if (msg.includes("bad band")) return "時間帯の指定が不正です（00:00〜24:00・開始<終了）";
   if (msg.includes("overlap")) return "他の時間帯と重複しています（同じ開始時刻の場合は上書きされます）";
   if (msg.includes("bad required")) return "必要人数は 0 以上で入力してください";

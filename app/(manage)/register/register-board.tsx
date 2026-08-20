@@ -16,6 +16,7 @@ import { fetchStockTotals } from "@/lib/nox/master/queries";
 import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
+import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
@@ -137,7 +138,7 @@ function timeErrJa(msg: string | undefined): string {
   if (msg.includes("not open")) return "この伝票は締められています（反映できません）";
   if (msg.includes("bad time settings")) return "店の時間料金設定が不正です（マスタで確認してください）";
   if (msg.includes("auto mode")) return "自動計算の店です（時間料金は会計タブで自動反映されます）"; // R-A3: check_extension_add の manual 専用ガード
-  if (msg.includes("billing locked")) return "ご利用プランの制限で更新できません（管理者にご確認ください）";
+  if (isBillingLocked(msg)) return BILLING_LOCKED_MSG;
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
 }
@@ -637,7 +638,7 @@ export default function RegisterBoard({
           : m.includes("time line") ? "時間料金の行は会計Aから動かせません"
           : m.includes("has payments") ? "入金後は付け替えできません（訂正は取消から）"
           : m.includes("not open") ? "この伝票は締められています"
-          : m.includes("billing locked") ? "ご利用プランの制限で更新できません"
+          : isBillingLocked(m) ? BILLING_LOCKED_MSG
           : m.includes("forbidden") ? "権限がありません" : m);
       return;
     }
@@ -755,7 +756,7 @@ export default function RegisterBoard({
         m.includes("bad people") ? "人数は1以上で指定してください"
           : m.includes("has payments") ? "入金後は人数を変更できません（訂正は取消から）"
           : m.includes("not open") ? "この伝票は締められています"
-          : m.includes("billing locked") ? "ご利用プランの制限で更新できません（管理者にご確認ください）"
+          : isBillingLocked(m) ? BILLING_LOCKED_MSG
           : m.includes("forbidden") ? "権限がありません" : m);
       return;
     }
@@ -1355,7 +1356,7 @@ export default function RegisterBoard({
                   : m.includes("not closed") ? "会計済みの伝票のみ発行できます"
                   : m.includes("bad recipient") ? "宛名は100文字以内で入力してください"
                   : m.includes("bad proviso") ? "但し書きは100文字以内で入力してください"
-                  : m.includes("billing locked") ? "ご利用プランの制限で発行できません（管理者にご確認ください）"
+                  : isBillingLocked(m) ? BILLING_LOCKED_MSG
                   : m.includes("busy") ? "発行が混み合っています。もう一度お試しください"
                   : m.includes("forbidden") ? "権限がありません" : m);
                 return;

@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
+import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
 type Store = { id: string; name: string };
 type Issue = {
@@ -62,7 +63,7 @@ export default function ReceiptsBoard({ stores }: { stores: Store[] }) {
     });
     setBusy(false);
     if (error) {
-      setMsg(error.message.includes("billing locked") ? "ご利用プランの制限で更新できません（管理者にご確認ください）"
+      setMsg(isBillingLocked(error.message) ? BILLING_LOCKED_MSG
         : error.message.includes("forbidden") ? "権限がありません" : error.message);
       return;
     }

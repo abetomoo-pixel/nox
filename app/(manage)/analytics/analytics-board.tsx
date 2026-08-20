@@ -26,6 +26,7 @@ import Modal from "@/components/ui/modal";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 // E8-6 後半（mig0096）: T4 集計 RPC 3本の結線。5分類の写像は category-map 純関数（裁定 E8-6-8＝DB に焼かない）
 import { sumCategories, CATEGORY_ORDER, CATEGORY_LABEL, type CategoryLine } from "@/lib/nox/analytics/category-map";
+import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean; photo_updated_at: string | null };
@@ -320,7 +321,7 @@ export default function AnalyticsBoard({
     setTgtBusy(false);
     if (error) {
       const m = error.message;
-      setTgtMsg(m.includes("billing locked") ? "ご利用プランの制限で更新できません（管理者にご確認ください）"
+      setTgtMsg(isBillingLocked(m) ? BILLING_LOCKED_MSG
         : m.includes("bad amount") ? "目標は 0 以上で入力してください"
         : m.includes("bad period") ? "対象月の指定が不正です"
         : m.includes("forbidden") ? "権限がありません" : m);

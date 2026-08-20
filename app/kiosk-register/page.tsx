@@ -19,6 +19,7 @@ import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
 import CastPicker from "@/components/ui/cast-picker";
+import { BILLING_LOCKED_MSG_KIOSK, isBillingLocked } from "@/lib/billing/messages";
 
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
 type StateSeat = { id: string; name: string; kind: string | null };
@@ -79,7 +80,7 @@ function timeErrJa(msg: string | undefined): string {
   if (msg.includes("not open")) return "この伝票は締められています（反映できません）";
   if (msg.includes("bad time settings")) return "店の時間料金設定が不正です（マスタで確認してください）";
   if (msg.includes("auto mode")) return "自動計算の店です（時間料金は自動で反映されます）"; // R-A5: check_extension_add の manual 専用ガード
-  if (msg.includes("billing locked")) return "ご利用プランの制限で更新できません（責任者にご確認ください）";
+  if (isBillingLocked(msg)) return BILLING_LOCKED_MSG_KIOSK;
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
 }
