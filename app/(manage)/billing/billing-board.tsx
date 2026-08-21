@@ -86,7 +86,7 @@ export default function BillingBoard({ view }: { view: BillingView }) {
   const other: "monthly" | "yearly" = view.interval === "month" ? "yearly" : "monthly";
 
   return (
-    <div>
+    <div className="nox-mv1 nox-mv1-m">
       <PageHead eyebrow="BILLING & PLAN" title="ご契約"
         desc="ご利用プランと支払方法、請求の状況を確認します。" />
       <Toast msg={msg} />

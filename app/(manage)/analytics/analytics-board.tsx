@@ -511,7 +511,7 @@ export default function AnalyticsBoard({
   }, [custSummary]);
 
   return (
-    <div>
+    <div className="nox-mv1 nox-mv1-sm">
       {/* 段0R 第2陣: モック .head を新シェルの nox-hero へ（/master・/home・/casts と同基準） */}
       <PageHead eyebrow="BUSINESS INSIGHTS" title="売上・店舗分析"
         desc="確定した日報をもとに、売上・キャスト・顧客の変化と改善点を可視化します。" />

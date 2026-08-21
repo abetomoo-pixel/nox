@@ -110,7 +110,7 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
   }
 
   return (
-    <div>
+    <div className="nox-mv1">
       <Toast msg={msg} />
 
       {/* 純増⑦（mig0063）: カテゴリ管理（レジ/キオスクのタイル見出し・sort_order 順）。 */}

@@ -33,7 +33,7 @@ export default async function MasterBusinessHoursPage() {
   const { data: allStores } = await supabase.from("stores").select("id, name").order("name");
 
   return (
-    <div>
+    <div className="nox-mv1">
       <MasterPageHead
         eyebrow="BUSINESS HOURS"
         title="営業時間・定休日"

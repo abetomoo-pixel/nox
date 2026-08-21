@@ -565,7 +565,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   });
 
   return (
-    <div>
+    <div className="nox-mv1">
       <Toast msg={msg} />
 
       <MasterPageHead

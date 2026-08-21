@@ -94,7 +94,7 @@ export default async function MasterSystemPage() {
   });
 
   return (
-    <div>
+    <div className="nox-mv1">
       <MasterPageHead
         eyebrow="STAFF & SYSTEM"
         title="スタッフ・システム"

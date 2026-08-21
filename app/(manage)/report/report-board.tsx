@@ -270,7 +270,7 @@ export default function ReportBoard({
   }
 
   return (
-    <div>
+    <div className="nox-mv1 nox-mv1-sm">
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
       <PageHead eyebrow="DAILY REPORT" title="日報・締め管理"
         desc="売上と現金を照合し、営業日の締め処理まで一つの画面で完了します。" />

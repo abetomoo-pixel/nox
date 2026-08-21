@@ -133,7 +133,7 @@ export default async function MinePage() {
     /* 段0R 第3陣: モック正本どおりモバイルファースト1カラム（max-width 430・nox-minewrap）。
        印刷時は既存の .nox-main > * { max-width none } が幅を戻すため payslip の A4 印刷に影響しない。
        ページ見出しはモックどおり撤去＝.me ヘッダ（写真＋名前＋店）が先頭。 */
-    <div className="nox-printpage nox-minewrap">
+    <div className="nox-printpage nox-minewrap nox-mv1 nox-mv1-m">
       {/* 段P: プロフィール写真（本人スコープのみ・client 自己完結＝他カードの取得に影響しない）
           段M2: モックの .me ヘッダ（写真＋名前＋店）へ。店名は上で引いた自店を渡すだけ。 */}
       <PhotoCard storeName={myStore?.name as string | undefined} />

@@ -139,7 +139,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   };
 
   return (
-    <div>
+    <div className="nox-mv1 nox-mv1-sm">
       {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（ページ名＋店名＋営業日） */}
       <PageHead eyebrow="STORE OVERVIEW" title="ホーム"
         desc="本日の売上と出勤、やることの状況をひと目で確認します。"

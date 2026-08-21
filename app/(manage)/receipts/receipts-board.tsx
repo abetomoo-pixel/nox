@@ -78,7 +78,7 @@ export default function ReceiptsBoard({ stores }: { stores: Store[] }) {
     (typeof window !== "undefined" ? window.location.origin : "") + `/r/${token}`;
 
   return (
-    <div>
+    <div className="nox-mv1 nox-mv1-m">
       <PageHead eyebrow="RECEIPT LEDGER" title="領収書"
         desc="発行台帳（正式領収書＝レジの会計完了から発行）。取り消すと公開ページも無効になります。" />
       <Toast msg={msg} />

@@ -179,7 +179,7 @@ export default function AuditBoard({ users, stores }: {
   );
 
   return (
-    <div>
+    <div className="nox-mv1 nox-mv1-sm">
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
       <PageHead eyebrow="AUDIT & COMPLIANCE" title="監査・操作履歴"
         desc="会計・権限・機微情報へのアクセスを、変更前後を含めて追跡します。" />

@@ -357,7 +357,7 @@ export default function CastsBoard({
   const selTrial = sel?.kind === "trial" ? trials.find((tr) => tr.id === sel.id) ?? null : null;
 
   return (
-    <div>
+    <div className="nox-mv1">
       {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（/master・/home と同基準） */}
       <PageHead eyebrow="CAST MANAGEMENT" title="キャスト管理"
         desc="在籍状況、待遇、実績、アカウントをキャストごとに管理します。" />

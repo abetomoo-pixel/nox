@@ -331,7 +331,7 @@ export default function CustomersBoard({
   const addCastOptions = casts.filter((c) => c.store_id === aStore && c.is_active);
 
   return (
-    <div>
+    <div className="nox-mv1 nox-mv1-m">
       {/* 段0R 第2陣: モック .head を新シェルの nox-hero へ（/master・/home・/casts と同基準） */}
       <PageHead eyebrow="CUSTOMER MANAGEMENT" title="顧客管理"
         desc="来店履歴、担当キャスト、ボトルキープ、好みを一元管理します。" />

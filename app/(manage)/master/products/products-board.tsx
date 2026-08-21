@@ -416,7 +416,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
   const catNameById = new Map(categories.map((c) => [c.id, c.name]));
 
   return (
-    <div>
+    <div className="nox-mv1">
       <Toast msg={msg} />
 
       {/* ⑥ ハブ: カテゴリカード → クリックでその分類に絞る（すべて／未分類つき）。

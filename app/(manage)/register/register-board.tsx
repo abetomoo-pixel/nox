@@ -1071,7 +1071,7 @@ export default function RegisterBoard({
 
   return (
     // E8-1b F6: nox-printpage＝簡易領収書の印刷隔離（.nox-print 以外は印刷時に落ちる・E5b 機構の流用）
-    <div className="nox-printpage">
+    <div className="nox-printpage nox-mv1">
       {showReserve && (
         <div className="nox-cardtop" style={{ ...card, padding: 11 }}>
           <div className="nox-seg" style={{ width: "100%", maxWidth: 480 }}>

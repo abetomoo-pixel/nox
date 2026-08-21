@@ -202,7 +202,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   }
 
   return (
-    <div>
+    <div className="nox-mv1">
       <Toast msg={msg} />
 
       <MasterPageHead

@@ -58,7 +58,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
   }
 
   return (
-    <div>
+    <div className="nox-mv1">
       <MasterPageHead
         eyebrow="SEAT & TABLE MASTER"
         title="席・卓"

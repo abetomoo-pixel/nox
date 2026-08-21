@@ -2054,3 +2054,37 @@ body {
 @media (max-width: 641px) { .nox-subnav button { min-width: 96px; font-size: 12px; } }
 /* B1: マスタ配下ヘッダのイーブロー（モック .eyebrow 実測と同値） */
 .nox-pth-eye { font-size: 10px; color: var(--gold); letter-spacing: .2em; margin-bottom: 6px; }
+
+/* B2（2026-08-21）: R3 のモック実値写しを全画面へ展開する。
+   モック13枚を実測すると **3つのサイズ系統**しか無い（値は下表・padding は上下左右）:
+
+     系統 L（設定・管理系）  kpi 15px 17px / kpis gap 12 mb 16 / card 15px 18px / KPI 数字 22px
+       shift-management, cast-management, seat-table-settings,
+       business-hours-settings, staff-system-settings, pricing-settings
+     系統 M（一覧・台帳系）  kpi 14px 16px / kpis gap 11 mb 13 / card 13px 15px / KPI 数字 22px
+       customer-management, payroll-management
+     系統 S（分析・記録系）  kpi 14px 15px / kpis gap 10 mb 11 / card 12px 15px / KPI 数字 21px
+       analytics-dashboard, announcement-management, audit-management, daily-report
+
+   card の border-radius は13枚すべて 11px で一致。
+   モックに対応画面が無いもの（dashboard / billing / receipts / staff / mine）は
+   **近縁の系統**に揃える（分析・記録系＝S ／ 一覧・台帳系＝M）。
+   payroll は裁定18 により不触・公開ページ（領収書）も不触。
+
+   .nox-mv1 = 系統 L（既定）。.nox-mv1-m = 系統 M。.nox-mv1-sm = 系統 S。
+   共有クラスの素の定義は変えない（この配下だけに効く上書き）。 */
+
+/* 系統 M */
+.nox-mv1.nox-mv1-m .nox-kpirow { gap: 11px; margin-bottom: 13px; }
+.nox-mv1.nox-mv1-m .nox-kpi2 { padding: 14px 16px; }
+.nox-mv1.nox-mv1-m .nox-cardtop,
+.nox-mv1.nox-mv1-m .nox-panel { padding: 13px 15px; }
+.nox-mv1.nox-mv1-m .nox-panel > h3,
+.nox-mv1.nox-mv1-m .nox-cardtop > h2 { font-size: 14px; }
+/* 系統 S（従来 .nox-mv1-sm＝お知らせで使っていた実値をそのまま系統 S とする） */
+.nox-mv1.nox-mv1-sm .nox-cardtop,
+.nox-mv1.nox-mv1-sm .nox-panel { padding: 12px 15px; }
+.nox-mv1.nox-mv1-sm .nox-cardtop > h2 { font-size: 13px; }
+/* 3系統に共通（モック13枚すべて一致） */
+.nox-mv1 .nox-cardtop,
+.nox-mv1 .nox-panel { border-radius: 11px; }

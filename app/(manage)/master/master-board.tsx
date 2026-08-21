@@ -116,7 +116,7 @@ export default function MasterBoard() {
     hubQ === "" || c.title.toLowerCase().includes(hubQ) || c.desc.toLowerCase().includes(hubQ);
 
   return (
-    <div>
+    <div className="nox-mv1">
       {/* aaa .hero＝ページ名＋説明＋検索 */}
       <PageHead eyebrow="MASTER SETTINGS" title="マスタ"
         desc="店舗の料金・席・営業時間・端末など、全画面が参照する設定です。"

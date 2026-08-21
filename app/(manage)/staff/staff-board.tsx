@@ -164,7 +164,7 @@ export default function StaffBoard({
   }
 
   return (
-    <div>
+    <div className="nox-mv1 nox-mv1-m">
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ）。
           ＋追加ボタンは casts/customers と同じくツールバー行（nox-ctoolbar）の右端へ＝
           onClick も disabled 条件も文言も1文字も変えていない。 */}
