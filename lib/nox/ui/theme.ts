@@ -26,10 +26,18 @@ import type { CSSProperties } from "react";
 //   ★全体に角が小さくなる＝モックの引き締まった見え方に寄る。
 export const radius = { card: 11, kpi: 11, btn: 7, btnSm: 7, input: 6, pill: 999, icon: 8 } as const;
 
+// ★DP2 T1（2026-08-21・裁定 DP0-6）: フォントを mock/pages-2026-08 準拠へ差し替えた。
+//   旧: brand='Cormorant Garamond' / num='Outfit' / ui='Zen Kaku Gothic New'（＝canonical から降格）
+//   新: 実体は **--font-sans（Inter+Noto Sans JP）** と **--font-serif（Lora+Noto Serif JP）** の2本のみ
+//       （正本＝globals.css :root・読込は app/layout.tsx の next/font/google）。
+//   ★キー名（brand/num/ui）と参照 12箇所は不触＝**値だけを var() へ寄せた**。
+//     色を `colors` から `var(--x)` へ移した E3 と同じ扱い＝JS 側に実体を持たせない。
+//   ★num は独立フォントを失うが、モックにも数値専用フォントの層は無く（body の Inter を継承）、
+//     桁揃えは各参照側が `fontVariantNumeric: "tabular-nums"` を併記して担保している。
 export const font = {
-  brand: "'Cormorant Garamond', serif",
-  num: "'Outfit', sans-serif",
-  ui: "'Zen Kaku Gothic New', sans-serif",
+  brand: "var(--font-serif)",
+  num: "var(--font-sans)",
+  ui: "var(--font-sans)",
 } as const;
 
 // ── アバター（段E/F/G デザイン移植 2026-07-24・presentation-only）───────────────────
@@ -197,7 +205,7 @@ export const bdTotalVal: CSSProperties = { fontFamily: font.num, color: "var(--c
 // ── テーブル ─────────────────────────────────────────────────────
 export const th: CSSProperties = { textAlign: "left", padding: "6px 10px", borderBottom: "1px solid var(--line2)", fontSize: 11, color: "var(--sub)", fontWeight: 700 };
 export const td: CSSProperties = { padding: "6px 10px", borderBottom: "1px solid var(--line)", fontSize: 13 };
-// 実態収束 D-1 2026-07-17: 数値列（右寄せ＋Outfit tabular）。同値の複製が 2 箇所にあったため正本化＝
+// 実態収束 D-1 2026-07-17: 数値列（右寄せ＋sans tabular・★DP2 T1 で旧 Outfit）。同値の複製が 2 箇所にあったため正本化＝
 //   analytics-board.tsx:120-121 / mine/ranking/page.tsx:29-30（どちらも `{...t.th, textAlign:"right"}` の派生）。D-2 で置換。
 export const thNum: CSSProperties = { ...th, textAlign: "right" };
 export const tdNum: CSSProperties = { ...td, textAlign: "right", fontFamily: font.num };
@@ -227,8 +235,13 @@ export const lcard: CSSProperties = {
   width: "100%", maxWidth: "var(--lcard-max, 380px)", background: "linear-gradient(180deg,var(--card2),var(--card))",
   border: "1px solid var(--line2)", borderRadius: 20, padding: "var(--lcard-pad, 26px 22px)", position: "relative", overflow: "hidden",
 };
+// ★DP2 T2（2026-08-21・裁定 DP0-3）: ログイン印の地から**旧 --bg のベタ書き `#0B0B0F` を削除**した。
+//   E4 群4 は同じ `#0B0B0F` を3箇所是正しながらこの1件を取り残しており（ガイド §11-5 の
+//   「旧パレットのリテラルは残ゼロ」に対する実測差）、E5b/E6 の走査にも掛かっていなかった。
+//   金側の `#1F1B12` も E4 の是正辞書 4色の外＝同時に --goldface へ参照化。
+//   ★暗端は現 --bg（#080808）へ落ちる＝`#0B0B0F` より **2〜3 階調ぶん暗くなる**（意図した是正）。
 export const logo: CSSProperties = {
-  width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#1F1B12,#0B0B0F)",
+  width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,var(--goldface),var(--bg))",
   border: "1px solid var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px",
 };
 
@@ -249,4 +262,4 @@ export const slipRowB: CSSProperties = { ...slipRow, fontWeight: 800, color: "va
 //     --bad-bg/--bad-bd/--bad-ink を新設しトークン化済。avatar は avatarBg() の name 由来 HSL
 //     ＝パレット色でなく機能色（identicon）・印刷経路にも不在＝是正対象外（e5_gaps.md I2）。
 export const slipFoot: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, background: "linear-gradient(135deg,var(--gold),var(--gold2))", color: "var(--on-gold)", borderRadius: 9, padding: "9px 13px", fontWeight: 800 };
-export const slipFootVal: CSSProperties = { fontFamily: font.num, fontSize: 19, fontVariantNumeric: "tabular-nums" }; // .slipfoot b（Outfit・NOX num 規約で tabular 付与）
+export const slipFootVal: CSSProperties = { fontFamily: font.num, fontSize: 19, fontVariantNumeric: "tabular-nums" }; // .slipfoot b（font.num・NOX num 規約で tabular 付与）

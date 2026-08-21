@@ -388,7 +388,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
                       fontSize: 11.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999,
                       border: `1px solid ${i + 1 <= stage ? "var(--gold)" : "var(--line2)"}`,
                       color: i + 1 <= stage ? "var(--champ)" : "var(--sub)",
-                      background: i + 1 <= stage ? "#1F1B12" : "transparent",
+                      background: i + 1 <= stage ? "var(--goldface)" : "transparent",
                     }}>{i + 1} {label}</span>
                     {i < 2 && <span style={{ color: "var(--sub)", fontSize: 11 }}>→</span>}
                   </span>

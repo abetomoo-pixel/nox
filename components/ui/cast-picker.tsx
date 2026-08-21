@@ -71,8 +71,9 @@ export default function CastPicker({
               style={{
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                 padding: "9px 4px", borderRadius: 11, cursor: "pointer", fontFamily: "inherit",
-                // 選択状態は .nox-chip.on と同言語（#1B1710 地＋gold 枠＋champ 文字）
-                background: sel ? "#1B1710" : "var(--card2)",
+                // 選択状態は .nox-chip.on と同言語（--goldface2 地＋gold 枠＋champ 文字）
+                // ★DP2 T2: 生 hex #1B1710 → var(--goldface2)（値は同一＝見た目不変）。
+                background: sel ? "var(--goldface2)" : "var(--card2)",
                 border: sel ? "1px solid var(--gold)" : "1px solid var(--line)",
                 color: sel ? "var(--champ)" : "var(--ink)",
               }}

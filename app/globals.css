@@ -2,11 +2,26 @@
    正本＝docs/NOX_デザインシステム.md（出典 mock/nox-nightwork-app.html）。
    方針（DS2'）: ダークは body 全体に敷かず opt-in ラッパー .nox-dark に閉じる。
    未移行画面はライト（:root/body 従来値）のまま無変更＝崩れた過渡状態を作らない。 */
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Outfit:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap');
+/* ★DP2 T1（2026-08-21・裁定 DP0-6）: Google Fonts の @import を廃止した。
+   旧: `@import url('…css2?family=Cormorant+Garamond…&family=Outfit…&family=Zen+Kaku+Gothic+New…')`
+   新: `app/layout.tsx` の next/font/google（Inter / Noto Sans JP / Lora / Noto Serif JP）が
+       <html> に --font-inter / --font-noto-sans-jp / --font-lora / --font-noto-serif-jp を載せる。
+   ここでは**その4本を2つの役へ合成するだけ**＝画面側は --font-sans / --font-serif の2語彙のみ使う。 */
 
 :root {
   --ink: #171717;
   --bg: #fafafa;
+
+  /* ── DP2 T1: フォントの正本（2役）─────────────────────────────────────────
+     --font-sans  = 本文・UI・数値（モック body 基底 `Inter,"Noto Sans JP","Yu Gothic UI"` 準拠）
+     --font-serif = ブランド・見出し serif ＋ 帳票明朝（モックの `Georgia,serif` と
+                    register-pos の `"Yu Mincho","Hiragino Mincho ProN",serif` を**1本へ統合**）
+     ★末尾のフォールバックは端末内蔵を残す＝next/font の取得が失敗しても和文が豆腐にならない。
+     ★:root に置くので .nox-dark 圏外（app/page.tsx）からも参照できる。 */
+  --font-sans: var(--font-inter), var(--font-noto-sans-jp), system-ui, -apple-system,
+    "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  --font-serif: var(--font-lora), var(--font-noto-serif-jp), "Hiragino Mincho ProN",
+    "Yu Mincho", Georgia, serif;
 }
 
 * {
@@ -80,13 +95,25 @@ body {
   --bad-bg:  #2C1B1B;   /* 警告面の地（--bad の暗面。card 系では警告に見えない） */
   --bad-bd:  #5A2E2E;   /* 警告面の枠線 */
   --bad-ink: #F0B9B9;   /* 警告面の上の文字（--bad #d86c64 は面の上では暗すぎる） */
+
+  /* ★DP2 T2（2026-08-21・裁定 DP0-3）: 「金の暗面」3値をトークン化。
+     出典＝画面側と本ファイルに live で散っていた生 hex（E4 是正辞書 `#C9A24A/#23232B/#0B0B0F/#B8893A`
+     の4色に**含まれておらず**、走査範囲も `.ts/.tsx` に閉じていたため E1〜E6 を素通りしていた分）。
+     用途はいずれも「選択状態の地」＝金の枠線＋--champ の文字と組で使う暗い金味の面。
+     命名は既存の `--goldbg`（金の淡面）に揃え、明→暗の順に番号を振る。
+     ★値は従来と同一＝**見た目は不変**（参照化のみ）。非モック由来（13枚にこの3値は無い）。
+     ★印刷経路（.nox-print 配下・@media print）にこの3値は登場しない＝print 上書き不要。 */
+  --goldface:  #1F1B12; /* 選択状態の地（標準）。フィルタピル・段階バー・ロゴ地 */
+  --goldface2: #1B1710; /* 選択状態の地（弱）。チップ・行ハイライト・サブナビ・カレンダ選択 */
+  --goldface3: #14120C; /* 金暗面グラデの暗端（--goldface と対で使う） */
   /* ★--purple は採用しない（裁定3）＝モック3枚が別々の値を宣言しながら参照ゼロ・アプリ側も
      宣言/参照とも元から存在しない。死にトークンを持ち込まない。 */
 
   /* ── UI刷新v2 ガイド §1 可読性サブトークン（2026-07-27・正本 NOX_UI刷新v2_デザインガイド.md）──
      ★canonical 13トークンの値は不変（上の13行は1文字も変えない）。ここは v2 画面が参照する
      「明度系サブトークン」の追加のみ＝既存画面の見た目は一切動かさない（未参照なら無影響）。
-     ルール: 読む情報（金額/名前/数量/件数/日付）は --v2-text＋.num（Outfit 600）で読ませる。
+     ルール: 読む情報（金額/名前/数量/件数/日付）は --v2-text＋.num（sans 600）で読ませる。
+     ★DP2 T1: 旧 Outfit → --font-sans（Inter+Noto Sans JP）。weight 600 と tabular の規約は不変。
              金（--gold）は3役だけ＝①選択状態 ②主ボタン（1画面1つ）③バッジ。見出し/金額/アイコン地の常用は禁止。
              状態色は green(充足)/gold(やや不足)/red(不足・警告) の3つのみ＝新色を作らない。 */
   /* 段0 以降は canonical と同値＝v2 クラスと既存 inline のどちらを参照しても同じ色になる
@@ -99,14 +126,14 @@ body {
                             ★非モック由来＝E1 でも現行維持（裁定5・ガイド §1-3） */
 
   color: var(--ink);
-  font-family: "Zen Kaku Gothic New", sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-/* UI刷新v2: 数値は Outfit 600・tabular（ガイド §1-5）。既存 t.num（inline）と併用可＝
+/* UI刷新v2: 数値は sans 600・tabular（ガイド §1-5・★DP2 T1 で Outfit → --font-sans）。既存 t.num（inline）と併用可＝
    このクラスを付けた要素だけが 600 になる（既存の描画には影響しない）。 */
 .nox-dark .num {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -236,7 +263,7 @@ body {
     position: absolute;
     top: 24px;
     left: 16px;
-    font-family: "Cormorant Garamond", serif;
+    font-family: var(--font-serif);
     font-weight: 700;
     font-size: 22px;
     letter-spacing: 4px;
@@ -270,9 +297,9 @@ body {
   }
 }
 
-/* 数値は Outfit tabular（金額・件数・日付） */
+/* 数値は sans tabular（金額・件数・日付）★DP2 T1: Outfit → --font-sans */
 .nox-num {
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
 
@@ -605,7 +632,7 @@ body {
 .nox-tile:active { transform: scale(.97); }
 @media (prefers-reduced-motion: reduce) { .nox-tile:active { transform: none; } }
 .nox-tile-name { font-size: 13px; font-weight: 700; line-height: 1.3; }
-.nox-tile-price { font-family: "Outfit", sans-serif; font-variant-numeric: tabular-nums; font-size: 12px; color: var(--sub); }
+.nox-tile-price { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--sub); }
 /* タップ連打の楽観バッジ（pre-commit＝明細行とは別状態＝二重計上しない） */
 .nox-tile-badge {
   position: absolute;
@@ -620,7 +647,7 @@ body {
   border-radius: 999px;
   background: linear-gradient(135deg, var(--gold2), var(--gold3));
   color: var(--on-gold);   /* ★E4-0: 金地の上の文字＝トークン化 */
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-sans);
   font-weight: 800;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -641,14 +668,14 @@ body {
   font-weight: 700;
   cursor: pointer;
 }
-.nox-chip.on { border-color: var(--gold); color: var(--champ); background: #1B1710; }
+.nox-chip.on { border-color: var(--gold); color: var(--champ); background: var(--goldface2); }
 
 /* （旧 .nox-detailwrap ボトムシート一式は撤去＝動線改修v3 で register・kiosk とも
    選択駆動ビュー切替（.nox-checkview 全幅）へ移行し、最後の利用者だった kiosk も追随済み。 */
 
 /* ── UI刷新v2 段R2（レジ刷新）── presentation-only 2026-07-28 ──
    正本＝nox-register-mock-planA-readable.html（案A 可読性ルール）＋ガイド §1。
-   ★可読性ルール: 読む情報（金額・名前・数量）は白 var(--v2-text)・Outfit 600・一回り大きく。
+   ★可読性ルール: 読む情報（金額・名前・数量）は白 var(--v2-text)・sans 600（★DP2 T1: 旧 Outfit）・一回り大きく。
      金 var(--gold) は3役だけ＝①選択状態 ②主ボタン ③バッジ。見出し・金額に金は使わない。
    ★挙動は一切変えない（連打束ね・money 導線・RPC は非接触）＝見た目と配置のみ。 */
 /* 席タイル（モック .seats/.seat）。列は 4→3(≤900)→2(≤641)＝断点は裁定5。 */
@@ -1019,7 +1046,7 @@ body {
   border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; box-shadow: none;
 }
 .nox-kpi .lbl { font-size: 11px; color: var(--sub); }
-.nox-kpi .val { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 2px; font-family: "Outfit", sans-serif; font-variant-numeric: tabular-nums; }
+.nox-kpi .val { font-size: 22px; font-weight: 700; color: var(--ink); margin-top: 2px; font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .nox-kpi .val small { font-size: 13px; font-weight: 400; margin-left: 2px; }
 .nox-kpi .sub { font-size: 10px; color: var(--sub); margin-top: 2px; }
 /* 状態つき KPI（モック .kpi.warn＝離反リスク高など「悪い」数値だけ赤）。
@@ -1120,7 +1147,7 @@ body {
 .nox-table tbody tr:hover { background: var(--card2); }
 /* 数値列（右寄せ＋等幅数字）。モックの実例は列別クラスで書かれているため用途名で1つだけ用意する。 */
 .nox-table .num, .nox-table th.num, .nox-table td.num {
-  text-align: right; font-family: "Outfit", sans-serif; font-variant-numeric: tabular-nums;
+  text-align: right; font-family: var(--font-sans); font-variant-numeric: tabular-nums;
 }
 
 /* 入力欄（モック .field input/.field select/.field textarea・register-pos 基準）
@@ -1189,7 +1216,7 @@ body {
 .nox-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
 .nox-stat { background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; text-align: center; }
 .nox-stat .lbl { font-size: 10px; color: var(--sub); }
-.nox-stat .val { font-size: 16px; font-weight: 700; color: var(--ink); margin-top: 2px; font-family: "Outfit", sans-serif; font-variant-numeric: tabular-nums; }
+.nox-stat .val { font-size: 16px; font-weight: 700; color: var(--ink); margin-top: 2px; font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .nox-stat.ng .val { color: var(--bad); }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1269,11 +1296,12 @@ body {
   background: #0d0d0c; border-right: 1px solid var(--line);
   padding: 22px 14px; display: flex; flex-direction: column; z-index: 20;
 }
-/* モック .brand（brandmark 37px・Georgia serif 17px・gold 枠）＋ b/small。 */
+/* モック .brand（brandmark 37px・serif 17px・gold 枠）＋ b/small。
+   ★DP2 T1: モック逐語の `Georgia,serif` は --font-serif（Lora+Noto Serif JP）へ統合（DP0-6）。 */
 .nox-side .brand { display: flex; align-items: center; gap: 12px; padding: 0 10px 28px; }
 .nox-side .brandmark {
   width: 37px; height: 37px; border: 1px solid var(--gold); border-radius: 8px;
-  display: grid; place-items: center; color: var(--gold2); font: 17px Georgia, serif; flex-shrink: 0;
+  display: grid; place-items: center; color: var(--gold2); font: 17px var(--font-serif); flex-shrink: 0;
 }
 .nox-side .brand b { font-size: 16px; color: var(--ink); }
 .nox-side .brand small { display: block; color: var(--sub); font-size: 9px; letter-spacing: .18em; }
@@ -1328,7 +1356,7 @@ body {
 .nox-stat2 small { color: var(--sub); font-size: 12px; }
 .nox-stat2 strong {
   display: block; font-size: 24px; margin-top: 7px; color: var(--ink);
-  font-family: "Outfit", sans-serif; font-weight: 600; font-variant-numeric: tabular-nums;
+  font-family: var(--font-sans); font-weight: 600; font-variant-numeric: tabular-nums;
 }
 .nox-stat2 em { font-style: normal; font-size: 11px; color: var(--ok); }
 .nox-stat2 em.warn { color: var(--gold2); }
@@ -1501,7 +1529,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 700;
   font-size: 15px;
   color: var(--bg);   /* ★E4-0: 旧 --bg のベタ書き #0B0B0F を解消。地は avatarBg() の HSL グラデ＝金ではないため --on-gold は使わない */
@@ -1514,14 +1542,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: "Outfit", sans-serif;
+  font-family: var(--font-sans);
   font-weight: 800;
   font-size: 13px;
   flex-shrink: 0;
   color: var(--on-gold);   /* ★E4-0: メダル地（g1-g3 は金グラデ）の上の文字 */
   background: var(--card2);
 }
-.nox-medal.g1 { background: linear-gradient(135deg, #F0D58A, #C9A24A); }
+.nox-medal.g1 { background: linear-gradient(135deg, #F0D58A, var(--gold)); }
 .nox-medal.g2 { background: linear-gradient(135deg, #E6E6EC, #A6A6B2); }
 .nox-medal.g3 { background: linear-gradient(135deg, #E0B27A, #B07B45); }
 .nox-medal.gx { background: var(--card2); color: var(--sub); }
@@ -1756,7 +1784,7 @@ body {
   color: var(--v2-muted);
   cursor: pointer;
 }
-.nox-subnav button.on { background: #1B1710; border-color: var(--gold); color: var(--champ); }
+.nox-subnav button.on { background: var(--goldface2); border-color: var(--gold); color: var(--champ); }
 
 /* KPI 帯（4枚・数値は .num で読ませる） */
 .nox-kpirow { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; margin-bottom: 13px; }
@@ -1799,7 +1827,7 @@ body {
 .nox-cald.ok .nox-cald-c   { color: var(--ok); }
 .nox-cald.warn .nox-cald-c { color: var(--gold2); }
 .nox-cald.ng .nox-cald-c   { color: var(--bad); }
-.nox-cald.sel { background: #1B1710; border-color: var(--gold); }
+.nox-cald.sel { background: var(--goldface2); border-color: var(--gold); }
 .nox-cald.today .nox-cald-n { color: var(--champ); font-weight: 700; }
 /* 段S-2: セル内の予想人件費（モック .yen 逐語＝10px muted）。★≤641 は非表示＝スマホは色＋コマ数のみ
    （モック @media (max-width:641px) の .grid .yen{display:none} と同じ。人数 .nox-cald-c は S-1 のまま触らない）。 */
@@ -1828,7 +1856,7 @@ body {
   width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: var(--v2-ava); color: var(--v2-muted);
-  font-family: "Cormorant Garamond", serif; font-weight: 700; font-size: 12px; flex-shrink: 0;
+  font-family: var(--font-serif); font-weight: 700; font-size: 12px; flex-shrink: 0;
 }
 .nox-stpill { font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--v2-line); color: var(--v2-muted); white-space: nowrap; }
 .nox-stpill.ok   { color: var(--ok); border-color: rgba(127, 199, 155, .45); }
@@ -1887,7 +1915,7 @@ body {
 }
 .nox-navsheet-i.on {
   border-color: var(--gold);
-  background: #1B1710;
+  background: var(--goldface2);
   color: var(--champ);
 }
 

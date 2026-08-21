@@ -25,7 +25,7 @@ const stepBtn: React.CSSProperties = {
 const segBtn = (on: boolean): React.CSSProperties => ({
   fontFamily: "inherit", fontWeight: 800, fontSize: 13, padding: "8px 18px", borderRadius: 9, cursor: "pointer",
   border: on ? "1px solid var(--gold)" : "1px solid var(--line2)",
-  background: on ? "linear-gradient(135deg,#1F1B12,#14120C)" : "transparent",
+  background: on ? "linear-gradient(135deg,var(--goldface),var(--goldface3))" : "transparent",
   color: on ? "var(--champ)" : "var(--sub)",
 });
 

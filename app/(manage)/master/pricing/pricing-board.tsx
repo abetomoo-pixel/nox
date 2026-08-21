@@ -557,7 +557,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const dayChip = (on: boolean): React.CSSProperties => ({
     fontFamily: "inherit", fontWeight: 700, fontSize: 12, padding: "6px 10px", borderRadius: 8, cursor: "pointer",
     border: on ? "1px solid var(--gold)" : "1px solid var(--line2)",
-    background: on ? "linear-gradient(135deg,#1F1B12,#14120C)" : "transparent",
+    background: on ? "linear-gradient(135deg,var(--goldface),var(--goldface3))" : "transparent",
     color: on ? "var(--champ)" : "var(--sub)",
   });
 

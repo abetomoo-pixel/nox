@@ -51,7 +51,7 @@ export default async function RankingPage() {
             {rows.map((r) => {
               const selfColor = r.is_self ? "var(--champ)" : "var(--ink)";
               return (
-                <tr key={r.cast_id} style={{ background: r.is_self ? "#1B1710" : undefined }}>
+                <tr key={r.cast_id} style={{ background: r.is_self ? "var(--goldface2)" : undefined }}>
                   {/* 段F: 順位メダル（top3=金銀銅・既存 rank のみ・新情報なし。自分行は行背景＋名前で強調） */}
                   <td style={t.td}><span className={`nox-medal ${r.rank === 1 ? "g1" : r.rank === 2 ? "g2" : r.rank === 3 ? "g3" : "gx"}`}>{r.rank}</span></td>
                   <td style={{ ...t.td, color: selfColor, fontWeight: r.is_self ? 700 : 400 }}>

@@ -340,7 +340,7 @@ function Line({ label, v, bold, minus }: { label: string; v: string; bold?: bool
   return (
     <tr>
       <td style={{ padding: "3px 0", color: labelColor }}>{label}</td>
-      {/* 数値は Outfit（t.font.num = "'Outfit', sans-serif" と一字一致＝完全同値のため委譲） */}
+      {/* 数値は t.font.num へ委譲（★DP2 T1: 実体は "'Outfit', sans-serif" → var(--font-sans)） */}
       <td style={{ padding: "3px 0", textAlign: "right", fontWeight: bold ? 700 : 400, color: valColor, fontFamily: t.font.num }}>{v}</td>
     </tr>
   );
@@ -349,7 +349,7 @@ function Line({ label, v, bold, minus }: { label: string; v: string; bold?: bool
 // D-4（2026-07-17）: 旧 styleSet(dark) を廃止し、dark 側の値だけをここへ移した（light 分岐は死にコードのため削除）。
 //   ★視覚は 1px も変えない。theme へ委譲したのは「完全同値のもの」だけ:
 //     - card = t.card の派生（差分は padding 15→16・marginBottom 13→16 の 2 つだけ＝明示上書きで同値を保つ）
-//     - Outfit 指定は t.font.num（"'Outfit', sans-serif" と一字一致）＝呼び出し側で参照
+//     - 数値フォント指定は t.font.num＝呼び出し側で参照（★DP2 T1: 実体は Outfit → var(--font-sans)）
 //   以下は theme に近い物があるが値が違うため据置（寄せると視覚が動く）:
 //     - inp/inpS: t.input と radius 11→9・padding "11px 12px"→8・width "100%"→140/84 が違い、
 //       かつ t.input の fontSize:13 を持たない（足すと文字サイズが変わる）

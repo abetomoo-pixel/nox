@@ -401,7 +401,7 @@ export default function CastsBoard({
               className="nox-chip"
               style={{
                 ...btnGhost, padding: "4px 12px", fontSize: 12,
-                ...(rankFilter === v ? { borderColor: "var(--gold)", color: "var(--champ)", background: "#1F1B12" } : {}),
+                ...(rankFilter === v ? { borderColor: "var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}),
               }}
               onClick={() => setRankFilter(v as string)}>
               {label}
