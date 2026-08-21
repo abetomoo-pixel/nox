@@ -39,6 +39,9 @@ export type PricingRule = {
   amount: number; duration_min: number | null; priority: number; is_active: boolean; created_at: string;
 };
 export type CastRank = { id: string; name: string; sort_order: number; is_active: boolean };
+// ★DP-R: 端数処理方法の表示語（pricing-panel の option と同語彙）
+const ROUND_MODE_LABEL: Record<string, string> = { down: "切り捨て", up: "切り上げ", round: "四捨五入" };
+
 export type StoreFallback = {
   hon_fee: number; jonai_fee: number; dohan_fee: number;
   service_rate: number; card_tax_rate: number; round_unit: number; round_mode: string;
@@ -889,32 +892,186 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         </>
       )}
 
-      {/* ═══ 会計ルール ═══ */}
+      {/* ═══ 会計ルール ═══
+          ★DP-R 第3弾残（教訓26＝構造照合・裁定「A 採用＝読み取り専用ミラー＋基本料金への導線」）:
+            モック nox-pricing-settings の会計ルールは**4カード**（営業日・時間計算／税・サービス料／
+            端数・精算／確認・権限）。従来の実装は**1カードの注記**だけだった。
+          ★齟齬の扱い（申告→裁定 A）: サービス料・カード手数料・端数単位・端数処理方法は
+            `set_store_pricing` の引数で、**指名料（本指名・場内・同伴）と同一の upsert**。
+            自動延長（time_mode）も `set_store_time_pricing` の引数。どちらも UI は「基本料金」タブの
+            パネル1枚で保存する。ここへ入力を移すと **1本の atomic な upsert が2タブに割れる**ため、
+            **この面は読み取り専用のミラー**にとどめ、編集導線だけを出す。
+            ★保存系 RPC・PricingPanel / TimePricingPanel の保存経路は1文字も触っていない。
+          ★表示値は**ページ読込時のスナップショット**（initial.store）＝基本料金タブで保存した直後は
+            再読込で反映される。そのことも画面に書く（古い値を新しい値のように見せない）。
+          ★列が無い項目（内税・外税／税計算前の値引き／締め後の伝票修正権限／監査ログ保存期間）は
+            器を置いて disabled＋「準備中」（教訓25＝押しても何も起きないものを作らない）。 */}
       {tab === "checkout" && (
+        <>
+        {/* ① 営業日・時間計算 */}
         <section className="nox-cardtop" style={card}>
-          <h3 style={{ margin: "0 0 10px", fontSize: 14 }}>時間課金と会計の運用ルール</h3>
-          {/* 修正c: モックの「判定時刻」設定2つは作らない＝凍結仕様の注記に置換 */}
-          <div style={{ ...t.alert, marginBottom: 12 }}>
-            <strong>料率は伝票オープン時に確定します。</strong>
-            <span style={{ display: "block", fontSize: 12, marginTop: 4, lineHeight: 1.7 }}>
-              セット・延長・同伴の料率は伝票を開いた時刻の時間帯ルールで確定し、以後の設定変更・席移動・
-              日付跨ぎでは変わりません（延長も開栓時の料率で加算されます）。指名料のランクのみ、
-              指名行を追加した時点のキャストのランクで決まります。
-            </span>
-          </div>
-          <div style={{ fontSize: 12.5, lineHeight: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
-              営業日の区切り <span style={t.num}>{bizCutoffHm}</span>
-              <span style={{ color: "var(--sub)" }}>
-                {"　"}この時刻より前の売上は前日の営業日に集計されます。時間帯料金の「翌」表記もこの時刻が基準です。
-              </span>
+              <h3 style={{ margin: 0, fontSize: 14 }}>営業日・時間計算</h3>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>伝票の日付と時間料金の基準</p>
             </div>
-            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>
-              変更は<a href="/master" style={{ color: "var(--gold2)" }}>マスタ概要</a>の「営業時間・定休日」から行います。
-              時間制課金の自動/手動・卓/名の単位・丸め・サービス料は「基本料金」タブで設定します。
-            </p>
+            <span className="nox-stpill" style={{ marginLeft: "auto" }}>DATE &amp; TIME</span>
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              営業日の切替時刻
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>この時刻までは前日の売上として集計します。</span>
+            </span>
+            <b className="num">{bizCutoffHm}</b>
+            <a href="/master/business-hours" style={{ ...btnLight, textDecoration: "none" }}>営業時間で編集</a>
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              時間課金の確定
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
+                料率は伝票を開いた時刻の時間帯ルールで確定し、以後の設定変更・席移動・日付跨ぎでは変わりません
+                （延長も開栓時の料率で加算）。指名料のランクだけは、指名行を追加した時点のランクで決まります。
+              </span>
+            </span>
+            <b>伝票オープン時</b>
+            <span className="nox-stpill">固定</span>
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              自動延長
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
+                セット時間を過ぎたぶんの延長料金を自動で足すかどうかです。
+                （セット {store.set_min}分 {yen(store.set_fee)} ／ 延長 {store.ext_min}分 {yen(store.ext_fee)}・
+                単位は{store.time_per === "person" ? "1名ごと" : "1卓ごと"}）
+              </span>
+            </span>
+            <b>{store.time_mode === "auto" ? "自動で足す" : "手動で足す"}</b>
+            <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
           </div>
         </section>
+
+        {/* ② 税・サービス料（読み取り専用ミラー） */}
+        <section className="nox-cardtop" style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14 }}>税・サービス料</h3>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>伝票に加算する料率と計算順</p>
+            </div>
+            <span className="nox-stpill" style={{ marginLeft: "auto" }}>TAX</span>
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              サービス料
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>小計に対して加算される店舗サービス料です。</span>
+            </span>
+            <b className="num">{store.service_rate}%</b>
+            <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              カード手数料
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>カード決済の場合のみ加算されます。</span>
+            </span>
+            <b className="num">{store.card_tax_rate}%</b>
+            <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
+          </div>
+          <div className="nox-listrow" style={{ opacity: 0.55 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              消費税（内税・外税）
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>内税・外税の切替は準備中です。</span>
+            </span>
+            <div className="nox-seg">
+              <button disabled>内税</button>
+              <button disabled>外税</button>
+              <button disabled>適用しない</button>
+            </div>
+            <span className="nox-stpill">準備中</span>
+          </div>
+        </section>
+
+        {/* ③ 端数・精算（読み取り専用ミラー） */}
+        <section className="nox-cardtop" style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14 }}>端数・精算</h3>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>最終金額の丸めと割引処理</p>
+            </div>
+            <span className="nox-stpill" style={{ marginLeft: "auto" }}>ROUNDING</span>
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              端数処理
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>最終合計に対して端数を処理します。</span>
+            </span>
+            <b className="num">{store.round_unit}円単位</b>
+            <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              処理方法
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>指定単位未満の金額の扱いです。</span>
+            </span>
+            <b>{ROUND_MODE_LABEL[store.round_mode] ?? store.round_mode}</b>
+            <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
+          </div>
+          <div className="nox-listrow" style={{ opacity: 0.55 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              値引きを税計算前に適用
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>切替は準備中です。</span>
+            </span>
+            <button type="button" className="nox-switch" disabled aria-disabled><i /></button>
+            <span className="nox-stpill">準備中</span>
+          </div>
+        </section>
+
+        {/* ④ 確認・権限（列が無い＝器のみ） */}
+        <section className="nox-cardtop" style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14 }}>確認・権限</h3>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>誤操作を防ぐ会計フロー</p>
+            </div>
+            <span className="nox-stpill" style={{ marginLeft: "auto" }}>CONTROL</span>
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              会計確定前の確認
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
+                レジの会計は「請求を確認 → 入金 → 会計を完了」の3段で、確認画面は常に表示されます（切替はありません）。
+              </span>
+            </span>
+            <b>常に表示</b>
+            <span className="nox-stpill">固定</span>
+          </div>
+          <div className="nox-listrow" style={{ opacity: 0.55 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              締め後の伝票修正
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>権限の切替は準備中です。</span>
+            </span>
+            <div className="nox-seg">
+              <button disabled>許可しない</button>
+              <button disabled>管理者のみ</button>
+              <button disabled>すべて許可</button>
+            </div>
+            <span className="nox-stpill">準備中</span>
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              監査ログ
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
+                料金・伝票の変更履歴は全件記録されます（保存期間の設定は準備中）。履歴は「操作履歴」画面で確認できます。
+              </span>
+            </span>
+            <a href="/audit" style={{ ...btnLight, textDecoration: "none" }}>操作履歴を見る</a>
+          </div>
+        </section>
+
+        <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.8 }}>
+          このページの数値は<b>読み取り専用の表示</b>です（編集は「基本料金」タブ）。
+          基本料金タブで保存した直後は、この画面を開き直すと新しい値が出ます。
+          変更内容は<b>新しく開く伝票から</b>反映されます。
+        </p>
+        </>
       )}
 
       {/* ═══ 帯編集モーダル（モックの drawer 相当） ═══ */}
