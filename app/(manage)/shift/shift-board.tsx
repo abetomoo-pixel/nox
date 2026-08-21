@@ -81,8 +81,14 @@ function BandBars({ stats }: { stats: BandStat[] }) {
     </div>
   );
 }
+// ★R1（2026-08-21・Agoora 裁定）: 出勤記録はプルダウンを廃止し**ボタン群**にする（R2 恒久規約＝
+//   選択肢7以下の入力はボタン群）。並びは裁定の「出勤／遅刻／当欠」を先頭に、
+//   ★同伴・休みも残す＝現行 attendance_set の値域は5つで、落とすと**記録できなくなる**
+//     （同伴は売上の同伴カウントに使う実データ）。値域・RPC・引数は1文字も変えていない。
+//   ★「未記録に戻す（解除）」は現行 RPC の仕様内では不可＝attendance_set は p_status が
+//     null／5値以外なら 'bad status' で弾く（mig0009 行287 実測）＝**選択替えのみ**にする。
 const ATT_OPTIONS = [
-  ["", "—"], ["shukkin", "出勤"], ["dohan", "同伴"], ["late", "遅刻"], ["off", "休み"], ["absent", "当欠"],
+  ["shukkin", "出勤"], ["late", "遅刻"], ["absent", "当欠"], ["dohan", "同伴"], ["off", "休み"],
 ] as const;
 
 const card: React.CSSProperties = t.card;
@@ -141,12 +147,18 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const [selPeriodId, setSelPeriodId] = useState("");
   // ★DP-R S9: 配置ビューの表示切替（モック .plan-tools > .seg = 月カレンダー / スタッフ別）
   const [planView, setPlanView] = useState<"cal" | "staff">("cal");
+  // ★R4（Agoora 裁定）: 確定シフトタブ＝**人ベースの月カレンダー**を既定にし、
+  //   現行の一覧は「表で見る」トグルで残置する（表示のみ・RPC 非改変）。
+  const [rosterView, setRosterView] = useState<"cal" | "table">("cal");
   const [preview, setPreview] = useState<{ periodId: string; result: AutoAssignResult } | null>(null);
   const [autoBusy, setAutoBusy] = useState(false);
   // ★SD V2-2: 配置ルール入力（空欄=無制限。月間は「時間」で入力し保存時に分へ）
   const [rConsec, setRConsec] = useState("");
   const [rMonthH, setRMonthH] = useState("");
-  const [attDate, setAttDate] = useState(bizToday);
+  // ★R1: 出勤記録は「本日のシフト」表に統合した＝対象日は常に営業日の今日。
+  //   （旧「出勤板」にあった日付ピッカーは無くなる＝過去日の出勤記録の修正は本画面からは行えない。
+  //    実務上は当日運用のため今日固定で足りる。過去日の修正が要るなら別途裁定＝勝手に別画面を作らない。）
+  const attDate = bizToday;
   const [atts, setAtts] = useState<Att[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   // ── UI刷新v2 段S-1: サブナビ（今日/カレンダー/シフト作成）・表示月・選択日 ──
@@ -625,7 +637,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const selBands = bandStatsOf(selDate); // E8-4 #2: 日詳細にも時間帯別充足バー
 
   return (
-    <div>
+    // ★R3 第1弾: タイポ・余白のモック実値写し（globals.css の .nox-mv1 ブロック）。
+    //   この画面と /notices だけに効く＝共有クラスの素の定義は変えていない。
+    <div className="nox-mv1">
       <h1 style={t.pheadH1}>シフト管理</h1>
       <Toast msg={msg} />
 
@@ -693,7 +707,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
             <div>
               <h2 style={{ ...secTitle, margin: 0 }}>本日のシフト（{bizToday}）</h2>
-              <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>申請時間と確定時間、状態を確認</p>
+              <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
+                申請時間・確定時間・出勤記録をこの表で確認します。シフトに無い飛び入り出勤は「＋ 追加」から先にシフトを足してください。
+              </p>
             </div>
             {isManagerUp && (
               <button className="nox-addc" style={{ marginLeft: "auto" }}
@@ -706,7 +722,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             <div className="nox-tablewrap">
               <table className="nox-table">
                 <thead>
-                  <tr><th>スタッフ</th><th>申請時間</th><th>確定時間</th><th>状態</th><th>操作</th></tr>
+                  <tr><th>スタッフ</th><th>申請時間</th><th>確定時間</th><th>出勤記録</th><th>状態</th><th>操作</th></tr>
                 </thead>
                 <tbody>
                   {shiftsOn(bizToday).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((s) => {
@@ -724,6 +740,31 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                           {w ? fmtWin(w.start_hm, w.end_hm) : "—"}
                         </td>
                         <td className="num">{fmtWin(s.start_hm, s.end_hm)}</td>
+                        {/* ★R1: 出勤記録＝旧「出勤板」の統合先。プルダウンではなくボタン群
+                            （既存 .nox-seg の文法＝選択中は金枠）。押すと attendance_set をそのまま呼ぶ。 */}
+                        <td>
+                          {isManagerUp ? (
+                            <div className="nox-seg" style={{ display: "inline-flex" }}>
+                              {ATT_OPTIONS.map(([v, l]) => {
+                                const on = (atts.find((x) => x.cast_id === s.cast_id)?.status ?? "") === v;
+                                return (
+                                  <button key={v} className={on ? "on" : ""} aria-pressed={on}
+                                    title={on ? "記録済み（取り消しはできません・選び直してください）" : `${l}として記録`}
+                                    onClick={() => { if (!on) void setAtt(s.cast_id, v); }}>{l}</button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span style={{ color: "var(--v2-muted)" }}>
+                              {ATT_OPTIONS.find(([v]) => v === (atts.find((x) => x.cast_id === s.cast_id)?.status ?? ""))?.[1] ?? "—"}
+                            </span>
+                          )}
+                          {atts.find((x) => x.cast_id === s.cast_id)?.eta && (
+                            <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
+                              見込み {atts.find((x) => x.cast_id === s.cast_id)?.eta}
+                            </span>
+                          )}
+                        </td>
                         <td>
                           <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`}
                             style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
@@ -1428,13 +1469,108 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
           <div>
             <h2 style={{ ...secTitle, margin: 0 }}>確定シフト</h2>
-            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>承認済み・管理者登録済みのシフト（今後）</p>
+            {/* ★R4: 役割分担を画面が自己説明する（カレンダータブ＝充足管理／このタブ＝誰がいつ） */}
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
+              <b>誰がいつ入るか</b>を見る画面です（人数の過不足は「カレンダー」タブで見ます）。
+            </p>
           </div>
-          {shifts.length > 0 && (
-            <button style={{ ...btnLight, marginLeft: "auto" }} onClick={exportShiftsCsv}>CSV出力</button>
-          )}
+          <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
+            <div className="nox-seg">
+              <button className={rosterView === "cal" ? "on" : ""} onClick={() => setRosterView("cal")}>カレンダー</button>
+              <button className={rosterView === "table" ? "on" : ""} onClick={() => setRosterView("table")}>表で見る</button>
+            </div>
+            {shifts.length > 0 && <button style={btnLight} onClick={exportShiftsCsv}>CSV出力</button>}
+          </span>
         </div>
-        {shifts.length === 0 ? (
+
+        {/* ★R4: 人ベース月カレンダー。★confirmed だけを描く＝「確定シフト」の名に嘘をつかせない
+            （予定・確認待ちはこの面に混ぜない＝教訓25）。まだ確定していない分は
+            「承認待ち」タブに件数つきで出ているので、取りこぼしにはならない。 */}
+        {rosterView === "cal" && (() => {
+          const confirmedOn = (ymd: string) =>
+            shifts.filter((x) => x.date === ymd && x.status === "confirmed")
+              .slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm));
+          const sel = confirmedOn(selDate);
+          return (
+            <>
+              <div className="nox-calhead">
+                <button style={btnLight} onClick={() => shiftMonth(-1)} aria-label="前の月">‹</button>
+                <h3 style={{ margin: 0, fontSize: 14 }}>{my}年{mm}月</h3>
+                <button style={btnLight} onClick={() => shiftMonth(1)} aria-label="次の月">›</button>
+                <button style={{ ...btnLight, marginLeft: "auto" }}
+                  onClick={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }}>今日</button>
+              </div>
+              <div className="nox-calgrid">
+                {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}
+                {calCells.map((ymd, i) => {
+                  if (!ymd) return <div key={`rb${i}`} />;
+                  const list = confirmedOn(ymd);
+                  const cls = ["nox-cald", list.length > 0 ? "ok" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
+                  return (
+                    <button key={ymd} className={cls} style={{ minHeight: 92, alignItems: "stretch" }}
+                      onClick={() => setSelDate(ymd)}
+                      title={list.length === 0 ? `${ymd}・確定なし` : `${ymd}・${list.map((x) => `${castName(x.cast_id)} ${fmtWin(x.start_hm, x.end_hm)}`).join(" / ")}`}>
+                      <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
+                      {/* 先頭3名の名前チップ（例: れいな 20:00-）＋残りは「他N名」に折り畳む */}
+                      {list.slice(0, 3).map((x) => (
+                        <span key={x.id} style={{
+                          display: "block", fontSize: 9.5, lineHeight: 1.5, textAlign: "left",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--ok)",
+                        }}>
+                          {castName(x.cast_id)} <span className="num">{x.start_hm}-</span>
+                        </span>
+                      ))}
+                      {list.length > 3 && (
+                        <span style={{ display: "block", fontSize: 9, color: "var(--v2-muted)", textAlign: "left" }}>
+                          他{list.length - 3}名
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 日タップで全員展開＋時間調整への導線 */}
+              <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                <p style={{ fontSize: 11.5, fontWeight: 800, margin: "0 0 6px" }}>
+                  <span className="num">{selDate}</span> の確定
+                  <span className="num" style={{ marginLeft: 6, color: "var(--v2-muted)" }}>{sel.length}名</span>
+                </p>
+                {sel.length === 0 ? (
+                  <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>この日の確定シフトはありません。</p>
+                ) : sel.map((x) => {
+                  const xClosed = closedOf(x.date, x.start_hm, x.end_hm);
+                  const w = x.wish_id ? wishAll.find((y) => y.id === x.wish_id) : undefined;
+                  return (
+                    <div key={x.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        {castName(x.cast_id)}
+                        {w && (w.start_hm !== x.start_hm || w.end_hm !== x.end_hm) && (
+                          <span className="num" style={{ display: "block", fontSize: 10, color: "var(--v2-muted)" }}>
+                            希望 {fmtWin(w.start_hm, w.end_hm)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="num">{fmtWin(x.start_hm, x.end_hm)}</span>
+                      <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>{userNames.get(x.created_by) ?? "—"}</span>
+                      {isManagerUp && (
+                        <button style={{ ...btnLight, opacity: xClosed ? 0.45 : 1 }} disabled={xClosed}
+                          title={xClosed ? "この日は定休日に設定されています" : undefined}
+                          onClick={() => { setAdjTarget(x); setAStart(x.start_hm); setAEnd(x.end_hm); }}>時間を調整</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
+                このカレンダーには<b>確定だけ</b>を出しています（予定・確認待ちは「承認待ち」タブ）。
+                セルは先頭3名まで、残りは日をタップすると全員出ます。
+              </p>
+            </>
+          );
+        })()}
+
+        {rosterView === "table" && (shifts.length === 0 ? (
           <p style={{ fontSize: 13, color: "var(--sub)" }}>なし</p>
         ) : (
           <div className="nox-tablewrap">
@@ -1480,28 +1616,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               </tbody>
             </table>
           </div>
-        )}
+        ))}
       </section>
       )}
 
-      {tab === "today" && (
-      <section className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>出勤板</h2>
-        <input type="date" value={attDate} onChange={(e) => setAttDate(e.target.value)} style={{ ...input, marginBottom: 8 }} />
-        {casts.map((c) => {
-          const a = atts.find((x) => x.cast_id === c.id);
-          return (
-            <div key={c.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "4px 0", fontSize: 13 }}>
-              <span style={{ width: 110 }}>{c.name}</span>
-              <select value={a?.status ?? ""} onChange={(e) => setAtt(c.id, e.target.value)} style={input}>
-                {ATT_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-              {a?.eta && <span style={{ ...t.num, color: "var(--sub)" }}>見込み {a.eta}</span>}
-            </div>
-          );
-        })}
-      </section>
-      )}
 
 
       {/* ── ★DP3 P2（裁定 DP3-②）: 手動シフト追加モーダル（モック `planShiftDialog`・
