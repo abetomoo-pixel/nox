@@ -19,15 +19,19 @@ export default async function NoticesPage() {
   const isManagerUp = role === "owner" || role === "manager";
 
   const supabase = await createClient();
-  const [castRes, memRes] = await Promise.all([
+  // ★DP-R 第2弾: プレビューの差出人表示に使う店舗名（RLS の自店スコープ内で1行）。
+  //   失敗しても画面は開く（null → 画面側が「店舗」に落とす）＝表示だけの補助情報。
+  const [castRes, memRes, storeRes] = await Promise.all([
     supabase.from("casts").select("id", { count: "exact", head: true }).eq("is_active", true),
     supabase.from("memberships").select("id, role", { count: "exact", head: true }).eq("is_active", true).eq("role", "staff"),
+    supabase.from("stores").select("name").limit(1).maybeSingle(),
   ]);
 
   return (
     <NoticesBoard
       isManagerUp={isManagerUp}
       audienceCounts={{ cast: castRes.count ?? null, staff: memRes.count ?? null }}
+      storeName={(storeRes.data?.name as string | undefined) ?? null}
     />
   );
 }

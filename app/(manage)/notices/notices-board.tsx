@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, addDays } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
+import Modal from "@/components/ui/modal";
 
 type Notice = {
   id: string; title: string; body: string; audience: string;
@@ -47,6 +48,22 @@ const TEMPLATES: Array<{ key: string; label: string; title: string; body: string
   },
 ];
 
+// ★DP-R 第2弾（教訓26 の構造照合・相談役裁定「器を全構築・LINE 実送信のみ無効化・
+//   データ源なき数値は — か 準備中」）。モック nox-announcement-management の構造へ追随する。
+//
+// ★実体の境界（notices は mig0034 の1テーブル＝id/org_id/store_id/title/body/audience/pinned/until/
+//   created_by/created_at のみ。status も category も配信ログも既読も無い）:
+//     - 実データで動く: 件名・本文・公開範囲(audience)・ピン(pinned)・掲載期限(until)・定型文(client 定数)
+//     - **器だけ置いて操作させない**（列が無い＝押しても保存されないため disabled＋「準備中」）:
+//       カテゴリ／通知方法（LINE・メール）／配信タイミング（今すぐ・予約・下書き）／確認回答を求める
+//     - **数値は「—」**（データ源が無い）: LINE連携・平均既読率・未連携・既読・確認済み
+//   ★この扱いは教訓25（実体のない段を描かない）と矛盾しない: 段（状態遷移）は作らず、
+//     器（置き場）だけをモックの位置に置き、**準備中と明記して押せなくする**＝
+//     「押しても何も起きない」を作らない。実装が入ったら disabled を外す1箇所で開通する。
+const SOON = "準備中";
+// モックのカテゴリ5種（notices に category 列が無い＝表示のみ・選ばせない）
+const CATEGORIES = ["店舗連絡", "シフト", "給与", "緊急", "システム"];
+
 // RPC エラーの日本語化（notices 系）
 function rpcErrJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
@@ -68,15 +85,20 @@ const chkLabel: React.CSSProperties = { ...t.fieldLabel, display: "flex", alignI
 //   null は「数えられなかった」＝画面では「—」に落とす（嘘の 0 を出さない）。
 export type AudienceCounts = { cast: number | null; staff: number | null };
 
-export default function NoticesBoard({ isManagerUp, audienceCounts }: {
+export default function NoticesBoard({ isManagerUp, audienceCounts, storeName }: {
   isManagerUp: boolean;
   audienceCounts: AudienceCounts;
+  storeName?: string | null;
 }) {
   const supabase = createClient();
   const bizToday = bizDateOf(new Date().toISOString(), "06:00");
   const [rows, setRows] = useState<Notice[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // ★DP-R: 掲載前の確認モーダル（モック publishConfirm）。送る RPC・引数は不変＝一段挟むだけ。
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  // ★DP-R: 一覧の公開範囲フィルタ（""=すべて）。取得済み rows の client 絞り込みのみ。
+  const [audFilter, setAudFilter] = useState("");
   // 投稿フォーム
   const [fTitle, setFTitle] = useState("");
   const [fBody, setFBody] = useState("");
@@ -154,9 +176,9 @@ export default function NoticesBoard({ isManagerUp, audienceCounts }: {
 
   // ★DP3 P1: 検索（件名・本文の部分一致・大文字小文字を無視）。**取得済み rows の絞り込みだけ**。
   const needle = q.trim().toLowerCase();
-  const shown = needle === ""
-    ? rows
-    : rows.filter((n) => n.title.toLowerCase().includes(needle) || n.body.toLowerCase().includes(needle));
+  const shown = rows
+    .filter((n) => audFilter === "" || n.audience === audFilter)
+    .filter((n) => needle === "" || n.title.toLowerCase().includes(needle) || n.body.toLowerCase().includes(needle));
 
   // ★DP3 P1（E8 notices#1 の LINE 非依存な1枚だけ）: 「今月の配信」KPI。
   //   ★**新規取得ゼロ**＝取得済み rows の created_at を JST の年月で数え直すだけ。
@@ -195,19 +217,58 @@ export default function NoticesBoard({ isManagerUp, audienceCounts }: {
       </div>
       <Toast msg={msg} />
 
-      {/* ★DP3 P1: KPI 帯（モックは4枚だが**出せるのは1枚だけ**）。
-          LINE連携・平均既読率・未連携は実績データが無い＝T3（LINE レーン）で消化＝ここには出さない。 */}
+      {/* ★DP-R: モック冒頭の案内帯（LINE を基本に配信・連携管理への導線）。
+          LINE 連携そのものが未実装＝ボタンは押せない状態で置く（準備中と明記）。 */}
+      <div className="nox-alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <span>
+          お知らせはこの画面に掲載され、スタッフ・キャストのマイページに表示されます。
+          <b>LINE 通知とメール送信は{SOON}です</b>（掲載は今すぐ使えます）。
+        </span>
+        <button style={{ ...btnLight, opacity: 0.45 }} disabled title={`LINE 連携は${SOON}です`}>LINE連携を管理</button>
+      </div>
+
+      {/* ★DP-R: KPI 帯4枚＝モック逐語の並び（LINE連携／今月の配信／平均既読率／未連携）。
+          出せるのは「今月の配信」だけ＝**残り3枚は「—」＋準備中**で置く（器は作るが数字は作らない）。 */}
       <div className="nox-kpirow">
         <div className="nox-kpi2">
-          <div className="nox-kpi2-l">今月の掲載</div>
+          <div className="nox-kpi2-l">LINE連携</div>
+          <div className="nox-kpi2-v num">—</div>
+          <div className="nox-kpi2-s">{SOON}</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">今月の配信</div>
           <div className="nox-kpi2-v num">{postedThis}<small>件</small></div>
           <div className="nox-kpi2-s">前月 {postedPrev}件</div>
         </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">平均既読率</div>
+          <div className="nox-kpi2-v num">—</div>
+          <div className="nox-kpi2-s">{SOON}</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">未連携</div>
+          <div className="nox-kpi2-v num">—</div>
+          <div className="nox-kpi2-s">{SOON}</div>
+        </div>
       </div>
 
+      {/* ★DP-R: モック .workspace ＝ 左「お知らせを作成」／右「LINEプレビュー＋よく使うテンプレート」の
+          2カラム（minmax(620px,1.35fr) minmax(310px,.65fr) ≒ 既存 .nox-2col。新クラスは作らない）。 */}
       {isManagerUp && (
+      <div className="nox-2col">
         <section className="nox-panel">
-          <h3>お知らせを投稿</h3>
+          <h3>お知らせを作成</h3>
+          <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "-4px 0 10px" }}>
+            配信前に対象とプレビューを確認できます。
+          </p>
+          {/* カテゴリ＝モックに在るが notices に列が無い＝選ばせない（準備中） */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+            <span style={t.fieldLabel}>カテゴリ</span>
+            <span className="nox-chip" style={{ opacity: 0.5 }}>{SOON}</span>
+            {CATEGORIES.map((c) => (
+              <span key={c} className="nox-chip" style={{ opacity: 0.35 }}>{c}</span>
+            ))}
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {/* ★DP3 P1: 定型文（定数のみ・選ぶと件名/本文を流し込むだけ＝RPC も引数も不変） */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -290,24 +351,112 @@ export default function NoticesBoard({ isManagerUp, audienceCounts }: {
                 <button key={v} style={v === fUntilSeg ? btnDark : btnLight} onClick={() => setFUntilSeg(v)}>{l}</button>
               ))}
             </div>
+            {/* ★DP-R: 通知方法（モック .methods）＝LINE/メールとも実装が無い＝チェックできない状態で置く。
+                「お知らせ一覧の先頭に固定」だけは pinned 列があるので**上のピン留めが実体**＝ここには重ねない。 */}
             <div>
-              <button style={{ ...btnDark, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={post}>投稿</button>
+              <span style={t.fieldLabel}>通知方法</span>
+              <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+                <label style={{ ...chkLabel, opacity: 0.5, cursor: "not-allowed" }}>
+                  <input type="checkbox" checked={false} disabled readOnly />
+                  LINE通知を送る<span style={{ fontSize: 10.5, color: "var(--v2-muted)", marginLeft: 6 }}>（{SOON}）</span>
+                </label>
+                <label style={{ ...chkLabel, opacity: 0.5, cursor: "not-allowed" }}>
+                  <input type="checkbox" checked={false} disabled readOnly />
+                  スタッフへメールも送信<span style={{ fontSize: 10.5, color: "var(--v2-muted)", marginLeft: 6 }}>（{SOON}）</span>
+                </label>
+                <label style={{ ...chkLabel, opacity: 0.5, cursor: "not-allowed" }}>
+                  <input type="checkbox" checked={false} disabled readOnly />
+                  「確認しました」の回答を求める<span style={{ fontSize: 10.5, color: "var(--v2-muted)", marginLeft: 6 }}>（{SOON}）</span>
+                </label>
+              </div>
+            </div>
+            {/* ★DP-R: 配信タイミング（モック .timing）＝notices に status も配信予約も無い。
+                実体があるのは「今すぐ掲載」だけ＝それだけを選択済み固定で見せ、他は押せない。 */}
+            <div>
+              <span style={t.fieldLabel}>掲載タイミング</span>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                <button type="button" style={btnDark} aria-pressed>今すぐ掲載</button>
+                <button type="button" style={{ ...btnLight, opacity: 0.45 }} disabled title={`予約掲載は${SOON}です`}>日時を予約（{SOON}）</button>
+                <button type="button" style={{ ...btnLight, opacity: 0.45 }} disabled title={`下書き保存は${SOON}です`}>下書き保存（{SOON}）</button>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              {/* ★投稿は**確認モーダルを挟む**（モック `publishConfirm`）＝送る RPC・引数は不変 */}
+              <button style={{ ...btnDark, opacity: busy ? 0.6 : 1 }} disabled={busy}
+                onClick={() => { if (!fTitle.trim() || !fBody.trim()) { setMsg("件名と本文を入力してください"); return; } setConfirmOpen(true); }}>
+                内容を確認して掲載
+              </button>
+              <button style={btnLight} onClick={() => { setFTitle(""); setFBody(""); }}>入力をクリア</button>
             </div>
           </div>
         </section>
+
+        {/* 右カラム＝LINEプレビュー＋よく使うテンプレート（モック .workspace の右） */}
+        <div style={{ display: "grid", gap: 14 }}>
+          <section className="nox-panel">
+            <h3>LINEプレビュー</h3>
+            <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "-4px 0 10px" }}>
+              受信者に表示されるイメージです。<b>実際の送信は{SOON}</b>＝この画面から LINE は送られません。
+            </p>
+            {/* モック .bubble（白背景の吹き出し）＝配色は固定値でよい＝LINE 画面の再現だから */}
+            <div style={{ background: "#0d0d0c", border: "1px solid var(--line)", borderRadius: 10, padding: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--goldface2)",
+                  color: "var(--champ)", display: "grid", placeItems: "center", fontSize: 10, fontWeight: 800 }}>N</span>
+                <b style={{ fontSize: 11.5 }}>{storeName ?? "店舗"}</b>
+              </div>
+              <div style={{ background: "#fff", color: "#242424", borderRadius: "4px 12px 12px 12px",
+                padding: 11, fontSize: 11.5, lineHeight: 1.75, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                <b>{fTitle.trim() || "お知らせの件名"}</b>
+                <br />
+                {fBody.trim() || "本文を入力すると、ここに通知の見え方が表示されます。"}
+              </div>
+              <p style={{ fontSize: 10, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
+                公開範囲「{AUD_LABEL[fAud] ?? fAud}」に掲載されます。
+                {fAud === "staff" ? "キャストには表示されません。" : ""}
+              </p>
+            </div>
+          </section>
+
+          <section className="nox-panel">
+            <h3>よく使うテンプレート</h3>
+            <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "-4px 0 8px" }}>押すと件名・本文に下書きが入ります。</p>
+            {TEMPLATES.map((x) => (
+              <button key={x.key} type="button" className="nox-listrow"
+                style={{ width: "100%", textAlign: "left", cursor: "pointer", background: "transparent",
+                  border: 0, borderBottom: "1px solid var(--line)", fontFamily: "inherit", color: "var(--ink)" }}
+                onClick={() => { setFTitle(x.title); setFBody(x.body); }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <b style={{ fontSize: 12.5 }}>{x.label}</b>
+                  <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>{x.title}</span>
+                </span>
+              </button>
+            ))}
+          </section>
+        </div>
+      </div>
       )}
 
       <section className="nox-panel">
         <h3>お知らせ一覧</h3>
+        <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "-4px 0 10px" }}>
+          掲載中のお知らせ。既読・確認回答の追跡は{SOON}です。
+        </p>
         {/* ★DP3 P1（E8 notices#8）: 検索＝取得済み rows の client フィルタのみ（取得も RLS も不変）。
-            ★状態フィルタ（配信済/予約/下書き）は出さない＝notices に status が無い（T3/T6 で消化）。 */}
+            ★DP-R: モックのフィルタは「すべて／配信済み／予約／下書き」だが notices に status が無い＝
+              **同じ位置に実体のある軸（公開範囲）を置く**（教訓25＝無い状態を UI で作らない）。 */}
         <div className="nox-ctoolbar" style={{ marginBottom: 10 }}>
+          <div className="nox-seg">
+            {([["", "すべて"], ...AUD_OPTIONS] as Array<[string, string]>).map(([v, l]) => (
+              <button key={v || "all-f"} className={audFilter === v ? "on" : ""} onClick={() => setAudFilter(v)}>{l}</button>
+            ))}
+          </div>
           <input
             value={q} onChange={(e) => setQ(e.target.value)}
             placeholder="件名・本文で検索" aria-label="お知らせを検索"
             style={{ ...input, width: 220 }}
           />
-          {needle !== "" && (
+          {(needle !== "" || audFilter !== "") && (
             <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>
               <span className="num">{shown.length}</span> / {rows.length} 件
             </span>
@@ -364,6 +513,12 @@ export default function NoticesBoard({ isManagerUp, audienceCounts }: {
             </div>
             <p className="nox-nbody">{n.body}</p>
             {n.until && <p className="num" style={{ fontSize: 11, color: "var(--v2-muted)", margin: "3px 0 0" }}>掲載期限 {n.until}</p>}
+            {/* ★DP-R: モック一覧行の「既読 10/10名・確認済み 9/10名」＝**既読ログが無い**（notices 1テーブルのみ）。
+                器だけ同じ位置に置き、値は「—」＝数字を作らない。 */}
+            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "3px 0 0" }}>
+              既読 <span className="num">—</span> ・ 確認済み <span className="num">—</span>
+              <span style={{ marginLeft: 6 }}>（{SOON}）</span>
+            </p>
             {isManagerUp && (
               <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                 <button style={btnLight} onClick={() => startEdit(n)}>編集</button>
@@ -373,6 +528,35 @@ export default function NoticesBoard({ isManagerUp, audienceCounts }: {
           </div>
         ))}
       </section>
+
+      {/* ★DP-R: 掲載の確認（モック publishConfirm）。ここで初めて notice_create を呼ぶ＝
+          送る RPC・引数・バリデーションは DP3 のまま1文字も変えていない（一段挟むだけ）。 */}
+      {confirmOpen && (
+        <Modal onClose={() => setConfirmOpen(false)}>
+          <div className="nox-modalhead">
+            <h3 id="notice-confirm-h" style={{ margin: 0, fontSize: 16 }}>お知らせの掲載確認</h3>
+          </div>
+          <div className="nox-modalbody">
+            <div className="nox-listrow"><span style={{ flex: 1 }}>公開範囲</span>
+              <b>{AUD_LABEL[fAud] ?? fAud}<span className="num" style={{ marginLeft: 6 }}>{nOr(audCount[fAud] ?? null)}名</span></b></div>
+            <div className="nox-listrow"><span style={{ flex: 1 }}>掲載タイミング</span><b>今すぐ</b></div>
+            <div className="nox-listrow"><span style={{ flex: 1 }}>掲載期限</span>
+              <b className="num">{fUntilSeg === 0 ? "期限なし" : addDays(bizToday, fUntilSeg)}</b></div>
+            <div className="nox-listrow"><span style={{ flex: 1 }}>ピン留め</span><b>{fPinned ? "する" : "しない"}</b></div>
+            <div className="nox-listrow" style={{ opacity: 0.6 }}>
+              <span style={{ flex: 1 }}>LINE通知 / メール</span><b>{SOON}（送信しません）</b>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
+              掲載すると、対象のマイページとこの一覧に表示されます。オーナー・店長は公開範囲にかかわらず閲覧できます。
+            </p>
+          </div>
+          <div className="nox-modalfoot">
+            <button style={btnLight} onClick={() => setConfirmOpen(false)}>戻る</button>
+            <button style={{ ...btnDark, opacity: busy ? 0.6 : 1 }} disabled={busy}
+              onClick={async () => { setConfirmOpen(false); await post(); }}>この内容で掲載</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
