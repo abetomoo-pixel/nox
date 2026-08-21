@@ -1974,3 +1974,48 @@ body {
   .nox-print-page:last-child { break-after: auto; page-break-after: auto; }
   .nox-print-page:last-child .nox-payslip { margin-bottom: 0 !important; } /* 最終スリップ直後の 8mm が溢れて白紙1枚を生むのを止める */
 }
+
+/* ═══ R3 第1弾（2026-08-21・Agoora 裁定）: タイポ・余白のモック実値写し ═══
+   対象は /shift と /notices の2枚だけ（全画面展開は Agoora 目視合格後）＝
+   ルート要素に `.nox-mv1` を付けた配下にのみ効かせる。共有クラス
+   （.nox-kpirow/.nox-kpi2/.nox-table/.nox-cardtop/.nox-panel）は他画面が使うため
+   **素の定義は一切変えない**＝ここは追加の上書きだけ。
+
+   ★DP2-①（余白はスケールが成立しないためトークン化を見送る）とは**別件**:
+     あちらは「共通の段階値を作るか」の判断、こちらは「モックの実値をその画面へ写すか」。
+     よって変数化せず**数値を直に書く**（写した元をコメントで示す）。
+
+   写した元（実測・mock/pages-2026-08）:
+     nox-shift-management.html
+       .kpis{gap:12px;margin-bottom:16px}  .kpi{padding:15px 17px}
+       .kpi small{font-size:10px;letter-spacing:.08em}  .kpi strong{font-size:22px;margin-top:4px}
+       .kpi .mini{font-size:11px;margin-top:7px}
+       .table th,.table td{padding:12px 14px}
+       .cardhead{min-height:62px;padding:15px 18px}  .cardhead h2{font-size:15px;font-weight:650}
+       .cardhead p{font-size:11px;margin:2px 0 0}
+       .pagehead h1{font-size:26px;margin:0 0 4px;font-weight:650}
+       .card{border-radius:11px}
+     nox-announcement-management.html（お知らせは一回り小さい設計）
+       .kpis{gap:10px;margin-bottom:11px}  .kpi{padding:14px 15px;min-height:88px}
+       .kpi strong{font-size:21px;margin-top:3px}  .cardhead h2{font-size:13px}
+   ─────────────────────────────────────────────────────────── */
+.nox-mv1 .nox-kpirow { gap: 12px; margin-bottom: 16px; }          /* was 9px / 13px */
+.nox-mv1 .nox-kpi2 { padding: 15px 17px; border-radius: 11px; }   /* was 11px 12px / 13px */
+.nox-mv1 .nox-kpi2-l { font-size: 10px; letter-spacing: .08em; }  /* was 11px / なし */
+.nox-mv1 .nox-kpi2-v { font-size: 22px; margin-top: 4px; }        /* was 21px / 3px */
+.nox-mv1 .nox-kpi2-s { font-size: 11px; margin-top: 7px; }        /* was 11px / 2px */
+/* 表の行高＝モックの .table th,.table td（見やすさの主因） */
+.nox-mv1 .nox-table th { padding: 12px 14px; }                     /* was 10px 12px 相当 */
+.nox-mv1 .nox-table td { padding: 12px 14px; }                     /* was 11px 12px */
+/* カード padding＝モック .cardhead の 15px 18px に合わせる（カード本体の内側余白） */
+.nox-mv1 .nox-cardtop { padding: 15px 18px; border-radius: 11px; }
+.nox-mv1 .nox-panel { padding: 15px 18px; border-radius: 11px; }
+/* 見出し＝モック .cardhead h2 / .pagehead h1 */
+.nox-mv1 .nox-cardtop > h2,
+.nox-mv1 .nox-panel > h3 { font-size: 15px; font-weight: 650; }
+.nox-mv1 .nox-hero h1 { font-size: 26px; margin: 0 0 4px; font-weight: 650; }
+/* /notices は一回り小さい設計＝KPI 数字と見出しだけ announcement の実値へ戻す */
+.nox-mv1.nox-mv1-sm .nox-kpirow { gap: 10px; margin-bottom: 11px; }
+.nox-mv1.nox-mv1-sm .nox-kpi2 { padding: 14px 15px; min-height: 88px; }
+.nox-mv1.nox-mv1-sm .nox-kpi2-v { font-size: 21px; margin-top: 3px; }
+.nox-mv1.nox-mv1-sm .nox-panel > h3 { font-size: 13px; }

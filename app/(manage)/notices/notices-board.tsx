@@ -205,7 +205,9 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName }:
   const nOr = (v: number | null) => (v == null ? "—" : String(v));
 
   return (
-    <div>
+    // ★R3 第1弾: タイポ・余白のモック実値写し（.nox-mv1）。お知らせは announcement 実測が
+    //   一回り小さい設計のため .nox-mv1-sm を併用する。
+    <div className="nox-mv1 nox-mv1-sm">
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
       <div className="nox-hero">
         <div>
