@@ -410,23 +410,57 @@ export default function CastsBoard({
         </div>
       )}
 
-      {/* 登録フォーム（トグル）＝送る RPC も引数も現行のまま（体入=trial_register／本登録=cast_create） */}
+      {/* ★DP1 P3（裁定 DP1-⑨・E8 casts#9）: 登録フローをモック `castDialog` 準拠の**モーダルへ集約**した。
+          旧＝一覧の上にインラインの section をトグル表示（横1列の flex フォーム）。
+          新＝モーダル（modalhead＋modalbody＋formgrid＋actions）＋**登録後にやることを同じ面に集約**。
+          ★送る RPC も引数も現行のまま（体入=trial_register／本登録=cast_create）＝器を変えただけ。
+          ★写真・待遇プラン・ログイン招待は**登録の送信には含めない**（＝機能不変）。
+            モックは1フォームに畳んでいるが、NOX では
+              - 写真   … Storage（段P）へのアップロード＝別 authz（storage.objects ポリシー3本）
+              - プラン … /master/cast-comp/plan の cast_plan 割当
+              - 招待   … POST /api/cast/invite（PW 一度だけ表示）
+            と**それぞれ authz と経路が違う**うえ、同じフォームを trial_hire 経路も共有している
+            （E8-5 が casts#9 を「誤操作リスク＞見た目の利得」でスキップした理由がここ）。
+            そこで**集約は「1つの面に順序として見せる」ところまで**とし、実行は既存の操作のまま残す。 */}
       {showAdd && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>{filter === "trial" ? "体入を追加" : "新規キャスト登録"}</h2>
-          <p style={{ ...t.sub, margin: "0 0 10px" }}>
-            {filter === "trial"
-              ? "体入として登録します（本採用でキャストに登録されます）。"
-              : "体入を経ずに直接登録します（実績はゼロから）。"}
-          </p>
-          <RegisterForm
-            key={filter} stores={stores} isOwner={isOwner} myStoreId={myStoreId} busy={busy}
-            withTrialFields={filter === "trial"}
-            onSubmit={(a) => filter === "trial"
-              ? rpc("体入を登録", "trial_register", a)
-              : rpc("キャストを登録", "cast_create", a)}
-          />
-        </section>
+        <Modal onClose={() => { if (!busy) setShowAdd(false); }} maxWidth={560} scroll>
+          <div className="nox-modalhead">
+            <h3 style={{ ...secTitle, margin: 0 }}>{filter === "trial" ? "体入を追加" : "キャストを登録"}</h3>
+            <button type="button" style={{ ...btnGhost, padding: "2px 10px" }}
+              disabled={busy} onClick={() => setShowAdd(false)}>×</button>
+          </div>
+          <div className="nox-modalbody">
+            <p style={{ ...t.sub, margin: "0 0 14px", lineHeight: 1.7 }}>
+              {filter === "trial"
+                ? "体入として登録します（本採用でキャストに登録されます）。"
+                : "体入を経ずに直接登録します（実績はゼロから）。"}
+            </p>
+            <RegisterForm
+              key={filter} stores={stores} isOwner={isOwner} myStoreId={myStoreId} busy={busy}
+              withTrialFields={filter === "trial"}
+              onSubmit={(a) => filter === "trial"
+                ? rpc("体入を登録", "trial_register", a)
+                : rpc("キャストを登録", "cast_create", a)}
+            />
+            {/* ★登録後にやること＝モックが同じフォームに置いている3項目の「行き先」を同じ面に集約する。
+                ここでは**何も送らない**（案内のみ）。実行は登録後に一覧からそのキャストを選んで行う。 */}
+            <div className="nox-inset" style={{ padding: "12px 14px", marginTop: 18 }}>
+              <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>
+                登録した後に設定する項目
+              </p>
+              <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, color: "var(--sub)", lineHeight: 1.9 }}>
+                <li><b style={{ color: "var(--v2-text)" }}>プロフィール写真</b>：一覧でそのキャストを選び「写真」から設定します（任意）。</li>
+                <li><b style={{ color: "var(--v2-text)" }}>ランク</b>：一覧のランク欄から設定します（指名料に反映されます）。</li>
+                <li>
+                  <b style={{ color: "var(--v2-text)" }}>待遇プラン</b>：
+                  <Link href="/master/cast-comp/plan" style={{ color: "var(--gold2)" }}>マスタ ▸ 待遇プラン</Link>
+                  で割り当てます。
+                </li>
+                <li><b style={{ color: "var(--v2-text)" }}>ログイン招待</b>：一覧の「招待」からアカウントを発行します（初期パスワードは一度だけ表示）。</li>
+              </ol>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* カードグリッド（モック .cards）＝写真・名前・状態・月次2数値だけ。機微情報は出さない。 */}
@@ -876,36 +910,52 @@ function RegisterForm({
     if (ok) { setName(""); setRealName(""); setBirthday(""); setTrialDate(""); setTier("体入"); }
   }
 
+  // ★DP1 P3（裁定 DP1-⑨）: モック castDialog の `.formgrid`（2カラム・`.field` / `.field.full`）へ。
+  //   ★フィールドの集合・検証・送る RPC と引数は**1文字も変えていない**（上の submit() は不触）。
+  //     変えたのは並べ方だけ＝横1列の flex → 2カラムの格子（既存部品 .nox-field2 / .nox-field）。
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-      {isOwner && stores.length > 1 && (
-        <label style={lbl}>配属店<br />
-          <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={input}>
-            {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+    <div>
+      <div className="nox-field2">
+        {isOwner && stores.length > 1 && (
+          <div className="nox-field full">
+            <span className="lab">配属店</span>
+            <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={{ ...input, width: "100%" }}>
+              {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="nox-field">
+          <span className="lab">源氏名<span className="req">*</span></span>
+          <input value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: "100%" }} maxLength={80} />
+          <span className="hint">一覧・レジ・シフトに出る表示名です。</span>
+        </div>
+        <div className="nox-field">
+          <span className="lab">本名</span>
+          <input value={realName} onChange={(e) => setRealName(e.target.value)} style={{ ...input, width: "100%" }} maxLength={80} />
+          <span className="hint">画面には出しません（機密・税務情報の扱い）。</span>
+        </div>
+        <div className="nox-field">
+          <span className="lab">生年月日<span className="req">*</span></span>
+          <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} style={{ ...input, width: "100%" }} />
+        </div>
+        <div className="nox-field">
+          <span className="lab">区分</span>
+          <select value={tier} onChange={(e) => setTier(e.target.value)} style={{ ...input, width: "100%" }}>
+            {TIERS.map((x) => <option key={x} value={x}>{x}</option>)}
           </select>
-        </label>
-      )}
-      <label style={lbl}>源氏名（表に表示）<br />
-        <input value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 130 }} maxLength={80} />
-      </label>
-      <label style={lbl}>本名（非表示）<br />
-        <input value={realName} onChange={(e) => setRealName(e.target.value)} style={{ ...input, width: 130 }} maxLength={80} />
-      </label>
-      <label style={lbl}>生年月日<br />
-        <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} style={input} />
-      </label>
-      <label style={lbl}>区分<br />
-        <select value={tier} onChange={(e) => setTier(e.target.value)} style={input}>
-          {TIERS.map((x) => <option key={x} value={x}>{x}</option>)}
-        </select>
-      </label>
-      {withTrialFields && (
-        <label style={lbl}>体入日<br />
-          <input type="date" value={trialDate} onChange={(e) => setTrialDate(e.target.value)} style={input} />
-        </label>
-      )}
-      <button style={btnGold} disabled={busy} onClick={() => void submit()}>{withTrialFields ? "追加" : "登録する"}</button>
-      {err && <span style={{ ...t.bad, fontSize: 12 }}>{err}</span>}
+        </div>
+        {withTrialFields && (
+          <div className="nox-field">
+            <span className="lab">体入日</span>
+            <input type="date" value={trialDate} onChange={(e) => setTrialDate(e.target.value)} style={{ ...input, width: "100%" }} />
+          </div>
+        )}
+      </div>
+      {err && <p style={{ ...t.bad, fontSize: 12, margin: "0 0 10px" }}>{err}</p>}
+      {/* モック `.actions`＝右寄せのフッタ（主ボタン1つ） */}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 17 }}>
+        <button style={btnGold} disabled={busy} onClick={() => void submit()}>{withTrialFields ? "追加" : "登録する"}</button>
+      </div>
     </div>
   );
 }

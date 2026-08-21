@@ -471,6 +471,10 @@ body {
 .nox-field .req { color: var(--gold2); margin-left: 3px; }
 .nox-field .hint { display: block; font-size: 11.5px; color: var(--sub); margin-top: 6px; line-height: 1.65; }
 .nox-field2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+/* ★DP1 P3（2026-08-21・裁定 DP1-⑨）: モック `.formgrid` の `.field.full`（`grid-column:1/-1`）に対応する
+   全幅フィールド。`.nox-field2` は E3/E4 で入れた 2カラムのフォーム格子＝モックの `.formgrid` と同型で、
+   足りなかったのは「1件だけ横いっぱいに置く」修飾子だけだった（新しい格子は作らない）。 */
+.nox-field2 > .full { grid-column: 1 / -1; }
 @media (max-width: 480px) { .nox-field2 { grid-template-columns: 1fr; } }
 
 /* 保存後のフィードバック: 該当行を一瞬だけ金でハイライト（トーストより強い） */
