@@ -701,6 +701,66 @@ export default function AnalyticsBoard({
               </>
             )}
           </section>
+
+          {/* ★B4-4（DP-R 監査の欠落解消）: モック nox-analytics-dashboard の「注目ポイント」カード。
+              ★自動インサイト生成（analytics #6）は**後送り裁定済み**＝文章を機械で書く部分は作らない。
+                ここに出すのは**既に画面が計算している数字の言い換えだけ**（新しい集計も新しい取得もゼロ）:
+                  ・最も大きい売上カテゴリとその構成比（catSums）
+                  ・指名料の内訳（catSums.nomFee）
+                  ・離反リスクの人数（segs＝顧客サマリの既存区分）
+                いずれも同じ画面の別カードに出ている数字で、**評価や推奨は書かない**
+                （「伸長」「好調」「推奨します」はデータからは出てこない＝モックの文言は借りない）。 */}
+          <section className="nox-panel">
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h3 style={{ margin: 0 }}>注目ポイント</h3>
+              <span className="nox-stpill" style={{ marginLeft: "auto" }}>自動コメントは準備中</span>
+            </div>
+            {catRows === null ? <p style={noneP}>読み込み中…</p> : catSums.total === 0 ? (
+              <p style={noneP}>この月の会計済み伝票がありません。</p>
+            ) : (() => {
+              const top = CATEGORY_ORDER
+                .map((k) => [k, catSums.cats[k]] as const)
+                .sort((x, y) => y[1] - x[1])[0];
+              const pct = Math.round((top[1] / catSums.total) * 1000) / 10;
+              const nom = catSums.nomFee.hon + catSums.nomFee.jonai + catSums.nomFee.dohan;
+              const risk = segs.filter((g) => g.k.startsWith("離反リスク")).reduce((n, g) => n + g.rows.length, 0);
+              return (
+                <>
+                  <div className="nox-listrow">
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      いちばん大きい売上
+                      <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>5分類のうち構成比が最大のもの</span>
+                    </span>
+                    <b>{CATEGORY_LABEL[top[0]]}</b>
+                    <b className="num">{yen(top[1])}（{pct}%）</b>
+                  </div>
+                  <div className="nox-listrow">
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      指名料の合計
+                      <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
+                        本 {yen(catSums.nomFee.hon)} ／ 場内 {yen(catSums.nomFee.jonai)} ／ 同伴 {yen(catSums.nomFee.dohan)}
+                      </span>
+                    </span>
+                    <b className="num">{yen(nom)}</b>
+                  </div>
+                  <div className="nox-listrow">
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      しばらく来ていないお客様
+                      <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>30日以上・60日以上の合計（顧客ビューに内訳）</span>
+                    </span>
+                    <b className="num" style={risk > 0 ? { color: "var(--bad)" } : undefined}>
+                      {custSummary === null ? "—" : `${risk}名`}
+                    </b>
+                    <button style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setView("customers")}>顧客を見る</button>
+                  </div>
+                  <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
+                    ここに出しているのは<b>同じ画面の数字の言い換え</b>です。
+                    「伸びています」「好調です」といった評価コメントの自動生成は準備中です。
+                  </p>
+                </>
+              );
+            })()}
+          </section>
         </div>
       </div>
       )}

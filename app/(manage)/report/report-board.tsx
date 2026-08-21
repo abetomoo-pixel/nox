@@ -589,6 +589,87 @@ export default function ReportBoard({
 
       {/* 締めは manager 以上のみ（RPC 側も owner/manager 強制＝二重） */}
       {isManagerUp && (
+        <>
+        {/* ★B4-3（DP-R 監査の欠落解消）: モック nox-daily-report の「営業サマリー」カード。
+            ★新規取得はゼロ＝すべて既存 Preview の再形（newCust/repeatCust/hon/dohan/bottlesOpened/
+              avgStayMin/workedCasts/discount は E8-2 #2 で既に集計済み）。
+            ★モックの「延長率」「新規キープ本数」「場内本数」は**この画面の集計に無い**＝出さない（教訓25）。 */}
+        {preview && (
+        <section className="nox-panel">
+          <h3>営業サマリー</h3>
+          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "-4px 0 10px" }}>店舗運営とキャスト実績（{bizDate}・締め前のライブ集計）</p>
+          <div className="nox-repsum" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+            <div className="nox-rs"><div className="l">新規客</div><div className="v num">{preview.newCust}<small>組</small></div></div>
+            <div className="nox-rs"><div className="l">リピート客</div><div className="v num">{preview.repeatCust}<small>組</small></div></div>
+            <div className="nox-rs"><div className="l">本指名</div><div className="v num">{preview.hon}<small>組</small></div></div>
+            <div className="nox-rs"><div className="l">同伴</div><div className="v num">{preview.dohan}<small>組</small></div></div>
+            <div className="nox-rs"><div className="l">ボトル開栓</div><div className="v num">{preview.bottlesOpened}<small>本</small></div></div>
+            <div className="nox-rs">
+              <div className="l">平均滞在</div>
+              <div className="v num">{preview.avgStayMin == null ? "—" : `${preview.avgStayMin}`}<small>分</small></div>
+            </div>
+            <div className="nox-rs"><div className="l">出勤キャスト</div><div className="v num">{preview.workedCasts}<small>名</small></div></div>
+            <div className="nox-rs">
+              <div className="l">値引き</div>
+              <div className="v num" style={preview.discount > 0 ? { color: "var(--bad)" } : undefined}>{yen(preview.discount)}</div>
+            </div>
+          </div>
+          <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
+            新規／リピートは<b>顧客登録のある組</b>で判定します（未登録の組は新規に数えます）。
+            確定値は締め時のサーバ再集計が正です。
+          </p>
+        </section>
+        )}
+
+        {/* ★B4-3: モックの「現金照合」カード。★下の締めフォームと**同じ値の内訳表示**＝
+            state も入力欄も増やさない（レジ内予定額の式は締めチェックと同一の1本）。 */}
+        {preview && (
+        <section className="nox-panel">
+          <h3>現金照合</h3>
+          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "-4px 0 10px" }}>レジ内の現金と帳簿残高を照合（金額は下の「締め」の入力に連動します）</p>
+          {(() => {
+            const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout;
+            const diffLive = counted === "" ? null : Number(counted) - expected;
+            return (
+              <>
+                <div className="nox-listrow"><span style={{ flex: 1 }}>釣銭準備金</span><b className="num">{yen(cashFloat)}</b></div>
+                <div className="nox-listrow"><span style={{ flex: 1 }}>現金売上</span><b className="num" style={{ color: "var(--ok)" }}>＋ {yen(preview.cash)}</b></div>
+                <div className="nox-listrow"><span style={{ flex: 1 }}>売掛の回収（現金）</span><b className="num" style={{ color: "var(--ok)" }}>＋ {yen(preview.arCollectedToday)}</b></div>
+                <div className="nox-listrow"><span style={{ flex: 1 }}>諸経費</span><b className="num" style={{ color: "var(--bad)" }}>− {yen(expense)}</b></div>
+                <div className="nox-listrow"><span style={{ flex: 1 }}>現金支払（送り・日払い等）</span><b className="num" style={{ color: "var(--bad)" }}>− {yen(payout)}</b></div>
+                <div className="nox-listrow" style={{ borderTop: "1px solid var(--line)" }}>
+                  <span style={{ flex: 1, fontWeight: 800 }}>レジ内予定額</span><b className="num" style={{ fontSize: 15 }}>{yen(expected)}</b>
+                </div>
+                <div className="nox-listrow">
+                  <span style={{ flex: 1 }}>実査現金（数えた現金）</span>
+                  <b className="num">{counted === "" ? "未入力" : yen(Number(counted))}</b>
+                </div>
+                <div className="nox-listrow">
+                  <span style={{ flex: 1, fontWeight: 800 }}>実査差</span>
+                  <b className="num" style={{ fontSize: 15, color: diffLive == null ? "var(--sub)" : diffLive === 0 ? "var(--ok)" : "var(--bad)" }}>
+                    {diffLive == null ? "—" : diffLive === 0 ? "±0" : `${diffLive > 0 ? "+" : "−"}${yen(Math.abs(diffLive))}`}
+                  </b>
+                </div>
+              </>
+            );
+          })()}
+        </section>
+        )}
+
+        {/* ★B4-3: モックの「売上ランキング（キャスト別）」。★この画面はキャスト別売上を**取得していない**
+            （checks / payments / check_lines / bottle_keeps / attendance / ar_collections のみ）。
+            器だけ置き、実データのある「分析」画面へ送る＝ここで新しい集計を作らない（教訓25）。 */}
+        <section className="nox-panel">
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <h3 style={{ margin: 0 }}>売上ランキング（キャスト別）</h3>
+            <span className="nox-stpill" style={{ marginLeft: "auto" }}>準備中</span>
+          </div>
+          <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.8 }}>
+            この画面ではキャスト別の売上を集計していません。
+            <a href="/analytics" style={{ color: "var(--gold2)" }}>分析</a>の「売上貢献ランキング」でご確認ください。
+          </p>
+        </section>
+
         <section className="nox-panel">
           <h3>締め（{bizDate}）</h3>
           {/* E8-2 #6: 締めチェック縮小版3項目（既存データのみ・新規取得ゼロ・ボトル期限は後送り裁定どおり） */}
@@ -656,6 +737,7 @@ export default function ReportBoard({
             <button style={btnDark} onClick={closeDay}>締め確定</button>
           </div>
         </section>
+        </>
       )}
 
       {/* E8-2 #5: 金種カウンタ・モーダル（9金種＝2千円札は除外・合計→実査欄へ反映） */}
