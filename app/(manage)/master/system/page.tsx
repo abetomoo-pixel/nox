@@ -46,6 +46,21 @@ export default async function MasterSystemPage() {
   const { data: casts } = await supabase
     .from("casts").select("id, name, user_id").eq("store_id", storeId).eq("is_active", true).order("name");
 
+  // ★DP-R 第3弾（教訓26＝構造照合）: モックの KPI帯4枚。**数えられるものだけ数える**。
+  //   ・登録端末: kiosk_devices は **deny-all**（owner でも直 SELECT 不可・管理用の読み口は
+  //     /api/kiosk/provision の GET だけ＝mig0043）＝server では数えられない → 「—」。
+  //   ・操作担当PIN: staff_pin も **deny-all**＝「設定済みか」は読めない。数えられるのは
+  //     **対象人数**（owner/manager/staff(can_register)＝set_staff_pin の bad target 条件と同一）だけ。
+  //     ★そのためラベルは「PIN設定済み」ではなく「操作担当PIN 対象」＝読めない数を作らない。
+  //   ・プリンタ: settings_json.printer_enabled が実体（printer-panel と同じキー）。
+  //   ・要確認（セキュリティ）: 該当する集計が無い → 「—」＋準備中。
+  const { data: mems } = await supabase
+    .from("memberships").select("role, can_register, is_active");
+  const pinTargets = (mems ?? []).filter(
+    (m) => m.is_active && (m.role === "owner" || m.role === "manager" || (m.role === "staff" && m.can_register)),
+  ).length;
+  const printerOn = sj?.printer_enabled === true;
+
   const tabs: SystemTab[] = [];
   if (isOwner) {
     tabs.push({
@@ -84,6 +99,28 @@ export default async function MasterSystemPage() {
         title="スタッフ・システム"
         desc="店舗端末、操作権限、印刷、機密情報を管理します。"
       />
+      <div className="nox-kpirow">
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">登録端末</div>
+          <div className="nox-kpi2-v num">—</div>
+          <div className="nox-kpi2-s">「キオスク端末」タブで確認</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">操作担当PIN 対象</div>
+          <div className="nox-kpi2-v num">{pinTargets}<small>名</small></div>
+          <div className="nox-kpi2-s">設定済みかは確認できません</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">プリンタ</div>
+          <div className="nox-kpi2-v num" style={{ fontSize: 18 }}>{printerOn ? "有効" : "無効"}</div>
+          <div className="nox-kpi2-s">{printerOn ? "レシート印刷が使えます" : "レシート印刷は使いません"}</div>
+        </div>
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">要確認</div>
+          <div className="nox-kpi2-v num">—</div>
+          <div className="nox-kpi2-s">準備中</div>
+        </div>
+      </div>
       <SystemBoard tabs={tabs} />
     </div>
   );

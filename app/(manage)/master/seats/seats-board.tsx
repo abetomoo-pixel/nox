@@ -20,6 +20,7 @@ export type Seat = { id: string; name: string; kind: string | null; sort_order: 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
+const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 
 export default function SeatsBoard({ storeId, isManagerUp, initial }: {
@@ -66,14 +67,28 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
       />
       <Toast msg={msg} />
 
-      <section className="nox-cardtop" style={card}>
-        <h2 id="m-seat" style={secTitle}>席（クリックで編集）</h2>
-        {/* E8-5 席#2（T1）: 席 KPI 4枚＝seats state の再形のみ */}
-        <div className="nox-repsum">
+      {/* ★DP-R 第3弾（教訓26＝構造照合）: モック nox-seat-table-settings の構造へ追随。
+          KPI帯4枚（カードの外）→「席一覧」カード（ツールバー＋表）→「席を編集/追加」カード（別カード）
+          →「席種カテゴリ」カード。★従来は**1カードに一覧と編集フォームが同居**していた。
+          ★分離は表示のみ＝state（sId/sName/sKind/sSort/sActive）も saveSeat の RPC・引数も不変。 */}
+      {/* E8-5 席#2（T1）: 席 KPI 4枚＝seats state の再形のみ */}
+      <div className="nox-repsum">
           <div className="nox-rs"><div className="l">総席数</div><div className="v num">{seats.length}</div></div>
           <div className="nox-rs"><div className="l">稼働可能</div><div className="v num">{seats.filter((s) => s.is_active).length}</div></div>
           <div className="nox-rs"><div className="l">無効</div><div className="v num">{seats.filter((s) => !s.is_active).length}</div></div>
-          <div className="nox-rs"><div className="l">VIP</div><div className="v num">{seats.filter((s) => s.kind === "VIP").length}</div></div>
+        <div className="nox-rs"><div className="l">VIP</div><div className="v num">{seats.filter((s) => s.kind === "VIP").length}</div></div>
+      </div>
+
+      <section className="nox-cardtop" style={card}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <div>
+            <h2 id="m-seat" style={{ ...secTitle, margin: 0 }}>席一覧</h2>
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>行をクリックすると下の「席を編集」に読み込まれます</p>
+          </div>
+          {isManagerUp && (
+            <button style={{ ...btnDark, marginLeft: "auto" }}
+              onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); }}>＋ 席を追加</button>
+          )}
         </div>
         {/* E8-5 席#5（T2）: 検索＋種別フィルタ（表示のみ） */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
@@ -100,9 +115,18 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
             ))}
           </tbody>
         </table>
-        {isManagerUp && (
+      </section>
+
+      {/* 編集カード（モック「VIP1 を編集」＝一覧とは別カード） */}
+      {isManagerUp && (
+        <section className="nox-cardtop" style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <h2 style={{ ...secTitle, margin: 0 }}>
+              {sId ? `${sName || "席"} を編集` : "席を追加"}
+            </h2>
+            <span className="nox-stpill" style={{ marginLeft: "auto" }}>{sId ? "編集中" : "新規"}</span>
+          </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "var(--sub)" }}>{sId ? "編集中" : "新規"}</span>
             <input placeholder="席名" value={sName} onChange={(e) => setSName(e.target.value)} style={{ ...input, width: 140 }} />
             <select value={sKind} onChange={(e) => setSKind(e.target.value)} style={input}>
               <option value="卓">卓</option><option value="カウンター">カウンター</option><option value="VIP">VIP</option>
@@ -114,8 +138,31 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
               有効
             </span>
             <button style={btnDark} onClick={saveSeat}>{sId ? "更新" : "登録"}</button>
+            {sId && (
+              <button style={btnLight}
+                onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); }}>やめる</button>
+            )}
           </div>
-        )}
+          <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
+            表示順はレジのフロア表示に使われます。「有効」を外した席は開卓できなくなります（過去の伝票は残ります）。
+          </p>
+        </section>
+      )}
+
+      {/* 席種カテゴリ（モックに在るが実体なし＝seats.kind は 卓/カウンター/VIP の固定3種で
+          カテゴリを持つテーブルが無い＝器を置いて準備中。教訓25＝押しても何も起きないものを作らない） */}
+      <section className="nox-cardtop" style={card}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+          <div>
+            <h2 style={{ ...secTitle, margin: 0 }}>席種カテゴリ</h2>
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>席種ごとの表示名・並び順の管理</p>
+          </div>
+          <span className="nox-stpill" style={{ marginLeft: "auto" }}>準備中</span>
+        </div>
+        <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.8 }}>
+          席種は <b>卓 / カウンター / VIP</b> の3種で固定です（追加・改名は準備中）。
+          時間帯料金の席種条件もこの3種を使います。
+        </p>
       </section>
     </div>
   );

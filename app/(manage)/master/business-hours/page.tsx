@@ -19,8 +19,11 @@ export const dynamic = "force-dynamic";
 // 取得は「このページが描くのに要る分だけ」:
 //   allStores（B-5＝owner は org 全店で store select・manager は RLS で自店1件）のみ。
 //
-// ★モックにある KPI帯4枚・「特別営業日・臨時休業」2カードは作らない
-//   （営業時間#7 = 後送り裁定・#8 KPI は「分子が存在しない」で対象外記録済み＝発明しない原則）。
+// ★DP-R 第3弾（教訓26＝構造照合・相談役裁定「器を全構築・実体なきものは準備中」）:
+//   モックの4ブロック（KPI帯4枚／週間営業時間／特別営業日・臨時休業／特別日を追加）へ追随した。
+//   ★KPI帯と3カードはすべて BusinessHoursPanel が返す（forms の state を持つのが panel のため）。
+//   ★特別日は実体が無い（mig0032 は「店×曜日」の1テーブルのみ）＝器を置いて disabled＋準備中。
+//     旧コメントの「作らない（#7 後送り）」は本裁定で上書き＝器は出す・操作はさせない。
 export default async function MasterBusinessHoursPage() {
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
