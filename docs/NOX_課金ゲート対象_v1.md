@@ -34,6 +34,13 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   'billing_writable_of' **95**。同 mig の `nox_receipt_public` は**非ゲート読取（anon 白名単1号・
   裁定 R2-11 改訂）＝B(f) へ同時追補**（裁定 E8-6-9 の運用どおり）→ B **94 本**。
   全数 = A 94 ＋ B 94 ＝ **188** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0101/0102 追随（2026-08-21・SD シフト深部）**: 新 RPC **7本**を A5 へ収載＝
+  `shift_period_set`／`shift_period_remove`／`shift_propose`／`shift_cast_confirm`／
+  `shift_auto_apply`／`shift_auto_clear`／`shift_rules_set`（全て規則A形でゲート内蔵・kiosk 腕なし・
+  `shift_set` は status 3値化の改修のみで**既収載**）→ **対象 101 本**へ改訂。
+  ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
+  live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
+  全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
 
 ## 作業版ヘッダ（v1.2・履歴として保持）
 
@@ -56,7 +63,7 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 - 補助基準（v1 起案時・裁定で維持）: B-補1=専用縮退 RPC（*_deactivate）は除外（セキュリティ）／B-補2=kiosk_login/logout は除外（打刻導線）／A-補1=汎用 set_*（is_active トグル内包）は対象。
 - ★付随裁定: **open のまま失効を跨いだ伝票の check_pay / check_close もゲート対象**（read-only の徹底＝失効中は決済・是正とも不能・閲覧のみ。writable 復帰後に処理する）。
 
-## A. 対象（94本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
+## A. 対象（101本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
 
 ### A1. レジ・会計（20本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
 check_open[K] / check_add_line[K] / check_remove_line[K] / check_add_seat[K] / check_remove_seat[K] /
@@ -79,9 +86,13 @@ adv_issue / transport_issue / incentive_publish /
 **adv_cancel / transport_cancel / incentive_cancel**（裁定D3＝金銭記録の改変。BANZEN de-escalation 前例より判定原理を優先）/
 **receipt_issue / receipt_issue_void**（mig0099＝領収書の発行・取消＝金銭受領証の作成/改変・R2-9/R2-10・E8-6）
 
-### A5. シフト（4本・owner/manager の確定系に限定＝設計 v1.1 §4 文言修正）
+### A5. シフト（11本・owner/manager の確定系＋SD 深部＝設計 v1.1 §4 文言修正・SD 設計書 §3）
 shift_set / shift_wish_decide / set_staffing_need /
-**staffing_need_remove**（mig0095 新設＝バンド削除・ゲートは mig 本文に内蔵）
+**staffing_need_remove**（mig0095 新設＝バンド削除・ゲートは mig 本文に内蔵）/
+**shift_period_set / shift_period_remove / shift_propose / shift_auto_apply / shift_auto_clear /
+shift_rules_set**（mig0102 新設＝SD 深部の owner/manager 系6本・ゲート内蔵）/
+**shift_cast_confirm**（mig0102 新設＝★cast 本人の proposed→confirmed 一方向・cast 初の shifts 書込 RPC）
+※shift_cast_confirm は書込ゆえゲート対象＝失効中は確認も止まる。希望提出（B(i) の事実記録2本）とは性質が異なる。
 
 ### A6. 商品・料金マスタ（13本）
 set_product / set_product_active / set_product_category / product_category_reorder / product_bulk_insert /

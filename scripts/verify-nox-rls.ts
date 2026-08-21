@@ -888,6 +888,78 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // F1d-SD: シフト深部（mig0101/0102）＝shift_periods/shift_rules の cast 0行・proposed の可視性
+  //   日付は F1d と同じ 2026-07-15（営業日実証済み）。生成物は admin で id 限定削除＝固定カウント非汚染。
+  // ══════════════════════════════════════════════════════════
+  {
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    let sdPeriodId = ""; let sdShiftId = "";
+    try {
+      // managerA1: period 作成＋planned shift 作成→propose（proposed 行を用意）
+      const c = await signIn("managerA1");
+      const { data: pid, error: eP } = await c.rpc("shift_period_set", {
+        p_id: null, p_store_id: storeA1Id, p_start_date: "2026-07-01", p_end_date: "2026-07-31",
+        p_wish_deadline: "2026-07-05", p_status: "draft",
+      });
+      check("F1d-SD shift_period_set(draft) 成功", !eP && typeof pid === "string", eP?.message);
+      sdPeriodId = (pid as string) ?? "";
+      const { data: sid, error: eS } = await c.rpc("shift_set", {
+        p_id: null, p_cast_id: castIdA, p_date: "2026-07-15", p_start_hm: "21:00", p_end_hm: "25:00", p_status: "planned",
+      });
+      check("F1d-SD shift_set(planned) 成功", !eS && typeof sid === "string", eS?.message);
+      sdShiftId = (sid as string) ?? "";
+      const { data: nProp, error: ePr } = await c.rpc("shift_propose", { p_shift_ids: [sdShiftId] });
+      check("F1d-SD shift_propose 1件成功（planned→proposed）", !ePr && nProp === 1, ePr?.message ?? `got ${nProp}`);
+      const { data: sRow } = await c.from("shifts").select("status").eq("id", sdShiftId).single();
+      check("F1d-SD 行が proposed", sRow?.status === "proposed", sRow?.status);
+      await c.auth.signOut();
+    } finally { /* 掃除は下の finally 相当ブロックで（castA 検証後） */ }
+    {
+      // castA1a: 自分の proposed 行は見える（パターン1）・period/rules は 0行（パターン2）・管理 RPC は forbidden
+      const c = await signIn("castA1a");
+      const { data: mine } = await c.from("shifts").select("id, status").eq("id", sdShiftId);
+      check("F1d-SD castA1a 自分の proposed 行が見える（パターン1）",
+        (mine ?? []).length === 1 && mine![0].status === "proposed", JSON.stringify(mine));
+      const { data: pRows } = await c.from("shift_periods").select("id");
+      check("F1d-SD castA1a shift_periods = 0行（パターン2・行は実在する）", (pRows ?? []).length === 0, `got ${(pRows ?? []).length}`);
+      const { data: rRows } = await c.from("shift_rules").select("id");
+      check("F1d-SD castA1a shift_rules = 0行（パターン2）", (rRows ?? []).length === 0, `got ${(rRows ?? []).length}`);
+      for (const [fn, args] of [
+        ["shift_period_set", { p_id: null, p_store_id: storeA1Id, p_start_date: "2026-07-01", p_end_date: "2026-07-31", p_wish_deadline: null, p_status: "draft" }],
+        ["shift_period_remove", { p_id: sdPeriodId }],
+        ["shift_auto_apply", { p_period_id: sdPeriodId, p_wish_ids: [] }],
+        ["shift_auto_clear", { p_period_id: sdPeriodId }],
+        ["shift_rules_set", { p_store_id: storeA1Id, p_max_consec_days: 5, p_min_month_min: null }],
+      ] as const) {
+        const { error } = await c.rpc(fn, args as Record<string, unknown>);
+        check(`F1d-SD cast から ${fn} 拒否`, !!error?.message?.includes("forbidden"), error?.message ?? "通ってしまった");
+      }
+      // ★shift_propose は行単位の集計検証＝ロール不成立を 'bad rows' に落とす設計（prosrc 実測）。
+      //   'forbidden' ではなく件数のみ返す＝行の内容を明かさない拒否。実挙動どおりを assert。
+      {
+        const { error } = await c.rpc("shift_propose", { p_shift_ids: [sdShiftId] });
+        check("F1d-SD cast から shift_propose 拒否（bad rows＝集計拒否・内容非開示）",
+          !!error?.message?.includes("bad rows"), error?.message ?? "通ってしまった");
+      }
+      await c.auth.signOut();
+    }
+    {
+      // castA1b: 他人の proposed 行は不可視＋shift_cast_confirm は forbidden（他人の行）
+      const c = await signIn("castA1b");
+      const { data: other } = await c.from("shifts").select("id").eq("id", sdShiftId);
+      check("F1d-SD castA1b 他人の proposed 行 不可視（0行）", (other ?? []).length === 0, `got ${(other ?? []).length}`);
+      const { error: eCf } = await c.rpc("shift_cast_confirm", { p_shift_id: sdShiftId });
+      check("F1d-SD 他人の行へ shift_cast_confirm 拒否", !!eCf?.message?.includes("forbidden"), eCf?.message ?? "通ってしまった");
+      await c.auth.signOut();
+    }
+    // 掃除（id 限定＝F1d 既存生成物・固定カウントに触れない）
+    if (sdShiftId) await admin.from("shifts").delete().eq("id", sdShiftId);
+    if (sdPeriodId) await admin.from("shift_periods").delete().eq("id", sdPeriodId);
+  }
+
+  // ══════════════════════════════════════════════════════════
   // F1f: ランキング RPC（順位/件数のみ・金額キー不在）＋ staff 開放（mig0011）
   // ※ F1e より前に置く（golden 伝票が void される前の closed 状態で件数ゴールデンを固定）
   // ══════════════════════════════════════════════════════════

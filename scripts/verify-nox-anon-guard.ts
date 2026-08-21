@@ -5726,6 +5726,33 @@ async function main() {
     }
   }
 
+  // ── 段58: mig0101/0102（SD シフト深部）の新 RPC 7本は anon BLOCKED 必須 ──
+  //   revoke public,anon ＋ grant authenticated（規約の二重防御②）。引数は全 null プローブ＝
+  //   到達すれば例外文言が返るが、EXECUTE 自体が無いので 'permission denied for function' が正。
+  //   ★shift_cast_confirm も含む（cast 本人 RPC だが anon には見せない）。
+  //   ★shift_set は既存段（段6=0009）で BLOCKED 済み＝二重にしない。
+  {
+    const SD_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
+      ["shift_period_set", { p_id: null, p_store_id: null, p_start_date: null, p_end_date: null, p_wish_deadline: null, p_status: null }],
+      ["shift_period_remove", { p_id: null }],
+      ["shift_propose", { p_shift_ids: null }],
+      ["shift_cast_confirm", { p_shift_id: null }],
+      ["shift_auto_apply", { p_period_id: null, p_wish_ids: null }],
+      ["shift_auto_clear", { p_period_id: null }],
+      ["shift_rules_set", { p_store_id: null, p_max_consec_days: null, p_min_month_min: null }],
+    ];
+    for (const [fn, args] of SD_RPC_PROBES) {
+      const { error } = await anon.rpc(fn, args);
+      check(`段58 anon ${fn} BLOCKED（mig0102・SD 深部）`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+    }
+    // 新テーブル2表も anon select DENIED（0003 標準型＝anon grant ゼロの係留）
+    for (const t of ["shift_periods", "shift_rules"]) {
+      const { data, error } = await anon.from(t).select("id").limit(1);
+      check(`段58 anon ${t} select DENIED/空（grant ゼロ）`,
+        !!error || (Array.isArray(data) && data.length === 0), error?.message ?? `rows=${data?.length}`);
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
