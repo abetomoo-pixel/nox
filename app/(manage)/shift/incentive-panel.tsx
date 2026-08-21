@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
@@ -99,10 +100,8 @@ export default function IncentivePanel({ storeId, casts }: { storeId: string; ca
       <Toast msg={msg} />
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} />
-        <select value={mode} onChange={(e) => setMode(e.target.value as "per_head" | "pooled")} style={input}>
-          <option value="per_head">定額/人（各受給者に同額）</option>
-          <option value="pooled">プール按分（総額を受給者数で分配）</option>
-        </select>
+        <SegSelect value={mode} onChange={(v) => setMode(v as "per_head" | "pooled")}
+            options={[["per_head", "定額/人（各受給者に同額）"], ["pooled", "プール按分（総額を受給者数で分配）"]] as const} />
         <input type="number" value={amount} min={0} onChange={(e) => setAmount(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 100 }} />
         <span style={{ fontSize: 12, color: "var(--sub)" }}>円</span>
         <button style={btnDark} onClick={publish}>発行</button>

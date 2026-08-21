@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -172,17 +173,15 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
           <input placeholder="プラン名" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} />
           <label style={{ fontSize: 12 }}>保証時給 <input type="number" min={0} value={base} onChange={(e) => setBase(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
           {/* mig0086: hon/jonai は方式トグル（円/本｜率）＋方式に応じた値入力。円/本値は率中も保持（裁定v）。 */}
-          <label style={{ fontSize: 12 }}>本指名方式 <select value={honMode} onChange={(e) => setHonMode(e.target.value as BackModeRow)} style={input}>
-            <option value="per_count">円/本</option><option value="rate">率(%)</option>
-          </select></label>
+          <label style={{ fontSize: 12 }}>本指名方式 <SegSelect value={honMode} onChange={(v) => setHonMode(v as BackModeRow)}
+            options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {honMode === "rate" ? (
             <label style={{ fontSize: 12 }}>本 率(%) <input type="number" min={0} max={100} value={honRate} onChange={(e) => setHonRate(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
           ) : (
             <label style={{ fontSize: 12 }}>本(円/本) <input type="number" min={0} value={honBack} onChange={(e) => setHonBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
           )}
-          <label style={{ fontSize: 12 }}>場内方式 <select value={jonaiMode} onChange={(e) => setJonaiMode(e.target.value as BackModeRow)} style={input}>
-            <option value="per_count">円/本</option><option value="rate">率(%)</option>
-          </select></label>
+          <label style={{ fontSize: 12 }}>場内方式 <SegSelect value={jonaiMode} onChange={(v) => setJonaiMode(v as BackModeRow)}
+            options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {jonaiMode === "rate" ? (
             <label style={{ fontSize: 12 }}>場内 率(%) <input type="number" min={0} max={100} value={jonaiRate} onChange={(e) => setJonaiRate(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
           ) : (
@@ -274,17 +273,15 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
           </select>
           <label style={{ fontSize: 12 }}>base↑ <input type="number" min={0} value={ov.base} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, base: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           {/* mig0086: 方式 override は mode 選択→対の値入力を必須表示（原子性の UI 構造化）。既定=方式は上書きしない。 */}
-          <label style={{ fontSize: 12 }}>本 方式 <select value={ovHonMode} onChange={(e) => setOvHonMode(e.target.value as "" | BackModeRow)} style={input}>
-            <option value="">既定</option><option value="per_count">円/本</option><option value="rate">率(%)</option>
-          </select></label>
+          <label style={{ fontSize: 12 }}>本 方式 <SegSelect value={ovHonMode} onChange={(v) => setOvHonMode(v as "" | BackModeRow)}
+            options={[["", "既定"], ["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {ovHonMode === "rate" ? (
             <label style={{ fontSize: 12 }}>本 率(%)※必須 <input type="number" min={0} max={100} value={ov.honBackRate} onChange={(e) => setOv((o) => ({ ...o, honBackRate: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           ) : (
             <label style={{ fontSize: 12 }}>honBack↑{ovHonMode === "per_count" ? "※必須" : ""} <input type="number" min={0} value={ov.honBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, honBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           )}
-          <label style={{ fontSize: 12 }}>場内 方式 <select value={ovJonaiMode} onChange={(e) => setOvJonaiMode(e.target.value as "" | BackModeRow)} style={input}>
-            <option value="">既定</option><option value="per_count">円/本</option><option value="rate">率(%)</option>
-          </select></label>
+          <label style={{ fontSize: 12 }}>場内 方式 <SegSelect value={ovJonaiMode} onChange={(v) => setOvJonaiMode(v as "" | BackModeRow)}
+            options={[["", "既定"], ["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {ovJonaiMode === "rate" ? (
             <label style={{ fontSize: 12 }}>場内 率(%)※必須 <input type="number" min={0} max={100} value={ov.jonaiBackRate} onChange={(e) => setOv((o) => ({ ...o, jonaiBackRate: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           ) : (
@@ -395,9 +392,8 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
           <span style={note}>{id ? "編集中" : "新規"}</span>
           <input placeholder="名称（送り代等）" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} />
           <label style={{ fontSize: 12 }}>額 <input type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
-          <select value={per} onChange={(e) => setPer(e.target.value)} style={input}>
-            <option value="day">日ごと</option><option value="month">月ごと</option><option value="rate">売上%</option>
-          </select>
+          <SegSelect value={per} onChange={(v) => setPer(v)}
+            options={[["day", "日ごと"], ["month", "月ごと"], ["rate", "売上%"]] as const} />
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
           <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
           {id && <button style={btnLight} onClick={() => { setId(null); setName(""); }}>新規に戻す</button>}

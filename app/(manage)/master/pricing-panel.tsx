@@ -5,6 +5,7 @@
 // 指名料3種は「charge 明細の既定単価マスタ」＝会計への自動加算はしない（現行の手動明細構造を維持・
 // 自動加算は golden 域＝別裁定）。cardTAX は現状 日報集計のみ適用（#25 値裁定前は会計加算しない）。
 import { useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast, { useToast } from "@/components/ui/toast";
@@ -73,11 +74,8 @@ export default function PricingPanel({ storeId, initial }: { storeId: string; in
         {numField("丸め単位", unit, setUnit, "円（1〜10000）")}
         <label style={{ fontSize: 12, color: "var(--sub)" }}>
           丸め方
-          <select value={mode} onChange={(e) => setMode(e.target.value)} style={{ ...input, display: "block", marginTop: 4, width: 100 }}>
-            <option value="down">切り捨て</option>
-            <option value="up">切り上げ</option>
-            <option value="round">四捨五入</option>
-          </select>
+          <SegSelect value={mode} onChange={(v) => setMode(v)}
+            options={[["down", "切り捨て"], ["up", "切り上げ"], ["round", "四捨五入"]] as const} />
         </label>
       </div>
       <button style={{ ...t.btnGold, ...t.btnSm, marginTop: 14 }} disabled={busy} onClick={save}>保存</button>

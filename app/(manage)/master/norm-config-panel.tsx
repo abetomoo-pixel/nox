@@ -5,6 +5,7 @@
 // （set_store_norm_config・cast-register-panel と同じ店フラグ雛形）。manager は現在値のみ。
 // 裁定: ノルマ未達は表示のみ（罰金非接続）＝このフラグは /mine 進捗カードの出し分けにだけ効く。
 import { useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -67,10 +68,8 @@ export default function NormConfigPanel({
             </label>
             <label style={{ fontSize: 13 }}>
               指名のカウント{" "}
-              <select value={shimeiScope} onChange={(e) => setShimeiScope(e.target.value === "hon_jonai" ? "hon_jonai" : "hon")} style={inp}>
-                <option value="hon">本指名のみ</option>
-                <option value="hon_jonai">場内+本指名</option>
-              </select>
+              <SegSelect value={shimeiScope} onChange={(v) => setShimeiScope(v === "hon_jonai" ? "hon_jonai" : "hon")}
+            options={[["hon", "本指名のみ"], ["hon_jonai", "場内+本指名"]] as const} />
             </label>
             <button onClick={() => void save()} disabled={busy} style={btn}>保存</button>
           </div>

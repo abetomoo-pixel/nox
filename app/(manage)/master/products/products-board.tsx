@@ -7,6 +7,7 @@
 // ★初期値は page.tsx（server）が取得して props で渡す。保存後の再取得だけ client から
 //   同じ queries.ts の関数を呼ぶ＝取得内容は移設前の load() と同一。
 import { useEffect, useMemo, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
@@ -645,12 +646,8 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                 `set type = p_type` で無条件に上書きする（0069:86 で確認済み）。RPC は変更しない方針の
                 ため、この非対称をここに記録しておく。過去の会計データは check_lines.kind に
                 凍結済みなので遡っては動かない（動くのは以後の分）。 */}
-            <select value={pType} onChange={(e) => setPType(e.target.value)} disabled={pId !== null}
-              style={{ ...inputLg, opacity: pId !== null ? 0.55 : 1 }}>
-              <option value="drink">ドリンク</option>
-              <option value="champ">シャンパン</option>
-              <option value="bottle">ボトル</option>
-            </select>
+            <SegSelect value={pType} onChange={(v) => setPType(v)}
+            options={[["drink", "ドリンク"], ["champ", "シャンパン"], ["bottle", "ボトル"]] as const} disabled={pId !== null} />
             {/* ★④b-4: 状態別に出し分ける（2文を連結しない）。編集時は変更できないのだから
                 「変えると何が起きるか」は要らない＝要るのは次の一手（新規登録）の案内。 */}
             <span className="hint">
@@ -708,10 +705,8 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
 
               <div className="nox-field">
                 <span className="lab">バックの決め方</span>
-                <select value={pBackMode} onChange={(e) => setPBackMode(e.target.value)} style={inputLg}>
-                  <option value="rate">率%（販売価格に対する割合）</option>
-                  <option value="unit4">指名別単価（4段階）</option>
-                </select>
+                <SegSelect value={pBackMode} onChange={(v) => setPBackMode(v)}
+            options={[["rate", "率%（販売価格に対する割合）"], ["unit4", "指名別単価（4段階）"]] as const} />
               </div>
 
               {pBackMode === "rate" ? (

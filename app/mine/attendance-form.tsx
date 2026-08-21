@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -35,10 +36,8 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
   return (
     <form onSubmit={submit} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
       <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required style={input} />
-      <select value={status} onChange={(e) => setStatus(e.target.value as "late" | "absent")} style={input}>
-        <option value="late">遅刻</option>
-        <option value="absent">当欠</option>
-      </select>
+      <SegSelect value={status} onChange={(v) => setStatus(v as "late" | "absent")}
+            options={[["late", "遅刻"], ["absent", "当欠"]] as const} />
       {status === "late" && (
         <input
           placeholder="出勤見込み（例 25:30）"

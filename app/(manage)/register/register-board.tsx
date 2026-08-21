@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import { groupDue, timeStatusOf } from "@/lib/nox/check-calc";
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
@@ -1989,11 +1990,8 @@ export default function RegisterBoard({
           <h3 style={t.cardTitle}>カスタム明細</h3>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             {/* R-A2（0089）: 種別から「セット」を除去＝開卓時の自動行と手打ちの二重計上を封じる */}
-            <select value={cKind} onChange={(e) => setCKind(e.target.value)} style={input}>
-              <option value="charge">料金</option>
-              <option value="time">延長</option>
-              <option value="custom">その他</option>
-            </select>
+            <SegSelect value={cKind} onChange={(v) => setCKind(v)}
+            options={[["charge", "料金"], ["time", "延長"], ["custom", "その他"]] as const} />
             <input placeholder="名称（例 貸切料金）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
             <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
             {/* E8-1 ⑦: 英字テキスト入力 → 会計分けセグメント */}
@@ -2011,10 +2009,8 @@ export default function RegisterBoard({
           </h3>
           {/* 申請（黒服 can_register）／適用（owner/manager 直接）フォーム */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-            <select value={apType} onChange={(e) => setApType(e.target.value as "discount" | "free")} style={input}>
-              <option value="discount">割引</option>
-              <option value="free">無料</option>
-            </select>
+            <SegSelect value={apType} onChange={(v) => setApType(v as "discount" | "free")}
+            options={[["discount", "割引"], ["free", "無料"]] as const} />
             <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
             <select value={apGroup} onChange={(e) => setApGroup(e.target.value)} style={{ ...input, width: 60 }}>
               {(groups.length ? groups : ["A"]).map((g) => <option key={g} value={g}>{g}</option>)}

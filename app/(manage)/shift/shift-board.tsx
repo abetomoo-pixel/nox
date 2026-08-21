@@ -6,6 +6,7 @@
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
@@ -1657,11 +1658,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               </div>
               <div className="nox-field full">
                 <span className="lab">状態</span>
-                <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={{ ...input, width: "100%" }}>
-                  <option value="planned">予定</option>
-                  <option value="proposed">確認待ち</option>
-                  <option value="confirmed">確定</option>
-                </select>
+                <SegSelect value={fStatus} onChange={(v) => setFStatus(v)}
+            options={[["planned", "予定"], ["proposed", "確認待ち"], ["confirmed", "確定"]] as const} />
               </div>
             </div>
             {fClosedDay && (

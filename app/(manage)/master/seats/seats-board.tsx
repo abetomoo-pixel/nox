@@ -10,6 +10,7 @@
 // ★E8-5 席#5 の並べ替え（↑↓）は引き続き未実装＝set_seat 2連続呼びが非原子になるため
 //   （skipped.md の記録どおり・表示順の数値入力で同じ結果が得られる）。
 import { useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -129,9 +130,8 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input placeholder="席名" value={sName} onChange={(e) => setSName(e.target.value)} style={{ ...input, width: 140 }} />
-            <select value={sKind} onChange={(e) => setSKind(e.target.value)} style={input}>
-              <option value="卓">卓</option><option value="カウンター">カウンター</option><option value="VIP">VIP</option>
-            </select>
+            <SegSelect value={sKind} onChange={(v) => setSKind(v)}
+            options={[["卓", "卓"], ["カウンター", "カウンター"], ["VIP", "VIP"]] as const} />
             <label style={{ fontSize: 12 }}>表示順 <input type="number" min={0} value={sSort} onChange={(e) => setSSort(Number(e.target.value))} style={{ ...input, width: 56 }} /></label>
             {/* 段G: 既存 boolean(is_active) のトグルを canonical スイッチ表示へ（状態・挙動は不変） */}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12 }}>

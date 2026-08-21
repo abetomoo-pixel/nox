@@ -11,6 +11,7 @@
 //   タイマーから RPC は一切呼ばない（サーバ側 15分失効は独立に効く＝forbidden で operator 選択へ戻る）。
 // void・割引承認・ボトルキープは kiosk 非対象（裁定11 確定①②＋顧客系非開示）＝UI からも出さない。
 import { useCallback, useEffect, useRef, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import { groupDue, timeStatusOf } from "@/lib/nox/check-calc";
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
@@ -791,6 +792,9 @@ export default function KioskRegisterPage() {
                 <div className="nox-cardtop" style={card}>
                   <h3 style={t.cardTitle}>指名（重み比で分配）</h3>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    {/* ★裁定40: 指名種別は**対象外・現状維持**（ボタン化しない）。
+                        許可理由＝単価に直結し、プルダウンの二段動作（開く→選ぶ）が
+                        誤操作ガードとして機能している。触りやすい端末で単価を取り違えさせない。 */}
                     <select value={nomType} onChange={(e) => setNomType(e.target.value)} style={input}>
                       <option value="hon">本指名</option>
                       <option value="jonai">場内</option>
@@ -960,11 +964,8 @@ export default function KioskRegisterPage() {
                   {/* カスタム明細（kind/名称/価格）＝据置 */}
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
                     {/* R-A2（0089）: 種別から「セット」を除去＝開卓時の自動行と手打ちの二重計上を封じる */}
-                    <select value={cKind} onChange={(e) => setCKind(e.target.value)} style={input}>
-                      <option value="charge">料金</option>
-                      <option value="time">延長</option>
-                      <option value="custom">その他</option>
-                    </select>
+                    <SegSelect value={cKind} onChange={(v) => setCKind(v)}
+            options={[["charge", "料金"], ["time", "延長"], ["custom", "その他"]] as const} />
                     <input placeholder="名称（例 貸切料金）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
                     <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
                     <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>

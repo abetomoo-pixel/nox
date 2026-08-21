@@ -7,6 +7,7 @@
 //     空欄のマイナンバーは「変更なし」（既存 enc 温存）。full 平文は owner の「支払調書用に表示」（service 経路・全件 audit）のみ。
 //   ■ 税務は manager+: cast_tax_profiles はパターン2（manager+ 可視）。
 import { useCallback, useEffect, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -211,17 +212,12 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
         <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>税務（雇用区分・インボイス）</h3>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={label}>雇用区分<br />
-            <select value={mode} onChange={(e) => setMode(e.target.value)} style={input}>
-              <option value="委託">委託</option>
-              <option value="雇用">雇用</option>
-            </select>
+            <SegSelect value={mode} onChange={(v) => setMode(v)}
+            options={[["委託", "委託"], ["雇用", "雇用"]] as const} />
           </label>
           <label style={label}>インボイス<br />
-            <select value={invoice} onChange={(e) => setInvoice(e.target.value)} style={input}>
-              <option value="">未設定</option>
-              <option value="課税">課税</option>
-              <option value="免税">免税</option>
-            </select>
+            <SegSelect value={invoice} onChange={(v) => setInvoice(v)}
+            options={[["", "未設定"], ["課税", "課税"], ["免税", "免税"]] as const} />
           </label>
           <label style={label}>登録番号（T＋13桁）<br />
             <input value={regNo} onChange={(e) => setRegNo(e.target.value)} placeholder="T1234567890123" style={{ ...input, width: 160 }} />

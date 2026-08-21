@@ -5,6 +5,7 @@
 // 在籍解除/再雇用 staff_deactivate/reactivate（Q-1）・追加 POST /api/staff/create（Q-2）。
 // UI の出し分け（owner/manager・自店・自分の行）は利便のための表示制御＝真の防御は RPC ゲート（二重に守る）。
 import { useCallback, useEffect, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -309,10 +310,19 @@ export default function StaffBoard({
                   <label style={{ display: "grid", gap: 4 }}>
                     <span style={t.fieldLabel}>役職</span>
                     {isOwner ? (
-                      <select value={aRole} onChange={(e) => setARole(e.target.value as "staff" | "manager")} style={t.input}>
-                        <option value="staff">黒服（staff）</option>
-                        <option value="manager">店長（manager）</option>
-                      </select>
+                      /* ★裁定40: 権限付与は**ボタン化＋確認ダイアログ必須**。
+                         ボタンは1タップで入るぶん取り違えが起きやすいので、店長を選ぶときだけ確認を挟む
+                         （黒服へ戻すときは確認しない＝権限が上がる方向にだけガードを置く）。
+                         ★既存の役職変更（staff_change_role）は元からボタン＋confirm で、ここはその流儀に揃えた。
+                         送る値（staff / manager）も submitAdd の引数も1文字も変えていない。 */
+                      <SegSelect
+                        value={aRole} onChange={(v) => setARole(v as "staff" | "manager")}
+                        options={[["staff", "黒服（staff）"], ["manager", "店長（manager）"]] as const}
+                        ariaLabel="役職"
+                        confirm={(nv, nl) => nv === "manager"
+                          ? `${aName.trim() || "この方"} を ${nl} として追加しますか？（店長は売上・給与・設定を操作できます）`
+                          : undefined}
+                      />
                     ) : (
                       <span style={{ ...t.input, display: "block", color: "var(--sub)" }}>黒服（staff）</span>
                     )}

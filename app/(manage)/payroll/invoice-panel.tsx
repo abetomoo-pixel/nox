@@ -5,6 +5,7 @@
 // set_cast_tax_profile（既存 RPC・manager+）。支払調書CSV は owner のみ（route が最狭防御）。
 // マイナンバー未取得は route が真偽のみ返す（値は client に出さない）。★源泉計算には一切触れない。
 import { useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -146,22 +147,13 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
                           value={r.mode ?? "委託"} だと未登録でも「報酬」が選択済みに見え、
                           そのまま「報酬」を選んでも値が変わらず change が発火せず保存されない
                           （＝画面は報酬なのに blocker は税区分未登録、という食い違いの原因）。 */}
-                      <select value={r.mode ?? ""} disabled={busy}
-                        onChange={(e) => { if (!e.target.value) return; void saveTax(r, { mode: e.target.value }); }}
-                        style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12 }}>
-                        <option value="">未設定</option>
-                        <option value="委託">報酬</option>
-                        <option value="雇用">給与</option>
-                      </select>
+                      <SegSelect value={r.mode ?? ""} onChange={(v) => { if (!v) return; void saveTax(r, { mode: v }); }}
+            options={[["", "未設定"], ["委託", "報酬"], ["雇用", "給与"]] as const} disabled={busy} />
                     </td>
                     <td style={t.td}>
                       {r.mode !== "雇用" ? (
-                        <select value={r.invoice ?? ""} disabled={busy} onChange={(e) => void saveTax(r, { invoice: e.target.value || null })}
-                          style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12 }}>
-                          <option value="">—</option>
-                          <option value="課税">登録</option>
-                          <option value="免税">免税</option>
-                        </select>
+                        <SegSelect value={r.invoice ?? ""} onChange={(v) => void saveTax(r, { invoice: v || null })}
+            options={[["", "—"], ["課税", "登録"], ["免税", "免税"]] as const} disabled={busy} />
                       ) : <span style={t.sub}>—</span>}
                     </td>
                     <td style={t.td}>

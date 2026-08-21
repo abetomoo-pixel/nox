@@ -14,6 +14,7 @@
 //   判定は lib/nox/business-hours.ts（DB helper と同じ cutoff 変換・深夜帯=前営業日）。
 //   編集は予約の店が register の店と一致する場合のみ UI 判定（不一致=owner の他店予約は RPC 二層目が守る）。
 import { useCallback, useEffect, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastPicker from "@/components/ui/cast-picker";
@@ -417,13 +418,8 @@ export default function ReservationPanel({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="顧客名・電話で検索"
             style={{ ...input, width: 190 }} />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={input}>
-            <option value="">すべて（取消を除く）</option>
-            <option value="booked">予約済み</option>
-            <option value="visited">来店済</option>
-            <option value="no_show">不来店</option>
-            <option value="cancelled">取消のみ</option>
-          </select>
+          <SegSelect value={statusFilter} onChange={(v) => setStatusFilter(v)}
+            options={[["", "すべて（取消を除く）"], ["booked", "予約済み"], ["visited", "来店済"], ["no_show", "不来店"], ["cancelled", "取消のみ"]] as const} />
         </div>
         {visible.length === 0 ? (
           <p style={{ ...t.sub, margin: 0 }}>予約はありません。</p>

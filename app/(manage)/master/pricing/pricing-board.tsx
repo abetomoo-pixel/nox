@@ -17,6 +17,7 @@
 //   「料金単位 卓/名」列（stores.time_per＝店単位の設定でルール軸ではない＝基本料金タブで設定）。
 // ★書込は全て RPC 専任。エラーは fn_set_pricing_rule の bad 系トークン対応表で日本語化。
 import { useCallback, useEffect, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -709,12 +710,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 <input type="datetime-local" value={pvAt} onChange={(e) => setPvAt(e.target.value)} style={input} />
               </label>
               <label style={{ fontSize: 12 }}>席種{" "}
-                <select value={pvSeat} onChange={(e) => setPvSeat(e.target.value)} style={input}>
-                  <option value="">卓（既定）</option>
-                  <option value="卓">卓</option>
-                  <option value="カウンター">カウンター</option>
-                  <option value="VIP">VIP</option>
-                </select>
+                <SegSelect value={pvSeat} onChange={(v) => setPvSeat(v)}
+            options={[["", "卓（既定）"], ["卓", "卓"], ["カウンター", "カウンター"], ["VIP", "VIP"]] as const} />
               </label>
               <label style={{ fontSize: 12 }}>人数{" "}
                 <input type="number" min={1} max={30} value={pvGuests}
@@ -726,10 +723,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 同伴あり
               </label>
               <label style={{ fontSize: 12 }}>支払方法{" "}
-                <select value={pvPay} onChange={(e) => setPvPay(e.target.value as "cash" | "card")} style={input}>
-                  <option value="cash">現金</option>
-                  <option value="card">カード</option>
-                </select>
+                <SegSelect value={pvPay} onChange={(v) => setPvPay(v as "cash" | "card")}
+            options={[["cash", "現金"], ["card", "カード"]] as const} />
               </label>
               <button type="button" style={btnDark} onClick={() => void runPreview()}>この条件で計算</button>
             </div>
@@ -1103,12 +1098,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
 
           <div className="nox-field">
             <span className="lab">席種</span>
-            <select value={mSeat} onChange={(e) => setMSeat(e.target.value)} style={inputLg}>
-              <option value="">全席種</option>
-              <option value="卓">卓</option>
-              <option value="カウンター">カウンター</option>
-              <option value="VIP">VIP</option>
-            </select>
+            <SegSelect value={mSeat} onChange={(v) => setMSeat(v)}
+            options={[["", "全席種"], ["卓", "卓"], ["カウンター", "カウンター"], ["VIP", "VIP"]] as const} />
           </div>
 
           <div className="nox-field">

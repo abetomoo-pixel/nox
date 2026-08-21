@@ -13,6 +13,7 @@
 // （kiosk_devices は deny-all＝owner でも直 SELECT 不可のため route が唯一の管理用読み口）。
 // 初期パスワードは cast 招待と同じ「一度だけ表示」モーダル。真の防御は RPC（owner 限定・1店1台・bad target）。
 import { useCallback, useEffect, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
@@ -125,10 +126,8 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
           <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={inp}>
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-          <select value={purpose} onChange={(e) => setPurpose(e.target.value === "register" ? "register" : "punch")} style={inp}>
-            <option value="punch">打刻（タイムレコーダー）</option>
-            <option value="register">レジ（会計）</option>
-          </select>
+          <SegSelect value={purpose} onChange={(v) => setPurpose(v === "register" ? "register" : "punch")}
+            options={[["punch", "打刻（タイムレコーダー）"], ["register", "レジ（会計）"]] as const} />
           <input placeholder="ラベル（例: 入口タブレット・任意）" value={label} onChange={(e) => setLabel(e.target.value)} style={{ ...inp, width: 200 }} />
           <button onClick={() => void provision()} disabled={busy || !storeId} style={btnOn}>発行</button>
         </div>

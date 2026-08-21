@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import SegSelect from "@/components/ui/seg-select";
 import type { BackMode, CompPlan, PlanOverride, TaxMode } from "@/lib/nox/pay";
 import type { StoreMasters } from "@/lib/nox/payroll/assemble";
 import { simulate, type SimInput } from "@/lib/nox/payroll/sim";
@@ -146,10 +147,8 @@ export default function SimulatorPanel({
           )}
         </label>
         <label style={s.lbl}>税区分<br />
-          <select value={taxMode} onChange={(e) => setTaxMode(e.target.value as TaxMode)} style={s.inp}>
-            <option value="委託">委託</option>
-            <option value="雇用">雇用</option>
-          </select>
+          <SegSelect value={taxMode} onChange={(v) => setTaxMode(v as TaxMode)}
+            options={[["委託", "委託"], ["雇用", "雇用"]] as const} />
         </label>
       </div>
 
@@ -176,10 +175,8 @@ export default function SimulatorPanel({
               </div>
               <div style={s.row}>
                 <label style={s.lbl}>本指名方式<br />
-                  <select value={edit.honBackMode} onChange={(e) => setEdit({ ...edit, honBackMode: e.target.value as BackMode })} style={s.inpS}>
-                    <option value="per_count">円/本</option>
-                    <option value="rate">率(%)</option>
-                  </select>
+                  <SegSelect value={edit.honBackMode} onChange={(v) => setEdit({ ...edit, honBackMode: v as BackMode })}
+            options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} />
                 </label>
                 {edit.honBackMode === "rate" ? (
                   <label style={s.lbl}>本指名率(%)<br /><input type="number" value={edit.honBackRate} onChange={(e) => setEdit({ ...edit, honBackRate: e.target.value })} style={s.inpS} /></label>
@@ -187,10 +184,8 @@ export default function SimulatorPanel({
                   <label style={s.lbl}>本指名(円/本)<br /><input type="number" value={edit.honBack} onChange={(e) => setEdit({ ...edit, honBack: e.target.value })} style={s.inpS} /></label>
                 )}
                 <label style={s.lbl}>場内方式<br />
-                  <select value={edit.jonaiBackMode} onChange={(e) => setEdit({ ...edit, jonaiBackMode: e.target.value as BackMode })} style={s.inpS}>
-                    <option value="per_count">円/本</option>
-                    <option value="rate">率(%)</option>
-                  </select>
+                  <SegSelect value={edit.jonaiBackMode} onChange={(v) => setEdit({ ...edit, jonaiBackMode: v as BackMode })}
+            options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} />
                 </label>
                 {edit.jonaiBackMode === "rate" ? (
                   <label style={s.lbl}>場内率(%)<br /><input type="number" value={edit.jonaiBackRate} onChange={(e) => setEdit({ ...edit, jonaiBackRate: e.target.value })} style={s.inpS} /></label>
