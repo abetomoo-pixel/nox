@@ -20,6 +20,33 @@ const AUD_OPTIONS: Array<[string, string]> = [["all", "全員"], ["cast", "キ�
 // 掲載期限セグメント（モックの日数セグメント 0/1/3/7 に対応・0=期限なし）
 const UNTIL_SEG: Array<[number, string]> = [[0, "期限なし"], [1, "当日"], [3, "3日"], [7, "7日"]];
 
+// ★DP3 P1（2026-08-21・裁定 DP3-①）: 入力欄の上限（RPC 側の 'bad title' / 'bad body' と同値）。
+//   モックの本文カウンタは 1000 だが、**NOX の実装上限 4000 を正**とする（RPC が 4000 で弾く）。
+const TITLE_MAX = 80;
+const BODY_MAX = 4000;
+
+// ★DP3 P1: 定型文（モック `templateSelect` の3種に対応）。
+//   ★**定数のみ**＝DB に列を足さない（E8 `notices#3` の注記「テンプレートは定数で足りるが、
+//     カテゴリ保持には列追加が要る」に従い、**カテゴリとは分離**してテンプレートだけ入れる）。
+//   ★選ぶと件名・本文を**フォームに流し込むだけ**＝送る RPC も引数も変わらない。
+const TEMPLATES: Array<{ key: string; label: string; title: string; body: string }> = [
+  {
+    key: "shift", label: "シフト提出のお願い",
+    title: "シフト提出のお願い",
+    body: "来月のシフト希望の提出をお願いします。\n締切までにマイページの「希望」から入力してください。\n締切後の変更は個別にご相談ください。",
+  },
+  {
+    key: "meeting", label: "ミーティング案内",
+    title: "全体ミーティングのご案内",
+    body: "全体ミーティングを行います。\n日時：\n場所：\n議題：\n出勤前の時間に実施しますので、遅れないようお願いします。",
+  },
+  {
+    key: "payroll", label: "給与明細の公開",
+    title: "給与明細を公開しました",
+    body: "今月分の給与明細を公開しました。\nマイページからご確認ください。\n内容についてご不明な点があれば店長までお願いします。",
+  },
+];
+
 // RPC エラーの日本語化（notices 系）
 function rpcErrJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
@@ -50,6 +77,8 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
   const [fPinned, setFPinned] = useState(false);
   const [fUntilSeg, setFUntilSeg] = useState(0);
   // 編集（inline・until は date 入力で任意値を保持）
+  // ★DP3 P1（裁定 DP3-①・E8 notices#8）: 一覧の検索。**client フィルタのみ**＝取得は不変。
+  const [q, setQ] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [eTitle, setETitle] = useState("");
   const [eBody, setEBody] = useState("");
@@ -116,6 +145,25 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
     new Date(iso).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" });
   const isExpired = (n: Notice) => !!n.until && n.until < bizToday;
 
+  // ★DP3 P1: 検索（件名・本文の部分一致・大文字小文字を無視）。**取得済み rows の絞り込みだけ**。
+  const needle = q.trim().toLowerCase();
+  const shown = needle === ""
+    ? rows
+    : rows.filter((n) => n.title.toLowerCase().includes(needle) || n.body.toLowerCase().includes(needle));
+
+  // ★DP3 P1（E8 notices#1 の LINE 非依存な1枚だけ）: 「今月の配信」KPI。
+  //   ★**新規取得ゼロ**＝取得済み rows の created_at を JST の年月で数え直すだけ。
+  //   ★NOX の「配信」は掲示＝投稿のこと（LINE 送信の実績は持たない＝T3）。文言もそう書く。
+  //   ★モックの他3枚（LINE連携／平均既読率／未連携）は**出さない**＝実績データが無い（発明しない原則）。
+  const ymOf = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }).slice(0, 7);
+  const thisYm = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }).slice(0, 7);
+  const prevYm = (() => {
+    const [y, m] = thisYm.split("-").map(Number);
+    return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+  })();
+  const postedThis = rows.filter((n) => ymOf(n.created_at) === thisYm).length;
+  const postedPrev = rows.filter((n) => ymOf(n.created_at) === prevYm).length;
+
   return (
     <div>
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
@@ -129,12 +177,51 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
       </div>
       <Toast msg={msg} />
 
+      {/* ★DP3 P1: KPI 帯（モックは4枚だが**出せるのは1枚だけ**）。
+          LINE連携・平均既読率・未連携は実績データが無い＝T3（LINE レーン）で消化＝ここには出さない。 */}
+      <div className="nox-kpirow">
+        <div className="nox-kpi2">
+          <div className="nox-kpi2-l">今月の掲載</div>
+          <div className="nox-kpi2-v num">{postedThis}<small>件</small></div>
+          <div className="nox-kpi2-s">前月 {postedPrev}件</div>
+        </div>
+      </div>
+
       {isManagerUp && (
         <section className="nox-panel">
           <h3>お知らせを投稿</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="件名（80字まで）" maxLength={80} style={input} />
-            <textarea value={fBody} onChange={(e) => setFBody(e.target.value)} placeholder="本文（4000字まで）" maxLength={4000} rows={3}
+            {/* ★DP3 P1: 定型文（定数のみ・選ぶと件名/本文を流し込むだけ＝RPC も引数も不変） */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={t.fieldLabel}>定型文</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  const tpl = TEMPLATES.find((x) => x.key === e.target.value);
+                  if (tpl) { setFTitle(tpl.title); setFBody(tpl.body); }
+                }}
+                style={{ ...input, width: "auto" }}
+              >
+                <option value="">使用しない</option>
+                {TEMPLATES.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
+              </select>
+              <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>選ぶと件名・本文に下書きが入ります（そのまま編集できます）</span>
+            </div>
+            {/* ★DP3 P1（E8 notices#9）: 文字数カウンタ。maxLength は従来どおり残す＝上限で切る挙動は不変 */}
+            <label style={{ ...t.fieldLabel, display: "flex", justifyContent: "space-between" }}>
+              <span>件名</span>
+              <span className="num" style={{ color: fTitle.length >= TITLE_MAX ? "var(--bad)" : "var(--v2-muted)" }}>
+                {fTitle.length} / {TITLE_MAX}
+              </span>
+            </label>
+            <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="件名（80字まで）" maxLength={TITLE_MAX} style={input} />
+            <label style={{ ...t.fieldLabel, display: "flex", justifyContent: "space-between" }}>
+              <span>本文</span>
+              <span className="num" style={{ color: fBody.length >= BODY_MAX ? "var(--bad)" : "var(--v2-muted)" }}>
+                {fBody.length} / {BODY_MAX}
+              </span>
+            </label>
+            <textarea value={fBody} onChange={(e) => setFBody(e.target.value)} placeholder="本文（4000字まで）" maxLength={BODY_MAX} rows={3}
               style={{ ...input, resize: "vertical", fontFamily: "inherit" }} />
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <span style={t.fieldLabel}>公開範囲</span>
@@ -160,11 +247,41 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
 
       <section className="nox-panel">
         <h3>お知らせ一覧</h3>
+        {/* ★DP3 P1（E8 notices#8）: 検索＝取得済み rows の client フィルタのみ（取得も RLS も不変）。
+            ★状態フィルタ（配信済/予約/下書き）は出さない＝notices に status が無い（T3/T6 で消化）。 */}
+        <div className="nox-ctoolbar" style={{ marginBottom: 10 }}>
+          <input
+            value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="件名・本文で検索" aria-label="お知らせを検索"
+            style={{ ...input, width: 220 }}
+          />
+          {needle !== "" && (
+            <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>
+              <span className="num">{shown.length}</span> / {rows.length} 件
+            </span>
+          )}
+        </div>
         {rows.length === 0 && <p style={{ fontSize: 13, color: "var(--v2-muted)" }}>お知らせはありません。</p>}
-        {rows.map((n) => editId === n.id ? (
+        {rows.length > 0 && shown.length === 0 && (
+          <p style={{ fontSize: 13, color: "var(--v2-muted)" }}>「{q.trim()}」に一致するお知らせはありません。</p>
+        )}
+        {shown.map((n) => editId === n.id ? (
           <div key={n.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
-            <input value={eTitle} onChange={(e) => setETitle(e.target.value)} maxLength={80} style={input} />
-            <textarea value={eBody} onChange={(e) => setEBody(e.target.value)} maxLength={4000} rows={3}
+            {/* ★DP3 P1: 編集側にも同じカウンタ（投稿と同じ規約で見せる） */}
+            <label style={{ ...t.fieldLabel, display: "flex", justifyContent: "space-between" }}>
+              <span>件名</span>
+              <span className="num" style={{ color: eTitle.length >= TITLE_MAX ? "var(--bad)" : "var(--v2-muted)" }}>
+                {eTitle.length} / {TITLE_MAX}
+              </span>
+            </label>
+            <input value={eTitle} onChange={(e) => setETitle(e.target.value)} maxLength={TITLE_MAX} style={input} />
+            <label style={{ ...t.fieldLabel, display: "flex", justifyContent: "space-between" }}>
+              <span>本文</span>
+              <span className="num" style={{ color: eBody.length >= BODY_MAX ? "var(--bad)" : "var(--v2-muted)" }}>
+                {eBody.length} / {BODY_MAX}
+              </span>
+            </label>
+            <textarea value={eBody} onChange={(e) => setEBody(e.target.value)} maxLength={BODY_MAX} rows={3}
               style={{ ...input, resize: "vertical", fontFamily: "inherit" }} />
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <select value={eAud} onChange={(e) => setEAud(e.target.value)} style={{ ...input, width: "auto" }}>
