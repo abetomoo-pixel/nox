@@ -651,6 +651,20 @@ body {
 .nox-seatgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 @media (max-width: 900px) { .nox-seatgrid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 641px) { .nox-seatgrid { grid-template-columns: repeat(2, 1fr); } }
+
+/* ★DP1 P2（2026-08-21・裁定 DP1-①/⑧ b#9）: **フロアの卓グリッドだけ**モックの列数規約へ寄せる。
+   出典＝モック register-pos の `.tables`（実測）:
+     基底 `repeat(8,1fr); gap:7px` ／ `@media(max-width:1180px)` で 4列 ／ `@media(max-width:720px)` で 2列
+   ★断点は NOX canonical の **1180 / 641**（裁定5）へ写す＝モックの 1180 はそのまま一致し、
+     720 は最も近い canonical の 641 を採る（新しい断点を増やさない）。900 の中間段（3列）は
+     モックに対応する段が無いので置かない。
+   ★`.floor` 修飾子を足して**フロアにだけ効かせる**理由: 素の `.nox-seatgrid` は
+     席選択モーダル（相席追加・席移動）でも使われており、@media は viewport 基準のため
+     広い画面ではモーダル内でも 8列になってしまう（狭い器に 8列＝判読不能）。
+   ★タイルの中身・onClick・openSeat の挙動は1文字も変えていない（列数と gap だけ）。 */
+.nox-seatgrid.floor { grid-template-columns: repeat(8, 1fr); gap: 7px; }
+@media (max-width: 1180px) { .nox-seatgrid.floor { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 641px) { .nox-seatgrid.floor { grid-template-columns: repeat(2, 1fr); } }
 .nox-seat {
   position: relative; min-height: 92px; padding: 10px;
   border: 1px solid var(--v2-line); border-radius: 12px;

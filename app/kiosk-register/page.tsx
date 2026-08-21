@@ -706,7 +706,8 @@ export default function KioskRegisterPage() {
               {/* 段K2 先行: 縦積みリスト → register と同系のタイルグリッド（タップ標的は .nox-kiosk 側 CSS で拡大）。
                   ★着卓キャスト顔と低在庫「残N」は出さない＝kiosk_register_state（0059）が指名も在庫も返さないため
                     （0059 契約 非改変の裁定維持）。onClick は openSeat のままで挙動不変。 */}
-              <div className="nox-seatgrid" style={{ marginTop: 10 }}>
+              {/* ★DP1 P2 b#9（従属波及）: manage の /register と同基準でフロアだけ 8/4/2 列へ。 */}
+              <div className="nox-seatgrid floor" style={{ marginTop: 10 }}>
                 {seats.map((s) => {
                   const oc = openBySeat(s.id);
                   const isPrimary = oc?.seat_id === s.id;
@@ -906,8 +907,14 @@ export default function KioskRegisterPage() {
 
                 {/* 明細追加 */}
                 <div className="nox-cardtop" style={card}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                    <h3 style={{ ...t.cardTitle, margin: 0 }}>商品（タップで追加）</h3>
+                  {/* ★DP1 P2 b#18（従属波及）: モック `.sectionhead`＝見出し＋説明文の2段組。 */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                    <div>
+                      <h3 style={{ ...t.cardTitle, margin: 0 }}>注文・セット料金</h3>
+                      <p style={{ margin: "3px 0 0", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>
+                        商品をタップすると明細に追加されます。セット料金は開卓時に自動で入ります。
+                      </p>
+                    </div>
                     <span style={{ fontSize: 12, color: "var(--sub)", marginLeft: "auto" }}>伝票グループ</span>
                     <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} aria-label="伝票グループ" style={{ ...input, width: 40 }} />
                   </div>
@@ -1009,7 +1016,30 @@ export default function KioskRegisterPage() {
 
                 {/* 会計（割引・無料の申請/適用は責任者画面のみ＝裁定11 確定②） */}
                 <div className="nox-cardtop" style={card}>
-                  <h3 style={t.cardTitle}>会計（伝票グループ別）</h3>
+                  {/* ★DP1 P2 b#38（従属波及・裁定 DP1-⑧）: manage の /register と同基準で会計3段を**表示だけ**出す。
+                      ★check_pay / check_close の呼び出し・引数・金額計算・順序は1文字も変えていない＝
+                        段は既存の payments と groupInfo から導出して描くだけ（新 state も新分岐も無い）。 */}
+                  {(() => {
+                    const covered = groups.length > 0 && !groupInfo.some((gi) => gi.paid < gi.due);
+                    const step = !covered && payments.length === 0 ? 1 : !covered ? 2 : 3;
+                    const STEPS = [[1, "請求を確認"], [2, "入金"], [3, "会計を締める"]] as const;
+                    return (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 12 }}>
+                        {STEPS.map(([n, label]) => (
+                          <div key={n} style={{
+                            display: "flex", alignItems: "center", gap: 7, padding: "7px 10px",
+                            borderRadius: 7, fontSize: 12, fontWeight: 700,
+                            border: `1px solid ${n === step ? "var(--gold)" : "var(--line)"}`,
+                            background: n === step ? "var(--goldbg)" : "transparent",
+                            color: n === step ? "var(--gold2)" : n < step ? "var(--v2-text)" : "var(--sub)",
+                          }}>
+                            <span className="num" style={{ fontWeight: 900 }}>{n < step ? "✓" : n}</span>{label}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>① 請求を確認（伝票グループ別）</h3>
                   <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
                     <thead>
                       <tr>
@@ -1035,6 +1065,14 @@ export default function KioskRegisterPage() {
                     </tbody>
                   </table>
                   {detail.check.status === "open" && (
+                  <>
+                  <h3 style={{ ...t.cardTitle, margin: "14px 0 4px" }}>② 入金</h3>
+                  {/* ★DP1 P2 b#39（従属波及）: モックの「併用」は方法の3つ目ではなく「分けて払う」操作＝
+                      NOX は payments を複数行にすることで既に実現できている。4値（cash/card/ar/other）は
+                      payments_method_check・check_pay の検証・daily_report_aggregate の名指し集計に直結＝減らさない。 */}
+                  <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.7 }}>
+                    併用（現金＋カードなど）は、入金額を減らして入金し、残額をもう一度別の方法で入金します。
+                  </p>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
                       <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
                       <input value={payGroup} onChange={(e) => setPayGroup(e.target.value)} style={{ ...input, width: 40 }} />
@@ -1062,6 +1100,7 @@ export default function KioskRegisterPage() {
                       )}
                       <button onClick={() => void pay()} style={btnDark}>入金</button>
                     </div>
+                  </>
                   )}
                   <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                     {payments.map((p) => (
@@ -1075,6 +1114,8 @@ export default function KioskRegisterPage() {
                     /* planB モック .payrow＝大ボタン2列（padding 15px・15px）。締めるは従来と同一の
                        onClick/disabled/文言のまま。「← フロア」は backbar と同じ既存 closeDetail の再利用
                        ＝保留の連打束ねを flush してから戻る挙動も同一（新規ロジックなし）。 */
+                    <>
+                    <h3 style={{ ...t.cardTitle, margin: "14px 0 4px" }}>③ 会計を締める</h3>
                     <div className="nox-payrow">
                       <button
                         onClick={() => void closeCheck()}
@@ -1088,6 +1129,7 @@ export default function KioskRegisterPage() {
                         ← フロア
                       </button>
                     </div>
+                    </>
                   )}
                 </div>
                 </div>

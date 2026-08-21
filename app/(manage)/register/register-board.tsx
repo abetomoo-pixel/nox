@@ -238,6 +238,13 @@ export default function RegisterBoard({
   const [groupPick, setGroupPick] = useState<string | null>(null);
   // E8-1b F6: close 後モーダル（合計・お釣り・再印刷・簡易領収書）
   const [closeInfo, setCloseInfo] = useState<{ checkId: string; total: number; change: number | null; groups: string[] } | null>(null);
+  // ★DP1 P2 b#16: 伝票取消をモーダル化（モック billhead の danger ボタン→確認ダイアログ）。
+  //   旧実装は window.prompt で理由を取っていた＝ブラウザ既定 UI で、取消対象・金額を確認できなかった。
+  // ★DP1 P2 b#22: 商品をクリア（モック cart の clearItems）。確認モーダルを挟む。
+  const [clearModal, setClearModal] = useState(false);
+  const [clearBusy, setClearBusy] = useState(false);
+  const [voidModal, setVoidModal] = useState(false);
+  const [voidReason, setVoidReason] = useState("");
   // R2-c（mig0099）: 正式領収書の発行（E8-1c の揮発分割 UI を receipt_issue 結線へ置換）。
   //   複数枚は「複数回発行」で表現（1枚=台帳1行・Σamount ≤ 伝票総額はサーバがガード）。
   //   採番 R-連番・QR（公開 URL /r/{token}）・印刷は発行済み一覧から。
@@ -669,6 +676,31 @@ export default function RegisterBoard({
     await loadCheck(check.id);
   }
 
+  // ★DP1 P2 b#22: 商品をクリア（モック cart の `clearItems`）。
+  //   ★対象は**商品行だけ**（kind ∈ drink/champ/bottle＝商品タップで入る行）。
+  //     set / time / charge / custom / discount は**触らない**＝セット料金・延長・承認割引を
+  //     「クリア」で消せてしまうと金額の意味が変わるため（モックの clearItems もカート＝商品の一括削除）。
+  //   ★送る RPC は既存の check_remove_line のみ＝1行ずつ・引数も同一（新 RPC は作らない）。
+  //   ★入金後は各行の削除ボタンと同じく不可（payments.length > 0 でボタンを出さない＝サーバ側も拒否）。
+  //   ★原子性は無い（1行ずつ＝途中失敗なら部分削除で止まる）ので、失敗した時点で中断して
+  //     残りを消さずに再読込する＝「どこまで消えたか」が画面と一致する。
+  const CLEARABLE_KINDS = new Set(["drink", "champ", "bottle"]);
+  async function clearItems() {
+    if (!check || clearBusy) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    const targets = lines.filter((l) => CLEARABLE_KINDS.has(l.kind));
+    if (targets.length === 0) { setClearModal(false); return; }
+    setClearBusy(true);
+    setMsg(null);
+    for (const l of targets) {
+      const { error } = await supabase.rpc("check_remove_line", { p_line_id: l.id });
+      if (error) { setMsg(error.message); break; } // 途中失敗は中断（残りは消さない）
+    }
+    setClearBusy(false);
+    setClearModal(false);
+    await loadCheck(check.id);
+  }
+
   // キャストドリンク（mig0067）: 明細行にキャストを付ける／取り消す。
   //   ★バック額はサーバが行の凍結値（back_snapshot）から焼き付ける＝金額は一切送らない。
   //   ★連打束ねの保留を先に確定してから呼ぶ（起票対象の行が確定していないと紐付け先がぶれる）。
@@ -888,14 +920,19 @@ export default function RegisterBoard({
     await loadOpenMap();
   }
 
+  // ★DP1 P2 b#16: モーダルの「取消する」から呼ぶ。
+  //   ★送る RPC と引数は不変＝check_void(p_check_id, p_reason)。理由の取得元が
+  //     window.prompt からモーダルの input に変わっただけ（空なら押せない＝旧 `if (!reason) return` と同義）。
+  //   ★flush → rpc の順序も不変（保留を先に確定してから取消＝失敗なら中止）。
   async function voidCheck() {
     if (!check) return;
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
-    const reason = window.prompt("取消理由を入力してください");
+    const reason = voidReason.trim();
     if (!reason) return;
     const { error } = await supabase.rpc("check_void", { p_check_id: check.id, p_reason: reason });
     if (error) { setMsg(error.message); return; }
     setMsg("伝票を取消しました");
+    setVoidModal(false); setVoidReason("");
     setCheck(null);
     await loadOpenMap();
   }
@@ -1139,6 +1176,71 @@ export default function RegisterBoard({
           </div>
         </Modal>
       )}
+      {/* ── ★DP1 P2 b#22: 商品クリアの確認モーダル（消える範囲を明示してから実行）── */}
+      {clearModal && check && (() => {
+        const targets = lines.filter((l) => CLEARABLE_KINDS.has(l.kind));
+        const sum = targets.reduce((a2, l) => a2 + l.line_total, 0);
+        return (
+          <Modal onClose={() => { if (!clearBusy) setClearModal(false); }}>
+            <h3 style={{ ...t.cardTitle, margin: "0 0 6px" }}>商品をクリアします</h3>
+            <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
+                <span>対象</span><span className="num">{targets.length}行</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontWeight: 800 }}>減る金額</span>
+                <span style={{ ...t.num, fontSize: 20, fontWeight: 900, color: "var(--bad)" }}>−{yen(sum)}</span>
+              </div>
+            </div>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
+              消えるのは<b style={{ color: "var(--v2-text)" }}>商品の行だけ</b>です。
+              セット料金・延長・承認済みの割引は残ります。1行ずつ削除するため、途中で失敗した場合は
+              そこで止まります（消えた分だけが反映されます）。
+            </p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button style={btnLight} disabled={clearBusy} onClick={() => setClearModal(false)}>やめる</button>
+              <button style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)" }}
+                disabled={clearBusy} onClick={() => void clearItems()}>
+                {clearBusy ? "削除中…" : `${targets.length}行を削除`}
+              </button>
+            </div>
+          </Modal>
+        );
+      })()}
+      {/* ── ★DP1 P2 b#16: 伝票取消モーダル（モック billhead の「伝票取消」danger→確認）── */}
+      {voidModal && check && (
+        <Modal onClose={() => setVoidModal(false)}>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 6px", color: "var(--bad)" }}>伝票を取消します</h3>
+          <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
+              <span>卓</span><span>{seats.find((x) => x.id === check.seat_id)?.name ?? "—"}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontWeight: 800 }}>合計</span>
+              <span style={{ ...t.num, fontSize: 20, fontWeight: 900 }}>{yen(check.total)}</span>
+            </div>
+          </div>
+          <p style={{ ...t.alert, marginBottom: 12 }}>
+            取消は元に戻せません。入金済みの場合は端末側の返金も併せて行ってください
+            （取消した伝票は日次集計から外れます）。
+          </p>
+          <label style={{ ...t.fieldLabel, display: "block", marginBottom: 12 }}>
+            取消理由（必須）
+            <input value={voidReason} onChange={(e) => setVoidReason(e.target.value)}
+              placeholder="例: 誤って開卓した" maxLength={200}
+              style={{ ...t.input, display: "block", marginTop: 5 }} />
+          </label>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button style={btnLight} onClick={() => setVoidModal(false)}>やめる</button>
+            <button
+              style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)", opacity: voidReason.trim() ? 1 : 0.4 }}
+              disabled={!voidReason.trim()}
+              onClick={() => void voidCheck()}>
+              取消する
+            </button>
+          </div>
+        </Modal>
+      )}
       {/* ── E8-1 ④: 入金モーダル（BANZEN register-table.tsx:360-483 写経・NOX 4値＋detail・
              均等割り2〜6＝ceil(残額÷N) をセットするだけ・お預かりプリセット・お釣り・不足ガード）── */}
       {payModal && check && (() => {
@@ -1173,8 +1275,16 @@ export default function RegisterBoard({
                 <span style={{ ...t.num, fontSize: 20, fontWeight: 900, color: balance > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(balance)}</span>
               </div>
             </div>
-            {/* 支払方法（NOX 4値・台帳#36） */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+            {/* 支払方法（NOX 4値・台帳#36）
+                ★DP1 P2 b#39（裁定 DP1-⑧）: モックは「現金／カード／併用」の3択だが、
+                  **NOX の 4値（cash/card/ar/other）は減らせない**＝`payments_method_check`（CHECK 値域）・
+                  `check_pay` のハードコード検証・`daily_report_aggregate` の名指し集計の3経路に直結しており、
+                  語彙を削ると日次サマリからサイレント欠落する（本ファイル冒頭 :91-97 の注記どおり）。
+                ★モックの「併用」は**方法の3つ目ではなく「分けて払う」操作**＝NOX では
+                  payments を複数行にすることで既に実現できている（機構は実装済み）。
+                  そこで **4値は維持したまま、併用の導線を言葉で見えるようにする**（下の注記＋既存の均等割り）。 */}
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)", marginBottom: 6 }}>支払方法</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
               {Object.entries(METHOD_LABEL).map(([v, l]) => (
                 <button key={v} type="button"
                   style={payMethod === v ? { ...t.btnGold, justifyContent: "center", padding: "12px" } : { ...t.btnGhost, justifyContent: "center", padding: "12px" }}
@@ -1183,6 +1293,12 @@ export default function RegisterBoard({
                 </button>
               ))}
             </div>
+            {/* ★DP1 P2 b#39: 併用の導線（表示のみ・新しい state も RPC も無い）。 */}
+            <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
+              <b style={{ color: "var(--v2-text)" }}>併用</b>（現金＋カードなど）は、方法を選んで
+              <b style={{ color: "var(--v2-text)" }}>入金額を減らして入金</b>し、残額をもう一度別の方法で入金します。
+              下の「均等割り」は 1人分＝残額÷人数 を入金額にセットする補助です。
+            </p>
             {/* 均等割り（案イ）: 押すと入金額に ceil(残額÷N) をセットするだけ。先払いが ceil 額・
                 最後の人は残額既定で少なく払う＝Σpayments ≥ due を必ず満たす（切り上げで不足しない） */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
@@ -1509,8 +1625,9 @@ export default function RegisterBoard({
           <span className="total num"><small>合計</small>{yen(check.total)}</span>
           {/* void は manager 以上のみ表示（RPC 側でも owner/manager を強制＝二重） */}
           {isManagerUp && (
-            <button onClick={voidCheck} style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)" }}>
-              取消
+            <button onClick={() => { setVoidReason(""); setVoidModal(true); }}
+              style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)" }}>
+              伝票取消
             </button>
           )}
         </div>
@@ -1804,8 +1921,15 @@ export default function RegisterBoard({
         {/* 明細追加（段R2: 注文タブ。カスタム明細フォームだけは会計タブへ移設） */}
         {dtab === "order" && (
         <div className="nox-cardtop" style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-            <h3 style={{ ...t.cardTitle, margin: 0 }}>商品（タップで追加）</h3>
+          {/* ★DP1 P2 b#18: モック `.sectionhead`＝見出し＋説明文の2段組（左）＋操作（右）。
+              旧は h3 単独で、何をする面なのかの説明が無かった。文言は実装の挙動どおり（発明しない）。 */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+            <div>
+              <h3 style={{ ...t.cardTitle, margin: 0 }}>注文・セット料金</h3>
+              <p style={{ margin: "3px 0 0", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>
+                商品をタップすると明細に追加されます。セット料金は開卓時に自動で入ります。
+              </p>
+            </div>
             {/* E8-1 ⑦: 英字テキスト入力 → 会計分けセグメント（A のみ時は「＋会計を分ける」だけを出す） */}
             <span style={{ marginLeft: "auto" }}>{groupSeg(prodGroup || "A", setProdGroup)}</span>
           </div>
@@ -1944,7 +2068,23 @@ export default function RegisterBoard({
         {/* 明細（段R2: 注文タブ＝タップの結果をその場で確認する） */}
         {dtab === "order" && (
         <div className="nox-cardtop" style={card}>
-          <h3 style={t.cardTitle}>明細</h3>
+          {/* ★DP1 P2 b#18/#22: 明細も sectionhead 2段組へ。右端に「商品をクリア」（モック cart の clearItems）。
+              ★対象は商品行だけ＝セット料金・延長・承認割引は消えない（下の確認モーダルにも明記）。 */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+            <div>
+              <h3 style={{ ...t.cardTitle, margin: 0 }}>明細</h3>
+              <p style={{ margin: "3px 0 0", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>
+                この伝票に入っている行。入金後は訂正できません（取消からやり直します）。
+              </p>
+            </div>
+            {(() => {
+              const n = lines.filter((l) => CLEARABLE_KINDS.has(l.kind)).length;
+              return n > 0 && payments.length === 0 && check?.status === "open" ? (
+                <button type="button" style={{ ...btnLight, marginLeft: "auto" }}
+                  onClick={() => setClearModal(true)}>商品をクリア（{n}行）</button>
+              ) : null;
+            })()}
+          </div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <tbody>
               {lines.map((l) => {
@@ -2066,7 +2206,33 @@ export default function RegisterBoard({
         {/* 会計（段R2: 会計タブ） */}
         {dtab === "pay" && (
         <div className="nox-cardtop" style={card}>
-          <h3 style={t.cardTitle}>会計（伝票グループ別）</h3>
+          {/* ★DP1 P2 b#38（裁定 DP1-⑧）: モックの会計3段（会計へ進む → 支払方法 → 会計を完了）へ
+              **表示だけ**を寄せる。★check_pay / check_close の呼び出し・引数・金額計算・呼び出し順序は
+              1文字も変えていない＝下の段見出しは「今どの段か」を **既存 state から導出して描くだけ**
+              （payments.length と allCovered のみを読む・新しい state も分岐も作らない）。 */}
+          {(() => {
+            const step = !allCovered && payments.length === 0 ? 1 : !allCovered ? 2 : 3;
+            const STEPS = [[1, "請求を確認"], [2, "入金"], [3, "会計を完了"]] as const;
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 12 }}>
+                {STEPS.map(([n, label]) => (
+                  <div key={n} style={{
+                    display: "flex", alignItems: "center", gap: 7, padding: "7px 10px",
+                    borderRadius: 7, fontSize: 12, fontWeight: 700,
+                    border: `1px solid ${n === step ? "var(--gold)" : "var(--line)"}`,
+                    background: n === step ? "var(--goldbg)" : "transparent",
+                    color: n === step ? "var(--gold2)" : n < step ? "var(--v2-text)" : "var(--sub)",
+                  }}>
+                    <span className="num" style={{ fontWeight: 900 }}>{n < step ? "✓" : n}</span>{label}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>① 請求を確認（伝票グループ別）</h3>
+          <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>
+            会計を分けている場合は、伝票ごとに残額を確認してから入金します。
+          </p>
           <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
             <thead>
               <tr>
@@ -2093,6 +2259,10 @@ export default function RegisterBoard({
           </table>
           {/* E8-1 ④/⑦: 1行フォーム → 会計分けセグメント（現行位置）＋入金モーダル（BANZEN 型）。
               送る引数（check_pay の7引数）は不変＝入力 UI の置換のみ。 */}
+          <h3 style={{ ...t.cardTitle, margin: "14px 0 4px" }}>② 入金</h3>
+          <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>
+            支払方法と金額を選んで入金します。現金・カードを組み合わせる（併用）ときは、金額を分けて複数回入金します。
+          </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
             {groupSeg(payGroup || "A", setPayGroup)}
             {(() => {
@@ -2135,13 +2305,19 @@ export default function RegisterBoard({
           {/* 動線改修v3: モック .payrow＝主ボタン＋戻るの2列（≤641 で下部 sticky・safe-area 対応）。
               ★会計完了はハンドラも充足判定による disabled も文言も1文字も変えていない。
                 「← フロア」は backbar と同じ既存 closeDetail の再利用（新規ロジックなし）。 */}
+          <h3 style={{ ...t.cardTitle, margin: "14px 0 4px" }}>③ 会計を完了</h3>
+          <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>
+            {allCovered
+              ? "すべての伝票の残額が 0 になりました。完了すると伝票が締まります。"
+              : "残額があるうちは完了できません（上の入金を済ませてください）。"}
+          </p>
           <div className="nox-payrow">
           <button
             onClick={closeCheck}
             disabled={!allCovered}
             style={{ ...btnDark, padding: "13px 28px", opacity: allCovered ? 1 : 0.4 }}
           >
-            会計完了（close）
+            会計を完了
           </button>
           <button type="button" className="nox-backbtn" onClick={() => void closeDetail()}>← フロア</button>
           </div>
@@ -2193,7 +2369,9 @@ export default function RegisterBoard({
             使用中 <span className="num" style={{ color: "var(--v2-text)" }}>{Object.keys(openMap).length}</span> / {seats.length}卓
           </span>
         </h2>
-        <div className="nox-seatgrid">
+        {/* ★DP1 P2 b#9: フロアの卓グリッドはモック `.tables` の列数規約（8/4/2）へ＝`.floor` 修飾子。
+            席選択モーダル（:1259）は素の .nox-seatgrid のまま＝狭い器に 8列を出さない。 */}
+        <div className="nox-seatgrid floor">
           {seats.map((s) => {
             const cid = openMap[s.id];
             const busy = !!(cid || addMap[s.id]);
