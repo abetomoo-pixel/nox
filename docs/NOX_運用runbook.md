@@ -122,6 +122,22 @@ npm run backup:schema
 - **切り分けの決め手**：ブラウザで `link[rel=stylesheet]` の href を直接 GET する。
   **404 なら本症状**（CSS の中身やコードを疑う前にここを見る）。
 
+#### ★規約改訂（2026-08-21・DP レーンで運用実績あり・裁定36）
+
+見出しの「実行しない」は **`.next` を共有する場合の話**として読む。**次の3点をすべて満たすときに限り、
+dev 稼働中でも検証ビルドを実行してよい**（DP1 P3・DP2 で計3回実行し、dev 側の無スタイル化・0件化は
+一度も再現しなかった）:
+
+1. **`NEXT_DIST_DIR` で完全分離**する（`NEXT_DIST_DIR=.next-build npx next build`）。
+   `.next` と `.next-build` は別ディレクトリ＝dev が配っているチャンクを1バイトも触らない。
+2. **`tsconfig.json` を復元**する。`next build` は `include` に `<distDir>/types/**/*.ts` を
+   足し、配列の整形も書き換える（実測）。放置すると差分がコミットに紛れ、
+   次の `next dev` がまた書き戻して**往復の差分**になる。→ `git checkout -- tsconfig.json`。
+3. **出力を削除**する（`rm -rf .next-build`）。Dropbox 配下のため放置すると同期対象になり、
+   `.gitignore` には入っていても**同期負荷とディスクを食う**（`node_modules`/`.next` と同じ理由）。
+
+★それでも**本番デプロイ用のビルドは dev を止めてから**行う（検証ビルドと本番ビルドを混同しない）。
+
 ### 3-5. 運用ルール：verify 実行中はデモ org を触らない
 - `verify:nox-anon-guard` の段37 は **service role による全表カウントの前後差分**
   （`checks`/`seats`/`kiosk_devices`/`kiosk_sessions`/`staff_pin`）で非汚染を確認している。
