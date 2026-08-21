@@ -867,7 +867,9 @@ export default function AnalyticsBoard({
 
       {/* E8-6 #7（mig0096 結線）: 曜日×時間帯ヒートマップ＝7×24 の 168 グリッド client 展開 */}
       <section className="nox-panel">
-        <h3>曜日×時間帯ヒートマップ（{period}{allStores && isOwner ? "・全店舗" : ""}）</h3>
+        {/* ★DP2 T5（裁定 DP0-2）: 内部用語「ヒートマップ」を製品文言へ。
+            表そのもの（7×24 の色濃淡）は不変＝見出しの語彙だけを変える。 */}
+        <h3>曜日別・時間帯別の売上（{period}{allStores && isOwner ? "・全店舗" : ""}）</h3>
         {hourly === null && <p style={noneP}>読み込み中…</p>}
         {hourly !== null && heat.size === 0 && <p style={noneP}>この月の会計済み伝票がありません。</p>}
         {hourly !== null && heat.size > 0 && (
@@ -1059,7 +1061,9 @@ export default function AnalyticsBoard({
       {view === "customers" && (
       <>
       <section className="nox-panel">
-        <h3>顧客セグメント</h3>
+        {/* ★DP2 T5（裁定 DP0-2）: 内部用語「セグメント」を製品文言へ。
+            配下のラベル（新規／リピート／離反リスク 中・高）は元から和文＝不触。 */}
+        <h3>客層の内訳</h3>
         {custSummaryErr && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{custSummaryErr}</p>}
         {custSummary === null && !custSummaryErr && <p style={noneP}>読み込み中…</p>}
         {custSummary !== null && !custSummaryErr && (
@@ -1085,7 +1089,9 @@ export default function AnalyticsBoard({
       {/* E8-6 #13（mig0096 結線）: コホートリテンション表＝直近6ヶ月の初来店月×経過月。
           初来店月は全履歴で確定（窓外に履歴のある客は新規に数えない＝段53(9) 実測） */}
       <section className="nox-panel">
-        <h3>リテンション（初来店月別の再来店・直近6ヶ月{allStores && isOwner ? "・全店舗" : ""}）</h3>
+        {/* ★DP2 T5（裁定 DP0-2）: 内部用語「リテンション」を製品文言へ。
+            括弧内は元から和文の言い換えだったので、見出し語をその言い換えに寄せる。 */}
+        <h3>初来店の月ごとの再来店（直近6ヶ月{allStores && isOwner ? "・全店舗" : ""}）</h3>
         {cohort === null && <p style={noneP}>読み込み中…</p>}
         {cohort !== null && cohortTable.length === 0 && (
           <p style={noneP}>この期間に初来店した客がいません（顧客が紐付いた会計済み伝票が対象）。</p>
