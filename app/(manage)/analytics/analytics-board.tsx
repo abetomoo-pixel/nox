@@ -549,7 +549,9 @@ export default function AnalyticsBoard({
         {isOwner && stores.length > 1 && (
           <label style={{ fontSize: 12, color: "var(--sub)", display: "flex", alignItems: "center", gap: 4 }}>
             <input type="checkbox" checked={allStores} onChange={(e) => setAllStores(e.target.checked)} />
-            全店舗で集計（時間帯・カテゴリ・リテンション）
+            {/* ★DP2-② 裁定（2026-08-21）: 見出し3語の製品文言化に合わせて語彙を揃えた
+                （旧「リテンション」がこの行にだけ残り画面内で食い違っていた）。 */}
+            全店舗で集計（時間帯別・カテゴリ別・再来店）
           </label>
         )}
         <span className="num" style={{ marginLeft: "auto", fontSize: 12, color: "var(--sub)" }}>

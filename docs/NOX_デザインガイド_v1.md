@@ -143,6 +143,11 @@ modalhead / modalbody / ghost / danger / dot / full`
 body に `radial-gradient(circle at 80% -10%, gold .1, transparent 28%)` の淡い金グロー /
 `.app{display:grid; grid-template-columns:224px minmax(0,1fr)}`（PC は固定 224px サイドバー）。
 ※現行アプリのフォントは `"Zen Kaku Gothic New"`＝**E2 で font 差し替えの可否を判断**（本 v1 では未確定）。
+→ **★DP2 T1 で決着**: sans=`Inter + Noto Sans JP` / serif=`Lora + Noto Serif JP` の2語彙へ
+（`--font-sans` / `--font-serif`・裁定 DP0-6）。旧3書体は canonical から降格。
+
+**★spacing はトークン化しない**（モック13枚にスケール不在・最頻値 31〜46% の手調整分布・
+**DP2-① 裁定**・E レーン §4 の部品別実測記録を正本とする）。
 
 ---
 
