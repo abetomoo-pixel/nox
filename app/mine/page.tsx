@@ -5,6 +5,7 @@ import { fmtWin } from "@/lib/nox/shift-time";
 import { loadCastSimData } from "@/lib/nox/payroll/sim-data";
 import SimulatorPanel from "@/components/simulator-panel";
 import PayslipSlip from "@/components/payslip-slip";
+import ShiftConfirmButton from "./shift-confirm-button";
 import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
 import PhotoCard from "./photo-card";
@@ -56,7 +57,7 @@ export default async function MinePage() {
   // 直近の確定シフト
   const { data: shifts } = await supabase
     .from("shifts")
-    .select("date, start_hm, end_hm, status")
+    .select("id, date, start_hm, end_hm, status") // ★SD V2-3: id 追加（shift_cast_confirm の対象特定）
     .gte("date", bizToday)
     .order("date")
     .limit(7);
@@ -233,7 +234,12 @@ export default async function MinePage() {
           {(shifts ?? []).map((s, i) => (
             <li key={i} style={{ padding: "3px 0" }}>
               {s.date} {fmtWin(s.start_hm as string, s.end_hm as string)}{" "}
-              <span style={{ color: "var(--sub)" }}>（{s.status === "confirmed" ? "確定" : "予定"}）</span>
+              {/* ★SD V2-3（mig0101/0102）: status 3値＝proposed は「確認待ち」＋「確認する」ボタン
+                  （shift_cast_confirm＝proposed→confirmed 一方向・本人のみ）。confirmed/planned は表示のみ。 */}
+              <span style={{ color: s.status === "confirmed" ? "var(--ok)" : "var(--sub)" }}>
+                （{s.status === "confirmed" ? "確定" : s.status === "proposed" ? "確認待ち" : "予定"}）
+              </span>
+              {s.status === "proposed" && <ShiftConfirmButton shiftId={s.id as string} />}
             </li>
           ))}
         </ul>

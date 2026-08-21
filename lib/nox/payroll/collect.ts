@@ -243,6 +243,9 @@ async function loadShimeiAmounts(admin: SupabaseClient, storeId: string, win: Pa
 //   cast セッションの client を渡すと RLS パターン1 で自分の行のみ＝self スコープに自然に縮む。
 export async function loadPunch(admin: SupabaseClient, storeId: string, win: PayrollWindow, grace: { lateGrace?: number; earlyGrace?: number; overGrace?: number }) {
   const [shiftsR, attR, punchR] = await Promise.all([
+    // ★SD-4（2026-08-21・設計書 §1）: 給与分母は confirmed のみ＝この .eq は不変。
+    //   mig0101 で status が 3値化（planned→proposed→confirmed）されたが、中間 status（proposed）は
+    //   キャスト確認待ちの未確定＝給与の出勤分母に数えない。ここを広げる変更は SD-4 の再裁定が要る。
     admin.from("shifts").select("cast_id, date, start_hm, end_hm").eq("store_id", storeId).eq("status", "confirmed").gte("date", win.periodStart).lte("date", win.periodEnd),
     admin.from("attendance").select("cast_id, date, status").eq("store_id", storeId).gte("date", win.periodStart).lte("date", win.periodEnd),
     admin.from("punches").select("cast_id, punched_at, type").eq("store_id", storeId).gte("punched_at", win.startTs).lt("punched_at", win.endTs),
