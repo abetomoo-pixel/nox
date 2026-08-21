@@ -1,9 +1,15 @@
-# mock/pages-2026-08/ 収蔵13枚の相談役側 sha256（先頭16桁）＋bytes
-# CC: README の実測 sha256 表と突き合わせ・全13一致で来歴クローズ
+# mock/pages-2026-08/ 収蔵14枚の相談役側 sha256（先頭16桁）＋bytes
+# CC: README の実測 sha256 表と突き合わせ・全13一致で来歴クローズ（1〜13枚目・2026-08-08）
+# ★14枚目 nox-cast-compensation-all-in-one.html は 2026-08-20 追加受領＝「M2待遇」canonical
+#   （待遇オールインワン・money-core 級）。DP2 T4 で追記・git 追跡へ収蔵（2026-08-21）。
+#   ★DP トークン母数外（DP0-1 裁定）＝多数決は 13枚のまま・E1 の確定値を据え置く。
+#   ★DP レーンの変換対象外（DP1-④）＝M2待遇レーン所属。
 nox-analytics-dashboard.html      36224  7456e5db19a82c49
 nox-announcement-management.html  31116  c9d67b543b07388b
 nox-audit-management.html         35704  e3a92792121b5d7b
 nox-business-hours-settings.html  21031  13504c7f7e421f95
+nox-cast-compensation-all-in-one.html  39474  899e51000b21f705
+#   ^ 全64桁: 899e51000b21f705bf9d704bcc5e1099830ab5e6b54f63aa3ffc96e76999f455
 nox-cast-management.html          34192  99a4fc32b53d6098
 nox-customer-management.html      32796  9a4847c57010d911
 nox-daily-report.html             35676  a7513a48148e6fbb
