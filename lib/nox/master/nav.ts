@@ -27,6 +27,18 @@ export const MASTER_NAV: MasterNavGroup[] = [
     ],
   },
   {
+    // DP1 P1（2026-08-21・裁定 DP1-②/⑥）: /master の3ビュー（seat / hours / system）を実ルート化した。
+    // URL は**モック名準拠**（裁定 DP1-⑥）＝seats / business-hours / system。
+    // ★描画側（master-subnav.tsx）は不触＝この配列に行を足すだけでパンくずとタブが増える契約。
+    key: "store",
+    label: "店舗・端末",
+    pages: [
+      { label: "席・卓", href: "/master/seats" },
+      { label: "営業時間", href: "/master/business-hours" },
+      { label: "スタッフ・システム", href: "/master/system" },
+    ],
+  },
+  {
     key: "cast-comp",
     label: "キャスト・報酬",
     pages: [
