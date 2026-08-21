@@ -12,6 +12,7 @@ import { fmtWin, fmtBand30, hm2min, min2hm } from "@/lib/nox/shift-time";
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
+import Modal from "@/components/ui/modal";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { forecastDay, type ForecastComp, type DayForecast } from "@/lib/nox/labor-forecast";
@@ -122,6 +123,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const [fStart, setFStart] = useState("20:00");
   const [fEnd, setFEnd] = useState("26:00");
   const [fStatus, setFStatus] = useState("planned");
+  // ★DP3 P2（2026-08-21・裁定 DP3-②）: 手動シフト追加をモーダルへ（モック `planShiftDialog`）。
+  const [addModal, setAddModal] = useState(false);
+  // ★DP3 P2（裁定 DP3-③）: 勤務時間の調整モーダル（モック `adjustDialog`）。
+  //   ★「元の希望との対比」は**入れない**＝`shifts` が希望の原型（wish_id）を保持していないため
+  //     出せない（対比は d＝シフト深部レーンで消化・裁定 DP3-③）。
+  //   ★メモ欄（モック `adjustNote`）も入れない＝`shifts` にメモ列が無い（同上）。
+  const [adjTarget, setAdjTarget] = useState<Shift | null>(null);
+  const [aStart, setAStart] = useState("");
+  const [aEnd, setAEnd] = useState("");
   // E8-4 #10: shifts.created_by → users.name（確定シフト一覧の登録者列・CSV）
   const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
   // E8-4 #3: バンド追加フォーム（時間帯は HH:MM テキスト＝24:00 を許すため type=time にしない）
@@ -261,6 +271,22 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
       p_id: s.id, p_cast_id: s.cast_id, p_date: s.date, p_start_hm: s.start_hm, p_end_hm: s.end_hm, p_status: "confirmed",
     });
     setMsg(error ? `確定に失敗: ${rpcErrJa(error.message)}` : "確定しました");
+    await load();
+  }
+
+  // ★DP3 P2（裁定 DP3-③）: 勤務時間の調整。**新しい RPC は作らない**＝既存 `shift_set` の update 経路
+  //   （`confirmShift` と同じ6引数・同じ順序）に、開始/終了だけ差し替えた値を渡す。
+  //   ★status は**現在値を据え置く**（調整で予定→確定へ勝手に昇格させない）。
+  //   ★定休日の事前ブロックも `addShift` と同じ規則（二層目は RPC 'closed day'）。
+  async function adjustShift() {
+    if (!adjTarget) return;
+    setMsg(null);
+    if (shiftHoursStatus(adjTarget.date, aStart, aEnd, bhRows).status === "closed") { setMsg("選択された日は定休日です"); return; }
+    const { error } = await supabase.rpc("shift_set", {
+      p_id: adjTarget.id, p_cast_id: adjTarget.cast_id, p_date: adjTarget.date, p_start_hm: aStart, p_end_hm: aEnd, p_status: adjTarget.status,
+    });
+    setMsg(error ? `勤務時間の調整に失敗: ${rpcErrJa(error.message)}` : "勤務時間を調整しました");
+    if (!error) setAdjTarget(null);
     await load();
   }
 
@@ -662,34 +688,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             <button style={{ ...btnLight, marginLeft: "auto", marginBottom: 9 }} onClick={exportShiftsCsv}>CSV 出力</button>
           )}
         </div>
+        {/* ★DP3 P2（裁定 DP3-②）: 手動追加は**モーダル**へ（モック `planShiftDialog`）。
+            ここは開くボタンだけ＝フォーム本体と `addShift`（送る RPC・引数・定休日ガード）は不変。 */}
         {isManagerUp && (
           <div style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <select value={fCast} onChange={(e) => setFCast(e.target.value)} style={input}>
-                <option value="">キャスト</option>
-                {casts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={input} />
-              <input value={fStart} onChange={(e) => setFStart(e.target.value)} style={{ ...input, width: 70 }} />
-              <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
-              <input value={fEnd} onChange={(e) => setFEnd(e.target.value)} style={{ ...input, width: 70 }} />
-              <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={input}>
-                <option value="planned">予定</option>
-                <option value="confirmed">確定</option>
-              </select>
-              <button style={{ ...btnDark, opacity: fClosedDay ? 0.45 : 1 }} disabled={fClosedDay} onClick={addShift}>登録</button>
-            </div>
-            {/* B-5②: 定休日=赤（一次ブロック）／時間外=黄（警告のみ・登録可）／営業時間内・未設定=表示なし */}
-            {fClosedDay && (
-              <p style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700, margin: "6px 0 0" }}>
-                この日は定休日です（シフトを登録できません）
-              </p>
-            )}
-            {fShiftHours.status === "outside" && fShiftHours.row && (
-              <p style={{ fontSize: 11.5, color: "var(--gold2)", fontWeight: 700, margin: "6px 0 0" }}>
-                営業時間外です（営業 {fmtHoursLabel(fShiftHours.row)}）
-              </p>
-            )}
+            <button style={btnDark} onClick={() => setAddModal(true)}>＋ 手動でシフトを追加</button>
           </div>
         )}
         {shifts.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>なし</p>}
@@ -710,6 +713,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 {userNames.get(s.created_by) ?? "—"}
               </span>
               {sClosed && <span style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700 }}>定休日</span>}
+              {/* ★DP3 P2（裁定 DP3-③）: 勤務時間の調整（モック `adjustDialog`）。予定・確定のどちらでも押せる
+                  ＝時間の訂正は確定後にも起きる（status は据え置きなので昇格しない）。 */}
+              {isManagerUp && (
+                <button
+                  style={{ ...btnLight, marginLeft: s.status === "planned" ? undefined : "auto", opacity: sClosed ? 0.45 : 1 }}
+                  disabled={sClosed}
+                  title={sClosed ? "この日は定休日に設定されています" : undefined}
+                  onClick={() => { setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm); }}
+                >時間を調整</button>
+              )}
               {isManagerUp && s.status === "planned" && (
                 <button
                   style={{ ...btnLight, marginLeft: "auto", opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
@@ -857,6 +870,121 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           </p>
         </section>
       )}
+
+      {/* ── ★DP3 P2（裁定 DP3-②）: 手動シフト追加モーダル（モック `planShiftDialog`・
+             modalhead＋modalbody＋formgrid＋actions）。★フィールド集合・検証・送る RPC と引数は
+             移設前の逐語＝`addShift` は1文字も変えていない。 ── */}
+      {addModal && isManagerUp && (
+        <Modal onClose={() => setAddModal(false)} maxWidth={520} scroll>
+          <div className="nox-modalhead">
+            <h3 style={{ ...secTitle, margin: 0 }}>手動でシフトを追加</h3>
+            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setAddModal(false)}>×</button>
+          </div>
+          <div className="nox-modalbody">
+            <div className="nox-field2">
+              <div className="nox-field">
+                <span className="lab">キャスト<span className="req">*</span></span>
+                <select value={fCast} onChange={(e) => setFCast(e.target.value)} style={{ ...input, width: "100%" }}>
+                  <option value="">キャスト</option>
+                  {casts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="nox-field">
+                <span className="lab">日付</span>
+                <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={{ ...input, width: "100%" }} />
+              </div>
+              <div className="nox-field">
+                <span className="lab">開始</span>
+                <input value={fStart} onChange={(e) => setFStart(e.target.value)} style={{ ...input, width: "100%" }} />
+                <span className="hint">24時以降は 25:00 のように書けます。</span>
+              </div>
+              <div className="nox-field">
+                <span className="lab">終了</span>
+                <input value={fEnd} onChange={(e) => setFEnd(e.target.value)} style={{ ...input, width: "100%" }} />
+              </div>
+              <div className="nox-field full">
+                <span className="lab">状態</span>
+                <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={{ ...input, width: "100%" }}>
+                  <option value="planned">予定</option>
+                  <option value="confirmed">確定</option>
+                </select>
+              </div>
+            </div>
+            {fClosedDay && (
+              <p style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700, margin: "10px 0 0" }}>
+                この日は定休日です（シフトを登録できません）
+              </p>
+            )}
+            {fShiftHours.status === "outside" && fShiftHours.row && (
+              <p style={{ fontSize: 11.5, color: "var(--gold2)", fontWeight: 700, margin: "10px 0 0" }}>
+                営業時間外です（営業 {fmtHoursLabel(fShiftHours.row)}）
+              </p>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 17 }}>
+              <button style={btnLight} onClick={() => setAddModal(false)}>やめる</button>
+              <button style={{ ...btnDark, opacity: fClosedDay || !fCast ? 0.45 : 1 }} disabled={fClosedDay || !fCast}
+                onClick={() => void addShift()}>登録</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── ★DP3 P2（裁定 DP3-③）: 勤務時間の調整モーダル（モック `adjustDialog`）。
+             ★「元の希望との対比」と「メモ」は入れない＝`shifts` が wish_id もメモ列も持たないため
+               （d＝シフト深部レーンで消化）。ここは既存 `shift_set` の update 経路を呼ぶだけ。 ── */}
+      {adjTarget && isManagerUp && (() => {
+        const aHours = shiftHoursStatus(adjTarget.date, aStart, aEnd, bhRows);
+        return (
+          <Modal onClose={() => setAdjTarget(null)} maxWidth={460}>
+            <div className="nox-modalhead">
+              <h3 style={{ ...secTitle, margin: 0 }}>勤務時間を調整</h3>
+              <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setAdjTarget(null)}>×</button>
+            </div>
+            <div className="nox-modalbody">
+              <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
+                  <span>キャスト</span><span style={{ color: "var(--v2-text)", fontWeight: 700 }}>{castName(adjTarget.cast_id)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
+                  <span>日付</span><span className="num">{adjTarget.date}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)" }}>
+                  <span>現在</span><span className="num">{fmtWin(adjTarget.start_hm, adjTarget.end_hm)}</span>
+                </div>
+              </div>
+              <div className="nox-field2">
+                <div className="nox-field">
+                  <span className="lab">開始</span>
+                  <input value={aStart} onChange={(e) => setAStart(e.target.value)} style={{ ...input, width: "100%" }} />
+                </div>
+                <div className="nox-field">
+                  <span className="lab">終了</span>
+                  <input value={aEnd} onChange={(e) => setAEnd(e.target.value)} style={{ ...input, width: "100%" }} />
+                  <span className="hint">24時以降は 25:00 のように書けます。</span>
+                </div>
+              </div>
+              <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
+                状態（{adjTarget.status === "confirmed" ? "確定" : "予定"}）は変わりません。時間だけを直します。
+              </p>
+              {aHours.status === "closed" && (
+                <p style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700, margin: "6px 0 0" }}>
+                  この日は定休日です（調整できません）
+                </p>
+              )}
+              {aHours.status === "outside" && aHours.row && (
+                <p style={{ fontSize: 11.5, color: "var(--gold2)", fontWeight: 700, margin: "6px 0 0" }}>
+                  営業時間外です（営業 {fmtHoursLabel(aHours.row)}）
+                </p>
+              )}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 17 }}>
+                <button style={btnLight} onClick={() => setAdjTarget(null)}>やめる</button>
+                <button style={{ ...btnDark, opacity: aHours.status === "closed" ? 0.45 : 1 }}
+                  disabled={aHours.status === "closed"} onClick={() => void adjustShift()}>保存</button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }
