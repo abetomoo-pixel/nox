@@ -18,6 +18,7 @@
 //   ★時刻粒度の集計（カテゴリ5分類・時間帯・ヒートマップ・コホート）は集計経路が未提供のため
 //     プレースホルダ（製品文言）に留める。DB・RPC は不触。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -512,14 +513,8 @@ export default function AnalyticsBoard({
   return (
     <div>
       {/* 段0R 第2陣: モック .head を新シェルの nox-hero へ（/master・/home・/casts と同基準） */}
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>分析</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            締め済み日報ベースの売上と、キャスト別の売上貢献・指名の集計。
-          </p>
-        </div>
-      </div>
+      <PageHead eyebrow="BUSINESS INSIGHTS" title="売上・店舗分析"
+        desc="確定した日報をもとに、売上・キャスト・顧客の変化と改善点を可視化します。" />
 
       {/* 段0R 第2陣: モック .toolbar＝セグメントを左・期間表示を右端（.period）に。 */}
       <div className="nox-ctoolbar">

@@ -6,6 +6,7 @@
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { fmtWin, fmtBand30, hm2min, min2hm, spanMinutes } from "@/lib/nox/shift-time";
@@ -640,7 +641,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     // ★R3 第1弾: タイポ・余白のモック実値写し（globals.css の .nox-mv1 ブロック）。
     //   この画面と /notices だけに効く＝共有クラスの素の定義は変えていない。
     <div className="nox-mv1">
-      <h1 style={t.pheadH1}>シフト管理</h1>
+      <PageHead eyebrow="SHIFT MANAGEMENT" title="シフト管理"
+        desc="申請、承認、出勤状況と人員充足をまとめて管理します。" />
       <Toast msg={msg} />
 
       {/* 段S-1 サブナビ（今日／カレンダー／シフト作成）＝ページ内の収容先を切り替えるだけ。

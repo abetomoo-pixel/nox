@@ -7,7 +7,11 @@
 // 表示のみ＝データ取得も権限判定も持たない。右端の action は任意（商品ページだけが渡す）。
 import * as t from "@/lib/nox/ui/theme";
 
-export default function MasterPageHead({ title, count, unit = "件", desc, action }: {
+// ★B1（2026-08-21）: モック .pagehead と同形の**英字イーブロー**を1段足す。
+//   マスタ配下は第2ナビで行き来するため、ここを直せば7ページとも同時に揃う。
+export default function MasterPageHead({ eyebrow, title, count, unit = "件", desc, action }: {
+  /** 英字イーブロー（モック逐語）。省略時は出さない。 */
+  eyebrow?: string;
   title: string;
   /** 件数バッジ。undefined なら出さない。 */
   count?: number;
@@ -19,6 +23,7 @@ export default function MasterPageHead({ title, count, unit = "件", desc, actio
   return (
     <div className="nox-pthead">
       <div className="nox-pthead-main">
+        {eyebrow && <div className="nox-pth-eye">{eyebrow}</div>}
         <div className="title">
           <h2>{title}</h2>
           {count !== undefined && <span className="nox-countbadge" style={t.num}>{count}{unit}</span>}

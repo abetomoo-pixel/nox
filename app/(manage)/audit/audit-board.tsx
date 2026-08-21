@@ -6,6 +6,7 @@
 // （全文 JSON を並べると金額1つの修正が読めないため。新規＝before null は「新規作成」表示）。
 // ページングは at 降順の単純 range（監査は直近確認が主用途・全量エクスポートは対象外）。
 import { useCallback, useEffect, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -180,14 +181,8 @@ export default function AuditBoard({ users, stores }: {
   return (
     <div>
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>操作履歴</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            金額・杯数の承認/修正・締め・マスタ変更などの操作が記録されます（追記専用・編集不可）。
-          </p>
-        </div>
-      </div>
+      <PageHead eyebrow="AUDIT & COMPLIANCE" title="監査・操作履歴"
+        desc="会計・権限・機微情報へのアクセスを、変更前後を含めて追跡します。" />
 
       {/* ★DP-R 第4弾: 改ざん防止バナー（モック冒頭）。**事実の表記のみ**＝audit_logs は
           INSERT/UPDATE/DELETE ポリシーを持たず、書込は audit_log_write（内部専用・4ロール revoke）

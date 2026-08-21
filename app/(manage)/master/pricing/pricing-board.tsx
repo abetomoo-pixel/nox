@@ -569,6 +569,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
       <Toast msg={msg} />
 
       <MasterPageHead
+        eyebrow="PRICING SETTINGS"
         title="料金設定"
         desc="時間帯・席種・曜日ごとの料金ルールと、基本料金・会計ルールを設定します。料率は伝票オープン時に確定します。"
       />

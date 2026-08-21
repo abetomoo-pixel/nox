@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -117,14 +118,10 @@ export default function MasterBoard() {
   return (
     <div>
       {/* aaa .hero＝ページ名＋説明＋検索 */}
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>マスタ管理</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>店舗運営に必要な設定を、用途ごとにまとめて管理します。</p>
-        </div>
-        <input className="nox-search" value={hubSearch} onChange={(e) => setHubSearch(e.target.value)}
-          placeholder="設定名を検索（例：商品、カテゴリ、卓）" aria-label="設定名を検索" />
-      </div>
+      <PageHead eyebrow="MASTER SETTINGS" title="マスタ"
+        desc="店舗の料金・席・営業時間・端末など、全画面が参照する設定です。"
+        right={<><input className="nox-search" value={hubSearch} onChange={(e) => setHubSearch(e.target.value)}
+          placeholder="設定名を検索（例：商品、カテゴリ、卓）" aria-label="設定名を検索" /></>} />
 
       {/* aaa .alert＝低在庫の警告バナー（実在する reorder_point 判定・0件なら出さない） */}
       {lowStock > 0 && (

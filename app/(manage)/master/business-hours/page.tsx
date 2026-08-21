@@ -35,6 +35,7 @@ export default async function MasterBusinessHoursPage() {
   return (
     <div>
       <MasterPageHead
+        eyebrow="BUSINESS HOURS"
         title="営業時間・定休日"
         desc="曜日ごとの営業時間と定休日。シフト登録の警告・ブロックに使われます。"
       />

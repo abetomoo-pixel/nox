@@ -13,6 +13,7 @@
 //   ★予想人件費（段S-2）はホームには出さない（モックにも無い＝店長は /shift で見る）。
 //   ★cast ロールは page.tsx が /mine へ戻すため本ボードに到達しない（対象外）。
 import { useCallback, useEffect, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
@@ -140,13 +141,9 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   return (
     <div>
       {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（ページ名＋店名＋営業日） */}
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>ホーム</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>{storeName}</p>
-        </div>
-        <span className="num" style={{ fontSize: 13, color: "var(--sub)" }}>営業日 {bizToday}</span>
-      </div>
+      <PageHead eyebrow="STORE OVERVIEW" title="ホーム"
+        desc="本日の売上と出勤、やることの状況をひと目で確認します。"
+        right={<><span className="num" style={{ fontSize: 13, color: "var(--sub)" }}>営業日 {bizToday}</span></>} />
 
       {/* 段H2: KPI 帯＝既存4KPI のまま（材料も式も不変）。S-1 の .nox-kpi2 へ寄せ、
           モック .cmp にあたる補足行を既存データから足しただけ（新規取得なし）。

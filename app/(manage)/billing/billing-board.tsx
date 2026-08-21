@@ -8,6 +8,7 @@
 //     画面自体は必ず開く（フェイルソフト）。
 //   ★戻り値の反映は webhook（org_billing への唯一の書込経路）＝操作後は router.refresh() で読み直す。
 import { useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -86,14 +87,8 @@ export default function BillingBoard({ view }: { view: BillingView }) {
 
   return (
     <div>
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>ご契約</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            お支払いとご契約内容の管理（オーナーのみ）。店舗数に応じたご請求です。
-          </p>
-        </div>
-      </div>
+      <PageHead eyebrow="BILLING & PLAN" title="ご契約"
+        desc="ご利用プランと支払方法、請求の状況を確認します。" />
       <Toast msg={msg} />
 
       {!view.stripeConfigured && (

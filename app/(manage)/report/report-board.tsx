@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import { roundYen } from "@/lib/nox/money";
@@ -271,14 +272,8 @@ export default function ReportBoard({
   return (
     <div>
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>レポート</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            日報の締めと締め済み履歴、月報、売掛の回収。確定値は締め時のサーバ再集計が正です。
-          </p>
-        </div>
-      </div>
+      <PageHead eyebrow="DAILY REPORT" title="日報・締め管理"
+        desc="売上と現金を照合し、営業日の締め処理まで一つの画面で完了します。" />
       <Toast msg={msg} />
 
       {/* A4: 日報/月報 タブ（モックの segment のうち月報のみ実装・分析=C5/会計連携=C3/本部連結=C2 は A4 の外）。

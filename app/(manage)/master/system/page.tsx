@@ -96,6 +96,7 @@ export default async function MasterSystemPage() {
   return (
     <div>
       <MasterPageHead
+        eyebrow="STAFF & SYSTEM"
         title="スタッフ・システム"
         desc="店舗端末、操作権限、印刷、機密情報を管理します。"
       />

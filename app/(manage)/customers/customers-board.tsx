@@ -9,6 +9,7 @@
 // 来店なし（last_visit null）は掘り起こし対象外に近いため末尾に置く）。可視スコープは RPC CTE が担保＝
 // cast は RPC 側で true でも休眠不可視（段23-3 実測）・UI でもトグルを出さない（canDormant 一次ガード）。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -332,14 +333,8 @@ export default function CustomersBoard({
   return (
     <div>
       {/* 段0R 第2陣: モック .head を新シェルの nox-hero へ（/master・/home・/casts と同基準） */}
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>顧客</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            来店状況と離反リスク（60日/30日）。行を選ぶと右に詳細（ボトルキープ・来店履歴・メモ）が開きます。
-          </p>
-        </div>
-      </div>
+      <PageHead eyebrow="CUSTOMER MANAGEMENT" title="顧客管理"
+        desc="来店履歴、担当キャスト、ボトルキープ、好みを一元管理します。" />
 
       {/* 段U2: KPI 帯＝すべて customer_list_summary の再掲（新規集計ゼロ）。
           顧客数＝取得行数／今月来店＝last_visit が今月の人数／離反リスク高＝churn_tier='high'／

@@ -5,6 +5,7 @@
 // 真の防御・UI でも isManagerUp で出し分け）。期限切れ（until<営業日）は削除も raise もせず「期限切れ」
 // バッジのみ（0034 設計ロック＝DB は保持・表示側判定）。編集は全フィールド明示送信（規約7）。
 import { useCallback, useEffect, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, addDays } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
@@ -209,14 +210,8 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName }:
     //   一回り小さい設計のため .nox-mv1-sm を併用する。
     <div className="nox-mv1 nox-mv1-sm">
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>お知らせ</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            店舗の連絡ボード（{isManagerUp ? "投稿・編集可" : "閲覧のみ"}）
-          </p>
-        </div>
-      </div>
+      <PageHead eyebrow="ANNOUNCEMENTS" title="お知らせ・通知"
+        desc="店舗の連絡をスタッフ・キャストのマイページに掲載します。" />
       <Toast msg={msg} />
 
       {/* ★DP-R: モック冒頭の案内帯（LINE を基本に配信・連携管理への導線）。

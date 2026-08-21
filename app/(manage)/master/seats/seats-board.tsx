@@ -60,6 +60,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
   return (
     <div>
       <MasterPageHead
+        eyebrow="SEAT & TABLE MASTER"
         title="席・卓"
         count={seats.length}
         unit="卓"

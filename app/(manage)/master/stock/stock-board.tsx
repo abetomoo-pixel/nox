@@ -206,6 +206,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
       <Toast msg={msg} />
 
       <MasterPageHead
+        eyebrow="INVENTORY LEDGER"
         title="在庫（棚卸し・履歴）"
         desc="棚卸しは実数を入力すると差分を自動計算して記録します。入荷は商品ページの行から、売上による減算は会計から自動で入ります。"
       />

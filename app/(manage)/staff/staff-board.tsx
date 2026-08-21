@@ -5,6 +5,7 @@
 // 在籍解除/再雇用 staff_deactivate/reactivate（Q-1）・追加 POST /api/staff/create（Q-2）。
 // UI の出し分け（owner/manager・自店・自分の行）は利便のための表示制御＝真の防御は RPC ゲート（二重に守る）。
 import { useCallback, useEffect, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
@@ -167,14 +168,8 @@ export default function StaffBoard({
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ）。
           ＋追加ボタンは casts/customers と同じくツールバー行（nox-ctoolbar）の右端へ＝
           onClick も disabled 条件も文言も1文字も変えていない。 */}
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>スタッフ</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            黒服・店長の権限と在籍を管理します（キャストはマスタ側で管理）。
-          </p>
-        </div>
-      </div>
+      <PageHead eyebrow="STAFF ACCOUNTS" title="スタッフ"
+        desc="黒服・店長の権限と在籍を管理します（キャストはマスタ側で管理）。" />
       <Toast msg={msg} />
 
       <div className="nox-ctoolbar">

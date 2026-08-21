@@ -4,6 +4,7 @@
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
 import { useCallback, useEffect, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -358,14 +359,8 @@ export default function CastsBoard({
   return (
     <div>
       {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（/master・/home と同基準） */}
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>キャスト</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            在籍キャストと体入の管理。カードを選ぶと詳細（基本／待遇・バック／アカウント）が開きます。
-          </p>
-        </div>
-      </div>
+      <PageHead eyebrow="CAST MANAGEMENT" title="キャスト管理"
+        desc="在籍状況、待遇、実績、アカウントをキャストごとに管理します。" />
       <Toast msg={msg} />
 
       {/* E8-5 casts#1（T1）: KPI 帯4枚＝既存 state の再形のみ（新規取得ゼロ） */}

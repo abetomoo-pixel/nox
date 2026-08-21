@@ -5,6 +5,7 @@
 //   発行は /register の会計完了モーダルから（本画面は台帳と取消のみ＝再発行は新規発行で表現）。
 //   ★token は一覧に出すが公開 URL の形でのみ（コピー用）。audit には token が載らない（mig0099）。
 import { useCallback, useEffect, useState } from "react";
+import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -78,14 +79,8 @@ export default function ReceiptsBoard({ stores }: { stores: Store[] }) {
 
   return (
     <div>
-      <div className="nox-hero">
-        <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>領収書</h1>
-          <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            発行台帳（正式領収書＝レジの会計完了から発行）。取り消すと公開ページも無効になります。
-          </p>
-        </div>
-      </div>
+      <PageHead eyebrow="RECEIPT LEDGER" title="領収書"
+        desc="発行台帳（正式領収書＝レジの会計完了から発行）。取り消すと公開ページも無効になります。" />
       <Toast msg={msg} />
 
       {stores.length > 1 && (

@@ -424,6 +424,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
       <section className="nox-cardtop" style={card}>
         {/* ★レーン④a-3 ヘッダ: 3ページ共通部品（MasterPageHead）へ寄せてスケールを揃える。 */}
         <MasterPageHead
+        eyebrow="PRODUCT MASTER"
           title="商品"
           count={filtered.length}
           desc="販売価格・原価・在庫・有効状態を一覧で確認できます。"

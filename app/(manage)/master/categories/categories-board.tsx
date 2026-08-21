@@ -116,6 +116,7 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
       {/* 純増⑦（mig0063）: カテゴリ管理（レジ/キオスクのタイル見出し・sort_order 順）。 */}
       <section className="nox-cardtop" style={card}>
         <MasterPageHead
+        eyebrow="PRODUCT CATEGORIES"
           title="商品カテゴリ"
           count={categories.length}
           desc="レジ・キオスクの商品タイルの見出しになる分類です。∧∨ で並べ替えると、レジのタイル順もこの順になります。"
