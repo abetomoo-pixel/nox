@@ -64,7 +64,14 @@ const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const chkLabel: React.CSSProperties = { ...t.fieldLabel, display: "flex", alignItems: "center", gap: 5, cursor: "pointer" };
 
-export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) {
+// ★DP3 P1補（裁定 DP3-⑤）: 宛先の人数（server で件数だけ取得＝page.tsx）。
+//   null は「数えられなかった」＝画面では「—」に落とす（嘘の 0 を出さない）。
+export type AudienceCounts = { cast: number | null; staff: number | null };
+
+export default function NoticesBoard({ isManagerUp, audienceCounts }: {
+  isManagerUp: boolean;
+  audienceCounts: AudienceCounts;
+}) {
   const supabase = createClient();
   const bizToday = bizDateOf(new Date().toISOString(), "06:00");
   const [rows, setRows] = useState<Notice[]>([]);
@@ -164,6 +171,17 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
   const postedThis = rows.filter((n) => ymOf(n.created_at) === thisYm).length;
   const postedPrev = rows.filter((n) => ymOf(n.created_at) === prevYm).length;
 
+  // ★DP3 P1補（裁定 DP3-⑤）: 宛先ごとの人数（モックの配信対象カードに対応）。
+  //   ★`all` は cast＋黒服の和＝「この店に在籍している人」。どちらかが数えられなければ和も出さない。
+  //   ★数の意味は **宛先**であって「見える人」ではない。notices の RLS は
+  //     `auth_role() <> 'cast' or audience in ('all','cast')`＝**オーナー・店長は宛先に関わらず全件見える**。
+  //     その但し書きは画面にも出す（数だけ見せて誤解させない）。
+  const cntCast = audienceCounts.cast;
+  const cntStaff = audienceCounts.staff;
+  const cntAll = cntCast != null && cntStaff != null ? cntCast + cntStaff : null;
+  const audCount: Record<string, number | null> = { all: cntAll, cast: cntCast, staff: cntStaff };
+  const nOr = (v: number | null) => (v == null ? "—" : String(v));
+
   return (
     <div>
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
@@ -223,11 +241,45 @@ export default function NoticesBoard({ isManagerUp }: { isManagerUp: boolean }) 
             </label>
             <textarea value={fBody} onChange={(e) => setFBody(e.target.value)} placeholder="本文（4000字まで）" maxLength={BODY_MAX} rows={3}
               style={{ ...input, resize: "vertical", fontFamily: "inherit" }} />
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {/* ★DP3 P1補（裁定 DP3-⑤）: 公開範囲を**モック準拠のカード**へ（人数つき）。
+                ★select → ボタン3枚に変えただけで、持つ値（all/cast/staff）も state も送る引数も不変。
+                ★人数は server が数えた件数（page.tsx・is_active のみ）。数えられなければ「—」。 */}
+            <div>
               <span style={t.fieldLabel}>公開範囲</span>
-              <select value={fAud} onChange={(e) => setFAud(e.target.value)} style={{ ...input, width: "auto" }}>
-                {AUD_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 6 }}>
+                {AUD_OPTIONS.map(([v, l]) => {
+                  const on = fAud === v;
+                  return (
+                    <button
+                      key={v} type="button" aria-pressed={on} onClick={() => setFAud(v)}
+                      style={{
+                        display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2,
+                        padding: "9px 11px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
+                        textAlign: "left",
+                        background: on ? "var(--goldface2)" : "var(--card2)",
+                        border: on ? "1px solid var(--gold)" : "1px solid var(--line)",
+                        color: on ? "var(--champ)" : "var(--ink)",
+                      }}
+                    >
+                      <span className="num" style={{ fontSize: 17, fontWeight: 800 }}>
+                        {nOr(audCount[v] ?? null)}<small style={{ fontSize: 11, fontWeight: 400, marginLeft: 2 }}>名</small>
+                      </span>
+                      <span style={{ fontSize: 12.5, fontWeight: 700 }}>{l}</span>
+                      <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>
+                        {v === "all" ? `キャスト${nOr(cntCast)}・黒服${nOr(cntStaff)}`
+                          : v === "cast" ? "在籍キャスト"
+                          : "キャストには表示されません"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0", lineHeight: 1.7 }}>
+                人数は在籍している人の数です（退店済み・無効の担当は数えません）。
+                オーナー・店長は公開範囲にかかわらずすべてのお知らせを閲覧できます。
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <label style={chkLabel}>
                 <input type="checkbox" checked={fPinned} onChange={(e) => setFPinned(e.target.checked)} />ピン留め
               </label>
