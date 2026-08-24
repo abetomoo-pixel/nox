@@ -560,10 +560,14 @@ async function main() {
       const { data, error } = await c.from(table).select("id");
       check(`F1b castA1a ${table} = 0行（パターン2）`, !error && (data ?? []).length === 0, error?.message ?? `got ${(data ?? []).length}`);
     }
-    const { data: myBacks } = await c.from("check_cast_backs").select("cast_id, drink_back, champ_back, hon_pt_alloc");
+    // ★教訓35: 「自分の行が1件以上ある」も「他 cast の行が無い」も、クエリ側で名指しして引く。
+    //   every(...) は無制限 select の窓に載った分しか見ないため、他 cast 行を .neq で直接数える形に置換
+    //   （論理的には every(b => b.cast_id === castIdA) ≡ 他 cast の可視行が 0）。
+    const { data: myBacks } = await c.from("check_cast_backs").select("cast_id, drink_back, champ_back, hon_pt_alloc").eq("cast_id", castIdA);
+    const { data: otherBacks } = await c.from("check_cast_backs").select("cast_id").neq("cast_id", castIdA);
     check("F1b castA1a check_cast_backs = 自分の行のみ（パターン1）",
-      (myBacks ?? []).length >= 1 && (myBacks ?? []).every((b) => b.cast_id === castIdA),
-      JSON.stringify(myBacks));
+      (myBacks ?? []).length >= 1 && (otherBacks ?? []).length === 0,
+      JSON.stringify({ mine: myBacks, other: otherBacks }));
     await c.auth.signOut();
   }
 
@@ -1803,8 +1807,10 @@ async function main() {
       const { data: a2adv } = await admin.from("advances").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2CastId, amount: 5000, advanced_on: "2028-01-05", status: "open", created_by: actorId }).select("id").single();
       const a2AdvId = a2adv!.id as string;
       await admin.from("transport").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2CastId, amount: 3000, biz_date: "2028-01-05", status: "open", created_by: actorId });
-      const { data: mAdv } = await m.from("advances").select("id");
-      check("F2e-2 パターン1 他店: managerA1(非owner) は storeA2 の advance 不可視（他店漏洩なし）", !(mAdv ?? []).some((r) => r.id === a2AdvId), JSON.stringify((mAdv ?? []).map((r) => r.id)));
+      // ★教訓35: 「見えてはいけない行」を名指しで引いて 0行を assert する（無制限 select だと
+      //   1000行窓から対象行が落ちただけで、漏洩していても pass してしまう＝偽陽性）。
+      const { data: mAdv } = await m.from("advances").select("id").eq("id", a2AdvId);
+      check("F2e-2 パターン1 他店: managerA1(非owner) は storeA2 の advance 不可視（他店漏洩なし）", (mAdv ?? []).length === 0, JSON.stringify((mAdv ?? []).map((r) => r.id)));
       const { data: mTr } = await m.from("transport").select("store_id").eq("store_id", storeA2Id);
       check("F2e-2 パターン1 他店: managerA1 は storeA2 の transport 0行", (mTr ?? []).length === 0, `got ${(mTr ?? []).length}`);
       const { data: caAdv2 } = await ca.from("advances").select("store_id").eq("store_id", storeA2Id);

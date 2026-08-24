@@ -2273,9 +2273,13 @@ async function main() {
         check("段19-11 staff(can_crm) = 自店 2行", (await countOf(crm)) === 2, `got ${await countOf(crm)}`);
         check("段19-11 staff(can_register のみ) = 0行（crm 軸独立）", (await countOf(regOn)) === 0, `got ${await countOf(regOn)}`);
         check("段19-11 staff(フラグなし) = 0行", (await countOf(regOff)) === 0, `got ${await countOf(regOff)}`);
-        const { data: castRowsSel } = await cast.from("reservations").select("id");
+        // ★教訓35: 「自分指名の1行」と「それ以外が0行」を、どちらもクエリ側で名指しして引く
+        //   （length===1 && [0].id===rA1cast ≡ 指名行が1件 かつ 指名行以外の可視行が0件）。
+        const { data: castRowsSel } = await cast.from("reservations").select("id").eq("id", rA1cast);
+        const { data: castRowsOther } = await cast.from("reservations").select("id").neq("id", rA1cast);
         check("段19-11 cast = 自分指名の 1行のみ（未指名予約は不可視）",
-          (castRowsSel ?? []).length === 1 && castRowsSel?.[0]?.id === rA1cast, JSON.stringify(castRowsSel));
+          (castRowsSel ?? []).length === 1 && (castRowsOther ?? []).length === 0,
+          JSON.stringify({ self: castRowsSel, other: castRowsOther }));
         check("段19-11 他 org（managerB1）= 0行（org 遮断）", (await countOf(mgrB1)) === 0, `got ${await countOf(mgrB1)}`);
       } finally {
         // ★19-12 の順序で全消し: checks 参照を外してから checks → reservations → ダミー cast/卓
@@ -4020,10 +4024,12 @@ async function main() {
           aSet.size === 1 && aSet.has(s29CastA) && !aSet.has(s29CastB), `casts=${[...aSet].join(",")}`);
 
         // 20 黒服 can_register は自店の全 drink_claims 可視（castA/castB 両方）
-        const { data: sView } = await staffOn29.from("drink_claims").select("cast_id");
-        const sSet = new Set((sView ?? []).map((r) => r.cast_id));
+        // ★教訓35: 探している行（castA / castB それぞれ）をクエリ側で名指しして引く
+        //   （無制限 select だと片方の行だけで 1000行窓が埋まったとき、可視でも見つからず赤くなる）。
+        const { data: sViewA } = await staffOn29.from("drink_claims").select("cast_id").eq("cast_id", s29CastA);
+        const { data: sViewB } = await staffOn29.from("drink_claims").select("cast_id").eq("cast_id", s29CastB);
         check("段29-20 staff can_register SELECT = 自店の全申告（castA/castB 両方可視）",
-          sSet.has(s29CastA) && sSet.has(s29CastB), `casts=${[...sSet].join(",")}`);
+          (sViewA ?? []).length >= 1 && (sViewB ?? []).length >= 1, `castA=${(sViewA ?? []).length} castB=${(sViewB ?? []).length}`);
 
         // 21 staff can_register OFF は 0行
         const { data: offView } = await staffOff29.from("drink_claims").select("id");
@@ -4456,8 +4462,11 @@ async function main() {
         const { data: backsVis } = await castTmp.from("check_cast_backs").select("cast_id");
         check("段31-d ★check_cast_backs = 自分の行のみ（会計は開くがバックは分離・mig0039 は非接触）",
           (backsVis ?? []).length >= 1 && (backsVis ?? []).every((b) => b.cast_id === cTmp.id), JSON.stringify(backsVis));
+        // ★教訓35: 「見えてはいけない行」は名指しで引いて 0行を assert する
+        //   （無制限 select の 1000行窓から castA1a 行が落ちただけで pass する＝偽陽性を塞ぐ）。
+        const { data: backsOther } = await castTmp.from("check_cast_backs").select("cast_id").eq("cast_id", castA1aRow.id);
         check("段31-d ★golden 他 cast（castA1a）の backs は不可視（cast_id 混入なし）",
-          !(backsVis ?? []).some((b) => b.cast_id === castA1aRow.id), JSON.stringify(backsVis));
+          (backsOther ?? []).length === 0, JSON.stringify(backsOther));
         await wipeSeat();
         accCheckId = "";
 
