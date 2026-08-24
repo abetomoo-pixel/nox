@@ -556,13 +556,27 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   };
   // 日単位の状態＝バンドの最悪値。required はピーク（max）・shortage は最悪バンドの不足数（合算だと
   // 同じキャストの跨ぎ勤務を二重計上するため合算しない）。
+  //
+  // ★SC-2（裁定44）: **充足の母数は全 status**（planned/proposed/confirmed を数える）＝`assigned` は
+  //   list.length のまま（bandStatsOf も status で絞っていない）＝ここは元から満たしており不変。
+  //   変えたのは**内訳**で、旧 `planned = 全件 − confirmed`（proposed を planned に合算していた）を
+  //   **confirmed / proposed / planned の3値**に割った（合計だけ見せて中身を隠さない）。
+  // ★`over` = 余剰コマ数（assigned − required の正の分）。required が 0（未設定）の日は余剰にしない
+  //   ＝必要人数を決めていない日に「余っている」と言えないため。
+  // ★`fill`（fillOf/worstFill の4値 none/ok/warn/ng）は**1文字も変えていない**＝既存の色分けと
+  //   「人員不足日」の集計はそのまま動く。余剰は fill とは別の軸として持つ（裁定B＝灰で示す）。
   const dayStat = (ymd: string) => {
     const list = shiftsOn(ymd);
     const confirmed = list.filter((s) => s.status === "confirmed").length;
+    const proposed = list.filter((s) => s.status === "proposed").length;
     const bs = bandStatsOf(ymd);
     const required = bs.reduce((m, b) => Math.max(m, b.required), 0);
     const shortage = bs.reduce((m, b) => Math.max(m, Math.max(0, b.required - b.assigned)), 0);
-    return { assigned: list.length, confirmed, planned: list.length - confirmed, required, shortage, fill: worstFill(bs.map((b) => b.fill)) };
+    const over = required > 0 ? Math.max(0, list.length - required) : 0;
+    return {
+      assigned: list.length, confirmed, proposed, planned: list.length - confirmed - proposed,
+      required, shortage, over, fill: worstFill(bs.map((b) => b.fill)),
+    };
   };
 
   // 月グリッド（前後の空白セル込み・7列）
@@ -633,11 +647,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
         desc="申請、承認、出勤状況と人員充足をまとめて管理します。" />
       <Toast msg={msg} />
 
-      {/* 段S-1 サブナビ（今日／カレンダー／シフト作成）＝ページ内の収容先を切り替えるだけ。
-          ルート・URL・権限ゲートは不変。 */}
+      {/* 段S-1 サブナビ＝ページ内の収容先を切り替えるだけ。ルート・URL・権限ゲートは不変。
+          ★SC-2（裁定44）: 並びを「今日 → 承認待ち → シフト作成 → 仮シフト → 確定シフト」へ。
+            仕事の順（今日を見る → 希望を捌く → 組む → 過不足を見る → 誰がいつかを見る）に合わせた。
+            ★tab の key（today/queue/build/calendar/roster）は**変えていない**＝分岐はキー文字列で
+              行っており、配列の並び順に依存する参照はゼロ（前セッションで実測）。
+          ★「カレンダー」→「仮シフト」に改名（充足管理の面という位置づけを名前で示す）。
+            内部識別子 "calendar" は据え置き。 */}
       <nav className="nox-subnav">
-        {([["today", "今日"], ["calendar", "カレンダー"], ["build", "シフト作成"],
-           ["queue", "承認待ち"], ["roster", "確定シフト"]] as const).map(([k, label]) => (
+        {([["today", "今日"], ["queue", "承認待ち"], ["build", "シフト作成"],
+           ["calendar", "仮シフト"], ["roster", "確定シフト"]] as const).map(([k, label]) => (
           <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
             {label}
             {k === "queue" && wishes.length > 0 && (
@@ -851,11 +870,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 const cls = ["nox-cald", st.fill, ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                 return (
                   <button key={ymd} className={cls} onClick={() => setSelDate(ymd)}
-                    title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/予定${st.planned}）`}>
+                    title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}>
                     <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
                     {/* 段0R その3: 状態バッジ文字（モック .st ok/warn/ng/none 逐語）。色だけでなく語で伝える。 */}
                     <span className={`nox-caldst ${st.fill}`}>{FILL_LABEL[st.fill]}</span>
                     {st.required > 0 && <span className="nox-cald-c num">{st.assigned}/{st.required}</span>}
+                    {/* ★SC-2（裁定B）: 余剰は**灰**で出す。赤（不足）・緑（充足）と並べて第3の強い色を
+                        置くと3色すべてが注意色になり、本当に見るべき赤が埋もれるため。 */}
+                    {st.over > 0 && (
+                      <span className="num" style={{ fontSize: 8.5, color: "var(--v2-muted)" }}>余剰+{st.over}</span>
+                    )}
                     {/* 段S-2: 日別の予想人件費（manager 以上・割当のある日のみ）。
                         ★≤641 は CSS で非表示＝スマホは色＋コマ数のみ・詳細は日をタップして日詳細で見る。
                         title は付けない（≤641 で見えない情報を tooltip で復活させない）。 */}
@@ -897,7 +921,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               <span className={`nox-stpill ${selStat.fill === "none" ? "" : selStat.fill}`}>
                 {FILL_LABEL[selStat.fill]}{selStat.required > 0 ? ` ${selStat.assigned}/${selStat.required}` : ""}
               </span>
-              <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {selStat.confirmed} / 予定 {selStat.planned}</span>
+              {/* ★SC-2（裁定44）: 内訳は3値で出す（合計だけ見せて中身を隠さない）。
+                  余剰は裁定B のとおり灰＝「困っていない状態」を注意色で主張しない。 */}
+              <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
+                確定 {selStat.confirmed} / 確認待ち {selStat.proposed} / 予定 {selStat.planned}
+                {selStat.over > 0 && <span style={{ marginLeft: 6 }}>・余剰 {selStat.over}</span>}
+              </span>
             </div>
             {/* 段S-2: 選択日の予想人件費（モック .moneyrow）＋★必須注記（設計§1・常時表示）。
                 注記は moneyrow 直下に固定＝金額だけが独り歩きしない（BANZEN W1 §3.1 と同思想）。 */}
@@ -925,9 +954,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             )}
             {/* 段0R その3: 追加導線＝選択日を登録フォームへプリセットして「シフト作成」タブへ送るだけ。
                 ★新しい登録 UI は作らない（送る RPC も引数も既存の確定シフト登録のまま）。 */}
-            {/* 現行維持（シフト作成タブへ送る）。日付のプリセット先は addDate（旧 fDate）。 */}
+            {/* ★SC-2（裁定44-4）: タブ遷移をやめ、この面で ShiftAddForm を開く。
+                ★status は planned（仮シフトの面＝これから組む段）＝今日タブの confirmed とは意図が違う。
+                ★timeTouched の到達性: setAddDate と setAddModal(true) は同一ハンドラ＝同一バッチで走り、
+                  open false→true と initialDate 変化が同時＝effect は1回。開いている間はオーバーレイが
+                  position:fixed / inset:0 / z-index:50 で背後を遮断するため、
+                  「開いたまま initialDate だけが変わる」経路は生まれない（SC-1 の確認と同じ結論）。 */}
             {isManagerUp && (
-              <button className="nox-addc" onClick={() => { setAddDate(selDate); setAddStatus("planned"); setTab("build"); }}>
+              <button className="nox-addc"
+                onClick={() => { setAddDate(selDate); setAddStatus("planned"); setAddModal(true); }}>
                 ＋ キャストを追加
               </button>
             )}
@@ -1466,7 +1501,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             <h2 style={{ ...secTitle, margin: 0 }}>確定シフト</h2>
             {/* ★R4: 役割分担を画面が自己説明する（カレンダータブ＝充足管理／このタブ＝誰がいつ） */}
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
-              <b>誰がいつ入るか</b>を見る画面です（人数の過不足は「カレンダー」タブで見ます）。
+              <b>誰がいつ入るか</b>を見る画面です（人数の過不足は「仮シフト」タブで見ます）。
             </p>
           </div>
           <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
