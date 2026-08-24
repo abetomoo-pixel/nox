@@ -155,10 +155,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const [rosterView, setRosterView] = useState<"cal" | "table">("cal");
   // ★SC-7（裁定52'）: 確定シフトタブの日詳細をモーダルへ。
   //   ★selDate はそのまま使う（カレンダーの選択状態＝sel ハイライトと日詳細の対象は同じ日でよい）。
-  //     モーダル用に持つのは「開いているか」の1本だけ＝日付を二重管理しない。
+  //     モーダル用に持つのは「どの面のを開いているか」の1本だけ＝日付を二重管理しない。
   //   ★二重モーダル対策（C-12）: 「時間を調整」を押したら**日詳細を閉じてから**調整モーダルを開く。
   //     z-index は増やさない（重ねないので増やす必要がない）。
-  const [dayModal, setDayModal] = useState(false);
+  //   ★SC-8 ③-0（教訓33）: boolean ではなく**面識別子**を持つ。boolean だと「どの面のモーダルか」を
+  //     tab 判定で外から補うことになり、条件を1つ落とすと2面ぶんが同時に描画される（実装中に実測）。
+  //     state が1値しか取れない形にすれば、排他は型で保証される（"" = 閉じている）。
+  const [dayModal, setDayModal] = useState<"" | "roster" | "calendar" | "build" | "today">("");
   const [preview, setPreview] = useState<{ periodId: string; result: AutoAssignResult } | null>(null);
   const [autoBusy, setAutoBusy] = useState(false);
   // ★SD V2-2: 配置ルール入力（空欄=無制限。月間は「時間」で入力し保存時に分へ）
@@ -576,6 +579,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   //   ★products-board の highlightId と同じ流儀（scrollIntoView・smooth/center）。
   //   タブ切替は state 更新＝描画後にしかスクロールできないため、次フレームで実行する。
   const gotoNeeds = () => {
+    // ★SC-8 ③-0: タブを跨ぐ前に日詳細を閉じる（開いたまま別の面へ行く経路を構造的に潰す）。
+    setDayModal("");
     setTab("build");
     requestAnimationFrame(() => {
       document.getElementById("shift-needs")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -698,7 +703,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
       <nav className="nox-subnav">
         {([["today", "今日"], ["queue", "承認待ち"], ["build", "シフト作成"],
            ["calendar", "仮シフト"], ["roster", "確定シフト"]] as const).map(([k, label]) => (
-          <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
+          <button key={k} className={tab === k ? "on" : ""} onClick={() => { setDayModal(""); setTab(k); }}>
             {label}
             {k === "queue" && wishes.length > 0 && (
               <span className="nox-tabcnt num">{wishes.length}</span>
@@ -734,6 +739,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 // 仮シフトタブの該当日へ。月が違えば表示月も合わせる（見えない日を選ばせない）。
                 setSelDate(ymd);
                 if (!ymd.startsWith(month)) setMonth(ymd.slice(0, 7));
+                setDayModal("");
                 setTab("calendar");
               }}
               title={`${ymd}・確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}`}
@@ -979,7 +985,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                 return (
                   <button key={ymd} className={cls}
-                    onClick={() => { setSelDate(ymd); setDayModal(true); }}
+                    onClick={() => { setSelDate(ymd); setDayModal("calendar"); }}
                     title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}>
                     <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
                     {/* 段0R その3: 状態バッジ文字（モック .st ok/warn/ng/none 逐語）。色だけでなく語で伝える。 */}
@@ -1223,7 +1229,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             {wishes.length > 0 && (
               <div className="nox-alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
                 <span>未処理の希望が <b className="num">{wishes.length}件</b> あります。先に承認・時間調整すると自動配置へ反映されます。</span>
-                <button style={btnLight} onClick={() => setTab("queue")}>希望を処理</button>
+                <button style={btnLight} onClick={() => { setDayModal(""); setTab("queue"); }}>希望を処理</button>
               </div>
             )}
             {/* plan-kpis 4枚（モック逐語の4項目・すべて取得済み state の再形） */}
@@ -1592,7 +1598,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   const cls = ["nox-cald", list.length > 0 ? "ok" : "", isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                   return (
                     <button key={ymd} className={cls} style={{ minHeight: 92, alignItems: "stretch" }}
-                      onClick={() => { setSelDate(ymd); setDayModal(true); }}
+                      onClick={() => { setSelDate(ymd); setDayModal("roster"); }}
                       title={list.length === 0 ? `${ymd}・確定なし` : `${ymd}・${list.map((x) => `${castName(x.cast_id)} ${fmtWin(x.start_hm, x.end_hm)}`).join(" / ")}`}>
                       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
                       {/* 先頭3名の名前チップ（例: れいな 20:00-）＋残りは「他N名」に折り畳む */}
@@ -1694,11 +1700,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             実時刻グループの割当リスト／＋キャストを追加）。項目も順序も語彙も変えていない。
           ★表示条件に selInMonth を入れる＝月外なら開かない（52' と同じ方式・SEL_EMPTY は不要になった）。
           ★モーダルから他のモーダル／遷移へ行くものは**先に閉じる**（52' と同じ排他・z-index は増やさない）。 */}
-      {dayModal && tab === "calendar" && selInMonth && (
-        <Modal onClose={() => setDayModal(false)} maxWidth={520} scroll>
+      {dayModal === "calendar" && selInMonth && (
+        <Modal onClose={() => setDayModal("")} maxWidth={520} scroll>
           <div className="nox-modalhead">
             <h3 style={{ ...secTitle, margin: 0 }}><span className="num">{selDate}</span> の割当</h3>
-            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal(false)}>×</button>
+            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal("")}>×</button>
           </div>
           <div className="nox-modalbody">
             {/* 充足ピル／内訳3値／余剰＝移設前の逐語（順序も語彙も不変） */}
@@ -1739,7 +1745,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                       いまは1日ぶんの人数だけを見ています（何時が足りないかは分かりません）。
                     </p>
                     <button style={{ ...btnLight, marginTop: 8 }}
-                      onClick={() => { setDayModal(false); gotoNeeds(); }}>時間帯を設定する</button>
+                      onClick={() => { setDayModal(""); gotoNeeds(); }}>時間帯を設定する</button>
                   </div>
                 )}
               </div>
@@ -1759,7 +1765,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   「開いたまま initialDate だけが変わる」経路は生まれない（SC-1 の確認と同じ結論）。 */}
             {isManagerUp && (
               <button className="nox-addc"
-                onClick={() => { setDayModal(false); setAddDate(selDate); setAddStatus("planned"); setAddModal(true); }}>
+                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddModal(true); }}>
                 ＋ キャストを追加
               </button>
             )}
@@ -1790,20 +1796,20 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           ★D-15 の空状態はここでは出さない＝**月移動でモーダルが開いたままになる経路が無い**
             （開くのはセルの onClick だけで、月移動ボタンはモーダルの背後＝オーバーレイが遮断する）。
             それでも保険として selInMonth を条件に入れ、月外なら開かない。 */}
-      {/* ★SC-8: dayModal は面をまたいで共有する1本の state。どの面のモーダルを出すかは
-          **tab で必ず切り分ける**（rosterView だけだと既定値 "cal" のため仮シフトタブでも真になり、
-          2つのモーダルが同時に描画される＝実装中に実測して塞いだ）。 */}
-      {dayModal && tab === "roster" && rosterView === "cal" && selInMonth && (() => {
+      {/* ★SC-8 ③-0: dayModal は**開いている面の識別子**（"" = 閉）。面ごとに真偽が排他になるため
+          tab 判定を条件に足す必要がない（boolean 時代は tab で補っており、落とすと2面が同時に出た）。
+          rosterView === "cal" は残す＝これはタブ判定ではなく同じ面の中のビュー切替（表で見る側では開かない）。 */}
+      {dayModal === "roster" && rosterView === "cal" && selInMonth && (() => {
         const sel = shifts.filter((x) => x.date === selDate && x.status === "confirmed")
           .slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm));
         return (
-          <Modal onClose={() => setDayModal(false)} maxWidth={520} scroll>
+          <Modal onClose={() => setDayModal("")} maxWidth={520} scroll>
             <div className="nox-modalhead">
               <h3 style={{ ...secTitle, margin: 0 }}>
                 <span className="num">{selDate}</span> の確定
                 <span className="num" style={{ marginLeft: 8, fontWeight: 400, color: "var(--v2-muted)" }}>{sel.length}名</span>
               </h3>
-              <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal(false)}>×</button>
+              <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal("")}>×</button>
             </div>
             <div className="nox-modalbody">
               {sel.length === 0 ? (
@@ -1828,7 +1834,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                         title={xClosed ? "この日は定休日に設定されています" : undefined}
                         onClick={() => {
                           // ★C-12: 重ねない＝日詳細を閉じてから調整モーダルを開く（排他）。
-                          setDayModal(false);
+                          setDayModal("");
                           setAdjTarget(x); setAStart(x.start_hm); setAEnd(x.end_hm);
                         }}>時間を調整</button>
                     )}
