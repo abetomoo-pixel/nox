@@ -546,6 +546,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   //   E8-4 #2（mig0095）: 必要人数は曜日×時間帯バンド。バンド充足＝「当該時間帯に交差するシフト数 ÷ required」。
   //   交差は半開区間 [hm2min(start), hm2min(end)) × [from_min, to_min)＝RPC の overlap 判定と同式。
   //   シフト終了は 47:59 まで（30時間制）だがバンド上限 1440 との交差はそのまま成立する。
+  // ★SC-7（裁定53'）: 過去日（営業日の今日より前）。日セルを減光して未来日の赤を前に出す。
+  //   ★色は「消さない」＝過ぎた日の不足も履歴として読める（彩度だけ落とす＝CSS 側 .nox-cald.past）。
+  const isPast = (ymd: string) => ymd < bizToday;
+  // ★D-15（不具合修正）: 月移動で選択日が表示月の外に出たら、日詳細は空状態に戻す。
+  //   （従来は selDate が前月のまま残り、見えているカレンダーと中身が食い違っていた）
+  const selInMonth = selDate.startsWith(month);
+  const SEL_EMPTY = "日付を選んでください（上のカレンダーで日を押します）";
+
   // ★SC-7（裁定51'）: 帯が「終日1本のみ」＝時間帯別の粒度が元データに無い状態。
   //   このとき帯グラフは常に「終日 N/M」の1行しか出せず、**何時が足りないかは分からない**
   //   （表示を厚くしても解決しない＝案2 不採用の理由）。正直に「未設定」と言って設定面へ送る。
@@ -874,7 +882,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               const inMonth = shifts.filter((x) => x.date.slice(0, 7) === month);
               const confMin = inMonth.filter((x) => x.status === "confirmed")
                 .reduce((acc, x) => acc + spanMinutes(x.start_hm, x.end_hm), 0);
+              // ★SC-7（裁定53'）: 今日以降だけを数える（過ぎた日の不足は手遅れ＝打つ手がない）。
+              //   ラベルも「人員不足日（今後）」に変え、何を数えた数字なのかを名前で示す。
               const shortDays = calCells.filter((ymd): ymd is string => !!ymd)
+                .filter((ymd) => !isPast(ymd))
                 .filter((ymd) => { const st = dayStat(ymd); return st.required > 0 && st.assigned < st.required; }).length;
               const pend = wishAll.filter((w) => w.status === "pending").length;
               return (
@@ -884,7 +895,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                     <div className="l">予想人件費</div>
                     <div className="v num">{isManagerUp ? yen(monthFcTotal) : "—"}</div>
                   </div>
-                  <div className="nox-rs"><div className="l">人員不足日</div><div className="v num">{shortDays}<small>日</small></div></div>
+                  <div className="nox-rs"><div className="l">人員不足日（今後）</div><div className="v num">{shortDays}<small>日</small></div></div>
                   <div className="nox-rs"><div className="l">未処理希望</div><div className="v num">{pend}<small>件</small></div></div>
                 </div>
               );
@@ -895,7 +906,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 if (!ymd) return <div key={`b${i}`} />;
                 const st = dayStat(ymd);
                 const fc = fcOf(ymd);
-                const cls = ["nox-cald", st.fill, ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
+                const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                 return (
                   <button key={ymd} className={cls} onClick={() => setSelDate(ymd)}
                     title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}>
@@ -945,20 +956,29 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
 
           <section className="nox-cardtop" style={card}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
-              <h2 style={{ ...secTitle, margin: 0 }}>{selDate} の割当</h2>
-              <span className={`nox-stpill ${selStat.fill === "none" ? "" : selStat.fill}`}>
-                {FILL_LABEL[selStat.fill]}{selStat.required > 0 ? ` ${selStat.assigned}/${selStat.required}` : ""}
-              </span>
-              {/* ★SC-2（裁定44）: 内訳は3値で出す（合計だけ見せて中身を隠さない）。
-                  余剰は裁定B のとおり灰＝「困っていない状態」を注意色で主張しない。 */}
-              <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
-                確定 {selStat.confirmed} / 確認待ち {selStat.proposed} / 予定 {selStat.planned}
-                {selStat.over > 0 && <span style={{ marginLeft: 6 }}>・余剰 {selStat.over}</span>}
-              </span>
+              <h2 style={{ ...secTitle, margin: 0 }}>{selInMonth ? `${selDate} の割当` : "日別の割当"}</h2>
+              {/* ★D-15: 選択日が表示月の外なら数字を出さない（見えているカレンダーと中身が
+                  食い違うため）。文言は3面で統一（SEL_EMPTY）。 */}
+              {!selInMonth ? (
+                <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>{SEL_EMPTY}</span>
+              ) : (
+                <>
+                  <span className={`nox-stpill ${selStat.fill === "none" ? "" : selStat.fill}`}>
+                    {FILL_LABEL[selStat.fill]}{selStat.required > 0 ? ` ${selStat.assigned}/${selStat.required}` : ""}
+                  </span>
+                  {/* ★SC-2（裁定44）: 内訳は3値で出す（合計だけ見せて中身を隠さない）。
+                      余剰は裁定B のとおり灰＝「困っていない状態」を注意色で主張しない。 */}
+                  <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
+                    確定 {selStat.confirmed} / 確認待ち {selStat.proposed} / 予定 {selStat.planned}
+                    {selStat.over > 0 && <span style={{ marginLeft: 6 }}>・余剰 {selStat.over}</span>}
+                  </span>
+                </>
+              )}
             </div>
             {/* 段S-2: 選択日の予想人件費（モック .moneyrow）＋★必須注記（設計§1・常時表示）。
-                注記は moneyrow 直下に固定＝金額だけが独り歩きしない（BANZEN W1 §3.1 と同思想）。 */}
-            {isManagerUp && selFc && (
+                注記は moneyrow 直下に固定＝金額だけが独り歩きしない（BANZEN W1 §3.1 と同思想）。
+                ★D-15: 月外選択のときは以降を描かない（selInMonth を全ブロックの条件に足す）。 */}
+            {selInMonth && isManagerUp && selFc && (
               <>
                 <div className="nox-moneyrow">
                   <span>予想人件費{selFc.unknownComp > 0 ? `（時給未設定 ${selFc.unknownComp}人を除く）` : ""}</span>
@@ -970,7 +990,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               </>
             )}
             {/* E8-4 #2: 選択日の時間帯別充足バー（バンド設定のある曜日のみ） */}
-            {selBands.length > 0 && (
+            {selInMonth && selBands.length > 0 && (
               <div style={{ margin: "6px 0 8px" }}>
                 <BandBars stats={selBands} />
                 {/* ★SC-7（裁定51'）: 今日タブと同じ注記＋導線（同じ理由・同じ文言）。 */}
@@ -1187,7 +1207,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
         const cur = periods.find((x) => x.id === selPeriodId) ?? periods[0] ?? null;
         const inMonth = shifts.filter((x) => x.date.slice(0, 7) === month);
         const planMin = inMonth.reduce((acc, x) => acc + spanMinutes(x.start_hm, x.end_hm), 0);
+        // ★SC-7（裁定53'）: 上の月サマリと同じ式（今日以降）＝同じ画面内で数字が食い違わないようにする。
         const shortDays = calCells.filter((ymd): ymd is string => !!ymd)
+          .filter((ymd) => !isPast(ymd))
           .filter((ymd) => { const st = dayStat(ymd); return st.required > 0 && st.assigned < st.required; }).length;
         return (
           <section className="nox-cardtop" style={card}>
@@ -1223,7 +1245,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               <div className="nox-rs"><div className="l">配置済み</div><div className="v num">{inMonth.length}<small>件</small></div></div>
               <div className="nox-rs"><div className="l">予定勤務時間</div><div className="v num">{Math.round(planMin / 60)}<small>h</small></div></div>
               <div className="nox-rs"><div className="l">予想人件費</div><div className="v num">{yen(monthFcTotal)}</div></div>
-              <div className="nox-rs"><div className="l">人員不足日</div><div className="v num">{shortDays}<small>日</small></div></div>
+              <div className="nox-rs"><div className="l">人員不足日（今後）</div><div className="v num">{shortDays}<small>日</small></div></div>
             </div>
 
         {periods.length === 0 && (
@@ -1291,7 +1313,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   const day = shifts.filter((x) => x.date === ymd);
                   const auto = day.filter((x) => x.source === "auto").length;
                   const man = day.length - auto;
-                  const cls = ["nox-cald", st.fill, ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
+                  const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                   return (
                     <button key={ymd} className={cls} onClick={() => setSelDate(ymd)}
                       title={`${ymd}・自動${auto}件 / 手修正${man}件`}>
@@ -1311,9 +1333,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               {/* 選択日の内訳（モック .plan-day-detail / .plan-person） */}
               <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
                 <p style={{ fontSize: 11.5, fontWeight: 800, margin: "0 0 6px" }}>
-                  <span className="num">{selDate}</span> の配置
+                  {selInMonth ? <><span className="num">{selDate}</span> の配置</> : "日別の配置"}
                 </p>
-                {shiftsOn(selDate).length === 0 ? (
+                {/* ★D-15: 月外選択なら空状態（文言は3面で統一） */}
+                {!selInMonth ? (
+                  <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>{SEL_EMPTY}</p>
+                ) : shiftsOn(selDate).length === 0 ? (
                   <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>この日の配置はありません</p>
                 ) : shiftsOn(selDate).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((x) => (
                   <div key={x.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
@@ -1579,7 +1604,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 {calCells.map((ymd, i) => {
                   if (!ymd) return <div key={`rb${i}`} />;
                   const list = confirmedOn(ymd);
-                  const cls = ["nox-cald", list.length > 0 ? "ok" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
+                  const cls = ["nox-cald", list.length > 0 ? "ok" : "", isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                   return (
                     <button key={ymd} className={cls} style={{ minHeight: 92, alignItems: "stretch" }}
                       onClick={() => setSelDate(ymd)}
@@ -1607,10 +1632,17 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               {/* 日タップで全員展開＋時間調整への導線 */}
               <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
                 <p style={{ fontSize: 11.5, fontWeight: 800, margin: "0 0 6px" }}>
-                  <span className="num">{selDate}</span> の確定
-                  <span className="num" style={{ marginLeft: 6, color: "var(--v2-muted)" }}>{sel.length}名</span>
+                  {selInMonth ? (
+                    <>
+                      <span className="num">{selDate}</span> の確定
+                      <span className="num" style={{ marginLeft: 6, color: "var(--v2-muted)" }}>{sel.length}名</span>
+                    </>
+                  ) : "日別の確定"}
                 </p>
-                {sel.length === 0 ? (
+                {/* ★D-15: 月外選択なら空状態（文言は3面で統一） */}
+                {!selInMonth ? (
+                  <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>{SEL_EMPTY}</p>
+                ) : sel.length === 0 ? (
                   <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>この日の確定シフトはありません。</p>
                 ) : sel.map((x) => {
                   const xClosed = closedOf(x.date, x.start_hm, x.end_hm);

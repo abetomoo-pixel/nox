@@ -1829,6 +1829,13 @@ body {
 .nox-cald.ng .nox-cald-c   { color: var(--bad); }
 .nox-cald.sel { background: var(--goldface2); border-color: var(--gold); }
 .nox-cald.today .nox-cald-n { color: var(--champ); font-weight: 700; }
+/* SC-7 裁定53: 過去日は減光する（未来日の赤を前に出すため）。
+   色は消さない＝過ぎた日の不足も履歴として読める。saturate で彩度だけ落とし、
+   opacity は軽く（.55）＝文字が読めなくなるほど薄くしない。
+   .sel / .today と重なったときは選択・今日の強調を優先（後に置いて打ち勝つ）。 */
+.nox-cald.past { filter: saturate(.45); opacity: .55; }
+.nox-cald.past.sel,
+.nox-cald.past.today { filter: none; opacity: 1; }
 /* 段S-2: セル内の予想人件費（モック .yen 逐語＝10px muted）。★≤641 は非表示＝スマホは色＋コマ数のみ
    （モック @media (max-width:641px) の .grid .yen{display:none} と同じ。人数 .nox-cald-c は S-1 のまま触らない）。 */
 .nox-cald-y { font-size: 10px; color: var(--v2-muted); }
