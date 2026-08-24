@@ -936,7 +936,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
       {/* ── タブ「カレンダー」＝月カレンダー＋日詳細 ── */}
       {/* 段0R その3: >900 はカレンダーと日詳細を横並び（モックの2カラム）・≤900 は縦積み。 */}
       {tab === "calendar" && (
-        <div className="nox-2col">
+        <div>
           <section className="nox-cardtop" style={card}>
             <div className="nox-calhead">
               <button style={btnLight} onClick={() => shiftMonth(-1)} aria-label="前の月">‹</button>
@@ -978,7 +978,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 const fc = fcOf(ymd);
                 const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                 return (
-                  <button key={ymd} className={cls} onClick={() => setSelDate(ymd)}
+                  <button key={ymd} className={cls}
+                    onClick={() => { setSelDate(ymd); setDayModal(true); }}
                     title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}>
                     <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
                     {/* 段0R その3: 状態バッジ文字（モック .st ok/warn/ng/none 逐語）。色だけでなく語で伝える。 */}
@@ -1009,6 +1010,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
               セル＝状態色＋確定/必要人数（時間帯バンドのピーク値）。必要人数は「シフト作成」タブの
               「必要人数（曜日・時間帯別）」設定を参照します。
+              {/* ★SC-8（裁定57）: 日詳細をモーダルへ統一＝押したその場で開く。 */}
+              <b>日を押すとその日の割当が開きます。</b>
             </p>
             {/* E8-4 #4: 予想人件費の月次ロールアップ（fcByDate の表示月合算＝新規計算なし・manager 以上） */}
             {isManagerUp && monthFcTotal > 0 && (
@@ -1024,93 +1027,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             )}
           </section>
 
-          <section className="nox-cardtop" style={card}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
-              <h2 style={{ ...secTitle, margin: 0 }}>{selInMonth ? `${selDate} の割当` : "日別の割当"}</h2>
-              {/* ★D-15: 選択日が表示月の外なら数字を出さない（見えているカレンダーと中身が
-                  食い違うため）。文言は3面で統一（SEL_EMPTY）。 */}
-              {!selInMonth ? (
-                <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>{SEL_EMPTY}</span>
-              ) : (
-                <>
-                  <span className={`nox-stpill ${selStat.fill === "none" ? "" : selStat.fill}`}>
-                    {FILL_LABEL[selStat.fill]}{selStat.required > 0 ? ` ${selStat.assigned}/${selStat.required}` : ""}
-                  </span>
-                  {/* ★SC-2（裁定44）: 内訳は3値で出す（合計だけ見せて中身を隠さない）。
-                      余剰は裁定B のとおり灰＝「困っていない状態」を注意色で主張しない。 */}
-                  <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
-                    確定 {selStat.confirmed} / 確認待ち {selStat.proposed} / 予定 {selStat.planned}
-                    {selStat.over > 0 && <span style={{ marginLeft: 6 }}>・余剰 {selStat.over}</span>}
-                  </span>
-                </>
-              )}
-            </div>
-            {/* 段S-2: 選択日の予想人件費（モック .moneyrow）＋★必須注記（設計§1・常時表示）。
-                注記は moneyrow 直下に固定＝金額だけが独り歩きしない（BANZEN W1 §3.1 と同思想）。
-                ★D-15: 月外選択のときは以降を描かない（selInMonth を全ブロックの条件に足す）。 */}
-            {selInMonth && isManagerUp && selFc && (
-              <>
-                <div className="nox-moneyrow">
-                  <span>予想人件費{selFc.unknownComp > 0 ? `（時給未設定 ${selFc.unknownComp}人を除く）` : ""}</span>
-                  <b className="num">{yen(selFc.total)}</b>
-                </div>
-                <p className="nox-moneynote">
-                  シフト時間×時給の概算です。バック・控除は含みません。実際の給与とは異なります。
-                </p>
-              </>
-            )}
-            {/* E8-4 #2: 選択日の時間帯別充足バー（バンド設定のある曜日のみ） */}
-            {selInMonth && selBands.length > 0 && (
-              <div style={{ margin: "6px 0 8px" }}>
-                <BandBars stats={selBands} />
-                {/* ★SC-7（裁定51'）: 今日タブと同じ注記＋導線（同じ理由・同じ文言）。 */}
-                {onlyAllDay(selBands) && (
-                  <div className="nox-inset" style={{ padding: "9px 12px", marginTop: 10 }}>
-                    <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.7 }}>
-                      <b>時間帯別の内訳は未設定です。</b>
-                      いまは1日ぶんの人数だけを見ています（何時が足りないかは分かりません）。
-                    </p>
-                    <button style={{ ...btnLight, marginTop: 8 }} onClick={gotoNeeds}>時間帯を設定する</button>
-                  </div>
-                )}
-              </div>
-            )}
-            {bands.length === 0 && (
-              <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
-                この日の割当はありません。「シフト作成」タブの確定シフト登録から追加できます。
-              </p>
-            )}
-            {/* 段0R その3: 追加導線＝選択日を登録フォームへプリセットして「シフト作成」タブへ送るだけ。
-                ★新しい登録 UI は作らない（送る RPC も引数も既存の確定シフト登録のまま）。 */}
-            {/* ★SC-2（裁定44-4）: タブ遷移をやめ、この面で ShiftAddForm を開く。
-                ★status は planned（仮シフトの面＝これから組む段）＝今日タブの confirmed とは意図が違う。
-                ★timeTouched の到達性: setAddDate と setAddModal(true) は同一ハンドラ＝同一バッチで走り、
-                  open false→true と initialDate 変化が同時＝effect は1回。開いている間はオーバーレイが
-                  position:fixed / inset:0 / z-index:50 で背後を遮断するため、
-                  「開いたまま initialDate だけが変わる」経路は生まれない（SC-1 の確認と同じ結論）。 */}
-            {isManagerUp && (
-              <button className="nox-addc"
-                onClick={() => { setAddDate(selDate); setAddStatus("planned"); setAddModal(true); }}>
-                ＋ キャストを追加
-              </button>
-            )}
-            {bands.map((b) => (
-              <div key={b.key} className="nox-band">
-                <div className="nox-bandh">
-                  <span className="t num">{fmtBand30(b.start, b.end)}</span>
-                  <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {b.confirmed} / 予定 {b.items.length - b.confirmed}</span>
-                </div>
-                {b.items.map((s) => (
-                  <div key={s.id} className="nox-crow">
-                    <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
-                    <span style={{ flex: 1, minWidth: 0 }}>{castName(s.cast_id)}</span>
-                    <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{fmtWin(s.start_hm, s.end_hm)}</span>
-                    <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>{SHIFT_ST_LABEL[s.status] ?? s.status}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </section>
         </div>
       )}
 
@@ -1772,6 +1688,101 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
         />
       )}
 
+      {/* ★SC-8（裁定57）: 仮シフトタブの日詳細をモーダルへ（右ペイン 380px 固定から移設）。
+          ★900px 未満では右ペインが下へ落ちて、日を押しても下スクロールしないと見えなかった（C-11 実測）。
+          ★中身は移設前の逐語（充足ピル／内訳3値／余剰／予想人件費＋注記／帯グラフ＋51' 注記／
+            実時刻グループの割当リスト／＋キャストを追加）。項目も順序も語彙も変えていない。
+          ★表示条件に selInMonth を入れる＝月外なら開かない（52' と同じ方式・SEL_EMPTY は不要になった）。
+          ★モーダルから他のモーダル／遷移へ行くものは**先に閉じる**（52' と同じ排他・z-index は増やさない）。 */}
+      {dayModal && tab === "calendar" && selInMonth && (
+        <Modal onClose={() => setDayModal(false)} maxWidth={520} scroll>
+          <div className="nox-modalhead">
+            <h3 style={{ ...secTitle, margin: 0 }}><span className="num">{selDate}</span> の割当</h3>
+            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal(false)}>×</button>
+          </div>
+          <div className="nox-modalbody">
+            {/* 充足ピル／内訳3値／余剰＝移設前の逐語（順序も語彙も不変） */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
+              <span className={`nox-stpill ${selStat.fill === "none" ? "" : selStat.fill}`}>
+                {FILL_LABEL[selStat.fill]}{selStat.required > 0 ? ` ${selStat.assigned}/${selStat.required}` : ""}
+              </span>
+              {/* ★SC-2（裁定44）: 内訳は3値で出す（合計だけ見せて中身を隠さない）。
+                  余剰は裁定B のとおり灰＝「困っていない状態」を注意色で主張しない。 */}
+              <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
+                確定 {selStat.confirmed} / 確認待ち {selStat.proposed} / 予定 {selStat.planned}
+                {selStat.over > 0 && <span style={{ marginLeft: 6 }}>・余剰 {selStat.over}</span>}
+              </span>
+            </div>
+            {/* 段S-2: 選択日の予想人件費（モック .moneyrow）＋★必須注記（設計§1・常時表示）。
+                注記は moneyrow 直下に固定＝金額だけが独り歩きしない（BANZEN W1 §3.1 と同思想）。
+                ★D-15: 月外選択のときは以降を描かない（selInMonth を全ブロックの条件に足す）。 */}
+            {isManagerUp && selFc && (
+              <>
+                <div className="nox-moneyrow">
+                  <span>予想人件費{selFc.unknownComp > 0 ? `（時給未設定 ${selFc.unknownComp}人を除く）` : ""}</span>
+                  <b className="num">{yen(selFc.total)}</b>
+                </div>
+                <p className="nox-moneynote">
+                  シフト時間×時給の概算です。バック・控除は含みません。実際の給与とは異なります。
+                </p>
+              </>
+            )}
+            {/* E8-4 #2: 選択日の時間帯別充足バー（バンド設定のある曜日のみ） */}
+            {selBands.length > 0 && (
+              <div style={{ margin: "6px 0 8px" }}>
+                <BandBars stats={selBands} />
+                {/* ★SC-7（裁定51'）: 今日タブと同じ注記＋導線（同じ理由・同じ文言）。 */}
+                {onlyAllDay(selBands) && (
+                  <div className="nox-inset" style={{ padding: "9px 12px", marginTop: 10 }}>
+                    <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.7 }}>
+                      <b>時間帯別の内訳は未設定です。</b>
+                      いまは1日ぶんの人数だけを見ています（何時が足りないかは分かりません）。
+                    </p>
+                    <button style={{ ...btnLight, marginTop: 8 }}
+                      onClick={() => { setDayModal(false); gotoNeeds(); }}>時間帯を設定する</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {bands.length === 0 && (
+              <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
+                この日の割当はありません。「シフト作成」タブの確定シフト登録から追加できます。
+              </p>
+            )}
+            {/* 段0R その3: 追加導線＝選択日を登録フォームへプリセットして「シフト作成」タブへ送るだけ。
+                ★新しい登録 UI は作らない（送る RPC も引数も既存の確定シフト登録のまま）。 */}
+            {/* ★SC-2（裁定44-4）: タブ遷移をやめ、この面で ShiftAddForm を開く。
+                ★status は planned（仮シフトの面＝これから組む段）＝今日タブの confirmed とは意図が違う。
+                ★timeTouched の到達性: setAddDate と setAddModal(true) は同一ハンドラ＝同一バッチで走り、
+                  open false→true と initialDate 変化が同時＝effect は1回。開いている間はオーバーレイが
+                  position:fixed / inset:0 / z-index:50 で背後を遮断するため、
+                  「開いたまま initialDate だけが変わる」経路は生まれない（SC-1 の確認と同じ結論）。 */}
+            {isManagerUp && (
+              <button className="nox-addc"
+                onClick={() => { setDayModal(false); setAddDate(selDate); setAddStatus("planned"); setAddModal(true); }}>
+                ＋ キャストを追加
+              </button>
+            )}
+            {bands.map((b) => (
+              <div key={b.key} className="nox-band">
+                <div className="nox-bandh">
+                  <span className="t num">{fmtBand30(b.start, b.end)}</span>
+                  <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {b.confirmed} / 予定 {b.items.length - b.confirmed}</span>
+                </div>
+                {b.items.map((s) => (
+                  <div key={s.id} className="nox-crow">
+                    <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
+                    <span style={{ flex: 1, minWidth: 0 }}>{castName(s.cast_id)}</span>
+                    <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{fmtWin(s.start_hm, s.end_hm)}</span>
+                    <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>{SHIFT_ST_LABEL[s.status] ?? s.status}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+
       {/* ★SC-7（裁定52'）: 確定シフトタブの日詳細モーダル。
           ★カレンダーの下に置いていた頃は、狭い画面で日を押しても下スクロールしないと見えなかった
             （900px 未満は右ペインが下へ落ちる＝C-11 実測）。押した場所で開くようにする。
@@ -1779,7 +1790,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           ★D-15 の空状態はここでは出さない＝**月移動でモーダルが開いたままになる経路が無い**
             （開くのはセルの onClick だけで、月移動ボタンはモーダルの背後＝オーバーレイが遮断する）。
             それでも保険として selInMonth を条件に入れ、月外なら開かない。 */}
-      {dayModal && rosterView === "cal" && selInMonth && (() => {
+      {/* ★SC-8: dayModal は面をまたいで共有する1本の state。どの面のモーダルを出すかは
+          **tab で必ず切り分ける**（rosterView だけだと既定値 "cal" のため仮シフトタブでも真になり、
+          2つのモーダルが同時に描画される＝実装中に実測して塞いだ）。 */}
+      {dayModal && tab === "roster" && rosterView === "cal" && selInMonth && (() => {
         const sel = shifts.filter((x) => x.date === selDate && x.status === "confirmed")
           .slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm));
         return (
