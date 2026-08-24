@@ -113,7 +113,7 @@ async function main() {
     check("ownerA stores = A1+A2（B1 不可視）", sameSet(await names(c, "stores"), [STORE_A1, STORE_A2]));
     const { data: mems } = await c.from("memberships").select("id");
     check("ownerA memberships = org A の8行", (mems ?? []).length === 8, `got ${(mems ?? []).length}`);
-    const { data: audits } = await c.from("audit_logs").select("id, action");
+    const { data: audits } = await c.from("audit_logs").select("id, action").eq("action", "seed_marker");
     check("ownerA audit_logs ≥1行（seed_marker）", (audits ?? []).some((a) => a.action === "seed_marker"), `got ${(audits ?? []).length}行`);
     const { data: role } = await c.rpc("auth_role");
     check("ownerA auth_role = owner", role === "owner", `got ${JSON.stringify(role)}`);
