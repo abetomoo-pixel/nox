@@ -7,6 +7,7 @@
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
+import ShiftAddForm from "./shift-add-form";
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
@@ -174,11 +175,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   // B-5②: 営業時間マスタ（行なし=未設定・判定なし。cast 0行だが本画面は staff 以上のみ到達）
   const [bhRows, setBhRows] = useState<BusinessHourRow[]>([]);
   // 新規シフトフォーム（manager）
-  const [fCast, setFCast] = useState("");
-  const [fDate, setFDate] = useState(bizToday);
-  const [fStart, setFStart] = useState("20:00");
-  const [fEnd, setFEnd] = useState("26:00");
-  const [fStatus, setFStatus] = useState("planned");
+  // ★SC-1（裁定42）: 手動追加フォームは ShiftAddForm へ切り出した。
+  //   親が持つのは「どの面から・どの日付・どの状態で開くか」だけ（フォームの6 state は子の内部）。
+  const [addDate, setAddDate] = useState(bizToday);
+  const [addStatus, setAddStatus] = useState("planned");
   // ★DP3 P2（2026-08-21・裁定 DP3-②）: 手動シフト追加をモーダルへ（モック `planShiftDialog`）。
   const [addModal, setAddModal] = useState(false);
   // ★DP3 P2（裁定 DP3-③）: 勤務時間の調整モーダル（モック `adjustDialog`）。
@@ -327,17 +327,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     await load();
   }
 
-  async function addShift() {
-    if (!fCast) return;
-    setMsg(null);
-    // B-5②: 定休日は送信もしない（ボタン無効の保険・二層目は RPC 'closed day'＝段26-4 実測）
-    if (shiftHoursStatus(fDate, fStart, fEnd, bhRows).status === "closed") { setMsg("選択された日は定休日です"); return; }
-    const { error } = await supabase.rpc("shift_set", {
-      p_id: null, p_cast_id: fCast, p_date: fDate, p_start_hm: fStart, p_end_hm: fEnd, p_status: fStatus,
-    });
-    setMsg(error ? `シフトの登録に失敗: ${rpcErrJa(error.message)}` : "シフトを登録しました");
-    await load();
-  }
 
   async function confirmShift(s: Shift) {
     setMsg(null);
@@ -550,8 +539,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   }
 
   // B-5②: 新規シフトフォームの営業時間判定（date 直＝cutoff 変換なし・予約用とは別関数）
-  const fShiftHours = shiftHoursStatus(fDate, fStart, fEnd, bhRows);
-  const fClosedDay = fShiftHours.status === "closed";
   const closedOf = (date: string, startHm: string, endHm: string) =>
     shiftHoursStatus(date, startHm, endHm, bhRows).status === "closed";
 
@@ -714,9 +701,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 申請時間・確定時間・出勤記録をこの表で確認します。シフトに無い飛び入り出勤は「＋ 追加」から先にシフトを足してください。
               </p>
             </div>
+            {/* ★SC-1（裁定42）: タブ遷移をやめ、この面でフォームを開く。
+                ★既定 status は confirmed＝当日その場で足すのは「もう入る人」（予定ではない）。
+                  shift_set は insert 経路で p_status をそのまま格納する（planned 固定ではない）と live 実測済み。 */}
             {isManagerUp && (
               <button className="nox-addc" style={{ marginLeft: "auto" }}
-                onClick={() => { setFDate(bizToday); setTab("build"); }}>＋ 追加</button>
+                onClick={() => { setAddDate(bizToday); setAddStatus("confirmed"); setAddModal(true); }}>＋ 追加</button>
             )}
           </div>
           {shiftsOn(bizToday).length === 0 ? (
@@ -935,8 +925,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             )}
             {/* 段0R その3: 追加導線＝選択日を登録フォームへプリセットして「シフト作成」タブへ送るだけ。
                 ★新しい登録 UI は作らない（送る RPC も引数も既存の確定シフト登録のまま）。 */}
+            {/* 現行維持（シフト作成タブへ送る）。日付のプリセット先は addDate（旧 fDate）。 */}
             {isManagerUp && (
-              <button className="nox-addc" onClick={() => { setFDate(selDate); setTab("build"); }}>
+              <button className="nox-addc" onClick={() => { setAddDate(selDate); setAddStatus("planned"); setTab("build"); }}>
                 ＋ キャストを追加
               </button>
             )}
@@ -1212,7 +1203,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 <button className={planView === "cal" ? "on" : ""} onClick={() => setPlanView("cal")}>月カレンダー</button>
                 <button className={planView === "staff" ? "on" : ""} onClick={() => setPlanView("staff")}>スタッフ別</button>
               </div>
-              <button style={btnLight} onClick={() => setAddModal(true)}>＋ 手動で追加</button>
+              {/* 現行維持: シフト作成タブからは planned で開く（計画を組む面ゆえ） */}
+              <button style={btnLight} onClick={() => { setAddStatus("planned"); setAddModal(true); }}>＋ 手動で追加</button>
             </span>
           </div>
 
@@ -1625,60 +1617,18 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
 
 
 
-      {/* ── ★DP3 P2（裁定 DP3-②）: 手動シフト追加モーダル（モック `planShiftDialog`・
-             modalhead＋modalbody＋formgrid＋actions）。★フィールド集合・検証・送る RPC と引数は
-             移設前の逐語＝`addShift` は1文字も変えていない。 ── */}
-      {addModal && isManagerUp && (
-        <Modal onClose={() => setAddModal(false)} maxWidth={520} scroll>
-          <div className="nox-modalhead">
-            <h3 style={{ ...secTitle, margin: 0 }}>手動でシフトを追加</h3>
-            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setAddModal(false)}>×</button>
-          </div>
-          <div className="nox-modalbody">
-            <div className="nox-field2">
-              <div className="nox-field">
-                <span className="lab">キャスト<span className="req">*</span></span>
-                <select value={fCast} onChange={(e) => setFCast(e.target.value)} style={{ ...input, width: "100%" }}>
-                  <option value="">キャスト</option>
-                  {casts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div className="nox-field">
-                <span className="lab">日付</span>
-                <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={{ ...input, width: "100%" }} />
-              </div>
-              <div className="nox-field">
-                <span className="lab">開始</span>
-                <input value={fStart} onChange={(e) => setFStart(e.target.value)} style={{ ...input, width: "100%" }} />
-                <span className="hint">24時以降は 25:00 のように書けます。</span>
-              </div>
-              <div className="nox-field">
-                <span className="lab">終了</span>
-                <input value={fEnd} onChange={(e) => setFEnd(e.target.value)} style={{ ...input, width: "100%" }} />
-              </div>
-              <div className="nox-field full">
-                <span className="lab">状態</span>
-                <SegSelect value={fStatus} onChange={(v) => setFStatus(v)}
-            options={[["planned", "予定"], ["proposed", "確認待ち"], ["confirmed", "確定"]] as const} />
-              </div>
-            </div>
-            {fClosedDay && (
-              <p style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700, margin: "10px 0 0" }}>
-                この日は定休日です（シフトを登録できません）
-              </p>
-            )}
-            {fShiftHours.status === "outside" && fShiftHours.row && (
-              <p style={{ fontSize: 11.5, color: "var(--gold2)", fontWeight: 700, margin: "10px 0 0" }}>
-                営業時間外です（営業 {fmtHoursLabel(fShiftHours.row)}）
-              </p>
-            )}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 17 }}>
-              <button style={btnLight} onClick={() => setAddModal(false)}>やめる</button>
-              <button style={{ ...btnDark, opacity: fClosedDay || !fCast ? 0.45 : 1 }} disabled={fClosedDay || !fCast}
-                onClick={() => void addShift()}>登録</button>
-            </div>
-          </div>
-        </Modal>
+      {/* ── 手動シフト追加（モック `planShiftDialog`）。DP3 P2 でモーダル化し、SC-1 で部品へ切り出した。
+             ★フィールド集合・検証・送る RPC と引数は DP3 当時の逐語のまま（子で保持）。 ── */}
+      {/* ★SC-1（裁定42）: 手動追加は ShiftAddForm（部品）。開閉と初期値だけ親が渡す。
+          ★送る RPC・引数6本は子へ逐語移送（sha 152dd248…fb41 で照合）＝ここには残っていない。
+          保存されたら onSaved で親の load() を回す（子は DB の再取得を知らない）。 */}
+      {isManagerUp && (
+        <ShiftAddForm
+          casts={casts} bhRows={bhRows}
+          initialDate={addDate} initialStatus={addStatus}
+          open={addModal} onClose={() => setAddModal(false)}
+          onSaved={() => { setMsg("シフトを登録しました"); void load(); }}
+        />
       )}
 
       {/* ── ★DP3 P2（裁定 DP3-③）: 勤務時間の調整モーダル（モック `adjustDialog`）。
