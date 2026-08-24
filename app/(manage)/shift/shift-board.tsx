@@ -153,6 +153,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   // ★R4（Agoora 裁定）: 確定シフトタブ＝**人ベースの月カレンダー**を既定にし、
   //   現行の一覧は「表で見る」トグルで残置する（表示のみ・RPC 非改変）。
   const [rosterView, setRosterView] = useState<"cal" | "table">("cal");
+  // ★SC-7（裁定52'）: 確定シフトタブの日詳細をモーダルへ。
+  //   ★selDate はそのまま使う（カレンダーの選択状態＝sel ハイライトと日詳細の対象は同じ日でよい）。
+  //     モーダル用に持つのは「開いているか」の1本だけ＝日付を二重管理しない。
+  //   ★二重モーダル対策（C-12）: 「時間を調整」を押したら**日詳細を閉じてから**調整モーダルを開く。
+  //     z-index は増やさない（重ねないので増やす必要がない）。
+  const [dayModal, setDayModal] = useState(false);
   const [preview, setPreview] = useState<{ periodId: string; result: AutoAssignResult } | null>(null);
   const [autoBusy, setAutoBusy] = useState(false);
   // ★SD V2-2: 配置ルール入力（空欄=無制限。月間は「時間」で入力し保存時に分へ）
@@ -1589,7 +1595,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           const confirmedOn = (ymd: string) =>
             shifts.filter((x) => x.date === ymd && x.status === "confirmed")
               .slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm));
-          const sel = confirmedOn(selDate);
           return (
             <>
               <div className="nox-calhead">
@@ -1607,7 +1612,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   const cls = ["nox-cald", list.length > 0 ? "ok" : "", isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                   return (
                     <button key={ymd} className={cls} style={{ minHeight: 92, alignItems: "stretch" }}
-                      onClick={() => setSelDate(ymd)}
+                      onClick={() => { setSelDate(ymd); setDayModal(true); }}
                       title={list.length === 0 ? `${ymd}・確定なし` : `${ymd}・${list.map((x) => `${castName(x.cast_id)} ${fmtWin(x.start_hm, x.end_hm)}`).join(" / ")}`}>
                       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
                       {/* 先頭3名の名前チップ（例: れいな 20:00-）＋残りは「他N名」に折り畳む */}
@@ -1629,48 +1634,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 })}
               </div>
 
-              {/* 日タップで全員展開＋時間調整への導線 */}
-              <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-                <p style={{ fontSize: 11.5, fontWeight: 800, margin: "0 0 6px" }}>
-                  {selInMonth ? (
-                    <>
-                      <span className="num">{selDate}</span> の確定
-                      <span className="num" style={{ marginLeft: 6, color: "var(--v2-muted)" }}>{sel.length}名</span>
-                    </>
-                  ) : "日別の確定"}
-                </p>
-                {/* ★D-15: 月外選択なら空状態（文言は3面で統一） */}
-                {!selInMonth ? (
-                  <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>{SEL_EMPTY}</p>
-                ) : sel.length === 0 ? (
-                  <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>この日の確定シフトはありません。</p>
-                ) : sel.map((x) => {
-                  const xClosed = closedOf(x.date, x.start_hm, x.end_hm);
-                  const w = x.wish_id ? wishAll.find((y) => y.id === x.wish_id) : undefined;
-                  return (
-                    <div key={x.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        {castName(x.cast_id)}
-                        {w && (w.start_hm !== x.start_hm || w.end_hm !== x.end_hm) && (
-                          <span className="num" style={{ display: "block", fontSize: 10, color: "var(--v2-muted)" }}>
-                            希望 {fmtWin(w.start_hm, w.end_hm)}
-                          </span>
-                        )}
-                      </span>
-                      <span className="num">{fmtWin(x.start_hm, x.end_hm)}</span>
-                      <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>{userNames.get(x.created_by) ?? "—"}</span>
-                      {isManagerUp && (
-                        <button style={{ ...btnLight, opacity: xClosed ? 0.45 : 1 }} disabled={xClosed}
-                          title={xClosed ? "この日は定休日に設定されています" : undefined}
-                          onClick={() => { setAdjTarget(x); setAStart(x.start_hm); setAEnd(x.end_hm); }}>時間を調整</button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
                 このカレンダーには<b>確定だけ</b>を出しています（予定・確認待ちは「承認待ち」タブ）。
-                セルは先頭3名まで、残りは日をタップすると全員出ます。
+                セルは先頭3名まで。<b>日を押すとその日の全員が開きます</b>（時間の調整もそこから）。
               </p>
             </>
           );
@@ -1741,6 +1707,63 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           onSaved={() => { setMsg("シフトを登録しました"); void load(); }}
         />
       )}
+
+      {/* ★SC-7（裁定52'）: 確定シフトタブの日詳細モーダル。
+          ★カレンダーの下に置いていた頃は、狭い画面で日を押しても下スクロールしないと見えなかった
+            （900px 未満は右ペインが下へ落ちる＝C-11 実測）。押した場所で開くようにする。
+          ★中身は移設前の逐語（希望との対比・登録者・時間を調整）。送る RPC は無い（表示のみ）。
+          ★D-15 の空状態はここでは出さない＝**月移動でモーダルが開いたままになる経路が無い**
+            （開くのはセルの onClick だけで、月移動ボタンはモーダルの背後＝オーバーレイが遮断する）。
+            それでも保険として selInMonth を条件に入れ、月外なら開かない。 */}
+      {dayModal && rosterView === "cal" && selInMonth && (() => {
+        const sel = shifts.filter((x) => x.date === selDate && x.status === "confirmed")
+          .slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm));
+        return (
+          <Modal onClose={() => setDayModal(false)} maxWidth={520} scroll>
+            <div className="nox-modalhead">
+              <h3 style={{ ...secTitle, margin: 0 }}>
+                <span className="num">{selDate}</span> の確定
+                <span className="num" style={{ marginLeft: 8, fontWeight: 400, color: "var(--v2-muted)" }}>{sel.length}名</span>
+              </h3>
+              <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal(false)}>×</button>
+            </div>
+            <div className="nox-modalbody">
+              {sel.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>この日の確定シフトはありません。</p>
+              ) : sel.map((x) => {
+                const xClosed = closedOf(x.date, x.start_hm, x.end_hm);
+                const w = x.wish_id ? wishAll.find((y) => y.id === x.wish_id) : undefined;
+                return (
+                  <div key={x.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      {castName(x.cast_id)}
+                      {w && (w.start_hm !== x.start_hm || w.end_hm !== x.end_hm) && (
+                        <span className="num" style={{ display: "block", fontSize: 10, color: "var(--v2-muted)" }}>
+                          希望 {fmtWin(w.start_hm, w.end_hm)}
+                        </span>
+                      )}
+                    </span>
+                    <span className="num">{fmtWin(x.start_hm, x.end_hm)}</span>
+                    <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>{userNames.get(x.created_by) ?? "—"}</span>
+                    {isManagerUp && (
+                      <button style={{ ...btnLight, opacity: xClosed ? 0.45 : 1 }} disabled={xClosed}
+                        title={xClosed ? "この日は定休日に設定されています" : undefined}
+                        onClick={() => {
+                          // ★C-12: 重ねない＝日詳細を閉じてから調整モーダルを開く（排他）。
+                          setDayModal(false);
+                          setAdjTarget(x); setAStart(x.start_hm); setAEnd(x.end_hm);
+                        }}>時間を調整</button>
+                    )}
+                  </div>
+                );
+              })}
+              <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
+                ここには<b>確定だけ</b>を出しています（予定・確認待ちは「承認待ち」タブ）。
+              </p>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {/* ── ★DP3 P2（裁定 DP3-③）: 勤務時間の調整モーダル（モック `adjustDialog`）。
              ★「元の希望との対比」と「メモ」は入れない＝`shifts` が wish_id もメモ列も持たないため
