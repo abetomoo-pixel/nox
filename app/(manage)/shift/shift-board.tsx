@@ -10,7 +10,7 @@ import SegSelect from "@/components/ui/seg-select";
 import ShiftAddForm from "./shift-add-form";
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
-import { bizDateOf } from "@/lib/nox/biz-date";
+import { bizDateOf, addDays } from "@/lib/nox/biz-date";
 import { fmtWin, fmtBand30, hm2min, min2hm, spanMinutes } from "@/lib/nox/shift-time";
 import { autoAssign, type AutoAssignResult } from "@/lib/nox/shift-autoassign";
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
@@ -266,8 +266,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
     const [my, mm] = month.split("-").map(Number);
     const monthFrom = `${month}-01`;
     const monthTo = ymdOf(new Date(my, mm, 0)); // 当月末日（翌月0日）
+    // ★SC-7（裁定54）: to を「今日+6日」まで伸ばす。
+    //   直近7日ストリップ（裁定50'）が月末を跨ぐと、翌月分の shifts が範囲外になり
+    //   assigned=0 のまま「不足」と誤表示するため（required は曜日ベースで範囲に依らない）。
+    //   ★from は現状維持＝過去方向には広げない（要らないデータを取らない）。
+    //   ★確定シフトタブの表に翌月分が数行混ざるのは**意図した変化**＝見出し「確定シフト（今後）」と整合する
+    //     （従来は月末に「今後」を名乗りながら翌月が見えなかった）。
+    const stripEnd = addDays(bizToday, 6);
     const from = monthFrom < bizToday ? monthFrom : bizToday;
-    const to = monthTo > bizToday ? monthTo : bizToday;
+    const toBase = monthTo > bizToday ? monthTo : bizToday;
+    const to = toBase > stripEnd ? toBase : stripEnd;
     // E8-4 #10: created_by を追加取得（確定シフト一覧の「登録者」列・下で users 名を1クエリ解決）
     const { data: ss } = await supabase
       .from("shifts").select("id, cast_id, date, start_hm, end_hm, status, created_by, wish_id, source, period_id")
@@ -640,6 +648,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const yen = (n: number) => "¥" + n.toLocaleString();
 
   // 「今日」の KPI（段S-2 で予想人件費を5枚目に追加）
+  // ★SC-7（裁定50'）: 今日タブ上部の直近7日ストリップ。**今日を含む未来7日**（過去日は出さない）。
+  //   ★データは既存の dayStat / fcOf で足りる（裁定54 で load() の to を今日+6日まで伸ばしたため、
+  //     月末を跨いでも assigned が欠けない）。新しい取得は増やしていない。
+  const stripDays = Array.from({ length: 7 }, (_, i) => addDays(bizToday, i));
+
   const todayStat = dayStat(bizToday);
   const todayFc = fcOf(bizToday);
   const fillRate = todayStat.required > 0 ? Math.round((todayStat.assigned / todayStat.required) * 100) : null;
@@ -704,6 +717,57 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             wish 由来でない手動登録行は実体が無いので「—」＝空欄で嘘をつかない。 */}
       {tab === "today" && (
       <>
+      {/* ★SC-7（裁定50'）: 直近7日ストリップ。今日タブの中身は**切り替えない**＝
+          カードを押したら「仮シフト」タブの該当日へ飛ばす（充足を見る面はあちらと決めたため）。
+          ★attDate・KPI帯・出勤記録・出勤ボーナス・予想人件費の計算経路には一切触っていない。 */}
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 13 }}>
+        {stripDays.map((ymd) => {
+          const st = dayStat(ymd);
+          const fc = fcOf(ymd);
+          const isToday = ymd === bizToday;
+          const short = st.required > 0 && st.assigned < st.required;
+          const d = new Date(`${ymd}T00:00:00Z`);
+          return (
+            <button
+              key={ymd}
+              onClick={() => {
+                // 仮シフトタブの該当日へ。月が違えば表示月も合わせる（見えない日を選ばせない）。
+                setSelDate(ymd);
+                if (!ymd.startsWith(month)) setMonth(ymd.slice(0, 7));
+                setTab("calendar");
+              }}
+              title={`${ymd}・確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}`}
+              style={{
+                flex: "0 0 auto", minWidth: 86, textAlign: "left", cursor: "pointer",
+                fontFamily: "inherit", padding: "8px 10px", borderRadius: 9,
+                border: isToday ? "1px solid var(--gold)" : "1px solid var(--line)",
+                background: isToday ? "var(--goldface2)" : "var(--card2)",
+                color: "var(--ink)",
+              }}
+            >
+              <span style={{ display: "block", fontSize: 10, color: "var(--v2-muted)" }}>
+                {isToday ? "今日" : `${DOW[d.getUTCDay()]}`}
+              </span>
+              <span className="num" style={{ display: "block", fontSize: 15, fontWeight: 700 }}>
+                {Number(ymd.slice(8))}
+                <small style={{ fontSize: 10, fontWeight: 400, marginLeft: 2, color: "var(--v2-muted)" }}>日</small>
+              </span>
+              <span className="num" style={{ display: "block", fontSize: 11, color: "var(--v2-muted)" }}>
+                {st.required > 0 ? `${st.assigned}/${st.required}` : `${st.assigned}人`}
+              </span>
+              {short && (
+                <span className="num" style={{ display: "block", fontSize: 10, color: "var(--bad)", fontWeight: 700 }}>
+                  あと{st.required - st.assigned}人
+                </span>
+              )}
+              {isManagerUp && fc && fc.total > 0 && (
+                <span className="num" style={{ display: "block", fontSize: 9.5, color: "var(--v2-muted)" }}>{yen(fc.total)}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       {/* 段S-1 KPI 帯（当日）。★予想人件費は S-2（Fable 5・money 慎重域）。 */}
 <div className="nox-kpirow">
         <div className="nox-kpi2">
