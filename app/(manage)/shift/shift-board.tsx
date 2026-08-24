@@ -546,6 +546,20 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   //   E8-4 #2（mig0095）: 必要人数は曜日×時間帯バンド。バンド充足＝「当該時間帯に交差するシフト数 ÷ required」。
   //   交差は半開区間 [hm2min(start), hm2min(end)) × [from_min, to_min)＝RPC の overlap 判定と同式。
   //   シフト終了は 47:59 まで（30時間制）だがバンド上限 1440 との交差はそのまま成立する。
+  // ★SC-7（裁定51'）: 帯が「終日1本のみ」＝時間帯別の粒度が元データに無い状態。
+  //   このとき帯グラフは常に「終日 N/M」の1行しか出せず、**何時が足りないかは分からない**
+  //   （表示を厚くしても解決しない＝案2 不採用の理由）。正直に「未設定」と言って設定面へ送る。
+  const onlyAllDay = (bs: BandStat[]) => bs.length === 1 && bs[0].from_min === 0 && bs[0].to_min === 1440;
+  // 必要人数セクションへ移動（タブを切り替えてから同 id 要素へスクロール）。
+  //   ★products-board の highlightId と同じ流儀（scrollIntoView・smooth/center）。
+  //   タブ切替は state 更新＝描画後にしかスクロールできないため、次フレームで実行する。
+  const gotoNeeds = () => {
+    setTab("build");
+    requestAnimationFrame(() => {
+      document.getElementById("shift-needs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const shiftsOn = (ymd: string) => shifts.filter((s) => s.date === ymd);
   const bandStatsOf = (ymd: string): BandStat[] => {
     const list = shiftsOn(ymd);
@@ -818,7 +832,21 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 この曜日の必要人数が未設定です。「シフト作成」タブの「必要人数（曜日・時間帯別）」から設定できます。
               </p>
             ) : (
-              <BandBars stats={todayBands} />
+              <>
+                <BandBars stats={todayBands} />
+                {/* ★SC-7（裁定51'）: 終日1本しか無いなら「何時が足りないか」は出せない。
+                    出せないことを言い、設定できる面へ送る（教訓25＝分からないものを分かったように見せない）。 */}
+                {onlyAllDay(todayBands) && (
+                  <div className="nox-inset" style={{ padding: "9px 12px", marginTop: 10 }}>
+                    <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.7 }}>
+                      <b>時間帯別の内訳は未設定です。</b>
+                      いまは1日ぶんの人数だけを見ています（何時が足りないかは分かりません）。
+                      時間帯ごとに必要人数を登録すると、この欄が時間帯別に分かれます。
+                    </p>
+                    <button style={{ ...btnLight, marginTop: 8 }} onClick={gotoNeeds}>時間帯を設定する</button>
+                  </div>
+                )}
+              </>
             )}
           </section>
           {isManagerUp && <IncentivePanel storeId={storeId} casts={casts} />}
@@ -945,6 +973,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             {selBands.length > 0 && (
               <div style={{ margin: "6px 0 8px" }}>
                 <BandBars stats={selBands} />
+                {/* ★SC-7（裁定51'）: 今日タブと同じ注記＋導線（同じ理由・同じ文言）。 */}
+                {onlyAllDay(selBands) && (
+                  <div className="nox-inset" style={{ padding: "9px 12px", marginTop: 10 }}>
+                    <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.7 }}>
+                      <b>時間帯別の内訳は未設定です。</b>
+                      いまは1日ぶんの人数だけを見ています（何時が足りないかは分かりません）。
+                    </p>
+                    <button style={{ ...btnLight, marginTop: 8 }} onClick={gotoNeeds}>時間帯を設定する</button>
+                  </div>
+                )}
               </div>
             )}
             {bands.length === 0 && (
@@ -1410,8 +1448,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
 
         {/* 右＝必要人数＋配置ルール（モック planner-grid の右カラム） */}
         <div style={{ display: "grid", gap: 14 }}>
-        <section className="nox-cardtop" style={card}>
+        <section id="shift-needs" className="nox-cardtop" style={card}>
           <h2 style={secTitle}>必要人数（曜日・時間帯別）</h2>
+          {/* ★SC-7（裁定51'）: 既定の「終日」ON は変えない（既存の操作を壊さない）。
+              代わりに、終日のままだと何が見られないかを1行で言う。 */}
+          <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "-6px 0 10px", lineHeight: 1.7 }}>
+            終日のままだと時間帯別の充足は見られません。
+            「終日」のチェックを外して 20:00〜24:00 のように登録すると、時間帯ごとの過不足が出ます。
+          </p>
           {DOW.map((label, dow) => {
             const bs = needs.filter((n) => n.dow === dow);
             return (
