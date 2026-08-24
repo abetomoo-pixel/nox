@@ -41,6 +41,12 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
   live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
   全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0103 追随（2026-08-24・SC シフト作成 v3）**: 新 RPC **2本**を A5 へ収載＝
+  `shift_bulk_set`（複数日一括 planned/manual）／`shift_remove`（個別削除・confirmed は attendance
+  無しのみ・wish は pending 復元）。**ともに規則A形でゲート内蔵・kiosk 腕なし**→ **対象 103 本**へ改訂。
+  改修5本（period_set/set/wish_submit/wish_decide/auto_apply）は**既収載 or B(i) 据え置き**＝
+  wish_submit は 0103 後もゲート無し（事実記録＝B(i) のまま・open 期間ガードは課金と無関係）。
+  全数 = A 103 ＋ B 94 ＝ **197** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
 
 ## 作業版ヘッダ（v1.2・履歴として保持）
 
@@ -91,7 +97,8 @@ shift_set / shift_wish_decide / set_staffing_need /
 **staffing_need_remove**（mig0095 新設＝バンド削除・ゲートは mig 本文に内蔵）/
 **shift_period_set / shift_period_remove / shift_propose / shift_auto_apply / shift_auto_clear /
 shift_rules_set**（mig0102 新設＝SD 深部の owner/manager 系6本・ゲート内蔵）/
-**shift_cast_confirm**（mig0102 新設＝★cast 本人の proposed→confirmed 一方向・cast 初の shifts 書込 RPC）
+**shift_cast_confirm**（mig0102 新設＝★cast 本人の proposed→confirmed 一方向・cast 初の shifts 書込 RPC）/
+**shift_bulk_set / shift_remove**（mig0103 新設＝SC シフト作成 v3・一括作成と個別削除・ゲート内蔵・kiosk 腕なし）
 ※shift_cast_confirm は書込ゆえゲート対象＝失効中は確認も止まる。希望提出（B(i) の事実記録2本）とは性質が異なる。
 
 ### A6. 商品・料金マスタ（13本）

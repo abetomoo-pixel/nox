@@ -96,6 +96,8 @@ async function main() {
     await del("attendance", "org_id", orgIds);
     await del("shifts", "org_id", orgIds);        // shift_wishes より先（wish_id FK）
     await del("shift_wishes", "org_id", orgIds);
+    await del("shift_periods", "org_id", orgIds); // 0101（shifts の後＝period_id FK）
+    await del("shift_rules", "org_id", orgIds);   // 0101
     await del("staffing_needs", "org_id", orgIds);
     // F2 系（mig0012〜0021）: casts/stores を参照する側から先に消す（F2 実装後の seed 再実行対応）
     await del("payment_records", "org_id", orgIds);       // → payroll_runs/casts 参照
@@ -221,6 +223,18 @@ async function main() {
   );
   const { error: eCk } = await admin.from("checks").insert(churnCheckRows);
   if (eCk) die("churn 用 closed checks 投入失敗", eCk);
+
+  // ── 4.9 open シフト期間（★0103 裁定C の常設 fixture）──
+  //   mig0103 で shift_wish_submit が「自店の open 期間内のみ」になったため、
+  //   verify org A1 に open 期間 2026-07-01〜31 を常設する（rls F1d の 07-15・billing の 07-22 を覆う）。
+  //   ★shift-deep が使う 2026-09 月とは重ねない（shift_periods_no_overlap＝EXCLUDE gist）。
+  //   ★rls F1d-SD の period 作成テストは 2026-06 月＝これも重ねない。
+  const { error: ePd } = await admin.from("shift_periods").insert({
+    org_id: orgA, store_id: storeId(STORE_A1),
+    start_date: "2026-07-01", end_date: "2026-07-31", wish_deadline: "2026-07-05",
+    status: "open", created_by: userId(FIXTURE_USERS.ownerA.email),
+  });
+  if (ePd) die("shift_periods fixture 投入失敗", ePd);
 
   // ── 5. audit_logs マーカー（owner 閲覧テスト用・service 直 INSERT）──
   const { error: e8 } = await admin.from("audit_logs").insert({

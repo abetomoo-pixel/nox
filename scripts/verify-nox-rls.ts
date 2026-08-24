@@ -807,6 +807,17 @@ async function main() {
   // ══════════════════════════════════════════════════════════
   let wishId = "";
   {
+    // ★0103 追随（裁定E）: 本段は castA1a の 07-15 に wish→decide→shift を作る。0103 の
+    //   duplicate wish／shifts_cast_date_key により前 run の残骸があると2回目が赤になるため、
+    //   実行前に対象日付の生成物を admin で掃除する（07-15=F1d・07-16=F1d-SD の専用日）。
+    {
+      const adm = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: stA1 } = await adm.from("stores").select("id").eq("name", STORE_A1).single();
+      await adm.from("shifts").delete().eq("store_id", stA1!.id).in("date", ["2026-07-15", "2026-07-16"]);
+      await adm.from("shift_wishes").delete().eq("store_id", stA1!.id).in("date", ["2026-07-15", "2026-07-16"]);
+    }
     // ── castA1a: セルフ経路 ──
     const c = await signIn("castA1a");
     // 希望提出（自分のみ・26:00 の 24h 超表記）
@@ -877,7 +888,9 @@ async function main() {
       date: "2026-07-15", start_hm: "20:00", end_hm: "26:00", status: "planned",
       wish_id: wishId, created_by: (await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single()).data!.id,
     });
-    check("F1d wish_id 部分ユニークで二重生成を物理防止", !!eDup?.message?.includes("duplicate") || !!eDup?.message?.includes("unique"), eDup?.message ?? "重複が通ってしまった");
+    // ★0103 後は (cast_id,date) UNIQUE（shifts_cast_date_key）が先に当たることもある＝
+    //   どちらの制約でも「物理で二重生成が不可能」という主旨は同じ（メッセージは duplicate/unique を含む）。
+    check("F1d wish_id 部分ユニーク（or cast_date UNIQUE）で二重生成を物理防止", !!eDup?.message?.includes("duplicate") || !!eDup?.message?.includes("unique"), eDup?.message ?? "重複が通ってしまった");
 
     // staffing_needs upsert・manager 可視
     const { error: eN } = await c.rpc("set_staffing_need", { p_store_id: (await c.from("stores").select("id").eq("name", STORE_A1).single()).data!.id, p_dow: 5, p_required: 4 });
@@ -899,14 +912,18 @@ async function main() {
     try {
       // managerA1: period 作成＋planned shift 作成→propose（proposed 行を用意）
       const c = await signIn("managerA1");
+      // ★0103 追随: 常設 fixture（open 2026-07-01〜31）と重ねない＝本段の period は 2026-06 月
+      //   （shift_periods_no_overlap＝EXCLUDE gist が同店の重複範囲を弾くため）。
       const { data: pid, error: eP } = await c.rpc("shift_period_set", {
-        p_id: null, p_store_id: storeA1Id, p_start_date: "2026-07-01", p_end_date: "2026-07-31",
-        p_wish_deadline: "2026-07-05", p_status: "draft",
+        p_id: null, p_store_id: storeA1Id, p_start_date: "2026-06-01", p_end_date: "2026-06-30",
+        p_wish_deadline: "2026-06-05", p_status: "draft",
       });
       check("F1d-SD shift_period_set(draft) 成功", !eP && typeof pid === "string", eP?.message);
       sdPeriodId = (pid as string) ?? "";
+      // ★0103 追随: castIdA は F1d で 07-15 の shift（decide 生成）を保持＝同日は 'duplicate'。
+      //   本段の専用日は 07-16（bh 未設定 org＝定休日判定は通す・冒頭掃除の対象に含めてある）。
       const { data: sid, error: eS } = await c.rpc("shift_set", {
-        p_id: null, p_cast_id: castIdA, p_date: "2026-07-15", p_start_hm: "21:00", p_end_hm: "25:00", p_status: "planned",
+        p_id: null, p_cast_id: castIdA, p_date: "2026-07-16", p_start_hm: "21:00", p_end_hm: "25:00", p_status: "planned",
       });
       check("F1d-SD shift_set(planned) 成功", !eS && typeof sid === "string", eS?.message);
       sdShiftId = (sid as string) ?? "";
@@ -927,7 +944,7 @@ async function main() {
       const { data: rRows } = await c.from("shift_rules").select("id");
       check("F1d-SD castA1a shift_rules = 0行（パターン2）", (rRows ?? []).length === 0, `got ${(rRows ?? []).length}`);
       for (const [fn, args] of [
-        ["shift_period_set", { p_id: null, p_store_id: storeA1Id, p_start_date: "2026-07-01", p_end_date: "2026-07-31", p_wish_deadline: null, p_status: "draft" }],
+        ["shift_period_set", { p_id: null, p_store_id: storeA1Id, p_start_date: "2026-06-01", p_end_date: "2026-06-30", p_wish_deadline: null, p_status: "draft" }],
         ["shift_period_remove", { p_id: sdPeriodId }],
         ["shift_auto_apply", { p_period_id: sdPeriodId, p_wish_ids: [] }],
         ["shift_auto_clear", { p_period_id: sdPeriodId }],

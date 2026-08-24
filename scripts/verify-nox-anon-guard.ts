@@ -3162,6 +3162,29 @@ async function main() {
     };
     await s26Wipe();
 
+    // ★0103 追随: shift_wish_submit は「自店の open 期間内」のみ提出可（period_not_open）。
+    //   段26 は実行月の 15/17/18 日を使うため、実行月を被覆する open 期間を一時確保する。
+    //   （実行月=2026-07 のときは seed:f0 の常設 fixture（07-01〜31 open）が被覆する＝既存を再利用し、
+    //     自前で作った場合だけ finally で消す＝常設 fixture を誤って消さない）
+    let p26 = ""; let p26Created = false;
+    if (s26A1) {
+      const m26s = d26(1);
+      const m26e = d26(new Date(Date.UTC(s26Y, s26M + 1, 0)).getUTCDate());
+      const { data: pEx } = await admin.from("shift_periods").select("id").eq("store_id", s26A1.id)
+        .eq("status", "open").lte("start_date", m26s).gte("end_date", m26e);
+      p26 = (pEx?.[0]?.id as string) ?? "";
+      if (!p26) {
+        const { data: orgRow } = await admin.from("stores").select("org_id").eq("id", s26A1.id).single();
+        const { data: uRow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.ownerA.email).single();
+        const { data: pNew, error: ePN } = await admin.from("shift_periods").insert({
+          org_id: orgRow!.org_id, store_id: s26A1.id, start_date: m26s, end_date: m26e,
+          wish_deadline: null, status: "open", created_by: uRow!.id,
+        }).select("id").single();
+        check("段26（準備）実行月の open 期間を一時確保", !ePN && !!pNew?.id, ePN?.message);
+        p26 = (pNew?.id as string) ?? ""; p26Created = true;
+      }
+    }
+
     check("段26（準備）店2・castA1a 解決", !!s26A1 && !!s26A2 && !!s26CastId);
 
     const owner26 = await signInShared("段26", "ownerA");
@@ -3236,6 +3259,7 @@ async function main() {
           e7b?.message ?? `status=${r7r?.status}`);
       } finally {
         await s26Wipe();
+        if (p26Created && p26) await admin.from("shift_periods").delete().eq("id", p26); // 0103: 一時 open 期間（常設 fixture は消さない）
       }
       // 掃除の物理確認（★営業時間行の残存は段21 や verify:nox-rls の固定日 wish を 'closed day' で壊すため必須）
       const { data: bhLeft26 } = await admin.from("store_business_hours").select("id").in("store_id", [s26A1.id, s26A2.id]);
@@ -5740,6 +5764,9 @@ async function main() {
       ["shift_auto_apply", { p_period_id: null, p_wish_ids: null }],
       ["shift_auto_clear", { p_period_id: null }],
       ["shift_rules_set", { p_store_id: null, p_max_consec_days: null, p_min_month_min: null }],
+      // ★mig0103（SC シフト作成 v3）: 新設2本も anon BLOCKED 必須（947→949）
+      ["shift_bulk_set", { p_cast_id: null, p_dates: null, p_start_hm: null, p_end_hm: null }],
+      ["shift_remove", { p_id: null }],
     ];
     for (const [fn, args] of SD_RPC_PROBES) {
       const { error } = await anon.rpc(fn, args);

@@ -46,6 +46,12 @@ const has = (e: { message?: string } | null, s: string) => !!e?.message?.include
 const D1 = "2026-09-09"; // 水
 const D2 = "2026-09-16"; // 水
 const D3 = "2026-09-23"; // 水
+// ★0103 追随の専用日付（すべて 09 月 period 内・wipe 対象）
+const D4 = "2026-09-24"; // 木（bulk の重複正規化用）
+const D5 = "2026-09-21"; // 月（bulk の定休日スキップ用＝一時 bh 行 dow=1 を立てて検証）
+const D_OUT = "2026-10-15"; // open 期間の外（wish_submit period_not_open 用）
+const P2_START = "2026-11-01"; // overlap 検証用の別期間
+const P2_END = "2026-11-30";
 const P_START = "2026-09-01";
 const P_END = "2026-09-30";
 
@@ -68,13 +74,18 @@ async function main() {
   const castIdOf = async (key: "castA1a" | "castA1b") =>
     (await admin.from("casts").select("id").eq("name", FIXTURE_USERS[key].name).eq("store_id", storeA1Id).single()).data!.id as string;
   const castIdA = await castIdOf("castA1a");
+  const castIdB = await castIdOf("castA1b"); // 0103 追加段（bulk_set の対象）
 
   // 再実行冪等: 前 run の残骸を掃除（専用日付・専用 period 範囲・rules は store 単位）
   const wipe = async () => {
-    await admin.from("shifts").delete().eq("store_id", storeA1Id).in("date", [D1, D2, D3]);
-    await admin.from("shift_wishes").delete().eq("store_id", storeA1Id).in("date", [D1, D2, D3]);
+    await admin.from("attendance").delete().eq("store_id", storeA1Id).in("date", [D1, D2, D3, D4, D5]); // 0103: 段59-15 の一時 attendance
+    await admin.from("shifts").delete().eq("store_id", storeA1Id).in("date", [D1, D2, D3, D4, D5]);
+    await admin.from("shift_wishes").delete().eq("store_id", storeA1Id).in("date", [D1, D2, D3, D4, D5, D_OUT]);
+    // ★常設 fixture（open 2026-07-01〜31＝seed:f0）は消さない＝start_date 限定 delete を維持
     await admin.from("shift_periods").delete().eq("store_id", storeA1Id).eq("start_date", P_START);
+    await admin.from("shift_periods").delete().eq("store_id", storeA1Id).eq("start_date", P2_START); // 0103: overlap 検証の別期間
     await admin.from("shift_rules").delete().eq("store_id", storeA1Id);
+    await admin.from("store_business_hours").delete().eq("store_id", storeA1Id).eq("dow", 1); // 0103: 段59-16 の一時定休日
   };
   await wipe();
 
@@ -217,12 +228,204 @@ async function main() {
         JSON.stringify(manualRows));
     }
 
+    // ══ 10 ★0103 period overlap（insert・update 両方＋常設 fixture への被せ）══
+    {
+      const { error: eOv1 } = await mgr.rpc("shift_period_set", {
+        p_id: null, p_store_id: storeA1Id, p_start_date: "2026-09-15", p_end_date: "2026-10-05", p_wish_deadline: null, p_status: "draft",
+      });
+      check("段59-10 重複範囲 insert = overlap（スイート period 09月に被せ）", has(eOv1, "overlap"), eOv1?.message ?? "通ってしまった");
+      const { error: eOvF } = await mgr.rpc("shift_period_set", {
+        p_id: null, p_store_id: storeA1Id, p_start_date: "2026-07-15", p_end_date: "2026-07-20", p_wish_deadline: null, p_status: "draft",
+      });
+      check("段59-10 常設 fixture（open 07月）に被せても overlap", has(eOvF, "overlap"), eOvF?.message ?? "通ってしまった");
+      const { data: p2, error: eP2 } = await mgr.rpc("shift_period_set", {
+        p_id: null, p_store_id: storeA1Id, p_start_date: P2_START, p_end_date: P2_END, p_wish_deadline: null, p_status: "draft",
+      });
+      check("段59-10 非重複範囲（11月）は作成成功", !eP2 && typeof p2 === "string", eP2?.message);
+      const { error: eOv2 } = await mgr.rpc("shift_period_set", {
+        p_id: p2 as string, p_store_id: storeA1Id, p_start_date: "2026-09-20", p_end_date: "2026-10-10", p_wish_deadline: null, p_status: "draft",
+      });
+      check("段59-10 update で重複範囲へ = overlap", has(eOv2, "overlap"), eOv2?.message ?? "通ってしまった");
+      const { error: eRm2 } = await mgr.rpc("shift_period_remove", { p_id: p2 as string });
+      check("段59-10 11月 period 掃除（remove 成功）", !eRm2, eRm2?.message);
+    }
+
+    // ══ 11 ★0103 shift_set の 1日1枠（SD-9）══
+    {
+      const { error: eDup } = await mgr.rpc("shift_set", {
+        p_id: null, p_cast_id: castIdA, p_date: D1, p_start_hm: "22:00", p_end_hm: "26:00", p_status: "planned",
+      });
+      check("段59-11 同日（castA×D1=sid1 既存）insert = duplicate", has(eDup, "duplicate"), eDup?.message ?? "通ってしまった");
+      const { error: eMv } = await mgr.rpc("shift_set", {
+        p_id: sid2, p_cast_id: castIdA, p_date: D1, p_start_hm: "20:00", p_end_hm: "25:00", p_status: "planned",
+      });
+      check("段59-11 update で他行の日付（D2→D1）へ移動 = duplicate", has(eMv, "duplicate"), eMv?.message ?? "通ってしまった");
+      const { error: eSelf } = await mgr.rpc("shift_set", {
+        p_id: sid2, p_cast_id: castIdA, p_date: D2, p_start_hm: "21:00", p_end_hm: "25:00", p_status: "planned",
+      });
+      const { data: s2Row } = await mgr.from("shifts").select("start_hm").eq("id", sid2).single();
+      check("段59-11 自分自身の update（同日のまま時刻変更）は通る", !eSelf && s2Row?.start_hm === "21:00", eSelf?.message ?? s2Row?.start_hm);
+    }
+
+    // ══ 12 ★0103 wish_submit ガード（open 期間・duplicate wish・withdrawn 再提出）══
+    let w1b = "";
+    {
+      const ca = await signIn("castA1a");
+      const { error: eOut } = await ca.rpc("shift_wish_submit", { p_date: D_OUT, p_start_hm: "20:00", p_end_hm: "26:00" });
+      check("段59-12 open 期間の外 = period_not_open（fail-closed）", has(eOut, "period_not_open"), eOut?.message ?? "通ってしまった");
+      const { error: eDupW } = await ca.rpc("shift_wish_submit", { p_date: D3, p_start_hm: "22:00", p_end_hm: "26:00" });
+      check("段59-12 同日2件目（w1 が pending で live）= duplicate wish", has(eDupW, "duplicate wish"), eDupW?.message ?? "通ってしまった");
+      const { error: eWd } = await ca.rpc("shift_wish_withdraw", { p_wish_id: w1 });
+      check("段59-12 w1 withdraw 成功", !eWd, eWd?.message);
+      const { data: wNew, error: eRe } = await ca.rpc("shift_wish_submit", { p_date: D3, p_start_hm: "20:00", p_end_hm: "26:00" });
+      check("段59-12 ★withdrawn 後の再提出は通る（部分 UNIQUE は live のみ対象）", !eRe && typeof wNew === "string", eRe?.message);
+      w1b = wNew as string;
+      await ca.auth.signOut();
+    }
+
+    // ══ 13 ★0103 wish_decide: accept 時に同日 shift 既存 = duplicate（wish は pending のまま）══
+    let sid3 = "";
+    {
+      const { data: s3, error: eS3 } = await mgr.rpc("shift_set", {
+        p_id: null, p_cast_id: castIdA, p_date: D3, p_start_hm: "19:00", p_end_hm: "23:00", p_status: "planned",
+      });
+      check("段59-13 前提: castA×D3 の manual 行作成", !eS3 && typeof s3 === "string", eS3?.message);
+      sid3 = s3 as string;
+      const { error: eDec } = await mgr.rpc("shift_wish_decide", { p_wish_id: w1b, p_accept: true });
+      check("段59-13 accept は同日既存 shift で duplicate", has(eDec, "duplicate"), eDec?.message ?? "通ってしまった");
+      const { data: wRow } = await mgr.from("shift_wishes").select("status, decided_by").eq("id", w1b).single();
+      check("段59-13 ★wish は pending のまま（decide が丸ごとロールバック）",
+        wRow?.status === "pending" && wRow?.decided_by === null, JSON.stringify(wRow));
+    }
+
+    // ══ 14 ★0103 auto_apply の原子性（duplicate で全体ロールバック・既存 auto 行も復元）══
+    {
+      const { data: nA, error: eA1 } = await mgr.rpc("shift_auto_apply", { p_period_id: periodId, p_wish_ids: [w2] });
+      check("段59-14 前提: apply([w2]) = 1（castB×D3 の auto 行）", !eA1 && nA === 1, eA1?.message ?? `got ${nA}`);
+      const { error: eA2 } = await mgr.rpc("shift_auto_apply", { p_period_id: periodId, p_wish_ids: [w1b, w2] });
+      check("段59-14 w1b（castA×D3＝sid3 と衝突）を含む apply = duplicate: <id>", has(eA2, "duplicate"), eA2?.message ?? "通ってしまった");
+      const { data: autoRows } = await mgr.from("shifts").select("wish_id").eq("store_id", storeA1Id).eq("source", "auto").eq("date", D3);
+      check("段59-14 ★全体ロールバック＝既存 auto 行（w2）が復元されている",
+        (autoRows ?? []).length === 1 && autoRows![0].wish_id === w2, JSON.stringify(autoRows));
+      const { data: wStates } = await mgr.from("shift_wishes").select("id, status").in("id", [w1b, w2]);
+      check("段59-14 ★w2=accepted・w1b=pending のまま（部分 accept なし）",
+        (wStates ?? []).some((r) => r.id === w2 && r.status === "accepted")
+        && (wStates ?? []).some((r) => r.id === w1b && r.status === "pending"), JSON.stringify(wStates));
+      const { data: nC, error: eC } = await mgr.rpc("shift_auto_clear", { p_period_id: periodId });
+      check("段59-14 掃除: auto_clear = 1（w2 pending 復元）", !eC && nC === 1, eC?.message ?? `got ${nC}`);
+    }
+
+    // ══ 15 ★0103 shift_remove（wish 復元・has attendance・ロール）══
+    {
+      const { data: rid3, error: eR3 } = await mgr.rpc("shift_remove", { p_id: sid3 });
+      check("段59-15 planned（wish_id なし）削除成功", !eR3 && rid3 === sid3, eR3?.message);
+      const { data: s4, error: eDec2 } = await mgr.rpc("shift_wish_decide", { p_wish_id: w1b, p_accept: true });
+      check("段59-15 前提: 障害物が消えたので w1b accept 成功（shifts 生成）", !eDec2 && typeof s4 === "string", eDec2?.message);
+      const { data: rid4, error: eR4 } = await mgr.rpc("shift_remove", { p_id: s4 as string });
+      const { data: w1bRow } = await mgr.from("shift_wishes").select("status, decided_by, decided_at").eq("id", w1b).single();
+      check("段59-15 ★wish_id あり削除 → wish が pending へ復元（decided_* も null）",
+        !eR4 && rid4 === s4 && w1bRow?.status === "pending" && w1bRow?.decided_by === null && w1bRow?.decided_at === null,
+        eR4?.message ?? JSON.stringify(w1bRow));
+      // confirmed × attendance
+      const { error: eAtt } = await admin.from("attendance").insert({
+        org_id: storeRow!.org_id, store_id: storeA1Id, cast_id: castIdA, date: D1, status: "shukkin", source: "staff",
+      });
+      check("段59-15 前提: castA×D1 の attendance を admin 挿入", !eAtt, eAtt?.message);
+      const { error: eHA } = await mgr.rpc("shift_remove", { p_id: sid1 });
+      check("段59-15 confirmed＋attendance あり = has attendance", has(eHA, "has attendance"), eHA?.message ?? "通ってしまった");
+      await admin.from("attendance").delete().eq("store_id", storeA1Id).eq("cast_id", castIdA).eq("date", D1);
+      const { data: rid1, error: eR1 } = await mgr.rpc("shift_remove", { p_id: sid1 });
+      check("段59-15 confirmed＋attendance なし = 削除可", !eR1 && rid1 === sid1, eR1?.message);
+      sid1 = "";
+      // ロール系
+      const ca = await signIn("castA1a");
+      const { error: eCa } = await ca.rpc("shift_remove", { p_id: sid2 });
+      check("段59-15 cast ロール = forbidden", has(eCa, "forbidden"), eCa?.message ?? "通ってしまった");
+      await ca.auth.signOut();
+      const mb = await signIn("managerB1");
+      const { error: eMb } = await mb.rpc("shift_remove", { p_id: sid2 });
+      check("段59-15 他 org（managerB1）= forbidden", has(eMb, "forbidden"), eMb?.message ?? "通ってしまった");
+      await mb.auth.signOut();
+    }
+
+    // ══ 16 ★0103 shift_bulk_set（一括作成・skip 系・正規化・上限・ロール）══
+    {
+      // castB は D1〜D3 に行なし（auto は clear 済み）＝クリーンな対象
+      const { data: b1, error: eB1 } = await mgr.rpc("shift_bulk_set", {
+        p_cast_id: castIdB, p_dates: [D1, D2], p_start_hm: "20:00", p_end_hm: "26:00",
+      });
+      const r1 = b1 as { inserted: number; skipped: string[] };
+      check("段59-16 正常2件 = inserted:2 / skipped:[]", !eB1 && r1?.inserted === 2 && (r1?.skipped ?? []).length === 0, eB1?.message ?? JSON.stringify(b1));
+      const { data: bRows } = await mgr.from("shifts").select("date, status, source").eq("store_id", storeA1Id).eq("cast_id", castIdB).in("date", [D1, D2]);
+      check("段59-16 生成行は planned/manual", (bRows ?? []).length === 2 && bRows!.every((r) => r.status === "planned" && r.source === "manual"), JSON.stringify(bRows));
+      const { data: b2 } = await mgr.rpc("shift_bulk_set", {
+        p_cast_id: castIdB, p_dates: [D1, D3], p_start_hm: "20:00", p_end_hm: "26:00",
+      });
+      const r2 = b2 as { inserted: number; skipped: string[] };
+      check("段59-16 同日既存（D1）はスキップ = inserted:1 / skipped:[D1]",
+        r2?.inserted === 1 && (r2?.skipped ?? []).length === 1 && String(r2!.skipped[0]).startsWith(D1), JSON.stringify(b2));
+      const { data: b3 } = await mgr.rpc("shift_bulk_set", {
+        p_cast_id: castIdB, p_dates: [D4, D4, null], p_start_hm: "20:00", p_end_hm: "26:00",
+      });
+      const r3 = b3 as { inserted: number; skipped: string[] };
+      check("段59-16 null・重複日付は正規化 = [D4,D4,null]→inserted:1", r3?.inserted === 1 && (r3?.skipped ?? []).length === 0, JSON.stringify(b3));
+      const { data: b0 } = await mgr.rpc("shift_bulk_set", {
+        p_cast_id: castIdB, p_dates: [], p_start_hm: "20:00", p_end_hm: "26:00",
+      });
+      const r0 = b0 as { inserted: number; skipped: string[] };
+      check("段59-16 空配列 = 完全 no-op {inserted:0, skipped:[]}", r0?.inserted === 0 && (r0?.skipped ?? []).length === 0, JSON.stringify(b0));
+      const many: string[] = [];
+      for (let i = 0; i < 63; i++) {
+        const d = new Date(Date.UTC(2026, 9, 1) + i * 86400000);
+        many.push(d.toISOString().slice(0, 10));
+      }
+      const { error: eMany } = await mgr.rpc("shift_bulk_set", { p_cast_id: castIdB, p_dates: many, p_start_hm: "20:00", p_end_hm: "26:00" });
+      check("段59-16 63日 = too many dates（上限62）", has(eMany, "too many dates"), eMany?.message ?? "通ってしまった");
+      // 定休日スキップ＝一時 bh（月曜 close）を立てて D5（月）が skip に入ることを実測
+      const { error: eBh } = await admin.from("store_business_hours").insert({
+        org_id: storeRow!.org_id, store_id: storeA1Id, dow: 1, is_closed: true, open_hm: null, close_hm: null,
+      });
+      check("段59-16 前提: 一時定休日（月曜）を admin 挿入", !eBh, eBh?.message);
+      const { data: b5 } = await mgr.rpc("shift_bulk_set", {
+        p_cast_id: castIdB, p_dates: [D5], p_start_hm: "20:00", p_end_hm: "26:00",
+      });
+      const r5 = b5 as { inserted: number; skipped: string[] };
+      check("段59-16 定休日（D5=月）はスキップ = inserted:0 / skipped:[D5]",
+        r5?.inserted === 0 && (r5?.skipped ?? []).length === 1 && String(r5!.skipped[0]).startsWith(D5), JSON.stringify(b5));
+      await admin.from("store_business_hours").delete().eq("store_id", storeA1Id).eq("dow", 1);
+      // 不在 cast（他 org 相当のプローブ＝org B に cast fixture が無いため不在 uuid で forbidden を実測。
+      // 「他 org からの操作」は managerB1→castIdA の bulk で org 照合を直接実証する）
+      const { error: eGhost } = await mgr.rpc("shift_bulk_set", {
+        p_cast_id: "00000000-0000-4000-8000-000000000000", p_dates: [D4], p_start_hm: "20:00", p_end_hm: "26:00",
+      });
+      check("段59-16 不在 cast = forbidden", has(eGhost, "forbidden"), eGhost?.message ?? "通ってしまった");
+      const mb = await signIn("managerB1");
+      const { error: eOrgB } = await mb.rpc("shift_bulk_set", { p_cast_id: castIdA, p_dates: [D4], p_start_hm: "20:00", p_end_hm: "26:00" });
+      check("段59-16 他 org（managerB1→castA）= forbidden", has(eOrgB, "forbidden"), eOrgB?.message ?? "通ってしまった");
+      await mb.auth.signOut();
+      // manager 他店＝storeA2 に一時 cast を admin で作って mgr(A1) から呼ぶ
+      const { data: stA2 } = await admin.from("stores").select("id").eq("name", "NOX-VERIFY-A2").single();
+      const { data: tmpCast, error: eTmp } = await admin.from("casts").insert({
+        org_id: storeRow!.org_id, store_id: stA2!.id, name: "NOX-VERIFY-0103-A2一時", is_active: true,
+      }).select("id").single();
+      check("段59-16 前提: A2 の一時 cast を admin 作成", !eTmp && !!tmpCast?.id, eTmp?.message);
+      const { error: eA2c } = await mgr.rpc("shift_bulk_set", { p_cast_id: tmpCast!.id, p_dates: [D4], p_start_hm: "20:00", p_end_hm: "26:00" });
+      check("段59-16 manager 他店（A1 mgr→A2 cast）= forbidden", has(eA2c, "forbidden"), eA2c?.message ?? "通ってしまった");
+      await admin.from("casts").delete().eq("id", tmpCast!.id);
+      const ca = await signIn("castA1a");
+      const { error: eCaB } = await ca.rpc("shift_bulk_set", { p_cast_id: castIdA, p_dates: [D4], p_start_hm: "20:00", p_end_hm: "26:00" });
+      check("段59-16 cast ロール = forbidden", has(eCaB, "forbidden"), eCaB?.message ?? "通ってしまった");
+      await ca.auth.signOut();
+    }
+
     // ══ 5 published 拒否 ══
     {
       const { error: ePub } = await mgr.rpc("shift_period_set", {
         p_id: periodId, p_store_id: storeA1Id, p_start_date: P_START, p_end_date: P_END, p_wish_deadline: "2026-09-05", p_status: "published",
       });
       check("段59-5 period を published へ", !ePub, ePub?.message);
+      // ★0103 後の注記: w1 は段59-12 で withdrawn 済みだが、period published ガードは wish 検証より
+      //   前に評価される（0103 でも順序不変）＝本 assert は従来どおり成立する。
       const { error: eApply } = await mgr.rpc("shift_auto_apply", { p_period_id: periodId, p_wish_ids: [w1] });
       check("段59-5 published では apply 拒否", has(eApply, "period published"), eApply?.message ?? "通ってしまった");
     }
@@ -248,11 +451,10 @@ async function main() {
     }
     await mgr.auth.signOut();
   } finally {
-    // 生成物の全消し（id/日付/store 限定＝固定カウント非汚染）
-    await admin.from("shifts").delete().eq("store_id", storeA1Id).in("date", [D1, D2, D3]);
-    await admin.from("shift_wishes").delete().eq("store_id", storeA1Id).in("date", [D1, D2, D3]);
+    // 生成物の全消し（0103: wipe と同じ日付リスト＝D4/D5/D_OUT・11月 period・一時 bh/attendance も含む。
+    //   常設 fixture（open 07月）は start_date 限定 delete の対象外＝温存）
+    await wipe();
     if (periodId) await admin.from("shift_periods").delete().eq("id", periodId);
-    await admin.from("shift_rules").delete().eq("store_id", storeA1Id);
   }
 
   // ══ 8 復元 assert（開始時カウントと一致）══
@@ -294,7 +496,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-shift-deep ALL PASS (${pass} assertions)`);
-  console.log("SD深部(0101/0102): period CRUD/propose集計拒否/cast_confirm一方向/auto入替一巡=部分ユニーク衝突なし/manual保持/published拒否/rules upsert/復元/golden55233");
+  console.log("SD深部(0101/0102/0103): period CRUD+overlap/propose集計拒否/cast_confirm一方向/auto入替一巡+duplicate原子性/1日1枠/wish open期間+duplicate+withdrawn再提出/bulk_set/remove(wish復元・has attendance)/manual保持/published拒否/rules upsert/復元/golden55233");
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

@@ -86,7 +86,9 @@ async function main() {
     // ★mig0101/0102（SD シフト深部・2026-08-21）: 新 RPC 7本（period_set/period_remove/propose/
     //   cast_confirm/auto_apply/auto_clear/rules_set）を A5 へ収載＝対象 94→101・全数 188→195。
     //   設計書 §6 は「新6」だが実測は新7（period_remove 含む）＝実測 pin。
-    check("段47-1 正本の対象101名を読めた", docTargets.size === 101, `got ${docTargets.size}`);
+    // ★mig0103（SC シフト作成 v3・2026-08-24）: shift_bulk_set／shift_remove を A5 へ収載＝
+    //   対象 101→103・全数 195→197（改修5本は既収載 or B(i) 据え置き＝wish_submit は事実記録のまま）。
+    check("段47-1 正本の対象103名を読めた", docTargets.size === 103, `got ${docTargets.size}`);
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     check("段47-1 正本の除外94名を読めた", docExcluded.size === 94, `got ${docExcluded.size}`);
 
@@ -103,7 +105,7 @@ async function main() {
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 101本", liveGated.size === 101, `got ${liveGated.size}`);
+    check("段47-1 live のゲート済み関数 = 103本", liveGated.size === 103, `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
     const extra = [...liveGated].filter((n) => !docTargets.has(n));
@@ -122,14 +124,14 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 102（101 ＋ ラッパ自身）", refs[0].n === 102, `got ${refs[0].n}`);
+    check("段47-1 述語を参照する関数 = 104（103 ＋ ラッパ自身）", refs[0].n === 104, `got ${refs[0].n}`);
     // 挿入行の形が全92本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public'
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
-    check("段47-1 挿入行の形が全101本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 101, `got ${shapes[0].n}`);
+    check("段47-1 挿入行の形が全103本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 103, `got ${shapes[0].n}`);
   }
 
   // ══════════════════════════════════════════════════════════
@@ -269,7 +271,10 @@ async function main() {
     const { data: runRows, error: eRun } = await mgr.rpc("payroll_run_create", { p_store_id: storeA1, p_period: "2029-07" });
     check("段47-3 ★除外 payroll_run_create は locked 中でも成功する（給与＝清算・止めない）",
       !eRun && Array.isArray(runRows) && runRows.length === 1, eRun?.message ?? JSON.stringify(runRows));
-    const { data: wishId, error: eWish } = await castA.rpc("shift_wish_submit", { p_date: "2029-07-15", p_start_hm: "20:00", p_end_hm: "24:00" });
+    // ★0103 追随: 提出可能日は「自店の open 期間内」のみ＝seed:f0 の常設 open 期間（2026-07-01〜31）
+    //   内の 07-22 を使う（rls F1d の 07-15 と別日＝duplicate wish 回避）。前 run 残骸は下の掃除で除去済み。
+    await admin.from("shift_wishes").delete().eq("store_id", storeA1).eq("date", "2026-07-22"); // 裁定E: 前 run 残骸の掃除（失敗中断に備えた冪等化）
+    const { data: wishId, error: eWish } = await castA.rpc("shift_wish_submit", { p_date: "2026-07-22", p_start_hm: "20:00", p_end_hm: "24:00" });
     check("段47-3 ★除外 shift_wish_submit は locked 中でも成功する（希望提出＝事実記録）",
       !eWish && typeof wishId === "string", eWish?.message ?? `got ${JSON.stringify(wishId)}`);
     if (typeof wishId === "string") created.wishes.push(wishId);
