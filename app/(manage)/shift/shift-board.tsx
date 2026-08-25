@@ -1832,8 +1832,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           ★「配置を組む」カードの中（カレンダー直下・borderTop 区切り）に置いていたものを移設した。
             中身は移設前の逐語（キャスト名／時刻／自動・手修正／状態ピル／調整）。項目も順序も語彙も不変。
           ★見出し「<日付> の配置」は面1・面2 と同じく nox-modalhead の h3 へ移した（器を揃えるため）。
-          ★月外の空状態は出さない＝表示条件の selInMonth が月外を弾く（面1・面2 と同じ方式）。 */}
-      {dayModal === "build" && selInMonth && (
+          ★月外の空状態は出さない＝表示条件の selInMonth が月外を弾く（面1・面2 と同じ方式）。
+          ★SC-8 ③-1: planView === "cal" を条件に持つ（面1 の rosterView === "cal" と同じ形）。
+            スタッフ別ビューには開く口が無いので到達しないが、**到達性ではなく条件で守る**
+            ＝開く口が将来増えても、この面がビュー外で開くことはない。 */}
+      {dayModal === "build" && planView === "cal" && selInMonth && (
         <Modal onClose={() => setDayModal("")} maxWidth={520} scroll>
           <div className="nox-modalhead">
             <h3 style={{ ...secTitle, margin: 0 }}><span className="num">{selDate}</span> の配置</h3>
