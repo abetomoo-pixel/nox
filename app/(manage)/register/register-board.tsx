@@ -58,10 +58,12 @@ type TimeCalc = { elapsed_min: number; units: number; blocks: number; set_c: num
 //   ★文字列の内容（includes 等）で描画先を決める実装は作らない
 //     ＝旧 `feeMsg.includes("同伴")` が指名カードと同伴料カードの二重表示を生んだ原因。
 type Notice = { to: string; text: string; kind: "ok" | "bad" };
-// msg の描画点（3つ）。floor＝フロア一覧・detail＝伝票詳細ビュー・pay＝入金モーダル。
+// msg の描画点（4つ）。floor＝フロア一覧・detail＝伝票詳細ビュー・pay＝入金モーダル・
+//   time＝時間料金（手動）カード＝延長の完了文言（R-1a 段2。エラーは従来どおり timeMsg）。
 const MSG_FLOOR = "floor";
 const MSG_DETAIL = "detail";
 const MSG_PAY = "pay";
+const MSG_TIME = "time";
 // feeMsg の描画点（2つ）＝指名カード・同伴料カード。
 const FEE_SHIMEI = "shimei";
 const FEE_DOHAN = "dohan";
@@ -536,7 +538,10 @@ export default function RegisterBoard({
 
   async function openSeat(seat: Seat) {
     if (!(await tb.flush())) return; // 別 check へ切替前に保留を現 check へ確定（失敗＝中止）
+    // R-1a 段2-2: 伝票詳細へ**入る時**のクリア（既存の setMsg(null) に feeMsg を寄せて1本にした）。
+    //   ★描画されないまま state に残った文言が、次に伝票を開いた瞬間に再表示される事故を潰す。
     setMsg(null);
+    setFeeMsg(null);
     setSeatMsg(null); // B1/B2: 席操作メッセージのクリアは席切替のここでのみ（loadCheck では消さない）
     // B1/B2: 主席 ∪ 追加席の占有ならその伝票を開く（追加席は union consult でホスト伝票＝addMap で直接解決）
     const existing = openMap[seat.id] ?? addMap[seat.id];
@@ -569,6 +574,9 @@ export default function RegisterBoard({
       return;
     }
     setOpenSeatTarget(null);
+    // R-1a 段2-2: 開卓から詳細へ**入る時**のクリア（前の伝票の floor 文言・fee 文言を持ち越さない）
+    setMsg(null);
+    setFeeMsg(null);
     await loadOpenMap();
     await loadCheck(data as string);
   }
@@ -587,6 +595,29 @@ export default function RegisterBoard({
       ? { to: MSG_DETAIL, text: error.message, kind: "bad" }
       : { to: MSG_DETAIL, text: "指名を保存しました", kind: "ok" });
     await loadCheck(check.id);
+  }
+
+  // R-1a 段2（裁定61-2）: 追加した行の**実額**を1回の select で読む共通経路。
+  //   ★マスタ価格からのクライアント再計算は禁止＝伝票に実際に書かれた行（凍結値）だけを出す。
+  //   ★select が落ちても RPC 自体は成功している＝**エラーにしない**。null を返して呼び出し側は
+  //     「額を省いた文言」で続行する（握り潰さず console へ残す）。
+  //   指名料・同伴料・延長の3経路すべてがこれを使う（同じクエリを別々に書かない）。
+  async function lineAmountOf(lineId: unknown): Promise<{ unit: number | null; qty: number | null; total: number | null }> {
+    if (typeof lineId !== "string") {
+      console.warn("[R-1a] 行 id が取得できないため金額表示を省略します", lineId);
+      return { unit: null, qty: null, total: null };
+    }
+    const { data, error } = await supabase.from("check_lines")
+      .select("unit_price_snapshot, qty, line_total").eq("id", lineId).single();
+    if (error || !data) {
+      console.warn("[R-1a] 追加した行の金額を取得できませんでした（操作自体は成功）", lineId, error?.message);
+      return { unit: null, qty: null, total: null };
+    }
+    return {
+      unit: (data.unit_price_snapshot as number | undefined) ?? null,
+      qty: (data.qty as number | undefined) ?? null,
+      total: (data.line_total as number | undefined) ?? null,
+    };
   }
 
   // ── 料金UIレーン C4: 指名料・同伴料の課金行（mig0084）──
@@ -624,11 +655,8 @@ export default function RegisterBoard({
       p_check_id: check.id, p_nom_type: kind, p_nominations: list,
     });
     // 追加行の額（¥0＝料金未設定の可視化。返値は行 id＝mig0084）
-    let amt: number | null = null;
-    if (typeof lineId === "string") {
-      const { data: lr } = await supabase.from("check_lines").select("line_total").eq("id", lineId).single();
-      amt = (lr?.line_total as number | undefined) ?? null;
-    }
+    //   R-1a 段2: 同伴料・延長と同一経路へ寄せた（クエリは従来と同値＝line_total を1回 select）。
+    const amt = (await lineAmountOf(lineId)).total;
     setFeeBusy(false);
     setFeeMsg({
       to: FEE_SHIMEI,
@@ -646,13 +674,25 @@ export default function RegisterBoard({
     if (!(await tb.flush())) return;
     setFeeMsg(null);
     setFeeBusy(true);
-    const { error } = await supabase.rpc("check_dohan_add", {
+    // R-1a 段2（裁定61-1）: 戻り uuid＝追加した行 id（mig0084）。単価×人数の操作なので**両方出す**。
+    const { data: lineId, error } = await supabase.rpc("check_dohan_add", {
       p_check_id: check.id, p_count: dohanN,
     });
+    if (error) {
+      setFeeBusy(false);
+      setFeeMsg({ to: FEE_DOHAN, text: chargeErrJa(error.message), kind: "bad" });
+      await loadCheck(check.id);
+      return;
+    }
+    const { unit, total } = await lineAmountOf(lineId);
     setFeeBusy(false);
-    setFeeMsg(error
-      ? { to: FEE_DOHAN, text: chargeErrJa(error.message), kind: "bad" }
-      : { to: FEE_DOHAN, text: `同伴料を追加しました（${dohanN}名分）`, kind: "ok" });
+    setFeeMsg({ to: FEE_DOHAN, kind: "ok",
+      // 額が取れなかったときは**額を省いた文言**で続行（操作自体は成功しているのでエラーにしない）
+      text: total == null
+        ? `同伴料を追加しました（${dohanN}名分・金額は明細でご確認ください）`
+        : unit != null
+          ? `同伴料 ${yen(unit)}×${dohanN}名 を追加しました（計 ${yen(total)}）`
+          : `同伴料 ${yen(total)} を追加しました（${dohanN}名分）` });
     await loadCheck(check.id);
   }
 
@@ -771,15 +811,26 @@ export default function RegisterBoard({
     if (!check) return;
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setTimeMsg(null);
-    const { error } = await supabase.rpc("check_extension_add", {
+    setMsg(null); // 前回の延長の完了文言を消す（エラー文言と成功文言が並ばないように）
+    // R-1a 段2: 戻り uuid＝追加した行 id（mig0098）。同伴料と同一経路で実額を読む。
+    const { data: lineId, error } = await supabase.rpc("check_extension_add", {
       p_check_id: check.id, ...(ruleId ? { p_rule_id: ruleId } : {}),
     });
     if (error) {
+      // ★エラー時の timeMsg の使い方は従来どおり（変えない）
       setTimeMsg(error.message.includes("bad rule")
         ? "この延長メニューはこの伝票では使えません（開卓時点のメニューのみ選べます）"
         : timeErrJa(error.message));
       return;
     }
+    const { unit, qty, total } = await lineAmountOf(lineId);
+    setMsg({ to: MSG_TIME, kind: "ok",
+      // 額が取れなかったときは額を省いて続行（RPC は成功済み＝エラーにしない）
+      text: total == null
+        ? "延長を追加しました（金額は明細でご確認ください）"
+        : unit != null && qty != null && qty > 1
+          ? `延長 ${yen(unit)}×${qty}名 を追加しました（計 ${yen(total)}）`
+          : `延長 ${yen(total)} を追加しました` });
     await loadCheck(check.id);
   }
 
@@ -911,9 +962,10 @@ export default function RegisterBoard({
       p_idem_key: crypto.randomUUID(),
       p_method_detail: detail,
     });
+    // R-1a 段2（裁定61）: 入力額をそのまま出す（サーバへ送った額そのもの＝再計算なし・select 不要）
     setMsg(error
       ? { to: MSG_PAY, text: error.message, kind: "bad" }
-      : { to: MSG_PAY, text: "入金しました", kind: "ok" });
+      : { to: MSG_PAY, text: `${yen(payAmount)} を入金しました`, kind: "ok" });
     if (!error) { setPayTendered(""); setPayDetail(""); }
     await loadCheck(check.id);
     return !error;
@@ -927,6 +979,7 @@ export default function RegisterBoard({
     // 失敗時は伝票が残る＝詳細ビューへ／成功時は setCheck(null) でフロアへ戻る＝フロアへ（現状の動きを変えない）
     if (error) { setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" }); return; }
     setMsg({ to: MSG_FLOOR, text: `会計完了 ${yen(check.total)}`, kind: "ok" });
+    setFeeMsg(null); // R-1a 段2-2: 詳細から出る＝fee カードの文言は持ち越さない（msg は floor 宛で残す）
     const gs = Array.from(new Set(lines.map((l) => l.pay_group))).sort();
     // E8-1b F6: close 後モーダル（合計・お釣り＝最後の現金入金の預り−充当・再印刷・簡易領収書）
     const lastCash = [...payments].reverse().find((p) => p.method === "cash" && p.tendered != null);
@@ -960,6 +1013,7 @@ export default function RegisterBoard({
     // close と同型＝失敗は伝票が残るので詳細ビュー・成功は setCheck(null) でフロアへ
     if (error) { setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" }); return; }
     setMsg({ to: MSG_FLOOR, text: "伝票を取消しました", kind: "ok" });
+    setFeeMsg(null); // R-1a 段2-2: 同上（close と同型）
     setVoidModal(false); setVoidReason("");
     setCheck(null);
     await loadOpenMap();
@@ -968,6 +1022,10 @@ export default function RegisterBoard({
   // 段B: 伝票詳細シート（≤900）の背景タップで閉じる＝保留を確定してから閉じる（失敗＝中止・シート維持）
   async function closeDetail() {
     if (!(await tb.flush())) return;
+    // R-1a 段2-2: 伝票詳細から**出る時**のクリア（detail 宛の文言はフロアでは描画されない＝
+    //   残したままだと次に同じ伝票を開いたときに古い文言が出る）
+    setMsg(null);
+    setFeeMsg(null);
     setCheck(null);
   }
 
@@ -1958,6 +2016,12 @@ export default function RegisterBoard({
                 延長を追加（{yen(check.ext_fee * (check.time_per === "person" ? (check.people ?? 1) : 1))} / {check.ext_min}分）
               </button>
             )}
+            {/* R-1a 段2: 描画点＝時間料金（手動）カード。延長の**完了文言**（金額つき）。
+                エラーは従来どおり下の timeMsg＝役割を混ぜない。 */}
+            {msg?.to === MSG_TIME && (
+              <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0",
+                color: msg.kind === "ok" ? "var(--ok)" : "var(--bad)" }}>{msg.text}</p>
+            )}
             {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
           </div>
         )}
@@ -2463,8 +2527,12 @@ export default function RegisterBoard({
             );
           })}
         </div>
-        {/* R-1a: 描画点＝フロア。会計完了・伝票取消・開卓の失敗がここに出る（色は現状どおり muted 据置） */}
-        {msg?.to === MSG_FLOOR && <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "10px 0 0" }}>{msg.text}</p>}
+        {/* R-1a: 描画点＝フロア。会計完了・伝票取消・開卓の失敗がここに出る。
+            段2-1: 他4点と同じ基準へ＝色は kind から決める（muted 据置を解除）。 */}
+        {msg?.to === MSG_FLOOR && (
+          <p style={{ fontSize: 12, fontWeight: 700, margin: "10px 0 0",
+            color: msg.kind === "ok" ? "var(--ok)" : "var(--bad)" }}>{msg.text}</p>
+        )}
       </section>
       <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>
       {/* A2（裁定8）: ボトルキープ登録＝checkout フロー内（NOX8 裁定）。会計タブ末尾の全幅カード */}
