@@ -737,11 +737,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             <button
               key={ymd}
               onClick={() => {
-                // 仮シフトタブの該当日へ。月が違えば表示月も合わせる（見えない日を選ばせない）。
+                // ★SC-8 ④: 別タブへ飛ばさず、この面で日詳細モーダル（面4）を開く。
+                //   setTab / setMonth は呼ばない＝押した場所で開く（面1〜面3 と同じ作法）。
                 setSelDate(ymd);
-                if (!ymd.startsWith(month)) setMonth(ymd.slice(0, 7));
-                setDayModal("");
-                setTab("calendar");
+                setDayModal("today");
               }}
               title={`${ymd}・確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}`}
               style={{
@@ -1862,6 +1861,97 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                     setDayModal("");
                     setAdjTarget(x); setAStart(x.start_hm); setAEnd(x.end_hm);
                   }}>調整</button>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+
+      {/* ★SC-8 ④: 今日タブ 直近7日ストリップの日詳細モーダル＝面4。中身は面2（割当）に準拠。
+          ★**selInMonth を条件に入れない**＝ここだけ面1〜面3 と違う。7日ストリップは月をまたぐため、
+            selInMonth を足すと月末に押した翌月の日でモーダルが開かなくなる。
+            データ側は裁定54 で取得範囲の to を bizToday+6 まで伸ばしてあり、月外の日でも
+            shifts が載っている（selStat / selFc / selBands / bands は selDate だけから計算する）。
+          ★guard（tab 判定）は足さない＝③-0 で外したタブ判定への逆戻りになるため。
+            面2 と同じく「開く口が1つだけ」で不変条件を保つ。 */}
+      {dayModal === "today" && (
+        <Modal onClose={() => setDayModal("")} maxWidth={520} scroll>
+          <div className="nox-modalhead">
+            <h3 style={{ ...secTitle, margin: 0 }}><span className="num">{selDate}</span> の割当</h3>
+            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal("")}>×</button>
+          </div>
+          <div className="nox-modalbody">
+            {/* 充足ピル／内訳3値／余剰＝面2 の逐語（順序も語彙も不変） */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
+              <span className={`nox-stpill ${selStat.fill === "none" ? "" : selStat.fill}`}>
+                {FILL_LABEL[selStat.fill]}{selStat.required > 0 ? ` ${selStat.assigned}/${selStat.required}` : ""}
+              </span>
+              <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
+                確定 {selStat.confirmed} / 確認待ち {selStat.proposed} / 予定 {selStat.planned}
+                {selStat.over > 0 && <span style={{ marginLeft: 6 }}>・余剰 {selStat.over}</span>}
+              </span>
+            </div>
+            {isManagerUp && selFc && (
+              <>
+                <div className="nox-moneyrow">
+                  <span>予想人件費{selFc.unknownComp > 0 ? `（時給未設定 ${selFc.unknownComp}人を除く）` : ""}</span>
+                  <b className="num">{yen(selFc.total)}</b>
+                </div>
+                <p className="nox-moneynote">
+                  シフト時間×時給の概算です。バック・控除は含みません。実際の給与とは異なります。
+                </p>
+              </>
+            )}
+            {selBands.length > 0 && (
+              <div style={{ margin: "6px 0 8px" }}>
+                <BandBars stats={selBands} />
+                {onlyAllDay(selBands) && (
+                  <div className="nox-inset" style={{ padding: "9px 12px", marginTop: 10 }}>
+                    <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.7 }}>
+                      <b>時間帯別の内訳は未設定です。</b>
+                      いまは1日ぶんの人数だけを見ています（何時が足りないかは分かりません）。
+                    </p>
+                    <button style={{ ...btnLight, marginTop: 8 }}
+                      onClick={() => { setDayModal(""); gotoNeeds(); }}>時間帯を設定する</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* ★SC-8 ④(C): 空状態はここだけ面2 と違い1文のみ＝直下に「＋ キャストを追加」があるため、
+                「シフト作成タブから追加できます」の案内が二重になる。 */}
+            {bands.length === 0 && (
+              <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
+                この日の割当はありません。
+              </p>
+            )}
+            {/* ★SC-8 ④(A): 既定 status は**日で分ける**。裁定42「当日その場で足すのは もう入る人」は
+                今日だけに当てはまり、ストリップが扱う先の6日は「これから組む段」＝planned が正しい。
+                今日タブ頭の「＋ 追加」（bizToday 固定・confirmed）とも矛盾しない。 */}
+            {isManagerUp && (
+              <button className="nox-addc"
+                onClick={() => {
+                  setDayModal("");
+                  setAddDate(selDate);
+                  setAddStatus(selDate === bizToday ? "confirmed" : "planned");
+                  setAddModal(true);
+                }}>
+                ＋ キャストを追加
+              </button>
+            )}
+            {bands.map((b) => (
+              <div key={b.key} className="nox-band">
+                <div className="nox-bandh">
+                  <span className="t num">{fmtBand30(b.start, b.end)}</span>
+                  <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {b.confirmed} / 予定 {b.items.length - b.confirmed}</span>
+                </div>
+                {b.items.map((s) => (
+                  <div key={s.id} className="nox-crow">
+                    <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
+                    <span style={{ flex: 1, minWidth: 0 }}>{castName(s.cast_id)}</span>
+                    <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{fmtWin(s.start_hm, s.end_hm)}</span>
+                    <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>{SHIFT_ST_LABEL[s.status] ?? s.status}</span>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
