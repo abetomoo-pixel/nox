@@ -588,9 +588,11 @@ export default function RegisterBoard({
     if (!check) return;
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
+    // R-2a-2: free は RPC 側が weight=1 を強制（≠1 は 'bad weight'）＝%編集後にタブを free へ
+    //   切り替えて保存しても落ちないよう、free のときは 1 に正規化して送る（他種別はそのまま）。
     const list = Object.entries(nomWeights)
       .filter(([, w]) => w > 0)
-      .map(([cast_id, weight]) => ({ cast_id, weight }));
+      .map(([cast_id, weight]) => ({ cast_id, weight: nomType === "free" ? 1 : weight }));
     const { error } = await supabase.rpc("check_set_nominations", {
       p_check_id: check.id, p_nom_type: nomType, p_nominations: list,
     });
@@ -734,12 +736,23 @@ export default function RegisterBoard({
     await loadCheck(check.id);
   }
 
+  // R-2a-2: check_set_nominations の**全置換1本道**（delete→insert）。名簿から外す2経路
+  //   （指名料行の削除追随＝dropNomAfterShimeiRemoval／分配率カードの × ボタン）はどちらも
+  //   必ずここを通る＝新しい経路を作らない。p_nom_type は **checks.nom_type（DB 値）** を
+  //   そのまま渡し、ここで種別は変えない（タブ state の nomType は使わない）。
+  //   渡す重みも **DB の ratio_weight**＝未保存のローカル編集を巻き込まない。
+  async function replaceNomsFromDb(excludeCastId: string, chk: CheckRow): Promise<string | null> {
+    const next = noms.filter((n) => n.cast_id !== excludeCastId).map((n) => ({ cast_id: n.cast_id, weight: n.ratio_weight }));
+    const { error } = await supabase.rpc("check_set_nominations", {
+      p_check_id: chk.id, p_nom_type: chk.nom_type, p_nominations: next,
+    });
+    return error ? (error.message ?? "unknown") : null;
+  }
+
   // R-2a-3（B の是正）: 指名料行を消したら、そのキャストを按分の名簿からも外す。
   //   ★check_remove_line（money RPC）は check_nominations に一切触れない＝行を消しても名簿に残る。
   //     RPC は変更禁止なので、削除の**成功後**に UI から check_set_nominations を呼び直して名簿を組み直す。
-  //   ★check_set_nominations は delete→insert の全置換なので「残すキャスト」の配列を作って渡す。
   //   ★同じキャストに指名料行がまだ残っているなら外さない（2本入っている状態の1本消しでは名簿を維持）。
-  //   ★p_nom_type は現在の checks.nom_type をそのまま渡す＝ここで種別は変えない（C を悪化させない）。
   //   返り値 true = 名簿の更新に失敗（削除自体は成功している＝エラーにはしない）。
   async function dropNomAfterShimeiRemoval(removed: Line | undefined, chk: CheckRow): Promise<boolean> {
     // 指名料行でなければ名簿は触らない（同伴料・商品・時間料金・カスタムはすべてここで抜ける）
@@ -749,15 +762,30 @@ export default function RegisterBoard({
     const stillHasFee = lines.some((l) => l.id !== removed.id && l.cast_id === castId && isShimeiLine(l));
     if (stillHasFee) return false;
     if (!noms.some((n) => n.cast_id === castId)) return false; // そもそも名簿に居ない
-    const next = noms.filter((n) => n.cast_id !== castId).map((n) => ({ cast_id: n.cast_id, weight: n.ratio_weight }));
-    const { error } = await supabase.rpc("check_set_nominations", {
-      p_check_id: chk.id, p_nom_type: chk.nom_type, p_nominations: next,
-    });
-    if (error) {
-      console.warn("[R-2a] 指名料行の削除後に按分の名簿を更新できませんでした（削除自体は成功）", castId, error.message);
+    const em = await replaceNomsFromDb(castId, chk);
+    if (em) {
+      console.warn("[R-2a] 指名料行の削除後に按分の名簿を更新できませんでした（削除自体は成功）", castId, em);
       return true;
     }
     return false;
+  }
+
+  // R-2a-2（分配率カードの × ボタン）: 名簿からキャストを1人外す＝上と同じ全置換経路。
+  //   DB に居ない（＝選択しただけの未保存）キャストはローカル state を畳むだけで RPC は呼ばない。
+  async function removeShareCast(castId: string) {
+    if (!check) return;
+    if (!(await tb.flush())) return; // saveNoms と同じ前置き（保留タップを先に確定）
+    setNomWeights((prev) => ({ ...prev, [castId]: 0 }));
+    if (feeCast === castId) setFeeCast("");
+    if (feeMsg?.to === FEE_SHIMEI) setFeeMsg(null); // 対象名入りの文言は対象が消えたら捨てる（R-1a 追補と同じ理由）
+    if (!noms.some((n) => n.cast_id === castId)) return;
+    const em = await replaceNomsFromDb(castId, check);
+    if (em) {
+      console.warn("[R-2a-2] 按分の名簿からの除外に失敗", castId, em);
+      setMsg({ to: MSG_DETAIL, kind: "bad", text: `按分から外せませんでした: ${em}` });
+      return;
+    }
+    await loadCheck(check.id);
   }
 
   async function removeLine(lineId: string) {
@@ -1851,68 +1879,100 @@ export default function RegisterBoard({
               {feeMsg.text}
             </p>
           )}
-          {/* E8-1 #14 → E8-1b F2: 重み微調整は折りたたみへ（既定閉・分配プレビューは開くと見える） */}
-          {nomSelected.length > 0 && (
-          <details style={{ marginTop: 10 }}>
-            <summary style={{ fontSize: 12, color: "var(--sub)", cursor: "pointer", fontWeight: 700 }}>
-              按分の重みを微調整（{nomSelected.map((ca) => ca.name).join("・")}
-              {nomType !== "free" && nomTotalW > 0
-                ? `＝${nomSelected.map((ca) => `${Math.round(((nomWeights[ca.id] ?? 0) / nomTotalW) * 100)}%`).join("/")}`
-                : ""}）
-            </summary>
-            <div className="nox-inset" style={{ marginTop: 8, padding: 10 }}>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                {nomSelected.map((ca) => (
-                  <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12.5 }}>
-                    {/* E8-1d: 種別併記（例: あべ（本指名）50%）＝nomKindOf の表示のみ */}
-                    {ca.name}
-                    {(() => { const k = nomKindOf(ca.id); return k ? (
-                      <span style={{ fontSize: 11, color: k === "hon" ? "var(--gold)" : k === "jonai" ? "var(--gold2)" : "var(--sub)" }}>
-                        （{NOM_LABEL[k]}）
-                      </span>
-                    ) : null; })()}
-                    {nomType !== "free" && (
-                      <input
-                        type="number" min={1} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} 重み`}
-                        onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
-                        style={{ ...input, width: 46, padding: "6px 6px" }}
-                      />
-                    )}
-                    {nomType !== "free" && nomTotalW > 0 && (
-                      <span className="num" style={{ fontSize: 11.5, color: "var(--champ)" }}>
-                        {Math.round(((nomWeights[ca.id] ?? 0) / nomTotalW) * 100)}%
-                      </span>
-                    )}
-                  </span>
-                ))}
-                {nomType !== "free" && (
-                  <button type="button" style={btnLight}
-                    onClick={() => setNomWeights((prev) => {
-                      const next = { ...prev };
-                      for (const ca of nomSelected) next[ca.id] = 1;
-                      return next;
-                    })}>
-                    均等に分配
-                  </button>
-                )}
-              </div>
-              {nomType !== "free" && nomTotalW > 0 && (
-                <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0", lineHeight: 1.7 }}>
-                  分配結果（実績・給与へ渡る比率）: {nomSelected.map((ca) =>
-                    `${ca.name} ${Math.round(((nomWeights[ca.id] ?? 0) / nomTotalW) * 100)}%`).join("・")}
-                  ／合計 100%（重み比＝金額の按分はサーバが会計時に計算）
-                </p>
-              )}
-              <div style={{ marginTop: 10 }}>
-                <button onClick={saveNoms} style={btnDark}>按分を保存</button>
-                <span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>
-                  ※指名料ボタンを使った場合は自動保存済み（ここは手調整用）
-                </span>
-              </div>
-            </div>
-          </details>
-          )}
         </div>
+
+        {/* R-2a-2（モック nox-register-pos `assignmentView` / renderShares）: 指名の分配率カード。
+            旧 <details>「按分の重みを微調整」を独立カードへ。入力は **%**（1〜100 の整数）＝
+            ratio_weight は integer の相対重みで分母は Σ なので、合計100 の % はそのまま重みとして
+            check_set_nominations に渡せる（RPC・スキーマ非改変）。
+            ★free は RPC が weight=1 を強制（'bad weight'）＝%入力と × を出さず均等表示のみ。 */}
+        {nomSelected.length > 0 && (
+          <div className="nox-cardtop" style={card}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+              <div>
+                <h3 style={{ ...t.cardTitle, marginBottom: 2 }}>指名の分配率</h3>
+                <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
+                  指名実績とキャストバックを複数キャストへ分配します。
+                </p>
+              </div>
+              {/* モック seatbadge 相当＝合計バッジ（total===100 ? ok : bad） */}
+              <span style={{ ...t.tag, whiteSpace: "nowrap",
+                color: nomType === "free" ? "var(--sub)" : nomTotalW === 100 ? "var(--ok)" : "var(--bad)",
+                borderColor: "var(--line2)" }}>
+                {nomType === "free" ? "均等" : `合計${nomTotalW}%`}
+              </span>
+            </div>
+            {nomType === "free" && (
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 6px", lineHeight: 1.7 }}>
+                フリーは均等配分のみ（サーバが重み1を固定するため、%の調整と個別の除外はできません）。
+              </p>
+            )}
+            {nomSelected.map((ca) => (
+              <div key={ca.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <b style={{ fontSize: 12.5 }}>{ca.name}</b>
+                  <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>指名実績・バック対象</span>
+                </div>
+                {nomType !== "free" ? (
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      type="number" min={1} max={100} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} の分配率`}
+                      onChange={(e) => {
+                        const v = Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1)));
+                        setNomWeights((prev) => ({ ...prev, [ca.id]: v }));
+                      }}
+                      className="num" style={{ ...input, width: 64, padding: "6px 6px", textAlign: "right" }}
+                    />
+                    <span style={{ fontSize: 12, color: "var(--sub)" }}>%</span>
+                  </label>
+                ) : (
+                  <span className="num" style={{ fontSize: 12.5, color: "var(--champ)" }}>
+                    {Math.round(100 / nomSelected.length)}%
+                  </span>
+                )}
+                <button type="button" aria-label={`${ca.name}を分配から外す`}
+                  disabled={nomType === "free"}
+                  onClick={() => void removeShareCast(ca.id)}
+                  style={{ ...btnLight, padding: "2px 9px", fontWeight: 800,
+                    color: nomType === "free" ? "var(--sub)" : "var(--bad)",
+                    borderColor: nomType === "free" ? "var(--line2)" : "var(--bad)" }}>
+                  ×
+                </button>
+              </div>
+            ))}
+            {nomType !== "free" && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 11.5 }}>
+                  <span style={{ color: "var(--sub)" }}>分配率の合計</span>
+                  <b className="num" style={{ color: nomTotalW === 100 ? "var(--ok)" : "var(--bad)" }}>{nomTotalW}%</b>
+                </div>
+                <div style={{ height: 6, background: "var(--line)", borderRadius: 3, marginTop: 4, overflow: "hidden" }}>
+                  <i style={{ display: "block", height: "100%", width: `${Math.min(100, nomTotalW)}%`,
+                    background: nomTotalW === 100 ? "var(--ok)" : "var(--bad)" }} />
+                </div>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+              {nomType !== "free" && (
+                <button type="button" style={btnLight}
+                  onClick={() => setNomWeights((prev) => {
+                    // %版の均等＝100 を整数で山分け（端数は先頭から +1）。Σ=100 を常に満たす。
+                    const next = { ...prev };
+                    const n = nomSelected.length;
+                    const base = Math.floor(100 / n), rem = 100 - base * n;
+                    nomSelected.forEach((ca, i) => { next[ca.id] = base + (i < rem ? 1 : 0); });
+                    return next;
+                  })}>
+                  均等に分配
+                </button>
+              )}
+              <button onClick={saveNoms} style={btnDark}>分配を保存</button>
+              <span style={{ fontSize: 11, color: "var(--sub)" }}>
+                ※指名料ボタンを使った場合は自動保存済み（ここは手調整用）
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* 料金UIレーン C4（mig0084）: 指名料・同伴料の課金行。★按分カードとは別カード＝
             上の「指名（重み比で分配）」はバック按分の重み・こちらは伝票への課金行の追加。 */}
