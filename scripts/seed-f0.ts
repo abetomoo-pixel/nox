@@ -120,17 +120,40 @@ async function main() {
     await del("products", "org_id", orgIds);
     await del("seats", "org_id", orgIds);
     await del("stores", "org_id", orgIds);
-    await del("orgs", "id", orgIds);
+    // ★案A（2026-08-25）: orgs は**消さない**。org_billing（課金正本・mig0087）は org_id を PK に
+    //   持ち、書込は service 専用（webhook / sync / provision）＝seed の通常経路では作られない。
+    //   org を作り直すと mig0087 の backfill は再実行されないため org_billing 行が欠け、
+    //   billing_writable_of の coalesce(..., false)（fail-closed）で課金ゲート対象の全書込 RPC が
+    //   'billing locked' になる。org_billing も消さない（既存 org に紐づいた行をそのまま活かす）。
   }
 
   // ── 3. orgs / stores ──
-  const { data: orgs, error: e3 } = await admin
-    .from("orgs")
-    .insert([{ name: ORG_A }, { name: ORG_B }])
-    .select("id, name");
-  if (e3 || !orgs) die("orgs 投入失敗", e3);
-  const orgA = orgs.find((o) => o.name === ORG_A)!.id;
-  const orgB = orgs.find((o) => o.name === ORG_B)!.id;
+  // ★案A: 既存があれば **id ごと流用**・無ければ作る（識別は orgs.name＝ORG_A / ORG_B）。
+  //   流用経路では org_billing に**一切触らない**（既存行が現行 org_id に紐づいて生きているため）。
+  const { data: keptOrgs, error: e3s } = await admin
+    .from("orgs").select("id, name").in("name", [ORG_A, ORG_B]);
+  if (e3s) die("orgs 検索失敗（再投入）", e3s);
+  const orgIdByName = new Map<string, string>(
+    (keptOrgs ?? []).map((o) => [o.name as string, o.id as string]),
+  );
+  const missingOrgs = [ORG_A, ORG_B].filter((n) => !orgIdByName.has(n));
+  if (missingOrgs.length) {
+    const { data: created, error: e3 } = await admin
+      .from("orgs").insert(missingOrgs.map((name) => ({ name }))).select("id, name");
+    if (e3 || !created) die("orgs 投入失敗", e3);
+    for (const o of created) orgIdByName.set(o.name as string, o.id as string);
+    // ★**新規作成した org に限り** org_billing を用意する（この if の中だけ＝流用経路では走らない）。
+    //   mig0087 の backfill は mig 適用時の一度きりで、後から作った org には行が付かない。
+    //   行が無いと billing_writable_of が fail-closed で false になり全書込 RPC が拒否されるため、
+    //   backfill と同じ {org_id, status:'active'} を on conflict do nothing で入れる。
+    const { error: eOb } = await admin.from("org_billing").upsert(
+      created.map((o) => ({ org_id: o.id as string, status: "active" })),
+      { onConflict: "org_id", ignoreDuplicates: true },
+    );
+    if (eOb) die("org_billing 投入失敗（新規 org 経路）", eOb);
+  }
+  const orgA = orgIdByName.get(ORG_A)!;
+  const orgB = orgIdByName.get(ORG_B)!;
 
   const { data: stores, error: e4 } = await admin
     .from("stores")
