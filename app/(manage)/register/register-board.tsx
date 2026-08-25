@@ -734,12 +734,47 @@ export default function RegisterBoard({
     await loadCheck(check.id);
   }
 
+  // R-2a-3（B の是正）: 指名料行を消したら、そのキャストを按分の名簿からも外す。
+  //   ★check_remove_line（money RPC）は check_nominations に一切触れない＝行を消しても名簿に残る。
+  //     RPC は変更禁止なので、削除の**成功後**に UI から check_set_nominations を呼び直して名簿を組み直す。
+  //   ★check_set_nominations は delete→insert の全置換なので「残すキャスト」の配列を作って渡す。
+  //   ★同じキャストに指名料行がまだ残っているなら外さない（2本入っている状態の1本消しでは名簿を維持）。
+  //   ★p_nom_type は現在の checks.nom_type をそのまま渡す＝ここで種別は変えない（C を悪化させない）。
+  //   返り値 true = 名簿の更新に失敗（削除自体は成功している＝エラーにはしない）。
+  async function dropNomAfterShimeiRemoval(removed: Line | undefined, chk: CheckRow): Promise<boolean> {
+    // 指名料行でなければ名簿は触らない（同伴料・商品・時間料金・カスタムはすべてここで抜ける）
+    if (!removed || !removed.cast_id || !isShimeiLine(removed)) return false;
+    const castId = removed.cast_id;
+    // 削除前の lines から「消した1本以外」に同じキャストの指名料行が残っているかを見る
+    const stillHasFee = lines.some((l) => l.id !== removed.id && l.cast_id === castId && isShimeiLine(l));
+    if (stillHasFee) return false;
+    if (!noms.some((n) => n.cast_id === castId)) return false; // そもそも名簿に居ない
+    const next = noms.filter((n) => n.cast_id !== castId).map((n) => ({ cast_id: n.cast_id, weight: n.ratio_weight }));
+    const { error } = await supabase.rpc("check_set_nominations", {
+      p_check_id: chk.id, p_nom_type: chk.nom_type, p_nominations: next,
+    });
+    if (error) {
+      console.warn("[R-2a] 指名料行の削除後に按分の名簿を更新できませんでした（削除自体は成功）", castId, error.message);
+      return true;
+    }
+    return false;
+  }
+
   async function removeLine(lineId: string) {
     if (!check) return;
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
+    const target = lines.find((l) => l.id === lineId); // 削除後は lines から消えるので先に控える
     const { error } = await supabase.rpc("check_remove_line", { p_line_id: lineId });
-    setMsg(error ? { to: MSG_DETAIL, text: error.message, kind: "bad" } : null);
+    if (error) {
+      setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" });
+      await loadCheck(check.id);
+      return;
+    }
+    const nomFailed = await dropNomAfterShimeiRemoval(target, check);
+    setMsg(nomFailed
+      ? { to: MSG_DETAIL, kind: "bad", text: "指名料の行は削除しました。按分は変更できませんでした（指名タブでご確認ください）" }
+      : null);
     await loadCheck(check.id);
   }
 
