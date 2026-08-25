@@ -188,6 +188,8 @@ async function main() {
   let productId = "";
   let seatId = "";
   let stockLogId = "";
+  // F1e の日報 id（reclose audit を名指しで引くため・daily_reports は 1881 で毎回消して作り直す＝per-run）
+  let f1eReportId = "";
   {
     const c = await signIn("managerA1");
     const { data: stores } = await c.from("stores").select("id, name").eq("name", STORE_A1);
@@ -1909,6 +1911,7 @@ async function main() {
     check("F1e open 残置＝既定拒否", !!eNF?.message?.includes("open checks remain"), eNF?.message ?? "通ってしまった");
     const { data: reportId, error: eCl } = await c.rpc("daily_report_close", { ...closeArgs, p_force: true, p_idem_key: kClose });
     check("F1e p_force 強行 close 成功", !eCl && typeof reportId === "string", eCl?.message);
+    f1eReportId = reportId as string;
 
     // 日報ゴールデン（F1b シナリオ伝票＋境界内伝票の固定集計値）
     const { data: rep } = await c.from("daily_reports").select("*").eq("id", reportId).single();
@@ -1956,11 +1959,16 @@ async function main() {
   {
     // F1e 権限: owner で audit・staff 可視・cast 0行
     const c = await signIn("ownerA");
+    // ★教訓35: action だけの絞りだと reclose の audit は実行のたびに増え、しかも順序指定が無いまま
+    //   配列の最後尾を取っていた（返却順に依存）。target（daily_reports:<per-run id>）で名指しし、
+    //   at 降順の最新1行に絞る（mig0010 の audit_log_write が 'daily_reports:'||p_report_id を書く）。
     const { data: aud } = await c
       .from("audit_logs")
       .select("before_json, after_json")
-      .eq("action", "daily_report_reclose");
-    const a0 = aud?.[aud.length - 1];
+      .eq("action", "daily_report_reclose")
+      .eq("target", `daily_reports:${f1eReportId}`)
+      .order("at", { ascending: false }).limit(1);
+    const a0 = aud?.[0];
     check("F1e reclose audit（before slips=3 → after slips=2）",
       (a0?.before_json as { slips?: number } | null)?.slips === 3 &&
         (a0?.after_json as { slips?: number } | null)?.slips === 2,

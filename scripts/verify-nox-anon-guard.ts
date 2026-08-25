@@ -1253,14 +1253,18 @@ async function main() {
         check("段16 実 UPDATE 物理確認: (false,false,true) が正確に反映",
           m1?.can_register === false && m1?.can_crm === false && m1?.can_shift === true, JSON.stringify(m1));
         // audit: before/after のフラグが記録される（owner 閲覧）
-        const { data: aud } = await owner.from("audit_logs")
+        // ★memRegOff は seed 常設の fixture ＝この (action, target) に一致する行は実行のたびに増える。
+        //   order+limit で最新1行に絞っているので 1000行窓では 0行にならないが、0行だったときに
+        //   「本当に無かった」のか「クエリがエラーだった」のかを切り分けられるよう error も載せる。
+        const { data: aud, error: audErr } = await owner.from("audit_logs")
           .select("before_json, after_json")
           .eq("action", "set_staff_perms")
           .eq("target", `memberships:${memRegOff.id}`)
           .order("at", { ascending: false }).limit(1);
         const aRow = aud?.[0] as { before_json?: { can_shift?: boolean }; after_json?: { can_shift?: boolean } } | undefined;
         check("段16 audit: before.can_shift=false / after.can_shift=true が記録",
-          aRow?.before_json?.can_shift === false && aRow?.after_json?.can_shift === true, JSON.stringify(aRow));
+          aRow?.before_json?.can_shift === false && aRow?.after_json?.can_shift === true,
+          JSON.stringify({ row: aRow ?? null, err: audErr?.message ?? null }));
 
         // ② manager: 自店 staff 成功（3フラグ全 true）・他店 A2 staff は forbidden
         const { error: e2 } = await mgr.rpc("set_staff_perms", {
@@ -5087,8 +5091,11 @@ async function main() {
         // ═══ c. set_cast_pin（castA1a のみ設定・castA1b は未設定のまま no_pin 用）═══
         const { error: ePinO } = await owner.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "5678" });
         check("段35 owner set_cast_pin 成功", !ePinO, ePinO?.message);
+        // ★castIdA は fixture ＝この (action, target) の行は実行のたびに増える。order 無しの limit(1) だと
+        //   どの実行の行が返るか不定で、当該実行の audit を見ている保証が無い（最新1行を明示する）。
         const { data: audPin } = await owner.from("audit_logs").select("before_json, after_json")
-          .eq("action", "set_cast_pin").eq("target", `cast_pin:${castIdA}`).limit(1);
+          .eq("action", "set_cast_pin").eq("target", `cast_pin:${castIdA}`)
+          .order("at", { ascending: false }).limit(1);
         const audPinStr = JSON.stringify(audPin ?? []);
         check("段35 ★audit に PIN/ハッシュ非含有（'5678'/'pin_hash' 不在・行は存在）",
           (audPin ?? []).length === 1 && !audPinStr.includes("5678") && !audPinStr.includes("pin_hash"), audPinStr);
