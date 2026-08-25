@@ -53,6 +53,20 @@ type CheckRow = {
 // check_time_charge_apply の返値 jsonb（サーバ再計算の内訳・表示専用）
 // mig0089 行分離: 返り値は line_id → set_line_id/ext_line_id（額0/blocks0 の側は null）
 type TimeCalc = { elapsed_min: number; units: number; blocks: number; set_c: number; ext_c: number; total: number; set_line_id: string | null; ext_line_id: string | null };
+// R-1a（裁定61）: 完了メッセージは**宛先を構造で持つ**。
+//   to＝描画点の識別子（描画点は to の一致だけで描画する）・kind＝色（ok/bad）。
+//   ★文字列の内容（includes 等）で描画先を決める実装は作らない
+//     ＝旧 `feeMsg.includes("同伴")` が指名カードと同伴料カードの二重表示を生んだ原因。
+type Notice = { to: string; text: string; kind: "ok" | "bad" };
+// msg の描画点（3つ）。floor＝フロア一覧・detail＝伝票詳細ビュー・pay＝入金モーダル。
+const MSG_FLOOR = "floor";
+const MSG_DETAIL = "detail";
+const MSG_PAY = "pay";
+// feeMsg の描画点（2つ）＝指名カード・同伴料カード。
+const FEE_SHIMEI = "shimei";
+const FEE_DOHAN = "dohan";
+// 領収書カードの成功文言（色分けの唯一の分岐点＝入金モーダル :msg と同じ既存の流儀）
+const RCPT_COPIED = "確認用 URL をコピーしました";
 type Line = {
   id: string;
   kind: string;
@@ -232,7 +246,7 @@ export default function RegisterBoard({
   // E8-1 ⑥: 卓起点予約（開卓モーダル→「予約を入れる」→予約タブへ卓プリフィル）
   const [reservePrefillSeat, setReservePrefillSeat] = useState<string | null>(null);
   // E8-1b F2: 指名カード内のローカルメッセージ（旧 setMsg はフロアでしか描画されない＝エラー非表示バグの是正）
-  const [feeMsg, setFeeMsg] = useState<string | null>(null);
+  const [feeMsg, setFeeMsg] = useState<Notice | null>(null);
   // E8-1b F3: 席操作の視覚選択モーダル（相席追加 / 席移動）
   const [seatPick, setSeatPick] = useState<"add" | "move" | null>(null);
   // E8-1b F5（mig0091）: 明細グループ付け替えモーダル（対象行 id）
@@ -304,7 +318,7 @@ export default function RegisterBoard({
   }
   const [noms, setNoms] = useState<Nom[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<Notice | null>(null);
   // B4（mig0052）時間料金: time_mode は非スナップ＝伝票の store の live 値で判定（裁定(g)）。
   //   timeCalc は check_time_charge_apply の返値内訳（表示専用）。timeMsg はカード内エラー。
   const [timeMode, setTimeMode] = useState("manual");
@@ -518,7 +532,7 @@ export default function RegisterBoard({
     [check, prodGroup],
   );
   const reloadCurrent = useCallback(async () => { if (check) await loadCheck(check.id); }, [check, loadCheck]);
-  const tb = useTapBatch(commitLine, reloadCurrent, (m) => setMsg(m));
+  const tb = useTapBatch(commitLine, reloadCurrent, (m) => setMsg({ to: MSG_DETAIL, text: m, kind: "bad" }));
 
   async function openSeat(seat: Seat) {
     if (!(await tb.flush())) return; // 別 check へ切替前に保留を現 check へ確定（失敗＝中止）
@@ -541,7 +555,7 @@ export default function RegisterBoard({
     if (!seat || openBusy) return;
     const raw = openPeople.trim();
     const n = raw === "" ? null : Number(raw);
-    if (n !== null && (!Number.isInteger(n) || n <= 0)) { setMsg("人数は正の整数で入力してください（空欄可）"); return; }
+    if (n !== null && (!Number.isInteger(n) || n <= 0)) { setMsg({ to: MSG_FLOOR, text: "人数は正の整数で入力してください（空欄可）", kind: "bad" }); return; }
     setOpenBusy(true);
     const { data, error } = await supabase.rpc("check_open", {
       p_seat_id: seat.id, p_people: n, p_nom_type: "free",
@@ -549,9 +563,9 @@ export default function RegisterBoard({
     });
     setOpenBusy(false);
     if (error) {
-      setMsg(error.message.includes("bad rule")
+      setMsg({ to: MSG_FLOOR, kind: "bad", text: error.message.includes("bad rule")
         ? "選択した料金ルールが使えません（無効化された可能性があります・自動で開卓し直してください）"
-        : error.message);
+        : error.message });
       return;
     }
     setOpenSeatTarget(null);
@@ -569,7 +583,9 @@ export default function RegisterBoard({
     const { error } = await supabase.rpc("check_set_nominations", {
       p_check_id: check.id, p_nom_type: nomType, p_nominations: list,
     });
-    setMsg(error ? error.message : "指名を保存しました");
+    setMsg(error
+      ? { to: MSG_DETAIL, text: error.message, kind: "bad" }
+      : { to: MSG_DETAIL, text: "指名を保存しました", kind: "ok" });
     await loadCheck(check.id);
   }
 
@@ -599,7 +615,7 @@ export default function RegisterBoard({
     const { data: lineId, error } = await supabase.rpc("check_shimei_add", {
       p_check_id: check.id, p_cast_id: feeCast, p_kind: kind,
     });
-    if (error) { setFeeMsg(chargeErrJa(error.message)); setFeeBusy(false); return; }
+    if (error) { setFeeMsg({ to: FEE_SHIMEI, text: chargeErrJa(error.message), kind: "bad" }); setFeeBusy(false); return; }
     // 按分へ自動反映（既に居れば重み据置・居なければ 1 で追加）＋按分種別を課金種別へ
     const merged: Record<string, number> = { ...nomWeights };
     if (!((merged[feeCast] ?? 0) > 0)) merged[feeCast] = 1;
@@ -614,10 +630,15 @@ export default function RegisterBoard({
       amt = (lr?.line_total as number | undefined) ?? null;
     }
     setFeeBusy(false);
-    setFeeMsg(e2
-      ? `指名料は追加しましたが按分の反映に失敗: ${e2.message}`
-      : `${castName(feeCast)} に${kind === "hon" ? "本指名料" : "場内指名料"}${amt != null ? ` ${yen(amt)}` : ""}を追加し、按分にも反映しました${
-          amt === 0 ? "。★¥0＝指名料が未設定です（マスタ→料金設定で単価を登録してください）" : ""}`);
+    setFeeMsg({
+      to: FEE_SHIMEI,
+      // 旧: 文字列に "失敗"/"¥0" が含まれるかで色を決めていた → kind へ移した（判定条件は同値）
+      kind: e2 || amt === 0 ? "bad" : "ok",
+      text: e2
+        ? `指名料は追加しましたが按分の反映に失敗: ${e2.message}`
+        : `${castName(feeCast)} に${kind === "hon" ? "本指名料" : "場内指名料"}${amt != null ? ` ${yen(amt)}` : ""}を追加し、按分にも反映しました${
+            amt === 0 ? "。★¥0＝指名料が未設定です（マスタ→料金設定で単価を登録してください）" : ""}`,
+    });
     await loadCheck(check.id);
   }
   async function addDohanFee() {
@@ -629,7 +650,9 @@ export default function RegisterBoard({
       p_check_id: check.id, p_count: dohanN,
     });
     setFeeBusy(false);
-    setFeeMsg(error ? chargeErrJa(error.message) : `同伴料を追加しました（${dohanN}名分）`);
+    setFeeMsg(error
+      ? { to: FEE_DOHAN, text: chargeErrJa(error.message), kind: "bad" }
+      : { to: FEE_DOHAN, text: `同伴料を追加しました（${dohanN}名分）`, kind: "ok" });
     await loadCheck(check.id);
   }
 
@@ -663,7 +686,7 @@ export default function RegisterBoard({
       p_check_id: check.id, p_product_id: null, p_qty: 1, p_kind: cKind,
       p_pay_group: cGroup || "A", p_name: cName, p_unit_price: cPrice,
     });
-    setMsg(error ? error.message : null);
+    setMsg(error ? { to: MSG_DETAIL, text: error.message, kind: "bad" } : null);
     setCName(""); setCPrice(0);
     await loadCheck(check.id);
   }
@@ -673,7 +696,7 @@ export default function RegisterBoard({
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     const { error } = await supabase.rpc("check_remove_line", { p_line_id: lineId });
-    setMsg(error ? error.message : null);
+    setMsg(error ? { to: MSG_DETAIL, text: error.message, kind: "bad" } : null);
     await loadCheck(check.id);
   }
 
@@ -695,7 +718,7 @@ export default function RegisterBoard({
     setMsg(null);
     for (const l of targets) {
       const { error } = await supabase.rpc("check_remove_line", { p_line_id: l.id });
-      if (error) { setMsg(error.message); break; } // 途中失敗は中断（残りは消さない）
+      if (error) { setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" }); break; } // 途中失敗は中断（残りは消さない）
     }
     setClearBusy(false);
     setClearModal(false);
@@ -809,7 +832,7 @@ export default function RegisterBoard({
       p_check_id: check.id, p_product_id: p.id, p_qty: 1, p_kind: null,
       p_pay_group: prodGroup || "A", p_name: null, p_unit_price: null,
     });
-    if (error) { setMsg(error.message); setClaimBusy(false); return; }
+    if (error) { setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" }); setClaimBusy(false); return; }
     // 直近に追加した当該商品の行へ紐付け（claims の無い最新行＝1杯1行なので一意に決まる）
     const { data: ls } = await supabase.from("check_lines").select("id")
       .eq("check_id", check.id).eq("product_id", p.id)
@@ -888,7 +911,9 @@ export default function RegisterBoard({
       p_idem_key: crypto.randomUUID(),
       p_method_detail: detail,
     });
-    setMsg(error ? error.message : "入金しました");
+    setMsg(error
+      ? { to: MSG_PAY, text: error.message, kind: "bad" }
+      : { to: MSG_PAY, text: "入金しました", kind: "ok" });
     if (!error) { setPayTendered(""); setPayDetail(""); }
     await loadCheck(check.id);
     return !error;
@@ -899,8 +924,9 @@ export default function RegisterBoard({
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止・締め前提）
     setMsg(null);
     const { error } = await supabase.rpc("check_close", { p_check_id: check.id, p_idem_key: crypto.randomUUID() });
-    if (error) { setMsg(error.message); return; }
-    setMsg(`会計完了 ${yen(check.total)}`);
+    // 失敗時は伝票が残る＝詳細ビューへ／成功時は setCheck(null) でフロアへ戻る＝フロアへ（現状の動きを変えない）
+    if (error) { setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" }); return; }
+    setMsg({ to: MSG_FLOOR, text: `会計完了 ${yen(check.total)}`, kind: "ok" });
     const gs = Array.from(new Set(lines.map((l) => l.pay_group))).sort();
     // E8-1b F6: close 後モーダル（合計・お釣り＝最後の現金入金の預り−充当・再印刷・簡易領収書）
     const lastCash = [...payments].reverse().find((p) => p.method === "cash" && p.tendered != null);
@@ -931,8 +957,9 @@ export default function RegisterBoard({
     const reason = voidReason.trim();
     if (!reason) return;
     const { error } = await supabase.rpc("check_void", { p_check_id: check.id, p_reason: reason });
-    if (error) { setMsg(error.message); return; }
-    setMsg("伝票を取消しました");
+    // close と同型＝失敗は伝票が残るので詳細ビュー・成功は setCheck(null) でフロアへ
+    if (error) { setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" }); return; }
+    setMsg({ to: MSG_FLOOR, text: "伝票を取消しました", kind: "ok" });
     setVoidModal(false); setVoidReason("");
     setCheck(null);
     await loadOpenMap();
@@ -955,8 +982,9 @@ export default function RegisterBoard({
       p_amount: apType === "discount" ? apAmount : null,
       p_reason: apReason.trim() || null,
     });
-    if (error) { setMsg(`${isManagerUp ? "適用" : "申請"}に失敗: ${apErrJa(error.message)}`); return; }
-    setMsg(isManagerUp ? "割引/無料を適用しました" : "割引/無料を申請しました（承認待ち）");
+    if (error) { setMsg({ to: MSG_DETAIL, text: `${isManagerUp ? "適用" : "申請"}に失敗: ${apErrJa(error.message)}`, kind: "bad" }); return; }
+    setMsg({ to: MSG_DETAIL, kind: "ok",
+      text: isManagerUp ? "割引/無料を適用しました" : "割引/無料を申請しました（承認待ち）" });
     setApAmount(0); setApReason("");
     await loadCheck(check.id);
   }
@@ -967,8 +995,8 @@ export default function RegisterBoard({
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     const { error } = await supabase.rpc("approval_decide", { p_approval_id: approvalId, p_approve: approve });
-    if (error) { setMsg(`${approve ? "承認" : "却下"}に失敗: ${apErrJa(error.message)}`); return; }
-    setMsg(approve ? "承認しました（伝票に反映）" : "却下しました");
+    if (error) { setMsg({ to: MSG_DETAIL, text: `${approve ? "承認" : "却下"}に失敗: ${apErrJa(error.message)}`, kind: "bad" }); return; }
+    setMsg({ to: MSG_DETAIL, kind: "ok", text: approve ? "承認しました（伝票に反映）" : "却下しました" });
     await loadCheck(check.id);
   }
 
@@ -1354,7 +1382,10 @@ export default function RegisterBoard({
                 onChange={(e) => setPayDetail(e.target.value)}
                 style={{ ...t.input, marginBottom: 12 }} />
             )}
-            {msg && <p style={{ fontSize: 12, fontWeight: 700, color: msg === "入金しました" ? "var(--ok)" : "var(--bad)", margin: "0 0 10px" }}>{msg}</p>}
+            {/* R-1a: 描画点＝入金モーダル。to の一致だけで描画する（文言の内容は見ない） */}
+            {msg?.to === MSG_PAY && (
+              <p style={{ fontSize: 12, fontWeight: 700, color: msg.kind === "ok" ? "var(--ok)" : "var(--bad)", margin: "0 0 10px" }}>{msg.text}</p>
+            )}
             <button
               style={{ ...t.btnGold, width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 900, justifyContent: "center" }}
               disabled={!amtValid || insufficient}
@@ -1503,7 +1534,8 @@ export default function RegisterBoard({
                     <button style={btnDark} disabled={rcptBusy} onClick={() => void doIssue()}>発行</button>
                   </div>
                 )}
-                {rcptMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "0 0 8px" }}>{rcptMsg}</p>}
+                {/* R-1a-4: 成功文言まで --bad（赤）で出ていたのを是正＝成功/失敗で色を分ける（state 構造は不変） */}
+                {rcptMsg && <p style={{ fontSize: 12, fontWeight: 700, color: rcptMsg === RCPT_COPIED ? "var(--ok)" : "var(--bad)", margin: "0 0 8px" }}>{rcptMsg}</p>}
                 {rcptIssued.map((r) => (
                   <div key={r.id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
                     <span style={{ ...t.num, fontWeight: 800 }}>R-{String(r.serial).padStart(6, "0")}</span>
@@ -1513,7 +1545,7 @@ export default function RegisterBoard({
                     <span style={{ width: 44, height: 44, background: "#fff", padding: 2, borderRadius: 4 }}
                       dangerouslySetInnerHTML={{ __html: renderSVG(`${window.location.origin}/r/${r.token}`, { border: 0 }) }} />
                     <button style={{ ...btnLight, marginLeft: "auto" }}
-                      onClick={() => { void navigator.clipboard?.writeText(`${window.location.origin}/r/${r.token}`); setRcptMsg("確認用 URL をコピーしました"); }}>
+                      onClick={() => { void navigator.clipboard?.writeText(`${window.location.origin}/r/${r.token}`); setRcptMsg(RCPT_COPIED); }}>
                       URL コピー
                     </button>
                   </div>
@@ -1645,6 +1677,14 @@ export default function RegisterBoard({
           </p>
         )}
 
+        {/* R-1a（裁定61）: 描画点＝伝票詳細ビュー。旧実装は msg の描画点が入金モーダルとフロアにしか無く、
+            指名の保存・割引/無料の適用と申請・承認/却下の文言が state に入るだけで**画面に出なかった**。
+            3タブの外（backbar 直下）に置く＝どのタブから出た文言でも必ず見える。 */}
+        {msg?.to === MSG_DETAIL && (
+          <p style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.7, margin: "8px 0 0",
+            color: msg.kind === "ok" ? "var(--ok)" : "var(--bad)" }}>{msg.text}</p>
+        )}
+
         {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。 */}
         <div className="nox-dtabs">
           {([["order", "注文"], ["nom", "指名・席"], ["pay", "会計"]] as const).map(([k, label]) => (
@@ -1703,10 +1743,12 @@ export default function RegisterBoard({
               </div>
             );
           })()}
-          {feeMsg && (
+          {/* R-1a: 描画点＝指名カード。to の一致だけで描画（旧: feeMsg を無条件描画していたため
+              同伴料の文言までここに出ていた＝二重表示の片側） */}
+          {feeMsg?.to === FEE_SHIMEI && (
             <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0", lineHeight: 1.7,
-              color: feeMsg.includes("失敗") || feeMsg.includes("できません") || feeMsg.includes("¥0") ? "var(--bad)" : "var(--ok)" }}>
-              {feeMsg}
+              color: feeMsg.kind === "ok" ? "var(--ok)" : "var(--bad)" }}>
+              {feeMsg.text}
             </p>
           )}
           {/* E8-1 #14 → E8-1b F2: 重み微調整は折りたたみへ（既定閉・分配プレビューは開くと見える） */}
@@ -1793,9 +1835,10 @@ export default function RegisterBoard({
                   同伴料を追加（単価×人数）
                 </button>
               </div>
-              {feeMsg && feeMsg.includes("同伴") && (
+              {/* R-1a: 描画点＝同伴料カード。旧 `feeMsg.includes("同伴")` を撤去＝to の一致だけで描画する */}
+              {feeMsg?.to === FEE_DOHAN && (
                 <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0",
-                  color: feeMsg.includes("できません") || feeMsg.includes("失敗") ? "var(--bad)" : "var(--ok)" }}>{feeMsg}</p>
+                  color: feeMsg.kind === "ok" ? "var(--ok)" : "var(--bad)" }}>{feeMsg.text}</p>
               )}
               {payments.length > 0 && check.status === "open" && (
                 <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
@@ -2420,7 +2463,8 @@ export default function RegisterBoard({
             );
           })}
         </div>
-        {msg && <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "10px 0 0" }}>{msg}</p>}
+        {/* R-1a: 描画点＝フロア。会計完了・伝票取消・開卓の失敗がここに出る（色は現状どおり muted 据置） */}
+        {msg?.to === MSG_FLOOR && <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "10px 0 0" }}>{msg.text}</p>}
       </section>
       <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>
       {/* A2（裁定8）: ボトルキープ登録＝checkout フロー内（NOX8 裁定）。会計タブ末尾の全幅カード */}
