@@ -4018,10 +4018,15 @@ async function main() {
         check("段29-4 closed/void の check への申告 = not open", has(e4, "not open"), e4?.message ?? "通ってしまった");
 
         // 19 cast は自分の申告のみ可視（castB の申告は castA から見えない）
-        const { data: aView } = await castA29.from("drink_claims").select("id, cast_id");
-        const aSet = new Set((aView ?? []).map((r) => r.cast_id));
+        // ★教訓35: 無制限 select ＋ Set 集約だと 1000行窓に依存する（castA の行だけで窓が埋まれば
+        //   他 cast の混入を見落とし＝偽陽性）。自分の行と「自分以外」をそれぞれ名指しして引く。
+        //   aSet.size === 1 && aSet.has(A) ≡ 自分の行が1件以上 かつ 自分以外の可視行が0件。
+        //   !aSet.has(B) は「自分以外が0件」に含まれる（castB に限らず第三者の混入も検出できる）。
+        const { data: aSelf } = await castA29.from("drink_claims").select("id, cast_id").eq("cast_id", s29CastA);
+        const { data: aOther } = await castA29.from("drink_claims").select("id, cast_id").neq("cast_id", s29CastA);
         check("段29-19 cast SELECT = 自分の申告のみ（他 cast 不可視・P1 変形）",
-          aSet.size === 1 && aSet.has(s29CastA) && !aSet.has(s29CastB), `casts=${[...aSet].join(",")}`);
+          (aSelf ?? []).length >= 1 && (aOther ?? []).length === 0,
+          `self=${(aSelf ?? []).length} other=${JSON.stringify((aOther ?? []).map((r) => r.cast_id))}`);
 
         // 20 黒服 can_register は自店の全 drink_claims 可視（castA/castB 両方）
         // ★教訓35: 探している行（castA / castB それぞれ）をクエリ側で名指しして引く
