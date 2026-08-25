@@ -116,6 +116,9 @@ const METHOD_LABEL: Record<string, string> = { cash: "現金", card: "カード"
 // 内訳メモを出す手段（cash/ar は出さない＝現金は内訳不要・売掛は receivables が台帳）
 const DETAIL_METHODS = new Set(["card", "other"]);
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
+// R-2a: 指名料の課金行（mig0084・cast_id を持つ2種）。同伴料行（fee_kind='dohan'）は cast_id=null＝ここに含めない。
+const SHIMEI_FEE_KINDS = new Set(["hon_shimei", "jonai_shimei"]);
+const isShimeiLine = (l: { fee_kind: string | null }) => SHIMEI_FEE_KINDS.has(l.fee_kind ?? "");
 const AP_STATUS_LABEL: Record<string, string> = { pending: "承認待ち", approved: "承認済", rejected: "却下" };
 const AP_STATUS_COLOR: Record<string, string> = { pending: "var(--gold2)", approved: "var(--ok)", rejected: "var(--sub)" };
 
@@ -2221,7 +2224,17 @@ export default function RegisterBoard({
                         )
                       )}
                     </td>
-                    <td style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>{l.name_snapshot}</td>
+                    <td style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>
+                      {l.name_snapshot}
+                      {/* R-2a-1: 指名料行は**対象キャスト名を併記**＝同じキャストに2行あるのか、
+                          別々のキャストに1行ずつなのかを明細だけで判別できるようにする（表示のみ）。
+                          ★同伴料行（fee_kind='dohan'）は cast_id=null で名前を出せない＝R-2b で紐づける。 */}
+                      {isShimeiLine(l) && l.cast_id && (
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--champ)", marginLeft: 6 }}>
+                          {castName(l.cast_id)}
+                        </span>
+                      )}
+                    </td>
                     {/* E8-1b F1: person 制の時間行は「×N名」（qty=units=人数の意味を明示） */}
                     <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>
                       {isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}${l.kind === "time" && check?.time_per === "person" ? "名" : ""}`}
