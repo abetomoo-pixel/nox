@@ -1935,11 +1935,23 @@ export default function RegisterBoard({
                 フリーは均等配分のみ（サーバが重み1を固定するため、%の調整と個別の除外はできません）。
               </p>
             )}
-            {nomSelected.map((ca) => (
+            {/* R-2a-3: 分配結果カードを統合＝1行に 名前／副文（{種別}の実績配分）／%入力／件数相当／×。
+                同じ人名を2枚のカードで2度読ませない（モックは横並び2カラム・実装は縦積みのための統合判断）。 */}
+            <div className="nox-inset" style={{ padding: "9px 12px", margin: "0 0 4px" }}>
+              <b style={{ fontSize: 12 }}>料金と実績を分離</b>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 0", lineHeight: 1.7 }}>
+                お客様への指名料は1回分だけ計上し、指名実績・バック金額を設定した比率で分けます。
+              </p>
+            </div>
+            {nomSelected.map((ca) => {
+              const share = nomType === "free"
+                ? 1 / nomSelected.length
+                : nomTotalW > 0 ? (nomWeights[ca.id] ?? 0) / nomTotalW : 0;
+              return (
               <div key={ca.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <b style={{ fontSize: 12.5 }}>{ca.name}</b>
-                  <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>指名実績・バック対象</span>
+                  <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>{NOM_LABEL[nomType]}の実績配分</span>
                 </div>
                 {nomType !== "free" ? (
                   <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -1958,6 +1970,9 @@ export default function RegisterBoard({
                     {Math.round(100 / nomSelected.length)}%
                   </span>
                 )}
+                <span className="num" style={{ fontSize: 11, color: "var(--sub)", whiteSpace: "nowrap" }}>
+                  {share.toFixed(2)}件相当
+                </span>
                 <button type="button" aria-label={`${ca.name}を分配から外す`}
                   disabled={nomType === "free"}
                   onClick={() => void removeShareCast(ca.id)}
@@ -1967,7 +1982,8 @@ export default function RegisterBoard({
                   ×
                 </button>
               </div>
-            ))}
+              );
+            })}
             {nomType !== "free" && (
               <div style={{ marginTop: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 11.5 }}>
@@ -1999,37 +2015,6 @@ export default function RegisterBoard({
                 ※指名料ボタンを使った場合は自動保存済み（ここは手調整用）
               </span>
             </div>
-          </div>
-        )}
-
-        {/* R-2a-2（モック `allocationPreview` / allocation-note）: 分配結果カード。
-            旧「分配結果（実績・給与へ渡る比率）: …」の1行表示を独立カードへ。
-            ★件数換算（(rate/100).toFixed(2) 件相当）は**表示のみ**＝給与側の本数計上は
-              重みで割らず在席キャスト全員に満額（payroll/collect.ts）。計算は一切変えない。 */}
-        {nomSelected.length > 0 && (
-          <div className="nox-cardtop" style={card}>
-            <h3 style={{ ...t.cardTitle, marginBottom: 2 }}>分配結果</h3>
-            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>給与・実績へ渡る内容</p>
-            <div className="nox-inset" style={{ padding: "9px 12px", marginBottom: 8 }}>
-              <b style={{ fontSize: 12 }}>料金と実績を分離</b>
-              <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 0", lineHeight: 1.7 }}>
-                お客様への指名料は1回分だけ計上し、指名実績・バック金額を設定した比率で分けます。
-              </p>
-            </div>
-            {nomSelected.map((ca) => {
-              const share = nomTotalW > 0 ? (nomWeights[ca.id] ?? 0) / nomTotalW : 0;
-              return (
-                <div key={ca.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
-                  <div style={{ minWidth: 0 }}>
-                    <b style={{ fontSize: 12.5 }}>{ca.name}</b>
-                    <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>{NOM_LABEL[nomType]}の実績配分</span>
-                  </div>
-                  <b className="num" style={{ fontSize: 12.5, color: "var(--champ)", whiteSpace: "nowrap" }}>
-                    {Math.round(share * 100)}%・{share.toFixed(2)}件相当
-                  </b>
-                </div>
-              );
-            })}
             <p style={{ fontSize: 10.5, color: "var(--sub)", margin: "8px 0 0", lineHeight: 1.7 }}>
               ※件数換算は表示上の目安です（バック金額は比率で分配・指名本数の集計は在席キャストに計上）。
             </p>
