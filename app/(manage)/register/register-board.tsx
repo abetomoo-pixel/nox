@@ -1974,6 +1974,40 @@ export default function RegisterBoard({
           </div>
         )}
 
+        {/* R-2a-2（モック `allocationPreview` / allocation-note）: 分配結果カード。
+            旧「分配結果（実績・給与へ渡る比率）: …」の1行表示を独立カードへ。
+            ★件数換算（(rate/100).toFixed(2) 件相当）は**表示のみ**＝給与側の本数計上は
+              重みで割らず在席キャスト全員に満額（payroll/collect.ts）。計算は一切変えない。 */}
+        {nomSelected.length > 0 && (
+          <div className="nox-cardtop" style={card}>
+            <h3 style={{ ...t.cardTitle, marginBottom: 2 }}>分配結果</h3>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>給与・実績へ渡る内容</p>
+            <div className="nox-inset" style={{ padding: "9px 12px", marginBottom: 8 }}>
+              <b style={{ fontSize: 12 }}>料金と実績を分離</b>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 0", lineHeight: 1.7 }}>
+                お客様への指名料は1回分だけ計上し、指名実績・バック金額を設定した比率で分けます。
+              </p>
+            </div>
+            {nomSelected.map((ca) => {
+              const share = nomTotalW > 0 ? (nomWeights[ca.id] ?? 0) / nomTotalW : 0;
+              return (
+                <div key={ca.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <b style={{ fontSize: 12.5 }}>{ca.name}</b>
+                    <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>{NOM_LABEL[nomType]}の実績配分</span>
+                  </div>
+                  <b className="num" style={{ fontSize: 12.5, color: "var(--champ)", whiteSpace: "nowrap" }}>
+                    {Math.round(share * 100)}%・{share.toFixed(2)}件相当
+                  </b>
+                </div>
+              );
+            })}
+            <p style={{ fontSize: 10.5, color: "var(--sub)", margin: "8px 0 0", lineHeight: 1.7 }}>
+              ※件数換算は表示上の目安です（バック金額は比率で分配・指名本数の集計は在席キャストに計上）。
+            </p>
+          </div>
+        )}
+
         {/* 料金UIレーン C4（mig0084）: 指名料・同伴料の課金行。★按分カードとは別カード＝
             上の「指名（重み比で分配）」はバック按分の重み・こちらは伝票への課金行の追加。 */}
         {(() => {
