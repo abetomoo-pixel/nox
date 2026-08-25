@@ -568,8 +568,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const isPast = (ymd: string) => ymd < bizToday;
   // ★D-15（不具合修正）: 月移動で選択日が表示月の外に出たら、日詳細は空状態に戻す。
   //   （従来は selDate が前月のまま残り、見えているカレンダーと中身が食い違っていた）
+  //   ★SC-8 ③: 3面とも日詳細がモーダルになり、表示条件に selInMonth を入れて「月外なら開かない」
+  //     形へ揃った。月外用の空状態の文言は出す場所が無くなったので定数ごと削除した。
   const selInMonth = selDate.startsWith(month);
-  const SEL_EMPTY = "日付を選んでください（上のカレンダーで日を押します）";
 
   // ★SC-7（裁定51'）: 帯が「終日1本のみ」＝時間帯別の粒度が元データに無い状態。
   //   このとき帯グラフは常に「終日 N/M」の1行しか出せず、**何時が足りないかは分からない**
@@ -1307,7 +1308,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   const man = day.length - auto;
                   const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                   return (
-                    <button key={ymd} className={cls} onClick={() => setSelDate(ymd)}
+                    <button key={ymd} className={cls}
+                      onClick={() => { setSelDate(ymd); setDayModal("build"); }}
                       title={`${ymd}・自動${auto}件 / 手修正${man}件`}>
                       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
                       {st.required > 0 && <span className="nox-cald-c num">{st.assigned}/{st.required}</span>}
@@ -1322,32 +1324,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   );
                 })}
               </div>
-              {/* 選択日の内訳（モック .plan-day-detail / .plan-person） */}
-              <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-                <p style={{ fontSize: 11.5, fontWeight: 800, margin: "0 0 6px" }}>
-                  {selInMonth ? <><span className="num">{selDate}</span> の配置</> : "日別の配置"}
-                </p>
-                {/* ★D-15: 月外選択なら空状態（文言は3面で統一） */}
-                {!selInMonth ? (
-                  <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>{SEL_EMPTY}</p>
-                ) : shiftsOn(selDate).length === 0 ? (
-                  <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>この日の配置はありません</p>
-                ) : shiftsOn(selDate).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((x) => (
-                  <div key={x.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
-                    <span style={{ flex: 1, minWidth: 0 }}>{castName(x.cast_id)}</span>
-                    <span className="num">{fmtWin(x.start_hm, x.end_hm)}</span>
-                    <span style={{ fontSize: 10, color: x.source === "auto" ? "var(--blue)" : "var(--gold2)" }}>
-                      {x.source === "auto" ? "自動" : "手修正"}
-                    </span>
-                    <span className={`nox-stpill ${x.status === "confirmed" ? "ok" : ""}`}
-                      style={x.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
-                      {SHIFT_ST_LABEL[x.status] ?? x.status}
-                    </span>
-                    <button style={btnLight}
-                      onClick={() => { setAdjTarget(x); setAStart(x.start_hm); setAEnd(x.end_hm); }}>調整</button>
-                  </div>
-                ))}
-              </div>
+              {/* ★SC-8 ③: 選択日の内訳はここから日詳細モーダル（面3）へ移設した。
+                  カードの中に置いていた頃は、日を押しても下スクロールしないと見えなかった
+                  （面1・面2 と同じ理由＝C-11）。器も面1・面2 と同じものに揃えている。 */}
             </>
           ) : (
             /* スタッフ別マトリクス（E8-4 #9・DP-R S9 で確定シフトタブからここへ移設） */
@@ -1698,7 +1677,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           ★900px 未満では右ペインが下へ落ちて、日を押しても下スクロールしないと見えなかった（C-11 実測）。
           ★中身は移設前の逐語（充足ピル／内訳3値／余剰／予想人件費＋注記／帯グラフ＋51' 注記／
             実時刻グループの割当リスト／＋キャストを追加）。項目も順序も語彙も変えていない。
-          ★表示条件に selInMonth を入れる＝月外なら開かない（52' と同じ方式・SEL_EMPTY は不要になった）。
+          ★表示条件に selInMonth を入れる＝月外なら開かない（52' と同じ方式・空状態の文言は不要になった）。
           ★モーダルから他のモーダル／遷移へ行くものは**先に閉じる**（52' と同じ排他・z-index は増やさない）。 */}
       {dayModal === "calendar" && selInMonth && (
         <Modal onClose={() => setDayModal("")} maxWidth={520} scroll>
@@ -1848,6 +1827,43 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           </Modal>
         );
       })()}
+
+      {/* ★SC-8 ③: 配置ビュー（シフト作成タブ）の日詳細モーダル＝面3。
+          ★「配置を組む」カードの中（カレンダー直下・borderTop 区切り）に置いていたものを移設した。
+            中身は移設前の逐語（キャスト名／時刻／自動・手修正／状態ピル／調整）。項目も順序も語彙も不変。
+          ★見出し「<日付> の配置」は面1・面2 と同じく nox-modalhead の h3 へ移した（器を揃えるため）。
+          ★月外の空状態は出さない＝表示条件の selInMonth が月外を弾く（面1・面2 と同じ方式）。 */}
+      {dayModal === "build" && selInMonth && (
+        <Modal onClose={() => setDayModal("")} maxWidth={520} scroll>
+          <div className="nox-modalhead">
+            <h3 style={{ ...secTitle, margin: 0 }}><span className="num">{selDate}</span> の配置</h3>
+            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal("")}>×</button>
+          </div>
+          <div className="nox-modalbody">
+            {shiftsOn(selDate).length === 0 ? (
+              <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>この日の配置はありません</p>
+            ) : shiftsOn(selDate).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((x) => (
+              <div key={x.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
+                <span style={{ flex: 1, minWidth: 0 }}>{castName(x.cast_id)}</span>
+                <span className="num">{fmtWin(x.start_hm, x.end_hm)}</span>
+                <span style={{ fontSize: 10, color: x.source === "auto" ? "var(--blue)" : "var(--gold2)" }}>
+                  {x.source === "auto" ? "自動" : "手修正"}
+                </span>
+                <span className={`nox-stpill ${x.status === "confirmed" ? "ok" : ""}`}
+                  style={x.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
+                  {SHIFT_ST_LABEL[x.status] ?? x.status}
+                </span>
+                <button style={btnLight}
+                  onClick={() => {
+                    // ★C-12 と同じ排他: 日詳細を閉じてから調整モーダルを開く（重ねない）。
+                    setDayModal("");
+                    setAdjTarget(x); setAStart(x.start_hm); setAEnd(x.end_hm);
+                  }}>調整</button>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
 
       {/* ── ★DP3 P2（裁定 DP3-③）: 勤務時間の調整モーダル（モック `adjustDialog`）。
              ★「元の希望との対比」と「メモ」は入れない＝`shifts` が wish_id もメモ列も持たないため
