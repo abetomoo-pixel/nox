@@ -82,6 +82,9 @@ type Line = {
   // E8-1d: 指名種別バッジの判定材料（mig0084 の凍結列＝hon_shimei/jonai_shimei/dohan の課金行）
   fee_kind: string | null;
   cast_id: string | null;
+  // R-2a-2（mig0097）: auto 時間行の回次。set=0・extension=1..n・legacy 合算行と手動行は null。
+  //   時間帯分解の表示にだけ使う（金額は line_total の凍結値＝再計算しない）。
+  block_no: number | null;
   // キャストドリンク（mig0070）: 按分除外の判定は back_snapshot の凍結値で行う。
   //   ★products.back_exempt_from_split（現価）では判定しない＝行を打った後にマスタのフラグを
   //     切り替えても伝票の帰属経路は変わらない、が 0070 の設計（check_close と
@@ -401,7 +404,7 @@ export default function RegisterBoard({
     const { data: c } = await supabase.from("checks").select("*").eq("id", checkId).single();
     const { data: ls } = await supabase
       // back_snapshot＝キャストドリンク判定の凍結値（mig0070）。中身は back_exempt だけを見る。
-      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id")
+      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no")
       .eq("check_id", checkId).order("sort_order");
     // キャストドリンク: 確定済み（approved）の claim だけを引く。void/rejected は行に紐づけない。
     const { data: dcs } = await supabase
@@ -2324,6 +2327,51 @@ export default function RegisterBoard({
               ) : null;
             })()}
           </div>
+          {/* R-2a-2（モック renderCharges＝`#autoCharges`）: セット料金（自動）の時間帯分解。
+              ★auto 店のみ（timeMode='auto'）。manual 店は check_extension_add が block_no を書かず
+                （time_auto=false）行から回次を復元できないため従来表示のまま据え置く。
+              1ラウンド1行＝mig0097 の per-block 行（set=block 0・extension=block 1..n）をそのまま描く。
+              金額・人数は行の凍結値（unit_price_snapshot / qty / line_total）＝クライアント再計算しない。
+              時間帯だけが表示計算（started_at + set_min + (b-1)*ext_min）。legacy 合算行（block_no null）は
+              時間帯を出さず金額のみ（嘘の帯を描かない）。 */}
+          {timeMode === "auto" && check && (() => {
+            const t0 = new Date(check.started_at).getTime();
+            const fmtHM = (ms: number) => new Date(ms).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+            const setLines = lines.filter((l) => l.time_auto && l.fee_kind === "set");
+            const extLines = lines.filter((l) => l.time_auto && l.fee_kind === "extension")
+              .slice().sort((a, b) => (a.block_no ?? 1e9) - (b.block_no ?? 1e9));
+            if (setLines.length === 0 && extLines.length === 0) return null;
+            const rows: { key: string; label: string; band: string | null; unit: number; qty: number; total: number; dur: number }[] = [];
+            for (const l of setLines) {
+              rows.push({ key: l.id, label: "基本セット", band: `${fmtHM(t0)}〜${fmtHM(t0 + check.set_min * 60000)}`,
+                unit: l.unit_price_snapshot, qty: l.qty, total: l.line_total, dur: check.set_min });
+            }
+            for (const l of extLines) {
+              const band = l.block_no != null
+                ? (() => { const from = t0 + (check.set_min + (l.block_no! - 1) * check.ext_min) * 60000; return `${fmtHM(from)}〜${fmtHM(from + check.ext_min * 60000)}`; })()
+                : null;
+              rows.push({ key: l.id, label: "延長セット", band, unit: l.unit_price_snapshot, qty: l.qty, total: l.line_total, dur: check.ext_min });
+            }
+            return (
+              <div className="nox-inset" style={{ padding: 0, overflow: "hidden", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 12px", borderBottom: "1px solid var(--line)" }}>
+                  <b style={{ fontSize: 12 }}>セット料金（自動）</b>
+                  <span style={{ ...t.tag, fontSize: 10, color: "var(--sub)", borderColor: "var(--line2)" }}>削除不可</span>
+                </div>
+                {rows.map((r) => (
+                  <div key={r.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 9, padding: "7px 12px", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}>
+                    <span style={{ minWidth: 0 }}>
+                      <b>{r.label}{check.time_per === "person" ? ` × ${r.qty}名` : ""}</b>
+                      <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
+                        {r.band ? `${r.band}・` : ""}{yen(r.unit)} / {r.dur}分
+                      </span>
+                    </span>
+                    <strong className="num" style={{ whiteSpace: "nowrap" }}>{yen(r.total)}</strong>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <tbody>
               {lines.map((l) => {
@@ -2397,6 +2445,14 @@ export default function RegisterBoard({
                     <td style={{ padding: 6 }}>
                       {isDisc ? (
                         <span style={{ fontSize: 11, color: "var(--sub)" }}>承認割引</span>
+                      ) : l.time_auto ? (
+                        /* R-2a-2（モック autohead の locked）: 自動管理の時間行は削除ボタンを出さない。
+                           判定は行の凍結 time_auto（auto 店の set/延長ブロック＋manual 店の開卓 set 行）。
+                           他の行の削除条件は不変。 */
+                        <span style={{ ...t.tag, fontSize: 10, color: "var(--sub)", borderColor: "var(--line2)" }}
+                          title="自動計算の時間料金行です（時間の訂正は会計タブ・伝票の訂正は取消から）">
+                          削除不可
+                        </span>
                       ) : (
                         <button
                           onClick={() => removeLine(l.id)}
