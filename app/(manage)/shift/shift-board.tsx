@@ -1842,9 +1842,21 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal("")}>×</button>
           </div>
           <div className="nox-modalbody">
-            {shiftsOn(selDate).length === 0 ? (
-              <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>この日の配置はありません</p>
-            ) : shiftsOn(selDate).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((x) => (
+            {/* ★SC-8 ⑤: 空状態・追加ボタン・一覧の3ブロック構成へ（面2 と同じ並び＝
+                空状態 → ＋キャストを追加 → 一覧）。文言も面4 と揃えて1文のみにする。 */}
+            {shiftsOn(selDate).length === 0 && (
+              <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>この日の配置はありません。</p>
+            )}
+            {/* ★SC-8 ⑤: status は planned＝配置ビューは「これから組む」段で面2 と同じ意図。
+                裁定42 の confirmed は「当日その場で足すのは もう入る人」が根拠＝今日タブ限定なので
+                ここには当たらない。★別モーダル（ShiftAddForm）を開く前に日詳細を閉じる（③-0 の規約）。 */}
+            {isManagerUp && (
+              <button className="nox-addc"
+                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddModal(true); }}>
+                ＋ キャストを追加
+              </button>
+            )}
+            {shiftsOn(selDate).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((x) => (
               <div key={x.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
                 <span style={{ flex: 1, minWidth: 0 }}>{castName(x.cast_id)}</span>
                 <span className="num">{fmtWin(x.start_hm, x.end_hm)}</span>
