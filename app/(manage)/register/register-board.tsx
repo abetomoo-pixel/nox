@@ -1777,8 +1777,13 @@ export default function RegisterBoard({
             selectedIds={seatedIds} badges={nomBadges} dense
             onPick={(id) => {
               const on = (nomWeights[id] ?? 0) > 0;
+              const nextFee = on ? (feeCast === id ? "" : feeCast) : id;
               setNomWeights((prev) => ({ ...prev, [id]: on ? 0 : 1 }));
-              setFeeCast(on ? (feeCast === id ? "" : feeCast) : id);
+              // R-1a 追補: 指名料の文言は**対象キャスト名を含む**（「えま に本指名料 ¥3,000 を追加し…」）。
+              //   対象が変われば文言は必ず不一致になるので、対象の変更点で捨てる。
+              //   ★同伴料の文言（FEE_DOHAN）は対象に依存しないので残す＝to で見分ける。
+              if (nextFee !== feeCast && feeMsg?.to === FEE_SHIMEI) setFeeMsg(null);
+              setFeeCast(nextFee);
             }}
           />
           {/* F2: 1本化ボタン＝課金行＋按分を同時に（対象＝最後にタップしたキャスト） */}
