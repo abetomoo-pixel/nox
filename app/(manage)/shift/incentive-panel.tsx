@@ -22,11 +22,16 @@ const btnDark: React.CSSProperties = { ...t.btnGold, padding: "8px 16px" };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 
-export default function IncentivePanel({ storeId, casts }: { storeId: string; casts: Cast[] }) {
+// ★SC-8 ⑦: initialDate＝今日タブの7日ストリップが選んでいる日。**ストリップ → ピッカーの一方向**で、
+//   パネル内でピッカーを動かしてもストリップ側は動かない（発行日はこのパネルの責任のまま）。
+//   prop を渡さない呼び出しは従来どおり営業日の今日で開く。
+export default function IncentivePanel({ storeId, casts, initialDate }: { storeId: string; casts: Cast[]; initialDate?: string }) {
   const supabase = createClient();
   const bizToday = bizDateOf(new Date().toISOString(), "06:00");
   const [rows, setRows] = useState<Incentive[]>([]);
-  const [date, setDate] = useState(bizToday);
+  const [date, setDate] = useState(initialDate ?? bizToday);
+  // ★ストリップで日を選び直したらピッカーの値も追従させる（一方向・下流のみ）。
+  useEffect(() => { if (initialDate) setDate(initialDate); }, [initialDate]);
   const [mode, setMode] = useState<"per_head" | "pooled">("per_head");
   const [amount, setAmount] = useState(3000);
   // E8-4: 理由（任意）と対象（全員/選択）。picked は選択モードのときだけ送る。

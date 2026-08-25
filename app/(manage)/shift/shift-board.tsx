@@ -162,18 +162,24 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   //   ★SC-8 ③-0（教訓33）: boolean ではなく**面識別子**を持つ。boolean だと「どの面のモーダルか」を
   //     tab 判定で外から補うことになり、条件を1つ落とすと2面ぶんが同時に描画される（実装中に実測）。
   //     state が1値しか取れない形にすれば、排他は型で保証される（"" = 閉じている）。
-  const [dayModal, setDayModal] = useState<"" | "roster" | "calendar" | "build" | "today">("");
+  //   ★SC-8 ⑦: "today" を union から落とした＝今日タブの日詳細モーダル（面4）を撤去し、
+  //     7日ストリップを本体の日付セレクタにしたため、開く口が無くなった（死に値を残さない）。
+  const [dayModal, setDayModal] = useState<"" | "roster" | "calendar" | "build">("");
   const [preview, setPreview] = useState<{ periodId: string; result: AutoAssignResult } | null>(null);
   const [autoBusy, setAutoBusy] = useState(false);
   // ★SD V2-2: 配置ルール入力（空欄=無制限。月間は「時間」で入力し保存時に分へ）
   const [rConsec, setRConsec] = useState("");
   const [rMonthH, setRMonthH] = useState("");
-  // ★R1: 出勤記録は「本日のシフト」表に統合した＝**書き込みの対象日は常に営業日の今日**。
-  //   （旧「出勤板」にあった日付ピッカーは無くなる＝過去日の出勤記録の修正は本画面からは行えない。
-  //    実務上は当日運用のため今日固定で足りる。過去日の修正が要るなら別途裁定＝勝手に別画面を作らない。）
-  //   ★SC-8 ⑥: **読み取りだけ**を今日〜今日+6日の範囲へ広げた（面4 が7日ぶんの出勤状態を
-  //     ラベルで見せるため＝裁定54 の shifts 取得範囲と同じ窓）。書き込みは attDate のままで、
-  //     過去日の修正ができない点は上の裁定どおり変えていない。
+  // ★SC-8 ⑦: 今日タブが向いている日。7日ストリップ（今日〜今日+6）で選び直せる。
+  //   ★selDate とは**別 state**＝面1〜面3（仮シフト／確定シフト／配置ビュー）の月カレンダーと
+  //     混ぜない（あちらの月移動でこの面の対象日が動くのを防ぐ）。
+  const [todayDate, setTodayDate] = useState(bizToday);
+  // ★R1 の裁定を SC-8 ⑦ で更新。出勤記録まわりの日付は3点に分かれる:
+  //   1) 読み取り＝**今日〜今日+6日の7日**（ストリップで選んだ日の状態を出すため）。
+  //   2) 書き込み＝**今日のみ**（attendance_set は RPC 側に未来日ガードが無く、明日以降の
+  //      「出勤」を記録できてしまうため UI で止める＝canRecord）。
+  //   3) 過去日の修正＝**別途裁定**（ストリップは過去日を出さない・旧「出勤板」の日付ピッカーは
+  //      戻していない。必要になったら勝手に別画面を作らず裁定を取る）。
   const attDate = bizToday;
   const [atts, setAtts] = useState<Att[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -666,11 +672,19 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   //     月末を跨いでも assigned が欠けない）。新しい取得は増やしていない。
   const stripDays = Array.from({ length: 7 }, (_, i) => addDays(bizToday, i));
 
-  const todayStat = dayStat(bizToday);
-  const todayFc = fcOf(bizToday);
+  // ★SC-8 ⑦: 以下4本の基準日は bizToday ではなく **todayDate**（ストリップの選択日）。
+  //   名前は据え置き（今日タブ専用の派生値という意味で today 接頭辞を残す）。
+  //   ★「未承認」だけは wishes.length＝全期間の pending 件数で、日付軸を持たないため追従させない。
+  const todayStat = dayStat(todayDate);
+  const todayFc = fcOf(todayDate);
   const fillRate = todayStat.required > 0 ? Math.round((todayStat.assigned / todayStat.required) * 100) : null;
   const shortage = todayStat.shortage; // E8-4 #2: 最悪バンドの不足数（バンド化に追随）
-  const todayBands = bandStatsOf(bizToday);
+  const todayBands = bandStatsOf(todayDate);
+  // ★SC-8 ⑦: タブ名は選択日に追従（key "today" は据え置き＝裁定44）。
+  const tdLabel = todayDate === bizToday ? "今日"
+    : todayDate === addDays(bizToday, 1) ? "明日"
+    : todayDate === addDays(bizToday, 2) ? "明後日"
+    : `${Number(todayDate.slice(8))}日`;
 
   // E8-4 #4: 予想人件費の月次ロールアップ＝fcByDate（既算出）の表示月合算のみ。
   //   labor-forecast の計算・golden には非干渉（forecastDay の出力を足すだけ）。
@@ -714,7 +728,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
         {([["today", "今日"], ["queue", "承認待ち"], ["build", "シフト作成"],
            ["calendar", "仮シフト"], ["roster", "確定シフト"]] as const).map(([k, label]) => (
           <button key={k} className={tab === k ? "on" : ""} onClick={() => { setDayModal(""); setTab(k); }}>
-            {label}
+            {/* ★SC-8 ⑦: today だけラベルを選択日に追従させる（key は "today" のまま＝裁定44）。 */}
+            {k === "today" ? tdLabel : label}
             {k === "queue" && wishes.length > 0 && (
               <span className="nox-tabcnt num">{wishes.length}</span>
             )}
@@ -740,23 +755,25 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
           const st = dayStat(ymd);
           const fc = fcOf(ymd);
           const isToday = ymd === bizToday;
+          const isSel = ymd === todayDate;
           const short = st.required > 0 && st.assigned < st.required;
           const d = new Date(`${ymd}T00:00:00Z`);
           return (
             <button
               key={ymd}
               onClick={() => {
-                // ★SC-8 ④: 別タブへ飛ばさず、この面で日詳細モーダル（面4）を開く。
-                //   setTab / setMonth は呼ばない＝押した場所で開く（面1〜面3 と同じ作法）。
-                setSelDate(ymd);
-                setDayModal("today");
+                // ★SC-8 ⑦: モーダルを開かず、**今日タブ本体の対象日を切り替える**日付セレクタにした。
+                //   setTab / setMonth / setSelDate は呼ばない＝面1〜面3 とは state を分けている。
+                setTodayDate(ymd);
               }}
               title={`${ymd}・確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}`}
               style={{
                 flex: "0 0 auto", minWidth: 86, textAlign: "left", cursor: "pointer",
                 fontFamily: "inherit", padding: "8px 10px", borderRadius: 9,
-                border: isToday ? "1px solid var(--gold)" : "1px solid var(--line)",
-                background: isToday ? "var(--goldface2)" : "var(--card2)",
+                // ★SC-8 ⑦: 金は**選択中**に割り当てる（globals.css「金の3役①＝選択状態」）。
+                //   今日であることはラベル文字「今日」で示す＝2軸を色で奪い合わせない。
+                border: isSel ? "1px solid var(--gold)" : "1px solid var(--line)",
+                background: isSel ? "var(--goldface2)" : "var(--card2)",
                 color: "var(--ink)",
               }}
             >
@@ -809,7 +826,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             時給未設定の cast が居たら人数を出す＝0円で混ざっていることを隠さない（設計§2）。 */}
         {isManagerUp && todayFc && (
           <div className="nox-kpi2 money">
-            <div className="nox-kpi2-l">予想人件費（今日）</div>
+            <div className="nox-kpi2-l">予想人件費（{tdLabel}）</div>
             <div className="nox-kpi2-v num">{yen(todayFc.total)}</div>
             <div className="nox-kpi2-s">
               {todayFc.unknownComp > 0 ? `時給未設定 ${todayFc.unknownComp}人` : "シフト×時給ベースの概算"}
@@ -822,7 +839,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
             <div>
-              <h2 style={{ ...secTitle, margin: 0 }}>本日のシフト（{bizToday}）</h2>
+              <h2 style={{ ...secTitle, margin: 0 }}>{tdLabel}のシフト（<span className="num">{todayDate}</span>）</h2>
               <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
                 申請時間・確定時間・出勤記録をこの表で確認します。シフトに無い飛び入り出勤は「＋ 追加」から先にシフトを足してください。
               </p>
@@ -832,10 +849,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   shift_set は insert 経路で p_status をそのまま格納する（planned 固定ではない）と live 実測済み。 */}
             {isManagerUp && (
               <button className="nox-addc" style={{ marginLeft: "auto" }}
-                onClick={() => { setAddDate(bizToday); setAddStatus("confirmed"); setAddModal(true); }}>＋ 追加</button>
+                onClick={() => {
+                  // ★SC-8 ⑦: 既定 status は日で分ける（面4 と同式）。裁定42「当日その場で足すのは
+                  //   もう入る人」は今日にだけ当てはまり、先の日は「これから組む段」＝planned。
+                  setAddDate(todayDate);
+                  setAddStatus(todayDate === bizToday ? "confirmed" : "planned");
+                  setAddModal(true);
+                }}>＋ 追加</button>
             )}
           </div>
-          {shiftsOn(bizToday).length === 0 ? (
+          {shiftsOn(todayDate).length === 0 ? (
             <p style={{ fontSize: 13, color: "var(--sub)" }}>本日のシフトはありません</p>
           ) : (
             <div className="nox-tablewrap">
@@ -844,9 +867,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   <tr><th>スタッフ</th><th>申請時間</th><th>確定時間</th><th>出勤記録</th><th>状態</th><th>操作</th></tr>
                 </thead>
                 <tbody>
-                  {shiftsOn(bizToday).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((s) => {
+                  {shiftsOn(todayDate).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((s) => {
                     const w = s.wish_id ? wishAll.find((x) => x.id === s.wish_id) : undefined;
                     const sClosed = closedOf(s.date, s.start_hm, s.end_hm);
+                    // ★SC-8 ⑦（未来日ガード）: 出勤記録の書き込みは todayDate === bizToday のときだけ。
+                    const canRecord = isManagerUp && todayDate === bizToday;
                     return (
                       <tr key={s.id}>
                         <td>
@@ -860,12 +885,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                         </td>
                         <td className="num">{fmtWin(s.start_hm, s.end_hm)}</td>
                         {/* ★R1: 出勤記録＝旧「出勤板」の統合先。プルダウンではなくボタン群
-                            （既存 .nox-seg の文法＝選択中は金枠）。押すと attendance_set をそのまま呼ぶ。 */}
+                            （既存 .nox-seg の文法＝選択中は金枠）。押すと attendance_set をそのまま呼ぶ。
+                            ★SC-8 ⑦: 書き込みは**今日だけ**＝attendance_set は RPC 側に未来日ガードが
+                            無く（検証は null / 値域5値 / eta 形式 / org・ロールのみ）、明日以降の
+                            「出勤」を記録できてしまうため UI で止める。先の日はラベル表示のみ。 */}
                         <td>
-                          {isManagerUp ? (
+                          {canRecord ? (
                             <div className="nox-seg" style={{ display: "inline-flex" }}>
                               {ATT_OPTIONS.map(([v, l]) => {
-                                const on = (attOf(s.cast_id, bizToday)?.status ?? "") === v;
+                                const on = (attOf(s.cast_id, todayDate)?.status ?? "") === v;
                                 return (
                                   <button key={v} className={on ? "on" : ""} aria-pressed={on}
                                     title={on ? "記録済み（取り消しはできません・選び直してください）" : `${l}として記録`}
@@ -875,12 +903,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                             </div>
                           ) : (
                             <span style={{ color: "var(--v2-muted)" }}>
-                              {ATT_OPTIONS.find(([v]) => v === (attOf(s.cast_id, bizToday)?.status ?? ""))?.[1] ?? "—"}
+                              {ATT_OPTIONS.find(([v]) => v === (attOf(s.cast_id, todayDate)?.status ?? ""))?.[1] ?? "—"}
                             </span>
                           )}
-                          {attOf(s.cast_id, bizToday)?.eta && (
+                          {attOf(s.cast_id, todayDate)?.eta && (
                             <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
-                              見込み {attOf(s.cast_id, bizToday)?.eta}
+                              見込み {attOf(s.cast_id, todayDate)?.eta}
                             </span>
                           )}
                         </td>
@@ -942,7 +970,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
               </>
             )}
           </section>
-          {isManagerUp && <IncentivePanel storeId={storeId} casts={casts} />}
+          {/* ★SC-8 ⑦: ストリップの選択日を初期値として渡す（一方向＝パネル内ピッカーは残す）。 */}
+          {isManagerUp && <IncentivePanel storeId={storeId} casts={casts} initialDate={todayDate} />}
         </div>
       </div>
       </>
@@ -1882,134 +1911,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                     setDayModal("");
                     setAdjTarget(x); setAStart(x.start_hm); setAEnd(x.end_hm);
                   }}>調整</button>
-              </div>
-            ))}
-          </div>
-        </Modal>
-      )}
-
-      {/* ★SC-8 ④: 今日タブ 直近7日ストリップの日詳細モーダル＝面4。中身は面2（割当）に準拠。
-          ★**selInMonth を条件に入れない**＝ここだけ面1〜面3 と違う。7日ストリップは月をまたぐため、
-            selInMonth を足すと月末に押した翌月の日でモーダルが開かなくなる。
-            データ側は裁定54 で取得範囲の to を bizToday+6 まで伸ばしてあり、月外の日でも
-            shifts が載っている（selStat / selFc / selBands / bands は selDate だけから計算する）。
-          ★guard（tab 判定）は足さない＝③-0 で外したタブ判定への逆戻りになるため。
-            面2 と同じく「開く口が1つだけ」で不変条件を保つ。 */}
-      {dayModal === "today" && (
-        <Modal onClose={() => setDayModal("")} maxWidth={520} scroll>
-          <div className="nox-modalhead">
-            <h3 style={{ ...secTitle, margin: 0 }}><span className="num">{selDate}</span> の割当</h3>
-            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal("")}>×</button>
-          </div>
-          <div className="nox-modalbody">
-            {/* 充足ピル／内訳3値／余剰＝面2 の逐語（順序も語彙も不変） */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
-              <span className={`nox-stpill ${selStat.fill === "none" ? "" : selStat.fill}`}>
-                {FILL_LABEL[selStat.fill]}{selStat.required > 0 ? ` ${selStat.assigned}/${selStat.required}` : ""}
-              </span>
-              <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
-                確定 {selStat.confirmed} / 確認待ち {selStat.proposed} / 予定 {selStat.planned}
-                {selStat.over > 0 && <span style={{ marginLeft: 6 }}>・余剰 {selStat.over}</span>}
-              </span>
-            </div>
-            {isManagerUp && selFc && (
-              <>
-                <div className="nox-moneyrow">
-                  <span>予想人件費{selFc.unknownComp > 0 ? `（時給未設定 ${selFc.unknownComp}人を除く）` : ""}</span>
-                  <b className="num">{yen(selFc.total)}</b>
-                </div>
-                <p className="nox-moneynote">
-                  シフト時間×時給の概算です。バック・控除は含みません。実際の給与とは異なります。
-                </p>
-              </>
-            )}
-            {/* ★SC-8 ⑥(a): 必要人数の帯（BandBars）と「時間帯を設定する」導線はここから外した。
-                どちらも店舗設定（staffing_needs）の話で、この面の目的＝その日の出勤予定を
-                見る／出勤を記録する、から外れるため。帯は今日タブ右カラムと面2 に残っている。 */}
-            {/* ★SC-8 ④(C): 空状態はここだけ面2 と違い1文のみ＝直下に「＋ キャストを追加」があるため、
-                「シフト作成タブから追加できます」の案内が二重になる。 */}
-            {bands.length === 0 && (
-              <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
-                この日の割当はありません。
-              </p>
-            )}
-            {/* ★SC-8 ④(A): 既定 status は**日で分ける**。裁定42「当日その場で足すのは もう入る人」は
-                今日だけに当てはまり、ストリップが扱う先の6日は「これから組む段」＝planned が正しい。
-                今日タブ頭の「＋ 追加」（bizToday 固定・confirmed）とも矛盾しない。 */}
-            {isManagerUp && (
-              <button className="nox-addc"
-                onClick={() => {
-                  setDayModal("");
-                  setAddDate(selDate);
-                  setAddStatus(selDate === bizToday ? "confirmed" : "planned");
-                  setAddModal(true);
-                }}>
-                ＋ キャストを追加
-              </button>
-            )}
-            {bands.map((b) => (
-              <div key={b.key} className="nox-band">
-                <div className="nox-bandh">
-                  <span className="t num">{fmtBand30(b.start, b.end)}</span>
-                  <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {b.confirmed} / 予定 {b.items.length - b.confirmed}</span>
-                </div>
-                {b.items.map((s) => {
-                  // ★SC-8 ⑥(b): 1行を縦に伸ばす（横幅は増やさない＝520px の器を4面で揃えたまま）。
-                  //   1行目＝面2 と同じ nox-crow（名前／時間／状態ピル）。2行目に申請時間・出勤記録・調整。
-                  const w = s.wish_id ? wishAll.find((y) => y.id === s.wish_id) : undefined;
-                  const att = attOf(s.cast_id, selDate);
-                  // ★SC-8 ⑥(3): 未来日は5値ボタンを出さない＝attendance_set は RPC 側に未来日ガードが
-                  //   無く（mig0011 の検証は null / 値域 / eta 形式 / org・ロールのみ）、明日以降の
-                  //   「出勤」を記録できてしまうため UI で止める。今日はラベルではなく操作を出す。
-                  const canRecord = isManagerUp && selDate === bizToday;
-                  return (
-                    <div key={s.id}>
-                      <div className="nox-crow">
-                        <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
-                        <span style={{ flex: 1, minWidth: 0 }}>{castName(s.cast_id)}</span>
-                        <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{fmtWin(s.start_hm, s.end_hm)}</span>
-                        <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>{SHIFT_ST_LABEL[s.status] ?? s.status}</span>
-                      </div>
-                      {/* 2行目＝アバター幅（26px）＋ gap（9px）ぶん字下げして名前の下に揃える。
-                          ★flexWrap で折り返す＝狭い画面でも横スクロールを出さない。 */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", padding: "0 0 6px 35px" }}>
-                        {/* 申請時間＝wish 由来の行だけ。手動登録行には実体が無いので出さない（嘘をつかない）。 */}
-                        {w && (
-                          <span className="num" style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>
-                            希望 {fmtWin(w.start_hm, w.end_hm)}
-                          </span>
-                        )}
-                        {canRecord ? (
-                          <div className="nox-seg" style={{ display: "inline-flex" }}>
-                            {ATT_OPTIONS.map(([v, l]) => {
-                              const on = (att?.status ?? "") === v;
-                              return (
-                                <button key={v} className={on ? "on" : ""} aria-pressed={on}
-                                  title={on ? "記録済み（取り消しはできません・選び直してください）" : `${l}として記録`}
-                                  onClick={() => { if (!on) void setAtt(s.cast_id, v); }}>{l}</button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>
-                            出勤記録 {ATT_OPTIONS.find(([v]) => v === (att?.status ?? ""))?.[1] ?? "—"}
-                          </span>
-                        )}
-                        {att?.eta && (
-                          <span className="num" style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>見込み {att.eta}</span>
-                        )}
-                        {isManagerUp && (
-                          <button style={btnLight}
-                            onClick={() => {
-                              // ★C-12 と同じ排他: 日詳細を閉じてから調整モーダルを開く（重ねない）。
-                              setDayModal("");
-                              setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm);
-                            }}>調整</button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             ))}
           </div>
