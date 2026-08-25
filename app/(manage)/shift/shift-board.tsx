@@ -30,7 +30,8 @@ type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_h
 type Shift = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string; created_by: string; wish_id: string | null; source: string; period_id: string | null };
 type Period = { id: string; start_date: string; end_date: string; wish_deadline: string | null; status: string };
 type Rules = { max_consec_days: number | null; min_month_min: number | null };
-type Att = { cast_id: string; status: string; eta: string | null };
+// ★SC-8 ⑥: date を持つ（面4 が7日ぶんを読むため）。今日タブ本体は date === bizToday で絞って使う。
+type Att = { cast_id: string; date: string; status: string; eta: string | null };
 // E8-4（mig0095）: staffing_needs は時間帯バンド化＝(store_id, dow, from_min) UNIQUE。
 //   from_min/to_min は 0..1440（分）・0/1440=終日（既存行は mig0095 backfill で終日バンド化済み）。
 type Need = { id: string; dow: number; required: number; from_min: number; to_min: number };
@@ -167,9 +168,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   // ★SD V2-2: 配置ルール入力（空欄=無制限。月間は「時間」で入力し保存時に分へ）
   const [rConsec, setRConsec] = useState("");
   const [rMonthH, setRMonthH] = useState("");
-  // ★R1: 出勤記録は「本日のシフト」表に統合した＝対象日は常に営業日の今日。
+  // ★R1: 出勤記録は「本日のシフト」表に統合した＝**書き込みの対象日は常に営業日の今日**。
   //   （旧「出勤板」にあった日付ピッカーは無くなる＝過去日の出勤記録の修正は本画面からは行えない。
   //    実務上は当日運用のため今日固定で足りる。過去日の修正が要るなら別途裁定＝勝手に別画面を作らない。）
+  //   ★SC-8 ⑥: **読み取りだけ**を今日〜今日+6日の範囲へ広げた（面4 が7日ぶんの出勤状態を
+  //     ラベルで見せるため＝裁定54 の shifts 取得範囲と同じ窓）。書き込みは attDate のままで、
+  //     過去日の修正ができない点は上の裁定どおり変えていない。
   const attDate = bizToday;
   const [atts, setAtts] = useState<Att[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -318,8 +322,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bizToday, month]);
 
+  // ★SC-8 ⑥: 単日 eq から範囲 gte/lte へ（引数 d を起点に7日＝裁定54 の stripEnd と同式）。
+  //   date を select に足したので、今日タブ本体は date === bizToday で絞って従来どおり使う。
   const loadAtt = useCallback(async (d: string) => {
-    const { data } = await supabase.from("attendance").select("cast_id, status, eta").eq("date", d);
+    const { data } = await supabase.from("attendance").select("cast_id, date, status, eta")
+      .gte("date", d).lte("date", addDays(d, 6));
     setAtts((data ?? []) as Att[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -685,6 +692,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
   const selStat = dayStat(selDate);
   const selFc = fcOf(selDate);
   const selBands = bandStatsOf(selDate); // E8-4 #2: 日詳細にも時間帯別充足バー
+  // ★SC-8 ⑥: atts が7日ぶんになったので (cast, 日) で引く。今日タブ本体は ymd=bizToday 固定で呼ぶ＝従来と同値。
+  const attOf = (castId: string, ymd: string) => atts.find((x) => x.cast_id === castId && x.date === ymd);
 
   return (
     // ★R3 第1弾: タイポ・余白のモック実値写し（globals.css の .nox-mv1 ブロック）。
@@ -856,7 +865,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                           {isManagerUp ? (
                             <div className="nox-seg" style={{ display: "inline-flex" }}>
                               {ATT_OPTIONS.map(([v, l]) => {
-                                const on = (atts.find((x) => x.cast_id === s.cast_id)?.status ?? "") === v;
+                                const on = (attOf(s.cast_id, bizToday)?.status ?? "") === v;
                                 return (
                                   <button key={v} className={on ? "on" : ""} aria-pressed={on}
                                     title={on ? "記録済み（取り消しはできません・選び直してください）" : `${l}として記録`}
@@ -866,12 +875,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                             </div>
                           ) : (
                             <span style={{ color: "var(--v2-muted)" }}>
-                              {ATT_OPTIONS.find(([v]) => v === (atts.find((x) => x.cast_id === s.cast_id)?.status ?? ""))?.[1] ?? "—"}
+                              {ATT_OPTIONS.find(([v]) => v === (attOf(s.cast_id, bizToday)?.status ?? ""))?.[1] ?? "—"}
                             </span>
                           )}
-                          {atts.find((x) => x.cast_id === s.cast_id)?.eta && (
+                          {attOf(s.cast_id, bizToday)?.eta && (
                             <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
-                              見込み {atts.find((x) => x.cast_id === s.cast_id)?.eta}
+                              見込み {attOf(s.cast_id, bizToday)?.eta}
                             </span>
                           )}
                         </td>
@@ -1914,21 +1923,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                 </p>
               </>
             )}
-            {selBands.length > 0 && (
-              <div style={{ margin: "6px 0 8px" }}>
-                <BandBars stats={selBands} />
-                {onlyAllDay(selBands) && (
-                  <div className="nox-inset" style={{ padding: "9px 12px", marginTop: 10 }}>
-                    <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.7 }}>
-                      <b>時間帯別の内訳は未設定です。</b>
-                      いまは1日ぶんの人数だけを見ています（何時が足りないかは分かりません）。
-                    </p>
-                    <button style={{ ...btnLight, marginTop: 8 }}
-                      onClick={() => { setDayModal(""); gotoNeeds(); }}>時間帯を設定する</button>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* ★SC-8 ⑥(a): 必要人数の帯（BandBars）と「時間帯を設定する」導線はここから外した。
+                どちらも店舗設定（staffing_needs）の話で、この面の目的＝その日の出勤予定を
+                見る／出勤を記録する、から外れるため。帯は今日タブ右カラムと面2 に残っている。 */}
             {/* ★SC-8 ④(C): 空状態はここだけ面2 と違い1文のみ＝直下に「＋ キャストを追加」があるため、
                 「シフト作成タブから追加できます」の案内が二重になる。 */}
             {bands.length === 0 && (
@@ -1956,14 +1953,63 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
                   <span className="t num">{fmtBand30(b.start, b.end)}</span>
                   <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {b.confirmed} / 予定 {b.items.length - b.confirmed}</span>
                 </div>
-                {b.items.map((s) => (
-                  <div key={s.id} className="nox-crow">
-                    <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
-                    <span style={{ flex: 1, minWidth: 0 }}>{castName(s.cast_id)}</span>
-                    <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{fmtWin(s.start_hm, s.end_hm)}</span>
-                    <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>{SHIFT_ST_LABEL[s.status] ?? s.status}</span>
-                  </div>
-                ))}
+                {b.items.map((s) => {
+                  // ★SC-8 ⑥(b): 1行を縦に伸ばす（横幅は増やさない＝520px の器を4面で揃えたまま）。
+                  //   1行目＝面2 と同じ nox-crow（名前／時間／状態ピル）。2行目に申請時間・出勤記録・調整。
+                  const w = s.wish_id ? wishAll.find((y) => y.id === s.wish_id) : undefined;
+                  const att = attOf(s.cast_id, selDate);
+                  // ★SC-8 ⑥(3): 未来日は5値ボタンを出さない＝attendance_set は RPC 側に未来日ガードが
+                  //   無く（mig0011 の検証は null / 値域 / eta 形式 / org・ロールのみ）、明日以降の
+                  //   「出勤」を記録できてしまうため UI で止める。今日はラベルではなく操作を出す。
+                  const canRecord = isManagerUp && selDate === bizToday;
+                  return (
+                    <div key={s.id}>
+                      <div className="nox-crow">
+                        <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
+                        <span style={{ flex: 1, minWidth: 0 }}>{castName(s.cast_id)}</span>
+                        <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{fmtWin(s.start_hm, s.end_hm)}</span>
+                        <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>{SHIFT_ST_LABEL[s.status] ?? s.status}</span>
+                      </div>
+                      {/* 2行目＝アバター幅（26px）＋ gap（9px）ぶん字下げして名前の下に揃える。
+                          ★flexWrap で折り返す＝狭い画面でも横スクロールを出さない。 */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", padding: "0 0 6px 35px" }}>
+                        {/* 申請時間＝wish 由来の行だけ。手動登録行には実体が無いので出さない（嘘をつかない）。 */}
+                        {w && (
+                          <span className="num" style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>
+                            希望 {fmtWin(w.start_hm, w.end_hm)}
+                          </span>
+                        )}
+                        {canRecord ? (
+                          <div className="nox-seg" style={{ display: "inline-flex" }}>
+                            {ATT_OPTIONS.map(([v, l]) => {
+                              const on = (att?.status ?? "") === v;
+                              return (
+                                <button key={v} className={on ? "on" : ""} aria-pressed={on}
+                                  title={on ? "記録済み（取り消しはできません・選び直してください）" : `${l}として記録`}
+                                  onClick={() => { if (!on) void setAtt(s.cast_id, v); }}>{l}</button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>
+                            出勤記録 {ATT_OPTIONS.find(([v]) => v === (att?.status ?? ""))?.[1] ?? "—"}
+                          </span>
+                        )}
+                        {att?.eta && (
+                          <span className="num" style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>見込み {att.eta}</span>
+                        )}
+                        {isManagerUp && (
+                          <button style={btnLight}
+                            onClick={() => {
+                              // ★C-12 と同じ排他: 日詳細を閉じてから調整モーダルを開く（重ねない）。
+                              setDayModal("");
+                              setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm);
+                            }}>調整</button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
