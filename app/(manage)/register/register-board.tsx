@@ -122,6 +122,21 @@ const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", d
 // R-2a: 指名料の課金行（mig0084・cast_id を持つ2種）。同伴料行（fee_kind='dohan'）は cast_id=null＝ここに含めない。
 const SHIMEI_FEE_KINDS = new Set(["hon_shimei", "jonai_shimei"]);
 const isShimeiLine = (l: { fee_kind: string | null }) => SHIMEI_FEE_KINDS.has(l.fee_kind ?? "");
+// R-2a-3: 相対重みを Σ=100 の % へ正規化（表示用）。丸めは「均等に分配」と**同じ作法**＝
+//   floor ＋ 端数を先頭（配列順＝DB position 順）から +1。新しい丸め規則を作らない。
+//   Σ=100 恒等の根拠: rem = 100 − Σfloor(100wᵢ/W) は各項の小数部の和＝整数かつ 0 ≤ rem ≤ n−1
+//   （各小数部 < 1）なので、先頭 rem 件に +1 すれば必ず Σ=100 になる。
+//   例: 1,1,1,1→25,25,25,25 ／ 19,1→95,5 ／ 2,1,1→50,25,25 ／ 1,1,1→34,33,33。
+function normalizeShares(entries: [string, number][]): Record<string, number> {
+  const alive = entries.filter(([, w]) => w > 0);
+  const sum = alive.reduce((a, [, w]) => a + w, 0);
+  const out: Record<string, number> = {};
+  if (sum <= 0) return out;
+  let rem = 100;
+  const floors = alive.map(([id, w]) => { const f = Math.floor((w * 100) / sum); rem -= f; return [id, f] as [string, number]; });
+  for (const [id, f] of floors) { out[id] = f + (rem > 0 ? 1 : 0); if (rem > 0) rem--; }
+  return out;
+}
 const AP_STATUS_LABEL: Record<string, string> = { pending: "承認待ち", approved: "承認済", rejected: "却下" };
 const AP_STATUS_COLOR: Record<string, string> = { pending: "var(--gold2)", approved: "var(--ok)", rejected: "var(--sub)" };
 
@@ -439,9 +454,10 @@ export default function RegisterBoard({
     setApprovals((aps ?? []) as Approval[]);
     if (c) {
       setNomType((c as CheckRow).nom_type);
-      const w: Record<string, number> = {};
-      for (const n of (ns ?? []) as Nom[]) w[n.cast_id] = n.ratio_weight;
-      setNomWeights(w);
+      // R-2a-3: DB の相対重み（例 1,1,1,1）をそのまま % 欄に入れると合計4%で開幕から赤くなる＝
+      //   Σ=100 へ正規化してから入れる（1,1,1,1→25×4・相対比は保存）。**表示のためだけ**の変換で、
+      //   ユーザーが保存操作をするまで DB へは書き込まない（ns の順＝position 順＝端数の先頭優遇も決定的）。
+      setNomWeights(normalizeShares(((ns ?? []) as Nom[]).map((n) => [n.cast_id, n.ratio_weight])));
       // 割引申請の既定 group＝この伝票に存在する最初の pay_group（分割会計対応）
       setApGroup(Array.from(new Set(((ls ?? []) as Line[]).map((l) => l.pay_group))).sort()[0] ?? "A");
     }
@@ -778,7 +794,8 @@ export default function RegisterBoard({
   async function removeShareCast(castId: string) {
     if (!check) return;
     if (!(await tb.flush())) return; // saveNoms と同じ前置き（保留タップを先に確定）
-    setNomWeights((prev) => ({ ...prev, [castId]: 0 }));
+    // R-2a-3: 除外後も残りを Σ=100 へ正規化（未保存の選択を外した場合 loadCheck が走らないため）
+    setNomWeights((prev) => normalizeShares(Object.entries({ ...prev, [castId]: 0 })));
     if (feeCast === castId) setFeeCast("");
     if (feeMsg?.to === FEE_SHIMEI) setFeeMsg(null); // 対象名入りの文言は対象が消えたら捨てる（R-1a 追補と同じ理由）
     if (!noms.some((n) => n.cast_id === castId)) return;
@@ -1846,7 +1863,15 @@ export default function RegisterBoard({
             onPick={(id) => {
               const on = (nomWeights[id] ?? 0) > 0;
               const nextFee = on ? (feeCast === id ? "" : feeCast) : id;
-              setNomWeights((prev) => ({ ...prev, [id]: on ? 0 : 1 }));
+              // R-2a-3: 選択の増減後も **normalizeShares で Σ=100 へ戻す**（新しい丸め規則は作らない）。
+              //   ★正規化の帰結の穴塞ぎ＝旧実装のまま「新規参加=weight 1」にすると、既存が % 値
+              //     （例 100）のため 1% で参加してしまい、指名料ボタンの自動按分が 99/1 で保存される。
+              //     参加時は現在の平均（Σ/n≒100/n＝等席）を仮置きして全体を正規化＝旧「1,1 は均等」と同じ意味。
+              setNomWeights((prev) => {
+                const n = Object.values(prev).filter((w) => w > 0).length;
+                const joinW = on ? 0 : n > 0 ? Math.max(1, Math.round(100 / n)) : 100;
+                return normalizeShares(Object.entries({ ...prev, [id]: joinW }));
+              });
               // R-1a 追補: 指名料の文言は**対象キャスト名を含む**（「えま に本指名料 ¥3,000 を追加し…」）。
               //   対象が変われば文言は必ず不一致になるので、対象の変更点で捨てる。
               //   ★同伴料の文言（FEE_DOHAN）は対象に依存しないので残す＝to で見分ける。
