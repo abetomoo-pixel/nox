@@ -1120,9 +1120,8 @@ export default function RegisterBoard({
   // E8-1 ⑤: 着卓中（この伝票の按分重み>0）＝CastPicker の先頭グループ＋バッジ
   const seatedIds = new Set(Object.entries(nomWeights).filter(([, w]) => w > 0).map(([id]) => id));
   // E8-1d: 指名種別の判定（表示専用・金額に一切関与しない）。
-  //   優先1＝課金行の凍結 fee_kind（hon_shimei > jonai_shimei > dohan・mig0084 の cast_id 付き行）
-  //   優先2＝按分に居るだけの場合は伝票の nom_type（check_set_nominations の check レベル値）
-  //   → 課金行だけで按分に居ない・按分だけで課金行が無い、のどちらでも破綻しない。
+  //   課金行の凍結 fee_kind のみを見る（hon_shimei > jonai_shimei > dohan・mig0084 の cast_id 付き行）。
+  //   ★R-2a-2: 旧「優先2＝伝票の nom_type へフォールバック」は廃止（下の nomKindOf を参照）。
   const castNomKind = (() => {
     const pri: Record<string, number> = { hon: 3, jonai: 2, dohan: 1 };
     const m = new Map<string, "hon" | "jonai" | "dohan">();
@@ -1135,13 +1134,13 @@ export default function RegisterBoard({
     }
     return m;
   })();
-  const nomKindOf = (id: string): "hon" | "jonai" | "dohan" | "free" | null => {
-    const fromLine = castNomKind.get(id);
-    if (fromLine) return fromLine;
-    if ((nomWeights[id] ?? 0) > 0) return nomType === "hon" || nomType === "jonai" || nomType === "dohan" ? nomType : "free";
-    return null;
-  };
-  // CastPicker へ渡す種別バッジ（本指名=gold／場内=gold2／同伴・フリー=muted）
+  // ★R-2a-2（D の是正）: 旧実装は課金行の無いキャストへ **UI state の nomType をフォールバック**していた。
+  //   その結果 setNomType（タブ切替）だけで、DB を1バイトも変えていないのに選択済みキャスト全員の
+  //   バッジが一斉に別種別へ化けた。種別バッジの出所は **check_lines の凍結 fee_kind だけ** とする。
+  //   ＝バッジ無し は「まだ何も付いていない」の正しい表示。選択されていること自体は
+  //     CastPicker 既存の選択枠（--goldface2 地／--gold 枠／--champ 文字）と「着卓中」チップが表す。
+  const nomKindOf = (id: string): "hon" | "jonai" | "dohan" | null => castNomKind.get(id) ?? null;
+  // CastPicker へ渡す種別バッジ（本指名=gold／場内=gold2／同伴=muted）
   const nomBadges = (() => {
     const tone = (k: string) => (k === "hon" ? "gold" as const : k === "jonai" ? "gold2" as const : "muted" as const);
     const m = new Map<string, { label: string; tone: "gold" | "gold2" | "muted" }>();
