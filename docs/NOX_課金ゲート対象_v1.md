@@ -41,6 +41,8 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
   live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
   全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0108 追随（2026-08-27・M-11b）**: `set_store_pin_policy` を A8（ゲート済み）へ、
+  `staff_pin_status` を B(f)（読取・非ゲート）へ収載。対象 **104→105**・全数 **198→200**。
 - ★**mig0106 追随（2026-08-27・M-9 A1）**: 新 RPC **1本**を A8 へ収載＝`set_store_biz_cutoff`
   （営業日切替時刻・`billing_writable_of` ゲートあり）。対象 **103→104**・全数 **197→198**。
 - ★**mig0103 追随（2026-08-24・SC シフト作成 v3）**: 新 RPC **2本**を A5 へ収載＝
@@ -112,11 +114,12 @@ pricing_rule_reorder / set_store_pricing / set_store_time_pricing
 set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_comp_plan / set_cast_plan /
 set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config
 
-### A8. 店設定（11本）
+### A8. 店設定（12本）
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /
 set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin / set_staff_pin /
 **store_sales_target_set**（mig0096＝月間売上目標・null=削除・E8-6） /
-**set_store_biz_cutoff**（mig0106＝営業日切替時刻・owner 限定・裁定82／起票#14）
+**set_store_biz_cutoff**（mig0106＝営業日切替時刻・owner 限定・裁定82／起票#14） /
+**set_store_pin_policy**（mig0108＝PIN ロック閾値・owner 限定・起票#31）
 
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
@@ -153,7 +156,8 @@ kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解�
 payroll_run_create / payment_record_add / withholding_payment_record
 （finalize/mark_paid/reopen は B(a) で既に構造除外）
 
-### B(f) 読取 RPC（40本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
+### B(f) 読取 RPC（41本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
+**staff_pin_status**（mig0108＝PIN 状態の読取・owner∨manager自店・hash 非返却） /
 auth_cast_can_register / auth_cast_id / auth_kiosk_org_id / auth_kiosk_register_store_id /
 auth_kiosk_store_id / auth_org_id / auth_role / auth_staff_can_crm / auth_staff_can_register /
 auth_staff_can_shift / auth_staff_can_view_backs / auth_store_id /
