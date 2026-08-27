@@ -1204,7 +1204,8 @@ async function main() {
       // [proname, 期待署名の引数部, authenticated 実行可, 期待 volatility]
       ["biz_minutes_of", "(uuid,timestamp with time zone)", false, "s"],
       ["pricing_resolve", "(uuid,timestamp with time zone,text,text,uuid)", true, "s"],
-      ["set_pricing_rule", "(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean)", true, "v"],
+      // ★mig0107（P-1）: 末尾に p_name text DEFAULT NULL を足して 12→13 引数（旧12引数は drop 済）
+      ["set_pricing_rule", "(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean,text)", true, "v"],
       ["delete_pricing_rule", "(uuid)", true, "v"],
       ["pricing_rule_reorder", "(uuid,text,uuid[])", true, "v"],
       ["set_cast_rank", "(uuid,uuid,text,boolean)", true, "v"],
@@ -1229,6 +1230,22 @@ async function main() {
         r.rowCount === 1 && r.rows[0].authed === authedOk && r.rows[0].anonx === false,
         JSON.stringify({ authed: r.rows[0]?.authed, anon: r.rows[0]?.anonx }));
     }
+  }
+
+  // G37b: mig0107（P-1）＝set_pricing_rule の旧12引数版が残っていないこと。
+  //   ★署名変更は drop→create のため、drop を飛ばすとオーバーロードが残り
+  //     PostgREST の呼び出し解決が 'function is not unique' で落ちる（0069→0071 の前例）。
+  {
+    const ov = await db.query(
+      `select p.oid::regprocedure::text as sig
+         from pg_proc p
+        where p.pronamespace = 'public'::regnamespace and p.proname = 'set_pricing_rule'
+        order by 1`,
+    );
+    check("G37b set_pricing_rule はオーバーロードなし＝13引数1本のみ（旧12引数 drop 済）",
+      ov.rowCount === 1
+      && String(ov.rows[0].sig) === "set_pricing_rule(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean,text)",
+      JSON.stringify(ov.rows.map((r) => r.sig)));
   }
 
   // G38: mig0104（裁定77）＝comp_plans の店内名前一意 index。

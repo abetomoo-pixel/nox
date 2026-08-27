@@ -30,6 +30,8 @@
  *   (18) ★mig0106（裁定82・起票#14）＝set_store_biz_cutoff（営業日切替時刻の書込 RPC）
  *        正常系＋audit／bad cutoff 5種／owner 限定（manager・staff・他 org）／帯ガード。
  *        ★settings_json は段内で snapshot→finally 逐語復元（rls :1928/:1956 の '06:00' 固定を壊さない）
+ *   (19) ★mig0107（P-1）＝pricing_rules.name（表示名・任意）と set_pricing_rule 13 引数化。
+ *        trim／空→null／41文字 'bad name'／★既存の12引数呼び出し（p_name 省略）が DEFAULT で通ること
  *
  * fixture は段内動的生成→finally 全消し（pricing_rules/cast_ranks は verify 店スコープで
  * 全削除・casts.rank_id は null 復元・audit は本スイートの action 6種のみ削除）。
@@ -626,6 +628,65 @@ async function main() {
         check("段43(18)（復元）settings_json を snapshot へ逐語復元（rls F1e の 06:00 固定を壊さない）",
           JSON.stringify(back?.settings_json ?? {}) === JSON.stringify(snap), JSON.stringify(back?.settings_json));
       }
+    }
+
+
+    // ═══ (19) ★mig0107（P-1）: 表示名（pricing_rules.name）と 13 引数化 ═══
+    //   ★表示名は UI 専用＝pricing_resolve は参照しない（解決は fee_kind/席種/曜日/帯/rank/priority のみ）。
+    //   作った行は段内で delete_pricing_rule して落とす（finally の wipe でも回収されるが明示的に消す）。
+    {
+      const nameIds: string[] = [];
+      const baseArgs = {
+        p_store_id: sA1.id, p_fee_kind: "set", p_seat_kind: null, p_dow_mask: null,
+        p_time_from_min: null, p_time_to_min: null, p_rank_id: null,
+        p_duration_min: null, p_priority: 95, p_is_active: true,
+      };
+      const nameOf = async (id: string): Promise<string | null> => {
+        const { data } = await admin.from("pricing_rules").select("name").eq("id", id).single();
+        return (data?.name as string | null) ?? null;
+      };
+      const mk = async (p_name: unknown, amount: number) => {
+        const { data, error } = await owner.rpc("set_pricing_rule", { ...baseArgs, p_id: null, p_amount: amount, p_name });
+        if (typeof data === "string") nameIds.push(data);
+        return { id: (data as string) ?? null, error };
+      };
+
+      // p_name あり新規 → name 反映
+      const r1 = await mk("平日ナイト", 1001);
+      check("段43(19) p_name あり新規＝name 反映", !r1.error && !!r1.id && (await nameOf(r1.id!)) === "平日ナイト",
+        r1.error?.message ?? String(r1.id && (await nameOf(r1.id))));
+      // 前後空白は trim（DB CHECK も name = btrim(name) を要求）
+      const r2 = await mk("  帯A  ", 1002);
+      check("段43(19) ★前後空白は trim（'  帯A  ' → '帯A'）",
+        !r2.error && (await nameOf(r2.id!)) === "帯A", r2.error?.message ?? JSON.stringify(await nameOf(r2.id!)));
+      // 空文字は null（未設定と同じ）
+      const r3 = await mk("", 1003);
+      check("段43(19) 空文字は null（未設定と同義）", !r3.error && (await nameOf(r3.id!)) === null,
+        r3.error?.message ?? JSON.stringify(await nameOf(r3.id!)));
+      // 空白のみも null
+      const r4 = await mk("   ", 1004);
+      check("段43(19) 空白のみも null", !r4.error && (await nameOf(r4.id!)) === null,
+        r4.error?.message ?? JSON.stringify(await nameOf(r4.id!)));
+      // 40 文字は通る / 41 文字は 'bad name'
+      const r40 = await mk("あ".repeat(40), 1005);
+      check("段43(19) 40文字は通る", !r40.error && (await nameOf(r40.id!))?.length === 40, r40.error?.message);
+      const r41 = await mk("あ".repeat(41), 1006);
+      check("段43(19) ★41文字は 'bad name'", has(r41.error, "bad name"), r41.error?.message ?? "通ってしまった");
+
+      // ★既存の 12 引数呼び出し（p_name 省略）＝DEFAULT NULL で従来どおり成功
+      const { data: r12, error: e12 } = await owner.rpc("set_pricing_rule", { ...baseArgs, p_id: null, p_amount: 1007 });
+      if (typeof r12 === "string") nameIds.push(r12);
+      check("段43(19) ★12引数呼び出し（p_name 省略）は DEFAULT で従来どおり成功・name=null",
+        !e12 && typeof r12 === "string" && (await nameOf(r12 as string)) === null,
+        e12?.message ?? JSON.stringify(await nameOf(r12 as string)));
+
+      // 更新で名前を付け替え / 消せる
+      const { error: eU1 } = await owner.rpc("set_pricing_rule", { ...baseArgs, p_id: r1.id, p_amount: 1001, p_name: "週末ナイト" });
+      check("段43(19) 更新で表示名を付け替えられる", !eU1 && (await nameOf(r1.id!)) === "週末ナイト", eU1?.message);
+      const { error: eU2 } = await owner.rpc("set_pricing_rule", { ...baseArgs, p_id: r1.id, p_amount: 1001, p_name: null });
+      check("段43(19) 更新で表示名を消せる（null）", !eU2 && (await nameOf(r1.id!)) === null, eU2?.message);
+
+      for (const id of nameIds) await admin.from("pricing_rules").delete().eq("id", id);
     }
 
   } finally {
