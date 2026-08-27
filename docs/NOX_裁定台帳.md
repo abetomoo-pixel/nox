@@ -1910,6 +1910,73 @@ B1 のコミット時に `git add -A` を使い、**未追跡の `docs/tmp` / `m
 
 ---
 
+## 裁定75（2026-08-27・M-①②）請求/バック分離の器＝live の既存分離を正本と読み替える
+
+- **裁定74「店舗設定で請求とバックを各々独立に」は、live の既存分離を正本と読み替える**。
+  **請求**＝`stores.hon_fee` / `jonai_fee` / `dohan_fee` ＋ `pricing_rules`、
+  **バック**＝`comp_plans` ＋ `cast_plan.overrides_json`。
+  **店舗側にバック列を二重化しない**（`payroll/collect.ts` が `comp_plans` を直読するため）。
+- **店舗設定に新設するのは「同伴時の本指名自動付与」1本のみ**。
+  器＝`stores` の**実列 `boolean NOT NULL default false`**。
+  **`settings_json` キーは不採用**（未存在キーが既定値で動く状態を増やさない）。
+  **列追加は R-2b の mig に同梱**（挙動が同伴 `cast_id` 必須に依存）。**M では意味と既定値のみ確定**。
+- 根拠＝**M-1/M-2 実測（2026-08-27）**。
+
+---
+
+## 裁定76（2026-08-27・M-③④）同伴の凍結経路と dohan_back
+
+- **`check_dohan_add` が `pricing_rules` を参照しないのは設計書 v1.2 §3-2 どおり**。
+  `check_open` が**開栓時に帯を解決して `checks.dohan_fee` に凍結**し、追加時はその凍結値を読む。
+  **「同伴料は入店時の帯で決まる」を凍結原則として明文化**する。**改修しない**。
+- **`dohan_back` の率方式（mode/rate）は M では追加しない**。
+  **R-2b で同伴行の `cast_id` 必須化が済み、現場で率の要望が出てから**。
+
+---
+
+## 裁定77（2026-08-27・M-⑤⑥）小穴2件＝mig0104・Opus
+
+- **`set_cast_rank_of` / `set_pricing_rule` は `rank_id` 指定時に `cast_ranks.is_active` を要求する**。
+  **新規割当のみ拒否・既存参照は据え置き**。例外名＝**`'inactive rank'`**。
+- **`comp_plans` に `UNIQUE (store_id, lower(name))` を追加**し、
+  `set_comp_plan` に **`cast_ranks` と同型の `duplicate name` 検査**を入れる。**live 重複0件を確認済み**。
+
+---
+
+## 裁定78（2026-08-27・M-⑦⑧）スコープ外
+
+- モック `plan.html` / `nox-cast-compensation-all-in-one.html` の**コンポーネント模型**
+  （ポイント・利益歩合・達成ボーナス・保証判定単位 月/半月/日・複合スライド）は **M に入れない**。
+  `comp_plans` 変更は **`payroll/collect.ts` 直撃で golden が動く** → **起票#25**。
+- **`cast_plan` の期間列（履歴）は据え置き**。**遡及計算に効くため社労士回答と対** → **起票#26**。
+
+---
+
+## 裁定79（2026-08-27・M-⑨'）ランク別指名料は絶対額
+
+- **`pricing_rules.amount`（`rank_id` 付き行）は基本指名料への加算ではなく絶対額**。
+  モック `nox-pricing-settings.html` の「**基本の指名料金に加算する**」文言は**不採用**。
+- 理由＝**率バックの母数が指名料額であり、加算にすると母数が二段になる**／
+  **凍結値が1値で読み切れる**。**UI 文言もこれに合わせる**。
+
+---
+
+## 裁定80（2026-08-27・M-⑩）既定行の priority
+
+- 指名料の**既定（`rank_id` null）行は UI から `priority` 200 固定**で upsert、**ランク行は 100**。
+- **`pricing_resolve_core` の解決規則（特異性加点なし・`priority`→`created_at`→`id`）は不触**。
+
+---
+
+## 裁定81（2026-08-27・M-⑪）comp_plans の可視範囲
+
+- **`comp_plans_select` を `cast_ranks` 型に揃える**＝**owner ∨ manager 自店**、
+  **cast は自分の `cast_plan.plan_id` 行のみ**、**staff は不可視**。
+- **RLS 変更＝Fable 5・mig0105**。
+  **`casts-board` / `shift-board` の staff 経路が 0 行で壊れないことを実測してから mig 化**する。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2046,6 +2113,13 @@ DP の仕分けで「実装済み(a)」と判定するとき、**語の一致で
 - **系**: レーン着手前に、対応するモック要素の差分を**実測**する。
   **実測前に設計指示を出した時点で違反**。
 
+### 教訓41：帰属経路は3系統を辿ってから断ずる
+
+相談役が **`check_lines` の `cast_id=null` だけを見て「同伴バックは計算不能」と誤判定**した。
+実際は **`checks.nom_type` × `check_nominations` 経由（`cast_sales_aggregate`）で計上されていた**。
+
+- **金額の帰属は「行（`check_lines`）・集計 RPC・`pay.ts`」の3系統を全部辿ってから言う**。
+
 ### 純増起票（追加分・実装しない）
 
 | # | 内容 | 要る変更 |
@@ -2074,3 +2148,12 @@ DP の仕分けで「実装済み(a)」と判定するとき、**語の一致で
 | 22 | **seatMsg のクリアが openSeat のみ** | setSeatPick（席モーダルの開閉）では消えない |
 | 23 | **割引/無料の適用額表示** | 完了文言に金額が無い。loadCheck 後の discount 行から実額を出せる（裁定61 の残） |
 | 24 | **無言操作の要否** | 開卓/商品追加/明細削除/人数変更/グループ付替に完了メッセージが無い。裁定61-5「伝票行が増える操作すべて」との整合を裁定する |
+| 25 | **報酬のコンポーネント模型**（裁定78） | モック `plan.html` / `nox-cast-compensation-all-in-one.html` のポイント・利益歩合・達成ボーナス・保証判定単位（月/半月/日）・複合スライド。`comp_plans` 変更は **`payroll/collect.ts` 直撃で golden が動く** |
+| 26 | **`cast_plan` の期間列（履歴）**（裁定78） | 現状は上書き型で履歴を持たない。**遡及計算に効くため社労士回答と対**で判断する |
+| 27 | **CLUB NOX seed の `sales_slide` `at:0` 段** | UI（`SlideInput`）が `at=0` を除外送信するため、**再保存で段が消える**。**seed 側を修正・dev のみ** |
+| 28 | **半月 period と `shift_rules.min_month_min` の単位食い違い** | autoassign 鍵②の分母は **period 範囲**（`shift-board.tsx` の `monthMinutes`）。半月 period を作ると「最低月間（分）」と食い違う。**SC レーンへ** |
+
+### 未裁定・消し込み待ち
+
+- **P-4 の5裁定点（引き継ぎ v14 §5）**は、**`pricing_rules` 既実装（mig0083）に照らして
+  Agoora 側で消し込み待ち**。
