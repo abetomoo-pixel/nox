@@ -15,13 +15,34 @@
 //   旧 MasterBoard の `panels` prop と同じ流儀（server で props を組む構造を保つ）。
 // ★タブは既存 `.nox-seg`（master-subnav・casts・report と同じセグメント）を使う＝新クラスを作らない。
 // ★権限で空になったタブは server 側で配列から落ちる（owner 限定パネルの出し分けは page.tsx が持つ）。
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type SystemTab = { key: string; label: string; node: React.ReactNode };
 
 export default function SystemBoard({ tabs }: { tabs: SystemTab[] }) {
   const [cur, setCur] = useState(tabs[0]?.key ?? "");
   const active = tabs.find((t) => t.key === cur) ?? tabs[0];
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // ★A3（概要カードの遷移先重複の解消）: /master/system#<tab key> で該当タブへ直接着地する。
+  //   この画面は「縦積みのパネル」ではなく**タブ**なので、hash はスクロール先ではなく
+  //   **どのタブを開くか**を決める。ブラウザ既定の hash スクロールはタブが未選択のうちは
+  //   対象が DOM に無く効かないため、選択してから自前で scrollIntoView する。
+  //   hashchange も拾う＝同じページに居るまま別カードのリンクを踏んでも切り替わる。
+  useEffect(() => {
+    const keys = new Set(tabs.map((t) => t.key));
+    const apply = () => {
+      const h = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+      if (!keys.has(h)) return;
+      setCur(h);
+      // タブ描画後にスクロール（同フレームでは対象がまだ差し替わっていない）
+      requestAnimationFrame(() => panelRef.current?.scrollIntoView({ block: "start" }));
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (tabs.length === 0) {
     return <p style={{ fontSize: 12.5, color: "var(--sub)" }}>表示できる設定がありません（権限をご確認ください）。</p>;
@@ -46,7 +67,9 @@ export default function SystemBoard({ tabs }: { tabs: SystemTab[] }) {
           </div>
         </div>
       )}
-      <div>{active.node}</div>
+      {/* ★A3: id＝タブ key（master-board の href の hash と一致）。
+          scroll-margin-top は sticky なページヘッダ分の逃げ＝着地時に見出しが隠れない。 */}
+      <div id={active.key} ref={panelRef} style={{ scrollMarginTop: 96 }}>{active.node}</div>
     </div>
   );
 }

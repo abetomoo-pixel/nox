@@ -103,11 +103,13 @@ export default function MasterBoard() {
     {
       sec: "スタッフ・システム", secDesc: "端末と機微情報の管理",
       cards: [
-        { href: "/master/system", id: "m-kiosk", icon: "▣", count: "端末", title: "キオスク端末",
+        // ★A3: 遷移先の重複解消＝hash で /master/system の該当タブへ直接着地する
+        //   （hash は SystemBoard のタブ key と一致＝devices / receipts / secrets）。
+        { href: "/master/system#devices", id: "m-kiosk", icon: "▣", count: "端末", title: "キオスク端末",
           desc: "打刻端末・レジ端末の発行と失効（オーナー限定）。", status: "● オーナー限定", tone: "mute" },
-        { href: "/master/system", id: "m-printer", icon: "⎙", count: "レシート", title: "レシート・プリンタ",
+        { href: "/master/system#receipts", id: "m-printer", icon: "⎙", count: "レシート", title: "レシート・プリンタ",
           desc: "レシートの店舗情報（住所・電話・登録番号・フッタ）と印刷設定。", status: "● オーナー限定", tone: "mute" },
-        { href: "/master/system", id: "m-tax", icon: "🔒", count: "機密", title: "機密・税務情報",
+        { href: "/master/system#secrets", id: "m-tax", icon: "🔒", count: "機密", title: "機密・税務情報",
           desc: "本名・生年月日・マイナンバー等。閲覧はログに記録されます。", status: "● 閲覧ログあり", tone: "warn" },
       ],
     },
