@@ -2004,6 +2004,19 @@ B1 のコミット時に `git add -A` を使い、**未追跡の `docs/tmp` / `m
 
 ---
 
+## 裁定84（2026-08-27・M 棚卸し）モック無し13画面＝「モック外＝実装が canonical」
+
+- **モック無しの13画面**（`/dashboard`／`/staff`／`/kiosk`（打刻 PIN 面）／`/login`／公開トップ `/`／
+  `/r/[token]`／`/billing`／`/receipts`／`/mine`×4／**`/master/cast-comp/register`**）は
+  **「モック外＝実装が canonical」**とする。**後からモックを起こさない**
+  （起こすとモック照合の正本が2系統になり教訓40 の判定基準が壊れる）。
+- ★**`/master/cast-comp/register`（キャスト会計の許可）は本裁定で初めて明記**＝
+  `nox-cast-reward` 4本のどれにも会計許可の区画は無い。DP1-④は cast-comp 群を
+  「M2待遇レーン所属・DP 対象外」と群単位で裁定しただけで、この画面のモック不在は
+  どこにも書かれていなかった（M-10 逆引きで検出）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2147,6 +2160,15 @@ DP の仕分けで「実装済み(a)」と判定するとき、**語の一致で
 
 - **金額の帰属は「行（`check_lines`）・集計 RPC・`pay.ts`」の3系統を全部辿ってから言う**。
 
+### 教訓42：区画の存在≠移植完了
+
+route map（`docs/tmp/dp1_route_map.md`）の「あり」は**モックの区画が実装に存在するか**で
+数えており、**中身が動くかを見ていない**。`/master/system` は4タブ名が揃っているだけで
+「あり」になっていた（中身は M-11 まで1カラム・履歴は生 action 表示のままだった）。
+
+- **モック照合は「区画の中の要素・生成コードの出力・数字が読めているか」まで見て初めて「済」と書く**
+  （教訓40 の延長＝語の一致で仕分けしない、の区画版）。
+
 ### 純増起票（追加分・実装しない）
 
 | # | 内容 | 要る変更 |
@@ -2181,6 +2203,8 @@ DP の仕分けで「実装済み(a)」と判定するとき、**語の一致で
 | 28 | **半月 period と `shift_rules.min_month_min` の単位食い違い** | autoassign 鍵②の分母は **period 範囲**（`shift-board.tsx` の `monthMinutes`）。半月 period を作ると「最低月間（分）」と食い違う。**SC レーンへ** |
 | 29 | **クライアント算出 `biz_date` の素通し3経路** | `incentive_publish` / `transport_issue` / `receivable_collect` が `p_biz_date` を**検証なしで insert** する（実測 2026-08-27）。cutoff はクライアント側で決まり、`incentive-panel.tsx:30` は **`"06:00"` ハードコード**。**サーバ算出へ寄せる**（`receipt_issue` が `settings_json` から自前計算している形が前例）。★**Fable 5**（payroll の入力になる＝money 隣接） |
 | 30 | **`biz_cutoff_hm` イディオムの分散** | 同一の `coalesce(nullif(trim(settings_json->>'biz_cutoff_hm'),''),'06:00')` が **live 14関数へインライン展開**（設計書 v1.2 §2 が「負債として台帳記録」と予告した箇所）。①`biz_minutes_of` への集約 ②**`check_open` が `pricing_resolve_core` を呼ばず帯解決を写経**している解消 ③**`reservation_is_closed_day` だけ不正値で `raise` せず `'06:00'` へ黙って戻す**非対称の解消。★TS 側にも**設定を読まない `"06:00"` ハードコード呼び出しが7箇所**（`notices-board:95` / `incentive-panel:30` / `shift-board:136` / `mine/notices:12` / `mine/page:27,36` / `mine/ranking:20`）＝起票#14 と対で扱う |
+| 31 | **/master/system の機能層（M-11b）** | ①端末の最終アクセス・IP（`kiosk_devices` に列なし・`kiosk_sessions.last_seen_at` はレジ端末のみ＋deny-all） ②PIN 失敗回数の表示・ロック閾値の設定化・90日更新・重複PIN検査（現行＝5回/15分ハードコード・`staff_pin` deny-all） ③PIN設定済み数を返す count RPC ④プリンタ最終接続・ONLINE 表示（ポーリング時刻を記録していない）・テスト印刷 ⑤プリンタ名列 ⑥KPI 要確認の集計。**①②③は launch 前候補・④⑤⑥は実機後** |
+| 32 | **/master/system KPI「登録端末」が端末数を読んでいなかった** | kiosk_devices deny-all のため「—」表示だった。**M-11 B-0 で解消**（owner のみ admin 経路で org 件数を表示・記録のみ） |
 
 ### 未裁定・消し込み待ち
 
