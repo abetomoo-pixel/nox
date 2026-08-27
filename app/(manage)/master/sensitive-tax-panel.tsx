@@ -4,22 +4,49 @@
 //   ■ 機密は owner 限定: get_cast_sensitive は owner/cast本人のみ（manager は封印で読めない＝T6a）。
 //     real_name/birthday は上書き更新（現値を読めない manager の blind write が既存を消す事故を避けるため
 //     機密編集は owner に限定）。マイナンバーは平文入力 → set_cast_sensitive が DB 内で pgp_sym 暗号化（Vault 鍵）。
-//     空欄のマイナンバーは「変更なし」（既存 enc 温存）。full 平文は owner の「支払調書用に表示」（service 経路・全件 audit）のみ。
+//     空欄のマイナンバーは「変更なし」（既存 enc 温存）。full 平文は owner の「表示」（service 経路・全件 audit）のみ。
 //   ■ 税務は manager+: cast_tax_profiles はパターン2（manager+ 可視）。
+//
+// ★M-11a（2026-08-27）: モックの2カラム構成へ追随
+//   （上=バナー／左=キャスト機密情報カード（本人情報＋税務設定）／右=アクセス権限＋最近の閲覧履歴）。
+//   RPC・引数・検証・エラー文言は逐語で不変＝表示と配置のみ。
+//   ★アクセス権限カードは A-5 の RLS/RPC 実測どおりの静的表:
+//     機密（本名・生年月日・マイナンバー）= owner のみ閲覧（get_cast_sensitive）・全平文は支払調書経路のみ。
+//     manager/staff は閲覧不可。税務（cast_tax_profiles）は manager+ が閲覧・編集可＝脚注で明示。
+//     モックの「経理」ロールは NOX に無い＝出さない（M-10 C-3 でモック側を是正）。
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
 type Cast = { id: string; name: string };
+type Store = { id: string; name: string };
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const label: React.CSSProperties = { fontSize: 12, color: "var(--sub)", display: "block" };
+const h3: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", marginTop: 0, marginBottom: 2 };
+const subP: React.CSSProperties = { fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" };
 
-export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; isOwner: boolean }) {
+/** 相対時刻（N分前／N時間前／N日前／それ以前は M/D） */
+function relTime(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return "たった今";
+  if (min < 60) return `${min}分前`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}時間前`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}日前`;
+  const dt = new Date(iso);
+  return `${dt.getMonth() + 1}/${dt.getDate()}`;
+}
+
+const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "黒服" };
+
+export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: Cast[]; stores: Store[]; isOwner: boolean }) {
   const supabase = createClient();
   const [castId, setCastId] = useState(casts[0]?.id ?? "");
   const [msg, setMsg] = useState<string | null>(null);
@@ -46,14 +73,25 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
   const [regValidTo, setRegValidTo] = useState<string | null>(null);
   const [regNotifiedOn, setRegNotifiedOn] = useState<string | null>(null);
   // E8-5 staff#8: 機微アクセスの閲覧履歴（audit_logs は記録済み＝読取追加のみ・owner 限定表示・直近10件）
-  const [viewAudit, setViewAudit] = useState<{ id: string; action: string; target: string; at: string }[]>([]);
+  // ★M-11a: actor→ロール名・store_id→店舗名・target→キャスト名の写像を足す（読取のみ）。
+  const [viewAudit, setViewAudit] = useState<{ id: string; action: string; target: string; at: string; actor_user_id: string | null; store_id: string | null }[]>([]);
+  const [roleByUser, setRoleByUser] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!isOwner) return;
     let alive = true;
-    void supabase.from("audit_logs").select("id, action, target, at")
+    void supabase.from("audit_logs").select("id, action, target, at, actor_user_id, store_id")
       .in("action", ["read_cast_sensitive", "read_cast_mynumber_masked"])
       .order("at", { ascending: false }).limit(10)
       .then(({ data }) => { if (alive) setViewAudit((data ?? []) as typeof viewAudit); });
+    void supabase.from("memberships").select("user_id, role, is_active")
+      .then(({ data }) => {
+        if (!alive) return;
+        const m: Record<string, string> = {};
+        for (const r of (data ?? []) as { user_id: string; role: string; is_active: boolean }[]) {
+          if (r.is_active && !m[r.user_id]) m[r.user_id] = r.role;
+        }
+        setRoleByUser(m);
+      });
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOwner]);
@@ -144,88 +182,153 @@ export default function SensitiveTaxPanel({ casts, isOwner }: { casts: Cast[]; i
     setRevealed(j.mynumber ?? "（未登録）");
   }
 
+  // 閲覧履歴の写像（target='cast_sensitive:<cast_id>'＝A-6 実測）。
+  const castNameOf = (target: string): string => {
+    const id = target.split(":")[1] ?? "";
+    return casts.find((c) => c.id === id)?.name ?? "キャスト";
+  };
+  const storeNameOf = (id: string | null): string => (id && stores.find((s) => s.id === id)?.name) ?? "—";
+  const actorLabel = (uid: string | null): string => {
+    const role = uid ? roleByUser[uid] : undefined;
+    return role ? (ROLE_LABEL[role] ?? role) : "—";
+  };
+  // 同一 actor×target が1分以内に連続する行は1行へ畳む（×N）。
+  const folded: Array<{ row: (typeof viewAudit)[number]; n: number }> = [];
+  for (const a of viewAudit) {
+    const last = folded[folded.length - 1];
+    if (last && last.row.actor_user_id === a.actor_user_id && last.row.target === a.target
+      && Math.abs(new Date(last.row.at).getTime() - new Date(a.at).getTime()) <= 60_000) {
+      last.n += 1;
+    } else {
+      folded.push({ row: a, n: 1 });
+    }
+  }
+
   if (casts.length === 0) return null;
 
   return (
-    <section className="nox-cardtop" style={card}>
-      <h2 style={{ ...t.pheadH1, fontSize: 16, margin: "0 0 10px" }}>機密・税務情報</h2>
-      <label style={label}>
-        キャスト
-        <br />
-        <select value={castId} onChange={(e) => setCastId(e.target.value)} style={{ ...input, minWidth: 160 }}>
-          {casts.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-      </label>
+    <div>
+      {/* ── 上部バナー ── */}
+      <div style={{ ...t.alert, display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <span style={{ minWidth: 0 }}>
+          <b>機密情報へのアクセスは監査ログに記録されます</b>
+          <span style={{ display: "block", fontSize: 11, opacity: 0.85 }}>マイナンバーの表示・変更はオーナー権限のみ実行できます。</span>
+        </span>
+        <span className="nox-stpill" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>ENCRYPTED</span>
+      </div>
 
-      {msg && <p style={{ fontSize: 13, color: msg.includes("エラー") ? "var(--bad)" : "var(--ok)", marginTop: 8 }}>{msg}</p>}
-
-      {/* 機密（owner のみ・manager は封印で読めないため非表示） */}
-      {isOwner && (
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
-          <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>機密（本名・生年月日・マイナンバー）</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 480 }}>
-            <label style={label}>本名<input value={realName} onChange={(e) => setRealName(e.target.value)} style={{ ...input, width: "100%" }} /></label>
-            <label style={label}>生年月日<input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} style={{ ...input, width: "100%" }} /></label>
-            <label style={{ ...label, gridColumn: "1 / -1" }}>
-              マイナンバー（数字12桁・入力すると暗号化保存／空欄は変更なし）
-              <input value={mynumber} onChange={(e) => setMynumber(e.target.value)} placeholder={mynumberSet ? "登録済み（変更する場合のみ入力）" : "未登録"} inputMode="numeric" style={{ ...input, width: "100%" }} />
-            </label>
-          </div>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0" }}>
-            登録状態: <strong style={{ color: mynumberSet ? "var(--ok)" : "var(--sub)" }}>{mynumberSet ? "登録済み（暗号化）" : "未登録"}</strong>
-            {"　"}※ マイナンバーは暗号化保存され、管理者（manager）は閲覧できません（封印）。
-          </p>
-          <button onClick={saveSensitive} disabled={!castId || !sensitiveReady} style={btnDark}>機密を保存</button>
-
-          {/* 支払調書（full 平文・全件 audit） */}
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--line2)" }}>
-            <button onClick={reveal} disabled={!castId || !mynumberSet} style={btnLight}>支払調書用にマイナンバーを表示</button>
-            {revealed && (
-              <span style={{ marginLeft: 10, fontFamily: "monospace", fontSize: 14, background: "var(--bg2)", color: "var(--champ)", border: "1px solid var(--line2)", padding: "2px 8px", borderRadius: 4 }}>
-                {revealed}
-              </span>
-            )}
-            <p style={{ fontSize: 11, color: "var(--champ)", margin: "4px 0 0" }}>※ 表示は法定調書作成の用途に限定。閲覧は全件 audit_logs に記録されます。</p>
-          </div>
-
-          {/* E8-5 staff#8: 閲覧履歴（記録は既存＝読取のみ・owner 限定・直近10件。全量は /audit 機微アクセスビューへ） */}
-          {viewAudit.length > 0 && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--line2)" }}>
-              <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 4px" }}>機微情報の閲覧履歴（直近10件）</p>
-              {viewAudit.map((a) => (
-                <div key={a.id} style={{ fontSize: 11.5, color: "var(--sub)", padding: "2px 0" }}>
-                  <span className="num">{a.at.replace("T", " ").slice(0, 16)}</span>
-                  {" "}{a.action === "read_cast_sensitive" ? "機密情報を閲覧" : "マイナンバー（マスク）を閲覧"}
-                  <span style={{ marginLeft: 6, color: "var(--v2-muted)" }}>{a.target}</span>
-                </div>
+      <div className="nox-2col">
+        {/* ── 左: キャスト機密情報（本人情報＋税務設定） ── */}
+        <section className="nox-cardtop" style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span>
+              <h3 style={h3}>キャスト機密情報</h3>
+              <p style={{ ...subP, margin: 0 }}>本人確認・支払調書作成に使用</p>
+            </span>
+            <select value={castId} onChange={(e) => setCastId(e.target.value)} style={{ ...input, minWidth: 160, marginLeft: "auto" }} aria-label="キャスト">
+              {casts.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
-              <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "4px 0 0" }}>すべての履歴は「操作履歴」ページ（機微アクセスビュー）で確認できます。</p>
+            </select>
+          </div>
+
+          {msg && <p style={{ fontSize: 13, color: msg.includes("エラー") ? "var(--bad)" : "var(--ok)", marginTop: 8 }}>{msg}</p>}
+
+          {/* 本人情報（owner のみ・manager は封印で読めないため非表示） */}
+          {isOwner && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+              <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>本人情報</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <label style={label}>本名<input value={realName} onChange={(e) => setRealName(e.target.value)} style={{ ...input, width: "100%" }} /></label>
+                <label style={label}>生年月日<input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} style={{ ...input, width: "100%" }} /></label>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <span style={label}>マイナンバー</span>
+                  {mynumberSet && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0 6px" }}>
+                      {revealed ? (
+                        <span style={{ fontFamily: "monospace", fontSize: 14, background: "var(--bg2)", color: "var(--champ)", border: "1px solid var(--line2)", padding: "2px 8px", borderRadius: 4 }}>{revealed}</span>
+                      ) : (
+                        <span className="num" style={{ letterSpacing: 2, color: "var(--sub)" }}>•••• •••• ••••</span>
+                      )}
+                      <button onClick={reveal} disabled={!castId} style={btnLight}>表示</button>
+                    </div>
+                  )}
+                  <input value={mynumber} onChange={(e) => setMynumber(e.target.value)}
+                    placeholder={mynumberSet ? "登録済み（変更する場合のみ入力）" : "未登録"} inputMode="numeric" style={{ ...input, width: "100%" }} />
+                  <span style={{ fontSize: 10.5, color: "var(--sub)" }}>
+                    数字12桁・入力すると暗号化保存／空欄は変更なし。表示は法定調書作成の用途に限定され、閲覧は全件 audit_logs に記録されます。
+                  </span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right", marginTop: 8 }}>
+                <button onClick={saveSensitive} disabled={!castId || !sensitiveReady} style={btnDark}>機密情報を保存</button>
+              </div>
             </div>
           )}
-        </div>
-      )}
 
-      {/* 税務（manager+） */}
-      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
-        <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>税務（雇用区分・インボイス）</h3>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <label style={label}>雇用区分<br />
-            <SegSelect value={mode} onChange={(v) => setMode(v)}
-            options={[["委託", "委託"], ["雇用", "雇用"]] as const} />
-          </label>
-          <label style={label}>インボイス<br />
-            <SegSelect value={invoice} onChange={(v) => setInvoice(v)}
-            options={[["", "未設定"], ["課税", "課税"], ["免税", "免税"]] as const} />
-          </label>
-          <label style={label}>登録番号（T＋13桁）<br />
-            <input value={regNo} onChange={(e) => setRegNo(e.target.value)} placeholder="T1234567890123" style={{ ...input, width: 160 }} />
-          </label>
-          <button onClick={saveTax} disabled={!castId || !taxReady} style={btnDark}>税務を保存</button>
+          {/* 税務設定（manager+） */}
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+            <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>税務設定</p>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+              <label style={label}>雇用区分<br />
+                <SegSelect value={mode} onChange={(v) => setMode(v)}
+                options={[["委託", "委託"], ["雇用", "雇用"]] as const} />
+              </label>
+              <label style={label}>インボイス<br />
+                <SegSelect value={invoice} onChange={(v) => setInvoice(v)}
+                options={[["", "未設定"], ["課税", "課税"], ["免税", "免税"]] as const} />
+              </label>
+              <label style={label}>登録番号（T＋13桁）<br />
+                <input value={regNo} onChange={(e) => setRegNo(e.target.value)} placeholder="T1234567890123" style={{ ...input, width: 160 }} />
+              </label>
+            </div>
+            <div style={{ textAlign: "right", marginTop: 8 }}>
+              <button onClick={saveTax} disabled={!castId || !taxReady} style={btnDark}>税務情報を保存</button>
+            </div>
+            {!isOwner && <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>※ 本名・マイナンバー等の機密情報の登録・閲覧はオーナーのみ可能です。</p>}
+          </div>
+        </section>
+
+        {/* ── 右: アクセス権限＋最近の閲覧履歴 ── */}
+        <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
+          <section className="nox-cardtop" style={card}>
+            <h3 style={h3}>アクセス権限</h3>
+            <p style={subP}>機密情報を閲覧できる役割（RLS / RPC の実測）</p>
+            <div style={{ display: "grid", gap: 6, fontSize: 12 }}>
+              <div style={t.bdRow}><span style={t.bdKey}>オーナー</span>
+                <span style={t.bdVal}>表示・編集・支払調書用の全表示 <b style={{ color: "var(--ok)" }}>●許可</b></span></div>
+              <div style={t.bdRow}><span style={t.bdKey}>店長</span>
+                <span style={t.bdVal}>閲覧不可（封印） <b style={{ color: "var(--sub)" }}>●制限</b></span></div>
+              <div style={t.bdRow}><span style={t.bdKey}>黒服</span>
+                <span style={t.bdVal}>閲覧不可 <b style={{ color: "var(--sub)" }}>●制限</b></span></div>
+            </div>
+            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+              ※ 税務設定（雇用区分・インボイス・登録番号）は店長も閲覧・編集できます（機密＝本名・生年月日・マイナンバーのみ封印）。
+            </p>
+          </section>
+
+          {/* E8-5 staff#8: 閲覧履歴（記録は既存＝読取のみ・owner 限定・直近10件。全量は /audit 機微アクセスビューへ） */}
+          {isOwner && folded.length > 0 && (
+            <section className="nox-cardtop" style={card}>
+              <h3 style={h3}>最近の閲覧履歴</h3>
+              <p style={subP}>機密情報の監査ログ（直近10件）</p>
+              {folded.map(({ row: a, n }) => (
+                <div key={a.id} title={a.target}
+                  style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 11.5, padding: "5px 0", borderBottom: "1px solid var(--line)" }}>
+                  <span style={{ minWidth: 0 }}>
+                    <b style={{ color: "var(--ink)" }}>
+                      {castNameOf(a.target)} の機密情報を閲覧{n > 1 && <span style={{ color: "var(--v2-muted)" }}>（×{n}）</span>}
+                    </b>
+                    <small style={{ display: "block", color: "var(--sub)" }}>{actorLabel(a.actor_user_id)} / {storeNameOf(a.store_id)}</small>
+                  </span>
+                  <span className="num" style={{ marginLeft: "auto", color: "var(--v2-muted)", whiteSpace: "nowrap" }}>{relTime(a.at)}</span>
+                </div>
+              ))}
+              <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>すべての履歴は「操作履歴」ページ（機微アクセスビュー）で確認できます。</p>
+            </section>
+          )}
         </div>
-        {!isOwner && <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>※ 本名・マイナンバー等の機密情報の登録・閲覧はオーナーのみ可能です。</p>}
       </div>
-    </section>
+    </div>
   );
 }

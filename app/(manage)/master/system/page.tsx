@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionRole } from "@/lib/nox/auth";
 import KioskDevicePanel from "../kiosk-device-panel";
 import KioskPinPanel from "../kiosk-pin-panel";
@@ -36,7 +37,7 @@ export default async function MasterSystemPage() {
   const isOwner = role === "owner";
 
   const supabase = await createClient();
-  const { data: stores } = await supabase.from("stores").select("id, settings_json").order("name").limit(1);
+  const { data: stores } = await supabase.from("stores").select("id, org_id, settings_json").order("name").limit(1);
   const store = stores?.[0];
   const storeId = (store?.id as string | undefined) ?? "";
   // settings_json は printer プロファイル（レシート・プリンタ タブ）で使用する。
@@ -61,6 +62,24 @@ export default async function MasterSystemPage() {
   ).length;
   const printerOn = sj?.printer_enabled === true;
 
+  // ★M-11a B-0（起票#32 の解消）: KPI「登録端末」を実数にする。
+  //   kiosk_devices は deny-all＝ユーザーセッションでは読めないため、/api/kiosk/provision GET と同じく
+  //   admin（サービスキー・サーバ専用）で org スコープの件数だけを数える。★owner のみ
+  //   （端末管理の可視は provision GET の owner 限定に合わせる＝manager へ新しく開示しない）。
+  let deviceTotal: number | null = null;
+  let deviceInactive = 0;
+  if (isOwner) {
+    const orgId = (store?.org_id as string | undefined) ?? "";
+    if (orgId) {
+      try {
+        const admin = createAdminClient();
+        const { data: devs } = await admin.from("kiosk_devices").select("id, is_active").eq("org_id", orgId);
+        deviceTotal = (devs ?? []).length;
+        deviceInactive = (devs ?? []).filter((d) => d.is_active !== true).length;
+      } catch { /* KPI は補助表示＝失敗しても画面は生きる（現行の「—」へフォールバック） */ }
+    }
+  }
+
   const tabs: SystemTab[] = [];
   if (isOwner) {
     tabs.push({
@@ -78,6 +97,7 @@ export default async function MasterSystemPage() {
       node: (
         <PrinterPanel
           storeId={storeId}
+          storeName={(allStores ?? []).find((s2) => s2.id === storeId)?.name ?? ""}
           initialProfile={{
             address: typeof sj?.receipt_address === "string" ? (sj.receipt_address as string) : "",
             tel: typeof sj?.receipt_tel === "string" ? (sj.receipt_tel as string) : "",
@@ -90,7 +110,8 @@ export default async function MasterSystemPage() {
   }
   tabs.push({
     key: "secrets", label: "▰ 機密・税務情報",
-    node: <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]} isOwner={isOwner} />,
+    node: <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]}
+      stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={isOwner} />,
   });
 
   return (
@@ -103,8 +124,9 @@ export default async function MasterSystemPage() {
       <div className="nox-kpirow">
         <div className="nox-kpi2">
           <div className="nox-kpi2-l">登録端末</div>
-          <div className="nox-kpi2-v num">—</div>
-          <div className="nox-kpi2-s">「キオスク端末」タブで確認</div>
+          <div className="nox-kpi2-v num">{deviceTotal === null ? "—" : <>{deviceTotal}<small>台</small></>}</div>
+          <div className="nox-kpi2-s">{deviceTotal === null ? "「キオスク端末」タブで確認"
+            : deviceInactive === 0 ? "すべて有効" : `${deviceInactive}台 無効`}</div>
         </div>
         <div className="nox-kpi2">
           <div className="nox-kpi2-l">操作担当PIN 対象</div>
