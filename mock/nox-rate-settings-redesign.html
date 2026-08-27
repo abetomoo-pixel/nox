@@ -658,19 +658,19 @@
               <div class="rule-strip">
                 <div class="rule-item">
                   <div class="rule-label">営業日の区切り</div>
-                  <div class="rule-value">翌 06:00<small>まで同一営業日</small></div>
+                  <div class="rule-value">06:00<small>まで前営業日</small></div>
                 </div>
                 <div class="rule-item">
                   <div class="rule-label">セット料金の判定</div>
-                  <div class="rule-value">各セット開始時刻</div>
+                  <div class="rule-value">伝票オープン時<small>で固定</small></div>
                 </div>
                 <div class="rule-item">
                   <div class="rule-label">延長料金の判定</div>
-                  <div class="rule-value">延長開始時刻</div>
+                  <div class="rule-value">伝票オープン時<small>の料率で加算</small></div>
                 </div>
                 <div class="rule-item">
                   <div class="rule-label">同伴料金の判定</div>
-                  <div class="rule-value">入店時刻</div>
+                  <div class="rule-value">伝票オープン時<small>で固定</small></div>
                 </div>
               </div>
 
@@ -934,22 +934,16 @@
             <div class="rule-row">
               <div>
                 <strong>セット料金の判定時刻</strong>
-                <p>時間帯をまたいだ場合、どの時刻の料金を適用するかを指定します。</p>
+                <p>料率は伝票を開いた時刻で確定します。以後の設定変更・席移動・日付跨ぎでは変わりません（延長も開栓時の料率で加算）。</p>
               </div>
-              <select class="form-select dirty-input">
-                <option selected>各セット開始時刻</option>
-                <option>初回入店時刻で固定</option>
-              </select>
+              <div class="rule-value">伝票オープン時（固定）</div>
             </div>
             <div class="rule-row">
               <div>
                 <strong>同伴料金の判定時刻</strong>
-                <p>同伴入店した時刻を基準に、時間帯ごとの同伴料金を1回加算します。</p>
+                <p>同伴料も伝票を開いた時刻の料率で確定します（開栓時に単価をスナップします）。</p>
               </div>
-              <select class="form-select dirty-input">
-                <option selected>入店時刻</option>
-                <option>伝票開始時刻</option>
-              </select>
+              <div class="rule-value">伝票オープン時（固定）</div>
             </div>
             <div class="rule-row">
               <div>
@@ -957,10 +951,10 @@
                 <p>深夜0時以降の売上を前日の営業日に集計する終了時刻です。</p>
               </div>
               <select class="form-select dirty-input">
-                <option>翌 03:00</option>
-                <option selected>翌 06:00</option>
-                <option>翌 09:00</option>
-                <option>翌 12:00</option>
+                <option>05:00</option>
+                <option selected>06:00</option>
+                <option>07:00</option>
+                <option>08:00</option>
               </select>
             </div>
           </div>

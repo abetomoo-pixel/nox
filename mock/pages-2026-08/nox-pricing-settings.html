@@ -93,11 +93,11 @@
       </section>
 
       <section class="page" id="base">
-        <div class="pagehead"><div><div class="eyebrow">BASE CHARGES</div><h1>基本料金</h1><p>お客様の伝票に加算する基本料金と、ランク別の追加料金を設定します。</p></div><div class="save-state"><span class="check">●</span>すべての変更を保存済み</div></div>
+        <div class="pagehead"><div><div class="eyebrow">BASE CHARGES</div><h1>基本料金</h1><p>お客様の伝票に加算する基本料金と、ランク別の指名料を設定します。</p></div><div class="save-state"><span class="check">●</span>すべての変更を保存済み</div></div>
         <div class="card reward-separation"><div><b>キャスト報酬とは分けて管理されています</b><p>バック・ポイント・歩合・スライド・達成ボーナスは「キャスト・報酬 ＞ 待遇プラン」で設定済みです。</p></div><div class="reward-status"><span class="statusdot"></span>報酬設定 12コンポーネント</div></div>
         <div class="pricing-toolbar"><div class="filtertabs" role="tablist" aria-label="料金区分"><button class="active">すべて</button><button>指名</button><button>来店</button><button>その他</button></div><button class="btn primary" id="addPriceItem">＋ 料金項目を追加</button></div>
         <div class="charge-grid" id="pricingList"></div>
-        <div class="card rankcard"><div class="cardhead"><div><h2>キャストランク別料金</h2><p>基本の指名料金に加算する、お客様向けのランク料金です</p></div><button class="btn small" id="addRank">＋ ランク追加</button></div><div class="rankbody"><div class="rank-help"><span>ランク名と本指名・場内指名の追加料金を編集できます。</span><span>表示順に適用</span></div><div class="rank-list" id="rankList"></div></div></div>
+        <div class="card rankcard"><div class="cardhead"><div><h2>キャストランク別料金</h2><p>ランクごとの指名料です。空欄のランクは「既定」→「基本料金の指名料」の順で適用されます</p></div><button class="btn small" id="addRank">＋ ランク追加</button></div><div class="rankbody"><div class="rank-help"><span>ランク名と本指名料・場内指名料を編集できます。</span><span>表示順に適用</span></div><div class="rank-list" id="rankList"></div></div></div>
         <div class="card bottom-save"><p>キャストへの支給額には影響しません。新しく開く伝票から適用されます。</p><button class="btn primary save-all">基本料金を保存</button></div>
       </section>
 
@@ -135,14 +135,14 @@
 <script>
   const yen=n=>new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY',maximumFractionDigits:0}).format(n);
   const schedules=[
-    {start:'20:00',end:'21:00',seat:'全席種',day:'毎日',set:5000,extend:3000,companion:4000,service:20},
-    {start:'21:00',end:'23:00',seat:'VIP',day:'金・土',set:8000,extend:4000,companion:4000,service:20},
-    {start:'23:00',end:'LAST',seat:'全席種',day:'毎日',set:7000,extend:3500,companion:5000,service:20}
+    {name:'平日ナイト',start:'20:00',end:'21:00',seat:'全席種',day:'毎日',set:5000,extend:3000,companion:4000,service:20},
+    {name:'週末VIP',start:'21:00',end:'23:00',seat:'VIP',day:'金・土',set:8000,extend:4000,companion:4000,service:20},
+    {name:'',start:'23:00',end:'LAST',seat:'全席種',day:'毎日',set:7000,extend:3500,companion:5000,service:20}
   ];
   let selectedSchedule=0;
   const el=id=>document.getElementById(id);
   function renderSchedules(){
-    el('scheduleList').innerHTML=schedules.map((s,i)=>`<div class="schedule-item ${i===selectedSchedule?'active':''}" draggable="true" data-index="${i}"><span class="drag">⠿</span><div><b>${s.start}〜${s.end}</b><small>${s.seat} ・ ${s.day}</small></div><div><div class="price">${yen(s.set)}</div><div class="order-btns"><button aria-label="上へ" data-move="-1">↑</button><button aria-label="下へ" data-move="1">↓</button></div></div></div>`).join('');
+    el('scheduleList').innerHTML=schedules.map((s,i)=>`<div class="schedule-item ${i===selectedSchedule?'active':''}" draggable="true" data-index="${i}"><span class="drag">⠿</span><div><b>${s.name?s.name+' / ':''}${s.start}〜${s.end}</b><small>${s.seat} ・ ${s.day}</small></div><div><div class="price">${yen(s.set)}</div><div class="order-btns"><button aria-label="上へ" data-move="-1">↑</button><button aria-label="下へ" data-move="1">↓</button></div></div></div>`).join('');
     document.querySelectorAll('.schedule-item').forEach(item=>{
       item.addEventListener('click',e=>{if(e.target.dataset.move)return;selectedSchedule=+item.dataset.index;loadSchedule();renderSchedules()});
       item.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',item.dataset.index));
@@ -153,7 +153,7 @@
   }
   function loadSchedule(){const s=schedules[selectedSchedule];el('startTime').value=s.start;el('endTime').value=s.end;el('seat').value=s.seat;el('setPrice').value=s.set;el('extendPrice').value=s.extend;el('companionPrice').value=s.companion;el('serviceRate').value=s.service;document.querySelector(`[name="day"][value="${s.day}"]`).checked=true;el('editSubtitle').textContent=`${s.start}〜${s.end} の設定`;updateReceipt()}
   el('scheduleForm').onsubmit=e=>{e.preventDefault();const s=schedules[selectedSchedule];Object.assign(s,{start:el('startTime').value,end:el('endTime').value,seat:el('seat').value,day:document.querySelector('[name="day"]:checked').value,set:+el('setPrice').value,extend:+el('extendPrice').value,companion:+el('companionPrice').value,service:+el('serviceRate').value});renderSchedules();loadSchedule();notify('時間帯料金を保存しました')};
-  el('addSchedule').onclick=()=>{schedules.push({start:'00:00',end:'LAST',seat:'全席種',day:'毎日',set:5000,extend:3000,companion:4000,service:20});selectedSchedule=schedules.length-1;renderSchedules();loadSchedule();notify('新しい時間帯を追加しました')};
+  el('addSchedule').onclick=()=>{schedules.push({name:'',start:'00:00',end:'LAST',seat:'全席種',day:'毎日',set:5000,extend:3000,companion:4000,service:20});selectedSchedule=schedules.length-1;renderSchedules();loadSchedule();notify('新しい時間帯を追加しました')};
   el('deleteSchedule').onclick=()=>{if(schedules.length===1)return notify('最後の時間帯は削除できません');schedules.splice(selectedSchedule,1);selectedSchedule=Math.max(0,selectedSchedule-1);renderSchedules();loadSchedule();notify('時間帯を削除しました')};
   function updateReceipt(){const s=schedules[selectedSchedule],people=parseInt(el('pvPeople').value),comp=parseInt(el('pvCompanion').value)||0;let [sh,sm]=el('pvEntry').value.split(':').map(Number),[eh,em]=el('pvExit').value.split(':').map(Number);let mins=(eh*60+em)-(sh*60+sm);if(mins<0)mins+=1440;const extensions=Math.max(0,Math.ceil((mins-60)/30)),base=s.set*people,ext=s.extend*extensions*people,compFee=s.companion*comp,subtotal=base+ext+compFee,service=Math.ceil(subtotal*s.service/100/100)*100,total=subtotal+service;el('receipt').innerHTML=`<div class="receipt-row"><span>セット料金 × ${people}名</span><span>${yen(base)}</span></div><div class="receipt-row"><span>延長 ${extensions?extensions*30+'分':'なし'}</span><span>${yen(ext)}</span></div><div class="receipt-row"><span>同伴料金 × ${comp}名</span><span>${yen(compFee)}</span></div><div class="receipt-row"><span>サービス料 ${s.service}%</span><span>${yen(service)}</span></div><div class="receipt-row total"><span>概算合計</span><span>${yen(total)}</span></div>`}
   ['pvEntry','pvExit','pvPeople','pvCompanion','setPrice','extendPrice','companionPrice','serviceRate'].forEach(id=>el(id).addEventListener('input',updateReceipt));
@@ -175,7 +175,7 @@
   document.querySelectorAll('.filtertabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.filtertabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderPricing(b.textContent)});
   el('addPriceItem').onclick=()=>{pricing.push({name:'新しい料金項目',category:'その他',note:'内容を確認して有効にしてください',price:1000,unit:'1伝票',tax:'課税',active:true});document.querySelectorAll('.filtertabs button').forEach(x=>x.classList.toggle('active',x.textContent==='すべて'));renderPricing();notify('料金項目を追加しました')};
   const ranks=[['S',3000],['A',2000],['B',1000],['レギュラー',0],['新人',0]];
-  function renderRanks(){el('rankList').innerHTML=ranks.map((r,i)=>`<div class="rank"><input value="${r[0]}" aria-label="ランク名"><div class="surcharge"><input type="number" value="${r[1]}" aria-label="追加料金"><span>円</span></div><button class="remove" data-rank="${i}" aria-label="ランクを削除">×</button></div>`).join('');document.querySelectorAll('[data-rank]').forEach(b=>b.onclick=()=>{ranks.splice(+b.dataset.rank,1);renderRanks();notify('ランクを削除しました')})}
+  function renderRanks(){el('rankList').innerHTML=ranks.map((r,i)=>`<div class="rank"><input value="${r[0]}" aria-label="ランク名"><div class="surcharge"><input type="number" value="${r[1]}" aria-label="本指名料"><span>円</span></div><button class="remove" data-rank="${i}" aria-label="ランクを削除">×</button></div>`).join('');document.querySelectorAll('[data-rank]').forEach(b=>b.onclick=()=>{ranks.splice(+b.dataset.rank,1);renderRanks();notify('ランクを削除しました')})}
   el('addRank').onclick=()=>{ranks.push(['新規ランク',0]);renderRanks();notify('ランクを追加しました')};
   document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));b.classList.add('active');el(b.dataset.page).classList.add('active');el('crumb').textContent=b.querySelector('span:last-child').textContent;window.scrollTo({top:0,behavior:'smooth'})});
   let toastTimer;function notify(message){el('toast').querySelector('span').textContent=message;el('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el('toast').classList.remove('show'),2200)}
