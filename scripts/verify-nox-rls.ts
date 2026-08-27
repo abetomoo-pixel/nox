@@ -2175,6 +2175,11 @@ async function main() {
     const s = await signIn("staffA1");
     const { data: sCp } = await s.from("cast_plan").select("cast_id");
     check("F2a staffA1 cast_plan = 0行（staff 遮断）", (sCp ?? []).length === 0, `got ${(sCp ?? []).length}`);
+    // ★mig0105（裁定81）: comp_plans も staff 遮断＝cast_plan_select と同じ裁定へ揃えた。
+    //   0105 適用前は staff に自店全行が見えていた（2026-08-27 実測 rows=2）＝この assert が回帰を固定する。
+    const { data: sPl, error: eSPl } = await s.from("comp_plans").select("id");
+    check("F2a staffA1 comp_plans = 0行（staff 遮断・0105）",
+      !eSPl && (sPl ?? []).length === 0, eSPl?.message ?? `got ${(sPl ?? []).length}`);
     await s.auth.signOut();
   }
   {

@@ -1252,6 +1252,24 @@ async function main() {
       String(ix.rows[0]?.indexdef));
   }
 
+  // G39: mig0105（裁定81）＝comp_plans_select の polqual 逐語固定（cast_ranks / pricing_rules の G37 と同形）。
+  //   staff 腕が無いこと・manager が自店限定であることを文字列一致で固定する。
+  //   ★POLQUAL は live の pg_get_expr から機械転写（2026-08-27・手打ちしていない）。
+  {
+    const POLQUAL_COMP_PLANS = "((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR ((auth_role() = 'manager'::text) AND (store_id = auth_store_id())) OR ((auth_role() = 'cast'::text) AND (store_id = auth_store_id()) AND (EXISTS ( SELECT 1\n   FROM cast_plan cp\n  WHERE ((cp.cast_id = auth_cast_id()) AND (cp.plan_id = comp_plans.id)))))))";
+    const pol = await db.query(
+      `select polname, polcmd::text cmd, pg_get_expr(polqual, polrelid) q,
+              (select array_agg(r.rolname::text order by r.rolname) from pg_roles r where r.oid = any(polroles)) roles
+         from pg_policy where polrelid = ('public.comp_plans')::regclass`,
+    );
+    check("G39 comp_plans policy は select 1本のみ・polroles={authenticated}",
+      pol.rowCount === 1 && pol.rows[0].cmd === "r"
+      && JSON.stringify(pol.rows[0].roles) === JSON.stringify(["authenticated"]),
+      JSON.stringify(pol.rows.map((x) => ({ n: x.polname, c: x.cmd, r: x.roles }))));
+    check("G39 comp_plans_select polqual 逐語＝owner org∨manager自店∨cast 自店∧自プラン（staff 腕なし）",
+      pol.rows[0]?.q === POLQUAL_COMP_PLANS, String(pol.rows[0]?.q));
+  }
+
   await db.end();
 
   if (fails.length) {
