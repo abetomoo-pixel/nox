@@ -345,7 +345,12 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         id: existing?.id ?? null, fee_kind: fk, seat_kind: null, dow_mask: null,
         from: null, to: null, rank_id: rankId,
         amount: Number(v), duration_min: null,
-        priority: existing?.priority ?? 100, is_active: true,
+        // ★裁定80: 既定（rank_id null）行は priority 200・ランク行は 100 固定＝ランク行が必ず先に当たる。
+        //   既存値は引き継がない（旧行が 100 で作られていても保存で 200 へ揃う）。
+        //   pricing_resolve_core は特異性加点を持たない（priority→created_at→id のみ）ため、
+        //   優先はこの数値だけで決まる。★∧∨ の pricing_rule_reorder は TIMED_KINDS
+        //   （set/extension/dohan）専用＝指名料の priority を 1..N へ振り直す経路は無い。
+        priority: rankId === null ? 200 : 100, is_active: true,
       });
       if (err) { setMsg(err); setBusy(false); await reload(); return; }
     }
@@ -809,6 +814,11 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                         </td>
                         <td data-label="ランク">
                           <span className="nox-pt-name">{row.label}</span>
+                          {isDefault && (
+                            <small style={{ display: "block", fontSize: 10.5, color: "var(--sub)", marginTop: 2 }}>
+                              ランク行が優先されます
+                            </small>
+                          )}
                         </td>
                         <td data-label="本指名料" style={{ textAlign: "right" }}>
                           <input type="number" min={0} value={vals.hon}
