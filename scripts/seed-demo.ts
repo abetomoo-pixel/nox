@@ -361,11 +361,12 @@ async function main() {
 
     // 待遇プラン2本＋全 cast への割当（予想人件費 KPI/セル¥ の材料）。
     //   ★金額は payOf の入力になるが、ここは「デモ用の設定値」であって計算式には触れない。
+    //   ★起票#27: at:0 段は UI（SlideInput）が送信時に除外して再保存で消えるため外した。wage=base 同値ゆえ計算は不変。
     const { data: plans } = await admin.from("comp_plans").insert([
       { org_id: orgId, store_id: storeId, name: "レギュラー", base: 3000, hon_back: 3000, jonai_back: 1000, dohan_back: 2000,
-        sales_slide: [{ at: 0, wage: 3000 }, { at: 100000, wage: 3500 }], point_slide: [] },
+        sales_slide: [{ at: 100000, wage: 3500 }], point_slide: [] },
       { org_id: orgId, store_id: storeId, name: "エース", base: 4000, hon_back: 4000, jonai_back: 1500, dohan_back: 2500,
-        sales_slide: [{ at: 0, wage: 4000 }, { at: 150000, wage: 5000 }], point_slide: [] },
+        sales_slide: [{ at: 150000, wage: 5000 }], point_slide: [] },
     ]).select("id, name");
     if (plans && plans.length === 2) {
       await admin.from("cast_plan").insert(
