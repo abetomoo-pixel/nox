@@ -41,6 +41,8 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
   live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
   全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0106 追随（2026-08-27・M-9 A1）**: 新 RPC **1本**を A8 へ収載＝`set_store_biz_cutoff`
+  （営業日切替時刻・`billing_writable_of` ゲートあり）。対象 **103→104**・全数 **197→198**。
 - ★**mig0103 追随（2026-08-24・SC シフト作成 v3）**: 新 RPC **2本**を A5 へ収載＝
   `shift_bulk_set`（複数日一括 planned/manual）／`shift_remove`（個別削除・confirmed は attendance
   無しのみ・wish は pending 復元）。**ともに規則A形でゲート内蔵・kiosk 腕なし**→ **対象 103 本**へ改訂。
@@ -69,7 +71,7 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 - 補助基準（v1 起案時・裁定で維持）: B-補1=専用縮退 RPC（*_deactivate）は除外（セキュリティ）／B-補2=kiosk_login/logout は除外（打刻導線）／A-補1=汎用 set_*（is_active トグル内包）は対象。
 - ★付随裁定: **open のまま失効を跨いだ伝票の check_pay / check_close もゲート対象**（read-only の徹底＝失効中は決済・是正とも不能・閲覧のみ。writable 復帰後に処理する）。
 
-## A. 対象（101本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
+## A. 対象（104本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
 
 ### A1. レジ・会計（20本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
 check_open[K] / check_add_line[K] / check_remove_line[K] / check_add_seat[K] / check_remove_seat[K] /
@@ -110,10 +112,11 @@ pricing_rule_reorder / set_store_pricing / set_store_time_pricing
 set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_comp_plan / set_cast_plan /
 set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config
 
-### A8. 店設定（10本）
+### A8. 店設定（11本）
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /
 set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin / set_staff_pin /
-**store_sales_target_set**（mig0096＝月間売上目標・null=削除・E8-6）
+**store_sales_target_set**（mig0096＝月間売上目標・null=削除・E8-6） /
+**set_store_biz_cutoff**（mig0106＝営業日切替時刻・owner 限定・裁定82／起票#14）
 
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
