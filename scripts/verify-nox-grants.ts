@@ -1309,6 +1309,37 @@ async function main() {
       JSON.stringify({ authed: r.rows[0]?.authed, anon: r.rows[0]?.anonx }));
   }
 
+  // G41: mig0108（起票#31）＝set_store_pin_policy / staff_pin_status の署名・secdef・search_path・ACL。
+  //   G40 と同型。owner/manager 判定は RPC 内ガード＝anon-guard 段37 ★0108 が実セッションで固定。
+  {
+    const r = await db.query(
+      `select p.proname, p.oid::regprocedure::text as sig,
+              has_function_privilege('authenticated', p.oid, 'EXECUTE') as authed,
+              has_function_privilege('anon', p.oid, 'EXECUTE') as anonx,
+              p.prosecdef, p.provolatile::text as v, p.proconfig
+         from pg_proc p
+        where p.pronamespace = 'public'::regnamespace
+          and p.proname in ('set_store_pin_policy', 'staff_pin_status')
+        order by p.proname`,
+    );
+    const byName = (n: string) => r.rows.filter((x) => x.proname === n);
+    const pol = byName("set_store_pin_policy");
+    const sts = byName("staff_pin_status");
+    check("G41 set_store_pin_policy が1本のみ・署名(uuid,integer,integer)・secdef＋search_path 固定・VOLATILE",
+      pol.length === 1 && String(pol[0].sig) === "set_store_pin_policy(uuid,integer,integer)"
+      && pol[0].prosecdef === true && pol[0].v === "v"
+      && Array.isArray(pol[0].proconfig) && (pol[0].proconfig as string[]).includes("search_path=public"),
+      JSON.stringify(pol.map((x) => ({ sig: x.sig, v: x.v, cfg: x.proconfig }))));
+    check("G41 staff_pin_status が1本のみ・署名(uuid)・secdef＋search_path 固定・STABLE",
+      sts.length === 1 && String(sts[0].sig) === "staff_pin_status(uuid)"
+      && sts[0].prosecdef === true && sts[0].v === "s"
+      && Array.isArray(sts[0].proconfig) && (sts[0].proconfig as string[]).includes("search_path=public"),
+      JSON.stringify(sts.map((x) => ({ sig: x.sig, v: x.v, cfg: x.proconfig }))));
+    check("G41 2関数 ACL＝authenticated 可・anon 不可",
+      r.rows.length === 2 && r.rows.every((x) => x.authed === true && x.anonx === false),
+      JSON.stringify(r.rows.map((x) => ({ n: x.proname, authed: x.authed, anon: x.anonx }))));
+  }
+
   await db.end();
 
   if (fails.length) {

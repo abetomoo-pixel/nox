@@ -613,6 +613,16 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段35d: PIN ポリシー・状態読取（mig0108）新2署名 anon BLOCKED ──
+  const F0108_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["set_store_pin_policy", { p_store_id: null, p_max_fail: null, p_lock_minutes: null }],
+    ["staff_pin_status", { p_store_id: null }],
+  ];
+  for (const [fn, args] of F0108_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段36a: F4b レシート印刷（mig0044/0045）RPC anon BLOCKED ──
   //   claim/result は service_role 限定（内部専用型）＝anon に加え authenticated 負系を段36 本体で実測。
   const F0044_PROBES: Array<[string, Record<string, unknown>]> = [
@@ -5537,6 +5547,168 @@ async function main() {
         check("段37 set_staff_pin(owner) 成功", !ePin, ePin?.message);
         const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "4321" });
         check("段37 kiosk_login(owner) ok:true", (rLogin as { ok?: boolean } | null)?.ok === true, JSON.stringify(rLogin));
+
+        // ═══ ★mig0108（M-11b ①②③）: ロック閾値の店設定化・staff_pin_status・last_seen_at ═══
+        //   既定（設定なし）で 5回/15分 の既存 assert は 段35（cast_pin/kiosk_punch＝0108 不触）と
+        //   直上の login ok:true（既定閾値下で成功＝挙動不変）が担保。ここでは閾値を 3回/5分 に変えて
+        //   ロック境界・状態読取・最終アクセスを実セッションで固定する。
+        //   settings_json は snapshot→finally 逐語復元（verify 店 A1 のみ）。
+        {
+          const { data: snap0108row } = await admin.from("stores").select("settings_json").eq("id", s37A1.id).single();
+          const snap0108 = JSON.stringify(snap0108row?.settings_json ?? null);
+          // managerA1 の A1 membership（PIN 未設定行として使う＝staff_pin を退避→削除→finally 復元）
+          const { data: mgrUserRow } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
+          const { data: mgrMemRow } = await admin.from("memberships").select("id")
+            .eq("user_id", (mgrUserRow?.id as string) ?? "").eq("store_id", s37A1.id).single();
+          const mgrMem = mgrMemRow?.id as string | undefined;
+          const { data: mgrPinSnap } = mgrMem
+            ? await admin.from("staff_pin").select("*").eq("membership_id", mgrMem)
+            : { data: [] as Array<Record<string, unknown>> };
+          if (mgrMem) await admin.from("staff_pin").delete().eq("membership_id", mgrMem);
+          try {
+            type StatusRow = { membership_id: string; has_pin: boolean; fail_count: number; locked_until: string | null; pin_updated_at: string | null };
+            const seen = async () => {
+              const { data } = await admin.from("kiosk_devices").select("last_seen_at, last_ip").eq("id", devId).single();
+              return data as { last_seen_at: string | null; last_ip: string | null } | null;
+            };
+            // (e) 直上の kiosk_login 成功で last_seen_at が記録され last_ip は null か文字列（service read）
+            const seen0 = await seen();
+            check("段37 ★0108(e) login 成功後 last_seen_at 記録・last_ip は null か文字列",
+              !!seen0?.last_seen_at && (seen0.last_ip === null || typeof seen0.last_ip === "string"),
+              JSON.stringify(seen0));
+
+            // (c) set_store_pin_policy 範囲外＝bad max_fail / bad lock_minutes（null 含む）
+            const { error: eR1 } = await owner.rpc("set_store_pin_policy", { p_store_id: s37A1.id, p_max_fail: 2, p_lock_minutes: 15 });
+            check("段37 ★0108(c) max_fail=2 → bad max_fail", has(eR1, "bad max_fail"), eR1?.message ?? "通ってしまった");
+            const { error: eR2 } = await owner.rpc("set_store_pin_policy", { p_store_id: s37A1.id, p_max_fail: 11, p_lock_minutes: 15 });
+            check("段37 ★0108(c) max_fail=11 → bad max_fail", has(eR2, "bad max_fail"), eR2?.message ?? "通ってしまった");
+            const { error: eR3 } = await owner.rpc("set_store_pin_policy", { p_store_id: s37A1.id, p_max_fail: 5, p_lock_minutes: 4 });
+            check("段37 ★0108(c) lock_minutes=4 → bad lock_minutes", has(eR3, "bad lock_minutes"), eR3?.message ?? "通ってしまった");
+            const { error: eR4 } = await owner.rpc("set_store_pin_policy", { p_store_id: s37A1.id, p_max_fail: 5, p_lock_minutes: 61 });
+            check("段37 ★0108(c) lock_minutes=61 → bad lock_minutes", has(eR4, "bad lock_minutes"), eR4?.message ?? "通ってしまった");
+            const { error: eR5 } = await owner.rpc("set_store_pin_policy", { p_store_id: s37A1.id, p_max_fail: null, p_lock_minutes: null });
+            check("段37 ★0108(c) null → bad max_fail（先頭検証）", has(eR5, "bad max_fail"), eR5?.message ?? "通ってしまった");
+
+            // (c) manager → forbidden・他 org（managerB1）→ forbidden
+            const mgrA = await signInShared("段37+0108", "managerA1");
+            const mgrB = await signInShared("段37+0108", "managerB1");
+            if (mgrA) {
+              const { error: eMgr } = await mgrA.rpc("set_store_pin_policy", { p_store_id: s37A1.id, p_max_fail: 3, p_lock_minutes: 5 });
+              check("段37 ★0108(c) manager set_store_pin_policy = forbidden（owner 限定）", forbidden(eMgr), eMgr?.message ?? "通ってしまった");
+            }
+            if (mgrB) {
+              const { error: eOrg } = await mgrB.rpc("set_store_pin_policy", { p_store_id: s37A1.id, p_max_fail: 3, p_lock_minutes: 5 });
+              check("段37 ★0108(c) 他 org set_store_pin_policy = forbidden", forbidden(eOrg), eOrg?.message ?? "通ってしまった");
+            }
+
+            // (c) owner 正: (3,5) 成功 → audit に before 5/15（既定）・after 3/5
+            const { error: eSet } = await owner.rpc("set_store_pin_policy", { p_store_id: s37A1.id, p_max_fail: 3, p_lock_minutes: 5 });
+            check("段37 ★0108(c) owner set_store_pin_policy(3,5) 成功", !eSet, eSet?.message);
+            const { data: aud } = await admin.from("audit_logs").select("before_json, after_json")
+              .eq("action", "set_store_pin_policy").eq("target", `stores:${s37A1.id}`)
+              .order("at", { ascending: false }).limit(1);
+            const audRow = aud?.[0] as { before_json?: Record<string, unknown>; after_json?: Record<string, unknown> } | undefined;
+            check("段37 ★0108(c) audit before=既定5/15・after=3/5",
+              audRow?.before_json?.pin_lock_max_fail === 5 && audRow?.before_json?.pin_lock_minutes === 15
+              && audRow?.after_json?.pin_lock_max_fail === 3 && audRow?.after_json?.pin_lock_minutes === 5,
+              JSON.stringify(audRow));
+
+            // (d) staff_pin_status: owner OK・返却に pin_hash 相当が無い・owner=設定済/fail 0・manager=未設定/fail 0
+            const { data: st1raw, error: eSt1 } = await owner.rpc("staff_pin_status", { p_store_id: s37A1.id });
+            const st1 = (st1raw ?? []) as StatusRow[];
+            const ownRow1 = st1.find((r) => r.membership_id === ownerMem);
+            const mgrRow1 = st1.find((r) => r.membership_id === mgrMem);
+            check("段37 ★0108(d) owner staff_pin_status OK・owner 行 has_pin=true/fail 0",
+              !eSt1 && ownRow1?.has_pin === true && ownRow1?.fail_count === 0,
+              eSt1?.message ?? JSON.stringify(ownRow1));
+            check("段37 ★0108(d) PIN 未設定（manager 行）has_pin=false/fail 0/locked null",
+              mgrRow1?.has_pin === false && mgrRow1?.fail_count === 0 && mgrRow1?.locked_until === null,
+              JSON.stringify(mgrRow1));
+            check("段37 ★0108(d) 返却キーに hash 相当が無い",
+              st1.length > 0 && Object.keys(st1[0]).every((k) => !/hash/i.test(k))
+              && JSON.stringify(Object.keys(st1[0]).sort())
+                 === JSON.stringify(["fail_count", "has_pin", "locked_until", "membership_id", "pin_updated_at"]),
+              JSON.stringify(Object.keys(st1[0] ?? {})));
+
+            // (d) 認可マトリクス: manager 自店 OK／manager 他店 forbidden／staff forbidden／cast forbidden
+            if (mgrA) {
+              const { error: eMg1 } = await mgrA.rpc("staff_pin_status", { p_store_id: s37A1.id });
+              check("段37 ★0108(d) manager 自店 staff_pin_status OK", !eMg1, eMg1?.message);
+              const { error: eMg2 } = await mgrA.rpc("staff_pin_status", { p_store_id: s37A2.id });
+              check("段37 ★0108(d) manager 他店 staff_pin_status = forbidden", forbidden(eMg2), eMg2?.message ?? "通ってしまった");
+            }
+            const stf = await signInShared("段37+0108", "staffA1");
+            if (stf) {
+              const { error: eStf } = await stf.rpc("staff_pin_status", { p_store_id: s37A1.id });
+              check("段37 ★0108(d) staff staff_pin_status = forbidden", forbidden(eStf), eStf?.message ?? "通ってしまった");
+            }
+            const cst = await signInShared("段37+0108", "castA1a");
+            if (cst) {
+              const { error: eCst } = await cst.rpc("staff_pin_status", { p_store_id: s37A1.id });
+              check("段37 ★0108(d) cast staff_pin_status = forbidden", forbidden(eCst), eCst?.message ?? "通ってしまった");
+            }
+
+            // (b)(d)(e) 閾値 3回/5分 下の実挙動: 誤1回目→fail_count=1・誤2回目は last_seen 不変・
+            //   誤3回目→locked・locked_until ≈ now()+5分±1分・返却 jsonb の形は改稿前と同一
+            const { data: w1raw } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "0000" });
+            const w1 = w1raw as { ok?: boolean; reason?: string } | null;
+            check("段37 ★0108(b) 誤 PIN 1回目 = ok:false/wrong_pin・形は {ok,reason}（改稿前と同一）",
+              w1?.ok === false && w1?.reason === "wrong_pin"
+              && JSON.stringify(Object.keys(w1 ?? {}).sort()) === JSON.stringify(["ok", "reason"]),
+              JSON.stringify(w1raw));
+            const { data: st2raw } = await owner.rpc("staff_pin_status", { p_store_id: s37A1.id });
+            const ownRow2 = ((st2raw ?? []) as StatusRow[]).find((r) => r.membership_id === ownerMem);
+            check("段37 ★0108(d) 誤 PIN 1回後 fail_count=1", ownRow2?.fail_count === 1, JSON.stringify(ownRow2));
+            const seenBeforeFail = await seen();
+            await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "0000" });
+            const seenAfterFail = await seen();
+            check("段37 ★0108(e) 失敗ログインでは last_seen_at 不変",
+              seenBeforeFail?.last_seen_at === seenAfterFail?.last_seen_at,
+              JSON.stringify({ before: seenBeforeFail?.last_seen_at, after: seenAfterFail?.last_seen_at }));
+            const tLock = Date.now();
+            const { data: w3raw } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "0000" });
+            const w3 = w3raw as { ok?: boolean; reason?: string; locked_until?: string } | null;
+            const lockedAt = w3?.locked_until ? new Date(w3.locked_until).getTime() : NaN;
+            check("段37 ★0108(b) 誤 PIN 3回目（閾値3）= locked・形は {ok,reason,locked_until}（改稿前と同一）",
+              w3?.ok === false && w3?.reason === "locked"
+              && JSON.stringify(Object.keys(w3 ?? {}).sort()) === JSON.stringify(["locked_until", "ok", "reason"]),
+              JSON.stringify(w3raw));
+            check("段37 ★0108(b) locked_until ≈ now()+5分（±1分）",
+              Number.isFinite(lockedAt) && Math.abs(lockedAt - (tLock + 5 * 60_000)) <= 60_000,
+              JSON.stringify({ locked_until: w3?.locked_until, diff_ms: lockedAt - (tLock + 5 * 60_000) }));
+
+            // (d) set_staff_pin で has_pin=true・fail_count=0・ロック解除
+            const { error: eRePin } = await owner.rpc("set_staff_pin", { p_membership_id: ownerMem, p_pin: "4321" });
+            check("段37 ★0108(d) set_staff_pin 再設定 成功", !eRePin, eRePin?.message);
+            const { data: st3raw } = await owner.rpc("staff_pin_status", { p_store_id: s37A1.id });
+            const ownRow3 = ((st3raw ?? []) as StatusRow[]).find((r) => r.membership_id === ownerMem);
+            check("段37 ★0108(d) set_staff_pin 後 has_pin=true/fail 0/locked null",
+              ownRow3?.has_pin === true && ownRow3?.fail_count === 0 && ownRow3?.locked_until === null,
+              JSON.stringify(ownRow3));
+
+            // (e) 成功ログインで last_seen_at が前進（以後の 段37 本流もこの新セッションで続行）
+            const seenBeforeOk = await seen();
+            const { data: rLogin2 } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "4321" });
+            check("段37 ★0108(e) 再ログイン ok:true", (rLogin2 as { ok?: boolean } | null)?.ok === true, JSON.stringify(rLogin2));
+            const seenAfterOk = await seen();
+            check("段37 ★0108(e) 成功ログインで last_seen_at 前進",
+              !!seenBeforeOk?.last_seen_at && !!seenAfterOk?.last_seen_at
+              && new Date(seenAfterOk.last_seen_at).getTime() > new Date(seenBeforeOk.last_seen_at).getTime(),
+              JSON.stringify({ before: seenBeforeOk?.last_seen_at, after: seenAfterOk?.last_seen_at }));
+          } finally {
+            // settings_json 逐語復元（verify 店 A1 のみ）＋自己 assert
+            await admin.from("stores").update({ settings_json: JSON.parse(snap0108) }).eq("id", s37A1.id);
+            const { data: back0108 } = await admin.from("stores").select("settings_json").eq("id", s37A1.id).single();
+            check("段37 ★0108 settings_json 逐語復元（snapshot 一致）",
+              JSON.stringify(back0108?.settings_json ?? null) === snap0108,
+              JSON.stringify(back0108?.settings_json));
+            // managerA1 の staff_pin を退避から復元（無かったなら無いまま）
+            if (mgrMem) {
+              await admin.from("staff_pin").delete().eq("membership_id", mgrMem);
+              if ((mgrPinSnap ?? []).length) await admin.from("staff_pin").insert((mgrPinSnap as Array<Record<string, unknown>>)[0]);
+            }
+          }
+        }
 
         // (1) 正経路: kiosk_arm=true → check_open 成功・created_by=operator（ゲートは operator 有効時 通す）
         const { data: chkId, error: eOpen } = await kiosk.rpc("check_open", { p_seat_id: seatA1, p_people: 1, p_nom_type: "free" });
