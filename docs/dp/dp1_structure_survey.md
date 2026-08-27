@@ -8,7 +8,7 @@ canonical = `mock/pages-2026-08/` は **構造 canonical**（DP0-4 改訂）＝D
 **DP1-④** `cast-comp` 4ページは **M2待遇レーン扱い・DP 対象外**。
 
 本ファイルは調査記録のみ。**実装・commit はしていない**。作成したのは本ファイルと
-`docs/tmp/dp1_route_map.md` の2点のみ（`docs/tmp/dp0_survey.md` の裁定欄追記を含む）。
+`docs/dp/dp1_route_map.md` の2点のみ（`docs/dp/dp0_survey.md` の裁定欄追記を含む）。
 
 ---
 
@@ -247,8 +247,8 @@ pagehead の説明文も「店舗端末、操作権限、印刷、機密情報�
 
 ### S3-0. 前提
 
-E4〜E8 で消化済み。原資料 = `docs/tmp/e8_gap_matrix.md`（134件）＋
-`docs/NOX_E8裁定_v1.md`（裁定書）＋`docs/tmp/e8_5_skipped.md`（スキップ記録）。
+E4〜E8 で消化済み。原資料 = `docs/dp/e8_gap_matrix.md`（134件）＋
+`docs/NOX_E8裁定_v1.md`（裁定書）＋`docs/dp/e8_5_skipped.md`（スキップ記録）。
 **「残差」= 裁定の結果として現行とモックの構造が異なるまま残っている項目**（＝未処理の意味ではない）。
 
 E8 裁定の全体集計（転記結果・実測）: 採用 96 ／ 現行維持 14 ／ 後送り 17 ／
@@ -289,7 +289,7 @@ staff-system（**4タブ vs 3パネル**＝staff#1・M級 IA・スキップ）�
 
 ## S4) 対応表
 
-`docs/tmp/dp1_route_map.md` を別ファイルで新規作成した（33ルート×mock 13枚・
+`docs/dp/dp1_route_map.md` を別ファイルで新規作成した（33ルート×mock 13枚・
 **構造差基準**の変換規模・裁定参照・14枚目は別表）。
 
 ---

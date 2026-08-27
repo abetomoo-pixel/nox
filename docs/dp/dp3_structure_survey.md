@@ -5,7 +5,7 @@
 
 底本 = `mock/pages-2026-08/nox-shift-management.html`（45,914 bytes）と
 `nox-announcement-management.html`（31,116 bytes）。実装は `app/(manage)/shift/`・`app/(manage)/notices/`。
-既存の裁定資料 = `docs/NOX_E8裁定_v1.md`・`docs/tmp/e8_gap_matrix.md` §3-4/§3-7・`docs/NOX_裁定台帳.md`。
+既存の裁定資料 = `docs/NOX_E8裁定_v1.md`・`docs/dp/e8_gap_matrix.md` §3-4/§3-7・`docs/NOX_裁定台帳.md`。
 
 **仕分けの定義**（DP1 P2 と同じ4値）:
 

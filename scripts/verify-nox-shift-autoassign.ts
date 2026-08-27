@@ -2,7 +2,7 @@
  * verify:nox-shift-autoassign — 自動配置 純関数（lib/nox/shift-autoassign.ts）の係留＝段60。
  *   npm run verify:nox-shift-autoassign（★DB 非依存・env 不要＝donor の verify 流儀）
  *
- * 正本: docs/tmp/NOX_SD設計書v1.md §4（2鍵・need 単層・1日1枠・max_consec ガード・
+ * 正本: docs/NOX_SD設計書v1.md §4（2鍵・need 単層・1日1枠・max_consec ガード・
  *       shortages(日×帯)・warnings）。
  *
  * 観点:

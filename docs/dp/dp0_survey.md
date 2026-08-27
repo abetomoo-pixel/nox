@@ -266,10 +266,10 @@ E0〜E8 は **13枚を canonical として完走・クローズ済み**（memory
 | **E1** | `.nox-dark` の**トークン値を13枚のモック語彙へ全面差し替え**＋不足追加 | `globals.css:38-` に出典・多数決・tiebreaker をコメントで逐語保持 |
 | **E2** | 共通シェル（サイドバー238px グリッド・topbar・brand 移設・sidefoot） | `app/(manage)/layout.tsx` の E2 コメント＋`.nox-layout` |
 | **E3** | 共通部品（`.btn` `.card` `.cardhead` `.field` `.kpi` `.modal*`）＋**radius をモック実測へ**＋`colors` 削除 | `theme.ts:21-27` |
-| **E4** | 非金銭ページ群（`/casts` `/customers` `/notices` `/audit` `/analytics` `/shift` `/master` 系）＋`.nox-inset` `.nox-listrow` 新設 | `docs/tmp/e4_gaps.md` |
-| **E5** | 金銭画面（`/register` → `/payroll` → `/report`）＋`--champ` 再裁定＋`--bad-*` 3トークン新設 | `docs/tmp/e5_gaps.md` |
+| **E4** | 非金銭ページ群（`/casts` `/customers` `/notices` `/audit` `/analytics` `/shift` `/master` 系）＋`.nox-inset` `.nox-listrow` 新設 | `docs/dp/e4_gaps.md` |
+| **E5** | 金銭画面（`/register` → `/payroll` → `/report`）＋`--champ` 再裁定＋`--bad-*` 3トークン新設 | `docs/dp/e5_gaps.md` |
 | **E6** | キオスク追随（`/kiosk` `/kiosk-register`）＋E1 取り残しリテラルの最終是正 | `kiosk-register:680` の E6 コメント |
-| **E8** | 構成差の裁定と実装（`docs/NOX_E8裁定_v1.md`・60件採用）＋T4 集計結線（mig0096） | `docs/tmp/e8_gap_matrix.md` |
+| **E8** | 構成差の裁定と実装（`docs/NOX_E8裁定_v1.md`・60件採用）＋T4 集計結線（mig0096） | `docs/dp/e8_gap_matrix.md` |
 
 ### S4-2. 画面単位の残差の大きさ（DP 変換の目安）
 
@@ -324,7 +324,7 @@ E0〜E8 は **13枚を canonical として完走・クローズ済み**（memory
 | **表示クラス** | `globals.css` の `.nox-ava` / `.nox-ava2` / `.nox-avachip` / `.nox-avarow` |
 | **部品** | `components/ui/cast-avatar.tsx` |
 | **関連トークン** | `--v2-ava: #2A2A36`（`globals.css` の v2 サブトークン・**非モック由来**・参照 4箇所） |
-| **既存の裁定** | `docs/tmp/e5_gaps.md` **I2 節**＝「**是正対象外**（identicon・同名同色の決定性が意匠）・パレット走査から**恒久に外す**」 |
+| **既存の裁定** | `docs/dp/e5_gaps.md` **I2 節**＝「**是正対象外**（identicon・同名同色の決定性が意匠）・パレット走査から**恒久に外す**」 |
 | **未裁定で残る選択肢** | `docs/tmp/design_tokens_draft.md:253`＝「(a) `--card2`(`#22221e`) に寄せる (b) 現行維持」 |
 | **モック側の実体** | 14枚に `--v2-ava` 相当の値は**無い**（`#2A2A36` は 14枚のどこにも出現しない） |
 

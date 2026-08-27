@@ -2,7 +2,7 @@
  * verify:nox-shift-deep — SD シフト深部（mig0101/0102）の runtime 検証＝段59。
  *   npm run verify:nox-shift-deep（事前に seed:f0 済み・env: URL/PUBLISHABLE/SECRET/SEED_PASSWORD）
  *
- * 正本: docs/tmp/NOX_SD設計書v1.md（sha 04621547…6796）§3 RPC 8本／SD-8（apply/clear 原子・入替型）／
+ * 正本: docs/NOX_SD設計書v1.md（sha 04621547…6796）§3 RPC 8本／SD-8（apply/clear 原子・入替型）／
  *       SD-9（1日1枠は純関数＋RPC ガード＝DB 制約はパーク）。
  *
  * ★prosrc 緑 ≠ 実行成功（設計書 §6）＝verify ハーネスの実 signIn で一巡を runtime 検証する:
