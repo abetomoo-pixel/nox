@@ -36,6 +36,58 @@ export type Penalty = {
 
 export const METRICS = ["hon", "jonai", "dohan", "days", "sales", "pt", "champCnt", "bottleCnt"] as const;
 
+// ── 表示ラベル（★表示テキスト専用）─────────────────────────────────────────
+//   ★RPC 引数名・overrides_json のキー・<option value>・basis/cond_json.metric の保存値は
+//     一切変えない。ここで置き換えるのは画面に出す文字だけ（送信値は英語のまま）。
+//   自由バックの基準（basis）＋達成条件の metric に共用。'flat' は基準側のみ現れる。
+//   語の根拠＝mock/nox-cast-reward/plan.html の報酬項目名（本指名/場内指名/同伴/ボトル・シャンパン/
+//   売上バック）と mock/pages-2026-08/nox-cast-compensation-all-in-one.html（出勤日数/ボトル/シャンパン）。
+//   ★sales は pay.ts の cast.sales＝按分後の総売上（モックの「本指名売上」とは別物）ゆえ「按分後」を明示。
+//   ★pt は pay.ts の input.pointProducts＝ポイント対象商品の pt 合計。
+const METRIC_LABEL_JA: Record<string, string> = {
+  flat: "定額",
+  hon: "本指名（本数）",
+  jonai: "場内指名（本数）",
+  dohan: "同伴（本数）",
+  days: "出勤日数",
+  sales: "売上（按分後）",
+  pt: "ポイント商品pt",
+  champCnt: "シャンパン（本数）",
+  bottleCnt: "ボトル（本数）",
+};
+// 未知の保存値（将来 basis が増えた場合）はそのまま出す＝表示が空にならない。
+const metricJa = (k: string): string => METRIC_LABEL_JA[k] ?? k;
+
+// 罰金・閾値の表示ラベルと単位（★state キー・RPC 引数名は英語のまま不変）。
+//   単位の根拠: 円＝integer 列かつ pay.ts の罰金加算経路（normPenaltyOf / PenaltyConfig）。
+//              h ＝set_penalty_config の検証 `0 < p_hours_per_shift <= 24`＋pay.ts の wage×hoursPerShift。
+//              分＝punch-match の late/early/over 判定閾値（閲覧ラベルも「N分」表記）。
+const PENALTY_LABEL_JA: Record<keyof Penalty, string> = {
+  fine_absent: "当欠罰金",
+  fine_late: "遅刻罰金",
+  hours_per_shift: "試算用 1シフト時間",
+  norm_on: "ノルマ罰金を有効にする",
+  norm_days_flat: "出勤日数 未達の定額",
+  norm_days_per: "出勤日数 不足1日につき",
+  norm_dohan_flat: "同伴 未達の定額",
+  norm_dohan_per: "同伴 不足1本につき",
+  late_grace_min: "遅刻猶予",
+  early_grace_min: "早退猶予",
+  over_grace_min: "残留猶予",
+};
+const PENALTY_UNIT_JA: Partial<Record<keyof Penalty, string>> = {
+  fine_absent: "円/回",
+  fine_late: "円/回",
+  hours_per_shift: "h",
+  norm_days_flat: "円",
+  norm_days_per: "円",
+  norm_dohan_flat: "円",
+  norm_dohan_per: "円",
+  late_grace_min: "分",
+  early_grace_min: "分",
+  over_grace_min: "分",
+};
+
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
@@ -271,23 +323,24 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
             <option value="">プラン選択（有効のみ）</option>
             {activePlans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <label style={{ fontSize: 12 }}>base↑ <input type="number" min={0} value={ov.base} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, base: e.target.value }))} style={{ ...input, width: 64 }} /></label>
+          <span style={note}>個別上書き（空欄＝プランの値）</span>
+          <label style={{ fontSize: 12 }}>保証時給 <input type="number" min={0} value={ov.base} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, base: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           {/* mig0086: 方式 override は mode 選択→対の値入力を必須表示（原子性の UI 構造化）。既定=方式は上書きしない。 */}
           <label style={{ fontSize: 12 }}>本 方式 <SegSelect value={ovHonMode} onChange={(v) => setOvHonMode(v as "" | BackModeRow)}
             options={[["", "既定"], ["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {ovHonMode === "rate" ? (
             <label style={{ fontSize: 12 }}>本 率(%)※必須 <input type="number" min={0} max={100} value={ov.honBackRate} onChange={(e) => setOv((o) => ({ ...o, honBackRate: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           ) : (
-            <label style={{ fontSize: 12 }}>honBack↑{ovHonMode === "per_count" ? "※必須" : ""} <input type="number" min={0} value={ov.honBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, honBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
+            <label style={{ fontSize: 12 }}>本(円/本){ovHonMode === "per_count" ? "※必須" : ""} <input type="number" min={0} value={ov.honBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, honBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           )}
           <label style={{ fontSize: 12 }}>場内 方式 <SegSelect value={ovJonaiMode} onChange={(v) => setOvJonaiMode(v as "" | BackModeRow)}
             options={[["", "既定"], ["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {ovJonaiMode === "rate" ? (
             <label style={{ fontSize: 12 }}>場内 率(%)※必須 <input type="number" min={0} max={100} value={ov.jonaiBackRate} onChange={(e) => setOv((o) => ({ ...o, jonaiBackRate: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           ) : (
-            <label style={{ fontSize: 12 }}>jonaiBack↑{ovJonaiMode === "per_count" ? "※必須" : ""} <input type="number" min={0} value={ov.jonaiBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, jonaiBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
+            <label style={{ fontSize: 12 }}>場内(円/本){ovJonaiMode === "per_count" ? "※必須" : ""} <input type="number" min={0} value={ov.jonaiBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, jonaiBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           )}
-          <label style={{ fontSize: 12 }}>dohanBack↑ <input type="number" min={0} value={ov.dohanBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, dohanBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
+          <label style={{ fontSize: 12 }}>同伴(円/本) <input type="number" min={0} value={ov.dohanBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, dohanBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           <button style={btnDark} onClick={save} disabled={!castId || !planId}>割当</button>
         </div>
       ) : <p style={note}>割当はマネージャー以上のみ可能です。</p>}
@@ -406,8 +459,9 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
 // ── 罰金・突合閾値（owner のみ・D3a・全12引数明示送信＝原則7）──
 export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, reload }: { penalty: Penalty; setPenalty: (p: Penalty) => void; exists: boolean; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
-  const num = (k: keyof Penalty) => (
-    <label style={{ fontSize: 12 }}>{k} <input type="number" min={0} value={penalty[k] as number}
+  // ★表示のみ日本語化（k＝state キー／RPC 引数名は英語のまま save() で明示送信）。
+  const num = (k: keyof Penalty, labelJa: string = PENALTY_LABEL_JA[k], unit: string | undefined = PENALTY_UNIT_JA[k]) => (
+    <label style={{ fontSize: 12 }}>{labelJa}{unit ? `（${unit}）` : ""} <input type="number" min={0} value={penalty[k] as number}
       onChange={(e) => setPenalty({ ...penalty, [k]: Number(e.target.value) })} style={{ ...input, width: 80 }} /></label>
   );
   async function save() {
@@ -430,7 +484,7 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
       {isOwner ? (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           {num("fine_absent")}{num("fine_late")}{num("hours_per_shift")}
-          <label style={{ fontSize: 12 }}><input type="checkbox" checked={penalty.norm_on} onChange={(e) => setPenalty({ ...penalty, norm_on: e.target.checked })} /> ノルマ罰金 on</label>
+          <label style={{ fontSize: 12 }}><input type="checkbox" checked={penalty.norm_on} onChange={(e) => setPenalty({ ...penalty, norm_on: e.target.checked })} /> {PENALTY_LABEL_JA.norm_on}</label>
           {num("norm_days_flat")}{num("norm_days_per")}{num("norm_dohan_flat")}{num("norm_dohan_per")}
           {num("late_grace_min")}{num("early_grace_min")}{num("over_grace_min")}
           <button style={btnDark} onClick={save}>保存</button>
@@ -478,9 +532,9 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
           {backs.map((b) => (
             <tr key={b.id} onClick={() => isManagerUp && edit(b)} style={{ cursor: isManagerUp ? "pointer" : "default" }}>
               <td>{b.name}</td>
-              <td>{b.basis}</td>
+              <td>{metricJa(b.basis)}</td>
               <td className="num">{b.basis === "sales" ? `${b.value}%` : b.value}</td>
-              <td>{b.cond_json ? `${b.cond_json.metric}≥${b.cond_json.min}` : "—"}</td>
+              <td>{b.cond_json ? `${metricJa(b.cond_json.metric)}≥${b.cond_json.min}` : "—"}</td>
               <td style={{ color: b.is_active ? "var(--ok)" : "var(--sub)" }}>{b.is_active ? "有効" : "無効"}</td>
             </tr>
           ))}
@@ -491,15 +545,15 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
           <span style={note}>{id ? "編集中" : "新規"}</span>
           <input placeholder="名称" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 140 }} />
           <select value={basis} onChange={(e) => setBasis(e.target.value)} style={input}>
-            <option value="flat">flat（定額）</option>
-            {METRICS.map((m) => <option key={m} value={m}>{m}</option>)}
+            <option value="flat">{metricJa("flat")}</option>
+            {METRICS.map((m) => <option key={m} value={m}>{metricJa(m)}</option>)}
           </select>
           <label style={{ fontSize: 12 }}>値{basis === "sales" ? "%" : ""} <input type="number" min={0} value={value} onChange={(e) => setValue(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={condOn} onChange={(e) => setCondOn(e.target.checked)} /> 達成条件</label>
           {condOn && (
             <>
               <select value={condMetric} onChange={(e) => setCondMetric(e.target.value)} style={input}>
-                {METRICS.map((m) => <option key={m} value={m}>{m}</option>)}
+                {METRICS.map((m) => <option key={m} value={m}>{metricJa(m)}</option>)}
               </select>
               <label style={{ fontSize: 12 }}>≥ <input type="number" min={0} value={condMin} onChange={(e) => setCondMin(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
             </>
