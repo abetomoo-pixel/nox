@@ -69,6 +69,7 @@ function ruleErrJa(msg: string | undefined): string {
   if (msg.includes("bad dow")) return "曜日の指定が不正です（1つ以上選択してください）";
   if (msg.includes("bad time")) return "時間帯が不正です（開始→終了の順・営業日区切りを跨ぐ帯は2行に分けてください）";
   if (msg.includes("bad rank")) return "ランクの指定が不正です";
+  if (msg.includes("inactive rank")) return "停止中のランクは指定できません";
   if (msg.includes("bad amount")) return "金額は0以上で入力してください";
   if (msg.includes("bad duration")) return "分数の指定が不正です（1以上・セット/延長のみ）";
   if (msg.includes("bad priority")) return "優先順位が不正です";

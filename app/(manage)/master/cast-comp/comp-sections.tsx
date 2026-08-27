@@ -95,6 +95,17 @@ const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 export const secTitle: React.CSSProperties = t.cardTitle;
 const note: React.CSSProperties = { fontSize: 12, color: "var(--sub)" };
 
+// RPC エラーの日本語化（待遇マスタ系・他5ファイルの rpcErrJa と同型）。
+//   ★mig0104（裁定77）の 'duplicate name'（set_comp_plan）を含む。既定は素の message を返す
+//     ＝未知トークンを握り潰さない（rpcErrJa 各実装と同じ振る舞い）。
+function compErrJa(msg: string | undefined): string {
+  if (!msg) return "不明なエラー";
+  if (msg.includes("duplicate name")) return "同じ名前のプランがあります";
+  if (msg.includes("not found")) return "対象が見つかりません（再読込してください）";
+  if (msg.includes("forbidden")) return "権限がありません";
+  return msg;
+}
+
 export const DEFAULT_PENALTY: Penalty = {
   fine_absent: 10000, fine_late: 3000, hours_per_shift: 5, norm_on: true,
   norm_days_flat: 5000, norm_days_per: 2000, norm_dohan_flat: 3000, norm_dohan_per: 1500,
@@ -196,7 +207,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
       p_hon_back_mode: honMode, p_hon_back_rate: honMode === "rate" ? honRate : null,
       p_jonai_back_mode: jonaiMode, p_jonai_back_rate: jonaiMode === "rate" ? jonaiRate : null,
     });
-    setMsg(error ? error.message : id ? "プランを更新しました" : "プランを登録しました");
+    setMsg(error ? compErrJa(error.message) : id ? "プランを更新しました" : "プランを登録しました");
     if (!error) { setId(null); setName(""); setBase(0); await reload(); }
   }
 
@@ -295,7 +306,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
       overrides.jonaiBack = Number(ov.jonaiBack);
     }
     const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: planId, p_overrides: overrides });
-    setMsg(error ? error.message : "割当を保存しました");
+    setMsg(error ? compErrJa(error.message) : "割当を保存しました");
     if (!error) await reload();
   }
 
@@ -367,7 +378,7 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
       p_cast_id: castId, p_period: period, p_days_target: days, p_dohan_target: dohan,
       p_sales_target: sales, p_shimei_target: shimei,
     });
-    setMsg(error ? error.message : "ノルマを保存しました");
+    setMsg(error ? compErrJa(error.message) : "ノルマを保存しました");
     if (!error) await reload();
   }
   return (
@@ -422,7 +433,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
   function edit(d: Deduction) { setId(d.id); setName(d.name); setAmount(d.amount); setPer(d.per); setActive(d.is_active); }
   async function save() {
     const { error } = await supabase.rpc("set_deduction", { p_id: id, p_store_id: storeId, p_name: name, p_amount: amount, p_per: per, p_is_active: active });
-    setMsg(error ? error.message : id ? "控除を更新しました" : "控除を登録しました");
+    setMsg(error ? compErrJa(error.message) : id ? "控除を更新しました" : "控除を登録しました");
     if (!error) { setId(null); setName(""); setAmount(0); await reload(); }
   }
   return (
@@ -475,7 +486,7 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
       p_late_grace_min: penalty.late_grace_min, p_early_grace_min: penalty.early_grace_min,
       p_over_grace_min: penalty.over_grace_min,
     });
-    setMsg(error ? error.message : "罰金・閾値を保存しました");
+    setMsg(error ? compErrJa(error.message) : "罰金・閾値を保存しました");
     if (!error) await reload();
   }
   return (
@@ -521,7 +532,7 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
       p_cond: condOn ? { metric: condMetric, min: condMin } : null,
       p_is_active: active,
     });
-    setMsg(error ? error.message : id ? "自由バックを更新しました" : "自由バックを登録しました");
+    setMsg(error ? compErrJa(error.message) : id ? "自由バックを更新しました" : "自由バックを登録しました");
     if (!error) { setId(null); setName(""); setValue(0); setCondOn(false); await reload(); }
   }
   return (

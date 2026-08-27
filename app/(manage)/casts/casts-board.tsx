@@ -286,7 +286,8 @@ export default function CastsBoard({
     const { error } = await supabase.rpc("set_cast_rank_of", { p_cast_id: c.id, p_rank_id: rankId });
     setBusy(false);
     setMsg(error
-      ? (error.message.includes("bad rank") ? "このお店のランクではありません"
+      ? (error.message.includes("inactive rank") ? "停止中のランクは指定できません"
+        : error.message.includes("bad rank") ? "このお店のランクではありません"
         : error.message.includes("not found") ? "キャストが見つかりません（再読込してください）"
         : error.message.includes("forbidden") ? "権限がありません"
         : error.message)
