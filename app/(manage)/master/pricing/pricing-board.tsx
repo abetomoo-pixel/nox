@@ -13,8 +13,11 @@
 // ★修正4点: (a) 指名料金＝ランク×hon/jonai テーブル（実体は pricing_rules の rank_id 行・
 //   軸なし）(b) スケジュール表に席種列 (c) 判定時刻設定 UI は作らない＝凍結注記
 //   (d) モックの「重複禁止」注記→priority 表示＋「重複時は優先順位の小さい行が適用」。
-// ★モックから意図的に落としたもの: 帯の「表示名」（pricing_rules に列がない）・
-//   「料金単位 卓/名」列（stores.time_per＝店単位の設定でルール軸ではない＝基本料金タブで設定）。
+// ★帯の「表示名」は mig0107（P-1）で実装済み＝pricing_rules.name（任意・1〜40文字・trim・空は null）。
+//   1帯の最大3行（set/extension/dohan）へ同じ値を配る。bandKeyOf には含めない＝名前で帯を分裂させない。
+//   ★解決には使わない（pricing_resolve_core は name を見ない）＝一覧での見分け専用。
+// ★モックから意図的に落としたもの: 「料金単位 卓/名」列
+//   （stores.time_per＝店単位の設定でルール軸ではない＝基本料金タブで設定）。
 // ★書込は全て RPC 専任。エラーは fn_set_pricing_rule の bad 系トークン対応表で日本語化。
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
@@ -38,6 +41,7 @@ export type PricingRule = {
   id: string; fee_kind: string; seat_kind: string | null; dow_mask: number | null;
   time_from_min: number | null; time_to_min: number | null; rank_id: string | null;
   amount: number; duration_min: number | null; priority: number; is_active: boolean; created_at: string;
+  name: string | null;  // ★mig0107（P-1）: 表示名（任意・trim 済み 1〜40 文字・null=未設定）
 };
 export type CastRank = { id: string; name: string; sort_order: number; is_active: boolean };
 // ★DP-R: 端数処理方法の表示語（pricing-panel の option と同語彙）
@@ -70,6 +74,7 @@ function ruleErrJa(msg: string | undefined): string {
   if (msg.includes("bad time")) return "時間帯が不正です（開始→終了の順・営業日区切りを跨ぐ帯は2行に分けてください）";
   if (msg.includes("bad rank")) return "ランクの指定が不正です";
   if (msg.includes("inactive rank")) return "停止中のランクは指定できません";
+  if (msg.includes("bad name")) return "表示名は40文字までです";
   if (msg.includes("bad amount")) return "金額は0以上で入力してください";
   if (msg.includes("bad duration")) return "分数の指定が不正です（1以上・セット/延長のみ）";
   if (msg.includes("bad priority")) return "優先順位が不正です";
@@ -88,6 +93,7 @@ type Band = {
   extraCount: number;           // UI 外で作られた同帯同種の2件目以降（プレビューで確認を促す）
   priority: number;             // 代表 priority＝min
   allActive: boolean;
+  name: string | null;          // ★mig0107: 代表 name＝帯内で最初に見つかった非 null（ruleOrder 順）
 };
 
 function bandKeyOf(r: PricingRule): string {
@@ -106,7 +112,7 @@ function bandsOf(rules: PricingRule[]): Band[] {
       b = {
         key, seat_kind: r.seat_kind, dow_mask: r.dow_mask,
         from: r.time_from_min, to: r.time_to_min,
-        cells: {}, all: [], extraCount: 0, priority: r.priority, allActive: true,
+        cells: {}, all: [], extraCount: 0, priority: r.priority, allActive: true, name: null,
       };
       map.set(key, b);
     }
@@ -115,6 +121,8 @@ function bandsOf(rules: PricingRule[]): Band[] {
     if (!b.cells[fk]) b.cells[fk] = r; else b.extraCount++;
     b.priority = Math.min(b.priority, r.priority);
     b.allActive = b.allActive && r.is_active;
+    // ★mig0107: 帯の代表 name＝ruleOrder 順で最初の非 null（saveBand が3行へ同じ名前を配るので通常は全行同値）
+    if (b.name === null && r.name !== null) b.name = r.name;
   }
   return [...map.values()].sort((a, b) =>
     a.priority - b.priority || (a.from ?? -1) - (b.from ?? -1) || a.key.localeCompare(b.key));
@@ -189,12 +197,15 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     id: string | null; fee_kind: string; seat_kind: string | null; dow_mask: number | null;
     from: number | null; to: number | null; rank_id: string | null;
     amount: number; duration_min: number | null; priority: number; is_active: boolean;
+    name?: string | null;  // ★mig0107: 省略＝送らない（12引数呼び＝DEFAULT NULL で解決）
   }): Promise<string | null> {
     const { error } = await supabase.rpc("set_pricing_rule", {
       p_id: p.id, p_store_id: storeId, p_fee_kind: p.fee_kind, p_seat_kind: p.seat_kind,
       p_dow_mask: p.dow_mask, p_time_from_min: p.from, p_time_to_min: p.to,
       p_rank_id: p.rank_id, p_amount: p.amount, p_duration_min: p.duration_min,
       p_priority: p.priority, p_is_active: p.is_active,
+      // ★mig0107: name を持つ呼び出しだけ p_name を足す。指名料（saveRankRow）は渡さない＝null のまま。
+      ...(p.name !== undefined ? { p_name: p.name } : {}),
     });
     return error ? ruleErrJa(error.message) : null;
   }
@@ -212,12 +223,13 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const [mExtMin, setMExtMin] = useState("");
   const [mDohan, setMDohan] = useState("");
   const [mActive, setMActive] = useState(true);
+  const [mName, setMName] = useState("");   // ★mig0107（P-1）: 帯の表示名（任意・空＝null 送信）
   const [mErr, setMErr] = useState<string | null>(null);
 
   function openNewBand() {
     setEditKey(null); setMSeat(""); setMDays(Array(7).fill(true));
     setMFrom(""); setMTo(""); setMSetFee(""); setMSetMin(""); setMExtFee(""); setMExtMin("");
-    setMDohan(""); setMActive(true); setMErr(null); setModalOpen(true);
+    setMDohan(""); setMActive(true); setMName(""); setMErr(null); setModalOpen(true);
   }
   function openEditBand(b: Band) {
     setEditKey(b.key);
@@ -231,6 +243,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     setMExtMin(b.cells.extension?.duration_min != null ? String(b.cells.extension.duration_min) : "");
     setMDohan(b.cells.dohan ? String(b.cells.dohan.amount) : "");
     setMActive(b.allActive);
+    setMName(b.name ?? "");
     setMErr(null);
     setModalOpen(true);
   }
@@ -271,6 +284,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         duration_min: fk === "dohan" ? null : (min === "" ? null : Number(min)),
         priority: existing?.priority ?? nextPriority(fk),
         is_active: mActive,
+        // ★mig0107（P-1）: 1帯の最大3行（set/extension/dohan）へ同じ表示名を配る。
+        //   bandKeyOf は不変＝名前で帯を分裂させない（帯の同一性は席種/曜日/時間帯のみで決まる）。
+        name: mName.trim() === "" ? null : mName.trim(),
       });
       if (err) { setMErr(`${fk === "set" ? "セット" : fk === "extension" ? "延長" : "同伴"}: ${err}`); setBusy(false); await reload(); return; }
     }
@@ -636,6 +652,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                   <thead>
                     <tr>
                       <th style={{ width: 86 }} title="重複時は優先順位の小さい行が適用されます">優先</th>
+                      <th>表示名</th>
                       <th>時間帯</th>
                       <th>席種</th>
                       <th>適用日</th>
@@ -658,6 +675,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                             <span style={{ ...t.num, color: "var(--sub)", fontSize: 11 }}>{b.priority}</span>
                           </span>
                         </td>
+                        <td data-label="表示名">{b.name ?? "—"}</td>
                         <td data-label="時間帯"><span style={t.num}>{bandTimeLabel(b)}</span></td>
                         <td data-label="席種">{b.seat_kind ?? "全席種"}</td>
                         <td data-label="適用日">{bandDowLabel(b)}</td>
@@ -1105,6 +1123,19 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 開始と終了が営業日区切り（{bizCutoffHm}）と同時刻のため「終日の帯」として保存されます。
               </span>
             )}
+          </div>
+
+          {/* ★mig0107（P-1）: 表示名（任意）。時間帯の直下＝帯を識別する情報のまとまりに置く。
+              1帯の最大3行（set/extension/dohan）へ同じ値が配られる。空欄は null（未設定）。 */}
+          <div className="nox-field">
+            <span className="lab">表示名（任意・40文字まで）</span>
+            <input
+              type="text" value={mName} maxLength={40}
+              placeholder="例 平日ナイト"
+              onChange={(e) => setMName(e.target.value)}
+              style={inputLg}
+            />
+            <span className="hint">一覧での見分け用です。料金の適用条件には影響しません（空欄可）。</span>
           </div>
 
           <div className="nox-field">
