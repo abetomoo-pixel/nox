@@ -110,7 +110,7 @@ export default function PrinterPanel({ storeId, storeName, initialProfile }: { s
 
   return (
     <div>
-      <div className="nox-2col">
+      <div className="nox-2col nox-2col--32">
         {/* ── 左: プリンタ設定＋印刷ジョブ ── */}
         <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
           <section className="nox-cardtop" style={card}>

@@ -18,12 +18,14 @@ export const dynamic = "force-dynamic";
 //   モックが別タブに置く「キオスク端末」と「操作担当PIN」が kiosk-panel.tsx に同居していた
 //   ＝DP1-⑦ の再編で kiosk-device-panel / kiosk-pin-panel の2部品へ分割した（表示のみ・機能不変）。
 //
-// ★権限の出し分けは**旧 page.tsx の条件を逐語で維持**する:
-//     KioskPanel   … role === "owner"
-//     PrinterPanel … role === "owner" && storeId
-//     SensitiveTax … isManagerUp
-//   → 端末/PIN/プリンタは owner のみタブに載り、manager は「機密・税務情報」1タブになる
-//     （タブ1件なのでタブ行は出ない＝SystemBoard の退化契約）。
+// ★権限の出し分け:
+//     KioskDevicePanel … role === "owner"（旧 page.tsx 逐語）
+//     KioskPinPanel    … isManagerUp（★M-11b で manager にも開放＝staff_pin_status が
+//                        owner ∨ manager 自店を許可・set_staff_pin も従来から manager 自店可。
+//                        ポリシー保存だけ owner 限定＝パネル内で表示制御）
+//     PrinterPanel     … role === "owner" && storeId（旧 page.tsx 逐語）
+//     SensitiveTax     … isManagerUp
+//   → manager は「操作担当PIN」＋「機密・税務情報」の2タブになる。
 //   真の防御は従来どおり各 RPC / RLS 側（ここは表示制御）。
 //
 // 取得は「このページが描くのに要る分だけ」:
@@ -50,16 +52,26 @@ export default async function MasterSystemPage() {
   // ★DP-R 第3弾（教訓26＝構造照合）: モックの KPI帯4枚。**数えられるものだけ数える**。
   //   ・登録端末: kiosk_devices は **deny-all**（owner でも直 SELECT 不可・管理用の読み口は
   //     /api/kiosk/provision の GET だけ＝mig0043）＝server では数えられない → 「—」。
-  //   ・操作担当PIN: staff_pin も **deny-all**＝「設定済みか」は読めない。数えられるのは
-  //     **対象人数**（owner/manager/staff(can_register)＝set_staff_pin の bad target 条件と同一）だけ。
-  //     ★そのためラベルは「PIN設定済み」ではなく「操作担当PIN 対象」＝読めない数を作らない。
   //   ・プリンタ: settings_json.printer_enabled が実体（printer-panel と同じキー）。
   //   ・要確認（セキュリティ）: 該当する集計が無い → 「—」＋準備中。
-  const { data: mems } = await supabase
-    .from("memberships").select("role, can_register, is_active");
-  const pinTargets = (mems ?? []).filter(
-    (m) => m.is_active && (m.role === "owner" || m.role === "manager" || (m.role === "staff" && m.can_register)),
-  ).length;
+  // ★M-11b（mig0108）: staff_pin も deny-all のまま **staff_pin_status**（読取専用 RPC）で
+  //   「設定済み数」を数えられるようになった＝KPI を「PIN設定済み X / 対象 Y名」へ。
+  //   対象＝RPC の返す行（owner/manager/staff(can_register)＝set_staff_pin の bad target 条件と同一）。
+  //   owner は全店合算・manager は自店のみ（他店は RPC が forbidden＝呼ばない）。
+  let pinTargets = 0;
+  let pinSet: number | null = null;
+  {
+    const pinStores = isOwner ? (allStores ?? []) : (allStores ?? []).filter((s2) => s2.id === storeId);
+    let setCnt = 0; let ok = true;
+    for (const s2 of pinStores) {
+      const { data: st, error } = await supabase.rpc("staff_pin_status", { p_store_id: s2.id });
+      if (error) { ok = false; continue; }
+      const rows = (st ?? []) as Array<{ has_pin: boolean }>;
+      pinTargets += rows.length;
+      setCnt += rows.filter((r) => r.has_pin === true).length;
+    }
+    pinSet = ok || pinTargets > 0 ? setCnt : null;
+  }
   const printerOn = sj?.printer_enabled === true;
 
   // ★M-11a B-0（起票#32 の解消）: KPI「登録端末」を実数にする。
@@ -86,11 +98,13 @@ export default async function MasterSystemPage() {
       key: "devices", label: "▣ キオスク端末",
       node: <KioskDevicePanel stores={(allStores ?? []) as { id: string; name: string }[]} />,
     });
-    tabs.push({
-      key: "pins", label: "● 操作担当PIN",
-      node: <KioskPinPanel stores={(allStores ?? []) as { id: string; name: string }[]} />,
-    });
   }
+  // ★M-11b: PIN タブは manager にも出す（staff_pin_status が owner ∨ manager 自店を許可＝mig0108。
+  //   set_staff_pin も従来から manager 自店可。ポリシー保存だけ owner 限定＝パネル内で表示制御）。
+  tabs.push({
+    key: "pins", label: "● 操作担当PIN",
+    node: <KioskPinPanel stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={isOwner} />,
+  });
   if (isOwner && storeId) {
     tabs.push({
       key: "receipts", label: "▤ レシート・プリンタ",
@@ -129,9 +143,10 @@ export default async function MasterSystemPage() {
             : deviceInactive === 0 ? "すべて有効" : `${deviceInactive}台 無効`}</div>
         </div>
         <div className="nox-kpi2">
-          <div className="nox-kpi2-l">操作担当PIN 対象</div>
-          <div className="nox-kpi2-v num">{pinTargets}<small>名</small></div>
-          <div className="nox-kpi2-s">設定済みかは確認できません</div>
+          <div className="nox-kpi2-l">PIN設定済み</div>
+          <div className="nox-kpi2-v num">{pinSet === null ? "—" : <>{pinSet}<small>／対象 {pinTargets}名</small></>}</div>
+          <div className="nox-kpi2-s">{pinSet === null ? "「操作担当PIN」タブで確認"
+            : pinSet >= pinTargets ? "全員 設定済み" : `${pinTargets - pinSet}名 未設定`}</div>
         </div>
         <div className="nox-kpi2">
           <div className="nox-kpi2-l">プリンタ</div>

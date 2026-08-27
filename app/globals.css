@@ -1069,6 +1069,8 @@ body {
 /* 2ペイン／下段2枚（モック .main / .lower） */
 .nox-2col { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
 @media (min-width: 900px) { .nox-2col { grid-template-columns: 1fr 380px; } }
+/* ★M-11b 4-f: /master/system の4パネル専用（モックの左右比 3:2）。dashboard/notices/shift の .nox-2col は不変 */
+@media (min-width: 900px) { .nox-2col.nox-2col--32 { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
 /* 分析モック .cols＝左 1.2fr（日別バー＋支払構成）／右 1fr（貢献ランキング＋内訳） */
 .nox-acols { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
 @media (min-width: 900px) { .nox-acols { grid-template-columns: 1.2fr 1fr; } }

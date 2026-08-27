@@ -217,7 +217,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
         <span className="nox-stpill" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>ENCRYPTED</span>
       </div>
 
-      <div className="nox-2col">
+      <div className="nox-2col nox-2col--32">
         {/* ── 左: キャスト機密情報（本人情報＋税務設定） ── */}
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

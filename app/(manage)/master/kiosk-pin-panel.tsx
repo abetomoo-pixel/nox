@@ -4,17 +4,13 @@
 //
 // ★M-11a（2026-08-27）: モック nox-staff-system-settings の2カラム構成へ追随
 //   （左=担当の表／右=PINポリシー。narrow は .nox-2col が1カラム）。
-//   ★RPC・引数・エラー文言・対象条件は逐語で不変。インライン PIN 入力は撤去し
-//     モックの「PINを設定」モーダルへ（送信値は同じ set_staff_pin 1本）。
-//   ★出さないもの（A-2/A-3 実測・教訓25）:
-//     - 「失敗回数」列: staff_pin.fail_count は列として在るが deny-all＝owner でも読めない
-//     - 「設定済み」表示・PIN設定済み数: 同上（count RPC も無い）
-//     - 「90日更新」「セキュリティ状態」: 器そのものが無い
-//   ★モーダルの検証は 4桁・確認一致のみ。モックの「同じ数字の繰り返し不可」は
-//     RPC（set_staff_pin）に規則が無い＝サーバが受ける PIN を UI が拒む逆転を作らないため入れない。
-//
-// staff_pin は deny-all＝設定状況は読めない・上書き設定のみ。
-// 対象＝owner/manager/staff(can_register)＝RPC 側の bad target 条件と同一。
+// ★M-11b（mig0108・起票#31）: staff_pin_status で設定状況・失敗回数・ロックを読めるようになった
+//   （deny-all のまま読取専用 RPC を新設＝hash 非返却）。この画面は:
+//   - PIN 列 = has_pin ? "••••（設定済）" : "未設定"／失敗列 = fail_count・ロック中は赤で「〜まで」
+//   - 右カード = ロック閾値の実値（set_store_pin_policy・owner のみ保存・manager は表示のみ）
+//   - 「最終アクセス」列は出さない（打刻端末側の記録は mig0109 後）
+//   ★RPC・引数・エラー文言・対象条件は逐語で不変。set_staff_pin の送信は従来と同じ1本。
+//   ★モーダルの検証は 4桁・確認一致のみ（サーバに繰り返し禁止規則は無い＝逆転を作らない）。
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -22,7 +18,11 @@ import Modal from "@/components/ui/modal";
 
 type Store = { id: string; name: string };
 type OpMember = { id: string; store_id: string; role: string; user_name: string };
+type PinStatus = { membership_id: string; has_pin: boolean; fail_count: number; locked_until: string | null; pin_updated_at: string | null };
 const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "黒服" };
+
+const MAX_FAIL_OPTIONS = [3, 5, 10] as const;
+const LOCK_MIN_OPTIONS = [5, 10, 15, 30, 60] as const;
 
 const card: React.CSSProperties = t.card;
 const h3: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", marginTop: 0, marginBottom: 2 };
@@ -31,9 +31,18 @@ const btn: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const btnOn: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const inp: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 
-export default function KioskPinPanel({ stores }: { stores: Store[] }) {
+// set_store_pin_policy のエラー写像（mig0108）
+function policyErrJa(m: string): string {
+  return m.includes("bad max_fail") ? "回数は3〜10で指定してください"
+    : m.includes("bad lock_minutes") ? "時間は5〜60分で指定してください"
+    : m.includes("forbidden") ? "権限がありません（オーナーのみ）"
+    : m.includes("billing locked") ? "課金が停止中のため変更できません" : m;
+}
+
+export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; isOwner: boolean }) {
   const supabase = createClient();
   const [opMembers, setOpMembers] = useState<OpMember[]>([]);
+  const [pinStatus, setPinStatus] = useState<Record<string, PinStatus>>({});
   const [pinMsg, setPinMsg] = useState("");
   const [busy, setBusy] = useState(false);
   // ★M-11a: 再設定モーダル（対象 membership・新PIN・確認）
@@ -41,6 +50,12 @@ export default function KioskPinPanel({ stores }: { stores: Store[] }) {
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [modalErr, setModalErr] = useState<string | null>(null);
+  // ★M-11b: PIN ポリシー（店単位・settings_json の pin_lock_max_fail / pin_lock_minutes）
+  const [polStoreId, setPolStoreId] = useState<string>(stores[0]?.id ?? "");
+  const [maxFail, setMaxFail] = useState(5);
+  const [lockMin, setLockMin] = useState(15);
+  const [polMsg, setPolMsg] = useState("");
+  const [polBusy, setPolBusy] = useState(false);
 
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? id;
 
@@ -65,7 +80,34 @@ export default function KioskPinPanel({ stores }: { stores: Store[] }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { void loadOpMembers(); }, [loadOpMembers]);
+  // ★M-11b: staff_pin_status（mig0108・owner=全店／manager=自店。失敗した店は行なし＝「未設定」でなく「—」）
+  const loadPinStatus = useCallback(async () => {
+    const map: Record<string, PinStatus> = {};
+    for (const s of stores) {
+      const { data, error } = await supabase.rpc("staff_pin_status", { p_store_id: s.id });
+      if (error) continue; // manager の他店など＝この店の状態は出さない
+      for (const r of (data ?? []) as PinStatus[]) map[r.membership_id] = r;
+    }
+    setPinStatus(map);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stores]);
+
+  // ポリシー実値の読取（stores.settings_json＝kiosk_login と同じキー・既定 5回/15分）
+  const loadPolicy = useCallback(async (storeId: string) => {
+    if (!storeId) return;
+    const { data } = await supabase.from("stores").select("settings_json").eq("id", storeId).single();
+    const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
+    const asInt = (v: unknown, d: number) => {
+      const n = parseInt(String(v ?? ""), 10);
+      return Number.isFinite(n) ? n : d;
+    };
+    setMaxFail(asInt(sj.pin_lock_max_fail, 5));
+    setLockMin(asInt(sj.pin_lock_minutes, 15));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { void loadOpMembers(); void loadPinStatus(); }, [loadOpMembers, loadPinStatus]);
+  useEffect(() => { void loadPolicy(polStoreId); }, [loadPolicy, polStoreId]);
 
   function openPinModal(m: OpMember) {
     setPinTarget(m); setNewPin(""); setConfirmPin(""); setModalErr(null);
@@ -88,12 +130,31 @@ export default function KioskPinPanel({ stores }: { stores: Store[] }) {
     }
     setPinTarget(null);
     setPinMsg("PIN を設定しました（失敗回数・ロックもリセット）");
+    void loadPinStatus();
+  }
+
+  // set_store_pin_policy（mig0108・owner 限定＝RPC 側が強制。UI は表示制御のみ）
+  async function savePolicy() {
+    if (!polStoreId) return;
+    setPolBusy(true); setPolMsg("");
+    const { error } = await supabase.rpc("set_store_pin_policy", {
+      p_store_id: polStoreId, p_max_fail: maxFail, p_lock_minutes: lockMin,
+    });
+    setPolBusy(false);
+    if (error) { setPolMsg(policyErrJa(error.message)); return; }
+    setPolMsg("ロックポリシーを保存しました");
+    void loadPolicy(polStoreId);
   }
 
   const canSubmit = /^[0-9]{4}$/.test(newPin) && newPin === confirmPin;
 
+  const hhmm = (iso: string) => {
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
+
   return (
-    <div className="nox-2col">
+    <div className="nox-2col nox-2col--32">
       {/* ── 左: 操作担当PIN（主カード） ── */}
       <section className="nox-cardtop" style={card}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -105,49 +166,98 @@ export default function KioskPinPanel({ stores }: { stores: Store[] }) {
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
             <thead>
               <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
-                {["担当者", "役割", "PIN", "操作"].map((h) => (
+                {["担当者", "役割", "PIN", "失敗", "操作"].map((h) => (
                   <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {opMembers.length === 0 && (
-                <tr><td colSpan={4} style={{ padding: 8, color: "var(--sub)" }}>（対象の担当がいません）</td></tr>
+                <tr><td colSpan={5} style={{ padding: 8, color: "var(--sub)" }}>（対象の担当がいません）</td></tr>
               )}
-              {opMembers.map((m) => (
-                <tr key={m.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                  <td style={{ padding: 6 }}>
-                    <b>{m.user_name}</b>
-                    <small style={{ display: "block", color: "var(--sub)" }}>{storeName(m.store_id)}</small>
-                  </td>
-                  <td style={{ padding: 6, whiteSpace: "nowrap" }}>
-                    <span className="nox-stpill">{ROLE_LABEL[m.role] ?? m.role}</span>
-                  </td>
-                  <td style={{ padding: 6 }}>
-                    <span className="num" title="設定済みかはレジ端末のログイン画面で確認" style={{ letterSpacing: 2, color: "var(--sub)" }}>••••</span>
-                  </td>
-                  <td style={{ padding: 6 }}>
-                    <button style={btn} disabled={busy} onClick={() => openPinModal(m)}>再設定</button>
-                  </td>
-                </tr>
-              ))}
+              {opMembers.map((m) => {
+                const st = pinStatus[m.id];
+                const locked = !!st?.locked_until && new Date(st.locked_until).getTime() > Date.now();
+                return (
+                  <tr key={m.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: 6 }}>
+                      <b>{m.user_name}</b>
+                      <small style={{ display: "block", color: "var(--sub)" }}>{storeName(m.store_id)}</small>
+                    </td>
+                    <td style={{ padding: 6, whiteSpace: "nowrap" }}>
+                      <span className="nox-stpill">{ROLE_LABEL[m.role] ?? m.role}</span>
+                    </td>
+                    <td style={{ padding: 6, whiteSpace: "nowrap" }}>
+                      {st === undefined ? <span style={{ color: "var(--sub)" }}>—</span>
+                        : st.has_pin
+                          ? <span className="num" style={{ letterSpacing: 2 }}>••••<small style={{ letterSpacing: 0, color: "var(--sub)" }}>（設定済）</small></span>
+                          : <span style={{ color: "var(--sub)" }}>未設定</span>}
+                    </td>
+                    <td style={{ padding: 6, whiteSpace: "nowrap" }}>
+                      {st === undefined ? <span style={{ color: "var(--sub)" }}>—</span> : (
+                        <>
+                          <span className="num">{st.fail_count}</span>
+                          <small style={{ color: "var(--sub)" }}>回</small>
+                          {locked && st.locked_until && (
+                            <small style={{ display: "block", color: "var(--bad)", fontWeight: 700 }}>
+                              ロック中 {hhmm(st.locked_until)} まで
+                            </small>
+                          )}
+                        </>
+                      )}
+                    </td>
+                    <td style={{ padding: 6 }}>
+                      <button style={btn} disabled={busy} onClick={() => openPinModal(m)}>再設定</button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
         {pinMsg && <p style={{ fontSize: 12, color: pinMsg.includes("しました") ? "var(--ok)" : "var(--bad)", margin: "8px 0 0" }}>{pinMsg}</p>}
       </section>
 
-      {/* ── 右: PINポリシー（A-2 実測＝実在する仕様だけを静的表示） ── */}
+      {/* ── 右: PINポリシー（mig0108＝実値の表示・owner のみ保存） ── */}
       <section className="nox-cardtop" style={{ ...card, alignSelf: "start" }}>
-        <h3 style={h3}>PINポリシー</h3>
-        <p style={sub}>レジ端末ログインの現在の規則</p>
-        <div style={{ display: "grid", gap: 6, fontSize: 12 }}>
-          <div style={t.bdRow}><span style={t.bdKey}>桁数</span><span style={t.bdVal}>数字4桁</span></div>
-          <div style={t.bdRow}><span style={t.bdKey}>連続失敗ロック</span><span style={t.bdVal}>5回で15分ロック</span></div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <h3 style={h3}>PINポリシー</h3>
+          {isOwner && <span className="nox-stpill" style={{ marginLeft: "auto" }}>OWNER</span>}
+        </div>
+        <p style={sub}>レジ端末ログインのロック規則（店単位）</p>
+        <div style={{ display: "grid", gap: 8, fontSize: 12 }}>
+          {stores.length > 1 && (
+            <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>店舗</span>
+              <select value={polStoreId} onChange={(e) => setPolStoreId(e.target.value)} style={inp}>
+                {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </label>
+          )}
+          <div style={t.bdRow}><span style={t.bdKey}>桁数</span><span style={t.bdVal}><span className="nox-stpill">数字4桁</span></span></div>
+          <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>連続失敗でロック</span>
+            <select value={maxFail} disabled={!isOwner || polBusy}
+              onChange={(e) => setMaxFail(parseInt(e.target.value, 10))} style={inp}>
+              {MAX_FAIL_OPTIONS.map((n) => <option key={n} value={n}>{n}回</option>)}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>ロック時間</span>
+            <select value={lockMin} disabled={!isOwner || polBusy}
+              onChange={(e) => setLockMin(parseInt(e.target.value, 10))} style={inp}>
+              {LOCK_MIN_OPTIONS.map((n) => <option key={n} value={n}>{n}分</option>)}
+            </select>
+          </label>
           <div style={t.bdRow}><span style={t.bdKey}>ロック解除</span><span style={t.bdVal}>正しい PIN の入力・または PIN の再設定で即時解除</span></div>
+          {isOwner ? (
+            <div style={{ textAlign: "right" }}>
+              <button style={btnOn} disabled={polBusy || !polStoreId} onClick={() => void savePolicy()}>ポリシーを保存</button>
+            </div>
+          ) : (
+            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: 0 }}>変更はオーナーのみ行えます（表示のみ）。</p>
+          )}
+          {polMsg && <p style={{ fontSize: 12, color: polMsg.includes("しました") ? "var(--ok)" : "var(--bad)", margin: 0 }}>{polMsg}</p>}
         </div>
         <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}>
-          設定は上書きです。設定済みかどうかはレジ端末のログイン画面で確認できます。
+          PIN の設定は上書きです。設定済みかどうかと失敗回数は左の表で確認できます。
         </p>
       </section>
 

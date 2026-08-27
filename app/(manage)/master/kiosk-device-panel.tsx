@@ -158,7 +158,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
 
   return (
     <div>
-      <div className="nox-2col">
+      <div className="nox-2col nox-2col--32">
         {/* ── 左: 登録端末（主カード） ── */}
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -220,18 +220,21 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
               安全な運用：端末ごとに専用アカウントを発行し、共有しないでください。
             </p>
             <div style={{ display: "grid", gap: 8 }}>
-              <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>店舗</span>
-                <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={inp}>
-                  {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </label>
-              <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>用途</span>
-                <SegSelect value={purpose} onChange={(v) => setPurpose(v === "register" ? "register" : "punch")}
-                  options={[["punch", "打刻（タイムレコーダー）"], ["register", "レジ（会計）"]] as const} />
-                <span style={{ fontSize: 10.5, color: "var(--sub)" }}>
-                  打刻＝名前選択＋PIN（「キャスト管理」で設定）／レジ＝操作担当選択＋PIN（「操作担当PIN」タブで設定）。
-                </span>
-              </label>
+              {/* ★M-11b 4-f: 店舗／用途はモック同様の横並び（narrow は auto-fit で1カラムへ落ちる） */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+                <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>店舗</span>
+                  <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={inp}>
+                    {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </label>
+                <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>用途</span>
+                  <SegSelect value={purpose} onChange={(v) => setPurpose(v === "register" ? "register" : "punch")}
+                    options={[["punch", "打刻（タイムレコーダー）"], ["register", "レジ（会計）"]] as const} />
+                  <span style={{ fontSize: 10.5, color: "var(--sub)" }}>
+                    打刻＝名前選択＋PIN（「キャスト管理」で設定）／レジ＝操作担当選択＋PIN（「操作担当PIN」タブで設定）。
+                  </span>
+                </label>
+              </div>
               <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>端末ラベル（任意）</span>
                 <input placeholder="例: 入口タブレット" value={label} onChange={(e) => setLabel(e.target.value)} style={inp} />
               </label>
