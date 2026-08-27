@@ -16,6 +16,15 @@ import PrintPayslipButton from "./print-payslip-button";
 
 export const dynamic = "force-dynamic";
 
+/** 店設定の営業日切替時刻（stores.settings_json.biz_cutoff_hm・既定 '06:00'）。
+ *  ★mig0106（起票#14）: cast の RLS でも自店1行は読める（stores_select の id=auth_store_id() 腕）。
+ *    経路は app/(manage)/dashboard/page.tsx と同型。 */
+async function loadCutoff(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string> {
+  const { data } = await supabase.from("stores").select("settings_json").limit(1).maybeSingle();
+  const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
+  return typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00";
+}
+
 const yen = (n: number) => "¥" + n.toLocaleString();
 const ATT_LABEL: Record<string, string> = {
   shukkin: "出勤", dohan: "同伴", late: "遅刻連絡", off: "休み", absent: "当欠連絡",
@@ -24,7 +33,8 @@ const ATT_LABEL: Record<string, string> = {
 // cast マイページ。SELECT はパターン1テーブルのみ（RLS が自分の行だけ返す＝可視性の物理保証）。
 export default async function MinePage() {
   const supabase = await createClient();
-  const bizToday = bizDateOf(new Date().toISOString(), "06:00");
+  const cutoff = await loadCutoff(supabase);
+  const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const month = bizToday.slice(0, 7);
 
   // 今月のバック（check_cast_backs＝パターン1）。月の帰属は行の created_at（≒close 時刻）を
@@ -33,7 +43,7 @@ export default async function MinePage() {
     .from("check_cast_backs")
     .select("drink_back, champ_back, bottle_back, hon_pt_alloc, created_at");
   const inMonth = (backs ?? []).filter(
-    (b) => bizDateOf(b.created_at as string, "06:00").slice(0, 7) === month,
+    (b) => bizDateOf(b.created_at as string, cutoff).slice(0, 7) === month,
   );
   const sum = inMonth.reduce(
     (a, b) => ({

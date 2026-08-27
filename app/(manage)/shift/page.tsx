@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function ShiftPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
-  const { data: stores } = await supabase.from("stores").select("id, name").order("name").limit(1);
+  const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name").limit(1);
   // 段P: photo_updated_at を追加（日詳細のアバターを写真にするため。null=写真なし＝頭文字にフォールバック）。
   const { data: casts } = await supabase
     .from("casts")
@@ -21,6 +21,11 @@ export default async function ShiftPage() {
       storeId={stores?.[0]?.id ?? ""}
       casts={casts ?? []}
       isManagerUp={role === "owner" || role === "manager"}
+      cutoff={(() => {
+        // ★mig0106（起票#14）: 営業日切替時刻は店設定（既定 06:00）＝dashboard/page.tsx と同型。
+        const sj = (stores?.[0]?.settings_json ?? {}) as Record<string, unknown>;
+        return typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00";
+      })()}
     />
   );
 }

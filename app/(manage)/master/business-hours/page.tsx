@@ -39,7 +39,7 @@ export default async function MasterBusinessHoursPage() {
         title="営業時間・定休日"
         desc="曜日ごとの営業時間と定休日。シフト登録の警告・ブロックに使われます。"
       />
-      <BusinessHoursPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
+      <BusinessHoursPanel stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
     </div>
   );
 }

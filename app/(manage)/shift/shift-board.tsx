@@ -131,9 +131,9 @@ function rpcErrJa(msg: string | undefined): string {
   return msg;
 }
 
-export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: string; casts: Cast[]; isManagerUp: boolean }) {
+export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { storeId: string; casts: Cast[]; isManagerUp: boolean; cutoff: string }) {
   const supabase = createClient();
-  const bizToday = bizDateOf(new Date().toISOString(), "06:00");
+  const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [needs, setNeeds] = useState<Need[]>([]);
@@ -971,7 +971,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp }: { storeId: s
             )}
           </section>
           {/* ★SC-8 ⑦: ストリップの選択日を初期値として渡す（一方向＝パネル内ピッカーは残す）。 */}
-          {isManagerUp && <IncentivePanel storeId={storeId} casts={casts} initialDate={todayDate} />}
+          {isManagerUp && <IncentivePanel storeId={storeId} casts={casts} initialDate={todayDate} cutoff={cutoff} />}
         </div>
       </div>
       </>

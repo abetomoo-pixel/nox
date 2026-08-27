@@ -24,7 +24,7 @@ export default async function NoticesPage() {
   const [castRes, memRes, storeRes] = await Promise.all([
     supabase.from("casts").select("id", { count: "exact", head: true }).eq("is_active", true),
     supabase.from("memberships").select("id, role", { count: "exact", head: true }).eq("is_active", true).eq("role", "staff"),
-    supabase.from("stores").select("name").limit(1).maybeSingle(),
+    supabase.from("stores").select("name, settings_json").limit(1).maybeSingle(),
   ]);
 
   return (
@@ -32,6 +32,11 @@ export default async function NoticesPage() {
       isManagerUp={isManagerUp}
       audienceCounts={{ cast: castRes.count ?? null, staff: memRes.count ?? null }}
       storeName={(storeRes.data?.name as string | undefined) ?? null}
+      cutoff={(() => {
+        // ★mig0106（起票#14）: 営業日切替時刻は店設定（既定 06:00）＝dashboard/page.tsx と同型。
+        const sj = (storeRes.data?.settings_json ?? {}) as Record<string, unknown>;
+        return typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00";
+      })()}
     />
   );
 }

@@ -34,14 +34,35 @@ function rpcErrJa(msg: string | undefined): string {
   return msg;
 }
 
+// ★mig0106（裁定82・起票#14）: 営業日切替時刻（set_store_biz_cutoff）のエラー写像。
+//   営業時間の rpcErrJa と分けているのは forbidden の文言が違うため（こちらは owner 限定）。
+function cutoffErrJa(msg: string | undefined): string {
+  if (!msg) return "不明なエラー";
+  if (msg.includes("bad cutoff")) return "切替時刻の形式が不正です";
+  if (msg.includes("band crosses cutoff")) {
+    return "この時刻では時間帯料金の帯が営業日をまたぎます。先に時間帯料金を直してください";
+  }
+  if (msg.includes("forbidden")) return "権限がありません（オーナーのみ変更できます）";
+  return msg;
+}
+
+// UI は4択（mock/pages-2026-08/nox-pricing-settings.html 準拠）。DB 側の許容は 03:00〜12:00。
+const CUTOFF_OPTIONS = ["05:00", "06:00", "07:00", "08:00"] as const;
+
 export default function BusinessHoursPanel({
   stores,
+  isOwner,
 }: {
   stores: Store[];
+  isOwner: boolean;
 }) {
   const [storeSel, setStoreSel] = useState(stores[0]?.id ?? "");
   const [forms, setForms] = useState<DowForm[]>(() => Array.from({ length: 7 }, emptyForm));
   const [msg, setMsg] = useState<string | null>(null);
+  // ★mig0106: 営業日切替時刻（stores.settings_json.biz_cutoff_hm・既定 06:00）。
+  const [cutoffHm, setCutoffHm] = useState("06:00");
+  const [cutoffMsg, setCutoffMsg] = useState<string | null>(null);
+  const [cutoffBusy, setCutoffBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   // ★DP-R 第3弾: 一括設定フォーム（モック .bulk）。DB には触らない入力補助。
   const [bulkOpen, setBulkOpen] = useState("20:00");
@@ -70,7 +91,28 @@ export default function BusinessHoursPanel({
       }
     }
     setForms(next);
+    // ★mig0106: 切替時刻も同じ load で読む（stores は RLS で自店1行＝owner は org 全店）。
+    //   経路は dashboard/page.tsx と同型＝settings_json.biz_cutoff_hm・不正/未設定は既定 '06:00'。
+    const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeSel).single();
+    const sj = (st?.settings_json ?? {}) as Record<string, unknown>;
+    const hm = typeof sj.biz_cutoff_hm === "string" && /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(sj.biz_cutoff_hm)
+      ? sj.biz_cutoff_hm : "06:00";
+    setCutoffHm(hm);
+    setCutoffMsg(null);
   }, [storeSel]);
+
+  // ★mig0106: 切替時刻の保存（owner 限定＝RPC 側も auth_role()<>'owner' で forbidden）。
+  async function saveCutoff(hm: string) {
+    const prev = cutoffHm;
+    setCutoffHm(hm);
+    setCutoffBusy(true); setCutoffMsg(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("set_store_biz_cutoff", { p_store_id: storeSel, p_hm: hm });
+    setCutoffBusy(false);
+    if (error) { setCutoffHm(prev); setCutoffMsg(`切替時刻の保存に失敗: ${cutoffErrJa(error.message)}`); return; }
+    setCutoffMsg(`営業日の切替時刻を ${hm} にしました`);
+    await load();
+  }
 
   useEffect(() => { void load(); }, [load]);
 
@@ -198,6 +240,38 @@ export default function BusinessHoursPanel({
           <div className="nox-kpi2-s">準備中</div>
         </div>
       </div>
+
+      {/* ★mig0106（裁定82・起票#14）: 営業日の切替時刻。KPI帯の直下・週間営業時間カードの上に独立 section。
+          ★owner のみ編集可（RPC も auth_role()<>'owner' で forbidden＝表示ゲートは二重防御の外側）。
+          ★選択肢は4択（mock/pages-2026-08/nox-pricing-settings.html 準拠）。DB の許容は 03:00〜12:00。 */}
+      <section className="nox-cardtop" style={t.card}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <h2 style={{ ...secTitle, margin: 0 }}>営業日の切替時刻</h2>
+            <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>
+              この時刻より前の伝票・打刻は前日の営業日に含めます。締め済みの日報には影響しません。
+            </p>
+          </div>
+          {isOwner ? (
+            <select
+              value={cutoffHm}
+              disabled={cutoffBusy || !storeSel}
+              onChange={(e) => void saveCutoff(e.target.value)}
+              style={input}
+              aria-label="営業日の切替時刻"
+            >
+              {CUTOFF_OPTIONS.map((hm) => <option key={hm} value={hm}>{hm}</option>)}
+            </select>
+          ) : (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <b className="num" style={{ fontSize: 16 }}>{cutoffHm}</b>
+              <span className="nox-stpill">オーナーのみ変更できます</span>
+            </span>
+          )}
+        </div>
+        {cutoffMsg && <p style={{ ...t.sub, fontSize: 12, margin: "10px 0 0" }}>{cutoffMsg}</p>}
+      </section>
+
 
       <section className="nox-cardtop" style={t.card}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>

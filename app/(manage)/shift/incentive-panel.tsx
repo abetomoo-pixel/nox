@@ -25,9 +25,9 @@ const secTitle: React.CSSProperties = t.cardTitle;
 // ★SC-8 ⑦: initialDate＝今日タブの7日ストリップが選んでいる日。**ストリップ → ピッカーの一方向**で、
 //   パネル内でピッカーを動かしてもストリップ側は動かない（発行日はこのパネルの責任のまま）。
 //   prop を渡さない呼び出しは従来どおり営業日の今日で開く。
-export default function IncentivePanel({ storeId, casts, initialDate }: { storeId: string; casts: Cast[]; initialDate?: string }) {
+export default function IncentivePanel({ storeId, casts, initialDate, cutoff }: { storeId: string; casts: Cast[]; initialDate?: string; cutoff: string }) {
   const supabase = createClient();
-  const bizToday = bizDateOf(new Date().toISOString(), "06:00");
+  const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const [rows, setRows] = useState<Incentive[]>([]);
   const [date, setDate] = useState(initialDate ?? bizToday);
   // ★ストリップで日を選び直したらピッカーの値も追従させる（一方向・下流のみ）。

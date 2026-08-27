@@ -4,12 +4,21 @@ import * as t from "@/lib/nox/ui/theme";
 
 export const dynamic = "force-dynamic";
 
+/** 店設定の営業日切替時刻（stores.settings_json.biz_cutoff_hm・既定 '06:00'）。
+ *  ★mig0106（起票#14）: cast の RLS でも自店1行は読める（stores_select の id=auth_store_id() 腕）。
+ *    経路は app/(manage)/dashboard/page.tsx と同型。 */
+async function loadCutoff(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string> {
+  const { data } = await supabase.from("stores").select("settings_json").limit(1).maybeSingle();
+  const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
+  return typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00";
+}
+
 // お知らせ（cast 側・読み取り専用）。RLS が store_id=auth_store_id() かつ audience in ('all','cast') の
 // 行のみ返す＝audience/店の絞りは DB 側（client フィルタ不要・staff 宛は物理的に返らない）。
 // 期限切れ（until<営業日）は運営側と同じく「期限切れ」バッジのみ（DB は保持・表示側判定＝0034 設計ロック）。
 export default async function MineNoticesPage() {
   const supabase = await createClient();
-  const bizToday = bizDateOf(new Date().toISOString(), "06:00");
+  const bizToday = bizDateOf(new Date().toISOString(), await loadCutoff(supabase));
   const { data: notices } = await supabase
     .from("notices")
     .select("id, title, body, pinned, until, created_at")

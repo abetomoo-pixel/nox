@@ -86,13 +86,14 @@ const chkLabel: React.CSSProperties = { ...t.fieldLabel, display: "flex", alignI
 //   null は「数えられなかった」＝画面では「—」に落とす（嘘の 0 を出さない）。
 export type AudienceCounts = { cast: number | null; staff: number | null };
 
-export default function NoticesBoard({ isManagerUp, audienceCounts, storeName }: {
+export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, cutoff }: {
   isManagerUp: boolean;
   audienceCounts: AudienceCounts;
   storeName?: string | null;
+  cutoff: string;  // ★mig0106（起票#14）: 営業日切替時刻（店設定・既定 06:00）
 }) {
   const supabase = createClient();
-  const bizToday = bizDateOf(new Date().toISOString(), "06:00");
+  const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const [rows, setRows] = useState<Notice[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
