@@ -1231,6 +1231,27 @@ async function main() {
     }
   }
 
+  // G38: mig0104（裁定77）＝comp_plans の店内名前一意 index。
+  //   ★RPC 側の 'duplicate name' 検査（rls F2a★0104）だけでは service_role の直 insert を止められない。
+  //     backstop は index なので、存在と定義を宣言的に固定する（cast_ranks_store_name_uq と同型）。
+  {
+    const ix = await db.query(
+      `select indexdef, indisunique
+         from pg_indexes i
+         join pg_class c on c.relname = i.indexname
+         join pg_index x on x.indexrelid = c.oid
+        where i.schemaname = 'public' and i.tablename = 'comp_plans'
+          and i.indexname = 'comp_plans_store_name_uq'`,
+    );
+    check("G38 comp_plans_store_name_uq が存在し UNIQUE",
+      ix.rowCount === 1 && ix.rows[0]?.indisunique === true,
+      JSON.stringify(ix.rows[0] ?? null));
+    check("G38 comp_plans_store_name_uq の定義＝(store_id, lower(name))",
+      ix.rows[0]?.indexdef ===
+        "CREATE UNIQUE INDEX comp_plans_store_name_uq ON public.comp_plans USING btree (store_id, lower(name))",
+      String(ix.rows[0]?.indexdef));
+  }
+
   await db.end();
 
   if (fails.length) {

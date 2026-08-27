@@ -25,6 +25,8 @@
  *   (15) authenticated 直書き遮断（INSERT/UPDATE/DELETE・biz_minutes_of 直呼び）
  *        ※TRUNCATE は PostgREST から発行不可＝G37 の has_table_privilege で恒久 assert
  *   (16) anon BLOCKED 一式（RPC 8本＋テーブル2）
+ *   (17) ★mig0104（裁定77）＝停止中ランクの新規参照拒否（'inactive rank'）と据え置き
+ *        （set_cast_rank_of / set_pricing_rule とも「現在値と同じ rank_id の再送」は通る）
  *
  * fixture は段内動的生成→finally 全消し（pricing_rules/cast_ranks は verify 店スコープで
  * 全削除・casts.rank_id は null 復元・audit は本スイートの action 6種のみ削除）。
@@ -368,6 +370,73 @@ async function main() {
       check("段43(12) set_cast_rank_of の audit＝rank_id のみ（PII なし）",
         (auR ?? []).length >= 2 && Object.keys((auR![0].before_json ?? {}) as object).join(",") === "rank_id",
         JSON.stringify(auR?.[0]));
+    }
+
+
+    // ═══ (17) ★mig0104（裁定77）: 停止中ランクの新規参照拒否＋据え置き ═══
+    //   ★据え置き＝「割当時は有効だったランクが後から停止された」現場を壊さないための設計。
+    //     新規に停止中ランクを指す操作だけを 'inactive rank' で拒否する。
+    {
+      // R3＝最初から停止中（新規参照の拒否を見る）／R4＝有効で割当・参照してから停止（据え置きを見る）
+      const { data: r3, error: e3 } = await owner.rpc("set_cast_rank", {
+        p_id: null, p_store_id: sA1.id, p_name: "NOX-VERIFY-停止R3", p_is_active: false,
+      });
+      const { data: r4, error: e4 } = await owner.rpc("set_cast_rank", {
+        p_id: null, p_store_id: sA1.id, p_name: "NOX-VERIFY-後停止R4", p_is_active: true,
+      });
+      check("段43(17) 停止中/有効ランクの作成", !e3 && !e4 && !!r3 && !!r4, e3?.message ?? e4?.message);
+      const rankR3 = r3 as string, rankR4 = r4 as string;
+
+      const { data: castRow2 } = await admin.from("casts")
+        .select("id").eq("name", FIXTURE_USERS.castA1a.name).eq("store_id", sA1.id).single();
+      const castId2 = castRow2!.id as string;
+
+      // R4 が有効なうちに「割当」と「ルール参照」を作る
+      const { error: ePre1 } = await owner.rpc("set_cast_rank_of", { p_cast_id: castId2, p_rank_id: rankR4 });
+      const ruleArgs = {
+        p_store_id: sA1.id, p_fee_kind: "hon_shimei", p_seat_kind: null, p_dow_mask: null,
+        p_time_from_min: null, p_time_to_min: null, p_duration_min: null, p_priority: 100, p_is_active: true,
+      };
+      const { data: ruleD, error: ePre2 } = await owner.rpc("set_pricing_rule", {
+        ...ruleArgs, p_id: null, p_rank_id: rankR4, p_amount: 3000,
+      });
+      check("段43(17) 前提: 有効ランクでの割当とルール作成は通る",
+        !ePre1 && !ePre2 && !!ruleD, ePre1?.message ?? ePre2?.message);
+
+      // R4 を停止させる（名前は据え置き＝duplicate name を踏まない）
+      const { error: eOff } = await owner.rpc("set_cast_rank", {
+        p_id: rankR4, p_store_id: sA1.id, p_name: "NOX-VERIFY-後停止R4", p_is_active: false,
+      });
+      check("段43(17) 前提: R4 を停止できる", !eOff, eOff?.message);
+
+      // (a) 新規割当に停止中ランク → 'inactive rank'
+      const { error: eA } = await owner.rpc("set_cast_rank_of", { p_cast_id: castId2, p_rank_id: rankR3 });
+      check("段43(17)a set_cast_rank_of 停止中ランクの新規割当＝'inactive rank'",
+        has(eA, "inactive rank"), eA?.message ?? "通ってしまった");
+      const { data: cA } = await admin.from("casts").select("rank_id").eq("id", castId2).single();
+      check("段43(17)a 拒否後も rank_id は元のまま（R4）", cA?.rank_id === rankR4, `got ${cA?.rank_id}`);
+
+      // (b) 既にその停止中ランクを持つ cast へ同じ rank_id を再送 → 据え置きで成功
+      const { error: eB } = await owner.rpc("set_cast_rank_of", { p_cast_id: castId2, p_rank_id: rankR4 });
+      const { data: cB } = await admin.from("casts").select("rank_id").eq("id", castId2).single();
+      check("段43(17)b ★据え置き: 同じ停止中 rank_id の再送は通る",
+        !eB && cB?.rank_id === rankR4, eB?.message ?? `got ${cB?.rank_id}`);
+
+      // (c) set_pricing_rule 新規（p_id null）に停止中ランク → 'inactive rank'
+      const { error: eC } = await owner.rpc("set_pricing_rule", {
+        ...ruleArgs, p_id: null, p_rank_id: rankR3, p_amount: 2500,
+      });
+      check("段43(17)c set_pricing_rule 新規×停止中ランク＝'inactive rank'",
+        has(eC, "inactive rank"), eC?.message ?? "通ってしまった");
+
+      // (d) 既存ルールの rank_id を変えずに amount だけ更新 → 据え置きで成功
+      const { error: eD } = await owner.rpc("set_pricing_rule", {
+        ...ruleArgs, p_id: ruleD as string, p_rank_id: rankR4, p_amount: 4000,
+      });
+      const { data: rD } = await admin.from("pricing_rules")
+        .select("amount, rank_id").eq("id", ruleD as string).single();
+      check("段43(17)d ★据え置き: rank_id 据え置きの amount 更新は通る（3000→4000）",
+        !eD && rD?.amount === 4000 && rD?.rank_id === rankR4, eD?.message ?? JSON.stringify(rD));
     }
 
     // ═══ (13) 認可 ═══

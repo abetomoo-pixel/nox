@@ -2032,6 +2032,22 @@ async function main() {
     check("F2a 廃止プラン作成（is_active=false）", !eCpX && typeof pidX === "string", eCpX?.message);
     planXId = pidX as string;
 
+    // ★mig0104（裁定77）: comp_plans の店内名前一意（大小無視）。
+    //   (e) 既存名を大小違いで「新規」作成 → 'duplicate name'／(f) 自分自身の更新は自名のまま通る。
+    const { data: pidDup, error: eDup } = await o.rpc("set_comp_plan", {
+      ...planArgs, p_id: null, p_name: "nox-verify-プランa", p_base: 4200,
+    });
+    check("F2a★0104(e) 既存名の大小違いを新規作成＝'duplicate name'",
+      !!eDup?.message?.includes("duplicate name"), eDup?.message ?? `通ってしまった id=${pidDup}`);
+    const { count: dupLeft } = await o.from("comp_plans")
+      .select("id", { count: "exact", head: true }).eq("store_id", storeA1Id).ilike("name", "nox-verify-プランa");
+    check("F2a★0104(e) 拒否された行は作られていない", (dupLeft ?? 0) === 1, `got ${dupLeft}`);
+    const { data: pidSelf, error: eSelf } = await o.rpc("set_comp_plan", {
+      ...planArgs, p_id: planAId, p_base: 5000,
+    });
+    check("F2a★0104(f) 自身の更新は自分の名前のまま通る（c.id is distinct from p_id）",
+      !eSelf && pidSelf === planAId, eSelf?.message);
+
     // ② set_penalty_config 成功経路（owner・全引数明示・grace 3列反映・audit +1）
     const pc0 = await auditCount("set_penalty_config");
     const { error: ePc } = await o.rpc("set_penalty_config", {
