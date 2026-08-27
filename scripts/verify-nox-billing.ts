@@ -88,7 +88,8 @@ async function main() {
     //   設計書 §6 は「新6」だが実測は新7（period_remove 含む）＝実測 pin。
     // ★mig0103（SC シフト作成 v3・2026-08-24）: shift_bulk_set／shift_remove を A5 へ収載＝
     //   対象 101→103・全数 195→197（改修5本は既収載 or B(i) 据え置き＝wish_submit は事実記録のまま）。
-    check("段47-1 正本の対象103名を読めた", docTargets.size === 103, `got ${docTargets.size}`);
+    // ★mig0106（M-9 A1・2026-08-27）: set_store_biz_cutoff を A8 へ収載＝対象 103→104・全数 197→198。
+    check("段47-1 正本の対象104名を読めた", docTargets.size === 104, `got ${docTargets.size}`);
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     check("段47-1 正本の除外94名を読めた", docExcluded.size === 94, `got ${docExcluded.size}`);
 
@@ -105,7 +106,7 @@ async function main() {
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 103本", liveGated.size === 103, `got ${liveGated.size}`);
+    check("段47-1 live のゲート済み関数 = 104本", liveGated.size === 104, `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
     const extra = [...liveGated].filter((n) => !docTargets.has(n));
@@ -124,14 +125,14 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 104（103 ＋ ラッパ自身）", refs[0].n === 104, `got ${refs[0].n}`);
+    check("段47-1 述語を参照する関数 = 105（104 ＋ ラッパ自身）", refs[0].n === 105, `got ${refs[0].n}`);
     // 挿入行の形が全92本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public'
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
-    check("段47-1 挿入行の形が全103本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 103, `got ${shapes[0].n}`);
+    check("段47-1 挿入行の形が全104本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 104, `got ${shapes[0].n}`);
   }
 
   // ══════════════════════════════════════════════════════════

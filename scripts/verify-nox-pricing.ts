@@ -27,6 +27,9 @@
  *   (16) anon BLOCKED 一式（RPC 8本＋テーブル2）
  *   (17) ★mig0104（裁定77）＝停止中ランクの新規参照拒否（'inactive rank'）と据え置き
  *        （set_cast_rank_of / set_pricing_rule とも「現在値と同じ rank_id の再送」は通る）
+ *   (18) ★mig0106（裁定82・起票#14）＝set_store_biz_cutoff（営業日切替時刻の書込 RPC）
+ *        正常系＋audit／bad cutoff 5種／owner 限定（manager・staff・他 org）／帯ガード。
+ *        ★settings_json は段内で snapshot→finally 逐語復元（rls :1928/:1956 の '06:00' 固定を壊さない）
  *
  * fixture は段内動的生成→finally 全消し（pricing_rules/cast_ranks は verify 店スコープで
  * 全削除・casts.rank_id は null 復元・audit は本スイートの action 6種のみ削除）。
@@ -55,6 +58,7 @@ const isFnBlocked = (e: { message?: string } | null) =>
 const AUDIT_ACTIONS = [
   "set_pricing_rule", "delete_pricing_rule", "pricing_rule_reorder",
   "set_cast_rank", "cast_rank_reorder", "set_cast_rank_of",
+  "set_store_biz_cutoff",  // ★mig0106（段(18)）
 ];
 
 // 固定タイムスタンプ（JST）。2026-01-09=金・01-10=土・01-11=日（実カレンダー確認済み）。
@@ -529,6 +533,101 @@ async function main() {
       check("段43(16) anon は cast_ranks に触れない",
         has(eT2, "permission denied") || (!eT2 && (t2 ?? []).length === 0), eT2?.message ?? `got ${(t2 ?? []).length}`);
     }
+
+    // ═══ (18) ★mig0106（裁定82・起票#14）: set_store_biz_cutoff ═══
+    //   ★settings_json は「verify 店 A1 のみ」を触り、段の finally で **snapshot を逐語復元**する。
+    //     復元を怠ると rls の F1e（:1928/:1956 の biz_cutoff_hm === "06:00" 固定）を壊す。
+    {
+      const { data: snapRow } = await admin.from("stores").select("settings_json").eq("id", sA1.id).single();
+      const snap = (snapRow?.settings_json ?? {}) as Record<string, unknown>;
+      let guardBandId: string | null = null;
+      let pcBandId: string | null = null;
+      try {
+        const cutoffNow = async (): Promise<string | null> => {
+          const { data } = await admin.from("stores").select("settings_json").eq("id", sA1.id).single();
+          const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
+          return typeof sj.biz_cutoff_hm === "string" ? sj.biz_cutoff_hm : null;
+        };
+        // 起点を 06:00 に揃える（before の実測値を決定的にする）
+        await admin.from("stores").update({ settings_json: { ...snap, biz_cutoff_hm: "06:00" } }).eq("id", sA1.id);
+
+        // ── a. owner 正常系 ＋ audit（before 06:00 / after 07:00）──
+        const { error: eA } = await owner.rpc("set_store_biz_cutoff", { p_store_id: sA1.id, p_hm: "07:00" });
+        check("段43(18)a owner set_store_biz_cutoff('07:00') 成功", !eA, eA?.message);
+        check("段43(18)a settings_json.biz_cutoff_hm = '07:00'", (await cutoffNow()) === "07:00", String(await cutoffNow()));
+        const { data: au } = await admin.from("audit_logs")
+          .select("before_json, after_json").eq("action", "set_store_biz_cutoff").order("at", { ascending: false }).limit(1);
+        const b0 = (au?.[0]?.before_json ?? {}) as Record<string, unknown>;
+        const a0 = (au?.[0]?.after_json ?? {}) as Record<string, unknown>;
+        check("段43(18)a audit action='set_store_biz_cutoff'・before 06:00 / after 07:00",
+          (au ?? []).length === 1 && b0.biz_cutoff_hm === "06:00" && a0.biz_cutoff_hm === "07:00",
+          JSON.stringify({ b: b0, a: a0 }));
+
+        // ── b. bad cutoff 5入力（形式2＋範囲2＋null）──
+        for (const [label, hm] of [
+          ["'7:00'（桁不足）", "7:00"], ["'25:00'（時刻外）", "25:00"],
+          ["'02:00'（範囲外・下）", "02:00"], ["'13:00'（範囲外・上）", "13:00"],
+        ] as const) {
+          const { error } = await owner.rpc("set_store_biz_cutoff", { p_store_id: sA1.id, p_hm: hm });
+          check(`段43(18)b ${label} = 'bad cutoff'`, has(error, "bad cutoff"), error?.message ?? "通ってしまった");
+        }
+        const { error: eNull } = await owner.rpc("set_store_biz_cutoff", { p_store_id: sA1.id, p_hm: null });
+        check("段43(18)b null = 'bad cutoff'", has(eNull, "bad cutoff"), eNull?.message ?? "通ってしまった");
+        check("段43(18)b 拒否後も値は 07:00 のまま", (await cutoffNow()) === "07:00", String(await cutoffNow()));
+
+        // ── c. owner 限定（manager 自店 / staff / 他 org）──
+        const { error: eMgr } = await mgr.rpc("set_store_biz_cutoff", { p_store_id: sA1.id, p_hm: "08:00" });
+        check("段43(18)c manager 自店でも forbidden（owner 限定）", has(eMgr, "forbidden"), eMgr?.message ?? "通ってしまった");
+        const { error: eStf } = await stf.rpc("set_store_biz_cutoff", { p_store_id: sA1.id, p_hm: "08:00" });
+        check("段43(18)c staff = forbidden", has(eStf, "forbidden"), eStf?.message ?? "通ってしまった");
+        const { error: eOrg } = await owner.rpc("set_store_biz_cutoff", { p_store_id: sB1.id, p_hm: "08:00" });
+        check("段43(18)c ★owner でも他 org の store = forbidden", has(eOrg, "forbidden"), eOrg?.message ?? "通ってしまった");
+        check("段43(18)c 拒否3件の後も値は 07:00 のまま", (await cutoffNow()) === "07:00", String(await cutoffNow()));
+
+        // ── d. 帯ガード ──
+        //   ★発火条件は「from < cutoff かつ to > cutoff」＝帯が cutoff の瞬間をまたぐ場合のみ
+        //     （from>=cutoff かつ to<=cutoff は to 側が +1440 されるため構造上 ef<et で必ず通る）。
+        //     したがって「20:00→04:00 の帯 × cutoff 05:00」は**またがない**＝下の positive control で示す。
+        //   ★跨ぐ帯は set_pricing_rule 自身も 'bad time' で作れないので、**cutoff を動かす前に作る**。
+        const mkBand = async (from: number, to: number, amount: number) => {
+          const { data, error } = await owner.rpc("set_pricing_rule", {
+            p_id: null, p_store_id: sA1.id, p_fee_kind: "set", p_seat_kind: null, p_dow_mask: null,
+            p_time_from_min: from, p_time_to_min: to, p_rank_id: null,
+            p_amount: amount, p_duration_min: null, p_priority: 90, p_is_active: true,
+          });
+          return { id: (data as string) ?? null, error };
+        };
+        // d-1 positive control: 20:00→04:00 は cutoff 08:00 をまたがない（＝ガードは立たない）
+        const pc = await mkBand(1200, 240, 5000);
+        check("段43(18)d 前提: 20:00→04:00 の帯は cutoff 07:00 下で作れる", !pc.error && !!pc.id, pc.error?.message);
+        pcBandId = pc.id;
+        // d-2 跨ぐ帯（07:30→10:00）は cutoff 07:00 下では作れる（07:30 >= 07:00 のため）
+        const gb = await mkBand(450, 600, 6000);
+        check("段43(18)d 前提: 07:30→10:00 の帯も cutoff 07:00 下では作れる", !gb.error && !!gb.id, gb.error?.message);
+        guardBandId = gb.id;
+        // d-3 その帯は cutoff 08:00 をまたぐ → 拒否
+        const { error: eGuard } = await owner.rpc("set_store_biz_cutoff", { p_store_id: sA1.id, p_hm: "08:00" });
+        check("段43(18)d ★帯が跨ぐ cutoff は 'band crosses cutoff' で拒否",
+          has(eGuard, "band crosses cutoff"), eGuard?.message ?? "通ってしまった");
+        check("段43(18)d 拒否後も値は 07:00 のまま", (await cutoffNow()) === "07:00", String(await cutoffNow()));
+        // d-4 跨ぐ帯だけ消す（20:00→04:00 は残す）→ 通る＝ガードは「またぐ帯」だけを見ている
+        const { error: eDelB } = await owner.rpc("delete_pricing_rule", { p_id: guardBandId });
+        check("段43(18)d 跨ぐ帯を削除できる", !eDelB, eDelB?.message);
+        guardBandId = null;
+        const { error: eOk } = await owner.rpc("set_store_biz_cutoff", { p_store_id: sA1.id, p_hm: "08:00" });
+        check("段43(18)d ★跨ぐ帯を消せば '08:00' は通る（20:00→04:00 は残置＝またがない）", !eOk, eOk?.message);
+        check("段43(18)d settings_json.biz_cutoff_hm = '08:00'", (await cutoffNow()) === "08:00", String(await cutoffNow()));
+      } finally {
+        for (const bid of [guardBandId, pcBandId]) {
+          if (bid) await admin.from("pricing_rules").delete().eq("id", bid);
+        }
+        await admin.from("stores").update({ settings_json: snap }).eq("id", sA1.id);
+        const { data: back } = await admin.from("stores").select("settings_json").eq("id", sA1.id).single();
+        check("段43(18)（復元）settings_json を snapshot へ逐語復元（rls F1e の 06:00 固定を壊さない）",
+          JSON.stringify(back?.settings_json ?? {}) === JSON.stringify(snap), JSON.stringify(back?.settings_json));
+      }
+    }
+
   } finally {
     await wipe();
     const { count: leftR } = await admin.from("pricing_rules")

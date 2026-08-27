@@ -465,6 +465,7 @@ async function main() {
     ["transport_issue", { p_store_id: null, p_cast_id: null, p_amount: null, p_biz_date: null, p_note: null }],
     ["transport_cancel", { p_transport_id: null }],
     ["set_store_okuri_mode", { p_store_id: null, p_mode: null }],
+    ["set_store_biz_cutoff", { p_store_id: null, p_hm: null }],  // ★mig0106（裁定82・起票#14）
   ];
   for (const [fn, args] of F2E2_ANON_PROBES) {
     const { error } = await anon.rpc(fn, args);

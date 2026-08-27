@@ -1270,6 +1270,28 @@ async function main() {
       pol.rows[0]?.q === POLQUAL_COMP_PLANS, String(pol.rows[0]?.q));
   }
 
+  // G40: mig0106（裁定82・起票#14）＝set_store_biz_cutoff の署名・secdef・search_path・ACL。
+  //   ★G37 の FNS ループと同型。settings_json を書く RPC 群（okuri_mode 等）と同格の
+  //     「authenticated に grant・anon 不可」を宣言的に固定する（owner 限定は RPC 内ガード＝pricing 段43(18)）。
+  {
+    const r = await db.query(
+      `select p.oid::regprocedure::text as sig,
+              has_function_privilege('authenticated', p.oid, 'EXECUTE') as authed,
+              has_function_privilege('anon', p.oid, 'EXECUTE') as anonx,
+              p.prosecdef, p.provolatile::text as v, p.proconfig
+         from pg_proc p
+        where p.pronamespace = 'public'::regnamespace and p.proname = 'set_store_biz_cutoff'`,
+    );
+    check("G40 set_store_biz_cutoff が1本のみ・署名(uuid,text)・secdef＋search_path 固定・VOLATILE",
+      r.rowCount === 1 && String(r.rows[0].sig) === "set_store_biz_cutoff(uuid,text)"
+      && r.rows[0].prosecdef === true && r.rows[0].v === "v"
+      && Array.isArray(r.rows[0].proconfig) && (r.rows[0].proconfig as string[]).includes("search_path=public"),
+      JSON.stringify(r.rows.map((x) => ({ sig: x.sig, v: x.v, cfg: x.proconfig }))));
+    check("G40 set_store_biz_cutoff ACL＝authenticated 可・anon 不可",
+      r.rowCount === 1 && r.rows[0].authed === true && r.rows[0].anonx === false,
+      JSON.stringify({ authed: r.rows[0]?.authed, anon: r.rows[0]?.anonx }));
+  }
+
   await db.end();
 
   if (fails.length) {
