@@ -1,6 +1,9 @@
 "use client";
 
-// 料金設定ボード（料金UIレーン C1・モック nox-rate-settings-redesign.html 準拠＋修正4点）。
+// 料金設定ボード（料金UIレーン C1）。
+// ★正本モック＝mock/pages-2026-08/nox-pricing-settings.html（裁定91・2026-08-28）。
+//   旧記述の nox-rate-settings-redesign.html は**参照へ格下げ**（redesign 固有要素は
+//   pages-2026-08 へ移植する方針＝裁定91。当初の底本だった経緯は残すが照合先にしない）。
 //
 // 3タブ＝時間帯料金（pricing_rules エディタ＋料金プレビュー）／基本料金（ランク別指名料金＋
 // 既存2パネル移設）／会計ルール（凍結注記＝修正c・営業日区切り read-only）。
@@ -53,6 +56,9 @@ export type StoreFallback = {
   service_rate: number; card_tax_rate: number; round_unit: number; round_mode: string;
   set_min: number; set_fee: number; ext_min: number; ext_fee: number;
   time_mode: string; time_per: string;
+  // ★mig0111/0113（C4・裁定90）: 税設定6列
+  business_tax_status: string; price_display: string; invoice_status: string;
+  invoice_reg_no: string | null; tax_rounding: string; card_surcharge_rate: number | null;
 };
 
 const TIMED_KINDS = ["set", "extension", "dohan"] as const;
@@ -231,6 +237,60 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const [mActive, setMActive] = useState(true);
   const [mName, setMName] = useState("");   // ★mig0107（P-1）: 帯の表示名（任意・空＝null 送信）
   const [mTax, setMTax] = useState("taxable_10"); // ★mig0112（C3）: 帯の税区分（UI 露出3値・taxable_8 は準備中＝裁定90-②）
+
+  // ── ★C4 §6-5（mig0113・裁定90/91）: 店舗税設定（会計ルールタブ・set_store_tax_config 結線）──
+  //   原則7＋教訓43 型: 保存は**常に7引数全値明示**（省略で default に戻る事故を UI から構造的に排除）。
+  const [tBts, setTBts] = useState(store.business_tax_status);
+  const [tPd, setTPd] = useState(store.price_display);
+  const [tInv, setTInv] = useState(store.invoice_status);
+  const [tReg, setTReg] = useState(store.invoice_reg_no ?? "");
+  const [tRnd, setTRnd] = useState(store.tax_rounding);
+  const [tSurOn, setTSurOn] = useState(store.card_surcharge_rate !== null);
+  const [tSurRate, setTSurRate] = useState(store.card_surcharge_rate === null ? "" : String(store.card_surcharge_rate));
+  const [tSurAck, setTSurAck] = useState(false); // 裁定87 第2層＝有効化時の契約確認チェック
+  const [taxSavedSur, setTaxSavedSur] = useState<number | null>(store.card_surcharge_rate); // 保存済み値（有効化の判定用）
+  const [taxBusy, setTaxBusy] = useState(false);
+  const [taxMsg, setTaxMsg] = useState<string | null>(null);
+
+  function taxErrJa(msg: string): string {
+    if (msg.includes("billing locked")) return "ご利用プランが停止中のため保存できません";
+    if (msg.includes("invoice requires taxable")) return "インボイス登録は課税事業者のみ選択できます";
+    if (msg.includes("registration number required")) return "インボイス登録済みの場合は登録番号が必要です";
+    if (msg.includes("bad registration number")) return "登録番号は T＋数字13桁で入力してください";
+    if (msg.includes("bad tax config")) return "税設定の値が不正です";
+    if (msg.includes("forbidden")) return "権限がありません";
+    return msg;
+  }
+
+  async function saveTaxConfig() {
+    setTaxMsg(null);
+    const reg = tReg.trim();
+    if (tInv === "registered" && tBts !== "taxable") { setTaxMsg("インボイス登録は課税事業者のみ選択できます"); return; }
+    if (tInv === "registered" && reg === "") { setTaxMsg("インボイス登録済みの場合は登録番号が必要です"); return; }
+    if (reg !== "" && !/^T[0-9]{13}$/.test(reg)) { setTaxMsg("登録番号は T＋数字13桁で入力してください"); return; }
+    const surRate = tSurOn ? Number(tSurRate) : null;
+    if (tSurOn && (!Number.isInteger(surRate) || (surRate as number) < 1 || (surRate as number) > 100)) {
+      setTaxMsg("カード手数料は 1〜100 の整数%で入力してください"); return;
+    }
+    // ★裁定87 第2層: 「無効 → 有効」への変更時のみ契約確認を必須にする（既に有効の店の率変更は再確認不要）
+    if (tSurOn && taxSavedSur === null && !tSurAck) {
+      setTaxMsg("カード手数料の有効化には契約上の可否の確認チェックが必要です"); return;
+    }
+    setTaxBusy(true);
+    const { error } = await supabase.rpc("set_store_tax_config", {
+      p_store_id: storeId,
+      p_business_tax_status: tBts,
+      p_price_display: tPd,
+      p_invoice_status: tInv,
+      p_invoice_reg_no: reg === "" ? null : reg,
+      p_tax_rounding: tRnd,
+      p_card_surcharge_rate: surRate,
+    });
+    setTaxBusy(false);
+    if (error) { setTaxMsg(taxErrJa(error.message)); return; }
+    setTaxSavedSur(surRate); setTSurAck(false);
+    setTaxMsg("税設定を保存しました（開栓済みの伝票には影響しません）");
+  }
   const [mErr, setMErr] = useState<string | null>(null);
 
   function openNewBand() {
@@ -1011,17 +1071,94 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             <b className="num">{store.card_tax_rate}%</b>
             <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
           </div>
-          <div className="nox-listrow" style={{ opacity: 0.55 }}>
+          {/* ★C4 §6-5（裁定90/91・T5）: 旧「内税/外税/適用しない」の同列3択を解体し2軸へ。
+              価格表示（内税/外税）と事業者区分（課税/免税）は別概念＝免税は税計算方式ではなく店舗属性。
+              保存は set_store_tax_config へ**7引数全値明示**（原則7）。開栓済み伝票へは非遡及（mig0113 凍結）。 */}
+          <div className="nox-listrow">
             <span style={{ flex: 1, minWidth: 0 }}>
-              消費税（内税・外税）
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>内税・外税の切替は準備中です。</span>
+              価格表示
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>料金を税込で持つか・税抜で持って会計時に消費税を加えるか。</span>
             </span>
-            <div className="nox-seg">
-              <button disabled>内税</button>
-              <button disabled>外税</button>
-              <button disabled>適用しない</button>
+            <SegSelect value={tPd} onChange={(v) => setTPd(v)}
+              options={[["tax_included", "内税"], ["tax_excluded", "外税"]] as const} />
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              事業者区分
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>免税事業者は消費税の区分記載を行いません（適格簡易請求書は発行不可）。</span>
+            </span>
+            <SegSelect value={tBts} onChange={(v) => { setTBts(v); if (v !== "taxable") setTInv("unregistered"); }}
+              options={[["taxable", "課税事業者"], ["exempt", "免税事業者"]] as const} />
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              インボイス
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>適格請求書発行事業者の登録（課税事業者のみ）。</span>
+            </span>
+            <SegSelect value={tInv} onChange={(v) => setTInv(v)}
+              options={[["unregistered", "未登録"], ["registered", "登録済み"]] as const} />
+          </div>
+          {tInv === "registered" && (
+            <div className="nox-listrow">
+              <span style={{ flex: 1, minWidth: 0 }}>
+                登録番号
+                <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>T＋数字13桁（レシートの適格簡易請求書に印字されます）。</span>
+              </span>
+              <input type="text" value={tReg} maxLength={14} placeholder="T1234567890123"
+                onChange={(e) => setTReg(e.target.value)} style={{ ...input, width: 180 }} />
             </div>
-            <span className="nox-stpill">準備中</span>
+          )}
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              税額の端数
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>一伝票につき税率ごとに1回だけ処理します（金額側の丸めとは別）。</span>
+            </span>
+            <SegSelect value={tRnd} onChange={(v) => setTRnd(v)}
+              options={[["floor", "切り捨て"], ["round", "四捨五入"], ["ceil", "切り上げ"]] as const} />
+          </div>
+        </section>
+
+        {/* ★C4 §6-6 の器（裁定90-⑤・裁定87 第2層）: card_surcharge_rate。結線（伝票行化）は §6-6 で別途 */}
+        <section className="nox-cardtop" style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14 }}>カード手数料の転嫁</h3>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>客への請求項目（課税10%）。日報集計用のカードTAXとは別です。</p>
+            </div>
+            <span className="nox-stpill" style={{ marginLeft: "auto" }}>SURCHARGE</span>
+          </div>
+          <div className="nox-listrow">
+            <span style={{ flex: 1, minWidth: 0 }}>
+              カード手数料を客へ請求する
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>無効（既定）では請求項目になりません。</span>
+            </span>
+            <SegSelect value={tSurOn ? "on" : "off"} onChange={(v) => setTSurOn(v === "on")}
+              options={[["off", "無効"], ["on", "有効"]] as const} />
+            {tSurOn && (
+              <input type="number" min={1} max={100} value={tSurRate} placeholder="%"
+                onChange={(e) => setTSurRate(e.target.value)} style={{ ...input, width: 76 }} />
+            )}
+          </div>
+          {tSurOn && (
+            <div style={{ fontSize: 11.5, color: "var(--warn, #b45309)", margin: "6px 0 2px" }}>
+              加盟店契約でカード手数料の転嫁が禁止・制限されている場合があります。契約上の可否を確認してください
+              {taxSavedSur === null && (
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, color: "var(--fg)" }}>
+                  <input type="checkbox" checked={tSurAck} onChange={(e) => setTSurAck(e.target.checked)} />
+                  契約上の可否を確認しました（保存すると確認の記録が残ります）
+                </label>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className="nox-cardtop" style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11.5, color: "var(--sub)", flex: 1, minWidth: 0 }}>
+              税設定の保存は開栓済みの伝票に影響しません（開栓時の設定で凍結・mig0113）。
+            </span>
+            {taxMsg && <span style={{ fontSize: 12 }}>{taxMsg}</span>}
+            <button style={btnDark} disabled={taxBusy} onClick={() => void saveTaxConfig()}>税設定を保存</button>
           </div>
         </section>
 

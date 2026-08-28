@@ -23,7 +23,7 @@ export default async function MasterPricingPage() {
 
   const supabase = await createClient();
   const { data: stores } = await supabase.from("stores")
-    .select("id, name, settings_json, hon_fee, jonai_fee, dohan_fee, service_rate, card_tax_rate, round_unit, round_mode, set_min, set_fee, ext_min, ext_fee, time_mode, time_per")
+    .select("id, name, settings_json, hon_fee, jonai_fee, dohan_fee, service_rate, card_tax_rate, round_unit, round_mode, set_min, set_fee, ext_min, ext_fee, time_mode, time_per, business_tax_status, price_display, invoice_status, invoice_reg_no, tax_rounding, card_surcharge_rate")
     .order("name").limit(1);
   const store = stores?.[0];
   const storeId = (store?.id as string | undefined) ?? "";
@@ -54,6 +54,13 @@ export default async function MasterPricingPage() {
           ext_min: Number(store?.ext_min ?? 30), ext_fee: Number(store?.ext_fee ?? 0),
           time_mode: typeof store?.time_mode === "string" ? store.time_mode : "manual",
           time_per: typeof store?.time_per === "string" ? store.time_per : "table",
+          // ★mig0111/0113（C4）: 税設定6列（既定は mig0111 の default と同値）
+          business_tax_status: typeof store?.business_tax_status === "string" ? store.business_tax_status : "taxable",
+          price_display: typeof store?.price_display === "string" ? store.price_display : "tax_included",
+          invoice_status: typeof store?.invoice_status === "string" ? store.invoice_status : "unregistered",
+          invoice_reg_no: typeof store?.invoice_reg_no === "string" ? store.invoice_reg_no : null,
+          tax_rounding: typeof store?.tax_rounding === "string" ? store.tax_rounding : "floor",
+          card_surcharge_rate: store?.card_surcharge_rate == null ? null : Number(store.card_surcharge_rate),
         },
         rules: (rules ?? []) as never[],
         ranks: (ranks ?? []) as never[],
