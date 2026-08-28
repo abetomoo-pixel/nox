@@ -35,6 +35,22 @@ export type CompPlan = {
   honBackRate?: number | null; // %（0-100）。mode='rate' のとき非 null（RPC/CHECK が保証）
   jonaiBackMode?: BackMode;
   jonaiBackRate?: number | null;
+  // mig0114（C1-1 読み経路段）: dohan の対称化＋行型コンポーネント。
+  //   ★本段は「読めるようにする」まで＝payOf は一切参照しない（挙動段の v2 で結線）。
+  //   optional＋既定 per_count/[]＝既存 fixture・golden（玲奈 5931/125802）が1バイト不変で通る。
+  dohanBackMode?: BackMode;
+  dohanBackRate?: number | null;
+  components?: CompComponent[];
+};
+
+/** mig0114: comp_plan_components の行型（v2.0 kind 2種・読み経路段では素通しの器）。 */
+export type CompComponent = {
+  kind: "guarantee_min" | "achievement_bonus" | string;
+  mode: "amount" | "rate" | string;
+  amount: number | null;
+  rate: number | null;
+  params: Record<string, unknown>;
+  priority: number;
 };
 
 export type PlanOverride = Partial<

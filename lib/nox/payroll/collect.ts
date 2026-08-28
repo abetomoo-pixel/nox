@@ -70,17 +70,32 @@ export type CollectResult = {
 
 // 店共通マスタ＋cast 個別マスタ（plan/norm/tax）を1回読む。
 async function loadMasters(admin: SupabaseClient, storeId: string, period: string) {
-  const [plansR, castPlanR, penR, dedR, cbR, normR, taxR] = await Promise.all([
-    admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate").eq("store_id", storeId),
-    admin.from("cast_plan").select("cast_id, plan_id, overrides_json").eq("store_id", storeId),
+  const [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR] = await Promise.all([
+    admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, dohan_back_mode, dohan_back_rate").eq("store_id", storeId),
+    // ★mig0114（読み経路段）: 期間化後は**現在行（valid_to is null）のみ**＝期間化前は全行が現在行
+    //   だったので1バイト同値。当該 period の履歴行解決（valid_from/to での月判定）は挙動段の v2。
+    admin.from("cast_plan").select("cast_id, plan_id, overrides_json").eq("store_id", storeId).is("valid_to", null),
     admin.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
     admin.from("deductions").select("id, name, amount, per").eq("store_id", storeId).eq("is_active", true),
     admin.from("custom_back_defs").select("id, name, basis, value, cond_json").eq("store_id", storeId).eq("is_active", true),
     admin.from("cast_norms").select("cast_id, days_target, dohan_target").eq("store_id", storeId).eq("period", period),
     admin.from("cast_tax_profiles").select("cast_id, mode").eq("store_id", storeId),
+    // ★mig0114（読み経路段）: 行型コンポーネント（plan_id で束ねる・空なら旧式同値＝pay.ts 非参照）
+    admin.from("comp_plan_components").select("plan_id, kind, mode, amount, rate, params, priority")
+      .eq("store_id", storeId).eq("is_active", true).order("priority"),
   ]);
-  for (const r of [plansR, castPlanR, penR, dedR, cbR, normR, taxR]) {
+  for (const r of [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR]) {
     if (r.error) throw new Error(`マスタ読み取り: ${r.error.message}`);
+  }
+  const compsByPlan = new Map<string, CompPlan["components"]>();
+  for (const r of (compR.data ?? []) as Record<string, unknown>[]) {
+    const arr = compsByPlan.get(r.plan_id as string) ?? [];
+    arr!.push({
+      kind: r.kind as string, mode: r.mode as string,
+      amount: (r.amount ?? null) as number | null, rate: (r.rate ?? null) as number | null,
+      params: (r.params ?? {}) as Record<string, unknown>, priority: r.priority as number,
+    });
+    compsByPlan.set(r.plan_id as string, arr);
   }
   const plansById = new Map<string, CompPlan>();
   for (const p of (plansR.data ?? []) as Record<string, unknown>[]) {
@@ -98,6 +113,10 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
       honBackRate: (p.hon_back_rate ?? null) as number | null,
       jonaiBackMode: (p.jonai_back_mode ?? "per_count") as CompPlan["jonaiBackMode"],
       jonaiBackRate: (p.jonai_back_rate ?? null) as number | null,
+      // ★mig0114: dohan 対称化＋components（読み経路段＝payOf 非参照・空配列が既定）
+      dohanBackMode: (p.dohan_back_mode ?? "per_count") as CompPlan["dohanBackMode"],
+      dohanBackRate: (p.dohan_back_rate ?? null) as number | null,
+      components: compsByPlan.get(p.id as string) ?? [],
     });
   }
   const castPlanByCast = new Map<string, { planId: string; override: PlanOverride }>();
