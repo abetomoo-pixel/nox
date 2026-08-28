@@ -1287,7 +1287,14 @@ async function main() {
       const { data: g, error: eGet } = await o.rpc("get_cast_sensitive", { p_cast_id: castIdA });
       const grow = (g ?? [])[0] as { real_name?: string } | undefined;
       check("F2b T6a: owner get_cast_sensitive 成功（real_name 復元）", !eGet && grow?.real_name === "田中玲奈", eGet?.message ?? JSON.stringify(g));
-      check("F2b 全閲覧ログ: owner get で read_cast_sensitive +1", (await auditCount("read_cast_sensitive", tgt)) === readBefore + 1);
+      // ★起票#34: 判定は「+1 以上」。get_cast_sensitive は audit_log_write を return query の前で
+      //   無条件に1回呼ぶ（同一トランザクション）ため、直前行で成功を assert した以上 delta=0 は
+      //   「読んだのに残っていない」＝非計上バグであり、赤のまま残す（ここを握り潰さない）。
+      //   delta=2 は POST の二重到達（dev 実測 64ラン中2回・0ms/1ms 間隔＝正常間隔 600-900ms の3桁外）で、
+      //   read が2回起きて2行残った形＝「読むたび必ず残る」という本 assert の主旨は満たすため緑にする。
+      //   ★実 delta を detail に出す（旧実装は第3引数が無く、赤になっても値が読めなかった）。
+      const readDelta = (await auditCount("read_cast_sensitive", tgt)) - readBefore;
+      check("F2b 全閲覧ログ: owner get で read_cast_sensitive +1以上", readDelta >= 1, `delta=${readDelta}`);
       const { error: eSel } = await o.from("cast_sensitive").select("cast_id").limit(1);
       check("F2b 物理封鎖: owner 直 SELECT permission denied（grant0）", denied(eSel), eSel?.message ?? "読めてしまった");
       // 平文非リーク: set の audit after_json は fields_changed のみ・実値を含まない
@@ -1323,7 +1330,9 @@ async function main() {
       const readBefore = await auditCount("read_cast_sensitive", tgt);
       const { data: g, error: eSelf } = await ca.rpc("get_cast_sensitive", { p_cast_id: castIdA });
       check("F2b T6a: cast 本人 get 成功", !eSelf && (g ?? []).length === 1, eSelf?.message ?? JSON.stringify(g));
-      check("F2b 全閲覧ログ: cast 本人自己閲覧でも +1（例外なし）", (await auditCount("read_cast_sensitive", tgt)) === readBefore + 1);
+      // ★起票#34: owner 側と同じ判定（delta>=1・0 は赤・二重到達の 2 は緑）。根拠は上の owner ブロックの注記。
+      const selfDelta = (await auditCount("read_cast_sensitive", tgt)) - readBefore;
+      check("F2b 全閲覧ログ: cast 本人自己閲覧でも +1以上（例外なし）", selfDelta >= 1, `delta=${selfDelta}`);
       const { error: eOther } = await ca.rpc("get_cast_sensitive", { p_cast_id: castIdB });
       check("F2b T6a: cast 他人 get 拒否", forbidden(eOther), eOther?.message ?? "通ってしまった");
       const { error: eSel } = await ca.from("cast_sensitive").select("cast_id").limit(1);
@@ -1943,7 +1952,10 @@ async function main() {
     check("F1e DB 帰属: 境界外（06:00）は翌営業日 slips=1", repN?.slips === 1 && repN?.cash === 0, JSON.stringify(repN));
 
     // reclose: void 追随（check5 と golden を void → 凍結 cutoff/rate で再集計）
-    await c.rpc("check_void", { p_check_id: check5, p_reason: "verify 解放" });
+    // ★起票#33: check5 の void も戻りを見る。ここを捨てると void 失敗時に check5 が open のまま残り、
+    //   直後の reclose が 'open checks remain' で落ちて後続の凍結値 assert が連鎖赤になる（原因が2本先に化ける）。
+    const { error: eV5 } = await c.rpc("check_void", { p_check_id: check5, p_reason: "verify 解放" });
+    check("F1e check5 void 成功（open 残置→reclose 連鎖赤の防止）", !eV5, eV5?.message);
     const { error: eVg } = await c.rpc("check_void", { p_check_id: goldenCheckId, p_reason: "verify 取消" });
     check("F1e golden void 成功（open 売掛→voided 連動）", !eVg, eVg?.message);
     const { data: reclosed, error: eRc } = await c.rpc("daily_report_reclose", { p_report_id: reportId });
