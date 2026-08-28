@@ -908,6 +908,23 @@ async function main() {
         // C8 exempt 店: 外税でも分岐せず従来式＝net=315 sv=32 → 347（unit=1）
         await runCase("C8 exempt店", { bts: "exempt" }, async (cid) => { await addCustom(cid, "c8", 105, 3); }, 347);
 
+        // C10 card_surcharge（内税店・裁定92）: 315 → due0=347（net315+sv32・unit=1）。
+        //   手数料=round(347*5/100)=17 を charge 行で挿入 → 再計算: net=332 sv=round(33.2)=33 → 365
+        //   ★UI と同一の呼び形＝p_kind='charge' を **RPC 経由で**受理させる（既存経路完結の証明・裁定92）
+        const addSurcharge = (cid: string, amount: number) =>
+          owner.rpc("check_add_line", { p_check_id: cid, p_product_id: null, p_qty: 1, p_kind: "charge", p_name: "カード手数料(5%)", p_pay_group: "A", p_unit_price: amount });
+        await runCase("C10 card_surcharge(内税)", { pd: "tax_included" }, async (cid) => {
+          await addCustom(cid, "c10", 105, 3);
+          const { error: eSur } = await addSurcharge(cid, 17); // 基底347×5%
+          if (eSur) throw new Error("check_add_line kind=charge 拒否: " + eSur.message);
+        }, 365);
+        // C11 card_surcharge（外税店 floor）: 315 → due0=381（net315+sv32+tax34）。
+        //   手数料=round(381*5/100)=19（taxable_10 default）→ 再計算: bx10=334 net=334 sv=33 base10=367 tax=36 → 403
+        await runCase("C11 card_surcharge(外税)", {}, async (cid) => {
+          await addCustom(cid, "c11", 105, 3);
+          const { error: eSur } = await addSurcharge(cid, 19); // 基底381×5%
+          if (eSur) throw new Error("check_add_line kind=charge 拒否: " + eSur.message);
+        }, 403);
         // C9 開卓時凍結: 外税 floor で open→lines→total 記録 → 店を内税へ戻しても total 不変
         {
           const { error: eCfg9 } = await owner.rpc("set_store_tax_config", {
