@@ -2157,6 +2157,25 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
 
 ---
 
+## 裁定92（2026-08-28・C3/C4 §6-6）card_surcharge の v2.0 規則＝通常の課税 charge 行
+
+- **card_surcharge は通常の課税 charge 行**＝既存 `check_add_line` カスタム経路の
+  `kind='charge'`・`fee_kind=null`・`name='カード手数料(N%)'`。`tax_category` は RPC 未指定＝
+  列 default `'taxable_10'` スナップ（T6 と一致・mig0111 の設計どおり）。**専用 kind/fee_kind は作らない**。
+- **基底＝挿入時点の対象 pay_group の due**（サ料・税・店設定丸め適用後の請求額）× rate/100 を
+  **round（half-up）で1回**。**挿入後は通常行として due 再計算に参加**して最終請求額が確定
+  （外税店では手数料行にも税が乗る・サ料の母集合にも入る）。
+- **二重取り防止は 1 pay_group 1行まで（UI ガード）**＝`kind='charge'` ∧ name 前方一致
+  「カード手数料(」で判定。削除は既存の行削除経路。
+- **支払い方法との連動なし（v2.0）**＝手動追加の導線のみ。card 選択時は導線を強調表示してよいが
+  **自動挿入はしない**。`stores.card_surcharge_rate` が null なら導線非表示。
+- **新 RPC/mig 不要を確認済み**＝`check_add_line` カスタム経路は `kind in ('set','time','charge','custom')`
+  を受理し（prosrc 実測）、insert は12列＝`fee_kind`/`tax_category` を書かない → null / default 凍結。
+- ★UI 追随（同日実装）: 表示 due の鏡像を `groupDue`（内税専用）→ **`groupDueFull`（完全鏡像）**へ
+  差し替え＝外税店でもレジの請求表示が `check_group_due` と一致（内税/exempt は従来式へ委譲＝1バイト同値）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
