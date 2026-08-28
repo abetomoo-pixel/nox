@@ -57,6 +57,17 @@ const REOPEN_PERIODS = ["2029-01"]; // D1 reopen サイクル段 隔離 period
 const SEATS = ["NOX-VERIFY-paySeat", "NOX-VERIFY-paySeat2"];
 const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2"];
 
+// ★起票#35: 異常終了時にも teardown を走らせるための参照。
+//   本スイートは fixture 作成が `data!.id` の非 null 断言に依存するため、statement timeout 等で
+//   data が null になるとその場で throw し、末尾の teardown に到達しない。すると
+//   NOX-VERIFY-pay* の cast が store A1 に active のまま残り、**次 run の anon-guard 段35**
+//   （verify:f0 の並びが anon-guard → payroll のため先に当たる）の
+//   「kiosk_cast_list = 自店 active のみ（A1=2人）」が 2+N 行になって赤くなる。
+//   段35 の wipe35() は `NOX-VERIFY-段35` 接頭辞しか消さないので payroll 由来は素通りする。
+//   main() の catch から呼べるようモジュール層に参照を上げる（try/finally 化は本体 880 行の
+//   再インデントになるため採らない＝差分を最小に保つ）。
+let teardownRef: (() => Promise<void>) | null = null;
+
 async function main() {
   const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -121,6 +132,7 @@ async function main() {
     // #32 incentive（2026-11 隔離）
     await admin.from("attendance_incentives").delete().eq("store_id", storeA1Id).gte("biz_date", "2026-11-01").lte("biz_date", "2026-11-30");
   }
+  teardownRef = teardown; // ★起票#35: 異常終了時の後始末に使う
   await teardown();
 
   // ── seed ──────────────────────────────────────────────────────
@@ -1016,7 +1028,17 @@ async function main() {
   console.log(`verify:nox-payroll ALL PASS (${pass} assertions)`);
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
   console.error("✗ 異常終了", e);
+  // ★起票#35: 異常終了でも fixture を残さない。残すと次 run の anon-guard 段35 を汚染する。
+  //   teardown 自体が失敗しても異常終了の事実は握り潰さない（必ず exit 1）。
+  if (teardownRef) {
+    try {
+      await teardownRef();
+      console.error("  → 異常終了後の teardown 完了（fixture 残置なし）");
+    } catch (e2) {
+      console.error("  → 異常終了後の teardown も失敗（残置の可能性あり）", e2);
+    }
+  }
   process.exit(1);
 });
