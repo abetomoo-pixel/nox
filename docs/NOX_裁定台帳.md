@@ -2122,7 +2122,13 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
   ★実績（同日・§6-3＝mig0112）: **51→52 は A8 名簿+1（`set_store_tax_config`）の runtime 代表 1本**
   （対象 105→106・全数 200→201・billing pin 4点更新＝教訓21。逆張り=権限3系統＋ガード2系統の
   期待反転で 5赤→復元緑・f0 2連続 28本/3250 緑）。以後の golden 6値 = **5931/125802/55233/57/64/52**。
-  **挙動段の金額張り替え予告（receipt XML sha の更新）は別途有効なまま**。
+  ★実績（同日・§6-4 挙動段＝mig0113）: **三面同時改修が完了**（DB=check_open 凍結3列＋check_group_due
+  外税分岐＋check_tax_round／TS=groupDueFull（check-calc）＋receipt.ts の外税/exempt 分岐・taxOf 第3引数）。
+  **既定経路の XML sha pin 7本は無更新のまま全緑＝1バイト同値**（「金額張り替え」は外税という新経路の
+  追加で消化＝既存 pin の張り替えは発生しなかった）。receipt 57→**64**（+7＝外税/exempt/鏡像手計算）・
+  pricing 137→**148**（+11＝段43(21) DB↔TS 鏡像 C1〜C9）・billing 52 のまま（名簿は除外+1＝check_tax_round
+  を B(a) へ・**教訓21 assert が f0 実走で名簿漏れを検知した初の実例**）。f0 2連続 **28本/3268** 緑・
+  金額系 golden 3値不変。以後の golden 6値 = **5931/125802/55233/64/64/52**。
 - 受け入れは二段（mig 段=列追加＋既定値=現行挙動で golden 6値不変／挙動段=三面鏡同時変更・Fable 5）。
 - 店舗設定は4分離（`business_tax_status`/`price_display`/`invoice_status`+`invoice_reg_no`/`tax_rounding`）＝
   T5 の「内税/外税/適用しない」同列3択の解体。`registered ⊂ taxable` は RPC ガード。
@@ -2285,6 +2291,19 @@ route map（`docs/dp/dp1_route_map.md`）の「あり」は**モックの区画�
 
 - **モック照合は「区画の中の要素・生成コードの出力・数字が読めているか」まで見て初めて「済」と書く**
   （教訓40 の延長＝語の一致で仕分けしない、の区画版）。
+
+### 教訓43：関数の新設にも Supabase default privileges の自動 grant が付く（auto-grant 系の追記）
+
+新規**テーブル**への anon/authenticated 既定 grant（0002 検証(4)・CLAUDE.md 標準型の根拠）と同じ機構が
+**関数の新設**にも働く＝Supabase の default privileges は `create function` 時点で
+**authenticated / service_role へ EXECUTE を自動 grant する**（**0113 の `check_tax_round` で実測**・
+2026-08-28）。`revoke ... from public, anon` の2者だけでは authenticated / service_role の
+自動 grant が残る＝**内部専用関数の revoke は `public, anon, authenticated, service_role` の
+4者明示が必須**（CLAUDE.md 二重防御2 の「4ロール明示 revoke」は新設関数の初回 ACL にも適用される。
+mig0004＝audit_log_write の service_role 残置と同型）。live の `check_tax_round` は4者 revoke 後の
+クリーン状態（`{postgres=X}` のみ）を実測確認済み。★**手貼りリスト 0113 行に「4者 revoke を別途」の
+注記が必須**＝収蔵ファイルの revoke は2者のままなので、そのまま本番手貼りすると authenticated/service_role
+が残る。
 
 ### 純増起票（追加分・実装しない）
 

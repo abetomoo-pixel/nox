@@ -41,6 +41,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
   live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
   全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0113 追随（2026-08-28・C3/C4 挙動段）**: 新設 `check_tax_round`（内部ヘルパー・非ゲート）を
+  B の内部関数群へ収載。除外 **95→96**・全数 **201→202**。★この漏れは f0 の教訓21 assert
+  （live 全数=A∪B）が実走で検知した＝仕組みが機能した実例。
 - ★**mig0112 追随（2026-08-28・C3/C4 §6-3）**: 新 RPC **1本**を A8 へ収載＝`set_store_tax_config`
   （税設定4分離＋card_surcharge・ゲート内蔵・裁定90）。`set_pricing_rule` は 13→14引数化（名前不変＝
   本数不動・旧署名 DROP 済み）。対象 **105→106**・全数 **200→201**。
@@ -137,11 +140,11 @@ trial_register / trial_update / trial_hire / trial_reject
 ### A11. デバイス（1本）
 kiosk_provision（新規 kiosk の追加＝拡大操作）
 
-## B. 除外（94本）
+## B. 除外（96本）
 
-### B(a) 構造除外＝authenticated 実行不可（service/内部・23本）→ ゲート不要（B7 回避型(1)）
+### B(a) 構造除外＝authenticated 実行不可（service/内部・24本）→ ゲート不要（B7 回避型(1)）
 approval_apply / ar_policy_ok / audit_log_write / audit_log_write_service / cast_create_apply /
-cast_sales_aggregate / check_group_due / check_recalc / check_round_amount / comp_plan_slide_check /
+cast_sales_aggregate / check_group_due / check_recalc / check_round_amount / **check_tax_round**（mig0113＝税丸め・IMMUTABLE・4者 revoke 済＝教訓43） / comp_plan_slide_check /
 consent_ok / daily_report_aggregate / get_cast_mynumber / payroll_finalize / payroll_mark_paid /
 payroll_reopen / print_claim / print_result / stock_on_check_line / stock_on_check_void /
 pricing_resolve_core / drink_claims_guard_line_update / drink_claims_on_line_delete
