@@ -5149,7 +5149,15 @@ async function main() {
           const { data } = await admin.from("cast_pin").select("fail_count, locked_until").eq("cast_id", castIdA).single();
           return data as { fail_count: number; locked_until: string | null };
         };
+        // ★0109: 打刻端末の最終アクセス。kiosk_punch は **PIN 一致（成功）経路でのみ** last_seen_at を更新する。
+        //   deviceId は上の provision 正系で確定済み・wipe35 が毎 run 作り直すので初期値は null。
+        //   ★last_ip は DB では更新されるが UI/API には出さない（裁定 2026-08-28）ため assert しない。
+        const devSeen = async (): Promise<string | null> => {
+          const { data } = await admin.from("kiosk_devices").select("last_seen_at").eq("id", deviceId ?? "").single();
+          return (data?.last_seen_at as string | null) ?? null;
+        };
 
+        const seen0 = await devSeen();
         const r1 = await kp("1234");
         check("段35 ★正PIN = ok:true（punch_id uuid 返却）", r1.ok === true && typeof r1.punch_id === "string", JSON.stringify(r1));
         const { data: pRow1 } = await admin.from("punches")
@@ -5160,10 +5168,15 @@ async function main() {
         const { data: audKp } = await owner.from("audit_logs").select("action")
           .eq("action", "kiosk_punch").eq("target", `punches:${r1.punch_id}`).limit(1);
         check("段35 audit: kiosk_punch 直接 INSERT（actor null 経路）行生成", (audKp ?? []).length === 1, JSON.stringify(audKp));
+        const seen1 = await devSeen();
+        check("段35 ★0109 正PIN 成功で kiosk_devices.last_seen_at 更新（前後比較）",
+          !!seen1 && (seen0 === null || new Date(seen1) > new Date(seen0)), JSON.stringify({ seen0, seen1 }));
 
         const wrongs: KPunch[] = [];
         for (let i = 0; i < 4; i++) wrongs.push(await kp("9999"));
         check("段35 誤PIN×4 = 全て wrong_pin", wrongs.every((w) => w.ok === false && w.reason === "wrong_pin"), JSON.stringify(wrongs));
+        const seenW = await devSeen();
+        check("段35 ★0109 逆張り wrong_pin では last_seen_at 不変", seenW === seen1, JSON.stringify({ seen1, seenW }));
         const st4 = await pinRow();
         check("段35 fail_count 実値 = 4", st4.fail_count === 4, JSON.stringify(st4));
 
@@ -5182,11 +5195,16 @@ async function main() {
         const st6 = await pinRow();
         check("段35 成功でカウンタ復元（fail_count 0・locked_until null）", st6.fail_count === 0 && st6.locked_until === null, JSON.stringify(st6));
 
+        const seen2 = await devSeen(); // r6（成功）後の値＝以降の失敗経路 逆張りの基準
         const rB = await kp("123");
         const stB = await pinRow();
         check("段35 bad_pin（3桁・形式不正）= fail_count 非増加", rB.ok === false && rB.reason === "bad_pin" && stB.fail_count === 0, JSON.stringify({ rB, stB }));
+        const seenB = await devSeen();
+        check("段35 ★0109 逆張り bad_pin では last_seen_at 不変", seenB === seen2, JSON.stringify({ seen2, seenB }));
         const { data: rNf } = await kiosk.rpc("kiosk_punch", { p_cast_id: cA2tmp.id, p_pin: "1234", p_type: "in" });
         check("段35 他店 cast = not_found（存在オラクル封じ）", (rNf as KPunch)?.reason === "not_found", JSON.stringify(rNf));
+        const seenN = await devSeen();
+        check("段35 ★0109 逆張り not_found では last_seen_at 不変", seenN === seen2, JSON.stringify({ seen2, seenN }));
         const { data: rNp } = await kiosk.rpc("kiosk_punch", { p_cast_id: castIdB, p_pin: "1234", p_type: "in" });
         check("段35 PIN 未設定 cast = no_pin", (rNp as KPunch)?.reason === "no_pin", JSON.stringify(rNp));
 
