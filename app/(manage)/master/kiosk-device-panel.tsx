@@ -20,7 +20,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 
 type Store = { id: string; name: string };
-type Device = { id: string; store_id: string; label: string | null; purpose: string; is_active: boolean; created_at: string };
+type Device = { id: string; store_id: string; label: string | null; purpose: string; is_active: boolean; created_at: string; last_seen_at: string | null };
 type ProvisionResult = { device_id: string; login_email: string; initial_password: string };
 const PURPOSE_LABEL: Record<string, string> = { punch: "打刻", register: "レジ" };
 const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "黒服" };
@@ -170,14 +170,14 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
             <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
               <thead>
                 <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
-                  {["端末", "用途", "状態", "操作"].map((h) => (
+                  {["端末", "用途", "最終アクセス", "状態", "操作"].map((h) => (
                     <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {devices.length === 0 && (
-                  <tr><td colSpan={4} style={{ padding: 8, color: "var(--sub)" }}>（発行済みの端末はありません）</td></tr>
+                  <tr><td colSpan={5} style={{ padding: 8, color: "var(--sub)" }}>（発行済みの端末はありません）</td></tr>
                 )}
                 {devices.map((d) => (
                   <tr key={d.id} style={{ borderBottom: "1px solid var(--line)" }}>
@@ -194,6 +194,12 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
                       </span>
                     </td>
                     <td style={{ padding: 6, whiteSpace: "nowrap" }}>{PURPOSE_LABEL[d.purpose] ?? d.purpose}</td>
+                    {/* ★最終アクセス（モックの5列構成・相対表記）: 打刻端末は kiosk_punch 成功時（mig0109）・
+                        レジ端末は kiosk_login 成功時（mig0108）に last_seen_at が入る。未打刻/未ログインは null＝「—」。
+                        IP は出さない（モックの端末表に列が無い＝裁定 2026-08-28。API も返していない）。 */}
+                    <td style={{ padding: 6, whiteSpace: "nowrap", color: d.last_seen_at ? undefined : "var(--sub)" }}>
+                      {d.last_seen_at ? relTime(d.last_seen_at) : "—"}
+                    </td>
                     <td style={{ padding: 6, color: d.is_active ? "var(--ok)" : "var(--sub)" }}>{d.is_active ? "有効" : "無効"}</td>
                     <td style={{ padding: 6 }}>
                       {d.is_active && (

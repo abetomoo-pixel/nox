@@ -57,7 +57,10 @@ export async function GET() {
     const admin = createAdminClient();
     const { data, error } = await admin
       .from("kiosk_devices")
-      .select("id, store_id, label, purpose, is_active, created_at")
+      // ★0109: last_seen_at＝打刻端末の最終アクセス（kiosk_punch 成功経路のみ更新）。
+      //   0108 でレジ端末（kiosk_login）側にも入っており、両用途とも同じ列を読む。
+      //   ★last_ip は返さない（モックの端末表に IP 列が無い＝裁定 2026-08-28）。
+      .select("id, store_id, label, purpose, is_active, created_at, last_seen_at")
       .eq("org_id", g.orgId)
       .order("created_at", { ascending: false });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
