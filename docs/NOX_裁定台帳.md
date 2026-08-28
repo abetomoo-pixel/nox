@@ -2203,6 +2203,25 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
 
 ---
 
+## 裁定95（2026-08-28・C1 §6-4 UI 段）components UI のモック対比と params 仮置き
+
+- **モック対比（教訓40/42・実測）**: components 相当区画は**ある**＝`mock/nox-cast-reward/plan.html` の
+  **composer（「本指名の報酬設計」＝報酬コンポーネントの併用設計・KPI「12コンポーネント」）**。
+  ただし軸が違う＝モックは**報酬項目×方式**（固定金額/ポイント/売上歩合/利益歩合/スライドの5方式併用
+  ＝起票#25 の kind 未実装群 point_rate/profit_share 系）、v2.0 DB は **kind 2種**
+  （guarantee_min/achievement_bonus）。→ v2.0 UI は**モック composer の縮退版**（一覧＋追加の型は踏襲・
+  kind 2種のみ）として実装し、5方式 composer への拡張は kind 追加（挙動段以降）で追随する。
+  ＝**裁定84 系の「モック無し」ではない**が、対応区画の完全一致もない（縮退の明示が本裁定）。
+- **params の形（UI が書く最小形＝仮置き・裁定要求ではない）**: 挙動段の payOf 実装と同時に確定する。
+  それまで UI は次を書く:
+  - `guarantee_min` → `{"period":"month"}`（判定単位は月固定＝半月/日は挙動段で解錠）
+  - `achievement_bonus` → `{"thresholds":[{"pct":100,"add":N}]}`（1段のみ・N は p_amount と同値・
+    複数段/率 mode は挙動段で）
+- UI: 書込フォームは owner のみ（RPC の D3a と一致＝裁定85 の系）。非 owner はプラン行の選択で
+  components とプラン構成プレビューを**閲覧のみ**できる。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
