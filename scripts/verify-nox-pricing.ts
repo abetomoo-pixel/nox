@@ -31,6 +31,8 @@
  *        正常系＋audit／bad cutoff 5種／owner 限定（manager・staff・他 org）／帯ガード。
  *        ★settings_json は段内で snapshot→finally 逐語復元（rls :1928/:1956 の '06:00' 固定を壊さない）
  *   (19) ★mig0107（P-1）＝pricing_rules.name（表示名・任意）と set_pricing_rule 13 引数化。
+ *   (20) ★mig0112（C3/C4 §6-3・裁定90）＝set_pricing_rule 14 引数化（p_tax_category）と
+ *        set_store_tax_config（税設定4分離＋card_surcharge・実セッション runtime）。
  *        trim／空→null／41文字 'bad name'／★既存の12引数呼び出し（p_name 省略）が DEFAULT で通ること
  *
  * fixture は段内動的生成→finally 全消し（pricing_rules/cast_ranks は verify 店スコープで
@@ -687,6 +689,107 @@ async function main() {
       check("段43(19) 更新で表示名を消せる（null）", !eU2 && (await nameOf(r1.id!)) === null, eU2?.message);
 
       for (const id of nameIds) await admin.from("pricing_rules").delete().eq("id", id);
+    }
+
+    // ═══ (20) ★mig0112（C3/C4 §6-3・裁定90）: p_tax_category と set_store_tax_config ═══
+    //   ★prosrc 緑 ≠ runtime 緑＝権限3系統（owner/manager/staff）とガード2系統（registered⊂taxable・
+    //     reg_no 必須/形式）を実セッションで流す。stores の税6列は snapshot→finally 逐語復元
+    //     （0108 の settings_json snapshot と同じ流儀＝他スイートの既定値前提を壊さない）。
+    {
+      const TAXCOLS = "business_tax_status, price_display, invoice_status, invoice_reg_no, tax_rounding, card_surcharge_rate";
+      const { data: snapTax } = await admin.from("stores").select(TAXCOLS).eq("id", sA1.id).single();
+      const taxIds: string[] = [];
+      try {
+        const taxBase = {
+          p_store_id: sA1.id, p_business_tax_status: "taxable", p_price_display: "tax_included",
+          p_invoice_status: "unregistered", p_invoice_reg_no: null, p_tax_rounding: "floor",
+          p_card_surcharge_rate: null,
+        };
+        // owner 成功（非既定値も書けて読める）
+        const { error: eO } = await owner.rpc("set_store_tax_config", {
+          ...taxBase, p_price_display: "tax_excluded", p_tax_rounding: "round", p_card_surcharge_rate: 5,
+        });
+        const { data: afterO } = await admin.from("stores").select(TAXCOLS).eq("id", sA1.id).single();
+        check("段43(20) owner set_store_tax_config 成功＝6列が書けている",
+          !eO && afterO?.price_display === "tax_excluded" && afterO?.tax_rounding === "round"
+          && afterO?.card_surcharge_rate === 5 && afterO?.business_tax_status === "taxable",
+          eO?.message ?? JSON.stringify(afterO));
+        // audit: 税6列のみの合成 jsonb（before/after・キー6ちょうど）
+        const { data: audT } = await admin.from("audit_logs").select("before_json, after_json")
+          .eq("action", "set_store_tax_config").eq("target", `stores:${sA1.id}`)
+          .order("at", { ascending: false }).limit(1);
+        const aRow = (audT ?? [])[0] as { before_json?: Record<string, unknown>; after_json?: Record<string, unknown> } | undefined;
+        const KEY6 = ["business_tax_status", "price_display", "invoice_status", "invoice_reg_no", "tax_rounding", "card_surcharge_rate"];
+        check("段43(20) audit＝税6列のみの合成 jsonb（before/after ともキー6ちょうど・set_store_pricing 同型）",
+          !!aRow && KEY6.every((k) => k in (aRow.before_json ?? {}) && k in (aRow.after_json ?? {}))
+          && Object.keys(aRow.before_json ?? {}).length === 6 && Object.keys(aRow.after_json ?? {}).length === 6
+          && aRow.after_json?.price_display === "tax_excluded",
+          JSON.stringify(aRow));
+        // manager 自店成功（registered ＋ 正しい reg_no）
+        const { error: eM } = await mgr.rpc("set_store_tax_config", {
+          ...taxBase, p_invoice_status: "registered", p_invoice_reg_no: "T1234567890123",
+        });
+        const { data: afterM } = await admin.from("stores").select(TAXCOLS).eq("id", sA1.id).single();
+        check("段43(20) manager 自店成功（registered＋T13桁）", !eM && afterM?.invoice_status === "registered"
+          && afterM?.invoice_reg_no === "T1234567890123", eM?.message ?? JSON.stringify(afterM));
+        // manager 他店 forbidden
+        const { error: eMx } = await mgr.rpc("set_store_tax_config", { ...taxBase, p_store_id: sA2.id });
+        check("段43(20) manager 他店 forbidden", has(eMx, "forbidden"), eMx?.message ?? "通ってしまった");
+        // staff forbidden
+        const { error: eS } = await stf.rpc("set_store_tax_config", taxBase);
+        check("段43(20) staff forbidden", has(eS, "forbidden"), eS?.message ?? "通ってしまった");
+        // null 引数 raise（原則7＝UI 全値明示の裏面）
+        const { error: eN } = await owner.rpc("set_store_tax_config", { ...taxBase, p_tax_rounding: null });
+        check("段43(20) null 引数は 'bad tax config'", has(eN, "bad tax config"), eN?.message ?? "通ってしまった");
+        // registered × exempt raise
+        const { error: eRE } = await owner.rpc("set_store_tax_config", {
+          ...taxBase, p_business_tax_status: "exempt", p_invoice_status: "registered", p_invoice_reg_no: "T1234567890123",
+        });
+        check("段43(20) registered×exempt は 'invoice requires taxable'", has(eRE, "invoice requires taxable"),
+          eRE?.message ?? "通ってしまった");
+        // registered × reg_no null raise
+        const { error: eRN } = await owner.rpc("set_store_tax_config", {
+          ...taxBase, p_invoice_status: "registered", p_invoice_reg_no: null,
+        });
+        check("段43(20) registered×reg_no null は 'registration number required'",
+          has(eRN, "registration number required"), eRN?.message ?? "通ってしまった");
+        // reg_no 形式不正 raise
+        const { error: eRF } = await owner.rpc("set_store_tax_config", {
+          ...taxBase, p_invoice_reg_no: "T123",
+        });
+        check("段43(20) reg_no 形式不正は 'bad registration number'", has(eRF, "bad registration number"),
+          eRF?.message ?? "通ってしまった");
+
+        // ── set_pricing_rule 14引数 ──
+        const sprBase = {
+          p_store_id: sA1.id, p_fee_kind: "set", p_seat_kind: null, p_dow_mask: null,
+          p_time_from_min: null, p_time_to_min: null, p_rank_id: null,
+          p_duration_min: null, p_priority: 96, p_is_active: true,
+        };
+        const taxOfRule = async (id: string) => (await admin.from("pricing_rules").select("tax_category").eq("id", id).single()).data?.tax_category;
+        // 13引数相当（p_tax_category 省略）＝従来と同値（DEFAULT 'taxable_10'）
+        const { data: r13, error: e13 } = await owner.rpc("set_pricing_rule", { ...sprBase, p_id: null, p_amount: 2001 });
+        if (typeof r13 === "string") taxIds.push(r13);
+        check("段43(20) ★13引数相当（p_tax_category 省略）は従来同値＝成功・tax_category='taxable_10'",
+          !e13 && (await taxOfRule(r13 as string)) === "taxable_10", e13?.message ?? String(await taxOfRule(r13 as string)));
+        // 4値受理
+        const oks: boolean[] = [];
+        for (const tc of ["taxable_10", "taxable_8", "exempt", "out_of_scope"]) {
+          const { data: rid, error: eTc } = await owner.rpc("set_pricing_rule", { ...sprBase, p_id: null, p_amount: 2002, p_tax_category: tc });
+          if (typeof rid === "string") { taxIds.push(rid); oks.push(!eTc && (await taxOfRule(rid)) === tc); }
+          else oks.push(false);
+        }
+        check("段43(20) tax_category 4値すべて受理・保存値一致（DB は4値・UI 露出3値＝裁定90-②）", oks.every(Boolean), JSON.stringify(oks));
+        // 5値目 raise
+        const { error: e5 } = await owner.rpc("set_pricing_rule", { ...sprBase, p_id: null, p_amount: 2003, p_tax_category: "taxable_5" });
+        check("段43(20) 5値目 'taxable_5' は 'bad tax category'", has(e5, "bad tax category"), e5?.message ?? "通ってしまった");
+      } finally {
+        for (const id of taxIds) await admin.from("pricing_rules").delete().eq("id", id);
+        // 税6列を snapshot へ逐語復元（他スイートの既定値前提を壊さない）
+        await admin.from("stores").update(snapTax ?? {}).eq("id", sA1.id);
+        const { data: backT } = await admin.from("stores").select(TAXCOLS).eq("id", sA1.id).single();
+        check("段43(20)（復元）税6列を snapshot へ逐語復元", JSON.stringify(backT) === JSON.stringify(snapTax), JSON.stringify(backT));
+      }
     }
 
   } finally {

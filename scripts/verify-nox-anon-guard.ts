@@ -466,6 +466,8 @@ async function main() {
     ["transport_cancel", { p_transport_id: null }],
     ["set_store_okuri_mode", { p_store_id: null, p_mode: null }],
     ["set_store_biz_cutoff", { p_store_id: null, p_hm: null }],  // ★mig0106（裁定82・起票#14）
+    ["set_store_tax_config", { p_store_id: null, p_business_tax_status: null, p_price_display: null,
+      p_invoice_status: null, p_invoice_reg_no: null, p_tax_rounding: null, p_card_surcharge_rate: null }],  // ★mig0112（裁定90）
   ];
   for (const [fn, args] of F2E2_ANON_PROBES) {
     const { error } = await anon.rpc(fn, args);
