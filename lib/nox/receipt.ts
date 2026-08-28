@@ -28,6 +28,8 @@
  *   （golden 52 の fixture は時間行を含まない＝pin も不変・段54 で実測確認）。
  */
 
+import { taxSettingsOf, taxRound, type StoreTaxSettings } from "./check-calc";
+
 export type ReceiptStore = {
   name: string;
   address: string; // 空 = 行を出さない
@@ -48,6 +50,9 @@ export type ReceiptLine = {
   unit_price_snapshot: number; // 保持のみ（48桁幅の都合で印字は名称×qty＋行計）
   line_total: number;
   kind: string; // 'discount' はマイナス表記＋割引段へ集計
+  // ★C3 読み経路段（mig0111）: check_lines.tax_category のスナップショット。省略可＝既存呼び出し不変。
+  //   税率別集計（taxable_8 併存・exempt 行の税額除外）は挙動段（C34設計書 §6-4）＝本段では受理のみ。
+  tax_category?: string;
 };
 
 export type ReceiptPayment = {
@@ -65,6 +70,9 @@ export type ReceiptInput = {
   serviceRate: number; // checks.service_rate（open 時凍結値）
   groupDue: number; // check_group_due(check_id, pay_group) の記録値＝合計の正
   isReprint: boolean;
+  // ★C4 読み経路段（mig0111）: 店舗税設定。省略＝既定（taxable・内税・floor・surcharge 無効）で
+  //   現行と1バイト同値。exempt/外税/card_surcharge の挙動差は挙動段で結線（本段は tax_rounding のみ実効）。
+  taxSettings?: Partial<StoreTaxSettings> | null;
 };
 
 const WIDTH = 48; // 80mm・Font A
@@ -123,9 +131,11 @@ export function jstStamp(iso: string): string {
   return `${d.getUTCFullYear()}/${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 
-/** 内消費税（10% 内税・floor）＝1レシート1回の端数処理。★軽減 8% は F5 差し替え点。 */
-export function taxOf(groupDue: number): number {
-  return Math.floor((groupDue * 10) / 110);
+/** 内消費税（10% 内税）＝**1レシート（=1 pay_group=1インボイス）×税率ごとに端数処理1回**（T5）。
+ *  第2引数 = stores.tax_rounding（mig0111・既定 'floor'＝従来と1バイト同値）。★軽減 8% は F5 差し替え点。
+ *  ★行ごとに丸んで合算する形にしてはならない（適格請求書の税率ごと1回ルール・verify で性質固定）。 */
+export function taxOf(groupDue: number, rounding: string = "floor"): number {
+  return taxRound((groupDue * 10) / 110, rounding);
 }
 
 export function buildReceiptXml(input: ReceiptInput): string {
@@ -137,7 +147,10 @@ export function buildReceiptXml(input: ReceiptInput): string {
   const net = Math.max(0, gross - discount);
   const service = Math.round((net * serviceRate) / 100);
   const rounding = groupDue - (net + service); // 端数調整（round down なら ≤0）
-  const tax = taxOf(groupDue);
+  // ★C4 読み経路段: 税設定の読み出し（未指定＝既定で従来同値）。実効は tax_rounding のみ＝
+  //   business_tax_status（exempt の税額区分なし）・price_display（外税表示）は挙動段で結線。
+  const ts = taxSettingsOf(input.taxSettings);
+  const tax = taxOf(groupDue, ts.tax_rounding);
 
   const slipNo = `${check.id.replace(/-/g, "").slice(0, 8)}-${payGroup}`;
   const sep = "-".repeat(WIDTH);

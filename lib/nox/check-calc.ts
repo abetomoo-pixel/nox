@@ -70,3 +70,40 @@ export function receiptSplitOf(total: number, count: number): number[] {
   const remainder = total - base * n;
   return Array.from({ length: n }, (_, i) => base + (i < remainder ? 1 : 0));
 }
+
+// ── C3/C4 読み経路段（mig0111・裁定90・C34設計書 §6-2）────────────────────────
+// 店舗税設定4値＋card_surcharge の読み出しを1点に集約する（stores の新6列のうち
+// invoice_status/invoice_reg_no はレシートのヘッダ側＝receipt.ts の ReceiptStore.reg_no が既存経路）。
+// ★本段は「読み出しを通す」まで＝**既定値では現行と1バイト同値**が受け入れ条件。
+//   非既定値の挙動（exempt の税額区分なし・外税・card_surcharge 行）は挙動段（§6-4/§6-6）で
+//   三面鏡（check_close 系 RPC / 本ファイル / receipt.ts）を同時に変える。ここでは結線しない。
+// ★tax_category は check_lines スナップショット列（同名の withholding_payments.tax_category は
+//   源泉納付の別概念＝裁定90 注記・教訓40。ここでは扱わない）。
+export type StoreTaxSettings = {
+  business_tax_status: string; // 'taxable' | 'exempt'（既定 taxable）
+  price_display: string;       // 'tax_included' | 'tax_excluded'（既定 tax_included）
+  tax_rounding: string;        // 'floor' | 'round' | 'ceil'（既定 floor）
+  card_surcharge_rate: number | null; // null=無効（既定）。結線は §6-6（裁定87 第2層の警告とセット）
+};
+
+export const DEFAULT_TAX_SETTINGS: StoreTaxSettings = {
+  business_tax_status: "taxable",
+  price_display: "tax_included",
+  tax_rounding: "floor",
+  card_surcharge_rate: null,
+};
+
+/** stores 行（部分・null 可）→ 既定値補完済み設定。未指定・null は mig0111 の default と同値。 */
+export function taxSettingsOf(row?: Partial<StoreTaxSettings> | null): StoreTaxSettings {
+  return {
+    business_tax_status: row?.business_tax_status ?? DEFAULT_TAX_SETTINGS.business_tax_status,
+    price_display: row?.price_display ?? DEFAULT_TAX_SETTINGS.price_display,
+    tax_rounding: row?.tax_rounding ?? DEFAULT_TAX_SETTINGS.tax_rounding,
+    card_surcharge_rate: row?.card_surcharge_rate ?? null,
+  };
+}
+
+/** 税額の端数処理（stores.tax_rounding）。金額側の roundAmount（round_unit/round_mode）とは別系統。 */
+export function taxRound(n: number, mode: string): number {
+  return mode === "ceil" ? Math.ceil(n) : mode === "round" ? Math.round(n) : Math.floor(n);
+}
