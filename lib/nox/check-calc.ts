@@ -103,7 +103,46 @@ export function taxSettingsOf(row?: Partial<StoreTaxSettings> | null): StoreTaxS
   };
 }
 
-/** 税額の端数処理（stores.tax_rounding）。金額側の roundAmount（round_unit/round_mode）とは別系統。 */
+/** 税額の端数処理（stores.tax_rounding）。金額側の roundAmount（round_unit/round_mode）とは別系統。
+ *  ★mig0113 で DB 鏡像 `check_tax_round(numeric,text)` が立った＝式を変えるときは必ず同時改修。 */
 export function taxRound(n: number, mode: string): number {
   return mode === "ceil" ? Math.ceil(n) : mode === "round" ? Math.round(n) : Math.floor(n);
+}
+
+// ── C3/C4 挙動段（mig0113・裁定90）: check_group_due の完全鏡像 ────────────────
+// DB の check_group_due（mig0113）と**同一規則**の表示用鏡像。★権威はサーバ（groupDue と同じ立場）。
+// 規則（設計書 v1 §3 細則＝mig0113 ヘッダ）:
+//   - net = max(0, Σ非discount − Σdiscount)・net=0 は 0
+//   - 外税（price_display='tax_excluded' ∧ business_tax_status='taxable'）のときのみ
+//     税率別に taxRound を1回ずつ（伝票×税率×1回＝T5）。
+//     discount は taxable_10 基底へ適用（greatest 0 clamp・8% への按分は F5）。
+//     サ料は taxable_10 基底に算入（T6）。exempt/out_of_scope 行は税 0。
+//     due = 店設定丸め(net + サ料 + 税)
+//   - 内税/exempt は従来式＝groupDue(net, s) と1バイト同値
+// ★三面鏡: check_group_due（DB）・本関数・receipt.ts の税表示を必ず同時改修（F5 の3点セットと同じ規律）。
+export type DueLine = { line_total: number; kind: string; tax_category?: string | null };
+export type CheckDueSettings = CheckRoundSettings & {
+  business_tax_status?: string | null; // checks の凍結値（省略/null=taxable）
+  price_display?: string | null;       // 同（省略/null=tax_included）
+  tax_rounding?: string | null;        // 同（省略/null=floor）
+};
+
+export function groupDueFull(lines: DueLine[], s: CheckDueSettings): number {
+  const bx = lines.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0);
+  const disc = lines.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0);
+  const net = Math.max(0, bx - disc);
+  if (net === 0) return 0;
+  const excluded = (s.price_display ?? "tax_included") === "tax_excluded"
+    && (s.business_tax_status ?? "taxable") === "taxable";
+  if (excluded) {
+    const catOf = (l: DueLine) => l.tax_category ?? "taxable_10";
+    const bx10 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_10").reduce((a, l) => a + l.line_total, 0);
+    const bx8 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_8").reduce((a, l) => a + l.line_total, 0);
+    const sv = roundYen((net * s.service_rate) / 100); // v_sv = round(v_net * v_rate / 100.0) と同式
+    const trnd = s.tax_rounding ?? "floor";
+    const base10 = Math.max(0, bx10 - disc) + sv;
+    const tax = taxRound((base10 * 10) / 100, trnd) + taxRound((bx8 * 8) / 100, trnd);
+    return roundAmount(net + sv + tax, s.round_unit, s.round_mode);
+  }
+  return groupDue(net, s); // 内税/exempt＝従来式（1バイト同値）
 }

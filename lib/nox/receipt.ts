@@ -131,10 +131,15 @@ export function jstStamp(iso: string): string {
   return `${d.getUTCFullYear()}/${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 
-/** 内消費税（10% 内税）＝**1レシート（=1 pay_group=1インボイス）×税率ごとに端数処理1回**（T5）。
- *  第2引数 = stores.tax_rounding（mig0111・既定 'floor'＝従来と1バイト同値）。★軽減 8% は F5 差し替え点。
- *  ★行ごとに丸んで合算する形にしてはならない（適格請求書の税率ごと1回ルール・verify で性質固定）。 */
-export function taxOf(groupDue: number, rounding: string = "floor"): number {
+/** 消費税＝**1レシート（=1 pay_group=1インボイス）×税率ごとに端数処理1回**（T5）。
+ *  第2引数 = stores.tax_rounding（mig0111・既定 'floor'）。
+ *  ★mig0113（挙動段）: 第3引数 excludedRate を渡すと**外税**＝amount を「税率別の課税対象額（税抜基底）」
+ *    として taxRound(amount × rate / 100) を返す（税率ごとに1回呼ぶ＝伝票×税率×1回）。
+ *    省略時は従来どおり**内税**＝amount を税込請求額として ×10/110（1バイト同値）。
+ *  ★行ごとに丸めて合算する形にしてはならない（適格請求書の税率ごと1回ルール・verify で性質固定）。
+ *  ★DB 鏡像: check_tax_round（mig0113）・check_group_due の外税分岐＝式を変えるときは三面同時改修。 */
+export function taxOf(groupDue: number, rounding: string = "floor", excludedRate?: number): number {
+  if (excludedRate !== undefined) return taxRound((groupDue * excludedRate) / 100, rounding);
   return taxRound((groupDue * 10) / 110, rounding);
 }
 
@@ -146,11 +151,22 @@ export function buildReceiptXml(input: ReceiptInput): string {
   const discount = lines.filter((l) => l.kind === "discount").reduce((s, l) => s + l.line_total, 0);
   const net = Math.max(0, gross - discount);
   const service = Math.round((net * serviceRate) / 100);
-  const rounding = groupDue - (net + service); // 端数調整（round down なら ≤0）
-  // ★C4 読み経路段: 税設定の読み出し（未指定＝既定で従来同値）。実効は tax_rounding のみ＝
-  //   business_tax_status（exempt の税額区分なし）・price_display（外税表示）は挙動段で結線。
+  // ★C4 挙動段（mig0113・三面鏡）: 税設定で3分岐。既定（内税×taxable）は従来と1バイト同値。
+  //   規則は check_group_due（DB）/ groupDueFull（check-calc.ts）と同一＝
+  //   外税: discount は taxable_10 基底へ clamp 適用・サ料は taxable_10 基底・税率ごと taxRound 1回。
   const ts = taxSettingsOf(input.taxSettings);
-  const tax = taxOf(groupDue, ts.tax_rounding);
+  const isExcluded = ts.price_display === "tax_excluded" && ts.business_tax_status === "taxable";
+  const isExempt = ts.business_tax_status === "exempt";
+  const catOf = (l: ReceiptLine) => l.tax_category ?? "taxable_10";
+  const bx10 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_10").reduce((s2, l) => s2 + l.line_total, 0);
+  const bx8 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_8").reduce((s2, l) => s2 + l.line_total, 0);
+  const base10 = Math.max(0, bx10 - discount) + service; // 外税の 10% 基底（clamp＋サ料算入）
+  const tax10 = isExcluded ? taxOf(base10, ts.tax_rounding, 10) : 0;
+  const tax8 = isExcluded ? taxOf(bx8, ts.tax_rounding, 8) : 0;
+  // 内税税額（表示用・請求額には含まれない）。exempt は税表示なし。
+  const tax = isExcluded ? tax10 + tax8 : isExempt ? 0 : taxOf(groupDue, ts.tax_rounding);
+  // 端数調整＝記録値 groupDue と順算の差（外税は税が請求額の一部＝差分に算入）
+  const rounding = groupDue - (net + service + (isExcluded ? tax : 0));
 
   const slipNo = `${check.id.replace(/-/g, "").slice(0, 8)}-${payGroup}`;
   const sep = "-".repeat(WIDTH);
@@ -197,10 +213,16 @@ export function buildReceiptXml(input: ReceiptInput): string {
   if (discount > 0) line(padLine("割引", `-${yen(discount)}`));
   if (serviceRate > 0) line(padLine(`サービス料(${serviceRate}%)`, yen(service)));
   if (rounding !== 0) line(padLine("端数調整", yenSigned(rounding)));
+  if (isExcluded) {
+    // ★外税＝税は請求額の一部として本体行で出す（税率ごとに1行・T5 の税率別記載）
+    line(padLine("消費税(10%)", yen(tax10)));
+    if (bx8 > 0) line(padLine("消費税(8%)", yen(tax8)));
+  }
   t.push(`<text dw="true" dh="true"/>`);
   line(padLine("合計", yen(groupDue)));
   t.push(`<text dw="false" dh="false"/>`);
-  line(padLine("（内消費税10%）", yen(tax)));
+  if (!isExcluded && !isExempt) line(padLine("（内消費税10%）", yen(tax)));
+  // ★exempt＝税額区分の記載なし（免税事業者は適格簡易請求書を発行できない＝T5・設計書 §4）
   line(sep);
 
   // ── 支払 ──
