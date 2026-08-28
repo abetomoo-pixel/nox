@@ -112,12 +112,17 @@
           <div class="card setting-card"><div class="cardhead"><div><h2>税・サービス料</h2><p>伝票に加算する料率と計算順</p></div><span class="badge">TAX</span></div><div class="setting-body">
             <div class="setting-row"><div class="setting-info"><b>サービス料</b><p>小計に対して加算される店舗サービス料です。</p></div><div class="field compact"><div class="inputwrap"><input type="number" value="20"><span>%</span></div></div></div>
             <div class="setting-row"><div class="setting-info"><b>カード手数料</b><p>カード決済の場合のみ加算されます。</p></div><div class="field compact"><div class="inputwrap"><input type="number" value="5"><span>%</span></div></div></div>
-            <div class="setting-row"><div class="setting-info"><b>消費税</b><p>内税・外税の扱いを選択します。</p></div><div class="field compact"><select><option>内税（10%）</option><option selected>外税（10%）</option><option>適用しない</option></select></div></div>
+            <!-- ★C4 §6-5（裁定90/91・T5）: 旧「内税/外税/適用しない」の同列3択を解体＝価格表示と事業者区分は別概念 -->
+            <div class="setting-row"><div class="setting-info"><b>価格表示</b><p>料金を税込で持つか・税抜で持って会計時に消費税を加えるか。</p></div><div class="field compact"><select><option>内税</option><option selected>外税</option></select></div></div>
+            <div class="setting-row"><div class="setting-info"><b>事業者区分</b><p>免税事業者は税の区分記載なし（適格簡易請求書は発行不可）。</p></div><div class="field compact"><select><option selected>課税事業者</option><option>免税事業者</option></select></div></div>
+            <div class="setting-row"><div class="setting-info"><b>インボイス</b><p>登録済みの場合は登録番号（T＋13桁）を印字します。</p></div><div class="field compact"><select><option>未登録</option><option selected>登録済み</option></select> <input type="text" value="T1234567890123" style="width:150px"></div></div>
+            <div class="setting-row"><div class="setting-info"><b>税額の端数</b><p>一伝票につき税率ごとに1回だけ処理します。</p></div><div class="field compact"><select><option selected>切り捨て</option><option>四捨五入</option><option>切り上げ</option></select></div></div>
           </div>
           <div class="card setting-card"><div class="cardhead"><div><h2>端数・精算</h2><p>最終金額の丸めと割引処理</p></div><span class="badge">ROUNDING</span></div><div class="setting-body">
             <div class="setting-row"><div class="setting-info"><b>端数処理</b><p>最終合計に対して端数を処理します。</p></div><div class="field compact"><select><option>1円単位</option><option>10円単位</option><option selected>100円単位</option><option>1,000円単位</option></select></div></div>
             <div class="setting-row"><div class="setting-info"><b>処理方法</b><p>指定単位未満の金額の扱いです。</p></div><div class="field compact"><select><option selected>切り上げ</option><option>切り捨て</option><option>四捨五入</option></select></div></div>
-            <div class="setting-row"><div class="setting-info"><b>値引きを税計算前に適用</b><p>OFFの場合は税込合計から値引きします。</p></div><label class="switch"><input type="checkbox" checked><span></span></label></div>
+            <!-- ★裁定91/T5: 「値引きを税計算前に適用」は T5 回答で常時 ON（税計算前）に確定＝スイッチ撤去（丸め方は既存「処理方法」行が既に持つ） -->
+            <div class="setting-row"><div class="setting-info"><b>値引きの適用</b><p>値引きは税計算前に適用します（T5・切替不可）。</p></div><div class="field compact"><span>税計算前（固定）</span></div></div>
           </div>
           <div class="card setting-card"><div class="cardhead"><div><h2>確認・権限</h2><p>誤操作を防ぐ会計フロー</p></div><span class="badge">CONTROL</span></div><div class="setting-body">
             <div class="setting-row"><div class="setting-info"><b>会計確定前の確認</b><p>確定前に内訳確認画面を表示します。</p></div><label class="switch"><input type="checkbox" checked><span></span></label></div>
@@ -163,7 +168,7 @@
     {name:'場内指名料金',category:'指名',note:'場内指名キャスト1名・1セットごと',price:2000,unit:'1セット',tax:'課税',active:true},
     {name:'同伴料金',category:'来店',note:'同伴者1名・1来店ごと',price:4000,unit:'1来店',tax:'課税',active:true},
     {name:'入場料金',category:'来店',note:'お客様1名・1来店ごと',price:0,unit:'1来店',tax:'課税',active:false},
-    {name:'TAX込み調整',category:'その他',note:'指定伝票のみ手動で適用',price:0,unit:'1伝票',tax:'非課税',active:false}
+    {name:'調整値引き',category:'その他',note:'課税売上への値引きとして税額に反映（discount 行・非課税項目にはしない＝T4）',price:0,unit:'1伝票',tax:'値引き',active:false}
   ];
   function renderPricing(filter='すべて'){
     el('pricingList').innerHTML=pricing.map((p,i)=>({p,i})).filter(x=>filter==='すべて'||x.p.category===filter).map(({p,i})=>`<div class="card charge-card ${p.active?'':'inactive'}"><div class="charge-top"><div><h3>${p.name}</h3><p>${p.note}</p></div><label class="switch" title="有効／無効"><input type="checkbox" data-toggle-charge="${i}" ${p.active?'checked':''}><span></span></label></div><div class="charge-fields"><div class="field"><label>請求金額</label><div class="inputwrap"><input type="number" value="${p.price}" data-price="${i}"><span>円</span></div></div><div class="field"><label>課金単位</label><select data-unit="${i}"><option ${p.unit==='1セット'?'selected':''}>1セット</option><option ${p.unit==='1来店'?'selected':''}>1来店</option><option ${p.unit==='1伝票'?'selected':''}>1伝票</option></select></div><div class="field"><label>税区分</label><select data-tax="${i}"><option ${p.tax==='課税'?'selected':''}>課税</option><option ${p.tax==='非課税'?'selected':''}>非課税</option></select></div></div></div>`).join('');
