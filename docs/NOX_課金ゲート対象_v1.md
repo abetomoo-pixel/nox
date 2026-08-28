@@ -41,6 +41,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
   live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
   全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0115 追随（2026-08-28・C1 §6-3）**: 新 RPC **1本**を A7 へ収載＝`set_comp_component`
+  （ゲート内蔵）。`set_comp_plan` は 14→16引数化（名前不変＝本数不動・旧署名 DROP 済み）。
+  対象 **106→107**・全数 **202→203**。
 - ★**mig0113 追随（2026-08-28・C3/C4 挙動段）**: 新設 `check_tax_round`（内部ヘルパー・非ゲート）を
   B の内部関数群へ収載。除外 **95→96**・全数 **201→202**。★この漏れは f0 の教訓21 assert
   （live 全数=A∪B）が実走で検知した＝仕組みが機能した実例。
@@ -116,9 +119,10 @@ set_product / set_product_active / set_product_category / product_category_reord
 product_reorder / product_stock_add / set_seat / set_pricing_rule / delete_pricing_rule /
 pricing_rule_reorder / set_store_pricing / set_store_time_pricing
 
-### A7. 待遇・報酬マスタ（11本）
+### A7. 待遇・報酬マスタ（12本）
 set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_comp_plan / set_cast_plan /
-set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config
+set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config /
+**set_comp_component**（mig0115＝comp_plan_components の唯一の書き手・owner のみ・ゲート内蔵・裁定86）
 
 ### A8. 店設定（13本）
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /

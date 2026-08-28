@@ -2197,6 +2197,9 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
 - 根拠＝対象テーブル（`deductions` / `advances` / `transport` / okuri 系）の **live 定義を
   底本として未取得**のため（**記憶で書かない**＝live 逐語 baseline の規律。0091 以降の全 mig と同じ）。
   C1-2 着手時に live_c1 と同型の実測（live_c1_2.sql）を先行させる。
+- ★追記（同日・mig0115）: **deductions の live 取得（live_c1_rpc2.sql）により C1-2 は 0115 へ同梱・
+  独立 mig として消滅**（`deductions.kind` 6区分固定語彙・default 'agreed_cost' の**列のみ・RPC 改修なし**＝
+  既存書込は default で現行同値。receivables/advances/transport はテーブル自体が種別＝列不要）。
 
 ---
 
