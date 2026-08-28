@@ -2114,6 +2114,12 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
 - **golden 予告**: 挙動段で **52（receipt）のみ張り替え**。**書込 RPC 新設/署名変更時に 51 が
   課金ゲート名簿の本数として動く**（`set_store_tax_config` 新設・`set_pricing_rule` 14引数化＝
   教訓21 の billing pin 同時更新）。5931/125802/55233/64 は不関与を注記 assert で固定。
+  ★実績（2026-08-28・読み経路段）: **52→57 は読み経路段の新 assert 5本による本数増**
+  （taxOf 既定引数同値／taxRound 3値／taxSettingsOf 既定補完／既定値明示＋tax_category 付与で
+  XML sha 完全一致／一伝票×税率×端数1回の性質固定）。**金額系（5931/125802/55233）と
+  XML sha pin 7本は不変・逆張り2系統（行ごと丸め注入＝10赤／既定値破壊＝3赤）済み・f0 2連続
+  28本/3232 緑**。以後の golden 6値 = **5931/125802/55233/57/64/51**。
+  **挙動段の金額張り替え予告（52系 XML sha の更新）は別途有効なまま**。
 - 受け入れは二段（mig 段=列追加＋既定値=現行挙動で golden 6値不変／挙動段=三面鏡同時変更・Fable 5）。
 - 店舗設定は4分離（`business_tax_status`/`price_display`/`invoice_status`+`invoice_reg_no`/`tax_rounding`）＝
   T5 の「内税/外税/適用しない」同列3択の解体。`registered ⊂ taxable` は RPC ガード。
