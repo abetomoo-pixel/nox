@@ -2094,6 +2094,34 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
 
 ---
 
+## 裁定90（2026-08-28・C3/C4）税・会計ルール設計書 v1 をロックする
+
+- **正本＝`docs/NOX_C34設計書v1.md`**（sha256 `eec01e97…8246a7`・8,820 bytes・repo=掲出版 byte 一致）。
+  設計変更は本書の版を上げてから（正本は repo 収蔵版）。
+- **ロック前の裁定要求5点はすべて推奨案で確定**（設計書 §8 の裁定記録と対）:
+
+| # | 論点 | 確定 |
+|---|---|---|
+| ① | tax_category の置き場 | **マスタ＋`check_lines` スナップショット**（伝票凍結の既存原則と同型＝後からマスタを変えても過去伝票が動かない） |
+| ② | taxable_8 | **enum 完備・UI 準備中**（4値 `taxable_10/taxable_8/exempt/out_of_scope` を器で持ち、UI 露出は3値。解錠は F5 差し替え点＝mig 不要） |
+| ③ | 外税対応 | **内税/外税とも挙動段で実装**（既定 `tax_included`＝現行同値） |
+| ④ | tax_rounding 既定 | **floor**（現行の `taxOf`=floor と同値＝mig 段 golden 不変の要。既存 `round_unit/round_mode`=金額側は不変・税額専用の新設） |
+| ⑤ | card_surcharge | **本レーンで器＋警告まで実装**（taxable_10 固定・既定無効・有効化時は裁定87 第2層＝転嫁可否は加盟店契約次第の警告＋確認記録。`merchant_fee` は伝票外＝日報側現状維持） |
+
+- **性格**: 実測（survey_c34_tax）が示したとおり現行実装は既に「値引き後課税・一伝票×税率×1回」に
+  適合しており、本レーンは**新造ではなく「固定値の設定化＋税区分の器＋準備中の解錠」**。
+  「伝票×税率×1回」の性質は新 assert で将来に対して係留する。
+- **golden 予告**: 挙動段で **52（receipt）のみ張り替え**。**書込 RPC 新設/署名変更時に 51 が
+  課金ゲート名簿の本数として動く**（`set_store_tax_config` 新設・`set_pricing_rule` 14引数化＝
+  教訓21 の billing pin 同時更新）。5931/125802/55233/64 は不関与を注記 assert で固定。
+- 受け入れは二段（mig 段=列追加＋既定値=現行挙動で golden 6値不変／挙動段=三面鏡同時変更・Fable 5）。
+- 店舗設定は4分離（`business_tax_status`/`price_display`/`invoice_status`+`invoice_reg_no`/`tax_rounding`）＝
+  T5 の「内税/外税/適用しない」同列3択の解体。`registered ⊂ taxable` は RPC ガード。
+- ★本裁定は**設計の収蔵とロックのみ**＝実装・migration は開始していない。mig C3-1 の前提実測は
+  `docs/dp/survey_c3_lines.md`（同日実施）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
