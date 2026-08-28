@@ -201,9 +201,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   // ★DP3 P2（2026-08-21・裁定 DP3-②）: 手動シフト追加をモーダルへ（モック `planShiftDialog`）。
   const [addModal, setAddModal] = useState(false);
   // ★DP3 P2（裁定 DP3-③）: 勤務時間の調整モーダル（モック `adjustDialog`）。
-  //   ★「元の希望との対比」は**入れない**＝`shifts` が希望の原型（wish_id）を保持していないため
-  //     出せない（対比は d＝シフト深部レーンで消化・裁定 DP3-③）。
-  //   ★メモ欄（モック `adjustNote`）も入れない＝`shifts` にメモ列が無い（同上）。
+  //   ★「元の希望との対比」はこのモーダルには**入れない**（裁定 DP3-③ のスコープ判断＝
+  //     対比は d＝シフト深部レーンで消化）。
+  //     ★理由の訂正（2026-08-28 実測）: 以前ここには「`shifts` が wish_id を保持していないため
+  //       出せない」と書いていたが**誤り**。mig0101 で `shifts.wish_id` ＋
+  //       `shifts_wish_id_fkey → shift_wishes(id)` が入っており、本ファイル自身が一覧側で
+  //       `s.wish_id → wishAll` を引いて「申請時間」を出している。
+  //       ＝**出せるが、このモーダルには置かない**が正しい（docs/dp/survey_6-4.md）。
+  //   ★メモ欄（モック `adjustNote`）は**そもそも出せない**＝`shifts` にも `shift_wishes` にも
+  //     メモ列が無い（実測: shifts 14列 / shift_wishes 12列）。こちらの理由は従来どおり有効。
   const [adjTarget, setAdjTarget] = useState<Shift | null>(null);
   const [aStart, setAStart] = useState("");
   const [aEnd, setAEnd] = useState("");
@@ -1918,8 +1924,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
       )}
 
       {/* ── ★DP3 P2（裁定 DP3-③）: 勤務時間の調整モーダル（モック `adjustDialog`）。
-             ★「元の希望との対比」と「メモ」は入れない＝`shifts` が wish_id もメモ列も持たないため
-               （d＝シフト深部レーンで消化）。ここは既存 `shift_set` の update 経路を呼ぶだけ。 ── */}
+             ★「元の希望との対比」はこのモーダルには入れない＝スコープ判断（d＝シフト深部レーンで消化）。
+               **`shifts` は wish_id を持っている**（mig0101・一覧側で結線済み）＝出せないのではない。
+             ★「メモ」は列が無いため出せない（shifts 14列 / shift_wishes 12列に該当列なし）。
+             理由の別は宣言部の同趣旨の注記と対。ここは既存 `shift_set` の update 経路を呼ぶだけ。 ── */}
       {adjTarget && isManagerUp && (() => {
         const aHours = shiftHoursStatus(adjTarget.date, aStart, aEnd, bhRows);
         return (
