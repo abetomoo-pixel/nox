@@ -2176,6 +2176,30 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
 
 ---
 
+## 裁定93（2026-08-28・C1-1）cast_plan の期間排他＝部分 unique＋RPC ガード（btree_gist 不採用）
+
+- 裁定86-③（案A＝期間列＋排他）の**排他の実装方式**を確定する。**daterange の排他制約
+  （btree_gist EXCLUDE）は不採用**とし、**部分 unique 2本＋RPC ガード**で排他する:
+  ①現在行の一意＝`unique (cast_id) where valid_to is null`
+  ②期間開始の一意＝`unique (cast_id, valid_from)`。
+- 根拠＝**書込経路が `set_cast_plan` 単一**（live_c1.sql 実測・admin/seed は fixture 工作のみ）で、
+  期間の連続性・非重複は v2 RPC（「現在行を閉じて新期間を開く」の1トランザクション）が
+  構造的に保証できる。EXCLUDE 制約は btree_gist 拡張の追加が必要で、防御が RPC と二重になる
+  割に fixture 工作（過去期間の合成）まで縛って verify を書きにくくする。
+- v2.0（mig0114 時点）の意味論は**現在行の上書きのまま**＝履歴行の生成は挙動段の v2 RPC の責務。
+
+---
+
+## 裁定94（2026-08-28・C1-1）控除種別の器は C1-2 へ分離
+
+- C12設計書 v1.1 §2-4（控除の6区分固定語彙＝A5 編入・`agreed_cost` 既定ほか）の**器は
+  mig0114 に同梱しない**。**C1-2 として分離**する。
+- 根拠＝対象テーブル（`deductions` / `advances` / `transport` / okuri 系）の **live 定義を
+  底本として未取得**のため（**記憶で書かない**＝live 逐語 baseline の規律。0091 以降の全 mig と同じ）。
+  C1-2 着手時に live_c1 と同型の実測（live_c1_2.sql）を先行させる。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
