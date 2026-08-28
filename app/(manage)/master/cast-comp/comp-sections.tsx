@@ -25,6 +25,12 @@ export type Plan = {
 export type CastRow = { id: string; name: string };
 // overrides_json: 数値4キー＋方式2キー（string）＋率2キー＝mig0086 の8キー
 export type CastPlan = { cast_id: string; plan_id: string; overrides_json: Record<string, number | string> };
+// ★mig0114/0115（C1 §6-4 UI 段）: 追加コンポーネント（書き手は set_comp_component＝owner のみ）
+export type CompRow = {
+  id: string; kind: string; mode: string; amount: number | null; rate: number | null;
+  params: Record<string, unknown>; priority: number; is_active: boolean;
+};
+const COMP_KIND_LABEL: Record<string, string> = { guarantee_min: "最低保証", achievement_bonus: "達成ボーナス" };
 export type Norm = { id: string; cast_id: string; period: string; days_target: number; dohan_target: number; sales_target: number; shimei_target: number };
 export type Deduction = { id: string; name: string; amount: number; per: string; is_active: boolean };
 export type BackDef = { id: string; name: string; basis: string; value: number; cond_json: { metric: string; min: number } | null; is_active: boolean };
@@ -188,6 +194,20 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
   const [salesSlide, setSalesSlide] = useState<Slide[]>([]);
   const [pointSlide, setPointSlide] = useState<Slide[]>([]);
   const [active, setActive] = useState(true);
+  // ★C1 §6-4: 選択中プランの追加コンポーネント（RLS=comp_plans と同可視・書き手は owner のみ）
+  const [comps, setComps] = useState<CompRow[]>([]);
+  const [cKind, setCKind] = useState("guarantee_min");
+  const [cAmount, setCAmount] = useState(0);
+  const [cPriority, setCPriority] = useState(100);
+  const [cActive, setCActive] = useState(true);
+  const [cId, setCId] = useState<string | null>(null);
+
+  async function loadComps(planId: string) {
+    const { data } = await supabase.from("comp_plan_components")
+      .select("id, kind, mode, amount, rate, params, priority, is_active")
+      .eq("plan_id", planId).order("priority");
+    setComps((data ?? []) as CompRow[]);
+  }
 
   function edit(p: Plan) {
     setId(p.id); setName(p.name); setBase(p.base); setHonBack(p.hon_back);
@@ -195,6 +215,26 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
     setHonMode(p.hon_back_mode ?? "per_count"); setHonRate(p.hon_back_rate ?? 0);
     setJonaiMode(p.jonai_back_mode ?? "per_count"); setJonaiRate(p.jonai_back_rate ?? 0);
     setSalesSlide(p.sales_slide ?? []); setPointSlide(p.point_slide ?? []); setActive(p.is_active);
+    setCId(null); setCKind("guarantee_min"); setCAmount(0); setCPriority(100); setCActive(true);
+    void loadComps(p.id);
+  }
+
+  // ★C1 §6-4: set_comp_component へ **9引数全値明示送信**（教訓43 型＝省略で default に戻る事故を封じる）。
+  //   params の形（v2.0 UI が書く最小形・台帳へ仮置き記録・挙動段の payOf 実装と同時に確定）:
+  //     guarantee_min      → {"period":"month"}（判定単位は月固定＝半月/日は挙動段で解錠）
+  //     achievement_bonus  → {"thresholds":[{"pct":100,"add":N}]}（1段のみ・複数段は挙動段で）
+  async function saveComp() {
+    if (!id) return;
+    const params = cKind === "guarantee_min"
+      ? { period: "month" }
+      : { thresholds: [{ pct: 100, add: cAmount }] };
+    const { error } = await supabase.rpc("set_comp_component", {
+      p_id: cId, p_plan_id: id, p_kind: cKind, p_mode: "amount",
+      p_amount: cAmount, p_rate: null, p_params: params,
+      p_priority: cPriority, p_is_active: cActive,
+    });
+    setMsg(error ? compErrJa(error.message) : cId ? "コンポーネントを更新しました" : "コンポーネントを追加しました");
+    if (!error) { setCId(null); setCAmount(0); setCPriority(100); setCActive(true); await loadComps(id); }
   }
   const clean = (s: Slide[]) => s.filter((r) => r.at > 0).map((r) => ({ at: r.at, wage: r.wage }));
   async function save() {
@@ -221,7 +261,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
         <thead><tr>{["名称", "保証", "本", "場内", "同伴", "売上段", "pt段", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
           {plans.map((p) => (
-            <tr key={p.id} onClick={() => isOwner && edit(p)} style={{ cursor: isOwner ? "pointer" : "default" }}>
+            <tr key={p.id} onClick={() => edit(p)} style={{ cursor: "pointer" }}>{/* ★§6-4: 非 owner も選択可＝構成プレビューと components 閲覧（read-only） */}
               <td>{p.name}</td>
               <td className="num">{p.base}</td>
               <td className="num">{p.hon_back_mode === "rate" ? `率${p.hon_back_rate}%` : p.hon_back}</td>
@@ -266,6 +306,66 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
           {id && <button style={btnLight} onClick={() => { setId(null); setName(""); }}>新規に戻す</button>}
         </div>
       ) : <p style={note}>プランの編集はオーナーのみ可能です（閲覧のみ）。</p>}
+      {/* ── ★C1 §6-4（mig0115）: 追加コンポーネント＝選択中プランに付く行型（guarantee_min/achievement_bonus） ── */}
+      {id && (
+        <div className="nox-inset" style={{ padding: "10px 14px", marginTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <b style={{ fontSize: 13 }}>追加コンポーネント</b>
+            <span style={note}>プランの基本（保証・バック・スライド）に足す報酬要素（書込はオーナーのみ）</span>
+          </div>
+          <table className="nox-table" style={{ marginBottom: 8 }}>
+            <thead><tr>{["種類", "方式", "金額/率", "判定", "priority", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+            <tbody>
+              {comps.length === 0 && <tr><td colSpan={6} style={{ color: "var(--sub)" }}>（コンポーネントなし）</td></tr>}
+              {comps.map((c) => (
+                <tr key={c.id} onClick={() => { if (!isOwner) return; setCId(c.id); setCKind(c.kind); setCAmount(c.amount ?? 0); setCPriority(c.priority); setCActive(c.is_active); }}
+                  style={{ cursor: isOwner ? "pointer" : "default" }}>
+                  <td>{COMP_KIND_LABEL[c.kind] ?? c.kind}</td>
+                  <td>{c.mode === "rate" ? "率" : "金額"}</td>
+                  <td className="num">{c.mode === "rate" ? `${c.rate}%` : `¥${(c.amount ?? 0).toLocaleString()}`}</td>
+                  <td>{c.kind === "guarantee_min" ? "月" : `達成100%で加算`}</td>
+                  <td className="num">{c.priority}</td>
+                  <td style={{ color: c.is_active ? "var(--ok)" : "var(--sub)" }}>{c.is_active ? "有効" : "無効"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {isOwner && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={note}>{cId ? "編集中" : "追加"}</span>
+              <SegSelect value={cKind} onChange={(v) => setCKind(v)}
+                options={[["guarantee_min", "最低保証"], ["achievement_bonus", "達成ボーナス"]] as const} />
+              <label style={{ fontSize: 12 }}>{cKind === "guarantee_min" ? "保証額(円)" : "加算額(円)"}
+                <input type="number" min={0} value={cAmount} onChange={(e) => setCAmount(Number(e.target.value))} style={{ ...input, width: 100 }} /></label>
+              {/* ★判定単位は v2.0 UI では月固定（半月/日は挙動段で解錠・params={"period":"month"} を送信） */}
+              <span style={note}>{cKind === "guarantee_min" ? "判定単位: 月（固定）" : "しきい値: ノルマ達成100%・1段（固定）"}</span>
+              <label style={{ fontSize: 12 }}>priority <input type="number" value={cPriority} onChange={(e) => setCPriority(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+              <label style={{ fontSize: 12 }}><input type="checkbox" checked={cActive} onChange={(e) => setCActive(e.target.checked)} /> 有効</label>
+              <button style={btnDark} onClick={() => void saveComp()}>{cId ? "更新" : "追加"}</button>
+              {cId && <button style={btnLight} onClick={() => { setCId(null); setCAmount(0); setCPriority(100); setCActive(true); }}>追加に戻す</button>}
+            </div>
+          )}
+          <p style={{ ...note, marginTop: 6 }}>※計算への反映（payOf 結線）は挙動段で入ります。現時点は器＝定義の保存のみ。</p>
+        </div>
+      )}
+
+      {/* ── ★C1 §6-4: このプランの構成（1枚プレビュー） ── */}
+      {id && (
+        <div className="nox-inset" style={{ padding: "10px 14px", marginTop: 8 }}>
+          <b style={{ fontSize: 13 }}>このプランの構成</b>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 4, fontSize: 12 }}>
+            <span>保証時給 <b className="num">¥{base.toLocaleString()}</b></span>
+            <span>本指名 <b className="num">{honMode === "rate" ? `率${honRate}%` : `¥${honBack.toLocaleString()}/本`}</b></span>
+            <span>場内 <b className="num">{jonaiMode === "rate" ? `率${jonaiRate}%` : `¥${jonaiBack.toLocaleString()}/本`}</b></span>
+            <span>同伴 <b className="num">¥{dohanBack.toLocaleString()}/本</b>（率は準備中）</span>
+            <span>スライド 売上{salesSlide.length}段・pt{pointSlide.length}段</span>
+            {comps.filter((c) => c.is_active).map((c) => (
+              <span key={c.id}>{COMP_KIND_LABEL[c.kind] ?? c.kind} <b className="num">¥{(c.amount ?? 0).toLocaleString()}</b>{c.kind === "guarantee_min" ? "/月" : "（達成時）"}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ★裁定vi: 率方式の帰属系統は check_lines（レジで課金した指名料）＝本数カウントとは別系統。運用注記必須。 */}
       <p style={{ ...note, marginTop: 8 }}>
         ※率方式は、レジで「指名料を追加」した伝票の指名料額が対象です（指名料を課金しなかった伝票は率バックに入りません）。
