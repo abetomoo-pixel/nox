@@ -2037,6 +2037,9 @@ B1 のコミット時に `git add -A` を使い、**未追跡の `docs/tmp` / `m
 
 - **正本＝`docs/NOX_C12設計書v1.md`**（sha256 `07abee03…9e86d7`・8,236 bytes・repo=掲出版 byte 一致）。
   以後の設計変更は**本書の版を上げてから**行う（写しは腐る・repo 収蔵版が正本）。
+- **★2026-08-28 改版＝正本は `docs/NOX_C12設計書v1.1.md` へ**（sha256 `fb137dc4…3995b`・8,252 bytes・
+  弁護士 L1〜L6 回答を反映し §7 待ちスロット3点を確定内容で充填。§2-1〜2-3・§5・§6 は v1 から不変）。
+  **v1 は残置**（本裁定時点の凍結版として保存・実装の底本は v1.1）。
 - **ロック前の裁定要求5点はすべて推奨案で確定**（設計書 §8 の裁定記録と対）:
 
 | # | 論点 | 確定 |
@@ -2056,6 +2059,38 @@ B1 のコミット時に `git add -A` を使い、**未追跡の `docs/tmp` / `m
 - ★着手順は **C3/C4 の後**（引き継ぎ v18 §3）。設計書 §0 は「R-2b の前」とだけ書いており
   C3/C4 との前後は書いていないため、**順序の正本は v18 §3 側**とする。
 - ★本裁定は**設計の収蔵とロックのみ**＝実装・migration は開始していない。
+
+---
+
+## 裁定87（2026-08-28）二層ガード原則（裁定82 の精緻化）
+
+NOX のガードは二層に分ける。第1層=法定数値が存在する領域（深夜時間帯・最低賃金・
+雇用の減給制裁上限[労基法91条]・税計算・法定保存期間）は NOX がシステム強制。
+第2層=店舗事情依存の領域（委託の罰金・ノルマ・売掛負担）は警告＋契約根拠確認の
+必須化＋確認記録の保存とし、NOX 独自の数値上限は作らない。根拠: 弁護士 L3/L6。
+
+---
+
+## 裁定88（2026-08-28）audit_logs 永久保存方針の撤回
+
+「audit_logs 全件・削除なし」を撤回し、データ種別別 retention へ転換する
+（労務3年[将来5年]・会計原則7年・マイナンバーは必要期間のみ・CRM/監査ログは
+ポリシー期間）。器: legal_min_retention_until / scheduled_delete_at /
+anonymize_at / deletion_hold。実装は新レーン RT として独立（起票#36）。
+根拠: 弁護士 L2。既存文書の「削除なし」前提箇所は survey_L.md c 項の列挙に従い順次是正。
+
+本裁定は CLAUDE.md 原則6（全書込 RPC は audit_log_write を呼ぶ）を一切変えない。
+変えるのは保持期間のみ。append-only 前提の検証 assert と現行挙動は RT レーン実装まで維持する。
+
+---
+
+## 裁定89（2026-08-28）receivable_policy と売掛4段分割
+
+stores.receivable_policy（disabled / customer_only / cast_liability_allowed・
+既定 customer_only）を持つ。売掛→キャスト負担→回収は一続きにせず
+customer_receivable → cast_liability（根拠記録）→ settlement_request →
+payroll_deduction（雇用/委託別チェック）の4段に分割する（本体は起票#37）。
+C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装。根拠: 弁護士 L1/L3。
 
 ---
 
@@ -2250,6 +2285,8 @@ route map（`docs/dp/dp1_route_map.md`）の「あり」は**モックの区画�
 | 33 | **rls F1e `check_void(check5)` の error assert 欠落** | `scripts/verify-nox-rls.ts:1946`（修正前）が戻り error を見ずに捨てている。void が一過性で失敗すると **check5 が open のまま残置** → 直後の `daily_report_reclose` が `'open checks remain'` で落ち、**後続6本が連鎖赤**になる（**`reclose audit` を含む**＝起票時の「5本」は実測で6本に訂正）。0108 起因ではない＝f0 連続実行フレークの型①。**bd3f27c で解消**（assert 1行追加＝`F1e check5 void 成功（open 残置→reclose 連鎖赤の防止）`。逆張り＝存在しない id で void を失敗させ **原因1本＋連鎖6本＝計7本の赤**を実測し、原因行が連鎖の先頭に立つことを確認。rls 491→**492**・f0 3222→**3223**） |
 | 34 | **rls F2b `read_cast_sensitive` カウントの exact 依存** | `verify-nox-rls.ts:1290`／`:1326`（修正前）が `=== readBefore + 1` の**厳密一致**で、二重到達時に **+2** で赤（型②）。**bd3f27c で解消**＝判定を **`delta >= 1`** へ変更し、**実 delta を detail に出力**（旧実装は第3引数が無く、赤になっても値が読めないのが診断不能の原因だった）。★**実測根拠**＝`get_cast_sensitive` は `audit_log_write` を `return query` の前で**無条件に1回**・同一トランザクション。dev 実測 64ラン中 **60ランが正常3行**（owner→cast→owner・間隔600〜900ms）／**二重到達2件**（同一 actor で **0ms・1ms** 間隔。`audit_logs.at` の default は `now()`＝**Tx 時刻**ゆえ別 Tx の同時刻＝**POST の二重配送**）／**+0 は 1件も無し**。よって **+0 は「読んだのに残っていない」＝非計上バグとして赤のまま**（起票時の「遅延で +0 もあり得る」は実測で否定）、**+2 は read が実際に2回起きて2行残った形＝「読むたび必ず残る」という assert の主旨を満たすので緑**。逆張りは before/after 双方を書かれない target にして **`delta=0` の赤**を実測 |
 | 35 | **payroll スイートの statement timeout 残置汚染** | `payroll` が statement timeout 等で異常終了すると `NOX-VERIFY-pay*` の cast が store A1 に active のまま残置され、次 run の **anon-guard 段35 を汚染**する（`teardown()` は冒頭 `:124` でも走るが**自スイートの中でしか効かない**＝ verify:f0 の並びが **anon-guard → payroll** のため次 run では anon-guard が先に当たる。段35 の `wipe35()` は `NOX-VERIFY-段35` **接頭辞の cast しか消さない**ので payroll 由来の残骸は素通りする）。★起票#6「原因は窓ではなく蓄積」と同系（型③）。**4e7a27c で解消**＝`teardown` の参照をモジュール層へ上げ **`main().catch()` から必ず呼ぶ**形にした（差分 +23/-1＝24行。本体を `try/finally` で包む案は 880 行の再インデントになるため不採用）。**汚染する具体点は `kiosk_cast_list` の `A1=2人` 固定カウント**（実測で特定）。逆張り＝fixture 作成後に中断を注入し、**旧実装では A1 active cast が 2→11・段35 が 11行で赤**、**新実装では「異常終了後の teardown 完了」を出して 2 に戻り段35 緑（984）**を実測。★**案b（段35 の wipe を `NOX-VERIFY-` 全体へ拡張）は不採用**＝実店舗データに当該接頭辞は 0件だが、**他スイートの常設 fixture が 16件（seats 14・comp_plans 2）生存**しており巻き込むため |
+| 36 | **RT レーン: データ種別別 retention の実装** | 裁定88 の実装本体。retention 列群・削除/匿名化バッチ・法定期間ロック・店舗ポリシー UI。着手時期は別途裁定（launch 前必須かは要判断） |
+| 37 | **売掛4段分割の実装** | 裁定89 の実装本体。cast_liability / settlement_request の器と経路分割。R-2b/F2e 系との統合設計が必要。着手は R-2b 以降 |
 
 ### 未裁定・消し込み待ち
 
