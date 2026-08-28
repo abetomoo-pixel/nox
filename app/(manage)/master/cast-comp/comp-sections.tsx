@@ -128,7 +128,8 @@ export function useCompData(storeId: string) {
     const [p, c, cp, n, d, b, pc] = await Promise.all([
       supabase.from("comp_plans").select("*").order("name"),
       supabase.from("casts").select("id, name").eq("is_active", true).order("name"),
-      supabase.from("cast_plan").select("cast_id, plan_id, overrides_json"),
+      // ★mig0114: 期間化後は現在行のみ（valid_to is null）。履歴行が生まれる挙動段の前に必須の追随。
+      supabase.from("cast_plan").select("cast_id, plan_id, overrides_json").is("valid_to", null),
       supabase.from("cast_norms").select("id, cast_id, period, days_target, dohan_target, sales_target, shimei_target").order("period"),
       supabase.from("deductions").select("id, name, amount, per, is_active").order("name"),
       supabase.from("custom_back_defs").select("id, name, basis, value, cond_json, is_active").order("name"),
@@ -206,6 +207,9 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
       p_is_active: active, // 明示 boolean（原則7）
       p_hon_back_mode: honMode, p_hon_back_rate: honMode === "rate" ? honRate : null,
       p_jonai_back_mode: jonaiMode, p_jonai_back_rate: jonaiMode === "rate" ? jonaiRate : null,
+      // ★mig0115: dohan も常に明示送信（省略すると DEFAULT 'per_count' が効く＝教訓43 型の必須化）。
+      //   UI は per_count 固定＝率は R-2b（同伴 cast_id 必須）後に解錠（RPC も 'dohan rate requires R-2b' で封印中）。
+      p_dohan_back_mode: "per_count", p_dohan_back_rate: null,
     });
     setMsg(error ? compErrJa(error.message) : id ? "プランを更新しました" : "プランを登録しました");
     if (!error) { setId(null); setName(""); setBase(0); await reload(); }
@@ -250,7 +254,9 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
           ) : (
             <label style={{ fontSize: 12 }}>場内(円/本) <input type="number" min={0} value={jonaiBack} onChange={(e) => setJonaiBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
           )}
-          <label style={{ fontSize: 12 }}>同伴(円/本) <input type="number" min={0} value={dohanBack} onChange={(e) => setDohanBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+          <label style={{ fontSize: 12 }}>同伴(円/本) <input type="number" min={0} value={dohanBack} onChange={(e) => setDohanBack(Number(e.target.value))} style={{ ...input, width: 70 }} />
+            {/* ★mig0115（裁定86-②）: 同伴の率方式は R-2b（同伴 cast_id 必須）後に解錠＝それまで per_count 固定 */}
+            <span className="nox-stpill" style={{ marginLeft: 6 }}>率は準備中（R-2b 後）</span></label>
           <div style={{ display: "flex", gap: 16, width: "100%" }}>
             <SlideInput label="売上スライド" slide={salesSlide} setSlide={setSalesSlide} />
             <SlideInput label="ポイントスライド" slide={pointSlide} setSlide={setPointSlide} />
