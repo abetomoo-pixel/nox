@@ -11,6 +11,7 @@ import {
   buildReceiptXml, displayWidth, escXml, jstStamp, taxOf,
   type ReceiptInput, type ReceiptLine, type ReceiptPayment,
 } from "../lib/nox/receipt";
+import { taxRound, taxSettingsOf, DEFAULT_TAX_SETTINGS } from "../lib/nox/check-calc";
 
 let pass = 0;
 const fails: string[] = [];
@@ -147,6 +148,43 @@ function main() {
   check("T6 生の < > がテキストに漏れない", !x6.includes(`>A&B<`));
 
   check("T7 カード 8800・お釣りなし", xml["T7 カード"].includes("カード") && !xml["T7 カード"].includes("お釣り"));
+
+  // ── C3/C4 読み経路段（mig0111・裁定90・C34設計書 §6-2）: 既定同値＋税端数の性質固定 ──
+  check("C4 taxOf 第2引数既定=floor（明示 floor と同値）",
+    taxOf(8800) === taxOf(8800, "floor") && taxOf(8200) === taxOf(8200, "floor") && taxOf(315) === taxOf(315, "floor"));
+  check("C4 taxRound: floor/round/ceil の3値（税額専用＝金額側 roundAmount と別系統）",
+    taxRound(745.45, "floor") === 745 && taxRound(745.45, "round") === 745
+    && taxRound(745.45, "ceil") === 746 && taxRound(745.55, "round") === 746);
+  check("C4 taxSettingsOf: 未指定/null=既定・部分指定は指定キーのみ上書き", (() => {
+    const d = taxSettingsOf(null); const o = taxSettingsOf({ tax_rounding: "ceil" });
+    return JSON.stringify(d) === JSON.stringify(DEFAULT_TAX_SETTINGS)
+      && o.tax_rounding === "ceil" && o.business_tax_status === "taxable"
+      && o.price_display === "tax_included" && o.card_surcharge_rate === null;
+  })());
+  // ★既定同値の直接証明: 既定値を明示で渡し tax_category を全行に付けても XML は無指定 T1 の pin と同一
+  //   （読み経路が存在し、かつ既定値では1バイトも出力を変えないことの機械証明）。
+  const t1Explicit: ReceiptInput = {
+    ...t1,
+    taxSettings: { ...DEFAULT_TAX_SETTINGS },
+    lines: LINES_A.map((l) => ({ ...l, tax_category: "taxable_10" })),
+  };
+  check("C3/C4 ★既定値の明示指定＋tax_category 全行付与で XML sha 完全一致（読み経路の既定同値）",
+    sha(buildReceiptXml(t1Explicit)) === GOLDEN["T1 通常"].sha, sha(buildReceiptXml(t1Explicit)));
+  // ★性質固定（T5・設計書 §3）: 「一伝票（=1 pay_group=1インボイス）×税率ごとに端数処理1回」。
+  //   105円×3行（サ料0・due=315）は行ごと floor 合算だと 9×3=27・伝票1回だと floor(315×10/110)=28
+  //   ＝多重丸めに退行すると必ずここが割れる（逆張り＝行ごと丸め注入で赤を実測済み）。
+  const tp: ReceiptInput = {
+    store: STORE, check: CHECK, payGroup: "A",
+    lines: [1, 2, 3].map((i) => ({ name_snapshot: `P${i}`, qty: 1, unit_price_snapshot: 105, line_total: 105, kind: "custom" })),
+    payments: [{ method: "cash", amount: 315, tendered: null }],
+    serviceRate: 0, groupDue: 315, isReprint: false,
+  };
+  const xp = buildReceiptXml(tp);
+  const perLineSum = tp.lines.reduce((s2, l) => s2 + Math.floor((l.line_total * 10) / 110), 0);
+  check("C4 ★一伝票×税率ごと端数1回（税=28）・行ごと丸め合算（27）と別値",
+    xp.includes("（内消費税10%）") && xp.includes("¥28") && !xp.includes("¥27")
+    && perLineSum === 27 && taxOf(315) === 28,
+    `taxOf(315)=${taxOf(315)} perLineSum=${perLineSum}`);
 
   // 幅の健全性: 全 <text> 行が 48 桁以内（明細・金額段の padLine 出力）
   for (const [label, x] of Object.entries(xml)) {
