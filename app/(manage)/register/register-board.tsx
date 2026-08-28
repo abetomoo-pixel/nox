@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
-import { groupDue, timeStatusOf } from "@/lib/nox/check-calc";
+import { groupDueFull, timeStatusOf } from "@/lib/nox/check-calc";
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
 import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
@@ -40,6 +40,10 @@ type CheckRow = {
   service_rate: number;
   round_unit: number;
   round_mode: string;
+  // C4（mig0113）: 税設定の開栓時凍結3値（旧伝票キャッシュ対策で optional・欠落=既定と同値）
+  business_tax_status?: string;
+  price_display?: string;
+  tax_rounding?: string;
   started_at: string;
   // B4（mig0052）: 時間料金の open 時スナップ5値（非遡及＝time_mode は非スナップ・stores live 判定）
   set_min: number;
@@ -82,6 +86,8 @@ type Line = {
   // E8-1d: 指名種別バッジの判定材料（mig0084 の凍結列＝hon_shimei/jonai_shimei/dohan の課金行）
   fee_kind: string | null;
   cast_id: string | null;
+  // C3（mig0111）: 税区分スナップ（外税店の due 鏡像＝groupDueFull が読む）
+  tax_category?: string | null;
   // R-2a-2（mig0097）: auto 時間行の回次。set=0・extension=1..n・legacy 合算行と手動行は null。
   //   時間帯分解の表示にだけ使う（金額は line_total の凍結値＝再計算しない）。
   block_no: number | null;
@@ -369,6 +375,30 @@ export default function RegisterBoard({
   const [cGroup, setCGroup] = useState("A");
   const [payGroup, setPayGroup] = useState("A");
   const [payMethod, setPayMethod] = useState("cash");
+  // ── ★C3 §6-6（裁定90-⑤・v2.0 規則＝台帳収載）: card_surcharge＝通常の課税 charge 行 ──
+  //   行の形: check_add_line カスタム経路 kind='charge'・fee_kind=null・name='カード手数料(N%)'
+  //   tax_category は RPC 未指定＝列 default 'taxable_10' スナップ（T6）。専用 kind は作らない。
+  //   基底=挿入時点の対象 group の due（サ料・税・店設定丸め適用後）× rate/100 を round 1回。
+  //   挿入後は通常行として再計算に参加（外税店では手数料行にも税が乗る・サ料の母集合にも入る）。
+  //   二重取り防止=1 pay_group 1行まで（UI ガード＝下の hasSurcharge）。支払方法との自動連動なし。
+  const [surchargeRate, setSurchargeRate] = useState<number | null>(null);
+  const SURCHARGE_PREFIX = "カード手数料(";
+  const hasSurchargeIn = (g: string) =>
+    lines.some((l) => l.pay_group === g && l.kind === "charge" && l.name_snapshot.startsWith(SURCHARGE_PREFIX));
+  async function addCardSurcharge(g: string, baseDue: number) {
+    if (!check || surchargeRate === null) return;
+    if (hasSurchargeIn(g)) { setMsg({ to: MSG_PAY, kind: "bad", text: "この会計にはカード手数料が追加済みです" }); return; }
+    const amount = Math.round((baseDue * surchargeRate) / 100);
+    if (amount <= 0) { setMsg({ to: MSG_PAY, kind: "bad", text: "請求額が 0 のため手数料を追加できません" }); return; }
+    if (!(await tb.flush())) return; // money 系: 保留タップを先に確定（基底 due が動くため）
+    const { error } = await supabase.rpc("check_add_line", {
+      p_check_id: check.id, p_product_id: null, p_qty: 1, p_kind: "charge",
+      p_name: `${SURCHARGE_PREFIX}${surchargeRate}%)`, p_pay_group: g, p_unit_price: amount,
+    });
+    setMsg(error ? { to: MSG_PAY, kind: "bad", text: `カード手数料の追加に失敗: ${error.message}` }
+      : { to: MSG_PAY, kind: "ok", text: `カード手数料 ${yen(amount)}（${surchargeRate}%）を追加しました` });
+    await loadCheck(check.id);
+  }
   const [payAmount, setPayAmount] = useState(0);
   const [payTendered, setPayTendered] = useState("");
   const [payDetail, setPayDetail] = useState(""); // F4c: 手段内訳メモ（card/other のみ・50字・空は null 送信）
@@ -419,7 +449,7 @@ export default function RegisterBoard({
     const { data: c } = await supabase.from("checks").select("*").eq("id", checkId).single();
     const { data: ls } = await supabase
       // back_snapshot＝キャストドリンク判定の凍結値（mig0070）。中身は back_exempt だけを見る。
-      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no")
+      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category")
       .eq("check_id", checkId).order("sort_order");
     // キャストドリンク: 確定済み（approved）の claim だけを引く。void/rejected は行に紐づけない。
     const { data: dcs } = await supabase
@@ -494,10 +524,12 @@ export default function RegisterBoard({
     if (!storeId) return;
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("stores").select("name, settings_json").eq("id", storeId).single();
+      const { data } = await supabase.from("stores").select("name, settings_json, card_surcharge_rate").eq("id", storeId).single();
       if (alive) {
         setStoreName((data?.name as string | undefined) ?? "");
         setInvoiceRegNo(((data?.settings_json as Record<string, unknown> | null)?.invoice_reg_no as string | undefined) ?? "");
+        // ★C3 §6-6（裁定90-⑤）: null=無効（既定）＝導線非表示
+        setSurchargeRate((data?.card_surcharge_rate as number | null) ?? null);
       }
     })();
     return () => { alive = false; };
@@ -1152,7 +1184,9 @@ export default function RegisterBoard({
     const bx = gl.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0);
     const disc = gl.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0);
     const net = Math.max(0, bx - disc);
-    const due = check ? groupDue(net, check) : 0;
+    // ★C4 §6-6: 外税店でも表示 due が DB check_group_due と一致するよう完全鏡像へ
+    //   （内税/exempt は groupDueFull 内で従来式 groupDue へ委譲＝1バイト同値・権威はサーバ）。
+    const due = check ? groupDueFull(gl, check) : 0;
     const paid = payments.filter((p) => p.pay_group === g).reduce((a, p) => a + p.amount, 0);
     return { g, bx, disc, net, due, paid, remaining: Math.max(0, due - paid) };
   });
@@ -1455,6 +1489,22 @@ export default function RegisterBoard({
                 ★モックの「併用」は**方法の3つ目ではなく「分けて払う」操作**＝NOX では
                   payments を複数行にすることで既に実現できている（機構は実装済み）。
                   そこで **4値は維持したまま、併用の導線を言葉で見えるようにする**（下の注記＋既存の均等割り）。 */}
+            {/* ★C3 §6-6: カード手数料の導線（rate=null は非表示・1 group 1行・card 選択時は強調） */}
+            {surchargeRate !== null && (
+              <div style={{ marginBottom: 8 }}>
+                <button type="button"
+                  disabled={hasSurchargeIn(g) || due <= 0}
+                  style={payMethod === "card" && !hasSurchargeIn(g)
+                    ? { ...t.btnGold, ...t.btnSm }
+                    : { ...t.btnGhost, ...t.btnSm }}
+                  onClick={() => void addCardSurcharge(g, due)}>
+                  カード手数料を追加（{surchargeRate}%・{yen(Math.round((due * surchargeRate) / 100))}）
+                </button>
+                {hasSurchargeIn(g) && (
+                  <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 8 }}>追加済み（1会計1回まで・取消は明細から削除）</span>
+                )}
+              </div>
+            )}
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)", marginBottom: 6 }}>支払方法</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
               {Object.entries(METHOD_LABEL).map(([v, l]) => (
