@@ -72,13 +72,16 @@ export type CollectResult = {
 async function loadMasters(admin: SupabaseClient, storeId: string, period: string) {
   const [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR] = await Promise.all([
     admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, dohan_back_mode, dohan_back_rate").eq("store_id", storeId),
-    // ★mig0114（読み経路段）: 期間化後は**現在行（valid_to is null）のみ**＝期間化前は全行が現在行
-    //   だったので1バイト同値。当該 period の履歴行解決（valid_from/to での月判定）は挙動段の v2。
-    admin.from("cast_plan").select("cast_id, plan_id, overrides_json").eq("store_id", storeId).is("valid_to", null),
+    // ★mig0116（挙動段・裁定96-④）: 給与適用は「**期間開始日時点で有効な行**」1本＝期中変更は翌期から。
+    //   履歴が無い店（全行 valid_to null・valid_from=導入日 backfill）は現在行と同一＝従来と同値。
+    //   UI 系（comp-sections）の現在行読み（valid_to is null）は別経路＝不変。
+    admin.from("cast_plan").select("cast_id, plan_id, overrides_json").eq("store_id", storeId)
+      .lte("valid_from", `${period}-01`)
+      .or(`valid_to.is.null,valid_to.gte.${period}-01`),
     admin.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
     admin.from("deductions").select("id, name, amount, per").eq("store_id", storeId).eq("is_active", true),
     admin.from("custom_back_defs").select("id, name, basis, value, cond_json").eq("store_id", storeId).eq("is_active", true),
-    admin.from("cast_norms").select("cast_id, days_target, dohan_target").eq("store_id", storeId).eq("period", period),
+    admin.from("cast_norms").select("cast_id, days_target, dohan_target, sales_target").eq("store_id", storeId).eq("period", period),
     admin.from("cast_tax_profiles").select("cast_id, mode").eq("store_id", storeId),
     // ★mig0114（読み経路段）: 行型コンポーネント（plan_id で束ねる・空なら旧式同値＝pay.ts 非参照）
     admin.from("comp_plan_components").select("plan_id, kind, mode, amount, rate, params, priority")
@@ -145,9 +148,11 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
       cond: (b.cond_json ?? undefined) as BackDef["cond"],
     })),
   };
-  const normByCast = new Map<string, { days: number; dohan: number }>();
+  const normByCast = new Map<string, { days: number; dohan: number; salesTarget: number }>();
   for (const n of (normR.data ?? []) as Record<string, unknown>[]) {
-    normByCast.set(n.cast_id as string, { days: n.days_target as number, dohan: n.dohan_target as number });
+    // ★裁定96-②: achievement_bonus の目標は cast_norms.sales_target 固定（0/行なし=不適用）
+    normByCast.set(n.cast_id as string, { days: n.days_target as number, dohan: n.dohan_target as number,
+      salesTarget: Number(n.sales_target ?? 0) });
   }
   const taxByCast = new Map<string, TaxMode>();
   for (const t of (taxR.data ?? []) as Record<string, unknown>[]) {
@@ -501,7 +506,7 @@ export async function collectPeriod(
       anomalyCount: p?.anomalyCount ?? 0,
       plan,
       override: cp?.override,
-      norm: normByCast.get(cid) ?? { days: 0, dohan: 0 },
+      norm: normByCast.get(cid) ?? { days: 0, dohan: 0, salesTarget: 0 },
       taxProfileMode: taxByCast.get(cid) ?? null,
     });
   }

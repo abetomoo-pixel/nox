@@ -41,7 +41,7 @@ export type CastRaw = {
   anomalyCount: number; // out 欠損等 S8 anomaly のある日数（表示のみ・論点3）
   plan: CompPlan | null; // cast_plan 未設定なら null（core が blocker 化）
   override?: PlanOverride;
-  norm: { days: number; dohan: number };
+  norm: { days: number; dohan: number; salesTarget?: number }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
 };
 
@@ -90,6 +90,9 @@ export function buildPayInput(
     penalty: masters.penalty,
     normConfig: masters.normConfig,
     norm: raw.norm,
+    // ★裁定96-②③: components（plan 由来）は payOf が input.plan.components を読む。
+    //   achievement の目標だけ PayInput へ明示で渡す（norm ペナルティの days/dohan とは別用途）。
+    salesTarget: raw.norm.salesTarget ?? 0,
     fine: { absentN: raw.absentN, lateN: raw.lateN },
     arDeduct, // 売掛天引き（E9 で算出した確定額）
     advanceDeduct, // 前借り天引き（F2e-2・E9 同型）

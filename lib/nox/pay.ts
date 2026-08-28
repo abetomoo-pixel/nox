@@ -51,6 +51,7 @@ export type CompComponent = {
   rate: number | null;
   params: Record<string, unknown>;
   priority: number;
+  is_active?: boolean; // collect は true のみ渡す。payOf 直呼び fixture 用に false は payOf 側でも除外
 };
 
 export type PlanOverride = Partial<
@@ -177,6 +178,8 @@ export type PayInput = {
   arDeduct: number; // 売掛天引き（集計済み）
   advanceDeduct: number; // 前借り天引き
   okuriDeduct: number; // 送り実費天引き
+  // ★裁定96-②（挙動段）: achievement_bonus の目標（cast_norms.sales_target）。0/未指定=不適用。
+  salesTarget?: number | null;
   periodDays: number; // ★源泉の 5,000円×日数 に使う「計算期間の日数」（暦日数・両端含む）。出勤日数ではない（裁定23）
   extrasTotal: number; // ★出勤ボーナス等の加算合計（源泉対象＝gross に含める・裁定23-b ①）
   taxMode: TaxMode; // cast_tax_profiles.mode
@@ -203,6 +206,10 @@ export type PayResult = {
   salesBack: number;
   cbacks: CBack[];
   customTotal: number;
+  // ★裁定96（挙動段）: components の結線結果
+  achievementBonus: number;
+  guaranteeAdd: number;
+  compSkipped: string[];
   gross: number;
   fixedDed: number;
   fine: number;
@@ -484,8 +491,31 @@ export function payOf(input: PayInput): PayResult {
   const cbacks = customBacks(input.customBackDefs, metrics);
   const customTotal = cbacks.reduce((sum, c) => sum + c.amount, 0);
 
+  // ── ★C1/C2 挙動段（裁定96 ①②③・mig0114/0115）: 行型コンポーネントの結線 ──
+  //   適用順＝バック・歩合（上の各項）→ achievement_bonus（priority 順）→ guarantee_min（最後）→ 控除。
+  //   amount モードのみ結線。rate モードは v2.0 では**明示スキップ**（compSkipped に記録＝黙殺しない）。
+  //   components 空＋salesTarget 未指定なら加算 0＝従来 gross と1バイト同値（golden 5931/125802 の構造保証）。
+  const comps = (input.plan.components ?? [])
+    .filter((c) => c.is_active !== false)
+    .slice()
+    .sort((x, y) => x.priority - y.priority);
+  const compSkipped = comps.filter((c) => c.mode !== "amount" || c.amount === null).map((c) => `${c.kind}:${c.mode}`);
+  const amountComps = comps.filter((c) => c.mode === "amount" && c.amount !== null);
+  // ② achievement_bonus: 目標 = cast_norms.sales_target（0/なし=不適用）・実績 = 期間売上（cast.sales）。
+  //   しきい値は params.thresholds[0].pct（UI 仮置き＝1段・省略時 100%）。加算額は amount（=UI の add と同値）。
+  const salesTarget = input.salesTarget ?? 0;
+  let achievementBonus = 0;
+  if (salesTarget > 0) {
+    for (const c of amountComps) {
+      if (c.kind !== "achievement_bonus") continue;
+      const th = (c.params?.thresholds as Array<{ pct?: number }> | undefined)?.[0];
+      const pct = typeof th?.pct === "number" ? th.pct : 100;
+      if (cast.sales >= (salesTarget * pct) / 100) achievementBonus += c.amount as number;
+    }
+  }
+
   // 総支給（★extrasTotal＝出勤ボーナス等の報奨金も役務提供の対価＝報酬総額に含める・裁定23-b ①）
-  const gross =
+  const grossBase =
     wd.timePay +
     honBack +
     jonaiBack +
@@ -496,6 +526,15 @@ export function payOf(input: PayInput): PayResult {
     salesBack +
     customTotal +
     input.extrasTotal;
+
+  // ③ achievement を足した総額に ① guarantee_min が**最後に床を張る**（差額補填・priority 順＝逐次適用は max と同値）
+  let guaranteeAdd = 0;
+  for (const c of amountComps) {
+    if (c.kind !== "guarantee_min") continue;
+    const cur = grossBase + achievementBonus + guaranteeAdd;
+    if (cur < (c.amount as number)) guaranteeAdd += (c.amount as number) - cur;
+  }
+  const gross = grossBase + achievementBonus + guaranteeAdd; // ①=控除前総支給への床（控除はこの後）
 
   // 控除
   const fixedDed = fixedDedOf(input.deductions, effDays, cast.sales);
@@ -535,6 +574,9 @@ export function payOf(input: PayInput): PayResult {
     salesBack,
     cbacks,
     customTotal,
+    achievementBonus, // ★裁定96-②
+    guaranteeAdd,     // ★裁定96-①
+    compSkipped,      // ★rate モード等の明示スキップ（黙殺しない）
     gross,
     fixedDed,
     fine,

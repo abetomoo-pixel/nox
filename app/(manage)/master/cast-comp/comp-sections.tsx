@@ -411,7 +411,8 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
     } else if (ov.jonaiBack !== "") {
       overrides.jonaiBack = Number(ov.jonaiBack);
     }
-    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: planId, p_overrides: overrides });
+    // ★mig0116: p_valid_from は null を明示送信（教訓43 型＝現在行の上書き経路を UI が固定・履歴 UI は起票#38）
+    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: planId, p_overrides: overrides, p_valid_from: null });
     setMsg(error ? compErrJa(error.message) : "割当を保存しました");
     if (!error) await reload();
   }
