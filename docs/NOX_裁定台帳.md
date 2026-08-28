@@ -2193,7 +2193,7 @@ route map（`docs/dp/dp1_route_map.md`）の「あり」は**モックの区画�
 | 2 | **出勤ボーナスの予告→発行の結線** | `bonus_offers`（予告）テーブル新設＋発行との紐付け。★Fable 5 の慎重域（money） |
 | 3 | **休み希望 kind（v2）** | `shift_wishes` に種別列（出勤希望／休み希望）。現状は「入りたい」しか表現できない |
 | 4 | **シフト行の削除 UI** | `shift_remove`（mig0103 で新設済み）の結線。現状 UI から個別削除ができず、手動追加した行は消せない |
-| 5 | **`audit_logs` に `(action, target, at)` 複合インデックス** | 母集合5万行で `order by at desc limit 1` が**タイムアウトした疑い**（未確定）。verify を回すと再び積み上がる |
+| 5 | **`audit_logs` に `(action, target, at)` 複合インデックス** | 起票時は「母集合5万行で `order by at desc limit 1` が**タイムアウトした疑い**（未確定）」。**2026-08-28 に実発火＝疑いが確定**＝1セッションで f0 を4連走した末、`audit_logs` **34,921行**で **anon-guard 段16 の audit 照会**（`action` + `target` で絞り `order by at desc`）が `canceling statement due to statement timeout` で赤（直後の再走は緑＝蓄積依存）。既存索引は pkey /`(actor_user_id, at)`/`(org_id, store_id, at)` の**3本のみ**で当該パターンに効くものが無いのが機序（実測）。**mig0110 で解消**（`create index if not exists audit_logs_action_target_at_idx on audit_logs (action, target, at desc)`・索引追加のみでデータ/関数/ACL/RLS 不触）。適用後の索引は**4本**を実測確認 |
 | 6 | **verify の C群（厳密件数 `length===N`・掃除依存）5件** | 原因は**窓ではなく蓄積**で、`seed:f0` を回さない限り赤くなる。verify を独立実行可能にするなら **org を run ごとに分ける**設計が要る。対象＝`rls:1761` advances／`rls:1764` transport／`anon-guard:2270` reservations／`anon-guard:1983` customers／`anon-guard:1377`・`1576` customers |
 | 7 | **過去日の出勤記録の修正** | 打ち忘れは必ず起きるが、**どの画面で行うか未裁定**。R1 の「書き込み対象日は今日のみ」は SC-8 ⑦ で**未来日方向のみ**緩めた |
 | 8 | **未来日ガードを DB に置くか**（`attendance_set` / `attendance_set_self`） | 現在 **UI のみ**で止めている。`bizToday` の `"06:00"` ハードコードと絡むため**設計を先に決める** |

@@ -8,7 +8,7 @@
 
 ## 適用範囲
 
-**0001 〜 0109**（2026-08-28 現在）
+**0001 〜 0110**（2026-08-28 現在）
 
 ## 特記事項
 
@@ -76,6 +76,7 @@
 | 0107_pricing_rule_name | **冪等**（`add column if not exists` ＋ `drop function if exists` ＋ `create or replace`）・**begin〜commit 一括（本文同梱）**。**P-1（v14 §5・裁定71 で M 編入）**＝時間帯料金に表示名を持たせる。内容＝(1) **列追加** `pricing_rules.name text null` ＋ CHECK `name is null or (name = btrim(name) and length(name) between 1 and 40)` (2) **`set_pricing_rule` の署名変更**＝末尾に `p_name text DEFAULT NULL` を足して **12→13引数**。★**署名が変わるため旧12引数版を `drop function` してから再作成**し、**ACL を再付与**する（`revoke all … from public, anon` → `grant execute … to authenticated`）＝**PostgreSQL は署名が変わると ACL を引き継がない**（0062/0063 と同じ手順）。**`DEFAULT NULL` により既存の12引数呼び出しはそのまま解決**（verify・UI の既存経路は無改修で通る）。RPC 側は `v_name := nullif(btrim(p_name), '')` で **trim＋空文字は null 化**し、41文字以上は `bad name`。★**`pricing_resolve` / `pricing_resolve_core` は不触**＝表示名は UI 専用で**解決には使わない**。**money 三面鏡不触**。★**課金ゲート名簿は本数不変**（同名関数の署名変更のみ＝A6 は 13本のまま・名簿は関数名のみで署名を持たない）。手貼り後 `notify pgrst, 'reload schema';` **必須**（列追加＋関数署名変更＝PostgREST のスキーマ／関数キャッシュ更新が要る）。sha256 `d00a6a7a462ffd1862a9b77ce7f9b6a4ec4094c3b09c5c4fa1852b410022aa23`（8,224 bytes・repo=Downloads 一致） |
 | 0108_pin_policy_status_device_seen | **冪等**（`add column if not exists` ×2 ＋ `create or replace` ×3 ＋ revoke/grant）・**begin〜commit 一括（本文同梱）**。**M-11b ①(レジ)②③**＝(1) **列2本追加** `kiosk_devices.last_seen_at timestamptz` / `last_ip text`（レジ端末の最終アクセス。打刻端末側は mig0109） (2) **`kiosk_login` 改稿**＝ロック閾値 5回/15分 のハードコードを `settings_json.pin_lock_max_fail` / `pin_lock_minutes`（**既定 5 / 15**）から読む形へ。**既定値のとき挙動不変**（auth・失敗カウント・audit・返却 jsonb の形＝ok/reason/locked_until は改稿前と同値）。成功経路で `last_seen_at/last_ip` を更新 (3) **新設 `set_store_pin_policy(p_store_id, p_max_fail, p_lock_minutes)`**＝owner 限定・**3〜10回 / 5〜60分**（範囲外は `bad max_fail` / `bad lock_minutes`）・`jsonb_set`・audit（旧値/新値） (4) **新設 `staff_pin_status(p_store_id)`**＝owner ∨ manager 自店。membership ごとに has_pin / fail_count / locked_until / pin_updated_at（**hash は返さない**）。★**課金ゲート名簿 +2**＝`set_store_pin_policy` を A8（店設定・ゲート済み）へ、`staff_pin_status` を B(f) 読取（非ゲート）へ収載（billing pin の張り替えとセット）。**money 三面鏡不触**。手貼り後 `notify pgrst, 'reload schema';` **必須**（列追加＋新 RPC 2本）。sha256 `47f17e91095d7d245bbc628f5b9ef062eed7eda653eddaae54584f044231478e`（11,078 bytes・repo=Downloads 一致） |
 | 0109_kiosk_punch_last_seen | **冪等**（`create or replace` 1本のみ・**ACL は replace で保持＝revoke/grant 文なし**）・**begin〜commit 一括（本文同梱）**。**M-11b ①の打刻側（起票#31 ①）**＝`kiosk_punch` の **PIN 一致（成功）経路でのみ** `kiosk_devices.last_seen_at = now()` / `last_ip = v_ip` を更新。**0108 が追加した列2本が前提＝0108→0109 の順**。**署名 `kiosk_punch(uuid, text, text)`・SECURITY DEFINER・`search_path = public, extensions`・返却 jsonb の形・ACL いずれも不変**（money 三面鏡不触）。**失敗経路（bad_pin / not_found / no_pin / wrong_pin / locked）は両列を触らない**＝端末の「最終アクセス」は**成功打刻のみ**を表す。**UI/API は `last_seen_at` のみ・`last_ip` は出さない**（裁定 2026-08-28）。手貼り後 `notify pgrst, 'reload schema';`。sha256 `6422da9c275649f20892a821b199cc0faa85b08a84c3b12a7d7f5c56fe467be0`（6251 bytes）。★**repo≠Downloads**＝掲出版（sha256 `ba9b308271a30f2b5ea7fa3cf17f0ae1d1f3b18ac03269d474c1195d83b691f1`・4305 bytes）に**規約ブロック（貼り先証明・検証クエリ）が無かったため収蔵時に 0091 同型で補完**した。**差分はヘッダコメントと `select 'nox-project-proof'` 1文のみ**で、**関数本文は掲出版・dev live と 100行/100行 完全一致**（収蔵時に `pg_get_functiondef` と機械突合） |
+| 0110_audit_logs_action_target_idx | **冪等**（`create index if not exists` 1本のみ）・**begin〜commit 一括（本文同梱）**。**起票#5 の解消**＝`audit_logs (action, target, at desc)` 索引を追加。**データ・関数・ACL・RLS いずれも不触**（money 三面鏡不触・golden 6値不変）。★**発火の実測**＝2026-08-28 に `audit_logs` **34,921行**で verify 段16 の audit 照会（action + target で絞り `order by at desc`）が `statement timeout` に落ちた。既存索引は pkey /`(actor_user_id, at)`/`(org_id, store_id, at)` の**3本のみ**で当該パターンに効くものが無かった。適用後は**4本**（`audit_logs_action_target_at_idx` を実測確認）。**index 追加のみなので `notify pgrst` は不要**。sha256 `f08d4c39b9b360b8a11042f5bc14e970e009a87d25876d054b46b34288bafdb1`（1160 bytes・**repo=Downloads byte 一致**＝規約ブロックは掲出版に同梱済みで補完不要） |
 
 ## Storage（段P・キャスト写真）
 
@@ -195,3 +196,6 @@ order by polname;
 - 適用後は "Success" 表示だけを信用せず、検証バンドル（Downloads 残置・repo 収載禁止）で
   prosrc / 制約 / ACL を実測する。
 - 手貼り後は `notify pgrst, 'reload schema';`（列追加・関数変更の PostgREST 反映）。
+- **`kiosk_devices.last_seen_at` の更新経路は2本**＝**レジ端末は `kiosk_login`（mig0108）・打刻端末は `kiosk_punch`（mig0109）**。
+  どちらも**成功経路のみ**で更新し、`/master/system` の端末表は用途を問わず同じ列を読む。
+  片方だけ適用すると**その用途の端末だけ「最終アクセス」が永久に空**になるため、0108 と 0109 は対で扱う。
