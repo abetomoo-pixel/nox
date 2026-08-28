@@ -50,12 +50,13 @@ const CAST_NAMES = [
   "NOX-VERIFY-payFED", "NOX-VERIFY-payFE1", "NOX-VERIFY-payFE2", "NOX-VERIFY-payFE3", "NOX-VERIFY-payFEV", // F2e-1 売掛天引き
   "NOX-VERIFY-payORD", "NOX-VERIFY-payAD1", "NOX-VERIFY-payOK1", "NOX-VERIFY-payBW", "NOX-VERIFY-payALL", // F2e-2 前借り/送り
   "NOX-VERIFY-payReopen", // D1 給与確定解除 reopen サイクル段
+  "NOX-VERIFY-payCP1", "NOX-VERIFY-payCP2", // mig0114 set_cast_plan 同値検証（段内で即消し・teardown は保険）
 ];
 const AR_PERIODS = ["2027-01", "2027-03", "2027-05"]; // F2e-1 隔離 period
 const F2E2_PERIODS = ["2027-07", "2027-08", "2027-09", "2027-11", "2027-12"]; // F2e-2 隔離 period（前借り/送り）
 const REOPEN_PERIODS = ["2029-01"]; // D1 reopen サイクル段 隔離 period
 const SEATS = ["NOX-VERIFY-paySeat", "NOX-VERIFY-paySeat2"];
-const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2"];
+const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2", "NOX-VERIFY-payPlanCP"]; // 3本目=mig0114 段の inactive 拒否用
 
 // ★起票#35: 異常終了時にも teardown を走らせるための参照。
 //   本スイートは fixture 作成が `data!.id` の非 null 断言に依存するため、statement timeout 等で
@@ -199,6 +200,69 @@ async function main() {
   await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2, plan_id: plan2, overrides_json: {} });
   await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2, mode: "委託" });
   await mkCheck(storeA2Id, seat2, "2026-09-14T22:00:00+09:00", a2, [{ kind: "set", unit: 10000, qty: 1 }]);
+
+  // ── ★mig0114（C1-1）: set_cast_plan が期間化後も現行同値であることの実セッション検証 ──
+  //   段内で fixture を作り段内で即消し（payroll 本体の run 集計に混ぜない）。teardown は保険。
+  {
+    const cp1 = await mkCast(CAST_NAMES[22], true);            // A1
+    const cp2 = await mkCast(CAST_NAMES[23], true, storeA2Id); // A2（manager 他店 forbidden 用）
+    const planCP = await mkPlan(PLANS[2], storeA1Id);
+    try {
+      // 新規割当（owner）: 現在行1・valid_to null・valid_from=今日（default）
+      const { data: r1, error: e1 } = await owner.rpc("set_cast_plan", { p_cast_id: cp1, p_plan_id: planCP, p_overrides: {} });
+      const { data: rows1 } = await admin.from("cast_plan").select("id, plan_id, valid_from, valid_to, overrides_json").eq("cast_id", cp1);
+      check("mig0114 set_cast_plan 新規割当＝現在行1・valid_to null", !e1 && r1 === cp1
+        && (rows1 ?? []).length === 1 && rows1![0].valid_to === null && rows1![0].plan_id === planCP,
+        e1?.message ?? JSON.stringify(rows1));
+      const rowId1 = rows1![0].id as string;
+      // 上書き（owner・overrides 変更）: 行数1のまま・id 不変＝「現在行の上書き」の同値意味論
+      const { error: e2 } = await owner.rpc("set_cast_plan", { p_cast_id: cp1, p_plan_id: planCP, p_overrides: { base: 6000 } });
+      const { data: rows2 } = await admin.from("cast_plan").select("id, valid_to, overrides_json").eq("cast_id", cp1);
+      check("mig0114 上書き＝行1のまま・id 不変・overrides 反映（履歴を作らない現行意味論）",
+        !e2 && (rows2 ?? []).length === 1 && rows2![0].id === rowId1
+        && (rows2![0].overrides_json as Record<string, unknown>).base === 6000,
+        e2?.message ?? JSON.stringify(rows2));
+      // manager 自店成功
+      const { error: e3 } = await manager.rpc("set_cast_plan", { p_cast_id: cp1, p_plan_id: planCP, p_overrides: {} });
+      check("mig0114 manager 自店成功", !e3, e3?.message);
+      // manager 他店 forbidden
+      const { error: e4 } = await manager.rpc("set_cast_plan", { p_cast_id: cp2, p_plan_id: plan2, p_overrides: {} });
+      check("mig0114 manager 他店 forbidden", !!e4 && e4.message.includes("forbidden"), e4?.message ?? "通ってしまった");
+      // plan inactive 拒否
+      await admin.from("comp_plans").update({ is_active: false }).eq("id", planCP);
+      const { error: e5 } = await owner.rpc("set_cast_plan", { p_cast_id: cp1, p_plan_id: planCP, p_overrides: {} });
+      check("mig0114 plan inactive 拒否", !!e5 && e5.message.includes("plan inactive"), e5?.message ?? "通ってしまった");
+      await admin.from("comp_plans").update({ is_active: true }).eq("id", planCP);
+      // audit 形: 最新 set_cast_plan の after に期間列が載る（before/after=to_jsonb(現在行)）
+      const { data: aud } = await admin.from("audit_logs").select("before_json, after_json")
+        .eq("action", "set_cast_plan").eq("target", `cast_plan:${cp1}`)
+        .order("at", { ascending: false }).limit(1);
+      const aAfter = (aud ?? [])[0]?.after_json as Record<string, unknown> | undefined;
+      check("mig0114 audit 形＝after に valid_from/valid_to（null）を含む現在行 jsonb",
+        !!aAfter && "valid_from" in aAfter && aAfter.valid_to === null && aAfter.plan_id === planCP,
+        JSON.stringify(aud));
+      // ★逆張り（データ）: 現在行の2本目を admin 直 insert → 部分 unique が弾く
+      const { error: eDup } = await admin.from("cast_plan").insert({
+        cast_id: cp1, org_id: orgAId, store_id: storeA1Id, plan_id: planCP,
+        overrides_json: {}, valid_from: "2020-01-01",
+      });
+      check("mig0114 ★現在行の2本目は部分 unique が拒否（cast_plan_current_uidx）",
+        !!eDup && (eDup.message.includes("cast_plan_current_uidx") || eDup.message.includes("duplicate key")),
+        eDup?.message ?? "通ってしまった");
+      // 履歴行（valid_to 非 null）は許容＝部分 unique が現在行だけを縛ることの対
+      const { error: eHist } = await admin.from("cast_plan").insert({
+        cast_id: cp1, org_id: orgAId, store_id: storeA1Id, plan_id: planCP,
+        overrides_json: {}, valid_from: "2020-01-01", valid_to: "2020-12-31",
+      });
+      const { data: rows3 } = await admin.from("cast_plan").select("id").eq("cast_id", cp1);
+      check("mig0114 履歴行（valid_to あり）は共存できる＝計2行", !eHist && (rows3 ?? []).length === 2,
+        eHist?.message ?? JSON.stringify(rows3));
+    } finally {
+      await admin.from("cast_plan").delete().in("cast_id", [cp1, cp2]);
+      await admin.from("casts").delete().in("id", [cp1, cp2]);
+      await admin.from("comp_plans").delete().eq("id", planCP);
+    }
+  }
 
   // ── #32 出勤インセンティブ 係留用 seed（store A1・period 2026-11 隔離）──
   const i1 = await mkCast(CAST_NAMES[6], true);
