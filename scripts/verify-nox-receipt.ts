@@ -11,7 +11,7 @@ import {
   buildReceiptXml, displayWidth, escXml, jstStamp, taxOf,
   type ReceiptInput, type ReceiptLine, type ReceiptPayment,
 } from "../lib/nox/receipt";
-import { taxRound, taxSettingsOf, DEFAULT_TAX_SETTINGS } from "../lib/nox/check-calc";
+import { taxRound, taxSettingsOf, DEFAULT_TAX_SETTINGS, groupDueFull } from "../lib/nox/check-calc";
 
 let pass = 0;
 const fails: string[] = [];
@@ -185,6 +185,73 @@ function main() {
     xp.includes("（内消費税10%）") && xp.includes("¥28") && !xp.includes("¥27")
     && perLineSum === 27 && taxOf(315) === 28,
     `taxOf(315)=${taxOf(315)} perLineSum=${perLineSum}`);
+
+  // ── C3/C4 挙動段（mig0113・三面鏡の TS 面）: 外税・税率別集計・exempt ──
+  //   ★既定経路（T1〜T7 の sha pin）はこの段の実装後も全数不変＝1バイト同値の受け入れ条件。
+  //   期待値は check_group_due（mig0113）と同一規則の手計算（コメントに算式）。
+  {
+    // T8 外税 10% のみ: 315(10%)・サ料10% → net=315 sv=round(31.5)=32 base10=347 tax10=floor(34.7)=34
+    //   due=groupDueFull(unit1)=381・端数調整 0
+    const exLines: ReceiptLine[] = [
+      { name_snapshot: "セット(外税)", qty: 3, unit_price_snapshot: 105, line_total: 315, kind: "custom", tax_category: "taxable_10" },
+    ];
+    const exSettings = { service_rate: 10, round_unit: 1, round_mode: "round", price_display: "tax_excluded" } as const;
+    const exDue = groupDueFull(exLines, exSettings);
+    const t8: ReceiptInput = {
+      store: STORE, check: CHECK, payGroup: "A", lines: exLines,
+      payments: [{ method: "cash", amount: exDue, tendered: null }],
+      serviceRate: 10, groupDue: exDue, isReprint: false,
+      taxSettings: { price_display: "tax_excluded" },
+    };
+    const x8 = buildReceiptXml(t8);
+    check("C4-4 ★外税10%: due=381・消費税(10%)=34 が本体行・内消費税は出ない",
+      exDue === 381 && x8.includes("消費税(10%)") && x8.includes("¥34") && !x8.includes("内消費税"),
+      `due=${exDue}`);
+    check("C4-4 外税10%: 合計=381・端数調整 行なし（順算とズレなし）",
+      x8.includes("¥381") && !x8.includes("端数調整"));
+
+    // T9 外税 8% 混在＋割引＋ceil: 1000(10%)+505(8%)−disc305・サ料0
+    //   net=1200 base10=max(0,1000-305)=695 tax10=ceil(69.5)=70 tax8=ceil(40.4)=41 due=1311
+    const mixLines: ReceiptLine[] = [
+      { name_snapshot: "商品A", qty: 1, unit_price_snapshot: 1000, line_total: 1000, kind: "custom", tax_category: "taxable_10" },
+      { name_snapshot: "商品B(8%)", qty: 1, unit_price_snapshot: 505, line_total: 505, kind: "custom", tax_category: "taxable_8" },
+      { name_snapshot: "クーポン", qty: 1, unit_price_snapshot: 305, line_total: 305, kind: "discount" },
+    ];
+    const mixSettings = { service_rate: 0, round_unit: 1, round_mode: "round", price_display: "tax_excluded", tax_rounding: "ceil" } as const;
+    const mixDue = groupDueFull(mixLines, mixSettings);
+    const t9: ReceiptInput = {
+      store: STORE, check: CHECK, payGroup: "A", lines: mixLines,
+      payments: [{ method: "card", amount: mixDue, tendered: null }],
+      serviceRate: 0, groupDue: mixDue, isReprint: false,
+      taxSettings: { price_display: "tax_excluded", tax_rounding: "ceil" },
+    };
+    const x9 = buildReceiptXml(t9);
+    check("C4-4 ★外税混在: due=1311・消費税(10%)=70/(8%)=41 の2行（税率ごとに1回・clamp 済み discount）",
+      mixDue === 1311 && x9.includes("消費税(10%)") && x9.includes("¥70")
+      && x9.includes("消費税(8%)") && x9.includes("¥41"), `due=${mixDue}`);
+    check("C4-4 外税混在: 合計=1,311・内消費税 行なし", x9.includes("¥1,311") && !x9.includes("内消費税"));
+
+    // T10 exempt: 税額区分の記載なし（免税事業者は適格簡易請求書を発行できない＝T5）
+    const t10: ReceiptInput = { ...t1, taxSettings: { business_tax_status: "exempt" } };
+    const x10 = buildReceiptXml(t10);
+    check("C4-4 ★exempt: 税行なし（内消費税/消費税とも非表示）・合計 8,800 は従来式のまま",
+      !x10.includes("内消費税") && !x10.includes("消費税") && x10.includes("¥8,800"));
+
+    // groupDueFull の鏡像手計算（DB check_group_due mig0113 と同式）
+    //   既定（内税）は groupDue(net) と同値・外税 clamp: bx10=315 disc=400 → base10=0+sv
+    check("C4-4 groupDueFull: 既定（内税）は従来式と同値（net=315 sv=32 → due=347）",
+      groupDueFull(exLines, { service_rate: 10, round_unit: 1, round_mode: "round" }) === 347,
+      String(groupDueFull(exLines, { service_rate: 10, round_unit: 1, round_mode: "round" })));
+    //   過剰割引 clamp: 315(10%)+200(exempt)−disc400 → net=115 sv=round(11.5)=12 base10=max(0,315-400)+12=12
+    //   tax=floor(1.2)=1 → due=115+12+1=128
+    const clampLines: ReceiptLine[] = [
+      { name_snapshot: "a", qty: 1, unit_price_snapshot: 315, line_total: 315, kind: "custom", tax_category: "taxable_10" },
+      { name_snapshot: "b", qty: 1, unit_price_snapshot: 200, line_total: 200, kind: "custom", tax_category: "exempt" },
+      { name_snapshot: "d", qty: 1, unit_price_snapshot: 400, line_total: 400, kind: "discount" },
+    ];
+    check("C4-4 ★groupDueFull 過剰割引 clamp: base10 は負にしない（due=128）",
+      groupDueFull(clampLines, exSettings) === 128, String(groupDueFull(clampLines, exSettings)));
+  }
 
   // 幅の健全性: 全 <text> 行が 48 桁以内（明細・金額段の padLine 出力）
   for (const [label, x] of Object.entries(xml)) {

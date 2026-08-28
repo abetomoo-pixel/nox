@@ -33,6 +33,8 @@
  *   (19) ★mig0107（P-1）＝pricing_rules.name（表示名・任意）と set_pricing_rule 13 引数化。
  *   (20) ★mig0112（C3/C4 §6-3・裁定90）＝set_pricing_rule 14 引数化（p_tax_category）と
  *        set_store_tax_config（税設定4分離＋card_surcharge・実セッション runtime）。
+ *   (21) ★mig0113（C3/C4 挙動段・三面鏡）＝外税分岐の DB↔TS 鏡像一致（checks.total ↔ groupDueFull）・
+ *        開卓時凍結・exempt 店・過剰割引 clamp・tax_rounding 3値・taxable_8 混在。
  *        trim／空→null／41文字 'bad name'／★既存の12引数呼び出し（p_name 省略）が DEFAULT で通ること
  *
  * fixture は段内動的生成→finally 全消し（pricing_rules/cast_ranks は verify 店スコープで
@@ -41,6 +43,7 @@
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { FIXTURE_USERS, STORE_A1, STORE_A2, STORE_B1, loadEnvOrExit } from "./fixtures-f0";
+import { groupDueFull, type DueLine } from "../lib/nox/check-calc";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -789,6 +792,160 @@ async function main() {
         await admin.from("stores").update(snapTax ?? {}).eq("id", sA1.id);
         const { data: backT } = await admin.from("stores").select(TAXCOLS).eq("id", sA1.id).single();
         check("段43(20)（復元）税6列を snapshot へ逐語復元", JSON.stringify(backT) === JSON.stringify(snapTax), JSON.stringify(backT));
+      }
+    }
+
+    // ═══ (21) ★mig0113（挙動段・三面鏡）: 外税の DB↔TS 鏡像一致 ═══
+    //   本丸＝**checks.total（check_recalc→check_group_due の実値）と groupDueFull（TS 鏡像）の一致**。
+    //   手計算値も併記して三点一致（DB=TS=手計算）にする＝片側同時バグの取りこぼし防止。
+    //   stores は round 系含め snapshot→finally 逐語復元。伝票/卓は段内で全消し。
+    {
+      const SETCOLS = "service_rate, round_unit, round_mode, set_fee, business_tax_status, price_display, invoice_status, invoice_reg_no, tax_rounding, card_surcharge_rate";
+      const { data: snapSet } = await admin.from("stores").select(SETCOLS).eq("id", sA1.id).single();
+      let seat21: string | null = null;
+      const chk21: string[] = [];
+      try {
+        // 前提: 残存 pricing_rules を先に落とす（set 帯が居ると check_open が auto set 行を入れ
+        //   手計算が壊れる。finally の wipe と同じ対象＝ここで消しても後段は無い）
+        await admin.from("pricing_rules").delete().eq("store_id", sA1.id);
+        // 固定の丸め条件: サ料10%・店設定丸めは 100 down（C1-C4）→ 後半 unit=1（C5-C7）
+        await admin.from("stores").update({ service_rate: 10, round_unit: 100, round_mode: "down", set_fee: 0 }).eq("id", sA1.id);
+        const { data: st21 } = await admin.from("seats").insert({
+          org_id: sA1.org_id, store_id: sA1.id, name: "NOX-VERIFY-税鏡像卓", kind: "卓", sort_order: 9921, is_active: true,
+        }).select("id").single();
+        seat21 = st21!.id as string;
+
+        type Case = { label: string; hand: number };
+        // 1伝票を作って lines を組み、admin 補正 → recalc 誘発 → total/lines/凍結値を読む
+        const runCase = async (
+          label: string,
+          taxCfg: { bts?: string; pd?: string; trnd?: string },
+          build: (checkId: string) => Promise<void>,
+          hand: number,
+        ) => {
+          const { error: eCfg } = await owner.rpc("set_store_tax_config", {
+            p_store_id: sA1.id, p_business_tax_status: taxCfg.bts ?? "taxable",
+            p_price_display: taxCfg.pd ?? "tax_excluded", p_invoice_status: "unregistered",
+            p_invoice_reg_no: null, p_tax_rounding: taxCfg.trnd ?? "floor", p_card_surcharge_rate: null,
+          });
+          if (eCfg) { check(`段43(21) ${label}（前提 cfg）`, false, eCfg.message); return; }
+          const { data: cid, error: eOp } = await owner.rpc("check_open", { p_seat_id: seat21, p_people: null, p_nom_type: "free" });
+          if (eOp || typeof cid !== "string") { check(`段43(21) ${label}（open）`, false, eOp?.message); return; }
+          chk21.push(cid);
+          await build(cid);
+          // recalc 誘発: 0円 custom を足して消す（add/remove の双方が check_recalc を呼ぶ）
+          const { data: sac } = await owner.rpc("check_add_line", {
+            p_check_id: cid, p_product_id: null, p_qty: 1, p_kind: "custom", p_name: "sac", p_pay_group: "A", p_unit_price: 0,
+          });
+          const { data: sacLine } = await admin.from("check_lines").select("id").eq("check_id", cid).eq("name_snapshot", "sac").single();
+          void sac;
+          await owner.rpc("check_remove_line", { p_line_id: sacLine!.id });
+          // DB 実値と凍結値
+          const { data: c } = await admin.from("checks")
+            .select("total, service_rate, round_unit, round_mode, business_tax_status, price_display, tax_rounding")
+            .eq("id", cid).single();
+          const { data: ls } = await admin.from("check_lines")
+            .select("line_total, kind, tax_category").eq("check_id", cid).eq("pay_group", "A");
+          const mirror = groupDueFull((ls ?? []) as DueLine[], {
+            service_rate: c!.service_rate as number, round_unit: c!.round_unit as number, round_mode: c!.round_mode as string,
+            business_tax_status: c!.business_tax_status as string, price_display: c!.price_display as string,
+            tax_rounding: c!.tax_rounding as string,
+          });
+          check(`段43(21) ★鏡像一致 ${label}: DB total=${c!.total} = TS 鏡像 = 手計算 ${hand}`,
+            c!.total === mirror && mirror === hand,
+            `db=${c!.total} ts=${mirror} hand=${hand} lines=${JSON.stringify(ls)}`);
+          // 卓を空ける（次ケースが同卓で open するため）
+          await owner.rpc("check_void", { p_check_id: cid, p_reason: "verify 税鏡像" });
+        };
+        const addCustom = (cid: string, name: string, price: number, qty = 1) =>
+          owner.rpc("check_add_line", { p_check_id: cid, p_product_id: null, p_qty: qty, p_kind: "custom", p_name: name, p_pay_group: "A", p_unit_price: price });
+        const setCat = async (cid: string, name: string, cat: string) => {
+          await admin.from("check_lines").update({ tax_category: cat }).eq("check_id", cid).eq("name_snapshot", name);
+        };
+        const addDisc = async (cid: string, amount: number) => {
+          await admin.from("check_lines").insert({
+            org_id: sA1.org_id, store_id: sA1.id, check_id: cid, product_id: null, kind: "discount",
+            pay_group: "A", name_snapshot: "verify割引", unit_price_snapshot: amount, qty: 1, line_total: amount,
+            back_snapshot: null, sort_order: 90,
+          });
+        };
+
+        // C1 外税10%のみ（100down）: net=315 sv=round(31.5)=32 base10=347 tax=floor(34.7)=34 → 381→down100=300
+        await runCase("C1 10%のみ", {}, async (cid) => { await addCustom(cid, "c1", 105, 3); }, 300);
+        // C2 exempt 行混在: 315(10%)+200(exempt) → net=515 sv=52 base10=367→36 → 603→600
+        await runCase("C2 exempt混在", {}, async (cid) => {
+          await addCustom(cid, "c2a", 105, 3); await addCustom(cid, "c2b", 200);
+          await setCat(cid, "c2b", "exempt");
+        }, 600);
+        // C3 割引: 315−100 → net=215... ★disc は net にも base10 にも効く:
+        //   net=max(0,315-100)=215 sv=round(21.5)=22 base10=max(0,315-100)+22=237→23 → 260→200
+        await runCase("C3 割引", {}, async (cid) => {
+          await addCustom(cid, "c3", 105, 3); await addDisc(cid, 100);
+        }, 200);
+        // C4 過剰割引 clamp: 315(10%)+200(exempt)−400 → net=115 sv=round(11.5)=12 base10=0+12=12→1 → 128→100
+        await runCase("C4 過剰割引clamp", {}, async (cid) => {
+          await addCustom(cid, "c4a", 105, 3); await addCustom(cid, "c4b", 200);
+          await setCat(cid, "c4b", "exempt"); await addDisc(cid, 400);
+        }, 100);
+
+        // 後半は unit=1（丸めが差を隠さない）
+        await admin.from("stores").update({ round_unit: 1 }).eq("id", sA1.id);
+        // C5 ceil: 315 → sv=32 base10=347 tax=ceil(34.7)=35 → 382
+        await runCase("C5 tax_rounding=ceil", { trnd: "ceil" }, async (cid) => { await addCustom(cid, "c5", 105, 3); }, 382);
+        // C6 round: tax=round(34.7)=35 → 382
+        await runCase("C6 tax_rounding=round", { trnd: "round" }, async (cid) => { await addCustom(cid, "c6", 105, 3); }, 382);
+        // C4b 過剰割引 clamp（unit=1＝店設定丸めがマスクしない・逆張りで clamp 破壊を鏡像が直接検知する用）:
+        //   315(10%)+200(exempt)−400 → net=115 sv=12 base10=0+12=12→1 → 128
+        await runCase("C4b 過剰割引clamp(unit=1)", {}, async (cid) => {
+          await addCustom(cid, "c4x", 105, 3); await addCustom(cid, "c4y", 200);
+          await setCat(cid, "c4y", "exempt"); await addDisc(cid, 400);
+        }, 128);
+        // C7 taxable_8 混在（floor）: 315(10%)+505(8%) → net=820 sv=round(82)=82 base10=397→39 tax8=floor(40.4)=40 → 981
+        await runCase("C7 taxable_8混在", {}, async (cid) => {
+          await addCustom(cid, "c7a", 105, 3); await addCustom(cid, "c7b", 505);
+          await setCat(cid, "c7b", "taxable_8");
+        }, 981);
+        // C8 exempt 店: 外税でも分岐せず従来式＝net=315 sv=32 → 347（unit=1）
+        await runCase("C8 exempt店", { bts: "exempt" }, async (cid) => { await addCustom(cid, "c8", 105, 3); }, 347);
+
+        // C9 開卓時凍結: 外税 floor で open→lines→total 記録 → 店を内税へ戻しても total 不変
+        {
+          const { error: eCfg9 } = await owner.rpc("set_store_tax_config", {
+            p_store_id: sA1.id, p_business_tax_status: "taxable", p_price_display: "tax_excluded",
+            p_invoice_status: "unregistered", p_invoice_reg_no: null, p_tax_rounding: "floor", p_card_surcharge_rate: null,
+          });
+          const { data: cid9 } = await owner.rpc("check_open", { p_seat_id: seat21, p_people: null, p_nom_type: "free" });
+          chk21.push(cid9 as string);
+          await addCustom(cid9 as string, "c9", 105, 3);
+          const { data: before9 } = await admin.from("checks").select("total, price_display").eq("id", cid9).single();
+          // 店設定を内税へ変更（open 伝票へは非遡及＝凍結）
+          await owner.rpc("set_store_tax_config", {
+            p_store_id: sA1.id, p_business_tax_status: "taxable", p_price_display: "tax_included",
+            p_invoice_status: "unregistered", p_invoice_reg_no: null, p_tax_rounding: "floor", p_card_surcharge_rate: null,
+          });
+          const { data: sac9 } = await owner.rpc("check_add_line", {
+            p_check_id: cid9, p_product_id: null, p_qty: 1, p_kind: "custom", p_name: "sac9", p_pay_group: "A", p_unit_price: 0,
+          });
+          void sac9;
+          const { data: sacL9 } = await admin.from("check_lines").select("id").eq("check_id", cid9).eq("name_snapshot", "sac9").single();
+          await owner.rpc("check_remove_line", { p_line_id: sacL9!.id });
+          const { data: after9 } = await admin.from("checks").select("total, price_display").eq("id", cid9).single();
+          check("段43(21) ★開卓時凍結: 店設定を内税へ変えても open 伝票の外税 due 不変（381 のまま）",
+            !eCfg9 && before9?.total === 381 && after9?.total === 381 && after9?.price_display === "tax_excluded",
+            JSON.stringify({ before: before9, after: after9 }));
+          await owner.rpc("check_void", { p_check_id: cid9 as string, p_reason: "verify 税鏡像" });
+        }
+      } finally {
+        // 伝票・行・卓の全消し → stores 逐語復元
+        if (chk21.length) {
+          await admin.from("check_lines").delete().in("check_id", chk21);
+          await admin.from("checks").delete().in("id", chk21);
+        }
+        if (seat21) await admin.from("seats").delete().eq("id", seat21);
+        await admin.from("stores").update(snapSet ?? {}).eq("id", sA1.id);
+        const { data: backS } = await admin.from("stores").select(SETCOLS).eq("id", sA1.id).single();
+        check("段43(21)（復元）stores 10列を snapshot へ逐語復元・伝票/卓 残置なし",
+          JSON.stringify(backS) === JSON.stringify(snapSet), JSON.stringify(backS));
       }
     }
 

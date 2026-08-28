@@ -96,7 +96,9 @@ async function main() {
     //   set_pricing_rule は 13→14引数化＝名前不変で本数不動（旧署名 DROP は f0 の別 assert で担保）。
     check("段47-1 正本の対象106名を読めた", docTargets.size === 106, `got ${docTargets.size}`);
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
-    check("段47-1 正本の除外95名を読めた", docExcluded.size === 95, `got ${docExcluded.size}`);
+    // ★mig0113: check_tax_round（内部ヘルパー・非ゲート）を B へ収載＝除外 95→96・全数 201→202。
+    //   この +1 は f0 実走で教訓21 assert が名簿漏れとして検知→収載した実例（2026-08-28）。
+    check("段47-1 正本の除外96名を読めた", docExcluded.size === 96, `got ${docExcluded.size}`);
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる
