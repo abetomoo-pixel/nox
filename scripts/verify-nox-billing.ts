@@ -94,7 +94,9 @@ async function main() {
     // ★mig0112（C3/C4 §6-3・2026-08-28）: set_store_tax_config を A8（ゲート済み）へ収載＝
     //   対象 105→106・全数 200→201（裁定90 予告どおり billing golden が名簿本数として動く）。
     //   set_pricing_rule は 13→14引数化＝名前不変で本数不動（旧署名 DROP は f0 の別 assert で担保）。
-    check("段47-1 正本の対象106名を読めた", docTargets.size === 106, `got ${docTargets.size}`);
+    // ★mig0115（C1 §6-3・2026-08-28）: set_comp_component を A7（ゲート済み）へ収載＝
+    //   対象 106→107・全数 202→203（set_comp_plan は 16引数化＝名前不変で本数不動）。
+    check("段47-1 正本の対象107名を読めた", docTargets.size === 107, `got ${docTargets.size}`);
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     // ★mig0113: check_tax_round（内部ヘルパー・非ゲート）を B へ収載＝除外 95→96・全数 201→202。
     //   この +1 は f0 実走で教訓21 assert が名簿漏れとして検知→収載した実例（2026-08-28）。
@@ -113,7 +115,7 @@ async function main() {
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 106本", liveGated.size === 106, `got ${liveGated.size}`);
+    check("段47-1 live のゲート済み関数 = 107本", liveGated.size === 107, `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
     const extra = [...liveGated].filter((n) => !docTargets.has(n));
@@ -132,14 +134,14 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 107（106 ＋ ラッパ自身）", refs[0].n === 107, `got ${refs[0].n}`);
+    check("段47-1 述語を参照する関数 = 108（107 ＋ ラッパ自身）", refs[0].n === 108, `got ${refs[0].n}`);
     // 挿入行の形が全92本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public'
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
-    check("段47-1 挿入行の形が全106本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 106, `got ${shapes[0].n}`);
+    check("段47-1 挿入行の形が全107本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 107, `got ${shapes[0].n}`);
   }
 
   // ══════════════════════════════════════════════════════════
@@ -253,6 +255,13 @@ async function main() {
     });
     check("段47-3 規則B set_store_tax_config が 'billing locked'（mig0112 追補）",
       locked(eTaxCfg), eTaxCfg?.message ?? "通ってしまった");
+    // ★mig0115: set_comp_component も locked 中は拒否（A7 追補の runtime 代表＝名簿+1 と対）
+    const { error: eComp2 } = await owner.rpc("set_comp_component", {
+      p_id: null, p_plan_id: randomUUID(), p_kind: "guarantee_min", p_mode: "amount",
+      p_amount: 1000, p_rate: null, p_params: {}, p_priority: 100, p_is_active: true,
+    });
+    check("段47-3 規則B set_comp_component が 'billing locked'（mig0115 追補）",
+      locked(eComp2), eComp2?.message ?? "通ってしまった");
     const { error: eStaff } = await owner.rpc("staff_create", {
       p_auth_user_id: randomUUID(), p_email: "nox-verify-dan47@example.com", p_name: "段47", p_store_id: storeA1, p_role: "staff",
     });

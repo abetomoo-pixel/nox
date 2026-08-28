@@ -374,6 +374,7 @@ async function main() {
   // ── 段8a: F2a 報酬マスタ RPC 6本 anon BLOCKED ──
   const F2A_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
     ["set_comp_plan", { p_id: null, p_store_id: null, p_name: null, p_base: null, p_hon_back: null, p_jonai_back: null, p_dohan_back: null, p_sales_slide: null, p_point_slide: null, p_is_active: null }],
+    ["set_comp_component", { p_id: null, p_plan_id: null, p_kind: null, p_mode: null, p_amount: null, p_rate: null, p_params: null, p_priority: null, p_is_active: null }],  // ★mig0115（裁定86）
     ["set_cast_plan", { p_cast_id: null, p_plan_id: null, p_overrides: null }],
     ["set_cast_norm", { p_cast_id: null, p_period: null, p_days_target: null, p_dohan_target: null, p_sales_target: null, p_shimei_target: null }], // mig0042 で 6引数へ置換（4引数版 drop 済）
     ["set_deduction", { p_id: null, p_store_id: null, p_name: null, p_amount: null, p_per: null, p_is_active: null }],

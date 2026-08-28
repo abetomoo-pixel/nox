@@ -56,7 +56,7 @@ const AR_PERIODS = ["2027-01", "2027-03", "2027-05"]; // F2e-1 隔離 period
 const F2E2_PERIODS = ["2027-07", "2027-08", "2027-09", "2027-11", "2027-12"]; // F2e-2 隔離 period（前借り/送り）
 const REOPEN_PERIODS = ["2029-01"]; // D1 reopen サイクル段 隔離 period
 const SEATS = ["NOX-VERIFY-paySeat", "NOX-VERIFY-paySeat2"];
-const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2", "NOX-VERIFY-payPlanCP"]; // 3本目=mig0114 段の inactive 拒否用
+const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2", "NOX-VERIFY-payPlanCP", "NOX-VERIFY-payPlanV2", "NOX-VERIFY-payPlanV2b"]; // 3本目=mig0114 段・4/5本目=mig0115 段
 
 // ★起票#35: 異常終了時にも teardown を走らせるための参照。
 //   本スイートは fixture 作成が `data!.id` の非 null 断言に依存するため、statement timeout 等で
@@ -73,7 +73,7 @@ async function main() {
   const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const signIn = async (key: "managerA1" | "ownerA" | "castA1a") => {
+  const signIn = async (key: "managerA1" | "ownerA" | "castA1a" | "staffA1") => {
     const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
@@ -261,6 +261,105 @@ async function main() {
       await admin.from("cast_plan").delete().in("cast_id", [cp1, cp2]);
       await admin.from("casts").delete().in("id", [cp1, cp2]);
       await admin.from("comp_plans").delete().eq("id", planCP);
+    }
+  }
+
+  // ── ★mig0115（C1 §6-3）: set_comp_plan 16引数化＋set_comp_component の実セッション検証 ──
+  {
+    const staffS = await signIn("staffA1");
+    let planV2: string | null = null;
+    let compId: string | null = null;
+    try {
+      // 14引数相当（dohan 省略）＝従来同値: 成功し dohan は default per_count/null
+      const { data: pv, error: eP14 } = await owner.rpc("set_comp_plan", {
+        p_id: null, p_store_id: storeA1Id, p_name: PLANS[3], p_base: 5000,
+        p_hon_back: 4000, p_jonai_back: 1500, p_dohan_back: 4000,
+        p_sales_slide: [], p_point_slide: [], p_is_active: true,
+        p_hon_back_mode: "per_count", p_hon_back_rate: null,
+        p_jonai_back_mode: "per_count", p_jonai_back_rate: null,
+      });
+      planV2 = (pv as string) ?? null;
+      const { data: prow } = await admin.from("comp_plans")
+        .select("dohan_back_mode, dohan_back_rate").eq("id", planV2 ?? "").single();
+      check("mig0115 ★14引数相当（dohan 省略）は従来同値＝成功・dohan は per_count/null",
+        !eP14 && !!planV2 && prow?.dohan_back_mode === "per_count" && prow?.dohan_back_rate === null,
+        eP14?.message ?? JSON.stringify(prow));
+      // 16引数 per_count 明示（update 経路）
+      const { error: eP16 } = await owner.rpc("set_comp_plan", {
+        p_id: planV2, p_store_id: storeA1Id, p_name: PLANS[3], p_base: 5100,
+        p_hon_back: 4000, p_jonai_back: 1500, p_dohan_back: 4000,
+        p_sales_slide: [], p_point_slide: [], p_is_active: true,
+        p_hon_back_mode: "per_count", p_hon_back_rate: null,
+        p_jonai_back_mode: "per_count", p_jonai_back_rate: null,
+        p_dohan_back_mode: "per_count", p_dohan_back_rate: null,
+      });
+      check("mig0115 16引数 per_count 明示の update 成功", !eP16, eP16?.message);
+      // dohan rate は R-2b まで封印（裁定86-②）
+      const { error: eR2b } = await owner.rpc("set_comp_plan", {
+        p_id: planV2, p_store_id: storeA1Id, p_name: PLANS[3], p_base: 5100,
+        p_hon_back: 4000, p_jonai_back: 1500, p_dohan_back: 4000,
+        p_sales_slide: [], p_point_slide: [], p_is_active: true,
+        p_hon_back_mode: "per_count", p_hon_back_rate: null,
+        p_jonai_back_mode: "per_count", p_jonai_back_rate: null,
+        p_dohan_back_mode: "rate", p_dohan_back_rate: 50,
+      });
+      check("mig0115 ★dohan rate は 'dohan rate requires R-2b' で封印（解錠ガード）",
+        !!eR2b && eR2b.message.includes("dohan rate requires R-2b"), eR2b?.message ?? "通ってしまった");
+      // set_comp_component: owner 成功（guarantee_min/amount）＋audit 形
+      const { data: cid, error: eC1 } = await owner.rpc("set_comp_component", {
+        p_id: null, p_plan_id: planV2, p_kind: "guarantee_min", p_mode: "amount",
+        p_amount: 12000, p_rate: null, p_params: { unit: "day" }, p_priority: 100, p_is_active: true,
+      });
+      compId = (cid as string) ?? null;
+      const { data: crow } = await admin.from("comp_plan_components")
+        .select("kind, mode, amount, rate, params").eq("id", compId ?? "").single();
+      check("mig0115 ★set_comp_component owner 成功＝行実在（guarantee_min/amount 12000）",
+        !eC1 && !!compId && crow?.kind === "guarantee_min" && crow?.amount === 12000 && crow?.rate === null,
+        eC1?.message ?? JSON.stringify(crow));
+      const { data: audC } = await admin.from("audit_logs").select("before_json, after_json")
+        .eq("action", "set_comp_component").eq("target", `comp_plan_components:${compId}`)
+        .order("at", { ascending: false }).limit(1);
+      const aC = (audC ?? [])[0];
+      check("mig0115 audit 形＝before null / after に kind・amount を含む行 jsonb",
+        !!aC && aC.before_json === null && (aC.after_json as Record<string, unknown>)?.kind === "guarantee_min",
+        JSON.stringify(audC));
+      // update 経路（rate 方式へ）
+      const { error: eC2 } = await owner.rpc("set_comp_component", {
+        p_id: compId, p_plan_id: planV2, p_kind: "achievement_bonus", p_mode: "rate",
+        p_amount: null, p_rate: 30, p_params: { target_kind: "sales" }, p_priority: 90, p_is_active: true,
+      });
+      const { data: crow2 } = await admin.from("comp_plan_components")
+        .select("kind, mode, rate, amount").eq("id", compId ?? "").single();
+      check("mig0115 update 経路＝rate 方式へ置換（amount null/rate 30）",
+        !eC2 && crow2?.mode === "rate" && crow2?.rate === 30 && crow2?.amount === null,
+        eC2?.message ?? JSON.stringify(crow2));
+      // 権限: manager / staff forbidden（owner のみ＝D3a）
+      const { error: eCm } = await manager.rpc("set_comp_component", {
+        p_id: null, p_plan_id: planV2, p_kind: "guarantee_min", p_mode: "amount",
+        p_amount: 1000, p_rate: null, p_params: {}, p_priority: 100, p_is_active: true,
+      });
+      check("mig0115 manager forbidden（owner のみ）", !!eCm && eCm.message.includes("forbidden"), eCm?.message ?? "通ってしまった");
+      const { error: eCs } = await staffS.rpc("set_comp_component", {
+        p_id: null, p_plan_id: planV2, p_kind: "guarantee_min", p_mode: "amount",
+        p_amount: 1000, p_rate: null, p_params: {}, p_priority: 100, p_is_active: true,
+      });
+      check("mig0115 staff forbidden", !!eCs && eCs.message.includes("forbidden"), eCs?.message ?? "通ってしまった");
+      // raise 網羅: bad kind / pair 違反（amount 欠落・rate 同時）/ bad params / 不明 plan forbidden
+      const base9 = { p_id: null, p_plan_id: planV2, p_kind: "guarantee_min", p_mode: "amount",
+        p_amount: 1000, p_rate: null, p_params: {}, p_priority: 100, p_is_active: true };
+      const { error: eK } = await owner.rpc("set_comp_component", { ...base9, p_kind: "point_rate" });
+      const { error: eA } = await owner.rpc("set_comp_component", { ...base9, p_amount: null });
+      const { error: eRt } = await owner.rpc("set_comp_component", { ...base9, p_rate: 40 });
+      const { error: ePm } = await owner.rpc("set_comp_component", { ...base9, p_params: null });
+      const { error: ePl } = await owner.rpc("set_comp_component", { ...base9, p_plan_id: randomUUID() });
+      check("mig0115 raise 網羅＝bad kind／pair2種／bad params／不明 plan forbidden",
+        !!eK && eK.message.includes("bad kind") && !!eA && eA.message.includes("bad amount")
+        && !!eRt && eRt.message.includes("bad rate") && !!ePm && ePm.message.includes("bad params")
+        && !!ePl && ePl.message.includes("forbidden"),
+        JSON.stringify([eK?.message, eA?.message, eRt?.message, ePm?.message, ePl?.message]));
+    } finally {
+      if (compId) await admin.from("comp_plan_components").delete().eq("id", compId);
+      if (planV2) await admin.from("comp_plans").delete().eq("id", planV2);
     }
   }
 
