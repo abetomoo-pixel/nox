@@ -2119,6 +2119,9 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
   T5 の「内税/外税/適用しない」同列3択の解体。`registered ⊂ taxable` は RPC ガード。
 - ★本裁定は**設計の収蔵とロックのみ**＝実装・migration は開始していない。mig C3-1 の前提実測は
   `docs/dp/survey_c3_lines.md`（同日実施）。
+- ★注記（2026-08-28・mig0111 突合時）: **`withholding_payments.tax_category` は既存の同名異義列**
+  （mig0075・源泉納付の税区分＝報酬/給与の別。0111 不触）。C3/C4 の `tax_category`
+  （消費税区分 taxable_10 系）を列名で検索すると必ず1行混ざる。**混同しないこと（教訓40 の実例）**。
 
 ---
 
