@@ -2017,6 +2017,22 @@ B1 のコミット時に `git add -A` を使い、**未追跡の `docs/tmp` / `m
 
 ---
 
+## 裁定85（2026-08-28・M-11b）操作担当PINタブの開放範囲＝owner に加え manager
+
+- **`/master/system` の「操作担当PIN」タブは owner に加え manager にも開放する**。
+- **根拠**＝当該タブが呼ぶ RPC 群の権限判定が **「owner ∨ manager（自店）」**である
+  （`staff_pin_status` は mig0108 で owner ∨ manager 自店を許可・`set_staff_pin` も従来から manager 自店可）。
+  **UI だけ owner 限定にすると RPC との整合が崩れる**。
+- **系（一般則）：表示範囲は RPC 権限と常に一致させる**。
+  UI だけ絞るのは「隠しただけ」で防御にならず（真の防御は RPC / RLS 側＝二重防御の原則）、
+  UI だけ開くのは RPC が弾く死んだ画面になる。**どちらもズレとして扱う**。
+- **同タブ内の非対称は許す**＝ロック閾値の保存（`set_store_pin_policy`）は
+  **mig0108 で `auth_role() <> 'owner'` 拒否**＝owner 限定のため、**パネル内で表示制御**する
+  （タブの可視と個々の操作の可視を別に判定する。粒度は RPC 単位）。
+- ★実装は **M-11b（commit b76db42）で先行**＝本裁定はその追認と一般則の明文化。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2205,6 +2221,9 @@ route map（`docs/dp/dp1_route_map.md`）の「あり」は**モックの区画�
 | 30 | **`biz_cutoff_hm` イディオムの分散** | 同一の `coalesce(nullif(trim(settings_json->>'biz_cutoff_hm'),''),'06:00')` が **live 14関数へインライン展開**（設計書 v1.2 §2 が「負債として台帳記録」と予告した箇所）。①`biz_minutes_of` への集約 ②**`check_open` が `pricing_resolve_core` を呼ばず帯解決を写経**している解消 ③**`reservation_is_closed_day` だけ不正値で `raise` せず `'06:00'` へ黙って戻す**非対称の解消。★TS 側にも**設定を読まない `"06:00"` ハードコード呼び出しが7箇所**（`notices-board:95` / `incentive-panel:30` / `shift-board:136` / `mine/notices:12` / `mine/page:27,36` / `mine/ranking:20`）＝起票#14 と対で扱う |
 | 31 | **/master/system の機能層（M-11b）** | ①端末の最終アクセス・IP（`kiosk_devices` に列なし・`kiosk_sessions.last_seen_at` はレジ端末のみ＋deny-all） ②PIN 失敗回数の表示・ロック閾値の設定化・90日更新・重複PIN検査（現行＝5回/15分ハードコード・`staff_pin` deny-all） ③PIN設定済み数を返す count RPC ④プリンタ最終接続・ONLINE 表示（ポーリング時刻を記録していない）・テスト印刷 ⑤プリンタ名列 ⑥KPI 要確認の集計。**①②③は launch 前候補・④⑤⑥は実機後** |
 | 32 | **/master/system KPI「登録端末」が端末数を読んでいなかった** | kiosk_devices deny-all のため「—」表示だった。**M-11 B-0 で解消**（owner のみ admin 経路で org 件数を表示・記録のみ） |
+| 33 | **rls F1e `check_void(check5)` の error assert 欠落** | `scripts/verify-nox-rls.ts:1946` が戻り error を見ずに捨てている。void が一過性で失敗すると **check5 が open のまま残置** → 直後の `daily_report_reclose` が `'open checks remain'` で落ち、**後続5本が凍結値 assert で連鎖赤**になる。**assert 1行で塞ぐ**（0108 起因ではない＝f0 連続実行フレークの型①） |
+| 34 | **rls F2b `read_cast_sensitive` カウントの exact 依存** | `verify-nox-rls.ts:1290`／`:1326` が `=== readBefore + 1` の**厳密一致**。`audit_logs` 側の遅延で**リトライが計上されると +2**、読み取りが追いつかないと **+0** に振れて赤。**範囲 assert（`>= +1`）か、リトライを計上しない経路**へ改める（型②） |
+| 35 | **payroll スイートの statement timeout 残置汚染** | `payroll` が statement timeout で異常終了すると **verify cast 17人が残置**され、次 run の **anon-guard 段35 を汚染**する（`teardown()` は冒頭 `:124` でも走るが**自スイートの中でしか効かない**＝ verify:f0 の並びが **anon-guard → payroll** のため次 run では anon-guard が先に当たる。段35 の `wipe35()` は `NOX-VERIFY-段35` **接頭辞の cast しか消さない**ので payroll 由来の残骸は素通りする）。**wipe 順序（冒頭で前回残骸を落とす）か timeout 設定**の見直し。★起票#6「原因は窓ではなく蓄積」と同系（型③） |
 
 ### 未裁定・消し込み待ち
 
