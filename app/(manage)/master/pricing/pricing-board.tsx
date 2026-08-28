@@ -42,6 +42,7 @@ export type PricingRule = {
   time_from_min: number | null; time_to_min: number | null; rank_id: string | null;
   amount: number; duration_min: number | null; priority: number; is_active: boolean; created_at: string;
   name: string | null;  // ★mig0107（P-1）: 表示名（任意・trim 済み 1〜40 文字・null=未設定）
+  tax_category: string; // ★mig0112（C3）: 税区分（enum 4値・NOT NULL default 'taxable_10'）
 };
 export type CastRank = { id: string; name: string; sort_order: number; is_active: boolean };
 // ★DP-R: 端数処理方法の表示語（pricing-panel の option と同語彙）
@@ -94,6 +95,7 @@ type Band = {
   priority: number;             // 代表 priority＝min
   allActive: boolean;
   name: string | null;          // ★mig0107: 代表 name＝帯内で最初に見つかった非 null（ruleOrder 順）
+  tax_category: string;         // ★mig0112: 代表税区分＝ruleOrder 順の最初の行（saveBand が3行へ同値を配る）
 };
 
 function bandKeyOf(r: PricingRule): string {
@@ -113,6 +115,7 @@ function bandsOf(rules: PricingRule[]): Band[] {
         key, seat_kind: r.seat_kind, dow_mask: r.dow_mask,
         from: r.time_from_min, to: r.time_to_min,
         cells: {}, all: [], extraCount: 0, priority: r.priority, allActive: true, name: null,
+        tax_category: r.tax_category ?? "taxable_10", // ★mig0112: 代表＝最初の行（?? は旧キャッシュ行の保険）
       };
       map.set(key, b);
     }
@@ -192,18 +195,21 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const nextPriority = (fk: string) =>
     rules.filter((r) => r.fee_kind === fk).reduce((mx, r) => Math.max(mx, r.priority), 0) + 1 || 100;
 
-  /** set_pricing_rule の12引数を組んで呼ぶ（原則7＝全値明示）。 */
+  /** set_pricing_rule の引数を組んで呼ぶ（原則7＝全値明示）。 */
   async function upsertRule(p: {
     id: string | null; fee_kind: string; seat_kind: string | null; dow_mask: number | null;
     from: number | null; to: number | null; rank_id: string | null;
     amount: number; duration_min: number | null; priority: number; is_active: boolean;
-    name?: string | null;  // ★mig0107: 省略＝送らない（12引数呼び＝DEFAULT NULL で解決）
+    name?: string | null;  // ★mig0107: 省略＝送らない（DEFAULT NULL で解決）
+    tax_category: string;  // ★mig0112（C3）: **必須＝常に明示送信**。省略すると update 経路で
+                           //   DEFAULT 'taxable_10' が効き既存 exempt 行が黙って課税へ戻る（原則7 の型）。
   }): Promise<string | null> {
     const { error } = await supabase.rpc("set_pricing_rule", {
       p_id: p.id, p_store_id: storeId, p_fee_kind: p.fee_kind, p_seat_kind: p.seat_kind,
       p_dow_mask: p.dow_mask, p_time_from_min: p.from, p_time_to_min: p.to,
       p_rank_id: p.rank_id, p_amount: p.amount, p_duration_min: p.duration_min,
       p_priority: p.priority, p_is_active: p.is_active,
+      p_tax_category: p.tax_category,
       // ★mig0107: name を持つ呼び出しだけ p_name を足す。指名料（saveRankRow）は渡さない＝null のまま。
       ...(p.name !== undefined ? { p_name: p.name } : {}),
     });
@@ -224,12 +230,13 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const [mDohan, setMDohan] = useState("");
   const [mActive, setMActive] = useState(true);
   const [mName, setMName] = useState("");   // ★mig0107（P-1）: 帯の表示名（任意・空＝null 送信）
+  const [mTax, setMTax] = useState("taxable_10"); // ★mig0112（C3）: 帯の税区分（UI 露出3値・taxable_8 は準備中＝裁定90-②）
   const [mErr, setMErr] = useState<string | null>(null);
 
   function openNewBand() {
     setEditKey(null); setMSeat(""); setMDays(Array(7).fill(true));
     setMFrom(""); setMTo(""); setMSetFee(""); setMSetMin(""); setMExtFee(""); setMExtMin("");
-    setMDohan(""); setMActive(true); setMName(""); setMErr(null); setModalOpen(true);
+    setMDohan(""); setMActive(true); setMName(""); setMTax("taxable_10"); setMErr(null); setModalOpen(true);
   }
   function openEditBand(b: Band) {
     setEditKey(b.key);
@@ -244,6 +251,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     setMDohan(b.cells.dohan ? String(b.cells.dohan.amount) : "");
     setMActive(b.allActive);
     setMName(b.name ?? "");
+    setMTax(b.tax_category); // ★mig0112: taxable_8 の既存行も値は保持して見せる（保存も同値なら無害）
     setMErr(null);
     setModalOpen(true);
   }
@@ -287,6 +295,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         // ★mig0107（P-1）: 1帯の最大3行（set/extension/dohan）へ同じ表示名を配る。
         //   bandKeyOf は不変＝名前で帯を分裂させない（帯の同一性は席種/曜日/時間帯のみで決まる）。
         name: mName.trim() === "" ? null : mName.trim(),
+        tax_category: mTax, // ★mig0112: 表示名と同じく3行へ同値を配る（bandKeyOf 不変＝税区分で帯を分裂させない）
       });
       if (err) { setMErr(`${fk === "set" ? "セット" : fk === "extension" ? "延長" : "同伴"}: ${err}`); setBusy(false); await reload(); return; }
     }
@@ -318,6 +327,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         id: r.id, fee_kind: r.fee_kind, seat_kind: r.seat_kind, dow_mask: r.dow_mask,
         from: r.time_from_min, to: r.time_to_min, rank_id: r.rank_id,
         amount: r.amount, duration_min: r.duration_min, priority: r.priority, is_active: !b.allActive,
+        tax_category: r.tax_category ?? "taxable_10", // ★mig0112: 既存値を明示再送（原則7）
       });
       if (err) { setMsg(err); setBusy(false); await reload(); return; }
     }
@@ -368,6 +378,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         //   優先はこの数値だけで決まる。★∧∨ の pricing_rule_reorder は TIMED_KINDS
         //   （set/extension/dohan）専用＝指名料の priority を 1..N へ振り直す経路は無い。
         priority: rankId === null ? 200 : 100, is_active: true,
+        tax_category: existing?.tax_category ?? "taxable_10", // ★mig0112: 既存値保持・新規は既定（指名料に税区分 UI は置かない）
       });
       if (err) { setMsg(err); setBusy(false); await reload(); return; }
     }
@@ -1136,6 +1147,17 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
               style={inputLg}
             />
             <span className="hint">一覧での見分け用です。料金の適用条件には影響しません（空欄可）。</span>
+          </div>
+
+          {/* ★mig0112（C3・裁定90-②）: 税区分。UI 露出は3値＝taxable_8 は enum に存在するが準備中
+              （複数税率レシートの完全対応＝F5 と同時に開放・解錠に mig 不要）。帯の3行へ同値が配られる。 */}
+          <div className="nox-field">
+            <span className="lab">税区分</span>
+            <SegSelect value={mTax} onChange={(v) => setMTax(v)}
+              options={[["taxable_10", "課税10%"], ["exempt", "非課税"], ["out_of_scope", "不課税"]] as const} />
+            <span className="hint">
+              通常の料金は課税10%です。非課税・不課税は取引の性質で決まる場合のみ選択してください（軽減税率8%は準備中）。
+            </span>
           </div>
 
           <div className="nox-field">
