@@ -2222,6 +2222,20 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
 
 ---
 
+## 裁定96（2026-08-28・C1/C2 挙動段）components 結線の仕様5点
+
+| # | 論点 | 確定 |
+|---|---|---|
+| ① | guarantee_min | **控除前総支給への月次床・差額補填**＝Σ（時給・バック・スライド・achievement 込みの総支給）が保証額未満なら差額を加算。控除（売掛/前借り/送り等）の前に判定する |
+| ② | achievement_bonus | 目標は **`cast_norms.sales_target` 固定**・実績は **`cast_sales_aggregate` の期間合計**。**target が 0 または行なしは不適用**（0除算・全員達成の事故を構造で封じる） |
+| ③ | 適用順 | **バック・歩合 → achievement_bonus（priority 順）→ guarantee_min（最後）→ 控除**＝保証はボーナス込み総額に床を張る |
+| ④ | 履歴 | `set_cast_plan` 4引数化（mig0116）＝null は現在行上書き（0114 同値）・指定日で履歴生成。**給与適用は「期間開始日時点で有効な行」＝期中変更は翌期から** |
+| ⑤ | golden | **components 空で 5931/125802 pin 不変が受け入れ条件**（既存 golden は動かさない）。components 付きの新 golden は**新規 assert 側**に立てる |
+
+- rate モードの components は挙動段 v2.0 では**明示スキップ**（'not implemented' 相当＝黙殺しない）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2428,6 +2442,7 @@ mig0004＝audit_log_write の service_role 残置と同型）。live の `check_
 | 35 | **payroll スイートの statement timeout 残置汚染** | `payroll` が statement timeout 等で異常終了すると `NOX-VERIFY-pay*` の cast が store A1 に active のまま残置され、次 run の **anon-guard 段35 を汚染**する（`teardown()` は冒頭 `:124` でも走るが**自スイートの中でしか効かない**＝ verify:f0 の並びが **anon-guard → payroll** のため次 run では anon-guard が先に当たる。段35 の `wipe35()` は `NOX-VERIFY-段35` **接頭辞の cast しか消さない**ので payroll 由来の残骸は素通りする）。★起票#6「原因は窓ではなく蓄積」と同系（型③）。**4e7a27c で解消**＝`teardown` の参照をモジュール層へ上げ **`main().catch()` から必ず呼ぶ**形にした（差分 +23/-1＝24行。本体を `try/finally` で包む案は 880 行の再インデントになるため不採用）。**汚染する具体点は `kiosk_cast_list` の `A1=2人` 固定カウント**（実測で特定）。逆張り＝fixture 作成後に中断を注入し、**旧実装では A1 active cast が 2→11・段35 が 11行で赤**、**新実装では「異常終了後の teardown 完了」を出して 2 に戻り段35 緑（984）**を実測。★**案b（段35 の wipe を `NOX-VERIFY-` 全体へ拡張）は不採用**＝実店舗データに当該接頭辞は 0件だが、**他スイートの常設 fixture が 16件（seats 14・comp_plans 2）生存**しており巻き込むため |
 | 36 | **RT レーン: データ種別別 retention の実装** | 裁定88 の実装本体。retention 列群・削除/匿名化バッチ・法定期間ロック・店舗ポリシー UI。着手時期は別途裁定（launch 前必須かは要判断） |
 | 37 | **売掛4段分割の実装** | 裁定89 の実装本体。cast_liability / settlement_request の器と経路分割。R-2b/F2e 系との統合設計が必要。着手は R-2b 以降 |
+| 38 | **待遇 UI のモック収斂** | 挙動段完了後、`plan.html` composer／`nox-cast-compensation-all-in-one.html` へ**段階収斂**する最終レーン。**canonical はモック側**＝裁定95 の「縮退版」を解消（5方式 composer・kind 追加＝point_rate/profit_share 系・履歴 UI 含む）。着手は C1/C2 挙動段の後 |
 
 ### 未裁定・消し込み待ち
 
