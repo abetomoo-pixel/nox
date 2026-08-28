@@ -313,6 +313,76 @@ eq("T11 空 weights は空配列", allocateQty(3, []), []);
 // castPts の確認（玲奈: 48*3+30+12*2+110 = 308）も含める
 eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
 
+// ── ★C1/C2 挙動段（裁定96・mig0114/0115）: components 結線の純関数 assert ──
+//   受け入れ条件（⑤）: components 空は上の玲奈 golden が既に証明（5931/125802 pin 無更新）。
+{
+  const basePlan: CompPlan = {
+    id: "p", name: "comp-test", base: 0, honBack: 0, jonaiBack: 0, dohanBack: 0,
+    salesSlide: [], pointSlide: [],
+  };
+  const baseInput = {
+    cast: { hon: 0, jonai: 0, dohan: 0, days: 1, sales: 100_000 },
+    daily: [{ d: 1, hours: 10, sales: 100_000 }],
+    plan: basePlan,
+    productBack: { drink: 0, champ: 0, bottle: 0 },
+    pointProducts: 0,
+    customBackDefs: [],
+    deductions: [],
+    penalty: { fineAbsent: 0, fineLate: 0, hoursPerShift: 8 },
+    normConfig: { on: false, daysFlat: 0, daysPer: 0, dohanFlat: 0, dohanPer: 0 },
+    norm: { days: 0, dohan: 0 },
+    fine: { absentN: 0, lateN: 0 },
+    arDeduct: 0, advanceDeduct: 0, okuriDeduct: 0,
+    periodDays: 31, extrasTotal: 0, taxMode: "委託" as const,
+    salesBackTable: [], // 既定テーブルの売上バック（3%）を殺し、判定値を components だけにする
+  };
+  // base=0 なので timePay=0・バック 0 ＝ grossBase 0 の素の器（判定値が components だけで決まる）
+  const g0 = payOf({ ...baseInput, plan: basePlan });
+  eq("C96 components 空＝加算 0（achievementBonus）", g0.achievementBonus, 0);
+  eq("C96 components 空＝加算 0（guaranteeAdd）", g0.guaranteeAdd, 0);
+
+  const G = (amount: number): CompPlan => ({ ...basePlan, components: [
+    { kind: "guarantee_min", mode: "amount", amount, rate: null, params: { period: "month" }, priority: 100 },
+  ] });
+  // guarantee 発動（grossBase 0 < 120000 → 差額 120000）
+  const gOn = payOf({ ...baseInput, plan: G(120_000) });
+  eq("C96 ★guarantee 発動＝差額補填（add=120000・gross=120000）", gOn.guaranteeAdd, 120_000);
+  eq("C96 guarantee は控除前総支給＝源泉は床適用後の gross から", gOn.gross, 120_000);
+  // 非発動境界（gross ちょうど＝加算 0）: base スライドで grossBase を作るのは重いので extras で作る
+  const gEdge = payOf({ ...baseInput, extrasTotal: 120_000, plan: G(120_000) });
+  eq("C96 guarantee 非発動境界（gross==保証 → add 0）", gEdge.guaranteeAdd, 0);
+
+  const AB = (target: never[] | null, amount: number): CompPlan => ({ ...basePlan, components: [
+    { kind: "achievement_bonus", mode: "amount", amount, rate: null,
+      params: { thresholds: [{ pct: 100, add: amount }] }, priority: 90 },
+  ] });
+  // 達成（sales 100000 >= target 80000）／未達（target 150000）／target 0 不適用
+  eq("C96 ★achievement 達成＝加算", payOf({ ...baseInput, salesTarget: 80_000, plan: AB(null, 30_000) }).achievementBonus, 30_000);
+  eq("C96 achievement 未達＝0", payOf({ ...baseInput, salesTarget: 150_000, plan: AB(null, 30_000) }).achievementBonus, 0);
+  eq("C96 ★target 0/なしは不適用（sales があっても 0）", payOf({ ...baseInput, salesTarget: 0, plan: AB(null, 30_000) }).achievementBonus, 0);
+
+  // ★適用順の直接判別: 保証 100000・bonus 30000・extras 80000。
+  //   bonus 込み総額 110000 >= 100000 → guarantee add=0（=bonus 後判定でしか出ない値。
+  //   もし bonus 前に床を張る誤実装なら add=20000・gross=130000 になる）
+  const order = payOf({ ...baseInput, extrasTotal: 80_000, salesTarget: 80_000, plan: {
+    ...basePlan, components: [
+      { kind: "achievement_bonus", mode: "amount", amount: 30_000, rate: null, params: { thresholds: [{ pct: 100, add: 30_000 }] }, priority: 90 },
+      { kind: "guarantee_min", mode: "amount", amount: 100_000, rate: null, params: { period: "month" }, priority: 100 },
+    ],
+  } });
+  eq("C96 ★適用順＝guarantee はボーナス込み総額に床（add 0・gross=110000）", order.gross, 110_000);
+  eq("C96 適用順の直接判別（guaranteeAdd=0）", order.guaranteeAdd, 0);
+
+  // rate モードは明示スキップ（黙殺しない）・is_active=false は除外
+  const skip = payOf({ ...baseInput, plan: { ...basePlan, components: [
+    { kind: "guarantee_min", mode: "rate", amount: null, rate: 50, params: {}, priority: 100 },
+    { kind: "guarantee_min", mode: "amount", amount: 90_000, rate: null, params: {}, priority: 110, is_active: false },
+  ] } });
+  eq("C96 ★rate モードは compSkipped に記録（金額へは不算入）", JSON.stringify(skip.compSkipped), JSON.stringify(["guarantee_min:rate"]));
+  eq("C96 is_active=false は除外（guaranteeAdd 0）", skip.guaranteeAdd, 0);
+}
+
+
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);

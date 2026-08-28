@@ -363,6 +363,63 @@ async function main() {
     }
   }
 
+  // ── ★mig0116（裁定96-④）: set_cast_plan 4引数＝履歴生成と適用行選択の実セッション検証 ──
+  //   fixture は mig0114 段と同型（段内で作り段内で消す・teardown は保険）。
+  {
+    const cph = await mkCast("NOX-VERIFY-payCP1", true); // 名は CAST_NAMES[22]＝teardown 対象
+    const planH1 = await mkPlan(PLANS[2], storeA1Id);    // NOX-VERIFY-payPlanCP（0114 段は既に自消済み）
+    try {
+      // null 経路＝0114 と同値（現在行の上書き・行1・id 不変）
+      const { error: eN0 } = await owner.rpc("set_cast_plan", { p_cast_id: cph, p_plan_id: planH1, p_overrides: {}, p_valid_from: null });
+      const { data: r0 } = await admin.from("cast_plan").select("id, valid_from, valid_to").eq("cast_id", cph);
+      const rowId0 = r0?.[0]?.id as string;
+      const { error: eN1 } = await owner.rpc("set_cast_plan", { p_cast_id: cph, p_plan_id: planH1, p_overrides: { base: 6000 }, p_valid_from: null });
+      const { data: r1 } = await admin.from("cast_plan").select("id, overrides_json").eq("cast_id", cph);
+      check("mig0116 ★null 経路＝0114 同値（上書き・行1・id 不変）",
+        !eN0 && !eN1 && (r1 ?? []).length === 1 && r1![0].id === rowId0
+        && (r1![0].overrides_json as Record<string, unknown>).base === 6000,
+        eN0?.message ?? eN1?.message ?? JSON.stringify(r1));
+      // 過去日拒否
+      const { error: ePast } = await owner.rpc("set_cast_plan", { p_cast_id: cph, p_plan_id: planH1, p_overrides: {}, p_valid_from: "2020-01-01" });
+      check("mig0116 ★過去日は 'bad valid_from'", !!ePast && ePast.message.includes("bad valid_from"), ePast?.message ?? "通ってしまった");
+      // 現在行 valid_from 以前（同日）拒否
+      const curFrom = (r0?.[0]?.valid_from as string);
+      const { error: eSame } = await owner.rpc("set_cast_plan", { p_cast_id: cph, p_plan_id: planH1, p_overrides: {}, p_valid_from: curFrom });
+      check("mig0116 現在行 valid_from 以前（同日含む）は 'bad valid_from'",
+        !!eSame && eSame.message.includes("bad valid_from"), eSame?.message ?? "通ってしまった");
+      // 履歴生成: 翌月1日で切替 → 旧行 valid_to=前日・新行 open・計2行
+      const nextMonth = new Date();
+      nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 2, 1); // 確実に未来の月初（今日が月初でも安全側）
+      const nm = nextMonth.toISOString().slice(0, 10);
+      const planH2 = await mkPlan("NOX-VERIFY-payPlanCP2b", storeA1Id);
+      const { error: eHist } = await owner.rpc("set_cast_plan", { p_cast_id: cph, p_plan_id: planH2, p_overrides: {}, p_valid_from: nm });
+      const { data: r2 } = await admin.from("cast_plan").select("plan_id, valid_from, valid_to").eq("cast_id", cph).order("valid_from");
+      const prevDay = new Date(nextMonth.getTime() - 86400_000).toISOString().slice(0, 10);
+      check("mig0116 ★履歴生成＝旧行を valid_from-1 で閉じ新行を開く（計2行）",
+        !eHist && (r2 ?? []).length === 2
+        && r2![0].plan_id === planH1 && r2![0].valid_to === prevDay
+        && r2![1].plan_id === planH2 && r2![1].valid_from === nm && r2![1].valid_to === null,
+        eHist?.message ?? JSON.stringify(r2));
+      // ★適用行選択（collect.ts と同一 filter の直接実測）: 当期（今日を含む期）は旧 plan・翌々月は新 plan
+      const pick = async (periodStart: string) => {
+        const { data } = await admin.from("cast_plan").select("plan_id").eq("cast_id", cph)
+          .lte("valid_from", periodStart).or(`valid_to.is.null,valid_to.gte.${periodStart}`);
+        return (data ?? []).map((x) => x.plan_id as string);
+      };
+      const today = new Date().toISOString().slice(0, 10);
+      const cur = await pick(today);        // 当期＝旧行（期中変更は当期に効かない）
+      const next = await pick(nm);          // 切替日以降の期＝新行
+      check("mig0116 ★期中変更は当期に効かず（当期選択=旧 plan のみ）翌期に効く（=新 plan のみ）",
+        cur.length === 1 && cur[0] === planH1 && next.length === 1 && next[0] === planH2,
+        JSON.stringify({ cur, next }));
+      await admin.from("comp_plans").delete().eq("id", planH2);
+    } finally {
+      await admin.from("cast_plan").delete().eq("cast_id", cph);
+      await admin.from("casts").delete().eq("id", cph);
+      await admin.from("comp_plans").delete().in("name", ["NOX-VERIFY-payPlanCP", "NOX-VERIFY-payPlanCP2b"]);
+    }
+  }
+
   // ── #32 出勤インセンティブ 係留用 seed（store A1・period 2026-11 隔離）──
   const i1 = await mkCast(CAST_NAMES[6], true);
   const i2 = await mkCast(CAST_NAMES[7], true);
