@@ -701,6 +701,14 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
         </section>
       )}
 
+      {/* U-1（裁定99-①⑦⑧）: 下段2枚＝「支払・明細」「税務・出力」。各区画の中身・呼び出し経路・権限・
+          無効化条件は現行のまま＝配置とグループ見出しのみの移設。LINE 明細公開は出さない（T3 後送り維持）。 */}
+      {/* ── 下段1: 支払・明細（4段目ステップの実体＝支払記録。明細プレビューは右パネル/下の印刷＝PayslipSlip） ── */}
+      <h2 style={{ ...t.cardTitle, fontSize: 15, margin: "18px 0 6px" }}>支払・明細</h2>
+      {storeId && <PaymentPanel storeId={storeId} period={period} />}
+
+      {/* ── 下段2: 税務・出力（CSV／一括PDF／インボイス集計／納付管理＝裁定99-⑧） ── */}
+      <h2 style={{ ...t.cardTitle, fontSize: 15, margin: "18px 0 6px" }}>税務・出力</h2>
       {/* D3 給与明細CSV（確定済み run のみ活性・全cast の支給/控除/差引・振込フォーマットではない＝口座なし）。
           支払調書CSV（invoice-panel＝源泉/インボイス・委託のみ・暦年）とは別物。 */}
       {storeId && (
@@ -765,9 +773,6 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
           )}
         </section>
       )}
-
-      {/* 確定済み給与の支払記録（選択中の店舗・期間に対して） */}
-      {storeId && <PaymentPanel storeId={storeId} period={period} />}
 
       {/* F2d インボイス・支払調書（税区分管理＋支払調書CSV・源泉計算には非接触） */}
       {storeId && <InvoicePanel storeId={storeId} period={period} isOwner={isOwner} />}
