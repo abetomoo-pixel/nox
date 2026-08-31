@@ -2319,6 +2319,22 @@ comp_plan_components を先に削除」を追加**して先回りで塞いだ（
 
 ---
 
+## 裁定100（2026-08-31・R-2b）キャスト別指名種別・同伴の別軸化＝裁定74 の実装仕様 — 実機: 未
+
+**逐語の正本＝`docs/NOX_R2b設計書v1.md` §1**（底本 sha256 `c29add11…e0d8f5`・5,614 bytes）。要旨:
+
+| 面 | 確定 |
+|---|---|
+| A 器（mig0118・挙動ゼロ） | `check_nominations` に `nom_kind`（hon/jonai/free・default free）＋`is_dohan boolean`（別軸＝同一 cast に hon∧dohan 可）。backfill＝親 nom_type をキャスト別へ1バイト同値写像（dohan→free+is_dohan）。unique(check_id,cast_id)・指名料行の partial unique（二重押し禁止＝起票#18）・`fee_kind='dohan' → cast_id 必須` CHECK **NOT VALID**・`stores.dohan_auto_hon`（裁定75 実列）。**nom_type は派生サマリとして温存**（撤去は R-2c 別裁定） |
+| B RPC（mig0119・live 逐語底本必須） | `check_set_nominations`＝jsonb[{cast_id,weight,nom_kind,is_dohan}] へ（旧署名 DROP）・free 昇格は dohan_auto_hon∧is_dohan∧free→hon のみ／`check_dohan_add`＝cast 必須（'cast required'）／`get_cast_sales`＝nom_kind/is_dohan からキャスト別に数える／`check_close`＝名簿の行ごとに積む（pt は nom_kind='hon' のみ）。**dohan rate ガードは外さない**（裁定76） |
+| C/D 鏡・UI | 鏡＝check_close/get_cast_sales/collect+pay/register-board（check-calc・receipt 不触）。UI＝キャスト行ごとに種別＋同伴チェック＋重み・課金ボタンを行へ紐づけ |
+| E 受け入れ | golden 6値不変・f0 2連緑・新スイート verify-nox-r2b 8観点＋全逆張り・名簿 A/B 収載（教訓21）・実機（2 cast 本指名+同伴→締め→給与で各自に本数） |
+| F 段取り | 段0 live 逐語（Fable 5）→0118→手貼り→f0 不変→0119→手貼り→TS/UI/verify→逆張り→f0 2連→push。**Fable 5 継続（money 直撃）** |
+
+- 裁定(g)（1伝票1 nom_type・モック準拠）を**明示的に上書き**。段0 live 逐語＝`docs/tmp/live_r2b.sql`。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2528,6 +2544,7 @@ mig0004＝audit_log_write の service_role 残置と同型）。live の `check_
 | 38 | **待遇 UI のモック収斂** | 挙動段完了後、`plan.html` composer／`nox-cast-compensation-canonical.html`（2026-08-31 に canonical v2 へ差替＝旧 all-in-one）へ**段階収斂**する最終レーン。**canonical はモック側**＝裁定95 の「縮退版」を解消（5方式 composer・kind 追加＝point_rate/profit_share 系・履歴 UI 含む）。着手は C1/C2 挙動段の後 |
 | 39 | **初期設定ウィザード（OB レーン）** | モック `mock/onboarding-2026-08/`（**15 html**＝step1＋業態別 step1×5（追加受領・全 sha 相異）／業態別 step2×5／step3 待遇9カテゴリ／step4 会計・レジ／step5／done・script なし・Unicode escape なし）を収蔵。前提実測済み: stores に住所/業態/onboarding 列なし・**店作成 RPC なし**（seed の admin insert のみ）・会計方式（卓/個別/併用）のフラグなし＝器の設計から。step3 9カテゴリ↔既存の器の対応表は 2026-08-31 調査報告に収載 |
 | 40 | **給与画面のモック収斂（U-1）** | **裁定18 の「段D payroll 対象外」を裁定99 で解除**。正本＝`nox-payroll-management.html`（構造の正本・配色は現行トークン）。設計書＝`docs/NOX_U1給与収斂設計書v1.md`・実装順と完了条件（f0 2連緑＋CC スクショ＋Agoora 実機の3点）は裁定99 ⑨⑩。**進捗（2026-08-31）: 段①〜④実装済み**（DOM/console 検収済み・スクショはペイン表示待ち・**残＝CC スクショ追補と Agoora 実機 OK と v2 モック差替**） |
+| 41 | **レジモック v2 追随（R-2b 後）** | `nox-register-pos.html` の「指名の分配率」カードは**卓単位の指名区分**（内部 JS も `t.shareType` 単一値）＝裁定100 のキャスト別種別（行ごとに 種別＋同伴チェック＋重み）を表現できない。R-2b 実装後にモック v2 を受領し差替（裁定91 の canonical 維持手順で README 更新） |
 ### 未裁定・消し込み待ち
 
 - **P-4 の5裁定点（引き継ぎ v14 §5）**は、**`pricing_rules` 既実装（mig0083）に照らして
