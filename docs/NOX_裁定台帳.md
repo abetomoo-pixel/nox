@@ -2258,7 +2258,10 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
 
 ---
 
-## 裁定98（2026-08-31・C1-3）sanction 二層ガードの結線（mig0117）
+## 裁定98（2026-08-31・C1-3）sanction 二層ガードの結線（mig0117）— 実機: Agoora済
+<!-- 実機OK 2026-08-31 15:26（制裁登録→一覧に種別/根拠確認日を確認）。テスト行「テスト罰金」（CLUB NOX）は
+     同日 demo-manager の set_deduction 経由で is_active=false 化（削除しない・basis_note に無効化事由を記録）。 -->
+
 
 | # | 面 | 確定 |
 |---|---|---|
