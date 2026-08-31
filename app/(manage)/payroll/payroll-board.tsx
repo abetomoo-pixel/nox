@@ -426,24 +426,27 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
               {sum4 && <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{sum4.n} 名</span>}
             </div>
           )}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "8px 0 10px" }}>
+          {/* U-1 是正D: 4ステップ＝モックの4カード（番号・タイトル・補足1行・現在位置を金枠で強調） */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, margin: "8px 0 8px" }}>
             {STEPS.map(([label, sub], i) => {
               const done = i < stage;
               const active = i === stage;
               return (
-                <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <span style={{
-                    fontSize: 11.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999,
-                    border: `1px solid ${done || active ? "var(--gold)" : "var(--line2)"}`,
-                    color: done || active ? "var(--champ)" : "var(--sub)",
-                    background: active ? "var(--goldface)" : "transparent",
-                  }} title={sub}>{done ? "✓" : i + 1} {label}</span>
-                  {i < 3 && <span style={{ color: "var(--sub)", fontSize: 11 }}>→</span>}
-                </span>
+                <div key={label} style={{
+                  padding: "8px 11px", borderRadius: 9,
+                  border: `1px solid ${active ? "var(--gold)" : done ? "var(--line)" : "var(--line2)"}`,
+                  background: active ? "var(--goldface)" : "var(--card2)",
+                  opacity: done || active ? 1 : 0.75,
+                }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: done || active ? "var(--champ)" : "var(--sub)" }}>
+                    {done ? "✓" : i + 1} {label}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "var(--sub)", marginTop: 2 }}>{sub}</div>
+                </div>
               );
             })}
-            <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{next}</span>
           </div>
+          <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "0 0 10px" }}>{next}</p>
 
           {/* KPI 4枚（裁定99-③）: 支給総額／控除合計／差引支給額／未支払。
               確定期＝凍結値 Σ（定義は D3 CSV の payrollCsvCells と逐語同一）・draft 期＝rows の表示層合算（参考値）。
