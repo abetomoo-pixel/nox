@@ -51,12 +51,14 @@ const CAST_NAMES = [
   "NOX-VERIFY-payORD", "NOX-VERIFY-payAD1", "NOX-VERIFY-payOK1", "NOX-VERIFY-payBW", "NOX-VERIFY-payALL", // F2e-2 前借り/送り
   "NOX-VERIFY-payReopen", // D1 給与確定解除 reopen サイクル段
   "NOX-VERIFY-payCP1", "NOX-VERIFY-payCP2", // mig0114 set_cast_plan 同値検証（段内で即消し・teardown は保険）
+  "NOX-VERIFY-pay97A", "NOX-VERIFY-pay97B", "NOX-VERIFY-pay97C", "NOX-VERIFY-pay97D", // 裁定97 適用行フォールバック（段内で即消し・teardown は保険）
 ];
 const AR_PERIODS = ["2027-01", "2027-03", "2027-05"]; // F2e-1 隔離 period
 const F2E2_PERIODS = ["2027-07", "2027-08", "2027-09", "2027-11", "2027-12"]; // F2e-2 隔離 period（前借り/送り）
 const REOPEN_PERIODS = ["2029-01"]; // D1 reopen サイクル段 隔離 period
 const SEATS = ["NOX-VERIFY-paySeat", "NOX-VERIFY-paySeat2"];
-const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2", "NOX-VERIFY-payPlanCP", "NOX-VERIFY-payPlanV2", "NOX-VERIFY-payPlanV2b"]; // 3本目=mig0114 段・4/5本目=mig0115 段
+const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2", "NOX-VERIFY-payPlanCP", "NOX-VERIFY-payPlanV2", "NOX-VERIFY-payPlanV2b",
+  "NOX-VERIFY-payPlan97A1", "NOX-VERIFY-payPlan97A2", "NOX-VERIFY-payPlan97B", "NOX-VERIFY-payPlan97C", "NOX-VERIFY-payPlan97D"]; // 3本目=mig0114 段・4/5本目=mig0115 段・97* =裁定97 段
 
 // ★起票#35: 異常終了時にも teardown を走らせるための参照。
 //   本スイートは fixture 作成が `data!.id` の非 null 断言に依存するため、statement timeout 等で
@@ -129,6 +131,10 @@ async function main() {
       await admin.from("casts").delete().in("id", castIds);
     }
     if (seatIds.length) await admin.from("seats").delete().in("id", seatIds);
+    // 裁定97 段の planB は components を持つ＝FK 先を先に消さないと plan 削除が黙って失敗し残置される（起票#35 と同型の予防）
+    const { data: pls } = await admin.from("comp_plans").select("id").in("name", PLANS);
+    const planIds = (pls ?? []).map((r) => r.id as string);
+    if (planIds.length) await admin.from("comp_plan_components").delete().in("plan_id", planIds);
     await admin.from("comp_plans").delete().in("name", PLANS);
     // #32 incentive（2026-11 隔離）
     await admin.from("attendance_incentives").delete().eq("store_id", storeA1Id).gte("biz_date", "2026-11-01").lte("biz_date", "2026-11-30");
@@ -417,6 +423,122 @@ async function main() {
       await admin.from("cast_plan").delete().eq("cast_id", cph);
       await admin.from("casts").delete().eq("id", cph);
       await admin.from("comp_plans").delete().in("name", ["NOX-VERIFY-payPlanCP", "NOX-VERIFY-payPlanCP2b"]);
+    }
+  }
+
+  // ── ★裁定97: collect 適用行の3段フォールバック（期首行→期間内最早→no_plan）の実測 ──
+  //   fixture は set_cast_plan（4引数・実 owner セッション）で作る＝履歴生成経路そのもの。
+  //   period は動的（今日+3年・同月）＝固定 period 群（2026/2027/2029-01）と衝突せず時限装置化もしない。
+  //   段内で作り段内で消す（teardown は保険）。
+  {
+    const nowD = new Date();
+    const y97 = nowD.getUTCFullYear() + 3;
+    const mIdx = nowD.getUTCMonth(); // 0-11
+    const P97 = `${y97}-${String(mIdx + 1).padStart(2, "0")}`;
+    const P97nextStart = mIdx === 11 ? `${y97 + 1}-01-01` : `${y97}-${String(mIdx + 2).padStart(2, "0")}-01`;
+    let cA: string | null = null, cB: string | null = null, cC: string | null = null, cD: string | null = null;
+    let planA1: string | null = null, planA2: string | null = null, planB97: string | null = null, planC97: string | null = null, planD97: string | null = null;
+    let chkB: string | null = null;
+    try {
+      cA = await mkCast("NOX-VERIFY-pay97A", true);
+      cB = await mkCast("NOX-VERIFY-pay97B", true);
+      cC = await mkCast("NOX-VERIFY-pay97C", true);
+      cD = await mkCast("NOX-VERIFY-pay97D", true);
+      planA1 = await mkPlan("NOX-VERIFY-payPlan97A1", storeA1Id);
+      planA2 = await mkPlan("NOX-VERIFY-payPlan97A2", storeA1Id);
+      planB97 = await mkPlan("NOX-VERIFY-payPlan97B", storeA1Id);
+      planC97 = await mkPlan("NOX-VERIFY-payPlan97C", storeA1Id);
+      planD97 = await mkPlan("NOX-VERIFY-payPlan97D", storeA1Id);
+      for (const cid of [cA, cB, cC, cD]) {
+        await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, mode: "委託" });
+      }
+      // A: 期首行（今日〜）＋期中行（P97-15〜）＝set_cast_plan の履歴生成で作る
+      const { error: eA1 } = await owner.rpc("set_cast_plan", { p_cast_id: cA, p_plan_id: planA1, p_overrides: {}, p_valid_from: null });
+      const { error: eA2 } = await owner.rpc("set_cast_plan", { p_cast_id: cA, p_plan_id: planA2, p_overrides: {}, p_valid_from: `${P97}-15` });
+      check("裁定97 fixture A: 履歴生成2回が成功（期首行＋期中行）", !eA1 && !eA2, eA1?.message ?? eA2?.message);
+      // B: 期首行なし・期中割当のみ（現在行なし→新行のみの経路）＋components（guarantee/achievement）
+      const { error: eB1 } = await owner.rpc("set_cast_plan", { p_cast_id: cB, p_plan_id: planB97, p_overrides: {}, p_valid_from: `${P97}-10` });
+      const { error: eB2 } = await owner.rpc("set_comp_component", {
+        p_id: null, p_plan_id: planB97, p_kind: "achievement_bonus", p_mode: "amount",
+        p_amount: 3333, p_rate: null, p_params: { thresholds: [{ pct: 100 }] }, p_priority: 90, p_is_active: true,
+      });
+      const { error: eB3 } = await owner.rpc("set_comp_component", {
+        p_id: null, p_plan_id: planB97, p_kind: "guarantee_min", p_mode: "amount",
+        p_amount: 88888, p_rate: null, p_params: { unit: "day" }, p_priority: 100, p_is_active: true,
+      });
+      check("裁定97 fixture B: 期中割当＋components 2本が成功", !eB1 && !eB2 && !eB3,
+        eB1?.message ?? eB2?.message ?? eB3?.message);
+      await admin.from("cast_norms").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cB, period: P97, days_target: 0, dohan_target: 0, sales_target: 10000 });
+      // C: backfill 型（期首より後の現在行のみ・valid_to null）
+      const { error: eC97 } = await owner.rpc("set_cast_plan", { p_cast_id: cC, p_plan_id: planC97, p_overrides: {}, p_valid_from: `${P97}-05` });
+      // D: 翌期行のみ（期間内に行なし）
+      const { error: eD97 } = await owner.rpc("set_cast_plan", { p_cast_id: cD, p_plan_id: planD97, p_overrides: {}, p_valid_from: P97nextStart });
+      check("裁定97 fixture C/D: backfill 行・翌期行が成功", !eC97 && !eD97, eC97?.message ?? eD97?.message);
+      // 稼働（対象 cast 列挙に乗せる）: A/C/D=punch・B=sales（伝票）
+      await mkPunchDay(cA, `${P97}-05`, `${P97}-06`);
+      await mkPunchDay(cC, `${P97}-06`, `${P97}-07`);
+      await mkPunchDay(cD, `${P97}-07`, `${P97}-08`);
+      chkB = await mkCheck(storeA1Id, seatId, `${P97}-10T22:00:00+09:00`, cB, [{ kind: "set", unit: 10000, qty: 1 }]);
+
+      const win97 = await resolvePayrollWindow(admin, storeA1Id, P97);
+      const col97 = await collectPeriod(admin, manager, storeA1Id, win97);
+      check("裁定97 zero-result ガード: 対象 cast は A/B/C/D の4人ちょうど", col97.casts.length === 4,
+        JSON.stringify(col97.casts.map((c) => c.castName)));
+      const rawA = col97.casts.find((c) => c.castId === cA);
+      const rawB = col97.casts.find((c) => c.castId === cB);
+      const rawC = col97.casts.find((c) => c.castId === cC);
+      const rawD = col97.casts.find((c) => c.castId === cD);
+      // A) 期首行あり＋期中行あり → 期首行（96-④ 不変の回帰）
+      check("裁定97-A ★期首行＋期中行→期首行が適用（96-④ 不変）", !!rawA && rawA.plan?.id === planA1 && rawA.plan?.id !== planA2,
+        JSON.stringify({ got: rawA?.plan?.id, wantA1: planA1, notA2: planA2 }));
+      // B) 期首行なし・期中割当のみ → 期中行が適用＋components が計算に出る
+      check("裁定97-B ★期首行なし→期間内最早の期中行が適用", !!rawB && rawB.plan?.id === planB97,
+        JSON.stringify({ got: rawB?.plan?.id, want: planB97 }));
+      const draft97 = await computePayrollDraft(admin, manager, storeA1Id, P97, { previewDefaults: true });
+      const dB = draft97.rows.find((r) => r.castId === cB);
+      check("裁定97-B ★期中行の components が計算に出る（achievement 3333・guarantee 床=gross 88888）",
+        !!dB && dB.pay.achievementBonus === 3333 && dB.pay.guaranteeAdd > 0 && dB.pay.gross === 88888,
+        JSON.stringify({ achv: dB?.pay.achievementBonus, guar: dB?.pay.guaranteeAdd, gross: dB?.pay.gross }));
+      // C) backfill 型 → その行が適用＝現在行計算と同値（本番 0116 適用月の救済＝手貼りリスト注記の根拠）
+      const { data: curC } = await admin.from("cast_plan").select("plan_id").eq("cast_id", cC).is("valid_to", null).single();
+      check("裁定97-C ★backfill 型（期首後の現在行のみ）→その行が適用＝現在行と同値", !!rawC && rawC.plan?.id === planC97 && curC?.plan_id === planC97,
+        JSON.stringify({ got: rawC?.plan?.id, want: planC97, cur: curC?.plan_id }));
+      // D) 期首なし・期間内なし（翌期行のみ）→ no_plan blocker
+      const blkD = draft97.blockers.find((b) => b.castId === cD && b.reason === "no_plan");
+      check("裁定97-D ★翌期行のみ→plan null＋no_plan blocker・行は出ない",
+        !!rawD && rawD.plan === null && !!blkD && !draft97.rows.find((r) => r.castId === cD),
+        JSON.stringify({ plan: rawD?.plan, blockers: draft97.blockers }));
+      check("裁定97 A/B/C は blocker にならない（no_plan は D のみ）",
+        !draft97.blockers.some((b) => [cA, cB, cC].includes(b.castId)), JSON.stringify(draft97.blockers));
+      // ★逆張り（データ）: 期首時点の有効行を admin 直 insert で2本にする → collect が throw（黙って片方を採らない）
+      await admin.from("cast_plan").insert({
+        cast_id: cA, org_id: orgAId, store_id: storeA1Id, plan_id: planA2,
+        overrides_json: {}, valid_from: "2020-01-01", valid_to: `${P97}-20`,
+      });
+      let thrown97: string | null = null;
+      try {
+        await collectPeriod(admin, manager, storeA1Id, win97);
+      } catch (e) {
+        thrown97 = (e as Error).message;
+      }
+      check("裁定97 ★期首有効行が2本（不正データ）なら throw", !!thrown97 && thrown97.includes("期首時点の有効行が複数"),
+        thrown97 ?? "通ってしまった");
+      await admin.from("cast_plan").delete().eq("cast_id", cA).eq("valid_from", "2020-01-01");
+    } finally {
+      if (chkB) {
+        for (const t of ["check_cast_backs", "check_nominations", "check_lines"]) await admin.from(t).delete().eq("check_id", chkB);
+        await admin.from("checks").delete().eq("id", chkB);
+      }
+      const ids97 = [cA, cB, cC, cD].filter((x): x is string => !!x);
+      if (ids97.length) {
+        for (const t of ["punches", "shifts", "cast_plan", "cast_tax_profiles", "cast_norms"]) await admin.from(t).delete().in("cast_id", ids97);
+        await admin.from("casts").delete().in("id", ids97);
+      }
+      const pl97 = [planA1, planA2, planB97, planC97, planD97].filter((x): x is string => !!x);
+      if (pl97.length) {
+        await admin.from("comp_plan_components").delete().in("plan_id", pl97);
+        await admin.from("comp_plans").delete().in("id", pl97);
+      }
     }
   }
 
