@@ -2127,17 +2127,68 @@ async function main() {
       && nRow?.sales_target === 1_000_000 && nRow?.shimei_target === 10, JSON.stringify(nRow));
     check("F2a set_cast_norm audit +1", (await oAudit("set_cast_norm")) === scn0 + 1);
 
-    // ⑦ set_deduction 成功経路（audit +1）
+    // ⑦ set_deduction 成功経路（audit +1）★mig0117: 9引数化（非 sanction は 'agreed_cost', false, null）
     const { data: exD } = await m.from("deductions").select("id").eq("store_id", storeA1Id).eq("name", "NOX-VERIFY-送り代");
     const sd0 = await oAudit("set_deduction");
     const { data: did, error: eDed } = await m.rpc("set_deduction", {
       p_id: exD?.[0]?.id ?? null, p_store_id: storeA1Id, p_name: "NOX-VERIFY-送り代",
       p_amount: 2000, p_per: "day", p_is_active: true,
+      p_kind: "agreed_cost", p_basis_confirmed: false, p_basis_note: null,
     });
     check("F2a set_deduction 成功（manager）", !eDed && typeof did === "string", eDed?.message);
-    const { data: dRow } = await m.from("deductions").select("amount, per").eq("id", did).single();
-    check("F2a deductions 行実在（2000/day）", dRow?.amount === 2000 && dRow?.per === "day", JSON.stringify(dRow));
+    const { data: dRow } = await m.from("deductions").select("amount, per, kind").eq("id", did).single();
+    check("F2a deductions 行実在（2000/day・kind=agreed_cost）",
+      dRow?.amount === 2000 && dRow?.per === "day" && dRow?.kind === "agreed_cost", JSON.stringify(dRow));
     check("F2a set_deduction audit +1", (await oAudit("set_deduction")) === sd0 + 1);
+
+    // ── ★裁定98（mig0117）: sanction の根拠確認ガード（r1〜r4・fixture は段内で作り段内で消す）──
+    {
+      const adminD = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const SAN_NAME = "NOX-VERIFY-罰金98";
+      await adminD.from("deductions").delete().eq("store_id", storeA1Id).eq("name", SAN_NAME); // 前回残骸の自浄
+      const args9 = {
+        p_id: null as string | null, p_store_id: storeA1Id, p_name: SAN_NAME,
+        p_amount: 5000, p_per: "month", p_is_active: true,
+        p_kind: "sanction" as string | null, p_basis_confirmed: false, p_basis_note: null as string | null,
+      };
+      // (r1) sanction・confirmed=false → 'basis required'（note があっても確認チェックなしは拒否）
+      const { error: eR1 } = await m.rpc("set_deduction", { ...args9, p_basis_note: "就業規則第10条" });
+      check("裁定98 r1 ★sanction・確認なしは 'basis required'",
+        !!eR1 && eR1.message.includes("basis required"), eR1?.message ?? "通ってしまった");
+      // (r2) sanction・confirmed=true・note あり → basis_* 3列充填・by=セッション uid
+      const { data: uRes } = await m.auth.getUser();
+      const mUid = uRes?.user?.id ?? "(uid 取得失敗)";
+      const { data: sanId, error: eR2 } = await m.rpc("set_deduction", {
+        ...args9, p_basis_confirmed: true, p_basis_note: "就業規則第10条（制裁規定）を確認",
+      });
+      const { data: sRow } = await adminD.from("deductions")
+        .select("kind, basis_confirmed_at, basis_confirmed_by, basis_note").eq("id", sanId ?? "").single();
+      check("裁定98 r2 ★sanction 保存＝basis 3列充填＋by=セッション uid",
+        !eR2 && sRow?.kind === "sanction" && !!sRow?.basis_confirmed_at
+        && sRow?.basis_confirmed_by === mUid && sRow?.basis_note === "就業規則第10条（制裁規定）を確認",
+        eR2?.message ?? JSON.stringify({ sRow, mUid }));
+      // (r3) update で p_kind=null → kind 不変（教訓43＝null は「不変」・黙戻りで潰さない）
+      const { error: eR3 } = await m.rpc("set_deduction", {
+        ...args9, p_id: sanId as string, p_kind: null, p_basis_confirmed: true, p_basis_note: "再確認（r3）",
+      });
+      const { data: s3Row } = await adminD.from("deductions").select("kind, basis_note").eq("id", sanId ?? "").single();
+      check("裁定98 r3 ★update p_kind=null は kind 不変（sanction のまま）",
+        !eR3 && s3Row?.kind === "sanction" && s3Row?.basis_note === "再確認（r3）",
+        eR3?.message ?? JSON.stringify(s3Row));
+      // (r4) sanction→agreed_cost へ変更 → basis 3列 null（非 sanction は確認記録を持たない）
+      const { error: eR4 } = await m.rpc("set_deduction", {
+        ...args9, p_id: sanId as string, p_kind: "agreed_cost", p_basis_confirmed: false, p_basis_note: null,
+      });
+      const { data: s4Row } = await adminD.from("deductions")
+        .select("kind, basis_confirmed_at, basis_confirmed_by, basis_note").eq("id", sanId ?? "").single();
+      check("裁定98 r4 ★agreed_cost へ変更＝basis 3列 null",
+        !eR4 && s4Row?.kind === "agreed_cost" && s4Row?.basis_confirmed_at === null
+        && s4Row?.basis_confirmed_by === null && s4Row?.basis_note === null,
+        eR4?.message ?? JSON.stringify(s4Row));
+      await adminD.from("deductions").delete().eq("store_id", storeA1Id).eq("name", SAN_NAME); // 段内で消す
+    }
 
     // ⑧ set_custom_back_def 成功経路（cond 深検証の成功系・audit +1）
     const { data: exB } = await m.from("custom_back_defs").select("id").eq("store_id", storeA1Id).eq("name", "NOX-VERIFY-売上2%");

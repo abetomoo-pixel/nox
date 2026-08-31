@@ -377,7 +377,7 @@ async function main() {
     ["set_comp_component", { p_id: null, p_plan_id: null, p_kind: null, p_mode: null, p_amount: null, p_rate: null, p_params: null, p_priority: null, p_is_active: null }],  // ★mig0115（裁定86）
     ["set_cast_plan", { p_cast_id: null, p_plan_id: null, p_overrides: null }],
     ["set_cast_norm", { p_cast_id: null, p_period: null, p_days_target: null, p_dohan_target: null, p_sales_target: null, p_shimei_target: null }], // mig0042 で 6引数へ置換（4引数版 drop 済）
-    ["set_deduction", { p_id: null, p_store_id: null, p_name: null, p_amount: null, p_per: null, p_is_active: null }],
+    ["set_deduction", { p_id: null, p_store_id: null, p_name: null, p_amount: null, p_per: null, p_is_active: null, p_kind: null, p_basis_confirmed: null, p_basis_note: null }], // mig0117: 9引数
     ["set_penalty_config", { p_store_id: null, p_fine_absent: null, p_fine_late: null, p_hours_per_shift: null, p_norm_on: null, p_norm_days_flat: null, p_norm_days_per: null, p_norm_dohan_flat: null, p_norm_dohan_per: null, p_late_grace_min: null, p_early_grace_min: null, p_over_grace_min: null }],
     ["set_custom_back_def", { p_id: null, p_store_id: null, p_name: null, p_basis: null, p_value: null, p_cond: null, p_is_active: null }],
   ];

@@ -19,12 +19,12 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
-import { payOf, simAddedPay, type CompPlan } from "../lib/nox/pay";
+import { payOf, simAddedPay, type CompPlan, type PayInput, type Deduction } from "../lib/nox/pay";
 import { roundYen, floorYen } from "../lib/nox/money";
 import { resolvePayrollWindow } from "../lib/nox/payroll/window";
 import { collectPeriod } from "../lib/nox/payroll/collect";
 import { buildPayInput, type StoreMasters } from "../lib/nox/payroll/assemble";
-import { computePayrollDraft, allocateCategory } from "../lib/nox/payroll/core";
+import { computePayrollDraft, allocateCategory, employmentBlockerOf, sanctionWarningsOf } from "../lib/nox/payroll/core";
 import { simulate, type SimInput } from "../lib/nox/payroll/sim";
 import { decidePayrollAccess, decideTaxReportAccess } from "../lib/nox/payroll/authz";
 
@@ -1358,6 +1358,83 @@ async function main() {
         if (eDelCast) fails.push(`F2g 後始末: cast 削除失敗（残骸が他段を壊す）: ${eDelCast.message}`);
       }
     }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ★裁定98（mig0117）: sanction 二層ガード（純関数直叩き・:1165 流儀＝DB 非依存）
+  //   payOf の cap 計算＋core の純関数（employmentBlockerOf / sanctionWarningsOf）を判別的に係留。
+  // ══════════════════════════════════════════════════════════
+  {
+    const sanPlan: CompPlan = { id: "sp", name: "san", base: 5000, honBack: 0, jonaiBack: 0, dohanBack: 0, salesSlide: [], pointSlide: [] };
+    const mkDed = (over: Partial<Deduction>): Deduction => ({ id: "d", name: "罰金", amount: 0, per: "month", ...over });
+    // 基準線: 10日×6h×5000 = timePay 300000 = gross 300000（バック/加算なし・effDays=10・periodDays=30）
+    const inp98 = (deds: Deduction[], employment: "委託" | "雇用" | null, avgDailyWage: number | null, days = 10): PayInput => ({
+      cast: { hon: 0, jonai: 0, dohan: 0, days, sales: 0 },
+      daily: Array.from({ length: days }, (_, i) => ({ d: i + 1, hours: 6, sales: 0 })),
+      plan: sanPlan, productBack: { drink: 0, champ: 0, bottle: 0 }, pointProducts: 0,
+      customBackDefs: [], deductions: deds,
+      penalty: { fineAbsent: 0, fineLate: 0, hoursPerShift: 5 },
+      normConfig: { on: false, daysFlat: 0, daysPer: 0, dohanFlat: 0, dohanPer: 0 },
+      norm: { days: 0, dohan: 0 }, fine: { absentN: 0, lateN: 0 },
+      arDeduct: 0, advanceDeduct: 0, okuriDeduct: 0,
+      periodDays: 30, extrasTotal: 0, employment, avgDailyWage, taxMode: "委託",
+    });
+    const cast98 = (employment: "委託" | "雇用" | null) => ({ castId: "c98", castName: "検証98", employment });
+
+    // (p1) 雇用 day sanction が capEach で clamp（avg=4000→capEach=2000・2500/day×10→each 2000×10=20000）
+    const p1 = payOf(inp98([mkDed({ per: "day", amount: 2500, kind: "sanction" })], "雇用", 4000));
+    check("裁定98 p1 ★雇用 day sanction＝capEach clamp（original 25000→applied 20000・capEach 2000）",
+      p1.sanction?.original === 25_000 && p1.sanction?.applied === 20_000 && p1.sanction?.capEach === 2_000
+      && p1.sanction?.provisional === false && p1.fixedDed === 20_000,
+      JSON.stringify(p1.sanction));
+    const w1 = sanctionWarningsOf(cast98("雇用"), p1.sanction);
+    check("裁定98 p1 warning＝sanction_capped が出る", w1.some((w) => w.kind === "sanction_capped"), JSON.stringify(w1));
+
+    // (p2) 総額が gross/10 で clamp（month 100000・avg 300000→capEach 150000・each 100000→capTotal 30000）
+    const p2 = payOf(inp98([mkDed({ per: "month", amount: 100_000, kind: "sanction" })], "雇用", 300_000));
+    check("裁定98 p2 ★総額 clamp＝floor(gross/10)（original 100000→applied 30000・capTotal 30000）",
+      p2.sanction?.original === 100_000 && p2.sanction?.applied === 30_000 && p2.sanction?.capTotal === 30_000,
+      JSON.stringify(p2.sanction));
+
+    // (p3) 委託は同入力で無 clamp（applied=original・cap は null）＋sanction_contractor warning
+    const p3 = payOf(inp98([mkDed({ per: "month", amount: 100_000, kind: "sanction" })], "委託", 300_000));
+    const w3 = sanctionWarningsOf(cast98("委託"), p3.sanction);
+    check("裁定98 p3 ★委託＝無 clamp（applied 100000・capEach/capTotal null）＋sanction_contractor",
+      p3.sanction?.applied === 100_000 && p3.sanction?.capEach === null && p3.sanction?.capTotal === null
+      && w3.some((w) => w.kind === "sanction_contractor"),
+      JSON.stringify({ s: p3.sanction, w: w3 }));
+
+    // (p4) employment null＋sanction あり → no_employment blocker／sanction なし → blocker なし（core 純関数）
+    const b4a = employmentBlockerOf(cast98(null), true);
+    const b4b = employmentBlockerOf(cast98(null), false);
+    const b4c = employmentBlockerOf(cast98("委託"), true);
+    check("裁定98 p4 ★employment null＋sanction→no_employment・sanction なし/委託→blocker なし",
+      b4a?.reason === "no_employment" && b4b === null && b4c === null,
+      JSON.stringify({ b4a, b4b, b4c }));
+
+    // (p5) avg null → 暫定式（principle 10000 vs 60%式 18000 → 18000）＋provisional warning
+    const p5 = payOf(inp98([mkDed({ per: "day", amount: 20_000, kind: "sanction" })], "雇用", null));
+    const w5 = sanctionWarningsOf(cast98("雇用"), p5.sanction);
+    check("裁定98 p5 ★avg null＝暫定式（avg 18000・provisional）＋avg_wage_provisional warning",
+      p5.sanction?.provisional === true && p5.sanction?.avgDailyWage === 18_000
+      && p5.sanction?.applied === 30_000 /* each 9000×10=90000→capTotal 30000 */
+      && w5.some((w) => w.kind === "avg_wage_provisional"),
+      JSON.stringify({ s: p5.sanction, w: w5 }));
+
+    // (p6) 暫定式の max 選択＝effDays 10 は 60% 保障側（18000）・effDays 30 は原則側（floor(gross/periodDays)=10000）
+    const p6a = payOf(inp98([mkDed({ per: "month", amount: 1, kind: "sanction" })], "雇用", null, 10));
+    const p6b = payOf(inp98([mkDed({ per: "month", amount: 1, kind: "sanction" })], "雇用", null, 30));
+    check("裁定98 p6 ★暫定式は max(原則, 60%保障)（effDays10→18000＝60%側 / effDays30→30000＝原則側 floor(900000/30)）",
+      p6a.sanction?.avgDailyWage === 18_000 && p6b.sanction?.avgDailyWage === 30_000,
+      JSON.stringify({ a: p6a.sanction?.avgDailyWage, b: p6b.sanction?.avgDailyWage, grossB: p6b.gross }));
+
+    // (p7) 非 sanction kind は現行と1バイト同値（kind 明示 vs kind なし＝送り代 2000/day×10=20000 pin 不変）
+    const p7a = payOf(inp98([mkDed({ id: "d1", name: "送り代", per: "day", amount: 2_000, kind: "agreed_cost" })], null, null));
+    const p7b = payOf(inp98([mkDed({ id: "d1", name: "送り代", per: "day", amount: 2_000 })], null, null));
+    check("裁定98 p7 ★非 sanction は現行式と同値（fixedDed 20000 pin・sanction null・kind 有無で不変）",
+      p7a.fixedDed === 20_000 && p7b.fixedDed === 20_000 && p7a.net === p7b.net
+      && p7a.sanction === null && p7b.sanction === null,
+      JSON.stringify({ a: p7a.fixedDed, b: p7b.fixedDed, an: p7a.net, bn: p7b.net }));
   }
 
   await teardown();
