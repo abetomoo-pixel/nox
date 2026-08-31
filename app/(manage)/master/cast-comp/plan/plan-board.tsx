@@ -12,14 +12,17 @@ import Toast from "@/components/ui/toast";
 import SimulatorPanel from "@/components/simulator-panel";
 import type { StoreSimData } from "@/lib/nox/payroll/sim-data";
 import { adoptedMethodsOf, type AdoptCompShape } from "@/lib/nox/comp-methods";
-import { PlanTab, AssignTab, BackTab, useCompData, secTitle, type Plan } from "../comp-sections";
+import { AssignTab, useCompData, secTitle, type Plan } from "../comp-sections";
+import PlanEditor from "./plan-editor";
 
 const card: React.CSSProperties = t.card;
 
-// 全体構成ナビ（アンカー）: ②〜⑧の目次。実体が現行部品のままの節は「準備中」ではなく現行部品へ誘導。
+// 全体構成ナビ（アンカー）＝裁定101 §4 のモック順。
 const NAV = [
-  ["#plan", "基本給・保証／バック・スライド"],
-  ["#backs", "自由バック"],
+  ["#base", "基本給・保証"],
+  ["#backs", "売上歩合・各種バック"],
+  ["#slides", "ポイント制・売上スライド"],
+  ["#achieve", "達成ボーナス"],
   ["#sim", "シミュレーション"],
   ["#assign", "キャスト割当"],
 ] as const;
@@ -98,7 +101,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim }: {
         </div>
         {isOwner && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-            <a href="#plan" style={{ ...t.btnGhost, ...t.btnSm, textDecoration: "none" }}>新規（下の編集面へ）</a>
+            <a href="#base" onClick={() => setSelId(null)} style={{ ...t.btnGhost, ...t.btnSm, textDecoration: "none" }}>新規（下の編集面へ）</a>
             <button type="button" onClick={() => void duplicate()} disabled={!sel} style={{ ...t.btnGhost, ...t.btnSm, opacity: sel ? 1 : 0.5 }}>複製</button>
             <button type="button" onClick={() => void toggleActive()} disabled={!sel} style={{ ...t.btnGhost, ...t.btnSm, opacity: sel ? 1 : 0.5 }}>
               {sel?.is_active === false ? "有効化" : "無効化"}
@@ -128,26 +131,21 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim }: {
         </div>
       </section>
 
+      {/* ── ②〜⑤: セクション編集面（draft＝PlanEditor が1本で保持・節別保存/未保存・裁定101 §3） ── */}
+      <PlanEditor storeId={storeId} isOwner={isOwner} plans={data.plans} backs={data.backs}
+        selId={selId} setSelId={setSelId} setMsg={setMsg} reload={data.reload} />
+
+      {/* ── ⑥ シミュレーション（既存 sim-data・計算期間日数＋委託/雇用トグルは SimulatorPanel が保持） ── */}
       {sim && (
         <div id="sim">
           <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" />
         </div>
       )}
 
-      <section id="plan" className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
-        <h2 style={secTitle}>待遇プラン</h2>
-        <PlanTab plans={data.plans} isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={data.reload} />
-      </section>
-
       <section id="assign" className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
         <h2 style={secTitle}>キャスト割当（プラン・上書き）</h2>
         <AssignTab plans={data.plans} casts={data.casts} castPlans={data.castPlans}
           isManagerUp={isManagerUp} setMsg={setMsg} reload={data.reload} />
-      </section>
-
-      <section id="backs" className="nox-cardtop" style={card}>
-        <h2 style={secTitle}>自由バック</h2>
-        <BackTab backs={data.backs} isManagerUp={isManagerUp} storeId={storeId} setMsg={setMsg} reload={data.reload} />
       </section>
     </div>
   );

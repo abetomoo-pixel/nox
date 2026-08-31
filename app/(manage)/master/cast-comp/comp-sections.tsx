@@ -110,7 +110,7 @@ const note: React.CSSProperties = { fontSize: 12, color: "var(--sub)" };
 // RPC エラーの日本語化（待遇マスタ系・他5ファイルの rpcErrJa と同型）。
 //   ★mig0104（裁定77）の 'duplicate name'（set_comp_plan）を含む。既定は素の message を返す
 //     ＝未知トークンを握り潰さない（rpcErrJa 各実装と同じ振る舞い）。
-function compErrJa(msg: string | undefined): string {
+export function compErrJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
   if (msg.includes("duplicate name")) return "同じ名前のプランがあります";
   if (msg.includes("not found")) return "対象が見つかりません（再読込してください）";
