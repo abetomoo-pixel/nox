@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080808">
+<title>NOX | キャスト待遇 正本 v2</title>
+<style>
+:root{
+  --bg:#080808;--panel:#11110f;--panel2:#171714;--panel3:#20201c;
+  --line:#2d2c27;--line2:#403d34;
+  --gold:#d8ad55;--gold2:#f0cf82;--goldbg:rgba(216,173,85,.10);
+  --text:#f5f1e7;--muted:#99978f;--green:#77ba83;--red:#d86c64;--amber:#cfa35d;
+  --blue:#4f9fe8;--bluebg:rgba(79,159,232,.11);--shadow:0 12px 34px rgba(0,0,0,.28)
+}
+*{box-sizing:border-box}
+html{background:var(--bg);color-scheme:dark;scroll-behavior:smooth}
+body{
+  margin:0;
+  background:radial-gradient(circle at 82% -15%,rgba(216,173,85,.11),transparent 29%),var(--bg);
+  color:var(--text);
+  font-family:Inter,"Noto Sans JP","Yu Gothic UI",sans-serif;
+  font-size:12px;line-height:1.45
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{text-decoration:none;color:inherit}
+.app{min-height:100vh;display:grid;grid-template-columns:220px minmax(0,1fr)}
+.sidebar{
+  position:sticky;top:0;height:100vh;border-right:1px solid var(--line);background:#0d0d0c;
+  padding:18px 12px;display:flex;flex-direction:column;z-index:20
+}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 18px}
+.brandmark{width:34px;height:34px;border:1px solid var(--gold);border-radius:8px;display:grid;place-items:center;color:var(--gold2);font:16px Georgia,serif}
+.brand b{font:18px Georgia,serif;letter-spacing:.2em}.brand small{display:block;color:var(--muted);font-size:9px}
+.navlabel{padding:8px 11px 4px;color:#66635d;font-size:9px;letter-spacing:.16em}
+.nav a{display:flex;gap:10px;align-items:center;color:#9f9b93;padding:9px 11px;border-radius:8px;margin:2px 0}
+.nav a:hover,.nav a.active{background:linear-gradient(90deg,rgba(216,173,85,.18),rgba(216,173,85,.03));color:var(--gold2);box-shadow:inset 2px 0 var(--gold)}
+.ico{width:17px;text-align:center}
+.sidefoot{margin-top:auto;border-top:1px solid var(--line);padding:13px 10px;color:var(--muted);font-size:9px}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px}
+main{min-width:0}
+.topbar{
+  height:60px;border-bottom:1px solid var(--line);padding:0 24px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;background:rgba(8,8,8,.88);backdrop-filter:blur(10px);z-index:15
+}
+.crumb{color:var(--muted);font-size:11px}.crumb b{color:var(--text)}
+.owner{height:23px;padding:0 9px;border-radius:13px;border:1px solid rgba(216,173,85,.35);background:var(--goldbg);color:var(--gold2);display:grid;place-items:center;font-size:9px}
+.content{max-width:1680px;margin:auto;padding:18px 24px 54px}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:10px}
+.eyebrow{font-size:9px;color:var(--gold);letter-spacing:.2em;margin-bottom:4px}
+.pagehead h1{font-size:22px;margin:0 0 2px}.pagehead p{margin:0;color:var(--muted);font-size:10px}
+
+.planbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin-bottom:10px}
+.planbox{
+  display:grid;grid-template-columns:220px 1fr;gap:10px;
+  border:1px solid var(--line);background:linear-gradient(145deg,rgba(24,24,21,.96),rgba(14,14,13,.98));
+  border-radius:10px;padding:12px;box-shadow:var(--shadow)
+}
+.planmeta{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:8px}
+.plan-actions{display:flex;gap:8px;flex-wrap:wrap}
+.impact{
+  margin-bottom:10px;padding:10px 12px;border:1px solid rgba(216,173,85,.2);
+  background:rgba(216,173,85,.04);border-radius:9px;color:#c8b98d;font-size:9px
+}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:12px;align-items:start}
+.maincol{display:grid;gap:10px}
+.sidecol{position:sticky;top:72px;display:grid;gap:10px}
+.card{
+  border:1px solid var(--line);border-radius:10px;background:linear-gradient(145deg,rgba(24,24,21,.96),rgba(14,14,13,.98));
+  box-shadow:var(--shadow)
+}
+.cardhead{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cardhead h2{font-size:12px;margin:0}.cardhead p{margin:2px 0 0;color:var(--muted);font-size:8px}
+.sectionbody{padding:12px}
+.section-actions{display:flex;gap:7px;align-items:center}
+.save-state{font-size:8px;color:var(--muted)}
+.save-state.dirty{color:var(--amber)}
+.save-state.saving{color:#9cc7ef}
+.save-state.saved{color:var(--green)}
+.save-state.error{color:var(--red)}
+.btn{
+  min-height:32px;border:1px solid var(--line2);background:#191917;border-radius:7px;padding:0 11px;font-weight:650;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px
+}
+.btn.primary{background:linear-gradient(135deg,#e5c06c,#b78936);border-color:#d7ad55;color:#16120b}
+.btn.danger{border-color:rgba(216,108,100,.32);background:rgba(216,108,100,.06);color:#ddb2ad}
+.btn.small{min-height:27px;padding:0 8px;font-size:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:8px;color:var(--muted)}
+.field input,.field select,.field textarea{
+  width:100%;height:34px;border:1px solid var(--line2);background:#0b0b0a;border-radius:7px;padding:0 9px;outline:none
+}
+.field textarea{height:68px;padding:9px;resize:vertical}
+.field input:disabled,.field select:disabled{opacity:.42}
+.unitinput{display:grid;grid-template-columns:1fr auto;align-items:center;border:1px solid var(--line2);background:#0b0b0a;border-radius:7px;overflow:hidden}
+.unitinput input{border:0;background:transparent;height:32px;padding:0 9px;outline:none;width:100%}
+.unitinput span{padding:0 9px;color:var(--muted);font-size:8px;border-left:1px solid var(--line)}
+.badge{font-size:8px;border:1px solid var(--line);border-radius:12px;padding:3px 7px;color:var(--muted)}
+.badge.on{color:var(--green);border-color:rgba(119,186,131,.25);background:rgba(119,186,131,.05)}
+.badge.prep{color:#c8a76d;border-color:rgba(207,163,93,.26);background:rgba(207,163,93,.05)}
+.badge.blue{color:#bcdafa;border-color:rgba(79,159,232,.28);background:rgba(79,159,232,.06)}
+.info{padding:9px 11px;border:1px solid rgba(79,159,232,.22);background:rgba(79,159,232,.05);border-radius:8px;color:#c4d7ea;font-size:8px}
+.warn{padding:10px 11px;border:1px solid rgba(216,108,100,.28);background:rgba(216,108,100,.06);border-radius:8px;color:#ddb2ad;font-size:8px}
+.status-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.status-card{border:1px solid var(--line);background:#10100f;border-radius:8px;padding:10px;min-height:78px}
+.status-card b{display:block;font-size:10px;margin-bottom:4px}
+.status-card small{display:block;color:var(--muted);font-size:8px}
+.status-card .state{display:inline-block;margin-top:7px;font-size:8px}
+.state.ok{color:var(--green)}.state.none{color:#706d66}.state.prep{color:var(--amber)}
+.rule-list{display:grid;gap:8px}
+.rule-row{
+  display:grid;grid-template-columns:1.25fr 1fr auto;gap:8px;align-items:end;
+  padding:8px;border:1px solid var(--line);border-radius:8px;background:#10100f
+}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.kpi{padding:12px;border:1px solid var(--line);background:#10100f;border-radius:8px}
+.kpi small{display:block;color:var(--muted);font-size:8px}.kpi strong{display:block;font-size:17px;margin-top:4px}
+.row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid var(--line);background:#10100f;border-radius:8px;padding:10px}
+.row b{display:block;font-size:10px}.row small{display:block;color:var(--muted);font-size:8px}
+.summary-list{display:grid;gap:7px}
+.summary-item{display:flex;justify-content:space-between;gap:10px;border:1px solid var(--line);background:#10100f;border-radius:8px;padding:8px 10px}
+.summary-item span{color:var(--muted);font-size:8px}.summary-item b{font-size:10px;text-align:right}
+.checkrow{display:flex;gap:8px;align-items:flex-start;padding:8px 0}
+.checkrow input{width:auto;height:auto;margin-top:2px}
+.cast-list{display:grid;gap:8px}
+.cast-row{display:grid;grid-template-columns:1.1fr .85fr .85fr .75fr auto;gap:8px;align-items:end;padding:9px;border:1px solid var(--line);border-radius:8px;background:#10100f}
+.cast-name b{display:block;font-size:10px}.cast-name small{display:block;color:var(--muted);font-size:8px}
+.toggle-list{display:grid;gap:8px}
+.toggle-row{
+  display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:8px;align-items:end;
+  border:1px solid var(--line);background:#10100f;border-radius:8px;padding:9px
+}
+.toggle-row input[type="checkbox"]{width:18px;height:18px;align-self:center}
+.toggle-row.off .field{opacity:.35;pointer-events:none}
+.subsection{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.subsection h3{font-size:10px;margin:0 0 6px}
+.prep-list{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.prep-item{border:1px dashed rgba(207,163,93,.28);background:rgba(207,163,93,.03);border-radius:8px;padding:9px}
+.prep-item b{display:block;font-size:9px}.prep-item small{display:block;color:#a9916d;font-size:8px;margin-top:3px}
+.unsaved-list{display:grid;gap:7px}
+.unsaved-item{display:flex;justify-content:space-between;gap:8px;padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:#10100f}
+.unsaved-item span{font-size:8px;color:var(--muted)}.unsaved-item b{font-size:8px}
+@media(max-width:1180px){
+  .layout{grid-template-columns:1fr}.sidecol{position:static}
+  .status-grid,.grid4,.kpi-grid{grid-template-columns:1fr 1fr}
+  .cast-row{grid-template-columns:1fr 1fr}
+}
+@media(max-width:760px){
+  .app{grid-template-columns:1fr}.sidebar{display:none}.topbar{padding:0 14px}.content{padding:14px}
+  .pagehead{align-items:flex-start;flex-direction:column}
+  .planbar,.planbox,.planmeta,.grid2,.grid3,.grid4,.kpi-grid,.status-grid,.prep-list{grid-template-columns:1fr}
+  .plan-actions{display:grid;grid-template-columns:1fr 1fr}
+  .rule-row,.cast-row,.toggle-row{grid-template-columns:1fr}
+  .toggle-row input[type="checkbox"]{align-self:auto}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brandmark">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div>
+    <nav class="nav">
+      <a href="#"><span class="ico">⌂</span>ホーム</a>
+      <div class="navlabel">人事</div>
+      <a href="#"><span class="ico">◫</span>シフト</a>
+      <a href="#"><span class="ico">♙</span>キャスト</a>
+      <a href="#"><span class="ico">▭</span>給与</a>
+      <div class="navlabel">キャスト待遇</div>
+      <a class="active" href="#overview"><span class="ico">⌘</span>待遇プラン</a>
+      <a href="#base-pay"><span class="ico">①</span>基本給・保証</a>
+      <a href="#commission"><span class="ico">②</span>歩合・バック</a>
+      <a href="#points"><span class="ico">③</span>ポイント制</a>
+      <a href="#slide"><span class="ico">④</span>売上スライド</a>
+      <a href="#bonus"><span class="ico">⑤</span>達成ボーナス</a>
+      <a href="#quota"><span class="ico">⑥</span>ノルマ・未達処理</a>
+      <a href="#simulator"><span class="ico">⑦</span>シミュレーション</a>
+      <a href="#assignment"><span class="ico">⑧</span>キャスト割当</a>
+    </nav>
+    <div class="sidefoot"><span class="dot"></span>正本 v2</div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumb">マスタ　›　キャスト・報酬　›　<b>待遇プラン</b></div>
+      <div class="owner">オーナー</div>
+    </header>
+
+    <div class="content">
+      <div class="pagehead">
+        <div>
+          <div class="eyebrow">CAST COMPENSATION</div>
+          <h1>キャスト待遇</h1>
+          <p>プランごとの待遇設定、シミュレーション、キャスト割当を管理します。</p>
+        </div>
+      </div>
+
+      <div class="planbar">
+        <div class="planbox">
+          <div class="field">
+            <label>編集中プラン</label>
+            <select id="editingPlan">
+              <option value="ace">エース</option>
+              <option value="regular">レギュラー</option>
+              <option value="trial">体験入店</option>
+            </select>
+          </div>
+          <div class="planmeta">
+            <div class="field"><label>プラン名</label><input id="planName" value="エース"></div>
+            <div class="field"><label>状態</label><select id="planStatus"><option>有効</option><option>無効</option></select></div>
+            <div class="field"><label>適用中</label><input id="appliedCount" value="12名" disabled></div>
+          </div>
+        </div>
+        <div class="plan-actions">
+          <button class="btn" type="button" id="newPlan">＋ 新規</button>
+          <button class="btn" type="button" id="copyPlan">複製</button>
+          <button class="btn danger" type="button" id="disablePlan">無効化</button>
+        </div>
+      </div>
+
+      <div class="impact" id="impactText">このプランは現在 12名 に適用されています。待遇を変更すると、以後の計算に影響します。</div>
+
+      <div class="layout">
+        <div class="maincol">
+
+          <section id="overview" class="card">
+            <div class="cardhead">
+              <div><h2>設定状況</h2><p>設定漏れの確認とページ内移動</p></div>
+              <span class="badge blue">自動反映</span>
+            </div>
+            <div class="sectionbody">
+              <div class="status-grid">
+                <a class="status-card" href="#base-pay"><b>基本給・保証</b><small>保証時給 ¥4,000</small><span class="state ok">設定済み</span></a>
+                <a class="status-card" href="#commission"><b>各種バック</b><small>本指名・場内・同伴・ドリンク</small><span class="state ok">4項目</span></a>
+                <a class="status-card" href="#points"><b>ポイント制</b><small>ポイントスライド</small><span class="state ok">設定済み</span></a>
+                <a class="status-card" href="#slide"><b>売上スライド</b><small>3段階</small><span class="state ok">設定済み</span></a>
+                <a class="status-card" href="#bonus"><b>達成ボーナス</b><small>出勤・売上・本指名</small><span class="state ok">3項目</span></a>
+                <a class="status-card" href="#quota"><b>ノルマ</b><small>出勤・本指名・同伴</small><span class="state ok">3項目</span></a>
+              </div>
+            </div>
+          </section>
+
+          <section id="base-pay" class="card save-section">
+            <div class="cardhead">
+              <div><h2>基本給・保証</h2><p>時給と最低保証</p></div>
+              <div class="section-actions"><span class="save-state saved">保存済み</span><button class="btn small primary save-btn" type="button">保存</button></div>
+            </div>
+            <div class="sectionbody">
+              <div class="grid3">
+                <div class="field"><label>保証時給</label><div class="unitinput"><input id="baseHourly" value="4000"><span>円 / h</span></div></div>
+                <div class="field"><label>最低月額保証</label><div class="unitinput"><input id="baseGuarantee" value="250000"><span>円 / 月</span></div></div>
+                <div class="field"><label>保証</label><select><option>有効</option><option>無効</option></select></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="commission" class="card save-section">
+            <div class="cardhead">
+              <div><h2>売上歩合・各種バック</h2><p>歩合率と各種バック</p></div>
+              <div class="section-actions"><span class="save-state saved">保存済み</span><button class="btn small primary save-btn" type="button">保存</button></div>
+            </div>
+            <div class="sectionbody">
+              <div class="grid4">
+                <div class="field"><label>歩合対象売上</label><select><option>指名売上のみ</option><option>総売上</option></select></div>
+                <div class="field"><label>基本歩合率</label><div class="unitinput"><input id="rateBase" value="5"><span>%</span></div></div>
+                <div class="field"><label>丸め単位</label><select><option>1円</option><option>10円</option><option>100円</option></select></div>
+                <div class="field"><label>丸め方向</label><select><option>切り捨て</option><option>四捨五入</option><option>切り上げ</option></select></div>
+              </div>
+              <div class="grid4" style="margin-top:8px">
+                <div class="field"><label>本指名</label><div class="unitinput"><input id="backMain" value="1000"><span>円 / 本</span></div></div>
+                <div class="field"><label>場内指名</label><div class="unitinput"><input id="backInside" value="500"><span>円 / 本</span></div></div>
+                <div class="field"><label>同伴</label><div class="unitinput"><input id="backComp" value="1500"><span>円 / 本</span></div></div>
+                <div class="field"><label>ドリンク</label><div class="unitinput"><input id="backDrink" value="100"><span>円 / 杯</span></div></div>
+                <div class="field"><label>ボトル</label><div class="unitinput"><input value="5"><span>%</span></div></div>
+                <div class="field"><label>シャンパン</label><div class="unitinput"><input value="10"><span>%</span></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="points" class="card save-section">
+            <div class="cardhead">
+              <div><h2>ポイント制</h2><p>ポイント帯による時給スライド</p></div>
+              <div class="section-actions"><span class="save-state saved">保存済み</span><button class="btn small primary save-btn" type="button">保存</button></div>
+            </div>
+            <div class="sectionbody">
+              <div class="rule-list">
+                <div class="rule-row"><div class="field"><label>ポイント以上</label><div class="unitinput"><input value="30"><span>pt</span></div></div><div class="field"><label>時給</label><div class="unitinput"><input value="3500"><span>円</span></div></div><button class="btn small" type="button">編集</button></div>
+                <div class="rule-row"><div class="field"><label>ポイント以上</label><div class="unitinput"><input value="50"><span>pt</span></div></div><div class="field"><label>時給</label><div class="unitinput"><input value="4000"><span>円</span></div></div><button class="btn small" type="button">編集</button></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="slide" class="card save-section">
+            <div class="cardhead">
+              <div><h2>売上スライド</h2><p>売上帯に応じて時給を変更</p></div>
+              <div class="section-actions"><span class="save-state saved">保存済み</span><button class="btn small primary save-btn" type="button">保存</button></div>
+            </div>
+            <div class="sectionbody">
+              <div class="grid2">
+                <div class="field"><label>判定基準</label><select><option>指名売上</option><option>総売上</option></select></div>
+                <div class="field"><label>スライド対象</label><select><option>時給</option></select></div>
+              </div>
+              <div class="rule-list" style="margin-top:8px">
+                <div class="rule-row"><div class="field"><label>売上以上</label><div class="unitinput"><input value="500000"><span>円</span></div></div><div class="field"><label>時給</label><div class="unitinput"><input value="3500"><span>円</span></div></div><button class="btn small" type="button">削除</button></div>
+                <div class="rule-row"><div class="field"><label>売上以上</label><div class="unitinput"><input value="800000"><span>円</span></div></div><div class="field"><label>時給</label><div class="unitinput"><input value="4000"><span>円</span></div></div><button class="btn small" type="button">削除</button></div>
+                <div class="rule-row"><div class="field"><label>売上以上</label><div class="unitinput"><input value="1000000"><span>円</span></div></div><div class="field"><label>時給</label><div class="unitinput"><input value="4500"><span>円</span></div></div><button class="btn small primary" type="button">＋ 追加</button></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="bonus" class="card save-section">
+            <div class="cardhead">
+              <div><h2>達成ボーナス</h2><p>使う達成条件だけ有効化</p></div>
+              <div class="section-actions"><span class="save-state saved">保存済み</span><button class="btn small primary save-btn" type="button">保存</button></div>
+            </div>
+            <div class="sectionbody">
+              <div class="toggle-list">
+                <div class="toggle-row">
+                  <input class="feature-toggle" type="checkbox" checked>
+                  <div><b>出勤達成</b><small style="color:var(--muted)">出勤日数</small></div>
+                  <div class="field"><label>条件</label><div class="unitinput"><input value="14"><span>日以上</span></div></div>
+                  <div class="field"><label>支給額</label><div class="unitinput"><input value="10000"><span>円</span></div></div>
+                </div>
+                <div class="toggle-row">
+                  <input class="feature-toggle" type="checkbox" checked>
+                  <div><b>売上達成</b><small style="color:var(--muted)">月間売上</small></div>
+                  <div class="field"><label>条件</label><div class="unitinput"><input value="800000"><span>円以上</span></div></div>
+                  <div class="field"><label>支給額</label><div class="unitinput"><input value="20000"><span>円</span></div></div>
+                </div>
+                <div class="toggle-row">
+                  <input class="feature-toggle" type="checkbox" checked>
+                  <div><b>本指名達成</b><small style="color:var(--muted)">本指名本数</small></div>
+                  <div class="field"><label>条件</label><div class="unitinput"><input value="20"><span>本以上</span></div></div>
+                  <div class="field"><label>支給額</label><div class="unitinput"><input value="10000"><span>円</span></div></div>
+                </div>
+                <div class="toggle-row off">
+                  <input class="feature-toggle" type="checkbox">
+                  <div><b>同伴達成</b><small style="color:var(--muted)">同伴本数</small></div>
+                  <div class="field"><label>条件</label><div class="unitinput"><input value="5"><span>本以上</span></div></div>
+                  <div class="field"><label>支給額</label><div class="unitinput"><input value="10000"><span>円</span></div></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="quota" class="card save-section">
+            <div class="cardhead">
+              <div><h2>ノルマ・未達時の処理</h2><p>ノルマ条件と未達処理を分けて設定</p></div>
+              <div class="section-actions"><span class="save-state saved">保存済み</span><button class="btn small primary save-btn" type="button">保存</button></div>
+            </div>
+            <div class="sectionbody">
+              <div class="toggle-list">
+                <div class="toggle-row">
+                  <input class="feature-toggle" type="checkbox" checked>
+                  <div><b>出勤ノルマ</b><small style="color:var(--muted)">月間</small></div>
+                  <div class="field"><label>基準</label><div class="unitinput"><input id="quotaDaysSet" value="14"><span>日 / 月</span></div></div>
+                  <div></div>
+                </div>
+                <div class="toggle-row">
+                  <input class="feature-toggle" type="checkbox" checked>
+                  <div><b>本指名ノルマ</b><small style="color:var(--muted)">月間</small></div>
+                  <div class="field"><label>基準</label><div class="unitinput"><input id="quotaMainSet" value="15"><span>本 / 月</span></div></div>
+                  <div></div>
+                </div>
+                <div class="toggle-row">
+                  <input class="feature-toggle" type="checkbox" checked>
+                  <div><b>同伴ノルマ</b><small style="color:var(--muted)">月間</small></div>
+                  <div class="field"><label>基準</label><div class="unitinput"><input id="quotaCompSet" value="3"><span>本 / 月</span></div></div>
+                  <div></div>
+                </div>
+                <div class="toggle-row off">
+                  <input class="feature-toggle" type="checkbox">
+                  <div><b>売上ノルマ</b><small style="color:var(--muted)">月間</small></div>
+                  <div class="field"><label>基準</label><div class="unitinput"><input id="quotaSalesSet" value="600000"><span>円 / 月</span></div></div>
+                  <div></div>
+                </div>
+              </div>
+
+              <div class="subsection">
+                <h3>未達時の処理</h3>
+                <div class="grid2">
+                  <div class="field"><label>処理</label><select id="sanctionMode"><option value="none">なし</option><option value="fixed">固定額控除</option><option value="hourly">時給変更</option></select></div>
+                  <div class="field"><label>契約区分</label><select id="normContract"><option value="outsourced">業務委託</option><option value="employment">雇用</option></select></div>
+                </div>
+                <div id="employmentSanction" class="info" style="margin-top:8px;display:none">雇用：固定額控除を設定する場合も、法定上限は計算側で自動制約します。</div>
+                <div id="outsourcedSanction" class="warn" style="margin-top:8px;display:none">
+                  <b>業務委託：契約上の根拠確認が必要です</b>
+                  <label class="checkrow"><input id="contractBasis" type="checkbox"><span>契約上の根拠を確認した</span></label>
+                  <div class="field"><label>確認メモ</label><textarea id="contractBasisNote" placeholder="契約書の条項、確認日、確認者など"></textarea></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="simulator" class="card">
+            <div class="cardhead"><div><h2>シミュレーション</h2><p>現在のプラン条件で概算</p></div><span class="badge blue">自動計算</span></div>
+            <div class="sectionbody">
+              <div class="grid4">
+                <div class="field"><label>契約区分</label><select id="contractType"><option value="outsourced">業務委託</option><option value="employment">雇用</option></select></div>
+                <div class="field"><label>計算期間開始日</label><input id="periodStart" type="date" value="2026-08-01"></div>
+                <div class="field"><label>計算期間終了日</label><input id="periodEnd" type="date" value="2026-08-31"></div>
+                <div class="field"><label>計算期間日数</label><div class="unitinput"><input id="periodDays" value="31" readonly><span>日</span></div></div>
+              </div>
+              <div class="grid4" style="margin-top:8px">
+                <div class="field"><label>出勤日数</label><input id="days" type="number" value="20"></div>
+                <div class="field"><label>1日勤務時間</label><input id="hours" type="number" value="6"></div>
+                <div class="field"><label>指名売上</label><input id="sales" type="number" value="600000"></div>
+                <div class="field"><label>本指名</label><input id="mainCount" type="number" value="10"></div>
+                <div class="field"><label>場内指名</label><input id="insideCount" type="number" value="5"></div>
+                <div class="field"><label>同伴</label><input id="compCount" type="number" value="3"></div>
+                <div class="field"><label>ドリンク</label><input id="drinkCount" type="number" value="20"></div>
+                <div class="field"><label>送り回数</label><input id="sendCount" type="number" value="2"></div>
+              </div>
+              <div class="kpi-grid" style="margin-top:8px">
+                <div class="kpi"><small>基本給</small><strong id="basicVal">¥0</strong></div>
+                <div class="kpi"><small>バック</small><strong id="backVal">¥0</strong></div>
+                <div class="kpi"><small>歩合</small><strong id="commVal">¥0</strong></div>
+                <div class="kpi"><small>控除</small><strong id="dedVal">¥0</strong></div>
+              </div>
+              <div class="row" style="margin-top:8px"><span><b>支給見込</b><small id="simSummary">現在の条件での概算</small></span><span style="font-size:24px;color:var(--gold2);font-weight:700" id="totalVal">¥0</span></div>
+            </div>
+          </section>
+
+          <section id="assignment" class="card">
+            <div class="cardhead"><div><h2>キャストへのプラン割当</h2><p>適用開始日を指定して変更</p></div><span class="badge blue">履歴管理</span></div>
+            <div class="sectionbody">
+              <div class="cast-list">
+                <div class="cast-row">
+                  <div class="cast-name"><b>れいな</b><small>現在: エース</small></div>
+                  <div class="field"><label>変更後プラン</label><select><option>エース</option><option>レギュラー</option><option>体験入店</option></select></div>
+                  <div class="field"><label>適用開始日</label><input type="date" value="2026-09-01"></div>
+                  <div class="field"><label>進捗</label><input value="売上 52万 / 60万" disabled></div>
+                  <button class="btn small assign-btn" type="button">変更</button>
+                </div>
+                <div class="cast-row">
+                  <div class="cast-name"><b>さくら</b><small>現在: エース</small></div>
+                  <div class="field"><label>変更後プラン</label><select><option>エース</option><option>レギュラー</option><option>体験入店</option></select></div>
+                  <div class="field"><label>適用開始日</label><input type="date" value="2026-09-01"></div>
+                  <div class="field"><label>進捗</label><input value="売上 68万 / 60万" disabled></div>
+                  <button class="btn small assign-btn" type="button">変更</button>
+                </div>
+                <div class="cast-row">
+                  <div class="cast-name"><b>ひなの</b><small>現在: レギュラー</small></div>
+                  <div class="field"><label>変更後プラン</label><select><option>レギュラー</option><option>エース</option><option>体験入店</option></select></div>
+                  <div class="field"><label>適用開始日</label><input type="date" value="2026-09-01"></div>
+                  <div class="field"><label>進捗</label><input value="売上 35万 / 40万" disabled></div>
+                  <button class="btn small assign-btn" type="button">変更</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="cardhead"><div><h2>追加機能</h2><p>今後拡張予定</p></div><span class="badge prep">準備中</span></div>
+            <div class="sectionbody">
+              <div class="prep-list">
+                <div class="prep-item"><b>日給制・保証時間帯</b><small>日給、保証対象時間帯、半月・日単位判定</small></div>
+                <div class="prep-item"><b>ポイント詳細</b><small>pt付与ルール、ポイント単価、使い方</small></div>
+                <div class="prep-item"><b>売上スライド拡張</b><small>段別歩合率、N段、粗利基準</small></div>
+                <div class="prep-item"><b>追加バック</b><small>延長バック、場内→本指名昇格バック</small></div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        <aside class="sidecol">
+          <section class="card">
+            <div class="cardhead"><div><h2>プラン概要</h2><p>現在の編集対象</p></div><span class="badge on">12名適用</span></div>
+            <div class="sectionbody">
+              <div class="summary-list">
+                <div class="summary-item"><span>プラン</span><b id="summaryPlan">エース</b></div>
+                <div class="summary-item"><span>基本時給</span><b id="summaryHourly">¥4,000</b></div>
+                <div class="summary-item"><span>歩合率</span><b id="summaryRate">5%</b></div>
+                <div class="summary-item"><span>本指名バック</span><b id="summaryMainBack">¥1,000</b></div>
+                <div class="summary-item"><span>ノルマ</span><b id="summaryQuota">3項目</b></div>
+                <div class="summary-item"><span>試算支給見込</span><b id="summaryTotal">¥0</b></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="cardhead"><div><h2>保存状態</h2><p>セクションごとに確認</p></div><span class="badge blue" id="unsavedCount">0件</span></div>
+            <div class="sectionbody">
+              <div class="unsaved-list" id="unsavedList">
+                <div class="unsaved-item"><span>すべての設定</span><b style="color:var(--green)">保存済み</b></div>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const yen = n => '¥' + Math.round(Number(n||0)).toLocaleString('ja-JP');
+const planDefs = {
+  ace:{label:'エース', hourly:4000, rate:5, main:1000, inside:500, comp:1500, drink:100, send:1200, applied:12},
+  regular:{label:'レギュラー', hourly:3000, rate:3, main:900, inside:400, comp:1000, drink:100, send:1200, applied:18},
+  trial:{label:'体験入店', hourly:3500, rate:0, main:0, inside:0, comp:0, drink:0, send:0, applied:2}
+};
+let currentPlan='ace';
+
+function syncPlan(){
+  const p=planDefs[currentPlan];
+  document.getElementById('planName').value=p.label;
+  document.getElementById('baseHourly').value=p.hourly;
+  document.getElementById('rateBase').value=p.rate;
+  document.getElementById('backMain').value=p.main;
+  document.getElementById('backInside').value=p.inside;
+  document.getElementById('backComp').value=p.comp;
+  document.getElementById('backDrink').value=p.drink;
+  document.getElementById('appliedCount').value=p.applied+'名';
+  document.getElementById('impactText').textContent='このプランは現在 '+p.applied+'名 に適用されています。待遇を変更すると、以後の計算に影響します。';
+  renderAll();
+}
+
+function updatePeriodDays(){
+  const s=document.getElementById('periodStart').value;
+  const e=document.getElementById('periodEnd').value;
+  if(!s||!e)return;
+  const d1=new Date(s+'T00:00:00'),d2=new Date(e+'T00:00:00');
+  const diff=Math.floor((d2-d1)/86400000)+1;
+  document.getElementById('periodDays').value=diff>0?diff:0;
+}
+
+function computeSimulation(){
+  const d=+document.getElementById('days').value||0;
+  const h=+document.getElementById('hours').value||0;
+  const s=+document.getElementById('sales').value||0;
+  const m=+document.getElementById('mainCount').value||0;
+  const i=+document.getElementById('insideCount').value||0;
+  const c=+document.getElementById('compCount').value||0;
+  const dr=+document.getElementById('drinkCount').value||0;
+  const se=+document.getElementById('sendCount').value||0;
+  const basic=d*h*(+document.getElementById('baseHourly').value||0);
+  const back=m*(+document.getElementById('backMain').value||0)
+    +i*(+document.getElementById('backInside').value||0)
+    +c*(+document.getElementById('backComp').value||0)
+    +dr*(+document.getElementById('backDrink').value||0);
+  const comm=s*(+document.getElementById('rateBase').value||0)/100;
+  const ded=se*(planDefs[currentPlan].send||0);
+  return {basic,back,comm,ded,total:basic+back+comm-ded};
+}
+
+function renderSummary(){
+  const r=computeSimulation();
+  document.getElementById('summaryPlan').textContent=document.getElementById('planName').value||'未設定';
+  document.getElementById('summaryHourly').textContent=yen(document.getElementById('baseHourly').value);
+  document.getElementById('summaryRate').textContent=(document.getElementById('rateBase').value||0)+'%';
+  document.getElementById('summaryMainBack').textContent=yen(document.getElementById('backMain').value);
+  const quotaEnabled=[...document.querySelectorAll('#quota .feature-toggle')].filter(x=>x.checked).length;
+  document.getElementById('summaryQuota').textContent=quotaEnabled+'項目';
+  document.getElementById('summaryTotal').textContent=yen(r.total);
+}
+
+function renderSimulation(){
+  updatePeriodDays();
+  const r=computeSimulation();
+  document.getElementById('basicVal').textContent=yen(r.basic);
+  document.getElementById('backVal').textContent=yen(r.back);
+  document.getElementById('commVal').textContent=yen(r.comm);
+  document.getElementById('dedVal').textContent='-'+yen(r.ded);
+  document.getElementById('totalVal').textContent=yen(r.total);
+  document.getElementById('simSummary').textContent='契約区分: '+document.getElementById('contractType').selectedOptions[0].text+' / 計算期間 '+document.getElementById('periodDays').value+'日';
+}
+
+function updateSanctionUI(){
+  const fixed=document.getElementById('sanctionMode').value==='fixed';
+  const contract=document.getElementById('normContract').value;
+  document.getElementById('employmentSanction').style.display=fixed&&contract==='employment'?'block':'none';
+  document.getElementById('outsourcedSanction').style.display=fixed&&contract==='outsourced'?'block':'none';
+}
+
+function updateToggleRows(){
+  document.querySelectorAll('.toggle-row').forEach(row=>{
+    const cb=row.querySelector('.feature-toggle');
+    if(cb) row.classList.toggle('off',!cb.checked);
+  });
+  renderSummary();
+}
+
+function markDirty(section){
+  const st=section.querySelector('.save-state');
+  if(!st)return;
+  st.textContent='未保存の変更あり';
+  st.className='save-state dirty';
+  updateUnsaved();
+}
+
+function updateUnsaved(){
+  const dirty=[...document.querySelectorAll('.save-state.dirty,.save-state.error')];
+  const count=document.getElementById('unsavedCount');
+  const list=document.getElementById('unsavedList');
+  count.textContent=dirty.length+'件';
+  if(!dirty.length){
+    list.innerHTML='<div class="unsaved-item"><span>すべての設定</span><b style="color:var(--green)">保存済み</b></div>';
+    return;
+  }
+  list.innerHTML=dirty.map(st=>{
+    const title=st.closest('.card').querySelector('h2').textContent;
+    return '<div class="unsaved-item"><span>'+title+'</span><b style="color:var(--amber)">未保存</b></div>';
+  }).join('');
+}
+
+document.querySelectorAll('.save-section').forEach(section=>{
+  section.querySelectorAll('input,select,textarea').forEach(el=>{
+    el.addEventListener('input',()=>{markDirty(section);renderAll();});
+    el.addEventListener('change',()=>{markDirty(section);renderAll();});
+  });
+});
+
+document.querySelectorAll('.save-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const st=btn.closest('.cardhead').querySelector('.save-state');
+    st.textContent='保存中...';st.className='save-state saving';updateUnsaved();
+    setTimeout(()=>{
+      st.textContent='保存済み';st.className='save-state saved';updateUnsaved();
+    },500);
+  });
+});
+
+document.querySelectorAll('.feature-toggle').forEach(cb=>{
+  cb.addEventListener('change',()=>{
+    updateToggleRows();
+    const section=cb.closest('.save-section');
+    if(section) markDirty(section);
+  });
+});
+
+document.getElementById('editingPlan').addEventListener('change',e=>{
+  currentPlan=e.target.value;syncPlan();
+});
+document.getElementById('newPlan').addEventListener('click',()=>{
+  document.getElementById('planName').value='新規プラン';
+  document.getElementById('appliedCount').value='0名';
+  document.getElementById('impactText').textContent='新規プランです。まだキャストには適用されていません。';
+  renderAll();
+});
+document.getElementById('copyPlan').addEventListener('click',()=>{
+  document.getElementById('planName').value=(document.getElementById('planName').value||'プラン')+' コピー';
+  document.getElementById('appliedCount').value='0名';
+  document.getElementById('impactText').textContent='複製した新しいプランです。まだキャストには適用されていません。';
+  renderAll();
+});
+document.getElementById('disablePlan').addEventListener('click',()=>{
+  document.getElementById('planStatus').value='無効';
+  document.getElementById('impactText').textContent='このプランを無効化しました。過去の適用履歴は保持されます。';
+});
+
+document.querySelectorAll('.assign-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    btn.textContent='変更済み';
+    btn.classList.add('primary');
+    setTimeout(()=>{btn.textContent='変更';btn.classList.remove('primary');},1100);
+  });
+});
+
+['planName','baseHourly','rateBase','backMain','backInside','backComp','backDrink',
+ 'days','hours','sales','mainCount','insideCount','compCount','drinkCount','sendCount',
+ 'contractType','periodStart','periodEnd','sanctionMode','normContract'
+].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el){
+    el.addEventListener('input',renderAll);
+    el.addEventListener('change',renderAll);
+  }
+});
+
+function renderAll(){
+  updateSanctionUI();
+  updateToggleRows();
+  renderSimulation();
+  renderSummary();
+}
+renderAll();
+updateUnsaved();
+</script>
+</body>
+</html>
