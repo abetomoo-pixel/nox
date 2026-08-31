@@ -25,6 +25,7 @@ import { resolvePayrollWindow } from "../lib/nox/payroll/window";
 import { collectPeriod } from "../lib/nox/payroll/collect";
 import { buildPayInput, type StoreMasters } from "../lib/nox/payroll/assemble";
 import { computePayrollDraft, allocateCategory, employmentBlockerOf, sanctionWarningsOf } from "../lib/nox/payroll/core";
+import { kpiOfDraftRows, payStatusOf, issuesOfDraft } from "../lib/nox/payroll/ui-calc";
 import { simulate, type SimInput } from "../lib/nox/payroll/sim";
 import { decidePayrollAccess, decideTaxReportAccess } from "../lib/nox/payroll/authz";
 
@@ -1435,6 +1436,37 @@ async function main() {
       p7a.fixedDed === 20_000 && p7b.fixedDed === 20_000 && p7a.net === p7b.net
       && p7a.sanction === null && p7b.sanction === null,
       JSON.stringify({ a: p7a.fixedDed, b: p7b.fixedDed, an: p7a.net, bn: p7b.net }));
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ★U-1（裁定99-⑨）: 給与画面の表示層 純関数3本（ui-calc・DB 非依存）
+  // ══════════════════════════════════════════════════════════
+  {
+    // (u1) kpiOfDraftRows＝確定期 sum4 と逐語同一の定義（gross+extras／控除7項目／うち源泉／net）＋欠落キー0円
+    const kpi = kpiOfDraftRows([
+      { net: 90_000, breakdown: { pay: { gross: 100_000, fixedDed: 1_000, fine: 2_000, withholding: 3_000,
+        arDeduct: 400, advanceDeduct: 500, okuriDeduct: 600, normPenalty: 700 }, extras: [{ amount: 1_500 }] } },
+      { net: 10_000 }, // breakdown 欠落＝全キー0円扱い（2026-07-28 既定）・net だけ合算
+    ]);
+    check("U1 u1 ★kpiOfDraftRows＝gross+extras 101500・控除7項目 8200・源泉 3000・net 100000・n 2",
+      kpi.gross === 101_500 && kpi.ded === 8_200 && kpi.wh === 3_000 && kpi.net === 100_000 && kpi.n === 2,
+      JSON.stringify(kpi));
+    // (u2) payStatusOf＝未払/一部/支払済（remaining=net−Σpaid・net0 は支払済に落ちる）
+    check("U1 u2 ★payStatusOf＝0円払い:未払／半額:一部／全額・超過・net0:支払済",
+      payStatusOf(10_000, 0) === "未払" && payStatusOf(10_000, 4_000) === "一部"
+      && payStatusOf(10_000, 10_000) === "支払済" && payStatusOf(10_000, 12_000) === "支払済"
+      && payStatusOf(0, 0) === "支払済",
+      JSON.stringify([payStatusOf(10_000, 0), payStatusOf(10_000, 4_000), payStatusOf(10_000, 10_000), payStatusOf(10_000, 12_000), payStatusOf(0, 0)]));
+    // (u3) issuesOfDraft＝blocker 先行・日本語ラベル写像・warning は detail 素通し・未知 reason は素のまま
+    const issues = issuesOfDraft(
+      [{ castName: "A", reason: "no_tax" }, { castName: "B", reason: "mystery" }],
+      [{ castName: "C", kind: "sanction_capped", detail: "D1" }],
+    );
+    check("U1 u3 ★issuesOfDraft＝blockers 先行（税区分未登録/未知素通し）＋warning ラベル・detail 保持",
+      issues.length === 3 && issues[0].label === "税区分未登録" && issues[0].kind === "blocker"
+      && issues[1].label === "mystery" && issues[2].kind === "warning"
+      && issues[2].label === "制裁控除を法定上限で制限" && issues[2].detail === "D1",
+      JSON.stringify(issues));
   }
 
   await teardown();
