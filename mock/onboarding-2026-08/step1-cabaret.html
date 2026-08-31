@@ -1,0 +1,150 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NOX | お店について</title><style>
+:root{
+  --bg:#080808;--panel:#11110f;--line:#2d2c27;--line2:#403d34;
+  --gold:#c9a85a;--gold2:#e2c77c;--text:#f5f1e7;--muted:#9b988f;
+  --action:#4f9fe8;--action2:#68b2f0;--actionbg:rgba(79,159,232,.12);
+  --green:#77ba83;--shadow:0 18px 55px rgba(0,0,0,.34)
+}
+*{box-sizing:border-box}
+html{background:var(--bg);color-scheme:dark}
+body{
+  margin:0;background:radial-gradient(circle at 75% -12%,rgba(201,168,90,.09),transparent 30%),var(--bg);
+  color:var(--text);font-family:Inter,"Noto Sans JP","Yu Gothic UI",sans-serif;font-size:13px;line-height:1.5
+}
+a{text-decoration:none;color:inherit}
+input,select{font:inherit;color:inherit;width:100%;height:38px;border:1px solid var(--line2);background:#0b0b0a;border-radius:8px;padding:0 11px}
+.app{min-height:100vh;display:grid;grid-template-columns:228px minmax(0,1fr)}
+.sidebar{position:sticky;top:0;height:100vh;background:#0d0d0c;border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:11px;padding:0 8px 24px}
+.brandmark{width:36px;height:36px;border:1px solid var(--gold);border-radius:8px;display:grid;place-items:center;color:var(--gold2);font:16px Georgia,serif}
+.brand b{font:18px Georgia,serif;letter-spacing:.18em}.brand small{display:block;color:var(--muted);font-size:9px}
+.side-title{font-size:9px;color:#6d6961;letter-spacing:.16em;padding:8px 10px}
+.step-nav{display:grid;gap:6px}
+.step-link{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:10px;border-radius:9px;border:1px solid transparent;color:#8f8c84}
+.step-link.active{background:var(--actionbg);border-color:rgba(79,159,232,.28);color:#e9f4ff}
+.step-num{width:24px;height:24px;border:1px solid var(--line2);border-radius:50%;display:grid;place-items:center;font-size:10px}
+.step-link b{display:block;font-size:10px}.step-link small{display:block;color:var(--muted);font-size:8px}
+.req{font-size:8px;color:#d79a55}
+.sidefoot{margin-top:auto;border-top:1px solid var(--line);padding:12px 10px;color:var(--muted);font-size:9px}
+main{min-width:0}
+.topbar{height:64px;border-bottom:1px solid var(--line);padding:0 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:rgba(8,8,8,.88);backdrop-filter:blur(12px);z-index:8}
+.crumb{color:var(--muted);font-size:10px}.crumb b{color:var(--text)}
+.badge{font-size:8px;border:1px solid rgba(79,159,232,.35);background:var(--actionbg);color:#dcebfa;border-radius:999px;padding:4px 8px}
+.content{max-width:1320px;margin:auto;padding:28px 30px 80px}
+.pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:18px}
+.eyebrow{font-size:9px;letter-spacing:.18em;color:var(--gold);margin-bottom:5px}
+.pagehead h1{margin:0 0 4px;font-size:24px}.pagehead p{margin:0;color:var(--muted);font-size:10px}
+.helper{border:1px solid rgba(79,159,232,.18);background:rgba(79,159,232,.06);border-radius:9px;padding:10px 12px;color:#b8c8d8;font-size:9px;max-width:360px}
+.card{border:1px solid var(--line);border-radius:11px;background:linear-gradient(145deg,rgba(24,24,21,.96),rgba(13,13,12,.98));box-shadow:var(--shadow)}
+.card+.card{margin-top:12px}
+.cardhead{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.cardhead h2{font-size:13px;margin:0}.cardhead p{margin:2px 0 0;color:var(--muted);font-size:8px}
+.sectionbody{padding:15px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.field{display:flex;flex-direction:column;gap:5px}.field label{font-size:8px;color:var(--muted)}
+.unit{display:grid;grid-template-columns:1fr auto;align-items:center;border:1px solid var(--line2);background:#0b0b0a;border-radius:8px;overflow:hidden}
+.unit input{border:0;background:transparent}.unit span{height:100%;padding:0 10px;border-left:1px solid var(--line);display:flex;align-items:center;color:var(--muted);font-size:8px}
+.choice-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.choice{display:block;min-height:96px;border:1px solid var(--line);background:#10100f;border-radius:10px;padding:12px}
+.choice:hover,.choice:focus{border-color:var(--action);background:var(--actionbg)}
+.choice b{display:block;font-size:10px;margin-bottom:4px}.choice small{display:block;color:var(--muted);font-size:8px;line-height:1.5}
+.schedule-list{display:grid;gap:10px}
+.schedule-card{border:1px solid var(--line);background:#10100f;border-radius:10px;overflow:hidden}
+.schedule-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-bottom:1px solid var(--line)}
+.schedule-head b{font-size:10px}.schedule-head small{display:block;color:var(--muted);font-size:8px;margin-top:2px}
+.schedule-body{padding:12px}
+.price-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.priority-badge{width:26px;height:26px;border:1px solid var(--line2);border-radius:7px;display:grid;place-items:center;color:var(--muted);font-size:9px}
+.status-on{border:1px solid rgba(119,186,131,.28);background:rgba(119,186,131,.08);color:#9fcca7;border-radius:999px;padding:4px 8px;font-size:8px}
+.method-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.method{min-height:90px;border:1px solid var(--line);background:#10100f;border-radius:10px;padding:12px}
+.method b{display:block;font-size:10px;margin-bottom:4px}.method small{display:block;color:var(--muted);font-size:8px}
+.switch-list{display:grid;gap:8px}.switch-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;border:1px solid var(--line);background:#10100f;border-radius:9px;padding:10px 12px}
+.switch-row b{display:block;font-size:10px}.switch-row small{display:block;color:var(--muted);font-size:8px}
+.pill{border:1px solid rgba(79,159,232,.35);background:var(--actionbg);color:#dcebfa;border-radius:999px;padding:4px 8px;font-size:8px}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.review-card{border:1px solid var(--line);background:#10100f;border-radius:9px;padding:12px}
+.review-card h3{font-size:10px;margin:0 0 8px}.review-line{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #24231f;padding:8px 0}
+.review-line:first-of-type{border-top:0}.review-line span{font-size:8px;color:var(--muted)}.review-line b{font-size:9px;text-align:right}
+.footnav{margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid rgba(79,159,232,.18);background:#0d0d0c;border-radius:11px;padding:11px 12px}
+.footnav small{font-size:8px;color:var(--muted)}.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.navbtn{min-height:40px;border:1px solid var(--line2);background:#1b1b18;border-radius:9px;padding:0 14px;font-weight:650;display:flex;align-items:center;justify-content:center;text-align:center}
+.navbtn.primary{background:linear-gradient(135deg,#5aaaf0,#397fbd);border-color:#64b1f4;color:#fff}
+@media(max-width:900px){.price-grid,.grid4{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){
+ .app{grid-template-columns:1fr}.sidebar{display:none}.topbar{height:56px;padding:0 14px}.content{padding:18px 14px 40px}
+ .pagehead{flex-direction:column;align-items:flex-start}.helper{max-width:none;width:100%}
+ .choice-grid,.grid2,.grid3,.grid4,.price-grid,.method-grid,.review-grid{grid-template-columns:1fr}
+ .footnav{display:block}.actions{display:grid;grid-template-columns:1fr;margin-top:10px}.navbtn{width:100%;min-height:44px}
+}
+
+.biz-choice{
+  position:relative;
+  display:block;
+  min-height:116px;
+  border:1px solid var(--line);
+  background:#10100f;
+  border-radius:10px;
+  padding:13px 12px 12px;
+}
+.biz-choice:hover,.biz-choice:focus{border-color:var(--action);background:var(--actionbg)}
+.biz-choice.selected{
+  border-color:var(--action);
+  background:linear-gradient(145deg,rgba(79,159,232,.14),rgba(79,159,232,.05));
+  box-shadow:inset 0 0 0 1px rgba(79,159,232,.14)
+}
+.biz-choice .selected-mark{
+  display:none;position:absolute;right:9px;top:9px;
+  font-size:8px;color:#dcebfa;background:var(--actionbg);
+  border:1px solid rgba(79,159,232,.35);border-radius:999px;padding:3px 7px
+}
+.biz-choice.selected .selected-mark{display:inline-flex}
+.biz-choice b{display:block;font-size:10px;margin-bottom:5px}
+.biz-choice small{display:block;color:var(--muted);font-size:8px;line-height:1.5}
+.biz-price{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:8px;color:#c9c5ba}
+.selection-summary{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 12px;border:1px solid rgba(79,159,232,.2);background:rgba(79,159,232,.06);
+  border-radius:9px;margin-top:10px
+}
+.selection-summary span{font-size:8px;color:var(--muted)}
+.selection-summary b{font-size:10px}
+.unselected-note{
+  padding:10px 12px;border:1px dashed var(--line2);border-radius:8px;color:var(--muted);font-size:8px;margin-top:10px
+}
+</style></head>
+<body><div class="app"><aside class="sidebar"><div class="brand"><div class="brandmark">N</div><div><b>NOX</b><small>INITIAL SETUP</small></div></div><div class="side-title">初期設定</div><div class="step-nav"><a class="step-link active" href="step1.html"><span class="step-num">1</span><span><b>お店について</b><small>業態・住所・営業時間</small></span><span class="req">必須</span></a><a class="step-link" href="step2-cabaret.html"><span class="step-num">2</span><span><b>料金について</b><small>業態別テンプレート</small></span><span class="req">必須</span></a><a class="step-link" href="step3.html"><span class="step-num">3</span><span><b>キャスト待遇</b><small>給与・バック・ノルマ</small></span><span class="req">必須</span></a><a class="step-link" href="step4.html"><span class="step-num">4</span><span><b>会計・レジ</b><small>POS・キオスク</small></span><span class="req">必須</span></a><a class="step-link" href="step5.html"><span class="step-num">5</span><span><b>確認</b><small>設定内容の確認</small></span><span class="req"></span></a></div><div class="sidefoot">選択と「次へ」を分離しました。</div></aside>
+<main><header class="topbar"><div class="crumb">NOX 初期設定 › <b>お店について</b></div><span class="badge">1 / 5</span></header><div class="content">
+<div class="pagehead">
+  <div><div class="eyebrow">STEP 1</div><h1>お店について</h1><p>最初に業態を選び、そのあと店舗情報を確認します。</p></div>
+  <div class="helper">業態カードを押してもすぐSTEP2には進みません。選択状態を確認してから「次へ」で進みます。</div>
+</div>
+
+<div class="card">
+  <div class="cardhead"><div><h2>1. お店のタイプ</h2><p>料金・待遇の初期テンプレートに使います</p></div><span class="badge">必須</span></div>
+  <div class="sectionbody">
+    <div class="choice-grid"><a class="biz-choice selected" href="step1-cabaret.html"><span class="selected-mark">選択中</span><b>キャバクラ</b><small>セット・指名・同伴中心</small><div class="biz-price">通常 7,000円 / 60分</div></a><a class="biz-choice" href="step1-girlsbar.html"><span class="selected-mark">選択中</span><b>ガールズバー</b><small>チャージ＋ドリンク中心</small><div class="biz-price">通常 3,000円 / 60分</div></a><a class="biz-choice" href="step1-snack.html"><span class="selected-mark">選択中</span><b>スナック</b><small>セット＋ボトル中心</small><div class="biz-price">通常 5,000円 / 90分</div></a><a class="biz-choice" href="step1-lounge.html"><span class="selected-mark">選択中</span><b>ラウンジ</b><small>セット＋VIP・高単価寄り</small><div class="biz-price">通常 8,000円 / 60分</div></a><a class="biz-choice" href="step1-bar.html"><span class="selected-mark">選択中</span><b>バー</b><small>商品会計＋チャージ中心</small><div class="biz-price">チャージ 1,000円〜</div></a></div>
+    <div class="selection-summary"><span>選択中のお店タイプ</span><b>キャバクラ</b></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="cardhead"><div><h2>2. 店舗の基本情報</h2><p>あとから変更できます</p></div></div>
+  <div class="sectionbody">
+    <div class="grid2">
+      <div class="field"><label>店舗名</label><input value="CLUB NOX"></div>
+      <div class="field"><label>住所</label><input value="東京都新宿区"></div>
+    </div>
+    <div class="grid4" style="margin-top:10px">
+      <div class="field"><label>営業開始 時</label><input type="number" value="20"></div>
+      <div class="field"><label>営業開始 分</label><input type="number" value="0"></div>
+      <div class="field"><label>営業終了 時</label><input type="number" value="5"></div>
+      <div class="field"><label>営業終了 分</label><input type="number" value="0"></div>
+    </div>
+  </div>
+</div>
+
+<div class="footnav">
+  <small>STEP 1 / 5　業態を選択 → 基本情報を確認 → 次へ</small>
+  <div class="actions"><a class="navbtn primary" href="step2-cabaret.html">次へ：キャバクラの料金設定</a></div>
+</div>
+</div></main></div></body></html>
