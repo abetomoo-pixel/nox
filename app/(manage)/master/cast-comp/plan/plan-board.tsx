@@ -11,7 +11,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import SimulatorPanel from "@/components/simulator-panel";
 import type { StoreSimData } from "@/lib/nox/payroll/sim-data";
-import { adoptedMethodsOf, type AdoptCompShape } from "@/lib/nox/comp-methods";
+import { adoptedMethodsOf, compSummaryOf } from "@/lib/nox/comp-methods";
 import { AssignTab, useCompData, secTitle, type Plan } from "../comp-sections";
 import PlanEditor from "./plan-editor";
 import NormaBoard from "../norma/norma-board";
@@ -38,7 +38,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
   const data = useCompData(storeId);
   // ①: 編集中プラン（チップ選択）。詳細編集は下の「待遇プラン」表の行クリック（②で持ち上げ予定）。
   const [selId, setSelId] = useState<string | null>(null);
-  const [selComps, setSelComps] = useState<AdoptCompShape[]>([]);
+  const [selComps, setSelComps] = useState<{ kind: string; is_active: boolean; amount: number | null }[]>([]);
   const sel = data.plans.find((p) => p.id === selId) ?? null;
   const headOf = (planId: string) => data.castPlans.filter((cp) => cp.plan_id === planId).length;
 
@@ -46,8 +46,8 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
     if (!selId) { setSelComps([]); return; }
     void (async () => {
       const { data: rows } = await supabase.from("comp_plan_components")
-        .select("kind, is_active").eq("plan_id", selId);
-      setSelComps((rows ?? []) as AdoptCompShape[]);
+        .select("kind, is_active, amount").eq("plan_id", selId);
+      setSelComps((rows ?? []) as { kind: string; is_active: boolean; amount: number | null }[]);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selId, data.plans]);
@@ -134,6 +134,10 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
         </div>
       </section>
 
+      {/* ── ⑧: 本文（左）＋サマリー（右 sticky・派生表示＝compSummaryOf 純関数・保存なし）の2カラム。狭幅は縦積み。 ── */}
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ flex: "3 1 560px", minWidth: 0 }}>
+
       {/* ── ②〜⑤: セクション編集面（draft＝PlanEditor が1本で保持・節別保存/未保存・裁定101 §3） ── */}
       <PlanEditor storeId={storeId} isOwner={isOwner} plans={data.plans} backs={data.backs}
         selId={selId} setSelId={setSelId} setMsg={setMsg} reload={data.reload} />
@@ -165,6 +169,34 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
         <AssignTab plans={data.plans} casts={data.casts} castPlans={data.castPlans}
           isManagerUp={isManagerUp} setMsg={setMsg} reload={data.reload} />
       </section>
+
+      </div>
+
+      {/* ── ⑧ サマリー（右カラム sticky・保存済み値の派生表示のみ＝再計算しない） ── */}
+      <aside style={{ flex: "1 1 240px", minWidth: 240, position: "sticky", top: 12 }}>
+        <section className="nox-cardtop" style={{ ...card, marginBottom: 0 }}>
+          <h2 style={{ ...secTitle, margin: "0 0 6px" }}>サマリー</h2>
+          {!sel ? (
+            <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>プランを選択すると構成を表示</p>
+          ) : (
+            <>
+              <p style={{ fontSize: 13, fontWeight: 800, color: "var(--champ)", margin: "0 0 6px" }}>
+                {sel.name}{!sel.is_active && "（無効）"}
+              </p>
+              {compSummaryOf(sel, selComps, headOf(sel.id)).map((r) => (
+                <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0" }}>
+                  <span style={{ color: "var(--sub)" }}>{r.label}</span>
+                  <span className="num">{r.value}</span>
+                </div>
+              ))}
+              <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+                ※保存済みの値の要約です（編集中の未保存値は各節の「未保存」表示を確認）。
+              </p>
+            </>
+          )}
+        </section>
+      </aside>
+      </div>
     </div>
   );
 }
