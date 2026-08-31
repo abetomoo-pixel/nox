@@ -2335,7 +2335,10 @@ comp_plan_components を先に削除」を追加**して先回りで塞いだ（
 
 ---
 
-## 裁定101（2026-08-31・U-2）待遇画面のモック収斂（設計ロック）— 実機: 未
+## 裁定101（2026-08-31・U-2）待遇画面のモック収斂（設計ロック）— 実機: CC済※／Agoora未
+<!-- ※CC 検収＝dev 実セッションで全節の DOM 実測（①c9f663a／②〜⑤0c23ceb／⑦7754a5b／⑧c68a4b6・
+     採用方式バッジ/節別保存済み表示/準備中バッジ/ノルマ統合/右サマリーの live 値一致を確認）。
+     console 新規エラー0（残存は編集中間状態の履歴）。スクショはペイン表示時に追補。段3=a1ff5bf（純関数3種+逆張り3赤→緑・payroll 177→181）。 -->
 
 **逐語の正本＝`docs/NOX_U2待遇収斂設計書v1.md` §1**（底本 sha256 `7ac2eea9…9e8d8e`・4,473 bytes）。要旨:
 
@@ -2554,7 +2557,7 @@ mig0004＝audit_log_write の service_role 残置と同型）。live の `check_
 | 35 | **payroll スイートの statement timeout 残置汚染** | `payroll` が statement timeout 等で異常終了すると `NOX-VERIFY-pay*` の cast が store A1 に active のまま残置され、次 run の **anon-guard 段35 を汚染**する（`teardown()` は冒頭 `:124` でも走るが**自スイートの中でしか効かない**＝ verify:f0 の並びが **anon-guard → payroll** のため次 run では anon-guard が先に当たる。段35 の `wipe35()` は `NOX-VERIFY-段35` **接頭辞の cast しか消さない**ので payroll 由来の残骸は素通りする）。★起票#6「原因は窓ではなく蓄積」と同系（型③）。**4e7a27c で解消**＝`teardown` の参照をモジュール層へ上げ **`main().catch()` から必ず呼ぶ**形にした（差分 +23/-1＝24行。本体を `try/finally` で包む案は 880 行の再インデントになるため不採用）。**汚染する具体点は `kiosk_cast_list` の `A1=2人` 固定カウント**（実測で特定）。逆張り＝fixture 作成後に中断を注入し、**旧実装では A1 active cast が 2→11・段35 が 11行で赤**、**新実装では「異常終了後の teardown 完了」を出して 2 に戻り段35 緑（984）**を実測。★**案b（段35 の wipe を `NOX-VERIFY-` 全体へ拡張）は不採用**＝実店舗データに当該接頭辞は 0件だが、**他スイートの常設 fixture が 16件（seats 14・comp_plans 2）生存**しており巻き込むため |
 | 36 | **RT レーン: データ種別別 retention の実装** | 裁定88 の実装本体。retention 列群・削除/匿名化バッチ・法定期間ロック・店舗ポリシー UI。着手時期は別途裁定（launch 前必須かは要判断） |
 | 37 | **売掛4段分割の実装** | 裁定89 の実装本体。cast_liability / settlement_request の器と経路分割。R-2b/F2e 系との統合設計が必要。着手は R-2b 以降 |
-| 38 | **待遇 UI のモック収斂** | 挙動段完了後、`plan.html` composer／`nox-cast-compensation-canonical.html`（2026-08-31 に canonical v2 へ差替＝旧 all-in-one）へ**段階収斂**する最終レーン。**canonical はモック側**＝裁定95 の「縮退版」を解消（5方式 composer・kind 追加＝point_rate/profit_share 系・履歴 UI 含む）。着手は C1/C2 挙動段の後 |
+| 38 | **待遇 UI のモック収斂** | **実装済（2026-08-31・裁定101 U-2 段2）・実機待ち**＝`/master/cast-comp/plan` を canonical 準拠のセクション編集面へ再構成（採用方式の自動判定・節別保存・準備中バッジ C5・ノルマ統合・右サマリー・割当の適用開始日＝履歴 UI）。kind 追加（point_rate/profit_share 系）と多段しきい値は**C5 準備中のまま**（起票#42）。残＝Agoora 実機 OK |
 | 39 | **初期設定ウィザード（OB レーン）** | モック `mock/onboarding-2026-08/`（**15 html**＝step1＋業態別 step1×5（追加受領・全 sha 相異）／業態別 step2×5／step3 待遇9カテゴリ／step4 会計・レジ／step5／done・script なし・Unicode escape なし）を収蔵。前提実測済み: stores に住所/業態/onboarding 列なし・**店作成 RPC なし**（seed の admin insert のみ）・会計方式（卓/個別/併用）のフラグなし＝器の設計から。step3 9カテゴリ↔既存の器の対応表は 2026-08-31 調査報告に収載 |
 | 40 | **給与画面のモック収斂（U-1）** | **裁定18 の「段D payroll 対象外」を裁定99 で解除**。正本＝`nox-payroll-management.html`（構造の正本・配色は現行トークン）。設計書＝`docs/NOX_U1給与収斂設計書v1.md`・実装順と完了条件（f0 2連緑＋CC スクショ＋Agoora 実機の3点）は裁定99 ⑨⑩。**進捗（2026-08-31）: 段①〜④実装済み**（DOM/console 検収済み・スクショはペイン表示待ち・**残＝CC スクショ追補と Agoora 実機 OK と v2 モック差替**） |
 | 41 | **レジモック v2 追随（R-2b 後）** | `nox-register-pos.html` の「指名の分配率」カードは**卓単位の指名区分**（内部 JS も `t.shareType` 単一値）＝裁定100 のキャスト別種別（行ごとに 種別＋同伴チェック＋重み）を表現できない。R-2b 実装後にモック v2 を受領し差替（裁定91 の canonical 維持手順で README 更新） |
