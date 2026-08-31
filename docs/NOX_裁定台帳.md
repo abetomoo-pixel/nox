@@ -2286,7 +2286,13 @@ comp_plan_components を先に削除」を追加**して先回りで塞いだ（
 
 ---
 
-## 裁定99（2026-08-31・U-1）給与画面のモック収斂 — 実機: 未（CC 未／Agoora 未）
+## 裁定99（2026-08-31・U-1）給与画面のモック収斂 — 実機: CC済※／Agoora未
+<!-- ※CC 検収＝実装当日に dev 実セッション（owner ログイン）で全区画の DOM/テキスト描画と console エラー 0 を確認済み。
+     スクショのみ Browser ペイン非表示のため未取得＝ペイン表示が得られ次第追補し、この注記を外す。 -->
+<!-- 実装実績（2026-08-31）: 段0=v2 モック未受領のためスキップ裁定（v1＋本文の構造定義で実装・v2 は後日 docs 差替）。
+     段①5fd14f7（hero/KPI4枚/4ステップ/要対応・kpiOfDraftRows）／段②dd79b60（状態列 payStatusOf・PayslipSlip 拡張）／
+     段③04922f9（下段2枚移設）／段④25ef263（純関数3本 assert＋逆張り3赤→緑・payroll 174→177）。 -->
+
 
 > 正本モック: mock/pages-2026-08/nox-payroll-management.html（v2 差替予定・構造の正本であって配色の正本ではない＝実装は現行トークン）。
 > 裁定18（デザイン移植 段D で payroll を対象外）の対象外指定を解除し、収斂対象とする（起票#40）。
@@ -2518,7 +2524,7 @@ mig0004＝audit_log_write の service_role 残置と同型）。live の `check_
 | 37 | **売掛4段分割の実装** | 裁定89 の実装本体。cast_liability / settlement_request の器と経路分割。R-2b/F2e 系との統合設計が必要。着手は R-2b 以降 |
 | 38 | **待遇 UI のモック収斂** | 挙動段完了後、`plan.html` composer／`nox-cast-compensation-canonical.html`（2026-08-31 に canonical v2 へ差替＝旧 all-in-one）へ**段階収斂**する最終レーン。**canonical はモック側**＝裁定95 の「縮退版」を解消（5方式 composer・kind 追加＝point_rate/profit_share 系・履歴 UI 含む）。着手は C1/C2 挙動段の後 |
 | 39 | **初期設定ウィザード（OB レーン）** | モック `mock/onboarding-2026-08/`（**15 html**＝step1＋業態別 step1×5（追加受領・全 sha 相異）／業態別 step2×5／step3 待遇9カテゴリ／step4 会計・レジ／step5／done・script なし・Unicode escape なし）を収蔵。前提実測済み: stores に住所/業態/onboarding 列なし・**店作成 RPC なし**（seed の admin insert のみ）・会計方式（卓/個別/併用）のフラグなし＝器の設計から。step3 9カテゴリ↔既存の器の対応表は 2026-08-31 調査報告に収載 |
-| 40 | **給与画面のモック収斂（U-1）** | **裁定18 の「段D payroll 対象外」を裁定99 で解除**。正本＝`nox-payroll-management.html`（構造の正本・配色は現行トークン）。設計書＝`docs/NOX_U1給与収斂設計書v1.md`・実装順と完了条件（f0 2連緑＋CC スクショ＋Agoora 実機の3点）は裁定99 ⑨⑩ |
+| 40 | **給与画面のモック収斂（U-1）** | **裁定18 の「段D payroll 対象外」を裁定99 で解除**。正本＝`nox-payroll-management.html`（構造の正本・配色は現行トークン）。設計書＝`docs/NOX_U1給与収斂設計書v1.md`・実装順と完了条件（f0 2連緑＋CC スクショ＋Agoora 実機の3点）は裁定99 ⑨⑩。**進捗（2026-08-31）: 段①〜④実装済み**（DOM/console 検収済み・スクショはペイン表示待ち・**残＝CC スクショ追補と Agoora 実機 OK と v2 モック差替**） |
 ### 未裁定・消し込み待ち
 
 - **P-4 の5裁定点（引き継ぎ v14 §5）**は、**`pricing_rules` 既実装（mig0083）に照らして
