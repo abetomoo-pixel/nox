@@ -363,7 +363,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
         <div>
           <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>給与管理</h1>
           <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            プレビュー → 確定 → 明細（印刷・CSV）・支払記録。確定後の金額は凍結された明細の値です。
+            出勤・売上・報酬ルールから計算し、確認・確定・支払まで管理します。
           </p>
         </div>
       </div>
@@ -509,6 +509,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
                 {issues.map((x, i) => (
                   <li key={i} style={{ color: x.kind === "blocker" ? "var(--bad)" : undefined }}>
                     {x.castName}: {x.label} — <span style={{ color: "var(--sub)" }}>{x.detail}</span>
+                    {x.href && <> <a href={x.href} style={{ color: "var(--champ)" }}>マスタ › キャスト・報酬 ›</a></>}
                   </li>
                 ))}
               </ul>
@@ -543,8 +544,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       )}
       {rows && (
         <>
-          {/* U-1（裁定99-④）: blockers/warnings の一覧は上の「要対応」区画へ統合（表示位置の移設のみ・状態は不変）。 */}
-          <p style={{ fontSize: 12, color: "var(--sub)" }}>※参考値です。確定時点で再計算した値が正となります。</p>
+          {/* U-1（裁定99-④）: blockers/warnings は「要対応」区画へ統合。是正C: 参考値注記は KPI 下の1回に一本化。 */}
           {incentives.length > 0 && (
             <div className="nox-cardtop" style={{ ...t.card, border: "1px solid var(--line2)", fontSize: 13 }}>
               <strong style={{ color: "var(--champ)" }}>出勤ボーナス（給与へ加算済み）</strong>
@@ -648,7 +648,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
           <button onClick={finalize} disabled={busy || blockers.length > 0 || rows.length === 0} style={blockers.length ? { ...t.btnGhost } : { ...t.btnGold }}>
             この期間を確定する
           </button>
-          {blockers.length > 0 && <span style={{ marginLeft: 10, fontSize: 12, color: "var(--bad)" }}>未登録 cast を解消してください</span>}
+          {/* U-1 是正C: 確定不可の案内は上の「要対応」区画へ一本化（ボタン横の重複文言は削除） */}
           </div>
 
           {/* ★U-1 是正B: 右パネル明細（sticky・PayslipSlip と同じ順序・0円行は非表示・数値は preview 再掲のみ） */}

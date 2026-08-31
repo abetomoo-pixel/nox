@@ -45,7 +45,12 @@ export function payStatusOf(net: number, paidSum: number): PayStatus {
 
 // 裁定99-④: 要対応の整形＝blockers（確定を止める）＋ warnings（裁定98・止めない）を1本のリストへ。
 //   0件のときの「要対応なし」表示は呼び元の責務。
-export type DraftIssue = { castName: string; label: string; detail: string; kind: "blocker" | "warning" };
+export type DraftIssue = { castName: string; label: string; detail: string; kind: "blocker" | "warning"; href?: string };
+
+// 是正C: blocker 理由ごとの案内文（no_plan は導線リンク付き＝呼び元がラベル「マスタ › キャスト・報酬」で描画）
+const BLOCKER_DETAIL_JA: Record<string, { detail: string; href?: string }> = {
+  no_plan: { detail: "待遇プランを割り当ててください", href: "/master/cast-comp" },
+};
 
 export const ISSUE_BLOCKER_JA: Record<string, string> = {
   no_tax: "税区分未登録", no_plan: "プラン未設定", no_employment: "雇用/委託未設定",
@@ -62,7 +67,9 @@ export function issuesOfDraft(
   return [
     ...blockers.map((b) => ({
       castName: b.castName, label: ISSUE_BLOCKER_JA[b.reason] ?? b.reason,
-      detail: "確定できません（登録を解消してください）", kind: "blocker" as const,
+      detail: BLOCKER_DETAIL_JA[b.reason]?.detail ?? "確定できません（登録を解消してください）",
+      kind: "blocker" as const,
+      ...(BLOCKER_DETAIL_JA[b.reason]?.href ? { href: BLOCKER_DETAIL_JA[b.reason].href } : {}),
     })),
     ...warnings.map((w) => ({
       castName: w.castName, label: ISSUE_WARNING_JA[w.kind] ?? w.kind,
