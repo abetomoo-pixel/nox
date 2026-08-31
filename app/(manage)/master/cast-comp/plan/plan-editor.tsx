@@ -177,17 +177,24 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   }
 
   // 節ヘッダ（保存済み/未保存・節の保存ボタン・節ローカルのエラー）。stateless＝インライン定義で可。
+  // ★U-2 是正1: 未選択（新規＝draft.id null）は 保存済み/未保存ピルを出さない（BLANK が「保存済み」に見える誤解の防止）。
+  //   保存は「基本給・保証」節のみ活性＝ここでプランが作成される（他節はプラン作成後に活性）。
   const SecHead = ({ title, keys, section }: { title: string; keys: (keyof Draft)[]; section: string }) => {
     const isDirty = dirty(keys);
+    const creatable = section === "基本給・保証";
+    const disabled = !draft.name.trim() || (draft.id === null && !creatable);
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
         <h2 style={{ ...secTitle, margin: 0 }}>{title}</h2>
-        <span className="nox-stpill" style={{ borderColor: isDirty ? "var(--gold)" : "var(--line2)", color: isDirty ? "var(--champ)" : "var(--sub)" }}>
-          {isDirty ? "未保存" : "保存済み"}
-        </span>
+        {draft.id !== null && (
+          <span className="nox-stpill" style={{ borderColor: isDirty ? "var(--gold)" : "var(--line2)", color: isDirty ? "var(--champ)" : "var(--sub)" }}>
+            {isDirty ? "未保存" : "保存済み"}
+          </span>
+        )}
         {isOwner && (
-          <button type="button" style={{ ...t.btnGold, ...t.btnSm }} onClick={() => void savePlan(section)}
-            disabled={!draft.name.trim()}>
+          <button type="button" style={{ ...t.btnGold, ...t.btnSm, opacity: disabled ? 0.5 : 1 }} onClick={() => void savePlan(section)}
+            disabled={disabled}
+            title={draft.id === null && !creatable ? "先に「基本給・保証を保存」でプランを作成してください" : ""}>
             {section}を保存
           </button>
         )}
@@ -200,6 +207,15 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
 
   return (
     <div>
+      {/* ★U-2 是正1: 未選択（新規）時の誘導 */}
+      {draft.id === null && (
+        <div style={{ ...t.card, marginBottom: 14, border: "1px solid var(--gold)", fontSize: 13 }}>
+          <strong style={{ color: "var(--champ)" }}>新規プランの作成</strong>
+          <span style={{ marginLeft: 8, color: "var(--sub)" }}>
+            プラン名を入力して「基本給・保証を保存」を押すとプランが作成されます（他の節はその後に保存できます）。
+          </span>
+        </div>
+      )}
       {/* ── ② 基本給・保証 ── */}
       <section id="base" className="nox-cardtop" style={{ ...t.card, marginBottom: 14 }}>
         <SecHead title="基本給・保証" keys={["name", "base", "active"]} section="基本給・保証" />
@@ -282,7 +298,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         </div>
         <CompRows kind="achievement_bonus" section="達成ボーナス" comps={comps} isOwner={isOwner} onSave={saveComp} />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-          <Prep k="achievement_params" />
+          <Prep k="achievement_params" /><Prep k="achievement_metrics" />
         </div>
       </section>
     </div>

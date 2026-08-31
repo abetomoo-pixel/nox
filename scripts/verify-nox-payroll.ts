@@ -1500,9 +1500,9 @@ async function main() {
       && !s1.some((r) => r.label === "達成ボーナス"),
       JSON.stringify(s1));
     // (c3) 準備中判定＝C5 リストが正本（既知 key を引ける・未知 key は null・11項目）
-    check("U2 c3 ★準備中判定（rounding_axes 実在・unknown は null・PREP_ITEMS=11項目）",
+    check("U2 c3 ★準備中判定（rounding_axes 実在・unknown は null・PREP_ITEMS=12項目）",
       prepItemOf("rounding_axes")?.label === "歩合の丸め2軸" && prepItemOf("unknown_key") === null
-      && PREP_ITEMS.length === 11,
+      && PREP_ITEMS.length === 12,
       JSON.stringify({ r: prepItemOf("rounding_axes"), n: PREP_ITEMS.length }));
   }
 

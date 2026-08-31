@@ -5,7 +5,7 @@
 // 採用方式トグル（値の有無から自動判定・保存なし＝lib/nox/comp-methods.ts の純関数）。
 // ★各セクションの中身は現行 comp-sections.tsx の部品をそのまま搭載＝RPC・引数・権限出し分けは不変。
 //   ②〜⑧の再区画化は後続コミット（1セクション＝1コミット）。
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -41,6 +41,15 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
   const [selComps, setSelComps] = useState<{ kind: string; is_active: boolean; amount: number | null }[]>([]);
   const sel = data.plans.find((p) => p.id === selId) ?? null;
   const headOf = (planId: string) => data.castPlans.filter((cp) => cp.plan_id === planId).length;
+  // ★U-2 是正1: 初回ロード時のみ先頭の有効プランを自動選択（「新規」で外した選択を上書きしない）。
+  const didInitSel = useRef(false);
+  useEffect(() => {
+    if (didInitSel.current || data.plans.length === 0) return;
+    didInitSel.current = true;
+    const first = data.plans.find((p) => p.is_active);
+    if (first && !selId) setSelId(first.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.plans]);
 
   useEffect(() => {
     if (!selId) { setSelComps([]); return; }

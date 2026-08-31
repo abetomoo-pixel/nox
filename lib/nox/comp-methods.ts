@@ -24,6 +24,7 @@ export const PREP_ITEMS: { key: string; label: string; unlock?: string }[] = [
   { key: "rounding_axes", label: "歩合の丸め2軸", unlock: "comp_plans に列なし（C5）" },
   { key: "penalty_basis_record", label: "未達処理の根拠確認記録", unlock: "penalty_config に器なし" },
   { key: "achievement_params", label: "達成ボーナスの多段しきい値", unlock: "現行は100%・1段固定" },
+  { key: "achievement_metrics", label: "達成条件の他軸（出勤/本指名/同伴）", unlock: "params 未対応＝目標は売上のみ" },
   { key: "rate_back", label: "率方式バック（同伴）", unlock: "R-2b 後（裁定86-②）" },
 ];
 export function prepItemOf(key: string): { key: string; label: string; unlock?: string } | null {
