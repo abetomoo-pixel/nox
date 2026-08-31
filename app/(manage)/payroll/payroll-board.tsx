@@ -35,6 +35,7 @@ type Row = {
     pay: PayrollCsvPay & {
       wHours?: number; guaranteeAdd?: number; achievementBonus?: number;
       sanction?: { original?: number; applied?: number } | null;
+      plan?: { name?: string }; // ★U-1 是正B: 右パネルのプラン名（PayResult.plan エコー）
     };
     extras?: { amount: number }[];
   };
@@ -87,6 +88,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   const [rowQ, setRowQ] = useState("");
   // E8-5 payroll#3: 行タップ→個別内訳（preview breakdown の再掲・選択中 castId）
   const [detailCast, setDetailCast] = useState<string | null>(null);
+  // ★U-1 是正B: 右パネルの「明細プレビュー」（PayslipSlip 全体）の開閉
+  const [slipPreview, setSlipPreview] = useState(false);
 
   // run 状態を読む（payroll_runs は owner/manager RLS 可視）。store/period 変更・確定完了で再読込。
   //   ★store/period が変わったら印刷プレビュー/解除状態は破棄（別店の明細を刷らない・別 run の payCount を残さない）。
@@ -563,6 +566,9 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
               変えたのは (a) キャスト名に段P の写真アバターを添える (b) net を白太で強調
               (c) ≤641 で補助列（税区分・売掛・前借り・送り・anomaly）を CSS で畳む
                   ＝列を削除するのではなく狭い画面で隠すだけ（>641 では全列が出る）。 */}
+          {/* ★U-1 是正B: 表=左 2/3・明細=右 1/3（sticky）。狭幅は flexWrap で縦積み。 */}
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div style={{ flex: "2 1 480px", minWidth: 0 }}>
           {/* E8-5 payroll#4（T2）: 名前検索＝client フィルタ（並び・数値は不変） */}
           <input value={rowQ} onChange={(e) => setRowQ(e.target.value)} placeholder="キャスト名で絞り込み"
             aria-label="キャスト名で絞り込み" style={{ ...t.input, width: 220, marginBottom: 8 }} />
@@ -595,7 +601,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
                     + z(pay.advanceDeduct) + z(pay.okuriDeduct) + z(pay.normPenalty)
                   : null;
                 return (
-                <tr key={r.castId} onClick={() => setDetailCast((v) => (v === r.castId ? null : r.castId))}
+                <tr key={r.castId} onClick={() => { setSlipPreview(false); setDetailCast((v) => (v === r.castId ? null : r.castId)); }}
                   style={{ cursor: "pointer", background: detailCast === r.castId ? "var(--card2)" : undefined }}>
                   <td style={t.td}>
                     {/* 段0R 第2陣: モック .castcell 逐語（アバター30px・gap9・名前 bold）。表示のみ・値と並びは不変。 */}
@@ -626,57 +632,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
               })}
             </tbody>
           </table>
-          {/* E8-5 payroll#3: 行タップ→個別内訳（preview breakdown の再掲＝サーバ計算値のみ・確定時は再計算が正） */}
-          {(() => {
-            const r = detailCast ? rows.find((x) => x.castId === detailCast) : null;
-            const pay = r?.breakdown?.pay;
-            if (!r || !pay) return null;
-            const z = (v: number | undefined) => v ?? 0;
-            // ★U-1（裁定99-⑤）: 保証/達成は支給側・制裁は固定控除から分解表示（合計不変・再計算なし）。
-            const sanctionApplied = z(pay.sanction?.applied);
-            const sanctionOriginal = z(pay.sanction?.original);
-            const items: [string, number][] = [
-              ["時給（timePay）", z(pay.timePay)],
-              ["本指名バック", z(pay.honBack)], ["場内バック", z(pay.jonaiBack)], ["同伴バック", z(pay.dohanBack)],
-              ["ドリンク", z(pay.drinkBack)], ["シャンパン", z(pay.champBack)], ["ボトル", z(pay.bottleBack)],
-              ["売上スライド", z(pay.salesBack)], ["自由バック", z(pay.customTotal)],
-              ["達成ボーナス", z(pay.achievementBonus)], ["最低保証加算", z(pay.guaranteeAdd)],
-            ];
-            const whLabel = r.taxMode === "委託" ? "源泉（報酬・料金）" : r.taxMode === "雇用" ? "源泉（給与）" : "源泉";
-            const deds: [string, number][] = [
-              ["固定控除", z(pay.fixedDed) - sanctionApplied],
-              [sanctionOriginal > sanctionApplied ? `制裁（原額 ¥${sanctionOriginal.toLocaleString()}→上限適用）` : "制裁（罰金・減給）", sanctionApplied],
-              ["罰金", z(pay.fine)], [whLabel, z(pay.withholding)],
-              ["売掛天引き", z(pay.arDeduct)], ["前借り", z(pay.advanceDeduct)], ["送り", z(pay.okuriDeduct)],
-              ["ノルマ", z(pay.normPenalty)],
-            ];
-            return (
-              <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
-                <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 8px", color: "var(--champ)" }}>
-                  {r.castName} の内訳（プレビュー参考値）
-                </p>
-                <div style={{ display: "flex", gap: 18, flexWrap: "wrap", fontSize: 12.5 }}>
-                  <div>
-                    {items.filter(([, v]) => v !== 0).map(([l, v]) => (
-                      <div key={l} style={{ display: "flex", justifyContent: "space-between", gap: 16, minWidth: 200 }}>
-                        <span style={{ color: "var(--sub)" }}>{l}</span><span className="num">¥{v.toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    {deds.filter(([, v]) => v !== 0).map(([l, v]) => (
-                      <div key={l} style={{ display: "flex", justifyContent: "space-between", gap: 16, minWidth: 200 }}>
-                        <span style={{ color: "var(--sub)" }}>{l}</span><span className="num" style={{ color: "var(--bad)" }}>−¥{v.toLocaleString()}</span>
-                      </div>
-                    ))}
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16, minWidth: 200, marginTop: 4, fontWeight: 800 }}>
-                      <span>差引支給</span><span className="num" style={{ color: "var(--v2-text)" }}>¥{r.net.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
+          {/* U-1 是正B: 旧・行タップ下展開パネルは右 sticky パネルへ置換（削除） */}
           {/* 複数キャスト表の「締め」＝合計バー。段0R 第3陣: 金ベタ地＋黒文字（t.slipFoot 共用）をやめ、
               panel 地＋白太金額へ＝金は選択・主ボタン・バッジの3役のみの裁定に一致。
               ★合計値と行数の式は不変。t.slipFoot 自体は非改変＝payslip 帳票（ps-foot・
@@ -693,6 +649,93 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
             この期間を確定する
           </button>
           {blockers.length > 0 && <span style={{ marginLeft: 10, fontSize: 12, color: "var(--bad)" }}>未登録 cast を解消してください</span>}
+          </div>
+
+          {/* ★U-1 是正B: 右パネル明細（sticky・PayslipSlip と同じ順序・0円行は非表示・数値は preview 再掲のみ） */}
+          <aside style={{ flex: "1 1 260px", minWidth: 260, position: "sticky", top: 12 }}>
+            <section className="nox-cardtop" style={{ ...t.card, marginBottom: 0 }}>
+              {(() => {
+                const r = detailCast ? rows.find((x) => x.castId === detailCast) : null;
+                const pay = r?.breakdown?.pay;
+                if (!r || !pay) {
+                  return <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>行を選択すると内訳を表示</p>;
+                }
+                const z = (v: number | undefined) => v ?? 0;
+                const extrasTotal = (r.breakdown?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
+                const sanctionApplied = z(pay.sanction?.applied);
+                const sanctionOriginal = z(pay.sanction?.original);
+                const whLabel = r.taxMode === "委託" ? "源泉（報酬・料金）" : r.taxMode === "雇用" ? "源泉（給与）" : "源泉";
+                const earnRows: [string, number][] = [
+                  ["保証給与", z(pay.timePay)], ["最低保証加算", z(pay.guaranteeAdd)],
+                  ["本指名", z(pay.honBack)], ["場内", z(pay.jonaiBack)], ["同伴", z(pay.dohanBack)],
+                  ["歩合", z(pay.salesBack)], ["達成ボーナス", z(pay.achievementBonus)],
+                  ["その他バック", z(pay.drinkBack) + z(pay.champBack) + z(pay.bottleBack) + z(pay.customTotal) + extrasTotal],
+                ];
+                const dedRows: [string, number][] = [
+                  [whLabel, z(pay.withholding)], ["送り", z(pay.okuriDeduct)],
+                  [sanctionOriginal > sanctionApplied ? `制裁（原額 ¥${sanctionOriginal.toLocaleString()}→上限適用）` : "制裁（罰金・減給）", sanctionApplied],
+                  ["前借り", z(pay.advanceDeduct)], ["売掛", z(pay.arDeduct)],
+                  ["その他", z(pay.fixedDed) - sanctionApplied + z(pay.fine) + z(pay.normPenalty)],
+                ];
+                const earnTotal = z(pay.gross) + extrasTotal;
+                const dedTotal = dedRows.reduce((s, [, v]) => s + v, 0);
+                const line = (l: string, v: number, neg = false) => (
+                  <div key={l} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0" }}>
+                    <span style={{ color: "var(--sub)" }}>{l}</span>
+                    <span className="num" style={neg ? { color: "var(--bad)" } : undefined}>{neg ? "−" : ""}¥{v.toLocaleString()}</span>
+                  </div>
+                );
+                return (
+                  <>
+                    <p style={{ fontSize: 13, fontWeight: 800, margin: "0 0 2px", color: "var(--champ)" }}>
+                      {r.castName}
+                      {(r.taxMode === "委託" || r.taxMode === "雇用") && (
+                        <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
+                          border: "1px solid var(--line2)", color: "var(--champ)" }}>{r.taxMode}</span>
+                      )}
+                    </p>
+                    {pay.plan?.name && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 6px" }}>{pay.plan.name}</p>}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "4px 0 8px" }}>
+                      <span style={{ fontSize: 12, color: "var(--sub)" }}>差引支給額</span>
+                      <span className="num" style={{ fontSize: 20, fontWeight: 800, color: "var(--v2-text)" }}>¥{r.net.toLocaleString()}</span>
+                    </div>
+                    <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "8px 0 2px" }}>支給</p>
+                    {earnRows.filter(([, v]) => v !== 0).map(([l, v]) => line(l, v))}
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 800, borderTop: "1px solid var(--line2)", marginTop: 4, paddingTop: 4 }}>
+                      <span>支給合計</span><span className="num">¥{earnTotal.toLocaleString()}</span>
+                    </div>
+                    <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>控除</p>
+                    {dedRows.filter(([, v]) => v !== 0).map(([l, v]) => line(l, v, true))}
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 800, borderTop: "1px solid var(--line2)", marginTop: 4, paddingTop: 4 }}>
+                      <span>控除合計</span><span className="num" style={{ color: dedTotal > 0 ? "var(--bad)" : undefined }}>{dedTotal > 0 ? `−¥${dedTotal.toLocaleString()}` : "¥0"}</span>
+                    </div>
+                    <button onClick={() => setSlipPreview((v) => !v)} style={{ ...t.btnGhost, ...t.btnSm, marginTop: 10 }}>
+                      {slipPreview ? "明細プレビューを閉じる" : "明細プレビュー"}
+                    </button>
+                    {slipPreview && (
+                      <div style={{ marginTop: 10 }}>
+                        <PayslipSlip
+                          castName={r.castName}
+                          slip={{
+                            period,
+                            net: r.net,
+                            // preview 行から breakdown_json を合成（pay/extras は素通し・ar/adv/okuri は今期天引き額のみ）
+                            breakdown_json: {
+                              pay, extras: r.breakdown?.extras ?? [],
+                              ar: r.arDeductTotal ? [{ action: "deducted", amount: r.arDeductTotal }] : [],
+                              adv: r.advDeductTotal ? [{ action: "deducted", amount: r.advDeductTotal }] : [],
+                              okuri: r.okuriDeductTotal ? [{ action: "deducted", amount: r.okuriDeductTotal }] : [],
+                            },
+                          }}
+                        />
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </section>
+          </aside>
+          </div>
         </>
       )}
 
