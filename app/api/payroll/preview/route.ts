@@ -26,6 +26,7 @@ export async function POST(req: Request) {
         okuriDeductTotal: r.okuriDeductTotal, // F2e-2 送り実費天引き（繰越なし）
       })),
       blockers: draft.blockers,
+      warnings: draft.warnings, // ★裁定98: sanction 二層ガードの警告（確定は止めない）
       incentives: draft.incentives, // #32 可視化: 総配分額・受給者数・warnEmptyPool
     });
   } catch (e) {

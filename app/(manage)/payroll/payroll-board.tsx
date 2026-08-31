@@ -32,6 +32,10 @@ type Row = {
   breakdown?: { pay: PayrollCsvPay & { wHours?: number }; extras?: { amount: number }[] };
 };
 type Blocker = { castName: string; reason: string };
+// ★裁定98: sanction 二層ガードの警告（blocker と別枠・確定は止めない）
+type Warning = { castName: string; kind: string; detail: string };
+const BLOCKER_JA: Record<string, string> = { no_tax: "税区分未登録", no_plan: "プラン未設定", no_employment: "雇用/委託未設定" };
+const WARNING_JA: Record<string, string> = { sanction_capped: "制裁控除を法定上限で制限", sanction_contractor: "委託への制裁控除", avg_wage_provisional: "平均賃金が暫定式" };
 type Incentive = { id: string; bizDate: string; amountMode: string; amount: number; recipientCount: number; distributedTotal: number; warnEmptyPool: boolean };
 
 // 3段フロー（期間選択→プレビュー→確定）。プレビューは参考値（確定時点で再計算が正）。
@@ -41,6 +45,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [rows, setRows] = useState<Row[] | null>(null);
   const [blockers, setBlockers] = useState<Blocker[]>([]);
+  const [warnings, setWarnings] = useState<Warning[]>([]); // ★裁定98
   const [incentives, setIncentives] = useState<Incentive[]>([]);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -240,12 +245,14 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       if (!res.ok) {
         setRows(null);
         setBlockers([]);
+        setWarnings([]);
         setIncentives([]);
         setMsg(`エラー(${res.status}): ${j.error ?? ""}`);
         return;
       }
       setRows(j.rows as Row[]);
       setBlockers((j.blockers ?? []) as Blocker[]);
+      setWarnings((j.warnings ?? []) as Warning[]); // ★裁定98
       setIncentives((j.incentives ?? []) as Incentive[]);
     } catch (e) {
       setMsg(`通信エラー: ${(e as Error).message}`);
@@ -268,7 +275,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       const j = await res.json();
       if (!res.ok) {
         if (res.status === 422 && Array.isArray(j.blockers)) {
-          setMsg(`確定不可（税区分/プラン未設定）: ${(j.blockers as Blocker[]).map((b) => b.castName).join("、")}`);
+          setMsg(`確定不可（税区分/プラン/雇用区分 未設定）: ${(j.blockers as Blocker[]).map((b) => b.castName).join("、")}`);
         } else {
           setMsg(`エラー(${res.status}): ${j.error ?? ""}`);
         }
@@ -455,8 +462,21 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
         <>
           {blockers.length > 0 && (
             <div style={t.alert}>
-              ⚠ 確定不可の cast（要 税区分/プラン登録）:{" "}
-              {blockers.map((b) => `${b.castName}(${b.reason === "no_tax" ? "税区分未登録" : "プラン未設定"})`).join("、")}
+              ⚠ 確定不可の cast（要 税区分/プラン/雇用区分の登録）:{" "}
+              {blockers.map((b) => `${b.castName}(${BLOCKER_JA[b.reason] ?? b.reason})`).join("、")}
+            </div>
+          )}
+          {/* ★裁定98: sanction 二層ガードの警告（確定は止めない・blocker の下） */}
+          {warnings.length > 0 && (
+            <div className="nox-cardtop" style={{ ...t.card, border: "1px solid var(--line2)", fontSize: 13 }}>
+              <strong style={{ color: "var(--champ)" }}>警告（制裁控除・裁定98）</strong>
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                {warnings.map((w, i) => (
+                  <li key={i}>
+                    {w.castName}: {WARNING_JA[w.kind] ?? w.kind} — <span style={{ color: "var(--sub)" }}>{w.detail}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           <p style={{ fontSize: 12, color: "var(--sub)" }}>※参考値です。確定時点で再計算した値が正となります。</p>

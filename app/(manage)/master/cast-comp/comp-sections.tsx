@@ -32,7 +32,13 @@ export type CompRow = {
 };
 const COMP_KIND_LABEL: Record<string, string> = { guarantee_min: "最低保証", achievement_bonus: "達成ボーナス" };
 export type Norm = { id: string; cast_id: string; period: string; days_target: number; dohan_target: number; sales_target: number; shimei_target: number };
-export type Deduction = { id: string; name: string; amount: number; per: string; is_active: boolean };
+export type Deduction = { id: string; name: string; amount: number; per: string; is_active: boolean;
+  kind: string; basis_confirmed_at: string | null; basis_note: string | null }; // ★裁定98（mig0117）
+// ★裁定98: 控除種別6値の表示ラベル（DB 固定語彙と1:1）
+export const DED_KIND_JA: Record<string, string> = {
+  unworked: "不就労分", sanction: "制裁（罰金・減給）", statutory: "法定控除",
+  agreed_cost: "実費・協定（送り代等）", store_receivable: "売掛負担", advance_settlement: "前借り精算",
+};
 export type BackDef = { id: string; name: string; basis: string; value: number; cond_json: { metric: string; min: number } | null; is_active: boolean };
 export type Penalty = {
   fine_absent: number; fine_late: number; hours_per_shift: number; norm_on: boolean;
@@ -109,6 +115,10 @@ function compErrJa(msg: string | undefined): string {
   if (msg.includes("duplicate name")) return "同じ名前のプランがあります";
   if (msg.includes("not found")) return "対象が見つかりません（再読込してください）";
   if (msg.includes("forbidden")) return "権限がありません";
+  // ★裁定98（mig0117）: sanction の根拠確認まわり
+  if (msg.includes("basis required")) return "制裁（罰金・減給）は根拠の確認チェックと確認内容の入力が必須です";
+  if (msg.includes("bad basis note")) return "確認内容は 400 字以内で入力してください";
+  if (msg.includes("bad kind")) return "控除種別が不正です";
   return msg;
 }
 
@@ -137,7 +147,7 @@ export function useCompData(storeId: string) {
       // ★mig0114: 期間化後は現在行のみ（valid_to is null）。履歴行が生まれる挙動段の前に必須の追随。
       supabase.from("cast_plan").select("cast_id, plan_id, overrides_json").is("valid_to", null),
       supabase.from("cast_norms").select("id, cast_id, period, days_target, dohan_target, sales_target, shimei_target").order("period"),
-      supabase.from("deductions").select("id, name, amount, per, is_active").order("name"),
+      supabase.from("deductions").select("id, name, amount, per, is_active, kind, basis_confirmed_at, basis_note").order("name"), // ★裁定98
       supabase.from("custom_back_defs").select("id, name, basis, value, cond_json, is_active").order("name"),
       supabase.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
     ]);
@@ -537,38 +547,74 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
   const [amount, setAmount] = useState(0);
   const [per, setPer] = useState("day");
   const [active, setActive] = useState(true);
-  function edit(d: Deduction) { setId(d.id); setName(d.name); setAmount(d.amount); setPer(d.per); setActive(d.is_active); }
+  // ★裁定98: 種別＋sanction の根拠確認（RPC が保存のたびに必須化＝チェックは編集時も毎回入れ直す）
+  const [kind, setKind] = useState("agreed_cost");
+  const [basisConfirmed, setBasisConfirmed] = useState(false);
+  const [basisNote, setBasisNote] = useState("");
+  function edit(d: Deduction) {
+    setId(d.id); setName(d.name); setAmount(d.amount); setPer(d.per); setActive(d.is_active);
+    setKind(d.kind ?? "agreed_cost"); setBasisConfirmed(false); setBasisNote(d.basis_note ?? "");
+  }
+  function resetForm() { setId(null); setName(""); setAmount(0); setKind("agreed_cost"); setBasisConfirmed(false); setBasisNote(""); }
   async function save() {
-    const { error } = await supabase.rpc("set_deduction", { p_id: id, p_store_id: storeId, p_name: name, p_amount: amount, p_per: per, p_is_active: active });
+    // ★裁定98: 9引数を常に明示送信（kind を省略する経路を作らない＝教訓43 型）。非 sanction は false/null 固定。
+    const { error } = await supabase.rpc("set_deduction", {
+      p_id: id, p_store_id: storeId, p_name: name, p_amount: amount, p_per: per, p_is_active: active,
+      p_kind: kind,
+      p_basis_confirmed: kind === "sanction" ? basisConfirmed : false,
+      p_basis_note: kind === "sanction" ? (basisNote.trim() || null) : null,
+    });
     setMsg(error ? compErrJa(error.message) : id ? "控除を更新しました" : "控除を登録しました");
-    if (!error) { setId(null); setName(""); setAmount(0); await reload(); }
+    if (!error) { resetForm(); await reload(); }
   }
   return (
     <div>
       <table className="nox-table" style={{ marginBottom: 10 }}>
-        <thead><tr>{["名称", "額", "単位", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+        <thead><tr>{["名称", "種別", "額", "単位", "根拠確認日", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
           {deductions.map((d) => (
             <tr key={d.id} onClick={() => isManagerUp && edit(d)} style={{ cursor: isManagerUp ? "pointer" : "default" }}>
               <td>{d.name}</td>
+              <td style={{ color: d.kind === "sanction" ? "var(--bad)" : undefined }}>{DED_KIND_JA[d.kind] ?? d.kind}</td>
               <td className="num">{d.per === "rate" ? `${d.amount}%` : d.amount}</td>
               <td>{d.per}</td>
+              <td>{d.basis_confirmed_at ? d.basis_confirmed_at.slice(0, 10) : "—"}</td>
               <td style={{ color: d.is_active ? "var(--ok)" : "var(--sub)" }}>{d.is_active ? "有効" : "無効"}</td>
             </tr>
           ))}
         </tbody>
       </table>
       {isManagerUp ? (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={note}>{id ? "編集中" : "新規"}</span>
-          <input placeholder="名称（送り代等）" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} />
-          <label style={{ fontSize: 12 }}>額 <input type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
-          <SegSelect value={per} onChange={(v) => setPer(v)}
-            options={[["day", "日ごと"], ["month", "月ごと"], ["rate", "売上%"]] as const} />
-          <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
-          <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
-          {id && <button style={btnLight} onClick={() => { setId(null); setName(""); }}>新規に戻す</button>}
-        </div>
+        <>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={note}>{id ? "編集中" : "新規"}</span>
+            <input placeholder="名称（送り代等）" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} />
+            <label style={{ fontSize: 12 }}>種別{" "}
+              <select value={kind} onChange={(e) => setKind(e.target.value)} style={{ ...input, width: 170 }}>
+                {Object.entries(DED_KIND_JA).map(([k, ja]) => <option key={k} value={k}>{ja}</option>)}
+              </select>
+            </label>
+            <label style={{ fontSize: 12 }}>額 <input type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
+            <SegSelect value={per} onChange={(v) => setPer(v)}
+              options={[["day", "日ごと"], ["month", "月ごと"], ["rate", "売上%"]] as const} />
+            <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
+            <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
+            {id && <button style={btnLight} onClick={resetForm}>新規に戻す</button>}
+          </div>
+          {kind === "sanction" && (
+            <div style={{ marginTop: 10, padding: "10px 12px", border: "1px solid var(--bad)", borderRadius: 8, fontSize: 12.5 }}>
+              <p style={{ margin: "0 0 6px", color: "var(--bad)", fontWeight: 700 }}>制裁（罰金・減給）の二層ガード（裁定98）</p>
+              <p style={{ margin: "0 0 4px" }}>・<strong>雇用</strong>キャスト: 労基法91条の上限（1回=平均賃金の半日分・総額=一賃金支払期の賃金総額の1/10）を<strong>給与計算で自動適用</strong>します。</p>
+              <p style={{ margin: "0 0 8px" }}>・<strong>委託</strong>キャスト: 確定済み報酬からの控除はフリーランス法上の報酬減額等に該当する場合があります。契約上の根拠の確認が必須です（数値上限の自動適用はありません）。</p>
+              <label style={{ display: "block", margin: "0 0 6px" }}>
+                <input type="checkbox" checked={basisConfirmed} onChange={(e) => setBasisConfirmed(e.target.checked)} />{" "}
+                就業規則（雇用）／契約（委託）上の根拠を確認した
+              </label>
+              <textarea value={basisNote} onChange={(e) => setBasisNote(e.target.value)} maxLength={400} rows={2}
+                placeholder="確認内容（何を根拠としたか・必須・400字以内）" style={{ ...input, width: "100%", boxSizing: "border-box" }} />
+            </div>
+          )}
+        </>
       ) : <p style={note}>控除はマネージャー以上のみ可能です。</p>}
     </div>
   );
