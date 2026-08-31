@@ -69,14 +69,17 @@ export type CollectResult = {
 };
 
 // 店共通マスタ＋cast 個別マスタ（plan/norm/tax）を1回読む。
-async function loadMasters(admin: SupabaseClient, storeId: string, period: string) {
+// periodEnd は period_bounds 由来の 'YYYY-MM-DD'（win.periodEnd・写像単一ソース＝Date 非経由）。
+async function loadMasters(admin: SupabaseClient, storeId: string, period: string, periodEnd: string) {
   const [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR] = await Promise.all([
     admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, dohan_back_mode, dohan_back_rate").eq("store_id", storeId),
-    // ★mig0116（挙動段・裁定96-④）: 給与適用は「**期間開始日時点で有効な行**」1本＝期中変更は翌期から。
-    //   履歴が無い店（全行 valid_to null・valid_from=導入日 backfill）は現在行と同一＝従来と同値。
+    // ★裁定97: 適用行の選択は3段（期間と重なる行を全部読み、下の castPlanByCast 構築で選ぶ）。
+    //   a) 期首（period-01）時点で有効な行があればそれ＝裁定96-④ 不変（期中変更は翌期から）。
+    //   b) 無ければ期間内（期首 < valid_from ≤ 期末）で最も早い valid_from の行＝backfill 導入月の救済。日割りなし。
+    //   c) どちらも無ければ plan なし＝no_plan blocker（従来どおり）。
     //   UI 系（comp-sections）の現在行読み（valid_to is null）は別経路＝不変。
-    admin.from("cast_plan").select("cast_id, plan_id, overrides_json").eq("store_id", storeId)
-      .lte("valid_from", `${period}-01`)
+    admin.from("cast_plan").select("cast_id, plan_id, overrides_json, valid_from").eq("store_id", storeId)
+      .lte("valid_from", periodEnd)
       .or(`valid_to.is.null,valid_to.gte.${period}-01`),
     admin.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
     admin.from("deductions").select("id, name, amount, per").eq("store_id", storeId).eq("is_active", true),
@@ -122,9 +125,24 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
       components: compsByPlan.get(p.id as string) ?? [],
     });
   }
+  // ★裁定97: cast 単位の適用行選択（上の query コメントの3段）。
+  //   期首行は部分 unique＋set_cast_plan の区間検証で高々1行＝2行以上は不正データとして throw（黙って片方を採らない）。
+  const periodStart = `${period}-01`;
   const castPlanByCast = new Map<string, { planId: string; override: PlanOverride }>();
-  for (const c of (castPlanR.data ?? []) as Record<string, unknown>[]) {
-    castPlanByCast.set(c.cast_id as string, { planId: c.plan_id as string, override: (c.overrides_json ?? {}) as PlanOverride });
+  {
+    const rowsByCast = new Map<string, { planId: string; override: PlanOverride; validFrom: string }[]>();
+    for (const c of (castPlanR.data ?? []) as Record<string, unknown>[]) {
+      const cid = c.cast_id as string;
+      const row = { planId: c.plan_id as string, override: (c.overrides_json ?? {}) as PlanOverride, validFrom: c.valid_from as string };
+      (rowsByCast.get(cid) ?? rowsByCast.set(cid, []).get(cid)!).push(row);
+    }
+    for (const [cid, rows] of rowsByCast) {
+      const atStart = rows.filter((r) => r.validFrom <= periodStart);
+      if (atStart.length >= 2) throw new Error(`cast_plan: 期首時点の有効行が複数（cast=${cid}・period=${period}）`);
+      const pick = atStart[0]
+        ?? rows.filter((r) => r.validFrom > periodStart).sort((a, b) => (a.validFrom < b.validFrom ? -1 : 1))[0];
+      if (pick) castPlanByCast.set(cid, { planId: pick.planId, override: pick.override });
+    }
   }
   const pen = penR.data as Record<string, unknown> | null;
   const masters: StoreMasters = {
@@ -441,7 +459,7 @@ export async function collectPeriod(
   const salesRows = (salesData ?? []) as SalesRow[];
 
   const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast] = await Promise.all([
-    loadMasters(admin, storeId, win.period),
+    loadMasters(admin, storeId, win.period, win.periodEnd),
     loadAccounting(admin, storeId, win),
     loadIncentives(admin, storeId, win),
     loadReceivables(admin, storeId, win),
