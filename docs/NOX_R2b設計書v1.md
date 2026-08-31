@@ -100,6 +100,14 @@ Fable 5 は段0 から push まで継続（money 直撃）。
 
 - nox-register-pos.html の「指名の分配率」カード＝指名区分を卓で1つ選ぶ表現（内部 JS も `t.shareType` 卓単位・`$('shareNominationType')` 単一 select）＝キャスト別種別の表現なし → R-2b 後に v2 追随（起票#41）。
 
+### 2-5b. ★A-4 の改訂（相談役裁定・2026-08-31・段0 実測を受けて）
+
+- live 実測＝`check_lines` に void 列なし（void は親 `checks.status` のみ）・指名料行の重複4組
+  （全て jonai_shimei・CLUB NOX の closed 2伝票）。
+- **裁定: unique は無条件 (check_id, cast_id, fee_kind)＝「void 除外」は撤回**。
+  既存重複は closed のため **partial by created_at（mig 適用時刻より新しい行のみ対象）**で温存し、
+  新規行からの二重登録のみ禁止する。詳細＝`docs/tmp/r2b_stage0_report.md`。
+
 ### 2-6. 段0 live 逐語
 
 - `docs/tmp/live_r2b.sql`（貼り先証明 n=3・4テーブル定義全件＋4 RPC 全文＋重複実測 d/e＋分布 f）＝0118/0119 起草の底本。
