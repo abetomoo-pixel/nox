@@ -392,7 +392,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       {/* U-1（裁定99-①③④）: 4ステップ＋KPI 4枚＋要対応。draft 期（run 行なし＝プレビューのみ）でも描画する。
           ★状態の表示だけ＝各操作ボタンは従来どおり各セクション（機能・権限・無効化条件は不変）。
           モックの4段目「公開」（LINE 明細公開）は T3 後送りのため「支払・明細」（裁定99-⑦）。 */}
-      {(runInfo || rows) && (() => {
+      {/* U-1 是正A: 枠（ステップ/KPI/要対応）はプレビュー前から常時描画＝値は「—」で待つ。 */}
+      {(() => {
         const status = runInfo?.status ?? "draft";
         // KPI: 確定期＝凍結 sum4（現行定義のまま）／draft 期＝プレビュー rows の表示層合算（裁定99-③・純関数）
         const isFrozen = status === "finalized" || status === "paid";
@@ -444,45 +445,44 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
           {/* KPI 4枚（裁定99-③）: 支給総額／控除合計／差引支給額／未支払。
               確定期＝凍結値 Σ（定義は D3 CSV の payrollCsvCells と逐語同一）・draft 期＝rows の表示層合算（参考値）。
               率計算・丸め直し・整合補正は一切しない。 */}
-          {kpi && (
-            <div className="nox-paysum">
-              <div className="nox-paycard">
-                <div className="l">支給総額{!isFrozen && "（参考値）"}</div>
-                <div className="v num">¥{kpi.gross.toLocaleString()}</div>
-                {isFrozen && prevNet !== null && prevNet > 0 && sum4 ? (
-                  <div className="l" style={{ marginTop: 2 }}>
-                    差引の前月比 <span className="num" style={{ fontWeight: 700, color: sum4.net >= prevNet ? "var(--ok)" : "var(--bad)" }}>
-                      {sum4.net >= prevNet ? "+" : ""}{Math.round(((sum4.net - prevNet) / prevNet) * 100)}%
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-              <div className="nox-paycard">
-                <div className="l">控除合計（源泉含む）</div>
-                <div className="v num">−¥{kpi.ded.toLocaleString()}</div>
-                <div className="l" style={{ marginTop: 2 }}>うち源泉 <span className="num">¥{kpi.wh.toLocaleString()}</span></div>
-              </div>
-              <div className="nox-paycard net">
-                <div className="l">差引支給額</div>
-                <div className="v num">¥{kpi.net.toLocaleString()}</div>
-                <div className="l" style={{ marginTop: 2 }}>{kpi.n} 名分</div>
-              </div>
-              <div className="nox-paycard">
-                <div className="l">未支払</div>
-                {isFrozen && unpaid !== null ? (
-                  <>
-                    <div className="v num" style={{ color: unpaid > 0 ? "var(--bad)" : "var(--ok)" }}>¥{unpaid.toLocaleString()}</div>
-                    <div className="l" style={{ marginTop: 2 }}>{unpaid <= 0 ? "全額支払済み" : "支払記録は下の「支払・明細」"}</div>
-                  </>
-                ) : (
-                  <>
-                    <div className="v num">—</div>
-                    <div className="l" style={{ marginTop: 2 }}>確定後に支払を記録</div>
-                  </>
-                )}
-              </div>
+          {/* U-1 是正A: KPI 枠は常時表示＝未プレビューは「—」。是正C: 控除 0 円は符号なし。 */}
+          <div className="nox-paysum">
+            <div className="nox-paycard">
+              <div className="l">支給総額{kpi && !isFrozen ? "（参考値）" : ""}</div>
+              <div className="v num">{kpi ? `¥${kpi.gross.toLocaleString()}` : "—"}</div>
+              {kpi && isFrozen && prevNet !== null && prevNet > 0 && sum4 ? (
+                <div className="l" style={{ marginTop: 2 }}>
+                  差引の前月比 <span className="num" style={{ fontWeight: 700, color: sum4.net >= prevNet ? "var(--ok)" : "var(--bad)" }}>
+                    {sum4.net >= prevNet ? "+" : ""}{Math.round(((sum4.net - prevNet) / prevNet) * 100)}%
+                  </span>
+                </div>
+              ) : null}
             </div>
-          )}
+            <div className="nox-paycard">
+              <div className="l">控除合計（源泉含む）</div>
+              <div className="v num">{kpi ? (kpi.ded > 0 ? `−¥${kpi.ded.toLocaleString()}` : "¥0") : "—"}</div>
+              <div className="l" style={{ marginTop: 2 }}>うち源泉 <span className="num">{kpi ? `¥${kpi.wh.toLocaleString()}` : "—"}</span></div>
+            </div>
+            <div className="nox-paycard net">
+              <div className="l">差引支給額</div>
+              <div className="v num">{kpi ? `¥${kpi.net.toLocaleString()}` : "—"}</div>
+              <div className="l" style={{ marginTop: 2 }}>{kpi ? `${kpi.n} 名分` : "プレビューで算出"}</div>
+            </div>
+            <div className="nox-paycard">
+              <div className="l">未支払</div>
+              {kpi && isFrozen && unpaid !== null ? (
+                <>
+                  <div className="v num" style={{ color: unpaid > 0 ? "var(--bad)" : "var(--ok)" }}>¥{unpaid.toLocaleString()}</div>
+                  <div className="l" style={{ marginTop: 2 }}>{unpaid <= 0 ? "全額支払済み" : "支払記録は下の「支払・明細」"}</div>
+                </>
+              ) : (
+                <>
+                  <div className="v num">—</div>
+                  <div className="l" style={{ marginTop: 2 }}>確定後に支払を記録</div>
+                </>
+              )}
+            </div>
+          </div>
           {kpi && (
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: 0 }}>
               {isFrozen
@@ -491,26 +491,26 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
             </p>
           )}
 
-          {/* 要対応（裁定99-④）: 「集計」ステップ直下＝blockers（確定を止める）＋warnings（裁定98・止めない）。 */}
-          {issues && (
-            <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 8, fontSize: 13,
-              border: `1px solid ${issues.some((x) => x.kind === "blocker") ? "var(--bad)" : "var(--line2)"}` }}>
-              <strong style={{ color: issues.some((x) => x.kind === "blocker") ? "var(--bad)" : "var(--champ)" }}>
-                要対応{issues.length > 0 ? `（${issues.length}件）` : ""}
-              </strong>
-              {issues.length === 0 ? (
-                <span style={{ marginLeft: 10, color: "var(--ok)" }}>要対応なし</span>
-              ) : (
-                <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-                  {issues.map((x, i) => (
-                    <li key={i} style={{ color: x.kind === "blocker" ? "var(--bad)" : undefined }}>
-                      {x.castName}: {x.label} — <span style={{ color: "var(--sub)" }}>{x.detail}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+          {/* 要対応（裁定99-④）: 「集計」ステップ直下。是正A: 枠は常時＝未プレビューは案内文。 */}
+          <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 8, fontSize: 13,
+            border: `1px solid ${issues?.some((x) => x.kind === "blocker") ? "var(--bad)" : "var(--line2)"}` }}>
+            <strong style={{ color: issues?.some((x) => x.kind === "blocker") ? "var(--bad)" : "var(--champ)" }}>
+              要対応{issues && issues.length > 0 ? `（${issues.length}件）` : ""}
+            </strong>
+            {!issues ? (
+              <span style={{ marginLeft: 10, color: "var(--sub)" }}>プレビューを押すと表示されます</span>
+            ) : issues.length === 0 ? (
+              <span style={{ marginLeft: 10, color: "var(--ok)" }}>要対応なし</span>
+            ) : (
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                {issues.map((x, i) => (
+                  <li key={i} style={{ color: x.kind === "blocker" ? "var(--bad)" : undefined }}>
+                    {x.castName}: {x.label} — <span style={{ color: "var(--sub)" }}>{x.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
         );
       })()}
@@ -519,6 +519,25 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       {finalized && <p style={{ color: "var(--champ)", fontSize: 14, fontWeight: "bold" }}>{finalized}</p>}
 
       {/* 段2: プレビュー（参考値） */}
+      {/* U-1 是正A: キャスト別表の枠はプレビュー前から描画（ヘッダ＋案内の空行） */}
+      {!rows && (
+        <section className="nox-cardtop" style={t.card}>
+          <table className="nox-table">
+            <thead>
+              <tr>
+                <th style={t.th}>キャスト</th>
+                <th style={{ ...t.th, textAlign: "right" }}>総支給</th>
+                <th style={{ ...t.th, textAlign: "right" }}>控除計</th>
+                <th style={{ ...t.th, textAlign: "right" }}>差引支給(net)</th>
+                <th style={t.th}>状態</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colSpan={5} style={{ ...t.td, color: "var(--sub)", textAlign: "center", padding: "18px 0" }}>プレビューを押すと表示されます</td></tr>
+            </tbody>
+          </table>
+        </section>
+      )}
       {rows && (
         <>
           {/* U-1（裁定99-④）: blockers/warnings の一覧は上の「要対応」区画へ統合（表示位置の移設のみ・状態は不変）。 */}
