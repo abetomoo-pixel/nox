@@ -26,6 +26,7 @@ import { collectPeriod } from "../lib/nox/payroll/collect";
 import { buildPayInput, type StoreMasters } from "../lib/nox/payroll/assemble";
 import { computePayrollDraft, allocateCategory, employmentBlockerOf, sanctionWarningsOf } from "../lib/nox/payroll/core";
 import { kpiOfDraftRows, payStatusOf, issuesOfDraft } from "../lib/nox/payroll/ui-calc";
+import { adoptedMethodsOf, compSummaryOf, prepItemOf, PREP_ITEMS } from "../lib/nox/comp-methods";
 import { simulate, type SimInput } from "../lib/nox/payroll/sim";
 import { decidePayrollAccess, decideTaxReportAccess } from "../lib/nox/payroll/authz";
 
@@ -1467,6 +1468,42 @@ async function main() {
       && issues[1].label === "mystery" && issues[2].kind === "warning"
       && issues[2].label === "制裁控除を法定上限で制限" && issues[2].detail === "D1",
       JSON.stringify(issues));
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ★U-2（裁定101）: 待遇画面の表示層 純関数（comp-methods・DB 非依存）
+  // ══════════════════════════════════════════════════════════
+  {
+    // (c1) 採用方式の自動判定＝値の有無で点灯・rate は mode で判定（円/本残存＝裁定v に反応しない）
+    const m1 = adoptedMethodsOf(
+      { base: 5000, hon_back: 4000, jonai_back: 0, dohan_back: 0, hon_back_mode: "rate", jonai_back_mode: "per_count",
+        sales_slide: [{}], point_slide: [] },
+      [{ kind: "guarantee_min", is_active: true }, { kind: "achievement_bonus", is_active: false }],
+    );
+    const on = (k: string) => m1.find((x) => x.key === k)?.on;
+    check("U2 c1 ★採用方式の自動判定（時給/保証/指名/歩合=rate 判定・売上段 on・pt段 off・達成 off=無効comp）",
+      on("hourly") === true && on("guarantee") === true && on("nomination") === true
+      && on("ratio") === true && on("salesSlide") === true && on("pointSlide") === false && on("achievement") === false,
+      JSON.stringify(m1));
+    const m2 = adoptedMethodsOf({ base: 0, hon_back: 0, jonai_back: 0, dohan_back: 0, sales_slide: [], point_slide: [] }, []);
+    check("U2 c1b 全ゼロプランは全消灯", m2.every((x) => !x.on), JSON.stringify(m2));
+    // (c2) サマリー整形＝派生表示のみ（率方式は「率方式」・components は有効のみ行になる）
+    const s1 = compSummaryOf(
+      { base: 3000, hon_back: 2000, jonai_back: 1000, dohan_back: 500, hon_back_mode: "rate", sales_slide: [{}, {}], point_slide: [] },
+      [{ kind: "guarantee_min", is_active: true, amount: 120000 }, { kind: "achievement_bonus", is_active: false, amount: 9999 }],
+      7,
+    );
+    const val = (l: string) => s1.find((r) => r.label === l)?.value;
+    check("U2 c2 ★サマリー整形（人数/率方式/段数/有効 components のみ）",
+      val("適用人数") === "7人" && val("本指名") === "率方式" && val("場内") === "¥1,000/本"
+      && val("スライド") === "売上2段・pt0段" && val("最低保証") === "¥120,000/月"
+      && !s1.some((r) => r.label === "達成ボーナス"),
+      JSON.stringify(s1));
+    // (c3) 準備中判定＝C5 リストが正本（既知 key を引ける・未知 key は null・11項目）
+    check("U2 c3 ★準備中判定（rounding_axes 実在・unknown は null・PREP_ITEMS=11項目）",
+      prepItemOf("rounding_axes")?.label === "歩合の丸め2軸" && prepItemOf("unknown_key") === null
+      && PREP_ITEMS.length === 11,
+      JSON.stringify({ r: prepItemOf("rounding_axes"), n: PREP_ITEMS.length }));
   }
 
   await teardown();
