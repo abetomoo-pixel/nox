@@ -7,6 +7,7 @@ import { buildPayrollCsv, type PayrollCsvRow, type PayrollCsvPay } from "@/lib/n
 import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
+import { kpiOfDraftRows, issuesOfDraft } from "@/lib/nox/payroll/ui-calc";
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
 import PaymentTaxPanel from "./payment-tax-panel";
@@ -32,10 +33,9 @@ type Row = {
   breakdown?: { pay: PayrollCsvPay & { wHours?: number }; extras?: { amount: number }[] };
 };
 type Blocker = { castName: string; reason: string };
-// ★裁定98: sanction 二層ガードの警告（blocker と別枠・確定は止めない）
+// ★裁定98: sanction 二層ガードの警告（blocker と別枠・確定は止めない）。
+//   ラベル写像と要対応の整形は ui-calc（裁定99-④・純関数）へ集約＝ここでは issuesOfDraft を呼ぶだけ。
 type Warning = { castName: string; kind: string; detail: string };
-const BLOCKER_JA: Record<string, string> = { no_tax: "税区分未登録", no_plan: "プラン未設定", no_employment: "雇用/委託未設定" };
-const WARNING_JA: Record<string, string> = { sanction_capped: "制裁控除を法定上限で制限", sanction_contractor: "委託への制裁控除", avg_wage_provisional: "平均賃金が暫定式" };
 type Incentive = { id: string; bizDate: string; amountMode: string; amount: number; recipientCount: number; distributedTotal: number; warnEmptyPool: boolean };
 
 // 3段フロー（期間選択→プレビュー→確定）。プレビューは参考値（確定時点で再計算が正）。
@@ -334,9 +334,10 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
     <div className="nox-printpage">
       {/* 段0R 第2陣: ヘッダを新シェルの nox-hero へ（master/home/casts/customers/analytics と同基準・表示のみ）。
           印刷時は印刷ページ直下の隔離ルールで従来どおり自動的に落ちる（旧ヘッダと同じ扱い）。 */}
+      {/* U-1（裁定99-①）: hero はモック逐語「給与管理」。副文は現行フローの説明を維持。 */}
       <div className="nox-hero">
         <div>
-          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>給与</h1>
+          <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>給与管理</h1>
           <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
             プレビュー → 確定 → 明細（印刷・CSV）・支払記録。確定後の金額は凍結された明細の値です。
           </p>
@@ -367,92 +368,131 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       {/* 段Y2: run バー＝期間・確定バッジ・確定日時を1行に集約（モック）。
           ★ボタンの機能・権限出し分け・無効化条件はいずれも各節の現行実装のまま＝ここは状態の可視化だけ。
             D1 解除／D2 印刷／D3 CSV／確定ボタンは従来どおり各セクションに置いたまま動かしていない。 */}
-      {runInfo && (
+      {/* U-1（裁定99-①③④）: 4ステップ＋KPI 4枚＋要対応。draft 期（run 行なし＝プレビューのみ）でも描画する。
+          ★状態の表示だけ＝各操作ボタンは従来どおり各セクション（機能・権限・無効化条件は不変）。
+          モックの4段目「公開」（LINE 明細公開）は T3 後送りのため「支払・明細」（裁定99-⑦）。 */}
+      {(runInfo || rows) && (() => {
+        const status = runInfo?.status ?? "draft";
+        // KPI: 確定期＝凍結 sum4（現行定義のまま）／draft 期＝プレビュー rows の表示層合算（裁定99-③・純関数）
+        const isFrozen = status === "finalized" || status === "paid";
+        const kpi = isFrozen ? sum4 : rows ? kpiOfDraftRows(rows) : null;
+        const issues = rows ? issuesOfDraft(blockers, warnings) : null;
+        // ステップ状態: draft＝①済（rows あり）②現在地／finalized＝③まで済・④現在地／paid＝全て済
+        const stage = status === "paid" ? 4 : status === "finalized" ? 3 : rows ? 1 : 0;
+        const next = status === "paid" ? "この期間は支払済みです"
+          : status === "finalized" ? "次: 下の「支払・明細」で支払いを記録"
+          : rows ? "次: 要対応を確認して「この期間を確定する」"
+          : "次: プレビューで勤怠・売上を取り込む";
+        const STEPS = [
+          ["集計", "プレビューで取込"], ["内容確認", "要対応を解消"],
+          ["給与確定", "確定後は金額を固定"], ["支払・明細", "支払記録と出力"],
+        ] as const;
+        return (
         <section className="nox-cardtop" style={t.card}>
-          <div className="nox-runbar">
-            <span className="p num">{period}</span>
-            <span className={`nox-runbadge ${runInfo.status === "paid" ? "paid" : runInfo.status === "finalized" ? "fin" : ""}`}>
-              {runInfo.status === "paid" ? "支払済" : runInfo.status === "finalized" ? "確定済み" : "下書き（未確定）"}
-            </span>
-            {runFinalizedAt && (
-              <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {runFinalizedAt}</span>
-            )}
-            {sum4 && <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{sum4.n} 名</span>}
+          {runInfo && (
+            <div className="nox-runbar">
+              <span className="p num">{period}</span>
+              <span className={`nox-runbadge ${runInfo.status === "paid" ? "paid" : runInfo.status === "finalized" ? "fin" : ""}`}>
+                {runInfo.status === "paid" ? "支払済" : runInfo.status === "finalized" ? "確定済み" : "下書き（未確定）"}
+              </span>
+              {runFinalizedAt && (
+                <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>確定 {runFinalizedAt}</span>
+              )}
+              {sum4 && <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{sum4.n} 名</span>}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "8px 0 10px" }}>
+            {STEPS.map(([label, sub], i) => {
+              const done = i < stage;
+              const active = i === stage;
+              return (
+                <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <span style={{
+                    fontSize: 11.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999,
+                    border: `1px solid ${done || active ? "var(--gold)" : "var(--line2)"}`,
+                    color: done || active ? "var(--champ)" : "var(--sub)",
+                    background: active ? "var(--goldface)" : "transparent",
+                  }} title={sub}>{done ? "✓" : i + 1} {label}</span>
+                  {i < 3 && <span style={{ color: "var(--sub)", fontSize: 11 }}>→</span>}
+                </span>
+              );
+            })}
+            <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{next}</span>
           </div>
-          {/* E8-5 payroll#1: 段の可視化（集計→確定→支払）＋次アクション。★状態の表示だけ＝
-              各操作ボタンは従来どおり各セクション（機能・権限・無効化条件は不変）。
-              モックの4段目「公開」（LINE 明細公開）は T3 後送りのため出さない。 */}
-          {(() => {
-            const stage = runInfo.status === "paid" ? 3 : runInfo.status === "finalized" ? 2 : 1;
-            const next = stage === 1 ? "次: プレビューを確認して「この期間を確定する」"
-              : stage === 2 ? "次: 下の「支払記録」で支払いを記録"
-              : "この期間は支払済みです";
-            return (
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "8px 0 10px" }}>
-                {(["集計・確認", "確定", "支払"] as const).map((label, i) => (
-                  <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    <span style={{
-                      fontSize: 11.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999,
-                      border: `1px solid ${i + 1 <= stage ? "var(--gold)" : "var(--line2)"}`,
-                      color: i + 1 <= stage ? "var(--champ)" : "var(--sub)",
-                      background: i + 1 <= stage ? "var(--goldface)" : "transparent",
-                    }}>{i + 1} {label}</span>
-                    {i < 2 && <span style={{ color: "var(--sub)", fontSize: 11 }}>→</span>}
-                  </span>
-                ))}
-                <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{next}</span>
-              </div>
-            );
-          })()}
 
-          {/* 合計サマリ4カード＝★確定済みの凍結値（payslips.breakdown_json）の Σ のみ。
-              定義は D3 CSV の payrollCsvCells と逐語同一（総支給=gross+extras／控除計=7項目の和／
-              うち源泉=withholding／差引=payslips.net）。率計算・丸め直し・整合補正は一切しない。 */}
-          {sum4 && (
+          {/* KPI 4枚（裁定99-③）: 支給総額／控除合計／差引支給額／未支払。
+              確定期＝凍結値 Σ（定義は D3 CSV の payrollCsvCells と逐語同一）・draft 期＝rows の表示層合算（参考値）。
+              率計算・丸め直し・整合補正は一切しない。 */}
+          {kpi && (
             <div className="nox-paysum">
               <div className="nox-paycard">
-                <div className="l">総支給（gross）</div>
-                <div className="v num">¥{sum4.gross.toLocaleString()}</div>
+                <div className="l">支給総額{!isFrozen && "（参考値）"}</div>
+                <div className="v num">¥{kpi.gross.toLocaleString()}</div>
+                {isFrozen && prevNet !== null && prevNet > 0 && sum4 ? (
+                  <div className="l" style={{ marginTop: 2 }}>
+                    差引の前月比 <span className="num" style={{ fontWeight: 700, color: sum4.net >= prevNet ? "var(--ok)" : "var(--bad)" }}>
+                      {sum4.net >= prevNet ? "+" : ""}{Math.round(((sum4.net - prevNet) / prevNet) * 100)}%
+                    </span>
+                  </div>
+                ) : null}
               </div>
               <div className="nox-paycard">
-                {/* 段0R 第2陣: ラベルのみモック逐語へ（値の定義＝7項目の和に源泉を含む事実と一致）。数値は不変。 */}
-                <div className="l">控除計（源泉含む）</div>
-                <div className="v num">−¥{sum4.ded.toLocaleString()}</div>
-              </div>
-              <div className="nox-paycard">
-                <div className="l">うち源泉</div>
-                <div className="v num">¥{sum4.wh.toLocaleString()}</div>
+                <div className="l">控除合計（源泉含む）</div>
+                <div className="v num">−¥{kpi.ded.toLocaleString()}</div>
+                <div className="l" style={{ marginTop: 2 }}>うち源泉 <span className="num">¥{kpi.wh.toLocaleString()}</span></div>
               </div>
               <div className="nox-paycard net">
-                <div className="l">差引支給（net）</div>
-                <div className="v num">¥{sum4.net.toLocaleString()}</div>
+                <div className="l">差引支給額</div>
+                <div className="v num">¥{kpi.net.toLocaleString()}</div>
+                <div className="l" style={{ marginTop: 2 }}>{kpi.n} 名分</div>
+              </div>
+              <div className="nox-paycard">
+                <div className="l">未支払</div>
+                {isFrozen && unpaid !== null ? (
+                  <>
+                    <div className="v num" style={{ color: unpaid > 0 ? "var(--bad)" : "var(--ok)" }}>¥{unpaid.toLocaleString()}</div>
+                    <div className="l" style={{ marginTop: 2 }}>{unpaid <= 0 ? "全額支払済み" : "支払記録は下の「支払・明細」"}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="v num">—</div>
+                    <div className="l" style={{ marginTop: 2 }}>確定後に支払を記録</div>
+                  </>
+                )}
               </div>
             </div>
           )}
-          {sum4 && (
+          {kpi && (
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: 0 }}>
-              ※確定時に凍結された明細の合計です（画面側での再計算はしていません）。
+              {isFrozen
+                ? "※確定時に凍結された明細の合計です（画面側での再計算はしていません）。"
+                : "※プレビュー（参考値）の合計です。確定時点で再計算した値が正となります。"}
             </p>
           )}
-          {/* E8-5 payroll#5（T1）: 未支払＋前月比（表示専用・定義は PaymentPanel / 前月 run Σnet と同一） */}
-          {sum4 && (unpaid !== null || prevNet !== null) && (
-            <p style={{ fontSize: 12, margin: "8px 0 0", display: "flex", gap: 16, flexWrap: "wrap" }}>
-              {unpaid !== null && (
-                <span style={{ color: unpaid > 0 ? "var(--bad)" : "var(--ok)", fontWeight: 700 }}>
-                  未支払 ¥{unpaid.toLocaleString()}{unpaid <= 0 && "（全額支払済み）"}
-                </span>
+
+          {/* 要対応（裁定99-④）: 「集計」ステップ直下＝blockers（確定を止める）＋warnings（裁定98・止めない）。 */}
+          {issues && (
+            <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 8, fontSize: 13,
+              border: `1px solid ${issues.some((x) => x.kind === "blocker") ? "var(--bad)" : "var(--line2)"}` }}>
+              <strong style={{ color: issues.some((x) => x.kind === "blocker") ? "var(--bad)" : "var(--champ)" }}>
+                要対応{issues.length > 0 ? `（${issues.length}件）` : ""}
+              </strong>
+              {issues.length === 0 ? (
+                <span style={{ marginLeft: 10, color: "var(--ok)" }}>要対応なし</span>
+              ) : (
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                  {issues.map((x, i) => (
+                    <li key={i} style={{ color: x.kind === "blocker" ? "var(--bad)" : undefined }}>
+                      {x.castName}: {x.label} — <span style={{ color: "var(--sub)" }}>{x.detail}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
-              {prevNet !== null && prevNet > 0 && (
-                <span style={{ color: "var(--sub)" }}>
-                  差引支給の前月比 <span className="num" style={{ fontWeight: 700, color: sum4.net >= prevNet ? "var(--ok)" : "var(--bad)" }}>
-                    {sum4.net >= prevNet ? "+" : ""}{Math.round(((sum4.net - prevNet) / prevNet) * 100)}%
-                  </span>（前月 ¥{prevNet.toLocaleString()}）
-                </span>
-              )}
-            </p>
+            </div>
           )}
         </section>
-      )}
+        );
+      })()}
 
       {msg && <p style={{ color: "var(--bad)", fontSize: 13 }}>{msg}</p>}
       {finalized && <p style={{ color: "var(--champ)", fontSize: 14, fontWeight: "bold" }}>{finalized}</p>}
@@ -460,25 +500,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       {/* 段2: プレビュー（参考値） */}
       {rows && (
         <>
-          {blockers.length > 0 && (
-            <div style={t.alert}>
-              ⚠ 確定不可の cast（要 税区分/プラン/雇用区分の登録）:{" "}
-              {blockers.map((b) => `${b.castName}(${BLOCKER_JA[b.reason] ?? b.reason})`).join("、")}
-            </div>
-          )}
-          {/* ★裁定98: sanction 二層ガードの警告（確定は止めない・blocker の下） */}
-          {warnings.length > 0 && (
-            <div className="nox-cardtop" style={{ ...t.card, border: "1px solid var(--line2)", fontSize: 13 }}>
-              <strong style={{ color: "var(--champ)" }}>警告（制裁控除・裁定98）</strong>
-              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-                {warnings.map((w, i) => (
-                  <li key={i}>
-                    {w.castName}: {WARNING_JA[w.kind] ?? w.kind} — <span style={{ color: "var(--sub)" }}>{w.detail}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* U-1（裁定99-④）: blockers/warnings の一覧は上の「要対応」区画へ統合（表示位置の移設のみ・状態は不変）。 */}
           <p style={{ fontSize: 12, color: "var(--sub)" }}>※参考値です。確定時点で再計算した値が正となります。</p>
           {incentives.length > 0 && (
             <div className="nox-cardtop" style={{ ...t.card, border: "1px solid var(--line2)", fontSize: 13 }}>
