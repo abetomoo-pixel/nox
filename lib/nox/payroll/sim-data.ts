@@ -30,7 +30,8 @@ function mapPlan(p: Record<string, unknown>): CompPlan {
 async function loadMasters(sb: SupabaseClient, storeId: string): Promise<StoreMasters> {
   const [penR, dedR, cbR] = await Promise.all([
     sb.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
-    sb.from("deductions").select("id, name, amount, per").eq("store_id", storeId).eq("is_active", true),
+    // ★裁定98: collect.ts:85 と二面鏡（kind/basis_confirmed_at を対で読む・片方だけ触らない）
+    sb.from("deductions").select("id, name, amount, per, kind, basis_confirmed_at").eq("store_id", storeId).eq("is_active", true),
     sb.from("custom_back_defs").select("id, name, basis, value, cond_json").eq("store_id", storeId).eq("is_active", true),
   ]);
   for (const r of [penR, dedR, cbR]) if (r.error) throw new Error(`sim マスタ読み取り: ${r.error.message}`);
@@ -48,8 +49,10 @@ async function loadMasters(sb: SupabaseClient, storeId: string): Promise<StoreMa
       dohanFlat: (pen?.norm_dohan_flat as number) ?? 0,
       dohanPer: (pen?.norm_dohan_per as number) ?? 0,
     },
+    // ★裁定98: sim は avgDailyWage を常に渡さない（null）＝sanction は payOf の sim 経路（現行式同値）。
     deductions: ((dedR.data ?? []) as Record<string, unknown>[]).map((d) => ({
       id: d.id as string, name: d.name as string, amount: d.amount as number, per: d.per as Deduction["per"],
+      kind: d.kind as Deduction["kind"], basisConfirmedAt: (d.basis_confirmed_at ?? null) as string | null,
     })),
     customBackDefs: ((cbR.data ?? []) as Record<string, unknown>[]).map((b) => ({
       id: b.id as string, name: b.name as string, basis: b.basis as BackDef["basis"], value: b.value as number,

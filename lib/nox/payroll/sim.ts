@@ -71,6 +71,9 @@ export function simulate(inp: SimInput): PayResult {
     override: inp.override,
     norm: inp.norm,
     taxProfileMode: inp.taxMode,
+    // ★裁定98: sim は employment/平均賃金を持たない＝payOf の sim 経路（sanction は現行式同値・cap なし）。
+    employment: null,
+    avgDailyWage: null,
   };
   return payOf(
     // ★extrasTotal=0＝シミュレータは出勤ボーナスを扱わない（確定側の incentives は DB 由来で仮パラメータに無い）。

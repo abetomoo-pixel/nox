@@ -43,6 +43,8 @@ export type CastRaw = {
   override?: PlanOverride;
   norm: { days: number; dohan: number; salesTarget?: number }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
+  employment: "委託" | "雇用" | null; // ★裁定98: casts.employment（null＋sanction 行ありは core が no_employment blocker）
+  avgDailyWage: number | null; // ★裁定98-C: 平均賃金（直近3確定期）。null=payOf の暫定式
 };
 
 // 店共通マスタ（loadStoreMasters が組む）。
@@ -99,6 +101,8 @@ export function buildPayInput(
     okuriDeduct, // 送り実費天引き（F2e-2・繰越なし）
     periodDays, // ★計算期間の暦日数（源泉専用・出勤日数 raw.days とは別物）
     extrasTotal, // ★加算合計（gross に入る＝源泉対象）
+    employment: raw.employment, // ★裁定98: sanction 二層ガードの分岐キー
+    avgDailyWage: raw.avgDailyWage, // ★裁定98-C: null=暫定式
     taxMode,
   };
 }

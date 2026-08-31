@@ -110,11 +110,18 @@ export type CBack = {
   cond: { metric: MetricKey; min: number } | null;
 };
 
+// ★裁定98（mig0115/0117）: 控除種別の固定語彙6値。
+export type DeductionKind =
+  | "unworked" | "sanction" | "statutory" | "agreed_cost" | "store_receivable" | "advance_settlement";
+
 export type Deduction = {
   id: string;
   name: string;
   amount: number;
   per: "day" | "month" | "rate"; // rate は売上に対する %
+  // ★裁定98: kind 未指定は非 sanction 扱い（既存 fixture・旧呼び出しと1バイト互換）。
+  kind?: DeductionKind;
+  basisConfirmedAt?: string | null; // sanction の根拠確認日時（表示用・計算には使わない）
 };
 
 export type PenaltyConfig = {
@@ -182,9 +189,25 @@ export type PayInput = {
   salesTarget?: number | null;
   periodDays: number; // ★源泉の 5,000円×日数 に使う「計算期間の日数」（暦日数・両端含む）。出勤日数ではない（裁定23）
   extrasTotal: number; // ★出勤ボーナス等の加算合計（源泉対象＝gross に含める・裁定23-b ①）
+  // ★裁定98: sanction 二層ガードの文脈。employment 未設定（null/undefined）で sanction 行がある cast は
+  //   core が 'no_employment' blocker で先に止める＝payOf がここで null を見るのは sim 経路のみ（現行式同値で計算）。
+  employment?: "委託" | "雇用" | null; // casts.employment
+  avgDailyWage?: number | null; // 裁定98-C 平均賃金（直近3確定期）。null=暫定式（provisional）
   taxMode: TaxMode; // cast_tax_profiles.mode
   salesBackTable?: SalesBackStep[];
   sim?: { days?: number; dohan?: number }; // シミュレーター上書き（days は timePay を変えない）
+};
+
+// ★裁定98: sanction（制裁控除）の二層ガード結果。
+//   雇用＝労基法91条（1回=平均賃金の半日分・総額=一賃金支払期の賃金総額の1/10）をシステム強制。
+//   委託＝上限なし（現行式）・警告は core 側（sanction_contractor）。
+export type SanctionResult = {
+  original: number; // 現行式どおりの sanction 控除合計（cap 前）
+  applied: number; // 実際に控除した額（雇用=cap 後／委託=original）
+  capEach: number | null; // 雇用: floor(平均賃金/2)。委託・未設定は null
+  capTotal: number | null; // 雇用: floor(gross/10)。委託・未設定は null
+  avgDailyWage: number; // 採用した平均賃金（暫定式含む・委託は未使用=入力値または0）
+  provisional: boolean; // 平均賃金が暫定式（確定期 0 本）か
 };
 
 export type PayResult = {
@@ -212,6 +235,8 @@ export type PayResult = {
   compSkipped: string[];
   gross: number;
   fixedDed: number;
+  // ★裁定98: sanction 二層ガードの明細（sanction 行が無ければ null＝既存 payslips 凍結と互換）
+  sanction: SanctionResult | null;
   fine: number;
   withholding: number;
   arDeduct: number;
@@ -536,8 +561,38 @@ export function payOf(input: PayInput): PayResult {
   }
   const gross = grossBase + achievementBonus + guaranteeAdd; // ①=控除前総支給への床（控除はこの後）
 
-  // 控除
-  const fixedDed = fixedDedOf(input.deductions, effDays, cast.sales);
+  // 控除 ── ★裁定98: sanction（制裁）を他の kind から分離（二層ガード）。非 sanction は現行式と1バイト同値。
+  const sanctionRows = (input.deductions ?? []).filter((d) => d.kind === "sanction");
+  const otherDeds = sanctionRows.length ? input.deductions.filter((d) => d.kind !== "sanction") : input.deductions;
+  const fixedDedBase = fixedDedOf(otherDeds, effDays, cast.sales);
+  let sanction: SanctionResult | null = null;
+  if (sanctionRows.length > 0) {
+    const original = fixedDedOf(sanctionRows, effDays, cast.sales); // 現行式（cap 前）
+    if (input.employment === "雇用") {
+      // 労基法91条: 1回 = 平均賃金の半日分・総額 = 一賃金支払期の賃金総額（=gross）の 1/10。
+      // 平均賃金 null は暫定式 = max(floor(gross/暦日数), floor(gross/出勤日数×0.6))（整数演算・effDays=0 は前者のみ）。
+      const provisional = input.avgDailyWage == null;
+      const principle = Math.floor(gross / input.periodDays);
+      const avg = input.avgDailyWage
+        ?? (effDays > 0 ? Math.max(principle, Math.floor((gross * 3) / (effDays * 5))) : principle);
+      const capEach = Math.floor(avg / 2);
+      const capTotal = Math.floor(gross / 10);
+      let subtotal = 0;
+      for (const d of sanctionRows) {
+        // 1回あたりの額は現行式（rate は売上%）。回数: day=effDays / month=1 / rate=1。
+        const eachRaw = d.per === "rate" ? roundYen(((cast.sales || 0) * d.amount) / 100) : d.amount;
+        const count = d.per === "day" ? effDays : 1;
+        subtotal += Math.min(eachRaw, capEach) * count;
+      }
+      const applied = Math.min(subtotal, capTotal);
+      sanction = { original, applied, capEach, capTotal, avgDailyWage: avg, provisional };
+    } else {
+      // 委託＝上限なし（現行式そのまま）。employment 未設定は core が blocker 化済み＝ここは sim 経路のみ（同値計算）。
+      sanction = { original, applied: original, capEach: null, capTotal: null,
+        avgDailyWage: input.avgDailyWage ?? 0, provisional: false };
+    }
+  }
+  const fixedDed = fixedDedBase + (sanction?.applied ?? 0);
   const fine =
     input.fine.absentN * input.penalty.fineAbsent +
     input.fine.lateN * input.penalty.fineLate;
@@ -579,6 +634,7 @@ export function payOf(input: PayInput): PayResult {
     compSkipped,      // ★rate モード等の明示スキップ（黙殺しない）
     gross,
     fixedDed,
+    sanction, // ★裁定98
     fine,
     withholding,
     arDeduct: input.arDeduct,

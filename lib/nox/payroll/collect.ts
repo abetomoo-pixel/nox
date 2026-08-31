@@ -5,7 +5,7 @@
 // 対象 cast（裁定C）= get_cast_sales の cast ∪ 窓内 punches の cast（is_active 不問・稼働ゼロは除外）。
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PayrollWindow } from "./window";
+import { periodCalendarDays, type PayrollWindow } from "./window";
 import type { CastRaw, StoreMasters } from "./assemble";
 import type { CompPlan, PlanOverride, Deduction, BackDef, TaxMode } from "../pay";
 import { buildMatchInput, dayWorkedHours, type PunchRow, type ShiftRow, type AttendanceRow } from "../punch-io";
@@ -82,7 +82,8 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
       .lte("valid_from", periodEnd)
       .or(`valid_to.is.null,valid_to.gte.${period}-01`),
     admin.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
-    admin.from("deductions").select("id, name, amount, per").eq("store_id", storeId).eq("is_active", true),
+    // ★裁定98: kind（sanction 分離）と basis_confirmed_at（表示用）を読む＝sim-data.ts:33 と二面鏡（片方だけ触らない）
+    admin.from("deductions").select("id, name, amount, per, kind, basis_confirmed_at").eq("store_id", storeId).eq("is_active", true),
     admin.from("custom_back_defs").select("id, name, basis, value, cond_json").eq("store_id", storeId).eq("is_active", true),
     admin.from("cast_norms").select("cast_id, days_target, dohan_target, sales_target").eq("store_id", storeId).eq("period", period),
     admin.from("cast_tax_profiles").select("cast_id, mode").eq("store_id", storeId),
@@ -160,6 +161,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
     },
     deductions: ((dedR.data ?? []) as Record<string, unknown>[]).map((d) => ({
       id: d.id as string, name: d.name as string, amount: d.amount as number, per: d.per as Deduction["per"],
+      kind: d.kind as Deduction["kind"], basisConfirmedAt: (d.basis_confirmed_at ?? null) as string | null, // ★裁定98
     })),
     customBackDefs: ((cbR.data ?? []) as Record<string, unknown>[]).map((b) => ({
       id: b.id as string, name: b.name as string, basis: b.basis as BackDef["basis"], value: b.value as number,
@@ -427,6 +429,46 @@ async function loadTransport(admin: SupabaseClient, storeId: string, win: Payrol
   return byCast;
 }
 
+// ★裁定98-C: 平均賃金（労基法12条の骨格）＝直近3確定期（finalized/paid・当期より前・period 降順）の
+//   payslips 凍結値から cast 別に算出。原則 = floor(Σgross ÷ Σ暦日数)・最低保障 = floor(Σgross ÷ Σ出勤日数 × 0.6)
+//   （0.6 は 3/5 の整数演算・Σ出勤日数=0 なら原則のみ）。採用値 = max(原則, 最低保障)。
+//   確定期 0 本／本人 payslip 0 枚は Map 不在（=null）＝pay.ts 側の暫定式（provisional）に委ねる。
+//   暦日数は periodDaysBetween/periodCalendarDays（core:periodDays と同一写像＝裁定23 の系列）。
+async function loadAvgDailyWage(admin: SupabaseClient, storeId: string, period: string): Promise<Map<string, number>> {
+  const byCast = new Map<string, number>();
+  const { data: runs, error: eR } = await admin
+    .from("payroll_runs").select("id, period")
+    .eq("store_id", storeId).in("status", ["finalized", "paid"])
+    .lt("period", period).order("period", { ascending: false }).limit(3);
+  if (eR) throw new Error(`payroll_runs: ${eR.message}`);
+  const runRows = (runs ?? []) as { id: string; period: string }[];
+  if (runRows.length === 0) return byCast;
+  const calDaysByRun = new Map<string, number>();
+  for (const r of runRows) calDaysByRun.set(r.id, periodCalendarDays(r.period));
+  const { data: slips, error: eS } = await admin
+    .from("payslips").select("run_id, cast_id, breakdown_json")
+    .in("run_id", runRows.map((r) => r.id));
+  if (eS) throw new Error(`payslips(平均賃金): ${eS.message}`);
+  const acc = new Map<string, { gross: number; cal: number; wdays: number }>();
+  for (const s of (slips ?? []) as Record<string, unknown>[]) {
+    const pay = (s.breakdown_json as Record<string, unknown> | null)?.pay as Record<string, unknown> | undefined;
+    if (!pay || typeof pay.gross !== "number") continue; // 凍結形が読めない行は分母にも入れない
+    const cid = s.cast_id as string;
+    const cur = acc.get(cid) ?? { gross: 0, cal: 0, wdays: 0 };
+    cur.gross += pay.gross as number;
+    cur.cal += calDaysByRun.get(s.run_id as string) ?? 0;
+    cur.wdays += Array.isArray(pay.wdays) ? (pay.wdays as unknown[]).length : 0;
+    acc.set(cid, cur);
+  }
+  for (const [cid, a] of acc) {
+    if (a.cal <= 0) continue;
+    const principle = Math.floor(a.gross / a.cal);
+    const floor60 = a.wdays > 0 ? Math.floor((a.gross * 3) / (a.wdays * 5)) : null;
+    byCast.set(cid, floor60 === null ? principle : Math.max(principle, floor60));
+  }
+  return byCast;
+}
+
 // #32: published の attendance_incentives を biz_date∈[periodStart,periodEnd] で読む（確認2: biz_date 基準統一）。
 async function loadIncentives(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Incentive[]> {
   const { data, error } = await admin
@@ -458,7 +500,7 @@ export async function collectPeriod(
   if (eS) throw new Error(`get_cast_sales: ${eS.message}`);
   const salesRows = (salesData ?? []) as SalesRow[];
 
-  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast] = await Promise.all([
+  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
     loadMasters(admin, storeId, win.period, win.periodEnd),
     loadAccounting(admin, storeId, win),
     loadIncentives(admin, storeId, win),
@@ -466,6 +508,7 @@ export async function collectPeriod(
     loadAdvances(admin, storeId, win),
     loadTransport(admin, storeId, win),
     loadShimeiAmounts(admin, storeId, win), // mig0086: 率バック母数
+    loadAvgDailyWage(admin, storeId, win.period), // ★裁定98-C: 平均賃金（直近3確定期）
   ]);
   const { byCast: punchByCast, recipientsByDate } = await loadPunch(admin, storeId, win, grace);
 
@@ -482,11 +525,15 @@ export async function collectPeriod(
   const targetIds = new Set<string>([...salesByCast.keys(), ...punchByCast.keys()]);
   if (targetIds.size === 0) return { casts: [], masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast };
 
-  // cast 名（is_active 不問＝退職者含む）
-  const { data: castRows, error: eN } = await admin.from("casts").select("id, name").in("id", [...targetIds]);
+  // cast 名＋employment（is_active 不問＝退職者含む。employment は裁定98 の二層分岐キー）
+  const { data: castRows, error: eN } = await admin.from("casts").select("id, name, employment").in("id", [...targetIds]);
   if (eN) throw new Error(`casts: ${eN.message}`);
   const nameById = new Map<string, string>();
-  for (const c of (castRows ?? []) as { id: string; name: string }[]) nameById.set(c.id, c.name);
+  const employmentById = new Map<string, "委託" | "雇用" | null>();
+  for (const c of (castRows ?? []) as { id: string; name: string; employment: "委託" | "雇用" | null }[]) {
+    nameById.set(c.id, c.name);
+    employmentById.set(c.id, c.employment ?? null);
+  }
 
   const casts: CastRaw[] = [];
   for (const cid of targetIds) {
@@ -526,6 +573,8 @@ export async function collectPeriod(
       override: cp?.override,
       norm: normByCast.get(cid) ?? { days: 0, dohan: 0, salesTarget: 0 },
       taxProfileMode: taxByCast.get(cid) ?? null,
+      employment: employmentById.get(cid) ?? null, // ★裁定98: 二層ガードの分岐キー
+      avgDailyWage: avgWageByCast.get(cid) ?? null, // ★裁定98-C: null=暫定式（pay.ts 側）
     });
   }
   return { casts, masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast };

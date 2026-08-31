@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { payOf, type PayResult, type TaxMode } from "../pay";
 import { allocDue } from "../sales-alloc"; // #32 pooled の最大剰余法（sales 按分と同一の整数分配・純関数）
 import { takeHomeFloor } from "../money"; // F2e-1 手取り0下限（social gate TODO）
-import { resolvePayrollWindow } from "./window";
+import { resolvePayrollWindow, periodDaysBetween } from "./window";
 import { collectPeriod } from "./collect";
 import { buildPayInput, type Extra } from "./assemble";
 
@@ -38,7 +38,14 @@ export type PreviewRow = {
   okuriDeducted: OkuriDeducted[]; // F2e-2: 今期天引きする送り実費と額（繰越なし＝carried 無し）
   okuriDeductTotal: number; // 今期送り実費天引き合計
 };
-export type Blocker = { castId: string; castName: string; reason: "no_plan" | "no_tax" };
+export type Blocker = { castId: string; castName: string; reason: "no_plan" | "no_tax" | "no_employment" };
+// ★裁定98: 確定は止めないが人が見るべき事象（blocker と別枠・warnEmptyPool は IncentiveSummary 側に温存）
+export type PayrollWarning = {
+  castId: string;
+  castName: string;
+  kind: "sanction_capped" | "sanction_contractor" | "avg_wage_provisional";
+  detail: string;
+};
 // 可視化: incentive ごとの総配分額・受給者数（受給者0の pooled は警告・ブロックしない）
 export type IncentiveSummary = {
   id: string;
@@ -49,7 +56,40 @@ export type IncentiveSummary = {
   distributedTotal: number;
   warnEmptyPool: boolean;
 };
-export type PayrollDraft = { rows: PreviewRow[]; blockers: Blocker[]; incentives: IncentiveSummary[]; period: string; storeId: string };
+export type PayrollDraft = { rows: PreviewRow[]; blockers: Blocker[]; warnings: PayrollWarning[]; incentives: IncentiveSummary[]; period: string; storeId: string };
+
+// ★裁定98: sanction 系の blocker/warning 導出（純関数）。export＝verify が DB 非依存で判別的に係留するため
+//   （allocateCategory と同じ建付け）。core 本体はこの2関数を経由する＝検証対象と実挙動が一致する。
+export function employmentBlockerOf(
+  c: { castId: string; castName: string; employment: "委託" | "雇用" | null },
+  hasSanction: boolean,
+): Blocker | null {
+  // 店に active な sanction 控除があるとき、employment 未設定は二層のどちらを通すか決められない＝blocker。
+  return hasSanction && c.employment == null
+    ? { castId: c.castId, castName: c.castName, reason: "no_employment" }
+    : null;
+}
+
+export function sanctionWarningsOf(
+  c: { castId: string; castName: string; employment: "委託" | "雇用" | null },
+  sanction: PayResult["sanction"],
+): PayrollWarning[] {
+  const out: PayrollWarning[] = [];
+  if (!sanction || sanction.original <= 0) return out;
+  if (c.employment === "雇用" && sanction.applied < sanction.original) {
+    out.push({ castId: c.castId, castName: c.castName, kind: "sanction_capped",
+      detail: `制裁控除 ${sanction.original}円 → ${sanction.applied}円（労基法91条: 1回≤平均賃金の半日分 ${sanction.capEach}円・総額≤賃金総額の1/10 ${sanction.capTotal}円）` });
+  }
+  if (c.employment === "委託") {
+    out.push({ castId: c.castId, castName: c.castName, kind: "sanction_contractor",
+      detail: `委託への制裁控除 ${sanction.applied}円（法定上限なし＝契約根拠の確認記録が適用条件・裁定98）` });
+  }
+  if (c.employment === "雇用" && sanction.provisional) {
+    out.push({ castId: c.castId, castName: c.castName, kind: "avg_wage_provisional",
+      detail: `平均賃金が暫定式（確定済み給与 0 期）＝当期 gross から概算 ${sanction.avgDailyWage}円/日で上限を計算` });
+  }
+  return out;
+}
 
 // カテゴリ共通の budget 引き当て（古い順に rem まで partial・各 item は deducted か carried の一方に1回＝重複なし）。
 //   carryable=false（transport＝繰越なし）は rem 切れの残を carried にせず据置＝再回収しない（L4 裁定・台帳 #33）。
@@ -83,11 +123,8 @@ export async function computePayrollDraft(
 ): Promise<PayrollDraft> {
   const win = await resolvePayrollWindow(admin, storeId, period);
   // ★源泉の「計算期間の日数」＝window の両端を含む暦日数（裁定23）。
-  //   period_bounds が月初/月末を返すため 28〜31。UTC 正午起点で差を取り DST/TZ 由来のズレを作らない。
-  const periodDays =
-    Math.round(
-      (Date.parse(`${win.periodEnd}T00:00:00Z`) - Date.parse(`${win.periodStart}T00:00:00Z`)) / 86_400_000,
-    ) + 1;
+  //   period_bounds が月初/月末を返すため 28〜31。写像は periodDaysBetween（裁定98 で関数化・過去期と共通）。
+  const periodDays = periodDaysBetween(win.periodStart, win.periodEnd);
   if (!Number.isFinite(periodDays) || periodDays <= 0) {
     throw new Error(`periodDays 解決不能（period ${period} / ${win.periodStart}〜${win.periodEnd}）`);
   }
@@ -119,10 +156,19 @@ export async function computePayrollDraft(
 
   const rows: PreviewRow[] = [];
   const blockers: Blocker[] = [];
+  const warnings: PayrollWarning[] = [];
+  // ★裁定98: 店に active な sanction 控除があるとき、employment 未設定の cast は二層のどちらを
+  //   通すか決められない＝blocker（sanction が無ければ従来どおり・blocker なし）。
+  const hasSanction = masters.deductions.some((d) => d.kind === "sanction");
   for (const c of casts) {
     if (!c.plan) {
       blockers.push({ castId: c.castId, castName: c.castName, reason: "no_plan" });
       continue; // プラン未設定は計算不能＝プレビューでも行を作らない
+    }
+    const eb = employmentBlockerOf(c, hasSanction);
+    if (eb) {
+      blockers.push(eb);
+      continue; // 雇用/委託が決まらないと sanction の上限計算が定まらない＝行を作らない
     }
     let taxMode = c.taxProfileMode;
     if (!taxMode) {
@@ -162,6 +208,8 @@ export async function computePayrollDraft(
     if (net !== pay.net) {
       throw new Error(`net 恒等崩れ（cast ${c.castId}）`);
     }
+    // ★裁定98: sanction 由来の警告（確定は止めない・blocker と別枠・導出は純関数）
+    warnings.push(...sanctionWarningsOf(c, pay.sanction));
     rows.push({
       castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, taxMode,
       arDeducted, arCarried, arDeductTotal: arPlan.deduct, arCarriedTotal: arPlan.carriedTotal,
@@ -179,5 +227,5 @@ export async function computePayrollDraft(
       recipientCount: n, distributedTotal, warnEmptyPool: inc.amountMode === "pooled" && n === 0,
     };
   });
-  return { rows, blockers, incentives: incentiveSummary, period, storeId };
+  return { rows, blockers, warnings, incentives: incentiveSummary, period, storeId };
 }
