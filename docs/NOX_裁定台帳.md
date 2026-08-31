@@ -2286,6 +2286,30 @@ comp_plan_components を先に削除」を追加**して先回りで塞いだ（
 
 ---
 
+## 裁定99（2026-08-31・U-1）給与画面のモック収斂 — 実機: 未（CC 未／Agoora 未）
+
+> 正本モック: mock/pages-2026-08/nox-payroll-management.html（v2 差替予定・構造の正本であって配色の正本ではない＝実装は現行トークン）。
+> 裁定18（デザイン移植 段D で payroll を対象外）の対象外指定を解除し、収斂対象とする（起票#40）。
+
+10点の要旨（**逐語の正本＝`docs/NOX_U1給与収斂設計書v1.md` §1**・底本 sha256 `7fa5e2a8…71df3f9`）:
+
+| # | 要旨 |
+|---|---|
+| ① | 構造＝モック組成採用（hero＋KPI4枚＋4ステップ＋キャスト別表＋右パネル明細＋下段2枚）。現行8区画を畳む・機能削除なし |
+| ② | 確定単位は run のまま（finalize/reopen 既設）。キャスト単位確定は作らない。表の状態列は支払状態のみ（net−Σpaid 導出） |
+| ③ | KPI 4種＝確定期は凍結Σ（現行 sum4）・draft 期は rows から表示層合算（新設・純関数）。前月比は現行維持・欠落キー0円既定 |
+| ④ | 「集計」直下に要対応区画＝blockers 3種＋warnings 3種（裁定98）。0件なら「要対応なし」 |
+| ⑤ | PayslipSlip 拡張＝guaranteeAdd（支給側）・achievementBonus・sanction（原額/適用額）・税区分バッジで源泉行名切替。凍結済み＝遡及表示可・mine 自動追随 |
+| ⑥ | 手動調整は採用しない（器なし・money-core）。準備中表示もしない |
+| ⑦ | LINE 明細公開は出さない（T3 後送り維持）。4段目は「支払・明細」 |
+| ⑧ | CSV/一括PDF/納付管理/インボイス集計は下段「税務・出力」へ移設（挙動・経路不変） |
+| ⑨ | route スイート新設なし。新設純関数（draft KPI 合算/支払状態導出/要対応整形）に assert＋逆張り。区画コミットごとに CC スクショ＋console 0（ログイン不可なら停止） |
+| ⑩ | 完了条件＝f0 2連続緑（golden 6値不変）＋CC スクショ全区画＋Agoora 実機 OK の3点 |
+
+実装順＝①hero/KPI/ステップ/要対応 → ②表＋右パネル → ③下段移設 → ④test → ⑤docs（区画単位コミット・Opus・money-core 不触）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2494,6 +2518,7 @@ mig0004＝audit_log_write の service_role 残置と同型）。live の `check_
 | 37 | **売掛4段分割の実装** | 裁定89 の実装本体。cast_liability / settlement_request の器と経路分割。R-2b/F2e 系との統合設計が必要。着手は R-2b 以降 |
 | 38 | **待遇 UI のモック収斂** | 挙動段完了後、`plan.html` composer／`nox-cast-compensation-canonical.html`（2026-08-31 に canonical v2 へ差替＝旧 all-in-one）へ**段階収斂**する最終レーン。**canonical はモック側**＝裁定95 の「縮退版」を解消（5方式 composer・kind 追加＝point_rate/profit_share 系・履歴 UI 含む）。着手は C1/C2 挙動段の後 |
 | 39 | **初期設定ウィザード（OB レーン）** | モック `mock/onboarding-2026-08/`（**15 html**＝step1＋業態別 step1×5（追加受領・全 sha 相異）／業態別 step2×5／step3 待遇9カテゴリ／step4 会計・レジ／step5／done・script なし・Unicode escape なし）を収蔵。前提実測済み: stores に住所/業態/onboarding 列なし・**店作成 RPC なし**（seed の admin insert のみ）・会計方式（卓/個別/併用）のフラグなし＝器の設計から。step3 9カテゴリ↔既存の器の対応表は 2026-08-31 調査報告に収載 |
+| 40 | **給与画面のモック収斂（U-1）** | **裁定18 の「段D payroll 対象外」を裁定99 で解除**。正本＝`nox-payroll-management.html`（構造の正本・配色は現行トークン）。設計書＝`docs/NOX_U1給与収斂設計書v1.md`・実装順と完了条件（f0 2連緑＋CC スクショ＋Agoora 実機の3点）は裁定99 ⑨⑩ |
 ### 未裁定・消し込み待ち
 
 - **P-4 の5裁定点（引き継ぎ v14 §5）**は、**`pricing_rules` 既実装（mig0083）に照らして
