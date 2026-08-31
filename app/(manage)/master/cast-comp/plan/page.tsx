@@ -13,9 +13,15 @@ export default async function CastCompPlanPage() {
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");
   const supabase = await createClient();
-  const { data: stores } = await supabase.from("stores").select("id").order("name").limit(1);
-  const storeId = (stores?.[0]?.id as string | undefined) ?? "";
+  // U-2 ⑦: ノルマ統合のため settings_json（採用軸フラグ）も読む（norma/page.tsx の読みを移設）。
+  const { data: stores } = await supabase.from("stores").select("id, settings_json").order("name").limit(1);
+  const store = stores?.[0];
+  const storeId = (store?.id as string | undefined) ?? "";
   if (!storeId) redirect("/master");
+  const sj = store?.settings_json as Record<string, unknown> | null;
+  const shimeiScope: "hon" | "hon_jonai" =
+    (typeof sj?.shimei_norm_scope === "string" ? (sj.shimei_norm_scope as string).trim() : "") === "hon_jonai" ? "hon_jonai" : "hon";
   const sim = await loadStoreSimData(supabase, storeId);
-  return <PlanBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} sim={sim} />;
+  return <PlanBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} sim={sim}
+    normFlags={{ salesEnabled: sj?.sales_norm_enabled === true, shimeiEnabled: sj?.shimei_norm_enabled === true, shimeiScope }} />;
 }

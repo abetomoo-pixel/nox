@@ -14,6 +14,7 @@ import type { StoreSimData } from "@/lib/nox/payroll/sim-data";
 import { adoptedMethodsOf, type AdoptCompShape } from "@/lib/nox/comp-methods";
 import { AssignTab, useCompData, secTitle, type Plan } from "../comp-sections";
 import PlanEditor from "./plan-editor";
+import NormaBoard from "../norma/norma-board";
 
 const card: React.CSSProperties = t.card;
 
@@ -24,11 +25,13 @@ const NAV = [
   ["#slides", "ポイント制・売上スライド"],
   ["#achieve", "達成ボーナス"],
   ["#sim", "シミュレーション"],
+  ["#norma", "ノルマ＋未達処理"],
   ["#assign", "キャスト割当"],
 ] as const;
 
-export default function PlanBoard({ storeId, isManagerUp, isOwner, sim }: {
+export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlags }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean; sim: StoreSimData | null;
+  normFlags: { salesEnabled: boolean; shimeiEnabled: boolean; shimeiScope: "hon" | "hon_jonai" };
 }) {
   const supabase = createClient();
   const [msg, setMsg] = useState<string | null>(null);
@@ -141,6 +144,21 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim }: {
           <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" />
         </div>
       )}
+
+      {/* ── ⑦ ノルマ＋未達処理（norma ページの統合＝NormaBoard をそのまま搭載・RPC/権限不変） ── */}
+      <section id="norma" style={{ marginBottom: 14 }}>
+        <div className="nox-cardtop" style={{ ...card, marginBottom: 10 }}>
+          <h2 style={secTitle}>ノルマ＋未達処理</h2>
+          {/* 裁定101 補正1: 契約区分 select は置かない（employment は cast 属性）。説明2行＋根拠確認は器なし＝準備中。 */}
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 2px" }}>雇用キャスト: 減給・罰金の法定上限（労基法91条）は給与計算側で自動制約されます（裁定98）。</p>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>委託キャスト: 未達処理には契約上の根拠が必要です（法定上限の自動適用はありません）。</p>
+          <label style={{ fontSize: 12, color: "var(--sub)", opacity: 0.7 }}>
+            <input type="checkbox" disabled /> 契約上の根拠を確認した（確認メモ）
+            <span className="nox-stpill" style={{ marginLeft: 8 }}>準備中（penalty_config に確認記録の器なし・C5）</span>
+          </label>
+        </div>
+        <NormaBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={isOwner} flags={normFlags} />
+      </section>
 
       <section id="assign" className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
         <h2 style={secTitle}>キャスト割当（プラン・上書き）</h2>

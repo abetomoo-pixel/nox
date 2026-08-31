@@ -393,6 +393,9 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
   // mig0086: 方式 override（"" = 方式は上書きしない）。mode を選んだら対の値入力を必須表示＝原子性を UI で構造化。
   const [ovHonMode, setOvHonMode] = useState<"" | BackModeRow>("");
   const [ovJonaiMode, setOvJonaiMode] = useState<"" | BackModeRow>("");
+  // ★U-2（裁定101 補正2）: 適用開始日＝mig0116 の p_valid_from。空＝現在行の上書き（従来どおり）・
+  //   指定＝履歴生成（給与適用は裁定97 の3段選択・過去日は RPC が 'bad valid_from'）。
+  const [validFrom, setValidFrom] = useState("");
   const activePlans = plans.filter((p) => p.is_active); // inactive は割当不可（DB も 'plan inactive' で拒否）
   const planName = (pid: string) => plans.find((p) => p.id === pid)?.name ?? "(不明)";
   const castName = (cid: string) => casts.find((c) => c.id === cid)?.name ?? cid;
@@ -421,10 +424,10 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
     } else if (ov.jonaiBack !== "") {
       overrides.jonaiBack = Number(ov.jonaiBack);
     }
-    // ★mig0116: p_valid_from は null を明示送信（教訓43 型＝現在行の上書き経路を UI が固定・履歴 UI は起票#38）
-    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: planId, p_overrides: overrides, p_valid_from: null });
-    setMsg(error ? compErrJa(error.message) : "割当を保存しました");
-    if (!error) await reload();
+    // ★mig0116: p_valid_from＝空なら null 明示（現在行の上書き）・指定日なら履歴生成（U-2 で解錠＝裁定101 補正2）。
+    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: planId, p_overrides: overrides, p_valid_from: validFrom || null });
+    setMsg(error ? compErrJa(error.message) : validFrom ? `割当を保存しました（${validFrom} から適用・履歴生成）` : "割当を保存しました");
+    if (!error) { setValidFrom(""); await reload(); }
   }
 
   return (
@@ -451,7 +454,11 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
             <option value="">プラン選択（有効のみ）</option>
             {activePlans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <span style={note}>個別上書き（空欄＝プランの値）</span>
+          <label style={{ fontSize: 12 }}>適用開始日 <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} style={{ ...input, width: 140 }} title="空＝今すぐ（現在行の上書き）。指定＝その日から適用（履歴生成・給与は裁定97 の期間選択）" /></label>
+          {/* ★U-2（裁定101 補正2）: 個別上書きは折りたたみ（既定は畳む＝行を軽く） */}
+          <details style={{ width: "100%" }}>
+          <summary style={{ fontSize: 12, color: "var(--champ)", cursor: "pointer" }}>個別上書き ▸（空欄＝プランの値）</summary>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
           <label style={{ fontSize: 12 }}>保証時給 <input type="number" min={0} value={ov.base} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, base: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           {/* mig0086: 方式 override は mode 選択→対の値入力を必須表示（原子性の UI 構造化）。既定=方式は上書きしない。 */}
           <label style={{ fontSize: 12 }}>本 方式 <SegSelect value={ovHonMode} onChange={(v) => setOvHonMode(v as "" | BackModeRow)}
@@ -469,6 +476,8 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
             <label style={{ fontSize: 12 }}>場内(円/本){ovJonaiMode === "per_count" ? "※必須" : ""} <input type="number" min={0} value={ov.jonaiBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, jonaiBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
           )}
           <label style={{ fontSize: 12 }}>同伴(円/本) <input type="number" min={0} value={ov.dohanBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, dohanBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
+          </div>
+          </details>
           <button style={btnDark} onClick={save} disabled={!castId || !planId}>割当</button>
         </div>
       ) : <p style={note}>割当はマネージャー以上のみ可能です。</p>}
