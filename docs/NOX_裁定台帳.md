@@ -2258,6 +2258,34 @@ C1 レーンは policy 器と payroll_deduction 直前チェックのみ実装�
 
 ---
 
+## 裁定98（2026-08-31・C1-3）sanction 二層ガードの結線（mig0117）
+
+| # | 面 | 確定 |
+|---|---|---|
+| A | 器（mig0117） | `deductions` に根拠確認3列（`basis_confirmed_at/by/note`）＋CHECK `deductions_sanction_basis_check`。`set_deduction` 6→9引数化（`p_kind/p_basis_confirmed/p_basis_note`・旧署名明示 DROP・4者 revoke→2者 grant）。**sanction は保存のたびに確認必須**（update でも再チェック）。update の `p_kind=null` は**不変**（教訓43 型・黙戻りで kind を潰さない）。非 sanction へ変更すると basis 3列は null へ |
+| B | 計算（pay.ts） | sanction を他 kind から分離（非 sanction は現行式と1バイト同値＝golden 構造保証）。**雇用**＝労基法91条をシステム強制: `capEach=floor(平均賃金/2)`・回数 day=出勤日数/month=1/rate=1・`applied=min(Σmin(額,capEach)×回数, floor(gross/10))`。**委託**＝上限なし（現行式・警告のみ）。`PayResult.sanction`（original/applied/capEach/capTotal/avgDailyWage/provisional・行なしは null＝凍結互換） |
+| C | 平均賃金 | 直近3確定期（finalized/paid・period 降順）の payslips 凍結値から `max(floor(Σgross÷Σ暦日数), floor(Σgross÷Σ出勤日数×0.6))`（0.6=3/5 整数演算・出勤0は前者のみ）。暦日数は periodDaysBetween/periodCalendarDays（core:periodDays の写像を関数化＝当期と同系列）。**確定期0本は null→pay.ts の暫定式** `max(floor(gross/暦日数), floor(gross×3/(出勤日数×5)))`＋provisional=true。※労基法12条の厳密算定（起算日・除外期間等）との差分は**社労士 S-1 で確認中**（専門家確認事項） |
+| D | employment 分岐 | 店に active な sanction 控除があるとき `casts.employment` null は **blocker 'no_employment'**（行を作らない）。sanction が無ければ従来どおり。導出は純関数 `employmentBlockerOf`（export＝verify が DB 非依存で係留・allocateCategory 前例） |
+| E | 警告の器 | `PayrollDraft.warnings`（`sanction_capped`/`sanction_contractor`/`avg_wage_provisional`・確定は止めない・warnEmptyPool は温存）。導出は純関数 `sanctionWarningsOf` |
+| F | UI | 控除タブに種別 select＋sanction 時の警告文（雇用=91条自動適用／委託=フリーランス法注意）＋確認チェック＋note（≤400字）・**9引数常時明示送信**。一覧に種別と確認日。payroll-board に warnings 一覧＋no_employment 文言 |
+
+- verify＝rls r1〜r4（basis required／3列充填+by=uid／p_kind null 不変／agreed_cost 変更で3列 null・492→496）＋
+  payroll p1〜p7（capEach/capTotal/委託無clamp/no_employment/暫定式/max選択/非sanction同値・166→174）。
+  逆張り3ラン実測（A: capEach反転+委託clamp+blocker無効=4赤／B: capTotal撤去+0.6→0.5+agreed_cost脱落=4赤／
+  C: rls 期待反転=4赤・すべて復元緑）。anon-guard は9引数 null 呼びで BLOCKED 不変（986）。
+- sim 経路は employment/平均賃金を持たない＝sanction は現行式同値（cap なし・payOf の契約コメントに明記）。
+
+### 教訓44：teardown は FK 参照先を先に消す（起票#35 同型の予防）
+
+名前ベースの teardown（`comp_plans.delete().in("name", PLANS)` 型）は、**子テーブル（comp_plan_components）が
+残っていると FK で黙って失敗し、fixture が次 run へ残置される**（エラーを確認しない delete の常）。
+裁定97 段で planB が components を持った時点で顕在化する穴を、**teardown に「plan id を引いて
+comp_plan_components を先に削除」を追加**して先回りで塞いだ（verify-nox-payroll.ts）。
+★一般則: **fixture に FK 子を持たせたら、teardown の親 delete の前に子 delete を必ず対で足す**
+（mkPunchDay→shifts の前例＝F2g 後始末コメントと同型）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2464,8 +2492,7 @@ mig0004＝audit_log_write の service_role 残置と同型）。live の `check_
 | 35 | **payroll スイートの statement timeout 残置汚染** | `payroll` が statement timeout 等で異常終了すると `NOX-VERIFY-pay*` の cast が store A1 に active のまま残置され、次 run の **anon-guard 段35 を汚染**する（`teardown()` は冒頭 `:124` でも走るが**自スイートの中でしか効かない**＝ verify:f0 の並びが **anon-guard → payroll** のため次 run では anon-guard が先に当たる。段35 の `wipe35()` は `NOX-VERIFY-段35` **接頭辞の cast しか消さない**ので payroll 由来の残骸は素通りする）。★起票#6「原因は窓ではなく蓄積」と同系（型③）。**4e7a27c で解消**＝`teardown` の参照をモジュール層へ上げ **`main().catch()` から必ず呼ぶ**形にした（差分 +23/-1＝24行。本体を `try/finally` で包む案は 880 行の再インデントになるため不採用）。**汚染する具体点は `kiosk_cast_list` の `A1=2人` 固定カウント**（実測で特定）。逆張り＝fixture 作成後に中断を注入し、**旧実装では A1 active cast が 2→11・段35 が 11行で赤**、**新実装では「異常終了後の teardown 完了」を出して 2 に戻り段35 緑（984）**を実測。★**案b（段35 の wipe を `NOX-VERIFY-` 全体へ拡張）は不採用**＝実店舗データに当該接頭辞は 0件だが、**他スイートの常設 fixture が 16件（seats 14・comp_plans 2）生存**しており巻き込むため |
 | 36 | **RT レーン: データ種別別 retention の実装** | 裁定88 の実装本体。retention 列群・削除/匿名化バッチ・法定期間ロック・店舗ポリシー UI。着手時期は別途裁定（launch 前必須かは要判断） |
 | 37 | **売掛4段分割の実装** | 裁定89 の実装本体。cast_liability / settlement_request の器と経路分割。R-2b/F2e 系との統合設計が必要。着手は R-2b 以降 |
-| 38 | **待遇 UI のモック収斂** | 挙動段完了後、`plan.html` composer／`nox-cast-compensation-all-in-one.html` へ**段階収斂**する最終レーン。**canonical はモック側**＝裁定95 の「縮退版」を解消（5方式 composer・kind 追加＝point_rate/profit_share 系・履歴 UI 含む）。着手は C1/C2 挙動段の後 |
-
+| 38 | **待遇 UI のモック収斂** | 挙動段完了後、`plan.html` composer／`nox-cast-compensation-canonical.html`（2026-08-31 に canonical v2 へ差替＝旧 all-in-one）へ**段階収斂**する最終レーン。**canonical はモック側**＝裁定95 の「縮退版」を解消（5方式 composer・kind 追加＝point_rate/profit_share 系・履歴 UI 含む）。着手は C1/C2 挙動段の後 |
 ### 未裁定・消し込み待ち
 
 - **P-4 の5裁定点（引き継ぎ v14 §5）**は、**`pricing_rules` 既実装（mig0083）に照らして
