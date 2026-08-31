@@ -7,7 +7,7 @@ import { buildPayrollCsv, type PayrollCsvRow, type PayrollCsvPay } from "@/lib/n
 import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
-import { kpiOfDraftRows, issuesOfDraft } from "@/lib/nox/payroll/ui-calc";
+import { kpiOfDraftRows, issuesOfDraft, payStatusOf } from "@/lib/nox/payroll/ui-calc";
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
 import PaymentTaxPanel from "./payment-tax-panel";
@@ -30,7 +30,14 @@ type Row = {
   okuriDeductTotal?: number; // F2e-2 送り実費（繰越なし）
   // E8-5 payroll#2: preview API が返している breakdown（route.ts:21）を Row 型が捨てていたのを復元。
   //   ★値はサーバ計算のまま＝画面側での再計算はしない（wHours/gross と控除計の表示にだけ使う）。
-  breakdown?: { pay: PayrollCsvPay & { wHours?: number }; extras?: { amount: number }[] };
+  // ★U-1（裁定99-⑤）: preview は PayResult 全キーを返す＝右パネル明細用に保証/達成/制裁も型で受ける。
+  breakdown?: {
+    pay: PayrollCsvPay & {
+      wHours?: number; guaranteeAdd?: number; achievementBonus?: number;
+      sanction?: { original?: number; applied?: number } | null;
+    };
+    extras?: { amount: number }[];
+  };
 };
 type Blocker = { castName: string; reason: string };
 // ★裁定98: sanction 二層ガードの警告（blocker と別枠・確定は止めない）。
@@ -46,6 +53,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   const [rows, setRows] = useState<Row[] | null>(null);
   const [blockers, setBlockers] = useState<Blocker[]>([]);
   const [warnings, setWarnings] = useState<Warning[]>([]); // ★裁定98
+  // ★U-1（裁定99-②）: 確定済み期の cast 別支払状態（payslips.net×Σpayment_records）。draft は null＝「未確定」。
+  const [castPaid, setCastPaid] = useState<Map<string, { net: number; paid: number }> | null>(null);
   const [incentives, setIncentives] = useState<Incentive[]>([]);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -90,15 +99,27 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
     setRunInfo(info);
     setSum4(null);
     setUnpaid(null); setPrevNet(null);
+    setCastPaid(null);
     if (info && (info.status === "finalized" || info.status === "paid")) {
       // E8-5 payroll#5: 件数だけでなく paid_amount も読む（未支払 KPI＝Σnet−Σpaid）。件数判定は不変。
-      const { data: prRows } = await supabase.from("payment_records").select("paid_amount").eq("run_id", info.id);
-      const prs = (prRows ?? []) as { paid_amount: number }[];
+      // ★U-1（裁定99-②）: cast_id も読み、キャスト別表の支払状態列（payStatusOf）に使う。
+      const { data: prRows } = await supabase.from("payment_records").select("cast_id, paid_amount").eq("run_id", info.id);
+      const prs = (prRows ?? []) as { cast_id: string; paid_amount: number }[];
       setPayCount(prs.length);
       const paidSum = prs.reduce((a, r) => a + r.paid_amount, 0);
       // 段Y2: 合計サマリ＝確定済み payslips の凍結値をそのまま加算するだけ（D3 CSV と同じ読み取り経路）
-      const { data: ps } = await supabase.from("payslips").select("net, breakdown_json").eq("run_id", info.id);
-      const slips = (ps ?? []) as { net: number; breakdown_json: BreakdownJson }[];
+      const { data: ps } = await supabase.from("payslips").select("cast_id, net, breakdown_json").eq("run_id", info.id);
+      const slips = (ps ?? []) as { cast_id: string; net: number; breakdown_json: BreakdownJson }[];
+      {
+        const m = new Map<string, { net: number; paid: number }>();
+        for (const sl of slips) m.set(sl.cast_id, { net: sl.net, paid: 0 });
+        for (const p of prs) {
+          const cur = m.get(p.cast_id) ?? { net: 0, paid: 0 };
+          cur.paid += p.paid_amount;
+          m.set(p.cast_id, cur);
+        }
+        setCastPaid(m);
+      }
       if (slips.length > 0) {
         let gross = 0, ded = 0, wh = 0, net = 0;
         // ★欠落キーは 0 扱い（裁定 2026-07-28）。payroll_finalize は実績ゼロの cast に
@@ -540,6 +561,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>送り</th>
                 <th style={{ ...t.th, textAlign: "right" }}>差引支給(net)</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>anomaly</th>
+                {/* ★U-1（裁定99-②）: 状態列＝支払状態のみ（未確定/未払/一部/支払済・キャスト単位確定は作らない） */}
+                <th style={t.th}>状態</th>
               </tr>
             </thead>
             <tbody>
@@ -572,6 +595,13 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
                   {/* net＝読む情報の最重要値ゆえ白太（値そのものは r.net のまま・書式も toLocaleString で不変） */}
                   <td style={{ ...t.td, ...t.num, textAlign: "right", fontWeight: 700, color: "var(--v2-text)" }}>{r.net.toLocaleString()}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: r.anomalyCount ? "var(--bad)" : "var(--sub)" }}>{r.anomalyCount || "-"}</td>
+                  {(() => {
+                    // ★U-1（裁定99-②）: 支払状態。確定済み期＝payStatusOf(凍結 net, Σpaid)・draft/run なし＝未確定。
+                    const cp = castPaid?.get(r.castId);
+                    const st = castPaid && cp ? payStatusOf(cp.net, cp.paid) : "未確定";
+                    const col = st === "支払済" ? "var(--ok)" : st === "一部" ? "var(--gold)" : st === "未払" ? "var(--bad)" : "var(--sub)";
+                    return <td style={{ ...t.td, fontWeight: 700, color: col }}>{st}</td>;
+                  })()}
                 </tr>
                 );
               })}
@@ -583,14 +613,21 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
             const pay = r?.breakdown?.pay;
             if (!r || !pay) return null;
             const z = (v: number | undefined) => v ?? 0;
+            // ★U-1（裁定99-⑤）: 保証/達成は支給側・制裁は固定控除から分解表示（合計不変・再計算なし）。
+            const sanctionApplied = z(pay.sanction?.applied);
+            const sanctionOriginal = z(pay.sanction?.original);
             const items: [string, number][] = [
               ["時給（timePay）", z(pay.timePay)],
               ["本指名バック", z(pay.honBack)], ["場内バック", z(pay.jonaiBack)], ["同伴バック", z(pay.dohanBack)],
               ["ドリンク", z(pay.drinkBack)], ["シャンパン", z(pay.champBack)], ["ボトル", z(pay.bottleBack)],
               ["売上スライド", z(pay.salesBack)], ["自由バック", z(pay.customTotal)],
+              ["達成ボーナス", z(pay.achievementBonus)], ["最低保証加算", z(pay.guaranteeAdd)],
             ];
+            const whLabel = r.taxMode === "委託" ? "源泉（報酬・料金）" : r.taxMode === "雇用" ? "源泉（給与）" : "源泉";
             const deds: [string, number][] = [
-              ["固定控除", z(pay.fixedDed)], ["罰金", z(pay.fine)], ["源泉", z(pay.withholding)],
+              ["固定控除", z(pay.fixedDed) - sanctionApplied],
+              [sanctionOriginal > sanctionApplied ? `制裁（原額 ¥${sanctionOriginal.toLocaleString()}→上限適用）` : "制裁（罰金・減給）", sanctionApplied],
+              ["罰金", z(pay.fine)], [whLabel, z(pay.withholding)],
               ["売掛天引き", z(pay.arDeduct)], ["前借り", z(pay.advanceDeduct)], ["送り", z(pay.okuriDeduct)],
               ["ノルマ", z(pay.normPenalty)],
             ];

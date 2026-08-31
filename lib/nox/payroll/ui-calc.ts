@@ -33,6 +33,16 @@ export function kpiOfDraftRows(rows: DraftKpiRow[]): Kpi4 {
   return { gross, ded, wh, net, n: rows.length };
 }
 
+// 裁定99-②: キャスト別表の支払状態（確定単位は run のまま＝キャスト単位確定は作らない）。
+//   未確定（run が draft/なし）は呼び元が status で分岐＝この関数は確定済み cast の3値のみ。
+//   remaining = net − Σpaid。net ≤ 0（支払うものがない）は「支払済」に落ちる（remaining ≤ 0 経由）。
+export type PayStatus = "未払" | "一部" | "支払済";
+export function payStatusOf(net: number, paidSum: number): PayStatus {
+  const remaining = net - paidSum;
+  if (remaining <= 0) return "支払済";
+  return paidSum > 0 ? "一部" : "未払";
+}
+
 // 裁定99-④: 要対応の整形＝blockers（確定を止める）＋ warnings（裁定98・止めない）を1本のリストへ。
 //   0件のときの「要対応なし」表示は呼び元の責務。
 export type DraftIssue = { castName: string; label: string; detail: string; kind: "blocker" | "warning" };

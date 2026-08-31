@@ -15,6 +15,10 @@ type SlipPay = {
   honBack?: number; jonaiBack?: number; dohanBack?: number;
   drinkBack?: number; champBack?: number; bottleBack?: number; salesBack?: number; customTotal?: number;
   gross?: number; fixedDed?: number; fine?: number; withholding?: number; normPenalty?: number;
+  // ★U-1（裁定99-⑤）: 凍結済みの追加キー（旧 payslip には無い＝optional・無ければ従来表示と一字一致）
+  guaranteeAdd?: number; achievementBonus?: number;
+  taxMode?: string; // 裁定28 で凍結（'委託'|'雇用'）
+  sanction?: { original?: number; applied?: number } | null; // 裁定98（行が無い期は null/欠落）
 };
 type SlipExtra = { kind: string; amount: number; label?: string };
 
@@ -37,7 +41,16 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
   const okuri = deductTotal(slip.breakdown_json, "okuri");
   const nominBack = (pay.honBack ?? 0) + (pay.jonaiBack ?? 0) + (pay.dohanBack ?? 0);
   const prodBack = (pay.drinkBack ?? 0) + (pay.champBack ?? 0) + (pay.bottleBack ?? 0) + (pay.salesBack ?? 0) + (pay.customTotal ?? 0);
-  const hasDed = (pay.fixedDed ?? 0) > 0 || (pay.fine ?? 0) > 0 || (pay.withholding ?? 0) > 0 || (pay.normPenalty ?? 0) > 0 || ar > 0 || adv > 0 || okuri > 0;
+  // ★U-1（裁定99-⑤）: sanction は fixedDed に内包されて凍結されている（pay.ts: fixedDed = 非sanction + applied）。
+  //   表示は「固定控除（sanction 除き）」＋「制裁（原額→適用額）」へ分解＝合計は不変・数値の再計算はしない。
+  //   旧 payslip（sanction キーなし）は分解ゼロ＝従来表示と一字一致。
+  const sanctionApplied = pay.sanction?.applied ?? 0;
+  const sanctionOriginal = pay.sanction?.original ?? 0;
+  const fixedDedRest = (pay.fixedDed ?? 0) - sanctionApplied;
+  // 税区分バッジ（裁定28 凍結値）: 委託=報酬の源泉／雇用=給与の源泉。旧データ（未凍結）はバッジなし・行名「源泉」。
+  const taxMode = pay.taxMode === "委託" || pay.taxMode === "雇用" ? pay.taxMode : null;
+  const whLabel = taxMode === "委託" ? "源泉（報酬・料金）" : taxMode === "雇用" ? "源泉（給与）" : "源泉";
+  const hasDed = fixedDedRest > 0 || sanctionApplied > 0 || (pay.fine ?? 0) > 0 || (pay.withholding ?? 0) > 0 || (pay.normPenalty ?? 0) > 0 || ar > 0 || adv > 0 || okuri > 0;
   // 支給行（＞0 のみ）／控除行（＞0 のみ・bad 減算）。
   // ★裁定26: extras（出勤ボーナス等）は gross に内在＝net = gross − 控除（外側加算はしない）。
   //   「加算」節の明細行は gross の内訳表示であって、控除後に足し戻す金額ではない。
@@ -48,20 +61,37 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
     v > 0 ? <div style={t.slipRow}><span>{label}</span><span style={{ ...t.num, color: "var(--bad)" }}>−{yen(v)}</span></div> : null;
   return (
     <div className="nox-payslip" style={{ marginBottom: 14 }}>
-      <div className="ps-hd" style={t.slipHd}>{castName ? `${castName}　${slip.period}` : slip.period}</div>
+      <div className="ps-hd" style={t.slipHd}>
+        {castName ? `${castName}　${slip.period}` : slip.period}
+        {/* ★U-1（裁定99-⑤）: 税区分バッジ（凍結 taxMode・旧データは非表示） */}
+        {taxMode && (
+          <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
+            border: "1px solid var(--line2)", color: "var(--champ)" }}>{taxMode}</span>
+        )}
+      </div>
 
       <div style={t.slipSec}>支給</div>
       {(pay.timePay ?? 0) > 0 && earn(`時給 ${yen(pay.wage ?? 0)}/h × ${pay.wHours ?? 0}h`, pay.timePay ?? 0)}
       {nominBack > 0 && earn("指名バック（本/場内/同伴）", nominBack)}
       {prodBack > 0 && earn("商品・売上・自由バック", prodBack)}
+      {/* ★U-1（裁定99-⑤）: 達成ボーナス・最低保証加算は支給側（gross の内訳・控除側に置かない） */}
+      {(pay.achievementBonus ?? 0) > 0 && earn("達成ボーナス", pay.achievementBonus ?? 0)}
+      {(pay.guaranteeAdd ?? 0) > 0 && earn("最低保証加算", pay.guaranteeAdd ?? 0)}
       {(pay.gross ?? 0) > 0 && (
         <div style={t.slipRowB}><span>総支給（賞与等含む）</span><span style={t.num}>{yen(pay.gross ?? 0)}</span></div>
       )}
 
       {hasDed && <div style={t.slipSec}>控除</div>}
-      {ded("固定控除", pay.fixedDed ?? 0)}
+      {ded("固定控除", fixedDedRest)}
+      {/* ★U-1（裁定99-⑤）: 制裁（裁定98）＝原額→適用額。cap が効いた期は原額を併記（凍結値の再掲のみ） */}
+      {sanctionApplied > 0 && (
+        <div style={t.slipRow}>
+          <span>制裁（罰金・減給）{sanctionOriginal > sanctionApplied ? `（原額 ${yen(sanctionOriginal)} → 法定上限適用）` : ""}</span>
+          <span style={{ ...t.num, color: "var(--bad)" }}>−{yen(sanctionApplied)}</span>
+        </div>
+      )}
       {ded("罰金", pay.fine ?? 0)}
-      {ded("源泉", pay.withholding ?? 0)}
+      {ded(whLabel, pay.withholding ?? 0)}
       {ded("ノルマ未達", pay.normPenalty ?? 0)}
       {ded("売掛", ar)}
       {ded("前借り", adv)}
