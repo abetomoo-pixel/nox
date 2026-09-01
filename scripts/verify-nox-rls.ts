@@ -846,6 +846,15 @@ async function main() {
     check("F1d punch_self in-in 両方成功（盲目記録）", typeof p1 === "string" && typeof p2 === "string" && p1 !== p2);
     const { data: myPunches } = await c.from("punches").select("id, type, cast_id").in("id", [p1, p2]);
     check("F1d in-in が2行とも記録", (myPunches ?? []).length === 2 && (myPunches ?? []).every((r) => r.type === "in"));
+    // ★掃除（教訓30 の一般則・2026-09-01 実測）: punch_self の当日打刻を残すと、暦が9月に入った時点で
+    //   payroll スイートの P=2026-09 窓に入り「F2c-2 P（完全期間）は blockers 無し」を no_tax で汚染する
+    //   （8月中は無症状の時限装置）。作った2行はその場で消す（billing 段47-3 は created.punches で掃除済みの前例）。
+    {
+      const adminP = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      await adminP.from("punches").delete().in("id", [p1 as string, p2 as string]);
+    }
 
     // attendance_set_self: late+eta OK・shukkin は拒否（連絡は late/absent のみ）
     const { error: eL } = await c.rpc("attendance_set_self", { p_date: "2026-07-15", p_status: "late", p_eta: "25:30", p_reason: "電車遅延" });
