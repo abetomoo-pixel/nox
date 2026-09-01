@@ -94,6 +94,10 @@ export default function CastsBoard({
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<{ kind: "cast" | "trial"; id: string } | null>(null);
   const [dtab, setDtab] = useState<"basic" | "comp" | "account">("basic");
+  // ★裁定109（mig0122）: 源氏名・入店日の編集 draft（開くとき現在値で初期化・保存成功で閉じる）
+  const [profEdit, setProfEdit] = useState(false);
+  const [profName, setProfName] = useState("");
+  const [profJoined, setProfJoined] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   // 月次2数値（相談役メモ②）＝現物確認の結果★どちらも新規 RPC なしで取れる:
   //   今月指名＝既存 get_cast_ranking（cast_id 付きで hon/jonai/dohan を返す・dashboard と同じ呼び方）
@@ -274,7 +278,7 @@ export default function CastsBoard({
   // ── F3g' castログイン招待（招待=未結線 / PW再発行=結線済み・POST /api/cast/invite） ──
   const reloadLoginCasts = useCallback(async () => {
     // mig0074: left_on を含め、page.tsx と同一の取得にする（.eq(is_active,true) を外す＝段C2 の在籍/退店タブ前提）。
-    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id").order("name");
+    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on").order("name");
     setLoginCasts((data ?? []) as CastLogin[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -544,7 +548,37 @@ export default function CastsBoard({
 
           {dtab === "basic" && (
             <>
-              <div className="nox-frow"><span className="k">源氏名</span><span className="v">{selCast.name}</span></div>
+              {/* ★裁定109（mig0122）: 源氏名・入店日の編集＝set_cast_profile（owner=org 全店/manager=自店・
+                  店内 active の源氏名重複と joined_on<=left_on は RPC が最終防御・変更なし再送は no-op） */}
+              {!profEdit ? (
+                <>
+                  <div className="nox-frow"><span className="k">源氏名</span>
+                    <span className="v" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      {selCast.name}
+                      <button style={btnGhost} disabled={busy} onClick={() => {
+                        setProfName(selCast.name); setProfJoined(selCast.joined_on ?? ""); setProfEdit(true);
+                      }}>編集</button>
+                    </span>
+                  </div>
+                  <div className="nox-frow"><span className="k">入店日</span><span className="v num">{selCast.joined_on ?? "—"}</span></div>
+                </>
+              ) : (
+                <div className="nox-frow"><span className="k">源氏名・入店日</span>
+                  <span className="v" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <input value={profName} placeholder="源氏名" disabled={busy}
+                      onChange={(e) => setProfName(e.target.value)} style={{ ...input, width: 160 }} />
+                    <input type="date" value={profJoined} disabled={busy}
+                      onChange={(e) => setProfJoined(e.target.value)} style={{ ...input, width: 150 }} />
+                    <button style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !profName.trim() || !profJoined}
+                      onClick={async () => {
+                        const ok = await rpc("プロフィールを更新", "set_cast_profile",
+                          { p_cast_id: selCast.id, p_name: profName.trim(), p_joined_on: profJoined });
+                        if (ok) setProfEdit(false);
+                      }}>保存</button>
+                    <button style={btnGhost} disabled={busy} onClick={() => setProfEdit(false)}>やめる</button>
+                  </span>
+                </div>
+              )}
               <div className="nox-frow"><span className="k">所属店</span><span className="v">{storeName(selCast.store_id)}</span></div>
               <div className="nox-frow">
                 <span className="k">状態</span>
@@ -578,6 +612,10 @@ export default function CastsBoard({
               <div className="nox-lockrow">
                 本名・生年月日・マイナンバー等の機微情報は「機密・税務情報」（owner/manager 限定・閲覧ログ記録）でのみ扱います。この画面には表示しません。
               </div>
+              {/* ★裁定109: 機密・税務情報パネル（/master/system 搭載）への導線（閲覧は owner 限定＝パネル側で出し分け） */}
+              <Link href="/master/system" style={{ ...btnGhost, display: "inline-block", textDecoration: "none", marginTop: 8 }}>
+                機密・税務情報へ（システム設定）
+              </Link>
             </>
           )}
 
@@ -586,16 +624,17 @@ export default function CastsBoard({
               {/* D2-4（mig0083/0085）: 指名ランクの割当（set_cast_rank_of・null=ランクなし）。
                   ランク別指名料（pricing_rules）の解決軸＝行追加時のキャストの現在ランクで決まる。 */}
               <div className="nox-frow">
-                <span className="k">指名ランク</span>
+                {/* ★裁定109: ラベルを「指名料ランク」へ（料金軸であることを明示・DB 呼び形 set_cast_rank_of 不変） */}
+                <span className="k">指名料ランク</span>
                 <span className="v">
                   <select
                     value={selCast.rank_id ?? ""}
                     disabled={busy}
-                    aria-label="指名ランク"
+                    aria-label="指名料ランク"
                     onChange={(e) => void assignRank(selCast, e.target.value === "" ? null : e.target.value)}
                     style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12.5 }}
                   >
-                    <option value="">ランクなし（既定の指名料）</option>
+                    <option value="">標準（店の既定指名料）</option>
                     {ranks.filter((r) => r.is_active || r.id === selCast.rank_id).map((r) => (
                       <option key={r.id} value={r.id}>{r.name}{r.is_active ? "" : "（無効）"}</option>
                     ))}
