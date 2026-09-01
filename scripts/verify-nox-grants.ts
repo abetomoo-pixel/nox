@@ -1366,7 +1366,25 @@ async function main() {
       JSON.stringify(stc.map((x) => ({ sig: x.sig, n: x.pronargs }))));
     check("G42 2関数 ACL＝authenticated 可・anon 不可",
       r.rows.length === 2 && r.rows.every((x) => x.authed === true && x.anonx === false),
-      JSON.stringify(r.rows.map((x) => ({ n: x.proname, authed: x.authed, anon: x.anonx }))));
+      JSON.stringify(r.rows.map((x) => ({ n: x.proname, authed: x.authed, anonx: x.anonx }))));
+  }
+
+  // G43: mig0122（裁定109）set_cast_profile ＝源氏名・入店日更新 RPC の ACL（教訓43＝4者 revoke→2者 grant）。
+  {
+    const r = await db.query(
+      `select p.pronargs, p.prosecdef,
+              has_function_privilege('authenticated', p.oid, 'execute') as authed,
+              has_function_privilege('anon', p.oid, 'execute') as anonx,
+              has_function_privilege('service_role', p.oid, 'execute') as svc
+       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = 'set_cast_profile'`,
+    );
+    check("G43 set_cast_profile＝1本・3引数・secdef",
+      r.rowCount === 1 && Number(r.rows[0].pronargs) === 3 && r.rows[0].prosecdef === true,
+      JSON.stringify(r.rows));
+    check("G43 set_cast_profile ACL＝authenticated/service_role 可・anon 不可",
+      r.rowCount === 1 && r.rows[0].authed === true && r.rows[0].svc === true && r.rows[0].anonx === false,
+      JSON.stringify(r.rows));
   }
 
   await db.end();

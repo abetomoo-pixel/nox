@@ -3012,6 +3012,81 @@ async function main() {
     }
   }
 
+  // ── 段SCP: set_cast_profile（mig0122 裁定109）＝認可6＋検証2＋no-op audit の9 assert ──
+  //   逆張り: INV9=true で9本全反転＝全赤を実測してから false へ戻す（r2b INVERT の局所版）。
+  //   fixture は段内動的生成（NOX-VERIFY-prof*）＋ finally 全消し（教訓30/44/49 型）。
+  {
+    const INV9 = false;
+    const chk9 = (label: string, ok: boolean, detail?: string) => check(label, INV9 ? !ok : ok, detail);
+    const has = (e: { message: string } | null, tok: string) => !!e && e.message.includes(tok);
+    const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const owner = await signIn("ownerA");
+    const mgr = await signIn("managerA1");
+    const staff = await signIn("staffA1");
+    const castC = await signIn("castA1a");
+    const { data: sts } = await admin.from("stores").select("id, org_id, name").in("name", [STORE_A1, STORE_A2]);
+    const a1 = (sts ?? []).find((s) => s.name === STORE_A1)!;
+    const a2 = (sts ?? []).find((s) => s.name === STORE_A2)!;
+    const mk = async (storeId: string, name: string, extra: Record<string, unknown> = {}) => {
+      const { data, error } = await admin.from("casts")
+        .insert({ org_id: a1.org_id, store_id: storeId, name, is_active: true, joined_on: "2026-01-01", ...extra })
+        .select("id").single();
+      if (error || !data) throw new Error(`段SCP fixture insert(${name}): ${error?.message ?? "no data"}`);
+      return data.id as string;
+    };
+    // ★教訓30/49: 先頭で自分の prefix を掃除（先行 run のクラッシュ残置が本段と先行段の casts 数 assert を汚染するため）
+    await admin.from("casts").delete().like("name", "NOX-VERIFY-prof%");
+    // ★casts_active_left_on_chk: active∧left_on は両立禁止 → 重複用 p2=active・left_on 検証用 p4=inactive+left_on
+    let p1 = "", p2 = "", p3 = "", p4 = "";
+    try {
+      p1 = await mk(a1.id, "NOX-VERIFY-prof1");
+      p2 = await mk(a1.id, "NOX-VERIFY-prof2");
+      p3 = await mk(a2.id, "NOX-VERIFY-prof3");
+      p4 = await mk(a1.id, "NOX-VERIFY-prof4", { is_active: false, left_on: "2026-06-30" });
+      // 1 owner＝org 全店（他店 A2 の cast を更新できる）
+      const { error: e1 } = await owner.rpc("set_cast_profile", { p_cast_id: p3, p_name: "NOX-VERIFY-prof3改", p_joined_on: "2026-02-01" });
+      const { data: r3 } = await admin.from("casts").select("name, joined_on").eq("id", p3).single();
+      chk9("段SCP-1 owner 他店 ok（name/joined_on が反映）",
+        !e1 && r3?.name === "NOX-VERIFY-prof3改" && r3?.joined_on === "2026-02-01", e1?.message ?? JSON.stringify(r3));
+      // 2 manager＝自店 ok
+      const { error: e2 } = await mgr.rpc("set_cast_profile", { p_cast_id: p1, p_name: "NOX-VERIFY-prof1", p_joined_on: "2026-03-01" });
+      chk9("段SCP-2 manager 自店 ok", !e2, e2?.message);
+      // 3 manager＝他店 forbidden
+      const { error: e3 } = await mgr.rpc("set_cast_profile", { p_cast_id: p3, p_name: "X", p_joined_on: "2026-02-01" });
+      chk9("段SCP-3 manager 他店 forbidden", has(e3, "forbidden"), e3?.message ?? "通ってしまった");
+      // 4 staff forbidden
+      const { error: e4 } = await staff.rpc("set_cast_profile", { p_cast_id: p1, p_name: "X", p_joined_on: "2026-03-01" });
+      chk9("段SCP-4 staff forbidden", has(e4, "forbidden"), e4?.message ?? "通ってしまった");
+      // 5 cast forbidden
+      const { error: e5 } = await castC.rpc("set_cast_profile", { p_cast_id: p1, p_name: "X", p_joined_on: "2026-03-01" });
+      chk9("段SCP-5 cast forbidden", has(e5, "forbidden"), e5?.message ?? "通ってしまった");
+      // 6 anon BLOCKED（EXECUTE 不在＝permission denied for function）
+      const { error: e6 } = await anon.rpc("set_cast_profile", { p_cast_id: p1, p_name: "X", p_joined_on: "2026-03-01" });
+      chk9("段SCP-6 anon BLOCKED", has(e6, "permission denied for function"), e6?.message ?? "実行できてしまった");
+      // 7 店内 active 重複（lower 一致・大小違いで送る）
+      const { error: e7 } = await mgr.rpc("set_cast_profile", { p_cast_id: p1, p_name: "nox-verify-PROF2", p_joined_on: "2026-03-01" });
+      chk9("段SCP-7 店内 active 重複＝'duplicate name'（lower 一致）", has(e7, "duplicate name"), e7?.message ?? "通ってしまった");
+      // 8 joined_on > left_on＝'bad joined_on'（p4＝inactive・left_on=2026-06-30）
+      const { error: e8 } = await mgr.rpc("set_cast_profile", { p_cast_id: p4, p_name: "NOX-VERIFY-prof4", p_joined_on: "2026-07-01" });
+      chk9("段SCP-8 joined_on > left_on＝'bad joined_on'", has(e8, "bad joined_on"), e8?.message ?? "通ってしまった");
+      // 9 変更なし再送＝no-op（audit_logs が増えない・update もしない）
+      const cntOf = async () => (await admin.from("audit_logs").select("id", { count: "exact", head: true })
+        .eq("action", "set_cast_profile")).count ?? 0;
+      const n0 = await cntOf();
+      const { error: e9 } = await mgr.rpc("set_cast_profile", { p_cast_id: p1, p_name: "NOX-VERIFY-prof1", p_joined_on: "2026-03-01" });
+      const n1 = await cntOf();
+      chk9("段SCP-9 変更なし再送＝no-op（audit_log 不増）", !e9 && n1 === n0, e9?.message ?? `audit ${n0}→${n1}`);
+    } finally {
+      await admin.from("audit_logs").delete().eq("action", "set_cast_profile");
+      await admin.from("casts").delete().like("name", "NOX-VERIFY-prof%");
+    }
+  }
+
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);

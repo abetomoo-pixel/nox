@@ -41,6 +41,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
   live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
   全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0122 追随（2026-09-01・裁定109）**: 新 RPC **1本**を A10 へ収載＝`set_cast_profile`
+  （源氏名・入店日の更新・`billing_writable_of` ゲート内蔵・owner=org 全店/manager=自店）。
+  対象 **107→108**・全数 **205→206**。
 - ★**mig0115 追随（2026-08-28・C1 §6-3）**: 新 RPC **1本**を A7 へ収載＝`set_comp_component`
   （ゲート内蔵）。`set_comp_plan` は 14→16引数化（名前不変＝本数不動・旧署名 DROP 済み）。
   対象 **106→107**・全数 **202→203**。
@@ -138,7 +141,8 @@ customer_register / customer_update / customer_assign_cast / notice_create / not
 ### A10. スタッフ・キャスト管理（13本）
 staff_create / staff_change_role / staff_update_profile / staff_transfer_store / staff_reactivate /
 set_staff_perms / cast_create / cast_invite / **cast_rejoin**（裁定D8＝復帰は拡大操作。leave とは割る） /
-trial_register / trial_update / trial_hire / trial_reject
+trial_register / trial_update / trial_hire / trial_reject /
+**set_cast_profile**（mig0122＝源氏名・入店日の更新・ゲート内蔵・裁定109）
 （cast_create は [R] 判定だが実体は cast_create_apply（service）へ委譲する書込入口＝対象）
 
 ### A11. デバイス（1本）
