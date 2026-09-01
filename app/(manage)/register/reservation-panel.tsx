@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
-import CastPicker from "@/components/ui/cast-picker";
+import CastPicker from "@/components/nox/cast-picker";
 import { businessHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 
 type Seat = { id: string; name: string; kind: string | null; store_id: string };

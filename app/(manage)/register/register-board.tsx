@@ -7,7 +7,7 @@ import { groupDueFull, timeStatusOf } from "@/lib/nox/check-calc";
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
 import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
-import CastPicker from "@/components/ui/cast-picker";
+import CastPicker from "@/components/nox/cast-picker";
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
@@ -649,16 +649,14 @@ export default function RegisterBoard({
     await loadCheck(data as string);
   }
 
-  // ★R-2b（裁定100）: 名簿1件＝{cast_id, weight, nom_kind, is_dohan}。free∧非同伴は RPC が weight=1 を
-  //   強制（'bad weight'）＝ここで 1 に正規化して送る（他はそのまま＝新しい丸め規則は作らない）。
+  // ★0121（裁定107）: free の weight=1 固定は撤去（RPC 側も 53行目の均等規則を撤去済み）＝
+  //   ％は種別に依らずそのまま送る（本数と金額按分は独立＝裁定105・weight の汎用検証 1以上の整数は RPC 据置）。
   function buildNomList(weights: Record<string, number>) {
     return Object.entries(weights)
       .filter(([, w]) => w > 0)
-      .map(([cast_id, weight]) => {
-        const kind = nomKinds[cast_id] ?? "free";
-        const dohan = nomDohan[cast_id] ?? false;
-        return { cast_id, weight: kind === "free" && !dohan ? 1 : weight, nom_kind: kind, is_dohan: dohan };
-      });
+      .map(([cast_id, weight]) => ({
+        cast_id, weight, nom_kind: nomKinds[cast_id] ?? "free", is_dohan: nomDohan[cast_id] ?? false,
+      }));
   }
   async function saveNoms() {
     if (!check) return;
@@ -730,11 +728,10 @@ export default function RegisterBoard({
     if (!((merged[feeCast] ?? 0) > 0)) merged[feeCast] = 1;
     const kinds = { ...nomKinds, [feeCast]: kind };
     setNomKinds(kinds);
-    const list = Object.entries(merged).filter(([, w]) => w > 0).map(([cast_id, weight]) => {
-      const k = kinds[cast_id] ?? "free";
-      const d = nomDohan[cast_id] ?? false;
-      return { cast_id, weight: k === "free" && !d ? 1 : weight, nom_kind: k, is_dohan: d };
-    });
+    // ★0121: free の weight=1 正規化は撤去（％は種別に依らず保持）
+    const list = Object.entries(merged).filter(([, w]) => w > 0).map(([cast_id, weight]) => ({
+      cast_id, weight, nom_kind: kinds[cast_id] ?? "free", is_dohan: nomDohan[cast_id] ?? false,
+    }));
     const { error: e2 } = await supabase.rpc("check_set_nominations", {
       p_check_id: check.id, p_nominations: list, // ★0119: 2引数
     });
@@ -777,11 +774,10 @@ export default function RegisterBoard({
       if (!((merged[feeCast] ?? 0) > 0)) merged[feeCast] = 1;
       const dohans = { ...nomDohan, [feeCast]: true };
       setNomDohan(dohans);
-      const list = Object.entries(merged).filter(([, w]) => w > 0).map(([cast_id, weight]) => {
-        const k = nomKinds[cast_id] ?? "free";
-        const d = dohans[cast_id] ?? false;
-        return { cast_id, weight: k === "free" && !d ? 1 : weight, nom_kind: k, is_dohan: d };
-      });
+      // ★0121: free の weight=1 正規化は撤去（％は種別に依らず保持）
+      const list = Object.entries(merged).filter(([, w]) => w > 0).map(([cast_id, weight]) => ({
+        cast_id, weight, nom_kind: nomKinds[cast_id] ?? "free", is_dohan: dohans[cast_id] ?? false,
+      }));
       const { error: e2 } = await supabase.rpc("check_set_nominations", { p_check_id: check.id, p_nominations: list });
       if (e2) console.warn("[R-2b] 同伴料は追加しましたが名簿の is_dohan 反映に失敗（行は明細に存在）", e2.message);
     }
@@ -847,6 +843,13 @@ export default function RegisterBoard({
     return error ? (error.message ?? "unknown") : null;
   }
 
+  // ★0121（裁定107 段1-(3)）: 当該キャストに紐づく課金行（指名料・同伴料＝check_lines.cast_id 保持行）。
+  //   dropNomAfterShimeiRemoval の stillHasFee を一般化＝行削除の名簿追随と、除外拒否（× / 名簿再タップ）の
+  //   両方がこれを使う（同伴料行も対象に含める＝会計行と名簿の不一致を作らない）。
+  const castFeeLines = (castId: string, excludeLineId?: string) =>
+    lines.filter((l) => l.id !== excludeLineId && l.cast_id === castId
+      && (isShimeiLine(l) || l.fee_kind === "dohan"));
+
   // R-2a-3（B の是正）: 指名料行を消したら、そのキャストを按分の名簿からも外す。
   //   ★check_remove_line（money RPC）は check_nominations に一切触れない＝行を消しても名簿に残る。
   //     RPC は変更禁止なので、削除の**成功後**に UI から check_set_nominations を呼び直して名簿を組み直す。
@@ -856,9 +859,8 @@ export default function RegisterBoard({
     // 指名料行でなければ名簿は触らない（同伴料・商品・時間料金・カスタムはすべてここで抜ける）
     if (!removed || !removed.cast_id || !isShimeiLine(removed)) return false;
     const castId = removed.cast_id;
-    // 削除前の lines から「消した1本以外」に同じキャストの指名料行が残っているかを見る
-    const stillHasFee = lines.some((l) => l.id !== removed.id && l.cast_id === castId && isShimeiLine(l));
-    if (stillHasFee) return false;
+    // 削除前の lines から「消した1本以外」に同じキャストの課金行（指名料・同伴料）が残っているかを見る（★0121 共通化）
+    if (castFeeLines(castId, removed.id).length > 0) return false;
     if (!noms.some((n) => n.cast_id === castId)) return false; // そもそも名簿に居ない
     const em = await replaceNomsFromDb(castId, chk);
     if (em) {
@@ -872,6 +874,12 @@ export default function RegisterBoard({
   //   DB に居ない（＝選択しただけの未保存）キャストはローカル state を畳むだけで RPC は呼ばない。
   async function removeShareCast(castId: string) {
     if (!check) return;
+    // ★0121（裁定107 段1-(3)）: 課金行（指名料・同伴料）が残るキャストは名簿から外せない＝
+    //   会計行と名簿の不一致を作らない（外すには先に明細の当該行を削除＝dropNomAfterShimeiRemoval が追随する）。
+    if (castFeeLines(castId).length > 0) {
+      setMsg({ to: MSG_DETAIL, kind: "bad", text: "先に指名料を取り消してください" });
+      return;
+    }
     if (!(await tb.flush())) return; // saveNoms と同じ前置き（保留タップを先に確定）
     // R-2a-3: 除外後も残りを Σ=100 へ正規化（未保存の選択を外した場合 loadCheck が走らないため）
     setNomWeights((prev) => normalizeShares(Object.entries({ ...prev, [castId]: 0 })));
@@ -1952,6 +1960,11 @@ export default function RegisterBoard({
             selectedIds={seatedIds} badges={nomBadges} dense
             onPick={(id) => {
               const on = (nomWeights[id] ?? 0) > 0;
+              // ★0121（裁定107 段1-(3)）: 再タップ（選択解除）も課金行が残るキャストは拒否＝× と同じ関所
+              if (on && castFeeLines(id).length > 0) {
+                setFeeMsg({ to: FEE_SHIMEI, kind: "bad", text: "先に指名料を取り消してください" });
+                return;
+              }
               const nextFee = on ? (feeCast === id ? "" : feeCast) : id;
               // R-2a-3: 選択の増減後も **normalizeShares で Σ=100 へ戻す**（新しい丸め規則は作らない）。
               //   ★正規化の帰結の穴塞ぎ＝旧実装のまま「新規参加=weight 1」にすると、既存が % 値
@@ -2003,7 +2016,7 @@ export default function RegisterBoard({
             旧 <details>「按分の重みを微調整」を独立カードへ。入力は **%**（1〜100 の整数）＝
             ratio_weight は integer の相対重みで分母は Σ なので、合計100 の % はそのまま重みとして
             check_set_nominations に渡せる（RPC・スキーマ非改変）。
-            ★free は RPC が weight=1 を強制（'bad weight'）＝%入力と × を出さず均等表示のみ。 */}
+            ★0121（裁定107）: 旧「free は weight=1 固定」は撤去＝全行に％入力。 */}
         {nomSelected.length > 0 && (
           <div className="nox-cardtop" style={card}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
@@ -2021,7 +2034,7 @@ export default function RegisterBoard({
                 合計{nomTotalW}%
               </span>
             </div>
-            {/* ★R-2b: フリー（同伴なし）の行はサーバが重み1を固定（'bad weight'）＝%入力は無効・保存時 1 で送る。 */}
+            {/* ★0121（裁定107）: 旧「free は weight=1 固定」は RPC ごと撤去＝全行に％入力（種別と％は独立）。 */}
             {/* R-2a-3: 分配結果カードを統合＝1行に 名前／副文（{種別}の実績配分）／%入力／件数相当／×。
                 同じ人名を2枚のカードで2度読ませない（モックは横並び2カラム・実装は縦積みのための統合判断）。 */}
             <div className="nox-inset" style={{ padding: "9px 12px", margin: "0 0 4px" }}>
@@ -2032,9 +2045,9 @@ export default function RegisterBoard({
             </div>
             {nomSelected.map((ca) => {
               // ★R-2b: 種別・同伴はキャスト行の属性（裁定100・同時成立可＝裁定86-④）。
+              // ★0121（裁定107）: free の weight=1 固定を撤去＝全行に％入力（「均等」表示なし）。
               const kind = nomKinds[ca.id] ?? "free";
               const dohan = nomDohan[ca.id] ?? false;
-              const freeLocked = kind === "free" && !dohan; // RPC が weight=1 を固定
               return (
               <div key={ca.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 90 }}>
@@ -2070,21 +2083,17 @@ export default function RegisterBoard({
                     onChange={(e) => setNomDohan((prev) => ({ ...prev, [ca.id]: e.target.checked }))} />
                   同伴
                 </label>
-                {!freeLocked ? (
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <input
-                      type="number" min={1} max={100} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} の分配率`}
-                      onChange={(e) => {
-                        const v = Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1)));
-                        setNomWeights((prev) => ({ ...prev, [ca.id]: v }));
-                      }}
-                      className="num" style={{ ...input, width: 64, padding: "6px 6px", textAlign: "right" }}
-                    />
-                    <span style={{ fontSize: 12, color: "var(--sub)" }}>%</span>
-                  </label>
-                ) : (
-                  <span className="num" style={{ fontSize: 12.5, color: "var(--champ)" }} title="フリー（同伴なし）は均等固定">均等</span>
-                )}
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <input
+                    type="number" min={1} max={100} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} の分配率`}
+                    onChange={(e) => {
+                      const v = Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1)));
+                      setNomWeights((prev) => ({ ...prev, [ca.id]: v }));
+                    }}
+                    className="num" style={{ ...input, width: 64, padding: "6px 6px", textAlign: "right" }}
+                  />
+                  <span style={{ fontSize: 12, color: "var(--sub)" }}>%</span>
+                </label>
                 <button type="button" aria-label={`${ca.name}を分配から外す`}
                   onClick={() => void removeShareCast(ca.id)}
                   style={{ ...btnLight, padding: "2px 9px", fontWeight: 800,

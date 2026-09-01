@@ -1,12 +1,12 @@
 "use client";
 
 // E8-1 ⑤（E8 裁定・レジ改善設計 v1 §⑤）: キャスト選択の共通部品 CastPicker。
-// 検索（源氏名部分一致）＋写真グリッド（CastAvatar 大判）＋並び＝着卓中→本日出勤→その他＋バッジ。
+// 検索（源氏名部分一致）＋写真グリッド（CastAvatar 大判）＋並び＝名前順で固定（裁定107）。
 // ★表示と選択の UI だけを持つ純部品＝金額・RPC・選択の意味づけ（単選/複選/重み）は呼び出し側の責務。
 //   置換4箇所（指名料 select／按分チップ manage・kiosk／claimPick）＋タップ時モーダル（#8）で共用。
 //   「本日出勤」は punches 由来の近似（呼び出し側が Set で渡す・表示順とバッジのみ＝金額に一切関与しない）。
 import { useMemo, useState } from "react";
-import CastAvatar from "./cast-avatar";
+import CastAvatar from "@/components/ui/cast-avatar";
 import * as t from "@/lib/nox/ui/theme";
 
 export type PickerCast = { id: string; name: string };
@@ -40,12 +40,13 @@ export default function CastPicker({
 }) {
   const [q, setQ] = useState("");
   const sorted = useMemo(() => {
-    const rank = (id: string) => (seatedIds?.has(id) || badges?.has(id) ? 0 : todayIds?.has(id) ? 1 : 2);
+    // ★0121（裁定107 段1-(1)）: 「着卓中/選択→先頭・出勤→2番手」の rank 並べ替えを撤去＝名前順で固定。
+    //   選択・着卓・出勤は枠色とバッジのみで表現（タップのたびにカードが移動する迷子を止める）。
     const needle = q.trim();
     return [...casts]
       .filter((c) => needle === "" || c.name.includes(needle))
-      .sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, "ja"));
-  }, [casts, q, seatedIds, todayIds, badges]);
+      .sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  }, [casts, q]);
 
   return (
     <div>

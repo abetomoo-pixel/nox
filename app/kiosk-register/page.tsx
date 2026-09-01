@@ -19,7 +19,7 @@ import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
-import CastPicker from "@/components/ui/cast-picker";
+import CastPicker from "@/components/nox/cast-picker";
 import { BILLING_LOCKED_MSG_KIOSK, isBillingLocked } from "@/lib/billing/messages";
 
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
@@ -335,14 +335,12 @@ export default function KioskRegisterPage() {
     markAction();
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
-    // ★0119: 2引数＝行ごとに {cast_id, weight, nom_kind, is_dohan}。free∧非同伴は weight=1 固定（RPC 検証と同輪郭）。
+    // ★0121（裁定107）: free の weight=1 固定は撤去（RPC 側も撤去済み）＝％は種別に依らず保持して送る。
     const list = Object.entries(nomWeights)
       .filter(([, w]) => w > 0)
-      .map(([cast_id, weight]) => {
-        const k = nomKinds[cast_id] ?? "free";
-        const d = nomDohan[cast_id] ?? false;
-        return { cast_id, weight: k === "free" && !d ? 1 : weight, nom_kind: k, is_dohan: d };
-      });
+      .map(([cast_id, weight]) => ({
+        cast_id, weight, nom_kind: nomKinds[cast_id] ?? "free", is_dohan: nomDohan[cast_id] ?? false,
+      }));
     const { error } = await supabase.rpc("check_set_nominations", {
       p_check_id: detail.check.id, p_nominations: list,
     });
@@ -829,9 +827,9 @@ export default function KioskRegisterPage() {
                   />
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
                     {(state?.casts ?? []).filter((ca) => (nomWeights[ca.id] ?? 0) > 0).map((ca) => {
+                      // ★0121（裁定107）: free の weight=1 固定を撤去＝全行に重み入力（「均等」表示なし）。
                       const k = nomKinds[ca.id] ?? "free";
                       const d = nomDohan[ca.id] ?? false;
-                      const freeLocked = k === "free" && !d;
                       return (
                       <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, flexWrap: "wrap" }}>
                         <b>{ca.name}</b>
@@ -858,15 +856,11 @@ export default function KioskRegisterPage() {
                             同伴 <span className="num">1件</span>
                           </span>
                         )}
-                        {!freeLocked ? (
-                          <input
-                            type="number" min={1} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} 重み`}
-                            onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
-                            style={{ ...input, width: 46, padding: "6px 6px" }}
-                          />
-                        ) : (
-                          <span style={{ fontSize: 11, color: "var(--sub)" }}>均等</span>
-                        )}
+                        <input
+                          type="number" min={1} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} 重み`}
+                          onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
+                          style={{ ...input, width: 46, padding: "6px 6px" }}
+                        />
                       </span>
                       );
                     })}
