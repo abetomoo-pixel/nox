@@ -179,13 +179,17 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   // 節ヘッダ（保存済み/未保存・節の保存ボタン・節ローカルのエラー）。stateless＝インライン定義で可。
   // ★U-2 是正1: 未選択（新規＝draft.id null）は 保存済み/未保存ピルを出さない（BLANK が「保存済み」に見える誤解の防止）。
   //   保存は「基本給・保証」節のみ活性＝ここでプランが作成される（他節はプラン作成後に活性）。
+  // ★裁定104 補正: 節見出し・保存ボタンに編集中プラン名を明示（どのプランを編集しているかの迷子防止）
+  const pname = draft.name.trim() || "新規プラン";
   const SecHead = ({ title, keys, section }: { title: string; keys: (keyof Draft)[]; section: string }) => {
     const isDirty = dirty(keys);
     const creatable = section === "基本給・保証";
     const disabled = !draft.name.trim() || (draft.id === null && !creatable);
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-        <h2 style={{ ...secTitle, margin: 0 }}>{title}</h2>
+        <h2 style={{ ...secTitle, margin: 0 }}>
+          {title}<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>
+        </h2>
         {draft.id !== null && (
           <span className="nox-stpill" style={{ borderColor: isDirty ? "var(--gold)" : "var(--line2)", color: isDirty ? "var(--champ)" : "var(--sub)" }}>
             {isDirty ? "未保存" : "保存済み"}
@@ -195,7 +199,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           <button type="button" style={{ ...t.btnGold, ...t.btnSm, opacity: disabled ? 0.5 : 1 }} onClick={() => void savePlan(section)}
             disabled={disabled}
             title={draft.id === null && !creatable ? "先に「基本給・保証を保存」でプランを作成してください" : ""}>
-            {section}を保存
+            {pname}の{section}を保存
           </button>
         )}
         {secErr[section] && <span style={{ fontSize: 12, color: "var(--bad)" }}>{secErr[section]}</span>}
@@ -292,7 +296,9 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       {/* ── ⑤ 達成ボーナス ── */}
       <section id="achieve" className="nox-cardtop" style={{ ...t.card, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-          <h2 style={{ ...secTitle, margin: 0 }}>達成ボーナス</h2>
+          <h2 style={{ ...secTitle, margin: 0 }}>
+            達成ボーナス<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>
+          </h2>
           <span style={{ fontSize: 12, color: "var(--sub)" }}>目標＝cast_norms.sales_target（0/未設定は不適用・裁定96-②）。保存は行単位。</span>
           {secErr["達成ボーナス"] && <span style={{ fontSize: 12, color: "var(--bad)" }}>{secErr["達成ボーナス"]}</span>}
         </div>

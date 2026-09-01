@@ -98,15 +98,23 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
       {/* ── ①: 編集中プラン選択＋採用方式（自動判定・保存なし）＋全体構成ナビ ── */}
       <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
         <h2 style={secTitle}>編集中プラン</h2>
+        {/* ★裁定104 補正: 二段化＝見出し直下に編集中プラン名を大きく（チップの塗りと対＝迷子防止） */}
+        {sel && (
+          <div style={{ margin: "0 0 10px" }}>
+            <p style={{ fontSize: 19, fontWeight: 900, color: "var(--champ)", margin: 0 }}>
+              {sel.name}{!sel.is_active && <span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}>（無効）</span>}
+            </p>
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: "2px 0 0" }}>適用 <span className="num">{headOf(sel.id)}</span>人</p>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
           {data.plans.map((p) => (
+            /* ★裁定104 補正: 選択中チップは塗り（既存 primary＝t.btnGold）・未選択は枠のみ（現行） */
             <button key={p.id} type="button" onClick={() => setSelId((v) => (v === p.id ? null : p.id))}
-              style={{
-                ...t.btnGhost, ...t.btnSm,
-                borderColor: selId === p.id ? "var(--gold)" : undefined,
-                color: p.is_active ? undefined : "var(--sub)",
-              }}>
-              {p.name}{!p.is_active && "（無効）"} <span className="num" style={{ color: "var(--sub)" }}>{headOf(p.id)}人</span>
+              style={selId === p.id
+                ? { ...t.btnGold, ...t.btnSm }
+                : { ...t.btnGhost, ...t.btnSm, color: p.is_active ? undefined : "var(--sub)" }}>
+              {p.name}{!p.is_active && "（無効）"} <span className="num" style={{ color: selId === p.id ? undefined : "var(--sub)" }}>{headOf(p.id)}人</span>
             </button>
           ))}
           {data.plans.length === 0 && <span style={{ fontSize: 12, color: "var(--sub)" }}>プランがありません（下の「待遇プラン」で新規作成）</span>}
@@ -118,7 +126,6 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
             <button type="button" onClick={() => void toggleActive()} disabled={!sel} style={{ ...t.btnGhost, ...t.btnSm, opacity: sel ? 1 : 0.5 }}>
               {sel?.is_active === false ? "有効化" : "無効化"}
             </button>
-            {sel && <span style={{ fontSize: 12, color: "var(--sub)" }}>選択中: {sel.name}（適用 {headOf(sel.id)}人）</span>}
           </div>
         )}
         {/* 採用する待遇方式（canonical モック §採用する待遇方式）＝値の有無から自動判定・保存なし */}
@@ -135,13 +142,20 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
             </div>
           </div>
         )}
-        {/* 全体構成ナビ */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {NAV.map(([href, label]) => (
-            <a key={href} href={href} style={{ ...t.btnGhost, ...t.btnSm, textDecoration: "none" }}>{label} ›</a>
-          ))}
-        </div>
       </section>
+
+      {/* ★裁定104 補正: 全体構成ナビ＝sticky 化・左端に編集中プラン名を常時表示（スクロール時の迷子防止）。
+          カード外の独立バー＝ancestor の overflow に依存しない。背景は既存 token var(--bg)。 */}
+      <div style={{ position: "sticky", top: 0, zIndex: 20, background: "var(--bg)",
+        display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center",
+        padding: "8px 0", marginBottom: 14, borderBottom: "1px solid var(--line)" }}>
+        <b style={{ fontSize: 12.5, color: "var(--champ)", whiteSpace: "nowrap" }}>
+          {sel ? sel.name : "プラン未選択"}
+        </b>
+        {NAV.map(([href, label]) => (
+          <a key={href} href={href} style={{ ...t.btnGhost, ...t.btnSm, textDecoration: "none" }}>{label} ›</a>
+        ))}
+      </div>
 
       {/* ── ⑧: 本文（左）＋サマリー（右 sticky・派生表示＝compSummaryOf 純関数・保存なし）の2カラム。狭幅は縦積み。 ── */}
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
