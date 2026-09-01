@@ -2319,7 +2319,7 @@ comp_plan_components を先に削除」を追加**して先回りで塞いだ（
 
 ---
 
-## 裁定100（2026-08-31・R-2b）キャスト別指名種別・同伴の別軸化＝裁定74 の実装仕様 — 実機: 未
+## 裁定100（2026-08-31・R-2b）キャスト別指名種別・同伴の別軸化＝裁定74 の実装仕様 — 実機: 2026-09-01 Agoora 済（レジ2cast→締め→給与プレビュー）
 
 **逐語の正本＝`docs/NOX_R2b設計書v1.md` §1**（底本 sha256 `c29add11…e0d8f5`・5,614 bytes）。要旨:
 
@@ -2351,7 +2351,7 @@ comp_plan_components を先に削除」を追加**して先回りで塞いだ（
 
 ---
 
-## 裁定102（2026-09-01・R-2b 補遺）連打/再送の吸収は idem_key＝裁定74「一意制約で禁止」の撤回 — 実機: 未（R-2b 一括）
+## 裁定102（2026-09-01・R-2b 補遺）連打/再送の吸収は idem_key＝裁定74「一意制約で禁止」の撤回 — 実機: 2026-09-01 Agoora 済（レジ2cast→締め→給与プレビュー）
 <!-- 実装実績（2026-09-01）: mig0119 収蔵 8d18349・UI 0b69b73（idem_key 描画時生成/成功後再生成・同伴ボタン→is_dohan 保存）・
      verify-nox-r2b (3)(9) で同キー再送＝行不増・同一行 id を機械 assert。 -->
 
@@ -2365,7 +2365,7 @@ unit4 キー＝`nom_unit4_key`（hon/jonai 優先→dohan→free）。`checks.no
 
 ---
 
-## 裁定103（2026-09-01・mig0120）予約→伝票化の指名転写＝0118 backfill と同一写像（0119 の見逃し是正） — 実機: 未（R-2b 一括）
+## 裁定103（2026-09-01・mig0120）予約→伝票化の指名転写＝0118 backfill と同一写像（0119 の見逃し是正） — 実機: 2026-09-01 Agoora 済（同伴予約→来店済→名簿に同伴チェック）
 
 0119 が旧3引数 `check_set_nominations(uuid, text, jsonb)` を drop した際、**definer チェーンの
 `reservation_to_check` が旧署名を内部呼びしたまま残った**（prosrc 走査で呼び残しは本関数1本のみ・
@@ -2577,6 +2577,17 @@ pricing-apply 段44）→ rollback し、**制約は RPC 改修（0119）と同�
 `select proname from pg_proc where pronamespace='public'::regnamespace and prosrc like '%<関数名>%'`
 で**definer チェーンの呼び出し元を全数列挙し、同 mig（または同時適用のセット mig）で差替える**
 （0120 で是正＝裁定103。検知の決め手は anon-guard 段19 の definer チェーン**実走** assert）。
+
+### 教訓49：verify teardown は失敗を必ず投げる（無音失敗が残置→他スイートの偽赤の原因）＝教訓44 の一般化
+
+教訓44（FK 順序）は「失敗の一因」を潰しただけで、**エラーを確認しない delete は原因が何であれ
+（FK・一過性の API/statement timeout）無音で残置を作る**。実発火（2026-09-01）＝verify-nox-r2b の
+teardown で `products` delete が一過性失敗→fixture 商品（unit4・price1000）が残置→**次 run の
+anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=undefined の偽赤**（f0 2連の間に発生・
+自スイートは緑のまま＝原因と症状が別スイートに出るのが厄介）。一般則:
+- **teardown の各 delete は error を受けて必ず投げる（最低でも stderr へ可視化）**。無音の握り潰しを残さない。
+- **fixture を実物から選ぶ側も、段の意味的要件をクエリで明示する**（段28 は rate 絞りへ＝残置耐性）。
+- 残置は次 run の先頭 teardown で自浄する設計を対にする（教訓30 の掃除機構と同型）。
 
 ### 純増起票（追加分・実装しない）
 
