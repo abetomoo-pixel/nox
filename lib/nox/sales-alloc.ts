@@ -11,15 +11,17 @@
  * 規則（§7-1・DB 実装と一字対応）:
  *  - SL1a 帰属: 在席 nomination 全員に weight 按分・円は最大剰余法（剰余降順→position 昇順タイブレーク）。
  *  - SL4a フリー卓: noms 空の伝票は非帰属（allocDue を呼ばない）。
- *  - SL8a カウント: hon/jonai/dohan は伝票単位（同一伝票内の同 cast 同 nom_type は1）。
+ *  - SL8a カウント（★0119/裁定105 追随）: 種別はキャスト行の nom_kind・同伴は is_dohan の別軸・
+ *    1伝票=1件（weight 非依存）＝DB cast_sales_aggregate の counts_by_day（distinct check filter）と同値。
  */
 
-export type AllocNom = { castId: string; weight: number; position: number };
+// ★裁定105: nomKind/isDohan はキャスト行属性（0118 の器）。省略時 free/false＝DB の default と同値。
+//   allocDue（金額按分）は両フィールドを読まない＝payroll core の pooled 分配（weight のみ）は不変。
+export type AllocNom = { castId: string; weight: number; position: number; nomKind?: "hon" | "jonai" | "free"; isDohan?: boolean };
 
 export type AllocCheck = {
   checkId: string;
   bizDate: string; // 呼び出し側で bizDateOf 済み（biz-date.ts が正本）
-  nomType: "hon" | "jonai" | "dohan" | "free";
   groupDues: { payGroup: string; due: number }[]; // check-calc.ts の groupDue と同値
   noms: AllocNom[]; // 空＝フリー卓（非帰属）
 };
@@ -75,12 +77,14 @@ export function allocCastSales(checks: AllocCheck[]): CastDaySales[] {
         if (part !== 0) touch(castId, chk.bizDate).sales += part;
       }
     }
-    // SL8a カウント（伝票単位・在席 cast 全員に nomType のカウントを1）
+    // SL8a カウント（★0119/裁定105: キャスト行の nom_kind で1人1件・同伴は is_dohan の別軸＝
+    //   hon∧同伴の同時成立可（裁定86-④）。weight/％ は本数に影響しない）
     for (const nm of chk.noms) {
       const row = touch(nm.castId, chk.bizDate);
-      if (chk.nomType === "hon") row.hon += 1;
-      else if (chk.nomType === "jonai") row.jonai += 1;
-      else if (chk.nomType === "dohan") row.dohan += 1;
+      const k = nm.nomKind ?? "free";
+      if (k === "hon") row.hon += 1;
+      else if (k === "jonai") row.jonai += 1;
+      if (nm.isDohan ?? false) row.dohan += 1; // 別軸＝else if にしない（DB は独立 filter）
     }
   }
 

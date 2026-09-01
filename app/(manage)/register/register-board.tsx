@@ -2009,8 +2009,9 @@ export default function RegisterBoard({
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
               <div>
                 <h3 style={{ ...t.cardTitle, marginBottom: 2 }}>指名の分配率</h3>
+                {/* ★裁定105: %＝金額按分のみ（分母は伝票内全行・現行維持）。本数は種別ごと1人1件＝DB 既定。 */}
                 <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
-                  指名実績とキャストバックを複数キャストへ分配します。
+                  売上・バック金額の按分比率（指名本数には影響しません）。
                 </p>
               </div>
               {/* モック seatbadge 相当＝合計バッジ（total===100 ? ok : bad） */}
@@ -2026,7 +2027,7 @@ export default function RegisterBoard({
             <div className="nox-inset" style={{ padding: "9px 12px", margin: "0 0 4px" }}>
               <b style={{ fontSize: 12 }}>料金と実績を分離</b>
               <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 0", lineHeight: 1.7 }}>
-                お客様への指名料は1回分だけ計上し、指名実績・バック金額を設定した比率で分けます。
+                指名本数は種別ごとに1人1件で計上します。％は売上とバック金額の取り分にのみ効きます。
               </p>
             </div>
             {nomSelected.map((ca) => {
@@ -2034,13 +2035,25 @@ export default function RegisterBoard({
               const kind = nomKinds[ca.id] ?? "free";
               const dohan = nomDohan[ca.id] ?? false;
               const freeLocked = kind === "free" && !dohan; // RPC が weight=1 を固定
-              const share = nomTotalW > 0 ? (nomWeights[ca.id] ?? 0) / nomTotalW : 0;
               return (
               <div key={ca.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 90 }}>
                   <b style={{ fontSize: 12.5 }}>{ca.name}</b>
-                  <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
-                    {NOM_LABEL[kind]}{dohan ? "＋同伴" : ""}の実績配分
+                  {/* ★裁定105: 本数はキャスト行の種別で1人1件（％非依存）＝行に種別バッジ＋「1件」・同伴は別バッジ */}
+                  <span style={{ display: "flex", gap: 4, marginTop: 2, flexWrap: "wrap" }}>
+                    {kind !== "free" && (
+                      <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--champ)" }}>
+                        {NOM_LABEL[kind]} <span className="num">1件</span>
+                      </span>
+                    )}
+                    {dohan && (
+                      <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--champ)" }}>
+                        同伴 <span className="num">1件</span>
+                      </span>
+                    )}
+                    {kind === "free" && !dohan && (
+                      <span style={{ fontSize: 10.5, color: "var(--sub)" }}>実績カウントなし</span>
+                    )}
                   </span>
                 </div>
                 <span className="nox-seg" style={{ display: "inline-flex" }}>
@@ -2072,9 +2085,6 @@ export default function RegisterBoard({
                 ) : (
                   <span className="num" style={{ fontSize: 12.5, color: "var(--champ)" }} title="フリー（同伴なし）は均等固定">均等</span>
                 )}
-                <span className="num" style={{ fontSize: 11, color: "var(--sub)", whiteSpace: "nowrap" }}>
-                  {share.toFixed(2)}件相当
-                </span>
                 <button type="button" aria-label={`${ca.name}を分配から外す`}
                   onClick={() => void removeShareCast(ca.id)}
                   style={{ ...btnLight, padding: "2px 9px", fontWeight: 800,

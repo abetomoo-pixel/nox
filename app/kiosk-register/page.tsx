@@ -804,7 +804,11 @@ export default function KioskRegisterPage() {
 
                 {/* 指名 */}
                 <div className="nox-cardtop" style={card}>
-                  <h3 style={t.cardTitle}>指名（重み比で分配）</h3>
+                  <h3 style={t.cardTitle}>指名の分配率</h3>
+                  {/* ★裁定105: %＝金額按分のみ（分母は伝票内全行）。本数は種別ごと1人1件＝DB 既定。 */}
+                  <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 6px", lineHeight: 1.7 }}>
+                    売上・バック金額の按分比率（指名本数には影響しません）。
+                  </p>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                     {/* ★R-2b（裁定100）: 卓1値の種別プルダウンを廃止＝下の行ごとに 種別＋同伴（裁定40 の
                         「二段動作＝誤操作ガード」は行内プルダウンとして維持）。 */}
@@ -843,6 +847,17 @@ export default function KioskRegisterPage() {
                             onChange={(e) => setNomDohan((prev) => ({ ...prev, [ca.id]: e.target.checked }))} />
                           同伴
                         </label>
+                        {/* ★裁定105: 本数は種別ごと1人1件（％非依存）＝種別バッジ＋「1件」・同伴は別バッジ */}
+                        {k !== "free" && (
+                          <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--champ)" }}>
+                            {k === "hon" ? "本指名" : "場内"} <span className="num">1件</span>
+                          </span>
+                        )}
+                        {d && (
+                          <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--champ)" }}>
+                            同伴 <span className="num">1件</span>
+                          </span>
+                        )}
                         {!freeLocked ? (
                           <input
                             type="number" min={1} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} 重み`}
