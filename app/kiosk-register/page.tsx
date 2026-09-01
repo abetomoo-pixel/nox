@@ -17,6 +17,7 @@ import { groupDue, timeStatusOf } from "@/lib/nox/check-calc";
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
+import { defaultWeights, redistribute, renormalizeKeepZeros } from "@/lib/nox/nom-shares";
 import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
 import CastPicker from "@/components/nox/cast-picker";
@@ -234,7 +235,7 @@ export default function KioskRegisterPage() {
       ks[n.cast_id] = n.nom_kind ?? "free"; // detail が kinds を返すようになれば自動で正値
       ds[n.cast_id] = n.is_dohan ?? false;
     }
-    setNomWeights(w); setNomKinds(ks); setNomDohan(ds);
+    setNomWeights(renormalizeKeepZeros(w)); setNomKinds(ks); setNomDohan(ds); // ★裁定110: 0 行温存で Σ=100 表示
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionLostIf]);
 
@@ -335,12 +336,10 @@ export default function KioskRegisterPage() {
     markAction();
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
-    // ★0121（裁定107）: free の weight=1 固定は撤去（RPC 側も撤去済み）＝％は種別に依らず保持して送る。
-    const list = Object.entries(nomWeights)
-      .filter(([, w]) => w > 0)
-      .map(([cast_id, weight]) => ({
-        cast_id, weight, nom_kind: nomKinds[cast_id] ?? "free", is_dohan: nomDohan[cast_id] ?? false,
-      }));
+    // ★裁定110 A2-(4): w=0 の行も送る（0＝按分なしの名簿の一員・名簿から落とさない）。
+    const list = Object.entries(nomWeights).map(([cast_id, weight]) => ({
+      cast_id, weight, nom_kind: nomKinds[cast_id] ?? "free", is_dohan: nomDohan[cast_id] ?? false,
+    }));
     const { error } = await supabase.rpc("check_set_nominations", {
       p_check_id: detail.check.id, p_nominations: list,
     });
@@ -815,18 +814,30 @@ export default function KioskRegisterPage() {
                     ※この端末では保存済みの種別・同伴を読み込めません（フリー表示で開きます）。
                     「保存」を押すと表示中の種別・同伴で置き換わります。種別の確認・訂正は管理画面のレジで行ってください。
                   </p>
-                  {/* E8-1 ⑤（register-board 同型）: 按分チップ → CastPicker（検索・グリッド・着卓中先頭）。
-                      kiosk は写真署名と punches が読めない＝頭文字アバター・出勤バッジなしで自動縮退。
-                      タップ＝選択トグル（重み 0⇔1）＝データ形 nomWeights と saveNoms の送る引数は不変。 */}
+                  {/* E8-1 ⑤（register-board 同型）: 按分チップ → CastPicker。
+                      ★裁定110: 名簿＝キーの存在（w=0 も一員）。追加＝既定分配（本 100% 等分→場内→フリー）・
+                      解除＝キー削除＋残り正規化（全 0 なら既定分配で復旧）。 */}
                   <CastPicker
                     casts={state?.casts ?? []}
-                    seatedIds={new Set(Object.entries(nomWeights).filter(([, w]) => w > 0).map(([id]) => id))}
-                    selectedIds={new Set(Object.entries(nomWeights).filter(([, w]) => w > 0).map(([id]) => id))}
+                    seatedIds={new Set(Object.keys(nomWeights))}
+                    selectedIds={new Set(Object.keys(nomWeights))}
                     dense
-                    onPick={(id) => setNomWeights((prev) => ({ ...prev, [id]: (prev[id] ?? 0) > 0 ? 0 : 1 }))}
+                    onPick={(id) => setNomWeights((prev) => {
+                      if (prev[id] !== undefined) {
+                        const next = { ...prev };
+                        delete next[id];
+                        const anyPos = Object.values(next).some((w) => w > 0);
+                        return anyPos ? renormalizeKeepZeros(next) : defaultWeights(Object.keys(next), nomKinds);
+                      }
+                      return defaultWeights([...Object.keys(prev), id], { ...nomKinds, [id]: nomKinds[id] ?? "free" });
+                    })}
                   />
+                  {/* ★裁定110 A2-(5): 自動補完で Σ は常に 100 */}
+                  <p style={{ fontSize: 11, color: "var(--sub)", margin: "6px 0 0" }}>
+                    合計 <b className="num" style={{ color: "var(--ok)" }}>{Object.values(nomWeights).reduce((a, w) => a + w, 0)}%</b>
+                  </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
-                    {(state?.casts ?? []).filter((ca) => (nomWeights[ca.id] ?? 0) > 0).map((ca) => {
+                    {(state?.casts ?? []).filter((ca) => nomWeights[ca.id] !== undefined).map((ca) => {
                       // ★0121（裁定107）: free の weight=1 固定を撤去＝全行に重み入力（「均等」表示なし）。
                       const k = nomKinds[ca.id] ?? "free";
                       const d = nomDohan[ca.id] ?? false;
@@ -834,7 +845,12 @@ export default function KioskRegisterPage() {
                       <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, flexWrap: "wrap" }}>
                         <b>{ca.name}</b>
                         <select value={k} aria-label={`${ca.name} の種別`}
-                          onChange={(e) => setNomKinds((prev) => ({ ...prev, [ca.id]: e.target.value as "hon" | "jonai" | "free" }))}
+                          onChange={(e) => {
+                            // ★裁定110 A2-(1)(3): 種別変更＝既定分配を再適用（手動値はここでリセット）
+                            const kinds = { ...nomKinds, [ca.id]: e.target.value as "hon" | "jonai" | "free" };
+                            setNomKinds(kinds);
+                            setNomWeights((prev) => defaultWeights(Object.keys(prev), kinds));
+                          }}
                           style={{ ...input, width: 84, padding: "5px 6px" }}>
                           <option value="hon">本指名</option>
                           <option value="jonai">場内</option>
@@ -856,10 +872,16 @@ export default function KioskRegisterPage() {
                             同伴 <span className="num">1件</span>
                           </span>
                         )}
+                        {/* ★裁定110 A2-(5): 0%＝按分なし（本数は種別どおり・金額の取り分だけ 0） */}
+                        {(nomWeights[ca.id] ?? 0) === 0 && (
+                          <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--sub)", borderColor: "var(--line2)" }}>
+                            按分なし
+                          </span>
+                        )}
                         <input
-                          type="number" min={1} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} 重み`}
-                          onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
-                          style={{ ...input, width: 46, padding: "6px 6px" }}
+                          type="number" min={0} max={100} value={nomWeights[ca.id] ?? 0} aria-label={`${ca.name} の分配率`}
+                          onChange={(e) => setNomWeights((prev) => redistribute(prev, ca.id, Number(e.target.value)))}
+                          style={{ ...input, width: 52, padding: "6px 6px", textAlign: "right" }}
                         />
                       </span>
                       );
