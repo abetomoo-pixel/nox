@@ -19,3 +19,5 @@ nox-register-pos.html             69864  d21bdac477e986d9
 nox-seat-table-settings.html      25026  5dbbb4cf75335022
 nox-shift-management.html         45914  1503c968ed25582f
 nox-staff-system-settings.html    29175  9bf1f9d70a07cb78
+# ★15枚目 nox-cast-compensation-canonical-v3.html は 2026-09-01 受領＝「M2待遇」canonical v3（裁定106）
+nox-cast-compensation-canonical-v3.html  39657  a88accc730b7fcd8
