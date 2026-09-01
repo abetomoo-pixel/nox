@@ -54,20 +54,22 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
   const rows = comps.filter((c) => c.kind === kind);
   const [amount, setAmount] = useState(0);
   const [editId, setEditId] = useState<string | null>(null);
-  const [priority, setPriority] = useState(kind === "guarantee_min" ? 100 : 90);
   const [active, setActive] = useState(true);
+  // ★裁定106 B2: priority は UI から撤去＝固定送信（guarantee=100／achievement=90）。
+  //   適用順は kind で決まり（achievement 加算→guarantee 床＝pay.ts）、同 kind 内は加算/逐次 max＝順序非依存
+  //   （2026-09-01 実測＝挙動不変）。既存行の priority 値は上書き保存時にこの固定値へ収斂する。
+  const FIXED_PRIORITY = kind === "guarantee_min" ? 100 : 90;
   return (
     <div>
       {rows.length > 0 && (
         <table className="nox-table" style={{ marginBottom: 8 }}>
-          <thead><tr>{["金額", "判定", "priority", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+          <thead><tr>{["金額", "判定", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
           <tbody>
             {rows.map((c) => (
-              <tr key={c.id} onClick={() => { if (!isOwner) return; setEditId(c.id); setAmount(c.amount ?? 0); setPriority(c.priority); setActive(c.is_active); }}
+              <tr key={c.id} onClick={() => { if (!isOwner) return; setEditId(c.id); setAmount(c.amount ?? 0); setActive(c.is_active); }}
                 style={{ cursor: isOwner ? "pointer" : "default" }}>
                 <td className="num">¥{(c.amount ?? 0).toLocaleString()}</td>
                 <td>{kind === "guarantee_min" ? "月（固定）" : "達成100%・1段（固定）"}</td>
-                <td className="num">{c.priority}</td>
                 <td style={{ color: c.is_active ? "var(--ok)" : "var(--sub)" }}>{c.is_active ? "有効" : "無効"}</td>
               </tr>
             ))}
@@ -79,10 +81,9 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
           <span style={{ fontSize: 12, color: "var(--sub)" }}>{editId ? "編集中" : "追加"}</span>
           <label style={{ fontSize: 12 }}>{kind === "guarantee_min" ? "保証額(円/月)" : "加算額(円)"}{" "}
             <input type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} style={{ ...t.input, width: 110 }} /></label>
-          <label style={{ fontSize: 12 }}>priority <input type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} style={{ ...t.input, width: 70 }} /></label>
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }}
-            onClick={() => void onSave(section, kind, { id: editId, amount, priority, active })}>
+            onClick={() => void onSave(section, kind, { id: editId, amount, priority: FIXED_PRIORITY, active })}>
             {editId ? "更新" : "追加"}
           </button>
           {editId && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => { setEditId(null); setAmount(0); setActive(true); }}>追加に戻す</button>}
@@ -92,10 +93,15 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
   );
 }
 
-export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setSelId, setMsg, reload }: {
+export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setSelId, setMsg, reload, show, onDirtyCounts }: {
   storeId: string; isOwner: boolean; plans: Plan[]; backs: BackDef[];
   selId: string | null; setSelId: (v: string | null) => void;
   setMsg: (m: string) => void; reload: () => Promise<void>;
+  /** ★裁定106 B1: タブ表示制御＝display 切替（PlanEditor は常時マウント＝draft/snapshot がタブ移動で消えない）。
+   *  省略時は全節表示（従来互換）。 */
+  show?: { base: boolean; backs: boolean; slides: boolean; achieve: boolean };
+  /** ★裁定106 B1: 右パネル「保存状態」用＝節ごとの未保存件数（0/1）を親へ通知。 */
+  onDirtyCounts?: (c: { base: number; backs: number; slides: number }) => void;
 }) {
   const supabase = createClient();
   const [draft, setDraft] = useState<Draft>(BLANK);
@@ -125,6 +131,19 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
     const s = JSON.parse(snap) as Draft;
     return keys.some((k) => JSON.stringify(draft[k]) !== JSON.stringify(s[k]));
   };
+  // ★裁定106 B1: タブごと未保存件数を親へ（achievement/自由バックは行単位保存＝対象外）
+  const vis = show ?? { base: true, backs: true, slides: true, achieve: true };
+  useEffect(() => {
+    onDirtyCounts?.({
+      base: dirty(["name", "base", "active"]) ? 1 : 0,
+      backs: dirty(["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate"]) ? 1 : 0,
+      slides: dirty(["salesSlide", "pointSlide"]) ? 1 : 0,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, snap]);
+  // ★裁定106 B2: 最低月額保証は「使う」で開く（既定 OFF＝有効な guarantee_min が無ければ畳む）
+  const [useGuarantee, setUseGuarantee] = useState(false);
+  useEffect(() => { setUseGuarantee(comps.some((c) => c.kind === "guarantee_min" && c.is_active)); }, [comps]);
   const clean = (s: Slide[]) => s.filter((r) => r.at > 0).map((r) => ({ at: r.at, wage: r.wage }));
 
   async function savePlan(section: string) {
@@ -211,8 +230,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
 
   return (
     <div>
-      {/* ★U-2 是正1: 未選択（新規）時の誘導 */}
-      {draft.id === null && (
+      {/* ★U-2 是正1: 未選択（新規）時の誘導（編集系タブ表示時のみ） */}
+      {draft.id === null && (vis.base || vis.backs || vis.slides || vis.achieve) && (
         <div style={{ ...t.card, marginBottom: 14, border: "1px solid var(--gold)", fontSize: 13 }}>
           <strong style={{ color: "var(--champ)" }}>新規プランの作成</strong>
           <span style={{ marginLeft: 8, color: "var(--sub)" }}>
@@ -220,24 +239,29 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           </span>
         </div>
       )}
-      {/* ── ② 基本給・保証 ── */}
-      <section id="base" className="nox-cardtop" style={{ ...t.card, marginBottom: 14 }}>
-        <SecHead title="基本給・保証" keys={["name", "base", "active"]} section="基本給・保証" />
+      {/* ── ② 基本・保証（★裁定106: 保証時給が主・最低月額保証は「使う」で開く） ── */}
+      <section id="base" className="nox-cardtop" style={{ ...t.card, marginBottom: 14, display: vis.base ? undefined : "none" }}>
+        <SecHead title="基本・保証" keys={["name", "base", "active"]} section="基本給・保証" />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
           <input placeholder="プラン名" value={draft.name} onChange={(e) => d({ name: e.target.value })} style={{ ...t.input, width: 170 }} disabled={!isOwner} />
           <label style={{ fontSize: 12 }}>保証時給(円) <input type="number" min={0} value={draft.base} onChange={(e) => d({ base: Number(e.target.value) })} style={{ ...t.input, width: 90 }} disabled={!isOwner} /></label>
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={draft.active} onChange={(e) => d({ active: e.target.checked })} disabled={!isOwner} /> 有効</label>
         </div>
-        <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 4px" }}>最低保証（月次の床・裁定96-①＝控除前総支給への差額補填）</p>
-        <CompRows kind="guarantee_min" section="基本給・保証" comps={comps} isOwner={isOwner} onSave={saveComp} />
+        <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+          <input type="checkbox" checked={useGuarantee} onChange={(e) => setUseGuarantee(e.target.checked)} disabled={!isOwner} />
+          最低月額保証を使う<span style={{ color: "var(--sub)" }}>（月次の床・裁定96-①＝控除前総支給への差額補填）</span>
+        </label>
+        {useGuarantee && (
+          <CompRows kind="guarantee_min" section="基本給・保証" comps={comps} isOwner={isOwner} onSave={saveComp} />
+        )}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <Prep k="daily_wage" /><Prep k="guarantee_hours" /><Prep k="guarantee_period" />
         </div>
       </section>
 
-      {/* ── ③ 売上歩合・各種バック ── */}
-      <section id="backs" className="nox-cardtop" style={{ ...t.card, marginBottom: 14 }}>
-        <SecHead title="売上歩合・各種バック" keys={["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate"]} section="各種バック" />
+      {/* ── ③ 歩合・バック ── */}
+      <section id="backs" className="nox-cardtop" style={{ ...t.card, marginBottom: 14, display: vis.backs ? undefined : "none" }}>
+        <SecHead title="歩合・バック" keys={["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate"]} section="各種バック" />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
           <label style={{ fontSize: 12 }}>本指名方式 <SegSelect value={draft.honMode} onChange={(v) => d({ honMode: v as BackModeRow })}
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
@@ -260,6 +284,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         {/* 固定名プリセット＋自由バック（裁定101 補正3・器＝custom_back_defs・set_custom_back_def 7引数） */}
         <div className="nox-inset" style={{ padding: "10px 14px" }}>
           <b style={{ fontSize: 13 }}>ドリンク・ボトル・シャンパン（固定名プリセット）／自由バック</b>
+          {/* ★裁定106 B3: 商品売上×率（ドリンク等の売上額×%）は器なし＝準備中（basis は本数×円/固定額/売上(按分後)×% のみ） */}
+          <span className="nox-stpill" style={{ marginLeft: 8, opacity: 0.8 }}>商品売上×率: 準備中（起票#42）</span>
           {isOwner && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "6px 0 10px" }}>
               {PRESETS.map((n) => (
@@ -281,9 +307,14 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         </div>
       </section>
 
-      {/* ── ④ ポイント制・売上スライド ── */}
-      <section id="slides" className="nox-cardtop" style={{ ...t.card, marginBottom: 14 }}>
-        <SecHead title="ポイント制・売上スライド" keys={["salesSlide", "pointSlide"]} section="スライド" />
+      {/* ── ④ スライド・ポイント ── */}
+      <section id="slides" className="nox-cardtop" style={{ ...t.card, marginBottom: 14, display: vis.slides ? undefined : "none" }}>
+        <SecHead title="スライド・ポイント" keys={["salesSlide", "pointSlide"]} section="スライド" />
+        {/* ★裁定106 B2: 判定基準・対象は固定表示（選択は器なし＝準備中）。3段固定＝行は常に3本（4段目の器なし）。 */}
+        <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
+          判定基準: <b style={{ color: "var(--v2-text)" }}>日次売上（按分後）／日次pt</b>・対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）
+          <span className="nox-stpill" style={{ marginLeft: 8, opacity: 0.8 }}>判定基準・対象の選択: 準備中（起票#42）</span>
+        </p>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           <SlideInput label="売上スライド" slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
           <SlideInput label="ポイントスライド" slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
@@ -294,7 +325,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       </section>
 
       {/* ── ⑤ 達成ボーナス ── */}
-      <section id="achieve" className="nox-cardtop" style={{ ...t.card, marginBottom: 14 }}>
+      <section id="achieve" className="nox-cardtop" style={{ ...t.card, marginBottom: 14, display: vis.achieve ? undefined : "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
           <h2 style={{ ...secTitle, margin: 0 }}>
             達成ボーナス<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>

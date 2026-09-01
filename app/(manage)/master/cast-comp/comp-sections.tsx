@@ -425,8 +425,37 @@ function ovDraftFrom(json: Record<string, number | string> | null | undefined): 
   };
 }
 
-export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload }: { plans: Plan[]; casts: CastRow[]; castPlans: CastPlan[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload, storeId, norms }: {
+  plans: Plan[]; casts: CastRow[]; castPlans: CastPlan[]; isManagerUp: boolean;
+  setMsg: (m: string) => void; reload: () => Promise<void>;
+  /** ★裁定106 B2: 進捗列（当月 sales_target ÷ get_cast_sales 暦月実績）。両方渡されたときだけ列を出す。 */
+  storeId?: string; norms?: Norm[];
+}) {
   const supabase = createClient();
+  // ★裁定106: 当月（暦月）の実績＝get_cast_sales（owner=org 全店/manager=自店・実績なし＝0）。
+  //   ※窓は暦月＝cast_norms.period の正規形（給与 period とは別物・cutoff 補正は RPC 側の biz_date）。
+  const [progress, setProgress] = useState<Map<string, number> | null>(null);
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  useEffect(() => {
+    if (!storeId) return;
+    void (async () => {
+      const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const { data: gs } = await supabase.rpc("get_cast_sales", {
+        p_store_id: storeId, p_from: `${ym}-01`, p_to: `${ym}-${String(last).padStart(2, "0")}`,
+      });
+      const mp = new Map<string, number>();
+      for (const r of (gs ?? []) as { cast_id: string; sales: number }[]) mp.set(r.cast_id, (mp.get(r.cast_id) ?? 0) + r.sales);
+      setProgress(mp);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
+  const showProgress = !!storeId && !!norms;
+  const progressOf = (cid: string) => {
+    const sales = progress?.get(cid) ?? 0;
+    const target = (norms ?? []).find((n) => n.cast_id === cid && n.period === ym)?.sales_target ?? 0;
+    return { sales, target };
+  };
   // 行内 draft（キャスト id キー）。プラン未変更の行はキー無し＝現在値を表示。
   const [rowPlan, setRowPlan] = useState<Record<string, string>>({});
   const [rowDate, setRowDate] = useState<Record<string, string>>({});
@@ -517,7 +546,9 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
   return (
     <div>
       <table className="nox-table" style={{ marginBottom: 10 }}>
-        <thead><tr>{["キャスト", "プラン", "適用開始日", "上書き", ""].map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
+        <thead><tr>{(showProgress
+          ? ["キャスト", "プラン", "進捗（当月売上）", "適用開始日", "上書き", ""]
+          : ["キャスト", "プラン", "適用開始日", "上書き", ""]).map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
         <tbody>
           {casts.map((c) => {
             const cp = cpOf(c.id);
@@ -538,6 +569,19 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                       </select>
                     ) : (cp ? `${planName(curPid)}${curInactive ? "（無効）" : ""}` : "—")}
                   </td>
+                  {showProgress && (() => {
+                    const { sales, target } = progressOf(c.id);
+                    return (
+                      <td className="num" style={{ fontSize: 12 }}>
+                        {target > 0
+                          ? <>¥{sales.toLocaleString()} / ¥{target.toLocaleString()}
+                              <span style={{ marginLeft: 6, color: sales >= target ? "var(--ok)" : "var(--sub)" }}>
+                                {Math.floor((sales * 100) / target)}%
+                              </span></>
+                          : sales > 0 ? <>¥{sales.toLocaleString()}<span style={{ marginLeft: 6, color: "var(--sub)" }}>目標なし</span></> : "—"}
+                      </td>
+                    );
+                  })()}
                   <td>
                     {isManagerUp ? (
                       <input type="date" value={rowDate[c.id] ?? ""} onChange={(e) => setRowDate((m) => ({ ...m, [c.id]: e.target.value }))}
@@ -561,7 +605,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                 </tr>
                 {openOv === c.id && (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={showProgress ? 6 : 5}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0" }}>
                         {ovRow({ label: "保証時給", use: ovd.useBase, onUse: (v) => setOvd((d) => ({ ...d, useBase: v })),
                           val: ovd.base, onVal: (v) => setOvd((d) => ({ ...d, base: v })), unit: "円" })}
@@ -583,7 +627,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
               </FragmentRow>
             );
           })}
-          {casts.length === 0 && <tr><td colSpan={5} style={note}>キャストがいません</td></tr>}
+          {casts.length === 0 && <tr><td colSpan={showProgress ? 6 : 5} style={note}>キャストがいません</td></tr>}
         </tbody>
       </table>
       {!isManagerUp && <p style={note}>割当はマネージャー以上のみ可能です。</p>}
@@ -829,11 +873,29 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span style={note}>{id ? "編集中" : "新規"}</span>
           <input placeholder="名称" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 140 }} />
-          <select value={basis} onChange={(e) => setBasis(e.target.value)} style={input}>
-            <option value="flat">{metricJa("flat")}</option>
-            {METRICS.map((m) => <option key={m} value={m}>{metricJa(m)}</option>)}
-          </select>
-          <label style={{ fontSize: 12 }}>値{basis === "sales" ? "%" : ""} <input type="number" min={0} value={value} onChange={(e) => setValue(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
+          {/* ★裁定106 B2: 計算方法3種（本数×円／固定額／売上×%）＝v3 準拠の見せ方。保存語彙 basis/value は不変
+              （本数×円＝既存の数量 basis 群・固定額＝flat・売上×%＝sales）。 */}
+          <label style={{ fontSize: 12 }}>計算方法{" "}
+            <select value={basis === "flat" ? "flat" : basis === "sales" ? "sales" : "count"}
+              onChange={(e) => {
+                const m = e.target.value;
+                if (m === "flat") setBasis("flat");
+                else if (m === "sales") setBasis("sales");
+                else if (basis === "flat" || basis === "sales") setBasis("hon");
+              }} style={input}>
+              <option value="count">本数×円</option>
+              <option value="flat">固定額</option>
+              <option value="sales">売上×%</option>
+            </select>
+          </label>
+          {basis !== "flat" && basis !== "sales" && (
+            <label style={{ fontSize: 12 }}>基準{" "}
+              <select value={basis} onChange={(e) => setBasis(e.target.value)} style={input}>
+                {METRICS.filter((m) => m !== "sales").map((m) => <option key={m} value={m}>{metricJa(m)}</option>)}
+              </select>
+            </label>
+          )}
+          <label style={{ fontSize: 12 }}>値{basis === "sales" ? "(%)" : "(円)"} <input type="number" min={0} value={value} onChange={(e) => setValue(Number(e.target.value))} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} style={numFieldStyle(basis === "sales" ? 4 : 7)} /></label>
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={condOn} onChange={(e) => setCondOn(e.target.checked)} /> 達成条件</label>
           {condOn && (
             <>
