@@ -114,3 +114,18 @@ Fable 5 は段0 から push まで継続（money 直撃）。
 ### 2-6. 段0 live 逐語
 
 - `docs/tmp/live_r2b.sql`（貼り先証明 n=3・4テーブル定義全件＋4 RPC 全文＋重複実測 d/e＋分布 f）＝0118/0119 起草の底本。
+
+### 2-7. ★端数（最大剰余法の +1）は weight=0 の行に届かない（裁定110 の前提証明・2026-09-01 live 実測）
+
+check_close（数量分配）・cast_sales_aggregate（金額按分）・sales-alloc.ts（TS 鏡像）は同一の最大剰余法＝
+`base = floor(X×wᵢ / W)`・`rem = (X×wᵢ) mod W`・**+1 は rem 降順→position 昇順で R = X − Σbase 件**
+（底本＝`docs/tmp/live_alloc.sql` sha256 `4a559000…7be6e`・229行・2関数逐語）。
+
+**証明**: w=0 の行は rem=0。Σremᵢ = R×W かつ各 remᵢ ≤ W−1 なので、rem>0 の行数 k について
+k(W−1) ≥ Σremᵢ = R×W ⇒ k > R ⇒ **k ≥ R+1**（整数）。+1 は rem 降順で先頭 R 件にしか配られないため、
+**rem=0（w=0 を含む）の行には数学的に届かない**。check_close のループ版（`v_rem[i] > v_rem[v_best]` の
+厳密比較・未使用先頭＝position 順）も同じ帰結。
+
+よって裁定110（weight 0 許可＝mig0123）で **check_close／cast_sales_aggregate／sales-alloc.ts の改修は不要**。
+分母ゼロは check_set_nominations の入口ガード（名簿あり∧合計0＝'bad weight'）が塞ぐ。
+verify＝r2b(12) が weight [100,0] の実伝票で「0 行の按分 0・端数 +1 なし」を金額・数量の両経路で assert。
