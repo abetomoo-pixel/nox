@@ -2351,6 +2351,38 @@ comp_plan_components を先に削除」を追加**して先回りで塞いだ（
 
 ---
 
+## 裁定102（2026-09-01・R-2b 補遺）連打/再送の吸収は idem_key＝裁定74「一意制約で禁止」の撤回 — 実機: 未（R-2b 一括）
+<!-- 実装実績（2026-09-01）: mig0119 収蔵 8d18349・UI 0b69b73（idem_key 描画時生成/成功後再生成・同伴ボタン→is_dohan 保存）・
+     verify-nox-r2b (3)(9) で同キー再送＝行不増・同一行 id を機械 assert。 -->
+
+行＝指名事実1回の記録（0円行・ランク差の共存が仕様）のため**行レベル unique は誤り**。裁定74 の
+「一意制約で禁止」を**撤回**し、連打・再送の吸収は `check_lines.idem_key`（partial unique
+`check_lines_idem_key_uidx`）＋`check_shimei_add`／`check_dohan_add` の `p_idem_key`
+（**同キー再送は既存行 id を返す**・UI は**描画時生成・成功後に再生成**）。
+同伴 cast 必須 CHECK（`check_lines_dohan_cast_check`）は **NOT VALID** で 0119 同梱（教訓47）。
+unit4 キー＝`nom_unit4_key`（hon/jonai 優先→dohan→free）。`checks.nom_type` は `nom_type_summary` の
+**派生サマリ**（撤去は R-2c）。**dohan rate ガードは外さない**（裁定76）。
+
+---
+
+## 裁定103（2026-09-01・mig0120）予約→伝票化の指名転写＝0118 backfill と同一写像（0119 の見逃し是正） — 実機: 未（R-2b 一括）
+
+0119 が旧3引数 `check_set_nominations(uuid, text, jsonb)` を drop した際、**definer チェーンの
+`reservation_to_check` が旧署名を内部呼びしたまま残った**（prosrc 走査で呼び残しは本関数1本のみ・
+**指名キャスト付き予約の来店処理だけ**が実行時エラー・cast なし予約は旧呼びを通らず成功。
+検知＝f0 anon-guard 段19 FAIL 7・2026-09-01＝教訓48）。mig0120 で 2引数呼びへ差替え。
+
+- 予約 `nom_type`（伝票単位・dohan 含む）→キャスト行への転写は **0118 backfill と同一写像**＝
+  `nom_kind = case nom_type when 'hon' then 'hon' when 'jonai' then 'jonai' else 'free' end`／
+  `is_dohan = (nom_type = 'dohan')`・単一指名・weight=1・全置換。
+- `dohan_auto_hon` による free→hon 昇格は**店設定に従う（レジ経路と同じ）**。
+- 署名 `(uuid, uuid, text)` 不変＝**ACL 保存（create or replace・drop なし）**。
+  底本＝live 逐語 `docs/tmp/live_r2c.sql`（sha256 `bb4a11d2…4e32d3`・93行）。
+- verify＝r2b(11a)（dohan 予約→free/is_dohan=true）／(11b)（hon 予約→hon/false）＋
+  データ逆張り（写像破壊→11a のみ赤→復元→緑を実測）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2516,6 +2548,36 @@ mig0004＝audit_log_write の service_role 残置と同型）。live の `check_
 注記が必須**＝収蔵ファイルの revoke は2者のままなので、そのまま本番手貼りすると authenticated/service_role
 が残る。
 
+### 教訓45：UI 段の完了条件は3点（verify 緑＋CC スクショ/console 0＋Agoora 実機）
+
+verify 緑は完了条件の 1/3 でしかない。「止まらない」は選択肢の話で**関門ではない**。
+台帳の裁定行に実機欄を持たせ、**CC 検収（スクショ＋console 0）と Agoora 実機 OK が揃って初めて「済」**と
+書く（U-1/U-2 で運用実証＝引き継ぎ v20 恒久注意1 の台帳収載）。
+
+### 教訓46：verify fixture の「当月」相対日付は月境界で赤くなる
+
+rls punch_self の当日打刻 fixture が**月替わりで 9月の payroll 窓に入り込み**、payroll スイートを
+汚染した（2026-09-01 に実発火・92f5294 で段内掃除により是正＝教訓30型）。fixture の日付は
+**固定の隔離 period**（r2b の 2031-03 型）か**段内掃除**のどちらかを必ず持たせ、
+「実行日からの相対日付」を集計対象テーブルへ残さない。
+
+### 教訓47：partial unique・NOT VALID CHECK は新規 INSERT に即時強制＝RPC 改修と同 mig に置く
+
+NOT VALID は「既存行を検査しない」だけで**新規 INSERT には即時に効く**。partial unique も同様。
+器 mig（0118 v1）に先行して入れた結果、**現行 RPC の書込が落ちて f0 8赤**（2026-08-31 実測・
+pricing-apply 段44）→ rollback し、**制約は RPC 改修（0119）と同梱**へ組み替えた。
+「新規 INSERT に即時に効く制約」は器と RPC を分けない（引き継ぎ v20 恒久注意4 の台帳収載）。
+
+### 教訓48：公開 RPC の署名変更 mig は prosrc 走査で DB 内の呼び出し元を全数検出してから drop する
+
+0119 は TS 側の呼び出し元（UI・verify）を新署名へ追随させたが、**DB 内の呼び出し元**
+（`reservation_to_check` が旧3引数 `check_set_nominations` を perform）を見逃した。旧署名を drop すると
+内部呼びは**実行時（当該分岐到達時）まで発覚しない**＝条件付き分岐（cast あり予約のみ）だと手動確認も
+すり抜ける。署名変更 mig の起草時は
+`select proname from pg_proc where pronamespace='public'::regnamespace and prosrc like '%<関数名>%'`
+で**definer チェーンの呼び出し元を全数列挙し、同 mig（または同時適用のセット mig）で差替える**
+（0120 で是正＝裁定103。検知の決め手は anon-guard 段19 の definer チェーン**実走** assert）。
+
 ### 純増起票（追加分・実装しない）
 
 | # | 内容 | 要る変更 |
@@ -2560,7 +2622,7 @@ mig0004＝audit_log_write の service_role 残置と同型）。live の `check_
 | 38 | **待遇 UI のモック収斂** | **実装済（2026-08-31・裁定101 U-2 段2）・実機待ち**＝`/master/cast-comp/plan` を canonical 準拠のセクション編集面へ再構成（採用方式の自動判定・節別保存・準備中バッジ C5・ノルマ統合・右サマリー・割当の適用開始日＝履歴 UI）。kind 追加（point_rate/profit_share 系）と多段しきい値は**C5 準備中のまま**（起票#42）。残＝Agoora 実機 OK |
 | 39 | **初期設定ウィザード（OB レーン）** | モック `mock/onboarding-2026-08/`（**15 html**＝step1＋業態別 step1×5（追加受領・全 sha 相異）／業態別 step2×5／step3 待遇9カテゴリ／step4 会計・レジ／step5／done・script なし・Unicode escape なし）を収蔵。前提実測済み: stores に住所/業態/onboarding 列なし・**店作成 RPC なし**（seed の admin insert のみ）・会計方式（卓/個別/併用）のフラグなし＝器の設計から。step3 9カテゴリ↔既存の器の対応表は 2026-08-31 調査報告に収載 |
 | 40 | **給与画面のモック収斂（U-1）** | **裁定18 の「段D payroll 対象外」を裁定99 で解除**。正本＝`nox-payroll-management.html`（構造の正本・配色は現行トークン）。設計書＝`docs/NOX_U1給与収斂設計書v1.md`・実装順と完了条件（f0 2連緑＋CC スクショ＋Agoora 実機の3点）は裁定99 ⑨⑩。**進捗（2026-08-31）: 段①〜④実装済み**（DOM/console 検収済み・スクショはペイン表示待ち・**残＝CC スクショ追補と Agoora 実機 OK と v2 モック差替**） |
-| 41 | **レジモック v2 追随（R-2b 後）** | `nox-register-pos.html` の「指名の分配率」カードは**卓単位の指名区分**（内部 JS も `t.shareType` 単一値）＝裁定100 のキャスト別種別（行ごとに 種別＋同伴チェック＋重み）を表現できない。R-2b 実装後にモック v2 を受領し差替（裁定91 の canonical 維持手順で README 更新） |
+| 41 | **レジモック v2 追随（R-2b 後）** | `nox-register-pos.html` の「指名の分配率」カードは**卓単位の指名区分**（内部 JS も `t.shareType` 単一値）＝裁定100 のキャスト別種別（行ごとに 種別＋同伴チェック＋重み）を表現できない。R-2b 実装後にモック v2 を受領し差替（裁定91 の canonical 維持手順で README 更新）。**→ R-2b 実装済（2026-09-01・mig0119/0120＋UI 0b69b73）＝v2 モック受領待ちへ前進** |
 | 42 | **待遇画面の準備中項目（C5）** | 裁定101 §2 の器なし項目（日給制/保証時間帯/判定単位 半月・日/pt付与ルール/粗利基準/延長・昇格バック/帯歩合%/丸め2軸/未達根拠確認記録/達成 params 拡張/率方式=R-2b 後・**＋達成条件の他軸〔出勤/本指名/同伴〕＝U-2 是正で追記・計12項目**）。**器は作らず準備中バッジで明示**（正本＝`lib/nox/comp-methods.ts PREP_ITEMS`・c3 assert が本数 pin）。**＋ノルマ節の圧縮**＝店設定・キャスト別目標・ペナルティの3カードをモック型へ縮約する再設計（現状は NormaBoard 搭載のまま＝U-2 是正で起票）。解錠は項目ごとに別裁定（設計書 §3） |
 ### 未裁定・消し込み待ち
 

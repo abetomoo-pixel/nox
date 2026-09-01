@@ -48,7 +48,10 @@
    ただし dohanShimeiAmt（fee_kind='dohan'・cast_id=本人）が集計可能になったことを設計書に記録。
 
 ## C. 鏡（同時に変える面・裁定92 の表示面込み）
-check_close RPC ／ get_cast_sales ／ collect.ts（cast 実績読み）＋pay.ts（本数×バック）／ register-board（指名カード）。
+check_close RPC ／ get_cast_sales ／ collect.ts（cast 実績読み）＋pay.ts（本数×バック）／ register-board（指名カード）
+／ drink_claim_submit_proxy ／ drink_claim_decide（unit4 バックの per-cast キー再計算・目安表示＝drink-claim-queue も追随）。
+<!-- ★訂正（2026-09-01・裁定100 補記の反映）: 鏡は5本→**7本**＝drink_claim 2本を追加（0119 実装で unit4 が
+     伝票サマリ由来から申告キャスト自身の名簿行由来へ変わるため・verify-nox-r2b(10) が per-cast キーを機械 assert）。 -->
 check-calc.ts は nom_type 非参照＝不触。receipt.ts は型のみ＝不触。
 
 ## D. UI（register-board・最小）
