@@ -385,105 +385,200 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
 }
 
 // ── 割当（manager 以上・inactive プランは選択肢に出さない）──
+// ── 割当（U-2 補正・裁定104）: 行内編集型 ──
+//   表1行＝キャスト（未割当は no_plan 行として並ぶ）。プラン select・適用開始日は行内、
+//   個別上書きはセルのボタンで行直下に展開するパネル（縦積み4行＝保証時給・本・場内・同伴）。
+//   set_cast_plan 4引数の呼び形は不変（p_cast_id / p_plan_id / p_overrides / p_valid_from）。
+//   ★パネル未展開の保存は既存 overrides_json をそのまま同送＝プラン変更が上書きを黙って消さない。
+//   ★パネル経由の保存は方式と値を必ずペアで送る（mig0086 の原子性）＝旧「値単独 override」は
+//     次回パネル保存時に per_count ペアへ正規化される（保存キー・語彙は不変）。
+type OvDraft = {
+  useBase: boolean; base: string;
+  useHon: boolean; honMode: BackModeRow; honVal: string;
+  useJonai: boolean; jonaiMode: BackModeRow; jonaiVal: string;
+  useDohan: boolean; dohanVal: string;
+};
+function ovDraftFrom(json: Record<string, number | string> | null | undefined): OvDraft {
+  const j = json ?? {};
+  const honRate = j.honBackMode === "rate";
+  const jonaiRate = j.jonaiBackMode === "rate";
+  return {
+    useBase: j.base == null, base: j.base != null ? String(j.base) : "",
+    useHon: j.honBack == null && j.honBackRate == null,
+    honMode: honRate ? "rate" : "per_count",
+    honVal: honRate ? String(j.honBackRate ?? "") : j.honBack != null ? String(j.honBack) : "",
+    useJonai: j.jonaiBack == null && j.jonaiBackRate == null,
+    jonaiMode: jonaiRate ? "rate" : "per_count",
+    jonaiVal: jonaiRate ? String(j.jonaiBackRate ?? "") : j.jonaiBack != null ? String(j.jonaiBack) : "",
+    useDohan: j.dohanBack == null, dohanVal: j.dohanBack != null ? String(j.dohanBack) : "",
+  };
+}
+
 export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload }: { plans: Plan[]; casts: CastRow[]; castPlans: CastPlan[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
-  const [castId, setCastId] = useState("");
-  const [planId, setPlanId] = useState("");
-  const [ov, setOv] = useState<Record<string, string>>({ base: "", honBack: "", jonaiBack: "", dohanBack: "", honBackRate: "", jonaiBackRate: "" });
-  // mig0086: 方式 override（"" = 方式は上書きしない）。mode を選んだら対の値入力を必須表示＝原子性を UI で構造化。
-  const [ovHonMode, setOvHonMode] = useState<"" | BackModeRow>("");
-  const [ovJonaiMode, setOvJonaiMode] = useState<"" | BackModeRow>("");
-  // ★U-2（裁定101 補正2）: 適用開始日＝mig0116 の p_valid_from。空＝現在行の上書き（従来どおり）・
-  //   指定＝履歴生成（給与適用は裁定97 の3段選択・過去日は RPC が 'bad valid_from'）。
-  const [validFrom, setValidFrom] = useState("");
+  // 行内 draft（キャスト id キー）。プラン未変更の行はキー無し＝現在値を表示。
+  const [rowPlan, setRowPlan] = useState<Record<string, string>>({});
+  const [rowDate, setRowDate] = useState<Record<string, string>>({});
+  // 上書きパネルは同時に1行のみ展開（openOv＝展開中のキャスト id・draft は展開時に保存値から初期化）。
+  const [openOv, setOpenOv] = useState<string | null>(null);
+  const [ovd, setOvd] = useState<OvDraft>(ovDraftFrom(null));
   const activePlans = plans.filter((p) => p.is_active); // inactive は割当不可（DB も 'plan inactive' で拒否）
   const planName = (pid: string) => plans.find((p) => p.id === pid)?.name ?? "(不明)";
-  const castName = (cid: string) => casts.find((c) => c.id === cid)?.name ?? cid;
+  const cpOf = (cid: string) => castPlans.find((cp) => cp.cast_id === cid);
+  const ovCount = (cid: string) => Object.keys(cpOf(cid)?.overrides_json ?? {}).length;
 
-  async function save() {
-    const overrides: Record<string, number | string> = {};
-    if (ov.base !== "") overrides.base = Number(ov.base);
-    if (ov.dohanBack !== "") overrides.dohanBack = Number(ov.dohanBack);
-    // ★原子性（mig0086）: mode を送るときは対の値を必ず同送（RPC は片側合成を 'bad overrides' で拒否）。
-    //   mode 未選択（""）のときは従来どおり値単独 override（プラン方式のまま値だけ差し替え）。
-    if (ovHonMode === "rate") {
-      if (ov.honBackRate === "") { setMsg("本指名の率(%)を入力してください（方式と値はペアで保存）"); return; }
-      overrides.honBackMode = "rate"; overrides.honBackRate = Number(ov.honBackRate);
-    } else if (ovHonMode === "per_count") {
-      if (ov.honBack === "") { setMsg("本指名の円/本を入力してください（方式と値はペアで保存）"); return; }
-      overrides.honBackMode = "per_count"; overrides.honBack = Number(ov.honBack);
-    } else if (ov.honBack !== "") {
-      overrides.honBack = Number(ov.honBack);
-    }
-    if (ovJonaiMode === "rate") {
-      if (ov.jonaiBackRate === "") { setMsg("場内の率(%)を入力してください（方式と値はペアで保存）"); return; }
-      overrides.jonaiBackMode = "rate"; overrides.jonaiBackRate = Number(ov.jonaiBackRate);
-    } else if (ovJonaiMode === "per_count") {
-      if (ov.jonaiBack === "") { setMsg("場内の円/本を入力してください（方式と値はペアで保存）"); return; }
-      overrides.jonaiBackMode = "per_count"; overrides.jonaiBack = Number(ov.jonaiBack);
-    } else if (ov.jonaiBack !== "") {
-      overrides.jonaiBack = Number(ov.jonaiBack);
-    }
-    // ★mig0116: p_valid_from＝空なら null 明示（現在行の上書き）・指定日なら履歴生成（U-2 で解錠＝裁定101 補正2）。
-    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: planId, p_overrides: overrides, p_valid_from: validFrom || null });
-    setMsg(error ? compErrJa(error.message) : validFrom ? `割当を保存しました（${validFrom} から適用・履歴生成）` : "割当を保存しました");
-    if (!error) { setValidFrom(""); await reload(); }
+  function toggleOv(cid: string) {
+    if (openOv === cid) { setOpenOv(null); return; }
+    setOvd(ovDraftFrom(cpOf(cid)?.overrides_json));
+    setOpenOv(cid);
   }
+
+  // パネル draft → overrides_json（mig0086 の8キー語彙・方式と値はペア）。検証 NG は null＋メッセージ。
+  function buildOverrides(d: OvDraft): Record<string, number | string> | null {
+    const o: Record<string, number | string> = {};
+    if (!d.useBase) {
+      if (d.base === "") { setMsg("保証時給の値を入力してください（既定に戻すはチェックを付ける）"); return null; }
+      o.base = Number(d.base);
+    }
+    if (!d.useHon) {
+      if (d.honVal === "") { setMsg("本指名の値を入力してください（方式と値はペアで保存）"); return null; }
+      if (d.honMode === "rate") { o.honBackMode = "rate"; o.honBackRate = Number(d.honVal); }
+      else { o.honBackMode = "per_count"; o.honBack = Number(d.honVal); }
+    }
+    if (!d.useJonai) {
+      if (d.jonaiVal === "") { setMsg("場内指名の値を入力してください（方式と値はペアで保存）"); return null; }
+      if (d.jonaiMode === "rate") { o.jonaiBackMode = "rate"; o.jonaiBackRate = Number(d.jonaiVal); }
+      else { o.jonaiBackMode = "per_count"; o.jonaiBack = Number(d.jonaiVal); }
+    }
+    if (!d.useDohan) {
+      if (d.dohanVal === "") { setMsg("同伴の値を入力してください（既定に戻すはチェックを付ける）"); return null; }
+      o.dohanBack = Number(d.dohanVal); // dohan の率方式は封印のまま（裁定86-②・R-2b 後も別 mig で解錠）
+    }
+    return o;
+  }
+
+  async function saveRow(cid: string) {
+    const cp = cpOf(cid);
+    const pid = rowPlan[cid] ?? cp?.plan_id ?? "";
+    if (!pid) { setMsg("プランを選択してください"); return; }
+    // ★パネル展開中の行＝draft から構築。それ以外＝既存 overrides_json を無変更で同送（未割当は {}）。
+    const overrides = openOv === cid ? buildOverrides(ovd) : (cp?.overrides_json ?? {});
+    if (overrides === null) return;
+    const validFrom = rowDate[cid] ?? "";
+    // ★mig0116: p_valid_from＝空なら null 明示（現在行の上書き）・指定日なら履歴生成（裁定101 補正2）。
+    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: cid, p_plan_id: pid, p_overrides: overrides, p_valid_from: validFrom || null });
+    setMsg(error ? compErrJa(error.message) : validFrom ? `割当を保存しました（${validFrom} から適用・履歴生成）` : "割当を保存しました");
+    if (!error) {
+      setRowDate((m) => ({ ...m, [cid]: "" }));
+      setOpenOv(null);
+      await reload();
+    }
+  }
+
+  // ── 上書きパネルの1行（縦積み・行頭「既定を使う」＋固定幅ラベル＋方式トグル＋値）──
+  const ovNum: React.CSSProperties = { ...input, width: "9ch", minWidth: "7ch" };
+  const ovLabel: React.CSSProperties = { width: "5.5em", flex: "none", fontSize: 12, fontWeight: 700 };
+  const OvRow = ({ label, use, onUse, mode, onMode, val, onVal, unit }: {
+    label: string; use: boolean; onUse: (v: boolean) => void;
+    mode?: BackModeRow; onMode?: (v: BackModeRow) => void;
+    val: string; onVal: (v: string) => void; unit: string;
+  }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <label style={{ fontSize: 12, color: "var(--sub)", display: "flex", alignItems: "center", gap: 4, flex: "none" }}>
+        <input type="checkbox" checked={use} onChange={(e) => onUse(e.target.checked)} /> 既定を使う
+      </label>
+      <span style={ovLabel}>{label}</span>
+      {mode !== undefined && onMode !== undefined && (
+        <span style={{ opacity: use ? 0.5 : 1 }}>
+          <SegSelect value={mode} onChange={(v) => onMode(v as BackModeRow)}
+            options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} />
+        </span>
+      )}
+      <input type="number" min={0} max={mode === "rate" ? 100 : undefined} value={val} disabled={use}
+        placeholder={use ? "既定" : ""} onChange={(e) => onVal(e.target.value)}
+        style={{ ...ovNum, opacity: use ? 0.5 : 1 }} />
+      <span style={note}>{unit}</span>
+    </div>
+  );
 
   return (
     <div>
       <table className="nox-table" style={{ marginBottom: 10 }}>
-        <thead><tr>{["キャスト", "プラン", "上書き"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+        <thead><tr>{["キャスト", "プラン", "適用開始日", "上書き", ""].map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
         <tbody>
-          {castPlans.map((cp) => (
-            <tr key={cp.cast_id}>
-              <td>{castName(cp.cast_id)}</td>
-              <td>{planName(cp.plan_id)}</td>
-              <td>{Object.keys(cp.overrides_json ?? {}).length ? JSON.stringify(cp.overrides_json) : "—"}</td>
-            </tr>
-          ))}
+          {casts.map((c) => {
+            const cp = cpOf(c.id);
+            const curPid = cp?.plan_id ?? "";
+            const selPid = rowPlan[c.id] ?? curPid;
+            const curInactive = !!cp && !activePlans.some((p) => p.id === cp.plan_id);
+            const n = ovCount(c.id);
+            return (
+              <FragmentRow key={c.id}>
+                <tr>
+                  <td>{c.name}{!cp && <span style={{ ...note, marginLeft: 6 }}>（未割当）</span>}</td>
+                  <td>
+                    {isManagerUp ? (
+                      <select value={selPid} onChange={(e) => setRowPlan((m) => ({ ...m, [c.id]: e.target.value }))} style={input}>
+                        <option value="">{cp ? "プラン選択" : "未割当（プラン選択）"}</option>
+                        {curInactive && <option value={cp!.plan_id} disabled>{planName(cp!.plan_id)}（無効）</option>}
+                        {activePlans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    ) : (cp ? `${planName(curPid)}${curInactive ? "（無効）" : ""}` : "—")}
+                  </td>
+                  <td>
+                    {isManagerUp ? (
+                      <input type="date" value={rowDate[c.id] ?? ""} onChange={(e) => setRowDate((m) => ({ ...m, [c.id]: e.target.value }))}
+                        style={{ ...input, width: 140 }}
+                        title="空＝今すぐ（現在行の上書き）。指定＝その日から適用（履歴生成・給与は裁定97 の期間選択）" />
+                    ) : "—"}
+                  </td>
+                  <td>
+                    {isManagerUp ? (
+                      <button type="button" onClick={() => toggleOv(c.id)}
+                        style={{ ...t.btnGhost, ...t.btnSm, borderColor: openOv === c.id ? "var(--gold)" : undefined }}>
+                        {n > 0 ? <span className="num">{n}件</span> : "—"} {openOv === c.id ? "▾" : "▸"}
+                      </button>
+                    ) : (n > 0 ? <span className="num">{n}件</span> : "—")}
+                  </td>
+                  <td>
+                    {isManagerUp && (
+                      <button style={btnDark} onClick={() => void saveRow(c.id)} disabled={!selPid}>変更</button>
+                    )}
+                  </td>
+                </tr>
+                {openOv === c.id && (
+                  <tr>
+                    <td colSpan={5}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0" }}>
+                        <OvRow label="保証時給" use={ovd.useBase} onUse={(v) => setOvd((d) => ({ ...d, useBase: v }))}
+                          val={ovd.base} onVal={(v) => setOvd((d) => ({ ...d, base: v }))} unit="円" />
+                        <OvRow label="本指名" use={ovd.useHon} onUse={(v) => setOvd((d) => ({ ...d, useHon: v }))}
+                          mode={ovd.honMode} onMode={(v) => setOvd((d) => ({ ...d, honMode: v, honVal: "" }))}
+                          val={ovd.honVal} onVal={(v) => setOvd((d) => ({ ...d, honVal: v }))}
+                          unit={ovd.honMode === "rate" ? "%" : "円/本"} />
+                        <OvRow label="場内指名" use={ovd.useJonai} onUse={(v) => setOvd((d) => ({ ...d, useJonai: v }))}
+                          mode={ovd.jonaiMode} onMode={(v) => setOvd((d) => ({ ...d, jonaiMode: v, jonaiVal: "" }))}
+                          val={ovd.jonaiVal} onVal={(v) => setOvd((d) => ({ ...d, jonaiVal: v }))}
+                          unit={ovd.jonaiMode === "rate" ? "%" : "円/本"} />
+                        <OvRow label="同伴" use={ovd.useDohan} onUse={(v) => setOvd((d) => ({ ...d, useDohan: v }))}
+                          val={ovd.dohanVal} onVal={(v) => setOvd((d) => ({ ...d, dohanVal: v }))} unit="円/本" />
+                        <p style={{ ...note, margin: 0 }}>既定を使う＝プランの値のまま。方式と値はペアで保存されます（この行の「変更」で確定）。</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </FragmentRow>
+            );
+          })}
+          {casts.length === 0 && <tr><td colSpan={5} style={note}>キャストがいません</td></tr>}
         </tbody>
       </table>
-      {isManagerUp ? (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <select value={castId} onChange={(e) => setCastId(e.target.value)} style={input}>
-            <option value="">キャスト選択</option>
-            {casts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <select value={planId} onChange={(e) => setPlanId(e.target.value)} style={input}>
-            <option value="">プラン選択（有効のみ）</option>
-            {activePlans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <label style={{ fontSize: 12 }}>適用開始日 <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} style={{ ...input, width: 140 }} title="空＝今すぐ（現在行の上書き）。指定＝その日から適用（履歴生成・給与は裁定97 の期間選択）" /></label>
-          {/* ★U-2（裁定101 補正2）: 個別上書きは折りたたみ（既定は畳む＝行を軽く） */}
-          <details style={{ width: "100%" }}>
-          <summary style={{ fontSize: 12, color: "var(--champ)", cursor: "pointer" }}>個別上書き ▸（空欄＝プランの値）</summary>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
-          <label style={{ fontSize: 12 }}>保証時給 <input type="number" min={0} value={ov.base} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, base: e.target.value }))} style={{ ...input, width: 64 }} /></label>
-          {/* mig0086: 方式 override は mode 選択→対の値入力を必須表示（原子性の UI 構造化）。既定=方式は上書きしない。 */}
-          <label style={{ fontSize: 12 }}>本 方式 <SegSelect value={ovHonMode} onChange={(v) => setOvHonMode(v as "" | BackModeRow)}
-            options={[["", "既定"], ["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
-          {ovHonMode === "rate" ? (
-            <label style={{ fontSize: 12 }}>本 率(%)※必須 <input type="number" min={0} max={100} value={ov.honBackRate} onChange={(e) => setOv((o) => ({ ...o, honBackRate: e.target.value }))} style={{ ...input, width: 64 }} /></label>
-          ) : (
-            <label style={{ fontSize: 12 }}>本(円/本){ovHonMode === "per_count" ? "※必須" : ""} <input type="number" min={0} value={ov.honBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, honBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
-          )}
-          <label style={{ fontSize: 12 }}>場内 方式 <SegSelect value={ovJonaiMode} onChange={(v) => setOvJonaiMode(v as "" | BackModeRow)}
-            options={[["", "既定"], ["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
-          {ovJonaiMode === "rate" ? (
-            <label style={{ fontSize: 12 }}>場内 率(%)※必須 <input type="number" min={0} max={100} value={ov.jonaiBackRate} onChange={(e) => setOv((o) => ({ ...o, jonaiBackRate: e.target.value }))} style={{ ...input, width: 64 }} /></label>
-          ) : (
-            <label style={{ fontSize: 12 }}>場内(円/本){ovJonaiMode === "per_count" ? "※必須" : ""} <input type="number" min={0} value={ov.jonaiBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, jonaiBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
-          )}
-          <label style={{ fontSize: 12 }}>同伴(円/本) <input type="number" min={0} value={ov.dohanBack} placeholder="既定" onChange={(e) => setOv((o) => ({ ...o, dohanBack: e.target.value }))} style={{ ...input, width: 64 }} /></label>
-          </div>
-          </details>
-          <button style={btnDark} onClick={save} disabled={!castId || !planId}>割当</button>
-        </div>
-      ) : <p style={note}>割当はマネージャー以上のみ可能です。</p>}
+      {!isManagerUp && <p style={note}>割当はマネージャー以上のみ可能です。</p>}
     </div>
   );
 }
+// tbody 直下に <tr> 2本（本体行＋展開パネル行）を返すためのキー付き Fragment。
+function FragmentRow({ children }: { children: React.ReactNode }) { return <>{children}</>; }
 
 // ── ノルマ（manager 以上・mig0042 で4軸＝日数/同伴＋売上/指名）──
 //   売上・指名の新2軸は表示のみ（payOf/normPenalty 非接続＝/mine の進捗表示用）。
