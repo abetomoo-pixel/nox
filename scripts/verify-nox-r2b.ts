@@ -14,6 +14,7 @@
  *  (9) dohan の同一 idem_key 再送＝行が増えない（裁定102）
  *  (10) drink_claim の unit4 キー＝申告キャスト自身の名簿行（伝票サマリではない）
  *  (11) 予約経由の指名転写（mig0120 裁定103）＝dohan 予約→free/is_dohan=true・hon 予約→hon/false
+ *  (12) weight 検証（mig0121 裁定107）＝汎用検証（1以上の整数）据置・free の均等固定（weight=1）は撤去
  *
  * 逆張り: R2B_INVERT=1 で全 check の期待を反転＝全赤を実測（各 assert が落ち得ることの機械証明）。
  *   加えて (1) はデータ逆張り（1行の nom_kind を壊す→赤→復元）を実行ログで確認する運用。
@@ -91,10 +92,16 @@ async function main() {
       await admin.from("casts").delete().in("id", ids);
     }
     if (seatIds.length) await admin.from("seats").delete().in("id", seatIds);
-    // ★教訓44 型: エラーを確認しない delete は一過性失敗で無音残置になる（2026-09-01 に products で実発火＝
-    //   後続 run の anon-guard 段28 が残置商品を拾って偽赤）。失敗は stderr へ出して次 run の先頭 teardown に委ねる
-    const { error: eProd } = await admin.from("products").delete().eq("name", PROD);
-    if (eProd) console.error(`[r2b teardown] products delete 失敗（次 run 先頭で自浄）: ${eProd.message}`);
+    // ★教訓49 続報（2026-09-01）: 可視化ログが真因を特定＝在庫台帳 trigger（stock_on_check_line）が
+    //   check_add_line 時に stock_logs 行を作り、products 削除が FK（stock_logs_product_id_fkey）で落ちて
+    //   無音残置→anon-guard 段28 の偽赤になっていた。stock_logs を先に消してから products を消す（教訓44 型）。
+    const { data: prods } = await admin.from("products").select("id").eq("name", PROD);
+    const prodIds = (prods ?? []).map((r) => r.id as string);
+    if (prodIds.length) {
+      await admin.from("stock_logs").delete().in("product_id", prodIds);
+      const { error: eProd } = await admin.from("products").delete().in("id", prodIds);
+      if (eProd) console.error(`[r2b teardown] products delete 失敗（次 run 先頭で自浄）: ${eProd.message}`);
+    }
     await admin.from("comp_plans").delete().eq("name", PLAN);
     await admin.from("stores").update({ dohan_auto_hon: false }).eq("id", storeA1); // フラグ復元（既定 false）
   }
@@ -284,6 +291,29 @@ async function main() {
       });
       check("r2b(8) ★dohan rate ガードは封印のまま（'dohan rate requires R-2b'＝解錠は独立 mig・裁定76/100-B5）",
         !!e && e.message.includes("dohan rate requires R-2b"), e?.message ?? "通ってしまった");
+    }
+
+    // ══ (12) weight 検証（mig0121 裁定107）＝汎用検証は据置・free 均等固定は撤去 ══
+    //   ★(11) が openChk を fixture 閉卓する前に実行（open が前提の RPC 呼び）。
+    {
+      const { error: eZ } = await mgr.rpc("check_set_nominations", {
+        p_check_id: openChk, p_nominations: [{ cast_id: castA, weight: 0, nom_kind: "hon", is_dohan: false }],
+      });
+      check("r2b(12) ★weight=0 は 'bad weight'（汎用検証＝1以上の整数は 0121 後も据置）",
+        !!eZ && eZ.message.includes("bad weight"), eZ?.message ?? "通ってしまった");
+      const { error: eF } = await mgr.rpc("check_set_nominations", {
+        p_check_id: openChk, p_nominations: [{ cast_id: castA, weight: 1.5, nom_kind: "hon", is_dohan: false }],
+      });
+      check("r2b(12) ★小数 weight は 'bad weight'（整数検証も据置）",
+        !!eF && eF.message.includes("bad weight"), eF?.message ?? "通ってしまった");
+      const { error: eOk } = await mgr.rpc("check_set_nominations", { p_check_id: openChk, p_nominations: [
+        { cast_id: castA, weight: 2, nom_kind: "free", is_dohan: false },
+        { cast_id: castB, weight: 1, nom_kind: "free", is_dohan: false },
+      ] });
+      const { data: fr } = await admin.from("check_nominations").select("cast_id, ratio_weight").eq("check_id", openChk);
+      const fA = (fr ?? []).find((r) => r.cast_id === castA);
+      check("r2b(12) ★free∧非同伴の weight=2 が通り保存される（0121＝旧『free は均等』撤去の証明）",
+        !eOk && fA?.ratio_weight === 2, eOk?.message ?? JSON.stringify(fr));
     }
 
     // ══ (11) 予約経由の指名転写（mig0120 裁定103）＝実 RPC reservation_to_check → 0118 backfill と同一写像 ══
