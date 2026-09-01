@@ -102,7 +102,8 @@ type Line = {
 // キャストドリンク（mig0066/0067）: 明細行に紐づく確定済み claim（status='approved' のみ引く）
 type DrinkClaim = { id: string; check_line_id: string | null; cast_id: string; back_amount: number };
 type Payment = { id: string; pay_group: string; method: string; amount: number; tendered: number | null; method_detail: string | null };
-type Nom = { cast_id: string; ratio_weight: number };
+// ★R-2b（裁定100・mig0118/0119）: 種別と同伴はキャスト別の行属性（checks.nom_type は派生サマリ）。
+type Nom = { cast_id: string; ratio_weight: number; nom_kind: "hon" | "jonai" | "free"; is_dohan: boolean };
 // F3c 二重承認（approvals・mig0035/0036）
 type Approval = {
   id: string; pay_group: string; type: string; amount: number; status: string;
@@ -364,8 +365,13 @@ export default function RegisterBoard({
   }, [check, openMap]);
 
   // フォーム状態
-  const [nomType, setNomType] = useState("hon");
+  // ★R-2b（裁定100）: 卓1値の nomType を廃止＝キャスト別の 種別（本/場内/フリー）＋同伴（別軸）。
+  const [nomKinds, setNomKinds] = useState<Record<string, "hon" | "jonai" | "free">>({});
+  const [nomDohan, setNomDohan] = useState<Record<string, boolean>>({});
   const [nomWeights, setNomWeights] = useState<Record<string, number>>({});
+  // ★裁定102: 課金ボタンの idem_key＝描画時に生成し成功後に再生成（連打/再送は同一行に吸収）。
+  const [idemShimei, setIdemShimei] = useState<string>(() => crypto.randomUUID());
+  const [idemDohan, setIdemDohan] = useState<string>(() => crypto.randomUUID());
   const [prodGroup, setProdGroup] = useState("A"); // 段B: タイル追加先の伝票グループ（既定 A）
   // 段0R 第1陣: カテゴリチップの絞り込み（""=すべて）。表示のみ・取得も RPC も不変。
   const [catFilter, setCatFilter] = useState("");
@@ -458,7 +464,7 @@ export default function RegisterBoard({
     const { data: ps } = await supabase
       .from("payments").select("id, pay_group, method, amount, tendered, method_detail").eq("check_id", checkId).order("paid_at");
     const { data: ns } = await supabase
-      .from("check_nominations").select("cast_id, ratio_weight").eq("check_id", checkId).order("position");
+      .from("check_nominations").select("cast_id, ratio_weight, nom_kind, is_dohan").eq("check_id", checkId).order("position");
     const { data: aps } = await supabase
       .from("approvals").select("id, pay_group, type, amount, status, reason, requested_by, created_at")
       .eq("check_id", checkId).order("created_at", { ascending: false });
@@ -483,7 +489,15 @@ export default function RegisterBoard({
     setNoms((ns ?? []) as Nom[]);
     setApprovals((aps ?? []) as Approval[]);
     if (c) {
-      setNomType((c as CheckRow).nom_type);
+      // ★R-2b: キャスト別の種別・同伴を DB 行から積む（checks.nom_type は派生サマリ＝state に持たない）。
+      {
+        const kinds: Record<string, "hon" | "jonai" | "free"> = {};
+        const dohans: Record<string, boolean> = {};
+        for (const n of (ns ?? []) as Nom[]) { kinds[n.cast_id] = n.nom_kind; dohans[n.cast_id] = n.is_dohan; }
+        setNomKinds(kinds); setNomDohan(dohans);
+      }
+      // ★裁定102: 伝票を読み直すたびに idem_key を新調（別操作は別行・同操作の再送だけ吸収）。
+      setIdemShimei(crypto.randomUUID()); setIdemDohan(crypto.randomUUID());
       // R-2a-3: DB の相対重み（例 1,1,1,1）をそのまま % 欄に入れると合計4%で開幕から赤くなる＝
       //   Σ=100 へ正規化してから入れる（1,1,1,1→25×4・相対比は保存）。**表示のためだけ**の変換で、
       //   ユーザーが保存操作をするまで DB へは書き込まない（ns の順＝position 順＝端数の先頭優遇も決定的）。
@@ -635,17 +649,23 @@ export default function RegisterBoard({
     await loadCheck(data as string);
   }
 
+  // ★R-2b（裁定100）: 名簿1件＝{cast_id, weight, nom_kind, is_dohan}。free∧非同伴は RPC が weight=1 を
+  //   強制（'bad weight'）＝ここで 1 に正規化して送る（他はそのまま＝新しい丸め規則は作らない）。
+  function buildNomList(weights: Record<string, number>) {
+    return Object.entries(weights)
+      .filter(([, w]) => w > 0)
+      .map(([cast_id, weight]) => {
+        const kind = nomKinds[cast_id] ?? "free";
+        const dohan = nomDohan[cast_id] ?? false;
+        return { cast_id, weight: kind === "free" && !dohan ? 1 : weight, nom_kind: kind, is_dohan: dohan };
+      });
+  }
   async function saveNoms() {
     if (!check) return;
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
-    // R-2a-2: free は RPC 側が weight=1 を強制（≠1 は 'bad weight'）＝%編集後にタブを free へ
-    //   切り替えて保存しても落ちないよう、free のときは 1 に正規化して送る（他種別はそのまま）。
-    const list = Object.entries(nomWeights)
-      .filter(([, w]) => w > 0)
-      .map(([cast_id, weight]) => ({ cast_id, weight: nomType === "free" ? 1 : weight }));
     const { error } = await supabase.rpc("check_set_nominations", {
-      p_check_id: check.id, p_nom_type: nomType, p_nominations: list,
+      p_check_id: check.id, p_nominations: buildNomList(nomWeights), // ★0119: 2引数（種別は行属性）
     });
     setMsg(error
       ? { to: MSG_DETAIL, text: error.message, kind: "bad" }
@@ -699,16 +719,24 @@ export default function RegisterBoard({
     if (!(await tb.flush())) return; // money 系: 保留タップを先に確定（失敗＝中止）
     setFeeMsg(null);
     setFeeBusy(true);
+    // ★裁定102: idem_key 付き（連打/再送は同一行）。成功後に次回用キーを再生成。
     const { data: lineId, error } = await supabase.rpc("check_shimei_add", {
-      p_check_id: check.id, p_cast_id: feeCast, p_kind: kind,
+      p_check_id: check.id, p_cast_id: feeCast, p_kind: kind, p_idem_key: idemShimei,
     });
     if (error) { setFeeMsg({ to: FEE_SHIMEI, text: chargeErrJa(error.message), kind: "bad" }); setFeeBusy(false); return; }
-    // 按分へ自動反映（既に居れば重み据置・居なければ 1 で追加）＋按分種別を課金種別へ
+    setIdemShimei(crypto.randomUUID());
+    // 按分へ自動反映（既に居れば重み据置・居なければ 1 で追加）＋**このキャストの**種別を課金種別へ（R-2b）
     const merged: Record<string, number> = { ...nomWeights };
     if (!((merged[feeCast] ?? 0) > 0)) merged[feeCast] = 1;
-    const list = Object.entries(merged).filter(([, w]) => w > 0).map(([cast_id, weight]) => ({ cast_id, weight }));
+    const kinds = { ...nomKinds, [feeCast]: kind };
+    setNomKinds(kinds);
+    const list = Object.entries(merged).filter(([, w]) => w > 0).map(([cast_id, weight]) => {
+      const k = kinds[cast_id] ?? "free";
+      const d = nomDohan[cast_id] ?? false;
+      return { cast_id, weight: k === "free" && !d ? 1 : weight, nom_kind: k, is_dohan: d };
+    });
     const { error: e2 } = await supabase.rpc("check_set_nominations", {
-      p_check_id: check.id, p_nom_type: kind, p_nominations: list,
+      p_check_id: check.id, p_nominations: list, // ★0119: 2引数
     });
     // 追加行の額（¥0＝料金未設定の可視化。返値は行 id＝mig0084）
     //   R-1a 段2: 同伴料・延長と同一経路へ寄せた（クエリは従来と同値＝line_total を1回 select）。
@@ -727,12 +755,14 @@ export default function RegisterBoard({
   }
   async function addDohanFee() {
     if (!check || feeBusy) return;
+    // ★R-2b（裁定100 A-5）: 同伴料は cast 必須＝対象キャスト（feeCast）を選んでから。
+    if (!feeCast) { setFeeMsg({ to: FEE_DOHAN, text: "同伴するキャストをタップして選択してください（同伴料はキャスト必須になりました）", kind: "bad" }); return; }
     if (!(await tb.flush())) return;
     setFeeMsg(null);
     setFeeBusy(true);
-    // R-1a 段2（裁定61-1）: 戻り uuid＝追加した行 id（mig0084）。単価×人数の操作なので**両方出す**。
+    // R-1a 段2（裁定61-1）: 戻り uuid＝追加した行 id。★0119: cast 必須＋idem_key（裁定102）。
     const { data: lineId, error } = await supabase.rpc("check_dohan_add", {
-      p_check_id: check.id, p_count: dohanN,
+      p_check_id: check.id, p_cast_id: feeCast, p_count: dohanN, p_idem_key: idemDohan,
     });
     if (error) {
       setFeeBusy(false);
@@ -740,15 +770,30 @@ export default function RegisterBoard({
       await loadCheck(check.id);
       return;
     }
+    setIdemDohan(crypto.randomUUID());
+    // ★R-2b: 同伴料を付けたキャストは名簿の is_dohan を on にして保存（種別は据え置き＝別軸・裁定86-④）。
+    {
+      const merged: Record<string, number> = { ...nomWeights };
+      if (!((merged[feeCast] ?? 0) > 0)) merged[feeCast] = 1;
+      const dohans = { ...nomDohan, [feeCast]: true };
+      setNomDohan(dohans);
+      const list = Object.entries(merged).filter(([, w]) => w > 0).map(([cast_id, weight]) => {
+        const k = nomKinds[cast_id] ?? "free";
+        const d = dohans[cast_id] ?? false;
+        return { cast_id, weight: k === "free" && !d ? 1 : weight, nom_kind: k, is_dohan: d };
+      });
+      const { error: e2 } = await supabase.rpc("check_set_nominations", { p_check_id: check.id, p_nominations: list });
+      if (e2) console.warn("[R-2b] 同伴料は追加しましたが名簿の is_dohan 反映に失敗（行は明細に存在）", e2.message);
+    }
     const { unit, total } = await lineAmountOf(lineId);
     setFeeBusy(false);
     setFeeMsg({ to: FEE_DOHAN, kind: "ok",
       // 額が取れなかったときは**額を省いた文言**で続行（操作自体は成功しているのでエラーにしない）
       text: total == null
-        ? `同伴料を追加しました（${dohanN}名分・金額は明細でご確認ください）`
+        ? `${castName(feeCast)} に同伴料を追加しました（${dohanN}名分・金額は明細でご確認ください）`
         : unit != null
-          ? `同伴料 ${yen(unit)}×${dohanN}名 を追加しました（計 ${yen(total)}）`
-          : `同伴料 ${yen(total)} を追加しました（${dohanN}名分）` });
+          ? `${castName(feeCast)} に同伴料 ${yen(unit)}×${dohanN}名 を追加しました（計 ${yen(total)}）`
+          : `${castName(feeCast)} に同伴料 ${yen(total)} を追加しました（${dohanN}名分）` });
     await loadCheck(check.id);
   }
 
@@ -793,9 +838,11 @@ export default function RegisterBoard({
   //   そのまま渡し、ここで種別は変えない（タブ state の nomType は使わない）。
   //   渡す重みも **DB の ratio_weight**＝未保存のローカル編集を巻き込まない。
   async function replaceNomsFromDb(excludeCastId: string, chk: CheckRow): Promise<string | null> {
-    const next = noms.filter((n) => n.cast_id !== excludeCastId).map((n) => ({ cast_id: n.cast_id, weight: n.ratio_weight }));
+    // ★R-2b: 種別・同伴も **DB 行の値**をそのまま渡す（未保存のローカル編集を巻き込まない・従来の重み方針と同じ）。
+    const next = noms.filter((n) => n.cast_id !== excludeCastId)
+      .map((n) => ({ cast_id: n.cast_id, weight: n.ratio_weight, nom_kind: n.nom_kind, is_dohan: n.is_dohan }));
     const { error } = await supabase.rpc("check_set_nominations", {
-      p_check_id: chk.id, p_nom_type: chk.nom_type, p_nominations: next,
+      p_check_id: chk.id, p_nominations: next, // ★0119: 2引数（p_nom_type 撤去＝サマリは RPC が導出）
     });
     return error ? (error.message ?? "unknown") : null;
   }
@@ -1894,18 +1941,11 @@ export default function RegisterBoard({
           {/* E8-1b F2: 指名フロー1本化＝CastPicker→「本指名｜場内」で課金行＋按分へ自動反映。
               種別プルダウンは廃止しセグメントへ。重み微調整は折りたたみに格納。 */}
           <h3 style={t.cardTitle}>指名</h3>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-            <span className="nox-seg" style={{ display: "inline-flex" }}>
-              {([["hon", "本指名"], ["jonai", "場内"], ["dohan", "同伴"], ["free", "フリー"]] as const).map(([v, l]) => (
-                <button key={v} type="button" className={nomType === v ? "on" : ""}
-                  style={{ fontWeight: 700, fontSize: 12.5, padding: "7px 12px" }}
-                  onClick={() => setNomType(v)}>
-                  {l}
-                </button>
-              ))}
-            </span>
-            <span style={{ fontSize: 11.5, color: "var(--sub)" }}>按分の種別（保存・指名料ボタンで反映）</span>
-          </div>
+          {/* ★R-2b（裁定100）: 卓で1種別のセグメントは廃止＝種別（本/場内/フリー）と同伴は
+              下の「指名の分配率」でキャスト行ごとに設定（同一キャストに本指名∧同伴の同時成立可＝裁定86-④）。 */}
+          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" }}>
+            キャストをタップして名簿へ追加し、種別・同伴・分配率は下の「指名の分配率」で行ごとに設定します。
+          </p>
           {/* ⑤: タップ＝按分トグル＋指名料の対象キャストとして記憶（feeCast） */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
@@ -1975,16 +2015,12 @@ export default function RegisterBoard({
               </div>
               {/* モック seatbadge 相当＝合計バッジ（total===100 ? ok : bad） */}
               <span style={{ ...t.tag, whiteSpace: "nowrap",
-                color: nomType === "free" ? "var(--sub)" : nomTotalW === 100 ? "var(--ok)" : "var(--bad)",
+                color: nomTotalW === 100 ? "var(--ok)" : "var(--bad)",
                 borderColor: "var(--line2)" }}>
-                {nomType === "free" ? "均等" : `合計${nomTotalW}%`}
+                合計{nomTotalW}%
               </span>
             </div>
-            {nomType === "free" && (
-              <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 6px", lineHeight: 1.7 }}>
-                フリーは均等配分のみ（サーバが重み1を固定するため、%の調整と個別の除外はできません）。
-              </p>
-            )}
+            {/* ★R-2b: フリー（同伴なし）の行はサーバが重み1を固定（'bad weight'）＝%入力は無効・保存時 1 で送る。 */}
             {/* R-2a-3: 分配結果カードを統合＝1行に 名前／副文（{種別}の実績配分）／%入力／件数相当／×。
                 同じ人名を2枚のカードで2度読ませない（モックは横並び2カラム・実装は縦積みのための統合判断）。 */}
             <div className="nox-inset" style={{ padding: "9px 12px", margin: "0 0 4px" }}>
@@ -1994,16 +2030,34 @@ export default function RegisterBoard({
               </p>
             </div>
             {nomSelected.map((ca) => {
-              const share = nomType === "free"
-                ? 1 / nomSelected.length
-                : nomTotalW > 0 ? (nomWeights[ca.id] ?? 0) / nomTotalW : 0;
+              // ★R-2b: 種別・同伴はキャスト行の属性（裁定100・同時成立可＝裁定86-④）。
+              const kind = nomKinds[ca.id] ?? "free";
+              const dohan = nomDohan[ca.id] ?? false;
+              const freeLocked = kind === "free" && !dohan; // RPC が weight=1 を固定
+              const share = nomTotalW > 0 ? (nomWeights[ca.id] ?? 0) / nomTotalW : 0;
               return (
-              <div key={ca.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+              <div key={ca.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 90 }}>
                   <b style={{ fontSize: 12.5 }}>{ca.name}</b>
-                  <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>{NOM_LABEL[nomType]}の実績配分</span>
+                  <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
+                    {NOM_LABEL[kind]}{dohan ? "＋同伴" : ""}の実績配分
+                  </span>
                 </div>
-                {nomType !== "free" ? (
+                <span className="nox-seg" style={{ display: "inline-flex" }}>
+                  {([["hon", "本"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([v, l]) => (
+                    <button key={v} type="button" className={kind === v ? "on" : ""}
+                      style={{ fontWeight: 700, fontSize: 11, padding: "5px 9px" }}
+                      onClick={() => setNomKinds((prev) => ({ ...prev, [ca.id]: v }))}>
+                      {l}
+                    </button>
+                  ))}
+                </span>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11.5 }}>
+                  <input type="checkbox" checked={dohan}
+                    onChange={(e) => setNomDohan((prev) => ({ ...prev, [ca.id]: e.target.checked }))} />
+                  同伴
+                </label>
+                {!freeLocked ? (
                   <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <input
                       type="number" min={1} max={100} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} の分配率`}
@@ -2016,50 +2070,42 @@ export default function RegisterBoard({
                     <span style={{ fontSize: 12, color: "var(--sub)" }}>%</span>
                   </label>
                 ) : (
-                  <span className="num" style={{ fontSize: 12.5, color: "var(--champ)" }}>
-                    {Math.round(100 / nomSelected.length)}%
-                  </span>
+                  <span className="num" style={{ fontSize: 12.5, color: "var(--champ)" }} title="フリー（同伴なし）は均等固定">均等</span>
                 )}
                 <span className="num" style={{ fontSize: 11, color: "var(--sub)", whiteSpace: "nowrap" }}>
                   {share.toFixed(2)}件相当
                 </span>
                 <button type="button" aria-label={`${ca.name}を分配から外す`}
-                  disabled={nomType === "free"}
                   onClick={() => void removeShareCast(ca.id)}
                   style={{ ...btnLight, padding: "2px 9px", fontWeight: 800,
-                    color: nomType === "free" ? "var(--sub)" : "var(--bad)",
-                    borderColor: nomType === "free" ? "var(--line2)" : "var(--bad)" }}>
+                    color: "var(--bad)", borderColor: "var(--bad)" }}>
                   ×
                 </button>
               </div>
               );
             })}
-            {nomType !== "free" && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 11.5 }}>
-                  <span style={{ color: "var(--sub)" }}>分配率の合計</span>
-                  <b className="num" style={{ color: nomTotalW === 100 ? "var(--ok)" : "var(--bad)" }}>{nomTotalW}%</b>
-                </div>
-                <div style={{ height: 6, background: "var(--line)", borderRadius: 3, marginTop: 4, overflow: "hidden" }}>
-                  <i style={{ display: "block", height: "100%", width: `${Math.min(100, nomTotalW)}%`,
-                    background: nomTotalW === 100 ? "var(--ok)" : "var(--bad)" }} />
-                </div>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 11.5 }}>
+                <span style={{ color: "var(--sub)" }}>分配率の合計</span>
+                <b className="num" style={{ color: nomTotalW === 100 ? "var(--ok)" : "var(--bad)" }}>{nomTotalW}%</b>
               </div>
-            )}
+              <div style={{ height: 6, background: "var(--line)", borderRadius: 3, marginTop: 4, overflow: "hidden" }}>
+                <i style={{ display: "block", height: "100%", width: `${Math.min(100, nomTotalW)}%`,
+                  background: nomTotalW === 100 ? "var(--ok)" : "var(--bad)" }} />
+              </div>
+            </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-              {nomType !== "free" && (
-                <button type="button" style={btnLight}
-                  onClick={() => setNomWeights((prev) => {
-                    // %版の均等＝100 を整数で山分け（端数は先頭から +1）。Σ=100 を常に満たす。
-                    const next = { ...prev };
-                    const n = nomSelected.length;
-                    const base = Math.floor(100 / n), rem = 100 - base * n;
-                    nomSelected.forEach((ca, i) => { next[ca.id] = base + (i < rem ? 1 : 0); });
-                    return next;
-                  })}>
-                  均等に分配
-                </button>
-              )}
+              <button type="button" style={btnLight}
+                onClick={() => setNomWeights((prev) => {
+                  // %版の均等＝100 を整数で山分け（端数は先頭から +1）。Σ=100 を常に満たす。
+                  const next = { ...prev };
+                  const n = nomSelected.length;
+                  const base = Math.floor(100 / n), rem = 100 - base * n;
+                  nomSelected.forEach((ca, i) => { next[ca.id] = base + (i < rem ? 1 : 0); });
+                  return next;
+                })}>
+                均等に分配
+              </button>
               <button onClick={saveNoms} style={btnDark}>分配を保存</button>
               <span style={{ fontSize: 11, color: "var(--sub)" }}>
                 ※指名料ボタンを使った場合は自動保存済み（ここは手調整用）

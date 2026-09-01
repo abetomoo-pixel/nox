@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
 type Claim = {
-  id: string; qty: number; status: string; created_at: string; cast_id: string;
+  id: string; qty: number; status: string; created_at: string; cast_id: string; check_id: string;
   casts: { name: string } | { name: string }[] | null;
   products: { name: string; price: number; back_mode: string; back_value: number | null; unit4_json: Record<string, number> | null }
     | { name: string; price: number; back_mode: string; back_value: number | null; unit4_json: Record<string, number> | null }[] | null;
@@ -24,13 +24,18 @@ const one = <T,>(x: T | T[] | null): T | null => (Array.isArray(x) ? x[0] ?? nul
 const hhmm = (iso: string) =>
   new Date(iso).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" });
 
-/** drink_claim_decide の焼付式と同式（unit4 → unit4_json[nom_type] / rate → round(price×back_value/100)）。表示は目安・権威は DB。 */
-function previewBack(c: Claim, qty: number): number {
+/** ★R-2b（0119）: nom_unit4_key の鏡＝種別優先（hon/jonai）→同伴→free。 */
+function nomUnit4Key(kind: string | undefined, dohan: boolean | undefined): string {
+  if (kind === "hon" || kind === "jonai") return kind;
+  return dohan ? "dohan" : "free";
+}
+/** drink_claim_decide の焼付式と同式（★0119: unit4 キー＝申告キャスト自身の名簿行・無ければ伝票の派生サマリ）。表示は目安・権威は DB。 */
+function previewBack(c: Claim, qty: number, nomKey: string | undefined): number {
   const p = one(c.products);
-  const nom = one(c.checks)?.nom_type ?? "free";
+  const key = nomKey ?? one(c.checks)?.nom_type ?? "free"; // DB の coalesce(v_key, v_chk.nom_type) と同輪郭
   if (!p) return 0;
   const unit = p.back_mode === "unit4"
-    ? Number(p.unit4_json?.[nom] ?? 0)
+    ? Number(p.unit4_json?.[key] ?? 0)
     : Math.round((p.price * Number(p.back_value ?? 0)) / 100);
   return unit * qty;
 }
@@ -38,6 +43,8 @@ function previewBack(c: Claim, qty: number): number {
 export default function DrinkClaimQueue() {
   const supabase = createClient();
   const [claims, setClaims] = useState<Claim[]>([]);
+  // ★R-2b: 申告キャスト自身の名簿キー（`${check_id}:${cast_id}` → unit4 キー）。無ければ派生サマリへ縮退。
+  const [nomKeys, setNomKeys] = useState<Record<string, string>>({});
   const [qtyOv, setQtyOv] = useState<Record<string, string>>({}); // claim_id → 杯数訂正（空なら null 送信）
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -45,10 +52,22 @@ export default function DrinkClaimQueue() {
   const load = useCallback(async () => {
     const { data } = await supabase
       .from("drink_claims")
-      .select("id, qty, status, created_at, cast_id, casts(name), products(name, price, back_mode, back_value, unit4_json), checks(nom_type)")
+      .select("id, qty, status, created_at, cast_id, check_id, casts(name), products(name, price, back_mode, back_value, unit4_json), checks(nom_type)")
       .eq("status", "pending")
       .order("created_at", { ascending: true });
-    setClaims((data ?? []) as Claim[]);
+    const rows = (data ?? []) as Claim[];
+    setClaims(rows);
+    // ★R-2b: 申告キャストの名簿行（nom_kind/is_dohan）を1回で読む＝目安式をキャスト別キーへ。
+    const checkIds = Array.from(new Set(rows.map((r) => r.check_id)));
+    if (checkIds.length > 0) {
+      const { data: noms } = await supabase
+        .from("check_nominations").select("check_id, cast_id, nom_kind, is_dohan").in("check_id", checkIds);
+      const m: Record<string, string> = {};
+      for (const n of (noms ?? []) as { check_id: string; cast_id: string; nom_kind?: string; is_dohan?: boolean }[]) {
+        m[`${n.check_id}:${n.cast_id}`] = nomUnit4Key(n.nom_kind, n.is_dohan);
+      }
+      setNomKeys(m);
+    } else setNomKeys({});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -116,7 +135,7 @@ export default function DrinkClaimQueue() {
                   <td style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{one(c.casts)?.name ?? "(不明)"}</td>
                   <td>{one(c.products)?.name ?? "(商品不明)"}</td>
                   <td className="num" style={{ textAlign: "left" }}>{c.qty}</td>
-                  <td className="num" style={{ textAlign: "left", color: "var(--champ)", whiteSpace: "nowrap" }}>{yen(previewBack(c, effQty))}</td>
+                  <td className="num" style={{ textAlign: "left", color: "var(--champ)", whiteSpace: "nowrap" }}>{yen(previewBack(c, effQty, nomKeys[`${c.check_id}:${c.cast_id}`]))}</td>
                   <td>
                     <input type="number" min={1} placeholder={String(c.qty)} value={qtyOv[c.id] ?? ""}
                       onChange={(e) => setQtyOv((m) => ({ ...m, [c.id]: e.target.value }))}

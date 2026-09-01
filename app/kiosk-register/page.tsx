@@ -42,7 +42,8 @@ type DetailCheck = {
 };
 type DetailLine = { id: string; kind: string; pay_group: string; name_snapshot: string; unit_price_snapshot: number; qty: number; line_total: number };
 type DetailPayment = { id: string; pay_group: string; method: string; amount: number; tendered: number | null; method_detail: string | null };
-type DetailNom = { cast_id: string; ratio_weight: number };
+// ★R-2b: kiosk_check_detail は 0119 不触＝nom_kind/is_dohan を返さない（optional・返れば読む防御形）。
+type DetailNom = { cast_id: string; ratio_weight: number; nom_kind?: "hon" | "jonai" | "free"; is_dohan?: boolean };
 type Detail = {
   check: DetailCheck; time_mode: string; lines: DetailLine[]; payments: DetailPayment[];
   nominations: DetailNom[]; extra_seat_ids: string[]; paid_total: number; balance: number;
@@ -128,7 +129,10 @@ export default function KioskRegisterPage() {
   const [openBusy, setOpenBusy] = useState(false);
 
   // フォーム状態（register-board 写経）
-  const [nomType, setNomType] = useState("hon");
+  // ★R-2b（裁定100）: 種別・同伴はキャスト別。kiosk_check_detail が kinds を返さないため初期値は
+  //   free/同伴なし＝保存時は表示中の値で置き換わる（カード上に注意文・恒久解は detail への kinds 追加＝起票）。
+  const [nomKinds, setNomKinds] = useState<Record<string, "hon" | "jonai" | "free">>({});
+  const [nomDohan, setNomDohan] = useState<Record<string, boolean>>({});
   const [nomWeights, setNomWeights] = useState<Record<string, number>>({});
   const [prodGroup, setProdGroup] = useState("A"); // 段B: タイル追加先の伝票グループ（既定 A）
   // 段0R 第3陣: カテゴリチップの絞り込み（""=すべて）。register 8c07e5b と同一＝表示のみ・取得も RPC も不変。
@@ -222,10 +226,15 @@ export default function KioskRegisterPage() {
     const d = data as Detail;
     setDetail(d);
     setTimeCalc(null); setTimeMsg(null);
-    setNomType(d.check.nom_type);
     const w: Record<string, number> = {};
-    for (const n of d.nominations) w[n.cast_id] = n.ratio_weight;
-    setNomWeights(w);
+    const ks: Record<string, "hon" | "jonai" | "free"> = {};
+    const ds: Record<string, boolean> = {};
+    for (const n of d.nominations) {
+      w[n.cast_id] = n.ratio_weight;
+      ks[n.cast_id] = n.nom_kind ?? "free"; // detail が kinds を返すようになれば自動で正値
+      ds[n.cast_id] = n.is_dohan ?? false;
+    }
+    setNomWeights(w); setNomKinds(ks); setNomDohan(ds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionLostIf]);
 
@@ -326,11 +335,16 @@ export default function KioskRegisterPage() {
     markAction();
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
+    // ★0119: 2引数＝行ごとに {cast_id, weight, nom_kind, is_dohan}。free∧非同伴は weight=1 固定（RPC 検証と同輪郭）。
     const list = Object.entries(nomWeights)
       .filter(([, w]) => w > 0)
-      .map(([cast_id, weight]) => ({ cast_id, weight }));
+      .map(([cast_id, weight]) => {
+        const k = nomKinds[cast_id] ?? "free";
+        const d = nomDohan[cast_id] ?? false;
+        return { cast_id, weight: k === "free" && !d ? 1 : weight, nom_kind: k, is_dohan: d };
+      });
     const { error } = await supabase.rpc("check_set_nominations", {
-      p_check_id: detail.check.id, p_nom_type: nomType, p_nominations: list,
+      p_check_id: detail.check.id, p_nominations: list,
     });
     if (error && sessionLostIf(error)) return;
     setMsg(error ? error.message : "指名を保存しました");
@@ -792,16 +806,13 @@ export default function KioskRegisterPage() {
                 <div className="nox-cardtop" style={card}>
                   <h3 style={t.cardTitle}>指名（重み比で分配）</h3>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                    {/* ★裁定40: 指名種別は**対象外・現状維持**（ボタン化しない）。
-                        許可理由＝単価に直結し、プルダウンの二段動作（開く→選ぶ）が
-                        誤操作ガードとして機能している。触りやすい端末で単価を取り違えさせない。 */}
-                    <select value={nomType} onChange={(e) => setNomType(e.target.value)} style={input}>
-                      <option value="hon">本指名</option>
-                      <option value="jonai">場内</option>
-                      <option value="dohan">同伴</option>
-                      <option value="free">フリー</option>
-                    </select>
+                    {/* ★R-2b（裁定100）: 卓1値の種別プルダウンを廃止＝下の行ごとに 種別＋同伴（裁定40 の
+                        「二段動作＝誤操作ガード」は行内プルダウンとして維持）。 */}
                   </div>
+                  <p style={{ fontSize: 11, color: "var(--bad)", margin: "0 0 8px", lineHeight: 1.7 }}>
+                    ※この端末では保存済みの種別・同伴を読み込めません（フリー表示で開きます）。
+                    「保存」を押すと表示中の種別・同伴で置き換わります。種別の確認・訂正は管理画面のレジで行ってください。
+                  </p>
                   {/* E8-1 ⑤（register-board 同型）: 按分チップ → CastPicker（検索・グリッド・着卓中先頭）。
                       kiosk は写真署名と punches が読めない＝頭文字アバター・出勤バッジなしで自動縮退。
                       タップ＝選択トグル（重み 0⇔1）＝データ形 nomWeights と saveNoms の送る引数は不変。 */}
@@ -812,18 +823,39 @@ export default function KioskRegisterPage() {
                     dense
                     onPick={(id) => setNomWeights((prev) => ({ ...prev, [id]: (prev[id] ?? 0) > 0 ? 0 : 1 }))}
                   />
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-                    {nomType !== "free" && (state?.casts ?? []).filter((ca) => (nomWeights[ca.id] ?? 0) > 0).map((ca) => (
-                      <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12.5 }}>
-                        {ca.name}
-                        <input
-                          type="number" min={1} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} 重み`}
-                          onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
-                          style={{ ...input, width: 46, padding: "6px 6px" }}
-                        />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+                    {(state?.casts ?? []).filter((ca) => (nomWeights[ca.id] ?? 0) > 0).map((ca) => {
+                      const k = nomKinds[ca.id] ?? "free";
+                      const d = nomDohan[ca.id] ?? false;
+                      const freeLocked = k === "free" && !d;
+                      return (
+                      <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, flexWrap: "wrap" }}>
+                        <b>{ca.name}</b>
+                        <select value={k} aria-label={`${ca.name} の種別`}
+                          onChange={(e) => setNomKinds((prev) => ({ ...prev, [ca.id]: e.target.value as "hon" | "jonai" | "free" }))}
+                          style={{ ...input, width: 84, padding: "5px 6px" }}>
+                          <option value="hon">本指名</option>
+                          <option value="jonai">場内</option>
+                          <option value="free">フリー</option>
+                        </select>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11.5 }}>
+                          <input type="checkbox" checked={d}
+                            onChange={(e) => setNomDohan((prev) => ({ ...prev, [ca.id]: e.target.checked }))} />
+                          同伴
+                        </label>
+                        {!freeLocked ? (
+                          <input
+                            type="number" min={1} value={nomWeights[ca.id] ?? 1} aria-label={`${ca.name} 重み`}
+                            onChange={(e) => setNomWeights((prev) => ({ ...prev, [ca.id]: Number(e.target.value) }))}
+                            style={{ ...input, width: 46, padding: "6px 6px" }}
+                          />
+                        ) : (
+                          <span style={{ fontSize: 11, color: "var(--sub)" }}>均等</span>
+                        )}
                       </span>
-                    ))}
-                    <button onClick={() => void saveNoms()} style={btnDark}>保存</button>
+                      );
+                    })}
+                    <div><button onClick={() => void saveNoms()} style={btnDark}>保存</button></div>
                   </div>
                 </div>
 
