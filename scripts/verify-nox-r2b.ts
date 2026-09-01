@@ -14,7 +14,7 @@
  *  (9) dohan の同一 idem_key 再送＝行が増えない（裁定102）
  *  (10) drink_claim の unit4 キー＝申告キャスト自身の名簿行（伝票サマリではない）
  *  (11) 予約経由の指名転写（mig0120 裁定103）＝dohan 予約→free/is_dohan=true・hon 予約→hon/false
- *  (12) weight 検証（mig0121 裁定107）＝汎用検証（1以上の整数）据置・free の均等固定（weight=1）は撤去
+ *  (12) weight 検証（mig0123 裁定110）＝0 許可（按分なし・端数 +1 も受けない）・名簿あり∧全0 拒否・小数拒否
  *
  * 逆張り: R2B_INVERT=1 で全 check の期待を反転＝全赤を実測（各 assert が落ち得ることの機械証明）。
  *   加えて (1) はデータ逆張り（1行の nom_kind を壊す→赤→復元）を実行ログで確認する運用。
@@ -62,18 +62,20 @@ async function main() {
   const { data: mgrU } = await admin.from("users").select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
   const actorId = mgrU!.id as string;
 
-  const CASTS = ["NOX-VERIFY-r2bA", "NOX-VERIFY-r2bB"];
+  const CASTS = ["NOX-VERIFY-r2bA", "NOX-VERIFY-r2bB", "NOX-VERIFY-r2bC"];
   const SEAT = "NOX-VERIFY-r2b卓";
+  const SEAT2 = "NOX-VERIFY-r2b卓2"; // (12) 裁定110 の締め実走用（openChk と分離）
+  const PROD2 = "NOX-VERIFY-r2bドリンク2"; // (12) 用の rate バック drink（PROD は unit4∧按分除外のため別個体）
   const RES = "NOX-VERIFY-r2b予約客";
   const PROD = "NOX-VERIFY-r2bドリンク";
   const PLAN = "NOX-VERIFY-r2bプラン";
   const madeChecks: string[] = [];
-  let castA = "", castB = "", seatId = "", prodId = "";
+  let castA = "", castB = "", castC = "", seatId = "", seat2Id = "", prodId = "";
 
   async function teardown() {
     const { data: cs } = await admin.from("casts").select("id").in("name", CASTS);
     const ids = (cs ?? []).map((r) => r.id as string);
-    const { data: sts } = await admin.from("seats").select("id").eq("name", SEAT);
+    const { data: sts } = await admin.from("seats").select("id").in("name", [SEAT, SEAT2]);
     const seatIds = (sts ?? []).map((r) => r.id as string);
     const { data: chks } = seatIds.length
       ? await admin.from("checks").select("id").in("seat_id", seatIds)
@@ -95,7 +97,7 @@ async function main() {
     // ★教訓49 続報（2026-09-01）: 可視化ログが真因を特定＝在庫台帳 trigger（stock_on_check_line）が
     //   check_add_line 時に stock_logs 行を作り、products 削除が FK（stock_logs_product_id_fkey）で落ちて
     //   無音残置→anon-guard 段28 の偽赤になっていた。stock_logs を先に消してから products を消す（教訓44 型）。
-    const { data: prods } = await admin.from("products").select("id").eq("name", PROD);
+    const { data: prods } = await admin.from("products").select("id").in("name", [PROD, PROD2]);
     const prodIds = (prods ?? []).map((r) => r.id as string);
     if (prodIds.length) {
       await admin.from("stock_logs").delete().in("product_id", prodIds);
@@ -111,7 +113,9 @@ async function main() {
     // ── fixture ──
     castA = (await admin.from("casts").insert({ org_id: orgA, store_id: storeA1, name: CASTS[0], is_active: true }).select("id").single()).data!.id as string;
     castB = (await admin.from("casts").insert({ org_id: orgA, store_id: storeA1, name: CASTS[1], is_active: true }).select("id").single()).data!.id as string;
+    castC = (await admin.from("casts").insert({ org_id: orgA, store_id: storeA1, name: CASTS[2], is_active: true }).select("id").single()).data!.id as string;
     seatId = (await admin.from("seats").insert({ org_id: orgA, store_id: storeA1, name: SEAT, kind: "卓", sort_order: 99, is_active: true }).select("id").single()).data!.id as string;
+    seat2Id = (await admin.from("seats").insert({ org_id: orgA, store_id: storeA1, name: SEAT2, kind: "卓", sort_order: 98, is_active: true }).select("id").single()).data!.id as string;
 
     // ══ (1) backfill 同値（0118 以前の全行・zero-result fail）══
     {
@@ -293,27 +297,92 @@ async function main() {
         !!e && e.message.includes("dohan rate requires R-2b"), e?.message ?? "通ってしまった");
     }
 
-    // ══ (12) weight 検証（mig0121 裁定107）＝汎用検証は据置・free 均等固定は撤去 ══
-    //   ★(11) が openChk を fixture 閉卓する前に実行（open が前提の RPC 呼び）。
+    // ══ (12) weight 検証（mig0123 裁定110）＝0 許可・名簿あり∧全0 拒否・小数拒否・
+    //    端数 +1 は w=0 行に届かない（証明＝設計書 §2-7・ここは実伝票の締めで両経路を実走）══
+    //   ★(11) が openChk を fixture 閉卓する前に実行。締め実走は seat2 の別伝票2枚（openChk と分離）。
     {
-      const { error: eZ } = await mgr.rpc("check_set_nominations", {
-        p_check_id: openChk, p_nominations: [{ cast_id: castA, weight: 0, nom_kind: "hon", is_dohan: false }],
-      });
-      check("r2b(12) ★weight=0 は 'bad weight'（汎用検証＝1以上の整数は 0121 後も据置）",
-        !!eZ && eZ.message.includes("bad weight"), eZ?.message ?? "通ってしまった");
+      // a. 正例: weight=0 が通り保存される（0121 の free w=2 正例を包含＝混在名簿で 0 行あり）
+      const { error: eZ } = await mgr.rpc("check_set_nominations", { p_check_id: openChk, p_nominations: [
+        { cast_id: castA, weight: 100, nom_kind: "hon", is_dohan: false },
+        { cast_id: castB, weight: 0, nom_kind: "jonai", is_dohan: false },
+      ] });
+      const { data: zr } = await admin.from("check_nominations").select("cast_id, ratio_weight").eq("check_id", openChk);
+      const zB = (zr ?? []).find((r) => r.cast_id === castB);
+      check("r2b(12a) ★weight=0 が通り保存される（0123 裁定110＝按分なし行）",
+        !eZ && zB?.ratio_weight === 0, eZ?.message ?? JSON.stringify(zr));
+      // b. 負例: 名簿あり∧全0＝分母ゼロは 'bad weight'
+      const { error: eAll0 } = await mgr.rpc("check_set_nominations", { p_check_id: openChk, p_nominations: [
+        { cast_id: castA, weight: 0, nom_kind: "hon", is_dohan: false },
+        { cast_id: castB, weight: 0, nom_kind: "jonai", is_dohan: false },
+      ] });
+      check("r2b(12b) ★名簿あり∧全 weight=0 は 'bad weight'（分母ゼロ拒否）",
+        !!eAll0 && eAll0.message.includes("bad weight"), eAll0?.message ?? "通ってしまった");
+      // c. 小数＝'bad weight'（据え置き）
       const { error: eF } = await mgr.rpc("check_set_nominations", {
         p_check_id: openChk, p_nominations: [{ cast_id: castA, weight: 1.5, nom_kind: "hon", is_dohan: false }],
       });
-      check("r2b(12) ★小数 weight は 'bad weight'（整数検証も据置）",
+      check("r2b(12c) ★小数 weight は 'bad weight'（整数検証は据置）",
         !!eF && eF.message.includes("bad weight"), eF?.message ?? "通ってしまった");
-      const { error: eOk } = await mgr.rpc("check_set_nominations", { p_check_id: openChk, p_nominations: [
-        { cast_id: castA, weight: 2, nom_kind: "free", is_dohan: false },
-        { cast_id: castB, weight: 1, nom_kind: "free", is_dohan: false },
+      // b の後始末: openChk の名簿を有効な形へ戻す（(11) は名簿非依存だが状態を汚さない）
+      await mgr.rpc("check_set_nominations", { p_check_id: openChk, p_nominations: [
+        { cast_id: castA, weight: 1, nom_kind: "hon", is_dohan: false },
       ] });
-      const { data: fr } = await admin.from("check_nominations").select("cast_id, ratio_weight").eq("check_id", openChk);
-      const fA = (fr ?? []).find((r) => r.cast_id === castA);
-      check("r2b(12) ★free∧非同伴の weight=2 が通り保存される（0121＝旧『free は均等』撤去の証明）",
-        !eOk && fA?.ratio_weight === 2, eOk?.message ?? JSON.stringify(fr));
+
+      // d. 締め実走＝rate バック drink（price1000×50%＝unit500・按分対象）で2伝票を実 RPC で閉じる
+      const { data: p2, error: eP2 } = await admin.from("products").insert({
+        org_id: orgA, store_id: storeA1, type: "drink", name: PROD2, price: 1000, category: "ドリンク",
+        back_mode: "rate", back_value: 50, is_active: true, sort_order: 998,
+      }).select("id").single();
+      if (eP2 || !p2) throw new Error(`(12d) PROD2 insert: ${eP2?.message}`);
+      const prod2Id = p2.id as string;
+      const closeOne = async (noms: { cast_id: string; weight: number; nom_kind: string; is_dohan: boolean }[], qty: number) => {
+        const { data: cid, error: eO } = await mgr.rpc("check_open", { p_seat_id: seat2Id, p_people: 1, p_nom_type: "free" });
+        if (eO) throw new Error(`(12d) check_open: ${eO.message}`);
+        const chk = cid as string; madeChecks.push(chk);
+        const { error: eL } = await mgr.rpc("check_add_line", { p_check_id: chk, p_product_id: prod2Id, p_qty: qty, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
+        if (eL) throw new Error(`(12d) add_line: ${eL.message}`);
+        const { error: eN } = await mgr.rpc("check_set_nominations", { p_check_id: chk, p_nominations: noms });
+        if (eN) throw new Error(`(12d) set_noms: ${eN.message}`);
+        const { data: tot } = await admin.from("checks").select("total").eq("id", chk).single();
+        const due = tot!.total as number;
+        const { error: ePay } = await mgr.rpc("check_pay", { p_check_id: chk, p_method: "cash", p_amount: due, p_pay_group: "A", p_tendered: due, p_idem_key: randomUUID() });
+        if (ePay) throw new Error(`(12d) pay: ${ePay.message}`);
+        const { error: eC } = await mgr.rpc("check_close", { p_check_id: chk, p_idem_key: randomUUID() });
+        if (eC) throw new Error(`(12d) close: ${eC.message}`);
+        return chk;
+      };
+      // d-1: spec 形 [100,0]（qty2）／ d-2: [1,1,0]（qty3＝R=1 の端数 +1 を実走・0 行を飛ばす）
+      const d1 = await closeOne([
+        { cast_id: castA, weight: 100, nom_kind: "hon", is_dohan: false },
+        { cast_id: castB, weight: 0, nom_kind: "jonai", is_dohan: false },
+      ], 2);
+      const d2 = await closeOne([
+        { cast_id: castA, weight: 1, nom_kind: "hon", is_dohan: false },
+        { cast_id: castB, weight: 1, nom_kind: "jonai", is_dohan: false },
+        { cast_id: castC, weight: 0, nom_kind: "free", is_dohan: false },
+      ], 3);
+      // check_close 側（数量分配）: w=0 行は backs 行を持たない（+1 も受けない）
+      const backsOf = async (chk: string) =>
+        (await admin.from("check_cast_backs").select("cast_id, drink_back").eq("check_id", chk)).data ?? [];
+      const b1 = await backsOf(d1);
+      check("r2b(12d) ★[100,0] 締め＝check_close: w=0 の castB は backs なし・castA=2杯×500=1000",
+        b1.find((r) => r.cast_id === castA)?.drink_back === 1000 && !b1.some((r) => r.cast_id === castB),
+        JSON.stringify(b1));
+      const b2 = await backsOf(d2);
+      check("r2b(12e) ★[1,1,0] qty3 締め＝端数 +1 は w>0 の先頭へ（A=1000/B=500）・w=0 の castC は backs なし",
+        b2.find((r) => r.cast_id === castA)?.drink_back === 1000
+        && b2.find((r) => r.cast_id === castB)?.drink_back === 500
+        && !b2.some((r) => r.cast_id === castC),
+        JSON.stringify(b2));
+      // cast_sales_aggregate 側（金額按分・get_cast_sales 経由）: w=0 のみの castC は当日窓で sales 0（行なしも可）
+      const iso = (d: Date) => d.toISOString().slice(0, 10);
+      const now = new Date();
+      const { data: gs, error: eGs } = await mgr.rpc("get_cast_sales", {
+        p_store_id: storeA1, p_from: iso(new Date(now.getTime() - 2 * 864e5)), p_to: iso(new Date(now.getTime() + 2 * 864e5)),
+      });
+      const cRows = ((gs ?? []) as { cast_id: string; sales: number }[]).filter((r) => r.cast_id === castC);
+      check("r2b(12f) ★cast_sales_aggregate: w=0 のみの castC は sales 0（端数 +1 を受けない）",
+        !eGs && cRows.reduce((s, r) => s + r.sales, 0) === 0, eGs?.message ?? JSON.stringify(cRows));
     }
 
     // ══ (11) 予約経由の指名転写（mig0120 裁定103）＝実 RPC reservation_to_check → 0118 backfill と同一写像 ══
