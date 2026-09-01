@@ -102,6 +102,17 @@ const PENALTY_UNIT_JA: Partial<Record<keyof Penalty, string>> = {
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
+// ★裁定104: 数値入力の共通形＝スピナー非表示（.nox-numfield）＋ホイールで値が変わらない（onWheel blur）＋
+//   右寄せ・inputMode numeric。幅は「見える桁数」: 円系＝7桁（1,000,000）・率%/日数/本数＝4桁
+//   （input の左右 padding 20px＋境界2px を上乗せ＝クリップなしは DOM 実測で確認済み）。
+//   幅は整数 px（`Nch + α` の calc は端数幅になり、scrollWidth 切上げ×clientWidth 切捨てで恒常的に
+//   sw=cw+1 の偽クリップ判定になる＝DOM 実測で特定。整数幅なら全サイズ sw==cw を実測確認）。
+//   66px＝4桁: 1ch≈8.45px（num=tabular 13px）×4 ＋ padding20 ＋ border2。92px＝7桁: ×7 ＋ 同。
+const numFieldStyle = (digits: 7 | 4): React.CSSProperties => {
+  const w = digits === 7 ? 92 : 66;
+  return { ...input, textAlign: "right", width: w, minWidth: w };
+};
+const numWheelBlur = (e: React.WheelEvent<HTMLInputElement>) => e.currentTarget.blur();
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 export const secTitle: React.CSSProperties = t.cardTitle;
@@ -476,9 +487,10 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
   }
 
   // ── 上書きパネルの1行（縦積み・行頭「既定を使う」＋固定幅ラベル＋方式トグル＋値）──
-  const ovNum: React.CSSProperties = { ...input, width: "9ch", minWidth: "7ch" };
+  //   ★JSX 関数呼び（<OvRow/> にしない）＝レンダーごとに component 型が変わると React が remount して
+  //     入力中のフォーカスが毎キーで飛ぶ（DOM 実測で検出＝detached node）。関数呼びなら DOM 連続性が保たれる。
   const ovLabel: React.CSSProperties = { width: "5.5em", flex: "none", fontSize: 12, fontWeight: 700 };
-  const OvRow = ({ label, use, onUse, mode, onMode, val, onVal, unit }: {
+  const ovRow = ({ label, use, onUse, mode, onMode, val, onVal, unit }: {
     label: string; use: boolean; onUse: (v: boolean) => void;
     mode?: BackModeRow; onMode?: (v: BackModeRow) => void;
     val: string; onVal: (v: string) => void; unit: string;
@@ -495,8 +507,9 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
         </span>
       )}
       <input type="number" min={0} max={mode === "rate" ? 100 : undefined} value={val} disabled={use}
+        className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur}
         placeholder={use ? "既定" : ""} onChange={(e) => onVal(e.target.value)}
-        style={{ ...ovNum, opacity: use ? 0.5 : 1 }} />
+        style={{ ...numFieldStyle(mode === "rate" ? 4 : 7), opacity: use ? 0.5 : 1 }} />
       <span style={note}>{unit}</span>
     </div>
   );
@@ -550,18 +563,18 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                   <tr>
                     <td colSpan={5}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0" }}>
-                        <OvRow label="保証時給" use={ovd.useBase} onUse={(v) => setOvd((d) => ({ ...d, useBase: v }))}
-                          val={ovd.base} onVal={(v) => setOvd((d) => ({ ...d, base: v }))} unit="円" />
-                        <OvRow label="本指名" use={ovd.useHon} onUse={(v) => setOvd((d) => ({ ...d, useHon: v }))}
-                          mode={ovd.honMode} onMode={(v) => setOvd((d) => ({ ...d, honMode: v, honVal: "" }))}
-                          val={ovd.honVal} onVal={(v) => setOvd((d) => ({ ...d, honVal: v }))}
-                          unit={ovd.honMode === "rate" ? "%" : "円/本"} />
-                        <OvRow label="場内指名" use={ovd.useJonai} onUse={(v) => setOvd((d) => ({ ...d, useJonai: v }))}
-                          mode={ovd.jonaiMode} onMode={(v) => setOvd((d) => ({ ...d, jonaiMode: v, jonaiVal: "" }))}
-                          val={ovd.jonaiVal} onVal={(v) => setOvd((d) => ({ ...d, jonaiVal: v }))}
-                          unit={ovd.jonaiMode === "rate" ? "%" : "円/本"} />
-                        <OvRow label="同伴" use={ovd.useDohan} onUse={(v) => setOvd((d) => ({ ...d, useDohan: v }))}
-                          val={ovd.dohanVal} onVal={(v) => setOvd((d) => ({ ...d, dohanVal: v }))} unit="円/本" />
+                        {ovRow({ label: "保証時給", use: ovd.useBase, onUse: (v) => setOvd((d) => ({ ...d, useBase: v })),
+                          val: ovd.base, onVal: (v) => setOvd((d) => ({ ...d, base: v })), unit: "円" })}
+                        {ovRow({ label: "本指名", use: ovd.useHon, onUse: (v) => setOvd((d) => ({ ...d, useHon: v })),
+                          mode: ovd.honMode, onMode: (v) => setOvd((d) => ({ ...d, honMode: v, honVal: "" })),
+                          val: ovd.honVal, onVal: (v) => setOvd((d) => ({ ...d, honVal: v })),
+                          unit: ovd.honMode === "rate" ? "%" : "円/本" })}
+                        {ovRow({ label: "場内指名", use: ovd.useJonai, onUse: (v) => setOvd((d) => ({ ...d, useJonai: v })),
+                          mode: ovd.jonaiMode, onMode: (v) => setOvd((d) => ({ ...d, jonaiMode: v, jonaiVal: "" })),
+                          val: ovd.jonaiVal, onVal: (v) => setOvd((d) => ({ ...d, jonaiVal: v })),
+                          unit: ovd.jonaiMode === "rate" ? "%" : "円/本" })}
+                        {ovRow({ label: "同伴", use: ovd.useDohan, onUse: (v) => setOvd((d) => ({ ...d, useDohan: v })),
+                          val: ovd.dohanVal, onVal: (v) => setOvd((d) => ({ ...d, dohanVal: v })), unit: "円/本" })}
                         <p style={{ ...note, margin: 0 }}>既定を使う＝プランの値のまま。方式と値はペアで保存されます（この行の「変更」で確定）。</p>
                       </div>
                     </td>
@@ -627,10 +640,11 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
               {casts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <input placeholder="2026-07" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ ...input, width: 90 }} />
-            <label style={{ fontSize: 12 }}>日数 <input type="number" min={0} value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ ...input, width: 64 }} /></label>
-            <label style={{ fontSize: 12 }}>同伴 <input type="number" min={0} value={dohan} onChange={(e) => setDohan(Number(e.target.value))} style={{ ...input, width: 64 }} /></label>
-            <label style={{ fontSize: 12 }}>売上(円) <input type="number" min={0} value={sales} onChange={(e) => setSales(Number(e.target.value))} style={{ ...input, width: 100 }} /></label>
-            <label style={{ fontSize: 12 }}>指名 <input type="number" min={0} value={shimei} onChange={(e) => setShimei(Number(e.target.value))} style={{ ...input, width: 64 }} /></label>
+            {/* ★裁定104: スピナー非表示・桁数幅（日数/同伴/指名=4桁・売上=7桁）・右寄せ・ホイール無効 */}
+            <label style={{ fontSize: 12 }}>日数 <input type="number" min={0} value={days} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} onChange={(e) => setDays(Number(e.target.value))} style={numFieldStyle(4)} /></label>
+            <label style={{ fontSize: 12 }}>同伴 <input type="number" min={0} value={dohan} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} onChange={(e) => setDohan(Number(e.target.value))} style={numFieldStyle(4)} /></label>
+            <label style={{ fontSize: 12 }}>売上(円) <input type="number" min={0} value={sales} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} onChange={(e) => setSales(Number(e.target.value))} style={numFieldStyle(7)} /></label>
+            <label style={{ fontSize: 12 }}>指名 <input type="number" min={0} value={shimei} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} onChange={(e) => setShimei(Number(e.target.value))} style={numFieldStyle(4)} /></label>
             <button style={btnDark} onClick={save} disabled={!castId || !period}>保存</button>
           </div>
           <p style={{ ...note, marginTop: 8 }}>
@@ -728,9 +742,12 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
 export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, reload }: { penalty: Penalty; setPenalty: (p: Penalty) => void; exists: boolean; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
   // ★表示のみ日本語化（k＝state キー／RPC 引数名は英語のまま save() で明示送信）。
+  // ★裁定104: 円系（円/回・円）＝7桁・時間(h)/分＝4桁。スピナー非表示・右寄せ・ホイール無効。
   const num = (k: keyof Penalty, labelJa: string = PENALTY_LABEL_JA[k], unit: string | undefined = PENALTY_UNIT_JA[k]) => (
     <label style={{ fontSize: 12 }}>{labelJa}{unit ? `（${unit}）` : ""} <input type="number" min={0} value={penalty[k] as number}
-      onChange={(e) => setPenalty({ ...penalty, [k]: Number(e.target.value) })} style={{ ...input, width: 80 }} /></label>
+      className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur}
+      onChange={(e) => setPenalty({ ...penalty, [k]: Number(e.target.value) })}
+      style={numFieldStyle(unit?.includes("円") ? 7 : 4)} /></label>
   );
   async function save() {
     // 全12引数を明示送信（部分 null で既定値へ黙ってリセットさせない＝原則7・RPC も全引数 null 拒否）

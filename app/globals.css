@@ -2097,3 +2097,10 @@ body {
 /* 3系統に共通（モック13枚すべて一致） */
 .nox-mv1 .nox-cardtop,
 .nox-mv1 .nox-panel { border-radius: 11px; }
+
+/* ── 裁定104: 数値入力のスピナー非表示 ─────────────────────────────────────
+   /master/cast-comp/plan の数値入力（上書きパネル・ノルマ目標・罰金）から適用。
+   ホイールでの値変化は各 input の onWheel（blur）と対で殺す。色は持たない（token 非関与）。 */
+.nox-numfield::-webkit-inner-spin-button,
+.nox-numfield::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+.nox-numfield { -moz-appearance: textfield; appearance: textfield; }
