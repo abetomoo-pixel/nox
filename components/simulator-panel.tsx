@@ -23,6 +23,7 @@ export default function SimulatorPanel({
   openOkuri,
   defaultTaxMode,
   override,
+  compact = false,
 }: {
   mode: "cast" | "store";
   plans: CompPlan[];
@@ -31,6 +32,8 @@ export default function SimulatorPanel({
   openOkuri: number; // cast の open 送り実費残（店=0）
   defaultTaxMode: TaxMode;
   override?: PlanOverride; // cast の cast_plan.overrides_json（店モードは未使用）
+  /** ★裁定106 B2: 主入力（税区分・期間日数・出勤・時間・総売上・指名3・ドリンク）以外を「詳細」で畳む（既定 false＝従来） */
+  compact?: boolean;
 }) {
   const [planId, setPlanId] = useState(plans[0]?.id ?? "");
   const [taxMode, setTaxMode] = useState<TaxMode>(defaultTaxMode);
@@ -233,7 +236,9 @@ export default function SimulatorPanel({
             <label style={s.lbl}>場内(本)<br /><input type="number" value={f.jonai} onChange={set("jonai")} style={s.inpS} /></label>
           )}
           <label style={s.lbl}>同伴(本)<br /><input type="number" value={f.dohan} onChange={set("dohan")} style={s.inpS} /></label>
-          <label style={s.lbl}>本指名商品pt<br /><input type="number" value={f.pointProducts} onChange={set("pointProducts")} style={s.inpS} /></label>
+          {!compact && (
+            <label style={s.lbl}>本指名商品pt<br /><input type="number" value={f.pointProducts} onChange={set("pointProducts")} style={s.inpS} /></label>
+          )}
         </div>
         {(effHonMode === "rate" || effJonaiMode === "rate") && (
           <p style={{ fontSize: 11, color: s.sub, margin: "0 0 6px" }}>
@@ -242,16 +247,46 @@ export default function SimulatorPanel({
         )}
         <div style={s.row}>
           <label style={s.lbl}>ドリンクバック(円)<br /><input type="number" value={f.drink} onChange={set("drink")} style={s.inpS} /></label>
-          <label style={s.lbl}>シャンパン(円)<br /><input type="number" value={f.champ} onChange={set("champ")} style={s.inpS} /></label>
-          <label style={s.lbl}>ボトル(円)<br /><input type="number" value={f.bottle} onChange={set("bottle")} style={s.inpS} /></label>
+          {!compact && (
+            <>
+              <label style={s.lbl}>シャンパン(円)<br /><input type="number" value={f.champ} onChange={set("champ")} style={s.inpS} /></label>
+              <label style={s.lbl}>ボトル(円)<br /><input type="number" value={f.bottle} onChange={set("bottle")} style={s.inpS} /></label>
+            </>
+          )}
         </div>
-        <div style={s.row}>
-          <label style={s.lbl}>シャンパン本数<br /><input type="number" value={f.champCnt} onChange={set("champCnt")} style={s.inpS} /></label>
-          <label style={s.lbl}>ボトル本数<br /><input type="number" value={f.bottleCnt} onChange={set("bottleCnt")} style={s.inpS} /></label>
-        </div>
+        {!compact && (
+          <div style={s.row}>
+            <label style={s.lbl}>シャンパン本数<br /><input type="number" value={f.champCnt} onChange={set("champCnt")} style={s.inpS} /></label>
+            <label style={s.lbl}>ボトル本数<br /><input type="number" value={f.bottleCnt} onChange={set("bottleCnt")} style={s.inpS} /></label>
+          </div>
+        )}
       </fieldset>
 
-      {/* 罰金・ノルマ */}
+      {/* ★裁定106 B2（compact）: 主入力以外＝「詳細」で畳む（値・計算は不変＝表示だけ） */}
+      {compact ? (
+        <details style={{ margin: "0 0 12px" }}>
+          <summary style={{ fontSize: 12.5, color: "var(--champ)", cursor: "pointer", fontWeight: 700 }}>詳細（pt・シャンパン/ボトル・罰金・ノルマ）</summary>
+          <fieldset style={s.fs}><legend style={s.lg}>追加バック・pt</legend>
+            <div style={s.row}>
+              <label style={s.lbl}>本指名商品pt<br /><input type="number" value={f.pointProducts} onChange={set("pointProducts")} style={s.inpS} /></label>
+              <label style={s.lbl}>シャンパン(円)<br /><input type="number" value={f.champ} onChange={set("champ")} style={s.inpS} /></label>
+              <label style={s.lbl}>ボトル(円)<br /><input type="number" value={f.bottle} onChange={set("bottle")} style={s.inpS} /></label>
+            </div>
+            <div style={s.row}>
+              <label style={s.lbl}>シャンパン本数<br /><input type="number" value={f.champCnt} onChange={set("champCnt")} style={s.inpS} /></label>
+              <label style={s.lbl}>ボトル本数<br /><input type="number" value={f.bottleCnt} onChange={set("bottleCnt")} style={s.inpS} /></label>
+            </div>
+          </fieldset>
+          <fieldset style={s.fs}><legend style={s.lg}>罰金・ノルマ</legend>
+            <div style={s.row}>
+              <label style={s.lbl}>遅刻回数<br /><input type="number" value={f.lateN} onChange={set("lateN")} style={s.inpS} /></label>
+              <label style={s.lbl}>欠勤回数<br /><input type="number" value={f.absentN} onChange={set("absentN")} style={s.inpS} /></label>
+              <label style={s.lbl}>ノルマ日数<br /><input type="number" value={f.normDays} onChange={set("normDays")} style={s.inpS} /></label>
+              <label style={s.lbl}>ノルマ同伴<br /><input type="number" value={f.normDohan} onChange={set("normDohan")} style={s.inpS} /></label>
+            </div>
+          </fieldset>
+        </details>
+      ) : (
       <fieldset style={s.fs}><legend style={s.lg}>罰金・ノルマ</legend>
         <div style={s.row}>
           <label style={s.lbl}>遅刻回数<br /><input type="number" value={f.lateN} onChange={set("lateN")} style={s.inpS} /></label>
@@ -260,6 +295,7 @@ export default function SimulatorPanel({
           <label style={s.lbl}>ノルマ同伴<br /><input type="number" value={f.normDohan} onChange={set("normDohan")} style={s.inpS} /></label>
         </div>
       </fieldset>
+      )}
 
       {/* cast: 天引き反映トグル */}
       {mode === "cast" && (
