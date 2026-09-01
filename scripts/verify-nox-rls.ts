@@ -1104,16 +1104,39 @@ async function main() {
     check("F2a-2 D9a カウント: castA1b hon=1", rB?.hon === 1, JSON.stringify(rB));
 
     // ── TS/DB 同値（golden 単独・sales-alloc 鏡像）──
+    // ★0119/裁定105: 鏡像の種別はキャスト行 nomKind/isDohan（nomType 撤去＝DB counts_by_day と同じ行起点）
     const goldenMirror: AllocCheck = {
-      checkId: goldenCheckId, bizDate, nomType: "hon",
+      checkId: goldenCheckId, bizDate,
       groupDues: [{ payGroup: "A", due: 37_900 }, { payGroup: "B", due: 16_500 }],
-      noms: [{ castId: castIdA, weight: 6, position: 0 }, { castId: castIdB, weight: 4, position: 1 }],
+      noms: [{ castId: castIdA, weight: 6, position: 0, nomKind: "hon", isDohan: false },
+             { castId: castIdB, weight: 4, position: 1, nomKind: "hon", isDohan: false }],
     };
     const mir = allocCastSales([goldenMirror]);
     const mA = mir.find((r) => r.castId === castIdA);
     const mB = mir.find((r) => r.castId === castIdB);
     check("F2a-2 TS/DB 同値: 鏡像 castA1a（32,640/hon1）", mA?.sales === rA?.sales && mA?.hon === rA?.hon, JSON.stringify(mA));
     check("F2a-2 TS/DB 同値: 鏡像 castA1b（21,760/hon1）", mB?.sales === rB?.sales && mB?.hon === rB?.hon, JSON.stringify(mB));
+
+    // ── ★裁定105: 混在 fixture の鏡像カウント（hon+jonai／dohan+jonai）＝行 nom_kind/is_dohan 起点・
+    //    weight（％）非依存・dohan は別軸。DB 側の混在同値は verify-nox-r2b (2)(6) が実 RPC で係留済み。──
+    const mixHJ = allocCastSales([{ checkId: "mix-hj", bizDate,
+      groupDues: [{ payGroup: "A", due: 1_000 }],
+      noms: [{ castId: "cH", weight: 3, position: 0, nomKind: "hon", isDohan: false },
+             { castId: "cJ", weight: 1, position: 1, nomKind: "jonai", isDohan: false }] }]);
+    const hjH = mixHJ.find((r) => r.castId === "cH"), hjJ = mixHJ.find((r) => r.castId === "cJ");
+    check("F2a-2 ★鏡像混在 hon+jonai: 各自の種別で1件（weight 3:1 は本数に影響しない）",
+      hjH?.hon === 1 && hjH?.jonai === 0 && hjH?.dohan === 0
+      && hjJ?.jonai === 1 && hjJ?.hon === 0 && hjJ?.dohan === 0, JSON.stringify(mixHJ));
+    check("F2a-2 ★鏡像混在 hon+jonai: 金額按分の分母は伝票内全行（750/250）",
+      hjH?.sales === 750 && hjJ?.sales === 250, JSON.stringify(mixHJ));
+    const mixDJ = allocCastSales([{ checkId: "mix-dj", bizDate,
+      groupDues: [{ payGroup: "A", due: 1_000 }],
+      noms: [{ castId: "cD", weight: 1, position: 0, nomKind: "free", isDohan: true },
+             { castId: "cJ2", weight: 1, position: 1, nomKind: "jonai", isDohan: true }] }]);
+    const djD = mixDJ.find((r) => r.castId === "cD"), djJ = mixDJ.find((r) => r.castId === "cJ2");
+    check("F2a-2 ★鏡像混在 dohan+jonai: dohan は別軸（jonai∧同伴＝両方1件・free∧同伴＝dohan のみ1件）",
+      djD?.dohan === 1 && djD?.hon === 0 && djD?.jonai === 0
+      && djJ?.jonai === 1 && djJ?.dohan === 1 && djJ?.hon === 0, JSON.stringify(mixDJ));
 
     // ── allocDue の Σ保存恒等（単体）──
     const twoWay = allocDue(37_900, goldenMirror.noms);
