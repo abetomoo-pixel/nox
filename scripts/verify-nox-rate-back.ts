@@ -279,7 +279,11 @@ async function main() {
         if (eL) throw new Error(`line seed: ${eL.message}`);
       }
       if (nomCast) {
-        await admin.from("check_nominations").insert({ org_id: orgId, store_id: storeId, check_id: checkId, cast_id: nomCast, ratio_weight: 1, position: 0 });
+        // ★R-2b（0119）: 本数はキャスト行 nom_kind 起点＝親 nom_type を 0118 backfill と同一写像で明示
+        await admin.from("check_nominations").insert({
+          org_id: orgId, store_id: storeId, check_id: checkId, cast_id: nomCast, ratio_weight: 1, position: 0,
+          nom_kind: nomType === "hon" || nomType === "jonai" ? nomType : "free", is_dohan: nomType === "dohan",
+        });
       }
       return checkId;
     };

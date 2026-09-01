@@ -144,11 +144,11 @@ trial_register / trial_update / trial_hire / trial_reject
 ### A11. デバイス（1本）
 kiosk_provision（新規 kiosk の追加＝拡大操作）
 
-## B. 除外（96本）
+## B. 除外（98本）
 
-### B(a) 構造除外＝authenticated 実行不可（service/内部・24本）→ ゲート不要（B7 回避型(1)）
+### B(a) 構造除外＝authenticated 実行不可（service/内部・26本）→ ゲート不要（B7 回避型(1)）
 approval_apply / ar_policy_ok / audit_log_write / audit_log_write_service / cast_create_apply /
-cast_sales_aggregate / check_group_due / check_recalc / check_round_amount / **check_tax_round**（mig0113＝税丸め・IMMUTABLE・4者 revoke 済＝教訓43） / comp_plan_slide_check /
+cast_sales_aggregate / check_group_due / check_recalc / check_round_amount / **nom_unit4_key** / **nom_type_summary**（mig0119＝R-2b 補助・IMMUTABLE/STABLE の純ヘルパー・4者 revoke＝呼び出し元の公開 RPC が二重防御済み＝原則8 の check_round_amount 型） / **check_tax_round**（mig0113＝税丸め・IMMUTABLE・4者 revoke 済＝教訓43） / comp_plan_slide_check /
 consent_ok / daily_report_aggregate / get_cast_mynumber / payroll_finalize / payroll_mark_paid /
 payroll_reopen / print_claim / print_result / stock_on_check_line / stock_on_check_void /
 pricing_resolve_core / drink_claims_guard_line_update / drink_claims_on_line_delete

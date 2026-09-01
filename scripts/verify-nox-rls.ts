@@ -430,8 +430,8 @@ async function main() {
     check("F1b open 二重実行＝同一 id（冪等）", checkId === checkId2, `got ${checkId2}`);
 
     const { error: eN } = await c.rpc("check_set_nominations", {
-      p_check_id: checkId, p_nom_type: "hon",
-      p_nominations: [{ cast_id: castIdA, weight: 6 }, { cast_id: castIdB, weight: 4 }],
+      p_check_id: checkId,
+      p_nominations: [{ cast_id: castIdA, weight: 6, nom_kind: "hon", is_dohan: false }, { cast_id: castIdB, weight: 4, nom_kind: "hon", is_dohan: false }],
     });
     check("F1b set_nominations 成功", !eN, eN?.message);
 
@@ -770,7 +770,7 @@ async function main() {
     // check2: ar 込みで close → void → 連動確認
     const { data: check2 } = await c.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "jonai" });
     check2Id = check2 as string;
-    await c.rpc("check_set_nominations", { p_check_id: check2, p_nom_type: "jonai", p_nominations: [{ cast_id: castIdA, weight: 1 }] });
+    await c.rpc("check_set_nominations", { p_check_id: check2, p_nominations: [{ cast_id: castIdA, weight: 1, nom_kind: "jonai", is_dohan: false }] });
     await c.rpc("check_add_line", { p_check_id: check2, p_product_id: productId, p_qty: 2, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
     await c.rpc("check_pay", { p_check_id: check2, p_method: "ar", p_amount: 3300, p_pay_group: "A", p_tendered: null, p_idem_key: randomUUID() });
     await c.rpc("check_close", { p_check_id: check2, p_idem_key: randomUUID() });
@@ -1135,8 +1135,8 @@ async function main() {
     const { data: twId } = await m.rpc("check_open", { p_seat_id: seatId, p_people: 3, p_nom_type: "hon" });
     // seat 上に既存 open があると同一 id が返る恐れ→ golden 等は closed 済みなので新規 open される
     await m.rpc("check_set_nominations", {
-      p_check_id: twId, p_nom_type: "hon",
-      p_nominations: [{ cast_id: castIdA, weight: 1 }, { cast_id: castIdB, weight: 1 }, { cast_id: castIdC, weight: 1 }],
+      p_check_id: twId,
+      p_nominations: [{ cast_id: castIdA, weight: 1, nom_kind: "hon", is_dohan: false }, { cast_id: castIdB, weight: 1, nom_kind: "hon", is_dohan: false }, { cast_id: castIdC, weight: 1, nom_kind: "hon", is_dohan: false }],
     });
     // group due=1,600 ← bx=1,500・サ料10%→1,650・round_unit100 down→1,600
     await m.rpc("check_add_line", { p_check_id: twId, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "A", p_name: "3way", p_unit_price: 1_500 });
@@ -2801,8 +2801,8 @@ async function main() {
       // ── ★会計無改修: 相席後 check_group_due(=total) 不変 ＋ get_cast_sales 不変 ＋ close cleanup ──
       const { data: cC } = await mg.rpc("check_open", { p_seat_id: Xc, p_people: 2, p_nom_type: "hon" });
       const chkC = cC as string; made.push(chkC);
-      await mg.rpc("check_set_nominations", { p_check_id: chkC, p_nom_type: "hon",
-        p_nominations: [{ cast_id: castA1aId, weight: 1 }] });
+      await mg.rpc("check_set_nominations", { p_check_id: chkC,
+        p_nominations: [{ cast_id: castA1aId, weight: 1, nom_kind: "hon", is_dohan: false }] });
       await mg.rpc("check_add_line", { p_check_id: chkC, p_product_id: null, p_qty: 1, p_kind: "set",
         p_pay_group: "A", p_name: "B1B2会計無改修", p_unit_price: 1000 });
       const { data: t0 } = await admin.from("checks").select("total").eq("id", chkC);

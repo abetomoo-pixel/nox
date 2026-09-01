@@ -80,11 +80,13 @@ async function main() {
 
   const custIds: string[] = [];
   const checkIds: string[] = [];
+  const castIds: string[] = [];
   const cleanup = async () => {
     if (checkIds.length) {
       await admin.from("check_lines").delete().in("check_id", checkIds);
       await admin.from("checks").delete().in("id", checkIds);
     }
+    if (castIds.length) await admin.from("casts").delete().in("id", castIds); // ★0119: dohan 行 cast 必須 CHECK 対応の fixture cast
     if (custIds.length) await admin.from("customers").delete().in("id", custIds);
     // setter の残骸（テスト中に削除済みだが保険）＋ audit
     const { data: tRows } = await admin.from("store_sales_targets")
@@ -155,14 +157,19 @@ async function main() {
     // category fixture（A1・2031-03-20）: verify-nox-category-map の (4) と同じ12行を実 DB で再現
     const k5 = await mkCheck(sA1.id, "2031-03-20T20:00:00+09:00", "2031-03-20T22:00:00+09:00", 222500, null, 2);
     if (k5) {
-      const L = (kind: string, fee: string | null, total: number, sort: number) => ({
+      // ★R-2b（0119）: dohan 行は cast_id 必須 CHECK（NOT VALID でも新規 INSERT に即時強制＝教訓47）→ fixture cast を1人用意
+      const { data: dc } = await admin.from("casts").insert({
+        org_id: sA1.org_id, store_id: sA1.id, name: `${P53}-dohan-cast`, is_active: true,
+      }).select("id").single();
+      const dohanCastId = dc!.id as string; castIds.push(dohanCastId);
+      const L = (kind: string, fee: string | null, total: number, sort: number, castId: string | null = null) => ({
         org_id: sA1.org_id, store_id: sA1.id, check_id: k5, kind, fee_kind: fee, pay_group: "A",
         name_snapshot: `${P53}-${kind}${fee ? ":" + fee : ""}`, unit_price_snapshot: total, qty: 1,
-        line_total: total, sort_order: sort,
+        line_total: total, sort_order: sort, cast_id: castId,
       });
       const { error } = await admin.from("check_lines").insert([
         L("set", null, 5000, 1), L("time", "set", 3000, 2), L("time", null, 2000, 3),
-        L("charge", "hon_shimei", 3000, 4), L("charge", "jonai_shimei", 2000, 5), L("charge", "dohan", 4000, 6),
+        L("charge", "hon_shimei", 3000, 4), L("charge", "jonai_shimei", 2000, 5), L("charge", "dohan", 4000, 6, dohanCastId),
         L("charge", null, 10000, 7), L("drink", null, 2500, 8), L("champ", null, 150000, 9),
         L("bottle", null, 40000, 10), L("custom", null, 1000, 11), L("discount", null, 1500, 12),
       ]);

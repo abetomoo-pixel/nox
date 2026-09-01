@@ -330,7 +330,7 @@ async function main() {
   // ── 段5a: F1b 公開 RPC 7本 anon BLOCKED ──
   const F1B_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
     ["check_open", { p_seat_id: null, p_people: null, p_nom_type: null }],
-    ["check_set_nominations", { p_check_id: null, p_nom_type: null, p_nominations: null }],
+    ["check_set_nominations", { p_check_id: null, p_nominations: null }], // mig0119: 2引数
     ["check_add_line", { p_check_id: null, p_product_id: null, p_qty: null, p_kind: null, p_pay_group: null, p_name: null, p_unit_price: null }],
     ["check_remove_line", { p_line_id: null }],
     ["check_pay", { p_check_id: null, p_method: null, p_amount: null, p_pay_group: null, p_tendered: null, p_idem_key: null, p_method_detail: null }], // mig0046 で 7引数へ置換（旧6引数版 drop 済）
@@ -789,7 +789,7 @@ async function main() {
       //    （実在 id・org/店一致＝ゲートまで確実に到達し flag だけで落ちる。open の再利用ルックアップより前にゲート）
       const { error: eO1 } = await off.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
       check("段14 can_register=false staff check_open forbidden", forbidden(eO1), eO1?.message ?? "通ってしまった");
-      const { error: eO2 } = await off.rpc("check_set_nominations", { p_check_id: chkId, p_nom_type: "free", p_nominations: [] });
+      const { error: eO2 } = await off.rpc("check_set_nominations", { p_check_id: chkId, p_nominations: [] });
       check("段14 can_register=false staff check_set_nominations forbidden", forbidden(eO2), eO2?.message ?? "通ってしまった");
       const { error: eO3 } = await off.rpc("check_add_line", {
         p_check_id: chkId, p_product_id: null, p_qty: 1, p_kind: "set", p_pay_group: "A", p_name: "侵入", p_unit_price: 100,
@@ -814,7 +814,7 @@ async function main() {
       const { data: castRows } = await on.from("casts").select("id").eq("name", FIXTURE_USERS.castA1a.name).limit(1);
       const castId = castRows?.[0]?.id as string | undefined;
       const { error: eNom } = await on.rpc("check_set_nominations", {
-        p_check_id: chkId, p_nom_type: "jonai", p_nominations: [{ cast_id: castId, weight: 1 }],
+        p_check_id: chkId, p_nominations: [{ cast_id: castId, weight: 1, nom_kind: "jonai", is_dohan: false }],
       });
       check("段14 can_register=true staff check_set_nominations 成功", !eNom, eNom?.message);
       // due = 10,000 + サ10% → 100円切捨 = 11,000（NOX-VERIFY 店は settings 未設定＝既定 10/100/down）
@@ -3517,8 +3517,12 @@ async function main() {
     };
     const s28CastId = await ensureCast();
     // drink 商品（バック不変テスト用・price/back を実物から取得）
+    // ★2026-09-01: 段の意味的要件（BV=back_value で rate 計算・D=P-1000>0）をクエリで明示＝
+    //   back_mode/price 無差別の limit(1) だと他スイートの残置 fixture（unit4・price1000）を拾い
+    //   'bad amount'/BV=undefined の偽赤になる（f0 2連中に実発火・段30/31 の rate 絞りと同型へ）
     const { data: drinkP } = await admin.from("products").select("id, price, back_mode, back_value")
-      .eq("store_id", s28Store!.id).eq("type", "drink").eq("is_active", true).limit(1);
+      .eq("store_id", s28Store!.id).eq("type", "drink").eq("back_mode", "rate")
+      .not("back_value", "is", null).gt("price", 1000).eq("is_active", true).limit(1);
     let drink = drinkP?.[0];
     // ★裁定24② 恒久対処: fresh seed 直後は商品が 0（seed:f0 は products を削除するが投入せず、
     //   作る側の rls は実行順で anon-guard の後＝循環）。不在なら自給する（段28卓と同じ
@@ -3695,7 +3699,7 @@ async function main() {
         const P = drink.price as number, BV = drink.back_value as number, D = P - 1_000; // v_net=1000→due=1100
         const { data: c3 } = await mgr28.rpc("check_open", { p_seat_id: seat3, p_people: 1, p_nom_type: "jonai" });
         await mgr28.rpc("check_add_line", { p_check_id: c3, p_product_id: drink.id, p_qty: 1, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
-        await mgr28.rpc("check_set_nominations", { p_check_id: c3, p_nom_type: "jonai", p_nominations: [{ cast_id: s28CastId, weight: 1 }] });
+        await mgr28.rpc("check_set_nominations", { p_check_id: c3, p_nominations: [{ cast_id: s28CastId, weight: 1, nom_kind: "jonai", is_dohan: false }] });
         // 直接 discount D（v_net=1000・due=1100）→ close → backs/cast_sales 確認
         const { error: e3d } = await mgr28.rpc("approval_direct", { p_check_id: c3 as string, p_pay_group: "A", p_type: "discount", p_amount: D, p_reason: null });
         check("段28（準備）卓3 drink+cast+discount direct 成功", !e3d, e3d?.message);
@@ -3872,7 +3876,7 @@ async function main() {
       // 会計フロー helper
       const openNom = async (seatId: string, nom: string, castId: string) => {
         const { data: cid } = await mgr29.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: nom });
-        await mgr29.rpc("check_set_nominations", { p_check_id: cid, p_nom_type: nom, p_nominations: [{ cast_id: castId, weight: 1 }] });
+        await mgr29.rpc("check_set_nominations", { p_check_id: cid, p_nominations: [{ cast_id: castId, weight: 1, nom_kind: nom === "dohan" || nom === "free" ? "free" : nom, is_dohan: nom === "dohan" }] });
         return cid as string;
       };
 
@@ -4239,7 +4243,7 @@ async function main() {
         // 準備: cast 指名（hon・weight1）＋drink 明細の伝票を pay→close→check_cast_backs 生成
         const { data: cidRaw } = await mgr.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "hon" });
         cid = cidRaw as string;
-        await mgr.rpc("check_set_nominations", { p_check_id: cid, p_nom_type: "hon", p_nominations: [{ cast_id: s30CastA, weight: 1 }] });
+        await mgr.rpc("check_set_nominations", { p_check_id: cid, p_nominations: [{ cast_id: s30CastA, weight: 1, nom_kind: "hon", is_dohan: false }] });
         await mgr.rpc("check_add_line", { p_check_id: cid, p_product_id: drinkP.id, p_qty: 2, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
         // 全額入金（単一 group ゆえ checks.total = group A due）→ close
         const { data: chkRow } = await admin.from("checks").select("total").eq("id", cid).single();
@@ -4467,7 +4471,7 @@ async function main() {
         const { data: openId, error: eOpen } = await castTmp.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "hon" });
         check("段31-c check_open 成功（uuid 返却・cast 実 INSERT）", !eOpen && typeof openId === "string", eOpen?.message);
         accCheckId = openId as string;
-        const { error: eNom } = await castTmp.rpc("check_set_nominations", { p_check_id: accCheckId, p_nom_type: "hon", p_nominations: [{ cast_id: cTmp.id, weight: 1 }] });
+        const { error: eNom } = await castTmp.rpc("check_set_nominations", { p_check_id: accCheckId, p_nominations: [{ cast_id: cTmp.id, weight: 1, nom_kind: "hon", is_dohan: false }] });
         check("段31-c check_set_nominations 成功（自己指名）", !eNom, eNom?.message);
         const { data: lineId, error: eLine } = await castTmp.rpc("check_add_line", { p_check_id: accCheckId, p_product_id: drinkP.id, p_qty: 2, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
         check("段31-c check_add_line 成功（uuid 返却・NOT NULL 充填）", !eLine && typeof lineId === "string", eLine?.message);

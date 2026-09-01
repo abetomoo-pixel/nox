@@ -173,7 +173,8 @@ async function main() {
         name_snapshot: l.kind, unit_price_snapshot: l.unit, qty: l.qty, line_total: l.unit * l.qty, sort_order: sort++,
       });
     }
-    await admin.from("check_nominations").insert({ org_id: orgAId, store_id: storeId, check_id: checkId, cast_id: nomCast, ratio_weight: 1, position: 0 });
+    // ★R-2b（0119）: 本数はキャスト行 nom_kind 起点＝fixture も明示（default 'free' だと hon=0 になる）
+    await admin.from("check_nominations").insert({ org_id: orgAId, store_id: storeId, check_id: checkId, cast_id: nomCast, ratio_weight: 1, position: 0, nom_kind: "hon", is_dohan: false });
     return checkId;
   };
   const mkPunchDay = async (cid: string, date: string, nextDay: string, storeId = storeA1Id) => {

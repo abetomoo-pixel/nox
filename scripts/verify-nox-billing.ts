@@ -99,8 +99,12 @@ async function main() {
     check("段47-1 正本の対象107名を読めた", docTargets.size === 107, `got ${docTargets.size}`);
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     // ★mig0113: check_tax_round（内部ヘルパー・非ゲート）を B へ収載＝除外 95→96・全数 201→202。
+    // ★mig0119（R-2b・2026-09-01）: 補助2本 nom_unit4_key / nom_type_summary を B(a) へ収載＝除外 96→98・
+    //   全数 203→205。★名簿対象外（A に載せない）の根拠＝両方とも純ヘルパー（IMMUTABLE/STABLE・書込なし）で
+    //   4者 revoke 済み＝authenticated から直接実行できず、課金ゲートは呼び出し元の公開 RPC
+    //   （check_set_nominations / check_close / drink_claim_*）が既に担う（check_round_amount / check_tax_round と同型）。
     //   この +1 は f0 実走で教訓21 assert が名簿漏れとして検知→収載した実例（2026-08-28）。
-    check("段47-1 正本の除外96名を読めた", docExcluded.size === 96, `got ${docExcluded.size}`);
+    check("段47-1 正本の除外98名を読めた", docExcluded.size === 98, `got ${docExcluded.size}`);
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる

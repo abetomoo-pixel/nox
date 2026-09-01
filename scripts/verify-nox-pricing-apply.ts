@@ -371,20 +371,26 @@ async function main() {
 
     // ═══ (5) dohan ═══
     {
+      // ★R-2b（0119）: 同伴料は cast 必須（'cast required'）＝各呼びに p_cast_id を明示。A2 伝票用の cast も用意。
+      const { data: cA2d } = await admin.from("casts").insert({
+        org_id: sA2.org_id, store_id: sA2.id, name: `${P44}-A2同伴cast`, is_active: true,
+      }).select("id").single();
+      tmpCastIds.push(cA2d!.id as string);
+      const castA2dId = cA2d!.id as string;
       // 凍結値 4000 × 3人
-      const { data: l5, error: e5 } = await mgr.rpc("check_dohan_add", { p_check_id: chkA1, p_count: 3 });
+      const { data: l5, error: e5 } = await mgr.rpc("check_dohan_add", { p_check_id: chkA1, p_cast_id: castA1aId, p_count: 3 });
       check("段44(5) dohan＝凍結値×人数で成功", !e5 && typeof l5 === "string", e5?.message);
       if (typeof l5 === "string") lineIds.push(l5);
       const { data: r5 } = await admin.from("check_lines").select("*").eq("id", l5 as string).single();
-      check("段44(5) ★unit=凍結4000/qty=3/total=12000/fee_kind='dohan'/cast_id null",
+      check("段44(5) ★unit=凍結4000/qty=3/total=12000/fee_kind='dohan'/cast_id 凍結（0119: cast 必須）",
         r5?.unit_price_snapshot === 4000 && r5?.qty === 3 && r5?.line_total === 12000
-        && r5?.fee_kind === "dohan" && r5?.cast_id === null && r5?.kind === "charge",
+        && r5?.fee_kind === "dohan" && r5?.cast_id === castA1aId && r5?.kind === "charge",
         JSON.stringify({ u: r5?.unit_price_snapshot, q: r5?.qty, t: r5?.line_total }));
 
       // legacy 経路: dohan_fee null の伝票（A2 のルール0件 open）→ stores 現在値へフォールバック
       await admin.from("stores").update({ dohan_fee: 3500 }).eq("id", sA2.id);
       const chkA2 = checkIds[0];
-      const { data: l6, error: e6 } = await owner.rpc("check_dohan_add", { p_check_id: chkA2, p_count: 1 });
+      const { data: l6, error: e6 } = await owner.rpc("check_dohan_add", { p_check_id: chkA2, p_cast_id: castA2dId, p_count: 1 });
       check("段44(5) ★dohan_fee null（legacy/ルール0件）＝stores.dohan_fee(3500) 現在値フォールバック",
         !e6 && typeof l6 === "string", e6?.message);
       if (typeof l6 === "string") lineIds.push(l6);
@@ -398,7 +404,7 @@ async function main() {
     {
       const { error: eK } = await mgr.rpc("check_shimei_add", { p_check_id: chkA1, p_cast_id: castA1aId, p_kind: "dohan" });
       check("段44(6) shimei に p_kind='dohan'＝'bad kind'", has(eK, "bad kind"), eK?.message ?? "通ってしまった");
-      const { error: eC } = await mgr.rpc("check_dohan_add", { p_check_id: chkA1, p_count: 0 });
+      const { error: eC } = await mgr.rpc("check_dohan_add", { p_check_id: chkA1, p_cast_id: castA1aId, p_count: 0 });
       check("段44(6) p_count=0＝'bad count'", has(eC, "bad count"), eC?.message ?? "通ってしまった");
 
       // 他店 cast（A2 に一時生成）
@@ -427,14 +433,14 @@ async function main() {
       const { error: eP1 } = await owner.rpc("check_shimei_add", { p_check_id: chkA2, p_cast_id: castA1aId, p_kind: "hon" });
       check("段44(6) ★入金後の shimei＝'has payments'（合計が動く経路を塞ぐ）",
         has(eP1, "has payments") || has(eP1, "bad cast"), eP1?.message ?? "通ってしまった");
-      const { error: eP2 } = await owner.rpc("check_dohan_add", { p_check_id: chkA2, p_count: 1 });
+      const { error: eP2 } = await owner.rpc("check_dohan_add", { p_check_id: chkA2, p_cast_id: tmpCastIds[0], p_count: 1 });
       check("段44(6) 入金後の dohan＝'has payments'", has(eP2, "has payments"), eP2?.message ?? "通ってしまった");
       await admin.from("payments").delete().eq("id", pay!.id);
 
       // not open（A2 伝票を void → shimei/dohan 拒否）
       const { error: eV } = await owner.rpc("check_void", { p_check_id: chkA2, p_reason: "verify cleanup" });
       check("段44(6) 準備: check_void 成功", !eV, eV?.message);
-      const { error: eNo } = await owner.rpc("check_dohan_add", { p_check_id: chkA2, p_count: 1 });
+      const { error: eNo } = await owner.rpc("check_dohan_add", { p_check_id: chkA2, p_cast_id: tmpCastIds[0], p_count: 1 });
       check("段44(6) void 済み伝票＝'not open'", has(eNo, "not open"), eNo?.message ?? "通ってしまった");
 
       // can_register=false の staff は forbidden
@@ -445,7 +451,7 @@ async function main() {
       const Z = "00000000-0000-0000-0000-000000000000";
       const { error: eA1 } = await anon.rpc("check_shimei_add", { p_check_id: Z, p_cast_id: Z, p_kind: "hon" });
       check("段44(6) anon check_shimei_add BLOCKED", isFnBlocked(eA1), eA1?.message ?? "実行できてしまった");
-      const { error: eA2 } = await anon.rpc("check_dohan_add", { p_check_id: Z, p_count: 1 });
+      const { error: eA2 } = await anon.rpc("check_dohan_add", { p_check_id: Z, p_cast_id: Z, p_count: 1 });
       check("段44(6) anon check_dohan_add BLOCKED", isFnBlocked(eA2), eA2?.message ?? "実行できてしまった");
 
       // authenticated からの core 直呼び拒否（biz_minutes_of 同型 ACL）

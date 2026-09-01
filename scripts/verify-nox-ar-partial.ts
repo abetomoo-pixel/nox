@@ -123,7 +123,7 @@ async function main() {
       checkIds.push(cid as string);
       if (castId) {
         const { error: eN } = await mgr.rpc("check_set_nominations", {
-          p_check_id: cid, p_nom_type: "hon", p_nominations: [{ cast_id: castId, weight: 1 }],
+          p_check_id: cid, p_nominations: [{ cast_id: castId, weight: 1, nom_kind: "hon", is_dohan: false }],
         });
         if (eN) throw new Error(`set_nominations: ${eN.message}`);
       }

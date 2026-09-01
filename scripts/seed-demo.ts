@@ -270,8 +270,13 @@ async function main() {
         const c = pick(casts).id as string;
         if (!chosen.includes(c)) chosen.push(c);
       }
+      // ★R-2b（0119）: 2引数＝種別は行属性（dohan は is_dohan の別軸・free 扱い）。
       const { error: eNom } = await staff.rpc("check_set_nominations", {
-        p_check_id: chkId, p_nom_type: nomType, p_nominations: chosen.map((cast_id) => ({ cast_id, weight: 1 })),
+        p_check_id: chkId, p_nominations: chosen.map((cast_id) => ({
+          cast_id, weight: 1,
+          nom_kind: (nomType === "hon" || nomType === "jonai" ? nomType : "free") as string,
+          is_dohan: (nomType as string) === "dohan",
+        })),
       });
       if (eNom) console.error("  check_set_nominations 失敗", eNom.message);
     }
