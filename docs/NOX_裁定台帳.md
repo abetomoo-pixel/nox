@@ -2422,6 +2422,32 @@ dohan_auto_hon 昇格（free→hon）の順序・挙動は不変。
 
 ---
 
+## 裁定109（2026-09-01・mig0122）set_cast_profile 新設＝源氏名・入店日の更新 RPC — 実機: 未
+
+casts の name/joined_on に**更新経路が無かった**（cast_create のみ・joined_on default=行作成日・
+app 内 casts 直 update ゼロ＝2026-09-01 実測）を解消。
+
+- 対象は**源氏名(name)・入店日(joined_on) のみ**。left_on（退店フロー＝cast_leave/rejoin 既設）・
+  store_id（**店移動＝起票#44**）は含めない。
+- 権限＝set_cast_rank_of と同型（owner=org 全店／manager=自店／staff・cast=forbidden）。
+  底本＝live 逐語 `docs/tmp/live_set_cast_rank_of.sql`（sha256 `1355b9fd…0cb84`・55行）。
+- 源氏名は**店内 active 行同士の lower 一致を拒否**（'duplicate name'・自分除外）＝casts に name unique が
+  無い現状（実測）への RPC 側ガード（comp_plans の duplicate name と同思想・既存重複はバンドル ord8=0 を実測）。
+- joined_on 必須・left_on があれば joined_on <= left_on（'bad joined_on'・`casts_active_left_on_chk`＝
+  active∧left_on 両立禁止も実測）。
+- audit＝**変更列のみ** before/after（set_cast_rank_of 流儀・PII を before/after 以外に載せない）・
+  **変更なし再送は no-op**（update も audit もしない）。
+- verify＝grants **G43**（1本3引数 secdef・ACL authenticated/service_role・anon なし）・
+  rls **段SCP 9本**（owner 他店 ok／manager 自店 ok／manager 他店・staff・cast forbidden／anon BLOCKED／
+  duplicate name（lower）／bad joined_on／no-op audit 不増）＝**INV9 逆張り 9/9 全赤→復元緑を実測**。
+- UI＝casts-board 基本タブに「編集」（源氏名・入店日→set_cast_profile）＋入店日行＋
+  「機密・税務情報へ」導線（/master/system）。待遇・バックタブのラベル是正＝
+  「**指名料ランク**」「**標準（店の既定指名料）**」（DB 呼び形 set_cast_rank_of 不変）。
+- ★実装教訓: 段SCP の fixture をクラッシュ時に残すと**先行段の casts 数 assert まで汚染**
+  （prefix 掃除を段頭・生成は try 内＝教訓30/49 の複合型で是正・実測）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2675,6 +2701,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 41 | **レジモック v2 追随（R-2b 後）** | `nox-register-pos.html` の「指名の分配率」カードは**卓単位の指名区分**（内部 JS も `t.shareType` 単一値）＝裁定100 のキャスト別種別（行ごとに 種別＋同伴チェック＋重み）を表現できない。R-2b 実装後にモック v2 を受領し差替（裁定91 の canonical 維持手順で README 更新）。**→ R-2b 実装済（2026-09-01・mig0119/0120＋UI 0b69b73）＝v2 モック受領待ちへ前進** |
 | 42 | **待遇画面の準備中項目（C5）** | 裁定101 §2 の器なし項目（日給制/保証時間帯/判定単位 半月・日/pt付与ルール/粗利基準/延長・昇格バック/帯歩合%/丸め2軸/未達根拠確認記録/達成 params 拡張/率方式=R-2b 後・**＋達成条件の他軸〔出勤/本指名/同伴〕＝U-2 是正で追記・計12項目**）。**器は作らず準備中バッジで明示**（正本＝`lib/nox/comp-methods.ts PREP_ITEMS`・c3 assert が本数 pin）。**＋ノルマ節の圧縮**＝店設定・キャスト別目標・ペナルティの3カードをモック型へ縮約する再設計（現状は NormaBoard 搭載のまま＝U-2 是正で起票）。解錠は項目ごとに別裁定（設計書 §3）。**→ 照合先を v3 へ更新（2026-09-01・裁定106）**＝v3 は準備中カード列挙を撤去し**機能トグル型**（使うノルマ/達成条件だけ有効化）へ・pt 系のみ注記1文。準備中12項目の実体（器なし）は不変で、v3 で**器なしの新規要素が追加**＝ノルマ4軸のプラン既定（基準値）・達成ボーナス4軸トグル・シャンパン等「商品売上に対して率」・スライド判定基準（指名売上/総売上）・送り回数（sim 入力）＝裁定106 の器調査に収載 |
 | 43 | **キャスト選択 select の残存2面を CastPicker へ置換（裁定108 の順次適用）** | 裁定108 で「キャスト選択の select 禁止・CastPicker 共通化（components/nox）」を確立。シフト手動追加は置換済み（Picker 2段＋表の行「＋」直開き・shift_set 6引数不変）。**残存＝grep 実測2面**: ①キャスト別ノルマ目標（comp-sections NormTab の select）②控除の対象キャスト select（deduction-panel）。置換は import と onPick 結線のみ（CastPicker は純部品＝金額・RPC 非関与） |
+| 44 | **店移動 RPC（casts.store_id の更新経路）** | 裁定109 が明示的に対象外とした残穴＝casts.store_id を動かす経路が無い（cast_create 時のみ）。移動は **memberships（1ユーザー1アクティブ）・店スコープ集計（cast_sales/norms/plan は store_id 列持ち）・指名料ランク（cast_ranks は store 別＝移動先に無いランクの扱い）・店別 pricing** へ波及するため器の設計から別裁定。実装しない |
+| 45 | **kiosk_check_detail の R-2b 追随（拡張 mig）** | 0119/0121 とも kiosk_check_detail 不触＝kiosk が (a) 名簿の nom_kind/is_dohan を読めない（フリー表示で開く注意書き運用・保存で置換の但し書き）(b) check_lines の fee_kind/cast_id を読めない＝**課金行キャストの除外拒否（裁定107 の castFeeLines 関所）を kiosk に置けない**。detail の返却列拡張（読み取りのみ・挙動不変）の別 mig で2点まとめて解消 |
 
 ### 未裁定・消し込み待ち
 
