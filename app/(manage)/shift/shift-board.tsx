@@ -7,6 +7,7 @@
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
+import CastPicker from "@/components/nox/cast-picker";
 import ShiftAddForm from "./shift-add-form";
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
@@ -200,6 +201,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   const [addStatus, setAddStatus] = useState("planned");
   // ★DP3 P2（2026-08-21・裁定 DP3-②）: 手動シフト追加をモーダルへ（モック `planShiftDialog`）。
   const [addModal, setAddModal] = useState(false);
+  // ★裁定108: 手動追加は2段＝①CastPicker（addPicker）→②キャスト固定フォーム（addCast を確定して addModal）。
+  //   表の行「＋」は①を飛ばして直開き（その行のキャストで固定）。RPC 呼び形は不変（shift_set 6引数）。
+  const [addPicker, setAddPicker] = useState(false);
+  const [addCast, setAddCast] = useState<Cast | null>(null);
   // ★DP3 P2（裁定 DP3-③）: 勤務時間の調整モーダル（モック `adjustDialog`）。
   //   ★「元の希望との対比」はこのモーダルには**入れない**（裁定 DP3-③ のスコープ判断＝
   //     対比は d＝シフト深部レーンで消化）。
@@ -860,7 +865,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                   //   もう入る人」は今日にだけ当てはまり、先の日は「これから組む段」＝planned。
                   setAddDate(todayDate);
                   setAddStatus(todayDate === bizToday ? "confirmed" : "planned");
-                  setAddModal(true);
+                  setAddPicker(true); // ★裁定108: まずキャスト選択（Picker）
                 }}>＋ 追加</button>
             )}
           </div>
@@ -1335,7 +1340,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                 <button className={planView === "staff" ? "on" : ""} onClick={() => setPlanView("staff")}>スタッフ別</button>
               </div>
               {/* 現行維持: シフト作成タブからは planned で開く（計画を組む面ゆえ） */}
-              <button style={btnLight} onClick={() => { setAddStatus("planned"); setAddModal(true); }}>＋ 手動で追加</button>
+              <button style={btnLight} onClick={() => { setAddStatus("planned"); setAddPicker(true); }}>＋ 手動で追加</button>
             </span>
           </div>
 
@@ -1685,9 +1690,18 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                       </td>
                       <td>
                         {isManagerUp && (
-                          <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
-                            title={sClosed ? "この日は定休日に設定されています" : undefined}
-                            onClick={() => { setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm); }}>時間を調整</button>
+                          <span style={{ display: "inline-flex", gap: 6 }}>
+                            <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
+                              title={sClosed ? "この日は定休日に設定されています" : undefined}
+                              onClick={() => { setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm); }}>時間を調整</button>
+                            {/* ★裁定108: 行の＋＝このキャストで固定してフォーム直開き（Picker を飛ばす） */}
+                            <button style={btnLight} title={`${castName(s.cast_id)} に別日のシフトを追加`}
+                              onClick={() => {
+                                const c = casts.find((x) => x.id === s.cast_id);
+                                if (!c) return;
+                                setAddCast(c); setAddStatus("planned"); setAddModal(true);
+                              }}>＋</button>
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -1707,9 +1721,28 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
       {/* ★SC-1（裁定42）: 手動追加は ShiftAddForm（部品）。開閉と初期値だけ親が渡す。
           ★送る RPC・引数6本は子へ逐語移送（sha 152dd248…fb41 で照合）＝ここには残っていない。
           保存されたら onSaved で親の load() を回す（子は DB の再取得を知らない）。 */}
+      {/* ★裁定108: ①キャスト選択（CastPicker・select 廃止）→ ②キャスト固定フォーム */}
+      {isManagerUp && addPicker && (
+        <Modal onClose={() => setAddPicker(false)} maxWidth={520} scroll>
+          <div className="nox-modalhead">
+            <h3 style={{ ...secTitle, margin: 0 }}>シフトを追加するキャストを選択</h3>
+            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setAddPicker(false)}>×</button>
+          </div>
+          <div className="nox-modalbody">
+            <CastPicker casts={casts} dense
+              onPick={(id) => {
+                const c = casts.find((x) => x.id === id);
+                if (!c) return;
+                setAddCast(c);
+                setAddPicker(false);
+                setAddModal(true);
+              }} />
+          </div>
+        </Modal>
+      )}
       {isManagerUp && (
         <ShiftAddForm
-          casts={casts} bhRows={bhRows}
+          cast={addCast} bhRows={bhRows}
           initialDate={addDate} initialStatus={addStatus}
           open={addModal} onClose={() => setAddModal(false)}
           onSaved={() => { setMsg("シフトを登録しました"); void load(); }}
@@ -1787,7 +1820,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                   「開いたまま initialDate だけが変わる」経路は生まれない（SC-1 の確認と同じ結論）。 */}
             {isManagerUp && (
               <button className="nox-addc"
-                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddModal(true); }}>
+                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddPicker(true); }}>
                 ＋ キャストを追加
               </button>
             )}
@@ -1896,7 +1929,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                 ここには当たらない。★別モーダル（ShiftAddForm）を開く前に日詳細を閉じる（③-0 の規約）。 */}
             {isManagerUp && (
               <button className="nox-addc"
-                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddModal(true); }}>
+                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddPicker(true); }}>
                 ＋ キャストを追加
               </button>
             )}

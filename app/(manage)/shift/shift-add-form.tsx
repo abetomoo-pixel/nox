@@ -58,9 +58,10 @@ function rpcErrJa(msg: string | undefined): string {
 }
 
 export default function ShiftAddForm({
-  casts, bhRows, initialDate, initialStatus, open, onClose, onSaved,
+  cast, bhRows, initialDate, initialStatus, open, onClose, onSaved,
 }: {
-  casts: Cast[];
+  /** ★裁定108: キャスト選択の select 禁止＝対象キャストは親が確定して渡す（Picker 2段 or 行の＋直開き） */
+  cast: Cast | null;
   bhRows: BusinessHourRow[];
   /** 開いたときの日付（今日タブ＝営業日の今日／カレンダー＝選択日） */
   initialDate: string;
@@ -72,7 +73,6 @@ export default function ShiftAddForm({
   onSaved: () => void;
 }) {
   const supabase = createClient();
-  const [fCast, setFCast] = useState("");
   const [fDate, setFDate] = useState(initialDate);
   const [fStart, setFStart] = useState(FALLBACK_START);
   const [fEnd, setFEnd] = useState(FALLBACK_END);
@@ -87,7 +87,6 @@ export default function ShiftAddForm({
     if (!open) return;
     setFDate(initialDate);
     setFStatus(initialStatus);
-    setFCast("");
     setMsg(null);
     setTimeTouched(false);
     const h = hoursOf(initialDate, bhRows);
@@ -109,15 +108,15 @@ export default function ShiftAddForm({
   const fClosedDay = fShiftHours.status === "closed";
   const bhOfDay = hoursOf(fDate, bhRows);
 
-  // ★移送: RPC 名・引数6本・順序・変数名は1文字も変えていない（sha 152dd248…fb41）
+  // ★移送: RPC 名・引数6本・順序は不変（★裁定108: p_cast_id の出所だけ select state → cast prop へ）
   async function addShift() {
-    if (!fCast) return;
+    if (!cast) return;
     setMsg(null);
     // B-5②: 定休日は送信もしない（ボタン無効の保険・二層目は RPC 'closed day'＝段26-4 実測）
     if (shiftHoursStatus(fDate, fStart, fEnd, bhRows).status === "closed") { setMsg("選択された日は定休日です"); return; }
     setBusy(true);
     const { error } = await supabase.rpc("shift_set", {
-      p_id: null, p_cast_id: fCast, p_date: fDate, p_start_hm: fStart, p_end_hm: fEnd, p_status: fStatus,
+      p_id: null, p_cast_id: cast.id, p_date: fDate, p_start_hm: fStart, p_end_hm: fEnd, p_status: fStatus,
     });
     setBusy(false);
     if (error) { setMsg(`シフトの登録に失敗: ${rpcErrJa(error.message)}`); return; }
@@ -126,7 +125,7 @@ export default function ShiftAddForm({
     onClose();
   }
 
-  if (!open) return null;
+  if (!open || !cast) return null;
 
   return (
     <Modal onClose={onClose} maxWidth={520} scroll>
@@ -137,11 +136,9 @@ export default function ShiftAddForm({
       <div className="nox-modalbody">
         <div className="nox-field2">
           <div className="nox-field">
-            <span className="lab">キャスト<span className="req">*</span></span>
-            <select value={fCast} onChange={(e) => setFCast(e.target.value)} style={{ ...input, width: "100%" }}>
-              <option value="">キャスト</option>
-              {casts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <span className="lab">キャスト</span>
+            {/* ★裁定108: select 廃止＝Picker（または行の＋）で確定済みのキャストを固定表示 */}
+            <span style={{ fontSize: 14, fontWeight: 800, color: "var(--champ)", padding: "8px 0" }}>{cast.name}</span>
           </div>
           <div className="nox-field">
             <span className="lab">日付</span>
@@ -189,7 +186,7 @@ export default function ShiftAddForm({
         )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 17 }}>
           <button style={btnLight} onClick={onClose}>やめる</button>
-          <button style={{ ...btnDark, opacity: fClosedDay || !fCast || busy ? 0.45 : 1 }} disabled={fClosedDay || !fCast || busy}
+          <button style={{ ...btnDark, opacity: fClosedDay || busy ? 0.45 : 1 }} disabled={fClosedDay || busy}
             onClick={() => void addShift()}>{busy ? "登録中…" : "登録"}</button>
         </div>
       </div>
