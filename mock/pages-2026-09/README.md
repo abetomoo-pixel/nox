@@ -18,7 +18,14 @@
   下書き保存/公開して確定・stats 4種）はページ側＝モーダル外。title は「v2」だが CSS 注記に v3/v4 層あり＝
   受領名 v6 が正。
 
+- 3枚目 `nox-comp-back-ruling113-v2.html`（2026-09-02 収蔵・相談役照合値と完全一致）＝
+  **裁定113（指名実績バック／商品販売バックの併存・3択排他）の構造正本**。本文設計は D調査後の設計書で。
+- 4枚目 `nox-comp-back-simple-v1.html`（2026-09-02 収蔵・照合一致）＝**来歴**（裁定113 前の叩き台・
+  参照専用＝正本は ruling113-v2）。
+
 | ファイル | sha256（実測） | bytes |
 |---|---|---|
 | nox-pos-nomination-autocharge-v1.html | 062765a6e45dd3f588b6c084fecbc72dedca9a6841334a8d81c3588e858b4e6d | 10,123 |
 | nox-shift-v6.html | 5c04ca6da11678b5b9ca7374b5d88f564f32001fa1ee1794087c32263ac54f6d | 34,278 |
+| nox-comp-back-ruling113-v2.html | 56f8804b0d1644f288b9d6457863749db41df338b4c7470a870128bc4046c855 | 15,882 |
+| nox-comp-back-simple-v1.html | 21e15e4e6038c4825f7354443d91777ccc03b6877436b82d09cffbcc2918e907 | 10,534 |

@@ -2516,6 +2516,50 @@ insert が constraint violation**（'bad weight' ではない生エラー・全�
 
 ---
 
+## 裁定112（2026-09-02・mig0125）シフト作成の責務転換＝キャスト単位登録モーダル（v6）— 実機: 未
+
+正本＝設計書 v1（`NOX_裁定112設計書_v1_2026-09-02.md`）・構造正本モック＝`mock/pages-2026-09/nox-shift-v6.html`・
+底本＝`docs/dp/live_0125prep.sql`（sha256 `7269c1d3…4927f`・shift_set/shift_bulk_set/shift_wish_decide 逐語＋
+shifts/shift_wishes の器面）。
+
+**責務転換の骨子**: 「配置を組む」＝キャスト単位登録モーダル（キャスト→日付→時間→保存）へ。
+店全体を見る機能（必要人数・不足・ルール）は作成中に出さず確定側で確認。外側骨格（タブ5面）は維持。
+
+**設計判断（A〜H）**: A＝撤去3機能は **UI 撤去・器/RPC 残置**（自動配置カード・配置ルールカード撤去／
+**必要人数カードは仮シフト（calendar）タブへ移設**＝セル状態色と同居。器の削除は launch 後に別起票）。
+B＝build タブ縮退形（計画バー＋「＋シフトを追加」＋登録済み一覧＋希望通知残置・shift-add-form を
+v6 モーダルの母体として拡張＝新規作り直さない）。C＝**`shift_bulk_set_daily(p_cast_id, p_items jsonb)` 新設**
+（日別時刻・単一 Tx・skipped 理由付き返却〔closed/duplicate/unavailable〕・上限62・planned 固定・
+既存 bulk_set は残置＝別名でオーバーロード回避）。D＝**器に LAST を持ち込まない**（希望 end_hm＝閉店時刻の
+表示写像「〜LAST」のみ・閉店時刻変更で過去希望の表示解釈が変わり得る＝許容）。E＝**`cast_unavailable_days` 新設**
+（出勤不可の事前宣言・UNIQUE(cast_id,date)・reason・RPC set/remove/list＝owner/manager・attendance 不流用）。
+F＝**不可はソフト拒否**（定休日ハードとの非対称・`p_override_reason` 必須で押し切り可・
+**shifts.override_reason 列**が正本・不可日のみ保存・旧6引数シグネチャ明示 DROP）。
+**G'＝希望日の登録は wish_decide(accept)→時刻変更ありのみ shift_set 更新の2段で確定**
+（実測: wish_decide は時刻引数なし＝accept は希望時刻で planned 自動生成。2段目失敗は
+「希望時刻のまま登録済み」を UI 明示）。H＝保存ボタン（0件 disabled・「保存して次のキャスト」は選択のみリセット）。
+
+**実装（2026-09-02）**: mig0125（器5点＋検証13行）・verify:nox-shift-modal（22 assert・INVERT 全赤・f0 31本目）・
+課金名簿 mig0125 追随（A5+3/B(f)+1＝教訓21 の機械検知 **4例目**・billing pin 111/99/112 へ・53 assert 不変）・
+UI＝shift-add-form v6 拡張（2ペイン・月カレンダー・繰返し選択・不可 override・LAST/翌表示・
+bulk_daily/2段保存・skipped トースト）＋build 縮退＋必要人数移設。
+★モックに無い「不可の登録 UI」はモーダル内の日詳細バー（出勤不可にする/解除）へ配置＝申告済み判断。
+★cast セルフの不可宣言は**起票#49**（v1 は owner/manager のみ）。
+
+---
+
+## 裁定113（2026-09-02・骨子先行）指名実績バックと商品販売バックの分離 — 本文＝設計書（D調査後）
+
+① 指名実績バックと商品販売バックは**併存・加算・完全別系統** ② 商品販売バックの計算方式は
+plan の**3択排他**（product_rule／plan_rate／plan_fixed） ③ **排他の執行点は check_close**
+（給与集計に方式判定を持ち込まない・check_cast_backs＝確定スナップショット） ④ back_snapshot へ
+source_mode／根拠値／calculated_back_amount を記録 ⑤ 時間軸は**伝票の営業日時点の plan**
+（実現機構＝凍結 or 時点解決は設計書で） ⑥ 既存 plan の既定＝**product_rule（golden 不変）**。
+UI 名称＝**指名実績バック／商品販売バック**。構造正本＝`mock/pages-2026-09/nox-comp-back-ruling113-v2.html`
+（sha256 `56f8804b…46c855`）・来歴＝`nox-comp-back-simple-v1.html`（裁定113 前の叩き台）。本文＝設計書（D調査後）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2773,6 +2817,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 45 | **kiosk_check_detail の R-2b 追随（拡張 mig）** | 0119/0121 とも kiosk_check_detail 不触＝kiosk が (a) 名簿の nom_kind/is_dohan を読めない（フリー表示で開く注意書き運用・保存で置換の但し書き）(b) check_lines の fee_kind/cast_id を読めない＝**課金行キャストの除外拒否（裁定107 の castFeeLines 関所）を kiosk に置けない**。detail の返却列拡張（読み取りのみ・挙動不変）の別 mig で2点まとめて解消 |
 | 46 | **自由バック「ドリンクバック」プリセットの杯数 basis** | プリセット保存は **basis='flat'（定額）＝杯数非連動**（savePreset 実測・2026-09-01）。custom_back_defs の basis CHECK に**ドリンク杯数が存在しない**（本数系は champCnt/bottleCnt のみ・pay.ts の Metrics にもドリンク杯数なし）。「杯数×円」のドリンクバックには **basis 追加（CHECK 拡張 mig）＋pay.ts Metrics 拡張＋collect の杯数集計**が対で要る＝器の設計から別裁定。v3 タブの計算方法「本数×円」でドリンクを選べないのはこの穴が根拠 |
 | 47 | **auto 店の延長指名料**（裁定111 判断E） | 0124 の ext_shimei フックは **manual 店の check_extension_add のみ**。auto 店は権威が別関数（check_time_charge_apply）＝二重計上封じの構造を崩さないため初版対象外。auto 店で延長指名料を効かせるには time_charge_apply 側のフック設計（延長回数の検知・遡及の扱い）から別裁定 |
+| 48 | **レジ backbar の延長ボタン複製** | **実装済（2026-09-02・裁定112 UI レーン同乗）＝追認起票**。テーブル情報行（卓名・滞在・合計の backbar）に「延長（¥N/M分）」＝manual 店∧open のみ表示・checks スナップ ext_fee/ext_min 表示・check_extension_add 呼び（会計タブと同一経路・`from:"bar"` で完了/エラー文言を MSG_DETAIL へ）・入金後 disabled。会計タブ側カードは残置 |
+| 49 | **cast セルフの出勤不可宣言** | 0125 の cast_unavailable_set/remove は **owner/manager のみ**（v1）。cast 本人が mine 画面から不可を宣言するには専用 RPC（auth_cast_id 本人チェック型・原則5）＋mine UI とセットで別レーン。**着手前に shift_wish_submit の逐語確認が必須**（open 期間ガード・定休日ガードとの整合＝不可と希望の同日共存をどう扱うか） |
 
 ### 未裁定・消し込み待ち
 
