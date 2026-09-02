@@ -130,8 +130,9 @@ export default function KioskRegisterPage() {
   const [openBusy, setOpenBusy] = useState(false);
 
   // フォーム状態（register-board 写経）
-  // ★R-2b（裁定100）: 種別・同伴はキャスト別。kiosk_check_detail が kinds を返さないため初期値は
-  //   free/同伴なし＝保存時は表示中の値で置き換わる（カード上に注意文・恒久解は detail への kinds 追加＝起票）。
+  // ★0124（裁定111 判断C）: kiosk は種別・同伴を読めない（detail 不返却＝#45）ため**送らない**。
+  //   キー欠落＝既存値保持の新意味論で、保存しても DB の種別・同伴・ended は変化しない
+  //   （旧「表示中の free で置き換わる」既存バグの是正）。nomKinds/nomDohan は防御形の表示専用。
   const [nomKinds, setNomKinds] = useState<Record<string, "hon" | "jonai" | "free">>({});
   const [nomDohan, setNomDohan] = useState<Record<string, boolean>>({});
   const [nomWeights, setNomWeights] = useState<Record<string, number>>({});
@@ -337,9 +338,9 @@ export default function KioskRegisterPage() {
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     // ★裁定110 A2-(4): w=0 の行も送る（0＝按分なしの名簿の一員・名簿から落とさない）。
-    const list = Object.entries(nomWeights).map(([cast_id, weight]) => ({
-      cast_id, weight, nom_kind: nomKinds[cast_id] ?? "free", is_dohan: nomDohan[cast_id] ?? false,
-    }));
+    // ★0124（裁定111 判断C）: nom_kind/is_dohan/ended/dohan_count は**キーごと送らない**＝
+    //   キー欠落＝既存値保持（kiosk は現在値を読めないため・送ると free 落ち＝派生取消が走る）。
+    const list = Object.entries(nomWeights).map(([cast_id, weight]) => ({ cast_id, weight }));
     const { error } = await supabase.rpc("check_set_nominations", {
       p_check_id: detail.check.id, p_nominations: list,
     });
@@ -810,9 +811,9 @@ export default function KioskRegisterPage() {
                     {/* ★R-2b（裁定100）: 卓1値の種別プルダウンを廃止＝下の行ごとに 種別＋同伴（裁定40 の
                         「二段動作＝誤操作ガード」は行内プルダウンとして維持）。 */}
                   </div>
-                  <p style={{ fontSize: 11, color: "var(--bad)", margin: "0 0 8px", lineHeight: 1.7 }}>
-                    ※この端末では保存済みの種別・同伴を読み込めません（フリー表示で開きます）。
-                    「保存」を押すと表示中の種別・同伴で置き換わります。種別の確認・訂正は管理画面のレジで行ってください。
+                  <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
+                    ※種別・同伴はこの端末では表示・変更できません（保存しても変わりません＝分配率のみ反映）。
+                    種別・同伴の確認・変更は管理画面のレジで行ってください。
                   </p>
                   {/* E8-1 ⑤（register-board 同型）: 按分チップ → CastPicker。
                       ★裁定110: 名簿＝キーの存在（w=0 も一員）。追加＝既定分配（本 100% 等分→場内→フリー）・
@@ -844,23 +845,9 @@ export default function KioskRegisterPage() {
                       return (
                       <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, flexWrap: "wrap" }}>
                         <b>{ca.name}</b>
-                        <select value={k} aria-label={`${ca.name} の種別`}
-                          onChange={(e) => {
-                            // ★裁定110 A2-(1)(3): 種別変更＝既定分配を再適用（手動値はここでリセット）
-                            const kinds = { ...nomKinds, [ca.id]: e.target.value as "hon" | "jonai" | "free" };
-                            setNomKinds(kinds);
-                            setNomWeights((prev) => defaultWeights(Object.keys(prev), kinds));
-                          }}
-                          style={{ ...input, width: 84, padding: "5px 6px" }}>
-                          <option value="hon">本指名</option>
-                          <option value="jonai">場内</option>
-                          <option value="free">フリー</option>
-                        </select>
-                        <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11.5 }}>
-                          <input type="checkbox" checked={d}
-                            onChange={(e) => setNomDohan((prev) => ({ ...prev, [ca.id]: e.target.checked }))} />
-                          同伴
-                        </label>
+                        {/* ★0124（裁定111 判断C）: 種別 select・同伴チェックを撤去＝kiosk は現在値を読めず
+                            （detail 不返却＝#45）、送らない以上は変更 UI が誤操作の温床になるため。
+                            バッジは detail が kinds を返すようになれば（#45）自動で正値表示＝防御形は維持。 */}
                         {/* ★裁定105: 本数は種別ごと1人1件（％非依存）＝種別バッジ＋「1件」・同伴は別バッジ */}
                         {k !== "free" && (
                           <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--champ)" }}>
