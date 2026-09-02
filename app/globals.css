@@ -1643,7 +1643,8 @@ body {
 }
 /* ハブのピル（旧: 巨大カード3枚）。選択中は既存 .nox-seg と同じ金の流儀。
    ★高さ 40px 相当まで上げてタブレットのタップ標的にする。 */
-.nox-pillbar { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 16px; }
+/* ★#50b: スクロールバーとチップの重なり解消＝下パディング増＋細バー化（チップ自体の視認は不変） */
+.nox-pillbar { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: thin; }
 .nox-pill {
   flex: 0 0 auto; display: inline-flex; align-items: center; gap: 9px;
   min-height: 40px; padding: 8px 16px; border-radius: 99px; border: 1px solid var(--line2);
