@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX | 指名・席 自動課金案</title>
+<style>
+:root{--bg:#070707;--panel:#11110f;--line:#2d2c27;--line2:#403d34;--gold:#d8ad55;--gold2:#f0cf82;--goldbg:rgba(216,173,85,.11);--text:#f5f1e7;--muted:#99978f;--green:#77ba83;--red:#d86c64}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,"Noto Sans JP","Yu Gothic UI",sans-serif;font-size:13px}
+button,input{font:inherit;color:inherit}button{cursor:pointer}.app{display:grid;grid-template-columns:205px 1fr;min-height:100vh}.side{background:#0d0d0c;border-right:1px solid var(--line);padding:20px 12px}.logo{display:flex;gap:10px;align-items:center;margin-bottom:30px}.mark{width:32px;height:32px;border:1px solid var(--gold);border-radius:7px;display:grid;place-items:center;color:var(--gold2)}.logo b{font-size:16px}.logo small{display:block;color:var(--muted);font-size:8px}.nav{display:grid;gap:8px}.nav div{padding:10px;border-radius:7px;color:#9b978f}.nav .on{background:linear-gradient(90deg,rgba(216,173,85,.18),rgba(216,173,85,.03));color:var(--gold2)}
+main{min-width:0}.top{height:54px;border-bottom:1px solid var(--line);display:flex;justify-content:flex-end;align-items:center;padding:0 24px}.content{max-width:1450px;margin:auto;padding:22px}.tabs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:12px}.tabs div{padding:11px;text-align:center;color:var(--muted);background:#11110f}.tabs .on{background:var(--goldbg);color:var(--gold2);font-weight:700}
+.ticket{border:1px solid var(--line);border-radius:10px;background:linear-gradient(145deg,#151513,#0e0e0d)}.head{display:flex;align-items:center;justify-content:space-between;padding:14px;border-bottom:1px solid var(--line)}.headleft{display:flex;align-items:center;gap:12px}.headleft b{font-size:16px}.sub{color:var(--muted);font-size:9px}.total{font-size:22px;font-weight:800}
+.switchtabs{display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid var(--line)}.switchtabs button{border:0;border-right:1px solid var(--line);background:#0f0f0e;color:var(--muted);padding:10px}.switchtabs button.on{color:var(--gold2);box-shadow:inset 0 -2px var(--gold)}
+.bodygrid{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:12px;padding:12px}.card{border:1px solid var(--line);border-radius:9px;background:#11110f}.cardhead{padding:12px;border-bottom:1px solid var(--line)}.cardhead h2{font-size:14px;margin:0}.cardhead p{font-size:9px;color:var(--muted);margin:3px 0 0}.cardbody{padding:12px}
+.search{width:260px;max-width:100%;height:36px;border:1px solid var(--line2);background:#090909;border-radius:7px;padding:0 10px;margin-bottom:10px}.castgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.cast{border:1px solid var(--line);background:#171714;border-radius:8px;padding:9px;text-align:center}.cast.active{border-color:var(--gold);background:var(--goldbg)}.avatar{width:44px;height:44px;border-radius:50%;margin:auto auto 6px;background:#4c565f;display:grid;place-items:center;font-size:18px}.cast b{display:block;font-size:11px}.cast small{display:block;color:var(--muted);font-size:8px;margin-top:2px}
+.selected{margin-top:12px;padding:10px;border:1px solid rgba(216,173,85,.26);background:rgba(216,173,85,.04);border-radius:8px}.selected strong{color:var(--gold2)}
+.castrows{display:grid;gap:8px;margin-top:10px}.castrow{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;border-top:1px solid var(--line);padding:10px 0}.castrow:first-child{border-top:0}.castname b{font-size:13px}.castname small{display:block;color:var(--muted);font-size:9px}.seg{display:flex;border:1px solid var(--line2);border-radius:7px;overflow:hidden}.seg button{border:0;background:#121210;color:var(--muted);padding:7px 10px}.seg button.on{background:var(--goldbg);color:var(--gold2)}.autocharge{font-size:9px;color:var(--green);white-space:nowrap}.percent{display:flex;align-items:center;gap:5px}.percent input{width:54px;height:32px;border:1px solid var(--line2);background:#090909;border-radius:6px;padding:0 7px}
+.receipt .line{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}.receipt .line:last-child{border-bottom:0}.receipt small{color:var(--muted)}.badge{font-size:8px;border:1px solid var(--line2);border-radius:999px;padding:3px 7px}.badge.auto{border-color:rgba(119,186,131,.3);color:var(--green);background:rgba(119,186,131,.06)}.footnote{padding:10px 12px;border-top:1px solid var(--line);color:var(--muted);font-size:9px}.notice{margin-top:10px;padding:10px;border:1px solid rgba(79,159,232,.22);background:rgba(79,159,232,.05);border-radius:8px;color:#c8d9ea;font-size:9px}
+@media(max-width:1000px){.app{grid-template-columns:1fr}.side{display:none}.bodygrid{grid-template-columns:1fr}.castgrid{grid-template-columns:repeat(4,1fr)}}@media(max-width:650px){.content{padding:12px}.castgrid{grid-template-columns:repeat(3,1fr)}.castrow{grid-template-columns:1fr}.seg{width:max-content}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+<div class="logo"><div class="mark">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div>
+<div class="nav"><div>⌂ ホーム</div><div class="on">▣ レジ</div><div>▤ 日報</div><div>◫ シフト</div><div>♙ キャスト</div><div>▭ 給与</div><div>⌘ マスタ</div></div>
+</aside>
+<main>
+<div class="top"><span class="badge">オーナー</span></div>
+<div class="content">
+<div class="tabs"><div class="on">卓席・会計</div><div>予約</div></div>
+<section class="ticket">
+<div class="head">
+<div class="headleft"><button style="background:#151513;border:1px solid var(--line2);border-radius:7px;padding:8px 11px">← フロア</button><b>VIP1</b><span class="badge">VIP</span><span class="sub">2名　滞在0分　セット中 残り60分</span></div>
+<div><span class="sub">合計</span> <span class="total">¥17,600</span></div>
+</div>
+<div class="switchtabs"><button>注文</button><button class="on">指名・席</button><button>会計</button></div>
+<div class="bodygrid">
+<div>
+<div class="card">
+<div class="cardhead"><h2>指名</h2><p>キャストの種別を変更すると、対応する指名料・同伴料を自動で会計へ反映します。</p></div>
+<div class="cardbody">
+<input class="search" placeholder="キャストを検索">
+<div class="castgrid">
+<div class="cast"><div class="avatar">あ</div><b>あべ</b></div>
+<div class="cast active"><div class="avatar">え</div><b>えま</b><small>場内中</small></div>
+<div class="cast active"><div class="avatar">さ</div><b>さくら</b><small>場内中</small></div>
+<div class="cast"><div class="avatar">じ</div><b>じゅり</b></div>
+<div class="cast active"><div class="avatar">ひ</div><b>ひなの</b><small>本指名</small></div>
+<div class="cast"><div class="avatar">み</div><b>みお</b></div>
+<div class="cast"><div class="avatar">れ</div><b>れいな</b></div>
+</div>
+<div class="selected"><strong>対象：ひなの</strong><span class="sub">　現在：本指名　／　本指名料 ¥3,000 自動加算済み</span></div>
+<div class="castrows">
+<div class="castrow"><div class="castname"><b>えま</b><small>場内指名 1件</small></div><div class="seg"><button>本</button><button class="on">場内</button><button>フリー</button></div><label><input type="checkbox"> 同伴</label><div class="percent"><input value="34">% <span class="autocharge">場内料 ¥2,000 自動</span></div></div>
+<div class="castrow"><div class="castname"><b>さくら</b><small>場内指名 1件</small></div><div class="seg"><button>本</button><button class="on">場内</button><button>フリー</button></div><label><input type="checkbox"> 同伴</label><div class="percent"><input value="33">% <span class="autocharge">場内料 ¥2,000 自動</span></div></div>
+<div class="castrow"><div class="castname"><b>ひなの</b><small>本指名 1件</small></div><div class="seg"><button class="on">本</button><button>場内</button><button>フリー</button></div><label><input type="checkbox" checked> 同伴</label><div class="percent"><input value="33">% <span class="autocharge">本指名 ¥3,000 + 同伴 ¥3,000 自動</span></div></div>
+</div>
+<div class="notice">「本／場内／同伴」を変更した時点で実績と料金明細を同期します。料金をサービスしたい場合は、右の会計明細から「取消・値引き」を行います。</div>
+</div>
+<div class="footnote">※ 延長しても指名本数は増えません。延長指名料を設定している店舗のみ、延長時に料金だけ自動追加します。</div>
+</div>
+</div>
+
+<aside class="card receipt">
+<div class="cardhead"><h2>明細</h2><p>種別変更に連動して自動更新</p></div>
+<div class="cardbody">
+<div class="line"><div><b>セット料金（60分）</b><small>¥3,000 × 2名</small></div><b>¥6,000</b><span class="badge">削除不可</span></div>
+<div class="line"><div><b>場内指名料　えま</b><small>自動反映</small></div><b>¥2,000</b><span class="badge auto">自動</span></div>
+<div class="line"><div><b>場内指名料　さくら</b><small>自動反映</small></div><b>¥2,000</b><span class="badge auto">自動</span></div>
+<div class="line"><div><b>本指名料　ひなの</b><small>自動反映</small></div><b>¥3,000</b><span class="badge auto">自動</span></div>
+<div class="line"><div><b>同伴料　ひなの</b><small>自動反映</small></div><b>¥3,000</b><span class="badge auto">自動</span></div>
+<div class="line"><div><b>サービス料</b><small>10%</small></div><b>¥1,600</b><span></span></div>
+<div class="line"><div><b>合計</b></div><b style="font-size:18px">¥17,600</b><span></span></div>
+<button style="margin-top:12px;width:100%;height:38px;border:1px solid var(--line2);background:#171714;border-radius:7px">明細を編集・値引き</button>
+</div>
+</aside>
+</div>
+</section>
+</div>
+</main>
+</div>
+</body>
+</html>
