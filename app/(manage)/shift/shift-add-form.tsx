@@ -86,10 +86,12 @@ function rpcErrJa(msg: string | undefined): string {
 const SKIP_JA: Record<string, string> = { closed: "定休日", duplicate: "既に登録あり", unavailable: "出勤不可（理由未入力）" };
 
 export default function ShiftAddForm({
-  casts, initialCast, bhRows, initialDate, initialStatus, open, onClose, onSaved,
+  casts, photoUrls, initialCast, bhRows, initialDate, initialStatus, open, onClose, onSaved,
 }: {
   /** 左ペイン CastPicker の母集団（裁定108: select 禁止＝Picker 維持） */
   casts: Cast[];
+  /** ★#51: 署名 URL の Map（casts-board と同一の解決＝親が発行・CastAvatar が onError で頭文字へ） */
+  photoUrls?: Map<string, string>;
   /** 開いたときに選択済みにするキャスト（今日タブの行「＋」直開き等・null=左ペインで選ぶ） */
   initialCast: Cast | null;
   bhRows: BusinessHourRow[];
@@ -338,7 +340,7 @@ export default function ShiftAddForm({
               シフトを作るキャストを選択（切替で選択中の日はリセット）
             </p>
             <CastPicker
-              casts={casts} dense
+              casts={casts} photoUrls={photoUrls} dense
               selectedIds={new Set(selCast ? [selCast.id] : [])}
               onPick={(id) => {
                 const c = casts.find((x) => x.id === id);

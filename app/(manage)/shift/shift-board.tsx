@@ -1573,7 +1573,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
           行の「＋」直開きは initialCast で従来どおりキャスト固定で開く（裁定108 の Picker 維持）。 */}
       {isManagerUp && (
         <ShiftAddForm
-          casts={casts} initialCast={addCast} bhRows={bhRows}
+          casts={casts} photoUrls={photoUrls} initialCast={addCast} bhRows={bhRows}
           initialDate={addDate} initialStatus={addStatus}
           open={addModal} onClose={() => setAddModal(false)}
           onSaved={() => { setMsg("シフトを保存しました"); void load(); }}
