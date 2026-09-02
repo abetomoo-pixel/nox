@@ -69,9 +69,8 @@ const MSG_FLOOR = "floor";
 const MSG_DETAIL = "detail";
 const MSG_PAY = "pay";
 const MSG_TIME = "time";
-// feeMsg の描画点（2つ）＝指名カード・同伴料カード。
+// feeMsg の描画点（1つ）＝指名カード。★0124: 同伴料カード撤去で FEE_DOHAN は廃止。
 const FEE_SHIMEI = "shimei";
-const FEE_DOHAN = "dohan";
 // 領収書カードの成功文言（色分けの唯一の分岐点＝入金モーダル :msg と同じ既存の流儀）
 const RCPT_COPIED = "確認用 URL をコピーしました";
 type Line = {
@@ -300,11 +299,9 @@ export default function RegisterBoard({
   const [claims, setClaims] = useState<DrinkClaim[]>([]);
   // E8-1 ⑤: 行内 select（旧 claimPick）は CastPicker モーダル（drinkPick）へ置換＝state 撤去
   const [claimMsg, setClaimMsg] = useState<string | null>(null);
-  // 料金UIレーン C4（mig0084）: 指名料・同伴料の課金行（check_shimei_add / check_dohan_add）。
-  //   按分（check_set_nominations）とは別概念＝別カード・別 state。額のプレビューは出さない
-  //   （解決はサーバ＝押下で RPC・pricing_resolve は owner/manager 限定でレジの staff からは呼べない）。
-  const [feeCast, setFeeCast] = useState("");
-  const [dohanN, setDohanN] = useState(1);
+  // ★0124（裁定111）: 課金は名簿保存からの派生＝check_set_nominations 1本（旧 check_shimei_add /
+  //   check_dohan_add のボタン経路と feeCast/idem_key state は撤去）。額のプレビューは出さない
+  //   （解決はサーバ＝行の「自動加算」表示は伝票に書かれた凍結値だけを読む＝裁定61-2 と同じ規律）。
   const [feeBusy, setFeeBusy] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
 
@@ -358,9 +355,12 @@ export default function RegisterBoard({
   const [nomKinds, setNomKinds] = useState<Record<string, "hon" | "jonai" | "free">>({});
   const [nomDohan, setNomDohan] = useState<Record<string, boolean>>({});
   const [nomWeights, setNomWeights] = useState<Record<string, number>>({});
-  // ★裁定102: 課金ボタンの idem_key＝描画時に生成し成功後に再生成（連打/再送は同一行に吸収）。
-  const [idemShimei, setIdemShimei] = useState<string>(() => crypto.randomUUID());
-  const [idemDohan, setIdemDohan] = useState<string>(() => crypto.randomUUID());
+  // ★0124（裁定111-2）: 行内の同伴人数ステッパー（既定1）。保存時に dohan_count で送る＝
+  //   RPC が同伴料行ちょうど1本のときだけ qty を同期（手動取消・複数行は no-op＝判断H）。
+  const [nomDohanN, setNomDohanN] = useState<Record<string, number>>({});
+  // ★0124（裁定111-3）: %・人数の連続入力は blur で1回保存＝キーストロークごとの RPC を避ける。
+  //   トグル系（種別/同伴/名簿タップ/均等）は即時保存。dirty は入力系の未保存編集の有無。
+  const [nomDirty, setNomDirty] = useState(false);
   const [prodGroup, setProdGroup] = useState("A"); // 段B: タイル追加先の伝票グループ（既定 A）
   // 段0R 第1陣: カテゴリチップの絞り込み（""=すべて）。表示のみ・取得も RPC も不変。
   const [catFilter, setCatFilter] = useState("");
@@ -485,8 +485,14 @@ export default function RegisterBoard({
         for (const n of (ns ?? []) as Nom[]) { kinds[n.cast_id] = n.nom_kind; dohans[n.cast_id] = n.is_dohan; }
         setNomKinds(kinds); setNomDohan(dohans);
       }
-      // ★裁定102: 伝票を読み直すたびに idem_key を新調（別操作は別行・同操作の再送だけ吸収）。
-      setIdemShimei(crypto.randomUUID()); setIdemDohan(crypto.randomUUID());
+      // ★0124（裁定111-2）: 行内ステッパーの初期値＝伝票の同伴料行 qty（凍結値・無ければ既定1）。
+      {
+        const dn: Record<string, number> = {};
+        for (const l of (ls ?? []) as Line[]) {
+          if (l.fee_kind === "dohan" && l.cast_id) dn[l.cast_id] = l.qty;
+        }
+        setNomDohanN(dn);
+      }
       // R-2a-3: DB の相対重み（例 1,1,1,1）をそのまま % 欄に入れると合計4%で開幕から赤くなる＝
       //   Σ=100 へ正規化してから入れる（1,1,1,1→25×4・相対比は保存）。**表示のためだけ**の変換で、
       //   ユーザーが保存操作をするまで DB へは書き込まない（ns の順＝position 順＝端数の先頭優遇も決定的）。
@@ -641,22 +647,38 @@ export default function RegisterBoard({
 
   // ★裁定110 A2-(4): w=0 の行も送る（0＝按分なしの名簿の一員・名簿から落とさない）。
   //   分母ゼロ（全 0）は RPC が 'bad weight' で拒否＝UI 側の自動補完が常に Σ=100 を保つので通常は到達しない。
-  function buildNomList(weights: Record<string, number>) {
+  // ★0124（裁定111-3）: 名簿は変更のたび自動保存＝「分配を保存」ボタンは廃止。レジは現在値を
+  //   読めている（loadCheck）ので nom_kind/is_dohan を常に明示送信（キー欠落=保持は kiosk 用の意味論）。
+  //   dohan_count は同伴 ON の行にだけ載せる（RPC 側は行1本時のみ qty 同期＝判断H）。
+  function buildNomList(
+    weights: Record<string, number>,
+    kinds: Record<string, "hon" | "jonai" | "free">,
+    dohans: Record<string, boolean>,
+    dohanNs: Record<string, number>,
+  ) {
     return Object.entries(weights).map(([cast_id, weight]) => ({
-      cast_id, weight, nom_kind: nomKinds[cast_id] ?? "free", is_dohan: nomDohan[cast_id] ?? false,
+      cast_id, weight, nom_kind: kinds[cast_id] ?? "free", is_dohan: dohans[cast_id] ?? false,
+      ...(dohans[cast_id] ? { dohan_count: Math.max(1, dohanNs[cast_id] ?? 1) } : {}),
     }));
   }
-  async function saveNoms() {
-    if (!check) return;
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+  // 自動保存の単一経路。state 反映を待たず**引数の値で**送る（同一 tick の切替→保存の空振り＝教訓19 の予防）。
+  //   成功は静かに反映（明細の自動加算行は loadCheck で出る）・失敗は赤文言＋DB の姿へ巻き戻し。
+  async function autoSaveNoms(
+    weights: Record<string, number>,
+    kinds: Record<string, "hon" | "jonai" | "free">,
+    dohans: Record<string, boolean>,
+    dohanNs: Record<string, number>,
+  ) {
+    if (!check || feeBusy) return;
+    if (!(await tb.flush())) return; // money 系: 保留タップを先に確定（失敗＝中止）
+    setFeeBusy(true);
     setMsg(null);
     const { error } = await supabase.rpc("check_set_nominations", {
-      p_check_id: check.id, p_nominations: buildNomList(nomWeights), // ★0119: 2引数（種別は行属性）
+      p_check_id: check.id, p_nominations: buildNomList(weights, kinds, dohans, dohanNs), // ★0119: 2引数
     });
-    setMsg(error
-      ? { to: MSG_DETAIL, text: error.message, kind: "bad" }
-      : { to: MSG_DETAIL, text: "指名を保存しました", kind: "ok" });
-    await loadCheck(check.id);
+    setFeeBusy(false);
+    if (error) setMsg({ to: MSG_DETAIL, text: chargeErrJa(error.message), kind: "bad" });
+    await loadCheck(check.id); // 失敗時も DB の姿へ巻き戻す（派生は RPC 内で原子＝中途半端は残らない）
   }
 
   // R-1a 段2（裁定61-2）: 追加した行の**実額**を1回の select で読む共通経路。
@@ -682,107 +704,21 @@ export default function RegisterBoard({
     };
   }
 
-  // ── 料金UIレーン C4: 指名料・同伴料の課金行（mig0084）──
-  //   額はサーバが解決（開栓時凍結の checks.dohan_fee／指名は行追加時のランクで pricing_rules）。
-  //   入金済み・close 後は RPC 側でも拒否されるが、ボタンも disabled にして意図を明示する。
+  // ★0124（裁定111）: 名簿の自動保存（check_set_nominations）が返すエラーの和訳。
+  //   額はサーバが解決（同伴＝開栓時凍結の checks.dohan_fee／指名＝pricing_resolve_core の live 解決）。
+  //   入金後の派生・close 後は RPC 側でも拒否されるが、操作 UI も disabled にして意図を明示する。
   const chargeErrJa = (m: string | undefined): string => {
     if (!m) return "不明なエラー";
-    if (m.includes("bad kind")) return "指名種別が不正です";
+    if (m.includes("bad nom_kind") || m.includes("bad kind")) return "指名種別が不正です";
     if (m.includes("bad count")) return "同伴人数は1以上で入力してください";
+    if (m.includes("bad weight")) return "分配率が不正です（名簿に人が居る場合は合計を 0 にできません）";
     if (m.includes("inactive cast")) return "在籍していないキャストです";
     if (m.includes("bad cast")) return "このお店のキャストを選んでください";
     if (m.includes("not open")) return "この伝票は会計済みまたは取消済みです";
-    if (m.includes("has payments")) return "入金後は追加できません（入金を取り消してから操作してください）";
+    if (m.includes("has payments")) return "入金後は指名料・同伴料を変更できません（入金を取り消してから操作してください）";
     if (m.includes("forbidden")) return "権限がありません";
     return m;
   };
-  // E8-1b F2: 指名フロー1本化＝CastPicker で選んだキャストへ「本指名｜場内」1押しで
-  //   課金行（check_shimei_add）＋按分（check_set_nominations へ重み1で自動合流・種別も追随）。
-  //   ★エラー/結果はカード内 feeMsg に表示（旧 setMsg はフロアでしか描画されない＝非表示バグの是正）。
-  //   ★¥0 行は裁定①（行の存在が指名事実）のとおり立てたうえで、料金未設定を明示警告する。
-  async function addShimeiUnified(kind: "hon" | "jonai") {
-    if (!check || !feeCast || feeBusy) return;
-    if (!(await tb.flush())) return; // money 系: 保留タップを先に確定（失敗＝中止）
-    setFeeMsg(null);
-    setFeeBusy(true);
-    // ★裁定102: idem_key 付き（連打/再送は同一行）。成功後に次回用キーを再生成。
-    const { data: lineId, error } = await supabase.rpc("check_shimei_add", {
-      p_check_id: check.id, p_cast_id: feeCast, p_kind: kind, p_idem_key: idemShimei,
-    });
-    if (error) { setFeeMsg({ to: FEE_SHIMEI, text: chargeErrJa(error.message), kind: "bad" }); setFeeBusy(false); return; }
-    setIdemShimei(crypto.randomUUID());
-    // ★裁定110 A2-(1): 課金＝種別変更（＋未在籍なら名簿追加）→ 既定分配を再適用して保存（w=0 行も送る）
-    const members = nomWeights[feeCast] !== undefined ? Object.keys(nomWeights) : [...Object.keys(nomWeights), feeCast];
-    const kinds = { ...nomKinds, [feeCast]: kind };
-    setNomKinds(kinds);
-    const weights = defaultWeights(members, kinds);
-    setNomWeights(weights);
-    const list = members.map((cast_id) => ({
-      cast_id, weight: weights[cast_id] ?? 0, nom_kind: kinds[cast_id] ?? "free", is_dohan: nomDohan[cast_id] ?? false,
-    }));
-    const { error: e2 } = await supabase.rpc("check_set_nominations", {
-      p_check_id: check.id, p_nominations: list, // ★0119: 2引数
-    });
-    // 追加行の額（¥0＝料金未設定の可視化。返値は行 id＝mig0084）
-    //   R-1a 段2: 同伴料・延長と同一経路へ寄せた（クエリは従来と同値＝line_total を1回 select）。
-    const amt = (await lineAmountOf(lineId)).total;
-    setFeeBusy(false);
-    setFeeMsg({
-      to: FEE_SHIMEI,
-      // 旧: 文字列に "失敗"/"¥0" が含まれるかで色を決めていた → kind へ移した（判定条件は同値）
-      kind: e2 || amt === 0 ? "bad" : "ok",
-      text: e2
-        ? `指名料は追加しましたが按分の反映に失敗: ${e2.message}`
-        : `${castName(feeCast)} に${kind === "hon" ? "本指名料" : "場内指名料"}${amt != null ? ` ${yen(amt)}` : ""}を追加し、按分にも反映しました${
-            amt === 0 ? "。★¥0＝指名料が未設定です（マスタ→料金設定で単価を登録してください）" : ""}`,
-    });
-    await loadCheck(check.id);
-  }
-  async function addDohanFee() {
-    if (!check || feeBusy) return;
-    // ★R-2b（裁定100 A-5）: 同伴料は cast 必須＝対象キャスト（feeCast）を選んでから。
-    if (!feeCast) { setFeeMsg({ to: FEE_DOHAN, text: "同伴するキャストをタップして選択してください（同伴料はキャスト必須になりました）", kind: "bad" }); return; }
-    if (!(await tb.flush())) return;
-    setFeeMsg(null);
-    setFeeBusy(true);
-    // R-1a 段2（裁定61-1）: 戻り uuid＝追加した行 id。★0119: cast 必須＋idem_key（裁定102）。
-    const { data: lineId, error } = await supabase.rpc("check_dohan_add", {
-      p_check_id: check.id, p_cast_id: feeCast, p_count: dohanN, p_idem_key: idemDohan,
-    });
-    if (error) {
-      setFeeBusy(false);
-      setFeeMsg({ to: FEE_DOHAN, text: chargeErrJa(error.message), kind: "bad" });
-      await loadCheck(check.id);
-      return;
-    }
-    setIdemDohan(crypto.randomUUID());
-    // ★R-2b: 同伴料を付けたキャストは名簿の is_dohan を on にして保存（種別は据え置き＝別軸・裁定86-④）。
-    {
-      // ★裁定110: 同伴チェックは別軸＝種別変更ではない。未在籍なら名簿追加（既定分配）・在籍なら手動値を保持。
-      const wasMember = nomWeights[feeCast] !== undefined;
-      const members = wasMember ? Object.keys(nomWeights) : [...Object.keys(nomWeights), feeCast];
-      const kinds = { ...nomKinds, [feeCast]: nomKinds[feeCast] ?? "free" };
-      const weights = wasMember ? { ...nomWeights } : defaultWeights(members, kinds);
-      setNomWeights(weights);
-      const dohans = { ...nomDohan, [feeCast]: true };
-      setNomDohan(dohans);
-      const list = members.map((cast_id) => ({
-        cast_id, weight: weights[cast_id] ?? 0, nom_kind: kinds[cast_id] ?? "free", is_dohan: dohans[cast_id] ?? false,
-      }));
-      const { error: e2 } = await supabase.rpc("check_set_nominations", { p_check_id: check.id, p_nominations: list });
-      if (e2) console.warn("[R-2b] 同伴料は追加しましたが名簿の is_dohan 反映に失敗（行は明細に存在）", e2.message);
-    }
-    const { unit, total } = await lineAmountOf(lineId);
-    setFeeBusy(false);
-    setFeeMsg({ to: FEE_DOHAN, kind: "ok",
-      // 額が取れなかったときは**額を省いた文言**で続行（操作自体は成功しているのでエラーにしない）
-      text: total == null
-        ? `${castName(feeCast)} に同伴料を追加しました（${dohanN}名分・金額は明細でご確認ください）`
-        : unit != null
-          ? `${castName(feeCast)} に同伴料 ${yen(unit)}×${dohanN}名 を追加しました（計 ${yen(total)}）`
-          : `${castName(feeCast)} に同伴料 ${yen(total)} を追加しました（${dohanN}名分）` });
-    await loadCheck(check.id);
-  }
 
   // E8-1b F5（mig0091）: 明細行のグループ付け替え（time_auto 行は RPC が 'time line' で拒否＝UI も出さない）
   async function setLineGroup(lineId: string, g: string) {
@@ -871,7 +807,7 @@ export default function RegisterBoard({
       setMsg({ to: MSG_DETAIL, kind: "bad", text: "先に指名料を取り消してください" });
       return;
     }
-    if (!(await tb.flush())) return; // saveNoms と同じ前置き（保留タップを先に確定）
+    if (!(await tb.flush())) return; // autoSaveNoms と同じ前置き（保留タップを先に確定）
     // ★裁定110: 除外＝キー削除＋残り >0 群を Σ=100 へ（全 0 なら既定分配で復旧）
     setNomWeights((prev) => {
       const next = { ...prev };
@@ -879,7 +815,6 @@ export default function RegisterBoard({
       const anyPos = Object.values(next).some((w) => w > 0);
       return anyPos ? renormalizeKeepZeros(next) : defaultWeights(Object.keys(next), nomKinds);
     });
-    if (feeCast === castId) setFeeCast("");
     if (feeMsg?.to === FEE_SHIMEI) setFeeMsg(null); // 対象名入りの文言は対象が消えたら捨てる（R-1a 追補と同じ理由）
     if (!noms.some((n) => n.cast_id === castId)) return;
     const em = await replaceNomsFromDb(castId, check);
@@ -1943,15 +1878,12 @@ export default function RegisterBoard({
           <div>
         {dtab === "nom" && (<>
         <div className="nox-cardtop" style={card}>
-          {/* E8-1b F2: 指名フロー1本化＝CastPicker→「本指名｜場内」で課金行＋按分へ自動反映。
-              種別プルダウンは廃止しセグメントへ。重み微調整は折りたたみに格納。 */}
+          {/* ★0124（裁定111-4）: 「本指名料を付ける/場内指名料を付ける」ボタン行と対象選択（feeCast）を撤去＝
+              課金は下の行の種別トグルからの派生1本。モック autocharge v1 の cardhead 文言に追随。 */}
           <h3 style={t.cardTitle}>指名</h3>
-          {/* ★R-2b（裁定100）: 卓で1種別のセグメントは廃止＝種別（本/場内/フリー）と同伴は
-              下の「指名の分配率」でキャスト行ごとに設定（同一キャストに本指名∧同伴の同時成立可＝裁定86-④）。 */}
           <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" }}>
-            キャストをタップして名簿へ追加し、種別・同伴・分配率は下の「指名の分配率」で行ごとに設定します。
+            キャストをタップして名簿へ追加します。種別を変更すると、対応する指名料・同伴料を自動で会計へ反映します。
           </p>
-          {/* ⑤: タップ＝按分トグル＋指名料の対象キャストとして記憶（feeCast） */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
             selectedIds={seatedIds} badges={nomBadges} dense
@@ -1962,46 +1894,23 @@ export default function RegisterBoard({
                 setFeeMsg({ to: FEE_SHIMEI, kind: "bad", text: "先に指名料を取り消してください" });
                 return;
               }
-              const nextFee = on ? (feeCast === id ? "" : feeCast) : id;
-              // ★裁定110 A2-(1)(3): 名簿の追加＝既定分配を適用（本 100% 等分→場内→フリー・手動値はここでリセット）。
-              //   解除＝キー削除＋残りの >0 群を Σ=100 へ（全 0 になったら既定分配で復旧）。
-              setNomWeights((prev) => {
-                if (on) {
-                  const next = { ...prev };
-                  delete next[id];
-                  const anyPos = Object.values(next).some((w) => w > 0);
-                  return anyPos ? renormalizeKeepZeros(next) : defaultWeights(Object.keys(next), nomKinds);
-                }
-                const members = [...Object.keys(prev), id];
-                return defaultWeights(members, { ...nomKinds, [id]: nomKinds[id] ?? "free" });
-              });
-              // R-1a 追補: 指名料の文言は**対象キャスト名を含む**（「えま に本指名料 ¥3,000 を追加し…」）。
-              //   対象が変われば文言は必ず不一致になるので、対象の変更点で捨てる。
-              //   ★同伴料の文言（FEE_DOHAN）は対象に依存しないので残す＝to で見分ける。
-              if (nextFee !== feeCast && feeMsg?.to === FEE_SHIMEI) setFeeMsg(null);
-              setFeeCast(nextFee);
+              // ★0124（裁定111-3）: タップ＝名簿の増減も自動保存。
+              //   解除＝× と同じ RPC 経路（removeShareCast＝0121 の関所込み）。
+              if (on) { void removeShareCast(id); return; }
+              // 追加＝既定分配を適用（本 100% 等分→場内→フリー・手動値はここでリセット＝裁定110 A2-(1)(3)）
+              const members = [...Object.keys(nomWeights), id];
+              const kinds = { ...nomKinds, [id]: nomKinds[id] ?? ("free" as const) };
+              const weights = defaultWeights(members, kinds);
+              setNomKinds(kinds);
+              setNomWeights(weights);
+              void autoSaveNoms(weights, kinds, nomDohan, nomDohanN);
             }}
           />
-          {/* F2: 1本化ボタン＝課金行＋按分を同時に（対象＝最後にタップしたキャスト） */}
-          {(() => {
-            const feeDisabled = feeBusy || check.status !== "open" || payments.length > 0;
-            return (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-                <span style={{ fontSize: 12, color: feeCast ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}>
-                  {feeCast ? `対象: ${castName(feeCast)}` : "キャストをタップして選択"}
-                </span>
-                <button style={btnDark} disabled={feeDisabled || !feeCast} onClick={() => void addShimeiUnified("hon")}>
-                  本指名料を付ける（＋按分）
-                </button>
-                <button style={btnLight} disabled={feeDisabled || !feeCast} onClick={() => void addShimeiUnified("jonai")}>
-                  場内指名料を付ける（＋按分）
-                </button>
-                {payments.length > 0 && check.status === "open" && (
-                  <span style={{ fontSize: 11.5, color: "var(--sub)" }}>入金後は追加できません</span>
-                )}
-              </div>
-            );
-          })()}
+          {payments.length > 0 && check.status === "open" && (
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0" }}>
+              入金後は指名料・同伴料の変更はできません（％の調整のみ可能です）。
+            </p>
+          )}
           {/* R-1a: 描画点＝指名カード。to の一致だけで描画（旧: feeMsg を無条件描画していたため
               同伴料の文言までここに出ていた＝二重表示の片側） */}
           {feeMsg?.to === FEE_SHIMEI && (
@@ -2048,6 +1957,16 @@ export default function RegisterBoard({
               // ★0121（裁定107）: free の weight=1 固定を撤去＝全行に％入力（「均等」表示なし）。
               const kind = nomKinds[ca.id] ?? "free";
               const dohan = nomDohan[ca.id] ?? false;
+              // ★0124（裁定111）: 種別・同伴の変更＝課金が動く操作＝入金後・close 後は不可（％編集は可）。
+              const lockDerive = feeBusy || check.status !== "open" || payments.length > 0;
+              // ★0124（裁定111-4）: 「¥N 自動加算」補助表示＝伝票に実際に書かれた行の凍結値のみ
+              //   （マスタからのクライアント再計算はしない＝裁定61-2）。手動取消済みなら出ない＝復活もしない。
+              const shimeiLine = lines.find((l) => l.cast_id === ca.id
+                && l.fee_kind === (kind === "hon" ? "hon_shimei" : "jonai_shimei"));
+              const dohanLine = lines.find((l) => l.cast_id === ca.id && l.fee_kind === "dohan");
+              const autoParts: string[] = [];
+              if (kind !== "free" && shimeiLine) autoParts.push(`${NOM_LABEL[kind]}料 ${yen(shimeiLine.line_total)}`);
+              if (dohan && dohanLine) autoParts.push(`同伴 ${yen(dohanLine.line_total)}`);
               return (
               <div key={ca.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 90 }}>
@@ -2073,33 +1992,83 @@ export default function RegisterBoard({
                         按分なし
                       </span>
                     )}
+                    {/* ★0124（裁定111-4）: モック .autocharge 相当＝自動加算の凍結値表示 */}
+                    {autoParts.length > 0 && (
+                      <span style={{ fontSize: 10, color: "var(--ok)", whiteSpace: "nowrap" }}>
+                        {autoParts.join(" + ")} 自動加算
+                      </span>
+                    )}
                   </span>
                 </div>
                 <span className="nox-seg" style={{ display: "inline-flex" }}>
                   {([["hon", "本"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([v, l]) => (
-                    <button key={v} type="button" className={kind === v ? "on" : ""}
+                    <button key={v} type="button" className={kind === v ? "on" : ""} disabled={lockDerive}
                       style={{ fontWeight: 700, fontSize: 11, padding: "5px 9px" }}
                       onClick={() => {
-                        // ★裁定110 A2-(1)(3): 種別変更＝既定分配を再適用（手動値はここでリセット）
+                        if (v === kind) return;
+                        // ★0124（裁定111-1）: 本/場内→フリーは課金行の取消を伴う＝確認してから保存
+                        if (v === "free" && kind !== "free"
+                            && !window.confirm(`${ca.name} をフリーに戻します。付いている${NOM_LABEL[kind]}料の明細行を取り消します。よろしいですか？`)) {
+                          return;
+                        }
+                        // ★裁定110 A2-(1)(3): 種別変更＝既定分配を再適用（手動値はここでリセット）→即時自動保存（裁定111-3）
                         const kinds = { ...nomKinds, [ca.id]: v };
+                        const weights = defaultWeights(Object.keys(nomWeights), kinds);
                         setNomKinds(kinds);
-                        setNomWeights((prev) => defaultWeights(Object.keys(prev), kinds));
+                        setNomWeights(weights);
+                        void autoSaveNoms(weights, kinds, nomDohan, nomDohanN);
                       }}>
                       {l}
                     </button>
                   ))}
                 </span>
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11.5 }}>
-                  <input type="checkbox" checked={dohan}
-                    onChange={(e) => setNomDohan((prev) => ({ ...prev, [ca.id]: e.target.checked }))} />
+                  <input type="checkbox" checked={dohan} disabled={lockDerive}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      // ★0124（裁定111-2）: OFF は同伴料行の取消を伴う＝確認してから保存。ON は即時保存（既定1名）。
+                      if (!on && !window.confirm(`${ca.name} の同伴を解除します。同伴料の明細行を取り消します。よろしいですか？`)) return;
+                      const dohans = { ...nomDohan, [ca.id]: on };
+                      const dohanNs = { ...nomDohanN, [ca.id]: on ? Math.max(1, nomDohanN[ca.id] ?? 1) : 1 };
+                      setNomDohan(dohans);
+                      setNomDohanN(dohanNs);
+                      void autoSaveNoms(nomWeights, nomKinds, dohans, dohanNs);
+                    }} />
                   同伴
                 </label>
+                {dohan && (
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11.5 }}>
+                    <input
+                      type="number" min={1} max={30} value={nomDohanN[ca.id] ?? 1} disabled={lockDerive}
+                      aria-label={`${ca.name} の同伴人数`}
+                      onChange={(e) => {
+                        const n = Math.min(30, Math.max(1, Math.trunc(Number(e.target.value) || 1)));
+                        setNomDohanN((prev) => ({ ...prev, [ca.id]: n }));
+                        setNomDirty(true);
+                      }}
+                      onBlur={() => {
+                        if (!nomDirty) return;
+                        setNomDirty(false);
+                        void autoSaveNoms(nomWeights, nomKinds, nomDohan, nomDohanN);
+                      }}
+                      className="num" style={{ ...input, width: 52, padding: "6px 6px", textAlign: "right" }}
+                    />
+                    <span style={{ fontSize: 11, color: "var(--sub)" }}>名</span>
+                  </label>
+                )}
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   <input
                     type="number" min={0} max={100} value={nomWeights[ca.id] ?? 0} aria-label={`${ca.name} の分配率`}
                     onChange={(e) => {
                       // ★裁定110 A2-(2)(4): 0〜100 clamp・編集行を確定し残りを 0 でない他行へ現在比で自動補完（Σ=100 恒等）
                       setNomWeights((prev) => redistribute(prev, ca.id, Number(e.target.value)));
+                      setNomDirty(true);
+                    }}
+                    onBlur={() => {
+                      // ★0124（裁定111-3）: %の確定（blur）で自動保存＝キーストロークごとの RPC を避ける
+                      if (!nomDirty) return;
+                      setNomDirty(false);
+                      void autoSaveNoms(nomWeights, nomKinds, nomDohan, nomDohanN);
                     }}
                     className="num" style={{ ...input, width: 64, padding: "6px 6px", textAlign: "right" }}
                   />
@@ -2125,62 +2094,38 @@ export default function RegisterBoard({
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+              {/* ★0124（裁定111-3）: 「分配を保存」は廃止＝変更のたび自動保存。均等も押下で即保存。 */}
               <button type="button" style={btnLight}
-                onClick={() => setNomWeights((prev) => {
+                onClick={() => {
                   // %版の均等＝100 を整数で山分け（端数は先頭から +1）。Σ=100 を常に満たす。
-                  const next = { ...prev };
+                  const next = { ...nomWeights };
                   const n = nomSelected.length;
                   const base = Math.floor(100 / n), rem = 100 - base * n;
                   nomSelected.forEach((ca, i) => { next[ca.id] = base + (i < rem ? 1 : 0); });
-                  return next;
-                })}>
+                  setNomWeights(next);
+                  void autoSaveNoms(next, nomKinds, nomDohan, nomDohanN);
+                }}>
                 均等に分配
               </button>
-              <button onClick={saveNoms} style={btnDark}>分配を保存</button>
               <span style={{ fontSize: 11, color: "var(--sub)" }}>
-                ※指名料ボタンを使った場合は自動保存済み（ここは手調整用）
+                ※変更は自動で保存されます（「分配を保存」ボタンは廃止）
               </span>
+            </div>
+            {/* ★0124（裁定111-4）: モック .notice 相当＝取消・値引きの例外経路の案内 */}
+            <div className="nox-inset" style={{ padding: "9px 12px", margin: "10px 0 0" }}>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: 0, lineHeight: 1.7 }}>
+                「本／場内／同伴」を変更した時点で実績と料金明細を同期します。
+                料金をサービスしたい場合は、会計タブの明細から当該行の「取消」または値引きを行ってください（取り消した行は復活しません）。
+              </p>
             </div>
             <p style={{ fontSize: 10.5, color: "var(--sub)", margin: "8px 0 0", lineHeight: 1.7 }}>
               ※件数換算は表示上の目安です（バック金額は比率で分配・指名本数の集計は在席キャストに計上）。
+              ※延長しても指名本数は増えません（延長指名料を設定している店舗のみ、延長時に料金だけ自動追加します）。
             </p>
           </div>
         )}
 
-        {/* 料金UIレーン C4（mig0084）: 指名料・同伴料の課金行。★按分カードとは別カード＝
-            上の「指名（重み比で分配）」はバック按分の重み・こちらは伝票への課金行の追加。 */}
-        {(() => {
-          const feeDisabled = feeBusy || check.status !== "open" || payments.length > 0;
-          return (
-            <div className="nox-cardtop" style={card}>
-              {/* E8-1b F2: 指名料は上の「指名」カードへ1本化＝ここは同伴料の課金のみ残す */}
-              <h3 style={t.cardTitle}>同伴料（課金）</h3>
-              <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
-                ※伝票へ同伴料の課金行を追加します。金額は料金設定（時間帯・席種）から自動で決まります。
-              </p>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <label style={{ fontSize: 12 }}>同伴人数{" "}
-                  <input type="number" min={1} max={30} value={dohanN}
-                    onChange={(e) => setDohanN(Math.max(1, Number(e.target.value)))}
-                    style={{ ...input, width: 60 }} />
-                </label>
-                <button style={btnLight} disabled={feeDisabled} onClick={() => void addDohanFee()}>
-                  同伴料を追加（単価×人数）
-                </button>
-              </div>
-              {/* R-1a: 描画点＝同伴料カード。旧 `feeMsg.includes("同伴")` を撤去＝to の一致だけで描画する */}
-              {feeMsg?.to === FEE_DOHAN && (
-                <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0",
-                  color: feeMsg.kind === "ok" ? "var(--ok)" : "var(--bad)" }}>{feeMsg.text}</p>
-              )}
-              {payments.length > 0 && check.status === "open" && (
-                <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
-                  入金済みのため追加できません（入金を取り消すと追加できます）。
-                </p>
-              )}
-            </div>
-          );
-        })()}
+        {/* ★0124（裁定111-2）: 下部「同伴料（課金）」カードは撤去＝同伴は名簿行のチェック＋人数ステッパーから派生。 */}
 
         {/* B1/B2: 席（相席・席移動）＝open 伝票のみ。候補は同店の空席（主open/追加占有を除外）。
             予約 soft 警告つき（裁定 d・拒否しない）。エラーは seatErrJa で日本語表示（握り潰さない）。 */}
