@@ -118,7 +118,7 @@ adv_issue / transport_issue / incentive_publish /
 **adv_cancel / transport_cancel / incentive_cancel**（裁定D3＝金銭記録の改変。BANZEN de-escalation 前例より判定原理を優先）/
 **receipt_issue / receipt_issue_void**（mig0099＝領収書の発行・取消＝金銭受領証の作成/改変・R2-9/R2-10・E8-6）
 
-### A5. シフト（14本・owner/manager の確定系＋SD 深部＝設計 v1.1 §4 文言修正・SD 設計書 §3）
+### A5. シフト（17本・owner/manager の確定系＋SD 深部＝設計 v1.1 §4 文言修正・SD 設計書 §3）
 shift_set / shift_wish_decide / set_staffing_need /
 **staffing_need_remove**（mig0095 新設＝バンド削除・ゲートは mig 本文に内蔵）/
 **shift_period_set / shift_period_remove / shift_propose / shift_auto_apply / shift_auto_clear /

@@ -2560,6 +2560,55 @@ UI 名称＝**指名実績バック／商品販売バック**。構造正本＝`
 
 ---
 
+## 裁定114（2026-09-02・mig0126）shift_confirm_bulk＝一括確定 RPC — 実機: 済（2026-09-02）
+
+底本＝`docs/dp/live_0126prep.sql`（shift_propose 逐語・sha256 `77860b25…eb25b`）。
+
+shift_confirm_bulk 新設。planned/proposed→confirmed 一括。**raise 型**（shift_propose 相似＝全件事前検証
+'bad rows' raise・row_count 照合 'concurrent change'）。重複除去後 **上限62**（'too many'）。
+audit action='shift_confirm_bulk'／target='shifts:bulk'。
+★v22 §1 の「スキップ返却」記述は起草時に raise 型へ解決（承認待ちタブの一括確定＝**表示全件確定操作**につき、
+不適格混入は並行変更→raise＋再取得が正）。
+
+**実装（2026-09-02）**: mig0126・f0 verify-nox-shift-confirm（10 assert）・承認待ちタブ一括確定ボタン。
+2026-09-02 実機確認・push 済み（`2328497`）。
+
+---
+
+## 裁定115（2026-09-02・設計書 v2）延長メニュー複数尺＝現行器で並置 — 器・resolve 無改変
+
+正本＝`docs/NOX_裁定115_116_設計書_v2.md`（sha256 `ee0f56d0…62cb`・論点①②の確定裁定）。
+
+延長メニュー複数尺は現行器で並置により実現する。snap は開栓時点適用可能全件のまま
+（窓外の裁量選択は導入しない）。既定=priority 最小を明文化し、帯編集 UI で並び替え可能・
+先頭=既定表示とする。器・resolve 無改変。
+
+---
+
+## 裁定116（2026-09-02・設計書 v2）料金区分軸＝区分テーブル＋null 許容 FK — 実装: 未着手
+
+正本＝`docs/NOX_裁定115_116_設計書_v2.md`（同上・論点③④⑤の確定裁定）。
+
+料金区分は pricing_categories テーブル＋pricing_rules.category_id（null 許容 FK・null=全区分）で実現する。
+開栓時に区分選択（6引数化・default null・kiosk 互換）→set/ext/dohan を区分で解決→snap に凍結。
+同 priority 内のみ区分一致>null。重複警告は（fee_kind, 窓, 区分）単位・null vs 区分は警告。
+既存行無改変・golden 不変。初来店は区分へ移行し approval は裁量減免用に分離。
+
+**調査要旨（D調査＋論点⑤ live 実測）**: 設計書 v2 §1 参照。底本＝`docs/dp/live_115116prep.sql`
+（21,899 bytes・sha256 `b662a039a7095158a4b7bea551d414b9b084c895eb1ec34caa9340a55233e30f`・
+approval_request/decide/direct＋check_open の逐語＋execute 権限実測）。approval 申請=owner/manager/
+staff・cast（自店∧can_register）＝check_add_line と同一ゲート・承認/direct=owner/manager のみ・
+3本とも anon=false。check_open=5引数全 default・kiosk 腕あり・resolve 3呼び＋ext_menu_snap は
+鏡像規律コメント付き（core と同一式・同時改修必須）。
+
+### 教訓52：区分条件は core＋snap の鏡像2点セット
+
+pricing_resolve_core の where 変更は check_open 内 ext_menu_snap 列挙の同一式へ同時反映必須。
+片方だけは snap（凍結表示）と請求（resolve）の乖離を生み runtime まで発覚しない
+（教訓51 の姉妹形。live 逐語の鏡像コメントで実証）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2819,6 +2868,9 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 47 | **auto 店の延長指名料**（裁定111 判断E） | 0124 の ext_shimei フックは **manual 店の check_extension_add のみ**。auto 店は権威が別関数（check_time_charge_apply）＝二重計上封じの構造を崩さないため初版対象外。auto 店で延長指名料を効かせるには time_charge_apply 側のフック設計（延長回数の検知・遡及の扱い）から別裁定 |
 | 48 | **レジ backbar の延長ボタン複製** | **実装済（2026-09-02・裁定112 UI レーン同乗）＝追認起票**。テーブル情報行（卓名・滞在・合計の backbar）に「延長（¥N/M分）」＝manual 店∧open のみ表示・checks スナップ ext_fee/ext_min 表示・check_extension_add 呼び（会計タブと同一経路・`from:"bar"` で完了/エラー文言を MSG_DETAIL へ）・入金後 disabled。会計タブ側カードは残置 |
 | 49 | **cast セルフの出勤不可宣言** | 0125 の cast_unavailable_set/remove は **owner/manager のみ**（v1）。cast 本人が mine 画面から不可を宣言するには専用 RPC（auth_cast_id 本人チェック型・原則5）＋mine UI とセットで別レーン。**着手前に shift_wish_submit の逐語確認が必須**（open 期間ガード・定休日ガードとの整合＝不可と希望の同日共存をどう扱うか） |
+| 50 | **商品一覧の表示3点是正** | **実装済（2026-09-02・`3e1390d`）＝追認起票**。在庫セルは折返し禁止の1行化（発注点をスラッシュ短縮「5/3」・hover にフル文言）・低在庫赤枠と残量バーは同一行で維持・バック設定を独立列へ昇格（率と4段階と防御ダッシュ表示）・商品名下段の重複サブテキスト撤去 |
+| 50b | **商品一覧カテゴリチップ行とスクロールバーの重なり** | **実装済（2026-09-02・`4145008`）＝追認起票**。下パディング10px＋細バー化で解消。チップ視認は不変・下マージン調整で合計間隔は据置 |
+| 51 | **シフトモーダル CastPicker の写真アバター** | **実装済（2026-09-02・`7c39673`）＝追認起票**。シフトモーダルの CastPicker へ写真アバター（photoUrls）を伝搬＝唯一の欠落だった（部品と CastAvatar は写真と onError フォールバック対応済み・他4箇所は伝搬済み・kiosk は署名経路なしの仕様） |
 
 ### 未裁定・消し込み待ち
 
