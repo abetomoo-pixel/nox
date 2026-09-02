@@ -303,6 +303,8 @@ export default function RegisterBoard({
   //   check_dohan_add のボタン経路と feeCast/idem_key state は撤去）。額のプレビューは出さない
   //   （解決はサーバ＝行の「自動加算」表示は伝票に書かれた凍結値だけを読む＝裁定61-2 と同じ規律）。
   const [feeBusy, setFeeBusy] = useState(false);
+  // ★#48b: backbar 延長の分割型＝「▾」で ext_menu_snap（開栓時凍結）の一覧から選択。snap 2件以上のみ表示。
+  const [extBarMenu, setExtBarMenu] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
 
   // F4b レシート印刷: printer_enabled は route 経由（printer_config は deny-all）＝false/取得失敗ならボタン非表示（fail-closed）
@@ -1840,15 +1842,47 @@ export default function RegisterBoard({
             );
           })()}
           {/* ★起票#48（裁定112 同乗）: manual 店の延長ボタンを backbar へ複製＝checks スナップ額の表示・
-              check_extension_add 呼び（会計タブと同一経路）・入金後 disabled。会計タブ側カードは残置。 */}
-          {timeMode === "manual" && check.status === "open" && (
-            <button type="button" style={{ ...btnLight, opacity: payments.length > 0 ? 0.45 : 1 }}
-              disabled={payments.length > 0}
-              title={payments.length > 0 ? "入金後は追加できません" : "延長料金を1回ぶん追加します"}
-              onClick={() => void addExtension(undefined, "bar")}>
-              延長（{yen(check.ext_fee * (check.time_per === "person" ? (check.people ?? 1) : 1))} / {check.ext_min}分）
-            </button>
-          )}
+              check_extension_add 呼び（会計タブと同一経路）・入金後 disabled。会計タブ側カードは残置。
+              ★#48b: 分割型＝本体は既定延長（現行）・「▾」は ext_menu_snap（開栓時凍結）の一覧から選択
+              →check_extension_add(p_rule_id)。snap null または1種のみは▾非表示。disabled は両方に適用。 */}
+          {timeMode === "manual" && check.status === "open" && (() => {
+            const extDisabled = payments.length > 0;
+            const menu = check.ext_menu_snap ?? [];
+            return (
+              <span style={{ position: "relative", display: "inline-flex" }}>
+                <button type="button"
+                  style={{ ...btnLight, opacity: extDisabled ? 0.45 : 1,
+                    ...(menu.length >= 2 ? { borderTopRightRadius: 0, borderBottomRightRadius: 0 } : {}) }}
+                  disabled={extDisabled}
+                  title={extDisabled ? "入金後は追加できません" : "延長料金を1回ぶん追加します"}
+                  onClick={() => { setExtBarMenu(false); void addExtension(undefined, "bar"); }}>
+                  延長（{yen(check.ext_fee * (check.time_per === "person" ? (check.people ?? 1) : 1))} / {check.ext_min}分）
+                </button>
+                {menu.length >= 2 && (
+                  <>
+                    <button type="button" aria-label="延長メニューから選ぶ" aria-expanded={extBarMenu}
+                      style={{ ...btnLight, padding: "2px 8px", marginLeft: -1,
+                        borderTopLeftRadius: 0, borderBottomLeftRadius: 0, opacity: extDisabled ? 0.45 : 1 }}
+                      disabled={extDisabled}
+                      onClick={() => setExtBarMenu((v) => !v)}>▾</button>
+                    {extBarMenu && (
+                      <span style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 30,
+                        display: "flex", flexDirection: "column", gap: 2, padding: 6,
+                        background: "var(--card)", border: "1px solid var(--line2)", borderRadius: 9,
+                        boxShadow: "0 10px 30px rgba(0,0,0,.4)", minWidth: 180 }}>
+                        {menu.map((m) => (
+                          <button key={m.rule_id} type="button" style={{ ...btnLight, justifyContent: "flex-start", whiteSpace: "nowrap" }}
+                            onClick={() => { setExtBarMenu(false); void addExtension(m.rule_id, "bar"); }}>
+                            {m.label}
+                          </button>
+                        ))}
+                      </span>
+                    )}
+                  </>
+                )}
+              </span>
+            );
+          })()}
           <span className="total num"><small>合計</small>{yen(check.total)}</span>
           {/* void は manager 以上のみ表示（RPC 側でも owner/manager を強制＝二重） */}
           {isManagerUp && (
