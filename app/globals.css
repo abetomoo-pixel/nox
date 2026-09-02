@@ -1689,11 +1689,15 @@ body {
 /* 数値列は右揃え＋内容幅に詰める（width:1% で余りを商品名列へ渡す） */
 .nox-ptable th.col-cost, .nox-ptable th.col-margin, .nox-ptable th.col-price,
 .nox-ptable td.col-cost, .nox-ptable td.col-margin, .nox-ptable td.col-price,
-.nox-ptable th.col-stock, .nox-ptable td.col-stock { text-align: right; }
+.nox-ptable th.col-stock, .nox-ptable td.col-stock,
+.nox-ptable th.col-back, .nox-ptable td.col-back { text-align: right; }
 .nox-ptable th.col-kind, .nox-ptable th.col-cat, .nox-ptable th.col-cost, .nox-ptable th.col-margin,
-.nox-ptable th.col-price, .nox-ptable th.col-stock, .nox-ptable th.col-state, .nox-ptable th.col-act {
+.nox-ptable th.col-price, .nox-ptable th.col-stock, .nox-ptable th.col-back,
+.nox-ptable th.col-state, .nox-ptable th.col-act {
   width: 1%; white-space: nowrap;
 }
+/* ★#50: 在庫・バック列は折返し禁止（在庫セルは inline-flex 1行化＝「5/3」短縮＋title 併用） */
+.nox-ptable td.col-stock, .nox-ptable td.col-back { white-space: nowrap; }
 .nox-ptable th.col-name { width: auto; }
 .nox-ptable .col-kind, .nox-ptable .col-cat, .nox-ptable .col-state, .nox-ptable .col-act { white-space: nowrap; }
 .nox-ptable .col-act { text-align: right; }
@@ -1734,7 +1738,8 @@ body {
 }
 .nox-stkbadge.low { border-color: rgba(217, 138, 138, .5); color: var(--bad); }
 .nox-stkbadge.neg { border-color: var(--bad); background: rgba(217, 138, 138, .14); color: var(--bad); }
-.nox-ptable .nox-stockbar { margin: 4px 0 0 auto; }
+/* ★#50: 在庫セルの1行化＝バーを数値と同一行へ（親は inline-flex・下段行を作らない） */
+.nox-ptable .nox-stockbar { margin: 0 0 0 6px; }
 /* 901〜1180: 状態列を畳む（全9列は入らない）。無効は商品名の隣のバッジで残す。
    ★④c: セレクタを .is-products に限定した。カテゴリ表（5列）は畳む必要が無く、
      畳むと代替表示（.nox-pt-inlinestate）を持たないぶん状態が消えてしまうため。 */

@@ -36,37 +36,40 @@ const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
 const PAGE = 40; // 逐次表示の1ページ分（「もっと見る」で +PAGE）
 const TYPE_LABEL_JA: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
 
-// ★④a-3: 商品名セルの下段に出すバック設定。DB 現物（mig0005 の products DDL）は次のとおり:
+// ★#50: バック設定は独立列（col-back）へ昇格＝商品名下段のサブテキストは撤去（重複表示しない）。
+//   DB 現物（mig0005 の products DDL）:
 //   back_mode  text not null default 'rate' check (back_mode in ('rate','unit4'))   ← ★2値のみ
 //   back_value int  … rate モードの率(%)。CHECK products_rate_value_chk で rate なら非 null
 //   unit4_json jsonb … unit4 モードの {hon,jonai,dohan,free} 単価。CHECK products_unit4_json_chk で非 null
-// ★「固定額」モードは DB に存在しない（back_mode は rate/unit4 の2値・UI の select も2択）。
-//   よって実際に出るのは「率%」「4段階」の2パターンで、「未設定」は CHECK 違反の行が
-//   混入した場合の防御表示（構造上は起きない）。unit4 の4つ組はここでは展開しない（混むため）。
-// ★本指名pt はここに出さない（別軸の値）。
-function backLabel(p: Product): string {
-  if (p.back_mode === "rate") return p.back_value == null ? "バック 未設定" : `バック ${p.back_value}%`;
-  if (p.back_mode === "unit4") return p.unit4_json == null ? "バック 未設定" : "バック 4段階";
-  return "バック 未設定";
+// ★「固定額」モードは DB に存在しない。「—」は CHECK 違反行が混入した場合の防御表示（構造上は起きない）。
+//   unit4 の4つ組はここでは展開しない（混むため）。★本指名pt はここに出さない（別軸の値）。
+//   ★名称は現行語彙のまま（「商品販売バック」への統一は裁定113 レーンで一括）。
+function backCell(p: Product) {
+  const text = p.back_mode === "rate" && p.back_value != null ? `${p.back_value}%`
+    : p.back_mode === "unit4" && p.unit4_json != null ? "4段階"
+    : null;
+  return text != null
+    ? <span style={p.back_mode === "rate" ? t.num : undefined}>{text}</span>
+    : <span style={{ color: "var(--sub)", opacity: 0.7 }}>—</span>;
 }
 
 // 純増①（mig0061）在庫セル: バッジ（数値）＋残量バー。バーは reorder_point 比（満位＝発注点×2）で、
 //   reorder_point null＝しきい無しゆえバーを出さず数値のみ。
 //   ★レーン④a: 「0以下」と「発注点以下」を赤系バッジで自己主張させる（旧: 低在庫は金 --gold2）。
 //     0以下＝塗り、発注点以下＝枠線の2段階で区別する。数値・発注点・バーの情報量は落としていない。
+//   ★#50: 折返し禁止の1行化＝「/ 発注点 n」を「/n」へ短縮（フル文言は title/hover）・バーも同一行へ。
 function stockCell(qty: number, reorderPoint: number | null) {
   const neg = qty <= 0;
   const low = !neg && reorderPoint !== null && qty <= reorderPoint;
   const full = reorderPoint !== null && reorderPoint > 0 ? reorderPoint * 2 : null;
   const pct = full ? Math.max(0, Math.min(100, (qty / full) * 100)) : 0;
   return (
-    <span style={{ display: "inline-block" }}>
+    <span style={{ display: "inline-flex", alignItems: "center", whiteSpace: "nowrap" }}
+      title={reorderPoint !== null ? `発注点 ${reorderPoint}` : undefined}>
       <span className={`nox-stkbadge${neg ? " neg" : low ? " low" : ""}`} style={t.num}>{qty}</span>
-      {/* ★④a-3: 「/ 発注点 n」を在庫セルへ戻した（④a-2 で商品名下段へ移していた分。
-          下段はバック設定に使う）。発注点 null なら従来どおり何も出さない。 */}
       {reorderPoint !== null && (
         <>
-          <span style={{ fontSize: 10, color: "var(--sub)", marginLeft: 5 }}>/ 発注点 {reorderPoint}</span>
+          <span className="num" style={{ fontSize: 10, color: "var(--sub)", marginLeft: 3 }}>/{reorderPoint}</span>
           <span className={`nox-stockbar${neg ? " neg" : low ? " low" : ""}`} aria-hidden="true">
             <i style={{ width: `${qty < 0 ? 100 : pct}%` }} />
           </span>
@@ -501,6 +504,9 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                   </span>
                 </th>
               ))}
+              {/* ★#50: バック列＝商品名下段のサブテキストから独立列へ昇格（率=「10%」・指名別単価=「4段階」・
+                  防御表示=「—」薄色）。ソート対象外。名称は現行語彙のまま（統一は裁定113 レーン）。 */}
+              <th className="col-back" title="キャストへのバック設定です。率（%）またはキャスト種別ごとの単価（4段階）">バック</th>
               <th className="col-state">状態</th>
               <th className="col-act">操作</th>
             </tr>
@@ -522,7 +528,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                       <span className="nox-pt-name">{p.name}</span>
                       {/* 状態列を畳む幅（901〜1180）だけ、無効を名前の隣にバッジで戻す＝情報を消さない */}
                       {!p.is_active && <span className="nox-statebadge nox-pt-inlinestate"><i />無効</span>}
-                      <span className="nox-pt-sub">{backLabel(p)}</span>
+                      {/* ★#50: 下段のバック設定サブテキストは独立列（col-back）へ昇格＝重複表示しない */}
                     </span>
                   </td>
                   <td className="col-kind" data-label="会計区分">{TYPE_LABEL_JA[p.type] ?? p.type}</td>
@@ -542,6 +548,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                   </td>
                   {/* 純増①（mig0061）: 残量バー＝Σdelta と reorder_point のみ（新規取得なし・表示のみ）。 */}
                   <td className="col-stock" data-label="在庫">{stockCell(stock[p.id] ?? 0, p.reorder_point)}</td>
+                  <td className="col-back" data-label="バック">{backCell(p)}</td>
                   <td className="col-state" data-label="状態">
                     {/* ★④c（裁定K）: ●ドット付きバッジを1タップのトグルに（set_product_active）。
                         manager 未満は従来どおり表示のみ（span のまま）。 */}
