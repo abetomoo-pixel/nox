@@ -430,6 +430,23 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
     await load();
   }
 
+  // ★0126（裁定114）: 承認待ちタブの一括確定＝shift_confirm_bulk（planned/proposed→confirmed・上限62）。
+  //   63件以上はクライアントで先に弾く（'too many' へは通常到達しない）。raise 型（bad rows/concurrent change）は
+  //   部分適用なしのロールバック＝再取得して競合文言を出す。
+  async function confirmBulkShifts(ids: string[]) {
+    if (ids.length === 0) return;
+    if (ids.length > 62) { setMsg("一括確定は62件以内に絞ってください"); return; }
+    if (!confirm(`表示中の予定・確認待ち ${ids.length}件をまとめて確定しますか？`)) return;
+    setMsg(null);
+    const { data: n, error } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: ids });
+    setMsg(error
+      ? (error.message.includes("bad rows") || error.message.includes("concurrent change")
+          ? "他の操作と競合しました。最新状態を確認してください"
+          : `一括確定に失敗: ${rpcErrJa(error.message)}`)
+      : `${n}件を確定しました`);
+    await load();
+  }
+
   // ★SD V2-2: 差し戻し（proposed→planned）＝設計書 §3「shift_set の status 再送で可（新 RPC 不要）」。
   //   時刻・日付は現在値を据え置き、status だけ planned で再送する。
   async function demoteShift(s: Shift) {
@@ -1109,6 +1126,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                     <button style={btnLight} title="段2（管理者確認）の全件をキャスト確認へ送ります"
                       onClick={() => void proposeShifts(planned.map((x) => x.id))}>
                       {planned.length}件まとめてキャスト確認へ
+                    </button>
+                  )}
+                  {/* ★0126（裁定114）: 表示中の planned+proposed をまとめて confirmed へ（0件は disabled） */}
+                  {isManagerUp && (
+                    <button style={{ ...btnDark, opacity: planned.length + proposed.length === 0 ? 0.45 : 1 }}
+                      disabled={planned.length + proposed.length === 0}
+                      title="表示中の予定・確認待ちをまとめて確定します（上限62件）"
+                      onClick={() => void confirmBulkShifts([...planned, ...proposed].map((x) => x.id))}>
+                      {planned.length + proposed.length}件を一括確定
                     </button>
                   )}
                   <span className="nox-stpill">{wishes.length + planned.length + proposed.length}件</span>
