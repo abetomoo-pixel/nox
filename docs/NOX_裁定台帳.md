@@ -2489,6 +2489,33 @@ insert が constraint violation**（'bad weight' ではない生エラー・全�
 
 ---
 
+## 裁定111（2026-09-02・mig0124＋0124b セット）名簿操作を正・課金は派生（指名料/同伴料の自動課金）— 実機: 未
+
+正本＝設計書 v1.1（`NOX_裁定111設計書_v1_1_2026-09-02.md`）・構造正本モック＝`mock/pages-2026-09/nox-pos-nomination-autocharge-v1.html`・底本＝`docs/dp/live_0124prep.sql`（sha256 `1e293101…b35a8d`・4関数逐語）。
+
+**確定案7項**:
+1. 種別 hon/jonai 化で指名料行を自動追加（既存あれば追加しない）。free 戻し＝確認付き取消
+2. 同伴 ON＝同伴料行（行内人数ステッパー既定1）自動追加・OFF＝確認付き取消・下部「同伴料（課金）」カード撤去
+3. 名簿は変更のたび自動保存（「分配を保存」廃止）。％は裁定110 の既定・自動補完の上
+4. 指名料ボタン行撤去・行に「¥N 自動加算」補助表示（凍結値のみ＝裁定61-2）・例外＝明細側 check_remove_line（取消＝料金サービス・復活しない）
+5. `ended_at` セット＋weight 0 既定＝「以後の按分から外す」。実績1件と指名料行は残す。**裁定107 の除外拒否は撤回**（★UI の ended 面は未実装＝モックに ended UI が無く着手前申告・裁定待ち。それまで 0121 の castFeeLines 関所は経過措置として残置）
+6. 按分は現行（締め時の最終 weight で一括）のまま。**着席区間按分（allocation period）は launch 後の別起票**＝将来の器への制約注記: **weight 0 に「過去の按分を消す」意味を持たせない**
+7. 延長指名料＝店設定 `ext_shimei_enabled` ON ∧ pricing_rules(fee_kind='ext_shimei') ヒットで check_extension_add が active hon ごとに1行（料金だけ・本数は増やさない）
+
+**設計判断（v1.1 A'〜H）**: A'＝p_nominations の `nom_kind`/`is_dohan`/`ended` とも**キー欠落＝既存値保持**（新規 cast は free/false）・ended true＝旧値引継ぎ（なければ now()）・false＝解除。B＝合計0判定は **active（ended_at is null）行のみ**（active あり∧合計0拒否・全員 ended＝許可＝按分なし）＋ **check_close の sumw=0 ガード必須同梱**（D2 実測でガード不在＝division 時限装置）。C＝**check_set_nominations 内の遷移ベース派生**（v_before 差分・reconcile なし＝明細側取消は復活しない・行形/価格解決は check_shimei_add/check_dohan_add と同形）＋ **kiosk はキー無送信**（free 落ち既存バグの是正を兼ねる・#45 は据置）。D＝ext_shimei は live 解決（`pricing_resolve_core`）・snap 列なし・rank 非対応・ヒットなし＝skip（stores フォールバック額は作らない）。E＝初版 manual 店のみ（auto 店は起票#47）。H＝dohan_count 同期は該当 cast の dohan 行**ちょうど1本**のときのみ。
+
+**実装（2026-09-02）**: mig0124（器7点）＋**0124b（pricing_resolve_core 白名単＝関門で検出した器抜けの是正・セット適用）**・kiosk ペイロード整合（weight のみ送信・種別/同伴 UI 撤去）・register-board UI 差替え（自動保存・トグル即時/入力系 blur 保存・確認ダイアログ2種・行内ステッパー・「¥N 自動加算」表示・派生系は入金後 disabled）・verify:nox-autocharge 新設（**26 assert・INVERT 26 全赤→復旧緑**・f0 30本目）。f0＝**30本 3,395** 2連緑・golden 6値不変。
+
+### 教訓51：fee_kind の語彙追加は「CHECK 2箇所＋pricing_resolve_core 白名単」の3点セット
+
+0124 は `check_lines_fee_kind_check`・`pricing_rules_fee_kind_check` の2 CHECK へ 'ext_shimei' を足したが、
+**関数側の入力検証（pricing_resolve_core の `p_fee_kind not in (...)` 白名単）を見落とし**、
+`ext_shimei_enabled=true` で check_extension_add が丸ごと 'bad fee kind' 例外＝延長課金自体が不能だった
+（既定 false のため潜伏・verify ac(g2)/(g3) の実走で検出→0124b で是正）。教訓50（テーブル CHECK）の**関数版**＝
+語彙を広げる mig は、その語彙を**読む全関数の白名単**を prosrc 走査（`prosrc like '%fee_kind%'`）で洗ってから閉じる。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
@@ -2745,6 +2772,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 44 | **店移動 RPC（casts.store_id の更新経路）** | 裁定109 が明示的に対象外とした残穴＝casts.store_id を動かす経路が無い（cast_create 時のみ）。移動は **memberships（1ユーザー1アクティブ）・店スコープ集計（cast_sales/norms/plan は store_id 列持ち）・指名料ランク（cast_ranks は store 別＝移動先に無いランクの扱い）・店別 pricing** へ波及するため器の設計から別裁定。実装しない |
 | 45 | **kiosk_check_detail の R-2b 追随（拡張 mig）** | 0119/0121 とも kiosk_check_detail 不触＝kiosk が (a) 名簿の nom_kind/is_dohan を読めない（フリー表示で開く注意書き運用・保存で置換の但し書き）(b) check_lines の fee_kind/cast_id を読めない＝**課金行キャストの除外拒否（裁定107 の castFeeLines 関所）を kiosk に置けない**。detail の返却列拡張（読み取りのみ・挙動不変）の別 mig で2点まとめて解消 |
 | 46 | **自由バック「ドリンクバック」プリセットの杯数 basis** | プリセット保存は **basis='flat'（定額）＝杯数非連動**（savePreset 実測・2026-09-01）。custom_back_defs の basis CHECK に**ドリンク杯数が存在しない**（本数系は champCnt/bottleCnt のみ・pay.ts の Metrics にもドリンク杯数なし）。「杯数×円」のドリンクバックには **basis 追加（CHECK 拡張 mig）＋pay.ts Metrics 拡張＋collect の杯数集計**が対で要る＝器の設計から別裁定。v3 タブの計算方法「本数×円」でドリンクを選べないのはこの穴が根拠 |
+| 47 | **auto 店の延長指名料**（裁定111 判断E） | 0124 の ext_shimei フックは **manual 店の check_extension_add のみ**。auto 店は権威が別関数（check_time_charge_apply）＝二重計上封じの構造を崩さないため初版対象外。auto 店で延長指名料を効かせるには time_charge_apply 側のフック設計（延長回数の検知・遡及の扱い）から別裁定 |
 
 ### 未裁定・消し込み待ち
 
