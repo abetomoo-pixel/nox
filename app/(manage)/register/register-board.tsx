@@ -911,7 +911,9 @@ export default function RegisterBoard({
   // R-A3（0089）: manual 店の延長ボタン＝check_extension_add（1押し=1行・auto 店は RPC 側でも拒否）。
   //   取消は既存の行削除（remove_line）。エラーは時間カードの timeMsg へ（timeErrJa 共用）。
   //   R2-a（mig0098 R2-1）: ruleId 指定＝ext_menu_snap（開栓時凍結）から解決・省略＝既定スナップ。
-  async function addExtension(ruleId?: string) {
+  //   ★起票#48（裁定112 同乗）: backbar（テーブル情報行）にも複製＝from="bar" は文言を
+  //     MSG_DETAIL（詳細共通の描画点）へ出す（会計タブに居なくても押下結果が見える）。
+  async function addExtension(ruleId?: string, from: "time" | "bar" = "time") {
     if (!check) return;
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setTimeMsg(null);
@@ -921,14 +923,16 @@ export default function RegisterBoard({
       p_check_id: check.id, ...(ruleId ? { p_rule_id: ruleId } : {}),
     });
     if (error) {
-      // ★エラー時の timeMsg の使い方は従来どおり（変えない）
-      setTimeMsg(error.message.includes("bad rule")
+      const text = error.message.includes("bad rule")
         ? "この延長メニューはこの伝票では使えません（開卓時点のメニューのみ選べます）"
-        : timeErrJa(error.message));
+        : timeErrJa(error.message);
+      // ★#48: bar 発は MSG_DETAIL へ（時間カードは非表示の画面があるため）。time 発は従来どおり timeMsg。
+      if (from === "bar") setMsg({ to: MSG_DETAIL, kind: "bad", text });
+      else setTimeMsg(text);
       return;
     }
     const { unit, qty, total } = await lineAmountOf(lineId);
-    setMsg({ to: MSG_TIME, kind: "ok",
+    setMsg({ to: from === "bar" ? MSG_DETAIL : MSG_TIME, kind: "ok",
       // 額が取れなかったときは額を省いて続行（RPC は成功済み＝エラーにしない）
       text: total == null
         ? "延長を追加しました（金額は明細でご確認ください）"
@@ -1835,6 +1839,16 @@ export default function RegisterBoard({
               </span>
             );
           })()}
+          {/* ★起票#48（裁定112 同乗）: manual 店の延長ボタンを backbar へ複製＝checks スナップ額の表示・
+              check_extension_add 呼び（会計タブと同一経路）・入金後 disabled。会計タブ側カードは残置。 */}
+          {timeMode === "manual" && check.status === "open" && (
+            <button type="button" style={{ ...btnLight, opacity: payments.length > 0 ? 0.45 : 1 }}
+              disabled={payments.length > 0}
+              title={payments.length > 0 ? "入金後は追加できません" : "延長料金を1回ぶん追加します"}
+              onClick={() => void addExtension(undefined, "bar")}>
+              延長（{yen(check.ext_fee * (check.time_per === "person" ? (check.people ?? 1) : 1))} / {check.ext_min}分）
+            </button>
+          )}
           <span className="total num"><small>合計</small>{yen(check.total)}</span>
           {/* void は manager 以上のみ表示（RPC 側でも owner/manager を強制＝二重） */}
           {isManagerUp && (
