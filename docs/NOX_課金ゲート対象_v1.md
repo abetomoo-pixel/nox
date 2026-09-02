@@ -41,6 +41,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
   live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
   全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0127 追随（2026-09-02・裁定116-1）**: 新 RPC **1本**を A6 へ収載＝`set_pricing_category`
+  （料金区分の upsert・唯一の書込経路・規則A形でゲート内蔵・kiosk 腕なし）。対象 **112→113**・
+  全数 **211→212**（pricing_categories 器＋pricing_rules.category_id 列は本数非関与）。
+  ★教訓21 トリップワイヤの**先回り収載**（v23 恒久注意#2＝f0 実走検知を待たず名簿と pin を同時更新）。
 - ★**mig0126 追随（2026-09-02・裁定114）**: 新 RPC **1本**を A5 へ収載＝`shift_confirm_bulk`
   （planned/proposed→confirmed 一括・shift_propose 相似の raise 型・上限62・規則A形でゲート内蔵・
   kiosk 腕なし）。対象 **111→112**・全数 **210→211**。★この +1 も f0 実走の教訓21 assert
@@ -131,10 +135,11 @@ shift_rules_set**（mig0102 新設＝SD 深部の owner/manager 系6本・ゲー
 **shift_confirm_bulk**（mig0126 新設＝裁定114・planned/proposed→confirmed 一括・上限62・ゲート内蔵・kiosk 腕なし）
 ※shift_cast_confirm は書込ゆえゲート対象＝失効中は確認も止まる。希望提出（B(i) の事実記録2本）とは性質が異なる。
 
-### A6. 商品・料金マスタ（13本）
+### A6. 商品・料金マスタ（14本）
 set_product / set_product_active / set_product_category / product_category_reorder / product_bulk_insert /
 product_reorder / product_stock_add / set_seat / set_pricing_rule / delete_pricing_rule /
-pricing_rule_reorder / set_store_pricing / set_store_time_pricing
+pricing_rule_reorder / set_store_pricing / set_store_time_pricing /
+**set_pricing_category**（mig0127 新設＝裁定116-1・料金区分の upsert＝唯一の書込経路・停止=is_active false・ゲート内蔵・kiosk 腕なし）
 
 ### A7. 待遇・報酬マスタ（12本）
 set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_comp_plan / set_cast_plan /
