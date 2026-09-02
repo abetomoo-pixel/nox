@@ -41,6 +41,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
   live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
   全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0126 追随（2026-09-02・裁定114）**: 新 RPC **1本**を A5 へ収載＝`shift_confirm_bulk`
+  （planned/proposed→confirmed 一括・shift_propose 相似の raise 型・上限62・規則A形でゲート内蔵・
+  kiosk 腕なし）。対象 **111→112**・全数 **210→211**。★この +1 も f0 実走の教訓21 assert
+  （live 全数=A∪B）が名簿漏れとして検知→収載した実例（5例目）。
 - ★**mig0125 追随（2026-09-02・裁定112）**: 新 RPC **3本**を A5 へ収載＝`cast_unavailable_set`／
   `cast_unavailable_remove`（出勤不可の事前宣言＝shift_set 同型の owner/manager 書込・ゲート内蔵）／
   `shift_bulk_set_daily`（日別時刻の一括・スキップ返却型・ゲート内蔵・kiosk 腕なし）。
@@ -123,7 +127,8 @@ shift_rules_set**（mig0102 新設＝SD 深部の owner/manager 系6本・ゲー
 **shift_bulk_set / shift_remove**（mig0103 新設＝SC シフト作成 v3・一括作成と個別削除・ゲート内蔵・kiosk 腕なし）/
 **cast_unavailable_set / cast_unavailable_remove / shift_bulk_set_daily**（mig0125 新設＝裁定112・
 出勤不可の事前宣言2本と日別時刻一括＝いずれも規則A形でゲート内蔵・kiosk 腕なし・shift_set は
-7引数化のみで既収載）
+7引数化のみで既収載）/
+**shift_confirm_bulk**（mig0126 新設＝裁定114・planned/proposed→confirmed 一括・上限62・ゲート内蔵・kiosk 腕なし）
 ※shift_cast_confirm は書込ゆえゲート対象＝失効中は確認も止まる。希望提出（B(i) の事実記録2本）とは性質が異なる。
 
 ### A6. 商品・料金マスタ（13本）
