@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX | シフト作成モーダル v2</title>
+<style>
+:root{
+  --bg:#080808;--panel:#11110f;--panel2:#171714;--line:#2d2c27;--line2:#403d34;
+  --gold:#d8ad55;--gold2:#f0cf82;--goldbg:rgba(216,173,85,.10);
+  --text:#f5f1e7;--muted:#9b988f;--blue:#4f9fe8;--bluebg:rgba(79,159,232,.12);
+  --green:#77ba83;--red:#d86c64;--shadow:0 22px 60px rgba(0,0,0,.42)
+}
+*{box-sizing:border-box}
+html{background:var(--bg);color-scheme:dark}
+body{margin:0;background:radial-gradient(circle at 78% -14%,rgba(216,173,85,.08),transparent 30%),var(--bg);color:var(--text);font-family:Inter,"Noto Sans JP","Yu Gothic UI",sans-serif;font-size:13px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.app{min-height:100vh;display:grid;grid-template-columns:210px 1fr}
+.sidebar{height:100vh;position:sticky;top:0;background:#0d0d0c;border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 22px}.mark{width:34px;height:34px;border:1px solid var(--gold);border-radius:8px;display:grid;place-items:center;color:var(--gold2)}
+.brand b{font-size:17px}.brand small{display:block;color:var(--muted);font-size:8px;letter-spacing:.12em}.navlabel{padding:9px 10px 4px;color:#66635d;font-size:9px}
+.navitem{padding:10px;border-radius:8px;color:#9b978f;margin:2px 0}.navitem.active{background:linear-gradient(90deg,rgba(216,173,85,.18),rgba(216,173,85,.03));color:var(--gold2);box-shadow:inset 2px 0 var(--gold)}
+.sidefoot{margin-top:auto;color:#66635d;font-size:9px;padding:10px}
+main{min-width:0}.topbar{height:58px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:flex-end;padding:0 24px}
+.content{max-width:1450px;margin:auto;padding:20px 24px 70px}.eyebrow{font-size:9px;letter-spacing:.18em;color:var(--gold)}h1{font-size:24px;margin:4px 0}.sub{color:var(--muted);font-size:10px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:9px;overflow:hidden;margin:14px 0 12px}.tabs button{border:0;border-right:1px solid var(--line);background:#11110f;padding:11px;color:var(--muted)}.tabs button.active{background:var(--goldbg);color:var(--gold2);font-weight:700}
+.card{border:1px solid var(--line);background:linear-gradient(145deg,#181815,#0e0e0d);border-radius:10px;box-shadow:var(--shadow)}.card+.card{margin-top:12px}
+.cardhead{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}.cardhead h2{font-size:14px;margin:0}.cardhead p{font-size:9px;color:var(--muted);margin:3px 0 0}.cardbody{padding:14px}
+.actions{display:flex;gap:8px}.btn{height:36px;border:1px solid var(--line2);background:#171714;border-radius:7px;padding:0 12px;font-weight:700}.btn.primary{background:linear-gradient(135deg,#e5c06c,#b78936);border-color:#d7ad55;color:#171108}.btn.ghost{background:#10100f}
+.notice{padding:10px 12px;border:1px solid rgba(216,173,85,.24);background:rgba(216,173,85,.05);border-radius:8px;color:#cbbd95;font-size:9px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.stat{border:1px solid var(--line);background:#10100f;border-radius:8px;padding:11px;text-align:center}.stat span{display:block;color:var(--muted);font-size:8px}.stat b{display:block;margin-top:3px;font-size:15px}
+.planrow{display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin-top:12px}.field{display:flex;flex-direction:column;gap:4px}.field label{font-size:8px;color:var(--muted)}.field input,.field select{height:35px;border:1px solid var(--line2);background:#090909;border-radius:7px;padding:0 9px}
+.pagegrid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start;margin-top:12px}
+.sectiontabs{display:flex;gap:6px}.sectiontabs button{height:32px;border:1px solid var(--line2);background:#11110f;border-radius:7px;padding:0 10px;color:var(--muted)}.sectiontabs button.active{background:var(--goldbg);color:var(--gold2);border-color:rgba(216,173,85,.45)}
+.empty{padding:38px 18px;border:1px dashed var(--line2);border-radius:8px;text-align:center;color:var(--muted)}.empty b{display:block;color:var(--text);font-size:13px;margin-bottom:5px}.empty .btn{margin-top:14px}
+.mini-list{display:grid;gap:8px}.mini-row{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);background:#10100f;border-radius:8px;padding:9px}.mini-row span{font-size:9px;color:var(--muted)}.mini-row b{font-size:10px}
+.badge{font-size:8px;border:1px solid rgba(119,186,131,.28);background:rgba(119,186,131,.06);color:#9fcca7;border-radius:999px;padding:4px 8px}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.74);display:none;place-items:center;padding:26px;z-index:100}
+.overlay.show{display:grid}
+.modal{width:min(1180px,80vw);max-height:88vh;display:grid;grid-template-rows:auto 1fr auto;background:#0f0f0e;border:1px solid var(--line2);border-radius:12px;box-shadow:0 34px 90px rgba(0,0,0,.7);overflow:hidden}
+.modalhead{padding:15px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.modalhead h2{font-size:17px;margin:0}.modalhead p{font-size:9px;color:var(--muted);margin:3px 0 0}.close{width:32px;height:32px;border:1px solid var(--line2);background:#171714;border-radius:7px}
+.modalbody{overflow:auto;padding:14px}.wizard{display:grid;grid-template-columns:260px minmax(0,1fr);gap:12px}
+.pane{border:1px solid var(--line);background:#11110f;border-radius:9px}.panehead{padding:11px 12px;border-bottom:1px solid var(--line)}.panehead b{font-size:12px}.panehead small{display:block;color:var(--muted);font-size:8px;margin-top:2px}.panebody{padding:12px}
+.search{width:100%;height:36px;border:1px solid var(--line2);background:#090909;border-radius:7px;padding:0 10px;margin-bottom:9px}.castlist{display:grid;gap:7px}.cast{display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:#10100f;border-radius:8px;padding:9px}.cast.selected{border-color:var(--gold);background:var(--goldbg)}.avatar{width:36px;height:36px;border-radius:50%;background:#46525c;display:grid;place-items:center}.cast b{font-size:11px}.cast small{display:block;color:var(--muted);font-size:8px}.meta{margin-left:auto;color:var(--muted);font-size:8px}
+.stepchips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.chip{font-size:8px;border:1px solid var(--line);background:#10100f;color:var(--muted);padding:5px 8px;border-radius:999px}.chip.on{border-color:rgba(216,173,85,.42);background:var(--goldbg);color:var(--gold2)}
+.calhead{display:flex;align-items:center;justify-content:space-between}.calhead h3{font-size:14px;margin:0}.week,.calendar{display:grid;grid-template-columns:repeat(7,1fr)}.week div{text-align:center;padding:7px 0;color:var(--muted);font-size:8px}.day{min-height:72px;border:1px solid var(--line);margin:-1px 0 0 -1px;background:#0f0f0e;padding:7px;position:relative;cursor:pointer}.day.selected{background:var(--bluebg);border-color:rgba(79,159,232,.48);z-index:1}.day.exists{box-shadow:inset 0 -3px var(--green)}.day.muted{background:#0b0b0b}.date{font-size:10px;font-weight:700}.day small{display:block;color:var(--muted);font-size:7px;margin-top:6px}.sel{display:none;position:absolute;right:6px;top:6px;width:17px;height:17px;border-radius:50%;background:var(--blue);place-items:center;font-size:9px}.day.selected .sel{display:grid}
+.legend{display:flex;gap:12px;color:var(--muted);font-size:8px;margin:9px 0 12px}.legend span:before{content:"";display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:5px}.legend .l1:before{background:var(--blue)}.legend .l2:before{background:var(--green)}
+.modal-empty{padding:22px;text-align:center;color:var(--muted);border:1px dashed var(--line2);border-radius:8px;margin-top:10px}.bulk{display:grid;grid-template-columns:1fr 135px 135px auto;gap:8px;align-items:end;padding:9px;border:1px solid rgba(216,173,85,.18);background:rgba(216,173,85,.04);border-radius:8px;margin-top:10px}.shiftrows{display:grid;gap:6px;margin-top:8px}.shiftrow{display:grid;grid-template-columns:110px 1fr 1fr auto;gap:8px;align-items:end;border:1px solid var(--line);background:#10100f;border-radius:8px;padding:8px}.shiftdate b{display:block;font-size:11px}.shiftdate small{display:block;color:var(--muted);font-size:8px}
+.modalfoot{padding:12px 14px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:#0d0d0c}.modalfoot small{color:var(--muted)}
+@media(max-width:1100px){.pagegrid{grid-template-columns:1fr}.modal{width:92vw}.wizard{grid-template-columns:1fr}.castlist{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.app{grid-template-columns:1fr}.sidebar{display:none}.content{padding:14px}.tabs{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.overlay{padding:0}.modal{width:100vw;height:100vh;max-height:none;border-radius:0;border:0}.modalbody{padding:10px}.castlist{grid-template-columns:repeat(2,1fr)}.bulk,.shiftrow{grid-template-columns:1fr}}
+
+/* v3 calendar states */
+.day.hope{box-shadow:inset 0 -3px #4f9fe8}
+.day.unavailable{
+  background:rgba(216,108,100,.05);
+  border-color:rgba(216,108,100,.24);
+  cursor:not-allowed;
+}
+.day.unavailable .date{color:#d99a94}
+.day.closed{
+  background:#0a0a0a;
+  color:#5d5952;
+  cursor:not-allowed;
+}
+.day.closed:after{
+  content:"定休日";
+  position:absolute;left:7px;bottom:7px;
+  font-size:7px;color:#777168
+}
+.day.conflict{
+  outline:1px solid rgba(216,108,100,.65);
+  outline-offset:-2px;
+}
+.statebadges{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.statebadge{
+  font-size:7px;border:1px solid var(--line2);border-radius:999px;padding:2px 5px;color:var(--muted)
+}
+.statebadge.hope{color:#bcdafa;border-color:rgba(79,159,232,.35);background:rgba(79,159,232,.06)}
+.statebadge.ng{color:#e0aaa4;border-color:rgba(216,108,100,.34);background:rgba(216,108,100,.06)}
+.statebadge.exist{color:#9fcca7;border-color:rgba(119,186,131,.3);background:rgba(119,186,131,.06)}
+.statebadge.warn{color:#e0aaa4;border-color:rgba(216,108,100,.34);background:rgba(216,108,100,.06)}
+.detailbar{
+  margin-top:10px;border:1px solid var(--line);background:#10100f;border-radius:8px;padding:10px
+}
+.detailbar h4{margin:0 0 7px;font-size:11px}
+.detailgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.detailitem{border:1px solid var(--line);background:#0d0d0c;border-radius:7px;padding:8px}
+.detailitem span{display:block;font-size:7px;color:var(--muted)}
+.detailitem b{display:block;font-size:9px;margin-top:3px}
+.override{
+  margin-top:8px;
+  border:1px solid rgba(216,108,100,.26);
+  background:rgba(216,108,100,.05);
+  border-radius:7px;padding:8px;
+  display:none;justify-content:space-between;gap:8px;align-items:center
+}
+.override.show{display:flex}
+.override small{font-size:8px;color:#ddb2ad}
+@media(max-width:700px){
+  .detailgrid{grid-template-columns:1fr}
+}
+
+/* v4 operational refinements */
+.day.closed{
+  background:#0b0b0b !important;
+  border-color:#24231f !important;
+  color:#55514b !important;
+  cursor:not-allowed !important;
+  position:relative;
+}
+.day.closed .date{color:#6a655d !important}
+.day.closed:before{
+  content:"休";
+  position:absolute;right:6px;top:6px;
+  min-width:20px;height:20px;padding:0 5px;
+  display:grid;place-items:center;
+  border:1px solid #4a463e;
+  border-radius:999px;
+  background:#171612;
+  color:#a59e92;
+  font-size:8px;font-weight:700;
+}
+.day.closed small{color:#6e695f !important}
+.day.closed .statebadges{opacity:.45}
+
+.day.conflict{
+  outline:2px solid rgba(216,108,100,.70) !important;
+  outline-offset:-2px;
+}
+.day.conflict:after{
+  content:"競合";
+  position:absolute;left:6px;top:6px;
+  border:1px solid rgba(216,108,100,.35);
+  border-radius:999px;
+  padding:2px 5px;
+  color:#e4aaa3;
+  background:rgba(216,108,100,.08);
+  font-size:7px;
+}
+.day.existing-edit{
+  box-shadow:inset 0 -3px var(--green);
+}
+.day .existing-time{
+  display:block;
+  margin-top:3px;
+  color:#9fcca7;
+  font-size:7px;
+}
+
+.override-reason{
+  display:none;
+  margin-top:8px;
+  grid-template-columns:1fr;
+  gap:6px;
+}
+.override-reason.show{display:grid}
+.override-reason select,
+.override-reason input{
+  width:100%;height:34px;
+  border:1px solid var(--line2);
+  background:#0b0b0a;
+  border-radius:7px;
+  padding:0 8px;
+}
+.diff-note{
+  color:#d7a969;
+  font-size:8px;
+  margin-top:4px;
+}
+.shiftrow.conflict{
+  border-color:rgba(216,108,100,.5);
+  background:rgba(216,108,100,.04);
+}
+.shiftrow .row-status{
+  font-size:8px;
+  color:var(--muted);
+  margin-top:3px;
+}
+.footer-errors{
+  margin-right:auto;
+  color:#e1aaa4;
+  font-size:8px;
+}
+.repeat-tools{
+  display:flex;gap:6px;flex-wrap:wrap;
+  margin:8px 0 10px;
+}
+.repeat-tools button{
+  height:30px;
+  border:1px solid var(--line2);
+  background:#11110f;
+  border-radius:7px;
+  padding:0 9px;
+  color:var(--muted);
+  font-size:8px;
+}
+.repeat-tools button:hover{color:var(--gold2);border-color:rgba(216,173,85,.4)}
+.modalfoot .actions{margin-left:auto}
+@media(max-width:700px){
+  .modalfoot{gap:8px;align-items:stretch;flex-direction:column}
+  .modalfoot .actions{display:grid;grid-template-columns:1fr 1fr;margin-left:0}
+  .footer-errors{margin:0}
+}
+
+/* v5 readability / hierarchy pass */
+.panehead{
+  padding:14px 14px 13px;
+}
+.panehead b{
+  font-size:16px;
+  line-height:1.35;
+  font-weight:750;
+}
+.panehead small{
+  font-size:10px;
+  line-height:1.5;
+  margin-top:4px;
+}
+.panehead #castName{
+  color:var(--gold2);
+  font-size:17px;
+}
+.modalhead h2{
+  font-size:19px;
+}
+.modalhead p{
+  font-size:10px;
+}
+.cast b{
+  font-size:13px;
+}
+.cast small,
+.meta{
+  font-size:9px;
+}
+.calhead h3{
+  font-size:16px;
+}
+.week div{
+  font-size:9px;
+}
+.date{
+  font-size:12px;
+}
+.day small{
+  font-size:8px;
+  line-height:1.35;
+}
+.statebadge{
+  font-size:7.5px;
+}
+.detailbar h4{
+  font-size:12px;
+}
+.detailitem span{
+  font-size:8px;
+}
+.detailitem b{
+  font-size:10px;
+}
+.field label{
+  font-size:9px;
+}
+.field input,
+.field select{
+  font-size:12px;
+}
+.shiftdate b{
+  font-size:12px;
+}
+.shiftdate small{
+  font-size:9px;
+}
+.modalfoot small{
+  font-size:10px;
+}
+.stepchips .chip{
+  font-size:9px;
+  padding:6px 9px;
+}
+
+/* simplify mixed states: conflict is dominant, other badges stay secondary */
+.day.conflict{
+  background:rgba(216,108,100,.055) !important;
+  box-shadow:none !important;
+}
+.day.conflict .statebadge.exist,
+.day.conflict .statebadge.hope{
+  opacity:.62;
+}
+.day.conflict.selected{
+  background:rgba(216,108,100,.09) !important;
+}
+.day.closed .statebadges{
+  display:none;
+}
+
+/* stronger selected cast affordance */
+.cast.selected{
+  box-shadow:inset 3px 0 var(--gold);
+}
+.cast.selected b{
+  color:var(--gold2);
+}
+
+/* keep modal easier to scan */
+.wizard{
+  grid-template-columns:280px minmax(0,1fr);
+}
+.panebody{
+  padding:14px;
+}
+@media(max-width:700px){
+  .panehead b{font-size:17px}
+  .panehead #castName{font-size:18px}
+  .date{font-size:13px}
+  .day small{font-size:8px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="brand"><div class="mark">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div>
+  <div class="navitem">⌂ ホーム</div>
+  <div class="navlabel">営業</div><div class="navitem">▣ レジ</div><div class="navitem">▤ 日報</div>
+  <div class="navlabel">スタッフ</div><div class="navitem active">◫ シフト</div><div class="navitem">♙ キャスト</div><div class="navitem">♧ スタッフ</div><div class="navitem">▭ 給与</div>
+  <div class="sidefoot">SHIFT MANAGEMENT</div>
+</aside>
+
+<main>
+<div class="topbar"><span class="badge">オーナー</span></div>
+<div class="content">
+  <div class="eyebrow">SHIFT MANAGEMENT</div>
+  <h1>シフト管理</h1>
+  <div class="sub">申請、承認、出勤状況とシフト作成をまとめて管理します。</div>
+
+  <div class="tabs">
+    <button>今日</button><button>承認待ち 4</button><button class="active">シフト作成</button><button>確定シフト</button>
+  </div>
+
+  <section class="card">
+    <div class="cardhead">
+      <div><h2>2026年9月 シフト計画</h2><p>計画期間を作成して、キャストごとにシフトを登録します。</p></div>
+      <div class="actions"><button class="btn ghost">下書き保存</button><button class="btn primary">スタッフに公開して確定</button></div>
+    </div>
+    <div class="cardbody">
+      <div class="notice">未処理の希望が4件あります。先に希望を確認してからシフトを作成できます。</div>
+      <div class="stats">
+        <div class="stat"><span>登録済みシフト</span><b>0件</b></div>
+        <div class="stat"><span>予定勤務時間</span><b>0h</b></div>
+        <div class="stat"><span>予想人件費</span><b>¥0</b></div>
+        <div class="stat"><span>稼働予定キャスト</span><b>0名</b></div>
+      </div>
+      <div class="planrow">
+        <div class="field"><label>開始</label><input type="date"></div>
+        <div class="field"><label>終了</label><input type="date"></div>
+        <div class="field"><label>希望締切</label><input type="date"></div>
+        <button class="btn primary">作成</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="pagegrid">
+    <section class="card">
+      <div class="cardhead">
+        <div><h2>配置を組む</h2><p>月カレンダーまたはキャスト別に登録済みシフトを確認します。</p></div>
+        <div class="sectiontabs"><button class="active">月カレンダー</button><button>キャスト別</button><button class="btn primary" id="openModal">＋ シフトを追加</button></div>
+      </div>
+      <div class="cardbody">
+        <div class="empty">
+          <b>この月のシフトはまだありません</b>
+          キャストを選び、出勤日と時間を登録してください。
+          <br><button class="btn primary" id="openModal2">＋ シフトを追加</button>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <section class="card">
+        <div class="cardhead"><div><h2>今月の登録状況</h2><p>シフト作成の進捗</p></div></div>
+        <div class="cardbody">
+          <div class="mini-list">
+            <div class="mini-row"><span>シフト登録済み</span><b>0名</b></div>
+            <div class="mini-row"><span>未登録キャスト</span><b>7名</b></div>
+            <div class="mini-row"><span>承認待ち希望</span><b>4件</b></div>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+</main>
+</div>
+
+<div class="overlay show" id="overlay">
+<div class="modal">
+  <div class="modalhead"><div><h2>シフトを追加</h2><p>キャストを選び、出勤日と時間を設定します。</p></div><button class="close" id="closeModal">×</button></div>
+
+  <div class="modalbody">
+    <div class="wizard">
+      <section class="pane">
+        <div class="panehead"><b>1. キャスト</b><small>シフトを作るキャストを選択</small></div>
+        <div class="panebody">
+          <input class="search" id="castSearch" placeholder="キャストを検索">
+          <div class="castlist">
+            <button class="cast selected" data-name="さくら"><span class="avatar">さ</span><span><b>さくら</b><small>レギュラー</small></span><span class="meta">今月8日</span></button>
+            <button class="cast" data-name="えま"><span class="avatar">え</span><span><b>えま</b><small>エース</small></span><span class="meta">今月12日</span></button>
+            <button class="cast" data-name="ひなの"><span class="avatar">ひ</span><span><b>ひなの</b><small>エース</small></span><span class="meta">今月10日</span></button>
+            <button class="cast" data-name="れいな"><span class="avatar">れ</span><span><b>れいな</b><small>エース</small></span><span class="meta">今月14日</span></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane">
+        <div class="panehead"><b>2. <span id="castName">さくら</span> の出勤日</b><small>カレンダーから出勤日を選択してください。複数日をまとめて選べます。</small></div>
+        <div class="panebody">
+          <div class="stepchips"><span class="chip on">キャスト選択済み</span><span class="chip on" id="dateChip">日付 0日</span><span class="chip">時間設定</span></div>
+          <div class="repeat-tools">
+  <button type="button" id="selectAllAvailable">出勤不可以外を全部選択</button>
+  <button type="button" data-repeat="5">毎週 金を選択</button>
+  <button type="button" data-repeat="6">毎週 土を選択</button>
+  <button type="button" data-repeat="5,6">毎週 金・土を選択</button>
+  <button type="button" id="clearSelection">選択をすべて解除</button>
+</div>
+<div class="calhead"><button class="btn">‹</button><h3>2026年9月</h3><button class="btn">›</button></div>
+          <div class="week"><div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div></div>
+          <div class="calendar" id="calendar"></div>
+          <div class="legend"><span class="l1">今回選択</span><span class="l2">登録済み</span><span style="color:#bcdafa">● 出勤希望</span><span style="color:#d99a94">● 出勤不可</span><span style="color:#8f887c">■ 定休日（操作不可）</span><span style="color:#d86c64">● 時間競合</span></div>
+
+          <div class="detailbar" id="dayDetail">
+      <h4>選択日の情報</h4>
+      <div class="detailgrid">
+        <div class="detailitem"><span>選択日</span><b id="detailDate">日付をクリック</b></div>
+        <div class="detailitem"><span>出勤希望</span><b id="detailHope">—</b></div>
+        <div class="detailitem"><span>登録済み</span><b id="detailExisting">—</b></div>
+      </div>
+      <div class="override" id="overrideBox">
+  <small>この日は「出勤不可」に設定されています。登録する場合は理由を残してください。</small>
+  <button class="btn" id="showOverrideReason" type="button">それでも登録</button>
+</div>
+<div class="override-reason" id="overrideReasonBox">
+  <select id="overrideReason">
+    <option value="">理由を選択</option>
+    <option>本人確認済み</option>
+    <option>本人から変更連絡あり</option>
+    <option>店舗都合</option>
+    <option>その他</option>
+  </select>
+  <input id="overrideNote" placeholder="補足メモ（任意）">
+  <button class="btn" id="overrideBtn" type="button">理由を保存して登録</button>
+</div>
+    </div>
+    <div id="emptyModal" class="modal-empty">出勤可能な日付を選ぶと、ここに勤務時間が表示されます。</div>
+          <div id="editor" style="display:none">
+            <div class="bulk">
+              <div><b>3. 選択した日すべてに時間を設定</b><div class="sub">必要な日だけ下で個別変更できます</div></div>
+              <div class="field"><label>開始</label><input id="bulkStart" type="time" value="20:00"></div>
+              <div class="field"><label>終了</label><input id="bulkEnd" type="time" value="02:00"></div>
+              <button class="btn" id="applyAll">全日に適用</button>
+            </div>
+            <div class="shiftrows" id="shiftRows"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="modalfoot">
+    <small><span id="footerCast">さくら</span> ／ <span id="count">0</span>日分</small>
+    <span class="footer-errors" id="footerErrors"></span>
+    <div class="actions">
+      <button class="btn ghost" id="cancelBtn">キャンセル</button>
+      <button class="btn" id="confirmNextBtn" disabled>保存して次のキャスト</button>
+      <button class="btn primary" id="confirmBtn" disabled>0日分を保存して閉じる</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const selected = new Map();
+const existing = new Map([
+  [3,{start:'20:00',end:'02:00'}],
+  [8,{start:'21:00',end:'01:00'}],
+  [12,{start:'20:00',end:'03:00'}]
+]);
+const hopes = new Map([
+  [5,{start:'21:00',end:'02:00'}],
+  [10,{start:'20:00',end:'02:00',label:'20:00〜LAST'}],
+  [18,{start:'22:00',end:'02:00'}],
+  [25,{start:'20:00',end:'01:00'}]
+]);
+const unavailable = new Set([7,14,21]);
+const closed = new Set([2,16,30]);
+const conflicts = new Set([12]);
+const overrides = new Map();
+let currentCast = 'さくら';
+let focusDay = null;
+
+const castButtons = [...document.querySelectorAll('.cast')];
+
+function weekday(day){ return new Date(2026,8,day).getDay(); }
+function dayLabel(day){ return '9月'+day+'日（'+['日','月','火','水','木','金','土'][weekday(day)]+'）'; }
+function nextDayTimeLabel(t){ return t && t < '12:00' ? '翌'+t : t; }
+
+function updateDetail(day){
+  focusDay = day;
+  const detailDate=document.getElementById('detailDate');
+  const detailHope=document.getElementById('detailHope');
+  const detailExisting=document.getElementById('detailExisting');
+  const overrideBox=document.getElementById('overrideBox');
+  const reasonBox=document.getElementById('overrideReasonBox');
+
+  if(!day){
+    detailDate.textContent='日付をクリック';
+    detailHope.textContent='—';
+    detailExisting.textContent='—';
+    overrideBox.classList.remove('show');
+    reasonBox.classList.remove('show');
+    return;
+  }
+
+  detailDate.textContent=dayLabel(day);
+  const h=hopes.get(day);
+  detailHope.textContent=h ? (h.label || (h.start+'〜'+nextDayTimeLabel(h.end))) : '希望なし';
+  const ex=existing.get(day);
+  detailExisting.textContent=ex ? ex.start+'〜'+nextDayTimeLabel(ex.end) : '登録なし';
+
+  const needsOverride = unavailable.has(day) && !overrides.has(day);
+  overrideBox.classList.toggle('show', needsOverride);
+  if(!needsOverride) reasonBox.classList.remove('show');
+}
+
+function canSelect(day){
+  if(closed.has(day)) return false;
+  if(unavailable.has(day) && !overrides.has(day)) return false;
+  return true;
+}
+
+function addDay(day){
+  if(!canSelect(day)) return;
+  if(selected.has(day)){
+    selected.delete(day);
+  }else{
+    const h=hopes.get(day);
+    const ex=existing.get(day);
+    if(ex){
+      selected.set(day,{start:ex.start,end:ex.end,editing:true});
+    }else if(h){
+      selected.set(day,{start:h.start,end:h.end,fromHope:true});
+    }else{
+      selected.set(day,{start:'20:00',end:'02:00'});
+    }
+  }
+  render();
+}
+
+function buildCalendar(){
+  const cal=document.getElementById('calendar');
+  cal.innerHTML='';
+  for(let i=0;i<2;i++){
+    const d=document.createElement('div');
+    d.className='day muted';
+    cal.appendChild(d);
+  }
+
+  for(let day=1;day<=30;day++){
+    const d=document.createElement('div');
+    let cls='day';
+    if(existing.has(day)) cls+=' exists existing-edit';
+    if(hopes.has(day)) cls+=' hope';
+    if(unavailable.has(day)) cls+=' unavailable';
+    if(closed.has(day)) cls+=' closed';
+    if(conflicts.has(day)) cls+=' conflict';
+    if(selected.has(day)) cls+=' selected';
+    d.className=cls;
+
+    const badges=[];
+    if(hopes.has(day)) badges.push('<span class="statebadge hope">希望</span>');
+    if(unavailable.has(day)) badges.push('<span class="statebadge ng">不可</span>');
+    if(existing.has(day)) badges.push('<span class="statebadge exist">登録済</span>');
+
+    let note='クリックで追加';
+    if(closed.has(day)) note='店休日';
+    else if(existing.has(day)) note='登録 '+existing.get(day).start+'〜'+nextDayTimeLabel(existing.get(day).end);
+    else if(hopes.has(day)) note='希望 '+(hopes.get(day).label || (hopes.get(day).start+'〜'+nextDayTimeLabel(hopes.get(day).end)));
+    else if(unavailable.has(day)) note='出勤不可';
+
+    d.innerHTML=
+      '<span class="date">'+day+'</span>'+
+      '<span class="sel">✓</span>'+
+      '<small>'+note+'</small>'+
+      '<div class="statebadges">'+badges.join('')+'</div>';
+
+    d.onclick=()=>{
+      updateDetail(day);
+      if(closed.has(day)) return;
+      if(unavailable.has(day) && !overrides.has(day)) return;
+      addDay(day);
+    };
+    cal.appendChild(d);
+  }
+}
+
+function hasTimeConflict(day, v){
+  return conflicts.has(day) && selected.has(day);
+}
+
+function differsFromHope(day,v){
+  const h=hopes.get(day);
+  return !!h && (h.start!==v.start || h.end!==v.end);
+}
+
+function render(){
+  buildCalendar();
+  const rows=document.getElementById('shiftRows');
+  rows.innerHTML='';
+
+  let blockingConflicts=0;
+
+  [...selected.entries()].sort((a,b)=>a[0]-b[0]).forEach(([day,v])=>{
+    const conflict=hasTimeConflict(day,v);
+    if(conflict) blockingConflicts++;
+
+    let origin='';
+    if(v.editing) origin='登録済みシフトを編集';
+    else if(v.fromHope) origin='希望時間を初期反映';
+
+    const diff=differsFromHope(day,v);
+    const r=document.createElement('div');
+    r.className='shiftrow'+(conflict?' conflict':'');
+    r.innerHTML=
+      '<div class="shiftdate">'+
+        '<b>'+dayLabel(day).replace('9月','9/')+'</b>'+
+        '<small>'+origin+'</small>'+
+        (diff?'<div class="diff-note">希望時間と異なります</div>':'')+
+        (conflict?'<div class="diff-note">時間競合を解消してください</div>':'')+
+      '</div>'+
+      '<div class="field"><label>開始</label><input type="time" value="'+v.start+'" data-day="'+day+'" data-type="start"></div>'+
+      '<div class="field"><label>終了</label><input type="time" value="'+v.end+'" data-day="'+day+'" data-type="end"></div>'+
+      '<button class="btn" data-remove="'+day+'">解除</button>';
+    rows.appendChild(r);
+  });
+
+  rows.querySelectorAll('input').forEach(i=>{
+    i.onchange=()=>{
+      selected.get(+i.dataset.day)[i.dataset.type]=i.value;
+      render();
+    };
+  });
+
+  rows.querySelectorAll('[data-remove]').forEach(b=>{
+    b.onclick=()=>{ selected.delete(+b.dataset.remove); render(); };
+  });
+
+  const c=selected.size;
+  document.getElementById('count').textContent=c;
+  document.getElementById('dateChip').textContent='日付 '+c+'日';
+  document.getElementById('emptyModal').style.display=c?'none':'block';
+  document.getElementById('editor').style.display=c?'block':'none';
+
+  const canConfirm = c>0 && blockingConflicts===0;
+  document.getElementById('confirmBtn').disabled=!canConfirm;
+  document.getElementById('confirmNextBtn').disabled=!canConfirm;
+  document.getElementById('confirmBtn').textContent=c+'日分を保存して閉じる';
+  document.getElementById('footerErrors').textContent=blockingConflicts ? '時間競合 '+blockingConflicts+'件を解消してください' : '';
+}
+
+document.querySelectorAll('.cast').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.cast').forEach(x=>x.classList.remove('selected'));
+  b.classList.add('selected');
+  currentCast=b.dataset.name;
+  document.getElementById('castName').textContent=currentCast;
+  document.getElementById('footerCast').textContent=currentCast;
+  selected.clear();
+  overrides.clear();
+  updateDetail(null);
+  render();
+});
+
+document.getElementById('castSearch').oninput=e=>{
+  const q=e.target.value.trim();
+  document.querySelectorAll('.cast').forEach(b=>{
+    b.style.display=b.dataset.name.includes(q)?'flex':'none';
+  });
+};
+
+document.getElementById('applyAll').onclick=()=>{
+  const s=document.getElementById('bulkStart').value;
+  const e=document.getElementById('bulkEnd').value;
+  selected.forEach(v=>{v.start=s;v.end=e;});
+  render();
+};
+
+
+document.getElementById('selectAllAvailable').onclick=()=>{
+  for(let day=1;day<=30;day++){
+    // 定休日はそもそも操作対象外。出勤不可日はoverrideしない限り除外。
+    if(closed.has(day)) continue;
+    if(unavailable.has(day) && !overrides.has(day)) continue;
+    if(selected.has(day)) continue;
+
+    const h=hopes.get(day);
+    const ex=existing.get(day);
+    if(ex) selected.set(day,{start:ex.start,end:ex.end,editing:true});
+    else if(h) selected.set(day,{start:h.start,end:h.end,fromHope:true});
+    else selected.set(day,{start:'20:00',end:'02:00'});
+  }
+  render();
+};
+
+document.getElementById('clearSelection').onclick=()=>{
+  selected.clear();
+  render();
+};
+
+document.querySelectorAll('[data-repeat]').forEach(btn=>{
+  btn.onclick=()=>{
+    const days=btn.dataset.repeat.split(',').map(Number);
+    for(let day=1;day<=30;day++){
+      if(days.includes(weekday(day)) && canSelect(day) && !closed.has(day)){
+        if(!selected.has(day)){
+          const h=hopes.get(day), ex=existing.get(day);
+          if(ex) selected.set(day,{start:ex.start,end:ex.end,editing:true});
+          else if(h) selected.set(day,{start:h.start,end:h.end,fromHope:true});
+          else selected.set(day,{start:'20:00',end:'02:00'});
+        }
+      }
+    }
+    render();
+  };
+});
+
+document.getElementById('showOverrideReason').onclick=()=>{
+  document.getElementById('overrideReasonBox').classList.add('show');
+};
+
+document.getElementById('overrideBtn').onclick=()=>{
+  if(!focusDay) return;
+  const reason=document.getElementById('overrideReason').value;
+  if(!reason){
+    alert('override理由を選択してください');
+    return;
+  }
+  overrides.set(focusDay,{
+    reason,
+    note:document.getElementById('overrideNote').value
+  });
+  document.getElementById('overrideReason').value='';
+  document.getElementById('overrideNote').value='';
+  updateDetail(focusDay);
+  addDay(focusDay);
+};
+
+function openModal(){document.getElementById('overlay').classList.add('show')}
+function closeModal(){document.getElementById('overlay').classList.remove('show')}
+
+function saveAndClose(){
+  const b=document.getElementById('confirmBtn');
+  b.textContent='確定しました';
+  setTimeout(closeModal,650);
+}
+
+function saveAndNext(){
+  const idx=castButtons.findIndex(b=>b.dataset.name===currentCast);
+  const next=castButtons[(idx+1)%castButtons.length];
+  if(next) next.click();
+}
+
+document.getElementById('openModal').onclick=openModal;
+document.getElementById('openModal2').onclick=openModal;
+document.getElementById('closeModal').onclick=closeModal;
+document.getElementById('cancelBtn').onclick=closeModal;
+document.getElementById('confirmBtn').onclick=saveAndClose;
+document.getElementById('confirmNextBtn').onclick=saveAndNext;
+
+updateDetail(null);
+render();
+</script>
+</body>
+</html>
