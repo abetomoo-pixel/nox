@@ -97,8 +97,11 @@ async function main() {
     // ★mig0115（C1 §6-3・2026-08-28）: set_comp_component を A7（ゲート済み）へ収載＝
     //   対象 106→107・全数 202→203（set_comp_plan は 16引数化＝名前不変で本数不動）。
     // ★mig0122（裁定109・2026-09-01）: set_cast_profile（ゲート内蔵）を A10 へ収載＝対象 107→108・全数 205→206。
-    //   この +1 も f0 実走の教訓21 assert（live 全数=A∪B）が名簿漏れとして検知→収載した実例（3例目）。
-    check("段47-1 正本の対象108名を読めた", docTargets.size === 108, `got ${docTargets.size}`);
+    // ★mig0125（裁定112・2026-09-02）: cast_unavailable_set/remove・shift_bulk_set_daily（ゲート内蔵）を
+    //   A5 へ・cast_unavailable_list（STABLE 読取・非ゲート）を B(f) へ収載＝対象 108→111・全数 206→210。
+    //   shift_set は 6→7引数化（名前不変＝本数不動・旧署名 DROP 済み）。
+    //   この +4 も f0 実走の教訓21 assert（live 全数=A∪B）が名簿漏れとして検知→収載した実例（4例目）。
+    check("段47-1 正本の対象111名を読めた", docTargets.size === 111, `got ${docTargets.size}`);
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     // ★mig0113: check_tax_round（内部ヘルパー・非ゲート）を B へ収載＝除外 95→96・全数 201→202。
     // ★mig0119（R-2b・2026-09-01）: 補助2本 nom_unit4_key / nom_type_summary を B(a) へ収載＝除外 96→98・
@@ -106,7 +109,7 @@ async function main() {
     //   4者 revoke 済み＝authenticated から直接実行できず、課金ゲートは呼び出し元の公開 RPC
     //   （check_set_nominations / check_close / drink_claim_*）が既に担う（check_round_amount / check_tax_round と同型）。
     //   この +1 は f0 実走で教訓21 assert が名簿漏れとして検知→収載した実例（2026-08-28）。
-    check("段47-1 正本の除外98名を読めた", docExcluded.size === 98, `got ${docExcluded.size}`);
+    check("段47-1 正本の除外99名を読めた", docExcluded.size === 99, `got ${docExcluded.size}`);
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる
@@ -121,7 +124,7 @@ async function main() {
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 108本", liveGated.size === 108, `got ${liveGated.size}`);
+    check("段47-1 live のゲート済み関数 = 111本", liveGated.size === 111, `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
     const extra = [...liveGated].filter((n) => !docTargets.has(n));
@@ -140,14 +143,14 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 109（108 ＋ ラッパ自身）", refs[0].n === 109, `got ${refs[0].n}`);
+    check("段47-1 述語を参照する関数 = 112（111 ＋ ラッパ自身）", refs[0].n === 112, `got ${refs[0].n}`);
     // 挿入行の形が全92本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public'
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
-    check("段47-1 挿入行の形が全108本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 108, `got ${shapes[0].n}`);
+    check("段47-1 挿入行の形が全111本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 111, `got ${shapes[0].n}`);
   }
 
   // ══════════════════════════════════════════════════════════

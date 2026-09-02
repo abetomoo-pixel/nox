@@ -41,6 +41,12 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
   live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
   全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0125 追随（2026-09-02・裁定112）**: 新 RPC **3本**を A5 へ収載＝`cast_unavailable_set`／
+  `cast_unavailable_remove`（出勤不可の事前宣言＝shift_set 同型の owner/manager 書込・ゲート内蔵）／
+  `shift_bulk_set_daily`（日別時刻の一括・スキップ返却型・ゲート内蔵・kiosk 腕なし）。
+  読取 `cast_unavailable_list`（STABLE・非ゲート）は **B(f) へ同時追補**（E8-6-9 運用）。
+  `shift_set` は 6→7引数化（p_override_reason・名前不変＝本数不動・旧署名 DROP 済み）。
+  対象 **108→111**・除外 **98→99**・全数 **206→210**。
 - ★**mig0122 追随（2026-09-01・裁定109）**: 新 RPC **1本**を A10 へ収載＝`set_cast_profile`
   （源氏名・入店日の更新・`billing_writable_of` ゲート内蔵・owner=org 全店/manager=自店）。
   対象 **107→108**・全数 **205→206**。
@@ -108,13 +114,16 @@ adv_issue / transport_issue / incentive_publish /
 **adv_cancel / transport_cancel / incentive_cancel**（裁定D3＝金銭記録の改変。BANZEN de-escalation 前例より判定原理を優先）/
 **receipt_issue / receipt_issue_void**（mig0099＝領収書の発行・取消＝金銭受領証の作成/改変・R2-9/R2-10・E8-6）
 
-### A5. シフト（11本・owner/manager の確定系＋SD 深部＝設計 v1.1 §4 文言修正・SD 設計書 §3）
+### A5. シフト（14本・owner/manager の確定系＋SD 深部＝設計 v1.1 §4 文言修正・SD 設計書 §3）
 shift_set / shift_wish_decide / set_staffing_need /
 **staffing_need_remove**（mig0095 新設＝バンド削除・ゲートは mig 本文に内蔵）/
 **shift_period_set / shift_period_remove / shift_propose / shift_auto_apply / shift_auto_clear /
 shift_rules_set**（mig0102 新設＝SD 深部の owner/manager 系6本・ゲート内蔵）/
 **shift_cast_confirm**（mig0102 新設＝★cast 本人の proposed→confirmed 一方向・cast 初の shifts 書込 RPC）/
-**shift_bulk_set / shift_remove**（mig0103 新設＝SC シフト作成 v3・一括作成と個別削除・ゲート内蔵・kiosk 腕なし）
+**shift_bulk_set / shift_remove**（mig0103 新設＝SC シフト作成 v3・一括作成と個別削除・ゲート内蔵・kiosk 腕なし）/
+**cast_unavailable_set / cast_unavailable_remove / shift_bulk_set_daily**（mig0125 新設＝裁定112・
+出勤不可の事前宣言2本と日別時刻一括＝いずれも規則A形でゲート内蔵・kiosk 腕なし・shift_set は
+7引数化のみで既収載）
 ※shift_cast_confirm は書込ゆえゲート対象＝失効中は確認も止まる。希望提出（B(i) の事実記録2本）とは性質が異なる。
 
 ### A6. 商品・料金マスタ（13本）
@@ -148,7 +157,7 @@ trial_register / trial_update / trial_hire / trial_reject /
 ### A11. デバイス（1本）
 kiosk_provision（新規 kiosk の追加＝拡大操作）
 
-## B. 除外（98本）
+## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・26本）→ ゲート不要（B7 回避型(1)）
 approval_apply / ar_policy_ok / audit_log_write / audit_log_write_service / cast_create_apply /
@@ -171,8 +180,9 @@ kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解�
 payroll_run_create / payment_record_add / withholding_payment_record
 （finalize/mark_paid/reopen は B(a) で既に構造除外）
 
-### B(f) 読取 RPC（41本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
+### B(f) 読取 RPC（42本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
 **staff_pin_status**（mig0108＝PIN 状態の読取・owner∨manager自店・hash 非返却） /
+**cast_unavailable_list**（mig0125＝出勤不可の読取・STABLE・owner∨manager自店・裁定112） /
 auth_cast_can_register / auth_cast_id / auth_kiosk_org_id / auth_kiosk_register_store_id /
 auth_kiosk_store_id / auth_org_id / auth_role / auth_staff_can_crm / auth_staff_can_register /
 auth_staff_can_shift / auth_staff_can_view_backs / auth_store_id /
