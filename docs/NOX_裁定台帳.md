@@ -2585,7 +2585,7 @@ audit action='shift_confirm_bulk'／target='shifts:bulk'。
 
 ---
 
-## 裁定116（2026-09-02・設計書 v2）料金区分軸＝区分テーブル＋null 許容 FK — 実装: 未着手
+## 裁定116（2026-09-02・設計書 v2）料金区分軸＝区分テーブル＋null 許容 FK — 116-1 実装済・116-2/UI 未着手
 
 正本＝`docs/NOX_裁定115_116_設計書_v2.md`（同上・論点③④⑤の確定裁定）。
 
@@ -2601,11 +2601,41 @@ staff・cast（自店∧can_register）＝check_add_line と同一ゲート・�
 3本とも anon=false。check_open=5引数全 default・kiosk 腕あり・resolve 3呼び＋ext_menu_snap は
 鏡像規律コメント付き（core と同一式・同時改修必須）。
 
+**116-1 実装済み（2026-09-02）**: mig0127（pricing_categories 器・rules.category_id null FK・
+set_pricing_category）＋**mig0127b（ACL 是正・セット適用）**。f0 verify-nox-pricing-categories
+12 assert（33本目）・2連緑 3,439・golden 6値不変。resolve/check_open/set_pricing_rule は
+**未改修＝挙動不変**（116-2 で原子的対応）。課金名簿 A6 へ set_pricing_category 先回り収載済み。
+コミット `ff38e19`。
+
 ### 教訓52：区分条件は core＋snap の鏡像2点セット
 
 pricing_resolve_core の where 変更は check_open 内 ext_menu_snap 列挙の同一式へ同時反映必須。
 片方だけは snap（凍結表示）と請求（resolve）の乖離を生み runtime まで発覚しない
 （教訓51 の姉妹形。live 逐語の鏡像コメントで実証）。
+
+### 教訓53：新テーブルの ACL は「全剥奪→必要 grant のみ戻す」の標準型③で書く
+
+新テーブルの ACL は `revoke all on table ... from public, anon, authenticated` →
+必要 grant のみ戻す（標準型③）。**個別権限の列挙剥奪は Supabase auto-grant の
+TRUNCATE/REFERENCES/TRIGGER を残置する**。TRUNCATE は RLS 非適用につき実害。
+G1（grants スイートのスキーマ全体ガード）が検知線（0127→0127b で実証・関門作動1例目）。
+
+---
+
+## 裁定117（2026-09-02・v3 モック）料金・会計画面の3責務分割＝UI は分ける・DB は分けない
+
+正本モック＝`mock/pages-2026-09/nox-pricing-structure-mock-v3.html`
+（sha256 `a3af3e5acdc7def1d867234093f6bac4b7859cb095319ac9bc9086ac54abe0c0`・21,823 bytes・v2 は来歴）。
+
+料金・会計画面は「料金マスタ／料金適用ルール／会計設定」の**3責務に分割**する。
+ただしデータ責務は現行 pricing_rules を維持し、料金マスタと料金適用ルールは
+**同一 rule 群の別ビュー**として扱う（UI は分ける・DB は分けない）。
+料金マスタ＝pricing_rules の金額ビュー。**別正本・別テーブルを作らない**。
+フォールバック＝stores の基本料金（店単位の独立実体・席種別なし）。
+**優先順位の数値は UI に露出しない**（順序＝表示順・DB priority/sort は内部表現）。
+**「時間だけのルール」は作らない**——各行が時間帯・条件・金額・基準時間を持つ。
+時間課金の確定は**伝票オープン時固定**（選択制にしない）。区分も開栓時凍結。
+116-UI 実装はこのモックが構造正本（本体が正・モックが従の原則は不変）。
 
 ---
 

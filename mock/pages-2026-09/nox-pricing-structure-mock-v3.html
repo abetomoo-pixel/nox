@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX | 料金・会計 構造モック v3</title>
+<style>
+:root{--bg:#080808;--panel:#121210;--line:#2f2d27;--line2:#403d34;--gold:#d8ad55;--gold2:#f0cf82;--goldbg:rgba(216,173,85,.10);--text:#f5f1e7;--muted:#9b988f;--green:#77ba83;--red:#d86c64}
+*{box-sizing:border-box}html{background:var(--bg);color-scheme:dark}body{margin:0;background:radial-gradient(circle at 80% -10%,rgba(216,173,85,.06),transparent 28%),var(--bg);color:var(--text);font-family:Inter,"Noto Sans JP","Yu Gothic UI",sans-serif;font-size:13px}button,input,select{font:inherit;color:inherit}button{cursor:pointer}
+.app{min-height:100vh;display:grid;grid-template-columns:205px 1fr}.side{background:#0c0c0b;border-right:1px solid var(--line);padding:18px 12px}.brand{display:flex;gap:10px;align-items:center;padding:0 8px 24px}.mark{width:34px;height:34px;border:1px solid var(--gold);border-radius:8px;display:grid;place-items:center;color:var(--gold2)}.brand b{font-size:17px}.brand small{display:block;color:var(--muted);font-size:8px}.navlabel{padding:10px 10px 4px;color:#66625c;font-size:9px}.nav{padding:10px;border-radius:8px;color:#9b978f;margin:2px 0}.nav.on{background:linear-gradient(90deg,rgba(216,173,85,.17),rgba(216,173,85,.03));color:var(--gold2);box-shadow:inset 2px 0 var(--gold)}
+main{min-width:0}.top{height:55px;border-bottom:1px solid var(--line)}.wrap{max-width:1360px;margin:auto;padding:22px 24px 70px}.crumb{font-size:10px;color:var(--muted);margin-bottom:12px}.eyebrow{font-size:9px;letter-spacing:.16em;color:var(--gold)}h1{font-size:24px;margin:4px 0}.lead{color:var(--muted);font-size:10px;margin-bottom:14px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:14px}.tabs button{border:0;border-right:1px solid var(--line);background:#0f0f0e;padding:12px;color:var(--muted)}.tabs button.on{background:var(--goldbg);color:var(--gold2);font-weight:800}.view{display:none}.view.on{display:block}
+.card{border:1px solid var(--line);background:linear-gradient(145deg,#171714,#10100f);border-radius:10px}.card+.card{margin-top:12px}.head{padding:13px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}.head h2{font-size:15px;margin:0}.head p{font-size:9px;color:var(--muted);margin:4px 0 0}.body{padding:14px}.btn{height:36px;border:1px solid var(--line2);background:#171714;border-radius:7px;padding:0 12px;font-weight:700}.btn.pri{background:linear-gradient(135deg,#e5c06c,#b78936);border-color:#d7ad55;color:#171108}.btn.mini{height:26px;font-size:9px;padding:0 8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.field{display:flex;flex-direction:column;gap:4px}.field label{font-size:9px;color:var(--muted)}.field input,.field select{height:36px;border:1px solid var(--line2);background:#090909;border-radius:7px;padding:0 9px}.note{padding:10px 12px;border:1px solid rgba(216,173,85,.2);background:rgba(216,173,85,.04);border-radius:8px;color:#d5c69e;font-size:9px}.warn{padding:10px 12px;border:1px solid rgba(216,108,100,.28);background:rgba(216,108,100,.05);border-radius:8px;color:#e1aaa4;font-size:9px}
+.table{display:grid}.tr{display:grid;align-items:center;border-top:1px solid var(--line)}.tr:first-child{border-top:0}.tr>div{padding:10px}.th{color:var(--muted);font-size:8px}.td{font-size:10px}.status{color:var(--green);font-size:9px}.dim{color:var(--muted);font-size:9px}
+.pill{display:inline-block;font-size:8px;border:1px solid var(--line2);border-radius:999px;padding:4px 7px;color:var(--muted)}.pill.gold{color:var(--gold2);border-color:rgba(216,173,85,.35)}.seg{display:inline-flex;border:1px solid var(--line2);border-radius:7px;overflow:hidden}.seg button{border:0;border-right:1px solid var(--line2);background:#10100f;padding:9px 12px;color:var(--muted)}.seg button.on{background:var(--goldbg);color:var(--gold2);font-weight:700}.summary{display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line);font-size:10px}.summary:first-child{border-top:0}
+.updn{display:inline-flex;gap:3px}.updn button{width:22px;height:22px;border:1px solid var(--line2);background:#10100f;border-radius:5px;color:var(--muted);font-size:9px;padding:0}
+.fix{display:inline-block;font-size:8px;border:1px solid var(--line2);border-radius:5px;padding:4px 8px;color:var(--muted);background:#0e0e0d}
+@media(max-width:1000px){.app{grid-template-columns:1fr}.side{display:none}.grid2,.grid3{grid-template-columns:1fr}.tabs{grid-template-columns:1fr}.tr{grid-template-columns:1fr!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+<div class="brand"><div class="mark">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div>
+<div class="nav">⌂ ホーム</div><div class="navlabel">営業</div><div class="nav">▣ レジ</div><div class="nav">▤ 日報</div>
+<div class="navlabel">スタッフ</div><div class="nav">◫ シフト</div><div class="nav">♙ キャスト</div><div class="nav">♧ スタッフ</div><div class="nav">▭ 給与</div>
+<div class="navlabel">店舗</div><div class="nav on">⌘ マスタ</div>
+</aside>
+<main><div class="top"></div><div class="wrap">
+<div class="crumb">マスタ › 商品・料金</div><div class="eyebrow">PRICING & CHECKOUT — v3</div><h1>料金・会計設定</h1>
+<div class="lead">画面は「請求額」「適用条件」「会計ロジック」の3つに分かれますが、料金の実体は1つの料金ルール台帳です(UI は分ける・DB は分けない)。</div>
+
+<div class="tabs">
+<button class="on" data-view="master">料金マスタ</button>
+<button data-view="rules">料金適用ルール</button>
+<button data-view="accounting">会計設定</button>
+</div>
+
+<!-- ============ タブ1 料金マスタ ============ -->
+<section id="master" class="view on">
+<div class="lead">お客さまに「いくら請求するか」の正本です。よく使う料金には名前を付けて管理できます。名前は表示用で、実体は「料金適用ルール」の各行と同じものです。</div>
+
+<div class="card"><div class="head"><div><h2>指名・同伴料金</h2><p>請求単価のみを管理。キャストへのバックとは別系統です。</p></div><button class="btn pri">保存</button></div><div class="body">
+<div class="grid3">
+<div class="field"><label>本指名料</label><input value="3000"></div>
+<div class="field"><label>場内指名料</label><input value="2000"></div>
+<div class="field"><label>同伴料</label><input value="4000"></div>
+</div>
+<div class="note" style="margin-top:10px">ここで設定するのはお客さまへの請求額です。待遇プランの「指名実績バック」とは連動しません。</div>
+</div></div>
+
+<div class="card"><div class="head"><div><h2>指名料金(ランク別)</h2><p>ランクごとの指名料。空欄のランクは「既定」→「上の指名・同伴料金」の順で適用されます。割当はキャスト管理側で行います。</p></div></div><div class="body">
+<div class="table">
+<div class="tr" style="grid-template-columns:60px 1.4fr 1fr 1fr 90px 130px"><div class="th">並び</div><div class="th">ランク</div><div class="th">本指名料</div><div class="th">場内指名料</div><div class="th">状態</div><div class="th">操作</div></div>
+<div class="tr" style="grid-template-columns:60px 1.4fr 1fr 1fr 90px 130px"><div></div><div class="td"><b>既定(ランクなし)</b><div class="dim">ランク行が優先されます</div></div><div class="td">基本 ¥3,000</div><div class="td">基本 ¥2,000</div><div class="dim">常時</div><div><button class="btn mini">保存</button></div></div>
+<div class="tr" style="grid-template-columns:60px 1.4fr 1fr 1fr 90px 130px"><div><span class="updn"><button>∧</button><button>∨</button></span></div><div class="td"><b>エース</b><div class="dim">割当0・ルール2</div></div><div class="td"><input value="5000" style="height:28px;width:90px"></div><div class="td"><input value="3000" style="height:28px;width:90px"></div><div class="status">有効</div><div style="display:flex;gap:6px"><button class="btn mini">保存</button><button class="btn mini">削除</button></div></div>
+</div>
+<div style="margin-top:10px;display:flex;gap:8px"><input placeholder="新しいランク名(例: S)" style="height:32px;border:1px solid var(--line2);background:#090909;border-radius:7px;padding:0 9px"><button class="btn">＋ ランクを追加</button></div>
+</div></div>
+
+<div class="card"><div class="head"><div><h2>名前付き料金(表示グループ)</h2><p>料金適用ルールの行を name でまとめた一覧表示です。編集は「料金適用ルール」タブで行います。</p></div></div><div class="body">
+<div class="table">
+<div class="tr" style="grid-template-columns:1.4fr 1fr 1fr 1fr 1fr 90px"><div class="th">名前(表示用)</div><div class="th">セット料金</div><div class="th">セット時間</div><div class="th">延長料金</div><div class="th">延長時間</div><div class="th">状態</div></div>
+<div class="tr" style="grid-template-columns:1.4fr 1fr 1fr 1fr 1fr 90px"><div class="td"><b>通常料金</b><div class="dim">ルール2行がこの名前を使用</div></div><div class="td">¥8,000</div><div class="td">60分</div><div class="td">¥5,000</div><div class="td">30分</div><div class="status">有効</div></div>
+<div class="tr" style="grid-template-columns:1.4fr 1fr 1fr 1fr 1fr 90px"><div class="td"><b>VIP基準料金</b><div class="dim">ルール1行がこの名前を使用</div></div><div class="td">¥12,000</div><div class="td">60分</div><div class="td">¥7,000</div><div class="td">30分</div><div class="status">有効</div></div>
+</div>
+<div class="note" style="margin-top:10px">この表は別のマスタではありません。同じ名前を持つ料金ルールをまとめて見せているだけです。どの時間帯・席種・区分に当たるかは「料金適用ルール」タブが正本です。</div>
+</div></div>
+
+<div class="card"><div class="head"><div><h2>基本料金(フォールバック)</h2><p>どのルールにも一致しないときに適用される、店単位の独立した値です(店舗設定に保存・料金ルールとは別の実体)。席種別のフォールバックはありません。</p></div><button class="btn pri">保存</button></div><div class="body">
+<div class="grid2">
+<div><div class="summary"><span>セット</span><b>¥5,000 /60分</b></div><div class="summary"><span>延長</span><b>¥2,500 /30分</b></div><div class="summary"><span>単位</span><b>人数単位</b></div></div>
+<div><div class="summary"><span>指名・同伴</span><b>上の「指名・同伴料金」を使用</b></div><div class="summary"><span>丸め</span><b>100円単位・切り捨て</b></div></div>
+</div></div></div>
+</section>
+
+<!-- ============ タブ2 料金適用ルール ============ -->
+<section id="rules" class="view">
+<div class="lead">「いつ・誰に・何分・いくらの料金を当てるか」の正本です。時間だけのルールは作れません——各行が時間帯・条件・金額・基準時間をひとまとめに持ちます。</div>
+
+<div class="card"><div class="head"><div><h2>料金区分</h2><p>開栓時に選ぶ区分です(例: 通常/初来店)。区分を作らない場合、開栓時の選択は表示されません。</p></div><button class="btn">＋ 区分を追加</button></div><div class="body">
+<div class="table">
+<div class="tr" style="grid-template-columns:60px 1.4fr 90px 90px"><div class="th">並び</div><div class="th">名称</div><div class="th">状態</div><div class="th">操作</div></div>
+<div class="tr" style="grid-template-columns:60px 1.4fr 90px 90px"><div><span class="updn"><button>∧</button><button>∨</button></span></div><div class="td"><b>通常</b></div><div class="status">有効</div><div><button class="btn mini">保存</button></div></div>
+<div class="tr" style="grid-template-columns:60px 1.4fr 90px 90px"><div><span class="updn"><button>∧</button><button>∨</button></span></div><div class="td"><b>初来店</b></div><div class="status">有効</div><div><button class="btn mini">保存</button></div></div>
+</div>
+<div class="note" style="margin-top:10px">区分の削除はできません(停止=無効化)。無効化しても過去の伝票には影響しません。</div>
+</div></div>
+
+<div class="card"><div class="head"><div><h2>料金スケジュール</h2><p>曜日・時間帯・席種・区分・優先順位で、セット/延長の料金と基準時間を決定します。</p></div><button class="btn pri">＋ ルール追加</button></div><div class="body">
+<div class="table">
+<div class="tr" style="grid-template-columns:70px 1.1fr .8fr 1fr 1fr 1fr 1fr 70px 70px"><div class="th">優先</div><div class="th">表示名</div><div class="th">区分</div><div class="th">時間帯</div><div class="th">曜日・席種</div><div class="th">セット</div><div class="th">延長</div><div class="th">状態</div><div class="th">操作</div></div>
+<div class="tr" style="grid-template-columns:70px 1.1fr .8fr 1fr 1fr 1fr 1fr 70px 70px"><div><span class="updn"><button>∧</button><button>∨</button></span></div><div class="td"><b>平日アーリー</b></div><div class="td"><span class="pill">全区分</span></div><div class="td">20:00〜21:00</div><div class="td">月〜木・全席種</div><div class="td">¥8,000 /60分</div><div class="td">¥5,000 /30分</div><div class="status">有効</div><div><button class="btn mini">編集</button></div></div>
+<div class="tr" style="grid-template-columns:70px 1.1fr .8fr 1fr 1fr 1fr 1fr 70px 70px"><div><span class="updn"><button>∧</button><button>∨</button></span></div><div class="td"><b>初来店アーリー</b></div><div class="td"><span class="pill gold">初来店</span></div><div class="td">20:00〜21:00</div><div class="td">月〜木・全席種</div><div class="td">¥5,000 /60分</div><div class="td">¥5,000 /30分</div><div class="status">有効</div><div><button class="btn mini">編集</button></div></div>
+<div class="tr" style="grid-template-columns:70px 1.1fr .8fr 1fr 1fr 1fr 1fr 70px 70px"><div><span class="updn"><button>∧</button><button>∨</button></span></div><div class="td"><b>平日レイト</b></div><div class="td"><span class="pill">全区分</span></div><div class="td">21:00〜23:00</div><div class="td">月〜木・全席種</div><div class="td">¥8,000 /50分</div><div class="td">¥5,000 /30分</div><div class="status">有効</div><div><button class="btn mini">編集</button></div></div>
+<div class="tr" style="grid-template-columns:70px 1.1fr .8fr 1fr 1fr 1fr 1fr 70px 70px"><div><span class="updn"><button>∧</button><button>∨</button></span></div><div class="td"><b>週末VIP</b></div><div class="td"><span class="pill">全区分</span></div><div class="td">終日</div><div class="td">金土・VIP</div><div class="td">¥12,000 /60分</div><div class="td">¥7,000 /30分</div><div class="status">有効</div><div><button class="btn mini">編集</button></div></div>
+</div>
+<div class="warn" style="margin-top:10px">同じ区分(または「全区分」と任意の区分)で時間帯が重複しています(1組)。重複時は上の行を適用します。</div>
+<div class="note" style="margin-top:8px">一番上が既定として自動適用されます。並び替えで変更できます。どの行にも一致しない場合は「基本料金」へフォールバックします。入店時刻でセット時間も決まります(例: 20:30入店→60分、22:00入店→50分)。</div>
+</div></div>
+
+<div class="card"><div class="head"><div><h2>料金プレビュー</h2><p>条件を入れて、どのルール行が当たるかを確認。</p></div></div><div class="body">
+<div class="grid3">
+<div class="field"><label>入店日時</label><input value="2026/09/02 20:30"></div>
+<div class="field"><label>席種</label><select><option>卓</option><option>カウンター</option><option>VIP</option></select></div>
+<div class="field"><label>人数</label><input type="number" value="2"></div>
+<div class="field"><label>区分</label><select><option>通常</option><option>初来店</option></select></div>
+<div class="field"><label>同伴</label><select><option>なし</option><option>あり</option></select></div>
+<div class="field"><label>支払方法</label><select><option>現金</option><option>カード</option></select></div>
+</div>
+<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><button class="btn pri">この条件で計算</button><span class="pill gold">適用: 平日アーリー(全区分)</span></div>
+<div class="grid3" style="margin-top:12px"><div class="card"><div class="body">セット <b>¥8,000 /60分</b><div class="dim" style="margin-top:4px">20:30入店 → 21:30セット終了</div></div></div><div class="card"><div class="body">延長 <b>¥5,000 /30分</b></div></div><div class="card"><div class="body">同伴 <b>¥4,000</b></div></div></div>
+</div></div>
+</section>
+
+<!-- ============ タブ3 会計設定 ============ -->
+<section id="accounting" class="view">
+<div class="lead">レジで「どう計算し、どう確定するか」を決める正本です。請求単価そのものはここでは持ちません。</div>
+
+<div class="card"><div class="head"><div><h2>営業日・時間計算</h2><p>伝票の営業日判定と時間課金の挙動。</p></div><button class="btn pri">保存</button></div><div class="body">
+<div class="grid3">
+<div class="field"><label>営業日の切替時刻</label><input value="07:00"></div>
+<div class="field"><label>時間課金の確定</label><div><span class="fix">伝票オープン時(固定)</span></div></div>
+<div class="field"><label>自動延長</label><select><option>手動で足す</option><option>自動で追加</option></select></div>
+</div>
+<div class="note" style="margin-top:10px">料率は伝票を開いた時刻のルールで確定し、以後の設定変更・席移動・日付跨ぎでは変わりません(延長も開栓時の料率で加算)。区分も開栓時に凍結されます。</div>
+</div></div>
+
+<div class="card"><div class="head"><div><h2>税・サービス料</h2><p>請求額に対する計算ルール。</p></div><button class="btn pri">税設定を保存</button></div><div class="body">
+<div class="grid3">
+<div class="field"><label>サービス料</label><input value="10%"></div>
+<div class="field"><label>カード手数料(日報集計用)</label><input value="5%"></div>
+<div class="field"><label>価格表示</label><div class="seg"><button class="on">内税</button><button>外税</button></div></div>
+<div class="field"><label>事業者区分</label><div class="seg"><button class="on">課税事業者</button><button>免税事業者</button></div></div>
+<div class="field"><label>インボイス</label><div class="seg"><button>未登録</button><button class="on">登録済み</button></div></div>
+<div class="field"><label>税額の端数</label><div class="seg"><button class="on">切り捨て</button><button>四捨五入</button><button>切り上げ</button></div></div>
+</div>
+<div class="note" style="margin-top:10px">免税事業者は消費税の区分記載を行いません(適格簡易請求書は発行不可)。税設定の保存は開栓済みの伝票に影響しません(開栓時の設定で凍結)。</div>
+</div></div>
+
+<div class="card"><div class="head"><div><h2>カード手数料の転嫁</h2><p>客への請求項目(課税10%)。日報集計用のカードTAXとは別です。</p></div></div><div class="body">
+<div style="display:flex;gap:10px;align-items:center"><div class="seg"><button>無効</button><button class="on">有効</button></div><input value="10" style="width:70px;height:32px;border:1px solid var(--line2);background:#090909;border-radius:7px;padding:0 9px"><span class="dim">%</span></div>
+<div class="warn" style="margin-top:10px">加盟店契約でカード手数料の転嫁が禁止・制限されている場合があります。契約上の可否を確認してください。</div>
+</div></div>
+
+<div class="card"><div class="head"><div><h2>端数・会計確定</h2><p>最終金額の丸め(税額の端数とは別)と会計確定後の操作権限。</p></div></div><div class="body">
+<div class="grid2">
+<div><div class="field"><label>丸め単位(最終合計)</label><select><option>100円単位</option><option>10円単位</option><option>1円単位</option></select></div><div class="field" style="margin-top:8px"><label>処理方法</label><select><option>切り捨て</option><option>四捨五入</option><option>切り上げ</option></select></div><div class="field" style="margin-top:8px"><label>値引きを税計算前に適用</label><div><span class="fix">準備中</span></div></div></div>
+<div><div class="summary"><span>会計確定前の確認</span><b>常に表示(固定)</b></div><div class="summary"><span>締め後の伝票修正</span><b>管理者のみ(切替は準備中)</b></div><div class="summary"><span>監査ログ</span><b>全件保存 <button class="btn mini" style="margin-left:6px">操作履歴を見る</button></b></div></div>
+</div></div></div>
+</section>
+
+</div></main></div>
+<script>
+const tabs=[...document.querySelectorAll('.tabs button')];
+const views=[...document.querySelectorAll('.view')];
+tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.classList.remove('on'));views.forEach(v=>v.classList.remove('on'));t.classList.add('on');document.getElementById(t.dataset.view).classList.add('on');});
+</script>
+</body></html>
