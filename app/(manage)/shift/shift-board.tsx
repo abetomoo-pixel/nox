@@ -13,7 +13,7 @@ import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, addDays } from "@/lib/nox/biz-date";
 import { fmtWin, fmtBand30, hm2min, min2hm, spanMinutes } from "@/lib/nox/shift-time";
-import { autoAssign, type AutoAssignResult } from "@/lib/nox/shift-autoassign";
+// ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -30,7 +30,7 @@ type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_h
 // ★SD V2-2（mig0101）: status 3値（planned→proposed→confirmed）＋wish_id（原型対比）＋source/period_id（自動配置）
 type Shift = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string; created_by: string; wish_id: string | null; source: string; period_id: string | null };
 type Period = { id: string; start_date: string; end_date: string; wish_deadline: string | null; status: string };
-type Rules = { max_consec_days: number | null; min_month_min: number | null };
+// ★0125（裁定112-A）: Rules 型は配置ルールカード撤去に伴い削除（shift_rules 器は残置）。
 // ★SC-8 ⑥: date を持つ（面4 が7日ぶんを読むため）。今日タブ本体は date === bizToday で絞って使う。
 type Att = { cast_id: string; date: string; status: string; eta: string | null };
 // E8-4（mig0095）: staffing_needs は時間帯バンド化＝(store_id, dow, from_min) UNIQUE。
@@ -141,15 +141,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   // ★SD V2-2: 表示月の wishes 全 status（原型対比・4段フロー）／period／配置ルール
   const [wishAll, setWishAll] = useState<Wish[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
-  const [rules, setRules] = useState<Rules | null>(null);
+  // ★0125（裁定112-A）: 配置ルールカード撤去に伴い rules state も撤去（shift_rules 器は残置）。
   // ★SD V2-2: 計画フォーム（pEditId 1つで新規/編集を兼用＝seats-board と同じ流儀）
   const [pEditId, setPEditId] = useState<string | null>(null);
   const [pStart, setPStart] = useState("");
   const [pEnd, setPEnd] = useState("");
   const [pDeadline, setPDeadline] = useState("");
   const [pStatus, setPStatus] = useState("draft");
-  // ★SD V2-2: 自動配置（プレビュー→適用→取消を同画面併置＝DP3 申し送りの undoAuto 導線）
-  const [selPeriodId, setSelPeriodId] = useState("");
+  // ★0125（裁定112-A）: 自動配置 UI 撤去に伴い selPeriodId も撤去（planbar は periods[0] を現行計画とする）
   // ★DP-R S9: 配置ビューの表示切替（モック .plan-tools > .seg = 月カレンダー / スタッフ別）
   const [planView, setPlanView] = useState<"cal" | "staff">("cal");
   // ★R4（Agoora 裁定）: 確定シフトタブ＝**人ベースの月カレンダー**を既定にし、
@@ -166,11 +165,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   //   ★SC-8 ⑦: "today" を union から落とした＝今日タブの日詳細モーダル（面4）を撤去し、
   //     7日ストリップを本体の日付セレクタにしたため、開く口が無くなった（死に値を残さない）。
   const [dayModal, setDayModal] = useState<"" | "roster" | "calendar" | "build">("");
-  const [preview, setPreview] = useState<{ periodId: string; result: AutoAssignResult } | null>(null);
-  const [autoBusy, setAutoBusy] = useState(false);
-  // ★SD V2-2: 配置ルール入力（空欄=無制限。月間は「時間」で入力し保存時に分へ）
-  const [rConsec, setRConsec] = useState("");
-  const [rMonthH, setRMonthH] = useState("");
+  // ★0125（裁定112-A）: preview/autoBusy/rConsec/rMonthH（自動配置・配置ルール入力）は UI 撤去に伴い削除。
   // ★SC-8 ⑦: 今日タブが向いている日。7日ストリップ（今日〜今日+6）で選び直せる。
   //   ★selDate とは**別 state**＝面1〜面3（仮シフト／確定シフト／配置ビュー）の月カレンダーと
   //     混ぜない（あちらの月移動でこの面の対象日が動くのを防ぐ）。
@@ -203,7 +198,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   const [addModal, setAddModal] = useState(false);
   // ★裁定108: 手動追加は2段＝①CastPicker（addPicker）→②キャスト固定フォーム（addCast を確定して addModal）。
   //   表の行「＋」は①を飛ばして直開き（その行のキャストで固定）。RPC 呼び形は不変（shift_set 6引数）。
-  const [addPicker, setAddPicker] = useState(false);
+  // ★0125（裁定112）: addPicker（2段ピッカー）は廃止＝モーダル左ペインの CastPicker へ統合。
   const [addCast, setAddCast] = useState<Cast | null>(null);
   // ★DP3 P2（裁定 DP3-③）: 勤務時間の調整モーダル（モック `adjustDialog`）。
   //   ★「元の希望との対比」はこのモーダルには**入れない**（裁定 DP3-③ のスコープ判断＝
@@ -313,8 +308,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
     const { data: ps2 } = await supabase
       .from("shift_periods").select("id, start_date, end_date, wish_deadline, status")
       .lte("start_date", to).gte("end_date", from).order("start_date");
-    const { data: rl } = await supabase
-      .from("shift_rules").select("max_consec_days, min_month_min").eq("store_id", storeId).maybeSingle();
+    // ★0125（裁定112-A）: shift_rules の読取は撤去（配置ルールカード撤去・器は残置）。
     // E8-4（mig0095）: 時間帯バンド列を取得（dow → from_min の昇順＝バンド表示順）
     const { data: ns } = await supabase.from("staffing_needs")
       .select("id, dow, required, from_min, to_min").order("dow").order("from_min");
@@ -326,7 +320,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
     setNeeds((ns ?? []) as Need[]);
     setWishAll((wAll ?? []) as Wish[]);
     setPeriods((ps2 ?? []) as Period[]);
-    setRules((rl ?? null) as Rules | null);
     setBhRows((bh ?? []) as BusinessHourRow[]);
     // E8-4 #10: 登録者名の解決（E8-2 #8 の closed_by→users.name と同じ1クエリ流儀・失敗時は「—」に落ちるだけ）
     const uids = Array.from(new Set(((ss ?? []) as Shift[]).map((s) => s.created_by).filter(Boolean)));
@@ -349,11 +342,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-  // ★SD V2-2: 配置ルールの現在値を入力欄へ反映（null=空欄=無制限・月間は分→h）
-  useEffect(() => {
-    setRConsec(rules?.max_consec_days != null ? String(rules.max_consec_days) : "");
-    setRMonthH(rules?.min_month_min != null ? String(Math.round(rules.min_month_min / 60)) : "");
-  }, [rules]);
   useEffect(() => { void loadAtt(attDate); }, [attDate, loadAtt]);
 
   async function decide(wishId: string, accept: boolean) {
@@ -395,13 +383,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
     await load();
   }
 
-  // ★SD V2-2: 定休日判定（shift_is_closed_day＝mig0033 と同式: dow の is_closed・coalesce false）。
-  //   純関数 autoAssign へ渡す＝DB を見ない契約（bhRows は取得済み state）。
-  const isClosedDate = (date: string) => {
-    const [y, m, d] = date.split("-").map(Number);
-    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-    return bhRows.find((r) => r.dow === dow)?.is_closed ?? false;
-  };
+  // ★0125（裁定112-A）: isClosedDate（autoAssign へ渡していた定休日判定）は自動配置 UI 撤去で削除。
 
   // ★SD V2-2: period CRUD（shift_period_set / shift_period_remove＝V1 検証済みの引数形と一字一致）。
   async function savePeriod() {
@@ -419,7 +401,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
     setMsg(null);
     const { error } = await supabase.rpc("shift_period_remove", { p_id: id });
     setMsg(error ? `計画の削除に失敗: ${rpcErrJa(error.message)}` : "計画を削除しました");
-    if (selPeriodId === id) { setSelPeriodId(""); setPreview(null); }
     await load();
   }
 
@@ -436,68 +417,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
     await load();
   }
 
-  // ★SD V2-2: 自動配置プレビュー＝純関数 autoAssign をクライアントで実行（DB 書込なし）。
-  //   入力は period 範囲で都度 select（表示月 state は月を跨ぐ period で欠けるため）。
-  //   monthMinutes は期間内 existing の cast 別 spanMinutes 合計＝「existing 込みで呼び出し側が算出」の契約どおり。
-  async function runPreview() {
-    const period = periods.find((x) => x.id === selPeriodId);
-    if (!period) { setMsg("計画期間を選択してください"); return; }
-    setAutoBusy(true); setMsg(null);
-    const [wRes, sRes] = await Promise.all([
-      supabase.from("shift_wishes").select("id, cast_id, date, start_hm, end_hm, status")
-        .eq("status", "pending").gte("date", period.start_date).lte("date", period.end_date).limit(2000),
-      supabase.from("shifts").select("id, cast_id, date, start_hm, end_hm, status, created_by, wish_id, source, period_id")
-        .gte("date", period.start_date).lte("date", period.end_date).limit(2000),
-    ]);
-    const wishesIn = (wRes.data ?? []) as Wish[];
-    const existing = (sRes.data ?? []) as Shift[];
-    const monthMinutes: Record<string, number> = {};
-    for (const e of existing) monthMinutes[e.cast_id] = (monthMinutes[e.cast_id] ?? 0) + spanMinutes(e.start_hm, e.end_hm);
-    const result = autoAssign({
-      startDate: period.start_date, endDate: period.end_date,
-      needs: needs.map((n) => ({ dow: n.dow, fromMin: n.from_min, toMin: n.to_min, required: n.required })),
-      wishes: wishesIn.map((w) => ({ id: w.id, castId: w.cast_id, date: w.date, startHm: w.start_hm, endHm: w.end_hm })),
-      existing: existing.map((e) => ({ castId: e.cast_id, date: e.date, startHm: e.start_hm, endHm: e.end_hm })),
-      monthMinutes,
-      rules: rules ? { maxConsecDays: rules.max_consec_days, minMonthMin: rules.min_month_min } : null,
-      isClosedDay: isClosedDate,
-    });
-    setPreview({ periodId: period.id, result });
-    setAutoBusy(false);
-  }
-  // 適用＝shift_auto_apply（wish_ids 一括 accept・入替型＝SD-8。V1 検証済みの引数形と一字一致）
-  async function applyAuto() {
-    if (!preview) return;
-    setAutoBusy(true); setMsg(null);
-    const { data: n, error } = await supabase.rpc("shift_auto_apply", {
-      p_period_id: preview.periodId, p_wish_ids: preview.result.assignWishIds,
-    });
-    setMsg(error ? `自動配置の適用に失敗: ${rpcErrJa(error.message)}` : `${n}件を配置しました（たたき台＝手動で調整できます）`);
-    if (!error) setPreview(null);
-    setAutoBusy(false);
-    await load();
-  }
-  // 取消＝shift_auto_clear（auto∧planned のみ削除・wish pending 復元＝手動分は保持）
-  async function clearAuto() {
-    if (!selPeriodId) return;
-    setAutoBusy(true); setMsg(null);
-    const { data: n, error } = await supabase.rpc("shift_auto_clear", { p_period_id: selPeriodId });
-    setMsg(error ? `取り消しに失敗: ${rpcErrJa(error.message)}` : `自動配置を取り消しました（${n}件・手動分は保持）`);
-    setAutoBusy(false);
-    await load();
-  }
-
-  // ★SD V2-2: 配置ルール（shift_rules_set・空欄=null=無制限。月間は h 入力→分で保存）。
-  async function saveRules() {
-    setMsg(null);
-    const { error } = await supabase.rpc("shift_rules_set", {
-      p_store_id: storeId,
-      p_max_consec_days: rConsec.trim() === "" ? null : Number(rConsec),
-      p_min_month_min: rMonthH.trim() === "" ? null : Math.round(Number(rMonthH) * 60),
-    });
-    setMsg(error ? `配置ルールの保存に失敗: ${rpcErrJa(error.message)}` : "配置ルールを保存しました");
-    await load();
-  }
+  // ★0125（裁定112-A）: 自動配置（runPreview/applyAuto/clearAuto）と配置ルール保存（saveRules）は
+  //   UI ごと撤去。RPC（shift_auto_apply/shift_auto_clear/shift_rules_set）と純関数 autoAssign・
+  //   shift_rules 器は残置＝器の削除可否は launch 後の別起票で再評価（設計書 §5）。
 
   // ★SD V2-2: 一括/行単位の「キャスト確認へ」＝shift_propose（V1 検証済みの引数形と一字一致）。
   async function proposeShifts(ids: string[]) {
@@ -606,7 +528,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   const gotoNeeds = () => {
     // ★SC-8 ③-0: タブを跨ぐ前に日詳細を閉じる（開いたまま別の面へ行く経路を構造的に潰す）。
     setDayModal("");
-    setTab("build");
+    setTab("calendar"); // ★0125（裁定112-A）: 必要人数カードは仮シフトタブへ移設＝行き先追随
     requestAnimationFrame(() => {
       document.getElementById("shift-needs")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -865,7 +787,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                   //   もう入る人」は今日にだけ当てはまり、先の日は「これから組む段」＝planned。
                   setAddDate(todayDate);
                   setAddStatus(todayDate === bizToday ? "confirmed" : "planned");
-                  setAddPicker(true); // ★裁定108: まずキャスト選択（Picker）
+                  setAddCast(null); setAddModal(true); // ★0125: v6 モーダル直開き（左ペインでキャスト選択）
                 }}>＋ 追加</button>
             )}
           </div>
@@ -961,7 +883,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
             <h2 style={secTitle}>時間帯別の充足</h2>
             {todayBands.length === 0 ? (
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
-                この曜日の必要人数が未設定です。「シフト作成」タブの「必要人数（曜日・時間帯別）」から設定できます。
+                この曜日の必要人数が未設定です。「仮シフト」タブの「必要人数（曜日・時間帯別）」から設定できます。
               </p>
             ) : (
               <>
@@ -1063,7 +985,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
               <span><span className="nox-dot none" />未設定</span>
             </div>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
-              セル＝状態色＋確定/必要人数（時間帯バンドのピーク値）。必要人数は「シフト作成」タブの
+              セル＝状態色＋確定/必要人数（時間帯バンドのピーク値）。必要人数は下の
               「必要人数（曜日・時間帯別）」設定を参照します。
               {/* ★SC-8（裁定57）: 日詳細をモーダルへ統一＝押したその場で開く。 */}
               <b>日を押すとその日の割当が開きます。</b>
@@ -1081,6 +1003,71 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
               </>
             )}
           </section>
+
+        {/* ★0125（裁定112-A）: 必要人数カードを build タブ右カラムからここ（仮シフト）へ移設＝
+            セル状態色・ピーク表示と同居（見る場所と設定する場所の一致）。中身は移設前の逐語。 */}
+        {isManagerUp && (
+        <section id="shift-needs" className="nox-cardtop" style={{ ...card, marginTop: 14 }}>
+          <h2 style={secTitle}>必要人数（曜日・時間帯別）</h2>
+          {/* ★SC-7（裁定51'）: 既定の「終日」ON は変えない（既存の操作を壊さない）。
+              代わりに、終日のままだと何が見られないかを1行で言う。 */}
+          <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "-6px 0 10px", lineHeight: 1.7 }}>
+            終日のままだと時間帯別の充足は見られません。
+            「終日」のチェックを外して 20:00〜24:00 のように登録すると、時間帯ごとの過不足が出ます。
+          </p>
+          {DOW.map((label, dow) => {
+            const bs = needs.filter((n) => n.dow === dow);
+            return (
+              <div key={dow} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "5px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}>
+                <span style={{ width: 20, color: dow === 0 ? "var(--bad)" : dow === 6 ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}>{label}</span>
+                {bs.length === 0 && <span style={{ color: "var(--v2-muted)" }}>未設定</span>}
+                {bs.map((n) => (
+                  <span key={`${n.id}:${n.required}:${n.to_min}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--line)", borderRadius: 8, padding: "3px 8px" }}>
+                    <span className="num" style={{ color: "var(--sub)" }}>{bandLabel(n)}</span>
+                    <input
+                      type="number" min={0} defaultValue={n.required}
+                      onBlur={(e) => {
+                        const v = Number(e.target.value);
+                        if (v !== n.required) void saveNeed(dow, v, n.from_min, n.to_min);
+                      }}
+                      style={{ ...input, width: 52, padding: "4px 6px" }}
+                    />
+                    <span style={{ color: "var(--sub)" }}>名</span>
+                    <button
+                      style={{ ...btnLight, padding: "2px 8px" }} aria-label={`${label}曜 ${bandLabel(n)} を削除`}
+                      onClick={() => removeNeed(dow, n.from_min, bandLabel(n))}
+                    >×</button>
+                  </span>
+                ))}
+              </div>
+            );
+          })}
+          {/* バンド追加フォーム（検証の正は RPC＝bad band / overlap を日本語で返す） */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+            <select value={nDow} onChange={(e) => setNDow(Number(e.target.value))} style={input}>
+              {DOW.map((l, d) => <option key={d} value={d}>{l}曜</option>)}
+            </select>
+            <label style={{ fontSize: 12.5, color: "var(--sub)", display: "flex", alignItems: "center", gap: 4 }}>
+              <input type="checkbox" checked={nAllDay} onChange={(e) => setNAllDay(e.target.checked)} />終日
+            </label>
+            {!nAllDay && (
+              <>
+                <input value={nFrom} onChange={(e) => setNFrom(e.target.value)} style={{ ...input, width: 64 }} placeholder="20:00" />
+                <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
+                <input value={nTo} onChange={(e) => setNTo(e.target.value)} style={{ ...input, width: 64 }} placeholder="24:00" />
+              </>
+            )}
+            <span style={{ fontSize: 12.5, color: "var(--sub)" }}>必要</span>
+            <input type="number" min={0} value={nReq} onChange={(e) => setNReq(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 60 }} />
+            <span style={{ fontSize: 12.5, color: "var(--sub)" }}>名</span>
+            <button style={btnDark} onClick={addNeed}>追加</button>
+          </div>
+          <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
+            人数の変更はフォーカスアウトで保存。時間は 00:00〜24:00（例 20:00〜24:00）。
+            同じ曜日で時間帯が重なる設定はできません（同じ開始時刻は上書き）。
+          </p>
+        </section>
+        )}
 
         </div>
       )}
@@ -1245,7 +1232,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
       {tab === "build" && isManagerUp && (
       <>
       {(() => {
-        const cur = periods.find((x) => x.id === selPeriodId) ?? periods[0] ?? null;
+        const cur = periods[0] ?? null; // ★0125: 自動配置の期間選択撤去＝表示月の先頭 period を現行計画とする
         const inMonth = shifts.filter((x) => x.date.slice(0, 7) === month);
         const planMin = inMonth.reduce((acc, x) => acc + spanMinutes(x.start_hm, x.end_hm), 0);
         // ★SC-7（裁定53'）: 上の月サマリと同じ式（今日以降）＝同じ画面内で数字が食い違わないようにする。
@@ -1277,7 +1264,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
             {/* warnbanner（未処理の希望がある月だけ出す） */}
             {wishes.length > 0 && (
               <div className="nox-alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-                <span>未処理の希望が <b className="num">{wishes.length}件</b> あります。先に承認・時間調整すると自動配置へ反映されます。</span>
+                <span>未処理の希望が <b className="num">{wishes.length}件</b> あります。先に希望を確認してからシフトを作成できます。</span>
                 <button style={btnLight} onClick={() => { setDayModal(""); setTab("queue"); }}>希望を処理</button>
               </div>
             )}
@@ -1323,15 +1310,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
         );
       })()}
 
-      <div className="nox-2col">
-        {/* 左＝配置を組む（モック「配置を組む」カード） */}
+      {/* ★0125（裁定112-B）: 2カラム→単列（右カラム撤去）。配置を組む＝登録済みの確認＋モーダル起点。 */}
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
               <h2 style={{ ...secTitle, margin: 0 }}>配置を組む</h2>
+              {/* ★0125（裁定112）: 作成はモーダル（キャスト単位）へ＝この面は登録済みの確認とモーダル起点 */}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "2px 0 0" }}>
-                自動配置はたたき台です。1件ずつ手で直せます（<span style={{ color: "var(--blue)" }}>自動</span> /{" "}
-                <span style={{ color: "var(--gold2)" }}>手修正</span>）
+                月カレンダーまたはキャスト別に登録済みシフトを確認します（作成は「＋ シフトを追加」）
               </p>
             </div>
             <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
@@ -1340,7 +1326,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                 <button className={planView === "staff" ? "on" : ""} onClick={() => setPlanView("staff")}>スタッフ別</button>
               </div>
               {/* 現行維持: シフト作成タブからは planned で開く（計画を組む面ゆえ） */}
-              <button style={btnLight} onClick={() => { setAddStatus("planned"); setAddPicker(true); }}>＋ 手動で追加</button>
+              <button style={btnDark} onClick={() => { setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>＋ シフトを追加</button>
             </span>
           </div>
 
@@ -1430,149 +1416,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
             <span style={{ color: "var(--gold2)" }}>手修正</span>。セルにカーソルを合わせると時間帯が出ます。
           </p>
 
-          {/* 自動配置（たたき台）＝モックでは同カード頭のボタンから開くダイアログ。
-              ここでは同じカード内に置く＝プレビュー→適用→取消が一続きで見える。 */}
-          <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-
-        <h2 style={secTitle}>自動配置（たたき台）</h2>
-        <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
-          未処理の希望から、必要人数・配置ルールに沿って下書きの配置を作ります。
-          出た配置はたたき台です（1件ずつ手で調整でき、まとめて取り消せます）。
-        </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-          <select value={selPeriodId} onChange={(e) => { setSelPeriodId(e.target.value); setPreview(null); }} style={input}>
-            <option value="">計画期間を選択</option>
-            {periods.map((p) => (
-              <option key={p.id} value={p.id}>{p.start_date}〜{p.end_date}（{PERIOD_ST_LABEL[p.status] ?? p.status}）</option>
-            ))}
-          </select>
-          <button style={{ ...btnDark, opacity: !selPeriodId || autoBusy ? 0.45 : 1 }} disabled={!selPeriodId || autoBusy}
-            onClick={() => void runPreview()}>プレビュー</button>
-          <button style={{ ...btnLight, opacity: !selPeriodId || autoBusy ? 0.45 : 1 }} disabled={!selPeriodId || autoBusy}
-            title="この期間の自動配置（予定のまま残っている分）をすべて削除し、希望を承認待ちへ戻します。手動分は残ります。"
-            onClick={() => void clearAuto()}>自動配置を取り消す</button>
-        </div>
-        {preview && (
-          <div className="nox-inset" style={{ padding: "10px 14px" }}>
-            <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 6px", color: "var(--v2-text)" }}>
-              割当案 <span className="num">{preview.result.assignWishIds.length}</span> 件
-              ・不足 <span className="num">{preview.result.shortages.reduce((a, x) => a + x.short, 0)}</span> 名分
-              ・入らなかった希望 <span className="num">{preview.result.unassignedWishes.length}</span> 件
-            </p>
-            {preview.result.assignWishIds.length > 0 && (
-              <ul style={{ margin: "0 0 8px", paddingLeft: 18, fontSize: 12, lineHeight: 1.8 }}>
-                {preview.result.assignWishIds.map((wid) => {
-                  const w = wishAll.find((x) => x.id === wid) ?? wishes.find((x) => x.id === wid);
-                  return w ? (
-                    <li key={wid}><span className="num">{w.date}</span> {castName(w.cast_id)} <span className="num">{fmtWin(w.start_hm, w.end_hm)}</span></li>
-                  ) : <li key={wid} className="num">{wid.slice(0, 8)}</li>;
-                })}
-              </ul>
-            )}
-            {preview.result.shortages.length > 0 && (
-              <p style={{ fontSize: 11.5, color: "var(--bad)", margin: "0 0 6px", lineHeight: 1.7 }}>
-                不足: {preview.result.shortages.map((x) => `${x.date} ${x.band} あと${x.short}名`).join(" ／ ")}
-              </p>
-            )}
-            {preview.result.warnings.length > 0 && (
-              <p style={{ fontSize: 11.5, color: "var(--gold2)", margin: "0 0 6px", lineHeight: 1.7 }}>
-                {preview.result.warnings.map((x) => `${castName(x.castId)}: ${x.detail}`).join(" ／ ")}
-              </p>
-            )}
-            <div style={{ display: "flex", gap: 8 }}>
-              <button style={{ ...btnDark, opacity: autoBusy || preview.result.assignWishIds.length === 0 ? 0.45 : 1 }}
-                disabled={autoBusy || preview.result.assignWishIds.length === 0}
-                onClick={() => void applyAuto()}>この内容で配置する</button>
-              <button style={btnLight} disabled={autoBusy} onClick={() => setPreview(null)}>閉じる</button>
-            </div>
-          </div>
-        )}
-          </div>
         </section>
 
-        {/* 右＝必要人数＋配置ルール（モック planner-grid の右カラム） */}
-        <div style={{ display: "grid", gap: 14 }}>
-        <section id="shift-needs" className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>必要人数（曜日・時間帯別）</h2>
-          {/* ★SC-7（裁定51'）: 既定の「終日」ON は変えない（既存の操作を壊さない）。
-              代わりに、終日のままだと何が見られないかを1行で言う。 */}
-          <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "-6px 0 10px", lineHeight: 1.7 }}>
-            終日のままだと時間帯別の充足は見られません。
-            「終日」のチェックを外して 20:00〜24:00 のように登録すると、時間帯ごとの過不足が出ます。
-          </p>
-          {DOW.map((label, dow) => {
-            const bs = needs.filter((n) => n.dow === dow);
-            return (
-              <div key={dow} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "5px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}>
-                <span style={{ width: 20, color: dow === 0 ? "var(--bad)" : dow === 6 ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}>{label}</span>
-                {bs.length === 0 && <span style={{ color: "var(--v2-muted)" }}>未設定</span>}
-                {bs.map((n) => (
-                  <span key={`${n.id}:${n.required}:${n.to_min}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--line)", borderRadius: 8, padding: "3px 8px" }}>
-                    <span className="num" style={{ color: "var(--sub)" }}>{bandLabel(n)}</span>
-                    <input
-                      type="number" min={0} defaultValue={n.required}
-                      onBlur={(e) => {
-                        const v = Number(e.target.value);
-                        if (v !== n.required) void saveNeed(dow, v, n.from_min, n.to_min);
-                      }}
-                      style={{ ...input, width: 52, padding: "4px 6px" }}
-                    />
-                    <span style={{ color: "var(--sub)" }}>名</span>
-                    <button
-                      style={{ ...btnLight, padding: "2px 8px" }} aria-label={`${label}曜 ${bandLabel(n)} を削除`}
-                      onClick={() => removeNeed(dow, n.from_min, bandLabel(n))}
-                    >×</button>
-                  </span>
-                ))}
-              </div>
-            );
-          })}
-          {/* バンド追加フォーム（検証の正は RPC＝bad band / overlap を日本語で返す） */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-            <select value={nDow} onChange={(e) => setNDow(Number(e.target.value))} style={input}>
-              {DOW.map((l, d) => <option key={d} value={d}>{l}曜</option>)}
-            </select>
-            <label style={{ fontSize: 12.5, color: "var(--sub)", display: "flex", alignItems: "center", gap: 4 }}>
-              <input type="checkbox" checked={nAllDay} onChange={(e) => setNAllDay(e.target.checked)} />終日
-            </label>
-            {!nAllDay && (
-              <>
-                <input value={nFrom} onChange={(e) => setNFrom(e.target.value)} style={{ ...input, width: 64 }} placeholder="20:00" />
-                <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
-                <input value={nTo} onChange={(e) => setNTo(e.target.value)} style={{ ...input, width: 64 }} placeholder="24:00" />
-              </>
-            )}
-            <span style={{ fontSize: 12.5, color: "var(--sub)" }}>必要</span>
-            <input type="number" min={0} value={nReq} onChange={(e) => setNReq(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 60 }} />
-            <span style={{ fontSize: 12.5, color: "var(--sub)" }}>名</span>
-            <button style={btnDark} onClick={addNeed}>追加</button>
-          </div>
-          <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
-            人数の変更はフォーカスアウトで保存。時間は 00:00〜24:00（例 20:00〜24:00）。
-            同じ曜日で時間帯が重なる設定はできません（同じ開始時刻は上書き）。
-          </p>
-        </section>
-          <section className="nox-cardtop" style={card}>
-
-        <h2 style={secTitle}>配置ルール（自動配置で守る条件）</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <label style={{ fontSize: 12 }}>連勤上限
-            <input type="number" min={1} value={rConsec} placeholder="無制限"
-              onChange={(e) => setRConsec(e.target.value)} style={{ ...input, width: 70, marginLeft: 6 }} /> 日
-          </label>
-          <label style={{ fontSize: 12 }}>最低月間時間
-            <input type="number" min={1} value={rMonthH} placeholder="なし"
-              onChange={(e) => setRMonthH(e.target.value)} style={{ ...input, width: 70, marginLeft: 6 }} /> 時間
-          </label>
-          <button style={btnDark} onClick={() => void saveRules()}>保存</button>
-        </div>
-        <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
-          空欄＝制限なし。連勤上限を超える配置は作りません。最低月間時間に達していない人を優先して埋めます。
-          手動で調整した配置は、再度自動配置しても保持されます。
-        </p>
-          </section>
-        </div>
-      </div>
+      {/* ★0125（裁定112-A/B）: 右カラム（必要人数＋配置ルール）は撤去＝単列化。
+          必要人数カードは仮シフト（calendar）タブへ移設（見る場所と設定する場所の一致）。
+          配置ルールカードは UI 撤去（shift_rules 器と shift_rules_set は残置）。 */}
       </>
       )}
 
@@ -1721,31 +1569,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
       {/* ★SC-1（裁定42）: 手動追加は ShiftAddForm（部品）。開閉と初期値だけ親が渡す。
           ★送る RPC・引数6本は子へ逐語移送（sha 152dd248…fb41 で照合）＝ここには残っていない。
           保存されたら onSaved で親の load() を回す（子は DB の再取得を知らない）。 */}
-      {/* ★裁定108: ①キャスト選択（CastPicker・select 廃止）→ ②キャスト固定フォーム */}
-      {isManagerUp && addPicker && (
-        <Modal onClose={() => setAddPicker(false)} maxWidth={520} scroll>
-          <div className="nox-modalhead">
-            <h3 style={{ ...secTitle, margin: 0 }}>シフトを追加するキャストを選択</h3>
-            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setAddPicker(false)}>×</button>
-          </div>
-          <div className="nox-modalbody">
-            <CastPicker casts={casts} dense
-              onPick={(id) => {
-                const c = casts.find((x) => x.id === id);
-                if (!c) return;
-                setAddCast(c);
-                setAddPicker(false);
-                setAddModal(true);
-              }} />
-          </div>
-        </Modal>
-      )}
+      {/* ★0125（裁定112）: 2段ピッカーは廃止＝v6 モーダルの左ペイン（CastPicker）へ統合。
+          行の「＋」直開きは initialCast で従来どおりキャスト固定で開く（裁定108 の Picker 維持）。 */}
       {isManagerUp && (
         <ShiftAddForm
-          cast={addCast} bhRows={bhRows}
+          casts={casts} initialCast={addCast} bhRows={bhRows}
           initialDate={addDate} initialStatus={addStatus}
           open={addModal} onClose={() => setAddModal(false)}
-          onSaved={() => { setMsg("シフトを登録しました"); void load(); }}
+          onSaved={() => { setMsg("シフトを保存しました"); void load(); }}
         />
       )}
 
@@ -1820,7 +1651,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                   「開いたまま initialDate だけが変わる」経路は生まれない（SC-1 の確認と同じ結論）。 */}
             {isManagerUp && (
               <button className="nox-addc"
-                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddPicker(true); }}>
+                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>
                 ＋ キャストを追加
               </button>
             )}
@@ -1929,7 +1760,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                 ここには当たらない。★別モーダル（ShiftAddForm）を開く前に日詳細を閉じる（③-0 の規約）。 */}
             {isManagerUp && (
               <button className="nox-addc"
-                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddPicker(true); }}>
+                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>
                 ＋ キャストを追加
               </button>
             )}
