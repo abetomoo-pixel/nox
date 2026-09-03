@@ -113,7 +113,9 @@ async function main() {
     //   4者 revoke 済み＝authenticated から直接実行できず、課金ゲートは呼び出し元の公開 RPC
     //   （check_set_nominations / check_close / drink_claim_*）が既に担う（check_round_amount / check_tax_round と同型）。
     //   この +1 は f0 実走で教訓21 assert が名簿漏れとして検知→収載した実例（2026-08-28）。
-    check("段47-1 正本の除外99名を読めた", docExcluded.size === 99, `got ${docExcluded.size}`);
+    // ★mig0131（#54/#55・2026-09-03）: pricing_categories_for_register（STABLE 読取・非ゲート）を B(f) へ収載＝
+    //   除外 99→100・全数 212→213（教訓21 assert の実走検知 6例目・gated 本数は不変）。
+    check("段47-1 正本の除外100名を読めた", docExcluded.size === 100, `got ${docExcluded.size}`);
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる

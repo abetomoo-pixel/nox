@@ -41,6 +41,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★設計書 §6 は「新6」だが**実測は新7**（period_remove を含む）＝実測を正とする（SD-2 の流儀）。
   live 実測＝'billing locked' **101**・'billing_writable_of' **102**。
   全数 = A 101 ＋ B 94 ＝ **195** ＝ live pg_proc 実列挙と一致（機械 assert が係留）。
+- ★**mig0131 追随（2026-09-03・#54/#55/#56）**: 新 RPC **1本**を B(f) へ収載＝
+  `pricing_categories_for_register`（STABLE 読取・非ゲート・kiosk 腕あり）。reorder/set_pricing_rule は
+  再作成のみ＝本数不動。対象 **113 不変**・除外 **99→100**・全数 **212→213**。
+  ★f0 実走の教訓21 assert が名簿漏れとして検知→収載した実例（6例目・0131 手貼りと f0 並走で検知）。
 - ★**mig0127 追随（2026-09-02・裁定116-1）**: 新 RPC **1本**を A6 へ収載＝`set_pricing_category`
   （料金区分の upsert・唯一の書込経路・規則A形でゲート内蔵・kiosk 腕なし）。対象 **112→113**・
   全数 **211→212**（pricing_categories 器＋pricing_rules.category_id 列は本数非関与）。
@@ -203,7 +207,11 @@ kiosk_cast_list / kiosk_check_detail / kiosk_operator_list / kiosk_register_stat
 period_bounds / reservation_is_closed_day / shift_is_closed_day / withholding_monthly_summary /
 pricing_resolve / biz_minutes_of / product_stock_totals（★live は1定義＝0079 は同一シグネチャの supersede）/
 store_hourly_aggregate / store_category_aggregate / store_cohort_aggregate /
-billing_writable_of / auth_org_billing_writable / nox_receipt_public
+billing_writable_of / auth_org_billing_writable / nox_receipt_public /
+**pricing_categories_for_register**（mig0131 新設＝#54 裁定済・STABLE 読取・非ゲート・開栓 RPC と同腕
+〔kiosk 腕あり・authenticated grant のみ〕・active 区分の id/name/sort のみ返却＝「開栓できる者は区分を
+選べる」の同値性。★起票#55 の「A6 先回り」は起草時に**読み取り専用＝B(f)** へ是正。
+★注記に他 RPC の生名を書くと docNames パーサが名簿へ誤計上する＝言い換えで回避）
 （E8-6c 追補5本 2026-08-19: 3本は mig0096 の T4 集計＝裁定 E8-6-7 で非ゲート・
 　2本は 0088 の課金述語とその zero-arg ラッパ＝読取ヘルパー。教訓20 の残差是正。
 　nox_receipt_public＝mig0099 2026-08-20 同時追補: ★NOX 初の anon 白名単1号・裁定 R2-11 改訂＝
