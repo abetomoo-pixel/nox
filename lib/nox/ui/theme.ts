@@ -138,9 +138,15 @@ const btnBase: CSSProperties = {
 //   ★旧実装は文字色に **#0B0B0F（旧 --bg のベタ書き）** を使っていた（E1 の申し送り）。
 //   ★E4-0: モックの4値を **--gold1 / --gold3 / --gold-bd / --on-gold** としてトークン化
 //     （金地の上に載る値は複数部品で共有するため・正本は globals.css .nox-dark）。
+// ★夜間レーン（2026-09-03・青系正本 nox-admin-blue-accent-v2-white-cta）: 主 CTA＝白抜き（cta-white 型）。
+//   モック `.btn.cta-white`: background:transparent; border-color:#f4f6f8; color:#f7f7f5;
+//   box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset（白地黒文字のアクティブ状態は不採用）。
+//   ★名前は btnGold のまま値だけ差し替え（E3 の流儀＝参照 100+ 箇所を動かさない）。旧値＝金グラデ
+//   （border var(--gold-bd)・bg linear-gradient(135deg,var(--gold1),var(--gold3))・color var(--on-gold)）。
+//   金トークン（--gold 系）はブランド要素（ロゴ/eyebrow/バッジ/KPI）専用として残る。
 export const btnGold: CSSProperties = {
-  ...btnBase, border: "1px solid var(--gold-bd)", background: "linear-gradient(135deg,var(--gold1),var(--gold3))",
-  color: "var(--on-gold)", boxShadow: "0 6px 18px rgba(216,173,85,.12)",
+  ...btnBase, border: "1px solid #f4f6f8", background: "transparent",
+  color: "#f7f7f5", boxShadow: "0 0 0 1px rgba(255,255,255,.08) inset",
 };
 // モック `.btn.ghost`: background:transparent; color:var(--muted)＝NOX は --sub
 export const btnGhost: CSSProperties = { ...btnBase, border: "1px solid var(--line2)", background: "transparent", color: "var(--ink)" };

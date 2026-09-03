@@ -217,7 +217,7 @@ body {
   text-decoration: none;
 }
 .nox-tab.on {
-  color: var(--champ);
+  color: var(--primary-hover); /* ★夜間レーン: アクティブナビ=青（モック nav.active） */
 }
 
 /* ── レスポンシブ断点（R-1 2026-07-17 → R-2 で再設計）──────────────────────
@@ -303,8 +303,8 @@ body {
     text-align: left;
   }
   .nox-tab.on {
-    background: linear-gradient(135deg, rgba(201, 162, 74, .16), rgba(201, 162, 74, .05));
-    box-shadow: inset 0 0 0 1px rgba(201, 162, 74, .28);
+    background: var(--primary-soft); /* ★夜間レーン: モック nav.active＝primary-soft + inset バー */
+    box-shadow: inset 2px 0 var(--primary);
   }
   /* モック同順（.on の後）＝active タブも hover 中は白微光が勝つ挙動まで一致させる */
   .nox-tab:hover {
@@ -689,7 +689,7 @@ body {
   font-weight: 700;
   cursor: pointer;
 }
-.nox-chip.on { border-color: var(--gold); color: var(--champ); background: var(--goldface2); }
+.nox-chip.on { border-color: var(--primary); color: var(--primary-hover); background: var(--primary-soft); } /* ★夜間レーン: 選択=青系 */
 
 /* （旧 .nox-detailwrap ボトムシート一式は撤去＝動線改修v3 で register・kiosk とも
    選択駆動ビュー切替（.nox-checkview 全幅）へ移行し、最後の利用者だった kiosk も追随済み。 */
@@ -745,7 +745,7 @@ body {
   flex: 1; background: transparent; border: 1px solid var(--v2-line); color: var(--v2-muted);
   border-radius: 8px; padding: 7px; font-size: 12px; cursor: pointer; font-family: inherit;
 }
-.nox-dtabs button.on { background: rgba(201, 162, 74, .14); border-color: var(--gold); color: var(--gold); font-weight: 700; }
+.nox-dtabs button.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-hover); font-weight: 700; } /* ★夜間レーン */
 /* （旧 .nox-dtotal は撤去＝register 4ea7f17・kiosk v3 追随とも合計は .nox-backbar .total へ移行し参照ゼロ） */
 
 /* ── UI刷新v2 段K2 先行分（キオスク restyle）── presentation-only 2026-07-28 ──
@@ -797,7 +797,7 @@ body {
 .nox-seg a { text-decoration: none; white-space: nowrap; }
 /* 金の3役①＝選択状態 */
 .nox-seg button.on,
-.nox-seg a.on { background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
+.nox-seg a.on { background: var(--primary-soft); color: var(--primary-hover); font-weight: 700; } /* ★夜間レーン */
 /* カードグリッド（モック .cards）＝4→3(≤1180)→1(≤641) */
 .nox-cardgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
 @media (max-width: 1180px) { .nox-cardgrid { grid-template-columns: repeat(3, 1fr); } }
@@ -957,7 +957,7 @@ body {
 .nox-perms { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
 /* 権限チップ＝金の3役③（状態バッジ）。off は neutral。 */
 .nox-perm { font-size: 10px; border-radius: 4px; padding: 2px 8px; border: 1px solid var(--v2-line); color: var(--v2-muted); background: transparent; font-family: inherit; cursor: pointer; }
-.nox-perm.on { background: rgba(201, 162, 74, .14); border-color: var(--gold); color: var(--gold); font-weight: 700; }
+.nox-perm.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-hover); font-weight: 700; } /* ★夜間レーン */
 .nox-perm:disabled { cursor: default; opacity: .75; }
 /* 監査（モック .atool/.arow/.tm/.act/.tgt） */
 .nox-atool { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -1048,7 +1048,7 @@ body {
   border-radius: 9px; padding: 7px 14px; font-size: 12.5px; cursor: pointer;
   font-family: inherit; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
 }
-.nox-subnav2 button.on { background: rgba(201, 162, 74, .14); border-color: var(--gold); color: var(--gold); font-weight: 700; }
+.nox-subnav2 button.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-hover); font-weight: 700; } /* ★夜間レーン */
 /* 件数バッジ（モック .cnt）＝金の3役③ */
 .nox-subnav2 .cnt {
   min-width: 16px; text-align: center; background: var(--gold); color: var(--bg);
@@ -1338,8 +1338,8 @@ body {
 .nox-side a:hover { background: #171715; color: var(--ink); }
 /* モック .nav button.active＝金のグラデ帯＋左端 2px の金線＋gold2 文字 */
 .nox-side a.active {
-  background: linear-gradient(90deg, rgba(216, 173, 85, .17), rgba(216, 173, 85, .03));
-  color: var(--gold2); box-shadow: inset 2px 0 var(--gold); font-weight: 700;
+  background: var(--primary-soft); /* ★夜間レーン: アクティブナビ=青（モック nav.active＝primary-soft + inset 2px 0 primary） */
+  color: var(--primary-hover); box-shadow: inset 2px 0 var(--primary); font-weight: 700;
 }
 /* モック .navlabel（群見出し）＝9px・#66635d・letter-spacing .16em */
 .nox-side .group { font-size: 9px; color: #66635d; padding: 9px 12px 5px; letter-spacing: .16em; }
@@ -1522,7 +1522,7 @@ body {
   background: transparent; border: 1px solid var(--line); border-radius: 14px;
   padding: 5px 13px; font-size: 12px; cursor: pointer; color: var(--sub); font-family: inherit; white-space: nowrap;
 }
-.nox-cat.on { border-color: var(--gold); color: var(--gold); font-weight: 700; }
+.nox-cat.on { border-color: var(--primary); color: var(--primary-hover); font-weight: 700; } /* ★夜間レーン */
 /* planA .sumrow / .sumrow.total＝小計・割引・請求（合計は白太で一回り大きく） */
 .nox-sumrow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px; color: var(--sub); padding: 5px 0; }
 .nox-sumrow .num { font-size: 13px; color: var(--ink); }
@@ -1673,9 +1673,9 @@ body {
   cursor: pointer; white-space: nowrap;
 }
 .nox-pill:hover { color: var(--ink); }
-.nox-pill.on { border-color: var(--gold); background: rgba(201, 162, 74, .14); color: var(--gold); font-weight: 700; }
+.nox-pill.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-hover); font-weight: 700; } /* ★夜間レーン */
 .nox-pill .n { font-size: 12px; padding: 2px 9px; border-radius: 99px; background: var(--bg2); color: var(--sub); }
-.nox-pill.on .n { background: rgba(201, 162, 74, .18); color: var(--gold2); }
+.nox-pill.on .n { background: var(--primary-soft); color: var(--primary-hover); } /* ★夜間レーン */
 /* テーブルを包むカード枠（一覧の輪郭をはっきりさせる） */
 /* ★E4 群2b（gaps G1 の裁定）: `.nox-ptable` は**特化表として2部品体制で正式採用**。
    汎用 `.nox-table` と「同じ設計言語」であることを照合し、ズレていた3点を揃えた:
@@ -1695,7 +1695,7 @@ body {
 /* ソート矢印は常時表示（薄）＝押せることが判る。アクティブな向きだけ金。 */
 .nox-ptable th .arrow { display: inline-flex; flex-direction: column; line-height: .72; margin-left: 5px; vertical-align: middle; }
 .nox-ptable th .arrow i { font-style: normal; font-size: 7px; color: var(--line2); }
-.nox-ptable th .arrow i.on { color: var(--gold2); }
+.nox-ptable th .arrow i.on { color: var(--primary-hover); } /* ★夜間レーン: sort 選択=青 */
 /* ★④a-3: アイコン枠（.nox-ptico）を撤去したぶん、td の縦 padding で行高を保つ
    （38px のアイコンが担っていた高さを padding に移した＝行の厚みは④a-2 と同程度）。 */
 .nox-ptable td {
@@ -1749,7 +1749,7 @@ body {
   background: transparent; color: var(--sub); cursor: pointer; font-family: inherit;
   font-size: 11px; line-height: 1; padding: 0;
 }
-.nox-ordbtn:hover:not(:disabled) { color: var(--gold); border-color: var(--gold); }
+.nox-ordbtn:hover:not(:disabled) { color: var(--primary-hover); border-color: var(--primary); background: var(--primary-soft); } /* ★夜間レーン: 補助=青（モック .mini の型） */
 .nox-ordbtn:disabled { opacity: .3; cursor: default; }
 /* 在庫バッジ: 角丸の四角。0以下＝塗りの赤／発注点以下＝枠線の赤／通常＝地の色 */
 .nox-stkbadge {
@@ -1813,7 +1813,7 @@ body {
   color: var(--v2-muted);
   cursor: pointer;
 }
-.nox-subnav button.on { background: var(--goldface2); border-color: var(--gold); color: var(--champ); }
+.nox-subnav button.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-hover); } /* ★夜間レーン: タブ選択=青 */
 
 /* KPI 帯（4枚・数値は .num で読ませる） */
 .nox-kpirow { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; margin-bottom: 13px; }
