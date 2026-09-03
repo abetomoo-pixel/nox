@@ -2585,7 +2585,7 @@ audit action='shift_confirm_bulk'／target='shifts:bulk'。
 
 ---
 
-## 裁定116（2026-09-02・設計書 v2）料金区分軸＝区分テーブル＋null 許容 FK — 116-1 実装済・116-2/UI 未着手
+## 裁定116（2026-09-02・設計書 v2）料金区分軸＝区分テーブル＋null 許容 FK — 116-1/116-2 実装済・116-UI 未着手
 
 正本＝`docs/NOX_裁定115_116_設計書_v2.md`（同上・論点③④⑤の確定裁定）。
 
@@ -2606,6 +2606,19 @@ set_pricing_category）＋**mig0127b（ACL 是正・セット適用）**。f0 ve
 12 assert（33本目）・2連緑 3,439・golden 6値不変。resolve/check_open/set_pricing_rule は
 **未改修＝挙動不変**（116-2 で原子的対応）。課金名簿 A6 へ set_pricing_category 先回り収載済み。
 コミット `ff38e19`。
+
+**116-2 実装追認（mig0128）**: pricing_resolve_core 6引数化＝区分条件
+（category_id is null or = p_category_id）＋同 priority 内区分一致優先
+（(category_id is not null) desc・priority 第一鍵は維持）。check_open 6引数化＝
+区分検証（同org同店active・'bad category'）→resolve 3呼び引渡し→ext_menu_snap
+where/order 鏡像（教訓52）→checks へ category_id/category_name 凍結（開栓時・
+非遡及・FK あり）。set_pricing_rule 15引数化＝区分は set/extension/dohan のみ
+受理（'bad category kind'＝shimei 死蔵予防・将来レーンで解除）・停止中区分の
+新規参照拒否（'inactive category'＝0104 rank 型）。旧署名3本 DROP・ACL live 再現
+（core＝grant なし）。override（p_set_rule_id）は区分フィルタ不適用＝明示選択優先。
+区分検証は既存 open 再利用の後＝再利用返却の冪等挙動不変。f0 34本目
+verify-nox-pricing-resolve-category 16 assert・2連緑・golden 6値不変。
+grants 署名 pin 3本（G37/G37b/G42）を15引数へ追随（mig0112 と同型・機械的追随）。
 
 ### 教訓52：区分条件は core＋snap の鏡像2点セット
 
