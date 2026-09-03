@@ -46,6 +46,7 @@ export type PricingRule = {
   amount: number; duration_min: number | null; priority: number; is_active: boolean; created_at: string;
   name: string | null;  // ★mig0107（P-1）: 表示名（任意・trim 済み 1〜40 文字・null=未設定）
   tax_category: string; // ★mig0112（C3）: 税区分（enum 4値・NOT NULL default 'taxable_10'）
+  category_id: string | null; // ★mig0128（裁定116-2）: 料金区分（null=全区分）
 };
 export type CastRank = { id: string; name: string; sort_order: number; is_active: boolean };
 // ★DP-R: 端数処理方法の表示語（pricing-panel の option と同語彙）
@@ -82,6 +83,10 @@ function ruleErrJa(msg: string | undefined): string {
   if (msg.includes("bad rank")) return "ランクの指定が不正です";
   if (msg.includes("inactive rank")) return "停止中のランクは指定できません";
   if (msg.includes("bad name")) return "表示名は40文字までです";
+  // ★mig0128（裁定116-2）: 区分系トークン
+  if (msg.includes("bad category kind")) return "指名料には区分を設定できません";
+  if (msg.includes("inactive category")) return "停止中の区分は新しく指定できません";
+  if (msg.includes("bad category")) return "区分の指定が不正です（再読込してください）";
   if (msg.includes("bad amount")) return "金額は0以上で入力してください";
   if (msg.includes("bad duration")) return "分数の指定が不正です（1以上・セット/延長のみ）";
   if (msg.includes("bad priority")) return "優先順位が不正です";
@@ -102,10 +107,13 @@ type Band = {
   allActive: boolean;
   name: string | null;          // ★mig0107: 代表 name＝帯内で最初に見つかった非 null（ruleOrder 順）
   tax_category: string;         // ★mig0112: 代表税区分＝ruleOrder 順の最初の行（saveBand が3行へ同値を配る）
+  category_id: string | null;   // ★mig0128（裁定R4）: 帯単位1値＝ruleOrder 順の最初の行（saveBand が3行へ同値を配る）
 };
 
 function bandKeyOf(r: PricingRule): string {
-  return `${r.seat_kind ?? "*"}|${r.dow_mask ?? "*"}|${r.time_from_min ?? "*"}|${r.time_to_min ?? "*"}`;
+  // ★mig0128（裁定R4）: 区分は**解決条件＝帯の同一性の一部**（name/税区分は表示属性＝帯を分裂させないが、
+  //   区分は「同じ窓・別区分の並置」が本体要件のため帯を分ける）。既存データは全 null＝キー不変＝挙動不変。
+  return `${r.seat_kind ?? "*"}|${r.dow_mask ?? "*"}|${r.time_from_min ?? "*"}|${r.time_to_min ?? "*"}|${r.category_id ?? "*"}`;
 }
 const ruleOrder = (a: PricingRule, b: PricingRule) =>
   a.priority - b.priority || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id);
@@ -122,6 +130,7 @@ function bandsOf(rules: PricingRule[]): Band[] {
         from: r.time_from_min, to: r.time_to_min,
         cells: {}, all: [], extraCount: 0, priority: r.priority, allActive: true, name: null,
         tax_category: r.tax_category ?? "taxable_10", // ★mig0112: 代表＝最初の行（?? は旧キャッシュ行の保険）
+        category_id: r.category_id ?? null, // ★mig0128: 代表＝最初の行（帯単位1値の前提・保存が3行へ同値を配る）
       };
       map.set(key, b);
     }
@@ -209,6 +218,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     name?: string | null;  // ★mig0107: 省略＝送らない（DEFAULT NULL で解決）
     tax_category: string;  // ★mig0112（C3）: **必須＝常に明示送信**。省略すると update 経路で
                            //   DEFAULT 'taxable_10' が効き既存 exempt 行が黙って課税へ戻る（原則7 の型）。
+    category_id: string | null; // ★mig0128: **必須＝常に明示送信**（update は category_id を常に書く＝
+                                //   省略で null 上書きになる tax_category と同じ罠を構造的に排除。shimei は null 固定）。
   }): Promise<string | null> {
     const { error } = await supabase.rpc("set_pricing_rule", {
       p_id: p.id, p_store_id: storeId, p_fee_kind: p.fee_kind, p_seat_kind: p.seat_kind,
@@ -216,6 +227,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
       p_rank_id: p.rank_id, p_amount: p.amount, p_duration_min: p.duration_min,
       p_priority: p.priority, p_is_active: p.is_active,
       p_tax_category: p.tax_category,
+      p_category_id: p.category_id,
       // ★mig0107: name を持つ呼び出しだけ p_name を足す。指名料（saveRankRow）は渡さない＝null のまま。
       ...(p.name !== undefined ? { p_name: p.name } : {}),
     });
@@ -237,6 +249,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const [mActive, setMActive] = useState(true);
   const [mName, setMName] = useState("");   // ★mig0107（P-1）: 帯の表示名（任意・空＝null 送信）
   const [mTax, setMTax] = useState("taxable_10"); // ★mig0112（C3）: 帯の税区分（UI 露出3値・taxable_8 は準備中＝裁定90-②）
+  const [mCat, setMCat] = useState("");     // ★mig0128（裁定R4）: 帯の料金区分（""=全区分・帯単位1値＝3行へ同値配布）
 
   // ── ★C4 §6-5（mig0113・裁定90/91）: 店舗税設定（会計ルールタブ・set_store_tax_config 結線）──
   //   原則7＋教訓43 型: 保存は**常に7引数全値明示**（省略で default に戻る事故を UI から構造的に排除）。
@@ -301,9 +314,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [catEditId, setCatEditId] = useState<string | null>(null); // null=新規
   const [cName, setCName] = useState("");
-  const [cSort, setCSort] = useState("100");
   const [cActive, setCActive] = useState(true);
   const [cErr, setCErr] = useState<string | null>(null);
+  // ★裁定R2（116-UI×v3）: sort は内部表現＝UI 非露出。並びは ∧∨（priority 非露出と同思想）。
 
   function catErrJa(msg: string | undefined): string {
     if (!msg) return "不明なエラー";
@@ -325,17 +338,19 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   useEffect(() => { void loadCats(); }, [loadCats]);
 
   function openNewCat() {
-    setCatEditId(null); setCName(""); setCSort("100"); setCActive(true); setCErr(null); setCatModalOpen(true);
+    setCatEditId(null); setCName(""); setCActive(true); setCErr(null); setCatModalOpen(true);
   }
   function openEditCat(c: PricingCategory) {
-    setCatEditId(c.id); setCName(c.name); setCSort(String(c.sort)); setCActive(c.is_active); setCErr(null);
+    setCatEditId(c.id); setCName(c.name); setCActive(c.is_active); setCErr(null);
     setCatModalOpen(true);
   }
   async function saveCat() {
     setCErr(null);
     if (cName.trim() === "") { setCErr("区分名を入力してください"); return; }
-    const sortN = Number(cSort);
-    if (!Number.isInteger(sortN)) { setCErr("表示順は整数で入力してください"); return; }
+    // ★裁定R2: sort は内部割当＝新規は末尾（max+10）・編集は現値保持（並び替えは ∧∨ が担う）
+    const sortN = catEditId !== null
+      ? (cats.find((c) => c.id === catEditId)?.sort ?? 100)
+      : (cats.length ? Math.max(...cats.map((c) => c.sort)) + 10 : 100);
     setBusy(true);
     const { error } = await supabase.rpc("set_pricing_category", {
       p_id: catEditId, p_store_id: storeId, p_name: cName.trim(), p_sort: sortN, p_is_active: cActive,
@@ -346,11 +361,29 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     setMsg(catEditId !== null ? "料金区分を更新しました" : "料金区分を追加しました");
     await loadCats();
   }
+  /** ★裁定R2: 区分の ∧∨＝入替え後の全行へ sort を 10 刻みで再割当（name/active は現値明示＝原則7）。 */
+  async function moveCat(index: number, dir: -1 | 1) {
+    const ids = swapAdjacent(cats.map((c) => c.id), index, dir);
+    if (!ids || busy) return;
+    const byId = new Map(cats.map((c) => [c.id, c]));
+    setBusy(true);
+    for (let i = 0; i < ids.length; i++) {
+      const c = byId.get(ids[i])!;
+      const newSort = (i + 1) * 10;
+      if (c.sort === newSort) continue;
+      const { error } = await supabase.rpc("set_pricing_category", {
+        p_id: c.id, p_store_id: storeId, p_name: c.name, p_sort: newSort, p_is_active: c.is_active,
+      });
+      if (error) { setMsg(catErrJa(error.message)); break; }
+    }
+    setBusy(false);
+    await loadCats();
+  }
 
   function openNewBand() {
     setEditKey(null); setMSeat(""); setMDays(Array(7).fill(true));
     setMFrom(""); setMTo(""); setMSetFee(""); setMSetMin(""); setMExtFee(""); setMExtMin("");
-    setMDohan(""); setMActive(true); setMName(""); setMTax("taxable_10"); setMErr(null); setModalOpen(true);
+    setMDohan(""); setMActive(true); setMName(""); setMTax("taxable_10"); setMCat(""); setMErr(null); setModalOpen(true);
   }
   function openEditBand(b: Band) {
     setEditKey(b.key);
@@ -366,6 +399,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     setMActive(b.allActive);
     setMName(b.name ?? "");
     setMTax(b.tax_category); // ★mig0112: taxable_8 の既存行も値は保持して見せる（保存も同値なら無害）
+    setMCat(b.category_id ?? ""); // ★mig0128: 帯の現値（停止中区分でも現値として保持＝同値再送は据え置き）
     setMErr(null);
     setModalOpen(true);
   }
@@ -410,6 +444,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         //   bandKeyOf は不変＝名前で帯を分裂させない（帯の同一性は席種/曜日/時間帯のみで決まる）。
         name: mName.trim() === "" ? null : mName.trim(),
         tax_category: mTax, // ★mig0112: 表示名と同じく3行へ同値を配る（bandKeyOf 不変＝税区分で帯を分裂させない）
+        category_id: mCat === "" ? null : mCat, // ★mig0128（裁定R4）: 帯単位1値＝3行へ同値を配る（""=全区分）
       });
       if (err) { setMErr(`${fk === "set" ? "セット" : fk === "extension" ? "延長" : "同伴"}: ${err}`); setBusy(false); await reload(); return; }
     }
@@ -442,6 +477,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         from: r.time_from_min, to: r.time_to_min, rank_id: r.rank_id,
         amount: r.amount, duration_min: r.duration_min, priority: r.priority, is_active: !b.allActive,
         tax_category: r.tax_category ?? "taxable_10", // ★mig0112: 既存値を明示再送（原則7）
+        category_id: r.category_id ?? null, // ★mig0128: 既存値を明示再送（停止中区分でも同値再送は据え置き＝成功）
       });
       if (err) { setMsg(err); setBusy(false); await reload(); return; }
     }
@@ -493,6 +529,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         //   （set/extension/dohan）専用＝指名料の priority を 1..N へ振り直す経路は無い。
         priority: rankId === null ? 200 : 100, is_active: true,
         tax_category: existing?.tax_category ?? "taxable_10", // ★mig0112: 既存値保持・新規は既定（指名料に税区分 UI は置かない）
+        category_id: null, // ★mig0128（D3）: shimei 系は区分非対応＝null 固定（セレクタも置かない・'bad category kind' の UI 前置）
       });
       if (err) { setMsg(err); setBusy(false); await reload(); return; }
     }
@@ -687,6 +724,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         const a = bands[i], b = bands[j];
         if (a.seat_kind !== null && b.seat_kind !== null && a.seat_kind !== b.seat_kind) continue;
         if ((mask(a) & mask(b)) === 0) continue;
+        // ★mig0128（D4）: 区分軸＝区分一致 ∨ どちらかが null（null=全区分は解決上すべての区分と競合しうる）
+        if (a.category_id !== null && b.category_id !== null && a.category_id !== b.category_id) continue;
         const [af, at2] = adjRange(a); const [bf, bt] = adjRange(b);
         if (!(af < bt && bf < at2)) continue;
         if (!kinds(a).some((k) => kinds(b).includes(k))) continue;
@@ -779,6 +818,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                       {/* ★裁定115-②/117: priority 数値は UI 非露出（順序=表示順・数値は内部表現） */}
                       <th style={{ width: 86 }} title="条件が重なったときは上のルールが優先されます">並び</th>
                       <th>表示名</th>
+                      <th>区分</th>
                       <th>時間帯</th>
                       <th>席種</th>
                       <th>適用日</th>
@@ -805,6 +845,16 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                           </span>
                         </td>
                         <td data-label="表示名">{b.name ?? "—"}</td>
+                        {/* ★mig0128（裁定R4）: 区分名バッジ（全区分は無バッジ・v3 の pill 写像） */}
+                        <td data-label="区分">
+                          {b.category_id ? (
+                            <span className="nox-stpill" style={{ color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>
+                              {cats.find((c) => c.id === b.category_id)?.name ?? "不明な区分"}
+                            </span>
+                          ) : (
+                            <span style={{ color: "var(--v2-muted)", fontSize: 11 }}>—</span>
+                          )}
+                        </td>
                         <td data-label="時間帯"><span style={t.num}>{bandTimeLabel(b)}</span></td>
                         <td data-label="席種">{b.seat_kind ?? "全席種"}</td>
                         <td data-label="適用日">{bandDowLabel(b)}</td>
@@ -925,7 +975,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
               <button type="button" style={{ ...btnDark, marginLeft: "auto" }} onClick={openNewCat}>＋ 区分を追加</button>
             </div>
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
-              「通常」「初来店」など、開栓時に選ぶ料金の区分です。先頭（表示順が最小）が開栓時の既定になります。
+              「通常」「初来店」など、開栓時に選ぶ料金の区分です。一番上が開栓時の既定になります（∧∨で並び替え）。
               区分を1つも作らない場合、開栓は現行どおり（区分なし）で動きます。
             </p>
             {cats.length === 0 ? (
@@ -937,22 +987,30 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 <table className="nox-ptable">
                   <thead>
                     <tr>
+                      {/* ★裁定R2: sort 数値は非露出＝並びは ∧∨（先頭の有効な区分が開栓時の既定） */}
+                      <th style={{ width: 70 }}>並び</th>
                       <th>区分名</th>
-                      <th style={{ width: 90 }}>表示順</th>
                       <th className="col-state">状態</th>
                       <th className="col-act">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {cats.map((c) => (
+                    {cats.map((c, i) => (
                       <tr key={c.id} style={c.is_active ? undefined : { opacity: 0.55 }}>
+                        <td data-label="並び">
+                          <span style={{ display: "inline-flex", gap: 4 }}>
+                            <button type="button" className="nox-ordbtn" aria-label="上へ"
+                              disabled={busy || i === 0} onClick={() => void moveCat(i, -1)}>∧</button>
+                            <button type="button" className="nox-ordbtn" aria-label="下へ"
+                              disabled={busy || i === cats.length - 1} onClick={() => void moveCat(i, 1)}>∨</button>
+                          </span>
+                        </td>
                         <td data-label="区分名">
                           {c.name}
                           {c.id === cats.find((x) => x.is_active)?.id && (
                             <span className="nox-stpill" style={{ marginLeft: 8, color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>既定</span>
                           )}
                         </td>
-                        <td data-label="表示順"><span style={t.num}>{c.sort}</span></td>
                         <td className="col-state" data-label="状態">
                           <span className={`nox-statebadge${c.is_active ? " on" : ""}`}><i />{c.is_active ? "有効" : "停止中"}</span>
                         </td>
@@ -1372,12 +1430,6 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
               onChange={(e) => setCName(e.target.value)} style={inputLg} />
           </div>
           <div className="nox-field">
-            <span className="lab">表示順</span>
-            <input type="number" value={cSort} onChange={(e) => setCSort(e.target.value)}
-              style={{ ...inputLg, width: 120 }} />
-            <span className="hint">先頭（表示順が最小）が開栓時の既定になります。</span>
-          </div>
-          <div className="nox-field">
             <span className="lab">状態</span>
             <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13 }}>
               <button type="button" role="switch" aria-checked={cActive}
@@ -1449,6 +1501,28 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             <SegSelect value={mSeat} onChange={(v) => setMSeat(v)}
             options={[["", "全席種"], ["卓", "卓"], ["カウンター", "カウンター"], ["VIP", "VIP"]] as const} />
           </div>
+
+          {/* ★mig0128（D3・裁定R4）: 料金区分（帯単位1値＝保存で3行へ同値配布）。選択肢=active 区分
+              （sort 順）＋「全区分」（既定）。停止中区分は既存帯が参照中の場合のみ現値として表示。 */}
+          {(cats.some((c) => c.is_active) || mCat !== "") && (
+            <div className="nox-field">
+              <span className="lab">料金区分</span>
+              <select value={mCat} onChange={(e) => setMCat(e.target.value)} style={{ ...inputLg, width: "100%" }}>
+                <option value="">全区分（区分を問わず適用）</option>
+                {cats.filter((c) => c.is_active).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+                {mCat !== "" && !cats.some((c) => c.is_active && c.id === mCat) && (
+                  <option value={mCat}>
+                    {cats.find((c) => c.id === mCat)?.name ?? "（不明な区分）"}（停止中）
+                  </option>
+                )}
+              </select>
+              <span className="hint">
+                区分を指定すると、その区分で開栓した伝票にだけこの帯が適用されます（同じ並びでは区分付きが優先）。
+              </span>
+            </div>
+          )}
 
           <div className="nox-field">
             <span className="lab">適用日</span>

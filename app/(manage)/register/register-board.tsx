@@ -41,6 +41,8 @@ type CheckRow = {
   service_rate: number;
   round_unit: number;
   round_mode: string;
+  // ★116-UI（mig0128）: 区分の開栓時凍結名（旧伝票・区分なし開栓は null＝非表示）
+  category_name?: string | null;
   // C4（mig0113）: 税設定の開栓時凍結3値（旧伝票キャッシュ対策で optional・欠落=既定と同値）
   business_tax_status?: string;
   price_display?: string;
@@ -249,6 +251,25 @@ export default function RegisterBoard({
     `¥${r.amount.toLocaleString()}/${r.duration_min ?? "店既定"}分` +
     (r.seat_kind ? `・${r.seat_kind}` : "") +
     (r.time_from_min != null && r.time_to_min != null ? `・${hm(r.time_from_min)}-${hm(r.time_to_min)}` : "");
+  // ★116-UI（D2・設計ロック §2）: 開卓時の料金区分セレクタ。active 区分 0件=非表示・無送信=現行同値。
+  //   1件以上=表示（sort 順）・既定=sort 最小・「指定なし」は置かない（「通常」を区分として作る運用）。
+  //   取得は setRules と同型の owner/manager 直読（RLS select policy も owner/manager のみ＝
+  //   staff/cast は 0行→セレクタ非表示→区分なし開栓＝現行同値・kiosk は本レーン対象外）。
+  const [openCats, setOpenCats] = useState<{ id: string; name: string }[]>([]);
+  const [openCatSel, setOpenCatSel] = useState("");
+  useEffect(() => {
+    if (!isManagerUp) return;
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("pricing_categories")
+        .select("id, name")
+        .eq("store_id", storeId).eq("is_active", true)
+        .order("sort").order("name");
+      if (alive) setOpenCats((data ?? []) as typeof openCats);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, isManagerUp]);
   // E8-1 ⑤: 「本日出勤」＝最終打刻が 'in' のキャスト（直近20h の punches・表示順とバッジのみの近似）。
   //   RLS は自店スコープ＝直 SELECT 可。金額・按分・RPC には一切関与しない。
   const [todayIds, setTodayIds] = useState<Set<string>>(new Set());
@@ -616,6 +637,7 @@ export default function RegisterBoard({
     //   「何が始まるか」の明示）。nom_type は従来どおり 'free'＝指名は開栓後の指名タブで。
     setOpenPeople("");
     setOpenRuleSel(""); // R2-a: 卓を替えたら常に「自動」へ戻す（前回選択の持ち越し事故防止）
+    setOpenCatSel(openCats[0]?.id ?? ""); // ★116-UI（D2）: 既定=sort 最小の active 区分（0件は ""=無送信）
     setOpenSeatTarget(seat);
   }
 
@@ -631,6 +653,8 @@ export default function RegisterBoard({
     const { data, error } = await supabase.rpc("check_open", {
       p_seat_id: seat.id, p_people: n, p_nom_type: "free",
       ...(openRuleSel ? { p_set_rule_id: openRuleSel } : {}),
+      // ★116-UI（D2・mig0128）: 区分。0件店は ""＝キー無送信＝現行完全同値
+      ...(openCatSel ? { p_category_id: openCatSel } : {}),
     });
     setOpenBusy(false);
     if (error) {
@@ -1310,6 +1334,22 @@ export default function RegisterBoard({
               style={{ ...t.input, width: 110, display: "block", marginTop: 5 }}
             />
           </label>
+          {/* ★116-UI（D2・設計ロック §2）: 料金区分セレクタ。active 1件以上の店のみ表示・既定=sort 最小・
+              「指定なし」なし。区分は開栓時に凍結（mig0128）＝あとから変更不可。 */}
+          {openCats.length >= 1 && (
+            <label style={{ ...t.fieldLabel, display: "block", marginBottom: 14 }}>
+              料金区分
+              <select
+                value={openCatSel} onChange={(e) => setOpenCatSel(e.target.value)}
+                style={{ ...t.input, width: "100%", maxWidth: 280, display: "block", marginTop: 5 }}
+              >
+                {openCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <span style={{ fontSize: 10.5, color: "var(--v2-muted)", display: "block", marginTop: 3 }}>
+                区分は開栓時に確定します。あとから変更はできません（変更は会計取消→再開卓）。
+              </span>
+            </label>
+          )}
           {/* R2-a（mig0098 R2-5）: 開卓時ルール選択（owner/manager・有効 set ルール2件以上の店のみ表示＝
               0〜1件は現行と同じ見た目）。選び直しは不可（void→再開卓）＝RPC 側の裁定どおり。 */}
           {isManagerUp && setRules.length >= 2 && (
@@ -1808,6 +1848,12 @@ export default function RegisterBoard({
             const kind = seats.find((s) => s.id === check.seat_id)?.kind;
             return kind ? <span style={{ ...t.tag, color: "var(--sub)", borderColor: "var(--line2)" }}>{kind}</span> : null;
           })()}
+          {/* ★116-UI（O2）: 開栓時凍結の料金区分名（checks.category_name・区分なし開栓は null＝非表示） */}
+          {check.category_name && (
+            <span style={{ ...t.tag, color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>
+              {check.category_name}
+            </span>
+          )}
           <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{NOM_LABEL[check.nom_type]}</span>
           {/* E8-1 #9（mig0090）: 人数±カウンタ。入金後はサーバ拒否＝ボタンも無効化して意図を明示 */}
           {check.status === "open" && (
