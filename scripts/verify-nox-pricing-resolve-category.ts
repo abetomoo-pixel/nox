@@ -16,6 +16,10 @@
  *  (d) 互換: p_category_id キー省略の named-args 呼びが成功（=kiosk 無送信互換の実装形）
  *  (g) ガード: 'bad category'（他店区分の開栓/rule 参照・停止中区分の開栓）・'bad category kind'
  *      （shimei へ区分）・'inactive category'（停止中区分の新規 rule 参照）・同値再送は据え置き=成功
+ *  (f) ★mig0129（裁定119）追補: 適用セットルールの凍結（checks.set_rule_id/set_rule_name・FK なし純スナップ）
+ *      f1=自動解決の id/name 凍結・f2=override 凍結（自動なら区分版が勝つ状況で null 版を指名）・
+ *      f3=name null ルールが勝つ開栓＝id 凍結+name null・f4=開栓後改名の非遡及・
+ *      f5=フォールバック（rule 全停止）＝両列 null
  *  (p) 器 pin: check_open/pricing_resolve_core/set_pricing_rule 各1本＝pronargs 6/6/15（旧署名 DROP）
  *
  * 逆張り: PRC_INVERT=1 で全 check の期待を反転＝全赤を実測。
@@ -139,11 +143,12 @@ async function main() {
   };
   const checkRow = async (id: string) =>
     (await admin.from("checks")
-      .select("set_min, set_fee, ext_min, ext_fee, category_id, category_name, ext_menu_snap")
+      .select("set_min, set_fee, ext_min, ext_fee, category_id, category_name, ext_menu_snap, set_rule_id, set_rule_name")
       .eq("id", id).single()).data as {
         set_min: number; set_fee: number; ext_min: number; ext_fee: number;
         category_id: string | null; category_name: string | null;
         ext_menu_snap: { rule_id: string; amount: number }[];
+        set_rule_id: string | null; set_rule_name: string | null; // ★mig0129
       };
   const openAt = async (seatId: string, cat?: string | null) => {
     const args: Record<string, unknown> = { p_seat_id: seatId, p_people: 1, p_nom_type: "free" };
@@ -159,7 +164,8 @@ async function main() {
     const catY = await mkCat(storeA2, `${PFX}区分Y`, 20);
     const catA1 = await mkCat(storeA1, `${PFX}他店区分`, 10);
     // set: 同 priority の null 版 vs 区分X版（tie-break 検証）
-    await mkRule({ p_fee_kind: "set", p_amount: 7000, p_duration_min: 60, p_priority: 10 });
+    // ★mig0129: null 版に表示名を付与（f1 凍結名の期待値・区分X版は name null のまま＝f3 の材料）
+    const rNull = await mkRule({ p_fee_kind: "set", p_amount: 7000, p_duration_min: 60, p_priority: 10, p_name: `${PFX}セット通常` });
     const rCatX = await mkRule({ p_fee_kind: "set", p_amount: 9000, p_duration_min: 90, p_priority: 10, p_category_id: catX });
     // extension: 小 priority null 版 vs 大 priority 区分X版（priority 第一鍵検証）＋区分Y版（鏡像検証）
     await mkRule({ p_fee_kind: "extension", p_amount: 1000, p_priority: 5 });
@@ -170,10 +176,14 @@ async function main() {
     const seat3 = await mkSeat(sA2!, `${PFX}-卓3`);
     const seat4 = await mkSeat(sA2!, `${PFX}-卓4`);
     const seat5 = await mkSeat(sA2!, `${PFX}-卓5`);
+    const seat6 = await mkSeat(sA2!, `${PFX}-卓6`); // ★mig0129: override 凍結用
+    const seat7 = await mkSeat(sA2!, `${PFX}-卓7`); // ★mig0129: フォールバック用
+    let idOpen1 = ""; let idOpen2 = "";           // ★mig0129: f 系で再読する開栓 id
 
     // ══ (d)(a) キー省略呼び＝5引数相当・null 等価 ══
     {
       const o1 = await openAt(seat1);  // p_category_id キーなし
+      idOpen1 = o1.id ?? "";
       check("prc(d1) ★p_category_id キー省略の呼びが成功（kiosk 無送信互換の実装形）",
         !o1.error && !!o1.id, o1.error?.message ?? "id なし");
       const row = o1.id ? await checkRow(o1.id) : null;
@@ -195,6 +205,7 @@ async function main() {
     // ══ (b)(c) 区分X開栓＝tie-break/priority 第一鍵/凍結/鏡像 ══
     {
       const o2 = await openAt(seat2, catX);
+      idOpen2 = o2.id ?? "";
       const row = o2.id ? await checkRow(o2.id) : null;
       check("prc(b1) ★同 priority 内は区分一致が勝つ（set 9000/90分＝区分X版）",
         !o2.error && row?.set_fee === 9000 && row?.set_min === 90,
@@ -265,6 +276,48 @@ async function main() {
       check("prc(g6) ★他店区分の rule 参照＝'bad category'", has({ message: g6?.message }, "bad category"),
         g6?.message ?? "通ってしまった");
       void rCatX;
+    }
+
+    // ══ (f) ★mig0129（裁定119）: 適用セットルールの凍結（set_rule_id/set_rule_name）══
+    {
+      // f1: 自動解決（open1＝省略開栓・null 版 rNull が勝った伝票）＝id と name の凍結
+      const row1 = idOpen1 ? await checkRow(idOpen1) : null;
+      check("prc(f1) ★自動解決開栓＝checks.set_rule_id/set_rule_name 凍結（null 版の id と表示名）",
+        row1?.set_rule_id === rNull && row1?.set_rule_name === `${PFX}セット通常`,
+        JSON.stringify({ id: row1?.set_rule_id, name: row1?.set_rule_name }));
+      // f2: override（catX 開栓＝自動なら区分X版 9000 が勝つ状況で null 版を指名）＝指名ルールの id/name 凍結
+      const { data: o6, error: e6 } = await owner.rpc("check_open", {
+        p_seat_id: seat6, p_people: 1, p_nom_type: "free", p_category_id: catX, p_set_rule_id: rNull,
+      });
+      if (o6) checkIds.push(o6 as string);
+      const row6 = o6 ? await checkRow(o6 as string) : null;
+      check("prc(f2) ★override 開栓＝指名ルールの id/name 凍結（自動勝者と異なる id・set_fee も指名側）",
+        !e6 && row6?.set_fee === 7000 && row6?.set_rule_id === rNull
+          && row6?.set_rule_name === `${PFX}セット通常`,
+        e6?.message ?? JSON.stringify({ fee: row6?.set_fee, id: row6?.set_rule_id, name: row6?.set_rule_name }));
+      // f3: name null ルールが勝った開栓（open2＝catX 開栓・区分X版 rCatX は name null）＝id 凍結・name null
+      const row2 = idOpen2 ? await checkRow(idOpen2) : null;
+      check("prc(f3) ★name null ルールが勝つ開栓＝set_rule_id 凍結・set_rule_name null",
+        row2?.set_rule_id === rCatX && row2?.set_rule_name === null,
+        JSON.stringify({ id: row2?.set_rule_id, name: row2?.set_rule_name }));
+      // f4: 開栓後にルール改名＝凍結名不変（非遡及）
+      const { error: eRn } = await owner.rpc("set_pricing_rule", {
+        p_id: rNull, p_store_id: storeA2, p_fee_kind: "set", p_seat_kind: null, p_dow_mask: null,
+        p_time_from_min: null, p_time_to_min: null, p_rank_id: null, p_amount: 7000, p_duration_min: 60,
+        p_priority: 10, p_is_active: true, p_name: `${PFX}セット通常改`, p_tax_category: "taxable_10", p_category_id: null,
+      });
+      const row1b = idOpen1 ? await checkRow(idOpen1) : null;
+      check("prc(f4) ★開栓後の改名は凍結名に非遡及（set_rule_name 不変）",
+        !eRn && row1b?.set_rule_name === `${PFX}セット通常`,
+        eRn?.message ?? JSON.stringify({ name: row1b?.set_rule_name }));
+      // f5: フォールバック（fixture ルール全停止→rule 0件相当）＝両列 null
+      const { error: eOff } = await admin.from("pricing_rules").update({ is_active: false }).in("id", ruleIds);
+      const { data: o7, error: e7 } = await owner.rpc("check_open", { p_seat_id: seat7, p_people: 1, p_nom_type: "free" });
+      if (o7) checkIds.push(o7 as string);
+      const row7 = o7 ? await checkRow(o7 as string) : null;
+      check("prc(f5) ★フォールバック開栓（rule 0件）＝set_rule_id/set_rule_name とも null",
+        !eOff && !e7 && row7?.set_rule_id === null && row7?.set_rule_name === null,
+        eOff?.message ?? e7?.message ?? JSON.stringify({ id: row7?.set_rule_id, name: row7?.set_rule_name }));
     }
 
     // ══ (p) 器 pin: 旧署名 DROP＝各1本・pronargs 6/6/15 ══
