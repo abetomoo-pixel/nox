@@ -47,6 +47,7 @@ export type PricingRule = {
   name: string | null;  // ★mig0107（P-1）: 表示名（任意・trim 済み 1〜40 文字・null=未設定）
   tax_category: string; // ★mig0112（C3）: 税区分（enum 4値・NOT NULL default 'taxable_10'）
   category_id: string | null; // ★mig0128（裁定116-2）: 料金区分（null=全区分）
+  billing_unit: string | null; // ★mig0130（裁定118）: 課金単位（'person'/'table'/null=店既定 time_per）
 };
 export type CastRank = { id: string; name: string; sort_order: number; is_active: boolean };
 // ★DP-R: 端数処理方法の表示語（pricing-panel の option と同語彙）
@@ -62,7 +63,14 @@ export type StoreFallback = {
   invoice_reg_no: string | null; tax_rounding: string; card_surcharge_rate: number | null;
 };
 
-const TIMED_KINDS = ["set", "extension", "dohan"] as const;
+// ★mig0130（裁定118）: vip_charge を帯の4枠目へ（帯グルーピング・保存分解・M3 集約の対象）
+const TIMED_KINDS = ["set", "extension", "dohan", "vip_charge"] as const;
+// ★pricing_rule_reorder の whitelist は5種のまま＝vip_charge 非対応（mig0130 の漏れ・起票予定）。
+//   帯∧∨の vip 行は set_pricing_rule 再送で priority を振り直す（moveBand 参照）。
+const REORDER_KINDS = ["set", "extension", "dohan"] as const;
+// ★mig0130: 課金単位の対象（dohan/shimei は 'bad unit kind'＝UI にも出さない）
+const UNIT_KINDS = ["set", "extension", "vip_charge"] as const;
+const UNIT_LABEL: Record<string, string> = { person: "/1名", table: "/1卓" };
 type TimedKind = (typeof TIMED_KINDS)[number];
 const DOW_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 const yen = (n: number) => "¥" + n.toLocaleString();
@@ -83,6 +91,9 @@ function ruleErrJa(msg: string | undefined): string {
   if (msg.includes("bad rank")) return "ランクの指定が不正です";
   if (msg.includes("inactive rank")) return "停止中のランクは指定できません";
   if (msg.includes("bad name")) return "表示名は40文字までです";
+  // ★mig0130（裁定118）: 課金単位系トークン（kind 判定を先に）
+  if (msg.includes("bad unit kind")) return "この料金種別には課金単位を設定できません";
+  if (msg.includes("bad unit")) return "課金単位の指定が不正です";
   // ★mig0128（裁定116-2）: 区分系トークン
   if (msg.includes("bad category kind")) return "指名料には区分を設定できません";
   if (msg.includes("inactive category")) return "停止中の区分は新しく指定できません";
@@ -217,6 +228,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     id: string | null; fee_kind: string; seat_kind: string | null; dow_mask: number | null;
     from: number | null; to: number | null; rank_id: string | null;
     amount: number; duration_min: number | null; priority: number; is_active: boolean;
+    billing_unit: string | null; // ★mig0130: **必須＝常に明示送信**（update は billing_unit を常に書く＝
+                                 //   省略で null 上書きになる罠の構造排除。dohan/shimei は null 固定）。
     name?: string | null;  // ★mig0107: 省略＝送らない（DEFAULT NULL で解決）
     tax_category: string;  // ★mig0112（C3）: **必須＝常に明示送信**。省略すると update 経路で
                            //   DEFAULT 'taxable_10' が効き既存 exempt 行が黙って課税へ戻る（原則7 の型）。
@@ -230,6 +243,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
       p_priority: p.priority, p_is_active: p.is_active,
       p_tax_category: p.tax_category,
       p_category_id: p.category_id,
+      p_billing_unit: p.billing_unit,
       // ★mig0107: name を持つ呼び出しだけ p_name を足す。指名料（saveRankRow）は渡さない＝null のまま。
       ...(p.name !== undefined ? { p_name: p.name } : {}),
     });
@@ -248,6 +262,11 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const [mExtFee, setMExtFee] = useState("");
   const [mExtMin, setMExtMin] = useState("");
   const [mDohan, setMDohan] = useState("");
+  const [mVip, setMVip] = useState("");        // ★mig0130（裁定118）: VIPチャージ（額のみ・duration なし）
+  // ★mig0130: 課金単位（fee_kind ごと・""=null=店の設定に従う。dohan/shimei は対象外）
+  const [mUnitSet, setMUnitSet] = useState("");
+  const [mUnitExt, setMUnitExt] = useState("");
+  const [mUnitVip, setMUnitVip] = useState("");
   const [mActive, setMActive] = useState(true);
   const [mName, setMName] = useState("");   // ★mig0107（P-1）: 帯の表示名（任意・空＝null 送信）
   const [mTax, setMTax] = useState("taxable_10"); // ★mig0112（C3）: 帯の税区分（UI 露出3値・taxable_8 は準備中＝裁定90-②）
@@ -385,7 +404,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   function openNewBand() {
     setEditKey(null); setMSeat(""); setMDays(Array(7).fill(true));
     setMFrom(""); setMTo(""); setMSetFee(""); setMSetMin(""); setMExtFee(""); setMExtMin("");
-    setMDohan(""); setMActive(true); setMName(""); setMTax("taxable_10"); setMCat(""); setMErr(null); setModalOpen(true);
+    setMDohan(""); setMVip(""); setMUnitSet(""); setMUnitExt(""); setMUnitVip("");
+    setMActive(true); setMName(""); setMTax("taxable_10"); setMCat(""); setMErr(null); setModalOpen(true);
   }
   function openEditBand(b: Band) {
     setEditKey(b.key);
@@ -398,6 +418,10 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     setMExtFee(b.cells.extension ? String(b.cells.extension.amount) : "");
     setMExtMin(b.cells.extension?.duration_min != null ? String(b.cells.extension.duration_min) : "");
     setMDohan(b.cells.dohan ? String(b.cells.dohan.amount) : "");
+    setMVip(b.cells.vip_charge ? String(b.cells.vip_charge.amount) : "");
+    setMUnitSet(b.cells.set?.billing_unit ?? "");
+    setMUnitExt(b.cells.extension?.billing_unit ?? "");
+    setMUnitVip(b.cells.vip_charge?.billing_unit ?? "");
     setMActive(b.allActive);
     setMName(b.name ?? "");
     setMTax(b.tax_category); // ★mig0112: taxable_8 の既存行も値は保持して見せる（保存も同値なら無害）
@@ -413,20 +437,22 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     setMErr(null);
     if ((mFrom === "") !== (mTo === "")) { setMErr("開始と終了は両方入力してください（終日は両方空欄）"); return; }
     if (!mDays.some(Boolean)) { setMErr("曜日を1つ以上選択してください"); return; }
-    if (mSetFee === "" && mExtFee === "" && mDohan === "") { setMErr("セット・延長・同伴のいずれかの料金を入力してください"); return; }
+    if (mSetFee === "" && mExtFee === "" && mDohan === "" && mVip === "") { setMErr("セット・延長・同伴・VIPチャージのいずれかの料金を入力してください"); return; }
     const dow = mDays.every(Boolean) ? null : mDays.reduce((m, on, i) => (on ? m | (1 << i) : m), 0);
     const from = mFrom === "" ? null : hmToMin(mFrom);
     const to = mTo === "" ? null : hmToMin(mTo);
     const band = editKey !== null ? bands.find((b) => b.key === editKey) : undefined;
 
     // fee_kind ごとに upsert / delete へ分解（額 空欄＝その fee_kind のルールなし）
-    const plan: Array<{ fk: TimedKind; fee: string; min: string }> = [
-      { fk: "set", fee: mSetFee, min: mSetMin },
-      { fk: "extension", fee: mExtFee, min: mExtMin },
-      { fk: "dohan", fee: mDohan, min: "" },
+    // ★mig0130: vip_charge を4枠目へ（額のみ・duration なし＝DB check2 と整合）。unit は fee_kind 別（""=null=店既定）
+    const plan: Array<{ fk: TimedKind; fee: string; min: string; unit: string }> = [
+      { fk: "set", fee: mSetFee, min: mSetMin, unit: mUnitSet },
+      { fk: "extension", fee: mExtFee, min: mExtMin, unit: mUnitExt },
+      { fk: "dohan", fee: mDohan, min: "", unit: "" },
+      { fk: "vip_charge", fee: mVip, min: "", unit: mUnitVip },
     ];
     setBusy(true);
-    for (const { fk, fee, min } of plan) {
+    for (const { fk, fee, min, unit } of plan) {
       const existing = band?.cells[fk];
       if (fee === "") {
         if (existing) {
@@ -439,16 +465,17 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         id: existing?.id ?? null, fee_kind: fk, seat_kind: mSeat === "" ? null : mSeat,
         dow_mask: dow, from, to, rank_id: null,
         amount: Number(fee),
-        duration_min: fk === "dohan" ? null : (min === "" ? null : Number(min)),
+        duration_min: fk === "dohan" || fk === "vip_charge" ? null : (min === "" ? null : Number(min)),
         priority: existing?.priority ?? nextPriority(fk),
         is_active: mActive,
+        billing_unit: fk === "dohan" ? null : (unit === "" ? null : unit), // ★mig0130: dohan は単位非対応
         // ★mig0107（P-1）: 1帯の最大3行（set/extension/dohan）へ同じ表示名を配る。
         //   bandKeyOf は不変＝名前で帯を分裂させない（帯の同一性は席種/曜日/時間帯のみで決まる）。
         name: mName.trim() === "" ? null : mName.trim(),
         tax_category: mTax, // ★mig0112: 表示名と同じく3行へ同値を配る（bandKeyOf 不変＝税区分で帯を分裂させない）
         category_id: mCat === "" ? null : mCat, // ★mig0128（裁定R4）: 帯単位1値＝3行へ同値を配る（""=全区分）
       });
-      if (err) { setMErr(`${fk === "set" ? "セット" : fk === "extension" ? "延長" : "同伴"}: ${err}`); setBusy(false); await reload(); return; }
+      if (err) { setMErr(`${fk === "set" ? "セット" : fk === "extension" ? "延長" : fk === "dohan" ? "同伴" : "VIPチャージ"}: ${err}`); setBusy(false); await reload(); return; }
     }
     setBusy(false);
     setModalOpen(false);
@@ -480,6 +507,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         amount: r.amount, duration_min: r.duration_min, priority: r.priority, is_active: !b.allActive,
         tax_category: r.tax_category ?? "taxable_10", // ★mig0112: 既存値を明示再送（原則7）
         category_id: r.category_id ?? null, // ★mig0128: 既存値を明示再送（停止中区分でも同値再送は据え置き＝成功）
+        billing_unit: r.billing_unit ?? null, // ★mig0130: 既存値を明示再送（原則7）
       });
       if (err) { setMsg(err); setBusy(false); await reload(); return; }
     }
@@ -487,13 +515,16 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     await reload();
   }
 
-  /** ∧∨＝帯順の入れ替えを fee_kind ごとの reorder（全件配列）へ分解。 */
+  /** ∧∨＝帯順の入れ替えを fee_kind ごとの reorder（全件配列）へ分解。
+   *  ★mig0130: pricing_rule_reorder の whitelist は vip_charge 非対応（mig0130 の漏れ・起票予定）＝
+   *  vip 行は set_pricing_rule 再送で帯順に priority 1..N を振り直す（解決順序は fee_kind 内相対のみ
+   *  意味を持つため reorder と等価・moveCat と同型）。 */
   async function moveBand(index: number, dir: -1 | 1) {
     const order = swapAdjacent(bands.map((b) => b.key), index, dir);
     if (!order || busy) return;
     const byKey = new Map(bands.map((b) => [b.key, b]));
     setBusy(true);
-    for (const fk of TIMED_KINDS) {
+    for (const fk of REORDER_KINDS) {
       const ids = order.flatMap((k) =>
         (byKey.get(k)?.all ?? []).filter((r) => r.fee_kind === fk).sort(ruleOrder).map((r) => r.id));
       if (ids.length === 0) continue;
@@ -501,6 +532,23 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         p_store_id: storeId, p_fee_kind: fk, p_ids: ids,
       });
       if (error) { setMsg(reorderErrJa(error.message)); break; }
+    }
+    // vip_charge 行＝帯順に 1..N を明示再送（他フィールドは現在値・原則7）
+    const vipRules = order.flatMap((k) =>
+      (byKey.get(k)?.all ?? []).filter((r) => r.fee_kind === "vip_charge").sort(ruleOrder));
+    for (let i = 0; i < vipRules.length; i++) {
+      const r = vipRules[i];
+      if (r.priority === i + 1) continue;
+      const err = await upsertRule({
+        id: r.id, fee_kind: r.fee_kind, seat_kind: r.seat_kind, dow_mask: r.dow_mask,
+        from: r.time_from_min, to: r.time_to_min, rank_id: r.rank_id,
+        amount: r.amount, duration_min: r.duration_min, priority: i + 1, is_active: r.is_active,
+        tax_category: r.tax_category ?? "taxable_10",
+        category_id: r.category_id ?? null,
+        billing_unit: r.billing_unit ?? null,
+        name: r.name,
+      });
+      if (err) { setMsg(err); break; }
     }
     setBusy(false);
     await reload();
@@ -532,6 +580,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         priority: rankId === null ? 200 : 100, is_active: true,
         tax_category: existing?.tax_category ?? "taxable_10", // ★mig0112: 既存値保持・新規は既定（指名料に税区分 UI は置かない）
         category_id: null, // ★mig0128（D3）: shimei 系は区分非対応＝null 固定（セレクタも置かない・'bad category kind' の UI 前置）
+        billing_unit: null, // ★mig0130: shimei 系は単位非対応＝null 固定（'bad unit kind' の UI 前置）
       });
       if (err) { setMsg(err); setBusy(false); await reload(); return; }
     }
@@ -743,6 +792,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
       <span style={t.num}>
         {yen(r.amount)}
         {withMin && r.duration_min != null && <span style={{ color: "var(--sub)", fontSize: 10.5 }}> /{r.duration_min}分</span>}
+        {/* ★mig0130: 課金単位の表示（null＝無表示＝店既定） */}
+        {r.billing_unit && <span style={{ color: "var(--sub)", fontSize: 10.5 }}> {UNIT_LABEL[r.billing_unit]}</span>}
       </span>
     );
   };
@@ -904,6 +955,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                       <th style={{ textAlign: "right" }}>セット料金</th>
                       <th style={{ textAlign: "right" }}>延長料金</th>
                       <th style={{ textAlign: "right" }}>同伴料金</th>
+                      <th style={{ textAlign: "right" }}>VIPチャージ</th>
                       <th className="col-state">状態</th>
                       <th className="col-act">操作</th>
                     </tr>
@@ -940,6 +992,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                         <td data-label="セット料金" style={{ textAlign: "right" }}>{cellLabel(b.cells.set, true)}</td>
                         <td data-label="延長料金" style={{ textAlign: "right" }}>{cellLabel(b.cells.extension, true)}</td>
                         <td data-label="同伴料金" style={{ textAlign: "right" }}>{cellLabel(b.cells.dohan, false)}</td>
+                        <td data-label="VIPチャージ" style={{ textAlign: "right" }}>{cellLabel(b.cells.vip_charge, false)}</td>
                         <td className="col-state" data-label="状態">
                           <button type="button" disabled={busy}
                             className={`nox-statebadge is-btn${b.allActive ? " on" : ""}`}
@@ -1055,7 +1108,10 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
       {tab === "master" && (
         <>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
-            お客さまに「いくら請求するか」の正本です。どの時間帯・席種・区分に当たるかは「料金適用ルール」タブで決めます。
+            お客さまに「いくら請求するか」の正本です。どの時間帯・席種・区分に当たるかは「料金適用ルール」タブで決めます。<br />
+            {/* ★裁定118（要件書 §5）: VIP 料金の2方式併記＝器はどちらも常時利用可（選択式トグルは作らない） */}
+            VIP 料金は2通り: <strong style={{ color: "var(--v2-text)" }}>席種「VIP」のセットルール</strong>（VIP 専用の基本料金＝方式A）か、
+            <strong style={{ color: "var(--v2-text)" }}>「VIPチャージ」</strong>（基本セットに追加で自動加算＝方式B）。どちらも料金適用ルールで作れます。
           </p>
 
           {/* ★M1（対応表・移設）: 指名・同伴料金＝PricingPanel の指名3値区画（stores 基本値・RPC 不変） */}
@@ -1207,6 +1263,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                         <th>名前（表示用）</th>
                         <th style={{ textAlign: "right" }}>セット料金</th>
                         <th style={{ textAlign: "right" }}>延長料金</th>
+                        <th style={{ textAlign: "right" }}>VIPチャージ</th>
                         <th className="col-state">状態</th>
                       </tr>
                     </thead>
@@ -1224,6 +1281,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                             </td>
                             <td data-label="セット料金" style={{ textAlign: "right" }}>{cellLabel(rep("set"), true)}</td>
                             <td data-label="延長料金" style={{ textAlign: "right" }}>{cellLabel(rep("extension"), true)}</td>
+                            <td data-label="VIPチャージ" style={{ textAlign: "right" }}>{cellLabel(rep("vip_charge"), false)}</td>
                             <td className="col-state" data-label="状態">
                               <span className={`nox-statebadge${allOn ? " on" : ""}`}><i />{allOn ? "有効" : "一部無効"}</span>
                             </td>
@@ -1645,7 +1703,33 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 <input type="number" min={0} value={mDohan} onChange={(e) => setMDohan(e.target.value)}
                   style={{ ...inputLg, marginTop: 4 }} placeholder={`基本 ${yen(store.dohan_fee)}`} />
               </label>
+              {/* ★mig0130（裁定118）: VIPチャージ＝額のみ（分数なし・セット/延長とは独立の加算行） */}
+              <label style={{ fontSize: 12, color: "var(--sub)" }}>VIPチャージ（円・セットに加算）
+                <input type="number" min={0} value={mVip} onChange={(e) => setMVip(e.target.value)}
+                  style={{ ...inputLg, marginTop: 4 }} placeholder="例 3000（空欄=なし）" />
+              </label>
             </div>
+            <span className="hint">
+              VIPチャージは席種を「VIP」にすると VIP 席の開卓でだけ自動加算されます（基本セットとは別の行）。
+            </span>
+          </div>
+
+          {/* ★mig0130（裁定118-2）: 課金単位（set/extension/vip_charge のみ・同伴は対象外＝'bad unit kind' の UI 前置）。
+              「店の設定に従う」=null＝stores.time_per フォールバック（既存店は挙動不変）。 */}
+          <div className="nox-field">
+            <span className="lab">課金単位（料金ごと・「店の設定に従う」＝{store.time_per === "person" ? "1名あたり" : "1卓あたり"}）</span>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              {([["セット", mUnitSet, setMUnitSet], ["延長", mUnitExt, setMUnitExt], ["VIPチャージ", mUnitVip, setMUnitVip]] as const).map(([lab, v, set]) => (
+                <label key={lab} style={{ fontSize: 12, color: "var(--sub)" }}>{lab}
+                  <select value={v} onChange={(e) => set(e.target.value)} style={{ ...inputLg, width: "100%", marginTop: 4 }}>
+                    <option value="">店の設定に従う</option>
+                    <option value="person">1名あたり</option>
+                    <option value="table">1卓あたり</option>
+                  </select>
+                </label>
+              ))}
+            </div>
+            <span className="hint">開栓時に確定し、以後の変更は既存伝票に影響しません（同伴は人数分固定＝単位設定なし）。</span>
           </div>
 
           <div className="nox-field">
