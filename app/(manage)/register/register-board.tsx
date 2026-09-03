@@ -43,6 +43,8 @@ type CheckRow = {
   round_mode: string;
   // ★116-UI（mig0128）: 区分の開栓時凍結名（旧伝票・区分なし開栓は null＝非表示）
   category_name?: string | null;
+  // ★mig0129（裁定119）: 適用セットルール名の開栓時凍結（name null ルール/フォールバック/旧伝票=null＝非表示）
+  set_rule_name?: string | null;
   // C4（mig0113）: 税設定の開栓時凍結3値（旧伝票キャッシュ対策で optional・欠落=既定と同値）
   business_tax_status?: string;
   price_display?: string;
@@ -2583,6 +2585,13 @@ export default function RegisterBoard({
                       {isShimeiLine(l) && l.cast_id && (
                         <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--champ)", marginLeft: 6 }}>
                           {castName(l.cast_id)}
+                        </span>
+                      )}
+                      {/* ★mig0129（裁定119）: セット行に凍結の適用ルール名を併記（not null のときのみ・
+                          区分バッジと同系の控えめ表示。name null ルール/フォールバック/旧伝票は非表示） */}
+                      {l.time_auto && l.fee_kind === "set" && check?.set_rule_name && (
+                        <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)", marginTop: 2 }}>
+                          適用: {check.set_rule_name}
                         </span>
                       )}
                     </td>
