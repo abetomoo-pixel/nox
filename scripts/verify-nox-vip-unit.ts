@@ -382,9 +382,9 @@ async function main() {
         !oH.error && !ePay && !eClose && rowH2?.status === "closed"
           && vipLines(lsH).length === 1 && lineSum > 0,
         oH.error?.message ?? ePay?.message ?? eClose?.message ?? JSON.stringify({ st: rowH2?.status, lineSum }));
-      // 現状記録 pin: categoryOf('charge','vip_charge') は 'other'（118-UI で time 系へ変える際に張り替え）
-      check("vu(h2) ★category-map 現状記録＝categoryOf('charge','vip_charge')='other'（118-UI 未対応の実勢 pin）",
-        categoryOf("charge", "vip_charge") === "other", String(categoryOf("charge", "vip_charge")));
+      // ★118-UI（裁定118-6）: vip_charge は time 系（セット・延長と同区分）＝'other' 現状記録から張り替え済み
+      check("vu(h2) ★category-map＝categoryOf('charge','vip_charge')='time'（裁定118-6・118-UI で追随済み）",
+        categoryOf("charge", "vip_charge") === "time", String(categoryOf("charge", "vip_charge")));
     }
   } finally {
     await teardown();

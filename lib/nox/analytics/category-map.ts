@@ -45,7 +45,8 @@ export function categoryOf(kind: string, feeKind?: string | null): CategoryKey |
   if (kind === "champ") return "champ";
   if (kind === "bottle") return "bottle";
   // charge / custom / 未知 kind: fee_kind がセット系なら time（将来耐性・live では全行同値）
-  if (feeKind === "set" || feeKind === "extension") return "time";
+  // ★mig0130（裁定118-6）: vip_charge はセット・延長と同区分＝time 系へ吸収（新キーなし）
+  if (feeKind === "set" || feeKind === "extension" || feeKind === "vip_charge") return "time";
   return "other";
 }
 

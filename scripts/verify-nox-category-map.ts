@@ -23,7 +23,8 @@ function check(label: string, ok: boolean, detail?: string) {
 //   kind = check_lines_kind_check の8値（live CHECK 実測: set/time/charge/drink/champ/bottle/custom/discount）
 //   fee_kind = check_lines_fee_kind_check の5値＋null
 const KINDS = ["set", "time", "charge", "drink", "champ", "bottle", "custom", "discount"] as const;
-const FEE_KINDS = [null, "set", "extension", "dohan", "hon_shimei", "jonai_shimei"] as const;
+// ★mig0130（裁定118）: fee_kind 7種化＝ext_shimei/vip_charge を直積へ追加
+const FEE_KINDS = [null, "set", "extension", "dohan", "hon_shimei", "jonai_shimei", "ext_shimei", "vip_charge"] as const;
 
 function expected(kind: string, feeKind: string | null): CategoryKey | "discount" {
   if (kind === "discount") return "discount"; // 値引きは fee_kind によらず別掲
@@ -32,7 +33,8 @@ function expected(kind: string, feeKind: string | null): CategoryKey | "discount
   if (kind === "champ") return "champ";
   if (kind === "bottle") return "bottle";
   // charge / custom: セット系 fee_kind のみ time（将来耐性）・他は指名・その他
-  return feeKind === "set" || feeKind === "extension" ? "time" : "other";
+  // ★mig0130（裁定118-6）: vip_charge は time 系へ吸収
+  return feeKind === "set" || feeKind === "extension" || feeKind === "vip_charge" ? "time" : "other";
 }
 
 for (const k of KINDS) {
