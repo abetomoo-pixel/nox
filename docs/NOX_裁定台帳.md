@@ -2968,7 +2968,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 52 | **pricing_resolve 公開ラッパの区分対応（6引数化・小 mig）** | **クローズ（2026-09-03・mig0130 で消化）**＝裁定118-3 の #52 吸収でラッパ 6引数化＋whitelist 7種同期（ext_shimei/vip_charge 含む）。プレビューの区分入力 UI は 118-UI／プレビュー拡張レーンで別途 |
 | 53 | **VIP 方式B＋課金単位（ルール単位）** | VIP 方式B（**加算チャージ＝新 fee_kind 級**・教訓51 の3点セット〔CHECK 2箇所＋pricing_resolve_core 白名単〕＋set_pricing_rule whitelist）＋課金単位（**ルール単位 1名/1卓**・check_open units 計算改修）。要件正本＝`NOX_料金設定改修指示_2026-09-03.md` §5/§6。**読み取り調査（Opus）→設計書（相談役）→裁定→mig（Fable）の D調査型**。§4 プレビュー拡張は #52＋本件消化後 |
 | 54 | **区分一覧の SECURITY DEFINER RPC（staff/cast/kiosk の開栓時区分選択対応）** | 現状 RLS（owner/manager）により staff/cast は区分なし開栓＝セレクタ非表示（116-UI 段②a の既知制約・mig0127 の policy は manage 系のみ）。**→ 裁定済（採用）・実装＝#55 束ね**（2026-09-03） |
-| 55 | **mig0131: reorder whitelist＋区分一覧 RPC（#54 実装）** | (1) pricing_rule_reorder の whitelist へ vip_charge 追加（**0130 改修漏れ＝教訓54 の1例目**・UI は priority 再送で回避中＝解消後に戻す） (2) pricing_rule_delete 系の whitelist 同時確認 (3) **#54 の pricing_categories_for_register RPC 新設**（SECURITY DEFINER・id/name/sort のみ・check_open 同腕・標準型③・**A6 名簿先回り収載対象**） |
+| 55 | **mig0131: reorder whitelist＋区分一覧 RPC（#54 実装）＋duration 上限** | (1) pricing_rule_reorder の whitelist へ vip_charge 追加（**0130 改修漏れ＝教訓54 の1例目**・UI は priority 再送で回避中＝解消後に戻す） (2) pricing_rule_delete 系の whitelist 同時確認 (3) **#54 の pricing_categories_for_register RPC 新設**（SECURITY DEFINER・id/name/sort のみ・check_open 同腕・標準型③・**A6 名簿先回り収載対象**） (4) **duration 上限＝set_pricing_rule の 'bad duration' へ duration_min > 1440 拒否を追加**（#56 の RPC 側同乗） |
+| 56 | **duration 上限ガード（UI 警告＋RPC 拒否・duration_min > 1440）** | UI（帯モーダル）に警告・RPC 側は **#55=mig0131 へ同乗**（'bad duration' 拡張）。**実データ逆転1件（CLUB NOX「VIP20:00〜20:59」延長 30円/5000分＝料金と分の入力逆転）が起票根拠**＝バインドは正常を実機往復で実証（2026-09-03）。★訂正は CLUB NOX owner＝実アカウントのため CC の UI 代行不可＝**Agoora 実機修正待ち**（済んだら本欄を「訂正済み」へ） |
 
 ### 未裁定・消し込み待ち
 
