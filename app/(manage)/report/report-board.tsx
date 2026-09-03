@@ -666,7 +666,7 @@ export default function ReportBoard({
           </div>
           <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.8 }}>
             この画面ではキャスト別の売上を集計していません。
-            <a href="/analytics" style={{ color: "var(--gold2)" }}>分析</a>の「売上貢献ランキング」でご確認ください。
+            <a href="/analytics" style={{ color: "var(--primary-hover)" }}>分析</a>の「売上貢献ランキング」でご確認ください。
           </p>
         </section>
 

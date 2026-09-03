@@ -453,7 +453,7 @@ export default function CastsBoard({
                 <li><b style={{ color: "var(--v2-text)" }}>ランク</b>：一覧のランク欄から設定します（指名料に反映されます）。</li>
                 <li>
                   <b style={{ color: "var(--v2-text)" }}>待遇プラン</b>：
-                  <Link href="/master/cast-comp/plan" style={{ color: "var(--gold2)" }}>マスタ ▸ 待遇プラン</Link>
+                  <Link href="/master/cast-comp/plan" style={{ color: "var(--primary-hover)" }}>マスタ ▸ 待遇プラン</Link>
                   で割り当てます。
                 </li>
                 <li><b style={{ color: "var(--v2-text)" }}>ログイン招待</b>：一覧の「招待」からアカウントを発行します（初期パスワードは一度だけ表示）。</li>
@@ -640,7 +640,7 @@ export default function CastsBoard({
                     ))}
                   </select>
                   <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 8 }}>
-                    ランク別の指名料は<Link href="/master/pricing" style={{ color: "var(--gold2)" }}>料金設定</Link>で管理
+                    ランク別の指名料は<Link href="/master/pricing" style={{ color: "var(--primary-hover)" }}>料金設定</Link>で管理
                   </span>
                 </span>
               </div>

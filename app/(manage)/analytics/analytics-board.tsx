@@ -1138,7 +1138,7 @@ export default function AnalyticsBoard({
             </div>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
               ※判定は顧客一覧と同じ（新規＝来店1回以下・離反リスク＝最終来店からの経過日数）。
-              個別の対応は <Link href="/customers" style={{ color: "var(--gold2)" }}>顧客管理</Link> から。
+              個別の対応は <Link href="/customers" style={{ color: "var(--primary-hover)" }}>顧客管理</Link> から。
             </p>
           </>
         )}

@@ -111,7 +111,7 @@ export default function CastRegisterPanel({
                     ) : (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
                         <span style={{ ...t.tag, color: "var(--sub)", borderColor: "var(--line2)" }}>未招待</span>
-                        <a href="/casts" style={{ fontSize: 11.5, color: "var(--gold2)" }}>
+                        <a href="/casts" style={{ fontSize: 11.5, color: "var(--primary-hover)" }}>
                           キャスト管理で招待すると設定できます →
                         </a>
                       </span>

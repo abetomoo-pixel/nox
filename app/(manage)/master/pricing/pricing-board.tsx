@@ -800,9 +800,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
 
   const dayChip = (on: boolean): React.CSSProperties => ({
     fontFamily: "inherit", fontWeight: 700, fontSize: 12, padding: "6px 10px", borderRadius: 8, cursor: "pointer",
-    border: on ? "1px solid var(--gold)" : "1px solid var(--line2)",
-    background: on ? "linear-gradient(135deg,var(--goldface),var(--goldface3))" : "transparent",
-    color: on ? "var(--champ)" : "var(--sub)",
+    border: on ? "1px solid var(--primary)" : "1px solid var(--line2)",
+    background: on ? "var(--primary-soft)" : "transparent", // ★夜間レーン裁定③: 選択=青soft（旧: 金グラデ）
+    color: on ? "var(--primary-hover)" : "var(--sub)",
   });
 
   return (
@@ -818,7 +818,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 14px", lineHeight: 1.7 }}>
         ここで設定するのは<strong style={{ color: "var(--v2-text)" }}>お客さまへの請求額</strong>です。
         キャストに支払う指名バック・時給は
-        <Link href="/master/cast-comp/plan" style={{ color: "var(--gold2)" }}>待遇プラン・報酬シミュレーター</Link>
+        <Link href="/master/cast-comp/plan" style={{ color: "var(--primary-hover)" }}>待遇プラン・報酬シミュレーター</Link>
         で管理します（ランク別指名料の「請求額」はこのページ・「バック額」は待遇プラン側）。
       </p>
 

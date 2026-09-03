@@ -68,8 +68,8 @@ export default async function CastCompHubPage() {
 
       <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "14px 0 0", lineHeight: 1.7 }}>
         設定内容は給与計算やキャストのマイページ進捗に自動反映されます。
-        指名料のランク（{rankCount ?? 0}件）は<Link href="/master/pricing" style={{ color: "var(--gold2)" }}>料金設定</Link>、
-        ランクの割当は<Link href="/casts" style={{ color: "var(--gold2)" }}>キャスト管理</Link>で行います。
+        指名料のランク（{rankCount ?? 0}件）は<Link href="/master/pricing" style={{ color: "var(--primary-hover)" }}>料金設定</Link>、
+        ランクの割当は<Link href="/casts" style={{ color: "var(--primary-hover)" }}>キャスト管理</Link>で行います。
       </p>
     </div>
   );

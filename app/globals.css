@@ -1591,7 +1591,7 @@ body {
   padding: 0;
 }
 /* ★E4-0: 金トラックをトークンへ（#B8893A→--gold3 / #E6D6A8→--champ）。ツマミは金地の上＝--on-gold。 */
-.nox-switch.on { background: linear-gradient(135deg, var(--gold3), var(--champ)); border-color: transparent; }
+.nox-switch.on { background: var(--primary); border-color: transparent; } /* ★夜間レーン裁定①: トグルON=青（旧: 金グラデ gold3→champ） */
 .nox-switch i {
   position: absolute;
   top: 2px;
@@ -1602,7 +1602,7 @@ body {
   background: #ECECEF;
   transition: .15s;
 }
-.nox-switch.on i { left: 22px; background: var(--on-gold); }
+.nox-switch.on i { left: 22px; background: #ECECEF; } /* ★夜間レーン裁定①: 青地×白ノブ（off と同色・旧 --on-gold） */
 @media (prefers-reduced-motion: reduce) { .nox-switch i { transition: none; } }
 
 /* ── 純増① 在庫台帳 v1（mig0061）: 残量バー（Night Ops 吸収・canonical .bar 準拠）── presentation-only ──

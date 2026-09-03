@@ -24,9 +24,9 @@ const stepBtn: React.CSSProperties = {
 };
 const segBtn = (on: boolean): React.CSSProperties => ({
   fontFamily: "inherit", fontWeight: 800, fontSize: 13, padding: "8px 18px", borderRadius: 9, cursor: "pointer",
-  border: on ? "1px solid var(--gold)" : "1px solid var(--line2)",
-  background: on ? "linear-gradient(135deg,var(--goldface),var(--goldface3))" : "transparent",
-  color: on ? "var(--champ)" : "var(--sub)",
+  border: on ? "1px solid var(--primary)" : "1px solid var(--line2)",
+  background: on ? "var(--primary-soft)" : "transparent", // ★夜間レーン裁定③: 選択=青soft（旧: 金グラデ）
+  color: on ? "var(--primary-hover)" : "var(--sub)",
 });
 
 function errJa(msg: string | undefined): string {
