@@ -2656,12 +2656,23 @@ G1（grants スイートのスキーマ全体ガード）が検知線（0127→0
 
 ---
 
-## 裁定118（予約）
+## 裁定118（2026-09-03・mig0130）VIP 方式B＋課金単位 — 118-1 実装済・118-UI 未着手
 
-118: 予約（#53 設計レーン＝VIP 方式B＋課金単位。要件正本＝`docs/NOX_料金設定改修指示_2026-09-03.md`
-§5/§6。D調査→設計書→裁定→mig（Fable）の順・着手時に本行を本文へ置換）。
-**設計書 v1 収蔵済（`docs/NOX裁定118設計書_v1.md`・sha256 `e562cfb6…7334`・裁定8件確定＝
-vip_charge／billing_unit／#52 吸収ほか）・D調査確定版＝`docs/dp/118_D調査.md`・118-1 未着手。**
+正本＝`docs/NOX裁定118設計書_v1.md`（v1.1 追記込み）・要件正本＝`docs/NOX_料金設定改修指示_2026-09-03.md`
+§5/§6・D調査＝`docs/dp/118_D調査.md`・起草前提実測＝`docs/tmp/118prep_live.sql`。
+
+裁定118: VIP 方式B＋課金単位。fee_kind 'vip_charge' 新設（7種化・教訓51 の3点＋
+set_pricing_rule/ラッパ同時）・pricing_rules.billing_unit（'person'/'table'/null=店既定
+time_per）・対象 set/extension/vip_charge（dohan 対象外）・#52 吸収（ラッパ 6引数化＋
+whitelist 同期）・vip_charge は区分可/duration 不可/rank 不可・category-map は time 系
+吸収・apply 非対象（開栓時1回生成）・person 単位は人数変更追随・snap 後方互換
+（null→time_per フォールバック）・three-mirror 不触（行凍結 qty 経由の実測根拠）。
+
+実装＝mig0130（関数7本・CHECK 7種化・checks 単位4列）。f0 35本目 verify-nox-vip-unit
+26 assert・8系統・2連緑・golden 6値不変。pin 追随＝grants 3点（15→16引数）＋prc(p1)。
+ext-menu/pricing-apply は値チェック型＝追随不要を実走確認。categoryOf('charge',
+'vip_charge')='other' の現状を h2 で記録 pin＝118-UI で time 系へ張り替え（裁定118-6）。
+#52 は本 mig で消化済（ラッパ 6引数化＋whitelist 7種同期）＝起票クローズ。
 
 ---
 
@@ -2940,7 +2951,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 50 | **商品一覧の表示3点是正** | **実装済（2026-09-02・`3e1390d`）＝追認起票**。在庫セルは折返し禁止の1行化（発注点をスラッシュ短縮「5/3」・hover にフル文言）・低在庫赤枠と残量バーは同一行で維持・バック設定を独立列へ昇格（率と4段階と防御ダッシュ表示）・商品名下段の重複サブテキスト撤去 |
 | 50b | **商品一覧カテゴリチップ行とスクロールバーの重なり** | **実装済（2026-09-02・`4145008`）＝追認起票**。下パディング10px＋細バー化で解消。チップ視認は不変・下マージン調整で合計間隔は据置 |
 | 51 | **シフトモーダル CastPicker の写真アバター** | **実装済（2026-09-02・`7c39673`）＝追認起票**。シフトモーダルの CastPicker へ写真アバター（photoUrls）を伝搬＝唯一の欠落だった（部品と CastAvatar は写真と onError フォールバック対応済み・他4箇所は伝搬済み・kiosk は署名経路なしの仕様） |
-| 52 | **pricing_resolve 公開ラッパの区分対応（6引数化・小 mig）** | プレビューの区分入力は本起票消化後。mig0128 で core は対応済み・**ラッパのみ5引数残置**（116-UI×v3 対応表 R8＝本レーン対象外の裁定・2026-09-03） |
+| 52 | **pricing_resolve 公開ラッパの区分対応（6引数化・小 mig）** | **クローズ（2026-09-03・mig0130 で消化）**＝裁定118-3 の #52 吸収でラッパ 6引数化＋whitelist 7種同期（ext_shimei/vip_charge 含む）。プレビューの区分入力 UI は 118-UI／プレビュー拡張レーンで別途 |
 | 53 | **VIP 方式B＋課金単位（ルール単位）** | VIP 方式B（**加算チャージ＝新 fee_kind 級**・教訓51 の3点セット〔CHECK 2箇所＋pricing_resolve_core 白名単〕＋set_pricing_rule whitelist）＋課金単位（**ルール単位 1名/1卓**・check_open units 計算改修）。要件正本＝`NOX_料金設定改修指示_2026-09-03.md` §5/§6。**読み取り調査（Opus）→設計書（相談役）→裁定→mig（Fable）の D調査型**。§4 プレビュー拡張は #52＋本件消化後 |
 | 54 | **区分一覧の SECURITY DEFINER RPC（staff/cast/kiosk の開栓時区分選択対応）** | 現状 RLS（owner/manager）により staff/cast は区分なし開栓＝セレクタ非表示（116-UI 段②a の既知制約・mig0127 の policy は manage 系のみ）。**launch 前に要否裁定** |
 
