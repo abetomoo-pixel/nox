@@ -20,7 +20,7 @@
  *      f1=自動解決の id/name 凍結・f2=override 凍結（自動なら区分版が勝つ状況で null 版を指名）・
  *      f3=name null ルールが勝つ開栓＝id 凍結+name null・f4=開栓後改名の非遡及・
  *      f5=フォールバック（rule 全停止）＝両列 null
- *  (p) 器 pin: check_open/pricing_resolve_core/set_pricing_rule 各1本＝pronargs 6/6/15（旧署名 DROP）
+ *  (p) 器 pin: check_open/pricing_resolve_core/set_pricing_rule 各1本＝pronargs 6/6/16（旧署名 DROP・mig0130 追随）
  *
  * 逆張り: PRC_INVERT=1 で全 check の期待を反転＝全赤を実測。
  * fixture: NOX-VERIFY-prc* 命名・finally 全消し（checks/lines→rules→categories の FK 順・
@@ -320,7 +320,7 @@ async function main() {
         eOff?.message ?? e7?.message ?? JSON.stringify({ id: row7?.set_rule_id, name: row7?.set_rule_name }));
     }
 
-    // ══ (p) 器 pin: 旧署名 DROP＝各1本・pronargs 6/6/15 ══
+    // ══ (p) 器 pin: 旧署名 DROP＝各1本・pronargs 6/6/16（mig0130 で set_pricing_rule 16引数化）══
     {
       const { rows } = await db.query(`
         select p.proname, count(*)::int as n, min(p.pronargs)::int as a, max(p.pronargs)::int as b
@@ -329,9 +329,9 @@ async function main() {
            and p.proname in ('check_open','pricing_resolve_core','set_pricing_rule')
          group by p.proname order by p.proname`);
       const pin = Object.fromEntries(rows.map((r) => [r.proname, `${r.n}:${r.a}`]));
-      check("prc(p1) ★旧署名 DROP＝各1本（check_open 6引数・core 6引数・set_pricing_rule 15引数）",
+      check("prc(p1) ★旧署名 DROP＝各1本（check_open 6引数・core 6引数・set_pricing_rule 16引数=mig0130）",
         pin["check_open"] === "1:6" && pin["pricing_resolve_core"] === "1:6"
-          && pin["set_pricing_rule"] === "1:15",
+          && pin["set_pricing_rule"] === "1:16",
         JSON.stringify(pin));
     }
   } finally {
