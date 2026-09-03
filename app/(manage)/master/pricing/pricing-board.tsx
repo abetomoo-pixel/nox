@@ -293,6 +293,60 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   }
   const [mErr, setMErr] = useState<string | null>(null);
 
+  // ── ★裁定116（mig0127）: 料金区分マスタ（一覧＋追加/編集モーダル）──────────
+  //   書込は set_pricing_category 専任（削除ボタンは置かない＝is_active false 運用・設計書 v2 §7）。
+  //   ルール編集フォームへの区分セレクタは 116-UI レーン送り＝ここではマスタ管理のみ。
+  type PricingCategory = { id: string; name: string; sort: number; is_active: boolean };
+  const [cats, setCats] = useState<PricingCategory[]>([]);
+  const [catModalOpen, setCatModalOpen] = useState(false);
+  const [catEditId, setCatEditId] = useState<string | null>(null); // null=新規
+  const [cName, setCName] = useState("");
+  const [cSort, setCSort] = useState("100");
+  const [cActive, setCActive] = useState(true);
+  const [cErr, setCErr] = useState<string | null>(null);
+
+  function catErrJa(msg: string | undefined): string {
+    if (!msg) return "不明なエラー";
+    if (msg.includes("duplicate name")) return "同名の区分があります";
+    if (msg.includes("bad name")) return "区分名は1〜40文字で入力してください";
+    if (msg.includes("bad sort")) return "表示順は数値で入力してください";
+    if (msg.includes("billing locked")) return "ご利用プランが停止中のため保存できません";
+    if (msg.includes("not found")) return "対象の区分が見つかりません（再読込してください）";
+    if (msg.includes("forbidden")) return "権限がありません";
+    return msg;
+  }
+  const loadCats = useCallback(async () => {
+    const { data } = await supabase.from("pricing_categories")
+      .select("id, name, sort, is_active").eq("store_id", storeId)
+      .order("sort").order("name");
+    setCats((data ?? []) as PricingCategory[]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
+  useEffect(() => { void loadCats(); }, [loadCats]);
+
+  function openNewCat() {
+    setCatEditId(null); setCName(""); setCSort("100"); setCActive(true); setCErr(null); setCatModalOpen(true);
+  }
+  function openEditCat(c: PricingCategory) {
+    setCatEditId(c.id); setCName(c.name); setCSort(String(c.sort)); setCActive(c.is_active); setCErr(null);
+    setCatModalOpen(true);
+  }
+  async function saveCat() {
+    setCErr(null);
+    if (cName.trim() === "") { setCErr("区分名を入力してください"); return; }
+    const sortN = Number(cSort);
+    if (!Number.isInteger(sortN)) { setCErr("表示順は整数で入力してください"); return; }
+    setBusy(true);
+    const { error } = await supabase.rpc("set_pricing_category", {
+      p_id: catEditId, p_store_id: storeId, p_name: cName.trim(), p_sort: sortN, p_is_active: cActive,
+    });
+    setBusy(false);
+    if (error) { setCErr(catErrJa(error.message)); return; }
+    setCatModalOpen(false);
+    setMsg(catEditId !== null ? "料金区分を更新しました" : "料金区分を追加しました");
+    await loadCats();
+  }
+
   function openNewBand() {
     setEditKey(null); setMSeat(""); setMDays(Array(7).fill(true));
     setMFrom(""); setMTo(""); setMSetFee(""); setMSetMin(""); setMExtFee(""); setMExtMin("");
@@ -722,7 +776,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 <table className="nox-ptable">
                   <thead>
                     <tr>
-                      <th style={{ width: 86 }} title="重複時は優先順位の小さい行が適用されます">優先</th>
+                      {/* ★裁定115-②/117: priority 数値は UI 非露出（順序=表示順・数値は内部表現） */}
+                      <th style={{ width: 86 }} title="条件が重なったときは上のルールが優先されます">並び</th>
                       <th>表示名</th>
                       <th>時間帯</th>
                       <th>席種</th>
@@ -737,13 +792,16 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                   <tbody>
                     {bands.map((b, i) => (
                       <tr key={b.key}>
-                        <td data-label="優先">
+                        <td data-label="並び">
                           <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
                             <button type="button" className="nox-ordbtn" aria-label="上へ"
                               disabled={busy || i === 0} onClick={() => void moveBand(i, -1)}>∧</button>
                             <button type="button" className="nox-ordbtn" aria-label="下へ"
                               disabled={busy || i === bands.length - 1} onClick={() => void moveBand(i, 1)}>∨</button>
-                            <span style={{ ...t.num, color: "var(--sub)", fontSize: 11 }}>{b.priority}</span>
+                            {/* ★裁定115-②: 表示先頭の active 帯＝既定（priority 最小・数値は非露出） */}
+                            {i === bands.findIndex((x) => x.allActive) && (
+                              <span className="nox-stpill" style={{ color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>既定</span>
+                            )}
                           </span>
                         </td>
                         <td data-label="表示名">{b.name ?? "—"}</td>
@@ -777,7 +835,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             {bandOverlaps.length > 0 && (
               <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 9, border: "1px solid var(--bad-bd)", background: "var(--bad-bg)" }}>
                 <p style={{ fontSize: 12, fontWeight: 800, color: "var(--bad)", margin: 0 }}>
-                  条件が重複している時間帯があります（{bandOverlaps.length}組・優先順位の小さい行が適用されます）
+                  条件が重複している時間帯があります（{bandOverlaps.length}組・上の行が適用されます）
                 </p>
                 {bandOverlaps.slice(0, 3).map((s, i) => (
                   <p key={i} style={{ fontSize: 11, color: "var(--sub)", margin: "3px 0 0" }}>・{s}</p>
@@ -788,7 +846,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             {/* 修正d: モックの「重複禁止」注記は撤回（裁定D）＝priority 表示＋この文言に置換。
                 E8-5 pricing⑥: 「狭い条件を上に」のガイドを追記。 */}
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
-              条件が重複するときは優先順位（数字の小さい行）が適用されます。未設定の時間帯・席種は「基本料金」が適用されます。<br />
+              条件が重なったときは<strong style={{ color: "var(--v2-text)" }}>上のルールが優先されます</strong>（∧∨で並び替え・一番上の有効な行が既定）。未設定の時間帯・席種は「基本料金」が適用されます。<br />
               ★<strong style={{ color: "var(--v2-text)" }}>狭い条件ほど上に</strong>置いてください（例:
               「金土のVIP」は「毎日・全席種」より上）。広い条件が上にあると、下の狭い条件には永久に届きません。<br />
               {/* R2-a（mig0098）: 延長の複数メニュー運用の注記（指示文言） */}
@@ -857,6 +915,60 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 </p>
               </div>
             )}
+          </section>
+
+          {/* ★裁定116（mig0127）: 料金区分マスタ。開栓時に区分を選ぶと、区分付きルールが優先解決される。
+              削除ボタンは置かない（停止=is_active false 運用・ルールから FK 参照されるため物理削除しない）。 */}
+          <section className="nox-cardtop" style={{ ...card, marginTop: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 6px" }}>
+              <h3 style={{ margin: 0, fontSize: 14 }}>料金区分</h3>
+              <button type="button" style={{ ...btnDark, marginLeft: "auto" }} onClick={openNewCat}>＋ 区分を追加</button>
+            </div>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
+              「通常」「初来店」など、開栓時に選ぶ料金の区分です。先頭（表示順が最小）が開栓時の既定になります。
+              区分を1つも作らない場合、開栓は現行どおり（区分なし）で動きます。
+            </p>
+            {cats.length === 0 ? (
+              <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>
+                料金区分は未設定です（開栓時の区分セレクタは表示されません）。
+              </p>
+            ) : (
+              <div className="nox-ptwrap">
+                <table className="nox-ptable">
+                  <thead>
+                    <tr>
+                      <th>区分名</th>
+                      <th style={{ width: 90 }}>表示順</th>
+                      <th className="col-state">状態</th>
+                      <th className="col-act">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cats.map((c) => (
+                      <tr key={c.id} style={c.is_active ? undefined : { opacity: 0.55 }}>
+                        <td data-label="区分名">
+                          {c.name}
+                          {c.id === cats.find((x) => x.is_active)?.id && (
+                            <span className="nox-stpill" style={{ marginLeft: 8, color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>既定</span>
+                          )}
+                        </td>
+                        <td data-label="表示順"><span style={t.num}>{c.sort}</span></td>
+                        <td className="col-state" data-label="状態">
+                          <span className={`nox-statebadge${c.is_active ? " on" : ""}`}><i />{c.is_active ? "有効" : "停止中"}</span>
+                        </td>
+                        <td className="col-act" data-label="操作">
+                          <button type="button" style={btnLight} onClick={() => openEditCat(c)}>編集</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p style={{ fontSize: 11, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
+              区分は削除せず「停止」で運用します（過去の伝票が区分を参照しているため）。
+              時間帯ルールへの区分の割り当ては次の改修で追加されます。
+            </p>
           </section>
         </>
       )}
@@ -1245,6 +1357,41 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
           変更内容は<b>新しく開く伝票から</b>反映されます。
         </p>
         </>
+      )}
+
+      {/* ═══ 料金区分モーダル（裁定116・mig0127） ═══ */}
+      {catModalOpen && (
+        <Modal onClose={() => setCatModalOpen(false)} maxWidth={440}>
+          <div className="nox-formmodal-head">
+            <strong>{catEditId !== null ? "料金区分を編集" : "料金区分を追加"}</strong>
+            <button type="button" className="nox-formmodal-x" onClick={() => setCatModalOpen(false)} aria-label="閉じる">×</button>
+          </div>
+          <div className="nox-field">
+            <span className="lab">区分名（40文字まで）</span>
+            <input type="text" value={cName} maxLength={40} placeholder="例 初来店"
+              onChange={(e) => setCName(e.target.value)} style={inputLg} />
+          </div>
+          <div className="nox-field">
+            <span className="lab">表示順</span>
+            <input type="number" value={cSort} onChange={(e) => setCSort(e.target.value)}
+              style={{ ...inputLg, width: 120 }} />
+            <span className="hint">先頭（表示順が最小）が開栓時の既定になります。</span>
+          </div>
+          <div className="nox-field">
+            <span className="lab">状態</span>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+              <button type="button" role="switch" aria-checked={cActive}
+                className={cActive ? "nox-switch on" : "nox-switch"} onClick={() => setCActive((v) => !v)}><i /></button>
+              この区分を有効にする
+            </label>
+            <span className="hint">停止中の区分は開栓時に選べません（削除はしない運用です）。</span>
+          </div>
+          {cErr && <p style={{ fontSize: 12.5, color: "var(--bad)", margin: "8px 0 0" }}>{cErr}</p>}
+          <div className="nox-formmodal-foot">
+            <button type="button" style={btnGhostLg} disabled={busy} onClick={() => setCatModalOpen(false)}>キャンセル</button>
+            <button type="button" style={btnPrimaryLg} disabled={busy} onClick={() => void saveCat()}>この区分を保存</button>
+          </div>
+        </Modal>
       )}
 
       {/* ═══ 帯編集モーダル（モックの drawer 相当） ═══ */}
