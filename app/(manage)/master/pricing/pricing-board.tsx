@@ -153,7 +153,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const supabase = createClient();
   const store = initial.store;
   const cutoffMin = hmToMin(bizCutoffHm);
-  const [tab, setTab] = useState<"timed" | "base" | "checkout">("timed");
+  // ★116-UI 段②b（裁定117・対応表 T1〜T4）: 3責務分割＝料金マスタ／料金適用ルール／会計設定。
+  //   「基本料金」タブは器ごと廃止（中身は master/checkout へ移設・UI は分ける DB は分けない）。
+  const [tab, setTab] = useState<"master" | "rules" | "checkout">("master");
   const [rules, setRules] = useState<PricingRule[]>(initial.rules);
   const [ranks, setRanks] = useState<CastRank[]>(initial.ranks);
   const [msg, setMsg] = useState<string | null>(null);
@@ -628,7 +630,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   //   （owner/manager ページ・表示専用・権威は check_open 時のサーバ解決＝ここは同じ RPC の事前照会）。
   const [liveNow, setLiveNow] = useState<{
     at: string;
-    set: { amount: number; min: number; src: "rule" | "base" };
+    set: { amount: number; min: number; src: "rule" | "base"; ruleId: string | null };
     ext: { amount: number; min: number; src: "rule" | "base" };
     dohan: { amount: number; src: "rule" | "base" };
   } | null>(null);
@@ -640,11 +642,12 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     const [rs, re, rd] = await Promise.all([call("set"), call("extension"), call("dohan")]);
     if (rs.error || re.error || rd.error) return; // 表示専用＝失敗時は区画ごと出さない
     const row = (r: { data: unknown }) =>
-      Array.isArray(r.data) && r.data.length ? r.data[0] as { amount: number; duration_min: number | null } : null;
+      Array.isArray(r.data) && r.data.length ? r.data[0] as { amount: number; duration_min: number | null; rule_id: string | null } : null;
     const s = row(rs), e = row(re), d = row(rd);
     setLiveNow({
       at: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
-      set: { amount: s?.amount ?? store.set_fee, min: s?.duration_min ?? store.set_min, src: s ? "rule" : "base" },
+      // ★R9: rule_id は保持だけして名前はレンダ時に手元 rules から解決（stale closure を作らない）
+      set: { amount: s?.amount ?? store.set_fee, min: s?.duration_min ?? store.set_min, src: s ? "rule" : "base", ruleId: s?.rule_id ?? null },
       ext: { amount: e?.amount ?? store.ext_fee, min: e?.duration_min ?? store.ext_min, src: e ? "rule" : "base" },
       dohan: { amount: d?.amount ?? store.dohan_fee, src: d ? "rule" : "base" },
     });
@@ -768,17 +771,17 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         で管理します（ランク別指名料の「請求額」はこのページ・「バック額」は待遇プラン側）。
       </p>
 
-      {/* 3タブ（モックの tab-timed / tab-base / tab-checkout） */}
+      {/* 3タブ（v3 の master / rules / accounting 写像＝裁定117） */}
       <div className="nox-pillbar" style={{ marginBottom: 12 }}>
-        {([["timed", "時間帯料金"], ["base", "基本料金"], ["checkout", "会計ルール"]] as const).map(([k, label]) => (
+        {([["master", "料金マスタ"], ["rules", "料金適用ルール"], ["checkout", "会計設定"]] as const).map(([k, label]) => (
           <button key={k} type="button" className={`nox-pill${tab === k ? " on" : ""}`} onClick={() => setTab(k)}>
             {label}
           </button>
         ))}
       </div>
 
-      {/* ═══ 時間帯料金 ═══ */}
-      {tab === "timed" && (
+      {/* ═══ 料金適用ルール（旧・時間帯料金＝T2 改称） ═══ */}
+      {tab === "rules" && (
         <>
           {/* E8-5 pricing⑥: 今開卓したら適用されるルール（現在時刻・卓既定・pricing_resolve 直呼びの表示専用） */}
           {liveNow && (
@@ -789,6 +792,15 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
               <span style={{ fontSize: 12.5 }}>
                 セット <b className="num">{yen(liveNow.set.amount)}</b>
                 <small style={{ color: "var(--sub)" }}> /{liveNow.set.min}分・{liveNow.set.src === "rule" ? "ルール適用" : "基本料金"}</small>
+                {/* ★R9（裁定119 と同規則）: 適用ルール名＝name null は非表示 */}
+                {(() => {
+                  const nm = liveNow.set.ruleId ? rules.find((r) => r.id === liveNow.set.ruleId)?.name ?? null : null;
+                  return nm ? (
+                    <span className="nox-stpill" style={{ marginLeft: 6, color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>
+                      適用: {nm}
+                    </span>
+                  ) : null;
+                })()}
               </span>
               <span style={{ fontSize: 12.5 }}>
                 延長 <b className="num">{yen(liveNow.ext.amount)}</b>
@@ -801,6 +813,73 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
               <button type="button" style={{ ...btnLight, marginLeft: "auto" }} onClick={() => void loadLiveNow()}>更新</button>
             </div>
           )}
+          {/* ★R10（§4-a 確定）: 時間だけのルール禁止の lead（v3 逐語） */}
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
+            「いつ・誰に・何分・いくらの料金を当てるか」の正本です。
+            <strong style={{ color: "var(--v2-text)" }}>時間だけのルールは作れません</strong>
+            ——各行が時間帯・条件・金額・基準時間をひとまとめに持ちます。
+          </p>
+
+          {/* ★R1（対応表）: 料金区分カード＝タブ内先頭側（v3 はスケジュールの上）。実体は 115-UI/段②a のまま */}
+          <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 6px" }}>
+              <h3 style={{ margin: 0, fontSize: 14 }}>料金区分</h3>
+              <button type="button" style={{ ...btnDark, marginLeft: "auto" }} onClick={openNewCat}>＋ 区分を追加</button>
+            </div>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
+              「通常」「初来店」など、開栓時に選ぶ料金の区分です。一番上が開栓時の既定になります（∧∨で並び替え）。
+              区分を1つも作らない場合、開栓は現行どおり（区分なし）で動きます。
+            </p>
+            {cats.length === 0 ? (
+              <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>
+                料金区分は未設定です（開栓時の区分セレクタは表示されません）。
+              </p>
+            ) : (
+              <div className="nox-ptwrap">
+                <table className="nox-ptable">
+                  <thead>
+                    <tr>
+                      {/* ★裁定R2: sort 数値は非露出＝並びは ∧∨（先頭の有効な区分が開栓時の既定） */}
+                      <th style={{ width: 70 }}>並び</th>
+                      <th>区分名</th>
+                      <th className="col-state">状態</th>
+                      <th className="col-act">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cats.map((c, i) => (
+                      <tr key={c.id} style={c.is_active ? undefined : { opacity: 0.55 }}>
+                        <td data-label="並び">
+                          <span style={{ display: "inline-flex", gap: 4 }}>
+                            <button type="button" className="nox-ordbtn" aria-label="上へ"
+                              disabled={busy || i === 0} onClick={() => void moveCat(i, -1)}>∧</button>
+                            <button type="button" className="nox-ordbtn" aria-label="下へ"
+                              disabled={busy || i === cats.length - 1} onClick={() => void moveCat(i, 1)}>∨</button>
+                          </span>
+                        </td>
+                        <td data-label="区分名">
+                          {c.name}
+                          {c.id === cats.find((x) => x.is_active)?.id && (
+                            <span className="nox-stpill" style={{ marginLeft: 8, color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>既定</span>
+                          )}
+                        </td>
+                        <td className="col-state" data-label="状態">
+                          <span className={`nox-statebadge${c.is_active ? " on" : ""}`}><i />{c.is_active ? "有効" : "停止中"}</span>
+                        </td>
+                        <td className="col-act" data-label="操作">
+                          <button type="button" style={btnLight} onClick={() => openEditCat(c)}>編集</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p style={{ fontSize: 11, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
+              区分は削除せず「停止」で運用します（過去の伝票が区分を参照しているため）。
+            </p>
+          </section>
+
           <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" }}>
               <h3 style={{ margin: 0, fontSize: 14 }}>通常営業の料金スケジュール</h3>
@@ -808,7 +887,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             </div>
             {bands.length === 0 ? (
               <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>
-                時間帯料金は未設定です。すべての伝票に「基本料金」（基本料金タブ）が適用されています。
+                時間帯料金は未設定です。すべての伝票に「基本料金」（会計設定タブのフォールバック値）が適用されています。
               </p>
             ) : (
               <div className="nox-ptwrap">
@@ -901,7 +980,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
               「金土のVIP」は「毎日・全席種」より上）。広い条件が上にあると、下の狭い条件には永久に届きません。<br />
               {/* R2-a（mig0098）: 延長の複数メニュー運用の注記（指示文言） */}
               延長は<strong style={{ color: "var(--v2-text)" }}>上から最初の一致が既定</strong>。
-              開卓時に有効な全行が伝票へ凍結され、レジで選択できます（開卓後のここの変更は既存伝票に影響しません）。
+              開卓時に有効な全行が伝票へ凍結され、レジで選択できます（開卓後のここの変更は既存伝票に影響しません）。<br />
+              {/* ★R7（対応表・v3 逐語1文）: 入店時刻でセット時間も決まる */}
+              入店時刻でセット時間も決まります（例: 20:30入店→60分の帯・22:00入店→50分の帯）。
             </p>
           </section>
 
@@ -967,74 +1048,31 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             )}
           </section>
 
-          {/* ★裁定116（mig0127）: 料金区分マスタ。開栓時に区分を選ぶと、区分付きルールが優先解決される。
-              削除ボタンは置かない（停止=is_active false 運用・ルールから FK 参照されるため物理削除しない）。 */}
-          <section className="nox-cardtop" style={{ ...card, marginTop: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 6px" }}>
-              <h3 style={{ margin: 0, fontSize: 14 }}>料金区分</h3>
-              <button type="button" style={{ ...btnDark, marginLeft: "auto" }} onClick={openNewCat}>＋ 区分を追加</button>
-            </div>
-            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
-              「通常」「初来店」など、開栓時に選ぶ料金の区分です。一番上が開栓時の既定になります（∧∨で並び替え）。
-              区分を1つも作らない場合、開栓は現行どおり（区分なし）で動きます。
-            </p>
-            {cats.length === 0 ? (
-              <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>
-                料金区分は未設定です（開栓時の区分セレクタは表示されません）。
-              </p>
-            ) : (
-              <div className="nox-ptwrap">
-                <table className="nox-ptable">
-                  <thead>
-                    <tr>
-                      {/* ★裁定R2: sort 数値は非露出＝並びは ∧∨（先頭の有効な区分が開栓時の既定） */}
-                      <th style={{ width: 70 }}>並び</th>
-                      <th>区分名</th>
-                      <th className="col-state">状態</th>
-                      <th className="col-act">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cats.map((c, i) => (
-                      <tr key={c.id} style={c.is_active ? undefined : { opacity: 0.55 }}>
-                        <td data-label="並び">
-                          <span style={{ display: "inline-flex", gap: 4 }}>
-                            <button type="button" className="nox-ordbtn" aria-label="上へ"
-                              disabled={busy || i === 0} onClick={() => void moveCat(i, -1)}>∧</button>
-                            <button type="button" className="nox-ordbtn" aria-label="下へ"
-                              disabled={busy || i === cats.length - 1} onClick={() => void moveCat(i, 1)}>∨</button>
-                          </span>
-                        </td>
-                        <td data-label="区分名">
-                          {c.name}
-                          {c.id === cats.find((x) => x.is_active)?.id && (
-                            <span className="nox-stpill" style={{ marginLeft: 8, color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>既定</span>
-                          )}
-                        </td>
-                        <td className="col-state" data-label="状態">
-                          <span className={`nox-statebadge${c.is_active ? " on" : ""}`}><i />{c.is_active ? "有効" : "停止中"}</span>
-                        </td>
-                        <td className="col-act" data-label="操作">
-                          <button type="button" style={btnLight} onClick={() => openEditCat(c)}>編集</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <p style={{ fontSize: 11, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
-              区分は削除せず「停止」で運用します（過去の伝票が区分を参照しているため）。
-              時間帯ルールへの区分の割り当ては次の改修で追加されます。
-            </p>
-          </section>
         </>
       )}
 
-      {/* ═══ 基本料金 ═══ */}
-      {tab === "base" && (
+      {/* ═══ 料金マスタ（T1 新設＝v3 タブ1・M1/M2/M3） ═══ */}
+      {tab === "master" && (
         <>
-          {/* 修正a: 指名料金＝ランク×hon/jonai テーブル（実体は pricing_rules の rank_id 行） */}
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
+            お客さまに「いくら請求するか」の正本です。どの時間帯・席種・区分に当たるかは「料金適用ルール」タブで決めます。
+          </p>
+
+          {/* ★M1（対応表・移設）: 指名・同伴料金＝PricingPanel の指名3値区画（stores 基本値・RPC 不変） */}
+          <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
+            <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>指名・同伴料金</h3>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
+              請求単価のみを管理します。次に開く伝票からスナップショットされます（開いている伝票には遡及しません）。
+              ここで設定するのはお客さまへの請求額です。待遇プランの「指名実績バック」とは連動しません。
+            </p>
+            <PricingPanel storeId={storeId} fields="shimei" initial={{
+              hon_fee: store.hon_fee, jonai_fee: store.jonai_fee, dohan_fee: store.dohan_fee,
+              service_rate: store.service_rate, card_tax_rate: store.card_tax_rate,
+              round_unit: store.round_unit, round_mode: store.round_mode,
+            }} />
+          </section>
+
+          {/* ★M2（対応表・移設）: 指名料金（ランク別）＝実体不変・配置替えのみ */}
           <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
             <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>指名料金（ランク別）</h3>
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
@@ -1140,21 +1178,68 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             </div>
           </section>
 
-          {/* 既存2パネルの移設＝「基本料金（ルール0件時に適用）」の位置づけを見出しで明示 */}
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", fontWeight: 700 }}>
-            基本料金（時間帯ルールが1件も当たらないときに適用されるフォールバック値）
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <PricingPanel storeId={storeId} initial={{
-              hon_fee: store.hon_fee, jonai_fee: store.jonai_fee, dohan_fee: store.dohan_fee,
-              service_rate: store.service_rate, card_tax_rate: store.card_tax_rate,
-              round_unit: store.round_unit, round_mode: store.round_mode,
-            }} />
-            <TimePricingPanel storeId={storeId} initial={{
-              set_min: store.set_min, set_fee: store.set_fee, ext_min: store.ext_min, ext_fee: store.ext_fee,
-              time_mode: store.time_mode, time_per: store.time_per,
-            }} />
-          </div>
+          {/* ★M3（対応表・新設）: 名前付き料金（表示グループ）＝rules を name で束ねた読み取り専用ビュー */}
+          <section className="nox-cardtop" style={card}>
+            <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>名前付き料金（表示グループ）</h3>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
+              料金適用ルールの行を名前でまとめた一覧表示です。編集は「料金適用ルール」タブで行います。
+            </p>
+            {(() => {
+              const named = new Map<string, PricingRule[]>();
+              for (const r of [...rules].sort(ruleOrder)) {
+                if (r.name === null || !(TIMED_KINDS as readonly string[]).includes(r.fee_kind)) continue;
+                const arr = named.get(r.name) ?? [];
+                arr.push(r);
+                named.set(r.name, arr);
+              }
+              if (named.size === 0) {
+                return (
+                  <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>
+                    名前付きの料金ルールはまだありません（帯の「表示名」を付けるとここに並びます）。
+                  </p>
+                );
+              }
+              return (
+                <div className="nox-ptwrap">
+                  <table className="nox-ptable">
+                    <thead>
+                      <tr>
+                        <th>名前（表示用）</th>
+                        <th style={{ textAlign: "right" }}>セット料金</th>
+                        <th style={{ textAlign: "right" }}>延長料金</th>
+                        <th className="col-state">状態</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...named.entries()].map(([nm, rs]) => {
+                        const rep = (fk: string) => rs.find((r) => r.fee_kind === fk);
+                        const allOn = rs.every((r) => r.is_active);
+                        return (
+                          <tr key={nm}>
+                            <td data-label="名前">
+                              <span className="nox-pt-name">{nm}</span>
+                              <small style={{ display: "block", fontSize: 10.5, color: "var(--sub)", marginTop: 2 }}>
+                                ルール{rs.length}行がこの名前を使用
+                              </small>
+                            </td>
+                            <td data-label="セット料金" style={{ textAlign: "right" }}>{cellLabel(rep("set"), true)}</td>
+                            <td data-label="延長料金" style={{ textAlign: "right" }}>{cellLabel(rep("extension"), true)}</td>
+                            <td className="col-state" data-label="状態">
+                              <span className={`nox-statebadge${allOn ? " on" : ""}`}><i />{allOn ? "有効" : "一部無効"}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+            <p style={{ fontSize: 11, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
+              この表は別のマスタではありません。同じ名前を持つ料金ルールをまとめて見せているだけです。
+              どの時間帯・席種・区分に当たるかは「料金適用ルール」タブが正本です。
+            </p>
+          </section>
         </>
       )}
 
@@ -1212,11 +1297,28 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
               </span>
             </span>
             <b>{store.time_mode === "auto" ? "自動で足す" : "手動で足す"}</b>
-            <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
+            <span style={{ fontSize: 11, color: "var(--sub)" }}>下の「基本料金」で編集</span>
           </div>
         </section>
 
-        {/* ② 税・サービス料（読み取り専用ミラー） */}
+        {/* ★M4（対応表・裁定確定＝D5）: 基本料金（フォールバック）＝TimePricingPanel を会計設定へ移設 */}
+        <section className="nox-cardtop" style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14 }}>基本料金（フォールバック）</h3>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>
+                ルールが1件も一致しないときに使われます（店単位の独立した値・席種別のフォールバックはありません）。
+              </p>
+            </div>
+            <span className="nox-stpill" style={{ marginLeft: "auto" }}>FALLBACK</span>
+          </div>
+          <TimePricingPanel storeId={storeId} initial={{
+            set_min: store.set_min, set_fee: store.set_fee, ext_min: store.ext_min, ext_fee: store.ext_fee,
+            time_mode: store.time_mode, time_per: store.time_per,
+          }} />
+        </section>
+
+        {/* ② 税・サービス料（★A2: サ料/カード手数料の編集をここへ集約＝M1 分割の受け側・税 form 不触） */}
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
@@ -1225,21 +1327,14 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             </div>
             <span className="nox-stpill" style={{ marginLeft: "auto" }}>TAX</span>
           </div>
-          <div className="nox-listrow">
-            <span style={{ flex: 1, minWidth: 0 }}>
-              サービス料
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>小計に対して加算される店舗サービス料です。</span>
-            </span>
-            <b className="num">{store.service_rate}%</b>
-            <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
-          </div>
-          <div className="nox-listrow">
-            <span style={{ flex: 1, minWidth: 0 }}>
-              カード手数料
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>カード決済の場合のみ加算されます。</span>
-            </span>
-            <b className="num">{store.card_tax_rate}%</b>
-            <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
+          {/* ★A2（対応表・移設）: read-only ミラー2行＋別タブ導線 → 編集区画へ置換（RPC set_store_pricing 不変・
+              担当外フィールドは保存直前にサーバ現在値で埋める＝PricingPanel fields 分割の仕組み） */}
+          <div style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+            <PricingPanel storeId={storeId} fields="service" initial={{
+              hon_fee: store.hon_fee, jonai_fee: store.jonai_fee, dohan_fee: store.dohan_fee,
+              service_rate: store.service_rate, card_tax_rate: store.card_tax_rate,
+              round_unit: store.round_unit, round_mode: store.round_mode,
+            }} />
           </div>
           {/* ★C4 §6-5（裁定90/91・T5）: 旧「内税/外税/適用しない」の同列3択を解体し2軸へ。
               価格表示（内税/外税）と事業者区分（課税/免税）は別概念＝免税は税計算方式ではなく店舗属性。
@@ -1341,21 +1436,13 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             </div>
             <span className="nox-stpill" style={{ marginLeft: "auto" }}>ROUNDING</span>
           </div>
-          <div className="nox-listrow">
-            <span style={{ flex: 1, minWidth: 0 }}>
-              端数処理
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>最終合計に対して端数を処理します。</span>
-            </span>
-            <b className="num">{store.round_unit}円単位</b>
-            <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
-          </div>
-          <div className="nox-listrow">
-            <span style={{ flex: 1, minWidth: 0 }}>
-              処理方法
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>指定単位未満の金額の扱いです。</span>
-            </span>
-            <b>{ROUND_MODE_LABEL[store.round_mode] ?? store.round_mode}</b>
-            <button style={btnLight} onClick={() => setTab("base")}>基本料金タブで編集</button>
+          {/* ★A4（対応表・移設）: 丸め2値の read-only ミラー → 編集区画へ置換（最終合計の丸め・税端数とは別） */}
+          <div style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+            <PricingPanel storeId={storeId} fields="round" initial={{
+              hon_fee: store.hon_fee, jonai_fee: store.jonai_fee, dohan_fee: store.dohan_fee,
+              service_rate: store.service_rate, card_tax_rate: store.card_tax_rate,
+              round_unit: store.round_unit, round_mode: store.round_mode,
+            }} />
           </div>
           <div className="nox-listrow" style={{ opacity: 0.55 }}>
             <span style={{ flex: 1, minWidth: 0 }}>
@@ -1410,9 +1497,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         </section>
 
         <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.8 }}>
-          このページの数値は<b>読み取り専用の表示</b>です（編集は「基本料金」タブ）。
-          基本料金タブで保存した直後は、この画面を開き直すと新しい値が出ます。
-          変更内容は<b>新しく開く伝票から</b>反映されます。
+          {/* ★段②b: 「基本料金」タブは廃止＝編集はこのタブ内へ集約（D5）。読み取り専用の残りは営業日切替時刻のみ */}
+          保存直後の値は、この画面を開き直すと反映されます。変更内容は<b>新しく開く伝票から</b>反映されます。
         </p>
         </>
       )}
@@ -1464,6 +1550,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             <span className="hint">
               {bizCutoffHm} より前は「翌日」の時刻として扱います。終了時刻の1分前までが適用範囲です。
               営業日区切りを跨ぐ帯は保存できません（2行に分けてください）。
+              {/* ★R10（§4-a 確定）: 時間だけのルール禁止の hint */}
+              時間帯だけを先に作ることはできません（料金とセットで保存します）。
             </span>
             {cutoffWholeDay && (
               <span className="hint" style={{ color: "var(--gold2)" }}>
