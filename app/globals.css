@@ -67,16 +67,37 @@ body {
                              値のみ同値化（印刷側 @media print の --champ:#000 上書きも従来どおり有効） */
   --ink: #f3f0e8;     /* ← モック --text（★同数 6:6 → register-pos tiebreaker） */
   --sub: #99978f;     /* ← モック --muted（多数決 6/13） */
-  --ok: #77ba83;      /* ← モック --green（多数決 6/13） */
-  --bad: #d86c64;     /* ← モック --red（多数決 6/13） */
+  /* ★夜間レーン（2026-09-03・青系正本＝mock/pages-2026-09/nox-admin-blue-accent-v2-white-cta.html）:
+     状態色の値をモックへ更新（旧値: --ok #77ba83・--bad #d86c64・--orange #df9956・--blue #74a6d8）。
+     --bad 派生3種（--bad-bg/--bad-bd/--bad-ink）は暗面トーン＝据え置き。 */
+  --ok: #52b788;      /* ← 青系モック --success */
+  --bad: #df6d69;     /* ← 青系モック --danger */
 
   /* 不足追加（モック正本にあり・アプリに無かった）。★現時点の参照は 0＝E2/E3 で参照予定。
      「宣言したが誰も使っていない」を隠さないため、ガイド §1-2 に参照状況を明記してある。 */
   --goldbg: rgba(216,173,85,.1);          /* ← モック --goldbg（多数決 9/13・モック内 70参照） */
   --shadow: 0 18px 55px rgba(0,0,0,.35);  /* ← モック --shadow（多数決 8/13・モック内 26参照） */
-  --blue: #74a6d8;                        /* ← モック --blue（多数決 4/11）＝状態色。採否は E3 */
-  --orange: #df9956;                      /* ← モック --orange（多数決 2/3）＝状態色。採否は E3 */
+  --blue: #4f9fe8;                        /* ★夜間レーン: --primary と同値へ一本化（旧 #74a6d8） */
+  --orange: #d6a84b;                      /* ★夜間レーン: --warning と同値へ一本化（旧 #df9956） */
   --linegreen: #06c755;                   /* ← モック --linegreen（単一定義・LINE ブランド色）＝LINE レーン用 */
+
+  /* ★夜間レーン（2026-09-03）: 青系デザイン正本のトークン導入
+     （正本＝mock/pages-2026-09/nox-admin-blue-accent-v2-white-cta.html :root・
+      指示の列挙＝primary 系・状態色+soft 変種・brand 系のみ。surface/bg/line 系は列挙外＝不触）。
+     青はアクション/選択の色＝状態には使わない。金（--gold 系）はブランド専用で不触。 */
+  --primary: #4f9fe8;
+  --primary-hover: #68b2f0;
+  --primary-soft: rgba(79,159,232,.12);
+  --brand: #d8ad55;                     /* ＝--gold 同値（モック名の別名） */
+  --brand-soft: rgba(216,173,85,.12);
+  --success: #52b788;                   /* ＝--ok 同値（モック名） */
+  --success-soft: rgba(82,183,136,.12);
+  --warning: #d6a84b;
+  --warning-soft: rgba(214,168,75,.12);
+  --danger: #df6d69;                    /* ＝--bad 同値（モック名） */
+  --danger-soft: rgba(223,109,105,.12);
+  --surplus: #53b8ad;
+  --surplus-soft: rgba(83,184,173,.12);
 
   /* ★E4-0（2026-08-17）: 金地の上に載る値をトークン化（E3 の指摘の履行）。
      E3 ではモック .btn.primary の値をリテラルのまま置いていたが、金ボタン・ロールピル・

@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX | 管理画面 + Blue Accent</title>
+<style>
+:root{
+  --bg:#08090b;
+  --surface:#101216;
+  --surface-2:#15181d;
+  --surface-3:#1a1e24;
+  --line:#292d34;
+  --line-strong:#373d46;
+  --text:#f3f5f7;
+  --sub:#939aa5;
+  --brand:#d8ad55;
+  --brand-soft:rgba(216,173,85,.12);
+  --primary:#4f9fe8;
+  --primary-hover:#68b2f0;
+  --primary-soft:rgba(79,159,232,.12);
+  --success:#52b788;
+  --success-soft:rgba(82,183,136,.12);
+  --warning:#d6a84b;
+  --warning-soft:rgba(214,168,75,.12);
+  --danger:#df6d69;
+  --danger-soft:rgba(223,109,105,.12);
+  --surplus:#53b8ad;
+  --surplus-soft:rgba(83,184,173,.12);
+}
+*{box-sizing:border-box}
+html{background:var(--bg);color-scheme:dark}
+body{
+  margin:0;background:
+  radial-gradient(circle at 72% -12%,rgba(79,159,232,.09),transparent 30%),
+  radial-gradient(circle at 20% 0,rgba(216,173,85,.045),transparent 24%),
+  var(--bg);
+  color:var(--text);font-family:Inter,"Noto Sans JP","Yu Gothic UI",sans-serif;font-size:13px
+}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.app{min-height:100vh;display:grid;grid-template-columns:210px 1fr}
+.sidebar{
+  position:sticky;top:0;height:100vh;background:#0c0e11;border-right:1px solid var(--line);
+  padding:18px 12px;display:flex;flex-direction:column
+}
+.brand{display:flex;gap:10px;align-items:center;padding:0 8px 22px}
+.logo{width:34px;height:34px;border-radius:9px;border:1px solid rgba(216,173,85,.7);display:grid;place-items:center;color:#f0cf82;font:700 16px Georgia,serif;background:rgba(216,173,85,.04)}
+.brand b{font-size:17px}.brand small{display:block;color:#777d86;font-size:8px;letter-spacing:.12em}
+.navlabel{padding:10px 10px 4px;color:#5f6670;font-size:9px}
+.nav{display:flex;gap:9px;align-items:center;width:100%;border:0;background:none;color:#9aa1aa;padding:10px;border-radius:8px;text-align:left;margin:2px 0}
+.nav:hover{background:#13161a;color:#d7dce1}
+.nav.active{background:var(--primary-soft);color:#dcecff;box-shadow:inset 2px 0 var(--primary)}
+.nav.active .ico{color:var(--primary-hover)}
+.ico{width:18px;text-align:center;color:#69717b}
+.sidefoot{margin-top:auto;border-top:1px solid var(--line);padding:14px 9px 4px;color:#747b84;font-size:9px}
+.sidefoot .dot{display:inline-block;width:7px;height:7px;background:var(--success);border-radius:50%;margin-right:6px}
+
+main{min-width:0}
+.topbar{height:58px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;padding:0 24px;background:rgba(10,11,14,.74);backdrop-filter:blur(12px)}
+.crumb{font-size:10px;color:var(--sub)}
+.admin{display:flex;gap:8px;align-items:center}.avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#20242b;color:#bbc1c9;font-size:10px}.admin b{font-size:10px}.admin small{display:block;color:var(--sub);font-size:8px;margin-top:2px}
+.content{max-width:1420px;margin:auto;padding:22px 24px 60px}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:15px}
+.eyebrow{font-size:9px;letter-spacing:.18em;color:var(--brand)}
+h1{font-size:25px;margin:4px 0 4px}.pagehead p{margin:0;color:var(--sub);font-size:10px}
+.actions{display:flex;gap:8px}
+.btn{height:36px;border:1px solid var(--line-strong);background:#171a1f;border-radius:7px;padding:0 12px;font-weight:700}
+.btn:hover{background:#1c2026}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#06121d}
+.btn.primary:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
+.btn.cta-white{background:transparent;border-color:#f4f6f8;color:#f7f7f5;box-shadow:0 0 0 1px rgba(255,255,255,.08) inset}
+.btn.cta-white:hover{background:rgba(255,255,255,.08);border-color:#fff;color:#fff}
+.btn.brand{border-color:rgba(216,173,85,.42);background:var(--brand-soft);color:#efd18e}
+.btn.square{width:36px;padding:0}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.card{border:1px solid var(--line);background:linear-gradient(145deg,rgba(21,24,29,.98),rgba(14,16,19,.98));border-radius:10px}
+.kpi{padding:14px;position:relative;overflow:hidden}
+.kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:#3a414a}
+.kpi.primary:before{background:var(--primary)}
+.kpi.success:before{background:var(--success)}
+.kpi.warning:before{background:var(--warning)}
+.kpi.brand:before{background:var(--brand)}
+.kpi label{display:block;color:var(--sub);font-size:9px;margin-bottom:8px}.kpi strong{font-size:21px;letter-spacing:-.02em}.kpi small{display:block;color:#6f7680;font-size:8px;margin-top:5px}.trend{float:right;font-size:8px;border-radius:999px;padding:3px 6px;color:#98d1b1;background:var(--success-soft)}
+
+.grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(300px,.75fr);gap:12px}
+.stack{display:grid;gap:12px}
+.cardhead{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-bottom:1px solid var(--line)}
+.cardhead h2{font-size:14px;margin:0}.cardhead p{margin:3px 0 0;color:var(--sub);font-size:8px}
+.cardbody{padding:14px}
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.tabs button{height:30px;border:0;border-right:1px solid var(--line);background:#111418;color:#858d97;padding:0 10px;font-size:9px}
+.tabs button.active{background:var(--primary-soft);color:#bfddf8}
+.row{display:grid;grid-template-columns:1.2fr .8fr .8fr .7fr 76px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}.th{color:#747c87;font-size:8px;padding-bottom:6px}.name b{font-size:11px}.name small{display:block;color:var(--sub);font-size:8px;margin-top:3px}
+.badge{display:inline-block;border-radius:999px;padding:4px 7px;font-size:8px;border:1px solid var(--line-strong);color:#979fa9}
+.badge.blue{background:var(--primary-soft);border-color:rgba(79,159,232,.28);color:#bcdcf8}
+.badge.green{background:var(--success-soft);border-color:rgba(82,183,136,.28);color:#a9d8bd}
+.badge.yellow{background:var(--warning-soft);border-color:rgba(214,168,75,.28);color:#e1c584}
+.badge.red{background:var(--danger-soft);border-color:rgba(223,109,105,.28);color:#e7aaa7}
+
+.todo{display:grid;gap:8px}.todoitem{border:1px solid var(--line);background:#111419;border-radius:8px;padding:10px;display:grid;grid-template-columns:28px 1fr auto;gap:9px;align-items:center}
+.todoico{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;background:var(--primary-soft);color:#9bcbf4}
+.todoitem b{font-size:10px}.todoitem small{display:block;color:var(--sub);font-size:8px;margin-top:3px}
+.mini{height:28px;border:1px solid rgba(79,159,232,.3);background:var(--primary-soft);color:#abd4f8;border-radius:6px;padding:0 8px;font-size:8px}
+.notice{border:1px solid rgba(214,168,75,.25);background:var(--warning-soft);border-radius:8px;padding:10px;font-size:9px;color:#d7c18f;line-height:1.55}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;color:#808892;font-size:8px}.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+.palette{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-top:8px}.swatch{border:1px solid var(--line);border-radius:7px;overflow:hidden}.swatch div{height:24px}.swatch span{display:block;padding:6px;font-size:7px;color:var(--sub)}
+@media(max-width:1000px){.app{grid-template-columns:1fr}.sidebar{display:none}.grid{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.content{padding:14px}.kpis{grid-template-columns:1fr}.pagehead{align-items:flex-start;flex-direction:column}.row{grid-template-columns:1fr 1fr}.row .hide-sm{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="brand"><div class="logo">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div>
+  <div class="navlabel">営業</div>
+  <button class="nav active"><span class="ico">⌂</span>ホーム</button>
+  <button class="nav"><span class="ico">▣</span>レジ</button>
+  <button class="nav"><span class="ico">▤</span>日報</button>
+  <div class="navlabel">スタッフ</div>
+  <button class="nav"><span class="ico">▧</span>シフト</button>
+  <button class="nav"><span class="ico">♙</span>キャスト</button>
+  <button class="nav"><span class="ico">♧</span>スタッフ</button>
+  <button class="nav"><span class="ico">◎</span>給与</button>
+  <div class="navlabel">顧客</div>
+  <button class="nav"><span class="ico">▥</span>顧客管理</button>
+  <button class="nav"><span class="ico">⌁</span>分析</button>
+  <div class="navlabel">店舗</div>
+  <button class="nav"><span class="ico">⚙</span>マスタ</button>
+  <div class="sidefoot"><span class="dot"></span>売上データ 同期済み</div>
+</aside>
+
+<main>
+<header class="topbar">
+  <div class="crumb">営業 / <b style="color:#c7ccd2">ホーム</b></div>
+  <div class="admin"><div class="avatar">A</div><div><b>管理者</b><small>銀座本店</small></div></div>
+</header>
+
+<div class="content">
+  <div class="pagehead">
+    <div><div class="eyebrow">TODAY'S OPERATION</div><h1>ホーム</h1><p>今日の営業状況と、対応が必要な項目をまとめて確認します。</p></div>
+    <div class="actions"><button class="btn brand">営業設定</button><button class="btn cta-white">＋ 新規伝票</button></div>
+  </div>
+
+  <section class="kpis">
+    <div class="card kpi primary"><span class="trend">+8.4%</span><label>本日の売上</label><strong>¥842,600</strong><small>昨日 ¥777,300</small></div>
+    <div class="card kpi success"><label>会計済み</label><strong>18卓</strong><small>営業中 6卓</small></div>
+    <div class="card kpi warning"><label>売掛・未回収</label><strong>¥86,000</strong><small>3件を確認</small></div>
+    <div class="card kpi brand"><label>出勤キャスト</label><strong>12名</strong><small>遅刻 1名 / 退勤 3名</small></div>
+  </section>
+
+  <div class="grid">
+    <div class="stack">
+      <section class="card">
+        <div class="cardhead">
+          <div><h2>現在の卓</h2><p>営業中の伝票と会計状況</p></div>
+          <div class="tabs"><button class="active">営業中</button><button>会計待ち</button><button>完了</button></div>
+        </div>
+        <div class="cardbody">
+          <div class="row th"><div>卓 / お客様</div><div>開始</div><div>セット</div><div>現在金額</div><div></div></div>
+          <div class="row"><div class="name"><b>A-01 / 佐藤様</b><small>本指名：えま</small></div><div>21:12</div><div><span class="badge blue">延長中</span></div><div><b>¥46,200</b></div><div><button class="mini">開く</button></div></div>
+          <div class="row"><div class="name"><b>VIP-02 / 田中様</b><small>同伴：さくら</small></div><div>21:35</div><div><span class="badge green">セット中</span></div><div><b>¥92,400</b></div><div><button class="mini">開く</button></div></div>
+          <div class="row"><div class="name"><b>B-03 / 山本様</b><small>フリー / 2名</small></div><div>22:04</div><div><span class="badge yellow">残り8分</span></div><div><b>¥24,200</b></div><div><button class="mini">開く</button></div></div>
+          <div class="row"><div class="name"><b>C-01 / 鈴木様</b><small>場内：ひなの</small></div><div>22:11</div><div><span class="badge red">会計待ち</span></div><div><b>¥67,100</b></div><div><button class="mini">開く</button></div></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardhead"><div><h2>最近の売上</h2><p>7日間の営業実績</p></div><button class="btn">分析を見る</button></div>
+        <div class="cardbody">
+          <svg viewBox="0 0 760 180" width="100%" height="180" role="img" aria-label="売上推移">
+            <line x1="30" y1="145" x2="735" y2="145" stroke="#292d34"/>
+            <line x1="30" y1="100" x2="735" y2="100" stroke="#20242a"/>
+            <line x1="30" y1="55" x2="735" y2="55" stroke="#20242a"/>
+            <polyline points="45,125 150,94 255,110 360,72 465,83 570,48 700,64" fill="none" stroke="#4f9fe8" stroke-width="3"/>
+            <polyline points="45,135 150,120 255,127 360,102 465,109 570,85 700,94" fill="none" stroke="#d8ad55" stroke-width="2" opacity=".75"/>
+            <g fill="#4f9fe8"><circle cx="45" cy="125" r="4"/><circle cx="150" cy="94" r="4"/><circle cx="255" cy="110" r="4"/><circle cx="360" cy="72" r="4"/><circle cx="465" cy="83" r="4"/><circle cx="570" cy="48" r="4"/><circle cx="700" cy="64" r="4"/></g>
+          </svg>
+          <div class="legend"><span><i style="background:var(--primary)"></i>売上</span><span><i style="background:var(--brand)"></i>粗利</span></div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="stack">
+      <section class="card">
+        <div class="cardhead"><div><h2>今日やること</h2><p>対応が必要な項目</p></div><span class="badge blue">4件</span></div>
+        <div class="cardbody todo">
+          <div class="todoitem"><div class="todoico">✓</div><div><b>シフト希望を承認</b><small>4件の申請があります</small></div><button class="mini">確認</button></div>
+          <div class="todoitem"><div class="todoico">¥</div><div><b>売掛を確認</b><small>期限超過 1件</small></div><button class="mini">確認</button></div>
+          <div class="todoitem"><div class="todoico">⌁</div><div><b>日報を締める</b><small>前営業日が未締めです</small></div><button class="mini">開く</button></div>
+          <div class="todoitem"><div class="todoico">♙</div><div><b>キャスト待遇を更新</b><small>10/1適用予定 2名</small></div><button class="mini">確認</button></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardhead"><div><h2>色の役割</h2><p>黒金を残しつつ意味を分離</p></div></div>
+        <div class="cardbody">
+          <div class="notice">金はNOXらしさ・ブランド。青は「押せる・選んでいる・操作対象」を示します。状態色には使いません。</div>
+          <div class="palette">
+            <div class="swatch"><div style="background:var(--brand)"></div><span>Brand<br>#D8AD55</span></div>
+            <div class="swatch"><div style="background:var(--primary)"></div><span>Primary<br>#4F9FE8</span></div>
+            <div class="swatch"><div style="background:var(--success)"></div><span>Success</span></div>
+            <div class="swatch"><div style="background:var(--warning)"></div><span>Warning</span></div>
+            <div class="swatch"><div style="background:var(--danger)"></div><span>Danger</span></div>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+</main>
+</div>
+
+<script>
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{
+  b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+}));
+</script>
+</body></html>
