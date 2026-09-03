@@ -2633,6 +2633,13 @@ pricing_resolve_core の where 変更は check_open 内 ext_menu_snap 列挙の�
 TRUNCATE/REFERENCES/TRIGGER を残置する**。TRUNCATE は RLS 非適用につき実害。
 G1（grants スイートのスキーマ全体ガード）が検知線（0127→0127b で実証・関門作動1例目）。
 
+### 教訓54：fee_kind 追加の同時改修点は reorder/delete 系 RPC の whitelist を含む
+
+fee_kind 追加の同時改修点は教訓51 の3点＋set_pricing_rule に加え、
+**reorder/delete 系 RPC の whitelist を含む**（0130 で pricing_rule_reorder の漏れを検知＝1例目・
+UI は priority 再送で回避中＝起票#55）。fee_kind 追加時は **'fee_kind' を含む全 RPC の prosrc 走査**を
+起草前チェックに（教訓48 の fee_kind 版）。
+
 ---
 
 ## 裁定117（2026-09-02・v3 モック）料金・会計画面の3責務分割＝UI は分ける・DB は分けない
@@ -2656,7 +2663,7 @@ G1（grants スイートのスキーマ全体ガード）が検知線（0127→0
 
 ---
 
-## 裁定118（2026-09-03・mig0130）VIP 方式B＋課金単位 — 118-1 実装済・118-UI 未着手
+## 裁定118（2026-09-03・mig0130）VIP 方式B＋課金単位 — 118-1/118-UI 実装済・完
 
 正本＝`docs/NOX裁定118設計書_v1.md`（v1.1 追記込み）・要件正本＝`docs/NOX_料金設定改修指示_2026-09-03.md`
 §5/§6・D調査＝`docs/dp/118_D調査.md`・起草前提実測＝`docs/tmp/118prep_live.sql`。
@@ -2673,6 +2680,13 @@ whitelist 同期）・vip_charge は区分可/duration 不可/rank 不可・cate
 ext-menu/pricing-apply は値チェック型＝追随不要を実走確認。categoryOf('charge',
 'vip_charge')='other' の現状を h2 で記録 pin＝118-UI で time 系へ張り替え（裁定118-6）。
 #52 は本 mig で消化済（ラッパ 6引数化＋whitelist 7種同期）＝起票クローズ。
+
+**118-UI 実装追認（2026-09-03）**: 帯モーダルへ VIPチャージ4枠目（額のみ・区分可）＋課金単位セレクタ
+3値（set/extension/vip_charge のみ・「店の設定に従う」=null 既定・同伴/shimei 非表示）・一覧/M3 へ
+VIPチャージ列＋単位表示・方式AB併記説明・category-map=vip_charge→**time 系張り替え**（裁定118-6・
+スイート 67→83 assert・vu(h2) を time 期待へ更新）。★pricing_rule_reorder の vip_charge 非対応
+（0130 漏れ）は UI 側の priority 再送で回避中＝起票#55。
+**台帳メモ**: categoryOf の消費者は analytics 1面が実勢（report 側未使用・118-UI 実測）。
 
 ---
 
@@ -2953,7 +2967,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 51 | **シフトモーダル CastPicker の写真アバター** | **実装済（2026-09-02・`7c39673`）＝追認起票**。シフトモーダルの CastPicker へ写真アバター（photoUrls）を伝搬＝唯一の欠落だった（部品と CastAvatar は写真と onError フォールバック対応済み・他4箇所は伝搬済み・kiosk は署名経路なしの仕様） |
 | 52 | **pricing_resolve 公開ラッパの区分対応（6引数化・小 mig）** | **クローズ（2026-09-03・mig0130 で消化）**＝裁定118-3 の #52 吸収でラッパ 6引数化＋whitelist 7種同期（ext_shimei/vip_charge 含む）。プレビューの区分入力 UI は 118-UI／プレビュー拡張レーンで別途 |
 | 53 | **VIP 方式B＋課金単位（ルール単位）** | VIP 方式B（**加算チャージ＝新 fee_kind 級**・教訓51 の3点セット〔CHECK 2箇所＋pricing_resolve_core 白名単〕＋set_pricing_rule whitelist）＋課金単位（**ルール単位 1名/1卓**・check_open units 計算改修）。要件正本＝`NOX_料金設定改修指示_2026-09-03.md` §5/§6。**読み取り調査（Opus）→設計書（相談役）→裁定→mig（Fable）の D調査型**。§4 プレビュー拡張は #52＋本件消化後 |
-| 54 | **区分一覧の SECURITY DEFINER RPC（staff/cast/kiosk の開栓時区分選択対応）** | 現状 RLS（owner/manager）により staff/cast は区分なし開栓＝セレクタ非表示（116-UI 段②a の既知制約・mig0127 の policy は manage 系のみ）。**launch 前に要否裁定** |
+| 54 | **区分一覧の SECURITY DEFINER RPC（staff/cast/kiosk の開栓時区分選択対応）** | 現状 RLS（owner/manager）により staff/cast は区分なし開栓＝セレクタ非表示（116-UI 段②a の既知制約・mig0127 の policy は manage 系のみ）。**→ 裁定済（採用）・実装＝#55 束ね**（2026-09-03） |
+| 55 | **mig0131: reorder whitelist＋区分一覧 RPC（#54 実装）** | (1) pricing_rule_reorder の whitelist へ vip_charge 追加（**0130 改修漏れ＝教訓54 の1例目**・UI は priority 再送で回避中＝解消後に戻す） (2) pricing_rule_delete 系の whitelist 同時確認 (3) **#54 の pricing_categories_for_register RPC 新設**（SECURITY DEFINER・id/name/sort のみ・check_open 同腕・標準型③・**A6 名簿先回り収載対象**） |
 
 ### 未裁定・消し込み待ち
 
