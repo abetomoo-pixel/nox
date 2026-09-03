@@ -1206,7 +1206,8 @@ async function main() {
       ["pricing_resolve", "(uuid,timestamp with time zone,text,text,uuid)", true, "s"],
       // ★mig0107（P-1）: 末尾に p_name text DEFAULT NULL を足して 12→13 引数（旧12引数は drop 済）
       // ★mig0112（C3）: 末尾に p_tax_category text DEFAULT 'taxable_10' を足して 13→14 引数（旧13引数は drop 済）
-      ["set_pricing_rule", "(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean,text,text)", true, "v"],
+      // ★mig0128（裁定116-2）: 末尾に p_category_id uuid DEFAULT NULL を足して 14→15 引数（旧14引数は drop 済）
+      ["set_pricing_rule", "(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean,text,text,uuid)", true, "v"],
       ["delete_pricing_rule", "(uuid)", true, "v"],
       ["pricing_rule_reorder", "(uuid,text,uuid[])", true, "v"],
       ["set_cast_rank", "(uuid,uuid,text,boolean)", true, "v"],
@@ -1243,9 +1244,9 @@ async function main() {
         where p.pronamespace = 'public'::regnamespace and p.proname = 'set_pricing_rule'
         order by 1`,
     );
-    check("G37b set_pricing_rule はオーバーロードなし＝14引数1本のみ（旧13引数 drop 済＝mig0112）",
+    check("G37b set_pricing_rule はオーバーロードなし＝15引数1本のみ（旧14引数 drop 済＝mig0128）",
       ov.rowCount === 1
-      && String(ov.rows[0].sig) === "set_pricing_rule(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean,text,text)",
+      && String(ov.rows[0].sig) === "set_pricing_rule(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean,text,text,uuid)",
       JSON.stringify(ov.rows.map((r) => r.sig)));
   }
 
@@ -1356,8 +1357,8 @@ async function main() {
     );
     const spr = r.rows.filter((x) => x.proname === "set_pricing_rule");
     const stc = r.rows.filter((x) => x.proname === "set_store_tax_config");
-    check("G42 set_pricing_rule が1本のみ＝14引数（旧13引数署名の残骸なし・overload 罠封じ）",
-      spr.length === 1 && Number(spr[0].pronargs) === 14 && spr[0].prosecdef === true
+    check("G42 set_pricing_rule が1本のみ＝15引数（旧14引数署名の残骸なし・overload 罠封じ＝mig0128）",
+      spr.length === 1 && Number(spr[0].pronargs) === 15 && spr[0].prosecdef === true
       && Array.isArray(spr[0].proconfig) && (spr[0].proconfig as string[]).includes("search_path=public"),
       JSON.stringify(spr.map((x) => ({ sig: x.sig, n: x.pronargs }))));
     check("G42 set_store_tax_config が1本のみ＝7引数・secdef＋search_path 固定",
