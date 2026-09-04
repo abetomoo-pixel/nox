@@ -2718,6 +2718,35 @@ golden 6値不変。
 
 ---
 
+## 裁定120（2026-09-04・UI のみ・mig なし）アラート・通知系は semantic 状態色のみ — 実装済
+
+アラート・通知系は **semantic 状態色のみ**（金・青不使用）。
+**Danger**＝不足・異常・基準割れ・エラー・対応必要／**Warning**＝現時点で異常ではないが
+注意・確認・将来対応／**Success**＝完了・正常。判定は**「基準を割っているか・すでに異常か」で
+機械的に**。在庫対応表: 割れ=Danger／切れ=Danger強／接近=Warning／発注予定=Warning／
+正常=Success or Neutral。
+
+- **danger 3層＋bd/ink の正本値**: `--danger #df6d69`／`--danger-soft rgba(223,109,105,.12)`（既存）に
+  `--danger-bd rgba(223,109,105,.28)`／`--danger-ink #e7aaa7` を**正本モック .badge.red の実測値から採録**
+  （夜間レーンの「指示列挙外トークン不触」は本裁定で1点解除）。
+- **シフト充足 -1 は「接近」扱い＝Warning**（-2 以上=Danger である限り2段階表現は裁定120 と整合）。
+
+実装（2026-09-04）: マスタの在庫発注基準割れ帯＝`.nox-alert.danger` 修飾方式（薄赤 soft 地＋赤枠＋
+赤アイコン ⚠＋赤文字・ベタ塗り禁止。共有クラス `.nox-alert` は billing/audit/notices/shift の
+注意・案内4面が使用中＝無修飾は Warning 相当の金系で据え置き）・サマリー「要補充の商品」と
+機能カード status「N件 要補充」は既存 `ng` クラスへ切替（`--bad`＝`--danger` 同値）・
+`.nox-stockbar.low` を danger 化（stkbadge.low/tile-low の赤と統一＝バーだけ金の不整合を解消）・
+pricing-board の未定義トークン `var(--warn, #b45309)` → `var(--warning)` 張り替え。
+機密注記（閲覧ログあり）・汎用 warn 系（badge/dot/caldst/stpill/cald）＝Warning 適合で据え置き。
+
+### 教訓55：priority は fee_kind 系列内でのみ意味を持つ
+
+priority は **fee_kind 系列内でのみ意味を持つ**（reorder の 1..N 正規化は kind 内）。
+表示順・比較ロジックを**跨系列 min(priority) で書かない**。初出＝0131 レーンの帯表示順欠陥
+（唯一の vip 帯が自系列 priority=1 で最上位張り付き・#55 クローズ経緯参照）。
+
+---
+
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
 
 | 裁定 | 内容 |
