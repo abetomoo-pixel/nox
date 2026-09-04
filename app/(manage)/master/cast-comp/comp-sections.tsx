@@ -202,23 +202,46 @@ export function useCompData(storeId: string) {
 }
 
 // ── プラン（owner のみ編集・D3a）──
-export function SlideInput({ label, slide, setSlide }: { label: string; slide: Slide[]; setSlide: (s: Slide[]) => void }) {
+// ★N2（報酬プラン v3.1・規約 §6）: 段は固定列の表（段／判定基準／時給）・単位常時表示（basis=yen: `¥ … 以上`／pt: `… pt以上`・時給 `¥ … 円`）。
+//   値・保存形（at/wage の3段・at=0 除外は送信時）は不変＝表示だけ。basis 省略時は従来呼び出し（PlanTab）と互換。
+export function SlideInput({ label, slide, setSlide, basis = "yen", desc }: {
+  label: string; slide: Slide[]; setSlide: (s: Slide[]) => void; basis?: "yen" | "pt"; desc?: string;
+}) {
   // 3段固定入力（at 昇順 strict は RPC が検証・空段は送信時に除外）
   const rows: Slide[] = [0, 1, 2].map((i) => slide[i] ?? { at: 0, wage: 0 });
   const set = (i: number, key: "at" | "wage", v: number) => {
     const next = rows.map((r, j) => (j === i ? { ...r, [key]: v } : r));
     setSlide(next);
   };
+  const unit: React.CSSProperties = { fontSize: 12, color: "var(--sub)" };
   return (
     <div style={{ marginTop: 6 }}>
-      <div style={note}>{label}（3段・at 昇順・at=0 の段は無効として除外）</div>
-      {rows.map((r, i) => (
-        <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}>
-          <span style={{ fontSize: 12 }}>{i + 1}段</span>
-          <label style={{ fontSize: 12 }}>at <input type="number" min={0} value={r.at} onChange={(e) => set(i, "at", Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
-          <label style={{ fontSize: 12 }}>時給 <input type="number" min={0} value={r.wage} onChange={(e) => set(i, "wage", Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
-        </div>
-      ))}
+      <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
+      <div style={{ ...note, margin: "2px 0 6px" }}>{desc ?? "3段・昇順・0 の段は無効として除外"}</div>
+      <table className="nox-table" style={{ width: "auto" }}>
+        <thead><tr><th style={{ width: 48 }}>段</th><th>判定基準</th><th>時給</th></tr></thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>{i + 1}段</td>
+              <td>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  {basis === "yen" && <span style={unit}>¥</span>}
+                  <input type="number" min={0} value={r.at} onChange={(e) => set(i, "at", Number(e.target.value))} style={{ ...input, width: 110 }} />
+                  <span style={unit}>{basis === "yen" ? "以上" : "pt以上"}</span>
+                </span>
+              </td>
+              <td>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <span style={unit}>¥</span>
+                  <input type="number" min={0} value={r.wage} onChange={(e) => set(i, "wage", Number(e.target.value))} style={{ ...input, width: 90 }} />
+                  <span style={unit}>円</span>
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

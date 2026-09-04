@@ -131,7 +131,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
             )}
             {isOwner && (
               <span style={{ display: "inline-flex", gap: 8, marginLeft: "auto" }}>
-                <button type="button" onClick={() => { setSelId(null); setTab("base"); }} style={{ ...t.btnGhost, ...t.btnSm }}>新規</button>
+                <button type="button" onClick={() => { setSelId(null); setTab("base"); }} style={{ ...t.btnGhost, ...t.btnSm }}>＋ 報酬プランを追加</button>
                 <button type="button" onClick={() => void duplicate()} disabled={!sel} style={{ ...t.btnGhost, ...t.btnSm, opacity: sel ? 1 : 0.5 }}>複製</button>
                 <button type="button" onClick={() => void toggleActive()} disabled={!sel} style={{ ...t.btnGhost, ...t.btnSm, opacity: sel ? 1 : 0.5 }}>
                   {sel?.is_active === false ? "有効化" : "無効化"}
@@ -140,10 +140,13 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
             )}
           </div>
         </section>
-        {/* 6タブ */}
-        <div className="nox-seg" style={{ display: "flex", width: "100%" }}>
+        {/* 6タブ ★N2（規約 §8）: 折返し可＋上下の行の間に罫線（各ボタンの上罫線を -1px で重ね、1行目は容器の overflow で隠れる）
+            ・選択中は青地（.on＝primary-soft）＋青の下線（inset shadow）。 */}
+        <div className="nox-seg" style={{ display: "flex", flexWrap: "wrap", width: "100%" }}>
           {TABS.map(([k, label]) => (
-            <button key={k} className={tab === k ? "on" : ""} style={{ flex: 1, fontWeight: 800, fontSize: 12.5, padding: "8px 6px" }}
+            <button key={k} className={tab === k ? "on" : ""}
+              style={{ flex: "1 1 120px", fontWeight: 800, fontSize: 12.5, padding: "8px 6px", borderTop: "1px solid var(--line)", marginTop: -1,
+                boxShadow: tab === k ? "inset 0 -2px 0 var(--primary)" : undefined }}
               onClick={() => setTab(k)}>{label}</button>
           ))}
         </div>
@@ -217,14 +220,22 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
         </section>
         <section className="nox-cardtop" style={{ ...card, marginBottom: 0 }}>
           <h2 style={{ ...secTitle, margin: "0 0 6px" }}>保存状態</h2>
+          {/* ★N2（規約 §11・v3.1 逐語＝6タブ分）: 保存済み=Green／未保存=Red／保存対象外=Neutral。
+              ノルマ・ボーナス／キャスト割当は行単位で即保存＝未保存は発生しない（保存済み扱い）。 */}
           {([["基本・保証", dirtyCounts.base], ["歩合・バック", dirtyCounts.backs], ["スライド・ポイント", dirtyCounts.slides]] as const).map(([label, n]) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0" }}>
               <span style={{ color: "var(--sub)" }}>{label}</span>
-              <span style={{ fontWeight: 800, color: n > 0 ? "var(--gold2)" : "var(--ok)" }}>{n > 0 ? `未保存 ${n}件` : "保存済み"}</span>
+              <span style={{ fontWeight: 800, color: n > 0 ? "var(--danger-ink)" : "var(--ok)" }}>{n > 0 ? `未保存 ${n}件` : "保存済み"}</span>
+            </div>
+          ))}
+          {([["ノルマ・ボーナス", "保存済み", "var(--ok)"], ["シミュレーション", "保存対象外", "var(--sub)"], ["キャスト割当", "保存済み", "var(--ok)"]] as const).map(([label, v, c]) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0" }}>
+              <span style={{ color: "var(--sub)" }}>{label}</span>
+              <span style={{ fontWeight: 800, color: c }}>{v}</span>
             </div>
           ))}
           <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "6px 0 0" }}>
-            ※達成ボーナス・自由バック・割当は行単位で即保存（未保存は発生しません）。
+            ※ノルマ・ボーナス・自由バック・割当は行単位で即保存（未保存は発生しません）。
           </p>
         </section>
       </aside>

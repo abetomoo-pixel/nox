@@ -212,31 +212,46 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   //   保存は「基本給・保証」節のみ活性＝ここでプランが作成される（他節はプラン作成後に活性）。
   // ★裁定104 補正: 節見出し・保存ボタンに編集中プラン名を明示（どのプランを編集しているかの迷子防止）
   const pname = draft.name.trim() || "新規プラン";
-  const SecHead = ({ title, keys, section }: { title: string; keys: (keyof Draft)[]; section: string }) => {
+  // ★N2（報酬プラン v3.1・A層＝既存行のみ）: 節ヘッダ＝見出し（大セクション 16px＝規約 §9）＋説明1行＋保存ボタン右寄せ
+  //   ＋保存状態ピル（保存済み=Green／未保存=Red＝規約 §11）。保存経路（set_comp_plan 節保存）は不変。
+  const SecHead = ({ title, keys, section, desc }: { title: string; keys: (keyof Draft)[]; section: string; desc?: string }) => {
     const isDirty = dirty(keys);
     const creatable = section === "基本給・保証";
     const disabled = !draft.name.trim() || (draft.id === null && !creatable);
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-        <h2 style={{ ...secTitle, margin: 0 }}>
-          {title}<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>
-        </h2>
-        {draft.id !== null && (
-          <span className="nox-stpill" style={{ borderColor: isDirty ? "var(--gold)" : "var(--line2)", color: isDirty ? "var(--champ)" : "var(--sub)" }}>
-            {isDirty ? "未保存" : "保存済み"}
-          </span>
-        )}
-        {isOwner && (
-          <button type="button" style={{ ...t.btnGold, ...t.btnSm, opacity: disabled ? 0.5 : 1 }} onClick={() => void savePlan(section)}
-            disabled={disabled}
-            title={draft.id === null && !creatable ? "先に「基本給・保証を保存」でプランを作成してください" : ""}>
-            {pname}の{section}を保存
-          </button>
-        )}
-        {secErr[section] && <span style={{ fontSize: 12, color: "var(--bad)" }}>{secErr[section]}</span>}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h2 style={{ ...secTitle, margin: 0, fontSize: 16 }}>
+            {title}<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>
+          </h2>
+          {draft.id !== null && (
+            <span className="nox-stpill" style={{ borderColor: isDirty ? "var(--danger-bd)" : "rgba(119, 186, 131, .45)", color: isDirty ? "var(--danger-ink)" : "var(--ok)" }}>
+              {isDirty ? "未保存" : "保存済み"}
+            </span>
+          )}
+          {isOwner && (
+            <button type="button" style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto", opacity: disabled ? 0.5 : 1 }} onClick={() => void savePlan(section)}
+              disabled={disabled}
+              title={draft.id === null && !creatable ? "先に「基本給・保証を保存」でプランを作成してください" : ""}>
+              {section}を保存
+            </button>
+          )}
+        </div>
+        {desc && <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>{desc}</p>}
+        {secErr[section] && <p style={{ fontSize: 12, color: "var(--bad)", margin: "4px 0 0" }}>{secErr[section]}</p>}
       </div>
     );
   };
+  // ★N2: 入力欄の単位を常時表示（規約 §3＝prefix/suffix・`¥ 5,000 円`／`20 %`／`¥ 4,000 円/本`）。値・onChange は不変＝表示だけ。
+  const Unit = ({ pre, post, children }: { pre?: string; post?: string; children: React.ReactNode }) => (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      {pre && <span style={{ fontSize: 12, color: "var(--sub)" }}>{pre}</span>}
+      {children}
+      {post && <span style={{ fontSize: 12, color: "var(--sub)" }}>{post}</span>}
+    </span>
+  );
+  const lbl: React.CSSProperties = { fontSize: 12, display: "inline-flex", flexDirection: "column", gap: 6 };
+  const secCard: React.CSSProperties = { ...t.card, padding: 18, marginBottom: 20 };
 
   const PRESETS = ["ドリンクバック", "シャンパンバック", "ボトルバック"] as const;
 
@@ -252,12 +267,15 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         </div>
       )}
       {/* ── ② 基本・保証（★裁定106: 保証時給が主・最低月額保証は「使う」で開く） ── */}
-      <section id="base" className="nox-cardtop" style={{ ...t.card, marginBottom: 14, display: vis.base ? undefined : "none" }}>
-        <SecHead title="基本・保証" keys={["name", "base", "active"]} section="基本給・保証" />
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-          <input placeholder="プラン名" value={draft.name} onChange={(e) => d({ name: e.target.value })} style={{ ...t.input, width: 170 }} disabled={!isOwner} />
-          <label style={{ fontSize: 12 }}>保証時給(円) <input type="number" min={0} value={draft.base} onChange={(e) => d({ base: Number(e.target.value) })} style={{ ...t.input, width: 90 }} disabled={!isOwner} /></label>
-          <label style={{ fontSize: 12 }}><input type="checkbox" checked={draft.active} onChange={(e) => d({ active: e.target.checked })} disabled={!isOwner} /> 有効</label>
+      <section id="base" className="nox-cardtop" style={{ ...secCard, display: vis.base ? undefined : "none" }}>
+        <SecHead title="基本・保証" keys={["name", "base", "active"]} section="基本給・保証" desc="時給と保証条件を設定します。" />
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 10 }}>
+          <label style={lbl}>プラン名
+            <input placeholder="プラン名" value={draft.name} onChange={(e) => d({ name: e.target.value })} style={{ ...t.input, width: 170 }} disabled={!isOwner} /></label>
+          <label style={lbl}>保証時給
+            <Unit pre="¥" post="円"><input type="number" min={0} value={draft.base} onChange={(e) => d({ base: Number(e.target.value) })} style={{ ...t.input, width: 90 }} disabled={!isOwner} /></Unit></label>
+          <label style={{ ...lbl, flexDirection: "row", alignItems: "center", paddingBottom: 9 }}>
+            <input type="checkbox" checked={draft.active} onChange={(e) => d({ active: e.target.checked })} disabled={!isOwner} /> 有効</label>
         </div>
         <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
           <input type="checkbox" checked={useGuarantee} onChange={(e) => setUseGuarantee(e.target.checked)} disabled={!isOwner} />
@@ -272,28 +290,49 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       </section>
 
       {/* ── ③ 歩合・バック ── */}
-      <section id="backs" className="nox-cardtop" style={{ ...t.card, marginBottom: 14, display: vis.backs ? undefined : "none" }}>
-        <SecHead title="歩合・バック" keys={["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate", ...PB_KEYS]} section="各種バック" />
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-          <label style={{ fontSize: 12 }}>本指名方式 <SegSelect value={draft.honMode} onChange={(v) => d({ honMode: v as BackModeRow })}
-            options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
-          {draft.honMode === "rate"
-            ? <label style={{ fontSize: 12 }}>本 率(%) <input type="number" min={0} max={100} value={draft.honRate} onChange={(e) => d({ honRate: Number(e.target.value) })} style={{ ...t.input, width: 70 }} /></label>
-            : <label style={{ fontSize: 12 }}>本(円/本) <input type="number" min={0} value={draft.honBack} onChange={(e) => d({ honBack: Number(e.target.value) })} style={{ ...t.input, width: 80 }} /></label>}
-          <label style={{ fontSize: 12 }}>場内方式 <SegSelect value={draft.jonaiMode} onChange={(v) => d({ jonaiMode: v as BackModeRow })}
-            options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
-          {draft.jonaiMode === "rate"
-            ? <label style={{ fontSize: 12 }}>場内 率(%) <input type="number" min={0} max={100} value={draft.jonaiRate} onChange={(e) => d({ jonaiRate: Number(e.target.value) })} style={{ ...t.input, width: 70 }} /></label>
-            : <label style={{ fontSize: 12 }}>場内(円/本) <input type="number" min={0} value={draft.jonaiBack} onChange={(e) => d({ jonaiBack: Number(e.target.value) })} style={{ ...t.input, width: 80 }} /></label>}
-          <label style={{ fontSize: 12 }}>同伴(円/本) <input type="number" min={0} value={draft.dohanBack} onChange={(e) => d({ dohanBack: Number(e.target.value) })} style={{ ...t.input, width: 80 }} /></label>
+      <section id="backs" className="nox-cardtop" style={{ ...secCard, display: vis.backs ? undefined : "none" }}>
+        <SecHead title="歩合・バック" keys={["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate", ...PB_KEYS]} section="各種バック"
+          desc="指名実績バックと商品販売バックを設定します。" />
+        {/* ★N2: 指名実績バック＝3ブロック（本指名／場内指名／同伴）。方式トグルは「固定額 円/本｜割合 %」（v3.1 逐語）・
+            方式切替で単位 UI も同時に切替（規約 §4）。値の保持・送信形（rate は mode='rate' のときだけ）は不変。 */}
+        <b style={{ fontSize: 14, display: "block", marginBottom: 6 }}>指名実績バック</b>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 10 }}>
+          {([
+            ["本指名バック", draft.honMode, (v: BackModeRow) => d({ honMode: v }), draft.honRate, (v: number) => d({ honRate: v }), draft.honBack, (v: number) => d({ honBack: v })],
+            ["場内指名バック", draft.jonaiMode, (v: BackModeRow) => d({ jonaiMode: v }), draft.jonaiRate, (v: number) => d({ jonaiRate: v }), draft.jonaiBack, (v: number) => d({ jonaiBack: v })],
+          ] as const).map(([title, mode, setMode, rate, setRate, amt, setAmt]) => (
+            <div key={title} className="nox-inset" style={{ padding: "10px 12px" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{title}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <SegSelect value={mode} onChange={(v) => setMode(v as BackModeRow)} disabled={!isOwner}
+                  options={[["per_count", "固定額 円/本"], ["rate", "割合 %"]] as const} />
+                <label style={lbl}>{mode === "rate" ? "バック率" : "バック額"}
+                  {mode === "rate"
+                    ? <Unit post="%"><input type="number" min={0} max={100} value={rate} onChange={(e) => setRate(Number(e.target.value))} style={{ ...t.input, width: 80 }} disabled={!isOwner} /></Unit>
+                    : <Unit pre="¥" post="円/本"><input type="number" min={0} value={amt} onChange={(e) => setAmt(Number(e.target.value))} style={{ ...t.input, width: 100 }} disabled={!isOwner} /></Unit>}
+                </label>
+              </div>
+            </div>
+          ))}
+          <div className="nox-inset" style={{ padding: "10px 12px" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>同伴バック</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* 同伴の割合方式は R-2b まで封印（裁定86-②・対応表 C18＝準備中）＝トグルは出さず固定額のみ */}
+              <span style={{ fontSize: 11, color: "var(--sub)" }}>固定額 円/本（割合方式は準備中）</span>
+              <label style={lbl}>バック額
+                <Unit pre="¥" post="円/本"><input type="number" min={0} value={draft.dohanBack} onChange={(e) => d({ dohanBack: Number(e.target.value) })} style={{ ...t.input, width: 100 }} disabled={!isOwner} /></Unit>
+              </label>
+            </div>
+          </div>
         </div>
-        <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
-          ※率方式は、レジで「指名料を追加」した伝票の指名料額が対象です（裁定vi・本数カウントとは別系統）。
+        <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>
+          ※割合方式は、レジで「指名料を追加」した伝票の指名料額が対象です（裁定vi・本数カウントとは別系統）。
         </p>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
           <Prep k="rounding_axes" /><Prep k="rate_back" /><Prep k="ext_promote_back" />
         </div>
         {/* 固定名プリセット＋自由バック（裁定101 補正3・器＝custom_back_defs・set_custom_back_def 7引数） */}
+        <b style={{ fontSize: 14, display: "block", margin: "12px 0 6px" }}>商品販売バック</b>
         <div className="nox-inset" style={{ padding: "10px 14px" }}>
           <b style={{ fontSize: 13 }}>ドリンク・ボトル・シャンパン（固定名プリセット）／自由バック</b>
           {/* ★裁定113/123（mig0132〜0134・起票#42 の「商品売上×率」を消化）: 商品販売バックの方式3択。
@@ -307,17 +346,14 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
             </label>
             {draft.productBackMode === "plan_rate" && (
               <label style={{ fontSize: 12 }} data-testid="pb-rate">売上の割合{" "}
-                <input type="number" min={0} max={100} step={1} value={draft.productBackRate}
-                  onChange={(e) => d({ productBackRate: Number(e.target.value) })} style={{ ...t.input, width: 70 }} disabled={!isOwner} />
-                <span style={{ marginLeft: 4, color: "var(--sub)" }}>%</span>
+                <Unit post="%"><input type="number" min={0} max={100} step={1} value={draft.productBackRate}
+                  onChange={(e) => d({ productBackRate: Number(e.target.value) })} style={{ ...t.input, width: 70 }} disabled={!isOwner} /></Unit>
               </label>
             )}
             {draft.productBackMode === "plan_fixed" && (
               <label style={{ fontSize: 12 }} data-testid="pb-fixed">固定額{" "}
-                <span style={{ marginRight: 4, color: "var(--sub)" }}>¥</span>
-                <input type="number" min={0} step={1} value={draft.productBackFixed}
-                  onChange={(e) => d({ productBackFixed: Number(e.target.value) })} style={{ ...t.input, width: 90 }} disabled={!isOwner} />
-                <span style={{ marginLeft: 4, color: "var(--sub)" }}>円/点</span>
+                <Unit pre="¥" post="円/点"><input type="number" min={0} step={1} value={draft.productBackFixed}
+                  onChange={(e) => d({ productBackFixed: Number(e.target.value) })} style={{ ...t.input, width: 90 }} disabled={!isOwner} /></Unit>
               </label>
             )}
           </div>
@@ -350,16 +386,17 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       </section>
 
       {/* ── ④ スライド・ポイント ── */}
-      <section id="slides" className="nox-cardtop" style={{ ...t.card, marginBottom: 14, display: vis.slides ? undefined : "none" }}>
-        <SecHead title="スライド・ポイント" keys={["salesSlide", "pointSlide"]} section="スライド" />
+      <section id="slides" className="nox-cardtop" style={{ ...secCard, display: vis.slides ? undefined : "none" }}>
+        <SecHead title="スライド・ポイント" keys={["salesSlide", "pointSlide"]} section="スライド" desc="売上・ポイント実績に応じた時給スライドを設定します。" />
         {/* ★裁定106 B2: 判定基準・対象は固定表示（選択は器なし＝準備中）。3段固定＝行は常に3本（4段目の器なし）。 */}
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
           判定基準: <b style={{ color: "var(--v2-text)" }}>日次売上（按分後）／日次pt</b>・対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）
-          <span className="nox-stpill" style={{ marginLeft: 8, opacity: 0.8 }}>判定基準・対象の選択: 準備中（起票#42）</span>
+          <span className="nox-stpill" style={{ marginLeft: 8, opacity: 0.8 }}>判定基準・対象の選択: 準備中（C5）</span>
         </p>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <SlideInput label="売上スライド" slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
-          <SlideInput label="ポイントスライド" slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
+        {/* ★N2: 段は固定列の表（規約 §6）・単位常時表示（¥ … 以上／… pt以上／¥ … 円）＝SlideInput の basis で切替 */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+          <SlideInput label="売上スライド（3段）" desc="日次売上（按分後）を基準に翌日以降の時給へ反映。" basis="yen" slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
+          <SlideInput label="ポイントスライド（3段）" desc="獲得ポイントを基準に翌日以降の時給へ反映。" basis="pt" slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <Prep k="point_rules" /><Prep k="gross_profit_slide" /><Prep k="slide_ratio_col" />
@@ -367,13 +404,13 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       </section>
 
       {/* ── ⑤ 達成ボーナス ── */}
-      <section id="achieve" className="nox-cardtop" style={{ ...t.card, marginBottom: 14, display: vis.achieve ? undefined : "none" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-          <h2 style={{ ...secTitle, margin: 0 }}>
+      <section id="achieve" className="nox-cardtop" style={{ ...secCard, display: vis.achieve ? undefined : "none" }}>
+        <div style={{ marginBottom: 12 }}>
+          <h2 style={{ ...secTitle, margin: 0, fontSize: 16 }}>
             達成ボーナス<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>
           </h2>
-          <span style={{ fontSize: 12, color: "var(--sub)" }}>目標＝cast_norms.sales_target（0/未設定は不適用・裁定96-②）。保存は行単位。</span>
-          {secErr["達成ボーナス"] && <span style={{ fontSize: 12, color: "var(--bad)" }}>{secErr["達成ボーナス"]}</span>}
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>目標＝キャスト別ノルマの売上目標（0／未設定は不適用・裁定96-②）。保存は行単位。</p>
+          {secErr["達成ボーナス"] && <p style={{ fontSize: 12, color: "var(--bad)", margin: "4px 0 0" }}>{secErr["達成ボーナス"]}</p>}
         </div>
         <CompRows kind="achievement_bonus" section="達成ボーナス" comps={comps} isOwner={isOwner} onSave={saveComp} />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
