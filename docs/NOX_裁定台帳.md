@@ -2599,6 +2599,12 @@ source_mode 記録 (b) plan_rate 3列 0・同腕 base（多 cast weight 2:1 で 
   product_rule／未指定は 0＝従来 gross と1バイト同値（golden 不変で証明）。payroll f0 追補＝113 節 12 assert（collect 5／
   payOf 6／blocker 1・plan_fixed は凍結Σ 60000 が乗り期間加算なしを係留）＋PR_INVERT／PR_BREAK。sim は UI レーンで
   SimInput 拡張と同時（本段は calculatedBack 0 固定＝現行 sim 同値）。
+- **mig0134（書き手 19引数化・2026-09-04）**: `set_comp_plan` に `p_product_back_mode`（default 'product_rule'）／`p_product_back_rate`／
+  `p_product_back_fixed`（default null）を末尾追加＝旧16引数版は DROP・名前指定呼び出し＋末尾 default で UI 呼び出し元3箇所は無改修で通る
+  （後方互換）。検証＝mode 3値 whitelist＋rate pair（plan_rate ⟺ not null・0..100）＋fixed pair（plan_fixed ⟺ not null・>=0）＝列 CHECK（0132）と
+  二段（mig0086 の hon/jonai と同型）。ACL 現状同値・A6 名簿＝A7 12本の1本で名前不変＝本数不動（billing 単独 53 緑）。f0 追補＝rls スイート
+  F2a★0134 13 assert（成功2経路＋列反映2・拒否5種＋列不動・16引数相当の後方互換＋既定 product_rule/null/null・audit +3）＋RLS_INVERT_0134／
+  RLS_BREAK_0134 の局所逆試験。これで⑫（113 UI）段0 の停止条件は解消。
 - **get_cast_ranking 注記**: 順位の最終タイブレーク＝`Σ(drink_back+champ_back+bottle_back)` のため、plan_rate／plan_fixed
   cast は商品3列 0 で**タイブレーク寄与が変わる**（calculated_back_amount／期間固定額は不参照）＝UI／collect レーンの検討点。
 
