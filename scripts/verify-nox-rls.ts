@@ -2092,6 +2092,64 @@ async function main() {
     check("F2a★0104(f) 自身の更新は自分の名前のまま通る（c.id is distinct from p_id）",
       !eSelf && pidSelf === planAId, eSelf?.message);
 
+    // ★mig0134（裁定113/123）: set_comp_plan 19引数化＝product_back_mode/rate/fixed の書き手。
+    //   成功2経路（plan_rate 作成・plan_fixed 更新・列反映）＋拒否5種＋列不動＋16引数相当の後方互換（末尾3省略→product_rule/null/null）＋audit +3＝13 assert。
+    //   逆張り: RLS_INVERT_0134=1 で13本全反転／RLS_BREAK_0134=1 で列反映1点のみ赤（r2b INVERT/BREAK の局所版）。
+    //   fixture は NOX-VERIFY-プラン0134（inactive・再実行冪等・最終状態は product_rule＝後方互換試験の結果そのもの）。
+    {
+      const INV0134 = process.env.RLS_INVERT_0134 === "1";
+      const BRK0134 = process.env.RLS_BREAK_0134 === "1";
+      const chk = (label: string, ok: boolean, detail?: string) => check(label, INV0134 ? !ok : ok, detail);
+      const has = (e: { message: string } | null, tok: string) => !!e && e.message.includes(tok);
+      const full19 = {
+        ...planArgs, p_name: "NOX-VERIFY-プラン0134", p_base: 4000, p_is_active: false,
+        p_hon_back_mode: "per_count", p_hon_back_rate: null, p_jonai_back_mode: "per_count", p_jonai_back_rate: null,
+        p_dohan_back_mode: "per_count", p_dohan_back_rate: null,
+      };
+      const readPb = async (id: string) =>
+        (await o.from("comp_plans").select("product_back_mode, product_back_rate, product_back_fixed").eq("id", id).single()).data;
+      const { data: ex34 } = await o.from("comp_plans").select("id").eq("store_id", storeA1Id).eq("name", "NOX-VERIFY-プラン0134");
+      const a0 = await auditCount("set_comp_plan");
+      const { data: pidR, error: eR } = await o.rpc("set_comp_plan", {
+        ...full19, p_id: ex34?.[0]?.id ?? null, p_product_back_mode: "plan_rate", p_product_back_rate: 20, p_product_back_fixed: null,
+      });
+      chk("F2a★0134 plan_rate 作成（19引数全明示・rate=20）", !eR && typeof pidR === "string", eR?.message);
+      const plan34 = pidR as string;
+      const r1 = await readPb(plan34);
+      chk("F2a★0134 列反映（plan_rate/20/null）",
+        r1?.product_back_mode === "plan_rate" && r1?.product_back_rate === (BRK0134 ? 21 : 20) && r1?.product_back_fixed === null, JSON.stringify(r1));
+      const { data: pidF, error: eF } = await o.rpc("set_comp_plan", {
+        ...full19, p_id: plan34, p_product_back_mode: "plan_fixed", p_product_back_rate: null, p_product_back_fixed: 500,
+      });
+      chk("F2a★0134 plan_fixed 更新（fixed=500）", !eF && pidF === plan34, eF?.message);
+      const r2 = await readPb(plan34);
+      chk("F2a★0134 列反映（plan_fixed/null/500）",
+        r2?.product_back_mode === "plan_fixed" && r2?.product_back_rate === null && r2?.product_back_fixed === 500, JSON.stringify(r2));
+      // 拒否5種（RPC 権威＝列 CHECK と二段・raise は audit 前）
+      const rej = async (over: Record<string, unknown>) =>
+        (await o.rpc("set_comp_plan", { ...full19, p_id: plan34, p_product_back_rate: null, p_product_back_fixed: null, ...over })).error;
+      chk("F2a★0134 拒否: mode 不正＝'bad product_back_mode'",
+        has(await rej({ p_product_back_mode: "per_count" }), "bad product_back_mode"));
+      chk("F2a★0134 拒否: plan_rate で rate null＝'bad product_back_rate'",
+        has(await rej({ p_product_back_mode: "plan_rate" }), "bad product_back_rate"));
+      chk("F2a★0134 拒否: product_rule で rate 非null＝'bad product_back_rate'",
+        has(await rej({ p_product_back_mode: "product_rule", p_product_back_rate: 10 }), "bad product_back_rate"));
+      chk("F2a★0134 拒否: plan_fixed で fixed 負＝'bad product_back_fixed'",
+        has(await rej({ p_product_back_mode: "plan_fixed", p_product_back_fixed: -1 }), "bad product_back_fixed"));
+      chk("F2a★0134 拒否: plan_fixed で fixed null＝'bad product_back_fixed'",
+        has(await rej({ p_product_back_mode: "plan_fixed" }), "bad product_back_fixed"));
+      const r3 = await readPb(plan34);
+      chk("F2a★0134 拒否5種は列を動かさない（plan_fixed/null/500 のまま）",
+        r3?.product_back_mode === "plan_fixed" && r3?.product_back_rate === null && r3?.product_back_fixed === 500, JSON.stringify(r3));
+      // 16引数相当（末尾3省略）＝既定 product_rule/null/null で通る＝後方互換（旧 UI 呼び出し元3箇所の経路）
+      const { data: pid16, error: e16 } = await o.rpc("set_comp_plan", { ...full19, p_id: plan34 });
+      chk("F2a★0134 16引数相当（末尾3省略）が通る＝後方互換", !e16 && pid16 === plan34, e16?.message);
+      const r4 = await readPb(plan34);
+      chk("F2a★0134 省略時の既定＝product_rule/null/null",
+        r4?.product_back_mode === "product_rule" && r4?.product_back_rate === null && r4?.product_back_fixed === null, JSON.stringify(r4));
+      chk("F2a★0134 audit +3（成功3・拒否5は audit 前 raise）", (await auditCount("set_comp_plan")) === a0 + 3);
+    }
+
     // ② set_penalty_config 成功経路（owner・全引数明示・grace 3列反映・audit +1）
     const pc0 = await auditCount("set_penalty_config");
     const { error: ePc } = await o.rpc("set_penalty_config", {
