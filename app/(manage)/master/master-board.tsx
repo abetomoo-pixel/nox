@@ -67,7 +67,7 @@ export default function MasterBoard() {
       cards: [
         { href: "/master/products", id: "m-prod", icon: "◇", count: `${products.length}件`, title: "商品マスター",
           desc: "ドリンク、シャンパン、ボトル、フード、在庫数、発注基準を管理。",
-          status: lowStock > 0 ? `● ${lowStock}件 要補充` : "● 在庫は基準内", tone: lowStock > 0 ? "warn" : "" },
+          status: lowStock > 0 ? `● ${lowStock}件 要補充` : "● 在庫は基準内", tone: lowStock > 0 ? "ng" : "" },
         { href: "/master/categories", id: "m-cat", icon: "▤", count: `${categories.length}件`, title: "商品カテゴリ",
           desc: "レジのタイル見出しになる分類。並び順と有効/無効を管理。",
           status: categories.length > 0 ? "● 全件有効" : "● 未登録", tone: categories.length > 0 ? "" : "mute" },
@@ -127,7 +127,7 @@ export default function MasterBoard() {
 
       {/* aaa .alert＝低在庫の警告バナー（実在する reorder_point 判定・0件なら出さない） */}
       {lowStock > 0 && (
-        <div className="nox-alert">
+        <div className="nox-alert danger">
           在庫が発注基準を下回っている商品が {lowStock} 件あります。商品マスターから補充基準を確認してください。
         </div>
       )}
@@ -139,7 +139,7 @@ export default function MasterBoard() {
         <div className="nox-stat2"><small>卓・席</small><strong>{seats.length}</strong><em>稼働可能 {activeSeats}卓</em></div>
         <div className="nox-stat2">
           <small>要補充の商品</small><strong>{lowStock}</strong>
-          <em className={lowStock > 0 ? "warn" : ""}>{lowStock > 0 ? "発注基準以下" : "基準内"}</em>
+          <em className={lowStock > 0 ? "ng" : ""}>{lowStock > 0 ? "発注基準以下" : "基準内"}</em>
         </div>
       </section>
 

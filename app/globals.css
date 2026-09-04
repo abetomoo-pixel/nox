@@ -96,6 +96,10 @@ body {
   --warning-soft: rgba(214,168,75,.12);
   --danger: #df6d69;                    /* ＝--bad 同値（モック名） */
   --danger-soft: rgba(223,109,105,.12);
+  /* ★裁定120（2026-09-04）: danger の枠・文字2値を正本モック .badge.red の実測値から採録
+     （border/text 層の不足を解消＝「指示列挙外トークン不触」は本裁定で1点解除）。 */
+  --danger-bd: rgba(223,109,105,.28);
+  --danger-ink: #e7aaa7;
   --surplus: #53b8ad;
   --surplus-soft: rgba(83,184,173,.12);
 
@@ -1425,11 +1429,19 @@ body {
 .nox-fcard .link { color: var(--gold2); font-size: 13px; font-weight: 700; white-space: nowrap; }
 @media (max-width: 641px) { .nox-fcard { min-height: 154px; } }
 
-/* ── 警告バナー（aaa .alert）＝gold 系1色のみ（新色を作らない）───────── */
+/* ── 警告バナー（aaa .alert）＝gold 系＝注意・案内の既定 ───────────────
+   ★裁定120（2026-09-04）: アラート・通知系は semantic 状態色のみ（金・青不使用）。
+   基準割れ・不足・異常・エラー・対応必要＝.danger 修飾（薄赤 soft 地＋赤枠＋赤アイコン＋赤文字・
+   ベタ塗り禁止）。既定（無修飾）＝Warning 相当の現行金系＝据え置き（billing/audit/notices/shift の
+   注意・案内4面が使用中）。 */
 .nox-alert {
   border: 1px solid #5B4927; background: #211B10; border-radius: 12px;
   padding: 12px 14px; color: #EAD28E; font-size: 13px; margin-bottom: 16px; line-height: 1.7;
 }
+.nox-alert.danger {
+  border-color: var(--danger-bd); background: var(--danger-soft); color: var(--danger-ink);
+}
+.nox-alert.danger::before { content: "⚠ "; color: var(--danger); font-weight: 700; }
 
 /* ── UI刷新v2R 段0R その3（残差分の完成）── presentation-only 2026-07-28 ── */
 /* サブナビの件数バッジ（モック .subnav .cnt）＝金の3役③ */
@@ -1622,8 +1634,10 @@ body {
   height: 100%;
   background: linear-gradient(90deg, var(--gold3), var(--champ));   /* ★E4-0: 金グラデをトークンへ */
 }
-/* 低在庫（残量 ≤ 発注点）＝バーも数値も警告色。負在庫は赤（許容設計＝在庫は Σdelta で負になり得る） */
-.nox-stockbar.low i { background: linear-gradient(90deg, #8A5A2B, var(--gold2)); }
+/* 低在庫（残量 ≤ 発注点）＝danger 系（★裁定120: 基準割れ=Danger。stkbadge.low/tile-low の赤と
+   統一＝バーだけ金の不整合を解消。グラデ2値は既存トークンのみ）。負在庫はベタ赤（許容設計＝
+   在庫は Σdelta で負になり得る） */
+.nox-stockbar.low i { background: linear-gradient(90deg, var(--bad-bd), var(--danger)); }
 .nox-stockbar.neg i { background: var(--bad); }
 
 /* ── マスタ刷新（/master の情報設計）── presentation-only 2026-07-27 ──

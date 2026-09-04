@@ -1470,7 +1470,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             )}
           </div>
           {tSurOn && (
-            <div style={{ fontSize: 11.5, color: "var(--warn, #b45309)", margin: "6px 0 2px" }}>
+            <div style={{ fontSize: 11.5, color: "var(--warning)", margin: "6px 0 2px" }}>
               加盟店契約でカード手数料の転嫁が禁止・制限されている場合があります。契約上の可否を確認してください
               {taxSavedSur === null && (
                 <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, color: "var(--fg)" }}>
