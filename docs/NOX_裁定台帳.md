@@ -2739,7 +2739,8 @@ VIPチャージ列＋単位表示・方式AB併記説明・category-map=vip_char
 ## デザイン: 青系アクセント正本化（2026-09-03・実装済・実機: 済）
 
 青系アクセント正本化（2026-09-03）: `mock/pages-2026-09/nox-admin-blue-accent-v2-white-cta.html`
-（sha `859f1501…ef81`）＝**色・操作系の正本**。v3 モックは構造正本のまま（役割分担・本体が正の原則不変）。
+（sha `859f1501…ef81`）＝色・操作系の正本（**→2026-09-04 裁定124 でデザインパック v1.0 へ譲り、参照用として残置**）。
+v3 モックは構造正本のまま（役割分担・本体が正の原則不変）。
 **3分離**＝ブランド金／操作文脈青（タブ選択・リンク・選択状態・補助ボタン）／主 CTA 白抜き
 （hover=うっすら白・白地黒文字は不採用）。状態色はモック値へ更新（旧値: --ok #77ba83／
 --bad #d86c64／--orange #df9956／--blue #74a6d8）。surface/bg/line 系地色は不触（列挙外・変更は別裁定）。
@@ -2830,6 +2831,65 @@ dev への mig 手貼りは **f0 完了後**に行い、f0 実行中に手貼り
 run1 緑→run2 赤の「差分がコードに無い赤」が出て原因特定に往復が要る（0131＝for_register 検知／0132＝biz_date_of 検知／
 0133＝plan_fixed 凍結形の検知で**3例目**）。逆に言えば f0 は live 変更の検知線として働いている＝止まったら「コードの
 バグ」より先に「live が動いたか」を疑う（prosrc と収蔵 mig の本文照合＝113prep の drift 確認型）。
+
+---
+
+## 裁定122（2026-09-04）管理画面 共通UIルール v1＝全画面適用・原本が正
+
+正本＝`mock/pages-2026-09/NOX_UI_COMMON_RULES_v1.md`（sha256 `285b6eb5…afe2c`・4,668 bytes・デザインパック v1.0 同梱）。
+報酬プラン管理で確定したルールを全管理画面へ横展開する共通基準＝13節（①色の意味固定＝Gold/Brand・Blue/Primary・
+Green/Success・Yellow/Warning・Red/Danger・Gray/Neutral＋アラート判定例〔変更前=Warning・未保存=Danger・「見える設定が
+現行計算に反映されない」=Danger〕 ②ボタン同一コンポーネント化〔Primary 青／Secondary 中立／Danger 赤〕 ③入力欄の単位常時
+表示（prefix/suffix） ④方式切替時は単位 UI も同時切替 ⑤一覧は自然言語・入力は記号表記 ⑥段階設定は固定列 ⑦罫線
+⑧タブ（選択＝青 soft＋下線・折返し境界に罫線） ⑨文字サイズ（page 24–28／section 16–18／sub 14／body 13–15／label 12／
+help 10–11・10px 未満原則不使用） ⑩余白 ⑪保存状態（済=Green／未保存=Red／対象外=Neutral） ⑫レスポンシブ ⑬基本原則＝
+色・文字・余白・罫線・ボタンはページごとに再設計しない）。**数値は MD 原本が正**（台帳は要約・差異があれば原本優先）。
+裁定120（アラート＝semantic 状態色のみ）と整合（①③④⑪が同趣旨の一般化）。
+
+---
+
+## 裁定124（2026-09-04）デザインパック v1.0 正本化＝色・文字・余白・操作系の正本 — トークン値更新 実装済
+
+正本＝`docs/NOX_デザインパックv1_0_正本化台帳.md`（sha256 `b912d7c2…3560`）。出所＝Agoora v1.zip（sha `faf3cfb3…6f07`）を
+相談役が正規化（料金 v8→v8.1＝色名→意味名 41箇所・中立色統一／報酬 v3→v3.1＝第3タブ文言「販売数 × 固定額」＝裁定123）。
+収蔵＝`mock/pages-2026-09/` へ `nox-compensation-plan-unified-v3_1.html`（`72555ac8…08e1`・報酬プラン＝113 UI の構造・文言正本）／
+`nox-master-store-settings-v3.html`（`5e4c593c…c918`・マスタ一覧＋店舗設定）／`nox-pricing-settings-unified-v8_1.html`
+（`2815b0d1…9c12`・料金設定13セクション）／`NOX_UI_COMMON_RULES_v1.md`（裁定122）。★zip 内の台帳 md ファイル名は cp932 化け＝
+正名 `NOX_デザインパックv1_0_正本化台帳.md` で docs/ へ収蔵（内容 sha は一致）。
+
+裁定124（6項）: 1) 命名＝意味名が正・色名トークンは今後作らない 2) 値＝本パックの :root が正＝globals.css の該当トークンを
+本値へ更新（旧値＝blue-accent v2 は下表へ退避） 3) 裁定120 の派生2本＝`--danger-bd` は新 danger から再導出
+rgba(226,103,98,.28)・`--danger-ink` #e7aaa7 は据え置き 4) MD v1 は全画面適用（裁定122）・数値は MD 原本が正
+5) 適用順＝113 UI（報酬 v3.1）→ 店舗設定 v3・料金 v8.1 は写像 D調査（既存機能との対応表）→ 裁定 → UI レーン
+6) blue-accent v2（859f1501…）は色・操作系正本を本パックへ譲り参照用として残置（削除しない）。
+
+**トークン値更新（2026-09-04・名前の追加削除なし・21 本）＝blue-accent v2 旧値の退避表**:
+
+| トークン（app） | パック名 | 新値 | 旧値（blue-accent v2 期） |
+|---|---|---|---|
+| `--bg` | bg | #070707 | #080808 |
+| `--bg2` | panel2 | #151512 | #181815 |
+| `--line` | line | #302e28 | #2d2c27 |
+| `--line2` | line-strong | #484339 | #3b3931 |
+| `--ink` | text | #f4f1e9 | #f3f0e8 |
+| `--sub` | sub（★名前一致で採用・旧はモック muted 由来） | #b8b2a8 | #99978f |
+| `--brand-soft` | brand-soft | rgba(216,173,85,.10) | rgba(216,173,85,.12) |
+| `--primary`／`--blue`（同値別名） | primary | #2f7fe7 | #4f9fe8 |
+| `--primary-hover` | primary2（明端＝hover 相当） | #61a7ff | #68b2f0 |
+| `--primary-soft` | primary-soft | rgba(47,127,231,.15) | rgba(79,159,232,.12) |
+| `--success`／`--ok`（同値別名） | success | #4dc37d | #52b788 |
+| `--success-soft` | success-soft | rgba(77,195,125,.11) | rgba(82,183,136,.12) |
+| `--warning`／`--orange`（同値別名） | warning | #d9a43a | #d6a84b |
+| `--warning-soft` | warning-soft | rgba(217,164,58,.10) | rgba(214,168,75,.12) |
+| `--danger`／`--bad`（同値別名） | danger | #e26762 | #df6d69 |
+| `--danger-soft` | danger-soft | rgba(226,103,98,.11) | rgba(223,109,105,.12) |
+| `--danger-bd` | （裁定124-3 再導出） | rgba(226,103,98,.28) | rgba(223,109,105,.28) |
+
+一致（更新なし）: `--card`＝panel #11110f／`--brand`,`--gold`＝brand #d8ad55／`--gold2`,`--champ`＝brand2 #f0cf82／
+`--goldbg`＝brand-soft rgba(216,173,85,.1)／`--danger-ink` #e7aaa7（据え置き）。
+対応トークン無し＝追加せず据え置き: field #090909・muted #7f7a71・文字6段（page 26／section 17／subsection 14／body 13／
+label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝旧モック panel3 も不触）。
+実装追認: CC 実走（マスタ／料金設定／シフト＝console 増分ゼロ・裁定120 の在庫アラート帯が新 danger 値で表示）・f0 2連緑。
 
 ---
 
