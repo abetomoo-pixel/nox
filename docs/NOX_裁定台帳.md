@@ -2548,7 +2548,7 @@ bulk_daily/2段保存・skipped トースト）＋build 縮退＋必要人数移
 
 ---
 
-## 裁定113（2026-09-02・骨子先行）指名実績バックと商品販売バックの分離 — 本文＝設計書（D調査後）
+## 裁定113（2026-09-02・骨子先行）指名実績バックと商品販売バックの分離 — 設計書 v1 確定（2026-09-04）・実装＝Fable 待ち
 
 ① 指名実績バックと商品販売バックは**併存・加算・完全別系統** ② 商品販売バックの計算方式は
 plan の**3択排他**（product_rule／plan_rate／plan_fixed） ③ **排他の執行点は check_close**
@@ -2557,6 +2557,22 @@ source_mode／根拠値／calculated_back_amount を記録 ⑤ 時間軸は**伝
 （実現機構＝凍結 or 時点解決は設計書で） ⑥ 既存 plan の既定＝**product_rule（golden 不変）**。
 UI 名称＝**指名実績バック／商品販売バック**。構造正本＝`mock/pages-2026-09/nox-comp-back-ruling113-v2.html`
 （sha256 `56f8804b…46c855`）・来歴＝`nox-comp-back-simple-v1.html`（裁定113 前の叩き台）。本文＝設計書（D調査後）。
+
+**設計書 v1 確定（2026-09-04・正本＝`docs/NOX裁定113設計書_v1.md`・sha256 `c91120cd…6fae6`・6,893 bytes・
+基礎資料＝D調査 draft＋実測①③）**: ④の記録先＝**check_cast_backs 側へ列追加**（source_mode／product_sales_base／
+calculated_back_amount・nullable＋読み手フォールバック＝null は product_rule 扱い・行 back_snapshot は無改修）／
+**plan_rate の母数＝close 時に back_snapshot 按分と同腕で凍結**（drink_claims 起点は不採用）／
+**plan_fixed＝期間固定額**（per-close ではない・日割りなし＝C3 と同思想・金額化は payOf 側の加算1点）／
+**裁定4＝drink_claims は射程外・完全不干渉**（mig の diff に claim 関連は1行も入らない・転用は #57）。
+前提事実（2026-09-04 実測）: (1) **同一ドリンク行の二重は現行仕様**（claim 済み行でも close 按分は不変＝
+drink_back=400 ∧ claim back_amount=400・対照 claim なしも 400 で同値・check_close prosrc に drink_claims 参照ゼロ）
+(2) cast_plan 3段選択の境界＝valid_from 期首ちょうど→**a) 分岐**（atStart・`<=`・逆張り2行で「期首時点の有効行が
+複数」throw を実走確認）／期首翌日のみ→**b) 救済**（collect 無改修）。器＝comp_plans 3列（product_back_mode
+default 'product_rule'／rate／fixed・pair CHECK は mig0086 流儀）。順序＝mig 1本（**Fable 固定**・起草直前 live 再 dump
+＋'product_back' 識別子で全 prosrc 走査・丸め流儀は現行 rate 系を写す）→f0 新スイート（§5・**実測②はここで消化**）
+→UI（Opus・3択セレクタ＋sim 拡張）。**D-1（給与確定取消）は 113 完了後**。
+★恒久注意（伝票系 fixture 掃除）: close の在庫自動減算が **stock_logs（product FK）** を残すため、fixture 商品の
+削除は **stock_logs 先行削除**が必須（2026-09-04 実測①の掃除で削除が弾かれて検知・残0 確認済み）。
 
 ---
 
@@ -3014,6 +3030,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 54 | **区分一覧の SECURITY DEFINER RPC（staff/cast/kiosk の開栓時区分選択対応）** | **クローズ（2026-09-04・mig0131 で実装）**＝pricing_categories_for_register（STABLE SECURITY DEFINER・id/name/sort のみ・開栓 RPC と同腕・org 照合 forbidden・is_active のみ・vu(n1〜n3) で staff 実セッション/他 org 拒否/停止中非返却を係留）。★**開栓セレクタの staff/cast 接続（register/kiosk UI の新 RPC への差し替え）は未着手＝RPC 側だけ先行**（現状 UI は RLS 直読＝staff/cast はセレクタ非表示のまま） |
 | 55 | **mig0131: reorder whitelist＋区分一覧 RPC（#54 実装）＋duration 上限** | **クローズ（2026-09-04・mig0131 消化）**＝(1) reorder whitelist へ vip_charge（vu(r1) 係留）・**UI の priority 再送回避も撤去＝正規 RPC へ復帰**。★撤去実走で**帯表示順の潜在欠陥が露出**: priority は fee_kind ごとの独立系列（reorder が kind 内 1..N 正規化）のため min(priority) の帯間比較は kind 構成が非対称な帯（唯一の vip 帯等）で破綻＝旧回避実装が偶然隠していた。bandsOf を「kind 系列の合流」順（束縛は同一 kind 内の priority 大小のみ・無束縛同士は現行比較＝既存表示不変）へ是正し CC 往復で確認 (2) delete 系 whitelist 確認済み (3) for_register 新設（#54 欄へ） (4) duration>1440 拒否（vu(du1/du2)＝1440 受理・1441 'bad duration'） |
 | 56 | **duration 上限ガード（UI 警告＋RPC 拒否・duration_min > 1440）** | **RPC 側消化（2026-09-04・mig0131＝#55 同乗・vu(du1/du2) 係留）**。★残2点: (a) **UI（帯モーダル）の警告は未実装** (b) **実データ逆転1件（CLUB NOX「VIP20:00〜20:59」延長 30円/5000分）は 2026-09-04 実測で未訂正のまま**＝バインド正常は実機往復で実証済み（2026-09-03）・訂正は CLUB NOX owner＝実アカウントのため CC の UI 代行不可＝**Agoora 実機修正待ち**（済んだら本欄を「訂正済み」へ） |
+| 57 | **drink_claims 転用設計（申告→帰属訂正フロー）** | 金の発生源を**商品バック1系統（check_cast_backs）へ統一**し、claim は確認・訂正申請＋append-only 調整行へ転用する設計。背景＝**実測①（2026-09-04）で「同一ドリンク行の二重（claim back_amount と drink_back の両立）」が現行仕様と確定**・裁定113 の裁定4で drink_claims は 113 の射程外（完全不干渉）。訂正締切が D-1（給与確定取消）と隣接のため**着手時期は D-1 設計時に裁定**。D調査で現行 claim 機能の店別 on/off 設定の有無を確認 |
 
 ### 未裁定・消し込み待ち
 
