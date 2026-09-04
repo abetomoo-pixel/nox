@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX | マスタ・店舗設定 統合モック v3</title>
+<style>
+:root{
+  --bg:#070707;--panel:#11110f;--panel2:#151512;--field:#090909;
+  --line:#302e28;--line-strong:#484339;
+  --text:#f4f1e9;--sub:#b8b2a8;--muted:#7f7a71;
+  --brand:#d8ad55;--brand2:#f0cf82;--brand-soft:rgba(216,173,85,.10);
+  --primary:#2f7fe7;--primary2:#61a7ff;--primary-soft:rgba(47,127,231,.15);
+  --success:#4dc37d;--success-soft:rgba(77,195,125,.11);
+  --warning:#d9a43a;--warning-soft:rgba(217,164,58,.10);
+  --danger:#e26762;--danger-soft:rgba(226,103,98,.11);
+  --r:10px;--page:26px;--section:17px;--subsection:14px;--body:13px;--help:11px;--label:12px;
+}
+*{box-sizing:border-box}html{background:var(--bg);color-scheme:dark}
+body{margin:0;background:radial-gradient(circle at 86% -8%,rgba(216,173,85,.05),transparent 28%),var(--bg);color:var(--text);font-family:Inter,"Noto Sans JP","Yu Gothic UI",system-ui,sans-serif;font-size:var(--body);line-height:1.55}
+button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer}.app{min-height:100vh;display:grid;grid-template-columns:205px 1fr}
+.side{background:#0b0b0a;border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:0;height:100vh}.brand{display:flex;gap:10px;align-items:center;padding:0 8px 22px}.logo{width:34px;height:34px;border:1px solid var(--brand);border-radius:8px;display:grid;place-items:center;color:var(--brand2);font-weight:800}.brand b{font-size:17px}.brand small{display:block;color:var(--muted);font-size:8px;letter-spacing:.12em}.navlabel{font-size:9px;color:#69655f;padding:12px 10px 4px}.nav{padding:10px;border-radius:8px;color:#aaa59c;margin:2px 0}.nav.on{background:linear-gradient(90deg,rgba(47,127,231,.20),rgba(47,127,231,.04));color:#a9ceff;box-shadow:inset 2px 0 var(--primary)}.sep{height:1px;background:var(--line);margin:10px 0}
+main{min-width:0}.top{height:55px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:flex-end;padding:0 24px}.owner{font-size:10px;color:#161108;background:linear-gradient(135deg,var(--brand2),#b58634);padding:5px 10px;border-radius:999px;font-weight:800}.logout{margin-left:8px;height:30px;border:1px solid var(--line);background:#141412;border-radius:7px;padding:0 10px}.wrap{max-width:1390px;margin:auto;padding:22px 28px 80px}.crumb{font-size:11px;color:var(--muted);margin-bottom:12px}h1{font-size:var(--page);margin:0 0 5px}.eyebrow{font-size:10px;letter-spacing:.18em;color:var(--brand);font-weight:800;margin-bottom:4px}.lead{font-size:12px;color:var(--sub);margin-bottom:14px}
+.view{display:none}.view.on{display:block}
+.btn{height:38px;border:1px solid var(--line-strong);background:#151513;border-radius:7px;padding:0 13px;font-weight:700;color:#eeeae2;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;text-align:center}.btn.action{background:linear-gradient(180deg,#287ce1,#1e63bd);border-color:#438ded;color:#fff}.btn.secondary{background:#141412}.btn.danger{background:var(--danger-soft);border-color:rgba(226,103,98,.42);color:#f0a29c}.btn.small{height:30px;padding:0 10px;font-size:11px}.linkbtn{border:0;background:none;color:var(--brand2);font-weight:800;padding:0;display:inline-flex;align-items:center;justify-content:center;gap:5px}
+.alert{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:8px;font-size:11px;margin-bottom:12px}.alert.info{border:1px solid var(--line);background:#0f0f0e;color:var(--sub)}.alert.warn{border:1px solid rgba(217,164,58,.34);background:var(--warning-soft);color:#e7c97f}.alert.danger{border:1px solid rgba(226,103,98,.42);background:var(--danger-soft);color:#efaaa5}
+/* master top */
+.master-topline{display:flex;align-items:flex-end;justify-content:space-between;gap:18px}.search{width:320px;height:38px;border:1px solid var(--line);background:#0b0b0a;border-radius:8px;padding:0 12px;outline:none}.search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(47,127,231,.12)}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0 24px}.kpi{border:1px solid var(--line);background:#10100f;border-radius:10px;padding:13px}.kpi span{font-size:10px;color:var(--muted)}.kpi strong{display:block;font-size:22px;line-height:1.2;margin:3px 0 2px}.kpi small{font-size:10px;color:var(--success)}
+.master-section{margin-bottom:24px}.master-section-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px}.master-section-head h2{font-size:17px;margin:0}.master-section-head p{font-size:10px;color:var(--muted);margin:0}.master-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.master-card{border:1px solid var(--line);background:linear-gradient(145deg,#141412,#0f0f0e);border-radius:10px;min-height:150px;padding:15px;display:flex;flex-direction:column}.master-card .toprow{display:flex;justify-content:space-between;align-items:flex-start}.master-icon{width:34px;height:34px;border:1px solid rgba(216,173,85,.36);background:var(--brand-soft);border-radius:8px;display:grid;place-items:center;color:var(--brand2);font-weight:800}.pill{font-size:9px;border-radius:999px;background:#22221f;color:#9c978f;padding:4px 7px}.master-card h3{font-size:14px;margin:12px 0 4px}.master-card p{font-size:10px;color:var(--sub);margin:0;min-height:32px}.master-card .bottom{margin-top:auto;display:flex;justify-content:space-between;align-items:center;padding-top:13px}.health{font-size:9px;color:var(--success)}.health.warn{color:var(--danger)}
+/* store settings */
+.backline{margin-bottom:10px}.tabs{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#0d0d0c;margin-bottom:14px}.tab{position:relative;border:0;border-right:1px solid var(--line);background:transparent;color:#aaa59f;padding:13px 7px;font-weight:700;text-align:center}.tab:last-child{border-right:0}.tab.on{background:var(--primary-soft);color:#82bdff}.tab.on:after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--primary)}
+.tabview{display:none}.tabview.on{display:block}.layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px}.panel{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(145deg,#161613,#10100f)}.head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:16px 18px;border-bottom:1px solid var(--line)}.head h2{font-size:var(--section);margin:0;color:var(--brand2)}.head p{font-size:var(--help);color:var(--sub);margin:4px 0 0}.body{padding:18px}.section{padding:0 0 18px;margin-bottom:18px;border-bottom:1px solid var(--line)}.section:last-child{padding-bottom:0;margin-bottom:0;border-bottom:0}.section-title{font-size:var(--subsection);font-weight:800;margin-bottom:4px}.section-desc{font-size:var(--help);color:var(--sub);margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;color:#c7c2b8;font-weight:700}.input,.select,.textarea{width:100%;border:1px solid var(--line-strong);background:var(--field);border-radius:7px;outline:none}.input,.select{height:40px;padding:0 10px;font-size:15px;font-weight:800}.textarea{min-height:88px;padding:10px;resize:vertical}.input:focus,.select:focus,.textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(47,127,231,.12)}.help{font-size:10px;color:var(--muted)}
+.feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.feature{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;border:1px solid var(--line);border-radius:8px;background:#11110f;padding:12px 13px;min-height:74px}.feature h3{font-size:13px;margin:0 0 3px}.feature p{font-size:10px;color:var(--muted);margin:0}.feature .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.chip{display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:999px;padding:2px 6px;font-size:9px;color:var(--sub)}.chip.blue{color:#9ac8ff;border-color:rgba(47,127,231,.36);background:var(--primary-soft)}.chip.gold{color:var(--brand2);border-color:rgba(216,173,85,.34);background:var(--brand-soft)}
+.switch{position:relative;width:46px;height:26px;border-radius:999px;background:#2a2926;border:1px solid var(--line-strong);flex:0 0 auto}.switch:after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#b7b2a8;transition:.16s}.switch.on{background:#1d5fae;border-color:#347cd0}.switch.on:after{left:23px;background:#eaf4ff}
+.mode-row{display:grid;grid-template-columns:190px 1fr;gap:14px;align-items:start;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.045)}.mode-row:last-child{border-bottom:0}.mode-title{font-weight:800}.mode-help{font-size:10px;color:var(--muted);margin-top:3px}.segmented{display:flex;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden;background:#0b0b0a}.segmented button{flex:1;min-width:0;min-height:40px;border:0;border-right:1px solid var(--line-strong);background:transparent;color:#aaa59c;font-weight:700;padding:6px 9px;line-height:1.2;text-align:center}.segmented button:last-child{border-right:0}.segmented button.on{background:var(--primary-soft);color:#86c0ff}.checks{display:flex;flex-wrap:wrap;gap:8px}.check{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:#10100f;border-radius:7px;padding:8px 10px;color:#c7c2b8}.check input{accent-color:var(--primary)}
+.savebar{display:flex;justify-content:center;gap:10px;margin-top:14px}
+.impact-note{margin-top:7px;padding:7px 9px;border:1px solid rgba(217,164,58,.26);background:var(--warning-soft);border-radius:6px;color:#d9bd78;font-size:9px;line-height:1.45}
+.impact-note.neutral{border-color:var(--line);background:#0e0e0d;color:var(--muted)}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.68);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}.modal-backdrop.show{display:flex}.modal{width:min(560px,100%);border:1px solid var(--line-strong);background:#121210;border-radius:12px;box-shadow:0 30px 90px rgba(0,0,0,.55);overflow:hidden}.modal-head{padding:16px 18px;border-bottom:1px solid var(--line)}.modal-head h3{font-size:17px;margin:0;color:var(--brand2)}.modal-body{padding:18px}.modal-body p{margin:0 0 12px;color:var(--sub);font-size:12px}.modal-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px}.modal-row{display:flex;justify-content:space-between;gap:16px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:11px}.modal-row:last-child{border-bottom:0}.modal-row span{color:var(--sub)}.modal-row b{color:#fff}.modal-actions{display:flex;justify-content:center;gap:10px;padding:0 18px 18px}.scope-note{border:1px solid var(--line);background:#0f0f0e;border-radius:8px;padding:10px 12px;color:var(--sub);font-size:11px;margin-bottom:12px}.scope-note b{color:#fff}
+.sidecard{padding:15px 16px}.sidecard+.sidecard{margin-top:12px}.sidecard h3{font-size:15px;color:var(--brand2);margin:0 0 12px}.sum{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.045)}.sum:last-child{border-bottom:0}.sum span{color:var(--sub)}.sum b{font-weight:800;text-align:right}.status-ok{color:#75dda0}.status-off{color:#969188}.status-warn{color:#eab75f}.impact{border:1px solid var(--line);border-radius:8px;background:#0f0f0e;padding:12px;margin-top:8px}.impact b{display:block;margin-bottom:4px}.impact p{font-size:10px;color:var(--sub);margin:0}.readonly{border:1px solid var(--line);border-radius:8px;background:#0f0f0e;padding:12px}.readonly .label{font-size:10px;color:var(--muted)}.readonly .value{font-size:15px;font-weight:800;margin-top:4px}
+.tablebox{border:1px solid var(--line);border-radius:8px;overflow:hidden}.table{width:100%;border-collapse:collapse}.table th{height:38px;padding:0 12px;text-align:left;color:#8f8a82;font-size:10px;background:#171714;border-bottom:1px solid var(--line-strong)}.table td{height:46px;padding:7px 12px;border-bottom:1px solid var(--line)}.table tr:last-child td{border-bottom:0}.table td+td,.table th+th{border-left:1px solid rgba(255,255,255,.04)}
+.unsaved{position:sticky;bottom:14px;margin-top:14px;border:1px solid rgba(226,103,98,.4);background:rgba(46,17,16,.94);backdrop-filter:blur(8px);border-radius:9px;padding:10px 12px;display:none;align-items:center;justify-content:space-between;gap:12px;z-index:5}.unsaved.show{display:flex}.unsaved strong{color:#f0aaa5}
+@media(max-width:1180px){.master-grid{grid-template-columns:repeat(2,1fr)}.layout{grid-template-columns:1fr}.feature-grid{grid-template-columns:1fr}.mode-row{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:820px){.app{grid-template-columns:1fr}.side{display:none}.wrap{padding:16px}.master-topline{align-items:stretch;flex-direction:column}.search{width:100%}.master-grid,.kpi-grid,.grid2,.grid3{grid-template-columns:1fr}.tabs{grid-template-columns:1fr}.tabs .tab{border-right:0;border-bottom:1px solid var(--line)}.tabs .tab:last-child{border-bottom:0}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side"><div class="brand"><div class="logo">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div><div class="nav">⌂ ホーム</div><div class="navlabel">営業</div><div class="nav">▣ レジ</div><div class="nav">▤ 日報</div><div class="sep"></div><div class="navlabel">スタッフ</div><div class="nav">◫ シフト</div><div class="nav">♙ キャスト</div><div class="nav">♧ スタッフ</div><div class="nav">▭ 給与</div><div class="sep"></div><div class="nav">▦ 顧客</div><div class="navlabel">分析</div><div class="nav">⌁ 分析</div><div class="nav">▧ 領収書</div><div class="sep"></div><div class="navlabel">店舗</div><div class="nav on">⌘ マスタ</div><div class="nav">♢ お知らせ</div><div class="nav">♧ 監査</div><div class="nav">⌒ ご契約</div></aside>
+<main><div class="top"><span class="owner">オーナー</span><button class="logout">ログアウト</button></div><div class="wrap">
+
+<!-- MASTER TOP -->
+<section id="masterTop" class="view on">
+<div class="crumb">マスタ › 概要</div>
+<div class="master-topline"><div><div class="eyebrow">MASTER SETTINGS</div><h1>マスタ</h1><div class="lead">店舗の料金・席・営業・報酬・端末など、全画面が参照する設定です。</div></div><input class="search" placeholder="設定名を検索（例：商品、カテゴリ、卓）"></div>
+<div class="alert danger">⚠ 在庫が発注基準を下回っている商品が 4 件あります。商品マスターから補充基準を確認してください。</div>
+<div class="kpi-grid"><div class="kpi"><span>商品マスター</span><strong>43</strong><small>公開中 40件</small></div><div class="kpi"><span>商品カテゴリ</span><strong>10</strong><small>全件有効</small></div><div class="kpi"><span>卓・席</span><strong>9</strong><small>稼働可能 8卓</small></div><div class="kpi"><span>発注推奨の商品</span><strong>4</strong><small style="color:var(--danger)">発注基準以下</small></div></div>
+
+<div class="master-section"><div class="master-section-head"><h2>商品・料金</h2><p>レジ・会計で利用する項目</p></div><div class="master-grid">
+<div class="master-card"><div class="toprow"><div class="master-icon">◇</div><span class="pill">43件</span></div><h3>商品マスター</h3><p>ドリンク、シャンパン、ボトル、フード、在庫数、発注基準を管理。</p><div class="bottom"><span class="health warn">● 4件 要補充</span><button class="linkbtn">管理する →</button></div></div>
+<div class="master-card"><div class="toprow"><div class="master-icon">▤</div><span class="pill">10件</span></div><h3>商品カテゴリ</h3><p>レジのタイル見出しになる分類。並び順と有効/無効を管理。</p><div class="bottom"><span class="health">● 全件有効</span><button class="linkbtn">管理する →</button></div></div>
+<div class="master-card"><div class="toprow"><div class="master-icon">▣</div><span class="pill">追記のみ</span></div><h3>在庫</h3><p>締め時点の記録と入出庫の履歴。売上による減算は会計から自動。</p><div class="bottom"><span class="health">● 記録可</span><button class="linkbtn">管理する →</button></div></div>
+<div class="master-card"><div class="toprow"><div class="master-icon">¥</div><span class="pill">3タブ</span></div><h3>料金設定</h3><p>時間帯・席種・曜日の料金ルール、指名料金、基本料金、会計ルールを設定。</p><div class="bottom"><span class="health">● 有効</span><button class="linkbtn">管理する →</button></div></div>
+</div></div>
+
+<div class="master-section"><div class="master-section-head"><h2>キャスト・報酬</h2><p>給与計算とキャスト運用の設定</p></div><div class="master-grid">
+<div class="master-card"><div class="toprow"><div class="master-icon">▲</div><span class="pill">試算</span></div><h3>待遇プラン・報酬シミュレーター</h3><p>保証時給、スライド、指名バック、報酬をプラン単位で管理。</p><div class="bottom"><span class="health">● 試算可</span><button class="linkbtn">管理する →</button></div></div>
+<div class="master-card"><div class="toprow"><div class="master-icon">▽</div><span class="pill">控除</span></div><h3>控除・送りの設定</h3><p>固定控除の種別と金額、送り実費/一律の扱いを管理。</p><div class="bottom"><span class="health">● 有効</span><button class="linkbtn">管理する →</button></div></div>
+<div class="master-card"><div class="toprow"><div class="master-icon">◎</div><span class="pill">ノルマ</span></div><h3>ノルマ設定</h3><p>売上ノルマ、指名ノルマの採用可否と範囲を設定。</p><div class="bottom"><span class="health">● 設定可</span><button class="linkbtn">管理する →</button></div></div>
+<div class="master-card"><div class="toprow"><div class="master-icon">◇</div><span class="pill">会計権限</span></div><h3>キャスト会計の許可</h3><p>キャスト本人がレジを使えるようにする設定。</p><div class="bottom"><span class="health">● 設定可</span><button class="linkbtn">管理する →</button></div></div>
+</div></div>
+
+<div class="master-section"><div class="master-section-head"><h2>店舗・運用</h2><p>利用機能・フロア・営業時間の設定</p></div><div class="master-grid">
+<div class="master-card"><div class="toprow"><div class="master-icon">⊙</div><span class="pill">店舗全体</span></div><h3>利用機能</h3><p>VIP、カウンター、料金区分、指名、同伴、ランク、ポイント、報酬方式など。</p><div class="bottom"><span class="health">● 18機能中 14機能を使用</span><button class="linkbtn" data-open-store>管理する →</button></div></div>
+<div class="master-card"><div class="toprow"><div class="master-icon">▦</div><span class="pill">9卓</span></div><h3>席・卓マスター</h3><p>卓／カウンター／VIP の登録と並び順、稼働の有効切替。</p><div class="bottom"><span class="health">● 稼働可能 8卓</span><button class="linkbtn">管理する →</button></div></div>
+<div class="master-card"><div class="toprow"><div class="master-icon">◔</div><span class="pill">曜日別</span></div><h3>営業時間・定休日</h3><p>曜日ごとの営業時間と定休日、シフト登録の警告・ブロックに使われます。</p><div class="bottom"><span class="health">● 設定可</span><button class="linkbtn">管理する →</button></div></div>
+</div></div>
+
+<div class="master-section"><div class="master-section-head"><h2>スタッフ・システム</h2><p>端末と機微情報の管理</p></div><div class="master-grid">
+<div class="master-card"><div class="toprow"><div class="master-icon">▣</div><span class="pill">端末</span></div><h3>キオスク端末</h3><p>打刻端末・レジ端末の発行と失効（オーナー限定）。</p><div class="bottom"><span class="health status-off">● オーナー限定</span><button class="linkbtn">管理する →</button></div></div>
+<div class="master-card"><div class="toprow"><div class="master-icon">♨</div><span class="pill">レシート</span></div><h3>レシート・プリンタ</h3><p>レシートの店舗情報と印刷設定。</p><div class="bottom"><span class="health status-off">● オーナー限定</span><button class="linkbtn">管理する →</button></div></div>
+<div class="master-card"><div class="toprow"><div class="master-icon">🔒</div><span class="pill">機密</span></div><h3>機密・税務情報</h3><p>本名・生年月日・マイナンバー等。閲覧はログに記録されます。</p><div class="bottom"><span class="health status-warn">● 閲覧ログあり</span><button class="linkbtn">管理する →</button></div></div>
+</div></div>
+</section>
+
+<!-- STORE SETTINGS -->
+<section id="storeSettings" class="view">
+<div class="backline"><button class="linkbtn" data-back-master>← マスタTOPへ</button></div>
+<div class="crumb">マスタ › 店舗・運用 › 店舗設定</div>
+<div class="eyebrow">STORE SETTINGS</div><h1>店舗設定</h1>
+<div class="lead">この店舗で使う機能・基本情報・運用上の初期値を管理します。金額・率・計算条件は各マスタで設定します。</div>
+<div class="tabs"><button class="tab" data-tab="basic">基本情報</button><button class="tab on" data-tab="features">利用機能</button><button class="tab" data-tab="operation">店舗運用</button></div>
+
+<!-- BASIC -->
+<div id="basic" class="tabview">
+<div class="layout"><div>
+<section class="panel"><div class="head"><div><h2>基本情報</h2><p>管理画面内で店舗を識別するための基本情報です。</p></div></div><div class="body">
+<div class="section"><div class="section-title">店舗情報</div><div class="section-desc">税務・機密情報は「機密・税務情報」で別管理します。</div><div class="grid2">
+<div class="field"><label>店舗名</label><input class="input" value="CLUB NOX"></div>
+<div class="field"><label>管理用店舗コード</label><input class="input" value="NOX-TOKYO"><div class="help">内部管理用。会計表示には使用しません。</div></div>
+<div class="field"><label>店舗表示名</label><input class="input" value="NOX"><div class="help">レジ・管理画面上の短縮表示。</div></div>
+<div class="field"><label>タイムゾーン</label><select class="select"><option>Asia/Tokyo（日本標準時）</option></select></div>
+</div></div>
+<div class="section"><div class="section-title">管理画面表示</div><div class="section-desc">日常運用で表示する店舗表現のみ設定します。</div><div class="grid2">
+<div class="field"><label>店舗略称</label><input class="input" value="NOX"><div class="help">狭い画面や帳票見出しで使用。</div></div>
+<div class="field"><label>営業ステータス表示</label><div class="segmented"><button class="on">表示する</button><button>表示しない</button></div></div>
+</div></div>
+<div class="alert info">ⓘ 住所・登録番号・税務上の事業者情報は、マスタTOPの「機密・税務情報」で管理します。</div>
+<div class="savebar"><button class="btn secondary">変更を破棄</button><button class="btn action">基本情報を保存</button></div>
+</div></section>
+</div><aside><div class="panel sidecard"><h3>このタブで扱わないもの</h3><div class="sum"><span>営業時間</span><b>別マスタ</b></div><div class="sum"><span>住所・登録番号</span><b>機密・税務情報</b></div><div class="sum"><span>料金</span><b>料金設定</b></div></div><div class="panel sidecard"><h3>反映先</h3><div class="impact"><b>店舗名・略称</b><p>管理画面・レジ・帳票見出しの店舗識別に使用します。</p></div></div></aside></div>
+</div>
+
+<!-- FEATURES -->
+<div id="features" class="tabview on">
+<div class="alert info">ⓘ 利用機能をOFFにしても、既存データは削除しません。再度ONにすると、保存済みの設定・履歴を再利用できます。</div>
+<div class="layout"><div>
+<section class="panel"><div class="head"><div><h2>利用機能</h2><p>店舗に存在する機能を選択します。金額・率・計算条件は、それぞれの管理画面で設定します。</p></div></div><div class="body">
+<div class="section"><div class="section-title">店舗・席</div><div class="section-desc">席種や料金ルールに関係する機能です。</div><div class="feature-grid">
+<div class="feature"><div><h3>VIP席</h3><p>VIP専用セット料金・VIPチャージを利用できます。</p><div class="meta"><span class="chip blue">料金設定</span><span class="chip">席・卓</span><span class="chip">レジ</span></div><div class="impact-note">OFFにするとVIP席・VIP専用料金・VIPチャージ・レジのVIP選択を非表示にします。</div></div><div class="switch on" data-key="vip"></div></div>
+<div class="feature"><div><h3>カウンター席</h3><p>料金適用ルールの席種に「カウンター」を追加します。</p><div class="meta"><span class="chip blue">料金設定</span><span class="chip">席・卓</span><span class="chip">レジ</span></div><div class="impact-note neutral">ONにすると席・卓マスターと料金適用ルールでカウンターを選択できます。</div></div><div class="switch" data-key="counter"></div></div>
+<div class="feature"><div><h3>料金区分</h3><p>初来店・イベントなど、開栓時に選ぶ料金区分を使用します。</p><div class="meta"><span class="chip blue">料金適用ルール</span><span class="chip">レジ</span></div><div class="impact-note">OFFにすると開栓時の区分選択と料金適用ルールの区分条件を非表示にします。</div></div><div class="switch on" data-key="priceClass"></div></div>
+<div class="feature"><div><h3>キャストランク</h3><p>ランク別の指名料金・条件分岐を利用します。</p><div class="meta"><span class="chip blue">料金設定</span><span class="chip">キャスト</span></div><div class="impact-note">OFFにするとキャストのランク項目とランク別指名料金を非表示にします。</div></div><div class="switch on" data-key="rank"></div></div>
+</div></div>
+<div class="section"><div class="section-title">接客・レジ</div><div class="section-desc">レジ入力や指名料金・報酬に影響する機能です。</div><div class="feature-grid">
+<div class="feature"><div><h3>本指名</h3><p>本指名料金と本指名バックを利用します。</p><div class="meta"><span class="chip">レジ</span><span class="chip blue">料金設定</span><span class="chip gold">報酬プラン</span></div><div class="impact-note">OFFにすると本指名料金・レジ入力・指名実績バックの本指名項目を非表示にします。</div></div><div class="switch on" data-key="mainNomination"></div></div>
+<div class="feature"><div><h3>場内指名</h3><p>場内指名料金と場内指名バックを利用します。</p><div class="meta"><span class="chip">レジ</span><span class="chip blue">料金設定</span><span class="chip gold">報酬プラン</span></div><div class="impact-note">OFFにすると場内指名料金・レジ入力・指名実績バックの場内項目を非表示にします。</div></div><div class="switch on" data-key="floorNomination"></div></div>
+<div class="feature"><div><h3>同伴</h3><p>お客様への同伴料金と、キャストへの同伴バックを利用します。</p><div class="meta"><span class="chip">レジ</span><span class="chip blue">料金設定</span><span class="chip gold">報酬プラン</span></div><div class="impact-note">OFFにすると同伴料金・同伴入力・同伴バックを非表示にします。</div></div><div class="switch on" data-key="douhan"></div></div>
+<div class="feature"><div><h3>ポイント</h3><p>接客実績のポイント集計・ポイントスライドに利用します。</p><div class="meta"><span class="chip">レジ</span><span class="chip gold">報酬プラン</span></div><div class="impact-note">OFFにするとポイント入力とポイントスライドを非表示。売上スライドがONならタブ自体は残します。</div></div><div class="switch on" data-key="points"></div></div>
+</div></div>
+<div class="section"><div class="section-title">報酬・給与</div><div class="section-desc">報酬プランに表示する機能を選びます。方式の金額・率・段階条件は報酬プラン側で設定します。</div><div class="scope-note"><b>表示制御だけを行います。</b> 「歩合率20%」「スライド3段」などの計算方式・詳細値はここでは設定しません。</div>
+<div class="mode-row"><div><div class="mode-title">基本報酬</div><div class="mode-help">給与の基本部分。</div></div><div class="checks"><label class="check"><input type="checkbox" checked> 固定時給</label><label class="check"><input type="checkbox"> 日給保証</label></div></div>
+<div class="mode-row"><div><div class="mode-title">歩合・バック</div><div class="mode-help">実績に応じた加算方式。</div></div><div class="checks"><label class="check"><input type="checkbox" checked> 指名実績バック</label><label class="check"><input type="checkbox" checked> 商品販売バック</label><label class="check"><input type="checkbox"> 売上バック</label></div></div>
+<div class="mode-row"><div><div class="mode-title">スライド・ポイント</div><div class="mode-help">報酬プランの「スライド・ポイント」タブに対応。</div></div><div class="checks"><label class="check"><input type="checkbox" checked> 売上スライド</label><label class="check"><input type="checkbox" checked> ポイントスライド</label></div></div>
+<div class="mode-row"><div><div class="mode-title">ノルマ・ボーナス</div><div class="mode-help">報酬プランの「ノルマ・ボーナス」タブに対応。</div></div><div class="checks"><label class="check"><input type="checkbox" checked> ノルマ</label><label class="check"><input type="checkbox" checked> ボーナス</label><label class="check"><input type="checkbox"> ペナルティ</label></div></div>
+</div>
+<div class="section"><div class="section-title">精算・給与調整</div><div class="section-desc">会計後・給与計算時に扱う機能です。</div><div class="feature-grid">
+<div class="feature"><div><h3>売掛</h3><p>お客様の売掛とキャスト負担・精算管理を利用します。</p><div class="meta"><span class="chip">レジ</span><span class="chip gold">給与</span></div><div class="impact-note">OFFにしても過去履歴・未精算データは保持します。新規入力だけを停止します。</div></div><div class="switch on" data-key="receivable"></div></div>
+<div class="feature"><div><h3>前借り</h3><p>キャストへの前借り・給与からの精算を利用します。</p><div class="meta"><span class="chip gold">給与</span></div><div class="impact-note neutral">ONにすると給与画面に前借り登録・精算項目を表示します。</div></div><div class="switch" data-key="advance"></div></div>
+</div></div>
+<div class="section"><div class="section-title">契約・税区分</div><div class="section-desc">店舗で扱うキャスト契約区分を指定します。</div><div class="mode-row"><div><div class="mode-title">キャスト契約区分</div><div class="mode-help">キャスト登録・給与計算の選択肢を制限します。</div></div><div class="segmented"><button>雇用のみ</button><button>委託のみ</button><button class="on">両方</button></div></div></div>
+<div class="savebar"><button class="btn secondary">変更を破棄</button><button class="btn action">利用機能を保存</button></div>
+</div></section>
+<div class="unsaved" id="unsaved"><div><strong>未保存の変更があります</strong><div style="font-size:10px;color:var(--sub)">保存するまで管理画面の表示には反映されません。</div></div><button class="btn action">変更を保存</button></div>
+</div><aside>
+<div class="panel sidecard"><h3>現在の利用状況</h3><div class="sum"><span>VIP</span><b class="status-ok" id="sumVip">使用中</b></div><div class="sum"><span>カウンター</span><b class="status-off" id="sumCounter">未使用</b></div><div class="sum"><span>料金区分</span><b class="status-ok" id="sumClass">使用中</b></div><div class="sum"><span>ポイント</span><b class="status-ok" id="sumPoints">使用中</b></div><div class="sum"><span>売掛</span><b class="status-ok" id="sumReceivable">使用中</b></div><div class="sum"><span>契約区分</span><b>雇用・委託</b></div></div>
+<div class="panel sidecard"><h3>画面への反映例</h3><div class="impact"><b>VIPをOFF</b><p>料金設定のVIP料金・VIPチャージ、料金適用ルールのVIP項目、レジのVIP席を非表示。</p></div><div class="impact"><b>ポイントをOFF</b><p>レジのポイント入力を非表示。売上スライドがONなら「スライド・ポイント」タブは残し、ポイント設定だけ非表示。</p></div><div class="impact"><b>場内指名をOFF</b><p>料金マスタ・レジ・報酬プランから場内指名の入力項目を非表示。</p></div></div>
+<div class="panel sidecard"><h3>表示ルール</h3><div class="sum"><span>OFF時</span><b>UI非表示</b></div><div class="sum"><span>既存データ</span><b>保持</b></div><div class="sum"><span>再ON時</span><b>設定復元</b></div><div class="sum"><span>詳細金額</span><b>各マスタで設定</b></div></div>
+</aside></div>
+</div>
+
+<!-- OPERATION -->
+<div id="operation" class="tabview">
+<div class="layout"><div>
+<section class="panel"><div class="head"><div><h2>店舗運用</h2><p>レジの入力フロー・初期選択・警告だけを設定します。営業時間・料金・給与の計算条件はここでは持ちません。</p></div></div><div class="body"><div class="scope-note"><b>このタブの責務：</b> 「いつ入力を求めるか」「何を初期選択するか」「どの警告を出すか」。金額・税率・営業時間などの業務ルールは各マスタで管理します。</div>
+<div class="section"><div class="section-title">レジ・伝票の初期動作</div><div class="section-desc">伝票を開く際の入力フローに関する初期値です。</div>
+<div class="mode-row"><div><div class="mode-title">入店時の人数確認</div><div class="mode-help">人数課金を行う店舗ではON推奨。</div></div><div class="segmented"><button class="on">毎回確認する</button><button>前回値を使用</button></div></div>
+<div class="mode-row"><div><div class="mode-title">料金区分の選択</div><div class="mode-help">「料金区分」がONの場合のみ有効。</div></div><div class="segmented"><button class="on">開栓時に確認</button><button>既定区分を使用</button></div></div>
+<div class="mode-row"><div><div class="mode-title">席種の初期選択</div><div class="mode-help">新規伝票で最初に選ばれる席種。</div></div><select class="select" style="max-width:320px"><option>通常卓</option><option>VIP</option><option>カウンター</option></select></div>
+</div>
+<div class="section"><div class="section-title">キャスト・接客入力</div><div class="section-desc">指名・同伴などの入力をどのタイミングで求めるかを設定します。</div>
+<div class="mode-row"><div><div class="mode-title">指名キャスト確認</div><div class="mode-help">指名機能がONの場合のみ有効。</div></div><div class="segmented"><button class="on">開栓時に確認</button><button>注文時に入力</button><button>任意</button></div></div>
+<div class="mode-row"><div><div class="mode-title">同伴確認</div><div class="mode-help">同伴機能がONの場合のみ有効。</div></div><div class="segmented"><button>開栓時に確認</button><button class="on">必要時に入力</button></div></div>
+</div>
+<div class="section"><div class="section-title">確認・警告</div><div class="section-desc">操作ミスを防ぐための確認表示です。</div><div class="feature-grid">
+<div class="feature"><div><h3>未入力項目の会計前警告</h3><p>指名・同伴・人数など必須項目に不足がある場合に警告します。</p></div><div class="switch on"></div></div>
+<div class="feature"><div><h3>営業時間外の伝票作成警告</h3><p>営業時間・定休日マスタを参照して警告します。</p></div><div class="switch on"></div></div>
+<div class="feature"><div><h3>重複キャスト配置の警告</h3><p>同時間帯に同一キャストが別卓へ重複配置された場合に警告します。</p></div><div class="switch on"></div></div>
+<div class="feature"><div><h3>0円料金の確認表示</h3><p>無料設定が適用された場合、会計前に明示します。</p></div><div class="switch on"></div></div>
+</div></div>
+<div class="alert info">ⓘ 営業日の切替時刻・時間課金の固定・自動延長・税・丸めは「料金設定 ＞ 会計設定」で管理します。</div>
+<div class="savebar"><button class="btn secondary">変更を破棄</button><button class="btn action">店舗運用を保存</button></div>
+</div></section>
+</div><aside>
+<div class="panel sidecard"><h3>責務の分離</h3><div class="sum"><span>営業時間そのもの</span><b>営業時間・定休日</b></div><div class="sum"><span>料金計算</span><b>料金設定</b></div><div class="sum"><span>給与計算</span><b>報酬プラン</b></div><div class="sum"><span>ここで設定</span><b>入力フロー・警告</b></div></div>
+<div class="panel sidecard"><h3>利用機能との連動</h3><div class="impact"><b>料金区分 OFF</b><p>「料金区分の選択」設定そのものを非表示にします。</p></div><div class="impact"><b>本指名・場内指名 OFF</b><p>指名キャスト確認の設定を非表示にします。</p></div><div class="impact"><b>同伴 OFF</b><p>同伴確認の設定を非表示にします。</p></div></div>
+</aside></div>
+</div>
+</section>
+
+</div></main></div>
+<div class="modal-backdrop" id="disableModal" aria-hidden="true">
+  <div class="modal">
+    <div class="modal-head"><h3 id="modalTitle">機能をOFFにしますか？</h3></div>
+    <div class="modal-body">
+      <p id="modalLead">この機能に関連する既存設定があります。OFFにしてもデータは削除されませんが、管理画面とレジから非表示になります。</p>
+      <div class="modal-list" id="modalRows"></div>
+      <div class="alert warn" style="margin-bottom:0">⚠ 保存後に画面へ反映されます。再度ONにすると保存済み設定を復元できます。</div>
+    </div>
+    <div class="modal-actions"><button class="btn secondary" id="modalCancel">キャンセル</button><button class="btn danger" id="modalConfirm">OFFにする</button></div>
+  </div>
+</div>
+
+<script>
+const masterTop=document.getElementById('masterTop'), storeSettings=document.getElementById('storeSettings');
+document.querySelectorAll('[data-open-store]').forEach(b=>b.addEventListener('click',()=>{masterTop.classList.remove('on');storeSettings.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});}));
+document.querySelectorAll('[data-back-master]').forEach(b=>b.addEventListener('click',()=>{storeSettings.classList.remove('on');masterTop.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});}));
+const tabs=[...document.querySelectorAll('.tab')], tabviews=[...document.querySelectorAll('.tabview')];
+tabs.forEach(t=>t.addEventListener('click',()=>{tabs.forEach(x=>x.classList.remove('on'));tabviews.forEach(v=>v.classList.remove('on'));t.classList.add('on');document.getElementById(t.dataset.tab).classList.add('on');}));
+const unsaved=document.getElementById('unsaved'); const mark=()=>unsaved&&unsaved.classList.add('show');
+const featureMeta={
+ vip:{name:'VIP',rows:[['既存のVIP席','2席'],['VIP料金ルール','3件'],['VIPチャージ設定','1件']]},
+ counter:{name:'カウンター',rows:[['既存カウンター席','0席'],['料金ルール','0件']]},
+ priceClass:{name:'料金区分',rows:[['登録済み区分','2件'],['区分を使う料金ルール','4件']]},
+ rank:{name:'キャストランク',rows:[['登録ランク','3件'],['ランク別指名料金','2件']]},
+ mainNomination:{name:'本指名',rows:[['指名料金設定','2件'],['報酬プランのバック設定','3件']]},
+ floorNomination:{name:'場内指名',rows:[['場内指名料金設定','2件'],['報酬プランのバック設定','3件']]},
+ douhan:{name:'同伴',rows:[['同伴料金設定','2件'],['同伴バック設定','3件']]},
+ points:{name:'ポイント',rows:[['ポイントスライド','2プラン'],['ポイント実績','保持']]},
+ receivable:{name:'売掛',rows:[['未精算売掛','1件'],['過去履歴','保持']]},
+ advance:{name:'前借り',rows:[['未精算前借り','0件'],['過去履歴','保持']]}
+};
+const modal=document.getElementById('disableModal'), modalTitle=document.getElementById('modalTitle'), modalRows=document.getElementById('modalRows'), modalCancel=document.getElementById('modalCancel'), modalConfirm=document.getElementById('modalConfirm');
+let pendingSwitch=null;
+function applySwitch(s,on){s.classList.toggle('on',on);mark();const map={vip:'sumVip',counter:'sumCounter',priceClass:'sumClass',points:'sumPoints',receivable:'sumReceivable'};const id=map[s.dataset.key];if(id){const el=document.getElementById(id);el.textContent=on?'使用中':'未使用';el.className=on?'status-ok':'status-off';}}
+function openDisableModal(s){const meta=featureMeta[s.dataset.key]||{name:'この機能',rows:[['既存設定','保持されます']]};pendingSwitch=s;modalTitle.textContent=meta.name+'をOFFにしますか？';modalRows.innerHTML=meta.rows.map(r=>`<div class="modal-row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');modal.classList.add('show');modal.setAttribute('aria-hidden','false');}
+function closeDisableModal(){modal.classList.remove('show');modal.setAttribute('aria-hidden','true');pendingSwitch=null;}
+document.querySelectorAll('.switch').forEach(s=>s.addEventListener('click',()=>{if(s.classList.contains('on') && s.dataset.key){openDisableModal(s);}else{applySwitch(s,true);}}));
+modalCancel&&modalCancel.addEventListener('click',closeDisableModal);modalConfirm&&modalConfirm.addEventListener('click',()=>{if(pendingSwitch)applySwitch(pendingSwitch,false);closeDisableModal();});modal&&modal.addEventListener('click',e=>{if(e.target===modal)closeDisableModal();});
+document.querySelectorAll('input[type=checkbox]').forEach(c=>c.addEventListener('change',mark));
+document.querySelectorAll('.segmented').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');mark();})));
+</script>
+</body></html>
