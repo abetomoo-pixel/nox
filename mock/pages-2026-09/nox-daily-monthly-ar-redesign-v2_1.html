@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX 日報・締め管理 改修モック v2.1</title>
+<style>
+:root{--bg:#070707;--panel:#11110f;--panel2:#151512;--field:#090909;--line:#302e28;--line-strong:#484339;--text:#f4f1e9;--sub:#b8b2a8;--muted:#7f7a71;--brand:#d8ad55;--brand2:#f0cf82;--brand-soft:rgba(216,173,85,.10);--primary:#2f7fe7;--primary2:#61a7ff;--primary-soft:rgba(47,127,231,.15);--success:#4dc37d;--success-soft:rgba(77,195,125,.11);--warning:#d9a43a;--warning-soft:rgba(217,164,58,.10);--danger:#e26762;--danger-soft:rgba(226,103,98,.11);--r:10px;--sidebar:205px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px}
+button,input,select{font:inherit}.app{display:grid;grid-template-columns:190px 1fr;min-height:100vh}
+aside{border-right:1px solid var(--line);padding:18px 12px;background:#0b0b0a}
+.brand{display:flex;gap:10px;align-items:center;margin-bottom:24px}.logo{width:32px;height:32px;border:1px solid var(--brand);border-radius:7px;display:grid;place-items:center;color:var(--brand)}.brand b{font-size:16px}.brand small{display:block;color:#777;font-size:9px;letter-spacing:2px}
+.nav-label{font-size:9px;color:#666;letter-spacing:2px;margin:16px 8px 8px}.nav a{display:flex;align-items:center;gap:9px;color:#aaa;text-decoration:none;padding:10px;border-radius:7px;margin:2px 0}.nav a.on{background:#112335;color:#65aff3}
+main{padding:26px 34px 50px}.eyebrow{font-size:10px;color:var(--brand);letter-spacing:2px;font-weight:800}.topbar{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px}.topbar h1{font-size:27px;margin:5px 0}.topbar p{margin:0;color:var(--sub)}
+.btn{border:1px solid var(--line-strong);background:#121210;color:#ddd;border-radius:7px;padding:8px 12px;font-weight:800;cursor:pointer;text-align:center}.btn.primary{border-color:#4b89c0;background:#14304a;color:#75bcf7}.btn.gold{border-color:#806a31;color:#e3c46f}.btn.danger{border-color:#783838;color:#ed8585}.btn.small{padding:6px 9px;font-size:11px}
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px}.tabs button{border:0;border-right:1px solid var(--line);background:#111;color:#999;padding:8px 16px;font-weight:800}.tabs button:last-child{border-right:0}.tabs button.on{background:var(--primary-soft);color:#69b4f5}
+.view{display:none}.view.on{display:block}
+.card{border:1px solid var(--line);background:#121210;border-radius:10px;overflow:hidden;margin-bottom:12px}.head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}.head h2{font-size:14px;margin:0}.head p{font-size:10px;color:var(--sub);margin:3px 0 0}.body{padding:14px}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.metric{border:1px solid var(--line);border-radius:8px;background:#171714;padding:11px;text-align:center}.metric small{display:block;color:var(--sub);font-size:10px}.metric b{display:block;font-size:19px;margin-top:4px}
+.status{display:inline-flex;align-items:center;border-radius:14px;padding:4px 8px;font-size:10px;font-weight:900}.status.open{background:var(--warning-soft);border:1px solid #68552a;color:#e6c26e}.status.ok{background:var(--success-soft);border:1px solid #2d6646;color:#7bd1a0}.status.bad{background:var(--danger-soft);border:1px solid #713737;color:#ef8b8b}.status.blue{background:var(--primary-soft);border:1px solid #315e82;color:#73b8f2}
+.close-flow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.step{border:1px solid var(--line);background:#11110f;border-radius:8px;padding:11px;position:relative}.step small{display:block;color:#777;margin-bottom:4px}.step b{font-size:12px}.step.done{border-color:#315f44}.step.done b{color:#80d4a4}.step.current{border-color:#856a2f;background:#1b170d}.step.current b{color:#e3c16d}
+.check-list{display:grid;gap:0}.check-row{display:grid;grid-template-columns:42px 1fr 130px 120px;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.045)}.check-row:last-child{border-bottom:0}.check-icon{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-strong);font-weight:900}.check-icon.ok{background:var(--success-soft);border-color:#2d6646;color:#7bd1a0}.check-icon.warn{background:var(--warning-soft);border-color:#68552a;color:#e6c26e}.check-icon.bad{background:var(--danger-soft);border-color:#713737;color:#ef8b8b}
+.grid2{display:grid;grid-template-columns:1.3fr .7fr;gap:12px}.amount-list{display:grid;gap:0}.amount-row{display:grid;grid-template-columns:1fr 160px;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045)}.amount-row:last-child{border-bottom:0}.amount-row b{text-align:right}
+.recon{display:grid;grid-template-columns:1fr 1fr;gap:8px}.recon-box{border:1px solid var(--line);border-radius:8px;padding:11px;background:#151512}.recon-box small{display:block;color:#777}.recon-box b{display:block;font-size:18px;margin-top:4px}.diff-good{color:#75d19e}.diff-bad{color:#ef8787}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}.left-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.field{background:#0c0c0b;color:#eee;border:1px solid var(--line-strong);border-radius:7px;padding:8px 9px}
+.periods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.period{border:1px solid var(--line);border-radius:8px;background:#151512;padding:11px}.period small{color:#777;display:block;margin-bottom:4px}.period b{font-size:15px}.period.on{border-color:#3f739f;background:#102132}
+.month-table{width:100%;border-collapse:collapse}.month-table th,.month-table td{padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.05);text-align:right}.month-table th:first-child,.month-table td:first-child{text-align:left}.month-table th{color:#777;font-size:10px}.month-table td b{color:#e4c36d}
+.bar-row{display:grid;grid-template-columns:120px 1fr 110px;gap:10px;align-items:center;margin:8px 0}.bar{height:8px;background:#2a2924;border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:#d7b250}
+.ar-list{display:grid;gap:8px}.ar-item{border:1px solid var(--line);border-radius:8px;background:#141411;padding:11px}.ar-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.ar-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}.ar-actions{display:flex;gap:7px;justify-content:flex-end;margin-top:10px}
+.audit{display:grid;gap:0}.audit-row{display:grid;grid-template-columns:130px 1fr 100px;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045)}.audit-row:last-child{border-bottom:0}.audit-row small{color:#777}
+.notice{border:1px solid #5c4c25;background:#1b180e;color:#d7bd70;border-radius:7px;padding:9px 10px;font-size:11px}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);place-items:center;z-index:20}.modal-bg.open{display:grid}.modal{width:520px;background:#151512;border:1px solid var(--line-strong);border-radius:12px;padding:16px}.modal h2{font-size:17px;margin:0 0 5px;color:#e5c66f}.modal .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+textarea{width:100%;min-height:80px;background:#090909;color:#eee;border:1px solid var(--line-strong);border-radius:7px;padding:9px}
+
+.bizday{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.bizchip{border:1px solid var(--line);border-radius:8px;background:#141411;padding:9px 11px}.bizchip small{display:block;color:#777;margin-bottom:3px}
+.variance-box{border:1px solid #6d352f;background:#21110f;border-radius:8px;padding:11px;margin-top:10px}.variance-box b{color:#ef8b8b}
+.close-rule{border:1px solid #355d77;background:#0e1a23;border-radius:8px;padding:10px;color:#86bddd}
+.reopen{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.reopen-step{border:1px solid var(--line);background:#141411;border-radius:8px;padding:10px}.reopen-step small{display:block;color:#777}.reopen-step b{display:block;margin-top:4px}
+.method{display:inline-flex;border:1px solid var(--line-strong);border-radius:13px;padding:3px 7px;font-size:9px;color:#aaa}
+
+@media(max-width:1100px){.summary{grid-template-columns:repeat(2,1fr)}.close-flow{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.periods{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+ <div class="brand"><div class="logo">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div>
+ <div class="nav"><a>⌂ ホーム</a></div>
+ <div class="nav-label">営業</div><div class="nav"><a>▤ レジ</a><a class="on">▣ 日報</a></div>
+ <div class="nav-label">スタッフ</div><div class="nav"><a>▣ シフト</a><a>♙ キャスト</a><a>♧ スタッフ</a><a>▣ 給与</a></div>
+ <div class="nav-label">顧客</div><div class="nav"><a>▧ 顧客</a></div>
+ <div class="nav-label">分析</div><div class="nav"><a>▥ 分析</a></div>
+ <div class="nav-label">店舗</div><div class="nav"><a>⌁ マスタ</a><a>◒ お知らせ</a><a>◉ 監査</a></div>
+</aside>
+
+<main>
+<div class="topbar">
+ <div><div class="eyebrow">DAILY REPORT</div><h1>日報・締め管理</h1><p>営業日の締め、月次集計、売掛回収までを一つの流れで管理します。</p></div>
+ <div><span class="status open">営業中・未締め</span></div>
+</div>
+
+<div class="tabs">
+ <button class="on" data-tab="daily">日報</button>
+ <button data-tab="monthly">月報</button>
+ <button data-tab="ar">売掛</button>
+</div>
+
+<section class="view on" id="daily">
+ <div class="card">
+  <div class="head"><div><h2>2026-09-04（金）</h2><p>この営業日の締め状態</p></div><button class="btn primary" onclick="openClose()">締め確認へ</button></div>
+  <div class="body">
+   <div class="bizday">
+    <div class="bizchip"><small>営業日</small><b>2026-09-04</b></div>
+    <div class="bizchip"><small>営業時間</small><b>19:00〜翌5:00</b></div>
+    <div class="bizchip"><small>営業日切替</small><b>翌06:00</b></div>
+    <div class="bizchip"><small>現在</small><b>9/5 02:14 → 9/4営業日</b></div>
+   </div>
+   <div class="summary">
+    <div class="metric"><small>確定売上</small><b>¥428,000</b></div>
+    <div class="metric"><small>組数</small><b>12組</b></div>
+    <div class="metric"><small>客単価</small><b>¥35,667</b></div>
+    <div class="metric"><small>現金</small><b>¥182,000</b></div>
+    <div class="metric"><small>カード等</small><b>¥246,000</b></div>
+   </div>
+  </div>
+ </div>
+
+ <div class="card">
+  <div class="head"><div><h2>締めフロー</h2><p>「何を確認すれば営業日を締められるか」を順番に表示。</p></div></div>
+  <div class="body close-flow">
+   <div class="step done"><small>01</small><b>売上確認</b><div class="sub">未会計 0件</div></div>
+   <div class="step done"><small>02</small><b>入出金確認</b><div class="sub">入力済み</div></div>
+   <div class="step current"><small>03</small><b>現金照合</b><div class="sub">実査未入力</div></div>
+   <div class="step"><small>04</small><b>差異・売掛確認</b><div class="sub">売掛 2件</div></div>
+   <div class="step"><small>05</small><b>締め確定</b><div class="sub">未実施</div></div>
+  </div>
+ </div>
+
+ <div class="grid2">
+  <div class="card">
+   <div class="head"><div><h2>締めチェック</h2><p>問題がある項目だけ対応すれば締められます。</p></div></div>
+   <div class="body check-list">
+    <div class="check-row"><div class="check-icon ok">✓</div><div><b>未会計伝票</b><div class="sub">すべて会計済みです。</div></div><span class="status ok">0件</span><button class="btn small">確認</button></div>
+    <div class="check-row"><div class="check-icon ok">✓</div><div><b>取消・返金</b><div class="sub">本日2件、監査ログあり。</div></div><span class="status ok">確認済み</span><button class="btn small">履歴</button></div>
+    <div class="check-row"><div class="check-icon warn">!</div><div><b>実査現金</b><div class="sub">レジ内の現金を入力してください。</div></div><span class="status open">未入力</span><button class="btn small primary">入力</button></div>
+    <div class="check-row"><div class="check-icon warn">!</div><div><b>売掛</b><div class="sub">本日発生 2件 / ¥34,000</div></div><span class="status open">要確認</span><button class="btn small" onclick="switchTab('ar')">確認</button></div>
+    <div class="check-row"><div class="check-icon warn">!</div><div><b>未処理の入出金</b><div class="sub">日払い・送り代・立替精算など 1件。</div></div><span class="status open">1件</span><button class="btn small primary">確認</button></div>
+    <div class="check-row"><div class="check-icon ok">✓</div><div><b>諸経費・現金支払</b><div class="sub">送り・日払い等の登録済み分を確認。</div></div><span class="status ok">完了</span><button class="btn small">詳細</button></div>
+   </div>
+  </div>
+
+  <div>
+   <div class="card">
+    <div class="head"><div><h2>現金照合</h2></div></div>
+    <div class="body">
+     <div class="recon">
+      <div class="recon-box"><small>レジ内予定額</small><b>¥232,000</b></div>
+      <div class="recon-box"><small>実査現金</small><b>未入力</b></div>
+      <div class="recon-box"><small>釣銭準備金</small><b>¥50,000</b></div>
+      <div class="recon-box"><small>実査差異</small><b>—</b></div>
+     </div>
+     <div class="variance-box"><small class="sub">差異が出た場合</small><div><b>差異理由の入力＋管理者承認</b></div><div class="sub">例：釣銭誤差 / 立替未登録 / 入金誤差。承認者と時刻を監査ログへ保存。</div></div>
+     <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn primary">実査を入力</button></div>
+    </div>
+   </div>
+   <div class="card">
+    <div class="head"><div><h2>売上内訳</h2></div></div>
+    <div class="body amount-list">
+     <div class="amount-row"><span>セット・延長</span><b>¥126,000</b></div>
+     <div class="amount-row"><span>ドリンク</span><b>¥48,000</b></div>
+     <div class="amount-row"><span>シャンパン・ボトル</span><b>¥197,000</b></div>
+     <div class="amount-row"><span>指名・同伴</span><b>¥31,000</b></div>
+     <div class="amount-row"><span>その他・調整</span><b>¥26,000</b></div>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <div class="card">
+  <div class="head"><div><h2>締め履歴</h2><p>締め後の訂正は「締め解除 → 訂正 → 再確定」で履歴を残します。</p></div></div>
+  <div class="body">
+   <div class="reopen">
+    <div class="reopen-step"><small>1</small><b>管理者が締め解除</b><div class="sub">理由必須</div></div>
+    <div class="reopen-step"><small>2</small><b>伝票・入出金を訂正</b><div class="sub">元データ・訂正履歴保持</div></div>
+    <div class="reopen-step"><small>3</small><b>再締め</b><div class="sub">再確定日時・担当者記録</div></div>
+   </div>
+   <div class="audit" style="margin-top:10px">
+    <div class="audit-row"><small>9/3 06:18</small><span>9/2営業日を締め確定</span><b>山田</b></div>
+    <div class="audit-row"><small>9/2 06:24</small><span>9/1営業日を締め確定</span><b>山田</b></div>
+   </div>
+  </div>
+ </div>
+</section>
+
+<section class="view" id="monthly">
+ <div class="card">
+  <div class="head"><div><h2>月報</h2><p>確定した営業日の実績を帳票として確認します。分析画面とは分離。</p></div></div>
+  <div class="body">
+   <div class="toolbar">
+    <div class="left-tools"><input class="field" value="2026-09"><span class="sub">営業日区分：前半 1〜15日 / 後半 16〜末日</span></div>
+    <button class="btn">CSV出力</button>
+   </div>
+   <div class="close-rule" style="margin-bottom:10px"><b>月次確定ルール：</b>対象期間内に未締め営業日がある場合は月次確定不可。閲覧・CSV仮出力は可能です。</div>
+   <div class="periods">
+    <div class="period on"><small>前半 1〜15日</small><b>確定 3日 / 未確定 12日</b></div>
+    <div class="period"><small>後半 16〜末日</small><b>未開始</b></div>
+    <div class="period"><small>通期</small><b>売上 ¥1,224,000</b></div>
+   </div>
+  </div>
+ </div>
+ <div class="card">
+  <div class="head"><div><h2>2026年9月 月報</h2><p>締め済み営業日の確定値のみ集計。</p></div></div>
+  <div class="body">
+   <div class="summary">
+    <div class="metric"><small>売上</small><b>¥1,224,000</b></div>
+    <div class="metric"><small>営業日</small><b>3日</b></div>
+    <div class="metric"><small>組数</small><b>34組</b></div>
+    <div class="metric"><small>客単価</small><b>¥36,000</b></div>
+    <div class="metric"><small>人件費率</small><b>32.8%</b></div>
+   </div>
+   <table class="month-table" style="margin-top:12px">
+    <thead><tr><th>項目</th><th>前半</th><th>後半</th><th>通期</th></tr></thead>
+    <tbody>
+     <tr><td>売上</td><td>¥1,224,000</td><td>—</td><td><b>¥1,224,000</b></td></tr>
+     <tr><td>組数</td><td>34組</td><td>—</td><td><b>34組</b></td></tr>
+     <tr><td>来客数</td><td>57人</td><td>—</td><td><b>57人</b></td></tr>
+     <tr><td>指名（本指名＋場内）</td><td>41本</td><td>—</td><td><b>41本</b></td></tr>
+     <tr><td>同伴</td><td>8件</td><td>—</td><td><b>8件</b></td></tr>
+     <tr><td>人件費</td><td>¥401,000</td><td>—</td><td><b>¥401,000</b></td></tr>
+    </tbody>
+   </table>
+  </div>
+ </div>
+ <div class="card">
+  <div class="head"><div><h2>日別確定状況</h2><p>未締め営業日は月報確定値には含めません。</p></div></div>
+  <div class="body">
+   <div class="bar-row"><b>9/1</b><div class="bar"><i style="width:100%"></i></div><span class="status ok">締め済み</span></div>
+   <div class="bar-row"><b>9/2</b><div class="bar"><i style="width:100%"></i></div><span class="status ok">締め済み</span></div>
+   <div class="bar-row"><b>9/3</b><div class="bar"><i style="width:100%"></i></div><span class="status ok">締め済み</span></div>
+   <div class="bar-row"><b>9/4</b><div class="bar"><i style="width:45%"></i></div><span class="status open">営業中</span></div>
+  </div>
+ </div>
+</section>
+
+<section class="view" id="ar">
+ <div class="notice" style="margin-bottom:12px">店舗設定で「売掛」をOFFにした店舗では、このタブ・ホームの売掛警告・日報の売掛チェックをすべて非表示にします。</div>
+ <div class="card">
+  <div class="head"><div><h2>売掛管理</h2><p>発生・回収・残高を顧客単位で追跡。会計確定後の元伝票は変更しません。</p></div><button class="btn primary">＋ 売掛を登録</button></div>
+  <div class="body">
+   <div class="summary">
+    <div class="metric"><small>未回収残高</small><b>¥128,000</b></div>
+    <div class="metric"><small>未回収件数</small><b>5件</b></div>
+    <div class="metric"><small>期限超過</small><b style="color:#ef8787">2件</b></div>
+    <div class="metric"><small>今月回収</small><b>¥76,000</b></div>
+    <div class="metric"><small>今月発生</small><b>¥162,000</b></div>
+   </div>
+  </div>
+ </div>
+ <div class="card">
+  <div class="head"><div><h2>未回収</h2></div></div>
+  <div class="body">
+   <div class="toolbar"><div class="left-tools"><input class="field" placeholder="顧客名・伝票番号で検索"><button class="btn small gold">期限超過</button><button class="btn small">今月発生</button><button class="btn small">一部回収</button></div></div>
+   <div class="ar-list">
+    <div class="ar-item">
+     <div class="ar-top"><div><b>田中様</b><div class="sub">伝票 #A-20260902-014 / 9月2日</div></div><div style="text-align:right"><b style="font-size:18px">¥48,000</b><div class="status bad" style="margin-top:4px">期限超過 2日</div></div></div>
+     <div class="ar-meta"><span class="status blue">担当：あべ</span><span class="status open">未回収 ¥48,000</span><span class="status blue">期限 9/2</span></div>
+     <div class="ar-meta"><span class="method">回収方法：未設定</span><span class="method">入金日：—</span></div>
+     <div class="ar-actions"><button class="btn small">伝票を見る</button><button class="btn small">履歴</button><button class="btn small primary">回収を登録</button></div>
+    </div>
+    <div class="ar-item">
+     <div class="ar-top"><div><b>鈴木様</b><div class="sub">伝票 #A-20260903-008 / 9月3日</div></div><div style="text-align:right"><b style="font-size:18px">¥34,000</b><div class="status open" style="margin-top:4px">一部回収</div></div></div>
+     <div class="ar-meta"><span class="status blue">担当：さくら</span><span class="status open">残 ¥14,000</span><span class="status ok">回収済 ¥20,000</span></div>
+     <div class="ar-meta"><span class="method">前回：現金</span><span class="method">入金日：9/4</span></div>
+     <div class="ar-actions"><button class="btn small">伝票を見る</button><button class="btn small">履歴</button><button class="btn small primary">追加回収</button></div>
+    </div>
+   </div>
+  </div>
+ </div>
+ <div class="card">
+  <div class="head"><div><h2>回収履歴</h2><p>partial / oldest-first 等の回収ルールは設定側で管理。</p></div></div>
+  <div class="body audit">
+   <div class="audit-row"><small>9/4 17:10</small><span>鈴木様 ¥20,000 回収（現金）</span><b>佐藤</b></div>
+   <div class="audit-row"><small>9/3 22:14</small><span>山本様 ¥42,000 全額回収</span><b>山田</b></div>
+  </div>
+ </div>
+</section>
+</main>
+</div>
+
+<div class="modal-bg" id="closeModal">
+ <div class="modal">
+  <h2>2026-09-04 の締め確認</h2>
+  <p class="sub">締め確定後は通常編集できません。訂正時は管理者が締め解除して履歴を残します。</p>
+  <div class="check-list" style="margin-top:10px">
+   <div class="check-row"><div class="check-icon ok">✓</div><div><b>未会計伝票</b></div><span class="status ok">0件</span><span></span></div>
+   <div class="check-row"><div class="check-icon warn">!</div><div><b>実査現金</b></div><span class="status open">未入力</span><span></span></div>
+   <div class="check-row"><div class="check-icon warn">!</div><div><b>売掛確認</b></div><span class="status open">2件</span><span></span></div>
+  </div>
+  <div class="notice" style="margin-top:10px">未入力・未処理項目があるため、現時点では締め確定できません。差異がある場合は理由入力と承認が必要です。</div>
+  <div class="actions"><button class="btn" onclick="openClose(false)">戻る</button><button class="btn primary">実査現金を入力</button></div>
+ </div>
+</div>
+
+<script>
+function switchTab(id){
+ document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+ document.getElementById(id).classList.add('on');
+ document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===id));
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+function openClose(on=true){document.getElementById('closeModal').classList.toggle('open',on)}
+</script>
+</body>
+</html>

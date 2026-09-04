@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX 売上・店舗分析 改修モック v2.1</title>
+<style>
+:root{--bg:#070707;--panel:#11110f;--panel2:#151512;--field:#090909;--line:#302e28;--line-strong:#484339;--text:#f4f1e9;--sub:#b8b2a8;--muted:#7f7a71;--brand:#d8ad55;--brand2:#f0cf82;--brand-soft:rgba(216,173,85,.10);--primary:#2f7fe7;--primary2:#61a7ff;--primary-soft:rgba(47,127,231,.15);--success:#4dc37d;--success-soft:rgba(77,195,125,.11);--warning:#d9a43a;--warning-soft:rgba(217,164,58,.10);--danger:#e26762;--danger-soft:rgba(226,103,98,.11);--r:10px;--sidebar:205px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px}
+button,input,select{font:inherit}.app{display:grid;grid-template-columns:190px 1fr;min-height:100vh}
+aside{border-right:1px solid var(--line);padding:18px 12px;background:#0b0b0a}
+.brand{display:flex;gap:10px;align-items:center;margin-bottom:24px}.logo{width:32px;height:32px;border:1px solid var(--brand);border-radius:7px;display:grid;place-items:center;color:var(--brand)}.brand b{font-size:16px}.brand small{display:block;color:#777;font-size:9px;letter-spacing:2px}
+.nav-label{font-size:9px;color:#666;letter-spacing:2px;margin:16px 8px 8px}.nav a{display:flex;align-items:center;gap:9px;color:#aaa;text-decoration:none;padding:10px;border-radius:7px;margin:2px 0}.nav a.on{background:#112335;color:#65aff3}
+main{padding:26px 34px 50px}.eyebrow{font-size:10px;color:var(--brand);letter-spacing:2px;font-weight:800}.topbar{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px}.topbar h1{font-size:27px;margin:5px 0}.topbar p{margin:0;color:var(--sub)}
+.btn{border:1px solid var(--line-strong);background:#121210;color:#ddd;border-radius:7px;padding:8px 12px;font-weight:800;cursor:pointer;text-align:center}.btn.primary{border-color:#4b89c0;background:#14304a;color:#75bcf7}.btn.small{padding:6px 9px;font-size:11px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;padding:5px;border:1px solid var(--line);border-radius:9px;background:#10100f;margin-bottom:12px}.tab{border:1px solid transparent;background:#111;color:#aaa;border-radius:7px;padding:9px;font-weight:800}.tab.on{background:var(--primary-soft);border-color:#356b98;color:#72b8f2}
+.view{display:none}.view.on{display:block}
+.toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}.left-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{border:0;border-right:1px solid var(--line);background:#111;color:#999;padding:8px 14px;font-weight:800}.seg button:last-child{border-right:0}.seg button.on{background:var(--primary-soft);color:#69b4f5}.field{background:#0c0c0b;color:#eee;border:1px solid var(--line-strong);border-radius:7px;padding:8px 9px}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}.metric{border:1px solid var(--line);border-radius:8px;background:#171714;padding:11px}.metric small{display:block;color:var(--sub);font-size:10px}.metric b{display:block;font-size:19px;margin-top:4px}.delta{font-size:10px;margin-top:5px}.up{color:#74d19d}.down{color:#ed8585}.neutral{color:#777}
+.grid2{display:grid;grid-template-columns:1.35fr .65fr;gap:12px}.grid2.equal{grid-template-columns:1fr 1fr}.card{border:1px solid var(--line);background:#121210;border-radius:10px;overflow:hidden;margin-bottom:12px}.head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}.head h2{font-size:14px;margin:0}.head p{font-size:10px;color:var(--sub);margin:3px 0 0}.body{padding:14px}
+.chart{height:250px;border:1px solid var(--line);border-radius:8px;background:
+ linear-gradient(to top,rgba(255,255,255,.045) 1px,transparent 1px) 0 0/100% 50px,
+ linear-gradient(to right,rgba(255,255,255,.025) 1px,transparent 1px) 0 0/14.28% 100%,#10100f;
+ position:relative;overflow:hidden;padding:12px}
+.line{position:absolute;left:18px;right:18px;bottom:34px;height:160px}.line svg{width:100%;height:100%}.chart-axis{position:absolute;left:14px;right:14px;bottom:8px;display:flex;justify-content:space-between;color:#666;font-size:9px}
+.legend{display:flex;gap:12px;align-items:center}.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}.dot.gold{background:#d7b250}.dot.blue{background:#4ea3f1}
+.bar-row{display:grid;grid-template-columns:130px 1fr 110px 70px;gap:9px;align-items:center;margin:9px 0}.bar{height:9px;background:#2a2924;border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:#d7b250}.bar.blue i{background:#4ea3f1}.bar.green i{background:#55c387}
+.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.05);text-align:right}.table th:first-child,.table td:first-child{text-align:left}.table th{color:#777;font-size:10px}.table tr:last-child td{border-bottom:0}.table td strong{color:#e1c168}
+.rank{display:grid;gap:0}.rank-row{display:grid;grid-template-columns:30px 1fr 100px 100px;gap:9px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045)}.rank-row:last-child{border-bottom:0}.rank-no{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#24231f;font-weight:900}.rank-no.top{background:#d8b95f;color:#171207}
+.insight{display:grid;gap:8px}.insight-item{border:1px solid var(--line);border-radius:8px;background:#151512;padding:10px}.insight-item small{display:block;color:#777;margin-bottom:4px}.insight-item b{display:block}.insight-item .meta{margin-top:4px;color:#9c978c;font-size:10px}
+.notice{border:1px solid #5c4c25;background:#1b180e;color:#d7bd70;border-radius:7px;padding:9px 10px;font-size:11px;margin-bottom:12px}
+.pill{display:inline-flex;border:1px solid var(--line-strong);border-radius:13px;padding:3px 7px;font-size:9px;color:#aaa}.pill.blue{border-color:#315e82;color:#73b8f2;background:#102132}.pill.green{border-color:#2d6646;color:#7bd1a0;background:#102018}.pill.gold{border-color:#66552a;color:#e6c26e;background:#1b170d}
+
+.scopebar{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;background:#10100f;padding:9px 11px;margin-bottom:12px}.scope-items{display:flex;gap:7px;flex-wrap:wrap}.scope{border:1px solid var(--line-strong);border-radius:13px;padding:4px 8px;font-size:9px;color:#aaa}.scope strong{color:#ddd}
+.definition{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.def{border:1px solid var(--line);border-radius:8px;background:#141411;padding:10px}.def small{display:block;color:#777}.def b{display:block;margin-top:3px}.def p{color:#8e8a82;font-size:10px;line-height:1.45;margin:5px 0 0}
+.live-note{border:1px solid #355d77;background:#0d1922;color:#80b8db;border-radius:8px;padding:9px 10px;font-size:10px}
+
+@media(max-width:1100px){.summary{grid-template-columns:repeat(2,1fr)}.grid2,.grid2.equal{grid-template-columns:1fr}.tabs{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+ <div class="brand"><div class="logo">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div>
+ <div class="nav"><a>⌂ ホーム</a></div>
+ <div class="nav-label">営業</div><div class="nav"><a>▤ レジ</a><a>▣ 日報</a></div>
+ <div class="nav-label">スタッフ</div><div class="nav"><a>▣ シフト</a><a>♙ キャスト</a><a>♧ スタッフ</a><a>▣ 給与</a></div>
+ <div class="nav-label">顧客</div><div class="nav"><a>▧ 顧客</a></div>
+ <div class="nav-label">分析</div><div class="nav"><a class="on">▥ 分析</a></div>
+ <div class="nav-label">店舗</div><div class="nav"><a>⌁ マスタ</a><a>◒ お知らせ</a><a>◉ 監査</a></div>
+</aside>
+
+<main>
+<div class="topbar">
+ <div><div class="eyebrow">BUSINESS INSIGHTS</div><h1>売上・店舗分析</h1><p>確定した営業データを比較し、売上・キャスト・顧客の変化を確認します。</p></div>
+ <button class="btn">CSV出力</button>
+</div>
+
+<div class="toolbar">
+ <div class="left-tools">
+  <div class="seg" id="rangeSeg"><button class="on">今月</button><button>先月</button><button>直近30日</button></div>
+  <input class="field" value="2026-09">
+  <select class="field"><option>比較：前月</option><option>比較：前年同月</option><option>比較なし</option></select>
+ </div>
+ <div class="pill green">締め済み営業日のみ集計</div>
+</div>
+
+<div class="scopebar">
+ <div class="scope-items">
+  <span class="scope"><strong>集計:</strong> 締め済み営業日のみ</span>
+  <span class="scope"><strong>売上:</strong> 会計確定額</span>
+  <span class="scope"><strong>人件費:</strong> 給与未確定分は概算</span>
+  <span class="scope"><strong>比較:</strong> 同じ締め済み日数で比較</span>
+ </div>
+ <div class="live-note">営業中の速報値はホーム・レジで確認</div>
+</div>
+
+<div class="tabs">
+ <button class="tab on" data-tab="summary">サマリー</button>
+ <button class="tab" data-tab="sales">売上</button>
+ <button class="tab" data-tab="cast">キャスト</button>
+ <button class="tab" data-tab="customer">顧客</button>
+</div>
+
+<section class="view on" id="summary">
+ <div class="definition">
+  <div class="def"><small>会計売上</small><b>店舗の確定売上</b><p>伝票・日報と一致する金額。</p></div>
+  <div class="def"><small>販売実績</small><b>商品販売の担当実績</b><p>バック・評価用。会計売上の所有者ではありません。</p></div>
+  <div class="def"><small>指名実績</small><b>本指名・場内・同伴</b><p>指名回数・料金実績を別集計。</p></div>
+  <div class="def"><small>担当顧客</small><b>CRM上の担当関係</b><p>同一伝票の売上を顧客へ按分しません。</p></div>
+ </div>
+ <div class="summary">
+  <div class="metric"><small>売上</small><b>¥1,224,000</b><div class="delta up">前月比 +8.4%</div></div>
+  <div class="metric"><small>組数</small><b>34組</b><div class="delta up">前月比 +3組</div></div>
+  <div class="metric"><small>客単価</small><b>¥36,000</b><div class="delta up">+4.9%</div></div>
+  <div class="metric"><small>人件費率（概算）</small><b>32.8%</b><div class="delta down">+2.1pt</div></div>
+  <div class="metric"><small>本指名</small><b>41本</b><div class="delta up">+6本</div></div>
+ </div>
+
+ <div class="grid2">
+  <div class="card">
+   <div class="head"><div><h2>売上推移</h2><p>締め済み営業日のみ。月報の確定値と一致します。</p></div><div class="legend"><span><i class="dot gold"></i>今月</span><span><i class="dot blue"></i>前月</span></div></div>
+   <div class="body">
+    <div class="chart">
+     <div class="line">
+      <svg viewBox="0 0 700 160" preserveAspectRatio="none">
+       <polyline fill="none" stroke="#d7b250" stroke-width="4" points="0,145 90,112 180,125 270,80 360,97 450,54 540,72 630,20 700,44"/>
+       <polyline fill="none" stroke="#4ea3f1" stroke-width="3" opacity=".65" points="0,135 90,125 180,117 270,108 360,93 450,88 540,76 630,68 700,60"/>
+      </svg>
+     </div>
+     <div class="chart-axis"><span>9/1</span><span>9/5</span><span>9/10</span><span>9/15</span><span>9/20</span><span>9/25</span><span>9/30</span></div>
+    </div>
+   </div>
+  </div>
+  <div class="card">
+   <div class="head"><div><h2>見るべき変化</h2><p>自動コメントではなく、集計値の差分を表示。</p></div></div>
+   <div class="body insight">
+    <div class="insight-item"><small>売上カテゴリ</small><b>シャンパン比率が 58.8%</b><div class="meta">前月 47.2% → 今月 58.8%</div></div>
+    <div class="insight-item"><small>曜日</small><b>金曜の客単価が最高</b><div class="meta">¥42,800 / 全曜日平均 ¥36,000</div></div>
+    <div class="insight-item"><small>キャスト</small><b>上位3名で本指名の56%</b><div class="meta">偏りを確認できます。</div></div>
+    <div class="insight-item"><small>顧客</small><b>リピート率 61.8%</b><div class="meta">前月比 +4.3pt</div></div>
+   </div>
+  </div>
+ </div>
+
+ <div class="grid2 equal">
+  <div class="card">
+   <div class="head"><div><h2>売上カテゴリ</h2></div></div>
+   <div class="body">
+    <div class="bar-row"><b>シャンパン</b><div class="bar"><i style="width:88%"></i></div><b>¥719,000</b><span>58.8%</span></div>
+    <div class="bar-row"><b>セット・延長</b><div class="bar"><i style="width:42%"></i></div><b>¥210,000</b><span>17.2%</span></div>
+    <div class="bar-row"><b>ボトル</b><div class="bar"><i style="width:37%"></i></div><b>¥193,000</b><span>15.8%</span></div>
+    <div class="bar-row"><b>指名・同伴</b><div class="bar"><i style="width:19%"></i></div><b>¥61,000</b><span>5.0%</span></div>
+    <div class="bar-row"><b>ドリンク</b><div class="bar"><i style="width:12%"></i></div><b>¥41,000</b><span>3.2%</span></div>
+   </div>
+  </div>
+  <div class="card">
+   <div class="head"><div><h2>曜日別</h2></div></div>
+   <div class="body">
+    <table class="table">
+     <thead><tr><th>曜日</th><th>売上</th><th>組数</th><th>客単価</th></tr></thead>
+     <tbody>
+      <tr><td>木</td><td>¥311,000</td><td>9</td><td>¥34,556</td></tr>
+      <tr><td>金</td><td><strong>¥428,000</strong></td><td>10</td><td><strong>¥42,800</strong></td></tr>
+      <tr><td>土</td><td>¥386,000</td><td>11</td><td>¥35,091</td></tr>
+      <tr><td>その他</td><td>¥99,000</td><td>4</td><td>¥24,750</td></tr>
+     </tbody>
+    </table>
+   </div>
+  </div>
+ </div>
+</section>
+
+<section class="view" id="sales">
+ <div class="summary">
+  <div class="metric"><small>売上</small><b>¥1,224,000</b><div class="delta up">+8.4%</div></div>
+  <div class="metric"><small>セット・延長</small><b>¥210,000</b><div class="delta neutral">17.2%</div></div>
+  <div class="metric"><small>ドリンク・ボトル</small><b>¥953,000</b><div class="delta neutral">77.9%</div></div>
+  <div class="metric"><small>指名・同伴</small><b>¥61,000</b><div class="delta neutral">5.0%</div></div>
+  <div class="metric"><small>割引・調整</small><b>-¥34,000</b><div class="delta down">前月比 +¥8,000</div></div>
+ </div>
+ <div class="grid2 equal">
+  <div class="card">
+   <div class="head"><div><h2>時間帯別売上</h2><p>営業時間帯ごとの確定売上。</p></div></div>
+   <div class="body">
+    <div class="bar-row"><b>19–21時</b><div class="bar blue"><i style="width:28%"></i></div><b>¥184,000</b><span>15%</span></div>
+    <div class="bar-row"><b>21–23時</b><div class="bar blue"><i style="width:62%"></i></div><b>¥391,000</b><span>32%</span></div>
+    <div class="bar-row"><b>23–25時</b><div class="bar blue"><i style="width:92%"></i></div><b>¥473,000</b><span>39%</span></div>
+    <div class="bar-row"><b>25時以降</b><div class="bar blue"><i style="width:25%"></i></div><b>¥176,000</b><span>14%</span></div>
+   </div>
+  </div>
+  <div class="card">
+   <div class="head"><div><h2>支払方法</h2></div></div>
+   <div class="body">
+    <div class="bar-row"><b>現金</b><div class="bar green"><i style="width:45%"></i></div><b>¥551,000</b><span>45%</span></div>
+    <div class="bar-row"><b>カード</b><div class="bar green"><i style="width:50%"></i></div><b>¥612,000</b><span>50%</span></div>
+    <div class="bar-row"><b>その他</b><div class="bar green"><i style="width:8%"></i></div><b>¥61,000</b><span>5%</span></div>
+   </div>
+  </div>
+ </div>
+ <div class="card">
+  <div class="head"><div><h2>日別実績</h2><p>詳細な確定帳票は月報から確認。</p></div><button class="btn small">月報へ</button></div>
+  <div class="body">
+   <table class="table"><thead><tr><th>営業日</th><th>売上</th><th>組数</th><th>客単価</th><th>人件費率</th></tr></thead>
+   <tbody><tr><td>9/1</td><td>¥396,000</td><td>12</td><td>¥33,000</td><td>31.4%</td></tr><tr><td>9/2</td><td>¥400,000</td><td>12</td><td>¥33,333</td><td>33.8%</td></tr><tr><td>9/3</td><td>¥428,000</td><td>10</td><td>¥42,800</td><td>33.2%</td></tr></tbody></table>
+  </div>
+ </div>
+</section>
+
+<section class="view" id="cast">
+ <div class="notice">ここでは「会計売上をキャストに帰属」させません。キャスト比較は、指名実績・商品販売実績・出勤実績を別指標として表示します。</div>
+ <div class="summary">
+  <div class="metric"><small>本指名</small><b>41本</b><div class="delta up">+6本</div></div>
+  <div class="metric"><small>場内指名</small><b>26本</b><div class="delta up">+2本</div></div>
+  <div class="metric"><small>同伴</small><b>8件</b><div class="delta neutral">±0</div></div>
+  <div class="metric"><small>商品販売実績</small><b>¥953,000</b><div class="delta up">+12.2%</div></div>
+  <div class="metric"><small>出勤キャスト</small><b>7名</b><div class="delta neutral">締め済み日</div></div>
+ </div>
+ <div class="grid2">
+  <div class="card">
+   <div class="head"><div><h2>キャスト別 TOP</h2><p>指名・商品販売実績・出勤を横断して比較。</p></div></div>
+   <div class="body rank">
+    <div class="rank-row"><div class="rank-no top">1</div><div><b>さくら</b><div class="sub">本指名12 / 場内5 / 同伴3</div></div><b>¥312,000</b><span class="pill gold">商品販売実績</span></div>
+    <div class="rank-row"><div class="rank-no">2</div><div><b>あべ</b><div class="sub">本指名10 / 場内8 / 同伴2</div></div><b>¥286,000</b><span class="pill gold">商品販売実績</span></div>
+    <div class="rank-row"><div class="rank-no">3</div><div><b>じゅり</b><div class="sub">本指名7 / 場内4 / 同伴1</div></div><b>¥171,000</b><span class="pill gold">商品販売実績</span></div>
+   </div>
+  </div>
+  <div class="card">
+   <div class="head"><div><h2>偏り</h2></div></div>
+   <div class="body insight">
+    <div class="insight-item"><small>本指名</small><b>上位3名で56%</b><div class="meta">41本中23本</div></div>
+    <div class="insight-item"><small>商品販売実績</small><b>上位3名で80.7%</b><div class="meta">¥769,000 / ¥953,000</div></div>
+    <div class="insight-item"><small>出勤</small><b>平均 8.3日</b><div class="meta">締め済み日ベース</div></div>
+   </div>
+  </div>
+ </div>
+</section>
+
+<section class="view" id="customer">
+ <div class="summary">
+  <div class="metric"><small>来店顧客</small><b>57人</b><div class="delta up">+5人</div></div>
+  <div class="metric"><small>新規</small><b>13人</b><div class="delta neutral">22.8%</div></div>
+  <div class="metric"><small>リピート</small><b>44人</b><div class="delta up">77.2%</div></div>
+  <div class="metric"><small>平均来店間隔</small><b>18.4日</b><div class="delta up">-2.1日</div></div>
+  <div class="metric"><small>未紐付け来店</small><b>4件</b><div class="delta down">要整理</div></div>
+ </div>
+ <div class="grid2 equal">
+  <div class="card">
+   <div class="head"><div><h2>新規 / リピート</h2></div></div>
+   <div class="body">
+    <div class="bar-row"><b>新規</b><div class="bar blue"><i style="width:23%"></i></div><b>13人</b><span>22.8%</span></div>
+    <div class="bar-row"><b>リピート</b><div class="bar green"><i style="width:77%"></i></div><b>44人</b><span>77.2%</span></div>
+   </div>
+  </div>
+  <div class="card">
+   <div class="head"><div><h2>来店頻度</h2></div></div>
+   <div class="body">
+    <div class="bar-row"><b>月4回以上</b><div class="bar"><i style="width:20%"></i></div><b>6人</b><span></span></div>
+    <div class="bar-row"><b>月2–3回</b><div class="bar"><i style="width:47%"></i></div><b>18人</b><span></span></div>
+    <div class="bar-row"><b>月1回</b><div class="bar"><i style="width:62%"></i></div><b>24人</b><span></span></div>
+    <div class="bar-row"><b>新規のみ</b><div class="bar"><i style="width:24%"></i></div><b>9人</b><span></span></div>
+   </div>
+  </div>
+ </div>
+ <div class="notice">顧客別売上ランキングは表示しません。同一会計に複数顧客が紐づく場合でも、現行設計では売上按分を行わないためです。</div>
+ <div class="card">
+  <div class="head"><div><h2>顧客アクション候補</h2><p>売上額ではなく、来店履歴・担当・再来店状況から抽出。</p></div><button class="btn small">顧客管理へ</button></div>
+  <div class="body">
+   <table class="table"><thead><tr><th>条件</th><th>該当</th><th>前月</th><th>変化</th></tr></thead>
+   <tbody>
+    <tr><td>30日以上来店なし</td><td><strong>12人</strong></td><td>9人</td><td class="down">+3</td></tr>
+    <tr><td>60日以上来店なし</td><td>5人</td><td>6人</td><td class="up">-1</td></tr>
+    <tr><td>今月初回来店</td><td>13人</td><td>11人</td><td class="up">+2</td></tr>
+    <tr><td>来店履歴あり・担当未設定</td><td>8人</td><td>10人</td><td class="up">-2</td></tr>
+   </tbody></table>
+  </div>
+ </div>
+</section>
+</main>
+</div>
+<script>
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on'));
+ document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
+ b.classList.add('on');document.getElementById(b.dataset.tab).classList.add('on');
+});
+document.querySelectorAll('#rangeSeg button').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('#rangeSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+});
+</script>
+</body>
+</html>
