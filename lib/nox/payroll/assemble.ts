@@ -32,6 +32,7 @@ export type CastRaw = {
   jonaiShimeiAmt: number;
   daily: { bizDate: string; sales: number; hours: number }[];
   productBack: { drink: number; champ: number; bottle: number };
+  calculatedBack: number; // ★裁定113: Σ check_cast_backs.calculated_back_amount（null=0・collect が必ず格納）
   pointProducts: number;
   champCnt: number;
   bottleCnt: number;
@@ -85,6 +86,7 @@ export function buildPayInput(
     plan: raw.plan,
     override: raw.override,
     productBack: raw.productBack,
+    calculatedBack: raw.calculatedBack, // ★裁定113
     pointProducts: raw.pointProducts,
     customBackDefs: masters.customBackDefs,
     metrics: { champCnt: raw.champCnt, bottleCnt: raw.bottleCnt }, // 論点1: check_lines kind から集計

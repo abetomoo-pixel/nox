@@ -72,7 +72,7 @@ export type CollectResult = {
 // periodEnd は period_bounds 由来の 'YYYY-MM-DD'（win.periodEnd・写像単一ソース＝Date 非経由）。
 async function loadMasters(admin: SupabaseClient, storeId: string, period: string, periodEnd: string) {
   const [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR] = await Promise.all([
-    admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, dohan_back_mode, dohan_back_rate").eq("store_id", storeId),
+    admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, dohan_back_mode, dohan_back_rate, product_back_mode, product_back_rate, product_back_fixed").eq("store_id", storeId),
     // ★裁定97: 適用行の選択は3段（期間と重なる行を全部読み、下の castPlanByCast 構築で選ぶ）。
     //   a) 期首（period-01）時点で有効な行があればそれ＝裁定96-④ 不変（期中変更は翌期から）。
     //   b) 無ければ期間内（期首 < valid_from ≤ 期末）で最も早い valid_from の行＝backfill 導入月の救済。日割りなし。
@@ -124,6 +124,10 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
       dohanBackMode: (p.dohan_back_mode ?? "per_count") as CompPlan["dohanBackMode"],
       dohanBackRate: (p.dohan_back_rate ?? null) as number | null,
       components: compsByPlan.get(p.id as string) ?? [],
+      // ★裁定113（mig0132）: 商品販売バック3方式（payOf は plan_fixed の固定額のみ参照）
+      productBackMode: (p.product_back_mode ?? "product_rule") as CompPlan["productBackMode"],
+      productBackRate: (p.product_back_rate ?? null) as number | null,
+      productBackFixed: (p.product_back_fixed ?? null) as number | null,
     });
   }
   // ★裁定97: cast 単位の適用行選択（上の query コメントの3段）。
@@ -194,7 +198,8 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
 //     void 伝票の approved は行としては残置される（mig0047 が reject するのは pending のみ）ため、
 //     給与から外す単一責任点がこの void フィルタ＝finalize 済み給与への遡及改変を構造的に回避する。
 async function loadAccounting(admin: SupabaseClient, storeId: string, win: PayrollWindow) {
-  const backByCast = new Map<string, { drink: number; champ: number; bottle: number; pt: number }>();
+  // ★裁定113: calc＝Σ calculated_back_amount（plan_rate の凍結値・null=0＝旧行/他 mode フォールバック）
+  const backByCast = new Map<string, { drink: number; champ: number; bottle: number; pt: number; calc: number }>();
   const champBottleByCast = new Map<string, { champCnt: number; bottleCnt: number }>();
 
   // ★F3f: 承認済 drink_claims の back_amount を cast 別に drink バックへ合流（対象 check の営業日で期間フィルタ）
@@ -206,7 +211,7 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
   if (eDc) throw new Error(`drink_claims: ${eDc.message}`);
   for (const c of (claims ?? []) as Record<string, unknown>[]) {
     const cid = c.cast_id as string;
-    const cur = backByCast.get(cid) ?? { drink: 0, champ: 0, bottle: 0, pt: 0 };
+    const cur = backByCast.get(cid) ?? { drink: 0, champ: 0, bottle: 0, pt: 0, calc: 0 };
     cur.drink += c.back_amount as number;
     backByCast.set(cid, cur);
   }
@@ -221,17 +226,19 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
   const [nomsR, linesR, backsR] = await Promise.all([
     admin.from("check_nominations").select("check_id, cast_id").in("check_id", checkIds),
     admin.from("check_lines").select("check_id, kind, qty").in("check_id", checkIds),
-    admin.from("check_cast_backs").select("cast_id, drink_back, champ_back, bottle_back, hon_pt_alloc").in("check_id", checkIds),
+    // ★裁定113: 新3列を読む（source_mode は Σ には不要だが読み手フォールバックの検証用に取得・calc は null=0）
+    admin.from("check_cast_backs").select("cast_id, drink_back, champ_back, bottle_back, hon_pt_alloc, source_mode, product_sales_base, calculated_back_amount").in("check_id", checkIds),
   ]);
   for (const r of [nomsR, linesR, backsR]) if (r.error) throw new Error(`会計明細: ${r.error.message}`);
 
   for (const b of (backsR.data ?? []) as Record<string, unknown>[]) {
     const cid = b.cast_id as string;
-    const cur = backByCast.get(cid) ?? { drink: 0, champ: 0, bottle: 0, pt: 0 };
+    const cur = backByCast.get(cid) ?? { drink: 0, champ: 0, bottle: 0, pt: 0, calc: 0 };
     cur.drink += b.drink_back as number;
     cur.champ += b.champ_back as number;
     cur.bottle += b.bottle_back as number;
     cur.pt += b.hon_pt_alloc as number;
+    cur.calc += (b.calculated_back_amount as number | null) ?? 0; // ★裁定113: 凍結値の単純Σ（再計算しない）
     backByCast.set(cid, cur);
   }
   // check_id → {champ,bottle} qty
@@ -539,7 +546,7 @@ export async function collectPeriod(
   for (const cid of targetIds) {
     const s = salesByCast.get(cid);
     const p = punchByCast.get(cid);
-    const back = acct.backByCast.get(cid) ?? { drink: 0, champ: 0, bottle: 0, pt: 0 };
+    const back = acct.backByCast.get(cid) ?? { drink: 0, champ: 0, bottle: 0, pt: 0, calc: 0 };
     const cb = acct.champBottleByCast.get(cid) ?? { champCnt: 0, bottleCnt: 0 };
     const cp = castPlanByCast.get(cid);
     const plan = cp ? plansById.get(cp.planId) ?? null : null;
@@ -562,6 +569,7 @@ export async function collectPeriod(
       jonaiShimeiAmt: shimeiAmtByCast.get(cid)?.jonai ?? 0,
       daily,
       productBack: { drink: back.drink, champ: back.champ, bottle: back.bottle },
+      calculatedBack: back.calc, // ★裁定113
       pointProducts: back.pt,
       champCnt: cb.champCnt,
       bottleCnt: cb.bottleCnt,

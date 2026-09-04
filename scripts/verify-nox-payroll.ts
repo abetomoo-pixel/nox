@@ -37,10 +37,14 @@ const env = loadEnvOrExit([
   "SEED_PASSWORD",
 ]);
 
+// ★裁定113 追補: PR_INVERT=1 で全 check の期待を反転（全赤）・PR_BREAK=1 で 113 節の算術期待値を裏書き（1本のみ赤）
+const INV = process.env.PR_INVERT === "1";
+const BREAK = process.env.PR_BREAK === "1";
 let pass = 0;
 const fails: string[] = [];
 function check(label: string, ok: boolean, detail?: string) {
-  if (ok) pass++;
+  const eff = INV ? !ok : ok;
+  if (eff) pass++;
   else fails.push(`${label}${detail ? `: ${detail}` : ""}`);
 }
 
@@ -542,6 +546,110 @@ async function main() {
         await admin.from("comp_plan_components").delete().in("plan_id", pl97);
         await admin.from("comp_plans").delete().in("id", pl97);
       }
+    }
+  }
+
+  // ── ★裁定113 給与側（mig0132/0133・設計書 v1.1 §4）: collect の凍結Σ→payOf の grossBase 加算の実測 ──
+  //   fixture は admin 直 insert（check_cast_backs の新3列を含む＝close の凍結結果を模す。close 実走は pb スイートが担う）。
+  //   period は動的（今日+4年・同月＝裁定97 の +3年と衝突しない）。段内で作り段内で消す。
+  //   (r) plan_rate: calculatedΣ が gross に乗る・商品バック3種 0
+  //   (f) plan_fixed: ★裁定123＝calculatedΣ（close が Σ按分数量×固定額を凍結）が乗る・期間加算なし・商品バック3種 0
+  //   (p) product_rule: 従来どおり（drink_back がそのまま・calculated 0）
+  //   (o) 旧行（source_mode null）: 現行どおり（フォールバック＝drink_back のみ・calc 0）
+  {
+    const nowD = new Date();
+    const y113 = nowD.getUTCFullYear() + 4;
+    const mIdx = nowD.getUTCMonth();
+    const P113 = `${y113}-${String(mIdx + 1).padStart(2, "0")}`;
+    const cs113: string[] = []; const pl113: string[] = []; const ck113: string[] = [];
+    try {
+      const cR = await mkCast("NOX-VERIFY-pay113R", true); cs113.push(cR);
+      const cF = await mkCast("NOX-VERIFY-pay113F", true); cs113.push(cF);
+      const cP = await mkCast("NOX-VERIFY-pay113P", true); cs113.push(cP);
+      const cO = await mkCast("NOX-VERIFY-pay113O", true); cs113.push(cO);
+      const plR = await mkPlan("NOX-VERIFY-payPlan113R", storeA1Id); pl113.push(plR);
+      const plF = await mkPlan("NOX-VERIFY-payPlan113F", storeA1Id); pl113.push(plF);
+      const plP = await mkPlan("NOX-VERIFY-payPlan113P", storeA1Id); pl113.push(plP);
+      const { error: eR } = await admin.from("comp_plans").update({ product_back_mode: "plan_rate", product_back_rate: 15 }).eq("id", plR);
+      const { error: eF } = await admin.from("comp_plans").update({ product_back_mode: "plan_fixed", product_back_fixed: 30000 }).eq("id", plF);
+      check("裁定113 fixture: plan_rate/plan_fixed の plan 更新が pair CHECK を通る", !eR && !eF, eR?.message ?? eF?.message);
+      for (const [cid, pid] of [[cR, plR], [cF, plF], [cP, plP], [cO, plP]] as const) {
+        await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: pid, overrides_json: {}, valid_from: "2020-01-01" });
+        await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, mode: "委託" });
+      }
+      await mkPunchDay(cR, `${P113}-05`, `${P113}-06`);
+      await mkPunchDay(cF, `${P113}-05`, `${P113}-06`);
+      await mkPunchDay(cP, `${P113}-06`, `${P113}-07`);
+      await mkPunchDay(cO, `${P113}-06`, `${P113}-07`);
+      // 伝票（closed・hon 名簿）＋確定スナップ（新3列込み）: R は2伝票で Σ を作る
+      const mkBack = async (cid: string, castId: string, row: Record<string, unknown>) => {
+        const { error } = await admin.from("check_cast_backs").insert({ org_id: orgAId, store_id: storeA1Id, check_id: cid, cast_id: castId, ...row });
+        if (error) throw new Error(`check_cast_backs fixture: ${error.message}`);
+      };
+      const kR1 = await mkCheck(storeA1Id, seatId, `${P113}-10T22:00:00+09:00`, cR, [{ kind: "set", unit: 10000, qty: 1 }]); ck113.push(kR1);
+      const kR2 = await mkCheck(storeA1Id, seatId, `${P113}-11T22:00:00+09:00`, cR, [{ kind: "set", unit: 10000, qty: 1 }]); ck113.push(kR2);
+      const kF = await mkCheck(storeA1Id, seatId, `${P113}-10T22:00:00+09:00`, cF, [{ kind: "set", unit: 10000, qty: 1 }]); ck113.push(kF);
+      const kP = await mkCheck(storeA1Id, seatId, `${P113}-10T22:00:00+09:00`, cP, [{ kind: "set", unit: 10000, qty: 1 }]); ck113.push(kP);
+      const kO = await mkCheck(storeA1Id, seatId, `${P113}-10T22:00:00+09:00`, cO, [{ kind: "set", unit: 10000, qty: 1 }]); ck113.push(kO);
+      await mkBack(kR1, cR, { drink_back: 0, champ_back: 0, bottle_back: 0, hon_pt_alloc: 2, source_mode: "plan_rate", product_sales_base: 20000, calculated_back_amount: 3000 });
+      await mkBack(kR2, cR, { drink_back: 0, champ_back: 0, bottle_back: 0, hon_pt_alloc: 0, source_mode: "plan_rate", product_sales_base: 10000, calculated_back_amount: 1500 });
+      // ★裁定123: plan_fixed の凍結形＝base（同腕売上Σ・監査用）＋calc（Σ按分数量×固定額＝2×30000）
+      await mkBack(kF, cF, { drink_back: 0, champ_back: 0, bottle_back: 0, hon_pt_alloc: 1, source_mode: "plan_fixed", product_sales_base: 20000, calculated_back_amount: 60000 });
+      await mkBack(kP, cP, { drink_back: 400, champ_back: 0, bottle_back: 0, hon_pt_alloc: 0, source_mode: "product_rule", product_sales_base: null, calculated_back_amount: null });
+      await mkBack(kO, cO, { drink_back: 300, champ_back: 0, bottle_back: 0, hon_pt_alloc: 0, source_mode: null, product_sales_base: null, calculated_back_amount: null });
+
+      const win113 = await resolvePayrollWindow(admin, storeA1Id, P113);
+      const col113 = await collectPeriod(admin, manager, storeA1Id, win113);
+      const rawR = col113.casts.find((c) => c.castId === cR);
+      const rawF = col113.casts.find((c) => c.castId === cF);
+      const rawP = col113.casts.find((c) => c.castId === cP);
+      const rawO = col113.casts.find((c) => c.castId === cO);
+      const expCalc = BREAK ? 4501 : 4500; // ★破壊1点: PR_BREAK=1 で期待値を裏書き→本 assert のみ赤
+      check(`裁定113(r1) collect: plan_rate cast の calculatedBack=Σ凍結値 ${expCalc}（3000+1500）・商品バック3種 0`,
+        !!rawR && rawR.calculatedBack === expCalc && rawR.productBack.drink === 0 && rawR.productBack.champ === 0 && rawR.productBack.bottle === 0,
+        JSON.stringify({ calc: rawR?.calculatedBack, pb: rawR?.productBack }));
+      check("裁定113(r2) collect: plan 3項が読める（plan_rate/15/null）",
+        !!rawR?.plan && rawR.plan.productBackMode === "plan_rate" && rawR.plan.productBackRate === 15 && rawR.plan.productBackFixed === null,
+        JSON.stringify({ mode: rawR?.plan?.productBackMode, rate: rawR?.plan?.productBackRate, fixed: rawR?.plan?.productBackFixed }));
+      check("裁定113(f1) collect: plan_fixed cast も calculatedBack=凍結Σ 60000（裁定123）・商品バック3種 0・plan 3項＝plan_fixed/null/30000（円／販売数1点）",
+        !!rawF && rawF.calculatedBack === 60000 && rawF.productBack.drink === 0 && rawF.plan?.productBackMode === "plan_fixed" && rawF.plan?.productBackRate === null && rawF.plan?.productBackFixed === 30000,
+        JSON.stringify({ calc: rawF?.calculatedBack, pb: rawF?.productBack, plan: rawF?.plan?.productBackFixed }));
+      check("裁定113(p1) collect: product_rule cast は drink_back 400 がそのまま・calculatedBack 0",
+        !!rawP && rawP.productBack.drink === 400 && rawP.calculatedBack === 0, JSON.stringify({ calc: rawP?.calculatedBack, pb: rawP?.productBack }));
+      check("裁定113(o1) collect: 旧行（source_mode null）は drink_back 300・calculatedBack 0＝フォールバック",
+        !!rawO && rawO.productBack.drink === 300 && rawO.calculatedBack === 0, JSON.stringify({ calc: rawO?.calculatedBack, pb: rawO?.productBack }));
+
+      const draft113 = await computePayrollDraft(admin, manager, storeA1Id, P113, { previewDefaults: true });
+      const rowOf = (cid: string) => draft113.rows.find((r) => r.castId === cid);
+      const composed = (p: { timePay: number; honBack: number; jonaiBack: number; dohanBack: number; drinkBack: number; champBack: number; bottleBack: number; salesBack: number; customTotal: number; calculatedBack: number; achievementBonus: number; guaranteeAdd: number }) =>
+        p.timePay + p.honBack + p.jonaiBack + p.dohanBack + p.drinkBack + p.champBack + p.bottleBack + p.salesBack + p.customTotal + p.calculatedBack + p.achievementBonus + p.guaranteeAdd;
+      const dR = rowOf(cR); const dF = rowOf(cF); const dP = rowOf(cP); const dO = rowOf(cO);
+      check("裁定113(r3) payOf: plan_rate 行は calculatedBack=Σ が gross に乗る（構成式一致・extras 0）・drink/champ/bottle 0",
+        !!dR && dR.pay.calculatedBack === 4500 && dR.pay.drinkBack === 0 && dR.pay.gross === composed(dR.pay),
+        JSON.stringify({ calc: dR?.pay.calculatedBack, gross: dR?.pay.gross, composed: dR ? composed(dR.pay) : null }));
+      check("裁定113(f2) payOf: plan_fixed 行も calculatedBack=凍結Σ 60000 が gross に乗る（構成式一致・裁定123）・商品3種 0",
+        !!dF && dF.pay.calculatedBack === 60000 && dF.pay.drinkBack === 0 && dF.pay.gross === composed(dF.pay),
+        JSON.stringify({ calc: dF?.pay.calculatedBack, gross: dF?.pay.gross, composed: dF ? composed(dF.pay) : null }));
+      check("裁定113(p2) payOf: product_rule 行は drinkBack 400・calculatedBack 0（従来同値・構成式一致）",
+        !!dP && dP.pay.drinkBack === 400 && dP.pay.calculatedBack === 0 && dP.pay.gross === composed(dP.pay),
+        JSON.stringify({ drink: dP?.pay.drinkBack, calc: dP?.pay.calculatedBack }));
+      check("裁定113(o2) payOf: 旧行 cast は drinkBack 300・calculatedBack 0（フォールバック）",
+        !!dO && dO.pay.drinkBack === 300 && dO.pay.calculatedBack === 0,
+        JSON.stringify({ drink: dO?.pay.drinkBack, calc: dO?.pay.calculatedBack }));
+      check("裁定113(f3) payOf: 給与側に plan_fixed の期間加算は存在しない（PayResult に productBackFixed なし＝裁定123 で payOf 例外消滅）",
+        !!dF && !("productBackFixed" in (dF.pay as unknown as Record<string, unknown>)) && dF.pay.gross - composed(dF.pay) === 0,
+        JSON.stringify({ keys: dF ? Object.keys(dF.pay).filter((k) => /product|calculated/i.test(k)) : null }));
+      check("裁定113 4行とも blocker にならない", !draft113.blockers.some((b) => cs113.includes(b.castId)), JSON.stringify(draft113.blockers));
+    } finally {
+      if (ck113.length) {
+        for (const t of ["check_cast_backs", "check_nominations", "check_lines"]) await admin.from(t).delete().in("check_id", ck113);
+        await admin.from("checks").delete().in("id", ck113);
+      }
+      if (cs113.length) {
+        for (const t of ["punches", "shifts", "cast_plan", "cast_tax_profiles", "cast_norms"]) await admin.from(t).delete().in("cast_id", cs113);
+        await admin.from("casts").delete().in("id", cs113);
+      }
+      if (pl113.length) await admin.from("comp_plans").delete().in("id", pl113);
     }
   }
 

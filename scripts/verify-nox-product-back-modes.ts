@@ -10,7 +10,8 @@
  *  (a) product_rule: 従来値と同値の按分（unit=round(price×back_value/100)×alloc）＋source_mode='product_rule'・base/calc=null
  *  (b) plan_rate: 商品3列=0・product_sales_base=同腕売上按分（unit_price_snapshot×alloc・多 cast weight 分割で同腕を実証）・
  *      calculated_back_amount=round(base×rate/100)（.5 は 0 から遠い側）・rate=0 境界（base 凍結・calc 0）
- *  (c) plan_fixed: 商品3列=0・pt のみ凍結・base/calc=null・pt 0（jonai）なら行なし＝ゼロ専用行は作らない
+ *  (c) plan_fixed（★裁定123・mig0133＝販売数×固定額）: 商品3列=0・base=同腕売上Σ・calc=同腕按分数量Σ×fixed・
+ *      pt 0（jonai）でも数量>0 なら行あり・fixed=0 境界（base 凍結・calc 0）
  *  (d) plan 割当なし cast: product_rule フォールバック
  *  (e) pt 射程外: plan_rate/plan_fixed でも hon pt（hon_pt×alloc）が凍結される
  *  (f) claim 不干渉: claim 済み行を含む伝票を plan_rate で close→close 成功・drink_claims.back_amount/status 不変
@@ -191,16 +192,19 @@ async function main() {
     const planRate = await mkPlan(`${PFX}-plan-rate15`, "plan_rate", 15, null);
     const planRate0 = await mkPlan(`${PFX}-plan-rate0`, "plan_rate", 0, null);
     const planFixed = await mkPlan(`${PFX}-plan-fixed`, "plan_fixed", null, 30000);
+    const planFixed0 = await mkPlan(`${PFX}-plan-fixed0`, "plan_fixed", null, 0);
     const cPR = await mkCast(`${PFX}-cPR`);
     const cRate = await mkCast(`${PFX}-cRate`);
     const cRate0 = await mkCast(`${PFX}-cRate0`);
     const cFixed = await mkCast(`${PFX}-cFixed`);
+    const cFixed0 = await mkCast(`${PFX}-cFixed0`);
     const cNone = await mkCast(`${PFX}-cNone`);
     const cG = await mkCast(`${PFX}-cG`);
     await assign(cPR, planPR, "2020-01-01", null);
     await assign(cRate, planRate, "2020-01-01", null);
     await assign(cRate0, planRate0, "2020-01-01", null);
     await assign(cFixed, planFixed, "2020-01-01", null);
+    await assign(cFixed0, planFixed0, "2020-01-01", null);
     // (g) 境界: D=JST 今日+10。D-1 まで product_rule／D から plan_rate
     const D = addDays(jstToday(), 10);
     await assign(cG, planPR, "2020-01-01", addDays(D, -1));
@@ -291,7 +295,7 @@ async function main() {
         !error && !!r && r.product_sales_base === 2000 && r.calculated_back_amount === 0 && r.source_mode === "plan_rate", error?.message ?? j(r));
     }
 
-    // ── (c) plan_fixed: 3列 0・pt のみ・base/calc null／pt 0 なら行なし ──
+    // ── (c) plan_fixed（★裁定123・mig0133）: 3列 0・base=同腕売上Σ・calc=Σ按分数量×fixed／pt 0 でも数量>0 なら行あり／fixed=0 境界 ──
     {
       const c = await openCheck(seat);
       await addLine(c, prodP, 2);
@@ -299,8 +303,8 @@ async function main() {
       const { error } = await payClose(c);
       const r = rowOf(await backsOf(c), cFixed);
       check("pb(c1) plan_fixed: close 成功・3列 0（実測②消化）", !error && !!r && r.drink_back === 0 && r.champ_back === 0 && r.bottle_back === 0, error?.message ?? j(r));
-      check("pb(c2) plan_fixed: source_mode='plan_fixed'・base/calc=null",
-        !!r && r.source_mode === "plan_fixed" && r.product_sales_base === null && r.calculated_back_amount === null, j(r));
+      check("pb(c2) plan_fixed: source_mode='plan_fixed'・base=1000×2=2000（同腕売上Σ）・calc=数量2×固定30000=60000（販売数×固定額）",
+        !!r && r.source_mode === "plan_fixed" && r.product_sales_base === 2000 && r.calculated_back_amount === 60000, j(r));
       check("pb(e2) pt 射程外: plan_fixed でも hon pt=6 が凍結", !!r && r.hon_pt_alloc === 6, j(r));
     }
     {
@@ -308,8 +312,20 @@ async function main() {
       await addLine(c, prodP, 2);
       await setNoms(c, [{ cast_id: cFixed, weight: 1, nom_kind: "jonai", is_dohan: false }]);
       const { error } = await payClose(c);
-      const rows = await backsOf(c);
-      check("pb(c3) plan_fixed: jonai（pt 0）は行なし＝ゼロ専用行を作らない", !error && rows.length === 0, error?.message ?? j(rows));
+      const r = rowOf(await backsOf(c), cFixed);
+      check("pb(c3) plan_fixed: jonai（pt 0）でも数量>0 なら行あり（pt 0・base 2000・calc 60000）",
+        !error && !!r && r.hon_pt_alloc === 0 && r.product_sales_base === 2000 && r.calculated_back_amount === 60000, error?.message ?? j(r));
+    }
+    {
+      // fixed=0 境界: base（と按分数量）は凍結・calc=0
+      const c = await openCheck(seat);
+      await addLine(c, prodP, 2);
+      await setNoms(c, [{ cast_id: cFixed0, weight: 1, nom_kind: "hon", is_dohan: false }]);
+      const { error } = await payClose(c);
+      const r = rowOf(await backsOf(c), cFixed0);
+      check("pb(c4) plan_fixed fixed=0 境界: source_mode='plan_fixed'・base 2000 凍結・calc 0・3列 0",
+        !error && !!r && r.source_mode === "plan_fixed" && r.product_sales_base === 2000 && r.calculated_back_amount === 0 && r.drink_back === 0,
+        error?.message ?? j(r));
     }
 
     // ── (d) plan 割当なし → product_rule フォールバック ──

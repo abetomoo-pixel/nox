@@ -41,6 +41,12 @@ export type CompPlan = {
   dohanBackMode?: BackMode;
   dohanBackRate?: number | null;
   components?: CompComponent[];
+  // ★裁定113（mig0132）＋裁定123（mig0133）: 商品販売バック3方式。optional＝未指定は product_rule（既存 fixture・golden 不変）。
+  //   方式判定は close 側（check_close が確定スナップへ凍結）＝**給与側は凍結値 Σ のみ**（方式判定を持ち込まない・例外なし）。
+  //   3項は読取保持（UI 表示・sim 用）で payOf はどれも参照しない。
+  productBackMode?: "product_rule" | "plan_rate" | "plan_fixed";
+  productBackRate?: number | null;  // %（plan_rate のとき非 null）
+  productBackFixed?: number | null; // 円／販売数1点あたり（plan_fixed のとき非 null・杯・品も同一計算＝close が Σ数量×固定額を凍結）
 };
 
 /** mig0114: comp_plan_components の行型（v2.0 kind 2種・読み経路段では素通しの器）。 */
@@ -174,6 +180,9 @@ export type PayInput = {
   plan: CompPlan;
   override?: PlanOverride; // cast_plan.overrides_json
   productBack: { drink: number; champ: number; bottle: number }; // 会計から集計済み
+  // ★裁定113/123: plan_rate・plan_fixed の凍結値 Σcheck_cast_backs.calculated_back_amount（null=0＝旧行フォールバック）。
+  //   optional＝既存呼び出し・fixture は 0 扱い。再計算しない（凍結値の単純Σ）。
+  calculatedBack?: number;
   pointProducts: number; // 本指名商品pt（モック Ci 相当）
   customBackDefs: BackDef[]; // バック種別マスタ
   metrics?: Partial<Metrics>; // champCnt/bottleCnt 等の補助集計（未指定キーは cast/pointProducts から補完）
@@ -225,6 +234,8 @@ export type PayResult = {
   drinkBack: number;
   champBack: number;
   bottleBack: number;
+  // ★裁定113/123: 商品販売バックの plan 方式分＝凍結値の Σ（plan_rate／plan_fixed とも・product_rule では 0＝従来と同値）
+  calculatedBack: number;
   sRate: number;
   salesBack: number;
   cbacks: CBack[];
@@ -496,6 +507,10 @@ export function payOf(input: PayInput): PayResult {
   const drinkBack = input.productBack.drink || 0;
   const champBack = input.productBack.champ || 0;
   const bottleBack = input.productBack.bottle || 0;
+  // ★裁定113（設計書 v1.1 §4）＋裁定123: plan_rate／plan_fixed とも凍結値（check_cast_backs.calculated_back_amount）の
+  //   単純Σ・再計算しない（plan_fixed は close が Σ按分数量×固定額を凍結＝0132 の「期間固定・payOf 側加算」は 0133 で廃止）。
+  //   product_rule／未指定＝0（従来 grossBase と1バイト同値＝golden 5931/125802 の構造保証）。丸め不要（整数の Σ）。
+  const calculatedBack = input.calculatedBack ?? 0;
 
   // 売上バック
   const sRate = salesRateOf(cast.sales, input.salesBackTable);
@@ -548,6 +563,7 @@ export function payOf(input: PayInput): PayResult {
     drinkBack +
     champBack +
     bottleBack +
+    calculatedBack +    // ★裁定113/123 plan_rate・plan_fixed（凍結Σ一本）
     salesBack +
     customTotal +
     input.extrasTotal;
@@ -625,6 +641,7 @@ export function payOf(input: PayInput): PayResult {
     drinkBack,
     champBack,
     bottleBack,
+    calculatedBack,   // ★裁定113/123 凍結Σ
     sRate,
     salesBack,
     cbacks,

@@ -60,6 +60,7 @@ export function simulate(inp: SimInput): PayResult {
     jonaiShimeiAmt: inp.jonaiShimeiAmt ?? 0,
     daily,
     productBack: inp.productBack,
+    calculatedBack: 0, // ★裁定113: sim の商品売上軸／3択入力は UI レーン（SimInput 拡張）で消化＝本段は 0 固定（現行 sim 同値）
     pointProducts: inp.pointProducts,
     champCnt: inp.champCnt,
     bottleCnt: inp.bottleCnt,
