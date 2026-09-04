@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX 給与管理 改修モック v2.1</title>
+<style>
+:root{--bg:#070707;--panel:#11110f;--panel2:#151512;--field:#090909;--line:#302e28;--line-strong:#484339;--text:#f4f1e9;--sub:#b8b2a8;--muted:#7f7a71;--brand:#d8ad55;--brand2:#f0cf82;--brand-soft:rgba(216,173,85,.10);--primary:#2f7fe7;--primary2:#61a7ff;--primary-soft:rgba(47,127,231,.15);--success:#4dc37d;--success-soft:rgba(77,195,125,.11);--warning:#d9a43a;--warning-soft:rgba(217,164,58,.10);--danger:#e26762;--danger-soft:rgba(226,103,98,.11);--r:10px;--sidebar:205px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px}
+button,input,select{font:inherit}
+.app{display:grid;grid-template-columns:190px 1fr;min-height:100vh}
+aside{border-right:1px solid var(--line);padding:18px 12px;background:#0b0b0a}
+.brand{display:flex;gap:10px;align-items:center;margin-bottom:24px}
+.logo{width:32px;height:32px;border:1px solid var(--brand);border-radius:7px;display:grid;place-items:center;color:var(--brand)}
+.brand b{font-size:16px}.brand small{display:block;color:#777;font-size:9px;letter-spacing:2px}
+.nav-label{font-size:9px;color:#666;letter-spacing:2px;margin:16px 8px 8px}
+.nav a{display:flex;align-items:center;gap:9px;color:#aaa;text-decoration:none;padding:10px;border-radius:7px;margin:2px 0}
+.nav a.on{background:#112335;color:#65aff3}
+main{padding:26px 34px 50px}
+.eyebrow{font-size:10px;color:var(--brand);letter-spacing:2px;font-weight:800}
+.topbar{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px}
+.topbar h1{font-size:27px;margin:5px 0}.topbar p{margin:0;color:var(--sub)}
+.btn{border:1px solid var(--line-strong);background:#121210;color:#ddd;border-radius:7px;padding:8px 12px;font-weight:800;cursor:pointer;text-align:center}
+.btn.primary{border-color:#4b89c0;background:#14304a;color:#75bcf7}
+.btn.gold{border-color:#806a31;color:#e3c46f}
+.btn.danger{border-color:#783838;color:#ed8585}
+.btn.small{padding:6px 9px;font-size:11px}
+.field{background:#0c0c0b;color:#eee;border:1px solid var(--line-strong);border-radius:7px;padding:8px 9px}
+.selector{display:flex;gap:9px;align-items:end;flex-wrap:wrap;border:1px solid var(--line);background:#10100f;border-radius:10px;padding:11px;margin-bottom:12px}
+.selector label{display:block;color:#777;font-size:9px;margin-bottom:4px}
+.workflow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.step{border:1px solid var(--line);border-radius:9px;background:#141411;padding:11px}
+.step small{display:block;color:#777;margin-bottom:4px}.step b{display:block}
+.step.done{border-color:#315f44}.step.done b{color:#80d4a4}
+.step.on{border-color:#856a2f;background:#1b170d}.step.on b{color:#e3c16d}
+.step .meta{font-size:10px;color:#777;margin-top:4px}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+.metric{border:1px solid var(--line);border-radius:8px;background:#171714;padding:11px}
+.metric small{display:block;color:var(--sub);font-size:10px}.metric b{display:block;font-size:19px;margin-top:4px}
+.metric .meta{font-size:10px;color:#777;margin-top:4px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:5px;border:1px solid var(--line);border-radius:9px;background:#10100f;margin-bottom:12px}
+.tab{border:1px solid transparent;background:#111;color:#aaa;border-radius:7px;padding:9px;font-weight:800}
+.tab.on{background:var(--primary-soft);border-color:#356b98;color:#72b8f2}
+.view{display:none}.view.on{display:block}
+.card{border:1px solid var(--line);background:#121210;border-radius:10px;overflow:hidden;margin-bottom:12px}
+.head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.head h2{font-size:14px;margin:0}.head p{font-size:10px;color:var(--sub);margin:3px 0 0}
+.body{padding:14px}
+.source-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.source{border:1px solid var(--line);border-radius:8px;background:#151512;padding:10px}
+.source small{display:block;color:#777}.source b{display:block;margin:4px 0}.source .meta{font-size:10px;color:#777}
+.badge{display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:13px;padding:3px 7px;font-size:9px;color:#aaa}
+.badge.green{border-color:#2d6646;color:#7bd1a0;background:#102018}
+.badge.yellow{border-color:#68552a;color:#e6c26e;background:#1b170d}
+.badge.red{border-color:#713737;color:#ef8b8b;background:#281313}
+.badge.blue{border-color:#315e82;color:#73b8f2;background:#102132}
+.notice{border:1px solid #5c4c25;background:#1b180e;color:#d7bd70;border-radius:7px;padding:9px 10px;font-size:11px;margin-bottom:12px}
+.alert-list{display:grid;gap:8px}
+.alert{display:grid;grid-template-columns:34px 1fr 120px 130px;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;background:#141411;padding:10px}
+.icon{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;font-weight:900}
+.icon.red{background:var(--danger-soft);border:1px solid #713737;color:#ef8b8b}
+.icon.yellow{background:var(--warning-soft);border:1px solid #68552a;color:#e6c26e}
+.icon.blue{background:var(--primary-soft);border:1px solid #315e82;color:#73b8f2}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.left-tools{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.search{width:260px;background:#090909;color:#eee;border:1px solid var(--line-strong);border-radius:7px;padding:8px 9px}
+.filter{border:1px solid var(--line);background:#111;color:#aaa;border-radius:7px;padding:7px 10px;font-weight:800}
+.filter.on{border-color:#806a31;color:#e5c36e}
+.pay-list{display:grid;gap:8px}
+.pay-row{border:1px solid var(--line);border-radius:9px;background:#141411;padding:11px}
+.pay-top{display:grid;grid-template-columns:1.2fr repeat(4,110px) 100px;gap:10px;align-items:center}
+.person{display:flex;gap:9px;align-items:center}.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#5d9eb3;color:#071114;font-weight:900}
+.cell small{display:block;color:#777;font-size:9px}.cell b{display:block;margin-top:3px}
+.breakdown{display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.breakdown.open{display:block}
+.break-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.break-card{border:1px solid var(--line);border-radius:8px;background:#10100f;padding:10px}
+.lineitem{display:grid;grid-template-columns:1fr 120px;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.045)}
+.lineitem:last-child{border-bottom:0}.lineitem b{text-align:right}
+.reason{color:#7bbcf0;font-size:10px;margin-top:3px}
+.lockbox{border:1px solid #355d77;background:#0d1922;color:#80b8db;border-radius:8px;padding:10px}
+.final-flow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.final-step{border:1px solid var(--line);border-radius:8px;background:#141411;padding:10px}
+.final-step small{display:block;color:#777}.final-step b{display:block;margin-top:4px}
+.payment-table{width:100%;border-collapse:collapse}
+.payment-table th,.payment-table td{padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.05);text-align:right}
+.payment-table th:first-child,.payment-table td:first-child{text-align:left}.payment-table th{color:#777;font-size:10px}
+.channel{display:flex;gap:6px;flex-wrap:wrap}
+.out-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.out{border:1px solid var(--line);border-radius:8px;background:#151512;padding:11px}
+.out h3{margin:0 0 5px;font-size:12px}.out p{margin:0 0 10px;color:#777;font-size:10px;line-height:1.5}
+.tax-table{width:100%;border-collapse:collapse}.tax-table th,.tax-table td{padding:9px 8px;border-bottom:1px solid rgba(255,255,255,.05);text-align:right}.tax-table th:first-child,.tax-table td:first-child{text-align:left}.tax-table th{color:#777;font-size:10px}
+.audit{display:grid;gap:0}.audit-row{display:grid;grid-template-columns:140px 1fr 110px;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045)}.audit-row:last-child{border-bottom:0}.audit-row small{color:#777}
+
+.paygroup{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.paygroup-card{border:1px solid var(--line);border-radius:8px;background:#141411;padding:10px;cursor:pointer}.paygroup-card.on{border-color:#3b719d;background:#102132}.paygroup-card small{display:block;color:#777}.paygroup-card b{display:block;margin-top:4px}
+.split-lines{display:grid;gap:7px}.split-line{border:1px solid var(--line);border-radius:8px;background:#10100f;padding:9px}.split-line-top{display:grid;grid-template-columns:150px 1fr 120px 120px;gap:8px;align-items:center}.split-line small{color:#777}
+.adjust-list{display:grid;gap:7px}.adjust{border:1px solid var(--line);border-radius:8px;background:#141411;padding:10px}.adjust-top{display:grid;grid-template-columns:1fr 120px 120px 100px;gap:8px;align-items:center}.adjust .meta{font-size:10px;color:#777;margin-top:4px}
+.recalc{border:1px solid #355d77;background:#0d1922;border-radius:8px;padding:10px;color:#82badf}.recalc strong{color:#b7d8ee}
+.final-row{display:grid;grid-template-columns:1.4fr 120px 120px 120px 100px;gap:9px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.045)}.final-row:last-child{border-bottom:0}
+.payments{display:grid;gap:7px}.payment-entry{display:grid;grid-template-columns:150px 120px 120px 1fr 100px;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;background:#141411;padding:9px}
+.next-adjust{border:1px solid #66552a;background:#1b170d;border-radius:8px;padding:10px;color:#e5c36e}
+@media(max-width:1200px){.summary{grid-template-columns:repeat(2,1fr)}.source-grid{grid-template-columns:repeat(2,1fr)}.pay-top{grid-template-columns:1fr 100px 100px 100px}.pay-top .optional{display:none}.tabs{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+ <div class="brand"><div class="logo">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div>
+ <div class="nav"><a>⌂ ホーム</a></div>
+ <div class="nav-label">営業</div><div class="nav"><a>▤ レジ</a><a>▣ 日報</a></div>
+ <div class="nav-label">スタッフ</div><div class="nav"><a>▣ シフト</a><a>♙ キャスト</a><a>♧ スタッフ</a><a class="on">▣ 給与</a></div>
+ <div class="nav-label">顧客</div><div class="nav"><a>▧ 顧客</a></div>
+ <div class="nav-label">分析</div><div class="nav"><a>▥ 分析</a></div>
+ <div class="nav-label">店舗</div><div class="nav"><a>⌁ マスタ</a><a>◒ お知らせ</a><a>◉ 監査</a></div>
+</aside>
+
+<main>
+<div class="topbar">
+ <div><div class="eyebrow">PAYROLL MANAGEMENT</div><h1>給与管理</h1><p>勤怠・売上・報酬ルールから計算し、確認・確定・支払・明細公開まで管理します。</p></div>
+ <span class="badge yellow">要確認 3件</span>
+</div>
+
+<div class="selector">
+ <div><label>店舗</label><select class="field"><option>CLUB NOX</option></select></div>
+ <div><label>給与期間</label><select class="field"><option>2026/09/01〜09/15</option><option>2026/09/16〜09/30</option></select></div>
+ <div><label>給与締めサイクル</label><span class="field" style="display:block">15日・月末締め</span></div>
+ <div><label>支払予定日</label><span class="field" style="display:block">2026/09/20</span></div>
+ <button class="btn primary">再集計</button>
+</div>
+
+<div class="card">
+ <div class="head"><div><h2>給与グループ</h2><p>店舗全体で一律にせず、締めサイクル・支払日をグループごとに管理します。</p></div></div>
+ <div class="body paygroup">
+  <div class="paygroup-card on"><small>キャスト</small><b>15日・月末締め</b><div class="sub">支払：5日後 / 6名</div></div>
+  <div class="paygroup-card"><small>正社員</small><b>月末締め</b><div class="sub">翌月10日 / 1名</div></div>
+  <div class="paygroup-card"><small>日払い対象</small><b>営業日ごと</b><div class="sub">既払額として給与へ反映</div></div>
+ </div>
+</div>
+
+<div class="workflow">
+ <div class="step done"><small>1</small><b>集計</b><div class="meta">勤怠・売上・報酬を取込済み</div></div>
+ <div class="step on"><small>2</small><b>内容確認</b><div class="meta">要確認 3件</div></div>
+ <div class="step"><small>3</small><b>給与確定</b><div class="meta">未確定</div></div>
+ <div class="step"><small>4</small><b>支払・明細公開</b><div class="meta">支払予定 9/20</div></div>
+</div>
+
+<div class="summary" style="grid-template-columns:repeat(6,1fr)">
+ <div class="metric"><small>対象者</small><b>7名</b><div class="meta">キャスト6 / スタッフ1</div></div>
+ <div class="metric"><small>総支給</small><b>¥1,284,500</b><div class="meta">概算</div></div>
+ <div class="metric"><small>控除合計</small><b>¥132,640</b><div class="meta">源泉・その他控除</div></div>
+ <div class="metric"><small>既払額</small><b>¥50,000</b><div class="meta">日払い・前渡し</div></div>
+ <div class="metric"><small>今回支払</small><b>¥1,101,860</b><div class="meta">確定前</div></div>
+ <div class="metric"><small>要確認</small><b style="color:#e6c26e">3件</b><div class="meta">確定をブロック</div></div>
+</div>
+
+<div class="tabs">
+ <button class="tab on" data-tab="review">計算・確認</button>
+ <button class="tab" data-tab="final">確定・訂正</button>
+ <button class="tab" data-tab="payment">支払・明細</button>
+ <button class="tab" data-tab="tax">税務・出力</button>
+ <button class="tab" data-tab="history">履歴</button>
+</div>
+
+<section class="view on" id="review">
+ <div class="card">
+  <div class="head"><div><h2>集計元の状態</h2><p>給与計算に必要なデータが揃っているかを先に確認します。</p></div></div>
+  <div class="body">
+   <div class="recalc" style="margin-bottom:10px"><strong>前回集計後に変更あり：</strong> あべの9/7打刻が20:14→20:02に訂正されています。再集計すると自動計算部分のみ更新し、承認済み手動調整は保持します。</div>
+   <div class="source-grid">
+   <div class="source"><small>勤怠・シフト</small><b>7 / 7名 取込済み</b><span class="badge green">完了</span><div class="meta">確定シフト＋実績打刻</div></div>
+   <div class="source"><small>売上・バック</small><b>6 / 6名 集計済み</b><span class="badge green">完了</span><div class="meta">締め済み日報のみ</div></div>
+   <div class="source"><small>控除・前借り</small><b>2件 要確認</b><span class="badge yellow">確認</span><div class="meta">前借り1 / 売掛負担1</div></div>
+   <div class="source"><small>税・契約区分</small><b>1名 未設定</b><span class="badge red">不足</span><div class="meta">確定前に解消が必要</div></div>
+   </div>
+  </div>
+ </div>
+
+ <div class="card">
+  <div class="head"><div><h2>確定前の要確認</h2><p>通常行より、計算結果に影響する例外を先に処理。</p></div><span class="badge yellow">3件</span></div>
+  <div class="body alert-list">
+   <div class="alert"><div class="icon red">!</div><div><b>えま：契約区分が未設定</b><div class="sub">雇用 / 業務委託を確定してください。</div></div><span class="badge red">確定不可</span><button class="btn small primary">本人設定へ</button></div>
+   <div class="alert"><div class="icon yellow">¥</div><div><b>あべ：入店時給保証が期間中</b><div class="sub">通常時給 4,500円 → 保証 5,000円を採用</div></div><span class="badge yellow">確認</span><button class="btn small" onclick="toggleDetail('p0')">内訳</button></div>
+   <div class="alert"><div class="icon yellow">控</div><div><b>じゅり：売掛負担 ¥20,000</b><div class="sub">控除項目として登録あり。日払い・前渡し等の既払額とは別管理。</div></div><span class="badge yellow">確認</span><button class="btn small">確認</button></div>
+  </div>
+ </div>
+
+ <div class="card">
+  <div class="head"><div><h2>給与対象者</h2><p>人物は検索・絞り込み。大人数プルダウンは使用しません。</p></div><button class="btn">一括確認</button></div>
+  <div class="body">
+   <div class="toolbar"><div class="left-tools"><input class="search" placeholder="名前で検索"><button class="filter on">全員</button><button class="filter">要確認</button><button class="filter">キャスト</button><button class="filter">スタッフ</button><button class="filter">雇用</button><button class="filter">委託</button></div></div>
+   <div class="pay-list">
+    <div class="pay-row">
+     <div class="pay-top">
+      <div class="person"><div class="avatar">あ</div><div><b>あべ</b><div class="sub">キャスト / 業務委託</div><div class="badge yellow">時給保証中</div></div></div>
+      <div class="cell"><small>総支給</small><b>¥268,000</b></div>
+      <div class="cell"><small>控除</small><b>¥27,360</b></div>
+      <div class="cell"><small>差引支給</small><b>¥240,640</b></div>
+      <div class="cell optional"><small>稼働</small><b>42.0h</b></div>
+      <button class="btn small primary" onclick="toggleDetail('p0')">内訳</button>
+     </div>
+     <div class="breakdown" id="p0">
+      <div class="break-grid">
+       <div class="break-card">
+        <b>時給計算（適用期間別）</b>
+        <div class="split-lines" style="margin-top:8px">
+         <div class="split-line"><div class="split-line-top"><small>9/1〜9/10</small><span>入店時給保証</span><b>5,000円 × 28h</b><b>¥140,000</b></div><div class="reason">根拠：保証期間 9/1〜9/10</div></div>
+         <div class="split-line"><div class="split-line-top"><small>9/11〜9/15</small><span>通常時給</span><b>4,500円 × 14h</b><b>¥63,000</b></div><div class="reason">保証終了後：レギュラーA</div></div>
+        </div>
+        <div class="lineitem"><span>本指名バック</span><b>¥24,000</b></div>
+        <div class="lineitem"><span>ドリンク・商品バック</span><b>¥26,000</b></div>
+        <div class="lineitem"><span>出勤ボーナス</span><b>¥8,000</b></div>
+       </div>
+       <div class="break-card">
+        <b>控除・既払</b>
+        <div class="lineitem"><span>源泉徴収</span><b>¥22,360</b></div>
+        <div class="lineitem"><span>その他控除</span><b>¥0</b></div>
+        <div class="lineitem"><span>既払額（日払い）</span><b>¥5,000</b></div>
+        <div class="reason">既払額は控除と区別し、支払履歴から集計</div>
+       </div>
+      </div>
+     </div>
+    </div>
+
+    <div class="pay-row">
+     <div class="pay-top">
+      <div class="person"><div class="avatar">さ</div><div><b>さくら</b><div class="sub">キャスト / 業務委託</div><div class="badge green">確認済み</div></div></div>
+      <div class="cell"><small>総支給</small><b>¥312,500</b></div>
+      <div class="cell"><small>控除</small><b>¥31,910</b></div>
+      <div class="cell"><small>差引支給</small><b>¥280,590</b></div>
+      <div class="cell optional"><small>稼働</small><b>45.5h</b></div>
+      <button class="btn small" onclick="toggleDetail('p1')">内訳</button>
+     </div>
+     <div class="breakdown" id="p1"><div class="notice">通常時給・バック・控除に未解決項目なし。</div></div>
+    </div>
+
+    <div class="pay-row">
+     <div class="pay-top">
+      <div class="person"><div class="avatar">佐</div><div><b>佐藤</b><div class="sub">黒服 / 雇用</div><div class="badge green">確認済み</div></div></div>
+      <div class="cell"><small>総支給</small><b>¥186,000</b></div>
+      <div class="cell"><small>控除</small><b>¥42,120</b></div>
+      <div class="cell"><small>差引支給</small><b>¥143,880</b></div>
+      <div class="cell optional"><small>勤務</small><b>10日</b></div>
+      <button class="btn small">内訳</button>
+     </div>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <div class="card">
+  <div class="head"><div><h2>手動調整</h2><p>通常のバック・控除を書き換えず、理由・入力者・承認者を持つ独立行として追加します。</p></div><button class="btn primary">＋ 調整を追加</button></div>
+  <div class="body adjust-list">
+   <div class="adjust"><div class="adjust-top"><div><b>あべ：特別ボーナス</b><div class="meta">理由：新人紹介キャンペーン</div></div><b>＋¥5,000</b><span class="badge green">承認済み</span><button class="btn small">詳細</button></div><div class="meta">入力：佐藤 / 承認：山田 / 9/16 10:30</div></div>
+   <div class="adjust"><div class="adjust-top"><div><b>じゅり：過不足精算</b><div class="meta">理由：前回給与の差額調整</div></div><b>＋¥3,000</b><span class="badge yellow">承認待ち</span><button class="btn small">承認</button></div><div class="meta">入力：佐藤 / 9/16 10:42</div></div>
+  </div>
+ </div>
+</section>
+
+<section class="view" id="final">
+ <div class="notice">給与確定時に、その時点の勤怠・時給・バック・控除・既払額・税区分をスナップショットとして固定します。マスタ変更で過去給与を再計算しません。</div>
+ <div class="card">
+  <div class="head"><div><h2>対象者ごとの確定</h2><p>1人のエラーで全員を止めず、問題ない対象者だけ先に確定できます。</p></div><button class="btn primary">確認済み6名を確定</button></div>
+  <div class="body">
+   <div class="final-row"><div><b>あべ</b><div class="sub">キャスト / 業務委託</div></div><b>¥240,640</b><span class="badge green">確認済み</span><span class="badge blue">確定可能</span><button class="btn small">確定</button></div>
+   <div class="final-row"><div><b>さくら</b><div class="sub">キャスト / 業務委託</div></div><b>¥280,590</b><span class="badge green">確認済み</span><span class="badge blue">確定可能</span><button class="btn small">確定</button></div>
+   <div class="final-row"><div><b>えま</b><div class="sub">契約区分未設定</div></div><b>—</b><span class="badge red">要確認</span><span class="badge red">保留</span><button class="btn small primary">設定へ</button></div>
+  </div>
+ </div>
+
+ <div class="card">
+  <div class="head"><div><h2>期間ステータス</h2><p>全員処理後に期間全体を「完了」とします。</p></div></div>
+  <div class="body">
+   <div class="summary" style="grid-template-columns:repeat(4,1fr)">
+    <div class="metric"><small>対象</small><b>7名</b></div>
+    <div class="metric"><small>確定済み</small><b>6名</b></div>
+    <div class="metric"><small>保留</small><b style="color:#e6c26e">1名</b></div>
+    <div class="metric"><small>期間状態</small><b>処理中</b></div>
+   </div>
+   <div class="lockbox">全員が「確定」または「対象外」になった時点で、この給与期間を完了扱いにします。</div>
+  </div>
+ </div>
+
+ <div class="card">
+  <div class="head"><div><h2>確定後の訂正</h2><p>重要度に応じて「再確定」と「次回精算」を使い分けます。</p></div></div>
+  <div class="body">
+   <div class="final-flow">
+    <div class="final-step"><small>A</small><b>確定解除 → 訂正 → 再確定</b><div class="sub">当該期間の確定値自体を訂正</div></div>
+    <div class="final-step"><small>B</small><b>次回給与で精算</b><div class="sub">軽微な差額は過去期間を維持</div></div>
+    <div class="final-step"><small>監査</small><b>理由・元値・新値</b><div class="sub">操作者・承認者を記録</div></div>
+   </div>
+   <div class="next-adjust" style="margin-top:10px"><b>例：</b> 前回不足 ¥3,000 → 今回給与に「前回差額精算 ＋¥3,000」として追加。過去の確定明細は変更しない。</div>
+  </div>
+ </div>
+</section>
+
+<section class="view" id="payment">
+ <div class="card">
+  <div class="head"><div><h2>支払状況</h2><p>1人に対して複数回・複数方法の支払を記録できます。</p></div><button class="btn">支払を登録</button></div>
+  <div class="body">
+   <div class="pay-row">
+    <div class="pay-top">
+     <div class="person"><div class="avatar">あ</div><div><b>あべ</b><div class="sub">今回支払予定 ¥240,640</div></div></div>
+     <div class="cell"><small>支払済み</small><b>¥20,000</b></div>
+     <div class="cell"><small>残額</small><b>¥220,640</b></div>
+     <div class="cell"><small>状態</small><b style="color:#e6c26e">一部支払</b></div>
+     <div class="cell optional"><small>明細</small><b>公開済み</b></div>
+     <button class="btn small primary">＋ 支払</button>
+    </div>
+    <div class="payments" style="margin-top:10px">
+     <div class="payment-entry"><b>2026-09-10 02:15</b><span>¥20,000</span><span>現金</span><span>日払い</span><span class="badge green">記録済み</span></div>
+     <div class="payment-entry"><b>2026-09-20</b><span>¥220,640</span><span>銀行振込</span><span>給与残額</span><span class="badge blue">予定</span></div>
+    </div>
+   </div>
+
+   <div class="pay-row" style="margin-top:8px">
+    <div class="pay-top">
+     <div class="person"><div class="avatar">さ</div><div><b>さくら</b><div class="sub">今回支払予定 ¥280,590</div></div></div>
+     <div class="cell"><small>支払済み</small><b>¥0</b></div>
+     <div class="cell"><small>残額</small><b>¥280,590</b></div>
+     <div class="cell"><small>状態</small><b>未支払</b></div>
+     <div class="cell optional"><small>方法</small><b>現金予定</b></div>
+     <button class="btn small primary">＋ 支払</button>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <div class="card">
+  <div class="head"><div><h2>給与明細公開</h2><p>本人アカウントへ公開し、自動通知と連動します。</p></div><button class="btn primary">明細を公開</button></div>
+  <div class="body">
+   <div class="source-grid">
+    <div class="source"><small>公開対象</small><b>確定済み 6名</b><div class="meta">保留者は未公開</div></div>
+    <div class="source"><small>LINE連携</small><b>5名</b><div class="meta">LINE優先</div></div>
+    <div class="source"><small>メール予備</small><b>5名</b><div class="meta">LINE未達時</div></div>
+    <div class="source"><small>アプリ内</small><b>6名</b><div class="meta">必ず掲載</div></div>
+   </div>
+   <div class="channel" style="margin-top:10px"><span class="badge blue">自動通知：給与明細公開</span><span class="badge">LINE優先＋メール予備</span></div>
+  </div>
+ </div>
+</section>
+
+<section class="view" id="tax">
+ <div class="out-grid">
+  <div class="out"><h3>給与明細CSV</h3><p>確定済み対象者の支給・控除・差引支給をCSV出力。</p><button class="btn">CSVを出力</button></div>
+  <div class="out"><h3>報酬明細 / PDF</h3><p>本人1名ごとの明細を印刷・PDF保存。</p><button class="btn">明細を出力</button></div>
+  <div class="out"><h3>支払明細・請求関連</h3><p>業務委託など、契約区分に応じた出力を分離。</p><button class="btn">表示</button></div>
+  <div class="out"><h3>銀行振込データ</h3><p>支払方法が振込の対象者を出力。支払記録とは別管理。</p><button class="btn">振込データ</button></div>
+ </div>
+
+ <div class="card" style="margin-top:12px">
+  <div class="head"><div><h2>源泉徴収・納付管理</h2><p>契約区分ごとに集計。日払い等の既払額は支払記録として別管理し、税計算の支給総額とは混同しません。</p></div><button class="btn">再集計</button></div>
+  <div class="body">
+   <table class="tax-table">
+    <thead><tr><th>支払月</th><th>区分</th><th>人数</th><th>支払額計</th><th>源泉額計</th><th>納付期限</th><th>状態</th></tr></thead>
+    <tbody>
+     <tr><td>2026-09</td><td>報酬・料金（委託）</td><td>6</td><td>¥1,098,500</td><td>¥118,420</td><td>2026-10-10</td><td><span class="badge yellow">未記録</span></td></tr>
+     <tr><td>2026-09</td><td>給与（雇用）</td><td>1</td><td>¥186,000</td><td>¥21,800</td><td>2026-10-10</td><td><span class="badge yellow">未記録</span></td></tr>
+    </tbody>
+   </table>
+  </div>
+ </div>
+</section>
+
+<section class="view" id="history">
+ <div class="card">
+  <div class="head"><div><h2>給与処理履歴</h2><p>集計・確定・訂正・支払・明細公開を時系列で追跡。</p></div></div>
+  <div class="body audit">
+   <div class="audit-row"><small>9/16 11:02</small><span>9/1〜9/15分を再集計（自動計算のみ更新 / 手動調整保持）</span><b>山田</b></div>
+   <div class="audit-row"><small>9/16 10:55</small><span>あべ：特別ボーナス +¥5,000 を承認</span><b>山田</b></div>
+   <div class="audit-row"><small>9/16 10:48</small><span>あべ：時給保証 5,000円の適用根拠を確認</span><b>佐藤</b></div>
+   <div class="audit-row"><small>8/31 18:20</small><span>8/16〜8/31分の給与を確定</span><b>山田</b></div>
+   <div class="audit-row"><small>8/31 18:35</small><span>給与明細を公開・自動通知送信</span><b>山田</b></div>
+  </div>
+ </div>
+</section>
+</main>
+</div>
+
+<script>
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('on'));
+ document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
+ b.classList.add('on'); document.getElementById(b.dataset.tab).classList.add('on');
+});
+function toggleDetail(id){document.getElementById(id).classList.toggle('open')}
+</script>
+</body>
+</html>
