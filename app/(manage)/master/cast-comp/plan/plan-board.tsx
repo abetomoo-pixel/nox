@@ -13,7 +13,7 @@ import Toast from "@/components/ui/toast";
 import SimulatorPanel from "@/components/simulator-panel";
 import type { StoreSimData } from "@/lib/nox/payroll/sim-data";
 import { adoptedMethodsOf, compSummaryOf } from "@/lib/nox/comp-methods";
-import { AssignTab, useCompData, secTitle, type Plan } from "../comp-sections";
+import { AssignTab, useCompData, secTitle, productBackArgsOf, type Plan } from "../comp-sections";
 import PlanEditor from "./plan-editor";
 import NormaBoard from "../norma/norma-board";
 
@@ -78,6 +78,8 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
       p_jonai_back_mode: p.jonai_back_mode ?? "per_count",
       p_jonai_back_rate: (p.jonai_back_mode ?? "per_count") === "rate" ? p.jonai_back_rate ?? 0 : null,
       p_dohan_back_mode: "per_count", p_dohan_back_rate: null, // R-2b まで封印（裁定86-②）
+      // ★mig0134（裁定113）: 複製/無効化も product_back 3項を写す（19引数全明示・省略＝default 'product_rule' で戻る事故の封じ）
+      ...productBackArgsOf(p.product_back_mode, p.product_back_rate, p.product_back_fixed),
     });
     return error;
   }

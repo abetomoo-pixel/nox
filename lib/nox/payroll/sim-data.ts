@@ -22,6 +22,10 @@ function mapPlan(p: Record<string, unknown>): CompPlan {
     honBackRate: (p.hon_back_rate ?? null) as number | null,
     jonaiBackMode: (p.jonai_back_mode ?? "per_count") as CompPlan["jonaiBackMode"],
     jonaiBackRate: (p.jonai_back_rate ?? null) as number | null,
+    // ★裁定113/123: 商品販売バック3方式（sim の入力軸出し分け・calculatedBack 合成に使用）
+    productBackMode: (p.product_back_mode ?? "product_rule") as CompPlan["productBackMode"],
+    productBackRate: (p.product_back_rate ?? null) as number | null,
+    productBackFixed: (p.product_back_fixed ?? null) as number | null,
   };
 }
 
@@ -61,7 +65,7 @@ async function loadMasters(sb: SupabaseClient, storeId: string): Promise<StoreMa
   };
 }
 
-const PLAN_COLS = "id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate";
+const PLAN_COLS = "id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, product_back_mode, product_back_rate, product_back_fixed";
 
 export type CastSimData = { plans: CompPlan[]; masters: StoreMasters; openAdv: number; openOkuri: number; override?: PlanOverride };
 export type StoreSimData = { plans: CompPlan[]; masters: StoreMasters };

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import type { BackMode, CompPlan, PlanOverride, TaxMode } from "@/lib/nox/pay";
+import { PRODUCT_BACK_OPTIONS, type ProductBackMode } from "@/lib/nox/comp-methods";
 import type { StoreMasters } from "@/lib/nox/payroll/assemble";
 import { simulate, type SimInput } from "@/lib/nox/payroll/sim";
 import * as t from "@/lib/nox/ui/theme";
@@ -42,6 +43,8 @@ export default function SimulatorPanel({
   const [edit, setEdit] = useState<{
     base: string; honBack: string; jonaiBack: string; dohanBack: string;
     honBackMode: BackMode; honBackRate: string; jonaiBackMode: BackMode; jonaiBackRate: string;
+    // ★裁定113/123: 商品販売バック3方式（店モードの任意プラン試算でも切替可）
+    productBackMode: ProductBackMode; productBackRate: string; productBackFixed: string;
   } | null>(null);
   const [f, setF] = useState({
     // ★periodDays は既定値を置かない（裁定23＝源泉の 5,000円×日数 は計算期間の暦日数で、
@@ -52,6 +55,10 @@ export default function SimulatorPanel({
     honShimeiAmt: "0", jonaiShimeiAmt: "0", // D3: rate 方式の母数（期間の指名料額・円）
 
     drink: "0", champ: "0", bottle: "0",
+    // ★裁定113/123: plan_rate の母数＝商品売上（按分後・円）／plan_fixed の母数＝販売数（按分後・点）。
+    //   product_rule では読まれない（上の drink/champ/bottle＝商品ごとのバック額が従来どおり効く）。
+    pbSalesDrink: "0", pbSalesChamp: "0", pbSalesBottle: "0",
+    pbQtyDrink: "0", pbQtyChamp: "0", pbQtyBottle: "0",
     pointProducts: "0", champCnt: "0", bottleCnt: "0",
     lateN: "0", absentN: "0",
     normDays: "0", normDohan: "0",
@@ -76,8 +83,14 @@ export default function SimulatorPanel({
       honBackRate: edit.honBackMode === "rate" ? num(edit.honBackRate) : null,
       jonaiBackMode: edit.jonaiBackMode,
       jonaiBackRate: edit.jonaiBackMode === "rate" ? num(edit.jonaiBackRate) : null,
+      // ★裁定113/123: pair は RPC/CHECK と同輪郭（当該 mode のときだけ値・他は null）
+      productBackMode: edit.productBackMode,
+      productBackRate: edit.productBackMode === "plan_rate" ? num(edit.productBackRate) : null,
+      productBackFixed: edit.productBackMode === "plan_fixed" ? num(edit.productBackFixed) : null,
     };
   }, [selectedPlan, mode, edit]);
+  // ★裁定113/123: 入力出し分け用の実効方式（override は product_back を持たない＝plan の値がそのまま実効）
+  const effPbMode: ProductBackMode = effPlan?.productBackMode ?? "product_rule";
 
   // D3: 入力出し分け用の実効方式（per_count=本数入力・rate=期間の指名料額入力）。
   //   cast モードは override が方式を差し替え得るため、pay.ts applyOverride と同じ
@@ -105,6 +118,8 @@ export default function SimulatorPanel({
       hon: num(f.hon), jonai: num(f.jonai), dohan: num(f.dohan),
       honShimeiAmt: num(f.honShimeiAmt), jonaiShimeiAmt: num(f.jonaiShimeiAmt),
       productBack: { drink: num(f.drink), champ: num(f.champ), bottle: num(f.bottle) },
+      productSales: { drink: num(f.pbSalesDrink), champ: num(f.pbSalesChamp), bottle: num(f.pbSalesBottle) },
+      productQty: { drink: num(f.pbQtyDrink), champ: num(f.pbQtyChamp), bottle: num(f.pbQtyBottle) },
       pointProducts: num(f.pointProducts), champCnt: num(f.champCnt), bottleCnt: num(f.bottleCnt),
       lateN: num(f.lateN), absentN: num(f.absentN),
       norm: { days: num(f.normDays), dohan: num(f.normDohan) },
@@ -166,6 +181,9 @@ export default function SimulatorPanel({
               honBackRate: selectedPlan.honBackRate != null ? String(selectedPlan.honBackRate) : "",
               jonaiBackMode: selectedPlan.jonaiBackMode ?? "per_count",
               jonaiBackRate: selectedPlan.jonaiBackRate != null ? String(selectedPlan.jonaiBackRate) : "",
+              productBackMode: selectedPlan.productBackMode ?? "product_rule",
+              productBackRate: selectedPlan.productBackRate != null ? String(selectedPlan.productBackRate) : "",
+              productBackFixed: selectedPlan.productBackFixed != null ? String(selectedPlan.productBackFixed) : "",
             })} style={s.btnSm}>
               {edit ? "元に戻す" : "編集する"}
             </button>
@@ -194,6 +212,19 @@ export default function SimulatorPanel({
                   <label style={s.lbl}>場内率(%)<br /><input type="number" value={edit.jonaiBackRate} onChange={(e) => setEdit({ ...edit, jonaiBackRate: e.target.value })} style={s.inpS} /></label>
                 ) : (
                   <label style={s.lbl}>場内(円/本)<br /><input type="number" value={edit.jonaiBack} onChange={(e) => setEdit({ ...edit, jonaiBack: e.target.value })} style={s.inpS} /></label>
+                )}
+              </div>
+              {/* ★裁定113/123: 商品販売バックの方式3択（単位 UI は方式に連動＝UI 共通規約 §4） */}
+              <div style={s.row}>
+                <label style={s.lbl}>商品販売バックの方式<br />
+                  <SegSelect value={edit.productBackMode} onChange={(v) => setEdit({ ...edit, productBackMode: v as ProductBackMode })}
+                    options={PRODUCT_BACK_OPTIONS} />
+                </label>
+                {edit.productBackMode === "plan_rate" && (
+                  <label style={s.lbl}>売上の割合(%)<br /><input type="number" min={0} max={100} value={edit.productBackRate} onChange={(e) => setEdit({ ...edit, productBackRate: e.target.value })} style={s.inpS} /></label>
+                )}
+                {edit.productBackMode === "plan_fixed" && (
+                  <label style={s.lbl}>固定額(円/点)<br /><input type="number" min={0} value={edit.productBackFixed} onChange={(e) => setEdit({ ...edit, productBackFixed: e.target.value })} style={s.inpS} /></label>
                 )}
               </div>
             </>
@@ -245,15 +276,33 @@ export default function SimulatorPanel({
             ※率方式は、レジで「指名料を追加」した伝票の指名料額が対象です。期間中の指名料額の合計を入れてください。
           </p>
         )}
-        <div style={s.row}>
-          <label style={s.lbl}>ドリンクバック(円)<br /><input type="number" value={f.drink} onChange={set("drink")} style={s.inpS} /></label>
-          {!compact && (
-            <>
-              <label style={s.lbl}>シャンパン(円)<br /><input type="number" value={f.champ} onChange={set("champ")} style={s.inpS} /></label>
-              <label style={s.lbl}>ボトル(円)<br /><input type="number" value={f.bottle} onChange={set("bottle")} style={s.inpS} /></label>
-            </>
-          )}
-        </div>
+        {/* ★裁定113/123: 商品販売バックの入力軸は方式で出し分け（product_rule＝商品ごとのバック額／plan_rate＝商品売上／plan_fixed＝販売数）。
+            plan_rate/plan_fixed では商品ごとのバック額は close で 0 凍結＝入力を出さない（sim.ts が同じ鏡像で 0 に落とす）。 */}
+        {effPbMode === "product_rule" ? (
+          <div style={s.row}>
+            <label style={s.lbl}>ドリンクバック(円)<br /><input type="number" value={f.drink} onChange={set("drink")} style={s.inpS} /></label>
+            {!compact && (
+              <>
+                <label style={s.lbl}>シャンパン(円)<br /><input type="number" value={f.champ} onChange={set("champ")} style={s.inpS} /></label>
+                <label style={s.lbl}>ボトル(円)<br /><input type="number" value={f.bottle} onChange={set("bottle")} style={s.inpS} /></label>
+              </>
+            )}
+          </div>
+        ) : effPbMode === "plan_rate" ? (
+          <div style={s.row} data-testid="sim-pb-sales">
+            <label style={s.lbl}>ドリンク売上(円)<br /><input type="number" value={f.pbSalesDrink} onChange={set("pbSalesDrink")} style={s.inpS} /></label>
+            <label style={s.lbl}>シャンパン売上(円)<br /><input type="number" value={f.pbSalesChamp} onChange={set("pbSalesChamp")} style={s.inpS} /></label>
+            <label style={s.lbl}>ボトル売上(円)<br /><input type="number" value={f.pbSalesBottle} onChange={set("pbSalesBottle")} style={s.inpS} /></label>
+            <span style={{ ...s.lbl, alignSelf: "flex-end" }}>× {effPlan?.productBackRate ?? 0}%</span>
+          </div>
+        ) : (
+          <div style={s.row} data-testid="sim-pb-qty">
+            <label style={s.lbl}>ドリンク販売数(点)<br /><input type="number" value={f.pbQtyDrink} onChange={set("pbQtyDrink")} style={s.inpS} /></label>
+            <label style={s.lbl}>シャンパン販売数(点)<br /><input type="number" value={f.pbQtyChamp} onChange={set("pbQtyChamp")} style={s.inpS} /></label>
+            <label style={s.lbl}>ボトル販売数(点)<br /><input type="number" value={f.pbQtyBottle} onChange={set("pbQtyBottle")} style={s.inpS} /></label>
+            <span style={{ ...s.lbl, alignSelf: "flex-end" }}>× {yen(effPlan?.productBackFixed ?? 0)}/点</span>
+          </div>
+        )}
         {!compact && (
           <div style={s.row}>
             <label style={s.lbl}>シャンパン本数<br /><input type="number" value={f.champCnt} onChange={set("champCnt")} style={s.inpS} /></label>
@@ -269,8 +318,12 @@ export default function SimulatorPanel({
           <fieldset style={s.fs}><legend style={s.lg}>追加バック・pt</legend>
             <div style={s.row}>
               <label style={s.lbl}>本指名商品pt<br /><input type="number" value={f.pointProducts} onChange={set("pointProducts")} style={s.inpS} /></label>
-              <label style={s.lbl}>シャンパン(円)<br /><input type="number" value={f.champ} onChange={set("champ")} style={s.inpS} /></label>
-              <label style={s.lbl}>ボトル(円)<br /><input type="number" value={f.bottle} onChange={set("bottle")} style={s.inpS} /></label>
+              {effPbMode === "product_rule" && (
+                <>
+                  <label style={s.lbl}>シャンパン(円)<br /><input type="number" value={f.champ} onChange={set("champ")} style={s.inpS} /></label>
+                  <label style={s.lbl}>ボトル(円)<br /><input type="number" value={f.bottle} onChange={set("bottle")} style={s.inpS} /></label>
+                </>
+              )}
             </div>
             <div style={s.row}>
               <label style={s.lbl}>シャンパン本数<br /><input type="number" value={f.champCnt} onChange={set("champCnt")} style={s.inpS} /></label>
@@ -318,7 +371,7 @@ export default function SimulatorPanel({
             <div className="l">バック</div>
             <div className="v num">
               {yen(result.pay.honBack + result.pay.jonaiBack + result.pay.dohanBack
-                + result.pay.drinkBack + result.pay.champBack + result.pay.bottleBack
+                + result.pay.drinkBack + result.pay.champBack + result.pay.bottleBack + result.pay.calculatedBack
                 + result.pay.salesBack + result.pay.customTotal)}
             </div>
           </div>
@@ -344,7 +397,10 @@ export default function SimulatorPanel({
               <Line label="時給（加重平均）" v={`¥${Math.round(result.pay.wage).toLocaleString()}/h × ${result.pay.wHours}h`} />
               <Line label="時給給与" v={yen(result.pay.timePay)} />
               <Line label="指名バック（本/場内/同伴）" v={yen(result.pay.honBack + result.pay.jonaiBack + result.pay.dohanBack)} />
-              <Line label="商品・売上・自由バック" v={yen(result.pay.drinkBack + result.pay.champBack + result.pay.bottleBack + result.pay.salesBack + result.pay.customTotal)} />
+              {effPbMode !== "product_rule" && (
+                <Line label={effPbMode === "plan_rate" ? "商品販売バック（売上の割合）" : "商品販売バック（販売数 × 固定額）"} v={yen(result.pay.calculatedBack)} />
+              )}
+              <Line label="商品・売上・自由バック" v={yen(result.pay.drinkBack + result.pay.champBack + result.pay.bottleBack + result.pay.calculatedBack + result.pay.salesBack + result.pay.customTotal)} />
               <Line label="総支給（gross）" v={yen(result.pay.gross)} bold />
               <Line label="− 固定控除" v={`−${yen(result.pay.fixedDed)}`} minus />
               <Line label="− 罰金" v={`−${yen(result.pay.fine)}`} minus />

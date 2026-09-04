@@ -15,13 +15,33 @@ import * as t from "@/lib/nox/ui/theme";
 
 export type Slide = { at: number; wage: number };
 export type BackModeRow = "per_count" | "rate";
+// ★裁定113/123（mig0132〜0134）: 商品販売バック3方式。列は select("*") で載る（旧行は default 'product_rule'）。
+//   型・ラベル正本は lib/nox/comp-methods.ts（simulator と共有）＝ここは再 export のみ。
+import { PRODUCT_BACK_OPTIONS, type ProductBackMode } from "@/lib/nox/comp-methods";
+export { PRODUCT_BACK_OPTIONS, type ProductBackMode };
 export type Plan = {
   id: string; name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
   sales_slide: Slide[]; point_slide: Slide[]; is_active: boolean;
   // mig0086: 率バック方式（hon/jonai 独立・rate 中も円/本値は保持＝裁定v）
   hon_back_mode: BackModeRow; hon_back_rate: number | null;
   jonai_back_mode: BackModeRow; jonai_back_rate: number | null;
+  product_back_mode?: ProductBackMode | null; product_back_rate?: number | null; product_back_fixed?: number | null;
 };
+/** set_comp_plan の product_back 3引数（原則7＝常に全明示・pair は RPC と同条件＝当該 mode のときだけ値、他は null）。 */
+export function productBackArgsOf(mode: ProductBackMode | null | undefined, rate: number | null | undefined, fixed: number | null | undefined) {
+  const m: ProductBackMode = mode ?? "product_rule";
+  return {
+    p_product_back_mode: m,
+    p_product_back_rate: m === "plan_rate" ? (rate ?? 0) : null,
+    p_product_back_fixed: m === "plan_fixed" ? (fixed ?? 0) : null,
+  };
+}
+/** フロント検証＝RPC の pair/範囲と同条件（rate 0..100 整数・fixed >=0 整数）。null＝OK・文字列＝エラー文。 */
+export function productBackErrOf(mode: ProductBackMode, rate: number, fixed: number): string | null {
+  if (mode === "plan_rate" && !(Number.isInteger(rate) && rate >= 0 && rate <= 100)) return "売上の割合は 0〜100 の整数（%）で入力してください";
+  if (mode === "plan_fixed" && !(Number.isInteger(fixed) && fixed >= 0)) return "固定額は 0 以上の整数（円/点）で入力してください";
+  return null;
+}
 export type CastRow = { id: string; name: string };
 // overrides_json: 数値4キー＋方式2キー（string）＋率2キー＝mig0086 の8キー
 export type CastPlan = { cast_id: string; plan_id: string; overrides_json: Record<string, number | string> };
@@ -130,6 +150,10 @@ export function compErrJa(msg: string | undefined): string {
   if (msg.includes("basis required")) return "制裁（罰金・減給）は根拠の確認チェックと確認内容の入力が必須です";
   if (msg.includes("bad basis note")) return "確認内容は 400 字以内で入力してください";
   if (msg.includes("bad kind")) return "控除種別が不正です";
+  // ★mig0134（裁定113）: 商品販売バック3方式の pair/範囲
+  if (msg.includes("bad product_back_mode")) return "商品販売バックの方式が不正です";
+  if (msg.includes("bad product_back_rate")) return "売上の割合は「売上の割合」方式のときだけ 0〜100 で入力してください";
+  if (msg.includes("bad product_back_fixed")) return "固定額は「販売数 × 固定額」方式のときだけ 0 以上で入力してください";
   return msg;
 }
 
@@ -215,6 +239,8 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
   const [salesSlide, setSalesSlide] = useState<Slide[]>([]);
   const [pointSlide, setPointSlide] = useState<Slide[]>([]);
   const [active, setActive] = useState(true);
+  // ★mig0134: product_back 3項は編集対象外だが、19引数全明示のため編集中プランの値を写して送る（省略＝default で戻る事故の封じ）
+  const [pb, setPb] = useState<{ mode: ProductBackMode; rate: number | null; fixed: number | null }>({ mode: "product_rule", rate: null, fixed: null });
   // ★C1 §6-4: 選択中プランの追加コンポーネント（RLS=comp_plans と同可視・書き手は owner のみ）
   const [comps, setComps] = useState<CompRow[]>([]);
   const [cKind, setCKind] = useState("guarantee_min");
@@ -236,6 +262,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
     setHonMode(p.hon_back_mode ?? "per_count"); setHonRate(p.hon_back_rate ?? 0);
     setJonaiMode(p.jonai_back_mode ?? "per_count"); setJonaiRate(p.jonai_back_rate ?? 0);
     setSalesSlide(p.sales_slide ?? []); setPointSlide(p.point_slide ?? []); setActive(p.is_active);
+    setPb({ mode: p.product_back_mode ?? "product_rule", rate: p.product_back_rate ?? null, fixed: p.product_back_fixed ?? null });
     setCId(null); setCKind("guarantee_min"); setCAmount(0); setCPriority(100); setCActive(true);
     void loadComps(p.id);
   }
@@ -271,9 +298,11 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
       // ★mig0115: dohan も常に明示送信（省略すると DEFAULT 'per_count' が効く＝教訓43 型の必須化）。
       //   UI は per_count 固定＝率は R-2b（同伴 cast_id 必須）後に解錠（RPC も 'dohan rate requires R-2b' で封印中）。
       p_dohan_back_mode: "per_count", p_dohan_back_rate: null,
+      // ★mig0134: 19引数全明示（新規＝product_rule/null/null・編集＝行の値を写す）
+      ...productBackArgsOf(id ? pb.mode : "product_rule", id ? pb.rate : null, id ? pb.fixed : null),
     });
     setMsg(error ? compErrJa(error.message) : id ? "プランを更新しました" : "プランを登録しました");
-    if (!error) { setId(null); setName(""); setBase(0); await reload(); }
+    if (!error) { setId(null); setName(""); setBase(0); setPb({ mode: "product_rule", rate: null, fixed: null }); await reload(); }
   }
 
   return (

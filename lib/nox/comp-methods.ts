@@ -2,11 +2,24 @@
 // 「採用する待遇方式」を**値の有無から自動判定**する（保存なし＝トグルは表示専用・裁定101 ①）。
 // export＝verify が DB 非依存で係留する（裁定99-⑨ / allocateCategory と同じ建付け）。
 
+// ★裁定113/123（mig0132〜0134）: 商品販売バック3方式。ラベル正本＝ここ（UI 3面＝plan-editor／simulator／概要が参照・散在リテラルにしない）。
+export type ProductBackMode = "product_rule" | "plan_rate" | "plan_fixed";
+export const PRODUCT_BACK_OPTIONS = [
+  ["product_rule", "商品ごとの設定"], ["plan_rate", "売上の割合"], ["plan_fixed", "販売数 × 固定額"],
+] as const;
+/** 一覧・サマリー向けの自然語表記（UI 共通規約 §5: 入力＝記号 `20 %`／一覧＝自然語 `売上の20%`）。 */
+export function productBackLabelOf(mode: string | null | undefined, rate: number | null | undefined, fixed: number | null | undefined): string {
+  if (mode === "plan_rate") return `売上の${rate ?? 0}%`;
+  if (mode === "plan_fixed") return `販売数×${(fixed ?? 0).toLocaleString()}円/点`;
+  return "商品ごとの設定";
+}
+
 export type AdoptPlanShape = {
   base: number;
   hon_back: number; jonai_back: number; dohan_back: number;
   hon_back_mode?: string | null; jonai_back_mode?: string | null;
   sales_slide?: unknown[] | null; point_slide?: unknown[] | null;
+  product_back_mode?: string | null; product_back_rate?: number | null; product_back_fixed?: number | null;
 };
 export type AdoptCompShape = { kind: string; is_active: boolean };
 
@@ -45,6 +58,8 @@ export function compSummaryOf(
     { label: "本指名", value: p.hon_back_mode === "rate" ? "率方式" : `${yen(p.hon_back)}/本` },
     { label: "場内", value: p.jonai_back_mode === "rate" ? "率方式" : `${yen(p.jonai_back)}/本` },
     { label: "同伴", value: `${yen(p.dohan_back)}/本` },
+    // ★裁定113: 一覧＝自然語（規約 §5）。旧行（列なし／null）は product_rule 表記
+    { label: "商品バック", value: productBackLabelOf(p.product_back_mode, p.product_back_rate, p.product_back_fixed) },
     { label: "スライド", value: `売上${(p.sales_slide ?? []).length}段・pt${(p.point_slide ?? []).length}段` },
   ];
   for (const c of comps) {
@@ -68,6 +83,8 @@ export function adoptedMethodsOf(p: AdoptPlanShape, comps: AdoptCompShape[]): Ad
     { key: "guarantee", label: "最低保証", on: activeComp("guarantee_min") },
     { key: "nomination", label: "指名バック", on: perCountBack || rate },
     { key: "ratio", label: "歩合（率）", on: rate },
+    // ★裁定113: plan 方式（売上の割合／販売数×固定額）を採用しているときだけ点灯（product_rule＝商品側の設定＝プランの採用方式ではない）
+    { key: "productBack", label: "商品販売バック（方式）", on: p.product_back_mode === "plan_rate" || p.product_back_mode === "plan_fixed" },
     { key: "salesSlide", label: "売上スライド", on: (p.sales_slide ?? []).length > 0 },
     { key: "pointSlide", label: "ポイントスライド", on: (p.point_slide ?? []).length > 0 },
     { key: "achievement", label: "達成ボーナス", on: activeComp("achievement_bonus") },

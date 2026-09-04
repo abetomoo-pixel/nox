@@ -11,8 +11,8 @@ import * as t from "@/lib/nox/ui/theme";
 import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
 import {
-  SlideInput, compErrJa, secTitle, BackTab,
-  type Plan, type Slide, type BackModeRow, type CompRow, type BackDef,
+  SlideInput, compErrJa, secTitle, BackTab, PRODUCT_BACK_OPTIONS, productBackArgsOf, productBackErrOf,
+  type Plan, type Slide, type BackModeRow, type CompRow, type BackDef, type ProductBackMode,
 } from "../comp-sections";
 
 type Draft = {
@@ -20,12 +20,16 @@ type Draft = {
   honBack: number; jonaiBack: number; dohanBack: number;
   honMode: BackModeRow; honRate: number; jonaiMode: BackModeRow; jonaiRate: number;
   salesSlide: Slide[]; pointSlide: Slide[];
+  // ★裁定113/123（mig0134）: 商品販売バック3方式。rate/fixed は当該 mode のときだけ送信（他は null＝RPC pair と同条件）。
+  //   値は mode 切替中も保持（hon/jonai の円/本値と同じ流儀＝裁定v）。
+  productBackMode: ProductBackMode; productBackRate: number; productBackFixed: number;
 };
 const BLANK: Draft = {
   id: null, name: "", base: 0, active: true,
   honBack: 0, jonaiBack: 0, dohanBack: 0,
   honMode: "per_count", honRate: 0, jonaiMode: "per_count", jonaiRate: 0,
   salesSlide: [], pointSlide: [],
+  productBackMode: "product_rule", productBackRate: 0, productBackFixed: 0,
 };
 const draftOf = (p: Plan): Draft => ({
   id: p.id, name: p.name, base: p.base, active: p.is_active,
@@ -33,7 +37,10 @@ const draftOf = (p: Plan): Draft => ({
   honMode: (p.hon_back_mode ?? "per_count") as BackModeRow, honRate: p.hon_back_rate ?? 0,
   jonaiMode: (p.jonai_back_mode ?? "per_count") as BackModeRow, jonaiRate: p.jonai_back_rate ?? 0,
   salesSlide: p.sales_slide ?? [], pointSlide: p.point_slide ?? [],
+  productBackMode: p.product_back_mode ?? "product_rule",
+  productBackRate: p.product_back_rate ?? 0, productBackFixed: p.product_back_fixed ?? 0,
 });
+const PB_KEYS: (keyof Draft)[] = ["productBackMode", "productBackRate", "productBackFixed"];
 
 // 準備中バッジ（C5＝lib/nox/comp-methods.ts PREP_ITEMS が正本・散在リテラルにしない）
 function Prep({ k }: { k: string }) {
@@ -136,7 +143,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   useEffect(() => {
     onDirtyCounts?.({
       base: dirty(["name", "base", "active"]) ? 1 : 0,
-      backs: dirty(["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate"]) ? 1 : 0,
+      backs: dirty(["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate", ...PB_KEYS]) ? 1 : 0,
       slides: dirty(["salesSlide", "pointSlide"]) ? 1 : 0,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -147,6 +154,9 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   const clean = (s: Slide[]) => s.filter((r) => r.at > 0).map((r) => ({ at: r.at, wage: r.wage }));
 
   async function savePlan(section: string) {
+    // ★mig0134: フロント検証＝RPC の pair/範囲と同条件（当該 mode の値だけ検査・RPC へ投げる前に節へ赤）
+    const pbErr = productBackErrOf(draft.productBackMode, draft.productBackRate, draft.productBackFixed);
+    if (pbErr) { setSecErr((e) => ({ ...e, [section]: pbErr })); return; }
     const { data: newId, error } = await supabase.rpc("set_comp_plan", {
       p_id: draft.id, p_store_id: storeId, p_name: draft.name, p_base: draft.base,
       p_hon_back: draft.honBack, p_jonai_back: draft.jonaiBack, p_dohan_back: draft.dohanBack,
@@ -155,6 +165,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       p_hon_back_mode: draft.honMode, p_hon_back_rate: draft.honMode === "rate" ? draft.honRate : null,
       p_jonai_back_mode: draft.jonaiMode, p_jonai_back_rate: draft.jonaiMode === "rate" ? draft.jonaiRate : null,
       p_dohan_back_mode: "per_count", p_dohan_back_rate: null, // R-2b まで封印（裁定86-②）
+      // ★mig0134（裁定113/123）: 19引数全明示（原則7）。rate/fixed は当該 mode のときだけ値・他は null
+      ...productBackArgsOf(draft.productBackMode, draft.productBackRate, draft.productBackFixed),
     });
     if (error) {
       setSecErr((e) => ({ ...e, [section]: compErrJa(error.message) }));
@@ -261,7 +273,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
 
       {/* ── ③ 歩合・バック ── */}
       <section id="backs" className="nox-cardtop" style={{ ...t.card, marginBottom: 14, display: vis.backs ? undefined : "none" }}>
-        <SecHead title="歩合・バック" keys={["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate"]} section="各種バック" />
+        <SecHead title="歩合・バック" keys={["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate", ...PB_KEYS]} section="各種バック" />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
           <label style={{ fontSize: 12 }}>本指名方式 <SegSelect value={draft.honMode} onChange={(v) => d({ honMode: v as BackModeRow })}
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
@@ -284,8 +296,38 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         {/* 固定名プリセット＋自由バック（裁定101 補正3・器＝custom_back_defs・set_custom_back_def 7引数） */}
         <div className="nox-inset" style={{ padding: "10px 14px" }}>
           <b style={{ fontSize: 13 }}>ドリンク・ボトル・シャンパン（固定名プリセット）／自由バック</b>
-          {/* ★裁定106 B3: 商品売上×率（ドリンク等の売上額×%）は器なし＝準備中（basis は本数×円/固定額/売上(按分後)×% のみ） */}
-          <span className="nox-stpill" style={{ marginLeft: 8, opacity: 0.8 }}>商品売上×率: 準備中（起票#42）</span>
+          {/* ★裁定113/123（mig0132〜0134・起票#42 の「商品売上×率」を消化）: 商品販売バックの方式3択。
+              product_rule＝商品ごとの設定（下のプリセット／商品マスタのバック）・plan_rate＝同腕売上Σ×率・
+              plan_fixed＝同腕按分数量Σ×固定額（円/1点・杯・品も同一計算）。判定と凍結は close 側（check_close）＝
+              給与側は凍結値Σのみ。単位 UI は方式に連動して切替（UI 共通規約 §3/§4: 入力＝記号 `20 %`／`¥ 500 円/点`）。 */}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", margin: "8px 0 4px" }}>
+            <label style={{ fontSize: 12 }}>商品販売バックの方式{" "}
+              <SegSelect value={draft.productBackMode} onChange={(v) => d({ productBackMode: v as ProductBackMode })}
+                options={PRODUCT_BACK_OPTIONS} />
+            </label>
+            {draft.productBackMode === "plan_rate" && (
+              <label style={{ fontSize: 12 }} data-testid="pb-rate">売上の割合{" "}
+                <input type="number" min={0} max={100} step={1} value={draft.productBackRate}
+                  onChange={(e) => d({ productBackRate: Number(e.target.value) })} style={{ ...t.input, width: 70 }} disabled={!isOwner} />
+                <span style={{ marginLeft: 4, color: "var(--sub)" }}>%</span>
+              </label>
+            )}
+            {draft.productBackMode === "plan_fixed" && (
+              <label style={{ fontSize: 12 }} data-testid="pb-fixed">固定額{" "}
+                <span style={{ marginRight: 4, color: "var(--sub)" }}>¥</span>
+                <input type="number" min={0} step={1} value={draft.productBackFixed}
+                  onChange={(e) => d({ productBackFixed: Number(e.target.value) })} style={{ ...t.input, width: 90 }} disabled={!isOwner} />
+                <span style={{ marginLeft: 4, color: "var(--sub)" }}>円/点</span>
+              </label>
+            )}
+          </div>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }}>
+            {draft.productBackMode === "product_rule"
+              ? "※商品ごとの設定（下のプリセット／商品マスタのバック額）で会計時に計算します。"
+              : draft.productBackMode === "plan_rate"
+                ? "※商品売上（按分後）× 割合を会計締め時に確定します。商品ごとのバック額は使いません（pt は別系統）。"
+                : "※販売数（按分後）× 固定額（杯・品とも同一）を会計締め時に確定します。商品ごとのバック額は使いません（pt は別系統）。"}
+          </p>
           {isOwner && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "6px 0 10px" }}>
               {PRESETS.map((n) => (

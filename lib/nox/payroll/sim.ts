@@ -8,6 +8,7 @@
 //   （委託 1−0.1021／雇用 1.0）。社労士回答は pay.ts の当該1箇所差替で自動追従。
 
 import { payOf, type PayResult, type CompPlan, type PlanOverride, type TaxMode } from "../pay";
+import { roundYen } from "../money";
 import { buildPayInput, type CastRaw, type StoreMasters } from "./assemble";
 
 export type SimInput = {
@@ -21,7 +22,11 @@ export type SimInput = {
   // mig0086: 率バックの母数（期間の指名料額・rate プランのときのみ payOf が読む。未指定=0）
   honShimeiAmt?: number;
   jonaiShimeiAmt?: number;
-  productBack: { drink: number; champ: number; bottle: number }; // 商品バック（円・集計済み想定）
+  productBack: { drink: number; champ: number; bottle: number }; // 商品バック（円・集計済み想定・product_rule のときだけ効く）
+  // ★裁定113/123: plan 方式の母数（close が凍結する product_sales_base／数量Σ の sim 側入力）。未指定=0。
+  //   plan_rate＝商品売上（按分後・円）Σ×rate／plan_fixed＝販売数（按分後・点）Σ×fixed。product_rule では読まない。
+  productSales?: { drink: number; champ: number; bottle: number };
+  productQty?: { drink: number; champ: number; bottle: number };
   pointProducts: number; // 本指名商品pt
   champCnt: number; // シャンパン本数（自由バック metrics 用）
   bottleCnt: number; // ボトル本数
@@ -49,6 +54,16 @@ export function simulate(inp: SimInput): PayResult {
     hours: inp.hoursPerDay,
     sales: perDaySales,
   }));
+  // ★裁定113/123: 商品販売バックの方式分を close の凍結形と同形で合成する（check_close との二鏡像＝教訓52 型・台帳 113 節）。
+  //   plan_rate＝round(Σ売上×rate/100)（roundYen 1回・check_close の round(base×rate/100) と同丸め）
+  //   plan_fixed＝Σ数量×fixed（整数×整数＝丸め不要）／product_rule＝0（従来と1バイト同値）。
+  //   plan_rate/plan_fixed では商品3列（productBack）は close が 0 凍結する＝sim でも 0 に落とす。payOf は不変（凍結値Σ一本）。
+  const pbMode = inp.plan.productBackMode ?? "product_rule";
+  const sum3 = (v?: { drink: number; champ: number; bottle: number }) => (v ? (v.drink || 0) + (v.champ || 0) + (v.bottle || 0) : 0);
+  const calculatedBack =
+    pbMode === "plan_rate" ? roundYen(sum3(inp.productSales) * (inp.plan.productBackRate ?? 0) / 100)
+    : pbMode === "plan_fixed" ? sum3(inp.productQty) * (inp.plan.productBackFixed ?? 0)
+    : 0;
   const raw: CastRaw = {
     castId: "sim",
     castName: "シミュレーション",
@@ -59,8 +74,8 @@ export function simulate(inp: SimInput): PayResult {
     honShimeiAmt: inp.honShimeiAmt ?? 0,
     jonaiShimeiAmt: inp.jonaiShimeiAmt ?? 0,
     daily,
-    productBack: inp.productBack,
-    calculatedBack: 0, // ★裁定113: sim の商品売上軸／3択入力は UI レーン（SimInput 拡張）で消化＝本段は 0 固定（現行 sim 同値）
+    productBack: pbMode === "product_rule" ? inp.productBack : { drink: 0, champ: 0, bottle: 0 },
+    calculatedBack,
     pointProducts: inp.pointProducts,
     champCnt: inp.champCnt,
     bottleCnt: inp.bottleCnt,
