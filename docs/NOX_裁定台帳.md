@@ -2548,7 +2548,7 @@ bulk_daily/2段保存・skipped トースト）＋build 縮退＋必要人数移
 
 ---
 
-## 裁定113（2026-09-02・骨子先行）指名実績バックと商品販売バックの分離 — 設計書 v1 確定（2026-09-04）・実装＝Fable 待ち
+## 裁定113（2026-09-02・骨子先行）指名実績バックと商品販売バックの分離 — 設計書 v1 確定・mig0132 適用済・f0 pb 係留（2026-09-04）・UI＝Opus 待ち
 
 ① 指名実績バックと商品販売バックは**併存・加算・完全別系統** ② 商品販売バックの計算方式は
 plan の**3択排他**（product_rule／plan_rate／plan_fixed） ③ **排他の執行点は check_close**
@@ -2573,6 +2573,25 @@ default 'product_rule'／rate／fixed・pair CHECK は mig0086 流儀）。順�
 →UI（Opus・3択セレクタ＋sim 拡張）。**D-1（給与確定取消）は 113 完了後**。
 ★恒久注意（伝票系 fixture 掃除）: close の在庫自動減算が **stock_logs（product FK）** を残すため、fixture 商品の
 削除は **stock_logs 先行削除**が必須（2026-09-04 実測①の掃除で削除が弾かれて検知・残0 確認済み）。
+
+**実装（2026-09-04）: mig0132 適用済み**（dev・検証バンドル `docs/dp/0132_verify_bundle.sql` 14/14 全緑・相談役確認済み）＝
+comp_plans 3列（mode default 'product_rule'／rate／fixed・pair CHECK は mig0086 流儀）＋check_cast_backs 3列
+（source_mode／product_sales_base／calculated_back_amount・nullable＝旧行 null は product_rule 扱い）＋**`biz_date_of` 新設**
+（営業日 date ヘルパー・クライアント grant なし・**課金名簿 B(f) へ収載＝教訓21 の7例目**〔「grant なし内部関数は
+対象外」の想定は f0 billing 段47-1 の全数照合で赤＝除外 100→101・全数 213→214〕）＋check_close OR REPLACE（営業日＝`biz_date_of(store, started_at)`
+時点の cast_plan で cast 別 mode 解決・plan_rate は同腕売上按分を base 凍結＋`round(base×rate/100)` を calc 凍結・
+plan_fixed は pt のみ・割当なし＝product_rule・drink_claims 不干渉）。
+**f0 新スイート verify-nox-product-back-modes（pb・36本目・28 assert）**＝(0) 器 CHECK 3点 (a) product_rule 従来同値＋
+source_mode 記録 (b) plan_rate 3列 0・同腕 base（多 cast weight 2:1 で alloc 2/1 を実証）・calc 算術（.5＝152 の 0 から
+遠い側・rate 0 境界）(c) plan_fixed 3列 0・pt のみ・jonai は行なし (d) 割当なし fallback (e) pt 射程外 (f) claim 不干渉
+（close 前後で back_amount/status 不変）(g) 営業日境界（started_at D 05:30 JST→D-1＝product_rule／D 06:30 JST→D＝plan_rate）
+＝**実測②（排他 close の 3列 0 凍結）は (b)(c) で消化**。逆試験＝PB_INVERT 28 全赤＋PB_BREAK（b4 期待値裏書き）1本のみ赤
+→復元緑。fixture＝NOX-VERIFY-pb*・cast_plan は admin 直 insert（valid_from 2020-01-01＝cutoff 前実行でも割当が効く＝時限
+装置化しない）・teardown は stock_logs 先行。
+- **鏡像注記（教訓52 型）**: cutoff 読み（`stores.settings_json.biz_cutoff_hm`・既定 '06:00'・営業日＝(JST−cutoff)::date）は
+  **`biz_minutes_of`／`biz_date_of`／TS `bizDateOf`（lib/nox/biz-date.ts）の三鏡像**＝cutoff 仕様変更は3点同時。
+- **get_cast_ranking 注記**: 順位の最終タイブレーク＝`Σ(drink_back+champ_back+bottle_back)` のため、plan_rate／plan_fixed
+  cast は商品3列 0 で**タイブレーク寄与が変わる**（calculated_back_amount／期間固定額は不参照）＝UI／collect レーンの検討点。
 
 ---
 
