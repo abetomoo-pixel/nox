@@ -364,6 +364,33 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
       : accept ? "採用しシフト案に追加しました" : "見送りました");
     await load();
   }
+  // ★N4（対応表 H19・B層＝器あり UI なし）: 希望の一括承認＝**新 RPC は作らない**。表示中の pending 希望を
+  //   1件ずつ shift_wish_decide(accept) で順に発行するループ（定休日の希望は RPC が 'closed day' で拒否するため
+  //   事前に除外＝行の「希望通り承認」と同じ disabled 規則）。途中失敗は件数で報告し、残りは続行する。
+  async function approveAllWishes(ids: string[]) {
+    if (ids.length === 0) return;
+    if (!confirm(`表示中の希望 ${ids.length}件をまとめて承認（シフト案に追加）しますか？`)) return;
+    setMsg(null);
+    let ok = 0; const errs: string[] = [];
+    for (const id of ids) {
+      const { error } = await supabase.rpc("shift_wish_decide", { p_wish_id: id, p_accept: true });
+      if (error) errs.push(rpcErrJa(error.message)); else ok++;
+    }
+    setMsg(errs.length === 0 ? `${ok}件の希望を承認しシフト案に追加しました`
+      : `${ok}件を承認・${errs.length}件は失敗（${errs[0]}）`);
+    await load();
+  }
+  // ★N4（対応表 H30・B層）: shift_remove（0103 裁定D）の UI 結線＝計画中／確認待ちの行を個別削除。
+  //   confirmed で出勤記録がある日は RPC が 'has attendance' で拒否。wish 由来の行は wish が pending に戻る（RPC 側）。
+  async function removeShift(s: Shift) {
+    if (!confirm(`${castName(s.cast_id)} ${s.date} ${fmtWin(s.start_hm, s.end_hm)} のシフトを削除しますか？${s.wish_id ? "（元の希望は「キャスト希望」に戻ります）" : ""}`)) return;
+    setMsg(null);
+    const { error } = await supabase.rpc("shift_remove", { p_id: s.id });
+    setMsg(error
+      ? (error.message.includes("has attendance") ? "出勤記録がある日のシフトは削除できません" : `削除に失敗: ${rpcErrJa(error.message)}`)
+      : s.wish_id ? "シフトを削除し、希望をキャスト希望へ戻しました" : "シフトを削除しました");
+    await load();
+  }
 
 
   async function confirmShift(s: Shift) {
@@ -1129,6 +1156,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                   </p>
                 </div>
                 <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
+                  {/* ★N4（H19）: 段1（キャスト希望）の一括承認＝定休日の希望は除外して1件ずつ shift_wish_decide */}
+                  {isManagerUp && (() => {
+                    const ids = wishes.filter((w) => !closedOf(w.date, w.start_hm, w.end_hm)).map((w) => w.id);
+                    return ids.length > 0 ? (
+                      <button style={btnLight} title="表示中の希望（定休日を除く）をまとめて承認しシフト案に追加します"
+                        onClick={() => void approveAllWishes(ids)}>
+                        {ids.length}件の希望をまとめて承認
+                      </button>
+                    ) : null;
+                  })()}
                   {/* V2-2 の一括 propose はこの面へ移設（行の「キャスト確認へ」と同じ操作の一括版）。
                       モックには無いが、実装済みの機能を構造追随のために落とさない。 */}
                   {isManagerUp && planned.length > 0 && (
@@ -1227,6 +1264,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                                 onClick={() => { setAdjTarget(r.shift!); setAStart(r.shift!.start_hm); setAEnd(r.shift!.end_hm); }}>時間調整</button>
                               <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 onClick={() => void proposeShifts([r.shift!.id])}>キャスト確認へ</button>
+                              {/* ★N4（H30）: shift_remove の UI 結線（計画中の行を削除・wish 由来は希望へ戻る） */}
+                              <button style={{ ...btnLight, color: "var(--bad)" }} onClick={() => void removeShift(r.shift!)}>削除</button>
                             </span>
                           )}
                           {isManagerUp && r.kind === "proposed" && (
@@ -1234,6 +1273,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                               <button style={{ ...btnLight, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 onClick={() => { setAdjTarget(r.shift!); setAStart(r.shift!.start_hm); setAEnd(r.shift!.end_hm); }}>再調整</button>
                               <button style={btnLight} onClick={() => void demoteShift(r.shift!)}>差し戻す</button>
+                              <button style={{ ...btnLight, color: "var(--bad)" }} onClick={() => void removeShift(r.shift!)}>削除</button>
                             </span>
                           )}
                         </td>
@@ -1585,6 +1625,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                                 if (!c) return;
                                 setAddCast(c); setAddStatus("planned"); setAddModal(true);
                               }}>＋</button>
+                            {/* ★N4（H30）: 確定行の削除＝shift_remove（出勤記録がある日は RPC が拒否） */}
+                            <button style={{ ...btnLight, color: "var(--bad)" }} title="このシフトを削除します（出勤記録がある日は削除できません）"
+                              onClick={() => void removeShift(s)}>削除</button>
                           </span>
                         )}
                       </td>

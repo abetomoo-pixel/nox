@@ -524,6 +524,18 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
     setOvd(ovDraftFrom(cpOf(cid)?.overrides_json));
     setOpenOv(cid);
   }
+  // ★N4（対応表 K34・B層＝器あり UI なし）: cast_plan の適用履歴（mig0114 期間化・valid_from/valid_to）を**読み取りのみ**で展開。
+  //   現在行（valid_to null）＋過去行を valid_from 降順。RLS＝cast_plan_select（manager 以上は店スコープ）。書込経路は不変。
+  type PlanHist = { plan_id: string; valid_from: string | null; valid_to: string | null; overrides_json: Record<string, unknown> | null };
+  const [histOpen, setHistOpen] = useState<string | null>(null);
+  const [hist, setHist] = useState<PlanHist[]>([]);
+  async function toggleHist(cid: string) {
+    if (histOpen === cid) { setHistOpen(null); return; }
+    const { data } = await supabase.from("cast_plan").select("plan_id, valid_from, valid_to, overrides_json")
+      .eq("cast_id", cid).order("valid_from", { ascending: false, nullsFirst: false });
+    setHist((data ?? []) as PlanHist[]);
+    setHistOpen(cid);
+  }
 
   // パネル draft → overrides_json（mig0086 の8キー語彙・方式と値はペア）。検証 NG は null＋メッセージ。
   function buildOverrides(d: OvDraft): Record<string, number | string> | null {
@@ -636,9 +648,17 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                   })()}
                   <td>
                     {isManagerUp ? (
-                      <input type="date" value={rowDate[c.id] ?? ""} onChange={(e) => setRowDate((m) => ({ ...m, [c.id]: e.target.value }))}
-                        style={{ ...input, width: 140 }}
-                        title="空＝今すぐ（現在行の上書き）。指定＝その日から適用（履歴生成・給与は裁定97 の期間選択）" />
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <input type="date" value={rowDate[c.id] ?? ""} onChange={(e) => setRowDate((m) => ({ ...m, [c.id]: e.target.value }))}
+                          style={{ ...input, width: 140 }}
+                          title="空＝今すぐ（現在行の上書き）。指定＝その日から適用（履歴生成・給与は裁定97 の期間選択）" />
+                        {cp && (
+                          <button type="button" onClick={() => void toggleHist(c.id)} title="適用履歴（期間つき・読み取りのみ）"
+                            style={{ ...t.btnGhost, ...t.btnSm, borderColor: histOpen === c.id ? "var(--gold)" : undefined }}>
+                            履歴 {histOpen === c.id ? "▾" : "▸"}
+                          </button>
+                        )}
+                      </span>
                     ) : "—"}
                   </td>
                   <td>
@@ -672,6 +692,29 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                         {ovRow({ label: "同伴", use: ovd.useDohan, onUse: (v) => setOvd((d) => ({ ...d, useDohan: v })),
                           val: ovd.dohanVal, onVal: (v) => setOvd((d) => ({ ...d, dohanVal: v })), unit: "円/本" })}
                         <p style={{ ...note, margin: 0 }}>既定を使う＝プランの値のまま。方式と値はペアで保存されます（この行の「変更」で確定）。</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {histOpen === c.id && (
+                  <tr>
+                    <td colSpan={showProgress ? 6 : 5}>
+                      <div style={{ padding: "4px 0" }}>
+                        <div style={{ ...note, marginBottom: 4 }}>適用履歴（適用開始日の新しい順・現在行は「〜現在」）</div>
+                        {hist.length === 0 ? <span style={note}>履歴がありません</span> : (
+                          <table className="nox-table" style={{ width: "auto" }}>
+                            <thead><tr><th>適用期間</th><th>プラン</th><th>上書き</th></tr></thead>
+                            <tbody>
+                              {hist.map((h, i) => (
+                                <tr key={i} style={{ opacity: h.valid_to ? 0.75 : 1 }}>
+                                  <td className="num">{h.valid_from ?? "—"} 〜 {h.valid_to ?? "現在"}</td>
+                                  <td>{planName(h.plan_id)}{h.valid_to ? "" : <span className="nox-stpill" style={{ marginLeft: 6, color: "var(--ok)" }}>適用中</span>}</td>
+                                  <td className="num">{Object.keys(h.overrides_json ?? {}).length > 0 ? `${Object.keys(h.overrides_json ?? {}).length}件` : "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
                       </div>
                     </td>
                   </tr>
