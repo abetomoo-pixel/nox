@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX | レジ統合モック v12.1</title>
+<style>
+:root{
+  --bg:#070707;--panel:#11110f;--panel2:#151512;--field:#090909;--line:#302e28;--line-strong:#484339;
+  --text:#f4f1e9;--sub:#b8b2a8;--muted:#7f7a71;
+  --brand:#d8ad55;--brand2:#f0cf82;--brand-soft:rgba(216,173,85,.10);
+  --primary:#2f7fe7;--primary2:#61a7ff;--primary-soft:rgba(47,127,231,.15);
+  --success:#4dc37d;--success-soft:rgba(77,195,125,.11);
+  --danger:#e26762;--danger-soft:rgba(226,103,98,.11);
+  --warning:#d9a43a;--warning-soft:rgba(217,164,58,.10);
+  --sidebar:205px;--r:10px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 86% -8%,rgba(216,173,85,.05),transparent 28%),var(--bg);color:var(--text);font-family:Inter,"Noto Sans JP","Yu Gothic UI",system-ui,sans-serif;font-size:13px}
+button,input,select{font:inherit;color:inherit}button{cursor:pointer}
+.app{min-height:100vh;display:grid;grid-template-columns:var(--sidebar) 1fr}
+.side{background:#0b0b0a;border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:0;height:100vh}
+.brand{display:flex;gap:10px;align-items:center;padding:0 8px 22px}.logo{width:34px;height:34px;border:1px solid var(--brand);border-radius:8px;display:grid;place-items:center;color:var(--brand2);font-weight:800}
+.brand b{font-size:17px}.brand small{display:block;color:var(--muted);font-size:8px;letter-spacing:.12em}
+.nav{padding:10px;border-radius:8px;color:#a6a198;margin:2px 0}.nav.on{background:linear-gradient(90deg,rgba(47,127,231,.20),rgba(47,127,231,.05));color:#a8ceff;box-shadow:inset 2px 0 var(--primary)}
+.sep{height:1px;background:var(--line);margin:10px 0}
+main{min-width:0}.top{height:55px;border-bottom:1px solid var(--line);display:flex;justify-content:flex-end;align-items:center;padding:0 24px}
+.owner{background:linear-gradient(135deg,var(--brand2),#b58634);color:#171108;border-radius:999px;padding:5px 10px;font-size:10px;font-weight:800}.logout{margin-left:8px;height:30px;border:1px solid var(--line);background:#151513;border-radius:7px;padding:0 10px}
+.wrap{max-width:1360px;margin:auto;padding:22px 28px 70px}
+.btn{min-height:36px;border:1px solid var(--line-strong);background:#151513;border-radius:7px;padding:0 13px;font-weight:800;text-align:center}
+.btn.action{background:linear-gradient(180deg,#287ce1,#1e63bd);border-color:#438ded;color:#fff}.btn.small{min-height:30px;font-size:11px;padding:0 10px}.btn.danger{border-color:rgba(226,103,98,.46);color:#ef9c96}
+.card{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(145deg,#161613,#10100f)}.card+.card{margin-top:12px}
+.head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}.head h2{font-size:17px;color:var(--brand2);margin:0}.head p{font-size:11px;color:var(--sub);margin:3px 0 0}.body{padding:16px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#0d0d0c;margin-bottom:12px}
+.tabs button{height:42px;border:0;border-right:1px solid var(--line);background:transparent;color:#aaa59f;font-weight:800}.tabs button:last-child{border-right:0}.tabs button.on{background:var(--primary-soft);color:var(--primary2)}
+.subtabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:10px 0}.subtabs button{height:36px;background:#10110f;border:1px solid var(--line);border-radius:6px;color:#aaa}.subtabs button.on{background:#122430;border-color:#4695cc;color:#74bdf0}
+.view{display:none}.view.on{display:block}
+.floor{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.table-card{border:1px solid #3a3932;border-radius:8px;background:#161713;padding:12px}.table-card.on{outline:1px solid #527ea9;background:#171a1d}
+.table-card h3{font-size:14px;margin:0 0 5px}.muted{font-size:11px;color:var(--muted)}.status{font-size:10px;font-weight:800}.ok{color:var(--success)}.warn{color:#e6b95f}.big{font-size:18px;font-weight:900}
+.detail-head{display:flex;align-items:center;gap:10px}.detail-head .sum{margin-left:auto;font-size:21px;font-weight:900}
+.two{display:grid;grid-template-columns:1.45fr .8fr;gap:12px}
+.section{border:1px solid #383932;border-radius:8px;background:#141512;padding:13px;margin-bottom:10px}.section h3{font-size:14px;margin:0 0 5px}.section p{font-size:11px;color:var(--muted);margin:0 0 10px}
+.info{border:1px solid var(--line);background:#0f0f0e;color:var(--sub);padding:9px 11px;border-radius:7px;font-size:11px}.notice{border:1px solid rgba(217,164,58,.34);background:var(--warning-soft);color:#e6c779;padding:9px 11px;border-radius:7px;font-size:11px}
+.customer-strip{border:1px solid #3c3c34;border-radius:8px;background:#151612;padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#5caebe;color:#071013;font-weight:900}
+.customer-strip .grow,.result .grow{flex:1}.customer-strip strong{font-size:14px}
+.product-toolbar{display:grid;grid-template-columns:1fr auto auto;gap:8px;margin:12px 0}.input{height:38px;background:#090a09;border:1px solid var(--line-strong);border-radius:7px;padding:0 10px;width:100%}
+.category-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.category-tabs button{min-height:34px;border:1px solid var(--line);background:#11120f;color:#aaa;border-radius:17px;padding:0 12px;font-weight:800}.category-tabs button.on{background:var(--primary-soft);border-color:#4b87bd;color:#75bfff}.products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.product{border:1px solid #383932;border-radius:8px;background:#141512;padding:12px}.product h3{font-size:14px;margin:0 0 3px}.product .price{font-size:16px;font-weight:900;margin-top:8px}.product .stock{font-size:10px;color:var(--muted)}
+.order-row{display:grid;grid-template-columns:1fr 70px 90px 260px 88px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.045)}.order-row:last-child{border-bottom:0}
+.attribution{border:1px solid #394653;background:#101820;border-radius:6px;padding:7px 9px}.attribution b{color:#78bdf2}.attribution small{display:block;color:var(--muted);margin-top:2px}
+.cast-list{display:grid;gap:10px}.cast-card{border:1px solid #3b3c35;border-radius:8px;background:#141512;padding:13px}.cast-top{display:grid;grid-template-columns:1fr 210px 170px;gap:10px;align-items:center}
+.cast-name{display:flex;align-items:center;gap:10px}.cast-name strong{font-size:15px}
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden}.seg button{flex:1;min-height:38px;border:0;border-right:1px solid var(--line-strong);background:#111210;color:#aaa;font-weight:800}.seg button:last-child{border-right:0}.seg button.on{background:var(--primary-soft);color:#75bfff}
+.pricebox{border:1px solid #35506a;background:#101a22;border-radius:7px;padding:8px 10px}.pricebox .price{font-size:18px;font-weight:900}.source{font-size:10px;color:#7dbcf0;margin-top:2px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.chip{border:1px solid #3d3e37;border-radius:16px;padding:6px 9px;background:#11120f;color:#aaa}.chip b{color:#e8c861}
+.fold{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}.fold summary{cursor:pointer;color:#bcb7ae;font-weight:800}
+.resolve{display:grid;grid-template-columns:1fr 22px 1fr 22px 1fr 22px 1fr;gap:6px;align-items:center;margin-top:10px}.node{border:1px solid var(--line);border-radius:7px;background:#11120f;padding:9px;text-align:center}.node.on{border-color:#4b86bd;background:#12202a}.node small{display:block;color:var(--muted);margin-bottom:3px}.arrow{text-align:center;color:#67635d}
+.current{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}.metric{border:1px solid var(--line);border-radius:7px;padding:11px;background:#11120f}.metric small{display:block;color:var(--muted);margin-bottom:3px}.metric b{font-size:15px}
+.action-card{border:1px solid #3b3c35;border-radius:8px;background:#141512;padding:14px;margin-top:10px}.action-card h3{font-size:14px;margin:0 0 5px}.action-card p{font-size:11px;color:var(--muted);margin:0 0 12px}.table-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.table-action{border:1px solid #3b3c35;border-radius:8px;background:#141512;padding:12px}.table-action h3{font-size:14px;margin:0 0 5px}.table-action p{font-size:11px;color:var(--muted);margin:0 0 10px}
+.lines{display:grid}.line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045)}.line:last-child{border-bottom:0}
+.reservation-list{display:grid;gap:10px}.reservation{border:1px solid #3b3c35;border-radius:8px;background:#141512;padding:13px}.res-top{display:grid;grid-template-columns:150px 1fr 180px 140px;gap:10px;align-items:center}
+.search-box{border:1px solid var(--line);border-radius:8px;background:#11120f;padding:11px;margin-top:10px}.search-head{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+.cast-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.cast{border:1px solid var(--line);border-radius:7px;padding:10px;background:#141512}.cast strong{display:block}.cast small{color:var(--muted)}
+.feature-switch{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.store-switch{display:flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden}.store-switch button{min-width:160px;height:40px;border:0;border-right:1px solid var(--line-strong);background:#111210;color:#aaa;font-weight:800}.store-switch button:last-child{border-right:0}.store-switch button.on{background:var(--primary-soft);color:#75bfff}
+.feature-strip{display:flex;gap:7px;flex-wrap:wrap}.fchip{border:1px solid #3d3e37;border-radius:16px;padding:6px 9px;background:#11120f;color:#777;font-size:11px}.fchip.on{color:#8ddcae;border-color:rgba(77,195,125,.34);background:var(--success-soft)}
+.overlay{position:fixed;inset:0 0 0 var(--sidebar);background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:9}.modal{width:720px;background:#171815;border:1px solid #555347;border-radius:12px;padding:18px;box-shadow:0 30px 80px #000}.modal h2{margin:0 0 4px;color:var(--brand2);font-size:18px}
+.field{margin:11px 0}.field label{display:block;color:#aaa;font-size:11px;margin-bottom:6px}.field input,.field select{width:100%;height:40px;background:#090a09;border:1px solid var(--line-strong);border-radius:7px;padding:0 10px}
+.actions{display:flex;justify-content:center;gap:8px;margin-top:16px}
+.choice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.choice{border:1px solid var(--line);border-radius:7px;padding:10px;background:#11120f}.choice.on{border-color:#4b87bd;background:#12202a}
+.price-box{border:1px solid #365474;background:#101a22;border-radius:8px;padding:12px;margin-top:10px}.price-box h3{margin:0 0 8px;font-size:14px;color:#8fc5f1}
+.toolbar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.extension-bar{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;border:1px solid rgba(217,164,58,.35);background:var(--warning-soft);border-radius:8px;padding:11px 13px;margin-bottom:12px}
+.extension-bar strong{color:#efd18a}.extension-actions{display:flex;gap:7px}
+.history{margin-top:14px}.history-row{display:grid;grid-template-columns:70px 1fr 120px 100px;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045)}
+.history-row .who{color:var(--muted);font-size:11px}
+.qty{display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden}.qty button{width:30px;height:30px;border:0;background:#11120f}.qty b{width:32px;text-align:center}
+.keep-card{border:1px solid #4b4531;background:#18160f;border-radius:8px;padding:12px;margin-top:10px}.keep-card strong{color:#efd18a}.keep-meta{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:4px}
+.pay-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.pay-method{border:1px solid var(--line);border-radius:8px;padding:12px;background:#11120f;text-align:center}.pay-method.on{border-color:#4b87bd;background:#12202a;color:#75bfff}
+.audit-row{display:grid;grid-template-columns:130px 1fr 120px;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045);font-size:11px}.audit-row:last-child{border-bottom:0}
+.danger-box{border:1px solid rgba(226,103,98,.4);background:var(--danger-soft);border-radius:8px;padding:11px;color:#efaaa5}
+.split-list{display:grid;gap:8px;margin-top:10px}.split-row{display:grid;grid-template-columns:1fr 130px 110px;gap:8px;align-items:center;border:1px solid var(--line);border-radius:7px;padding:10px;background:#11120f}
+.adjust-box{border:1px solid var(--line);border-radius:8px;background:#11120f;padding:12px;margin-top:12px}
+.adjust-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.adjust-row{display:grid;grid-template-columns:1.25fr 1fr 120px 120px 90px;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045)}
+.adjust-row:last-child{border-bottom:0}
+.adjust-row input,.adjust-row select{height:36px;background:#090a09;border:1px solid var(--line-strong);border-radius:7px;padding:0 9px}
+.minus{color:#f08d86;font-weight:900}.plus{color:#8edcaf;font-weight:900}
+.preset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.preset{border:1px solid var(--line);border-radius:7px;background:#141512;padding:10px;cursor:pointer}
+.preset:hover{border-color:#4b87bd}
+.preset strong{display:block;margin-bottom:3px}
+.rule-note{font-size:11px;color:var(--muted);margin-top:7px}
+
+@media(max-width:1050px){.floor{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}.products,.cast-grid,.choice-grid{grid-template-columns:repeat(2,1fr)}.cast-top,.res-top{grid-template-columns:1fr}.resolve{grid-template-columns:1fr}.arrow{transform:rotate(90deg)}.current{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+<div class="brand"><div class="logo">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div>
+<div class="nav">⌂ ホーム</div><div class="nav on">▣ レジ</div><div class="nav">▤ 日報</div><div class="sep"></div>
+<div class="nav">◫ シフト</div><div class="nav">♙ キャスト</div><div class="nav">♧ スタッフ</div><div class="nav">▭ 給与</div><div class="sep"></div>
+<div class="nav">▦ 顧客</div><div class="sep"></div><div class="nav">⌘ マスタ</div>
+</aside>
+<main>
+<div class="top"><span class="owner">オーナー</span><button class="logout">ログアウト</button></div>
+<div class="wrap">
+
+<div class="feature-switch" style="justify-content:flex-end">
+  <div class="store-switch"><button class="on" id="storeA" onclick="setStore('A')">利用機能：標準</button><button id="storeB" onclick="setStore('B')">シンプル店を確認</button></div>
+</div><div class="feature-strip" id="featureStrip" style="display:none"></div>
+
+<div class="tabs"><button class="on" data-view="floorView">卓席・会計</button><button data-view="reservationView">予約</button></div>
+
+<section class="view on" id="floorView">
+<div class="card"><div class="head"><div><h2>フロア</h2><p>店舗で使う席種だけを表示します。</p></div></div><div class="body"><div class="floor" id="floor"></div></div></div>
+
+<div class="card">
+<div class="head"><div class="detail-head"><button class="btn small">← フロア</button><h2 style="color:#fff">テーブル3</h2><span class="muted">通常卓　2名　滞在92分</span></div><div class="detail-head"><button class="btn small" onclick="openModal('tableOpsModal')">卓操作</button><span class="muted">合計</span><span class="sum">¥62,150</span></div></div>
+<div class="body">
+<div class="extension-bar"><div><strong>次回延長まで 08:24</strong><div class="muted">60分セット／現在の料金スナップショット：平日通常 8,000円 × 2名</div></div><div class="extension-actions"><button class="btn small" onclick="openModal('extensionModal')">延長確認</button><button class="btn small danger">このセットで終了</button></div></div>
+<div class="subtabs"><button class="on" data-sub="orderPanel">注文</button><button data-sub="nomPanel">指名・接客</button><button data-sub="payPanel">会計</button></div>
+
+<div class="view on" id="orderPanel">
+<div class="two">
+<section>
+<div class="customer-strip"><div class="avatar">田</div><div class="grow"><strong>田中さん</strong><div class="muted">代表／担当：あべ</div></div><button class="btn small action" onclick="openCustomer()">変更</button></div>
+<div class="customer-strip"><div class="avatar" style="background:#2c2d28;color:#aaa">?</div><div class="grow"><strong>同行者1名</strong><div class="muted">顧客未登録</div></div><button class="btn small action" onclick="openCustomer()">顧客を設定</button></div>
+
+<div class="info">ⓘ 商品販売実績は、商品販売バックを使う店舗だけ表示します。会計の売上分配とは別管理です。</div>
+<div class="category-tabs">
+<button class="on">ドリンク</button><button>焼酎</button><button>ウイスキー</button><button>シャンパン</button><button>ボトル</button><button>フード</button><button>その他</button>
+</div>
+<div class="product-toolbar"><input class="input" placeholder="このカテゴリの商品を検索"><button class="btn action">よく使う</button><button class="btn">最近使った</button></div>
+<div class="products">
+<div class="product"><h3>生ビール</h3><div class="stock">在庫28</div><div class="price">¥1,200</div><div class="actions"><div class="qty"><button>−</button><b>1</b><button>＋</button></div><button class="btn small action">追加</button></div></div>
+<div class="product"><h3>レモンサワー</h3><div class="stock">在庫18</div><div class="price">¥1,000</div><div class="actions"><div class="qty"><button>−</button><b>1</b><button>＋</button></div><button class="btn small action">追加</button></div></div>
+<div class="product"><h3>ウーロン茶</h3><div class="stock">在庫32</div><div class="price">¥800</div><div class="actions"><div class="qty"><button>−</button><b>1</b><button>＋</button></div><button class="btn small action">追加</button></div></div>
+</div>
+
+<div id="attrSection" style="margin-top:14px">
+<div class="order-row"><div><strong>シャンパンA</strong><div class="muted">商品販売バック対象</div></div><div>×1</div><div><b>¥15,000</b></div><div class="muted">販売実績：さくら</div><button class="btn small" onclick="openAttr()">変更</button></div>
+</div>
+<div class="section" style="margin-top:14px"><h3>ボトルキープ</h3><p>来店客に紐づくキープボトルを、この卓へ出せます。</p>
+<div class="keep-card"><strong>田中さん｜黒霧島</strong><div class="keep-meta"><span>残量 約60%</span><span>登録 2026/08/18</span><span>前回：VIP2</span></div><div class="actions"><button class="btn small action" onclick="openModal('keepModal')">この卓に出す</button><button class="btn small">詳細</button></div></div>
+</div>
+<div class="section history"><h3>注文履歴</h3><p>注文済みと、今から追加する商品を分離。取消・訂正もここから行います。</p>
+<div class="history-row"><b>21:42</b><div><strong>シャンパンA ×1</strong><div class="who">操作：山田</div></div><b>¥15,000</b><button class="btn small danger" onclick="openModal('cancelOrderModal')">取消</button></div>
+<div class="history-row"><b>21:18</b><div><strong>生ビール ×2</strong><div class="who">操作：佐々木</div></div><b>¥2,400</b><button class="btn small">詳細</button></div>
+<div class="history-row"><b>20:57</b><div><strong>黒霧島 ×1</strong><div class="who">操作：山田</div></div><b>¥12,000</b><button class="btn small">詳細</button></div>
+</div>
+</section>
+<aside class="card"><div class="head"><div><h2>明細</h2></div></div><div class="body lines"><div class="line"><span>セット料金</span><b>¥16,000</b></div><div class="line"><span>商品</span><b>¥40,500</b></div><div class="line"><span>サービス料</span><b>¥5,650</b></div><div class="line"><b>合計</b><b>¥62,150</b></div></div></aside>
+</div>
+</div>
+
+<div class="view" id="nomPanel">
+<div class="current"><div class="metric"><small>現在人数</small><b>2名</b></div><div class="metric"><small>現在席</small><b>テーブル3</b></div><div class="metric"><small>料金ルール</small><b>平日通常</b></div><div class="metric"><small>次回延長</small><b>16:42</b></div></div>
+<div class="two">
+<section>
+<div class="section"><h3>指名・同伴</h3><p>店舗設定でONになっている種別だけ表示します。</p>
+<div class="cast-list">
+<div class="cast-card"><div class="cast-top"><div class="cast-name"><div class="avatar">あ</div><div><strong>あべ</strong><div class="muted">エース</div></div></div><div class="seg" id="nomBtns"></div><div class="pricebox"><div class="price">¥6,000</div><div class="source">キャスト個別料金</div></div></div>
+<details class="fold"><summary>料金の決まり方を見る</summary><div class="lines" style="margin-top:8px"><div class="line"><span>店舗基本</span><b>3,000円</b></div><div class="line"><span>料金適用ルール</span><b>4,000円</b></div><div class="line"><span>ランク別</span><b>5,000円</b></div><div class="line"><span>キャスト個別</span><b>6,000円 採用</b></div></div></details></div>
+</div></div>
+
+<div class="section"><h3>キャストを追加</h3><p>数十名規模を前提に検索＋候補一覧。プルダウンは使いません。</p><input class="input" placeholder="キャスト名で検索"><div class="cast-grid"><div class="cast"><strong>あべ</strong><small>エース・出勤中</small></div><div class="cast"><strong>さくら</strong><small>レギュラー・出勤中</small></div><div class="cast"><strong>れいな</strong><small>接客中</small></div><div class="cast"><strong>みさき</strong><small>エース・出勤中</small></div><div class="cast"><strong>ゆい</strong><small>出勤中</small></div><div class="cast"><strong>かれん</strong><small>新人・出勤中</small></div></div></div>
+
+
+</section>
+<aside class="card"><div class="head"><div><h2>指名・同伴料金</h2></div></div><div class="body lines"><div class="line"><span>あべ 本指名</span><b>¥6,000</b></div><div class="line"><span>同伴</span><span id="companionSummary">なし</span></div><div class="line"><b>小計</b><b>¥6,000</b></div></div></aside>
+</div>
+</div>
+
+<div class="view" id="payPanel">
+<div class="two">
+<section class="card"><div class="head"><div><h2>請求確認</h2><p>元明細 → 割引・追加料金 → サービス料・税 → 最終請求額の順で確認します。</p></div><button class="btn small action" onclick="openModal('adjustModal')">割引・追加料金</button></div>
+<div class="body">
+<div class="lines">
+  <div class="line"><span>セット料金</span><b>¥16,000</b></div>
+  <div class="line"><span>本指名</span><b>¥6,000</b></div>
+  <div class="line"><span>商品</span><b>¥40,500</b></div>
+  <div class="line"><b>小計</b><b>¥62,500</b></div>
+</div>
+
+<div class="adjust-box">
+  <div class="adjust-head"><div><strong>会計調整</strong><div class="muted">元明細は変更せず、割引・追加料金を別行で記録します。</div></div><button class="btn small action" onclick="openModal('adjustModal')">＋ 調整を追加</button></div>
+  <div class="line"><span>特別割引 <span class="muted">伝票全体 / 理由：常連対応</span></span><b class="minus">-¥5,000</b></div>
+  <div class="line"><span>持込料 <span class="muted">課税・サービス料対象</span></span><b class="plus">+¥3,000</b></div>
+  <div class="line"><span>調整後小計</span><b>¥60,500</b></div>
+</div>
+
+<div class="lines" style="margin-top:12px">
+  <div class="line"><span>サービス料 10%</span><b>¥6,050</b></div>
+  <div class="line"><span>消費税</span><b>内税</b></div>
+  <div class="line"><b>最終請求額</b><b>¥66,550</b></div>
+</div>
+
+<details class="fold"><summary>算定根拠を見る</summary><div class="lines" style="margin-top:8px">
+  <div class="line"><span>セット料金</span><span class="muted">平日通常ルール 8,000円×2名</span></div>
+  <div class="line"><span>本指名</span><span class="muted">あべ・キャスト個別 6,000円</span></div>
+  <div class="line"><span>特別割引</span><span class="muted">伝票全体に固定額 -5,000円</span></div>
+  <div class="line"><span>持込料</span><span class="muted">追加料金マスタ / +3,000円</span></div>
+  <div class="line"><span>サービス料</span><span class="muted">調整後小計 60,500円 × 10%</span></div>
+</div></details>
+</div></section>
+<aside>
+<div class="card"><div class="head"><div><h2>顧客</h2><p>会計後でも紐付け可能</p></div></div><div class="body"><div class="customer-strip"><div class="avatar">田</div><div class="grow"><strong>田中さん</strong></div><button class="btn small" onclick="openCustomer()">変更</button></div><div class="customer-strip"><div class="avatar" style="background:#2c2d28;color:#aaa">?</div><div class="grow"><strong>同行者1名</strong><div class="muted">未登録</div></div><button class="btn small action" onclick="openCustomer()">顧客を設定</button></div></div></div>
+<div class="card"><div class="head"><div><h2>会計方法</h2></div><button class="btn small" onclick="openModal('splitModal')">会計を分ける</button></div><div class="body"><div class="pay-methods"><div class="pay-method on">現金</div><div class="pay-method">カード</div><div class="pay-method" id="creditPay">売掛</div></div><div class="actions"><button class="btn action" onclick="openModal('finalizeModal')">会計を確定</button></div></div></div>
+</aside>
+</div>
+<div class="card" style="margin-top:12px"><div class="head"><div><h2>会計後の訂正</h2><p>顧客紐付けは直接変更可。金額・商品・指名・支払方法は「会計取消 → 訂正 → 再確定」。</p></div><button class="btn danger" onclick="openModal('reopenModal')">会計取消・訂正</button></div><div class="body"><div class="audit-row"><b>22:31</b><span>会計確定　¥66,550／現金</span><span>山田</span></div><div class="audit-row"><b>22:29</b><span>特別割引 -5,000円／持込料 +3,000円 を追加</span><span>山田</span></div><div class="audit-row"><b>22:28</b><span>同行者を「佐藤さん」に紐付け</span><span>山田</span></div><div class="audit-row"><b>21:42</b><span>シャンパンA ×1 注文</span><span>山田</span></div></div></div>
+</div>
+</div>
+</div>
+</section>
+
+<section class="view" id="reservationView">
+<div class="card"><div class="head"><div><h2>予約</h2><p>予約時点では料金を固定せず、来店時に確定します。</p></div><button class="btn action">＋ 予約を追加</button></div><div class="body"><div class="reservation-list">
+<div class="reservation"><div class="res-top"><div><strong>20:30</strong><div class="muted">本日</div></div><div><strong>田中さん</strong><div class="muted">顧客登録済み</div></div><div><strong>2名</strong><div class="muted">VIP希望</div></div><button class="btn action" onclick="openModal('arrivalModal')">来店・開卓</button></div><div class="chips"><span class="chip">本指名：<b>あべ</b></span><span class="chip">VIP希望</span></div></div>
+</div></div></div>
+</section>
+</div>
+</main>
+</div>
+
+<!-- customer -->
+<div class="overlay" id="customerModal"><div class="modal"><h2>顧客を設定</h2><div class="muted">既存顧客に紐付けるか、新規登録します。</div><div class="field"><label>顧客を検索</label><input placeholder="名前・ふりがな・電話番号"></div><div class="result"><div class="avatar">佐</div><div class="grow"><strong>佐藤さん</strong><div class="muted">担当：れいな／来店8回</div></div><button class="btn action">選択</button></div><div class="actions"><button class="btn" onclick="closeModal('customerModal')">キャンセル</button><button class="btn action">新規顧客を登録</button></div></div></div>
+
+<!-- attribution -->
+<div class="overlay" id="attrModal"><div class="modal"><h2>販売実績の帰属を変更</h2><div class="muted">シャンパンA × 1</div><div class="seg" style="margin-top:12px"><button class="on">1名に帰属</button><button>複数キャストで按分</button></div><div class="search-box"><div class="search-head"><input class="input" placeholder="キャスト名で検索"><button class="btn">出勤中</button><button class="btn">担当中</button></div><div class="cast-grid"><div class="cast"><strong>あべ</strong><small>エース</small></div><div class="cast"><strong>さくら</strong><small>レギュラー</small></div><div class="cast"><strong>れいな</strong><small>接客中</small></div></div></div><div class="actions"><button class="btn" onclick="closeModal('attrModal')">キャンセル</button><button class="btn action">変更を保存</button></div></div></div>
+
+<!-- people -->
+<div class="overlay" id="peopleModal"><div class="modal"><h2>人数を変更</h2><div class="field"><label>新しい人数</label><input value="3"></div><div class="notice">現在セットは2名のまま。次回延長から3名で計算します。</div><div class="actions"><button class="btn" onclick="closeModal('peopleModal')">キャンセル</button><button class="btn action">人数変更を確定</button></div></div></div>
+
+<!-- move -->
+<div class="overlay" id="moveModal"><div class="modal"><h2>席を移動</h2><input class="input" placeholder="卓名・席種で検索"><div class="choice-grid"><div class="choice on"><b>VIP3</b><div class="muted">VIP・空席</div></div><div class="choice"><b>テーブル2</b><div class="muted">通常卓・空席</div></div><div class="choice"><b>カウンター2</b><div class="muted">カウンター・空席</div></div></div><div class="notice" style="margin-top:12px">料金体系が異なる席へ移動する場合、現在セットは維持し、次回延長からの料金を選択します。</div><div class="seg" style="margin-top:12px"><button class="on">現在料金を維持</button><button>VIP料金へ変更</button></div><div class="actions"><button class="btn" onclick="closeModal('moveModal')">キャンセル</button><button class="btn action">席移動を確定</button></div></div></div>
+
+<!-- share -->
+<div class="overlay" id="shareModal"><div class="modal"><h2>相席を追加</h2><div class="field"><label>追加人数</label><input value="1"></div><div class="seg"><button class="on">同じ会計に追加</button><button>別伝票で開始</button></div><div class="actions"><button class="btn" onclick="closeModal('shareModal')">キャンセル</button><button class="btn action">相席を追加</button></div></div></div>
+
+<!-- arrival -->
+<div class="overlay" id="arrivalModal"><div class="modal"><h2>予約から来店・開卓</h2><div class="muted">田中さん 20:30予約 2名</div><div class="field"><label>来店人数</label><input value="2"></div><div class="search-box"><div class="search-head"><input class="input" placeholder="卓名・席種で検索"><button class="btn">空席のみ</button><button class="btn">VIPのみ</button></div><div class="choice-grid"><div class="choice on"><b>VIP1</b><div class="muted">VIP・空席</div></div><div class="choice"><b>VIP3</b><div class="muted">VIP・空席</div></div><div class="choice"><b>テーブル2</b><div class="muted">通常卓・空席</div></div></div></div><div class="search-box"><div class="search-head"><input class="input" placeholder="キャスト名で検索"><button class="btn">出勤中</button><button class="btn">予約担当</button></div><div class="cast-grid"><div class="cast"><strong>あべ</strong><small>予約の本指名</small></div><div class="cast"><strong>さくら</strong><small>出勤中</small></div><div class="cast"><strong>れいな</strong><small>接客中</small></div><div class="cast"><strong>みさき</strong><small>出勤中</small></div></div></div><div class="price-box"><h3>開卓時の適用料金</h3><div class="lines"><div class="line"><span>適用ルール</span><b>VIP夜間</b></div><div class="line"><span>セット</span><b>12,000円 / 60分 × 2名</b></div><div class="line"><span>本指名：あべ</span><b>6,000円</b></div></div></div><div class="actions"><button class="btn" onclick="closeModal('arrivalModal')">キャンセル</button><button class="btn action">この内容で開卓</button></div></div></div>
+
+
+<!-- extension -->
+<div class="overlay" id="extensionModal"><div class="modal"><h2>延長確認</h2><div class="muted">現在セット終了 16:42</div><div class="price-box"><h3>次回延長の予定</h3><div class="lines"><div class="line"><span>人数</span><b>2名</b></div><div class="line"><span>席</span><b>テーブル3</b></div><div class="line"><span>適用料金</span><b>平日通常 8,000円 × 2名</b></div><div class="line"><span>延長時間</span><b>60分</b></div></div></div><div class="seg" style="margin-top:12px"><button class="on">この内容で延長</button><button>内容を変更して延長</button><button>延長しない</button></div><div class="actions"><button class="btn" onclick="closeModal('extensionModal')">戻る</button><button class="btn action">確定</button></div></div></div>
+
+<!-- table operations -->
+<div class="overlay" id="tableOpsModal"><div class="modal"><h2>卓操作</h2><div class="muted">会計とは別の、卓そのものに対する操作です。</div><div class="choice-grid"><div class="choice" onclick="closeModal('tableOpsModal');openModal('peopleModal')"><b>人数変更</b><div class="muted">次回延長から反映</div></div><div class="choice" onclick="closeModal('tableOpsModal');openModal('moveModal')"><b>席移動</b><div class="muted">別の卓へ移動</div></div><div class="choice" onclick="closeModal('tableOpsModal');openModal('shareModal')"><b>相席追加</b><div class="muted">同一／別伝票</div></div><div class="choice"><b>伝票を統合</b><div class="muted">別卓の会計をまとめる</div></div><div class="choice"><b>伝票を分割</b><div class="muted">客・商品を別伝票へ</div></div><div class="choice"><b>閉卓</b><div class="muted">未会計時は警告</div></div></div><div class="actions"><button class="btn" onclick="closeModal('tableOpsModal')">閉じる</button></div></div></div>
+
+<!-- bottle keep -->
+<div class="overlay" id="keepModal"><div class="modal"><h2>キープボトルを出す</h2><div class="keep-card"><strong>田中さん｜黒霧島</strong><div class="keep-meta"><span>残量 約60%</span><span>前回利用 2026/08/18</span></div></div><div class="field"><label>今回利用後の残量</label><input value="60%" placeholder="会計時に更新"></div><div class="notice">卓に出した時点では売上を追加しません。会計時に残量・空ボトル・再キープを更新します。</div><div class="actions"><button class="btn" onclick="closeModal('keepModal')">キャンセル</button><button class="btn action">この卓に出す</button></div></div></div>
+
+<!-- cancel order -->
+<div class="overlay" id="cancelOrderModal"><div class="modal"><h2>注文を取り消す</h2><div class="danger-box">シャンパンA ×1　¥15,000 を取り消します。販売実績・バックも同時に取消対象になります。</div><div class="field"><label>取消理由</label><input placeholder="誤入力、注文変更など"></div><div class="actions"><button class="btn" onclick="closeModal('cancelOrderModal')">戻る</button><button class="btn danger">取消を確定</button></div></div></div>
+
+<!-- split -->
+<div class="overlay" id="splitModal"><div class="modal"><h2>会計を分ける</h2><div class="seg"><button class="on">顧客ごと</button><button>商品を選んで分割</button><button>金額指定</button></div><div class="split-list"><div class="split-row"><div><strong>田中さん</strong><div class="muted">代表客</div></div><b>¥40,000</b><button class="btn small">調整</button></div><div class="split-row"><div><strong>同行者</strong><div class="muted">未登録</div></div><b>¥28,750</b><button class="btn small">調整</button></div></div><div class="notice" style="margin-top:10px">初期案は均等割ではなく、スタッフが最終金額を確認して確定します。</div><div class="actions"><button class="btn" onclick="closeModal('splitModal')">キャンセル</button><button class="btn action">分割会計へ進む</button></div></div></div>
+
+<!-- finalize -->
+<div class="overlay" id="finalizeModal"><div class="modal"><h2>会計を確定</h2><div class="price-box"><h3>最終確認</h3><div class="lines"><div class="line"><span>請求額</span><b>¥66,550</b></div><div class="line"><span>支払方法</span><b>現金</b></div><div class="line"><span>来店客</span><b>田中さん＋同行者1名</b></div></div></div><div class="notice">確定後に金額・商品・指名・支払方法を直す場合は、権限者による会計取消が必要です。</div><div class="actions"><button class="btn" onclick="closeModal('finalizeModal')">戻る</button><button class="btn action">会計確定</button></div></div></div>
+
+<!-- reopen -->
+<div class="overlay" id="reopenModal"><div class="modal"><h2>会計取消・訂正</h2><div class="danger-box">確定済み会計を直接上書きしません。元伝票を保持したまま取消履歴を作成し、訂正版を再確定します。</div><div class="field"><label>訂正理由</label><input placeholder="支払方法誤り、商品誤登録など"></div><div class="field"><label>権限者</label><input value="オーナー 山田" readonly></div><div class="actions"><button class="btn" onclick="closeModal('reopenModal')">キャンセル</button><button class="btn danger">会計を取消して訂正</button></div></div></div>
+
+
+<!-- discount / surcharge -->
+<div class="overlay" id="adjustModal"><div class="modal">
+<h2>割引・追加料金</h2>
+<div class="muted">元の料金明細は変更せず、会計調整として別行で追加します。</div>
+
+<div class="seg" style="margin-top:12px"><button class="on" id="discountMode">割引</button><button id="surchargeMode">追加料金</button></div>
+
+<div class="adjust-box">
+  <div class="adjust-head"><div><strong>よく使う設定</strong><div class="muted">会計設定の追加料金・割引プリセット</div></div></div>
+  <div class="preset-grid">
+    <div class="preset"><strong>特別割引</strong><span class="muted">固定額</span></div>
+    <div class="preset"><strong>10%割引</strong><span class="muted">伝票全体</span></div>
+    <div class="preset"><strong>持込料</strong><span class="muted">3,000円</span></div>
+    <div class="preset"><strong>特別チャージ</strong><span class="muted">固定額</span></div>
+  </div>
+</div>
+
+<div class="field"><label>名称</label><input value="特別割引"></div>
+<div class="grid2">
+  <div class="field"><label>計算方式</label><select><option>固定額</option><option>割合</option><option>無料</option><option>数量 × 単価</option></select></div>
+  <div class="field"><label>対象</label><select><option>伝票全体</option><option>セット料金</option><option>指名・同伴</option><option>商品</option><option>特定明細</option></select></div>
+</div>
+<div class="grid2">
+  <div class="field"><label>金額</label><input value="5,000"></div>
+  <div class="field"><label>理由</label><input value="常連対応"></div>
+</div>
+
+<div class="adjust-box">
+  <div class="adjust-row"><b>サービス料の対象</b><span class="muted">この調整をサービス料計算に含めるか</span><select><option>対象</option><option>対象外</option></select><span></span><span></span></div>
+  <div class="adjust-row"><b>税の対象</b><span class="muted">追加料金の課税区分</span><select><option>課税</option><option>非課税</option></select><span></span><span></span></div>
+</div>
+
+<div class="notice" style="margin-top:12px">「割引」は元の指名料やセット料金を書き換えません。請求明細に割引行を追加するため、後から理由と金額を確認できます。</div>
+<div class="actions"><button class="btn" onclick="closeModal('adjustModal')">キャンセル</button><button class="btn action">会計調整を追加</button></div>
+</div></div>
+
+<script>
+const stores={
+A:{vip:true,counter:true,mainNom:true,inNom:true,companion:true,productBack:true,credit:true},
+B:{vip:false,counter:false,mainNom:true,inNom:false,companion:false,productBack:false,credit:false}
+};
+function setStore(k){
+  document.getElementById('storeA').classList.toggle('on',k==='A');
+  document.getElementById('storeB').classList.toggle('on',k==='B');
+  renderStore(stores[k]);
+}
+function fchip(label,on){return `<span class="fchip ${on?'on':''}">${label} ${on?'ON':'OFF'}</span>`}
+function renderStore(s){
+  document.getElementById('featureStrip').innerHTML=fchip('VIP',s.vip)+fchip('カウンター',s.counter)+fchip('本指名',s.mainNom)+fchip('場内',s.inNom)+fchip('同伴',s.companion)+fchip('商品販売バック',s.productBack);
+  let floor=`<div class="table-card on"><h3>テーブル3</h3><div class="muted">通常卓・2名</div><div class="status ok">平日通常</div><div class="big" style="text-align:right">¥62,150</div></div><div class="table-card"><h3>テーブル1</h3><div class="muted">通常卓・2名</div><div class="status warn">次回延長16:42</div><div class="big" style="text-align:right">¥24,200</div></div>`;
+  if(s.vip) floor+=`<div class="table-card"><h3>VIP1</h3><div class="muted">VIP・1名</div><div class="status ok">営業中</div><div class="big" style="text-align:right">¥11,000</div></div>`;
+  if(s.counter) floor+=`<div class="table-card"><h3>カウンター1</h3><div class="muted">カウンター・1名</div><div class="status ok">営業中</div><div class="big" style="text-align:right">¥7,700</div></div>`;
+  document.getElementById('floor').innerHTML=floor;
+  document.getElementById('attrSection').style.display=s.productBack?'block':'none';
+  let btns=`<button>フリー</button>`;
+  if(s.mainNom) btns+=`<button class="on">本指名</button>`;
+  if(s.inNom) btns+=`<button>場内</button>`;
+  document.getElementById('nomBtns').innerHTML=btns;
+  document.getElementById('companionSummary').textContent=s.companion?'なし':'店舗設定で未使用';
+  document.getElementById('creditPay').style.display=s.credit?'block':'none';
+}
+renderStore(stores.A);
+
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('#floorView,#reservationView').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); document.getElementById(b.dataset.view).classList.add('on');
+});
+document.querySelectorAll('.subtabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.subtabs button').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('#orderPanel,#nomPanel,#payPanel').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); document.getElementById(b.dataset.sub).classList.add('on');
+});
+function openModal(id){document.getElementById(id).style.display='flex'}
+function closeModal(id){document.getElementById(id).style.display='none'}
+function openCustomer(){openModal('customerModal')} function openAttr(){openModal('attrModal')}
+document.querySelectorAll('.overlay').forEach(x=>x.addEventListener('click',e=>{if(e.target===x)x.style.display='none'}));
+document.querySelectorAll('.choice').forEach(c=>c.onclick=()=>{document.querySelectorAll('.choice').forEach(x=>x.classList.remove('on'));c.classList.add('on')});
+document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on')}));
+document.querySelectorAll('.category-tabs').forEach(t=>t.querySelectorAll('button').forEach(b=>b.onclick=()=>{t.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on')}));
+</script>
+</body>
+</html>

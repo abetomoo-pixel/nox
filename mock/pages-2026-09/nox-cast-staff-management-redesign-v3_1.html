@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX キャスト・スタッフ管理 改修モック v3.1</title>
+<style>
+:root{--bg:#070707;--panel:#11110f;--panel2:#151512;--field:#090909;--line:#302e28;--line-strong:#484339;--text:#f4f1e9;--sub:#b8b2a8;--muted:#7f7a71;--brand:#d8ad55;--brand2:#f0cf82;--brand-soft:rgba(216,173,85,.10);--primary:#2f7fe7;--primary2:#61a7ff;--primary-soft:rgba(47,127,231,.15);--success:#4dc37d;--success-soft:rgba(77,195,125,.11);--warning:#d9a43a;--warning-soft:rgba(217,164,58,.10);--danger:#e26762;--danger-soft:rgba(226,103,98,.11);--r:10px;--sidebar:205px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px}
+button,input,select{font:inherit}.app{display:grid;grid-template-columns:190px 1fr;min-height:100vh}
+aside{border-right:1px solid var(--line);padding:18px 12px;background:#0b0b0a}.brand{display:flex;gap:10px;align-items:center;margin-bottom:24px}.logo{width:32px;height:32px;border:1px solid var(--brand);border-radius:7px;display:grid;place-items:center;color:var(--brand)}.brand b{font-size:16px}.brand small{display:block;color:#777;font-size:9px;letter-spacing:2px}
+.nav-group{margin-top:18px}.nav-label{font-size:9px;color:#666;letter-spacing:2px;margin:10px 8px}.nav a{display:flex;align-items:center;gap:9px;color:#aaa;text-decoration:none;padding:10px 10px;border-radius:7px;margin:2px 0;cursor:pointer}.nav a.on{background:#112335;color:#65aff3}.nav a:hover{background:#131313}
+main{padding:26px 34px 50px}.eyebrow{font-size:10px;color:var(--brand);letter-spacing:2px;font-weight:800}.top h1{font-size:27px;margin:5px 0}.top p{color:var(--sub);margin:0}.topbar{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px}
+.btn{border:1px solid var(--line-strong);background:#121210;color:#ddd;border-radius:7px;padding:8px 12px;font-weight:800;cursor:pointer;text-align:center}.btn.primary{border-color:#4b89c0;background:#14304a;color:#75bcf7}.btn.gold{border-color:#806a31;color:#e3c46f}.btn.danger{border-color:#783838;color:#ed8585}.btn.small{padding:6px 9px;font-size:11px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{border:0;border-right:1px solid var(--line);background:#111;color:#999;padding:8px 15px;font-weight:800}.seg button:last-child{border-right:0}.seg button.on{background:var(--primary-soft);color:#69b4f5}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.metric{background:#171714;border:1px solid var(--line);border-radius:8px;padding:12px;text-align:center}.metric small{display:block;color:var(--sub)}.metric b{display:block;font-size:20px;margin-top:4px}
+.toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:14px 0}.left-tools{display:flex;gap:8px;flex-wrap:wrap}.search{width:260px;background:#0d0d0c;color:#eee;border:1px solid var(--line-strong);border-radius:7px;padding:9px 10px}
+.filter{border:1px solid var(--line);background:#111;color:#aaa;border-radius:7px;padding:7px 10px;font-weight:700}.filter.on{border-color:#806a31;color:#e3c46f}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.person{border:1px solid var(--line);background:#11110f;border-radius:10px;padding:12px;cursor:pointer;min-height:122px}.person.sel{border-color:#b48a24;box-shadow:inset 0 0 0 1px #b48a24}.person-top{display:flex;gap:10px;align-items:center}.avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#5c9db2;color:#071114;font-weight:900;font-size:16px}.person h3{margin:0;font-size:15px}.sub{color:var(--sub);font-size:11px}.badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}.badge{border:1px solid var(--line-strong);border-radius:12px;padding:2px 6px;font-size:9px;color:#bbb}.badge.gold{color:#e0bf64;border-color:#715e2c}.badge.blue{color:#73b9f3;border-color:#315d82}.badge.green{color:#7dd5a3;border-color:#2b6a46}.badge.yellow{color:#e5c36e;border-color:#66552a}.badge.red{color:#ef8c8c;border-color:#6b3333}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px}.stats small{display:block;color:#777;font-size:9px}.stats b{font-size:14px}
+.detail{margin-top:12px;border:1px solid var(--line);background:#131310;border-radius:10px;overflow:hidden}.detail-head{display:flex;justify-content:space-between;align-items:center;padding:14px;border-bottom:1px solid var(--line)}.profile{display:flex;gap:11px;align-items:center}.profile .avatar{width:46px;height:46px}.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:10px 12px;border-bottom:1px solid var(--line)}.tab{border:1px solid var(--line);background:#111;color:#aaa;border-radius:7px;padding:8px;text-align:center;font-weight:800}.tab.on{background:var(--primary-soft);border-color:#346995;color:#72b9f4}
+.panel{padding:14px}.section{border:1px solid var(--line);border-radius:8px;background:#10100f;margin-bottom:10px}.section-head{display:flex;justify-content:space-between;align-items:center;padding:11px 12px;border-bottom:1px solid var(--line)}.section-head h3{margin:0;font-size:13px}.section-head p{margin:3px 0 0;color:var(--sub);font-size:10px}.rows{padding:0 12px}.row{display:grid;grid-template-columns:180px 1fr auto;gap:14px;align-items:center;min-height:46px;border-bottom:1px solid rgba(255,255,255,.045)}.row:last-child{border-bottom:0}.label{color:#8f8b82}.value{font-weight:700}.hint{color:#6f6b64;font-size:10px;margin-top:3px}
+.inline-tags{display:flex;gap:5px;flex-wrap:wrap}.role{font-size:10px;border:1px solid #3d4143;border-radius:12px;padding:3px 7px;color:#b5bbc0}.role.main{color:#70b8f4;border-color:#315e85;background:#102130}
+.editor{display:none;padding:12px;border-top:1px solid var(--line);background:#0c0c0b}.editor.open{display:block}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field label{display:block;color:#8e8a82;font-size:10px;margin-bottom:4px}.field input,.field select{width:100%;background:#090909;color:#eee;border:1px solid var(--line-strong);border-radius:6px;padding:8px}.checkline{display:flex;gap:8px;flex-wrap:wrap}.choice{border:1px solid var(--line);border-radius:7px;padding:7px 9px;color:#aaa}.choice.on{border-color:#3a73a5;background:#102437;color:#72b9f4}
+.notice{border:1px solid #5c4c25;background:#1b180e;color:#d7bd70;border-radius:7px;padding:9px 10px;font-size:11px;margin-bottom:10px}
+.guarantee{padding:12px}.guarantee-main{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:stretch}.gbox{border:1px solid var(--line);border-radius:8px;background:#151512;padding:10px}.gbox small{display:block;color:#777;margin-bottom:4px}.gbox b{font-size:16px}.gstatus{display:flex;align-items:center}.history{margin-top:10px;border-top:1px solid var(--line)}.history-row{display:grid;grid-template-columns:150px 150px 1fr 90px;gap:10px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,.045);align-items:center}.history-row small{color:#777}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.contact-card{border:1px solid var(--line);border-radius:9px;background:#131310;padding:12px}.contact-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.contact-title{display:flex;gap:8px;align-items:center}.icon{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;background:#191917;border:1px solid var(--line-strong);font-weight:900}.line-icon{color:#78d99b}.mail-icon{color:#76baf1}.contact-row{display:grid;grid-template-columns:130px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.045)}.contact-row:last-child{border-bottom:0}
+.switch{width:40px;height:22px;border-radius:12px;background:#2a2a27;border:1px solid #45423b;position:relative;display:inline-block;vertical-align:middle}.switch:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#ddd;top:2px;left:3px}.switch.on{background:#16598f}.switch.on:after{left:19px}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);place-items:center;z-index:20}.modal-bg.open{display:grid}.modal{width:470px;background:#151512;border:1px solid var(--line-strong);border-radius:12px;padding:16px}.modal h2{margin:0 0 4px;color:#e5c66f;font-size:17px}.modal .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.mini{font-size:10px;color:#777}
+.setup-card{border:1px solid #5a4a22;background:#19160d;border-radius:10px;padding:12px;margin-bottom:12px}
+.setup-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.setup-progress{font-size:18px;font-weight:900;color:#e0c16c}.setup-list{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.setup-item{border:1px solid var(--line);border-radius:7px;padding:8px;background:#11110f;color:#9d998f}.setup-item.done{color:#85d6a6;border-color:#315e43}.setup-item.todo{color:#e3c16b;border-color:#665429}
+.photo-box{display:grid;grid-template-columns:130px 1fr;gap:16px;align-items:center}.photo-preview{width:112px;height:112px;border-radius:14px;border:1px solid var(--line-strong);background:linear-gradient(145deg,#24231f,#111);display:grid;place-items:center;font-size:42px;color:#c9bd9e;overflow:hidden}.photo-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.dropzone{border:1px dashed #5a564d;border-radius:8px;padding:14px;color:#918d84;background:#0d0d0c;margin-top:10px}
+.rate-path{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;gap:7px;align-items:center;padding:12px}.rate-node{border:1px solid var(--line);background:#151512;border-radius:8px;padding:10px}.rate-node small{display:block;color:#777;margin-bottom:4px}.rate-node b{display:block}.rate-node.active{border-color:#a77e22;background:#1d180d}.rate-arrow{text-align:center;color:#666}.resolved{border-top:1px solid var(--line);padding:12px;display:flex;justify-content:space-between;align-items:center}.resolved b{font-size:20px;color:#e4c46a}
+.status-flow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px}.status-step{border:1px solid var(--line);border-radius:16px;padding:5px 9px;color:#8e8a82}.status-step.on{border-color:#336a96;color:#6eb7f2;background:#102334}.status-step.done{border-color:#315d43;color:#7cd3a0;background:#102018}.status-arrow{color:#555}
+.timeline{padding:0 12px}.timeline-row{display:grid;grid-template-columns:150px 1fr 120px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045)}.timeline-row:last-child{border-bottom:0}
+.account-sep{display:grid;grid-template-columns:1fr 1fr;gap:10px}.account-card{border:1px solid var(--line);border-radius:8px;background:#121210;padding:12px}.account-card h4{margin:0 0 8px;font-size:12px}.account-card .muted{color:var(--sub);font-size:10px}
+
+@media(max-width:1100px){.grid{grid-template-columns:repeat(3,1fr)}.summary{grid-template-columns:repeat(2,1fr)}.contact-grid{grid-template-columns:1fr}.guarantee-main{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <div class="brand"><div class="logo">N</div><div><b>NOX</b><small>CLUB NOX</small></div></div>
+  <div class="nav"><a>⌂ ホーム</a></div>
+  <div class="nav-group"><div class="nav-label">営業</div><div class="nav"><a>▤ レジ</a><a>▣ 日報</a></div></div>
+  <div class="nav-group"><div class="nav-label">スタッフ</div><div class="nav"><a>▣ シフト</a><a class="on" id="navCast">♙ キャスト</a><a id="navStaff">♧ スタッフ</a><a>▣ 給与</a></div></div>
+  <div class="nav-group"><div class="nav-label">顧客</div><div class="nav"><a>▧ 顧客</a></div></div>
+  <div class="nav-group"><div class="nav-label">店舗</div><div class="nav"><a>⌁ マスタ</a><a>◒ お知らせ</a><a>◉ 監査</a></div></div>
+</aside>
+
+<main>
+<div class="topbar">
+  <div class="top">
+    <div class="eyebrow" id="eyebrow">CAST MANAGEMENT</div>
+    <h1 id="title">キャスト管理</h1>
+    <p id="lead">在籍・待遇・勤務条件・連絡先・アカウントをキャストごとに管理します。</p>
+  </div>
+  <button class="btn primary" id="addBtn">＋ キャスト登録</button>
+</div>
+
+<div class="seg"><button class="on" data-kind="cast">キャスト</button><button data-kind="staff">黒服・スタッフ</button></div>
+
+<div class="summary" style="margin-top:12px">
+  <div class="metric"><small>在籍</small><b id="m1">7名</b></div>
+  <div class="metric"><small id="m2label">時給保証中</small><b id="m2">2名</b></div>
+  <div class="metric"><small id="m3label">LINE未連携</small><b id="m3">4名</b></div>
+  <div class="metric"><small id="m4label">メール未登録</small><b id="m4">3名</b></div>
+</div>
+
+<div class="toolbar">
+  <div class="left-tools">
+    <input class="search" placeholder="名前で検索">
+    <button class="filter on">在籍</button><button class="filter">休入</button><button class="filter">退店済み</button>
+    <button class="filter gold-only">保証中</button><button class="filter gold-only">LINE未連携</button><button class="filter gold-only">エース</button>
+  </div>
+</div>
+
+<div class="grid" id="peopleGrid"></div>
+
+<div class="detail" id="detail">
+  <div class="detail-head">
+    <div class="profile"><div class="avatar" id="detailAvatar">あ</div><div><h2 id="detailName" style="margin:0;font-size:18px">あべ</h2><div class="sub" id="detailMeta">在籍 / ログイン済み</div></div></div>
+    <button class="btn small">閉じる</button>
+  </div>
+  <div class="tabs" id="detailTabs"></div>
+  <div class="panel" id="panel"></div>
+</div>
+</main>
+</div>
+
+<div class="modal-bg" id="addModal">
+<div class="modal">
+  <h2 id="modalTitle">キャスト登録</h2>
+  <div class="sub" style="margin-bottom:12px">最初は必要最低限だけ登録し、続けて詳細設定できます。</div>
+  <div class="form-grid">
+    <div class="field" style="grid-column:1/-1"><label>名前（必須）</label><input placeholder="例：あべ"></div>
+    <div class="field"><label>所属店舗</label><select><option>CLUB NOX</option></select></div>
+    <div class="field"><label>シフト希望方式</label><select><option>出勤希望を提出</option><option>休み希望のみ提出</option></select></div>
+    <div class="field"><label>登録区分</label><select><option>本入店</option><option>体験入店</option></select></div><div class="field"><label>入店日</label><input type="date" value="2026-09-01"></div>
+    <div class="field"><label>メールアドレス（任意）</label><input placeholder="未入力でも登録可"></div>
+  </div>
+  <div class="notice" style="margin-top:12px">登録後に「写真・時給保証・待遇プラン・LINE連携」を初期設定チェックで案内します。メールなしでも登録できます。</div>
+  <div class="actions"><button class="btn" onclick="toggleModal(false)">キャンセル</button><button class="btn">登録のみ</button><button class="btn primary">登録して詳細設定</button></div>
+</div>
+</div>
+
+<script>
+let kind='cast';
+let selected=0;
+const castPeople=[
+ {n:'あべ',a:'あ',m:'在籍 / ログイン済み',b:['レギュラー','保証中','LINE連携済み'],s1:'5,000円',s2:'9/30まで'},
+ {n:'えま',a:'え',m:'体験入店 / 未招待',b:['体験入店','保証中','LINE未連携','設定3/6'],s1:'4,500円',s2:'9/15まで'},
+ {n:'さくら',a:'さ',m:'在籍 / 未招待',b:['エース','LINE連携済み'],s1:'通常',s2:'—'},
+ {n:'じゅり',a:'じ',m:'在籍 / 未招待',b:['レギュラー','LINE未連携'],s1:'通常',s2:'—'},
+ {n:'ひなの',a:'ひ',m:'在籍 / 未招待',b:['レギュラー','LINE連携済み'],s1:'通常',s2:'—'},
+ {n:'みお',a:'み',m:'在籍 / 未招待',b:['レギュラー','LINE未連携'],s1:'通常',s2:'—'},
+ {n:'れいな',a:'れ',m:'在籍 / 未招待',b:['エース','LINE未連携'],s1:'通常',s2:'—'}
+];
+const staffPeople=[
+ {n:'デモ店長',a:'デ',m:'店長 / 在籍',b:['休み希望型','LINE連携済み'],s1:'管理',s2:'登録済み'},
+ {n:'佐藤',a:'佐',m:'黒服 / 在籍',b:['休み希望型','LINE連携済み'],s1:'ホール',s2:'登録済み'},
+ {n:'田中',a:'田',m:'黒服 / 在籍',b:['出勤希望型','LINE未連携'],s1:'レジ',s2:'未登録'},
+ {n:'高橋',a:'高',m:'黒服 / 在籍',b:['出勤希望型','LINE連携済み'],s1:'付け回し',s2:'登録済み'}
+];
+
+function tabs(){
+ return kind==='cast'
+ ? ['基本','勤務・シフト','待遇・バック','連絡・アカウント']
+ : ['基本','勤務・シフト','役割・権限','給与・待遇','連絡・アカウント'];
+}
+function badgeClass(x){
+ if(x.includes('保証')) return 'yellow';
+ if(x.includes('LINE連携済')) return 'green';
+ if(x.includes('LINE未')) return 'red';
+ if(x.includes('エース')||x.includes('レギュラー')) return 'gold';
+ return 'blue';
+}
+function renderPeople(){
+ const data=kind==='cast'?castPeople:staffPeople;
+ peopleGrid.innerHTML=data.map((p,i)=>`<div class="person ${i===selected?'sel':''}" onclick="selectPerson(${i})">
+ <div class="person-top"><div class="avatar">${p.a}</div><div><h3>${p.n}</h3><div class="sub">${p.m}</div><div class="badges">${p.b.map(x=>`<span class="badge ${badgeClass(x)}">${x}</span>`).join('')}</div></div></div>
+ <div class="stats"><div><small>${kind==='cast'?'現在の時給':'主担当'}</small><b>${p.s1}</b></div><div><small>${kind==='cast'?'保証期限':'メール'}</small><b>${p.s2}</b></div></div>
+ </div>`).join('');
+ selectPerson(selected);
+}
+function selectPerson(i){
+ selected=i;
+ document.querySelectorAll('.person').forEach((x,j)=>x.classList.toggle('sel',i===j));
+ const p=(kind==='cast'?castPeople:staffPeople)[i];
+ detailName.textContent=p.n;detailAvatar.textContent=p.a;detailMeta.textContent=p.m;
+ detailTabs.style.gridTemplateColumns=`repeat(${tabs().length},1fr)`;
+ detailTabs.innerHTML=tabs().map((t,j)=>`<button class="tab ${j===0?'on':''}" onclick="showTab(${j},this)">${t}</button>`).join('');
+ showTab(0);
+}
+function showTab(idx,btn){
+ if(btn){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));btn.classList.add('on')}
+ if(idx===0) panel.innerHTML=basicPanel();
+ else if(idx===1) panel.innerHTML=shiftPanel();
+ else if(kind==='staff'&&idx===2) panel.innerHTML=rolePanel();
+ else if((kind==='cast'&&idx===2)||(kind==='staff'&&idx===3)) panel.innerHTML=payPanel();
+ else panel.innerHTML=contactPanel();
+}
+function section(title,desc,rows,id){
+ return `<div class="section"><div class="section-head"><div><h3>${title}</h3>${desc?`<p>${desc}</p>`:''}</div><button class="btn small" onclick="toggleEdit('${id}')">編集</button></div><div class="rows">${rows}</div><div class="editor" id="${id}"><div class="form-grid"><div class="field"><label>項目</label><input value=""></div><div class="field"><label>設定</label><select><option>変更する</option></select></div></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px"><button class="btn small" onclick="toggleEdit('${id}')">キャンセル</button><button class="btn small primary">保存</button></div></div></div>`
+}
+function row(l,v,h=''){return `<div class="row"><div class="label">${l}</div><div><div class="value">${v}</div>${h?`<div class="hint">${h}</div>`:''}</div><span></span></div>`}
+function basicPanel(){
+ const setup = kind==='cast' ? `<div class="setup-card">
+   <div class="setup-top"><div><b>初期設定チェック</b><div class="sub">新人キャストの設定漏れを防ぎます。</div></div><div class="setup-progress">4 / 6 完了</div></div>
+   <div class="setup-list">
+     <div class="setup-item done">✓ 基本情報</div>
+     <div class="setup-item done">✓ 入店日・在籍状態</div>
+     <div class="setup-item done">✓ シフト方式</div>
+     <div class="setup-item done">✓ 写真</div>
+     <div class="setup-item todo">! LINE連携</div>
+     <div class="setup-item todo">! 待遇・時給設定</div>
+   </div>
+ </div>` : '';
+ const photo = kind==='cast' ? `<div class="section">
+   <div class="section-head"><div><h3>プロフィール写真</h3><p>キャスト一覧・レジ・指名画面などで使用します。</p></div><button class="btn small primary" onclick="document.getElementById('photoInput').click()">写真を変更</button></div>
+   <div class="panel photo-box">
+     <div class="photo-preview">あ</div>
+     <div>
+       <b>現在の写真</b>
+       <div class="sub" style="margin-top:4px">正方形での表示を基準にトリミングします。</div>
+       <div class="photo-actions">
+         <button class="btn small" onclick="document.getElementById('photoInput').click()">アップロード</button>
+         <button class="btn small">トリミング調整</button>
+         <button class="btn small danger">削除</button>
+       </div>
+       <input id="photoInput" type="file" accept="image/*" style="display:none">
+       <div class="dropzone">画像をドラッグ＆ドロップ / JPG・PNG・WEBP</div>
+     </div>
+   </div>
+ </div>` : '';
+ const status = kind==='cast' ? `<div class="section">
+   <div class="section-head"><div><h3>在籍ステータス</h3><p>体験入店から本入店・退店・再入店まで履歴で管理します。</p></div><button class="btn small">変更</button></div>
+   <div class="status-flow">
+     <span class="status-step done">体験入店</span><span class="status-arrow">→</span>
+     <span class="status-step on">本入店・在籍</span><span class="status-arrow">→</span>
+     <span class="status-step">休店</span><span class="status-arrow">→</span>
+     <span class="status-step">退店</span><span class="status-arrow">→</span>
+     <span class="status-step">再入店</span>
+   </div>
+   <div class="timeline">
+     <div class="timeline-row"><small>2026-08-28</small><span>体験入店</span><span class="badge">1日</span></div>
+     <div class="timeline-row"><small>2026-09-01</small><span>本入店・在籍開始</span><span class="badge green">現在</span></div>
+   </div>
+ </div>` : '';
+ return setup + photo + section('基本情報','店舗運用で使う基本プロフィール',
+   row('源氏名 / 氏名',kind==='cast'?'あべ':'佐藤')+
+   row('本入店日','2026-09-01')+
+   row('所属店舗','CLUB NOX')+
+   row('在籍状態','在籍')+
+   (kind==='cast'?row('キャストランク','レギュラー','適用開始 2026-09-01'):row('スタッフ区分','黒服')),
+ 'editBasic') + status;
+}
+function shiftPanel(){
+ return `<div class="notice">ここで設定した個人条件を、希望受付・シフト候補表示・初期配置・休み希望判定に反映します。</div>`+
+ section('シフト希望方式','出勤希望型・休み希望型は人ごとに設定',
+  row('希望の出し方',kind==='cast'?'出勤希望を提出':'休み希望のみ提出')+
+  row('基本勤務',kind==='cast'?'—':'月〜金 18:00〜26:00')+
+  row('固定休',kind==='cast'?'火曜':'日曜'),'editShiftType')+
+ section('勤務条件','候補検索や配置時の補助情報',
+  row('勤務開始条件',kind==='cast'?'20:00以降':'18:00')+
+  row('勤務終了条件',kind==='cast'?'終電上がり':'26:00まで')+
+  row('週勤務上限',kind==='cast'?'週4日まで':'—'),'editConditions');
+}
+function rolePanel(){
+ return section('役割','シフト配置で使用する主担当と兼務可能役割',
+  row('主担当','<span class="role main">ホール</span>')+
+  row('対応可能役割','<div class="inline-tags"><span class="role">レジ</span><span class="role">付け回し</span></div>')+
+  row('配置優先','通常'),'editRole')+
+ section('権限','業務機能へのアクセス権',
+  row('会計','許可')+row('顧客','閲覧のみ')+row('シフト','編集可')+row('バック','不可'),'editPerm');
+}
+function payPanel(){
+ if(kind==='staff') return section('給与・待遇','スタッフ給与設定への紐づけ',
+  row('待遇プラン','正社員A')+row('給与区分','月給')+row('残業・深夜','設定あり'),'editPay');
+
+ return `
+ <div class="section">
+   <div class="section-head"><div><h3>現在時給の決定</h3><p>複数の時給条件がある場合、どの設定で最終時給になったかを確認できます。</p></div><button class="btn small">ルール確認</button></div>
+   <div class="rate-path">
+     <div class="rate-node"><small>待遇プラン基本</small><b>4,000円</b></div><div class="rate-arrow">→</div>
+     <div class="rate-node"><small>ランク時給</small><b>4,500円</b></div><div class="rate-arrow">→</div>
+     <div class="rate-node active"><small>入店時給保証</small><b>5,000円</b></div><div class="rate-arrow">→</div>
+     <div class="rate-node"><small>個別時給</small><b>未設定</b></div>
+   </div>
+   <div class="resolved"><div><small class="sub">2026-09-04 現在の適用時給</small><div class="sub">根拠：入店時給保証 9/1〜9/30</div></div><b>5,000円 / 時</b></div>
+ </div>
+ <div class="section">
+   <div class="section-head"><div><h3>入店時給保証</h3><p>新人期間など、一定期間だけ適用する保証時給を管理します。</p></div><button class="btn small primary" onclick="toggleEdit('editGuarantee')">保証を編集</button></div>
+   <div class="guarantee">
+     <div class="guarantee-main">
+       <div class="gbox"><small>保証開始</small><b>2026-09-01</b></div>
+       <div class="gbox"><small>保証終了</small><b>2026-09-30</b></div>
+       <div class="gbox"><small>保証時給</small><b>5,000円</b></div>
+       <div class="gstatus"><span class="badge yellow">保証中・残り26日</span></div>
+     </div>
+     <div class="history">
+       <div class="history-row"><small>2026-09-01〜09-30</small><b>5,000円</b><span>入店時保証</span><span class="badge yellow">適用中</span></div>
+       <div class="history-row"><small>2026-10-01〜</small><b>通常ルール</b><span>保証終了後</span><span class="badge">予定</span></div>
+     </div>
+   </div>
+   <div class="editor" id="editGuarantee">
+     <div class="form-grid">
+       <div class="field"><label>保証開始日</label><input type="date" value="2026-09-01"></div>
+       <div class="field"><label>保証終了日</label><input type="date" value="2026-09-30"></div>
+       <div class="field"><label>保証時給</label><input value="5000"></div>
+       <div class="field"><label>保証方式</label><select><option>期間中は保証時給を適用</option><option>通常算定が保証額未満のときだけ保証</option></select></div>
+       <div class="field" style="grid-column:1/-1"><label>メモ</label><input value="入店時保証"></div>
+     </div>
+     <div class="notice" style="margin-top:10px">保証方式は給与計算ロジックに影響します。変更時は過去設定を上書きせず、適用期間付きで履歴保存します。</div>
+     <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn small" onclick="toggleEdit('editGuarantee')">キャンセル</button><button class="btn small primary">保存</button></div>
+   </div>
+ </div>
+ <div class="section">
+   <div class="section-head"><div><h3>待遇・時給の適用履歴</h3><p>過去給与を壊さないよう、開始日付きで変更履歴を保持します。</p></div><button class="btn small">履歴を見る</button></div>
+   <div class="timeline">
+     <div class="timeline-row"><small>2026-09-01〜</small><span>レギュラーA / 基本時給4,000円</span><span class="badge green">現行</span></div>
+     <div class="timeline-row"><small>2026-09-01〜09-30</small><span>入店時給保証 5,000円</span><span class="badge yellow">期間設定</span></div>
+   </div>
+ </div>
+ ${section('通常の待遇・バック','時給保証以外の通常ルール',
+  row('待遇プラン','レギュラーA','適用開始 2026-09-01')+
+  row('通常時給','4,000円','保証終了後に参照')+
+  row('報酬ルール','本指名・場内・ドリンクバック'),'editPay')}`;
+}
+
+function contactPanel(){
+ return `
+ <div class="notice">キャスト本人の在籍情報と、NOXへログインするアカウントは別管理です。メールやLINEが未登録でもキャスト自体は登録できます。</div>
+ <div class="account-sep" style="margin-bottom:10px">
+   <div class="account-card"><h4>本人レコード</h4><div class="muted">源氏名・所属・待遇・勤務条件・写真・LINEなど、店舗で管理する人物情報。</div><div class="badges" style="margin-top:9px"><span class="badge green">在籍</span><span class="badge">必須</span></div></div>
+   <div class="account-card"><h4>NOXログインアカウント</h4><div class="muted">本人がシフト確認・希望提出などを行うためのログイン。必要な人だけ発行。</div><div class="badges" style="margin-top:9px"><span class="badge blue">有効</span><span class="badge">任意</span></div></div>
+ </div>
+ <div class="contact-grid">
+   <div class="contact-card">
+     <div class="contact-top"><div class="contact-title"><div class="icon line-icon">L</div><div><b>LINE連携</b><div class="sub">シフト公開・変更・確定・代打依頼などの本人通知</div></div></div><span class="badge green">連携済み</span></div>
+     <div class="contact-row"><span class="label">LINE表示名</span><b>あべ</b></div>
+     <div class="contact-row"><span class="label">連携日時</span><b>2026-09-01 18:42</b></div>
+     <div class="contact-row"><span class="label">通知</span><div><span class="switch on"></span> <b>ON</b></div></div>
+     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn small">連携案内を再送</button><button class="btn small danger">連携解除</button></div>
+   </div>
+   <div class="contact-card">
+     <div class="contact-top"><div class="contact-title"><div class="icon mail-icon">✉</div><div><b>メールアドレス</b><div class="sub">ログイン・本人連絡・LINE未達時の予備通知</div></div></div><span class="badge green">確認済み</span></div>
+     <div class="contact-row"><span class="label">メール</span><b>abe@example.com</b></div>
+     <div class="contact-row"><span class="label">確認状態</span><b>確認済み</b></div>
+     <div class="contact-row"><span class="label">ログインID</span><b>メールを使用</b></div>
+     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn small">変更</button><button class="btn small">確認メール再送</button></div>
+   </div>
+ </div>
+ <div style="margin-top:10px">${section('通知・ログイン設定','本人への通知手段とNOXアカウント',
+ row('通知優先順位','LINE優先 → 未達時メール')+
+ row('NOXログイン','有効')+
+ row('最終ログイン','2026-09-04 17:21')+
+ row('シフト希望提出','許可'),'editAccount')}</div>`;
+}
+
+function toggleEdit(id){document.getElementById(id).classList.toggle('open')}
+function setKind(k){
+ kind=k;selected=0;
+ document.querySelectorAll('[data-kind]').forEach(x=>x.classList.toggle('on',x.dataset.kind===k));
+ navCast.classList.toggle('on',k==='cast');navStaff.classList.toggle('on',k==='staff');
+ eyebrow.textContent=k==='cast'?'CAST MANAGEMENT':'STAFF ACCOUNTS';
+ title.textContent=k==='cast'?'キャスト管理':'スタッフ管理';
+ lead.textContent=k==='cast'?'在籍・待遇・勤務条件・連絡先・アカウントをキャストごとに管理します。':'黒服・店長の勤務条件・役割・権限・連絡先・アカウントを管理します。';
+ addBtn.textContent=k==='cast'?'+ キャスト登録':'+ スタッフを追加';
+ document.querySelectorAll('.gold-only').forEach(x=>x.style.display=k==='cast'?'inline-block':'none');
+ m1.textContent=k==='cast'?'7名':'4名';
+ m2label.textContent=k==='cast'?'時給保証中':'休職中';m2.textContent=k==='cast'?'2名':'0名';
+ m3label.textContent='LINE未連携';m3.textContent=k==='cast'?'4名':'1名';
+ m4label.textContent='メール未登録';m4.textContent=k==='cast'?'3名':'1名';
+ modalTitle.textContent=k==='cast'?'キャスト登録':'スタッフを追加';
+ renderPeople();
+}
+function toggleModal(on){addModal.classList.toggle('open',on)}
+document.querySelectorAll('[data-kind]').forEach(x=>x.onclick=()=>setKind(x.dataset.kind));
+navCast.onclick=()=>setKind('cast');navStaff.onclick=()=>setKind('staff');addBtn.onclick=()=>toggleModal(true);
+renderPeople();
+</script>
+</body>
+</html>

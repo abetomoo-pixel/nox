@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOX | シフト管理 統合モック v4.1</title>
+<style>
+:root{--bg:#070707;--side:#0b0b0a;--panel:#11110f;--panel2:#151512;--field:#090909;--line:#302e28;--line-strong:#484339;--text:#f4f1e9;--sub:#b8b2a8;--muted:#7f7a71;--brand:#d8ad55;--brand2:#f0cf82;--brand-soft:rgba(216,173,85,.10);--primary:#2f7fe7;--primary2:#61a7ff;--primary-soft:rgba(47,127,231,.15);--success:#4dc37d;--success-soft:rgba(77,195,125,.11);--warning:#d9a43a;--warning-soft:rgba(217,164,58,.10);--danger:#e26762;--danger-soft:rgba(226,103,98,.11);--r:10px;--sidebar:205px}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 78% 0,rgba(223,184,94,.04),transparent 30%),var(--bg);color:var(--text);font:13px Inter,"Noto Sans JP","Yu Gothic UI",sans-serif}
+button,input,select{font:inherit;color:inherit}button{cursor:pointer}
+.app{display:grid;grid-template-columns:205px 1fr;min-height:100vh}
+aside{background:var(--side);border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:0;height:100vh}
+.brand{padding:0 8px 22px;font-weight:900}.brand span{display:inline-grid;place-items:center;width:34px;height:34px;border:1px solid #806526;border-radius:7px;color:var(--brand);margin-right:9px}
+.nav{padding:10px;border-radius:7px;color:#999;margin:2px 0}.nav.on{background:#101c28;color:#65b4ff;border-left:2px solid var(--primary)}.sep{height:1px;background:#282722;margin:10px 0}
+main{min-width:0}.top{height:55px;border-bottom:1px solid #282722;display:flex;justify-content:flex-end;align-items:center;padding:0 24px}.badge{background:#c6a54e;color:#17120a;border-radius:14px;padding:5px 10px;font-size:10px;font-weight:900}
+.wrap{max-width:1340px;margin:auto;padding:24px 28px 70px}.eyebrow{font-size:10px;color:#9f813a;letter-spacing:.14em;font-weight:900}.title{font-size:25px;margin:7px 0 4px}.desc{color:var(--sub);font-size:12px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:20px 0 14px;background:#10100f}.tabs button{height:44px;border:0;border-right:1px solid var(--line);background:transparent;color:#aaa;font-weight:800}.tabs button.on{background:#102233;color:#71baff;box-shadow:inset 0 0 0 1px #337bc0}
+.audience{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.seg{display:flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:#10100f}.seg button{min-width:170px;height:40px;border:0;border-right:1px solid var(--line-strong);background:transparent;color:#aaa;font-weight:800}.seg button:last-child{border-right:0}.seg button.on{background:var(--primary-soft);color:#75bfff}
+.workflow{display:flex;align-items:center;gap:7px;color:#777;font-size:11px;flex-wrap:wrap}.step{border:1px solid var(--line);border-radius:15px;padding:5px 9px}.step.on{border-color:#3c78a9;background:#10202d;color:#75bfff}
+.view{display:none}.view.on{display:block}
+.card{border:1px solid var(--line);border-radius:9px;background:linear-gradient(145deg,#171714,#11110f);margin-bottom:12px}.head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}.head h2{font-size:16px;color:var(--brand);margin:0}.head p{margin:4px 0 0;color:var(--sub);font-size:11px}.body{padding:14px}
+.btn{min-height:34px;border:1px solid var(--line-strong);background:#151513;border-radius:7px;padding:0 12px;font-weight:800;text-align:center}.btn.primary{background:#2169ad;border-color:#3987cf;color:#fff}.btn.small{min-height:29px;font-size:11px}.btn.danger{border-color:#6f3b38;color:#ec8e88}.btn.neutral{color:#b5b0a8}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}.metric{border:1px solid var(--line);background:#171714;border-radius:8px;padding:12px}.metric small{color:var(--sub);display:block}.metric b{font-size:18px;display:block;margin-top:3px}.danger{color:#f07a73}.ok{color:#64ce91}.warn{color:#e5b962}
+.calendar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.month{font-size:15px;font-weight:900}.week{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;color:#777;text-align:center;font-size:10px;margin-bottom:5px}.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.day{min-height:112px;border:1px solid #3c3932;border-radius:8px;background:#191916;padding:9px;position:relative}.day.blank{opacity:.25}.day:hover{border-color:#726850}.day.today{border-color:#ad8736;background:#1d1911}.date{font-weight:900;margin-bottom:8px}
+.pill{display:inline-block;border-radius:5px;padding:3px 6px;font-size:10px;font-weight:900}.pill.red{border:1px solid rgba(228,93,93,.38);background:var(--danger-soft);color:#ef7973}.pill.green{border:1px solid rgba(69,184,120,.35);background:var(--success-soft);color:#79d79f}.pill.yellow{border:1px solid rgba(213,165,66,.35);background:var(--warning-soft);color:#e5c16f}
+.day .need{font-size:15px;color:#ef7973;font-weight:900;margin:6px 0 2px}.day .detail{color:#aaa;font-size:10px;line-height:1.5}.day .cost{position:absolute;bottom:8px;right:9px;color:#777;font-size:10px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;color:#888;font-size:10px;margin-top:10px}
+.pending-groups{display:grid;gap:10px}.pending-card{border:1px solid #3c3933;border-radius:8px;background:#151513}.pending-top{display:grid;grid-template-columns:1.1fr 120px 170px 160px;gap:10px;align-items:center;padding:13px}.pending-card strong{font-size:14px}
+.diff-list{display:none;border-top:1px solid var(--line);padding:0 13px 13px}.pending-card.open .diff-list{display:block}.diff-row{display:grid;grid-template-columns:90px 1fr 25px 1fr 220px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.045)}.diff-row:last-child{border-bottom:0}.timebox{border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#10110f}.arrow{text-align:center;color:#666}
+.draft-grid{display:grid;grid-template-columns:1.35fr .65fr;gap:12px}.changes{display:grid;gap:8px}.change{border:1px solid #3b3a34;border-radius:8px;background:#141512;padding:11px}.change-top{display:flex;justify-content:space-between;gap:10px}.change strong{font-size:13px}.change small{color:var(--sub)}
+.publish-box{border:1px solid #47513e;background:#11180f;border-radius:8px;padding:12px}.publish-box h3{margin:0 0 6px;color:#9fd3aa;font-size:14px}
+.role-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.role{border:1px solid var(--line);border-radius:8px;padding:10px;background:#121210}.role b{display:block}.role small{color:var(--sub)}
+.period-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#11110f}
+.period-info{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.period-label{font-weight:900;color:#ddd7cd}.period-state{border-radius:14px;padding:4px 8px;font-size:10px;font-weight:900}.period-state.final{background:var(--success-soft);border:1px solid rgba(69,184,120,.35);color:#79d79f}.period-state.draft{background:var(--warning-soft);border:1px solid rgba(213,165,66,.35);color:#e5c16f}.period-state.edit{background:var(--primary-soft);border:1px solid rgba(60,142,232,.35);color:#76b9f4}
+.period-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}.period-card{border:1px solid var(--line);border-radius:8px;background:#121210;padding:11px}.period-card.on{border-color:#4b87bd;background:#10202d}.period-card small{display:block;color:var(--sub);margin-bottom:4px}
+.preference-badge{display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:14px;padding:3px 7px;font-size:10px;font-weight:800;color:#bbb;background:#111}.preference-badge.work{color:#7bbcf0;border-color:#365d81;background:#101c27}.preference-badge.off{color:#e5c16f;border-color:#625328;background:#201b0f}
+.reaction-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.reaction-card{border:1px solid var(--line);border-radius:8px;padding:11px;background:#131310}.reaction-card b{display:block;font-size:18px;margin-top:3px}
+.confirm-list{display:grid;gap:8px}.confirm-row{display:grid;grid-template-columns:160px 1fr 160px 120px;gap:10px;align-items:center;border-bottom:1px solid rgba(255,255,255,.045);padding:10px 0}.confirm-row:last-child{border-bottom:0}
+.today-grid{display:grid;grid-template-columns:1.3fr .7fr;gap:12px}.shift-row{display:grid;grid-template-columns:160px 1fr 130px 150px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.045)}.shift-row:last-child{border-bottom:0}.state-pill{display:inline-flex;align-items:center;border-radius:14px;padding:4px 8px;font-size:10px;font-weight:900}.state-pill.ok{background:var(--success-soft);border:1px solid rgba(69,184,120,.35);color:#79d79f}.state-pill.warn{background:var(--warning-soft);border:1px solid rgba(213,165,66,.35);color:#e5c16f}.state-pill.bad{background:var(--danger-soft);border:1px solid rgba(228,93,93,.35);color:#ef7973}
+.history-list{display:grid;gap:0}.history-row{display:grid;grid-template-columns:130px 1fr 120px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.045);font-size:11px}.history-row:last-child{border-bottom:0}
+.deadline-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.deadline{border:1px solid var(--line);border-radius:8px;background:#121210;padding:10px}.deadline small{display:block;color:var(--sub);margin-bottom:3px}.deadline b{font-size:13px}
+.pattern-card{border:1px solid var(--line);border-radius:8px;background:#121210;padding:11px;margin-top:10px}.pattern-row{display:grid;grid-template-columns:140px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.045)}.pattern-row:last-child{border-bottom:0}
+.skill-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}.skill-tag{font-size:9px;border:1px solid #4a4740;border-radius:12px;padding:2px 6px;color:#aaa}.skill-tag.main{border-color:#3f7dac;color:#75bfff;background:#10202d}
+.cover-grid{display:grid;grid-template-columns:1fr 35px 1fr;gap:10px;align-items:center;margin-top:12px}.cover-person{border:1px solid var(--line);border-radius:8px;background:#11110f;padding:12px}.cover-arrow{text-align:center;color:#777;font-size:20px}
+.notify-list{display:grid;gap:7px;margin-top:10px}.notify-row{display:grid;grid-template-columns:1fr 120px 100px;gap:10px;align-items:center;border-bottom:1px solid rgba(255,255,255,.045);padding:8px 0}
+.switch{width:42px;height:23px;border-radius:13px;background:#2a2a26;border:1px solid #444;position:relative;display:inline-block}.switch.on{background:#1e6097}.switch:after{content:"";position:absolute;width:17px;height:17px;border-radius:50%;background:#ddd;top:2px;left:3px}.switch.on:after{left:20px}
+
+
+.overlay{display:none;position:fixed;inset:0 0 0 205px;background:rgba(0,0,0,.74);align-items:center;justify-content:center;z-index:5}.modal{width:780px;max-height:86vh;overflow:auto;background:#171714;border:1px solid #4a463d;border-radius:11px;padding:18px;box-shadow:0 30px 90px #000}.modal h2{color:var(--brand);font-size:18px;margin:0}.modal .sub{color:var(--sub);font-size:11px;margin-top:4px}
+.time-short{border:1px solid rgba(228,93,93,.32);background:var(--danger-soft);border-radius:8px;padding:11px;margin-top:12px}.time-row{display:grid;grid-template-columns:160px 1fr 105px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}.time-row:last-child{border:0}.bar{height:7px;background:#2b2925;border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:var(--danger);width:64%}
+.search{width:100%;height:39px;background:#090909;border:1px solid #48453e;border-radius:7px;padding:0 10px;margin:12px 0 8px}.filters{display:flex;gap:7px;margin-bottom:9px;flex-wrap:wrap}.filter{border:1px solid #3d3b35;border-radius:15px;background:#111;color:#999;padding:5px 9px}.filter.on{color:#75bfff;border-color:#3979ad;background:#10202d}
+.people-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.person{border:1px solid #3c3933;border-radius:8px;padding:10px;background:#121210;display:flex;align-items:center;gap:9px}.person.sel{border-color:#3f87c4;background:#10202d}.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#625b87;font-weight:900}.person small{display:block;color:#777}
+.actions{display:flex;justify-content:center;gap:8px;margin-top:16px}
+.need-list{display:grid;gap:7px;margin-top:12px}.need-row{display:grid;grid-template-columns:70px 140px 1fr auto;gap:9px;align-items:center;border-bottom:1px solid #302f2a;padding:9px 0}.need-row input{height:34px;background:#090909;border:1px solid #46433c;border-radius:6px;padding:0 8px}
+@media(max-width:1000px){.calendar{grid-template-columns:repeat(4,1fr)}.week{display:none}.summary{grid-template-columns:repeat(2,1fr)}.people-grid,.role-grid{grid-template-columns:repeat(2,1fr)}.pending-top,.diff-row,.draft-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app"><aside>
+<div class="brand"><span>N</span>NOX</div>
+<div class="nav">⌂ ホーム</div><div class="sep"></div><div class="nav">▣ レジ</div><div class="nav">▤ 日報</div><div class="sep"></div>
+<div class="nav on">▣ シフト</div><div class="nav">♙ キャスト</div><div class="nav">♧ スタッフ</div><div class="nav">▭ 給与</div><div class="sep"></div><div class="nav">▦ 顧客</div><div class="sep"></div><div class="nav">⌘ マスタ</div><div class="nav">♢ お知らせ</div><div class="nav">♢ 監査</div>
+</aside>
+<main><div class="top"><span class="badge">オーナー</span></div><div class="wrap">
+<div class="eyebrow">SHIFT MANAGEMENT</div><h1 class="title">シフト管理</h1><div class="desc">申請、承認、配置、公開、確定までを、キャストと黒服・スタッフで共通管理します。</div>
+
+<div class="tabs">
+<button data-view="today">今日</button>
+<button data-view="pending">承認待ち <span id="pendingCount">④</span></button>
+<button class="on" data-view="create">シフト作成</button>
+<button data-view="draft">仮シフト</button>
+<button data-view="final">確定シフト</button>
+</div>
+
+<div class="audience">
+  <div class="seg">
+    <button class="on" data-audience="cast">キャスト</button>
+    <button data-audience="staff">黒服・スタッフ</button>
+  </div>
+  <div class="seg" id="periodSeg">
+    <button class="on" data-period="month">月</button>
+    <button data-period="half">半月</button>
+    <button data-period="week">週</button>
+  </div>
+  <div class="workflow"><span class="step">申請</span>→<span class="step">承認</span>→<span class="step on">作成</span>→<span class="step">公開</span>→<span class="step">仮シフト</span>→<span class="step">確定</span></div>
+</div>
+
+<!-- create -->
+<section class="view on" id="create">
+<div class="card"><div class="head"><div><h2 id="createTitle">2026年9月 キャストシフト計画</h2><p>不足を見つけて、そのまま配置まで進める作業画面です。</p></div><div><button class="btn small" onclick="openNeed()">必要人数を設定</button> <button class="btn primary">スタッフへ公開</button></div></div>
+<div class="body">
+<div class="period-bar"><div class="period-info"><span class="period-label" id="createPeriodLabel">9/1〜9/30</span><span class="period-state edit">作成中</span><span class="muted" id="periodHint">月単位で作成</span></div><button class="btn small" onclick="cyclePeriod()">表示期間を切替</button></div>
+<div class="deadline-strip">
+<div class="deadline"><small>希望提出締切</small><b id="hopeDeadline">8/25 23:59</b></div>
+<div class="deadline"><small>仮シフト公開予定</small><b id="draftDeadline">8/27 18:00</b></div>
+<div class="deadline"><small>確定予定</small><b id="finalDeadline">8/29 18:00</b></div>
+</div>
+<div class="summary"><div class="metric"><small>配置済み</small><b id="assignedMetric">20件</b></div><div class="metric"><small>不足日</small><b class="danger" id="shortMetric">27日</b></div><div class="metric"><small>予想人件費</small><b id="costMetric">¥305,000</b></div><div class="metric"><small>未処理の希望</small><b class="danger" id="hopeMetric">4件</b></div></div>
+<div class="calendar-head"><div><button class="btn small">‹</button> <span class="month">2026年9月</span> <button class="btn small">›</button></div><div class="muted">日付をクリックすると時間帯別不足と追加候補を確認</div></div>
+<div class="week"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
+<div class="calendar" id="calendar"></div>
+<div class="legend"><span>🔴 不足</span><span>🟡 一部時間帯のみ不足</span><span>🟢 充足</span><span>※ 人件費は配置済みシフトから算出</span></div>
+</div></div>
+<div class="card"><div class="head"><div><h2>勤務パターン・通知</h2><p>シフト作成の初期配置に使う個人条件と、公開・変更時の通知設定。</p></div><button class="btn small">スタッフ設定を開く</button></div><div class="body">
+<div class="pattern-row"><div><strong>佐々木</strong><div class="preference-badge off">休み希望型</div></div><div><b>基本：月〜金 18:00–26:00</b><div class="muted">固定休：日曜</div><div class="skill-tags"><span class="skill-tag main">主：ホール</span><span class="skill-tag">レジ可</span><span class="skill-tag">付け回し可</span></div></div><button class="btn small">編集</button></div>
+<div class="pattern-row"><div><strong>高橋</strong><div class="preference-badge work">出勤希望型</div></div><div><b>希望提出から配置</b><div class="muted">週4日まで / 26:00まで</div><div class="skill-tags"><span class="skill-tag main">主：レジ</span><span class="skill-tag">ホール可</span></div></div><button class="btn small">編集</button></div>
+<div class="notify-list"><div class="notify-row"><span>仮シフトを公開したとき本人へ通知</span><span class="switch on"></span><span class="muted">ON</span></div><div class="notify-row"><span>公開後に勤務時間が変更されたとき通知</span><span class="switch on"></span><span class="muted">ON</span></div><div class="notify-row"><span>シフト確定時に通知</span><span class="switch on"></span><span class="muted">ON</span></div></div>
+</div></div>
+</section>
+
+<!-- pending -->
+<section class="view" id="pending">
+<div class="card"><div class="head"><div><h2>承認待ち</h2><p>人ごとに希望・変更申請をまとめ、差分を確認して処理します。</p></div><button class="btn primary">選択分を一括承認</button></div>
+<div class="body">
+<div class="summary"><div class="metric"><small>未処理</small><b class="danger">24件</b></div><div class="metric"><small>申請者</small><b>4人</b></div><div class="metric"><small>希望どおり</small><b class="ok">17件</b></div><div class="metric"><small>要調整</small><b class="warn">7件</b></div></div>
+<div class="pending-groups" id="pendingGroups">
+<div class="pending-card open">
+<div class="pending-top"><div><strong>あべ</strong><div class="muted">希望シフト 8件</div><span class="preference-badge work">出勤希望型</span></div><b>8件</b><span class="warn">要調整 2件</span><button class="btn small" onclick="togglePending(this)">閉じる</button></div>
+<div class="diff-list">
+<div class="diff-row"><b>9/4</b><div class="timebox">本人希望 20:00–25:00</div><div class="arrow">→</div><div class="timebox">管理側 20:00–25:00</div><div><button class="btn small primary">希望どおり承認</button></div></div>
+<div class="diff-row"><b>9/9</b><div class="timebox">本人希望 21:00–25:00</div><div class="arrow">→</div><div class="timebox">管理側 20:00–25:00</div><div><button class="btn small">時間調整</button> <button class="btn small danger">見送り</button></div></div>
+</div></div>
+<div class="pending-card"><div class="pending-top"><div><strong>さくら</strong><div class="muted">希望シフト 6件</div><span class="preference-badge work">出勤希望型</span></div><b>6件</b><span class="ok">すべて一致</span><button class="btn small" onclick="togglePending(this)">確認</button></div><div class="diff-list"><div class="diff-row"><b>9/5</b><div class="timebox">20:00–25:00</div><div class="arrow">→</div><div class="timebox">20:00–25:00</div><div><button class="btn small primary">承認</button></div></div></div></div>
+<div class="pending-card"><div class="pending-top"><div><strong>れいな</strong><div class="muted">休み希望 2件</div><span class="preference-badge off">休み希望型</span></div><b>2件</b><span class="warn">要確認 1件</span><button class="btn small" onclick="togglePending(this)">確認</button></div>
+<div class="diff-list">
+  <div class="diff-row"><b>9/12</b><div class="timebox">本人：休み希望</div><div class="arrow">→</div><div class="timebox">現在予定 20:00–25:00</div><div><button class="btn small primary">休み承認</button> <button class="btn small danger">却下</button></div></div>
+</div></div>
+</div>
+</div></div>
+</section>
+
+<!-- draft -->
+<section class="view" id="draft">
+<div class="card"><div class="head"><div><h2 id="draftTitle">仮シフト — キャスト</h2><p>スタッフへ公開済み。まだ変更可能で、前回公開版との差分を管理します。</p></div><button class="btn primary">変更内容を再公開</button></div>
+<div class="body">
+<div class="summary"><div class="metric"><small>公開済み</small><b>9/1 18:00</b></div><div class="metric"><small>公開後変更</small><b class="warn">5件</b></div><div class="metric"><small>不足日</small><b class="danger">3日</b></div><div class="metric"><small>未確認スタッフ</small><b class="warn">6人</b></div></div>
+<div class="reaction-grid">
+  <div class="reaction-card"><small class="muted">確認済み</small><b class="ok">18人</b></div>
+  <div class="reaction-card"><small class="muted">未確認</small><b class="warn">6人</b></div>
+  <div class="reaction-card"><small class="muted">変更希望</small><b class="warn">3人</b></div>
+  <div class="reaction-card"><small class="muted">辞退希望</small><b class="danger">1人</b></div>
+</div>
+<div class="card" style="margin-bottom:12px"><div class="head"><div><h2>スタッフ確認状況</h2><p>公開後の反応を確認して、必要な変更だけ再公開します。</p></div></div><div class="body confirm-list">
+  <div class="confirm-row"><div><strong>あべ</strong><div class="muted">出勤希望型</div></div><span class="ok">確認済み</span><span>変更なし</span><button class="btn small">詳細</button></div>
+  <div class="confirm-row"><div><strong>さくら</strong><div class="muted">出勤希望型</div></div><span class="warn">確認済み</span><span>9/11変更希望</span><button class="btn small primary">確認</button></div>
+  <div class="confirm-row"><div><strong>れいな</strong><div class="muted">休み希望型</div></div><span class="warn">未確認</span><span>—</span><button class="btn small">催促</button></div>
+  <div class="confirm-row"><div><strong>みお</strong><div class="muted">出勤希望型</div></div><span class="danger">辞退希望</span><span>9/14</span><button class="btn small primary">対応</button></div>
+</div></div>
+
+<div class="draft-grid">
+<div>
+<div class="week"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
+<div class="calendar" id="draftCalendar"></div>
+</div>
+<aside>
+<div class="publish-box"><h3>公開状態</h3><div class="muted">2026年9月版は公開済みです。</div><div class="actions"><button class="btn primary">確定シフトへ</button></div></div>
+<div class="card" style="margin-top:10px"><div class="head"><div><h2>公開後の変更</h2></div></div><div class="body changes">
+<div class="change"><div class="change-top"><strong>9/11 さくら</strong><span class="warn">時間変更</span></div><small>20:00–25:00 → 21:00–25:00</small></div>
+<div class="change"><div class="change-top"><strong>9/12 れいな</strong><span class="ok">追加</span></div><small>新規配置 20:00–25:00</small></div>
+<div class="change"><div class="change-top"><strong>9/14 あべ</strong><span class="danger">取消</span></div><small>配置を取り消し</small></div>
+</div></div>
+</aside>
+</div>
+</div></div>
+</section>
+
+<section class="view" id="today">
+<div class="card"><div class="head"><div><h2 id="todayTitle">今日 — キャスト</h2><p>当日の出勤・遅刻・欠勤・配置を確認し、必要なら当日追加配置します。</p></div><button class="btn primary" onclick="openDay()">＋ 当日追加配置</button></div>
+<div class="body">
+<div class="summary"><div class="metric"><small>出勤予定</small><b>8人</b></div><div class="metric"><small>出勤済み</small><b class="ok">6人</b></div><div class="metric"><small>遅刻・未着</small><b class="warn">1人</b></div><div class="metric"><small>欠勤</small><b class="danger">1人</b></div></div>
+<div class="today-grid">
+  <div class="card"><div class="head"><div><h2>本日の勤務</h2></div></div><div class="body">
+    <div class="shift-row"><div><strong>さくら</strong><div class="muted">20:00–25:00</div></div><span class="state-pill ok">出勤済み</span><span>20:01打刻</span><button class="btn small">詳細</button></div>
+    <div class="shift-row"><div><strong>あべ</strong><div class="muted">20:00–25:00</div></div><span class="state-pill warn">未着</span><span>20:18現在</span><button class="btn small">連絡</button></div>
+    <div class="shift-row"><div><strong>れいな</strong><div class="muted">休み希望型</div></div><span class="state-pill bad">欠勤</span><span>代替未配置</span><button class="btn small primary" onclick="openCover()">代打を探す</button></div>
+  </div></div>
+  <aside class="card"><div class="head"><div><h2>現在の不足</h2></div></div><div class="body">
+    <div class="time-row"><b>20:00–22:00</b><div class="bar"><i style="width:60%"></i></div><b class="danger">あと1人</b></div>
+    <div class="time-row"><b>22:00–24:00</b><div class="bar"><i style="width:100%;background:#45b878"></i></div><b class="ok">充足</b></div>
+    <div class="actions"><button class="btn primary" onclick="openDay()">追加配置</button></div>
+  </div></aside>
+</div>
+<div class="card" style="margin-top:12px"><div class="head"><div><h2>本日の通知</h2><p>欠勤・遅刻・代打依頼など、当日対応が必要な通知。</p></div></div><div class="body history-list"><div class="history-row"><b>20:18</b><span>あべ：出勤時刻を18分超過・未打刻</span><button class="btn small">連絡</button></div><div class="history-row"><b>19:42</b><span>れいな：欠勤登録</span><button class="btn small primary" onclick="openCover()">代打手配</button></div></div></div>
+</div></div>
+</section>
+<section class="view" id="final">
+<div class="card"><div class="head"><div><h2 id="finalTitle">確定シフト — キャスト</h2><p>最終版の閲覧中心。期間単位で確定し、確定後変更は履歴を残します。</p></div><button class="btn neutral">PDF/印刷</button></div>
+<div class="body">
+<div class="period-grid" id="finalPeriods">
+  <div class="period-card on"><small>9/1〜9/15</small><b>確定済み</b><div class="muted">確定 8/29 18:20</div></div>
+  <div class="period-card"><small>9/16〜9/30</small><b class="warn">仮シフト</b><div class="muted">公開 9/1 18:00</div></div>
+</div>
+<div class="week"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
+<div class="calendar" id="finalCalendar"></div>
+<div class="card" style="margin-top:12px"><div class="head"><div><h2>確定後の変更履歴</h2><p>通常編集ではなく、管理者変更・交代・欠勤対応として記録します。</p></div><button class="btn small primary">管理者変更を追加</button></div><div class="body history-list">
+  <div class="history-row"><b>9/12 19:10</b><span>さくら 20:00–25:00 → 21:00–25:00</span><span>山田</span></div>
+  <div class="history-row"><b>9/14 18:42</b><span>れいな 欠勤 → みおへ交代</span><span>山田</span></div>
+</div></div>
+</div></div>
+</section>
+
+</div></main></div>
+
+<div class="overlay" id="dayModal"><div class="modal">
+<h2 id="dayModalTitle">9月4日（金）の配置</h2><div class="sub" id="dayModalSub">必要5名 / 配置2名 — 不足している時間帯を確認して、そのまま追加できます。</div>
+<div class="time-short" id="timeShort"></div>
+<div class="pattern-card" id="patternInfo"><strong>候補の勤務条件も配置判断に使用</strong><div class="muted" style="margin-top:4px">基本勤務・固定休・対応可能役割・終電などを候補カードに反映します。</div></div>
+<input class="search" id="personSearch" placeholder="名前で検索">
+<div class="filters" id="filters"></div>
+<div class="people-grid" id="peopleGrid"></div>
+<div class="actions"><button class="btn" onclick="closeM('dayModal')">閉じる</button><button class="btn primary" id="assignBtn">選択した1名を配置</button></div>
+</div></div>
+
+<div class="overlay" id="needModal"><div class="modal">
+<h2 id="needTitle">必要人数を設定</h2><div class="sub" id="needSub">曜日ごとの基本人数と時間帯の上乗せを設定します。</div>
+<div id="needContent"></div>
+<div class="actions"><button class="btn" onclick="closeM('needModal')">キャンセル</button><button class="btn primary">保存</button></div>
+</div></div>
+
+
+<div class="overlay" id="coverModal"><div class="modal">
+<h2>代打・交代を手配</h2><div class="sub">確定済みシフトを直接上書きせず、欠勤者 → 代打者の変更履歴を残します。</div>
+<div class="cover-grid">
+  <div class="cover-person"><strong>れいな</strong><div class="muted">9/4 20:00–25:00</div><span class="state-pill bad" style="margin-top:7px">欠勤</span></div>
+  <div class="cover-arrow">→</div>
+  <div class="cover-person"><strong>代打を選択</strong><div class="muted">同時間帯に対応可能な候補</div></div>
+</div>
+<input class="search" placeholder="名前で検索">
+<div class="filters"><button class="filter on">出勤可能</button><button class="filter">未配置</button><button class="filter">同役割</button><button class="filter">勤務条件OK</button></div>
+<div class="people-grid">
+ <div class="person sel"><div class="avatar">み</div><div><b>みお</b><small>20:00–25:00可</small><div class="skill-tags"><span class="skill-tag main">条件一致</span></div></div></div>
+ <div class="person"><div class="avatar">さ</div><div><b>さくら</b><small>21:00から可</small><div class="skill-tags"><span class="skill-tag">1時間不足</span></div></div></div>
+ <div class="person"><div class="avatar">え</div><div><b>えま</b><small>20:00–24:00可</small><div class="skill-tags"><span class="skill-tag">終電上がり</span></div></div></div>
+</div>
+<div class="pattern-card"><strong>代打依頼通知</strong><div class="muted">選択した本人へ依頼を送り、承諾後に確定シフトへ反映。管理者による即時確定も可能。</div></div>
+<div class="actions"><button class="btn" onclick="closeM('coverModal')">キャンセル</button><button class="btn primary">みおへ代打依頼</button></div>
+</div></div>
+
+<script>
+let audience='cast';
+let periodMode='month';
+
+const castPendingHtml=document.getElementById('pendingGroups').innerHTML;
+const castPeople=[
+['さくら','希望 20:00–25:00｜週4日まで'],['れいな','休み希望型｜固定休 火曜'],['みお','希望 21:00–25:00｜遅番'],['じゅり','別日配置あり｜週3日まで'],['ひなの','出勤可能｜25:00まで'],['えま','希望 20:00–24:00｜終電上がり']
+];
+const staffPeople=[
+['佐々木','休み希望型｜主:ホール / レジ可'],['山田','休み希望型｜主:マネージャー'],['高橋','出勤希望型｜主:レジ / ホール可'],['中村','出勤希望型｜主:付け回し / ホール可'],['伊藤','休み希望型｜主:ホール'],['小林','出勤希望型｜主:ドライバー']
+];
+
+function currentPeriodLabel(){
+  if(periodMode==='month') return '9/1〜9/30';
+  if(periodMode==='half') return '9/1〜9/15';
+  return '9/7〜9/13';
+}
+function updatePeriodUI(){
+  const label=document.getElementById('createPeriodLabel');
+  if(label) label.textContent=currentPeriodLabel();
+  const hint=document.getElementById('periodHint');
+  if(hint) hint.textContent=periodMode==='month'?'月単位で作成':periodMode==='half'?'半月単位で作成':'週単位で作成（月曜始まり）';
+  const hd=document.getElementById('hopeDeadline'), dd=document.getElementById('draftDeadline'), fd=document.getElementById('finalDeadline');
+  if(hd){
+    if(periodMode==='month'){hd.textContent='8/25 23:59';dd.textContent='8/27 18:00';fd.textContent='8/29 18:00';}
+    else if(periodMode==='half'){hd.textContent='8/25 23:59';dd.textContent='8/27 18:00';fd.textContent='8/29 18:00';}
+    else{hd.textContent='9/2 23:59';dd.textContent='9/4 18:00';fd.textContent='9/5 18:00';}
+  }
+  const finalPeriods=document.getElementById('finalPeriods');
+  if(finalPeriods){
+    if(periodMode==='month'){
+      finalPeriods.innerHTML='<div class="period-card on"><small>9/1〜9/30</small><b>確定済み</b><div class="muted">確定 8/29 18:20</div></div>';
+    }else if(periodMode==='half'){
+      finalPeriods.innerHTML='<div class="period-card on"><small>9/1〜9/15</small><b>確定済み</b><div class="muted">確定 8/29 18:20</div></div><div class="period-card"><small>9/16〜9/30</small><b class="warn">仮シフト</b><div class="muted">公開 9/1 18:00</div></div>';
+    }else{
+      finalPeriods.innerHTML='<div class="period-card on"><small>9/1〜9/6</small><b>確定</b></div><div class="period-card"><small>9/7〜9/13</small><b>確定</b></div><div class="period-card"><small>9/14〜9/20</small><b class="warn">仮公開</b></div><div class="period-card"><small>9/21〜9/27</small><b style="color:#75bfff">作成中</b></div>';
+    }
+  }
+}
+function cyclePeriod(){
+  periodMode=periodMode==='month'?'half':periodMode==='half'?'week':'month';
+  document.querySelectorAll('[data-period]').forEach(x=>x.classList.toggle('on',x.dataset.period===periodMode));
+  updatePeriodUI();
+}
+function renderCalendar(targetId,isDraft=false){
+ const cal=document.getElementById(targetId);cal.innerHTML='';
+ for(let i=0;i<2;i++)cal.insertAdjacentHTML('beforeend','<div class="day blank"></div>');
+ for(let d=1;d<=30;d++){
+   const staff=audience==='staff';
+   const need=(staff? [2,3,3,3,3,4,4]:[3,4,4,4,5,5,4])[(d+1)%7];
+   const assigned=d%5===0?0:Math.min(need,(d%4)+1);
+   const shortage=Math.max(0,need-assigned);
+   let pill,detail;
+   if(isDraft){
+     const changes=d%7===4?2:(d%8===0?1:0);
+     const sh=shortage>0?`<div class="need">あと${shortage}人</div>`:`<div class="need" style="color:#64ce91">充足</div>`;
+     pill=changes?`<span class="pill yellow">変更 ${changes}件</span>`:`<span class="pill green">公開済み</span>`;
+     detail=`${sh}<div class="detail">現在 ${assigned} / 必要 ${need}</div>`;
+   }else{
+     pill=shortage===0?`<span class="pill green">充足</span>`:`<span class="pill red">不足</span>`;
+     detail=shortage===0?`<div class="need" style="color:#64ce91">充足</div><div class="detail">確定 ${assigned} / 必要 ${need}</div>`:`<div class="need">あと${shortage}人</div><div class="detail">確定 ${assigned} / 必要 ${need}<br>${d%3===1?'20–24時に不足':'終日不足'}</div>`;
+   }
+   cal.insertAdjacentHTML('beforeend',`<div class="day ${d===4?'today':''}" onclick="${isDraft?'': 'openDay()'}"><div class="date">${d}日</div>${pill}${detail}<div class="cost">${assigned?'¥'+(assigned*(staff?12000:15000)).toLocaleString():''}</div></div>`);
+ }
+}
+
+function renderAudience(){
+ const staff=audience==='staff';
+ document.getElementById('createTitle').textContent=`2026年9月 ${staff?'黒服・スタッフ':'キャスト'}シフト計画`;
+ document.getElementById('draftTitle').textContent=`仮シフト — ${staff?'黒服・スタッフ':'キャスト'}`;
+ document.getElementById('assignedMetric').textContent=staff?'18件':'20件';
+ document.getElementById('shortMetric').textContent=staff?'12日':'27日';
+ document.getElementById('costMetric').textContent=staff?'¥216,000':'¥305,000';
+ document.getElementById('hopeMetric').textContent=staff?'0件':'4件';
+ document.getElementById('pendingCount').textContent=staff?'0':'④';
+ renderCalendar('calendar',false);renderCalendar('draftCalendar',true);renderCalendar('finalCalendar',false);
+ document.getElementById('pendingGroups').style.display='grid';
+ document.getElementById('todayTitle').textContent=`今日 — ${staff?'黒服・スタッフ':'キャスト'}`;
+ document.getElementById('finalTitle').textContent=`確定シフト — ${staff?'黒服・スタッフ':'キャスト'}`;
+ if(staff){
+   document.getElementById('pendingGroups').innerHTML=`
+   <div class="pending-card open"><div class="pending-top"><div><strong>佐々木</strong><div class="muted">休み希望 2件</div><span class="preference-badge off">休み希望型</span></div><b>2件</b><span class="warn">要確認 1件</span><button class="btn small" onclick="togglePending(this)">閉じる</button></div><div class="diff-list"><div class="diff-row"><b>9/8</b><div class="timebox">本人：休み希望</div><div class="arrow">→</div><div class="timebox">現在予定 18:00–26:00</div><div><button class="btn small primary">休み承認</button> <button class="btn small danger">却下</button></div></div></div></div>
+   <div class="pending-card"><div class="pending-top"><div><strong>高橋</strong><div class="muted">出勤希望 3件</div><span class="preference-badge work">出勤希望型</span></div><b>3件</b><span class="ok">すべて一致</span><button class="btn small" onclick="togglePending(this)">確認</button></div><div class="diff-list"><div class="diff-row"><b>9/10</b><div class="timebox">本人希望 19:00–26:00</div><div class="arrow">→</div><div class="timebox">管理側 19:00–26:00</div><div><button class="btn small primary">承認</button></div></div></div></div>`;
+ }else{
+   document.getElementById('pendingGroups').innerHTML=castPendingHtml;
+ }
+ updatePeriodUI();
+ if(staff && document.getElementById('pending').classList.contains('on')){
+   document.getElementById('pendingGroups').insertAdjacentHTML?.('beforebegin','');
+ }
+}
+document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('[data-period]').forEach(x=>x.classList.remove('on'));b.classList.add('on');periodMode=b.dataset.period;updatePeriodUI();
+});
+document.querySelectorAll('[data-audience]').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('[data-audience]').forEach(x=>x.classList.remove('on'));b.classList.add('on');audience=b.dataset.audience;renderAudience();updatePeriodUI();
+});
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('[data-view]').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));b.classList.add('on');document.getElementById(b.dataset.view).classList.add('on');
+});
+function togglePending(btn){const c=btn.closest('.pending-card');c.classList.toggle('open');btn.textContent=c.classList.contains('open')?'閉じる':'確認'}
+function openDay(){
+ const staff=audience==='staff';
+ document.getElementById('dayModal').style.display='flex';
+ document.getElementById('dayModalTitle').textContent=`9月4日（金）の${staff?'黒服・スタッフ':'キャスト'}配置`;
+ document.getElementById('dayModalSub').textContent=staff?'役割別の不足を確認して、そのままスタッフを配置できます。':'不足している時間帯を確認して、そのままキャストを追加できます。';
+ document.getElementById('timeShort').innerHTML=staff?
+ `<strong>役割別の不足</strong><div class="time-row"><b>ホール</b><div class="bar"><i style="width:55%"></i></div><b class="danger">あと2人</b></div><div class="time-row"><b>レジ</b><div class="bar"><i style="width:30%"></i></div><b class="danger">あと1人</b></div><div class="time-row"><b>マネージャー</b><div class="bar"><i style="width:100%;background:#45b878"></i></div><b class="ok">充足</b></div>`:
+ `<strong>時間帯別の不足</strong><div class="time-row"><b>20:00–22:00</b><div class="bar"><i style="width:60%"></i></div><b class="danger">あと3人</b></div><div class="time-row"><b>22:00–24:00</b><div class="bar"><i style="width:40%"></i></div><b class="danger">あと2人</b></div><div class="time-row"><b>24:00–25:00</b><div class="bar"><i style="width:20%"></i></div><b class="danger">あと1人</b></div>`;
+ document.getElementById('personSearch').placeholder=staff?'スタッフ名で検索':'キャスト名で検索';
+ document.getElementById('filters').innerHTML=staff?
+ `<button class="filter on">出勤可能</button><button class="filter">未配置</button><button class="filter">ホール</button><button class="filter">レジ</button><button class="filter">マネージャー</button>`:
+ `<button class="filter on">出勤可能</button><button class="filter">希望あり</button><button class="filter">未配置</button><button class="filter">よく入る</button>`;
+ const people=staff?staffPeople:castPeople;
+ document.getElementById('peopleGrid').innerHTML=people.map((p,i)=>`<div class="person ${i===0?'sel':''}"><div class="avatar">${p[0][0]}</div><div><b>${p[0]}</b><small>${p[1]}</small></div></div>`).join('');
+ document.querySelectorAll('.person').forEach(c=>c.onclick=()=>c.classList.toggle('sel'));
+ document.getElementById('assignBtn').textContent=`選択した1名を${staff?'配置':'配置'}`;
+}
+function openNeed(){
+ const staff=audience==='staff';document.getElementById('needModal').style.display='flex';
+ document.getElementById('needTitle').textContent=`必要人数を設定 — ${staff?'黒服・スタッフ':'キャスト'}`;
+ document.getElementById('needSub').textContent=staff?'曜日別・時間帯別に加えて、役割別の必要人数を設定できます。':'曜日ごとの基本人数と時間帯の上乗せを設定します。';
+ document.getElementById('needContent').innerHTML=staff?
+ `<div class="role-grid"><div class="role"><b>ホール</b><small>基本 3名</small></div><div class="role"><b>レジ</b><small>基本 1名</small></div><div class="role"><b>付け回し</b><small>基本 1名</small></div><div class="role"><b>マネージャー</b><small>基本 1名</small></div></div><div class="need-list"><div class="need-row"><b>金</b><span>20:00–24:00</span><input value="ホール +2名"><button class="btn small">削除</button></div><div class="need-row"><b>土</b><span>20:00–24:00</span><input value="ホール +2名"><button class="btn small">削除</button></div></div>`:
+ `<div class="need-list"><div class="need-row"><b>日</b><span>終日</span><input value="4名"><button class="btn small">＋時間帯</button></div><div class="need-row"><b>月</b><span>終日</span><input value="3名"><button class="btn small">＋時間帯</button></div><div class="need-row"><b>火</b><span>終日</span><input value="3名"><button class="btn small">＋時間帯</button></div><div class="need-row"><b>水</b><span>終日</span><input value="4名"><button class="btn small">＋時間帯</button></div><div class="need-row"><b>木</b><span>終日</span><input value="4名"><button class="btn small">＋時間帯</button></div><div class="need-row"><b>金</b><span>終日</span><input value="5名"><button class="btn small">＋時間帯</button></div><div class="need-row"><b>土</b><span>終日</span><input value="5名"><button class="btn small">＋時間帯</button></div></div>`;
+}
+function openCover(){document.getElementById('coverModal').style.display='flex'}
+function closeM(id){document.getElementById(id).style.display='none'}
+document.querySelectorAll('.overlay').forEach(x=>x.onclick=e=>{if(e.target===x)x.style.display='none'});
+renderAudience();updatePeriodUI();
+</script>
+</body></html>
