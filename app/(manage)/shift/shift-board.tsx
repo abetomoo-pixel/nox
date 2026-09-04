@@ -19,6 +19,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import CastAvatar from "@/components/ui/cast-avatar";
+import DayAddPanel from "./day-add-panel";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { forecastDay, type ForecastComp, type DayForecast } from "@/lib/nox/labor-forecast";
 import type { CompPlan } from "@/lib/nox/pay";
@@ -165,6 +166,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   //   ★SC-8 ⑦: "today" を union から落とした＝今日タブの日詳細モーダル（面4）を撤去し、
   //     7日ストリップを本体の日付セレクタにしたため、開く口が無くなった（死に値を残さない）。
   const [dayModal, setDayModal] = useState<"" | "roster" | "calendar" | "build">("");
+  // ★裁定121: 日詳細モーダル内の追加バッファ（DayAddPanel）が未保存なら、閉じる操作は破棄確認を挟む。
+  //   割当／配置の2面共通。閉じる口（×・overlay・他モーダルへの遷移）はすべて closeDay を通す。
+  const [dayDirty, setDayDirty] = useState(false);
+  const closeDay = (): boolean => {
+    if (dayDirty && !window.confirm("追加中のキャストがあります。保存せずに閉じますか？（入力内容は破棄されます）")) return false;
+    setDayModal(""); setDayDirty(false);
+    return true;
+  };
   // ★0125（裁定112-A）: preview/autoBusy/rConsec/rMonthH（自動配置・配置ルール入力）は UI 撤去に伴い削除。
   // ★SC-8 ⑦: 今日タブが向いている日。7日ストリップ（今日〜今日+6）で選び直せる。
   //   ★selDate とは**別 state**＝面1〜面3（仮シフト／確定シフト／配置ビュー）の月カレンダーと
@@ -1343,7 +1352,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
               <h2 style={{ ...secTitle, margin: 0 }}>配置を組む</h2>
               {/* ★0125（裁定112）: 作成はモーダル（キャスト単位）へ＝この面は登録済みの確認とモーダル起点 */}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "2px 0 0" }}>
-                月カレンダーまたはキャスト別に登録済みシフトを確認します（作成は「＋ シフトを追加」）
+                月カレンダーまたはキャスト別に登録済みシフトを確認します（日付から足すときは日のセル、キャストからまとめて足すときは「＋ キャスト別にまとめて追加」）
               </p>
             </div>
             <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
@@ -1352,7 +1361,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                 <button className={planView === "staff" ? "on" : ""} onClick={() => setPlanView("staff")}>スタッフ別</button>
               </div>
               {/* 現行維持: シフト作成タブからは planned で開く（計画を組む面ゆえ） */}
-              <button style={btnDark} onClick={() => { setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>＋ シフトを追加</button>
+              {/* ★裁定121-2: キャスト起点ウィザードの名称のみ変更（挙動・RPC は不変） */}
+              <button style={btnDark} onClick={() => { setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>＋ キャスト別にまとめて追加</button>
             </span>
           </div>
 
@@ -1613,10 +1623,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
           ★表示条件に selInMonth を入れる＝月外なら開かない（52' と同じ方式・空状態の文言は不要になった）。
           ★モーダルから他のモーダル／遷移へ行くものは**先に閉じる**（52' と同じ排他・z-index は増やさない）。 */}
       {dayModal === "calendar" && selInMonth && (
-        <Modal onClose={() => setDayModal("")} maxWidth={520} scroll>
+        <Modal onClose={() => { closeDay(); }} maxWidth={520} scroll>
           <div className="nox-modalhead">
             <h3 style={{ ...secTitle, margin: 0 }}><span className="num">{selDate}</span> の割当</h3>
-            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal("")}>×</button>
+            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => { closeDay(); }}>×</button>
           </div>
           <div className="nox-modalbody">
             {/* 充足ピル／内訳3値／余剰＝移設前の逐語（順序も語彙も不変） */}
@@ -1657,29 +1667,24 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                       いまは1日ぶんの人数だけを見ています（何時が足りないかは分かりません）。
                     </p>
                     <button style={{ ...btnLight, marginTop: 8 }}
-                      onClick={() => { setDayModal(""); gotoNeeds(); }}>時間帯を設定する</button>
+                      onClick={() => { if (closeDay()) gotoNeeds(); }}>時間帯を設定する</button>
                   </div>
                 )}
               </div>
             )}
             {bands.length === 0 && (
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
-                この日の割当はありません。「シフト作成」タブの確定シフト登録から追加できます。
+                この日の割当はありません。下の「＋ キャストを追加」から追加できます。
               </p>
             )}
-            {/* 段0R その3: 追加導線＝選択日を登録フォームへプリセットして「シフト作成」タブへ送るだけ。
-                ★新しい登録 UI は作らない（送る RPC も引数も既存の確定シフト登録のまま）。 */}
-            {/* ★SC-2（裁定44-4）: タブ遷移をやめ、この面で ShiftAddForm を開く。
-                ★status は planned（仮シフトの面＝これから組む段）＝今日タブの confirmed とは意図が違う。
-                ★timeTouched の到達性: setAddDate と setAddModal(true) は同一ハンドラ＝同一バッチで走り、
-                  open false→true と initialDate 変化が同時＝effect は1回。開いている間はオーバーレイが
-                  position:fixed / inset:0 / z-index:50 で背後を遮断するため、
-                  「開いたまま initialDate だけが変わる」経路は生まれない（SC-1 の確認と同じ結論）。 */}
+            {/* ★裁定121: 日付起点の追加はこの面で完結（DayAddPanel＝配置面と共通）。
+                ShiftAddForm へ送る旧導線（裁定44-4）は撤去＝キャスト起点はウィザード「＋ キャスト別にまとめて追加」へ。
+                ★status は planned（仮シフトの面＝これから組む段）＝今日タブの confirmed とは意図が違う。 */}
             {isManagerUp && (
-              <button className="nox-addc"
-                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>
-                ＋ キャストを追加
-              </button>
+              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows}
+                assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
+                onSaved={async () => { setMsg("仮シフトを保存しました"); await load(); }}
+                onDirtyChange={setDayDirty} />
             )}
             {bands.map((b) => (
               <div key={b.key} className="nox-band">
@@ -1770,10 +1775,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
             スタッフ別ビューには開く口が無いので到達しないが、**到達性ではなく条件で守る**
             ＝開く口が将来増えても、この面がビュー外で開くことはない。 */}
       {dayModal === "build" && planView === "cal" && selInMonth && (
-        <Modal onClose={() => setDayModal("")} maxWidth={520} scroll>
+        <Modal onClose={() => { closeDay(); }} maxWidth={520} scroll>
           <div className="nox-modalhead">
             <h3 style={{ ...secTitle, margin: 0 }}><span className="num">{selDate}</span> の配置</h3>
-            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setDayModal("")}>×</button>
+            <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => { closeDay(); }}>×</button>
           </div>
           <div className="nox-modalbody">
             {/* ★SC-8 ⑤: 空状態・追加ボタン・一覧の3ブロック構成へ（面2 と同じ並び＝
@@ -1783,12 +1788,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
             )}
             {/* ★SC-8 ⑤: status は planned＝配置ビューは「これから組む」段で面2 と同じ意図。
                 裁定42 の confirmed は「当日その場で足すのは もう入る人」が根拠＝今日タブ限定なので
-                ここには当たらない。★別モーダル（ShiftAddForm）を開く前に日詳細を閉じる（③-0 の規約）。 */}
+                ここには当たらない。★裁定121: 追加はこの面で完結（DayAddPanel＝割当面と共通・ShiftAddForm へ送らない）。 */}
             {isManagerUp && (
-              <button className="nox-addc"
-                onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>
-                ＋ キャストを追加
-              </button>
+              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows}
+                assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
+                onSaved={async () => { setMsg("仮シフトを保存しました"); await load(); }}
+                onDirtyChange={setDayDirty} />
             )}
             {shiftsOn(selDate).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((x) => (
               <div key={x.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
@@ -1803,8 +1808,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                 </span>
                 <button style={btnLight}
                   onClick={() => {
-                    // ★C-12 と同じ排他: 日詳細を閉じてから調整モーダルを開く（重ねない）。
-                    setDayModal("");
+                    // ★C-12 と同じ排他: 日詳細を閉じてから調整モーダルを開く（重ねない）。★裁定121: 未保存なら破棄確認。
+                    if (!closeDay()) return;
                     setAdjTarget(x); setAStart(x.start_hm); setAEnd(x.end_hm);
                   }}>調整</button>
               </div>
