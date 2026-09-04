@@ -18,8 +18,12 @@
  *      起点の units で再計算（混在単位: set=person・ext=table）＋返却 jsonb units/ext_units
  *  (g) ガード: 'bad unit kind'（dohan へ単位）・'bad unit'（不正値）・ラッパ6引数化の5引数相当互換・
  *      ラッパで vip_charge/ext_shimei 解決可・set_pricing_rule で ext_shimei 依然拒否
+ *  (r) ★mig0131（#55）: pricing_rule_reorder が vip_charge を受理＝正規 RPC で並び替え（priority 1..N）
+ *  (n) ★mig0131（#54）: pricing_categories_for_register＝staff(can_register) 実セッションで自店区分が
+ *      引ける（id/name/sort・active のみ）・他 org store は 'forbidden'・停止中区分は返らない
+ *  (du) ★mig0131（#56）: duration 上限＝1440 受理・1441 は 'bad duration'
  *  (h) rate-back/日報: vip 行込み伝票の pay→close 実走（保存則＝lines Σ=total）＋
- *      categoryOf('charge','vip_charge')='other' の現状記録 pin（118-UI で time 系へ変える際に張り替え）
+ *      categoryOf('charge','vip_charge')='time' pin（118-UI で time 系へ張り替え済み・裁定118-6）
  *
  * 逆張り: VU_INVERT=1 で全 check の期待を反転＝全赤を実測。
  * fixture: NOX-VERIFY-vu* 命名・finally 全消し（checks/lines/payments→rules→cats→seats・audit 精密削除）。
@@ -27,7 +31,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { randomUUID } from "node:crypto";
-import { FIXTURE_USERS, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
+import { FIXTURE_USERS, STORE_A1, STORE_A2, STORE_B1, loadEnvOrExit } from "./fixtures-f0";
 import { categoryOf } from "../lib/nox/analytics/category-map";
 
 const env = loadEnvOrExit([
@@ -63,9 +67,14 @@ async function main() {
     return c;
   };
   const owner = await signIn("ownerA");
+  const staffRegOn = await signIn("staffRegOnA1"); // ★mig0131（n 系）: can_register=true の黒服実セッション
   const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
   await db.connect();
 
+  const { data: sA1 } = await admin.from("stores").select("id").eq("name", STORE_A1).single();
+  const storeA1 = sA1!.id as string;
+  const { data: sB1 } = await admin.from("stores").select("id").eq("name", STORE_B1).single();
+  const storeB1 = sB1!.id as string;
   const { data: sA2 } = await admin.from("stores")
     .select("id, org_id, set_min, set_fee, ext_min, ext_fee, time_per, time_mode").eq("name", STORE_A2).single();
   const storeA2 = sA2!.id as string;
@@ -129,9 +138,9 @@ async function main() {
     seatIds.push(id);
     return id;
   };
-  const mkCat = async (name: string, sort: number) => {
+  const mkCat = async (name: string, sort: number, storeId: string = storeA2) => {
     const { data, error } = await owner.rpc("set_pricing_category", {
-      p_id: null, p_store_id: storeA2, p_name: name, p_sort: sort, p_is_active: true,
+      p_id: null, p_store_id: storeId, p_name: name, p_sort: sort, p_is_active: true,
     });
     if (error) throw new Error(`set_pricing_category: ${error.message}`);
     catIds.push(data as string);
@@ -363,6 +372,53 @@ async function main() {
       const g5 = await setRule({ p_fee_kind: "ext_shimei", p_amount: 1000, p_priority: 52 });
       check("vu(g5) ★set_pricing_rule で ext_shimei は依然 'bad fee kind'（0124 設計維持）",
         has(g5.error, "bad fee kind"), g5.error?.message ?? "通ってしまった");
+    }
+
+    // ══ (r) ★mig0131（#55）: reorder が vip_charge を受理＝正規 RPC で並び替え ══
+    {
+      // 現状 priority: rVip=10・rVipX=10（作成順で rVip 先）→ 入替え順 [rVipX, rVip] を送る
+      const { error: eRo } = await owner.rpc("pricing_rule_reorder", {
+        p_store_id: storeA2, p_fee_kind: "vip_charge", p_ids: [rVipX.id, rVip.id],
+      });
+      const { rows: ro } = await db.query(
+        `select id, priority from public.pricing_rules where id = any($1::uuid[]) order by priority`,
+        [[rVip.id, rVipX.id]]);
+      const pri = Object.fromEntries(ro.map((r) => [r.id, Number(r.priority)]));
+      check("vu(r1) ★pricing_rule_reorder が vip_charge を受理（whitelist 是正＝#55）・priority 1..N 正規化",
+        !eRo && pri[rVipX.id as string] === 1 && pri[rVip.id as string] === 2,
+        eRo?.message ?? JSON.stringify(pri));
+    }
+
+    // ══ (n) ★mig0131（#54）: pricing_categories_for_register ══
+    {
+      const catA1 = await mkCat(`${PFX}区分A1`, 5, storeA1);
+      const { data: n1, error: e1 } = await staffRegOn.rpc("pricing_categories_for_register", { p_store_id: storeA1 });
+      const rows1 = (n1 ?? []) as { id: string; name: string; sort: number }[];
+      check("vu(n1) ★staff(can_register) 実セッションで自店区分が引ける（id/name/sort・sort 順）",
+        !e1 && rows1.some((r) => r.id === catA1 && r.name === `${PFX}区分A1` && r.sort === 5),
+        e1?.message ?? JSON.stringify(rows1));
+      const { error: e2 } = await owner.rpc("pricing_categories_for_register", { p_store_id: storeB1 });
+      check("vu(n2) ★他 org の store は 'forbidden'（org 照合）", has(e2, "forbidden"),
+        e2?.message ?? "通ってしまった");
+      // catY をここで停止（原則7＝明示値・以降 catY は未使用・teardown が削除）
+      const { error: eStop } = await owner.rpc("set_pricing_category", {
+        p_id: catY, p_store_id: storeA2, p_name: `${PFX}区分Y`, p_sort: 20, p_is_active: false,
+      });
+      if (eStop) throw new Error(`set_pricing_category(stop catY): ${eStop.message}`);
+      const { data: n3, error: e3 } = await owner.rpc("pricing_categories_for_register", { p_store_id: storeA2 });
+      const rows3 = (n3 ?? []) as { id: string }[];
+      check("vu(n3) ★停止中区分（catY＝ここで停止）は返らない・active（catX）は返る",
+        !e3 && rows3.some((r) => r.id === catX) && !rows3.some((r) => r.id === catY),
+        e3?.message ?? JSON.stringify(rows3));
+    }
+
+    // ══ (du) ★mig0131（#56）: duration 上限 ══
+    {
+      const okRule = await setRule({ p_fee_kind: "set", p_amount: 100, p_duration_min: 1440, p_priority: 90 });
+      check("vu(du1) ★duration_min=1440 は受理（上限ちょうど）", !!okRule.id && !okRule.error, okRule.error?.message);
+      const ng = await setRule({ p_fee_kind: "set", p_amount: 100, p_duration_min: 1441, p_priority: 91 });
+      check("vu(du2) ★duration_min=1441 は 'bad duration'（#56 の RPC 側消化）",
+        has(ng.error, "bad duration"), ng.error?.message ?? "通ってしまった");
     }
 
     // ══ (h) close 実走＝保存則＋category-map 現状記録 ══

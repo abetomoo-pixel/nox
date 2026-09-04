@@ -65,9 +65,8 @@ export type StoreFallback = {
 
 // ★mig0130（裁定118）: vip_charge を帯の4枠目へ（帯グルーピング・保存分解・M3 集約の対象）
 const TIMED_KINDS = ["set", "extension", "dohan", "vip_charge"] as const;
-// ★pricing_rule_reorder の whitelist は5種のまま＝vip_charge 非対応（mig0130 の漏れ・起票予定）。
-//   帯∧∨の vip 行は set_pricing_rule 再送で priority を振り直す（moveBand 参照）。
-const REORDER_KINDS = ["set", "extension", "dohan"] as const;
+// ★mig0131（#55）: pricing_rule_reorder の whitelist へ vip_charge が入った＝帯∧∨は4種とも正規 RPC で回す
+//   （0130 期の priority 再送回避は撤去済み）。
 // ★mig0130: 課金単位の対象（dohan/shimei は 'bad unit kind'＝UI にも出さない）
 const UNIT_KINDS = ["set", "extension", "vip_charge"] as const;
 const UNIT_LABEL: Record<string, string> = { person: "/1名", table: "/1卓" };
@@ -153,8 +152,35 @@ function bandsOf(rules: PricingRule[]): Band[] {
     // ★mig0107: 帯の代表 name＝ruleOrder 順で最初の非 null（saveBand が3行へ同じ名前を配るので通常は全行同値）
     if (b.name === null && r.name !== null) b.name = r.name;
   }
-  return [...map.values()].sort((a, b) =>
-    a.priority - b.priority || (a.from ?? -1) - (b.from ?? -1) || a.key.localeCompare(b.key));
+  /** ★mig0131（#55）実走で確立: priority は fee_kind ごとの独立系列（reorder が kind 内で 1..N 正規化）。
+   *  min(priority) の帯間比較は kind 構成が非対称な帯（vip_charge を持つ帯と持たない帯の混在等）で破綻する
+   *  （唯一の vip 帯は自系列で常に 1 になり最上位へ張り付く）。旧 0130 期の priority 再送回避はこれを偶然
+   *  隠していたため、撤去と同時に並びを「kind 系列の合流」へ改める: 束縛は同一 kind 内の priority 大小のみ・
+   *  無束縛の帯同士は現行比較（priority→from→key）＝既存の同値帯の表示順は不変。 */
+  const cmp = (a: Band, b: Band) =>
+    a.priority - b.priority || (a.from ?? -1) - (b.from ?? -1) || a.key.localeCompare(b.key);
+  const before = new Map<string, Set<string>>([...map.keys()].map((k) => [k, new Set<string>()]));
+  for (const fk of TIMED_KINDS) {
+    const pri = new Map<string, number>(); // 帯 key → その kind の最小 priority
+    for (const r of timed) if (r.fee_kind === fk) {
+      const k = bandKeyOf(r);
+      pri.set(k, Math.min(pri.get(k) ?? Infinity, r.priority));
+    }
+    const es = [...pri.entries()];
+    for (const [ka, pa] of es) for (const [kb, pb] of es) if (pa < pb) before.get(kb)!.add(ka);
+  }
+  const out: Band[] = [];
+  const done = new Set<string>();
+  const rest = new Set(map.keys());
+  while (rest.size > 0) {
+    const ready = [...rest].filter((k) => [...before.get(k)!].every((x) => done.has(x)));
+    // 系列が矛盾する場合（手動 priority の混在等）は ready が空＝現行比較で先頭を選び破綻を回避
+    const pick = (ready.length ? ready : [...rest]).map((k) => map.get(k)!).sort(cmp)[0];
+    out.push(pick);
+    done.add(pick.key);
+    rest.delete(pick.key);
+  }
+  return out;
 }
 
 export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
@@ -516,15 +542,13 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   }
 
   /** ∧∨＝帯順の入れ替えを fee_kind ごとの reorder（全件配列）へ分解。
-   *  ★mig0130: pricing_rule_reorder の whitelist は vip_charge 非対応（mig0130 の漏れ・起票予定）＝
-   *  vip 行は set_pricing_rule 再送で帯順に priority 1..N を振り直す（解決順序は fee_kind 内相対のみ
-   *  意味を持つため reorder と等価・moveCat と同型）。 */
+   *  ★mig0131（#55）: whitelist 是正済み＝vip_charge も正規 RPC で回す（0130 期の priority 再送回避は撤去）。 */
   async function moveBand(index: number, dir: -1 | 1) {
     const order = swapAdjacent(bands.map((b) => b.key), index, dir);
     if (!order || busy) return;
     const byKey = new Map(bands.map((b) => [b.key, b]));
     setBusy(true);
-    for (const fk of REORDER_KINDS) {
+    for (const fk of TIMED_KINDS) {
       const ids = order.flatMap((k) =>
         (byKey.get(k)?.all ?? []).filter((r) => r.fee_kind === fk).sort(ruleOrder).map((r) => r.id));
       if (ids.length === 0) continue;
@@ -532,23 +556,6 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
         p_store_id: storeId, p_fee_kind: fk, p_ids: ids,
       });
       if (error) { setMsg(reorderErrJa(error.message)); break; }
-    }
-    // vip_charge 行＝帯順に 1..N を明示再送（他フィールドは現在値・原則7）
-    const vipRules = order.flatMap((k) =>
-      (byKey.get(k)?.all ?? []).filter((r) => r.fee_kind === "vip_charge").sort(ruleOrder));
-    for (let i = 0; i < vipRules.length; i++) {
-      const r = vipRules[i];
-      if (r.priority === i + 1) continue;
-      const err = await upsertRule({
-        id: r.id, fee_kind: r.fee_kind, seat_kind: r.seat_kind, dow_mask: r.dow_mask,
-        from: r.time_from_min, to: r.time_to_min, rank_id: r.rank_id,
-        amount: r.amount, duration_min: r.duration_min, priority: i + 1, is_active: r.is_active,
-        tax_category: r.tax_category ?? "taxable_10",
-        category_id: r.category_id ?? null,
-        billing_unit: r.billing_unit ?? null,
-        name: r.name,
-      });
-      if (err) { setMsg(err); break; }
     }
     setBusy(false);
     await reload();
