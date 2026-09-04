@@ -52,53 +52,64 @@ body {
      ★E1 は「値の差し替えと不足追加」のみ＝セレクタ・構造・インライン style は不触。
      ★ここを変えると var() を参照している全画面（--sub 320箇所ほか計 1,000超）が一括で新色になる。
      旧値は git 履歴（本コミットの親）が保持する。 */
-  --bg: #080808;      /* ← モック --bg（13/13 一致・唯一の全枚一致） */
-  --bg2: #181815;     /* ← モック --panel2（多数決 5/13）※モック側は宣言のみで参照ゼロだった＝ガイド §2 */
+  /* ★裁定124（2026-09-04）: デザインパック v1.0（docs/NOX_デザインパックv1_0_正本化台帳.md「確定トークン」）が
+     色・文字・余白・操作系の正本＝該当トークンの**値のみ**を本パック値へ更新（名前の追加・削除はしない。
+     旧値＝blue-accent v2 は台帳 裁定124 へ退避）。対応: bg→--bg / panel→--card（一致）/ panel2→--bg2 / line→--line /
+     line-strong→--line2 / text→--ink / sub→--sub / brand→--brand,--gold（一致）/ brand2→--gold2,--champ（一致）/
+     brand-soft→--brand-soft / primary→--primary,--blue / primary2→--primary-hover / primary-soft→--primary-soft /
+     success→--success,--ok / warning→--warning,--orange / danger→--danger,--bad（各 -soft も）。
+     パックの field・muted・文字6段・r・row・sidebar は対応トークンが無い＝追加せず据え置き（申告済み）。 */
+  --bg: #070707;      /* ← パック bg（旧 #080808＝モック --bg 13/13 一致） */
+  --bg2: #151512;     /* ← パック panel2（旧 #181815＝モック --panel2 多数決 5/13）※モック側は宣言のみで参照ゼロだった＝ガイド §2 */
   --card: #11110f;    /* ← モック --panel（多数決 5/13）★E3 で .card をグラデ化する予定（裁定2・ガイド §1-3）
                              モックの実体は .card のリテラルグラデで、トークンではない */
   --card2: #22221e;   /* ← モック --panel3（★同数 6:6 → register-pos tiebreaker） */
-  --line: #2d2c27;    /* ← モック --line（多数決 5/13） */
-  --line2: #3b3931;   /* ← モック --line2（多数決 5/13・振れ幅最大 #3a382f〜#464238） */
+  --line: #302e28;    /* ← パック line（旧 #2d2c27＝モック --line 多数決 5/13） */
+  --line2: #484339;   /* ← パック line-strong（旧 #3b3931＝モック --line2 多数決 5/13・振れ幅最大 #3a382f〜#464238） */
   --gold: #d8ad55;    /* ← モック --gold（多数決 9/13） */
   --gold2: #f0cf82;   /* ← モック --gold2（多数決 6/13） */
   --champ: #f0cf82;   /* ＝--gold2 別名（裁定1 の E5 再裁定・2026-08-17）。モックの金は gold/gold2 の
                              2段のみで --champ は非モック由来の3段目だったが、E5a 実測でコントラスト比 1.04
                              （視覚上ほぼ同色）のため gold2 へ視覚統合。トークン名と65箇所の参照は不触＝
                              値のみ同値化（印刷側 @media print の --champ:#000 上書きも従来どおり有効） */
-  --ink: #f3f0e8;     /* ← モック --text（★同数 6:6 → register-pos tiebreaker） */
-  --sub: #99978f;     /* ← モック --muted（多数決 6/13） */
+  --ink: #f4f1e9;     /* ← パック text（旧 #f3f0e8＝モック --text ★同数 6:6 → register-pos tiebreaker） */
+  --sub: #b8b2a8;     /* ← パック sub（旧 #99978f＝モック --muted 多数決 6/13。★裁定124 で名前一致の sub へ＝
+                             パック muted #7f7a71 は対応トークン無し＝追加せず） */
   /* ★夜間レーン（2026-09-03・青系正本＝mock/pages-2026-09/nox-admin-blue-accent-v2-white-cta.html）:
      状態色の値をモックへ更新（旧値: --ok #77ba83・--bad #d86c64・--orange #df9956・--blue #74a6d8）。
-     --bad 派生3種（--bad-bg/--bad-bd/--bad-ink）は暗面トーン＝据え置き。 */
-  --ok: #52b788;      /* ← 青系モック --success */
-  --bad: #df6d69;     /* ← 青系モック --danger */
+     --bad 派生3種（--bad-bg/--bad-bd/--bad-ink）は暗面トーン＝据え置き。
+     ★裁定124: --ok/--bad は --success/--danger の別名＝パック値へ同値追随（旧 #52b788／#df6d69）。 */
+  --ok: #4dc37d;      /* ← パック success（＝--success 同値） */
+  --bad: #e26762;     /* ← パック danger（＝--danger 同値） */
 
   /* 不足追加（モック正本にあり・アプリに無かった）。★現時点の参照は 0＝E2/E3 で参照予定。
      「宣言したが誰も使っていない」を隠さないため、ガイド §1-2 に参照状況を明記してある。 */
   --goldbg: rgba(216,173,85,.1);          /* ← モック --goldbg（多数決 9/13・モック内 70参照） */
   --shadow: 0 18px 55px rgba(0,0,0,.35);  /* ← モック --shadow（多数決 8/13・モック内 26参照） */
-  --blue: #4f9fe8;                        /* ★夜間レーン: --primary と同値へ一本化（旧 #74a6d8） */
-  --orange: #d6a84b;                      /* ★夜間レーン: --warning と同値へ一本化（旧 #df9956） */
+  --blue: #2f7fe7;                        /* ★夜間レーン: --primary と同値へ一本化（旧 #74a6d8）→裁定124 でパック primary へ追随（旧 #4f9fe8） */
+  --orange: #d9a43a;                      /* ★夜間レーン: --warning と同値へ一本化（旧 #df9956）→裁定124 でパック warning へ追随（旧 #d6a84b） */
   --linegreen: #06c755;                   /* ← モック --linegreen（単一定義・LINE ブランド色）＝LINE レーン用 */
 
   /* ★夜間レーン（2026-09-03）: 青系デザイン正本のトークン導入
      （正本＝mock/pages-2026-09/nox-admin-blue-accent-v2-white-cta.html :root・
       指示の列挙＝primary 系・状態色+soft 変種・brand 系のみ。surface/bg/line 系は列挙外＝不触）。
      青はアクション/選択の色＝状態には使わない。金（--gold 系）はブランド専用で不触。 */
-  --primary: #4f9fe8;
-  --primary-hover: #68b2f0;
-  --primary-soft: rgba(79,159,232,.12);
-  --brand: #d8ad55;                     /* ＝--gold 同値（モック名の別名） */
-  --brand-soft: rgba(216,173,85,.12);
-  --success: #52b788;                   /* ＝--ok 同値（モック名） */
-  --success-soft: rgba(82,183,136,.12);
-  --warning: #d6a84b;
-  --warning-soft: rgba(214,168,75,.12);
-  --danger: #df6d69;                    /* ＝--bad 同値（モック名） */
-  --danger-soft: rgba(223,109,105,.12);
+  /* ★裁定124（2026-09-04）: 以下の値はデザインパック v1.0 :root へ更新（旧値＝blue-accent v2 は台帳へ退避）。 */
+  --primary: #2f7fe7;                   /* 旧 #4f9fe8 */
+  --primary-hover: #61a7ff;             /* ← パック primary2（明端＝hover 相当・旧 #68b2f0） */
+  --primary-soft: rgba(47,127,231,.15); /* 旧 rgba(79,159,232,.12) */
+  --brand: #d8ad55;                     /* ＝--gold 同値（モック名の別名・パック brand と一致） */
+  --brand-soft: rgba(216,173,85,.10);   /* 旧 .12 */
+  --success: #4dc37d;                   /* ＝--ok 同値（旧 #52b788） */
+  --success-soft: rgba(77,195,125,.11); /* 旧 rgba(82,183,136,.12) */
+  --warning: #d9a43a;                   /* 旧 #d6a84b */
+  --warning-soft: rgba(217,164,58,.10); /* 旧 rgba(214,168,75,.12) */
+  --danger: #e26762;                    /* ＝--bad 同値（旧 #df6d69） */
+  --danger-soft: rgba(226,103,98,.11);  /* 旧 rgba(223,109,105,.12) */
   /* ★裁定120（2026-09-04）: danger の枠・文字2値を正本モック .badge.red の実測値から採録
-     （border/text 層の不足を解消＝「指示列挙外トークン不触」は本裁定で1点解除）。 */
-  --danger-bd: rgba(223,109,105,.28);
+     （border/text 層の不足を解消＝「指示列挙外トークン不触」は本裁定で1点解除）。
+     ★裁定124-3: --danger-bd は新 danger から再導出（旧 rgba(223,109,105,.28)）・--danger-ink は据え置き（暗面上の可読性）。 */
+  --danger-bd: rgba(226,103,98,.28);
   --danger-ink: #e7aaa7;
   --surplus: #53b8ad;
   --surplus-soft: rgba(83,184,173,.12);
