@@ -71,33 +71,35 @@ export default function MasterBoard() {
         { href: "/master/categories", id: "m-cat", icon: "▤", count: `${categories.length}件`, title: "商品カテゴリ",
           desc: "レジのタイル見出しになる分類。並び順と有効/無効を管理。",
           status: categories.length > 0 ? "● 全件有効" : "● 未登録", tone: categories.length > 0 ? "" : "mute" },
-        { href: "/master/stock", id: "m-stock", icon: "⬚", count: "追記のみ", title: "在庫",
-          desc: "棚卸しの記録と入出庫の履歴（append-only）。売上による減算は会計から自動。", status: "● 記録可", tone: "" },
+        // ★N3（マスタ v3・S 系「既存」のみ）: カード文言・群名・アイコンを v3 モック逐語へ。
+        //   v3 の「利用機能」カード（S4＝器なし・C層①）は作らない。裁定120 の Danger 帯・要補充カードは不変。
+        { href: "/master/stock", id: "m-stock", icon: "▣", count: "追記のみ", title: "在庫",
+          desc: "締め時点の記録と入出庫の履歴。売上による減算は会計から自動。", status: "● 記録可", tone: "" },
         { href: "/master/pricing", id: "m-pricing", icon: "¥", count: "3タブ", title: "料金設定",
-          desc: "時間帯・席種・曜日の料金ルール、ランク別指名料、基本料金、会計ルールを設定。", status: "● 有効", tone: "" },
+          desc: "時間帯・席種・曜日の料金ルール、指名料金、基本料金、会計ルールを設定。", status: "● 有効", tone: "" },
       ],
     },
     {
       sec: "キャスト・報酬", secDesc: "給与計算とキャスト運用の設定",
       cards: [
         { href: "/master/cast-comp/plan", id: "m-sim", icon: "▲", count: "試算", title: "待遇プラン・報酬シミュレーター",
-          desc: "保証時給、スライド、指名バック単価を試算。プラン割当・上書き・自由バックもここで管理。", status: "● 試算可", tone: "" },
+          desc: "保証時給、スライド、指名バック、報酬をプラン単位で管理。", status: "● 試算可", tone: "" },
         { href: "/master/cast-comp/deduction", id: "m-deduct", icon: "▽", count: "控除", title: "控除・送りの設定",
           desc: "固定控除の種別と金額、送り実費/一律の扱いを管理。", status: "● 有効", tone: "" },
         { href: "/master/cast-comp/norma", id: "m-norm", icon: "◎", count: "ノルマ", title: "ノルマ設定",
-          desc: "売上ノルマ・指名ノルマの採用可否と範囲を設定（マイページの進捗に反映）。", status: "● 設定可", tone: "" },
-        { href: "/master/cast-comp/register", id: "m-castreg", icon: "◈", count: "会計権限", title: "キャスト会計の許可",
-          desc: "キャスト本人がレジを使えるようにする設定（対象キャストの個別許可）。", status: "● 設定可", tone: "" },
+          desc: "売上ノルマ、指名ノルマの採用可否と範囲を設定。", status: "● 設定可", tone: "" },
+        { href: "/master/cast-comp/register", id: "m-castreg", icon: "◇", count: "会計権限", title: "キャスト会計の許可",
+          desc: "キャスト本人がレジを使えるようにする設定。", status: "● 設定可", tone: "" },
       ],
     },
     {
-      sec: "店舗・卓", secDesc: "フロアと営業時間の設定",
+      sec: "店舗・運用", secDesc: "フロア・営業時間の設定",
       cards: [
         { href: "/master/seats", id: "m-seat", icon: "▦", count: `${seats.length}卓`, title: "席・卓マスター",
           desc: "卓／カウンター／VIP の登録と並び順、稼働の有効切替。",
           status: `● 稼働可能 ${activeSeats}卓`, tone: "" },
-        { href: "/master/business-hours", id: "m-hours", icon: "☾", count: "曜日別", title: "営業時間・定休日",
-          desc: "曜日ごとの営業時間と定休日。シフト登録の警告・ブロックに使われます。", status: "● 設定可", tone: "" },
+        { href: "/master/business-hours", id: "m-hours", icon: "◔", count: "曜日別", title: "営業時間・定休日",
+          desc: "曜日ごとの営業時間と定休日、シフト登録の警告・ブロックに使われます。", status: "● 設定可", tone: "" },
       ],
     },
     {
@@ -107,8 +109,8 @@ export default function MasterBoard() {
         //   （hash は SystemBoard のタブ key と一致＝devices / receipts / secrets）。
         { href: "/master/system#devices", id: "m-kiosk", icon: "▣", count: "端末", title: "キオスク端末",
           desc: "打刻端末・レジ端末の発行と失効（オーナー限定）。", status: "● オーナー限定", tone: "mute" },
-        { href: "/master/system#receipts", id: "m-printer", icon: "⎙", count: "レシート", title: "レシート・プリンタ",
-          desc: "レシートの店舗情報（住所・電話・登録番号・フッタ）と印刷設定。", status: "● オーナー限定", tone: "mute" },
+        { href: "/master/system#receipts", id: "m-printer", icon: "♨", count: "レシート", title: "レシート・プリンタ",
+          desc: "レシートの店舗情報と印刷設定。", status: "● オーナー限定", tone: "mute" },
         { href: "/master/system#secrets", id: "m-tax", icon: "🔒", count: "機密", title: "機密・税務情報",
           desc: "本名・生年月日・マイナンバー等。閲覧はログに記録されます。", status: "● 閲覧ログあり", tone: "warn" },
       ],
@@ -121,7 +123,7 @@ export default function MasterBoard() {
     <div className="nox-mv1">
       {/* aaa .hero＝ページ名＋説明＋検索 */}
       <PageHead eyebrow="MASTER SETTINGS" title="マスタ"
-        desc="店舗の料金・席・営業時間・端末など、全画面が参照する設定です。"
+        desc="店舗の料金・席・営業・報酬・端末など、全画面が参照する設定です。"
         right={<><input className="nox-search" value={hubSearch} onChange={(e) => setHubSearch(e.target.value)}
           placeholder="設定名を検索（例：商品、カテゴリ、卓）" aria-label="設定名を検索" /></>} />
 
@@ -138,7 +140,7 @@ export default function MasterBoard() {
         <div className="nox-stat2"><small>商品カテゴリ</small><strong>{categories.length}</strong><em>{categories.length > 0 ? "全件有効" : "未登録"}</em></div>
         <div className="nox-stat2"><small>卓・席</small><strong>{seats.length}</strong><em>稼働可能 {activeSeats}卓</em></div>
         <div className="nox-stat2">
-          <small>要補充の商品</small><strong>{lowStock}</strong>
+          <small>発注推奨の商品</small><strong>{lowStock}</strong>
           <em className={lowStock > 0 ? "ng" : ""}>{lowStock > 0 ? "発注基準以下" : "基準内"}</em>
         </div>
       </section>
