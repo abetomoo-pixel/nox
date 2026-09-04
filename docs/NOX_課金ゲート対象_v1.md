@@ -45,6 +45,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   `pricing_categories_for_register`（STABLE 読取・非ゲート・kiosk 腕あり）。reorder/set_pricing_rule は
   再作成のみ＝本数不動。対象 **113 不変**・除外 **99→100**・全数 **212→213**。
   ★f0 実走の教訓21 assert が名簿漏れとして検知→収載した実例（6例目・0131 手貼りと f0 並走で検知）。
+- ★**mig0132 追随（2026-09-04・裁定113）**: 新関数 **1本**を B(f) へ収載＝`biz_date_of`（営業日 date ヘルパー・
+  STABLE definer・**クライアント grant なし＝内部呼び専用**・非ゲート・`biz_minutes_of` の鏡像）。check_close は
+  再作成のみ＝本数不動。対象 **113 不変**・除外 **100→101**・全数 **213→214**。
+  ★「grant なしの内部関数は名簿対象外」の想定は誤り＝assert は live pg_proc 全数と A∪B の照合（教訓21・**7例目**）。
 - ★**mig0127 追随（2026-09-02・裁定116-1）**: 新 RPC **1本**を A6 へ収載＝`set_pricing_category`
   （料金区分の upsert・唯一の書込経路・規則A形でゲート内蔵・kiosk 腕なし）。対象 **112→113**・
   全数 **211→212**（pricing_categories 器＋pricing_rules.category_id 列は本数非関与）。
@@ -194,7 +198,7 @@ kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解�
 payroll_run_create / payment_record_add / withholding_payment_record
 （finalize/mark_paid/reopen は B(a) で既に構造除外）
 
-### B(f) 読取 RPC（42本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
+### B(f) 読取 RPC（43本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
 **staff_pin_status**（mig0108＝PIN 状態の読取・owner∨manager自店・hash 非返却） /
 **cast_unavailable_list**（mig0125＝出勤不可の読取・STABLE・owner∨manager自店・裁定112） /
 auth_cast_can_register / auth_cast_id / auth_kiosk_org_id / auth_kiosk_register_store_id /
@@ -205,7 +209,8 @@ get_cast_customer_ranking / get_cast_mynumber_masked / get_cast_ranking / get_ca
 get_cast_sensitive / get_printer_config / get_store_nom_counts /
 kiosk_cast_list / kiosk_check_detail / kiosk_operator_list / kiosk_register_state /
 period_bounds / reservation_is_closed_day / shift_is_closed_day / withholding_monthly_summary /
-pricing_resolve / biz_minutes_of / product_stock_totals（★live は1定義＝0079 は同一シグネチャの supersede）/
+pricing_resolve / biz_minutes_of / **biz_date_of**（mig0132 新設＝営業日 date ヘルパー・直前の分ヘルパーの鏡像・
+クライアント grant なし＝会計締め RPC の内部呼び専用・教訓21 の7例目で収載。★注記に他 RPC の生名は書かない＝パーサ罠）/ product_stock_totals（★live は1定義＝0079 は同一シグネチャの supersede）/
 store_hourly_aggregate / store_category_aggregate / store_cohort_aggregate /
 billing_writable_of / auth_org_billing_writable / nox_receipt_public /
 **pricing_categories_for_register**（mig0131 新設＝#54 裁定済・STABLE 読取・非ゲート・開栓 RPC と同腕

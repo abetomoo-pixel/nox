@@ -115,7 +115,9 @@ async function main() {
     //   この +1 は f0 実走で教訓21 assert が名簿漏れとして検知→収載した実例（2026-08-28）。
     // ★mig0131（#54/#55・2026-09-03）: pricing_categories_for_register（STABLE 読取・非ゲート）を B(f) へ収載＝
     //   除外 99→100・全数 212→213（教訓21 assert の実走検知 6例目・gated 本数は不変）。
-    check("段47-1 正本の除外100名を読めた", docExcluded.size === 100, `got ${docExcluded.size}`);
+    // ★mig0132（裁定113・2026-09-04）: biz_date_of（営業日 date ヘルパー・クライアント grant なし・非ゲート）を B(f) へ収載＝
+    //   除外 100→101・全数 213→214（教訓21 assert の実走検知 7例目＝「grant なしの内部関数は対象外」の想定が誤りだった実例）。
+    check("段47-1 正本の除外101名を読めた", docExcluded.size === 101, `got ${docExcluded.size}`);
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる
