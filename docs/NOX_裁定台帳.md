@@ -2590,6 +2590,15 @@ source_mode 記録 (b) plan_rate 3列 0・同腕 base（多 cast weight 2:1 で 
 装置化しない）・teardown は stock_logs 先行。
 - **鏡像注記（教訓52 型）**: cutoff 読み（`stores.settings_json.biz_cutoff_hm`・既定 '06:00'・営業日＝(JST−cutoff)::date）は
   **`biz_minutes_of`／`biz_date_of`／TS `bizDateOf`（lib/nox/biz-date.ts）の三鏡像**＝cutoff 仕様変更は3点同時。
+- **113 給与側消化（2026-09-04・mig なし・設計書 v1.1 §4・裁定123 前提）**: collect が check_cast_backs の新3列を読み
+  cast 別 Σ `calculated_back_amount`（null=0＝旧行フォールバック）を `CastRaw.calculatedBack` へ・CompPlan へ
+  productBackMode/Rate/Fixed の3項を**読取保持**（collect が comp_plans 3列を読み assemble が素通し・payOf は参照しない・
+  product_back_fixed の意味＝**円／販売数1点あたり**）・payOf の grossBase へ **`+calculatedBack`（凍結値の単純Σ・再計算
+  しない）の1項のみ**を既存加算群と同列に追加（guarantee 床／achievement 加算の位置は不変・丸め不要）。★0132 前提で
+  一度書いた「plan_fixed＝payOf 側の期間固定加算」は**裁定123 で廃止＝実装前に撤去**（PayResult に productBackFixed なし）。
+  product_rule／未指定は 0＝従来 gross と1バイト同値（golden 不変で証明）。payroll f0 追補＝113 節 12 assert（collect 5／
+  payOf 6／blocker 1・plan_fixed は凍結Σ 60000 が乗り期間加算なしを係留）＋PR_INVERT／PR_BREAK。sim は UI レーンで
+  SimInput 拡張と同時（本段は calculatedBack 0 固定＝現行 sim 同値）。
 - **get_cast_ranking 注記**: 順位の最終タイブレーク＝`Σ(drink_back+champ_back+bottle_back)` のため、plan_rate／plan_fixed
   cast は商品3列 0 で**タイブレーク寄与が変わる**（calculated_back_amount／期間固定額は不参照）＝UI／collect レーンの検討点。
 
@@ -2797,6 +2806,30 @@ priority は **fee_kind 系列内でのみ意味を持つ**（reorder の 1..N �
    バッファ空なら確認なし・アンマウントで dirty は必ず false）。
 6. **2面（割当 calendar／配置 build）へ共通サブコンポーネント `DayAddPanel` を適用**＝面で挙動を割らない。
    ShiftAddForm へ送る旧導線（裁定44-4）は撤去。migration なし・RPC 不変。
+
+---
+
+## 裁定123（2026-09-04・mig0133）plan_fixed の粒度＝販売数×固定額（期間固定を廃止・close 凍結へ）— 実装済
+
+**plan_fixed＝販売数 × 固定額**（実需＝イベントのオリジナルシャンパン等「売れた数×一律◯円」）。0132 の「期間固定額・
+payOf 側加算」を**廃し、plan_rate と完全同型の close 凍結へ**＝給与側は凍結値Σのみ＝「方式判定を給与側に持ち込まない」原則が
+**例外なしで成立**（payOf の例外消滅）。**器は無改修**（`comp_plans.product_back_fixed`＝円／販売数1点あたりとして使用・CHECK >=0 のまま）。
+変更は check_close のみ（mig0133・0132 適用後・冪等可）。凍結形（新）＝商品3列 0・`product_sales_base`＝同腕売上Σ（監査用・
+plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product_back_fixed**（整数×整数＝丸め不要）・pt／base／数量の
+いずれか>0 で行あり（ゼロ専用行は作らない）。dev に plan_fixed 実データなし（pb fixture は掃除済み）＝データ移行不要。
+- **UI 文言行**: 「**販売数 × 固定額**」。「1本あたり」は本数で数えない商品（杯・品）に不適合のため不採用＝杯・品も同一計算。
+  mock v3 の第3タブ文言は UI レーンで差し替え。
+- 実装追認（2026-09-04）: mig0133 dev 適用済み（バンドル `docs/dp/0133_verify_bundle.sql` 6/6 全緑・相談役確認済み）。
+  ★手貼りが f0 実走（0132 後の run1→run2 の間）と並走し pb スイート c 系が赤で検知＝**live 変更の検知線として機能**
+  （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
+  給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
+
+### 教訓56：dev 手貼りと f0 実走を並走させない
+
+dev への mig 手貼りは **f0 完了後**に行い、f0 実行中に手貼りが要るときは**申告してから**行う。並走すると
+run1 緑→run2 赤の「差分がコードに無い赤」が出て原因特定に往復が要る（0131＝for_register 検知／0132＝biz_date_of 検知／
+0133＝plan_fixed 凍結形の検知で**3例目**）。逆に言えば f0 は live 変更の検知線として働いている＝止まったら「コードの
+バグ」より先に「live が動いたか」を疑う（prosrc と収蔵 mig の本文照合＝113prep の drift 確認型）。
 
 ---
 
