@@ -2637,7 +2637,7 @@ G1（grants スイートのスキーマ全体ガード）が検知線（0127→0
 
 fee_kind 追加の同時改修点は教訓51 の3点＋set_pricing_rule に加え、
 **reorder/delete 系 RPC の whitelist を含む**（0130 で pricing_rule_reorder の漏れを検知＝1例目・
-UI は priority 再送で回避中＝起票#55）。fee_kind 追加時は **'fee_kind' を含む全 RPC の prosrc 走査**を
+UI は priority 再送で回避＝mig0131 で whitelist 是正し回避撤去済み・起票#55 クローズ）。fee_kind 追加時は **'fee_kind' を含む全 RPC の prosrc 走査**を
 起草前チェックに（教訓48 の fee_kind 版）。
 
 ---
@@ -2687,7 +2687,7 @@ ext-menu/pricing-apply は値チェック型＝追随不要を実走確認。cat
 3値（set/extension/vip_charge のみ・「店の設定に従う」=null 既定・同伴/shimei 非表示）・一覧/M3 へ
 VIPチャージ列＋単位表示・方式AB併記説明・category-map=vip_charge→**time 系張り替え**（裁定118-6・
 スイート 67→83 assert・vu(h2) を time 期待へ更新）。★pricing_rule_reorder の vip_charge 非対応
-（0130 漏れ）は UI 側の priority 再送で回避中＝起票#55。
+（0130 漏れ）は UI 側の priority 再送で回避＝mig0131 で是正し回避撤去済み（#55 クローズ・2026-09-04）。
 **台帳メモ**: categoryOf の消費者は analytics 1面が実勢（report 側未使用・118-UI 実測）。
 
 ---
@@ -2982,9 +2982,9 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 51 | **シフトモーダル CastPicker の写真アバター** | **実装済（2026-09-02・`7c39673`）＝追認起票**。シフトモーダルの CastPicker へ写真アバター（photoUrls）を伝搬＝唯一の欠落だった（部品と CastAvatar は写真と onError フォールバック対応済み・他4箇所は伝搬済み・kiosk は署名経路なしの仕様） |
 | 52 | **pricing_resolve 公開ラッパの区分対応（6引数化・小 mig）** | **クローズ（2026-09-03・mig0130 で消化）**＝裁定118-3 の #52 吸収でラッパ 6引数化＋whitelist 7種同期（ext_shimei/vip_charge 含む）。プレビューの区分入力 UI は 118-UI／プレビュー拡張レーンで別途 |
 | 53 | **VIP 方式B＋課金単位（ルール単位）** | VIP 方式B（**加算チャージ＝新 fee_kind 級**・教訓51 の3点セット〔CHECK 2箇所＋pricing_resolve_core 白名単〕＋set_pricing_rule whitelist）＋課金単位（**ルール単位 1名/1卓**・check_open units 計算改修）。要件正本＝`NOX_料金設定改修指示_2026-09-03.md` §5/§6。**読み取り調査（Opus）→設計書（相談役）→裁定→mig（Fable）の D調査型**。§4 プレビュー拡張は #52＋本件消化後 |
-| 54 | **区分一覧の SECURITY DEFINER RPC（staff/cast/kiosk の開栓時区分選択対応）** | 現状 RLS（owner/manager）により staff/cast は区分なし開栓＝セレクタ非表示（116-UI 段②a の既知制約・mig0127 の policy は manage 系のみ）。**→ 裁定済（採用）・実装＝#55 束ね**（2026-09-03） |
-| 55 | **mig0131: reorder whitelist＋区分一覧 RPC（#54 実装）＋duration 上限** | (1) pricing_rule_reorder の whitelist へ vip_charge 追加（**0130 改修漏れ＝教訓54 の1例目**・UI は priority 再送で回避中＝解消後に戻す） (2) pricing_rule_delete 系の whitelist 同時確認 (3) **#54 の pricing_categories_for_register RPC 新設**（SECURITY DEFINER・id/name/sort のみ・check_open 同腕・標準型③・**A6 名簿先回り収載対象**） (4) **duration 上限＝set_pricing_rule の 'bad duration' へ duration_min > 1440 拒否を追加**（#56 の RPC 側同乗） |
-| 56 | **duration 上限ガード（UI 警告＋RPC 拒否・duration_min > 1440）** | UI（帯モーダル）に警告・RPC 側は **#55=mig0131 へ同乗**（'bad duration' 拡張）。**実データ逆転1件（CLUB NOX「VIP20:00〜20:59」延長 30円/5000分＝料金と分の入力逆転）が起票根拠**＝バインドは正常を実機往復で実証（2026-09-03）。★訂正は CLUB NOX owner＝実アカウントのため CC の UI 代行不可＝**Agoora 実機修正待ち**（済んだら本欄を「訂正済み」へ） |
+| 54 | **区分一覧の SECURITY DEFINER RPC（staff/cast/kiosk の開栓時区分選択対応）** | **クローズ（2026-09-04・mig0131 で実装）**＝pricing_categories_for_register（STABLE SECURITY DEFINER・id/name/sort のみ・開栓 RPC と同腕・org 照合 forbidden・is_active のみ・vu(n1〜n3) で staff 実セッション/他 org 拒否/停止中非返却を係留）。★**開栓セレクタの staff/cast 接続（register/kiosk UI の新 RPC への差し替え）は未着手＝RPC 側だけ先行**（現状 UI は RLS 直読＝staff/cast はセレクタ非表示のまま） |
+| 55 | **mig0131: reorder whitelist＋区分一覧 RPC（#54 実装）＋duration 上限** | **クローズ（2026-09-04・mig0131 消化）**＝(1) reorder whitelist へ vip_charge（vu(r1) 係留）・**UI の priority 再送回避も撤去＝正規 RPC へ復帰**。★撤去実走で**帯表示順の潜在欠陥が露出**: priority は fee_kind ごとの独立系列（reorder が kind 内 1..N 正規化）のため min(priority) の帯間比較は kind 構成が非対称な帯（唯一の vip 帯等）で破綻＝旧回避実装が偶然隠していた。bandsOf を「kind 系列の合流」順（束縛は同一 kind 内の priority 大小のみ・無束縛同士は現行比較＝既存表示不変）へ是正し CC 往復で確認 (2) delete 系 whitelist 確認済み (3) for_register 新設（#54 欄へ） (4) duration>1440 拒否（vu(du1/du2)＝1440 受理・1441 'bad duration'） |
+| 56 | **duration 上限ガード（UI 警告＋RPC 拒否・duration_min > 1440）** | **RPC 側消化（2026-09-04・mig0131＝#55 同乗・vu(du1/du2) 係留）**。★残2点: (a) **UI（帯モーダル）の警告は未実装** (b) **実データ逆転1件（CLUB NOX「VIP20:00〜20:59」延長 30円/5000分）は 2026-09-04 実測で未訂正のまま**＝バインド正常は実機往復で実証済み（2026-09-03）・訂正は CLUB NOX owner＝実アカウントのため CC の UI 代行不可＝**Agoora 実機修正待ち**（済んだら本欄を「訂正済み」へ） |
 
 ### 未裁定・消し込み待ち
 
