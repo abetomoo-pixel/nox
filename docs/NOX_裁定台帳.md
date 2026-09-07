@@ -2917,6 +2917,53 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 ---
 
+## 裁定131（2026-09-07）カード手数料の2系統を1カードに再編（料金 v8.1 P52 移設・P53/P54 不変）
+
+出典＝相談役ブロック（料金 v8.1 A層 C1）・Agoora「推奨で」確定。`card_tax_rate`（日報集計用・set_store_pricing）と `card_surcharge_rate`
+（お客さまへ加算・set_store_tax_config・裁定90-⑤／87 第2層）は**列レベルで分離済み**＝DB・RPC 不変で **UI のみ再編**。
+- PricingPanel に `fields="card_tax"`（card_tax_rate のみ）を新設し、`"service"` の担当から card_tax_rate を外す。分割マウントの保存は
+  従来どおり**保存直前に stores を再読し担当外をサーバ現在値で埋める**＝どちらの保存でも相手側を巻き戻さない（実走で service_rate 不変を確認）。
+- 会計設定の「税・サービス料」カードはサ料のみ。旧「カード手数料の転嫁」カードを**「カード手数料」**へ改称し、日報集計用の率入力を同居
+  （モック v8.1 132〜135 行の構造）。有効／無効・加算率・警告文・初回 ack は現状維持（ack は裁定130）。保存ボタンは経路ごとに2本のまま。
+- 実装＝`ea3b621`。
+
+## 裁定130（2026-09-07）転嫁の契約確認 ack はモックに無くても残置（料金 v8.1 P54・法務）
+
+出典＝相談役ブロック（C1 の「ack は現状維持」）・Agoora「推奨で」確定。モック v8.1 の「カード手数料」カードは警告文のみで ack チェックを
+持たないが、**裁定87 第2層（無効→有効の切替時に「契約上の可否を確認しました」を必須・保存で記録）は残置**する（加盟店契約の転嫁制限＝法務）。
+「モックに無い既存機能は消さない」（恒久注意・裁定126 §16）の適用例。
+
+## 裁定129（2026-09-07）VIP料金方式カード＝読み取り表示のみ・保存 UI は置かない（料金 v8.1 P39）
+
+出典＝相談役ブロック（料金 v8.1 A層 C2）・Agoora「推奨で」確定。店単位の VIP 既定額列は存在しない（live 実測）＝保存型にすると mig 領域。
+- 料金マスタタブに**読み取りカード「VIP料金方式」**を新設（モック 92 行の構造）。方式A（VIP 専用料金）は席種「VIP」の set／extension ルール、
+  方式B（VIPチャージ）は `vip_charge` ルールを rules から判定し「使用中／未使用」で表示（方式B は額・課金単位・表示名を最大3件）。
+- 導線は「ルールで設定」（ルールタブへ切替）のみ。裁定118（2方式は常時併用可・選択式トグルは作らない）は不変＝カードの「使用する／しない」は実態表示。
+- タブ冒頭の2方式説明文はカードへ吸収（消さず移動）。実装＝`916ac02`。
+
+## 裁定128（2026-09-07）プレビューの「指名キャスト」は「キャストランク」に統合（料金 v8.1 P13→P14）
+
+出典＝相談役ブロック（C3「指名キャストのランク(ranks state)」）・Agoora「推奨で」確定。キャスト個別料金の器は無い（pricing_rules は rank_id 行のみ）
+＝「指名キャスト」の入力は**ランクの代理選択**にしかならないため、入力1本「指名キャストのランク」（ranks state・is_active のみ・7択以下はセグ、
+超えたらプルダウン＝教訓27）に統合する。キャスト名一覧の新規読み取りは行わない。対応表 P13 は P14 へ統合＝「実装済(A層)」。
+
+## 裁定127（2026-09-07）料金プレビュー拡張＝6種の解決結果と解決順の注記（料金 v8.1 P12／P14〜P20）
+
+出典＝相談役ブロック（料金 v8.1 A層 C3）・Agoora「推奨で」確定。mig0130（#52 消化＝pricing_resolve 6引数・whitelist 7種）で器は揃っている
+＝**mig 不要・UI のみ**。
+- 入力＝既存5種＋区分（pricing_categories・is_active）＋指名キャストのランク（裁定128）。runPreview は `p_category_id`／`p_rank_id` を送信し、
+  set／extension／hon_shimei／jonai_shimei は常時、`vip_charge` は VIP 席のみ（check_open の行生成条件と同じ）、dohan は同伴時に並列照会。
+  返却の `rule_id`／`billing_unit` は捨てず保持し、名前・出所はレンダ時に手元 rules／ranks で解決（R9＝stale closure を作らない）。
+- 結果＝適用ルール名（name null は「表示名なしのルール」・base は「なし（基本料金）」）／セット（額・分・出所）＋**セット終了時刻**
+  （入店日時＋セット分の表示計算・日跨ぎは「翌」）／延長／本指名・場内（出所＝「○○ランク」／料金ルール／店舗基本）／同伴／VIPチャージ
+  （VIP 席以外は「なし（VIP 席以外）」）。既存5行（セット／同伴／サービス料／初回セット概算／カードTAX概算）と概算計算は不変＝
+  延長・指名・VIPチャージは概算に含めない旨を注記。
+- **解決順の注記2行（確定文言）**: 「指名料金の解決順: ランク＞料金ルール＞店舗基本」「時間料金の解決順: 料金ルール＞基本料金」
+  ＝モックの「キャスト個別」は器が無いため書かない（対応表 P20 備考）。
+- 実装＝`54bf807`（C2 の描画ヘルパー `usePill`→`statePill` 改名＝react-hooks lint の誤検知解消を同梱）。
+
+---
+
 ## 裁定126（2026-09-04）UI モック設計まとめ＝設計思想の正本（§16 の8項は恒久注意へ昇格）
 
 正本＝`docs/NOX_UI_MOCKS_HANDOFF_20260904.md`（sha256 `951838f9…5213`・18,731 bytes・Agoora 2026-09-04）。デザインパック v1.0〜v1.2 の
@@ -3000,6 +3047,14 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
   手貼りリスト 0131〜0134 行＝2列表の書式・並び（連番）を確認済み。
 - **停止リスト4件の処置（相談役裁定 2026-09-07）**: ①N3 店舗設定「基本情報」タブ（店舗名／表示名／略称の書込 RPC なし）＝**店舗設定 setter mig へ統合**（S9/S11/S12 の `set_store_profile` 系＝C層①の機能フラグ器と同じ設計書で起草）。②N4(b) `ext_shimei_enabled`／`dohan_auto_hon` の設定 UI＝**同じ店舗設定 setter mig へ統合**（対応表 §6 要点10 の単独起票は本 mig に吸収）。③N4(e) 会計後タイムライン（R57）＝**レジ v12.1 レーン送り**（伝票詳細の履歴 UI は v12.1 の写像 R 系と一体で設計・audit_logs の閲覧スコープはそこで裁定）。④N5 docs/tmp 残置39件＝**「レーンD 分類表」を docs 化した後に棚卸し**（分類表なしの削除は行わない）。
 
+
+### 実施記録（2026-09-07 追記）
+
+- **帯訂正 6e0c73e7**（CLUB NOX「VIP20:00〜20:59」延長）: Agoora 実機で **5000円/30分** へ訂正済み（live 実測 amount=5000／duration_min=30）＝#56(b) 消し込み。
+- **料金 v8.1 A層 C1〜C3 完了**（対応表の既存行のみ・新要件不触・既存機能不消・mig なし・push なし）:
+  `ea3b621`（C1 カード手数料再編＝裁定131）／`916ac02`（C2 VIP料金方式カード＝裁定129）／`54bf807`（C3 プレビュー拡張＝裁定127/128）。
+  verify:f0＝36本3546 **連続2走緑**（run4/run5・run1 は r2b timeout・run3 は pb 派生症状＝#58 追記）・golden 6値不変（5931/125802/55233/64/64/53）。
+- **P13（指名キャスト）は P14（キャストランク）に統合**（裁定128）＝対応表 §2 の 143〜151／165／166／170／183〜185 を「実装済(A層)」へ更新。
 ---
 
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
@@ -3268,9 +3323,10 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 53 | **VIP 方式B＋課金単位（ルール単位）** | VIP 方式B（**加算チャージ＝新 fee_kind 級**・教訓51 の3点セット〔CHECK 2箇所＋pricing_resolve_core 白名単〕＋set_pricing_rule whitelist）＋課金単位（**ルール単位 1名/1卓**・check_open units 計算改修）。要件正本＝`NOX_料金設定改修指示_2026-09-03.md` §5/§6。**読み取り調査（Opus）→設計書（相談役）→裁定→mig（Fable）の D調査型**。§4 プレビュー拡張は #52＋本件消化後 |
 | 54 | **区分一覧の SECURITY DEFINER RPC（staff/cast/kiosk の開栓時区分選択対応）** | **クローズ（2026-09-04・mig0131 で実装）**＝pricing_categories_for_register（STABLE SECURITY DEFINER・id/name/sort のみ・開栓 RPC と同腕・org 照合 forbidden・is_active のみ・vu(n1〜n3) で staff 実セッション/他 org 拒否/停止中非返却を係留）。★**開栓セレクタの staff/cast 接続（register/kiosk UI の新 RPC への差し替え）は未着手＝RPC 側だけ先行**（現状 UI は RLS 直読＝staff/cast はセレクタ非表示のまま） |
 | 55 | **mig0131: reorder whitelist＋区分一覧 RPC（#54 実装）＋duration 上限** | **クローズ（2026-09-04・mig0131 消化）**＝(1) reorder whitelist へ vip_charge（vu(r1) 係留）・**UI の priority 再送回避も撤去＝正規 RPC へ復帰**。★撤去実走で**帯表示順の潜在欠陥が露出**: priority は fee_kind ごとの独立系列（reorder が kind 内 1..N 正規化）のため min(priority) の帯間比較は kind 構成が非対称な帯（唯一の vip 帯等）で破綻＝旧回避実装が偶然隠していた。bandsOf を「kind 系列の合流」順（束縛は同一 kind 内の priority 大小のみ・無束縛同士は現行比較＝既存表示不変）へ是正し CC 往復で確認 (2) delete 系 whitelist 確認済み (3) for_register 新設（#54 欄へ） (4) duration>1440 拒否（vu(du1/du2)＝1440 受理・1441 'bad duration'） |
-| 56 | **duration 上限ガード（UI 警告＋RPC 拒否・duration_min > 1440）** | **RPC 側消化（2026-09-04・mig0131＝#55 同乗・vu(du1/du2) 係留）**。★残2点: (a) **UI（帯モーダル）の警告は未実装** (b) **実データ逆転1件（CLUB NOX「VIP20:00〜20:59」延長 30円/5000分）は 2026-09-04 実測で未訂正のまま**＝バインド正常は実機往復で実証済み（2026-09-03）・訂正は CLUB NOX owner＝実アカウントのため CC の UI 代行不可＝**Agoora 実機修正待ち**（済んだら本欄を「訂正済み」へ） |
+| 56 | **duration 上限ガード（UI 警告＋RPC 拒否・duration_min > 1440）** | **RPC 側消化（2026-09-04・mig0131＝#55 同乗・vu(du1/du2) 係留）**。★残2点: (a) **UI（帯モーダル）の警告は未実装** (b) **実データ逆転1件（CLUB NOX「VIP20:00〜20:59」延長 30円/5000分）は 2026-09-04 実測で未訂正のまま**＝バインド正常は実機往復で実証済み（2026-09-03）・訂正は CLUB NOX owner＝実アカウントのため CC の UI 代行不可＝**訂正済み（2026-09-07・live 実測 amount=5000／duration_min=30）**。★訂正で `updated_at` が動かなかった件は #59 へ分離 |
 | 57 | **drink_claims 転用設計（申告→帰属訂正フロー）** | 金の発生源を**商品バック1系統（check_cast_backs）へ統一**し、claim は確認・訂正申請＋append-only 調整行へ転用する設計。背景＝**実測①（2026-09-04）で「同一ドリンク行の二重（claim back_amount と drink_back の両立）」が現行仕様と確定**・裁定113 の裁定4で drink_claims は 113 の射程外（完全不干渉）。訂正締切が D-1（給与確定取消）と隣接のため**着手時期は D-1 設計時に裁定**。D調査で現行 claim 機能の店別 on/off 設定の有無を確認 |
-| 58 | **f0 の statement timeout フレーク（原因追跡）** | 2026-09-04 の 5走中2走で **billing 段47-3（locked でも seats を SELECT）／payroll `loadMasters`（collect.ts:95 マスタ読み取り）** が `canceling statement due to statement timeout` で赤・assert 赤ではなく DB 側のタイムアウト（同型＝起票#33〜35・drink_claims 1行表・advances・payroll timeout の既往）。**再走緑なら gate 妥当**（2連緑の判定は「連続2走が緑」＝フレーク走は数に入れず再走で取り直す運用を継続）。**原因追跡は別レーン**（pooler／statement_timeout 値／並走クエリ／対象テーブルの行数増＝audit_logs・stock_logs 等の単調増加表の疑いを含む・教訓35）。起票 2026-09-07 |
+| 58 | **f0 の statement timeout フレーク（原因追跡）** | 2026-09-04 の 5走中2走で **billing 段47-3（locked でも seats を SELECT）／payroll `loadMasters`（collect.ts:95 マスタ読み取り）** が `canceling statement due to statement timeout` で赤・assert 赤ではなく DB 側のタイムアウト（同型＝起票#33〜35・drink_claims 1行表・advances・payroll timeout の既往）。**再走緑なら gate 妥当**（2連緑の判定は「連続2走が緑」＝フレーク走は数に入れず再走で取り直す運用を継続）。**原因追跡は別レーン**（pooler／statement_timeout 値／並走クエリ／対象テーブルの行数増＝audit_logs・stock_logs 等の単調増加表の疑いを含む・教訓35）。起票 2026-09-07 **追跡材料（2026-09-07・料金 v8.1 C3 後の f0 5走）**: 5走中2赤＝run1 r2b(11b) `statement timeout`／run3 pb 段 `check_set_nominations: has payments`＝**派生症状**（pb は check_close のエラーを非致命 assert で受ける→close が timeout で落ちると支払済み伝票が同席に open のまま残留→次の check_open が `on conflict (seat_id) where status='open'` で同伝票を返す→set_nominations が has payments）。pb 単独再走 2/2 緑・残留ゼロ実測（seats/products/checks とも 0）・run4/run5 連続緑 36本3546。timeout の派生形として同件で追跡 |
+| 59 | **pricing_rules に updated_at の自動更新トリガなし** | 帯訂正 6e0c73e7（CLUB NOX 延長・2026-09-07 実施・5000円/30分）後も `updated_at` は **2026-09-03 14:56:18 のまま＝不変を live 実測**。pricing_rules のユーザートリガ **0 本**（pg_trigger 実測）・列は created_at/updated_at とも存在。`set_pricing_rule` の update 経路は `updated_at = now()` を明示するが、本訂正は audit_logs に set_pricing_rule 行が無い＝**RPC を通らない直接 update 経路では更新されない**（audit も残らない）。要る変更＝`before update` トリガ（`set updated_at = now()`）を pricing_rules へ（mig 小・他の上書き型テーブルへの横展開は別途棚卸し）。当面の更新追跡は audit_logs（RPC 経由のみ）。起票 2026-09-07 |
 
 ### 未裁定・消し込み待ち
 
