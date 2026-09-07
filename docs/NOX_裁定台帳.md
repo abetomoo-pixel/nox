@@ -2846,6 +2846,14 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓59：verify org の一括掃除は seed 固定行（seed_marker）を除外述語に含める
+
+org_id 一括 delete（`delete from audit_logs where org_id = any(verify 2値)`）は seed:f0 が置く常設マーカー（org A・action='seed_marker'＝
+rls 段「ownerA audit_logs ≥1 行」の被験行）まで消す。2026-09-07 の手貼り掃除と初版 sweep がこれを落とし、**f0 2 走が rls 段で決定論的に赤**
+（timeout ではない）になって検知＝**相談役側の起草ミス**。是正＝sweep の述語に `and action <> 'seed_marker'` を足し、marker 不在は FAIL で
+seed:f0 再投入を促す（sweep-m）。**org_id 一括 delete は fixture 台帳（seed-f0.ts の投入一覧＝常設行）と突合してから起草する**＝
+「verify org の行＝全部残骸」ではない。
+
 ### 教訓58：単調増加表の verify 残骸が f0 timeout の主因（fixture は insert だけでなく delete の追随を gate に含める）
 
 #58 の追跡（2026-09-07）で、audit_logs が 125,012 行／151 MB・うち **99.3%（124,134 行）が NOX-VERIFY 系 org の残骸**と実測。verify スイートは
@@ -2948,12 +2956,12 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
   FK 参照元 0 本・トリガ 0 本（live 実測）＝DELETE は単独で完結。verify org 以外の行には触れない（sweep-2 で総数差を assert）。
 - **(c) `verify-nox-rls.ts` 147／166 行**（managerA1／castA1a の「audit_logs = 0 行」）: 全件 `select('id')` → `select('id', {count:'exact', head:true})`
   ＝意味不変・転送ゼロ。RLS 越しの per-row 評価コストは残る旨をコメント（母数は (b) で抑える）。
-- **実測**: Agoora の手貼り掃除（124,134 行）後の live＝878 行（autovacuum 15:00 JST 完了・ヒープ 88 MB は未回収＝VACUUM は再利用可にするだけ。
-  ローンチ前に VACUUM FULL／pg_repack の要否を別途判断）。f0 1 走あたりの verify 残骸＝**約 400〜800 行**（sweep の削除前件数＝397／797）。
+- **実測**: Agoora の手貼り掃除（124,134 行）後の live＝878 行（autovacuum 15:00 JST）。**同日 15 時台に Agoora が `vacuum full` 実施（SQL Editor 単文）**＝
+  total **151 MB → 1,640 kB（index 432 kB）**（Agoora 実測直後）。CC 再実測（f0 1 走後・sweep 前）＝total 2,656 kB／heap 1,744 kB／index 784 kB・live 1,678。f0 1 走あたりの verify 残骸＝**約 400〜800 行**（sweep の削除前件数＝397／797）。
   f0 2 連緑＝**37 本 3,550**（36 本＋sweep 4）・所要 439s／706s（掃除前 7〜12 分と同程度＝全体は他スイート支配。**rls 段は 7 分→2 分未満**）。
   golden 6 値不変。逆張り＝(b) service_role で verify org に 1 行 insert→sweep で削除→0 ／ (c) probe 1 行を置いた状態で owner セッションの同 assert が
   count=1 で FAIL・sweep 後に 0 で PASS（rls の意味が変わっていないことの実証）。
-- **f0 本数の基準**: 36 本 3,546 → **37 本 3,550**（sweep 4 assertions・golden 不変）。
+- **f0 本数の基準（handoff 参照用）**: 36 本 3,546 → **37 本 3,550**（sweep 4 assertions）。**golden 6 値は不変＝5931／125802／55233／64／64／53**。
 - **本番向け付記**: audit_logs の retention（保持期間・アーカイブ）は**ローンチ後必須**（税理士ゲート後＝裁定23 系）。本 gate は verify org 限定であり
   本番 org の行には一切触れない。
 
@@ -3422,7 +3430,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 55 | **mig0131: reorder whitelist＋区分一覧 RPC（#54 実装）＋duration 上限** | **クローズ（2026-09-04・mig0131 消化）**＝(1) reorder whitelist へ vip_charge（vu(r1) 係留）・**UI の priority 再送回避も撤去＝正規 RPC へ復帰**。★撤去実走で**帯表示順の潜在欠陥が露出**: priority は fee_kind ごとの独立系列（reorder が kind 内 1..N 正規化）のため min(priority) の帯間比較は kind 構成が非対称な帯（唯一の vip 帯等）で破綻＝旧回避実装が偶然隠していた。bandsOf を「kind 系列の合流」順（束縛は同一 kind 内の priority 大小のみ・無束縛同士は現行比較＝既存表示不変）へ是正し CC 往復で確認 (2) delete 系 whitelist 確認済み (3) for_register 新設（#54 欄へ） (4) duration>1440 拒否（vu(du1/du2)＝1440 受理・1441 'bad duration'） |
 | 56 | **duration 上限ガード（UI 警告＋RPC 拒否・duration_min > 1440）** | **RPC 側消化（2026-09-04・mig0131＝#55 同乗・vu(du1/du2) 係留）**。★残2点: (a) **UI（帯モーダル）の警告は未実装** (b) **実データ逆転1件（CLUB NOX「VIP20:00〜20:59」延長 30円/5000分）は 2026-09-04 実測で未訂正のまま**＝バインド正常は実機往復で実証済み（2026-09-03）・訂正は CLUB NOX owner＝実アカウントのため CC の UI 代行不可＝**訂正済み（2026-09-07・live 実測 amount=5000／duration_min=30）**。★訂正で `updated_at` が動かなかった件は #59 へ分離 |
 | 57 | **drink_claims 転用設計（申告→帰属訂正フロー）** | 金の発生源を**商品バック1系統（check_cast_backs）へ統一**し、claim は確認・訂正申請＋append-only 調整行へ転用する設計。背景＝**実測①（2026-09-04）で「同一ドリンク行の二重（claim back_amount と drink_back の両立）」が現行仕様と確定**・裁定113 の裁定4で drink_claims は 113 の射程外（完全不干渉）。訂正締切が D-1（給与確定取消）と隣接のため**着手時期は D-1 設計時に裁定**。D調査で現行 claim 機能の店別 on/off 設定の有無を確認 |
-| 58 | **f0 の statement timeout フレーク（原因追跡）** | 2026-09-04 の 5走中2走で **billing 段47-3（locked でも seats を SELECT）／payroll `loadMasters`（collect.ts:95 マスタ読み取り）** が `canceling statement due to statement timeout` で赤・assert 赤ではなく DB 側のタイムアウト（同型＝起票#33〜35・drink_claims 1行表・advances・payroll timeout の既往）。**再走緑なら gate 妥当**（2連緑の判定は「連続2走が緑」＝フレーク走は数に入れず再走で取り直す運用を継続）。**原因追跡は別レーン**（pooler／statement_timeout 値／並走クエリ／対象テーブルの行数増＝audit_logs・stock_logs 等の単調増加表の疑いを含む・教訓35）。起票 2026-09-07 **追跡材料（2026-09-07・料金 v8.1 C3 後の f0 5走）**: 5走中2赤＝run1 r2b(11b) `statement timeout`／run3 pb 段 `check_set_nominations: has payments`＝**派生症状**（pb は check_close のエラーを非致命 assert で受ける→close が timeout で落ちると支払済み伝票が同席に open のまま残留→次の check_open が `on conflict (seat_id) where status='open'` で同伝票を返す→set_nominations が has payments）。pb 単独再走 2/2 緑・残留ゼロ実測（seats/products/checks とも 0）・run4/run5 連続緑 36本3546。timeout の派生形として同件で追跡 **→ 主因確定・対処済・観察中（2026-09-07・裁定139／教訓58）**: 主因＝audit_logs の verify 残骸 124,134 行（99.3%）。手貼り掃除（Agoora）＋f0 冒頭 sweep（org_id 直書き・seed_marker 除外・5,000 行 warn）＋rls 全件 select→count head。対処後 2 連緑 37 本 3,550。**timeout 無しで 5 面連続なら close**。本番向け＝audit_logs retention はローンチ後必須（税理士ゲート後） |
+| 58 | **f0 の statement timeout フレーク（原因追跡）** | 2026-09-04 の 5走中2走で **billing 段47-3（locked でも seats を SELECT）／payroll `loadMasters`（collect.ts:95 マスタ読み取り）** が `canceling statement due to statement timeout` で赤・assert 赤ではなく DB 側のタイムアウト（同型＝起票#33〜35・drink_claims 1行表・advances・payroll timeout の既往）。**再走緑なら gate 妥当**（2連緑の判定は「連続2走が緑」＝フレーク走は数に入れず再走で取り直す運用を継続）。**原因追跡は別レーン**（pooler／statement_timeout 値／並走クエリ／対象テーブルの行数増＝audit_logs・stock_logs 等の単調増加表の疑いを含む・教訓35）。起票 2026-09-07 **追跡材料（2026-09-07・料金 v8.1 C3 後の f0 5走）**: 5走中2赤＝run1 r2b(11b) `statement timeout`／run3 pb 段 `check_set_nominations: has payments`＝**派生症状**（pb は check_close のエラーを非致命 assert で受ける→close が timeout で落ちると支払済み伝票が同席に open のまま残留→次の check_open が `on conflict (seat_id) where status='open'` で同伝票を返す→set_nominations が has payments）。pb 単独再走 2/2 緑・残留ゼロ実測（seats/products/checks とも 0）・run4/run5 連続緑 36本3546。timeout の派生形として同件で追跡 **→ 主因確定・対処済・観察中（2026-09-07・裁定139／教訓58）**: 主因＝audit_logs の verify 残骸 124,134 行（99.3%）。手貼り掃除（Agoora）＋f0 冒頭 sweep（org_id 直書き・seed_marker 除外・5,000 行 warn）＋rls 全件 select→count head。対処後 2 連緑 37 本 3,550。**timeout 無しで 5 面連続なら close**。本番向け＝audit_logs retention はローンチ後必須（税理士ゲート後） **2026-09-07 vacuum full 実施（Agoora・SQL Editor 単文）＝151 MB → 1.6 MB**（heap の未回収は解消・pg_repack 不要） |
 | 59 | **pricing_rules に updated_at の自動更新トリガなし** | 帯訂正 6e0c73e7（CLUB NOX 延長・2026-09-07 実施・5000円/30分）後も `updated_at` は **2026-09-03 14:56:18 のまま＝不変を live 実測**。pricing_rules のユーザートリガ **0 本**（pg_trigger 実測）・列は created_at/updated_at とも存在。`set_pricing_rule` の update 経路は `updated_at = now()` を明示するが、本訂正は audit_logs に set_pricing_rule 行が無い＝**RPC を通らない直接 update 経路では更新されない**（audit も残らない）。要る変更＝`before update` トリガ（`set updated_at = now()`）を pricing_rules へ（mig 小・他の上書き型テーブルへの横展開は別途棚卸し）。当面の更新追跡は audit_logs（RPC 経由のみ）。起票 2026-09-07 |
 
 ### 未裁定・消し込み待ち
