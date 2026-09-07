@@ -364,8 +364,9 @@ export default function CastsBoard({
   return (
     <div className="nox-mv1">
       {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（/master・/home と同基準） */}
+      {/* ★裁定141（v3.1 K2）: lead はモック語彙のうち器のある語だけで寄せる（「勤務条件・連絡先」は器なし＝書かない） */}
       <PageHead eyebrow="CAST MANAGEMENT" title="キャスト管理"
-        desc="在籍状況、待遇、実績、アカウントをキャストごとに管理します。" />
+        desc="在籍・待遇・実績・アカウントをキャストごとに管理します。" />
       <Toast msg={msg} />
 
       {/* E8-5 casts#1（T1）: KPI 帯4枚＝既存 state の再形のみ（新規取得ゼロ） */}
@@ -560,10 +561,11 @@ export default function CastsBoard({
                       }}>編集</button>
                     </span>
                   </div>
-                  <div className="nox-frow"><span className="k">入店日</span><span className="v num">{selCast.joined_on ?? "—"}</span></div>
+                  {/* ★裁定142（v3.1 K27）: 「入店日」→「本入店日」（体験入店との対比語・値は joined_on のまま） */}
+                  <div className="nox-frow"><span className="k">本入店日</span><span className="v num">{selCast.joined_on ?? "—"}</span></div>
                 </>
               ) : (
-                <div className="nox-frow"><span className="k">源氏名・入店日</span>
+                <div className="nox-frow"><span className="k">源氏名・本入店日</span>
                   <span className="v" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                     <input value={profName} placeholder="源氏名" disabled={busy}
                       onChange={(e) => setProfName(e.target.value)} style={{ ...input, width: 160 }} />
@@ -671,7 +673,9 @@ export default function CastsBoard({
                 return (
                   <>
                     <div className="nox-frow"><span className="k">待遇プラン</span><span className="v">{p.name}{ovCount > 0 && <span style={{ fontSize: 11, color: "var(--gold2)", marginLeft: 6 }}>個別上書きあり</span>}</span></div>
-                    <div className="nox-frow"><span className="k">保証時給</span><span className="v num">¥{num("base", p.base).toLocaleString()}</span></div>
+                    {/* ★裁定143（v3.1 K35）: 「保証時給」→「通常時給（プラン基本）」＝comp_plans.base（＋overrides.base）を指す語へ。
+                        モックの「入店時給保証」（K33・第2期）と語を衝突させない。値・経路は不変。 */}
+                    <div className="nox-frow"><span className="k">通常時給（プラン基本）</span><span className="v num">¥{num("base", p.base).toLocaleString()}</span></div>
                     <div className="nox-frow"><span className="k">本指名バック</span><span className="v num">{honLabel}</span></div>
                     <div className="nox-frow"><span className="k">場内バック</span><span className="v num">{jonaiLabel}</span></div>
                     <div className="nox-frow"><span className="k">同伴バック</span><span className="v num">¥{num("dohanBack", p.dohan_back).toLocaleString()}/本</span></div>
@@ -681,7 +685,7 @@ export default function CastsBoard({
               {/* ★待遇プランの編集経路は現行この画面に存在しない（マスタ側）。
                   新規 RPC も新規フォームも作らず、管理場所への案内だけを置く＝機能不変。 */}
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px", lineHeight: 1.8 }}>
-                待遇プラン（保証時給・スライド・指名バック単価）とキャストへの割当は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。
+                待遇プラン（通常時給＝マスタ側の表記は「保証時給」・スライド・指名バック単価）とキャストへの割当は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。
                 この画面からは変更できません（現行どおり）。
               </p>
               <Link href="/master/cast-comp/plan" style={{ ...btnGhost, display: "inline-block", textDecoration: "none" }}>待遇プラン・報酬シミュレーターへ</Link>
@@ -711,8 +715,11 @@ export default function CastsBoard({
                   </button>
                 </span>
               </div>
+              {/* ★v3.1 K36（C1）: 説明文をモックの2カード語彙「本人レコード／NOXログインアカウント」へ寄せる（構造は現行の行形式のまま） */}
               <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
-                招待するとマイページ（出勤・報酬の確認）が使えます。PIN はキオスク端末での打刻に使い、画面にも記録にも残りません。
+                <strong style={{ color: "var(--v2-text)" }}>本人レコード</strong>（源氏名・所属・待遇・写真など店舗で管理する人物情報）と
+                <strong style={{ color: "var(--v2-text)" }}>NOXログインアカウント</strong>（本人がマイページで出勤・報酬を確認するためのログイン）は別管理です。
+                ログインは必要な人だけ発行します。招待するとマイページが使えます。PIN はキオスク端末での打刻に使い、画面にも記録にも残りません。
               </p>
             </>
           )}
@@ -865,9 +872,11 @@ export default function CastsBoard({
       {/* 段P: 写真アップロードモーダル（現在の写真→ファイル選択→プレビュー→保存。削除経路は持たない＝差し替えは上書き） */}
       {phTarget && (
         <Modal onClose={() => !busy && closePhoto()}>
-          <h2 style={secTitle}>{phTarget.name} の写真</h2>
+          {/* ★裁定144（v3.1 K24）: 文言をモック「プロフィール写真／キャスト一覧・レジ・指名画面などで使用します」へ。
+              削除・トリミング・D&D は対象外（削除は bucket policy 追加＝mig 領域・A層では触らない）。 */}
+          <h2 style={secTitle}>プロフィール写真（{phTarget.name}）</h2>
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
-            一覧やシフトのアバターに表示されます。自動で縮小・JPEG 化されます（元画像はそのままです）。
+            キャスト一覧・レジ・指名画面などで使用します。自動で縮小・JPEG 化されます（元画像はそのままです）。
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             {/* 左＝現在（写真 or 頭文字）・右＝選択中プレビュー。選択前は現在のみ */}
@@ -883,7 +892,7 @@ export default function CastsBoard({
             )}
           </div>
           <label style={{ display: "grid", gap: 4, marginTop: 12 }}>
-            <span style={t.fieldLabel}>画像を選択（JPEG/PNG）</span>
+            <span style={t.fieldLabel}>写真を選ぶ（JPEG/PNG）</span>
             <input type="file" accept="image/*" disabled={busy}
               onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)} style={{ fontSize: 13 }} />
           </label>
@@ -891,7 +900,7 @@ export default function CastsBoard({
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
             <button style={btnGhost} disabled={busy} onClick={closePhoto}>キャンセル</button>
             <button style={btnGold} disabled={busy || !phFile} onClick={() => void submitPhoto()}>
-              {busy ? "処理中…" : "保存する"}
+              {busy ? "処理中…" : "写真を保存"}
             </button>
           </div>
         </Modal>
