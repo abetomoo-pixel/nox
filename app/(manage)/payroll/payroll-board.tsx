@@ -34,6 +34,7 @@ type Row = {
   breakdown?: {
     pay: PayrollCsvPay & {
       wHours?: number; guaranteeAdd?: number; achievementBonus?: number;
+      wdays?: unknown[]; // ★裁定176（W23・夜間 O3）: PayResult.wdays（日次内訳）＝日数列は length のみ表示（値の再計算なし）
       sanction?: { original?: number; applied?: number } | null;
       plan?: { name?: string }; // ★U-1 是正B: 右パネルのプラン名（PayResult.plan エコー）
     };
@@ -86,6 +87,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   const [prevNet, setPrevNet] = useState<number | null>(null);
   // E8-5 payroll#4（T2）: プレビュー表の名前検索（client フィルタ）
   const [rowQ, setRowQ] = useState("");
+  // ★裁定175（W22・夜間 O3）: 税区分チップ（""=全員／雇用／委託）＝取得済み rows の client 絞り込みのみ（並び・数値不変）
+  const [rowTax, setRowTax] = useState("");
   // E8-5 payroll#3: 行タップ→個別内訳（preview breakdown の再掲・選択中 castId）
   const [detailCast, setDetailCast] = useState<string | null>(null);
   // ★U-1 是正B: 右パネルの「明細プレビュー」（PayslipSlip 全体）の開閉
@@ -363,7 +366,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
         <div>
           <h1 style={{ fontSize: 28, margin: "0 0 8px", fontWeight: 700 }}>給与管理</h1>
           <p style={{ margin: 0, color: "var(--sub)", fontSize: 14 }}>
-            出勤・売上・報酬ルールから計算し、確認・確定・支払まで管理します。
+            {/* ★裁定172（v2.1 W1・夜間 O3）: 「出勤」→モック語「勤怠」。「明細公開」（W34＝裁定99-⑦ 後送り）は書かない */}
+            勤怠・売上・報酬ルールから計算し、確認・確定・支払まで管理します。
           </p>
         </div>
       </div>
@@ -573,8 +577,18 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
           <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ flex: "2 1 480px", minWidth: 0 }}>
           {/* E8-5 payroll#4（T2）: 名前検索＝client フィルタ（並び・数値は不変） */}
-          <input value={rowQ} onChange={(e) => setRowQ(e.target.value)} placeholder="キャスト名で絞り込み"
-            aria-label="キャスト名で絞り込み" style={{ ...t.input, width: 220, marginBottom: 8 }} />
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+            <input value={rowQ} onChange={(e) => setRowQ(e.target.value)} placeholder="キャスト名で絞り込み"
+              aria-label="キャスト名で絞り込み" style={{ ...t.input, width: 220 }} />
+            {/* ★裁定175（v2.1 W22・夜間 O3）: 税区分チップ（全員／雇用／委託）＝取得済み rows の client 絞り込みのみ。
+                モックの「要確認／キャスト／スタッフ」チップは器なし（要確認の状態保存＝W19・スタッフ給与＝W24）＝置かない */}
+            <div className="nox-seg" role="group" aria-label="税区分で絞り込み">
+              {([["", "全員"], ["雇用", "雇用"], ["委託", "委託"]] as const).map(([v, l]) => (
+                <button key={v || "all"} type="button" className={rowTax === v ? "on" : ""} aria-pressed={rowTax === v}
+                  onClick={() => setRowTax(v)}>{l}</button>
+              ))}
+            </div>
+          </div>
           <table className="nox-paytable" style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginBottom: 12 }}>
             <thead>
               <tr>
@@ -582,6 +596,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
                 <th className="fold" style={t.th}>税区分</th>
                 {/* E8-5 payroll#2: preview breakdown の復元列（時間・総支給・控除計＝サーバ計算値の再掲のみ） */}
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>時間</th>
+                {/* ★裁定176（W23）: 日数＝wdays の件数（表示のみ） */}
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>日数</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>総支給</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>控除計</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>売掛</th>
@@ -594,7 +610,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
               </tr>
             </thead>
             <tbody>
-              {rows.filter((r) => !rowQ.trim() || r.castName.toLowerCase().includes(rowQ.trim().toLowerCase())).map((r) => {
+              {rows.filter((r) => (!rowQ.trim() || r.castName.toLowerCase().includes(rowQ.trim().toLowerCase()))
+                && (rowTax === "" || r.taxMode === rowTax)).map((r) => {
                 const z = (v: number | undefined) => v ?? 0;
                 const pay = r.breakdown?.pay;
                 const extras = (r.breakdown?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
@@ -615,6 +632,8 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
                   </td>
                   <td className="fold" style={t.td}>{r.taxMode}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{pay?.wHours != null ? `${pay.wHours}h` : "-"}</td>
+                  {/* ★裁定176（W23）: 日数＝PayResult.wdays の件数（サーバ計算の日次内訳をそのまま数えるだけ） */}
+                  <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{Array.isArray(pay?.wdays) ? `${pay.wdays.length}日` : "-"}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{gross != null ? gross.toLocaleString() : "-"}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: ded ? "var(--bad)" : "var(--sub)" }}>{ded ? `−${ded.toLocaleString()}` : "-"}</td>
                   {dedCell(r.arDeductTotal, r.arCarriedTotal, "fold")}
