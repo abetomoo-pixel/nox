@@ -272,8 +272,9 @@ export default function ReportBoard({
   return (
     <div className="nox-mv1 nox-mv1-sm">
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
+      {/* ★裁定147（v2.1 D1）: lead をモック逐語へ（月次集計＝月報タブ・売掛回収＝売掛タブは器あり） */}
       <PageHead eyebrow="DAILY REPORT" title="日報・締め管理"
-        desc="売上と現金を照合し、営業日の締め処理まで一つの画面で完了します。" />
+        desc="営業日の締め、月次集計、売掛回収までを一つの流れで管理します。" />
       <Toast msg={msg} />
 
       {/* A4: 日報/月報 タブ（モックの segment のうち月報のみ実装・分析=C5/会計連携=C3/本部連結=C2 は A4 の外）。
@@ -360,7 +361,10 @@ export default function ReportBoard({
                             onClick={() => markDeductRecv(r)}>給与天引き</button>
                         )}
                         {/* E8-2 #13: 回収はモーダル経由（部分回収・空欄=全額） */}
-                        <button style={btnLight} onClick={() => { setCollectPick(r); setCollectAmt(""); }}>回収</button>
+                        {/* ★裁定150（v2.1 D44）: 文言＝未回収は「回収を登録」・一部回収済みは「追加回収」（経路は同じ部分回収モーダル） */}
+                        <button style={btnLight} onClick={() => { setCollectPick(r); setCollectAmt(""); }}>
+                          {r.collected_amount > 0 ? "追加回収" : "回収を登録"}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -425,7 +429,7 @@ export default function ReportBoard({
             {bizDate}（{DOW[dowOf(bizDate)]}）
           </span>
           <span className={`nox-stbadge ${closedReport ? "closed" : "open"}`}>
-            {closedReport ? "締め済み" : "営業中（未締め）"}
+            {closedReport ? "締め済み" : "営業中・未締め"}
           </span>
           {!closedReport && (preview?.open ?? 0) > 0 && (
             <span className="nox-repwarn">
@@ -464,13 +468,14 @@ export default function ReportBoard({
                 </div>
               )}
             </div>
-            <div className="nox-rs">
-              <div className="l">客単価</div><div className="v num">{perGuest != null ? yen(perGuest) : "—"}</div>
-              {perSlip != null && <div className="l" style={{ marginTop: 2 }}>組単価 {yen(perSlip)}</div>}
-            </div>
+            {/* ★裁定148（v2.1 D9）: 並びをモック順（売上／組数／客単価／現金／カード）へ。「暫定」表記と値は据え置き */}
             <div className="nox-rs">
               <div className="l">組数</div><div className="v num">{preview.slips}組</div>
               <div className="l" style={{ marginTop: 2 }}>客数 {preview.guests}名</div>
+            </div>
+            <div className="nox-rs">
+              <div className="l">客単価</div><div className="v num">{perGuest != null ? yen(perGuest) : "—"}</div>
+              {perSlip != null && <div className="l" style={{ marginTop: 2 }}>組単価 {yen(perSlip)}</div>}
             </div>
             <div className="nox-rs"><div className="l">現金</div><div className="v num">{yen(preview.cash)}</div></div>
             <div className="nox-rs"><div className="l">カード</div><div className="v num">{yen(preview.card)}</div></div>
@@ -565,7 +570,8 @@ export default function ReportBoard({
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
           <span style={{ fontSize: 13, color: "var(--v2-text)" }}>営業日</span>
           <input type="date" value={bizDate} onChange={(e) => setBizDate(e.target.value)} style={input} />
-          <span style={{ ...t.sub, fontSize: 12 }}>区切り {cutoff}（範囲: 当日{cutoff}〜翌日{cutoff}）</span>
+          {/* ★裁定150（v2.1 D7）: 「区切り」→モック語「営業日切替 翌HH:MM」（値は settings_json.biz_cutoff_hm のまま） */}
+          <span style={{ ...t.sub, fontSize: 12 }}>営業日切替 翌{cutoff}（範囲: 当日{cutoff}〜翌日{cutoff}）</span>
         </div>
         {preview && (
           <table style={{ borderCollapse: "collapse", fontSize: 13 }}>
@@ -573,7 +579,7 @@ export default function ReportBoard({
               <tr>
                 {[
                   ["伝票", preview.slips], ["組客数", preview.guests], ["同伴", preview.dohan], ["未会計", preview.open],
-                  ["現金", yen(preview.cash)], ["カード", yen(preview.card)], ["カードTAX", yen(preview.cardTax)],
+                  ["現金", yen(preview.cash)], ["カード", yen(preview.card)], ["カード手数料（日報集計用）", yen(preview.cardTax)],
                   ["売掛", yen(preview.uri)], ["その他", yen(preview.other)], ["ドリンク/シャンパン売上", yen(preview.drink)],
                 ].map(([label, v]) => (
                   <td key={label as string} style={{ padding: "4px 12px", borderRight: "1px solid var(--line)" }}>
@@ -645,7 +651,7 @@ export default function ReportBoard({
                   <b className="num">{counted === "" ? "未入力" : yen(Number(counted))}</b>
                 </div>
                 <div className="nox-listrow">
-                  <span style={{ flex: 1, fontWeight: 800 }}>実査差</span>
+                  <span style={{ flex: 1, fontWeight: 800 }}>実査差異</span>
                   <b className="num" style={{ fontSize: 15, color: diffLive == null ? "var(--sub)" : diffLive === 0 ? "var(--ok)" : "var(--bad)" }}>
                     {diffLive == null ? "—" : diffLive === 0 ? "±0" : `${diffLive > 0 ? "+" : "−"}${yen(Math.abs(diffLive))}`}
                   </b>
@@ -683,7 +689,7 @@ export default function ReportBoard({
               [payMatch, payMatch ? "決済一致（入金合計＝伝票合計）" : `決済不一致（入金 ${yen(paysSum)} ≠ 伝票 ${yen(preview.closedTotal)}）`],
               [diffLive == null ? null : diffLive === 0,
                 diffLive == null ? "実査 未入力（入力すると差をここに表示）"
-                  : diffLive === 0 ? "実査差 ±0" : `実査差 ${diffLive > 0 ? "+" : "−"}${yen(Math.abs(diffLive))}`],
+                  : diffLive === 0 ? "実査差異 ±0" : `実査差異 ${diffLive > 0 ? "+" : "−"}${yen(Math.abs(diffLive))}`],
             ];
             return (
               <div style={{ display: "grid", gap: 4, marginBottom: 10 }}>
@@ -701,7 +707,7 @@ export default function ReportBoard({
               </div>
             );
           })()}
-          {/* E8-2 #4: 現金照合パネル＝レジ内予定額の内訳を締め前にライブ表示（式は確定側の実査差と同じ） */}
+          {/* E8-2 #4: 現金照合パネル＝レジ内予定額の内訳を締め前にライブ表示（式は確定側の実査差異と同じ） */}
           {preview && (() => {
             const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout;
             const diffLive = counted === "" ? null : Number(counted) - expected;
@@ -716,7 +722,7 @@ export default function ReportBoard({
                   </span>
                   {diffLive != null && (
                     <b className="num" style={{ color: diffLive === 0 ? "var(--ok)" : "var(--bad)" }}>
-                      実査差 {diffLive === 0 ? "±0" : `${diffLive > 0 ? "+" : "−"}${yen(Math.abs(diffLive))}`}
+                      実査差異 {diffLive === 0 ? "±0" : `${diffLive > 0 ? "+" : "−"}${yen(Math.abs(diffLive))}`}
                     </b>
                   )}
                 </div>
@@ -778,7 +784,7 @@ export default function ReportBoard({
       <section className="nox-panel">
         <h3>締め済み日報</h3>
         {/* 段L2: リッチ行（モック .histrow）＝直近7日を「日付・組数・現金/カード・売上」で読みやすく。
-            ★下の全列テーブルはそのまま残す（実査差・再締め等の運用列を落とさない＝情報を減らさない）。 */}
+            ★下の全列テーブルはそのまま残す（実査差異・再締め等の運用列を落とさない＝情報を減らさない）。 */}
         {/* E8-2 #8: 行クリックでその営業日を上のプレビューに表示＋締め担当を併記 */}
         {reports.slice(0, 7).map((r) => (
           <div key={`h-${r.id}`} className="nox-histrow" style={{ cursor: "pointer" }}
@@ -793,11 +799,11 @@ export default function ReportBoard({
             <span className="a num">{yen(r.cash + r.card_gross + r.uri + r.other)}</span>
           </div>
         ))}
-        <p style={{ ...t.sub, fontSize: 11, margin: "10px 0 6px" }}>全列（実査差・再締め等）は下の表で確認できます。</p>
+        <p style={{ ...t.sub, fontSize: 11, margin: "10px 0 6px" }}>全列（実査差異・再締め等）は下の表で確認できます。</p>
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
           <thead>
             <tr>
-              {["営業日", "伝票", "客数", "現金", "回収現金", "カード", "TAX", "売掛", "ドリンク売上", "未会計", "諸経費", "現金支払", "実査差", "再締め回数", "締め担当", ""].map((h) => (
+              {["営業日", "伝票", "客数", "現金", "回収現金", "カード", "カード手数料", "売掛", "ドリンク売上", "未会計", "諸経費", "現金支払", "実査差異", "再締め回数", "締め担当", ""].map((h) => (
                 <th key={h} style={t.th}>{h}</th>
               ))}
             </tr>
@@ -831,7 +837,7 @@ export default function ReportBoard({
           </tbody>
         </table>
         <p style={{ ...t.sub, fontSize: 11, marginTop: 8 }}>
-          実査差 = 実査 −（釣銭準備金 + 現金売上 + 回収現金 − 諸経費 − 現金支払）。現金売上と回収現金は別掲（混ぜない）。
+          実査差異 = 実査 −（釣銭準備金 + 現金売上 + 回収現金 − 諸経費 − 現金支払）。現金売上と回収現金は別掲（混ぜない）。
         </p>
       </section>
       </>)}
