@@ -2998,6 +2998,7 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
   0088_samples／0089_time_line_split.sql／ddl_*.txt／design_tokens_draft.md／e1_shots／live_*.sql 22本／next_boot.md／nox_billing_donor.md／
   q115_3.mjs／r2b_saitei110_wip.patch／r2b_stage0_report.md／regi_kaizen_preflight.md／rpc_inventory.txt／sd0_*.md／u2_progress.md）。
   手貼りリスト 0131〜0134 行＝2列表の書式・並び（連番）を確認済み。
+- **停止リスト4件の処置（相談役裁定 2026-09-07）**: ①N3 店舗設定「基本情報」タブ（店舗名／表示名／略称の書込 RPC なし）＝**店舗設定 setter mig へ統合**（S9/S11/S12 の `set_store_profile` 系＝C層①の機能フラグ器と同じ設計書で起草）。②N4(b) `ext_shimei_enabled`／`dohan_auto_hon` の設定 UI＝**同じ店舗設定 setter mig へ統合**（対応表 §6 要点10 の単独起票は本 mig に吸収）。③N4(e) 会計後タイムライン（R57）＝**レジ v12.1 レーン送り**（伝票詳細の履歴 UI は v12.1 の写像 R 系と一体で設計・audit_logs の閲覧スコープはそこで裁定）。④N5 docs/tmp 残置39件＝**「レーンD 分類表」を docs 化した後に棚卸し**（分類表なしの削除は行わない）。
 
 ---
 
@@ -3269,6 +3270,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 55 | **mig0131: reorder whitelist＋区分一覧 RPC（#54 実装）＋duration 上限** | **クローズ（2026-09-04・mig0131 消化）**＝(1) reorder whitelist へ vip_charge（vu(r1) 係留）・**UI の priority 再送回避も撤去＝正規 RPC へ復帰**。★撤去実走で**帯表示順の潜在欠陥が露出**: priority は fee_kind ごとの独立系列（reorder が kind 内 1..N 正規化）のため min(priority) の帯間比較は kind 構成が非対称な帯（唯一の vip 帯等）で破綻＝旧回避実装が偶然隠していた。bandsOf を「kind 系列の合流」順（束縛は同一 kind 内の priority 大小のみ・無束縛同士は現行比較＝既存表示不変）へ是正し CC 往復で確認 (2) delete 系 whitelist 確認済み (3) for_register 新設（#54 欄へ） (4) duration>1440 拒否（vu(du1/du2)＝1440 受理・1441 'bad duration'） |
 | 56 | **duration 上限ガード（UI 警告＋RPC 拒否・duration_min > 1440）** | **RPC 側消化（2026-09-04・mig0131＝#55 同乗・vu(du1/du2) 係留）**。★残2点: (a) **UI（帯モーダル）の警告は未実装** (b) **実データ逆転1件（CLUB NOX「VIP20:00〜20:59」延長 30円/5000分）は 2026-09-04 実測で未訂正のまま**＝バインド正常は実機往復で実証済み（2026-09-03）・訂正は CLUB NOX owner＝実アカウントのため CC の UI 代行不可＝**Agoora 実機修正待ち**（済んだら本欄を「訂正済み」へ） |
 | 57 | **drink_claims 転用設計（申告→帰属訂正フロー）** | 金の発生源を**商品バック1系統（check_cast_backs）へ統一**し、claim は確認・訂正申請＋append-only 調整行へ転用する設計。背景＝**実測①（2026-09-04）で「同一ドリンク行の二重（claim back_amount と drink_back の両立）」が現行仕様と確定**・裁定113 の裁定4で drink_claims は 113 の射程外（完全不干渉）。訂正締切が D-1（給与確定取消）と隣接のため**着手時期は D-1 設計時に裁定**。D調査で現行 claim 機能の店別 on/off 設定の有無を確認 |
+| 58 | **f0 の statement timeout フレーク（原因追跡）** | 2026-09-04 の 5走中2走で **billing 段47-3（locked でも seats を SELECT）／payroll `loadMasters`（collect.ts:95 マスタ読み取り）** が `canceling statement due to statement timeout` で赤・assert 赤ではなく DB 側のタイムアウト（同型＝起票#33〜35・drink_claims 1行表・advances・payroll timeout の既往）。**再走緑なら gate 妥当**（2連緑の判定は「連続2走が緑」＝フレーク走は数に入れず再走で取り直す運用を継続）。**原因追跡は別レーン**（pooler／statement_timeout 値／並走クエリ／対象テーブルの行数増＝audit_logs・stock_logs 等の単調増加表の疑いを含む・教訓35）。起票 2026-09-07 |
 
 ### 未裁定・消し込み待ち
 
