@@ -676,9 +676,17 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
   const [pvGuests, setPvGuests] = useState(2);
   const [pvDohan, setPvDohan] = useState(false);
   const [pvPay, setPvPay] = useState<"cash" | "card">("cash");
+  // ★裁定127/128（v8.1 P12/P14）: 区分・指名キャストのランクをプレビュー条件に追加（""=指定なし＝null 送信）。
+  //   キャスト個別料金の器は無い＝「指名キャスト」はランクの代理選択（対応表 P13 備考）。
+  const [pvCat, setPvCat] = useState("");
+  const [pvRank, setPvRank] = useState("");
+  // ★裁定127（P15〜P19）: resolve の rule_id / billing_unit を捨てず保持（名前・出所はレンダ時に手元 rules/ranks で解決＝R9）
+  type PvRow = { amount: number; min: number | null; src: "rule" | "base"; ruleId: string | null; unit: string | null };
   const [pvOut, setPvOut] = useState<{
-    setAmount: number; setMin: number; setSrc: "rule" | "base";
-    dohanUnit: number | null; dohanSrc: "rule" | "base";
+    setAmount: number; setMin: number; setSrc: "rule" | "base"; setRuleId: string | null; setUnit: string | null;
+    ext: PvRow; hon: PvRow; jonai: PvRow;
+    vip: PvRow | null;  // null＝VIP 席以外（照会しない）／VIP 席で該当なしは amount 0・src base
+    dohanUnit: number | null; dohanSrc: "rule" | "base"; dohanRuleId: string | null;
     units: number; net: number; svc: number; total: number; cardTax: number;
   } | null>(null);
   const [pvErr, setPvErr] = useState<string | null>(null);
@@ -726,18 +734,35 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
     setPvErr(null);
     setPvOut(null);
     const at = new Date(pvAt).toISOString();
+    // ★裁定127/128: p_category_id / p_rank_id を送信（mig0130 で 6引数化・whitelist 7種＝#52 消化済み）。
+    //   kind ごとに resolve＝set / extension / hon_shimei / jonai_shimei（常時）・vip_charge（VIP 席のみ＝check_open の
+    //   行生成条件と同じ）・dohan（同伴あり時）。権威は check_open 時のサーバ解決＝ここは同じ RPC の事前照会。
     const call = (fk: string) => supabase.rpc("pricing_resolve", {
       p_store_id: storeId, p_at: at, p_fee_kind: fk,
-      p_seat_kind: pvSeat === "" ? null : pvSeat, p_rank_id: null,
+      p_seat_kind: pvSeat === "" ? null : pvSeat,
+      p_rank_id: pvRank === "" ? null : pvRank,
+      p_category_id: pvCat === "" ? null : pvCat,
     });
-    const [rs, rd] = await Promise.all([call("set"), pvDohan ? call("dohan") : Promise.resolve({ data: null, error: null })]);
-    if (rs.error) { setPvErr(ruleErrJa(rs.error.message)); return; }
-    if (pvDohan && rd.error) { setPvErr(ruleErrJa(rd.error.message)); return; }
-    const setRow = Array.isArray(rs.data) && rs.data.length ? rs.data[0] as { amount: number; duration_min: number | null } : null;
-    const dohanRow = pvDohan && Array.isArray(rd.data) && rd.data.length ? rd.data[0] as { amount: number } : null;
+    const none = Promise.resolve({ data: null, error: null });
+    const [rs, re, rh, rj, rv, rd] = await Promise.all([
+      call("set"), call("extension"), call("hon_shimei"), call("jonai_shimei"),
+      pvSeat === "VIP" ? call("vip_charge") : none,
+      pvDohan ? call("dohan") : none,
+    ]);
+    const firstErr = [rs, re, rh, rj, rv, rd].find((r) => r.error)?.error;
+    if (firstErr) { setPvErr(ruleErrJa(firstErr.message)); return; }
+    type ResolvedRow = { amount: number; duration_min: number | null; rule_id: string | null; billing_unit: string | null };
+    const row = (r: { data: unknown }): ResolvedRow | null =>
+      Array.isArray(r.data) && r.data.length ? r.data[0] as ResolvedRow : null;
+    const setRow = row(rs), extRow = row(re), honRow = row(rh), jonaiRow = row(rj), vipRow = row(rv), dohanRow = pvDohan ? row(rd) : null;
+    const toRow = (r: ResolvedRow | null, baseAmount: number, baseMin: number | null): PvRow => ({
+      amount: r?.amount ?? baseAmount, min: r?.duration_min ?? baseMin,
+      src: r ? "rule" : "base", ruleId: r?.rule_id ?? null, unit: r?.billing_unit ?? null,
+    });
     const setUnit = setRow?.amount ?? store.set_fee;
     const setMin = setRow?.duration_min ?? store.set_min;
     const dohanUnit = pvDohan ? (dohanRow?.amount ?? store.dohan_fee) : null;
+    // ★既存の概算計算は不変（セット＋同伴のみ・課金単位は店既定 time_per）＝延長・指名・VIPチャージは概算に含めない
     const units = store.time_per === "person" ? pvGuests : 1;
     const setAmount = setUnit * units;
     const net = setAmount + (dohanUnit != null ? dohanUnit * pvGuests : 0);
@@ -749,11 +774,34 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
       : Math.floor(withSvc / u) * u;
     const cardTax = pvPay === "card" ? Math.round(total * store.card_tax_rate / 100) : 0;
     setPvOut({
-      setAmount, setMin, setSrc: setRow ? "rule" : "base",
-      dohanUnit, dohanSrc: dohanRow ? "rule" : "base",
+      setAmount, setMin, setSrc: setRow ? "rule" : "base", setRuleId: setRow?.rule_id ?? null, setUnit: setRow?.billing_unit ?? null,
+      ext: toRow(extRow, store.ext_fee, store.ext_min),
+      hon: toRow(honRow, store.hon_fee, null),
+      jonai: toRow(jonaiRow, store.jonai_fee, null),
+      // VIP 席で該当ルールなし＝加算なし（0 円・base）。VIP 席以外は照会しない＝null
+      vip: pvSeat === "VIP" ? toRow(vipRow, 0, null) : null,
+      dohanUnit, dohanSrc: dohanRow ? "rule" : "base", dohanRuleId: dohanRow?.rule_id ?? null,
       units, net, svc, total, cardTax,
     });
   }
+
+  // ★裁定127（P15/P18）: 適用ルールの名前と出所をレンダ時に手元 rules/ranks で解決（stale closure を作らない＝R9）
+  const pvRuleName = (ruleId: string | null): string | null =>
+    ruleId ? rules.find((r) => r.id === ruleId)?.name ?? null : null;
+  const pvShimeiSrc = (r: PvRow): string => {
+    if (r.src === "base") return "店舗基本";
+    const rule = r.ruleId ? rules.find((x) => x.id === r.ruleId) : undefined;
+    if (rule?.rank_id) return `${ranks.find((k) => k.id === rule.rank_id)?.name ?? "ランク"}ランク`;
+    return "料金ルール";
+  };
+  // ★裁定127（P16）: セット終了時刻＝入店日時＋セット分（表示計算のみ・日跨ぎは「翌」）
+  const pvSetEnd = (atLocal: string, min: number): string => {
+    const start = new Date(atLocal);
+    if (Number.isNaN(start.getTime())) return "—";
+    const end = new Date(start.getTime() + min * 60000);
+    const hm = `${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
+    return end.getDate() !== start.getDate() ? `翌 ${hm}` : hm;
+  };
 
   // ── 表示ヘルパー ──────────────────────────────────────────────
   const bandTimeLabel = (b: Band) => {
@@ -1061,6 +1109,26 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 <input type="number" min={1} max={30} value={pvGuests}
                   onChange={(e) => setPvGuests(Math.max(1, Number(e.target.value)))} style={{ ...input, width: 64 }} />
               </label>
+              {/* ★裁定127/128（P12/P14）: 区分・指名キャストのランク。選択肢7以下はセグ・超えたらプルダウン（教訓27） */}
+              {(() => {
+                const pick = (label: string, value: string, onChange: (v: string) => void, opts: ReadonlyArray<readonly [string, string]>) => (
+                  <label style={{ fontSize: 12 }}>{label}{" "}
+                    {opts.length <= 7
+                      ? <SegSelect value={value} onChange={onChange} options={opts} />
+                      : <select value={value} onChange={(e) => onChange(e.target.value)} style={input}>
+                          {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>}
+                  </label>
+                );
+                const catOpts: (readonly [string, string])[] = [["", "指定なし"], ...cats.filter((c) => c.is_active).map((c) => [c.id, c.name] as const)];
+                const rankOpts: (readonly [string, string])[] = [["", "ランクなし"], ...ranks.filter((r) => r.is_active).map((r) => [r.id, r.name] as const)];
+                return (
+                  <>
+                    {catOpts.length > 1 && pick("区分", pvCat, setPvCat, catOpts)}
+                    {pick("指名キャストのランク", pvRank, setPvRank, rankOpts)}
+                  </>
+                );
+              })()}
               <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>
                 <button type="button" role="switch" aria-checked={pvDohan}
                   className={pvDohan ? "nox-switch on" : "nox-switch"} onClick={() => setPvDohan((v) => !v)}><i /></button>
@@ -1075,21 +1143,63 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             {pvErr && <p style={{ fontSize: 12.5, color: "var(--bad)", margin: "10px 0 0" }}>{pvErr}</p>}
             {pvOut && (
               <div style={{ marginTop: 12, fontSize: 12.5, lineHeight: 2 }}>
+                {/* ★裁定127（P15）: 適用ルール＝セットの解決行の表示名（R9: name null は「表示名なし」・base は「なし」） */}
+                <div>
+                  適用ルール：
+                  <strong style={{ color: "var(--v2-text)" }}>
+                    {pvOut.setSrc === "base" ? "なし（基本料金）" : (pvRuleName(pvOut.setRuleId) ?? "表示名なしのルール")}
+                  </strong>
+                </div>
                 <div>
                   セット料金 <span style={t.num}>{yen(pvOut.setAmount)}</span>
                   <span style={{ color: "var(--sub)" }}>
                     {"　"}({pvOut.setMin}分・{store.time_per === "person" ? `${pvOut.units}名分` : "卓単位"}・
                     {pvOut.setSrc === "rule" ? "時間帯ルール適用" : "基本料金"})
                   </span>
+                  {/* ★裁定127（P16）: セット終了時刻＝入店日時＋セット分（表示計算のみ） */}
+                  <span style={{ color: "var(--sub)" }}>　セット終了 <span style={t.num}>{pvSetEnd(pvAt, pvOut.setMin)}</span></span>
                 </div>
-                {pvOut.dohanUnit != null && (
+                {/* ★裁定127（P17）: 延長＝resolve("extension")・概算には含めない */}
+                <div>
+                  延長 <span style={t.num}>{yen(pvOut.ext.amount)}</span>
+                  <span style={{ color: "var(--sub)" }}>
+                    {"　"}/{pvOut.ext.min ?? "—"}分・{pvOut.ext.src === "rule" ? "時間帯ルール適用" : "基本料金"}
+                    {pvOut.ext.unit ? `・${UNIT_LABEL[pvOut.ext.unit] ?? pvOut.ext.unit}` : ""}
+                  </span>
+                </div>
+                {/* ★裁定127（P18）: 本指名／場内＝resolve(hon_shimei / jonai_shimei, p_rank_id)・出所＝ランク名／料金ルール／店舗基本 */}
+                <div>
+                  本指名 <span style={t.num}>{yen(pvOut.hon.amount)}</span>
+                  <span style={{ color: "var(--sub)" }}>　({pvShimeiSrc(pvOut.hon)})</span>
+                  {"　"}場内指名 <span style={t.num}>{yen(pvOut.jonai.amount)}</span>
+                  <span style={{ color: "var(--sub)" }}>　({pvShimeiSrc(pvOut.jonai)})</span>
+                </div>
+                {pvOut.dohanUnit != null ? (
                   <div>
                     同伴料金 <span style={t.num}>{yen(pvOut.dohanUnit * pvGuests)}</span>
                     <span style={{ color: "var(--sub)" }}>
                       {"　"}({yen(pvOut.dohanUnit)} × {pvGuests}名・{pvOut.dohanSrc === "rule" ? "時間帯ルール適用" : "基本料金"})
                     </span>
                   </div>
+                ) : (
+                  <div>同伴 <span style={{ color: "var(--sub)" }}>なし</span></div>
                 )}
+                {/* ★裁定127（P19）: VIPチャージ＝VIP 席のみ resolve("vip_charge")・概算には含めない */}
+                <div>
+                  VIPチャージ{" "}
+                  {pvOut.vip === null ? (
+                    <span style={{ color: "var(--sub)" }}>なし（VIP 席以外）</span>
+                  ) : pvOut.vip.src === "base" ? (
+                    <span style={{ color: "var(--sub)" }}>なし（VIP 席のチャージルール未設定）</span>
+                  ) : (
+                    <>
+                      <span style={t.num}>{yen(pvOut.vip.amount)}</span>
+                      <span style={{ color: "var(--sub)" }}>
+                        {"　"}({UNIT_LABEL[pvOut.vip.unit ?? store.time_per] ?? "店既定"}・ルール適用{pvRuleName(pvOut.vip.ruleId) ? `: ${pvRuleName(pvOut.vip.ruleId)}` : ""})
+                      </span>
+                    </>
+                  )}
+                </div>
                 <div>サービス料 <span style={t.num}>{yen(pvOut.svc)}</span><span style={{ color: "var(--sub)" }}>　({store.service_rate}%)</span></div>
                 <div style={{ fontWeight: 700 }}>
                   初回セット概算 <span style={{ ...t.num, color: "var(--champ)", fontSize: 15 }}>{yen(pvOut.total)}</span>
@@ -1101,8 +1211,14 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                     <span style={{ color: "var(--sub)" }}>　({store.card_tax_rate}%・日報集計用＝伝票請求額には含まれません)</span>
                   </div>
                 )}
+                {/* ★裁定127（P20）: 解決順の注記2行。「キャスト個別」は器が無いため書かない（対応表 P20 備考）。
+                    ※文言は裁定127 本文の台帳収載待ち＝仮置き（目視で確認） */}
+                <div style={{ marginTop: 6, fontSize: 11, color: "var(--v2-muted)", lineHeight: 1.8 }}>
+                  <div>指名料金の解決順：ランク ＞ 料金ルール ＞ 店舗基本</div>
+                  <div>時間料金の解決順：料金ルール ＞ 基本料金</div>
+                </div>
                 <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "6px 0 0" }}>
-                  商品・指名料・延長を含まない簡易プレビューです。同伴人数は入店人数と同じとみなしています。
+                  初回セット概算はセット・同伴のみの簡易計算です（商品・指名料・延長・VIPチャージは含みません）。同伴人数は入店人数と同じとみなしています。
                 </p>
               </div>
             )}
@@ -1247,7 +1363,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             const vipSetN = vipSet.filter((r) => r.fee_kind === "set").length;
             const vipExtN = vipSet.filter((r) => r.fee_kind === "extension").length;
             const vipCharge = rules.filter((r) => r.fee_kind === "vip_charge" && r.is_active).sort(ruleOrder);
-            const usePill = (on: boolean) => (
+            const statePill = (on: boolean) => (
               <span className="nox-stpill" style={{ color: on ? "var(--v2-text)" : "var(--v2-muted)" }}>{on ? "使用中" : "未使用"}</span>
             );
             const unitOf = (r: PricingRule) => UNIT_LABEL[r.billing_unit ?? store.time_per] ?? "";
@@ -1267,7 +1383,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                       {vipSet.length > 0 && <>　現在: セット {vipSetN} 件・延長 {vipExtN} 件</>}
                     </span>
                   </span>
-                  {usePill(vipSet.length > 0)}
+                  {statePill(vipSet.length > 0)}
                 </div>
                 <div className="nox-listrow">
                   <span style={{ flex: 1, minWidth: 0 }}>
@@ -1281,7 +1397,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                       )}
                     </span>
                   </span>
-                  {usePill(vipCharge.length > 0)}
+                  {statePill(vipCharge.length > 0)}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
                   <span style={{ fontSize: 11, color: "var(--v2-muted)", flex: 1, minWidth: 0 }}>
