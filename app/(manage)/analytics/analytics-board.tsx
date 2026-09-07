@@ -513,8 +513,9 @@ export default function AnalyticsBoard({
   return (
     <div className="nox-mv1 nox-mv1-sm">
       {/* 段0R 第2陣: モック .head を新シェルの nox-hero へ（/master・/home・/casts と同基準） */}
+      {/* ★裁定160（v2.1 A1）: lead をモック逐語へ（器のある語のみ） */}
       <PageHead eyebrow="BUSINESS INSIGHTS" title="売上・店舗分析"
-        desc="確定した日報をもとに、売上・キャスト・顧客の変化と改善点を可視化します。" />
+        desc="確定した営業データを比較し、売上・キャスト・顧客の変化を確認します。" />
 
       {/* 段0R 第2陣: モック .toolbar＝セグメントを左・期間表示を右端（.period）に。 */}
       <div className="nox-ctoolbar">
@@ -553,8 +554,16 @@ export default function AnalyticsBoard({
           {period}・締め済み {daily.length}日分
         </span>
       </div>
+      {/* ★裁定161（v2.1 A7）: 集計前提の注記3行＋速報導線（モックの4行のうち「人件費: 給与未確定分は概算」は
+          現行が未確定＝「—」のため A19 実装後。導線先は既存の日報タブ＝集計は不変）。 */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", fontSize: 11, color: "var(--v2-muted)", margin: "0 0 10px" }}>
+        <span>集計: 締め済み営業日のみ</span>
+        <span>売上: 会計確定額</span>
+        <span>比較: 同じ締め済み日数で比較</span>
+        <Link href="/report" style={{ color: "var(--primary-hover)", marginLeft: "auto" }}>営業中の速報値はホーム・日報で確認 ›</Link>
+      </div>
 
-      {err && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{err}</p>}
+      {err && <p style={{ fontSize: 12.5, color: "var(--danger-ink)", fontWeight: 700 }}>{err}</p>}
 
       {/* 段A2: KPI 帯4枚＝すべて締め済み daily_reports の再形（全ビュー共通で常時表示・材料も式も不変）。 */}
       <div className="nox-kpis">
@@ -601,7 +610,7 @@ export default function AnalyticsBoard({
         </div>
       </div>
 
-      {t4Err && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{t4Err}</p>}
+      {t4Err && <p style={{ fontSize: 12.5, color: "var(--danger-ink)", fontWeight: 700 }}>{t4Err}</p>}
 
       {/* ── E8-6 #1: 4ビュー切替（モック view-tabs 準拠・既存セクションの再配置のみ）── */}
       <nav className="nox-subnav">
@@ -1072,7 +1081,7 @@ export default function AnalyticsBoard({
             </div>
           </div>
         )}
-        {custErr && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{custErr}</p>}
+        {custErr && <p style={{ fontSize: 12.5, color: "var(--danger-ink)", fontWeight: 700 }}>{custErr}</p>}
         {!castSel && <p style={noneP}>キャストを選択すると、その月に指名した客の一覧（回数順）を表示します。</p>}
         {castSel && !custErr && custRank.length === 0 && (
           <p style={noneP}>該当なし（この月に客に紐付いた指名がありません）</p>
@@ -1121,7 +1130,7 @@ export default function AnalyticsBoard({
         {/* ★DP2 T5（裁定 DP0-2）: 内部用語「セグメント」を製品文言へ。
             配下のラベル（新規／リピート／離反リスク 中・高）は元から和文＝不触。 */}
         <h3>客層の内訳</h3>
-        {custSummaryErr && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{custSummaryErr}</p>}
+        {custSummaryErr && <p style={{ fontSize: 12.5, color: "var(--danger-ink)", fontWeight: 700 }}>{custSummaryErr}</p>}
         {custSummary === null && !custSummaryErr && <p style={noneP}>読み込み中…</p>}
         {custSummary !== null && !custSummaryErr && (
           <>
@@ -1205,7 +1214,7 @@ export default function AnalyticsBoard({
             </button>
             <button style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setTgtOpen(false)}>閉じる</button>
           </div>
-          {tgtMsg && <p style={{ fontSize: 12, color: "var(--bad)", fontWeight: 700, margin: "8px 0 0" }}>{tgtMsg}</p>}
+          {tgtMsg && <p style={{ fontSize: 12, color: "var(--danger-ink)", fontWeight: 700, margin: "8px 0 0" }}>{tgtMsg}</p>}
           <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
             進捗の分子は締め済み日報の売上（KPI と同じ）。空欄で保存すると目標を外します。
           </p>
