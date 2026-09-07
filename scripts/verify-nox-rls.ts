@@ -144,8 +144,10 @@ async function main() {
     );
     const { data: mems } = await c.from("memberships").select("id");
     check("managerA1 memberships = 自店8行", (mems ?? []).length === 8, `got ${(mems ?? []).length}`);
-    const { data: audits } = await c.from("audit_logs").select("id");
-    check("managerA1 audit_logs = 0行（§1.2 owner 限定）", (audits ?? []).length === 0, `got ${(audits ?? []).length}`);
+    // ★裁定139（#58 対処(c)）: 全件 select → count head（意味不変＝0 行 assert・転送ゼロ）。
+    //   ※RLS 越しの per-row 評価（auth_org_id/auth_role）コストは残る＝掃除 gate（verify:nox-audit-sweep）で母数を抑える。
+    const { count: auditN, error: eAudN } = await c.from("audit_logs").select("id", { count: "exact", head: true });
+    check("managerA1 audit_logs = 0行（§1.2 owner 限定）", !eAudN && auditN === 0, eAudN?.message ?? `got ${auditN}`);
     const { data: castId } = await c.rpc("auth_cast_id");
     check("managerA1 auth_cast_id = null", castId === null, `got ${JSON.stringify(castId)}`);
     await c.auth.signOut();
@@ -163,8 +165,9 @@ async function main() {
     check("castA1a users = 自分のみ", sameSet(await names(c, "users", "email"), [FIXTURE_USERS.castA1a.email]));
     const { data: mems } = await c.from("memberships").select("id");
     check("castA1a memberships = 0行", (mems ?? []).length === 0, `got ${(mems ?? []).length}`);
-    const { data: audits } = await c.from("audit_logs").select("id");
-    check("castA1a audit_logs = 0行（パターン2包含）", (audits ?? []).length === 0, `got ${(audits ?? []).length}`);
+    // ★裁定139（#58 対処(c)）: 全件 select → count head（意味不変・転送ゼロ・RLS 評価コストは残る）
+    const { count: auditN, error: eAudN } = await c.from("audit_logs").select("id", { count: "exact", head: true });
+    check("castA1a audit_logs = 0行（パターン2包含）", !eAudN && auditN === 0, eAudN?.message ?? `got ${auditN}`);
     const { data: role } = await c.rpc("auth_role");
     check("castA1a auth_role = cast", role === "cast", `got ${JSON.stringify(role)}`);
     const { data: castId } = await c.rpc("auth_cast_id");
