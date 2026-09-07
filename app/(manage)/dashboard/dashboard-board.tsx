@@ -181,7 +181,10 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           margin-bottom 14px と二重になるため marginBottom 14 に付け替え＝14px 刻みで揃える。 */}
       {shortcuts.length > 0 && (
         <section style={{ marginBottom: 14 }}>
-          <h2 style={{ ...t.cardTitle, margin: "0 0 9px" }}>クイックアクション</h2>
+          {/* ★裁定155（v2.1 M25）: 見出し・文言をモック「クイック操作／よく使う業務だけに絞ります。」へ。
+              9 枚の導線（href/label/role ゲート）は据え置き＝既存機能を消さない。 */}
+          <h2 style={{ ...t.cardTitle, margin: "0 0 2px" }}>クイック操作</h2>
+          <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "0 0 9px" }}>よく使う業務だけに絞ります。</p>
           <div className="nox-quickgrid">
             {shortcuts.map((s) => (
               <Link key={s.href} href={s.href} className="nox-quicktile">
@@ -241,7 +244,8 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
 
       <section className="nox-panel">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
-          <h2 style={{ ...secTitle, margin: 0 }}>指名ランキング（{month}・件数）</h2>
+          {/* ★裁定156（v2.1 M27）: 見出しをモック「本指名ランキング（今月）」へ。上位 5 名・場内／同伴の併記は据え置き（情報を減らさない） */}
+          <h2 style={{ ...secTitle, margin: 0 }}>本指名ランキング（今月 {month}・件数）</h2>
           <Link href="/analytics" className="nox-more">分析へ ›</Link>
         </div>
         {ranking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません</p>}
