@@ -131,6 +131,18 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
     : todayBands.some((b) => b.fill === "warn") ? "warn"
     : todayBands.some((b) => b.fill === "ok") ? "ok" : "none";
   const shortageToday = todayBands.reduce((m, b) => Math.max(m, Math.max(0, b.required - b.assigned)), 0);
+  // ★裁定157／154（v2.1 H2）: 既存 state からの派生のみ（新規クエリなし・式は S-1 と同一）。
+  //   出勤済み＝shukkin/dohan・未着・遅刻＝late（「未着」の明示ステータスは無い＝late＋eta で近似）・欠勤＝absent・
+  //   出勤予定＝当日シフト件数・仮シフト未確認＝proposed 件数。最悪バンド＝不足数が最大の帯（帯ラベル表示用）。
+  const arrivedToday = atts.filter((a) => a.status === "shukkin" || a.status === "dohan").length;
+  const lateToday = atts.filter((a) => a.status === "late").length;
+  const absentToday = atts.filter((a) => a.status === "absent").length;
+  const proposedToday = todayShifts.filter((s) => s.status === "proposed").length;
+  const worstBand = todayBands.reduce<(typeof todayBands)[number] | null>(
+    (w, b) => (b.required - b.assigned > (w ? w.required - w.assigned : 0) ? b : w), null);
+  const hmOf = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  const bandLabel = (b: { from_min: number; to_min: number }) =>
+    b.from_min === 0 && b.to_min === 1440 ? "終日" : `${hmOf(b.from_min)}–${hmOf(b.to_min)}`;
   /** 出勤チップに出す開始時刻＝その cast の当日シフト（最も早い開始）。無ければ null。 */
   const startOf = (castId: string) => {
     const mine = todayShifts.filter((s) => s.cast_id === castId);
@@ -151,9 +163,10 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           ★JSX の並び替えだけで、材料・式・4枚の内容は1文字も変えていない。 */}
       <div className="nox-kpis">
         <div className="nox-kpi">
+          {/* ★裁定157（v2.1 M8）: 「N / 予定N名」＋内訳「未着・遅刻／欠勤」（atts の既存 status から導出・式不変） */}
           <div className="lbl">本日の出勤</div>
-          <div className="val num">{present.length}<small>名</small></div>
-          <div className="sub">確定シフト {confirmedToday}人</div>
+          <div className="val num">{present.length}<small>/ {todayShifts.length}名</small></div>
+          <div className="sub">未着・遅刻 {lateToday}・欠勤 {absentToday}・確定シフト {confirmedToday}人</div>
         </div>
         <div className="nox-kpi">
           <div className="lbl">本日の同伴</div>
@@ -206,17 +219,42 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
       <section className="nox-panel">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
           <h2 style={{ ...secTitle, margin: 0 }}>今日のシフト</h2>
-          <Link href="/shift" className="nox-more">シフト管理へ ›</Link>
+          {/* ★裁定154（M12／M15）: 不足があるときは導線文言を「追加配置へ」に（遷移先は同じ /shift＝日付起点の配置面・裁定121） */}
+          <Link href="/shift" className="nox-more">{shortageToday > 0 ? "追加配置へ ›" : "シフト管理へ ›"}</Link>
         </div>
         <div className="nox-hshift">
           <span className={`nox-stpill ${todayFill === "none" ? "" : todayFill}`}>{FILL_LABEL[todayFill]}</span>
           <span className="num">確定 {confirmedToday} / 予定 {todayShifts.length - confirmedToday}</span>
+          {/* ★裁定154（M9）: 不足は最悪バンドの帯ラベル付き（from–to・計算済み todayBands から表示のみ） */}
           <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
             {requiredToday > 0
-              ? `必要 ${requiredToday}人${shortageToday > 0 ? `・あと${shortageToday}人` : ""}`
+              ? `必要 ${requiredToday}人${shortageToday > 0 && worstBand ? `・${bandLabel(worstBand)} あと${shortageToday}人` : ""}`
               : "必要人数 未設定"}
           </span>
+          {/* ★裁定154（M14）: 仮シフト未確認＝proposed 件数（0 件は出さない） */}
+          {proposedToday > 0 && (
+            <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>・仮シフト未確認 {proposedToday}名</span>
+          )}
         </div>
+        {/* ★裁定154（M22）: 4分割＝出勤予定／出勤済み／未着・遅刻／欠勤（atts・todayShifts の既存 state から導出） */}
+        <div className="nox-repsum" style={{ marginBottom: 8 }}>
+          <div className="nox-rs"><div className="l">出勤予定</div><div className="v num">{todayShifts.length}<small>名</small></div></div>
+          <div className="nox-rs"><div className="l">出勤済み</div><div className="v num">{arrivedToday}<small>名</small></div></div>
+          <div className="nox-rs"><div className="l">未着・遅刻</div><div className="v num">{lateToday}<small>名</small></div></div>
+          <div className="nox-rs"><div className="l">欠勤</div><div className="v num">{absentToday}<small>名</small></div></div>
+        </div>
+        {/* ★裁定154／159（M23）: 時間帯バー＝todayBands の展開（計算済み・表示のみ）。色は既存ピルと同じ nox-stpill の
+            ok／warn／ng（裁定B の3色＝警告面）＝Danger 系トークンは使わない。 */}
+        {todayBands.length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+            {todayBands.map((b) => (
+              <span key={`${b.from_min}-${b.to_min}`} className={`nox-stpill ${b.fill === "none" ? "" : b.fill}`}>
+                <span className="num">{bandLabel(b)}</span>
+                {"　"}{b.required - b.assigned > 0 ? `あと${b.required - b.assigned}人` : FILL_LABEL[b.fill]}
+              </span>
+            ))}
+          </div>
+        )}
         {present.length === 0 && (
           <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>まだ出勤記録がありません</p>
         )}
