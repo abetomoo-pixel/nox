@@ -767,7 +767,8 @@ export default function CastsBoard({
               if (!confirm(`${selTrial.name} を本採用しますか？（キャストに登録され、実績ゼロから開始します）`)) return;
               if (await rpc("本採用", "trial_hire", { p_trial_id: selTrial.id })) { setSel(null); await reloadLoginCasts(); }
             }}>本採用</button>
-            <button style={{ ...btnGhost, color: "var(--bad)", borderColor: "var(--bad-bd)" }} disabled={busy} onClick={async () => {
+            {/* ★裁定146（裁定120 適用）: 取り消し困難な操作＝Danger 系トークン（--bad 系は警告面用・値は同系） */}
+            <button style={{ ...btnGhost, color: "var(--danger)", borderColor: "var(--danger-bd)" }} disabled={busy} onClick={async () => {
               if (!confirm(`${selTrial.name} を見送りますか？`)) return;
               if (await rpc("見送り", "trial_reject", { p_trial_id: selTrial.id })) setSel(null);
             }}>見送り</button>
