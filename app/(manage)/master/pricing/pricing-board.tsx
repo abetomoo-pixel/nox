@@ -1652,7 +1652,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             <div style={{ fontSize: 11.5, color: "var(--warning)", margin: "6px 0 2px" }}>
               加盟店契約でカード手数料の転嫁が禁止・制限されている場合があります。契約上の可否を確認してください
               {taxSavedSur === null && (
-                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, color: "var(--fg)" }}>
+                // ★裁定132: 未定義だった var(--fg) → --ink（本文基底色・警告帯の中でチェック行だけ通常文字色へ戻す）
+                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, color: "var(--ink)" }}>
                   <input type="checkbox" checked={tSurAck} onChange={(e) => setTSurAck(e.target.checked)} />
                   契約上の可否を確認しました（保存すると確認の記録が残ります）
                 </label>
