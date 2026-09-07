@@ -2846,6 +2846,22 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓62：docs の一括更新スクリプトは「git から戻して1回だけ適用」・行番号は id 照合で守る
+
+対応表の行更新スクリプトで行番号を1つ誤り（見出し行を数え違え）、途中で例外＝台帳側だけ書込済みの状態から再実行して**台帳ブロックを二重挿入**
+（2026-09-07・分析 N1 docs）。是正＝`git checkout -- <docs>` で両ファイルを戻し、修正済みスクリプトを 1 回だけ流す。予防＝(1) 行更新は必ず
+`c[1].trim() === EXPECT[ln]`（行 id 照合）で守り、不一致は throw (2) 台帳挿入と対応表更新を**同じスクリプトで同時に**行い、失敗時は両方戻す
+(3) 適用後に見出しの重複を `grep -c` で確認（各 1）。
+
+### 教訓61：改行コードが変わると全行差分になる＝コミット前に `git diff --stat` の行数を見る
+
+分析 N1（2026-09-07）で編集ツールが analytics-board.tsx を CRLF で書き戻し、index（LF）との比較で **1,225／1,216 の全行差分**としてコミットされた
+（`git diff --ignore-all-space --stat` では 21 行）。未 push だったため LF へ戻して amend。原因＝リポジトリに `.gitattributes` が無く、core.autocrlf は
+system=true／user=false の個人設定依存＝ツールが書く改行がそのまま index に入る。gate＝**コミット前に `git diff --stat` を見て、変更行数がファイル行数
+に近ければ改行を疑う**（`git ls-files --eol` で i/ と w/ を照合）。恒久策＝`.gitattributes`（`*.ts *.tsx *.css *.md *.json *.sql text eol=lf`）の追加
+＝夜間 O1 で試行したが `git add --renormalize .` が対象外の `.html` 1 本（index CRLF／worktree LF の既存不一致）を拾って差分が出たため停止リスト行き
+（翌朝判断）。
+
 ### 教訓60：対応表の「既存」＝当該画面に描画済みのもの。他画面実装の流用は「既存（他面）」で区別する
 
 ホーム v2.1（§9）の写像で、他画面（reservation-panel／register-board／report-board）に実装がある要素を「既存」と分類したため、
