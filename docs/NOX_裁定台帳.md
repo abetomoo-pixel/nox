@@ -2968,6 +2968,60 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 ---
 
+## 裁定178（2026-09-07・無人確定・翌朝承認待ち）給与の税務系 3 行は除外（W37／W39／W40＝税理士ゲート）
+
+出典＝夜間 O レーン規則 e。支払明細・請求関連（invoice／tax-overview／tax-report-csv）・源泉徴収・納付管理・源泉額の計算根拠は税務出力の凍結範囲＝A層で触らない。
+
+## 裁定177（2026-09-07・無人確定・翌朝承認待ち）給与の要確認位置・5 タブ化は据え置き（W2／W12）
+
+出典＝夜間 O レーン規則 b／f。W2「要確認 N件」のヘッダ移設・W12 の 5 タブ化（計算・確認／確定・訂正／支払・明細／税務・出力／履歴）は構造の再配置＝
+文言追随の範囲を超えるため無人では行わない（履歴タブは W41 準備中）。
+
+## 裁定176（2026-09-07・無人確定・翌朝承認待ち）給与対象者表に「日数」列（W23・PayResult.wdays の件数）
+
+出典＝夜間 O レーン規則 d（新規クエリなし・計算なし）。preview は PayResult 全キーを返す（裁定99-⑤）ため `wdays`（日次内訳）の件数を「N日」で表示するだけ。
+Row 型に `wdays?: unknown[]` を足し、配列でなければ「-」。実装＝`ac73128`。
+
+## 裁定175（2026-09-07・無人確定・翌朝承認待ち）給与対象者の絞り込みチップ（W22・全員／雇用／委託）
+
+出典＝夜間 O レーン規則 b／d。取得済み rows の taxMode で client 絞り込み（並び・数値不変・検索と併用）。モックの「要確認」（確認記録の器なし＝W19）
+「キャスト／スタッフ」（スタッフ給与＝W24 新要件）は置かない。実装＝`ac73128`。
+
+## 裁定174（2026-09-07・無人確定・翌朝承認待ち）給与 KPI 4 枚のラベルは据え置き（W10・既払額 W11 の定義変更前）
+
+出典＝夜間 O レーン規則 d／f。モック「対象者／総支給／控除合計／既払額／今回支払」は既払額（前借り＝現行は控除）の会計定義変更（W11）を含む＝
+現行「支給総額／控除合計（源泉含む）／差引支給額／未支払」を据え置き（値の定義は D3 CSV と逐語同一）。
+
+## 裁定173（2026-09-07・無人確定・翌朝承認待ち）「プレビュー」は据え置き（W7・モック「再集計」へ改名しない）
+
+出典＝夜間 O レーン規則 f。ボタンだけ「再集計」にすると 4 ステップ「プレビューで取込」・案内文・参考値の注記と語が割れる＝翌朝判断。
+
+## 裁定172（2026-09-07・無人確定・翌朝承認待ち）給与の lead は「出勤」→「勤怠」のみ（W1・「明細公開」は書かない）
+
+出典＝夜間 O レーン規則 a。モック「勤怠・売上・報酬ルールから計算し、確認・確定・支払・明細公開まで管理します。」のうち「明細公開」は
+W34（LINE 公開＝裁定99-⑦ 後送り）の語＝書かない。W3／W9／W16／W18／W21／W25／W27／W30／W33／W35／W36 は差分なし（W9 の 4 段目は裁定99-⑦ どおり
+「支払・明細」）。実装＝`ac73128`。
+
+## 裁定171（2026-09-07・無人確定・翌朝承認待ち）お知らせの対象注記は据え置き（N9・「休店」は第2期の語）
+
+出典＝夜間 O レーン規則 a／e。モック「休店・退店者は除外」の「休店」は在籍 5 状態（K25・第2期）の語＝現行「退店済み・無効の担当は数えません」を据え置き。
+
+## 裁定170（2026-09-07・無人確定・翌朝承認待ち）「掲載」と「配信」の語は据え置き（N29／N30・読み替え裁定済み）
+
+出典＝夜間 O レーン規則 a／f。「配信＝掲示」の読み替えは既裁定（台帳:1388）。ボタン「今すぐ掲載」→モック「今すぐ配信」への置換は確認モーダル
+（お知らせの掲載確認）や案内文と語が割れるため無人では行わない（翌朝判断）。
+
+## 裁定169（2026-09-07・無人確定・翌朝承認待ち）お知らせの lead は据え置き（N1・LINE／メールは凍結の語）
+
+出典＝夜間 O レーン規則 a／e。モック「アプリ内・LINE・メールで、必要な相手に必要な連絡を届けます。」は LINE／メール（T3 凍結・器なし）を含む＝
+現行「店舗の連絡をスタッフ・キャストのマイページに掲載します。」を据え置き。
+
+## 裁定168（2026-09-07・無人確定・翌朝承認待ち）お知らせのテンプレートをモックの 5 種へ（N32・定数のみ）
+
+出典＝夜間 O レーン規則 a／b。3 種→5 種（仮シフト公開／シフト確定を追加＝いずれも既存機能：shift_period_set published／shift_confirm_bulk とマイページの
+シフト確認導線）。ラベルをモック逐語へ（ミーティング案内→全体ミーティング・給与明細の公開→給与明細公開）。定数のみ＝DB・RPC・引数不変。
+N11／N12／N13／N21／N22／N25／N31／N33／N44 は差分なし。実装＝`2fb16d3`。
+
 ## 裁定167（2026-09-07）分析のエラー文 5 箇所は Danger 系トークン（裁定120 適用・分析面のみ）
 
 出典＝相談役ブロック（N1）・Agoora「推奨で」確定。err／t4Err／custErr／custSummaryErr／tgtMsg の `--bad` → `--danger-ink`（月報 R2＝裁定151 と同型）。
@@ -3339,6 +3393,7 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **日報・月報・売掛 v2.1 A層 R1/R2 完了**（既存21行のみ・集計式不触・mig なし）: `98fb7d0`（R1 文言・表記＝裁定147/148/150/152）／`9531d41`（R2 内訳合算＋裁定120 適用＝裁定149/151）。除外＝売掛手動登録 D38・月次確定/CSV D29〜D31・税務出力。付記実測＝逆転値凍結の伝票 1 件（open・延長行 0／母数 12）＝#61 起票・裁定153。f0 2 連緑＝37 本 3,550（所要 529s／546s・sweep 削除前 797/797）・golden 6 値不変。対応表 §8 の21行を「実装済(A層)」へ更新。
 - **ホーム v2.1 A層 H1/H2 完了**（描画済み行＋既存 state からの表示追加のみ・新規クエリなし・KPI 式不変・mig なし）: `8e2eeff`（H1 見出し・文言＝裁定155/156/158）／`84c3e82`（H2 表示追加＝裁定154/157/159）。M13/M17/M18/M20/M24 は「新要件（ホーム合成・M11 レーン）」へ訂正（教訓60）。f0 2 連緑＝37 本 3,550（所要 350s／615s・sweep 削除前 797/797）・golden 6 値不変。対応表 §9 の19行を更新。
 - **分析 v2.1 A層 N1 完了**（既存行のみ・集計式/RPC 不触・A44 PII 不触・mig なし）: `ad44954`（lead＝裁定160／注記3行＋速報導線＝裁定161／エラー文5箇所 --danger-ink＝裁定167）。据え置き＝A2/A18/A27/A31/A32（裁定162〜166）。★初版コミットで analytics-board.tsx の改行が CRLF 化し全行差分（1225/1216）になったため LF へ戻して amend（差分 21 行・未 push のローカルのみ）。f0 2 連緑＝37 本 3,550（所要 423s／615s・sweep 削除前 797/797）・golden 6 値不変。対応表 §10 の22行を更新。
+- **夜間 O レーン（2026-09-07 夜・無人）**: O1 `.gitattributes` は renormalize で対象外の `.html` 1 本（index CRLF／worktree LF の既存不一致）が差分となり停止リスト（案は scratchpad 退避・教訓61/62 は `ae00521`）。O2 お知らせ `2fb16d3`（N32 テンプレート5種＝裁定168〜171・無人確定）。O3 給与 `ac73128`（W1 勤怠／W22 チップ／W23 日数列＝裁定172〜178・無人確定）。**f0**: O2 run1 緑 37本3,550（416s）→ run2 赤（pricing 段 `check_add_line` の error 未捕捉→null.id・単独再走緑）→ run3 赤（pricing 段43(18)d statement timeout・936s）／O3 run1 赤（anon-guard 段 null.id・1,183s）／run2 は sweep が pooler 接続取得不能（ECHECKOUTTIMEOUT 15s）。**PostgREST 経路の遅延を実測**＝direct pg 9ms に対し signin 13.8s・rpc 22.6→1.6s＝API 層／pooler 側の劣化（DB 直結は正常・長時間クエリなし・接続 22/60）。**O2/O3 の 2 連緑は未達**＝翌朝に f0 再走で取り直し（無人では再走ループしない）。#58 は観察継続。O5 朝報告＝`docs/handoff/NOX_夜間O_20260907.md`。
 ---
 
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
@@ -3609,7 +3664,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 55 | **mig0131: reorder whitelist＋区分一覧 RPC（#54 実装）＋duration 上限** | **クローズ（2026-09-04・mig0131 消化）**＝(1) reorder whitelist へ vip_charge（vu(r1) 係留）・**UI の priority 再送回避も撤去＝正規 RPC へ復帰**。★撤去実走で**帯表示順の潜在欠陥が露出**: priority は fee_kind ごとの独立系列（reorder が kind 内 1..N 正規化）のため min(priority) の帯間比較は kind 構成が非対称な帯（唯一の vip 帯等）で破綻＝旧回避実装が偶然隠していた。bandsOf を「kind 系列の合流」順（束縛は同一 kind 内の priority 大小のみ・無束縛同士は現行比較＝既存表示不変）へ是正し CC 往復で確認 (2) delete 系 whitelist 確認済み (3) for_register 新設（#54 欄へ） (4) duration>1440 拒否（vu(du1/du2)＝1440 受理・1441 'bad duration'） |
 | 56 | **duration 上限ガード（UI 警告＋RPC 拒否・duration_min > 1440）** | **RPC 側消化（2026-09-04・mig0131＝#55 同乗・vu(du1/du2) 係留）**。★残2点: (a) **UI（帯モーダル）の警告は未実装** (b) **実データ逆転1件（CLUB NOX「VIP20:00〜20:59」延長 30円/5000分）は 2026-09-04 実測で未訂正のまま**＝バインド正常は実機往復で実証済み（2026-09-03）・訂正は CLUB NOX owner＝実アカウントのため CC の UI 代行不可＝**訂正済み（2026-09-07・live 実測 amount=5000／duration_min=30）**。★訂正で `updated_at` が動かなかった件は #59 へ分離 |
 | 57 | **drink_claims 転用設計（申告→帰属訂正フロー）** | 金の発生源を**商品バック1系統（check_cast_backs）へ統一**し、claim は確認・訂正申請＋append-only 調整行へ転用する設計。背景＝**実測①（2026-09-04）で「同一ドリンク行の二重（claim back_amount と drink_back の両立）」が現行仕様と確定**・裁定113 の裁定4で drink_claims は 113 の射程外（完全不干渉）。訂正締切が D-1（給与確定取消）と隣接のため**着手時期は D-1 設計時に裁定**。D調査で現行 claim 機能の店別 on/off 設定の有無を確認 |
-| 58 | **f0 の statement timeout フレーク（原因追跡）** | 2026-09-04 の 5走中2走で **billing 段47-3（locked でも seats を SELECT）／payroll `loadMasters`（collect.ts:95 マスタ読み取り）** が `canceling statement due to statement timeout` で赤・assert 赤ではなく DB 側のタイムアウト（同型＝起票#33〜35・drink_claims 1行表・advances・payroll timeout の既往）。**再走緑なら gate 妥当**（2連緑の判定は「連続2走が緑」＝フレーク走は数に入れず再走で取り直す運用を継続）。**原因追跡は別レーン**（pooler／statement_timeout 値／並走クエリ／対象テーブルの行数増＝audit_logs・stock_logs 等の単調増加表の疑いを含む・教訓35）。起票 2026-09-07 **追跡材料（2026-09-07・料金 v8.1 C3 後の f0 5走）**: 5走中2赤＝run1 r2b(11b) `statement timeout`／run3 pb 段 `check_set_nominations: has payments`＝**派生症状**（pb は check_close のエラーを非致命 assert で受ける→close が timeout で落ちると支払済み伝票が同席に open のまま残留→次の check_open が `on conflict (seat_id) where status='open'` で同伝票を返す→set_nominations が has payments）。pb 単独再走 2/2 緑・残留ゼロ実測（seats/products/checks とも 0）・run4/run5 連続緑 36本3546。timeout の派生形として同件で追跡 **→ 主因確定・対処済・観察中（2026-09-07・裁定139／教訓58）**: 主因＝audit_logs の verify 残骸 124,134 行（99.3%）。手貼り掃除（Agoora）＋f0 冒頭 sweep（org_id 直書き・seed_marker 除外・5,000 行 warn）＋rls 全件 select→count head。対処後 2 連緑 37 本 3,550。**timeout 無しで 5 面連続なら close**。本番向け＝audit_logs retention はローンチ後必須（税理士ゲート後） **2026-09-07 vacuum full 実施（Agoora・SQL Editor 単文）＝151 MB → 1.6 MB**（heap の未回収は解消・pg_repack 不要） |
+| 58 | **f0 の statement timeout フレーク（原因追跡）** | 2026-09-04 の 5走中2走で **billing 段47-3（locked でも seats を SELECT）／payroll `loadMasters`（collect.ts:95 マスタ読み取り）** が `canceling statement due to statement timeout` で赤・assert 赤ではなく DB 側のタイムアウト（同型＝起票#33〜35・drink_claims 1行表・advances・payroll timeout の既往）。**再走緑なら gate 妥当**（2連緑の判定は「連続2走が緑」＝フレーク走は数に入れず再走で取り直す運用を継続）。**原因追跡は別レーン**（pooler／statement_timeout 値／並走クエリ／対象テーブルの行数増＝audit_logs・stock_logs 等の単調増加表の疑いを含む・教訓35）。起票 2026-09-07 **追跡材料（2026-09-07・料金 v8.1 C3 後の f0 5走）**: 5走中2赤＝run1 r2b(11b) `statement timeout`／run3 pb 段 `check_set_nominations: has payments`＝**派生症状**（pb は check_close のエラーを非致命 assert で受ける→close が timeout で落ちると支払済み伝票が同席に open のまま残留→次の check_open が `on conflict (seat_id) where status='open'` で同伝票を返す→set_nominations が has payments）。pb 単独再走 2/2 緑・残留ゼロ実測（seats/products/checks とも 0）・run4/run5 連続緑 36本3546。timeout の派生形として同件で追跡 **→ 主因確定・対処済・観察中（2026-09-07・裁定139／教訓58）**: 主因＝audit_logs の verify 残骸 124,134 行（99.3%）。手貼り掃除（Agoora）＋f0 冒頭 sweep（org_id 直書き・seed_marker 除外・5,000 行 warn）＋rls 全件 select→count head。対処後 2 連緑 37 本 3,550。**timeout 無しで 5 面連続なら close**。本番向け＝audit_logs retention はローンチ後必須（税理士ゲート後） **2026-09-07 vacuum full 実施（Agoora・SQL Editor 単文）＝151 MB → 1.6 MB**（heap の未回収は解消・pg_repack 不要） **観察（2026-09-07 夜・O4）**: sweep 後の 5 面（キャスト／日報／ホーム／分析／お知らせ run1）は timeout 0 で 9 走緑だったが、お知らせ run3 で pricing 段43(18)d の statement timeout・給与 run1 で null.id（error 未捕捉の派生）・run2 で pooler ECHECKOUTTIMEOUT＝**クローズせず観察継続**。新材料＝**PostgREST 経路だけが遅い**（direct pg 9ms／signin 13.8s／rpc 22.6s→1.6s・DB 側に長時間クエリなし）＝pooler／API コンテナ側の疑い（日中 30 走超の負荷後）。翌朝に再走して回復を確認 |
 | 59 | **pricing_rules に updated_at の自動更新トリガなし** | 帯訂正 6e0c73e7（CLUB NOX 延長・2026-09-07 実施・5000円/30分）後も `updated_at` は **2026-09-03 14:56:18 のまま＝不変を live 実測**。pricing_rules のユーザートリガ **0 本**（pg_trigger 実測）・列は created_at/updated_at とも存在。`set_pricing_rule` の update 経路は `updated_at = now()` を明示するが、本訂正は audit_logs に set_pricing_rule 行が無い＝**RPC を通らない直接 update 経路では更新されない**（audit も残らない）。要る変更＝`before update` トリガ（`set updated_at = now()`）を pricing_rules へ（mig 小・他の上書き型テーブルへの横展開は別途棚卸し）。当面の更新追跡は audit_logs（RPC 経由のみ）。起票 2026-09-07 |
 | 60 | **「保証時給」語の不整合（キャスト側／報酬プラン側）** | キャスト詳細「待遇・バック」は裁定143（2026-09-07・`0b896ce`）で comp_plans.base を「通常時給（プラン基本）」へ改名済み。報酬プラン側は旧語のまま＝`plan-editor.tsx` 2 箇所（269／275 行）＋`comp-sections.tsx` 5 箇所（354／430／453／544／682 行）の計 **7 箇所**が「保証時給」。同じ列を2つの語で呼ぶ状態＝キャスト詳細のマスタ導線注記に「マスタ側の表記は『保証時給』」を併記して暫定橋渡し。**K33 入店時給保証（第2期・期間付き別レイヤ・保証方式2択）を実装する前に報酬レーンで「通常時給（プラン基本）」へ統一**（語が衝突すると保証の意味が二重になる）。値・RPC・pay.ts は不変＝文言のみ。起票 2026-09-07 |
 | 61 | **帯訂正前に逆転値で凍結された伝票の扱い（レジ v12.1 送り）** | live 実測（2026-09-07・CLUB NOX）: ext_fee=30／ext_min=5000／ext_menu_snap「延長 5000分 ¥30」で凍結された伝票 **1 件**＝`105a0a77-c33c-4814-a862-1ba5b36886c5`（2026-09-03 05:57 UTC 開栓・**open**・行はセット料金 10,000 円 1 本・total 11,000）。延長行の母数 12 本中、30 円／5000 分で生成された行は **0**＝日報への実害なし。当該伝票に延長を適用すると逆転値で課金される＝レジ側で void→再開栓（凍結値を取り直す）か、開栓済み伝票の凍結値を訂正する RPC（現行なし）を裁定。日報側に是正経路なし（裁定153）。起票 2026-09-07 |
