@@ -2846,6 +2846,13 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓57：他プロジェクトの guard 名を指示されたら「実測して不在を報告し停止」が正動作
+
+料金 v8.1 ブロックで「各コミット前: verify:ui-tokens 緑」と指示されたが、NOX には同名 script も `scripts/verify-ui-tokens.ts` も無かった
+（相談役が BANZEN 側の guard 名を NOX へ持ち込んだ）。CC は package.json と scripts/ を実測して**不在を報告し、代替（追加行の色リテラル手動 grep）を
+明示して進めた**＝正動作。**存在しない guard を「緑」と報告しない／勝手に同名を捏造しない**。不在が判明したら別レーンで新設（→ 裁定132 案・
+`verify:ui-tokens` 2026-09-07 新設）。
+
 ### 教訓56：dev 手貼りと f0 実走を並走させない
 
 dev への mig 手貼りは **f0 完了後**に行い、f0 実行中に手貼りが要るときは**申告してから**行う。並走すると
@@ -2916,6 +2923,23 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 写像 D調査＝`docs/dp/dp_v1_写像対応表_v1.md`（6面→10面へ追補）。
 
 ---
+
+## 裁定132（案・2026-09-07）NOX UI トークン guard＝globals.css 正本 parse・baseline 減少のみ（Agoora 確定待ち）
+
+出典＝相談役ブロック（トークン guard 新設）。`scripts/verify-ui-tokens.ts`＋`npm run verify:ui-tokens`（**f0 には組み込まない＝別 gate**・DB 非接続）。
+- **正本＝`app/globals.css` を直接 parse**（手書きミラー禁止）。★着手前実測: `:root` は ink/bg/font-sans/font-serif の**4本のみ**で、パレット本体は
+  `.nox-dark` ブロック（53 名）＋局所セレクタ（modal 3 名）＝計 **57 名**。`:root` 単独を正本にすると既存参照 1,424 件が未定義になるため、
+  **globals.css 内で定義される全カスタムプロパティ（コメント除去後）を正本**とし、出力に定義元の内訳（:root／.nox-dark／局所）を出す。
+  :root の 4 名は全て意味名・色名系 0（`.nox-dark` 側には gold/gold2/champ/blue/orange 等の色名トークンが残る＝裁定124「今後作らない」の既存分）。
+- **検出A**＝色リテラルの裸使用（`#hex`／`rgb(`／`hsl(`／CSS プロパティ文脈の色名。コメントは除去・tone 識別子 "gold" 等は対象外）。
+  **検出B**＝定義されていない `var(--…)` 参照。走査＝app/ と components/ の .tsx/.css（globals.css 自身と design/ 配下は除外）。
+- **baseline**＝`scripts/ui-tokens-baseline.json`（`path|kind|hit` → 件数）。baseline 内＝warn・baseline 外＝**FAIL**。baseline 件数は必ず出力し
+  **減少方向のみ許容**（現状が baseline を下回った鍵は stale 表示＝削除可・新規ヒットは baseline に足さず是正）。`--write-baseline` は減少更新にのみ使う。
+- 着手時実測（2026-09-07）: 走査 **109 ファイル**（tsx 109／css 0）・A＝**56 件／16 ファイル**（rgba( 31・#fff 5・#000 5・#666 5 ほか＝領収書公開面
+  `r/[token]`・印刷面・ピル枠 rgba が主）・B＝**1 件**（pricing-board `var(--fg)`＝未定義・既存 ack ラベル）・baseline＝**30 鍵／57 件**。
+  **既存コードの色は本 guard では直さない**（報告のみ）＝是正は各 UI レーンの裁定で。
+- 逆張り: 一時 tsx に `#ff0000`＋`var(--not-exist)` 注入→FAIL 2 件→撤去→緑／baseline から既存鍵1つ削除→FAIL 1 件→復元→緑（2026-09-07 実走）。
+- 旧値台帳（デザインパック正本化台帳 裁定124）に退避された旧トークン**名**は無い（退避は**値**＝blue-accent v2 の旧値のみ・名前は不変）。
 
 ## 裁定131（2026-09-07）カード手数料の2系統を1カードに再編（料金 v8.1 P52 移設・P53/P54 不変）
 
