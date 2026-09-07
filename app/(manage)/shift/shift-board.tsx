@@ -1333,7 +1333,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                 </p>
               </div>
               {cur && <span className={`nox-stpill ${cur.status === "published" ? "ok" : ""}`}>{PERIOD_ST_LABEL[cur.status] ?? cur.status}</span>}
+              {/* ★裁定138（v4.1 H29）: 公開状態の横に「確定シフトへ」＝確定シフトタブへの導線（RPC なし・表示切替のみ） */}
+              {cur && (
+                <button style={btnLight} title="確定シフトタブへ移動します"
+                  onClick={() => { setDayModal(""); setTab("roster"); }}>確定シフトへ</button>
+              )}
               <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
+                {/* ★裁定136（v4.1 H7）: 「必要人数を設定」はモーダル化せず、同タブ内の常設カード（#shift-needs）へスクロール
+                    ＝裁定112-A「見る場所と設定する場所の一致」を維持。既存 gotoNeeds（日詳細からの導線）を共用。 */}
+                <button style={btnLight} title="この下の「必要人数（曜日・時間帯別）」へ移動します"
+                  onClick={() => gotoNeeds()}>必要人数を設定</button>
                 <button style={{ ...btnLight, opacity: cur ? 1 : 0.45 }} disabled={!cur}
                   title={cur ? "この計画を作成中に戻します" : "先に計画期間を作成してください"}
                   onClick={() => cur && void setPeriodStatus(cur, "draft")}>作成中に戻す</button>
