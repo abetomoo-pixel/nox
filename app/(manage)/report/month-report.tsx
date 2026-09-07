@@ -159,7 +159,8 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
         <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="対象月" style={{ ...t.input, width: "auto", fontSize: 13, fontWeight: 400 }} />
         <span style={{ fontSize: 11, color: "var(--sub)", fontWeight: 400 }}>営業月・半期は営業日15日で分割</span>
       </h3>
-      {msg && <p style={{ fontSize: 12, color: "var(--bad)" }}>{msg}</p>}
+      {/* ★裁定151（裁定120 適用）: エラー文＝Danger 系の文字色（--danger-ink＝暗面上で可読・裁定124）。他の --bad 系はこの面では触らない */}
+      {msg && <p style={{ fontSize: 12, color: "var(--danger-ink)" }}>{msg}</p>}
 
       {/* E8-2 #11: 月報 KPI 5枚（売上/営業日数/平均日商/売掛残高/前年同月比＝取得済み材料の再形） */}
       {(() => {

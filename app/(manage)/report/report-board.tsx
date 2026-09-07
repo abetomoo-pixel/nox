@@ -498,9 +498,11 @@ export default function ReportBoard({
             acc += pct;
             return seg;
           });
+          // ★裁定149（v2.1 D21）: 表示はモックの5分類へ＝「シャンパン・ボトル」は champ＋bottle の**表示合算のみ**
+          //   （kindSums の集計式は不変）。「指名・同伴」は kind に同伴の区別が無いため「指名・その他」据え置き。
           const cats: Array<[string, number]> = [
             ["セット・延長", preview.kindSums.time], ["ドリンク", preview.kindSums.drink],
-            ["シャンパン", preview.kindSums.champ], ["ボトル", preview.kindSums.bottle],
+            ["シャンパン・ボトル", preview.kindSums.champ + preview.kindSums.bottle],
             ["指名・その他", preview.kindSums.other],
           ];
           const catMax = Math.max(...cats.map(([, v]) => v), 1);
