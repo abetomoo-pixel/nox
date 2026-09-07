@@ -1115,10 +1115,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
       {tab === "master" && (
         <>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
-            お客さまに「いくら請求するか」の正本です。どの時間帯・席種・区分に当たるかは「料金適用ルール」タブで決めます。<br />
-            {/* ★裁定118（要件書 §5）: VIP 料金の2方式併記＝器はどちらも常時利用可（選択式トグルは作らない） */}
-            VIP 料金は2通り: <strong style={{ color: "var(--v2-text)" }}>席種「VIP」のセットルール</strong>（VIP 専用の基本料金＝方式A）か、
-            <strong style={{ color: "var(--v2-text)" }}>「VIPチャージ」</strong>（基本セットに追加で自動加算＝方式B）。どちらも料金適用ルールで作れます。
+            お客さまに「いくら請求するか」の正本です。どの時間帯・席種・区分に当たるかは「料金適用ルール」タブで決めます。
+            {/* ★裁定129（v8.1 P39）: VIP 2方式の説明文はここから「VIP料金方式」カードへ移動（消さず吸収） */}
           </p>
 
           {/* ★M1（対応表・移設）: 指名・同伴料金＝PricingPanel の指名3値区画（stores 基本値・RPC 不変） */}
@@ -1240,6 +1238,60 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 onClick={() => void addRank()}>＋ ランクを追加</button>
             </div>
           </section>
+
+          {/* ★裁定129（v8.1 P39・モック「VIP料金方式」カード）: 読み取りカード。方式A/B を rules から判定表示し
+              「ルールで設定」導線のみ。保存 UI は置かない（店単位の VIP 列は無い＝mig 不要）。
+              ★裁定118（要件書 §5）: 器はどちらも常時利用可（選択式トグルは作らない）＝表示は「使用中／未使用」の実態のみ。 */}
+          {(() => {
+            const vipSet = rules.filter((r) => r.seat_kind === "VIP" && r.is_active && (r.fee_kind === "set" || r.fee_kind === "extension"));
+            const vipSetN = vipSet.filter((r) => r.fee_kind === "set").length;
+            const vipExtN = vipSet.filter((r) => r.fee_kind === "extension").length;
+            const vipCharge = rules.filter((r) => r.fee_kind === "vip_charge" && r.is_active).sort(ruleOrder);
+            const usePill = (on: boolean) => (
+              <span className="nox-stpill" style={{ color: on ? "var(--v2-text)" : "var(--v2-muted)" }}>{on ? "使用中" : "未使用"}</span>
+            );
+            const unitOf = (r: PricingRule) => UNIT_LABEL[r.billing_unit ?? store.time_per] ?? "";
+            return (
+              <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
+                <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>VIP料金方式</h3>
+                <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
+                  VIP席の課金方法です。VIP 料金は2通り: <strong style={{ color: "var(--v2-text)" }}>席種「VIP」のセットルール</strong>（VIP 専用の基本料金＝方式A）か、
+                  <strong style={{ color: "var(--v2-text)" }}>「VIPチャージ」</strong>（基本セットに追加で自動加算＝方式B）。
+                  どちらも「料金適用ルール」タブで作ります（時間帯などの条件もルール側で管理）。
+                </p>
+                <div className="nox-listrow">
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    VIP専用料金
+                    <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
+                      通常席とは別のセット・延長料金を使う方式（席種「VIP」のルール）。
+                      {vipSet.length > 0 && <>　現在: セット {vipSetN} 件・延長 {vipExtN} 件</>}
+                    </span>
+                  </span>
+                  {usePill(vipSet.length > 0)}
+                </div>
+                <div className="nox-listrow">
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    VIPチャージ
+                    <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
+                      通常料金にVIPチャージを加算する方式（VIP 席の開卓で自動加算）。
+                      {vipCharge.length > 0 && (
+                        <>　現在: {vipCharge.slice(0, 3).map((r, i) => (
+                          <span key={r.id}>{i > 0 && "／"}<span style={t.num}>{yen(r.amount)}</span>{unitOf(r)}{r.name ? `（${r.name}）` : ""}</span>
+                        ))}{vipCharge.length > 3 && ` ほか${vipCharge.length - 3}件`}</>
+                      )}
+                    </span>
+                  </span>
+                  {usePill(vipCharge.length > 0)}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+                  <span style={{ fontSize: 11, color: "var(--v2-muted)", flex: 1, minWidth: 0 }}>
+                    VIP専用料金とVIPチャージの両方を使う店舗にも対応できます。実際の適用条件は料金適用ルール側で管理します。
+                  </span>
+                  <button type="button" style={btnLight} onClick={() => setTab("rules")}>ルールで設定</button>
+                </div>
+              </section>
+            );
+          })()}
 
           {/* ★M3（対応表・新設）: 名前付き料金（表示グループ）＝rules を name で束ねた読み取り専用ビュー */}
           <section className="nox-cardtop" style={card}>
