@@ -162,7 +162,8 @@ export default function DayAddPanel({
           ))}
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
             <button type="button" style={btnDark} disabled={busy} onClick={() => void save()}>
-              {busy ? "保存中…" : `保存（${rows.length}件・仮シフト）`}
+              {/* ★v4.1 H42: 文言をモック「選択した1名を配置」へ寄せる（複数行バッファ・行ごと shift_set の挙動は不変） */}
+              {busy ? "配置中…" : `選択した${rows.length}名を配置（仮シフト）`}
             </button>
             <button type="button" style={btnLight} disabled={busy} onClick={() => { setRows([]); setMsg(null); }}>すべて取り消す</button>
           </div>

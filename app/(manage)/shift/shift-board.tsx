@@ -62,7 +62,8 @@ const FILL_COLOR: Record<Fill, string> = { ok: "var(--ok)", warn: "var(--gold2)"
 const SHIFT_ST_LABEL: Record<string, string> = { planned: "予定", proposed: "確認待ち", confirmed: "確定" };
 const shiftStColor = (st: string) =>
   st === "confirmed" ? "var(--ok)" : st === "proposed" ? "var(--gold2)" : "var(--champ)";
-const PERIOD_ST_LABEL: Record<string, string> = { draft: "下書き", open: "募集中", closed: "締切", published: "公開済み" };
+// ★裁定135（v4.1 H9）: draft の表示語を「下書き」→「作成中」（モック逐語）。open/closed/published はモックに無い＝据え置き。
+const PERIOD_ST_LABEL: Record<string, string> = { draft: "作成中", open: "募集中", closed: "締切", published: "公開済み" };
 
 const bandLabel = (n: { from_min: number; to_min: number }) =>
   n.from_min === 0 && n.to_min === 1440 ? "終日" : `${min2hm(n.from_min)}〜${min2hm(n.to_min)}`;
@@ -716,8 +717,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
           <button key={k} className={tab === k ? "on" : ""} onClick={() => { setDayModal(""); setTab(k); }}>
             {/* ★SC-8 ⑦: today だけラベルを選択日に追従させる（key は "today" のまま＝裁定44）。 */}
             {k === "today" ? tdLabel : label}
+            {/* ★v4.1 H2: 件数は丸数字（①〜⑳・モック「承認待ち ④」逐語）。21 件以上は素の数字にフォールバック */}
             {k === "queue" && wishes.length > 0 && (
-              <span className="nox-tabcnt num">{wishes.length}</span>
+              <span className="nox-tabcnt num">{wishes.length <= 20 ? String.fromCodePoint(0x2460 + wishes.length - 1) : wishes.length}</span>
             )}
           </button>
         ))}
@@ -827,7 +829,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
             <div>
               <h2 style={{ ...secTitle, margin: 0 }}>{tdLabel}のシフト（<span className="num">{todayDate}</span>）</h2>
               <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
-                申請時間・確定時間・出勤記録をこの表で確認します。シフトに無い飛び入り出勤は「＋ 追加」から先にシフトを足してください。
+                申請時間・確定時間・出勤記録をこの表で確認します。シフトに無い飛び入り出勤は「＋ 当日追加配置」から先にシフトを足してください。
               </p>
             </div>
             {/* ★SC-1（裁定42）: タブ遷移をやめ、この面でフォームを開く。
@@ -841,7 +843,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                   setAddDate(todayDate);
                   setAddStatus(todayDate === bizToday ? "confirmed" : "planned");
                   setAddCast(null); setAddModal(true); // ★0125: v6 モーダル直開き（左ペインでキャスト選択）
-                }}>＋ 追加</button>
+                }}>＋ 当日追加配置</button>
             )}
           </div>
           {shiftsOn(todayDate).length === 0 ? (
@@ -995,7 +997,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                     <div className="l">予想人件費</div>
                     <div className="v num">{isManagerUp ? yen(monthFcTotal) : "—"}</div>
                   </div>
-                  <div className="nox-rs"><div className="l">人員不足日（今後）</div><div className="v num">{shortDays}<small>日</small></div></div>
+                  <div className="nox-rs"><div className="l">不足日</div><div className="v num">{shortDays}<small>日</small></div></div>
                   <div className="nox-rs"><div className="l">未処理希望</div><div className="v num">{pend}<small>件</small></div></div>
                 </div>
               );
@@ -1140,11 +1142,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
         {(() => {
           const planned = shifts.filter((x) => x.status === "planned");
           const proposed = shifts.filter((x) => x.status === "proposed");
+          // ★裁定133（v4.1 H5）: 4段のまま語彙をモック「申請→承認→…→仮シフト→確定」へ寄せる
+          //   （「作成・公開」は period 側の状態＝この帯には載せない）。括弧内は従来の段名＝意味を残す。
           const steps: Array<[string, string, number]> = [
-            ["1", "キャスト希望", wishes.length],
-            ["2", "管理者確認・時間調整", planned.length],
-            ["3", "キャスト確認", proposed.length],
-            ["4", "シフト確定", shifts.filter((x) => x.status === "confirmed").length],
+            ["1", "申請（キャスト希望）", wishes.length],
+            ["2", "承認（管理者確認・時間調整）", planned.length],
+            ["3", "仮シフト（キャスト確認）", proposed.length],
+            ["4", "確定", shifts.filter((x) => x.status === "confirmed").length],
           ];
           return (
             <>
@@ -1236,10 +1240,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                         <td>{castName(r.castId)}</td>
                         <td className="num">{r.date}</td>
                         <td>
-                          {r.wishHm && <span className="num" style={{ color: r.nowHm ? "var(--v2-muted)" : undefined }}>希望 {r.wishHm}</span>}
+                          {/* ★裁定137（v4.1 H21）: 差分はモック逐語「本人希望 → 管理側」の横並び（値と出所は不変） */}
+                          {r.wishHm && <span className="num" style={{ color: r.nowHm ? "var(--v2-muted)" : undefined }}>本人希望 {r.wishHm}</span>}
                           {r.nowHm && (
-                            <span className="num" style={{ display: "block", marginTop: 2 }}>
-                              {r.wishHm ? "提案 " : ""}{r.nowHm}
+                            <span className="num" style={{ marginLeft: r.wishHm ? 6 : 0 }}>
+                              {r.wishHm ? <><span style={{ color: "var(--v2-muted)" }}>→</span> 管理側 </> : ""}{r.nowHm}
                             </span>
                           )}
                         </td>
@@ -1254,7 +1259,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                             <span style={{ display: "inline-flex", gap: 6 }}>
                               <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 title={closed ? "この希望日は定休日に設定されています（見送りは可能）" : undefined}
-                                onClick={() => decide(r.wish!.id, true)}>希望通り承認</button>
+                                onClick={() => decide(r.wish!.id, true)}>希望どおり承認</button>
                               <button style={btnLight} onClick={() => decide(r.wish!.id, false)}>見送り</button>
                             </span>
                           )}
@@ -1319,7 +1324,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
             {/* planbar */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
               <div>
-                <h2 style={{ ...secTitle, margin: 0 }}>{my}年{mm}月 シフト計画</h2>
+                {/* ★v4.1 H6: 見出しをモック逐語「〜年〜月 キャストシフト計画」へ */}
+                <h2 style={{ ...secTitle, margin: 0 }}>{my}年{mm}月 キャストシフト計画</h2>
                 <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "2px 0 0" }}>
                   {cur
                     ? <>計画期間 <span className="num">{cur.start_date}〜{cur.end_date}</span> ・ 希望締切 <span className="num">{cur.wish_deadline ?? "—"}</span></>
@@ -1329,8 +1335,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
               {cur && <span className={`nox-stpill ${cur.status === "published" ? "ok" : ""}`}>{PERIOD_ST_LABEL[cur.status] ?? cur.status}</span>}
               <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
                 <button style={{ ...btnLight, opacity: cur ? 1 : 0.45 }} disabled={!cur}
-                  title={cur ? "この計画を下書きに戻します" : "先に計画期間を作成してください"}
-                  onClick={() => cur && void setPeriodStatus(cur, "draft")}>下書き保存</button>
+                  title={cur ? "この計画を作成中に戻します" : "先に計画期間を作成してください"}
+                  onClick={() => cur && void setPeriodStatus(cur, "draft")}>作成中に戻す</button>
                 <button style={{ ...btnDark, opacity: cur ? 1 : 0.45 }} disabled={!cur}
                   title={cur ? "この計画をスタッフへ公開します（以後この期間には自動配置できません）" : "先に計画期間を作成してください"}
                   onClick={() => cur && void setPeriodStatus(cur, "published")}>スタッフに公開して確定</button>
@@ -1348,7 +1354,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
               <div className="nox-rs"><div className="l">配置済み</div><div className="v num">{inMonth.length}<small>件</small></div></div>
               <div className="nox-rs"><div className="l">予定勤務時間</div><div className="v num">{Math.round(planMin / 60)}<small>h</small></div></div>
               <div className="nox-rs"><div className="l">予想人件費</div><div className="v num">{yen(monthFcTotal)}</div></div>
-              <div className="nox-rs"><div className="l">人員不足日（今後）</div><div className="v num">{shortDays}<small>日</small></div></div>
+              <div className="nox-rs"><div className="l">不足日</div><div className="v num">{shortDays}<small>日</small></div></div>
             </div>
 
         {periods.length === 0 && (
