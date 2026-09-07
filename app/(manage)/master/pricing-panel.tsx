@@ -26,13 +26,14 @@ function errJa(msg: string | undefined): string {
 }
 
 /** ★116-UI 段②b（M1 分割）: fields で表示・編集する区画を絞って多重マウントできる。
- *   "shimei"=指名3値（料金マスタ）／"service"=サ料+カードTAX（会計設定 A2）／
+ *   "shimei"=指名3値（料金マスタ）／"service"=サ料のみ（会計設定 A2）／
+ *   "card_tax"=カードTAX率のみ（会計設定・カード手数料カード＝裁定131 で service から分離・v8.1 P52 移設）／
  *   "round"=丸め2値（会計設定 A4）／"all"=従来の7値一括（後方互換）。
  *   RPC は set_store_pricing 7値一括のまま（原則7）＝分割マウント時は**保存直前に stores を
  *   再読し、担当外フィールドをサーバ現在値で埋めて**全値明示送信する（他区画で保存済みの
  *   値を stale な initial で巻き戻さないための必須補正）。 */
 export default function PricingPanel({ storeId, initial, fields = "all" }: {
-  storeId: string; initial: Pricing; fields?: "all" | "shimei" | "service" | "round";
+  storeId: string; initial: Pricing; fields?: "all" | "shimei" | "service" | "card_tax" | "round";
 }) {
   const supabase = createClient();
   const { msg, setMsg } = useToast();
@@ -59,9 +60,13 @@ export default function PricingPanel({ storeId, initial, fields = "all" }: {
         .select("hon_fee, jonai_fee, dohan_fee, service_rate, card_tax_rate, round_unit, round_mode")
         .eq("id", storeId).single();
       if (s) {
+        // ★裁定131（v8.1 P52）: card_tax_rate は "service" の担当から外し "card_tax" 専任へ
+        //   （どちらの保存でも相手側の値はサーバ現在値で埋まる＝相互に巻き戻さない）
         const mine: (keyof typeof vals)[] = fields === "shimei"
           ? ["hon_fee", "jonai_fee", "dohan_fee"]
-          : fields === "service" ? ["service_rate", "card_tax_rate"] : ["round_unit", "round_mode"];
+          : fields === "service" ? ["service_rate"]
+          : fields === "card_tax" ? ["card_tax_rate"]
+          : ["round_unit", "round_mode"];
         const merged = { ...(s as typeof vals) };
         for (const k of mine) (merged as Record<string, unknown>)[k] = vals[k];
         vals = merged;
@@ -96,10 +101,10 @@ export default function PricingPanel({ storeId, initial, fields = "all" }: {
         </>
       )}
       {(fields === "all" || fields === "service") && (
-        <>
-          {numField("サービス料率", service, setService, "%（会計に加算）")}
-          {numField("カードTAX率", cardTax, setCardTax, "%（日報集計）")}
-        </>
+        numField("サービス料率", service, setService, "%（会計に加算）")
+      )}
+      {(fields === "all" || fields === "card_tax") && (
+        numField("カード手数料（日報集計用）", cardTax, setCardTax, "%（日報集計のみ・伝票請求額には含まれません）")
       )}
       {(fields === "all" || fields === "round") && (
         <>
@@ -120,7 +125,10 @@ export default function PricingPanel({ storeId, initial, fields = "all" }: {
         <Toast msg={msg} />
         {fieldsRow}
         <button style={{ ...t.btnGold, ...t.btnSm, marginTop: 12 }} disabled={busy} onClick={save}>
-          {fields === "shimei" ? "指名・同伴料金を保存" : fields === "service" ? "サービス料・手数料を保存" : "丸め設定を保存"}
+          {fields === "shimei" ? "指名・同伴料金を保存"
+            : fields === "service" ? "サービス料を保存"
+            : fields === "card_tax" ? "カード手数料を保存"
+            : "丸め設定を保存"}
         </button>
       </div>
     );

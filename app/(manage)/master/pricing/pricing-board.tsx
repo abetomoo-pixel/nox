@@ -1383,7 +1383,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
           }} />
         </section>
 
-        {/* ② 税・サービス料（★A2: サ料/カード手数料の編集をここへ集約＝M1 分割の受け側・税 form 不触） */}
+        {/* ② 税・サービス料（★A2: サ料の編集をここへ集約＝M1 分割の受け側・税 form 不触）
+            ★裁定131（v8.1 P52）: カード手数料（日報集計用）はここから外し「カード手数料」カードへ移設 */}
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
@@ -1392,7 +1393,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             </div>
             <span className="nox-stpill" style={{ marginLeft: "auto" }}>TAX</span>
           </div>
-          {/* ★A2（対応表・移設）: read-only ミラー2行＋別タブ導線 → 編集区画へ置換（RPC set_store_pricing 不変・
+          {/* ★A2（対応表・移設）: read-only ミラー→編集区画へ置換（RPC set_store_pricing 不変・
               担当外フィールドは保存直前にサーバ現在値で埋める＝PricingPanel fields 分割の仕組み） */}
           <div style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
             <PricingPanel storeId={storeId} fields="service" initial={{
@@ -1448,25 +1449,35 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
           </div>
         </section>
 
-        {/* ★C4 §6-6 の器（裁定90-⑤・裁定87 第2層）: card_surcharge_rate。結線（伝票行化）は §6-6 で別途 */}
+        {/* ★裁定131（v8.1 P52/P53/P54・モック「カード手数料」カード）: 2系統を1カードに同居。
+            (1) 日報集計用 card_tax_rate＝PricingPanel fields="card_tax"（set_store_pricing・独自の保存ボタン）
+            (2) お客さまへ加算 card_surcharge_rate＝★C4 §6-6 の器（裁定90-⑤・裁定87 第2層・set_store_tax_config＝
+                下の「税設定を保存」で保存）。有効/無効・率・警告文・ack は現状維持（ack はモックに無いが法務残置）。 */}
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: 14 }}>カード手数料の転嫁</h3>
-              <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>客への請求項目（課税10%）。日報集計用のカードTAXとは別です。</p>
+              <h3 style={{ margin: 0, fontSize: 14 }}>カード手数料</h3>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>日報集計用の手数料率と、お客さまへの加算設定を分けて管理します。</p>
             </div>
-            <span className="nox-stpill" style={{ marginLeft: "auto" }}>SURCHARGE</span>
+            <span className="nox-stpill" style={{ marginLeft: "auto" }}>CARD</span>
+          </div>
+          <div style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+            <PricingPanel storeId={storeId} fields="card_tax" initial={{
+              hon_fee: store.hon_fee, jonai_fee: store.jonai_fee, dohan_fee: store.dohan_fee,
+              service_rate: store.service_rate, card_tax_rate: store.card_tax_rate,
+              round_unit: store.round_unit, round_mode: store.round_mode,
+            }} />
           </div>
           <div className="nox-listrow">
             <span style={{ flex: 1, minWidth: 0 }}>
-              カード手数料を客へ請求する
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>無効（既定）では請求項目になりません。</span>
+              お客さまへ加算
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>客への請求項目（課税10%）。日報集計用の手数料率とは別です。保存は下の「税設定を保存」です。</span>
             </span>
             <SegSelect value={tSurOn ? "on" : "off"} onChange={(v) => setTSurOn(v === "on")}
               options={[["off", "無効"], ["on", "有効"]] as const} />
             {tSurOn && (
-              <input type="number" min={1} max={100} value={tSurRate} placeholder="%"
-                onChange={(e) => setTSurRate(e.target.value)} style={{ ...input, width: 76 }} />
+              <input type="number" min={1} max={100} value={tSurRate} placeholder="加算率 %"
+                onChange={(e) => setTSurRate(e.target.value)} style={{ ...input, width: 96 }} />
             )}
           </div>
           {tSurOn && (
