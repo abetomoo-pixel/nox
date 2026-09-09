@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import BusinessHoursPanel from "../business-hours-panel";
+import StaffShiftPanel from "../staff-shift-panel"; // ★C層② 面 a（設計書 v1 §4・flag off＝節ごと不在）
 import MasterPageHead from "../master-page-head";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,8 @@ export default async function MasterBusinessHoursPage() {
         desc="曜日ごとの営業時間と定休日。シフト登録の警告・ブロックに使われます。"
       />
       <BusinessHoursPanel stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
+      {/* ★C層② 面 a: 勤務パターン枠＋希望締切（店舗運用の一部＝営業時間の隣・flag_enabled('staff_shift') が true の店だけ） */}
+      <StaffShiftPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
     </div>
   );
 }
