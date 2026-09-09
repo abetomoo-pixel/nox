@@ -39,6 +39,7 @@
     "verify:nox-shift-confirm": "tsx scripts/verify-nox-shift-confirm.ts",
     "verify:nox-pricing-categories": "tsx scripts/verify-nox-pricing-categories.ts",
     "verify:nox-flags": "tsx scripts/verify-nox-flags.ts",
+    "verify:nox-staff-shift": "tsx scripts/verify-nox-staff-shift.ts",
     "verify:nox-pricing-resolve-category": "tsx scripts/verify-nox-pricing-resolve-category.ts",
     "verify:nox-vip-unit": "tsx scripts/verify-nox-vip-unit.ts",
     "verify:nox-shift-deep": "tsx scripts/verify-nox-shift-deep.ts",

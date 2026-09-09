@@ -119,7 +119,11 @@ async function main() {
     //   除外 99→100・全数 212→213（教訓21 assert の実走検知 6例目・gated 本数は不変）。
     // ★mig0132（裁定113・2026-09-04）: biz_date_of（営業日 date ヘルパー・クライアント grant なし・非ゲート）を B(f) へ収載＝
     //   除外 100→101・全数 213→214（教訓21 assert の実走検知 7例目＝「grant なしの内部関数は対象外」の想定が誤りだった実例）。
-    check("段47-1 正本の除外102名を読めた", docExcluded.size === 102, `got ${docExcluded.size}`);
+    // ★mig0136（C層② 黒服シフト・2026-09-09）: 公開 RPC 7 本（staff_pattern_set/delete・staff_wish_set・staff_shift_propose/override/confirm・
+    //   staff_deadline_set）は **課金ゲート未内蔵**（prosrc に 'billing locked' なし）＝A に載せると「対象→live」assert が赤になるため
+    //   内部ヘルパー 6 本（auth_membership_id・staff_shift_can_manage/biz_today/gate・staff_pattern_effective・staff_shift_deadline_at）と
+    //   ともに B(l) へ収載＝除外 102→115・全数 216→229・対象 114 不変。ゲート内蔵へ寄せる（0136 改訂）か B 据え置きかは裁定待ち。
+    check("段47-1 正本の除外115名を読めた", docExcluded.size === 115, `got ${docExcluded.size}`);
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる

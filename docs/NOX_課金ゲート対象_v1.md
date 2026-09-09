@@ -252,6 +252,17 @@ staff_deactivate / kiosk_deactivate
 | bottle_keep_update / customer_set_grade | **事実記録**（mig0094＝ボトル残量/期限/棚と顧客ランク＝接客記録の更新。金銭・拡大のいずれでもない） |
 | customer_note_add / customer_note_remove | **事実記録**（mig0094＝接客メモの追記と論理削除＝append-only 運用） |
 
+### B(l) C層② 黒服シフト（13本・2026-09-09・mig0136＝★課金ゲート未内蔵・A8 収載は要裁定）
+公開 RPC 7 本は prosrc に 'billing locked' が無い（設計書 v1 §2 は flag ゲートのみ）。A に載せると段47-1「対象→live」が赤になるため、
+ゲート内蔵へ寄せる（0136 改訂）か B 据え置きかの裁定まで B で係留する（対象 114 不変・除外 102→115・全数 216→229）。
+| 関数 | 適用原理 |
+|---|---|
+| staff_pattern_set / staff_pattern_delete / staff_deadline_set | **店設定系の書込**（勤務パターン枠・締切＝effective_from 型）＝本来 A8 相当だが 0136 は課金ゲート未内蔵＝要裁定 |
+| staff_shift_propose / staff_shift_override / staff_shift_confirm | **シフト行の作成・上書き・確定**（黒服）＝本来 A5 相当だが同上 |
+| staff_wish_set | **事実記録**（黒服本人の希望◯×・締切前のみ）＝cast の shift_wish_submit（B(i)）と同列 |
+| auth_membership_id | **ヘルパー**（本人 membership.id・authenticated 可・裁定 C②-9） |
+| staff_shift_can_manage / staff_shift_biz_today / staff_shift_gate / staff_pattern_effective / staff_shift_deadline_at | **内部ヘルパー**（4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型） |
+
 ## C. kiosk 腕を持つ対象（実装注意・16本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /

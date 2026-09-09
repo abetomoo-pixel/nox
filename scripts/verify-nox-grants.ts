@@ -41,6 +41,7 @@ const TABLES = [
   "check_seats", // B1/B2 相席・席移動（mig0053・追加席の占有台帳。G27 で policy 逐語＋unique index＋grant 実体を能動 assert。.length 参照ゆえ G1/G2/G5 自動被覆＝裁定台帳 裁定9 教訓）
   "ar_collections", // B6 売掛回収消込台帳（mig0055・authenticated=SELECT のみ。G1/G2/G5 が .length で自動被覆＝教訓B。G29 で policy/grant/RPC ACL を能動 assert）
   "staff_pin", "kiosk_sessions", // K レジ用キオスク（mig0056・deny-all。.length 参照ゆえ G1/G2/G5 が自動被覆＝教訓B。G30 で policy 0本/purpose CHECK/index/provision 署名を能動 assert）
+  "staff_shift_patterns", "staff_shift_wishes", "staff_shifts", "staff_shift_deadlines", // C層② 黒服シフト（mig0136・authenticated=SELECT のみ・select policy 4 本＝0135 形。G1/G2/G5 が .length で自動被覆）
   "product_categories", // 純増⑦ 商品カテゴリマスタ（mig0063・authenticated=SELECT のみ＝products_select 同型パターン3。.length 参照ゆえ G1/G2/G5 が自動被覆＝教訓B）
 ];
 const HELPERS = [
@@ -49,6 +50,7 @@ const HELPERS = [
   "auth_staff_can_view_backs", // バック可視是正（mig0038）
   "auth_cast_can_register", // キャスト会計（mig0039・2段ゲート）
   "auth_kiosk_store_id", "auth_kiosk_org_id", // F4a キオスク（mig0043・kiosk_devices 起点＝auth_cast_id 同型）
+  "auth_membership_id", // C層② 黒服本人＝memberships.id（mig0136・裁定 C②-9・authenticated 可＝G4/G4b 同型）
   "auth_kiosk_register_store_id", "auth_kiosk_operator", // K レジ用キオスク（mig0056・register device 識別＋operator セッション解決＝G4/G4b が secdef/search_path/ACL を自動回帰）
 ];
 
@@ -190,6 +192,24 @@ async function main() {
         roles.includes("authenticated") && !roles.includes("anon"),
         roles.join(", "),
       );
+    }
+  }
+
+  // G4c: C層② 内部ヘルパー 5 本（mig0136）＝SECURITY DEFINER・search_path 固定・4 ロール明示 revoke（authenticated/anon/service_role/public 不在）
+  {
+    const INTERNAL = ["staff_shift_can_manage", "staff_shift_biz_today", "staff_shift_gate", "staff_pattern_effective", "staff_shift_deadline_at"];
+    const r = await db.query(
+      `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
+              has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
+              has_function_privilege('anon', p.oid, 'execute') as anon_ok,
+              has_function_privilege('service_role', p.oid, 'execute') as svc_ok
+         from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any($1) order by p.proname`,
+      [INTERNAL],
+    );
+    check(`G4c 内部ヘルパー${INTERNAL.length}本が存在`, r.rowCount === INTERNAL.length, `got ${r.rowCount}`);
+    for (const row of r.rows) {
+      check(`G4c ${row.proname} SECURITY DEFINER＋search_path=public`, row.prosecdef === true && (row.config as string).includes("search_path=public"), row.config);
+      check(`G4c ${row.proname} EXECUTE = authenticated/anon/service_role 不在（内部専用）`, !row.auth_ok && !row.anon_ok && !row.svc_ok, JSON.stringify([row.auth_ok, row.anon_ok, row.svc_ok]));
     }
   }
 
