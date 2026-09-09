@@ -37,12 +37,20 @@ type Report = {
 type Recv = {
   id: string; amount: number; deducted_amount: number; cast_id: string | null; customer_id: string | null; deduct_from_cast: boolean;
   collected_amount: number; due: string | null; // E8-2（mig0092/0093）: 部分回収済み額・支払期日
+  created_at: string; // ★B2-b（裁定204・D40）: 「今月発生」フィルタ用（既存 select に列追加のみ）
   checks: { started_at: string; seats: { name: string } | null } | null;
   customers: { name: string } | null;
   casts: { name: string } | null;
 };
 // E8-2: 残額＝amount − deducted − collected（mig0092 の三者不変量・表示も同式）
 const remainOf = (r: Recv) => r.amount - r.deducted_amount - r.collected_amount;
+// ★B2-b（裁定207・D47）: 回収履歴行＝ar_collections（読取のみ・列＝入金日／方法／金額／顧客／担当／登録者）
+type ArCol = {
+  id: string; receivable_id: string; biz_date: string; method: string; amount: number; created_at: string;
+  customers: { name: string } | null; casts: { name: string } | null; creator: { name: string } | null;
+};
+// ★B2-b（D42/D47）: 回収方法の表示語（DB 値は cash/card/other のまま）
+const METHOD_LABEL: Record<string, string> = { cash: "現金", card: "カード", other: "その他" };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 // 段0R 第3陣: 器は共通クラス nox-panel・見出しは nox-panel > h3（白）へ統一＝card/secTitle は撤去。
@@ -114,6 +122,14 @@ export default function ReportBoard({
   const [arNew, setArNew] = useState<{ n: number; sum: number } | null>(null);
   const [pending, setPending] = useState<{ advN: number; advSum: number; trN: number; trSum: number } | null>(null);
   const [cancelCount, setCancelCount] = useState<number | null>(null);
+  // ★B2-b（裁定204・D37）: 今月発生 KPI（receivables.created_at を営業日月で数える・件数＋金額）
+  const [arNewMonth, setArNewMonth] = useState<{ n: number; sum: number } | null>(null);
+  // ★B2-b（D42）: open 行ごとの前回回収（ar_collections の最新 1 件・表示専用）
+  const [lastCol, setLastCol] = useState<Record<string, { biz_date: string; method: string; amount: number }>>({});
+  // ★B2-b（裁定207・D47）: 回収履歴（当月・自店・最新 30 件）
+  const [colHist, setColHist] = useState<ArCol[]>([]);
+  // ★B2-b（D40）: client フィルタ（すべて／期限超過／今月発生／一部回収）
+  const [arFilter, setArFilter] = useState<"all" | "overdue" | "month" | "partial">("all");
 
   // プレビュー＝クライアント TS 集計（biz-date 純関数で範囲決定・権威は close 時のサーバ再集計）
   const loadPreview = useCallback(async (d: string) => {
@@ -206,7 +222,7 @@ export default function ReportBoard({
   const loadRecvs = useCallback(async () => {
     const { data } = await supabase
       .from("receivables")
-      .select("id, amount, deducted_amount, collected_amount, due, cast_id, customer_id, deduct_from_cast, checks(started_at, seats(name)), customers(name), casts(name)")
+      .select("id, amount, deducted_amount, collected_amount, due, cast_id, customer_id, deduct_from_cast, created_at, checks(started_at, seats(name)), customers(name), casts(name)")
       .eq("store_id", storeId).eq("status", "open")
       .order("created_at", { ascending: false });
     setRecvs((data ?? []) as unknown as Recv[]);
@@ -216,8 +232,37 @@ export default function ReportBoard({
       .select("amount").eq("store_id", storeId)
       .gte("biz_date", `${ym}-01`).lte("biz_date", `${ym}-31`);
     setArMonth(((ar ?? []) as { amount: number }[]).reduce((a, r) => a + r.amount, 0));
+    // ★B2-b（裁定204・D37）: 今月発生＝営業日月（bizDateOf(now)）の初日〜翌月初日の営業日範囲で created_at を数える（1 クエリ）。
+    const bizYm = bizDateOf(new Date().toISOString(), cutoff).slice(0, 7);
+    const [by, bm] = bizYm.split("-").map(Number);
+    const nextYm = bm === 12 ? `${by + 1}-01` : `${by}-${String(bm + 1).padStart(2, "0")}`;
+    const mStart = bizDateRange(`${bizYm}-01`, cutoff).startIso;
+    const mEnd = bizDateRange(`${nextYm}-01`, cutoff).startIso;
+    const { data: rvm } = await supabase.from("receivables").select("amount")
+      .eq("store_id", storeId).gte("created_at", mStart).lt("created_at", mEnd);
+    const rvmRows = (rvm ?? []) as { amount: number }[];
+    setArNewMonth({ n: rvmRows.length, sum: rvmRows.reduce((a, r) => a + r.amount, 0) });
+    // ★B2-b（D42）: open 行の前回回収＝ar_collections を receivable_id で引き最新 1 件を採る（1 クエリ・表示のみ）。
+    const openIds = ((data ?? []) as { id: string }[]).map((r) => r.id);
+    if (openIds.length) {
+      const { data: lc } = await supabase.from("ar_collections").select("receivable_id, biz_date, method, amount, created_at")
+        .in("receivable_id", openIds).order("created_at", { ascending: false });
+      const m: Record<string, { biz_date: string; method: string; amount: number }> = {};
+      for (const c of (lc ?? []) as { receivable_id: string; biz_date: string; method: string; amount: number }[]) {
+        if (!m[c.receivable_id]) m[c.receivable_id] = { biz_date: c.biz_date, method: c.method, amount: c.amount };
+      }
+      setLastCol(m);
+    } else {
+      setLastCol({});
+    }
+    // ★B2-b（裁定207・D47）: 回収履歴＝当月（biz_date）・自店・created_at 降順 30 件（1 クエリ・顧客／担当／登録者は embed）。
+    const { data: hist } = await supabase.from("ar_collections")
+      .select("id, receivable_id, biz_date, method, amount, created_at, customers(name), casts(name), creator:users!created_by(name)")
+      .eq("store_id", storeId).gte("biz_date", `${bizYm}-01`).lt("biz_date", `${nextYm}-01`)
+      .order("created_at", { ascending: false }).limit(30);
+    setColHist((hist ?? []) as unknown as ArCol[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId]);
+  }, [storeId, cutoff]);
 
   useEffect(() => { void loadPreview(bizDate); }, [bizDate, loadPreview]);
   useEffect(() => { void loadReports(); }, [loadReports]);
@@ -367,25 +412,48 @@ export default function ReportBoard({
         const today = new Date().toISOString().slice(0, 10);
         const balance = recvs.reduce((a, r) => a + remainOf(r), 0);
         const overdue = recvs.filter((r) => r.due && r.due < today).length;
+        // ★B2-b（D40）: client フィルタ＝期限超過（due<today）／今月発生（created_at の営業日月＝裁定204）／一部回収（collected>0）。
+        const bizYm = bizDateOf(new Date().toISOString(), cutoff).slice(0, 7);
+        const filtered = recvs.filter((r) =>
+          arFilter === "overdue" ? (!!r.due && r.due < today)
+          : arFilter === "month" ? bizDateOf(r.created_at, cutoff).slice(0, 7) === bizYm
+          : arFilter === "partial" ? r.collected_amount > 0
+          : true);
         const shown = arSort === "due"
-          ? [...recvs].sort((a, b) => (a.due ?? "9999-99-99").localeCompare(b.due ?? "9999-99-99"))
-          : recvs;
-        return (
+          ? [...filtered].sort((a, b) => (a.due ?? "9999-99-99").localeCompare(b.due ?? "9999-99-99"))
+          : filtered;
+        return (<>
         <section className="nox-panel">
           <h3>売掛（未回収）</h3>
-          <div className="nox-repsum">
+          {/* ★B2-b（裁定204・D37）: KPI 5 枚目「今月発生」（カード枚数増は裁定196 で許容済み） */}
+          <div className="nox-repsum five">
             <div className="nox-rs"><div className="l">未回収残高</div><div className="v num">{yen(balance)}</div></div>
             <div className="nox-rs"><div className="l">今月回収</div><div className="v num">{yen(arMonth)}</div></div>
+            <div className="nox-rs">
+              <div className="l">今月発生</div>
+              <div className="v num">{arNewMonth ? `${arNewMonth.n}件` : "—"}</div>
+              {arNewMonth && <div className="l" style={{ marginTop: 2 }}>{yen(arNewMonth.sum)}</div>}
+            </div>
             <div className="nox-rs"><div className="l">期限超過</div><div className="v num" style={overdue > 0 ? { color: "var(--bad)" } : undefined}>{overdue}件</div></div>
             <div className="nox-rs"><div className="l">未回収件数</div><div className="v num">{recvs.length}件</div></div>
           </div>
-          <div className="nox-seg" style={{ marginBottom: 10, display: "inline-flex" }}>
-            {([["created", "新しい順"], ["due", "期日順"]] as const).map(([k, label]) => (
-              <button key={k} className={arSort === k ? "on" : ""} onClick={() => setArSort(k)}>{label}</button>
-            ))}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+            <div className="nox-seg" style={{ display: "inline-flex" }}>
+              {([["created", "新しい順"], ["due", "期日順"]] as const).map(([k, label]) => (
+                <button key={k} className={arSort === k ? "on" : ""} onClick={() => setArSort(k)}>{label}</button>
+              ))}
+            </div>
+            {/* ★B2-b（D40）: フィルタ（表示のみ・KPI は全件のまま） */}
+            <div className="nox-seg" style={{ display: "inline-flex" }}>
+              {([["all", "すべて"], ["overdue", "期限超過"], ["month", "今月発生"], ["partial", "一部回収"]] as const).map(([k, label]) => (
+                <button key={k} className={arFilter === k ? "on" : ""} onClick={() => setArFilter(k)}>{label}</button>
+              ))}
+            </div>
           </div>
           {recvs.length === 0 ? (
             <p style={{ ...t.sub, margin: 0 }}>未回収の売掛はありません。</p>
+          ) : shown.length === 0 ? (
+            <p style={{ ...t.sub, margin: 0 }}>この条件に当てはまる売掛はありません。</p>
           ) : (
             <div>
               {shown.map((r) => {
@@ -403,6 +471,12 @@ export default function ReportBoard({
                       <span style={{ ...t.num, color: "var(--champ)", marginLeft: 8 }}>{yen(remaining)}</span>
                       {r.collected_amount > 0 && (
                         <span style={{ ...t.sub, fontSize: 11, marginLeft: 6 }}>（一部回収済 {yen(r.collected_amount)}）</span>
+                      )}
+                      {/* ★B2-b（D42）: 前回回収＝入金日・方法・金額（ar_collections の最新 1 件・表示のみ） */}
+                      {lastCol[r.id] && (
+                        <span style={{ ...t.sub, fontSize: 11, marginLeft: 6 }}>
+                          前回回収 {lastCol[r.id].biz_date}・{METHOD_LABEL[lastCol[r.id].method] ?? lastCol[r.id].method}・{yen(lastCol[r.id].amount)}
+                        </span>
                       )}
                       {/* E8-2 #12: 期日バッジ（超過は bad 色・タップで設定/変更モーダル） */}
                       <button type="button" style={{
@@ -445,7 +519,37 @@ export default function ReportBoard({
             掛売は当日現金に計上せず売掛として分離。回収で現金へ振替えます（一部だけの回収も可）。
           </p>
         </section>
-        );
+
+        {/* ★B2-b（裁定207・D47）: 回収履歴＝当月・自店・最新 30 件（ar_collections 読取のみ・書込経路なし）。
+            顧客名は上の未回収一覧と同粒度（customers.name）。登録者＝created_by→users.name。 */}
+        <section className="nox-panel">
+          <h3>回収履歴（当月・最新30件）</h3>
+          {colHist.length === 0 ? (
+            <p style={{ ...t.sub, margin: 0 }}>当月の回収はまだありません。</p>
+          ) : (
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+              <thead>
+                <tr>{["入金日", "方法", "金額", "顧客", "担当", "登録者"].map((h) => <th key={h} style={t.th}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {colHist.map((c) => (
+                  <tr key={c.id}>
+                    <td style={{ ...t.td, ...t.num }}>{c.biz_date}</td>
+                    <td style={t.td}>{METHOD_LABEL[c.method] ?? c.method}</td>
+                    <td style={{ ...t.td, ...t.num }}>{yen(c.amount)}</td>
+                    <td style={t.td}>{c.customers?.name ?? "フリー"}</td>
+                    <td style={t.td}>{c.casts?.name ?? "—"}</td>
+                    <td style={t.td}>{c.creator?.name ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p style={{ ...t.sub, fontSize: 11, marginTop: 8 }}>
+            表示は当月（営業日）・最新 30 件。それ以前は売掛タブの各行「前回回収」と、締め済み日報の「回収現金」で確認できます。
+          </p>
+        </section>
+        </>);
       })()}
 
       {/* E8-2 #13: 部分回収モーダル（残額表示・金額入力・空欄=全額・現金固定＝現行経路） */}
