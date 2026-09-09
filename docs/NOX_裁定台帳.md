@@ -2972,11 +2972,11 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 ---
 
-## 裁定201（2026-09-09・Agoora 承認待ち・CC 起こし）本日 2026-09-09 の f0 run1 は例外として有効（2 連緑の 1 本目に数える）
+## 裁定201（2026-09-09・Agoora 承認 2026-09-09・CC 起こし）本日 2026-09-09 の f0 run1 は例外として有効（2 連緑の 1 本目に数える）
 
 出典＝相談役ブロック（「run1 例外有効」・本文なし＝CC 起こし）。run1（761s・38 本 3,570・golden 6 値不変）は別チャットが handoff v27 収蔵コミット `c07a422` を積んだ時間帯と重なった（裁定200 の「同一 DB で 1 本ずつ」に照らすと起動前チェック未実施）。本チャットの実測では直結 client は自分のみ・PostgREST active 0（run2 起動前）で他の f0 走行は観測されず、run2（723s）も同値の緑＝結果への影響なしとして例外扱い。以後は裁定200 に従う。
 
-## 裁定200（2026-09-09・Agoora 承認待ち・CC 起こし）f0 は同一 DB で 1 本ずつ・起動前 60 秒チェック
+## 裁定200（2026-09-09・Agoora 承認 2026-09-09・CC 起こし）f0 は同一 DB で 1 本ずつ・起動前 60 秒チェック
 
 出典＝相談役ブロック（本文なし＝CC 起こし）。verify 用 org／ユーザー（NOX-VERIFY-*）と sweep（audit_logs 削除）は dev DB で共有＝複数チャットの f0 並走は fixture の相互干渉（赤・timeout）を生む（教訓56「手貼りと f0」の同型）。規約＝(1) f0 は同一 DB で同時に 1 本だけ（chat をまたいでも）(2) 起動前に pg_stat_activity（client backend・自分以外の直結 client と PostgREST active）を実測し、60 秒後に再実測して変化なしを確認してから起動 (3) f0 を含む起動ブロックは 1 チャットにのみ貼る（教訓63）(4) sweep 側の機械ガードは #65。恒久注意 9（1 日 6 走以内）はそのまま。
 
@@ -3517,7 +3517,7 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **B層 B1 ホーム＋キャスト 完了**（2026-09-09・読取のみ・mig なし・policy 変更なし）: `e617eaa`（B1-a M6 店舗閲覧切替＝裁定192・F4 とは二層）／`777fe75`（B1-b K16 バッジ＋K7 メール未登録 KPI＝裁定193・RLS 実測で owner/manager とも配下 cast の users.email 可読 2/2）。裁定190〜197 収載（190 audit 履歴は owner 限定のまま／191 H23 非表示維持／194 A38 近似＋注記／195 A45 は A15 と同時／196 D49 位置のみ／197 区分訂正 H19・H30・K34・D34→実装済(B層)）。#64 は B3 で解消予定。f0 2 連緑＝37 本 3,550（420s／720s・sweep 削除前 797/797）・golden 6 値不変＝本日 6 走で上限。C層① 設計書 draft は `e1242ad` で収蔵＋突合済み。
 - **C層① mig0135 完了**（2026-09-09・Agoora 手貼り 9/9・CC 再実行 9/9）: `65c1ef0`（mig 収蔵＋手貼りリスト＋課金ゲート対象 A8/B(f)＋billing pin）／`fc2b2bf`（verify:nox-flags 20 assertions＋f0 連結）／docs。設計書 v1 `58306ec`・draft 突合 `e1242ad`・実装差分 2 点＝裁定198／199（承認 2026-09-09）・#62 クローズ。単独緑＝flags 20／billing 53／grants 298。**f0 の新基準見込み＝38 本 3,570**（本日は上限のため未連結走行＝明日の 2 連緑で pin）。UI（/master/system#features）は別コミット（C層① UI レーン）。
 - **C層① UI 完了**（2026-09-09・mig なし・読取＝feature_flags RLS select／切替＝flag_set）: `4f4d905`（`feature-flags-panel.tsx` 新設 142 行＋`system/page.tsx` に「◈ 機能の公開」タブを owner のみ push＋`master-board.tsx` 店舗・運用群へ導線 1 枚「機能の公開」→`/master/system#features`）。表示 key＝staff_shift「黒服シフト」／reopen_flow「締め解除フロー」の 2 つ（qr_order／notify は非表示）・列＝[会社の既定 OFF/ON][店舗ごと 既定に従う/ON/OFF]・理由は任意・エラー文は --danger-ink・削除 RPC なし＝「店舗の上書きは ON/OFF のみ」注記。gate＝tsc 緑／lint 緑／ui-tokens baseline 56 不変／eol LF（3 ファイル i/lf w/lf）。f0 は本日上限のため未走行（明日の 2 連緑＝38 本 3,570 見込みで pin）・目視は明日の f0 後。裁定198／199 は承認 2026-09-09 へ。対応表 §1 S4 を実装済(C層①) へ。
-- **f0 新基準 pin**（2026-09-09・翌朝取り直し）: プローブ回復（DB 直結 0.06s／signin 0.92s／rpc 0.80s）→ f0 **2 連緑＝38 本 3,570**（761s／723s・38 段 ALL PASS を機械集計・golden 6 値不変＝wage 5931／withholding 125802／labor-forecast 55233／receipt 64／rate-back 64／billing 53）。run1 は別チャットの handoff v27 収蔵（`c07a422`）と同時刻帯＝裁定201 の例外扱い。裁定200（1 本ずつ・起動前 60 秒チェック）・教訓63（複数チャット f0 衝突）・#65（sweep 起動ガード）を起票。目視（/master/system#features・/casts）は Agoora の owner ログイン後 → OK で push（ahead 8）。
+- **f0 新基準 pin**（2026-09-09・翌朝取り直し）: プローブ回復（DB 直結 0.06s／signin 0.92s／rpc 0.80s）→ f0 **2 連緑＝38 本 3,570**（761s／723s・38 段 ALL PASS を機械集計・golden 6 値不変＝wage 5931／withholding 125802／labor-forecast 55233／receipt 64／rate-back 64／billing 53）。run1 は別チャットの handoff v27 収蔵（`c07a422`）と同時刻帯＝裁定201 の例外扱い。裁定200（1 本ずつ・起動前 60 秒チェック）・教訓63（複数チャット f0 衝突）・#65（sweep 起動ガード）を起票（200／201 は承認 2026-09-09）。目視（/master/system#features・/casts）は Agoora の owner ログイン後 → OK で push（ahead 8）。
 ---
 
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
