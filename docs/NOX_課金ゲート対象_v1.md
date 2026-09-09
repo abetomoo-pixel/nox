@@ -154,13 +154,14 @@ set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_co
 set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config /
 **set_comp_component**（mig0115＝comp_plan_components の唯一の書き手・owner のみ・ゲート内蔵・裁定86）
 
-### A8. 店設定（13本）
+### A8. 店設定（14本）
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /
 set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin / set_staff_pin /
 **store_sales_target_set**（mig0096＝月間売上目標・null=削除・E8-6） /
 **set_store_biz_cutoff**（mig0106＝営業日切替時刻・owner 限定・裁定82／起票#14） /
 **set_store_pin_policy**（mig0108＝PIN ロック閾値・owner 限定・起票#31） /
-**set_store_tax_config**（mig0112＝税設定4分離＋card_surcharge・owner∨manager 自店・裁定90）
+**set_store_tax_config**（mig0112＝税設定4分離＋card_surcharge・owner∨manager 自店・裁定90） /
+**flag_set**（mig0135＝機能フラグの upsert・org 既定と店舗上書きの二層・owner 限定・課金ゲート・監査 action flag_toggle・理由は任意・C層①＝裁定182）
 
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
@@ -198,7 +199,7 @@ kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解�
 payroll_run_create / payment_record_add / withholding_payment_record
 （finalize/mark_paid/reopen は B(a) で既に構造除外）
 
-### B(f) 読取 RPC（43本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
+### B(f) 読取 RPC（44本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
 **staff_pin_status**（mig0108＝PIN 状態の読取・owner∨manager自店・hash 非返却） /
 **cast_unavailable_list**（mig0125＝出勤不可の読取・STABLE・owner∨manager自店・裁定112） /
 auth_cast_can_register / auth_cast_id / auth_kiosk_org_id / auth_kiosk_register_store_id /
@@ -221,6 +222,7 @@ billing_writable_of / auth_org_billing_writable / nox_receipt_public /
 　2本は 0088 の課金述語とその zero-arg ラッパ＝読取ヘルパー。教訓20 の残差是正。
 　nox_receipt_public＝mig0099 2026-08-20 同時追補: ★NOX 初の anon 白名単1号・裁定 R2-11 改訂＝
 　token 引数の DEFINER 読取・不在/void/期限切れは空 return・grants G2b の白名単 assert が本数=1 を係留）
+**flag_enabled**（mig0135＝機能フラグの解決・店舗行→org 行→false の fail-closed・STABLE 読取・非ゲート・authenticated 実行可・C層①＝裁定182）
 
 ### B(g) 印刷（1本・「出せる」原則の明文）
 print_enqueue[K]
