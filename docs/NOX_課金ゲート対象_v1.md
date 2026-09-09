@@ -161,7 +161,9 @@ set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin 
 **set_store_biz_cutoff**（mig0106＝営業日切替時刻・owner 限定・裁定82／起票#14） /
 **set_store_pin_policy**（mig0108＝PIN ロック閾値・owner 限定・起票#31） /
 **set_store_tax_config**（mig0112＝税設定4分離＋card_surcharge・owner∨manager 自店・裁定90） /
-**flag_set**（mig0135＝機能フラグの upsert・org 既定と店舗上書きの二層・owner 限定・課金ゲート・監査 action flag_toggle・理由は任意・C層①＝裁定182）
+**flag_set**（mig0135＝機能フラグの upsert・org 既定と店舗上書きの二層・owner 限定・課金ゲート・監査 action flag_toggle・理由は任意・C層①＝裁定182） /
+**staff_pattern_set** / **staff_pattern_delete** / **staff_deadline_set**（mig0136＋0137＝黒服の勤務パターン枠と締切＝effective_from 型の店設定・owner∨manager 自店・flag gate の直後に課金ゲート＝裁定233） /
+**staff_shift_propose** / **staff_shift_override** / **staff_shift_confirm**（mig0136＋0137＝黒服シフト行の作成・時刻上書き・確定・owner∨manager 自店・課金ゲート＝裁定233。cast の A5 と同列だが店設定と同じ mig のため A8 に置く）
 
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
@@ -239,6 +241,7 @@ staff_deactivate / kiosk_deactivate
 | set_cast_tax_profile / set_cast_sensitive | **給与前提**（税区分・口座＝給与支払いの前提入力。no_tax blocker 解消経路を失効中も塞がない） |
 | cast_leave | **事実記録・縮退**（退店の事実。rejoin とは割る＝rejoin は A10 対象） |
 | rotate_store_token | **セキュリティ**（kiosk トークンのローテ＝衛生操作。課金で止めるとむしろ危険） |
+| staff_wish_set | **事実記録**（mig0136＝黒服本人の希望◯×・締切前のみ。cast の shift_wish_submit と同型＝裁定233・2026-09-09） |
 
 ### B(j) live 突合で追加（1本・2026-08-17）
 | 関数 | 適用原理 |
@@ -252,16 +255,13 @@ staff_deactivate / kiosk_deactivate
 | bottle_keep_update / customer_set_grade | **事実記録**（mig0094＝ボトル残量/期限/棚と顧客ランク＝接客記録の更新。金銭・拡大のいずれでもない） |
 | customer_note_add / customer_note_remove | **事実記録**（mig0094＝接客メモの追記と論理削除＝append-only 運用） |
 
-### B(l) C層② 黒服シフト（13本・2026-09-09・mig0136＝★課金ゲート未内蔵・A8 収載は要裁定）
-公開 RPC 7 本は prosrc に 'billing locked' が無い（設計書 v1 §2 は flag ゲートのみ）。A に載せると段47-1「対象→live」が赤になるため、
-ゲート内蔵へ寄せる（0136 改訂）か B 据え置きかの裁定まで B で係留する（対象 114 不変・除外 102→115・全数 216→229）。
+### B(l) C層② 黒服シフトのヘルパー（6本・2026-09-09・mig0136／0137）
+公開 RPC 7 本のうち書込 6 本は 0137 で課金ゲートを内蔵し **A8 へ移動**（裁定233）。staff_wish_set は **B(i)**（事実記録）。ここに残るのはヘルパー 6 本。
 | 関数 | 適用原理 |
 |---|---|
-| staff_pattern_set / staff_pattern_delete / staff_deadline_set | **店設定系の書込**（勤務パターン枠・締切＝effective_from 型）＝本来 A8 相当だが 0136 は課金ゲート未内蔵＝要裁定 |
-| staff_shift_propose / staff_shift_override / staff_shift_confirm | **シフト行の作成・上書き・確定**（黒服）＝本来 A5 相当だが同上 |
-| staff_wish_set | **事実記録**（黒服本人の希望◯×・締切前のみ）＝cast の shift_wish_submit（B(i)）と同列 |
 | auth_membership_id | **ヘルパー**（本人 membership.id・authenticated 可・裁定 C②-9） |
-| staff_shift_can_manage / staff_shift_biz_today / staff_shift_gate / staff_pattern_effective / staff_shift_deadline_at | **内部ヘルパー**（4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型） |
+| staff_shift_can_manage | **ヘルパー**（owner∨manager 自店判定。policy から呼ぶため 0137 で authenticated に execute＝教訓66・裁定231） |
+| staff_shift_biz_today / staff_shift_gate / staff_pattern_effective / staff_shift_deadline_at | **内部ヘルパー**（4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型。biz_today は 0137 で biz_date_of へ委譲＝裁定232） |
 
 ## C. kiosk 腕を持つ対象（実装注意・16本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
