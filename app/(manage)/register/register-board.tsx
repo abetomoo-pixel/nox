@@ -1440,7 +1440,7 @@ export default function RegisterBoard({
             </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button style={btnLight} disabled={clearBusy} onClick={() => setClearModal(false)}>やめる</button>
-              <button style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)" }}
+              <button style={{ ...btnLight, color: "var(--danger)", borderColor: "var(--danger-bd)" }}
                 disabled={clearBusy} onClick={() => void clearItems()}>
                 {clearBusy ? "削除中…" : `${targets.length}行を削除`}
               </button>
@@ -1451,7 +1451,7 @@ export default function RegisterBoard({
       {/* ── ★DP1 P2 b#16: 伝票取消モーダル（モック billhead の「伝票取消」danger→確認）── */}
       {voidModal && check && (
         <Modal onClose={() => setVoidModal(false)}>
-          <h3 style={{ ...t.cardTitle, margin: "0 0 6px", color: "var(--bad)" }}>伝票を取消します</h3>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 6px", color: "var(--danger)" }}>伝票を取消します</h3>
           <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
               <span>卓</span><span>{seats.find((x) => x.id === check.seat_id)?.name ?? "—"}</span>
@@ -1474,7 +1474,7 @@ export default function RegisterBoard({
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button style={btnLight} onClick={() => setVoidModal(false)}>やめる</button>
             <button
-              style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)", opacity: voidReason.trim() ? 1 : 0.4 }}
+              style={{ ...btnLight, color: "var(--danger)", borderColor: "var(--danger-bd)", opacity: voidReason.trim() ? 1 : 0.4 }}
               disabled={!voidReason.trim()}
               onClick={() => void voidCheck()}>
               取消する
@@ -1612,7 +1612,7 @@ export default function RegisterBoard({
             )}
             {/* R-1a: 描画点＝入金モーダル。to の一致だけで描画する（文言の内容は見ない） */}
             {msg?.to === MSG_PAY && (
-              <p style={{ fontSize: 12, fontWeight: 700, color: msg.kind === "ok" ? "var(--ok)" : "var(--bad)", margin: "0 0 10px" }}>{msg.text}</p>
+              <p style={{ fontSize: 12, fontWeight: 700, color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)", margin: "0 0 10px" }}>{msg.text}</p>
             )}
             <button
               style={{ ...t.btnGold, width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 900, justifyContent: "center" }}
@@ -1763,7 +1763,7 @@ export default function RegisterBoard({
                   </div>
                 )}
                 {/* R-1a-4: 成功文言まで --bad（赤）で出ていたのを是正＝成功/失敗で色を分ける（state 構造は不変） */}
-                {rcptMsg && <p style={{ fontSize: 12, fontWeight: 700, color: rcptMsg === RCPT_COPIED ? "var(--ok)" : "var(--bad)", margin: "0 0 8px" }}>{rcptMsg}</p>}
+                {rcptMsg && <p style={{ fontSize: 12, fontWeight: 700, color: rcptMsg === RCPT_COPIED ? "var(--ok)" : "var(--danger-ink)", margin: "0 0 8px" }}>{rcptMsg}</p>}
                 {rcptIssued.map((r) => (
                   <div key={r.id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
                     <span style={{ ...t.num, fontWeight: 800 }}>R-{String(r.serial).padStart(6, "0")}</span>
@@ -1941,7 +1941,7 @@ export default function RegisterBoard({
             </button>
           )}
         </div>
-        {peopleMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "6px 0 0" }}>{peopleMsg}</p>}
+        {peopleMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-ink)", margin: "6px 0 0" }}>{peopleMsg}</p>}
         {/* E8-1c: 人数±の注記（person 制のみ＝table 制は人数が料金に効かないため出さない・嘘をつかない）。
             ★R2-b（mig0097/0097b・裁定 R2-6/R2-7b）: auto 店も時点起算になった＝確定済み延長ブロックは
               変更時点の人数で凍結・進行中ブロックとセット料金のみ現人数で再計算＝文言を実装に追随。
@@ -1959,7 +1959,7 @@ export default function RegisterBoard({
             3タブの外（backbar 直下）に置く＝どのタブから出た文言でも必ず見える。 */}
         {msg?.to === MSG_DETAIL && (
           <p style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.7, margin: "8px 0 0",
-            color: msg.kind === "ok" ? "var(--ok)" : "var(--bad)" }}>{msg.text}</p>
+            color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>
         )}
 
         {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。 */}
@@ -2012,7 +2012,7 @@ export default function RegisterBoard({
               同伴料の文言までここに出ていた＝二重表示の片側） */}
           {feeMsg?.to === FEE_SHIMEI && (
             <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0", lineHeight: 1.7,
-              color: feeMsg.kind === "ok" ? "var(--ok)" : "var(--bad)" }}>
+              color: feeMsg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>
               {feeMsg.text}
             </p>
           )}
@@ -2241,7 +2241,7 @@ export default function RegisterBoard({
                   <span key={cs.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--ink)" }}>
                     ＋{seats.find((s) => s.id === cs.seat_id)?.name ?? "他卓"}（同一会計）
                     <button onClick={() => removeSeat(cs.seat_id)} title="相席を解除"
-                      style={{ ...btnLight, padding: "1px 7px", fontSize: 12, color: "var(--bad)", borderColor: "var(--bad)" }}>×</button>
+                      style={{ ...btnLight, padding: "1px 7px", fontSize: 12, color: "var(--danger)", borderColor: "var(--danger-bd)" }}>×</button>
                   </span>
                 ))}
               </div>
@@ -2255,7 +2255,7 @@ export default function RegisterBoard({
                 </button>
                 {emptySeats.length === 0 && <span style={{ fontSize: 11.5, color: "var(--sub)" }}>空席がありません</span>}
               </div>
-              {seatMsg && <p style={{ fontSize: 12, fontWeight: 700, color: seatMsg.includes("できません") || seatMsg.includes("使用中") || seatMsg.includes("無効") || seatMsg.includes("同じ席") ? "var(--bad)" : "var(--sub)", margin: "8px 0 0" }}>{seatMsg}</p>}
+              {seatMsg && <p style={{ fontSize: 12, fontWeight: 700, color: seatMsg.includes("できません") || seatMsg.includes("使用中") || seatMsg.includes("無効") || seatMsg.includes("同じ席") ? "var(--danger-ink)" : "var(--sub)", margin: "8px 0 0" }}>{seatMsg}</p>}
             </div>
           );
         })()}
@@ -2292,7 +2292,7 @@ export default function RegisterBoard({
                 延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(timeCalc.total)}</span>
               </p>
             )}
-            {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
+            {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-ink)", margin: "8px 0 0" }}>{timeMsg}</p>}
           </div>
         )}
 
@@ -2337,9 +2337,9 @@ export default function RegisterBoard({
                 エラーは従来どおり下の timeMsg＝役割を混ぜない。 */}
             {msg?.to === MSG_TIME && (
               <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0",
-                color: msg.kind === "ok" ? "var(--ok)" : "var(--bad)" }}>{msg.text}</p>
+                color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>
             )}
-            {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
+            {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-ink)", margin: "8px 0 0" }}>{timeMsg}</p>}
           </div>
         )}
 
@@ -2655,7 +2655,7 @@ export default function RegisterBoard({
             </tbody>
           </table>
           {/* キャストドリンクの起票/取消エラー（握り潰さない＝seatMsg と同流儀で行の直下に出す） */}
-          {claimMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{claimMsg}</p>}
+          {claimMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-ink)", margin: "8px 0 0" }}>{claimMsg}</p>}
           {/* 段0R 第1陣: planA .sumrow＝明細の下に伝票サマリ。★表示のみ。
               値は会計タブの「会計（伝票グループ別）」と同一の groupInfo（小計 bx・割引 disc・
               請求 due＝groupDue）を group 横断で合計しただけで、新しい計算ロジックは作っていない。
@@ -2837,7 +2837,7 @@ export default function RegisterBoard({
                 {printMsg[g] && (
                   <span style={{
                     fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "2px 9px",
-                    color: printMsg[g].startsWith("失敗") || printMsg[g].includes("無効") ? "var(--bad)" : "var(--gold)",
+                    color: printMsg[g].startsWith("失敗") || printMsg[g].includes("無効") ? "var(--danger-ink)" : "var(--gold)",
                     background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
                   }}>{printMsg[g]}</span>
                 )}
@@ -2919,7 +2919,7 @@ export default function RegisterBoard({
             段2-1: 他4点と同じ基準へ＝色は kind から決める（muted 据置を解除）。 */}
         {msg?.to === MSG_FLOOR && (
           <p style={{ fontSize: 12, fontWeight: 700, margin: "10px 0 0",
-            color: msg.kind === "ok" ? "var(--ok)" : "var(--bad)" }}>{msg.text}</p>
+            color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>
         )}
       </section>
       <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>
