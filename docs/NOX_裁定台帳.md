@@ -2984,6 +2984,12 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 ---
 
+## 裁定234（2026-09-09・CC 起こし・裁定229／230 の補足文＝承認文から分離して保管）
+
+**229 の補足**: dev に手貼り済みの mig は sha256 と手貼りリストの記録で固定し、欠陥は手貼りリストに注記＋補正 mig（`create or replace`／`grant` のみ・表は触らない）で直す。本番は補正 mig と対で手貼り（0136→0137）。
+
+**230 の補足**: f0 の 1 日 6 走（恒久注意 9）とは別枠だが、同じ dev DB への負荷として数える。赤の run に逆張りを重ねても証明にならないため、赤なら逆張りを打たず原因を live で切り分けて報告する（2026-09-09 の run1＝policy の permission denied を直結 pg で再現→0137 で補正→run2 緑→逆張り、の順）。
+
 ## 裁定233（Agoora 承認 2026-09-09）C層② 書込 RPC 6 本は課金ゲート内蔵で A8 へ・staff_wish_set は B(i)（mig0137）
 
 出典＝相談役ブロック（0137 ヘッダ「③書込 RPC 6本に課金ゲート逐語行を挿入」）。段47-1 形 f の逐語行 `if not public.billing_writable_of(public.auth_org_id()) then raise exception 'billing locked'; end if;` を flag gate の直後（auth 後・入力検証前）に置く。staff_pattern_set／staff_pattern_delete／staff_deadline_set（店設定）・staff_shift_propose／staff_shift_override／staff_shift_confirm（黒服シフト行）を A8 へ収載＝対象 114→120・除外 115→109・全数 229。staff_wish_set（黒服本人の希望◯×）は cast の shift_wish_submit と同型の事実記録＝B(i)。live 実測＝gated 120／refs 121／shapes 120／wrapper 0。
@@ -2996,13 +3002,13 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 出典＝相談役ブロック（0137 ヘッダ①）。0136 は同関数を 4 ロール明示 revoke（内部専用の流儀）で作ったが、RLS policy の評価は呼出者（authenticated）権限で行われるため `permission denied for function staff_shift_can_manage` で 4 表の select が全ロールで落ちた（verify:nox-staff-shift run1＝ss(7a〜7d) 赤・直結 pg で再現）。auth_* ヘルパー同型に `grant execute … to authenticated`（service_role には付けない）。名簿＝grants の HELPERS へ移動（G4c 内部ヘルパーは 4 本）。
 
-## 裁定230（Agoora 承認 2026-09-09・CC 起こし）新設 suite の単体実走は「run＋逆張り」で 2 走以内・赤なら再走せず段名を報告して止まる
+## 裁定230（Agoora 承認 2026-09-09）新設 suite の単体実走は run＋逆張りで 2 走以内・赤なら再走せず段名を報告して止まる
 
-出典＝相談役ブロック（「単体 suite は run2＋逆張りで 2走以内」「赤なら段名を報告して停止」）。f0 の 1 日 6 走（恒久注意 9）とは別枠だが、同じ dev DB への負荷として数える。赤の run に逆張りを重ねても証明にならないため、赤なら逆張りを打たず原因を live で切り分けて報告する（2026-09-09 の run1＝policy の permission denied を直結 pg で再現→0137 で補正→run2 緑→逆張り、の順）。
+出典＝相談役ブロック（2026-09-09「単体 suite は run2＋逆張りで 2走以内」「赤なら段名を報告して停止」）。CC 起こしの補足文は裁定234。
 
-## 裁定229（Agoora 承認 2026-09-09・CC 起こし）適用済み mig は書き換えない＝補正は次番号の mig で積む（0136→0137）
+## 裁定229（Agoora 承認 2026-09-09）適用済み mig は書き換えない＝補正は次番号の mig で積む（0136→0137）
 
-出典＝相談役ブロック（0137 ヘッダ「0136 は書き換えない(適用済み・手貼りリストに欠陥注記あり)」）。dev に手貼り済みの mig は sha256 と手貼りリストの記録で固定し、欠陥は手貼りリストに注記＋補正 mig（`create or replace`／`grant` のみ・表は触らない）で直す。本番は補正 mig と対で手貼り（0136→0137）。
+出典＝相談役ブロック（0137 ヘッダ「0136 は書き換えない」）。CC 起こしの補足文は裁定234。
 
 ## 裁定227（Agoora 承認 2026-09-09）H4 期間粒度（月／半月／週）は据え置き＝shift_periods の粒度運用と同時
 
