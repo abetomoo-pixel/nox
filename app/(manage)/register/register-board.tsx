@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import { groupDueFull, timeStatusOf } from "@/lib/nox/check-calc";
+import { bizDateOf } from "@/lib/nox/biz-date"; // ★B3 裁定209: attendance の営業日判定（純関数）
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
 import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
@@ -26,7 +27,9 @@ type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // mig0081: sort_order＝カテゴリ内の並び順（groupProducts が sort_order→name で並べる）。
 type Product = { id: string; name: string; type: string; price: number; category_id: string | null; reorder_point: number | null; sort_order: number; back_exempt_from_split: boolean | null };
 type Category = { id: string; name: string; sort_order: number };
-type Cast = { id: string; name: string; photo_updated_at: string | null };
+type Cast = { id: string; name: string; photo_updated_at: string | null; rank_id?: string | null };
+// ★B3 裁定209（#64）: 「出勤中」＝営業日の attendance で出勤扱いの status（出勤板／casts-board と同じ PRESENT 集合）
+const ATTEND_PRESENT = ["shukkin", "dohan", "late"];
 // B1/B2（mig0053）: 追加席の占有行（伝票の追加席一覧・フロアの「同一会計」表示に使う）
 type CheckSeatRow = { id: string; seat_id: string; check_id: string };
 
@@ -275,6 +278,12 @@ export default function RegisterBoard({
   // E8-1 ⑤: 「本日出勤」＝最終打刻が 'in' のキャスト（直近20h の punches・表示順とバッジのみの近似）。
   //   RLS は自店スコープ＝直 SELECT 可。金額・按分・RPC には一切関与しない。
   const [todayIds, setTodayIds] = useState<Set<string>>(new Set());
+  // ★B3 裁定209（#64）: 営業日の attendance にあるキャスト＝「出勤中」（読取 1・表示専用）
+  const [attendIds, setAttendIds] = useState<Set<string>>(new Set());
+  // ★B3 裁定210（#64）: cast_ranks（読取 1）→ cast id → ランク名。RLS で 0 行のロール（staff）は空 Map＝要素非表示
+  const [rankNames, setRankNames] = useState<Map<string, string>>(new Map());
+  // 営業日切替（settings_json.biz_cutoff_hm・既存の stores 読取から拾う＝新規クエリ 0）
+  const [cutoffHm, setCutoffHm] = useState("06:00");
   // E8-1 #8/⑤: キャストドリンクの対象指定モーダル（product=タップ時・line=明細行の後付け）
   const [drinkPick, setDrinkPick] = useState<{ mode: "line"; lineId: string } | { mode: "product"; product: Product } | null>(null);
   // E8-1 ④: 入金モーダル（BANZEN register-table.tsx:360-483 写経・NOX 4値）
@@ -563,6 +572,9 @@ export default function RegisterBoard({
       if (alive) {
         setStoreName((data?.name as string | undefined) ?? "");
         setInvoiceRegNo(((data?.settings_json as Record<string, unknown> | null)?.invoice_reg_no as string | undefined) ?? "");
+        // ★B3: 営業日の判定に使う cutoff（report と同じ既定 06:00）
+        const bc = (data?.settings_json as Record<string, unknown> | null)?.biz_cutoff_hm;
+        setCutoffHm(typeof bc === "string" && bc ? bc : "06:00");
         // ★C3 §6-6（裁定90-⑤）: null=無効（既定）＝導線非表示
         setSurchargeRate((data?.card_surcharge_rate as number | null) ?? null);
       }
@@ -585,6 +597,33 @@ export default function RegisterBoard({
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ★B3 裁定209（#64）: 営業日の attendance（自店・PRESENT）＝「出勤中」。読取 1・金額／RPC に関与しない。
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const d = bizDateOf(new Date().toISOString(), cutoffHm);
+      const { data } = await supabase.from("attendance").select("cast_id")
+        .eq("store_id", storeId).eq("date", d).in("status", ATTEND_PRESENT);
+      if (alive) setAttendIds(new Set((data ?? []).map((r) => r.cast_id as string)));
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, cutoffHm]);
+  // ★B3 裁定210（#64）: cast_ranks（RLS＝owner ∨ manager 自店・staff は 0 行＝空 Map）→ casts.rank_id で結線。読取 1。
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("cast_ranks").select("id, name");
+      const byRank = new Map((data ?? []).map((r) => [r.id as string, r.name as string]));
+      const m = new Map<string, string>();
+      for (const ca of casts) { const nm = ca.rank_id ? byRank.get(ca.rank_id) : undefined; if (nm) m.set(ca.id, nm); }
+      if (alive) setRankNames(m);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casts]);
 
   // 段P: キャスト写真の署名 URL（写真ありの行だけ 1 リクエスト・失敗時は頭文字に落ちるだけ）
   useEffect(() => {
@@ -1255,6 +1294,10 @@ export default function RegisterBoard({
   // E8-1 ⑤: 着卓中（この伝票の按分重み>0）＝CastPicker の先頭グループ＋バッジ
   // ★裁定110: 名簿＝キーの存在（w=0 も在籍＝按分なし）
   const seatedIds = new Set(Object.keys(nomWeights));
+  // ★B3 裁定211（#64）: 「接客中」＝他卓の open 伝票の名簿（loadOpenMap の openNoms を再利用＝新規クエリ 0）。自伝票は着卓中が優先。
+  const servingIds = new Set(
+    Object.entries(openNoms).filter(([cid]) => cid !== check?.id).flatMap(([, ids]) => ids),
+  );
   // E8-1d: 指名種別の判定（表示専用・金額に一切関与しない）。
   //   課金行の凍結 fee_kind のみを見る（hon_shimei > jonai_shimei > dohan・mig0084 の cast_id 付き行）。
   //   ★R-2a-2: 旧「優先2＝伝票の nom_type へフォールバック」は廃止（下の nomKindOf を参照）。
@@ -1397,8 +1440,10 @@ export default function RegisterBoard({
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
             キャストドリンクの帰属先を選びます（バック額は行の凍結値からサーバが計算）。
           </p>
+          {/* ★B3 裁定209〜211（#64 帰属モーダル）: 出勤中／接客中／打刻・ランク名（cast_ranks が読めたロールのみ） */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
+            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames}
             onPick={(id) => {
               const dp = drinkPick;
               setDrinkPick(null);
@@ -1981,8 +2026,10 @@ export default function RegisterBoard({
           <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" }}>
             キャストをタップして名簿へ追加します。種別を変更すると、対応する指名料・同伴料を自動で会計へ反映します。
           </p>
+          {/* ★B3 裁定209〜211（#64・R43）: 候補一覧に出勤中／接客中／打刻・ランク名（cast_ranks が読めたロールのみ） */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
+            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames}
             selectedIds={seatedIds} badges={nomBadges} dense
             onPick={(id) => {
               const on = nomWeights[id] !== undefined; // ★裁定110: 名簿＝キー存在
@@ -2068,6 +2115,10 @@ export default function RegisterBoard({
               <div key={ca.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 90 }}>
                   <b style={{ fontSize: 12.5 }}>{ca.name}</b>
+                  {/* ★B3 裁定210（#64 指名カード）: ランク名＝読めた id だけ（モック 163 行「あべ｜エース」） */}
+                  {rankNames.get(ca.id) && (
+                    <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 6 }}>{rankNames.get(ca.id)}</span>
+                  )}
                   {/* ★裁定105: 本数はキャスト行の種別で1人1件（％非依存）＝行に種別バッジ＋「1件」・同伴は別バッジ */}
                   <span style={{ display: "flex", gap: 4, marginTop: 2, flexWrap: "wrap" }}>
                     {kind !== "free" && (

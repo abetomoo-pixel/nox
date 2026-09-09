@@ -21,15 +21,22 @@ const BADGE_STYLE: Record<PickerBadge["tone"], { color: string; borderColor: str
 };
 
 export default function CastPicker({
-  casts, photoUrls, seatedIds, todayIds, selectedIds, badges, onPick, size = 44, dense = false,
+  casts, photoUrls, seatedIds, todayIds, attendIds, servingIds, rankNames,
+  selectedIds, badges, onPick, size = 44, dense = false,
 }: {
   casts: PickerCast[];
   /** 署名 URL の Map（無い環境＝kiosk は頭文字アバターへ自動フォールバック） */
   photoUrls?: Map<string, string>;
   /** 着卓中（この伝票の指名・按分重み>0）＝最優先で先頭＋「着卓中」バッジ */
   seatedIds?: Set<string>;
-  /** 本日出勤（最終打刻が 'in' の近似）＝2番手＋「出勤」バッジ */
+  /** 打刻（最終打刻が 'in' の近似）＝「打刻」バッジ（★B3 裁定209: attendance が正・打刻のみはこの語） */
   todayIds?: Set<string>;
+  /** ★B3 裁定209（#64）: 営業日の attendance（shukkin/dohan/late）にある＝「出勤中」バッジ */
+  attendIds?: Set<string>;
+  /** ★B3 裁定211（#64）: 他卓の open 伝票の名簿に載る＝「接客中」バッジ（自伝票は seatedIds＝着卓中が優先） */
+  servingIds?: Set<string>;
+  /** ★B3 裁定210（#64）: ランク名（cast_ranks が読めた id だけ・無い id／ロールでは要素を出さない） */
+  rankNames?: Map<string, string>;
   /** 選択中（単選でも Set で渡す） */
   selectedIds?: Set<string>;
   /** E8-1d: 種別付きバッジ（あれば「着卓中」より優先表示・並びは着卓中と同じ最優先群） */
@@ -62,6 +69,11 @@ export default function CastPicker({
           const sel = selectedIds?.has(c.id) ?? false;
           const seated = seatedIds?.has(c.id) ?? false;
           const today = todayIds?.has(c.id) ?? false;
+          const attend = attendIds?.has(c.id) ?? false;
+          const serving = servingIds?.has(c.id) ?? false;
+          const rank = rankNames?.get(c.id) ?? null;
+          // ★B3 裁定209/211: 状態語の優先＝着卓中（自伝票）＞接客中（他卓）＞出勤中（attendance）＞打刻（punches）
+          const stateLabel = seated ? "着卓中" : serving ? "接客中" : attend ? "出勤中" : today ? "打刻" : null;
           const badge = badges?.get(c.id) ?? null;
           return (
             <button
@@ -81,18 +93,21 @@ export default function CastPicker({
             >
               <CastAvatar name={c.name} url={photoUrls?.get(c.id)} size={size} />
               <span style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{c.name}</span>
+              {/* ★B3 裁定210: ランク名＝読めた id だけ（要素ごと非表示・空チップは出さない） */}
+              {rank && <span style={{ fontSize: 10, color: "var(--sub)", lineHeight: 1.1 }}>{rank}</span>}
               {badge ? (
                 // E8-1d: 種別付きバッジ（呼び出し側判定・「着卓中」より優先）
                 <span style={{ ...t.tag, fontSize: 9.5, padding: "1px 7px", ...BADGE_STYLE[badge.tone] }}>
                   {badge.label}
                 </span>
-              ) : (seated || today) && (
+              ) : stateLabel && (
                 <span style={{
                   ...t.tag, fontSize: 9.5, padding: "1px 7px",
-                  color: seated ? "var(--gold2)" : "var(--ok)",
-                  borderColor: seated ? "rgba(201, 162, 74, .45)" : "rgba(119, 186, 131, .45)",
+                  // 着卓中／接客中＝gold2 系・出勤中／打刻＝ok 系（既存 2 色の範囲内・新色なし）
+                  color: (seated || serving) ? "var(--gold2)" : "var(--ok)",
+                  borderColor: (seated || serving) ? "rgba(201, 162, 74, .45)" : "rgba(119, 186, 131, .45)",
                 }}>
-                  {seated ? "着卓中" : "出勤"}
+                  {stateLabel}
                 </span>
               )}
             </button>

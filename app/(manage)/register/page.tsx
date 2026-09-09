@@ -37,7 +37,8 @@ export default async function RegisterPage() {
   const { data: casts } = await supabase
     .from("casts")
     // 段P/R2: photo_updated_at＝指名チップと席タイルの着卓キャスト顔を写真にする（null=頭文字）。
-    .select("id, name, photo_updated_at")
+    // ★B3 裁定210（#64）: rank_id＝ランク名の結線（cast_ranks は別 1 クエリ・読めたロールだけ描画）
+    .select("id, name, photo_updated_at, rank_id")
     .eq("is_active", true)
     .order("name");
   // 予約タブの可視判定（staff は can_crm・cast は予約不可＝会計のみ）と予約作成先の店（自分の membership の店）
