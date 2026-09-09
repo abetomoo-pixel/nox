@@ -50,10 +50,12 @@ function ageOf(birthday: string | null): string {
 }
 
 export default function CastsBoard({
-  isOwner, stores, myStoreId, initialTrials, initialLoginCasts, ranks,
+  isOwner, stores, myStoreId, initialTrials, initialLoginCasts, ranks, emailByUser = {},
 }: {
   isOwner: boolean; stores: Store[]; myStoreId: string; initialTrials: Trial[]; initialLoginCasts: CastLogin[];
   ranks: { id: string; name: string; is_active: boolean }[];
+  /** ★裁定193（B1・K7）: users.id → email（null=未登録）。KPI 判定専用・画面には出さない */
+  emailByUser?: Record<string, string | null>;
 }) {
   const supabase = createClient();
   const [trials, setTrials] = useState<Trial[]>(initialTrials);
@@ -355,6 +357,8 @@ export default function CastsBoard({
   const kpiActive = loginCasts.filter((c) => c.is_active).length;
   const kpiUninvited = loginCasts.filter((c) => c.is_active && !c.user_id).length;
   const kpiWorked = loginCasts.filter((c) => c.is_active && (attDaysOf[c.id] ?? 0) > 0).length;
+  // ★裁定193（B1・K7）: メール未登録＝在籍かつ（未招待 or users.email が null）。既存 KPI 4 枚は据え置き＝5 枚目
+  const kpiNoEmail = loginCasts.filter((c) => c.is_active && (!c.user_id || !emailByUser[c.user_id])).length;
   // E8-5 casts#3: 副次情報のラベル（ランク名・プラン名）
   const rankNameOf = (c: CastLogin) => (c.rank_id ? ranks.find((r) => r.id === c.rank_id)?.name ?? null : null);
   const planNameOf = (id: string) => { const a = castPlanOf[id]; return a ? plansById[a.planId]?.name ?? null : null; };
@@ -375,6 +379,8 @@ export default function CastsBoard({
         <div className="nox-rs"><div className="l">体入中</div><div className="v num">{trials.length}名</div></div>
         <div className="nox-rs"><div className="l">未招待</div><div className="v num">{kpiUninvited}名</div></div>
         <div className="nox-rs"><div className="l">今月出勤者</div><div className="v num">{kpiWorked}名</div></div>
+        {/* ★裁定193（B1・K7）: モック KPI「メール未登録」（在籍のうち未招待 or email 未登録） */}
+        <div className="nox-rs"><div className="l">メール未登録</div><div className="v num">{kpiNoEmail}名</div></div>
       </div>
 
       {/* ツールバー＝検索＋在籍/体入/退店済み（既存 is_active と trials の再形・新規取得なし） */}
@@ -504,9 +510,11 @@ export default function CastsBoard({
                   <div className="cname">{c.name}</div>
                   <div className="csub">{c.is_active ? "在籍" : "退店"} / {c.user_id ? "ログイン済み" : "未招待"}</div>
                   {/* E8-5 casts#3: 副次情報（ランク・プラン名）。LINE 連携は T3 後送り＝出さない */}
+                  {/* ★裁定196'（B1・K16）: ランク名／プラン名をモックのバッジ形（nox-stpill）へ＝表示スタイルのみ・値は不変・意味名トークン */}
                   {(rankNameOf(c) || planNameOf(c.id)) && (
-                    <div className="csub" style={{ color: "var(--gold2)" }}>
-                      {[rankNameOf(c), planNameOf(c.id)].filter(Boolean).join(" / ")}
+                    <div className="csub" style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
+                      {rankNameOf(c) && <span className="nox-stpill" style={{ color: "var(--v2-text)" }}>{rankNameOf(c)}</span>}
+                      {planNameOf(c.id) && <span className="nox-stpill" style={{ color: "var(--v2-muted)" }}>{planNameOf(c.id)}</span>}
                     </div>
                   )}
                 </div>

@@ -30,9 +30,17 @@ export default async function CastsPage() {
   // D2-4（mig0083/0085）: 指名ランクの割当 UI 用。RLS は owner/manager のみ返す（料率系と同スコープ）。
   const { data: ranks } = await supabase.from("cast_ranks")
     .select("id, name, is_active").order("sort_order").order("name");
+  // ★裁定193（B1・K7）: メール未登録 KPI＝配下 cast の users.email（RLS 実測 2026-09-09: owner/manager とも配下 cast 分は可読）。
+  //   読取のみ・1 クエリ。email は KPI の判定にだけ使い、画面には出さない。
+  const castUserIds = ((loginCasts ?? []) as { user_id: string | null }[]).map((c) => c.user_id).filter((v): v is string => !!v);
+  const { data: castUsers } = castUserIds.length
+    ? await supabase.from("users").select("id, email").in("id", castUserIds)
+    : { data: [] as { id: string; email: string | null }[] };
+  const emailByUser: Record<string, string | null> = Object.fromEntries(((castUsers ?? []) as { id: string; email: string | null }[]).map((u) => [u.id, u.email]));
   return (
     <CastsBoard
       isOwner={role === "owner"}
+      emailByUser={emailByUser}
       stores={(stores ?? []) as { id: string; name: string }[]}
       myStoreId={(myStoreId as string | null) ?? ""}
       initialTrials={(trials ?? []) as Trial[]}
