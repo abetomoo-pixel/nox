@@ -1,0 +1,8 @@
+# 改行コードの正本＝LF（教訓61: CRLF 化した1ファイルが全行差分になった 2026-09-07 の事故から）。
+# core.autocrlf の個人設定に依存せず、リポジトリ側で正規化する。
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.css  text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.sql  text eol=lf
