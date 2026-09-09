@@ -640,12 +640,12 @@ export default function RegisterBoard({
 
   const castName = (id: string) => casts.find((c) => c.id === id)?.name ?? "?";
 
-  /** 段R2: 低在庫の残数。reorder_point 未設定なら null（＝表示しない）。しきい以下のときだけ数を返す。 */
-  const lowStockOf = (p: Product): number | null => {
-    if (p.reorder_point == null) return null;
+  /** ★B3 裁定213（R29）: 在庫の常時表示。在庫行が無い商品は null（＝表示しない）。
+   *  reorder_point 未設定＝数のみ（low=false）・設定あり＝しきい以下で low=true（現行「残N」の色）。 */
+  const stockLabelOf = (p: Product): { n: number; low: boolean } | null => {
     const n = stockOf[p.id];
     if (n == null) return null;
-    return n <= p.reorder_point ? n : null;
+    return { n, low: p.reorder_point != null && n <= p.reorder_point };
   };
 
   // 段B タップ注文: 商品タイル連打を束ねて check_add_line(p_qty=N) を1回（直列 flush・単一 pending・権威はサーバ）。
@@ -2435,7 +2435,7 @@ export default function RegisterBoard({
                 <div className="nox-tilegrid">
                   {items.map((p) => {
                     const n = tb.badgeOf(p.id);
-                    const low = lowStockOf(p);
+                    const stock = stockLabelOf(p);
                     return (
                       <button key={p.id} type="button" className="nox-tile"
                         onClick={() => (p.back_exempt_from_split === true
@@ -2445,9 +2445,13 @@ export default function RegisterBoard({
                         {n > 0 && <span className="nox-tile-badge">+{n}</span>}
                         <span className="nox-tile-name">{p.name}</span>
                         <span className="nox-tile-price">{yen(p.price)}</span>
-                        {/* 段R2: 低在庫「残N」＝Σdelta が reorder_point 以下のときだけ（在庫 v1 の流用・表示のみ）。
+                        {/* 段R2→★B3 裁定213: 在庫を常時表示（在庫行なし＝非表示・しきい以下だけ現行の低在庫色「残N」）。
                             ★タップの挙動には一切関与しない（在庫切れでも売れる＝現物の運用を変えない）。 */}
-                        {low != null && <span className="nox-tile-low num">残{low}</span>}
+                        {stock && (
+                          <span className="nox-tile-low num" style={stock.low ? undefined : { color: "var(--v2-muted)" }}>
+                            {stock.low ? `残${stock.n}` : `在庫${stock.n}`}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
