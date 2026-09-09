@@ -2968,6 +2968,41 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 ---
 
+## 裁定197（Agoora 確定 2026-09-09）対応表の区分訂正＝実装済みなのに「準備中」の 4 行を「実装済(B層)」へ（H19／H30 shift_remove／K34／D34）
+
+出典＝B層調査（教訓60 の同型）。H19 一括承認・H30 の shift_remove 結線・K34 適用履歴は N4（`daee5e2`）で実装済み、D34 日別確定状況は month-report に描画済み。
+
+## 裁定196（Agoora 確定 2026-09-09）D49 締め確認モーダルは位置だけ寄せる（モーダル化しない・裁定136 の常設優先と同型）／D14・D37 の KPI 追加はカード枚数増を許容
+
+出典＝B層調査の裁定要点 7。差異承認（D20）が器なしのため、確認 3 項目は現行の同画面下部を「締め」直上へ寄せる範囲に留める。
+
+## 裁定195（Agoora 確定 2026-09-09）A45 キャスト 4 スタットは A15（按分表示の降格）と同時に扱う＝B層では触らない
+
+出典＝B層調査の裁定要点 5・裁定要点28。按分客単価の削除と延長率／杯数の準備中表示は同じ裁定で決める。
+
+## 裁定194（Agoora 確定 2026-09-09）A38 商品販売実績（店合計）は catSums の drink＋champ＋bottle 近似で表示し「会計明細ベース（cast 別の販売実績＝A11 とは母数が別）」と注記
+
+出典＝B層調査の裁定要点 5。A11（cast 別販売実績）の器が無いため、店合計だけを明細合算で出す。
+
+## 裁定193（Agoora 確定 2026-09-09）K7 メール未登録 KPI＝users.email を配下 cast 分だけ読む（RLS 実測で owner／manager とも可読）
+
+出典＝B層調査の裁定要点 4・B1 の前提実測（2026-09-09: NOX-VERIFY-A1 の cast 2/2 を owner／manager とも読取可）。email は KPI 判定専用で画面に出さない。
+既存 KPI 4 枚は据え置き＝5 枚目。K16 カードバッジはランク名／プラン名を nox-stpill の 2 バッジへ（スタイルのみ・意味名トークン）。実装＝`777fe75`。
+
+## 裁定192（Agoora 確定 2026-09-09）ホームの店舗セレクタ＝owner の閲覧切替のみ（limit(1) を外し既存 state で切替・F4 とは二層）
+
+出典＝B層調査の裁定要点 3・要点29。**第 1 層＝閲覧切替**（本裁定・`e617eaa`）: page.tsx が RLS の返す全店を渡し、board が選択店を state で持って
+attendance／daily_reports／shifts／staffing_needs／notices の読取を store_id で絞る（get_cast_ranking も選択店）。owner かつ 2 店以上のときだけセレクタ・
+manager は自店名の表示のみ。**第 2 層＝F4 マルチ店舗切替**（memberships 部分 unique の drop＋auth_store_id 差替＝CLAUDE.md）は別レーン＝本裁定では触らない。
+
+## 裁定191（Agoora 確定 2026-09-09）H23「時間調整して承認」は wish 段では出さないまま（裁定112-G' 維持）
+
+出典＝B層調査の裁定要点 2・要点15。合成（accept→shift_set）はウィザード側に実装済み＝承認待ち行への露出は行わない。B層シフトレーンの対象外。
+
+## 裁定190（Agoora 確定 2026-09-09）audit_logs 読みの履歴 UI（H30／H39／W41）は owner 限定 RLS のまま＝policy 変更なし・manager には非表示
+
+出典＝B層調査の裁定要点 1。manager 開放は C層③（監査 10 種）の policy と同時に扱う。B層では owner のときだけ描画（RLS が 0 行なら空）。
+
 ## 裁定189（2026-09-09）レジの会計後タイムライン（R57）は停止リスト継続・カード手数料（N%）行の文言は据え置き
 
 出典＝相談役ブロック（レジ v12.1 A層）・Agoora「推奨で」確定。R57 は audit_logs 読みの新規 UI（owner 限定 RLS）＝A層外＝レジ本レーン（Fable）でも新規＝停止リスト継続。
@@ -3458,6 +3493,7 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **夜間 O レーン（2026-09-07 夜・無人）**: O1 `.gitattributes` は renormalize で対象外の `.html` 1 本（index CRLF／worktree LF の既存不一致）が差分となり停止リスト（案は scratchpad 退避・教訓61/62 は `ae00521`）。O2 お知らせ `2fb16d3`（N32 テンプレート5種＝裁定168〜171・無人確定）。O3 給与 `ac73128`（W1 勤怠／W22 チップ／W23 日数列＝裁定172〜178・無人確定）。**f0**: O2 run1 緑 37本3,550（416s）→ run2 赤（pricing 段 `check_add_line` の error 未捕捉→null.id・単独再走緑）→ run3 赤（pricing 段43(18)d statement timeout・936s）／O3 run1 赤（anon-guard 段 null.id・1,183s）／run2 は sweep が pooler 接続取得不能（ECHECKOUTTIMEOUT 15s）。**PostgREST 経路の遅延を実測**＝direct pg 9ms に対し signin 13.8s・rpc 22.6→1.6s＝API 層／pooler 側の劣化（DB 直結は正常・長時間クエリなし・接続 22/60）。**O2/O3 の 2 連緑は未達**＝翌朝に f0 再走で取り直し（無人では再走ループしない）。#58 は観察継続。O5 朝報告＝`docs/handoff/NOX_夜間O_20260907.md`。
 - **翌朝の取り直し（2026-09-09）**: PostgREST 経路は回復（signin 1.21s／rpc 0.70s／DB 直結 0.01s・active クエリ 0）。f0 **2 連緑＝37 本 3,550**（388s／655s・sweep 削除前 28／797）・golden 6 値不変＝O2 `2fb16d3`／O3 `ac73128` の gate 充足。O1 は `.gitattributes` 単独で `4f7ca54`（renormalize 差分ゼロ・教訓61 の記述を訂正）。#58＝夜間の劣化は一過性（日中 30 走超の負荷後）として観察継続。
 - **レジ v12.1 A層 G1/G2 完了＝A層 11 面完了**（2026-09-09・非 money 群のみ・mig なし）: `d2eb1f2`（G1 滞在表記＝裁定183）／`c33055f`（G2 エラー文 12 行→--danger-ink・操作要素 4 行→--danger／--danger-bd・数値強調 15 行不触＝裁定184〜186・diff はトークン置換のみを機械確認）。据え置き＝R53／R8（裁定187）・R57 停止継続（裁定189）。#61 は void 確認でクローズ（裁定188）。f0 2 連緑＝37 本 3,550（400s／562s・sweep 削除前 797/797）・golden 6 値不変。対応表 §4 の 28 行＋R57 を更新。**A層＝料金／シフト／キャスト／日報／ホーム／分析／お知らせ／給与／レジ＋報酬プラン（N2）／マスタ一覧（N3）の 11 面完了**＝次は B層（器あり UI なし・調査済み）と C層①（feature_flags・横断設計書）。
+- **B層 B1 ホーム＋キャスト 完了**（2026-09-09・読取のみ・mig なし・policy 変更なし）: `e617eaa`（B1-a M6 店舗閲覧切替＝裁定192・F4 とは二層）／`777fe75`（B1-b K16 バッジ＋K7 メール未登録 KPI＝裁定193・RLS 実測で owner/manager とも配下 cast の users.email 可読 2/2）。裁定190〜197 収載（190 audit 履歴は owner 限定のまま／191 H23 非表示維持／194 A38 近似＋注記／195 A45 は A15 と同時／196 D49 位置のみ／197 区分訂正 H19・H30・K34・D34→実装済(B層)）。#64 は B3 で解消予定。f0 2 連緑＝37 本 3,550（420s／720s・sweep 削除前 797/797）・golden 6 値不変＝本日 6 走で上限。C層① 設計書 draft は `e1242ad` で収蔵＋突合済み。
 ---
 
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
@@ -3734,7 +3770,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 61 | **帯訂正前に逆転値で凍結された伝票の扱い（レジ v12.1 送り）** | live 実測（2026-09-07・CLUB NOX）: ext_fee=30／ext_min=5000／ext_menu_snap「延長 5000分 ¥30」で凍結された伝票 **1 件**＝`105a0a77-c33c-4814-a862-1ba5b36886c5`（2026-09-03 05:57 UTC 開栓・**open**・行はセット料金 10,000 円 1 本・total 11,000）。延長行の母数 12 本中、30 円／5000 分で生成された行は **0**＝日報への実害なし。当該伝票に延長を適用すると逆転値で課金される＝レジ側で void→再開栓（凍結値を取り直す）か、開栓済み伝票の凍結値を訂正する RPC（現行なし）を裁定。日報側に是正経路なし（裁定153）。起票 2026-09-07 **→ クローズ（2026-09-09）**: Agoora 実機で void（voided_at 2026-09-09 04:40:59 UTC・本日の check_void audit 8 行・CLUB NOX の open 伝票 0）。逆転値での延長行は生成されず＝**課金発生なし**。凍結値訂正 RPC（price_snap_fix）は横断設計書 §3 の 7 番として C層③へ |
 | 62 | **audit_logs.reason 列＋audit_log_write p_reason（C層① mig 同梱）** | 横断設計書 §3（裁定181）: 解除系 5 種（report_reopen／payroll_reopen／cash_diff_approve／check_void／price_snap_fix）は reason 必須。現行 audit_logs に reason 列なし（live 実測 10 列）。C層①（feature_flags）の mig に `alter table audit_logs add column reason text` と `audit_log_write` の末尾引数 `p_reason text default null`（既存呼出不変・audit_log_write_service も同型）を同梱。f0＝解除型 RPC で「audit 1 行増・before/after 非 null・reason 空で raise」。起票 2026-09-09 |
 | 63 | **set_staff_perms 6 引数化（can_close／can_reopen・C層③ mig 同梱・A6 名簿）** | 横断設計書 §2（裁定180）: memberships に `can_close boolean not null default false`／`can_reopen boolean not null default false` を追加し、set_staff_perms(p_membership_id, 4 boolean) → 6 boolean へ（旧署名 DROP・原則7＝UI は全引数明示・A6 名簿は署名変更として全数照合）。解除型 RPC の判定＝`auth_role() in ('owner','manager') or (auth_role()='staff' and can_reopen)`。付与剥奪は `perm_change` で監査。staff-board の権限チップに 2 列追加（黒服のみ操作可）。起票 2026-09-09 |
-| 64 | **レジのキャスト候補にランク・出勤状態を併記（R43・attendance 読取＝新規クエリ）** | モック v12.1 の候補文「あべ｜エース・出勤中」「れいな｜接客中」。現行 CastPicker は名前・写真のみで、register-board は attendance／cast_ranks を読んでいない＝A層（新規クエリなし）の外。レジ本レーン（Fable）で「候補の並び・在席（openNoms）・出勤（attendance）」を 1 クエリで足すか、CastPicker 共通部品側で受けるかを裁定。PII なし。起票 2026-09-09（CC 起こし） |
+| 64 | **レジのキャスト候補にランク・出勤状態を併記（R43・attendance 読取＝新規クエリ）** | モック v12.1 の候補文「あべ｜エース・出勤中」「れいな｜接客中」。現行 CastPicker は名前・写真のみで、register-board は attendance／cast_ranks を読んでいない＝A層（新規クエリなし）の外。レジ本レーン（Fable）で「候補の並び・在席（openNoms）・出勤（attendance）」を 1 クエリで足すか、CastPicker 共通部品側で受けるかを裁定。PII なし。起票 2026-09-09（CC 起こし） **→ B3（レジ非 money レーン R34 と同じ attendance 読取）で解消予定**（2026-09-09） |
 
 ### 未裁定・消し込み待ち
 
