@@ -111,6 +111,9 @@ export default function DayAddPanel({
   }
 
   const sorted = casts.slice().sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  // ★B4-b 裁定225（H41）: 名前の部分一致で候補を絞る（モック 349 行「キャスト名で検索」・並びは名前昇順のまま・勤務条件は H15 後）
+  const [q, setQ] = useState("");
+  const shown = sorted.filter((c) => q.trim() === "" || c.name.includes(q.trim()));
 
   return (
     <div style={{ margin: "6px 0 10px" }}>
@@ -123,8 +126,10 @@ export default function DayAddPanel({
             クリックで行を追加・もう一度クリックで取り消し。
             {preset ? `時間は営業時間（${preset[0]}〜${preset[1]}）が入ります。` : "営業時間が未設定のため 20:00〜26:00 が入ります。"}
           </p>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="キャスト名で検索" aria-label="キャスト名で検索"
+            style={{ ...t.input, width: "100%", maxWidth: 240, marginBottom: 6, fontSize: 12.5 }} />
           <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-            {sorted.map((c) => {
+            {shown.map((c) => {
               const done = assigned.has(c.id);
               const on = inBuf(c.id);
               return (
@@ -143,7 +148,7 @@ export default function DayAddPanel({
                 </button>
               );
             })}
-            {sorted.length === 0 && <span style={{ fontSize: 12, color: "var(--sub)" }}>キャストがいません。</span>}
+            {shown.length === 0 && <span style={{ fontSize: 12, color: "var(--sub)" }}>{sorted.length === 0 ? "キャストがいません。" : "該当するキャストがいません。"}</span>}
           </div>
         </div>
       )}

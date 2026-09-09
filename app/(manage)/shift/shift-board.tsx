@@ -5,7 +5,7 @@
 //   ★シフトの営業日判定は shiftHoursStatus（date 直＝cutoff 変換なし・mig0008 決定3）。
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import CastPicker from "@/components/nox/cast-picker";
 import ShiftAddForm from "./shift-add-form";
@@ -156,6 +156,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   // ★R4（Agoora 裁定）: 確定シフトタブ＝**人ベースの月カレンダー**を既定にし、
   //   現行の一覧は「表で見る」トグルで残置する（表示のみ・RPC 非改変）。
   const [rosterView, setRosterView] = useState<"cal" | "table">("cal");
+  // ★B4-b 裁定219（H20）: 承認待ち表の並び＝日付順（既定・現行）／人ごと（モック 119-127 行）
+  const [queueGroup, setQueueGroup] = useState<"date" | "cast">("date");
   // ★SC-7（裁定52'）: 確定シフトタブの日詳細をモーダルへ。
   //   ★selDate はそのまま使う（カレンダーの選択状態＝sel ハイライトと日詳細の対象は同じ日でよい）。
   //     モーダル用に持つのは「どの面のを開いているか」の1本だけ＝日付を二重管理しない。
@@ -1251,6 +1253,25 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                   <span className="nox-stpill">{wishes.length + planned.length + proposed.length}件</span>
                 </span>
               </div>
+              {/* ★B4-b 裁定218（H18）: KPI 4 枚（モック 116 行「未処理／申請者／希望どおり／要調整」）＝取得済み state の再形・新規読取 0。
+                  希望どおり／要調整＝wish_id を持つ planned・proposed の時刻が wish と一致するか（承認表の対比と同式）。 */}
+              {(() => {
+                const withWish = shifts.filter((x) => (x.status === "planned" || x.status === "proposed") && x.wish_id)
+                  .map((x) => ({ x, w: wishAll.find((y) => y.id === x.wish_id) })).filter((p) => !!p.w);
+                const match = withWish.filter(({ x, w }) => w!.start_hm === x.start_hm && w!.end_hm === x.end_hm).length;
+                const adjust = withWish.length - match;
+                const applicants = new Set(wishes.map((w) => w.cast_id)).size;
+                return (
+                  <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px 12px" }}>
+                    {([["未処理", wishes.length, "件"], ["申請者", applicants, "人"], ["希望どおり", match, "件"], ["要調整", adjust, "件"]] as const).map(([l, v, u]) => (
+                      <span key={l} style={{ fontSize: 12 }}>
+                        <span style={{ color: "var(--sub)", fontSize: 11 }}>{l}</span><br />
+                        <b className="num" style={{ fontSize: 14, color: l === "要調整" && v > 0 ? "var(--gold2)" : "var(--ink)" }}>{v}<small style={{ fontWeight: 400, fontSize: 10, marginLeft: 2 }}>{u}</small></b>
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
               {/* 4段フロー（モック .workflow / .flowstep / .flowarrow）＝件数は取得済み state の再形 */}
               <div style={{ display: "flex", alignItems: "center", gap: 7, overflowX: "auto", flexWrap: "wrap", marginBottom: 12 }}>
                 {steps.map(([n, label, cnt], idx) => (
@@ -1284,20 +1305,38 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                 kind: x.status as "planned" | "proposed", shift: x };
             }),
           ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.key < b.key ? -1 : 1));
+          // ★B4-b 裁定219（H20）: 人ごと＝名前順→日付順（既定は現行の日付順・値と操作は不変）
+          if (queueGroup === "cast") rows.sort((a, b) => castName(a.castId).localeCompare(castName(b.castId), "ja") || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+          const countOf = (castId: string) => rows.filter((r) => r.castId === castId).length;
           if (rows.length === 0) return <p style={{ fontSize: 13, color: "var(--sub)" }}>未処理のシフト希望はありません。</p>;
           return (
             <div className="nox-tablewrap">
+              <div className="nox-seg" style={{ display: "inline-flex", marginBottom: 8 }}>
+                {([["date", "日付順"], ["cast", "人ごと"]] as const).map(([k, label]) => (
+                  <button key={k} type="button" className={queueGroup === k ? "on" : ""} onClick={() => setQueueGroup(k)}>{label}</button>
+                ))}
+              </div>
               <table className="nox-table">
                 <thead>
                   <tr><th>スタッフ</th><th>勤務日</th><th>希望／提案時間</th><th>現在の段階</th><th>操作</th></tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => {
+                  {rows.map((r, i) => {
                     const closed = r.wish
                       ? closedOf(r.wish.date, r.wish.start_hm, r.wish.end_hm)
                       : closedOf(r.shift!.date, r.shift!.start_hm, r.shift!.end_hm);
+                    // ★B4-b 裁定219: 人ごと表示ではキャストの先頭行に見出し行（名前・件数）を差す
+                    const head = queueGroup === "cast" && (i === 0 || rows[i - 1].castId !== r.castId);
                     return (
-                      <tr key={r.key}>
+                      <Fragment key={r.key}>
+                      {head && (
+                        <tr>
+                          <td colSpan={5} style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", background: "var(--card2)" }}>
+                            {castName(r.castId)} <span className="num" style={{ fontWeight: 400, color: "var(--sub)" }}>（{countOf(r.castId)}件）</span>
+                          </td>
+                        </tr>
+                      )}
+                      <tr>
                         <td>{castName(r.castId)}</td>
                         <td className="num">{r.date}</td>
                         <td>
@@ -1344,6 +1383,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                           )}
                         </td>
                       </tr>
+                      </Fragment>
                     );
                   })}
                 </tbody>
