@@ -43,7 +43,7 @@
 | S1 | 検索「設定名を検索」 | `master-board.tsx:33,117-118,125-126`（hubSearch・title/desc 部分一致） | 既存 | 不要 | placeholder 文言一致 |
 | S2 | KPI4枚・低在庫アラート | `master-board.tsx:58-59,128-144` | 既存 | 不要 | 裁定120 の danger 帯 |
 | S3 | 群「店舗・運用」 | 現行は群名「店舗・卓」`master-board.tsx:93-102`（席・卓／営業時間の2枚）・ナビ `lib/nox/master/nav.ts:33-40` | 既存（名称差） | 不要 | v3 は群名変更＋カード3枚 |
-| S4 | **NEW カード「利用機能」**（18機能中14機能を使用） | 該当なし（HUBS `master-board.tsx:64-116`・nav に `/master/store-settings` なし） | 新要件（器なし） | **要**（S16-S26 の器＋件数集計） | 件数はフラグ集合の数え上げ |
+| S4 | **NEW カード「利用機能」**（18機能中14機能を使用） | 「機能の公開」カード `master-board.tsx:103-106`→`/master/system#features`（owner のみタブ描画 `system/page.tsx:126-133`・`feature-flags-panel.tsx`） | **実装済(C層①)**〔旧: 新要件（器なし）〕 | 済（mig0135 feature_flags／flag_set） | 2026-09-09 C層① UI 4f4d905・表示 key は staff_shift／reopen_flow の 2 つ＝件数は「2機能」固定（v3 の 18/14 の数え上げは qr_order／notify 公開後に再判断） |
 | S5 | 機密・税務／端末／レシートの3カード | `master-board.tsx:105-115`→`/master/system#devices/#receipts/#secrets`（`system-board.tsx:22-74`） | 既存 | 不要 | |
 
 ### 1-B. 店舗設定ページの器

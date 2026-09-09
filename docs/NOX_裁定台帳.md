@@ -2968,11 +2968,11 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 ---
 
-## 裁定199（2026-09-09・Agoora 承認待ち）監査書込 2 本（audit_log_write／_service）の ACL は postgres のみを 4 ロール明示 revoke で再明示（mig0135）
+## 裁定199（2026-09-09・Agoora 承認 2026-09-09）監査書込 2 本（audit_log_write／_service）の ACL は postgres のみを 4 ロール明示 revoke で再明示（mig0135）
 
 出典＝mig0135 収蔵時の実装差分（設計書 v1 §3.3 は ACL に言及なし）。live 実測＝proacl `{postgres=X/postgres}`＝現状同値。内部専用関数の流儀（CLAUDE.md 二重防御 2・4 ロール明示）に一致。
 
-## 裁定198（2026-09-09・Agoora 承認待ち）flag_set は課金ゲート内蔵・returns uuid（mig0135・設計書 v1 §3.2 は returns void）
+## 裁定198（2026-09-09・Agoora 承認 2026-09-09）flag_set は課金ゲート内蔵・returns uuid（mig0135・設計書 v1 §3.2 は returns void）
 
 出典＝mig0135 収蔵時の実装差分。A8 店設定（ゲート済み区分）へ収載する以上、冒頭の `billing_writable_of(v_org)` ゲートは名簿の規約どおり＝実装を正とし v1 を追従。返値は upsert 行 id。
 verify＝`verify-nox-flags.ts` 20 assertions（逆張り＝owner 判定を manager 許容へ一時変更→fl(3) 赤→復元 9/9）。
@@ -3503,7 +3503,8 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **翌朝の取り直し（2026-09-09）**: PostgREST 経路は回復（signin 1.21s／rpc 0.70s／DB 直結 0.01s・active クエリ 0）。f0 **2 連緑＝37 本 3,550**（388s／655s・sweep 削除前 28／797）・golden 6 値不変＝O2 `2fb16d3`／O3 `ac73128` の gate 充足。O1 は `.gitattributes` 単独で `4f7ca54`（renormalize 差分ゼロ・教訓61 の記述を訂正）。#58＝夜間の劣化は一過性（日中 30 走超の負荷後）として観察継続。
 - **レジ v12.1 A層 G1/G2 完了＝A層 11 面完了**（2026-09-09・非 money 群のみ・mig なし）: `d2eb1f2`（G1 滞在表記＝裁定183）／`c33055f`（G2 エラー文 12 行→--danger-ink・操作要素 4 行→--danger／--danger-bd・数値強調 15 行不触＝裁定184〜186・diff はトークン置換のみを機械確認）。据え置き＝R53／R8（裁定187）・R57 停止継続（裁定189）。#61 は void 確認でクローズ（裁定188）。f0 2 連緑＝37 本 3,550（400s／562s・sweep 削除前 797/797）・golden 6 値不変。対応表 §4 の 28 行＋R57 を更新。**A層＝料金／シフト／キャスト／日報／ホーム／分析／お知らせ／給与／レジ＋報酬プラン（N2）／マスタ一覧（N3）の 11 面完了**＝次は B層（器あり UI なし・調査済み）と C層①（feature_flags・横断設計書）。
 - **B層 B1 ホーム＋キャスト 完了**（2026-09-09・読取のみ・mig なし・policy 変更なし）: `e617eaa`（B1-a M6 店舗閲覧切替＝裁定192・F4 とは二層）／`777fe75`（B1-b K16 バッジ＋K7 メール未登録 KPI＝裁定193・RLS 実測で owner/manager とも配下 cast の users.email 可読 2/2）。裁定190〜197 収載（190 audit 履歴は owner 限定のまま／191 H23 非表示維持／194 A38 近似＋注記／195 A45 は A15 と同時／196 D49 位置のみ／197 区分訂正 H19・H30・K34・D34→実装済(B層)）。#64 は B3 で解消予定。f0 2 連緑＝37 本 3,550（420s／720s・sweep 削除前 797/797）・golden 6 値不変＝本日 6 走で上限。C層① 設計書 draft は `e1242ad` で収蔵＋突合済み。
-- **C層① mig0135 完了**（2026-09-09・Agoora 手貼り 9/9・CC 再実行 9/9）: `65c1ef0`（mig 収蔵＋手貼りリスト＋課金ゲート対象 A8/B(f)＋billing pin）／`fc2b2bf`（verify:nox-flags 20 assertions＋f0 連結）／docs。設計書 v1 `58306ec`・draft 突合 `e1242ad`・実装差分 2 点＝裁定198／199（承認待ち）・#62 クローズ。単独緑＝flags 20／billing 53／grants 298。**f0 の新基準見込み＝38 本 3,570**（本日は上限のため未連結走行＝明日の 2 連緑で pin）。UI（/master/system#features）は別コミット（C層① UI レーン）。
+- **C層① mig0135 完了**（2026-09-09・Agoora 手貼り 9/9・CC 再実行 9/9）: `65c1ef0`（mig 収蔵＋手貼りリスト＋課金ゲート対象 A8/B(f)＋billing pin）／`fc2b2bf`（verify:nox-flags 20 assertions＋f0 連結）／docs。設計書 v1 `58306ec`・draft 突合 `e1242ad`・実装差分 2 点＝裁定198／199（承認 2026-09-09）・#62 クローズ。単独緑＝flags 20／billing 53／grants 298。**f0 の新基準見込み＝38 本 3,570**（本日は上限のため未連結走行＝明日の 2 連緑で pin）。UI（/master/system#features）は別コミット（C層① UI レーン）。
+- **C層① UI 完了**（2026-09-09・mig なし・読取＝feature_flags RLS select／切替＝flag_set）: `4f4d905`（`feature-flags-panel.tsx` 新設 142 行＋`system/page.tsx` に「◈ 機能の公開」タブを owner のみ push＋`master-board.tsx` 店舗・運用群へ導線 1 枚「機能の公開」→`/master/system#features`）。表示 key＝staff_shift「黒服シフト」／reopen_flow「締め解除フロー」の 2 つ（qr_order／notify は非表示）・列＝[会社の既定 OFF/ON][店舗ごと 既定に従う/ON/OFF]・理由は任意・エラー文は --danger-ink・削除 RPC なし＝「店舗の上書きは ON/OFF のみ」注記。gate＝tsc 緑／lint 緑／ui-tokens baseline 56 不変／eol LF（3 ファイル i/lf w/lf）。f0 は本日上限のため未走行（明日の 2 連緑＝38 本 3,570 見込みで pin）・目視は明日の f0 後。裁定198／199 は承認 2026-09-09 へ。対応表 §1 S4 を実装済(C層①) へ。
 ---
 
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
