@@ -2846,6 +2846,10 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓63：複数チャットの f0 衝突＝f0 を含む起動ブロックは 1 チャットにのみ貼る
+
+2026-09-09 朝、別チャットが handoff v27 収蔵（`c07a422`）を積む間に本チャットが f0 run1 を起動した（相談役指摘＝複数チャットの f0 衝突。本チャットは他チャットの f0 走行を直接は観測していない＝run2 前の実測は直結 client 自分のみ）。同一 dev DB の fixture と sweep は共有のため、並走すると赤・timeout・sweep の取りこぼしが起きうる（教訓56 の同型＝「f0 と f0」）。予防＝(1) f0 を含む起動ブロックは同時に 1 チャットへだけ貼る (2) 起動前 60 秒チェック（裁定200）(3) 走行中に別チャットへ指示を出すときは「CC 走行中」と一言 (4) sweep の起動ガード（#65）。本日の run1 は裁定201 で例外扱い。
+
 ### 教訓62：docs の一括更新スクリプトは「git から戻して1回だけ適用」・行番号は id 照合で守る
 
 対応表の行更新スクリプトで行番号を1つ誤り（見出し行を数え違え）、途中で例外＝台帳側だけ書込済みの状態から再実行して**台帳ブロックを二重挿入**
@@ -2967,6 +2971,14 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 写像 D調査＝`docs/dp/dp_v1_写像対応表_v1.md`（6面→10面へ追補）。
 
 ---
+
+## 裁定201（2026-09-09・Agoora 承認待ち・CC 起こし）本日 2026-09-09 の f0 run1 は例外として有効（2 連緑の 1 本目に数える）
+
+出典＝相談役ブロック（「run1 例外有効」・本文なし＝CC 起こし）。run1（761s・38 本 3,570・golden 6 値不変）は別チャットが handoff v27 収蔵コミット `c07a422` を積んだ時間帯と重なった（裁定200 の「同一 DB で 1 本ずつ」に照らすと起動前チェック未実施）。本チャットの実測では直結 client は自分のみ・PostgREST active 0（run2 起動前）で他の f0 走行は観測されず、run2（723s）も同値の緑＝結果への影響なしとして例外扱い。以後は裁定200 に従う。
+
+## 裁定200（2026-09-09・Agoora 承認待ち・CC 起こし）f0 は同一 DB で 1 本ずつ・起動前 60 秒チェック
+
+出典＝相談役ブロック（本文なし＝CC 起こし）。verify 用 org／ユーザー（NOX-VERIFY-*）と sweep（audit_logs 削除）は dev DB で共有＝複数チャットの f0 並走は fixture の相互干渉（赤・timeout）を生む（教訓56「手貼りと f0」の同型）。規約＝(1) f0 は同一 DB で同時に 1 本だけ（chat をまたいでも）(2) 起動前に pg_stat_activity（client backend・自分以外の直結 client と PostgREST active）を実測し、60 秒後に再実測して変化なしを確認してから起動 (3) f0 を含む起動ブロックは 1 チャットにのみ貼る（教訓63）(4) sweep 側の機械ガードは #65。恒久注意 9（1 日 6 走以内）はそのまま。
 
 ## 裁定199（2026-09-09・Agoora 承認 2026-09-09）監査書込 2 本（audit_log_write／_service）の ACL は postgres のみを 4 ロール明示 revoke で再明示（mig0135）
 
@@ -3295,7 +3307,7 @@ K36 の説明文もモックの 2 カード語彙（本人レコード／NOXロ�
   f0 2 連緑＝**37 本 3,550**（36 本＋sweep 4）・所要 439s／706s（掃除前 7〜12 分と同程度＝全体は他スイート支配。**rls 段は 7 分→2 分未満**）。
   golden 6 値不変。逆張り＝(b) service_role で verify org に 1 行 insert→sweep で削除→0 ／ (c) probe 1 行を置いた状態で owner セッションの同 assert が
   count=1 で FAIL・sweep 後に 0 で PASS（rls の意味が変わっていないことの実証）。
-- **f0 本数の基準（handoff 参照用）**: 36 本 3,546 → **37 本 3,550**（sweep 4 assertions）。**golden 6 値は不変＝5931／125802／55233／64／64／53**。
+- **f0 本数の基準（handoff 参照用）**: 36 本 3,546 → 37 本 3,550（sweep 4 assertions）→ **38 本 3,570**（flags 20 assertions・2026-09-09 2 連緑 761s／723s）。**golden 6 値は不変＝5931／125802／55233／64／64／53**。
 - **本番向け付記**: audit_logs の retention（保持期間・アーカイブ）は**ローンチ後必須**（税理士ゲート後＝裁定23 系）。本 gate は verify org 限定であり
   本番 org の行には一切触れない。
 
@@ -3505,6 +3517,7 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **B層 B1 ホーム＋キャスト 完了**（2026-09-09・読取のみ・mig なし・policy 変更なし）: `e617eaa`（B1-a M6 店舗閲覧切替＝裁定192・F4 とは二層）／`777fe75`（B1-b K16 バッジ＋K7 メール未登録 KPI＝裁定193・RLS 実測で owner/manager とも配下 cast の users.email 可読 2/2）。裁定190〜197 収載（190 audit 履歴は owner 限定のまま／191 H23 非表示維持／194 A38 近似＋注記／195 A45 は A15 と同時／196 D49 位置のみ／197 区分訂正 H19・H30・K34・D34→実装済(B層)）。#64 は B3 で解消予定。f0 2 連緑＝37 本 3,550（420s／720s・sweep 削除前 797/797）・golden 6 値不変＝本日 6 走で上限。C層① 設計書 draft は `e1242ad` で収蔵＋突合済み。
 - **C層① mig0135 完了**（2026-09-09・Agoora 手貼り 9/9・CC 再実行 9/9）: `65c1ef0`（mig 収蔵＋手貼りリスト＋課金ゲート対象 A8/B(f)＋billing pin）／`fc2b2bf`（verify:nox-flags 20 assertions＋f0 連結）／docs。設計書 v1 `58306ec`・draft 突合 `e1242ad`・実装差分 2 点＝裁定198／199（承認 2026-09-09）・#62 クローズ。単独緑＝flags 20／billing 53／grants 298。**f0 の新基準見込み＝38 本 3,570**（本日は上限のため未連結走行＝明日の 2 連緑で pin）。UI（/master/system#features）は別コミット（C層① UI レーン）。
 - **C層① UI 完了**（2026-09-09・mig なし・読取＝feature_flags RLS select／切替＝flag_set）: `4f4d905`（`feature-flags-panel.tsx` 新設 142 行＋`system/page.tsx` に「◈ 機能の公開」タブを owner のみ push＋`master-board.tsx` 店舗・運用群へ導線 1 枚「機能の公開」→`/master/system#features`）。表示 key＝staff_shift「黒服シフト」／reopen_flow「締め解除フロー」の 2 つ（qr_order／notify は非表示）・列＝[会社の既定 OFF/ON][店舗ごと 既定に従う/ON/OFF]・理由は任意・エラー文は --danger-ink・削除 RPC なし＝「店舗の上書きは ON/OFF のみ」注記。gate＝tsc 緑／lint 緑／ui-tokens baseline 56 不変／eol LF（3 ファイル i/lf w/lf）。f0 は本日上限のため未走行（明日の 2 連緑＝38 本 3,570 見込みで pin）・目視は明日の f0 後。裁定198／199 は承認 2026-09-09 へ。対応表 §1 S4 を実装済(C層①) へ。
+- **f0 新基準 pin**（2026-09-09・翌朝取り直し）: プローブ回復（DB 直結 0.06s／signin 0.92s／rpc 0.80s）→ f0 **2 連緑＝38 本 3,570**（761s／723s・38 段 ALL PASS を機械集計・golden 6 値不変＝wage 5931／withholding 125802／labor-forecast 55233／receipt 64／rate-back 64／billing 53）。run1 は別チャットの handoff v27 収蔵（`c07a422`）と同時刻帯＝裁定201 の例外扱い。裁定200（1 本ずつ・起動前 60 秒チェック）・教訓63（複数チャット f0 衝突）・#65（sweep 起動ガード）を起票。目視（/master/system#features・/casts）は Agoora の owner ログイン後 → OK で push（ahead 8）。
 ---
 
 ## 裁定A〜E（mig0103 に付随・2026-08-24）
@@ -3782,6 +3795,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 62 | **audit_logs.reason 列＋audit_log_write p_reason（C層① mig 同梱）** | 横断設計書 §3（裁定181）: 解除系 5 種（report_reopen／payroll_reopen／cash_diff_approve／check_void／price_snap_fix）は reason 必須。現行 audit_logs に reason 列なし（live 実測 10 列）。C層①（feature_flags）の mig に `alter table audit_logs add column reason text` と `audit_log_write` の末尾引数 `p_reason text default null`（既存呼出不変・audit_log_write_service も同型）を同梱。f0＝解除型 RPC で「audit 1 行増・before/after 非 null・reason 空で raise」。起票 2026-09-09 **→ クローズ（2026-09-09・mig0135）**: reason 列追加・audit_log_write 6 引数／_service 8 引数（旧 signature DROP・呼出 141 本は位置引数＝無改修）・dev 適用済み（検証 9/9）・verify fl(6)/(7) で reason の書込と後方互換を係留 |
 | 63 | **set_staff_perms 6 引数化（can_close／can_reopen・C層③ mig 同梱・A6 名簿）** | 横断設計書 §2（裁定180）: memberships に `can_close boolean not null default false`／`can_reopen boolean not null default false` を追加し、set_staff_perms(p_membership_id, 4 boolean) → 6 boolean へ（旧署名 DROP・原則7＝UI は全引数明示・A6 名簿は署名変更として全数照合）。解除型 RPC の判定＝`auth_role() in ('owner','manager') or (auth_role()='staff' and can_reopen)`。付与剥奪は `perm_change` で監査。staff-board の権限チップに 2 列追加（黒服のみ操作可）。起票 2026-09-09 |
 | 64 | **レジのキャスト候補にランク・出勤状態を併記（R43・attendance 読取＝新規クエリ）** | モック v12.1 の候補文「あべ｜エース・出勤中」「れいな｜接客中」。現行 CastPicker は名前・写真のみで、register-board は attendance／cast_ranks を読んでいない＝A層（新規クエリなし）の外。レジ本レーン（Fable）で「候補の並び・在席（openNoms）・出勤（attendance）」を 1 クエリで足すか、CastPicker 共通部品側で受けるかを裁定。PII なし。起票 2026-09-09（CC 起こし） **→ B3（レジ非 money レーン R34 と同じ attendance 読取）で解消予定**（2026-09-09） |
+| 65 | **sweep の起動ガード（他 verify 走行中は f0 を起動しない・機械化）** | 裁定200・教訓63（複数チャットの f0 並走）。`verify-nox-audit-sweep.ts`（f0 先頭）の冒頭で「他の verify 走行中」を検知して停止する案: (a) 直結で pg_stat_activity を読み、`application_name` に verify 印（各スイートの pg／supabase-js 接続へ `nox-verify:<suite>` を付与）を持つ自分以外の backend があれば raise (b) 60 秒の再実測で消えなければ停止。audit_logs へ開始マーカーを書く案は監査系列の汚染（#58 の残骸型）になるため不採用。設計は相談役・起票 2026-09-09 |
 
 ### 未裁定・消し込み待ち
 
