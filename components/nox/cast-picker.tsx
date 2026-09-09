@@ -21,7 +21,7 @@ const BADGE_STYLE: Record<PickerBadge["tone"], { color: string; borderColor: str
 };
 
 export default function CastPicker({
-  casts, photoUrls, seatedIds, todayIds, attendIds, servingIds, rankNames,
+  casts, photoUrls, seatedIds, todayIds, attendIds, servingIds, rankNames, chips = false,
   selectedIds, badges, onPick, size = 44, dense = false,
 }: {
   casts: PickerCast[];
@@ -37,6 +37,8 @@ export default function CastPicker({
   servingIds?: Set<string>;
   /** ★B3 裁定210（#64）: ランク名（cast_ranks が読めた id だけ・無い id／ロールでは要素を出さない） */
   rankNames?: Map<string, string>;
+  /** ★B3 裁定212（R34）: ［出勤中］［担当中］チップ＝絞込のみ（並びは名前順固定＝裁定107） */
+  chips?: boolean;
   /** 選択中（単選でも Set で渡す） */
   selectedIds?: Set<string>;
   /** E8-1d: 種別付きバッジ（あれば「着卓中」より優先表示・並びは着卓中と同じ最優先群） */
@@ -46,14 +48,17 @@ export default function CastPicker({
   dense?: boolean;
 }) {
   const [q, setQ] = useState("");
+  // ★B3 裁定212: チップの絞込（出勤中＝attendIds／担当中＝seatedIds）。並び替えはしない。
+  const [chip, setChip] = useState<"" | "attend" | "seated">("");
   const sorted = useMemo(() => {
     // ★0121（裁定107 段1-(1)）: 「着卓中/選択→先頭・出勤→2番手」の rank 並べ替えを撤去＝名前順で固定。
     //   選択・着卓・出勤は枠色とバッジのみで表現（タップのたびにカードが移動する迷子を止める）。
     const needle = q.trim();
     return [...casts]
       .filter((c) => needle === "" || c.name.includes(needle))
+      .filter((c) => chip === "" || (chip === "attend" ? (attendIds?.has(c.id) ?? false) : (seatedIds?.has(c.id) ?? false)))
       .sort((a, b) => a.name.localeCompare(b.name, "ja"));
-  }, [casts, q]);
+  }, [casts, q, chip, attendIds, seatedIds]);
 
   return (
     <div>
@@ -64,6 +69,13 @@ export default function CastPicker({
         aria-label="キャストを検索"
         style={{ ...t.input, width: "100%", maxWidth: 260, marginBottom: 8 }}
       />
+      {chips && (
+        <div className="nox-seg" style={{ display: "inline-flex", marginBottom: 8 }}>
+          {([["", "すべて"], ["attend", "出勤中"], ["seated", "担当中"]] as const).map(([k, label]) => (
+            <button key={k} type="button" className={chip === k ? "on" : ""} onClick={() => setChip(k)}>{label}</button>
+          ))}
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${dense ? 78 : 94}px, 1fr))`, gap: 8 }}>
         {sorted.map((c) => {
           const sel = selectedIds?.has(c.id) ?? false;

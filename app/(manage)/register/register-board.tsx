@@ -1440,10 +1440,10 @@ export default function RegisterBoard({
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
             キャストドリンクの帰属先を選びます（バック額は行の凍結値からサーバが計算）。
           </p>
-          {/* ★B3 裁定209〜211（#64 帰属モーダル）: 出勤中／接客中／打刻・ランク名（cast_ranks が読めたロールのみ） */}
+          {/* ★B3 裁定209〜212（#64・R34 帰属モーダル）: 出勤中／接客中／打刻・ランク名＋［出勤中］［担当中］チップ（絞込のみ・名前順固定） */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
-            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames}
+            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} chips
             onPick={(id) => {
               const dp = drinkPick;
               setDrinkPick(null);
