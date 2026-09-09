@@ -2968,6 +2968,33 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 ---
 
+## 裁定182（Agoora 確定 2026-09-08・実測反映 2026-09-09）feature flag＝二層（org 既定×店舗上書き）の新表（横断設計書 §4）
+
+正本＝`docs/NOX_横断設計書_v1_20260909.md` §4。`feature_flags` 新表（org_id／store_id null=org 既定／key／enabled・unique(org_id, store_id, key)）。
+stores.settings_json（live 3 キー: biz_cutoff_hm／cast_register_enabled／okuri_mode）には置かない。解決＝`flag_enabled(key)`（店舗行→org 行→false・fail-closed・
+SECURITY DEFINER・null-guard）。切替＝owner のみ・監査 `flag_toggle`。UI は off なら導線ごと出さない＋RPC 側も raise。ACL＝authenticated select のみ・書込は RPC。
+key＝staff_shift／reopen_flow／qr_order／notify（ローンチ時すべて off）。実測＝flag 専用表・関数 0（母数 public 表 65・関数 214）。C層① の最初の mig。
+
+## 裁定181（Agoora 確定 2026-09-08・実測反映 2026-09-09）監査 10 種＝共通 1 表（横断設計書 §3）
+
+正本＝横断設計書 §3。既存 `audit_logs` に統一（新表なし）。action 10 種＝report_reopen／report_reclose／payroll_reopen／cash_diff_approve／check_merge／
+check_void／price_snap_fix／perm_change／flag_toggle／staff_deactivate。`reason` は解除系で必須＝**現行列なし → C層① mig で `reason text` 追加・
+`audit_log_write` に `p_reason` を末尾追加（既定 null・既存呼出不変）**（起票 #62）。実測＝audit_logs 列 id/org_id/store_id/actor_user_id/action/target/
+before_json/after_json/at/ip・関数 audit_log_write(p_action,p_target,p_before,p_after,p_store_id)＋audit_log_write_service(p_org_id,p_actor,…)。書込主体は RPC 内のみ。
+
+## 裁定180（Agoora 確定 2026-09-08・実測反映 2026-09-09）権限 4 層＝役職既定＋黒服個別付与（横断設計書 §2）
+
+正本＝横断設計書 §2。既存の黒服 4 権限（can_register／can_crm／can_shift／can_view_backs＝memberships・boolean・default false）と同じ方式で
+**`can_close`（締め）／`can_reopen`（解除・承認）の 2 列追加**。保持単位＝**memberships（store 単位）**（実測＝org_id 列なし・store_id→stores.org_id）。
+付与は owner／manager のみ・新規黒服は両方 false・解除型 RPC は null-guard 直後に role 判定（fail-closed）・付与剥奪は `perm_change`。
+set_staff_perms は 6 引数化（C層③ mig 同梱・A6 名簿更新＝起票 #63）。request_accept/reject の店長代理承認は現状維持。
+
+## 裁定179（Agoora 確定 2026-09-08・実測反映 2026-09-09）適用期間＝effective_from 型（横断設計書 §1）
+
+正本＝横断設計書 §1。期間を持つ設定は `effective_from date not null` のみ（終了日なし・次行の effective_from が終了）。重なり禁止（unique）・過去日禁止・
+遡及なし（開栓時／締め時凍結）・解決＝effective_from ≤ 営業日の最大行、無ければ店舗基本・未来行のみ削除可。ローンチ範囲＝C層② 勤務パターン・希望方式/
+確定単位/締切。第2期＝入店時給保証・4段時給・在籍状態。**pricing_rules は非対象**（既存の dow/time 型を維持）。
+
 ## 裁定178（2026-09-07・無人確定・翌朝承認待ち）給与の税務系 3 行は除外（W37／W39／W40＝税理士ゲート）
 
 出典＝夜間 O レーン規則 e。支払明細・請求関連（invoice／tax-overview／tax-report-csv）・源泉徴収・納付管理・源泉額の計算根拠は税務出力の凍結範囲＝A層で触らない。
@@ -3316,6 +3343,7 @@ announcements v2）＝正本化後の収蔵ファイルは v8.1／v12.1／v4.1�
 6. 「現在値」だけでなく、適用期間と履歴を持たせる。
 7. 会計売上・販売実績・担当顧客・指名実績を混同しない。
 8. 確定後・締め後・配信後は、通常編集ではなく訂正・再確定・履歴の概念を使う。
+9. **f0 は面完了時のみ・1 日 6 走以内**（2026-09-07 の 30 走超で PostgREST が夜間に signin 13.8s／rpc 22.6s へ劣化・翌朝回復＝横断設計書 §8・#58）。
 
 既存裁定との突合5点＝対応表 v1 §12（優先順位数値露出 vs 裁定115-②／締め解除→再締め vs reclose・裁定12①／顧客按分禁止と
 check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履歴・適用期間 vs 現行の上書き更新）→ **裁定125 で決着**。
@@ -3669,6 +3697,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 59 | **pricing_rules に updated_at の自動更新トリガなし** | 帯訂正 6e0c73e7（CLUB NOX 延長・2026-09-07 実施・5000円/30分）後も `updated_at` は **2026-09-03 14:56:18 のまま＝不変を live 実測**。pricing_rules のユーザートリガ **0 本**（pg_trigger 実測）・列は created_at/updated_at とも存在。`set_pricing_rule` の update 経路は `updated_at = now()` を明示するが、本訂正は audit_logs に set_pricing_rule 行が無い＝**RPC を通らない直接 update 経路では更新されない**（audit も残らない）。要る変更＝`before update` トリガ（`set updated_at = now()`）を pricing_rules へ（mig 小・他の上書き型テーブルへの横展開は別途棚卸し）。当面の更新追跡は audit_logs（RPC 経由のみ）。起票 2026-09-07 |
 | 60 | **「保証時給」語の不整合（キャスト側／報酬プラン側）** | キャスト詳細「待遇・バック」は裁定143（2026-09-07・`0b896ce`）で comp_plans.base を「通常時給（プラン基本）」へ改名済み。報酬プラン側は旧語のまま＝`plan-editor.tsx` 2 箇所（269／275 行）＋`comp-sections.tsx` 5 箇所（354／430／453／544／682 行）の計 **7 箇所**が「保証時給」。同じ列を2つの語で呼ぶ状態＝キャスト詳細のマスタ導線注記に「マスタ側の表記は『保証時給』」を併記して暫定橋渡し。**K33 入店時給保証（第2期・期間付き別レイヤ・保証方式2択）を実装する前に報酬レーンで「通常時給（プラン基本）」へ統一**（語が衝突すると保証の意味が二重になる）。値・RPC・pay.ts は不変＝文言のみ。起票 2026-09-07 |
 | 61 | **帯訂正前に逆転値で凍結された伝票の扱い（レジ v12.1 送り）** | live 実測（2026-09-07・CLUB NOX）: ext_fee=30／ext_min=5000／ext_menu_snap「延長 5000分 ¥30」で凍結された伝票 **1 件**＝`105a0a77-c33c-4814-a862-1ba5b36886c5`（2026-09-03 05:57 UTC 開栓・**open**・行はセット料金 10,000 円 1 本・total 11,000）。延長行の母数 12 本中、30 円／5000 分で生成された行は **0**＝日報への実害なし。当該伝票に延長を適用すると逆転値で課金される＝レジ側で void→再開栓（凍結値を取り直す）か、開栓済み伝票の凍結値を訂正する RPC（現行なし）を裁定。日報側に是正経路なし（裁定153）。起票 2026-09-07 |
+| 62 | **audit_logs.reason 列＋audit_log_write p_reason（C層① mig 同梱）** | 横断設計書 §3（裁定181）: 解除系 5 種（report_reopen／payroll_reopen／cash_diff_approve／check_void／price_snap_fix）は reason 必須。現行 audit_logs に reason 列なし（live 実測 10 列）。C層①（feature_flags）の mig に `alter table audit_logs add column reason text` と `audit_log_write` の末尾引数 `p_reason text default null`（既存呼出不変・audit_log_write_service も同型）を同梱。f0＝解除型 RPC で「audit 1 行増・before/after 非 null・reason 空で raise」。起票 2026-09-09 |
+| 63 | **set_staff_perms 6 引数化（can_close／can_reopen・C層③ mig 同梱・A6 名簿）** | 横断設計書 §2（裁定180）: memberships に `can_close boolean not null default false`／`can_reopen boolean not null default false` を追加し、set_staff_perms(p_membership_id, 4 boolean) → 6 boolean へ（旧署名 DROP・原則7＝UI は全引数明示・A6 名簿は署名変更として全数照合）。解除型 RPC の判定＝`auth_role() in ('owner','manager') or (auth_role()='staff' and can_reopen)`。付与剥奪は `perm_change` で監査。staff-board の権限チップに 2 列追加（黒服のみ操作可）。起票 2026-09-09 |
 
 ### 未裁定・消し込み待ち
 
