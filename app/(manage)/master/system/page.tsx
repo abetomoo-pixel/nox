@@ -6,6 +6,7 @@ import KioskDevicePanel from "../kiosk-device-panel";
 import KioskPinPanel from "../kiosk-pin-panel";
 import PrinterPanel from "../printer-panel";
 import SensitiveTaxPanel from "../sensitive-tax-panel";
+import FeatureFlagsPanel from "../feature-flags-panel";
 import MasterPageHead from "../master-page-head";
 import SystemBoard, { type SystemTab } from "./system-board";
 
@@ -120,6 +121,14 @@ export default async function MasterSystemPage() {
           }}
         />
       ),
+    });
+  }
+  // ★C層①（mig0135・設計書 v1 §4・裁定182）: 機能の公開＝owner のみタブを出す（manager 以下は配列に入れない＝非表示）。
+  //   読取は feature_flags（RLS）・切替は flag_set（RPC 側でも owner 限定＝二重）。
+  if (isOwner) {
+    tabs.push({
+      key: "features", label: "◈ 機能の公開",
+      node: <FeatureFlagsPanel stores={(allStores ?? []) as { id: string; name: string }[]} />,
     });
   }
   tabs.push({

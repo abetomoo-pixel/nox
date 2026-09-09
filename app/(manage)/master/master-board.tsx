@@ -72,7 +72,8 @@ export default function MasterBoard() {
           desc: "レジのタイル見出しになる分類。並び順と有効/無効を管理。",
           status: categories.length > 0 ? "● 全件有効" : "● 未登録", tone: categories.length > 0 ? "" : "mute" },
         // ★N3（マスタ v3・S 系「既存」のみ）: カード文言・群名・アイコンを v3 モック逐語へ。
-        //   v3 の「利用機能」カード（S4＝器なし・C層①）は作らない。裁定120 の Danger 帯・要補充カードは不変。
+        //   v3 の「利用機能」カード（S4）は N3 時点では器なしで作らなかった → C層①（mig0135）で器ができたため
+        //   「店舗・運用」群に「機能の公開」として追加した。裁定120 の Danger 帯・要補充カードは不変。
         { href: "/master/stock", id: "m-stock", icon: "▣", count: "追記のみ", title: "在庫",
           desc: "締め時点の記録と入出庫の履歴。売上による減算は会計から自動。", status: "● 記録可", tone: "" },
         { href: "/master/pricing", id: "m-pricing", icon: "¥", count: "3タブ", title: "料金設定",
@@ -100,6 +101,10 @@ export default function MasterBoard() {
           status: `● 稼働可能 ${activeSeats}卓`, tone: "" },
         { href: "/master/business-hours", id: "m-hours", icon: "◔", count: "曜日別", title: "営業時間・定休日",
           desc: "曜日ごとの営業時間と定休日、シフト登録の警告・ブロックに使われます。", status: "● 設定可", tone: "" },
+        // ★C層①（mig0135・裁定182）: v3 の「利用機能」カード S4 の器＝/master/system の「機能」タブへ着地
+        //   （タブ自体は owner のみ描画＝manager はカードから飛んでも既定タブに落ちる。他の「オーナー限定」カードと同型）。
+        { href: "/master/system#features", id: "m-features", icon: "◈", count: "2機能", title: "機能の公開",
+          desc: "黒服シフト・締め解除フローの公開を、会社の既定と店舗ごとの上書きで切り替えます。", status: "● オーナー限定", tone: "mute" },
       ],
     },
     {
