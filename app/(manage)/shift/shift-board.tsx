@@ -11,7 +11,7 @@ import CastPicker from "@/components/nox/cast-picker";
 import ShiftAddForm from "./shift-add-form";
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
-import { bizDateOf, addDays } from "@/lib/nox/biz-date";
+import { bizDateOf, bizDateRange, addDays } from "@/lib/nox/biz-date";
 import { fmtWin, fmtBand30, hm2min, min2hm, spanMinutes } from "@/lib/nox/shift-time";
 // ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
@@ -188,6 +188,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   //      戻していない。必要になったら勝手に別画面を作らず裁定を取る）。
   const attDate = bizToday;
   const [atts, setAtts] = useState<Att[]>([]);
+  // ★B4-a 裁定222（H32）: 表示日の punches（自店・営業日範囲）→ cast ごとの最終 'in' 時刻（HH:MM）。読取 1・表示専用。
+  const [punchIn, setPunchIn] = useState<Map<string, string>>(new Map());
   const [msg, setMsg] = useState<string | null>(null);
   // ── UI刷新v2 段S-1: サブナビ（今日/カレンダー/シフト作成）・表示月・選択日 ──
   //   すべて presentation（どの範囲を読むか・どこを見せるか）＝RPC/RLS/mig 非改変。
@@ -695,6 +697,43 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   const selBands = bandStatsOf(selDate); // E8-4 #2: 日詳細にも時間帯別充足バー
   // ★SC-8 ⑥: atts が7日ぶんになったので (cast, 日) で引く。今日タブ本体は ymd=bizToday 固定で呼ぶ＝従来と同値。
   const attOf = (castId: string, ymd: string) => atts.find((x) => x.cast_id === castId && x.date === ymd);
+  // ★B4-a 裁定222: 表示日の打刻（最終 'in'）。書込なし・book は attendance のまま。
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const { startIso, endIso } = bizDateRange(todayDate, cutoff);
+      const { data } = await supabase.from("punches").select("cast_id, type, punched_at")
+        .eq("store_id", storeId).gte("punched_at", startIso).lt("punched_at", endIso).order("punched_at");
+      const m = new Map<string, string>();
+      for (const p of (data ?? []) as { cast_id: string; type: string; punched_at: string }[]) {
+        if (p.type === "in") m.set(p.cast_id, new Date(p.punched_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }));
+        else m.delete(p.cast_id); // 'out' が後なら「打刻中」ではない＝表示しない
+      }
+      if (alive) setPunchIn(m);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, todayDate, cutoff]);
+  // ★B4-a 裁定221（H31）: 4 カウンタ＝二重計上なし。休み（off）はどれにも数えない。
+  //   未着＝attendance 未記録 ∧ 開始時刻経過 ∧ 打刻なし（開始＝表示日の暦日 00:00 JST＋start_hm・30 時間制のまま）。
+  const todayCounts = (() => {
+    const list = shiftsOn(todayDate);
+    const nowMs = Date.now();
+    const base = Date.parse(`${todayDate}T00:00:00+09:00`);
+    let arrived = 0, lateOrMissing = 0, absent = 0;
+    for (const s of list) {
+      const st = attOf(s.cast_id, todayDate)?.status;
+      const punched = punchIn.has(s.cast_id);
+      if (st === "shukkin" || st === "dohan") arrived += 1;
+      else if (st === "late") lateOrMissing += 1;
+      else if (st === "absent") absent += 1;
+      else if (st === "off") { /* 休み＝数えない */ }
+      else if (punched) arrived += 1;
+      else if (nowMs >= base + hm2min(s.start_hm) * 60_000) lateOrMissing += 1;
+    }
+    return { planned: list.length, arrived, lateOrMissing, absent };
+  })();
 
   return (
     // ★R3 第1弾: タイポ・余白のモック実値写し（globals.css の .nox-mv1 ブロック）。
@@ -846,6 +885,22 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                 }}>＋ 当日追加配置</button>
             )}
           </div>
+          {/* ★B4-a 裁定220/221（H31）: モック v4.1 171 行「出勤予定／出勤済み／遅刻・未着／欠勤」＝上の KPI 帯は残し、ここに 4 カウンタを足す。 */}
+          {shiftsOn(todayDate).length > 0 && (
+            <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px 12px" }}>
+              {([
+                ["出勤予定", todayCounts.planned, undefined],
+                ["出勤済み", todayCounts.arrived, "var(--ok)"],
+                ["遅刻・未着", todayCounts.lateOrMissing, todayCounts.lateOrMissing > 0 ? "var(--bad)" : undefined],
+                ["欠勤", todayCounts.absent, todayCounts.absent > 0 ? "var(--bad)" : undefined],
+              ] as const).map(([l, v, color]) => (
+                <span key={l} style={{ fontSize: 12 }}>
+                  <span style={{ color: "var(--sub)", fontSize: 11 }}>{l}</span><br />
+                  <b className="num" style={{ fontSize: 14, color: color ?? "var(--ink)" }}>{v}<small style={{ fontWeight: 400, fontSize: 10, marginLeft: 2 }}>人</small></b>
+                </span>
+              ))}
+            </div>
+          )}
           {shiftsOn(todayDate).length === 0 ? (
             <p style={{ fontSize: 13, color: "var(--sub)" }}>本日のシフトはありません</p>
           ) : (
@@ -897,6 +952,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                           {attOf(s.cast_id, todayDate)?.eta && (
                             <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
                               見込み {attOf(s.cast_id, todayDate)?.eta}
+                            </span>
+                          )}
+                          {/* ★B4-a 裁定222（H32）: 最終 'in' の打刻時刻（モック 174 行「20:01打刻」）＝補助表示・書込なし */}
+                          {punchIn.get(s.cast_id) && (
+                            <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
+                              {punchIn.get(s.cast_id)}打刻
                             </span>
                           )}
                         </td>
