@@ -23,7 +23,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import DrinkClaimQueue from "../register/drink-claim-queue";
 
-type Cast = { id: string; name: string; photo_updated_at: string | null };
+type Cast = { id: string; name: string; photo_updated_at: string | null; store_id?: string };
 type Att = { cast_id: string; status: string; eta: string | null };
 type ReportRow = { biz_date: string; cash: number; card_gross: number; uri: number; other: number };
 // get_cast_ranking の返り列に一致（hon_count/jonai_count/dohan_count・不一致だと NaN になっていた）
@@ -52,12 +52,21 @@ const dowOf = (ymd: string) => {
 const mdOf = (iso: string) =>
   new Date(iso).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" });
 
-export default function DashboardBoard({ storeId, storeName, cutoff, casts, shortcuts }: {
+export default function DashboardBoard({ storeId, storeName, cutoff, casts, shortcuts, stores = [], isOwner = false }: {
   storeId: string; storeName: string; cutoff: string; casts: Cast[];
   shortcuts: { href: string; label: string; icon: string }[];
+  /** ★裁定192（B1・M6）: RLS が返す店一覧（owner=org 全店）。2 店以上かつ owner のときだけセレクタを出す */
+  stores?: { id: string; name: string; cutoff: string }[];
+  isOwner?: boolean;
 }) {
   const supabase = createClient();
-  const bizToday = bizDateOf(new Date().toISOString(), cutoff);
+  // ★裁定192（B1・M6）: owner の閲覧切替＝選択店を state で持ち、読取を store_id で絞る（RLS の範囲内・新規 RPC なし）。
+  //   F4 のマルチ店舗切替（memberships 部分 unique の drop＋auth_store_id 差替）とは別層＝ここは owner の閲覧だけ。
+  const [curStoreId, setCurStoreId] = useState(storeId);
+  const curStore = stores.find((s) => s.id === curStoreId);
+  const curStoreName = curStore?.name ?? storeName;
+  const curCutoff = curStore?.cutoff ?? cutoff;
+  const bizToday = bizDateOf(new Date().toISOString(), curCutoff);
   const month = bizToday.slice(0, 7);
   const [atts, setAtts] = useState<Att[]>([]);
   const [monthSales, setMonthSales] = useState(0);
@@ -70,21 +79,24 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
 
   const load = useCallback(async () => {
+    // ★裁定192: 5 本の読取を選択店（curStoreId）で絞る＝owner の複数店で数字が混ざらない（manager は RLS で自店 1 件＝同値）
+    const sid = curStoreId || null;
+    const storeFilter = sid ? { store_id: sid } : {};
     const { data: at } = await supabase.from("attendance")
-      .select("cast_id, status, eta").eq("date", bizToday);
+      .select("cast_id, status, eta").eq("date", bizToday).match(storeFilter);
     const { data: rs } = await supabase.from("daily_reports")
       .select("biz_date, cash, card_gross, uri, other")
-      .gte("biz_date", `${month}-01`).lte("biz_date", `${month}-31`);
-    const { data: rk } = storeId
-      ? await supabase.rpc("get_cast_ranking", { p_store_id: storeId, p_period: month })
+      .gte("biz_date", `${month}-01`).lte("biz_date", `${month}-31`).match(storeFilter);
+    const { data: rk } = sid
+      ? await supabase.rpc("get_cast_ranking", { p_store_id: sid, p_period: month })
       : { data: null };
     // 段H2: 当日シフト＋必要人数（曜日別）＝S-1 と同じ列・同じ導出。日別の必要人数は現スキーマに無い。
     const { data: sh } = await supabase.from("shifts")
-      .select("cast_id, start_hm, end_hm, status").eq("date", bizToday);
-    const { data: ns } = await supabase.from("staffing_needs").select("dow, required, from_min, to_min");
+      .select("cast_id, start_hm, end_hm, status").eq("date", bizToday).match(storeFilter);
+    const { data: ns } = await supabase.from("staffing_needs").select("dow, required, from_min, to_min").match(storeFilter);
     // 段H2: お知らせ最新2件（notices-board と同じ並び＝pinned 優先→新しい順・RLS が可視範囲を保証）
     const { data: nt } = await supabase.from("notices")
-      .select("id, title, created_at")
+      .select("id, title, created_at").match(storeFilter)
       .order("pinned", { ascending: false }).order("created_at", { ascending: false }).limit(2);
     const reports = (rs ?? []) as ReportRow[];
     setAtts((at ?? []) as Att[]);
@@ -95,7 +107,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
     setNeeds((ns ?? []) as Need[]);
     setNotices((nt ?? []) as Notice[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bizToday, month, storeId]);
+  }, [bizToday, month, curStoreId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -155,7 +167,19 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
       {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（ページ名＋店名＋営業日） */}
       <PageHead eyebrow="STORE OVERVIEW" title="ホーム"
         desc="本日の売上と出勤、やることの状況をひと目で確認します。"
-        right={<><span className="num" style={{ fontSize: 13, color: "var(--sub)" }}>営業日 {bizToday}</span></>} />
+        right={<>
+          {/* ★裁定192（B1・M6）: 店舗セレクタ＝owner かつ 2 店以上のときだけ（件数可変＝プルダウン可・教訓27）。
+              manager は RLS で自店 1 件＝店名のみ表示。切替は state と読取の絞り込みだけ＝RPC・DB 不変。 */}
+          {isOwner && stores.length > 1 ? (
+            <select value={curStoreId} onChange={(e) => setCurStoreId(e.target.value)} aria-label="店舗を切り替え"
+              style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12.5, marginRight: 10 }}>
+              {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          ) : (
+            curStoreName && <span style={{ fontSize: 12.5, color: "var(--sub)", marginRight: 10 }}>{curStoreName}</span>
+          )}
+          <span className="num" style={{ fontSize: 13, color: "var(--sub)" }}>営業日 {bizToday}</span>
+        </>} />
 
       {/* 段H2: KPI 帯＝既存4KPI のまま（材料も式も不変）。S-1 の .nox-kpi2 へ寄せ、
           モック .cmp にあたる補足行を既存データから足しただけ（新規取得なし）。
