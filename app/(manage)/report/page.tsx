@@ -21,6 +21,7 @@ export default async function ReportPage() {
       cutoff={typeof settings.biz_cutoff_hm === "string" && settings.biz_cutoff_hm ? (settings.biz_cutoff_hm as string) : "06:00"}
       cardTaxRate={Number(store?.card_tax_rate ?? 5)}
       isManagerUp={role === "owner" || role === "manager"}
+      isOwner={role === "owner"}
       stores={(stores ?? []).map((s) => ({ id: s.id as string, name: s.name as string }))}
     />
   );

@@ -57,9 +57,27 @@ const dowOf = (ymd: string) => {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 };
 
+// ★B2-a（裁定205・D6）: 営業時間の表示用（store_business_hours の close_hm は 24h 超表記＝30:00＝翌06:00・
+//   business-hours-panel と同じ規則で「翌HH:MM」へ。open 以下の close も翌日扱い＝表示のみ・保存値は不変）。
+const hm2min = (hm: string) => { const [h, m] = hm.split(":").map(Number); return h * 60 + (m || 0); };
+const fmtCloseHm = (open: string, close: string) => {
+  const mi = hm2min(close);
+  const next = mi >= 1440 || mi <= hm2min(open);
+  const m2 = mi >= 1440 ? mi - 1440 : mi;
+  return (next ? "翌" : "") + String(Math.floor(m2 / 60)).padStart(2, "0") + ":" + String(m2 % 60).padStart(2, "0");
+};
+type BizHour = { dow: number; is_closed: boolean; open_hm: string | null; close_hm: string | null };
+// ★B2-a（裁定202・D12）: 「取消・巻き戻し」系 action＝audit-board の VIEW_DEFS「取消・巻き戻し」と同じ明示リスト
+//   （audit-board.tsx:53-58 と同期して保つ・owner のときだけ count する＝RLS は owner 限定のまま）。
+const CANCEL_ACTIONS = [
+  "check_void", "check_remove_line", "drink_claim_void", "drink_claim_void_by_line_delete",
+  "drink_claim_reject", "adv_cancel", "transport_cancel", "incentive_cancel",
+  "daily_report_reclose", "payroll_reopen", "shift_wish_withdraw", "trial_reject",
+];
+
 export default function ReportBoard({
-  storeId, cutoff, cardTaxRate, isManagerUp, stores,
-}: { storeId: string; cutoff: string; cardTaxRate: number; isManagerUp: boolean; stores: { id: string; name: string }[] }) {
+  storeId, cutoff, cardTaxRate, isManagerUp, isOwner, stores,
+}: { storeId: string; cutoff: string; cardTaxRate: number; isManagerUp: boolean; isOwner: boolean; stores: { id: string; name: string }[] }) {
   const supabase = createClient();
   const [tab, setTab] = useState<"day" | "month" | "ar">("day"); // A4: 日報/月報 タブ＋B6: 売掛タブ（案7-A・owner/manager のみ）
   const [bizDate, setBizDate] = useState(bizDateOf(new Date().toISOString(), cutoff));
@@ -88,6 +106,14 @@ export default function ReportBoard({
   const [collectAmt, setCollectAmt] = useState("");
   // E8-2 #12: 今月回収 KPI（ar_collections 当月合算・表示専用）
   const [arMonth, setArMonth] = useState(0);
+  // ★B2-a（裁定205・D6）: 店の営業時間（dow 7 行・表示専用・1 クエリ）
+  const [bizHours, setBizHours] = useState<BizHour[]>([]);
+  // ★B2-a（D8）: 「現在 → 営業日」の時計（1 分更新・純関数 bizDateOf のみ）
+  const [nowIso, setNowIso] = useState(() => new Date().toISOString());
+  // ★B2-a（裁定204・D14 / 裁定203・D15 / 裁定202・D12）: 日報タブの追加 KPI（読取のみ・集計は client の件数＋合計）
+  const [arNew, setArNew] = useState<{ n: number; sum: number } | null>(null);
+  const [pending, setPending] = useState<{ advN: number; advSum: number; trN: number; trSum: number } | null>(null);
+  const [cancelCount, setCancelCount] = useState<number | null>(null);
 
   // プレビュー＝クライアント TS 集計（biz-date 純関数で範囲決定・権威は close 時のサーバ再集計）
   const loadPreview = useCallback(async (d: string) => {
@@ -196,6 +222,49 @@ export default function ReportBoard({
   useEffect(() => { void loadPreview(bizDate); }, [bizDate, loadPreview]);
   useEffect(() => { void loadReports(); }, [loadReports]);
   useEffect(() => { if (isManagerUp) void loadRecvs(); }, [isManagerUp, loadRecvs]);
+
+  // ★B2-a（裁定205・D6）: 営業時間＝store_business_hours（RLS: org＋owner∨自店・cast 不可＝この画面は cast 非到達）。
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("store_business_hours")
+        .select("dow, is_closed, open_hm, close_hm").eq("store_id", storeId);
+      if (alive) setBizHours(((data ?? []) as BizHour[]));
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
+  // ★B2-a（D8）: 1 分ごとに「現在」を更新（表示専用）
+  useEffect(() => {
+    const id = window.setInterval(() => setNowIso(new Date().toISOString()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  // ★B2-a（裁定202/203/204）: 日報タブの追加 KPI。manager 以上のみ（staff の RLS 0 行を「0 件」と見せない）。
+  //   D14＝receivables.created_at を営業日範囲 [startIso, endIso) で数える（裁定204＝bizDateOf と同じ cutoff）。
+  //   D15＝advances／transport の status='open'（自店・件数＋金額のみ・cast 名は取らない＝裁定203）。
+  //   D12＝audit_logs の取消系 action を owner のときだけ count（裁定202＝RLS owner 限定のまま）。
+  const loadDayExtras = useCallback(async (d: string) => {
+    const { startIso, endIso } = bizDateRange(d, cutoff);
+    const { data: rv } = await supabase.from("receivables").select("amount")
+      .eq("store_id", storeId).gte("created_at", startIso).lt("created_at", endIso);
+    const rvRows = (rv ?? []) as { amount: number }[];
+    setArNew({ n: rvRows.length, sum: rvRows.reduce((a, r) => a + r.amount, 0) });
+    const { data: adv } = await supabase.from("advances").select("amount").eq("store_id", storeId).eq("status", "open");
+    const { data: tr } = await supabase.from("transport").select("amount").eq("store_id", storeId).eq("status", "open");
+    const advRows = (adv ?? []) as { amount: number }[];
+    const trRows = (tr ?? []) as { amount: number }[];
+    setPending({
+      advN: advRows.length, advSum: advRows.reduce((a, r) => a + r.amount, 0),
+      trN: trRows.length, trSum: trRows.reduce((a, r) => a + r.amount, 0),
+    });
+    if (isOwner) {
+      const { count } = await supabase.from("audit_logs").select("id", { count: "exact", head: true })
+        .eq("store_id", storeId).in("action", CANCEL_ACTIONS).gte("at", startIso).lt("at", endIso);
+      setCancelCount(count ?? 0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, cutoff, isOwner]);
+  useEffect(() => { if (isManagerUp) void loadDayExtras(bizDate); }, [isManagerUp, bizDate, loadDayExtras]);
 
   // 段L2: 表示中の営業日が締め済みか（既に取得済みの reports から引くだけ＝新規取得なし）
   const closedReport = reports.find((r) => r.biz_date === bizDate) ?? null;
@@ -431,6 +500,11 @@ export default function ReportBoard({
           <span className={`nox-stbadge ${closedReport ? "closed" : "open"}`}>
             {closedReport ? "締め済み" : "営業中・未締め"}
           </span>
+          {/* ★B2-a（D8）: 「現在 HH:MM → 営業日」＝bizDateOf（純関数・cutoff は settings_json の値）の表示のみ */}
+          <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
+            現在 {new Date(nowIso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+            {" → "}{bizDateOf(nowIso, cutoff).slice(5).replace("-", "/")} 営業日
+          </span>
           {!closedReport && (preview?.open ?? 0) > 0 && (
             <span className="nox-repwarn">
               open 伝票 {preview?.open}件 — 締めるには全伝票の会計が必要（強行も可）
@@ -482,6 +556,39 @@ export default function ReportBoard({
           </div>
           );
         })()}
+
+        {/* ★B2-a（裁定202/203/204・D12/D14/D15）: 追加 KPI 行＝売掛 本日発生／未処理の入出金（日払い・送り代）／取消・返金（owner）。
+            値は loadDayExtras の件数＋合計のみ（締めの集計式・RPC は不触）。立替は器なし＝対象外と注記（裁定203）。 */}
+        {isManagerUp && (arNew || pending) && (
+          <div className="nox-repsum" style={{ gridTemplateColumns: `repeat(${isOwner ? 4 : 3}, 1fr)` }}>
+            <div className="nox-rs">
+              <div className="l">売掛 本日発生</div>
+              <div className="v num">{arNew ? `${arNew.n}件` : "—"}</div>
+              {arNew && <div className="l" style={{ marginTop: 2 }}>{yen(arNew.sum)}</div>}
+            </div>
+            <div className="nox-rs">
+              <div className="l">日払い（前借り）未処理</div>
+              <div className="v num">{pending ? `${pending.advN}件` : "—"}</div>
+              {pending && <div className="l" style={{ marginTop: 2 }}>{yen(pending.advSum)}</div>}
+            </div>
+            <div className="nox-rs">
+              <div className="l">送り代 未処理</div>
+              <div className="v num">{pending ? `${pending.trN}件` : "—"}</div>
+              {pending && <div className="l" style={{ marginTop: 2 }}>{yen(pending.trSum)}・立替は対象外</div>}
+            </div>
+            {isOwner && (
+              <div className="nox-rs">
+                <div className="l">取消・返金（監査ログ）</div>
+                <div className="v num" style={(cancelCount ?? 0) > 0 ? { color: "var(--bad)" } : undefined}>
+                  {cancelCount == null ? "—" : `${cancelCount}件`}
+                </div>
+                <div className="l" style={{ marginTop: 2 }}>
+                  <a href="/audit" style={{ color: "var(--primary-hover)" }}>操作履歴を見る</a>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* E8-2 #1: 売上内訳＝決済ドーナツ＋カテゴリ5バー（preview の再形のみ・表示専用） */}
         {preview && previewSales > 0 && (() => {
@@ -574,6 +681,18 @@ export default function ReportBoard({
           <input type="date" value={bizDate} onChange={(e) => setBizDate(e.target.value)} style={input} />
           {/* ★裁定150（v2.1 D7）: 「区切り」→モック語「営業日切替 翌HH:MM」（値は settings_json.biz_cutoff_hm のまま） */}
           <span style={{ ...t.sub, fontSize: 12 }}>営業日切替 翌{cutoff}（範囲: 当日{cutoff}〜翌日{cutoff}）</span>
+          {/* ★B2-a（裁定205・D6）: 表示中営業日の曜日の営業時間（store_business_hours・行が無い店は非表示） */}
+          {(() => {
+            const bh = bizHours.find((h) => h.dow === dowOf(bizDate));
+            if (!bh) return null;
+            return (
+              <span style={{ ...t.sub, fontSize: 12 }}>
+                {bh.is_closed || !bh.open_hm || !bh.close_hm
+                  ? "定休日"
+                  : `営業時間 ${bh.open_hm}〜${fmtCloseHm(bh.open_hm, bh.close_hm)}`}
+              </span>
+            );
+          })()}
         </div>
         {preview && (
           <table style={{ borderCollapse: "collapse", fontSize: 13 }}>
@@ -678,8 +797,9 @@ export default function ReportBoard({
           </p>
         </section>
 
+        {/* ★裁定196（D49）: 締め確認 3 項目を「締め」直上の独立した節へ寄せる（モーダル化しない・判定式は不変）。 */}
         <section className="nox-panel">
-          <h3>締め（{bizDate}）</h3>
+          <h3>締め確認</h3>
           {/* E8-2 #6: 締めチェック縮小版3項目（既存データのみ・新規取得ゼロ・ボトル期限は後送り裁定どおり） */}
           {preview && (() => {
             const paysSum = preview.cash + preview.card + preview.uri + preview.other;
@@ -706,9 +826,19 @@ export default function ReportBoard({
                     <span style={{ color: ok === false ? "var(--bad)" : "var(--ink)" }}>{label}</span>
                   </span>
                 ))}
+                {/* ★裁定196（D49）: 不可メッセージ＝未会計が残り「強行」オフのときだけ（判定は close RPC 側と同じ open 件数） */}
+                {preview.open > 0 && !force && !closedReport && (
+                  <span style={{ fontSize: 12, color: "var(--bad)" }}>
+                    未会計が残っているため締められません（「未会計があっても強行」をオンにすると締められます）
+                  </span>
+                )}
               </div>
             );
           })()}
+        </section>
+
+        <section className="nox-panel">
+          <h3>締め（{bizDate}）</h3>
           {/* E8-2 #4: 現金照合パネル＝レジ内予定額の内訳を締め前にライブ表示（式は確定側の実査差異と同じ） */}
           {preview && (() => {
             const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout;
