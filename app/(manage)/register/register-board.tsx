@@ -1874,7 +1874,8 @@ export default function RegisterBoard({
             </span>
           )}
           {check.status === "open" && (
-            <span className="stay">滞在 <span className="num">{elapsedMin(check.started_at, nowMs)}</span> 分</span>
+            // ★裁定183（v12.1 R13）: 表記をモック「滞在92分」形式へ（値・計算は不変）
+            <span className="stay">滞在<span className="num">{elapsedMin(check.started_at, nowMs)}</span>分</span>
           )}
           {/* レジ時間UX R2→R-A4（0089）: 時間ステータス常時表示＝両モード共通（凍結スナップは manual 店も
               保持済み）。凍結スナップ＋nowMs tick のクライアント計算＝表示専用・権威はサーバ。超過は --bad。 */}
@@ -2879,8 +2880,9 @@ export default function RegisterBoard({
                   <>
                     {/* E8-1 #10: 人数（モック occupants・people は loadOpenMap で取得済み） */}
                     <div className="stay num">
-                      {openTime[s.id]?.people != null ? `${openTime[s.id].people}名 · ` : ""}
-                      {openStarted[s.id] ? `滞在 ${elapsedMin(openStarted[s.id], nowMs)}分` : "使用中"}
+                      {/* ★裁定183（v12.1 R5）: 表記をモック「2名　滞在92分」形式へ（席種は上の .kind 行・値は不変） */}
+                      {openTime[s.id]?.people != null ? `${openTime[s.id].people}名　` : ""}
+                      {openStarted[s.id] ? `滞在${elapsedMin(openStarted[s.id], nowMs)}分` : "使用中"}
                     </div>
                     {/* R-A4（0089）: 常時カウントダウン（両モード共通・凍結スナップのクライアント計算＝表示専用）。
                         セット内=「あとN分で延長」／超過=「延長N回目・次まであとN分」（--bad）。 */}
