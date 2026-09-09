@@ -218,6 +218,20 @@ export default function RegisterBoard({
   const [openTotal, setOpenTotal] = useState<Record<string, number>>({});
   const [openNoms, setOpenNoms] = useState<Record<string, string[]>>({});
   const [stockOf, setStockOf] = useState<Record<string, number>>({});
+  // ★B3 裁定217（R28）: この端末で直近にタップした商品 id（localStorage・店ごと・最大 8・金額や顧客は保存しない）
+  const recentKey = `nox.register.recent.${storeId}`;
+  const [recentIds, setRecentIds] = useState<string[]>([]);
+  useEffect(() => {
+    try { const raw = window.localStorage.getItem(recentKey); const arr = raw ? JSON.parse(raw) : []; if (Array.isArray(arr)) setRecentIds(arr.filter((x) => typeof x === "string")); }
+    catch { /* 保存領域が使えない環境＝空のまま（表示だけの補助） */ }
+  }, [recentKey]);
+  const noteRecent = (id: string) => {
+    setRecentIds((prev) => {
+      const next = [id, ...prev.filter((x) => x !== id)].slice(0, 8);
+      try { window.localStorage.setItem(recentKey, JSON.stringify(next)); } catch { /* 同上 */ }
+      return next;
+    });
+  };
   const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
   // B1/B2: 追加席（相席）の占有マップ seat_id→ホスト伝票 id（フロアの「同一会計」表示・タップで
   //   union consult がホスト伝票を返す）。primaryOf は checkId→主席 seat_id（ホスト名の解決用）。
@@ -2427,6 +2441,30 @@ export default function RegisterBoard({
               </div>
             ) : null;
           })()}
+          {/* ★B3 裁定217（R28）: 「最近使った」列＝端末ローカルの商品 id を products で解決（無い id は捨てる）。
+              タップ経路は下のタイルと同一（キャストドリンク指定／連打束ね）＝送る引数は 1 文字も変えない。 */}
+          {(() => {
+            const recent = recentIds.map((id) => products.find((p) => p.id === id)).filter((p): p is Product => !!p);
+            if (recent.length === 0) return null;
+            return (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--sub)", margin: "0 0 6px" }}>最近使った</div>
+                <div className="nox-tilegrid">
+                  {recent.map((p) => {
+                    const n = tb.badgeOf(p.id);
+                    return (
+                      <button key={`recent-${p.id}`} type="button" className="nox-tile"
+                        onClick={() => { noteRecent(p.id); if (p.back_exempt_from_split === true) setDrinkPick({ mode: "product", product: p }); else tb.tap(p.id); }}>
+                        {n > 0 && <span className="nox-tile-badge">+{n}</span>}
+                        <span className="nox-tile-name">{p.name}</span>
+                        <span className="nox-tile-price">{yen(p.price)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
           {groupProducts(products, categories).filter((g) => catFilter === "" || g.key === catFilter).map((g) => {
             const items = g.items;
             return (
@@ -2438,10 +2476,11 @@ export default function RegisterBoard({
                     const stock = stockLabelOf(p);
                     return (
                       <button key={p.id} type="button" className="nox-tile"
-                        onClick={() => (p.back_exempt_from_split === true
-                          // E8-1 #8: キャストドリンク対象＝タップ時にキャスト指定モーダル（指定しない追加も可）
-                          ? setDrinkPick({ mode: "product", product: p })
-                          : tb.tap(p.id))}>
+                        onClick={() => { noteRecent(p.id); // ★B3 裁定217: 最近使ったへ記録（表示補助・送る引数は不変）
+                          if (p.back_exempt_from_split === true)
+                            // E8-1 #8: キャストドリンク対象＝タップ時にキャスト指定モーダル（指定しない追加も可）
+                            setDrinkPick({ mode: "product", product: p });
+                          else tb.tap(p.id); }}>
                         {n > 0 && <span className="nox-tile-badge">+{n}</span>}
                         <span className="nox-tile-name">{p.name}</span>
                         <span className="nox-tile-price">{yen(p.price)}</span>
