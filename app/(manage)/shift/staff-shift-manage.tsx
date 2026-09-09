@@ -122,14 +122,14 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
           const cls = ["nox-cald", day === selDay ? "sel" : "", day === bizToday ? "today" : "", day < bizToday ? "past" : "", ds.length > 0 ? "ok" : ""].filter(Boolean).join(" ");
           return (
             <button key={day} className={cls} style={{ minHeight: 84, alignItems: "stretch" }} onClick={() => setSelDay(day)}
-              title={`${day}・行 ${ds.length}・◯希望 ${dw.filter((w) => w.available).length}`}>
+              title={`${day}・配置 ${ds.length}／希望 ${dw.filter((w) => w.available).length}`}>
               <span className="nox-cald-n num">{Number(day.slice(8))}</span>
               {e.map((p) => {
                 const n = ds.filter((s) => s.pattern_id === p.id || patterns.find((q) => q.id === s.pattern_id)?.name === p.name).length;
                 const m = dw.filter((w) => w.available && (patterns.find((q) => q.id === w.pattern_id)?.name === p.name)).length;
                 return (
                   <span key={p.id} style={{ display: "block", fontSize: 9.5, lineHeight: 1.5, textAlign: "left", color: n > 0 ? "var(--ok)" : "var(--v2-muted)" }}>
-                    {p.name} <span className="num">{n}/{m}</span>
+                    {p.name} <span className="num">配置{n}／希望{m}</span>{/* ★裁定235: ラベル＝「配置 n／希望 m」（n＝行数・m＝◯希望者数） */}
                   </span>
                 );
               })}
