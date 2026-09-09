@@ -2846,6 +2846,14 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓66：RLS policy から呼ぶ関数は authenticated に execute を付ける（policy 評価は呼出者権限）
+
+2026-09-09、mig0136 の 4 表 select policy が `staff_shift_can_manage(store_id)` を呼び、同関数を内部専用の流儀（4 ロール明示 revoke）で作ったため、policy 評価が `permission denied for function` で落ちて全ロールの select がエラーになった（RPC 本文からの呼出は SECURITY DEFINER 文脈＝postgres 権限で通るため mig 末尾の proof では見えない）。**policy の using／with check から呼ぶ関数は auth_* ヘルパー同型＝`grant execute to authenticated`** が要る（内部専用の 4 ロール revoke は「公開 RPC の本文からだけ呼ぶ関数」に限る＝CLAUDE.md 二重防御 8 の流儀の境界）。検知は verify の 3 ロール select（ss(7a〜7d)）と直結 pg の `set local role authenticated` 再現。0137 で補正（裁定231）。
+
+### 教訓65：ブロックの項目を差し替えるときは全体を再提示する（差分だけ送らない）
+
+2026-09-09、mig0136 収蔵ブロックの「名簿: A8/B(f) に 7 RPC を追加」は 0136 の RPC が課金ゲート未内蔵だったため機械 assert と矛盾し、CC が B(l) 係留へ読み替えた。その後 0137 で 6 本を A8 へ・staff_wish_set を B(i) へ差し替える指示が出たが、前ブロックの残項目（f0 連結・pin 更新・逆張り）との関係が差分だけでは追えない。**項目を差し替えるときは、ブロック全体（前提・番号・期待値）を再提示する**＝CC 側は差し替え後の全体で読み直し、前ブロックの残項目を勝手に持ち越さない（教訓64「走数・日付条件は手順行の先頭」と対）。
+
 ### 教訓64：走数／日付条件は手順行の中に書く（末尾注記に置かない・相談役起こし）
 
 2026-09-09 夕、指示ブロックの手順 1 に「裁定200 起動前チェック → f0 run1 → run2」が書かれ、走数上限（当日 5/6）と日付条件（明朝 9/10）は末尾の注記にあった。CC は手順を上から実行して起動前チェック直後に run1 を起動し、注記の受信はその約 1 分後＝当日 6/6 に到達（途中停止は各段の finally 掃除が走らないため完走させ run2 は打たず・9/9 の run1 緑は持ち越さない）。恒久注意 9（1 日 6 走以内）・裁定200（1 本ずつ・起動前チェック）は守れても「今日は打たない」は手順行に無いと効かない。以後、f0 を含む手順行は **「当日 N/6 を確認してから」「9/10 のみ」のように走数・日付の条件を同じ行の先頭に書く**（末尾注記・別段落に置かない）。CC 側も、f0 を起動する行を読んだら**同ブロック全体を読み切ってから**起動する。
@@ -2975,6 +2983,26 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 写像 D調査＝`docs/dp/dp_v1_写像対応表_v1.md`（6面→10面へ追補）。
 
 ---
+
+## 裁定233（Agoora 承認 2026-09-09）C層② 書込 RPC 6 本は課金ゲート内蔵で A8 へ・staff_wish_set は B(i)（mig0137）
+
+出典＝相談役ブロック（0137 ヘッダ「③書込 RPC 6本に課金ゲート逐語行を挿入」）。段47-1 形 f の逐語行 `if not public.billing_writable_of(public.auth_org_id()) then raise exception 'billing locked'; end if;` を flag gate の直後（auth 後・入力検証前）に置く。staff_pattern_set／staff_pattern_delete／staff_deadline_set（店設定）・staff_shift_propose／staff_shift_override／staff_shift_confirm（黒服シフト行）を A8 へ収載＝対象 114→120・除外 115→109・全数 229。staff_wish_set（黒服本人の希望◯×）は cast の shift_wish_submit と同型の事実記録＝B(i)。live 実測＝gated 120／refs 121／shapes 120／wrapper 0。
+
+## 裁定232（Agoora 承認 2026-09-09）staff_shift_biz_today は biz_date_of（0132・既定 06:00）へ委譲＝営業日ロジックの一本化（mig0137）
+
+出典＝相談役ブロック（0137 ヘッダ②）。0136 の独自実装は cutoff 未設定時の既定が 00:00 で、既存の biz_date_of／code の bizDateOf（既定 06:00）と JST 00:00〜06:00 に 1 日ずれた（CC 実測 2026-09-09）。本文＝`select public.biz_date_of(p_store_id, now())`。未知 store の 'forbidden' は権限判定後の呼出なので到達しない。
+
+## 裁定231（Agoora 承認 2026-09-09）policy から呼ぶ staff_shift_can_manage は authenticated に execute（mig0137・教訓66）
+
+出典＝相談役ブロック（0137 ヘッダ①）。0136 は同関数を 4 ロール明示 revoke（内部専用の流儀）で作ったが、RLS policy の評価は呼出者（authenticated）権限で行われるため `permission denied for function staff_shift_can_manage` で 4 表の select が全ロールで落ちた（verify:nox-staff-shift run1＝ss(7a〜7d) 赤・直結 pg で再現）。auth_* ヘルパー同型に `grant execute … to authenticated`（service_role には付けない）。名簿＝grants の HELPERS へ移動（G4c 内部ヘルパーは 4 本）。
+
+## 裁定230（Agoora 承認 2026-09-09・CC 起こし）新設 suite の単体実走は「run＋逆張り」で 2 走以内・赤なら再走せず段名を報告して止まる
+
+出典＝相談役ブロック（「単体 suite は run2＋逆張りで 2走以内」「赤なら段名を報告して停止」）。f0 の 1 日 6 走（恒久注意 9）とは別枠だが、同じ dev DB への負荷として数える。赤の run に逆張りを重ねても証明にならないため、赤なら逆張りを打たず原因を live で切り分けて報告する（2026-09-09 の run1＝policy の permission denied を直結 pg で再現→0137 で補正→run2 緑→逆張り、の順）。
+
+## 裁定229（Agoora 承認 2026-09-09・CC 起こし）適用済み mig は書き換えない＝補正は次番号の mig で積む（0136→0137）
+
+出典＝相談役ブロック（0137 ヘッダ「0136 は書き換えない(適用済み・手貼りリストに欠陥注記あり)」）。dev に手貼り済みの mig は sha256 と手貼りリストの記録で固定し、欠陥は手貼りリストに注記＋補正 mig（`create or replace`／`grant` のみ・表は触らない）で直す。本番は補正 mig と対で手貼り（0136→0137）。
 
 ## 裁定227（Agoora 承認 2026-09-09）H4 期間粒度（月／半月／週）は据え置き＝shift_periods の粒度運用と同時
 
