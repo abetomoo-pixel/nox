@@ -134,7 +134,9 @@ export default function CastsBoard({
     }
     // 出勤日数＝出勤/同伴/遅刻を「出勤した日」とみなす（出勤板 shift-board / home と同じ PRESENT 集合）
     const { data: at } = await supabase
-      .from("attendance").select("cast_id, status").gte("date", `${month}-01`).lte("date", `${month}-31`);
+      // ★#66（2026-09-09）: 月末 lte -31 は 30 日月／2 月で Postgres 22008（KPI が 0 名に落ちる）→ 翌月 1 日 lt へ。month の決め方は不触。
+      .from("attendance").select("cast_id, status").gte("date", `${month}-01`)
+      .lt("date", (() => { const [y, m] = month.split("-").map(Number); return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`; })());
     const d: Record<string, number> = {};
     for (const r of (at ?? []) as Record<string, unknown>[]) {
       if (PRESENT.has(r.status as string)) d[r.cast_id as string] = (d[r.cast_id as string] ?? 0) + 1;

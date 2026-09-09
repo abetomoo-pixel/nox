@@ -75,6 +75,9 @@ const fmtCloseHm = (open: string, close: string) => {
   return (next ? "翌" : "") + String(Math.floor(m2 / 60)).padStart(2, "0") + ":" + String(m2 % 60).padStart(2, "0");
 };
 type BizHour = { dow: number; is_closed: boolean; open_hm: string | null; close_hm: string | null };
+// ★#66（2026-09-09）: 月の上限は「翌月 1 日 lt」で切る（`${ym}-31` の lte は 30 日月／2 月で Postgres 22008＝KPI が 0 に落ちる）。
+//   受ける ym（YYYY-MM）の決め方＝集計式は不触・境界だけ差し替え。
+const monthAfter = (ym: string) => { const [y, m] = ym.split("-").map(Number); return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`; };
 // ★B2-a（裁定202・D12）: 「取消・巻き戻し」系 action＝audit-board の VIEW_DEFS「取消・巻き戻し」と同じ明示リスト
 //   （audit-board.tsx:53-58 と同期して保つ・owner のときだけ count する＝RLS は owner 限定のまま）。
 const CANCEL_ACTIONS = [
@@ -230,12 +233,11 @@ export default function ReportBoard({
     const ym = new Date().toISOString().slice(0, 7);
     const { data: ar } = await supabase.from("ar_collections")
       .select("amount").eq("store_id", storeId)
-      .gte("biz_date", `${ym}-01`).lte("biz_date", `${ym}-31`);
+      .gte("biz_date", `${ym}-01`).lt("biz_date", `${monthAfter(ym)}-01`); // ★#66: 月末 lte -31 → 翌月 1 日 lt
     setArMonth(((ar ?? []) as { amount: number }[]).reduce((a, r) => a + r.amount, 0));
     // ★B2-b（裁定204・D37）: 今月発生＝営業日月（bizDateOf(now)）の初日〜翌月初日の営業日範囲で created_at を数える（1 クエリ）。
     const bizYm = bizDateOf(new Date().toISOString(), cutoff).slice(0, 7);
-    const [by, bm] = bizYm.split("-").map(Number);
-    const nextYm = bm === 12 ? `${by + 1}-01` : `${by}-${String(bm + 1).padStart(2, "0")}`;
+    const nextYm = monthAfter(bizYm);
     const mStart = bizDateRange(`${bizYm}-01`, cutoff).startIso;
     const mEnd = bizDateRange(`${nextYm}-01`, cutoff).startIso;
     const { data: rvm } = await supabase.from("receivables").select("amount")
