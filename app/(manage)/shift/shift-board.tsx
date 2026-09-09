@@ -18,6 +18,7 @@ import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
+import StaffShiftBoard from "./staff-shift-board"; // ★C層② 面 b/c（黒服）
 import CastAvatar from "@/components/ui/cast-avatar";
 import DayAddPanel from "./day-add-panel";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
@@ -143,7 +144,7 @@ const SHIFT_ACTION_LABEL: Record<string, string> = {
   shift_wish_submit: "希望提出", shift_wish_withdraw: "希望取下げ",
 };
 
-export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = false, cutoff }: { storeId: string; casts: Cast[]; isManagerUp: boolean; isOwner?: boolean; cutoff: string }) {
+export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = false, role = "", cutoff }: { storeId: string; casts: Cast[]; isManagerUp: boolean; isOwner?: boolean; role?: string; cutoff: string }) {
   const supabase = createClient();
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -165,6 +166,20 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★R4（Agoora 裁定）: 確定シフトタブ＝**人ベースの月カレンダー**を既定にし、
   //   現行の一覧は「表で見る」トグルで残置する（表示のみ・RPC 非改変）。
   const [rosterView, setRosterView] = useState<"cal" | "table">("cal");
+  // ★C層② H3（設計書 v1 §4・横断 §4）: 対象切替「キャスト／黒服」＝flag_enabled('staff_shift', 自店) が true のときだけ出す。
+  //   off＝切替そのものが無い（現行のまま）。B4 で入れた cast の面は不触。読取 1（RPC・STABLE）。
+  const [staffFlag, setStaffFlag] = useState(false);
+  const [target, setTarget] = useState<"cast" | "staff">("cast");
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.rpc("flag_enabled", { p_key: "staff_shift", p_store_id: storeId });
+      if (alive) setStaffFlag(data === true);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
   // ★B4-c 裁定224（H39）: 表示月のシフト系 audit_logs（owner のみ読取 1・RLS は owner 限定のまま）
   const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
   // ★B4-b 裁定219（H20）: 承認待ち表の並び＝日付順（既定・現行）／人ごと（モック 119-127 行）
@@ -776,6 +791,17 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               行っており、配列の並び順に依存する参照はゼロ（前セッションで実測）。
           ★「カレンダー」→「仮シフト」に改名（充足管理の面という位置づけを名前で示す）。
             内部識別子 "calendar" は据え置き。 */}
+      {/* ★C層② H3: 対象切替（モック v4.1 73-79 行「確定シフト｜黒服・スタッフ」）。flag off では描かない。 */}
+      {staffFlag && (
+        <div className="nox-seg" style={{ display: "inline-flex", marginBottom: 8 }}>
+          {([["cast", "キャスト"], ["staff", "黒服"]] as const).map(([k, label]) => (
+            <button key={k} type="button" className={target === k ? "on" : ""} onClick={() => { setDayModal(""); setTarget(k); }}>{label}</button>
+          ))}
+        </div>
+      )}
+      {staffFlag && target === "staff" ? (
+        <StaffShiftBoard storeId={storeId} role={role} cutoff={cutoff} />
+      ) : (<>
       <nav className="nox-subnav">
         {([["today", "今日"], ["queue", "承認待ち"], ["build", "シフト作成"],
            ["calendar", "仮シフト"], ["roster", "確定シフト"]] as const).map(([k, label]) => (
@@ -2118,6 +2144,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           </Modal>
         );
       })()}
+      </>)}
     </div>
   );
 }
