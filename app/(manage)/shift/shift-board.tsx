@@ -134,7 +134,16 @@ function rpcErrJa(msg: string | undefined): string {
   return msg;
 }
 
-export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { storeId: string; casts: Cast[]; isManagerUp: boolean; cutoff: string }) {
+// ★B4-c 裁定224（H39）: 変更履歴の行（audit_logs・owner 限定 RLS＝manager 以下は描かない）
+type AuditRow = { id: string; action: string; target: string | null; actor_user_id: string | null; at: string; after_json: Record<string, unknown> | null };
+const SHIFT_ACTION_LABEL: Record<string, string> = {
+  shift_set: "時間変更・追加", shift_remove: "取消", shift_confirm_bulk: "確定", shift_cast_confirm: "キャスト確認",
+  shift_propose: "確認依頼", shift_wish_decide: "希望の採否", shift_bulk_set_daily: "一括配置", shift_bulk_set: "一括配置",
+  shift_auto_apply: "自動配置", shift_auto_clear: "自動配置の解除", shift_period_set: "期間設定", shift_period_remove: "期間削除",
+  shift_wish_submit: "希望提出", shift_wish_withdraw: "希望取下げ",
+};
+
+export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = false, cutoff }: { storeId: string; casts: Cast[]; isManagerUp: boolean; isOwner?: boolean; cutoff: string }) {
   const supabase = createClient();
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -156,6 +165,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   // ★R4（Agoora 裁定）: 確定シフトタブ＝**人ベースの月カレンダー**を既定にし、
   //   現行の一覧は「表で見る」トグルで残置する（表示のみ・RPC 非改変）。
   const [rosterView, setRosterView] = useState<"cal" | "table">("cal");
+  // ★B4-c 裁定224（H39）: 表示月のシフト系 audit_logs（owner のみ読取 1・RLS は owner 限定のまま）
+  const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
   // ★B4-b 裁定219（H20）: 承認待ち表の並び＝日付順（既定・現行）／人ごと（モック 119-127 行）
   const [queueGroup, setQueueGroup] = useState<"date" | "cast">("date");
   // ★SC-7（裁定52'）: 確定シフトタブの日詳細をモーダルへ。
@@ -337,6 +348,19 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
     setBhRows((bh ?? []) as BusinessHourRow[]);
     // E8-4 #10: 登録者名の解決（E8-2 #8 の closed_by→users.name と同じ1クエリ流儀・失敗時は「—」に落ちるだけ）
     const uids = Array.from(new Set(((ss ?? []) as Shift[]).map((s) => s.created_by).filter(Boolean)));
+    // ★B4-c 裁定224（H39）: owner のときだけ表示月のシフト系 action を読む（manager 以下は 0 行にすらしない＝要素非描画）。
+    //   actor は下の users 1 クエリへ相乗り（新規クエリは audit_logs の 1 本だけ）。
+    let audits: AuditRow[] = [];
+    if (isOwner) {
+      const { data: al } = await supabase.from("audit_logs")
+        .select("id, action, target, actor_user_id, at, after_json")
+        .eq("store_id", storeId).like("action", "shift%")
+        .gte("at", `${monthFrom}T00:00:00+09:00`).lt("at", `${addDays(monthTo, 1)}T00:00:00+09:00`)
+        .order("at", { ascending: false }).limit(60);
+      audits = (al ?? []) as AuditRow[];
+      for (const a of audits) if (a.actor_user_id && !uids.includes(a.actor_user_id)) uids.push(a.actor_user_id);
+    }
+    setAuditRows(audits);
     if (uids.length > 0) {
       const { data: us } = await supabase.from("users").select("id, name").in("id", uids);
       setUserNames(new Map(((us ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name])));
@@ -740,7 +764,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
   return (
     // ★R3 第1弾: タイポ・余白のモック実値写し（globals.css の .nox-mv1 ブロック）。
     //   この画面と /notices だけに効く＝共有クラスの素の定義は変えていない。
-    <div className="nox-mv1">
+    <div className={tab === "roster" ? "nox-mv1 nox-printpage" : "nox-mv1"}>{/* ★B4-c 裁定223（H37）: 確定シフトタブだけ印刷隔離（.nox-print 以外は印刷時に落ちる） */}
       <PageHead eyebrow="SHIFT MANAGEMENT" title="シフト管理"
         desc="申請、承認、出勤状況と人員充足をまとめて管理します。" />
       <Toast msg={msg} />
@@ -1623,7 +1647,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
           ★操作列はモックに無いが「時間を調整」だけ残す＝時刻の訂正は**確定後にも起きる**
             （裁定 DP3-③・status は据え置きなので昇格しない）。予定/確認待ちの操作は承認待ちタブ側。 */}
       {tab === "roster" && (
-      <section className="nox-cardtop" style={card}>
+      <section className="nox-cardtop nox-print" style={card}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
           <div>
             <h2 style={{ ...secTitle, margin: 0 }}>確定シフト</h2>
@@ -1632,12 +1656,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
               <b>誰がいつ入るか</b>を見る画面です（人数の過不足は「仮シフト」タブで見ます）。
             </p>
           </div>
-          <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
+          <span className="nox-noprint" style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
             <div className="nox-seg">
               <button className={rosterView === "cal" ? "on" : ""} onClick={() => setRosterView("cal")}>カレンダー</button>
               <button className={rosterView === "table" ? "on" : ""} onClick={() => setRosterView("table")}>表で見る</button>
             </div>
             {shifts.length > 0 && <button style={btnLight} onClick={exportShiftsCsv}>CSV出力</button>}
+            {/* ★B4-c 裁定223（H37）: 印刷＝ブラウザ印刷（PDF 保存もここから）・印刷隔離で確定一覧だけ出す。CSV は残す。 */}
+            {shifts.length > 0 && <button style={btnLight} onClick={() => window.print()}>印刷</button>}
           </span>
         </div>
 
@@ -1701,7 +1727,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
           <div className="nox-tablewrap">
             <table className="nox-table">
               <thead>
-                <tr><th>スタッフ</th><th>勤務日</th><th>確定時間</th><th>確定者</th><th>状態</th><th>操作</th></tr>
+                <tr><th>スタッフ</th><th>勤務日</th><th>確定時間</th><th>確定者</th><th>状態</th><th className="nox-noprint">操作</th></tr>
               </thead>
               <tbody>
                 {shifts.map((s) => {
@@ -1728,7 +1754,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                         </span>
                         {sClosed && <span style={{ display: "block", fontSize: 10.5, color: "var(--bad)", fontWeight: 700, marginTop: 2 }}>定休日</span>}
                       </td>
-                      <td>
+                      <td className="nox-noprint">
                         {isManagerUp && (
                           <span style={{ display: "inline-flex", gap: 6 }}>
                             <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
@@ -1754,6 +1780,63 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
             </table>
           </div>
         ))}
+
+        {/* ★B4-c 裁定226（H27）: スタッフ確認状況＝表示月の shifts.status の再形（未確認＝proposed／確認済み＝confirmed・変更希望・辞退希望・催促は器なし＝出さない）。新規読取 0。 */}
+        {(() => {
+          const inMonth = shifts.filter((x) => x.date.slice(0, 7) === month && (x.status === "proposed" || x.status === "confirmed"));
+          if (inMonth.length === 0) return null;
+          const byCast = new Map<string, { proposed: number; confirmed: number }>();
+          for (const x of inMonth) {
+            const e = byCast.get(x.cast_id) ?? { proposed: 0, confirmed: 0 };
+            if (x.status === "proposed") e.proposed += 1; else e.confirmed += 1;
+            byCast.set(x.cast_id, e);
+          }
+          const people = [...byCast.entries()].sort((a, b) => castName(a[0]).localeCompare(castName(b[0]), "ja"));
+          const unconfirmed = people.filter(([, e]) => e.proposed > 0).length;
+          return (
+            <div className="nox-noprint" style={{ marginTop: 14 }}>
+              <h3 style={{ margin: "0 0 6px", fontSize: 13 }}>スタッフ確認状況（{my}年{mm}月）</h3>
+              <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "0 0 8px" }}>
+                確認済み <b className="num" style={{ color: "var(--ok)" }}>{people.length - unconfirmed}</b>人 ・ 未確認 <b className="num" style={unconfirmed > 0 ? { color: "var(--gold2)" } : undefined}>{unconfirmed}</b>人（未確認＝キャスト確認待ちの行が残っている人）
+              </p>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {people.map(([cid, e]) => (
+                  <span key={cid} className={`nox-stpill ${e.proposed === 0 ? "ok" : ""}`}
+                    style={e.proposed > 0 ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
+                    {castName(cid)} {e.proposed === 0 ? "確認済み" : `未確認 ${e.proposed}件`}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ★B4-c 裁定224（H39）: 確定後の変更履歴＝owner のみ（audit_logs の owner 限定 RLS＝裁定190 同型）。「管理者変更を追加」は器なし＝出さない。 */}
+        {isOwner && (
+          <div className="nox-noprint" style={{ marginTop: 14 }}>
+            <h3 style={{ margin: "0 0 6px", fontSize: 13 }}>変更履歴（{my}年{mm}月・最新 {auditRows.length} 件）</h3>
+            {auditRows.length === 0 ? (
+              <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>この月のシフト操作の記録はありません。</p>
+            ) : (
+              <div style={{ display: "grid", gap: 3 }}>
+                {auditRows.map((a) => {
+                  const sid = a.target && a.target.startsWith("shifts:") ? a.target.slice(7) : null;
+                  const sh = sid ? shifts.find((x) => x.id === sid) : undefined;
+                  const who = sh ? castName(sh.cast_id) : (typeof a.after_json?.cast_id === "string" ? castName(a.after_json.cast_id as string) : null);
+                  return (
+                    <span key={a.id} style={{ fontSize: 11.5, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <span className="num" style={{ color: "var(--v2-muted)" }}>{new Date(a.at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      <span>{SHIFT_ACTION_LABEL[a.action] ?? a.action}</span>
+                      {who && <span>{who}{sh ? ` ${sh.date.slice(5).replace("-", "/")} ${fmtWin(sh.start_hm, sh.end_hm)}` : ""}</span>}
+                      <span style={{ color: "var(--v2-muted)" }}>{a.actor_user_id ? userNames.get(a.actor_user_id) ?? "—" : "—"}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>全操作の詳細は<a href="/audit" style={{ color: "var(--primary-hover)" }}>操作履歴</a>で確認できます。</p>
+          </div>
+        )}
       </section>
       )}
 
@@ -1962,7 +2045,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, cutoff }: { st
                   {x.source === "auto" ? "自動" : "手修正"}
                 </span>
                 <span className={`nox-stpill ${x.status === "confirmed" ? "ok" : ""}`}
-                  style={x.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
+                  style={x.status === "proposed" ? { color: "var(--gold2)", borderColor: "var(--gold-bd)" } : undefined}>
                   {SHIFT_ST_LABEL[x.status] ?? x.status}
                 </span>
                 <button style={btnLight}

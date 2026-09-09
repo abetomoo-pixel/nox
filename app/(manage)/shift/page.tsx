@@ -21,6 +21,7 @@ export default async function ShiftPage() {
       storeId={stores?.[0]?.id ?? ""}
       casts={casts ?? []}
       isManagerUp={role === "owner" || role === "manager"}
+      isOwner={role === "owner"}
       cutoff={(() => {
         // ★mig0106（起票#14）: 営業日切替時刻は店設定（既定 06:00）＝dashboard/page.tsx と同型。
         const sj = (stores?.[0]?.settings_json ?? {}) as Record<string, unknown>;
