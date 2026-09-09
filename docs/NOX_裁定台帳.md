@@ -2972,6 +2972,34 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 ---
 
+## 裁定208（Agoora 確定 2026-09-09）D22 締め履歴の説明文／D43「伝票を見る」は据え置き（B2 対象外）
+
+出典＝B2 着手前調査の裁定要点 7・8（`docs/tmp/b2_survey_20260909.md`）。D22 は現行仕様（daily_report_reclose＝解除なしの直接再集計）に合わせた文言のまま・C層③（締め解除フロー）後に差し替え。D43 は R57（会計後タイムライン）停止中のため据え置き（裁定189 同型）。
+
+## 裁定207（Agoora 確定 2026-09-09）D47 回収履歴リスト＝当月・自店・最新 30 件・列＝入金日／方法／金額／顧客／担当／登録者
+
+出典＝B2 着手前調査の裁定要点 5。売掛タブに ar_collections の一覧を追加（読取のみ・RLS＝owner／manager／staff∧can_register・cast 0 行）。範囲＝当月（biz_date）・自店・created_at 降順 30 件で打ち切り、「それ以前は売掛タブの各行「前回回収」で確認」の導線文を置く。顧客名は現行の未回収一覧と同粒度（customers.name＝0055:143-150 で開示済みの範囲・PII ゲートの範囲拡大はしない）。登録者＝created_by→users.name（表示専用）。
+
+## 裁定206（Agoora 確定 2026-09-09）D45 回収方法の選択は据え置き＝対応表「準備中(money 境界)」
+
+出典＝B2 着手前調査の裁定要点 4。receivable_collect の p_method は UI で "cash" 固定のまま（RPC は cash/card/other 受理・現金照合式 0055:351-353 は cash のみ＝DB 不変）。入金方法別の照合（カード・その他を日報のどこへ載せるか）と同時に C層③で扱う。B2 では触らない。
+
+## 裁定205（Agoora 確定 2026-09-09）D6 営業時間の表示位置＝「営業日切替 翌HH:MM」の隣・定休日は「定休日」・cast 非表示
+
+出典＝B2 着手前調査の裁定要点 6。日報タブの営業日行に、表示中営業日の曜日に対応する store_business_hours（0032）の open_hm〜close_hm を「本日 19:00〜翌5:00」の形で併記（close の 24h 超表記は「翌」へ変換＝business-hours-panel と同じ規則）。is_closed の日は「定休日」。行が無い店は非表示。RLS は cast 不可のまま（cast へ見せる要素を増やさない）。新規クエリ 1（dow 7 行 select）。
+
+## 裁定204（Agoora 確定 2026-09-09）D14／D37「発生」＝receivables.created_at を bizDateOf で営業日正規化（D8 と同一関数）
+
+出典＝B2 着手前調査の裁定要点 3。売掛の「本日発生（D14）」「今月発生（D37）」は receivables.created_at を cutoff（settings_json.biz_cutoff_hm）で営業日へ正規化して数える（bizDateRange の [startIso, endIso) で select）。checks.closed_at 基準にはしない。KPI 追加（カード枚数増）は裁定196 で許容済み。新規クエリ＝D14 1／D37 1（amount のみ select・client で件数＋合計）。
+
+## 裁定203（Agoora 確定 2026-09-09）D15 未処理の入出金＝advances／transport の open 件数＋金額のみ・立替は対象外・cast 名は出さない
+
+出典＝B2 着手前調査の裁定要点 2。日報タブに「日払い（前借り）」＝advances（status='open'）・「送り代」＝transport（status='open'）の件数と金額合計を表示（自店・読取のみ・adv_issue 等の書込 RPC は呼ばない）。立替は器なし（テーブル無し）のため出さず「対象外」と注記。cast 名・行明細は出さない（KPI 2 枚のみ）。新規クエリ 2。
+
+## 裁定202（Agoora 確定 2026-09-09）D12 取消・返金＝owner には件数＋操作履歴への導線・manager には非表示（裁定190 同型）
+
+出典＝B2 着手前調査の裁定要点 1。audit_logs は owner 限定 RLS（0002:78）のまま＝policy 変更なし。日報タブに表示中営業日の「取消・巻き戻し」系 action（audit-board の VIEW_DEFS「取消・巻き戻し」と同じ明示リスト）の件数を owner のときだけ count（head）し、「操作履歴を見る」（/audit）への導線を置く。manager 以下は要素ごと描画しない（RLS 0 行の空表示も出さない）。新規クエリ 1（owner のみ）。
+
 ## 裁定201（2026-09-09・Agoora 承認 2026-09-09・CC 起こし）本日 2026-09-09 の f0 run1 は例外として有効（2 連緑の 1 本目に数える）
 
 出典＝相談役ブロック（「run1 例外有効」・本文なし＝CC 起こし）。run1（761s・38 本 3,570・golden 6 値不変）は別チャットが handoff v27 収蔵コミット `c07a422` を積んだ時間帯と重なった（裁定200 の「同一 DB で 1 本ずつ」に照らすと起動前チェック未実施）。本チャットの実測では直結 client は自分のみ・PostgREST active 0（run2 起動前）で他の f0 走行は観測されず、run2（723s）も同値の緑＝結果への影響なしとして例外扱い。以後は裁定200 に従う。
