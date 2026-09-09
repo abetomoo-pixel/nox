@@ -683,7 +683,7 @@ export default function ReportBoard({
             {isOwner && (
               <div className="nox-rs">
                 <div className="l">取消・返金（監査ログ）</div>
-                <div className="v num" style={(cancelCount ?? 0) > 0 ? { color: "var(--bad)" } : undefined}>
+                <div className="v num">
                   {cancelCount == null ? "—" : `${cancelCount}件`}
                 </div>
                 <div className="l" style={{ marginTop: 2 }}>
