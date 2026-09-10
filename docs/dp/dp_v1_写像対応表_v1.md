@@ -781,19 +781,19 @@
 | W26 | **手動調整**（理由・入力者・承認者・承認待ち→承認） | **なし**＝裁定99-⑥「採用しない・準備中表示もしない」（台帳:2312）・gap matrix「要確認（裁定漏れ）」 | **新要件（器なし）** | **要**（payroll_adjustments＝run×cast・符号付・reason・created_by・approved_by＋finalize 取込＋reopen 巻き戻し＝money-core） | Downloads の 0138 は未収蔵・未適用 |
 | W27 | 確定時スナップショット固定 | payslips.breakdown_json 凍結（0016:149）・cast 名凍結 | **実装済(A層)**〔旧: 既存〕 | 不要 | 2026-09-07 変更なし（差分なし） |
 | W28 | **対象者ごとの確定**（確認済み6名を確定／個別／保留） | run 単位のみ（全件 delete→insert・blocker 1件で 422・「キャスト単位確定は作らない」既裁定） | **新要件** | **要**（payslip 単位 status＋部分 finalize＋idem＋reopen 対称化＝大改修） | |
-| W29 | 期間ステータス（処理中／保留→完了） | runs.status 3値・バッジ `:418-427` | 準備中（一部） | 要（中間状態） | W28 前提 |
-| W30 | 確定後の訂正 A（解除→訂正→再確定） | payroll_reopen（0060:37-156・finalized のみ・paid 不可・payments exist 拒否）＋owner route＋UI `:746-767` | **実装済(A層)**〔旧: 既存（＝**D-1 同族・概ね充足**）〕 | 不要 | ★run 全体・支払1件でも不可＝「対象者だけ訂正」は W28 依存・2026-09-07 変更なし（D-1 同族） |
+| W29 | 期間ステータス（処理中／保留→完了） | runs.status 3値・バッジ `:418-427` | **実装済(B層 B5)**〔旧: 準備中（一部）〕 | 要（中間状態） | W28 前提 ・2026-09-10 B5: /payroll 月次一覧（payroll-list.tsx）に run ごとの状態バッジ（draft／finalized／paid＝既存 nox-runbadge）＋「支払済みにする」（owner∧finalized→POST mark-paid→payroll_mark_paid）で paid へ。中間状態（保留）は作らない（裁定 B5-2） |
+| W30 | 確定後の訂正 A（解除→訂正→再確定） | payroll_reopen（0060:37-156・finalized のみ・paid 不可・payments exist 拒否）＋owner route＋UI `:746-767` | **実装済(A層)**〔旧: 既存（＝**D-1 同族・概ね充足**）〕 | 不要 | ★run 全体・支払1件でも不可＝「対象者だけ訂正」は W28 依存・2026-09-07 変更なし（D-1 同族） ・2026-09-10 B5: 入口は月次一覧→「明細へ」（.nox-link・裁定238）→ 既存の解除節。route は owner／manager のみ（裁定 B5-5・#71） |
 | W31 | 確定後の訂正 B（次回給与で精算 +¥3,000） | なし（＝W26 と同じ欠落） | 新要件 | 要（調整行＋出典 run 参照） | |
 | W32 | 訂正の監査（理由・元値・新値・操作者・承認者） | audit_log_write_service('payroll_reopen', before/after)（0060:150-156）・finalize 側も退避 | **実装済(C層③)**〔旧: 準備中（理由・承認者なし）〕 | 一部要 | | ・2026-09-10 **実装(C層③)**: 理由が監査へ＝payroll_reopen 5 引数 p_reason（mig0138）→ audit_logs.reason（mig0135 列）・承認者＝route の actor（decideReopenAccess owner／manager／staff∧can_reopen）・UI 理由入力（面 c 5005a9a／7186f44）。設計書 v1 §4 の「W32＝理由入力」は本表の W32（訂正の監査）へ理由列が入ることで充足 |
-| W33 | 支払状況（複数回・複数方法・残額・状態） | payment_records（0021:306-323）・payment_record_add（Σ≤net・finalized/paid 限定）・payment-panel.tsx:103-163・payStatusOf | **実装済(A層)**〔旧: 既存〕 | 不要 | 「予定行」は器なし（実績のみ）・2026-09-07 変更なし（差分なし） |
+| W33 | 支払状況（複数回・複数方法・残額・状態） | payment_records（0021:306-323）・payment_record_add（Σ≤net・finalized/paid 限定）・payment-panel.tsx:103-163・payStatusOf | **実装済(A層)**〔旧: 既存〕 | 不要 | 「予定行」は器なし（実績のみ）・2026-09-07 変更なし（差分なし） ・2026-09-10 B5: 月次一覧の支払状況列＝payment_records の件数・合計（run 単位・list.ts 凍結値 sum） |
 | W34 | 明細公開（LINE／メール／アプリ内・自動通知） | なし＝裁定99-⑦・T3 後送り（`:397,770`）・cast 側は /mine の payslips 直近6期（RLS） | 準備中（既裁定） | 要（公開フラグ＋T3） | ＝N40 自動通知 |
-| W35 | 給与明細 CSV | `:183-230,776-797`＋csv.ts:35-71 | **実装済(A層)**〔旧: 既存〕 | 不要 | 2026-09-07 変更なし（差分なし） |
+| W35 | 給与明細 CSV | `:183-230,776-797`＋csv.ts:35-71 | **実装済(A層)**〔旧: 既存〕 | 不要 | 2026-09-07 変更なし（差分なし） ・2026-09-10 B5: 月次一覧の CSV ボタン（payrollCsvEnabled＝finalized／paid で活性）→ export-csv.ts（board と同一関数・列定義不変） |
 | W36 | 報酬明細／PDF | `:234-256,802-840`＋payslip-slip | **実装済(A層)**〔旧: 既存〕 | 不要 | 2026-09-07 変更なし（差分なし） |
 | W37 | 支払明細・請求関連（委託の分離） | invoice-panel.tsx＋tax-overview／tax-report-csv（owner） | **既存（税務凍結・除外・裁定178）**〔旧: 既存〕 | 不要 | 2026-09-07 税理士ゲート |
 | W38 | **銀行振込データ** | なし（zengin／全銀／bank_transfer 0件・口座列なし csv.ts:3-4）・台帳バックログ「D3 給与CSV（振込用）」（台帳:95） | **新要件（器なし）** | **要** | ★口座＝機微＝**専門家ゲート待ち**（弁護士確認事項 台帳:657・マイナンバー同系列） |
 | W39 | 源泉徴収・納付管理（7列） | withholding_monthly_summary（0075:79-127・期限＝翌月10日）・withholding_payment_record（owner）・payment-tax-panel.tsx:97-148 | **既存（税務凍結・除外・裁定178）**〔旧: 既存（ほぼ逐語一致）〕 | 不要 | ★母数＝**paid run のみ**（0075:119）だが `payroll_mark_paid` を呼ぶ UI/route が**不在**（verify のみ）＝運用の穴／未凍結行は記録不可／納期特例・順延なし＝裁定23（**税理士ゲート待ち**・台帳:832）・2026-09-07 税理士ゲート |
 | W40 | 源泉額の計算根拠 | pay.ts:441 withholdingOf＝floor(max(0, gross−5000×periodDays)×0.1021)・periodDays（裁定23-b） | **既存（税務凍結・除外・裁定178）**〔旧: 既存〕 | 不要 | 2026-09-07 税理士ゲート |
-| W41 | 給与処理履歴（時系列） | audit_logs＋/audit の「給与系」分類（audit-board.tsx:42・reopen :57）・**/payroll 内に履歴 UI なし** | 準備中（データ有・画面なし） | 不要 | 再集計／要確認確認／明細公開は監査 action 自体なし |
+| W41 | 給与処理履歴（時系列） | audit_logs＋/audit の「給与系」分類（audit-board.tsx:42・reopen :57）・**/payroll 内に履歴 UI なし** | **実装済(B層 B5)**〔旧: 準備中（データ有・画面なし）〕 | 不要 | 再集計／要確認確認／明細公開は監査 action 自体なし ・2026-09-10 B5: 月次一覧の履歴列（owner 限定・audit_logs action in payroll_finalize／payroll_reopen／payroll_mark_paid・target=payroll_runs:<id>・最新 1 件＋reason 折りたたみ）。全件は /audit |
 
 **§13 個別回答**
 - **(1) 対象者ごとの確定 vs 期間一括**: 現行は run 単位の原子的総入替（per-cast 確定の経路は物理的に無い・中間 status なし・blocker 1件で全体拒否）。既裁定（U1 設計書:17）が「キャスト単位確定は作らない」＝**採るなら裁定見直し＋payslip 単位 status＋部分 finalize RPC＋idem 設計＋reopen 対称化＝money-core 大改修**。
