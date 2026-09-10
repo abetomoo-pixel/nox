@@ -29,7 +29,10 @@ export function decideReopenAccess(
   reqStoreId: string,
 ): "ok" | "forbidden" {
   if (!reqStoreId) return "forbidden";
+  // ★裁定 B5-5（2026-09-10・#71）: 給与は owner／manager のみ＝staff∧can_reopen 分岐を削除し page.tsx の到達制御と揃える。
+  //   シグネチャ（canReopen 引数）は維持＝呼出側と suite の互換のため。can_reopen は日報側（report_can_reopen）でのみ効く。
+  void canReopen;
   if (role === "owner") return "ok";
-  if ((role === "manager" || (role === "staff" && canReopen)) && authStoreId != null && authStoreId === reqStoreId) return "ok";
+  if (role === "manager" && authStoreId != null && authStoreId === reqStoreId) return "ok";
   return "forbidden";
 }

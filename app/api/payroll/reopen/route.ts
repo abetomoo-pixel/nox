@@ -5,7 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { decideReopenAccess } from "@/lib/nox/payroll/authz"; // ★C③-17: owner/manager/staff∧can_reopen
+import { decideReopenAccess } from "@/lib/nox/payroll/authz"; // ★C③-17 → 裁定 B5-5: owner／manager 自店のみ（staff 分岐は削除）
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -34,14 +34,13 @@ export async function POST(req: Request) {
   const reason = typeof body.reason === "string" ? body.reason.trim() : "";
   if (reason.length < 1 || reason.length > 200) return NextResponse.json({ error: "reason required (1-200)" }, { status: 400 });
 
-  const [{ data: role }, { data: orgId }, { data: authStoreId }, { data: canReopen }] = await Promise.all([
+  const [{ data: role }, { data: orgId }, { data: authStoreId }] = await Promise.all([
     supabase.rpc("auth_role"),
     supabase.rpc("auth_org_id"),
     supabase.rpc("auth_store_id"),
-    supabase.rpc("auth_staff_can_reopen"), // mig0138（staff の個別付与・owner/manager は role で通る）
   ]);
-  // ★C③-17: owner／manager 自店／staff∧can_reopen 自店（旧: owner 限定）
-  if (decideReopenAccess(role as string | null, canReopen === true, (authStoreId as string | null) ?? null, storeId) !== "ok")
+  // ★裁定 B5-5（#71）: owner／manager 自店のみ（C③-17 の staff∧can_reopen 分岐は削除＝page.tsx と一致・auth_staff_can_reopen の読取も撤去）
+  if (decideReopenAccess(role as string | null, false, (authStoreId as string | null) ?? null, storeId) !== "ok")
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   if (!orgId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
