@@ -3083,7 +3083,7 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 6. kiosk の実行ボタンも同じ青、gold を残す画面はなし
 7. レーン: client 1 本・suite なし・f0 不要
 
-実装（2026-09-10・client コミット）: .nox-btn.gold＝background／border var(--primary)・color #fff・影なし・hover var(--primary-hover)。theme.btnGold＝同値（inline のため hover なし）。gold 直書きの実行ボタンは 1 件（/mine シフト「確認する」＝goldface2 地→btnGold 経由・寸法据え置き）。棚卸し (1) 145 件のうち theme（btnDark／btnGold／btnPrimaryLg・136 件）と .nox-btn.gold 経由は定義差替えで一括、gold 直書き 5 件のうち 4 件（notices の対象フィルタ・shift の日付セレクタ・staff-shift の ◯／× パターン・cast-picker）は aria-pressed／選択の切替＝(4)＝239-4 で現状維持（棚卸しの機械判定が (1) に寄せていた分）。kiosk（/kiosk・/kiosk-register）は t.btnGold 経由＝定義差替えで同じ青（239-6）。ui-tokens baseline 56 不変（#fff は globals.css／lib＝走査外・TSX 側はトークン参照のみ）。
+実装（2026-09-10・client コミット **217bb13**・目視待ち）: .nox-btn.gold＝background／border var(--primary)・color #fff・影なし・hover var(--primary-hover)。theme.btnGold＝同値（inline のため hover なし）。gold 直書きの実行ボタンは 1 件（/mine シフト「確認する」＝goldface2 地→btnGold 経由・寸法据え置き）。棚卸し (1) 145 件のうち theme（btnDark／btnGold／btnPrimaryLg・136 件）と .nox-btn.gold 経由は定義差替えで一括、gold 直書き 5 件のうち 4 件（notices の対象フィルタ・shift の日付セレクタ・staff-shift の ◯／× パターン・cast-picker）は aria-pressed／選択の切替＝(4)＝239-4 で現状維持（棚卸しの機械判定が (1) に寄せていた分）。kiosk（/kiosk・/kiosk-register）は t.btnGold 経由＝定義差替えで同じ青（239-6）。ui-tokens baseline 56 不変（#fff は globals.css／lib＝走査外・TSX 側はトークン参照のみ）。
 
 ## 裁定236（Agoora 承認 2026-09-10）希望の取消（「なし」へ戻す）は C層② の範囲外＝staff_wish_delete RPC（本人・締切前）は次の補正 mig で
 
@@ -3690,6 +3690,13 @@ announcements v2）＝正本化後の収蔵ファイルは v8.1／v12.1／v4.1�
 8. 確定後・締め後・配信後は、通常編集ではなく訂正・再確定・履歴の概念を使う。
 9. **f0 は面完了時のみ・1 日 6 走以内**（2026-09-07 の 30 走超で PostgREST が夜間に signin 13.8s／rpc 22.6s へ劣化・翌朝回復＝横断設計書 §8・#58）。
 10. **他プロジェクトの verify と f0 を同一 PC で並走させない**（2026-09-10 13:00 台・makanai-shift の run-all-verifies と並走した f0 run1 889s／run2 1049s＝前回 pin 412s／454s の約 2 倍。DB は別（裁定200 の 3 値は 0）でも CPU・回線を食い合い statement timeout 型フレークの温床になる。裁定200 チェックに「ローカルの verify 系 node プロセス 0＝他リポジトリ含む」を含めて読む。相談役ブロック 2026-09-10 で恒久注意へ昇格・番号は本表の連番）。
+11. **f0 は同一 DB で1本ずつ**(裁定200)。起動前に pg_stat_activity・直近60秒 audit_logs 書込・ローカル verify プロセスを実測し、60秒後に再実測してから起動。走数上限 6 は **DB 単位**(セッション単位ではない)。単走の緑は翌日に持ち越さない(2連=同日連続)
+12. **起動ブロックは1チャットにのみ貼る**(教訓63)。CC を切り替える時は旧を終了させてから新を起こす
+13. **走数/日付条件は手順行の先頭に書く**(教訓64)。CC はブロック全体を読み切ってから起動する
+14. KPI 数値に danger-ink を使わない(裁定120 の範囲=エラー文のみ)。「操作履歴を見る」等の導線色は accent
+15. 走行中の f0 は途中停止しない(各段 finally 掃除が走らず翌朝の赤要因)
+16. 9/9 6走目は 914s(2連緑時 761/723s より遅い)。同日 5走目以降の遅延は PostgREST 疲弊の兆候として扱い、timeout 赤は回帰扱いしない
+（11〜16＝相談役引き継ぎ v28 §5 の逐語・2026-09-10 収載。10 は v29 で追加された項目のため番号順が前後する）
 
 既存裁定との突合5点＝対応表 v1 §12（優先順位数値露出 vs 裁定115-②／締め解除→再締め vs reclose・裁定12①／顧客按分禁止と
 check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履歴・適用期間 vs 現行の上書き更新）→ **裁定125 で決着**。
@@ -4068,6 +4075,11 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 72 | **audit_logs.reason に列 CHECK が無い（daily_reports の reopen_reason／diff_reason とは非対称）**（低・**観察**） | 理由 1〜200 字は report_reopen／cash_diff_approve／check_merge／payroll_reopen の RPC 本文だけで担保し、audit_logs.reason 列には CHECK・NOT NULL・enum が無い（B5 調査 8-2）。daily_reports 側は列 CHECK（mig0138）あり＝非対称。B5 では列 CHECK を足さない（裁定 B5-1「含まない」）＝観察継続。RPC 以外の書込経路（audit_log_write_service の直呼び）が増えたときに再判断。起票 2026-09-10 |
 | 73 | **payroll_mark_paid を呼ぶ route／UI が無い**（中・**B5 レーンで解消予定**＝裁定 B5-6） | payroll_mark_paid（service_role 限定・finalized→paid・冪等 paid_idem_key）は suite からしか呼ばれず、app に route も UI も無い（B5 調査 8-3）。'paid' は seed か手動でしか作れず、DEMO の 2026-07 run は 'paid'（payslips 6・payment_records 0）。処置＝B5-6「payroll_mark_paid の route＋UI を含める（owner 限定・状態遷移のみ）」＝app/api/payroll/mark-paid/route.ts 新設＋月次一覧の「支払済みにする」（設計書 §3.3／§5）。起票 2026-09-10 |
 | 74 | **payroll_reopen の reopen_flow 直読みは flag_enabled と二重**（注記のみ） | payroll_reopen は service 文脈（auth.uid() なし）のため flag_enabled（RPC）を使えず、feature_flags を店舗行→org 行→false の順で本文が直読みしている（mig0138 §9・B5 調査 8-6）。解決順は flag_enabled と同じだが実装は二重＝**key を増やす・解決順を変えるときは両方を追随する**（列 CHECK・flag_set 白名単・feature-flags-panel の 3 箇所＝0135 同型に加えて 4 箇所目）。B5 は flag 新設なし（裁定 B5-4）＝台帳注記のみ。起票 2026-09-10 |
+| 75 | **給与「この期間を確定する」が disabled のとき理由が出ない**（低・**修正済・目視待ち**） | blockers あり／対象 0 名で disabled になるが、ボタン脇に理由がなく上の「要対応」区画を見ないと分からない（2026-09-10 Agoora 目視）。処置（同日・client）＝ボタン脇に「要対応 N 件を解消してください」（対象 0 名は「対象キャストがいません」）・title 同文。起票・処置 2026-09-10 |
+| 76 | **キャスト割当表で割当行の無いキャストのプルダウン表示**（低・**修正済・目視待ち**） | 未割当キャストの select が「未割当（プラン選択）」で、既存割当の「プラン選択」と見分けにくい（2026-09-10 Agoora 目視）。処置（同日・client）＝割当行の無いキャストは空＝placeholder「未設定」。既存割当は現状・保存導線は不変。起票・処置 2026-09-10 |
+| 77 | **cast-comp の割当保存で RPC 生文言 'bad valid_from' が露出**（低・**修正済・目視待ち**） | set_cast_plan（mig0116）は `p_valid_from < current_date`（過去日）または `p_valid_from <= 現在行の valid_from` で 'bad valid_from'（2026-09-10 Agoora 目視）。処置（同日・client）＝compErrJa に「適用開始日は今日以降で、現在の適用開始日より後の日付にしてください」（判定 2 条件を両方含む文言）。同画面の他の生文言＝'bad overrides'（上書き値の型・範囲）も同時に写像。'reason_required'／'feature_disabled' は cast-comp の RPC には無い。起票・処置 2026-09-10 |
+| 78 | **/payroll で finalized／paid でも「この期間を確定する」が表示される**（低・**修正済・目視待ち**） | 確定済み期でもボタンが描かれ（disabled 条件は blockers／rows のみ）、押すと route が 409 already paid 等を返す（2026-09-10 Agoora 目視）。処置（同日・client）＝status==='draft' のときだけ描く。起票・処置 2026-09-10 |
+| 79 | **納付管理の注記が旧導線「上の支払記録から『支払済みにする』」のまま**（低・**修正済・目視待ち**） | B5 で支払済み化は月次一覧へ移った（裁定 B5-6）ため文言が実態と不一致（2026-09-10）。処置（同日・client）＝「給与 月次一覧の『支払済みにする』を実行してください」。起票・処置 2026-09-10 |
 | 80 | **確定解除ボタンの style 警告（border 短縮形と borderColor の混在）**（低・**修正済・目視待ち**） | payroll-board の「確定を解除」（payCount===0 分岐）が `{ ...t.btnGhost, borderColor: … }`＝t.btnGhost の `border: "1px solid var(--line2)"`（短縮形）に個別指定 borderColor を重ね、React が shorthand と longhand の混在を警告（2026-09-10 Agoora 目視）。処置（同日・client コミット）＝`border: "1px solid var(--bad)"` の短縮形で上書き。同型（btnGhost／btnLight 展開＋borderColor・条件付き spread 含む）を grep し **17 箇所**を同じ形へ（payroll 1・casts 2・staff 1・comp-sections 2・plan-editor 1・register 5・kiosk-register 1・customers 3・report 1）。条件付きで非選択時に undefined を渡していた 3 箇所（comp-sections 2・plan-editor 1）は `border: cond ? "1px solid var(--gold)" : t.btnGhost.border`＝非選択時も短縮形で明示。値は同じ＝見た目不変。番号は相談役指定（#75〜79 は本表に無い＝欠番）。起票・処置 2026-09-10 |
 
 ### 未裁定・消し込み待ち

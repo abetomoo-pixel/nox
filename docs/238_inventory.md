@@ -417,7 +417,7 @@
 | /analytics | {label} | trendMode === k ? on : | タブ／表示切替（{() => setTrendMode(k)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/analytics/analytics-board.tsx:786 | (4) 切替＝238-a（現状維持） |
 | /audit | {label} | ptab === k ? on : | タブ／表示切替（{() => setPTab(k)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/audit/audit-board.tsx:219 | (4) 切替＝238-a（現状維持） |
 | /audit | {v.label} | view === v.key ? on : | タブ／表示切替（{() => { setView(v.key); setPage(0); set） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/audit/audit-board.tsx:244 | (4) 切替＝238-a（現状維持） |
-| /audit | {fmtAt(l.at)} {l.action} {l.target} {use | nox-arow | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/audit/audit-board.tsx:294 | 保留（238 の裁定外＝タイル／行クリック） |
+| /audit | {fmtAt(l.at)} {l.action} {l.target} {use | nox-arow | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/audit/audit-board.tsx:294 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
 | /casts | {label} | filter === k ? on : | タブ／表示切替（{() => { setFilter(k); setSel(null); }） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/casts/casts-board.tsx:396 | (4) 切替＝238-a（現状維持） |
 | /casts | 体入 {tr.name} 体入 — 書類 完了 評価 {tr.rating ?  | nox-ccard $sel?.kind === trial && sel.id | スタイル判定不能（{() => { setSel({ kind: "trial", id:） | 1/2? | className／style からボタン種別が読めない | app/(manage)/casts/casts-board.tsx:480 | (4) 切替＝238-a（現状維持） |
 | /casts | nox-ctag off ` : "退店"} } {c.name} 在籍 / ロ | nox-ccard $sel?.kind === cast && sel.id  | スタイル判定不能（{() => { setSel({ kind: "cast", id: ） | 1/2? | className／style からボタン種別が読めない | app/(manage)/casts/casts-board.tsx:506 | (4) 切替＝238-a（現状維持） |
@@ -431,13 +431,13 @@
 | /master | {BULK_LABEL[k]} | bulkTarget === k ? on : | タブ／表示切替（{() => setBulkTarget(k)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/master/business-hours-panel.tsx:316 | (4) 切替＝238-a（現状維持） |
 | /master | 臨時休業 | (なし) | スタイル判定不能（） | 1/2? | className／style からボタン種別が読めない | app/(manage)/master/business-hours-panel.tsx:405 | (4) 切替＝238-a（現状維持） |
 | /master | 特別営業 | (なし) | スタイル判定不能（） | 1/2? | className／style からボタン種別が読めない | app/(manage)/master/business-hours-panel.tsx:406 | (4) 切替＝238-a（現状維持） |
-| /master/cast-comp | {p.name} {p.base} rate %` : p.hon_back}  | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/cast-comp/comp-sections.tsx:337 | 保留（238 の裁定外＝タイル／行クリック） |
-| /master/cast-comp | {COMP_KIND_LABEL[c.kind] ?? c} rate rate | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/cast-comp/comp-sections.tsx:394 | 保留（238 の裁定外＝タイル／行クリック） |
-| /master/cast-comp | {d.name} {DED_KIND_JA[d.kind] ?? d.kin}  | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/cast-comp/comp-sections.tsx:833 | 保留（238 の裁定外＝タイル／行クリック） |
-| /master/cast-comp | {b.name} {metricJa(b.basis)} sales %` :  | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/cast-comp/comp-sections.tsx:957 | 保留（238 の裁定外＝タイル／行クリック） |
+| /master/cast-comp | {p.name} {p.base} rate %` : p.hon_back}  | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/cast-comp/comp-sections.tsx:337 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
+| /master/cast-comp | {COMP_KIND_LABEL[c.kind] ?? c} rate rate | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/cast-comp/comp-sections.tsx:394 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
+| /master/cast-comp | {d.name} {DED_KIND_JA[d.kind] ?? d.kin}  | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/cast-comp/comp-sections.tsx:833 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
+| /master/cast-comp | {b.name} {metricJa(b.basis)} sales %` :  | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/cast-comp/comp-sections.tsx:957 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
 | /master/cast-comp/plan | ＋ 報酬プランを追加 | btnGhost,btnSm | タブ／表示切替（{() => { setSelId(null); setTab("base");） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/master/cast-comp/plan/plan-board.tsx:134 | (4) 切替＝238-a（現状維持） |
 | /master/cast-comp/plan | {label} | tab === k ? on : / var(--primary | タブ／表示切替（{() => setTab(k)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/master/cast-comp/plan/plan-board.tsx:147 | (4) 切替＝238-a（現状維持） |
-| /master/cast-comp/plan | ¥ {(c.amount ?? 0).toLocaleStri} guarant | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/cast-comp/plan/plan-editor.tsx:76 | 保留（238 の裁定外＝タイル／行クリック） |
+| /master/cast-comp/plan | ¥ {(c.amount ?? 0).toLocaleStri} guarant | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/cast-comp/plan/plan-editor.tsx:76 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
 | /master | 無効 | inline style | スタイル判定不能（{() => void switchStore(false)}） | 1/2? | className／style からボタン種別が読めない | app/(manage)/master/cast-register-panel.tsx:66 | (4) 切替＝238-a（現状維持） |
 | /master | 有効 | inline style | スタイル判定不能（{() => void switchStore(true)}） | 1/2? | className／style からボタン種別が読めない | app/(manage)/master/cast-register-panel.tsx:67 | (4) 切替＝238-a（現状維持） |
 | /master/categories | ∧ | nox-ordbtn / nox-ordbtn | スタイル判定不能（{() => move(i, -1)}） | 1/2? | className／style からボタン種別が読めない | app/(manage)/master/categories/categories-board.tsx:151 | (4) 切替＝238-a（現状維持） |
@@ -493,7 +493,7 @@
 | /master/products | (文言なし: アイコン/式) | nox-switch $pActive ? on : | タブ／表示切替（{() => setPActive(!pActive)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/master/products/products-board.tsx:770 | (4) 切替＝238-a（現状維持） |
 | /master/products | × | nox-formmodal-x | スタイル判定不能（{onClose}） | 1/2? | className／style からボタン種別が読めない | app/(manage)/master/products/products-board.tsx:876 | (4) 切替＝238-a（現状維持） |
 | /master/seats | {label} | seatKind === v ? on : | タブ／表示切替（{() => setSeatKind(v)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/master/seats/seats-board.tsx:101 | (4) 切替＝238-a（現状維持） |
-| /master/seats | {s.name} {s.kind} 有効 | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/seats/seats-board.tsx:111 | 保留（238 の裁定外＝タイル／行クリック） |
+| /master/seats | {s.name} {s.kind} 有効 | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/master/seats/seats-board.tsx:111 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
 | /master/seats | (文言なし: アイコン/式) | nox-switch $sActive ? on : | タブ／表示切替（{() => setSActive(!sActive)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/master/seats/seats-board.tsx:138 | (4) 切替＝238-a（現状維持） |
 | /master/stock | {p.name} 現在 {stock[p.id] ?? 0} | inline style | スタイル判定不能（） | 1/2? | className／style からボタン種別が読めない | app/(manage)/master/stock/stock-board.tsx:101 | (4) 切替＝238-a（現状維持） |
 | /master/system | {t.label} | t.key === active.key ? on : | タブ／表示切替（{() => setCur(t.key)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/master/system/system-board.tsx:58 | (4) 切替＝238-a（現状維持） |
@@ -507,7 +507,7 @@
 | /master | 人数単位 | inline style | スタイル判定不能（{() => setPer("person")}） | 1/2? | className／style からボタン種別が読めない | app/(manage)/master/time-pricing-panel.tsx:105 | (4) 切替＝238-a（現状維持） |
 | /notices | {l} | audFilter === v ? on : | タブ／表示切替（{() => setAudFilter(v)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/notices/notices-board.tsx:461 | (4) 切替＝238-a（現状維持） |
 | /payroll | {l} | rowTax === v ? on : | タブ／表示切替（{() => setRowTax(v)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/payroll/payroll-board.tsx:592 | (4) 切替＝238-a（現状維持） |
-| /payroll | {r.castName} {r.taxMode} {pay?.wHours != | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/payroll/payroll-board.tsx:629 | 保留（238 の裁定外＝タイル／行クリック） |
+| /payroll | {r.castName} {r.taxMode} {pay?.wHours != | inline style | 非 button 要素の onClick（tr） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/payroll/payroll-board.tsx:629 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
 | /payroll | 印刷 / PDFで保存 | btnGold | 印刷（window.print） | 2? | 補助動作だが画面外へ出る | app/(manage)/payroll/payroll-board.tsx:851 | (2) 補助＝238-c |
 | /register | 会計 {g} | value === g ? on : | タブ／表示切替（{() => onChange(g)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/register/register-board.tsx:1393 | (4) 切替＝238-a（現状維持） |
 | /register | 卓席・会計 | tab === tables ? on : undefined | タブ／表示切替（{() => { setTab("tables"); void loadOpen） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/register/register-board.tsx:1463 | (4) 切替＝238-a（現状維持） |
@@ -536,7 +536,7 @@
 | /report | {label} | arSort === k ? on : | タブ／表示切替（{() => setArSort(k)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/report/report-board.tsx:602 | (4) 切替＝238-a（現状維持） |
 | /report | {label} | arFilter === k ? on : | タブ／表示切替（{() => setArFilter(k)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/report/report-board.tsx:608 | (4) 切替＝238-a（現状維持） |
 | /report | 金種で数える | btnLight | モーダル／パネルを開く（{() => setDenomOpen(true)}） | 1/2? | 同一画面内で開く＝実行か補助か | app/(manage)/report/report-board.tsx:1151 | (2) 補助＝238-b（付け替えなし） |
-| /report | - （ {DOW[dowOf(r.biz_date)]} ） {r.slips} | nox-histrow / nox-histrow | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/report/report-board.tsx:1206 | 保留（238 の裁定外＝タイル／行クリック） |
+| /report | - （ {DOW[dowOf(r.biz_date)]} ） {r.slips} | nox-histrow / nox-histrow | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/report/report-board.tsx:1206 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
 | /shift | ＋ キャストを追加 | nox-addc | スタイル判定不能（{() => { setListOpen((v) => !v); set） | 1/2? | className／style からボタン種別が読めない | app/(manage)/shift/day-add-panel.tsx:120 | (4) 切替＝238-a（現状維持） |
 | /shift | {c.name} nox-stpill nox-stpill ok | nox-crow / var(--primary | スタイル判定不能（{() => toggle(c)}） | 1/2? | className／style からボタン種別が読めない | app/(manage)/shift/day-add-panel.tsx:136 | (4) 切替＝238-a（現状維持） |
 | /shift | {Number(ymd.slice(8))} var(--sub) }>休 }  | [nox-cald, ymd === focusDay ? sel : ].fi | スタイル判定不能（{() => clickDay(ymd)}） | 1/2? | className／style からボタン種別が読めない | app/(manage)/shift/shift-add-form.tsx:391 | (4) 切替＝238-a（現状維持） |
@@ -559,10 +559,10 @@
 | /shift | ＋ | btnLight | モーダル／パネルを開く（{() => { ） | 1/2? | 同一画面内で開く＝実行か補助か | app/(manage)/shift/shift-board.tsx:1790 | (2) 補助＝238-b（付け替えなし） |
 | /shift | × | btnLight | モーダル／パネルを開く（{() => setDayModal("")}） | 1/2? | 同一画面内で開く＝実行か補助か | app/(manage)/shift/shift-board.tsx:1997 | (2) 補助＝238-b（付け替えなし） |
 | /shift | 時間を調整 | btnLight | モーダル／パネルを開く（{() => { // ★C） | 1/2? | 同一画面内で開く＝実行か補助か | app/(manage)/shift/shift-board.tsx:2018 | (2) 補助＝238-b（付け替えなし） |
-| /shift | {Number(day.slice(8))} var(--v2-muted) } | cls | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/shift/staff-shift-board.tsx:139 | 保留（238 の裁定外＝タイル／行クリック） |
+| /shift | {Number(day.slice(8))} var(--v2-muted) } | cls | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/shift/staff-shift-board.tsx:139 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
 | /shift | {Number(day.slice(8))} {e.map((p) => { } | cls | スタイル判定不能（{() => setSelDay(day)}） | 1/2? | className／style からボタン種別が読めない | app/(manage)/shift/staff-shift-manage.tsx:124 | (4) 切替＝238-a（現状維持） |
-| /staff | — {isSelf(m) && <span style={{ } }>(自分)  | nox-srow2 | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/staff/staff-board.tsx:199 | 保留（238 の裁定外＝タイル／行クリック） |
-| /staff | {PERM_DEFS.map(([k, label]) =} type="but | nox-perms | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/staff/staff-board.tsx:215 | 保留（238 の裁定外＝タイル／行クリック） |
+| /staff | — {isSelf(m) && <span style={{ } }>(自分)  | nox-srow2 | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/staff/staff-board.tsx:199 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
+| /staff | {PERM_DEFS.map(([k, label]) =} type="but | nox-perms | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | app/(manage)/staff/staff-board.tsx:215 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
 | /staff | {label} | nox-perm $m[k] ? on : | タブ／表示切替（{() => void toggleFlag(m, k)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | app/(manage)/staff/staff-board.tsx:217 | (4) 切替＝238-a（現状維持） |
 | /kiosk | {c.cast_name} var(--sub) }>PIN未設定 } | inline style | スタイル判定不能（{() => pick(c)}） | 1/2? | className／style からボタン種別が読めない | app/kiosk/page.tsx:175 | (4) 切替＝238-a（現状維持） |
 | /kiosk | {d} | inline style | スタイル判定不能（{() => keyIn(d)}） | 1/2? | className／style からボタン種別が読めない | app/kiosk/page.tsx:201 | (4) 切替＝238-a（現状維持） |
@@ -582,11 +582,11 @@
 | /mine | 印刷 / PDFで保存 | nox-noprint / btnGhost,btnSm | 印刷（window.print） | 2? | 補助動作だが画面外へ出る | app/mine/print-payslip-button.tsx:9 | (2) 補助＝238-c |
 | components/nox | {label} | chip === k ? on : | タブ／表示切替（{() => setChip(k)}） | 2? | 同一画面内の切替＝補助か第 4 分類か | components/nox/cast-picker.tsx:75 | (4) 切替＝238-a（現状維持） |
 | components | 元に戻す | btnSm | スタイル判定不能（{() => setEdit(edit ? null : { ） | 1/2? | className／style からボタン種別が読めない | components/simulator-panel.tsx:178 | (4) 切替＝238-a（現状維持） |
-| components/ui | {children} | overlayCls | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | components/ui/modal.tsx:64 | 保留（238 の裁定外＝タイル／行クリック） |
-| components/ui | {children} | nox-modal-card nox-cardtop | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | components/ui/modal.tsx:65 | 保留（238 の裁定外＝タイル／行クリック） |
+| components/ui | {children} | overlayCls | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | components/ui/modal.tsx:64 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
+| components/ui | {children} | nox-modal-card nox-cardtop | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | components/ui/modal.tsx:65 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
 | components/ui | その他 | restActive ? nox-tab on : nox-tab / nox-tab | スタイル判定不能（{() => setSheet(true)}） | 1/2? | className／style からボタン種別が読めない | components/ui/nav.tsx:68 | (4) 切替＝238-a（現状維持） |
-| components/ui | メニュー {groups.map((g, gi) => { } `} class | nox-modal-overlay | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | components/ui/nav.tsx:76 | 保留（238 の裁定外＝タイル／行クリック） |
-| components/ui | メニュー {groups.map((g, gi) => { } `} class | nox-modal-card nox-cardtop nox-navsheet | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | components/ui/nav.tsx:77 | 保留（238 の裁定外＝タイル／行クリック） |
+| components/ui | メニュー {groups.map((g, gi) => { } `} class | nox-modal-overlay | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | components/ui/nav.tsx:76 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
+| components/ui | メニュー {groups.map((g, gi) => { } `} class | nox-modal-card nox-cardtop nox-navsheet | 非 button 要素の onClick（div） | ? | タイル／行クリック＝ボタン化するか | components/ui/nav.tsx:77 | (4) 切替＝238-a（タイル／行クリック＝選択・2026-09-10 相談役指示で保留から振替） |
 | components/ui | {l} | on ? on : | タブ／表示切替（{() => { if (on) return; ） | 2? | 同一画面内の切替＝補助か第 4 分類か | components/ui/seg-select.tsx:34 | (4) 切替＝238-a（現状維持） |
 
 ## 保留の内訳
@@ -639,7 +639,7 @@
 - (3) リンク: 28 件（.nox-link 付け替え 25＋カード型 238-e 3）
 - (4) 切替: 139 件（238-a）
 - 対象外（グローバルナビ 238-d）: 4 件
-- 保留（非 button 要素の onClick）: 16 件
+- 保留（非 button 要素の onClick）: 0 件（16 件を (4) 切替へ振替・2026-09-10）
 
 ## 注記（機械判定の限界＝相談役の目で見直す箇所）
 
