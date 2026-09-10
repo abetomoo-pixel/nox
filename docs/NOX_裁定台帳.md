@@ -3002,8 +3002,14 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 | **C③-10** | flag off の raise は `feature_disabled:reopen_flow` |
 | **C③-11** | memberships に can_close／can_reopen（boolean not null default false）＋set_staff_perms を 6 引数へ（#63 同梱）。daily_report_close／cash_diff_approve は staff∧can_close 可。report_reopen／payroll_reopen は owner／manager＋staff∧can_reopen |
 | **C③-12** | D45（入金方法別照合）は本書対象外＝別 mig |
+| **C③-13** | payroll_reopen は 5 引数版（末尾 p_reason・default なし）を新設し 4 引数版を drop。route と呼出を同時改修（2026-09-10 追加） |
+| **C③-14** | 理由は新規 4 RPC 本文で `length(trim(p_reason)) between 1 and 200` を判定（違反 `reason_required`）。新列には同値の CHECK。check_void は触らない |
+| **C③-15** | 関所 `assert_day_open` は課金ゲート内蔵の書込 RPC **16 本全部**（§8-1 実名）に 1 行。伝票行のない check_open は `biz_date_of(p_store_id, now())` で判定 |
+| **C③-16** | merged は「void を除外する述語」の全箇所に併記（app: collect.ts 1・SQL 集計: §8-2 実測 0）。stock 戻しトリガは void 限定のまま（line は into へ移る） |
+| **C③-17** | route authz は `decideReopenAccess(role, can_reopen)` 新設（owner／manager／staff∧can_reopen）。decideTaxReportAccess は不触 |
+| **C③-18** | cash_diff_approve は counted_cash null で `not_counted`（実査前は承認不可） |
 
-理由必須の統一: 解除（report_reopen／payroll_reopen）・承認（cash_diff_approve）・合算（check_merge）は p_reason not null・1〜200 字。次＝CC 突合（§8）→ v1 → live 再 dump → mig0138（相談役）→ 手貼り → suite 逆張り → UI（Fable）。
+理由必須の統一: 解除（report_reopen／payroll_reopen）・承認（cash_diff_approve）・合算（check_merge）は p_reason not null・1〜200 字（C③-14）。C③-13〜18 は draft §8 実測（`c4e59b5`）の食い違い 10 点を確定したもの＝設計書 v1（2026-09-10・`NOX_C3_解除型統一_設計書_v1_20260910.md`）。次＝live 再 dump → mig0138（相談役）→ 手貼り → suite 逆張り → UI（Fable）。
 
 ## 裁定237（Agoora 承認 2026-09-10）締切ロックの client 算出（deadlines 表から RPC と同式）は許容＝式の二重管理は #68 で解消
 
@@ -3984,6 +3990,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 65 | **sweep の起動ガード（他 verify 走行中は f0 を起動しない・機械化）** | 裁定200・教訓63（複数チャットの f0 並走）。`verify-nox-audit-sweep.ts`（f0 先頭）の冒頭で「他の verify 走行中」を検知して停止する案: (a) 直結で pg_stat_activity を読み、`application_name` に verify 印（各スイートの pg／supabase-js 接続へ `nox-verify:<suite>` を付与）を持つ自分以外の backend があれば raise (b) 60 秒の再実測で消えなければ停止。audit_logs へ開始マーカーを書く案は監査系列の汚染（#58 の残骸型）になるため不採用。設計は相談役・起票 2026-09-09 |
 | 67 | **staff_wish_delete RPC 新設（本人・締切前・監査 action=RPC 名）**（低） | C層② 面 b の希望は upsert のみで「なし」へ戻せない（裁定236）。補正 mig（0138 想定・裁定229 型）で staff_wish_delete(p_wish_id) を新設＝本人の行のみ・締切前のみ（staff_shift_deadline_at で判定）・flag gate・課金ゲート不要（事実記録＝B(i) 同型）・audit action='staff_wish_delete'。UI は面 b のタップ巡回へ「なし」を足す。起票 2026-09-10 |
 | 68 | **staff_shift_deadline_at を authenticated 公開へ切替→client 算出を撤去**（低） | 面 b／c は締切ロックを deadlines 表から同式で算出（裁定237）。補正 mig（裁定234 型＝grant execute … to authenticated のみ・本文不変）で関数を公開し、staff-shift-board.tsx の deadlineMsOf を RPC 呼出（日ごと or 月まとめ）へ置換＝式の二重管理を解消。名簿＝B(f) へ（読取・非ゲート）・grants の G4c から外し HELPERS 側へ。起票 2026-09-10 |
+| 69 | **/shift の対象切替（キャスト／黒服）時に scrollTo(0)**（低） | C層② H3 の切替は同一ページ内の描画差し替えで scrollY を変えないため、cast 面でスクロール後に黒服へ切り替えると見出しが sticky 上バー（.nox-tb 64px）の下に潜る（2026-09-10 Agoora 目視・約 40px）。切替 onClick で `window.scrollTo({ top: 0 })` を 1 行（B4 の面は不触）。起票 2026-09-10 |
 
 ### 未裁定・消し込み待ち
 
