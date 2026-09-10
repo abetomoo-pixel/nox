@@ -109,7 +109,8 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 
 ## A. 対象（104本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
 
-### A1. レジ・会計（20本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
+### A1. レジ・会計（21本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
+**check_merge**（mig0138＋0139＝open 伝票 2 枚→1 枚の統合・owner∨manager 自店・課金ゲート＋flag reopen_flow＋理由必須・kiosk 腕なし・C層③＝裁定 C③-6〜8） /
 check_open[K] / check_add_line[K] / check_remove_line[K] / check_add_seat[K] / check_remove_seat[K] /
 check_move_seat[K] / check_set_nominations[K] / check_time_charge_apply[K] / check_shimei_add[K] /
 check_dohan_add[K] / check_pay[K] / check_close[K] / **check_void**（裁定D1＝金銭記録の改変） /
@@ -154,7 +155,9 @@ set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_co
 set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config /
 **set_comp_component**（mig0115＝comp_plan_components の唯一の書き手・owner のみ・ゲート内蔵・裁定86）
 
-### A8. 店設定（14本）
+### A8. 店設定・日報運用（22本）
+**report_reopen**（mig0138＝日報の締め解除・owner∨manager 自店∨staff∧can_reopen・理由必須・監査 report_reopen・C層③＝裁定 C③-1） /
+**cash_diff_approve**（mig0138＝現金差異の承認・owner∨manager∨staff∧can_close・理由必須・監査 cash_diff_approve・C層③＝裁定 C③-4／18） /
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /
 set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin / set_staff_pin /
 **store_sales_target_set**（mig0096＝月間売上目標・null=削除・E8-6） /
@@ -261,6 +264,8 @@ staff_deactivate / kiosk_deactivate
 |---|---|
 | auth_membership_id | **ヘルパー**（本人 membership.id・authenticated 可・裁定 C②-9） |
 | staff_shift_can_manage | **ヘルパー**（owner∨manager 自店判定。policy から呼ぶため 0137 で authenticated に execute＝教訓66・裁定231） |
+| auth_staff_can_close / auth_staff_can_reopen | **ヘルパー**（mig0138＝memberships.can_close／can_reopen の読取・auth_staff_can_shift 同型・authenticated 可・C③-11）※B(f) 相当だが黒服系ヘルパーとして本節に置く |
+| report_can_close / report_can_reopen / assert_day_open | **内部ヘルパー**（mig0138＝締め／解除の権限判定と締め済み営業日の関所・4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型・C③-2／11） |
 | staff_shift_biz_today / staff_shift_gate / staff_pattern_effective / staff_shift_deadline_at | **内部ヘルパー**（4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型。biz_today は 0137 で biz_date_of へ委譲＝裁定232） |
 
 ## C. kiosk 腕を持つ対象（実装注意・16本）

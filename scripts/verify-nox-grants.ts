@@ -51,6 +51,7 @@ const HELPERS = [
   "auth_cast_can_register", // キャスト会計（mig0039・2段ゲート）
   "auth_kiosk_store_id", "auth_kiosk_org_id", // F4a キオスク（mig0043・kiosk_devices 起点＝auth_cast_id 同型）
   "auth_membership_id", // C層② 黒服本人＝memberships.id（mig0136・裁定 C②-9・authenticated 可＝G4/G4b 同型）
+  "auth_staff_can_close", "auth_staff_can_reopen", // C層③ 締め／解除の個別付与（mig0138・auth_staff_can_shift 同型・authenticated 可）
   "staff_shift_can_manage", // C層② owner∨manager 自店判定（mig0136→0137 で authenticated に execute＝policy から呼ぶ関数は呼出者権限で評価される・教訓66）
   "auth_kiosk_register_store_id", "auth_kiosk_operator", // K レジ用キオスク（mig0056・register device 識別＋operator セッション解決＝G4/G4b が secdef/search_path/ACL を自動回帰）
 ];
@@ -196,9 +197,10 @@ async function main() {
     }
   }
 
-  // G4c: C層② 内部ヘルパー 4 本（mig0136・0137 で can_manage は G4/G4b 側へ）＝SECURITY DEFINER・search_path 固定・4 ロール明示 revoke（authenticated/anon/service_role/public 不在）
+  // G4c: C層② 内部ヘルパー 4 本（mig0136・0137 で can_manage は G4/G4b 側へ）＋C層③ 内部ヘルパー 3 本（mig0138）＝SECURITY DEFINER・search_path 固定・4 ロール明示 revoke（authenticated/anon/service_role/public 不在）
   {
-    const INTERNAL = ["staff_shift_biz_today", "staff_shift_gate", "staff_pattern_effective", "staff_shift_deadline_at"]; // ★0137: can_manage は HELPERS へ（policy から呼ぶ）
+    const INTERNAL = ["staff_shift_biz_today", "staff_shift_gate", "staff_pattern_effective", "staff_shift_deadline_at", // ★0137: can_manage は HELPERS へ（policy から呼ぶ）
+      "report_can_close", "report_can_reopen", "assert_day_open"]; // ★0138: C層③ 内部ヘルパー（RPC 本文からのみ・4 ロール revoke）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
