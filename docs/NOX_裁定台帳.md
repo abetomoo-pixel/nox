@@ -2984,9 +2984,17 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 ---
 
+## 裁定237（Agoora 承認 2026-09-10）締切ロックの client 算出（deadlines 表から RPC と同式）は許容＝式の二重管理は #68 で解消
+
+出典＝相談役ブロック（2026-09-10）。staff_shift_deadline_at は内部専用（0136）で client から呼べないため、面 b／c は staff_shift_deadlines を select し「対象営業日 − days_before の deadline_hm（JST）・行なし＝3 日前 21:00」を同式で算出している。書込側の判定は RPC（staff_wish_set）が正＝client は表示のロックのみ。同じ式を 2 箇所で持つ状態は #68（関数を authenticated へ公開→client 算出撤去）で解消する。
+
+## 裁定236（Agoora 承認 2026-09-10）希望の取消（「なし」へ戻す）は C層② の範囲外＝staff_wish_delete RPC（本人・締切前）は次の補正 mig で
+
+出典＝相談役ブロック（2026-09-10）。面 b の ◯× は「なし→◯→×→◯」の巡回で、一度出した希望を「なし」へ戻す経路は 0136／0137 に無い（設計書 v1 §2 の RPC 7 本に削除なし）。取消は #67 の補正 mig（staff_wish_delete＝本人・締切前・監査 action＝RPC 名）で足す。C層② の UI はそれまで現状のまま。
+
 ## 裁定235（Agoora 承認 2026-09-09）C層② 面 c の月ストリップ表示は「配置 n／希望 m」（n＝その枠の行数〔確認待ち＋確定〕・m＝◯の希望者数）
 
-出典＝相談役ブロック（2026-09-09「面 c の表示を『配置 n／希望 m』へ（ラベルのみ）」）。「枠×充足 n/m」は必要人数の器が無いため「充足」と読めず、配置数と希望者数の 2 語に改めた。値と取得は不変＝`b9311bc`。裁定236／237・起票 #67／#68 は同ブロックの「上表」を CC が受信できなかったため未収載（本文の再提示待ち）。
+出典＝相談役ブロック（2026-09-09「面 c の表示を『配置 n／希望 m』へ（ラベルのみ）」）。「枠×充足 n/m」は必要人数の器が無いため「充足」と読めず、配置数と希望者数の 2 語に改めた。値と取得は不変＝`b9311bc`。裁定236／237・起票 #67／#68 は 2026-09-10 の再提示で収載。
 
 ## 裁定234（2026-09-09・CC 起こし・裁定229／230 の補足文＝承認文から分離して保管）
 
@@ -3948,6 +3956,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 63 | **set_staff_perms 6 引数化（can_close／can_reopen・C層③ mig 同梱・A6 名簿）** | 横断設計書 §2（裁定180）: memberships に `can_close boolean not null default false`／`can_reopen boolean not null default false` を追加し、set_staff_perms(p_membership_id, 4 boolean) → 6 boolean へ（旧署名 DROP・原則7＝UI は全引数明示・A6 名簿は署名変更として全数照合）。解除型 RPC の判定＝`auth_role() in ('owner','manager') or (auth_role()='staff' and can_reopen)`。付与剥奪は `perm_change` で監査。staff-board の権限チップに 2 列追加（黒服のみ操作可）。起票 2026-09-09 |
 | 64 | **レジのキャスト候補にランク・出勤状態を併記（R43・attendance 読取＝新規クエリ）** | モック v12.1 の候補文「あべ｜エース・出勤中」「れいな｜接客中」。現行 CastPicker は名前・写真のみで、register-board は attendance／cast_ranks を読んでいない＝A層（新規クエリなし）の外。レジ本レーン（Fable）で「候補の並び・在席（openNoms）・出勤（attendance）」を 1 クエリで足すか、CastPicker 共通部品側で受けるかを裁定。PII なし。起票 2026-09-09（CC 起こし） **→ B3（レジ非 money レーン R34 と同じ attendance 読取）で解消予定**（2026-09-09） **→ クローズ（2026-09-09・B3-1 `acc5be5`＝出勤中／接客中／打刻＋ランク名・Agoora owner 実機で目視済・push）** |
 | 65 | **sweep の起動ガード（他 verify 走行中は f0 を起動しない・機械化）** | 裁定200・教訓63（複数チャットの f0 並走）。`verify-nox-audit-sweep.ts`（f0 先頭）の冒頭で「他の verify 走行中」を検知して停止する案: (a) 直結で pg_stat_activity を読み、`application_name` に verify 印（各スイートの pg／supabase-js 接続へ `nox-verify:<suite>` を付与）を持つ自分以外の backend があれば raise (b) 60 秒の再実測で消えなければ停止。audit_logs へ開始マーカーを書く案は監査系列の汚染（#58 の残骸型）になるため不採用。設計は相談役・起票 2026-09-09 |
+| 67 | **staff_wish_delete RPC 新設（本人・締切前・監査 action=RPC 名）**（低） | C層② 面 b の希望は upsert のみで「なし」へ戻せない（裁定236）。補正 mig（0138 想定・裁定229 型）で staff_wish_delete(p_wish_id) を新設＝本人の行のみ・締切前のみ（staff_shift_deadline_at で判定）・flag gate・課金ゲート不要（事実記録＝B(i) 同型）・audit action='staff_wish_delete'。UI は面 b のタップ巡回へ「なし」を足す。起票 2026-09-10 |
+| 68 | **staff_shift_deadline_at を authenticated 公開へ切替→client 算出を撤去**（低） | 面 b／c は締切ロックを deadlines 表から同式で算出（裁定237）。補正 mig（裁定234 型＝grant execute … to authenticated のみ・本文不変）で関数を公開し、staff-shift-board.tsx の deadlineMsOf を RPC 呼出（日ごと or 月まとめ）へ置換＝式の二重管理を解消。名簿＝B(f) へ（読取・非ゲート）・grants の G4c から外し HELPERS 側へ。起票 2026-09-10 |
 
 ### 未裁定・消し込み待ち
 
