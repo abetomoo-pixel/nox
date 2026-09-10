@@ -2846,6 +2846,10 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓67：NOT NULL 列を持つ表への insert は列定義を先に写す（相談役起こし）
+
+2026-09-10、mig0138 の check_merge が from の主席を into の追加席へ移す `insert into public.check_seats (check_id, seat_id)` を書いたが、check_seats は org_id／store_id が NOT NULL・default なしで、統合の通常ケースで not-null 違反になる（CC 突合で検知→0139 で補正）。mig の起草では**insert 先の表の列定義（NOT NULL・default・FK）を live dump から先に写し、insert の列リストと突き合わせる**。proof も「関数が存在する」だけでなく「insert 文の列リストに NOT NULL 列が揃う」（`prosrc like '%insert into … (org_id, store_id, …)%'`）を 1 行入れる（0139 の proof が前例）。
+
 ### 教訓66：RLS policy から呼ぶ関数は authenticated に execute を付ける（policy 評価は呼出者権限）
 
 2026-09-09、mig0136 の 4 表 select policy が `staff_shift_can_manage(store_id)` を呼び、同関数を内部専用の流儀（4 ロール明示 revoke）で作ったため、policy 評価が `permission denied for function` で落ちて全ロールの select がエラーになった（RPC 本文からの呼出は SECURITY DEFINER 文脈＝postgres 権限で通るため mig 末尾の proof では見えない）。**policy の using／with check から呼ぶ関数は auth_* ヘルパー同型＝`grant execute to authenticated`** が要る（内部専用の 4 ロール revoke は「公開 RPC の本文からだけ呼ぶ関数」に限る＝CLAUDE.md 二重防御 8 の流儀の境界）。検知は verify の 3 ロール select（ss(7a〜7d)）と直結 pg の `set local role authenticated` 再現。0137 で補正（裁定231）。
@@ -3008,6 +3012,7 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 | **C③-16** | merged は「void を除外する述語」の全箇所に併記（app: collect.ts 1・SQL 集計: §8-2 実測 0）。stock 戻しトリガは void 限定のまま（line は into へ移る） |
 | **C③-17** | route authz は `decideReopenAccess(role, can_reopen)` 新設（owner／manager／staff∧can_reopen）。decideTaxReportAccess は不触 |
 | **C③-18** | cash_diff_approve は counted_cash null で `not_counted`（実査前は承認不可） |
+| **C③-19** | 冪等キー列は 2 本（daily_reports.reclose_idem_key・checks.merge_idem_key）。再締めで diff が動いた（`v_diff is distinct from 前値`）ら diff_reason／diff_approved_by／diff_approved_at を null に戻す（承認は差異の値に紐づく）。report_reopen は reclosed_*／reclose_idem_key を null に戻す（2026-09-10 追加・mig0138 実装どおり） |
 
 理由必須の統一: 解除（report_reopen／payroll_reopen）・承認（cash_diff_approve）・合算（check_merge）は p_reason not null・1〜200 字（C③-14）。C③-13〜18 は draft §8 実測（`c4e59b5`）の食い違い 10 点を確定したもの＝設計書 v1（2026-09-10・`NOX_C3_解除型統一_設計書_v1_20260910.md`）。次＝live 再 dump → mig0138（相談役）→ 手貼り → suite 逆張り → UI（Fable）。
 
