@@ -2846,6 +2846,10 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓68：生成 mig の挿入行は「参照する変数が宣言済みか・その行の時点で代入済みか」を機械で assert する（相談役起こし）
+
+2026-09-10、mig0140（16 本へ関所 1 行を機械挿入）の生成器は、伝票行のない check_open だけ `assert_day_open(v_store, biz_date_of(v_store, now()))` を**ゲート行の直後**に差したが、check_open に v_store は無く（店は `v_seat.store_id`・しかも select はゲート行より後）、手貼り後の live で開卓が全件 `column "v_store" does not exist` になった（billing 段47-3 で検知→0141 で補正）。生成器の機械確認は「挿入前に呼出なし・挿入位置 1 本・行数 +1」だけで、**挿入行が参照する識別子を見ていなかった**。生成 mig では**挿入行に現れる v_*／p_* を declare 部と引数リストに照合し、かつ代入（`into v_x`／`v_x :=`）が挿入位置より前にあること**を assert する（0141 生成器の (c) が前例）。加えて、生成した mig は手貼り前に **verify の単体（billing 等）を先に走らせる**か、少なくとも代表 1 本を dry-run（begin〜rollback）で呼ぶ＝「本文一致」の突合だけでは実行時エラーを拾えない。
+
 ### 教訓67：NOT NULL 列を持つ表への insert は列定義を先に写す（相談役起こし）
 
 2026-09-10、mig0138 の check_merge が from の主席を into の追加席へ移す `insert into public.check_seats (check_id, seat_id)` を書いたが、check_seats は org_id／store_id が NOT NULL・default なしで、統合の通常ケースで not-null 違反になる（CC 突合で検知→0139 で補正）。mig の起草では**insert 先の表の列定義（NOT NULL・default・FK）を live dump から先に写し、insert の列リストと突き合わせる**。proof も「関数が存在する」だけでなく「insert 文の列リストに NOT NULL 列が揃う」（`prosrc like '%insert into … (org_id, store_id, …)%'`）を 1 行入れる（0139 の proof が前例）。
@@ -3008,7 +3012,7 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 | **C③-12** | D45（入金方法別照合）は本書対象外＝別 mig |
 | **C③-13** | payroll_reopen は 5 引数版（末尾 p_reason・default なし）を新設し 4 引数版を drop。route と呼出を同時改修（2026-09-10 追加） |
 | **C③-14** | 理由は新規 4 RPC 本文で `length(trim(p_reason)) between 1 and 200` を判定（違反 `reason_required`）。新列には同値の CHECK。check_void は触らない |
-| **C③-15** | 関所 `assert_day_open` は課金ゲート内蔵の書込 RPC **16 本全部**（§8-1 実名）に 1 行。伝票行のない check_open は `biz_date_of(p_store_id, now())` で判定 |
+| **C③-15** | 関所 `assert_day_open` は課金ゲート内蔵の書込 RPC **16 本全部**（§8-1 実名）に 1 行。伝票行のない check_open は `biz_date_of(p_store_id, now())` で判定。**追記（2026-09-10・mig0141）**: check_open の実引数は p_seat_id（p_store_id は無い）ため店の出所は **`v_seat.store_id`（seats join stores の select 後）**＝関所行は `if v_seat.id is null … forbidden` の**直後**に `assert_day_open(v_seat.store_id, biz_date_of(v_seat.store_id, now()))`。0140 はゲート行直後に未宣言の v_store で書いており開卓が全件エラー（教訓68）→ 0141 で補正 |
 | **C③-16** | merged は「void を除外する述語」の全箇所に併記（app: collect.ts 1・SQL 集計: §8-2 実測 0）。stock 戻しトリガは void 限定のまま（line は into へ移る） |
 | **C③-17** | route authz は `decideReopenAccess(role, can_reopen)` 新設（owner／manager／staff∧can_reopen）。decideTaxReportAccess は不触 |
 | **C③-18** | cash_diff_approve は counted_cash null で `not_counted`（実査前は承認不可） |
