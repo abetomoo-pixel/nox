@@ -13,6 +13,9 @@
  *  3d cash_diff_approve: not_counted・no_diff・already_approved・reason_required・staff∧can_close
  *  3e check_merge: 拒否 6（同一 id／別店／status／money／cast／pay_group）各 1 回・成功時 line／nomination／seat 数保存・
  *     from が merged＋merged_into・主席が into の check_seats に入る（org_id／store_id あり）・check_recalc 後の total 一致・同一 idem 再呼で into
+ *     ＋（mig0142・裁定 C③-20・教訓69）A2 を一時 auto 店（set_fee 3000）にして check_open（RPC）で 2 卓とも time_auto の set 行を持たせ、
+ *       合算成功・into の time_auto 行は元の 1 組のみ・移送行は time_auto=false／block_no=null で件数一致・into の total＝両卓の合計・
+ *       check_time_charge_apply を into で再実行しても移送行が不変（A2 の時間 6 値は開始時の値を finally で復元）
  *  3f 監査: report_reopen／cash_diff_approve／check_merge／payroll_reopen の action 逐語と reason 保存
  *  3g set_staff_perms 7 引数: 6 boolean 明示で通る・いずれか null で 'bad flag'
  *
@@ -48,7 +51,8 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 const has = (e: { message?: string } | null | undefined, s: string) => !!e?.message?.includes(s);
 
-const SEATS = ["NOX-VERIFY-RO卓1", "NOX-VERIFY-RO卓2", "NOX-VERIFY-RO卓3", "NOX-VERIFY-RO卓4", "NOX-VERIFY-RO卓A2"];
+const SEATS = ["NOX-VERIFY-RO卓1", "NOX-VERIFY-RO卓2", "NOX-VERIFY-RO卓3", "NOX-VERIFY-RO卓4", "NOX-VERIFY-RO卓A2",
+  "NOX-VERIFY-RO卓A2g", "NOX-VERIFY-RO卓A2h", "NOX-VERIFY-RO卓A2g2"]; // 後ろ 3 つ＝3e-14〜20（A2・check_open 2 卓＋from の追加席）
 const D1 = "2026-03-05", D2 = "2026-03-06", D3 = "2026-03-07"; // 締め済み日（fixture）
 const E = "2026-04-01";                                          // 締めのない日（merge 用）
 const PERIOD = "2031-03";
@@ -95,8 +99,12 @@ async function main() {
   const seatIds: string[] = [];
   const checkIds: string[] = [];
   let runId: string | null = null;
+  // ★mig0142（3e-14〜20）: A2 を一時 auto 店にするため時間 6 値を退避（finally の teardown で復元）
+  const A2_TIME_COLS = "time_mode, set_min, set_fee, ext_min, ext_fee, time_per";
+  const a2time = (await admin.from("stores").select(A2_TIME_COLS).eq("id", storeA2).single()).data as Record<string, unknown> | null;
 
   async function teardown() {
+    if (a2time) await admin.from("stores").update(a2time).eq("id", storeA2); // ★mig0142: A2 の時間 6 値を復元
     // 伝票（fixture id 精密削除・lines/noms/seats/payments は CASCADE でない表があるため先に消す）
     if (checkIds.length) {
       await admin.from("payments").delete().in("check_id", checkIds);
@@ -163,6 +171,9 @@ async function main() {
   const sF2 = await mkSeat(storeA1, SEATS[2]);  // merge from の追加席
   const sI = await mkSeat(storeA1, SEATS[3]);   // merge into の主席
   const sA2seat = await mkSeat(storeA2, SEATS[4]);
+  const sG = await mkSeat(storeA2, SEATS[5]);   // 3e-14: 自動時間料金あり from の主席
+  const sH = await mkSeat(storeA2, SEATS[6]);   // 3e-14: 自動時間料金あり into の主席
+  const sG2 = await mkSeat(storeA2, SEATS[7]);  // 3e-15: from の追加席
   const repD1 = await mkReport(D1);
   await mkReport(D2);
   await mkReport(D3);
@@ -342,6 +353,53 @@ async function main() {
       check("ro(3e-12) 同一 idem の再呼は into を返す（冪等）", !eM2 && mid2 === chkI, eM2?.message ?? String(mid2));
       const eM3 = (await merge(chkF, chkI)).error;
       check("ro(3e-13) 別 idem の再呼は merge_conflict:status（from は merged）", has(eM3, "merge_conflict:status"), eM3?.message ?? "通ってしまった");
+
+      // ══ 3e-14〜20（mig0142・裁定 C③-20・教訓69）: 2 卓とも自動時間料金（time_auto）行あり ══
+      //   A2 を一時 auto 店・set_fee 3000 にして check_open（RPC・owner・A2 は締めのない営業日）で G／H を開卓＝両方に
+      //   time_auto の set 行（fee_kind 'set'・block_no 0）が立つ。0139 のままだと合算で check_lines_one_time_auto に衝突する。
+      {
+        const { error: eSt } = await admin.from("stores").update({ time_mode: "auto", set_min: 60, set_fee: 3000, ext_min: 30, ext_fee: 1000, time_per: "table" }).eq("id", storeA2);
+        const { data: gId, error: eG } = await owner.rpc("check_open", { p_seat_id: sG, p_people: 1, p_nom_type: "free" });
+        const { data: hId, error: eH } = await owner.rpc("check_open", { p_seat_id: sH, p_people: 1, p_nom_type: "free" });
+        if (typeof gId === "string") checkIds.push(gId);
+        if (typeof hId === "string") checkIds.push(hId);
+        const G = gId as string, H = hId as string;
+        const autoRows = (c: string) => q<{ id: string; fee_kind: string; block_no: number | null }>(
+          `select id, fee_kind, block_no from public.check_lines where check_id = $1 and time_auto order by fee_kind, block_no`, [c]);
+        const gAuto0 = G ? await autoRows(G) : [], hAuto0 = H ? await autoRows(H) : [];
+        check("ro(3e-14) 準備: A2 を auto 店（set_fee 3000）にして check_open 2 卓＝両方に time_auto の set 行（block_no 0）が 1 本ずつ",
+          !eSt && !eG && !eH && gAuto0.length === 1 && gAuto0[0].fee_kind === "set" && gAuto0[0].block_no === 0
+            && hAuto0.length === 1 && hAuto0[0].fee_kind === "set" && hAuto0[0].block_no === 0,
+          eSt?.message ?? eG?.message ?? eH?.message ?? JSON.stringify({ gAuto0, hAuto0 }));
+        const { error: eGl } = await addLine(owner, G, 100);
+        const { error: eHl } = await addLine(owner, H, 200);
+        const { error: eGs } = await owner.rpc("check_add_seat", { p_check_id: G, p_seat_id: sG2 });
+        check("ro(3e-15) 準備: G に custom 100＋追加席・H に custom 200", !eGl && !eHl && !eGs, [eGl, eHl, eGs].map((e) => e?.message).filter(Boolean).join(" / "));
+        const gLines = await q<{ id: string; line_total: number }>(`select id, line_total from public.check_lines where check_id = $1`, [G]);
+        const tG = (await admin.from("checks").select("total").eq("id", G).single()).data!.total as number;
+        const tH = (await admin.from("checks").select("total").eq("id", H).single()).data!.total as number;
+        const K2 = randomUUID();
+        const { data: m2, error: eMg } = await owner.rpc("check_merge", { p_from_check_id: G, p_into_check_id: H, p_reason: REASON, p_idem_key: K2 });
+        check("ro(3e-16) ★2 卓とも自動時間料金ありの合算が成功（unique 衝突なし＝0142 の変換 update）", !eMg && m2 === H, eMg?.message ?? String(m2));
+        const hAuto1 = await autoRows(H);
+        check("ro(3e-17) ★into の time_auto 行は元の 1 組のみ（id 不変・set・block_no 0）",
+          hAuto1.length === 1 && hAuto1[0].id === hAuto0[0]?.id && hAuto1[0].block_no === 0, JSON.stringify({ hAuto0, hAuto1 }));
+        const movedSel = `select id, check_id, time_auto, block_no, line_total, name_snapshot from public.check_lines where id = any($1::uuid[]) order by id`;
+        type Moved = { id: string; check_id: string; time_auto: boolean; block_no: number | null; line_total: number; name_snapshot: string };
+        const moved = await q<Moved>(movedSel, [gLines.map((l) => l.id)]);
+        check("ro(3e-18) ★移送行は件数一致・全行 check_id=into・time_auto=false・block_no=null・金額は凍結値のまま（Σline_total 不変）",
+          moved.length === gLines.length && moved.length === 2 && moved.every((l) => l.check_id === H && l.time_auto === false && l.block_no === null)
+            && moved.reduce((a, l) => a + l.line_total, 0) === gLines.reduce((a, l) => a + l.line_total, 0),
+          JSON.stringify({ gLines, moved }));
+        const tH2 = (await admin.from("checks").select("total").eq("id", H).single()).data!.total as number;
+        check("ro(3e-19) ★into の total ＝ 両卓の合計（合算前 G＋H・check_recalc 済み）", tH2 === tG + tH, JSON.stringify({ tG, tH, tH2 }));
+        const { error: eAp } = await owner.rpc("check_time_charge_apply", { p_check_id: H });
+        const moved2 = await q<Moved>(movedSel, [gLines.map((l) => l.id)]);
+        const hAuto2 = await autoRows(H);
+        check("ro(3e-20) ★check_time_charge_apply を into で再実行しても移送行は不変・into の time_auto 行は元の 1 組のまま",
+          !eAp && JSON.stringify(moved2) === JSON.stringify(moved) && hAuto2.length === 1 && hAuto2[0].id === hAuto0[0]?.id,
+          eAp?.message ?? JSON.stringify({ moved2, hAuto2 }));
+      }
     }
 
     // ══ 3f 監査（action 逐語・reason 保存）＋ payroll_reopen（flag on）══
@@ -357,12 +415,12 @@ async function main() {
         of("report_reopen").length === 2 && of("report_reopen").every((r) => r.target.startsWith("daily_reports:") && r.reason === REASON), JSON.stringify(of("report_reopen")));
       check("ro(3f-3) ★audit cash_diff_approve: 2 行（manager・staff）・reason 保存",
         of("cash_diff_approve").length === 2 && of("cash_diff_approve").every((r) => r.target.startsWith("daily_reports:") && r.reason === REASON), JSON.stringify(of("cash_diff_approve")));
-      check("ro(3f-4) ★audit check_merge: 1 行・target checks:<into>・reason 保存",
-        of("check_merge").length === 1 && of("check_merge")[0].target === `checks:${chkI}` && of("check_merge")[0].reason === REASON, JSON.stringify(of("check_merge")));
+      check("ro(3f-4) ★audit check_merge: 2 行（A1 F→I・A2 G→H）・target checks:<into>・reason 保存",
+        of("check_merge").length === 2 && of("check_merge").some((r) => r.target === `checks:${chkI}`) && of("check_merge").every((r) => r.target.startsWith("checks:") && r.reason === REASON), JSON.stringify(of("check_merge")));
       check("ro(3f-5) ★audit payroll_reopen: 1 行・target payroll_runs:<run>・reason 保存",
         of("payroll_reopen").length === 1 && of("payroll_reopen")[0].target === `payroll_runs:${runId}` && of("payroll_reopen")[0].reason === REASON, JSON.stringify(of("payroll_reopen")));
-      const mj = await q<{ a: Record<string, unknown> }>(`select after_json as a from public.audit_logs where org_id = $1 and at >= $2 and action = 'check_merge'`, [orgA, t0]);
-      check("ro(3f-6) audit check_merge の after_json に moved_lines 1／moved_nominations 1／moved_seats 1",
+      const mj = await q<{ a: Record<string, unknown> }>(`select after_json as a from public.audit_logs where org_id = $1 and at >= $2 and action = 'check_merge' and target = $3`, [orgA, t0, `checks:${chkI}`]);
+      check("ro(3f-6) audit check_merge（F→I）の after_json に moved_lines 1／moved_nominations 1／moved_seats 1",
         mj.length === 1 && mj[0].a.moved_lines === 1 && mj[0].a.moved_nominations === 1 && mj[0].a.moved_seats === 1, JSON.stringify(mj[0]?.a));
     }
 
@@ -386,6 +444,8 @@ async function main() {
       + (select count(*) from public.feature_flags where org_id = $4 and key = 'reopen_flow') + (select count(*) from public.payroll_runs where store_id = $2 and period = $5) as n`,
       [SEATS, storeA1, [D1, D2, D3], orgA, PERIOD]);
     check("ro(掃除) seats／daily_reports／flag／payroll_run が 0 件", Number(left[0].n) === 0, `left ${left[0].n}`);
+    const a2now = (await admin.from("stores").select(A2_TIME_COLS).eq("id", storeA2).single()).data as Record<string, unknown> | null;
+    check("ro(掃除) A2 の時間 6 値が開始時の値へ復元", JSON.stringify(a2now) === JSON.stringify(a2time), JSON.stringify({ a2time, a2now }));
   }
   await db.end();
 
