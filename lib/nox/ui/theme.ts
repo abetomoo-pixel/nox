@@ -144,9 +144,10 @@ const btnBase: CSSProperties = {
 //   ★名前は btnGold のまま値だけ差し替え（E3 の流儀＝参照 100+ 箇所を動かさない）。旧値＝金グラデ
 //   （border var(--gold-bd)・bg linear-gradient(135deg,var(--gold1),var(--gold3))・color var(--on-gold)）。
 //   金トークン（--gold 系）はブランド要素（ロゴ/eyebrow/バッジ/KPI）専用として残る。
+// ★裁定239（2026-09-10）: (1) 実行ボタン＝背景 var(--primary)・文字 #fff（globals.css .nox-btn.gold と同値・名前は据え置き）。
+//   inline style のため hover は持てない（hover は .nox-btn.gold 側のみ）。旧値＝白抜き cta-white（border #f4f6f8・transparent・#f7f7f5・inset 影）。
 export const btnGold: CSSProperties = {
-  ...btnBase, border: "1px solid #f4f6f8", background: "transparent",
-  color: "#f7f7f5", boxShadow: "0 0 0 1px rgba(255,255,255,.08) inset",
+  ...btnBase, border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff", fontWeight: 800,
 };
 // モック `.btn.ghost`: background:transparent; color:var(--muted)＝NOX は --sub
 export const btnGhost: CSSProperties = { ...btnBase, border: "1px solid var(--line2)", background: "transparent", color: "var(--ink)" };

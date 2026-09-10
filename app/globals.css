@@ -1306,11 +1306,14 @@ body {
   font-weight: 650; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
 }
 .nox-btn:hover { border-color: var(--gold); }
-/* 金は主ボタン1つだけ（3役②）。★E3: 単色 var(--gold) → モックのグラデ＋影へ。 */
+/* ★裁定239（2026-09-10）: (1) 実行ボタン＝背景 var(--primary)・文字 #fff・hover var(--primary-hover)（クラス名は据え置き・
+   高さ／角丸／padding は .nox-btn 基底のまま）。旧値＝金グラデ linear-gradient(135deg, var(--gold1), var(--gold3))・border var(--gold-bd)・
+   color var(--on-gold)・影。金トークンは見出しラベル・状態バッジ・ブランド要素に残す（239-3）。theme.ts の btnGold と同値。 */
 .nox-btn.gold {
-  background: linear-gradient(135deg, var(--gold1), var(--gold3)); border-color: var(--gold-bd); color: var(--on-gold);
-  font-weight: 800; box-shadow: 0 6px 18px rgba(216, 173, 85, .12);
+  background: var(--primary); border-color: var(--primary); color: #fff;
+  font-weight: 800; box-shadow: none;
 }
+.nox-btn.gold:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
 .nox-btn.ghost { background: transparent; color: var(--sub); }
 .nox-btn.danger { color: var(--bad); border-color: rgba(216, 108, 100, .28); background: rgba(216, 108, 100, .05); }
 .nox-btn.small { padding: 6px 10px; font-size: 12px; }

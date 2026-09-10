@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import * as t from "@/lib/nox/ui/theme"; // ★裁定239: 実行ボタンは btnGold（青塗り）経由
 
 export default function ShiftConfirmButton({ shiftId }: { shiftId: string }) {
   const supabase = createClient();
@@ -33,12 +34,7 @@ export default function ShiftConfirmButton({ shiftId }: { shiftId: string }) {
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <button
         type="button" disabled={busy} onClick={() => void confirm()}
-        style={{
-          fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, cursor: "pointer",
-          padding: "2px 10px", borderRadius: 999,
-          border: "1px solid var(--gold)", background: "var(--goldface2)", color: "var(--champ)",
-          opacity: busy ? 0.5 : 1,
-        }}
+        style={{ ...t.btnGold, fontSize: 11.5, fontWeight: 700, padding: "2px 10px", borderRadius: 999, opacity: busy ? 0.5 : 1 }} /* ★裁定239: gold 直書き→青塗り（寸法は据え置き） */
       >
         {busy ? "確認中…" : "確認する"}
       </button>
