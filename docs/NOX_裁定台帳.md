@@ -3056,7 +3056,21 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 「押せる要素を 3 分類に固定する。(1) 青塗り・白字＝その場で実行するボタン（現状維持）。(2) 白枠・透明地＝補助動作（現状維持）。(3) リンク＝青文字＋下線・枠なし・塗りなし＝別画面へ遷移するもの全部。青文字＋下線は遷移以外に使わない。トークン値・クラス値は変えず、link 用クラス 1 つを追加（青は既存トークン参照）。」
 
-実施＝棚卸し（`docs/tmp/238_inventory.md`・未追跡・実装なし）→ 判定保留の裁定 → CC 1 レーン（client のみ・ui-tokens baseline 不変）。教訓70（提案に番号を振る時点で台帳に本文を残す）は CLAUDE.md へ。
+実施＝棚卸し（`docs/238_inventory.md`＝tmp から収蔵・2026-09-10 実装レーンで確定分類列を追加）→ 判定保留の裁定（238-a〜g）→ CC 1 レーン（client のみ・ui-tokens baseline 不変）。教訓70（提案に番号を振る時点で台帳に本文を残す）は CLAUDE.md へ。
+
+**裁定 238-a〜g（Agoora 承認 2026-09-10・逐語）**
+
+| 裁定 | 内容 |
+|---|---|
+| **238-a** | タブ・選択・並べ替え・トグルは (4) 切替＝現状維持、青文字下線にしない |
+| **238-b** | モーダル・パネルを開くは (1) または (2)、付け替えなし |
+| **238-c** | 印刷・URL コピーは (2) |
+| **238-d** | グローバルナビは対象外、billing「ご契約の手続きへ」のみ (3) |
+| **238-e** | カード全体 Link 2 件は下線化せず見出し末尾「›」を --primary 色に（無ければ追加）、枠は現状 |
+| **238-f** | 文字 --primary・hover --primary-hover、--primary-hover 直書きは --primary へ |
+| **238-g** | globals.css .nox-link 1 つ＋theme.ts link: CSSProperties 1 つ、同一トークン参照 |
+
+実装（2026-09-10・client コミット）: .nox-link（globals.css・.nox-btn 群の直後）＋theme.link。付け替え 25 件（analytics 2・casts 4・customers 1・customer-detail 2・dashboard 3・cast-comp page 2・cast-register-panel 1・pricing 3・payroll 1・report 2・shift 1・mine 2・billing-banner 1）。カード型は 238-e を 3 件に適用（dashboard quicktile・master fcard＋**master/cast-comp のカード Link**＝棚卸しで inline style 扱いだったがカード全体が Link のため同型）。master-subnav のタブ（Link だが画面内タブ帯）は 238-a により現状維持＝対象外。URL コピーは 238-c により (2) 据え置き。ブロック指定の「28 件」との差＝URL コピー（c）・cast-comp カード（e）・master-subnav（a）の 3 件。
 ## 裁定236（Agoora 承認 2026-09-10）希望の取消（「なし」へ戻す）は C層② の範囲外＝staff_wish_delete RPC（本人・締切前）は次の補正 mig で
 
 出典＝相談役ブロック（2026-09-10）。面 b の ◯× は「なし→◯→×→◯」の巡回で、一度出した希望を「なし」へ戻す経路は 0136／0137 に無い（設計書 v1 §2 の RPC 7 本に削除なし）。取消は #67 の補正 mig（staff_wish_delete＝本人・締切前・監査 action＝RPC 名）で足す。C層② の UI はそれまで現状のまま。
