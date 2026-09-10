@@ -873,7 +873,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 14px", lineHeight: 1.7 }}>
         ここで設定するのは<strong style={{ color: "var(--v2-text)" }}>お客さまへの請求額</strong>です。
         キャストに支払う指名バック・時給は
-        <Link href="/master/cast-comp/plan" style={{ color: "var(--primary-hover)" }}>待遇プラン・報酬シミュレーター</Link>
+        <Link href="/master/cast-comp/plan" className="nox-link">待遇プラン・報酬シミュレーター</Link>
         で管理します（ランク別指名料の「請求額」はこのページ・「バック額」は待遇プラン側）。
       </p>
 
@@ -1507,7 +1507,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>この時刻までは前日の売上として集計します。</span>
             </span>
             <b className="num">{bizCutoffHm}</b>
-            <a href="/master/business-hours" style={{ ...btnLight, textDecoration: "none" }}>営業時間で編集</a>
+            <a href="/master/business-hours" className="nox-link">営業時間で編集</a>
           </div>
           <div className="nox-listrow">
             <span style={{ flex: 1, minWidth: 0 }}>
@@ -1737,7 +1737,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
                 料金・伝票の変更履歴は全件記録されます（保存期間の設定は準備中）。履歴は「操作履歴」画面で確認できます。
               </span>
             </span>
-            <a href="/audit" style={{ ...btnLight, textDecoration: "none" }}>操作履歴を見る</a>
+            <a href="/audit" className="nox-link">操作履歴を見る</a>
           </div>
         </section>
 

@@ -13,7 +13,7 @@ export default function BillingBanner({ isOwner }: { isOwner: boolean }) {
       {isOwner && (
         <>
           {" "}
-          <Link href="/billing" style={{ color: "var(--gold2)", textDecoration: "underline", fontWeight: 700 }}>
+          <Link href="/billing" className="nox-link" style={{ fontWeight: 700 }}>
             ご契約の手続きへ
           </Link>
         </>

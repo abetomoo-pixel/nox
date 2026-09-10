@@ -462,7 +462,7 @@ export default function CastsBoard({
                 <li><b style={{ color: "var(--v2-text)" }}>ランク</b>：一覧のランク欄から設定します（指名料に反映されます）。</li>
                 <li>
                   <b style={{ color: "var(--v2-text)" }}>待遇プラン</b>：
-                  <Link href="/master/cast-comp/plan" style={{ color: "var(--primary-hover)" }}>マスタ ▸ 待遇プラン</Link>
+                  <Link href="/master/cast-comp/plan" className="nox-link">マスタ ▸ 待遇プラン</Link>
                   で割り当てます。
                 </li>
                 <li><b style={{ color: "var(--v2-text)" }}>ログイン招待</b>：一覧の「招待」からアカウントを発行します（初期パスワードは一度だけ表示）。</li>
@@ -625,7 +625,7 @@ export default function CastsBoard({
                 本名・生年月日・マイナンバー等の機微情報は「機密・税務情報」（owner/manager 限定・閲覧ログ記録）でのみ扱います。この画面には表示しません。
               </div>
               {/* ★裁定109: 機密・税務情報パネル（/master/system 搭載）への導線（閲覧は owner 限定＝パネル側で出し分け） */}
-              <Link href="/master/system" style={{ ...btnGhost, display: "inline-block", textDecoration: "none", marginTop: 8 }}>
+              <Link href="/master/system" className="nox-link" style={{ display: "inline-block", marginTop: 8 }}>
                 機密・税務情報へ（システム設定）
               </Link>
             </>
@@ -652,7 +652,7 @@ export default function CastsBoard({
                     ))}
                   </select>
                   <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 8 }}>
-                    ランク別の指名料は<Link href="/master/pricing" style={{ color: "var(--primary-hover)" }}>料金設定</Link>で管理
+                    ランク別の指名料は<Link href="/master/pricing" className="nox-link">料金設定</Link>で管理
                   </span>
                 </span>
               </div>
@@ -698,7 +698,7 @@ export default function CastsBoard({
                 待遇プラン（通常時給＝マスタ側の表記は「保証時給」・スライド・指名バック単価）とキャストへの割当は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。
                 この画面からは変更できません（現行どおり）。
               </p>
-              <Link href="/master/cast-comp/plan" style={{ ...btnGhost, display: "inline-block", textDecoration: "none" }}>待遇プラン・報酬シミュレーターへ</Link>
+              <Link href="/master/cast-comp/plan" className="nox-link" style={{ display: "inline-block" }}>待遇プラン・報酬シミュレーターへ</Link>
             </>
           )}
 

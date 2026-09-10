@@ -1860,7 +1860,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 })}
               </div>
             )}
-            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>全操作の詳細は<a href="/audit" style={{ color: "var(--primary-hover)" }}>操作履歴</a>で確認できます。</p>
+            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>全操作の詳細は<a href="/audit" className="nox-link">操作履歴</a>で確認できます。</p>
           </div>
         )}
       </section>

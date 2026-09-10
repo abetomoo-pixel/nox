@@ -853,7 +853,7 @@ export default function ReportBoard({
                   {cancelCount == null ? "—" : `${cancelCount}件`}
                 </div>
                 <div className="l" style={{ marginTop: 2 }}>
-                  <a href="/audit" style={{ color: "var(--primary-hover)" }}>操作履歴を見る</a>
+                  <a href="/audit" className="nox-link">操作履歴を見る</a>
                 </div>
               </div>
             )}
@@ -1063,7 +1063,7 @@ export default function ReportBoard({
           </div>
           <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.8 }}>
             この画面ではキャスト別の売上を集計していません。
-            <a href="/analytics" style={{ color: "var(--primary-hover)" }}>分析</a>の「売上貢献ランキング」でご確認ください。
+            <a href="/analytics" className="nox-link">分析</a>の「売上貢献ランキング」でご確認ください。
           </p>
         </section>
 

@@ -235,7 +235,7 @@ export default async function MinePage() {
         <h3>
           直近のシフト
           {/* 段M2: 希望提出への導線（既存 /mine/wishes へのリンクのみ＝新しい提出 UI は作らない） */}
-          <Link href="/mine/wishes" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto", textDecoration: "none" }}>
+          <Link href="/mine/wishes" className="nox-link" style={{ marginLeft: "auto", fontSize: 12 }}>
             ＋ 希望を提出
           </Link>
         </h3>
@@ -271,7 +271,7 @@ export default async function MinePage() {
                 本指名 {myRank.hon_count}件・場内 {myRank.jonai_count}件・同伴 {myRank.dohan_count}件
               </div>
             </div>
-            <Link href="/mine/ranking" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto", textDecoration: "none" }}>
+            <Link href="/mine/ranking" className="nox-link" style={{ marginLeft: "auto", fontSize: 12 }}>
               一覧 ›
             </Link>
           </div>

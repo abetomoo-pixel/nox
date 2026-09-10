@@ -560,7 +560,7 @@ export default function AnalyticsBoard({
         <span>集計: 締め済み営業日のみ</span>
         <span>売上: 会計確定額</span>
         <span>比較: 同じ締め済み日数で比較</span>
-        <Link href="/report" style={{ color: "var(--primary-hover)", marginLeft: "auto" }}>営業中の速報値はホーム・日報で確認 ›</Link>
+        <Link href="/report" className="nox-link" style={{ marginLeft: "auto" }}>営業中の速報値はホーム・日報で確認 ›</Link>
       </div>
 
       {err && <p style={{ fontSize: 12.5, color: "var(--danger-ink)", fontWeight: 700 }}>{err}</p>}
@@ -1147,7 +1147,7 @@ export default function AnalyticsBoard({
             </div>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
               ※判定は顧客一覧と同じ（新規＝来店1回以下・離反リスク＝最終来店からの経過日数）。
-              個別の対応は <Link href="/customers" style={{ color: "var(--primary-hover)" }}>顧客管理</Link> から。
+              個別の対応は <Link href="/customers" className="nox-link">顧客管理</Link> から。
             </p>
           </>
         )}

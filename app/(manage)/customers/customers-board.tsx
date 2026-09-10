@@ -719,7 +719,7 @@ export default function CustomersBoard({
               </>)}
 
               <Link href={`/customers/${selRow.customer_id}`}
-                style={{ ...t.btnGhost, ...t.btnSm, display: "inline-block", marginTop: 12, textDecoration: "none" }}>
+                className="nox-link" style={{ display: "inline-block", marginTop: 12, fontSize: 12 }}>
                 詳細・編集を開く ›
               </Link>
             </div>

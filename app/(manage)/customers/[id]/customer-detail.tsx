@@ -177,7 +177,7 @@ export default function CustomerDetail({
     return (
       <div>
         <p style={{ ...noneP, marginTop: 8 }}>{err}</p>
-        <Link href="/customers" style={{ color: "var(--champ)", fontSize: 13 }}>← 顧客一覧へ戻る</Link>
+        <Link href="/customers" className="nox-link" style={{ fontSize: 13 }}>← 顧客一覧へ戻る</Link>
       </div>
     );
   }
@@ -188,7 +188,7 @@ export default function CustomerDetail({
   return (
     <div>
       <div style={{ margin: "2px 0 14px" }}>
-        <Link href="/customers" style={{ color: "var(--sub)", fontSize: 12, textDecoration: "none" }}>← 顧客一覧</Link>
+        <Link href="/customers" className="nox-link" style={{ fontSize: 12 }}>← 顧客一覧</Link>
         <h1 style={{ ...t.pheadH1, marginTop: 4, display: "flex", alignItems: "center", gap: 9 }}>
           {cust.name}
           {!cust.is_active && <span style={dormantPill}>休眠</span>}

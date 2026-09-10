@@ -150,6 +150,8 @@ export const btnGold: CSSProperties = {
 };
 // モック `.btn.ghost`: background:transparent; color:var(--muted)＝NOX は --sub
 export const btnGhost: CSSProperties = { ...btnBase, border: "1px solid var(--line2)", background: "transparent", color: "var(--ink)" };
+// ★裁定238（2026-09-10）: リンク（別画面へ遷移するもの全部）＝青文字＋下線・枠なし・塗りなし。globals.css の .nox-link と同値（inline style 派生用）。
+export const link: CSSProperties = { color: "var(--primary)", textDecoration: "underline", textUnderlineOffset: 2, background: "none", border: "none", padding: 0, cursor: "pointer" };
 // モック `.btn.small`: height:30px; padding:0 10px（radius は .btn を継ぐ）
 export const btnSm: CSSProperties = { padding: "6px 10px", fontSize: 12, borderRadius: radius.btnSm };
 // ★レーン④c: フォームモーダル用の大きめ寸法（④b-3 で products-board のローカル定数として作ったもの）。

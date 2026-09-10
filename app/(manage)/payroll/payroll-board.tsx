@@ -521,7 +521,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen }: { stores: S
                 {issues.map((x, i) => (
                   <li key={i} style={{ color: x.kind === "blocker" ? "var(--bad)" : undefined }}>
                     {x.castName}: {x.label} — <span style={{ color: "var(--sub)" }}>{x.detail}</span>
-                    {x.href && <> <a href={x.href} style={{ color: "var(--champ)" }}>マスタ › キャスト・報酬 ›</a></>}
+                    {x.href && <> <a href={x.href} className="nox-link">マスタ › キャスト・報酬 ›</a></>}
                   </li>
                 ))}
               </ul>

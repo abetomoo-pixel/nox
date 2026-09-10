@@ -1314,6 +1314,10 @@ body {
 .nox-btn.ghost { background: transparent; color: var(--sub); }
 .nox-btn.danger { color: var(--bad); border-color: rgba(216, 108, 100, .28); background: rgba(216, 108, 100, .05); }
 .nox-btn.small { padding: 6px 10px; font-size: 12px; }
+/* ★裁定238（2026-09-10）: リンク＝別画面へ遷移するもの全部。青文字＋下線・枠なし・塗りなし。青は既存トークン --primary / --primary-hover を参照（値は不変）。
+   青文字＋下線は遷移以外に使わない（実行＝.nox-btn.gold／theme.btnGold・補助＝ghost・切替＝現状のセグメント）。theme.ts の link と同値。 */
+.nox-link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; background: none; border: none; padding: 0; font: inherit; cursor: pointer; }
+.nox-link:hover { color: var(--primary-hover); }
 
 /* ── レイアウト（E2: モック .app / .sidebar / .content 準拠）────────────────
    モック実測（base 規則）:

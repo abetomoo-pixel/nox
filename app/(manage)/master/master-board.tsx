@@ -168,7 +168,7 @@ export default function MasterBoard() {
                       <div className="icon" aria-hidden="true">{c.icon}</div>
                       <div className="count">{c.count}</div>
                     </div>
-                    <h3>{c.title}</h3>
+                    <h3>{c.title}<span aria-hidden="true" style={{ color: "var(--primary)", marginLeft: 4 }}>›</span></h3>{/* ★裁定238-e: カード型 Link は下線化せず末尾「›」を --primary に */}
                     <p>{c.desc}</p>
                     <div className="foot">
                       <span className={`status ${c.tone}`}>{c.status}</span>

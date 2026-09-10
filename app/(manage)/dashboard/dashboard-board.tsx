@@ -226,7 +226,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
             {shortcuts.map((s) => (
               <Link key={s.href} href={s.href} className="nox-quicktile">
                 <span className="nox-quickicon" aria-hidden="true">{s.icon}</span>
-                {s.label}
+                {s.label}<span aria-hidden="true" style={{ color: "var(--primary)", marginLeft: 3 }}>›</span>{/* ★裁定238-e: カード型 Link は下線化せず末尾「›」を --primary に */}
               </Link>
             ))}
           </div>
@@ -244,7 +244,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
           <h2 style={{ ...secTitle, margin: 0 }}>今日のシフト</h2>
           {/* ★裁定154（M12／M15）: 不足があるときは導線文言を「追加配置へ」に（遷移先は同じ /shift＝日付起点の配置面・裁定121） */}
-          <Link href="/shift" className="nox-more">{shortageToday > 0 ? "追加配置へ ›" : "シフト管理へ ›"}</Link>
+          <Link href="/shift" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>{shortageToday > 0 ? "追加配置へ ›" : "シフト管理へ ›"}</Link>
         </div>
         <div className="nox-hshift">
           <span className={`nox-stpill ${todayFill === "none" ? "" : todayFill}`}>{FILL_LABEL[todayFill]}</span>
@@ -308,7 +308,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
           {/* ★裁定156（v2.1 M27）: 見出しをモック「本指名ランキング（今月）」へ。上位 5 名・場内／同伴の併記は据え置き（情報を減らさない） */}
           <h2 style={{ ...secTitle, margin: 0 }}>本指名ランキング（今月 {month}・件数）</h2>
-          <Link href="/analytics" className="nox-more">分析へ ›</Link>
+          <Link href="/analytics" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>分析へ ›</Link>
         </div>
         {ranking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません</p>}
         {ranking.map((r) => (
@@ -326,7 +326,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
       <section className="nox-panel">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
           <h2 style={{ ...secTitle, margin: 0 }}>お知らせ</h2>
-          <Link href="/notices" className="nox-more">すべて ›</Link>
+          <Link href="/notices" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>すべて ›</Link>
         </div>
         {notices.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>お知らせはありません</p>}
         {notices.map((n) => (

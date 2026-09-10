@@ -58,7 +58,7 @@ export default async function CastCompHubPage() {
         {cards.map((c) => (
           <Link key={c.href} href={c.href} style={{ ...t.card, display: "block", padding: 18, textDecoration: "none" }}>
             <div style={{ fontSize: 22, color: "var(--gold2)" }}>{c.icon}</div>
-            <h3 style={{ margin: "10px 0 6px", fontSize: 15, color: "var(--ink)" }}>{c.title}</h3>
+            <h3 style={{ margin: "10px 0 6px", fontSize: 15, color: "var(--ink)" }}>{c.title}<span aria-hidden="true" style={{ color: "var(--primary)", marginLeft: 4 }}>›</span></h3>{/* ★裁定238-e: カード型 Link */}
             <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--sub)", lineHeight: 1.7 }}>{c.desc}</p>
             <span style={{ fontSize: 12, color: "var(--ok)" }}>{c.status}</span>
             <span style={{ float: "right", fontSize: 12.5, fontWeight: 700, color: "var(--gold2)" }}>管理する →</span>
@@ -68,8 +68,8 @@ export default async function CastCompHubPage() {
 
       <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "14px 0 0", lineHeight: 1.7 }}>
         設定内容は給与計算やキャストのマイページ進捗に自動反映されます。
-        指名料のランク（{rankCount ?? 0}件）は<Link href="/master/pricing" style={{ color: "var(--primary-hover)" }}>料金設定</Link>、
-        ランクの割当は<Link href="/casts" style={{ color: "var(--primary-hover)" }}>キャスト管理</Link>で行います。
+        指名料のランク（{rankCount ?? 0}件）は<Link href="/master/pricing" className="nox-link">料金設定</Link>、
+        ランクの割当は<Link href="/casts" className="nox-link">キャスト管理</Link>で行います。
       </p>
     </div>
   );
