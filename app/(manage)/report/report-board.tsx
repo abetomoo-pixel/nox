@@ -332,7 +332,8 @@ export default function ReportBoard({
 
   async function reclose(reportId: string) {
     setMsg(null);
-    const { error } = await supabase.rpc("daily_report_reclose", { p_report_id: reportId, p_force: force });
+    // ★mig0138（C③-3）: p_idem_key を必ず送る（再送の冪等リプレイ・原則 9）。flag on の店は解除中のみ通る（not_reopened）
+    const { error } = await supabase.rpc("daily_report_reclose", { p_report_id: reportId, p_force: force, p_idem_key: crypto.randomUUID() });
     setMsg(error ? error.message : "再締めしました（凍結 cutoff/税率で再集計）");
     await loadReports();
   }

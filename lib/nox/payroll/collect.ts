@@ -206,7 +206,7 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
   const { data: claims, error: eDc } = await admin
     .from("drink_claims").select("cast_id, back_amount, checks!inner(started_at, status)")
     .eq("store_id", storeId).eq("status", "approved")
-    .neq("checks.status", "void") // 0047: void 伝票の承認済 claim は給与に乗せない（closed 限定にはしない＝close 非依存の維持）
+    .not("checks.status", "in", "(void,merged)") // ★C③-16（mig0138）: 統合元 merged も除外（void と同じ述語） // 0047: void 伝票の承認済 claim は給与に乗せない（closed 限定にはしない＝close 非依存の維持）
     .gte("checks.started_at", win.startTs).lt("checks.started_at", win.endTs);
   if (eDc) throw new Error(`drink_claims: ${eDc.message}`);
   for (const c of (claims ?? []) as Record<string, unknown>[]) {
@@ -275,7 +275,7 @@ async function loadShimeiAmounts(admin: SupabaseClient, storeId: string, win: Pa
     .eq("store_id", storeId)
     .in("fee_kind", ["hon_shimei", "jonai_shimei"])
     .not("cast_id", "is", null)
-    .neq("checks.status", "void")
+    .not("checks.status", "in", "(void,merged)") // ★C③-16（mig0138）: 統合元 merged も除外（void と同じ述語）
     .gte("checks.started_at", win.startTs)
     .lt("checks.started_at", win.endTs);
   if (error) throw new Error(`指名料行: ${error.message}`);

@@ -11,5 +11,6 @@ export default async function PayrollPage() {
   if (role !== "owner" && role !== "manager") redirect("/register");
   const supabase = await createClient();
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
-  return <PayrollBoard stores={(stores ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />;
+  // ★C③-11: 確定解除は owner／manager（staff∧can_reopen はこのページに到達しない＝上の redirect）
+  return <PayrollBoard stores={(stores ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} canReopen={role === "owner" || role === "manager"} />;
 }

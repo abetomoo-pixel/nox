@@ -48,7 +48,7 @@ type Warning = { castName: string; kind: string; detail: string };
 type Incentive = { id: string; bizDate: string; amountMode: string; amount: number; recipientCount: number; distributedTotal: number; warnEmptyPool: boolean };
 
 // 3段フロー（期間選択→プレビュー→確定）。プレビューは参考値（確定時点で再計算が正）。
-export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isOwner: boolean }) {
+export default function PayrollBoard({ stores, isOwner, canReopen }: { stores: Store[]; isOwner: boolean; canReopen?: boolean }) {
   const supabase = createClient();
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
@@ -71,6 +71,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
   // D1 確定解除（owner のみ・finalized のみ）: 支払記録件数（>0 で解除無効化）とメッセージ。
   const [payCount, setPayCount] = useState<number | null>(null);
   const [reopenMsg, setReopenMsg] = useState("");
+  const [reopenReason, setReopenReason] = useState(""); // ★C③-14: 確定解除の理由（必須・1〜200 字）
   // ── 段Y2: 確定済み run の合計サマリ（★凍結値 breakdown_json.pay の Σ のみ）──
   //   ★率計算も丸め直しも net との整合補正も一切しない。各項目の定義は D3 CSV
   //     （lib/nox/payroll/csv.ts payrollCsvCells・verify:nox-payroll-csv 済）と逐語同一:
@@ -328,7 +329,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       const res = await fetch("/api/payroll/reopen", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ storeId, period, idemKey }),
+        body: JSON.stringify({ storeId, period, idemKey, reason: reopenReason.trim() }),
       });
       const j = await res.json();
       if (!res.ok) {
@@ -762,7 +763,7 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
       )}
 
       {/* D1 確定を解除（★owner のみ・finalized のみ・支払記録ありは無効化＋理由表示）。draft へ戻し天引きを取り消す。 */}
-      {isOwner && runInfo?.status === "finalized" && (
+      {(canReopen ?? isOwner) && runInfo?.status === "finalized" && (
         <section className="nox-cardtop" style={{ ...t.card, borderColor: "var(--bad)" }}>
           {/* E5b: t.cardTitle の再発明（13.5/800）を本定数へ。margin と危険色 bad はローカル上書き＝算出値は不変 */}
           <h3 style={{ ...t.cardTitle, margin: "0 0 4px", color: "var(--bad)" }}>確定を解除</h3>
@@ -770,9 +771,12 @@ export default function PayrollBoard({ stores, isOwner }: { stores: Store[]; isO
             確定（{period}）を draft に戻します。売掛・前借り・送りの天引きは取り消され、確定明細は削除されます。
             支払記録がある期間は解除できません。
           </p>
+          {/* ★C③-14（mig0138）: 理由必須＝route と RPC で二重に判定。監査 payroll_reopen の reason へ */}
+          <input value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} placeholder="解除の理由（必須・200 字まで）" maxLength={200}
+            style={{ ...t.input, width: "100%", maxWidth: 420, marginBottom: 8 }} />
           <button
             onClick={() => void reopen()}
-            disabled={busy || payCount === null || payCount > 0}
+            disabled={busy || payCount === null || payCount > 0 || reopenReason.trim().length === 0}
             style={payCount === 0 ? { ...t.btnGhost, borderColor: "var(--bad)", color: "var(--bad)" } : { ...t.btnGhost, opacity: 0.5 }}
             title={payCount && payCount > 0 ? "支払記録があるため解除できません" : ""}
           >

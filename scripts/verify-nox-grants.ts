@@ -320,8 +320,8 @@ async function main() {
            from pg_proc p where p.pronamespace='public'::regnamespace and p.proname='payroll_reopen'`,
       );
       check(
-        "G8 payroll_reopen 署名一意（4 uuid・secdef）",
-        sig.rowCount === 1 && sig.rows[0].args === "p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid" && sig.rows[0].prosecdef === true,
+        "G8 payroll_reopen 署名一意（4 uuid＋p_reason text・secdef＝mig0138）",
+        sig.rowCount === 1 && sig.rows[0].args === "p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid, p_reason text" && sig.rows[0].prosecdef === true,
         JSON.stringify(sig.rows),
       );
       const col = await db.query(

@@ -16,6 +16,7 @@ import Modal from "@/components/ui/modal";
 type Mem = {
   id: string; user_id: string; store_id: string; role: string; is_active: boolean;
   can_register: boolean; can_crm: boolean; can_shift: boolean; can_view_backs: boolean;
+  can_close: boolean; can_reopen: boolean; // ★C層③（mig0138・横断 §2）: 締め／解除の個別付与
 };
 type UserRow = { id: string; name: string | null; email: string; auth_user_id: string };
 type Store = { id: string; name: string };
@@ -35,11 +36,14 @@ const rolePillMini = (role: string): React.CSSProperties => ({
 
 // 段L2: 権限チップの定義＝現行テーブルの見出し語彙をそのまま使う（会計/顧客/シフト*/バック†）。
 //   4つとも出す＝can_view_backs を落とさない（表示項目を減らさない）。
-const PERM_DEFS: Array<[ "can_register" | "can_crm" | "can_shift" | "can_view_backs", string ]> = [
+type PermKey = "can_register" | "can_crm" | "can_shift" | "can_view_backs" | "can_close" | "can_reopen";
+const PERM_DEFS: Array<[ PermKey, string ]> = [
   ["can_register", "会計"],
   ["can_crm", "顧客"],
   ["can_shift", "シフト"],
   ["can_view_backs", "バック"],
+  ["can_close", "締め"],   // ★C③-11: 日報の締め・差異承認（staff∧can_close）
+  ["can_reopen", "解除"],  // ★C③-11: 日報／給与の解除（staff∧can_reopen）
 ];
 
 export default function StaffBoard({
@@ -75,7 +79,7 @@ export default function StaffBoard({
     // 一覧＝staff/manager のみ（cast はキャスト管理で別画面）。inactive（在籍解除済み）も表示＝再雇用の入口。
     const { data: mm } = await supabase
       .from("memberships")
-      .select("id, user_id, store_id, role, is_active, can_register, can_crm, can_shift, can_view_backs")
+      .select("id, user_id, store_id, role, is_active, can_register, can_crm, can_shift, can_view_backs, can_close, can_reopen")
       .in("role", ["staff", "manager"]);
     const rows = (mm ?? []) as Mem[];
     const userIds = [...new Set(rows.map((m) => m.user_id))];
@@ -108,15 +112,17 @@ export default function StaffBoard({
   }
 
   // トグル＝規約7: 4フラグとも明示 boolean を常に全送信（部分更新しない）
-  async function toggleFlag(m: Mem, key: "can_register" | "can_crm" | "can_shift" | "can_view_backs") {
+  async function toggleFlag(m: Mem, key: PermKey) {
+    // ★規約 7＝6 フラグとも明示 boolean を全送信（mig0138 で 7 引数化・部分更新しない）
     const next = {
       can_register: m.can_register, can_crm: m.can_crm, can_shift: m.can_shift, can_view_backs: m.can_view_backs,
+      can_close: m.can_close, can_reopen: m.can_reopen,
       [key]: !m[key],
     };
     await rpc("権限を更新", "set_staff_perms", {
       p_membership_id: m.id,
       p_can_register: next.can_register, p_can_crm: next.can_crm, p_can_shift: next.can_shift,
-      p_can_view_backs: next.can_view_backs,
+      p_can_view_backs: next.can_view_backs, p_can_close: next.can_close, p_can_reopen: next.can_reopen,
     });
   }
 

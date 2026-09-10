@@ -1322,6 +1322,10 @@ async function main() {
     const rRow = async (id: string) => (await admin.from("payroll_runs").select("status, finalized_at, finalize_idem_key, period_start, period_end, reopen_idem_key").eq("id", id).single()).data as Record<string, unknown>;
     const psN = async (id: string) => (await admin.from("payslips").select("id", { count: "exact", head: true }).eq("run_id", id)).count ?? -1;
 
+    // ★mig0138: payroll_reopen は reopen_flow（org 既定→店舗）が off だと feature_disabled＝fixture で org 既定 ON・段末で delete
+    await admin.from("feature_flags").delete().eq("org_id", orgAId).eq("key", "reopen_flow");
+    const { error: eFlag } = await admin.from("feature_flags").insert({ org_id: orgAId, store_id: null, key: "reopen_flow", enabled: true });
+    check("D1 fixture: reopen_flow を org 既定 ON（mig0138）", !eFlag, eFlag?.message);
     const cRe = await mkCast("NOX-VERIFY-payReopen", true);
     const { data: recIns } = await admin.from("receivables").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cRe, amount: 10000, deduct_from_cast: true, status: "open", deduct_period: null, deducted_amount: 0 }).select("id").single();
     const Rr = recIns!.id as string;
@@ -1331,7 +1335,7 @@ async function main() {
     await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_payslips: psRe });
 
     const K_re = randomUUID();
-    const { data: reRes } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: K_re });
+    const { data: reRes } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: K_re, p_reason: "NOX-VERIFY reopen" });
     check("D1 reopen → 'reopened'", reRes === "reopened", JSON.stringify(reRes));
     const rr = await rState(Rr);
     check("D1 reopen: receivable prev 復元（0/open/null）", rr.deducted_amount === 0 && rr.status === "open" && rr.deduct_period === null, JSON.stringify(rr));
@@ -1340,9 +1344,9 @@ async function main() {
     check("D1 reopen: run draft＋4列 NULL＋reopen_idem 記録",
       rw.status === "draft" && rw.finalized_at === null && rw.finalize_idem_key === null && rw.period_start === null && rw.period_end === null && rw.reopen_idem_key === K_re,
       JSON.stringify(rw));
-    const { data: reIdem } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: K_re });
+    const { data: reIdem } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: K_re, p_reason: "NOX-VERIFY reopen" });
     check("D1 reopen draft 冪等（同 idem→'draft' 静か返し）", reIdem === "draft", JSON.stringify(reIdem));
-    const { error: eNF } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID() });
+    const { error: eNF } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_reason: "NOX-VERIFY reopen" });
     check("D1 reopen draft 別 idem→'not finalized'", !!eNF?.message?.includes("not finalized"), eNF?.message ?? "通ってしまった");
 
     const { error: eReFin } = await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_payslips: psRe });
@@ -1351,8 +1355,12 @@ async function main() {
       !eReFin && rr2.deducted_amount === 3000 && rr2.status === "open" && rr2.deduct_period === "2029-02" && (await psN(runRe)) === 1, JSON.stringify(rr2));
 
     await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID() });
-    const { error: ePaid } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID() });
+    const { error: ePaid } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_reason: "NOX-VERIFY reopen" });
     check("D1 reopen: paid → 'run paid'", !!ePaid?.message?.includes("run paid"), ePaid?.message ?? "通ってしまった");
+    // ★mig0138: 理由なしは reason_required（route と二重）
+    const { error: eNoReason } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_reason: null });
+    check("D1 reopen: p_reason null → 'reason_required' か 'run paid'（paid が先＝どちらも拒否）", !!eNoReason, eNoReason?.message ?? "通ってしまった");
+    await admin.from("feature_flags").delete().eq("org_id", orgAId).eq("key", "reopen_flow");
   }
 
   // ── F2g 納付管理（mig0075・裁定28）runtime 検証 ────────────────────────

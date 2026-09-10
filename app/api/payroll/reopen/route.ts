@@ -5,7 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { decideTaxReportAccess } from "@/lib/nox/payroll/authz";
+import { decideReopenAccess } from "@/lib/nox/payroll/authz"; // ★C③-17: owner/manager/staff∧can_reopen
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  let body: { storeId?: unknown; period?: unknown; idemKey?: unknown };
+  let body: { storeId?: unknown; period?: unknown; idemKey?: unknown; reason?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -30,13 +30,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "period must be YYYY-MM" }, { status: 400 });
   // idemKey 必須（null は 400・原則9 の冪等 replay を成立させる前提）
   if (typeof idemKey !== "string" || !UUID_RE.test(idemKey)) return NextResponse.json({ error: "idemKey required (uuid)" }, { status: 400 });
+  // ★C③-14（mig0138）: 理由必須（1〜200 字・trim）。RPC 側も reason_required で二重。
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  if (reason.length < 1 || reason.length > 200) return NextResponse.json({ error: "reason required (1-200)" }, { status: 400 });
 
-  const [{ data: role }, { data: orgId }] = await Promise.all([
+  const [{ data: role }, { data: orgId }, { data: authStoreId }, { data: canReopen }] = await Promise.all([
     supabase.rpc("auth_role"),
     supabase.rpc("auth_org_id"),
+    supabase.rpc("auth_store_id"),
+    supabase.rpc("auth_staff_can_reopen"), // mig0138（staff の個別付与・owner/manager は role で通る）
   ]);
-  // ★owner 限定（manager も forbidden＝確定解除は最狭）
-  if (decideTaxReportAccess(role as string | null, storeId) !== "ok") return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  // ★C③-17: owner／manager 自店／staff∧can_reopen 自店（旧: owner 限定）
+  if (decideReopenAccess(role as string | null, canReopen === true, (authStoreId as string | null) ?? null, storeId) !== "ok")
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   if (!orgId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const admin = createAdminClient();
@@ -58,12 +64,14 @@ export async function POST(req: Request) {
     p_actor: actorId, // p_actor = users.id
     p_run_id: run.id as string,
     p_idem_key: idemKey,
+    p_reason: reason, // ★mig0138: 5 引数版（理由は監査 reason へ）
   });
   if (error) {
     const m = error.message;
     const status = m.includes("forbidden") ? 403
       : m.includes("run not found") ? 404
-      : m.includes("run paid") || m.includes("payments exist") || m.includes("not finalized") ? 409
+      : m.includes("reason_required") ? 400
+      : m.includes("run paid") || m.includes("payments exist") || m.includes("not finalized") || m.includes("feature_disabled") ? 409
       : 500;
     return NextResponse.json({ error: m }, { status });
   }

@@ -19,3 +19,17 @@ export function decideTaxReportAccess(role: string | null, reqStoreId: string): 
   if (!reqStoreId) return "forbidden";
   return role === "owner" ? "ok" : "forbidden";
 }
+
+// ★C層③（裁定 C③-11/17・横断 §2）: 解除型（給与確定解除）の route authz＝owner／manager 自店／staff∧can_reopen 自店。
+//   decideTaxReportAccess（owner-only）は不触。真の防御は payroll_reopen（service・flag reopen_flow・p_reason 必須）。
+export function decideReopenAccess(
+  role: string | null,
+  canReopen: boolean,
+  authStoreId: string | null,
+  reqStoreId: string,
+): "ok" | "forbidden" {
+  if (!reqStoreId) return "forbidden";
+  if (role === "owner") return "ok";
+  if ((role === "manager" || (role === "staff" && canReopen)) && authStoreId != null && authStoreId === reqStoreId) return "ok";
+  return "forbidden";
+}

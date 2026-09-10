@@ -41,7 +41,7 @@
  *       link 回帰＝check_open customer 紐付きで open→pay(ar) の receivables.customer_id 連動・
  *       他店/他 org 客は invalid customer・customer 省略（null）は従来どおり開ける（回帰）。
  *       生成した customers/bottle_keeps/伝票は末尾で全消し＝verify:nox-rls の固定カウントと非干渉。
- * 段16（0024→0038 適用後）: F3a 束3-1 set_staff_perms の実効ゲート（runtime 実測・mig0038 で5引数化）。
+ * 段16（0024→0038 適用後）: F3a 束3-1 set_staff_perms の実効ゲート（runtime 実測・mig0038 で5引数化→mig0138 で7引数化）。
  *       owner=自 org staff 成功（実 UPDATE 物理確認・任意組合せ）/ manager=自店成功・他店 forbidden /
  *       staff（can_register/can_crm 問わず）・cast=自他とも forbidden（権限昇格封じ）。
  *       規約7=4フラグ（can_register/can_crm/can_shift/can_view_backs）いずれか null で bad flag。
@@ -92,7 +92,7 @@
  *       順序を wipe に組込・実証 assert つき）。予約・伝票・ダミー cast/卓は try/finally 全消し＝非汚染。
  * 段30（0038 適用後）: バック可視是正（check_cast_backs の staff 可視を can_register→can_view_backs 分離）の
  *       物理確認。専用卓で cast 指名＋drink 明細の伝票を close し check_cast_backs 行を生成→可視マトリクス:
- *       ★can_register=true/can_view_backs=false staff = 0行（分離の核心）／owner set_staff_perms（5引数）で
+ *       ★can_register=true/can_view_backs=false staff = 0行（分離の核心）／owner set_staff_perms（7引数・mig0138 で can_close/can_reopen 追加）で
  *       can_view_backs=true 付与→同一セッションで可視（≥1・実反映）→復元で 0行／両 false staff=0行／
  *       owner=org 全店可視／manager=自店可視／managerB1=他 org 0行／cast 本人=自己行のみ（③ cast 枝不変）／
  *       anon=BLOCKED。生成伝票・専用卓は try/finally 全消し＋残0＝verify:nox-rls 固定カウント非汚染。
@@ -496,7 +496,7 @@ async function main() {
     ["customer_summary", { p_customer_id: null }],
     ["customer_list_summary", { p_store_id: null }],
     ["bottle_keep_register", { p_store_id: null, p_customer_id: null, p_product_id: null, p_note: null }],
-    ["set_staff_perms", { p_membership_id: null, p_can_register: null, p_can_crm: null, p_can_shift: null, p_can_view_backs: null }], // 段16a（mig0024→0038 5引数）
+    ["set_staff_perms", { p_membership_id: null, p_can_register: null, p_can_crm: null, p_can_shift: null, p_can_view_backs: null, p_can_close: null, p_can_reopen: null }], // 段16a（mig0024→0038 5引数）
   ];
   for (const [fn, args] of F3A2_RPC_PROBES) {
     const { error } = await anon.rpc(fn, args);
@@ -717,7 +717,7 @@ async function main() {
 
     // 段11c: D1 給与確定解除 payroll_reopen（mig0060）も service_role 限定＝anon/authenticated 両 BLOCKED（新署名）
     {
-      const reArgs = { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null };
+      const reArgs = { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null, p_reason: null }; // ★mig0138: 5 引数版
       const { error: eAuthedRe } = await authed.rpc("payroll_reopen", reArgs);
       check("authenticated payroll_reopen BLOCKED（service_role 限定）", isFnBlocked(eAuthedRe), eAuthedRe?.message ?? "実行できてしまった");
       const { error: eAnonRe } = await anon.rpc("payroll_reopen", reArgs);
@@ -1259,7 +1259,7 @@ async function main() {
       try {
         // ① owner: 任意組合せ（can_shift のみ true）の実 UPDATE ＋ 物理確認 ＋ audit
         const { error: e1 } = await owner.rpc("set_staff_perms", {
-          p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: false, p_can_shift: true, p_can_view_backs: false,
+          p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: false, p_can_shift: true, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 owner set_staff_perms 成功（can_shift のみ true）", !e1, e1?.message);
         const { data: m1 } = await admin.from("memberships")
@@ -1282,7 +1282,7 @@ async function main() {
 
         // ② manager: 自店 staff 成功（3フラグ全 true）・他店 A2 staff は forbidden
         const { error: e2 } = await mgr.rpc("set_staff_perms", {
-          p_membership_id: memRegOff.id, p_can_register: true, p_can_crm: true, p_can_shift: true, p_can_view_backs: false,
+          p_membership_id: memRegOff.id, p_can_register: true, p_can_crm: true, p_can_shift: true, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 manager 自店 staff 成功（全 true）", !e2, e2?.message);
         const { data: m2 } = await admin.from("memberships")
@@ -1290,35 +1290,35 @@ async function main() {
         check("段16 実 UPDATE 物理確認: (true,true,true)",
           m2?.can_register === true && m2?.can_crm === true && m2?.can_shift === true, JSON.stringify(m2));
         const { error: e3 } = await mgr.rpc("set_staff_perms", {
-          p_membership_id: memA2!.id, p_can_register: true, p_can_crm: false, p_can_shift: false, p_can_view_backs: false,
+          p_membership_id: memA2!.id, p_can_register: true, p_can_crm: false, p_can_shift: false, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 manager 他店 A2 staff forbidden（店スコープ）", forbidden(e3), e3?.message ?? "通ってしまった");
         // owner は org 内他店 A2 staff も変更可（org 全店スコープの positive）
         const { error: e4 } = await owner.rpc("set_staff_perms", {
-          p_membership_id: memA2!.id, p_can_register: true, p_can_crm: false, p_can_shift: false, p_can_view_backs: false,
+          p_membership_id: memA2!.id, p_can_register: true, p_can_crm: false, p_can_shift: false, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 owner 他店 A2 staff 成功（org 全店）", !e4, e4?.message);
 
         // ③ staff/cast 呼び出し＝forbidden（権限昇格封じ・自分にも他人にも）
         const { error: e5 } = await staffOn.rpc("set_staff_perms", {
-          p_membership_id: memRegOn.id, p_can_register: true, p_can_crm: true, p_can_shift: true, p_can_view_backs: false,
+          p_membership_id: memRegOn.id, p_can_register: true, p_can_crm: true, p_can_shift: true, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 staff(can_register=true) 自分に forbidden（昇格封じ）", forbidden(e5), e5?.message ?? "通ってしまった");
         const { error: e6 } = await staffCrm.rpc("set_staff_perms", {
-          p_membership_id: memRegOff.id, p_can_register: true, p_can_crm: true, p_can_shift: true, p_can_view_backs: false,
+          p_membership_id: memRegOff.id, p_can_register: true, p_can_crm: true, p_can_shift: true, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 staff(can_crm=true) 他人に forbidden", forbidden(e6), e6?.message ?? "通ってしまった");
         const { error: e7 } = await cast.rpc("set_staff_perms", {
-          p_membership_id: memRegOff.id, p_can_register: true, p_can_crm: true, p_can_shift: true, p_can_view_backs: false,
+          p_membership_id: memRegOff.id, p_can_register: true, p_can_crm: true, p_can_shift: true, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 cast forbidden", forbidden(e7), e7?.message ?? "通ってしまった");
 
         // ④ 規約7: 4フラグいずれか null で bad flag（can_view_backs 追加＝mig0038 5引数化）
         for (const [label, args] of [
-          ["can_register null", { p_membership_id: memRegOff.id, p_can_register: null, p_can_crm: false, p_can_shift: false, p_can_view_backs: false }],
-          ["can_crm null", { p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: null, p_can_shift: false, p_can_view_backs: false }],
-          ["can_shift null", { p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: false, p_can_shift: null, p_can_view_backs: false }],
-          ["can_view_backs null", { p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: false, p_can_shift: false, p_can_view_backs: null }],
+          ["can_register null", { p_membership_id: memRegOff.id, p_can_register: null, p_can_crm: false, p_can_shift: false, p_can_view_backs: false, p_can_close: false, p_can_reopen: false }],
+          ["can_crm null", { p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: null, p_can_shift: false, p_can_view_backs: false, p_can_close: false, p_can_reopen: false }],
+          ["can_shift null", { p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: false, p_can_shift: null, p_can_view_backs: false, p_can_close: false, p_can_reopen: false }],
+          ["can_view_backs null", { p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: false, p_can_shift: false, p_can_view_backs: null, p_can_close: false, p_can_reopen: false }],
         ] as const) {
           const { error } = await owner.rpc("set_staff_perms", args as Record<string, unknown>);
           check(`段16 規約7: ${label} = bad flag`, has(error, "bad flag"), error?.message ?? "通ってしまった");
@@ -1327,18 +1327,18 @@ async function main() {
         // ⑤ 対象 role: owner/manager/cast の membership は not a staff
         for (const [label, mem] of [["owner", memOwner], ["manager", memManager], ["cast", memCast]] as const) {
           const { error } = await owner.rpc("set_staff_perms", {
-            p_membership_id: mem!.id, p_can_register: false, p_can_crm: false, p_can_shift: false, p_can_view_backs: false,
+            p_membership_id: mem!.id, p_can_register: false, p_can_crm: false, p_can_shift: false, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
           });
           check(`段16 対象 ${label} membership = not a staff`, has(error, "not a staff"), error?.message ?? "通ってしまった");
         }
 
         // ⑥ 越境: 他 org の membership は not found（存在オラクル封じ）
         const { error: eX } = await owner.rpc("set_staff_perms", {
-          p_membership_id: memB1!.id, p_can_register: false, p_can_crm: false, p_can_shift: false, p_can_view_backs: false,
+          p_membership_id: memB1!.id, p_can_register: false, p_can_crm: false, p_can_shift: false, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 他 org membership = not found", has(eX, "not found"), eX?.message ?? "通ってしまった");
         const { error: eX2 } = await owner.rpc("set_staff_perms", {
-          p_membership_id: randomUUID(), p_can_register: false, p_can_crm: false, p_can_shift: false, p_can_view_backs: false,
+          p_membership_id: randomUUID(), p_can_register: false, p_can_crm: false, p_can_shift: false, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 不在 membership = not found", has(eX2, "not found"), eX2?.message ?? "通ってしまった");
 
@@ -1369,7 +1369,7 @@ async function main() {
         await wipeSeatChecks();
 
         const { error: eOff1 } = await owner.rpc("set_staff_perms", {
-          p_membership_id: memRegOn.id, p_can_register: false, p_can_crm: false, p_can_shift: false, p_can_view_backs: false,
+          p_membership_id: memRegOn.id, p_can_register: false, p_can_crm: false, p_can_shift: false, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 結合（準備）staffRegOnA1 の can_register を false に", !eOff1, eOff1?.message);
         const { error: eOpenOff } = await staffOn.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
@@ -1378,7 +1378,7 @@ async function main() {
         const { error: eOn1 } = await owner.rpc("set_staff_perms", {
           p_membership_id: memRegOn.id,
           p_can_register: memRegOn.can_register, p_can_crm: memRegOn.can_crm, p_can_shift: memRegOn.can_shift,
-          p_can_view_backs: memRegOn.can_view_backs,
+          p_can_view_backs: memRegOn.can_view_backs, p_can_close: false, p_can_reopen: false,
         });
         check("段16 結合（復元）staffRegOnA1 をベースラインへ", !eOn1, eOn1?.message);
         const { data: chkOn, error: eOpenOn } = await staffOn.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
@@ -1389,7 +1389,7 @@ async function main() {
         // ⑧ ★結合テスト（束2連動・customers RLS）: staffRegOffA1 に can_crm を付けると customers が見える
         //    → 復元（全 false）で 0行に戻る。
         const { error: eCrm1 } = await owner.rpc("set_staff_perms", {
-          p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: true, p_can_shift: false, p_can_view_backs: false,
+          p_membership_id: memRegOff.id, p_can_register: false, p_can_crm: true, p_can_shift: false, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         check("段16 結合（準備）staffRegOffA1 に can_crm=true", !eCrm1, eCrm1?.message);
         const { data: custOn } = await staffOff.from("customers").select("id");
@@ -1398,7 +1398,7 @@ async function main() {
         const { error: eCrm0 } = await owner.rpc("set_staff_perms", {
           p_membership_id: memRegOff.id,
           p_can_register: memRegOff.can_register, p_can_crm: memRegOff.can_crm, p_can_shift: memRegOff.can_shift,
-          p_can_view_backs: memRegOff.can_view_backs,
+          p_can_view_backs: memRegOff.can_view_backs, p_can_close: false, p_can_reopen: false,
         });
         check("段16 結合（復元）staffRegOffA1 をベースラインへ", !eCrm0, eCrm0?.message);
         const { data: custOff } = await staffOff.from("customers").select("id");
@@ -1992,7 +1992,7 @@ async function main() {
               const { data: cust0 } = await linkClient.from("customers").select("id");
               check("段18 ⑦ ★結合: フラグ全 false → customers 0行（束2 fail-closed）", (cust0 ?? []).length === 0, `got ${(cust0 ?? []).length}`);
               const { error: ePerm } = await owner.rpc("set_staff_perms", {
-                p_membership_id: mLink, p_can_register: true, p_can_crm: true, p_can_shift: false, p_can_view_backs: false,
+                p_membership_id: mLink, p_can_register: true, p_can_crm: true, p_can_shift: false, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
               });
               check("段18 ⑦ ★結合: set_staff_perms（束3-1）で can_register/can_crm 付与", !ePerm, ePerm?.message);
               const { data: chkLink, error: eOpen1 } = await linkClient.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
@@ -4170,7 +4170,7 @@ async function main() {
 
   // ── 段30: F3 バック可視是正（mig0038）check_cast_backs の can_register→can_view_backs 分離 実効確認 ──
   //   専用卓で cast 指名＋drink 明細の伝票を close→check_cast_backs 行生成（段29-10 同手法）。
-  //   ★can_register=true/can_view_backs=false staff は 0行（分離の核心）／set_staff_perms（5引数）で
+  //   ★can_register=true/can_view_backs=false staff は 0行（分離の核心）／set_staff_perms（7引数・mig0138 で can_close/can_reopen 追加）で
   //   can_view_backs=true 付与→同一セッションで可視→復元で 0行（双方向の実反映）。
   //   owner/manager 常時可視・他 org 0行・cast 本人のみ（③ cast 枝不変）・anon BLOCKED。
   //   生成伝票・専用卓は try/finally 全消し＋残0＝verify:nox-rls の固定カウント非汚染。
@@ -4260,12 +4260,12 @@ async function main() {
         check("段30 ★can_register=true/can_view_backs=false staff = check_cast_backs 0行（会計権限からバック分離）",
           !r1.error && r1.n === 0, r1.error?.message ?? `got ${r1.n}`);
 
-        // ② owner set_staff_perms（5引数）で can_view_backs=true 付与＋実 UPDATE 物理確認
+        // ② owner set_staff_perms（7引数・mig0138 で can_close/can_reopen 追加）で can_view_backs=true 付与＋実 UPDATE 物理確認
         const { error: eGrant } = await owner.rpc("set_staff_perms", {
           p_membership_id: memOn.id, p_can_register: memOn.can_register, p_can_crm: memOn.can_crm,
-          p_can_shift: memOn.can_shift, p_can_view_backs: true,
+          p_can_shift: memOn.can_shift, p_can_view_backs: true, p_can_close: false, p_can_reopen: false,
         });
-        check("段30 owner set_staff_perms（5引数）can_view_backs=true 付与 成功", !eGrant, eGrant?.message);
+        check("段30 owner set_staff_perms（7引数・mig0138 で can_close/can_reopen 追加）can_view_backs=true 付与 成功", !eGrant, eGrant?.message);
         const { data: mGrant } = await admin.from("memberships").select("can_view_backs").eq("id", memOn.id).single();
         check("段30 実 UPDATE 物理確認: can_view_backs=true", mGrant?.can_view_backs === true, JSON.stringify(mGrant));
 
@@ -4277,7 +4277,7 @@ async function main() {
         // ④ 復元（false）で 0行に戻る（双方向の実反映）
         const { error: eRevoke } = await owner.rpc("set_staff_perms", {
           p_membership_id: memOn.id, p_can_register: memOn.can_register, p_can_crm: memOn.can_crm,
-          p_can_shift: memOn.can_shift, p_can_view_backs: false,
+          p_can_shift: memOn.can_shift, p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
         });
         const r3 = await cnt(staffOn);
         check("段30 can_view_backs=false 復元で staff backs 0行に戻る（双方向実反映）",

@@ -276,9 +276,13 @@ async function main() {
       e10?.message ?? JSON.stringify(s10));
 
     // (11) reopen 巻き戻し → deducted 復元・collected 不変・CHECK 非違反
+    //   ★mig0138: reopen_flow を org 既定 ON（fixture）・p_reason 必須。段末（finally）で flag を消す
+    await admin.from("feature_flags").delete().eq("org_id", sA1.org_id).eq("key", "reopen_flow");
+    await admin.from("feature_flags").insert({ org_id: sA1.org_id, store_id: null, key: "reopen_flow", enabled: true });
     const { error: e11 } = await admin.rpc("payroll_reopen", {
-      p_org_id: sA1.org_id, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(),
+      p_org_id: sA1.org_id, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_reason: "NOX-VERIFY reopen",
     });
+    await admin.from("feature_flags").delete().eq("org_id", sA1.org_id).eq("key", "reopen_flow");
     const s11 = await recvState(C.recvId);
     check("段50(11) ★reopen 成功＝deducted 巻き戻し（0・open）・collected_amount=3000 不変・CHECK 非違反（行読取可）",
       !e11 && s11.deducted_amount === 0 && s11.status === "open" && s11.collected_amount === 3000,
