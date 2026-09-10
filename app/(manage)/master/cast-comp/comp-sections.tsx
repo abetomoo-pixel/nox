@@ -150,6 +150,9 @@ export function compErrJa(msg: string | undefined): string {
   if (msg.includes("basis required")) return "制裁（罰金・減給）は根拠の確認チェックと確認内容の入力が必須です";
   if (msg.includes("bad basis note")) return "確認内容は 400 字以内で入力してください";
   if (msg.includes("bad kind")) return "控除種別が不正です";
+  // ★#77（mig0116 set_cast_plan）: 'bad valid_from'＝過去日（< 今日）または現在行の適用開始日以前
+  if (msg.includes("bad valid_from")) return "適用開始日は今日以降で、現在の適用開始日より後の日付にしてください";
+  if (msg.includes("bad overrides")) return "上書き値が不正です（0 以上の整数・方式と値はペア）";
   // ★mig0134（裁定113）: 商品販売バック3方式の pair/範囲
   if (msg.includes("bad product_back_mode")) return "商品販売バックの方式が不正です";
   if (msg.includes("bad product_back_rate")) return "売上の割合は「売上の割合」方式のときだけ 0〜100 で入力してください";
@@ -627,7 +630,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                   <td>
                     {isManagerUp ? (
                       <select value={selPid} onChange={(e) => setRowPlan((m) => ({ ...m, [c.id]: e.target.value }))} style={input}>
-                        <option value="">{cp ? "プラン選択" : "未割当（プラン選択）"}</option>
+                        <option value="">{cp ? "プラン選択" : "未設定"}</option>{/* ★#76: 割当行の無いキャストは空＝placeholder「未設定」 */}
                         {curInactive && <option value={cp!.plan_id} disabled>{planName(cp!.plan_id)}（無効）</option>}
                         {activePlans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>

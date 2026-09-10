@@ -84,7 +84,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
       {hasUnpaidFinalized && (
         <p style={{ ...t.alert, marginTop: 10 }}>
           確定済みでまだ「支払済み」にしていない給与があります。納付管理は<b>支払済みの給与のみ</b>を集計するため、
-          支払が済んだら上の支払記録から「支払済みにする」を実行してください（未実行のあいだ、その月はこの表に出ません）。
+          支払が済んだら給与 月次一覧の「支払済みにする」を実行してください（未実行のあいだ、その月はこの表に出ません）。
         </p>
       )}
 

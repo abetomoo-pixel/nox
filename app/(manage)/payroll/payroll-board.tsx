@@ -629,11 +629,19 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
             <b style={{ ...t.slipFootVal, color: "var(--ink)" }}>¥{total.toLocaleString()}</b>
           </div>
 
-          {/* 段3: 確定 */}
-          <button onClick={finalize} disabled={busy || blockers.length > 0 || rows.length === 0} style={blockers.length ? { ...t.btnGhost } : { ...t.btnGold }}>
-            この期間を確定する
-          </button>
-          {/* U-1 是正C: 確定不可の案内は上の「要対応」区画へ一本化（ボタン横の重複文言は削除） */}
+          {/* 段3: 確定。★#78: finalized／paid の間は非表示（draft のみ）。★#75: disabled の理由をボタン脇と title に出す（要対応 N 件） */}
+          {status === "draft" && (() => {
+            const why = blockers.length > 0 ? `要対応 ${blockers.length} 件を解消してください` : rows.length === 0 ? "対象キャストがいません（プレビューを実行してください）" : "";
+            return (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <button onClick={finalize} disabled={busy || blockers.length > 0 || rows.length === 0}
+                  title={why || undefined} style={blockers.length ? { ...t.btnGhost } : { ...t.btnGold }}>
+                  この期間を確定する
+                </button>
+                {why && <span style={{ fontSize: 12, color: "var(--danger-ink)", fontWeight: 700 }}>{why}</span>}
+              </span>
+            );
+          })()}
           </div>
 
           {/* ★U-1 是正B: 右パネル明細（sticky・PayslipSlip と同じ順序・0円行は非表示・数値は preview 再掲のみ） */}
