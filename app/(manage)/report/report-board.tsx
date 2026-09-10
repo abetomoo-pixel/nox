@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
@@ -35,6 +35,7 @@ type Report = {
   // ★C層③（mig0138・設計書 v1 §2）: 解除／再締め／差異承認の列（select * で取得済み＝新規読取 0）。
   //   reopened_by／reclosed_by／diff_approved_by は memberships.id（auth_membership_id）＝users.id ではない。
   store_id: string;
+  note: string | null; // ★#70: 解除中の日報を選んだとき締め欄へ写す（select * で取得済み）
   reopened_at: string | null; reopened_by: string | null; reopen_reason: string | null;
   reclosed_at: string | null; reclosed_by: string | null;
   diff_reason: string | null; diff_approved_by: string | null; diff_approved_at: string | null;
@@ -139,6 +140,9 @@ export default function ReportBoard({
   const [approvePick, setApprovePick] = useState<Report | null>(null); // 差異承認モーダルの対象行
   const [reasonVal, setReasonVal] = useState("");
   const [memberNames, setMemberNames] = useState<Record<string, string>>({}); // memberships.id → users.name（解除者／承認者の表示専用）
+  // ★#70（2026-09-10）: 表の「再締め」は締め欄へ誘導するだけ＝値を送る経路は締め欄の 1 本
+  const closeRef = useRef<HTMLElement | null>(null);
+  const expenseRef = useRef<HTMLInputElement | null>(null);
   // E8-2 #12: due 設定モーダル（receivable_set_due・mig0093）＋期日ソート
   const [duePick, setDuePick] = useState<Recv | null>(null);
   const [dueVal, setDueVal] = useState("");
@@ -375,6 +379,16 @@ export default function ReportBoard({
 
   // 段L2: 表示中の営業日が締め済みか（既に取得済みの reports から引くだけ＝新規取得なし）
   const closedReport = reports.find((r) => r.biz_date === bizDate) ?? null;
+  // ★#70: 再締めできる日（flag on＝解除中／flag off＝締め済み＝現行の上書き再集計）を選んだら、その日報の値を締め欄へ写す。
+  //   再締めは締め欄の値で daily_report_reclose に送る（既存値で送る行ボタンの経路は撤去＝#70）。ユーザー編集は日付切替まで保持。
+  const recloseTarget = closedReport && (!reopenFlag || isReopened(closedReport)) ? closedReport : null;
+  useEffect(() => {
+    if (!recloseTarget) return;
+    setExpense(recloseTarget.expense); setPayout(recloseTarget.cash_payout); setCashFloat(recloseTarget.cash_float);
+    setCounted(recloseTarget.counted_cash == null ? "" : String(recloseTarget.counted_cash));
+    setNote(recloseTarget.note ?? "");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recloseTarget?.id, recloseTarget?.reopened_at, recloseTarget?.reclosed_at]);
   // 当日サマリの「売上（暫定）」＝現金＋カード＋売掛＋その他（締め済み日報の売上式と同じ組み立て）
   const previewSales = preview ? preview.cash + preview.card + preview.uri + preview.other : 0;
 
@@ -390,12 +404,27 @@ export default function ReportBoard({
     await loadReports();
   }
 
-  async function reclose(reportId: string) {
+  // ★#70: 再締め＝締め欄の値（諸経費／現金支払／釣銭／実査／メモ／強行）を daily_report_reclose へ送る。
+  //   mig0138（C③-3）: p_idem_key を必ず送る（再送の冪等リプレイ・原則 9）。flag on の店は解除中のみ通る（not_reopened）。
+  //   RPC 側は coalesce(p_x, 既存値)＝ここでは常に明示値を送る（規約 7 と同じ流儀・実査は空欄＝null＝既存値のまま）。
+  async function recloseFromForm(reportId: string) {
     setMsg(null);
-    // ★mig0138（C③-3）: p_idem_key を必ず送る（再送の冪等リプレイ・原則 9）。flag on の店は解除中のみ通る（not_reopened）
-    const { error } = await supabase.rpc("daily_report_reclose", { p_report_id: reportId, p_force: force, p_idem_key: crypto.randomUUID() });
-    setMsg(error ? reopenErrJa(error.message) : "再締めしました（凍結 cutoff/税率で再集計）");
+    const { error } = await supabase.rpc("daily_report_reclose", {
+      p_report_id: reportId,
+      p_expense: expense, p_cash_payout: payout, p_cash_float: cashFloat,
+      p_counted_cash: counted === "" ? null : Number(counted),
+      p_note: note || null, p_force: force, p_idem_key: crypto.randomUUID(),
+    });
+    setMsg(error ? reopenErrJa(error.message) : "再締めしました（締め欄の値で再集計・凍結 cutoff/税率）");
     await loadReports();
+  }
+  // ★#70: 表の「再締め」は締め欄へ誘導（行の営業日を選び、締め欄へスクロール＋諸経費にフォーカス）。値は送らない
+  function scrollToClose(biz: string) {
+    setBizDate(biz);
+    window.setTimeout(() => {
+      closeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      expenseRef.current?.focus();
+    }, 50);
   }
 
   // ★C層③（C③-1／C③-14）: 締め解除＝report_reopen(p_store_id, p_biz_date, p_reason)。理由必須 1〜200 字（RPC 側も reason_required で二重）。
@@ -1078,8 +1107,19 @@ export default function ReportBoard({
           })()}
         </section>
 
-        <section className="nox-panel">
-          <h3>締め（{bizDate}）</h3>
+        <section className="nox-panel" ref={closeRef}>
+          <h3>{recloseTarget ? "再締め" : "締め"}（{bizDate}）</h3>
+          {/* ★#70: 解除中（flag on）／締め済み（flag off）の日は「再締め」＝締め欄の値で daily_report_reclose。値は選択時に日報から写してある */}
+          {recloseTarget && (
+            <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "0 0 8px" }}>
+              {reopenFlag ? "解除中の日報です。" : "締め済みの日報です。"}下の値で再締め（再集計）します。値は現在の日報から写しています。
+            </p>
+          )}
+          {closedReport && reopenFlag && !recloseTarget && (
+            <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "0 0 8px" }}>
+              この営業日は締め済みです。訂正するには下の表の「解除」で締めを解除してください（解除中のみ再締めできます）。
+            </p>
+          )}
           {/* E8-2 #4: 現金照合パネル＝レジ内予定額の内訳を締め前にライブ表示（式は確定側の実査差異と同じ） */}
           {preview && (() => {
             const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout;
@@ -1103,7 +1143,7 @@ export default function ReportBoard({
             );
           })()}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <label style={{ ...t.fieldLabel, fontSize: 12 }}>諸経費 <input type="number" min={0} value={expense} onChange={(e) => setExpense(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
+            <label style={{ ...t.fieldLabel, fontSize: 12 }}>諸経費 <input ref={expenseRef} type="number" min={0} value={expense} onChange={(e) => setExpense(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
             <label style={{ ...t.fieldLabel, fontSize: 12 }}>現金支払（送り・日払い等） <input type="number" min={0} value={payout} onChange={(e) => setPayout(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
             <label style={{ ...t.fieldLabel, fontSize: 12 }}>釣銭準備金 <input type="number" min={0} value={cashFloat} onChange={(e) => setCashFloat(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
             <label style={{ ...t.fieldLabel, fontSize: 12 }}>実査（数えた現金） <input type="number" min={0} value={counted} onChange={(e) => setCounted(e.target.value)} placeholder="未入力可" style={{ ...input, width: 110 }} /></label>
@@ -1113,7 +1153,10 @@ export default function ReportBoard({
             <label style={{ ...t.fieldLabel, fontSize: 12 }}>
               <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} /> 未会計があっても強行
             </label>
-            <button style={btnDark} onClick={closeDay}>締め確定</button>
+            {recloseTarget
+              ? <button style={btnDark} onClick={() => void recloseFromForm(recloseTarget.id)}>再締め</button>
+              : <button style={btnDark} onClick={closeDay} disabled={!!closedReport && reopenFlag}
+                  title={closedReport && reopenFlag ? "締め済み（表の「解除」で解除すると再締めできます）" : undefined}>締め確定</button>}
           </div>
         </section>
         </>
@@ -1207,10 +1250,10 @@ export default function ReportBoard({
                       差異あり（実査入力済み・diff≠0・未承認・解除中でない）＝「差異を承認」（can_close）→ 承認済み（理由／承認者／日時）。
                       can_close／can_reopen のない staff にはボタン不在。flag off＝従来どおり manager 以上の「再締め」のみ（導線不在＝横断 §4）。
                       送る RPC＝report_reopen／daily_report_reclose（既存・p_idem_key）／cash_diff_approve の 3 本のみ。 */}
-                  {!reopenFlag && isManagerUp && <button style={btnLight} onClick={() => reclose(r.id)}>再締め</button>}
+                  {!reopenFlag && isManagerUp && <button style={btnLight} onClick={() => scrollToClose(r.biz_date)}>再締め</button>}
                   {reopenFlag && (isReopened(r) ? (<>
                     <span className="nox-stbadge open" style={{ marginRight: 6 }} title={r.reopen_reason ?? ""}>解除中</span>
-                    {canClose && <button style={btnLight} onClick={() => reclose(r.id)}>再締め</button>}
+                    {canClose && <button style={btnLight} onClick={() => scrollToClose(r.biz_date)}>再締め</button>}
                   </>) : (
                     canReopen && <button style={btnLight} onClick={() => { setReasonVal(""); setReopenPick(r); }}>解除</button>
                   ))}
