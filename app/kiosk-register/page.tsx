@@ -891,7 +891,7 @@ export default function KioskRegisterPage() {
                         <span key={sid} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--ink)" }}>
                           ＋{seats.find((s) => s.id === sid)?.name ?? "他卓"}（同一会計）
                           <button onClick={() => void removeSeat(sid)} title="相席を解除"
-                            style={{ ...btnLight, padding: "1px 7px", fontSize: 12, color: "var(--bad)", borderColor: "var(--bad)" }}>×</button>
+                            style={{ ...btnLight, padding: "1px 7px", fontSize: 12, color: "var(--bad)", border: "1px solid var(--bad)" }}>×</button>
                         </span>
                       ))}
                     </div>

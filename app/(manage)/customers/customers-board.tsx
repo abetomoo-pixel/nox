@@ -408,7 +408,7 @@ export default function CustomersBoard({
             <button key={v || "all"} type="button"
               style={{
                 ...t.btnGhost, ...t.btnSm, padding: "4px 12px", fontSize: 12,
-                ...(castFilter === v ? { borderColor: "var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}),
+                ...(castFilter === v ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}), /* ★#80 */
               }}
               onClick={() => setCastFilter(v as string)}>
               {label}
@@ -613,7 +613,7 @@ export default function CustomersBoard({
                     <button key={label} type="button"
                       style={{
                         ...t.btnGhost, ...t.btnSm, padding: "3px 12px", fontSize: 11.5,
-                        ...((dCust?.grade ?? null) === v ? { borderColor: "var(--gold)", color: "var(--champ)", background: "var(--goldface2)" } : {}),
+                        ...((dCust?.grade ?? null) === v ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface2)" } : {}), /* ★#80 */
                       }}
                       onClick={() => void setGrade(v)}>{label}</button>
                   ))}
@@ -751,7 +751,7 @@ export default function CustomersBoard({
                     <button key={v} type="button"
                       style={{
                         ...t.btnGhost, ...t.btnSm, padding: "3px 12px", fontSize: 11.5,
-                        ...(btlForm.status === v ? { borderColor: "var(--gold)", color: "var(--champ)", background: "var(--goldface2)" } : {}),
+                        ...(btlForm.status === v ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface2)" } : {}), /* ★#80 */
                       }}
                       onClick={() => setBtlForm((f) => ({ ...f, status: v }))}>{label}</button>
                   ))}

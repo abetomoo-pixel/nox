@@ -367,7 +367,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           {isOwner && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "6px 0 10px" }}>
               {PRESETS.map((n) => (
-                <button key={n} type="button" style={{ ...t.btnGhost, ...t.btnSm, borderColor: presetName === n ? "var(--gold)" : undefined }}
+                <button key={n} type="button" style={{ ...t.btnGhost, ...t.btnSm, border: presetName === n ? "1px solid var(--gold)" : t.btnGhost.border }}
                   onClick={() => { setPresetName(n); const ex = backs.find((b) => b.name === n); setPresetValue(ex?.value ?? 0); }}>
                   {n}{backs.find((b) => b.name === n) ? "（登録済）" : ""}
                 </button>

@@ -410,7 +410,7 @@ export default function CastsBoard({
               className="nox-chip"
               style={{
                 ...btnGhost, padding: "4px 12px", fontSize: 12,
-                ...(rankFilter === v ? { borderColor: "var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}),
+                ...(rankFilter === v ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}), /* ★#80 */
               }}
               onClick={() => setRankFilter(v as string)}>
               {label}
@@ -778,7 +778,7 @@ export default function CastsBoard({
               if (await rpc("本採用", "trial_hire", { p_trial_id: selTrial.id })) { setSel(null); await reloadLoginCasts(); }
             }}>本採用</button>
             {/* ★裁定146（裁定120 適用）: 取り消し困難な操作＝Danger 系トークン（--bad 系は警告面用・値は同系） */}
-            <button style={{ ...btnGhost, color: "var(--danger)", borderColor: "var(--danger-bd)" }} disabled={busy} onClick={async () => {
+            <button style={{ ...btnGhost, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={async () => {
               if (!confirm(`${selTrial.name} を見送りますか？`)) return;
               if (await rpc("見送り", "trial_reject", { p_trial_id: selTrial.id })) setSel(null);
             }}>見送り</button>

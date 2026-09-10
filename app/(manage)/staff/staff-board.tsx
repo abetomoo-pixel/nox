@@ -271,7 +271,7 @@ export default function StaffBoard({
             )}
             {sel.is_active && !isSelf(sel) && (
               // ★裁定146（裁定120 適用）: 在籍解除＝取り消し困難な操作＝Danger 系トークン（--bad 系は警告面用・値は同系）
-              <button style={{ ...btnGhost, color: "var(--danger)", borderColor: "var(--danger-bd)" }} disabled={busy} onClick={async () => {
+              <button style={{ ...btnGhost, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={async () => {
                 if (!confirm(`${users[sel.user_id]?.name ?? ""} の在籍を解除しますか？（ログイン権限が即時に失効します・削除はされません）`)) return;
                 await rpc("在籍を解除", "staff_deactivate", { p_membership_id: sel.id });
                 setSel(null);

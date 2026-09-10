@@ -739,7 +739,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           <button
             onClick={() => void reopen()}
             disabled={busy || payCount === null || payCount > 0 || reopenReason.trim().length === 0}
-            style={payCount === 0 ? { ...t.btnGhost, borderColor: "var(--bad)", color: "var(--bad)" } : { ...t.btnGhost, opacity: 0.5 }}
+            style={payCount === 0 ? { ...t.btnGhost, border: "1px solid var(--bad)", color: "var(--bad)" } : { ...t.btnGhost, opacity: 0.5 }} /* ★#80: border 短縮形で上書き（borderColor と混ぜない） */
             title={payCount && payCount > 0 ? "支払記録があるため解除できません" : ""}
           >
             確定を解除

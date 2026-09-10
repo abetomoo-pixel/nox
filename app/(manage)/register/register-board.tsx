@@ -1601,7 +1601,7 @@ export default function RegisterBoard({
             </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button style={btnLight} disabled={clearBusy} onClick={() => setClearModal(false)}>やめる</button>
-              <button style={{ ...btnLight, color: "var(--danger)", borderColor: "var(--danger-bd)" }}
+              <button style={{ ...btnLight, color: "var(--danger)", border: "1px solid var(--danger-bd)" }}
                 disabled={clearBusy} onClick={() => void clearItems()}>
                 {clearBusy ? "削除中…" : `${targets.length}行を削除`}
               </button>
@@ -1681,7 +1681,7 @@ export default function RegisterBoard({
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button style={btnLight} onClick={() => setVoidModal(false)}>やめる</button>
             <button
-              style={{ ...btnLight, color: "var(--danger)", borderColor: "var(--danger-bd)", opacity: voidReason.trim() ? 1 : 0.4 }}
+              style={{ ...btnLight, color: "var(--danger)", border: "1px solid var(--danger-bd)", opacity: voidReason.trim() ? 1 : 0.4 }}
               disabled={!voidReason.trim()}
               onClick={() => void voidCheck()}>
               取消する
@@ -2143,7 +2143,7 @@ export default function RegisterBoard({
           {/* void は manager 以上のみ表示（RPC 側でも owner/manager を強制＝二重） */}
           {isManagerUp && (
             <button onClick={() => { setVoidReason(""); setVoidModal(true); }}
-              style={{ ...btnLight, color: "var(--bad)", borderColor: "var(--bad)" }}>
+              style={{ ...btnLight, color: "var(--bad)", border: "1px solid var(--bad)" }}>
               伝票取消
             </button>
           )}
@@ -2399,7 +2399,7 @@ export default function RegisterBoard({
                 <button type="button" aria-label={`${ca.name}を分配から外す`}
                   onClick={() => void removeShareCast(ca.id)}
                   style={{ ...btnLight, padding: "2px 9px", fontWeight: 800,
-                    color: "var(--bad)", borderColor: "var(--bad)" }}>
+                    color: "var(--bad)", border: "1px solid var(--bad)" }}>
                   ×
                 </button>
               </div>
@@ -2466,7 +2466,7 @@ export default function RegisterBoard({
                   <span key={cs.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--ink)" }}>
                     ＋{seats.find((s) => s.id === cs.seat_id)?.name ?? "他卓"}（同一会計）
                     <button onClick={() => removeSeat(cs.seat_id)} title="相席を解除"
-                      style={{ ...btnLight, padding: "1px 7px", fontSize: 12, color: "var(--danger)", borderColor: "var(--danger-bd)" }}>×</button>
+                      style={{ ...btnLight, padding: "1px 7px", fontSize: 12, color: "var(--danger)", border: "1px solid var(--danger-bd)" }}>×</button>
                   </span>
                 ))}
               </div>

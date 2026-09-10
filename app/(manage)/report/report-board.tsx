@@ -640,7 +640,7 @@ export default function ReportBoard({
                       {/* E8-2 #12: 期日バッジ（超過は bad 色・タップで設定/変更モーダル） */}
                       <button type="button" style={{
                         ...btnLight, marginLeft: 8, padding: "2px 10px", fontSize: 11.5,
-                        ...(isOver ? { borderColor: "var(--bad-bd)", color: "var(--bad)", background: "var(--bad-bg)" } : {}),
+                        ...(isOver ? { border: "1px solid var(--bad-bd)", color: "var(--bad)", background: "var(--bad-bg)" } : {}), /* ★#80 */
                       }}
                         onClick={() => { setDuePick(r); setDueVal(r.due ?? ""); }}>
                         {r.due ? `期日 ${r.due}${isOver ? "（超過）" : ""}` : "期日を設定"}

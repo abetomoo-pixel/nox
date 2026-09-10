@@ -654,7 +654,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                           title="空＝今すぐ（現在行の上書き）。指定＝その日から適用（履歴生成・給与は裁定97 の期間選択）" />
                         {cp && (
                           <button type="button" onClick={() => void toggleHist(c.id)} title="適用履歴（期間つき・読み取りのみ）"
-                            style={{ ...t.btnGhost, ...t.btnSm, borderColor: histOpen === c.id ? "var(--gold)" : undefined }}>
+                            style={{ ...t.btnGhost, ...t.btnSm, border: histOpen === c.id ? "1px solid var(--gold)" : t.btnGhost.border }}>
                             履歴 {histOpen === c.id ? "▾" : "▸"}
                           </button>
                         )}
@@ -664,7 +664,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                   <td>
                     {isManagerUp ? (
                       <button type="button" onClick={() => toggleOv(c.id)}
-                        style={{ ...t.btnGhost, ...t.btnSm, borderColor: openOv === c.id ? "var(--gold)" : undefined }}>
+                        style={{ ...t.btnGhost, ...t.btnSm, border: openOv === c.id ? "1px solid var(--gold)" : t.btnGhost.border }}>
                         {n > 0 ? <span className="num">{n}件</span> : "—"} {openOv === c.id ? "▾" : "▸"}
                       </button>
                     ) : (n > 0 ? <span className="num">{n}件</span> : "—")}
