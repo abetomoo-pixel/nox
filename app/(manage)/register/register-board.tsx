@@ -74,6 +74,18 @@ type Notice = { to: string; text: string; kind: "ok" | "bad" };
 //   time＝時間料金（手動）カード＝延長の完了文言（R-1a 段2。エラーは従来どおり timeMsg）。
 const MSG_FLOOR = "floor";
 const MSG_DETAIL = "detail";
+// ★C層③（設計書 v1 §4 面 b・相談役ブロック 2026-09-10）: 関所（assert_day_open＝0140／0141）と check_merge（0138／0139）の raise 文言写像。
+//   'day closed' は 16 本の書込 RPC が返す＝どの経路（tb／pay／void／席／時間／人数）でも同じ文言にする（UI で隠さない）。
+const C3_ERR_JA: [string, string][] = [
+  ["feature_disabled:reopen_flow", "締め解除フローが無効です（システム設定 → 機能の公開で店舗行を ON にしてください）"],
+  ["day closed", "この営業日は締め済みです（伝票の操作はできません。訂正するには日報画面で締めを解除してください）"],
+  ["merge_conflict:status", "どちらかの伝票が open ではないため合算できません"],
+  ["merge_conflict:money", "入金・売掛のある伝票は合算できません"],
+  ["merge_conflict:cast", "同じキャストの指名が両方の伝票にあるため合算できません（先に片方の指名を外してください）"],
+  ["merge_conflict:pay_group", "会計グループ A 以外の明細があるため合算できません（先にグループを A に戻してください）"],
+  ["reason_required", "理由は 1〜200 字で入力してください"],
+];
+const c3ErrJa = (m: string) => C3_ERR_JA.find(([k]) => m.includes(k))?.[1] ?? m;
 const MSG_PAY = "pay";
 const MSG_TIME = "time";
 // feeMsg の描画点（1つ）＝指名カード。★0124: 同伴料カード撤去で FEE_DOHAN は廃止。
@@ -304,13 +316,15 @@ export default function RegisterBoard({
   const [payModal, setPayModal] = useState(false);
   // E8-1 #9: 人数±（check_set_people・mig0090）
   const [peopleBusy, setPeopleBusy] = useState(false);
-  const [peopleMsg, setPeopleMsg] = useState<string | null>(null);
+  const [peopleMsg, setPeopleMsgRaw] = useState<string | null>(null);
+  const setPeopleMsg = useCallback((m: string | null) => setPeopleMsgRaw(m == null ? m : c3ErrJa(m)), []); // ★C層③ 写像
   // E8-1 ⑦: 「＋会計を分ける」で作った未使用グループ（明細に載れば knownGroups へ自然合流）
   const [extraGroups, setExtraGroups] = useState<string[]>([]);
   // E8-1 ⑥: 卓起点予約（開卓モーダル→「予約を入れる」→予約タブへ卓プリフィル）
   const [reservePrefillSeat, setReservePrefillSeat] = useState<string | null>(null);
   // E8-1b F2: 指名カード内のローカルメッセージ（旧 setMsg はフロアでしか描画されない＝エラー非表示バグの是正）
-  const [feeMsg, setFeeMsg] = useState<Notice | null>(null);
+  const [feeMsg, setFeeMsgRaw] = useState<Notice | null>(null);
+  const setFeeMsg = useCallback((n: Notice | null) => setFeeMsgRaw(n && n.kind === "bad" ? { ...n, text: c3ErrJa(n.text) } : n), []); // ★C層③ 写像
   // E8-1b F3: 席操作の視覚選択モーダル（相席追加 / 席移動）
   const [seatPick, setSeatPick] = useState<"add" | "move" | null>(null);
   // E8-1b F5（mig0091）: 明細グループ付け替えモーダル（対象行 id）
@@ -336,8 +350,41 @@ export default function RegisterBoard({
   const [storeName, setStoreName] = useState("");
   const [invoiceRegNo, setInvoiceRegNo] = useState(""); // 適格請求書の登録番号（settings_json.invoice_reg_no・空=行を出さない）
   const [checkSeats, setCheckSeats] = useState<CheckSeatRow[]>([]);
-  const [seatMsg, setSeatMsg] = useState<string | null>(null);
+  const [seatMsg, setSeatMsgRaw] = useState<string | null>(null);
+  const setSeatMsg = useCallback((m: string | null) => setSeatMsgRaw(m == null ? m : c3ErrJa(m)), []); // ★C層③ 写像
   const [check, setCheck] = useState<CheckRow | null>(null);
+  // ★C層③（設計書 v1 §4 面 b）: reopen_flow（flag_enabled＝店舗行→org 行→false）。flag off＝関所の先回りも合算も導線不在。新規読取 1。
+  const [reopenFlag, setReopenFlag] = useState(false);
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void supabase.rpc("flag_enabled", { p_key: "reopen_flow", p_store_id: storeId })
+      .then(({ data }) => { if (alive) setReopenFlag(data === true); });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
+  // ★C層③（C③-2／C③-15）: 表示中の伝票の営業日（biz_date_of と同じ純関数 bizDateOf・cutoff は既存の stores 読取）に
+  //   daily_reports 行があり解除中でなければ「締め済み」＝UI で先回り無効化（RPC の 'day closed' が本体＝二重）。
+  //   伝票 id ごとに 1 回読む（新規読取 1・cast は RLS で 0 行＝false＝RPC 側の raise が写像される）。
+  const [dayClosed, setDayClosed] = useState(false);
+  useEffect(() => {
+    if (!check || !reopenFlag) { setDayClosed(false); return; }
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("daily_reports").select("reopened_at, reclosed_at")
+        .eq("store_id", check.store_id).eq("biz_date", bizDateOf(check.started_at, cutoffHm)).maybeSingle();
+      if (!alive) return;
+      const d = data as { reopened_at: string | null; reclosed_at: string | null } | null;
+      setDayClosed(!!d && !(d.reopened_at && !d.reclosed_at));
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [check?.id, reopenFlag, cutoffHm]);
+  // ★C層③（C③-6〜8）: 合算モーダル（into＝同店の open 伝票・理由必須・idem uuid・check_merge）
+  const [mergeModal, setMergeModal] = useState(false);
+  const [mergeInto, setMergeInto] = useState("");
+  const [mergeReason, setMergeReason] = useState("");
+  const [mergeBusy, setMergeBusy] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   // キャストドリンク（mig0066/0067）: この伝票の確定済み claim（line_id → claim）と、
@@ -382,12 +429,15 @@ export default function RegisterBoard({
   }
   const [noms, setNoms] = useState<Nom[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
-  const [msg, setMsg] = useState<Notice | null>(null);
+  const [msg, setMsgRaw] = useState<Notice | null>(null);
+  // ★C層③: bad 文言は c3ErrJa で写像してから置く（呼出側の setMsg(error.message) は不変＝RPC 文言を隠さず翻訳するだけ）
+  const setMsg = useCallback((n: Notice | null) => setMsgRaw(n && n.kind === "bad" ? { ...n, text: c3ErrJa(n.text) } : n), []);
   // B4（mig0052）時間料金: time_mode は非スナップ＝伝票の store の live 値で判定（裁定(g)）。
   //   timeCalc は check_time_charge_apply の返値内訳（表示専用）。timeMsg はカード内エラー。
   const [timeMode, setTimeMode] = useState("manual");
   const [timeCalc, setTimeCalc] = useState<TimeCalc | null>(null);
-  const [timeMsg, setTimeMsg] = useState<string | null>(null);
+  const [timeMsg, setTimeMsgRaw] = useState<string | null>(null);
+  const setTimeMsg = useCallback((m: string | null) => setTimeMsgRaw(m == null ? m : c3ErrJa(m)), []); // ★C層③ 写像
   // 経過時間の分表示用の時刻 tick（open 伝票がある間だけ 30 秒ごと更新＝分単位で十分）
   // 経過時間の分表示用の時刻 tick（open 伝票 or 占有卓がある間だけ 30 秒ごと更新＝分単位で十分・段B floor 滞在にも使う）
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -433,6 +483,7 @@ export default function RegisterBoard({
     if (hasSurchargeIn(g)) { setMsg({ to: MSG_PAY, kind: "bad", text: "この会計にはカード手数料が追加済みです" }); return; }
     const amount = Math.round((baseDue * surchargeRate) / 100);
     if (amount <= 0) { setMsg({ to: MSG_PAY, kind: "bad", text: "請求額が 0 のため手数料を追加できません" }); return; }
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留タップを先に確定（基底 due が動くため）
     const { error } = await supabase.rpc("check_add_line", {
       p_check_id: check.id, p_product_id: null, p_qty: 1, p_kind: "charge",
@@ -666,6 +717,7 @@ export default function RegisterBoard({
   const commitLine = useCallback(
     async (pid: string, qty: number): Promise<{ error: { message?: string } | null }> => {
       if (!check) return { error: { message: "伝票がありません" } };
+      if (dayClosed) return { error: { message: "day closed" } }; // ★C層③: 締め済み日は RPC を呼ばず同文言（RPC 側も同じ raise）
       const { error } = await supabase.rpc("check_add_line", {
         p_check_id: check.id, p_product_id: pid, p_qty: qty, p_kind: null,
         p_pay_group: prodGroup || "A", p_name: null, p_unit_price: null,
@@ -673,10 +725,40 @@ export default function RegisterBoard({
       return { error };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [check, prodGroup],
+    [check, prodGroup, dayClosed],
   );
   const reloadCurrent = useCallback(async () => { if (check) await loadCheck(check.id); }, [check, loadCheck]);
   const tb = useTapBatch(commitLine, reloadCurrent, (m) => setMsg({ to: MSG_DETAIL, text: m, kind: "bad" }));
+  // ★C層③: 締め済み日の先回り（true＝中止・文言は c3ErrJa の 'day closed' と同一）。flag off は常に false（従来どおり）。
+  const dayBlocked = (): boolean => {
+    if (!dayClosed) return false;
+    setMsg({ to: MSG_DETAIL, text: "day closed", kind: "bad" });
+    return true;
+  };
+  // ★C層③（C③-6〜8・C③-14）: 合算＝check_merge(p_from＝この伝票, p_into, p_reason, p_idem_key)。
+  //   成功後は from が open 一覧から消え（status merged＝loadOpenMap の status='open' 述語で自然に除外）into を再取得して表示。
+  //   拒否は RPC の raise（merge_conflict:status／money／cast／pay_group・forbidden＝同一 id／別店／権限）を写像。
+  async function mergeCheck() {
+    if (!check || !mergeInto || mergeBusy) return;
+    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
+    const reason = mergeReason.trim();
+    if (reason.length < 1 || reason.length > 200) { setMsg({ to: MSG_DETAIL, text: "reason_required", kind: "bad" }); return; }
+    setMergeBusy(true);
+    const { error } = await supabase.rpc("check_merge", {
+      p_from_check_id: check.id, p_into_check_id: mergeInto, p_reason: reason, p_idem_key: crypto.randomUUID(),
+    });
+    setMergeBusy(false);
+    if (error) {
+      setMsg({ to: MSG_DETAIL, kind: "bad",
+        text: error.message.includes("forbidden") ? "合算できません（同じ伝票・別の店の伝票・権限のいずれか）" : error.message });
+      return;
+    }
+    setMergeModal(false); setMergeInto(""); setMergeReason("");
+    setFeeMsg(null);
+    await loadOpenMap();
+    await loadCheck(mergeInto);
+    setMsg({ to: MSG_DETAIL, text: "合算しました（合算先の伝票を表示しています。元の伝票は合算済みとして一覧から消えます）", kind: "ok" });
+  }
 
   async function openSeat(seat: Seat) {
     if (!(await tb.flush())) return; // 別 check へ切替前に保留を現 check へ確定（失敗＝中止）
@@ -751,6 +833,7 @@ export default function RegisterBoard({
     dohanNs: Record<string, number>,
   ) {
     if (!check || feeBusy) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留タップを先に確定（失敗＝中止）
     setFeeBusy(true);
     setMsg(null);
@@ -804,6 +887,7 @@ export default function RegisterBoard({
   // E8-1b F5（mig0091）: 明細行のグループ付け替え（time_auto 行は RPC が 'time line' で拒否＝UI も出さない）
   async function setLineGroup(lineId: string, g: string) {
     if (!check) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setClaimMsg(null);
     const { error } = await supabase.rpc("check_line_set_group", { p_line_id: lineId, p_group: g });
@@ -825,6 +909,7 @@ export default function RegisterBoard({
 
   async function addCustomLine() {
     if (!check || !cName) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     const { error } = await supabase.rpc("check_add_line", {
@@ -888,6 +973,7 @@ export default function RegisterBoard({
       setMsg({ to: MSG_DETAIL, kind: "bad", text: "先に指名料を取り消してください" });
       return;
     }
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り
     if (!(await tb.flush())) return; // autoSaveNoms と同じ前置き（保留タップを先に確定）
     // ★裁定110: 除外＝キー削除＋残り >0 群を Σ=100 へ（全 0 なら既定分配で復旧）
     setNomWeights((prev) => {
@@ -909,6 +995,7 @@ export default function RegisterBoard({
 
   async function removeLine(lineId: string) {
     if (!check) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     const target = lines.find((l) => l.id === lineId); // 削除後は lines から消えるので先に控える
@@ -936,6 +1023,7 @@ export default function RegisterBoard({
   const CLEARABLE_KINDS = new Set(["drink", "champ", "bottle"]);
   async function clearItems() {
     if (!check || clearBusy) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     const targets = lines.filter((l) => CLEARABLE_KINDS.has(l.kind));
     if (targets.length === 0) { setClearModal(false); return; }
@@ -980,6 +1068,7 @@ export default function RegisterBoard({
   //     （手動ボタンは廃止。契機＝押し忘れたまま close できる構造の是正・UI 経路で塞ぐ）。
   async function applyTimeCharge() {
     if (!check) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setTimeMsg(null);
     const { data, error } = await supabase.rpc("check_time_charge_apply", { p_check_id: check.id });
@@ -996,6 +1085,7 @@ export default function RegisterBoard({
   //     MSG_DETAIL（詳細共通の描画点）へ出す（会計タブに居なくても押下結果が見える）。
   async function addExtension(ruleId?: string, from: "time" | "bar" = "time") {
     if (!check) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setTimeMsg(null);
     setMsg(null); // 前回の延長の完了文言を消す（エラー文言と成功文言が並ばないように）
@@ -1041,6 +1131,7 @@ export default function RegisterBoard({
   //   auto 店の延長側は次回 apply が再計算＝autoTimeKeyRef をリセットして会計タブ再入場で再反映させる。
   async function setPeopleN(next: number | null) {
     if (!check || peopleBusy) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setPeopleMsg(null);
     setPeopleBusy(true);
@@ -1102,6 +1193,7 @@ export default function RegisterBoard({
   // B1 相席追加（check_add_seat）。予約 soft 警告を添えて続行。
   async function addSeat(seatId: string) {
     if (!check || !seatId) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setSeatMsg(null);
     const warn = await reservedNote(seatId);
@@ -1115,6 +1207,7 @@ export default function RegisterBoard({
   // B1 相席解除（check_remove_seat・追加席のみ・主席は home seat 拒否）
   async function removeSeat(seatId: string) {
     if (!check) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setSeatMsg(null);
     const { error } = await supabase.rpc("check_remove_seat", { p_check_id: check.id, p_seat_id: seatId });
@@ -1127,6 +1220,7 @@ export default function RegisterBoard({
   // B2 席移動（check_move_seat）。予約 soft 警告を添えて続行。成功文言はモック Ix 準拠。
   async function moveSeat(seatId: string) {
     if (!check || !seatId) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setSeatMsg(null);
     const warn = await reservedNote(seatId);
@@ -1140,6 +1234,7 @@ export default function RegisterBoard({
   // E8-1 ④: モーダルから呼ぶため成功可否を返す（送る引数は不変・失敗時はモーダルを閉じない）
   async function pay(): Promise<boolean> {
     if (!check) return false;
+    if (dayBlocked()) return false; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return false; // money 系: 保留を先に確定（失敗＝中止・入金前提）
     setMsg(null);
     // F4c: detail は card/other のときだけ送る（空/空白のみは null＝RPC 側も nullif(trim()) で二重に守る）
@@ -1162,6 +1257,7 @@ export default function RegisterBoard({
 
   async function closeCheck() {
     if (!check) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止・締め前提）
     setMsg(null);
     const { error } = await supabase.rpc("check_close", { p_check_id: check.id, p_idem_key: crypto.randomUUID() });
@@ -1195,6 +1291,7 @@ export default function RegisterBoard({
   //   ★flush → rpc の順序も不変（保留を先に確定してから取消＝失敗なら中止）。
   async function voidCheck() {
     if (!check) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     const reason = voidReason.trim();
     if (!reason) return;
@@ -1221,6 +1318,7 @@ export default function RegisterBoard({
   // F3c: 割引/無料 申請（黒服 can_register）・適用（owner/manager 直接）
   async function requestOrApply() {
     if (!check) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（割引は総額に依存・失敗＝中止）
     setMsg(null);
     const rpc = isManagerUp ? "approval_direct" : "approval_request";
@@ -1239,6 +1337,7 @@ export default function RegisterBoard({
   // F3c: 承認/却下（owner/manager のみ）
   async function decide(approvalId: string, approve: boolean) {
     if (!check) return;
+    if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     const { error } = await supabase.rpc("approval_decide", { p_approval_id: approvalId, p_approve: approve });
@@ -1502,6 +1601,52 @@ export default function RegisterBoard({
               <button style={{ ...btnLight, color: "var(--danger)", borderColor: "var(--danger-bd)" }}
                 disabled={clearBusy} onClick={() => void clearItems()}>
                 {clearBusy ? "削除中…" : `${targets.length}行を削除`}
+              </button>
+            </div>
+          </Modal>
+        );
+      })()}
+      {/* ── ★C層③: 合算モーダル（from＝この伝票 → into＝同店の open 伝票・理由必須・check_merge）── */}
+      {mergeModal && check && (() => {
+        const cands = Object.entries(openMap)
+          .filter(([sid, cid]) => cid !== check.id && seats.find((x) => x.id === sid)?.store_id === check.store_id)
+          .map(([sid, cid]) => ({ cid, name: seats.find((x) => x.id === sid)?.name ?? "—", total: openTotal[cid] ?? 0 }));
+        return (
+          <Modal onClose={() => { if (!mergeBusy) setMergeModal(false); }}>
+            <h3 style={{ ...t.cardTitle, margin: "0 0 6px" }}>伝票を合算します</h3>
+            <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
+                <span>この伝票（移す側）</span><span>{seats.find((x) => x.id === check.seat_id)?.name ?? "—"}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontWeight: 800 }}>合計</span>
+                <span style={{ ...t.num, fontSize: 20, fontWeight: 900 }}>{yen(check.total)}</span>
+              </div>
+            </div>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
+              この伝票の明細・指名・席を、選んだ伝票へ移します。この伝票は「合算済み」になり一覧から消えます（元に戻せません）。
+              入金・売掛のある伝票、同じキャストの指名が両方にある伝票、会計グループ A 以外の明細がある伝票は合算できません。
+            </p>
+            <label style={{ ...t.fieldLabel, display: "block", marginBottom: 10 }}>
+              合算先（同じ店の open 伝票）
+              <select value={mergeInto} onChange={(e) => setMergeInto(e.target.value)} style={{ ...t.input, display: "block", marginTop: 5 }}>
+                <option value="">選択してください</option>
+                {cands.map((c) => <option key={c.cid} value={c.cid}>{c.name}・{yen(c.total)}</option>)}
+              </select>
+            </label>
+            {cands.length === 0 && (
+              <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" }}>同じ店に他の open 伝票がありません。</p>
+            )}
+            <label style={{ ...t.fieldLabel, display: "block", marginBottom: 12 }}>
+              理由（必須・200 字まで）
+              <input value={mergeReason} onChange={(e) => setMergeReason(e.target.value)} maxLength={200}
+                placeholder="例: 2 卓を 1 伝票にまとめる" style={{ ...t.input, display: "block", marginTop: 5 }} />
+            </label>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button style={btnLight} disabled={mergeBusy} onClick={() => setMergeModal(false)}>やめる</button>
+              <button style={{ ...btnLight, opacity: mergeInto && mergeReason.trim() ? 1 : 0.4 }}
+                disabled={mergeBusy || !mergeInto || !mergeReason.trim()} onClick={() => void mergeCheck()}>
+                {mergeBusy ? "合算中…" : "合算する"}
               </button>
             </div>
           </Modal>
@@ -1999,6 +2144,11 @@ export default function RegisterBoard({
               伝票取消
             </button>
           )}
+          {/* ★C層③（設計書 v1 §4 面 b）: 合算＝open 伝票同士（into を同店の open 伝票から選ぶ・理由必須）。flag off＝導線不在。
+              owner∨manager のみ（RPC も同じ判定＝二重）。締め済み日は関所で拒否されるためボタンも出さない */}
+          {reopenFlag && isManagerUp && check.status === "open" && !dayClosed && (
+            <button onClick={() => { setMergeInto(""); setMergeReason(""); setMergeModal(true); }} style={btnLight}>合算</button>
+          )}
         </div>
         {peopleMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-ink)", margin: "6px 0 0" }}>{peopleMsg}</p>}
         {/* E8-1c: 人数±の注記（person 制のみ＝table 制は人数が料金に効かないため出さない・嘘をつかない）。
@@ -2016,6 +2166,13 @@ export default function RegisterBoard({
         {/* R-1a（裁定61）: 描画点＝伝票詳細ビュー。旧実装は msg の描画点が入金モーダルとフロアにしか無く、
             指名の保存・割引/無料の適用と申請・承認/却下の文言が state に入るだけで**画面に出なかった**。
             3タブの外（backbar 直下）に置く＝どのタブから出た文言でも必ず見える。 */}
+        {/* ★C層③: 締め済み営業日＝操作を先回りで止める表示（各ボタンは dayBlocked／commitLine で中止・RPC の関所が本体） */}
+        {dayClosed && (
+          <p style={{ ...t.alert, margin: "8px 0 0" }}>
+            この営業日は締め済みです。伝票の操作（明細・入金・取消・席・時間・人数）はできません。
+            訂正するには日報画面で締めを解除してください（解除中は操作できます・再締めで再集計）。
+          </p>
+        )}
         {msg?.to === MSG_DETAIL && (
           <p style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.7, margin: "8px 0 0",
             color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>
