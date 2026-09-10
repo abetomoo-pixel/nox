@@ -2846,6 +2846,14 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓69：合算＝子表の行移送は unique／partial unique を全列挙してから設計し、目視前に「2 卓とも自動時間料金あり」の fixture を suite に入れる（相談役起こし）
+
+2026-09-10、check_merge（mig0138／0139）は from の check_lines を `update … set check_id = into` で丸ごと移すが、check_lines には部分ユニーク `check_lines_one_time_auto`＝`(check_id, fee_kind, block_no) where time_auto` がある。check_open は set_fee×units＞0 の店で必ず `time_auto=true・fee_kind='set'・block_no=0` の行を作る（vip_charge 行も `'vip_charge'・0`、auto 店の延長は `'extension'・k`）ため、**時間料金のある店では 2 卓とも同じキーの自動行を持ち、合算は Postgres の unique 違反（`merge_conflict:*` ではない生の duplicate key）で失敗する**。verify-nox-reopen の merge fixture は pg 直 insert の伝票（set 行なし）で作ったため緑のまま通り、目視前の読取調査（本日 13:42）で露見した。
+
+- **設計時**: 子表を移送する RPC は、対象表の **unique／partial unique index を pg_indexes で全列挙**し、キーごとに「移送後に衝突し得るか」「衝突時の扱い（拒否＝merge_conflict／変換＝time_auto を落として手動行化／統合＝upsert）」を設計書に書く。check_lines 以外の実測＝check_nominations(check_id, cast_id)→merge_conflict:cast で封鎖済み／check_seats(seat_id)→移送は seat_id 不変・主席は on conflict／payments(idem_key)→money 拒否で不到達／checks_one_open_per_seat→from は merged になるため不衝突。
+- **自動行の変換を選ぶ場合の確認点（prosrc 実測）**: check_time_charge_apply は `time_auto` 行だけを delete／upsert し（L59-148）、check_set_people も `time_auto and fee_kind in ('set','vip_charge')` だけを人数追随させ、check_line_set_group は `time_auto` 行だけ 'time line' で拒否、check_recalc は time_auto を見ない（pay_group 別の Σline_total）。＝from の自動行を `time_auto=false・block_no=null` の手動行へ変換して移せば、into 側の再計算・延長・人数変更は into 自身の自動行だけを対象にし、移した行は凍結値のまま合計に残る（二重計上ではなく from 卓ぶんの実額）。manual 店の check_extension_add は元から `time_auto=false`＝影響なし。
+- **suite**: 合算の fixture は check_open（RPC）で開卓し **2 卓とも set 行（time_auto）を持つ**状態を必ず含める。pg 直 insert の伝票だけで merge を緑にしない。
+
 ### 教訓68：生成 mig の挿入行は「参照する変数が宣言済みか・その行の時点で代入済みか」を機械で assert する（相談役起こし）
 
 2026-09-10、mig0140（16 本へ関所 1 行を機械挿入）の生成器は、伝票行のない check_open だけ `assert_day_open(v_store, biz_date_of(v_store, now()))` を**ゲート行の直後**に差したが、check_open に v_store は無く（店は `v_seat.store_id`・しかも select はゲート行より後）、手貼り後の live で開卓が全件 `column "v_store" does not exist` になった（billing 段47-3 で検知→0141 で補正）。生成器の機械確認は「挿入前に呼出なし・挿入位置 1 本・行数 +1」だけで、**挿入行が参照する識別子を見ていなかった**。生成 mig では**挿入行に現れる v_*／p_* を declare 部と引数リストに照合し、かつ代入（`into v_x`／`v_x :=`）が挿入位置より前にあること**を assert する（0141 生成器の (c) が前例）。加えて、生成した mig は手貼り前に **verify の単体（billing 等）を先に走らせる**か、少なくとも代表 1 本を dry-run（begin〜rollback）で呼ぶ＝「本文一致」の突合だけでは実行時エラーを拾えない。
