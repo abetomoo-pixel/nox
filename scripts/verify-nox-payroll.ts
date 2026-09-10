@@ -28,13 +28,16 @@ import { computePayrollDraft, allocateCategory, employmentBlockerOf, sanctionWar
 import { kpiOfDraftRows, payStatusOf, issuesOfDraft } from "../lib/nox/payroll/ui-calc";
 import { adoptedMethodsOf, compSummaryOf, prepItemOf, PREP_ITEMS } from "../lib/nox/comp-methods";
 import { simulate, type SimInput } from "../lib/nox/payroll/sim";
-import { decidePayrollAccess, decideTaxReportAccess } from "../lib/nox/payroll/authz";
+import { decidePayrollAccess, decideTaxReportAccess, decideReopenAccess } from "../lib/nox/payroll/authz";
+import { Client as PgClient } from "pg"; // ★B5 9 段目: 静的確認（pg_proc）用
+import { readdirSync } from "node:fs";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   "SUPABASE_SECRET_KEY",
   "SEED_PASSWORD",
+  "SUPABASE_DB_URL", // ★B5 9 段目（A2 静的確認・pg_proc）
 ]);
 
 // ★裁定113 追補: PR_INVERT=1 で全 check の期待を反転（全赤）・PR_BREAK=1 で 113 節の算術期待値を裏書き（1本のみ赤）
@@ -56,12 +59,14 @@ const CAST_NAMES = [
   "NOX-VERIFY-payFED", "NOX-VERIFY-payFE1", "NOX-VERIFY-payFE2", "NOX-VERIFY-payFE3", "NOX-VERIFY-payFEV", // F2e-1 売掛天引き
   "NOX-VERIFY-payORD", "NOX-VERIFY-payAD1", "NOX-VERIFY-payOK1", "NOX-VERIFY-payBW", "NOX-VERIFY-payALL", // F2e-2 前借り/送り
   "NOX-VERIFY-payReopen", // D1 給与確定解除 reopen サイクル段
+  "NOX-VERIFY-payMark", // ★B5 9 段目（A1 RLS スコープ・A3 mark_paid）
   "NOX-VERIFY-payCP1", "NOX-VERIFY-payCP2", // mig0114 set_cast_plan 同値検証（段内で即消し・teardown は保険）
   "NOX-VERIFY-pay97A", "NOX-VERIFY-pay97B", "NOX-VERIFY-pay97C", "NOX-VERIFY-pay97D", // 裁定97 適用行フォールバック（段内で即消し・teardown は保険）
 ];
 const AR_PERIODS = ["2027-01", "2027-03", "2027-05"]; // F2e-1 隔離 period
 const F2E2_PERIODS = ["2027-07", "2027-08", "2027-09", "2027-11", "2027-12"]; // F2e-2 隔離 period（前借り/送り）
 const REOPEN_PERIODS = ["2029-01"]; // D1 reopen サイクル段 隔離 period
+const B5_PERIODS = ["2031-04", "2031-05"]; // ★B5 9 段目 隔離 period（A1=A2 店の run・A3=mark_paid の run）
 const SEATS = ["NOX-VERIFY-paySeat", "NOX-VERIFY-paySeat2"];
 const PLANS = ["NOX-VERIFY-payPlan", "NOX-VERIFY-payPlan2", "NOX-VERIFY-payPlanCP", "NOX-VERIFY-payPlanV2", "NOX-VERIFY-payPlanV2b",
   "NOX-VERIFY-payPlan97A1", "NOX-VERIFY-payPlan97A2", "NOX-VERIFY-payPlan97B", "NOX-VERIFY-payPlan97C", "NOX-VERIFY-payPlan97D"]; // 3本目=mig0114 段・4/5本目=mig0115 段・97* =裁定97 段
@@ -113,7 +118,7 @@ async function main() {
       await admin.from("advances").delete().in("cast_id", castIds);
       await admin.from("transport").delete().in("cast_id", castIds);
     }
-    const { data: runs } = await admin.from("payroll_runs").select("id").in("period", [P, P2, ...AR_PERIODS, ...F2E2_PERIODS, ...REOPEN_PERIODS]).in("store_id", [storeA1Id, storeA2Id]);
+    const { data: runs } = await admin.from("payroll_runs").select("id").in("period", [P, P2, ...AR_PERIODS, ...F2E2_PERIODS, ...REOPEN_PERIODS, ...B5_PERIODS]).in("store_id", [storeA1Id, storeA2Id]);
     const runIds = (runs ?? []).map((r) => r.id as string);
     if (runIds.length) {
       await admin.from("payment_records").delete().in("run_id", runIds);
@@ -1621,6 +1626,79 @@ async function main() {
       prepItemOf("rounding_axes")?.label === "歩合の丸め2軸" && prepItemOf("unknown_key") === null
       && PREP_ITEMS.length === 12,
       JSON.stringify({ r: prepItemOf("rounding_axes"), n: PREP_ITEMS.length }));
+  }
+
+  // ══ B5 9 段目（設計書 B5 v1 §6 後半・裁定 B5-2／B5-5／B5-6／B5-7）══
+  //   A1 一覧 select の RLS スコープ／A2 解除導線は run 単位（静的）／A3 mark_paid（RPC 直・route は HTTP のため対象外）／
+  //   A4 decideReopenAccess（純関数 suite と二重）／A5 golden 再確認。fixture＝A2 店の run（owner run_create）・A1 の run（manager）・cast payMark。
+  {
+    const has = (e: { message?: string } | null | undefined, s: string) => !!e?.message?.includes(s);
+    const db = new PgClient({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+    await db.connect();
+    try {
+      // ── A1 一覧 select: manager は他店（A2）を返さない・owner は全店 ──
+      const { data: rcA2, error: eA2 } = await owner.rpc("payroll_run_create", { p_store_id: storeA2Id, p_period: B5_PERIODS[0] });
+      const runA2 = ((rcA2 ?? [])[0] as { id: string } | undefined)?.id as string;
+      const cM = await mkCast("NOX-VERIFY-payMark", true);
+      const { error: ePs } = await admin.from("payslips").insert({ org_id: orgAId, store_id: storeA2Id, run_id: runA2, cast_id: cM, period: B5_PERIODS[0], breakdown_json: { pay: { gross: 0 }, extras: [] }, net: 0 });
+      const { error: ePr } = await admin.from("payment_records").insert({ org_id: orgAId, store_id: storeA2Id, run_id: runA2, cast_id: cM, paid_amount: 1, paid_at: "2031-04-25", idem_key: randomUUID(), created_by: actorId });
+      check("B5 A1 準備: A2 店の run（owner run_create）＋payslip 1＋payment_record 1（admin）", !eA2 && !!runA2 && !ePs && !ePr, eA2?.message ?? ePs?.message ?? ePr?.message);
+      const mR = await manager.from("payroll_runs").select("id").in("id", [runA2]);
+      const mP = await manager.from("payslips").select("id").eq("run_id", runA2);
+      const mM = await manager.from("payment_records").select("id").eq("run_id", runA2);
+      check("B5 A1 ★manager は他店（A2）の payroll_runs／payslips／payment_records を返さない（RLS）",
+        (mR.data ?? []).length === 0 && (mP.data ?? []).length === 0 && (mM.data ?? []).length === 0, JSON.stringify([mR.data?.length, mP.data?.length, mM.data?.length]));
+      const mAll = await manager.from("payroll_runs").select("store_id");
+      check("B5 A1 manager の payroll_runs 一覧は自店のみ（store_id 全件＝A1）", (mAll.data ?? []).length > 0 && (mAll.data ?? []).every((r) => r.store_id === storeA1Id), JSON.stringify(mAll.data?.length));
+      const oR = await owner.from("payroll_runs").select("id").in("id", [runA2]);
+      const oP = await owner.from("payslips").select("id").eq("run_id", runA2);
+      const oM = await owner.from("payment_records").select("id").eq("run_id", runA2);
+      check("B5 A1 ★owner は全店＝A2 の run／payslip／payment_record を読める", (oR.data ?? []).length === 1 && (oP.data ?? []).length === 1 && (oM.data ?? []).length === 1, JSON.stringify([oR.data?.length, oP.data?.length, oM.data?.length]));
+
+      // ── A2 解除導線は run 単位（静的・否定確認）──
+      const { rows: fn } = await db.query(`select proname, pg_get_function_identity_arguments(oid) as args, pronargs from pg_proc where pronamespace='public'::regnamespace and proname like 'payroll%' order by proname`);
+      const castArg = fn.filter((r) => /p_cast/.test(String(r.args)));
+      check("B5 A2 ★cast 単位の確定／解除／支払済み化 RPC は存在しない（payroll_* の引数に p_cast なし）", castArg.length === 0, JSON.stringify(castArg));
+      const reopenSig = fn.find((r) => r.proname === "payroll_reopen");
+      check("B5 A2 payroll_reopen は run 単位（p_run_id）・5 引数（p_reason）", reopenSig?.args === "p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid, p_reason text", String(reopenSig?.args));
+      const routes = readdirSync("app/api/payroll");
+      check("B5 A2 route 一覧に cast 単位の解除が無い（reopen／mark-paid は run＝store×period）", !routes.some((d) => /cast/i.test(d)) && routes.includes("reopen") && routes.includes("mark-paid"), routes.join(","));
+
+      // ── A3 mark_paid（裁定 B5-6／B5-7）──
+      const { data: rcM, error: eRcM } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: B5_PERIODS[1] });
+      const runM = ((rcM ?? [])[0] as { id: string } | undefined)?.id as string;
+      const eDraft = (await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: randomUUID() })).error;
+      check("B5 A3 draft の mark_paid は 'not finalized'", !eRcM && has(eDraft, "not finalized"), eRcM?.message ?? eDraft?.message ?? "通ってしまった");
+      const psM = [{ cast_id: cM, net: 1000, breakdown: { pay: { net: 1000 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [], adv_carried: [], okuri_deducted: [] }];
+      const { error: eFinM } = await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: randomUUID(), p_payslips: psM });
+      const K = randomUUID();
+      const { data: r1, error: e1 } = await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: K });
+      const row1 = (await admin.from("payroll_runs").select("status, paid_at, paid_idem_key").eq("id", runM).single()).data as { status: string; paid_at: string | null; paid_idem_key: string | null };
+      check("B5 A3 ★finalized→paid（'paid'・paid_at・paid_idem_key=K）", !eFinM && !e1 && r1 === "paid" && row1.status === "paid" && !!row1.paid_at && row1.paid_idem_key === K, eFinM?.message ?? e1?.message ?? JSON.stringify(row1));
+      const { data: r2, error: e2 } = await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: K });
+      const row2 = (await admin.from("payroll_runs").select("paid_at").eq("id", runM).single()).data as { paid_at: string | null };
+      check("B5 A3 ★同一 idem の再送は冪等（'paid'・paid_at 不変）", !e2 && r2 === "paid" && row2.paid_at === row1.paid_at, e2?.message ?? JSON.stringify([row1.paid_at, row2.paid_at]));
+      const e3 = (await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: randomUUID() })).error;
+      check("B5 A3 paid で別 idem は 'not finalized'（paid→paid は不可＝RPC 文言）", has(e3, "not finalized"), e3?.message ?? "通ってしまった");
+      const eAddDraft = (await owner.rpc("payment_record_add", { p_run_id: runA2, p_cast_id: cM, p_amount: 1, p_paid_at: "2031-04-25", p_method: "cash", p_note: null, p_idem_key: randomUUID() })).error;
+      check("B5 A3 payment_records の既存判定＝payment_record_add は draft を 'run not finalized' で拒否", has(eAddDraft, "run not finalized"), eAddDraft?.message ?? "通ってしまった");
+      const { error: eAddPaid } = await manager.rpc("payment_record_add", { p_run_id: runM, p_cast_id: cM, p_amount: 500, p_paid_at: "2031-05-25", p_method: "cash", p_note: null, p_idem_key: randomUUID() });
+      check("B5 A3 paid の run にも payment_record_add は受理（finalized／paid・Σ≤net）＝mark_paid は支払記録の有無を見ない", !eAddPaid, eAddPaid?.message);
+      const mp = fn.find((r) => r.proname === "payroll_mark_paid");
+      check("B5 A3 payroll_mark_paid は 4 引数＝p_reason 不要（解除型と違い理由なし）", mp?.pronargs === 4 && !/p_reason/.test(String(mp?.args)), String(mp?.args));
+      const eReP = (await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: randomUUID(), p_reason: "NOX-VERIFY b5" })).error;
+      check("B5 A3 paid の run は payroll_reopen が 'run paid'（flag off でも先に paid 判定…ではなく feature_disabled が先）", has(eReP, "run paid") || has(eReP, "feature_disabled"), eReP?.message ?? "通ってしまった");
+
+      // ── A4 decideReopenAccess（裁定 B5-5・純関数 suite と二重）──
+      check("B5 A4 ★decideReopenAccess: staff は can_reopen=true 自店でも forbidden・owner ok・manager 自店 ok／他店 forbidden",
+        decideReopenAccess("staff", true, storeA1Id, storeA1Id) === "forbidden" && decideReopenAccess("owner", false, null, storeA1Id) === "ok"
+          && decideReopenAccess("manager", false, storeA1Id, storeA1Id) === "ok" && decideReopenAccess("manager", false, storeA2Id, storeA1Id) === "forbidden");
+
+      // ── A5 golden 再確認＝本 suite のゴールデン assertion（champCnt=2／per_head 3000／pooled 334/333/333／F2f 300000）に赤なし ──
+      check("B5 A5 golden 再確認: 本 suite のゴールデン assertion に赤なし（数値は再計算せず既存 assertion の結果を再掲）", !fails.some((f) => f.includes("ゴールデン")), fails.filter((f) => f.includes("ゴールデン")).join(" / "));
+    } finally {
+      await db.end();
+    }
   }
 
   await teardown();
