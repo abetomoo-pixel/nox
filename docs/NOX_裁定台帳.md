@@ -2984,6 +2984,27 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 ---
 
+## 裁定 C③-1〜12（Agoora 承認 2026-09-10・設計書 draft `NOX_C3_解除型統一_設計書_v1_draft_20260910.md` §0）
+
+出典＝C層③ 着手前調査（`docs/tmp/c3_survey_20260910.md` §6 の 12 点）に相談役訂正 2 点（7＝重複 cast は拒否・8＝全 line が A 群のときだけ可）を反映。
+
+| 裁定 | 内容 |
+|---|---|
+| **C③-1** | 日報の解除は daily_reports に列追加（reopened_at／by／reason・reclosed_at／by）。「行の存在＝締め済み」は維持。解除中＝reopened_at not null and reclosed_at is null |
+| **C③-2** | 締め済み営業日への伝票書込は check_* の書込 RPC が `day closed` で raise。解除中のみ通す。flag off の時は関所を評価しない（現行どおり） |
+| **C③-3** | 再締め＝既存 daily_report_reclose を「解除中のみ・reclosed_at／by 記録・冪等キー」へ改修（名前維持） |
+| **C③-4** | 現金差異承認＝daily_reports に diff_reason／diff_approved_by／diff_approved_at＋RPC cash_diff_approve（reason 必須） |
+| **C③-5** | payroll_reopen に p_reason 必須・route の authz を can_reopen へ・flag ゲート（service 経路は維持） |
+| **C③-6** | check_merge は open 同士・payments／receivables なしのみ |
+| **C③-7** | 重複 cast（両伝票に同一 cast の nomination）は拒否 `merge_conflict:cast`。合算は第 2 期 |
+| **C③-8** | pay_group は両伝票の全 line が A 群の時だけ可。それ以外 `merge_conflict:pay_group` |
+| **C③-9** | audit action は既存名維持＋新規 3（report_reopen／cash_diff_approve／check_merge）。横断 §3 の 10 種表を実名へ訂正（perm_change→set_staff_perms 等） |
+| **C③-10** | flag off の raise は `feature_disabled:reopen_flow` |
+| **C③-11** | memberships に can_close／can_reopen（boolean not null default false）＋set_staff_perms を 6 引数へ（#63 同梱）。daily_report_close／cash_diff_approve は staff∧can_close 可。report_reopen／payroll_reopen は owner／manager＋staff∧can_reopen |
+| **C③-12** | D45（入金方法別照合）は本書対象外＝別 mig |
+
+理由必須の統一: 解除（report_reopen／payroll_reopen）・承認（cash_diff_approve）・合算（check_merge）は p_reason not null・1〜200 字。次＝CC 突合（§8）→ v1 → live 再 dump → mig0138（相談役）→ 手貼り → suite 逆張り → UI（Fable）。
+
 ## 裁定237（Agoora 承認 2026-09-10）締切ロックの client 算出（deadlines 表から RPC と同式）は許容＝式の二重管理は #68 で解消
 
 出典＝相談役ブロック（2026-09-10）。staff_shift_deadline_at は内部専用（0136）で client から呼べないため、面 b／c は staff_shift_deadlines を select し「対象営業日 − days_before の deadline_hm（JST）・行なし＝3 日前 21:00」を同式で算出している。書込側の判定は RPC（staff_wish_set）が正＝client は表示のロックのみ。同じ式を 2 箇所で持つ状態は #68（関数を authenticated へ公開→client 算出撤去）で解消する。
@@ -3681,7 +3702,7 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **観察（低・2026-09-09・不触）**: 日報タブ「営業サマリー」の平均滞在は値なしのとき `—` に単位 `<small>分</small>` が付いて「—分」＝「一分」と読める（`report-board.tsx` 営業サマリー節・E8-2 #2／B4-3 の A層既存・上の 8 指標 inset は `—` のみで単位なし）。B2 では触らない＝文言／単位の扱いは A層の一括見直し時に。あわせて D12「取消・返金」件数の色を他 KPI と同じ通常色へ戻した（裁定120＝danger-ink はエラー文のみ・「操作履歴を見る」のリンク色は据え置き）。
 - **B層 B3 レジ非 money 完了**（2026-09-09・読取のみ・mig なし・RPC 変更なし・policy 変更なし）: `acc5be5`（B3-1 #64＝R43 候補一覧／帰属モーダル／指名カードに出勤中・接客中・打刻＋ランク名＝裁定209〜211）／`e119e6c`（B3-2 R34 チップ＝裁定212）／`87abae2`（B3-3 R29 在庫常時表示＝裁定213）／`2c7f357`（B3-4 R28 最近使った＝裁定217）。裁定209〜217 収載 `604046c`（214 R36 対象外・215 R4／216 R14 据え置き）。新規読取＝面1 で 2（attendance／cast_ranks）＋既存 casts select へ rank_id 列追加 1・面2〜4 は 0＝合計 2（上限 4）。接客中は loadOpenMap の openNoms を再利用・cutoff は既存 stores 読取の settings_json から。cast 可視範囲不変（cast は /register 非到達・kiosk の CastPicker は任意 props で無改修）。**3 ロールの描画差**（RLS 実測＝DEMO org を role 切替で直結 select・cast_ranks: owner 2／manager 2／staff 0／cast 0・attendance／check_nominations は staff 可読）: owner／manager＝ランク名あり・staff＝ランク名の要素そのものが出ない（空 Map）・出勤中／接客中／打刻の状態語は 3 ロール同じ。verify org（NOX-VERIFY-A1）は cast_ranks 0 行・open 伝票 0・attendance 当日 0 のため候補一覧の実データ目視は不可＝**Agoora の実機目視（DEMO org・open 伝票あり）で #64 クローズ→目視済（2026-09-09・Agoora owner 実機・/register 候補一覧／帰属モーダル／指名カード・#64 クローズ）**。gate＝tsc／lint／ui-tokens baseline 56 不変（4 面とも）。Browser の manager セッションは 17:01 JST に期限切れ＝CC 目視は /register 到達前でブロック。f0 は本日 6/6 のため打たず＝9/10 朝の手順（§8 → 2 連緑 → push）へ。
 - **B層 B4 シフト 完了**（2026-09-09・読取のみ・mig なし・RPC 変更なし・policy 変更なし）: `15b52ef`（B4-a 今日＝H31 4 カウンタ＋H32 打刻表示＝裁定220〜222）／`180fe0d`（B4-b 承認待ち＝H18 KPI 4 枚＋H20 人ごと切替＋H41 候補検索＝裁定218・219・225）／`436840b`（B4-c 確定シフト＝H37 印刷＋H39 変更履歴（owner のみ）＋H27 確認済み／未確認＝裁定223・224・226）。裁定218〜227 収載 `7c27f31`（227 H4 据え置き）。新規読取＝2（punches／audit_logs owner のみ・actor 名は既存 users 1 クエリへ相乗り）＝上限 5 内。人件費カード・凍結・集計式は不触。**3 ロールの描画差**: owner＝変更履歴あり／manager＝変更履歴なし（要素非描画・RLS も 0 行）／staff＝閲覧（4 カウンタ・打刻・KPI・確認状況は読める＝punches／attendance／shifts の RLS は自店 staff 可読）・操作列は従来どおり isManagerUp／cast＝/shift 非到達。ui-tokens は H27 ピルの枠色を `var(--gold-bd)` に置いて baseline 56 不変（同ファイル既存の rgba 1 箇所を同トークンへ寄せた＝見た目同値）。CC 目視＝Browser の manager セッション期限切れ（17:01）のため未実施→**目視済（2026-09-09・Agoora owner 実機・/shift 今日／承認待ち／確定シフトの 3 タブ）**。f0 は本日 6/6 のため打たず＝9/10 朝の手順へ。対応表 §5＝実装済 9 行（H18／H20／H27／H31／H32／H37／H39／H41＋H30 変更なし）・据え置き H4・対象外 12 行＋H10／H23 へ理由。
-- **C層② 黒服シフト 完了**（2026-09-09・mig0136 `5ee9a2f`＋0137 `c9fe0a3`・suite 53 assertions `9bad581`・UI＝面 a `d2bf48e`／面 b `ae7ee97`／面 c `946e643`／H3 切替 `c742261`）。設計書 v1 §4 どおり flag_enabled('staff_shift') off では節・切替とも不在（横断 §4）。読取＝面 a 4（flag_enabled／stores.settings_json／patterns／deadlines）・面 b 5（patterns／deadlines／wishes／staff_shifts／auth_membership_id）・面 c ＋2（memberships／users＝名前）・切替 1（flag_enabled）。書込は 0136／0137 の 7 RPC のみ・mig 0・RPC 追加 0。cast の shifts／shift_wishes・money・凍結は不触。**3 ロール描画差**: owner／manager＝切替あり→黒服＝面 c（配置・上書き・一括確定）・店舗設定に面 a／staff＝切替あり→黒服＝面 b（自分の ◯× と備考のみ・締切後ロック・面 a は /master 非到達）／cast＝/shift・/master 非到達。**設計書 v1 §4 との差分**: ①面 a の置き場＝「店舗設定」ページが無いため /master/business-hours（営業時間・定休日）の下に節として置いた ②面 b の ◯× は「なし→◯→×→◯」の巡回（wish の削除 RPC は設計外＝「なし」へは戻せない） ③締切の表示＝client で deadlines 表から RPC と同式で算出（staff_shift_deadline_at は内部専用） ④面 c の「枠×充足 n/m」＝n は行数（確認待ち＋確定）・m は ◯希望者数（必要人数の器が無いため） ⑤面 c に「希望なしの直接配置」を追加（v1 §2 の propose 仕様どおり・§4 には明記なし） ⑥営業日一括確定＝行ごと順次・1 件 raise で残りを止め件数報告（C②-3）。CC 目視＝dev の verify org は flag off・Browser セッション期限切れのため未実施＝Agoora が DEMO org で /master/system#features から staff_shift を ON にして目視。f0 は本日 6/6＝9/10 朝（39 本）。
+- **C層② 黒服シフト 完了**（2026-09-09・mig0136 `5ee9a2f`＋0137 `c9fe0a3`・suite 53 assertions `9bad581`・UI＝面 a `d2bf48e`／面 b `ae7ee97`／面 c `946e643`／H3 切替 `c742261`）。設計書 v1 §4 どおり flag_enabled('staff_shift') off では節・切替とも不在（横断 §4）。読取＝面 a 4（flag_enabled／stores.settings_json／patterns／deadlines）・面 b 5（patterns／deadlines／wishes／staff_shifts／auth_membership_id）・面 c ＋2（memberships／users＝名前）・切替 1（flag_enabled）。書込は 0136／0137 の 7 RPC のみ・mig 0・RPC 追加 0。cast の shifts／shift_wishes・money・凍結は不触。**3 ロール描画差**: owner／manager＝切替あり→黒服＝面 c（配置・上書き・一括確定）・店舗設定に面 a／staff＝切替あり→黒服＝面 b（自分の ◯× と備考のみ・締切後ロック・面 a は /master 非到達）／cast＝/shift・/master 非到達。**設計書 v1 §4 との差分**: ①面 a の置き場＝「店舗設定」ページが無いため /master/business-hours（営業時間・定休日）の下に節として置いた ②面 b の ◯× は「なし→◯→×→◯」の巡回（wish の削除 RPC は設計外＝「なし」へは戻せない） ③締切の表示＝client で deadlines 表から RPC と同式で算出（staff_shift_deadline_at は内部専用） ④面 c の「枠×充足 n/m」＝n は行数（確認待ち＋確定）・m は ◯希望者数（必要人数の器が無いため） ⑤面 c に「希望なしの直接配置」を追加（v1 §2 の propose 仕様どおり・§4 には明記なし） ⑥営業日一括確定＝行ごと順次・1 件 raise で残りを止め件数報告（C②-3）。CC 目視＝dev の verify org は flag off・Browser セッション期限切れのため未実施→**目視済（2026-09-10・Agoora owner・DEMO org・flag ON/OFF の 4 面＝実機 OK）＝C層② 完了**。f0 は本日 6/6＝9/10 朝（39 本）。
 - **f0 新基準 pin（2026-09-10）**: 裁定200 チェック 3 回（3 値 0）→ f0 **2 連緑＝39 本 3,642**（412s／454s・39 段 ALL PASS・golden 6 値不変）＝裁定228 追認・push。
 ---
 
