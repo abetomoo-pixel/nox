@@ -333,10 +333,14 @@ export default function PayrollBoard({ stores, isOwner, canReopen }: { stores: S
       });
       const j = await res.json();
       if (!res.ok) {
+        // ★C層③（面 c・2026-09-10）: route が写す 409 feature_disabled／400 reason_required を日本語へ（RPC・route の判定が本体）
+        const em = String(j.error ?? "");
         setReopenMsg(
-          res.status === 409 && String(j.error ?? "").includes("payments exist") ? "支払記録があるため解除できません。"
-            : res.status === 409 ? `解除できません: ${j.error ?? ""}`
-            : `エラー(${res.status}): ${j.error ?? ""}`,
+          res.status === 409 && em.includes("payments exist") ? "支払記録があるため解除できません。"
+            : res.status === 409 && em.includes("feature_disabled") ? "締め解除フローが無効です（システム設定 → 機能の公開で店舗行を ON にしてください）。"
+            : res.status === 400 && em.includes("reason") ? "理由は 1〜200 字で入力してください。"
+            : res.status === 409 ? `解除できません: ${em}`
+            : `エラー(${res.status}): ${em}`,
         );
         return;
       }
