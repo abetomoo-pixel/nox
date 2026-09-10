@@ -17,6 +17,7 @@
     "verify:nox-grants": "tsx scripts/verify-nox-grants.ts",
     "verify:nox-payroll": "tsx scripts/verify-nox-payroll.ts",
     "verify:nox-payroll-csv": "tsx scripts/verify-nox-payroll-csv.ts",
+    "verify:nox-payroll-list": "tsx scripts/verify-nox-payroll-list.ts",
     "verify:nox-receipt": "tsx scripts/verify-nox-receipt.ts",
     "verify:ui-tokens": "tsx scripts/verify-ui-tokens.ts",
     "verify:nox-audit-sweep": "tsx scripts/verify-nox-audit-sweep.ts",
