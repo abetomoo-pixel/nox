@@ -3071,6 +3071,20 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 | **238-g** | globals.css .nox-link 1 つ＋theme.ts link: CSSProperties 1 つ、同一トークン参照 |
 
 実装（2026-09-10・client コミット）: .nox-link（globals.css・.nox-btn 群の直後）＋theme.link。付け替え 25 件（analytics 2・casts 4・customers 1・customer-detail 2・dashboard 3・cast-comp page 2・cast-register-panel 1・pricing 3・payroll 1・report 2・shift 1・mine 2・billing-banner 1）。カード型は 238-e を 3 件に適用（dashboard quicktile・master fcard＋**master/cast-comp のカード Link**＝棚卸しで inline style 扱いだったがカード全体が Link のため同型）。master-subnav のタブ（Link だが画面内タブ帯）は 238-a により現状維持＝対象外。URL コピーは 238-c により (2) 据え置き。ブロック指定の「28 件」との差＝URL コピー（c）・cast-comp カード（e）・master-subnav（a）の 3 件。
+## 裁定239（Agoora 承認 2026-09-10）実行ボタンの青塗り＝(1) の見た目を --primary へ
+
+出典＝相談役ブロック 2026-09-10「裁定239 実行ボタン青塗り 実装」（v30 §10）。裁定238 の 3 分類のうち (1) 実行の見た目を定める。**本文（逐語）**:
+
+1. (1) 実行ボタン=背景 var(--primary)・文字 #fff・hover var(--primary-hover)。定義 2 箇所(globals.css .nox-btn.gold・theme.ts btnGold)を青へ。クラス名・変数名は据え置き
+2. (2) 補助=白枠・透明地、Danger=red 枠、(3) リンク=青文字下線(238)、(4) 切替=いずれも現状維持
+3. gold は見出しラベル・状態バッジ・ブランド要素に残し、ボタンからは外す
+4. 選択中タブ・seg の青塗りと実行ボタンの青塗りは同色で可(タブは帯・ボタンは角丸単体で区別)
+5. トークン値は変えない(--primary 既存)。ui-tokens baseline 不変想定・動いたら停止
+6. kiosk の実行ボタンも同じ青、gold を残す画面はなし
+7. レーン: client 1 本・suite なし・f0 不要
+
+実装（2026-09-10・client コミット）: .nox-btn.gold＝background／border var(--primary)・color #fff・影なし・hover var(--primary-hover)。theme.btnGold＝同値（inline のため hover なし）。gold 直書きの実行ボタンは 1 件（/mine シフト「確認する」＝goldface2 地→btnGold 経由・寸法据え置き）。棚卸し (1) 145 件のうち theme（btnDark／btnGold／btnPrimaryLg・136 件）と .nox-btn.gold 経由は定義差替えで一括、gold 直書き 5 件のうち 4 件（notices の対象フィルタ・shift の日付セレクタ・staff-shift の ◯／× パターン・cast-picker）は aria-pressed／選択の切替＝(4)＝239-4 で現状維持（棚卸しの機械判定が (1) に寄せていた分）。kiosk（/kiosk・/kiosk-register）は t.btnGold 経由＝定義差替えで同じ青（239-6）。ui-tokens baseline 56 不変（#fff は globals.css／lib＝走査外・TSX 側はトークン参照のみ）。
+
 ## 裁定236（Agoora 承認 2026-09-10）希望の取消（「なし」へ戻す）は C層② の範囲外＝staff_wish_delete RPC（本人・締切前）は次の補正 mig で
 
 出典＝相談役ブロック（2026-09-10）。面 b の ◯× は「なし→◯→×→◯」の巡回で、一度出した希望を「なし」へ戻す経路は 0136／0137 に無い（設計書 v1 §2 の RPC 7 本に削除なし）。取消は #67 の補正 mig（staff_wish_delete＝本人・締切前・監査 action＝RPC 名）で足す。C層② の UI はそれまで現状のまま。
