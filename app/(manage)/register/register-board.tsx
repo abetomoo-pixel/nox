@@ -750,7 +750,10 @@ export default function RegisterBoard({
     setMergeBusy(false);
     if (error) {
       setMsg({ to: MSG_DETAIL, kind: "bad",
-        text: error.message.includes("forbidden") ? "合算できません（同じ伝票・別の店の伝票・権限のいずれか）" : error.message });
+        // ★C③-20 追随: 写像にない想定外エラー（unique 違反等の生文言）は汎用文言で包む＝生文言は残す（隠さない）
+        text: error.message.includes("forbidden") ? "合算できません（同じ伝票・別の店の伝票・権限のいずれか）"
+          : C3_ERR_JA.some(([k]) => error.message.includes(k)) ? error.message
+          : `合算できませんでした: ${error.message}` });
       return;
     }
     setMergeModal(false); setMergeInto(""); setMergeReason("");
