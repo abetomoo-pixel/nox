@@ -17,7 +17,7 @@
 //   #1 4ビュー切替（サマリー/売上/キャスト/顧客）＝既存セクションの再配置＋新規は既存経路の直読のみ。
 //   ★時刻粒度の集計（カテゴリ5分類・時間帯・ヒートマップ・コホート）は集計経路が未提供のため
 //     プレースホルダ（製品文言）に留める。DB・RPC は不触。
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -947,7 +947,7 @@ export default function AnalyticsBoard({
                   <span key={h} className="num" style={{ fontSize: 9.5, color: "var(--sub)", textAlign: "center" }}>{h}</span>
                 ))}
                 {DOW.map((label, d) => (
-                  <>
+                  <Fragment key={`r${d}`}>{/* ★#81: map 直下の Fragment に key（曜日行） */}
                     <span key={`l${d}`} style={{ fontSize: 11, color: d === 0 ? "var(--bad)" : d === 6 ? "var(--champ)" : "var(--sub)" }}>{label}</span>
                     {Array.from({ length: 24 }, (_, h) => {
                       const v = heat.get(`${d}-${h}`) ?? 0;
@@ -960,7 +960,7 @@ export default function AnalyticsBoard({
                             border: "1px solid var(--line)" }} />
                       );
                     })}
-                  </>
+                  </Fragment>
                 ))}
               </div>
             </div>
