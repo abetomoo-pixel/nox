@@ -4011,6 +4011,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 67 | **staff_wish_delete RPC 新設（本人・締切前・監査 action=RPC 名）**（低） | C層② 面 b の希望は upsert のみで「なし」へ戻せない（裁定236）。補正 mig（0138 想定・裁定229 型）で staff_wish_delete(p_wish_id) を新設＝本人の行のみ・締切前のみ（staff_shift_deadline_at で判定）・flag gate・課金ゲート不要（事実記録＝B(i) 同型）・audit action='staff_wish_delete'。UI は面 b のタップ巡回へ「なし」を足す。起票 2026-09-10 |
 | 68 | **staff_shift_deadline_at を authenticated 公開へ切替→client 算出を撤去**（低） | 面 b／c は締切ロックを deadlines 表から同式で算出（裁定237）。補正 mig（裁定234 型＝grant execute … to authenticated のみ・本文不変）で関数を公開し、staff-shift-board.tsx の deadlineMsOf を RPC 呼出（日ごと or 月まとめ）へ置換＝式の二重管理を解消。名簿＝B(f) へ（読取・非ゲート）・grants の G4c から外し HELPERS 側へ。起票 2026-09-10 |
 | 69 | **/shift の対象切替（キャスト／黒服）時に scrollTo(0)**（低） | C層② H3 の切替は同一ページ内の描画差し替えで scrollY を変えないため、cast 面でスクロール後に黒服へ切り替えると見出しが sticky 上バー（.nox-tb 64px）の下に潜る（2026-09-10 Agoora 目視・約 40px）。切替 onClick で `window.scrollTo({ top: 0 })` を 1 行（B4 の面は不触）。起票 2026-09-10 |
+| 70 | **/report で解除中の日報に対し、締め欄の入力値を渡して再締めする経路がない**（中） | 再現（2026-09-10 Agoora 目視）: 9/10 を解除→締め欄に諸経費 400・実査 397,000 を入れる→表の行の「再締め」は既存値で daily_report_reclose（p_expense 等を送らない＝差異 —・諸経費 0 のまま）／締め欄の「締め確定」は解除中の日に効かない（daily_report_close は already closed）。処置＝面 a 追補（同日・client コミット）: 解除中（flag on）／締め済み（flag off＝現行の上書き再集計）の日を選ぶと締め欄の見出しとボタンが「再締め」になり、諸経費／現金支払／釣銭／実査／メモ／強行チェックの値を p_expense／p_cash_payout／p_cash_float／p_counted_cash／p_note／p_force＋p_idem_key で送る。値は選択時に日報の現在値を締め欄へ写す。表の行の「再締め」は締め欄へスクロール＋諸経費にフォーカスするだけ（値を送らない＝経路 1 本）。flag on で締め済み・未解除の日は「締め確定」を disabled（title で解除を案内）。起票・処置 2026-09-10 |
 
 ### 未裁定・消し込み待ち
 
