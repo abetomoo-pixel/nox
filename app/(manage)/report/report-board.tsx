@@ -32,6 +32,12 @@ type Report = {
   expense: number; cash_payout: number; cash_float: number; counted_cash: number | null; diff: number | null;
   reclosed_count: number;
   closed_by: string | null; // E8-2 #8: 締め担当（users.name へ表示専用 join）
+  // ★C層③（mig0138・設計書 v1 §2）: 解除／再締め／差異承認の列（select * で取得済み＝新規読取 0）。
+  //   reopened_by／reclosed_by／diff_approved_by は memberships.id（auth_membership_id）＝users.id ではない。
+  store_id: string;
+  reopened_at: string | null; reopened_by: string | null; reopen_reason: string | null;
+  reclosed_at: string | null; reclosed_by: string | null;
+  diff_reason: string | null; diff_approved_by: string | null; diff_approved_at: string | null;
 };
 // B6 未回収売掛（open receivables・embedded で伝票日/席・客・cast を同伴）
 type Recv = {
@@ -85,6 +91,22 @@ const CANCEL_ACTIONS = [
   "drink_claim_reject", "adv_cancel", "transport_cancel", "incentive_cancel",
   "daily_report_reclose", "payroll_reopen", "shift_wish_withdraw", "trial_reject",
 ];
+// ★C層③（設計書 v1 §4・相談役ブロック 2026-09-10）: 解除型 RPC（report_reopen／daily_report_reclose／cash_diff_approve）の
+//   raise 文言の写像。RPC が本体＝UI は翻訳のみ（隠さない）。先勝ち＝already_reopened／not_reopened は "reopened" より前に置く。
+const REOPEN_ERR_JA: [string, string][] = [
+  ["feature_disabled:reopen_flow", "締め解除フローが無効です（システム設定 → 機能の公開で店舗行を ON にしてください）"],
+  ["already_reopened", "この日報はすでに解除中です"],
+  ["not_reopened", "解除中ではないため再締めできません（先に「解除」してください）"],
+  ["not_counted", "実査額が未入力のため差異を承認できません"],
+  ["no_diff", "実査差異がないため承認は不要です"],
+  ["already_approved", "この差異はすでに承認済みです"],
+  ["reason_required", "理由は 1〜200 字で入力してください"],
+  ["not closed", "この営業日は締められていません"],
+  ["day closed", "この営業日は締め済みです"],
+  ["reopened", "解除中は差異を承認できません（再締め後に承認してください）"],
+  ["forbidden", "この操作の権限がありません"],
+];
+const reopenErrJa = (m: string) => REOPEN_ERR_JA.find(([k]) => m.includes(k))?.[1] ?? m;
 
 export default function ReportBoard({
   storeId, cutoff, cardTaxRate, isManagerUp, isOwner, stores,
@@ -108,6 +130,15 @@ export default function ReportBoard({
   const [denoms, setDenoms] = useState<Record<number, string>>({});
   // E8-2 #8: 締め担当（daily_reports.closed_by → users.name の表示専用 map）
   const [closerNames, setCloserNames] = useState<Record<string, string>>({});
+  // ★C層③: reopen_flow（flag_enabled＝店舗行→org 行→false）と staff の can_close／can_reopen（authenticated 可のヘルパー）。
+  //   owner／manager は RPC 側（report_can_close／report_can_reopen）が常に可＝UI も isManagerUp で可。
+  //   新規読取＝flag 1＋staff のみ 2（＋loadReports の memberships 1）＝manager 2／staff 4。flag off＝解除・差異承認の導線は不在（横断 §4）。
+  const [reopenFlag, setReopenFlag] = useState(false);
+  const [staffPerm, setStaffPerm] = useState({ close: false, reopen: false });
+  const [reopenPick, setReopenPick] = useState<Report | null>(null);   // 解除モーダルの対象行
+  const [approvePick, setApprovePick] = useState<Report | null>(null); // 差異承認モーダルの対象行
+  const [reasonVal, setReasonVal] = useState("");
+  const [memberNames, setMemberNames] = useState<Record<string, string>>({}); // memberships.id → users.name（解除者／承認者の表示専用）
   // E8-2 #12: due 設定モーダル（receivable_set_due・mig0093）＋期日ソート
   const [duePick, setDuePick] = useState<Recv | null>(null);
   const [dueVal, setDueVal] = useState("");
@@ -212,11 +243,21 @@ export default function ReportBoard({
       .from("daily_reports").select("*").order("biz_date", { ascending: false }).limit(14);
     const rows = (data ?? []) as (Report & { closed_by: string | null })[];
     setReports(rows as Report[]);
+    // ★C層③: 解除者／再締め者／承認者は memberships.id ＝ memberships → user_id を 1 クエリで引き（表示専用・+1）、
+    //   下の users クエリ（E8-2 #8 の締め担当名）へ相乗りして名前にする＝users クエリは従来どおり 1 本。
+    const mids = [...new Set(rows.flatMap((r) => [r.reopened_by, r.reclosed_by, r.diff_approved_by]).filter(Boolean))] as string[];
+    let mrows: { id: string; user_id: string }[] = [];
+    if (mids.length) {
+      const { data: ms } = await supabase.from("memberships").select("id, user_id").in("id", mids);
+      mrows = (ms ?? []) as { id: string; user_id: string }[];
+    }
     // E8-2 #8: 締め担当名（closed_by → users.name・表示専用の1クエリ）
-    const uids = [...new Set(rows.map((r) => r.closed_by).filter(Boolean))] as string[];
+    const uids = [...new Set([...rows.map((r) => r.closed_by), ...mrows.map((m) => m.user_id)].filter(Boolean))] as string[];
     if (uids.length) {
       const { data: us } = await supabase.from("users").select("id, name").in("id", uids);
-      setCloserNames(Object.fromEntries(((us ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name])));
+      const nameOf = Object.fromEntries(((us ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name]));
+      setCloserNames(nameOf);
+      setMemberNames(Object.fromEntries(mrows.map((m) => [m.id, nameOf[m.user_id] ?? "—"])));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -286,6 +327,25 @@ export default function ReportBoard({
     const id = window.setInterval(() => setNowIso(new Date().toISOString()), 60_000);
     return () => window.clearInterval(id);
   }, []);
+  // ★C層③: flag（reopen_flow）と staff の perms を storeId ごとに 1 回。fail-closed（取得失敗＝false＝導線なし）。
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const { data: fl } = await supabase.rpc("flag_enabled", { p_key: "reopen_flow", p_store_id: storeId });
+      if (!alive) return;
+      setReopenFlag(fl === true);
+      if (!isManagerUp) {
+        const [c, r] = await Promise.all([supabase.rpc("auth_staff_can_close"), supabase.rpc("auth_staff_can_reopen")]);
+        if (alive) setStaffPerm({ close: c.data === true, reopen: r.data === true });
+      }
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, isManagerUp]);
+  const canClose = isManagerUp || staffPerm.close;   // 再締め・差異承認（report_can_close と同じ判定＝UI は利便・真の防御は RPC）
+  const canReopen = isManagerUp || staffPerm.reopen; // 解除（report_can_reopen と同じ判定）
+  const isReopened = (r: Report) => !!r.reopened_at && !r.reclosed_at; // 解除中＝reopened_at not null and reclosed_at null（C③-1）
   // ★B2-a（裁定202/203/204）: 日報タブの追加 KPI。manager 以上のみ（staff の RLS 0 行を「0 件」と見せない）。
   //   D14＝receivables.created_at を営業日範囲 [startIso, endIso) で数える（裁定204＝bizDateOf と同じ cutoff）。
   //   D15＝advances／transport の status='open'（自店・件数＋金額のみ・cast 名は取らない＝裁定203）。
@@ -334,7 +394,32 @@ export default function ReportBoard({
     setMsg(null);
     // ★mig0138（C③-3）: p_idem_key を必ず送る（再送の冪等リプレイ・原則 9）。flag on の店は解除中のみ通る（not_reopened）
     const { error } = await supabase.rpc("daily_report_reclose", { p_report_id: reportId, p_force: force, p_idem_key: crypto.randomUUID() });
-    setMsg(error ? error.message : "再締めしました（凍結 cutoff/税率で再集計）");
+    setMsg(error ? reopenErrJa(error.message) : "再締めしました（凍結 cutoff/税率で再集計）");
+    await loadReports();
+  }
+
+  // ★C層③（C③-1／C③-14）: 締め解除＝report_reopen(p_store_id, p_biz_date, p_reason)。理由必須 1〜200 字（RPC 側も reason_required で二重）。
+  //   store は行の store_id（owner は他店の日報も一覧に出るため storeId 固定にしない）。
+  async function submitReopen() {
+    if (!reopenPick) return;
+    const reason = reasonVal.trim();
+    if (reason.length < 1 || reason.length > 200) { setMsg(reopenErrJa("reason_required")); return; }
+    setMsg(null);
+    const { error } = await supabase.rpc("report_reopen", { p_store_id: reopenPick.store_id, p_biz_date: reopenPick.biz_date, p_reason: reason });
+    setMsg(error ? reopenErrJa(error.message) : `${reopenPick.biz_date} の締めを解除しました（伝票を訂正したら「再締め」で確定）`);
+    setReopenPick(null); setReasonVal("");
+    await loadReports();
+  }
+  // ★C層③（C③-4／C③-18／C③-19）: 現金差異の承認＝cash_diff_approve(p_store_id, p_biz_date, p_reason)。
+  //   実査未入力＝not_counted・差異 0＝no_diff・承認済み＝already_approved・解除中＝reopened は RPC の raise を写像して表示。
+  async function submitApprove() {
+    if (!approvePick) return;
+    const reason = reasonVal.trim();
+    if (reason.length < 1 || reason.length > 200) { setMsg(reopenErrJa("reason_required")); return; }
+    setMsg(null);
+    const { error } = await supabase.rpc("cash_diff_approve", { p_store_id: approvePick.store_id, p_biz_date: approvePick.biz_date, p_reason: reason });
+    setMsg(error ? reopenErrJa(error.message) : `${approvePick.biz_date} の実査差異を承認しました`);
+    setApprovePick(null); setReasonVal("");
     await loadReports();
   }
 
@@ -393,6 +478,48 @@ export default function ReportBoard({
       <PageHead eyebrow="DAILY REPORT" title="日報・締め管理"
         desc="営業日の締め、月次集計、売掛回収までを一つの流れで管理します。" />
       <Toast msg={msg} />
+      {/* ★C層③: 解除／差異承認の理由モーダル（理由必須 1〜200 字・Modal 共通部品・flag on の導線からのみ開く） */}
+      {(reopenPick || approvePick) && (() => {
+        const isRe = !!reopenPick;
+        const r = (reopenPick ?? approvePick)!;
+        const close = () => { setReopenPick(null); setApprovePick(null); };
+        return (
+          <Modal onClose={close}>
+            <h3 style={{ ...t.cardTitle, margin: "0 0 6px" }}>{isRe ? "締めを解除します" : "実査差異を承認します"}</h3>
+            <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
+                <span>営業日</span><span className="num">{r.biz_date}（{DOW[dowOf(r.biz_date)]}）</span>
+              </div>
+              {!isRe && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span style={{ fontWeight: 800 }}>実査差異</span>
+                  <span style={{ ...t.num, fontSize: 20, fontWeight: 900, color: (r.diff ?? 0) < 0 ? "var(--bad)" : undefined }}>
+                    {r.diff == null ? "—" : yen(r.diff)}
+                  </span>
+                </div>
+              )}
+            </div>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
+              {isRe
+                ? "解除中はこの営業日の伝票を訂正できます。訂正が終わったら「再締め」で再集計して確定します（解除・再締めは監査に記録されます）。"
+                : "差異の理由を記録して承認します。再締めで差異の値が変わると承認は無効になり、再承認が必要です。"}
+            </p>
+            <label style={{ ...t.fieldLabel, display: "block", marginBottom: 12 }}>
+              理由（必須・200 字まで）
+              <input value={reasonVal} onChange={(e) => setReasonVal(e.target.value)} maxLength={200}
+                placeholder={isRe ? "例: 伝票の入力漏れを訂正するため" : "例: 釣銭の渡し間違い"}
+                style={{ ...t.input, display: "block", marginTop: 5 }} />
+            </label>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button style={btnLight} onClick={close}>やめる</button>
+              <button style={{ ...btnDark, opacity: reasonVal.trim() ? 1 : 0.4 }} disabled={!reasonVal.trim()}
+                onClick={() => void (isRe ? submitReopen() : submitApprove())}>
+                {isRe ? "解除する" : "承認する"}
+              </button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {/* A4: 日報/月報 タブ（モックの segment のうち月報のみ実装・分析=C5/会計連携=C3/本部連結=C2 は A4 の外）。
           段0R 第3陣: カード包みの独自セグメントを canonical の nox-seg（nox-ctoolbar 内）へ載せ替え。
@@ -604,9 +731,16 @@ export default function ReportBoard({
           <span className="num" style={{ fontSize: 15, fontWeight: 700, color: "var(--v2-text)" }}>
             {bizDate}（{DOW[dowOf(bizDate)]}）
           </span>
-          <span className={`nox-stbadge ${closedReport ? "closed" : "open"}`}>
-            {closedReport ? "締め済み" : "営業中・未締め"}
+          {/* ★C層③: flag on で解除中なら「解除中」（色は open 側＝訂正できる状態を示す）。flag off は従来の 2 値のまま */}
+          <span className={`nox-stbadge ${closedReport ? (reopenFlag && isReopened(closedReport) ? "open" : "closed") : "open"}`}>
+            {closedReport ? (reopenFlag && isReopened(closedReport) ? "解除中" : "締め済み") : "営業中・未締め"}
           </span>
+          {reopenFlag && closedReport && isReopened(closedReport) && (
+            <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>
+              解除理由: {closedReport.reopen_reason ?? "—"}
+              {closedReport.reopened_by ? `（${memberNames[closedReport.reopened_by] ?? "—"}）` : ""}
+            </span>
+          )}
           {/* ★B2-a（D8）: 「現在 HH:MM → 営業日」＝bizDateOf（純関数・cutoff は settings_json の値）の表示のみ */}
           <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
             現在 {new Date(nowIso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
@@ -1068,8 +1202,29 @@ export default function ReportBoard({
                 <td style={{ ...t.td, ...t.num }}>{r.reclosed_count}</td>
                 {/* E8-2 #8: 締め担当（closed_by → users.name・表示専用） */}
                 <td style={t.td}>{r.closed_by ? closerNames[r.closed_by] ?? "—" : "—"}</td>
-                <td style={t.td}>
-                  {isManagerUp && <button style={btnLight} onClick={() => reclose(r.id)}>再締め</button>}
+                <td style={{ ...t.td, whiteSpace: "nowrap" }}>
+                  {/* ★C層③（設計書 v1 §4 面 a）: flag on＝締め済み行に「解除」（can_reopen）→ 解除中バッジ＋「再締め」（can_close）。
+                      差異あり（実査入力済み・diff≠0・未承認・解除中でない）＝「差異を承認」（can_close）→ 承認済み（理由／承認者／日時）。
+                      can_close／can_reopen のない staff にはボタン不在。flag off＝従来どおり manager 以上の「再締め」のみ（導線不在＝横断 §4）。
+                      送る RPC＝report_reopen／daily_report_reclose（既存・p_idem_key）／cash_diff_approve の 3 本のみ。 */}
+                  {!reopenFlag && isManagerUp && <button style={btnLight} onClick={() => reclose(r.id)}>再締め</button>}
+                  {reopenFlag && (isReopened(r) ? (<>
+                    <span className="nox-stbadge open" style={{ marginRight: 6 }} title={r.reopen_reason ?? ""}>解除中</span>
+                    {canClose && <button style={btnLight} onClick={() => reclose(r.id)}>再締め</button>}
+                  </>) : (
+                    canReopen && <button style={btnLight} onClick={() => { setReasonVal(""); setReopenPick(r); }}>解除</button>
+                  ))}
+                  {reopenFlag && !isReopened(r) && r.counted_cash != null && (r.diff ?? 0) !== 0 && (
+                    r.diff_approved_at ? (
+                      <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 6 }}>
+                        承認済み「{r.diff_reason ?? "—"}」
+                        {r.diff_approved_by ? ` ${memberNames[r.diff_approved_by] ?? "—"}` : ""}
+                        ・{new Date(r.diff_approved_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    ) : (
+                      canClose && <button style={{ ...btnLight, marginLeft: 6 }} onClick={() => { setReasonVal(""); setApprovePick(r); }}>差異を承認</button>
+                    )
+                  )}
                 </td>
               </tr>
             ))}
