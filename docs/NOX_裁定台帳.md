@@ -3029,6 +3029,23 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 理由必須の統一: 解除（report_reopen／payroll_reopen）・承認（cash_diff_approve）・合算（check_merge）は p_reason not null・1〜200 字（C③-14）。C③-13〜18 は draft §8 実測（`c4e59b5`）の食い違い 10 点を確定したもの＝設計書 v1（2026-09-10・`NOX_C3_解除型統一_設計書_v1_20260910.md`）。次＝live 再 dump → mig0138（相談役）→ 手貼り → suite 逆張り → UI（Fable）。
 
+## 裁定 B5-1〜8（Agoora 承認 2026-09-10・設計書 `NOX_設計書_B5給与_v1_2026-09-10.md` §2 逐語）
+
+出典＝B5 着手前調査（2026-09-10 14:42 JST・`docs/tmp/b5_dump.sql`・調査 1〜8）と相談役引き継ぎ v29。B5＝裁定125 ローンチ範囲 B層 5/6・B3／B4 と同型（A層の面を店舗運用に乗せる）・C層③ 解除型（payroll_reopen p_reason・reopen_flow）に乗る。**mig なし**（client＋route＋suite＋docs のみ・§7 固定手順は不発動）。
+
+| 裁定 | 内容 |
+|---|---|
+| **B5-1** | 境界=§1 |
+| **B5-2** | 粒度=store×period の run 単位。cast 単位 UI なし |
+| **B5-3** | 入口=月次一覧新設（page.tsx 起点）。B4 部品を写す |
+| **B5-4** | flag 新設なし。確定/解除は reopen_flow 共用 |
+| **B5-5** | 給与は owner/manager のみ。route decideReopenAccess の staff∧can_reopen 分岐を削除し page と揃える（#71 解消） |
+| **B5-6** | payroll_mark_paid の route＋UI を含める（owner 限定・状態遷移のみ・#73 解消） |
+| **B5-7** | 確定/解除/支払の idem_key は run ごと randomUUID。連打ガードは client pending。DB unique は足さない |
+| **B5-8** | 一覧行整形は純関数化→verify:nox-payroll-list（走数外）。RLS スコープ/run 単位/CSV 活性は nox-payroll 9段目へ追加 |
+
+境界（§1）＝含む: 月次一覧（店舗×期間＝payroll_runs 1 行を 1 行で）・既存 payroll-board への遷移／確定・解除・支払済み化の導線（run 単位）／D3 CSV の導線（storeId＋period → run 解決 → 既存 buildPayrollCsv）／変更履歴列（audit_logs action in payroll_finalize／payroll_reopen／payroll_mark_paid・owner 限定）。含まない: 金額計算・再計算（表示は payslips 凍結値の集計のみ・golden 6 値不変）／cast 単位の確定・解除（D1 送り）／支払調書 CSV（裁定178 税務凍結）・明細 PDF（D2）／新 feature_flag・新 RPC・列 CHECK 追加（#72 は観察）。起票＝#71（B5-5 で解消）・#72 観察・#73（B5-6 で解消）・#74 台帳注記。実装は設計書 §9 の CC ブロック（9/11 §8 push 完了後・全体で 1 本）。
+
 ## 裁定237（Agoora 承認 2026-09-10）締切ロックの client 算出（deadlines 表から RPC と同式）は許容＝式の二重管理は #68 で解消
 
 出典＝相談役ブロック（2026-09-10）。staff_shift_deadline_at は内部専用（0136）で client から呼べないため、面 b／c は staff_shift_deadlines を select し「対象営業日 − days_before の deadline_hm（JST）・行なし＝3 日前 21:00」を同式で算出している。書込側の判定は RPC（staff_wish_set）が正＝client は表示のロックのみ。同じ式を 2 箇所で持つ状態は #68（関数を authenticated へ公開→client 算出撤去）で解消する。
@@ -4012,6 +4029,10 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 68 | **staff_shift_deadline_at を authenticated 公開へ切替→client 算出を撤去**（低） | 面 b／c は締切ロックを deadlines 表から同式で算出（裁定237）。補正 mig（裁定234 型＝grant execute … to authenticated のみ・本文不変）で関数を公開し、staff-shift-board.tsx の deadlineMsOf を RPC 呼出（日ごと or 月まとめ）へ置換＝式の二重管理を解消。名簿＝B(f) へ（読取・非ゲート）・grants の G4c から外し HELPERS 側へ。起票 2026-09-10 |
 | 69 | **/shift の対象切替（キャスト／黒服）時に scrollTo(0)**（低） | C層② H3 の切替は同一ページ内の描画差し替えで scrollY を変えないため、cast 面でスクロール後に黒服へ切り替えると見出しが sticky 上バー（.nox-tb 64px）の下に潜る（2026-09-10 Agoora 目視・約 40px）。切替 onClick で `window.scrollTo({ top: 0 })` を 1 行（B4 の面は不触）。起票 2026-09-10 |
 | 70 | **/report で解除中の日報に対し、締め欄の入力値を渡して再締めする経路がない**（中） | 再現（2026-09-10 Agoora 目視）: 9/10 を解除→締め欄に諸経費 400・実査 397,000 を入れる→表の行の「再締め」は既存値で daily_report_reclose（p_expense 等を送らない＝差異 —・諸経費 0 のまま）／締め欄の「締め確定」は解除中の日に効かない（daily_report_close は already closed）。処置＝面 a 追補（同日・client コミット）: 解除中（flag on）／締め済み（flag off＝現行の上書き再集計）の日を選ぶと締め欄の見出しとボタンが「再締め」になり、諸経費／現金支払／釣銭／実査／メモ／強行チェックの値を p_expense／p_cash_payout／p_cash_float／p_counted_cash／p_note／p_force＋p_idem_key で送る。値は選択時に日報の現在値を締め欄へ写す。表の行の「再締め」は締め欄へスクロール＋諸経費にフォーカスするだけ（値を送らない＝経路 1 本）。flag on で締め済み・未解除の日は「締め確定」を disabled（title で解除を案内）。起票・処置 2026-09-10 |
+| 71 | **/api/payroll/reopen の staff∧can_reopen 分岐が UI から到達不能**（中・**B5 レーンで解消予定**＝裁定 B5-5） | app/(manage)/payroll/page.tsx が owner／manager 以外を /register へ redirect するため、route の decideReopenAccess（C③-17）にある staff∧auth_staff_can_reopen 分岐は UI からは呼べず、直叩き時だけ有効＝page と route の判定が不整合（B5 調査 8-1・2026-09-10）。処置＝B5-5「給与は owner／manager のみ」＝route の staff 分岐を削除し page と揃える（authz.ts の関数シグネチャは維持・分岐のみ変更・既存 suite の該当 assertion を更新）。起票 2026-09-10 |
+| 72 | **audit_logs.reason に列 CHECK が無い（daily_reports の reopen_reason／diff_reason とは非対称）**（低・**観察**） | 理由 1〜200 字は report_reopen／cash_diff_approve／check_merge／payroll_reopen の RPC 本文だけで担保し、audit_logs.reason 列には CHECK・NOT NULL・enum が無い（B5 調査 8-2）。daily_reports 側は列 CHECK（mig0138）あり＝非対称。B5 では列 CHECK を足さない（裁定 B5-1「含まない」）＝観察継続。RPC 以外の書込経路（audit_log_write_service の直呼び）が増えたときに再判断。起票 2026-09-10 |
+| 73 | **payroll_mark_paid を呼ぶ route／UI が無い**（中・**B5 レーンで解消予定**＝裁定 B5-6） | payroll_mark_paid（service_role 限定・finalized→paid・冪等 paid_idem_key）は suite からしか呼ばれず、app に route も UI も無い（B5 調査 8-3）。'paid' は seed か手動でしか作れず、DEMO の 2026-07 run は 'paid'（payslips 6・payment_records 0）。処置＝B5-6「payroll_mark_paid の route＋UI を含める（owner 限定・状態遷移のみ）」＝app/api/payroll/mark-paid/route.ts 新設＋月次一覧の「支払済みにする」（設計書 §3.3／§5）。起票 2026-09-10 |
+| 74 | **payroll_reopen の reopen_flow 直読みは flag_enabled と二重**（注記のみ） | payroll_reopen は service 文脈（auth.uid() なし）のため flag_enabled（RPC）を使えず、feature_flags を店舗行→org 行→false の順で本文が直読みしている（mig0138 §9・B5 調査 8-6）。解決順は flag_enabled と同じだが実装は二重＝**key を増やす・解決順を変えるときは両方を追随する**（列 CHECK・flag_set 白名単・feature-flags-panel の 3 箇所＝0135 同型に加えて 4 箇所目）。B5 は flag 新設なし（裁定 B5-4）＝台帳注記のみ。起票 2026-09-10 |
 
 ### 未裁定・消し込み待ち
 
