@@ -3025,6 +3025,7 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 | **C③-17** | route authz は `decideReopenAccess(role, can_reopen)` 新設（owner／manager／staff∧can_reopen）。decideTaxReportAccess は不触 |
 | **C③-18** | cash_diff_approve は counted_cash null で `not_counted`（実査前は承認不可） |
 | **C③-19** | 冪等キー列は 2 本（daily_reports.reclose_idem_key・checks.merge_idem_key）。再締めで diff が動いた（`v_diff is distinct from 前値`）ら diff_reason／diff_approved_by／diff_approved_at を null に戻す（承認は差異の値に紐づく）。report_reopen は reclosed_*／reclose_idem_key を null に戻す（2026-09-10 追加・mig0138 実装どおり） |
+| **C③-20** | check_merge は from の自動時間料金行（time_auto＝set／vip_charge／extension）を **`time_auto=false・block_no=null` の手動行へ変換してから** into へ移す（部分 unique `check_lines_one_time_auto (check_id, fee_kind, block_no) where time_auto` との衝突回避＝時間料金のある店では 2 卓とも ('set',0) を持つ）。金額は凍結値のまま into の合計に残る（from 卓ぶんの実額＝二重計上ではない）。into 側の check_time_charge_apply／check_set_people／check_line_set_group は time_auto 行のみを対象にし check_recalc は time_auto を見ないため、変換行は不変のまま再計算に耐える。mig0142・教訓69（2026-09-10 追加） |
 
 理由必須の統一: 解除（report_reopen／payroll_reopen）・承認（cash_diff_approve）・合算（check_merge）は p_reason not null・1〜200 字（C③-14）。C③-13〜18 は draft §8 実測（`c4e59b5`）の食い違い 10 点を確定したもの＝設計書 v1（2026-09-10・`NOX_C3_解除型統一_設計書_v1_20260910.md`）。次＝live 再 dump → mig0138（相談役）→ 手貼り → suite 逆張り → UI（Fable）。
 
