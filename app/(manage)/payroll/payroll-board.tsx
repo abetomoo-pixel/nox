@@ -11,6 +11,7 @@ import { kpiOfDraftRows, issuesOfDraft, payStatusOf } from "@/lib/nox/payroll/ui
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
 import PaymentTaxPanel from "./payment-tax-panel";
+import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: CSV 出力と凍結名解決は月次一覧と共用
 
 type Store = { id: string; name: string };
 // D3: payslips.breakdown_json（finalize が凍結）の CSV が使う部分。back 内訳の生値は CSV に出さず合算のみ。
@@ -18,11 +19,7 @@ type BreakdownPay = PayrollCsvPay;
 type BreakdownExtra = { amount: number };
 // cast_name＝(a) 発行時点の源氏名（finalize route が凍結）。旧データには無いので optional。
 type BreakdownJson = { pay: BreakdownPay; extras?: BreakdownExtra[]; cast_name?: string };
-// 明細に出す名前の解決＝凍結名 → casts の現在名 → "(不明)" の3段。
-//   ★確定後に改名しても発行済み明細の表示名は変わらない（凍結名が最優先）。
-//   cast_name を持たない旧 payslip は従来どおり現在名で描画する（後方互換）。
-const slipCastName = (bj: unknown, current: string | undefined): string =>
-  (bj as { cast_name?: string } | null)?.cast_name ?? current ?? "(不明)";
+// 明細に出す名前の解決（slipCastName）は export-csv.ts へ移設（B5・実装不変＝凍結名 → 現在名 → "(不明)"）。
 type Row = {
   castId: string; castName: string; net: number; taxMode: string; anomalyCount: number;
   arDeductTotal?: number; arCarriedTotal?: number;
@@ -48,10 +45,13 @@ type Warning = { castName: string; kind: string; detail: string };
 type Incentive = { id: string; bizDate: string; amountMode: string; amount: number; recipientCount: number; distributedTotal: number; warnEmptyPool: boolean };
 
 // 3段フロー（期間選択→プレビュー→確定）。プレビューは参考値（確定時点で再計算が正）。
-export default function PayrollBoard({ stores, isOwner, canReopen }: { stores: Store[]; isOwner: boolean; canReopen?: boolean }) {
+export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreId, initialPeriod }: {
+  stores: Store[]; isOwner: boolean; canReopen?: boolean;
+  initialStoreId?: string; initialPeriod?: string; // ★B5（§3.2）: 月次一覧「明細へ」からの初期選択（page.tsx が検証済みの値だけ渡す）
+}) {
   const supabase = createClient();
-  const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
-  const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [storeId, setStoreId] = useState(initialStoreId && stores.some((s) => s.id === initialStoreId) ? initialStoreId : (stores[0]?.id ?? ""));
+  const [period, setPeriod] = useState(initialPeriod ?? new Date().toISOString().slice(0, 7));
   const [rows, setRows] = useState<Row[] | null>(null);
   const [blockers, setBlockers] = useState<Blocker[]>([]);
   const [warnings, setWarnings] = useState<Warning[]>([]); // ★裁定98
@@ -187,50 +187,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen }: { stores: S
   async function exportPayrollCsv() {
     if (!runInfo || (runInfo.status !== "finalized" && runInfo.status !== "paid")) return;
     setCsvMsg(""); setBusy(true);
-    try {
-      const runId = runInfo.id;
-      const [{ data: ps }, { data: prs }] = await Promise.all([
-        supabase.from("payslips").select("cast_id, period, net, breakdown_json").eq("run_id", runId),
-        supabase.from("payment_records").select("cast_id, paid_amount").eq("run_id", runId),
-      ]);
-      const slips = (ps ?? []) as { cast_id: string; period: string; net: number; breakdown_json: BreakdownJson }[];
-      if (slips.length === 0) { setCsvMsg("この期間に給与明細がありません（確定済みの run が空です）。"); return; }
-      const castIds = slips.map((s) => s.cast_id);
-      const [{ data: cs }, { data: tp }] = await Promise.all([
-        supabase.from("casts").select("id, name").in("id", castIds),
-        supabase.from("cast_tax_profiles").select("cast_id, mode").in("cast_id", castIds),
-      ]);
-      const nameOf = new Map((cs ?? []).map((c) => [c.id as string, c.name as string]));
-      const modeOf = new Map((tp ?? []).map((r) => [r.cast_id as string, r.mode as string]));
-      const paidOf = new Map<string, number>();
-      for (const r of (prs ?? []) as { cast_id: string; paid_amount: number }[]) {
-        paidOf.set(r.cast_id, (paidOf.get(r.cast_id) ?? 0) + r.paid_amount);
-      }
-      const csvRows: PayrollCsvRow[] = slips
-        .slice()
-        .sort((a, b) => (nameOf.get(a.cast_id) ?? "").localeCompare(nameOf.get(b.cast_id) ?? "", "ja"))
-        .map((s) => ({
-          castName: slipCastName(s.breakdown_json, nameOf.get(s.cast_id)),
-          taxMode: modeOf.get(s.cast_id) ?? "—",
-          period: s.period,
-          pay: s.breakdown_json.pay,
-          extrasTotal: (s.breakdown_json.extras ?? []).reduce((sum, e) => sum + (e.amount ?? 0), 0),
-          net: s.net,
-          paidTotal: paidOf.get(s.cast_id) ?? 0,
-        }));
-      const csv = buildPayrollCsv(csvRows);
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `給与明細_${storeName}_${period}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      setCsvMsg(`給与明細CSVを出力しました（${csvRows.length} 名分）。`);
-    } catch (e) {
-      setCsvMsg(`出力に失敗: ${(e as Error).message}`);
-    } finally {
-      setBusy(false);
-    }
+    try { setCsvMsg(await exportPayrollCsvForRun(supabase, runInfo.id, storeName, period)); } // ★B5: 本体は export-csv.ts（月次一覧と同一関数）
+    finally { setBusy(false); }
   }
 
   // D2: 確定済み run の payslips＋cast 名を読み、per-cast スリップを画面表示（印刷は別ボタン＝window.print）。
