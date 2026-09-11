@@ -3067,6 +3067,8 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 前提確認（2026-09-11・読取のみ・BANZEN ゲート中＝verify／f0 なし・proof orgs=3）: **(a) daily_reports の日別凍結**＝列は cash／card_gross／card_tax／uri／other／drink_sales／dohan_checks／slips／guests／expense／cash_payout／cash_float／counted_cash／diff／ar_collected＋closed_at／reclosed_at／reopened_at（biz_date 単位・締め時に凍結）で**器は揃っている**。ただし nox-dev の行は全期間 **5 行**（CLUB NOX 2026-09-09／09-10・NOX-VERIFY-A1 09-11／09-12・NOX-VERIFY-B1 2020-01-01）・直近 60 日 **4 行**＝欠損 56 日超で「日別売上が揃っている」前提を満たさない→ B6-3 は第 2 期送り（日次締めが 30 日分蓄積した時点で裁定により復帰可＝器の変更は不要）。**(b) payroll_runs の store×period unique**＝live pg_indexes に `payroll_runs_store_period_uidx UNIQUE (store_id, period)` が実在（mig0016:137 の 2 行書き。pg_constraint 側に unique はなく index 方式）＝#83 は観察・クローズ可。②の直近 30 日を除いた B6-10 のレーンは client 3 本のまま（②＝比較のみ）。実装は BANZEN 終了後に①から。
 
+**B6-4 実装（2026-09-11・client **`3254919`**・Agoora 目視 OK 同日・B6-10 ①）**: 対象は **analytics・month-report の 2 画面**（dashboard は人件費を出さない＝式なし・対象外）。純関数 `lib/nox/payroll/labor-cost.ts`（finalRunOf／slipGross／laborCostOf／laborRatePct／castLaborRatePct・DB 非依存）に analytics の現行式を固定し、analytics-board（合計・state・cast 別 Map・KPI 人件費率・ランキング報酬率・CSV 列）と month-report（合計・state・率）を同関数へ付け替え。**月報の人件費率は整数 %（Math.round(x*100)）→小数 1 桁 %（Math.round(x*1000)/10）へ変更**（Agoora 判断・桁数引数は持たせない）。month-report の payslips select に cast_id を足しただけで RLS・行数は不変。list.ts の gross（CSV 定義）は不触。suite＝verify:nox-labor-cost **13 本**（走数外・f0 **42 本目**へ連結）。表示値一致（DEMO CLUB NOX・pg 直結読取）＝2026-07 人件費 276,145・KPI 率 null（日報 0 行）・ランキング 6 行同値／2026-09 人件費 234,647・KPI 率 67.3・ランキング 5 行同値・月報率 67→67.3。tsc／lint／ui-tokens 56 緑。
+
 ## 裁定237（Agoora 承認 2026-09-10）締切ロックの client 算出（deadlines 表から RPC と同式）は許容＝式の二重管理は #68 で解消
 
 出典＝相談役ブロック（2026-09-10）。staff_shift_deadline_at は内部専用（0136）で client から呼べないため、面 b／c は staff_shift_deadlines を select し「対象営業日 − days_before の deadline_hm（JST）・行なし＝3 日前 21:00」を同式で算出している。書込側の判定は RPC（staff_wish_set）が正＝client は表示のロックのみ。同じ式を 2 箇所で持つ状態は #68（関数を authenticated へ公開→client 算出撤去）で解消する。
@@ -3130,6 +3132,12 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 棚卸し（2026-09-11・実装前）: 定義 2 箇所＝globals.css `.nox-btn.ghost`／theme.ts `btnGhost`（btnGhostLg は継承）。直書き白枠の付け替え＝simulator-panel のローカル `btnSm` 1 件（transparent＋`--line2` 枠＋`--ink` 字＝補助の直書き）。非該当（不触）＝staff-shift-manage の希望行ボタン 1 件（`className="nox-crow"` の行型・配置導線）と CSS の切替・戻る系 6 セレクタ（`.nox-formmodal-x`／`.nox-subnav2 button`／`.nox-backlink`／`.nox-backbtn`／1702 行のピル型／`.nox-ordbtn`＝既に hover 青）。(6) のヘッダ右上ログアウトは `className="nox-btn"`（基底のみ・白枠）＝`ghost` クラス付与で補助へ。kiosk のログアウトは `t.btnGhost` 経由＝定義差替えで一括。経由件数の実測（app／components の `btnGhost` 参照＝121＋`btnGhostLg` 8）＝129（本文 (2) の 244 とは集計基準が異なる＝報告のみ・本文は逐語のまま）。
 
 実装（2026-09-11・docs `5619695`・client **`226acae`**・Agoora 目視 OK 同日）: 定義 2 箇所＝`.nox-btn.ghost`（枠／字 var(--primary)・透明地・hover 枠／字 var(--primary-hover)＋地 color-mix(in srgb, var(--primary) 10%, transparent)・disabled 枠 var(--line2)／字 var(--sub)／透明地）と `btnGhost`（同値・inline のため hover／disabled なし＝呼び出し側の opacity 据え置き）。付け替え＝simulator-panel `btnSm` 1 件（青枠・青字）＋ヘッダ右上ログアウトに `ghost` 付与（242-(6)）＋明細「給与明細CSVを出力」を btnGold→btnGhost（242-(3)）。非該当 7 件は不触。tsc／lint 緑・ui-tokens 新規ヒット 0（baseline 56 不変）。globals.css は作業ツリー CRLF のまま行末を吸収して当て、差分は ghost ブロックのみ。
+
+## 裁定243（Agoora 承認 2026-09-11）恒久注意 17 を廃止＝他プロジェクトの verify との並走は可・並走下の緑は有効
+
+出典＝相談役ブロック 2026-09-11「裁定243 収載＋f0→push」。**本文（逐語）**: 「恒久注意 17 を廃止。恒久注意 10 は『同じ DB を触る verify を並走させない』に限定。他プロジェクトの verify との並走は可・並走下の緑は有効・赤がタイムアウト由来なら走数消費のみで再走可(段名で判定)。根拠: 9/11 実測 run1/2 並走 923/993s vs 単独 458/595s、いずれも 41/41・3,765 で結果同一=負荷は失敗方向にのみ効く。裁定200 の 3値は『NOX の DB を触る別プロセス』の検出に読み替え、他プロジェクトのローカルプロセス数は判定から外す。」
+
+適用＝恒久注意 10 は限定・17 は廃止（下記 §恒久注意の各行に注記）。裁定200 チェックの 3 値＝(1) pg_stat_activity の NOX DB 直結クライアント (2) 直近 60 秒の audit_logs (3) ローカルの **NOX** verify プロセス。他プロジェクト（makanai-shift 等）のローカルプロセスは数えない。裁定241（9/11 の例外）は本裁定で一般化＝以後は例外採番不要。
 
 ## 裁定236（Agoora 承認 2026-09-10）希望の取消（「なし」へ戻す）は C層② の範囲外＝staff_wish_delete RPC（本人・締切前）は次の補正 mig で
 
@@ -3735,7 +3743,7 @@ announcements v2）＝正本化後の収蔵ファイルは v8.1／v12.1／v4.1�
 7. 会計売上・販売実績・担当顧客・指名実績を混同しない。
 8. 確定後・締め後・配信後は、通常編集ではなく訂正・再確定・履歴の概念を使う。
 9. **f0 は面完了時のみ・1 日 6 走以内**（2026-09-07 の 30 走超で PostgREST が夜間に signin 13.8s／rpc 22.6s へ劣化・翌朝回復＝横断設計書 §8・#58）。
-10. **他プロジェクトの verify と f0 を同一 PC で並走させない**（2026-09-10 13:00 台・makanai-shift の run-all-verifies と並走した f0 run1 889s／run2 1049s＝前回 pin 412s／454s の約 2 倍。DB は別（裁定200 の 3 値は 0）でも CPU・回線を食い合い statement timeout 型フレークの温床になる。裁定200 チェックに「ローカルの verify 系 node プロセス 0＝他リポジトリ含む」を含めて読む。相談役ブロック 2026-09-10 で恒久注意へ昇格・番号は本表の連番）。
+10. **【裁定243（2026-09-11）で限定＝「同じ DB を触る verify を並走させない」。他プロジェクト（別 DB）の verify との並走は可】** 旧文: **他プロジェクトの verify と f0 を同一 PC で並走させない**（2026-09-10 13:00 台・makanai-shift の run-all-verifies と並走した f0 run1 889s／run2 1049s＝前回 pin 412s／454s の約 2 倍。DB は別（裁定200 の 3 値は 0）でも CPU・回線を食い合い statement timeout 型フレークの温床になる。裁定200 チェックに「ローカルの verify 系 node プロセス 0＝他リポジトリ含む」を含めて読む。相談役ブロック 2026-09-10 で恒久注意へ昇格・番号は本表の連番）。
 11. **f0 は同一 DB で1本ずつ**(裁定200)。起動前に pg_stat_activity・直近60秒 audit_logs 書込・ローカル verify プロセスを実測し、60秒後に再実測してから起動。走数上限 6 は **DB 単位**(セッション単位ではない)。単走の緑は翌日に持ち越さない(2連=同日連続)
 12. **起動ブロックは1チャットにのみ貼る**(教訓63)。CC を切り替える時は旧を終了させてから新を起こす
 13. **走数/日付条件は手順行の先頭に書く**(教訓64)。CC はブロック全体を読み切ってから起動する
@@ -3743,7 +3751,7 @@ announcements v2）＝正本化後の収蔵ファイルは v8.1／v12.1／v4.1�
 15. 走行中の f0 は途中停止しない(各段 finally 掃除が走らず翌朝の赤要因)
 16. 9/9 6走目は 914s(2連緑時 761/723s より遅い)。同日 5走目以降の遅延は PostgREST 疲弊の兆候として扱い、timeout 赤は回帰扱いしない
 （11〜16＝相談役引き継ぎ v28 §5 の逐語・2026-09-10 収載。10 は v29 で追加された項目のため番号順が前後する）
-17. **f0 中に他プロジェクトの verify が起動した場合、その run は走数消費のみで緑判定に数えない。他プロジェクトの verify は止めず終了を待つ**（2026-09-11 run1＝41 段 ALL PASS だったが 32 段目以降で makanai-shift の run-all-verifies が並走＝恒久注意10 抵触→ 1/6 消費のみ。CC が同日 10:26／10:28 に BANZEN の verify を 2 回停止したのは誤り＝別プロジェクトが稼働中であり止めない。以後は ps で終了を待ってから 3 値を再測し、次の走数で再走する）
+17. **【裁定243（2026-09-11）で廃止＝並走下の緑は有効・赤がタイムアウト由来なら走数消費のみで再走可（段名で判定）】** 旧文: **f0 中に他プロジェクトの verify が起動した場合、その run は走数消費のみで緑判定に数えない。他プロジェクトの verify は止めず終了を待つ**（2026-09-11 run1＝41 段 ALL PASS だったが 32 段目以降で makanai-shift の run-all-verifies が並走＝恒久注意10 抵触→ 1/6 消費のみ。CC が同日 10:26／10:28 に BANZEN の verify を 2 回停止したのは誤り＝別プロジェクトが稼働中であり止めない。以後は ps で終了を待ってから 3 値を再測し、次の走数で再走する）
 
 既存裁定との突合5点＝対応表 v1 §12（優先順位数値露出 vs 裁定115-②／締め解除→再締め vs reclose・裁定12①／顧客按分禁止と
 check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履歴・適用期間 vs 現行の上書き更新）→ **裁定125 で決着**。
