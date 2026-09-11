@@ -3091,6 +3091,23 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 適用＝2026-09-11 の f0 run1（10:09〜10:24・923s）と run2（10:30〜10:46・993s）。いずれも 41 段 ALL PASS・3,765・golden 6 値不変・段別 assertion 数も同一。run1 は 32 段目以降、run2 は 10:34:23 以降で makanai-shift の run-all-verifies が並走（watcher 28 サンプル中 25 で検知）。この 2 走を pin（41 本 3,765）の根拠とし、push を行う。**例外は本裁定で明示した本日分のみ**＝以後は恒久注意 17（並走した run は走数消費のみ・他プロジェクトの verify は止めず終了を待つ）どおり。
 
+## 裁定242（Agoora 承認 2026-09-11）補助ボタン青枠化＝238-(2) 改定
+
+出典＝相談役ブロック 2026-09-11「裁定242＋#82・client 1 本」。**本文（逐語）**:
+
+裁定242(補助ボタン青枠化・238-(2) 改定・Agoora 承認 2026-09-11)
+背景: 239 で実行=青塗り、238 でリンク=青文字下線としたが、補助が白枠のままでは「青=押せる」が補助ボタンだけ揃わない。押せるものは基本青で統一する。
+(1) 補助ボタン=枠 var(--primary)・文字 var(--primary)・地は透明。hover は枠・文字とも var(--primary-hover)、地は薄い青(--primary の 10% 程度。トークン追加なし・color-mix か既存の透過値)。定義箇所(globals.css .nox-btn.ghost・theme.ts btnGhost)を差し替え、クラス名・変数名は据え置き
+(2) 対象=印刷・URL コピー・モーダルを開く・合算・←フロア・再読込・表示する・報酬明細を読み込む・+会計を分ける など inventory の (2) 244 件
+(3) CSV 出力は全画面で「補助」に統一=青枠。明細の「給与明細CSVを出力」は青塗り→青枠へ付け替え(一覧の CSV と同形)
+(4) 実行=青塗り・白字(239)、リンク=青文字下線(238)、Danger=red 枠、切替=現状維持。いずれも不変
+(5) disabled の補助=枠・文字とも既存 muted 色、地は透明
+(6) ヘッダ右上のログアウトも補助=青枠。kiosk の補助も同じ。gold 枠は選択中切替(全ランク等)にのみ残る(切替は不触)
+(7) トークン値は変えない。ui-tokens baseline 不変想定・動いたら停止
+(8) レーン: client 1 本(定義 2 箇所+直書き白枠の付け替え+明細 CSV 1 件)・suite なし・f0 不要。目視 NG は client 1 本で追随
+
+棚卸し（2026-09-11・実装前）: 定義 2 箇所＝globals.css `.nox-btn.ghost`／theme.ts `btnGhost`（btnGhostLg は継承）。直書き白枠の付け替え＝simulator-panel のローカル `btnSm` 1 件（transparent＋`--line2` 枠＋`--ink` 字＝補助の直書き）。非該当（不触）＝staff-shift-manage の希望行ボタン 1 件（`className="nox-crow"` の行型・配置導線）と CSS の切替・戻る系 6 セレクタ（`.nox-formmodal-x`／`.nox-subnav2 button`／`.nox-backlink`／`.nox-backbtn`／1702 行のピル型／`.nox-ordbtn`＝既に hover 青）。(6) のヘッダ右上ログアウトは `className="nox-btn"`（基底のみ・白枠）＝`ghost` クラス付与で補助へ。kiosk のログアウトは `t.btnGhost` 経由＝定義差替えで一括。経由件数の実測（app／components の `btnGhost` 参照＝121＋`btnGhostLg` 8）＝129（本文 (2) の 244 とは集計基準が異なる＝報告のみ・本文は逐語のまま）。実装記録は client コミット後に追記。
+
 ## 裁定236（Agoora 承認 2026-09-10）希望の取消（「なし」へ戻す）は C層② の範囲外＝staff_wish_delete RPC（本人・締切前）は次の補正 mig で
 
 出典＝相談役ブロック（2026-09-10）。面 b の ◯× は「なし→◯→×→◯」の巡回で、一度出した希望を「なし」へ戻す経路は 0136／0137 に無い（設計書 v1 §2 の RPC 7 本に削除なし）。取消は #67 の補正 mig（staff_wish_delete＝本人・締切前・監査 action＝RPC 名）で足す。C層② の UI はそれまで現状のまま。
@@ -4091,6 +4108,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 79 | **納付管理の注記が旧導線「上の支払記録から『支払済みにする』」のまま**（低・**修正済・目視待ち**） | B5 で支払済み化は月次一覧へ移った（裁定 B5-6）ため文言が実態と不一致（2026-09-10）。処置（同日・client）＝「給与 月次一覧の『支払済みにする』を実行してください」。起票・処置 2026-09-10 |
 | 80 | **確定解除ボタンの style 警告（border 短縮形と borderColor の混在）**（低・**修正済・目視待ち**） | payroll-board の「確定を解除」（payCount===0 分岐）が `{ ...t.btnGhost, borderColor: … }`＝t.btnGhost の `border: "1px solid var(--line2)"`（短縮形）に個別指定 borderColor を重ね、React が shorthand と longhand の混在を警告（2026-09-10 Agoora 目視）。処置（同日・client コミット）＝`border: "1px solid var(--bad)"` の短縮形で上書き。同型（btnGhost／btnLight 展開＋borderColor・条件付き spread 含む）を grep し **17 箇所**を同じ形へ（payroll 1・casts 2・staff 1・comp-sections 2・plan-editor 1・register 5・kiosk-register 1・customers 3・report 1）。条件付きで非選択時に undefined を渡していた 3 箇所（comp-sections 2・plan-editor 1）は `border: cond ? "1px solid var(--gold)" : t.btnGhost.border`＝非選択時も短縮形で明示。値は同じ＝見た目不変。番号は相談役指定（#75〜79 は本表に無い＝欠番）。起票・処置 2026-09-10。**クローズ（2026-09-10 Agoora 目視済・9/11 収載）** |
 | 81 | **analytics ヒートマップの曜日行 Fragment に key が無い（React 警告）**（低・**修正済・目視待ち**） | analytics-board の時間帯×曜日ヒートマップで `DOW.map` 直下が `<>…</>`（key なし）＝子の span／div に key があっても親 Fragment に無く "Each child in a list should have a unique key" 警告（2026-09-10 Agoora 目視）。処置（同日・client）＝`<Fragment key={\`r${d}\`}>`（react から Fragment import）。同型（map 直下の key なし `<>`）を app／components で grep＝他 2 件は非該当（master-board は keyed Link の内側の変数・pricing-board は IIFE の戻り）＝置換 1 件。起票・処置 2026-09-10 18:35（client b77961f） |
+| 82 | **月次一覧の支払済み件数と明細の未支払カードが run 状態を見ていない**（中・**起票 2026-09-11**） | **本文（逐語）**: 一覧サマリー「支払済み N 件」は payment_records の有無ではなく run.status=paid の件数。明細「未支払」カードは run が paid なら ¥0・通常色(赤にしない)で「支払済み化済み」を添える。支払状況列「—」は paid 時「支払済み化」。金額の再計算はしない(B5-1)。client のみ・suite なし。起票 2026-09-11（実装記録は client コミット後に追記） |
 
 ### 未裁定・消し込み待ち
 
