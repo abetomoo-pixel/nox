@@ -30,6 +30,8 @@ import { sumCategories, CATEGORY_ORDER, CATEGORY_LABEL, type CategoryLine } from
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 // ★B6-4（2026-09-11）: 人件費式は純関数 labor-cost（旧 :214〜232／:405／:491／:993 の直書きを付け替え・month-report と共用）
 import { finalRunOf, laborCostOf, laborRatePct, castLaborRatePct, type LaborRun, type LaborSlip } from "@/lib/nox/payroll/labor-cost";
+// ★B6-11（2026-09-11）: KPI 5 枚の差分行（前月比（月全体）・前年同月比）＝純関数 compare（diffOf／prevMonthOf／prevYearMonthOf）
+import { diffOf, prevMonthOf, prevYearMonthOf, type Diff, type DiffKind } from "@/lib/nox/analytics/compare";
 
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean; photo_updated_at: string | null };
@@ -92,6 +94,19 @@ function addMonths(period: string, delta: number): string {
 /** 日報1行の売上＝現金＋カードグロス＋売掛＋その他（dashboard / month-report と同式）。 */
 const salesOf = (r: { cash: number; card_gross: number; uri: number; other: number }) =>
   r.cash + r.card_gross + r.uri + r.other;
+// ★B6-11: 比較月の KPI 5 値（null＝その月のデータなし＝「—」）。当月と同じ経路（daily_reports／payroll_runs→payslips／store_sales_targets の直 SELECT）で取る。
+type KpiSnap = { sales: number | null; slips: number | null; per: number | null; laborRate: number | null; targetPct: number | null };
+const EMPTY_SNAP: KpiSnap = { sales: null, slips: null, per: null, laborRate: null, targetPct: null };
+/** ★B6-11: 差分の整形＝「—」は null から作る唯一の関数。amount＝円（単位なし）・count＝組・rate＝pt。符号は数値の一部（+／−）・矢印なし。 */
+const fmtDiff = (d: Diff, kind: DiffKind): string => {
+  if (d.abs === null) return "—";
+  const sign = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "");
+  const a = Math.abs(d.abs);
+  if (kind === "rate") return `${sign(d.abs)}${a.toFixed(1)}pt`;
+  const body = kind === "amount" ? `${sign(d.abs)}${a.toLocaleString()}` : `${sign(d.abs)}${a}組`;
+  const p = d.pct === null ? "—" : `${sign(d.pct)}${Math.abs(d.pct)}%`;
+  return `${body}（${p}）`;
+};
 /** 'YYYY-MM-DD' の曜日（0=日）。ローカル TZ 非依存（S-1 の dowOf と同式）。 */
 const dowOf = (ymd: string) => {
   const [y, m, d] = ymd.split("-").map(Number);
@@ -141,6 +156,9 @@ export default function AnalyticsBoard({
   const [arOpen, setArOpen] = useState(0);
   // E8-6 #10: 報酬率＝確定給与（payslips.cast_id 別 gross）÷ 按分売上（確定月のみ）
   const [castGross, setCastGross] = useState<Map<string, number>>(new Map());
+  // ★B6-11: 前月・前年同月の KPI 5 値（差分行用・当月経路とは別 state＝当月の 5 値は不変）
+  const [cmpPrev, setCmpPrev] = useState<KpiSnap>(EMPTY_SNAP);
+  const [cmpYear, setCmpYear] = useState<KpiSnap>(EMPTY_SNAP);
   // E8-6 #11: キャスト詳細4スタットの出勤日数（attendance 直読・PRESENT= 出勤/同伴/遅刻）
   const [attDays, setAttDays] = useState<number | null>(null);
   // E8-6 #12: 顧客セグメント（customer_list_summary＝/customers と同じ RPC・顧客ビュー表示時のみ取得）
@@ -227,6 +245,38 @@ export default function AnalyticsBoard({
     setCastGross(lc.byCast);
   }, [storeId, period]);
   useEffect(() => { void loadMonth(); }, [loadMonth]);
+
+  // ★B6-11: 比較月（前月・前年同月）の KPI 5 値を当月と同じ経路で再取得（RPC 不触・既存の当月経路には手を入れない）。
+  //   daily_reports 0 行→sales／slips／per／laborRate／targetPct すべて null・paid run 無し→laborRate null・targets 無し→targetPct null。
+  const loadCompare = useCallback(async () => {
+    if (!storeId || !/^\d{4}-\d{2}$/.test(period)) return;
+    const supabase = createClient();
+    const snapOf = async (p: string): Promise<KpiSnap> => {
+      const [dr, runs, tg] = await Promise.all([
+        supabase.from("daily_reports").select("cash, card_gross, uri, other, slips").eq("store_id", storeId)
+          .gte("biz_date", `${p}-01`).lte("biz_date", lastDayOf(p)),
+        supabase.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", p),
+        supabase.from("store_sales_targets").select("sales_target").eq("store_id", storeId).eq("period", p).maybeSingle(),
+      ]);
+      const rows = (dr.data ?? []) as { cash: number; card_gross: number; uri: number; other: number; slips: number | null }[];
+      const sales = rows.length ? rows.reduce((a, r) => a + salesOf(r), 0) : null;
+      const slips = rows.length ? rows.reduce((a, r) => a + (r.slips ?? 0), 0) : null;
+      const perV = sales !== null && slips !== null ? (slips > 0 ? Math.round(sales / slips) : 0) : null; // 当月の per と同式
+      const laborRuns = (runs.data ?? []) as LaborRun[];
+      const fin = finalRunOf(laborRuns);
+      const { data: slipRows } = fin
+        ? await supabase.from("payslips").select("cast_id, breakdown_json").eq("run_id", fin.id)
+        : { data: [] as LaborSlip[] };
+      const lc = laborCostOf(laborRuns, (slipRows ?? []) as LaborSlip[]);
+      const laborRate = sales === null ? null : laborRatePct(lc.state, lc.gross, sales);
+      const target = (tg.data?.sales_target as number | undefined) ?? null;
+      const targetPct = target !== null && target > 0 && sales !== null ? Math.round((sales / target) * 1000) / 10 : null; // 当月の targetPct と同式
+      return { sales, slips, per: perV, laborRate, targetPct };
+    };
+    const [pm, py] = await Promise.all([snapOf(prevMonthOf(period)), snapOf(prevYearMonthOf(period))]);
+    setCmpPrev(pm); setCmpYear(py);
+  }, [storeId, period]);
+  useEffect(() => { void loadCompare(); }, [loadCompare]);
 
   // E8-6 #2: 3ヶ月/6ヶ月モード＝表示月を末尾とする月別合計（daily_reports の範囲 select 1本を月で束ねる）。
   const loadTrend = useCallback(async () => {
@@ -469,6 +519,16 @@ export default function AnalyticsBoard({
   }, [cohort]);
   // #3: 目標進捗（分母=目標・分子=締め済み売上 curSales＝KPI 1枚目と同材料）
   const targetPct = target && target > 0 ? Math.round((curSales / target) * 1000) / 10 : null;
+  // ★B6-11: 差分行（前月比（月全体）・前年同月比）。当月側も「その月のデータなし」は null（daily_reports 0 行）で「—」。色は var(--sub)（裁定120 Neutral・.warn は使わない）。
+  const curSnap: KpiSnap = {
+    sales: daily.length ? curSales : null, slips: daily.length ? curSlips : null,
+    per: daily.length ? per(curSales, curSlips) : null, laborRate, targetPct,
+  };
+  const diffRow = (key: keyof KpiSnap, kind: DiffKind) => (
+    <div className="sub" style={{ color: "var(--sub)" }}>
+      前月比（月全体） {fmtDiff(diffOf(curSnap[key], cmpPrev[key], kind), kind)}　前年同月比 {fmtDiff(diffOf(curSnap[key], cmpYear[key], kind), kind)}
+    </div>
+  );
 
   // E8-6 #15: CSV 出力（表示中データの再形のみ・金額の再計算をしない）
   function exportMonthlyCsv() {
@@ -568,16 +628,19 @@ export default function AnalyticsBoard({
           <div className="sub">
             前月同期 {yen(prevSales)}{cmp(curSales, prevSales) !== null ? `（${cmp(curSales, prevSales)! >= 0 ? "+" : ""}${cmp(curSales, prevSales)}%）` : ""}
           </div>
+          {diffRow("sales", "amount")}
         </div>
         <div className="nox-kpi">
           <div className="lbl">組数</div>
           <div className="val num">{curSlips}<small>組</small></div>
           <div className="sub">前月同期 {prevSlips}組</div>
+          {diffRow("slips", "count")}
         </div>
         <div className="nox-kpi">
           <div className="lbl">組単価</div>
           <div className="val num">{yen(per(curSales, curSlips))}</div>
           <div className="sub">前月同期 {yen(per(prevSales, prevSlips))}</div>
+          {diffRow("per", "amount")}
         </div>
         <div className="nox-kpi">
           <div className="lbl">人件費率（概算）</div>
@@ -585,6 +648,7 @@ export default function AnalyticsBoard({
           <div className="sub">
             {labor.state === "final" ? `給与確定 ${yen(labor.gross)} ÷ 売上` : labor.state === "draft" ? "給与が未確定" : "給与データなし"}
           </div>
+          {diffRow("laborRate", "rate")}
         </div>
         {/* E8-6 #3: 月間目標の進捗＝5枚目（分子は KPI 1枚目と同じ締め済み売上・目標は選択店単位） */}
         <div className="nox-kpi">
@@ -602,6 +666,7 @@ export default function AnalyticsBoard({
               <div style={{ width: `${Math.min(100, targetPct ?? 0)}%`, height: "100%", background: (targetPct ?? 0) >= 100 ? "var(--ok)" : "var(--gold)" }} />
             </div>
           )}
+          {diffRow("targetPct", "rate")}
         </div>
       </div>
 
