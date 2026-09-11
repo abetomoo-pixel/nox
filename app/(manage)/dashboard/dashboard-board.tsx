@@ -21,6 +21,8 @@ import { fmtWin, hm2min } from "@/lib/nox/shift-time";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
+// ★B6-12（2026-09-11）: 出勤扱いの状態集合は cast-stats に集約（旧 PRESENT 直書きと同じ 3 値）
+import { PRESENT_STATUSES } from "@/lib/nox/analytics/cast-stats";
 import DrinkClaimQueue from "../register/drink-claim-queue";
 
 type Cast = { id: string; name: string; photo_updated_at: string | null; store_id?: string };
@@ -37,7 +39,7 @@ const yen = (n: number) => "¥" + n.toLocaleString();
 const secTitle: React.CSSProperties = t.cardTitle;
 // 出勤板（shift-board）と同じ語彙＝ATT_OPTIONS の表示側
 const ATT_LABEL: Record<string, string> = { shukkin: "出勤", dohan: "同伴", late: "遅刻", off: "休み", absent: "当欠" };
-const PRESENT = new Set(["shukkin", "dohan", "late"]);
+const PRESENT = new Set<string>(PRESENT_STATUSES); // ★B6-12: 集約元は cast-stats.PRESENT_STATUSES（shukkin／dohan／late）
 
 // 段H2: 充足判定は S-1（shift-board）と同一規則を流用＝新しい判定を作らない（ガイド §1-4 の3色のみ）。
 type Fill = "none" | "ok" | "warn" | "ng";

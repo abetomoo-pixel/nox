@@ -32,6 +32,8 @@ import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 import { finalRunOf, laborCostOf, laborRatePct, castLaborRatePct, type LaborRun, type LaborSlip } from "@/lib/nox/payroll/labor-cost";
 // ★B6-11（2026-09-11）: KPI 5 枚の差分行（前月比（月全体）・前年同月比）＝純関数 compare（diffOf／prevMonthOf／prevYearMonthOf）
 import { diffOf, prevMonthOf, prevYearMonthOf, type Diff, type DiffKind } from "@/lib/nox/analytics/compare";
+// ★B6-12（2026-09-11）: 指名（店合計）・集中度・出勤実績・商品／時間（明細）＝純関数 cast-stats（出勤扱いの状態集合もここに集約）
+import { top3ShareOf, presentDaysOf, productTimeOf, nomStoreOf } from "@/lib/nox/analytics/cast-stats";
 
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean; photo_updated_at: string | null };
@@ -159,6 +161,9 @@ export default function AnalyticsBoard({
   // ★B6-11: 前月・前年同月の KPI 5 値（差分行用・当月経路とは別 state＝当月の 5 値は不変）
   const [cmpPrev, setCmpPrev] = useState<KpiSnap>(EMPTY_SNAP);
   const [cmpYear, setCmpYear] = useState<KpiSnap>(EMPTY_SNAP);
+  // ★B6-12: 指名（店合計）＝get_store_nom_counts の 1 行（null＝取得前／失敗＝「—」）・出勤実績＝attendance 店×月（null＝取得前）
+  const [nomStore, setNomStore] = useState<{ hon: number; jonai: number; dohan: number } | null>(null);
+  const [attStat, setAttStat] = useState<{ days: number; casts: number } | null>(null);
   // E8-6 #11: キャスト詳細4スタットの出勤日数（attendance 直読・PRESENT= 出勤/同伴/遅刻）
   const [attDays, setAttDays] = useState<number | null>(null);
   // E8-6 #12: 顧客セグメント（customer_list_summary＝/customers と同じ RPC・顧客ビュー表示時のみ取得）
@@ -277,6 +282,22 @@ export default function AnalyticsBoard({
     setCmpPrev(pm); setCmpYear(py);
   }, [storeId, period]);
   useEffect(() => { void loadCompare(); }, [loadCompare]);
+
+  // ★B6-12: 指名（店合計）＝既存 RPC get_store_nom_counts を月初〜月末で 1 回（ランキング行・売上貢献行は足さない＝B6-5）。
+  //   出勤実績＝attendance の店×期間 直 SELECT 1 本（新規読取はこれのみ・RLS はキャスト詳細 attDays と同じ表）。
+  const loadCastStats = useCallback(async () => {
+    if (!storeId || !/^\d{4}-\d{2}$/.test(period)) return;
+    const supabase = createClient();
+    const [nom, att] = await Promise.all([
+      supabase.rpc("get_store_nom_counts", { p_store_id: storeId, p_from: `${period}-01`, p_to: lastDayOf(period) }),
+      supabase.from("attendance").select("cast_id, status").eq("store_id", storeId)
+        .gte("date", `${period}-01`).lte("date", lastDayOf(period)),
+    ]);
+    const row = (nom.data as { hon_count: number | null; jonai_count: number | null; dohan_count: number | null }[] | null)?.[0];
+    setNomStore(nom.error ? null : nomStoreOf(row));
+    setAttStat(att.error ? null : presentDaysOf((att.data ?? []) as { cast_id: string; status: string }[]));
+  }, [storeId, period]);
+  useEffect(() => { void loadCastStats(); }, [loadCastStats]);
 
   // E8-6 #2: 3ヶ月/6ヶ月モード＝表示月を末尾とする月別合計（daily_reports の範囲 select 1本を月で束ねる）。
   const loadTrend = useCallback(async () => {
@@ -405,8 +426,8 @@ export default function AnalyticsBoard({
     ]);
     if (error) { setCustErr(`読み込みに失敗: ${error.message}`); setCustRank([]); }
     else setCustRank((data ?? []) as CustRankRow[]);
-    const PRESENT = new Set(["shukkin", "dohan", "late"]);
-    setAttDays(((att.data ?? []) as { status: string }[]).filter((a) => PRESENT.has(a.status)).length);
+    // ★B6-12: 出勤扱いの状態集合は cast-stats.presentDaysOf に集約（旧 PRESENT 直書きと同じ 3 値・人日＝行数）
+    setAttDays(presentDaysOf(((att.data ?? []) as { status: string }[]).map((a) => ({ cast_id: castSel, status: a.status }))).days);
   }, [storeId, period, castSel]);
 
   useEffect(() => { void loadCustRank(); }, [loadCustRank]);
@@ -438,6 +459,8 @@ export default function AnalyticsBoard({
   }, [sales, castName]);
   // E8-6 #10: 構成%の分母＝按分売上の総和（同じ集計軸の中でだけ%を出す＝日報売上と混ぜない）
   const salesRankTotal = salesRanking.reduce((a, r) => a + r.sales, 0);
+  // ★B6-12: 集中度（上位 3 名）＝既存ランキング各行の構成 %（`:share` と同式・小数 1 桁）の上位 3 行の合計。総和 0／行 0 は null（「—」）。
+  const top3Share = top3ShareOf(salesRankTotal > 0 ? salesRanking.map((r) => ({ pct: Math.round((r.sales / salesRankTotal) * 1000) / 10 })) : []);
 
   // ── 段A2 派生値（すべて daily の再形＝新規取得なし）──
   const sum = (rows: DailyRow[], f: (r: DailyRow) => number) => rows.reduce((a, r) => a + f(r), 0);
@@ -771,6 +794,31 @@ export default function AnalyticsBoard({
             )}
           </section>
 
+          {/* ★B6-12: 商品売上（明細）＝drink＋champ＋bottle／時間料金（明細）＝time（既存 catSums の再形・5 分類ラベルは不触・KPI 売上とは基準が別） */}
+          <section className="nox-panel">
+            <h3>商品売上（明細）・時間料金（明細）（{period}）</h3>
+            {catRows === null ? <p style={noneP}>読み込み中…</p> : catSums.total === 0 ? (
+              <p style={noneP}>この月の会計済み伝票がありません。</p>
+            ) : (() => {
+              const pt = productTimeOf(catSums);
+              return (
+                <div className="nox-kpis">
+                  <div className="nox-kpi">
+                    <div className="lbl">商品売上（明細）</div>
+                    <div className="val num">{yen(pt.product)}</div>
+                    <div className="sub">ドリンク＋シャンパン＋ボトル</div>
+                  </div>
+                  <div className="nox-kpi">
+                    <div className="lbl">時間料金（明細）</div>
+                    <div className="val num">{yen(pt.time)}</div>
+                    <div className="sub">セット・延長・VIP チャージ</div>
+                  </div>
+                </div>
+              );
+            })()}
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>明細ベース（サ料前・丸め前）。上の売上（決済ベース）とは一致しません。</p>
+          </section>
+
           {/* ★B4-4（DP-R 監査の欠落解消）: モック nox-analytics-dashboard の「注目ポイント」カード。
               ★自動インサイト生成（analytics #6）は**後送り裁定済み**＝文章を機械で書く部分は作らない。
                 ここに出すのは**既に画面が計算している数字の言い換えだけ**（新しい集計も新しい取得もゼロ）:
@@ -1036,6 +1084,24 @@ export default function AnalyticsBoard({
       {/* ══ ビュー「キャスト」＝売上貢献（列拡張）＋指名件数＋キャスト詳細＋主要客リスト ══ */}
       {view === "casts" && (
       <>
+      {/* ★B6-12: 小 KPI 3 枚（既存 .nox-kpis・差分行なし・色は既存 KPI と同じ）。指名（店合計）は RPC の 3 値そのまま（B6-5＝ランキング行を足さない）。 */}
+      <div className="nox-kpis">
+        <div className="nox-kpi">
+          <div className="lbl">指名（店合計）</div>
+          <div className="val num" style={{ fontSize: 16 }}>{nomStore ? `本${nomStore.hon}・場内${nomStore.jonai}・同伴${nomStore.dohan}` : "—"}</div>
+          <div className="sub">会計済み伝票の指名種別（店合計・{period}）</div>
+        </div>
+        <div className="nox-kpi">
+          <div className="lbl">集中度（上位 3 名）</div>
+          <div className="val num">{top3Share === null ? "—" : `${top3Share}%`}</div>
+          <div className="sub">按分売上の構成 % 上位 3 名の合計</div>
+        </div>
+        <div className="nox-kpi">
+          <div className="lbl">出勤実績</div>
+          <div className="val num">{attStat === null ? "—" : <>{attStat.days}<small>人日（{attStat.casts}名）</small></>}</div>
+          <div className="sub">出勤・同伴・遅刻の記録日数（{period}）</div>
+        </div>
+      </div>
       <section className="nox-panel">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <h3 style={{ marginRight: "auto" }}>売上貢献ランキング（{period}・按分ベース）</h3>
