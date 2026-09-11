@@ -26,6 +26,8 @@ import SegSelect from "@/components/ui/seg-select";
 import CastPicker from "@/components/nox/cast-picker";
 import { type BusinessHourRow } from "@/lib/nox/business-hours";
 import { hm2min } from "@/lib/nox/shift-time";
+// ★裁定245-6: 日セルの「不足 n」＝純関数 gapOf（required−assigned・選択中は −1・0 は充足）
+import { gapOf } from "@/lib/nox/shift/gap";
 
 type Cast = { id: string; name: string };
 type ExistRow = { id: string; date: string; start_hm: string; end_hm: string; status: string };
@@ -86,7 +88,7 @@ function rpcErrJa(msg: string | undefined): string {
 const SKIP_JA: Record<string, string> = { closed: "定休日", duplicate: "既に登録あり", unavailable: "出勤不可（理由未入力）" };
 
 export default function ShiftAddForm({
-  casts, photoUrls, initialCast, bhRows, initialDate, initialStatus, open, onClose, onSaved,
+  casts, photoUrls, initialCast, bhRows, initialDate, initialStatus, open, onClose, onSaved, needs = [], assignedByDate = {},
 }: {
   /** 左ペイン CastPicker の母集団（裁定108: select 禁止＝Picker 維持） */
   casts: Cast[];
@@ -95,6 +97,9 @@ export default function ShiftAddForm({
   /** 開いたときに選択済みにするキャスト（今日タブの行「＋」直開き等・null=左ペインで選ぶ） */
   initialCast: Cast | null;
   bhRows: BusinessHourRow[];
+  /** ★裁定245-6: 本体の staffing_needs（曜日×時間帯・required）と日別配置数（全 status）。無ければバッジを出さない */
+  needs?: { dow: number; required: number }[];
+  assignedByDate?: Record<string, number>;
   /** 開いたときの表示月の基準日（今日タブ＝営業日の今日／カレンダー＝選択日） */
   initialDate: string;
   /** 新規日の状態既定。今日タブ＝confirmed（当日その場で足すのは「もう入る人」・裁定42） */
@@ -130,6 +135,14 @@ export default function ShiftAddForm({
   const dowOf = (ymd: string) => new Date(`${ymd}T00:00:00Z`).getUTCDay();
   const isClosed = (ymd: string) => bhRows.find((r) => r.dow === dowOf(ymd))?.is_closed === true;
   const existOf = (ymd: string) => existing.find((e) => e.date === ymd);
+  // ★裁定245-6: 日の不足＝本体の必要人数（その曜日のピーク required）− 本体の配置数（全 status）。
+  //   このキャストを選択中（新規）の日は −1・0 は「充足」・required 未設定／充足済みは null（バッジなし）。色は本体カレンダーと同じ var(--bad)／var(--ok)。
+  const requiredOf = (ymd: string) => needs.filter((n) => n.dow === dowOf(ymd)).reduce((m, n) => Math.max(m, n.required), 0);
+  const gapLabelOf = (ymd: string): string | null => {
+    const e = sel[ymd];
+    const g = gapOf(requiredOf(ymd), assignedByDate[ymd] ?? 0, !!e && e.src === "new" && !existOf(ymd));
+    return g === null ? null : g === 0 ? "充足" : `不足 ${g}`;
+  };
   const wishOf = (ymd: string) => wishes.find((w) => w.date === ymd);
 
   // ★裁定112-D: 希望の表示写像＝end が閉店時刻と一致なら「〜LAST」（器に LAST は無い）
@@ -212,6 +225,23 @@ export default function ShiftAddForm({
         if (isClosed(ymd)) continue;
         if (unavail.has(ymd) && !existOf(ymd)) continue; // 不可は一括では拾わない（個別に理由）
         if (dows && !dows.includes(dowOf(ymd))) continue;
+        n[ymd] = entryFor(ymd);
+      }
+      return n;
+    });
+  };
+
+  // ★裁定245-6: 「不足日を全部選択」＝不足 n>0 の日（定休日・出勤不可・登録済みの日は除く）
+  const selectShortDays = () => {
+    setSel((p) => {
+      const n = { ...p };
+      for (const ymd of monthDays) {
+        if (n[ymd]) continue;
+        if (isClosed(ymd)) continue;
+        if (unavail.has(ymd)) continue;
+        if (existOf(ymd)) continue;
+        const g = gapOf(requiredOf(ymd), assignedByDate[ymd] ?? 0, false);
+        if (g === null || g <= 0) continue;
         n[ymd] = entryFor(ymd);
       }
       return n;
@@ -370,6 +400,7 @@ export default function ShiftAddForm({
                   <button style={btnLight} onClick={() => selectBulk([6])}>毎週 土を選択</button>
                   <button style={btnLight} onClick={() => selectBulk([5, 6])}>毎週 金・土を選択</button>
                   <button style={btnLight} onClick={() => { setSel({}); setFocusDay(""); }}>選択をすべて解除</button>
+                  <button style={btnLight} onClick={selectShortDays} title="必要人数に足りない日（定休日・出勤不可・登録済みを除く）をまとめて選択します">不足日を全部選択</button>
                 </div>
                 <div className="nox-calgrid">
                   {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}
@@ -403,6 +434,7 @@ export default function ShiftAddForm({
                           <span className="num" style={{ fontSize: 8.5, color: "var(--blue)" }}>希 {wishLabel(w)}</span>
                         )}
                         {!closed && un && !ex && <span style={{ fontSize: 8.5, color: "var(--bad)" }}>不可</span>}
+                        {!closed && (() => { const g = gapLabelOf(ymd); return g ? <span className="num" style={{ fontSize: 8.5, color: g === "充足" ? "var(--ok)" : "var(--bad)" }}>{g}</span> : null; })()}
                       </button>
                     );
                   })}

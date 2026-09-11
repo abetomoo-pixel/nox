@@ -9,6 +9,8 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import CastPicker from "@/components/nox/cast-picker";
 import ShiftAddForm from "./shift-add-form";
+// ★裁定245-3: 一括確定の 62 件分割（純関数 chunkOf・shift_confirm_bulk の上限 0126）
+import { chunkOf } from "@/lib/nox/shift/gap";
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange, addDays } from "@/lib/nox/biz-date";
@@ -144,7 +146,7 @@ const SHIFT_ACTION_LABEL: Record<string, string> = {
   shift_wish_submit: "希望提出", shift_wish_withdraw: "希望取下げ",
 };
 
-export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = false, role = "", cutoff }: { storeId: string; casts: Cast[]; isManagerUp: boolean; isOwner?: boolean; role?: string; cutoff: string }) {
+export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = false, role = "", cutoff, castConfirm = false }: { storeId: string; casts: Cast[]; isManagerUp: boolean; isOwner?: boolean; role?: string; cutoff: string; castConfirm?: boolean }) {
   const supabase = createClient();
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -510,20 +512,28 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     await load();
   }
 
-  // ★0126（裁定114）: 承認待ちタブの一括確定＝shift_confirm_bulk（planned/proposed→confirmed・上限62）。
-  //   63件以上はクライアントで先に弾く（'too many' へは通常到達しない）。raise 型（bad rows/concurrent change）は
-  //   部分適用なしのロールバック＝再取得して競合文言を出す。
+  // ★0126（裁定114）: 承認待ちタブの一括確定＝shift_confirm_bulk（planned/proposed→confirmed・RPC 上限62）。
+  //   ★裁定245-3（2026-09-11）: client で 62 件ずつ分割して順に呼ぶ（事前の 62 件超ブロックは撤去）。途中失敗は
+  //   「n／m 件確定・残りは再試行」で停止し、確定済み分は戻さない（RPC は塊ごとに原子的＝失敗した塊は無変更）。
+  const bulkErrJa = (m: string) => (m.includes("bad rows") || m.includes("concurrent change") ? "他の操作と競合しました。最新状態を確認してください" : rpcErrJa(m));
   async function confirmBulkShifts(ids: string[]) {
     if (ids.length === 0) return;
-    if (ids.length > 62) { setMsg("一括確定は62件以内に絞ってください"); return; }
     if (!confirm(`表示中の予定・確認待ち ${ids.length}件をまとめて確定しますか？`)) return;
     setMsg(null);
-    const { data: n, error } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: ids });
-    setMsg(error
-      ? (error.message.includes("bad rows") || error.message.includes("concurrent change")
-          ? "他の操作と競合しました。最新状態を確認してください"
-          : `一括確定に失敗: ${rpcErrJa(error.message)}`)
-      : `${n}件を確定しました`);
+    let done = 0;
+    for (const chunk of chunkOf(ids, 62)) {
+      const { data: n, error } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: chunk });
+      if (error) { setMsg(`${done}／${ids.length}件確定・残りは再試行してください（${bulkErrJa(error.message)}）`); await load(); return; }
+      done += Number(n ?? chunk.length);
+    }
+    setMsg(`${done}件を確定しました`);
+    await load();
+  }
+  // ★裁定245-2: 承認待ちの行「確定」＝shift_confirm_bulk を 1 件で（planned／proposed とも・キャスト確認の有無に依らない）
+  async function confirmOne(id: string) {
+    setMsg(null);
+    const { error } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: [id] });
+    setMsg(error ? `確定に失敗: ${bulkErrJa(error.message)}` : "確定しました");
     await load();
   }
 
@@ -650,6 +660,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   //   ＝必要人数を決めていない日に「余っている」と言えないため。
   // ★`fill`（fillOf/worstFill の4値 none/ok/warn/ng）は**1文字も変えていない**＝既存の色分けと
   //   「人員不足日」の集計はそのまま動く。余剰は fill とは別の軸として持つ（裁定B＝灰で示す）。
+  // ★裁定245-6: シフト追加モーダルへ渡す日別配置数（全 status・本体 shifts の再形＝新規取得なし）
+  const assignedByDate: Record<string, number> = {};
+  for (const s of shifts) assignedByDate[s.date] = (assignedByDate[s.date] ?? 0) + 1;
   const dayStat = (ymd: string) => {
     const list = shiftsOn(ymd);
     const confirmed = list.filter((s) => s.status === "confirmed").length;
@@ -1024,7 +1037,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             <span style={{ display: "inline-flex", gap: 6 }}>
                               <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
                                 onClick={() => { setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm); }}>調整</button>
-                              {s.status === "planned" && (
+                              {castConfirm && s.status === "planned" && (
                                 <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
                                   onClick={() => void proposeShifts([s.id])}>確認へ</button>
                               )}
@@ -1257,11 +1270,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           const proposed = shifts.filter((x) => x.status === "proposed");
           // ★裁定133（v4.1 H5）: 4段のまま語彙をモック「申請→承認→…→仮シフト→確定」へ寄せる
           //   （「作成・公開」は period 側の状態＝この帯には載せない）。括弧内は従来の段名＝意味を残す。
-          const steps: Array<[string, string, number]> = [
+          // ★裁定245-1: キャスト確認 OFF（settings_json.shift_cast_confirm≠true）は 3 段＝申請→承認→確定（proposed は承認済み（未確定）として段 2 に合算）
+          const steps: Array<[string, string, number]> = castConfirm ? [
             ["1", "申請（キャスト希望）", wishes.length],
             ["2", "承認（管理者確認・時間調整）", planned.length],
             ["3", "仮シフト（キャスト確認）", proposed.length],
             ["4", "確定", shifts.filter((x) => x.status === "confirmed").length],
+          ] : [
+            ["1", "申請（キャスト希望）", wishes.length],
+            ["2", "承認（管理者確認・時間調整）", planned.length + proposed.length],
+            ["3", "確定", shifts.filter((x) => x.status === "confirmed").length],
           ];
           return (
             <>
@@ -1285,7 +1303,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   })()}
                   {/* V2-2 の一括 propose はこの面へ移設（行の「キャスト確認へ」と同じ操作の一括版）。
                       モックには無いが、実装済みの機能を構造追随のために落とさない。 */}
-                  {isManagerUp && planned.length > 0 && (
+                  {isManagerUp && castConfirm && planned.length > 0 && (
                     <button style={btnLight} title="段2（管理者確認）の全件をキャスト確認へ送ります"
                       onClick={() => void proposeShifts(planned.map((x) => x.id))}>
                       {planned.length}件まとめてキャスト確認へ
@@ -1295,7 +1313,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   {isManagerUp && (
                     <button style={{ ...btnDark, opacity: planned.length + proposed.length === 0 ? 0.45 : 1 }}
                       disabled={planned.length + proposed.length === 0}
-                      title="表示中の予定・確認待ちをまとめて確定します（上限62件）"
+                      title="表示中の予定・確認待ちをまとめて確定します（62件ずつ順に送ります）"
                       onClick={() => void confirmBulkShifts([...planned, ...proposed].map((x) => x.id))}>
                       {planned.length + proposed.length}件を一括確定
                     </button>
@@ -1351,7 +1369,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               const w = x.wish_id ? wishAll.find((y) => y.id === x.wish_id) : undefined;
               return { key: `s${x.id}`, castId: x.cast_id, date: x.date,
                 wishHm: w ? fmtWin(w.start_hm, w.end_hm) : null, nowHm: fmtWin(x.start_hm, x.end_hm),
-                stage: x.status === "planned" ? "管理者確認" : "キャスト確認待ち",
+                stage: x.status === "planned" ? "管理者確認" : castConfirm ? "キャスト確認待ち" : "承認済み（未確定）", // ★裁定245-1
                 kind: x.status as "planned" | "proposed", shift: x };
             }),
           ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.key < b.key ? -1 : 1));
@@ -1417,8 +1435,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             <span style={{ display: "inline-flex", gap: 6 }}>
                               <button style={{ ...btnLight, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 onClick={() => { setAdjTarget(r.shift!); setAStart(r.shift!.start_hm); setAEnd(r.shift!.end_hm); }}>時間調整</button>
+                              {castConfirm && (
+                                <button style={{ ...btnLight, opacity: closed ? 0.45 : 1 }} disabled={closed}
+                                  onClick={() => void proposeShifts([r.shift!.id])}>キャスト確認へ</button>
+                              )}
+                              {/* ★裁定245-2: 行の確定（実行＝青塗り）＝shift_confirm_bulk を 1 件で。操作列は 244 の例外＝配置不変 */}
                               <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
-                                onClick={() => void proposeShifts([r.shift!.id])}>キャスト確認へ</button>
+                                onClick={() => void confirmOne(r.shift!.id)}>確定</button>
                               {/* ★N4（H30）: shift_remove の UI 結線（計画中の行を削除・wish 由来は希望へ戻る） */}
                               <button style={{ ...btnLight, color: "var(--bad)" }} onClick={() => void removeShift(r.shift!)}>削除</button>
                             </span>
@@ -1428,6 +1451,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               <button style={{ ...btnLight, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 onClick={() => { setAdjTarget(r.shift!); setAStart(r.shift!.start_hm); setAEnd(r.shift!.end_hm); }}>再調整</button>
                               <button style={btnLight} onClick={() => void demoteShift(r.shift!)}>差し戻す</button>
+                              {/* ★裁定245-2: 行の確定（実行＝青塗り）＝shift_confirm_bulk を 1 件で */}
+                              <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
+                                onClick={() => void confirmOne(r.shift!.id)}>確定</button>
                               <button style={{ ...btnLight, color: "var(--bad)" }} onClick={() => void removeShift(r.shift!)}>削除</button>
                             </span>
                           )}
@@ -1879,6 +1905,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         <ShiftAddForm
           casts={casts} photoUrls={photoUrls} initialCast={addCast} bhRows={bhRows}
           initialDate={addDate} initialStatus={addStatus}
+          needs={needs} assignedByDate={assignedByDate} /* ★裁定245-6: 不足 n の材料（staffing_needs と日別配置数） */
           open={addModal} onClose={() => setAddModal(false)}
           onSaved={() => { setMsg("シフトを保存しました"); void load(); }}
         />

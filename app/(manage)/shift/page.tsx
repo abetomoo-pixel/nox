@@ -28,6 +28,8 @@ export default async function ShiftPage() {
         const sj = (stores?.[0]?.settings_json ?? {}) as Record<string, unknown>;
         return typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00";
       })()}
+      // ★裁定245-1: キャスト確認の任意化＝settings_json.shift_cast_confirm（boolean・キー無し＝false）。setter は店舗設定 setter mig（別）
+      castConfirm={((stores?.[0]?.settings_json ?? {}) as Record<string, unknown>).shift_cast_confirm === true}
     />
   );
 }
