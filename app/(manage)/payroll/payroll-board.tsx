@@ -781,7 +781,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           <button
             onClick={() => void exportPayrollCsv()}
             disabled={busy || !runInfo || (runInfo.status !== "finalized" && runInfo.status !== "paid")}
-            style={runInfo && (runInfo.status === "finalized" || runInfo.status === "paid") ? { ...t.btnGold } : { ...t.btnGhost, opacity: 0.5 }}
+            style={runInfo && (runInfo.status === "finalized" || runInfo.status === "paid") ? { ...t.btnGhost } : { ...t.btnGhost, opacity: 0.5 }} /* ★裁定242-(3): CSV 出力＝補助（青枠）・青塗りをやめる（一覧の CSV と同形） */
             title={runInfo ? "" : "この期間はまだ確定されていません"}
           >
             給与明細CSVを出力

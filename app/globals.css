@@ -1314,7 +1314,12 @@ body {
   font-weight: 800; box-shadow: none;
 }
 .nox-btn.gold:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
-.nox-btn.ghost { background: transparent; color: var(--sub); }
+/* ★裁定242（2026-09-11）: (2) 補助ボタン＝青枠・青字・透明地（border／color var(--primary)）。hover＝枠・字 var(--primary-hover)・
+   地は --primary の 10%（color-mix・トークン追加なし）。disabled＝既存 muted（枠 var(--line2)・字 var(--sub)・透明地）。
+   旧値＝background transparent・color var(--sub)（枠は .nox-btn 基底の --line2＝白枠）。theme.ts の btnGhost と同値（inline は hover／disabled なし）。 */
+.nox-btn.ghost { background: transparent; border-color: var(--primary); color: var(--primary); }
+.nox-btn.ghost:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); border-color: var(--primary-hover); color: var(--primary-hover); }
+.nox-btn.ghost:disabled { background: transparent; border-color: var(--line2); color: var(--sub); cursor: default; }
 .nox-btn.danger { color: var(--bad); border-color: rgba(216, 108, 100, .28); background: rgba(216, 108, 100, .05); }
 .nox-btn.small { padding: 6px 10px; font-size: 12px; }
 /* ★裁定238（2026-09-10）: リンク＝別画面へ遷移するもの全部。青文字＋下線・枠なし・塗りなし。青は既存トークン --primary / --primary-hover を参照（値は不変）。

@@ -150,7 +150,10 @@ export const btnGold: CSSProperties = {
   ...btnBase, border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff", fontWeight: 800,
 };
 // モック `.btn.ghost`: background:transparent; color:var(--muted)＝NOX は --sub
-export const btnGhost: CSSProperties = { ...btnBase, border: "1px solid var(--line2)", background: "transparent", color: "var(--ink)" };
+// ★裁定242（2026-09-11）: (2) 補助＝青枠・青字・透明地（globals.css .nox-btn.ghost と同値・名前は据え置き）。
+//   inline style のため hover／disabled は持てない（hover＝--primary-hover＋10% 地・disabled＝muted は .nox-btn.ghost 側のみ・
+//   inline の disabled は呼び出し側の opacity 据え置き）。旧値＝border var(--line2)（白枠）・transparent・color var(--ink)。
+export const btnGhost: CSSProperties = { ...btnBase, border: "1px solid var(--primary)", background: "transparent", color: "var(--primary)" };
 // ★裁定238（2026-09-10）: リンク（別画面へ遷移するもの全部）＝青文字＋下線・枠なし・塗りなし。globals.css の .nox-link と同値（inline style 派生用）。
 export const link: CSSProperties = { color: "var(--primary)", textDecoration: "underline", textUnderlineOffset: 2, background: "none", border: "none", padding: 0, cursor: "pointer" };
 // モック `.btn.small`: height:30px; padding:0 10px（radius は .btn を継ぐ）

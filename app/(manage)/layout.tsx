@@ -113,7 +113,7 @@ export default async function ManageLayout({ children }: { children: React.React
             <div className="acts">
               <span style={t.rolePill}>{t.roleLabelJa(role as string)}</span>
               <form action="/auth/signout" method="post" style={{ display: "flex" }}>
-                <button type="submit" className="nox-btn">ログアウト</button>
+                <button type="submit" className="nox-btn ghost">ログアウト</button>{/* ★裁定242-(6): ログアウト＝補助（青枠） */}
               </form>
             </div>
           </header>

@@ -452,7 +452,7 @@ const s = {
   inpS: { padding: 8, border: "1px solid var(--line2)", borderRadius: 9, width: 84, background: "var(--bg2)", color: "var(--ink)", fontFamily: "inherit" } as React.CSSProperties,
   fs: { border: "1px solid var(--line)", borderRadius: 11, padding: "6px 10px 10px", marginBottom: 12 } as React.CSSProperties,
   lg: { fontSize: 12, color: "var(--sub)", padding: "0 4px" } as React.CSSProperties,
-  btnSm: { padding: "6px 12px", background: "transparent", color: "var(--ink)", border: "1px solid var(--line2)", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 800 } as React.CSSProperties,
+  btnSm: { padding: "6px 12px", background: "transparent", color: "var(--primary)", border: "1px solid var(--primary)", borderRadius: 9, /* ★裁定242: 補助＝青枠・青字（白枠直書きの付け替え） */ cursor: "pointer", fontSize: 12, fontWeight: 800 } as React.CSSProperties,
   sub: "var(--sub)",
   body: "var(--ink)",
   fixedBg: "var(--bg2)",
