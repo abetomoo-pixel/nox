@@ -2,7 +2,8 @@
  * verify:nox-cast-stats — B6-12 指名・出勤・集中度・商品／時間の純関数テスト（DB 非依存・走数外・裁定 B6-12／B6-10 ③・2026-09-11）。
  *   npm run verify:nox-cast-stats
  * 観点 4:
- *  1 top3ShareOf: 行 0→null／1 行／2 行／3 行超（上位 3 のみ）／同率／浮動小数の端数（小数 1 桁）／総和 0（呼び出し側が [] を渡す＝null）
+ *  1 top3ShareOf（¥ ベース・B6-12 改定）: 行 0→null／total 0→null／1 行／2 行／3 行で total と一致→100.0／1/3 ずつ（丸め済み % の合計は 99.9 になる配分）でも 100.0／
+ *    4 行以上で上位 3 が total 未満／同率／小数 1 桁の丸め
  *  2 presentDaysOf: shukkin／dohan／late を数え off／absent を除外・同一 cast の複数日＝人日加算・cast 1・空→0/0
  *  3 productTimeOf: product＝drink＋champ＋bottle・time＝time・product＋time＋other＝5 分類の総和（sumCategories と結線）
  *  4 nomStoreOf: 1 行の整形・null 値は 0・行なし→null
@@ -19,13 +20,13 @@ function check(label: string, ok: boolean, detail?: string) {
 const eq = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 // ══ 1 top3ShareOf ══
-check("cs(1a) 行 0→null（ランキング無し・総和 0 は呼び出し側が [] を渡す）", top3ShareOf([]) === null);
-check("cs(1b) 1 行＝その行の %（100）／2 行＝2 行の合計（60.5＋39.5＝100）", top3ShareOf([{ pct: 100 }]) === 100 && top3ShareOf([{ pct: 60.5 }, { pct: 39.5 }]) === 100);
-check("cs(1c) ★3 行超＝上位 3 のみ（45.3・25・17.2・12.5 → 87.5）・並びに依存しない（昇順で渡しても同じ）",
-  top3ShareOf([{ pct: 45.3 }, { pct: 25 }, { pct: 17.2 }, { pct: 12.5 }]) === 87.5 && top3ShareOf([{ pct: 12.5 }, { pct: 17.2 }, { pct: 25 }, { pct: 45.3 }]) === 87.5,
-  String(top3ShareOf([{ pct: 12.5 }, { pct: 17.2 }, { pct: 25 }, { pct: 45.3 }])));
-check("cs(1d) 同率＝どの 3 行を取っても合計は同じ（30・30・30・10 → 90）", top3ShareOf([{ pct: 30 }, { pct: 30 }, { pct: 30 }, { pct: 10 }]) === 90);
-check("cs(1e) 浮動小数の端数を小数 1 桁へ（33.3＋33.3＋33.3＝99.9・0.1＋0.2＋0.3＝0.6）", top3ShareOf([{ pct: 33.3 }, { pct: 33.3 }, { pct: 33.3 }, { pct: 0.1 }]) === 99.9 && top3ShareOf([{ pct: 0.1 }, { pct: 0.2 }, { pct: 0.3 }]) === 0.6);
+const amt = (...xs: number[]) => xs.map((amount) => ({ amount }));
+check("cs(1a) 行 0→null／total 0→null（行があっても総和 0 は「—」）", top3ShareOf([], 100) === null && top3ShareOf(amt(0, 0), 0) === null);
+check("cs(1b) 1 行＝100.0／2 行＝在る行の合計（60,500＋39,500 ÷ 100,000＝100）", top3ShareOf(amt(100), 100) === 100 && top3ShareOf(amt(60_500, 39_500), 100_000) === 100);
+check("cs(1c) ★3 行で total と一致→100.0（DEMO 2026-09 型＝287,267＋174,200＋101,433 ÷ 562,900・残り行 0）", top3ShareOf(amt(287_267, 174_200, 101_433, 0, 0), 562_900) === 100, String(top3ShareOf(amt(287_267, 174_200, 101_433, 0, 0), 562_900)));
+check("cs(1d) ★1/3 ずつ＝丸め済み %（33.3×3＝99.9）を足す旧式と違い ¥ ベースは 100.0", top3ShareOf(amt(1, 1, 1), 3) === 100 && Math.round((1 / 3) * 1000) / 10 * 3 !== 100);
+check("cs(1e) ★4 行以上で上位 3 が total 未満（453,000・250,000・172,000・125,000 ÷ 1,000,000 → 87.5）・並びに依存しない", top3ShareOf(amt(453_000, 250_000, 172_000, 125_000), 1_000_000) === 87.5 && top3ShareOf(amt(125_000, 172_000, 250_000, 453_000), 1_000_000) === 87.5);
+check("cs(1f) 同率＝どの 3 行を取っても合計は同じ（30・30・30・10 ÷ 100 → 90）・小数 1 桁の丸め（1・1・1・1 ÷ 7 → 42.9）", top3ShareOf(amt(30, 30, 30, 10), 100) === 90 && top3ShareOf(amt(1, 1, 1, 1), 7) === 42.9);
 
 // ══ 2 presentDaysOf ══
 const att = [
@@ -60,4 +61,4 @@ if (fails.length) {
   process.exit(1);
 }
 console.log(`verify:nox-cast-stats ALL PASS (${pass} assertions)`);
-console.log("B6-12 指名・出勤・集中度・商品/時間(純関数): 上位3の構成%合計・出勤扱い shukkin/dohan/late の人日と cast 数・商品/時間の分離と総和一致・店合計指名の整形");
+console.log("B6-12 指名・出勤・集中度・商品/時間(純関数): 上位3の¥合計÷総和(小数1桁%)・出勤扱い shukkin/dohan/late の人日と cast 数・商品/時間の分離と総和一致・店合計指名の整形");
