@@ -1,5 +1,6 @@
 // B6-12 指名・出勤・集中度・商品／時間の整形（純関数・DB 非依存・import なし・裁定 B6-12／B6-10 ③・2026-09-11）。
-//   top3ShareOf   : 既存 salesRanking の構成 %（小数 1 桁）の上位 3 行の合計。行 0 → null。3 行未満は在る行の合計。
+//   top3ShareOf   : 既存 salesRanking の上位 3 行の按分売上 ¥ 合計 ÷ total（salesRankTotal）を小数 1 桁 %（B6-12 改定 9/11＝丸め済み構成 % は足さない）。
+//                   total 0 または行 0 → null。3 行未満は在る行の合計。
 //   presentDaysOf : attendance 行のうち出勤扱い（shukkin／dohan／late）の人日と distinct cast 数。off／absent は数えない。
 //                   ★出勤扱いの状態集合はここに集約（analytics attDays／dashboard 本日の出勤の直書きを置換・前後完全一致）。
 //   productTimeOf : 既存 5 分類（category-map の CategorySums）から 商品売上（明細）＝drink＋champ＋bottle／時間料金（明細）＝time。
@@ -10,11 +11,11 @@
 /** 出勤扱いの状態（B4／dashboard の語彙: shukkin＝出勤・dohan＝同伴・late＝遅刻）。off／absent は含めない。 */
 export const PRESENT_STATUSES = ["shukkin", "dohan", "late"] as const;
 
-/** 上位 3 行の構成 % 合計（小数 1 桁）。rows は構成 %（小数 1 桁）を持つ行。行 0 → null。並びは pct 降順で取る（同率は合計に影響しない）。 */
-export function top3ShareOf(rows: readonly { pct: number }[]): number | null {
-  if (rows.length === 0) return null;
-  const top = [...rows].sort((a, b) => b.pct - a.pct).slice(0, 3);
-  return Math.round(top.reduce((a, r) => a + r.pct, 0) * 10) / 10;
+/** 上位 3 行の按分売上 ¥ 合計 ÷ total（小数 1 桁 %）。total 0 または行 0 → null。並びは amount 降順で取る（同率は合計に影響しない）。 */
+export function top3ShareOf(rows: readonly { amount: number }[], total: number): number | null {
+  if (rows.length === 0 || total <= 0) return null;
+  const top = [...rows].sort((a, b) => b.amount - a.amount).slice(0, 3);
+  return Math.round((top.reduce((a, r) => a + r.amount, 0) / total) * 1000) / 10;
 }
 
 /** 出勤扱いの人日（行数）と distinct cast 数。同一 cast の複数日は人日に加算・cast は 1。 */

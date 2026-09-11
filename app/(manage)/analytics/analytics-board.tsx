@@ -459,8 +459,8 @@ export default function AnalyticsBoard({
   }, [sales, castName]);
   // E8-6 #10: 構成%の分母＝按分売上の総和（同じ集計軸の中でだけ%を出す＝日報売上と混ぜない）
   const salesRankTotal = salesRanking.reduce((a, r) => a + r.sales, 0);
-  // ★B6-12: 集中度（上位 3 名）＝既存ランキング各行の構成 %（`:share` と同式・小数 1 桁）の上位 3 行の合計。総和 0／行 0 は null（「—」）。
-  const top3Share = top3ShareOf(salesRankTotal > 0 ? salesRanking.map((r) => ({ pct: Math.round((r.sales / salesRankTotal) * 1000) / 10 })) : []);
+  // ★B6-12（9/11 改定）: 集中度（上位 3 名）＝上位 3 行の按分売上 ¥ 合計 ÷ salesRankTotal（小数 1 桁 %・丸め済み構成 % は足さない）。総和 0／行 0 は null（「—」）。
+  const top3Share = top3ShareOf(salesRanking.map((r) => ({ amount: r.sales })), salesRankTotal);
 
   // ── 段A2 派生値（すべて daily の再形＝新規取得なし）──
   const sum = (rows: DailyRow[], f: (r: DailyRow) => number) => rows.reduce((a, r) => a + f(r), 0);
