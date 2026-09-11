@@ -56,9 +56,10 @@ check("pl(1g) 最新 action＝at 最大（run-a は 9/4 の finalize・reason nu
 check("pl(1h) 対象外 action／target は無視（run-c は mark_paid・run-b は null）", c.lastAction?.action === "payroll_mark_paid" && rows.find((r) => r.runId === "run-b")!.lastAction === null, JSON.stringify(c.lastAction));
 check("pl(1i) payslips 無しの run は 0 で出る（行を落とさない）", rows.find((r) => r.runId === "run-b")!.gross === 0 && rows.find((r) => r.runId === "run-b")!.castCount === 0);
 const kpi = sumListKpi(rows);
-check("pl(1j) KPI＝行の合計（runs 3・cast 3・gross 470,000・net 422,530・paid 2 件 44,950）",
-  kpi.runs === 3 && kpi.castCount === 3 && kpi.gross === 470_000 && kpi.net === 422_530 && kpi.paidCount === 2 && kpi.paidTotal === 44_950, JSON.stringify(kpi));
-check("pl(1k) 空入力＝空行・KPI 0", buildPayrollListRows([], [], []).length === 0 && sumListKpi([]).gross === 0);
+check("pl(1j) KPI＝行の合計（runs 3・cast 3・gross 470,000・net 422,530・paid 2 件 44,950・★#82 paidRuns 1＝status=paid の run 数・payment_records の有無を見ない＝run-c は記録なしでも 1／run-a は 0）",
+  kpi.runs === 3 && kpi.castCount === 3 && kpi.gross === 470_000 && kpi.net === 422_530 && kpi.paidCount === 2 && kpi.paidTotal === 44_950 && kpi.paidRuns === 1
+    && sumListKpi(rows.filter((r) => r.runId === "run-a")).paidRuns === 0 && sumListKpi(buildPayrollListRows(runs.filter((r) => r.id === "run-c"), [], [])).paidRuns === 1, JSON.stringify(kpi));
+check("pl(1k) 空入力＝空行・KPI 0", buildPayrollListRows([], [], []).length === 0 && sumListKpi([]).gross === 0 && sumListKpi([]).paidRuns === 0);
 
 // ══ 2 CSV 活性 ══
 check("pl(2a) CSV 活性＝finalized／paid のみ", payrollCsvEnabled("finalized") && payrollCsvEnabled("paid") && !payrollCsvEnabled("draft") && !payrollCsvEnabled(""));

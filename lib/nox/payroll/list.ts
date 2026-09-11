@@ -21,7 +21,8 @@ export type ListRow = {
   lastAction: { action: string; at: string; reason: string | null } | null;
   csvEnabled: boolean;
 };
-export type ListKpi = { runs: number; castCount: number; gross: number; net: number; paidCount: number; paidTotal: number };
+/** ★#82: paidRuns＝run.status=paid の件数（サマリー「支払済み N 件」はこれ。paidCount＝payment_records 件数は行の支払状況列用に残す）。 */
+export type ListKpi = { runs: number; castCount: number; gross: number; net: number; paidCount: number; paidTotal: number; paidRuns: number };
 
 export const PAYROLL_LIST_ACTIONS = ["payroll_finalize", "payroll_reopen", "payroll_mark_paid"] as const;
 
@@ -72,5 +73,6 @@ export function sumListKpi(rows: ListRow[]): ListKpi {
   return rows.reduce<ListKpi>((k, r) => ({
     runs: k.runs + 1, castCount: k.castCount + r.castCount, gross: k.gross + r.gross, net: k.net + r.net,
     paidCount: k.paidCount + r.paidCount, paidTotal: k.paidTotal + r.paidTotal,
-  }), { runs: 0, castCount: 0, gross: 0, net: 0, paidCount: 0, paidTotal: 0 });
+    paidRuns: k.paidRuns + (r.status === "paid" ? 1 : 0),
+  }), { runs: 0, castCount: 0, gross: 0, net: 0, paidCount: 0, paidTotal: 0, paidRuns: 0 });
 }

@@ -127,7 +127,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
         <h3>{view === "store" ? `${nameOf.get(storeSel) ?? "店舗"}の期間一覧` : `${periodSel} の店舗一覧`}</h3>
         {/* KPI 4 枚（B4 H18 写し）＝表示スコープの合計。値は list.ts の sum＝凍結値の再形 */}
         <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px 12px" }}>
-          {(([["対象者", `${kpi.castCount}`, "人"], ["総支給", yen(kpi.gross), ""], ["差引支給", yen(kpi.net), ""], ["支払済み", `${kpi.paidCount}`, "件"]]) as const).map(([l, v, u]) => (
+          {(([["対象者", `${kpi.castCount}`, "人"], ["総支給", yen(kpi.gross), ""], ["差引支給", yen(kpi.net), ""], ["支払済み", `${kpi.paidRuns}`, "件"] /* ★#82: run.status=paid の件数（payment_records 件数ではない） */]) as const).map(([l, v, u]) => (
             <span key={l} style={{ fontSize: 12 }}>
               <span style={{ color: "var(--sub)", fontSize: 11 }}>{l}</span><br />
               <b className="num" style={{ fontSize: 14, color: "var(--ink)" }}>{v}<small style={{ fontWeight: 400, fontSize: 10, marginLeft: 2 }}>{u}</small></b>
@@ -161,7 +161,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
                     <td style={{ ...t.td, ...t.num }}>{r.castCount}</td>
                     <td style={{ ...t.td, ...t.num }}>{r.castCount > 0 ? yen(r.gross) : "—"}</td>
                     <td style={{ ...t.td, ...t.num }}>{r.castCount > 0 ? yen(r.net) : "—"}</td>
-                    <td style={{ ...t.td, ...t.num }}>{r.paidCount > 0 ? `${r.paidCount} 件・${yen(r.paidTotal)}` : "—"}</td>
+                    <td style={{ ...t.td, ...t.num }}>{r.paidCount > 0 ? `${r.paidCount} 件・${yen(r.paidTotal)}` : r.status === "paid" ? "支払済み化" : "—"}{/* ★#82: 「—」は paid 時「支払済み化」 */}</td>
                     <td style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }}>{fmtAt(r.paidAt ?? r.finalizedAt ?? r.updatedAt)}</td>
                     {isOwner && (
                       <td style={t.td}>

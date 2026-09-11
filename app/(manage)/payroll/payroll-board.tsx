@@ -443,7 +443,13 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
             </div>
             <div className="nox-paycard">
               <div className="l">未支払</div>
-              {kpi && isFrozen && unpaid !== null ? (
+              {kpi && status === "paid" ? (
+                /* ★#82: run が paid なら ¥0・通常色（赤にしない）・「支払済み化済み」。Σnet−Σpaid の再計算はしない（表示のみ・B5-1） */
+                <>
+                  <div className="v num">¥0</div>
+                  <div className="l" style={{ marginTop: 2 }}>支払済み化済み</div>
+                </>
+              ) : kpi && isFrozen && unpaid !== null ? (
                 <>
                   <div className="v num" style={{ color: unpaid > 0 ? "var(--bad)" : "var(--ok)" }}>¥{unpaid.toLocaleString()}</div>
                   <div className="l" style={{ marginTop: 2 }}>{unpaid <= 0 ? "全額支払済み" : "支払記録は下の「支払・明細」"}</div>
