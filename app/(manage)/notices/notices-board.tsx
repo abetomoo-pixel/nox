@@ -390,13 +390,14 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
                 <button type="button" style={{ ...btnLight, opacity: 0.45 }} disabled title={`下書き保存は${SOON}です`}>下書き保存（{SOON}）</button>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <div className="nox-actions" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              {/* ★裁定244: 補助 左・実行 右（入力をクリア→内容を確認して掲載の順へ入替）・行は中央 */}
+              <button style={btnLight} onClick={() => { setFTitle(""); setFBody(""); }}>入力をクリア</button>
               {/* ★投稿は**確認モーダルを挟む**（モック `publishConfirm`）＝送る RPC・引数は不変 */}
               <button style={{ ...btnDark, opacity: busy ? 0.6 : 1 }} disabled={busy}
                 onClick={() => { if (!fTitle.trim() || !fBody.trim()) { setMsg("件名と本文を入力してください"); return; } setConfirmOpen(true); }}>
                 内容を確認して掲載
               </button>
-              <button style={btnLight} onClick={() => { setFTitle(""); setFBody(""); }}>入力をクリア</button>
             </div>
           </div>
         </section>
@@ -504,9 +505,10 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
               <span style={t.fieldLabel}>掲載期限</span>
               <input type="date" value={eUntil} onChange={(e) => setEUntil(e.target.value)} style={{ ...input, width: "auto" }} />
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button style={{ ...btnDark, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={saveEdit}>保存</button>
+            <div className="nox-actions" style={{ display: "flex", gap: 6 }}>
+              {/* ★裁定244: キャンセル 左・保存 右へ入替・行は中央 */}
               <button style={btnLight} onClick={() => setEditId(null)}>キャンセル</button>
+              <button style={{ ...btnDark, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={saveEdit}>保存</button>
             </div>
           </div>
         ) : (

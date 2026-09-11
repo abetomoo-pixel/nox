@@ -639,13 +639,13 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           {status === "draft" && (() => {
             const why = blockers.length > 0 ? `要対応 ${blockers.length} 件を解消してください` : rows.length === 0 ? "対象キャストがいません（プレビューを実行してください）" : "";
             return (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div className="nox-actions" style={{ gap: 10 }}>{/* ★裁定244: 節直下の実行＝中央（why 注記は隣に残す） */}
                 <button onClick={finalize} disabled={busy || blockers.length > 0 || rows.length === 0}
                   title={why || undefined} style={blockers.length ? { ...t.btnGhost } : { ...t.btnGold }}>
                   この期間を確定する
                 </button>
                 {why && <span style={{ fontSize: 12, color: "var(--danger-ink)", fontWeight: 700 }}>{why}</span>}
-              </span>
+              </div>
             );
           })()}
           </div>

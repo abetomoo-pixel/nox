@@ -97,7 +97,9 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>
         選択中の店舗・期間（{period}）の確定給与に対して、実際の支払い（現金/振込）を記録します。部分支払い可・合計は net が上限。
       </p>
-      <button onClick={load} disabled={busy || !storeId} style={t.btnGold}>支払状況を表示</button>
+      <div className="nox-actions">{/* ★裁定244: 節直下の実行＝中央 */}
+        <button onClick={load} disabled={busy || !storeId} style={t.btnGold}>支払状況を表示</button>
+      </div>
       {msg && <p style={{ color: msg.includes("エラー") || msg.includes("超え") ? "var(--bad)" : "var(--sub)", fontSize: 13 }}>{msg}</p>}
 
       {lines && lines.length > 0 && (

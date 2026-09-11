@@ -114,7 +114,7 @@ export default function DrinkClaimForm({ month }: { month: string }) {
             <span style={t.fieldLabel}>杯数</span>
             <input type="number" min={1} value={qty} onChange={(e) => setQty(Number(e.target.value))} style={{ ...inp, width: 90 }} />
           </label>
-          <div>
+          <div className="nox-actions">{/* ★裁定244: フォーム直下の実行＝中央 */}
             <button style={{ ...t.btnGold, padding: "10px 20px", fontSize: 14 }}
               disabled={busy || !checkId || !productId} onClick={() => void submit()}>
               {busy ? "送信中…" : "申告する"}

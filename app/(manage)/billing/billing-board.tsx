@@ -124,25 +124,22 @@ export default function BillingBoard({ view }: { view: BillingView }) {
       {view.stripeConfigured && (
         <section className="nox-panel">
           <h2 style={{ ...t.cardTitle, margin: "0 0 12px" }}>お手続き</h2>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="nox-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {/* ★裁定244: 補助 左・実行 右（年払い→月払い／変更・切替→お支払い管理の順へ入替）・行は中央 */}
             {!view.hasSubscription && (
               <>
-                <button style={{ ...t.btnGold, fontWeight: 800 }} disabled={!!busy}
-                  onClick={() => void call("/api/billing/checkout", { cycle: "monthly" }, "checkout-m")}>
-                  {busy === "checkout-m" ? "処理中…" : "月払いで契約する"}
-                </button>
                 <button style={t.btnGhost} disabled={!!busy}
                   onClick={() => void call("/api/billing/checkout", { cycle: "yearly" }, "checkout-y")}>
                   {busy === "checkout-y" ? "処理中…" : "年払いで契約する"}
+                </button>
+                <button style={{ ...t.btnGold, fontWeight: 800 }} disabled={!!busy}
+                  onClick={() => void call("/api/billing/checkout", { cycle: "monthly" }, "checkout-m")}>
+                  {busy === "checkout-m" ? "処理中…" : "月払いで契約する"}
                 </button>
               </>
             )}
             {view.hasSubscription && (
               <>
-                <button style={{ ...t.btnGold, fontWeight: 800 }} disabled={!!busy}
-                  onClick={() => void call("/api/billing/portal", {}, "portal")}>
-                  {busy === "portal" ? "処理中…" : "お支払い管理を開く"}
-                </button>
                 {alive && !isBt && (
                   <button style={t.btnGhost} disabled={!!busy}
                     onClick={() => void call("/api/billing/interval", { cycle: other }, "interval")}>
@@ -155,6 +152,10 @@ export default function BillingBoard({ view }: { view: BillingView }) {
                     {busy === "switch" ? "処理中…" : "カード払いに切り替える"}
                   </button>
                 )}
+                <button style={{ ...t.btnGold, fontWeight: 800 }} disabled={!!busy}
+                  onClick={() => void call("/api/billing/portal", {}, "portal")}>
+                  {busy === "portal" ? "処理中…" : "お支払い管理を開く"}
+                </button>
               </>
             )}
           </div>

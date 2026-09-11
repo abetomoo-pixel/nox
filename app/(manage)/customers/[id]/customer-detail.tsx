@@ -327,9 +327,11 @@ export default function CustomerDetail({
                 ※休眠にすると顧客一覧には表示されなくなります（このページからいつでも戻せます）。
               </p>
             )}
-            <button style={{ ...t.btnGold, opacity: busy || !eName.trim() ? 0.6 : 1 }} disabled={busy || !eName.trim()} onClick={() => void saveEdit()}>
-              {busy ? "保存中…" : "保存"}
-            </button>
+            <div className="nox-actions">{/* ★裁定244: フォーム直下の保存＝中央 */}
+              <button style={{ ...t.btnGold, opacity: busy || !eName.trim() ? 0.6 : 1 }} disabled={busy || !eName.trim()} onClick={() => void saveEdit()}>
+                {busy ? "保存中…" : "保存"}
+              </button>
+            </div>
           </div>
         )}
       </section>

@@ -482,9 +482,11 @@ export default function CustomersBoard({
                 </select>
               </div>
             )}
-            <button style={{ ...t.btnGold, opacity: busy || !aName.trim() ? 0.6 : 1 }} disabled={busy || !aName.trim()} onClick={() => void submitAdd()}>
-              {busy ? "登録中…" : "登録する"}
-            </button>
+            <div className="nox-actions">{/* ★裁定244: フォーム直下の登録＝中央 */}
+              <button style={{ ...t.btnGold, opacity: busy || !aName.trim() ? 0.6 : 1 }} disabled={busy || !aName.trim()} onClick={() => void submitAdd()}>
+                {busy ? "登録中…" : "登録する"}
+              </button>
+            </div>
           </div>
         </section>
       )}

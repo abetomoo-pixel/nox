@@ -873,7 +873,7 @@ export default function KioskRegisterPage() {
                       </span>
                       );
                     })}
-                    <div><button onClick={() => void saveNoms()} style={btnDark}>保存</button></div>
+                    <div className="nox-actions"><button onClick={() => void saveNoms()} style={btnDark}>保存</button></div>{/* ★裁定244 */}
                   </div>
                 </div>
 
@@ -951,10 +951,12 @@ export default function KioskRegisterPage() {
                       セット料金は開卓時に明細へ入っています。延長はお客さま確認のうえボタンで追加してください
                       （1回押すごとに1行・取り消しは明細の削除）。
                     </p>
-                    <button onClick={() => void addExtension()} style={btnDark} disabled={payments.length > 0}
-                      title={payments.length > 0 ? "入金後は追加できません" : ""}>
-                      延長を追加（{yen(detail.check.ext_fee * (detail.check.time_per === "person" ? (detail.check.people ?? 1) : 1))} / {detail.check.ext_min}分）
-                    </button>
+                    <div className="nox-actions">{/* ★裁定244: 節直下の実行＝中央 */}
+                      <button onClick={() => void addExtension()} style={btnDark} disabled={payments.length > 0}
+                        title={payments.length > 0 ? "入金後は追加できません" : ""}>
+                        延長を追加（{yen(detail.check.ext_fee * (detail.check.time_per === "person" ? (detail.check.people ?? 1) : 1))} / {detail.check.ext_min}分）
+                      </button>
+                    </div>
                     {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
                   </div>
                 )}

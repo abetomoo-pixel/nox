@@ -260,15 +260,8 @@ export default function StaffBoard({
               }}>異動を実行</button>
             </div>
           )}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-            {isOwner && sel.is_active && !isSelf(sel) && (
-              <button style={btnGhost} disabled={busy} onClick={async () => {
-                const to = sel.role === "staff" ? "manager" : "staff";
-                if (!confirm(`${users[sel.user_id]?.name ?? ""} を ${t.roleLabelJa(to)} に${to === "manager" ? "昇格" : "降格"}しますか？`)) return;
-                await rpc("役職を変更", "staff_change_role", { p_membership_id: sel.id, p_new_role: to });
-                setSel(null);
-              }}>{sel.role === "staff" ? "店長に昇格" : "黒服に降格"}</button>
-            )}
+          <div className="nox-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+            {/* ★裁定244: Danger 左端（在籍を解除）・補助（役職変更・閉じる）・実行 右端（再雇用）へ入替・閉じるの marginLeft auto を外して行は中央 */}
             {sel.is_active && !isSelf(sel) && (
               // ★裁定146（裁定120 適用）: 在籍解除＝取り消し困難な操作＝Danger 系トークン（--bad 系は警告面用・値は同系）
               <button style={{ ...btnGhost, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={async () => {
@@ -277,13 +270,21 @@ export default function StaffBoard({
                 setSel(null);
               }}>在籍を解除</button>
             )}
+            {isOwner && sel.is_active && !isSelf(sel) && (
+              <button style={btnGhost} disabled={busy} onClick={async () => {
+                const to = sel.role === "staff" ? "manager" : "staff";
+                if (!confirm(`${users[sel.user_id]?.name ?? ""} を ${t.roleLabelJa(to)} に${to === "manager" ? "昇格" : "降格"}しますか？`)) return;
+                await rpc("役職を変更", "staff_change_role", { p_membership_id: sel.id, p_new_role: to });
+                setSel(null);
+              }}>{sel.role === "staff" ? "店長に昇格" : "黒服に降格"}</button>
+            )}
+            <button style={btnGhost} onClick={() => setSel(null)}>閉じる</button>
             {!sel.is_active && (
               <button style={btnGold} disabled={busy} onClick={async () => {
                 await rpc("再雇用", "staff_reactivate", { p_membership_id: sel.id });
                 setSel(null);
               }}>再雇用（復帰）</button>
             )}
-            <button style={{ ...btnGhost, marginLeft: "auto" }} onClick={() => setSel(null)}>閉じる</button>
           </div>
         </section>
       )}
