@@ -3046,6 +3046,27 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 境界（§1）＝含む: 月次一覧（店舗×期間＝payroll_runs 1 行を 1 行で）・既存 payroll-board への遷移／確定・解除・支払済み化の導線（run 単位）／D3 CSV の導線（storeId＋period → run 解決 → 既存 buildPayrollCsv）／変更履歴列（audit_logs action in payroll_finalize／payroll_reopen／payroll_mark_paid・owner 限定）。含まない: 金額計算・再計算（表示は payslips 凍結値の集計のみ・golden 6 値不変）／cast 単位の確定・解除（D1 送り）／支払調書 CSV（裁定178 税務凍結）・明細 PDF（D2）／新 feature_flag・新 RPC・列 CHECK 追加（#72 は観察）。起票＝#71（B5-5 で解消）・#72 観察・#73（B5-6 で解消）・#74 台帳注記。実装は設計書 §9 の CC ブロック（9/11 §8 push 完了後・全体で 1 本）。
 
+## 裁定 B6-1〜10（Agoora 承認 2026-09-11・B6 分析＝裁定125 の B 層最終・着手前調査 第 1 次 2026-09-10／第 2 次 2026-09-11 `docs/tmp/b6_survey.md` を入力）
+
+出典＝相談役ブロック 2026-09-11「B6 裁定収載＋#83」。**本文（逐語）**（B6-3 のみ前提確認 (a) 未充足のため「第 2 期送り」へ書き換え＝原文を併記）:
+
+| 裁定 | 内容 |
+|---|---|
+| **B6-1** | 境界: 既存 RPC 不変・mig 0・凍結表の新設なし。凍結値は payslips と daily_reports の 2 表のみ、それ以外(checks・指名・出勤)は既存 RPC の再集計を表示。B6 は今ある数字の並べ直しと欠けている比較の追加であり、新しい集計の定義は作らない |
+| **B6-2** | 権限: B5-5 踏襲。owner=全店舗トグル・manager=自店。cast 個人の報酬率が manager に見える売上貢献ランキングは現状維持(縮めも広げもしない)。新規に cast 個人の金額を出す指標は B6 に含めない(PII 弁護士ゲート待ち) |
+| **B6-3** | 直近 30 日: **第 2 期送り**（2026-09-11 前提確認 (a) 未充足＝下記実測）。原文＝「RPC を足さず daily_reports の凍結値を client で 30 日分集計。日別売上が揃っていることが前提。揃っていなければ第 2 期送り」 |
+| **B6-4** | 人件費式の純関数化: analytics の現行式を正として純関数に固定し、dashboard と month-report の直書きも同じ関数に付け替える(二重計算の解消を B6 の成果に含める)。list.ts の gross は CSV 定義として別名で残す。純関数に DB 非依存 suite 1 本(走数外) |
+| **B6-5** | 指名 2 系統: 混ぜない。「指名(店合計)」=get_store_nom_counts、「指名(ランキング)」=nom_type 合算とラベルで分け、同じ KPI 枠に両方を出さない |
+| **B6-6** | 色: 裁定120 に沿い前月比・前年同月比は Neutral。danger は実査差異のみ。増減は矢印と数値 |
+| **B6-7** | 定義: 出勤=B4 の出勤実績の日数(予定ではなく実績)。集中度=按分売上の上位 3 名の占有率(%)。いずれも表の注記に定義を書く |
+| **B6-8** | 語: 「商品売上(明細)」とし、セット・延長は「時間料金」として分ける(レジの語と揃える) |
+| **B6-9** | 日別人件費率列: 不可。人件費は payslips の period 凍結値で日別に分けられず、日割りは再計算(B5-1 に反する)。月次のみ |
+| **B6-10** | 入口とレーン: 新ページなし。/analytics の板に節を足す。client 3 本(①純関数化+suite ②比較・直近 30 日 ③指名・出勤・商品売上)・mig 0・f0 は ① の後に 1 回(3 画面に触るため) |
+
+**対象外（4 件・逐語）**: 販売実績の器(第 2 期)・PII ゲート待ち・RPC 変更が要る顧客系 5 行・時点再現不可の A56。
+
+前提確認（2026-09-11・読取のみ・BANZEN ゲート中＝verify／f0 なし・proof orgs=3）: **(a) daily_reports の日別凍結**＝列は cash／card_gross／card_tax／uri／other／drink_sales／dohan_checks／slips／guests／expense／cash_payout／cash_float／counted_cash／diff／ar_collected＋closed_at／reclosed_at／reopened_at（biz_date 単位・締め時に凍結）で**器は揃っている**。ただし nox-dev の行は全期間 **5 行**（CLUB NOX 2026-09-09／09-10・NOX-VERIFY-A1 09-11／09-12・NOX-VERIFY-B1 2020-01-01）・直近 60 日 **4 行**＝欠損 56 日超で「日別売上が揃っている」前提を満たさない→ B6-3 は第 2 期送り（日次締めが 30 日分蓄積した時点で裁定により復帰可＝器の変更は不要）。**(b) payroll_runs の store×period unique**＝live pg_indexes に `payroll_runs_store_period_uidx UNIQUE (store_id, period)` が実在（mig0016:137 の 2 行書き。pg_constraint 側に unique はなく index 方式）＝#83 は観察・クローズ可。②の直近 30 日を除いた B6-10 のレーンは client 3 本のまま（②＝比較のみ）。実装は BANZEN 終了後に①から。
+
 ## 裁定237（Agoora 承認 2026-09-10）締切ロックの client 算出（deadlines 表から RPC と同式）は許容＝式の二重管理は #68 で解消
 
 出典＝相談役ブロック（2026-09-10）。staff_shift_deadline_at は内部専用（0136）で client から呼べないため、面 b／c は staff_shift_deadlines を select し「対象営業日 − days_before の deadline_hm（JST）・行なし＝3 日前 21:00」を同式で算出している。書込側の判定は RPC（staff_wish_set）が正＝client は表示のロックのみ。同じ式を 2 箇所で持つ状態は #68（関数を authenticated へ公開→client 算出撤去）で解消する。
@@ -4112,6 +4133,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 80 | **確定解除ボタンの style 警告（border 短縮形と borderColor の混在）**（低・**修正済・目視待ち**） | payroll-board の「確定を解除」（payCount===0 分岐）が `{ ...t.btnGhost, borderColor: … }`＝t.btnGhost の `border: "1px solid var(--line2)"`（短縮形）に個別指定 borderColor を重ね、React が shorthand と longhand の混在を警告（2026-09-10 Agoora 目視）。処置（同日・client コミット）＝`border: "1px solid var(--bad)"` の短縮形で上書き。同型（btnGhost／btnLight 展開＋borderColor・条件付き spread 含む）を grep し **17 箇所**を同じ形へ（payroll 1・casts 2・staff 1・comp-sections 2・plan-editor 1・register 5・kiosk-register 1・customers 3・report 1）。条件付きで非選択時に undefined を渡していた 3 箇所（comp-sections 2・plan-editor 1）は `border: cond ? "1px solid var(--gold)" : t.btnGhost.border`＝非選択時も短縮形で明示。値は同じ＝見た目不変。番号は相談役指定（#75〜79 は本表に無い＝欠番）。起票・処置 2026-09-10。**クローズ（2026-09-10 Agoora 目視済・9/11 収載）** |
 | 81 | **analytics ヒートマップの曜日行 Fragment に key が無い（React 警告）**（低・**修正済・目視待ち**） | analytics-board の時間帯×曜日ヒートマップで `DOW.map` 直下が `<>…</>`（key なし）＝子の span／div に key があっても親 Fragment に無く "Each child in a list should have a unique key" 警告（2026-09-10 Agoora 目視）。処置（同日・client）＝`<Fragment key={\`r${d}\`}>`（react から Fragment import）。同型（map 直下の key なし `<>`）を app／components で grep＝他 2 件は非該当（master-board は keyed Link の内側の変数・pricing-board は IIFE の戻り）＝置換 1 件。起票・処置 2026-09-10 18:35（client b77961f） |
 | 82 | **月次一覧の支払済み件数と明細の未支払カードが run 状態を見ていない**（中・**起票 2026-09-11**） | **本文（逐語）**: 一覧サマリー「支払済み N 件」は payment_records の有無ではなく run.status=paid の件数。明細「未支払」カードは run が paid なら ¥0・通常色(赤にしない)で「支払済み化済み」を添える。支払状況列「—」は paid 時「支払済み化」。金額の再計算はしない(B5-1)。client のみ・suite なし。起票 2026-09-11。処置（同日・client **`36860ba`**・Agoora 目視 OK 同日）＝list.ts の ListKpi に `paidRuns`（status=paid の run 数）を追加し sumListKpi で集計（paidCount＝payment_records 件数は行の支払状況列用に残す）／payroll-list のサマリー「支払済み N 件」を paidRuns へ・支払状況列の「—」は paid 時「支払済み化」／payroll-board の未支払カードは run が paid なら ¥0・通常色・「支払済み化済み」（Σnet−Σpaid の再計算なし＝表示分岐のみ）。verify:nox-payroll-list は pl(1j) に paidRuns 1＋記録なし run でも 1＋finalized は 0 を、pl(1k) に paidRuns 0 を畳み込み＝19 本不変（pin 3,765 を動かさないため独立 1 本を足さず既存へ畳んだ）。 |
+| 83 | **payroll_runs の store×period unique が index 一覧に出ない（b6_survey 第 2 次 欠陥候補 5）**（低・**観察・クローズ可**） | 第 2 次調査の grep（`create index ... on public.payroll_runs` の 1 行一致）が mig0016:137 の 2 行書き `create unique index if not exists payroll_runs_store_period_uidx`＋次行 `on public.payroll_runs (store_id, period)` を拾えなかった調査側の見落とし。処置＝2026-09-11 live 照合（pg_indexes: `payroll_runs_store_period_uidx` UNIQUE (store_id, period) 実在・pg_constraint に unique 制約なし＝index 方式・proof orgs=3）。補正 mig 不要（裁定234 型の起草不要）。B5 一覧の eq(store_id, period) 1 件前提は担保されている。起票・クローズ 2026-09-11 |
 
 ### 未裁定・消し込み待ち
 
