@@ -260,7 +260,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
                   </span>
                 </div>
               </div>
-              <div style={{ textAlign: "right", marginTop: 8 }}>
+              <div className="nox-actions" style={{ marginTop: 8 }}>
                 <button onClick={saveSensitive} disabled={!castId || !sensitiveReady} style={btnDark}>機密情報を保存</button>
               </div>
             </div>
@@ -282,7 +282,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
                 <input value={regNo} onChange={(e) => setRegNo(e.target.value)} placeholder="T1234567890123" style={{ ...input, width: 160 }} />
               </label>
             </div>
-            <div style={{ textAlign: "right", marginTop: 8 }}>
+            <div className="nox-actions" style={{ marginTop: 8 }}>
               <button onClick={saveTax} disabled={!castId || !taxReady} style={btnDark}>税務情報を保存</button>
             </div>
             {!isOwner && <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>※ 本名・マイナンバー等の機密情報の登録・閲覧はオーナーのみ可能です。</p>}

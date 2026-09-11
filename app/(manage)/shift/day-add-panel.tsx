@@ -116,7 +116,7 @@ export default function DayAddPanel({
   const shown = sorted.filter((c) => q.trim() === "" || c.name.includes(q.trim()));
 
   return (
-    <div style={{ margin: "6px 0 10px" }}>
+    <div className="nox-actions" style={{ margin: "6px 0 10px" }}>{/* ★裁定244: 節直下＝中央 */}
       <button className="nox-addc" type="button" onClick={() => { setListOpen((v) => !v); setMsg(null); }}>
         ＋ キャストを追加
       </button>
@@ -165,12 +165,13 @@ export default function DayAddPanel({
               {r.err && <span style={{ width: "100%", fontSize: 11, color: "var(--danger)" }}>⚠ {r.err}</span>}
             </div>
           ))}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+          <div className="nox-actions" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+            {/* ★裁定244: 補助 左・実行 右（すべて取り消す→配置の順へ入替）・行は中央 */}
+            <button type="button" style={btnLight} disabled={busy} onClick={() => { setRows([]); setMsg(null); }}>すべて取り消す</button>
             <button type="button" style={btnDark} disabled={busy} onClick={() => void save()}>
               {/* ★v4.1 H42: 文言をモック「選択した1名を配置」へ寄せる（複数行バッファ・行ごと shift_set の挙動は不変） */}
               {busy ? "配置中…" : `選択した${rows.length}名を配置（仮シフト）`}
             </button>
-            <button type="button" style={btnLight} disabled={busy} onClick={() => { setRows([]); setMsg(null); }}>すべて取り消す</button>
           </div>
         </div>
       )}

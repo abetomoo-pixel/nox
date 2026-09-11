@@ -772,16 +772,17 @@ export default function CastsBoard({
 
           <MemoField tr={selTrial} busy={busy} onSave={(m) => rpc("メモを更新", "trial_update", { p_trial_id: selTrial.id, p_memo: m })} />
 
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-            <button style={btnGold} disabled={busy || !allDocs(selTrial)} onClick={async () => {
-              if (!confirm(`${selTrial.name} を本採用しますか？（キャストに登録され、実績ゼロから開始します）`)) return;
-              if (await rpc("本採用", "trial_hire", { p_trial_id: selTrial.id })) { setSel(null); await reloadLoginCasts(); }
-            }}>本採用</button>
+          <div className="nox-actions" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+            {/* ★裁定244: Danger 左端・実行 右端（見送り→本採用の順へ入替）・行は中央（.nox-actions） */}
             {/* ★裁定146（裁定120 適用）: 取り消し困難な操作＝Danger 系トークン（--bad 系は警告面用・値は同系） */}
             <button style={{ ...btnGhost, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={async () => {
               if (!confirm(`${selTrial.name} を見送りますか？`)) return;
               if (await rpc("見送り", "trial_reject", { p_trial_id: selTrial.id })) setSel(null);
             }}>見送り</button>
+            <button style={btnGold} disabled={busy || !allDocs(selTrial)} onClick={async () => {
+              if (!confirm(`${selTrial.name} を本採用しますか？（キャストに登録され、実績ゼロから開始します）`)) return;
+              if (await rpc("本採用", "trial_hire", { p_trial_id: selTrial.id })) { setSel(null); await reloadLoginCasts(); }
+            }}>本採用</button>
             {!allDocs(selTrial) && <span style={{ ...t.sub }}>本採用には全書類のチェックが必要です。</span>}
           </div>
         </section>
@@ -1008,7 +1009,7 @@ function RegisterForm({
       </div>
       {err && <p style={{ ...t.bad, fontSize: 12, margin: "0 0 10px" }}>{err}</p>}
       {/* モック `.actions`＝右寄せのフッタ（主ボタン1つ） */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 17 }}>
+      <div className="nox-actions" style={{ display: "flex", gap: 9, marginTop: 17 }}>
         <button style={btnGold} disabled={busy} onClick={() => void submit()}>{withTrialFields ? "追加" : "登録する"}</button>
       </div>
     </div>

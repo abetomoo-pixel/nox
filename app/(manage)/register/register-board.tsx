@@ -2471,12 +2471,13 @@ export default function RegisterBoard({
                 ))}
               </div>
               {/* E8-1b F3: プルダウン2本 → ボタン2つ＋席タイルの視覚選択モーダル */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <button style={btnDark} disabled={emptySeats.length === 0} onClick={() => setSeatPick("add")}>
-                  相席を追加（同一会計）
-                </button>
+              <div className="nox-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                {/* ★裁定244: 補助 左・実行 右（席を移動→相席を追加の順へ入替）・行は中央 */}
                 <button style={btnLight} disabled={emptySeats.length === 0} onClick={() => setSeatPick("move")}>
                   席を移動
+                </button>
+                <button style={btnDark} disabled={emptySeats.length === 0} onClick={() => setSeatPick("add")}>
+                  相席を追加（同一会計）
                 </button>
                 {emptySeats.length === 0 && <span style={{ fontSize: 11.5, color: "var(--sub)" }}>空席がありません</span>}
               </div>
@@ -2553,10 +2554,12 @@ export default function RegisterBoard({
                 })}
               </div>
             ) : (
-              <button onClick={() => void addExtension()} style={btnDark} disabled={payments.length > 0}
-                title={payments.length > 0 ? "入金後は追加できません" : ""}>
-                延長を追加（{yen(check.ext_fee * (check.time_per === "person" ? (check.people ?? 1) : 1))} / {check.ext_min}分）
-              </button>
+              <div className="nox-actions">{/* ★裁定244: 節直下の実行＝中央 */}
+                <button onClick={() => void addExtension()} style={btnDark} disabled={payments.length > 0}
+                  title={payments.length > 0 ? "入金後は追加できません" : ""}>
+                  延長を追加（{yen(check.ext_fee * (check.time_per === "person" ? (check.people ?? 1) : 1))} / {check.ext_min}分）
+                </button>
+              </div>
             )}
             {/* R-1a 段2: 描画点＝時間料金（手動）カード。延長の**完了文言**（金額つき）。
                 エラーは従来どおり下の timeMsg＝役割を混ぜない。 */}

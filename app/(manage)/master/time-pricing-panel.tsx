@@ -110,7 +110,9 @@ export default function TimePricingPanel({ storeId, initial }: { storeId: string
           人数単位＝伝票の人数 × 料金で計上します（開卓時の人数と、伝票ヘッダでの人数変更に自動で追随）。
         </p>
       </div>
-      <button style={{ ...t.btnGold, ...t.btnSm, marginTop: 16 }} disabled={busy} onClick={save}>保存</button>
+      <div className="nox-actions" style={{ marginTop: 16 }}>{/* ★裁定244: フォーム直下の保存＝中央 */}
+        <button style={{ ...t.btnGold, ...t.btnSm }} disabled={busy} onClick={save}>保存</button>
+      </div>
     </section>
   );
 }

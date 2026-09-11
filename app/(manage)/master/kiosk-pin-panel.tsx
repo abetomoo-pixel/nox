@@ -248,7 +248,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
           </label>
           <div style={t.bdRow}><span style={t.bdKey}>ロック解除</span><span style={t.bdVal}>正しい PIN の入力・または PIN の再設定で即時解除</span></div>
           {isOwner ? (
-            <div style={{ textAlign: "right" }}>
+            <div className="nox-actions">
               <button style={btnOn} disabled={polBusy || !polStoreId} onClick={() => void savePolicy()}>ポリシーを保存</button>
             </div>
           ) : (

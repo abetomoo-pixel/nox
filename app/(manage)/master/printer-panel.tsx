@@ -194,7 +194,7 @@ export default function PrinterPanel({ storeId, storeName, initialProfile }: { s
             <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>フッタ（お礼文など）</span>
               <textarea value={profile.footer} onChange={(e) => setProfile({ ...profile, footer: e.target.value })} rows={2}
                 style={{ ...t.input, resize: "vertical", fontFamily: "inherit" }} maxLength={200} /></label>
-            <div style={{ textAlign: "right" }}>
+            <div className="nox-actions">
               <button onClick={() => void saveProfile()} disabled={busy} style={btnOn}>ヘッダを保存</button>
             </div>
           </div>

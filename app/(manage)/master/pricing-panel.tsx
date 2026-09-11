@@ -124,12 +124,14 @@ export default function PricingPanel({ storeId, initial, fields = "all" }: {
       <div>
         <Toast msg={msg} />
         {fieldsRow}
-        <button style={{ ...t.btnGold, ...t.btnSm, marginTop: 12 }} disabled={busy} onClick={save}>
-          {fields === "shimei" ? "指名・同伴料金を保存"
-            : fields === "service" ? "サービス料を保存"
-            : fields === "card_tax" ? "カード手数料を保存"
-            : "丸め設定を保存"}
-        </button>
+        <div className="nox-actions" style={{ marginTop: 12 }}>{/* ★裁定244: フォーム直下の保存＝中央 */}
+          <button style={{ ...t.btnGold, ...t.btnSm }} disabled={busy} onClick={save}>
+            {fields === "shimei" ? "指名・同伴料金を保存"
+              : fields === "service" ? "サービス料を保存"
+              : fields === "card_tax" ? "カード手数料を保存"
+              : "丸め設定を保存"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -143,7 +145,9 @@ export default function PricingPanel({ storeId, initial, fields = "all" }: {
         指名料は明細登録の既定単価・カードTAXは日報集計に使用します。
       </p>
       {fieldsRow}
-      <button style={{ ...t.btnGold, ...t.btnSm, marginTop: 14 }} disabled={busy} onClick={save}>保存</button>
+      <div className="nox-actions" style={{ marginTop: 14 }}>{/* ★裁定244: フォーム直下の保存＝中央 */}
+        <button style={{ ...t.btnGold, ...t.btnSm }} disabled={busy} onClick={save}>保存</button>
+      </div>
     </section>
   );
 }

@@ -579,7 +579,9 @@ export default function ReservationPanel({
                       ・被る時間帯は保存時に弾かれます
                     </div>
                   )}
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
+                    {/* ★裁定244: 補助 左・実行 右（閉じる→保存の順へ入替）・行は中央 */}
+                    <button style={btnLight} onClick={() => setEditId(null)}>閉じる</button>
                     {(() => {
                       const eClosed = r.store_id === storeId && hoursStatusOf(eDate, eTime)?.status === "closed";
                       return (
@@ -587,7 +589,6 @@ export default function ReservationPanel({
                           onClick={() => void updateReservation(r)}>保存</button>
                       );
                     })()}
-                    <button style={btnLight} onClick={() => setEditId(null)}>閉じる</button>
                   </div>
                 </div>
               )}

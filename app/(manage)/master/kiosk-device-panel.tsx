@@ -244,7 +244,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
               <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>端末ラベル（任意）</span>
                 <input placeholder="例: 入口タブレット" value={label} onChange={(e) => setLabel(e.target.value)} style={inp} />
               </label>
-              <div style={{ textAlign: "right" }}>
+              <div className="nox-actions">
                 <button onClick={() => void provision()} disabled={busy || !storeId} style={btnOn}>アカウントを発行</button>
               </div>
             </div>
