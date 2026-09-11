@@ -235,7 +235,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
             </label>
           </div>
           <input value={ovReason} onChange={(e) => setOvReason(e.target.value)} placeholder="理由（任意）" maxLength={200} style={{ ...input, width: "100%", marginTop: 8 }} />
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+          <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
             <button style={btnLight} onClick={() => setOv(null)}>キャンセル</button>
             <button style={btnDark} disabled={busy} onClick={() => void submitOverride()}>上書きする</button>
           </div>

@@ -232,7 +232,7 @@ export default function PrinterPanel({ storeId, storeName, initialProfile }: { s
               <div><span style={t.bdKey}>印刷結果URL</span><div style={{ ...t.num, wordBreak: "break-all" }}>{resultUrl(issuedToken)}</div></div>
             </div>
             <p style={{ ...t.alert, marginBottom: 10 }}>このURLは再表示できません（漏洩時は再発行＝旧URLは即時無効）。プリンタの Server Direct Print 設定に登録してください。</p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
               <button style={btn} onClick={() => void copyUrls()}>{copied ? "コピーしました ✓" : "URL をコピー"}</button>
               <button style={btnOn} onClick={() => setIssuedToken(null)}>閉じる</button>
             </div>

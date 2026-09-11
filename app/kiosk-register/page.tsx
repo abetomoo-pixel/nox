@@ -666,7 +666,7 @@ export default function KioskRegisterPage() {
                     style={{ ...t.input, width: 110, display: "block", marginTop: 5 }}
                   />
                 </label>
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
                   <button style={btnLight} disabled={openBusy} onClick={() => setOpenSeatTarget(null)}>やめる</button>
                   <button style={{ ...t.btnGold, fontWeight: 800 }} disabled={openBusy} onClick={() => void confirmOpenSeat()}>
                     開卓（セット開始）

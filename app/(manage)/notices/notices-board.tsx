@@ -560,7 +560,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
               掲載すると、対象のマイページとこの一覧に表示されます。オーナー・店長は公開範囲にかかわらず閲覧できます。
             </p>
           </div>
-          <div className="nox-modalfoot">
+          <div className="nox-modalfoot nox-actions">
             <button style={btnLight} onClick={() => setConfirmOpen(false)}>戻る</button>
             <button style={{ ...btnDark, opacity: busy ? 0.6 : 1 }} disabled={busy}
               onClick={async () => { setConfirmOpen(false); await post(); }}>この内容で掲載</button>

@@ -163,6 +163,8 @@ export const btnSm: CSSProperties = { padding: "6px 10px", fontSize: 12, borderR
 //   別々に持つと必ず片方だけ動いて食い違うため）。inputLg は input の宣言より後に置く（TDZ 回避）。
 export const btnPrimaryLg: CSSProperties = { ...btnGold, width: "100%", padding: "14px", fontSize: 14 };
 export const btnGhostLg: CSSProperties = { ...btnGhost, width: "100%", padding: "12px", fontSize: 13 };
+// ★裁定240／244（2026-09-11）: ボタン行の共通ラッパ（inline style 派生用・globals.css .nox-actions と同値）。並び順＝Danger 左端・補助・実行右端／ダイアログはキャンセル左・確定右。
+export const actionsRow: CSSProperties = { display: "flex", justifyContent: "center", alignItems: "center", gap: 8, flexWrap: "wrap" };
 
 // ── フォーム ─────────────────────────────────────────────────────
 // ★E3: モック `.field input/.field select` 輪郭へ（register-pos 基準）:

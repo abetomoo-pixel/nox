@@ -335,7 +335,7 @@ export default function StaffBoard({
                     )}
                   </label>
                   {aErr && <p style={{ ...t.bad, fontSize: 12.5, margin: 0 }}>{aErr}</p>}
-                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
                     <button style={btnGhost} disabled={busy} onClick={() => setAddOpen(false)}>キャンセル</button>
                     <button style={btnGold} disabled={busy} onClick={() => void submitAdd()}>{busy ? "追加中…" : "追加する"}</button>
                   </div>
@@ -349,7 +349,7 @@ export default function StaffBoard({
                   <div style={t.bdRow}><span style={t.bdKey}>初期パスワード</span><span style={{ ...t.bdVal, color: "var(--champ)", letterSpacing: 1 }}>{aResult.initial_password}</span></div>
                 </div>
                 <p style={{ ...t.alert, marginBottom: 10 }}>このパスワードは再表示できません。スタッフに安全に渡してください。</p>
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
                   <button style={btnGhost} onClick={() => void copyPassword()}>{copied ? "コピーしました ✓" : "ID とパスワードをコピー"}</button>
                   <button style={btnGold} onClick={() => setAddOpen(false)}>閉じる</button>
                 </div>
@@ -360,7 +360,7 @@ export default function StaffBoard({
                 <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
                   {aResult.login_email} は登録済みのため、既存のログイン情報のまま配属を追加しました（パスワードの再発行はありません）。
                 </p>
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div className="nox-actions" style={{ display: "flex" }}>
                   <button style={btnGold} onClick={() => setAddOpen(false)}>閉じる</button>
                 </div>
               </>

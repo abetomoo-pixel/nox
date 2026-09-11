@@ -808,7 +808,7 @@ export default function CastsBoard({
                   </p>
                 )}
                 {invErr && <p style={{ ...t.bad, fontSize: 12.5, margin: "8px 0 0" }}>{invErr}</p>}
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+                <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button style={btnGhost} disabled={busy} onClick={() => setInvTarget(null)}>キャンセル</button>
                   <button style={btnGold} disabled={busy} onClick={() => void submitInvite()}>
                     {busy ? "処理中…" : invMode === "invite" ? "招待する" : "再発行する"}
@@ -823,7 +823,7 @@ export default function CastsBoard({
                   <div style={t.bdRow}><span style={t.bdKey}>{invMode === "invite" ? "初期パスワード" : "新パスワード"}</span><span style={{ ...t.bdVal, color: "var(--champ)", letterSpacing: 1 }}>{invResult.initial_password}</span></div>
                 </div>
                 <p style={{ ...t.alert, marginBottom: 10 }}>このパスワードは再表示できません。キャストに安全に渡してください。</p>
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
                   <button style={btnGhost} onClick={() => void copyInvite()}>{invCopied ? "コピーしました ✓" : "ID とパスワードをコピー"}</button>
                   <button style={btnGold} onClick={() => setInvTarget(null)}>閉じる</button>
                 </div>
@@ -834,7 +834,7 @@ export default function CastsBoard({
                 <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
                   {invResult.login_email} は登録済みのため、既存のログイン情報のまま結線しました（パスワードの再発行はありません）。
                 </p>
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div className="nox-actions" style={{ display: "flex" }}>
                   <button style={btnGold} onClick={() => setInvTarget(null)}>閉じる</button>
                 </div>
               </>
@@ -859,7 +859,7 @@ export default function CastsBoard({
                     style={{ ...t.input, width: 120, letterSpacing: 6, fontSize: 18, textAlign: "center" }} />
                 </label>
                 {pinErr && <p style={{ ...t.bad, fontSize: 12.5, margin: "8px 0 0" }}>{pinErr}</p>}
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+                <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button style={btnGhost} disabled={busy} onClick={() => setPinTarget(null)}>キャンセル</button>
                   <button style={btnGold} disabled={busy || pinVal.length !== 4} onClick={() => void submitPin()}>
                     {busy ? "処理中…" : "設定する"}
@@ -872,7 +872,7 @@ export default function CastsBoard({
                 <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
                   {pinTarget.name} さんに PIN を口頭で伝えてください（画面・記録には残りません）。
                 </p>
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div className="nox-actions" style={{ display: "flex" }}>
                   <button style={btnGold} onClick={() => setPinTarget(null)}>閉じる</button>
                 </div>
               </>
@@ -908,7 +908,7 @@ export default function CastsBoard({
               onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)} style={{ fontSize: 13 }} />
           </label>
           {phErr && <p style={{ ...t.bad, fontSize: 12.5, margin: "8px 0 0" }}>{phErr}</p>}
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+          <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
             <button style={btnGhost} disabled={busy} onClick={closePhoto}>キャンセル</button>
             <button style={btnGold} disabled={busy || !phFile} onClick={() => void submitPhoto()}>
               {busy ? "処理中…" : "写真を保存"}

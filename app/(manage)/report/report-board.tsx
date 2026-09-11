@@ -539,7 +539,7 @@ export default function ReportBoard({
                 placeholder={isRe ? "例: 伝票の入力漏れを訂正するため" : "例: 釣銭の渡し間違い"}
                 style={{ ...t.input, display: "block", marginTop: 5 }} />
             </label>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
               <button style={btnLight} onClick={close}>やめる</button>
               <button style={{ ...btnDark, opacity: reasonVal.trim() ? 1 : 0.4 }} disabled={!reasonVal.trim()}
                 onClick={() => void (isRe ? submitReopen() : submitApprove())}>
@@ -1187,7 +1187,7 @@ export default function ReportBoard({
               <span style={{ fontSize: 12, color: "var(--sub)" }}>合計</span>
               <b className="num" style={{ fontSize: 20, color: "var(--champ)" }}>{yen(total)}</b>
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+            <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button style={btnLight} onClick={() => setDenoms({})}>クリア</button>
               <button style={btnDark} onClick={() => { setCounted(String(total)); setDenomOpen(false); }}>
                 実査へ反映（{yen(total)}）

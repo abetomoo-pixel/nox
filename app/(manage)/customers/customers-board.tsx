@@ -761,7 +761,7 @@ export default function CustomersBoard({
                     onChange={(e) => setBtlForm((f) => ({ ...f, note: e.target.value }))} style={{ ...input, width: 240 }} />
                 </label>
               </div>
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+              <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 12 }}>
                 <button style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setBtlPick(null)}>キャンセル</button>
                 <button style={{ ...t.btnGold, ...t.btnSm }} onClick={() => void btlSave()}>保存する</button>
               </div>

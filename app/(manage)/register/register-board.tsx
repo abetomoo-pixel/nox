@@ -1528,7 +1528,7 @@ export default function RegisterBoard({
               </span>
             </label>
           )}
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <div className="nox-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button style={btnLight} disabled={openBusy} onClick={() => setOpenSeatTarget(null)}>やめる</button>
             {/* E8-1 ⑥: 卓起点予約＝この卓をプリフィルして予約タブへ（reserve タブが出せるロールのみ） */}
             {showReserve && (
@@ -1567,7 +1567,7 @@ export default function RegisterBoard({
               else void claimAssign(dp.lineId, id);
             }}
           />
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+          <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 12 }}>
             {drinkPick.mode === "product" && (
               <button style={btnLight} disabled={claimBusy}
                 onClick={() => { const p = drinkPick.product; setDrinkPick(null); tb.tap(p.id); }}>
@@ -1599,7 +1599,7 @@ export default function RegisterBoard({
               セット料金・延長・承認済みの割引は残ります。1行ずつ削除するため、途中で失敗した場合は
               そこで止まります（消えた分だけが反映されます）。
             </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
               <button style={btnLight} disabled={clearBusy} onClick={() => setClearModal(false)}>やめる</button>
               <button style={{ ...btnLight, color: "var(--danger)", border: "1px solid var(--danger-bd)" }}
                 disabled={clearBusy} onClick={() => void clearItems()}>
@@ -1645,7 +1645,7 @@ export default function RegisterBoard({
               <input value={mergeReason} onChange={(e) => setMergeReason(e.target.value)} maxLength={200}
                 placeholder="例: 2 卓を 1 伝票にまとめる" style={{ ...t.input, display: "block", marginTop: 5 }} />
             </label>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
               <button style={btnLight} disabled={mergeBusy} onClick={() => setMergeModal(false)}>やめる</button>
               <button style={{ ...btnLight, opacity: mergeInto && mergeReason.trim() ? 1 : 0.4 }}
                 disabled={mergeBusy || !mergeInto || !mergeReason.trim()} onClick={() => void mergeCheck()}>
@@ -1678,7 +1678,7 @@ export default function RegisterBoard({
               placeholder="例: 誤って開卓した" maxLength={200}
               style={{ ...t.input, display: "block", marginTop: 5 }} />
           </label>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
             <button style={btnLight} onClick={() => setVoidModal(false)}>やめる</button>
             <button
               style={{ ...btnLight, color: "var(--danger)", border: "1px solid var(--danger-bd)", opacity: voidReason.trim() ? 1 : 0.4 }}
@@ -1853,7 +1853,7 @@ export default function RegisterBoard({
               ))}
               {emptySeats.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)" }}>空席がありません</p>}
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+            <div className="nox-actions" style={{ display: "flex", marginTop: 12 }}>
               <button style={btnLight} onClick={() => setSeatPick(null)}>閉じる</button>
             </div>
           </Modal>
@@ -1881,7 +1881,7 @@ export default function RegisterBoard({
               ＋会計を分けてそこへ
             </button>
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <div className="nox-actions" style={{ display: "flex", marginTop: 12 }}>
             <button style={btnLight} onClick={() => setGroupPick(null)}>閉じる</button>
           </div>
         </Modal>

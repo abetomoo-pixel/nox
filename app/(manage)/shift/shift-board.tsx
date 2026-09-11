@@ -2135,7 +2135,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   営業時間外です（営業 {fmtHoursLabel(aHours.row)}）
                 </p>
               )}
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 17 }}>
+              <div className="nox-actions" style={{ display: "flex", gap: 9, marginTop: 17 }}>
                 <button style={btnLight} onClick={() => setAdjTarget(null)}>やめる</button>
                 <button style={{ ...btnDark, opacity: aHours.status === "closed" ? 0.45 : 1 }}
                   disabled={aHours.status === "closed"} onClick={() => void adjustShift()}>保存</button>

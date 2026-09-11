@@ -170,7 +170,7 @@ export default function ReceiptsBoard({ stores }: { stores: Store[] }) {
             <input value={voidNote} onChange={(e) => setVoidNote(e.target.value)} maxLength={100}
               placeholder="例: 金額誤り・再発行のため" style={{ ...t.input, width: "100%", display: "block", marginTop: 5 }} />
           </label>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
             <button style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => setVoidTarget(null)}>やめる</button>
             <button style={{ ...t.btnGold, fontWeight: 800 }} disabled={busy} onClick={() => void doVoid()}>取り消す</button>
           </div>

@@ -520,6 +520,7 @@ body {
      スクロール中の中身が通過して見える。 */
   position: sticky; bottom: calc(-1 * var(--nox-modal-pad-b, 15px)); z-index: 1;
   display: flex; gap: 9px; flex-wrap: wrap; align-items: center;
+  justify-content: center; /* ★裁定244: ダイアログ脚も中央（sticky は不変・幅 100% ボタンは据え置き＝見た目不変） */
   margin: 16px -15px calc(-1 * var(--nox-modal-pad-b, 15px));
   padding: 13px 15px calc(13px + var(--nox-modal-pad-b, 15px));
   background: var(--card);
@@ -1320,6 +1321,10 @@ body {
 .nox-btn.ghost { background: transparent; border-color: var(--primary); color: var(--primary); }
 .nox-btn.ghost:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); border-color: var(--primary-hover); color: var(--primary-hover); }
 .nox-btn.ghost:disabled { background: transparent; border-color: var(--line2); color: var(--sub); cursor: default; }
+/* ★裁定240／244（2026-09-11）: ボタン行は行の中央＝共通ラッパ .nox-actions（display flex・justify center・gap 8＝既存の脚と同値・
+   flex-wrap で 3 個以上は折返し各段中央・モバイル専用 @media なし）。例外（表の行内・ログアウト／印刷・リンク・切替・kiosk 固定・
+   横幅いっぱい・文言＋ボタンの左右分割）は使わない。色・トークンなし（ui-tokens 対象外）。theme.ts の actionsRow と同値。 */
+.nox-actions { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; }
 .nox-btn.danger { color: var(--bad); border-color: rgba(216, 108, 100, .28); background: rgba(216, 108, 100, .05); }
 .nox-btn.small { padding: 6px 10px; font-size: 12px; }
 /* ★裁定238（2026-09-10）: リンク＝別画面へ遷移するもの全部。青文字＋下線・枠なし・塗りなし。青は既存トークン --primary / --primary-hover を参照（値は不変）。

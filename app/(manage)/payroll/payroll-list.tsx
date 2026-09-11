@@ -214,7 +214,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
             支払記録が {payPick.paidCount} 件・{yen(payPick.paidTotal)} あります。
           </p>
           {payMsg && <p style={{ fontSize: 12, color: "var(--danger-ink)", fontWeight: 700, margin: "0 0 10px" }}>{payMsg}</p>}
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
             <button type="button" style={btnLight} disabled={busy} onClick={() => setPayPick(null)}>やめる</button>
             <button type="button" style={{ ...t.btnGold, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void markPaid()}>
               {busy ? "処理中…" : "支払済みにする"}

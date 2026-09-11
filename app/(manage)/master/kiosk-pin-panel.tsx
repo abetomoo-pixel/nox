@@ -281,7 +281,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
               <p style={{ fontSize: 12, color: "var(--bad)", margin: 0 }}>確認用の PIN が一致しません</p>
             )}
             {modalErr && <p style={{ fontSize: 12, color: "var(--bad)", margin: 0 }}>{modalErr}</p>}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
               <button style={btn} onClick={() => setPinTarget(null)}>キャンセル</button>
               <button style={btnOn} disabled={busy || !canSubmit}
                 onClick={() => void setStaffPin(pinTarget.id, newPin)}>PINを更新</button>

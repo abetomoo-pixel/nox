@@ -282,7 +282,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
             <p style={{ ...t.alert, marginBottom: 10 }}>
               このパスワードは再表示できません。端末のブラウザで {issued.purpose === "register" ? "/kiosk-register" : "/kiosk"} を開いてログインしてください。
             </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
               <button style={btn} onClick={() => void copyIssued()}>{copied ? "コピーしました ✓" : "ID とパスワードをコピー"}</button>
               <button style={btnOn} onClick={() => setIssued(null)}>閉じる</button>
             </div>
