@@ -9,6 +9,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+// ★B6-4（2026-09-11）: 人件費式は純関数 labor-cost（analytics-board と共用）。率は小数 1 桁 %（旧 Math.round(x*100) の整数 % から統一）
+import { finalRunOf, laborCostOf, laborRatePct, type LaborRun, type LaborSlip } from "@/lib/nox/payroll/labor-cost";
 
 type Store = { id: string; name: string };
 type DR = { biz_date: string; cash: number; card_gross: number; uri: number; other: number; slips: number; guests: number; dohan_checks: number; drink_sales: number };
@@ -105,16 +107,15 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
     // 人件費＝payslips.breakdown_json.pay.gross 合計（owner/mgr のみ・裁定④ draft は未確定）
     let lab: Labor = { state: "none", gross: 0 };
     if (isManagerUp) {
+      // ★B6-4: 確定 run の解決・合計は labor-cost 純関数（select に cast_id を足すだけ＝RLS・行数は不変）
       const { data: runs } = await supabase.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period);
-      const fin = (runs ?? []).find((r) => r.status === "finalized" || r.status === "paid");
-      if (fin) {
-        const { data: slips } = await supabase.from("payslips").select("breakdown_json").eq("run_id", fin.id as string);
-        const g = (slips ?? []).reduce((a, s) => {
-          const bj = s.breakdown_json as { pay?: { gross?: number } } | null;
-          return a + Number(bj?.pay?.gross ?? 0);
-        }, 0);
-        lab = { state: "final", gross: g };
-      } else lab = { state: (runs ?? []).length ? "draft" : "none", gross: 0 };
+      const laborRuns = (runs ?? []) as LaborRun[];
+      const fin = finalRunOf(laborRuns);
+      const { data: slips } = fin
+        ? await supabase.from("payslips").select("cast_id, breakdown_json").eq("run_id", fin.id)
+        : { data: [] as LaborSlip[] };
+      const lc = laborCostOf(laborRuns, (slips ?? []) as LaborSlip[]);
+      lab = { state: lc.state, gross: lc.gross };
     }
     setH1(s1); setH2(s2); setLabor(lab); setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -125,7 +126,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
     sales: h1.sales + h2.sales, groups: h1.groups + h2.groups, guests: h1.guests + h2.guests,
     dohan: h1.dohan + h2.dohan, drink: h1.drink + h2.drink, shimei: h1.shimei + h2.shimei,
   };
-  const rate = (labor.state === "final" && full.sales > 0) ? Math.round((labor.gross / full.sales) * 100) : null;
+  const rate = laborRatePct(labor.state, labor.gross, full.sales); // ★B6-4: 純関数＝小数 1 桁 %（旧は整数 %・Agoora 判断 2026-09-11 で統一）
   const barMax = Math.max(h1.sales, h2.sales, 1);
 
   // 4列テーブルの行（daily 系は3列・人件費/率は payroll が月次ゆえ通期のみ）

@@ -28,6 +28,8 @@ import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 // E8-6 後半（mig0096）: T4 集計 RPC 3本の結線。5分類の写像は category-map 純関数（裁定 E8-6-8＝DB に焼かない）
 import { sumCategories, CATEGORY_ORDER, CATEGORY_LABEL, type CategoryLine } from "@/lib/nox/analytics/category-map";
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
+// ★B6-4（2026-09-11）: 人件費式は純関数 labor-cost（旧 :214〜232／:405／:491／:993 の直書きを付け替え・month-report と共用）
+import { finalRunOf, laborCostOf, laborRatePct, castLaborRatePct, type LaborRun, type LaborSlip } from "@/lib/nox/payroll/labor-cost";
 
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean; photo_updated_at: string | null };
@@ -38,6 +40,7 @@ type DailyRow = {
   drink_sales: number; slips: number; guests: number;
 };
 // 段A2: 人件費（既存の概算＝/report month-report の式を逐語踏襲。draft は「未確定」）
+//   ★B6-4: 式の正本は lib/nox/payroll/labor-cost.ts（state／gross は LaborCost の写し・byCast は castGross state）
 type Labor = { state: "none" | "draft" | "final"; gross: number };
 type SalesRow = { cast_id: string; biz_date: string; sales: number; hon: number; jonai: number; dohan: number };
 type RankRow = {
@@ -211,24 +214,17 @@ export default function AnalyticsBoard({
     // 人件費＝payslips.breakdown_json.pay.gross 合計（★/report month-report の式を逐語踏襲・
     //   確定（finalized/paid）した run だけを人件費とみなし、draft は「未確定」＝S-2 の予想人件費とは別物）。
     //   E8-6 #10: cast_id も取得して cast 別 gross を残す（報酬率＝gross ÷ 按分売上・確定月のみ）。
+    //   ★B6-4: 確定 run の解決・合計・cast 別は labor-cost 純関数（読取は現行どおり runs→確定 run の payslips の 2 段）。
     const { data: runs } = await supabase.from("payroll_runs")
       .select("id, status").eq("store_id", storeId).eq("period", period);
-    const fin = (runs ?? []).find((r) => r.status === "finalized" || r.status === "paid");
-    if (fin) {
-      const { data: slips } = await supabase.from("payslips").select("cast_id, breakdown_json").eq("run_id", fin.id as string);
-      let g = 0;
-      const byCast = new Map<string, number>();
-      for (const x of (slips ?? []) as { cast_id: string; breakdown_json: { pay?: { gross?: number } } | null }[]) {
-        const v = Number(x.breakdown_json?.pay?.gross ?? 0);
-        g += v;
-        byCast.set(x.cast_id, (byCast.get(x.cast_id) ?? 0) + v);
-      }
-      setLabor({ state: "final", gross: g });
-      setCastGross(byCast);
-    } else {
-      setLabor({ state: (runs ?? []).length ? "draft" : "none", gross: 0 });
-      setCastGross(new Map());
-    }
+    const laborRuns = (runs ?? []) as LaborRun[];
+    const fin = finalRunOf(laborRuns);
+    const { data: slips } = fin
+      ? await supabase.from("payslips").select("cast_id, breakdown_json").eq("run_id", fin.id)
+      : { data: [] as LaborSlip[] };
+    const lc = laborCostOf(laborRuns, (slips ?? []) as LaborSlip[]);
+    setLabor({ state: lc.state, gross: lc.gross });
+    setCastGross(lc.byCast);
   }, [storeId, period]);
   useEffect(() => { void loadMonth(); }, [loadMonth]);
 
@@ -402,7 +398,7 @@ export default function AnalyticsBoard({
   const prevSales = sum(prevSame, salesOf);
   const prevSlips = sum(prevSame, (r) => r.slips ?? 0);
   const per = (s: number, n: number) => (n > 0 ? Math.round(s / n) : 0);
-  const laborRate = labor.state === "final" && curSales > 0 ? Math.round((labor.gross / curSales) * 1000) / 10 : null;
+  const laborRate = laborRatePct(labor.state, labor.gross, curSales); // ★B6-4: 純関数（final∧売上>0 のみ小数 1 桁 %）
   // 日別バー（締め済みの日だけ＝日報が無い日は棒を出さない）
   const barMax = Math.max(1, ...daily.map(salesOf));
   const peak = daily.reduce<DailyRow | null>((best, r) => (!best || salesOf(r) > salesOf(best) ? r : best), null);
@@ -488,8 +484,7 @@ export default function AnalyticsBoard({
         i + 1, r.name, r.sales,
         salesRankTotal > 0 ? (Math.round((r.sales / salesRankTotal) * 1000) / 10).toFixed(1) : "",
         r.hon, r.jonai, r.dohan,
-        labor.state === "final" && r.sales > 0 && castGross.has(r.castId)
-          ? (Math.round(((castGross.get(r.castId) ?? 0) / r.sales) * 1000) / 10).toFixed(1) : "",
+        castLaborRatePct(labor.state, castGross, r.castId, r.sales)?.toFixed(1) ?? "", // ★B6-4: 純関数（同条件・null は空欄）
       ]),
     ]);
   }
@@ -989,9 +984,7 @@ export default function AnalyticsBoard({
             ★粗利（原価突合）とリピート率（月またぎの伝票走査）は集計経路が無いため保留（根拠列: product_costs / checks.customer_id）。 */}
         {salesRanking.map((r, i) => {
           const share = salesRankTotal > 0 ? Math.round((r.sales / salesRankTotal) * 1000) / 10 : null;
-          const g = castGross.get(r.castId);
-          const rate = labor.state === "final" && g !== undefined && r.sales > 0
-            ? Math.round((g / r.sales) * 1000) / 10 : null;
+          const rate = castLaborRatePct(labor.state, castGross, r.castId, r.sales); // ★B6-4: 純関数（旧 g!==undefined∧sales>0 と同条件）
           return (
             <div key={r.castId} className="nox-rk2">
               <span className={`nox-medal ${i === 0 ? "g1" : i === 1 ? "g2" : i === 2 ? "g3" : "gx"}`}>{i + 1}</span>
