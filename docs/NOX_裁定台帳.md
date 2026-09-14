@@ -3255,6 +3255,15 @@ E 第 2 期: R15 シフト画面の情報設計の見直し（「確定」の語
 
 適用＝A＝client `2cb3e2a`（席・キャスト・スタッフ・顧客の 4 画面をモーダル化・Modal 部品に Esc を追加）／B＝client `e0392c1`（席の ∧∨・プラン select の見出し化・変更履歴の折りたたみ・会計タブの ¥ 表示・確認状況の castConfirm 対応）／C＝client `a9fd505`（公開ボタンのラベル・トースト・3 タブに『確定する（n 件）』の導線）。D は未着手。R13 の確認根拠＝2026-09-14 読取: CLUB NOX 2026-09 の shifts は confirmed 1（9/1 じゅり）・proposed 107・9/14 の shift 系 audit 0 件・確定カレンダーは status=confirmed のみを描く（shift-board 1722〜1728）。R14 の根拠＝shift-board 1836〜1860 が castConfirm を見ずに proposed を「未確認」と数える。
 
+## 裁定254（Agoora 承認 2026-09-14）汎用ピッカーとボトルキープの検索化（R8）
+
+出典＝相談役ブロック 2026-09-14（253 D レーン調査 docs/tmp/d_lane_survey.md を受けた裁定・実装ブロックに逐語同梱・同日収載）。**本文（逐語）**: 「裁定254 汎用ピッカーとボトルキープの検索化（Agoora 承認 2026-09-14・R8）
+検索欄＋一覧から 1 件選ぶ UI を汎用部品 components/nox/picker.tsx として起こす（cast-picker.tsx と同流儀・キャスト専用型に依存しない）。props は items（id・label・sublabel・avatar 任意）・value・onPick・placeholder・empty 文言。件数が多いときは入力で絞り込み、未入力時は先頭 n 件を出す。
+register のボトルキープ登録を、顧客 select とボトル select の二段からモーダルへ移す。「ボトルキープを登録」ボタン → モーダル内で 顧客をピッカーで選ぶ → ボトルをピッカーで選ぶ → メモ（棚番号等・任意）→ 登録。呼ぶ RPC と引数は現行のまま。閉じるは ×・背景タップ・Esc。脚は キャンセル左・登録 右（244）。
+cast-picker.tsx は今回は置き換えない（回帰を避ける。将来の統合は別レーン）。新トークン 0・ui-tokens 56 不変・mig 0・RPC 不触。」
+
+適用＝client `6a3470d`（components/nox/picker.tsx 新設＝items／value／onPick／placeholder／empty／limit（既定 30）／dense・検索は label と sublabel の部分一致・未入力時は名前順の先頭 limit 件＋残数注記・bottle-keep-panel を「ボトルキープを登録」→Modal 520 へ＝顧客（名前・ふりがな）→ボトル（価格を副表示）→メモ→登録・bottle_keep_register の引数不変）。253 の R8 はこれで着手済み（D レーンの残り＝R6／R11／R16）。
+
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
 出典＝相談役ブロック 2026-09-11（着手前調査 docs/tmp/d45_survey.md を受けた起案）。mig0143 のヘッダが本文を参照している。**本文（逐語）**:
