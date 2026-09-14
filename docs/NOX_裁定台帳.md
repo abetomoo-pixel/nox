@@ -3191,13 +3191,26 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 適用＝client `c0b96da`（245-1／2／3／5／6・mig 0・RPC 不触・shift/page.tsx が settings_json.shift_cast_confirm を castConfirm prop で渡す＝dev はキー無し→false）＋suite `b4be1ab`（lib/nox/shift/gap.ts＝gapOf／chunkOf・verify:nox-shift-gap 12 本・走数外・f0 では現在 **45 本目**＝d45 suite が入れば 46 本目）。setter（shift_cast_confirm の書込）は店舗設定 setter mig（小）待ち。245-7 の目視（DEMO 2026-09 の 108 件＝行確定 1 件＋一括 107 件＝62＋45 の 2 分割）は Agoora 持ち越し。
 
+## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
+
+出典＝相談役ブロック 2026-09-11（着手前調査 docs/tmp/d45_survey.md を受けた起案）。mig0143 のヘッダが本文を参照している。**本文（逐語）**:
+
+D45-1 範囲: 凍結 2 列＋mig＋回収 UI の method select（cash／card／other）＋日報タブ表示を 1 セットとする。UI select だけの先行は不可（裁定206「同時」）。ar_collections 直読のみの案も不採用（裁定206 の「回収方法の日報凍結」に応えない）。
+D45-2 凍結列の形: daily_reports に ar_collected_card／ar_collected_other（integer・NOT NULL・default 0・CHECK >= 0）の 2 列。jsonb 1 列は照合式が静的に書けないため不採用。既存 ar_collected は名称据え置き・意味は cash 回収のまま。
+D45-3 理論在高: 式は不変。mig0055「非現金回収はドロワー非加算」を維持。aggregate に 2 源・close／reclose の insert／update に 2 列・返り jsonb に 2 キー追加（既存キー不変）。
+D45-4 照合の定義: 売上 4 列（cash／card／uri／other）＝Σ payments.method 別、売掛回収 3 列＝Σ ar_collections.method 別。締め済みの凍結値と再集計の読取比較のみ・差異は表示のみ・自動修正はしない。
+D45-5 表示先: 日報タブの回収現金の隣に「カード回収」「その他回収」（締め前＝再集計・締め済み＝凍結）。analytics の売掛回収（ar_collections 生 Σ）の凍結列への付け替えは D45 に含めない（B6 の板を動かさない。要るなら裁定 1 本）。
+D45-6 mig 検証: 0055 型＝aggregate／close／reclose の prosrc を live dump 逐語で写経し差分最小。単体 suite verify:nox-d45（走数外）で 2 キー・2 列・reclose の再凍結・理論在高不変を固定。f0 の daily-report 段は default 0 のため golden 不変見込み（差が出たら停止）。欠陥は補正 mig（裁定234）。
+D45-7 回収モーダル注記: 「カード・その他での回収は現金在高（ドロワー）に含まれません」。
+D45-8 kiosk-register は対象外。回収 UI は /report 売掛タブのみ。ar_collections.method の CHECK（cash／card／other）は不変。
+
+適用＝mig0143 `8c89d4e`（dev 適用 2026-09-14 11:40・検証 1〜6 一致）・suite verify:nox-d45 `1a5c49e`（29 本・f0 46 段目）・client `e5f7728`（回収モーダル method select＋注記・日報タブ カード回収／その他回収・kiosk-register 不触）。追補＝D45-9（下記）。
+
 ## 裁定 D45-9（Agoora 承認 2026-09-14）締め前ライブの「売掛の回収（現金）」は method='cash' のみ＝凍結 ar_collected と同定義
 
 出典＝相談役 2026-09-14 受領（D45 client `e5f7728` の報告に対する追補・同日収載）。**本文（逐語）**: 「締め前ライブの「売掛の回収（現金）」は method='cash' のみを集計する（凍結 ar_collected と同定義）。カード・その他は「カード回収（在高外）」「その他回収（在高外）」として別掲し、理論在高・実査差異には混入させない。cash 固定運用だった従来の表示値は不変。」
 
 適用＝client `e5f7728`（report-board の loadPreview が ar_collections を method 別に再集計＝arCollectedToday は cash のみ・arCollectedCardToday／arCollectedOtherToday を「カード回収（在高外）」「その他回収（在高外）」として var(--sub) で別掲・レジ内予定額と実査差異の式は cash のみ＝daily_report_close の v_ar と同定義）。DB 側は 0143（`8c89d4e`）・suite verify:nox-d45（`1a5c49e`・29 本・f0 46 段目）。
-
-★未収載の注記（教訓76）: 裁定 D45-1〜8（Agoora 承認 2026-09-11・0143 ヘッダで参照＝D45-2 列追加と ar_collected 据え置き・D45-3 理論在高の式不変 ほか）は本台帳に本文が無い。逐語本文の受領後に本ブロック直前へ収載する。
 
 ## 裁定236（Agoora 承認 2026-09-10）希望の取消（「なし」へ戻す）は C層② の範囲外＝staff_wish_delete RPC（本人・締切前）は次の補正 mig で
 
