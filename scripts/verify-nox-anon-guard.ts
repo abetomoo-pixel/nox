@@ -540,6 +540,7 @@ async function main() {
   const F0039_PROBES: Array<[string, Record<string, unknown>]> = [
     ["auth_cast_can_register", {}],
     ["set_store_cast_register", { p_store_id: null, p_enabled: null }],
+    ["set_store_profile", { p_store_id: null, p_patch: null }], // ★mig0144（店舗設定の統合 setter・owner 限定）
     ["set_cast_register", { p_membership_id: null, p_can_register: null }],
   ];
   for (const [fn, args] of F0039_PROBES) {

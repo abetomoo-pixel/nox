@@ -49,6 +49,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   STABLE definer・**クライアント grant なし＝内部呼び専用**・非ゲート・`biz_minutes_of` の鏡像）。check_close は
   再作成のみ＝本数不動。対象 **113 不変**・除外 **100→101**・全数 **213→214**。
   ★「grant なしの内部関数は名簿対象外」の想定は誤り＝assert は live pg_proc 全数と A∪B の照合（教訓21・**7例目**）。
+- ★**mig0144 追随（2026-09-14・店舗設定 setter mig（小））**: 新 RPC **1本**を A8 へ収載＝`set_store_profile`
+  （店舗設定の統合 setter＝白名単 8 キーの patch 型・owner 限定・規則A形でゲート内蔵（`billing_writable_of(v_org)`）・
+  kiosk 腕なし・dev 適用済み＝本文一字一致を 9/14 に機械照合）。対象 **123→124**・除外 **114 不変**・全数 **237→238**。
+  ★教訓21 トリップワイヤの先回り収載（mig 収蔵と同一レーンで名簿＋verify:nox-billing の 4 pin を同時更新）。
 - ★**mig0127 追随（2026-09-02・裁定116-1）**: 新 RPC **1本**を A6 へ収載＝`set_pricing_category`
   （料金区分の upsert・唯一の書込経路・規則A形でゲート内蔵・kiosk 腕なし）。対象 **112→113**・
   全数 **211→212**（pricing_categories 器＋pricing_rules.category_id 列は本数非関与）。
@@ -155,11 +159,12 @@ set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_co
 set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config /
 **set_comp_component**（mig0115＝comp_plan_components の唯一の書き手・owner のみ・ゲート内蔵・裁定86）
 
-### A8. 店設定・日報運用（22本）
+### A8. 店設定・日報運用（23本）
 **report_reopen**（mig0138＝日報の締め解除・owner∨manager 自店∨staff∧can_reopen・理由必須・監査 report_reopen・C層③＝裁定 C③-1） /
 **cash_diff_approve**（mig0138＝現金差異の承認・owner∨manager∨staff∧can_close・理由必須・監査 cash_diff_approve・C層③＝裁定 C③-4／18） /
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /
 set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin / set_staff_pin /
+**set_store_profile**（mig0144＝店舗設定の統合 setter・白名単 8 キー（name／short／ext_shimei_enabled／dohan_auto_hon／store_code／display_name／show_open_status／shift_cast_confirm）の patch 型・owner 限定・課金ゲート・監査 set_store_profile・kiosk 腕なし・裁定245-1／N3／N4(b) の setter） /
 **store_sales_target_set**（mig0096＝月間売上目標・null=削除・E8-6） /
 **set_store_biz_cutoff**（mig0106＝営業日切替時刻・owner 限定・裁定82／起票#14） /
 **set_store_pin_policy**（mig0108＝PIN ロック閾値・owner 限定・起票#31） /
@@ -289,3 +294,5 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 課金述語/ラッパ2本）を B(f)/B(k) へ追補して解消。全数一致は以後 **verify:nox-billing の
 「live 全数 = 正本 A∪B」機械 assert** が担保（silent drift は f0 が赤にする＝教訓21）。
 非ゲート新設 RPC も mig と同一コミットで B 名簿を追補する（ゲート入りの pin 波及と対称の運用）。
+
+★**現在値（2026-09-14・mig0144 追随後）**: A **124** ＋ B **114** ＝ **238** ＝ live pg_proc 実列挙と一致（前＝A 123＋B 114＝237。verify:nox-billing 段47-1 の pin＝対象 124／除外 114／ゲート済み 124／述語参照 125／挿入行の形 124）。
