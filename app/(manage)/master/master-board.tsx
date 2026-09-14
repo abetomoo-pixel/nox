@@ -100,7 +100,7 @@ export default function MasterBoard() {
           desc: "卓／カウンター／VIP の登録と並び順、稼働の有効切替。",
           status: `● 稼働可能 ${activeSeats}卓`, tone: "" },
         { href: "/master/business-hours", id: "m-hours", icon: "◔", count: "曜日別", title: "営業時間・定休日",
-          desc: "曜日ごとの営業時間と定休日、シフト登録の警告・ブロックに使われます。", status: "● 設定可", tone: "" },
+          desc: "曜日ごとの営業時間と定休日、シフト登録の警告・ブロックに使われます。店舗名・略称などの店舗情報とシフト運用の設定もここで行います。", status: "● 設定可", tone: "" },
         // ★C層①（mig0135・裁定182）: v3 の「利用機能」カード S4 の器＝/master/system の「機能」タブへ着地
         //   （タブ自体は owner のみ描画＝manager はカードから飛んでも既定タブに落ちる。他の「オーナー限定」カードと同型）。
         { href: "/master/system#features", id: "m-features", icon: "◈", count: "2機能", title: "機能の公開",

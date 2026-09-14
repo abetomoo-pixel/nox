@@ -23,7 +23,7 @@ export default async function MasterPricingPage() {
 
   const supabase = await createClient();
   const { data: stores } = await supabase.from("stores")
-    .select("id, name, settings_json, hon_fee, jonai_fee, dohan_fee, service_rate, card_tax_rate, round_unit, round_mode, set_min, set_fee, ext_min, ext_fee, time_mode, time_per, business_tax_status, price_display, invoice_status, invoice_reg_no, tax_rounding, card_surcharge_rate")
+    .select("id, name, settings_json, hon_fee, jonai_fee, dohan_fee, service_rate, card_tax_rate, round_unit, round_mode, set_min, set_fee, ext_min, ext_fee, time_mode, time_per, business_tax_status, price_display, invoice_status, invoice_reg_no, tax_rounding, card_surcharge_rate, ext_shimei_enabled, dohan_auto_hon")
     .order("name").limit(1);
   const store = stores?.[0];
   const storeId = (store?.id as string | undefined) ?? "";
@@ -44,6 +44,8 @@ export default async function MasterPricingPage() {
     <PricingBoard
       storeId={storeId}
       bizCutoffHm={bizCutoffHm}
+      isOwner={role === "owner"}
+      flags={{ ext_shimei_enabled: store?.ext_shimei_enabled === true, dohan_auto_hon: store?.dohan_auto_hon === true }}
       initial={{
         store: {
           hon_fee: Number(store?.hon_fee ?? 0), jonai_fee: Number(store?.jonai_fee ?? 0),

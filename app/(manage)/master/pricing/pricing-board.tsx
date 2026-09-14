@@ -32,6 +32,7 @@ import Modal from "@/components/ui/modal";
 import MasterPageHead from "../master-page-head";
 import PricingPanel from "../pricing-panel";
 import TimePricingPanel from "../time-pricing-panel";
+import StoreFlagToggle from "../store-flag-toggle"; // ★mig0144: ext_shimei_enabled／dohan_auto_hon のトグル（set_store_profile）
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
 
 const card: React.CSSProperties = t.card;
@@ -183,8 +184,10 @@ function bandsOf(rules: PricingRule[]): Band[] {
   return out;
 }
 
-export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
+export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, flags }: {
   storeId: string; bizCutoffHm: string;
+  // ★mig0144: stores の boolean 2 列（ext_shimei_enabled／dohan_auto_hon）＝トグルの初期値・owner のみ切替
+  isOwner: boolean; flags: { ext_shimei_enabled: boolean; dohan_auto_hon: boolean };
   initial: { store: StoreFallback; rules: PricingRule[]; ranks: CastRank[] };
 }) {
   const supabase = createClient();
@@ -1247,6 +1250,12 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
               service_rate: store.service_rate, card_tax_rate: store.card_tax_rate,
               round_unit: store.round_unit, round_mode: store.round_mode,
             }} />
+            {/* ★mig0144（N4(b)）: 同伴の本指名自動付与（stores.dohan_auto_hon）＝指名・同伴料金の隣・切替は 244 の例外 */}
+            <div style={{ borderTop: "1px solid var(--line)", marginTop: 12, paddingTop: 10 }}>
+              <StoreFlagToggle storeId={storeId} flagKey="dohan_auto_hon" isOwner={isOwner} initial={flags.dohan_auto_hon}
+                label="同伴の本指名自動付与"
+                desc="ONにすると、同伴のときフリー（指名なし）を本指名へ自動で昇格します（場内指名はそのまま）。OFF の店は手動で指名を付けます" />
+            </div>
           </section>
 
           {/* ★M2（対応表・移設）: 指名料金（ランク別）＝実体不変・配置替えのみ */}
@@ -1549,6 +1558,12 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial }: {
             set_min: store.set_min, set_fee: store.set_fee, ext_min: store.ext_min, ext_fee: store.ext_fee,
             time_mode: store.time_mode, time_per: store.time_per,
           }} />
+          {/* ★mig0144（N4(b)）: 延長指名（stores.ext_shimei_enabled）＝基本料金（フォールバック）の隣・切替は 244 の例外 */}
+          <div style={{ borderTop: "1px solid var(--line)", marginTop: 12, paddingTop: 10 }}>
+            <StoreFlagToggle storeId={storeId} flagKey="ext_shimei_enabled" isOwner={isOwner} initial={flags.ext_shimei_enabled}
+              label="延長指名"
+              desc="ONにすると、手動時間料金の店で延長のたびに本指名ごとの延長指名料（料金適用ルールの ext_shimei）を加算します。OFF の店は延長時に指名料を加算しません" />
+          </div>
         </section>
 
         {/* ② 税・サービス料（★A2: サ料の編集をここへ集約＝M1 分割の受け側・税 form 不触）
