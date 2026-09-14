@@ -3264,6 +3264,16 @@ cast-picker.tsx は今回は置き換えない（回帰を避ける。将来の�
 
 適用＝client `6a3470d`（components/nox/picker.tsx 新設＝items／value／onPick／placeholder／empty／limit（既定 30）／dense・検索は label と sublabel の部分一致・未入力時は名前順の先頭 limit 件＋残数注記・bottle-keep-panel を「ボトルキープを登録」→Modal 520 へ＝顧客（名前・ふりがな）→ボトル（価格を副表示）→メモ→登録・bottle_keep_register の引数不変）。253 の R8 はこれで着手済み（D レーンの残り＝R6／R11／R16）。
 
+## 裁定255（Agoora 承認 2026-09-14）席の並べ替えを原子化＝seat_reorder 新設（R16）
+
+出典＝相談役 2026-09-14 受領（R16 調査 docs/tmp/d_lane_survey.md・live dump docs/tmp/seat_dump.txt を受けた裁定・同日収載）。**本文（逐語）**: 「裁定255 席の並べ替えを原子化（R16・Agoora 承認 2026-09-14）
+seat_reorder(p_store_id uuid, p_ids uuid[]) を新設し、既存 reorder 4 本（cast_rank_reorder／pricing_rule_reorder／product_category_reorder／product_reorder）と同契約とする: org null→forbidden／billing_writable_of→billing locked／空→bad ids／重複→duplicate ids／owner は全店・manager は自店／渡した id が全て店内か（不一致→forbidden）／店の全件数と一致するか（不一致→partial ids）／update … from unnest(p_ids) with ordinality で sort_order＝1..N に再採番・updated_at＝now()／before・after を jsonb_agg で audit_log_write。
+set_seat は不触（個別更新の口は残す）。seats の列・CHECK・index・RLS は不変。
+client は seats-board の ∧∨ を lib/nox/ui/reorder.ts の swapAdjacent → seat_reorder に付け替え、失敗時は reorderErrJa で表示（pricing-board の moveBand と同型）。B レーンで入れた set_seat 2 回呼びは撤去。
+課金正本は A6（マスタ系・product_category_reorder と同節）に登録し、対象 124→125・全数 238→239。anon-guard に probe 1 行。suite verify:nox-seat-reorder（走数外・f0 48 段目）。」
+
+適用＝未着手（mig 0145 の起草＝相談役・手貼り後に suite・正本登録・client の実装ブロック待ち）。前提の live 値（2026-09-14 17:52）: set_seat は 6 引数 acl {postgres,authenticated,service_role}・seats は sort_order の CHECK／UNIQUE なし・audit_log_write は 6 引数（p_reason 既定 null）・ゲート済み 124／public 関数 238。
+
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
 出典＝相談役ブロック 2026-09-11（着手前調査 docs/tmp/d45_survey.md を受けた起案）。mig0143 のヘッダが本文を参照している。**本文（逐語）**:
