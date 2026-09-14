@@ -3212,6 +3212,12 @@ D45-8 kiosk-register は対象外。回収 UI は /report 売掛タブのみ。a
 
 適用＝client `e5f7728`（report-board の loadPreview が ar_collections を method 別に再集計＝arCollectedToday は cash のみ・arCollectedCardToday／arCollectedOtherToday を「カード回収（在高外）」「その他回収（在高外）」として var(--sub) で別掲・レジ内予定額と実査差異の式は cash のみ＝daily_report_close の v_ar と同定義）。DB 側は 0143（`8c89d4e`）・suite verify:nox-d45（`1a5c49e`・29 本・f0 46 段目）。
 
+## 裁定 D45-10（Agoora 承認 2026-09-14）回収モーダルの実行ボタンは回収額に追随させる
+
+出典＝相談役 2026-09-14 受領（同日収載）。**本文（逐語）**: 「回収モーダルの実行ボタンは回収額に追随させる。空欄（＝全額）のときは「全額を回収」、金額入力時は「¥n を回収」。client 小物レーン（0145 と同時）で対応。」
+
+現状（2026-09-14 読取）: report-board の回収モーダル実行ボタンは E8-2 #13 以来 `collectAmt === "" ? "全額を回収" : `${yen(Number(collectAmt) || 0)} を回収`` で既に追随している（`e5f7728` でも不変）。client 小物レーン（0145 と同時）では現物との差分を目視で確認し、差が無ければ「既存で充足」と記録する。
+
 ## 裁定236（Agoora 承認 2026-09-10）希望の取消（「なし」へ戻す）は C層② の範囲外＝staff_wish_delete RPC（本人・締切前）は次の補正 mig で
 
 出典＝相談役ブロック（2026-09-10）。面 b の ◯× は「なし→◯→×→◯」の巡回で、一度出した希望を「なし」へ戻す経路は 0136／0137 に無い（設計書 v1 §2 の RPC 7 本に削除なし）。取消は #67 の補正 mig（staff_wish_delete＝本人・締切前・監査 action＝RPC 名）で足す。C層② の UI はそれまで現状のまま。
