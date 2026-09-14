@@ -3234,6 +3234,14 @@ M2: components/ui/nav.tsx の「その他」シートを className の借用か�
 
 適用＝第 1 レーン client `5543d9b`（2026-09-14: report-board 3 表を `.nox-tablewrap plain` で包み 18 列表は th nowrap・nav.tsx の「その他」を Modal 520 scroll＋×＋Esc へ・/mine も同部品）。★同名クラス `.nox-tablewrap`（globals.css 1176・枠つき・7 ファイル使用）が既存だったため、既存へ max-width 100%／-webkit-overflow-scrolling touch を追加し修飾子 `.nox-tablewrap.plain`（枠・角丸・地色なし）を新設して衝突を回避（教訓79）。第 2 レーン＝docs/tmp/m1_lane2.md（21 表＋.nox-ptwrap 8 表）。調査の根拠: html／body／シェル 3 層に overflow-x のクランプなし・table 51 のうち横スクロール容器なし 24・`.nox-ptwrap` は overflow hidden（切り落とし）・「その他」シートは Modal 部品を通らず地色／padding／角丸が未適用・× と Esc なし。
 
+## 裁定252（Agoora 承認 2026-09-14）主要な実行ボタンは左右分割の例外から外す＝244 追補・M9 プレビュー表の nowrap
+
+出典＝相談役 2026-09-14 受領（同日収載）。**本文（逐語）**: 「裁定252 主要な実行ボタンは左右分割の例外から外す（Agoora 承認 2026-09-14・244 追補）
+見出し＋ボタンの左右分割であっても、その画面で最も重い実行ボタン（日報を締める・締め確定）は .nox-actions で中央に置く。対象は /report の日報タブ（締める・締め確定）。他の左右分割（notices・simulator 等の副次ボタン）は 244 のまま例外。
+M9: /report プレビュー表（report-board 989）の th／td に white-space:nowrap を付け、.nox-tablewrap.plain 内で横スクロールさせる。長いラベルはモバイル幅で短縮（「カード手数料（日報集計用）」→「カード手数料」）。」
+
+適用＝未着手（client 1 本の実装ブロック待ち）。関連＝裁定244（左右分割は例外）・裁定251（.nox-tablewrap.plain・プレビュー表は 991 行目に移動済み）。
+
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
 出典＝相談役ブロック 2026-09-11（着手前調査 docs/tmp/d45_survey.md を受けた起案）。mig0143 のヘッダが本文を参照している。**本文（逐語）**:
