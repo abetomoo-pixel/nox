@@ -12,7 +12,7 @@
 //   inline style に @media は書けないため overlay/card を globals.css の .nox-modal-* クラスへ移し、
 //   ≤900 で可変する3値（幅・角丸・下 padding）は CSS 変数橋渡しで受ける（--wrap-max と同じ流儀・!important 不使用）。
 //   ★>900 の描画は移行前と同値: overlay 基底値／t.card／maxWidth prop すべて据置。
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, type CSSProperties, type ReactNode } from "react";
 import * as t from "@/lib/nox/ui/theme";
 
 // ── レーン④b-1（2026-08-04）: 右ドロワー variant を追加 ───────────────────────
@@ -43,6 +43,12 @@ export default function Modal({
   scroll?: boolean;
   children: ReactNode;
 }) {
+  // ★裁定253（A モーダル化・2026-09-14）: Esc で閉じる（背景タップ・× と同じ onClose を呼ぶ＝閉じない条件は呼び出し側の onClose が判定）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   const overlayCls = "nox-modal-overlay"
     + (variant === "drawer" ? " nox-modal-drawer" : "")
     + (scroll ? " nox-modal-scroll" : "");

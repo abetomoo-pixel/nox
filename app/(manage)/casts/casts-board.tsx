@@ -530,9 +530,11 @@ export default function CastsBoard({
         </div>
       )}
 
-      {/* ── 詳細（カード選択で開く）＝現行の編集・招待・PW再発行・体入採否を3タブへ再配置 ── */}
+      {/* ── 詳細（カード選択で開く）＝現行の編集・招待・PW再発行・体入採否を3タブへ再配置 ──
+          ★裁定253 R4（2026-09-14）: インラインの section をやめ共通 Modal へ（タブ構成・中身・RPC は不変＝器のみ・広め 640）。
+            閉じる＝×・背景タップ・Esc。「写真を変更」「機密・税務情報へ」はモーダル内に残す。 */}
       {selCast && (
-        <section className="nox-cardtop" style={card}>
+        <Modal onClose={() => !busy && setSel(null)} maxWidth={640} scroll>
           <div className="nox-cdrawer">
             <div style={{ textAlign: "center" }}>
               <CastAvatar name={selCast.name} url={photoUrls.get(selCast.id)} size={64} />
@@ -548,7 +550,7 @@ export default function CastsBoard({
                 {selCast.is_active ? "在籍" : "退店"} / {selCast.user_id ? "ログイン済み" : "未招待"}
               </div>
             </div>
-            <button style={{ ...btnGhost, marginLeft: "auto" }} onClick={() => setSel(null)}>閉じる</button>
+            <span style={{ marginLeft: "auto" }}><button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !busy && setSel(null)}>×</button></span>
           </div>
 
           <div className="nox-dtabs">
@@ -733,12 +735,12 @@ export default function CastsBoard({
               </p>
             </>
           )}
-        </section>
+        </Modal>
       )}
 
-      {/* 体入の詳細＝評価・書類・メモ・採否（現行 UI をそのまま移設＝送る RPC も引数も不変） */}
+      {/* 体入の詳細＝評価・書類・メモ・採否（現行 UI をそのまま移設＝送る RPC も引数も不変）。★裁定253 R4: 同じく Modal（560）へ */}
       {selTrial && (
-        <section className="nox-cardtop" style={card}>
+        <Modal onClose={() => !busy && setSel(null)} maxWidth={560} scroll>
           <div className="nox-cdrawer">
             <CastAvatar name={selTrial.name} size={64} />
             <div>
@@ -747,7 +749,7 @@ export default function CastsBoard({
                 体入 {selTrial.trial_date ?? "—"}・{selTrial.tier ?? "—"}・{ageOf(selTrial.birthday)}
               </div>
             </div>
-            <button style={{ ...btnGhost, marginLeft: "auto" }} onClick={() => setSel(null)}>閉じる</button>
+            <span style={{ marginLeft: "auto" }}><button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !busy && setSel(null)}>×</button></span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -772,8 +774,8 @@ export default function CastsBoard({
 
           <MemoField tr={selTrial} busy={busy} onSave={(m) => rpc("メモを更新", "trial_update", { p_trial_id: selTrial.id, p_memo: m })} />
 
-          <div className="nox-actions" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-            {/* ★裁定244: Danger 左端・実行 右端（見送り→本採用の順へ入替）・行は中央（.nox-actions） */}
+          <div className="nox-formmodal-foot">
+            {/* ★裁定244: Danger 左端・実行 右端（見送り→本採用の順へ入替）・行は中央。★裁定253 R4: モーダル脚（.nox-formmodal-foot） */}
             {/* ★裁定146（裁定120 適用）: 取り消し困難な操作＝Danger 系トークン（--bad 系は警告面用・値は同系） */}
             <button style={{ ...btnGhost, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={async () => {
               if (!confirm(`${selTrial.name} を見送りますか？`)) return;
@@ -785,7 +787,7 @@ export default function CastsBoard({
             }}>本採用</button>
             {!allDocs(selTrial) && <span style={{ ...t.sub }}>本採用には全書類のチェックが必要です。</span>}
           </div>
-        </section>
+        </Modal>
       )}
 
       {/* 招待/PW再発行モーダル（staff-board の追加モーダル雛形・PW は一度だけ表示） */}

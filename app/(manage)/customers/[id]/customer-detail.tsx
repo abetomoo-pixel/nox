@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Modal from "@/components/ui/modal"; // ★裁定253 R7: 顧客編集はモーダル
 
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
 type CustRow = {
@@ -281,17 +282,18 @@ export default function CustomerDetail({
       </section>
 
       <section className="nox-cardtop" style={t.card}>
-        <div style={{ display: "flex", alignItems: "center", marginBottom: editOpen ? 11 : 0 }}>
+        {/* ★裁定253 R7（2026-09-14）: 編集フォームはインライン展開をやめ共通 Modal へ（項目・customer_update の引数は不変）。ボタンは開くだけ */}
+        <div style={{ display: "flex", alignItems: "center" }}>
           <h2 style={{ ...secTitle, margin: 0 }}>編集</h2>
-          <button
-            style={{ ...(editOpen ? t.btnGhost : t.btnGold), ...t.btnSm, marginLeft: "auto" }}
-            onClick={() => (editOpen ? setEditOpen(false) : openEdit())}
-          >
-            {editOpen ? "閉じる" : "編集"}
-          </button>
+          <button style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} onClick={openEdit}>編集</button>
         </div>
         {msg && <p style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes("失敗") ? "var(--bad)" : "var(--ok)", margin: "8px 0 0" }}>{msg}</p>}
         {editOpen && (
+          <Modal onClose={() => !busy && setEditOpen(false)} maxWidth={480} scroll>
+          <div className="nox-formmodal-head">
+            <strong>{cust?.name ?? "顧客"} を編集</strong>
+            <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !busy && setEditOpen(false)}>×</button>
+          </div>
           <div style={{ display: "grid", gap: 10, marginTop: 4 }}>
             <div>
               <label style={t.fieldLabel}>名前（必須）</label>
@@ -327,12 +329,14 @@ export default function CustomerDetail({
                 ※休眠にすると顧客一覧には表示されなくなります（このページからいつでも戻せます）。
               </p>
             )}
-            <div className="nox-actions">{/* ★裁定244: フォーム直下の保存＝中央 */}
-              <button style={{ ...t.btnGold, opacity: busy || !eName.trim() ? 0.6 : 1 }} disabled={busy || !eName.trim()} onClick={() => void saveEdit()}>
-                {busy ? "保存中…" : "保存"}
-              </button>
-            </div>
           </div>
+          <div className="nox-formmodal-foot">{/* ★裁定244／253: 脚＝キャンセル左・保存 右・中央 */}
+            <button style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => setEditOpen(false)}>キャンセル</button>
+            <button style={{ ...t.btnGold, opacity: busy || !eName.trim() ? 0.6 : 1 }} disabled={busy || !eName.trim()} onClick={() => void saveEdit()}>
+              {busy ? "保存中…" : "保存"}
+            </button>
+          </div>
+          </Modal>
         )}
       </section>
     </div>

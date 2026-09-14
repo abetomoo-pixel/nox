@@ -233,13 +233,15 @@ export default function StaffBoard({
         <p style={{ ...t.sub, margin: "3px 0 0" }}>† バック＝キャストのバック金額（報酬）の閲覧権限。会計権限とは独立です（既定オフ・必要な黒服のみ付与）。</p>
       </section>
 
-      {/* 編集パネル（Q-1 編集5RPC） */}
+      {/* 編集パネル（Q-1 編集5RPC）。★裁定253 R5（2026-09-14）: インラインの nox-panel をやめ共通 Modal へ（器のみ＝5 RPC・引数・confirm は不変）。
+          閉じる＝×・背景タップ・Esc（「閉じる」ボタンは × に集約）。脚＝Danger 左端（在籍を解除）・補助（役職変更）・実行 右端（再雇用）＝244。 */}
       {sel && (
-        <section className="nox-panel">
-          <h3>
-            編集: {users[sel.user_id]?.name ?? "—"}
-            <span style={{ ...t.sub, marginLeft: 8 }}>{storeName(sel.store_id)} / {t.roleLabelJa(sel.role)} / {sel.is_active ? "在籍" : "解除"}</span>
-          </h3>
+        <Modal onClose={() => !busy && setSel(null)} maxWidth={480} scroll>
+          <div className="nox-formmodal-head">
+            <strong>編集: {users[sel.user_id]?.name ?? "—"}</strong>
+            <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !busy && setSel(null)}>×</button>
+          </div>
+          <p style={{ ...t.sub, margin: "-8px 0 12px" }}>{storeName(sel.store_id)} / {t.roleLabelJa(sel.role)} / {sel.is_active ? "在籍" : "解除"}</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input placeholder="名前" value={eName} onChange={(e) => setEName(e.target.value)} style={{ ...input, width: 170 }} />
             <button style={btnGold} disabled={busy} onClick={async () => {
@@ -260,8 +262,8 @@ export default function StaffBoard({
               }}>異動を実行</button>
             </div>
           )}
-          <div className="nox-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-            {/* ★裁定244: Danger 左端（在籍を解除）・補助（役職変更・閉じる）・実行 右端（再雇用）へ入替・閉じるの marginLeft auto を外して行は中央 */}
+          <div className="nox-formmodal-foot">
+            {/* ★裁定244: Danger 左端（在籍を解除）・補助（役職変更）・実行 右端（再雇用）。★裁定253 R5: 閉じるは × へ集約・脚は .nox-formmodal-foot（中央） */}
             {sel.is_active && !isSelf(sel) && (
               // ★裁定146（裁定120 適用）: 在籍解除＝取り消し困難な操作＝Danger 系トークン（--bad 系は警告面用・値は同系）
               <button style={{ ...btnGhost, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={async () => {
@@ -278,7 +280,6 @@ export default function StaffBoard({
                 setSel(null);
               }}>{sel.role === "staff" ? "店長に昇格" : "黒服に降格"}</button>
             )}
-            <button style={btnGhost} onClick={() => setSel(null)}>閉じる</button>
             {!sel.is_active && (
               <button style={btnGold} disabled={busy} onClick={async () => {
                 await rpc("再雇用", "staff_reactivate", { p_membership_id: sel.id });
@@ -286,7 +287,7 @@ export default function StaffBoard({
               }}>再雇用（復帰）</button>
             )}
           </div>
-        </section>
+        </Modal>
       )}
 
       {/* 追加モーダル（Q-2・POST /api/staff/create） */}

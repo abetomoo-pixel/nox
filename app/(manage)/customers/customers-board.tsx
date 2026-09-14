@@ -390,11 +390,8 @@ export default function CustomersBoard({
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
-        <button
-          style={{ ...(addOpen ? t.btnGhost : t.btnGold), ...t.btnSm, marginLeft: "auto" }}
-          onClick={() => (addOpen ? setAddOpen(false) : openAdd())}
-        >
-          {addOpen ? "閉じる" : "＋ 顧客登録"}
+        <button style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} onClick={openAdd}>{/* ★裁定253 R7: 登録はモーダル＝ボタンは開くだけ */}
+          ＋ 顧客登録
         </button>
       </div>
 
@@ -435,10 +432,14 @@ export default function CustomersBoard({
 
       {msg && <p style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes("失敗") ? "var(--bad)" : "var(--ok)", margin: "0 0 8px" }}>{msg}</p>}
 
-      {/* 登録フォーム＝トグルで独立パネル（/casts と同型）。★送る RPC customer_register も引数も不変。 */}
+      {/* 登録フォーム。★裁定253 R7（2026-09-14）: インラインの nox-panel をやめ共通 Modal へ（項目・customer_register の引数は不変）。
+          閉じる＝×・背景タップ・Esc。脚＝キャンセル左・登録する 右（244）。 */}
       {addOpen && (
-        <section className="nox-panel">
-          <h3>顧客登録</h3>
+        <Modal onClose={() => !busy && setAddOpen(false)} maxWidth={480} scroll>
+          <div className="nox-formmodal-head">
+            <strong>顧客登録</strong>
+            <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !busy && setAddOpen(false)}>×</button>
+          </div>
           <div style={{ display: "grid", gap: 10 }}>
             {isOwner && stores.length > 1 && (
               <div>
@@ -482,13 +483,14 @@ export default function CustomersBoard({
                 </select>
               </div>
             )}
-            <div className="nox-actions">{/* ★裁定244: フォーム直下の登録＝中央 */}
-              <button style={{ ...t.btnGold, opacity: busy || !aName.trim() ? 0.6 : 1 }} disabled={busy || !aName.trim()} onClick={() => void submitAdd()}>
-                {busy ? "登録中…" : "登録する"}
-              </button>
-            </div>
           </div>
-        </section>
+          <div className="nox-formmodal-foot">{/* ★裁定244／253: 脚＝キャンセル左・登録する 右・中央 */}
+            <button style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => setAddOpen(false)}>キャンセル</button>
+            <button style={{ ...t.btnGold, opacity: busy || !aName.trim() ? 0.6 : 1 }} disabled={busy || !aName.trim()} onClick={() => void submitAdd()}>
+              {busy ? "登録中…" : "登録する"}
+            </button>
+          </div>
+        </Modal>
       )}
 
       {err && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{err}</p>}

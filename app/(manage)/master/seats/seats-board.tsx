@@ -14,6 +14,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
+import Modal from "@/components/ui/modal"; // ★裁定253 R1: 席の追加・編集はモーダル
 import MasterPageHead from "../master-page-head";
 
 export type Seat = { id: string; name: string; kind: string | null; sort_order: number; is_active: boolean };
@@ -37,6 +38,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
   const [sKind, setSKind] = useState("卓");
   const [sSort, setSSort] = useState(0);
   const [sActive, setSActive] = useState(true);
+  const [seatOpen, setSeatOpen] = useState(false); // ★裁定253 R1: 席モーダルの開閉（フォーム state は従来の 5 本のまま）
   // E8-5 席#5（T2）: 席一覧の検索・種別フィルタ（client のみ・取得と編集経路は不変）
   const [seatQ, setSeatQ] = useState("");
   const [seatKind, setSeatKind] = useState("");
@@ -54,6 +56,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
       p_is_active: sActive, // 明示 boolean（原則7）
     });
     setMsg(error ? error.message : sId ? "席を更新しました" : "席を登録しました");
+    if (!error) setSeatOpen(false); // ★裁定253 R1: 保存成功で閉じる（失敗時は開いたまま）
     setSId(null); setSName("");
     await reload();
   }
@@ -85,11 +88,11 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
           <div>
             <h2 id="m-seat" style={{ ...secTitle, margin: 0 }}>席一覧</h2>
-            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>行をクリックすると下の「席を編集」に読み込まれます</p>
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>行をクリックすると「席を編集」を開きます</p>
           </div>
           {isManagerUp && (
             <button style={{ ...btnDark, marginLeft: "auto" }}
-              onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); }}>＋ 席を追加</button>
+              onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); setSeatOpen(true); }}>＋ 席を追加</button>
           )}
         </div>
         {/* E8-5 席#5（T2）: 検索＋種別フィルタ（表示のみ） */}
@@ -108,7 +111,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
               (!seatQ.trim() || s.name.toLowerCase().includes(seatQ.trim().toLowerCase())) &&
               (seatKind === "" || s.kind === seatKind),
             ).map((s) => (
-              <tr key={s.id} onClick={() => isManagerUp && (setSId(s.id), setSName(s.name), setSKind(s.kind ?? "卓"), setSSort(s.sort_order), setSActive(s.is_active))}
+              <tr key={s.id} onClick={() => isManagerUp && (setSId(s.id), setSName(s.name), setSKind(s.kind ?? "卓"), setSSort(s.sort_order), setSActive(s.is_active), setSeatOpen(true))}
                 style={{ cursor: isManagerUp ? "pointer" : "default" }}>
                 <td>{s.name}</td>
                 <td>{s.kind}</td>
@@ -119,14 +122,16 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
         </table>
       </section>
 
-      {/* 編集カード（モック「VIP1 を編集」＝一覧とは別カード） */}
-      {isManagerUp && (
-        <section className="nox-cardtop" style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-            <h2 style={{ ...secTitle, margin: 0 }}>
-              {sId ? `${sName || "席"} を編集` : "席を追加"}
-            </h2>
-            <span className="nox-stpill" style={{ marginLeft: "auto" }}>{sId ? "編集中" : "新規"}</span>
+      {/* ★裁定253 R1（2026-09-14）: 「席を編集／追加」はインラインの別カードをやめ共通 Modal へ（器のみ＝項目・state・set_seat の引数は不変）。
+          閉じる＝×・背景タップ・Esc。脚＝キャンセル左・登録／更新 右（244）。 */}
+      {isManagerUp && seatOpen && (
+        <Modal onClose={() => setSeatOpen(false)} maxWidth={430}>
+          <div className="nox-formmodal-head">
+            <strong>{sId ? `${sName || "席"} を編集` : "席を追加"}</strong>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span className="nox-stpill">{sId ? "編集中" : "新規"}</span>
+              <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => setSeatOpen(false)}>×</button>
+            </span>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input placeholder="席名" value={sName} onChange={(e) => setSName(e.target.value)} style={{ ...input, width: 140 }} />
@@ -138,16 +143,15 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
               <button type="button" className={`nox-switch ${sActive ? "on" : ""}`} onClick={() => setSActive(!sActive)} aria-pressed={sActive} aria-label="有効"><i /></button>
               有効
             </span>
-            <button style={btnDark} onClick={saveSeat}>{sId ? "更新" : "登録"}</button>
-            {sId && (
-              <button style={btnLight}
-                onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); }}>やめる</button>
-            )}
           </div>
           <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
             表示順はレジのフロア表示に使われます。「有効」を外した席は開卓できなくなります（過去の伝票は残ります）。
           </p>
-        </section>
+          <div className="nox-formmodal-foot">
+            <button style={btnLight} onClick={() => setSeatOpen(false)}>キャンセル</button>
+            <button style={btnDark} onClick={() => void saveSeat()}>{sId ? "更新" : "登録"}</button>
+          </div>
+        </Modal>
       )}
 
       {/* 席種カテゴリ（モックに在るが実体なし＝seats.kind は 卓/カウンター/VIP の固定3種で
