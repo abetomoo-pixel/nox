@@ -5912,6 +5912,11 @@ async function main() {
     const { error } = await anon.rpc("product_category_reorder", { p_store_id: null, p_ids: null });
     check("段39 anon product_category_reorder BLOCKED（mig0077）", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
+  // ── 段39b: mig0145（seat_reorder＝裁定255）も同型で anon BLOCKED 必須 ──
+  {
+    const { error } = await anon.rpc("seat_reorder", { p_store_id: null, p_ids: null });
+    check("段39b anon seat_reorder BLOCKED（mig0145）", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
   {
     const { error } = await anon.rpc("set_product_active", { p_id: null, p_store_id: null, p_is_active: null });
     check("段39 anon set_product_active BLOCKED（mig0077）", isFnBlocked(error), error?.message ?? "実行できてしまった");

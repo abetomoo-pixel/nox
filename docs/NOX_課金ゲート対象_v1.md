@@ -49,6 +49,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   STABLE definer・**クライアント grant なし＝内部呼び専用**・非ゲート・`biz_minutes_of` の鏡像）。check_close は
   再作成のみ＝本数不動。対象 **113 不変**・除外 **100→101**・全数 **213→214**。
   ★「grant なしの内部関数は名簿対象外」の想定は誤り＝assert は live pg_proc 全数と A∪B の照合（教訓21・**7例目**）。
+- ★**mig0145 追随（2026-09-14・裁定255）**: 新 RPC **1本**を A6 へ収載＝`seat_reorder`（席の並べ替え 1..N 再採番＝既存 reorder 4 本と同契約・
+  owner∨manager 自店・規則A形でゲート内蔵（`billing_writable_of(public.auth_org_id())`）・kiosk 腕なし・dev 適用済み 9/14 18:09）。
+  対象 **124→125**・除外 **114 不変**・全数 **238→239**。★教訓21 トリップワイヤの先回り収載（mig 収蔵と同一レーンで名簿＋pin を同時更新）。
 - ★**mig0144 追随（2026-09-14・店舗設定 setter mig（小））**: 新 RPC **1本**を A8 へ収載＝`set_store_profile`
   （店舗設定の統合 setter＝白名単 8 キーの patch 型・owner 限定・規則A形でゲート内蔵（`billing_writable_of(v_org)`）・
   kiosk 腕なし・dev 適用済み＝本文一字一致を 9/14 に機械照合）。対象 **123→124**・除外 **114 不変**・全数 **237→238**。
@@ -148,8 +151,9 @@ shift_rules_set**（mig0102 新設＝SD 深部の owner/manager 系6本・ゲー
 **shift_confirm_bulk**（mig0126 新設＝裁定114・planned/proposed→confirmed 一括・上限62・ゲート内蔵・kiosk 腕なし）
 ※shift_cast_confirm は書込ゆえゲート対象＝失効中は確認も止まる。希望提出（B(i) の事実記録2本）とは性質が異なる。
 
-### A6. 商品・料金マスタ（14本）
+### A6. 商品・料金マスタ（15本）
 set_product / set_product_active / set_product_category / product_category_reorder / product_bulk_insert /
+**seat_reorder**（mig0145＝席の並べ替え 1..N 再採番・owner∨manager 自店・課金ゲート・監査 seat_reorder・kiosk 腕なし・裁定255） /
 product_reorder / product_stock_add / set_seat / set_pricing_rule / delete_pricing_rule /
 pricing_rule_reorder / set_store_pricing / set_store_time_pricing /
 **set_pricing_category**（mig0127 新設＝裁定116-1・料金区分の upsert＝唯一の書込経路・停止=is_active false・ゲート内蔵・kiosk 腕なし）
@@ -295,4 +299,4 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 「live 全数 = 正本 A∪B」機械 assert** が担保（silent drift は f0 が赤にする＝教訓21）。
 非ゲート新設 RPC も mig と同一コミットで B 名簿を追補する（ゲート入りの pin 波及と対称の運用）。
 
-★**現在値（2026-09-14・mig0144 追随後）**: A **124** ＋ B **114** ＝ **238** ＝ live pg_proc 実列挙と一致（前＝A 123＋B 114＝237。verify:nox-billing 段47-1 の pin＝対象 124／除外 114／ゲート済み 124／述語参照 125／挿入行の形 124）。
+★**現在値（2026-09-14・mig0145 追随後）**: A **125** ＋ B **114** ＝ **239** ＝ live pg_proc 実列挙と一致（前＝mig0144 後 A 124＋B 114＝238・その前 A 123＋B 114＝237。verify:nox-billing 段47-1 の pin＝対象 125／除外 114／ゲート済み 125／述語参照 126／挿入行の形 125）。
