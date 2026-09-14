@@ -10,9 +10,10 @@
 //   - ★ルート/URL/ページ実体/権限ゲートは非改変＝ここは並び・群・ラベルの表示だけ。
 //   - 両レイアウトを常に DOM に出し、表示切替は CSS の @media が担う（SSR/ハイドレーション差異を作らない）。
 //   - spPriority 未指定なら従来どおり全項目を1列に並べる＝/mine の挙動は不変。
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Modal from "./modal"; // ★裁定251（M2）: 「その他」シートは共通 Modal 部品を通す
 
 export type NavItem = { href: string; label: string };
 /** 群（label=null は見出しを出さない＝ホームや /mine のようなフラット表示） */
@@ -23,6 +24,13 @@ export type NavGroup = { label: string | null; items: NavItem[] };
 export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGroup[]; spPriority?: string[]; hideSide?: boolean }) {
   const path = usePathname() ?? "";
   const [sheet, setSheet] = useState(false);
+  // ★裁定251（M2）: Esc で閉じる（シートが開いている間だけ keydown を購読）
+  useEffect(() => {
+    if (!sheet) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSheet(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sheet]);
   const flat = groups.flatMap((g) => g.items);
 
   // 最長一致で active を1つに絞る（/mine と /mine/wishes の二重点灯を防ぐ）
@@ -71,12 +79,17 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
         )}
       </nav>
 
-      {/* 「その他」＝残り項目のシート（段A 基盤＝≤900 はボトムシート・背景タップで閉じる） */}
+      {/* 「その他」＝残り項目のシート。★裁定251（M2・2026-09-14）: className の借用（地色・padding・角丸が当たらず
+          背景が透けていた）をやめ、共通 Modal 部品（maxWidth 520・scroll＝高さ上限 88vh＋中身スクロール・≤900 はボトムシート・
+          ハンドルは Modal が描く）を通す。× ボタン（.nox-formmodal-x）と Esc（useEffect の keydown）で閉じる手段を足した。
+          /mine の TabBar も同じ部品を通る。 */}
       {sheet && (
-        <div className="nox-modal-overlay" onClick={() => setSheet(false)}>
-          <div className="nox-modal-card nox-cardtop nox-navsheet" onClick={(e) => e.stopPropagation()}>
-            <div className="nox-modal-handle" aria-hidden="true" />
-            <h2 className="nox-navsheet-h">メニュー</h2>
+        <Modal onClose={() => setSheet(false)} maxWidth={520} scroll>
+          <div className="nox-navsheet">
+            <div className="nox-formmodal-head" style={{ marginBottom: 10 }}>
+              <h2 className="nox-navsheet-h" style={{ margin: 0 }}>メニュー</h2>
+              <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => setSheet(false)}>×</button>
+            </div>
             {groups.map((g, gi) => {
               const items = g.items.filter((it) => rest.some((r) => r.href === it.href));
               if (items.length === 0) return null;
@@ -94,7 +107,7 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
               );
             })}
           </div>
-        </div>
+        </Modal>
       )}
     </>
   );

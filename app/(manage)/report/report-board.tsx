@@ -696,6 +696,7 @@ export default function ReportBoard({
           {colHist.length === 0 ? (
             <p style={{ ...t.sub, margin: 0 }}>当月の回収はまだありません。</p>
           ) : (
+            <div className="nox-tablewrap plain">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし） */}
             <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
               <thead>
                 <tr>{["入金日", "方法", "金額", "顧客", "担当", "登録者"].map((h) => <th key={h} style={t.th}>{h}</th>)}</tr>
@@ -713,6 +714,7 @@ export default function ReportBoard({
                 ))}
               </tbody>
             </table>
+            </div>
           )}
           <p style={{ ...t.sub, fontSize: 11, marginTop: 8 }}>
             表示は当月（営業日）・最新 30 件。それ以前は売掛タブの各行「前回回収」と、締め済み日報の「回収現金」で確認できます。
@@ -986,6 +988,7 @@ export default function ReportBoard({
           })()}
         </div>
         {preview && (
+          <div className="nox-tablewrap plain">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし） */}
           <table style={{ borderCollapse: "collapse", fontSize: 13 }}>
             <tbody>
               <tr>
@@ -1002,6 +1005,7 @@ export default function ReportBoard({
               </tr>
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -1240,11 +1244,13 @@ export default function ReportBoard({
           </div>
         ))}
         <p style={{ ...t.sub, fontSize: 11, margin: "10px 0 6px" }}>全列（実査差異・再締め等）は下の表で確認できます。</p>
+        <div className="nox-tablewrap plain">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし） */}
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
           <thead>
             <tr>
               {["営業日", "伝票", "客数", "現金", "回収現金", "カード回収", "その他回収", "カード", "カード手数料", "売掛", "ドリンク売上", "未会計", "諸経費", "現金支払", "実査差異", "再締め回数", "締め担当", ""].map((h) => (
-                <th key={h} style={t.th}>{h}</th>
+                // ★裁定251（M1）: 潰れ型（18 列）＝nowrap で自然幅にし .nox-tablewrap 内で横スクロール
+                <th key={h} style={{ ...t.th, whiteSpace: "nowrap" }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -1300,6 +1306,7 @@ export default function ReportBoard({
             ))}
           </tbody>
         </table>
+        </div>
         <p style={{ ...t.sub, fontSize: 11, marginTop: 8 }}>
           実査差異 = 実査 −（釣銭準備金 + 現金売上 + 回収現金 − 諸経費 − 現金支払）。現金売上と回収現金は別掲（混ぜない）。カード回収・その他回収は現金在高に含めません。
         </p>

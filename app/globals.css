@@ -1173,7 +1173,9 @@ body {
      - 地色 `#1b1b18`/`#161613` はトークンに無い＝hover は `--card2`、sticky 地は `--bg2` を採る。
    ★E3 の範囲は「部品を用意する」まで。各ページの表を本部品へ置き換えるのは E4。
    ══════════════════════════════════════════════════════════════════════════ */
-.nox-tablewrap { overflow: auto; border: 1px solid var(--line); border-radius: 11px; background: var(--card); }
+.nox-tablewrap { overflow: auto; border: 1px solid var(--line); border-radius: 11px; background: var(--card); max-width: 100%; -webkit-overflow-scrolling: touch; } /* ★裁定251（M1）: max-width と iOS 慣性スクロールを追加＝表の横スクロール容器 */
+/* ★裁定251（M1）: .nox-panel 等の枠の中で使う素の容器（二重枠を作らない）。潰れ型は th に nowrap を併用。第 2 レーン＝docs/tmp/m1_lane2.md */
+.nox-tablewrap.plain { border: 0; border-radius: 0; background: transparent; }
 .nox-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .nox-table th {
   text-align: left; padding: 10px 12px; color: var(--sub); font-size: 11px; font-weight: 700;
