@@ -23,12 +23,16 @@ type Preview = {
   bottlesOpened: number;   // #2 ボトル開栓（bottle_keeps.opened_at が営業日範囲）
   workedCasts: number;     // #2 出勤キャスト（attendance PRESENT）
   closedTotal: number;     // #6 決済一致の右辺（Σ closed checks.total）
-  arCollectedToday: number; // #4 回収現金（当日 ar_collections・締め前のライブ値）
+  arCollectedToday: number; // #4 回収現金（当日 ar_collections・締め前のライブ値・★D45: method='cash' のみ＝理論在高加算対象）
+  arCollectedCardToday: number;  // ★D45（mig0143）: カード回収（当日 ar_collections method='card'・在高外）
+  arCollectedOtherToday: number; // ★D45（mig0143）: その他回収（当日 ar_collections method='other'・在高外）
 };
 type Report = {
   id: string; biz_date: string; cash: number; card_gross: number; card_tax: number; uri: number; other: number;
   drink_sales: number; dohan_checks: number; slips: number; guests: number; open_checks_count: number;
   ar_collected: number; // B6（mig0055）: 回収現金（別掲・理論在高加算対象）
+  ar_collected_card: number;  // ★D45（mig0143）: カード回収（凍結・在高外）
+  ar_collected_other: number; // ★D45（mig0143）: その他回収（凍結・在高外）
   expense: number; cash_payout: number; cash_float: number; counted_cash: number | null; diff: number | null;
   reclosed_count: number;
   closed_by: string | null; // E8-2 #8: 締め担当（users.name へ表示専用 join）
@@ -150,6 +154,7 @@ export default function ReportBoard({
   // E8-2 #13: 部分回収モーダル（receivable_collect p_amount 結線・空欄=全額）
   const [collectPick, setCollectPick] = useState<Recv | null>(null);
   const [collectAmt, setCollectAmt] = useState("");
+  const [collectMethod, setCollectMethod] = useState<"cash" | "card" | "other">("cash"); // ★D45: 回収方法（既定 cash・RPC の p_method へ）
   // E8-2 #12: 今月回収 KPI（ar_collections 当月合算・表示専用）
   const [arMonth, setArMonth] = useState(0);
   // ★B2-a（裁定205・D6）: 店の営業時間（dow 7 行・表示専用・1 クエリ）
@@ -223,9 +228,12 @@ export default function ReportBoard({
       .select("id", { count: "exact", head: true })
       .eq("store_id", storeId).eq("date", d).in("status", ["shukkin", "dohan", "late"]);
     // #4 回収現金（締め前ライブ）＝当日 biz_date の ar_collections（締め済みは daily_reports.ar_collected が正）
+    //   ★D45（mig0143）: method 別に分ける。回収現金＝method='cash' のみ（daily_report_close の v_ar と同じ定義）・
+    //   card／other は在高外の別掲（締め済みは daily_reports.ar_collected_card／_other が正）。
     const { data: arRows } = await supabase.from("ar_collections")
-      .select("amount").eq("store_id", storeId).eq("biz_date", d);
-    const arCollectedToday = (arRows ?? []).reduce((a, r) => a + (r.amount as number), 0);
+      .select("amount, method").eq("store_id", storeId).eq("biz_date", d);
+    const arSum = (m: string) => (arRows ?? []).filter((r) => r.method === m).reduce((a, r) => a + (r.amount as number), 0);
+    const arCollectedToday = arSum("cash"), arCollectedCardToday = arSum("card"), arCollectedOtherToday = arSum("other");
     setPreview({
       open: (checks ?? []).filter((c) => c.status === "open").length,
       slips: closed.length,
@@ -237,7 +245,7 @@ export default function ReportBoard({
       newCust, repeatCust, avgStayMin,
       bottlesOpened: bottlesOpened ?? 0, workedCasts: workedCasts ?? 0,
       closedTotal: closed.reduce((a, c) => a + ((c.total as number) ?? 0), 0),
-      arCollectedToday,
+      arCollectedToday, arCollectedCardToday, arCollectedOtherToday,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, cutoff, cardTaxRate]);
@@ -466,11 +474,13 @@ export default function ReportBoard({
     setMsg(null);
     const { error } = await supabase.rpc("receivable_collect", {
       p_receivable_id: r.id, p_biz_date: bizDateOf(new Date().toISOString(), cutoff),
-      p_method: "cash", p_note: null, p_idem_key: crypto.randomUUID(), p_amount: amt,
+      p_method: collectMethod, p_note: null, p_idem_key: crypto.randomUUID(), p_amount: amt,
     });
+    // ★D45: cash＝現金へ振替（在高加算）・card／other＝在高外（日報の カード回収／その他回収 に別掲）
+    const how = collectMethod === "cash" ? "現金へ振替" : collectMethod === "card" ? "カード回収・現金在高には含めません" : "その他回収・現金在高には含めません";
     setMsg(error
       ? (error.message.includes("bad amount") ? "回収額が残額を超えています" : error.message)
-      : `売掛 ${yen(amt ?? remaining)} を回収（現金へ振替・${amt !== null && amt < remaining ? "残額 " + yen(remaining - amt) : "完済"}）。`);
+      : `売掛 ${yen(amt ?? remaining)} を回収（${how}・${amt !== null && amt < remaining ? "残額 " + yen(remaining - amt) : "完済"}）。`);
     setCollectPick(null);
     await loadRecvs();
     await loadReports();
@@ -664,7 +674,7 @@ export default function ReportBoard({
                         )}
                         {/* E8-2 #13: 回収はモーダル経由（部分回収・空欄=全額） */}
                         {/* ★裁定150（v2.1 D44）: 文言＝未回収は「回収を登録」・一部回収済みは「追加回収」（経路は同じ部分回収モーダル） */}
-                        <button style={btnLight} onClick={() => { setCollectPick(r); setCollectAmt(""); }}>
+                        <button style={btnLight} onClick={() => { setCollectPick(r); setCollectAmt(""); setCollectMethod("cash"); }}>
                           {r.collected_amount > 0 ? "追加回収" : "回収を登録"}
                         </button>
                       </div>
@@ -714,7 +724,7 @@ export default function ReportBoard({
       {/* E8-2 #13: 部分回収モーダル（残額表示・金額入力・空欄=全額・現金固定＝現行経路） */}
       {collectPick && (
         <Modal onClose={() => setCollectPick(null)}>
-          <h3 style={{ ...t.cardTitle, margin: "0 0 8px" }}>売掛の回収（現金）</h3>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 8px" }}>売掛の回収</h3>
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
             {collectPick.customers?.name ?? "フリー"} ・ 残額 <b className="num" style={{ color: "var(--champ)" }}>{yen(remainOf(collectPick))}</b>
           </p>
@@ -724,6 +734,14 @@ export default function ReportBoard({
                 onChange={(e) => setCollectAmt(e.target.value)} placeholder={`空欄＝全額（${remainOf(collectPick).toLocaleString()}）`}
                 style={{ ...input, width: 180 }} />
             </label>
+            {/* ★D45（mig0143）: 回収方法（receivable_collect の p_method＝既存引数・既定 cash）。card／other は理論在高に入らない */}
+            <label style={{ ...t.fieldLabel, fontSize: 12 }}>回収方法{" "}
+              <select value={collectMethod} onChange={(e) => setCollectMethod(e.target.value as "cash" | "card" | "other")} style={{ ...input, width: 120 }}>
+                <option value="cash">現金</option>
+                <option value="card">カード</option>
+                <option value="other">その他</option>
+              </select>
+            </label>
             <button style={btnDark} onClick={() => void submitCollect()}>
               {collectAmt === "" ? "全額を回収" : `${yen(Number(collectAmt) || 0)} を回収`}
             </button>
@@ -731,6 +749,9 @@ export default function ReportBoard({
           </div>
           <p style={{ ...t.sub, fontSize: 11, margin: "8px 0 0" }}>
             一部回収では売掛は未回収のまま残り、残額が減ります。全額に達すると回収済みになります。
+          </p>
+          <p style={{ ...t.sub, fontSize: 11, margin: "4px 0 0" }}>
+            カード・その他での回収は現金在高（ドロワー）に含まれません
           </p>
         </Modal>
       )}
@@ -1032,6 +1053,9 @@ export default function ReportBoard({
                 <div className="nox-listrow"><span style={{ flex: 1 }}>釣銭準備金</span><b className="num">{yen(cashFloat)}</b></div>
                 <div className="nox-listrow"><span style={{ flex: 1 }}>現金売上</span><b className="num" style={{ color: "var(--ok)" }}>＋ {yen(preview.cash)}</b></div>
                 <div className="nox-listrow"><span style={{ flex: 1 }}>売掛の回収（現金）</span><b className="num" style={{ color: "var(--ok)" }}>＋ {yen(preview.arCollectedToday)}</b></div>
+                {/* ★D45（mig0143）: カード回収／その他回収は在高外（レジ内予定額に入れない・締め前＝当日 ar_collections の再集計） */}
+                <div className="nox-listrow"><span style={{ flex: 1, color: "var(--sub)" }}>カード回収（在高外）</span><b className="num" style={{ color: "var(--sub)" }}>{yen(preview.arCollectedCardToday)}</b></div>
+                <div className="nox-listrow"><span style={{ flex: 1, color: "var(--sub)" }}>その他回収（在高外）</span><b className="num" style={{ color: "var(--sub)" }}>{yen(preview.arCollectedOtherToday)}</b></div>
                 <div className="nox-listrow"><span style={{ flex: 1 }}>諸経費</span><b className="num" style={{ color: "var(--bad)" }}>− {yen(expense)}</b></div>
                 <div className="nox-listrow"><span style={{ flex: 1 }}>現金支払（送り・日払い等）</span><b className="num" style={{ color: "var(--bad)" }}>− {yen(payout)}</b></div>
                 <div className="nox-listrow" style={{ borderTop: "1px solid var(--line)" }}>
@@ -1219,7 +1243,7 @@ export default function ReportBoard({
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
           <thead>
             <tr>
-              {["営業日", "伝票", "客数", "現金", "回収現金", "カード", "カード手数料", "売掛", "ドリンク売上", "未会計", "諸経費", "現金支払", "実査差異", "再締め回数", "締め担当", ""].map((h) => (
+              {["営業日", "伝票", "客数", "現金", "回収現金", "カード回収", "その他回収", "カード", "カード手数料", "売掛", "ドリンク売上", "未会計", "諸経費", "現金支払", "実査差異", "再締め回数", "締め担当", ""].map((h) => (
                 <th key={h} style={t.th}>{h}</th>
               ))}
             </tr>
@@ -1232,6 +1256,9 @@ export default function ReportBoard({
                 <td style={{ ...t.td, ...t.num }}>{r.guests}</td>
                 <td style={{ ...t.td, ...t.num }}>{yen(r.cash)}</td>
                 <td style={{ ...t.td, ...t.num, color: r.ar_collected > 0 ? "var(--champ)" : undefined }}>{yen(r.ar_collected)}</td>
+                {/* ★D45（mig0143）: 凍結 2 列（在高外・締め時の値） */}
+                <td style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.ar_collected_card)}</td>
+                <td style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.ar_collected_other)}</td>
                 <td style={{ ...t.td, ...t.num }}>{yen(r.card_gross)}</td>
                 <td style={{ ...t.td, ...t.num }}>{yen(r.card_tax)}</td>
                 <td style={{ ...t.td, ...t.num }}>{yen(r.uri)}</td>
@@ -1274,7 +1301,7 @@ export default function ReportBoard({
           </tbody>
         </table>
         <p style={{ ...t.sub, fontSize: 11, marginTop: 8 }}>
-          実査差異 = 実査 −（釣銭準備金 + 現金売上 + 回収現金 − 諸経費 − 現金支払）。現金売上と回収現金は別掲（混ぜない）。
+          実査差異 = 実査 −（釣銭準備金 + 現金売上 + 回収現金 − 諸経費 − 現金支払）。現金売上と回収現金は別掲（混ぜない）。カード回収・その他回収は現金在高に含めません。
         </p>
       </section>
       </>)}
