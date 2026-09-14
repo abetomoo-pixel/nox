@@ -3091,6 +3091,8 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 **B6-4 実装（2026-09-11・client **`3254919`**・Agoora 目視 OK 同日・B6-10 ①）**: 対象は **analytics・month-report の 2 画面**（dashboard は人件費を出さない＝式なし・対象外）。純関数 `lib/nox/payroll/labor-cost.ts`（finalRunOf／slipGross／laborCostOf／laborRatePct／castLaborRatePct・DB 非依存）に analytics の現行式を固定し、analytics-board（合計・state・cast 別 Map・KPI 人件費率・ランキング報酬率・CSV 列）と month-report（合計・state・率）を同関数へ付け替え。**月報の人件費率は整数 %（Math.round(x*100)）→小数 1 桁 %（Math.round(x*1000)/10）へ変更**（Agoora 判断・桁数引数は持たせない）。month-report の payslips select に cast_id を足しただけで RLS・行数は不変。list.ts の gross（CSV 定義）は不触。suite＝verify:nox-labor-cost **13 本**（走数外・f0 **42 本目**へ連結）。表示値一致（DEMO CLUB NOX・pg 直結読取）＝2026-07 人件費 276,145・KPI 率 null（日報 0 行）・ランキング 6 行同値／2026-09 人件費 234,647・KPI 率 67.3・ランキング 5 行同値・月報率 67→67.3。tsc／lint／ui-tokens 56 緑。
 
+設計書＝`docs/NOX_設計書_B6分析_v1_2026-09-11.md`（2026-09-14 収蔵・Downloads から・sha256 b1753bc0445d381d505dfddfa203209d72938080c11624a44f3aec3560dc15ab・12,161 B・§4 に「final 無し → null（state の draft／none は laborCostOf 側）」を含むことを grep で確認）。B6 ①②③（B6-4／B6-11／B6-12）の実装対照は同書 §4。
+
 ## 裁定237（Agoora 承認 2026-09-10）締切ロックの client 算出（deadlines 表から RPC と同式）は許容＝式の二重管理は #68 で解消
 
 出典＝相談役ブロック（2026-09-10）。staff_shift_deadline_at は内部専用（0136）で client から呼べないため、面 b／c は staff_shift_deadlines を select し「対象営業日 − days_before の deadline_hm（JST）・行なし＝3 日前 21:00」を同式で算出している。書込側の判定は RPC（staff_wish_set）が正＝client は表示のロックのみ。同じ式を 2 箇所で持つ状態は #68（関数を authenticated へ公開→client 算出撤去）で解消する。
