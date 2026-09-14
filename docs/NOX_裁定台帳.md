@@ -2846,6 +2846,26 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓75：機械走査の候補は親行のソースで照合してから置換する。走査数を作業量と読まない（240 で 141→54）（相談役起こし）
+
+出典＝相談役 9/12 起動ブロック 手順 6（2026-09-11 受領・2026-09-14 収載）。裁定240 の棚卸し（docs/240_inventory.md）は機械走査で対象 141 行＋ダイアログ 64 行を数えたが、親行のソース照合後の実対象は (a) 64→28・(b) 70→15・(c) 71→11＝付け替え 54 行。
+
+### 教訓74：率の合成は元値（金額）から計算する。丸め済み表示値を足さない（B6-12 初版で 3 名合計が 99.9% になった）（相談役起こし）
+
+出典＝相談役 9/12 起動ブロック 手順 6（2026-09-11 受領・2026-09-14 収載）。集中度（上位 3 名）の初版は丸め済み構成 % の和（99.9%）＝裁定 B6-12 改定で按分売上 ¥ 合計 ÷ salesRankTotal（100.0%）へ（`2bb9cd6`／`2296319`）。
+
+### 教訓73：CC ブロック内の「上記」「前述」参照は貼り付けで切れる。裁定本文はブロックに逐語で含める（242 で本文なしのまま届き停止）（相談役起こし）
+
+出典＝v31 §5（2026-09-11 提案・2026-09-14 収載）。
+
+### 教訓72：sha を引き継ぎ書に載せる前に桁数 64 を機械で確認する（v30 §8 で 63 桁を載せた）（相談役起こし）
+
+出典＝v31 §5（2026-09-11 提案・2026-09-14 収載）。以後の収蔵ブロックは「桁数 64 を確認・不一致なら収蔵せず停止」を手順に含める。
+
+### 教訓71：CC を新セッションに切り替える前に旧セッションの実行中プロセス（f0・watcher）を確認する（相談役起こし）
+
+出典＝v31 §5（2026-09-11 提案・2026-09-14 収載）。2026-09-10 は旧セッションが 10:09 に run1 を起動済みのまま新セッションへ切替→並走（裁定241 で本日限り 2 連緑扱い）。
+
 ### 教訓69：合算＝子表の行移送は unique／partial unique を全列挙してから設計し、目視前に「2 卓とも自動時間料金あり」の fixture を suite に入れる（相談役起こし）
 
 2026-09-10、check_merge（mig0138／0139）は from の check_lines を `update … set check_id = into` で丸ごと移すが、check_lines には部分ユニーク `check_lines_one_time_auto`＝`(check_id, fee_kind, block_no) where time_auto` がある。check_open は set_fee×units＞0 の店で必ず `time_auto=true・fee_kind='set'・block_no=0` の行を作る（vip_charge 行も `'vip_charge'・0`、auto 店の延長は `'extension'・k`）ため、**時間料金のある店では 2 卓とも同じキーの自動行を持ち、合算は Postgres の unique 違反（`merge_conflict:*` ではない生の duplicate key）で失敗する**。verify-nox-reopen の merge fixture は pg 直 insert の伝票（set 行なし）で作ったため緑のまま通り、目視前の読取調査（本日 13:42）で露見した。
@@ -3062,6 +3082,8 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 | **B6-8** | 語: 「商品売上(明細)」とし、セット・延長は「時間料金」として分ける(レジの語と揃える) |
 | **B6-9** | 日別人件費率列: 不可。人件費は payslips の period 凍結値で日別に分けられず、日割りは再計算(B5-1 に反する)。月次のみ |
 | **B6-10** | 入口とレーン: 新ページなし。/analytics の板に節を足す。client 3 本(①純関数化+suite ②比較・直近 30 日 ③指名・出勤・商品売上)・mig 0・f0 は ① の後に 1 回(3 画面に触るため) |
+| **B6-11** | 比較（改訂版・Agoora 承認 2026-09-11・台帳収載 2026-09-14・**逐語**）: 「/analytics の KPI カード 5 枚それぞれの .sub 直後に差分行 1 行を置く。比較列を持つ表は作らない。差分行=「前月比（月全体）」「前年同月比」の 2 項目。各項目は当月−比較月の差分（売上・組単価=円、組数=組、率指標=pt）と変化率（%・小数 1 桁）。率指標（人件費率・目標進捗）は変化率を出さず pt 差のみ。色は var(--sub)（裁定120 の Neutral。専用トークンは作らない。.warn の --bad は使わない）。増減で赤緑・矢印・記号を付けない。比較月のデータが無い（daily_reports 0 行／paid run 無し／store_sales_targets 無し）場合、その項目は「—」。分母 0 の変化率も「—」。比較月の値は当月と同じ経路で取る（daily_reports・payroll_runs/payslips・store_sales_targets の既存の直 SELECT を比較月の period で再取得。人件費は labor-cost.ts の finalRunOf/laborRatePct を比較月で呼ぶ）。RPC は KPI 5 枚に関与しないため不触。RPC 変更・mig・凍結表の新設は無し（B6-1）。cast 個人金額の新規露出無し（B6-2）。売上カード既存の「前月同期」（.sub）は据え置き。差分行の前月比とは定義が異なる（月全体 vs 同期）ため置換しない。月間目標カードの差分行は進捗バーの後に置く。前月・前年同月の算出は既存 addMonths と同じ Date 演算を compare.ts に写す（−1／−12）。差分計算は純関数 lib/nox/analytics/compare.ts（diffOf・prevMonthOf・prevYearMonthOf）に置き、DB 非依存 suite verify:nox-compare を走数外で新設（f0 43 本目に連結）。当月の 5 値・前月同期・人件費率・ランキングは前後完全一致。ui-tokens baseline 56 不変。client 1 本（B6-10 の ②）。新ページ無し。dashboard・month-report は対象外。」 適用＝client `207b60b`（compare.ts＋KPI 差分行）＋suite `a4caf13`（verify:nox-compare 20 本・f0 43 本目） |
+| **B6-12** | 指名・出勤・商品売上（改定版・Agoora 承認 2026-09-11・台帳収載 2026-09-14・**逐語**）: 「/analytics の casts ビュー先頭（売上貢献の前）に既存 .nox-kpis で小 KPI 3 枚を置く: 「指名（店合計）」=get_store_nom_counts を月初〜月末で呼び 本／場内／同伴 の 3 値をそのまま表示（ランキング行・売上貢献行の指名は足さない。B6-5）／「集中度（上位 3 名）」=既存 salesRanking の上位 3 行の按分売上 ¥ 合計 ÷ salesRankTotal を小数 1 桁 % で表示（丸め済み構成 % は足さない。総和 0 または行 0 は「—」。3 行未満は在る行の合計）／「出勤実績」=attendance の shukkin・dohan・late を店×月で数えた人日と distinct cast 数「X 人日（Y 名）」。sales ビューの売上カテゴリ節直後に「商品売上（明細）」=drink＋champ＋bottle と「時間料金（明細）」=time＋set＋extension＋vip_charge の 2 値を置き、注記 1 行「明細ベース（サ料前・丸め前）。上の売上（決済ベース）とは一致しません」を添える。既存の 5 分類ラベルは不触。出勤扱いの状態集合（shukkin・dohan・late）は cast-stats.ts の定数 PRESENT_STATUSES と純関数 presentDaysOf に集約し、analytics と dashboard の直書き 2 箇所を置換する（前後完全一致）。純関数は lib/nox/analytics/cast-stats.ts（top3ShareOf・presentDaysOf・productTimeOf・nomStoreOf）に置き、DB 非依存 suite verify:nox-cast-stats を走数外で新設（f0 44 本目に連結）。新規読取は attendance の店×期間 直 SELECT 1 本のみ。RPC 変更・mig・凍結表の新設は無し（B6-1）。cast 個人の金額・順位の新規露出無し（B6-2）。差分行は付けない。色は既存 KPI と同じ。client 1 本（B6-10 の ③）。新ページ無し。month-report は対象外。」 適用＝client `f59dcda`＋suite `fbcb15e`（初版・集中度は丸め済み % の和＝99.9%）→改定追随 `2bb9cd6`／`2296319`（¥ ベース＝100.0%・verify:nox-cast-stats 14 本・f0 44 本目） |
 
 **対象外（4 件・逐語）**: 販売実績の器(第 2 期)・PII ゲート待ち・RPC 変更が要る顧客系 5 行・時点再現不可の A56。
 
@@ -3138,6 +3160,18 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 出典＝相談役ブロック 2026-09-11「裁定243 収載＋f0→push」。**本文（逐語）**: 「恒久注意 17 を廃止。恒久注意 10 は『同じ DB を触る verify を並走させない』に限定。他プロジェクトの verify との並走は可・並走下の緑は有効・赤がタイムアウト由来なら走数消費のみで再走可(段名で判定)。根拠: 9/11 実測 run1/2 並走 923/993s vs 単独 458/595s、いずれも 41/41・3,765 で結果同一=負荷は失敗方向にのみ効く。裁定200 の 3値は『NOX の DB を触る別プロセス』の検出に読み替え、他プロジェクトのローカルプロセス数は判定から外す。」
 
 適用＝恒久注意 10 は限定・17 は廃止（下記 §恒久注意の各行に注記）。裁定200 チェックの 3 値＝(1) pg_stat_activity の NOX DB 直結クライアント (2) 直近 60 秒の audit_logs (3) ローカルの **NOX** verify プロセス。他プロジェクト（makanai-shift 等）のローカルプロセスは数えない。裁定241（9/11 の例外）は本裁定で一般化＝以後は例外採番不要。
+
+## 裁定244（Agoora 承認 2026-09-11）240 追補＝例外の追加・並び順・実装形（.nox-actions／actionsRow）・レーン (a)(b)(c)
+
+出典＝相談役 2026-09-11 受領（台帳収載 2026-09-14）。**本文（逐語）**: 「240 の例外に追加: 月送り「‹／›／今日」＝切替／register の会計操作バー（← フロア・−・＋・延長 等の並び）＝固定バー／一覧の選択タイル＝切替／入力と同行のインライン・文中のインライン＝対象外／文言＋ボタンの左右分割（notices・simulator）＝例外／横幅いっぱいのボタン＝据え置き（幅は変えない）。並び順: 同じ行に複数あるとき 実行（青塗り）を右端・補助（青枠）をその左・Danger を左端。ダイアログはキャンセル左・確定右。3 個以上は flex-wrap で折返し各段中央。モバイル専用 @media は置かない。実装形: globals.css に .nox-actions（display flex・justify-content center・gap 既存値・flex-wrap wrap）を .nox-btn.ghost:disabled 直後、theme.ts に actionsRow を btnGhostLg 直後。inline style の justifyContent flex-end／marginLeft auto は対象行のみ外してラッパへ置換。.nox-formmodal-foot は justify-content center を 1 行追加（sticky は不変）。新トークン 0・ui-tokens baseline 56 不変。レーン: (a) 定義 2 箇所＋ダイアログ脚 64 → (b) /shift・/master・/register・/casts → (c) 残り。各 client 1 本。suite は作らず docs/240_inventory.md を収蔵して目視で守る。」
+
+適用＝(a) client `002c6fc`（globals.css .nox-actions＋.nox-formmodal-foot justify center 1 行・theme.ts actionsRow・ダイアログ脚は走査 64 行→ソース照合で実対象 28 行）→ (b) client `4bd3342`（/shift・/master・/register・/casts の節直下 15 行・入替 4）→ (c) client `4a7f201`（残り全画面＋共通部品 11 行・入替 4）＝**付け替え 54 行＋CSS 1 行**。棚卸し＝docs/240_inventory.md（`59f6e64`・走査器の疑義は本裁定で確定）・レーン内訳＝docs/tmp/240_lane_{a,b,c}.md（未追跡）。新トークン 0・ui-tokens 56・tsc／lint 緑（各 client）。目視は Agoora 持ち越し。
+
+## 裁定245（Agoora 承認 2026-09-11）B4 追補＝キャスト確認の任意化・承認待ち行の「確定」・一括確定の 62 件分割・shift-add-form の「不足 n」
+
+出典＝相談役 2026-09-11 受領（台帳収載 2026-09-14）。**本文（逐語・245-1〜7）**: 「245-1 キャスト確認は店舗設定 settings_json.shift_cast_confirm（boolean・既定 false）。setter は店舗設定 setter mig（小・set_store_profile 群と統合）に同梱し本裁定の client には含めない。client は settings_json を select で読み、キー無しは false。false: 「確認へ」「n 件まとめて」を非表示・段階表示は 申請→承認→確定 の 3 段・承認待ちの proposed 行のバッジは「承認済み（未確定）」。true: 現状どおり（4 段・確認へ・キャスト確認待ち）。245-2 承認待ちの操作列に「確定」（青塗り・実行）を追加。planned／proposed とも shift_confirm_bulk([id]) を 1 件で呼ぶ。操作列は 244 の例外＝配置不変。245-3 一括確定は client で 62 件ずつ分割して shift_confirm_bulk を順に呼ぶ。事前の 62 件超ブロックは撤去。途中失敗は「n／m 件確定・残りは再試行」で停止し、確定済み分は戻さない。245-4 本人確認と店側確定を区別する列は第 2 期送り（audit_logs の actor で足りる）。245-5 差し戻し／時間調整は現状維持。245-6 shift-add-form に本体の staffing_needs と日別配置数を props で渡し、日セルに「不足 n」（required−assigned>0 の日のみ・色は本体カレンダーの不足表示と同じトークン・新トークン 0）。このキャストを選択中の日は n−1 で表示（0 は「充足」）。一括ボタンに「不足日を全部選択」を追加（出勤不可・登録済みの日は除く）。245-7 DEMO の 108 件は残す（目視で 行確定 1 件＋一括 107 件の 2 分割を実行して確認する）。純関数 lib/nox/shift/gap.ts（gapOf(required, assigned, selected) → number|null・chunkOf(ids, 62) → ids[][]）＋ DB 非依存 suite verify:nox-shift-gap（走数外・f0 46 本目）。client 1 本。」
+
+適用＝client `c0b96da`（245-1／2／3／5／6・mig 0・RPC 不触・shift/page.tsx が settings_json.shift_cast_confirm を castConfirm prop で渡す＝dev はキー無し→false）＋suite `b4be1ab`（lib/nox/shift/gap.ts＝gapOf／chunkOf・verify:nox-shift-gap 12 本・走数外・f0 では現在 **45 本目**＝d45 suite が入れば 46 本目）。setter（shift_cast_confirm の書込）は店舗設定 setter mig（小）待ち。245-7 の目視（DEMO 2026-09 の 108 件＝行確定 1 件＋一括 107 件＝62＋45 の 2 分割）は Agoora 持ち越し。
 
 ## 裁定236（Agoora 承認 2026-09-10）希望の取消（「なし」へ戻す）は C層② の範囲外＝staff_wish_delete RPC（本人・締切前）は次の補正 mig で
 
@@ -3616,7 +3650,7 @@ K36 の説明文もモックの 2 カード語彙（本人レコード／NOXロ�
   f0 2 連緑＝**37 本 3,550**（36 本＋sweep 4）・所要 439s／706s（掃除前 7〜12 分と同程度＝全体は他スイート支配。**rls 段は 7 分→2 分未満**）。
   golden 6 値不変。逆張り＝(b) service_role で verify org に 1 行 insert→sweep で削除→0 ／ (c) probe 1 行を置いた状態で owner セッションの同 assert が
   count=1 で FAIL・sweep 後に 0 で PASS（rls の意味が変わっていないことの実証）。
-- **f0 本数の基準（handoff 参照用）**: 36 本 3,546 → 37 本 3,550（sweep 4 assertions）→ 38 本 3,570（flags 20 assertions・2026-09-09 2 連緑 761s／723s）→ 39 本 3,642（staff-shift 53 assertions＋grants 298→317・2026-09-10 2 連緑 412s／454s）→ 40 本 3,721（reopen 65 assertions＋billing 53→53＋grants 317→329・2026-09-10 2 連緑 889s／1049s）→ **41 本 3,765**（旧 3,721＋reopen 65→73（+8）＋payroll 195→212（+17）＋payroll-list 新設 19（+19）＝+44・2026-09-11 2 連緑 923s／993s）。**golden 6 値は不変＝5931／125802／55233／64／64／53**。
+- **f0 本数の基準（handoff 参照用）**: 36 本 3,546 → 37 本 3,550（sweep 4 assertions）→ 38 本 3,570（flags 20 assertions・2026-09-09 2 連緑 761s／723s）→ 39 本 3,642（staff-shift 53 assertions＋grants 298→317・2026-09-10 2 連緑 412s／454s）→ 40 本 3,721（reopen 65 assertions＋billing 53→53＋grants 317→329・2026-09-10 2 連緑 889s／1049s）→ **41 本 3,765**（旧 3,721＋reopen 65→73（+8）＋payroll 195→212（+17）＋payroll-list 新設 19（+19）＝+44・2026-09-11 2 連緑 923s／993s）。→ **45 本 3,824**（3,765＋labor-cost 13（B6-4）＋compare 20（B6-11）＋cast-stats 14（B6-12）＋shift-gap 12（裁定245）・2026-09-14 2 連緑 488s／630s）。**golden 6 値は不変＝5931／125802／55233／64／64／53**。
 - **本番向け付記**: audit_logs の retention（保持期間・アーカイブ）は**ローンチ後必須**（税理士ゲート後＝裁定23 系）。本 gate は verify org 限定であり
   本番 org の行には一切触れない。
 
@@ -3845,6 +3879,7 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **f0 新基準 pin（2026-09-10）**: 裁定200 チェック 3 回（3 値 0）→ f0 **2 連緑＝39 本 3,642**（412s／454s・39 段 ALL PASS・golden 6 値不変）＝裁定228 追認・push。
 - **f0 新基準 pin（2026-09-11）**: 裁定200 チェック（10:07:53／10:08:55＝3 値 0）→ run1 10:09〜10:24（923s）・run2 10:30〜10:46（993s）＝いずれも **41 段 ALL PASS・3,765・golden 6 値不変・結果同一**。run1 は 32 段目以降・run2 は 10:34 以降で makanai-shift の verify が並走（恒久注意10／17 抵触）したが、**裁定241（例外）により本日限り 2 連緑と認める**＝41 本 3,765 を pin。内訳＝旧 3,721＋reopen 65→73（+8）＋payroll 195→212（+17）＋payroll-list 新設 19（+19）＝+44（前 pin 3,721 との差を段別で照合・一致）。走数 2/6 消費。push＝9/10 分 27 コミット＋本 pin。
 - **f0 pin 不変の再確認（2026-09-11 午後・裁定242＋#82 の push 根拠）**: 裁定200 チェック 2 回（11:45:11／11:46:12＝3 値 0・他プロジェクト verify プロセス 0）→ run3 11:46〜11:53・458s・run3 後の再実測は自 run の teardown 監査 3 件で 1 分待ち→ 11:55:36 に 3 値 0 → run4 11:55〜12:05・595s＝いずれも **41 段 ALL PASS・3,765・golden 不変（5931／125802／55233）・段別 assertion 数も同一**。watcher（30 秒間隔）で他プロジェクトの verify は両 run とも 0＝恒久注意 17 の無効条件に該当せず、通常の 2 連緑。pin 41 本 3,765 は不変。
+- **f0 新基準 pin（2026-09-14・45 本 3,824）**: 9/12 朝の起動ブロック（v31 §8）を 9/14 に実施（9/12・9/13 は未起動＝走数消費なし）。裁定200 の 3 値＝NOX DB 基準（10:42:35／10:43:48／10:53:43＝0・他プロジェクト BANZEN の run-all-verifies は並走＝裁定243 で除外）→ run1 10:43〜10:52・488s・run2 10:53〜11:04・630s＝いずれも **45 段 ALL PASS・3,824・golden 不変（5931／125802／55233）・段別 assertion 数も同一**。差分＝verify:nox-labor-cost 13（42 本目・B6-4）＋verify:nox-compare 20（43 本目・B6-11）＋verify:nox-cast-stats 14（44 本目・B6-12）＋verify:nox-shift-gap 12（45 本目・裁定245）＝見込み 3,824 と一致。9/11 の run5 赤（28 段目 verify:nox-cast-photo 署名 URL GET 504＝裁定243 のタイムアウト型）は走数消費のみ。push の根拠。
 - **C層③ DB 側完了（0138〜0141）**（2026-09-10・mig0138 `ec6c3e5`＋0139 `ec6c3e5`＋0140／0141 `8d94923`・追随 `5005a9a`・名簿 `1a78d50`・suite `ac125d7`）: 設計書 v1 §1〜§3 どおり memberships.can_close／can_reopen＋set_staff_perms 7 引数（#63 クローズ）・daily_reports 9 列＋report_reopen／daily_report_reclose 8 引数（p_idem_key）／cash_diff_approve・checks.status merged＋check_merge（0139 補正）・payroll_reopen 5 引数（p_reason・service 経路）・関所 assert_day_open を課金ゲート内蔵の check_* 16 本へ（0140・check_open は 0141 で v_seat.store_id 版へ補正＝教訓68）。verify:nox-reopen 65 assertions（run1 緑・逆張り 3 本同時で 12 赤→backup 復元 差分 0）を f0 末尾へ連結＝**40 本 3,721**（2 連緑 889s／1049s・40 段 ALL PASS・run1／run2 の段別 assertion 数は同一・golden 6 値不変）。内訳の計算値＝旧 3,642＋reopen 65＋billing +0＋grants +12＝3,719 で実測 3,721 と 2 差（pin は実測値・差の出所は本ブロックでは未特定＝段別ログは docs/tmp に残置しない・次の pin 時に段別で照合）。UI（§4 の 4 面）は次ブロック。
 - **handoff v29／v30 収蔵（2026-09-11）**: Downloads から `docs/handoff/` へ収蔵（git 追跡へ追加・sha 全64桁付き）。v29＝`NOX_相談役引き継ぎ_2026-09-10_v29.md`（7,604 B・sha256 `4573dfdafa30be4240cafc2c4566d125701e8509b598ffbc53cfd48a3bf79d0a`）／v30＝`NOX_相談役引き継ぎ_2026-09-10_v30.md`（9,576 B・sha256 `e21dd85b72e97989ef7f1aee6e618d2b0d14de11362f348ff0e52f36472b1660`・Downloads の「v30 (1)」「(2)」「(3)」は 3 つとも同 sha＝「(1)」を無印名で収蔵。Downloads の無印 v30.md は 9,772 B・16:49 旧稿＝収蔵せず削除もせず）。収蔵後に再計算した sha は照合値と一致。v29 §0 の HEAD／ahead は 9/10 14:30 時点・v30 §0 は 9/10 17:05 時点の値のままで正（#81 は v30 未記載＝v31 で記載）。旧セッションの pin push（`18c5b2b`・0 0）を待って収蔵＝f0 不要（docs のみ）。
 ---
