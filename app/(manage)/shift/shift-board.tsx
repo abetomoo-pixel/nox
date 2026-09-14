@@ -168,6 +168,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★R4（Agoora 裁定）: 確定シフトタブ＝**人ベースの月カレンダー**を既定にし、
   //   現行の一覧は「表で見る」トグルで残置する（表示のみ・RPC 非改変）。
   const [rosterView, setRosterView] = useState<"cal" | "table">("cal");
+  // ★裁定253 R9（2026-09-14）: 確定シフト下部の変更履歴＝初期は閉じる（見出しクリックで開閉・件数は閉じていても見出しに出す）
+  const [histOpen, setHistOpen] = useState(false);
   // ★C層② H3（設計書 v1 §4・横断 §4）: 対象切替「キャスト／黒服」＝flag_enabled('staff_shift', 自店) が true のときだけ出す。
   //   off＝切替そのものが無い（現行のまま）。B4 で入れた cast の面は不触。読取 1（RPC・STABLE）。
   const [staffFlag, setStaffFlag] = useState(false);
@@ -1833,7 +1835,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           </div>
         ))}
 
-        {/* ★B4-c 裁定226（H27）: スタッフ確認状況＝表示月の shifts.status の再形（未確認＝proposed／確認済み＝confirmed・変更希望・辞退希望・催促は器なし＝出さない）。新規読取 0。 */}
+        {/* ★裁定253 R14（2026-09-14）: castConfirm（settings_json.shift_cast_confirm）が false の店では proposed は「キャスト未確認」ではなく「未確定」＝ラベルを切り替える（数え方は不変）
+            ★B4-c 裁定226（H27）: スタッフ確認状況＝表示月の shifts.status の再形（未確認＝proposed／確認済み＝confirmed・変更希望・辞退希望・催促は器なし＝出さない）。新規読取 0。 */}
         {(() => {
           const inMonth = shifts.filter((x) => x.date.slice(0, 7) === month && (x.status === "proposed" || x.status === "confirmed"));
           if (inMonth.length === 0) return null;
@@ -1849,13 +1852,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             <div className="nox-noprint" style={{ marginTop: 14 }}>
               <h3 style={{ margin: "0 0 6px", fontSize: 13 }}>スタッフ確認状況（{my}年{mm}月）</h3>
               <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "0 0 8px" }}>
-                確認済み <b className="num" style={{ color: "var(--ok)" }}>{people.length - unconfirmed}</b>人 ・ 未確認 <b className="num" style={unconfirmed > 0 ? { color: "var(--gold2)" } : undefined}>{unconfirmed}</b>人（未確認＝キャスト確認待ちの行が残っている人）
+                確認済み <b className="num" style={{ color: "var(--ok)" }}>{people.length - unconfirmed}</b>人 ・ {castConfirm ? "未確認" : "未確定"} <b className="num" style={unconfirmed > 0 ? { color: "var(--gold2)" } : undefined}>{unconfirmed}</b>人（未確認＝キャスト確認待ちの行が残っている人）
               </p>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {people.map(([cid, e]) => (
                   <span key={cid} className={`nox-stpill ${e.proposed === 0 ? "ok" : ""}`}
                     style={e.proposed > 0 ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
-                    {castName(cid)} {e.proposed === 0 ? "確認済み" : `未確認 ${e.proposed}件`}
+                    {castName(cid)} {e.proposed === 0 ? "確認済み" : `${castConfirm ? "未確認" : "未確定"} ${e.proposed}件`}
                   </span>
                 ))}
               </div>
@@ -1866,8 +1869,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         {/* ★B4-c 裁定224（H39）: 確定後の変更履歴＝owner のみ（audit_logs の owner 限定 RLS＝裁定190 同型）。「管理者変更を追加」は器なし＝出さない。 */}
         {isOwner && (
           <div className="nox-noprint" style={{ marginTop: 14 }}>
-            <h3 style={{ margin: "0 0 6px", fontSize: 13 }}>変更履歴（{my}年{mm}月・最新 {auditRows.length} 件）</h3>
-            {auditRows.length === 0 ? (
+            <h3 style={{ margin: "0 0 6px", fontSize: 13 }}>
+              <button type="button" onClick={() => setHistOpen((v) => !v)} aria-expanded={histOpen}
+                style={{ background: "none", border: 0, padding: 0, font: "inherit", color: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span aria-hidden="true" style={{ fontSize: 11, color: "var(--v2-muted)" }}>{histOpen ? "▼" : "▶"}</span>
+                変更履歴（{my}年{mm}月・最新 {auditRows.length} 件）
+              </button>
+            </h3>
+            {!histOpen ? null : auditRows.length === 0 ? (
               <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>この月のシフト操作の記録はありません。</p>
             ) : (
               <div style={{ display: "grid", gap: 3 }}>
@@ -1886,7 +1895,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 })}
               </div>
             )}
-            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>全操作の詳細は<a href="/audit" className="nox-link">操作履歴</a>で確認できます。</p>
+            {histOpen && <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>全操作の詳細は<a href="/audit" className="nox-link">操作履歴</a>で確認できます。</p>}
           </div>
         )}
       </section>

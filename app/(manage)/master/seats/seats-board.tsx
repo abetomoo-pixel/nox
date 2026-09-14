@@ -49,6 +49,26 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
     setSeats((data ?? []) as Seat[]);
   }
 
+  // ★裁定253 R2（2026-09-14）: 行内の ∧∨ で表示順を入れ替える。席に reorder RPC は無いため既存の set_seat（6 引数・明示 boolean）で
+  //   隣と sort_order を交換する（2 回呼び＝非原子。失敗時は再読込で実態へ戻す）。同値のときは隣の値 ∓1 を与える。並びは 表示順→席名。
+  const sortedSeats = seats.slice().sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, "ja"));
+  async function moveSeat(s: Seat, dir: -1 | 1) {
+    const i = sortedSeats.findIndex((x) => x.id === s.id);
+    const nb = sortedSeats[i + dir];
+    if (i < 0 || !nb) return;
+    const [oa, ob] = s.sort_order !== nb.sort_order
+      ? [nb.sort_order, s.sort_order]
+      : (dir === -1 ? [nb.sort_order - 1, nb.sort_order] : [nb.sort_order + 1, nb.sort_order]);
+    setMsg(null);
+    const write = (x: Seat, order: number) => supabase.rpc("set_seat", {
+      p_id: x.id, p_store_id: storeId, p_name: x.name, p_kind: x.kind ?? "卓", p_sort_order: order, p_is_active: x.is_active,
+    });
+    const r1 = await write(s, oa);
+    const r2 = r1.error ? null : (ob !== nb.sort_order ? await write(nb, ob) : { error: null });
+    if (r1.error || r2?.error) setMsg(`並び替えに失敗: ${(r1.error ?? r2?.error)?.message}`);
+    await reload();
+  }
+
   async function saveSeat() {
     setMsg(null);
     const { error } = await supabase.rpc("set_seat", {
@@ -107,7 +127,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
         </div>
         <table className="nox-table" style={{ marginBottom: 10 }}>
           <tbody>
-            {seats.filter((s) =>
+            {sortedSeats.filter((s) =>
               (!seatQ.trim() || s.name.toLowerCase().includes(seatQ.trim().toLowerCase())) &&
               (seatKind === "" || s.kind === seatKind),
             ).map((s) => (
@@ -116,6 +136,16 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
                 <td>{s.name}</td>
                 <td>{s.kind}</td>
                 <td style={{ color: s.is_active ? "var(--ok)" : "var(--sub)" }}>{s.is_active ? "有効" : "無効"}</td>
+                {/* ★裁定253 R2: 行内の操作列＝∧∨（244 の例外＝配置不変）。絞り込み中は全体順で入れ替える */}
+                {isManagerUp && (
+                  <td style={{ whiteSpace: "nowrap", textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
+                    <button type="button" style={{ ...btnLight, padding: "2px 8px" }} aria-label="上へ" title="表示順を上へ"
+                      disabled={sortedSeats.findIndex((x) => x.id === s.id) === 0} onClick={() => void moveSeat(s, -1)}>∧</button>
+                    <button type="button" style={{ ...btnLight, padding: "2px 8px", marginLeft: 4 }} aria-label="下へ" title="表示順を下へ"
+                      disabled={sortedSeats.findIndex((x) => x.id === s.id) === sortedSeats.length - 1} onClick={() => void moveSeat(s, 1)}>∨</button>
+                    <span style={{ fontSize: 10.5, color: "var(--v2-muted)", marginLeft: 6 }} className="num">{s.sort_order}</span>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

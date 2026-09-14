@@ -106,9 +106,10 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
       <div style={{ position: "sticky", top: 0, zIndex: 20, background: "var(--bg)", paddingBottom: 8, marginBottom: 12, borderBottom: "1px solid var(--line)" }}>
         <section className="nox-cardtop" style={{ ...card, marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            {/* ★裁定253 R3: select 自体を見出し（.nox-plan-select）にし、右のプラン名テキストは出さない（二重表示の解消・バッジは残す） */}
             <label style={{ fontSize: 12, color: "var(--sub)" }}>編集中プラン{" "}
               <select value={selId ?? ""} onChange={(e) => setSelId(e.target.value === "" ? null : e.target.value)}
-                style={{ ...t.input, width: "auto", padding: "7px 9px", fontSize: 13 }}>
+                className="nox-plan-select" aria-label="編集中プラン">
                 <option value="">新規プラン…</option>
                 {data.plans.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}{!p.is_active ? "（無効）" : ""}</option>
@@ -117,8 +118,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
             </label>
             {sel ? (
               <>
-                <span style={{ fontSize: 18, fontWeight: 900, color: "var(--champ)" }}>{sel.name}</span>
-                {/* 状態バッジ＝読み取り専用（切替は右の 無効化/有効化 ボタン） */}
+                {/* 状態バッジ＝読み取り専用（切替は右の 無効化/有効化 ボタン）。★裁定253 R3: プラン名の見出しテキストは削除（select が見出し） */}
                 <span className="nox-stpill" style={sel.is_active
                   ? { borderColor: "rgba(119, 186, 131, .45)", color: "var(--ok)" }
                   : { borderColor: "var(--line2)", color: "var(--sub)" }}>
