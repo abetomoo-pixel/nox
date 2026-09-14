@@ -2846,6 +2846,10 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓79：新クラスを裁定本文に書く前に、その名前が既に存在しないか grep させる（相談役起こし）
+
+出典＝相談役 2026-09-14 受領（逐語）: 「教訓79 新クラスを裁定本文に書く前に、その名前が既に存在しないか grep させる。0144/251 の調査ブロックで .nox-tablewrap の実在を確認せず本文に定義を書き、CC が上書き（既存 7 表の枠が消える）を避けて修飾子で逃がす判断を要した。」実例＝globals.css 1176 の既存 `.nox-tablewrap`（枠つき・7 ファイル使用）と裁定251 の同名定義が衝突→既存へ 2 プロパティ追加＋修飾子 `.plain` で回避（`5543d9b`）。調査ブロックの手順に「提案する新クラス名・新関数名は grep で実在 0 件を確認して報告」を含める。
+
 ### 教訓78：裁定243 のタイムアウト型は cast-photo の 504 に限らない（payroll の statement timeout も同型）。起動ブロックで再走条件を特定の段に限定して書かない（相談役起こし）
 
 出典＝相談役ブロック 2026-09-14 手順 5（逐語）: 「裁定243 のタイムアウト型は cast-photo の 504 に限らない（payroll の statement timeout も同型）。起動ブロックで再走条件を特定の段に限定して書かない（2026-09-14 に run2 が payroll の statement timeout で止まり、再走指示を挟む往復が発生した）」。タイムアウト型の判定は段名ではなくエラー種別（statement timeout・504・ETIMEDOUT）で行う。
@@ -3228,7 +3232,7 @@ M1: 表は共通クラス .nox-tablewrap { overflow-x:auto; max-width:100%; -web
 M2: components/ui/nav.tsx の「その他」シートを className の借用から Modal 部品（maxWidth 520・scroll）へ置き換える。既存の handle 行は二重描画を避けて削る。× ボタン（.nox-formmodal-x）と Esc を追加。/mine の「その他」も同じ部品を通す。
 新トークン 0・ui-tokens baseline 56 不変。client 1 本。」
 
-適用＝未着手（第 1 レーン＝client 1 本の実装ブロック待ち）。調査の根拠: html／body／シェル 3 層に overflow-x のクランプなし・table 51 のうち横スクロール容器なし 24・`.nox-ptwrap` は overflow hidden（切り落とし）・「その他」シートは Modal 部品を通らず地色／padding／角丸が未適用・× と Esc なし。
+適用＝第 1 レーン client `5543d9b`（2026-09-14: report-board 3 表を `.nox-tablewrap plain` で包み 18 列表は th nowrap・nav.tsx の「その他」を Modal 520 scroll＋×＋Esc へ・/mine も同部品）。★同名クラス `.nox-tablewrap`（globals.css 1176・枠つき・7 ファイル使用）が既存だったため、既存へ max-width 100%／-webkit-overflow-scrolling touch を追加し修飾子 `.nox-tablewrap.plain`（枠・角丸・地色なし）を新設して衝突を回避（教訓79）。第 2 レーン＝docs/tmp/m1_lane2.md（21 表＋.nox-ptwrap 8 表）。調査の根拠: html／body／シェル 3 層に overflow-x のクランプなし・table 51 のうち横スクロール容器なし 24・`.nox-ptwrap` は overflow hidden（切り落とし）・「その他」シートは Modal 部品を通らず地色／padding／角丸が未適用・× と Esc なし。
 
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
