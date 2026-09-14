@@ -6,17 +6,23 @@
 // 顧客ピッカーは customers の SELECT（owner/manager＋staff∧can_crm）＝can_crm の無い staff は
 // 候補 0件で登録ボタン無効（fail-closed・RPC 側も invalid customer で拒否＝二重）。
 // 一覧は保管中（status='active'）のみ＝登録直後の確認用。ステータス変更 UI は A2 の範囲外。
+// ★裁定254（2026-09-14・R8）: 顧客 select／ボトル select の二段をやめ、「ボトルキープを登録」→モーダル
+//   （顧客ピッカー→ボトルピッカー→メモ→登録）へ。呼ぶ RPC と引数・データ源（customers 直 SELECT・props の products）は不変。
+//   閉じる＝×・背景タップ・Esc。脚＝キャンセル左・登録 右（244）。ピッカーは components/nox/picker.tsx（汎用）。
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast, { useToast } from "@/components/ui/toast";
+import Modal from "@/components/ui/modal";
+import Picker from "@/components/nox/picker";
 
 type Product = { id: string; name: string; type: string; price: number };
-type Customer = { id: string; name: string };
+type Customer = { id: string; name: string; furigana?: string | null };
 type Keep = { id: string; customer_id: string | null; product_id: string; opened_at: string; note: string | null };
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
+const yen = (n: number) => "¥" + n.toLocaleString();
 
 function errJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
@@ -33,13 +39,14 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
   const bottles = products.filter((p) => p.type === "bottle");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [keeps, setKeeps] = useState<Keep[]>([]);
+  const [open, setOpen] = useState(false);
   const [fCustomer, setFCustomer] = useState("");
   const [fProduct, setFProduct] = useState("");
   const [fNote, setFNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const { data: cs } = await supabase.from("customers").select("id, name").order("name");
+    const { data: cs } = await supabase.from("customers").select("id, name, furigana").order("name");
     const { data: ks } = await supabase.from("bottle_keeps")
       .select("id, customer_id, product_id, opened_at, note")
       .eq("status", "active").order("opened_at", { ascending: false }).limit(30);
@@ -49,6 +56,10 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  function openModal() {
+    setFCustomer(""); setFProduct(""); setFNote(""); setMsg(null); setOpen(true);
+  }
 
   async function register() {
     if (!fCustomer || !fProduct) return;
@@ -60,31 +71,26 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
     });
     setBusy(false);
     setMsg(error ? `登録に失敗: ${errJa(error.message)}` : "ボトルを登録しました");
-    if (!error) { setFNote(""); await load(); }
+    if (!error) { setOpen(false); setFNote(""); await load(); }
   }
 
   const customerName = (id: string | null) => (id && customers.find((c) => c.id === id)?.name) ?? "—";
   const productName = (id: string) => bottles.find((p) => p.id === id)?.name ?? products.find((p) => p.id === id)?.name ?? "?";
+  const selCustomer = customers.find((c) => c.id === fCustomer) ?? null;
+  const selBottle = bottles.find((p) => p.id === fProduct) ?? null;
 
   return (
     <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
-      <h2 style={t.cardTitle}>ボトルキープ</h2>
-      <Toast msg={msg} />
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-        <select value={fCustomer} onChange={(e) => setFCustomer(e.target.value)} style={{ ...input, maxWidth: 200 }}>
-          <option value="">顧客を選択</option>
-          {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select value={fProduct} onChange={(e) => setFProduct(e.target.value)} style={{ ...input, maxWidth: 220 }}>
-          <option value="">ボトルを選択</option>
-          {bottles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <input placeholder="メモ（棚番号等・任意）" value={fNote} onChange={(e) => setFNote(e.target.value)} style={{ ...input, width: 180 }} />
-        <button style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !fCustomer || !fProduct} onClick={register}>登録</button>
-        {customers.length === 0 && <span style={{ fontSize: 11.5, color: "var(--sub)" }}>顧客が見えない権限では登録できません</span>}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <h2 style={{ ...t.cardTitle, margin: 0 }}>ボトルキープ</h2>
+        <button style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} disabled={customers.length === 0 || bottles.length === 0} onClick={openModal}>
+          ボトルキープを登録
+        </button>
       </div>
+      <Toast msg={msg} />
+      {customers.length === 0 && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>顧客が見えない権限では登録できません</p>}
       {keeps.length > 0 && (
-        <div>
+        <div style={{ marginTop: 8 }}>
           {keeps.map((k) => (
             <div key={k.id} className="nox-listrow" style={{ padding: "5px 0", fontSize: 12.5 }}>
               <span style={{ width: 140 }}>{customerName(k.customer_id)}</span>
@@ -94,6 +100,37 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
             </div>
           ))}
         </div>
+      )}
+
+      {open && (
+        <Modal onClose={() => !busy && setOpen(false)} maxWidth={520} scroll>
+          <div className="nox-formmodal-head">
+            <strong>ボトルキープを登録</strong>
+            <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={() => setOpen(false)}>×</button>
+          </div>
+          <div style={{ display: "grid", gap: 14 }}>
+            <div>
+              <div style={{ ...t.fieldLabel, marginBottom: 6 }}>顧客{selCustomer && <span style={{ color: "var(--champ)", marginLeft: 8 }}>{selCustomer.name}</span>}</div>
+              <Picker
+                items={customers.map((c) => ({ id: c.id, label: c.name, sublabel: c.furigana ?? undefined, avatar: true }))}
+                value={fCustomer || null} onPick={setFCustomer} placeholder="顧客を検索（名前・ふりがな）" empty="該当する顧客がいません" limit={20} dense />
+            </div>
+            <div>
+              <div style={{ ...t.fieldLabel, marginBottom: 6 }}>ボトル{selBottle && <span style={{ color: "var(--champ)", marginLeft: 8 }}>{selBottle.name}</span>}</div>
+              <Picker
+                items={bottles.map((p) => ({ id: p.id, label: p.name, sublabel: yen(p.price) }))}
+                value={fProduct || null} onPick={setFProduct} placeholder="ボトルを検索" empty="ボトル商品がありません" limit={20} dense />
+            </div>
+            <label style={{ display: "block" }}>
+              <span style={{ ...t.fieldLabel, display: "block", marginBottom: 4 }}>メモ（棚番号等・任意）</span>
+              <input placeholder="例: 棚 A-3" value={fNote} onChange={(e) => setFNote(e.target.value)} style={{ ...input, width: "100%" }} />
+            </label>
+          </div>
+          <div className="nox-formmodal-foot">
+            <button style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => setOpen(false)}>キャンセル</button>
+            <button style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !fCustomer || !fProduct} onClick={() => void register()}>登録</button>
+          </div>
+        </Modal>
       )}
     </section>
   );
