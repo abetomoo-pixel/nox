@@ -497,7 +497,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       p_wish_deadline: pe.wish_deadline, p_status: st,
     });
     setMsg(error ? `計画の状態変更に失敗: ${rpcErrJa(error.message)}`
-      : st === "published" ? "スタッフに公開しました" : `計画を「${PERIOD_ST_LABEL[st] ?? st}」にしました`);
+      : st === "published" ? "スタッフに公開しました。シフトの確定は「承認待ち」タブから" : `計画を「${PERIOD_ST_LABEL[st] ?? st}」にしました`); // ★裁定253 R12(e)
     await load();
   }
 
@@ -790,6 +790,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     }
     return { planned: list.length, arrived, lateOrMissing, absent };
   })();
+
+  // ★裁定253 R12（2026-09-14）: 「未確定 n 件 → 確定する」導線。n＝表示月の proposed（castConfirm=false）または planned＋proposed（true）。
+  //   押すと承認待ちタブへ切り替えるだけ（直接の一括確定はしない＝確認の場を経由させる）。0 件なら出さない。manager 以上のみ。
+  const unconfirmedN = shifts.filter((x) => x.date.slice(0, 7) === month && (x.status === "proposed" || (castConfirm && x.status === "planned"))).length;
+  const confirmCta = isManagerUp && unconfirmedN > 0 ? (
+    <div className="nox-actions nox-noprint" style={{ marginTop: 10, marginBottom: 10 }}>
+      <button type="button" style={btnDark} title="承認待ちタブで内容を確認してから確定します"
+        onClick={() => { setDayModal(""); setTab("queue"); }}>確定する（{unconfirmedN} 件）</button>
+    </div>
+  ) : null;
 
   return (
     // ★R3 第1弾: タイポ・余白のモック実値写し（globals.css の .nox-mv1 ブロック）。
@@ -1130,6 +1140,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 </div>
               );
             })()}
+            {confirmCta}{/* ★裁定253 R12: 仮シフト＝KPI 4 枚の下 */}
             <div className="nox-calgrid">
               {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}
               {calCells.map((ymd, i) => {
@@ -1527,9 +1538,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   onClick={() => cur && void setPeriodStatus(cur, "draft")}>作成中に戻す</button>
                 <button style={{ ...btnDark, opacity: cur ? 1 : 0.45 }} disabled={!cur}
                   title={cur ? "この計画をスタッフへ公開します（以後この期間には自動配置できません）" : "先に計画期間を作成してください"}
-                  onClick={() => cur && void setPeriodStatus(cur, "published")}>スタッフに公開して確定</button>
+                  onClick={() => cur && void setPeriodStatus(cur, "published")}>スタッフに公開する</button>{/* ★裁定253 R12: 公開は計画期間の公開であってシフトの確定ではない＝ラベルのみ変更 */}
               </span>
             </div>
+            {confirmCta}{/* ★裁定253 R12: シフト作成＝計画ヘッダ（planbar）の下 */}
             {/* warnbanner（未処理の希望がある月だけ出す） */}
             {wishes.length > 0 && (
               <div className="nox-alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
@@ -1721,6 +1733,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           </span>
         </div>
 
+        {confirmCta}{/* ★裁定253 R12: 確定シフト＝カレンダーの上（未確定分の行き先を示す） */}
         {/* ★R4: 人ベース月カレンダー。★confirmed だけを描く＝「確定シフト」の名に嘘をつかせない
             （予定・確認待ちはこの面に混ぜない＝教訓25）。まだ確定していない分は
             「承認待ち」タブに件数つきで出ているので、取りこぼしにはならない。 */}
