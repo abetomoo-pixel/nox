@@ -806,10 +806,14 @@ export default function ReportBoard({
           {closedReport && closedReport.reclosed_count > 0 && (
             <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>再締め {closedReport.reclosed_count}回</span>
           )}
-          {isManagerUp && !closedReport && (
-            <button style={{ ...btnDark, marginLeft: "auto" }} onClick={closeDay}>日報を締める</button>
-          )}
         </div>
+        {/* ★裁定252（244 追補）: 最も重い実行ボタンは見出し行の左右分割から外し、独立した .nox-actions の行で中央に置く。
+            見出し（営業日・状態バッジ・現在時刻・open 伝票警告）は不変・closeDay の経路も不変。 */}
+        {isManagerUp && !closedReport && (
+          <div className="nox-actions" style={{ marginTop: 8, marginBottom: 12 }}>
+            <button style={btnDark} onClick={closeDay}>日報を締める</button>
+          </div>
+        )}
 
         {/* 段L2 ★唯一の新設: 当日暫定サマリ4カード。値は既存 preview state の再形だけ＝新規 SELECT ゼロ。
             「暫定」＝クライアント集計であり、確定値は締め時のサーバ再集計が正（下の注記と同じ扱い）。 */}
@@ -988,13 +992,13 @@ export default function ReportBoard({
           })()}
         </div>
         {preview && (
-          <div className="nox-tablewrap plain">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし） */}
+          <div className="nox-tablewrap plain nw">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし）・★裁定252（M9）: nw＝th／td nowrap */}
           <table style={{ borderCollapse: "collapse", fontSize: 13 }}>
             <tbody>
               <tr>
                 {[
                   ["伝票", preview.slips], ["組客数", preview.guests], ["同伴", preview.dohan], ["未会計", preview.open],
-                  ["現金", yen(preview.cash)], ["カード", yen(preview.card)], ["カード手数料（日報集計用）", yen(preview.cardTax)],
+                  ["現金", yen(preview.cash)], ["カード", yen(preview.card)], ["カード手数料", yen(preview.cardTax)],
                   ["売掛", yen(preview.uri)], ["その他", yen(preview.other)], ["ドリンク/シャンパン売上", yen(preview.drink)],
                 ].map(([label, v]) => (
                   <td key={label as string} style={{ padding: "4px 12px", borderRight: "1px solid var(--line)" }}>
@@ -1007,6 +1011,7 @@ export default function ReportBoard({
           </table>
           </div>
         )}
+        {preview && <p style={{ ...t.sub, fontSize: 11, margin: "6px 0 0" }}>カード手数料は日報集計用（card_tax_rate で算出）。</p>}{/* ★裁定252（M9）: 短縮したラベルの注記 */}
       </section>
 
       {/* 締めは manager 以上のみ（RPC 側も owner/manager 強制＝二重） */}
@@ -1181,6 +1186,9 @@ export default function ReportBoard({
             <label style={{ ...t.fieldLabel, fontSize: 12 }}>
               <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} /> 未会計があっても強行
             </label>
+          </div>
+          {/* ★裁定252（244 追補）: 締め確定／再締め＝入力行から外して独立した .nox-actions の行で中央（入力欄・強行チェックの位置は不変） */}
+          <div className="nox-actions" style={{ marginTop: 10 }}>
             {recloseTarget
               ? <button style={btnDark} onClick={() => void recloseFromForm(recloseTarget.id)}>再締め</button>
               : <button style={btnDark} onClick={closeDay} disabled={!!closedReport && reopenFlag}

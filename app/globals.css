@@ -1176,6 +1176,8 @@ body {
 .nox-tablewrap { overflow: auto; border: 1px solid var(--line); border-radius: 11px; background: var(--card); max-width: 100%; -webkit-overflow-scrolling: touch; } /* ★裁定251（M1）: max-width と iOS 慣性スクロールを追加＝表の横スクロール容器 */
 /* ★裁定251（M1）: .nox-panel 等の枠の中で使う素の容器（二重枠を作らない）。潰れ型は th に nowrap を併用。第 2 レーン＝docs/tmp/m1_lane2.md */
 .nox-tablewrap.plain { border: 0; border-radius: 0; background: transparent; }
+/* ★裁定252（M9）: プレビュー表の器にだけ付ける nowrap 修飾子＝セルを折り返さず容器内で横スクロール（他の表には付けない） */
+.nox-tablewrap.plain.nw th, .nox-tablewrap.plain.nw td { white-space: nowrap; }
 .nox-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .nox-table th {
   text-align: left; padding: 10px 12px; color: var(--sub); font-size: 11px; font-weight: 700;
