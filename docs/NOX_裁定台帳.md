@@ -2846,6 +2846,10 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓78：裁定243 のタイムアウト型は cast-photo の 504 に限らない（payroll の statement timeout も同型）。起動ブロックで再走条件を特定の段に限定して書かない（相談役起こし）
+
+出典＝相談役ブロック 2026-09-14 手順 5（逐語）: 「裁定243 のタイムアウト型は cast-photo の 504 に限らない（payroll の statement timeout も同型）。起動ブロックで再走条件を特定の段に限定して書かない（2026-09-14 に run2 が payroll の statement timeout で止まり、再走指示を挟む往復が発生した）」。タイムアウト型の判定は段名ではなくエラー種別（statement timeout・504・ETIMEDOUT）で行う。
+
 ### 教訓77：verify の assertion 集計は段ごとの出力書式差で取りこぼす（staff-shift だけ括弧内に所要秒が付く）。集計器は既知値（9/11 run4＝41 段 3,765）で先に較正する（相談役起こし）
 
 出典＝相談役ブロック 2026-09-14「裁定240 新設」手順 3。2026-09-14 の f0 run1 集計で verify:nox-staff-shift の出力「(53 assertions・21s)」が正規表現 `assertions)` に掛からず 44 段 3,771 と誤集計→括弧内の数値だけ拾う集計へ直し 45 段 3,824 を確定（9/11 run4 も同集計で 41 段 3,765 と一致）。
@@ -3190,6 +3194,20 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 出典＝相談役 2026-09-11 受領（台帳収載 2026-09-14）。**本文（逐語・245-1〜7）**: 「245-1 キャスト確認は店舗設定 settings_json.shift_cast_confirm（boolean・既定 false）。setter は店舗設定 setter mig（小・set_store_profile 群と統合）に同梱し本裁定の client には含めない。client は settings_json を select で読み、キー無しは false。false: 「確認へ」「n 件まとめて」を非表示・段階表示は 申請→承認→確定 の 3 段・承認待ちの proposed 行のバッジは「承認済み（未確定）」。true: 現状どおり（4 段・確認へ・キャスト確認待ち）。245-2 承認待ちの操作列に「確定」（青塗り・実行）を追加。planned／proposed とも shift_confirm_bulk([id]) を 1 件で呼ぶ。操作列は 244 の例外＝配置不変。245-3 一括確定は client で 62 件ずつ分割して shift_confirm_bulk を順に呼ぶ。事前の 62 件超ブロックは撤去。途中失敗は「n／m 件確定・残りは再試行」で停止し、確定済み分は戻さない。245-4 本人確認と店側確定を区別する列は第 2 期送り（audit_logs の actor で足りる）。245-5 差し戻し／時間調整は現状維持。245-6 shift-add-form に本体の staffing_needs と日別配置数を props で渡し、日セルに「不足 n」（required−assigned>0 の日のみ・色は本体カレンダーの不足表示と同じトークン・新トークン 0）。このキャストを選択中の日は n−1 で表示（0 は「充足」）。一括ボタンに「不足日を全部選択」を追加（出勤不可・登録済みの日は除く）。245-7 DEMO の 108 件は残す（目視で 行確定 1 件＋一括 107 件の 2 分割を実行して確認する）。純関数 lib/nox/shift/gap.ts（gapOf(required, assigned, selected) → number|null・chunkOf(ids, 62) → ids[][]）＋ DB 非依存 suite verify:nox-shift-gap（走数外・f0 46 本目）。client 1 本。」
 
 適用＝client `c0b96da`（245-1／2／3／5／6・mig 0・RPC 不触・shift/page.tsx が settings_json.shift_cast_confirm を castConfirm prop で渡す＝dev はキー無し→false）＋suite `b4be1ab`（lib/nox/shift/gap.ts＝gapOf／chunkOf・verify:nox-shift-gap 12 本・走数外・f0 では現在 **45 本目**＝d45 suite が入れば 46 本目）。setter（shift_cast_confirm の書込）は店舗設定 setter mig（小）待ち。245-7 の目視（DEMO 2026-09 の 108 件＝行確定 1 件＋一括 107 件＝62＋45 の 2 分割）は Agoora 持ち越し。
+
+## 裁定246（Agoora 承認 2026-09-11）NOX のデプロイ環境
+
+出典＝相談役ブロック 2026-09-11（台帳収載 2026-09-14）。**本文（逐語）**: 「裁定246 NOX のデプロイ環境（Agoora 承認 2026-09-11）
+Vercel プロジェクト 1 本（agoora projects／Hobby・repo abetomoo-pixel/nox・本番ドメイン nox-kappa-eight.vercel.app）。main=production・他ブランチ=preview（目視専用）。DB は NOX dev Supabase のまま＝「オンラインで見られる dev」。本番 DB への切替・本番 env・Pro 移行は別裁定。env は NEXT_PUBLIC_SUPABASE_URL／NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY／SUPABASE_SECRET_KEY／CRON_SECRET の 4 本（Production and Preview）。SUPABASE_DB_URL・SEED_PASSWORD は置かない。Stripe 4 本は未設定＝billing は動かない。crons 2 本は vercel.json のまま（CRON_SECRET で保護）。push の条件（f0 2 連緑）は不変＝production は push と同時に更新される。目視は原則この URL で行う。」
+
+## 裁定247（Agoora 承認 2026-09-11）モバイル対応の横断ルール＝244 の「モバイル専用 @media は置かない」を改定・課題 M1〜M8
+
+出典＝相談役ブロック 2026-09-11（スマホ実機 4 枚の課題出し・台帳収載 2026-09-14）。**本文（逐語）**: 「裁定247 モバイル対応の横断ルール（Agoora 承認 2026-09-11・課題確定 M1〜M8）
+244 の「モバイル専用 @media は置かない」を改定し、モバイルに限り @media を可とする。課題は M1 横スクロールで画面が左右に動く（表の実幅がページ幅を決めている・フレックス子の min-width:0 欠落が疑い）／M2「その他」メニューのドロワーが崩れる（背景・z-index・dvh）／M3 領収書 QR が小さい／M4 244 で中央化した行のボタンが段積み・文字が折返す／M5 2 ペインのモーダル（シフト追加）がスマホで機能しない／M6 日報の表の列見出しが縦に潰れる／M7 下タブと Safari ツールバーの重なり（safe-area-inset-bottom）／M8 KPI カードの列数とラベル折返し。着手順は M1・M2 を 1 レーンで直して再撮影 → M3〜M8。」
+
+## 裁定248（Agoora 承認 2026-09-14）f0 の 1 日 6 走の上限を廃止する
+
+出典＝相談役ブロック 2026-09-14（同日収載）。**本文（逐語）**: 「裁定248 f0 の 1 日 6 走の上限を廃止する（Agoora 承認 2026-09-14）。push の条件「f0 2 連緑」は不変。走数は報告に残す（並走・タイムアウトの判断材料）。」
 
 ## 裁定249（Agoora 承認 2026-09-14）プロジェクト間の実行優先＝NOX の f0／verify は他プロジェクトのゲートに譲らない
 
