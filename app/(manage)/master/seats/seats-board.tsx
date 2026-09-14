@@ -16,6 +16,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal"; // ★裁定253 R1: 席の追加・編集はモーダル
 import MasterPageHead from "../master-page-head";
+import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder"; // ★裁定255: ∧∨＝seat_reorder（全件配列・1 トランザクション）
 
 export type Seat = { id: string; name: string; kind: string | null; sort_order: number; is_active: boolean };
 
@@ -49,23 +50,15 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
     setSeats((data ?? []) as Seat[]);
   }
 
-  // ★裁定253 R2（2026-09-14）: 行内の ∧∨ で表示順を入れ替える。席に reorder RPC は無いため既存の set_seat（6 引数・明示 boolean）で
-  //   隣と sort_order を交換する（2 回呼び＝非原子。失敗時は再読込で実態へ戻す）。同値のときは隣の値 ∓1 を与える。並びは 表示順→席名。
+  // ★裁定253 R2→裁定255（mig0145）: 行内の ∧∨ は swapAdjacent で全件 id 配列を作り seat_reorder を 1 回呼ぶ（1 トランザクションで 1..N 再採番＝
+  //   pricing-board の moveBand と同型）。B レーンの set_seat 2 回呼び（非原子）は撤去。失敗時は reorderErrJa で表示し再読込で実態へ戻す。並びは 表示順→席名。
   const sortedSeats = seats.slice().sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, "ja"));
   async function moveSeat(s: Seat, dir: -1 | 1) {
-    const i = sortedSeats.findIndex((x) => x.id === s.id);
-    const nb = sortedSeats[i + dir];
-    if (i < 0 || !nb) return;
-    const [oa, ob] = s.sort_order !== nb.sort_order
-      ? [nb.sort_order, s.sort_order]
-      : (dir === -1 ? [nb.sort_order - 1, nb.sort_order] : [nb.sort_order + 1, nb.sort_order]);
+    const ids = swapAdjacent(sortedSeats.map((x) => x.id), sortedSeats.findIndex((x) => x.id === s.id), dir);
+    if (!ids) return;
     setMsg(null);
-    const write = (x: Seat, order: number) => supabase.rpc("set_seat", {
-      p_id: x.id, p_store_id: storeId, p_name: x.name, p_kind: x.kind ?? "卓", p_sort_order: order, p_is_active: x.is_active,
-    });
-    const r1 = await write(s, oa);
-    const r2 = r1.error ? null : (ob !== nb.sort_order ? await write(nb, ob) : { error: null });
-    if (r1.error || r2?.error) setMsg(`並び替えに失敗: ${(r1.error ?? r2?.error)?.message}`);
+    const { error } = await supabase.rpc("seat_reorder", { p_store_id: storeId, p_ids: ids });
+    if (error) setMsg(`並び替えに失敗: ${reorderErrJa(error.message)}`);
     await reload();
   }
 
