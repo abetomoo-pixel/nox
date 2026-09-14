@@ -3191,6 +3191,14 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 適用＝client `c0b96da`（245-1／2／3／5／6・mig 0・RPC 不触・shift/page.tsx が settings_json.shift_cast_confirm を castConfirm prop で渡す＝dev はキー無し→false）＋suite `b4be1ab`（lib/nox/shift/gap.ts＝gapOf／chunkOf・verify:nox-shift-gap 12 本・走数外・f0 では現在 **45 本目**＝d45 suite が入れば 46 本目）。setter（shift_cast_confirm の書込）は店舗設定 setter mig（小）待ち。245-7 の目視（DEMO 2026-09 の 108 件＝行確定 1 件＋一括 107 件＝62＋45 の 2 分割）は Agoora 持ち越し。
 
+## 裁定 D45-9（Agoora 承認 2026-09-14）締め前ライブの「売掛の回収（現金）」は method='cash' のみ＝凍結 ar_collected と同定義
+
+出典＝相談役 2026-09-14 受領（D45 client `e5f7728` の報告に対する追補・同日収載）。**本文（逐語）**: 「締め前ライブの「売掛の回収（現金）」は method='cash' のみを集計する（凍結 ar_collected と同定義）。カード・その他は「カード回収（在高外）」「その他回収（在高外）」として別掲し、理論在高・実査差異には混入させない。cash 固定運用だった従来の表示値は不変。」
+
+適用＝client `e5f7728`（report-board の loadPreview が ar_collections を method 別に再集計＝arCollectedToday は cash のみ・arCollectedCardToday／arCollectedOtherToday を「カード回収（在高外）」「その他回収（在高外）」として var(--sub) で別掲・レジ内予定額と実査差異の式は cash のみ＝daily_report_close の v_ar と同定義）。DB 側は 0143（`8c89d4e`）・suite verify:nox-d45（`1a5c49e`・29 本・f0 46 段目）。
+
+★未収載の注記（教訓76）: 裁定 D45-1〜8（Agoora 承認 2026-09-11・0143 ヘッダで参照＝D45-2 列追加と ar_collected 据え置き・D45-3 理論在高の式不変 ほか）は本台帳に本文が無い。逐語本文の受領後に本ブロック直前へ収載する。
+
 ## 裁定236（Agoora 承認 2026-09-10）希望の取消（「なし」へ戻す）は C層② の範囲外＝staff_wish_delete RPC（本人・締切前）は次の補正 mig で
 
 出典＝相談役ブロック（2026-09-10）。面 b の ◯× は「なし→◯→×→◯」の巡回で、一度出した希望を「なし」へ戻す経路は 0136／0137 に無い（設計書 v1 §2 の RPC 7 本に削除なし）。取消は #67 の補正 mig（staff_wish_delete＝本人・締切前・監査 action＝RPC 名）で足す。C層② の UI はそれまで現状のまま。
