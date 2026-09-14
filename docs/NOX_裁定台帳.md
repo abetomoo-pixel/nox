@@ -3221,6 +3221,15 @@ Vercel プロジェクト 1 本（agoora projects／Hobby・repo abetomoo-pixel/
 
 適用＝mig0144 `00917f8`（相談役起草・dev 適用は Agoora 手貼り・適用記録は §実施記録）・正本／名簿 `7deb6c2`・suite verify:nox-store-profile 39 本 `9c78d7d`（f0 47 本目）・client `7da5fb6`（store-profile-panel＝店舗情報 4 項目 owner 限定＋シフト運用 キャスト確認・store-flag-toggle＝.nox-seg 切替（244 の例外）＋storeProfileErrJa・pricing-board の 基本料金（フォールバック）に延長指名／指名・同伴料金に同伴の本指名自動付与・ハブ desc 1 文）。目視は Agoora 持ち越し（/master/business-hours・/master/pricing）。
 
+## 裁定251（Agoora 承認 2026-09-14）M1 横スクロール・M2 ドロワー崩れの是正（裁定247 の M1／M2）
+
+出典＝相談役 2026-09-14 受領（調査 docs/tmp/mobile_m1_m2_survey.md を受けた裁定・同日収載）。**本文（逐語）**: 「裁定251 M1 横スクロール・M2 ドロワー崩れの是正（Agoora 承認 2026-09-14・裁定247 の M1／M2）
+M1: 表は共通クラス .nox-tablewrap { overflow-x:auto; max-width:100%; -webkit-overflow-scrolling:touch } で包む。第 1 レーンは report-board の 3 表（989 プレビュー・1243 締め済み一覧・699）。潰れ型（列数が多く th が 1 文字ずつ折り返す表）は th に white-space:nowrap を併用し、包んだ上で横スクロールさせる。html／body への overflow-x:hidden は入れない（はみ出しを隠すと残りの表の発見が遅れるため）。残り 21 表と .nox-ptwrap の hidden→auto は第 2 レーン。
+M2: components/ui/nav.tsx の「その他」シートを className の借用から Modal 部品（maxWidth 520・scroll）へ置き換える。既存の handle 行は二重描画を避けて削る。× ボタン（.nox-formmodal-x）と Esc を追加。/mine の「その他」も同じ部品を通す。
+新トークン 0・ui-tokens baseline 56 不変。client 1 本。」
+
+適用＝未着手（第 1 レーン＝client 1 本の実装ブロック待ち）。調査の根拠: html／body／シェル 3 層に overflow-x のクランプなし・table 51 のうち横スクロール容器なし 24・`.nox-ptwrap` は overflow hidden（切り落とし）・「その他」シートは Modal 部品を通らず地色／padding／角丸が未適用・× と Esc なし。
+
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
 出典＝相談役ブロック 2026-09-11（着手前調査 docs/tmp/d45_survey.md を受けた起案）。mig0143 のヘッダが本文を参照している。**本文（逐語）**:
