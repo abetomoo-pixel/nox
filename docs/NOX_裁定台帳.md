@@ -3191,6 +3191,12 @@ label 12／help 11）・r 10px・row 46px・sidebar 205px（`--card2` #22221e＝
 
 適用＝client `c0b96da`（245-1／2／3／5／6・mig 0・RPC 不触・shift/page.tsx が settings_json.shift_cast_confirm を castConfirm prop で渡す＝dev はキー無し→false）＋suite `b4be1ab`（lib/nox/shift/gap.ts＝gapOf／chunkOf・verify:nox-shift-gap 12 本・走数外・f0 では現在 **45 本目**＝d45 suite が入れば 46 本目）。setter（shift_cast_confirm の書込）は店舗設定 setter mig（小）待ち。245-7 の目視（DEMO 2026-09 の 108 件＝行確定 1 件＋一括 107 件＝62＋45 の 2 分割）は Agoora 持ち越し。
 
+## 裁定249（Agoora 承認 2026-09-14）プロジェクト間の実行優先＝NOX の f0／verify は他プロジェクトのゲートに譲らない
+
+出典＝相談役 2026-09-14 受領（同日収載）。**本文（逐語）**: 「NOX の f0／verify は他プロジェクト（BANZEN 等）のゲートに譲らない。BANZEN 側の宣言を受けても NOX は待たず、そのまま起動する。並走下の緑は有効（裁定243）。BANZEN 側が単独実行を要する場合は BANZEN が待つ。CC 間の SendMessage では「NOX は待たない」と返す。」
+
+適用＝裁定243（並走可・並走下の緑は有効・タイムアウト型の赤は走数消費のみで再走可）の運用側の補足。BANZEN48 等からの「ゲート起動・f0 を控えて」の宣言に対する NOX 側の返信は「NOX は待たない」の 1 文＋現在の走行状態のみ。裁定200 の 3 値は NOX DB 基準（他プロジェクトのローカルプロセスは判定から外す）のまま。
+
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
 出典＝相談役ブロック 2026-09-11（着手前調査 docs/tmp/d45_survey.md を受けた起案）。mig0143 のヘッダが本文を参照している。**本文（逐語）**:
