@@ -3274,6 +3274,16 @@ client は seats-board の ∧∨ を lib/nox/ui/reorder.ts の swapAdjacent →
 
 適用＝mig 手貼り 2026-09-14（ref hiqbfagmkrdpmlqhkmsu・検証 6 項目 OK・既存 reorder 4 本と set_seat の md5 不変・ゲート済み 124→125）＝`d1a5e4d`／suite verify:nox-seat-reorder（f0 48 段目・31 本）／正本 A6 14→15 本・対象 124→125・全数 238→239＝`2df543d`／client＝seats-board の ∧∨ を seat_reorder へ・set_seat 2 回呼び撤去＝`7ae283b`。前提の live 値（2026-09-14 17:52）: set_seat は 6 引数 acl {postgres,authenticated,service_role}・seats は sort_order の CHECK／UNIQUE なし・audit_log_write は 6 引数（p_reason 既定 null）・ゲート済み 124／public 関数 238。
 
+## 裁定257（Agoora 承認 2026-09-15）R20-a 遅刻閾値の統一・R20-b 代理打刻の UI 露出（client のみ）
+
+出典＝相談役ブロック 2026-09-15 14:18（実装ブロックに逐語同梱・同日収載・前提調査 docs/tmp/0915_survey.md／0915_survey2.md）。**本文（逐語）**:
+「裁定257 R20-a(遅刻閾値の統一・client のみ)
+/shift 今日タブの「遅刻・未着」は現在 閾値 0 分(開始を過ぎれば未着)で数えており、給与側 lib/nox/punch-match.ts の判定(in − start > late_grace_min・既定 10・penalty_config)と割れている。表示を penalty_config 基準に揃え、合算を 2 つに分ける: 遅刻 = in 打刻あり ∧ in − start > late_grace_min、または attendance.status='late'／未着 = 打刻なし ∧ now ≥ start + late_grace_min。判定は punch-match.ts の既存関数を呼ぶ。新規クラス・新規純関数を作らない(教訓79)。penalty_config は client から SELECT のみ。取得できない場合の既定は 10 分。表示文言は「遅刻 n 人／未着 m 人」。
+裁定257 R20-b(代理打刻の UI 露出・client のみ)
+punch_proxy(source='manager') は実装済み(owner 全店／manager 自店・inactive cast 拒否・audit 付き)で UI からの呼び出しが 0 件。/shift 今日タブに「退勤」を出し punch_proxy を呼ぶ。出勤(in)側は出さない。attendance の 5 択が既に機能しており二重の入口を作らない。打刻の訂正・削除 RPC は存在しないため、誤打刻の修正は本レーンに含めない(第2期)。権限は RPC 側の判定に従う。ボタンは裁定239(実行=青塗り)・裁定240(行の中央)に従う。」
+
+適用＝client `ae0e387`（shift-board のみ＝matchPunches＋buildMatchInput を今日タブの各シフト行に適用・penalty_config.late_grace_min を SELECT・KPI「遅刻」「未着」の 2 枚・退勤ボタン＝punch_proxy 'out' を in 打刻中のみ有効で .nox-actions 中央・成功後に打刻を再読込）。着手前確認＝(a) 算出は shift-board 776〜792 (b) matchPunches({shifts, punches, attendance, config}) と buildMatchInput (c) penalty_config の client 読取は comp-sections 190 と同じ select (d) 行に .nox-actions 無し→退勤の器として追加。f0 は相談役指示待ち（suite 不触＝pin 48 本 3,925 不変の見込み）。
+
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
 出典＝相談役ブロック 2026-09-11（着手前調査 docs/tmp/d45_survey.md を受けた起案）。mig0143 のヘッダが本文を参照している。**本文（逐語）**:
