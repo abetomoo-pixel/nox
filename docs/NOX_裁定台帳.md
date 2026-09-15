@@ -2846,6 +2846,18 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓82：security definer RPC で actor を入れるときは auth.uid() を直に使わず、既存 RPC の actor 導出行を写経する（相談役起こし）
+
+出典＝相談役 2026-09-15 受領（逐語）: 「教訓82: security definer RPC で actor を入れるときは auth.uid() を直に使わず、既存 RPC の actor 導出行を写経する。auth.users.id と public.users.id の 2 系統があり、混同すると created_by と audit が別空間の uuid になる」実例＝0146 初稿（335b90fd）が created_by と audit の actor に auth.uid() を渡していた→静的突合 ★a-2／★3 で指摘→`select id into v_actor from public.users where auth_user_id = auth.uid() and is_active;`（既存 88 箇所と一字同形）へ差し替え・created_by に users(id) FK を追加（b66c2c89）。
+
+### 教訓81：CC ブロックの期待 HEAD は、同じ便で自分が指示したコミットを織り込んでから書く（相談役起こし）
+
+出典＝相談役 2026-09-15 受領（逐語）: 「教訓81: CC ブロックの期待 HEAD は、同じ便で自分が指示したコミットを織り込んでから書く。直前の報告値をそのまま写さない」実例＝裁定257 ブロック（client 1 本でコミット）の直後に届いた 0146 突合ブロックが期待 HEAD 32d2123・rev-list 0 0 のままで、実際は dd9cc0a・0 2（257 の client＋docs）→手順 1 で停止・再発行。
+
+### 教訓80：裁定本文に既存 CHECK の値・件数を書く前に live 逐語で照合する（相談役起こし）
+
+出典＝相談役 2026-09-15 受領（逐語）: 「教訓80: 裁定本文に既存 CHECK の値・件数を書く前に live 逐語で照合する（deductions の kind を 7 種と書いたが正は 6 種）」実例＝docs/tmp/0915_survey2.md b（deductions の kind CHECK＝unworked／sanction／statutory／agreed_cost／store_receivable／advance_settlement の 6 種・pay.ts 121 の型も 6 値）。
+
 ### 教訓79：新クラスを裁定本文に書く前に、その名前が既に存在しないか grep させる（相談役起こし）
 
 出典＝相談役 2026-09-14 受領（逐語）: 「教訓79 新クラスを裁定本文に書く前に、その名前が既に存在しないか grep させる。0144/251 の調査ブロックで .nox-tablewrap の実在を確認せず本文に定義を書き、CC が上書き（既存 7 表の枠が消える）を避けて修飾子で逃がす判断を要した。」実例＝globals.css 1176 の既存 `.nox-tablewrap`（枠つき・7 ファイル使用）と裁定251 の同名定義が衝突→既存へ 2 プロパティ追加＋修飾子 `.plain` で回避（`5543d9b`）。調査ブロックの手順に「提案する新クラス名・新関数名は grep で実在 0 件を確認して報告」を含める。
@@ -3283,6 +3295,47 @@ client は seats-board の ∧∨ を lib/nox/ui/reorder.ts の swapAdjacent →
 punch_proxy(source='manager') は実装済み(owner 全店／manager 自店・inactive cast 拒否・audit 付き)で UI からの呼び出しが 0 件。/shift 今日タブに「退勤」を出し punch_proxy を呼ぶ。出勤(in)側は出さない。attendance の 5 択が既に機能しており二重の入口を作らない。打刻の訂正・削除 RPC は存在しないため、誤打刻の修正は本レーンに含めない(第2期)。権限は RPC 側の判定に従う。ボタンは裁定239(実行=青塗り)・裁定240(行の中央)に従う。」
 
 適用＝client `ae0e387`（shift-board のみ＝matchPunches＋buildMatchInput を今日タブの各シフト行に適用・penalty_config.late_grace_min を SELECT・KPI「遅刻」「未着」の 2 枚・退勤ボタン＝punch_proxy 'out' を in 打刻中のみ有効で .nox-actions 中央・成功後に打刻を再読込）。着手前確認＝(a) 算出は shift-board 776〜792 (b) matchPunches({shifts, punches, attendance, config}) と buildMatchInput (c) penalty_config の client 読取は comp-sections 190 と同じ select (d) 行に .nox-actions 無し→退勤の器として追加。f0 は相談役指示待ち（suite 不触＝pin 48 本 3,925 不変の見込み）。
+
+## 裁定258（Agoora 承認 2026-09-15）run 別調整控除・mig 0146
+
+出典＝相談役 2026-09-15 14:5x 受領（逐語・別便）。前提調査 docs/tmp/0915_survey.md／0915_survey2.md・手貼り前控え docs/tmp/0146_pre.txt（14:10）／0146_post_pre.txt（14:50）・検証 docs/tmp/0146_post.txt（14:52）。**本文（逐語）**:
+「### 裁定258（2026-09-15 承認・run 別調整控除・mig 0146）
+
+背景: deductions は店単位（store_id のみ・cast_id なし・適用期間列なし・is_active のみ）で、
+特定キャストへの随時控除を原理的に表現できない。payslips に手修正の口は無く、作らない（B5-1）。
+よって調整は計算の入力側に置く。実務例＝報酬総額の 20% を引く（率）、出勤誤りでいくらか引く（定額）。
+
+- 258-1 粒度＝run × キャスト。1 キャスト複数行可。定額行と率行の混在可
+- 258-2 分母＝gross（各バック＋customTotal＋extras＋achievement＋guarantee床。
+  fixedDed・fine・withholding を引く前）。率行が複数でも全て同じ gross に掛け、逐次適用しない
+  ＝入力順・並べ替えで金額が動かない
+- 258-3 源泉の前後は行ごとに before_withholding で選択。true＝gross から引き源泉対象額が減る
+  （報酬の減額・ペナルティ）。false＝withholding の後に引く（立替回収・貸付返済）。
+  既存 fixedDed は源泉の前に固定のまま不変
+- 258-4 理由必須（1..200・length(trim) 判定）
+- 258-5 明細表示は行ごとに show_detail。true＝理由付きで 1 行ずつ、false＝控除計に合算し理由を出さない。
+  データは常に行で保持し、合算保持はしない
+- 258-6 入力権限＝owner/manager（B5-5 踏襲）
+- 258-7 棲み分け＝deductions は店単位・毎月自動のルール、0146 はキャスト単位・当該 run 限り。
+  出勤誤りは本来 attendance を直すのが筋で、確定後に判明した分のみ調整行で引く
+- 258-8 差引後マイナスを許す。0146 時点では net=0 で止め、超過額は計算して保持するが消費しない。
+  繰越の消費は 0147（別裁定）
+- 258-9 確定後の修正口は作らない＝reopen → 調整行を直す → 再 finalize（全件差し替え）
+- 258-10 RLS は owner/manager・自店のみ（cast 本人にも非開示）。payslips_select と書式が割れるのは
+  0146 が金額の入力側であって明細ではないため。キャストが見るべきは payslips に凍結された結果（控除計）
+  であり、その内訳行ではない。許可列挙 auth_role() in ('owner','manager') は payroll_runs_select と同形
+- 258-11 casts.is_active は検証しない。退店キャストの最終 run にこそ調整が要る
+  （貸付の回収漏れ・備品の未返却・最終月の精算）。punch_proxy が inactive を拒むのは
+  「退店した人を出勤させられない」ためで性格が異なる
+- 配分順序は現状維持＝調整控除が先に引かれ available が減る。結果として ar/adv/okuri の回収は
+  残高で翌月に回る。前借りは残高が残るだけだが、率の減額は当月の報酬定義そのものなので後ろに回さない
+- 格納形＝rate_bp は整数ベーシスポイント（0..10000・20%=2000）。deductions.amount の整数 %（0..100）
+  とは異なるが、基底が違う（deductions=sales・0146=gross）ため fixedDedOf は流用できず専用の除算行が
+  要る。どちらでも行数は同じで bp の方が刻みが細かい。UI は %↔bp の換算を持つ
+- 適用: mig 0146（2026-09-15 14:4x 手貼り・ref hiqbfagmkrdpmlqhkmsu）。
+  money-core 3 本の md5 不変・検証 6 項目 ALL OK」
+
+適用＝mig 0146 `5d9caac`（supabase/migrations/0146_payroll_adjustments.sql・sha256 b66c2c897080c843b0de8548c71e081c39b08d49f12928d876d55f4822cfd0ce・9,061 B・相談役起草→CC 静的突合 14:26（★1〜★9）→再突合 14:46（★A）→Agoora 手貼り 14:4x・ref hiqbfagmkrdpmlqhkmsu・proof orgs=3）。検証（docs/tmp/0146_post.txt・ALL OK）＝(1) 列 13・CHECK 3・index 3+pk・RLS enabled・policy 1（using 式は payroll_runs_select 同形） (2) 表 grant authenticated=SELECT のみ・anon 0／関数 2 本 authenticated=EXECUTE・anon／public なし (3) FK 5＝orgs／stores／payroll_runs ON DELETE CASCADE／casts＋created_by→users (4) 署名 add (uuid,uuid,text,integer,integer,boolean,boolean,text)→uuid・delete (uuid,text)→void・SECURITY DEFINER (5) money-core 3 本の md5＝手貼り前と同値（3021fc96…／4229f5d2…／2ecbb653…） (6) 異常系 5 件＝reason 空白のみ→'reason required'・mode 不正→'bad mode'・fixed で amount null→'bad amount'・rate_bp 10001→'bad amount'・finalized な run→'run not draft'（NOX-VERIFY-A1 の仮 run 2099-01 を 1 トランザクション内で作り owner-a の claims を emulate・最後に ROLLBACK・残留 0）＋正常 add 1 件で audit の actor=users.id・reason 保持を確認。**未着手**＝suite（verify:nox-payroll-adjustments 新設・f0 49 本目）・課金正本の追随（A 群 +2 本＝payroll_adjustment_add／_delete）・anon-guard の段追加・core.ts／pay.ts の合成（258-2／258-3／258-8・専用の ÷10000 行）・breakdown の凍結形（show_detail）・payroll-board の入力 UI（%↔bp 換算）・reopen 後の再 finalize 経路の確認＝相談役の次ブロック待ち。
 
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
