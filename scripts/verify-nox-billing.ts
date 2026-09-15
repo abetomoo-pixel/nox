@@ -129,7 +129,8 @@ async function main() {
     //   staff_deadline_set）は **課金ゲート未内蔵**（prosrc に 'billing locked' なし）＝A に載せると「対象→live」assert が赤になるため
     //   内部ヘルパー 6 本（auth_membership_id・staff_shift_can_manage/biz_today/gate・staff_pattern_effective・staff_shift_deadline_at）と
     //   ともに B(l) へ収載＝除外 102→115・全数 216→229・対象 114 不変。ゲート内蔵へ寄せる（0136 改訂）か B 据え置きかは裁定待ち。
-    check("段47-1 正本の除外114名を読めた", docExcluded.size === 114, `got ${docExcluded.size}`);
+    // ★mig0146（裁定258・2026-09-15）: payroll_adjustment_add／_delete（非ゲート＝給与の清算）を B(e) へ収載＝除外 114→116・全数 239→241・対象 125 不変。
+    check("段47-1 正本の除外116名を読めた", docExcluded.size === 116, `got ${docExcluded.size}`);
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる

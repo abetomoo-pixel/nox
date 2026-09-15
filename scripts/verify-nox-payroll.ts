@@ -1657,8 +1657,12 @@ async function main() {
 
       // ── A2 解除導線は run 単位（静的・否定確認）──
       const { rows: fn } = await db.query(`select proname, pg_get_function_identity_arguments(oid) as args, pronargs from pg_proc where pronamespace='public'::regnamespace and proname like 'payroll%' order by proname`);
-      const castArg = fn.filter((r) => /p_cast/.test(String(r.args)));
-      check("B5 A2 ★cast 単位の確定／解除／支払済み化 RPC は存在しない（payroll_* の引数に p_cast なし）", castArg.length === 0, JSON.stringify(castArg));
+      // ★2026-09-15: 許可列挙（裁定258 の payroll_adjustment_* は run×cast の入力 RPC＝本 assert の対象外。除外リストではなく 3 本に固定する）
+      const RUN_RPCS = ["payroll_finalize", "payroll_reopen", "payroll_mark_paid"];
+      const runRpcs = fn.filter((r) => RUN_RPCS.includes(String(r.proname)));
+      check("B5 A2 ★確定・解除・支払済み化の 3 RPC が live に実在（payroll_finalize／payroll_reopen／payroll_mark_paid）", runRpcs.map((r) => String(r.proname)).sort().join(",") === [...RUN_RPCS].sort().join(","), fn.map((r) => r.proname).join(","));
+      const castArg = runRpcs.filter((r) => /p_cast/.test(String(r.args)));
+      check("B5 A2 ★確定・解除・支払済み化の 3 RPC は run 単位（cast 引数を取らない）", runRpcs.length === 3 && castArg.length === 0, JSON.stringify(castArg));
       const reopenSig = fn.find((r) => r.proname === "payroll_reopen");
       check("B5 A2 payroll_reopen は run 単位（p_run_id）・5 引数（p_reason）", reopenSig?.args === "p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid, p_reason text", String(reopenSig?.args));
       const routes = readdirSync("app/api/payroll");
