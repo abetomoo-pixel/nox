@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { periodCalendarDays, type PayrollWindow } from "./window";
 import type { CastRaw, StoreMasters } from "./assemble";
+import type { AdjustmentRow } from "./adjust"; // 裁定258／264
 import type { CompPlan, PlanOverride, Deduction, BackDef, TaxMode } from "../pay";
 import { buildMatchInput, dayWorkedHours, type PunchRow, type ShiftRow, type AttendanceRow } from "../punch-io";
 import { matchPunches } from "../punch-match";
@@ -494,6 +495,28 @@ async function loadIncentives(admin: SupabaseClient, storeId: string, win: Payro
 }
 
 // 期間データ一括収集 → CastRaw[]（対象 cast 列挙・裁定C）。
+// ★裁定258／264: run 別調整控除（payroll_adjustments）を cast 別に読む。run 行（store×period）が無ければ空 Map。
+//   admin 読取（他の集計表と同じ経路・storeId は route guard が org 内を照合済み）。行は created_at, id 順＝率行は同一 gross に掛かるため順序で金額は動かない（258-2）。
+export async function loadPayrollAdjustments(admin: SupabaseClient, storeId: string, period: string): Promise<Map<string, AdjustmentRow[]>> {
+  const byCast = new Map<string, AdjustmentRow[]>();
+  const { data: run, error: eR } = await admin.from("payroll_runs").select("id").eq("store_id", storeId).eq("period", period).maybeSingle();
+  if (eR) throw new Error(`payroll_runs(調整控除): ${eR.message}`);
+  if (!run) return byCast;
+  const { data, error } = await admin
+    .from("payroll_adjustments")
+    .select("cast_id, mode, amount, rate_bp, before_withholding, show_detail, reason")
+    .eq("run_id", run.id as string)
+    .order("created_at", { ascending: true }).order("id", { ascending: true });
+  if (error) throw new Error(`payroll_adjustments: ${error.message}`);
+  type R = { cast_id: string; mode: "fixed" | "rate"; amount: number | null; rate_bp: number | null; before_withholding: boolean; show_detail: boolean; reason: string };
+  for (const r of (data ?? []) as R[]) {
+    const cur = byCast.get(r.cast_id) ?? [];
+    cur.push({ castId: r.cast_id, kind: r.mode, amount: r.amount, rateBp: r.rate_bp, beforeWithholding: r.before_withholding, showDetail: r.show_detail, reason: r.reason });
+    byCast.set(r.cast_id, cur);
+  }
+  return byCast;
+}
+
 export async function collectPeriod(
   admin: SupabaseClient,
   managerClient: SupabaseClient,

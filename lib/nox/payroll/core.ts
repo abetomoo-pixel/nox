@@ -8,7 +8,7 @@ import { payOf, type PayResult, type TaxMode } from "../pay";
 import { allocDue } from "../sales-alloc"; // #32 pooled の最大剰余法（sales 按分と同一の整数分配・純関数）
 import { takeHomeFloor } from "../money"; // F2e-1 手取り0下限（social gate TODO）
 import { resolvePayrollWindow, periodDaysBetween } from "./window";
-import { collectPeriod } from "./collect";
+import { collectPeriod, loadPayrollAdjustments } from "./collect";
 import { buildPayInput, type Extra } from "./assemble";
 
 // 天引きの消し込み計画（finalize に同梱＝receivable/advance/transport 遷移の指示）
@@ -129,6 +129,9 @@ export async function computePayrollDraft(
     throw new Error(`periodDays 解決不能（period ${period} / ${win.periodStart}〜${win.periodEnd}）`);
   }
   const { casts, masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast } = await collectPeriod(admin, managerClient, storeId, win);
+  // ★裁定258／264: run 別調整控除を cast に載せる（buildPayInput が両段の payOf へ素通し）。対象 cast（sales ∪ punch）に無い cast の行は計算に乗らない。
+  const adjByCast = await loadPayrollAdjustments(admin, storeId, period);
+  for (const c of casts) c.adjustments = adjByCast.get(c.castId) ?? [];
 
   // #32: cast の出勤インセンティブ extras を算出（受給者=final∈{ok,late}・確認1／pooled は最大剰余法・端数+1=cast_id 最小）。
   const incentiveExtrasFor = (castId: string): Extra[] => {
@@ -183,8 +186,8 @@ export async function computePayrollDraft(
     //  2) budget rem0 = max(0, available − takeHomeFloor())。allocateCategory を送り→前借り→売掛の順に呼び、
     //     remAfter を次へ渡す＝高優先カテゴリが先に budget を消費・売掛は残りだけ（transport は繰越なし）。
     //  3) 確定額（ar/adv/okuri）で再 payOf → net = available − (okuri+adv+ar) ≥ floor（L2）。
-    //  ★裁定258／264: 調整控除（c.adjustments）は buildPayInput が両段の PayInput に同じ行を載せる＝pay0 の時点で
-    //    引かれ available が減る（配分順序は現状維持・ar/adv/okuri は残り budget で回る）。collect の結線は次レーン。
+    //  ★裁定258／264: 調整控除（c.adjustments＝loadPayrollAdjustments）は buildPayInput が両段の PayInput に同じ行を載せる＝
+    //    pay0 の時点で引かれ available が減る（配分順序は現状維持・ar/adv/okuri は残り budget で回る）。
     const extrasTotal = extras.reduce((s, e) => s + e.amount, 0);
     const pay0 = payOf(buildPayInput(c, taxMode, masters, periodDays, extrasTotal, 0, 0, 0));
     // ★extras は gross に入った（＝源泉後の pay0.net に既に反映）。外側での再加算は二重計上になるため撤去。

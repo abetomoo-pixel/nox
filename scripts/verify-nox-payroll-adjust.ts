@@ -27,8 +27,10 @@ import { buildPayInput, type CastRaw, type StoreMasters } from "../lib/nox/payro
 import { kpiOfDraftRows } from "../lib/nox/payroll/ui-calc";
 import { payrollCsvCells, type PayrollCsvPay } from "../lib/nox/payroll/csv";
 import { roundYen } from "../lib/nox/money";
+import { parseAdjustAddBody, parseAdjustDeleteBody, pctToBp, bpToPct, adjustRpcStatus } from "../lib/nox/payroll/adjust-route";
+import { decidePayrollAccess } from "../lib/nox/payroll/authz";
 
-const env = loadEnvOrExit(["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_DB_URL"]);
+const env = loadEnvOrExit(["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_DB_URL", "SEED_PASSWORD"]);
 
 let pass = 0;
 const fails: string[] = [];
@@ -212,8 +214,48 @@ function pureChecks() {
   }
 }
 
+// ── (6) route 層（裁定264-7／264-8）: 入力整形の純関数＝route が RPC へ渡す前の 400 判定・%→bp・authz は既存純関数の写経 ──
+function routeChecks() {
+  const Z = "00000000-0000-0000-0000-000000000000";
+  const okBody = { storeId: "s1", period: "2026-09", castId: Z, kind: "fixed", amount: 1000, beforeWithholding: true, showDetail: true, reason: "test" };
+  const err = (b: unknown) => { const r = parseAdjustAddBody(b); return r.ok ? "(ok)" : `${r.status} ${r.error}`; };
+  check("pa(6-1) add: 正常（fixed 1,000・源泉前・本人表示）→ ok・rateBp null", (() => { const r = parseAdjustAddBody(okBody); return r.ok && r.value.amount === 1000 && r.value.rateBp === null && r.value.reason === "test"; })(), err(okBody));
+  check("pa(6-2) add: reason 空／空白のみ／201 字 → 400 reason required", err({ ...okBody, reason: "" }) === "400 reason required (1-200)" && err({ ...okBody, reason: "   " }) === "400 reason required (1-200)" && err({ ...okBody, reason: "x".repeat(201) }) === "400 reason required (1-200)", err({ ...okBody, reason: "   " }));
+  check("pa(6-3) add: ratePct 100.01／−0.01／NaN／文字列 → 400（範囲外・型）", err({ ...okBody, kind: "rate", ratePct: 100.01 }) === "400 ratePct out of range (0-100)" && err({ ...okBody, kind: "rate", ratePct: -0.01 }) === "400 ratePct out of range (0-100)"
+    && err({ ...okBody, kind: "rate", ratePct: Number.NaN }) === "400 ratePct required (number)" && err({ ...okBody, kind: "rate", ratePct: "12.5" }) === "400 ratePct required (number)", err({ ...okBody, kind: "rate", ratePct: 100.01 }));
+  check("pa(6-4) add: %→bp＝Math.round(pct×100)（12.5→1250・0→0・100→10000・0.01→1・99.99→9999）・bpToPct は逆写像",
+    (() => { const r = parseAdjustAddBody({ ...okBody, kind: "rate", ratePct: 12.5 }); return r.ok && r.value.rateBp === 1250 && r.value.amount === null; })()
+    && pctToBp(0) === 0 && pctToBp(100) === 10000 && pctToBp(0.01) === 1 && pctToBp(99.99) === 9999 && bpToPct(1250) === 12.5 && bpToPct(1) === 0.01);
+  check("pa(6-5) add: fixed の amount 負／小数／文字列／欠落 → 400", err({ ...okBody, amount: -1 }).startsWith("400 amount") && err({ ...okBody, amount: 1.5 }).startsWith("400 amount") && err({ ...okBody, amount: "1000" }).startsWith("400 amount") && err({ ...okBody, amount: undefined }).startsWith("400 amount"));
+  check("pa(6-6) add: kind 不正／boolean 欠落（原則7＝明示値）／castId 非 uuid／period 不正 → 400", err({ ...okBody, kind: "percent" }).startsWith("400 kind") && err({ ...okBody, beforeWithholding: undefined }).startsWith("400 beforeWithholding") && err({ ...okBody, showDetail: "yes" }).startsWith("400 showDetail")
+    && err({ ...okBody, castId: "abc" }).startsWith("400 castId") && err({ ...okBody, period: "2026-13" }).startsWith("400 period"));
+  const derr = (b: unknown) => { const r = parseAdjustDeleteBody(b); return r.ok ? "(ok)" : `${r.status} ${r.error}`; };
+  check("pa(6-7) delete: 正常 → ok／id 非 uuid → 400／reason 空 → 400", derr({ storeId: "s1", period: "2026-09", id: Z, reason: "del" }) === "(ok)" && derr({ storeId: "s1", period: "2026-09", id: "x", reason: "del" }).startsWith("400 id") && derr({ storeId: "s1", period: "2026-09", id: Z, reason: " " }) === "400 reason required (1-200)");
+  check("pa(6-8) RPC エラー写像: forbidden→403・run not draft→409・not found→404・他→400", adjustRpcStatus("forbidden") === 403 && adjustRpcStatus("run not draft") === 409 && adjustRpcStatus("cast not found") === 404 && adjustRpcStatus("bad amount") === 400);
+  check("pa(6-9) authz（guardPayroll の写経＝decidePayrollAccess）: staff／cast／null は forbidden・owner ok・manager 自店 ok／他店 forbidden",
+    decidePayrollAccess("staff", "s1", "s1") === "forbidden" && decidePayrollAccess("cast", "s1", "s1") === "forbidden" && decidePayrollAccess(null, null, "s1") === "forbidden"
+    && decidePayrollAccess("owner", null, "s1") === "ok" && decidePayrollAccess("manager", "s1", "s1") === "ok" && decidePayrollAccess("manager", "s2", "s1") === "forbidden");
+}
+
+// (6b) staff／cast が RPC を直接叩いても forbidden（route を迂回しても DB が拒む＝二重防御）
+async function roleRpcChecks() {
+  const Z = "00000000-0000-0000-0000-000000000000";
+  for (const key of ["staffA1", "castA1a"] as const) {
+    const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { error: eIn } = await c.auth.signInWithPassword({ email: FIXTURE_USERS[key].email, password: env.SEED_PASSWORD });
+    check(`pa(6-10) ${key} sign-in`, !eIn, eIn?.message);
+    const r1 = await c.rpc("payroll_adjustment_add", { p_run_id: Z, p_cast_id: Z, p_mode: "fixed", p_amount: 1, p_rate_bp: null, p_before_withholding: true, p_show_detail: true, p_reason: "x" });
+    check(`pa(6-11) ${key} payroll_adjustment_add → forbidden`, !!r1.error && r1.error.message.includes("forbidden"), r1.error?.message ?? "通ってしまった");
+    const r2 = await c.rpc("payroll_adjustment_delete", { p_id: Z, p_reason: "x" });
+    check(`pa(6-12) ${key} payroll_adjustment_delete → forbidden`, !!r2.error && r2.error.message.includes("forbidden"), r2.error?.message ?? "通ってしまった");
+    await c.auth.signOut();
+  }
+}
+
 async function main() {
   pureChecks(); // (0) DB 非依存＝接続前に評価
+  routeChecks(); // (6) route 入力整形・authz（DB 非依存）
+  await roleRpcChecks(); // (6b) staff／cast の RPC 直叩き forbidden
   const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
   await db.connect();
   const q = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await db.query(sql, params)).rows as T[];
@@ -299,6 +341,9 @@ async function main() {
       const castId = cast[0]?.id;
       check("pa(5-0b) fixture: A1 の有効キャストが 1 人以上", !!castId);
       const before = (await q<{ adj: number; runs: number; audits: number }>(`select (select count(*)::int from public.payroll_adjustments) as adj, (select count(*)::int from public.payroll_runs where period='2099-01') as runs, (select count(*)::int from public.audit_logs where action like 'payroll_adjustment%') as audits`))[0];
+      // (6c) 直 SELECT の RLS 実測用（裁定264-1 の読取経路＝新 RPC を作らない根拠・手順 2 実測 2026-09-15）
+      const uidOf = async (key: "managerA1" | "staffA1" | "castA1a" | "managerB1") => (await q<{ auth_user_id: string }>(`select auth_user_id from public.users where email = $1 and is_active`, [FIXTURE_USERS[key].email]))[0]?.auth_user_id;
+      const rlsUids = { managerA1: await uidOf("managerA1"), staffA1: await uidOf("staffA1"), castA1a: await uidOf("castA1a"), managerB1: await uidOf("managerB1") };
       await db.query("begin");
       try {
         const asOwner = async () => {
@@ -327,6 +372,16 @@ async function main() {
         try { await asOwner(); okId = (await q<{ id: string }>(ADD, [runId, castId, "rate", null, 2000, true, true, "test ok"]))[0].id; } catch (e) { okErr = (e as Error).message; }
         const au = okId ? await q<{ action: string; actor_user_id: string; store_id: string; reason: string }>(`select action, actor_user_id, store_id, reason from public.audit_logs where target = $1`, ["payroll_adjustments:" + okId]) : [];
         const row = okId ? await q<{ mode: string; rate_bp: number; amount: number | null; created_by: string }>(`select mode, rate_bp, amount, created_by from public.payroll_adjustments where id = $1`, [okId]) : [];
+        // (6c) 直 SELECT の RLS: owner（asOwner 中）1・manager 自店 1・staff 0・cast 0・他店 manager 0（claims を差し替えて同一 savepoint 内で読む）
+        const asUid = async (uid: string) => {
+          await db.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: uid, role: "authenticated" })]);
+          await db.query(`select set_config('request.jwt.claim.sub', $1, true)`, [uid]);
+          await db.query(`set local role authenticated`);
+        };
+        const cnt = async () => okId ? (await q<{ n: number }>(`select count(*)::int as n from public.payroll_adjustments where id = $1`, [okId]))[0].n : -1;
+        const seen: Record<string, number> = { owner: await cnt() };
+        for (const [k, uid] of Object.entries(rlsUids)) { if (uid) { await asUid(uid); seen[k] = await cnt(); } else seen[k] = -2; }
+        check("pa(6-13) 直 SELECT RLS: owner 1・manager 自店 1・staff 0・cast 本人 0・他店 manager 0（258-10）", seen.owner === 1 && seen.managerA1 === 1 && seen.staffA1 === 0 && seen.castA1a === 0 && seen.managerB1 === 0, JSON.stringify(seen));
         await db.query("rollback to savepoint sp");
         check("pa(5+) 正常 add（rate 2000）が uuid を返す", !!okId, okErr);
         check("pa(5+) 行＝mode rate・rate_bp 2000・amount null・created_by=users.id", row[0]?.mode === "rate" && row[0]?.rate_bp === 2000 && row[0]?.amount === null && row[0]?.created_by === ownerUsersId, JSON.stringify(row[0] ?? null));
@@ -352,6 +407,7 @@ async function main() {
   console.log(`verify:nox-payroll-adjust ALL PASS (${pass} assertions)`);
   console.log("run 別調整控除(0146): 列 13・CHECK 3・index 3+pk・RLS・policy using 式 / grant 表 SELECT のみ・関数 EXECUTE・anon 0＋BLOCKED / FK 5（cascade）/ 署名 2・secdef / 異常系 5＋正常 add の audit（ROLLBACK・残留 0）");
   console.log("純関数(裁定264): 率 0/10000 境界・roundYen 1 回 / 複数率行が同一 gross / before・after の源泉差・sanction cap 生 gross / net 0 床と超過額の恒等 / 空配列回帰 / 控除計の集約＝旧 5 式と 500 例一致 / buildPayInput 素通し（二段 payOf）");
+  console.log("route 層(裁定264-7/8): parse＝reason 空 400・ratePct 範囲外 400・%→bp Math.round・boolean 明示・delete parse / authz 写経（staff/cast forbidden）/ staff・cast の RPC 直叩き forbidden / 直 SELECT RLS（owner・manager 自店のみ）");
 }
 
 main().catch((e) => { console.error("✗ 異常終了", e); process.exit(1); });

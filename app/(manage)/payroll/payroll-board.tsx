@@ -9,6 +9,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { kpiOfDraftRows, issuesOfDraft, payStatusOf } from "@/lib/nox/payroll/ui-calc";
 import { totalDeductionsOf } from "@/lib/nox/payroll/adjust"; // 裁定264-3: 控除計の式は 1 本に集約
+import { pctToBp, bpToPct } from "@/lib/nox/payroll/adjust-route"; // 裁定264-7: 入力は %・保存は bp（client でも 0..10000 を assert）
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
 import PaymentTaxPanel from "./payment-tax-panel";
@@ -35,9 +36,15 @@ type Row = {
       wdays?: unknown[]; // ★裁定176（W23・夜間 O3）: PayResult.wdays（日次内訳）＝日数列は length のみ表示（値の再計算なし）
       sanction?: { original?: number; applied?: number } | null;
       plan?: { name?: string }; // ★U-1 是正B: 右パネルのプラン名（PayResult.plan エコー）
+      adjBefore?: number; adjAfter?: number; adjustOverflow?: number; // ★裁定258／264: 調整控除（源泉前／後）と net 0 床の超過額
     };
     extras?: { amount: number }[];
   };
+};
+// ★裁定264-1: payroll_adjustments の 1 行（直 SELECT・RLS＝owner/manager 自店のみ・手順 2 実測 2026-09-15）
+type AdjRow = {
+  id: string; cast_id: string; mode: "fixed" | "rate"; amount: number | null; rate_bp: number | null;
+  before_withholding: boolean; show_detail: boolean; reason: string; created_at: string;
 };
 type Blocker = { castName: string; reason: string };
 // ★裁定98: sanction 二層ガードの警告（blocker と別枠・確定は止めない）。
@@ -95,6 +102,13 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   const [detailCast, setDetailCast] = useState<string | null>(null);
   // ★U-1 是正B: 右パネルの「明細プレビュー」（PayslipSlip 全体）の開閉
   const [slipPreview, setSlipPreview] = useState(false);
+  // ★裁定264-1: 調整控除（run 別・cast 別）。一覧は直 SELECT（RLS）・追加／削除は route（add／delete）。draft 以外は読取のみ（264-9）。
+  const [adjRows, setAdjRows] = useState<AdjRow[]>([]);
+  const [adjMsg, setAdjMsg] = useState("");
+  const [adjBusy, setAdjBusy] = useState(false); // 264-8: 送信中の二重発火を止める（add に冪等キーは無い）
+  const [adjForm, setAdjForm] = useState<{ kind: "fixed" | "rate"; amount: string; pct: string; before: boolean; showDetail: boolean; reason: string }>(
+    { kind: "fixed", amount: "", pct: "", before: true, showDetail: true, reason: "" },
+  );
 
   // run 状態を読む（payroll_runs は owner/manager RLS 可視）。store/period 変更・確定完了で再読込。
   //   ★store/period が変わったら印刷プレビュー/解除状態は破棄（別店の明細を刷らない・別 run の payCount を残さない）。
@@ -105,6 +119,15 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
     const { data } = await supabase.from("payroll_runs").select("id, status, finalized_at").eq("store_id", storeId).eq("period", period).maybeSingle();
     const info = data ? { id: data.id as string, status: data.status as string, finalized_at: (data.finalized_at as string | null) ?? null } : null;
     setRunInfo(info);
+    // ★裁定264-1: 当 run の調整控除（run 行が無ければ空）。RLS＝owner 全店／manager 自店（cast・staff・他店は 0 行）。
+    if (info) {
+      const { data: aj } = await supabase.from("payroll_adjustments")
+        .select("id, cast_id, mode, amount, rate_bp, before_withholding, show_detail, reason, created_at")
+        .eq("run_id", info.id).order("created_at", { ascending: true }).order("id", { ascending: true });
+      setAdjRows((aj ?? []) as AdjRow[]);
+    } else {
+      setAdjRows([]);
+    }
     setSum4(null);
     setUnpaid(null); setPrevNet(null);
     setCastPaid(null);
@@ -311,6 +334,66 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       setBusy(false);
     }
   }
+
+  // ★裁定264-1／264-8／264-12: 調整控除の追加＝route add（保存時に run_create → payroll_adjustment_add）。成功後は run／一覧／プレビューを再取得。
+  async function addAdjustment(castId: string) {
+    if (adjBusy) return; // 264-8: 送信中の二重発火を止める
+    setAdjMsg("");
+    const reason = adjForm.reason.trim();
+    if (reason.length < 1 || reason.length > 200) { setAdjMsg("理由は 1〜200 字で入力してください。"); return; }
+    const body: Record<string, unknown> = { storeId, period, castId, kind: adjForm.kind, beforeWithholding: adjForm.before, showDetail: adjForm.showDetail, reason };
+    if (adjForm.kind === "fixed") {
+      const amount = Number(adjForm.amount);
+      if (!Number.isInteger(amount) || amount < 0) { setAdjMsg("金額は 0 以上の整数（円）で入力してください。"); return; }
+      body.amount = amount;
+    } else {
+      const pct = Number(adjForm.pct);
+      const bp = pctToBp(pct); // 264-7: 保存は Math.round(pct×100) の bp 整数
+      if (!Number.isFinite(pct) || bp < 0 || bp > 10000) { setAdjMsg("率は 0〜100 %（小数 2 桁まで）で入力してください。"); return; }
+      body.ratePct = pct;
+    }
+    setAdjBusy(true);
+    try {
+      const res = await fetch("/api/payroll/adjustment/add", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const j = await res.json();
+      if (!res.ok) {
+        const em = String(j.error ?? "");
+        setAdjMsg(res.status === 409 ? "この期間は確定済みのため追加できません（解除後に編集）。" : res.status === 403 ? "権限がありません。" : `エラー(${res.status}): ${em}`);
+        return;
+      }
+      setAdjForm((f) => ({ ...f, amount: "", pct: "", reason: "" }));
+      setAdjMsg("調整控除を追加しました。プレビューを再計算しています…");
+      await loadRun(); // run が新規作成された場合は runInfo が draft になる（264-12・月次一覧にも下書きとして出る）
+      await preview(); // 右パネルの内訳と net に反映
+      setAdjMsg("調整控除を追加し、プレビューに反映しました。");
+    } catch (e) {
+      setAdjMsg(`通信エラー: ${(e as Error).message}`);
+    } finally {
+      setAdjBusy(false);
+    }
+  }
+  // 削除（draft のみ・理由必須＝mig0146 ★3・監査に残す）
+  async function deleteAdjustment(id: string) {
+    if (adjBusy) return;
+    const reason = (window.prompt("この調整控除を削除します。理由（必須・200 字まで）", "") ?? "").trim();
+    if (reason.length < 1 || reason.length > 200) { if (reason.length > 200) setAdjMsg("理由は 200 字までです。"); return; }
+    setAdjMsg("");
+    setAdjBusy(true);
+    try {
+      const res = await fetch("/api/payroll/adjustment/delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ storeId, period, id, reason }) });
+      const j = await res.json();
+      if (!res.ok) { setAdjMsg(res.status === 409 ? "確定済みのため削除できません（解除後に編集）。" : `エラー(${res.status}): ${String(j.error ?? "")}`); return; }
+      await loadRun();
+      await preview();
+      setAdjMsg("調整控除を削除し、プレビューに反映しました。");
+    } catch (e) {
+      setAdjMsg(`通信エラー: ${(e as Error).message}`);
+    } finally {
+      setAdjBusy(false);
+    }
+  }
+  // 264-9: draft（run なしを含む）だけ追加・削除を出す。確定後は読取表示のみ（編集は reopen 後）。
+  const adjEditable = (runInfo?.status ?? "draft") === "draft";
 
   // 段Y2: 確定日時の表示整形（値は payroll_runs.finalized_at そのまま・判定には使わない）
   const runFinalizedAt = runInfo?.finalized_at
@@ -672,7 +755,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                   [sanctionOriginal > sanctionApplied ? `制裁（原額 ¥${sanctionOriginal.toLocaleString()}→上限適用）` : "制裁（罰金・減給）", sanctionApplied],
                   ["前借り", z(pay.advanceDeduct)], ["売掛", z(pay.arDeduct)],
                   ["その他", z(pay.fixedDed) - sanctionApplied + z(pay.fine) + z(pay.normPenalty)],
+                  // ★裁定258／264: 調整控除（源泉前＝源泉対象額から引いた分／源泉後）。値は preview 再掲のみ
+                  ["調整控除（源泉前）", z(pay.adjBefore)], ["調整控除（源泉後）", z(pay.adjAfter)],
                 ];
+                const adjMine = adjRows.filter((a) => a.cast_id === r.castId);
+                const adjLabel = (a: AdjRow) => a.mode === "fixed" ? `定額 ¥${(a.amount ?? 0).toLocaleString()}` : `率 ${bpToPct(a.rate_bp ?? 0)}%`;
                 const earnTotal = z(pay.gross) + extrasTotal;
                 // 裁定264-3: 控除合計は集約関数（旧: dedRows の Σ＝withholding+okuri+sanction.applied+adv+ar+(fixedDed−sanction.applied+fine+normPenalty) の 7 項と同値）
                 const dedTotal = totalDeductionsOf(pay);
@@ -706,6 +793,70 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 800, borderTop: "1px solid var(--line2)", marginTop: 4, paddingTop: 4 }}>
                       <span>控除合計</span><span className="num" style={{ color: dedTotal > 0 ? "var(--bad)" : undefined }}>{dedTotal > 0 ? `−¥${dedTotal.toLocaleString()}` : "¥0"}</span>
                     </div>
+                    {/* ★264-11: net 0 床の超過額（当 run では回収されない・繰越消費は 0147）。明細（(c)）には出さない */}
+                    {z(pay.adjustOverflow) > 0 && (
+                      <p style={{ fontSize: 12, color: "var(--bad)", fontWeight: 700, margin: "6px 0 0" }}>
+                        超過 ¥{z(pay.adjustOverflow).toLocaleString()} は当 run で回収されません
+                      </p>
+                    )}
+
+                    {/* ★裁定264-1: 調整控除（run 別・cast 別）。一覧＝直 SELECT（RLS）・追加／削除＝route。draft 以外は一覧のみ（264-9） */}
+                    <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>調整控除{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
+                    {adjMine.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 4px" }}>この期間の調整はありません</p>}
+                    {adjMine.map((a) => (
+                      <div key={a.id} style={{ borderTop: "1px solid var(--line2)", padding: "5px 0", fontSize: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                          <span className="num" style={{ fontWeight: 700 }}>{adjLabel(a)}</span>
+                          <span style={{ color: "var(--sub)", fontSize: 11 }}>{a.before_withholding ? "源泉前" : "源泉後"}・{a.show_detail ? "本人に理由を表示" : "控除計に合算"}</span>
+                        </div>
+                        <div style={{ color: "var(--sub)", marginTop: 2, wordBreak: "break-all" }}>{a.reason}</div>
+                        {adjEditable && (
+                          <div className="nox-actions" style={{ justifyContent: "flex-start", marginTop: 4 }}>{/* 裁定244: Danger は左端 */}
+                            <button type="button" onClick={() => void deleteAdjustment(a.id)} disabled={adjBusy || busy}
+                              style={{ ...t.btnGhost, ...t.btnSm, border: "1px solid var(--bad)", color: "var(--bad)" }}>削除</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {adjEditable && (
+                      <div style={{ borderTop: "1px solid var(--line2)", paddingTop: 8, marginTop: 4, display: "grid", gap: 6 }}>
+                        <div className="nox-seg" role="group" aria-label="調整の種類" style={{ width: "fit-content" }}>
+                          {([["fixed", "定額（円）"], ["rate", "率（%）"]] as const).map(([v, l]) => (
+                            <button key={v} type="button" className={adjForm.kind === v ? "on" : ""} aria-pressed={adjForm.kind === v}
+                              onClick={() => setAdjForm((f) => ({ ...f, kind: v }))}>{l}</button>
+                          ))}
+                        </div>
+                        {adjForm.kind === "fixed" ? (
+                          <label style={t.fieldLabel}>金額（円・整数）<br />
+                            <input type="number" inputMode="numeric" min={0} step={1} value={adjForm.amount} onChange={(e) => setAdjForm((f) => ({ ...f, amount: e.target.value }))}
+                              placeholder="例: 5000" style={{ ...t.input, width: 140, marginTop: 3 }} />
+                          </label>
+                        ) : (
+                          <label style={t.fieldLabel}>率（% ・小数 2 桁まで・総支給に対して）<br />
+                            <input type="number" inputMode="decimal" min={0} max={100} step={0.01} value={adjForm.pct} onChange={(e) => setAdjForm((f) => ({ ...f, pct: e.target.value }))}
+                              placeholder="例: 12.5" style={{ ...t.input, width: 140, marginTop: 3 }} />
+                          </label>
+                        )}
+                        <div className="nox-seg" role="group" aria-label="源泉の前後" style={{ width: "fit-content" }}>
+                          {([[true, "源泉の前に引く"], [false, "源泉の後に引く"]] as const).map(([v, l]) => (
+                            <button key={String(v)} type="button" className={adjForm.before === v ? "on" : ""} aria-pressed={adjForm.before === v}
+                              onClick={() => setAdjForm((f) => ({ ...f, before: v }))}>{l}</button>
+                          ))}
+                        </div>
+                        <label style={{ ...t.fieldLabel, display: "flex", alignItems: "center", gap: 6 }}>
+                          <input type="checkbox" checked={adjForm.showDetail} onChange={(e) => setAdjForm((f) => ({ ...f, showDetail: e.target.checked }))} />
+                          本人の明細に理由を表示する
+                        </label>
+                        <input value={adjForm.reason} onChange={(e) => setAdjForm((f) => ({ ...f, reason: e.target.value }))} placeholder="理由（必須・200 字まで）" maxLength={200}
+                          style={{ ...t.input, width: "100%" }} />
+                        <div className="nox-actions">{/* 裁定244: 実行＝青塗り・中央 */}
+                          <button type="button" onClick={() => void addAdjustment(r.castId)} disabled={adjBusy || busy} style={{ ...t.btnGold, ...t.btnSm }}>
+                            {adjBusy ? "送信中…" : "調整控除を追加"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {adjMsg && <p style={{ fontSize: 12, margin: "6px 0 0", color: adjMsg.includes("エラー") || adjMsg.includes("ください") || adjMsg.includes("できません") || adjMsg.includes("ありません") ? "var(--bad)" : "var(--ok)" }}>{adjMsg}</p>}
                     <button onClick={() => setSlipPreview((v) => !v)} style={{ ...t.btnGhost, ...t.btnSm, marginTop: 10 }}>
                       {slipPreview ? "明細プレビューを閉じる" : "明細プレビュー"}
                     </button>
