@@ -49,6 +49,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   STABLE definer・**クライアント grant なし＝内部呼び専用**・非ゲート・`biz_minutes_of` の鏡像）。check_close は
   再作成のみ＝本数不動。対象 **113 不変**・除外 **100→101**・全数 **213→214**。
   ★「grant なしの内部関数は名簿対象外」の想定は誤り＝assert は live pg_proc 全数と A∪B の照合（教訓21・**7例目**）。
+- ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
+  ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
+  対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
 - ★**mig0145 追随（2026-09-14・裁定255）**: 新 RPC **1本**を A6 へ収載＝`seat_reorder`（席の並べ替え 1..N 再採番＝既存 reorder 4 本と同契約・
   owner∨manager 自店・規則A形でゲート内蔵（`billing_writable_of(public.auth_org_id())`）・kiosk 腕なし・dev 適用済み 9/14 18:09）。
   対象 **124→125**・除外 **114 不変**・全数 **238→239**。★教訓21 トリップワイヤの先回り収載（mig 収蔵と同一レーンで名簿＋pin を同時更新）。
@@ -209,9 +212,10 @@ punch_self / punch_proxy / kiosk_punch / attendance_set / attendance_set_self
 ### B(d) 打刻導線（3本・B-補2）
 kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解決＝kiosk 打刻の前提ヘルパー）
 
-### B(e) payroll 系一式（3本・給与＝過去労働の清算）
-payroll_run_create / payment_record_add / withholding_payment_record
+### B(e) payroll 系一式（5本・給与＝過去労働の清算）
+payroll_run_create / payment_record_add / withholding_payment_record / payroll_adjustment_add / payroll_adjustment_delete
 （finalize/mark_paid/reopen は B(a) で既に構造除外）
+（payroll_adjustment_add／_delete＝mig0146・裁定258: ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる）
 
 ### B(f) 読取 RPC（44本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
 **staff_pin_status**（mig0108＝PIN 状態の読取・owner∨manager自店・hash 非返却） /
@@ -299,4 +303,4 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 「live 全数 = 正本 A∪B」機械 assert** が担保（silent drift は f0 が赤にする＝教訓21）。
 非ゲート新設 RPC も mig と同一コミットで B 名簿を追補する（ゲート入りの pin 波及と対称の運用）。
 
-★**現在値（2026-09-14・mig0145 追随後）**: A **125** ＋ B **114** ＝ **239** ＝ live pg_proc 実列挙と一致（前＝mig0144 後 A 124＋B 114＝238・その前 A 123＋B 114＝237。verify:nox-billing 段47-1 の pin＝対象 125／除外 114／ゲート済み 125／述語参照 126／挿入行の形 125）。
+★**現在値（2026-09-15・mig0146 追随後）**: A **125** ＋ B **116** ＝ **241** ＝ live pg_proc 実列挙と一致（前＝mig0145 後 A 125＋B 114＝239・その前 mig0144 後 A 124＋B 114＝238。verify:nox-billing 段47-1 の pin＝対象 125／除外 116／ゲート済み 125／述語参照 126／挿入行の形 125）。
