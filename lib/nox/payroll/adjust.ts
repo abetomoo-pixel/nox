@@ -61,6 +61,50 @@ export function adjustOf(rows: AdjustmentRow[], gross: number): AdjustResult {
   return { before, after, rows: out };
 }
 
+// ── 裁定264-2／264-10: 凍結形（breakdown_json）と明細の並び ──────────────────────────
+//  - show_detail=true の行だけ {reason, amount, before_withholding} を breakdown_json.adjustments に凍結。
+//  - show_detail=false の行は合算額 1 キー（adjustments_hidden・数値）のみ＝理由は一切凍結しない
+//    （/mine は payslips の直 SELECT＝breakdown_json の文字列は本人に届く。RLS は表を守るもので凍結値には及ばない）。
+//  - 超過額は pay.adjustOverflow（数値 1 キー・理由なし）のまま＝明細には出さない（264-11）。
+//  - 明細の並び（264-2）: before 群は源泉の直前・after 群は源泉の直後・同群は入力順。
+
+/** 凍結する調整行（show_detail=true のみ）。キー名は payroll_adjustments の列名に揃える（snake）。 */
+export type FrozenAdjustment = { reason: string; amount: number; before_withholding: boolean };
+
+/** breakdown_json に足す 2 キー（調整行が 1 本も無い run では足さない＝従来の breakdown と完全一致）。 */
+export type FrozenAdjustmentKeys = { adjustments: FrozenAdjustment[]; adjustments_hidden: number };
+
+/** 行 → 凍結形（shown＝show_detail=true を入力順・hiddenTotal＝false の確定額合算）。率の分母は payOf と同じ gross。 */
+export function frozenAdjustmentsOf(rows: AdjustmentRow[], gross: number): { shown: FrozenAdjustment[]; hiddenTotal: number } {
+  const shown: FrozenAdjustment[] = [];
+  let hiddenTotal = 0;
+  for (const r of adjustOf(rows, gross).rows) {
+    if (r.showDetail) shown.push({ reason: r.reason, amount: r.applied, before_withholding: r.beforeWithholding });
+    else hiddenTotal += r.applied;
+  }
+  return { shown, hiddenTotal };
+}
+
+/** breakdown へ足すキー。調整が無ければ {}（既存キーの名前・型は変えない・器は不変）。 */
+export function frozenAdjustmentKeys(shown: FrozenAdjustment[], hiddenTotal: number): FrozenAdjustmentKeys | Record<string, never> {
+  if (shown.length === 0 && hiddenTotal === 0) return {};
+  return { adjustments: shown, adjustments_hidden: hiddenTotal };
+}
+
+/** 凍結 breakdown_json から調整行を読む（旧 payslip＝キー欠落は空・0）。表示側の解釈を 1 箇所に。 */
+export function readFrozenAdjustments(bj: unknown): { before: FrozenAdjustment[]; after: FrozenAdjustment[]; hiddenTotal: number } {
+  const o = (bj ?? {}) as { adjustments?: unknown; adjustments_hidden?: unknown };
+  const arr = Array.isArray(o.adjustments) ? (o.adjustments as Partial<FrozenAdjustment>[]) : [];
+  const rows: FrozenAdjustment[] = arr
+    .filter((a) => typeof a?.amount === "number")
+    .map((a) => ({ reason: typeof a.reason === "string" ? a.reason : "", amount: a.amount as number, before_withholding: a.before_withholding === true }));
+  return {
+    before: rows.filter((a) => a.before_withholding), // 入力順のまま
+    after: rows.filter((a) => !a.before_withholding),
+    hiddenTotal: typeof o.adjustments_hidden === "number" ? o.adjustments_hidden : 0,
+  };
+}
+
 /** 控除計の入力＝凍結 breakdown_json.pay／preview pay の部分集合。欠落キーは 0 円扱い（2026-07-28 既定）。 */
 export type DeductionParts = {
   fixedDed?: number;

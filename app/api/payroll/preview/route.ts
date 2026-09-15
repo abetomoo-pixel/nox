@@ -24,6 +24,8 @@ export async function POST(req: Request) {
         advDeductTotal: r.advDeductTotal, // F2e-2 前借り天引き
         advCarriedTotal: r.advCarriedTotal,
         okuriDeductTotal: r.okuriDeductTotal, // F2e-2 送り実費天引き（繰越なし）
+        adjustmentsShown: r.adjustmentsShown, // ★裁定264-10: 右パネルの明細プレビューが finalize と同じ凍結形を合成するため
+        adjustmentsHiddenTotal: r.adjustmentsHiddenTotal,
       })),
       blockers: draft.blockers,
       warnings: draft.warnings, // ★裁定98: sanction 二層ガードの警告（確定は止めない）

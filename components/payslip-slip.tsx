@@ -1,4 +1,5 @@
 import * as t from "@/lib/nox/ui/theme";
+import { readFrozenAdjustments } from "@/lib/nox/payroll/adjust"; // 裁定264-2: 調整控除の並び（before＝源泉の直前・after＝直後・同群は入力順）
 
 // D2 報酬明細：確定スリップ1件の描画（/mine と manage 給与で共用・presentation-only）。
 // ★数値ロジックは一切持たない＝表示の移設のみ。データ源は既存 payslips.breakdown_json
@@ -50,15 +51,19 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
   // 税区分バッジ（裁定28 凍結値）: 委託=報酬の源泉／雇用=給与の源泉。旧データ（未凍結）はバッジなし・行名「源泉」。
   const taxMode = pay.taxMode === "委託" || pay.taxMode === "雇用" ? pay.taxMode : null;
   const whLabel = taxMode === "委託" ? "源泉（報酬・料金）" : taxMode === "雇用" ? "源泉（給与）" : "源泉";
-  const hasDed = fixedDedRest > 0 || sanctionApplied > 0 || (pay.fine ?? 0) > 0 || (pay.withholding ?? 0) > 0 || (pay.normPenalty ?? 0) > 0 || ar > 0 || adv > 0 || okuri > 0;
+  // ★裁定264-2／264-10: 調整控除＝show_detail=true の行だけ理由をラベルに（before 群→源泉の直前・after 群→直後・入力順）。
+  //   show_detail=false は行を出さず控除計にのみ乗る（adjustments_hidden・理由は凍結されていない）。超過額（pay.adjustOverflow）は明細に出さない（264-11）。
+  const adj = readFrozenAdjustments(slip.breakdown_json);
+  const hasDed = fixedDedRest > 0 || sanctionApplied > 0 || (pay.fine ?? 0) > 0 || (pay.withholding ?? 0) > 0 || (pay.normPenalty ?? 0) > 0 || ar > 0 || adv > 0 || okuri > 0
+    || adj.before.length > 0 || adj.after.length > 0 || adj.hiddenTotal > 0;
   // 支給行（＞0 のみ）／控除行（＞0 のみ・bad 減算）。
   // ★裁定26: extras（出勤ボーナス等）は gross に内在＝net = gross − 控除（外側加算はしない）。
   //   「加算」節の明細行は gross の内訳表示であって、控除後に足し戻す金額ではない。
   const earn = (label: string, v: number) => (
     <div style={t.slipRow}><span>{label}</span><span style={t.num}>{yen(v)}</span></div>
   );
-  const ded = (label: string, v: number) =>
-    v > 0 ? <div style={t.slipRow}><span>{label}</span><span style={{ ...t.num, color: "var(--bad)" }}>−{yen(v)}</span></div> : null;
+  const ded = (label: string, v: number, key?: string) =>
+    v > 0 ? <div key={key} style={t.slipRow}><span>{label}</span><span style={{ ...t.num, color: "var(--bad)" }}>−{yen(v)}</span></div> : null;
   return (
     <div className="nox-payslip" style={{ marginBottom: 14 }}>
       <div className="ps-hd" style={t.slipHd}>
@@ -91,7 +96,11 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
         </div>
       )}
       {ded("罰金", pay.fine ?? 0)}
+      {/* ★裁定264-2: before 群（源泉の直前・入力順）。ラベル＝理由（show_detail=true の行のみ凍結されている） */}
+      {adj.before.map((a, j) => ded(a.reason, a.amount, `adj-b${j}`))}
       {ded(whLabel, pay.withholding ?? 0)}
+      {/* ★裁定264-2: after 群（源泉の直後・入力順） */}
+      {adj.after.map((a, j) => ded(a.reason, a.amount, `adj-a${j}`))}
       {ded("ノルマ未達", pay.normPenalty ?? 0)}
       {ded("売掛", ar)}
       {ded("前借り", adv)}

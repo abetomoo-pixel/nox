@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { guardPayroll } from "@/lib/nox/payroll/route-guard";
 import { computePayrollDraft } from "@/lib/nox/payroll/core";
+import { frozenAdjustmentKeys } from "@/lib/nox/payroll/adjust"; // 裁定264-10: 調整行の凍結形（無ければキーを足さない）
 
 export async function POST(req: Request) {
   const g = await guardPayroll(req);
@@ -38,7 +39,9 @@ export async function POST(req: Request) {
       //   ★DB 変更は不要＝payroll_finalize は breakdown をそのまま採用し ar/adv/okuri だけを注入する
       //     （器の検証も pay/extras の存在チェックのみ＝余分なキーを拒否しない）。予約キー5つ
       //     （pay/extras/ar/adv/okuri）とは衝突せず、reopen の巻き戻しも cast_name を参照しない。
-      breakdown: { pay: r.pay, extras: r.extras, cast_name: r.castName },
+      // ★裁定264-10／264-11: show_detail=true の行は {reason, amount, before_withholding}・false は adjustments_hidden（数値）のみ・
+      //   超過額は pay.adjustOverflow（数値）のまま。調整が無い run はキーを足さない＝従来の breakdown と完全一致。
+      breakdown: { pay: r.pay, extras: r.extras, cast_name: r.castName, ...frozenAdjustmentKeys(r.adjustmentsShown, r.adjustmentsHiddenTotal) },
       ar_deducted: r.arDeducted, // F2e-1: {receivable_id, amount}[]（finalize が deducted/部分/繰越に遷移）
       ar_carried: r.arCarried, // F2e-1: {receivable_id}[]（deduct_period→翌 period）
       adv_deducted: r.advDeducted, // F2e-2: {advance_id, amount}[]（deducted/部分/繰越）

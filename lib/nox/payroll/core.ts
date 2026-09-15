@@ -9,6 +9,7 @@ import { allocDue } from "../sales-alloc"; // #32 pooled の最大剰余法（sa
 import { takeHomeFloor } from "../money"; // F2e-1 手取り0下限（social gate TODO）
 import { resolvePayrollWindow, periodDaysBetween } from "./window";
 import { collectPeriod, loadPayrollAdjustments } from "./collect";
+import { frozenAdjustmentsOf, type FrozenAdjustment } from "./adjust"; // 裁定264-10: 凍結形（show_detail=true の行だけ理由を持つ）
 import { buildPayInput, type Extra } from "./assemble";
 
 // 天引きの消し込み計画（finalize に同梱＝receivable/advance/transport 遷移の指示）
@@ -37,6 +38,9 @@ export type PreviewRow = {
   advCarriedTotal: number; // 前借り繰越合計（残額）
   okuriDeducted: OkuriDeducted[]; // F2e-2: 今期天引きする送り実費と額（繰越なし＝carried 無し）
   okuriDeductTotal: number; // 今期送り実費天引き合計
+  // ★裁定264-10: 凍結する調整行（show_detail=true のみ・入力順）と、false 行の合算額（理由は持たない）
+  adjustmentsShown: FrozenAdjustment[];
+  adjustmentsHiddenTotal: number;
 };
 export type Blocker = { castId: string; castName: string; reason: "no_plan" | "no_tax" | "no_employment" };
 // ★裁定98: 確定は止めないが人が見るべき事象（blocker と別枠・warnEmptyPool は IncentiveSummary 側に温存）
@@ -215,11 +219,14 @@ export async function computePayrollDraft(
     }
     // ★裁定98: sanction 由来の警告（確定は止めない・blocker と別枠・導出は純関数）
     warnings.push(...sanctionWarningsOf(c, pay.sanction));
+    // ★裁定264-10: 凍結形＝show_detail=true の行だけ理由付きで・false は合算額のみ（率の分母は pay.gross＝payOf と同一）
+    const frozenAdj = frozenAdjustmentsOf(c.adjustments ?? [], pay.gross);
     rows.push({
       castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, taxMode,
       arDeducted, arCarried, arDeductTotal: arPlan.deduct, arCarriedTotal: arPlan.carriedTotal,
       advDeducted, advCarried, advDeductTotal: advPlan.deduct, advCarriedTotal: advPlan.carriedTotal,
       okuriDeducted, okuriDeductTotal: okuriPlan.deduct,
+      adjustmentsShown: frozenAdj.shown, adjustmentsHiddenTotal: frozenAdj.hiddenTotal,
     });
   }
 

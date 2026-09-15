@@ -8,7 +8,8 @@ import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { kpiOfDraftRows, issuesOfDraft, payStatusOf } from "@/lib/nox/payroll/ui-calc";
-import { totalDeductionsOf } from "@/lib/nox/payroll/adjust"; // 裁定264-3: 控除計の式は 1 本に集約
+import { totalDeductionsOf, frozenAdjustmentKeys, type FrozenAdjustment } from "@/lib/nox/payroll/adjust"; // 裁定264-3: 控除計の式は 1 本に集約／264-10: 明細プレビューの凍結形
+import Modal from "@/components/ui/modal"; // ★裁定265: 調整行の削除理由はモーダル（window.prompt は使わない）
 import { pctToBp, bpToPct } from "@/lib/nox/payroll/adjust-route"; // 裁定264-7: 入力は %・保存は bp（client でも 0..10000 を assert）
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
@@ -27,6 +28,8 @@ type Row = {
   arDeductTotal?: number; arCarriedTotal?: number;
   advDeductTotal?: number; advCarriedTotal?: number; // F2e-2 前借り（繰越あり）
   okuriDeductTotal?: number; // F2e-2 送り実費（繰越なし）
+  adjustmentsShown?: FrozenAdjustment[]; // ★裁定264-10: 明細プレビュー用（finalize と同じ凍結形＝show_detail=true の行のみ）
+  adjustmentsHiddenTotal?: number;
   // E8-5 payroll#2: preview API が返している breakdown（route.ts:21）を Row 型が捨てていたのを復元。
   //   ★値はサーバ計算のまま＝画面側での再計算はしない（wHours/gross と控除計の表示にだけ使う）。
   // ★U-1（裁定99-⑤）: preview は PayResult 全キーを返す＝右パネル明細用に保証/達成/制裁も型で受ける。
@@ -109,6 +112,9 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   const [adjForm, setAdjForm] = useState<{ kind: "fixed" | "rate"; amount: string; pct: string; before: boolean; showDetail: boolean; reason: string }>(
     { kind: "fixed", amount: "", pct: "", before: true, showDetail: true, reason: "" },
   );
+  // ★裁定265: 削除理由のモーダル（対象行と理由・空／空白のみは送信不可）
+  const [delTarget, setDelTarget] = useState<{ id: string; label: string } | null>(null);
+  const [delReason, setDelReason] = useState("");
 
   // run 状態を読む（payroll_runs は owner/manager RLS 可視）。store/period 変更・確定完了で再読込。
   //   ★store/period が変わったら印刷プレビュー/解除状態は破棄（別店の明細を刷らない・別 run の payCount を残さない）。
@@ -372,17 +378,18 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       setAdjBusy(false);
     }
   }
-  // 削除（draft のみ・理由必須＝mig0146 ★3・監査に残す）
-  async function deleteAdjustment(id: string) {
+  // 削除（draft のみ・理由必須＝mig0146 ★3・監査に残す）。★裁定265: 理由はモーダル（delTarget／delReason）から受ける。
+  async function deleteAdjustment(id: string, reasonRaw: string) {
     if (adjBusy) return;
-    const reason = (window.prompt("この調整控除を削除します。理由（必須・200 字まで）", "") ?? "").trim();
-    if (reason.length < 1 || reason.length > 200) { if (reason.length > 200) setAdjMsg("理由は 200 字までです。"); return; }
+    const reason = reasonRaw.trim();
+    if (reason.length < 1 || reason.length > 200) { setAdjMsg("理由は 1〜200 字で入力してください。"); return; }
     setAdjMsg("");
     setAdjBusy(true);
     try {
       const res = await fetch("/api/payroll/adjustment/delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ storeId, period, id, reason }) });
       const j = await res.json();
       if (!res.ok) { setAdjMsg(res.status === 409 ? "確定済みのため削除できません（解除後に編集）。" : `エラー(${res.status}): ${String(j.error ?? "")}`); return; }
+      setDelTarget(null); setDelReason("");
       await loadRun();
       await preview();
       setAdjMsg("調整控除を削除し、プレビューに反映しました。");
@@ -812,7 +819,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                         <div style={{ color: "var(--sub)", marginTop: 2, wordBreak: "break-all" }}>{a.reason}</div>
                         {adjEditable && (
                           <div className="nox-actions" style={{ justifyContent: "flex-start", marginTop: 4 }}>{/* 裁定244: Danger は左端 */}
-                            <button type="button" onClick={() => void deleteAdjustment(a.id)} disabled={adjBusy || busy}
+                            <button type="button" onClick={() => { setDelReason(""); setDelTarget({ id: a.id, label: `${adjLabel(a)}（${a.reason}）` }); }} disabled={adjBusy || busy}
                               style={{ ...t.btnGhost, ...t.btnSm, border: "1px solid var(--bad)", color: "var(--bad)" }}>削除</button>
                           </div>
                         )}
@@ -867,12 +874,14 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                           slip={{
                             period,
                             net: r.net,
-                            // preview 行から breakdown_json を合成（pay/extras は素通し・ar/adv/okuri は今期天引き額のみ）
+                            // preview 行から breakdown_json を合成（pay/extras は素通し・ar/adv/okuri は今期天引き額のみ・
+                            //   ★264-10: 調整行は finalize と同じ凍結形＝show_detail=true の行のみ理由付き・false は合算額）
                             breakdown_json: {
                               pay, extras: r.breakdown?.extras ?? [],
                               ar: r.arDeductTotal ? [{ action: "deducted", amount: r.arDeductTotal }] : [],
                               adv: r.advDeductTotal ? [{ action: "deducted", amount: r.advDeductTotal }] : [],
                               okuri: r.okuriDeductTotal ? [{ action: "deducted", amount: r.okuriDeductTotal }] : [],
+                              ...frozenAdjustmentKeys(r.adjustmentsShown ?? [], r.adjustmentsHiddenTotal ?? 0),
                             },
                           }}
                         />
@@ -885,6 +894,27 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           </aside>
           </div>
         </>
+      )}
+
+      {/* ★裁定265: 調整行の削除理由モーダル（既存 Modal＝.nox-formmodal-*・空／空白のみは送信 disabled・脚は中央＝244・Danger は左） */}
+      {delTarget && (
+        <Modal onClose={() => { if (!adjBusy) { setDelTarget(null); setDelReason(""); } }} maxWidth={430}>
+          <div className="nox-formmodal-head">
+            <strong>調整控除を削除</strong>
+            <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={adjBusy} onClick={() => { setDelTarget(null); setDelReason(""); }}>×</button>
+          </div>
+          <p style={{ fontSize: 12.5, margin: "0 0 10px" }}>{delTarget.label}</p>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }}>削除の理由（必須・200 字まで・監査に残ります）</p>
+          <input value={delReason} onChange={(e) => setDelReason(e.target.value)} maxLength={200} placeholder="例: 入力誤り" autoFocus
+            style={{ ...t.input, width: "100%" }} />
+          <div className="nox-formmodal-foot">
+            <button type="button" onClick={() => void deleteAdjustment(delTarget.id, delReason)} disabled={adjBusy || delReason.trim().length === 0}
+              style={{ ...t.btnGhost, border: "1px solid var(--bad)", color: "var(--bad)", opacity: adjBusy || delReason.trim().length === 0 ? 0.5 : 1 }}>
+              {adjBusy ? "削除中…" : "削除する"}
+            </button>
+            <button type="button" onClick={() => { setDelTarget(null); setDelReason(""); }} disabled={adjBusy} style={t.btnGhost}>キャンセル</button>
+          </div>
+        </Modal>
       )}
 
       {/* D1 確定を解除（★owner のみ・finalized のみ・支払記録ありは無効化＋理由表示）。draft へ戻し天引きを取り消す。 */}

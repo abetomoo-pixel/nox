@@ -29,6 +29,12 @@ import { payrollCsvCells, type PayrollCsvPay } from "../lib/nox/payroll/csv";
 import { roundYen } from "../lib/nox/money";
 import { parseAdjustAddBody, parseAdjustDeleteBody, pctToBp, bpToPct, adjustRpcStatus } from "../lib/nox/payroll/adjust-route";
 import { decidePayrollAccess } from "../lib/nox/payroll/authz";
+import { frozenAdjustmentsOf, frozenAdjustmentKeys, readFrozenAdjustments } from "../lib/nox/payroll/adjust";
+import React, { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import PayslipSlip from "../components/payslip-slip";
+// tsx は tsconfig の jsx:"preserve" を classic 変換で落とすため、部品（.tsx）の描画に React をグローバルへ置く（suite 内のみ・app 側は非改変）
+(globalThis as { React?: typeof React }).React = React;
 
 const env = loadEnvOrExit(["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_DB_URL", "SEED_PASSWORD"]);
 
@@ -252,8 +258,50 @@ async function roleRpcChecks() {
   }
 }
 
+// ── (7) 凍結形と明細の並び（裁定264-2／264-10／264-11・DB 非依存）──
+const FROZEN_ROWS: AdjustmentRow[] = [
+  { ...row({ kind: "fixed", amount: 1000, beforeWithholding: true, showDetail: true, reason: "SHOWN-B1" }) },
+  { ...row({ kind: "rate", rateBp: 1000, beforeWithholding: true, showDetail: false, reason: "HIDDEN-X" }) },
+  { ...row({ kind: "fixed", amount: 500, beforeWithholding: false, showDetail: true, reason: "SHOWN-A1" }) },
+  { ...row({ kind: "fixed", amount: 200, beforeWithholding: true, showDetail: true, reason: "SHOWN-B2" }) },
+  { ...row({ kind: "fixed", amount: 300, beforeWithholding: false, showDetail: false, reason: "HIDDEN-Y" }) },
+];
+function frozenChecks() {
+  const f = frozenAdjustmentsOf(FROZEN_ROWS, 100_000);
+  check("pa(7-1) 凍結形: show_detail=true の 3 行だけ入力順（B1 1,000 before・A1 500 after・B2 200 before）・false は合算 10,300（率 10%＝10,000＋300）",
+    f.shown.length === 3 && f.shown[0].reason === "SHOWN-B1" && f.shown[0].amount === 1000 && f.shown[0].before_withholding === true
+    && f.shown[1].reason === "SHOWN-A1" && f.shown[1].amount === 500 && f.shown[1].before_withholding === false
+    && f.shown[2].reason === "SHOWN-B2" && f.shown[2].amount === 200 && f.shown[2].before_withholding === true && f.hiddenTotal === 10_300, JSON.stringify(f));
+  const keys = frozenAdjustmentKeys(f.shown, f.hiddenTotal);
+  const bd = { pay: { net: 1, gross: 2 }, extras: [], cast_name: "x", ...keys };
+  const s = JSON.stringify(bd);
+  check("pa(7-2) ★false の理由は breakdown_json の全文検索で 0 件（HIDDEN-X／HIDDEN-Y）・true の理由は 3 件・adjustments_hidden は数値", !s.includes("HIDDEN") && (s.match(/SHOWN-/g) ?? []).length === 3 && typeof (bd as { adjustments_hidden?: unknown }).adjustments_hidden === "number", s);
+  const empty = frozenAdjustmentKeys([], 0);
+  const bd0 = { pay: { net: 1 }, extras: [], cast_name: "x", ...empty };
+  check("pa(7-3) 調整なし → キーを足さない＝従来の breakdown と完全一致（回帰）", JSON.stringify(empty) === "{}" && JSON.stringify(bd0) === JSON.stringify({ pay: { net: 1 }, extras: [], cast_name: "x" }) && !("adjustments" in bd0));
+  const rd = readFrozenAdjustments(bd);
+  check("pa(7-4) 読取: before＝[B1,B2]（入力順）・after＝[A1]・hidden 10,300／旧 payslip（キー欠落）は空・0／壊れた値は無視",
+    rd.before.map((a) => a.reason).join(",") === "SHOWN-B1,SHOWN-B2" && rd.after.map((a) => a.reason).join(",") === "SHOWN-A1" && rd.hiddenTotal === 10_300
+    && JSON.stringify(readFrozenAdjustments({ pay: {} })) === JSON.stringify({ before: [], after: [], hiddenTotal: 0 })
+    && readFrozenAdjustments({ adjustments: [{ reason: "x" }, 5, null], adjustments_hidden: "9" }).before.length === 0 && readFrozenAdjustments({ adjustments: "x" }).hiddenTotal === 0);
+  // 超過額（264-11）: pay の数値 1 キーのみ・理由は pay に一切入らない
+  const over = payOf({ ...BASE, adjustments: FROZEN_ROWS.concat([fixed(10_000_000, false)]) });
+  const payJson = JSON.stringify(over);
+  check("pa(7-5) 超過額は pay.adjustOverflow（整数）1 キー・pay の JSON に理由（SHOWN／HIDDEN）は現れない", typeof over.adjustOverflow === "number" && Number.isInteger(over.adjustOverflow) && over.adjustOverflow > 0 && !payJson.includes("SHOWN") && !payJson.includes("HIDDEN") && identityHolds(over));
+  // 明細の並び（264-2）: renderToStaticMarkup で PayslipSlip を描画し、行の出現順を機械で読む
+  const pay = { ...payOf({ ...BASE, adjustments: FROZEN_ROWS }), fixedDed: 5000, fine: 3000, normPenalty: 700, withholding: 1174 };
+  const html = renderToStaticMarkup(createElement(PayslipSlip, { slip: { period: "2026-09", net: 1, breakdown_json: { pay: { ...pay, adjustOverflow: 5000 }, extras: [], ...keys, ar: [{ action: "deducted", amount: 400 }] } } }));
+  const idx = (s2: string) => html.indexOf(s2);
+  const order = ["固定控除", "罰金", "SHOWN-B1", "SHOWN-B2", "源泉（報酬・料金）", "SHOWN-A1", "ノルマ未達", "売掛"].map(idx);
+  check("pa(7-6) ★明細の並び＝固定控除→罰金→[before: B1,B2]→源泉→[after: A1]→ノルマ未達→売掛（before は源泉の直前・after は直後・同群は入力順）", order.every((v) => v >= 0) && order.every((v, i) => i === 0 || v > order[i - 1]), JSON.stringify(order));
+  check("pa(7-7) 明細に HIDDEN の理由も「超過」も出ない（264-10／264-11）・行の金額は凍結値（1,000／500／200）", !html.includes("HIDDEN") && !html.includes("超過") && html.includes("−¥1,000") && html.includes("−¥500") && html.includes("−¥200"));
+  const html0 = renderToStaticMarkup(createElement(PayslipSlip, { slip: { period: "2026-09", net: 1, breakdown_json: { pay, extras: [] } } }));
+  check("pa(7-8) 調整キーなしの旧 payslip は調整行を描かない（SHOWN 0 件）", !html0.includes("SHOWN"));
+}
+
 async function main() {
   pureChecks(); // (0) DB 非依存＝接続前に評価
+  frozenChecks(); // (7) 凍結形・並び（DB 非依存）
   routeChecks(); // (6) route 入力整形・authz（DB 非依存）
   await roleRpcChecks(); // (6b) staff／cast の RPC 直叩き forbidden
   const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
@@ -383,6 +431,27 @@ async function main() {
         for (const [k, uid] of Object.entries(rlsUids)) { if (uid) { await asUid(uid); seen[k] = await cnt(); } else seen[k] = -2; }
         check("pa(6-13) 直 SELECT RLS: owner 1・manager 自店 1・staff 0・cast 本人 0・他店 manager 0（258-10）", seen.owner === 1 && seen.managerA1 === 1 && seen.staffA1 === 0 && seen.castA1a === 0 && seen.managerB1 === 0, JSON.stringify(seen));
         await db.query("rollback to savepoint sp");
+        // (7b) /mine の経路＝payslips の直 SELECT を cast 本人で読み、凍結形に false の理由が無いことを DB 越しに確認（264-10）
+        await db.query("savepoint sp7");
+        try {
+          await db.query("reset role");
+          const castOfUser = await q<{ id: string }>(`select c.id from public.casts c join public.users u on u.id = c.user_id where u.email = $1 and c.store_id = $2 limit 1`, [FIXTURE_USERS.castA1a.email, storeA1]);
+          const myCast = castOfUser[0]?.id;
+          check("pa(7b-0) fixture: castA1a の cast 行が引ける", !!myCast);
+          if (myCast) {
+            const f = frozenAdjustmentsOf(FROZEN_ROWS, 100_000);
+            const bd = { pay: { net: 0, gross: 0, adjustOverflow: 0 }, extras: [], cast_name: "x", ...frozenAdjustmentKeys(f.shown, f.hiddenTotal) };
+            const ps = await q<{ id: string }>(`insert into public.payslips (org_id, store_id, run_id, cast_id, period, breakdown_json, net) values ($1,$2,$3,$4,'2099-01',$5,0) returning id`, [orgA, storeA1, runId, myCast, JSON.stringify(bd)]);
+            if (rlsUids.castA1a) await asUid(rlsUids.castA1a);
+            const mine = await q<{ breakdown_json: unknown; net: number }>(`select breakdown_json, net from public.payslips where id = $1`, [ps[0].id]);
+            const txt = JSON.stringify(mine[0]?.breakdown_json ?? null);
+            check("pa(7b-1) cast 本人は自分の payslip を読める（1 行）・凍結値に SHOWN 3 件・HIDDEN 0 件・adjustments_hidden 10,300", mine.length === 1 && (txt.match(/SHOWN-/g) ?? []).length === 3 && !txt.includes("HIDDEN") && txt.includes("\"adjustments_hidden\":10300"), txt);
+            const adjAsCast = await q<{ n: number }>(`select count(*)::int as n from public.payroll_adjustments where run_id = $1`, [runId]);
+            check("pa(7b-2) cast 本人は payroll_adjustments を 0 行（表の RLS）＝理由の到達経路は breakdown_json のみ", adjAsCast[0].n === 0);
+          }
+        } finally {
+          await db.query("rollback to savepoint sp7");
+        }
         check("pa(5+) 正常 add（rate 2000）が uuid を返す", !!okId, okErr);
         check("pa(5+) 行＝mode rate・rate_bp 2000・amount null・created_by=users.id", row[0]?.mode === "rate" && row[0]?.rate_bp === 2000 && row[0]?.amount === null && row[0]?.created_by === ownerUsersId, JSON.stringify(row[0] ?? null));
         check("pa(5+) audit 1 件 action/actor=users.id/store/reason", au.length === 1 && au[0].action === "payroll_adjustment_add" && au[0].actor_user_id === ownerUsersId && au[0].store_id === storeA1 && au[0].reason === "test ok", JSON.stringify(au[0] ?? null));
@@ -408,6 +477,7 @@ async function main() {
   console.log("run 別調整控除(0146): 列 13・CHECK 3・index 3+pk・RLS・policy using 式 / grant 表 SELECT のみ・関数 EXECUTE・anon 0＋BLOCKED / FK 5（cascade）/ 署名 2・secdef / 異常系 5＋正常 add の audit（ROLLBACK・残留 0）");
   console.log("純関数(裁定264): 率 0/10000 境界・roundYen 1 回 / 複数率行が同一 gross / before・after の源泉差・sanction cap 生 gross / net 0 床と超過額の恒等 / 空配列回帰 / 控除計の集約＝旧 5 式と 500 例一致 / buildPayInput 素通し（二段 payOf）");
   console.log("route 層(裁定264-7/8): parse＝reason 空 400・ratePct 範囲外 400・%→bp Math.round・boolean 明示・delete parse / authz 写経（staff/cast forbidden）/ staff・cast の RPC 直叩き forbidden / 直 SELECT RLS（owner・manager 自店のみ）");
+  console.log("凍結形と明細(裁定264-2/10/11): show_detail=true のみ理由付き・false は合算 1 キー（理由 0 件）・調整なしはキー無し（回帰）・超過は pay の整数 1 キー・明細の並び＝before 源泉直前／after 直後／入力順（renderToStaticMarkup）・cast 本人の直 SELECT に HIDDEN 0 件");
 }
 
 main().catch((e) => { console.error("✗ 異常終了", e); process.exit(1); });
