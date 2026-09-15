@@ -2846,6 +2846,25 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓85：DB 無応答時、60 秒間隔の再試行ループを長時間続けない。状態確認はダッシュボードで行う（相談役起こし）
+
+出典＝相談役 2026-09-15 受領（逐語）: 「教訓85: DB 無応答時、60 秒間隔の再試行ループを長時間続けない。復帰を早めず、
+hang する probe が接続を消費して詰まりを助長しうる。状態確認はダッシュボードで行う
+（STATUS・Advisor・Postgres ログ）。2026-09-15 は 1 時間続けたが、復帰は再起動によるものだった。」実例＝15:33〜16:46 の無応答中に CC が 60 秒間隔の probe を 6 ループ（約 70 分）継続・hang した probe 1 本を kill。復帰は Agoora の再起動（postmaster 16:46:22）。以後の運用＝接続エラー・認証タイムアウト・DB 無応答は「DB 起因」と明記して即停止・再走もループも組まず、ダッシュボード確認を相談役に求める（2026-09-15 16:47 ブロックで規定）。
+
+### 教訓84：新 RPC を足す mig は、起草の時点で既存 pin の走査対象に入るかを洗う（相談役起こし）
+
+出典＝相談役 2026-09-15 受領（逐語）: 「教訓84: 新 RPC を足す mig は、起草の時点で既存 pin の走査対象に入るかを洗う。
+payroll_* を走査している suite の全数、課金ゲート名簿の追随要否を先に見る。
+手貼り後の f0 で見つかると走数と時間を使う。2026-09-15 は 0146 が 2 箇所（B5 A2・課金ゲート名簿）に
+触れ、f0 の赤 2 本を招いた。」実例＝run1 15:00（verify-nox-payroll B5 A2 が payroll_adjustment_add の p_cast_id を拾う→裁定260 で許可列挙化・`c9f6aee`）・run2 15:07（verify-nox-billing 段47-1 liveOnly=2→裁定261 で B(e) 収載・`7064df9`）。静的突合ブロック（a〜h）に「既存 suite の prosrc／pg_proc 走査（proname like）に新名が入るか」「課金正本 A/B の追随」を項目として加える。
+
+### 教訓83：CC ブロックの冒頭に対象 repo とパスを明記する（相談役起こし）
+
+出典＝相談役 2026-09-15 受領（逐語）: 「教訓83: CC ブロックの冒頭に対象 repo とパスを明記する（【repo: nox / C:\Users\abet\Dropbox\cloude\nox】）。
+BANZEN と NOX が同時に動いており、2026-09-15 に NOX の指示が BANZEN セッションへ渡った。
+CC 側が内容から気づいて実行せず止めたが、ブロックに repo があれば即座に弾ける。」実例＝2026-09-14 の RECTUS push 指示（誤セッション・HEAD 不一致で停止）と 2026-09-15 の NOX 指示の BANZEN セッション着信。以後のブロックは冒頭 1 行目に【repo: … / パス】＝CC は git remote と cwd を照合し、不一致なら 1 行で報告して停止。
+
 ### 教訓82：security definer RPC で actor を入れるときは auth.uid() を直に使わず、既存 RPC の actor 導出行を写経する（相談役起こし）
 
 出典＝相談役 2026-09-15 受領（逐語）: 「教訓82: security definer RPC で actor を入れるときは auth.uid() を直に使わず、既存 RPC の actor 導出行を写経する。auth.users.id と public.users.id の 2 系統があり、混同すると created_by と audit が別空間の uuid になる」実例＝0146 初稿（335b90fd）が created_by と audit の actor に auth.uid() を渡していた→静的突合 ★a-2／★3 で指摘→`select id into v_actor from public.users where auth_user_id = auth.uid() and is_active;`（既存 88 箇所と一字同形）へ差し替え・created_by に users(id) FK を追加（b66c2c89）。
@@ -3336,6 +3355,80 @@ punch_proxy(source='manager') は実装済み(owner 全店／manager 自店・in
   money-core 3 本の md5 不変・検証 6 項目 ALL OK」
 
 適用＝mig 0146 `5d9caac`（supabase/migrations/0146_payroll_adjustments.sql・sha256 b66c2c897080c843b0de8548c71e081c39b08d49f12928d876d55f4822cfd0ce・9,061 B・相談役起草→CC 静的突合 14:26（★1〜★9）→再突合 14:46（★A）→Agoora 手貼り 14:4x・ref hiqbfagmkrdpmlqhkmsu・proof orgs=3）。検証（docs/tmp/0146_post.txt・ALL OK）＝(1) 列 13・CHECK 3・index 3+pk・RLS enabled・policy 1（using 式は payroll_runs_select 同形） (2) 表 grant authenticated=SELECT のみ・anon 0／関数 2 本 authenticated=EXECUTE・anon／public なし (3) FK 5＝orgs／stores／payroll_runs ON DELETE CASCADE／casts＋created_by→users (4) 署名 add (uuid,uuid,text,integer,integer,boolean,boolean,text)→uuid・delete (uuid,text)→void・SECURITY DEFINER (5) money-core 3 本の md5＝手貼り前と同値（3021fc96…／4229f5d2…／2ecbb653…） (6) 異常系 5 件＝reason 空白のみ→'reason required'・mode 不正→'bad mode'・fixed で amount null→'bad amount'・rate_bp 10001→'bad amount'・finalized な run→'run not draft'（NOX-VERIFY-A1 の仮 run 2099-01 を 1 トランザクション内で作り owner-a の claims を emulate・最後に ROLLBACK・残留 0）＋正常 add 1 件で audit の actor=users.id・reason 保持を確認。**未着手**＝suite（verify:nox-payroll-adjustments 新設・f0 49 本目）・課金正本の追随（A 群 +2 本＝payroll_adjustment_add／_delete）・anon-guard の段追加・core.ts／pay.ts の合成（258-2／258-3／258-8・専用の ÷10000 行）・breakdown の凍結形（show_detail）・payroll-board の入力 UI（%↔bp 換算）・reopen 後の再 finalize 経路の確認＝相談役の次ブロック待ち。
+
+## 裁定259（Agoora 承認 2026-09-15）select → picker の一括置換
+
+出典＝相談役 2026-09-15 17:0x 受領（逐語・別便）。前提調査 docs/tmp/0915_survey.md g（select 67 箇所の全数）。**本文（逐語）**:
+「### 裁定259（2026-09-15 承認・select → picker の一括置換）
+
+対象は 10 箇所（キャスト 6・顧客 2・商品 2）。67 箇所中 57 は店舗・期間・区分・席・プラン・
+ランク・カテゴリ等の短い固定リストで、select のままが正しい＝対象外。
+ボトルキープの 2 箇所は裁定254 でピッカー化済み。
+
+内訳:
+  キャスト 6 = analytics 1176 / customers-board 480 / customer-detail 213 /
+               comp-sections 780 / deduction-panel 195 / sensitive-tax-panel 228
+  顧客 2   = reservation-panel 527 / 621
+  商品 2   = mine/drink-claim-form 108 / stock-board 256（絞込）
+
+置換先は components/nox/picker.tsx。client のみ・mig 0・RPC 不触。1 レーンで閉じる。
+R17（前借り・送り実費のキャスト select）・R18（ノルマのキャスト select）は本裁定に含まれる。」
+
+適用＝未着手（client 1 レーン・相談役の実装ブロック待ち）。
+
+## 裁定260（Agoora 承認 2026-09-15）pin の走査対象は許可列挙で書く
+
+出典＝相談役 2026-09-15 17:0x 受領（逐語・別便）。**本文（逐語）**:
+「### 裁定260（2026-09-15 承認・pin の走査対象は許可列挙で書く）
+
+新設 RPC が既存 pin に引っかかったとき、除外リストを足して通さない。
+pin が何を守っているかを許可列挙で書き直す。
+
+根拠: 除外リストは「この 1 本を通す」という書き方で、同種の RPC を足すたびに例外が伸びる。
+伸びた例外は読み返されないため、本当に守りたい対象が同じ条件で入ってきても気づけない。
+許可列挙なら、新しく足したものは自動で通り抜けず、列挙に加える時点で一度考えることになる。
+
+初例: B5 A2「cast 単位の確定／解除／支払済み化 RPC は存在しない」が mig0146 の
+payroll_adjustment_add（p_cast_id あり）を拾って赤になった。除外（!/^payroll_adjustment_/）ではなく、
+対象を payroll_finalize / payroll_reopen / payroll_mark_paid の 3 本に固定し、
+(a) 3 本が live に実在 (b) 3 本に p_cast 系引数なし の 2 assert に書き直した（c9f6aee）。」
+
+適用＝verify `c9f6aee`（scripts/verify-nox-payroll.ts B5 A2・212→213）。
+
+## 裁定261（Agoora 承認 2026-09-15）課金ゲート正本の A/B はゲート行の有無で決める
+
+出典＝相談役 2026-09-15 17:0x 受領（逐語・別便）。**本文（逐語）**:
+「### 裁定261（2026-09-15 承認・課金ゲート正本の A/B はゲート行の有無で決める）
+
+新 RPC を課金ゲート正本（docs/NOX課金ゲート対象v1.md）に追随させるとき、
+A（ゲート対象）か B（除外）かは prosrc のゲート行（'billing locked'）の有無で決める。
+名前の系統で判断しない。
+
+根拠: 名前が payroll_* でも、ゲート行を持たなければ A に載せた時点で
+「対象→live」assert が赤になる。区分は実装が決めるもので、命名規則ではない。
+
+初例: mig0146 の payroll_adjustment_add / _delete を当初 A 群 +2 と読んだが、
+ゲート行を持たないため正しくは B(e) payroll 系一式（給与＝過去労働の清算＝非ゲート・
+payroll_run_create / payment_record_add と同列）。対象 125 不変・除外 114→116・全数 239→241（7064df9）。」
+
+適用＝docs `7064df9`（正本 B(e) 3→5 本）・verify `c9f6aee`（billing 段47-1 除外 pin 114→116）。
+
+## 裁定262（Agoora 承認 2026-09-15）本番 DB 切替の前提に Compute の引き上げを加える
+
+出典＝相談役 2026-09-15 17:0x 受領（逐語・別便）。**本文（逐語）**:
+「### 裁定262（2026-09-15 承認・本番 DB 切替の前提に Compute の引き上げを加える）
+
+本番 DB への切替（別裁定）の前提条件に、Supabase Compute の引き上げを加える。
+v32 §7「運用・環境」で Vercel Pro 移行と同じ棚に置く。
+
+根拠: 2026-09-15、t4g.nano（Free）で f0 49 段・3,966 を 590s 走らせた 2 分後に
+Postgres がクラッシュし、73 分間無応答になった（§DB 障害）。再起動後の run4 は 492s で
+緑に通ったため nano で走行不能ではないが、ダッシュボードが「複数リソースを使い果たしている」と
+警告する水準で運用している。本番データと本番トラフィックが乗る前に上げる。
+
+必須ではなく前提条件。切替の実施時に同時に判断する。」
+
+適用＝前提条件の登録のみ（本番切替の別裁定で判断）。障害の記録＝f0 新基準 pin（2026-09-15・49 本 3,966）の bullet（15:33〜16:46 無応答・pooler timeout→econnrefused→再起動で復帰・postmaster 16:46:22・接続 18／60）。
 
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
@@ -3841,7 +3934,7 @@ K36 の説明文もモックの 2 カード語彙（本人レコード／NOXロ�
   f0 2 連緑＝**37 本 3,550**（36 本＋sweep 4）・所要 439s／706s（掃除前 7〜12 分と同程度＝全体は他スイート支配。**rls 段は 7 分→2 分未満**）。
   golden 6 値不変。逆張り＝(b) service_role で verify org に 1 行 insert→sweep で削除→0 ／ (c) probe 1 行を置いた状態で owner セッションの同 assert が
   count=1 で FAIL・sweep 後に 0 で PASS（rls の意味が変わっていないことの実証）。
-- **f0 本数の基準（handoff 参照用）**: 36 本 3,546 → 37 本 3,550（sweep 4 assertions）→ 38 本 3,570（flags 20 assertions・2026-09-09 2 連緑 761s／723s）→ 39 本 3,642（staff-shift 53 assertions＋grants 298→317・2026-09-10 2 連緑 412s／454s）→ 40 本 3,721（reopen 65 assertions＋billing 53→53＋grants 317→329・2026-09-10 2 連緑 889s／1049s）→ **41 本 3,765**（旧 3,721＋reopen 65→73（+8）＋payroll 195→212（+17）＋payroll-list 新設 19（+19）＝+44・2026-09-11 2 連緑 923s／993s）。→ **45 本 3,824**（3,765＋labor-cost 13（B6-4）＋compare 20（B6-11）＋cast-stats 14（B6-12）＋shift-gap 12（裁定245）・2026-09-14 2 連緑 488s／630s）。→ **46 本 3,853**（3,824＋d45 29（mig0143・裁定D45-1〜9）・2026-09-14 2 連緑 471s／541s）。→ **47 本 3,893**（3,853＋anon-guard 986→987（set_store_profile probe）＋store-profile 新設 39（mig0144・裁定250）・2026-09-14 2 連緑 758s／700s）。→ **48 本 3,925**（3,893＋anon-guard 987→988（seat_reorder probe）＋seat-reorder 新設 31（mig0145・裁定255）・2026-09-14 2 連緑 567s／547s）。**golden 6 値は不変＝5931／125802／55233／64／64／53**。
+- **f0 本数の基準（handoff 参照用）**: 36 本 3,546 → 37 本 3,550（sweep 4 assertions）→ 38 本 3,570（flags 20 assertions・2026-09-09 2 連緑 761s／723s）→ 39 本 3,642（staff-shift 53 assertions＋grants 298→317・2026-09-10 2 連緑 412s／454s）→ 40 本 3,721（reopen 65 assertions＋billing 53→53＋grants 317→329・2026-09-10 2 連緑 889s／1049s）→ **41 本 3,765**（旧 3,721＋reopen 65→73（+8）＋payroll 195→212（+17）＋payroll-list 新設 19（+19）＝+44・2026-09-11 2 連緑 923s／993s）。→ **45 本 3,824**（3,765＋labor-cost 13（B6-4）＋compare 20（B6-11）＋cast-stats 14（B6-12）＋shift-gap 12（裁定245）・2026-09-14 2 連緑 488s／630s）。→ **46 本 3,853**（3,824＋d45 29（mig0143・裁定D45-1〜9）・2026-09-14 2 連緑 471s／541s）。→ **47 本 3,893**（3,853＋anon-guard 986→987（set_store_profile probe）＋store-profile 新設 39（mig0144・裁定250）・2026-09-14 2 連緑 758s／700s）。→ **48 本 3,925**（3,893＋anon-guard 987→988（seat_reorder probe）＋seat-reorder 新設 31（mig0145・裁定255）・2026-09-14 2 連緑 567s／547s）。→ **49 本 3,966**（3,925＋payroll-adjust 新設 40（mig0146・裁定258）＋payroll 212→213（B5 A2 を許可列挙化＝3 RPC の実在 assert +1）・2026-09-15 2 連緑 590s／492s・同一 HEAD c9f6aee）。**golden 6 値は不変＝5931／125802／55233／64／64／53**。
 - **本番向け付記**: audit_logs の retention（保持期間・アーカイブ）は**ローンチ後必須**（税理士ゲート後＝裁定23 系）。本 gate は verify org 限定であり
   本番 org の行には一切触れない。
 
@@ -4079,6 +4172,7 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **f0 pin 不変の再確認（2026-09-14 夜・裁定253 A／B／C＋252 pin docs の push 根拠）**: 裁定200 の 3 値（17:20:08／17:30:41／17:31:53＝0・他プロジェクト verify 0）→ run1 17:20〜17:30・615s・run2 17:31〜17:39・455s＝いずれも **47 段 ALL PASS・3,893・golden 不変（5931／125802／55233）・段別 assertion 数も同一**。client `2cb3e2a`／`e0392c1`／`a9fd505`（UI のみ・suite と lib は不触）を含む木で取り直した 2 連緑＝pin 47 本 3,893 は不変。本日 f0 通算 14 走。
 - **f0 新基準 pin（2026-09-14 夜・48 本 3,925）**: 裁定200 の 3 値＝NOX DB 基準（18:17:01／18:18:13／18:29:04＝0）→ run1 18:18〜18:27・567s・run2 18:29〜18:38・547s＝いずれも **48 段 ALL PASS・3,925・golden 不変（5931／125802／55233）・段別 assertion 数も同一**。差分＝verify:nox-anon-guard 987→988（seat_reorder の anon BLOCKED 段39b）＋verify:nox-seat-reorder 31（48 本目・mig0145）＝見込み 3,925 と一致。push の根拠。
 - **mig0145 seat_reorder 適用記録（2026-09-14）**: 貼り先 ref **hiqbfagmkrdpmlqhkmsu**（pooler ap-northeast-1・proof orgs=3）・2026-09-14 18:09 適用（CC が相談役ブロックの明示指示で pg 直結・単一トランザクション・例外なし）・検証 6 項目 OK＝(1) 署名 seat_reorder(p_store_id uuid, p_ids uuid[]) 1 本 (2) acl **{postgres,authenticated,service_role}**（anon なし） (3) 既存 reorder 4 本（cast_rank／pricing_rule／product_category／product）＋set_seat の md5 不変 (4) money-core 3 本の md5 不変 (5) seats 列 9・制約 4・grant（authenticated=SELECT のみ）・policy seats_select 不変 (6) **ゲート済み 124→125**・public 関数 238→239。静的突合＝契約の並びと文言は product_category_reorder と同一・org 照合とロール判定は set_seat 18〜23 行と一字一致・updated_at＝now() は cast_rank_reorder 型・audit は named 5 引数（live は 6 引数で p_reason 既定 null）・partial ids は is_active を問わない全件・libpg-query で SQL 層 parse OK。ファイル sha256 d784add2fcea1805cf201a30be385dfbda8a97000285d3bd0b96822df4688a78・7,646 B（Downloads と同一）＝`d1a5e4d`。控え＝docs/tmp/0145_pre.txt／0145_post.txt。**課金正本の追随**＝A6 14→15 本・対象 **124→125**・除外 114 不変・全数 **238→239**（履歴 bullet mig0145・E 節に現在値）・verify:nox-billing の pin 4 箇所（125／125／126／125）・anon-guard 段39b＝`2df543d`。suite verify:nox-seat-reorder 31 本（同）・client `7ae283b`。
+- **f0 新基準 pin（2026-09-15・49 本 3,966）**: 裁定200 の 3 値＝NOX DB 基準（BANZEN の verify プロセスは 裁定249 で除外）→ run3 15:21:46〜15:31:36・590s／run4 16:47:02〜16:55:14・492s＝いずれも **49 段 ALL PASS・3,966・golden 不変（5931／125802／55233／64／64／53）・段別 assertion 数も同一・同一 HEAD `c9f6aee`**。内訳＝verify:nox-payroll-adjust 新設 40（mig0146・裁定258・49 段目）＋verify:nox-payroll 212→213（B5 A2＝payroll_finalize／reopen／mark_paid の 3 本に許可列挙し実在 assert +1）＝3,925＋41＝3,966 と見込み一致。同日の先行 2 走は赤＝run1 15:00（payroll B5 A2 が payroll_adjustment_add の p_cast_id を拾う→許可列挙化）・run2 15:07（billing 段47-1 liveOnly=2＝教訓21 の名簿漏れ→B(e) 収載・除外 114→116）。run3 と run4 の間に **NOX DB が 15:33〜16:46 無応答**（pooler timeout→econnrefused→Agoora の再起動で復帰・postmaster 16:46:22・max_connections 60・接続 18／60）＝DB 起因の赤は再走せず即停止（本ブロックの新ルール）。push＝`32d2123..c9f6aee`（7 コミット）。
 - **mig0143 D45 適用記録（2026-09-14）**: 貼り先 ref **hiqbfagmkrdpmlqhkmsu**（pooler ap-northeast-1・proof orgs=3）・2026-09-14 11:39 適用（CC が相談役ブロックの明示指示で pg 直結・単一トランザクション・例外なし）・検証 6 項目 OK＝(1) 新 2 列 NOT NULL default 0 (2) 列数 **38→40**・制約 **28→30**・新 CHECK 2 本 (3) n_card／n_other＝aggregate 1/1・close 2/2・reclose 2/2 (4) diff 式に v_ar_card／other なし (5) proacl 3 本 9/11 と同値 (6) **money-core 4 本の md5 不変**（check_pay／check_close／check_void／receivable_collect）。既存 daily_reports **5 行とも新 2 列 0**・行数前後 5。手貼り前の控え（9/11）と 9/14 再実測は同一＝間に誰も触っていない。ファイル sha256 ada2fc9e…8753・20,204 B（Downloads と同一）＝`8c89d4e`。控え＝docs/tmp/0143_pre.txt／0143_pre_0914.txt／0143_post.txt。
 - **C層③ DB 側完了（0138〜0141）**（2026-09-10・mig0138 `ec6c3e5`＋0139 `ec6c3e5`＋0140／0141 `8d94923`・追随 `5005a9a`・名簿 `1a78d50`・suite `ac125d7`）: 設計書 v1 §1〜§3 どおり memberships.can_close／can_reopen＋set_staff_perms 7 引数（#63 クローズ）・daily_reports 9 列＋report_reopen／daily_report_reclose 8 引数（p_idem_key）／cash_diff_approve・checks.status merged＋check_merge（0139 補正）・payroll_reopen 5 引数（p_reason・service 経路）・関所 assert_day_open を課金ゲート内蔵の check_* 16 本へ（0140・check_open は 0141 で v_seat.store_id 版へ補正＝教訓68）。verify:nox-reopen 65 assertions（run1 緑・逆張り 3 本同時で 12 赤→backup 復元 差分 0）を f0 末尾へ連結＝**40 本 3,721**（2 連緑 889s／1049s・40 段 ALL PASS・run1／run2 の段別 assertion 数は同一・golden 6 値不変）。内訳の計算値＝旧 3,642＋reopen 65＋billing +0＋grants +12＝3,719 で実測 3,721 と 2 差（pin は実測値・差の出所は本ブロックでは未特定＝段別ログは docs/tmp に残置しない・次の pin 時に段別で照合）。UI（§4 の 4 面）は次ブロック。
 - **handoff v29／v30 収蔵（2026-09-11）**: Downloads から `docs/handoff/` へ収蔵（git 追跡へ追加・sha 全64桁付き）。v29＝`NOX_相談役引き継ぎ_2026-09-10_v29.md`（7,604 B・sha256 `4573dfdafa30be4240cafc2c4566d125701e8509b598ffbc53cfd48a3bf79d0a`）／v30＝`NOX_相談役引き継ぎ_2026-09-10_v30.md`（9,576 B・sha256 `e21dd85b72e97989ef7f1aee6e618d2b0d14de11362f348ff0e52f36472b1660`・Downloads の「v30 (1)」「(2)」「(3)」は 3 つとも同 sha＝「(1)」を無印名で収蔵。Downloads の無印 v30.md は 9,772 B・16:49 旧稿＝収蔵せず削除もせず）。収蔵後に再計算した sha は照合値と一致。v29 §0 の HEAD／ahead は 9/10 14:30 時点・v30 §0 は 9/10 17:05 時点の値のままで正（#81 は v30 未記載＝v31 で記載）。旧セッションの pin push（`18c5b2b`・0 0）を待って収蔵＝f0 不要（docs のみ）。
