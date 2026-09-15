@@ -7,6 +7,8 @@
 //   これにより「控除計 = 総支給 − 差引」が恒等成立し、「時給計＋バック計＋加算計 = 総支給」も一致する
 //   （Agoora 裁定 2026-07-22。pay.gross 単独だと extras>0 の cast で両者が崩れる）。
 
+import { totalDeductionsOf } from "./adjust"; // 裁定264-3: 控除計の式は 1 本に集約
+
 // 凍結 payslips.breakdown_json.pay（PayResult のうち CSV が使う部分集合）
 export type PayrollCsvPay = {
   timePay: number;
@@ -50,7 +52,7 @@ export function payrollCsvCells(r: PayrollCsvRow): (string | number)[] {
   const p = r.pay;
   const backTotal = p.honBack + p.jonaiBack + p.dohanBack + p.drinkBack + p.champBack + p.bottleBack + p.salesBack;
   const addTotal = p.customTotal + r.extrasTotal;
-  const dedTotal = p.fixedDed + p.fine + p.withholding + p.arDeduct + p.advanceDeduct + p.okuriDeduct + p.normPenalty;
+  const dedTotal = totalDeductionsOf(p); // 裁定264-3（旧: fixedDed+fine+withholding+arDeduct+advanceDeduct+okuriDeduct+normPenalty）
   const grossTotal = p.gross + r.extrasTotal;
   return [
     r.castName, r.taxMode, r.period,

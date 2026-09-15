@@ -12,6 +12,7 @@
 //  - 売上バック率テーブル = モック値をデフォルト引数に（店設定化は F2 判断）
 
 import { roundYen, roundPt1, floorYen } from "./money";
+import { adjustOf, type AdjustmentRow } from "./payroll/adjust"; // 裁定258／264: run 別調整控除（純関数・roundYen は money.ts）
 
 // ── 型 ────────────────────────────────────────────────────────
 
@@ -205,6 +206,9 @@ export type PayInput = {
   taxMode: TaxMode; // cast_tax_profiles.mode
   salesBackTable?: SalesBackStep[];
   sim?: { days?: number; dohan?: number }; // シミュレーター上書き（days は timePay を変えない）
+  // ★裁定258／264: run 別調整控除の行（payroll_adjustments・当該 cast 分）。optional＝未指定は []（既存呼び出し・fixture・golden 不変）。
+  //   率の分母は payOf 内で確定する gross（258-2）＝集計済み額ではなく行で受ける。
+  adjustments?: AdjustmentRow[];
 };
 
 // ★裁定98: sanction（制裁控除）の二層ガード結果。
@@ -254,6 +258,12 @@ export type PayResult = {
   advanceDeduct: number;
   okuriDeduct: number;
   normPenalty: number;
+  // ★裁定258／264: 調整控除。adjBefore=源泉前（源泉対象額から引く）・adjAfter=源泉後。
+  //   adjustOverflow=net 0 床で引ききれなかった超過額（264-11・保持のみ・繰越消費は 0147）。
+  //   恒等: net = gross − (fixedDed+fine+withholding+ar+adv+okuri+normPenalty+adjBefore+adjAfter) + adjustOverflow。
+  adjBefore: number;
+  adjAfter: number;
+  adjustOverflow: number;
   net: number;
   lateN: number;
   absentN: number;
@@ -577,6 +587,10 @@ export function payOf(input: PayInput): PayResult {
   }
   const gross = grossBase + achievementBonus + guaranteeAdd; // ①=控除前総支給への床（控除はこの後）
 
+  // ★裁定258／264: 調整控除＝gross 確定後・fixedDed 前に確定（率の分母は上の gross・全率行が同じ gross＝258-2）。
+  //   before 群は源泉対象額から引く（264-6）・after 群は net 式で引く。sanction cap（下）の基底は生 gross のまま不変（264-5）。
+  const adj = adjustOf(input.adjustments ?? [], gross);
+
   // 控除 ── ★裁定98: sanction（制裁）を他の kind から分離（二層ガード）。非 sanction は現行式と1バイト同値。
   const sanctionRows = (input.deductions ?? []).filter((d) => d.kind === "sanction");
   const otherDeds = sanctionRows.length ? input.deductions.filter((d) => d.kind !== "sanction") : input.deductions;
@@ -613,10 +627,15 @@ export function payOf(input: PayInput): PayResult {
     input.fine.absentN * input.penalty.fineAbsent +
     input.fine.lateN * input.penalty.fineLate;
   // ★源泉のみ periodDays（計算期間の暦日数）。fixedDedOf / normPenaltyOf は実出勤日数 effDays のまま（裁定23 #3）。
-  const withholding = withholdingOf(gross, input.periodDays, input.taxMode);
+  // ★264-6: before 群の合計を源泉対象額から引く（0 未満は 0 で止める）。adjustments 空なら従来と 1 バイト同値（生 gross）。
+  const withholding = withholdingOf(Math.max(0, gross - adj.before), input.periodDays, input.taxMode);
   const normPenalty = normPenaltyOf(input.normConfig, input.norm, effDays, effDohan);
 
-  const net =
+  // ★258-8／264-11: 調整控除を引いた差引が負なら net=0 で止め、超過額を adjustOverflow に保持（DB 列は作らない）。
+  //   床は調整控除が食い込む分に限る（min(調整合計, −netRaw)）＝adjustments 空なら従来式そのまま（既存の負 net も不変＝回帰）。
+  //   恒等: net = gross − (fixedDed+fine+withholding+ar+adv+okuri+normPenalty+adjBefore+adjAfter) + adjustOverflow。
+  const adjTotal = adj.before + adj.after;
+  const netRaw =
     gross -
     fixedDed -
     fine -
@@ -624,7 +643,10 @@ export function payOf(input: PayInput): PayResult {
     input.arDeduct -
     input.advanceDeduct -
     input.okuriDeduct -
-    normPenalty;
+    normPenalty -
+    adjTotal;
+  const adjustOverflow = Math.min(adjTotal, Math.max(0, -netRaw));
+  const net = netRaw + adjustOverflow;
 
   return {
     plan: input.plan,
@@ -658,6 +680,9 @@ export function payOf(input: PayInput): PayResult {
     advanceDeduct: input.advanceDeduct,
     okuriDeduct: input.okuriDeduct,
     normPenalty,
+    adjBefore: adj.before, // ★裁定258／264
+    adjAfter: adj.after,
+    adjustOverflow,
     net,
     lateN: input.fine.lateN,
     absentN: input.fine.absentN,

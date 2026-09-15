@@ -183,6 +183,8 @@ export async function computePayrollDraft(
     //  2) budget rem0 = max(0, available − takeHomeFloor())。allocateCategory を送り→前借り→売掛の順に呼び、
     //     remAfter を次へ渡す＝高優先カテゴリが先に budget を消費・売掛は残りだけ（transport は繰越なし）。
     //  3) 確定額（ar/adv/okuri）で再 payOf → net = available − (okuri+adv+ar) ≥ floor（L2）。
+    //  ★裁定258／264: 調整控除（c.adjustments）は buildPayInput が両段の PayInput に同じ行を載せる＝pay0 の時点で
+    //    引かれ available が減る（配分順序は現状維持・ar/adv/okuri は残り budget で回る）。collect の結線は次レーン。
     const extrasTotal = extras.reduce((s, e) => s + e.amount, 0);
     const pay0 = payOf(buildPayInput(c, taxMode, masters, periodDays, extrasTotal, 0, 0, 0));
     // ★extras は gross に入った（＝源泉後の pay0.net に既に反映）。外側での再加算は二重計上になるため撤去。

@@ -12,10 +12,21 @@
  *      ＝Postgres 直結の 1 トランザクション内で NOX-VERIFY-A1 に仮 run（2099-01）を作り owner-a の JWT claims を emulate して呼び、
  *        最後に ROLLBACK（payroll_adjustments／2099-01 run／audit の残留 0 を assert）。正常 add 1 件で audit の actor=users.id・reason 保持も固定。
  *  money-core（check_close／check_pay／check_void）には非接触。
+ *
+ *  (0) 純関数（DB 非依存・裁定264・2026-09-15）＝ lib/nox/payroll/adjust.ts と payOf の合成:
+ *      率 0/10000 境界と roundYen 1 回／複数率行が同一 gross（逐次適用しない＝258-2）／before・after の源泉差（264-6）／
+ *      sanction cap の基底は生 gross（264-5）／net 0 床と超過額の恒等（258-8・264-11）／空配列で既存挙動と完全一致（回帰）／
+ *      控除計の集約 totalDeductionsOf＝旧 5 箇所の式と逐語同値（264-3）／buildPayInput の行素通し（core 187 の pay0 に入る）。
  */
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
+import { payOf, withholdingOf, type PayInput, type CompPlan, type PayResult } from "../lib/nox/pay";
+import { adjustOf, adjustAmountOf, totalDeductionsOf, type AdjustmentRow, type DeductionParts } from "../lib/nox/payroll/adjust";
+import { buildPayInput, type CastRaw, type StoreMasters } from "../lib/nox/payroll/assemble";
+import { kpiOfDraftRows } from "../lib/nox/payroll/ui-calc";
+import { payrollCsvCells, type PayrollCsvPay } from "../lib/nox/payroll/csv";
+import { roundYen } from "../lib/nox/money";
 
 const env = loadEnvOrExit(["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_DB_URL"]);
 
@@ -32,7 +43,177 @@ const DEL_ARGS = "p_id uuid, p_reason text";
 const POLICY_QUAL = "((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (store_id = auth_store_id())) AND (auth_role() = ANY (ARRAY['owner'::text, 'manager'::text])))";
 const COLS = ["id", "org_id", "store_id", "run_id", "cast_id", "mode", "amount", "rate_bp", "before_withholding", "show_detail", "reason", "created_by", "created_at"];
 
+// ── (0) 純関数 fixture（DB 非依存）──
+const PLAN: CompPlan = { id: "p", name: "test", base: 3000, honBack: 1000, jonaiBack: 500, dohanBack: 2000, salesSlide: [], pointSlide: [] };
+const BASE: PayInput = {
+  cast: { hon: 2, jonai: 1, dohan: 0, days: 10, sales: 300_000 },
+  daily: Array.from({ length: 10 }, (_, i) => ({ d: i + 1, hours: 5, sales: 30_000 })),
+  plan: PLAN,
+  productBack: { drink: 0, champ: 0, bottle: 0 },
+  pointProducts: 0,
+  customBackDefs: [],
+  deductions: [{ id: "d1", name: "厚生", amount: 5000, per: "month" }],
+  penalty: { fineAbsent: 10000, fineLate: 3000, hoursPerShift: 5 },
+  normConfig: { on: false, daysFlat: 0, daysPer: 0, dohanFlat: 0, dohanPer: 0 },
+  norm: { days: 0, dohan: 0 },
+  fine: { absentN: 0, lateN: 1 },
+  arDeduct: 0, advanceDeduct: 0, okuriDeduct: 0,
+  periodDays: 30,
+  extrasTotal: 0,
+  taxMode: "委託",
+};
+const row = (p: Partial<AdjustmentRow>): AdjustmentRow => ({
+  castId: "c1", kind: "fixed", amount: null, rateBp: null, beforeWithholding: false, showDetail: true, reason: "test", ...p,
+});
+const fixed = (amount: number, before = false) => row({ kind: "fixed", amount, beforeWithholding: before });
+const rate = (rateBp: number, before = false) => row({ kind: "rate", rateBp, beforeWithholding: before });
+// 恒等式（264-11）: net = gross − totalDeductionsOf(pay) + adjustOverflow
+const identityHolds = (p: PayResult) => p.net === p.gross - totalDeductionsOf(p) + p.adjustOverflow;
+
+function pureChecks() {
+  const base = payOf(BASE);
+  const g = base.gross;
+  check("pa(0-0) fixture: gross>0・withholding>0・net>0（源泉差が観測できる形）", g > 0 && base.withholding > 0 && base.net > 0, JSON.stringify({ g, wh: base.withholding, net: base.net }));
+
+  // 率 0／10000 境界・roundYen 1 回
+  check("pa(0-1a) rate_bp 0 → 0", adjustAmountOf(rate(0), g) === 0);
+  check("pa(0-1b) rate_bp 10000 → gross そのもの", adjustAmountOf(rate(10000), g) === g);
+  check("pa(0-1c) rate_bp 2000 on 161,500 → 32,300（20%）", adjustAmountOf(rate(2000), 161_500) === 32_300);
+  check("pa(0-1d) 端数＝roundYen((gross×bp)/10000) 1 回（12,345×3,333bp＝4114.5885→4115／5×5000bp＝2.5→3）",
+    adjustAmountOf(rate(3333), 12_345) === roundYen((12_345 * 3333) / 10000) && adjustAmountOf(rate(3333), 12_345) === 4115
+    && adjustAmountOf(rate(5000), 5) === 3);
+  check("pa(0-1e) fixed は amount そのまま（gross に依存しない）", adjustAmountOf(fixed(1234), g) === 1234 && adjustAmountOf(fixed(1234), 0) === 1234);
+  const bad = (r: AdjustmentRow) => { try { adjustAmountOf(r, g); return false; } catch (e) { return /bad adjustment/.test((e as Error).message); } };
+  check("pa(0-1f) 不正行は throw（rate_bp 10001／−1／小数・fixed 負／null・kind 不正）",
+    bad(rate(10001)) && bad(rate(-1)) && bad(row({ kind: "rate", rateBp: 12.5 })) && bad(fixed(-1)) && bad(row({ kind: "fixed", amount: null }))
+    && bad(row({ kind: "percent" as unknown as "rate", rateBp: 1 })));
+
+  // 複数率行が同一 gross（逐次適用しない）
+  {
+    const r = adjustOf([rate(2000, true), rate(3000, true), fixed(1000, false)], 100_000);
+    check("pa(0-2a) 率行 2000＋3000 on 100,000 → 50,000（逐次なら 44,000）・行別 20,000／30,000", r.before === 50_000 && r.rows[0].applied === 20_000 && r.rows[1].applied === 30_000, JSON.stringify(r));
+    check("pa(0-2b) before/after は beforeWithholding で振り分け（after＝fixed 1,000）・rows は入力順", r.after === 1000 && r.rows.length === 3 && r.rows[2].applied === 1000);
+    const rev = adjustOf([fixed(1000, false), rate(3000, true), rate(2000, true)], 100_000);
+    check("pa(0-2c) 並べ替えても合計不変（258-2）", rev.before === 50_000 && rev.after === 1000);
+    check("pa(0-2d) 空配列 → 0／0／[]", JSON.stringify(adjustOf([], 100_000)) === JSON.stringify({ before: 0, after: 0, rows: [] }));
+  }
+
+  // before／after の源泉差（264-6）・gross 不変（258-2）
+  {
+    const pb = payOf({ ...BASE, adjustments: [rate(2000, true)] });
+    const pa = payOf({ ...BASE, adjustments: [rate(2000, false)] });
+    const a = roundYen((g * 2000) / 10000);
+    check("pa(0-3a) gross は調整で動かない（分母固定）", pb.gross === g && pa.gross === g);
+    check("pa(0-3b) before: withholding＝withholdingOf(gross−before)・adjBefore＝20%", pb.withholding === withholdingOf(g - a, 30, "委託") && pb.adjBefore === a && pb.adjAfter === 0, JSON.stringify({ wh: pb.withholding, exp: withholdingOf(g - a, 30, "委託") }));
+    check("pa(0-3c) after: withholding は従来どおり（生 gross）・adjAfter＝20%", pa.withholding === base.withholding && pa.adjAfter === a && pa.adjBefore === 0);
+    check("pa(0-3d) 源泉差＝before の方が源泉が少ない（同額でも net が大きい）", pb.withholding < pa.withholding && pb.net > pa.net);
+    check("pa(0-3e) 両者とも恒等式が閉じる（overflow 0）", identityHolds(pb) && identityHolds(pa) && pb.adjustOverflow === 0 && pa.adjustOverflow === 0);
+    const big = payOf({ ...BASE, adjustments: [fixed(10_000_000, true)] });
+    check("pa(0-3f) before が gross を超えても源泉対象額は 0 止め（withholding 0）", big.withholding === 0 && identityHolds(big));
+    check("pa(0-3g) fixedDed／fine／normPenalty は調整で不変（fixedDed 前の割り込み）", pb.fixedDed === base.fixedDed && pb.fine === base.fine && pb.normPenalty === base.normPenalty);
+  }
+
+  // sanction cap の基底は生 gross（264-5）
+  {
+    const sanc: PayInput = { ...BASE, taxMode: "雇用", employment: "雇用", avgDailyWage: null,
+      deductions: [...BASE.deductions, { id: "s", name: "減給", amount: 100_000, per: "month", kind: "sanction" }] };
+    const s0 = payOf(sanc);
+    const s1 = payOf({ ...sanc, adjustments: [rate(5000, true)] });
+    check("pa(0-4a) sanction capTotal＝floor(生 gross/10)・before 50% でも不変", s0.sanction?.capTotal === Math.floor(g / 10) && s1.sanction?.capTotal === s0.sanction?.capTotal && s1.sanction?.applied === s0.sanction?.applied, JSON.stringify({ s0: s0.sanction, s1: s1.sanction }));
+  }
+
+  // net 0 床と超過額の恒等（258-8・264-11）
+  {
+    const over = payOf({ ...BASE, adjustments: [fixed(base.net + 1000, false)] });
+    check("pa(0-5a) after が net を 1,000 超過 → net 0・adjustOverflow 1,000・adjAfter は全額", over.net === 0 && over.adjustOverflow === 1000 && over.adjAfter === base.net + 1000, JSON.stringify({ net: over.net, of: over.adjustOverflow }));
+    check("pa(0-5b) 恒等 net = gross − 控除計 + adjustOverflow", identityHolds(over));
+    const exact = payOf({ ...BASE, adjustments: [fixed(base.net, false)] });
+    check("pa(0-5c) ちょうど net と同額 → net 0・overflow 0", exact.net === 0 && exact.adjustOverflow === 0 && identityHolds(exact));
+    const mix = payOf({ ...BASE, adjustments: [rate(10000, true), fixed(500, false)] });
+    check("pa(0-5d) before 100%＋after 500 → withholding 0・net 0・overflow＝引ききれない分・恒等", mix.withholding === 0 && mix.net === 0 && mix.adjustOverflow > 0 && identityHolds(mix), JSON.stringify({ net: mix.net, of: mix.adjustOverflow, before: mix.adjBefore }));
+    // 既存の負 net（調整なし）は床を作らない＝回帰。調整を足しても既存の負値のまま・超過は全額保持
+    const negIn: PayInput = { ...BASE, deductions: [{ id: "d9", name: "巨額", amount: 10_000_000, per: "month" }] };
+    const neg0 = payOf(negIn);
+    const neg1 = payOf({ ...negIn, adjustments: [fixed(100, false)] });
+    check("pa(0-5e) 既存の負 net は調整なしで不変（overflow 0）・調整 100 を足しても net 不変で overflow 100・恒等", neg0.net < 0 && neg0.adjustOverflow === 0 && neg1.net === neg0.net && neg1.adjustOverflow === 100 && identityHolds(neg0) && identityHolds(neg1), JSON.stringify({ n0: neg0.net, n1: neg1.net, of: neg1.adjustOverflow }));
+  }
+
+  // 空配列で既存挙動と完全一致（回帰）
+  {
+    const empty = payOf({ ...BASE, adjustments: [] });
+    const undef = payOf(BASE);
+    check("pa(0-6a) adjustments 省略と [] は全キー同値", JSON.stringify(empty) === JSON.stringify(undef));
+    check("pa(0-6b) 新キーは 0（adjBefore／adjAfter／adjustOverflow）", undef.adjBefore === 0 && undef.adjAfter === 0 && undef.adjustOverflow === 0);
+    check("pa(0-6c) withholding＝withholdingOf(生 gross)・net＝gross−7 項（従来式）", undef.withholding === withholdingOf(g, 30, "委託")
+      && undef.net === g - undef.fixedDed - undef.fine - undef.withholding - undef.arDeduct - undef.advanceDeduct - undef.okuriDeduct - undef.normPenalty && identityHolds(undef));
+    check("pa(0-6d) 具体値: timePay 150,000／hon 2,000／jonai 500／salesBack 9,000／gross 161,500／withholding 1,174／net 152,326",
+      undef.timePay === 150_000 && undef.honBack === 2000 && undef.jonaiBack === 500 && undef.salesBack === 9000 && g === 161_500 && undef.withholding === 1174 && undef.net === 152_326, JSON.stringify({ g, wh: undef.withholding, net: undef.net }));
+  }
+
+  // 控除計の集約（264-3）＝旧 5 箇所の式と逐語同値（旧式は置換前の文面をそのまま写経）
+  {
+    type P = DeductionParts & { sanction?: { applied?: number } | null };
+    const z = (v: number | undefined) => v ?? 0;
+    const oldCsv = (p: PayrollCsvPay) => p.fixedDed + p.fine + p.withholding + p.arDeduct + p.advanceDeduct + p.okuriDeduct + p.normPenalty;
+    const oldBoard142 = (pay: P) => z(pay.fixedDed) + z(pay.fine) + z(pay.withholding) + z(pay.arDeduct) + z(pay.advanceDeduct) + z(pay.okuriDeduct) + z(pay.normPenalty);
+    const oldBoard588 = (pay: P) => z(pay.fixedDed) + z(pay.fine) + z(pay.withholding) + z(pay.arDeduct) + z(pay.advanceDeduct) + z(pay.okuriDeduct) + z(pay.normPenalty);
+    const oldUiCalc = (pay: P) => z(pay.fixedDed) + z(pay.fine) + z(pay.withholding) + z(pay.arDeduct) + z(pay.advanceDeduct) + z(pay.okuriDeduct) + z(pay.normPenalty);
+    const oldPanel = (pay: P) => {
+      const sanctionApplied = z(pay.sanction?.applied);
+      const dedRows: [string, number][] = [
+        ["源泉", z(pay.withholding)], ["送り", z(pay.okuriDeduct)], ["制裁", sanctionApplied],
+        ["前借り", z(pay.advanceDeduct)], ["売掛", z(pay.arDeduct)],
+        ["その他", z(pay.fixedDed) - sanctionApplied + z(pay.fine) + z(pay.normPenalty)],
+      ];
+      return dedRows.reduce((s, [, v]) => s + v, 0);
+    };
+    let seed = 20260915;
+    const rnd = (n: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+    const keys = ["fixedDed", "fine", "withholding", "arDeduct", "advanceDeduct", "okuriDeduct", "normPenalty"] as const;
+    let allEq = true, n = 0, detail = "";
+    for (let i = 0; i < 500; i++) {
+      const p: P = {};
+      for (const k of keys) if (rnd(4) !== 0) p[k] = rnd(300_000); // 1/4 は欠落＝0 扱い
+      const sanc = rnd(3) === 0 ? { applied: Math.min(z(p.fixedDed), rnd(50_000)) } : null;
+      const full: PayrollCsvPay = { timePay: 0, honBack: 0, jonaiBack: 0, dohanBack: 0, drinkBack: 0, champBack: 0, bottleBack: 0, salesBack: 0, customTotal: 0, gross: 0,
+        fixedDed: z(p.fixedDed), fine: z(p.fine), withholding: z(p.withholding), arDeduct: z(p.arDeduct), advanceDeduct: z(p.advanceDeduct), okuriDeduct: z(p.okuriDeduct), normPenalty: z(p.normPenalty) };
+      const t = totalDeductionsOf(p);
+      const ok = t === oldCsv(full) && t === oldBoard142(p) && t === oldBoard588(p) && t === oldUiCalc(p) && t === oldPanel({ ...p, sanction: sanc }) && t === totalDeductionsOf(full);
+      if (!ok) { allEq = false; detail = JSON.stringify({ p, sanc, t }); break; }
+      n++;
+    }
+    check(`pa(0-7a) totalDeductionsOf＝旧 5 式（CSV／board 142／board 588／ui-calc／右パネル Σ）と ${n} 例で完全一致（欠落キー・sanction 分解を含む）`, allEq && n === 500, detail);
+    check("pa(0-7b) 新キー adjBefore／adjAfter を足す（旧 payslip は欠落＝0）", totalDeductionsOf({ fixedDed: 1, adjBefore: 10, adjAfter: 100 }) === 111 && totalDeductionsOf({}) === 0);
+    // 呼び元の実体でも同値: csv の控除計セル（index 6）・kpiOfDraftRows.ded・PayResult 直渡し
+    const pr = payOf({ ...BASE, adjustments: [rate(1000, true), fixed(700, false)] });
+    const cells = payrollCsvCells({ castName: "x", taxMode: "委託", period: "2026-09", pay: pr as unknown as PayrollCsvPay, extrasTotal: 0, net: pr.net, paidTotal: 0 });
+    const kpi = kpiOfDraftRows([{ net: pr.net, breakdown: { pay: pr, extras: [] } }]);
+    check("pa(0-7c) csv 控除計セル＝kpiOfDraftRows.ded＝totalDeductionsOf(pay)（調整込み）・CSV 恒等「控除計＝総支給−差引」は overflow 0 のとき成立",
+      cells[6] === totalDeductionsOf(pr) && kpi.ded === totalDeductionsOf(pr) && pr.adjustOverflow === 0 && (cells[8] as number) - (cells[9] as number) === cells[6], JSON.stringify({ c6: cells[6], kpi: kpi.ded, t: totalDeductionsOf(pr) }));
+  }
+
+  // buildPayInput の行素通し（core 187／205 の二段 payOf に同じ行が入る）
+  {
+    const raw: CastRaw = {
+      castId: "c1", castName: "テスト", sales: 300_000, hon: 2, jonai: 1, dohan: 0, honShimeiAmt: 0, jonaiShimeiAmt: 0,
+      daily: Array.from({ length: 10 }, (_, i) => ({ bizDate: `2026-09-${String(i + 1).padStart(2, "0")}`, sales: 30_000, hours: 5 })),
+      productBack: { drink: 0, champ: 0, bottle: 0 }, calculatedBack: 0, pointProducts: 0, champCnt: 0, bottleCnt: 0,
+      days: 10, lateN: 1, absentN: 0, anomalyCount: 0, plan: PLAN, norm: { days: 0, dohan: 0 }, taxProfileMode: "委託", employment: "委託", avgDailyWage: null,
+    };
+    const masters: StoreMasters = { penalty: BASE.penalty, normConfig: BASE.normConfig, deductions: BASE.deductions, customBackDefs: [] };
+    const rows = [rate(2000, false)];
+    const in0 = buildPayInput(raw, "委託", masters, 30, 0, 0, 0, 0);
+    const in1 = buildPayInput({ ...raw, adjustments: rows }, "委託", masters, 30, 0, 0, 0, 0);
+    check("pa(0-8a) adjustments 未指定 → []・指定 → 行をそのまま素通し", JSON.stringify(in0.adjustments) === "[]" && in1.adjustments === rows);
+    const p0 = payOf(in0), p1 = payOf(in1);
+    check("pa(0-8b) pay0（第 1 段）の net が調整分だけ減る＝available が減り ar/adv/okuri は残り budget（配分順序）", p0.net === base.net && p1.net === base.net - roundYen((g * 2000) / 10000) && identityHolds(p1), JSON.stringify({ p0: p0.net, p1: p1.net }));
+    const p2 = payOf(buildPayInput({ ...raw, adjustments: rows }, "委託", masters, 30, 0, 1000, 500, 300));
+    check("pa(0-8c) 第 2 段（ar/adv/okuri 確定額）でも同じ行が効く＝net が更に 1,800 減る・恒等", p2.net === p1.net - 1800 && p2.adjAfter === p1.adjAfter && identityHolds(p2));
+  }
+}
+
 async function main() {
+  pureChecks(); // (0) DB 非依存＝接続前に評価
   const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
   await db.connect();
   const q = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await db.query(sql, params)).rows as T[];
@@ -170,6 +351,7 @@ async function main() {
   }
   console.log(`verify:nox-payroll-adjust ALL PASS (${pass} assertions)`);
   console.log("run 別調整控除(0146): 列 13・CHECK 3・index 3+pk・RLS・policy using 式 / grant 表 SELECT のみ・関数 EXECUTE・anon 0＋BLOCKED / FK 5（cascade）/ 署名 2・secdef / 異常系 5＋正常 add の audit（ROLLBACK・残留 0）");
+  console.log("純関数(裁定264): 率 0/10000 境界・roundYen 1 回 / 複数率行が同一 gross / before・after の源泉差・sanction cap 生 gross / net 0 床と超過額の恒等 / 空配列回帰 / 控除計の集約＝旧 5 式と 500 例一致 / buildPayInput 素通し（二段 payOf）");
 }
 
 main().catch((e) => { console.error("✗ 異常終了", e); process.exit(1); });

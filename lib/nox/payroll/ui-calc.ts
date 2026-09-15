@@ -3,6 +3,8 @@
 // allocateCategory / sanctionWarningsOf と同じ建付け）。
 // 欠落キーは 0 円扱い（2026-07-28 既定＝payroll-board の確定期 sum4 と同一の既定・率計算も整合補正もしない）。
 
+import { totalDeductionsOf } from "./adjust"; // 裁定264-3: 控除計の式は 1 本に集約
+
 export type DraftKpiRow = {
   net: number;
   breakdown?: {
@@ -25,8 +27,7 @@ export function kpiOfDraftRows(rows: DraftKpiRow[]): Kpi4 {
     const pay = r.breakdown?.pay ?? {};
     const extras = (r.breakdown?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
     gross += z(pay.gross) + extras;
-    ded += z(pay.fixedDed) + z(pay.fine) + z(pay.withholding) + z(pay.arDeduct)
-      + z(pay.advanceDeduct) + z(pay.okuriDeduct) + z(pay.normPenalty);
+    ded += totalDeductionsOf(pay); // 裁定264-3（旧: z(fixedDed)+z(fine)+z(withholding)+z(arDeduct)+z(advanceDeduct)+z(okuriDeduct)+z(normPenalty)）
     wh += z(pay.withholding);
     net += r.net;
   }

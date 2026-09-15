@@ -13,6 +13,7 @@ import type {
   BackDef,
   TaxMode,
 } from "../pay";
+import type { AdjustmentRow } from "./adjust"; // 裁定258／264
 
 // breakdown_json の器: { pay: PayResult, extras: Extra[] }。
 // #32 出勤インセンティブは extras に {kind:'attendance_bonus', amount, label, source:incentive行id} を乗せる。
@@ -46,6 +47,9 @@ export type CastRaw = {
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
   employment: "委託" | "雇用" | null; // ★裁定98: casts.employment（null＋sanction 行ありは core が no_employment blocker）
   avgDailyWage: number | null; // ★裁定98-C: 平均賃金（直近3確定期）。null=payOf の暫定式
+  // ★裁定258／264: run 別調整控除（payroll_adjustments・当該 cast 分）。optional＝collect の結線は次レーン（未結線は []）。
+  //   二段 payOf（core 187／205）の両方へ同じ行が入る＝調整が先に引かれ available が減る（裁定258 配分順序）。
+  adjustments?: AdjustmentRow[];
 };
 
 // 店共通マスタ（loadStoreMasters が組む）。
@@ -106,6 +110,7 @@ export function buildPayInput(
     employment: raw.employment, // ★裁定98: sanction 二層ガードの分岐キー
     avgDailyWage: raw.avgDailyWage, // ★裁定98-C: null=暫定式
     taxMode,
+    adjustments: raw.adjustments ?? [], // ★裁定258／264: 行のまま渡す（率の分母 gross は payOf 内で確定）
   };
 }
 

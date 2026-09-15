@@ -8,6 +8,7 @@ import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { kpiOfDraftRows, issuesOfDraft, payStatusOf } from "@/lib/nox/payroll/ui-calc";
+import { totalDeductionsOf } from "@/lib/nox/payroll/adjust"; // 裁定264-3: 控除計の式は 1 本に集約
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
 import PaymentTaxPanel from "./payment-tax-panel";
@@ -139,8 +140,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           const pay = sl.breakdown_json.pay;
           const extras = (sl.breakdown_json.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
           gross += z(pay.gross) + extras;
-          ded += z(pay.fixedDed) + z(pay.fine) + z(pay.withholding) + z(pay.arDeduct)
-            + z(pay.advanceDeduct) + z(pay.okuriDeduct) + z(pay.normPenalty);
+          ded += totalDeductionsOf(pay); // 裁定264-3（旧: z(fixedDed)+z(fine)+z(withholding)+z(arDeduct)+z(advanceDeduct)+z(okuriDeduct)+z(normPenalty)）
           wh += z(pay.withholding);
           net += sl.net;
         }
@@ -585,10 +585,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 const pay = r.breakdown?.pay;
                 const extras = (r.breakdown?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
                 const gross = pay ? z(pay.gross) + extras : null;
-                const ded = pay
-                  ? z(pay.fixedDed) + z(pay.fine) + z(pay.withholding) + z(pay.arDeduct)
-                    + z(pay.advanceDeduct) + z(pay.okuriDeduct) + z(pay.normPenalty)
-                  : null;
+                const ded = pay ? totalDeductionsOf(pay) : null; // 裁定264-3（旧: z(fixedDed)+…+z(normPenalty) の 7 項）
                 return (
                 <tr key={r.castId} onClick={() => { setSlipPreview(false); setDetailCast((v) => (v === r.castId ? null : r.castId)); }}
                   style={{ cursor: "pointer", background: detailCast === r.castId ? "var(--card2)" : undefined }}>
@@ -677,7 +674,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                   ["その他", z(pay.fixedDed) - sanctionApplied + z(pay.fine) + z(pay.normPenalty)],
                 ];
                 const earnTotal = z(pay.gross) + extrasTotal;
-                const dedTotal = dedRows.reduce((s, [, v]) => s + v, 0);
+                // 裁定264-3: 控除合計は集約関数（旧: dedRows の Σ＝withholding+okuri+sanction.applied+adv+ar+(fixedDed−sanction.applied+fine+normPenalty) の 7 項と同値）
+                const dedTotal = totalDeductionsOf(pay);
                 const line = (l: string, v: number, neg = false) => (
                   <div key={l} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0" }}>
                     <span style={{ color: "var(--sub)" }}>{l}</span>
