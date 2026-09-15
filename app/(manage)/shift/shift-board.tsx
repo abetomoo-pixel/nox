@@ -15,6 +15,8 @@ import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange, addDays } from "@/lib/nox/biz-date";
 import { fmtWin, fmtBand30, hm2min, min2hm, spanMinutes } from "@/lib/nox/shift-time";
+import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
+import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
@@ -222,6 +224,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [atts, setAtts] = useState<Att[]>([]);
   // ★B4-a 裁定222（H32）: 表示日の punches（自店・営業日範囲）→ cast ごとの最終 'in' 時刻（HH:MM）。読取 1・表示専用。
   const [punchIn, setPunchIn] = useState<Map<string, string>>(new Map());
+  // ★裁定257 R20-a: 表示日の打刻行（in／out とも）＝matchPunches の入力。R20-b: 退勤（punch_proxy）後の再読込トリガ
+  const [punchRows, setPunchRows] = useState<(PunchRow & { cast_id: string })[]>([]);
+  const [punchTick, setPunchTick] = useState(0);
+  // ★裁定257 R20-a: penalty_config.late_grace_min（client は SELECT のみ・comp-sections と同じ経路・取れなければ既定 10）
+  const [lateGraceMin, setLateGraceMin] = useState<number>(LATE_GRACE_MIN_DEFAULT);
   const [msg, setMsg] = useState<string | null>(null);
   // ── UI刷新v2 段S-1: サブナビ（今日/カレンダー/シフト作成）・表示月・選択日 ──
   //   すべて presentation（どの範囲を読むか・どこを見せるか）＝RPC/RLS/mig 非改変。
@@ -762,33 +769,62 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       const { data } = await supabase.from("punches").select("cast_id, type, punched_at")
         .eq("store_id", storeId).gte("punched_at", startIso).lt("punched_at", endIso).order("punched_at");
       const m = new Map<string, string>();
-      for (const p of (data ?? []) as { cast_id: string; type: string; punched_at: string }[]) {
+      const rows = (data ?? []) as { cast_id: string; type: "in" | "out"; punched_at: string }[];
+      for (const p of rows) {
         if (p.type === "in") m.set(p.cast_id, new Date(p.punched_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }));
         else m.delete(p.cast_id); // 'out' が後なら「打刻中」ではない＝表示しない
       }
-      if (alive) setPunchIn(m);
+      if (alive) { setPunchIn(m); setPunchRows(rows); }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId, todayDate, cutoff]);
-  // ★B4-a 裁定221（H31）: 4 カウンタ＝二重計上なし。休み（off）はどれにも数えない。
-  //   未着＝attendance 未記録 ∧ 開始時刻経過 ∧ 打刻なし（開始＝表示日の暦日 00:00 JST＋start_hm・30 時間制のまま）。
+  }, [storeId, todayDate, cutoff, punchTick]);
+  // ★裁定257 R20-a: late_grace_min を店から読む（RLS 越しの SELECT のみ・行なし／失敗は既定 10 分）
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("penalty_config").select("late_grace_min").eq("store_id", storeId).maybeSingle();
+      const v = data?.late_grace_min;
+      if (alive) setLateGraceMin(typeof v === "number" && v >= 0 ? v : LATE_GRACE_MIN_DEFAULT);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
+  // ★裁定257 R20-b: 退勤＝punch_proxy(source='manager'・owner 全店／manager 自店・inactive cast 拒否・audit は RPC 側)。in 側は出さない（attendance の 5 択が入口）
+  async function proxyOut(castId: string) {
+    setMsg(null);
+    const { error } = await supabase.rpc("punch_proxy", { p_cast_id: castId, p_type: "out", p_note: null });
+    setMsg(error ? `退勤の記録に失敗: ${rpcErrJa(error.message)}` : `${castName(castId)} の退勤を記録しました`);
+    setPunchTick((v) => v + 1);
+  }
+  // ★B4-a 裁定221（H31）: カウンタ＝二重計上なし。休み（off）はどれにも数えない。
+  // ★裁定257 R20-a（2026-09-15）: 「遅刻・未着」を 2 つに分け、判定を給与側と同じ punch-match.ts（matchPunches）に揃える。
+  //   遅刻＝in 打刻あり ∧ in − start > late_grace_min（final.type 'late'）または attendance.status='late'／
+  //   未着＝打刻なし ∧ now ≥ start + late_grace_min／出勤済み＝shukkin・dohan または final 'ok'／欠勤＝absent。
+  //   閾値は penalty_config.late_grace_min（既定 10）。開始時刻＝表示日の暦日 00:00 JST＋start_hm（30 時間制のまま）。
   const todayCounts = (() => {
     const list = shiftsOn(todayDate);
     const nowMs = Date.now();
     const base = Date.parse(`${todayDate}T00:00:00+09:00`);
-    let arrived = 0, lateOrMissing = 0, absent = 0;
+    let arrived = 0, late = 0, missing = 0, absent = 0;
     for (const s of list) {
       const st = attOf(s.cast_id, todayDate)?.status;
-      const punched = punchIn.has(s.cast_id);
-      if (st === "shukkin" || st === "dohan") arrived += 1;
-      else if (st === "late") lateOrMissing += 1;
-      else if (st === "absent") absent += 1;
-      else if (st === "off") { /* 休み＝数えない */ }
-      else if (punched) arrived += 1;
-      else if (nowMs >= base + hm2min(s.start_hm) * 60_000) lateOrMissing += 1;
+      if (st === "shukkin" || st === "dohan") { arrived += 1; continue; }
+      if (st === "absent") { absent += 1; continue; }
+      if (st === "off") continue; // 休み＝数えない
+      const mine = punchRows.filter((p) => p.cast_id === s.cast_id).map((p) => ({ punched_at: p.punched_at, type: p.type }));
+      const r = matchPunches({
+        ...buildMatchInput({ punches: mine, shifts: [{ date: todayDate, start_hm: s.start_hm, end_hm: s.end_hm }],
+          attendance: st === "late" ? [{ date: todayDate, status: "late" }] : [], cutoffHm: cutoff }),
+        config: { lateGraceMin, close: s.end_hm },
+      });
+      const fin = r.days.find((d) => d.bizDate === todayDate)?.final;
+      if (fin?.type === "late") late += 1;
+      else if (fin?.type === "ok") arrived += 1;
+      else if (nowMs >= base + (hm2min(s.start_hm) + lateGraceMin) * 60_000) missing += 1; // 打刻なし ∧ 猶予経過
     }
-    return { planned: list.length, arrived, lateOrMissing, absent };
+    return { planned: list.length, arrived, late, missing, absent };
   })();
 
   // ★裁定253 R12（2026-09-14）: 「未確定 n 件 → 確定する」導線。n＝表示月の proposed（castConfirm=false）または planned＋proposed（true）。
@@ -964,11 +1000,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           </div>
           {/* ★B4-a 裁定220/221（H31）: モック v4.1 171 行「出勤予定／出勤済み／遅刻・未着／欠勤」＝上の KPI 帯は残し、ここに 4 カウンタを足す。 */}
           {shiftsOn(todayDate).length > 0 && (
-            <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px 12px" }}>
+            <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: "6px 12px" }}>
               {([
                 ["出勤予定", todayCounts.planned, undefined],
                 ["出勤済み", todayCounts.arrived, "var(--ok)"],
-                ["遅刻・未着", todayCounts.lateOrMissing, todayCounts.lateOrMissing > 0 ? "var(--bad)" : undefined],
+                ["遅刻", todayCounts.late, todayCounts.late > 0 ? "var(--bad)" : undefined], // ★裁定257 R20-a: 遅刻／未着を分けて表示（閾値＝penalty_config）
+                ["未着", todayCounts.missing, todayCounts.missing > 0 ? "var(--bad)" : undefined],
                 ["欠勤", todayCounts.absent, todayCounts.absent > 0 ? "var(--bad)" : undefined],
               ] as const).map(([l, v, color]) => (
                 <span key={l} style={{ fontSize: 12 }}>
@@ -1036,6 +1073,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
                               {punchIn.get(s.cast_id)}打刻
                             </span>
+                          )}
+                          {/* ★裁定257 R20-b: 退勤（punch_proxy 'out'）。in 打刻中のキャストだけ押せる（orphan_out を作らない）。裁定239＝実行 青塗り・240＝中央 */}
+                          {canRecord && (
+                            <div className="nox-actions" style={{ marginTop: 6 }}>
+                              <button type="button" style={{ ...btnDark, padding: "4px 12px", fontSize: 12 }}
+                                disabled={!punchIn.has(s.cast_id)}
+                                title={punchIn.has(s.cast_id) ? "退勤を代理で打刻します（訂正・削除はできません）" : "出勤（in）の打刻がありません"}
+                                onClick={() => void proxyOut(s.cast_id)}>退勤</button>
+                            </div>
                           )}
                         </td>
                         <td>
