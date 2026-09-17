@@ -61,6 +61,7 @@ export default function StaffBoard({
   const [sel, setSel] = useState<Mem | null>(null);
   const [eName, setEName] = useState("");
   const [eStore, setEStore] = useState("");
+  const [eEmail, setEEmail] = useState(""); // ★裁定267-2: メール（ログイン ID）変更＝owner のみ・POST /api/staff/update-email
 
   // 追加モーダル
   const [addOpen, setAddOpen] = useState(false);
@@ -129,6 +130,7 @@ export default function StaffBoard({
   function openEdit(m: Mem) {
     setSel(m);
     setEName(users[m.user_id]?.name ?? "");
+    setEEmail(users[m.user_id]?.email ?? "");
     setEStore(stores.find((s) => s.id !== m.store_id)?.id ?? "");
   }
 
@@ -249,6 +251,29 @@ export default function StaffBoard({
               setSel(null);
             }}>名前を更新</button>
           </div>
+          {isOwner && (
+            // ★裁定267-2: メール（ログイン ID）の変更＝owner にのみ描画（manager には開かない・route の guardOwner が真の防御）。
+            //   「名前を更新」と同型（入力＋btnGold）。送信中は disabled。成功で一覧（users.email）を再取得し入力へ反映。新トークン 0。
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+              <input type="email" placeholder="メール（ログインID）" value={eEmail} onChange={(e) => setEEmail(e.target.value)} style={{ ...input, width: 240 }} />
+              <button style={btnGold} disabled={busy || eEmail.trim().length === 0} onClick={async () => {
+                setBusy(true); setMsg(null);
+                try {
+                  const res = await fetch("/api/staff/update-email", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ userId: sel.user_id, email: eEmail.trim() }),
+                  });
+                  const j = (await res.json().catch(() => ({}))) as { error?: string; email?: string };
+                  if (!res.ok) { setMsg(`メールの更新に失敗: ${j.error ?? res.status}`); return; }
+                  setMsg("メールを更新しました（新しいメールでログインします）");
+                  setEEmail(j.email ?? eEmail.trim().toLowerCase());
+                  await load();
+                } finally {
+                  setBusy(false);
+                }
+              }}>メールを更新</button>
+            </div>
+          )}
           {isOwner && stores.length > 1 && sel.is_active && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
               <span style={t.fieldLabel}>異動先</span>
