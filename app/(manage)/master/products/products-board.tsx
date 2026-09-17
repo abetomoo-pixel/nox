@@ -35,7 +35,7 @@ const { inputLg, btnPrimaryLg, btnGhostLg } = t;
 
 const EMPTY_UNIT4 = { hon: 0, jonai: 0, dohan: 0, free: 0 };
 const PAGE = 40; // 逐次表示の1ページ分（「もっと見る」で +PAGE）
-const TYPE_LABEL_JA: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
+const TYPE_LABEL_JA: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル", food: "フード", other: "その他" }; // ★裁定272-4
 
 // ★#50: バック設定は独立列（col-back）へ昇格＝商品名下段のサブテキストは撤去（重複表示しない）。
 //   DB 現物（mig0005 の products DDL）:
@@ -658,7 +658,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
                 ため、この非対称をここに記録しておく。過去の会計データは check_lines.kind に
                 凍結済みなので遡っては動かない（動くのは以後の分）。 */}
             <SegSelect value={pType} onChange={(v) => setPType(v)}
-            options={[["drink", "ドリンク"], ["champ", "シャンパン"], ["bottle", "ボトル"]] as const} disabled={pId !== null} />
+            options={[["drink", "ドリンク"], ["champ", "シャンパン"], ["bottle", "ボトル"], ["food", "フード"], ["other", "その他"]] as const} disabled={pId !== null} />{/* ★裁定272-4: 5 択（0148 手貼り前は DB CHECK が bad type で止める） */}
             {/* ★④b-4: 状態別に出し分ける（2文を連結しない）。編集時は変更できないのだから
                 「変えると何が起きるか」は要らない＝要るのは次の一手（新規登録）の案内。 */}
             <span className="hint">
@@ -932,7 +932,7 @@ function BulkProductModal({
         </div>
         {parsed.items.length > 0 && (
           <div style={{ fontSize: 11.5, color: "var(--sub)", marginBottom: 8 }}>
-            {(["drink", "champ", "bottle"] as const).map((k) => (
+            {(["drink", "champ", "bottle", "food", "other"] as const).map((k) => (
               <span key={k} style={{ marginRight: 12 }}>
                 {BULK_TYPE_LABEL_JA[k]} <span style={{ ...t.num, color: "var(--ink)", fontWeight: 700 }}>{byType[k]}</span>
               </span>

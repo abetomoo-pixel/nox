@@ -59,9 +59,9 @@ export function hoursOf(t: StoreTemplate | null): { open: string; close: string;
   return { open: h.open, close: h.close, cutoff: h.business_day_cutoff };
 }
 
-// ── 商品（271-7〜271-9）: accounting_class → products.type（3 値）・food／other は除外 ──
-export const CLASS_TO_TYPE: Record<string, "drink" | "champ" | "bottle" | null> = {
-  drink: "drink", champagne: "champ", bottle: "bottle", wine: "bottle", food: null, other: null,
+// ── 商品（271-7〜271-9）: accounting_class → products.type。★裁定272-4（0148）で 271-9 の除外を解除＝food／other も投入（null＝除外の器は残す）──
+export const CLASS_TO_TYPE: Record<string, "drink" | "champ" | "bottle" | "food" | "other" | null> = {
+  drink: "drink", champagne: "champ", bottle: "bottle", wine: "bottle", food: "food", other: "other",
 };
 export type BackArgs = { back_mode: "rate" | "unit4"; back_value: number | null; unit4: { hon: number; jonai: number; dohan: number; free: number } | null; unsupported: boolean; isDefault: boolean };
 /** 271-8 の写像。tier は最下段（tiers[0]）の back_pct を売価% に。 */
@@ -82,7 +82,7 @@ export function backArgsOf(back: TemplateBack | undefined, t: StoreTemplate | nu
     default: return { ...def, unsupported: true }; // gross_profit_pct 等（使用 0）
   }
 }
-export type ProductItem = { name: string; type: "drink" | "champ" | "bottle"; price: number; cost: number | null; category: string; back: BackArgs };
+export type ProductItem = { name: string; type: "drink" | "champ" | "bottle" | "food" | "other"; price: number; cost: number | null; category: string; back: BackArgs };
 export type ProductsPlan = { included: ProductItem[]; excluded: Record<string, number>; excludedTotal: number; unsupportedBack: number; overrides: number };
 export function productsPlanOf(t: StoreTemplate | null): ProductsPlan {
   const included: ProductItem[] = [];
@@ -99,7 +99,7 @@ export function productsPlanOf(t: StoreTemplate | null): ProductsPlan {
   const excludedTotal = Object.values(excluded).reduce((a, b) => a + b, 0);
   return { included, excluded, excludedTotal, unsupportedBack, overrides: included.filter((p) => !p.back.isDefault).length };
 }
-/** 業態別の食品（food／other）除外件数 */
+/** 業態別の除外件数（accounting_class が写像に無いもの。★裁定272-4 後は food／other も投入＝v1 では 0） */
 export function excludedFoodCountOf(biz: BizType): number { return productsPlanOf(templateOf(biz)).excludedTotal; }
 
 // ── 料金（271-5）・報酬（271-6） ──
@@ -167,10 +167,13 @@ export type SetupSelection = {
   systems: Record<SystemKey, boolean>; // 9 フラグ（明示 boolean）
   includeProducts: boolean;
   billingMode: "table" | "individual" | "mixed";
+  receivablePolicy: ReceivablePolicy; // ★裁定272-5（0148）: 受取方針（stores.receivable_policy 実列・set_store_receivable_policy）
   pricing: PricingInput;
   current: { card_tax_rate: number; round_unit: number; round_mode: string; time_mode: string; time_per: string };
   flags?: Array<{ key: string; enabled: boolean }>; // 変更する feature_flags（org 既定行）だけ
 };
+export type ReceivablePolicy = "disabled" | "customer_only" | "cast_liability_allowed"; // ★裁定272-5: CHECK 3 値（既定 customer_only）
+export const RECEIVABLE_POLICIES = [["customer_only", "客の売掛のみ"], ["cast_liability_allowed", "キャスト負担も可"], ["disabled", "売掛を使わない"]] as const;
 export const SYSTEM_DEFAULTS_ON: readonly SystemKey[] = ["sys_hourly", "sys_backs"]; // STEP 3 既定＝時給・各種バックのみ ON（本便で確定）
 
 export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
@@ -181,6 +184,9 @@ export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
   const patch: Record<string, unknown> = { biz_type: sel.biz, billing_mode: sel.billingMode, ...sel.systems };
   if (sel.storeName && sel.storeName.trim()) patch.name = sel.storeName.trim();
   steps.push({ key: "settings", group: "settings", label: "店舗設定（業態・会計方式・使う制度）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: patch } });
+  // ★裁定272-5（0148）: 受取方針＝settings 段の直後（実列・owner 限定 RPC・0148 手貼り前は RPC 不在で失敗位置に出る）
+  steps.push({ key: "receivable_policy", group: "settings", label: `売掛の受取方針（${RECEIVABLE_POLICIES.find(([k]) => k === sel.receivablePolicy)?.[1] ?? sel.receivablePolicy}）`, rpc: "set_store_receivable_policy",
+    args: { p_store_id: s, p_policy: sel.receivablePolicy } });
   // 2) 営業時間 7 曜日＋cutoff
   const close30 = to30h(sel.hours.open, sel.hours.close);
   for (let dow = 0; dow <= 6; dow++) {

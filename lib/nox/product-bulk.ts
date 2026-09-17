@@ -23,7 +23,7 @@
 export const PRODUCT_BULK_MAX_CATEGORIES = 30;
 export const PRODUCT_BULK_MAX_ITEMS = 300;
 
-export type ProductType = "drink" | "champ" | "bottle";
+export type ProductType = "drink" | "champ" | "bottle" | "food" | "other"; // ★裁定272-4（0148）: food／other
 
 export type ProductBulkItem = {
   /** 空文字なら未分類（RPC 側で category_id null） */
@@ -46,10 +46,12 @@ const TYPE_TOKENS: Record<string, ProductType> = {
   drink: "drink", ドリンク: "drink", どりんく: "drink",
   champ: "champ", champagne: "champ", シャンパン: "champ", シャンパーニュ: "champ",
   bottle: "bottle", ボトル: "bottle",
+  food: "food", フード: "food", 食品: "food", ふーど: "food", // ★裁定272-4
+  other: "other", その他: "other", そのた: "other",          // ★裁定272-4
 };
 /** 表示用の逆引き（プレビューの件数サマリで使う） */
 export const TYPE_LABEL_JA: Record<ProductType, string> = {
-  drink: "ドリンク", champ: "シャンパン", bottle: "ボトル",
+  drink: "ドリンク", champ: "シャンパン", bottle: "ボトル", food: "フード", other: "その他", // ★裁定272-4
 };
 
 // 価格セルの正規化（タブ区切り由来の「¥1,480」「1 480」等を許容）。
@@ -147,7 +149,7 @@ export function newCategories(categories: string[], existing: { name: string; is
 
 /** 会計区分ごとの件数（裁定J: プレビューに出す）。 */
 export function countByType(items: ProductBulkItem[]): Record<ProductType, number> {
-  const out: Record<ProductType, number> = { drink: 0, champ: 0, bottle: 0 };
+  const out: Record<ProductType, number> = { drink: 0, champ: 0, bottle: 0, food: 0, other: 0 }; // ★裁定272-4
   for (const i of items) out[i.type] += 1;
   return out;
 }

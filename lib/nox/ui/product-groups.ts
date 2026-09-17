@@ -12,8 +12,8 @@ export type GroupableProduct = {
 export type GroupableCategory = { id: string; name: string; sort_order: number; is_active?: boolean };
 export type ProductGroup<T> = { key: string; label: string; items: T[] };
 
-const TYPE_LABEL: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル" };
-const TYPE_ORDER = ["drink", "champ", "bottle"] as const;
+const TYPE_LABEL: Record<string, string> = { drink: "ドリンク", champ: "シャンパン", bottle: "ボトル", food: "フード", other: "その他" }; // ★裁定272-4
+const TYPE_ORDER = ["drink", "champ", "bottle", "food", "other"] as const; // ★裁定272-4: カテゴリ未登録店でも food／other が落ちない
 export const UNCATEGORIZED_LABEL = "未分類";
 
 /**

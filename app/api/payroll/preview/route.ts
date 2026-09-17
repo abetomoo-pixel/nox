@@ -8,6 +8,14 @@ export async function POST(req: Request) {
   const g = await guardPayroll(req);
   if (!g.ok) return NextResponse.json(g.body, { status: g.status });
   try {
+    // ★裁定272-1（0148）: draft run があるときだけ payroll_carryover_sync(run_id) を毎回呼ぶ（冪等・前期 payslip の adjustOverflow を carryover 行へ）。
+    //   run が無ければ呼ばない（run_create はしない＝純参照のまま）。RPC 不在（手貼り前）はエラーを返して止まる（細工しない）。
+    const { data: runRow } = await g.supabase.from("payroll_runs").select("id, status").eq("store_id", g.storeId).eq("period", g.period).maybeSingle();
+    if (runRow && runRow.status === "draft") {
+      const { data: n, error: eCo } = await g.supabase.rpc("payroll_carryover_sync", { p_run_id: runRow.id as string });
+      if (eCo) return NextResponse.json({ error: `payroll_carryover_sync: ${eCo.message}` }, { status: 500 });
+      console.log(`[payroll/preview] payroll_carryover_sync run=${runRow.id} period=${g.period} changed=${String(n)}`);
+    }
     const draft = await computePayrollDraft(g.admin, g.supabase, g.storeId, g.period, { previewDefaults: true });
     return NextResponse.json({
       period: g.period,

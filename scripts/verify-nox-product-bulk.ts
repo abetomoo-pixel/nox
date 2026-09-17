@@ -55,14 +55,15 @@ function check(label: string, ok: boolean, detail?: string) {
   const cases: Array<[string, string]> = [
     ["ドリンク", "drink"], ["シャンパン", "champ"], ["シャンパーニュ", "champ"],
     ["ボトル", "bottle"], ["drink", "drink"], ["CHAMP", "champ"], ["Bottle", "bottle"],
+    ["フード", "food"], ["食品", "food"], ["その他", "other"], ["other", "other"], // ★裁定272-4（0148）: food／other
   ];
   for (const [label, want] of cases) {
     const r = parseProductBulk(`c,商品,${label},100`);
     check(`T2 「${label}」→ ${want}`, r.items[0]?.type === want, JSON.stringify(r.items[0] ?? r.errors));
   }
-  const bad = parseProductBulk("c,商品,フード,100");
+  const bad = parseProductBulk("c,商品,タバコ,100"); // ★裁定272-4: 「フード」は有効になったため未知語を「タバコ」へ
   check("T2 ★未知の会計区分は行エラー（RPC に投げない）",
-    bad.items.length === 0 && bad.errors.length === 1 && bad.errors[0].includes("フード"), JSON.stringify(bad.errors));
+    bad.items.length === 0 && bad.errors.length === 1 && bad.errors[0].includes("タバコ"), JSON.stringify(bad.errors));
 }
 
 // ── T3 価格・原価 ─────────────────────────────────────────────────

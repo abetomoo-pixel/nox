@@ -40,6 +40,7 @@ type Row = {
       sanction?: { original?: number; applied?: number } | null;
       plan?: { name?: string }; // ★U-1 是正B: 右パネルのプラン名（PayResult.plan エコー）
       adjBefore?: number; adjAfter?: number; adjustOverflow?: number; // ★裁定258／264: 調整控除（源泉前／後）と net 0 床の超過額
+      referralTotal?: number; // ★裁定272-2: 紹介料
     };
     extras?: { amount: number }[];
   };
@@ -48,6 +49,7 @@ type Row = {
 type AdjRow = {
   id: string; cast_id: string; mode: "fixed" | "rate"; amount: number | null; rate_bp: number | null;
   before_withholding: boolean; show_detail: boolean; reason: string; created_at: string;
+  source?: "manual" | "carryover"; // ★裁定272-1（0148）: carryover 行＝削除不可・「前期繰越」バッジ（列は手貼り後に現れる＝欠落は manual 扱い）
 };
 type Blocker = { castName: string; reason: string };
 // ★裁定98: sanction 二層ガードの警告（blocker と別枠・確定は止めない）。
@@ -128,7 +130,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
     // ★裁定264-1: 当 run の調整控除（run 行が無ければ空）。RLS＝owner 全店／manager 自店（cast・staff・他店は 0 行）。
     if (info) {
       const { data: aj } = await supabase.from("payroll_adjustments")
-        .select("id, cast_id, mode, amount, rate_bp, before_withholding, show_detail, reason, created_at")
+        .select("*") // ★裁定272-1: source 列（0148）は手貼り後に現れる＝列名を固定せず全列で読む
         .eq("run_id", info.id).order("created_at", { ascending: true }).order("id", { ascending: true });
       setAdjRows((aj ?? []) as AdjRow[]);
     } else {
@@ -756,6 +758,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                   ["本指名", z(pay.honBack)], ["場内", z(pay.jonaiBack)], ["同伴", z(pay.dohanBack)],
                   ["歩合", z(pay.salesBack)], ["達成ボーナス", z(pay.achievementBonus)],
                   ["その他バック", z(pay.drinkBack) + z(pay.champBack) + z(pay.bottleBack) + z(pay.customTotal) + extrasTotal],
+                  ["紹介料", z(pay.referralTotal)], // ★裁定272-2（0 は非表示）
                 ];
                 const dedRows: [string, number][] = [
                   [whLabel, z(pay.withholding)], ["送り", z(pay.okuriDeduct)],
@@ -813,11 +816,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     {adjMine.map((a) => (
                       <div key={a.id} style={{ borderTop: "1px solid var(--line2)", padding: "5px 0", fontSize: 12 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                          <span className="num" style={{ fontWeight: 700 }}>{adjLabel(a)}</span>
+                          <span className="num" style={{ fontWeight: 700 }}>{adjLabel(a)}{a.source === "carryover" && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "1px 8px", border: "1px solid var(--line2)", color: "var(--sub)" }}>前期繰越</span>}</span>
                           <span style={{ color: "var(--sub)", fontSize: 11 }}>{a.before_withholding ? "源泉前" : "源泉後"}・{a.show_detail ? "本人に理由を表示" : "控除計に合算"}</span>
                         </div>
                         <div style={{ color: "var(--sub)", marginTop: 2, wordBreak: "break-all" }}>{a.reason}</div>
-                        {adjEditable && (
+                        {adjEditable && a.source !== "carryover" && (/* ★裁定272-1: carryover 行は sync が管理＝削除ボタンを出さない */
                           <div className="nox-actions" style={{ justifyContent: "flex-start", marginTop: 4 }}>{/* 裁定244: Danger は左端 */}
                             <button type="button" onClick={() => { setDelReason(""); setDelTarget({ id: a.id, label: `${adjLabel(a)}（${a.reason}）` }); }} disabled={adjBusy || busy}
                               style={{ ...t.btnGhost, ...t.btnSm, border: "1px solid var(--bad)", color: "var(--bad)" }}>削除</button>

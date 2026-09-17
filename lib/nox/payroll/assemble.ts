@@ -34,6 +34,7 @@ export type CastRaw = {
   daily: { bizDate: string; sales: number; hours: number }[];
   productBack: { drink: number; champ: number; bottle: number };
   calculatedBack: number; // ★裁定113: Σ check_cast_backs.calculated_back_amount（null=0・collect が必ず格納）
+  referralTotal?: number; // ★裁定272-2: 紹介料 Σ（collect が格納・fixture は省略＝0）
   pointProducts: number;
   champCnt: number;
   bottleCnt: number;
@@ -91,6 +92,7 @@ export function buildPayInput(
     override: raw.override,
     productBack: raw.productBack,
     calculatedBack: raw.calculatedBack, // ★裁定113
+    referralTotal: raw.referralTotal ?? 0, // ★裁定272-2
     pointProducts: raw.pointProducts,
     customBackDefs: masters.customBackDefs,
     metrics: { champCnt: raw.champCnt, bottleCnt: raw.bottleCnt }, // 論点1: check_lines kind から集計

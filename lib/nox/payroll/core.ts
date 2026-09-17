@@ -214,6 +214,7 @@ export async function computePayrollDraft(
     const pay = payOf(buildPayInput(c, taxMode, masters, periodDays, extrasTotal, arPlan.deduct, advPlan.deduct, okuriPlan.deduct));
     const net = pay.net; // = available − (okuri+adv+ar)（pay.net が3天引き込み・extras は gross 側で計上済み）
     // net 恒等（B・必須ステップ）: 凍結する net は必ず payOf の結果そのものを通す（クライアント値を使わない）。
+    //   ★裁定272-2: gross は payOf 内で referralTotal を含む（恒等 net = gross − totalDeductionsOf(pay) + adjustOverflow は不変・新キーは gross 側）。
     if (net !== pay.net) {
       throw new Error(`net 恒等崩れ（cast ${c.castId}）`);
     }

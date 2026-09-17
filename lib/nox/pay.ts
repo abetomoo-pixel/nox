@@ -167,7 +167,7 @@ export type Product = {
   backMode: "rate" | "unit4";
   unit4: Record<NomType, number>;
   honPt?: number; // 本指名時の商品pt
-  type: "drink" | "champ" | "bottle";
+  type: "drink" | "champ" | "bottle" | "food" | "other"; // ★裁定272-4: food／other（バック計算は kind 別＝food/other は 0）
 };
 
 export type PayInput = {
@@ -199,6 +199,9 @@ export type PayInput = {
   salesTarget?: number | null;
   periodDays: number; // ★源泉の 5,000円×日数 に使う「計算期間の日数」（暦日数・両端含む）。出勤日数ではない（裁定23）
   extrasTotal: number; // ★出勤ボーナス等の加算合計（源泉対象＝gross に含める・裁定23-b ①）
+  // ★裁定272-2（0148）: 紹介料＝窓内 closed 伝票の check_lines kind='referral' ∧ cast_id=本人 の Σline_total（collect が集計）。
+  //   optional＝既存呼び出し・fixture は 0 扱い（空で従来と 1 バイト同値）。gross に入る＝源泉対象。
+  referralTotal?: number;
   // ★裁定98: sanction 二層ガードの文脈。employment 未設定（null/undefined）で sanction 行がある cast は
   //   core が 'no_employment' blocker で先に止める＝payOf がここで null を見るのは sim 経路のみ（現行式同値で計算）。
   employment?: "委託" | "雇用" | null; // casts.employment
@@ -244,6 +247,7 @@ export type PayResult = {
   salesBack: number;
   cbacks: CBack[];
   customTotal: number;
+  referralTotal: number; // ★裁定272-2: 紹介料（gross に含む・未指定入力は 0）
   // ★裁定96（挙動段）: components の結線結果
   achievementBonus: number;
   guaranteeAdd: number;
@@ -540,6 +544,7 @@ export function payOf(input: PayInput): PayResult {
   };
   const cbacks = customBacks(input.customBackDefs, metrics);
   const customTotal = cbacks.reduce((sum, c) => sum + c.amount, 0);
+  const referralTotal = input.referralTotal ?? 0; // ★裁定272-2
 
   // ── ★C1/C2 挙動段（裁定96 ①②③・mig0114/0115）: 行型コンポーネントの結線 ──
   //   適用順＝バック・歩合（上の各項）→ achievement_bonus（priority 順）→ guarantee_min（最後）→ 控除。
@@ -576,6 +581,7 @@ export function payOf(input: PayInput): PayResult {
     calculatedBack +    // ★裁定113/123 plan_rate・plan_fixed（凍結Σ一本）
     salesBack +
     customTotal +
+    referralTotal +    // ★裁定272-2 紹介料（0 なら従来と同値）
     input.extrasTotal;
 
   // ③ achievement を足した総額に ① guarantee_min が**最後に床を張る**（差額補填・priority 順＝逐次適用は max と同値）
@@ -668,6 +674,7 @@ export function payOf(input: PayInput): PayResult {
     salesBack,
     cbacks,
     customTotal,
+    referralTotal,    // ★裁定272-2
     achievementBonus, // ★裁定96-②
     guaranteeAdd,     // ★裁定96-①
     compSkipped,      // ★rate モード等の明示スキップ（黙殺しない）

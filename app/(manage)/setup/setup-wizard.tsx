@@ -13,8 +13,9 @@ import SegSelect from "@/components/ui/seg-select";
 import StoreSystemsPanel from "@/components/nox/store-systems-panel";
 import { SYSTEM_KEYS, type SystemKey } from "@/lib/nox/store-systems";
 import {
-  BIZ_TYPES, SYSTEM_DEFAULTS_ON, buildSetupPlan, compOf, hoursOf, planSummaryOf, pricingOf, productOverrideArgs, productsPlanOf, seatsOf, templateOf, to30h,
+  BIZ_TYPES, RECEIVABLE_POLICIES, SYSTEM_DEFAULTS_ON, buildSetupPlan, compOf, hoursOf, planSummaryOf, pricingOf, productOverrideArgs, productsPlanOf, seatsOf, templateOf, to30h,
   type BizType, type PlanStep, type PricingInput, type ProductRow,
+  type ReceivablePolicy,
 } from "@/lib/nox/setup/template-plan";
 
 const STEPS = [
@@ -58,6 +59,7 @@ export default function SetupWizard({ store, counts, orgFlags }: {
   const [systems, setSystems] = useState<Record<SystemKey, boolean>>(() => Object.fromEntries(SYSTEM_KEYS.map((k) => [k, SYSTEM_DEFAULTS_ON.includes(k)])) as Record<SystemKey, boolean>);
   // STEP 4
   const [billingMode, setBillingMode] = useState<"table" | "individual" | "mixed">("table");
+  const [receivablePolicy, setReceivablePolicy] = useState<ReceivablePolicy>("customer_only"); // ★裁定272-5
   const [flags, setFlags] = useState<Record<string, boolean>>(() => Object.fromEntries(Object.keys(FLAG_LABELS).map((k) => [k, orgFlags.find((f) => f.key === k)?.enabled ?? false])));
   // STEP 5
   const [run, setRun] = useState<RunState>({ running: false, done: 0, total: 0, failedAt: null, error: null, completed: false, log: [] });
@@ -78,8 +80,8 @@ export default function SetupWizard({ store, counts, orgFlags }: {
   }
   const changedFlags = Object.keys(FLAG_LABELS).filter((k) => (orgFlags.find((f) => f.key === k)?.enabled ?? false) !== flags[k]).map((k) => ({ key: k, enabled: flags[k] }));
   const plan: PlanStep[] = useMemo(() => (biz && pricingEff)
-    ? buildSetupPlan({ storeId: store.id, biz, storeName: storeName.trim() !== store.name ? storeName : null, hours, systems, includeProducts, billingMode, pricing: pricingEff, current: store.current, flags: changedFlags })
-    : [], [biz, pricingEff, store.id, store.name, storeName, hours, systems, includeProducts, billingMode, store.current, changedFlags]);
+    ? buildSetupPlan({ storeId: store.id, biz, storeName: storeName.trim() !== store.name ? storeName : null, hours, systems, includeProducts, billingMode, receivablePolicy, pricing: pricingEff, current: store.current, flags: changedFlags })
+    : [], [biz, pricingEff, store.id, store.name, storeName, hours, systems, includeProducts, billingMode, receivablePolicy, store.current, changedFlags]);
   const summary = planSummaryOf(plan);
 
   async function refreshCounts() {
@@ -232,6 +234,9 @@ export default function SetupWizard({ store, counts, orgFlags }: {
           <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 10px" }}>会計方式と利用機能を設定します。必要な機能だけ有効にする想定です。</p>
           <div style={{ fontSize: 12, fontWeight: 800, margin: "0 0 6px" }}>会計方式 <span style={{ fontWeight: 400, color: "var(--sub)" }}>表示のみの記録＝レジの挙動は変わりません</span></div>
           <SegSelect value={billingMode} onChange={(v) => setBillingMode(v as "table" | "individual" | "mixed")} options={BILLING_MODES} ariaLabel="会計方式" />
+          {/* ★裁定272-5（0148）: 受取方針＝stores.receivable_policy（実列・set_store_receivable_policy・既定 customer_only） */}
+          <div style={{ fontSize: 12, fontWeight: 800, margin: "14px 0 6px" }}>売掛の受取方針 <span style={{ fontWeight: 400, color: "var(--sub)" }}>誰の売掛を扱うか（後から変更できます）</span></div>
+          <SegSelect value={receivablePolicy} onChange={(v) => setReceivablePolicy(v as ReceivablePolicy)} options={RECEIVABLE_POLICIES} ariaLabel="売掛の受取方針" />
           <div style={{ fontSize: 12, fontWeight: 800, margin: "14px 0 6px" }}>使う機能 <span style={{ fontWeight: 400, color: "var(--sub)" }}>会社の既定（全店）として保存します</span></div>
           <div style={{ display: "grid", gap: 8 }}>
             {Object.entries(FLAG_LABELS).map(([k, v]) => (
@@ -263,6 +268,7 @@ export default function SetupWizard({ store, counts, orgFlags }: {
                   ["報酬既定", comp ? `時給 ${yen(comp.base)}（待遇プラン「標準」）${liveCounts.plans > 0 ? "（既存プランあり＝投入しない）" : ""}` : "なし"],
                   ["使う制度", SYSTEM_KEYS.filter((k) => systems[k]).length + " / 9 を ON"],
                   ["会計方式", `${BILLING_MODES.find(([k]) => k === billingMode)?.[1]}（表示のみの記録）`],
+                  ["受取方針", RECEIVABLE_POLICIES.find(([k]) => k === receivablePolicy)?.[1] ?? receivablePolicy], // ★裁定272-5
                   ["機能", changedFlags.length ? changedFlags.map((f) => `${FLAG_LABELS[f.key].label} ${f.enabled ? "ON" : "OFF"}`).join("・") : "変更なし"],
                   ["商品", includeProducts && pp.included.length ? `${pp.included.length} 件を投入（除外 ${pp.excludedTotal} 件・バック上書き ${pp.overrides} 件）${liveCounts.products > 0 ? "（既存 " + liveCounts.products + " 件あり＝投入しない）" : ""}` : "取り込まない"],
                   ["書込", `${plan.length} 件（店舗設定 ${summary.settings}・営業時間 ${summary.hours}・席 ${summary.seats}・料金 ${summary.pricing}・報酬 ${summary.comp}・商品 ${summary.products + summary.overrides}・機能 ${summary.flags}・完了 ${summary.done}）`],
