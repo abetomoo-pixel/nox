@@ -1,5 +1,8 @@
 /*
  * verify:nox-store-profile — mig0144 set_store_profile（店舗設定の統合 setter・白名単 8 キー patch 型）の係留。
+ *   ★mig0147（裁定269-1／270-3・2026-09-17）: 白名単 8→20 キー（biz_type／billing_mode＝enum text・setup_done＋sys_* 9＝boolean）。
+ *     ①②⑨-2 を 20 キー化し、⑤ に enum 未知値（'bad biz_type'／'bad billing_mode'）・enum 非 string／制度キー非 boolean（'bad type'）、
+ *     fx-2／⑩-4 に既存店の setup_done=true（0147 の埋め戻し・finally 後も残る）を追加。
  *   npm run verify:nox-store-profile（事前に seed:f0 済み・env: URL/PUBLISHABLE/SECRET/SEED_PASSWORD/SUPABASE_DB_URL）
  *   走数外（f0 では 47 段目に連結）。
  *
@@ -40,8 +43,11 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 const has = (e: { message?: string } | null | undefined, s: string) => !!e?.message?.includes(s);
 
-const KEYS = ["name", "short", "ext_shimei_enabled", "dohan_auto_hon", "store_code", "display_name", "show_open_status", "shift_cast_confirm"] as const;
-const JSON_KEYS = ["store_code", "display_name", "show_open_status", "shift_cast_confirm"] as const;
+// ★0147: 白名単 20 キー（既存 8＋enum 2＋boolean 10）
+const NEW_ENUM = ["biz_type", "billing_mode"] as const;
+const NEW_BOOL = ["setup_done", "sys_hourly", "sys_backs", "sys_sales_rate", "sys_points", "sys_sales_slide", "sys_point_slide", "sys_norms", "sys_penalties", "sys_bonus"] as const;
+const KEYS = ["name", "short", "ext_shimei_enabled", "dohan_auto_hon", "store_code", "display_name", "show_open_status", "shift_cast_confirm", ...NEW_ENUM, ...NEW_BOOL] as const;
+const JSON_KEYS = ["store_code", "display_name", "show_open_status", "shift_cast_confirm", ...NEW_ENUM, ...NEW_BOOL] as const;
 type Row = { name: string; short: string | null; ext_shimei_enabled: boolean; dohan_auto_hon: boolean; settings_json: Record<string, unknown> };
 const SEL = "name, short, ext_shimei_enabled, dohan_auto_hon, settings_json";
 
@@ -80,6 +86,9 @@ async function main() {
       display_name: typeof jsonOf(row0).display_name === "string" ? jsonOf(row0).display_name : "",
       show_open_status: jsonOf(row0).show_open_status === true,
       shift_cast_confirm: jsonOf(row0).shift_cast_confirm === true,
+      // ★0147: boolean 10 は実行前値（無ければ false を書いた後に下の absent 削除でキーごと消す）・enum 2 は実行前にあったときだけ戻す
+      ...Object.fromEntries(NEW_BOOL.map((k) => [k, jsonOf(row0)[k] === true])),
+      ...Object.fromEntries(NEW_ENUM.filter((k) => typeof jsonOf(row0)[k] === "string").map((k) => [k, jsonOf(row0)[k]])),
     };
     const { error } = await set(owner, back);
     if (error) console.error(`[store-profile teardown] set_store_profile 復元: ${error.message}`);
@@ -91,6 +100,7 @@ async function main() {
 
   try {
     check("sp(fx) 準備: A1 の実行前値を控えた（name 非空）", typeof row0.name === "string" && row0.name.length > 0, JSON.stringify(row0));
+    check("sp(fx-2) ★0147 埋め戻し: 既存店 A1 の settings_json.setup_done が true（貼付時の UPDATE）", jsonOf(row0).setup_done === true, JSON.stringify(jsonOf(row0)));
 
     // ── ① 1 キーずつ ──
     const one: Array<[typeof KEYS[number], unknown, (r: Row) => unknown]> = [
@@ -102,6 +112,19 @@ async function main() {
       ["display_name", "検証A1 表示名", (r) => jsonOf(r).display_name],
       ["show_open_status", true, (r) => jsonOf(r).show_open_status],
       ["shift_cast_confirm", true, (r) => jsonOf(r).shift_cast_confirm],
+      // ★0147: 12 キー受理
+      ["biz_type", "snack", (r) => jsonOf(r).biz_type],
+      ["billing_mode", "mixed", (r) => jsonOf(r).billing_mode],
+      ["setup_done", false, (r) => jsonOf(r).setup_done],
+      ["sys_hourly", true, (r) => jsonOf(r).sys_hourly],
+      ["sys_backs", true, (r) => jsonOf(r).sys_backs],
+      ["sys_sales_rate", true, (r) => jsonOf(r).sys_sales_rate],
+      ["sys_points", true, (r) => jsonOf(r).sys_points],
+      ["sys_sales_slide", true, (r) => jsonOf(r).sys_sales_slide],
+      ["sys_point_slide", true, (r) => jsonOf(r).sys_point_slide],
+      ["sys_norms", true, (r) => jsonOf(r).sys_norms],
+      ["sys_penalties", true, (r) => jsonOf(r).sys_penalties],
+      ["sys_bonus", true, (r) => jsonOf(r).sys_bonus],
     ];
     for (const [k, v, get] of one) {
       const { error } = await set(owner, { [k]: v });
@@ -113,22 +136,25 @@ async function main() {
     {
       const { rows } = await db.query(`select before_json as b, after_json as a, target, store_id from public.audit_logs where org_id = $1 and at >= $2 and action = 'set_store_profile' order by at desc limit 1`, [orgA, t0]);
       const b = rows[0]?.b ?? {}, a = rows[0]?.a ?? {};
-      check("sp(⑨-1) ★1 キー呼び出しの audit: before/after のキーは patch のキーだけ（shift_cast_confirm・before false→after true）",
-        rows.length === 1 && Object.keys(b).join() === "shift_cast_confirm" && Object.keys(a).join() === "shift_cast_confirm" && b.shift_cast_confirm === false && a.shift_cast_confirm === true
+      check("sp(⑨-1) ★1 キー呼び出しの audit: before/after のキーは patch のキーだけ（★0147: 末尾は sys_bonus・before false→after true）",
+        rows.length === 1 && Object.keys(b).join() === "sys_bonus" && Object.keys(a).join() === "sys_bonus" && b.sys_bonus === false && a.sys_bonus === true
           && rows[0].target === `stores:${storeA1}` && rows[0].store_id === storeA1, JSON.stringify(rows[0]));
     }
 
     // ── ② まとめ書き ──
-    const all = { name: "NOX-VERIFY-A1 改2", short: "A1b", ext_shimei_enabled: false, dohan_auto_hon: false, store_code: "C2", display_name: "D2", show_open_status: false, shift_cast_confirm: false };
+    const all = { name: "NOX-VERIFY-A1 改2", short: "A1b", ext_shimei_enabled: false, dohan_auto_hon: false, store_code: "C2", display_name: "D2", show_open_status: false, shift_cast_confirm: false,
+      // ★0147: 12 キー（enum は別値・boolean は ① と逆）
+      biz_type: "lounge", billing_mode: "table", setup_done: true, sys_hourly: false, sys_backs: false, sys_sales_rate: false, sys_points: false, sys_sales_slide: false, sys_point_slide: false, sys_norms: false, sys_penalties: false, sys_bonus: false };
+    const NEW_ALL_OK = (j: Record<string, unknown>) => j.biz_type === "lounge" && j.billing_mode === "table" && j.setup_done === true && NEW_BOOL.slice(1).every((k) => j[k] === false);
     {
       const { error } = await set(owner, all);
       if (!error) okCalls++;
       const r = await read();
       const j = jsonOf(r);
-      check("sp(②) ★8 キーまとめ書きで全部反映", !error && r.name === all.name && r.short === all.short && r.ext_shimei_enabled === false && r.dohan_auto_hon === false
-        && j.store_code === "C2" && j.display_name === "D2" && j.show_open_status === false && j.shift_cast_confirm === false, error?.message ?? JSON.stringify(r));
+      check("sp(②) ★20 キーまとめ書きで全部反映（★0147）", !error && r.name === all.name && r.short === all.short && r.ext_shimei_enabled === false && r.dohan_auto_hon === false
+        && j.store_code === "C2" && j.display_name === "D2" && j.show_open_status === false && j.shift_cast_confirm === false && NEW_ALL_OK(j), error?.message ?? JSON.stringify(r));
       const { rows } = await db.query(`select before_json as b, after_json as a from public.audit_logs where org_id = $1 and at >= $2 and action = 'set_store_profile' order by at desc limit 1`, [orgA, t0]);
-      check("sp(⑨-2) まとめ書きの audit: before/after とも 8 キー", rows.length === 1 && Object.keys(rows[0].b).length === 8 && Object.keys(rows[0].a).length === 8, JSON.stringify(rows[0]));
+      check("sp(⑨-2) まとめ書きの audit: before/after とも 20 キー（★0147: 8→20）", rows.length === 1 && Object.keys(rows[0].b).length === 20 && Object.keys(rows[0].a).length === 20, JSON.stringify(rows[0]));
     }
 
     // ── ③ patch に無いキーは不変 ──
@@ -160,6 +186,8 @@ async function main() {
       check("sp(④-5) 配列は bad patch", has(e5, "bad patch"), e5?.message ?? "通ってしまった");
       const e6 = (await set(owner, "x")).error;
       check("sp(④-6) 文字列は bad patch", has(e6, "bad patch"), e6?.message ?? "通ってしまった");
+      const e7 = (await set(owner, { sys_unknown: true })).error;
+      check("sp(④-7) ★0147 後も白名単外キー（sys_unknown）は従来どおり bad key", has(e7, "bad key"), e7?.message ?? "通ってしまった");
     }
 
     // ── ⑤ 型違い ──
@@ -170,6 +198,15 @@ async function main() {
       check("sp(⑤-2) show_open_status に文字列は bad type", has(e2, "bad type"), e2?.message ?? "通ってしまった");
       const e3 = (await set(owner, { ext_shimei_enabled: 1 })).error;
       check("sp(⑤-3) ext_shimei_enabled に数値は bad type", has(e3, "bad type"), e3?.message ?? "通ってしまった");
+      // ★0147
+      const e4 = (await set(owner, { biz_type: 1 })).error;
+      check("sp(⑤-4) ★enum キー biz_type に非 string は bad type（enum 検証より先）", has(e4, "bad type"), e4?.message ?? "通ってしまった");
+      const e5 = (await set(owner, { biz_type: "cabare" })).error;
+      check("sp(⑤-5) ★biz_type 未知値は bad biz_type", has(e5, "bad biz_type"), e5?.message ?? "通ってしまった");
+      const e6 = (await set(owner, { billing_mode: "split" })).error;
+      check("sp(⑤-6) ★billing_mode 未知値は bad billing_mode", has(e6, "bad billing_mode"), e6?.message ?? "通ってしまった");
+      const e7 = (await set(owner, { sys_norms: "true" })).error;
+      check("sp(⑤-7) ★制度キー sys_norms に非 boolean は bad type", has(e7, "bad type"), e7?.message ?? "通ってしまった");
     }
 
     // ── ⑥ 長さ ──
@@ -230,6 +267,7 @@ async function main() {
     check("sp(⑩-2) ★settings_json のキー集合と値が実行前と一致", JSON.stringify(jsonOf(r)) === JSON.stringify(jsonOf(row0)) && Object.keys(jsonOf(r)).sort().join() === keys0.join(), JSON.stringify({ before: jsonOf(row0), after: jsonOf(r) }));
     const { rows } = await db.query(`select count(*)::int as n from public.audit_logs where org_id = $1 and at >= $2 and action = 'set_store_profile'`, [orgA, t0]);
     check("sp(⑩-3) audit_logs の本 suite 行は 0", rows[0].n === 0, `left ${rows[0].n}`);
+    check("sp(⑩-4) ★0147: finally 後も A1 の setup_done=true が残る（実行前からあるキーは absent 削除の対象外）", jsonOf(r).setup_done === true, JSON.stringify(jsonOf(r)));
   }
   await db.end();
 
@@ -239,7 +277,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-store-profile ALL PASS (${pass} assertions)`);
-  console.log("店舗設定 setter(0144): 8 キー個別 / まとめ書き / 無いキー不変 / bad key・bad patch / bad type / 長さ 4 種 / short 空→null / manager・cast・他 org forbidden＋anon BLOCKED / audit 1 行=1 呼び出し・キーは patch 分だけ / 復元");
+  console.log("店舗設定 setter(0144＋0147): 20 キー個別 / まとめ書き / enum 未知値・非 string / 制度キー非 boolean / setup_done 埋め戻し / 無いキー不変 / bad key・bad patch / bad type / 長さ 4 種 / short 空→null / manager・cast・他 org forbidden＋anon BLOCKED / audit 1 行=1 呼び出し・キーは patch 分だけ / 復元");
 }
 
 main().catch((e) => { console.error("✗ 異常終了", e); process.exit(1); });
