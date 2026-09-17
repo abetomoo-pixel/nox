@@ -2846,6 +2846,12 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓89：fixture の認証情報（auth のメール等）を書き換える逆テストは finally の復元を先に書いてから壊す（相談役起こし）
+
+出典＝相談役 2026-09-17 受領（逐語）: 「教訓89: fixture の認証情報（auth のメール等）を書き換える逆テストは finally の復元を先に書いてから
+壊す。267 で ownerA のメールが書き換わったまま残り以後の走行が全て sign-in 失敗で赤になった
+（se(fin-fx) で防御的復元を追加）。」実例＝2026-09-17 裁定267 の逆テスト「owner 自身許可」で performUpdateEmail が nox-verify-owner-a の auth／public のメールを実際に書き換え、以後の suite が ownerA の sign-in 失敗で全滅（rev-b／rev-c／final が空出力）。原状復帰 script（docs/tmp/q0917_fix.mjs）で戻したうえで、verify-nox-staff-email の finally に ownerA／castA1a の email を fixture 値と照合して auth→public の順で戻す se(fin-fx) を追加（正常時は no-op・逆テスト時は赤で復元を報告）。※教訓88 は提案段階のため未収載。
+
 ### 教訓87：裁定本文に「N 箇所」と書くときは実ファイルの逐語 grep で内訳を確定してから書く（相談役起こし）
 
 出典＝相談役 2026-09-17 受領（逐語）: 「教訓87: 裁定本文に「N 箇所」と書くときは survey の記述ではなく実ファイルの逐語 grep で内訳を
@@ -3284,6 +3290,10 @@ M9: /report プレビュー表（report-board 989）の th／td に white-space:
 
 適用＝client `bb9743c`（締める／締め確定を独立の .nox-actions 行へ・プレビュー表に .nw 修飾子で nowrap・列見出しを『カード手数料』に短縮し注記 1 文）。関連＝裁定244（左右分割は例外）・裁定251（.nox-tablewrap.plain・プレビュー表は 991 行目に移動済み）。
 
+【2026-09-17 遡及追記・出典 handoff v32 §5（docs/handoff/NOX_相談役引き継ぎ_2026-09-15_v32.md 72〜76 行・原文不改変）】M11〜M21 の本文は台帳に無く v32 §5 にのみあったため逐語で遡及収載する。
+v32 §5（逐語）: 「| 済 | M1 横スクロール／M2 その他シート崩れ／M9 プレビュー表の縦書き／M10 主要ボタンの右寄せ |」「| 未 | M3 QR 小／M4 ボタン段積み・文字折返し(送り方式の切替が実例)／**M5 シフト追加モーダルが 2 ペインで機能しない**／M6 日報表／M7 下タブと safe-area／M8 KPI 列数／M11 register 卓ヘッダ(軽微・要再現)／M12 ヘッダ整理(ロゴ・歯車・オーナー→ログアウト)／M13 メニュー再編／M14 ノルマ白紙(再現せず・要確認)／M15 タブ行の切れ／M16 控除ルール表／M17 端末発行の 2 カラム／M18 機能フラグ表(操作列あり)／M19 analytics キャストタブ／M20 源泉納付表(操作列あり)／M21 キャスト別ノルマ表 |」「M12/M13 の線引き(9/14 合意): 下タブ=ホーム/レジ/日報/シフト/その他・その他=キャスト/スタッフ/顧客/給与/分析/領収書/在庫追加・歯車=マスタ/お知らせ/監査/ご契約/ログアウト。ヘッダ左にロゴ。」
+9/17 調査の判定（docs/tmp/0917_survey2.md b・全て client のみ）: M11 未実装（要再現）／M12 未実装（nav.tsx に歯車・ロゴ・ログアウト集約の器なし）／M13 未実装（spPriority 4 本＋その他の自動振り分けのまま）／M14 未実装（要確認）／M15 未実装（.nox-subnav2 は折返し型・.nox-seg は overflow hidden＝切り落とし型・画面未特定）／M16・M18・M19・M20・M21 未実装（M1 第 2 レーンの 21 表に含む＝横スクロール容器なし）／**M17 実装済み扱い**（kiosk-device-panel は .nox-2col nox-2col--32 で 900 未満 1 列・再撮影で確認クローズ）。M1 第 2 レーン（21 表＋.nox-ptwrap 8 表）・M4（.nox-actions に @media なし）・M5（shift-add-form 365 の inline grid 230px+1fr に @media なし）も未実装。
+
 ## 裁定253（Agoora 承認 2026-09-14）実機課題 R1〜R15 の登録とレーン分け（A モーダル化／B UI 小物／C シフト導線／D 要調査／E 第 2 期）
 
 出典＝相談役ブロック 2026-09-14（実機スクショからの課題出し R1〜R15・同日収載）。**本文（逐語）**: 「裁定253 実機課題 R1〜R15 の登録とレーン分け（Agoora 承認 2026-09-14）
@@ -3296,6 +3306,10 @@ E 第 2 期: R15 シフト画面の情報設計の見直し（「確定」の語
 着手順は A → B → C → D の調査。R13（確定シフトが 1 件しか出ない）は不具合ではなく未確定 107 件が proposed のままであることを確認済み＝課題から除外。」
 
 適用＝A＝client `2cb3e2a`（席・キャスト・スタッフ・顧客の 4 画面をモーダル化・Modal 部品に Esc を追加）／B＝client `e0392c1`（席の ∧∨・プラン select の見出し化・変更履歴の折りたたみ・会計タブの ¥ 表示・確認状況の castConfirm 対応）／C＝client `a9fd505`（公開ボタンのラベル・トースト・3 タブに『確定する（n 件）』の導線）。D は未着手。R13 の確認根拠＝2026-09-14 読取: CLUB NOX 2026-09 の shifts は confirmed 1（9/1 じゅり）・proposed 107・9/14 の shift 系 audit 0 件・確定カレンダーは status=confirmed のみを描く（shift-board 1722〜1728）。R14 の根拠＝shift-board 1836〜1860 が castConfirm を見ずに proposed を「未確認」と数える。
+
+【2026-09-17 遡及追記・出典 handoff v32 §6（同ファイル 78〜86 行・原文不改変）】R17〜R20 の本文は台帳に無く v32 §6 にのみあったため逐語で遡及収載する。
+v32 §6（逐語・未の行）: 「| 未 | **R6** スタッフ編集の項目不足(メール変更=route+RPC・LINE は器なし)／**R11** キャッチ紹介料(金額都度入力・人数単位・紹介者を記録=自店選択と外部自由入力の両方・記録先は明細行・出口は分析の節。check_lines に列 3 + kind 'referral' + 専用 RPC + 集計 RPC)／R15 シフト画面の情報設計(第2期)／**R17** 前借り・送り実費のキャスト select／R18 ノルマのキャスト select／**R19** キャスト別ノルマをキャスト側からも設定／**R20 出退勤と送り代・罰金の連動** |」「R17/R18 は「select → picker(components/nox/picker.tsx) の一括置換」として対象を洗い出してから 1 レーンで。」
+9/17 の棚: R6＝裁定267（c0fa85c）／R11＝0148 棚（裁定270-3）／R15＝設計裁定待ち（第2期・裁定270-4）／R17・R18＝裁定259（f8fdc0e）／R19＝0148 棚（cast セルフ norm RPC・裁定270-3）／R20-a・b＝裁定257（ae0e387）・R20-c＝第2期。
 
 ## 裁定254（Agoora 承認 2026-09-14）汎用ピッカーとボトルキープの検索化（R8）
 
@@ -3386,6 +3400,16 @@ punch_proxy(source='manager') は実装済み(owner 全店／manager 自店・in
 R17（前借り・送り実費のキャスト select）・R18（ノルマのキャスト select）は本裁定に含まれる。」
 
 適用＝未着手（client 1 レーン・相談役の実装ブロック待ち）。
+
+追補（Agoora 承認 2026-09-17・逐語）: 「259-a picker.tsx に onClear（×で null に戻す）と disabled の 2 props を足す。空文字が意味を持つ
+  4 箇所（顧客登録の担当なし・顧客詳細の担当解除・在庫履歴の絞り込みなし・未選択許容）は
+  擬似項目ではなく onClear で表現。先頭既定で空を許さない 2 箇所（sensitive-tax・deduction-panel）
+  は onClear を渡さない。
+259-b 行内小型の 3 箇所（analytics の label 内・sensitive-tax 見出し右・在庫履歴の行内）は
+  dense で置換を試み、収まらなければ select 据え置きで対象外として報告。
+259-c 新トークン 0。UI 規約 238/240/242/244。」
+
+実装（2026-09-17）＝`f8fdc0e`（picker.tsx に onClear／disabled・置換 **8 箇所**＝キャスト 5（analytics 1176・customers-board 480・customer-detail 213・comp-sections 780＝R18・deduction-panel 195＝R17）＋顧客 2（reservation-panel 527／621・tel を sublabel）＋商品 1（mine/drink-claim-form 108）。**据え置き 2 箇所**＝sensitive-tax-panel 228（見出し右）・stock-board 256（履歴の行内）＝dense でも見出しの flex 行に一覧（最大 220px）が入り行高が約 300px に膨らむ（在庫履歴で 302px 実測）ため select のまま対象外（259-b）。analytics 1176 は label 直下の独立行のため dense で収まる。実機＝dev 3200 で 選択→反映・×→解除（analytics／customers 登録／customer-detail／norma／register 予約）・deduction の disabled（A1 一律モード）・Tab 到達・760px 横はみ出しなし。Enter 確定は自動操作で再現不可（素の button）・reservation 編集側は既存予約 0 件・/mine は open 伝票が無いと描画されず未確認。verify:ui-tokens 新規 0・tsc 0。
 
 ## 裁定260（Agoora 承認 2026-09-15）pin の走査対象は許可列挙で書く
 
@@ -3497,6 +3521,69 @@ Postgres がクラッシュし、73 分間無応答になった（§DB 障害）
   fixture（161,500）で担保済み。実機での並び目視は本番データが載ってから。」
 
 適用＝担保の所在＝verify:nox-payroll-adjust (7) 節（pa(7-1)〜(7-8)・renderToStaticMarkup で PayslipSlip の行順を機械で読む）＋(7b) cast 本人の payslips 直 SELECT（HIDDEN 0 件）。逆テスト 4 本の結果は裁定264 の適用欄。実機の並び目視は本番データ搭載後の別便。
+
+## 裁定267（Agoora 承認 2026-09-17）スタッフ編集の拡張＝配属店は既存で足りる・メール変更は admin route 1 本・LINE は対象外
+
+出典＝相談役ブロック 2026-09-17（調査 docs/tmp/0917_survey2.md e を受けた裁定・実装ブロックに逐語同梱・同日収載）。**本文（逐語）**:
+「裁定267（2026-09-17 承認・スタッフ編集の拡張）:
+267-1 配属店＝追加実装なし。staff_transfer_store と「異動先」select（owner かつ複数店のときのみ
+  表示）で既に足りる。単店 org に異動先は無い。
+267-2 メール変更＝admin route 1 本新設（app/api/staff/update-email・mig 0）。ガードは
+  kiosk/provision の guardOwner（owner のみ・manager には開かない）。lower 正規化・org 内 unique を
+  public.users で先引き。auth 更新は updateUserById（email_confirm: true・確認メールなし）。
+  書き順は auth.users.email → public.users.email。後者失敗時は auth を元の値に戻す補償。
+  対象は staff／manager のみ。owner 自身のメールは対象外（ロックアウト防止・第2期）。
+  cast のメールも対象外（別レーン）。UI はモーダルに「メール」入力＋「メールを更新」。owner にのみ表示。
+  追補（同日）: GoTrue は重複メールに code 無しの 500 しか返さないため、public.users を org 条件
+  なしで先引きし auth 書込前に 409 を返す（staff/create と同形・補償不要）。
+267-3 LINE＝スタッフ向けは対象外。器が皆無。T3 着手時にスタッフを含めるか判断。
+実装＝c0fa85c。suite verify:nox-staff-email 43（f0 50 段目）。」
+
+適用＝`c0fa85c`（route app/api/staff/update-email＋lib/nox/staff/update-email.ts＝parseUpdateEmailBody／decideOwnerAccess／decideEmailTarget／performUpdateEmail＋staff-board「メールを更新」＋scripts/verify-nox-staff-email.ts 43 本・f0 50 段目）。逆テスト 4 本＝auth 重複写像を外す→se(5-5)・owner 自身許可→se(5-2)＋se(fin-fx)・重複許可→se(5-4)・補償を外す→se(5-9b) 各赤→復元 43 緑。実機＝dev サーバ経由（NOX-VERIFY-A・ownerA）で 401／403／403／409／400／200→auth＝public→復帰、CLUB NOX は demo-manager 403（route）・demo-staff2 は performUpdateEmail で変更→同値→復帰（CLUB NOX owner の資格情報を持たないため route 経由は未実施）。教訓89 の実例（ownerA のメール書換）は本レーンで発生。
+
+## 裁定268（Agoora 承認 2026-09-17）/shift 今日タブの行に遅刻分数「(+N 分)」を出す（client のみ・未着手）
+
+出典＝相談役ブロック 2026-09-17（調査 docs/tmp/0917_survey2.md f を受けた裁定・同日収載）。**本文（逐語）**:
+「裁定268（2026-09-17 承認・遅刻分数の表示）: /shift 今日タブの行の打刻 HH:MM の右に確定開始との差を
+  「(+N 分)」で出す。猶予 penalty_config.late_grace_min 以内は出さない。KPI の遅刻判定と同じ閾値・
+  同じ算出行を使い別式を書かない。未着（打刻なし）は分数なし。punches は既に全件取得済みで新規取得
+  なし＝client のみ。罰金連動は R20-c 第2期のまま。未着手。」
+
+適用＝未着手（client 1 レーン）。前提の読取＝shift-board.tsx 764〜778（punches 読取・punchIn）・806〜828（todayCounts＝matchPunches）・1072〜1076（「HH:MM打刻」の補助表示・裁定222）。
+
+## 裁定269（Agoora 承認 2026-09-17）店舗の「使う制度」設定と管理画面の出し分け（0147＝set_store_profile 白名単 +12）
+
+出典＝相談役ブロック 2026-09-17（調査 docs/tmp/0917_survey2.md g／h を受けた裁定・同日収載）。**本文（逐語）**:
+「裁定269（2026-09-17 承認・店舗の「使う制度」設定と管理画面の出し分け）:
+269-1 店舗の「使う制度」9 フラグ（時給・最低保証／各種バック／売上歩合／ポイント制／売上スライド／
+  ポイントスライド／ノルマ／罰金・控除／達成ボーナス）＋業態（biz_type）＋会計方式（billing_mode）
+  ＋初期設定完了（setup_done）は store_profile.settings_json に置き、set_store_profile の白名単を
+  補正 mig（0147）で 12 キー拡張する。feature_flags には載せない（運用トグルと報酬制度を混ぜない）。
+269-2 OFF は表示と入力の口を隠すだけ。計算は cast_plan／cast_norms が正で不変。
+269-3 既存設定を持つ cast がいる制度は OFF 不可（件数を出して止める）。
+269-4 隠す対象 16 箇所（plan-board タブ 4・plan-editor 節 4・comp-sections Tab 4・norm-config／
+  deduction／products／mine 各 1）。出し分けは純関数 isSystemOn(store, key) 1 本で判定し、
+  16 箇所に個別条件を書かない。
+269-5 初回ログイン判定は setup_done 一本。settings_json 空や料金 0 件の推定は使わない。
+269-6 料金テンプレは client 定数＋set_pricing_rule を行数分呼ぶ（一括 RPC は作らない・最大 3 行）。
+269-7 マスタ「報酬制度」タブは lib/nox/master/nav.ts のキャスト・報酬群に 1 行。」
+
+適用＝未着手（mig 0147 は相談役が起草・手貼り後に client レーン）。前提の読取（2026-09-17）＝制度別の表・列と 16 箇所の内訳は docs/tmp/0917_survey2.md g。set_store_profile の現白名単 8 キー＝裁定250。feature_flags の key は CHECK 4 値固定（mig0135:91）＝載せない根拠の一つ。
+
+## 裁定270（Agoora 承認 2026-09-17）裁定125 ローンチ範囲の追補＝初期設定ウィザード・報酬制度タブ・mig 0147／0148
+
+出典＝相談役ブロック 2026-09-17（同日収載）。**本文（逐語）**:
+「裁定270（2026-09-17 承認・裁定125 ローンチ範囲の追補）:
+270-1 初期設定ウィザード（/setup・owner 初回ログイン・STEP 1 業態と基本情報／2 料金テンプレ／
+  3 使う制度／4 会計方式と機能／5 確認）をローンチ範囲に加える。
+270-2 マスタ「報酬制度」（既存店向け）を加える。STEP 3 と同じ器を同じ画面部品で書く。
+270-3 mig は 0146 打ち止めを解き 2 本に割る。0147＝set_store_profile 白名単 +12（269-1）。
+  0148＝繰越の消費（258-8）＋R11 紹介料（check_lines 3 列＋kind 'referral'＋RPC 2 本）＋
+  R19 cast セルフ norm RPC。0148 は 0147 の client が実機を通ってから。
+270-4 R11・R19 は第2期に送らず 0148 に同乗。R15 は設計裁定が先（本文は v32 §6）。
+270-5 見積り＝W/S レーン 2〜3 セッション。着手は 0147 手貼り後。」
+
+適用＝未着手。裁定125（ローンチ範囲）の追補として本エントリを参照。モックの出典＝mock/onboarding-2026-08/（step1〜5・業態別 step1／step2 各 5）。
 
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
@@ -4002,7 +4089,7 @@ K36 の説明文もモックの 2 カード語彙（本人レコード／NOXロ�
   f0 2 連緑＝**37 本 3,550**（36 本＋sweep 4）・所要 439s／706s（掃除前 7〜12 分と同程度＝全体は他スイート支配。**rls 段は 7 分→2 分未満**）。
   golden 6 値不変。逆張り＝(b) service_role で verify org に 1 行 insert→sweep で削除→0 ／ (c) probe 1 行を置いた状態で owner セッションの同 assert が
   count=1 で FAIL・sweep 後に 0 で PASS（rls の意味が変わっていないことの実証）。
-- **f0 本数の基準（handoff 参照用）**: 36 本 3,546 → 37 本 3,550（sweep 4 assertions）→ 38 本 3,570（flags 20 assertions・2026-09-09 2 連緑 761s／723s）→ 39 本 3,642（staff-shift 53 assertions＋grants 298→317・2026-09-10 2 連緑 412s／454s）→ 40 本 3,721（reopen 65 assertions＋billing 53→53＋grants 317→329・2026-09-10 2 連緑 889s／1049s）→ **41 本 3,765**（旧 3,721＋reopen 65→73（+8）＋payroll 195→212（+17）＋payroll-list 新設 19（+19）＝+44・2026-09-11 2 連緑 923s／993s）。→ **45 本 3,824**（3,765＋labor-cost 13（B6-4）＋compare 20（B6-11）＋cast-stats 14（B6-12）＋shift-gap 12（裁定245）・2026-09-14 2 連緑 488s／630s）。→ **46 本 3,853**（3,824＋d45 29（mig0143・裁定D45-1〜9）・2026-09-14 2 連緑 471s／541s）。→ **47 本 3,893**（3,853＋anon-guard 986→987（set_store_profile probe）＋store-profile 新設 39（mig0144・裁定250）・2026-09-14 2 連緑 758s／700s）。→ **48 本 3,925**（3,893＋anon-guard 987→988（seat_reorder probe）＋seat-reorder 新設 31（mig0145・裁定255）・2026-09-14 2 連緑 567s／547s）。→ **49 本 3,966**（3,925＋payroll-adjust 新設 40（mig0146・裁定258）＋payroll 212→213（B5 A2 を許可列挙化＝3 RPC の実在 assert +1）・2026-09-15 2 連緑 590s／492s・同一 HEAD c9f6aee）。→ **49 本 4,027**（3,966＋payroll-adjust 40→101（+61・裁定264 (a)(b)(c)）・段数不変・2026-09-17 2 連緑 587s／514s・同一 HEAD edf2d15）。**golden 6 値は不変＝5931／125802／55233／64／64／53**。
+- **f0 本数の基準（handoff 参照用）**: 36 本 3,546 → 37 本 3,550（sweep 4 assertions）→ 38 本 3,570（flags 20 assertions・2026-09-09 2 連緑 761s／723s）→ 39 本 3,642（staff-shift 53 assertions＋grants 298→317・2026-09-10 2 連緑 412s／454s）→ 40 本 3,721（reopen 65 assertions＋billing 53→53＋grants 317→329・2026-09-10 2 連緑 889s／1049s）→ **41 本 3,765**（旧 3,721＋reopen 65→73（+8）＋payroll 195→212（+17）＋payroll-list 新設 19（+19）＝+44・2026-09-11 2 連緑 923s／993s）。→ **45 本 3,824**（3,765＋labor-cost 13（B6-4）＋compare 20（B6-11）＋cast-stats 14（B6-12）＋shift-gap 12（裁定245）・2026-09-14 2 連緑 488s／630s）。→ **46 本 3,853**（3,824＋d45 29（mig0143・裁定D45-1〜9）・2026-09-14 2 連緑 471s／541s）。→ **47 本 3,893**（3,853＋anon-guard 986→987（set_store_profile probe）＋store-profile 新設 39（mig0144・裁定250）・2026-09-14 2 連緑 758s／700s）。→ **48 本 3,925**（3,893＋anon-guard 987→988（seat_reorder probe）＋seat-reorder 新設 31（mig0145・裁定255）・2026-09-14 2 連緑 567s／547s）。→ **49 本 3,966**（3,925＋payroll-adjust 新設 40（mig0146・裁定258）＋payroll 212→213（B5 A2 を許可列挙化＝3 RPC の実在 assert +1）・2026-09-15 2 連緑 590s／492s・同一 HEAD c9f6aee）。→ **49 本 4,027**（3,966＋payroll-adjust 40→101（+61・裁定264 (a)(b)(c)）・段数不変・2026-09-17 2 連緑 587s／514s・同一 HEAD edf2d15）。→ **50 本 4,070**（4,027＋staff-email 新設 43（裁定267）・2026-09-17 2 連緑 618s／626s・同一 HEAD f8fdc0e）。**golden 6 値は不変＝5931／125802／55233／64／64／53**。
 - **handoff v34 収蔵（2026-09-17）**: Downloads から `docs/handoff/` へ収蔵（git 追跡へ追加・sha 全64桁付き・教訓72）。v34＝`NOX_相談役引き継ぎ_2026-09-17_v34.md`（14,107 B・sha256 `6d1cea98f86990656b7fb2650fa950953c37af3cbb43e6ce38f0fca838cf669d`・64 桁と照合一致・Downloads 原本と収蔵後の再計算がともに同 sha）。v33（`3c786f7`・14,537 B・sha256 `dcef14298c0aecb14e17de76011a7f9e4867ee888fdc8852f0a46fe8e91082a4`）に続く版。教訓88 は提案段階＝本収蔵では収載しない。docs のみ＝f0 不走（裁定256）。
 - **本番向け付記**: audit_logs の retention（保持期間・アーカイブ）は**ローンチ後必須**（税理士ゲート後＝裁定23 系）。本 gate は verify org 限定であり
   本番 org の行には一切触れない。
@@ -4243,6 +4330,7 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **mig0145 seat_reorder 適用記録（2026-09-14）**: 貼り先 ref **hiqbfagmkrdpmlqhkmsu**（pooler ap-northeast-1・proof orgs=3）・2026-09-14 18:09 適用（CC が相談役ブロックの明示指示で pg 直結・単一トランザクション・例外なし）・検証 6 項目 OK＝(1) 署名 seat_reorder(p_store_id uuid, p_ids uuid[]) 1 本 (2) acl **{postgres,authenticated,service_role}**（anon なし） (3) 既存 reorder 4 本（cast_rank／pricing_rule／product_category／product）＋set_seat の md5 不変 (4) money-core 3 本の md5 不変 (5) seats 列 9・制約 4・grant（authenticated=SELECT のみ）・policy seats_select 不変 (6) **ゲート済み 124→125**・public 関数 238→239。静的突合＝契約の並びと文言は product_category_reorder と同一・org 照合とロール判定は set_seat 18〜23 行と一字一致・updated_at＝now() は cast_rank_reorder 型・audit は named 5 引数（live は 6 引数で p_reason 既定 null）・partial ids は is_active を問わない全件・libpg-query で SQL 層 parse OK。ファイル sha256 d784add2fcea1805cf201a30be385dfbda8a97000285d3bd0b96822df4688a78・7,646 B（Downloads と同一）＝`d1a5e4d`。控え＝docs/tmp/0145_pre.txt／0145_post.txt。**課金正本の追随**＝A6 14→15 本・対象 **124→125**・除外 114 不変・全数 **238→239**（履歴 bullet mig0145・E 節に現在値）・verify:nox-billing の pin 4 箇所（125／125／126／125）・anon-guard 段39b＝`2df543d`。suite verify:nox-seat-reorder 31 本（同）・client `7ae283b`。
 - **f0 新基準 pin（2026-09-15・49 本 3,966）**: 裁定200 の 3 値＝NOX DB 基準（BANZEN の verify プロセスは 裁定249 で除外）→ run3 15:21:46〜15:31:36・590s／run4 16:47:02〜16:55:14・492s＝いずれも **49 段 ALL PASS・3,966・golden 不変（5931／125802／55233／64／64／53）・段別 assertion 数も同一・同一 HEAD `c9f6aee`**。内訳＝verify:nox-payroll-adjust 新設 40（mig0146・裁定258・49 段目）＋verify:nox-payroll 212→213（B5 A2＝payroll_finalize／reopen／mark_paid の 3 本に許可列挙し実在 assert +1）＝3,925＋41＝3,966 と見込み一致。同日の先行 2 走は赤＝run1 15:00（payroll B5 A2 が payroll_adjustment_add の p_cast_id を拾う→許可列挙化）・run2 15:07（billing 段47-1 liveOnly=2＝教訓21 の名簿漏れ→B(e) 収載・除外 114→116）。run3 と run4 の間に **NOX DB が 15:33〜16:46 無応答**（pooler timeout→econnrefused→Agoora の再起動で復帰・postmaster 16:46:22・max_connections 60・接続 18／60）＝DB 起因の赤は再走せず即停止（本ブロックの新ルール）。push＝`32d2123..c9f6aee`（7 コミット）。
 - **f0 新基準 pin（2026-09-17・49 段 4,027）**: 裁定200 の 3 値＝NOX DB 基準（11:00:15＝直結 0／audit 60 秒 0／ローカル verify プロセス 0・run2 前 11:10:36 も 0）→ run1 11:00:31〜11:10:19・587s／run2 11:10:44〜11:19:17・514s＝いずれも **49 段 ALL PASS・4,027・golden 不変（5931／125802／55233／64／64／53）・段別 assertion 数も同一・同一 HEAD `edf2d15`**。内訳＝3,966＋verify:nox-payroll-adjust 40→101（+61＝純関数 34（(a)）＋route 層 16（(b)）＋凍結形・並び 11（(c)））。他 48 段は 2026-09-15 pin と同一。走行前に 9/15 18:09／18:11 起動の残骸 node -e 2 本（feature_flags.created_at 不在の SQL エラー後に c.end() 未呼びで idle 接続を保持）を停止し直結 0 を確認してから起動。push＝`3c786f7..edf2d15`（3 コミット・11:19）。
+- **f0 新基準 pin（2026-09-17・50 段 4,070）**: 裁定200 の 3 値＝NOX DB 基準（12:43:25＝直結 0／audit 60 秒 0／ローカル verify プロセス 0・run2 前も 0）→ run1 618s／run2 626s＝いずれも **50 段 ALL PASS・4,070・golden 不変（5931／125802／55233／64／64／53）・段別 assertion 数も同一・同一 HEAD `f8fdc0e`**。内訳＝4,027＋verify:nox-staff-email 新設 43（裁定267・50 段目）。他 49 段は 2026-09-17 朝の pin と同一。push＝`cb916cc..f8fdc0e`（c0fa85c 裁定267＋f8fdc0e 裁定259）。
 - **mig0143 D45 適用記録（2026-09-14）**: 貼り先 ref **hiqbfagmkrdpmlqhkmsu**（pooler ap-northeast-1・proof orgs=3）・2026-09-14 11:39 適用（CC が相談役ブロックの明示指示で pg 直結・単一トランザクション・例外なし）・検証 6 項目 OK＝(1) 新 2 列 NOT NULL default 0 (2) 列数 **38→40**・制約 **28→30**・新 CHECK 2 本 (3) n_card／n_other＝aggregate 1/1・close 2/2・reclose 2/2 (4) diff 式に v_ar_card／other なし (5) proacl 3 本 9/11 と同値 (6) **money-core 4 本の md5 不変**（check_pay／check_close／check_void／receivable_collect）。既存 daily_reports **5 行とも新 2 列 0**・行数前後 5。手貼り前の控え（9/11）と 9/14 再実測は同一＝間に誰も触っていない。ファイル sha256 ada2fc9e…8753・20,204 B（Downloads と同一）＝`8c89d4e`。控え＝docs/tmp/0143_pre.txt／0143_pre_0914.txt／0143_post.txt。
 - **C層③ DB 側完了（0138〜0141）**（2026-09-10・mig0138 `ec6c3e5`＋0139 `ec6c3e5`＋0140／0141 `8d94923`・追随 `5005a9a`・名簿 `1a78d50`・suite `ac125d7`）: 設計書 v1 §1〜§3 どおり memberships.can_close／can_reopen＋set_staff_perms 7 引数（#63 クローズ）・daily_reports 9 列＋report_reopen／daily_report_reclose 8 引数（p_idem_key）／cash_diff_approve・checks.status merged＋check_merge（0139 補正）・payroll_reopen 5 引数（p_reason・service 経路）・関所 assert_day_open を課金ゲート内蔵の check_* 16 本へ（0140・check_open は 0141 で v_seat.store_id 版へ補正＝教訓68）。verify:nox-reopen 65 assertions（run1 緑・逆張り 3 本同時で 12 赤→backup 復元 差分 0）を f0 末尾へ連結＝**40 本 3,721**（2 連緑 889s／1049s・40 段 ALL PASS・run1／run2 の段別 assertion 数は同一・golden 6 値不変）。内訳の計算値＝旧 3,642＋reopen 65＋billing +0＋grants +12＝3,719 で実測 3,721 と 2 差（pin は実測値・差の出所は本ブロックでは未特定＝段別ログは docs/tmp に残置しない・次の pin 時に段別で照合）。UI（§4 の 4 面）は次ブロック。
 - **handoff v29／v30 収蔵（2026-09-11）**: Downloads から `docs/handoff/` へ収蔵（git 追跡へ追加・sha 全64桁付き）。v29＝`NOX_相談役引き継ぎ_2026-09-10_v29.md`（7,604 B・sha256 `4573dfdafa30be4240cafc2c4566d125701e8509b598ffbc53cfd48a3bf79d0a`）／v30＝`NOX_相談役引き継ぎ_2026-09-10_v30.md`（9,576 B・sha256 `e21dd85b72e97989ef7f1aee6e618d2b0d14de11362f348ff0e52f36472b1660`・Downloads の「v30 (1)」「(2)」「(3)」は 3 つとも同 sha＝「(1)」を無印名で収蔵。Downloads の無印 v30.md は 9,772 B・16:49 旧稿＝収蔵せず削除もせず）。収蔵後に再計算した sha は照合値と一致。v29 §0 の HEAD／ahead は 9/10 14:30 時点・v30 §0 は 9/10 17:05 時点の値のままで正（#81 は v30 未記載＝v31 で記載）。旧セッションの pin push（`18c5b2b`・0 0）を待って収蔵＝f0 不要（docs のみ）。
