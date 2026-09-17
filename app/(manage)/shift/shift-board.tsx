@@ -15,6 +15,7 @@ import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange, addDays } from "@/lib/nox/biz-date";
 import { fmtWin, fmtBand30, hm2min, min2hm, spanMinutes } from "@/lib/nox/shift-time";
+import { lateMinutesOf } from "@/lib/nox/shift/late"; // ★裁定268: 遅刻分数（KPI 未着判定と行表示の単一式）
 import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
@@ -822,7 +823,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       const fin = r.days.find((d) => d.bizDate === todayDate)?.final;
       if (fin?.type === "late") late += 1;
       else if (fin?.type === "ok") arrived += 1;
-      else if (nowMs >= base + (hm2min(s.start_hm) + lateGraceMin) * 60_000) missing += 1; // 打刻なし ∧ 猶予経過
+      else if (lateMinutesOf(s.start_hm, min2hm(Math.max(0, Math.floor((nowMs - base) / 60_000))), lateGraceMin) !== null) missing += 1; // 打刻なし ∧ 猶予経過（★裁定268: 行の「(+N 分)」と同じ関数・同じ閾値＝式を 2 箇所に持たない。now は表示日 00:00 起点の 30 時間制 HH:MM）
     }
     return { planned: list.length, arrived, late, missing, absent };
   })();
@@ -1072,6 +1073,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                           {punchIn.get(s.cast_id) && (
                             <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
                               {punchIn.get(s.cast_id)}打刻
+                              {/* ★裁定268: 確定開始との差「(+N 分)」＝猶予 late_grace_min 以内・未着は出さない。KPI（todayCounts）と同じ lateMinutesOf・同じ閾値。
+                                  punchIn は上の effect で punchRows（当日 punches）から作った最終 'in' の HH:MM＝新規 fetch 0 */}
+                              {(() => { const n = lateMinutesOf(s.start_hm, punchIn.get(s.cast_id), lateGraceMin); return n === null ? null : <span style={{ marginLeft: 4, opacity: 0.75 }}>(+{n} 分)</span>; })()}
                             </span>
                           )}
                           {/* ★裁定257 R20-b: 退勤（punch_proxy 'out'）。in 打刻中のキャストだけ押せる（orphan_out を作らない）。裁定239＝実行 青塗り・240＝中央 */}
