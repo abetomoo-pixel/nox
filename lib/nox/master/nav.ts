@@ -47,6 +47,7 @@ export const MASTER_NAV: MasterNavGroup[] = [
       { label: "控除・送り", href: "/master/cast-comp/deduction" },
       { label: "ノルマ", href: "/master/cast-comp/norma" },
       { label: "キャスト会計", href: "/master/cast-comp/register" },
+      { label: "報酬制度", href: "/master/cast-comp/systems" }, // ★裁定269-7／270-2: 使う制度 9 フラグ（mig0147）
     ],
   },
 ];

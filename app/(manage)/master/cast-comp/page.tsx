@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import * as t from "@/lib/nox/ui/theme";
+import { SYSTEM_KEYS, isSystemOn } from "@/lib/nox/store-systems"; // ★裁定269: 報酬制度カードの状況
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,10 @@ export default async function CastCompHubPage() {
     { href: "/master/cast-comp/register", icon: "◈", title: "キャスト会計の許可",
       desc: "キャスト本人がレジを使えるようにする設定（店フラグ＋対象キャストの個別許可）。",
       status: castReg ? "● 店として許可中" : "● 店として停止中" },
+    // ★裁定269-7／270-2: 使う制度（mig0147・settings_json.sys_*・欠損は ON）
+    { href: "/master/cast-comp/systems", icon: "◇", title: "報酬制度",
+      desc: "この店で使う制度（時給・バック・歩合・ポイント・スライド・ノルマ・罰金控除・達成ボーナス）を選ぶ。OFF は表示だけを隠す。",
+      status: `● 使用中 ${SYSTEM_KEYS.filter((k) => isSystemOn(sj, k)).length}/9` },
   ];
 
   return (

@@ -13,6 +13,7 @@ import AttendanceForm from "./attendance-form";
 import NormCard from "./norm-card";
 import DrinkClaimForm from "./drink-claim-form";
 import PrintPayslipButton from "./print-payslip-button";
+import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +100,7 @@ export default async function MinePage() {
   // breakdown_json の解釈と1件描画は共有 PayslipSlip へ移設（D2＝表示の移設のみ・数値ロジック非改変）。
 
   // 段M2: 所属店（ヘッダ表示用）。cast の可視 store は自店のみ（RLS）＝先頭行が自店（/mine/ranking と同型）。
-  const { data: myStores } = await supabase.from("stores").select("id, name").limit(1);
+  const { data: myStores } = await supabase.from("stores").select("id, name, settings_json").limit(1); // ★裁定269: sys_* は既存の自店読取に列を足すだけ
   const myStore = myStores?.[0];
 
   // 段M2: 指名ランキングの★自分の行だけ（get_cast_ranking＝金額列を構造的に持たない既存 RPC・
@@ -163,7 +164,7 @@ export default async function MinePage() {
 
       {/* ノルマ進捗（mig0042・表示のみ）: 採用軸かつ目標>0 の軸だけ・全非表示ならカード自体出ない
           ★店が採用している軸のときだけ出る現行条件はそのまま（部品側の判定に一切触れていない）。 */}
-      <NormCard />
+      {isSectionOn((myStore?.settings_json ?? null) as StoreSettings, "mineNormCard") && <NormCard />}{/* ★裁定269-4: mineNormCard */}
 
       {/* 印刷隔離の対象マーカーは維持（器だけ差し替え・明細スリップ部品は非改変） */}
       <section className="nox-panel nox-print">

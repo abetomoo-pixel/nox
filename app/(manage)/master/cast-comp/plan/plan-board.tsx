@@ -16,6 +16,7 @@ import { adoptedMethodsOf, compSummaryOf } from "@/lib/nox/comp-methods";
 import { AssignTab, useCompData, secTitle, productBackArgsOf, type Plan } from "../comp-sections";
 import PlanEditor from "./plan-editor";
 import NormaBoard from "../norma/norma-board";
+import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 
 const card: React.CSSProperties = t.card;
 
@@ -30,8 +31,9 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number][0];
 
-export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlags }: {
+export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlags, settings }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean; sim: StoreSimData | null;
+  settings?: StoreSettings; // ★裁定269: stores.settings_json（sys_*）
   normFlags: { salesEnabled: boolean; shimeiEnabled: boolean; shimeiScope: "hon" | "hon_jonai" };
 }) {
   const supabase = createClient();
@@ -97,6 +99,12 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
   }
 
   const isEditorTab = tab === "base" || tab === "backs" || tab === "slides" || tab === "quota";
+  // ★裁定269-4: タブの出し分け＝isSectionOn 1 条件（4 タブ）。sim／assign は制度に依らない。OFF のタブは描画しない。
+  const tabOn = (k: TabKey) => k === "base" ? isSectionOn(settings, "planTabBase")
+    : k === "backs" ? isSectionOn(settings, "planTabBacks")
+    : k === "slides" ? isSectionOn(settings, "planTabSlides")
+    : k === "quota" ? isSectionOn(settings, "planTabQuota") : true;
+  useEffect(() => { if (!tabOn(tab)) setTab(TABS.map(([k]) => k).find(tabOn) ?? "assign"); }, [tab, settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div>
@@ -143,7 +151,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
         {/* 6タブ ★N2（規約 §8）: 折返し可＋上下の行の間に罫線（各ボタンの上罫線を -1px で重ね、1行目は容器の overflow で隠れる）
             ・選択中は青地（.on＝primary-soft）＋青の下線（inset shadow）。 */}
         <div className="nox-seg" style={{ display: "flex", flexWrap: "wrap", width: "100%" }}>
-          {TABS.map(([k, label]) => (
+          {TABS.filter(([k]) => tabOn(k)).map(([k, label]) => (
             <button key={k} className={tab === k ? "on" : ""}
               style={{ flex: "1 1 120px", fontWeight: 800, fontSize: 12.5, padding: "8px 6px", borderTop: "1px solid var(--line)", marginTop: -1,
                 boxShadow: tab === k ? "inset 0 -2px 0 var(--primary)" : undefined }}
@@ -160,10 +168,11 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
       <PlanEditor storeId={storeId} isOwner={isOwner} plans={data.plans} backs={data.backs}
         selId={selId} setSelId={setSelId} setMsg={setMsg} reload={data.reload}
         show={{ base: tab === "base", backs: tab === "backs", slides: tab === "slides", achieve: tab === "quota" }}
+        settings={settings}
         onDirtyCounts={setDirtyCounts} />
 
       {/* ノルマ・ボーナス タブ下段＝店共通（全プラン）: 現行 norma-board をそのまま搭載（契約区分はプランに置かない） */}
-      <div style={{ display: tab === "quota" ? undefined : "none" }}>
+      {isSectionOn(settings, "planTabQuota") && (<div style={{ display: tab === "quota" ? undefined : "none" }}>{/* ★裁定269-4: planTabQuota */}
         <div className="nox-cardtop" style={{ ...card, marginBottom: 10 }}>
           <h2 style={secTitle}>店共通（全プラン）</h2>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 2px" }}>雇用キャスト: 減給・罰金の法定上限（労基法91条）は給与計算側で自動制約されます（裁定98）。</p>
@@ -173,8 +182,8 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
             <span className="nox-stpill" style={{ marginLeft: 8 }}>準備中（penalty_config に確認記録の器なし・C5）</span>
           </label>
         </div>
-        <NormaBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={isOwner} flags={normFlags} />
-      </div>
+        <NormaBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={isOwner} flags={normFlags} settings={settings} />
+      </div>)}
 
       {/* シミュレーション タブ（★裁定106 B2: v3 の主入力＋残りは「詳細」で畳む＝compact） */}
       {sim && (

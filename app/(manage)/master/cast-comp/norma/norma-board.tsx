@@ -12,11 +12,13 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import NormConfigPanel from "../../norm-config-panel";
 import { NormTab, PenaltyTab, useCompData, secTitle } from "../comp-sections";
+import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 
 const card: React.CSSProperties = t.card;
 
-export default function NormaBoard({ storeId, isManagerUp, isOwner, flags }: {
+export default function NormaBoard({ storeId, isManagerUp, isOwner, flags, settings }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean;
+  settings?: StoreSettings; // ★裁定269
   flags: { salesEnabled: boolean; shimeiEnabled: boolean; shimeiScope: "hon" | "hon_jonai" };
 }) {
   const [msg, setMsg] = useState<string | null>(null);
@@ -27,26 +29,26 @@ export default function NormaBoard({ storeId, isManagerUp, isOwner, flags }: {
       <Toast msg={msg} />
 
       {/* ① 店として採用する軸（settings_json・owner のみ切替＝panel 内で出し分け） */}
-      <NormConfigPanel
+      {isSectionOn(settings, "normConfigPanel") && (<NormConfigPanel
         storeId={storeId}
         isOwner={isOwner}
         initialSalesEnabled={flags.salesEnabled}
         initialShimeiEnabled={flags.shimeiEnabled}
         initialShimeiScope={flags.shimeiScope}
-      />
+      />)}{/* ★裁定269-4: normConfigPanel */}
 
       {/* ② キャスト別の目標（cast_norms・manager 以上） */}
-      <section className="nox-cardtop" style={{ ...card, margin: "14px 0" }}>
+      {isSectionOn(settings, "compNormTab") && (<section className="nox-cardtop" style={{ ...card, margin: "14px 0" }}>{/* ★裁定269-4: compNormTab */}
         <h2 style={secTitle}>キャスト別ノルマ目標</h2>
         <NormTab casts={data.casts} norms={data.norms} isManagerUp={isManagerUp} setMsg={setMsg} reload={data.reload} />
-      </section>
+      </section>)}
 
       {/* ③ 未達成時のペナルティ（penalty_config・owner のみ編集） */}
-      <section className="nox-cardtop" style={card}>
+      {isSectionOn(settings, "compPenaltyTab") && (<section className="nox-cardtop" style={card}>{/* ★裁定269-4: compPenaltyTab */}
         <h2 style={secTitle}>未達成時のペナルティ（罰金・閾値）</h2>
         <PenaltyTab penalty={data.penalty} setPenalty={data.setPenalty} exists={data.penaltyExists}
           isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={data.reload} />
-      </section>
+      </section>)}
     </div>
   );
 }

@@ -22,6 +22,6 @@ export default async function CastCompPlanPage() {
   const shimeiScope: "hon" | "hon_jonai" =
     (typeof sj?.shimei_norm_scope === "string" ? (sj.shimei_norm_scope as string).trim() : "") === "hon_jonai" ? "hon_jonai" : "hon";
   const sim = await loadStoreSimData(supabase, storeId);
-  return <PlanBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} sim={sim}
+  return <PlanBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} sim={sim} settings={sj}
     normFlags={{ salesEnabled: sj?.sales_norm_enabled === true, shimeiEnabled: sj?.shimei_norm_enabled === true, shimeiScope }} />;
 }

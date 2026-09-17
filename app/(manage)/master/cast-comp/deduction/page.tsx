@@ -28,6 +28,7 @@ export default async function CastCompDeductionPage() {
       casts={(casts ?? []) as { id: string; name: string }[]}
       okuriMode={okuriMode}
       okuriBase={okuriBase}
+      settings={sj}
     />
   );
 }

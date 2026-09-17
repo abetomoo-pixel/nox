@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
+import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import {
   SlideInput, compErrJa, secTitle, BackTab, PRODUCT_BACK_OPTIONS, productBackArgsOf, productBackErrOf,
   type Plan, type Slide, type BackModeRow, type CompRow, type BackDef, type ProductBackMode,
@@ -100,7 +101,7 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
   );
 }
 
-export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setSelId, setMsg, reload, show, onDirtyCounts }: {
+export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setSelId, setMsg, reload, show, onDirtyCounts, settings }: {
   storeId: string; isOwner: boolean; plans: Plan[]; backs: BackDef[];
   selId: string | null; setSelId: (v: string | null) => void;
   setMsg: (m: string) => void; reload: () => Promise<void>;
@@ -109,6 +110,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   show?: { base: boolean; backs: boolean; slides: boolean; achieve: boolean };
   /** ★裁定106 B1: 右パネル「保存状態」用＝節ごとの未保存件数（0/1）を親へ通知。 */
   onDirtyCounts?: (c: { base: number; backs: number; slides: number }) => void;
+  /** ★裁定269: stores.settings_json（sys_*）。OFF の節は描画しない（display 切替の vis とは別＝DOM に置かない） */
+  settings?: StoreSettings;
 }) {
   const supabase = createClient();
   const [draft, setDraft] = useState<Draft>(BLANK);
@@ -140,6 +143,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   };
   // ★裁定106 B1: タブごと未保存件数を親へ（achievement/自由バックは行単位保存＝対象外）
   const vis = show ?? { base: true, backs: true, slides: true, achieve: true };
+  // ★裁定269-4: 節ごとに isSectionOn 1 条件（4 節＋自由バック表）
+  const on = { base: isSectionOn(settings, "planEditorBase"), backs: isSectionOn(settings, "planEditorBacks"), slides: isSectionOn(settings, "planEditorSlides"), achieve: isSectionOn(settings, "planEditorAchieve"), backTab: isSectionOn(settings, "compBackTab") };
   useEffect(() => {
     onDirtyCounts?.({
       base: dirty(["name", "base", "active"]) ? 1 : 0,
@@ -267,7 +272,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         </div>
       )}
       {/* ── ② 基本・保証（★裁定106: 保証時給が主・最低月額保証は「使う」で開く） ── */}
-      <section id="base" className="nox-cardtop" style={{ ...secCard, display: vis.base ? undefined : "none" }}>
+      {on.base && (<section id="base" className="nox-cardtop" style={{ ...secCard, display: vis.base ? undefined : "none" }}>{/* ★裁定269-4: planEditorBase */}
         <SecHead title="基本・保証" keys={["name", "base", "active"]} section="基本給・保証" desc="時給と保証条件を設定します。" />
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 10 }}>
           <label style={lbl}>プラン名
@@ -287,10 +292,10 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <Prep k="daily_wage" /><Prep k="guarantee_hours" /><Prep k="guarantee_period" />
         </div>
-      </section>
+      </section>)}
 
       {/* ── ③ 歩合・バック ── */}
-      <section id="backs" className="nox-cardtop" style={{ ...secCard, display: vis.backs ? undefined : "none" }}>
+      {on.backs && (<section id="backs" className="nox-cardtop" style={{ ...secCard, display: vis.backs ? undefined : "none" }}>{/* ★裁定269-4: planEditorBacks */}
         <SecHead title="歩合・バック" keys={["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate", ...PB_KEYS]} section="各種バック"
           desc="指名実績バックと商品販売バックを設定します。" />
         {/* ★N2: 指名実績バック＝3ブロック（本指名／場内指名／同伴）。方式トグルは「固定額 円/本｜割合 %」（v3.1 逐語）・
@@ -381,12 +386,12 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
               {secErr["各種バック"] && <span style={{ fontSize: 12, color: "var(--bad)" }}>{secErr["各種バック"]}</span>}
             </div>
           )}
-          <BackTab backs={backs} isManagerUp={isOwner} storeId={storeId} setMsg={setMsg} reload={reload} />
+          {on.backTab && <BackTab backs={backs} isManagerUp={isOwner} storeId={storeId} setMsg={setMsg} reload={reload} />}{/* ★裁定269-4: compBackTab */}
         </div>
-      </section>
+      </section>)}
 
       {/* ── ④ スライド・ポイント ── */}
-      <section id="slides" className="nox-cardtop" style={{ ...secCard, display: vis.slides ? undefined : "none" }}>
+      {on.slides && (<section id="slides" className="nox-cardtop" style={{ ...secCard, display: vis.slides ? undefined : "none" }}>{/* ★裁定269-4: planEditorSlides */}
         <SecHead title="スライド・ポイント" keys={["salesSlide", "pointSlide"]} section="スライド" desc="売上・ポイント実績に応じた時給スライドを設定します。" />
         {/* ★裁定106 B2: 判定基準・対象は固定表示（選択は器なし＝準備中）。3段固定＝行は常に3本（4段目の器なし）。 */}
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
@@ -401,10 +406,10 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <Prep k="point_rules" /><Prep k="gross_profit_slide" /><Prep k="slide_ratio_col" />
         </div>
-      </section>
+      </section>)}
 
       {/* ── ⑤ 達成ボーナス ── */}
-      <section id="achieve" className="nox-cardtop" style={{ ...secCard, display: vis.achieve ? undefined : "none" }}>
+      {on.achieve && (<section id="achieve" className="nox-cardtop" style={{ ...secCard, display: vis.achieve ? undefined : "none" }}>{/* ★裁定269-4: planEditorAchieve */}
         <div style={{ marginBottom: 12 }}>
           <h2 style={{ ...secTitle, margin: 0, fontSize: 16 }}>
             達成ボーナス<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>
@@ -416,7 +421,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <Prep k="achievement_params" /><Prep k="achievement_metrics" />
         </div>
-      </section>
+      </section>)}
     </div>
   );
 }

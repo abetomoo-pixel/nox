@@ -20,6 +20,7 @@ import {
 } from "@/lib/nox/master/queries";
 import { STOCK_REASON_RESTOCK } from "@/lib/nox/stock/reasons";
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
+import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import {
   parseProductBulk, duplicateWarnings, checkInactiveCategoryConflicts,
   newCategories, countByType, TYPE_LABEL_JA as BULK_TYPE_LABEL_JA,
@@ -103,9 +104,12 @@ export type ProductsInitial = {
   stock: Record<string, number>;
 };
 
-export default function ProductsBoard({ storeId, isManagerUp, initial }: {
+export default function ProductsBoard({ storeId, isManagerUp, initial, settings }: {
   storeId: string; isManagerUp: boolean; initial: ProductsInitial;
+  settings?: StoreSettings; // ★裁定269: stores.settings_json（sys_*）
 }) {
+  const showBack = isSectionOn(settings, "productsBack"); // ★裁定269-4: productsBack（列見出し・セル・バック欄）
+  const showHonPt = isSectionOn(settings, "productsHonPt"); // ★裁定269-4: productsHonPt（本指名pt 欄）
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>(initial.products);
   const [categories, setCategories] = useState<Category[]>(initial.categories);
@@ -506,7 +510,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
               ))}
               {/* ★#50: バック列＝商品名下段のサブテキストから独立列へ昇格（率=「10%」・指名別単価=「4段階」・
                   防御表示=「—」薄色）。ソート対象外。名称は現行語彙のまま（統一は裁定113 レーン）。 */}
-              <th className="col-back" title="キャストへのバック設定です。率（%）またはキャスト種別ごとの単価（4段階）">バック</th>
+              {showBack && <th className="col-back" title="キャストへのバック設定です。率（%）またはキャスト種別ごとの単価（4段階）">バック</th>}
               <th className="col-state">状態</th>
               <th className="col-act">操作</th>
             </tr>
@@ -548,7 +552,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                   </td>
                   {/* 純増①（mig0061）: 残量バー＝Σdelta と reorder_point のみ（新規取得なし・表示のみ）。 */}
                   <td className="col-stock" data-label="在庫">{stockCell(stock[p.id] ?? 0, p.reorder_point)}</td>
-                  <td className="col-back" data-label="バック">{backCell(p)}</td>
+                  {showBack && <td className="col-back" data-label="バック">{backCell(p)}</td>}
                   <td className="col-state" data-label="状態">
                     {/* ★④c（裁定K）: ●ドット付きバッジを1タップのトグルに（set_product_active）。
                         manager 未満は従来どおり表示のみ（span のまま）。 */}
@@ -710,6 +714,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                 </div>
               </div>
 
+              {showBack && (<>
               <div className="nox-field">
                 <span className="lab">バックの決め方</span>
                 <SegSelect value={pBackMode} onChange={(v) => setPBackMode(v)}
@@ -734,13 +739,14 @@ export default function ProductsBoard({ storeId, isManagerUp, initial }: {
                   ))}
                 </div>
               )}
+              </>)}
 
-              <div className="nox-field">
+              {showHonPt && (<div className="nox-field">
                 <span className="lab" style={{ opacity: pExempt ? 0.45 : 1 }}>本指名pt</span>
                 <input type="number" inputMode="numeric" min={0} value={pExempt ? 0 : pHonPt} disabled={pExempt}
                   onChange={(e) => setPHonPt(Number(e.target.value))}
                   style={{ ...inputLg, opacity: pExempt ? 0.45 : 1 }} />
-              </div>
+              </div>)}
 
               {/* キャストドリンク（mig0066/0069/0070）＝按分除外。ON の行は check_close の指名按分を通らず、
                   バックは drink_claims 経路（レジの「キャストに付ける」）だけで帰属する＝経路が排他。

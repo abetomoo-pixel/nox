@@ -10,13 +10,15 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import DeductionPanel from "../../deduction-panel";
 import { DeductionTab, useCompData, secTitle } from "../comp-sections";
+import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 
 const card: React.CSSProperties = t.card;
 
-export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, okuriMode, okuriBase }: {
+export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, okuriMode, okuriBase, settings }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean;
   casts: { id: string; name: string }[];
   okuriMode: "flat" | "actual"; okuriBase: number;
+  settings?: StoreSettings; // ★裁定269
 }) {
   const [msg, setMsg] = useState<string | null>(null);
   const data = useCompData(storeId);
@@ -26,20 +28,20 @@ export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, o
       <Toast msg={msg} />
 
       {/* ① 固定控除の種別（deductions・per=day/month/rate） */}
-      <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
+      {isSectionOn(settings, "compDeductionTab") && (<section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>{/* ★裁定269-4: compDeductionTab */}
         <h2 style={secTitle}>控除ルール一覧</h2>
         <DeductionTab deductions={data.deductions} isManagerUp={isManagerUp} storeId={storeId}
           setMsg={setMsg} reload={data.reload} />
-      </section>
+      </section>)}
 
       {/* ② 送り設定・前借り・送り実費（既存パネル移設＝RPC/引数 不変） */}
-      <DeductionPanel
+      {isSectionOn(settings, "deductionPanel") && (<DeductionPanel
         storeId={storeId}
         casts={casts}
         isOwner={isOwner}
         initialOkuriMode={okuriMode}
         initialOkuriBase={okuriBase}
-      />
+      />)}{/* ★裁定269-4: deductionPanel */}
 
       {/* ③ 注意事項（モックの静的文言のみ・変更履歴セクションは作らない） */}
       <section className="nox-cardtop" style={{ ...card, marginTop: 14 }}>
