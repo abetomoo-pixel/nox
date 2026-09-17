@@ -32,8 +32,15 @@ export default async function ManageLayout({ children }: { children: React.React
   }
 
   // 段0R その2: トップバーのサブ行に出す店名（aaa の .brand span）。既存 stores の RLS 読取1本。
-  const { data: storeRows } = await supabase.from("stores").select("name").order("name").limit(1);
+  //   ★裁定269-5／270-1: 同じ読取に settings_json を足し、owner かつ setup_done !== true の店があれば /setup へ（1 条件・/setup 自身は除外）。
+  //     manager／staff／cast は対象外。既存店は 0147 の埋め戻しで setup_done=true＝不変。
+  const { data: storeRows } = await supabase.from("stores").select("name, settings_json").order("name");
   const storeLabel = (storeRows?.[0]?.name as string | undefined) ?? "店舗";
+  if (role === "owner") {
+    const pathname = (await headers()).get("x-pathname") ?? "";
+    const needsSetup = (storeRows ?? []).some((r) => ((r.settings_json as Record<string, unknown> | null)?.setup_done) !== true);
+    if (needsSetup && !(pathname === "/setup" || pathname.startsWith("/setup/"))) redirect("/setup");
+  }
 
   const isManagerUp = role === "owner" || role === "manager";
 
