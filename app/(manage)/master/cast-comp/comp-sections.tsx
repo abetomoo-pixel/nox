@@ -18,6 +18,7 @@ export type BackModeRow = "per_count" | "rate";
 // ★裁定113/123（mig0132〜0134）: 商品販売バック3方式。列は select("*") で載る（旧行は default 'product_rule'）。
 //   型・ラベル正本は lib/nox/comp-methods.ts（simulator と共有）＝ここは再 export のみ。
 import { PRODUCT_BACK_OPTIONS, type ProductBackMode } from "@/lib/nox/comp-methods";
+import Picker from "@/components/nox/picker";
 export { PRODUCT_BACK_OPTIONS, type ProductBackMode };
 export type Plan = {
   id: string; name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
@@ -777,10 +778,10 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
       {isManagerUp ? (
         <>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <select value={castId} onChange={(e) => setCastId(e.target.value)} style={input}>
-              <option value="">キャスト選択</option>
-              {casts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <div style={{ flex: "1 1 220px", minWidth: 200 }}>{/* ★裁定259（R18・2026-09-17）: ノルマのキャスト select→Picker（未選択は onClear・保存は castId 必須のまま） */}
+              <Picker dense items={casts.map((c) => ({ id: c.id, label: c.name }))} value={castId || null}
+                onPick={setCastId} onClear={() => setCastId("")} placeholder="キャストを検索" />
+            </div>
             <input placeholder="2026-07" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ ...input, width: 90 }} />
             {/* ★裁定104: スピナー非表示・桁数幅（日数/同伴/指名=4桁・売上=7桁）・右寄せ・ホイール無効 */}
             <label style={{ fontSize: 12 }}>日数 <input type="number" min={0} value={days} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} onChange={(e) => setDays(Number(e.target.value))} style={numFieldStyle(4)} /></label>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Picker from "@/components/nox/picker";
 
 type Cast = { id: string; name: string };
 type OkuriMode = "flat" | "actual";
@@ -191,12 +192,10 @@ function IssueForm({
     <section className="nox-cardtop" style={{ ...card, opacity: disabled ? 0.6 : 1 }}>
       <h3 style={h3}>{title}</h3>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <label style={lbl}>キャスト<br />
-          <select value={castId} onChange={(e) => setCastId(e.target.value)} disabled={disabled} style={inp}>
-            {casts.length === 0 && <option value="">（対象なし）</option>}
-            {casts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </label>
+        <div style={{ ...lbl, flex: "1 1 220px", minWidth: 200 }}>キャスト<br />{/* ★裁定259（R17・2026-09-17）: 先頭既定で空を許さない＝onClear を渡さない。disabled は従来条件をそのまま Picker へ */}
+          <Picker dense items={casts.map((c) => ({ id: c.id, label: c.name }))} value={castId || null}
+            onPick={setCastId} disabled={disabled} placeholder="キャストを検索" empty="（対象なし）" />
+        </div>
         <label style={lbl}>金額(円)<br />
           <input type="number" min={1} step={1} value={amount} onChange={(e) => setAmount(e.target.value)} disabled={disabled} style={{ ...inp, width: 110 }} />
         </label>

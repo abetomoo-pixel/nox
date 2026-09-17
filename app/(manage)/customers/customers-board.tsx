@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
+import Picker from "@/components/nox/picker";
 
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
@@ -477,10 +478,10 @@ export default function CustomersBoard({
             {isManagerUp && (
               <div>
                 <label style={t.fieldLabel}>初期担当キャスト（任意）</label>
-                <select value={aCast} onChange={(e) => setACast(e.target.value)} style={{ ...input, width: "100%", marginTop: 4 }}>
-                  <option value="">担当なし（フリー客）</option>
-                  {addCastOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div style={{ marginTop: 4 }}>{/* ★裁定259／259-a（2026-09-17）: select→Picker。未選択＝「担当なし（フリー客）」は onClear で表現（擬似項目は作らない） */}
+                  <Picker dense items={addCastOptions.map((c) => ({ id: c.id, label: c.name }))} value={aCast || null}
+                    onPick={setACast} onClear={() => setACast("")} placeholder="担当キャストを検索（未選択＝担当なし・フリー客）" />
+                </div>
               </div>
             )}
           </div>

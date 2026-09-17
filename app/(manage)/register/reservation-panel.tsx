@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastPicker from "@/components/nox/cast-picker";
 import { businessHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
+import Picker from "@/components/nox/picker";
 
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 type Cast = { id: string; name: string };
@@ -524,10 +525,10 @@ export default function ReservationPanel({
                       <input type="radio" checked={eUseCustomer} onChange={() => setEUseCustomer(true)} /> 既存客から
                     </label>
                     {eUseCustomer ? (
-                      <select value={eCustomer} onChange={(ev) => setECustomer(ev.target.value)} style={{ ...input, maxWidth: 220 }}>
-                        <option value="">顧客を選択</option>
-                        {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
+                      <div style={{ flex: "1 1 220px", maxWidth: 320 }}>{/* ★裁定259／259-a（2026-09-17）: 顧客 select→Picker（tel を副表示・未選択は onClear） */}
+                        <Picker dense items={customers.map((c) => ({ id: c.id, label: c.name, sublabel: c.tel ?? undefined }))} value={eCustomer || null}
+                          onPick={setECustomer} onClear={() => setECustomer("")} placeholder="顧客を検索" />
+                      </div>
                     ) : (
                       <input placeholder="名前（空ならフリー）" value={eGuest} onChange={(ev) => setEGuest(ev.target.value)} style={{ ...input, width: 170 }} />
                     )}
@@ -618,10 +619,10 @@ export default function ReservationPanel({
             <input type="radio" checked={useCustomer} onChange={() => setUseCustomer(true)} /> 既存客から
           </label>
           {useCustomer ? (
-            <select value={fCustomer} onChange={(e) => setFCustomer(e.target.value)} style={{ ...input, maxWidth: 220 }}>
-              <option value="">顧客を選択</option>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <div style={{ flex: "1 1 220px", maxWidth: 320 }}>{/* ★裁定259／259-a（2026-09-17）: 顧客 select→Picker（tel を副表示・未選択は onClear） */}
+              <Picker dense items={customers.map((c) => ({ id: c.id, label: c.name, sublabel: c.tel ?? undefined }))} value={fCustomer || null}
+                onPick={setFCustomer} onClear={() => setFCustomer("")} placeholder="顧客を検索" />
+            </div>
           ) : (
             <input placeholder="名前（空ならフリー）" value={fGuest} onChange={(e) => setFGuest(e.target.value)} style={{ ...input, width: 170 }} />
           )}

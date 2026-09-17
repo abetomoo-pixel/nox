@@ -34,6 +34,7 @@ import { finalRunOf, laborCostOf, laborRatePct, castLaborRatePct, type LaborRun,
 import { diffOf, prevMonthOf, prevYearMonthOf, type Diff, type DiffKind } from "@/lib/nox/analytics/compare";
 // ★B6-12（2026-09-11）: 指名（店合計）・集中度・出勤実績・商品／時間（明細）＝純関数 cast-stats（出勤扱いの状態集合もここに集約）
 import { top3ShareOf, presentDaysOf, productTimeOf, nomStoreOf } from "@/lib/nox/analytics/cast-stats";
+import Picker from "@/components/nox/picker";
 
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean; photo_updated_at: string | null };
@@ -1170,14 +1171,12 @@ export default function AnalyticsBoard({
       <section className="nox-panel">
         <h3>主要客リスト（{period}・キャスト別指名客）</h3>
         <div style={{ marginBottom: 10 }}>
-          <label style={t.fieldLabel}>
-            キャスト
-            <br />
-            <select value={castSel} onChange={(e) => setCastSel(e.target.value)} className="nox-input" style={{ width: "auto", marginTop: 5 }}>
-              <option value="">選択してください</option>
-              {castOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
+          <span style={t.fieldLabel}>キャスト</span>
+          {/* ★裁定259-b／259-a（2026-09-17）: label 内の行内小型 select→dense Picker。value=''→null・onChange('')→onClear（未選択＝4 スタット非表示のまま） */}
+          <div style={{ maxWidth: 360, marginTop: 5 }}>
+            <Picker dense items={castOptions.map((c) => ({ id: c.id, label: c.name }))} value={castSel || null}
+              onPick={setCastSel} onClear={() => setCastSel("")} placeholder="キャストを検索（未選択可）" />
+          </div>
         </div>
         {/* E8-6 #11: 選択キャストの4スタット（客単価=按分売上÷指名伝票数・出勤=attendance PRESENT。
             延長率・杯数は明細の時刻・行帰属の集計経路が要るため準備中（発明しない）。 */}

@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import Picker from "@/components/nox/picker";
 
 type OpenCheck = { check_id: string; seat_name: string; seat_kind: string | null; started_at: string };
 type Product = { id: string; name: string; type: string };
@@ -105,10 +106,9 @@ export default function DrinkClaimForm({ month }: { month: string }) {
           </label>
           <label style={{ display: "grid", gap: 3 }}>
             <span style={t.fieldLabel}>商品</span>
-            <select value={productId} onChange={(e) => setProductId(e.target.value)} style={inp}>
-              <option value="">商品を選ぶ</option>
-              {prods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            {/* ★裁定259／259-a（2026-09-17）: 商品 select→Picker（未選択は onClear・items の生成元 prods は不変） */}
+            <Picker dense items={prods.map((p) => ({ id: p.id, label: p.name }))} value={productId || null}
+              onPick={setProductId} onClear={() => setProductId("")} placeholder="商品を検索" />
           </label>
           <label style={{ display: "grid", gap: 3 }}>
             <span style={t.fieldLabel}>杯数</span>

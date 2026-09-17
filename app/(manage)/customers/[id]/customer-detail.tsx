@@ -15,6 +15,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal"; // ★裁定253 R7: 顧客編集はモーダル
+import Picker from "@/components/nox/picker";
 
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
 type CustRow = {
@@ -210,12 +211,10 @@ export default function CustomerDetail({
         </p>
         {canAssign && assignOpen && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            <select value={assignSel} onChange={(e) => setAssignSel(e.target.value)} style={{ ...input, minWidth: 200 }}>
-              <option value="">フリー（担当解除）</option>
-              {assignCandidates.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <div style={{ flex: "1 1 240px", minWidth: 200 }}>{/* ★裁定259／259-a（2026-09-17）: select→Picker。未選択＝「フリー（担当解除）」は onClear で表現 */}
+              <Picker dense items={assignCandidates.map((c) => ({ id: c.id, label: c.name }))} value={assignSel || null}
+                onPick={setAssignSel} onClear={() => setAssignSel("")} placeholder="担当キャストを検索（未選択＝フリー・担当解除）" />
+            </div>
             <button
               style={{ ...t.btnGold, ...t.btnSm, opacity: assignBusy ? 0.6 : 1 }}
               disabled={assignBusy}
