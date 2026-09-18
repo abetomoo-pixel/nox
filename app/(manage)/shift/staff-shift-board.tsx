@@ -13,7 +13,7 @@ import { addDays, bizDateOf } from "@/lib/nox/biz-date";
 import { effectivePatterns, fmtEnd30, staffShiftErrJa } from "../master/staff-shift-panel";
 import StaffShiftManage from "./staff-shift-manage";
 
-import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）
+import { Message, useClearOn } from "@/components/ui/toast"; // ★裁定281（便 U／AB）
 export type Pattern = { id: string; name: string; start_hm: string; end_hm: string; effective_from: string; sort_order: number };
 export type Deadline = { id: string; days_before: number; deadline_hm: string; effective_from: string };
 export type Wish = { id: string; staff_id: string; biz_date: string; pattern_id: string; available: boolean; note: string | null };
@@ -53,6 +53,8 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
   const [noteOf, setNoteOf] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // ★便 AB-3（裁定281-4・S-4）: 月送り／今日で残留しない（対象切替 キャスト⇔黒服 は unmount で消える）＝T の 1e007c3 と同じ型
+  useClearOn(month, setMsg as (v: null) => void);
 
   const load = useCallback(async () => {
     if (!storeId) return;

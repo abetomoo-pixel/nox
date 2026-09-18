@@ -23,7 +23,7 @@ import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
-import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U／AB）: メッセージ表示の共通部品
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
 // 段R2: reorder_point＝低在庫「残N」のしきい（null=しきい無し＝表示しない）
@@ -1857,8 +1857,8 @@ export default function RegisterBoard({
             )}
             {/* R-1a: 描画点＝入金モーダル。to の一致だけで描画する（文言の内容は見ない） */}
             {msg?.to === MSG_PAY && (
-              <p style={{ fontSize: 12, fontWeight: 700, color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)", margin: "0 0 10px" }}>{msg.text}</p>
-            )}
+              <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "0 0 10px" }}>{msg.text}</Message>
+            )}{/* ★裁定281（便 AB）: routed msg も共通部品（kind は既存の ok／bad に従う） */}
             <button
               style={{ ...t.btnGold, width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 900, justifyContent: "center" }}
               disabled={!amtValid || insufficient}
@@ -2218,9 +2218,8 @@ export default function RegisterBoard({
           </p>
         )}
         {msg?.to === MSG_DETAIL && (
-          <p style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.7, margin: "8px 0 0",
-            color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>
-        )}
+          <Message kind={msg.kind === "ok" ? "success" : "error"}>{msg.text}</Message>
+        )}{/* ★裁定281（便 AB） */}
 
         {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。 */}
         <div className="nox-dtabs">
@@ -2659,9 +2658,8 @@ export default function RegisterBoard({
             {/* R-1a 段2: 描画点＝時間料金（手動）カード。延長の**完了文言**（金額つき）。
                 エラーは従来どおり下の timeMsg＝役割を混ぜない。 */}
             {msg?.to === MSG_TIME && (
-              <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0",
-                color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>
-            )}
+              <Message kind={msg.kind === "ok" ? "success" : "error"}>{msg.text}</Message>
+            )}{/* ★裁定281（便 AB） */}
             {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
           </div>
         )}
@@ -3282,9 +3280,8 @@ export default function RegisterBoard({
         {/* R-1a: 描画点＝フロア。会計完了・伝票取消・開卓の失敗がここに出る。
             段2-1: 他4点と同じ基準へ＝色は kind から決める（muted 据置を解除）。 */}
         {msg?.to === MSG_FLOOR && (
-          <p style={{ fontSize: 12, fontWeight: 700, margin: "10px 0 0",
-            color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>
-        )}
+          <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "10px 0 0" }}>{msg.text}</Message>
+        )}{/* ★裁定281（便 AB） */}
       </section>
       <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>
       {/* A2（裁定8）: ボトルキープ登録＝checkout フロー内（NOX8 裁定）。会計タブ末尾の全幅カード */}

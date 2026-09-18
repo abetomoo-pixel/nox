@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import Modal from "@/components/ui/modal";
 import * as t from "@/lib/nox/ui/theme";
 
+import { Message } from "@/components/ui/toast"; // ★裁定281（便 AB）: メッセージ表示の共通部品
 type NormProgress = {
   period: string;
   flags: { sales_norm_enabled: boolean; shimei_norm_enabled: boolean; shimei_norm_scope: "hon" | "hon_jonai" };
@@ -132,7 +133,7 @@ export default function NormCard() {
           </div>
         );
       })}
-      {msg && !open && <p style={{ fontSize: 12, color: msg.kind === "ok" ? "var(--sub)" : "var(--bad)", margin: "6px 0 0" }}>{msg.text}</p>}
+      {msg && !open && <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "6px 0 0" }}>{msg.text}</Message>}{/* ★裁定281（便 AB） */}
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>
         ※進捗の目安表示です（当月の営業日集計・確定値は給与明細が正）。
       </p>
@@ -148,7 +149,7 @@ export default function NormCard() {
           {field("同伴（回）", "dohan")}
           {data.flags.sales_norm_enabled && field("売上（円）", "sales")}
           {data.flags.shimei_norm_enabled && field(data.flags.shimei_norm_scope === "hon_jonai" ? "指名（場内＋本指名・回）" : "指名（本指名・回）", "shimei")}
-          {msg && <p style={{ fontSize: 12, color: msg.kind === "ok" ? "var(--sub)" : "var(--bad)", margin: "0 0 8px" }}>{msg.text}</p>}
+          {msg && <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "0 0 8px" }}>{msg.text}</Message>}{/* ★裁定281（便 AB） */}
           <div className="nox-formmodal-foot">
             {/* ★裁定239: 実行＝青塗り（t.btnGold＝--primary 塗り） */}
             <button type="button" onClick={() => void submit()} disabled={busy || !valid} style={{ ...t.btnGold, opacity: busy || !valid ? 0.5 : 1 }}>

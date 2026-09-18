@@ -31,9 +31,12 @@ check("ms(1-7) messageKindOf: 中立の文言→info", messageKindOf("履歴は�
 check("ms(1-8) messageKindOf: 生の RPC エラー語（bad name／not open／forbidden／billing locked／merge_conflict:money）→error（日本語化されない画面の保険）", messageKindOf("bad name") === "error" && messageKindOf("not open") === "error" && messageKindOf("forbidden") === "error" && messageKindOf("billing locked") === "error" && messageKindOf("merge_conflict:money") === "error");
 
 // (2) 許可列挙型 pin（素の描画 0）
-const EXCLUDE = new Set(["components/ui/toast.tsx"]);
+// 除外: 共通部品自身／kiosk の打刻結果画面（app/kiosk/page.tsx L233 `{result.message}`＝全画面の結果表示・裁定11 の kiosk 面＝メッセージ枠ではない）
+const EXCLUDE = new Set(["components/ui/toast.tsx", "app/kiosk/page.tsx"]);
 const ROOTS = ["app", "components"];
 const RAW = /<(p|span|div|small|b|strong)[^>]*>\{[A-Za-z]*(msg|Msg|err|Err|error|Error|notice|Notice|message|Message)[A-Za-z]*\}<\/\1>/g;
+// ★便 AB-2: オブジェクトのプロパティ経由（{msg.text}／{result.message} 等）の素の描画も検出（U の識別子条件を素通りした register-board の 4 箇所ほか）
+const RAW_PROP = /<(p|span|div|small|b|strong)[^>]*>\{[A-Za-z]+\.(text|message|msg)\}<\/\1>/g;
 const COLOR_BRANCH = /color:\s*[A-Za-z]*(msg|Msg|err|Err)[A-Za-z]*\.(includes|startsWith)\([^)]*\)\s*\?\s*"var\(--(bad|ok|danger[^"]*|success[^"]*)\)"/g;
 const BARE = /^\s*\{(msg|err|error|notice)\}\s*$/;
 function walk(dir: string, out: string[]) {
@@ -50,6 +53,7 @@ for (const f of files) {
   if (EXCLUDE.has(f)) continue;
   const src = fs.readFileSync(f, "utf8");
   for (const m of src.matchAll(RAW)) hits.push(`${f}: ${m[0].slice(0, 80)}`);
+  for (const m of src.matchAll(RAW_PROP)) hits.push(`${f}: prop ${m[0].slice(0, 80)}`);
   for (const m of src.matchAll(COLOR_BRANCH)) hits.push(`${f}: 色分岐 ${m[0].slice(0, 80)}`);
   src.split("\n").forEach((l, i) => { if (BARE.test(l)) { const prev = src.split("\n")[i - 1] ?? ""; if (!/Message|Toast/.test(prev)) hits.push(`${f}:${i + 1}: 素の ${l.trim()}`); } });
 }

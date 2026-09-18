@@ -131,9 +131,7 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
         </label>
         <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>次の切替に添えて監査へ記録します。</span>
       </div>
-      {msg && (
-        <p style={{ fontSize: 12.5, fontWeight: 700, margin: "10px 0 0", color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>
-      )}
+      {msg && <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "10px 0 0" }}>{msg.text}</Message>}{/* ★裁定281（便 AB） */}
       <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
         ※店舗の上書きは ON／OFF のみです（一度上書きした店舗を「既定に従う」へ戻す操作は準備中）。
         ※QR 注文・通知の公開設定は準備中のため表示していません。

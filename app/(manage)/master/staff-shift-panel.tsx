@@ -13,6 +13,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { hm2min, min2hm } from "@/lib/nox/shift-time";
 import { addDays, bizDateOf } from "@/lib/nox/biz-date";
 
+import { Message } from "@/components/ui/toast"; // ★裁定281（便 AB）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type Pattern = { id: string; name: string; start_hm: string; end_hm: string; effective_from: string; sort_order: number };
 type Deadline = { id: string; days_before: number; deadline_hm: string; effective_from: string };
@@ -166,7 +167,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
       <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "4px 0 10px", lineHeight: 1.7 }}>
         枠は「◯日から」で予約します。シフト行は作成時に枠の時刻を写して固定され、枠を変えても過去の行は変わりません（例外は行ごとの時刻上書き）。営業日＝<span className="num">{bizToday}</span>。
       </p>
-      {msg && <p style={{ fontSize: 12.5, fontWeight: 700, margin: "0 0 8px", color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>}
+      {msg && <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "0 0 8px" }}>{msg.text}</Message>}{/* ★裁定281（便 AB） */}
 
       <div className="nox-tablewrap">
         <table className="nox-table">
