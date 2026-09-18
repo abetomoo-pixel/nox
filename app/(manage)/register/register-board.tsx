@@ -2990,6 +2990,7 @@ export default function RegisterBoard({
           <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>
             会計を分けている場合は、伝票ごとに残額を確認してから入金します。
           </p>
+          <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
           <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
             <thead>
               <tr>
@@ -3014,6 +3015,7 @@ export default function RegisterBoard({
               ))}
             </tbody>
           </table>
+          </div>
           {/* E8-1 ④/⑦: 1行フォーム → 会計分けセグメント（現行位置）＋入金モーダル（BANZEN 型）。
               送る引数（check_pay の7引数）は不変＝入力 UI の置換のみ。 */}
           <h3 style={{ ...t.cardTitle, margin: "14px 0 4px" }}>② 入金</h3>

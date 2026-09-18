@@ -222,6 +222,7 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc }: {
     <div style={{ marginTop: 6 }}>
       <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
       <div style={{ ...note, margin: "2px 0 6px" }}>{desc ?? "3段・昇順・0 の段は無効として除外"}</div>
+      <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
       <table className="nox-table" style={{ width: "auto" }}>
         <thead><tr><th style={{ width: 48 }}>段</th><th>判定基準</th><th>時給</th></tr></thead>
         <tbody>
@@ -246,6 +247,7 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc }: {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -334,6 +336,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
 
   return (
     <div>
+      <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
       <table className="nox-table" style={{ marginBottom: 10 }}>
         <thead><tr>{["名称", "保証", "本", "場内", "同伴", "売上段", "pt段", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
@@ -351,6 +354,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
           ))}
         </tbody>
       </table>
+      </div>
       {isOwner ? (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
           <span style={note}>{id ? "編集中" : "新規"}</span>
@@ -390,6 +394,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
             <b style={{ fontSize: 13 }}>追加コンポーネント</b>
             <span style={note}>プランの基本（保証・バック・スライド）に足す報酬要素（書込はオーナーのみ）</span>
           </div>
+          <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
           <table className="nox-table" style={{ marginBottom: 8 }}>
             <thead><tr>{["種類", "方式", "金額/率", "判定", "priority", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
             <tbody>
@@ -407,6 +412,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
               ))}
             </tbody>
           </table>
+          </div>
           {isOwner && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <span style={note}>{cId ? "編集中" : "追加"}</span>
@@ -613,6 +619,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
 
   return (
     <div>
+      <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
       <table className="nox-table" style={{ marginBottom: 10 }}>
         <thead><tr>{(showProgress
           ? ["キャスト", "プラン", "進捗（当月売上）", "適用開始日", "上書き", ""]
@@ -706,6 +713,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                       <div style={{ padding: "4px 0" }}>
                         <div style={{ ...note, marginBottom: 4 }}>適用履歴（適用開始日の新しい順・現在行は「〜現在」）</div>
                         {hist.length === 0 ? <span style={note}>履歴がありません</span> : (
+                          <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
                           <table className="nox-table" style={{ width: "auto" }}>
                             <thead><tr><th>適用期間</th><th>プラン</th><th>上書き</th></tr></thead>
                             <tbody>
@@ -718,6 +726,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                               ))}
                             </tbody>
                           </table>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -729,6 +738,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
           {casts.length === 0 && <tr><td colSpan={showProgress ? 6 : 5} style={note}>キャストがいません</td></tr>}
         </tbody>
       </table>
+      </div>
       {!isManagerUp && <p style={note}>割当はマネージャー以上のみ可能です。</p>}
     </div>
   );
@@ -760,6 +770,7 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
   }
   return (
     <div>
+      <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
       <table className="nox-table" style={{ marginBottom: 10 }}>
         <thead><tr>{["キャスト", "期間", "日数目標", "同伴目標", "売上目標", "指名目標"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
@@ -775,6 +786,7 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
           ))}
         </tbody>
       </table>
+      </div>
       {isManagerUp ? (
         <>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -830,6 +842,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
   }
   return (
     <div>
+      <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
       <table className="nox-table" style={{ marginBottom: 10 }}>
         <thead><tr>{["名称", "種別", "額", "単位", "根拠確認日", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
@@ -845,6 +858,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
           ))}
         </tbody>
       </table>
+      </div>
       {isManagerUp ? (
         <>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -954,6 +968,7 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
   }
   return (
     <div>
+      <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
       <table className="nox-table" style={{ marginBottom: 10 }}>
         <thead><tr>{["名称", "基準", "値", "条件", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
@@ -968,6 +983,7 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
           ))}
         </tbody>
       </table>
+      </div>
       {isManagerUp ? (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span style={note}>{id ? "編集中" : "新規"}</span>

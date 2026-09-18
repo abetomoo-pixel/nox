@@ -1140,6 +1140,7 @@ export default function AnalyticsBoard({
         <h3>指名件数ランキング（{period}）</h3>
         {ranking.length === 0 && <p style={noneP}>該当なし（アクティブなキャストがいません）</p>}
         {ranking.length > 0 && (
+          <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
           <table className="nox-table">
             <thead>
               <tr>
@@ -1162,6 +1163,7 @@ export default function AnalyticsBoard({
               ))}
             </tbody>
           </table>
+          </div>
         )}
         <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
           ※伝票単位の指名回数（金額とは別軸＝売上貢献の件数と一致しないことがあります）。
@@ -1210,6 +1212,7 @@ export default function AnalyticsBoard({
           <p style={noneP}>該当なし（この月に客に紐付いた指名がありません）</p>
         )}
         {castSel && custRank.length > 0 && (
+          <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
           <table className="nox-table">
             <thead>
               <tr>
@@ -1232,6 +1235,7 @@ export default function AnalyticsBoard({
               ))}
             </tbody>
           </table>
+          </div>
         )}
         {castSel && !custErr && (
           <p style={{ fontSize: 11, color: dropCount > 0 ? "var(--gold2)" : "var(--sub)", margin: "8px 0 0" }}>

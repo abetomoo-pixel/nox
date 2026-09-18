@@ -594,6 +594,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       {/* U-1 是正A: キャスト別表の枠はプレビュー前から描画（ヘッダ＋案内の空行） */}
       {!rows && (
         <section className="nox-cardtop" style={t.card}>
+          <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
           <table className="nox-table">
             <thead>
               <tr>
@@ -608,6 +609,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
               <tr><td colSpan={5} style={{ ...t.td, color: "var(--sub)", textAlign: "center", padding: "18px 0" }}>プレビューを押すと表示されます</td></tr>
             </tbody>
           </table>
+          </div>
         </section>
       )}
       {rows && (
@@ -650,6 +652,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
               ))}
             </div>
           </div>
+          <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
           <table className="nox-paytable" style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginBottom: 12 }}>
             <thead>
               <tr>
@@ -712,6 +715,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
               })}
             </tbody>
           </table>
+          </div>
           {/* U-1 是正B: 旧・行タップ下展開パネルは右 sticky パネルへ置換（削除） */}
           {/* 複数キャスト表の「締め」＝合計バー。段0R 第3陣: 金ベタ地＋黒文字（t.slipFoot 共用）をやめ、
               panel 地＋白太金額へ＝金は選択・主ボタン・バッジの3役のみの裁定に一致。

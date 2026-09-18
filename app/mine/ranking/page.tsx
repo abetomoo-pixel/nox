@@ -46,6 +46,7 @@ export default async function RankingPage() {
       </div>
 
       <section className="nox-cardtop" style={t.card}>
+        <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
           <thead>
             <tr>
@@ -80,6 +81,7 @@ export default async function RankingPage() {
             )}
           </tbody>
         </table>
+        </div>
       </section>
     </div>
   );

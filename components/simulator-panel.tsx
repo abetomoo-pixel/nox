@@ -392,6 +392,7 @@ export default function SimulatorPanel({
             <span style={{ fontSize: 13, color: s.body }}>差引支給（手取り）</span>
             <span style={{ fontSize: 28, fontWeight: 700, color: s.net, fontFamily: t.font.num }}>{yen(result.pay.net)}</span>
           </div>
+          <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
           <table style={{ width: "100%", fontSize: 13, marginTop: 8, borderCollapse: "collapse" }}>
             <tbody>
               <Line label="時給（加重平均）" v={`¥${Math.round(result.pay.wage).toLocaleString()}/h × ${result.pay.wHours}h`} />
@@ -410,6 +411,7 @@ export default function SimulatorPanel({
               {result.pay.okuriDeduct > 0 && <Line label="− 送り実費" v={`−${yen(result.pay.okuriDeduct)}`} minus />}
             </tbody>
           </table>
+          </div>
           {mode === "cast" && (
             <p style={{ fontSize: 11, color: s.sub, margin: "4px 0 0" }}>
               ※売掛（客のツケ負担分）の天引きは、このシミュレーターには含まれません。確定分は「確定給与明細」をご確認ください。

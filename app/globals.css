@@ -1734,7 +1734,7 @@ body {
      radius 14→**11**（card スケール・`.nox-tablewrap` と同値）／
      th の下罫線 `--line2`→**`--line`**（汎用と同色）／th に letter-spacing .08em を付与。
    ★padding は揃えない（td 15px＝行を厚く見せる特化表の意匠・汎用は 11px）＝これが特化の中身。 */
-.nox-ptwrap { border: 1px solid var(--line); border-radius: 11px; background: var(--card); overflow: hidden; }
+.nox-ptwrap { border: 1px solid var(--line); border-radius: 11px; background: var(--card); overflow: auto; max-width: 100%; -webkit-overflow-scrolling: touch; } /* ★M1 第 2 レーン（裁定251・2026-09-18）: hidden（切り落とし）→auto＝901+ で容器内の横スクロール（≤900 はカード積みで visible のまま） */
 
 .nox-ptable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .nox-ptable th {

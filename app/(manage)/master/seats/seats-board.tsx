@@ -118,6 +118,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
             ))}
           </div>
         </div>
+        <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
         <table className="nox-table" style={{ marginBottom: 10 }}>
           <tbody>
             {sortedSeats.filter((s) =>
@@ -143,6 +144,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
 
       {/* ★裁定253 R1（2026-09-14）: 「席を編集／追加」はインラインの別カードをやめ共通 Modal へ（器のみ＝項目・state・set_seat の引数は不変）。

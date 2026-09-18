@@ -103,6 +103,7 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
       {msg && <p style={{ color: msg.includes("エラー") || msg.includes("超え") ? "var(--bad)" : "var(--sub)", fontSize: 13 }}>{msg}</p>}
 
       {lines && lines.length > 0 && (
+        <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginTop: 10 }}>
           <thead>
             <tr>
@@ -163,6 +164,7 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
             })}
           </tbody>
         </table>
+        </div>
       )}
     </section>
   );

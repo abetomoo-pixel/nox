@@ -70,6 +70,7 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
   return (
     <div>
       {rows.length > 0 && (
+        <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
         <table className="nox-table" style={{ marginBottom: 8 }}>
           <thead><tr>{["金額", "判定", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
           <tbody>
@@ -83,6 +84,7 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
             ))}
           </tbody>
         </table>
+        </div>
       )}
       {isOwner && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>

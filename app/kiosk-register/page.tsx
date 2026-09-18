@@ -1034,6 +1034,7 @@ export default function KioskRegisterPage() {
                   {/* 段K2: 明細行の余白と字をモック .line（padding 9px・font-size 14px）に合わせる＝
                       タブレットで指が当たりやすく読みやすい。★kiosk のこのテーブルだけ（register 側は不変）。
                       列も値の出し方も削除ボタンの挙動も1文字も変えていない。 */}
+                  <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                     <tbody>
                       {lines.map((l) => {
@@ -1065,6 +1066,7 @@ export default function KioskRegisterPage() {
                       })}
                     </tbody>
                   </table>
+                  </div>
                 </div>
 
                 {/* 会計（割引・無料の申請/適用は責任者画面のみ＝裁定11 確定②） */}
@@ -1093,6 +1095,7 @@ export default function KioskRegisterPage() {
                     );
                   })()}
                   <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>① 請求を確認（伝票グループ別）</h3>
+                  <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
                   <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
                     <thead>
                       <tr>
@@ -1117,6 +1120,7 @@ export default function KioskRegisterPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                   {detail.check.status === "open" && (
                   <>
                   <h3 style={{ ...t.cardTitle, margin: "14px 0 4px" }}>② 入金</h3>
