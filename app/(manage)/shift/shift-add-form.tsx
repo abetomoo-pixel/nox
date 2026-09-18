@@ -362,7 +362,8 @@ export default function ShiftAddForm({
         <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={onClose}>×</button>
       </div>
       <div className="nox-modalbody">
-        <div style={{ display: "grid", gridTemplateColumns: "230px minmax(0,1fr)", gap: 12 }}>
+        {/* ★M5（裁定247・2026-09-18）: 2 ペインを inline grid（230px＋1fr・@media なし）から .nox-2col の修飾子へ＝≤899 は 1 列に積む（900+ は従来の 230px＋1fr・gap 12 のまま）。中身・経路は不変。 */}
+        <div className="nox-2col nox-2col--side">
           {/* ── 左ペイン: キャスト選択（CastPicker 維持＝裁定108）── */}
           <div className="nox-inset" style={{ padding: 10, alignSelf: "start" }}>
             <b style={{ fontSize: 12 }}>1. キャスト</b>
