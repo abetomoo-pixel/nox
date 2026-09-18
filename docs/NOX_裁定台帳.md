@@ -3687,6 +3687,8 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 適用＝未着手（0149＝orgs.is_demo＋demo_org_reset の mig と TS 種生成・事前読取は docs/tmp/0149_pre.md）。
 
+**DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝273-4 の suite は demo-reset として f0 60 段目に。273-1〜3／5〜8（業態テンプレ・route・cron・公開導線）は client 便（v38）へ。
+
 ## 裁定274（本便で確定・Agoora「推奨で」・2026-09-18）R15 シフト画面の情報設計＝5→3 タブ・語は 3 語固定
 
 出典＝相談役ブロック 2026-09-18 午後（読取調査 docs/tmp/0918_R15_pre.md の分岐点・Q1〜Q5 を受けた裁定・同日収載）。**本文（逐語）**:
@@ -3723,6 +3725,8 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 適用＝未着手（事前読取の追補＝docs/tmp/0149_pre.md w1〜w6・録画再生の PoC＝scripts/demo/poc-record.mjs＋docs/tmp/0149_poc.md＝本便 X・コミットしない）。
 
+**DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
+
 ## 裁定279（本便で確定・Agoora「推奨で」・2026-09-18）memberships の例外・docs/tmp の ignore・秘密情報スキャン（279-1〜3）
 
 出典＝相談役ブロック 2026-09-18 夕（便 AF の起草停止＝memberships に org_id 列なし docs/tmp/0149_af_stop.md・便 AE の docs/tmp 同乗事故を受けた裁定・同日収載）。**本文（逐語）**:
@@ -3734,7 +3738,9 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
    出典=9/18 AE 便で git add docs/ により docs/tmp の scratch 256 本が 91e9c8b に同乗(fae3213 で追跡解除・履歴は不変)。
  279-3 同乗分の秘密情報スキャンを実施(結果は件数のみ収載)。」
 
-適用（便 AH）: 279-2＝.gitignore に `docs/tmp/` 1 行（本コミット）。279-3＝スキャン結果（docs/tmp/0918_secret_scan.md・値は記録せず・対象 263 本）: (1) JWT 形 0／(2) service_role 等の語 53 本 455 行＝全て SQL／ACL ダンプのロール名・key 形 0／(3) sb-…auth-token cookie **11 本 11 行＝verify ユーザー（NOX-VERIFY-*・dev）の session cookie 値を含む**／(4) 接続文字列 0／(5) password 等 10 本 18 行（代入形 literal 7 本 7 行＝verify ユーザーのパスワード literal の可能性）／(6) sk_live 等 0 → **要ローテーション判断**（dev の verify ユーザーの password 変更＋セッション失効で足りる見込み・本番ユーザー・service key・DB URL の同乗なし）。279-1＝便 AI（0149 改稿 ★A〜★E）／AJ（再突合）。
+適用（便 AH）: 279-2＝.gitignore に `docs/tmp/` 1 行（本コミット）。279-3＝スキャン結果（docs/tmp/0918_secret_scan.md・値は記録せず・対象 263 本）: (1) JWT 形 0／(2) service_role 等の語 53 本 455 行＝全て SQL／ACL ダンプのロール名・key 形 0／(3) sb-…auth-token cookie **11 本 11 行＝verify ユーザー（NOX-VERIFY-*・dev）の session cookie 値を含む**／(4) 接続文字列 0／(5) password 等 10 本 18 行（★便 H-1 で再分類＝代入形 7 行は全て env `SEED_PASSWORD` の参照・literal **0**・パスワード値の漏えいなし）／(6) sk_live 等 0 → **要ローテーション判断**（dev の verify ユーザーの password 変更＋セッション失効で足りる見込み・本番ユーザー・service key・DB URL の同乗なし）。279-1＝便 AI（0149 改稿 ★A〜★E）／AJ（再突合）。
+
+**DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝279-1 の例外 2 句（wipe＝store_id in stores(org)・load 直前の store_id／user_id 検査）が live（suite dr(5-7)・dr(4-1) 隔離）。279-3 の後処理（ローテーション）は便 H＝本行の直後に追記。
 
 ## 裁定278（本便で確定・Agoora「推奨で」・2026-09-18）0149 改稿（278-1〜3）
 
@@ -3749,6 +3755,8 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 適用＝便 AF（0149 改稿＝残す 3 表・memberships を削除順／投入順へ機械整列で追加・diff は docs/tmp/0149_rev_diff.md）／便 AG（再突合＝docs/tmp/q0918_ad.mjs 改稿版・c' で残す 3 表が wipe 対象を参照する FK の全数列挙）。0149／0150 は未追跡・手貼り待ち（0149→0150 の順）。
 
+**DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝278-1 残す 3 表・memberships を 68 手目（stores 直前）／投入 2 番目（stores 直後）・278-2 partition 対応付け・278-3 a-7 本文限定（AJ）。
+
 ## 裁定277（本便で確定・Agoora「推奨で」・2026-09-18）0149 の設計（277-1〜6）
 
 出典＝相談役ブロック 2026-09-18 午後（0149 事前読取の追補 docs/tmp/0149_pre.md w1〜w6・録画再生 PoC docs/tmp/0149_poc.md を受けた裁定・同日収載）。**本文（逐語）**:
@@ -3760,6 +3768,8 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
  277-6 payload 全行の org_id＝p_org_id を検査し不一致は raise。表名は関数内の固定配列のみ・payload のキーから SQL を組まない。」
 
 適用＝起草（本便 AC）: supabase/migrations/0149_demo_org_reset.sql（★1〜★10）／0150_service_role_timeout.sql（未追跡・手貼り待ち・sha256 は本便の報告）。突合＝本便 AD（起草者を疑う別パス＝docs/tmp/0149_ad.md）。手貼り後ブロックは相談役。
+
+**DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝277-1 p_mode 3 種＋0150（service_role 30s＝role 設定値まで確認・API 経由の実測は demo org 作成後）・277-2 ★7 当て直し（suite dr(2-4) mismatch 0）・277-4 payload 1 MB 以下（dr(1-5)）・277-5 storage 同乗・277-6 org_id 検査（dr(5-6)）。277-3（帯持ち店の rule ずらし）は録画 route 側＝client 便。
 
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
@@ -4519,6 +4529,8 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **f0 新基準 pin（2026-09-18 午後・59 段 4,351・裁定274／275・M15／M18・N）**: 裁定200 の 3 値＝NOX DB 基準（run1 前 13:48:37＝backends 16・postmaster 2026-09-15 16:46・orgs 3／run2 前 14:05:04＝backends 18・同・他プロジェクトの verify なし）→ run1 939s（13:49:06 起動）／run2 1013s（14:05:28 起動）＝いずれも **59 段 ALL PASS・4,351・golden 不変・段別 assertion 数も同一（58 段は前 pin と同一＋59 段目 shift-tabs 14）・同一 HEAD `9e6cf85`**。★run1 の exit を読んでから run2 を起動（正午の停止 1 の再発防止）。push＝`bc56be6..9e6cf85`（91e53f7＝M5 文言＋payment-tax-panel／10f15a1＝裁定273〜275／ee2a3fc＝M15・M18／2c379bf＝M12・M13／9e6cf85＝R15）。
 - **所要の観察（2026-09-18・相談役）**: 9/18 日中の f0＝939s／1013s（夜間 9/17 の 467s／531s 比で約 2 倍・段数は 53→59・BANZEN 並走なし・backends 16〜20）＝**Compute 引き上げ（裁定262）は「f0 が 20 分超」を先行実施の目安**とする（公開デモの前提＝裁定273 未決★と同じ Pro／Compute の束）。
 - **f0 新基準 pin（2026-09-18 夕・59 段 4,356・便 Y／Z＝R11 レジ入口・nav 追補）**: 裁定200 の 3 値＝NOX DB 基準（run1 前 15:10:59＝backends 17（PostgREST 11）／run2 前 15:22:55＝backends 20（PostgREST 11）・postmaster 2026-09-15 16:46・orgs 3・dev 3200 は Agoora 使用中＝PostgREST 分は Agoora の操作を含む・他プロジェクトの verify なし）→ run1 685s（15:11:17 起動）／run2 641s（15:23:13 起動）＝いずれも **59 段 ALL PASS・4,356・golden 不変・段別 assertion 数も同一（referral 25→30 のみ増・他 58 段は前 pin と同一）・同一 HEAD `5208cf1`**。★run1 の exit を読んでから run2 を起動。push＝`53ab697..5208cf1`（3c6fcaa＝R11 レジ入口／5208cf1＝nav-icons 3＋在庫）。
+- **f0 新基準 pin（2026-09-18 夕・60 段 4,392・mig0149／0150＝demo_org_reset）**: 裁定200 の 3 値＝NOX DB 基準（run1 前 16:12:29＝backends 14（PostgREST 10）／run2 前 16:24:03＝backends 17（PostgREST 11）・postmaster 2026-09-15 16:46・orgs 3・dev 3200 は Agoora 使用中＝PostgREST 分は Agoora の操作を含む・他プロジェクトの verify なし）→ run1 669s（16:12:34 起動）／run2 958s（16:24:08 起動）＝いずれも **60 段 ALL PASS・4,392・golden 不変（5931／125802／55233）・同一 HEAD `425f21c`**。段別内訳＝前 pin（59 段 4,356）に対し **demo-reset 34（新設・60 段目）＋anon-guard 992→994（INTERNAL_PROBES に demo_org_reset＝anon／authenticated の 2 assert）・他 58 段は同一**（billing 53 は pin 値の張り替え＝除外 117→118 で本数不動）。変遷チェーン: 58 段 4,337（0148）→ 59 段 4,351（274／275）→ 59 段 4,356（Y／Z）→ **60 段 4,392（0149／0150）**。★run1 の exit を読んでから run2 を起動。push＝`e803261..425f21c`。
+- **mig0149／0150 適用記録（2026-09-18）**: 貼り先 ref **hiqbfagmkrdpmlqhkmsu**（proof orgs 3＝NOX-DEMO／NOX-VERIFY-A／NOX-VERIFY-B）・Agoora 手貼り 0149→0150 の順（1 回目の Success 申告は未反映＝便 A で停止→Agoora が SQL Editor で再確認・16:02 JST の再走で反映を確認）。0149 sha256 `1ffc959f6387fe7b70c09e499d8563b61198e510e15b32605484a107fe564af8`（218 行・18,726 B）／0150 sha256 `c6637923c687599b320f9ae8608791a4028368c88357466ad60f8dbee974063d`（21 行・1,619 B）。demo_org_reset の md5(prosrc)＝`742919540d9cb14dd41602a0fadb622e`（live は CRLF＝SQL Editor の貼付で LF→CRLF・LF 正規化 `b9c212593932156eca7e2b73d89ba3b6`＝mig 本体と一致）。検証 A-1〜A-6 **ALL OK**（docs/tmp/0149_post.md）: orgs 8 列（is_demo not null default false／demo_reset_at）・既存 3 org false／null・署名 (p_org_id uuid, p_payload jsonb, p_mode text)・secdef・search_path=public・proacl service_role のみ・storage cast_photos insert／update に is_demo 句・select 不変・delete なし・不触 md5 19 本一致・0150＝service_role statement_timeout=30s（anon 3s／authenticated 8s／authenticator 8s 不変）。名簿＝live 全数 **246**（対象 128／除外 118・B(a) 26→27）・grants G2b 自動走査で anon／PUBLIC 0・anon-guard probe 追加。suite verify:nox-demo-reset **34**（録画 5 枚 golden 5 値・reset all 件数／三点一致／stock_logs 再生成／★7／復元／隔離 B 68 表／raise 8 種／冪等／権限／storage／0150／ROLLBACK 一致・逆テスト＝golden 先頭 5501 で dr(1-3) 赤→戻して緑）。コミット `425f21c`（7 ファイル）。★0150 の実効確認は role 設定値まで＝API 経由（service key・PostgREST）の実測は demo org 作成後。
 - **本日（2026-09-18）の f0 走数＝6（緑 4・無効 1・停止 1）**: 停止 1＝11:50:48 に run1（11:43〜11:50・40 段目 reopen で赤）の結果を読む前に run2 を bg 起動してしまい、直後に赤を確認して TaskStop（起動 sleep 中＝段 0・suite 未起動・DB 不触＝f0_run13.start 未作成）。型判定＝走行前の手順ミス（裁定230「赤なら再走せず段名を報告して止まる」の順序違反・DB 応答や設計上の衝突ではない）。以後は run1 の exit を読んでから run2 を起動する。
 - **mig0143 D45 適用記録（2026-09-14）**: 貼り先 ref **hiqbfagmkrdpmlqhkmsu**（pooler ap-northeast-1・proof orgs=3）・2026-09-14 11:39 適用（CC が相談役ブロックの明示指示で pg 直結・単一トランザクション・例外なし）・検証 6 項目 OK＝(1) 新 2 列 NOT NULL default 0 (2) 列数 **38→40**・制約 **28→30**・新 CHECK 2 本 (3) n_card／n_other＝aggregate 1/1・close 2/2・reclose 2/2 (4) diff 式に v_ar_card／other なし (5) proacl 3 本 9/11 と同値 (6) **money-core 4 本の md5 不変**（check_pay／check_close／check_void／receivable_collect）。既存 daily_reports **5 行とも新 2 列 0**・行数前後 5。手貼り前の控え（9/11）と 9/14 再実測は同一＝間に誰も触っていない。ファイル sha256 ada2fc9e…8753・20,204 B（Downloads と同一）＝`8c89d4e`。控え＝docs/tmp/0143_pre.txt／0143_pre_0914.txt／0143_post.txt。
 - **C層③ DB 側完了（0138〜0141）**（2026-09-10・mig0138 `ec6c3e5`＋0139 `ec6c3e5`＋0140／0141 `8d94923`・追随 `5005a9a`・名簿 `1a78d50`・suite `ac125d7`）: 設計書 v1 §1〜§3 どおり memberships.can_close／can_reopen＋set_staff_perms 7 引数（#63 クローズ）・daily_reports 9 列＋report_reopen／daily_report_reclose 8 引数（p_idem_key）／cash_diff_approve・checks.status merged＋check_merge（0139 補正）・payroll_reopen 5 引数（p_reason・service 経路）・関所 assert_day_open を課金ゲート内蔵の check_* 16 本へ（0140・check_open は 0141 で v_seat.store_id 版へ補正＝教訓68）。verify:nox-reopen 65 assertions（run1 緑・逆張り 3 本同時で 12 赤→backup 復元 差分 0）を f0 末尾へ連結＝**40 本 3,721**（2 連緑 889s／1049s・40 段 ALL PASS・run1／run2 の段別 assertion 数は同一・golden 6 値不変）。内訳の計算値＝旧 3,642＋reopen 65＋billing +0＋grants +12＝3,719 で実測 3,721 と 2 差（pin は実測値・差の出所は本ブロックでは未特定＝段別ログは docs/tmp に残置しない・次の pin 時に段別で照合）。UI（§4 の 4 面）は次ブロック。
