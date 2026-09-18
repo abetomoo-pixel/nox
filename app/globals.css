@@ -802,7 +802,8 @@ body {
    canonical＋v2 サブトークンのみ・断点 641/900/1180（裁定5）。金は3役（選択・主ボタン・バッジ）。 */
 .nox-ctoolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 /* 在籍/体入/退店 セグメント（モック .seg） */
-.nox-seg { display: flex; border: 1px solid var(--v2-line); border-radius: 8px; overflow: hidden; }
+.nox-seg { display: flex; border: 1px solid var(--v2-line); border-radius: 8px; overflow: hidden auto; -webkit-overflow-scrolling: touch; } /* ★M15（裁定247・2026-09-18）: 横は auto＝タブ行が幅に収まらないときは切り落とさず容器内で横スクロール（縦 hidden・角丸は不変） */
+.nox-seg > * { flex: 0 0 auto; } /* ★M15: 項目を潰さない（潰れて文字が切れる型を防ぐ・収まる幅では従来と同じ描画） */
 /* マスタIA再編 レーン①: セグメントを実 URL のリンクでも使えるようにした（a を button と同値に）。
    ★button 側の宣言は1文字も変えていない＝既存 5 画面の描画は不変。新しい色値も足していない。 */
 .nox-seg button,
@@ -1181,6 +1182,8 @@ body {
 .nox-tablewrap.plain { border: 0; border-radius: 0; background: transparent; }
 /* ★裁定252（M9）: プレビュー表の器にだけ付ける nowrap 修飾子＝セルを折り返さず容器内で横スクロール（他の表には付けない） */
 .nox-tablewrap.plain.nw th, .nox-tablewrap.plain.nw td { white-space: nowrap; }
+/* ★M18（裁定247・2026-09-18）: 操作列を持つ横長表（feature-flags-panel）の先頭列を容器内で左固定＝横スクロールしても行の見出しが残る */
+.nox-tablewrap.stickyfirst th:first-child, .nox-tablewrap.stickyfirst td:first-child { position: sticky; left: 0; z-index: 1; background: var(--card); }
 /* ★裁定253 R3（2026-09-14）: 待遇プランのヘッダ select を見出しのタイポグラフィ（18px・900・--champ）に合わせ、右に重ねていた見出しテキストを廃止 */
 .nox-plan-select { font: 900 18px var(--font-sans); color: var(--champ); background: transparent; border: 0; border-bottom: 1px dashed var(--line2); padding: 2px 4px; cursor: pointer; }
 .nox-plan-select option { font-size: 13px; font-weight: 400; color: var(--ink); background: var(--card); }

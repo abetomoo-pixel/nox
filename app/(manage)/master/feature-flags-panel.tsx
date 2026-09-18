@@ -75,7 +75,7 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
         切替は監査（flag_toggle）に記録されます。
       </p>
       {loadErr && <p style={{ fontSize: 12.5, fontWeight: 700, color: "var(--danger-ink)", margin: "0 0 10px" }}>{loadErr}</p>}
-      <div className="nox-tablewrap">
+      <div className="nox-tablewrap stickyfirst">{/* ★M18（裁定247・2026-09-18）: 先頭列（機能）を sticky-left＝店舗列が増えて横スクロールしても操作セルの行見出しが残る */}
         <table className="nox-table">
           <thead>
             <tr>
