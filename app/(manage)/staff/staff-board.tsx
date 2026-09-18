@@ -13,6 +13,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 
+import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③
 type Mem = {
   id: string; user_id: string; store_id: string; role: string; is_active: boolean;
   can_register: boolean; can_crm: boolean; can_shift: boolean; can_view_backs: boolean;
@@ -52,6 +53,7 @@ export default function StaffBoard({
   isOwner: boolean; stores: Store[]; myStoreId: string; myAuthUserId: string;
 }) {
   const supabase = createClient();
+  const isDemo = useIsDemo(); // ★N7-2 ③
   const [mems, setMems] = useState<Mem[]>([]);
   const [users, setUsers] = useState<Record<string, UserRow>>({});
   const [msg, setMsg] = useState<string | null>(null);
@@ -182,7 +184,7 @@ export default function StaffBoard({
       <Toast msg={msg} />
 
       <div className="nox-ctoolbar">
-        <button style={{ ...btnGold, marginLeft: "auto" }} onClick={openAdd} disabled={busy}>＋ スタッフを追加</button>
+        {!isDemo && <button style={{ ...btnGold, marginLeft: "auto" }} onClick={openAdd} disabled={busy}>＋ スタッフを追加</button>}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}
       </div>
 
       <section className="nox-panel">
@@ -251,7 +253,7 @@ export default function StaffBoard({
               setSel(null);
             }}>名前を更新</button>
           </div>
-          {isOwner && (
+          {isOwner && !isDemo && ( // ★N7-2 ③: デモはメール変更の導線を隠す
             // ★裁定267-2: メール（ログイン ID）の変更＝owner にのみ描画（manager には開かない・route の guardOwner が真の防御）。
             //   「名前を更新」と同型（入力＋btnGold）。送信中は disabled。成功で一覧（users.email）を再取得し入力へ反映。新トークン 0。
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>

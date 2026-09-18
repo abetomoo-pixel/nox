@@ -5,6 +5,9 @@ import { getSessionRole } from "@/lib/nox/auth";
 import { TabBar, type NavGroup } from "@/components/ui/nav";
 import SideNav from "@/components/ui/side-nav";
 import BillingBanner from "@/components/ui/billing-banner";
+// ★夜間便 N7-2（裁定273-6）: デモ org＝帯＋「初期状態に戻す」・/setup へ飛ばさない・導線（ご契約ほか）を隠す
+import DemoBanner from "@/components/ui/demo-banner";
+import { DemoProvider } from "@/lib/nox/demo/context";
 import * as t from "@/lib/nox/ui/theme";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
@@ -36,7 +39,10 @@ export default async function ManageLayout({ children }: { children: React.React
   //     manager／staff／cast は対象外。既存店は 0147 の埋め戻しで setup_done=true＝不変。
   const { data: storeRows } = await supabase.from("stores").select("name, settings_json").order("name");
   const storeLabel = (storeRows?.[0]?.name as string | undefined) ?? "店舗";
-  if (role === "owner") {
+  // ★N7-2: デモ org の判定＝orgs.is_demo（RLS orgs_select＝自 org 1 行・読取 1 本。0149 ★1 の列）
+  const { data: orgRow } = await supabase.from("orgs").select("is_demo").limit(1).maybeSingle();
+  const isDemo = orgRow?.is_demo === true;
+  if (role === "owner" && !isDemo) { // ★N7-2 ②: デモは setup_done に依らず /setup へ飛ばさない
     const pathname = (await headers()).get("x-pathname") ?? "";
     const needsSetup = (storeRows ?? []).some((r) => ((r.settings_json as Record<string, unknown> | null)?.setup_done) !== true);
     if (needsSetup && !(pathname === "/setup" || pathname.startsWith("/setup/"))) redirect("/setup");
@@ -90,7 +96,7 @@ export default async function ManageLayout({ children }: { children: React.React
           // 監査ログは owner 限定（RLS も owner 限定＝mig0002・非 owner は 0行。ここは表示ナビ）
           ...(role === "owner" ? [{ href: "/audit", label: "監査" }] : []),
           // 課金（設計書 §6）: owner 限定＝org_billing の RLS SELECT も owner 限定・route も requireOwner
-          ...(role === "owner" ? [{ href: "/billing", label: "ご契約" }] : []),
+          ...(role === "owner" && !isDemo ? [{ href: "/billing", label: "ご契約" }] : []), // ★N7-2 ③: デモは Stripe の導線を隠す
         ] },
       ].filter((g) => g.items.length > 0); // 権限で空になった群は見出しごと出さない
   return (
@@ -130,8 +136,9 @@ export default async function ManageLayout({ children }: { children: React.React
             </div>
           </header>
           <main className="nox-mainarea">
+            {isDemo && <DemoBanner />}{/* ★N7-2 ①: デモ環境の帯＋初期状態に戻す */}
             {billingLocked && <BillingBanner isOwner={role === "owner"} />}
-            {children}
+            <DemoProvider isDemo={isDemo}>{children}</DemoProvider>
           </main>
         </div>
       </div>

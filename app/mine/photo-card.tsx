@@ -11,10 +11,12 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhoto, uploadCastPhoto } from "@/lib/nox/cast-photo";
 
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③: デモは写真アップロードの導線を隠す（storage policy 0149 ★10 でも拒否）
 type Me = { id: string; name: string; photo_updated_at: string | null };
 
 export default function PhotoCard({ storeName }: { storeName?: string }) {
   const [supabase] = useState(() => createClient());
+  const isDemo = useIsDemo(); // ★N7-2 ③
   const [me, setMe] = useState<Me | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
@@ -73,6 +75,7 @@ export default function PhotoCard({ storeName }: { storeName?: string }) {
     <div className="nox-me" style={{ marginBottom: 14 }}>
       <div style={{ textAlign: "center" }}>
         <CastAvatar name={me.name} url={url} size={56} />
+        {!isDemo && (
         <label style={{ display: "block", marginTop: 3 }}>
           <span className="nox-photoedit" style={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.5 : 1 }}>
             {busy ? "保存中…" : me.photo_updated_at ? "写真を変更" : "写真を登録"}
@@ -81,6 +84,7 @@ export default function PhotoCard({ storeName }: { storeName?: string }) {
             onChange={(e) => { void onPick(e.target.files?.[0] ?? null); e.target.value = ""; }}
             style={{ display: "none" }} />
         </label>
+        )}{/* ★N7-2 ③ */}
       </div>
       <div style={{ minWidth: 0 }}>
         <div className="nm">{me.name}</div>

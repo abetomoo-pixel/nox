@@ -12,6 +12,7 @@ import Toast, { Message, type MessageKind } from "@/components/ui/toast";
 import { rpcErrJa, isRpcMissingError } from "@/lib/nox/ui/rpc-err";
 // ★夜間便 N4（裁定282-2／282-3／287-3・0151 ★3）: 保証時給の表示用純関数（DB を知らない）
 import { guaranteeStateOf, guaranteeBadgeOf, addDays, mdOf, type PlanRowLike } from "@/lib/nox/cast/guarantee";
+import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③: デモでは写真アップロード・招待・PW 再発行の導線を隠す
 import Modal from "@/components/ui/modal";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos, uploadCastPhoto } from "@/lib/nox/cast-photo";
@@ -61,6 +62,7 @@ export default function CastsBoard({
   emailByUser?: Record<string, string | null>;
 }) {
   const supabase = createClient();
+  const isDemo = useIsDemo(); // ★N7-2 ③
   const [trials, setTrials] = useState<Trial[]>(initialTrials);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -587,9 +589,11 @@ export default function CastsBoard({
               <CastAvatar name={selCast.name} url={photoUrls.get(selCast.id)} size={64} />
               {/* 段P 実装済みの写真変更を流用（送る RPC も同じ） */}
               {/* モック .photoedit＝点線チップ（送る RPC は段P の openPhoto のまま） */}
-              <button className="nox-photoedit" disabled={busy || !orgId} onClick={() => openPhoto(selCast)}>
-                写真を変更
-              </button>
+              {!isDemo && (
+                <button className="nox-photoedit" disabled={busy || !orgId} onClick={() => openPhoto(selCast)}>
+                  写真を変更
+                </button>
+              )}{/* ★N7-2 ③: デモは storage policy（0149 ★10）でも拒否＝導線ごと隠す */}
             </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: "var(--v2-text)" }}>{selCast.name}</div>
@@ -808,9 +812,10 @@ export default function CastsBoard({
                   <span style={{ color: selCast.user_id ? "var(--ok)" : "var(--v2-muted)" }}>
                     {selCast.user_id ? "招待済み" : "未招待"}
                   </span>
-                  {selCast.user_id
+                  {isDemo ? <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>デモでは招待できません</span>
+                    : selCast.user_id
                     ? <button style={btnGhost} disabled={busy} onClick={() => openInvite(selCast, "reset")}>PW再発行</button>
-                    : <button style={btnGold} disabled={busy} onClick={() => openInvite(selCast, "invite")}>招待</button>}
+                    : <button style={btnGold} disabled={busy} onClick={() => openInvite(selCast, "invite")}>招待</button>}{/* ★N7-2 ③ */}
                 </span>
               </div>
               <div className="nox-frow">
