@@ -3727,6 +3727,21 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定281（本便で確定・Agoora 指摘（9/18）に基づく・2026-09-18）メッセージ表示の型（UI 横断）（281-1〜6）
+
+出典＝相談役ブロック 2026-09-18 夕（便 U・Agoora 指摘（9/18）に基づく・同日収載）。**本文（逐語）**:
+「[裁定281 メッセージ表示の型(UI 横断)]
+ 281-1 種別は 4 つ: error(赤)／success(緑)／warn(黄)／info(通常色)。色は既存トークンのみ。
+ 281-2 error は赤枠＋薄い赤地＋赤系の文字＋先頭に記号「！」。success は先頭に「✓」、warn は「△」。色だけで区別しない。
+ 281-3 操作の結果は、操作したボタンと同じカード内(ボタンの直下または直上)に出す。ページ最上部の共有枠に出すのは、
+    ページ全体に関わるもの(読み込み失敗・権限なし等)だけ。
+ 281-4 error は自動で消さない。次の操作の開始・タブ切替・同じ枠への success 表示で消える。error と success を同時に表示しない。
+    success は従来どおり(自動で消す画面はそのまま)。
+ 281-5 error は role="alert"、success・info は role="status"。
+ 281-6 共通部品 1 本(components/ui 配下)にまとめ、各画面の個別実装を置き換える。文言は変えない(T-2 で直す期間重複の文言を除く)。」
+
+適用＝**client（便 U・コミットは f0 便で push）**: components/ui/toast.tsx を拡張（新設せず）＝Message（kind 明示・role・data-message-kind・記号・既存トークン --danger 系／--success 系／--warning 系／--line2・--card2）＋ Toast（msg 1 本の従来型＝文言→種別の純関数 messageKindOf で Message を描く・失敗／エラー／できません／生の RPC 語→error・しました→success・他 info）＋ useClearOn（残留解消の型）。U-1 調査＝docs/tmp/0918_messages.md（描画箇所 N＝106・58 ファイル＝error 固定 10／成否で色分岐 29／単一 state 67・見た目 赤 57／通常色 48／緑 1・位置 カード内 83／ページ最上部 23）。置換＝素の <p>／<span> 69 箇所を script で共通部品へ（error 名の state 21＝Message kind="error"・他 48＝Toast 自動判定）＋ 3 箇所を手で（business-hours の素の {msg}・login の role=alert <p>・staff-shift-board の kind ok/bad オブジェクト）＋ <Toast> 既存 23 箇所は部品側の変更で追随＝**置換 95／106**。残り 11＝描画行ではない行（props の setMsg 渡し・disabled={costsError} のボタン・setMErr 呼び出し等＝見送り不要）。ページ最上部の共有枠（<Toast msg={msg} /> 23 画面）は**据え置き（見送り）**＝各画面の操作結果を全てカード内へ移すのは画面ごとの構造変更＝本便は shift-board の期間フォームのみカード内へ（便 T）・残りは画面ごとの便で。suite verify:nox-messages **11**（純関数 8＋許可列挙 pin「素の描画 0」＋Toast→Message 経由＋shift-board の結線・f0 61 段目・逆テスト＝ERROR_WORDS から「失敗」を外す→ms(1-6) 赤→戻して緑）。tsc 0・ui-tokens 新規 0。目視（dev 3200・1280／375）: ① /shift 期間重なり＝赤（rgba(226,103,98,.11) 地・role=alert・「！」）で作成ボタンの直下・同カード・ボタン disabled／④ 成功＝緑（rgba(77,195,125,.11)）・同時表示なし（count 1）／⑤ タブ切替でメッセージ 0／③ /master/seats の 41 字名＝生の 'bad name' が info（通常色）で出た→messageKindOf に生 RPC 語を追加して error に（ms(1-8)）／② レジの失敗操作（入金後の取消）は目視未実施（ボトルキープ登録は未選択だと disabled＝失敗を起こせず）・375px で折り返し（幅 311・高さ 39・横はみ出し 0）。★トークン不足なし。
+
 ## 裁定280（本便で確定・Agoora 回答（9/18）に基づく・2026-09-18）紹介料の作り直し（R11・裁定272 追補 案 Q の撤回）（280-1〜8）
 
 出典＝相談役ブロック 2026-09-18 夕（便 P・Agoora 回答（9/18）に基づく・同日収載）。**本文（逐語）**:
