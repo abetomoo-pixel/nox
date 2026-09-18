@@ -20,10 +20,19 @@ import Toast from "@/components/ui/toast";
 import MasterPageHead from "../master-page-head";
 import { fetchProducts, fetchStockTotals, type MasterProduct as Product } from "@/lib/nox/master/queries";
 import { STOCK_REASON_STOCKTAKE, stockReasonLabel } from "@/lib/nox/stock/reasons";
+import { stockUnitOf } from "@/lib/nox/inventory/unit";
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
+// ★便 R（2026-09-18）: 棚卸し行の 4 コントロール（商品 picker・×・実数入力・実行ボタン）は同じ高さ＝theme.ts E3 の入力高さ 34px
+//   （モック `.field input` height:34px・btnSm のモック `.btn.small` height:30px より入力側に揃える）。padding ではなく height で固定し
+//   （行内だけの例外＝inline 上書きの衝突は無い）、box-sizing border-box・縦中央。数値入力は裁定104 の流儀（.nox-numfield＝スピナー非表示・
+//   onWheel blur・右寄せ・inputMode numeric）＝ネイティブのスピナーで高さ・地色が変わらない。
+const CTL_H = 34;
+const ctlInput: React.CSSProperties = { ...input, height: CTL_H, boxSizing: "border-box", padding: "0 10px" };
+const ctlBtn: React.CSSProperties = { height: CTL_H, boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center" };
+const numWheelBlur = (e: React.WheelEvent<HTMLInputElement>) => { (e.currentTarget as HTMLInputElement).blur(); };
 
 const PAGE = 50;
 
@@ -76,18 +85,16 @@ function ProductCombo({ products, stock, value, onChange }: {
           aria-expanded={open}
           aria-controls="stock-product-combo-list"
           aria-autocomplete="list"
-          style={{ ...input, width: "100%", maxWidth: 240 }}
+          style={{ ...ctlInput, width: "100%", maxWidth: 240 }}
         />
         {selected && (
           <button
-            style={{ ...t.btnGhost, ...t.btnSm, padding: "4px 8px" }} aria-label="商品の選択を解除"
+            style={{ ...t.btnGhost, ...t.btnSm, ...ctlBtn, padding: "0 10px" }} aria-label="商品の選択を解除"
             onClick={() => { onChange(""); setQ(""); setOpen(false); }}
           >×</button>
         )}
       </div>
-      {selected && !open && (
-        <span style={{ fontSize: 11, color: "var(--sub)" }}>現在庫 {stock[selected.id] ?? 0}</span>
-      )}
+      {/* ★便 R: 補助行「現在庫 n」は右の「現在 n」と重複し左列だけ背が高くなる原因＝削除 */}
       {open && (
         <div id="stock-product-combo-list" role="listbox" aria-label="商品の候補" style={{
           position: "absolute", zIndex: 30, top: "100%", left: 0, marginTop: 4, width: 240,
@@ -111,7 +118,7 @@ function ProductCombo({ products, stock, value, onChange }: {
               }}
             >
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-              <span style={{ ...t.num, color: "var(--sub)", flexShrink: 0 }}>現在 {stock[p.id] ?? 0}</span>
+              <span style={{ ...t.num, color: "var(--sub)", flexShrink: 0 }}>現在 {stock[p.id] ?? 0}{stockUnitOf(p.type)}</span>
             </button>
           ))}
           {q.trim() === "" && products.length > hits.length && (
@@ -169,6 +176,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   useEffect(() => { if (histOpen) void load(page, prodFilter); }, [histOpen, page, prodFilter, load]);
 
   const productName = (id: string) => products.find((p) => p.id === id)?.name ?? id.slice(0, 8);
+  const productUnit = (id: string) => stockUnitOf(products.find((p) => p.id === id)?.type);
   const userName = (id: string | null) => (id && users.find((u) => u.id === id)?.name) ?? (id ? id.slice(0, 8) : "—");
 
   async function reloadStock() {
@@ -181,6 +189,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   const current = tProd ? (stock[tProd] ?? 0) : null;
   const actualNum = tActual === "" ? null : Number(tActual);
   const delta = current != null && actualNum != null && Number.isInteger(actualNum) ? actualNum - current : null;
+  const tUnit = stockUnitOf(products.find((p) => p.id === tProd)?.type);
 
   async function recordStocktake() {
     if (!tProd || delta == null || busy) return;
@@ -191,7 +200,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
       p_product_id: tProd, p_delta: delta, p_reason: STOCK_REASON_STOCKTAKE,
     });
     setBusy(false);
-    setMsg(error ? error.message : `棚卸しを記録しました（${delta > 0 ? "+" : ""}${delta}）`);
+    setMsg(error ? error.message : `棚卸しを記録しました（${delta > 0 ? "+" : ""}${delta}${tUnit}）`);
     if (!error) {
       setTActual("");
       await reloadStock();
@@ -218,25 +227,29 @@ export default function StockBoard({ isManagerUp, initial, users }: {
             {/* E7a: 商品数が増えても選べるよう select → 検索つきコンボボックスへ（選択の意味・記録経路は不変） */}
             <ProductCombo products={products} stock={stock} value={tProd}
               onChange={(id) => { setTProd(id); setTActual(""); }} />
-            <label style={{ fontSize: 12 }}>
-              実数{" "}
+            <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              実数
               <input type="number" step={1} value={tActual} onChange={(e) => setTActual(e.target.value)}
-                disabled={!tProd} placeholder="棚の実数" style={{ ...input, width: 90 }} />
+                disabled={!tProd} placeholder="棚の実数" aria-label="棚の実数"
+                className="nox-numfield" inputMode="numeric" onWheel={numWheelBlur}
+                style={{ ...ctlInput, ...t.num, textAlign: "right", width: 90 }} />
+              {/* ★便 R: 単位は入力欄の中に入れず右のラベルで（数字の後ろに半角スペースなし） */}
+              {tProd && <span data-unit style={{ fontSize: 12.5, color: "var(--sub)" }}>{tUnit}</span>}
             </label>
             {tProd && (
               <span style={{ fontSize: 12.5, color: "var(--sub)" }}>
-                現在 <span style={{ ...t.num, color: "var(--ink)" }}>{current}</span>
+                現在 <span style={{ ...t.num, color: "var(--ink)" }}>{current}{tUnit}</span>
                 {delta != null && (
                   <>
                     {" → 差分 "}
                     <span style={{ ...t.num, fontWeight: 700, color: delta > 0 ? "var(--ok)" : delta < 0 ? "var(--bad)" : "var(--sub)" }}>
-                      {delta > 0 ? `+${delta}` : delta}
+                      {delta > 0 ? `+${delta}` : delta}{tUnit}
                     </span>
                   </>
                 )}
               </span>
             )}
-            <button style={btnDark} disabled={!tProd || delta == null || delta === 0 || busy} onClick={recordStocktake}>
+            <button style={{ ...btnDark, ...ctlBtn, padding: "0 12px" }} disabled={!tProd || delta == null || delta === 0 || busy} onClick={recordStocktake}>
               棚卸しを記録
             </button>
           </div>
@@ -283,7 +296,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
                     <td data-label="商品">{productName(l.product_id)}</td>
                     <td data-label="増減" style={{ textAlign: "right" }}>
                       <span style={{ ...t.num, fontWeight: 700, color: l.delta > 0 ? "var(--ok)" : "var(--bad)" }}>
-                        {l.delta > 0 ? `+${l.delta}` : l.delta}
+                        {l.delta > 0 ? `+${l.delta}` : l.delta}{productUnit(l.product_id)}
                       </span>
                     </td>
                     <td data-label="理由">{stockReasonLabel(l.reason)}</td>

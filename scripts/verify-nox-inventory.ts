@@ -23,6 +23,7 @@
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
+import { stockUnitOf } from "../lib/nox/inventory/unit";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -44,6 +45,14 @@ const TRIG_REASONS = ["sale", "sale_remove", "void_recredit"];
 const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
 
 async function main() {
+  // ── 段0: 単位の純関数（便 R・2026-09-18・lib/nox/inventory/unit.ts）＝5 種別＋未知。逆テスト＝case "food" を「本」にする→段0-4 赤 ──
+  check("段0-1 stockUnitOf('bottle')＝本", stockUnitOf("bottle") === "本");
+  check("段0-2 stockUnitOf('champ')＝本", stockUnitOf("champ") === "本");
+  check("段0-3 stockUnitOf('drink')＝本", stockUnitOf("drink") === "本");
+  check("段0-4 stockUnitOf('food')＝個", stockUnitOf("food") === "個");
+  check("段0-5 stockUnitOf('other')＝個", stockUnitOf("other") === "個");
+  check("段0-6 未知（'snack'／null／undefined）＝個", stockUnitOf("snack") === "個" && stockUnitOf(null) === "個" && stockUnitOf(undefined) === "個");
+
   const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
