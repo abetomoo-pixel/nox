@@ -3723,6 +3723,19 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 適用＝未着手（事前読取の追補＝docs/tmp/0149_pre.md w1〜w6・録画再生の PoC＝scripts/demo/poc-record.mjs＋docs/tmp/0149_poc.md＝本便 X・コミットしない）。
 
+## 裁定279（本便で確定・Agoora「推奨で」・2026-09-18）memberships の例外・docs/tmp の ignore・秘密情報スキャン（279-1〜3）
+
+出典＝相談役ブロック 2026-09-18 夕（便 AF の起草停止＝memberships に org_id 列なし docs/tmp/0149_af_stop.md・便 AE の docs/tmp 同乗事故を受けた裁定・同日収載）。**本文（逐語）**:
+「[裁定279]
+ 279-1 demo_org_reset の memberships は ★5・★6 の唯一の例外。memberships に org_id 列が無いため、削除は
+   「store_id が p_org_id の stores に属する行」、投入時の検査は「全行の store_id が p_org_id の stores に実在し、かつ user_id が
+   p_org_id の users に実在する」こと、不成立は raise 'org mismatch'。memberships への org_id 列追加は不採用(RLS ヘルパーへの波及)。
+ 279-2 docs/tmp/ を .gitignore に入れる。コミット時の git add はファイルパスを個別指定する。
+   出典=9/18 AE 便で git add docs/ により docs/tmp の scratch 256 本が 91e9c8b に同乗(fae3213 で追跡解除・履歴は不変)。
+ 279-3 同乗分の秘密情報スキャンを実施(結果は件数のみ収載)。」
+
+適用（便 AH）: 279-2＝.gitignore に `docs/tmp/` 1 行（本コミット）。279-3＝スキャン結果（docs/tmp/0918_secret_scan.md・値は記録せず・対象 263 本）: (1) JWT 形 0／(2) service_role 等の語 53 本 455 行＝全て SQL／ACL ダンプのロール名・key 形 0／(3) sb-…auth-token cookie **11 本 11 行＝verify ユーザー（NOX-VERIFY-*・dev）の session cookie 値を含む**／(4) 接続文字列 0／(5) password 等 10 本 18 行（代入形 literal 7 本 7 行＝verify ユーザーのパスワード literal の可能性）／(6) sk_live 等 0 → **要ローテーション判断**（dev の verify ユーザーの password 変更＋セッション失効で足りる見込み・本番ユーザー・service key・DB URL の同乗なし）。279-1＝便 AI（0149 改稿 ★A〜★E）／AJ（再突合）。
+
 ## 裁定278（本便で確定・Agoora「推奨で」・2026-09-18）0149 改稿（278-1〜3）
 
 出典＝相談役ブロック 2026-09-18 夕（便 AD の突合 docs/tmp/0149_ad.md＝f-4 `memberships_store_id_fkey` raise を受けた裁定・同日収載）。**本文（逐語）**:

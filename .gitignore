@@ -44,3 +44,5 @@ yarn-error.log*
 
 # claude code（ローカル設定はコミットしない）
 .claude/settings.local.json
+# scratch（裁定279-2・2026-09-18）
+docs/tmp/
