@@ -67,6 +67,8 @@ export default async function ManageLayout({ children }: { children: React.React
         { label: "営業", items: [
           { href: "/register", label: "レジ" },
           { href: "/report", label: "日報" },
+          // ★裁定275 追補（2026-09-18・z2）: 在庫は営業群（レジ・日報の下）＝≤899 の「その他」でも先頭側に出る（既存画面 /master/stock・URL 不変・manager 以上）
+          ...(isManagerUp ? [{ href: "/master/stock", label: "在庫" }] : []),
         ] },
         { label: "スタッフ", items: [
           { href: "/shift", label: "シフト" },
@@ -80,8 +82,6 @@ export default async function ManageLayout({ children }: { children: React.React
           ...(isManagerUp ? [{ href: "/analytics", label: "分析" }] : []),
           // R2-c（mig0099）: 領収書の発行台帳（RLS select も owner/manager 自店＝表示ナビと二重）
           ...(isManagerUp ? [{ href: "/receipts", label: "領収書" }] : []),
-          // ★裁定275（M13）: 「その他」に在庫のリンク 1 本（既存画面 /master/stock＝MASTER_NAV の商品・料金群にもある・URL 不変）
-          ...(isManagerUp ? [{ href: "/master/stock", label: "在庫" }] : []),
         ] },
         // ★裁定275（M12/M13）: 店舗群＝歯車の口（≤899 は歯車 Modal・900+ はサイドバー下部＝並びは従来どおり最後）。項目集合・role 条件は不変。
         { label: "店舗", gear: true, items: [
