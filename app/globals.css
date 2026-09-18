@@ -1292,7 +1292,8 @@ body {
      padding 24→29px・背景の rgba を新 --bg（#080808）基準へ。高さ 64px は据置（モックと同値）。 */
 .nox-tb {
   position: sticky; top: 0; z-index: 20; height: 64px;
-  background: rgba(8, 8, 8, .94); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  /* ★便 T-6（2026-09-18）: 透過 .94 → 地色 var(--bg)＝スクロール時に本文（見出し）が上部バーに透けて重ならない。sticky／高さ／z-index は不変 */
+  background: var(--bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
   display: flex; align-items: center; justify-content: space-between; padding: 0 29px; gap: 12px;
 }

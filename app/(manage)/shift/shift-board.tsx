@@ -22,7 +22,9 @@ import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
-import Toast from "@/components/ui/toast";
+import Toast, { Message } from "@/components/ui/toast";
+import Picker from "@/components/nox/picker";
+import { nextPeriodDefaults, overlappingPeriods, mdOf } from "@/lib/nox/shift/period"; // ★便 T（2026-09-18）: 期間の既定日付・重なり判定（純関数）
 import Modal from "@/components/ui/modal";
 import StaffShiftBoard from "./staff-shift-board"; // ★C層② 面 b/c（黒服）
 import CastAvatar from "@/components/ui/cast-avatar";
@@ -71,6 +73,8 @@ const shiftStColor = (st: string) =>
   st === "confirmed" ? "var(--ok)" : st === "proposed" ? "var(--gold2)" : "var(--champ)";
 // ★裁定135（v4.1 H9）: draft の表示語を「下書き」→「作成中」（モック逐語）。open/closed/published はモックに無い＝据え置き。
 const PERIOD_ST_LABEL: Record<string, string> = { draft: "作成中", open: "募集中", closed: "締切", published: "公開済み" };
+// ★便 T-5（裁定259）: 状態は 4 値＝素の select ではなく picker
+const PERIOD_ST_ITEMS = Object.entries(PERIOD_ST_LABEL).map(([id, label]) => ({ id, label }));
 
 const bandLabel = (n: { from_min: number; to_min: number }) =>
   n.from_min === 0 && n.to_min === 1440 ? "終日" : `${min2hm(n.from_min)}〜${min2hm(n.to_min)}`;
@@ -159,6 +163,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★SD V2-2: 表示月の wishes 全 status（原型対比・4段フロー）／period／配置ルール
   const [wishAll, setWishAll] = useState<Wish[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
+  // ★便 T-1: 既定日付と重なり判定は「表示月」ではなく店の全期間で見る（periods は表示月に重なる分だけ）
+  const [periodsAll, setPeriodsAll] = useState<(Period & { store_id: string })[]>([]);
   // ★0125（裁定112-A）: 配置ルールカード撤去に伴い rules state も撤去（shift_rules 器は残置）。
   // ★SD V2-2: 計画フォーム（pEditId 1つで新規/編集を兼用＝seats-board と同じ流儀）
   const [pEditId, setPEditId] = useState<string | null>(null);
@@ -166,6 +172,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [pEnd, setPEnd] = useState("");
   const [pDeadline, setPDeadline] = useState("");
   const [pStatus, setPStatus] = useState("draft");
+  // ★便 T（2026-09-18）: 期間フォームの結果はカード内に出す（T-2＝ページ最上部の共有枠 msg には出さない）・作成した期間の強調（T-4）・
+  //   既定日付は「手で触るまで」既存期間から埋める（T-1・pTouched）
+  const [pMsg, setPMsg] = useState<{ kind: "error" | "success"; text: string } | null>(null);
+  const [pNewId, setPNewId] = useState<string | null>(null);
+  const [pTouched, setPTouched] = useState(false);
   // ★0125（裁定112-A）: 自動配置 UI 撤去に伴い selPeriodId も撤去（planbar は periods[0] を現行計画とする）
   // ★DP-R S9: 配置ビューの表示切替（モック .plan-tools > .seg = 月カレンダー / スタッフ別）
   const [planView, setPlanView] = useState<"cal" | "staff">("cal");
@@ -238,6 +249,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   //   today=出勤板 / calendar=月カレンダー+日詳細 / build=確定シフト登録+必要人数 /
    // queue=希望の審査（承認待ち・件数バッジ） / roster=確定シフト一覧
   const [tab, setTab] = useState<"today" | "calendar" | "build" | "queue" | "roster">("today");
+  // ★便 T-3（裁定281-4）: タブ切替で共有メッセージとカード内メッセージを消す（残留の解消＝1 箇所）
+  useEffect(() => { setMsg(null); setPMsg(null); }, [tab]);
+  // ★便 T-1: 新規フォームの既定＝既存期間の最終日の翌日から同じ長さ（無ければ半月）・締切は開始の前日。手で触ったら上書きしない
+  useEffect(() => {
+    if (pEditId || pTouched) return;
+    const d = nextPeriodDefaults(periodsAll, bizToday);
+    setPStart(d.start); setPEnd(d.end); setPDeadline(d.deadline);
+  }, [periodsAll, pEditId, pTouched, bizToday]);
   const [month, setMonth] = useState(bizToday.slice(0, 7)); // 'YYYY-MM'
   const [selDate, setSelDate] = useState(bizToday);
   // B-5②: 営業時間マスタ（行なし=未設定・判定なし。cast 0行だが本画面は staff 以上のみ到達）
@@ -361,6 +380,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     const { data: ps2 } = await supabase
       .from("shift_periods").select("id, start_date, end_date, wish_deadline, status")
       .lte("start_date", to).gte("end_date", from).order("start_date");
+    // ★便 T-1: 店の全期間（RLS＝店スコープ・owner は全店＝store_id で絞る）＝新規の既定日付と重なり判定の材料
+    const { data: psAll } = await supabase
+      .from("shift_periods").select("id, store_id, start_date, end_date, wish_deadline, status")
+      .order("start_date").limit(500);
+    setPeriodsAll(((psAll ?? []) as (Period & { store_id: string })[]).filter((p) => p.store_id === storeId));
     // ★0125（裁定112-A）: shift_rules の読取は撤去（配置ルールカード撤去・器は残置）。
     // E8-4（mig0095）: 時間帯バンド列を取得（dow → from_min の昇順＝バンド表示順）
     const { data: ns } = await supabase.from("staffing_needs")
@@ -478,22 +502,38 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
 
   // ★0125（裁定112-A）: isClosedDate（autoAssign へ渡していた定休日判定）は自動配置 UI 撤去で削除。
 
+  // ★便 T-1: 既存期間との重なり（編集中の期間自身は除く）＝DB の shift_periods_no_overlap（閉区間）を client で先回り
+  const pOverlap = overlappingPeriods(periodsAll.filter((p) => p.id !== pEditId), pStart, pEnd);
+  const pOverlapText = pOverlap.length > 0
+    ? `既存の期間(${pOverlap.map((p) => `${mdOf(p.start_date)}〜${mdOf(p.end_date)}`).join("・")})と重なっています` : null;
+  // ★便 T-2: 期間用のエラー写像（時間帯用 rpcErrJa の 'overlap' 文言を流用しない）
+  const periodErrJa = (m: string | undefined): string => {
+    if (m && m.includes("overlap")) return pOverlapText ?? "既存の期間と重なっています";
+    return rpcErrJa(m);
+  };
+  const resetPeriodForm = () => { setPEditId(null); setPStart(""); setPEnd(""); setPDeadline(""); setPStatus("draft"); setPTouched(false); };
   // ★SD V2-2: period CRUD（shift_period_set / shift_period_remove＝V1 検証済みの引数形と一字一致）。
+  //   ★便 T-2／T-4: 成否はカード内（pMsg）＝共有 msg には出さない。成功時は作成した期間を一覧で強調（pNewId）。
   async function savePeriod() {
-    if (!pStart || !pEnd) { setMsg("計画期間の開始と終了を入力してください"); return; }
-    setMsg(null);
-    const { error } = await supabase.rpc("shift_period_set", {
+    setPMsg(null);
+    if (!pStart || !pEnd) { setPMsg({ kind: "error", text: "計画期間の開始と終了を入力してください" }); return; }
+    if (pOverlapText) { setPMsg({ kind: "error", text: pOverlapText }); return; }
+    const { data, error } = await supabase.rpc("shift_period_set", {
       p_id: pEditId, p_store_id: storeId, p_start_date: pStart, p_end_date: pEnd,
       p_wish_deadline: pDeadline || null, p_status: pStatus,
     });
-    setMsg(error ? `計画の保存に失敗: ${rpcErrJa(error.message)}` : pEditId ? "計画を更新しました" : "計画を作成しました");
-    if (!error) { setPEditId(null); setPStart(""); setPEnd(""); setPDeadline(""); setPStatus("draft"); }
+    if (error) { setPMsg({ kind: "error", text: error.message.includes("overlap") ? periodErrJa(error.message) : `計画の保存に失敗: ${periodErrJa(error.message)}` }); return; }
+    const stLabel = PERIOD_ST_LABEL[pStatus] ?? pStatus;
+    setPMsg({ kind: "success", text: pEditId ? `期間を更新しました(${stLabel})` : `期間を作成しました(${stLabel})` });
+    setPNewId(typeof data === "string" ? data : pEditId);
+    resetPeriodForm();
     await load();
   }
   async function removePeriod(id: string) {
-    setMsg(null);
+    setPMsg(null);
     const { error } = await supabase.rpc("shift_period_remove", { p_id: id });
-    setMsg(error ? `計画の削除に失敗: ${rpcErrJa(error.message)}` : "計画を削除しました");
+    setPMsg(error ? { kind: "error", text: `計画の削除に失敗: ${rpcErrJa(error.message)}` } : { kind: "success", text: "計画を削除しました" });
+    if (pNewId === id) setPNewId(null);
     await load();
   }
 
@@ -1622,30 +1662,34 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         {periods.length === 0 && (
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>この月の計画はまだありません。下のフォームで作成できます。</p>
         )}
-        {periods.map((p) => (
-          <div key={p.id} className="nox-listrow" style={{ fontSize: 13 }}>
+        {/* ★便 T-4: 一覧は表示月に重なる期間＝作成した期間が別の月でも 1 行足して強調する（削除もここから） */}
+        {[...periods, ...(pNewId && !periods.some((p) => p.id === pNewId) ? periodsAll.filter((p) => p.id === pNewId) : [])].map((p) => (
+          <div key={p.id} className="nox-listrow" style={{ fontSize: 13, ...(p.id === pNewId ? { outline: "1px solid var(--gold)", outlineOffset: -1, borderRadius: 8 } : {}) }}>
             <span className="num">{p.start_date} 〜 {p.end_date}</span>
             <span style={{ fontSize: 12, color: "var(--sub)" }}>希望締切 <span className="num">{p.wish_deadline ?? "—"}</span></span>
             <span className={`nox-stpill ${p.status === "published" ? "ok" : ""}`}>{PERIOD_ST_LABEL[p.status] ?? p.status}</span>
             <button style={{ ...btnLight, marginLeft: "auto" }}
-              onClick={() => { setPEditId(p.id); setPStart(p.start_date); setPEnd(p.end_date); setPDeadline(p.wish_deadline ?? ""); setPStatus(p.status); }}>編集</button>
+              onClick={() => { setPMsg(null); setPTouched(true); setPEditId(p.id); setPStart(p.start_date); setPEnd(p.end_date); setPDeadline(p.wish_deadline ?? ""); setPStatus(p.status); }}>編集</button>
             <button style={btnLight} title="シフトから参照されている期間は削除できません"
               onClick={() => void removePeriod(p.id)}>削除</button>
           </div>
         ))}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
           <span style={{ fontSize: 12, color: "var(--sub)" }}>{pEditId ? "編集中" : "新規"}</span>
-          <label style={{ fontSize: 12 }}>開始 <input type="date" value={pStart} onChange={(e) => setPStart(e.target.value)} style={input} /></label>
-          <label style={{ fontSize: 12 }}>終了 <input type="date" value={pEnd} onChange={(e) => setPEnd(e.target.value)} style={input} /></label>
-          <label style={{ fontSize: 12 }}>希望締切 <input type="date" value={pDeadline} onChange={(e) => setPDeadline(e.target.value)} style={input} /></label>
-          <select value={pStatus} onChange={(e) => setPStatus(e.target.value)} style={input}>
-            {Object.entries(PERIOD_ST_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-          <button style={btnDark} onClick={() => void savePeriod()}>{pEditId ? "更新" : "作成"}</button>
+          <label style={{ fontSize: 12 }}>開始 <input type="date" value={pStart} onChange={(e) => { setPTouched(true); setPStart(e.target.value); }} style={input} /></label>
+          <label style={{ fontSize: 12 }}>終了 <input type="date" value={pEnd} onChange={(e) => { setPTouched(true); setPEnd(e.target.value); }} style={input} /></label>
+          <label style={{ fontSize: 12 }}>希望締切 <input type="date" value={pDeadline} onChange={(e) => { setPTouched(true); setPDeadline(e.target.value); }} style={input} /></label>
+          <div style={{ minWidth: 150 }} aria-label="状態">{/* ★便 T-5（裁定259）: 4 値＝picker */}
+            <Picker items={PERIOD_ST_ITEMS} value={pStatus} onPick={(id) => setPStatus(id)} placeholder="状態" limit={4} dense />
+          </div>
+          <button style={{ ...btnDark, opacity: pOverlapText || !pStart || !pEnd ? 0.45 : 1 }} disabled={!!pOverlapText || !pStart || !pEnd} onClick={() => void savePeriod()}>{pEditId ? "更新" : "作成"}</button>
           {pEditId && (
-            <button style={btnLight} onClick={() => { setPEditId(null); setPStart(""); setPEnd(""); setPDeadline(""); setPStatus("draft"); }}>やめる</button>
+            <button style={btnLight} onClick={() => { setPMsg(null); resetPeriodForm(); }}>やめる</button>
           )}
         </div>
+        {/* ★便 T-1／T-2: 重なりの案内はボタンの直下（同じカード内）・成否も同じ場所（共有枠には出さない） */}
+        {pOverlapText && <Message kind="warn">{pOverlapText}</Message>}
+        {pMsg && <Message kind={pMsg.kind} onDismiss={() => setPMsg(null)}>{pMsg.text}</Message>}
         <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
           締切は表示用の目安です（提出のブロックはしません）。公開済みの期間には自動配置できません。
         </p>

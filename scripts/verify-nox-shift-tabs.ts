@@ -11,6 +11,7 @@
  */
 import fs from "node:fs";
 import { LEGACY_SHIFT_TABS, SHIFT_VIEWS, VIEW_TABS, tabOfView, viewOfTab, type ShiftTab, type ShiftView } from "../lib/nox/shift/tabs";
+import { nextPeriodDefaults, overlappingPeriods, periodsOverlap, spanDays, addDays, mdOf } from "../lib/nox/shift/period";
 
 let pass = 0;
 const fails: string[] = [];
@@ -41,6 +42,15 @@ const src = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
 check("st(5-1) shift-board: state 型は旧 5 キーのまま", src.includes('useState<"today" | "calendar" | "build" | "queue" | "roster">("today")'));
 check("st(5-2) shift-board: 3 タブは tabs.ts（SHIFT_VIEWS／VIEW_TABS／viewOfTab／tabOfView）を通す", src.includes('from "@/lib/nox/shift/tabs"') && src.includes("SHIFT_VIEWS.map(") && src.includes("viewOfTab(tab)") && src.includes("tabOfView("));
 check("st(5-3) shift-board: 旧 5 タブの nav（today→queue→build→calendar→roster の 5 本並び）は残っていない", !src.includes('[["today", "今日"], ["queue", "承認待ち"], ["build", "シフト作成"]'));
+
+// (6) ★便 T（2026-09-18）: 計画期間の既定日付と重なり判定（lib/nox/shift/period.ts・純関数）。逆テスト＝periodsOverlap の `<=` を `<` にする→pe(6-2) 赤。
+const EX = [{ start_date: "2026-09-15", end_date: "2026-09-30" }];
+check("pe(6-1) 既定＝既存の最終日の翌日から同じ長さ（16 日）・締切は開始の前日", JSON.stringify(nextPeriodDefaults(EX, "2026-09-18")) === JSON.stringify({ start: "2026-10-01", end: "2026-10-16", deadline: "2026-09-30" }), JSON.stringify(nextPeriodDefaults(EX, "2026-09-18")));
+check("pe(6-2) 重なり＝閉区間（末日と初日が同じ日でも重なる・DB の daterange '[]' && と同型）", periodsOverlap(EX[0], { start_date: "2026-09-30", end_date: "2026-10-05" }) && periodsOverlap(EX[0], { start_date: "2026-09-20", end_date: "2026-09-30" }) && !periodsOverlap(EX[0], { start_date: "2026-10-01", end_date: "2026-10-16" }));
+check("pe(6-3) 既存なし＝今日の翌日から半月（15 日）・締切は開始の前日", JSON.stringify(nextPeriodDefaults([], "2026-09-18")) === JSON.stringify({ start: "2026-09-19", end: "2026-10-03", deadline: "2026-09-18" }));
+check("pe(6-4) overlappingPeriods＝重なる既存だけ・未入力は 0 件・複数既存は最終日が最大のものを基準", overlappingPeriods(EX, "2026-09-20", "2026-09-30").length === 1 && overlappingPeriods(EX, "", "2026-09-30").length === 0 && nextPeriodDefaults([{ start_date: "2026-10-01", end_date: "2026-10-10" }, ...EX], "2026-09-18").start === "2026-10-11");
+check("pe(6-5) 月またぎ・閏日: addDays／spanDays／mdOf", addDays("2026-12-31", 1) === "2027-01-01" && addDays("2028-02-28", 1) === "2028-02-29" && spanDays({ start_date: "2026-09-15", end_date: "2026-09-30" }) === 16 && mdOf("2026-09-05") === "9/5");
+check("pe(6-6) 不正区間（start>end）は重ならない扱い（DB は 'bad range' で先に落ちる）", !periodsOverlap({ start_date: "2026-09-30", end_date: "2026-09-15" }, EX[0]));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
