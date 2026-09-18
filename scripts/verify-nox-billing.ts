@@ -134,7 +134,8 @@ async function main() {
     //   ともに B(l) へ収載＝除外 102→115・全数 216→229・対象 114 不変。ゲート内蔵へ寄せる（0136 改訂）か B 据え置きかは裁定待ち。
     // ★mig0146（裁定258・2026-09-15）: payroll_adjustment_add／_delete（非ゲート＝給与の清算）を B(e) へ収載＝除外 114→116・全数 239→241・対象 125 不変。
     // ★mig0148（裁定272・2026-09-18）: payroll_carryover_sync（非ゲート＝繰越消費）を B(e) へ収載＝除外 116→117・全数 241→245。
-    check("段47-1 正本の除外117名を読めた", docExcluded.size === 117, `got ${docExcluded.size}`);
+    // ★mig0149（裁定273／276〜279・2026-09-18）: demo_org_reset（service_role 専用・authenticated 実行不可＝構造除外）を B(a) へ収載＝除外 117→118・全数 245→246・対象 128 不変。
+    check("段47-1 正本の除外118名を読めた", docExcluded.size === 118, `got ${docExcluded.size}`);
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる

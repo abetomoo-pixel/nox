@@ -205,12 +205,13 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 
 ## B. 除外（99本）
 
-### B(a) 構造除外＝authenticated 実行不可（service/内部・26本）→ ゲート不要（B7 回避型(1)）
+### B(a) 構造除外＝authenticated 実行不可（service/内部・27本）→ ゲート不要（B7 回避型(1)）
 approval_apply / ar_policy_ok / audit_log_write / audit_log_write_service / cast_create_apply /
 cast_sales_aggregate / check_group_due / check_recalc / check_round_amount / **nom_unit4_key** / **nom_type_summary**（mig0119＝R-2b 補助・IMMUTABLE/STABLE の純ヘルパー・4者 revoke＝呼び出し元の公開 RPC が二重防御済み＝原則8 の check_round_amount 型） / **check_tax_round**（mig0113＝税丸め・IMMUTABLE・4者 revoke 済＝教訓43） / comp_plan_slide_check /
 consent_ok / daily_report_aggregate / get_cast_mynumber / payroll_finalize / payroll_mark_paid /
 payroll_reopen / print_claim / print_result / stock_on_check_line / stock_on_check_void /
-pricing_resolve_core / drink_claims_guard_line_update / drink_claims_on_line_delete
+pricing_resolve_core / drink_claims_guard_line_update / drink_claims_on_line_delete /
+demo_org_reset（mig0149＝裁定273／276〜279・公開デモ org の録画再生リセット＝wipe→load・service_role 専用の revoke 型で authenticated 実行不可・is_demo=true の org 以外は raise・2026-09-18）
 ＋段47 で「zero-arg ラッパを service 専用 RPC が呼ばない」prosrc 機械検証（設計 §3）
 
 ### B(b) トリガ関数（1本）
@@ -315,4 +316,4 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 「live 全数 = 正本 A∪B」機械 assert** が担保（silent drift は f0 が赤にする＝教訓21）。
 非ゲート新設 RPC も mig と同一コミットで B 名簿を追補する（ゲート入りの pin 波及と対称の運用）。
 
-★**現在値（2026-09-18・mig0148 追随後）**: A **128** ＋ B **117** ＝ **245** ＝ live pg_proc 実列挙と一致（前＝mig0146 後 A 125＋B 116＝241・その前 mig0145 後 A 125＋B 114＝239。verify:nox-billing 段47-1 の pin＝対象 128／除外 117／ゲート済み 128／述語参照 129／挿入行の形 128）。
+★**現在値（2026-09-18・mig0149 追随後）**: A **128** ＋ B **118** ＝ **246** ＝ live pg_proc 実列挙と一致（前＝mig0148 後 A 128＋B 117＝245・その前 mig0146 後 A 125＋B 116＝241。verify:nox-billing 段47-1 の pin＝対象 128／除外 118／ゲート済み 128／述語参照 129／挿入行の形 128）。

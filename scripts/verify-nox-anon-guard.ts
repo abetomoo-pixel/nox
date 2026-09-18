@@ -666,6 +666,7 @@ async function main() {
     ["comp_plan_slide_check", { p_slide: null }], // 段8b（F2a 内部）
     ["cast_sales_aggregate", { p_store_id: null, p_from: null, p_to: null }], // 段9b（F2a-2 内部）
     ["cast_create_apply", { p_org_id: null, p_store_id: null, p_name: null, p_kind: null, p_real_name: null, p_birthday: null }], // 段32（F3d 内部）
+    ["demo_org_reset", { p_org_id: null, p_payload: null, p_mode: null }], // mig0149（裁定273／276〜279・service_role 専用＝anon／authenticated とも BLOCKED）
   ];
   for (const [fn, args] of INTERNAL_PROBES) {
     const { error } = await anon.rpc(fn, args);
