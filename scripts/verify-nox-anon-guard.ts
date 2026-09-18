@@ -627,6 +627,20 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段35e: mig0148（裁定272・2026-09-18）新 RPC 4 本 anon BLOCKED（引数は null 埋め・revoke all from public, anon＋grant authenticated, service_role）──
+  //   payroll_carryover_sync（繰越消費・owner∨manager 自店・draft のみ）／check_add_referral（紹介料行・kiosk 腕あり）／
+  //   set_cast_norm_self（cast 本人のノルマ目標・auth_cast_id 由来）／set_store_receivable_policy（受取方針・owner 限定）
+  const F0148_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["payroll_carryover_sync", { p_run_id: null }],
+    ["check_add_referral", { p_check_id: null, p_cast_id: null, p_amount: null, p_memo: null, p_idem_key: null }],
+    ["set_cast_norm_self", { p_period: null, p_days_target: null, p_dohan_target: null, p_sales_target: null, p_shimei_target: null }],
+    ["set_store_receivable_policy", { p_store_id: null, p_policy: null }],
+  ];
+  for (const [fn, args] of F0148_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段36a: F4b レシート印刷（mig0044/0045）RPC anon BLOCKED ──
   //   claim/result は service_role 限定（内部専用型）＝anon に加え authenticated 負系を段36 本体で実測。
   const F0044_PROBES: Array<[string, Record<string, unknown>]> = [

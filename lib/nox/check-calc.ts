@@ -120,6 +120,8 @@ export function taxRound(n: number, mode: string): number {
 //     due = 店設定丸め(net + サ料 + 税)
 //   - 内税/exempt は従来式＝groupDue(net, s) と1バイト同値
 // ★三面鏡: check_group_due（DB）・本関数・receipt.ts の税表示を必ず同時改修（F5 の3点セットと同じ規律）。
+// ★裁定272 追補（案 Q・mig0148 ★10・2026-09-18）: kind 'referral'（紹介料＝店が払う手当）は伝票合計・課税額から除外
+//   ＝DB の v_bx（L20）と v_bx10／v_bx8（L36）の `and kind <> 'referral'` と同じ 2 箇所。cast の gross（referralTotal）にのみ載る。
 export type DueLine = { line_total: number; kind: string; tax_category?: string | null };
 export type CheckDueSettings = CheckRoundSettings & {
   business_tax_status?: string | null; // checks の凍結値（省略/null=taxable）
@@ -128,7 +130,7 @@ export type CheckDueSettings = CheckRoundSettings & {
 };
 
 export function groupDueFull(lines: DueLine[], s: CheckDueSettings): number {
-  const bx = lines.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0);
+  const bx = lines.filter((l) => l.kind !== "discount" && l.kind !== "referral").reduce((a, l) => a + l.line_total, 0); // ★裁定272 追補: referral 除外（DB L20）
   const disc = lines.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0);
   const net = Math.max(0, bx - disc);
   if (net === 0) return 0;
@@ -136,8 +138,8 @@ export function groupDueFull(lines: DueLine[], s: CheckDueSettings): number {
     && (s.business_tax_status ?? "taxable") === "taxable";
   if (excluded) {
     const catOf = (l: DueLine) => l.tax_category ?? "taxable_10";
-    const bx10 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_10").reduce((a, l) => a + l.line_total, 0);
-    const bx8 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_8").reduce((a, l) => a + l.line_total, 0);
+    const bx10 = lines.filter((l) => l.kind !== "discount" && l.kind !== "referral" && catOf(l) === "taxable_10").reduce((a, l) => a + l.line_total, 0); // ★裁定272 追補: referral 除外（DB L36）
+    const bx8 = lines.filter((l) => l.kind !== "discount" && l.kind !== "referral" && catOf(l) === "taxable_8").reduce((a, l) => a + l.line_total, 0); // ★裁定272 追補: referral 除外（DB L36）
     const sv = roundYen((net * s.service_rate) / 100); // v_sv = round(v_net * v_rate / 100.0) と同式
     const trnd = s.tax_rounding ?? "floor";
     const base10 = Math.max(0, bx10 - disc) + sv;

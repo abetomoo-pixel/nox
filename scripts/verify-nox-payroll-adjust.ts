@@ -4,10 +4,11 @@
  *   走数外（f0 では 49 段目に連結）。手貼り検証（docs/tmp/0146_post.txt・2026-09-15）と同じ形。
  *
  * 固定する項目（相談役ブロック 2026-09-15）:
- *  (1) 列 13・CHECK 3（mode／amount 排他／reason trim 1..200）・index 3+pk・RLS enabled・policy 1 本の using 式
- *  (2) grant: 表 authenticated=SELECT のみ・anon 0／関数 2 本 authenticated=EXECUTE・anon 0（＋anon から RPC が BLOCKED）
- *  (3) FK 5 本（orgs／stores／payroll_runs ON DELETE CASCADE／casts／created_by→users）
- *  (4) 署名 2 本・SECURITY DEFINER
+ *  (1) 列 15（13＋★mig0148 source／carry_from_payslip_id）・CHECK 4（mode／amount 排他／reason trim 1..200／★source manual|carryover）・
+ *      index 4+pk（★mig0148 部分 unique payroll_adjustments_carryover_uidx (run_id, cast_id) where source='carryover'）・RLS enabled・policy 1 本の using 式
+ *  (2) grant: 表 authenticated=SELECT のみ・anon 0／関数 3 本（add／delete／★carryover_sync）authenticated=EXECUTE・anon 0（＋anon から RPC が BLOCKED）
+ *  (3) FK 6 本（orgs／stores／payroll_runs ON DELETE CASCADE／casts／created_by→users／★carry_from_payslip_id→payslips ON DELETE SET NULL）
+ *  (4) 署名 3 本（add／delete／★payroll_carryover_sync(uuid)→integer）・SECURITY DEFINER
  *  (5) 異常系 5（reason 空白／bad mode／fixed amount null／rate_bp 10001／run not draft）
  *      ＝Postgres 直結の 1 トランザクション内で NOX-VERIFY-A1 に仮 run（2099-01）を作り owner-a の JWT claims を emulate して呼び、
  *        最後に ROLLBACK（payroll_adjustments／2099-01 run／audit の残留 0 を assert）。正常 add 1 件で audit の actor=users.id・reason 保持も固定。
@@ -49,7 +50,8 @@ const T = "payroll_adjustments";
 const ADD_ARGS = "p_run_id uuid, p_cast_id uuid, p_mode text, p_amount integer, p_rate_bp integer, p_before_withholding boolean, p_show_detail boolean, p_reason text";
 const DEL_ARGS = "p_id uuid, p_reason text";
 const POLICY_QUAL = "((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (store_id = auth_store_id())) AND (auth_role() = ANY (ARRAY['owner'::text, 'manager'::text])))";
-const COLS = ["id", "org_id", "store_id", "run_id", "cast_id", "mode", "amount", "rate_bp", "before_withholding", "show_detail", "reason", "created_by", "created_at"];
+const COLS = ["id", "org_id", "store_id", "run_id", "cast_id", "mode", "amount", "rate_bp", "before_withholding", "show_detail", "reason", "created_by", "created_at", "source", "carry_from_payslip_id"]; // ★mig0148: 末尾 2 列
+const SYNC_ARGS = "p_run_id uuid"; // ★mig0148 payroll_carryover_sync
 
 // ── (0) 純関数 fixture（DB 非依存）──
 const PLAN: CompPlan = { id: "p", name: "test", base: 3000, honBack: 1000, jonaiBack: 500, dohanBack: 2000, salesSlide: [], pointSlide: [] };
@@ -311,18 +313,23 @@ async function main() {
   // ── (1) 表の形 ──
   {
     const cols = await q<{ column_name: string }>(`select column_name from information_schema.columns where table_schema='public' and table_name=$1 order by ordinal_position`, [T]);
-    check("pa(1-1) 列 13", cols.length === 13, `${cols.length}`);
+    check("pa(1-1) 列 15（★mig0148 で 13→15）", cols.length === 15, `${cols.length}`);
     check("pa(1-2) 列名と順序", JSON.stringify(cols.map((c) => c.column_name)) === JSON.stringify(COLS), cols.map((c) => c.column_name).join(","));
     const cks = await q<{ conname: string; def: string }>(`select conname, pg_get_constraintdef(oid) as def from pg_constraint where conrelid=('public.' || $1)::regclass and contype='c' order by conname`, [T]);
-    check("pa(1-3) CHECK 3", cks.length === 3, cks.map((c) => c.conname).join(","));
+    check("pa(1-3) CHECK 4（★mig0148 で 3→4）", cks.length === 4, cks.map((c) => c.conname).join(","));
     const def = (n: string) => cks.find((c) => c.conname === n)?.def ?? "";
     check("pa(1-4) CHECK mode ∈ fixed/rate", /mode = ANY \(ARRAY\['fixed'::text, 'rate'::text\]\)/.test(def("payroll_adjustments_mode_ck")), def("payroll_adjustments_mode_ck"));
     check("pa(1-5) CHECK amount 排他（fixed: amount≥0∧rate_bp null／rate: rate_bp 0..10000∧amount null）",
       /mode = 'fixed'::text\) AND \(amount IS NOT NULL\) AND \(amount >= 0\) AND \(rate_bp IS NULL\)/.test(def("payroll_adjustments_amount_ck"))
       && /mode = 'rate'::text\) AND \(rate_bp IS NOT NULL\) AND \(\(rate_bp >= 0\) AND \(rate_bp <= 10000\)\) AND \(amount IS NULL\)/.test(def("payroll_adjustments_amount_ck")), def("payroll_adjustments_amount_ck"));
     check("pa(1-6) CHECK reason trim 1..200", /length\(TRIM\(BOTH FROM reason\)\) >= 1\) AND \(length\(TRIM\(BOTH FROM reason\)\) <= 200\)/.test(def("payroll_adjustments_reason_ck")), def("payroll_adjustments_reason_ck"));
-    const idx = await q<{ indexname: string }>(`select indexname from pg_indexes where schemaname='public' and tablename=$1 order by indexname`, [T]);
-    check("pa(1-7) index 3+pk", JSON.stringify(idx.map((i) => i.indexname)) === JSON.stringify(["payroll_adjustments_cast_idx", "payroll_adjustments_org_idx", "payroll_adjustments_pkey", "payroll_adjustments_run_idx"]), idx.map((i) => i.indexname).join(","));
+    check("pa(1-6b) ★mig0148 CHECK source ∈ manual/carryover", /source = ANY \(ARRAY\['manual'::text, 'carryover'::text\]\)/.test(def("payroll_adjustments_source_ck")), def("payroll_adjustments_source_ck"));
+    const idx = await q<{ indexname: string; indexdef: string }>(`select indexname, indexdef from pg_indexes where schemaname='public' and tablename=$1 order by indexname`, [T]);
+    check("pa(1-7) index 4+pk（★mig0148 で carryover_uidx 追加）", JSON.stringify(idx.map((i) => i.indexname)) === JSON.stringify(["payroll_adjustments_carryover_uidx", "payroll_adjustments_cast_idx", "payroll_adjustments_org_idx", "payroll_adjustments_pkey", "payroll_adjustments_run_idx"]), idx.map((i) => i.indexname).join(","));
+    const uidxDef = idx.find((i) => i.indexname === "payroll_adjustments_carryover_uidx")?.indexdef ?? "";
+    check("pa(1-7b) ★mig0148 carryover_uidx＝UNIQUE (run_id, cast_id) WHERE source='carryover'（manual 行には掛からない部分 unique）", /CREATE UNIQUE INDEX payroll_adjustments_carryover_uidx ON public\.payroll_adjustments USING btree \(run_id, cast_id\) WHERE \(source = 'carryover'::text\)/.test(uidxDef), uidxDef);
+    const colDef = await q<{ column_name: string; data_type: string; column_default: string | null; is_nullable: string }>(`select column_name, data_type, column_default, is_nullable from information_schema.columns where table_schema='public' and table_name=$1 and column_name in ('source','carry_from_payslip_id') order by ordinal_position`, [T]);
+    check("pa(1-11) ★mig0148 source text not null default 'manual'／carry_from_payslip_id uuid null", colDef.length === 2 && colDef[0].column_name === "source" && colDef[0].data_type === "text" && colDef[0].is_nullable === "NO" && colDef[0].column_default === "'manual'::text" && colDef[1].column_name === "carry_from_payslip_id" && colDef[1].data_type === "uuid" && colDef[1].is_nullable === "YES", JSON.stringify(colDef));
     const rls = await q<{ relrowsecurity: boolean }>(`select relrowsecurity from pg_class where oid=('public.' || $1)::regclass`, [T]);
     check("pa(1-8) RLS enabled", rls[0]?.relrowsecurity === true);
     const pol = await q<{ policyname: string; cmd: string; roles: string; qual: string }>(
@@ -339,8 +346,8 @@ async function main() {
     const m = Object.fromEntries(tg.map((r) => [r.grantee, r.privs]));
     check("pa(2-1) 表 authenticated=SELECT のみ", m.authenticated === "SELECT", JSON.stringify(m));
     check("pa(2-2) 表 anon 0・PUBLIC 0", !m.anon && !m.PUBLIC, JSON.stringify(m));
-    const fg = await q<{ proname: string; acl: string | null }>(`select proname, proacl::text as acl from pg_proc where pronamespace='public'::regnamespace and proname in ('payroll_adjustment_add','payroll_adjustment_delete') order by proname`);
-    check("pa(2-3) 関数 2 本", fg.length === 2, fg.map((f) => f.proname).join(","));
+    const fg = await q<{ proname: string; acl: string | null }>(`select proname, proacl::text as acl from pg_proc where pronamespace='public'::regnamespace and proname in ('payroll_adjustment_add','payroll_adjustment_delete','payroll_carryover_sync') order by proname`);
+    check("pa(2-3) 関数 3 本（add／delete／★mig0148 carryover_sync）", fg.length === 3, fg.map((f) => f.proname).join(","));
     for (const f of fg) {
       const acl = f.acl ?? "";
       check(`pa(2-4) ${f.proname} authenticated=EXECUTE`, /authenticated=X/.test(acl), acl);
@@ -353,13 +360,16 @@ async function main() {
     check("pa(2-6) anon payroll_adjustment_add BLOCKED", !!r1.error?.message?.includes("permission denied for function"), r1.error?.message ?? "(no error)");
     const r2 = await anon.rpc("payroll_adjustment_delete", { p_id: z, p_reason: "x" });
     check("pa(2-7) anon payroll_adjustment_delete BLOCKED", !!r2.error?.message?.includes("permission denied for function"), r2.error?.message ?? "(no error)");
+    const r3 = await anon.rpc("payroll_carryover_sync", { p_run_id: z });
+    check("pa(2-8) ★mig0148 anon payroll_carryover_sync BLOCKED", !!r3.error?.message?.includes("permission denied for function"), r3.error?.message ?? "(no error)");
   }
 
   // ── (3) FK ──
   {
     const fk = await q<{ conname: string; def: string }>(`select conname, pg_get_constraintdef(oid) as def from pg_constraint where conrelid=('public.' || $1)::regclass and contype='f' order by conname`, [T]);
     const defs = fk.map((f) => f.def);
-    check("pa(3-1) FK 5 本", fk.length === 5, fk.map((f) => f.conname).join(","));
+    check("pa(3-1) FK 6 本（★mig0148 で carry_from_payslip_id 追加）", fk.length === 6, fk.map((f) => f.conname).join(","));
+    check("pa(3-7) ★mig0148 carry_from_payslip_id→payslips ON DELETE SET NULL", defs.some((d) => d === "FOREIGN KEY (carry_from_payslip_id) REFERENCES payslips(id) ON DELETE SET NULL"), defs.join(" | "));
     check("pa(3-2) org_id→orgs", defs.some((d) => d === "FOREIGN KEY (org_id) REFERENCES orgs(id)"));
     check("pa(3-3) store_id→stores", defs.some((d) => d === "FOREIGN KEY (store_id) REFERENCES stores(id)"));
     check("pa(3-4) run_id→payroll_runs ON DELETE CASCADE", defs.some((d) => d === "FOREIGN KEY (run_id) REFERENCES payroll_runs(id) ON DELETE CASCADE"));
@@ -369,8 +379,10 @@ async function main() {
 
   // ── (4) 署名 ──
   {
-    const sig = await q<{ proname: string; args: string; ret: string; prosecdef: boolean }>(`select proname, pg_get_function_identity_arguments(oid) as args, pg_get_function_result(oid) as ret, prosecdef from pg_proc where pronamespace='public'::regnamespace and proname in ('payroll_adjustment_add','payroll_adjustment_delete') order by proname`);
-    const add = sig.find((s) => s.proname === "payroll_adjustment_add"), del = sig.find((s) => s.proname === "payroll_adjustment_delete");
+    const sig = await q<{ proname: string; args: string; ret: string; prosecdef: boolean }>(`select proname, pg_get_function_identity_arguments(oid) as args, pg_get_function_result(oid) as ret, prosecdef from pg_proc where pronamespace='public'::regnamespace and proname in ('payroll_adjustment_add','payroll_adjustment_delete','payroll_carryover_sync') order by proname`);
+    const add = sig.find((s) => s.proname === "payroll_adjustment_add"), del = sig.find((s) => s.proname === "payroll_adjustment_delete"), sync = sig.find((s) => s.proname === "payroll_carryover_sync");
+    check("pa(4-5) ★mig0148 carryover_sync の署名 (uuid)→integer", sync?.args === SYNC_ARGS && sync?.ret === "integer", `${sync?.args} → ${sync?.ret}`);
+    check("pa(4-6) ★mig0148 carryover_sync SECURITY DEFINER", sync?.prosecdef === true);
     check("pa(4-1) add の署名 (uuid,uuid,text,integer,integer,boolean,boolean,text)→uuid", add?.args === ADD_ARGS && add?.ret === "uuid", `${add?.args} → ${add?.ret}`);
     check("pa(4-2) add SECURITY DEFINER", add?.prosecdef === true);
     check("pa(4-3) delete の署名 (uuid,text)→void", del?.args === DEL_ARGS && del?.ret === "void", `${del?.args} → ${del?.ret}`);
@@ -474,7 +486,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-payroll-adjust ALL PASS (${pass} assertions)`);
-  console.log("run 別調整控除(0146): 列 13・CHECK 3・index 3+pk・RLS・policy using 式 / grant 表 SELECT のみ・関数 EXECUTE・anon 0＋BLOCKED / FK 5（cascade）/ 署名 2・secdef / 異常系 5＋正常 add の audit（ROLLBACK・残留 0）");
+  console.log("run 別調整控除(0146＋0148): 列 15・CHECK 4・index 4+pk（部分 unique）・RLS・policy using 式 / grant 表 SELECT のみ・関数 3 本 EXECUTE・anon 0＋BLOCKED / FK 6（cascade・set null）/ 署名 3・secdef / 異常系 5＋正常 add の audit（ROLLBACK・残留 0）");
   console.log("純関数(裁定264): 率 0/10000 境界・roundYen 1 回 / 複数率行が同一 gross / before・after の源泉差・sanction cap 生 gross / net 0 床と超過額の恒等 / 空配列回帰 / 控除計の集約＝旧 5 式と 500 例一致 / buildPayInput 素通し（二段 payOf）");
   console.log("route 層(裁定264-7/8): parse＝reason 空 400・ratePct 範囲外 400・%→bp Math.round・boolean 明示・delete parse / authz 写経（staff/cast forbidden）/ staff・cast の RPC 直叩き forbidden / 直 SELECT RLS（owner・manager 自店のみ）");
   console.log("凍結形と明細(裁定264-2/10/11): show_detail=true のみ理由付き・false は合算 1 キー（理由 0 件）・調整なしはキー無し（回帰）・超過は pay の整数 1 キー・明細の並び＝before 源泉直前／after 直後／入力順（renderToStaticMarkup）・cast 本人の直 SELECT に HIDDEN 0 件");

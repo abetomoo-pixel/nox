@@ -49,6 +49,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   STABLE definer・**クライアント grant なし＝内部呼び専用**・非ゲート・`biz_minutes_of` の鏡像）。check_close は
   再作成のみ＝本数不動。対象 **113 不変**・除外 **100→101**・全数 **213→214**。
   ★「grant なしの内部関数は名簿対象外」の想定は誤り＝assert は live pg_proc 全数と A∪B の照合（教訓21・**7例目**）。
+- ★**mig0148 追随（2026-09-18・裁定272）**: 新 RPC **4本**＝ゲート内蔵 3 本を A へ（`check_add_referral`→A1[K]・`set_cast_norm_self`→A7・
+  `set_store_receivable_policy`→A8）・非ゲート 1 本を B(e) へ（`payroll_carryover_sync`＝前期 payslip の adjustOverflow を carryover 行へ upsert／削除する繰越消費＝給与の清算・
+  owner∨manager 自店・draft のみ）。`set_product`／`product_bulk_insert`（白名単 +food/other）／`check_group_due`（referral 除外・内部専用）は CREATE OR REPLACE のみ＝名前不変で本数不動。
+  対象 **125→128**・除外 **116→117**・全数 **241→245**。★教訓21 トリップワイヤの先回り収載（mig 手貼りと同一レーンで名簿＋pin を同時更新・dev 適用済み 9/18 11:1x JST）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -127,7 +131,9 @@ check_dohan_add[K] / check_pay[K] / check_close[K] / **check_void**（裁定D1�
 approval_request / approval_direct / approval_decide / bottle_keep_register[K] /
 **check_extension_add[K]**（mig0089 新設＝manual 店の延長行の作成・ゲートは mig 本文に内蔵） /
 **check_set_people[K]**（mig0090 新設＝開卓後の人数修正・ゲートは mig 本文に内蔵） /
-**check_line_set_group[K]**（mig0091 新設＝会計分けの付け替え・ゲートは mig 本文に内蔵）
+**check_line_set_group[K]**（mig0091 新設＝会計分けの付け替え・ゲートは mig 本文に内蔵） /
+**check_add_referral[K]**（mig0148 新設＝紹介料行（kind 'referral'・product null・紹介者 cast 任意）の追加・check_add_line の冒頭〜role 判定を逐語＝kiosk 腕あり・
+ゲート内蔵・idem＝同キー再送は既存行を返す・裁定272-2＝店が払う手当＝伝票合計・課税額から除外（DB の group due 計算＝案 Q）し cast の gross にのみ載る）
 
 ### A2. ドリンク申告（4本）
 drink_claim_submit / drink_claim_submit_proxy / drink_claim_decide /
@@ -164,7 +170,9 @@ pricing_rule_reorder / set_store_pricing / set_store_time_pricing /
 ### A7. 待遇・報酬マスタ（12本）
 set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_comp_plan / set_cast_plan /
 set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config /
-**set_comp_component**（mig0115＝comp_plan_components の唯一の書き手・owner のみ・ゲート内蔵・裁定86）
+**set_comp_component**（mig0115＝comp_plan_components の唯一の書き手・owner のみ・ゲート内蔵・裁定86） /
+**set_cast_norm_self**（mig0148＝cast 本人の当月ノルマ目標＝A7 の norm setter と同じ本体・cast_id は呼び出し元 JWT から導出で引数に無い・
+店の sys_norms='false' は 'norms off'・ゲート内蔵・監査 set_cast_norm_self・裁定272-3＝R19）
 
 ### A8. 店設定・日報運用（23本）
 **report_reopen**（mig0138＝日報の締め解除・owner∨manager 自店∨staff∧can_reopen・理由必須・監査 report_reopen・C層③＝裁定 C③-1） /
@@ -178,7 +186,9 @@ set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin 
 **set_store_tax_config**（mig0112＝税設定4分離＋card_surcharge・owner∨manager 自店・裁定90） /
 **flag_set**（mig0135＝機能フラグの upsert・org 既定と店舗上書きの二層・owner 限定・課金ゲート・監査 action flag_toggle・理由は任意・C層①＝裁定182） /
 **staff_pattern_set** / **staff_pattern_delete** / **staff_deadline_set**（mig0136＋0137＝黒服の勤務パターン枠と締切＝effective_from 型の店設定・owner∨manager 自店・flag gate の直後に課金ゲート＝裁定233） /
-**staff_shift_propose** / **staff_shift_override** / **staff_shift_confirm**（mig0136＋0137＝黒服シフト行の作成・時刻上書き・確定・owner∨manager 自店・課金ゲート＝裁定233。cast の A5 と同列だが店設定と同じ mig のため A8 に置く）
+**staff_shift_propose** / **staff_shift_override** / **staff_shift_confirm**（mig0136＋0137＝黒服シフト行の作成・時刻上書き・確定・owner∨manager 自店・課金ゲート＝裁定233。cast の A5 と同列だが店設定と同じ mig のため A8 に置く） /
+**set_store_receivable_policy**（mig0148＝stores.receivable_policy 実列の setter・CHECK 3 値（disabled／customer_only／cast_liability_allowed）・
+okuri_mode setter の骨格逐語・owner 限定・ゲート内蔵・監査 set_store_receivable_policy・裁定272-5）
 
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
@@ -212,10 +222,12 @@ punch_self / punch_proxy / kiosk_punch / attendance_set / attendance_set_self
 ### B(d) 打刻導線（3本・B-補2）
 kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解決＝kiosk 打刻の前提ヘルパー）
 
-### B(e) payroll 系一式（5本・給与＝過去労働の清算）
-payroll_run_create / payment_record_add / withholding_payment_record / payroll_adjustment_add / payroll_adjustment_delete
+### B(e) payroll 系一式（6本・給与＝過去労働の清算）
+payroll_run_create / payment_record_add / withholding_payment_record / payroll_adjustment_add / payroll_adjustment_delete / payroll_carryover_sync
 （finalize/mark_paid/reopen は B(a) で既に構造除外）
 （payroll_adjustment_add／_delete＝mig0146・裁定258: ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる）
+（payroll_carryover_sync＝mig0148・裁定272-1: 前期 payslip の adjustOverflow>0 を当 draft run の carryover 行（source='carryover'・部分 unique）へ upsert／0 は削除＝冪等。
+  調整控除 add の actor／org／manager 自店／draft 判定を逐語＝同じく非ゲート。A に載せると対象→live assert が赤になる）
 
 ### B(f) 読取 RPC（44本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
 **staff_pin_status**（mig0108＝PIN 状態の読取・owner∨manager自店・hash 非返却） /
@@ -281,11 +293,11 @@ staff_deactivate / kiosk_deactivate
 | report_can_close / report_can_reopen / assert_day_open | **内部ヘルパー**（mig0138＝締め／解除の権限判定と締め済み営業日の関所・4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型・C③-2／11） |
 | staff_shift_biz_today / staff_shift_gate / staff_pattern_effective / staff_shift_deadline_at | **内部ヘルパー**（4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型。biz_today は 0137 で biz_date_of へ委譲＝裁定232） |
 
-## C. kiosk 腕を持つ対象（実装注意・16本）
+## C. kiosk 腕を持つ対象（実装注意・17本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /
 check_pay / check_close ＋ bottle_keep_register ＋ check_extension_add（mig0089）＋
-check_set_people（mig0090）＋ check_line_set_group（mig0091）。
+check_set_people（mig0090）＋ check_line_set_group（mig0091）＋ check_add_referral（mig0148）。
 （check_void は kiosk 腕なし＝manager 経路のみ。挿入は同じく billing_writable_of(v_org)）
 挿入は **billing_writable_of(v_org)**（引数版・auth 非依存）＝kiosk 腕でも v_org は 0057(2) で確定済み・罠なし。
 段47 (4) で kiosk 腕 locked 拒否を実測。
@@ -303,4 +315,4 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 「live 全数 = 正本 A∪B」機械 assert** が担保（silent drift は f0 が赤にする＝教訓21）。
 非ゲート新設 RPC も mig と同一コミットで B 名簿を追補する（ゲート入りの pin 波及と対称の運用）。
 
-★**現在値（2026-09-15・mig0146 追随後）**: A **125** ＋ B **116** ＝ **241** ＝ live pg_proc 実列挙と一致（前＝mig0145 後 A 125＋B 114＝239・その前 mig0144 後 A 124＋B 114＝238。verify:nox-billing 段47-1 の pin＝対象 125／除外 116／ゲート済み 125／述語参照 126／挿入行の形 125）。
+★**現在値（2026-09-18・mig0148 追随後）**: A **128** ＋ B **117** ＝ **245** ＝ live pg_proc 実列挙と一致（前＝mig0146 後 A 125＋B 116＝241・その前 mig0145 後 A 125＋B 114＝239。verify:nox-billing 段47-1 の pin＝対象 128／除外 117／ゲート済み 128／述語参照 129／挿入行の形 128）。

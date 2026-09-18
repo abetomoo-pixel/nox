@@ -872,6 +872,13 @@ async function main() {
 
         // C1 外税10%のみ（100down）: net=315 sv=round(31.5)=32 base10=347 tax=floor(34.7)=34 → 381→down100=300
         await runCase("C1 10%のみ", {}, async (cid) => { await addCustom(cid, "c1", 105, 3); }, 300);
+        // ★裁定272 追補（案 Q・mig0148 ★10・2026-09-18）: 紹介料行（kind 'referral'・check_add_referral）を載せても
+        //   DB total（check_group_due の referral 除外）＝TS 鏡像（groupDueFull・referral 込み入力）＝手計算（C1 と同じ 300）の三点一致。
+        await runCase("C1r 10%＋紹介料 1000（referral 除外・案 Q）", {}, async (cid) => {
+          await addCustom(cid, "c1r", 105, 3);
+          const { error: eRef } = await owner.rpc("check_add_referral", { p_check_id: cid, p_cast_id: null, p_amount: 1000, p_memo: "verify 紹介料", p_idem_key: null });
+          if (eRef) throw new Error("check_add_referral 拒否: " + eRef.message);
+        }, 300);
         // C2 exempt 行混在: 315(10%)+200(exempt) → net=515 sv=52 base10=367→36 → 603→600
         await runCase("C2 exempt混在", {}, async (cid) => {
           await addCustom(cid, "c2a", 105, 3); await addCustom(cid, "c2b", 200);

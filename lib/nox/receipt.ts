@@ -147,7 +147,9 @@ export function buildReceiptXml(input: ReceiptInput): string {
   const { store, check, payGroup, lines, payments, serviceRate, groupDue, isReprint } = input;
 
   // 金額段（冒頭コメントの順算式＝check_group_due と同式）
-  const gross = lines.filter((l) => l.kind !== "discount").reduce((s, l) => s + l.line_total, 0);
+  // ★裁定272 追補（案 Q・mig0148 ★10）: kind 'referral'（紹介料＝店が払う手当）は客への請求ではない＝
+  //   小計・税率別集計から除外（groupDueFull／DB と同じ 2 箇所）し、明細にも印字しない。
+  const gross = lines.filter((l) => l.kind !== "discount" && l.kind !== "referral").reduce((s, l) => s + l.line_total, 0);
   const discount = lines.filter((l) => l.kind === "discount").reduce((s, l) => s + l.line_total, 0);
   const net = Math.max(0, gross - discount);
   const service = Math.round((net * serviceRate) / 100);
@@ -158,8 +160,8 @@ export function buildReceiptXml(input: ReceiptInput): string {
   const isExcluded = ts.price_display === "tax_excluded" && ts.business_tax_status === "taxable";
   const isExempt = ts.business_tax_status === "exempt";
   const catOf = (l: ReceiptLine) => l.tax_category ?? "taxable_10";
-  const bx10 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_10").reduce((s2, l) => s2 + l.line_total, 0);
-  const bx8 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_8").reduce((s2, l) => s2 + l.line_total, 0);
+  const bx10 = lines.filter((l) => l.kind !== "discount" && l.kind !== "referral" && catOf(l) === "taxable_10").reduce((s2, l) => s2 + l.line_total, 0);
+  const bx8 = lines.filter((l) => l.kind !== "discount" && l.kind !== "referral" && catOf(l) === "taxable_8").reduce((s2, l) => s2 + l.line_total, 0);
   const base10 = Math.max(0, bx10 - discount) + service; // 外税の 10% 基底（clamp＋サ料算入）
   const tax10 = isExcluded ? taxOf(base10, ts.tax_rounding, 10) : 0;
   const tax8 = isExcluded ? taxOf(bx8, ts.tax_rounding, 8) : 0;
@@ -197,8 +199,9 @@ export function buildReceiptXml(input: ReceiptInput): string {
   line(padLine(`No. ${slipNo}`, jstStamp(check.closed_at)));
   line(sep);
 
-  // ── 明細（当該 pay_group のみ・discount はマイナス表記）──
+  // ── 明細（当該 pay_group のみ・discount はマイナス表記・referral は印字しない＝裁定272 追補）──
   for (const l of lines) {
+    if (l.kind === "referral") continue;
     if (l.kind === "discount") {
       line(padLine(`割引 ${l.name_snapshot}`, `-${yen(l.line_total)}`));
     } else {
