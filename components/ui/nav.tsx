@@ -16,22 +16,29 @@ import { usePathname } from "next/navigation";
 import Modal from "./modal"; // ★裁定251（M2）: 「その他」シートは共通 Modal 部品を通す
 
 export type NavItem = { href: string; label: string };
-/** 群（label=null は見出しを出さない＝ホームや /mine のようなフラット表示） */
-export type NavGroup = { label: string | null; items: NavItem[] };
+/** 群（label=null は見出しを出さない＝ホームや /mine のようなフラット表示）。
+ *  ★裁定275（M12/M13・2026-09-18）: gear=true の群は ≤899 で「その他」ではなく「歯車」Modal に出す（900+ のサイドバーでは従来どおり下部の群）。 */
+export type NavGroup = { label: string | null; items: NavItem[]; gear?: boolean };
 
 // 段0R その2: hideSide＝900+ のサイドバーを (manage)/layout の .nox-side（aaa 基準シェル）へ移したため
 //   TabBar 側の .nox-nav-side を出さないためのフラグ。既定 false＝/mine は従来どおり両方出す。
-export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGroup[]; spPriority?: string[]; hideSide?: boolean }) {
+export function TabBar({ groups, spPriority, hideSide = false, gear = false }: { groups: NavGroup[]; spPriority?: string[]; hideSide?: boolean; gear?: boolean }) {
   const path = usePathname() ?? "";
   const [sheet, setSheet] = useState(false);
+  // ★裁定275: 歯車 Modal（gear=true の群＋ログアウト）。「その他」Modal と同形・同じ閉じ方。
+  const [gearOpen, setGearOpen] = useState(false);
   // ★裁定251（M2）: Esc で閉じる（シートが開いている間だけ keydown を購読）
   useEffect(() => {
-    if (!sheet) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSheet(false); };
+    if (!sheet && !gearOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setSheet(false); setGearOpen(false); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [sheet]);
+  }, [sheet, gearOpen]);
   const flat = groups.flatMap((g) => g.items);
+  // ★裁定275: ≤899 の振り分け＝gear 群は歯車へ・それ以外は従来どおり（spPriority 4 本＋残りは「その他」）
+  const gearGroups = groups.filter((g) => g.gear);
+  const gearItems = gearGroups.flatMap((g) => g.items);
+  const nonGear = groups.filter((g) => !g.gear).flatMap((g) => g.items);
 
   // 最長一致で active を1つに絞る（/mine と /mine/wishes の二重点灯を防ぐ）
   const active = flat.reduce<string>((best, it) => {
@@ -42,10 +49,11 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
 
   // ≤899 のボトムタブ：spPriority 指定時はその順で最大4本、残りは「その他」シートへ。
   const primary = spPriority
-    ? spPriority.map((href) => flat.find((it) => it.href === href)).filter((x): x is NavItem => !!x).slice(0, 4)
-    : flat;
-  const rest = flat.filter((it) => !primary.some((p) => p.href === it.href));
+    ? spPriority.map((href) => nonGear.find((it) => it.href === href)).filter((x): x is NavItem => !!x).slice(0, 4)
+    : nonGear;
+  const rest = nonGear.filter((it) => !primary.some((p) => p.href === it.href));
   const restActive = rest.some((it) => it.href === active);
+  const gearActive = gearItems.some((it) => it.href === active);
 
   return (
     <>
@@ -77,6 +85,12 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
             その他
           </button>
         )}
+        {/* ★裁定275: 歯車＝設定系の群（マスタ／お知らせ／監査／ご契約）＋ログアウト。gear=false（/mine）では描かない */}
+        {gear && (
+          <button type="button" className={gearActive ? "nox-tab on" : "nox-tab"} aria-label="設定" onClick={() => setGearOpen(true)}>
+            <span aria-hidden="true">⚙</span>
+          </button>
+        )}
       </nav>
 
       {/* 「その他」＝残り項目のシート。★裁定251（M2・2026-09-14）: className の借用（地色・padding・角丸が当たらず
@@ -106,6 +120,36 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
                 </div>
               );
             })}
+          </div>
+        </Modal>
+      )}
+
+      {/* ★裁定275: 歯車 Modal＝「その他」Modal の写経（同じ部品・同じ閉じ方）。項目は gear=true の群のみ。
+          脚にログアウト（form POST /auth/signout＝(manage)/layout の topbar と同じ経路・POST 不変）。 */}
+      {gear && gearOpen && (
+        <Modal onClose={() => setGearOpen(false)} maxWidth={520} scroll>
+          <div className="nox-navsheet">
+            <div className="nox-formmodal-head" style={{ marginBottom: 10 }}>
+              <h2 className="nox-navsheet-h" style={{ margin: 0 }}>設定</h2>
+              <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => setGearOpen(false)}>×</button>
+            </div>
+            {gearGroups.map((g, gi) => (
+              <div key={g.label ?? `gear${gi}`} className="nox-navsheet-g">
+                {g.label && <div className="nox-navgroup-h">{g.label}</div>}
+                {g.items.map((it) => (
+                  <Link key={it.href} href={it.href}
+                    className={it.href === active ? "nox-navsheet-i on" : "nox-navsheet-i"}
+                    onClick={() => setGearOpen(false)}>
+                    {it.label}
+                  </Link>
+                ))}
+              </div>
+            ))}
+            <div className="nox-navsheet-g nox-actions" style={{ marginTop: 14 }}>
+              <form action="/auth/signout" method="post" style={{ display: "flex" }}>
+                <button type="submit" className="nox-btn ghost">ログアウト</button>{/* ★裁定242-(6): ログアウト＝補助（青枠） */}
+              </form>
+            </div>
           </div>
         </Modal>
       )}

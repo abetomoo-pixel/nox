@@ -80,8 +80,11 @@ export default async function ManageLayout({ children }: { children: React.React
           ...(isManagerUp ? [{ href: "/analytics", label: "分析" }] : []),
           // R2-c（mig0099）: 領収書の発行台帳（RLS select も owner/manager 自店＝表示ナビと二重）
           ...(isManagerUp ? [{ href: "/receipts", label: "領収書" }] : []),
+          // ★裁定275（M13）: 「その他」に在庫のリンク 1 本（既存画面 /master/stock＝MASTER_NAV の商品・料金群にもある・URL 不変）
+          ...(isManagerUp ? [{ href: "/master/stock", label: "在庫" }] : []),
         ] },
-        { label: "店舗", items: [
+        // ★裁定275（M12/M13）: 店舗群＝歯車の口（≤899 は歯車 Modal・900+ はサイドバー下部＝並びは従来どおり最後）。項目集合・role 条件は不変。
+        { label: "店舗", gear: true, items: [
           ...(isManagerUp ? [{ href: "/master", label: "マスタ" }] : []),
           { href: "/notices", label: "お知らせ" },
           // 監査ログは owner 限定（RLS も owner 限定＝mig0002・非 owner は 0行。ここは表示ナビ）
@@ -116,10 +119,12 @@ export default async function ManageLayout({ children }: { children: React.React
                 ★店名は**サイドバーの brand**（モックと同じ「N / NOX / CLUB NOX」）に置いたので
                   topbar には出さない＝同じ情報を2箇所に出さない。
                 右は従来どおりロール表示＋ログアウト＝モックの管理者チップ位置と一致。 */}
-            <div className="crumb" aria-hidden="true" />
+            {/* ★裁定275（M12）: ≤899 はヘッダ左にロゴ（SideNav の .brand 写経・900+ はサイドバーに同じ brand があるため CSS で隠す＝同じ情報を 2 箇所に出さない） */}
+            <div className="crumb nox-tb-brand" aria-hidden="true"><span className="brandmark">N</span><b>NOX</b></div>
             <div className="acts">
               <span style={t.rolePill}>{t.roleLabelJa(role as string)}</span>
-              <form action="/auth/signout" method="post" style={{ display: "flex" }}>
+              {/* ★裁定275（M12）: ≤899 のログアウトは下タブの歯車 Modal に集約（CSS で隠す）。900+ は従来どおりここ。POST /auth/signout は不変 */}
+              <form action="/auth/signout" method="post" className="nox-tb-logout" style={{ display: "flex" }}>
                 <button type="submit" className="nox-btn ghost">ログアウト</button>{/* ★裁定242-(6): ログアウト＝補助（青枠） */}
               </form>
             </div>
@@ -132,7 +137,8 @@ export default async function ManageLayout({ children }: { children: React.React
       </div>
       {/* 段N: SP（≤899）はボトムタブ4本（ホーム/レジ/シフト/キャスト）＋「その他」シート。
           cast は項目が レジ 1本のみ＝その他は出ない（従来と同一）。 */}
-      <TabBar groups={groups} spPriority={["/dashboard", "/register", "/shift", "/casts"]} hideSide />
+      {/* ★裁定275（M13）: 下タブ＝ホーム／レジ／日報／シフト（旧: ホーム／レジ／シフト／キャスト）・その他＝残り（キャスト／スタッフ／顧客／給与／分析／領収書／在庫）・歯車＝店舗群＋ログアウト */}
+      <TabBar groups={groups} spPriority={["/dashboard", "/register", "/report", "/shift"]} hideSide gear />
     </div>
   );
 }

@@ -1299,6 +1299,16 @@ body {
 /* モック .crumb 位置（左）。NOX は各ページが自前の見出しを持つため店名を置く。 */
 .nox-tb .crumb { font-size: 13px; color: var(--sub); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nox-tb .acts { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+/* ★裁定275（M12・2026-09-18）: ≤899 のヘッダ左ロゴ（.nox-side .brand の縮小写経）と、ログアウトの歯車集約。900+ は従来の見た目（ロゴ非表示・ログアウトは topbar） */
+.nox-tb .nox-tb-brand { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.nox-tb .nox-tb-brand .brandmark { width: 26px; height: 26px; border: 1px solid var(--gold); border-radius: 6px; display: grid; place-items: center; color: var(--gold2); font: 12px var(--font-serif); flex-shrink: 0; }
+.nox-tb .nox-tb-brand b { font-size: 13px; }
+@media (min-width: 900px) {
+  .nox-tb .nox-tb-brand { display: none; }
+}
+@media (max-width: 899px) {
+  .nox-tb .nox-tb-logout { display: none !important; }
+}
 @media (max-width: 641px) {
   .nox-tb { padding: 0 14px; }
 }
