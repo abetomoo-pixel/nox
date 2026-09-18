@@ -80,12 +80,22 @@ export type WageDay = {
   basis: WageBasis;
 };
 
+// ★夜間便 N3（裁定287-5・2026-09-18）: キャスト個別・期限つきの保証時給（cast_plan.overrides_json.guarantee=true の行）を営業日単位で base に当てる。
+//   保証が 1 日でも効いた cast にだけ guarantee（基本／保証の 2 区分＝時間数と金額・期間）を返す＝無い cast の出力は従来と 1 バイト同値。
+export type GuaranteeSpan = { from: string; to: string | null; base: number }; // 'YYYY-MM-DD'（to null＝期末まで）
+export type GuaranteeDetail = {
+  spans: GuaranteeSpan[];
+  baseHours: number; basePay: number;   // 保証の効かない日（基本時給・スライド）の Σhours／Σ(日時給×hours)
+  guaHours: number; guaPay: number;     // 保証の効く日の Σhours／Σ(日時給×hours)（スライドが上回る日も保証期間として数える）
+};
+
 export type WageDetail = {
   wage: number; // 加重平均時給
   timePay: number; // roundYen(Σ 日時給×hours)
   wHours: number; // roundPt1(Σ hours)
   wbasis: Partial<Record<WageBasis, number>>; // 採用日数の内訳
   wdays: WageDay[]; // 日次内訳（明細表示用）
+  guarantee?: GuaranteeDetail; // ★N3: 保証が効いた日があるときだけ
 };
 
 export type MetricKey =
@@ -202,6 +212,9 @@ export type PayInput = {
   // ★裁定272-2（0148）: 紹介料＝窓内 closed 伝票の check_lines kind='referral' ∧ cast_id=本人 の Σline_total（collect が集計）。
   //   optional＝既存呼び出し・fixture は 0 扱い（空で従来と 1 バイト同値）。gross に入る＝源泉対象。
   referralTotal?: number;
+  // ★夜間便 N3（裁定287-5）: 営業日ごとの保証時給（d＝日番号→base）。未指定＝従来と 1 バイト同値。spans は表示・凍結用
+  guaranteeByDay?: Record<number, number>;
+  guaranteeSpans?: GuaranteeSpan[];
   // ★裁定98: sanction 二層ガードの文脈。employment 未設定（null/undefined）で sanction 行がある cast は
   //   core が 'no_employment' blocker で先に止める＝payOf がここで null を見るのは sim 経路のみ（現行式同値で計算）。
   employment?: "委託" | "雇用" | null; // casts.employment
@@ -235,6 +248,7 @@ export type PayResult = {
   wHours: number;
   wbasis: Partial<Record<WageBasis, number>>;
   wdays: WageDay[];
+  guarantee?: GuaranteeDetail; // ★N3: 保証が効いた cast だけ（breakdown_json に凍結される）
   honBack: number;
   jonaiBack: number;
   dohanBack: number;
@@ -332,7 +346,10 @@ export function wageDetail(
   eplan: CompPlan,
   pts: number,
   fallbackSales: number,
+  baseByDay?: Record<number, number>,   // ★N3: 営業日ごとの保証時給（無い日は eplan.base）
+  spans?: GuaranteeSpan[],
 ): WageDetail {
+  let gHours = 0, gPay = 0, bHours = 0, bPay = 0, gAny = false;
   const totalSales =
     daily.reduce((sum, r) => sum + r.sales, 0) || fallbackSales || 1;
   let weighted = 0; // Σ 日時給×hours
@@ -343,8 +360,10 @@ export function wageDetail(
     const dayPts = roundPt1(pts * (r.sales / totalSales));
     const bySales = slideAt(eplan.salesSlide, r.sales);
     const byPts = slideAt(eplan.pointSlide, dayPts);
-    const base = eplan.base || 0;
+    const gBase = baseByDay?.[r.d];
+    const base = gBase !== undefined ? Math.max(gBase, eplan.base || 0) : (eplan.base || 0);   // ★N3: 保証期間の日は max(保証額, 基本)＝minimum 相当（287-3）   // ★N3: 保証期間の日は max(保証額, 基本)＝minimum 相当（287-3）
     const hourly = Math.max(bySales, byPts, base);
+    if (gBase !== undefined) { gAny = true; gHours += r.hours; gPay += hourly * r.hours; } else { bHours += r.hours; bPay += hourly * r.hours; }
     // 同値時の優先: 売上 > ポイント > 保証（モックの判定式そのまま）
     const basis: WageBasis =
       hourly === bySales && bySales >= byPts && bySales >= base
@@ -360,6 +379,7 @@ export function wageDetail(
   return {
     wage: hours > 0 ? roundYen(weighted / hours) : eplan.base || 0,
     timePay: roundYen(weighted),
+    ...(gAny ? { guarantee: { spans: spans ?? [], baseHours: roundPt1(bHours), basePay: roundYen(bPay), guaHours: roundPt1(gHours), guaPay: roundYen(gPay) } } : {}),
     wHours: roundPt1(hours),
     wbasis,
     wdays,
@@ -504,7 +524,7 @@ export function payOf(input: PayInput): PayResult {
 
   const { eplan, hasOv } = applyOverride(input.plan, input.override);
 
-  const wd = wageDetail(input.daily, eplan, castPts(cast, input.pointProducts), cast.sales);
+  const wd = wageDetail(input.daily, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans); // ★N3
 
   // 指名バック（hon/jonai は実績・dohan は sim 上書き可＝モック te と同一）
   // mig0086: mode='rate' は Σ指名料行×%（母数=check_lines・裁定iii/vi・丸めは Σ後 roundYen 1回=裁定iv）。
@@ -663,6 +683,7 @@ export function payOf(input: PayInput): PayResult {
     wHours: wd.wHours,
     wbasis: wd.wbasis,
     wdays: wd.wdays,
+    ...(wd.guarantee ? { guarantee: wd.guarantee } : {}), // ★N3: 保証が効いた cast だけキーを持つ（凍結の互換）
     honBack,
     jonaiBack,
     dohanBack,

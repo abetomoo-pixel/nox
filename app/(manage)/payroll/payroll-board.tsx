@@ -42,6 +42,7 @@ type Row = {
       plan?: { name?: string }; // ★U-1 是正B: 右パネルのプラン名（PayResult.plan エコー）
       adjBefore?: number; adjAfter?: number; adjustOverflow?: number; // ★裁定258／264: 調整控除（源泉前／後）と net 0 床の超過額
       referralTotal?: number; // ★裁定272-2: 紹介料
+      guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number }; // ★N3
     };
     extras?: { amount: number }[];
   };
@@ -759,7 +760,13 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 const sanctionOriginal = z(pay.sanction?.original);
                 const whLabel = r.taxMode === "委託" ? "源泉（報酬・料金）" : r.taxMode === "雇用" ? "源泉（給与）" : "源泉";
                 const earnRows: [string, number][] = [
-                  ["保証給与", z(pay.timePay)], ["最低保証加算", z(pay.guaranteeAdd)],
+                  ["保証給与", z(pay.timePay)],
+                  // ★夜間便 N3（裁定287-5）: 保証時給が効いた cast だけ 2 区分（基本／保証）＝無い cast は従来の行のまま
+                  ...(pay.guarantee ? ([
+                    [`　うち基本（${pay.guarantee.baseHours}h）`, z(pay.guarantee.basePay)],
+                    [`　うち保証 ${pay.guarantee.spans.map((s) => `${Number(s.from.slice(5, 7))}/${Number(s.from.slice(8, 10))}〜${s.to ? `${Number(s.to.slice(5, 7))}/${Number(s.to.slice(8, 10))}` : ""} ¥${s.base.toLocaleString()}`).join("／")}（${pay.guarantee.guaHours}h）`, z(pay.guarantee.guaPay)],
+                  ] as [string, number][]) : []),
+                  ["最低保証加算", z(pay.guaranteeAdd)],
                   ["本指名", z(pay.honBack)], ["場内", z(pay.jonaiBack)], ["同伴", z(pay.dohanBack)],
                   ["歩合", z(pay.salesBack)], ["達成ボーナス", z(pay.achievementBonus)],
                   ["その他バック", z(pay.drinkBack) + z(pay.champBack) + z(pay.bottleBack) + z(pay.customTotal) + extrasTotal],

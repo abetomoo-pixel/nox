@@ -44,6 +44,8 @@ export type CastRaw = {
   anomalyCount: number; // out 欠損等 S8 anomaly のある日数（表示のみ・論点3）
   plan: CompPlan | null; // cast_plan 未設定なら null（core が blocker 化）
   override?: PlanOverride;
+  // ★夜間便 N3（裁定287-5）: 期と重なる保証行（cast_plan.overrides_json.guarantee=true）。collect が格納・fixture は省略＝従来と同値
+  guarantees?: { validFrom: string; validTo: string | null; base: number }[];
   norm: { days: number; dohan: number; salesTarget?: number }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
   employment: "委託" | "雇用" | null; // ★裁定98: casts.employment（null＋sanction 行ありは core が no_employment blocker）
@@ -71,6 +73,19 @@ function dayNum(bizDate: string): number {
 // ★periodDays / extrasTotal は必須（既定値を置かない＝呼び出し側が必ず明示する）。
 //   periodDays は「計算期間の暦日数（両端含む）」＝源泉の 5,000円×日数 の日数（裁定23）。
 //   extrasTotal は出勤ボーナス等の加算合計＝gross に入り源泉対象になる（裁定23-b ①）。
+/** ★N3: 保証行（valid_from〜valid_to）を営業日ごとの base に写す。保証行が期の日に 1 日も掛からなければ {}（キーを足さない） */
+export function guaranteeInputOf(raw: Pick<CastRaw, "daily" | "guarantees">): Pick<PayInput, "guaranteeByDay" | "guaranteeSpans"> {
+  const gs = raw.guarantees ?? [];
+  if (gs.length === 0) return {};
+  const byDay: Record<number, number> = {};
+  for (const d of raw.daily) {
+    const g = gs.find((x) => x.validFrom <= d.bizDate && (x.validTo === null || d.bizDate <= x.validTo));
+    if (g) byDay[dayNum(d.bizDate)] = g.base;
+  }
+  if (Object.keys(byDay).length === 0) return {};
+  return { guaranteeByDay: byDay, guaranteeSpans: gs.map((g) => ({ from: g.validFrom, to: g.validTo, base: g.base })) };
+}
+
 export function buildPayInput(
   raw: CastRaw,
   taxMode: TaxMode,
@@ -90,6 +105,7 @@ export function buildPayInput(
     daily: raw.daily.map((d) => ({ d: dayNum(d.bizDate), hours: d.hours, sales: d.sales })),
     plan: raw.plan,
     override: raw.override,
+    ...guaranteeInputOf(raw), // ★N3: 保証行が無ければ何も足さない（キー自体を持たない＝従来と 1 バイト同値）
     productBack: raw.productBack,
     calculatedBack: raw.calculatedBack, // ★裁定113
     referralTotal: raw.referralTotal ?? 0, // ★裁定272-2

@@ -79,7 +79,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
     //   b) 無ければ期間内（期首 < valid_from ≤ 期末）で最も早い valid_from の行＝backfill 導入月の救済。日割りなし。
     //   c) どちらも無ければ plan なし＝no_plan blocker（従来どおり）。
     //   UI 系（comp-sections）の現在行読み（valid_to is null）は別経路＝不変。
-    admin.from("cast_plan").select("cast_id, plan_id, overrides_json, valid_from").eq("store_id", storeId)
+    admin.from("cast_plan").select("cast_id, plan_id, overrides_json, valid_from, valid_to").eq("store_id", storeId) // ★N3: valid_to も読む（保証行の期間）
       .lte("valid_from", periodEnd)
       .or(`valid_to.is.null,valid_to.gte.${period}-01`),
     admin.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
@@ -135,10 +135,16 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
   //   期首行は部分 unique＋set_cast_plan の区間検証で高々1行＝2行以上は不正データとして throw（黙って片方を採らない）。
   const periodStart = `${period}-01`;
   const castPlanByCast = new Map<string, { planId: string; override: PlanOverride }>();
+  // ★夜間便 N3（裁定287-5）: 保証行（overrides_json.guarantee=true）は期首行の選択（裁定97）とは別に、期と重なる全行を cast 別に控える
+  const guaranteesByCast = new Map<string, { validFrom: string; validTo: string | null; base: number }[]>();
   {
     const rowsByCast = new Map<string, { planId: string; override: PlanOverride; validFrom: string }[]>();
     for (const c of (castPlanR.data ?? []) as Record<string, unknown>[]) {
       const cid = c.cast_id as string;
+      const ov = (c.overrides_json ?? {}) as Record<string, unknown>;
+      if (ov.guarantee === true && typeof ov.base === "number") {
+        (guaranteesByCast.get(cid) ?? guaranteesByCast.set(cid, []).get(cid)!).push({ validFrom: c.valid_from as string, validTo: (c.valid_to as string | null) ?? null, base: ov.base as number });
+      }
       const row = { planId: c.plan_id as string, override: (c.overrides_json ?? {}) as PlanOverride, validFrom: c.valid_from as string };
       (rowsByCast.get(cid) ?? rowsByCast.set(cid, []).get(cid)!).push(row);
     }
@@ -186,7 +192,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
   const lateGrace = (pen?.late_grace_min as number) ?? undefined;
   const earlyGrace = (pen?.early_grace_min as number) ?? undefined;
   const overGrace = (pen?.over_grace_min as number) ?? undefined;
-  return { plansById, castPlanByCast, masters, normByCast, taxByCast, grace: { lateGrace, earlyGrace, overGrace } };
+  return { plansById, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace: { lateGrace, earlyGrace, overGrace } }; // ★N3: guaranteesByCast
 }
 
 // 窓内 closed 非 void の会計から cast 別のバック・pt・champ/bottle 本数を集計。
@@ -537,7 +543,7 @@ export async function collectPeriod(
   if (eS) throw new Error(`get_cast_sales: ${eS.message}`);
   const salesRows = (salesData ?? []) as SalesRow[];
 
-  const [{ plansById, castPlanByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
+  const [{ plansById, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
     loadMasters(admin, storeId, win.period, win.periodEnd),
     loadAccounting(admin, storeId, win),
     loadIncentives(admin, storeId, win),
@@ -610,6 +616,7 @@ export async function collectPeriod(
       anomalyCount: p?.anomalyCount ?? 0,
       plan,
       override: cp?.override,
+      ...(guaranteesByCast.has(cid) ? { guarantees: guaranteesByCast.get(cid) } : {}), // ★N3
       norm: normByCast.get(cid) ?? { days: 0, dohan: 0, salesTarget: 0 },
       taxProfileMode: taxByCast.get(cid) ?? null,
       employment: employmentById.get(cid) ?? null, // ★裁定98: 二層ガードの分岐キー

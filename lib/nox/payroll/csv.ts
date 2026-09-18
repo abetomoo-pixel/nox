@@ -68,7 +68,18 @@ const csvEsc = (v: string | number): string => {
 };
 
 // BOM UTF-8 ＋ CRLF ＋ ヘッダ固定。空 run はヘッダ1行のみ（末尾改行なし＝BANZEN 写経）。
+// ★夜間便 N3（裁定287-5）: 保証時給が効いた cast の時給内訳（基本／保証）。1 人も無ければ列を足さない（11 列・従来と 1 バイト同値）
+type GuaranteeLike = { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number };
+const md = (ymd: string) => `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
+export function guaranteeCellOf(g: GuaranteeLike | undefined): string {
+  if (!g) return "";
+  const span = g.spans.map((s) => `${md(s.from)}〜${s.to ? md(s.to) : ""}・¥${s.base}`).join("／");
+  return `基本 ${g.baseHours}h ¥${g.basePay}／保証 ${span} ${g.guaHours}h ¥${g.guaPay}`;
+}
 export function buildPayrollCsv(rows: PayrollCsvRow[]): string {
-  const lines: (string | number)[][] = [PAYROLL_CSV_HEADER.slice(), ...rows.map(payrollCsvCells)];
+  const withG = rows.some((r) => !!(r.pay as { guarantee?: GuaranteeLike }).guarantee);
+  const lines: (string | number)[][] = withG
+    ? [[...PAYROLL_CSV_HEADER, "時給内訳"], ...rows.map((r) => [...payrollCsvCells(r), guaranteeCellOf((r.pay as { guarantee?: GuaranteeLike }).guarantee)])]
+    : [PAYROLL_CSV_HEADER.slice(), ...rows.map(payrollCsvCells)];
   return "﻿" + lines.map((r) => r.map(csvEsc).join(",")).join("\r\n");
 }

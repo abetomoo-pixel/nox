@@ -397,6 +397,28 @@ eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
   eq("T11-7 整数のまま（浮動小数なし）", Number.isInteger(r1.gross) && Number.isInteger(r1.net), true);
 }
 
+// ── T12 ★夜間便 N3（裁定287-5）: 保証時給の営業日単位適用（guaranteeByDay＝d→base・無指定は従来と 1 バイト同値）
+//   逆テスト＝pay.ts wageDetail の `const base = gBase ?? (eplan.base || 0);` を `const base = eplan.base || 0;` にする→T12-1 赤・戻して緑
+{
+  const P_G: CompPlan = { id: "p_g", name: "保証検証", base: 3000, honBack: 0, jonaiBack: 0, dohanBack: 0, salesSlide: [{ at: 100_000, wage: 5000 }], pointSlide: [] };
+  const daily = [1, 2, 3, 4].map((d) => ({ d, hours: 5, sales: 30_000 }));
+  const baseIn: PayInput = { ...REINA_INPUT, cast: { hon: 0, jonai: 0, dohan: 0, days: 4, sales: 120_000 }, daily, plan: P_G, pointProducts: 0, customBackDefs: [], deductions: [], periodDays: 30, extrasTotal: 0 };
+  const g0 = payOf(baseIn);
+  eq("T12-0 保証なし＝guarantee キー無し・wage 3000", `${g0.wage}/${"guarantee" in g0}`, "3000/false");
+  const gAll = payOf({ ...baseIn, guaranteeByDay: { 1: 4000, 2: 4000, 3: 4000, 4: 4000 }, guaranteeSpans: [{ from: "2026-07-01", to: "2026-07-31", base: 4000 }] });
+  eq("T12-1 期の全日が保証 4000→wage 4000・保証 20h ¥80,000・基本 0h", `${gAll.wage}/${gAll.guarantee?.guaHours}/${gAll.guarantee?.guaPay}/${gAll.guarantee?.baseHours}/${gAll.guarantee?.basePay}`, "4000/20/80000/0/0");
+  const gEnd = payOf({ ...baseIn, guaranteeByDay: { 1: 4000, 2: 4000 }, guaranteeSpans: [{ from: "2026-07-01", to: "2026-07-02", base: 4000 }] });
+  eq("T12-2 期の途中で保証が切れる（1〜2 日）→ 保証 10h ¥40,000・基本 10h ¥30,000・wage 3500", `${gEnd.wage}/${gEnd.guarantee?.guaPay}/${gEnd.guarantee?.basePay}/${gEnd.timePay}`, "3500/40000/30000/70000");
+  const gStart = payOf({ ...baseIn, guaranteeByDay: { 3: 4000, 4: 4000 }, guaranteeSpans: [{ from: "2026-07-03", to: null, base: 4000 }] });
+  eq("T12-3 期の途中から保証が始まる（3〜4 日）→ 同額の鏡像・wdays の hourly は 3000,3000,4000,4000", `${gStart.timePay}/${gStart.wdays.map((d) => d.hourly).join(",")}`, "70000/3000,3000,4000,4000");
+  const gLow = payOf({ ...baseIn, guaranteeByDay: { 1: 2500, 2: 2500, 3: 2500, 4: 2500 }, guaranteeSpans: [{ from: "2026-07-01", to: null, base: 2500 }] });
+  eq("T12-4 保証額が基本より低い（2500）→ 基本 3000 が採られる（max）・保証区分の時間は数える", `${gLow.wage}/${gLow.wdays[0].hourly}/${gLow.guarantee?.guaHours}`, "3000/3000/20");
+  const gSlide = payOf({ ...baseIn, daily: [{ d: 1, hours: 5, sales: 120_000 }, { d: 2, hours: 5, sales: 30_000 }], cast: { ...baseIn.cast, days: 2 }, guaranteeByDay: { 1: 4000, 2: 4000 }, guaranteeSpans: [{ from: "2026-07-01", to: null, base: 4000 }] });
+  eq("T12-5 スライドが保証を上回る日（売上 120k→5000）＝スライド採用・basis 売上・保証区分にも時間が入る", `${gSlide.wdays[0].hourly}/${gSlide.wdays[0].basis}/${gSlide.wdays[1].hourly}/${gSlide.guarantee?.guaHours}`, "5000/売上/4000/10");
+  const reinaAgain = payOf(REINA_INPUT);
+  eq("T12-6 golden 不変（玲奈 5931／125802・guarantee キー無し）", `${reinaAgain.wage}/${reinaAgain.withholding}/${"guarantee" in reinaAgain}`, "5931/125802/false");
+}
+
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);
