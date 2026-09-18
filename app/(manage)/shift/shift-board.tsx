@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange, addDays } from "@/lib/nox/biz-date";
 import { fmtWin, fmtBand30, hm2min, min2hm, spanMinutes } from "@/lib/nox/shift-time";
 import { lateMinutesOf } from "@/lib/nox/shift/late"; // ★裁定268: 遅刻分数（KPI 未着判定と行表示の単一式）
+import { SHIFT_VIEWS, VIEW_TABS, tabOfView, viewOfTab } from "@/lib/nox/shift/tabs"; // ★裁定274（R15）: 3 タブの写像
 import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
@@ -455,7 +456,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     const { error } = await supabase.rpc("shift_set", {
       p_id: s.id, p_cast_id: s.cast_id, p_date: s.date, p_start_hm: s.start_hm, p_end_hm: s.end_hm, p_status: "confirmed",
     });
-    setMsg(error ? `確定に失敗: ${rpcErrJa(error.message)}` : "確定しました");
+    setMsg(error ? `承認に失敗: ${rpcErrJa(error.message)}` : "承認しました");
     await load();
   }
 
@@ -505,7 +506,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       p_wish_deadline: pe.wish_deadline, p_status: st,
     });
     setMsg(error ? `計画の状態変更に失敗: ${rpcErrJa(error.message)}`
-      : st === "published" ? "スタッフに公開しました。シフトの確定は「承認待ち」タブから" : `計画を「${PERIOD_ST_LABEL[st] ?? st}」にしました`); // ★裁定253 R12(e)
+      : st === "published" ? "スタッフに公開しました。シフトの承認は「確定」タブの承認待ちから" : `計画を「${PERIOD_ST_LABEL[st] ?? st}」にしました`); // ★裁定253 R12(e)
     await load();
   }
 
@@ -528,22 +529,22 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const bulkErrJa = (m: string) => (m.includes("bad rows") || m.includes("concurrent change") ? "他の操作と競合しました。最新状態を確認してください" : rpcErrJa(m));
   async function confirmBulkShifts(ids: string[]) {
     if (ids.length === 0) return;
-    if (!confirm(`表示中の予定・確認待ち ${ids.length}件をまとめて確定しますか？`)) return;
+    if (!confirm(`表示中の予定・確認待ち ${ids.length}件をまとめて承認しますか？`)) return;
     setMsg(null);
     let done = 0;
     for (const chunk of chunkOf(ids, 62)) {
       const { data: n, error } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: chunk });
-      if (error) { setMsg(`${done}／${ids.length}件確定・残りは再試行してください（${bulkErrJa(error.message)}）`); await load(); return; }
+      if (error) { setMsg(`${done}／${ids.length}件承認・残りは再試行してください（${bulkErrJa(error.message)}）`); await load(); return; }
       done += Number(n ?? chunk.length);
     }
-    setMsg(`${done}件を確定しました`);
+    setMsg(`${done}件を承認しました`);
     await load();
   }
   // ★裁定245-2: 承認待ちの行「確定」＝shift_confirm_bulk を 1 件で（planned／proposed とも・キャスト確認の有無に依らない）
   async function confirmOne(id: string) {
     setMsg(null);
     const { error } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: [id] });
-    setMsg(error ? `確定に失敗: ${bulkErrJa(error.message)}` : "確定しました");
+    setMsg(error ? `承認に失敗: ${bulkErrJa(error.message)}` : "承認しました");
     await load();
   }
 
@@ -833,8 +834,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const unconfirmedN = shifts.filter((x) => x.date.slice(0, 7) === month && (x.status === "proposed" || (castConfirm && x.status === "planned"))).length;
   const confirmCta = isManagerUp && unconfirmedN > 0 ? (
     <div className="nox-actions nox-noprint" style={{ marginTop: 10, marginBottom: 10 }}>
-      <button type="button" style={btnDark} title="承認待ちタブで内容を確認してから確定します"
-        onClick={() => { setDayModal(""); setTab("queue"); }}>確定する（{unconfirmedN} 件）</button>
+      <button type="button" style={btnDark} title="承認待ちで内容を確認してから承認します"
+        onClick={() => { setDayModal(""); setTab("queue"); }}>承認する（{unconfirmedN} 件）</button>
     </div>
   ) : null;
 
@@ -864,19 +865,30 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       {staffFlag && target === "staff" ? (
         <StaffShiftBoard storeId={storeId} role={role} cutoff={cutoff} />
       ) : (<>
+      {/* ★裁定274（R15・2026-09-18）: 5 タブ→3 タブ（今日／作る＝[作成|仮シフト]／確定＝[承認待ち|確定シフト]）。
+          旧 5 キー（today／queue／build／calendar／roster）は state・setTab・各パネルの分岐とも据え置き＝lib/nox/shift/tabs.ts で写像
+          （他所からの setTab("queue") 等の深リンクは不変）。語は 3 語固定（公開／承認／確定）。 */}
       <nav className="nox-subnav">
-        {([["today", "今日"], ["queue", "承認待ち"], ["build", "シフト作成"],
-           ["calendar", "仮シフト"], ["roster", "確定シフト"]] as const).map(([k, label]) => (
-          <button key={k} className={tab === k ? "on" : ""} onClick={() => { setDayModal(""); setTab(k); }}>
+        {SHIFT_VIEWS.map(([v, label]) => (
+          <button key={v} className={viewOfTab(tab) === v ? "on" : ""} onClick={() => { setDayModal(""); setTab(tabOfView(v, tab)); }}>
             {/* ★SC-8 ⑦: today だけラベルを選択日に追従させる（key は "today" のまま＝裁定44）。 */}
-            {k === "today" ? tdLabel : label}
-            {/* ★v4.1 H2: 件数は丸数字（①〜⑳・モック「承認待ち ④」逐語）。21 件以上は素の数字にフォールバック */}
-            {k === "queue" && wishes.length > 0 && (
+            {v === "today" ? tdLabel : label}
+            {/* ★v4.1 H2: 件数は丸数字（①〜⑳・モック「承認待ち ④」逐語）。21 件以上は素の数字にフォールバック。承認待ちは「確定」タブの中＝バッジはそこに */}
+            {v === "confirm" && wishes.length > 0 && (
               <span className="nox-tabcnt num">{wishes.length <= 20 ? String.fromCodePoint(0x2460 + wishes.length - 1) : wishes.length}</span>
             )}
           </button>
         ))}
       </nav>
+      {VIEW_TABS[viewOfTab(tab)].length > 1 && (
+        <div className="nox-seg" style={{ display: "inline-flex", marginBottom: 8 }}>
+          {VIEW_TABS[viewOfTab(tab)].map(([k, label]) => (
+            <button key={k} type="button" className={tab === k ? "on" : ""} onClick={() => { setDayModal(""); setTab(k); }}>
+              {label}{k === "queue" && wishes.length > 0 ? ` ${wishes.length}` : ""}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── タブ「今日」＝当日運用 ──
           ★DP-R S1/S2/S3（教訓26＝構造照合）でモック nox-shift-management の today パネルへ追随:
@@ -1105,7 +1117,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               )}
                               {s.status !== "confirmed" && (
                                 <button style={{ ...btnDark, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
-                                  onClick={() => confirmShift(s)}>確定</button>
+                                  onClick={() => confirmShift(s)}>承認</button>
                               )}
                             </span>
                           )}
@@ -1376,9 +1388,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   {isManagerUp && (
                     <button style={{ ...btnDark, opacity: planned.length + proposed.length === 0 ? 0.45 : 1 }}
                       disabled={planned.length + proposed.length === 0}
-                      title="表示中の予定・確認待ちをまとめて確定します（62件ずつ順に送ります）"
+                      title="表示中の予定・確認待ちをまとめて承認します（62件ずつ順に送ります）"
                       onClick={() => void confirmBulkShifts([...planned, ...proposed].map((x) => x.id))}>
-                      {planned.length + proposed.length}件を一括確定
+                      {planned.length + proposed.length}件を一括承認
                     </button>
                   )}
                   <span className="nox-stpill">{wishes.length + planned.length + proposed.length}件</span>
@@ -1504,7 +1516,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               )}
                               {/* ★裁定245-2: 行の確定（実行＝青塗り）＝shift_confirm_bulk を 1 件で。操作列は 244 の例外＝配置不変 */}
                               <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
-                                onClick={() => void confirmOne(r.shift!.id)}>確定</button>
+                                onClick={() => void confirmOne(r.shift!.id)}>承認</button>
                               {/* ★N4（H30）: shift_remove の UI 結線（計画中の行を削除・wish 由来は希望へ戻る） */}
                               <button style={{ ...btnLight, color: "var(--bad)" }} onClick={() => void removeShift(r.shift!)}>削除</button>
                             </span>
@@ -1516,7 +1528,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               <button style={btnLight} onClick={() => void demoteShift(r.shift!)}>差し戻す</button>
                               {/* ★裁定245-2: 行の確定（実行＝青塗り）＝shift_confirm_bulk を 1 件で */}
                               <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
-                                onClick={() => void confirmOne(r.shift!.id)}>確定</button>
+                                onClick={() => void confirmOne(r.shift!.id)}>承認</button>
                               <button style={{ ...btnLight, color: "var(--bad)" }} onClick={() => void removeShift(r.shift!)}>削除</button>
                             </span>
                           )}
@@ -1831,7 +1843,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               </div>
 
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
-                このカレンダーには<b>確定だけ</b>を出しています（予定・確認待ちは「承認待ち」タブ）。
+                このカレンダーには<b>確定だけ</b>を出しています（予定・確認待ちは「確定」タブの承認待ち）。
                 セルは先頭3名まで。<b>日を押すとその日の全員が開きます</b>（時間の調整もそこから）。
               </p>
             </>
@@ -2126,7 +2138,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 );
               })}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
-                ここには<b>確定だけ</b>を出しています（予定・確認待ちは「承認待ち」タブ）。
+                ここには<b>確定だけ</b>を出しています（予定・確認待ちは「確定」タブの承認待ち）。
               </p>
             </div>
           </Modal>
