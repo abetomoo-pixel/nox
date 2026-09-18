@@ -3727,6 +3727,38 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定287（本便で確定・Agoora「推奨で」・2026-09-18）mig 0151 の設計（穴埋め 4 点）（287-1〜5）
+
+出典＝相談役ブロック 2026-09-18 夜（便 AD・便 AC の事前読取 docs/tmp/0151_holes_pre.md を受けた裁定・同日収載）。**本文（逐語）**:
+「[裁定287 mig 0151 の設計(穴埋め 4 点)]
+ 287-1 黒服シフトの取消＝RPC staff_shift_cancel(p_id uuid, p_reason text default null)。行を delete する(写経元 shift_remove)。
+   status に 'cancelled' は足さない。proposed は理由不要。confirmed は p_reason が空なら raise 'reason required'、あれば delete を許す。
+   biz_date が営業日の今日より前なら raise 'biz_date_past'(staff_shift_override と同じ判定)。権限は staff_shift_can_manage。
+   audit は before に行全体・after null・理由を含める。課金ゲート行あり(名簿 A)。
+ 287-2 募集中の期間をキャストが読む口＝RPC shift_open_periods_mine()。引数なし。actor は shift_wish_submit 冒頭と同じ(auth_cast_id)。
+   自分の所属店の shift_periods のうち status='open' の行について start_date・end_date・wish_deadline のみを返す(id・status ほかは返さない)。
+   RLS は変更しない。書込なし・課金ゲート行なし(名簿 B(f))。cast 以外が呼んだ場合は 0 行。
+ 287-3 保証時給を期限つきで入れる口＝RPC set_cast_guarantee(p_cast_id uuid, p_amount integer, p_start date, p_end date)。
+   検証: p_amount > 0・p_start >= current_date・p_end >= p_start。不成立は raise 'bad amount'／'bad valid_from'／'bad valid_to'。
+   現在行(valid_to is null の行)を C とする。
+   (a) p_start > C.valid_from のとき: C.valid_to = p_start - 1 → 保証行を insert(valid_from=p_start・valid_to=p_end・plan は C と同じ・
+       overrides_json＝C の overrides_json に base=p_amount と guarantee=true を上書き)→ 戻し行を insert(valid_from=p_end+1・valid_to null・
+       plan と overrides_json は C と同じ。ただし C 自身が guarantee=true の場合は guarantee を外し base を C の直前の非保証行の値に戻す。
+       直前の非保証行が無ければ base キーを外す)。
+   (b) p_start = C.valid_from のとき(入店当日からの保証・延長): C を保証行に書き換える(valid_to=p_end・overrides_json に base と guarantee=true)→
+       戻し行を insert((a) と同じ規則)。
+   (c) p_start < C.valid_from は raise 'bad valid_from'。
+   既に p_start 以降に開始する別の保証行(guarantee=true)がある場合は raise 'guarantee exists'。
+   保証の印は cast_plan.overrides_json の guarantee キーで持ち、列追加・別表は作らない。set_cast_plan の白名単は変更しない
+   (guarantee キーを書けるのは set_cast_guarantee のみ)。権限・課金ゲート行・audit は set_cast_plan と同じ(名簿 A)。
+   mode は minimum 相当のみ(時給の式が max を採るため)。fixed は第2期。
+ 287-4 スライド適用月＝set_store_profile の白名単に 'slide_apply' を 1 キー追加(0147 と同型)。値は 'next'|'current' 以外で raise 'bad slide_apply'。
+   欠損は 'current' として扱う(client 側)。前期の実績は前期の伝票から集計し直す(確定 payslip の凍結値には依存しない)。
+ 287-5 期の途中で保証が切れる場合の日単位の適用は、mig 後の client 便で collect の行選択と pay.ts の base を日ごとに改める(裁定97 の
+   「期首時点の 1 行」を、保証行に限り日単位に改める追補として扱う)。」
+
+適用＝起草（便 AE）: supabase/migrations/0151_holes.sql（★1〜★5・未追跡・手貼り待ち・sha256 は本便の報告）。突合＝便 AG（起草者を疑う別パス）。手貼り後ブロックは相談役。
+
 ## 裁定283〜286（本便で確定・Agoora 回答（9/18）と調査結果に基づく・2026-09-18）mig の束ね方・税方式・スライド適用月・紹介料の細目
 
 出典＝相談役ブロック 2026-09-18 夜（便 AA・便 V／V2／V3／W の読取結果を受けた裁定・同日収載）。**本文（逐語）**:
