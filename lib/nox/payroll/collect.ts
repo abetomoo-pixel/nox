@@ -13,6 +13,11 @@ import { buildMatchInput, dayWorkedHours, type PunchRow, type ShiftRow, type Att
 import { matchPunches } from "../punch-match";
 import { bizDateOf } from "../biz-date";
 
+import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
+import { monthsInRange, prevMonthOf, lastDayOf } from "./slide"; // ★N3b（裁定288）
+import type { PayrollWindow as _PW } from "./window";
+const addDaysYmd = (ymd: string, n: number) => { const [y, mo, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, mo - 1, d + n)).toISOString().slice(0, 10); }; // ★N3b
+void (0 as unknown as _PW);
 type SalesRow = { cast_id: string; biz_date: string; sales: number; hon: number; jonai: number; dohan: number };
 
 // #32 出勤インセンティブ（published・当該期間の biz_date）
@@ -543,6 +548,34 @@ export async function collectPeriod(
   if (eS) throw new Error(`get_cast_sales: ${eS.message}`);
   const salesRows = (salesData ?? []) as SalesRow[];
 
+  // ★夜間便 N3b（裁定288-1／288-6）: slide_apply='next' の店でだけ、期に含まれる各暦月の「前月の窓」を同じ式（get_cast_sales＋loadAccounting）で集計。
+  //   'current'／欠損の店は fetch 0（従来と同一）。cast 別に { 営業日の暦月 → 前月の合計（sales／pts） } を持つ。
+  const prevTotalsByCast = new Map<string, Record<string, { sales: number; pts: number }>>();
+  if (win.slideApply === "next") {
+    for (const month of monthsInRange(win.periodStart, win.periodEnd)) {
+      const prev = prevMonthOf(month);
+      const prevStart = `${prev}-01`, prevEnd = lastDayOf(prev);
+      const prevWin: PayrollWindow = { ...win, period: prev, periodStart: prevStart, periodEnd: prevEnd,
+        startTs: `${prevStart}T${win.cutoffHm}:00+09:00`, endTs: `${addDaysYmd(prevEnd, 1)}T${win.cutoffHm}:00+09:00` };
+      const [{ data: prevSales, error: ePs }, prevAcct] = await Promise.all([
+        managerClient.rpc("get_cast_sales", { p_store_id: storeId, p_from: prevStart, p_to: prevEnd }),
+        loadAccounting(admin, storeId, prevWin),
+      ]);
+      if (ePs) throw new Error(`get_cast_sales(prev ${prev}): ${ePs.message}`);
+      const agg = new Map<string, { sales: number; hon: number; jonai: number; dohan: number }>();
+      for (const r of (prevSales ?? []) as SalesRow[]) {
+        const cur = agg.get(r.cast_id) ?? { sales: 0, hon: 0, jonai: 0, dohan: 0 };
+        cur.sales += r.sales; cur.hon += r.hon; cur.jonai += r.jonai; cur.dohan += r.dohan; agg.set(r.cast_id, cur);
+      }
+      const castIds = new Set<string>([...agg.keys(), ...prevAcct.backByCast.keys()]);
+      for (const cid of castIds) {
+        const a = agg.get(cid) ?? { sales: 0, hon: 0, jonai: 0, dohan: 0 };
+        const pts = castPts(a, prevAcct.backByCast.get(cid)?.pt ?? 0); // 現行の当月 pts と同じ式（castPts）を前月の窓に当てる
+        const rec = prevTotalsByCast.get(cid) ?? {}; rec[month] = { sales: a.sales, pts }; prevTotalsByCast.set(cid, rec);
+      }
+    }
+  }
+
   const [{ plansById, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
     loadMasters(admin, storeId, win.period, win.periodEnd),
     loadAccounting(admin, storeId, win),
@@ -617,6 +650,7 @@ export async function collectPeriod(
       plan,
       override: cp?.override,
       ...(guaranteesByCast.has(cid) ? { guarantees: guaranteesByCast.get(cid) } : {}), // ★N3
+      ...(win.slideApply === "next" ? { slideApply: "next" as const, prevMonthTotals: prevTotalsByCast.get(cid) ?? {} } : {}), // ★N3b
       norm: normByCast.get(cid) ?? { days: 0, dohan: 0, salesTarget: 0 },
       taxProfileMode: taxByCast.get(cid) ?? null,
       employment: employmentById.get(cid) ?? null, // ★裁定98: 二層ガードの分岐キー

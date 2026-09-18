@@ -16,6 +16,7 @@ import { adoptedMethodsOf, compSummaryOf } from "@/lib/nox/comp-methods";
 import { AssignTab, useCompData, secTitle, productBackArgsOf, type Plan } from "../comp-sections";
 import PlanEditor from "./plan-editor";
 import NormaBoard from "../norma/norma-board";
+import { slideApplyOf } from "@/lib/nox/payroll/slide"; // ★N3b
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 
@@ -189,7 +190,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
       {/* シミュレーション タブ（★裁定106 B2: v3 の主入力＋残りは「詳細」で畳む＝compact） */}
       {sim && (
         <div id="sim" style={{ display: tab === "sim" ? undefined : "none" }}>
-          <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" compact />
+          <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" compact slideApply={slideApplyOf(settings)} />{/* ★N3b（裁定288-7） */}
         </div>
       )}
 

@@ -16,6 +16,10 @@ export type SimInput = {
   days: number; // 出勤日数
   hoursPerDay: number; // 1日あたり勤務時間
   sales: number; // 期間の総売上（円・per-day slide には days で均等割）
+  // ★N3b（裁定288-7）: 翌月反映の店＝前月の売上合計・ポイント合計でその月の段を決める（'current'／未指定は日次のまま）
+  slideApply?: "next" | "current";
+  prevSales?: number;
+  prevPts?: number;
   hon: number; // 本指名 回数
   jonai: number; // 場内指名 回数
   dohan: number; // 同伴 回数
@@ -86,6 +90,7 @@ export function simulate(inp: SimInput): PayResult {
     plan: inp.plan,
     override: inp.override,
     norm: inp.norm,
+    ...(inp.slideApply === "next" ? { slideApply: "next" as const, prevMonthTotals: { "2000-01": { sales: inp.prevSales ?? 0, pts: inp.prevPts ?? 0 } } } : {}), // ★N3b
     taxProfileMode: inp.taxMode,
     // ★裁定98: sim は employment/平均賃金を持たない＝payOf の sim 経路（sanction は現行式同値・cap なし）。
     employment: null,

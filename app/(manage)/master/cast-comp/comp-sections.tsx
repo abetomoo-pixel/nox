@@ -208,8 +208,10 @@ export function useCompData(storeId: string) {
 // ── プラン（owner のみ編集・D3a）──
 // ★N2（報酬プラン v3.1・規約 §6）: 段は固定列の表（段／判定基準／時給）・単位常時表示（basis=yen: `¥ … 以上`／pt: `… pt以上`・時給 `¥ … 円`）。
 //   値・保存形（at/wage の3段・at=0 除外は送信時）は不変＝表示だけ。basis 省略時は従来呼び出し（PlanTab）と互換。
-export function SlideInput({ label, slide, setSlide, basis = "yen", desc }: {
+export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthly = false }: {
   label: string; slide: Slide[]; setSlide: (s: Slide[]) => void; basis?: "yen" | "pt"; desc?: string;
+  /** ★N3b（裁定288-7）: 店の slide_apply='next' なら閾値は「月間」（前月合計）・それ以外は「1 日」 */
+  monthly?: boolean;
 }) {
   // 3段固定入力（at 昇順 strict は RPC が検証・空段は送信時に除外）
   const rows: Slide[] = [0, 1, 2].map((i) => slide[i] ?? { at: 0, wage: 0 });
@@ -233,7 +235,7 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc }: {
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   {basis === "yen" && <span style={unit}>¥</span>}
                   <input type="number" min={0} value={r.at} onChange={(e) => set(i, "at", Number(e.target.value))} style={{ ...input, width: 110 }} />
-                  <span style={unit}>{basis === "yen" ? "以上" : "pt以上"}</span>
+                  <span style={unit}>{basis === "yen" ? (monthly ? "以上（月間売上）" : "以上（1 日の売上）") : (monthly ? "pt以上（月間）" : "pt以上（1 日）")}</span>
                 </span>
               </td>
               <td>

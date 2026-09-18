@@ -419,6 +419,30 @@ eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
   eq("T12-6 golden 不変（玲奈 5931／125802・guarantee キー無し）", `${reinaAgain.wage}/${reinaAgain.withholding}/${"guarantee" in reinaAgain}`, "5931/125802/false");
 }
 
+// ── T13 ★夜間便 N3b（裁定288）: スライドの翌月反映（slideByDay＝d→前月合計・未指定は従来と 1 バイト同値）
+//   逆テスト＝pay.ts wageDetail の `sb ? slideAt(eplan.salesSlide, sb.sales) : …` を `slideAt(eplan.salesSlide, r.sales)` にする→T13-1 赤・戻して緑
+{
+  const P_S: CompPlan = { id: "p_s", name: "翌月反映検証", base: 3000, honBack: 0, jonaiBack: 0, dohanBack: 0, salesSlide: [{ at: 1_000_000, wage: 4000 }, { at: 2_000_000, wage: 5000 }], pointSlide: [{ at: 50, wage: 4500 }] };
+  const daily = [1, 2, 3, 4].map((d) => ({ d, hours: 5, sales: 30_000 }));
+  const baseIn: PayInput = { ...REINA_INPUT, cast: { hon: 0, jonai: 0, dohan: 0, days: 4, sales: 120_000 }, daily, plan: P_S, pointProducts: 0, customBackDefs: [], deductions: [], periodDays: 30, extrasTotal: 0 };
+  const cur = payOf(baseIn);
+  eq("T13-0 'current'／欠損（slideByDay なし）＝日次判定（30k は段なし→base 3000）・slideBasis キー無し", `${cur.wage}/${"slideBasis" in cur}`, "3000/false");
+  const up = payOf({ ...baseIn, slideByDay: Object.fromEntries([1, 2, 3, 4].map((d) => [d, { month: "2026-07", sales: 1_200_000, pts: 10 }])) });
+  eq("T13-1 前月実績 1.2M で段が上がる→全日 4000・slideBasis 1 月分（prevMonth 2026-06・salesWage 4000）", `${up.wage}/${up.slideBasis?.months.length}/${up.slideBasis?.months[0].prevMonth}/${up.slideBasis?.months[0].salesWage}`, "4000/1/2026-06/4000");
+  const none = payOf({ ...baseIn, slideByDay: Object.fromEntries([1, 2, 3, 4].map((d) => [d, { month: "2026-07", sales: 0, pts: 0 }])) });
+  eq("T13-2 前月実績なし（0）→最下段＝base 3000", `${none.wage}/${none.slideBasis?.months[0].salesWage}`, "3000/0");
+  const half = payOf({ ...baseIn, slideByDay: { 1: { month: "2026-07", sales: 1_200_000, pts: 0 }, 2: { month: "2026-07", sales: 1_200_000, pts: 0 }, 3: { month: "2026-07", sales: 1_200_000, pts: 0 }, 4: { month: "2026-07", sales: 1_200_000, pts: 0 } } });
+  eq("T13-3 半月の期でも同じ暦月なら前半・後半で同じ段（全日 4000）", half.wdays.map((d) => d.hourly).join(","), "4000,4000,4000,4000");
+  const cross = payOf({ ...baseIn, slideByDay: { 1: { month: "2026-07", sales: 1_200_000, pts: 0 }, 2: { month: "2026-07", sales: 1_200_000, pts: 0 }, 3: { month: "2026-08", sales: 2_500_000, pts: 0 }, 4: { month: "2026-08", sales: 2_500_000, pts: 0 } } });
+  eq("T13-4 期が月をまたぐ→営業日ごとにその月の前月で段（7 月分 4000・8 月分 5000）・slideBasis 2 月分", `${cross.wdays.map((d) => d.hourly).join(",")}/${cross.slideBasis?.months.length}`, "4000,4000,5000,5000/2");
+  const gua = payOf({ ...baseIn, slideByDay: Object.fromEntries([1, 2, 3, 4].map((d) => [d, { month: "2026-07", sales: 1_200_000, pts: 0 }])), guaranteeByDay: { 1: 6000, 2: 6000 }, guaranteeSpans: [{ from: "2026-07-01", to: "2026-07-02", base: 6000 }] });
+  eq("T13-5 保証（6000）が前月スライド（4000）を上回る日は保証・他の日はスライド", gua.wdays.map((d) => d.hourly).join(","), "6000,6000,4000,4000");
+  const pts = payOf({ ...baseIn, slideByDay: Object.fromEntries([1, 2, 3, 4].map((d) => [d, { month: "2026-07", sales: 0, pts: 60 }])) });
+  eq("T13-6 ポイントの月間閾値（50pt）でも段が決まる→4500", `${pts.wage}/${pts.slideBasis?.months[0].ptsWage}`, "4500/4500");
+  const reinaAgain2 = payOf(REINA_INPUT);
+  eq("T13-7 golden 不変（玲奈 5931／125802・slideBasis キー無し）", `${reinaAgain2.wage}/${reinaAgain2.withholding}/${"slideBasis" in reinaAgain2}`, "5931/125802/false");
+}
+
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);

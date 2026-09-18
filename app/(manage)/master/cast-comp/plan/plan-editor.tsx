@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
+import { slideApplyOf } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）: 単位表示の出し分け
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import {
   SlideInput, compErrJa, secTitle, BackTab, PRODUCT_BACK_OPTIONS, productBackArgsOf, productBackErrOf,
@@ -397,13 +398,13 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         <SecHead title="スライド・ポイント" keys={["salesSlide", "pointSlide"]} section="スライド" desc="売上・ポイント実績に応じた時給スライドを設定します。" />
         {/* ★裁定106 B2: 判定基準・対象は固定表示（選択は器なし＝準備中）。3段固定＝行は常に3本（4段目の器なし）。 */}
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
-          判定基準: <b style={{ color: "var(--v2-text)" }}>日次売上（按分後）／日次pt</b>・対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）
+          判定基準: <b style={{ color: "var(--v2-text)" }}>{slideApplyOf(settings) === "next" ? "前月の月間売上／前月の月間pt（翌月に反映）" : "日次売上（按分後）／日次pt"}</b>・対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）{/* ★N3b（裁定288-7） */}
           <span className="nox-stpill" style={{ marginLeft: 8, opacity: 0.8 }}>判定基準・対象の選択: 準備中（C5）</span>
         </p>
         {/* ★N2: 段は固定列の表（規約 §6）・単位常時表示（¥ … 以上／… pt以上／¥ … 円）＝SlideInput の basis で切替 */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
-          <SlideInput label="売上スライド（3段）" desc="日次売上（按分後）を基準に翌日以降の時給へ反映。" basis="yen" slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
-          <SlideInput label="ポイントスライド（3段）" desc="獲得ポイントを基準に翌日以降の時給へ反映。" basis="pt" slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
+          <SlideInput label="売上スライド（3段）" desc={slideApplyOf(settings) === "next" ? "前月の月間売上を基準に当月の時給へ反映。" : "日次売上（按分後）を基準に翌日以降の時給へ反映。"} basis="yen" monthly={slideApplyOf(settings) === "next"} slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
+          <SlideInput label="ポイントスライド（3段）" desc={slideApplyOf(settings) === "next" ? "前月の月間ポイントを基準に当月の時給へ反映。" : "獲得ポイントを基準に翌日以降の時給へ反映。"} basis="pt" monthly={slideApplyOf(settings) === "next"} slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <Prep k="point_rules" /><Prep k="gross_profit_slide" /><Prep k="slide_ratio_col" />

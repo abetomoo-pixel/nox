@@ -20,6 +20,7 @@ export default function SimulatorPanel({
   mode,
   plans,
   masters,
+  slideApply = "current",
   openAdv,
   openOkuri,
   defaultTaxMode,
@@ -29,6 +30,8 @@ export default function SimulatorPanel({
   mode: "cast" | "store";
   plans: CompPlan[];
   masters: StoreMasters;
+  /** ★N3b（裁定288-7）: 店の slide_apply。'next' なら段の判定入力を「前月の売上合計・ポイント合計」に切り替える */
+  slideApply?: "next" | "current";
   openAdv: number; // cast の open 前借り残（店=0）
   openOkuri: number; // cast の open 送り実費残（店=0）
   defaultTaxMode: TaxMode;
@@ -51,6 +54,7 @@ export default function SimulatorPanel({
     //   店・期間ごとに異なる。既定値を置くと誤った日数のまま試算されるため未入力はエラーにする）。
     periodDays: "",
     days: "20", hoursPerDay: "6", sales: "600000",
+    prevSales: "0", prevPts: "0", // ★N3b: 翌月反映の店の入力（前月合計）
     hon: "10", jonai: "5", dohan: "3",
     honShimeiAmt: "0", jonaiShimeiAmt: "0", // D3: rate 方式の母数（期間の指名料額・円）
 
@@ -115,6 +119,7 @@ export default function SimulatorPanel({
     const input: SimInput = {
       periodDays: periodDaysNum,
       days: num(f.days), hoursPerDay: num(f.hoursPerDay), sales: num(f.sales),
+      ...(slideApply === "next" ? { slideApply: "next" as const, prevSales: num(f.prevSales), prevPts: num(f.prevPts) } : {}), // ★N3b
       hon: num(f.hon), jonai: num(f.jonai), dohan: num(f.dohan),
       honShimeiAmt: num(f.honShimeiAmt), jonaiShimeiAmt: num(f.jonaiShimeiAmt),
       productBack: { drink: num(f.drink), champ: num(f.champ), bottle: num(f.bottle) },
@@ -243,6 +248,10 @@ export default function SimulatorPanel({
           <label style={s.lbl}>出勤日数<br /><input type="number" value={f.days} onChange={set("days")} style={s.inpS} /></label>
           <label style={s.lbl}>1日の時間<br /><input type="number" value={f.hoursPerDay} onChange={set("hoursPerDay")} style={s.inpS} /></label>
           <label style={s.lbl}>総売上(円)<br /><input type="number" value={f.sales} onChange={set("sales")} style={s.inp} /></label>
+          {slideApply === "next" && (<>{/* ★N3b（裁定288-7）: 翌月反映＝段は前月合計で決まる */}
+            <label style={s.lbl}>前月の売上合計(円)<br /><input type="number" value={f.prevSales} onChange={set("prevSales")} style={s.inp} /></label>
+            <label style={s.lbl}>前月のポイント合計<br /><input type="number" value={f.prevPts} onChange={set("prevPts")} style={s.inpS} /></label>
+          </>)}
         </div>
         {!periodDaysOk && (
           <p style={{ fontSize: 12, color: "var(--bad)", margin: "6px 0 0" }}>

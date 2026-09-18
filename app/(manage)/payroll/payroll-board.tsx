@@ -43,6 +43,7 @@ type Row = {
       adjBefore?: number; adjAfter?: number; adjustOverflow?: number; // ★裁定258／264: 調整控除（源泉前／後）と net 0 床の超過額
       referralTotal?: number; // ★裁定272-2: 紹介料
       guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number }; // ★N3
+      slideBasis?: { apply: "next"; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] }; // ★N3b
     };
     extras?: { amount: number }[];
   };
@@ -766,6 +767,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     [`　うち基本（${pay.guarantee.baseHours}h）`, z(pay.guarantee.basePay)],
                     [`　うち保証 ${pay.guarantee.spans.map((s) => `${Number(s.from.slice(5, 7))}/${Number(s.from.slice(8, 10))}〜${s.to ? `${Number(s.to.slice(5, 7))}/${Number(s.to.slice(8, 10))}` : ""} ¥${s.base.toLocaleString()}`).join("／")}（${pay.guarantee.guaHours}h）`, z(pay.guarantee.guaPay)],
                   ] as [string, number][]) : []),
+                  // ★夜間便 N3b（裁定288）: 翌月反映の店だけ「スライド: 前月売上 ¥n → 時給 ¥n」（金額列は段の時給・0 は非表示）
+                  ...(pay.slideBasis ? pay.slideBasis.months.map((m) => [`　スライド ${Number(m.month.slice(5, 7))}月分＝前月（${Number(m.prevMonth.slice(5, 7))}月）売上 ¥${m.sales.toLocaleString()}→時給 ¥${m.salesWage.toLocaleString()}／pt ${m.pts}→¥${m.ptsWage.toLocaleString()}`, Math.max(m.salesWage, m.ptsWage)] as [string, number]) : []),
                   ["最低保証加算", z(pay.guaranteeAdd)],
                   ["本指名", z(pay.honBack)], ["場内", z(pay.jonaiBack)], ["同伴", z(pay.dohanBack)],
                   ["歩合", z(pay.salesBack)], ["達成ボーナス", z(pay.achievementBonus)],

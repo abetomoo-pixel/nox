@@ -14,10 +14,13 @@ export type PayrollWindow = {
   closeHm: string; // 'HH:MM' 0-47 域（punch-match の out 判定用・F2c は表示のみ）
   startTs: string; // ISO（started_at/punched_at 窓の下限）
   endTs: string; // ISO（同上限・排他）
+  slideApply?: "next" | "current"; // ★N3b（裁定288）: stores.settings_json.slide_apply（欠損＝'current'）。同じ fetch から読む＝新規 fetch 0
 };
 
 // ★裁定98: core の periodDays 写像（'YYYY-MM-DD' 両端含む暦日数・UTC 起点差分＝DST/TZ 非依存）を関数化。
 //   当期は core（win の両端）・過去期の平均賃金算定（collect）も同じ写像を通す。
+import { slideApplyOf } from "./slide"; // ★N3b（裁定288）
+
 export function periodDaysBetween(periodStart: string, periodEnd: string): number {
   return Math.round((Date.parse(`${periodEnd}T00:00:00Z`) - Date.parse(`${periodStart}T00:00:00Z`)) / 86_400_000) + 1;
 }
@@ -55,5 +58,5 @@ export async function resolvePayrollWindow(
 
   const startTs = `${periodStart}T${cutoffHm}:00+09:00`;
   const endTs = `${addDays(periodEnd, 1)}T${cutoffHm}:00+09:00`;
-  return { period, periodStart, periodEnd, cutoffHm, closeHm, startTs, endTs };
+  return { period, periodStart, periodEnd, cutoffHm, closeHm, startTs, endTs, slideApply: slideApplyOf(settings) }; // ★N3b
 }

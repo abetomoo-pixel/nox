@@ -46,6 +46,9 @@ export type CastRaw = {
   override?: PlanOverride;
   // ★夜間便 N3（裁定287-5）: 期と重なる保証行（cast_plan.overrides_json.guarantee=true）。collect が格納・fixture は省略＝従来と同値
   guarantees?: { validFrom: string; validTo: string | null; base: number }[];
+  // ★夜間便 N3b（裁定288）: slide_apply と「営業日の暦月→その前月の合計」。'next' の店でだけ collect が格納（'current'／fixture は無し＝従来と同値）
+  slideApply?: "next" | "current";
+  prevMonthTotals?: Record<string, { sales: number; pts: number }>; // key＝営業日が属する暦月 'YYYY-MM'（値＝その前月の合計）
   norm: { days: number; dohan: number; salesTarget?: number }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
   employment: "委託" | "雇用" | null; // ★裁定98: casts.employment（null＋sanction 行ありは core が no_employment blocker）
@@ -86,6 +89,18 @@ export function guaranteeInputOf(raw: Pick<CastRaw, "daily" | "guarantees">): Pi
   return { guaranteeByDay: byDay, guaranteeSpans: gs.map((g) => ({ from: g.validFrom, to: g.validTo, base: g.base })) };
 }
 
+/** ★N3b: 'next' の店の営業日ごとに「その暦月の前月の合計」を写す。'current'／欠損・前月データ無し＝{}（キーを足さない） */
+export function slideInputOf(raw: Pick<CastRaw, "daily" | "slideApply" | "prevMonthTotals">): Pick<PayInput, "slideByDay"> {
+  if (raw.slideApply !== "next") return {};
+  const byDay: Record<number, { month: string; sales: number; pts: number }> = {};
+  for (const d of raw.daily) {
+    const month = d.bizDate.slice(0, 7);
+    const t = raw.prevMonthTotals?.[month] ?? { sales: 0, pts: 0 }; // 前月の実績が無い＝0＝最下段（288-3）
+    byDay[dayNum(d.bizDate)] = { month, sales: t.sales, pts: t.pts };
+  }
+  return Object.keys(byDay).length ? { slideByDay: byDay } : {};
+}
+
 export function buildPayInput(
   raw: CastRaw,
   taxMode: TaxMode,
@@ -106,6 +121,7 @@ export function buildPayInput(
     plan: raw.plan,
     override: raw.override,
     ...guaranteeInputOf(raw), // ★N3: 保証行が無ければ何も足さない（キー自体を持たない＝従来と 1 バイト同値）
+    ...slideInputOf(raw), // ★N3b: 'next' でなければ何も足さない
     productBack: raw.productBack,
     calculatedBack: raw.calculatedBack, // ★裁定113
     referralTotal: raw.referralTotal ?? 0, // ★裁定272-2

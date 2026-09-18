@@ -89,6 +89,10 @@ export type GuaranteeDetail = {
   guaHours: number; guaPay: number;     // 保証の効く日の Σhours／Σ(日時給×hours)（スライドが上回る日も保証期間として数える）
 };
 
+// ★N3b（裁定288）: 翌月反映のときだけ返す判定材料（前月合計→段→時給）＝breakdown_json に凍結・右パネルに表示
+export type SlideBasisMonth = { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number };
+export type SlideBasisDetail = { apply: "next"; months: SlideBasisMonth[] };
+
 export type WageDetail = {
   wage: number; // 加重平均時給
   timePay: number; // roundYen(Σ 日時給×hours)
@@ -96,6 +100,7 @@ export type WageDetail = {
   wbasis: Partial<Record<WageBasis, number>>; // 採用日数の内訳
   wdays: WageDay[]; // 日次内訳（明細表示用）
   guarantee?: GuaranteeDetail; // ★N3: 保証が効いた日があるときだけ
+  slideBasis?: SlideBasisDetail; // ★N3b: 'next' のときだけ
 };
 
 export type MetricKey =
@@ -215,6 +220,8 @@ export type PayInput = {
   // ★夜間便 N3（裁定287-5）: 営業日ごとの保証時給（d＝日番号→base）。未指定＝従来と 1 バイト同値。spans は表示・凍結用
   guaranteeByDay?: Record<number, number>;
   guaranteeSpans?: GuaranteeSpan[];
+  // ★夜間便 N3b（裁定288）: slide_apply='next' のときだけ、営業日 d が属する暦月の「前月の合計」（sales／pts）を渡す。未指定＝従来と 1 バイト同値
+  slideByDay?: Record<number, { month: string; sales: number; pts: number }>;
   // ★裁定98: sanction 二層ガードの文脈。employment 未設定（null/undefined）で sanction 行がある cast は
   //   core が 'no_employment' blocker で先に止める＝payOf がここで null を見るのは sim 経路のみ（現行式同値で計算）。
   employment?: "委託" | "雇用" | null; // casts.employment
@@ -249,6 +256,7 @@ export type PayResult = {
   wbasis: Partial<Record<WageBasis, number>>;
   wdays: WageDay[];
   guarantee?: GuaranteeDetail; // ★N3: 保証が効いた cast だけ（breakdown_json に凍結される）
+  slideBasis?: SlideBasisDetail; // ★N3b: 'next' の店だけ（breakdown_json に凍結される）
   honBack: number;
   jonaiBack: number;
   dohanBack: number;
@@ -292,6 +300,13 @@ export type PayResult = {
 };
 
 // ── 部品関数 ──────────────────────────────────────────────────
+
+/** ★N3b: 'YYYY-MM' の前月（表示用・lib/nox/payroll/slide.ts と同式・pay.ts は DB／payroll を知らないためここに複製しない＝算術のみ） */
+function prevYm(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 2, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
 
 /** 階段関数（モック fp）: at 以上で段の wage・最後にマッチした段が有効・無マッチは 0 */
 export function slideAt(slides: Slide[] | undefined, value: number): number {
@@ -348,8 +363,10 @@ export function wageDetail(
   fallbackSales: number,
   baseByDay?: Record<number, number>,   // ★N3: 営業日ごとの保証時給（無い日は eplan.base）
   spans?: GuaranteeSpan[],
+  slideByDay?: Record<number, { month: string; sales: number; pts: number }>,   // ★N3b: 'next'＝前月合計で段判定（無い日は日次）
 ): WageDetail {
   let gHours = 0, gPay = 0, bHours = 0, bPay = 0, gAny = false;
+  const sbMonths = new Map<string, SlideBasisMonth>();
   const totalSales =
     daily.reduce((sum, r) => sum + r.sales, 0) || fallbackSales || 1;
   let weighted = 0; // Σ 日時給×hours
@@ -358,8 +375,10 @@ export function wageDetail(
   const wbasis: Partial<Record<WageBasis, number>> = {};
   for (const r of daily) {
     const dayPts = roundPt1(pts * (r.sales / totalSales));
-    const bySales = slideAt(eplan.salesSlide, r.sales);
-    const byPts = slideAt(eplan.pointSlide, dayPts);
+    const sb = slideByDay?.[r.d];   // ★N3b: 'next' の日は前月合計（月間閾値）・無ければ日次（1 日あたり閾値）
+    const bySales = sb ? slideAt(eplan.salesSlide, sb.sales) : slideAt(eplan.salesSlide, r.sales);
+    const byPts = sb ? slideAt(eplan.pointSlide, sb.pts) : slideAt(eplan.pointSlide, dayPts);
+    if (sb && !sbMonths.has(sb.month)) sbMonths.set(sb.month, { month: sb.month, prevMonth: prevYm(sb.month), sales: sb.sales, pts: sb.pts, salesWage: bySales, ptsWage: byPts });
     const gBase = baseByDay?.[r.d];
     const base = gBase !== undefined ? Math.max(gBase, eplan.base || 0) : (eplan.base || 0);   // ★N3: 保証期間の日は max(保証額, 基本)＝minimum 相当（287-3）   // ★N3: 保証期間の日は max(保証額, 基本)＝minimum 相当（287-3）
     const hourly = Math.max(bySales, byPts, base);
@@ -380,6 +399,7 @@ export function wageDetail(
     wage: hours > 0 ? roundYen(weighted / hours) : eplan.base || 0,
     timePay: roundYen(weighted),
     ...(gAny ? { guarantee: { spans: spans ?? [], baseHours: roundPt1(bHours), basePay: roundYen(bPay), guaHours: roundPt1(gHours), guaPay: roundYen(gPay) } } : {}),
+    ...(sbMonths.size > 0 ? { slideBasis: { apply: "next" as const, months: [...sbMonths.values()] } } : {}),
     wHours: roundPt1(hours),
     wbasis,
     wdays,
@@ -524,7 +544,7 @@ export function payOf(input: PayInput): PayResult {
 
   const { eplan, hasOv } = applyOverride(input.plan, input.override);
 
-  const wd = wageDetail(input.daily, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans); // ★N3
+  const wd = wageDetail(input.daily, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay); // ★N3／N3b
 
   // 指名バック（hon/jonai は実績・dohan は sim 上書き可＝モック te と同一）
   // mig0086: mode='rate' は Σ指名料行×%（母数=check_lines・裁定iii/vi・丸めは Σ後 roundYen 1回=裁定iv）。
@@ -684,6 +704,7 @@ export function payOf(input: PayInput): PayResult {
     wbasis: wd.wbasis,
     wdays: wd.wdays,
     ...(wd.guarantee ? { guarantee: wd.guarantee } : {}), // ★N3: 保証が効いた cast だけキーを持つ（凍結の互換）
+    ...(wd.slideBasis ? { slideBasis: wd.slideBasis } : {}), // ★N3b: 'next' の店だけ
     honBack,
     jonaiBack,
     dohanBack,
