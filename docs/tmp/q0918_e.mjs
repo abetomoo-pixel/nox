@@ -1,0 +1,12 @@
+import { Client } from "pg";
+process.loadEnvFile(".env.local");
+const db = new Client({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }, statement_timeout: 20000 });
+await db.connect();
+const q = async (sql, p=[]) => (await db.query(sql, p)).rows;
+const def = async (n) => (await q("select pg_get_functiondef(oid) d, md5(prosrc) m from pg_proc where pronamespace='public'::regnamespace and proname=$1", [n]))[0];
+const d = await def("check_dohan_add"); console.log("## check_dohan_add md5=" + d.m + "\n" + d.d.split("\n").map((l, i) => `${i + 1}: ${l}`).join("\n"));
+const r = (await q("select prosrc from pg_proc where proname='check_recalc'"))[0].prosrc.split("\n");
+console.log("## check_recalc kind/sum lines:\n" + r.map((l, i) => [i + 1, l]).filter(([, l]) => /kind|sum\(|line_total|discount/.test(l)).map(([i, l]) => `  L${i}: ${l.trim()}`).join("\n"));
+console.log("## audit_log_write args with defaults:", JSON.stringify(await q("select pg_get_function_arguments(oid) a from pg_proc where proname='audit_log_write'")));
+console.log("## stores.receivable_policy col def:", JSON.stringify(await q("select column_default, is_nullable from information_schema.columns where table_name='stores' and column_name='receivable_policy'")));
+await db.end();

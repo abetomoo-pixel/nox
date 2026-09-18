@@ -1,0 +1,51 @@
+-- live DDL: public.stores（採取 2026-08-17T02:22:40.345Z・SUPABASE_DB_URL 直結）
+create table public.stores (
+  id uuid not null default gen_random_uuid(),
+  org_id uuid not null,
+  name text not null,
+  short text,
+  open_time text,
+  settings_json jsonb not null default '{}'::jsonb,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  hon_fee integer not null default 0,
+  jonai_fee integer not null default 0,
+  dohan_fee integer not null default 0,
+  service_rate integer not null default 10,
+  card_tax_rate integer not null default 5,
+  round_unit integer not null default 100,
+  round_mode text not null default 'down'::text,
+  set_min integer not null default 60,
+  set_fee integer not null default 0,
+  ext_min integer not null default 30,
+  ext_fee integer not null default 0,
+  time_mode text not null default 'manual'::text,
+  time_per text not null default 'table'::text
+);
+
+-- constraints
+alter table public.stores add constraint stores_card_tax_rate_check CHECK (((card_tax_rate >= 0) AND (card_tax_rate <= 100)));
+alter table public.stores add constraint stores_dohan_fee_check CHECK ((dohan_fee >= 0));
+alter table public.stores add constraint stores_ext_fee_check CHECK ((ext_fee >= 0));
+alter table public.stores add constraint stores_ext_min_check CHECK (((ext_min >= 1) AND (ext_min <= 1440)));
+alter table public.stores add constraint stores_hon_fee_check CHECK ((hon_fee >= 0));
+alter table public.stores add constraint stores_jonai_fee_check CHECK ((jonai_fee >= 0));
+alter table public.stores add constraint stores_round_mode_check CHECK ((round_mode = ANY (ARRAY['up'::text, 'down'::text, 'round'::text])));
+alter table public.stores add constraint stores_round_unit_check CHECK (((round_unit >= 1) AND (round_unit <= 10000)));
+alter table public.stores add constraint stores_service_rate_check CHECK (((service_rate >= 0) AND (service_rate <= 100)));
+alter table public.stores add constraint stores_set_fee_check CHECK ((set_fee >= 0));
+alter table public.stores add constraint stores_set_min_check CHECK (((set_min >= 1) AND (set_min <= 1440)));
+alter table public.stores add constraint stores_time_mode_check CHECK ((time_mode = ANY (ARRAY['manual'::text, 'auto'::text])));
+alter table public.stores add constraint stores_time_per_check CHECK ((time_per = ANY (ARRAY['table'::text, 'person'::text])));
+alter table public.stores add constraint stores_org_id_fkey FOREIGN KEY (org_id) REFERENCES orgs(id);
+alter table public.stores add constraint stores_pkey PRIMARY KEY (id);
+
+-- indexes
+CREATE INDEX stores_org_id_idx ON public.stores USING btree (org_id);
+CREATE UNIQUE INDEX stores_pkey ON public.stores USING btree (id);
+
+-- RLS enabled: true
+-- policy stores_select cmd=r roles=authenticated
+--   USING: ((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (id = auth_store_id())))
+
+-- grants(relacl): {postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}

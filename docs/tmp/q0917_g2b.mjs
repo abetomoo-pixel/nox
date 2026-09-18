@@ -1,0 +1,18 @@
+import { Client } from "pg";
+process.loadEnvFile(".env.local");
+const db = new Client({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }, statement_timeout: 20000 });
+await db.connect();
+const q = async (sql, p=[]) => (await db.query(sql, p)).rows;
+const src = async (n) => (await q("select prosrc s from pg_proc where pronamespace='public'::regnamespace and proname=$1", [n]))[0].s;
+const pb = await src("product_bulk_insert");
+console.log("## product_bulk_insert: item keys read"); console.log([...new Set(pb.match(/v_item ->> '[a-z_0-9]+'/g))].join(", "));
+console.log("## product_bulk_insert: insert into products 列"); console.log(pb.split("\n").filter((l, i, a) => /insert into public.products/.test(l) || (/insert into public.products/.test(a[i-1] ?? "")) || (/insert into public.products/.test(a[i-2] ?? ""))).join("\n"));
+console.log("## product_bulk_insert: back/unit4/hon_pt/reorder 関連行"); console.log(pb.split("\n").filter((l) => /back_mode|back_value|unit4|hon_pt|reorder|tax_category|sort_order/.test(l)).map((l) => "  " + l.trim()).join("\n"));
+const sp = await src("set_product");
+console.log("## set_product: unit4 のキー"); console.log(sp.split("\n").filter((l) => /v_key|foreach|array\['/.test(l)).slice(0, 6).map((l) => "  " + l.trim()).join("\n"));
+console.log("## comp_plans product_back_mode CHECK"); console.log(JSON.stringify(await q("select pg_get_constraintdef(oid) d from pg_constraint where conrelid='public.comp_plans'::regclass and conname like '%product_back%'")));
+console.log("## pricing_rules 残り CHECK"); console.log(JSON.stringify(await q("select conname, pg_get_constraintdef(oid) d from pg_constraint where conrelid='public.pricing_rules'::regclass and contype='c' and conname in ('pricing_rules_duration_min_check','pricing_rules_fee_kind_check','pricing_rules_seat_kind_check','pricing_rules_tax_category_check','pricing_rules_priority_check')")));
+console.log("## stores.receivable_policy を書く関数"); console.log(JSON.stringify(await q("select proname from pg_proc where pronamespace='public'::regnamespace and prosrc ~ 'set\s+receivable_policy|receivable_policy\s*=' order by 1")));
+console.log("## product_costs cols:", (await q("select string_agg(column_name||':'||data_type, ', ' order by ordinal_position) c from information_schema.columns where table_schema='public' and table_name='product_costs'"))[0].c);
+console.log("## stock tables:", JSON.stringify(await q("select table_name from information_schema.tables where table_schema='public' and table_name like '%stock%' order by 1")));
+await db.end();

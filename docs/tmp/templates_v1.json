@@ -1,0 +1,2674 @@
+{
+  "schema_version": "1.0",
+  "currency": "JPY",
+  "template_policy": {
+    "purpose": "NOXオンボーディング用の初期値。業界標準価格を保証するものではなく導入店舗が編集する前提。",
+    "do_not_auto_enable": [
+      "quota",
+      "penalty",
+      "cast_debt_deduction"
+    ]
+  },
+  "back_types": {
+    "none": "バックなし",
+    "fixed": "固定額",
+    "sale_pct": "売価%",
+    "gross_profit_pct": "粗利%",
+    "tier": "金額帯スライド",
+    "product_specific": "商品個別"
+  },
+  "store_templates": [
+    {
+      "template_id": "cabaret_standard",
+      "store_type": "キャバクラ",
+      "template_name": "標準キャバクラ",
+      "assumption": "中価格帯の都市型キャバクラを想定。",
+      "business_hours": {
+        "open": "19:00",
+        "close": "02:00",
+        "business_day_cutoff": "06:00"
+      },
+      "features": {
+        "vip": true,
+        "counter": false,
+        "cast_rank": true,
+        "main_nomination": true,
+        "in_house_nomination": true,
+        "accompaniment": true,
+        "bottle_keep": true,
+        "accounts_receivable": true
+      },
+      "seats": {
+        "table_count": 6,
+        "vip_count": 2,
+        "counter_count": 0
+      },
+      "customer_pricing": {
+        "set_60min_yen": 6000,
+        "extension_30min_yen": 3500,
+        "extension_60min_yen": 6000,
+        "main_nomination_yen": 2000,
+        "in_house_nomination_yen": 1000,
+        "accompaniment_yen": 3000,
+        "vip_surcharge_yen": 3000,
+        "service_charge_pct": 20,
+        "tax_pct": 10
+      },
+      "compensation_defaults": {
+        "hourly_yen": 4000,
+        "newcomer_guarantee": {
+          "enabled": true,
+          "hourly_yen": 5000,
+          "days": 30,
+          "mode": "fixed"
+        },
+        "main_nomination_back": {
+          "type": "fixed",
+          "value": 1000
+        },
+        "in_house_nomination_back": {
+          "type": "fixed",
+          "value": 500
+        },
+        "accompaniment_back": {
+          "type": "fixed",
+          "value": 2000
+        },
+        "drink_back": {
+          "type": "product_specific"
+        },
+        "bottle_back": {
+          "type": "sale_pct",
+          "value": 10
+        },
+        "champagne_back": {
+          "type": "tier",
+          "name": "champagne_4step",
+          "tiers": [
+            {
+              "max_sale_yen": 49999,
+              "back_pct": 10
+            },
+            {
+              "max_sale_yen": 149999,
+              "back_pct": 15
+            },
+            {
+              "max_sale_yen": 299999,
+              "back_pct": 20
+            },
+            {
+              "max_sale_yen": null,
+              "back_pct": 25
+            }
+          ]
+        }
+      },
+      "products": [
+        {
+          "name": "生ビール",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 350,
+          "gross_margin_pct": 76.7,
+          "sale_price_yen": 1500,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "瓶ビール",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 400,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 1500,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "ハイボール",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 400,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 1500,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "レモンサワー",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 400,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 1500,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "ウーロンハイ",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 350,
+          "gross_margin_pct": 76.7,
+          "sale_price_yen": 1500,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "緑茶ハイ",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 350,
+          "gross_margin_pct": 76.7,
+          "sale_price_yen": 1500,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "焼酎水割り",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 400,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 1500,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "焼酎ソーダ割り",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 400,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 1500,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "カシスオレンジ",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 500,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 2000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "カシスウーロン",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 500,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 2000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "ピーチウーロン",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 500,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 2000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "ファジーネーブル",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 500,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 2000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "ジントニック",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 500,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 2000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "モスコミュール",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 500,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 2000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "テキーラ",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 300,
+          "gross_margin_pct": 85.0,
+          "sale_price_yen": 2000,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 500
+          },
+          "status": "active"
+        },
+        {
+          "name": "コカレロ",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 300,
+          "gross_margin_pct": 85.0,
+          "sale_price_yen": 2000,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 500
+          },
+          "status": "active"
+        },
+        {
+          "name": "クライナー",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 350,
+          "gross_margin_pct": 82.5,
+          "sale_price_yen": 2000,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 500
+          },
+          "status": "active"
+        },
+        {
+          "name": "テキーラローズ",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 350,
+          "gross_margin_pct": 82.5,
+          "sale_price_yen": 2000,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 500
+          },
+          "status": "active"
+        },
+        {
+          "name": "コカボム",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 600,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 3000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 800
+          },
+          "status": "active"
+        },
+        {
+          "name": "ウーロン茶",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 150,
+          "gross_margin_pct": 85.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "緑茶",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 150,
+          "gross_margin_pct": 85.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "ジャスミン茶",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 150,
+          "gross_margin_pct": 85.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "コーラ",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 200,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "ジンジャーエール",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 200,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "オレンジジュース",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 200,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "水",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 100,
+          "gross_margin_pct": 87.5,
+          "sale_price_yen": 800,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "炭酸",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 100,
+          "gross_margin_pct": 87.5,
+          "sale_price_yen": 800,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "ウーロン茶デキャンタ",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 300,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 1500,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "緑茶デキャンタ",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 300,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 1500,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "氷",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 100,
+          "gross_margin_pct": 87.5,
+          "sale_price_yen": 800,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "レモン",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 100,
+          "gross_margin_pct": 87.5,
+          "sale_price_yen": 800,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "いいちこ",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 2000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 8000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "二階堂",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 2000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 8000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "黒霧島",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 3000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 12000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "赤霧島",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 3500,
+          "gross_margin_pct": 76.7,
+          "sale_price_yen": 15000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "茜霧島",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 4000,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 15000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "吉四六",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 4000,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 15000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "富乃宝山",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 4000,
+          "gross_margin_pct": 77.8,
+          "sale_price_yen": 18000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "魔王",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 9000,
+          "gross_margin_pct": 74.3,
+          "sale_price_yen": 35000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "森伊蔵",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 20000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 80000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "角瓶",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 4000,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 15000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "知多",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 6000,
+          "gross_margin_pct": 76.0,
+          "sale_price_yen": 25000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "山崎NV",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 15000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 60000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "白州NV",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 15000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 60000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "響JH",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 22000,
+          "gross_margin_pct": 75.6,
+          "sale_price_yen": 90000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "マッカラン12年",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 18000,
+          "gross_margin_pct": 74.3,
+          "sale_price_yen": 70000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "ヘネシーVS",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ブランデー）",
+          "cost_yen": 10000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 40000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "ヘネシーVSOP",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ブランデー）",
+          "cost_yen": 18000,
+          "gross_margin_pct": 74.3,
+          "sale_price_yen": 70000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "ヘネシーXO",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ブランデー）",
+          "cost_yen": 30000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 120000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "レミーXO",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ブランデー）",
+          "cost_yen": 30000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 120000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "モエ白",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 8000,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 30000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "モエロゼ",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 10000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 40000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ヴーヴイエロー",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 10000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 40000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ベルエポック",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 35000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 140000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ドンペリ",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 33000,
+          "gross_margin_pct": 74.6,
+          "sale_price_yen": 130000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ドンペリロゼ",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 88000,
+          "gross_margin_pct": 74.9,
+          "sale_price_yen": 350000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ソウメイ",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 35000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 140000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "エンジェルブラック",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 65000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 260000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "アルマンドゴールド",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 65000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 260000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "クリュッグ",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 55000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 220000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ミックスナッツ",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 400,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 1500,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "乾き物盛り",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 400,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 1500,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "チーズ盛り",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 800,
+          "gross_margin_pct": 73.3,
+          "sale_price_yen": 3000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "ポテトフライ",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 500,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 2000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "唐揚げ",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 700,
+          "gross_margin_pct": 72.0,
+          "sale_price_yen": 2500,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "フルーツ盛り 小",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 1500,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 6000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "フルーツ盛り 大",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 2500,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 10000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "template_id": "girlsbar_standard",
+      "store_type": "ガールズバー",
+      "template_name": "標準ガールズバー",
+      "assumption": "カウンター中心・ドリンクバック中心を想定。",
+      "business_hours": {
+        "open": "20:00",
+        "close": "05:00",
+        "business_day_cutoff": "06:00"
+      },
+      "features": {
+        "vip": false,
+        "counter": true,
+        "cast_rank": false,
+        "main_nomination": false,
+        "in_house_nomination": false,
+        "accompaniment": false,
+        "request": true,
+        "bottle_keep": true,
+        "accounts_receivable": false
+      },
+      "seats": {
+        "table_count": 2,
+        "vip_count": 0,
+        "counter_count": 12
+      },
+      "customer_pricing": {
+        "set_60min_yen": 3500,
+        "extension_60min_yen": 3500,
+        "request_yen": 1000,
+        "service_charge_pct": 10,
+        "tax_pct": 10
+      },
+      "compensation_defaults": {
+        "hourly_yen": 1800,
+        "newcomer_guarantee": {
+          "enabled": false,
+          "hourly_yen": 2000,
+          "days": 14,
+          "mode": "minimum"
+        },
+        "request_back": {
+          "type": "fixed",
+          "value": 500
+        },
+        "drink_back": {
+          "type": "product_specific"
+        },
+        "bottle_back": {
+          "type": "sale_pct",
+          "value": 10
+        },
+        "champagne_back": {
+          "type": "sale_pct",
+          "value": 10
+        }
+      },
+      "products": [
+        {
+          "name": "キャストソフトドリンク",
+          "accounting_class": "drink",
+          "display_category": "キャストドリンク",
+          "cost_yen": 150,
+          "gross_margin_pct": 85.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "キャストアルコール",
+          "accounting_class": "drink",
+          "display_category": "キャストドリンク",
+          "cost_yen": 250,
+          "gross_margin_pct": 79.2,
+          "sale_price_yen": 1200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "キャストショット",
+          "accounting_class": "drink",
+          "display_category": "キャストドリンク",
+          "cost_yen": 300,
+          "gross_margin_pct": 83.3,
+          "sale_price_yen": 1800,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 500
+          },
+          "status": "active"
+        },
+        {
+          "name": "生ビール",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 350,
+          "gross_margin_pct": 65.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "ハイボール",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 300,
+          "gross_margin_pct": 70.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "レモンサワー",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 300,
+          "gross_margin_pct": 70.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "ウーロンハイ",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 300,
+          "gross_margin_pct": 70.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "カシスオレンジ",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 350,
+          "gross_margin_pct": 70.8,
+          "sale_price_yen": 1200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 150
+          },
+          "status": "active"
+        },
+        {
+          "name": "カシスウーロン",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 350,
+          "gross_margin_pct": 70.8,
+          "sale_price_yen": 1200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 150
+          },
+          "status": "active"
+        },
+        {
+          "name": "ピーチウーロン",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 350,
+          "gross_margin_pct": 70.8,
+          "sale_price_yen": 1200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 150
+          },
+          "status": "active"
+        },
+        {
+          "name": "ファジーネーブル",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 350,
+          "gross_margin_pct": 70.8,
+          "sale_price_yen": 1200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 150
+          },
+          "status": "active"
+        },
+        {
+          "name": "ジントニック",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 350,
+          "gross_margin_pct": 70.8,
+          "sale_price_yen": 1200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 150
+          },
+          "status": "active"
+        },
+        {
+          "name": "テキーラ",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 300,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 1500,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "コカレロ",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 300,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 1500,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "クライナー",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 350,
+          "gross_margin_pct": 76.7,
+          "sale_price_yen": 1500,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "テキーラローズ",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 350,
+          "gross_margin_pct": 76.7,
+          "sale_price_yen": 1500,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "コカボム",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 600,
+          "gross_margin_pct": 76.0,
+          "sale_price_yen": 2500,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 500
+          },
+          "status": "active"
+        },
+        {
+          "name": "ウーロン茶",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 150,
+          "gross_margin_pct": 78.6,
+          "sale_price_yen": 700,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "緑茶",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 150,
+          "gross_margin_pct": 78.6,
+          "sale_price_yen": 700,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "コーラ",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 200,
+          "gross_margin_pct": 71.4,
+          "sale_price_yen": 700,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "ジンジャーエール",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 200,
+          "gross_margin_pct": 71.4,
+          "sale_price_yen": 700,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "オレンジジュース",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 200,
+          "gross_margin_pct": 71.4,
+          "sale_price_yen": 700,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "黒霧島",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 3000,
+          "gross_margin_pct": 62.5,
+          "sale_price_yen": 8000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "吉四六",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 4000,
+          "gross_margin_pct": 60.0,
+          "sale_price_yen": 10000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "角瓶",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 4000,
+          "gross_margin_pct": 60.0,
+          "sale_price_yen": 10000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "知多",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 6000,
+          "gross_margin_pct": 66.7,
+          "sale_price_yen": 18000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "モエ白",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 8000,
+          "gross_margin_pct": 55.6,
+          "sale_price_yen": 18000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "ヴーヴイエロー",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 10000,
+          "gross_margin_pct": 60.0,
+          "sale_price_yen": 25000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "ベルエポック",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 35000,
+          "gross_margin_pct": 56.2,
+          "sale_price_yen": 80000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 15
+          },
+          "status": "active"
+        },
+        {
+          "name": "アルマンドゴールド",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 65000,
+          "gross_margin_pct": 59.4,
+          "sale_price_yen": 160000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 15
+          },
+          "status": "active"
+        },
+        {
+          "name": "ミックスナッツ",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 300,
+          "gross_margin_pct": 62.5,
+          "sale_price_yen": 800,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "ポテトフライ",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 450,
+          "gross_margin_pct": 62.5,
+          "sale_price_yen": 1200,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "枝豆",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 250,
+          "gross_margin_pct": 68.8,
+          "sale_price_yen": 800,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "チョコ盛り",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 350,
+          "gross_margin_pct": 65.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "template_id": "snack_standard",
+      "store_type": "スナック",
+      "template_name": "標準スナック",
+      "assumption": "常連客・ボトルキープ・カラオケ重視を想定。",
+      "business_hours": {
+        "open": "19:00",
+        "close": "00:00",
+        "business_day_cutoff": "04:00"
+      },
+      "features": {
+        "vip": false,
+        "counter": true,
+        "cast_rank": false,
+        "main_nomination": false,
+        "in_house_nomination": false,
+        "accompaniment": false,
+        "karaoke": true,
+        "bottle_keep": true,
+        "accounts_receivable": true
+      },
+      "seats": {
+        "table_count": 3,
+        "vip_count": 0,
+        "counter_count": 8
+      },
+      "customer_pricing": {
+        "set_90min_yen": 4000,
+        "extension_60min_yen": 2000,
+        "karaoke_per_song_yen": 300,
+        "karaoke_flat_yen": 1000,
+        "service_charge_pct": 10,
+        "tax_pct": 10
+      },
+      "compensation_defaults": {
+        "hourly_yen": 1500,
+        "newcomer_guarantee": {
+          "enabled": false
+        },
+        "drink_back": {
+          "type": "none"
+        },
+        "bottle_back": {
+          "type": "none"
+        }
+      },
+      "products": [
+        {
+          "name": "瓶ビール",
+          "accounting_class": "drink",
+          "display_category": "ビール",
+          "cost_yen": 400,
+          "gross_margin_pct": 60.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "生ビール",
+          "accounting_class": "drink",
+          "display_category": "ビール",
+          "cost_yen": 350,
+          "gross_margin_pct": 65.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "ハイボール",
+          "accounting_class": "drink",
+          "display_category": "グラス",
+          "cost_yen": 300,
+          "gross_margin_pct": 70.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "レモンサワー",
+          "accounting_class": "drink",
+          "display_category": "グラス",
+          "cost_yen": 300,
+          "gross_margin_pct": 70.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "ウーロンハイ",
+          "accounting_class": "drink",
+          "display_category": "グラス",
+          "cost_yen": 300,
+          "gross_margin_pct": 70.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "ウーロン茶",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 150,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 600,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "緑茶",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 150,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 600,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "コーラ",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 200,
+          "gross_margin_pct": 66.7,
+          "sale_price_yen": 600,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "ジンジャーエール",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 200,
+          "gross_margin_pct": 66.7,
+          "sale_price_yen": 600,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "いいちこ",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 2000,
+          "gross_margin_pct": 66.7,
+          "sale_price_yen": 6000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "二階堂",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 2000,
+          "gross_margin_pct": 66.7,
+          "sale_price_yen": 6000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "黒霧島",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 3000,
+          "gross_margin_pct": 57.1,
+          "sale_price_yen": 7000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "吉四六",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 4000,
+          "gross_margin_pct": 55.6,
+          "sale_price_yen": 9000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "角瓶",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 4000,
+          "gross_margin_pct": 50.0,
+          "sale_price_yen": 8000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "知多",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 6000,
+          "gross_margin_pct": 60.0,
+          "sale_price_yen": 15000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "水",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 100,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 500,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "炭酸",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 100,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 500,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "ウーロン茶デキャンタ",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 300,
+          "gross_margin_pct": 70.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "氷",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 100,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 500,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "レモン",
+          "accounting_class": "drink",
+          "display_category": "割りもの",
+          "cost_yen": 100,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 500,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "カラオケ1曲",
+          "accounting_class": "other",
+          "display_category": "カラオケ",
+          "cost_yen": 0,
+          "gross_margin_pct": 100.0,
+          "sale_price_yen": 300,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "カラオケ歌い放題",
+          "accounting_class": "other",
+          "display_category": "カラオケ",
+          "cost_yen": 0,
+          "gross_margin_pct": 100.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": false,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "ミックスナッツ",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 300,
+          "gross_margin_pct": 62.5,
+          "sale_price_yen": 800,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "乾き物盛り",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 350,
+          "gross_margin_pct": 65.0,
+          "sale_price_yen": 1000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "枝豆",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 250,
+          "gross_margin_pct": 68.8,
+          "sale_price_yen": 800,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "チーズ盛り",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 700,
+          "gross_margin_pct": 61.1,
+          "sale_price_yen": 1800,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "ポテトフライ",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 450,
+          "gross_margin_pct": 62.5,
+          "sale_price_yen": 1200,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "唐揚げ",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 600,
+          "gross_margin_pct": 60.0,
+          "sale_price_yen": 1500,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "template_id": "lounge_standard",
+      "store_type": "ラウンジ",
+      "template_name": "標準ラウンジ",
+      "assumption": "接待型・高単価寄りを想定。",
+      "business_hours": {
+        "open": "19:30",
+        "close": "01:00",
+        "business_day_cutoff": "05:00"
+      },
+      "features": {
+        "vip": true,
+        "counter": false,
+        "cast_rank": true,
+        "main_nomination": true,
+        "in_house_nomination": true,
+        "accompaniment": true,
+        "bottle_keep": true,
+        "accounts_receivable": true
+      },
+      "seats": {
+        "table_count": 7,
+        "vip_count": 2,
+        "counter_count": 0
+      },
+      "customer_pricing": {
+        "set_60min_yen": 7000,
+        "extension_30min_yen": 4000,
+        "main_nomination_yen": 2000,
+        "in_house_nomination_yen": 1000,
+        "accompaniment_yen": 3000,
+        "vip_surcharge_yen": 5000,
+        "service_charge_pct": 20,
+        "tax_pct": 10
+      },
+      "compensation_defaults": {
+        "hourly_yen": 4500,
+        "newcomer_guarantee": {
+          "enabled": true,
+          "hourly_yen": 5000,
+          "days": 30,
+          "mode": "fixed"
+        },
+        "main_nomination_back": {
+          "type": "fixed",
+          "value": 1000
+        },
+        "in_house_nomination_back": {
+          "type": "fixed",
+          "value": 500
+        },
+        "accompaniment_back": {
+          "type": "fixed",
+          "value": 2000
+        },
+        "drink_back": {
+          "type": "product_specific"
+        },
+        "bottle_back": {
+          "type": "sale_pct",
+          "value": 10
+        },
+        "champagne_back": {
+          "type": "tier",
+          "name": "champagne_4step",
+          "tiers": [
+            {
+              "max_sale_yen": 49999,
+              "back_pct": 10
+            },
+            {
+              "max_sale_yen": 149999,
+              "back_pct": 15
+            },
+            {
+              "max_sale_yen": 299999,
+              "back_pct": 20
+            },
+            {
+              "max_sale_yen": null,
+              "back_pct": 25
+            }
+          ]
+        }
+      },
+      "products": [
+        {
+          "name": "生ビール",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 350,
+          "gross_margin_pct": 80.6,
+          "sale_price_yen": 1800,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "瓶ビール",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 400,
+          "gross_margin_pct": 77.8,
+          "sale_price_yen": 1800,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "ハイボール",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 400,
+          "gross_margin_pct": 77.8,
+          "sale_price_yen": 1800,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "レモンサワー",
+          "accounting_class": "drink",
+          "display_category": "グラス・ビール",
+          "cost_yen": 400,
+          "gross_margin_pct": 77.8,
+          "sale_price_yen": 1800,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 200
+          },
+          "status": "active"
+        },
+        {
+          "name": "カシスオレンジ",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 500,
+          "gross_margin_pct": 77.3,
+          "sale_price_yen": 2200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "カシスウーロン",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 500,
+          "gross_margin_pct": 77.3,
+          "sale_price_yen": 2200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "ピーチウーロン",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 500,
+          "gross_margin_pct": 77.3,
+          "sale_price_yen": 2200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "ジントニック",
+          "accounting_class": "drink",
+          "display_category": "カクテル",
+          "cost_yen": 500,
+          "gross_margin_pct": 77.3,
+          "sale_price_yen": 2200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 300
+          },
+          "status": "active"
+        },
+        {
+          "name": "テキーラ",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 300,
+          "gross_margin_pct": 88.0,
+          "sale_price_yen": 2500,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 500
+          },
+          "status": "active"
+        },
+        {
+          "name": "コカレロ",
+          "accounting_class": "drink",
+          "display_category": "ショット",
+          "cost_yen": 300,
+          "gross_margin_pct": 88.0,
+          "sale_price_yen": 2500,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 500
+          },
+          "status": "active"
+        },
+        {
+          "name": "ウーロン茶",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 150,
+          "gross_margin_pct": 87.5,
+          "sale_price_yen": 1200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "緑茶",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 150,
+          "gross_margin_pct": 87.5,
+          "sale_price_yen": 1200,
+          "inventory_managed": false,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "コーラ",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 200,
+          "gross_margin_pct": 83.3,
+          "sale_price_yen": 1200,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "ジンジャーエール",
+          "accounting_class": "drink",
+          "display_category": "ソフトドリンク",
+          "cost_yen": 200,
+          "gross_margin_pct": 83.3,
+          "sale_price_yen": 1200,
+          "inventory_managed": true,
+          "back": {
+            "type": "fixed",
+            "value": 100
+          },
+          "status": "active"
+        },
+        {
+          "name": "黒霧島",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 3000,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 15000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "吉四六",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 4000,
+          "gross_margin_pct": 77.8,
+          "sale_price_yen": 18000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "魔王",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 9000,
+          "gross_margin_pct": 77.5,
+          "sale_price_yen": 40000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "森伊蔵",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（焼酎）",
+          "cost_yen": 20000,
+          "gross_margin_pct": 77.8,
+          "sale_price_yen": 90000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "角瓶",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 4000,
+          "gross_margin_pct": 77.8,
+          "sale_price_yen": 18000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "知多",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 6000,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 30000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "山崎NV",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 15000,
+          "gross_margin_pct": 78.6,
+          "sale_price_yen": 70000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "白州NV",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 15000,
+          "gross_margin_pct": 78.6,
+          "sale_price_yen": 70000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "響JH",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 22000,
+          "gross_margin_pct": 78.0,
+          "sale_price_yen": 100000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "マッカラン12年",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ウイスキー）",
+          "cost_yen": 18000,
+          "gross_margin_pct": 77.5,
+          "sale_price_yen": 80000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "ヘネシーVS",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ブランデー）",
+          "cost_yen": 10000,
+          "gross_margin_pct": 80.0,
+          "sale_price_yen": 50000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "ヘネシーXO",
+          "accounting_class": "bottle",
+          "display_category": "ボトル（ブランデー）",
+          "cost_yen": 30000,
+          "gross_margin_pct": 78.6,
+          "sale_price_yen": 140000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "モエ白",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 8000,
+          "gross_margin_pct": 77.1,
+          "sale_price_yen": 35000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ヴーヴイエロー",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 10000,
+          "gross_margin_pct": 77.8,
+          "sale_price_yen": 45000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ベルエポック",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 35000,
+          "gross_margin_pct": 78.1,
+          "sale_price_yen": 160000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ドンペリ",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 33000,
+          "gross_margin_pct": 78.0,
+          "sale_price_yen": 150000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ドンペリロゼ",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 88000,
+          "gross_margin_pct": 76.8,
+          "sale_price_yen": 380000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "ソウメイ",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 35000,
+          "gross_margin_pct": 78.1,
+          "sale_price_yen": 160000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "エンジェルブラック",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 65000,
+          "gross_margin_pct": 78.3,
+          "sale_price_yen": 300000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "アルマンドゴールド",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 65000,
+          "gross_margin_pct": 78.3,
+          "sale_price_yen": 300000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "クリュッグ",
+          "accounting_class": "champagne",
+          "display_category": "シャンパン",
+          "cost_yen": 55000,
+          "gross_margin_pct": 78.0,
+          "sale_price_yen": 250000,
+          "inventory_managed": true,
+          "back": {
+            "type": "tier",
+            "value": "champagne_4step"
+          },
+          "status": "active"
+        },
+        {
+          "name": "赤ワイン（ハウス）",
+          "accounting_class": "wine",
+          "display_category": "ワイン",
+          "cost_yen": 3500,
+          "gross_margin_pct": 70.8,
+          "sale_price_yen": 12000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "白ワイン（ハウス）",
+          "accounting_class": "wine",
+          "display_category": "ワイン",
+          "cost_yen": 3500,
+          "gross_margin_pct": 70.8,
+          "sale_price_yen": 12000,
+          "inventory_managed": true,
+          "back": {
+            "type": "sale_pct",
+            "value": 10
+          },
+          "status": "active"
+        },
+        {
+          "name": "ミックスナッツ",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 400,
+          "gross_margin_pct": 77.8,
+          "sale_price_yen": 1800,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "チーズ盛り",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 800,
+          "gross_margin_pct": 77.1,
+          "sale_price_yen": 3500,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        },
+        {
+          "name": "フルーツ盛り",
+          "accounting_class": "food",
+          "display_category": "フード",
+          "cost_yen": 3000,
+          "gross_margin_pct": 75.0,
+          "sale_price_yen": 12000,
+          "inventory_managed": true,
+          "back": {
+            "type": "none",
+            "value": null
+          },
+          "status": "active"
+        }
+      ]
+    }
+  ]
+}

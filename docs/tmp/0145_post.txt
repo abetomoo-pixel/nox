@@ -1,0 +1,19 @@
+proof {"k":"nox-project-proof","n":3}  2026/9/14 18:08:57  db=postgres
+apply: OK（例外なし）
+検証1) 署名: 1 行 seat_reorder(p_store_id uuid, p_ids uuid[]) → OK
+検証2) proacl: {postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres} → OK（anon なし）
+検証3) 既存 reorder 4 本＋set_seat の md5（控え→今）:
+   cast_rank_reorder: d1e4218e83b148babfda0464a8e7304e → d1e4218e83b148babfda0464a8e7304e 不変
+   pricing_rule_reorder: e34ee93107a2275baf55167687e458ab → e34ee93107a2275baf55167687e458ab 不変
+   product_category_reorder: 2cae45064859e18c48188a01a7eea148 → 2cae45064859e18c48188a01a7eea148 不変
+   product_reorder: d3cc42d8e8996d90560b80a9a50f167c → d3cc42d8e8996d90560b80a9a50f167c 不変
+   set_seat: d92981eadbbf90e12aa49ffab24f8f35 → d92981eadbbf90e12aa49ffab24f8f35 不変
+   → OK
+検証4) money-core 3 本の md5（控え→今）:
+   check_close: 3021fc96c27e57a48545ef6c01d7274e → 3021fc96c27e57a48545ef6c01d7274e 不変
+   check_pay: 4229f5d26fc79975eddee74bf9679574 → 4229f5d26fc79975eddee74bf9679574 不変
+   check_void: 2ecbb65392a1ea3e6d2cbb4a8e1de6bf → 2ecbb65392a1ea3e6d2cbb4a8e1de6bf 不変
+   → OK
+検証5) seats 列 9（9）・制約 4（4）・grant 不変・policy 不変 → OK
+検証6) ゲート済み 124→125・public 関数 238→239 → OK
+audit_logs action='seat_reorder': 0 行（適用時点）

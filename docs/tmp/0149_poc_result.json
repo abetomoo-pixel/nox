@@ -1,0 +1,284 @@
+{
+ "asserts": [
+  {
+   "label": "x0 店設定（時間制・料金）を tx 内で設定",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "label": "x1(4) 95 分前へ UPDATE 後の time_charge_apply で延長行が乗る（set 60 分＋延長 30 分×2 見込み）",
+   "ok": true,
+   "detail": " lines=[{\"fee_kind\":\"set\",\"block_no\":0,\"line_total\":5000,\"time_auto\":true},{\"fee_kind\":\"extension\",\"block_no\":1,\"line_total\":3000,\"time_auto\":true},{\"fee_kind\":\"extension\",\"block_no\":2,\"line_total\":3000,\"time_auto\":true}]"
+  },
+  {
+   "label": "x1(1) セットのみ: pay／close 成功・status closed・total=due",
+   "ok": true,
+   "detail": "err=undefined total=5500 due=5500"
+  },
+  {
+   "label": "x1(2) 指名＋ドリンク 3: pay／close 成功・status closed・total=due",
+   "ok": true,
+   "detail": "err= total=17000 due=17000"
+  },
+  {
+   "label": "x1(3) ボトル＋同伴: pay／close 成功・status closed・total=due",
+   "ok": true,
+   "detail": "err= total=52800 due=52800"
+  },
+  {
+   "label": "x1(4) 延長（95 分）: pay／close 成功・status closed・total=due",
+   "ok": true,
+   "detail": "err= total=12100 due=12100"
+  },
+  {
+   "label": "x1(5) 紹介料＋売掛: pay／close 成功・status closed・total=due",
+   "ok": true,
+   "detail": "err= total=8800 due=8800"
+  },
+  {
+   "label": "x3 削除＝checks／lines／tx 内 stock_logs が 0（check_lines 削除で再生成された sale_remove は 2 行→再削除）",
+   "ok": true,
+   "detail": "{\"c\":0,\"l\":0,\"sl\":0}"
+  },
+  {
+   "label": "x3 投入＝表ごと 1 文の jsonb_populate_recordset（276-2 の形）で全表 INSERT 成功・表順 checks→check_lines→check_nominations→check_cast_backs→payments→receivables→audit_logs",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "label": "x3(1) セットのみ: check_group_due（再生）=録画値=checks.total=receipt 鏡像",
+   "ok": true,
+   "detail": "rec=5500 replay=5500 total=5500 mirror=5500"
+  },
+  {
+   "label": "x3(1) 営業日が 3 日前（2026-09-15）にずれている",
+   "ok": true,
+   "detail": "2026-09-15"
+  },
+  {
+   "label": "x3(2) 指名＋ドリンク 3: check_group_due（再生）=録画値=checks.total=receipt 鏡像",
+   "ok": true,
+   "detail": "rec=17000 replay=17000 total=17000 mirror=17000"
+  },
+  {
+   "label": "x3(2) 営業日が 3 日前（2026-09-15）にずれている",
+   "ok": true,
+   "detail": "2026-09-15"
+  },
+  {
+   "label": "x3(3) ボトル＋同伴: check_group_due（再生）=録画値=checks.total=receipt 鏡像",
+   "ok": true,
+   "detail": "rec=52800 replay=52800 total=52800 mirror=52800"
+  },
+  {
+   "label": "x3(3) 営業日が 3 日前（2026-09-15）にずれている",
+   "ok": true,
+   "detail": "2026-09-15"
+  },
+  {
+   "label": "x3(4) 延長（95 分）: check_group_due（再生）=録画値=checks.total=receipt 鏡像",
+   "ok": true,
+   "detail": "rec=12100 replay=12100 total=12100 mirror=12100"
+  },
+  {
+   "label": "x3(4) 営業日が 3 日前（2026-09-15）にずれている",
+   "ok": true,
+   "detail": "2026-09-15"
+  },
+  {
+   "label": "x3(5) 紹介料＋売掛: check_group_due（再生）=録画値=checks.total=receipt 鏡像",
+   "ok": true,
+   "detail": "rec=8800 replay=8800 total=8800 mirror=8800"
+  },
+  {
+   "label": "x3(5) 営業日が 3 日前（2026-09-15）にずれている",
+   "ok": true,
+   "detail": "2026-09-15"
+  },
+  {
+   "label": "x3 stock_logs: 再生後の sale 行＝録画時と同数（トリガ再生成・二重なし）",
+   "ok": true,
+   "detail": "{\"recSale\":2,\"after\":{\"sl\":2,\"sale\":2,\"cb\":2,\"cn\":2,\"dc\":0,\"pay\":5,\"rv\":1}}"
+  },
+  {
+   "label": "x3 件数一致: check_cast_backs／check_nominations／drink_claims／payments／receivables",
+   "ok": true,
+   "detail": "{\"counts\":{\"checks\":5,\"approvals\":0,\"check_cast_backs\":2,\"check_lines\":16,\"check_nominations\":2,\"check_seats\":0,\"drink_claims\":0,\"payments\":5,\"print_jobs\":0,\"receipt_issues\":0,\"receivables\":1,\"reservations\":0,\"stock_logs\":2,\"audit_logs\":30},\"after\":{\"sl\":2,\"sale\":2,\"cb\":2,\"cn\":2,\"dc\":0,\"pay\":5,\"rv\":1}}"
+  },
+  {
+   "label": "x3 daily_report_close（3 日前の営業日）が通り 売上（cash+card+uri+other）＝5 枚の合計",
+   "ok": true,
+   "detail": " dr={\"cash\":34600,\"card_gross\":52800,\"uri\":8800,\"other\":0,\"slips\":5,\"guests\":10,\"drink_sales\":34500} sum=96200"
+  },
+  {
+   "label": "x6 ROLLBACK 後の snapshot 一致（checks／lines／payments／stock_logs／backs／noms／receivables／daily_reports／audit／店設定）",
+   "ok": true,
+   "detail": "{\"c\":13,\"l\":8,\"p\":5,\"sl\":1,\"cb\":0,\"cn\":3,\"rv\":1,\"dr\":2,\"au\":811,\"stcfg\":\"0/0/10/100\"} → {\"c\":13,\"l\":8,\"p\":5,\"sl\":1,\"cb\":0,\"cn\":3,\"rv\":1,\"dr\":2,\"au\":811,\"stcfg\":\"0/0/10/100\"}"
+  }
+ ],
+ "issues": [],
+ "timing": {
+  "record_ms": 5204,
+  "capture_ms": 1530,
+  "replay_delete_ms": 843,
+  "replay_insert_ms": 1062
+ },
+ "notes": [
+  "再生で自動生成された stock_logs.sale 行の営業日＝2026-09-18（伝票の営業日 2026-09-15 ではなく now()＝在庫台帳の日付がずれる）"
+ ],
+ "capture": {
+  "tables": 14,
+  "rows": 63,
+  "counts": {
+   "checks": 5,
+   "approvals": 0,
+   "check_cast_backs": 2,
+   "check_lines": 16,
+   "check_nominations": 2,
+   "check_seats": 0,
+   "drink_claims": 0,
+   "payments": 5,
+   "print_jobs": 0,
+   "receipt_issues": 0,
+   "receivables": 1,
+   "reservations": 0,
+   "stock_logs": 2,
+   "audit_logs": 30
+  },
+  "bytes": 57357,
+  "bizToday": "2026-09-18",
+  "cutoff": "06:00",
+  "saleRowsExcluded": 2
+ },
+ "insMs": {
+  "checks": 140,
+  "check_lines": 137,
+  "check_nominations": 143,
+  "check_cast_backs": 158,
+  "payments": 154,
+  "receivables": 146,
+  "audit_logs": 183
+ },
+ "after": {
+  "sl": 2,
+  "sale": 2,
+  "cb": 2,
+  "cn": 2,
+  "dc": 0,
+  "pay": 5,
+  "rv": 1
+ },
+ "recSale": 2,
+ "daily": {
+  "ok": true,
+  "dr": {
+   "cash": 34600,
+   "card_gross": 52800,
+   "uri": 8800,
+   "other": 0,
+   "slips": 5,
+   "guests": 10,
+   "drink_sales": 34500
+  },
+  "sumTot": 96200,
+  "targetBiz": "2026-09-15"
+ },
+ "rec": [
+  {
+   "n": 1,
+   "label": "セットのみ",
+   "due": 5500,
+   "total": 5500,
+   "status": "closed"
+  },
+  {
+   "n": 2,
+   "label": "指名＋ドリンク 3",
+   "due": 17000,
+   "total": 17000,
+   "status": "closed",
+   "err": ""
+  },
+  {
+   "n": 3,
+   "label": "ボトル＋同伴",
+   "due": 52800,
+   "total": 52800,
+   "status": "closed",
+   "err": ""
+  },
+  {
+   "n": 4,
+   "label": "延長（95 分）",
+   "due": 12100,
+   "total": 12100,
+   "status": "closed",
+   "err": "",
+   "extLines": 2
+  },
+  {
+   "n": 5,
+   "label": "紹介料＋売掛",
+   "due": 8800,
+   "total": 8800,
+   "status": "closed",
+   "err": ""
+  }
+ ],
+ "results": [
+  {
+   "n": 1,
+   "label": "セットのみ",
+   "recDue": 5500,
+   "replayDue": 5500,
+   "total": 5500,
+   "mirror": 5500,
+   "bizDate": "2026-09-15",
+   "ok": true
+  },
+  {
+   "n": 2,
+   "label": "指名＋ドリンク 3",
+   "recDue": 17000,
+   "replayDue": 17000,
+   "total": 17000,
+   "mirror": 17000,
+   "bizDate": "2026-09-15",
+   "ok": true
+  },
+  {
+   "n": 3,
+   "label": "ボトル＋同伴",
+   "recDue": 52800,
+   "replayDue": 52800,
+   "total": 52800,
+   "mirror": 52800,
+   "bizDate": "2026-09-15",
+   "ok": true
+  },
+  {
+   "n": 4,
+   "label": "延長（95 分）",
+   "recDue": 12100,
+   "replayDue": 12100,
+   "total": 12100,
+   "mirror": 12100,
+   "bizDate": "2026-09-15",
+   "ok": true
+  },
+  {
+   "n": 5,
+   "label": "紹介料＋売掛",
+   "recDue": 8800,
+   "replayDue": 8800,
+   "total": 8800,
+   "mirror": 8800,
+   "bizDate": "2026-09-15",
+   "ok": true
+  }
+ ],
+ "snapshot": {
+  "before": "{\"c\":13,\"l\":8,\"p\":5,\"sl\":1,\"cb\":0,\"cn\":3,\"rv\":1,\"dr\":2,\"au\":811,\"stcfg\":\"0/0/10/100\"}",
+  "after": "{\"c\":13,\"l\":8,\"p\":5,\"sl\":1,\"cb\":0,\"cn\":3,\"rv\":1,\"dr\":2,\"au\":811,\"stcfg\":\"0/0/10/100\"}"
+ }
+}

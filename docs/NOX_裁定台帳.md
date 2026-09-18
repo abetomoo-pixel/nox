@@ -3723,6 +3723,19 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 適用＝未着手（事前読取の追補＝docs/tmp/0149_pre.md w1〜w6・録画再生の PoC＝scripts/demo/poc-record.mjs＋docs/tmp/0149_poc.md＝本便 X・コミットしない）。
 
+## 裁定278（本便で確定・Agoora「推奨で」・2026-09-18）0149 改稿（278-1〜3）
+
+出典＝相談役ブロック 2026-09-18 夕（便 AD の突合 docs/tmp/0149_ad.md＝f-4 `memberships_store_id_fkey` raise を受けた裁定・同日収載）。**本文（逐語）**:
+「[裁定278 0149 改稿]
+ 278-1 demo_org_reset で残す表は orgs・org_billing・users の 3 表。memberships は wipe／load の対象に含める(id 固定で入れ直す)。
+   理由=memberships.store_id が stores を参照するため stores を消せない(AD f-4)。stores を残す案は訪問者が変えた店舗設定が
+   リセットで戻らないため不採用。FK の cascade 化は不採用。276-2 の「残す 4 表」は本項で 3 表に改める。
+ 278-2 ★7(stock_logs の sale 行の at 当て直し)は (store_id, product_id, delta) の partition＋row_number の対応付けで確定。
+   列レベルの結合キーは無いが、対応付けが入れ替わる行同士は店・商品・数量が同一で、時刻を入れ替えても結果の行集合は同一のため。
+ 278-3 突合 a-7 の 'billing locked' 判定は関数本文に限定する。」
+
+適用＝便 AF（0149 改稿＝残す 3 表・memberships を削除順／投入順へ機械整列で追加・diff は docs/tmp/0149_rev_diff.md）／便 AG（再突合＝docs/tmp/q0918_ad.mjs 改稿版・c' で残す 3 表が wipe 対象を参照する FK の全数列挙）。0149／0150 は未追跡・手貼り待ち（0149→0150 の順）。
+
 ## 裁定277（本便で確定・Agoora「推奨で」・2026-09-18）0149 の設計（277-1〜6）
 
 出典＝相談役ブロック 2026-09-18 午後（0149 事前読取の追補 docs/tmp/0149_pre.md w1〜w6・録画再生 PoC docs/tmp/0149_poc.md を受けた裁定・同日収載）。**本文（逐語）**:

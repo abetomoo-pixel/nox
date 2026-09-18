@@ -1,0 +1,26 @@
+proof {"k":"nox-project-proof","n":3}  2026/9/14 14:07:51  読取のみ
+2) set_store_profile: 1 行 set_store_profile(p_store_id uuid, p_patch jsonb) acl={postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres} prosrc md5=07d114ff0b570462c3330b87497fc17c
+   mig 本文との一字照合: 一致（live 5923 字／mig 5923 字・mig 本文 md5=7acbbf88cd8ad779dd385eb13834427f）
+検証1) 署名: 1 行 set_store_profile(p_store_id uuid, p_patch jsonb)
+検証2) proacl: {postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}
+検証3) set_store_% 既存 11 本の md5:
+   set_store_biz_cutoff: 0d94e56d186fd1a1597ec53943c6bcdb
+   set_store_business_hours: bef2bf61f533bbdb4e801fea35220e98
+   set_store_cast_register: 0a924dc5361a7ef15c51350c162443f5
+   set_store_norm_config: 062c6cabafeddfb30c623b37885f71d1
+   set_store_okuri_base: ef156ecde1375a62080ca9294328b6d4
+   set_store_okuri_mode: 821e36a155541301a4a1754055f5c42d
+   set_store_pin_policy: 6b8974ff60a89e0704e1cc6a0426321d
+   set_store_pricing: ee603fbcdf8d9dbd0b6da7b3b565cb7d
+   set_store_receipt_profile: 2d3164c32c2b1caeb2c4ad053ccd44df
+   set_store_tax_config: c529f1b4d7f4dbd094d1ce5fe3098c81
+   set_store_time_pricing: a4c869be2f7ad41ba5a9647634cb2ab3
+検証4) money-core 3 本の md5:
+   check_close: 3021fc96c27e57a48545ef6c01d7274e
+   check_pay: 4229f5d26fc79975eddee74bf9679574
+   check_void: 2ecbb65392a1ea3e6d2cbb4a8e1de6bf
+検証5) stores の grant: authenticated:SELECT postgres:DELETE postgres:INSERT postgres:REFERENCES postgres:SELECT postgres:TRIGGER postgres:TRUNCATE postgres:UPDATE service_role:DELETE service_role:INSERT service_role:REFERENCES service_role:SELECT service_role:TRIGGER service_role:TRUNCATE service_role:UPDATE
+検証5) stores の policy: stores_select=((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (id = auth_store_id())))
+検証6) stores 列数 30 ・ dohan_auto_hon(NOT NULL default false)・ext_shimei_enabled(NOT NULL default false)・name(NOT NULL default -)・short(null可 default -)
+settings_json キー集合: CLUB NOX{biz_cutoff_hm,cast_register_enabled,okuri_mode} / NOX-VERIFY-A1{okuri_mode} / NOX-VERIFY-A2{} / NOX-VERIFY-B1{}
+4) audit_logs action='set_store_profile': 0 行

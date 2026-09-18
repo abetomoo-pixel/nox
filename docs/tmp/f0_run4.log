@@ -1,0 +1,49 @@
+
+> nox@0.0.0 verify:f0
+> npm run verify:nox-audit-sweep && npm run verify:nox-pay && npm run verify:nox-shift-time && npm run verify:nox-punch-match && npm run verify:nox-receipt && npm run verify:nox-anon-guard && npm run verify:nox-rls && npm run verify:nox-grants && npm run verify:nox-payroll && npm run verify:nox-payroll-csv && npm run verify:nox-inventory && npm run verify:nox-product-bulk && npm run verify:nox-pricing && npm run verify:nox-pricing-apply && npm run verify:nox-pricing-categories && npm run verify:nox-pricing-resolve-category && npm run verify:nox-vip-unit && npm run verify:nox-set-people && npm run verify:nox-ext-menu && npm run verify:nox-receipt-ledger && npm run verify:nox-ar-partial && npm run verify:nox-crm-base && npm run verify:nox-shift-bands && npm run verify:nox-shift-autoassign && npm run verify:nox-shift-deep && npm run verify:nox-analytics-t4 && npm run verify:nox-categories && npm run verify:nox-cast-photo && npm run verify:nox-labor-forecast && npm run verify:nox-rate-back && npm run verify:nox-r2b && npm run verify:nox-autocharge && npm run verify:nox-product-back-modes && npm run verify:nox-shift-modal && npm run verify:nox-shift-confirm && npm run verify:nox-billing && npm run verify:nox-billing-app && npm run verify:nox-flags && npm run verify:nox-staff-shift && npm run verify:nox-reopen && npm run verify:nox-payroll-list && npm run verify:nox-labor-cost && npm run verify:nox-compare && npm run verify:nox-cast-stats && npm run verify:nox-shift-gap && npm run verify:nox-d45 && npm run verify:nox-store-profile && npm run verify:nox-seat-reorder && npm run verify:nox-payroll-adjust && npm run verify:nox-staff-email
+
+
+> nox@0.0.0 verify:nox-audit-sweep
+> tsx scripts/verify-nox-audit-sweep.ts
+
+verify:nox-audit-sweep 削除前=805 削除=805 削除後=0 / 残総数=1,128（他 org＋seed_marker）（閾値 5,000・org 母数 2/2）
+verify:nox-audit-sweep ALL PASS (4 assertions)
+
+> nox@0.0.0 verify:nox-pay
+> tsx scripts/verify-nox-pay.ts
+
+verify:nox-pay ALL PASS (95 assertions)
+玲奈ゴールデン: wage=5931 wHours=110.1 timePay=653050 gross=1387150 withholding=125802 net=1192348
+
+> nox@0.0.0 verify:nox-shift-time
+> tsx scripts/verify-nox-shift-time.ts
+
+verify:nox-shift-time ALL PASS (44 assertions)
+
+> nox@0.0.0 verify:nox-punch-match
+> tsx scripts/verify-nox-punch-match.ts
+
+verify:nox-punch-match ALL PASS (75 assertions)
+
+> nox@0.0.0 verify:nox-receipt
+> tsx scripts/verify-nox-receipt.ts
+
+verify:nox-receipt ALL PASS (64 assertions)
+T1 合計8800/税800・T2 割引→8200/税745/調整-50・T3 group B 3300/税300
+
+> nox@0.0.0 verify:nox-anon-guard
+> tsx scripts/verify-nox-anon-guard.ts
+
+✗ 異常終了 Error: advances: canceling statement due to statement timeout
+    at loadAdvances (C:\Users\abet\Dropbox\cloude\nox\lib\nox\payroll\collect.ts:387:20)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Promise.all (index 4)
+    at async collectPeriod (C:\Users\abet\Dropbox\cloude\nox\lib\nox\payroll\collect.ts:533:184)
+    at async drinkOf (C:\Users\abet\Dropbox\cloude\nox\scripts\verify-nox-anon-guard.ts:4090:25)
+    at async main (C:\Users\abet\Dropbox\cloude\nox\scripts\verify-nox-anon-guard.ts:4109:25)
+
+real	4m35.123s
+user	0m0.151s
+sys	0m0.060s
+exit=1
+12:58:57

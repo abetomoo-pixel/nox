@@ -1,0 +1,229 @@
+## 4a. 固定 px 幅（width / min-width / minWidth ≥ 400px）
+  components/ui/modal.tsx:24 min-width=901 | //     globals.css の `.nox-modal-drawer .nox-modal-card`（@media min-width:901px）が担う。
+  components/ui/modal.tsx:26 min-width=901 | //     min-width:901px の中だけに置き、≤900 の既存 @media(max-width:900px) 節へ
+
+## 4b. <table> と親の overflow-x（直前 8 行に overflow-x:auto／overflowX:"auto"／nox-ptwrap／nox-barwrap／nox-tablewrap があるか）
+  ★NG app/(manage)/analytics/analytics-board.tsx:1142 | <table className="nox-table">
+  ★NG app/(manage)/analytics/analytics-board.tsx:1214 | <table className="nox-table">
+  OK  app/(manage)/analytics/analytics-board.tsx:1292 | <table className="nox-table">
+  OK  app/(manage)/audit/audit-board.tsx:394 | <table className="nox-table">
+  OK  app/(manage)/audit/audit-board.tsx:442 | <table className="nox-table">
+  OK  app/(manage)/master/business-hours-panel.tsx:325 | <table className="nox-table">
+  ★NG app/(manage)/master/cast-comp/comp-sections.tsx:224 | <table className="nox-table" style={{ width: "auto" }}>
+  ★NG app/(manage)/master/cast-comp/comp-sections.tsx:336 | <table className="nox-table" style={{ marginBottom: 10 }}>
+  ★NG app/(manage)/master/cast-comp/comp-sections.tsx:392 | <table className="nox-table" style={{ marginBottom: 8 }}>
+  ★NG app/(manage)/master/cast-comp/comp-sections.tsx:615 | <table className="nox-table" style={{ marginBottom: 10 }}>
+  ★NG app/(manage)/master/cast-comp/comp-sections.tsx:708 | <table className="nox-table" style={{ width: "auto" }}>
+  ★NG app/(manage)/master/cast-comp/comp-sections.tsx:762 | <table className="nox-table" style={{ marginBottom: 10 }}>
+  ★NG app/(manage)/master/cast-comp/comp-sections.tsx:832 | <table className="nox-table" style={{ marginBottom: 10 }}>
+  ★NG app/(manage)/master/cast-comp/comp-sections.tsx:956 | <table className="nox-table" style={{ marginBottom: 10 }}>
+  ★NG app/(manage)/master/cast-comp/plan/plan-editor.tsx:72 | <table className="nox-table" style={{ marginBottom: 8 }}>
+  OK  app/(manage)/master/cast-register-panel.tsx:84 | <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+  OK  app/(manage)/master/categories/categories-board.tsx:135 | <table className="nox-ptable">
+  OK  app/(manage)/master/feature-flags-panel.tsx:79 | <table className="nox-table">
+  OK  app/(manage)/master/kiosk-device-panel.tsx:170 | <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+  OK  app/(manage)/master/kiosk-pin-panel.tsx:166 | <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+  OK  app/(manage)/master/pricing/pricing-board.tsx:948 | <table className="nox-ptable">
+  OK  app/(manage)/master/pricing/pricing-board.tsx:1003 | <table className="nox-ptable">
+  OK  app/(manage)/master/pricing/pricing-board.tsx:1269 | <table className="nox-ptable">
+  OK  app/(manage)/master/pricing/pricing-board.tsx:1444 | <table className="nox-ptable">
+  OK  app/(manage)/master/printer-panel.tsx:153 | <table className="nox-table">
+  OK  app/(manage)/master/products/products-board.tsx:485 | <table className="nox-ptable is-products">
+  ★NG app/(manage)/master/seats/seats-board.tsx:105 | <table className="nox-table" style={{ marginBottom: 10 }}>
+  OK  app/(manage)/master/staff-shift-panel.tsx:172 | <table className="nox-table">
+  OK  app/(manage)/master/stock/stock-board.tsx:269 | <table className="nox-ptable">
+  OK  app/(manage)/payroll/invoice-panel.tsx:127 | <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>
+  ★NG app/(manage)/payroll/payment-panel.tsx:106 | <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginTop: 10 }}>
+  OK  app/(manage)/payroll/payment-tax-panel.tsx:99 | <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>
+  ★NG app/(manage)/payroll/payroll-board.tsx:505 | <table className="nox-table">
+  ★NG app/(manage)/payroll/payroll-board.tsx:561 | <table className="nox-paytable" style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, ma
+  OK  app/(manage)/payroll/payroll-list.tsx:145 | <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+  OK  app/(manage)/receipts/receipts-board.tsx:99 | <table className="nox-ptable">
+  OK  app/(manage)/register/drink-claim-queue.tsx:120 | <table className="nox-table">
+  ★NG app/(manage)/register/register-board.tsx:2810 | <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+  ★NG app/(manage)/register/register-board.tsx:2983 | <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
+  ★NG app/(manage)/report/report-board.tsx:699 | <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+  ★NG app/(manage)/report/report-board.tsx:989 | <table style={{ borderCollapse: "collapse", fontSize: 13 }}>
+  ★NG app/(manage)/report/report-board.tsx:1243 | <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+  OK  app/(manage)/shift/shift-board.tsx:973 | <table className="nox-table">
+  OK  app/(manage)/shift/shift-board.tsx:1387 | <table className="nox-table">
+  OK  app/(manage)/shift/shift-board.tsx:1644 | <table style={{ borderCollapse: "collapse", fontSize: 11 }}>
+  OK  app/(manage)/shift/shift-board.tsx:1780 | <table className="nox-table">
+  OK  app/(manage)/shift/staff-shift-manage.tsx:156 | <table className="nox-table">
+  ★NG app/kiosk-register/page.tsx:1037 | <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+  ★NG app/kiosk-register/page.tsx:1096 | <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
+  ★NG app/mine/ranking/page.tsx:49 | <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+  ★NG components/simulator-panel.tsx:395 | <table style={{ width: "100%", fontSize: 13, marginTop: 8, borderCollapse: "collapse" }}>
+  合計 table 51・親に横スクロールあり 27・なし 24
+
+## 4c. white-space: nowrap（CSS）／whiteSpace: "nowrap"（tsx）と table 内か
+  app/(manage)/audit/audit-board.tsx:300 [非table] | <span style={{ color: l.before_json === null ? "var(--ok)" : "var(--gold2)", fontSize: 11.5, fontWeight: 700, 
+  app/(manage)/customers/customers-board.tsx:634 [非table] | <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+  app/(manage)/customers/[id]/customer-detail.tsx:38 [非table] | color: "var(--sub)", background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+  app/(manage)/dashboard/dashboard-board.tsx:249 [非table] | <Link href="/shift" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>{s
+  app/(manage)/dashboard/dashboard-board.tsx:313 [非table] | <Link href="/analytics" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }
+  app/(manage)/dashboard/dashboard-board.tsx:331 [非table] | <Link href="/notices" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>
+  app/(manage)/dashboard/dashboard-board.tsx:337 [非table] | <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title}</s
+  app/(manage)/master/cast-comp/comp-sections.tsx:229 [table] | <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>{i + 1}段</td>
+  app/(manage)/master/cast-register-panel.tsx:88 [table] | <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
+  app/(manage)/master/cast-register-panel.tsx:98 [table] | <td style={{ padding: 6, fontWeight: 700, whiteSpace: "nowrap" }}>{r.name}</td>
+  app/(manage)/master/cast-register-panel.tsx:112 [table] | <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+  app/(manage)/master/kiosk-device-panel.tsx:174 [table] | <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
+  app/(manage)/master/kiosk-device-panel.tsx:196 [table] | <td style={{ padding: 6, whiteSpace: "nowrap" }}>{PURPOSE_LABEL[d.purpose] ?? d.purpose}</td>
+  app/(manage)/master/kiosk-device-panel.tsx:200 [table] | <td style={{ padding: 6, whiteSpace: "nowrap", color: d.last_seen_at ? undefined : "var(--sub)" }}>
+  app/(manage)/master/kiosk-device-panel.tsx:265 [非table] | <span className="num" style={{ marginLeft: "auto", color: "var(--v2-muted)", whiteSpace: "nowrap" }}>{relTime(
+  app/(manage)/master/kiosk-pin-panel.tsx:170 [table] | <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
+  app/(manage)/master/kiosk-pin-panel.tsx:187 [table] | <td style={{ padding: 6, whiteSpace: "nowrap" }}>
+  app/(manage)/master/kiosk-pin-panel.tsx:190 [table] | <td style={{ padding: 6, whiteSpace: "nowrap" }}>
+  app/(manage)/master/kiosk-pin-panel.tsx:196 [table] | <td style={{ padding: 6, whiteSpace: "nowrap" }}>
+  app/(manage)/master/printer-panel.tsx:167 [table] | <td style={{ ...t.num, whiteSpace: "nowrap" }}>{j.check_id.replace(/-/g, "").slice(0, 8)}-{j.pay_group}{j.is_r
+  app/(manage)/master/printer-panel.tsx:169 [table] | <td style={{ ...t.num, whiteSpace: "nowrap" }}>{new Date(j.created_at).toLocaleString("ja-JP", { timeZone: "As
+  app/(manage)/master/products/products-board.tsx:67 [非table] | <span style={{ display: "inline-flex", alignItems: "center", whiteSpace: "nowrap" }}
+  app/(manage)/master/products/products-board.tsx:547 [table] | <span style={{ ...t.num, fontSize: 13.5, fontWeight: 700, color: "var(--champ)", whiteSpace: "nowrap" }}>{yen(
+  app/(manage)/master/products/products-board.tsx:951 [非table] | <span key={ix} style={{ marginRight: 10, whiteSpace: "nowrap" }}>
+  app/(manage)/master/sensitive-tax-panel.tsx:217 [非table] | <span className="nox-stpill" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>ENCRYPTED</span>
+  app/(manage)/master/sensitive-tax-panel.tsx:324 [非table] | <span className="num" style={{ marginLeft: "auto", color: "var(--v2-muted)", whiteSpace: "nowrap" }}>{relTime(
+  app/(manage)/master/stock/stock-board.tsx:113 [非table] | <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+  app/(manage)/payroll/payroll-list.tsx:165 [table] | <td style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }}>{fmtAt(r.paidAt ?? r.finalizedAt ?? r.updatedAt)}</td>
+  app/(manage)/payroll/payroll-list.tsx:170 [table] | <summary style={{ cursor: "pointer", whiteSpace: "nowrap" }}>{ACTION_LABEL[r.lastAction.action] ?? r.lastActio
+  app/(manage)/payroll/payroll-list.tsx:176 [table] | <td style={{ ...t.td, whiteSpace: "nowrap" }}>
+  app/(manage)/register/drink-claim-queue.tsx:134 [table] | <td className="num" style={{ textAlign: "left", whiteSpace: "nowrap" }}>{hhmm(c.created_at)}</td>
+  app/(manage)/register/drink-claim-queue.tsx:135 [table] | <td style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{one(c.casts)?.name ?? "(不明)"}</td>
+  app/(manage)/register/drink-claim-queue.tsx:138 [table] | <td className="num" style={{ textAlign: "left", color: "var(--champ)", whiteSpace: "nowrap" }}>{yen(previewBac
+  app/(manage)/register/drink-claim-queue.tsx:144 [table] | <td style={{ whiteSpace: "nowrap" }}>
+  app/(manage)/register/register-board.tsx:2130 [非table] | <button key={m.rule_id} type="button" style={{ ...btnLight, justifyContent: "flex-start", whiteSpace: "nowrap"
+  app/(manage)/register/register-board.tsx:2258 [非table] | <span style={{ ...t.tag, whiteSpace: "nowrap",
+  app/(manage)/register/register-board.tsx:2319 [非table] | <span style={{ fontSize: 10, color: "var(--ok)", whiteSpace: "nowrap" }}>
+  app/(manage)/register/register-board.tsx:2804 [非table] | <strong className="num" style={{ whiteSpace: "nowrap" }}>{yen(r.total)}</strong>
+  app/(manage)/register/register-board.tsx:2866 [table] | <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+  app/(manage)/register/register-board.tsx:2882 [table] | style={{ ...btnLight, padding: "2px 8px", fontSize: 11.5, whiteSpace: "nowrap" }}>
+  app/(manage)/register/register-board.tsx:3098 [非table] | background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+  app/(manage)/register/reservation-panel.tsx:81 [非table] | whiteSpace: "nowrap",
+  app/(manage)/report/month-report.tsx:249 [非table] | <span style={{ fontSize: 12, color: "var(--ink)", width: 86, overflow: "hidden", textOverflow: "ellipsis", whi
+  app/(manage)/report/report-board.tsx:1275 [table] | <td style={{ ...t.td, whiteSpace: "nowrap" }}>
+  app/(manage)/shift/incentive-panel.tsx:160 [非table] | <span style={{ fontSize: 11.5, color: "var(--v2-muted)", maxWidth: 220, overflow: "hidden", textOverflow: "ell
+  app/(manage)/shift/shift-board.tsx:1347 [非table] | <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
+  app/(manage)/shift/shift-board.tsx:1658 [table] | <td style={{ ...cellTd, textAlign: "left", whiteSpace: "nowrap" }}>{c.name}</td>
+  app/(manage)/shift/shift-board.tsx:1753 [非table] | overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--ok)",
+  app/(manage)/shift/staff-shift-board.tsx:155 [非table] | <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+  app/globals.css:608 [非table] | .nox-more { margin-left: auto; font-size: 11px; color: var(--v2-muted); text-decoration: none; white-space: no
+  app/globals.css:813 [非table] | .nox-seg a { text-decoration: none; white-space: nowrap; }
+  app/globals.css:874 [非table] | .nox-risk { font-size: 10px; border-radius: 4px; padding: 1px 7px; font-weight: 700; white-space: nowrap; }
+  app/globals.css:887 [非table] | .nox-btl .st { font-size: 10px; border-radius: 4px; padding: 1px 7px; margin-left: auto; white-space: nowrap; 
+  app/globals.css:916 [非table] | margin-top: 3px; font-size: 9px; color: var(--v2-muted); white-space: nowrap;
+  app/globals.css:932 [非table] | .nox-rk2 .cnt { margin-left: auto; font-size: 12px; color: var(--v2-muted); white-space: nowrap; }
+  app/globals.css:934 [非table] | .nox-rk2 .amt { font-size: 14px; font-weight: 600; color: var(--v2-text); white-space: nowrap; }
+  app/globals.css:942 [非table] | .nox-stbadge { font-size: 11px; border-radius: 6px; padding: 2px 10px; font-weight: 700; white-space: nowrap; 
+  app/globals.css:959 [非table] | .nox-histrow .a { margin-left: auto; font-weight: 700; color: var(--v2-text); white-space: nowrap; }
+  app/globals.css:965 [非table] | .nox-aud { font-size: 10px; border: 1px solid var(--v2-line); color: var(--v2-muted); border-radius: 4px; padd
+  app/globals.css:966 [非table] | .nox-nhead .when { margin-left: auto; font-size: 11px; color: var(--v2-muted); white-space: nowrap; }
+  app/globals.css:984 [非table] | .nox-arow .tgt { color: var(--v2-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-w
+  app/globals.css:1033 [非table] | .nox-runbadge { font-size: 11px; border-radius: 6px; padding: 2px 10px; font-weight: 700; white-space: nowrap;
+  app/globals.css:1065 [非table] | font-family: inherit; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  app/globals.css:1124 [非table] | .nox-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  app/globals.css:1125 [非table] | .nox-row .tail { margin-left: auto; white-space: nowrap; }
+  app/globals.css:1130 [非table] | color:var(--gold2);font-size:10px;border-radius:20px;white-space:nowrap}`
+  app/globals.css:1138 [非table] | white-space: nowrap; display: inline-block;
+  app/globals.css:1162 [非table] | font-weight:500;border-bottom:1px solid var(--line);white-space:nowrap}`
+  app/globals.css:1180 [非table] | letter-spacing: .08em; border-bottom: 1px solid var(--line); white-space: nowrap;
+  app/globals.css:1287 [非table] | .nox-tb .crumb { font-size: 13px; color: var(--sub); min-width: 0; overflow: hidden; text-overflow: ellipsis; 
+  app/globals.css:1448 [非table] | padding: 6px 9px; border-radius: 99px; height: max-content; white-space: nowrap;
+  app/globals.css:1457 [非table] | .nox-fcard .link { color: var(--gold2); font-size: 13px; font-weight: 700; white-space: nowrap; }
+  app/globals.css:1484 [非table] | border-radius: 4px; padding: 1px 4px; white-space: nowrap;
+  app/globals.css:1563 [非table] | padding: 5px 13px; font-size: 12px; cursor: pointer; color: var(--sub); font-family: inherit; white-space: now
+  app/globals.css:1715 [非table] | cursor: pointer; white-space: nowrap;
+  app/globals.css:1732 [非table] | padding: 10px 10px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  app/globals.css:1761 [非table] | width: 1%; white-space: nowrap;
+  app/globals.css:1764 [table] | .nox-ptable td.col-stock, .nox-ptable td.col-back { white-space: nowrap; }
+  app/globals.css:1766 [table] | .nox-ptable .col-kind, .nox-ptable .col-cat, .nox-ptable .col-state, .nox-ptable .col-act { white-space: nowra
+  app/globals.css:1771 [非table] | border: 1px solid var(--line2); background: var(--bg2); color: var(--sub); white-space: nowrap;
+  app/globals.css:1777 [非table] | background: var(--card2); color: var(--sub); white-space: nowrap;
+  app/globals.css:1939 [非table] | .nox-stpill { font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; border: 1px solid v
+  app/globals.css:2130 [非table] | font-size: 12.5px; padding: 0 12px; white-space: nowrap;
+  app/kiosk-register/page.tsx:700 [非table] | background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+  app/mine/drink-claim-form.tsx:139 [非table] | color: STATUS_COLOR[c.status] ?? "var(--sub)", background: "var(--card2)", border: "1px solid var(--line2)", w
+  app/mine/norm-card.tsx:65 [非table] | color: "var(--gold)", background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
+  app/mine/page.tsx:293 [非table] | whiteSpace: "nowrap", marginLeft: "auto",
+  lib/nox/ui/theme.ts:232 [非table] | whiteSpace: "nowrap", border: "1px solid transparent",
+
+## 4d. grid-template-columns に固定 px（CSS／tsx）
+  app/(manage)/analytics/analytics-board.tsx:1052 | <div style={{ display: "grid", gridTemplateColumns: "26px repeat(24, 22px)", gap: 2, alignItems: "center" }}>
+  app/(manage)/analytics/analytics-board.tsx:1185 | <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, marginBottom: 12 }}>
+  app/(manage)/analytics/analytics-board.tsx:1261 | <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+  app/(manage)/customers/customers-board.tsx:582 | <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", marginTop: 10, fontSize: 12 }}>
+  app/(manage)/master/cast-comp/page.tsx:57 | <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 14 }}>
+  app/(manage)/master/cast-comp/plan/plan-editor.tsx:299 | <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 10 }}>
+  app/(manage)/master/cast-comp/plan/plan-editor.tsx:397 | <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+  app/(manage)/master/kiosk-device-panel.tsx:230 | <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+  app/(manage)/master/store-profile-panel.tsx:95 | <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+  app/(manage)/payroll/payroll-board.tsx:397 | <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, margin: "8px 0 8px" }}>
+  app/(manage)/payroll/payroll-list.tsx:129 | <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(4, minmax
+  app/(manage)/report/month-report.tsx:189 | <div style={{ display: "grid", gridTemplateColumns: "1.15fr 1fr 1fr 1fr", gap: "4px 4px", alignItems: "center" }}>
+  app/(manage)/report/report-board.tsx:945 | <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit
+  app/(manage)/shift/shift-add-form.tsx:365 | <div style={{ display: "grid", gridTemplateColumns: "230px minmax(0,1fr)", gap: 12 }}>
+  app/(manage)/shift/shift-board.tsx:955 | <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(4, minmax
+  app/(manage)/shift/shift-board.tsx:1333 | <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(4, minmax
+  app/globals.css:537 | .nox-field2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+  app/globals.css:542 | @media (max-width: 480px) { .nox-field2 { grid-template-columns: 1fr; } }
+  app/globals.css:569 | @media (min-width: 641px)  { .nox-quickgrid { grid-template-columns: repeat(3, 1fr); } }
+  app/globals.css:570 | @media (min-width: 900px)  { .nox-quickgrid { grid-template-columns: repeat(4, 1fr); } }
+  app/globals.css:571 | @media (min-width: 1180px) { .nox-quickgrid { grid-template-columns: repeat(5, 1fr); } }
+  app/globals.css:647 | @media (min-width: 641px)  { .nox-tilegrid { grid-template-columns: repeat(3, 1fr); } }
+  app/globals.css:648 | @media (min-width: 900px)  { .nox-tilegrid { grid-template-columns: repeat(4, 1fr); } }
+  app/globals.css:649 | @media (min-width: 1180px) { .nox-tilegrid { grid-template-columns: repeat(5, 1fr); } }
+  app/globals.css:719 | .nox-seatgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  app/globals.css:720 | @media (max-width: 900px) { .nox-seatgrid { grid-template-columns: repeat(3, 1fr); } }
+  app/globals.css:721 | @media (max-width: 641px) { .nox-seatgrid { grid-template-columns: repeat(2, 1fr); } }
+  app/globals.css:733 | .nox-seatgrid.floor { grid-template-columns: repeat(8, 1fr); gap: 7px; }
+  app/globals.css:734 | @media (max-width: 1180px) { .nox-seatgrid.floor { grid-template-columns: repeat(4, 1fr); } }
+  app/globals.css:735 | @media (max-width: 641px) { .nox-seatgrid.floor { grid-template-columns: repeat(2, 1fr); } }
+  app/globals.css:782 | .nox-kmain { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
+  app/globals.css:784 | .nox-payrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  app/globals.css:818 | .nox-cardgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  app/globals.css:819 | @media (max-width: 1180px) { .nox-cardgrid { grid-template-columns: repeat(3, 1fr); } }
+  app/globals.css:820 | @media (max-width: 641px)  { .nox-cardgrid { grid-template-columns: 1fr; } }
+  app/globals.css:831 | .nox-ccard .cstats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; }
+  app/globals.css:854 | .nox-2pane { display: grid; grid-template-columns: 1fr 400px; gap: 14px; align-items: start; }
+  app/globals.css:855 | @media (max-width: 900px) { .nox-2pane { grid-template-columns: 1fr; } }
+  app/globals.css:880 | .nox-dstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+  app/globals.css:947 | .nox-repsum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  app/globals.css:950 | @media (max-width: 641px) { .nox-repsum { grid-template-columns: repeat(2, 1fr); } .nox-repsum.five { grid-template-columns: repea
+  app/globals.css:1002 | .nox-punchrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  app/globals.css:1005 | .nox-paysub { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  app/globals.css:1037 | .nox-paysum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+  app/globals.css:1038 | @media (max-width: 641px) { .nox-paysum { grid-template-columns: repeat(2, 1fr); } }
+  app/globals.css:1075 | .nox-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+  app/globals.css:1076 | @media (min-width: 641px)  { .nox-kpis { grid-template-columns: repeat(3, 1fr); } }
+  app/globals.css:1077 | @media (min-width: 900px)  { .nox-kpis { grid-template-columns: repeat(4, 1fr); } }
+  app/globals.css:1078 | @media (min-width: 1180px) { .nox-kpis { grid-template-columns: repeat(5, 1fr); } }
+  app/globals.css:1107 | .nox-2col { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+  app/globals.css:1108 | @media (min-width: 900px) { .nox-2col { grid-template-columns: 1fr 380px; } }
+  app/globals.css:1110 | @media (min-width: 900px) { .nox-2col.nox-2col--32 { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
+  app/globals.css:1112 | .nox-acols { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+  app/globals.css:1113 | @media (min-width: 900px) { .nox-acols { grid-template-columns: 1.2fr 1fr; } }
+  app/globals.css:1114 | .nox-lower { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  app/globals.css:1115 | @media (min-width: 900px) { .nox-lower { grid-template-columns: 1fr 1fr; } }
+  app/globals.css:1255 | .nox-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+  app/globals.css:1337 | .app{min-height:100vh;display:grid;grid-template-columns:238px minmax(0,1fr)}
+  app/globals.css:1345 | display: grid; grid-template-columns: 238px minmax(0, 1fr); min-height: 100vh;
+  app/globals.css:1409 | .nox-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+  app/globals.css:1420 | @media (max-width: 900px) { .nox-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  app/globals.css:1421 | @media (max-width: 641px) { .nox-summary { grid-template-columns: 1fr; } }
+  app/globals.css:1430 | .nox-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  app/globals.css:1431 | @media (max-width: 900px) { .nox-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  app/globals.css:1432 | @media (max-width: 641px) { .nox-grid3 { grid-template-columns: 1fr; } }
+  app/globals.css:1516 | .nox-regmain { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
+  app/globals.css:1544 | .nox-checkcols { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+  app/globals.css:1545 | @media (min-width: 900px) { .nox-checkcols.split { grid-template-columns: 1.4fr 1fr; } }
+  app/globals.css:1548 | @media (min-width: 900px) { .nox-checkview .nox-tilegrid { grid-template-columns: repeat(4, 1fr); } }
+  app/globals.css:1861 | .nox-kpirow { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; margin-bottom: 13px; }
+  app/globals.css:1862 | @media (min-width: 641px) { .nox-kpirow { grid-template-columns: repeat(4, 1fr); } }
+  app/globals.css:1876 | .nox-calgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  app/kiosk/page.tsx:173 | <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+  app/kiosk-register/page.tsx:604 | <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+
+## 4e. position fixed/sticky と 100vw
+  [fixed] app/globals.css:203 | position: fixed;
+  [fixed] app/globals.css:369 | position: fixed;
+  [fixed] app/globals.css:437 | .toast{position:fixed;right:26px;bottom:26px;background:#222119;
+  [fixed] app/globals.css:446 | position: fixed; right: 26px; bottom: 26px; z-index: 60;

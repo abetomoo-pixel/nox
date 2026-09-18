@@ -1,0 +1,303 @@
+# 0146_pre（2026/9/15 14:10:47・読取のみ・手貼り前の控え）
+proof {"k":"nox-project-proof","n":3}
+
+## a. deductions（d 相当）
+### 列
+  id uuid NOT NULL default=gen_random_uuid()
+  org_id uuid NOT NULL default=-
+  store_id uuid NOT NULL default=-
+  name text NOT NULL default=-
+  amount integer NOT NULL default=0
+  per text NOT NULL default=-
+  is_active boolean NOT NULL default=true
+  created_at timestamp with time zone NOT NULL default=now()
+  updated_at timestamp with time zone NOT NULL default=now()
+  kind text NOT NULL default='agreed_cost'::text
+  basis_confirmed_at timestamp with time zone null可 default=-
+  basis_confirmed_by uuid null可 default=-
+  basis_note text null可 default=-
+### 制約（CHECK／FK／PK／UNIQUE）
+  c deductions_amount_check: CHECK ((amount >= 0))
+  c deductions_kind_check: CHECK ((kind = ANY (ARRAY['unworked'::text, 'sanction'::text, 'statutory'::text, 'agreed_cost'::text, 'store_receivable'::text, 'advance_settlement'::text])))
+  c deductions_per_check: CHECK ((per = ANY (ARRAY['day'::text, 'month'::text, 'rate'::text])))
+  c deductions_sanction_basis_check: CHECK (((kind <> 'sanction'::text) OR ((basis_confirmed_at IS NOT NULL) AND (basis_confirmed_by IS NOT NULL) AND (basis_note IS NOT NULL) AND (length(TRIM(BOTH FROM basis_note)) > 0))))
+  f deductions_org_id_fkey: FOREIGN KEY (org_id) REFERENCES orgs(id)
+  f deductions_store_id_fkey: FOREIGN KEY (store_id) REFERENCES stores(id)
+  p deductions_pkey: PRIMARY KEY (id)
+### index
+  CREATE INDEX deductions_org_idx ON public.deductions USING btree (org_id)
+  CREATE UNIQUE INDEX deductions_pkey ON public.deductions USING btree (id)
+  CREATE INDEX deductions_store_idx ON public.deductions USING btree (store_id)
+### RLS policy（pg_policies・qual／with_check は pg_get_expr 済み）
+  deductions_select [SELECT・PERMISSIVE] roles={authenticated}
+    using: ((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (store_id = auth_store_id())))
+    with check: -
+  rls enabled=true force=false
+### grant
+  authenticated: SELECT
+  postgres: DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+  service_role: DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+
+## a. payslips（d 相当）
+### 列
+  id uuid NOT NULL default=gen_random_uuid()
+  org_id uuid NOT NULL default=-
+  store_id uuid NOT NULL default=-
+  run_id uuid NOT NULL default=-
+  cast_id uuid NOT NULL default=-
+  period text NOT NULL default=-
+  breakdown_json jsonb NOT NULL default=-
+  net integer NOT NULL default=-
+  paid boolean NOT NULL default=false
+  created_at timestamp with time zone NOT NULL default=now()
+  updated_at timestamp with time zone NOT NULL default=now()
+### 制約（CHECK／FK／PK／UNIQUE）
+  c payslips_period_check: CHECK ((period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'::text))
+  f payslips_cast_id_fkey: FOREIGN KEY (cast_id) REFERENCES casts(id)
+  f payslips_org_id_fkey: FOREIGN KEY (org_id) REFERENCES orgs(id)
+  f payslips_run_id_fkey: FOREIGN KEY (run_id) REFERENCES payroll_runs(id)
+  f payslips_store_id_fkey: FOREIGN KEY (store_id) REFERENCES stores(id)
+  p payslips_pkey: PRIMARY KEY (id)
+### index
+  CREATE INDEX payslips_cast_idx ON public.payslips USING btree (cast_id)
+  CREATE INDEX payslips_org_idx ON public.payslips USING btree (org_id)
+  CREATE UNIQUE INDEX payslips_pkey ON public.payslips USING btree (id)
+  CREATE UNIQUE INDEX payslips_run_cast_uidx ON public.payslips USING btree (run_id, cast_id)
+### RLS policy（pg_policies・qual／with_check は pg_get_expr 済み）
+  payslips_select [SELECT・PERMISSIVE] roles={authenticated}
+    using: ((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (store_id = auth_store_id())) AND (auth_role() <> 'staff'::text) AND ((auth_role() <> 'cast'::text) OR (cast_id = auth_cast_id())))
+    with check: -
+  rls enabled=true force=false
+### grant
+  authenticated: SELECT
+  postgres: DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+  service_role: DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+
+## a. payroll_runs（d 相当）
+### 列
+  id uuid NOT NULL default=gen_random_uuid()
+  org_id uuid NOT NULL default=-
+  store_id uuid NOT NULL default=-
+  period text NOT NULL default=-
+  period_start date null可 default=-
+  period_end date null可 default=-
+  status text NOT NULL default='draft'::text
+  finalize_idem_key uuid null可 default=-
+  finalized_at timestamp with time zone null可 default=-
+  paid_idem_key uuid null可 default=-
+  paid_at timestamp with time zone null可 default=-
+  created_by uuid NOT NULL default=-
+  created_at timestamp with time zone NOT NULL default=now()
+  updated_at timestamp with time zone NOT NULL default=now()
+  reopen_idem_key uuid null可 default=-
+### 制約（CHECK／FK／PK／UNIQUE）
+  c payroll_runs_check: CHECK (((period_end IS NULL) OR (period_start IS NULL) OR (period_end >= period_start)))
+  c payroll_runs_period_check: CHECK ((period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'::text))
+  c payroll_runs_status_check: CHECK ((status = ANY (ARRAY['draft'::text, 'finalized'::text, 'paid'::text])))
+  f payroll_runs_created_by_fkey: FOREIGN KEY (created_by) REFERENCES users(id)
+  f payroll_runs_org_id_fkey: FOREIGN KEY (org_id) REFERENCES orgs(id)
+  f payroll_runs_store_id_fkey: FOREIGN KEY (store_id) REFERENCES stores(id)
+  p payroll_runs_pkey: PRIMARY KEY (id)
+### index
+  CREATE INDEX payroll_runs_org_idx ON public.payroll_runs USING btree (org_id)
+  CREATE UNIQUE INDEX payroll_runs_pkey ON public.payroll_runs USING btree (id)
+  CREATE UNIQUE INDEX payroll_runs_store_period_uidx ON public.payroll_runs USING btree (store_id, period)
+### RLS policy（pg_policies・qual／with_check は pg_get_expr 済み）
+  payroll_runs_select [SELECT・PERMISSIVE] roles={authenticated}
+    using: ((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (store_id = auth_store_id())) AND (auth_role() = ANY (ARRAY['owner'::text, 'manager'::text])))
+    with check: -
+  rls enabled=true force=false
+### grant
+  authenticated: SELECT
+  postgres: DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+  service_role: DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+
+## b. money-core 3 本の md5（現在値）
+  check_close: 3021fc96c27e57a48545ef6c01d7274e
+  check_pay: 4229f5d26fc79975eddee74bf9679574
+  check_void: 2ecbb65392a1ea3e6d2cbb4a8e1de6bf
+
+## c. cast 単位の owner/manager 分岐を持つ RLS policy（候補一覧→ 1 枚を逐語）
+  候補: advances.advances_select [SELECT]
+  候補: attendance.attendance_select [SELECT]
+  候補: cast_norms.cast_norms_select [SELECT]
+  候補: cast_plan.cast_plan_select [SELECT]
+  候補: casts.casts_select [SELECT]
+  候補: check_cast_backs.check_cast_backs_select [SELECT]
+  候補: comp_plan_components.comp_plan_components_select [SELECT]
+  候補: comp_plans.comp_plans_select [SELECT]
+  候補: customers.customers_select [SELECT]
+  候補: drink_claims.drink_claims_select [SELECT]
+  候補: payment_records.payment_records_select [SELECT]
+  候補: payslips.payslips_select [SELECT]
+  候補: punches.punches_select [SELECT]
+  候補: reservations.reservations_select [SELECT]
+  候補: shift_wishes.shift_wishes_select [SELECT]
+  候補: shifts.shifts_select [SELECT]
+  候補: transport.transport_select [SELECT]
+
+### 選定＝payslips.payslips_select（逐語）
+  payslips_select [SELECT・PERMISSIVE] roles={authenticated}
+    using: ((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (store_id = auth_store_id())) AND (auth_role() <> 'staff'::text) AND ((auth_role() <> 'cast'::text) OR (cast_id = auth_cast_id())))
+    with check: -
+
+## d. penalty_config 列定義
+  id uuid NOT NULL default=gen_random_uuid()
+  org_id uuid NOT NULL default=-
+  store_id uuid NOT NULL default=-
+  fine_absent integer NOT NULL default=10000
+  fine_late integer NOT NULL default=3000
+  hours_per_shift numeric NOT NULL default=5.0
+  norm_on boolean NOT NULL default=true
+  norm_days_flat integer NOT NULL default=5000
+  norm_days_per integer NOT NULL default=2000
+  norm_dohan_flat integer NOT NULL default=3000
+  norm_dohan_per integer NOT NULL default=1500
+  late_grace_min integer NOT NULL default=10
+  early_grace_min integer NOT NULL default=30
+  over_grace_min integer NOT NULL default=90
+  created_at timestamp with time zone NOT NULL default=now()
+  updated_at timestamp with time zone NOT NULL default=now()
+  penalty_config_early_grace_min_check: CHECK ((early_grace_min >= 0))
+  penalty_config_fine_absent_check: CHECK ((fine_absent >= 0))
+  penalty_config_fine_late_check: CHECK ((fine_late >= 0))
+  penalty_config_hours_per_shift_check: CHECK ((hours_per_shift > (0)::numeric))
+  penalty_config_late_grace_min_check: CHECK ((late_grace_min >= 0))
+  penalty_config_norm_days_flat_check: CHECK ((norm_days_flat >= 0))
+  penalty_config_norm_days_per_check: CHECK ((norm_days_per >= 0))
+  penalty_config_norm_dohan_flat_check: CHECK ((norm_dohan_flat >= 0))
+  penalty_config_norm_dohan_per_check: CHECK ((norm_dohan_per >= 0))
+  penalty_config_over_grace_min_check: CHECK ((over_grace_min >= 0))
+  penalty_config_store_id_key: UNIQUE (store_id)
+
+## e. payroll_reopen（pg_get_functiondef 逐語）
+  1: CREATE OR REPLACE FUNCTION public.payroll_reopen(p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid, p_reason text)
+  2:  RETURNS text
+  3:  LANGUAGE plpgsql
+  4:  SECURITY DEFINER
+  5:  SET search_path TO 'public'
+  6: AS $function$
+  7: declare
+  8:   v_org         uuid;
+  9:   v_store       uuid;
+ 10:   v_status      text;
+ 11:   v_reopen_idem uuid;
+ 12:   v_fin_idem    uuid;
+ 13:   v_old_ps      date;
+ 14:   v_old_pe      date;
+ 15:   v_retired     jsonb;
+ 16:   v_arrec   jsonb;
+ 17:   v_advrec  jsonb;
+ 18:   v_okrec   jsonb;
+ 19:   v_rolled      jsonb;
+ 20:   v_rolled_adv  jsonb;
+ 21:   v_rolled_ok   jsonb;
+ 22:   v_flag        boolean;
+ 23: begin
+ 24:   select org_id, store_id, status, reopen_idem_key, finalize_idem_key, period_start, period_end
+ 25:     into v_org, v_store, v_status, v_reopen_idem, v_fin_idem, v_old_ps, v_old_pe
+ 26:     from public.payroll_runs where id = p_run_id;
+ 27:   if v_org is null then raise exception 'run not found'; end if;
+ 28:   if p_org_id is null or v_org <> p_org_id then raise exception 'forbidden'; end if;
+ 29: 
+ 30:   -- reopen_flow(店舗行 → org 行 → false)
+ 31:   select f.enabled into v_flag from public.feature_flags f where f.org_id = v_org and f.store_id = v_store and f.key = 'reopen_flow';
+ 32:   if v_flag is null then
+ 33:     select f.enabled into v_flag from public.feature_flags f where f.org_id = v_org and f.store_id is null and f.key = 'reopen_flow';
+ 34:   end if;
+ 35:   if not coalesce(v_flag, false) then raise exception 'feature_disabled:reopen_flow'; end if;
+ 36:   if p_reason is null or length(trim(p_reason)) not between 1 and 200 then raise exception 'reason_required'; end if;
+ 37: 
+ 38:   if v_status = 'paid' then raise exception 'run paid'; end if;
+ 39: 
+ 40:   if p_idem_key is not null and v_status = 'draft' and v_reopen_idem is not distinct from p_idem_key then
+ 41:     return 'draft';
+ 42:   end if;
+ 43: 
+ 44:   if v_status <> 'finalized' then raise exception 'not finalized'; end if;
+ 45: 
+ 46:   if exists (select 1 from public.payment_records pr where pr.run_id = p_run_id) then
+ 47:     raise exception 'payments exist';
+ 48:   end if;
+ 49: 
+ 50:   select jsonb_agg(jsonb_build_object('cast_id', ps.cast_id, 'net', ps.net, 'breakdown', ps.breakdown_json))
+ 51:     into v_retired from public.payslips ps where ps.run_id = p_run_id;
+ 52: 
+ 53:   v_rolled := '[]'::jsonb;
+ 54:   for v_arrec in
+ 55:     select ae from public.payslips ps,
+ 56:       lateral jsonb_array_elements(coalesce(ps.breakdown_json->'ar', '[]'::jsonb)) ae
+ 57:     where ps.run_id = p_run_id
+ 58:   loop
+ 59:     update public.receivables r
+ 60:        set status = v_arrec->>'prev_status',
+ 61:            deduct_period = nullif(v_arrec->>'prev_deduct_period', ''),
+ 62:            deducted_amount = (v_arrec->>'prev_deducted_amount')::int
+ 63:      where r.id = (v_arrec->>'receivable_id')::uuid
+ 64:        and r.status = v_arrec->>'applied_status'
+ 65:        and r.deducted_amount = (v_arrec->>'applied_deducted_amount')::int
+ 66:        and r.deduct_period is not distinct from nullif(v_arrec->>'applied_deduct_period', '');
+ 67:     if found then v_rolled := v_rolled || v_arrec; end if;
+ 68:   end loop;
+ 69:   v_rolled_adv := '[]'::jsonb;
+ 70:   for v_advrec in
+ 71:     select ae from public.payslips ps,
+ 72:       lateral jsonb_array_elements(coalesce(ps.breakdown_json->'adv', '[]'::jsonb)) ae
+ 73:     where ps.run_id = p_run_id
+ 74:   loop
+ 75:     update public.advances a
+ 76:        set status = v_advrec->>'prev_status',
+ 77:            deduct_period = nullif(v_advrec->>'prev_deduct_period', ''),
+ 78:            deducted_amount = (v_advrec->>'prev_deducted_amount')::int
+ 79:      where a.id = (v_advrec->>'advance_id')::uuid
+ 80:        and a.status = v_advrec->>'applied_status'
+ 81:        and a.deducted_amount = (v_advrec->>'applied_deducted_amount')::int
+ 82:        and a.deduct_period is not distinct from nullif(v_advrec->>'applied_deduct_period', '');
+ 83:     if found then v_rolled_adv := v_rolled_adv || v_advrec; end if;
+ 84:   end loop;
+ 85:   v_rolled_ok := '[]'::jsonb;
+ 86:   for v_okrec in
+ 87:     select ae from public.payslips ps,
+ 88:       lateral jsonb_array_elements(coalesce(ps.breakdown_json->'okuri', '[]'::jsonb)) ae
+ 89:     where ps.run_id = p_run_id
+ 90:   loop
+ 91:     update public.transport t
+ 92:        set status = v_okrec->>'prev_status',
+ 93:            deducted_amount = (v_okrec->>'prev_deducted_amount')::int
+ 94:      where t.id = (v_okrec->>'transport_id')::uuid
+ 95:        and t.status = v_okrec->>'applied_status'
+ 96:        and t.deducted_amount = (v_okrec->>'applied_deducted_amount')::int;
+ 97:     if found then v_rolled_ok := v_rolled_ok || v_okrec; end if;
+ 98:   end loop;
+ 99: 
+100:   delete from public.payslips where run_id = p_run_id;
+101: 
+102:   update public.payroll_runs
+103:      set status = 'draft', finalized_at = null, finalize_idem_key = null,
+104:          period_start = null, period_end = null,
+105:          reopen_idem_key = p_idem_key
+106:    where id = p_run_id;
+107: 
+108:   perform public.audit_log_write_service(v_org, p_actor, 'payroll_reopen',
+109:     'payroll_runs:' || p_run_id::text,
+110:     jsonb_build_object('retired_payslips', coalesce(v_retired, '[]'::jsonb),
+111:                        'old_finalize_idem_key', v_fin_idem,
+112:                        'old_period_start', v_old_ps, 'old_period_end', v_old_pe,
+113:                        'rolled_back_receivables', v_rolled,
+114:                        'rolled_back_advances', v_rolled_adv,
+115:                        'rolled_back_transport', v_rolled_ok),
+116:     jsonb_build_object('status', 'draft', 'reopen_idem_key', p_idem_key),
+117:     v_store, p_reason);
+118:   return 'reopened';
+119: end $function$
+120: 
+
+## e. ar/adv/okuri を戻す処理の所在（prosrc 走査: receivables／advances／transport を update する関数）
+  adv_cancel: receivables=false advances=true transport=false
+  check_void: receivables=true advances=false transport=false
+  payroll_finalize: receivables=true advances=true transport=true
+  payroll_reopen: receivables=true advances=true transport=true
+  receivable_collect: receivables=true advances=false transport=false
+  receivable_mark_deduct: receivables=true advances=false transport=false
+  receivable_set_due: receivables=true advances=false transport=false
+  transport_cancel: receivables=false advances=false transport=false

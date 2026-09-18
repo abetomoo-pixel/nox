@@ -1,0 +1,175 @@
+-- public 関数一覧（採取 2026-08-17T02:22:40.621Z・pg_proc 直読）
+-- has_write = prosrc に insert/update/delete を含む（機械判定・母集団の当たり付け用）
+
+[W] adv_cancel(p_advance_id uuid)  secdef=true  exec=authenticated+service_role
+[W] adv_issue(p_store_id uuid, p_cast_id uuid, p_amount integer, p_advanced_on date, p_note text)  secdef=true  exec=authenticated+service_role
+[W] approval_apply(p_approval_id uuid)  secdef=true  exec=（実行 grant なし=内部専用型）
+[W] approval_decide(p_approval_id uuid, p_approve boolean)  secdef=true  exec=authenticated+service_role
+[W] approval_direct(p_check_id uuid, p_pay_group text, p_type text, p_amount integer, p_reason text)  secdef=true  exec=authenticated+service_role
+[W] approval_request(p_check_id uuid, p_pay_group text, p_type text, p_amount integer, p_reason text)  secdef=true  exec=authenticated+service_role
+[R] ar_policy_ok(p_store_id uuid, p_amount integer)  secdef=true  exec=（実行 grant なし=内部専用型）
+[W] attendance_set(p_cast_id uuid, p_date date, p_status text, p_eta text, p_reason text)  secdef=true  exec=authenticated+service_role
+[W] attendance_set_self(p_date date, p_status text, p_eta text, p_reason text)  secdef=true  exec=authenticated+service_role
+[W] audit_log_write(p_action text, p_target text, p_before jsonb, p_after jsonb, p_store_id uuid)  secdef=true  exec=（実行 grant なし=内部専用型）
+[W] audit_log_write_service(p_org_id uuid, p_actor uuid, p_action text, p_target text, p_before jsonb, p_after jsonb, p_store_id uuid)  secdef=true  exec=（実行 grant なし=内部専用型）
+[R] auth_cast_can_register()  secdef=true  exec=authenticated+service_role
+[R] auth_cast_id()  secdef=true  exec=authenticated+service_role
+[W] auth_kiosk_operator()  secdef=true  exec=authenticated+service_role
+[R] auth_kiosk_org_id()  secdef=true  exec=authenticated+service_role
+[R] auth_kiosk_register_store_id()  secdef=true  exec=authenticated+service_role
+[R] auth_kiosk_store_id()  secdef=true  exec=authenticated+service_role
+[R] auth_org_id()  secdef=true  exec=authenticated+service_role
+[R] auth_role()  secdef=true  exec=authenticated+service_role
+[R] auth_staff_can_crm()  secdef=true  exec=authenticated+service_role
+[R] auth_staff_can_register()  secdef=true  exec=authenticated+service_role
+[R] auth_staff_can_shift()  secdef=true  exec=authenticated+service_role
+[R] auth_staff_can_view_backs()  secdef=true  exec=authenticated+service_role
+[R] auth_store_id()  secdef=true  exec=authenticated+service_role
+[R] biz_minutes_of(p_store_id uuid, p_at timestamp with time zone)  secdef=true  exec=service_role
+[W] bottle_keep_register(p_store_id uuid, p_customer_id uuid, p_product_id uuid, p_note text)  secdef=true  exec=authenticated+service_role
+[R] cast_create(p_store_id uuid, p_name text, p_birthday date, p_real_name text, p_kind text)  secdef=true  exec=authenticated+service_role
+[W] cast_create_apply(p_org_id uuid, p_store_id uuid, p_name text, p_kind text, p_real_name text, p_birthday date)  secdef=true  exec=（実行 grant なし=内部専用型）
+[W] cast_invite(p_auth_user_id uuid, p_email text, p_cast_id uuid)  secdef=true  exec=authenticated+service_role
+[W] cast_leave(p_cast_id uuid, p_left_on date)  secdef=true  exec=authenticated+service_role
+[R] cast_open_checks()  secdef=true  exec=authenticated+service_role
+[W] cast_rank_reorder(p_store_id uuid, p_ids uuid[])  secdef=true  exec=authenticated+service_role
+[W] cast_rejoin(p_cast_id uuid)  secdef=true  exec=authenticated+service_role
+[R] cast_sales_aggregate(p_store_id uuid, p_from date, p_to date)  secdef=true  exec=（実行 grant なし=内部専用型）
+[W] check_add_line(p_check_id uuid, p_product_id uuid, p_qty integer, p_kind text, p_pay_group text, p_name text, p_unit_price integer)  secdef=true  exec=authenticated+service_role
+[W] check_add_seat(p_check_id uuid, p_seat_id uuid)  secdef=true  exec=authenticated+service_role
+[W] check_close(p_check_id uuid, p_idem_key uuid)  secdef=true  exec=authenticated+service_role
+[W] check_dohan_add(p_check_id uuid, p_count integer)  secdef=true  exec=authenticated+service_role
+[R] check_group_due(p_check_id uuid, p_pay_group text)  secdef=true  exec=（実行 grant なし=内部専用型）
+[W] check_move_seat(p_check_id uuid, p_to_seat_id uuid)  secdef=true  exec=authenticated+service_role
+[W] check_open(p_seat_id uuid, p_people integer, p_nom_type text, p_customer_id uuid)  secdef=true  exec=authenticated+service_role
+[W] check_pay(p_check_id uuid, p_method text, p_amount integer, p_pay_group text, p_tendered integer, p_idem_key uuid, p_method_detail text)  secdef=true  exec=authenticated+service_role
+[W] check_recalc(p_check_id uuid)  secdef=true  exec=（実行 grant なし=内部専用型）
+[W] check_remove_line(p_line_id uuid)  secdef=true  exec=authenticated+service_role
+[W] check_remove_seat(p_check_id uuid, p_seat_id uuid)  secdef=true  exec=authenticated+service_role
+[R] check_round_amount(p_amount numeric, p_unit integer, p_mode text)  secdef=false  exec=（実行 grant なし=内部専用型）
+[W] check_set_nominations(p_check_id uuid, p_nom_type text, p_nominations jsonb)  secdef=true  exec=authenticated+service_role
+[W] check_shimei_add(p_check_id uuid, p_cast_id uuid, p_kind text)  secdef=true  exec=authenticated+service_role
+[W] check_time_charge_apply(p_check_id uuid)  secdef=true  exec=authenticated+service_role
+[W] check_void(p_check_id uuid, p_reason text)  secdef=true  exec=authenticated+service_role
+[R] comp_plan_slide_check(p_slide jsonb)  secdef=false  exec=（実行 grant なし=内部専用型）
+[R] consent_ok(p_receivable_id uuid, p_consent boolean)  secdef=true  exec=（実行 grant なし=内部専用型）
+[W] customer_assign_cast(p_id uuid, p_cast_id uuid)  secdef=true  exec=authenticated+service_role
+[R] customer_list_summary(p_store_id uuid, p_include_dormant boolean)  secdef=true  exec=authenticated+service_role
+[W] customer_register(p_store_id uuid, p_name text, p_furigana text, p_birthday date, p_tel text, p_prefs text, p_memo text, p_cast_id uuid)  secdef=true  exec=authenticated+service_role
+[R] customer_summary(p_customer_id uuid)  secdef=true  exec=authenticated+service_role
+[W] customer_update(p_id uuid, p_name text, p_furigana text, p_birthday date, p_tel text, p_prefs text, p_memo text, p_is_active boolean)  secdef=true  exec=authenticated+service_role
+[R] customer_visit_history(p_customer_id uuid)  secdef=true  exec=authenticated+service_role
+[R] daily_report_aggregate(p_store_id uuid, p_biz_date date, p_cutoff_hm text, p_tax_rate integer)  secdef=true  exec=（実行 grant なし=内部専用型）
+[W] daily_report_close(p_store_id uuid, p_biz_date date, p_expense integer, p_cash_payout integer, p_cash_float integer, p_counted_cash integer, p_note text, p_force boolean, p_idem_key uuid)  secdef=true  exec=authenticated+service_role
+[W] daily_report_reclose(p_report_id uuid, p_expense integer, p_cash_payout integer, p_cash_float integer, p_counted_cash integer, p_note text, p_force boolean)  secdef=true  exec=authenticated+service_role
+[W] delete_cast_rank(p_id uuid)  secdef=true  exec=authenticated+service_role
+[W] delete_pricing_rule(p_id uuid)  secdef=true  exec=authenticated+service_role
+[W] drink_claim_decide(p_claim_id uuid, p_approve boolean, p_qty_override integer)  secdef=true  exec=authenticated+service_role
+[W] drink_claim_submit(p_check_id uuid, p_product_id uuid, p_qty integer)  secdef=true  exec=authenticated+service_role
+[W] drink_claim_submit_proxy(p_line_id uuid, p_cast_id uuid)  secdef=true  exec=authenticated+service_role
+[W] drink_claim_void(p_claim_id uuid)  secdef=true  exec=authenticated+service_role
+[R] drink_claims_guard_line_update()  secdef=true  exec=authenticated+service_role
+[W] drink_claims_on_line_delete()  secdef=true  exec=authenticated+service_role
+[R] get_cast_customer_ranking(p_store_id uuid, p_period text, p_cast_id uuid)  secdef=true  exec=authenticated+service_role
+[R] get_cast_mynumber(p_org_id uuid, p_actor uuid, p_cast_id uuid)  secdef=true  exec=service_role
+[R] get_cast_mynumber_masked(p_cast_id uuid)  secdef=true  exec=authenticated+service_role
+[R] get_cast_ranking(p_store_id uuid, p_period text)  secdef=true  exec=authenticated+service_role
+[R] get_cast_sales(p_store_id uuid, p_from date, p_to date)  secdef=true  exec=authenticated+service_role
+[R] get_cast_sensitive(p_cast_id uuid)  secdef=true  exec=authenticated+service_role
+[R] get_printer_config(p_store_id uuid)  secdef=true  exec=authenticated+service_role
+[R] get_store_nom_counts(p_store_id uuid, p_from date, p_to date)  secdef=true  exec=authenticated+service_role
+[W] incentive_cancel(p_incentive_id uuid)  secdef=true  exec=authenticated+service_role
+[W] incentive_publish(p_store_id uuid, p_biz_date date, p_kind text, p_amount_mode text, p_amount integer)  secdef=true  exec=authenticated+service_role
+[R] kiosk_cast_list()  secdef=true  exec=authenticated+service_role
+[R] kiosk_check_detail(p_check_id uuid)  secdef=true  exec=authenticated+service_role
+[W] kiosk_deactivate(p_device_id uuid)  secdef=true  exec=authenticated+service_role
+[W] kiosk_login(p_membership_id uuid, p_pin text)  secdef=true  exec=authenticated+service_role
+[W] kiosk_logout()  secdef=true  exec=authenticated+service_role
+[R] kiosk_operator_list()  secdef=true  exec=authenticated+service_role
+[W] kiosk_provision(p_auth_user_id uuid, p_store_id uuid, p_label text, p_purpose text)  secdef=true  exec=authenticated+service_role
+[W] kiosk_punch(p_cast_id uuid, p_pin text, p_type text)  secdef=true  exec=authenticated+service_role
+[R] kiosk_register_state()  secdef=true  exec=authenticated+service_role
+[W] notice_create(p_title text, p_body text, p_audience text, p_pinned boolean, p_until date)  secdef=true  exec=authenticated+service_role
+[W] notice_delete(p_notice_id uuid)  secdef=true  exec=authenticated+service_role
+[W] notice_update(p_notice_id uuid, p_title text, p_body text, p_audience text, p_pinned boolean, p_until date)  secdef=true  exec=authenticated+service_role
+[W] payment_record_add(p_run_id uuid, p_cast_id uuid, p_amount integer, p_paid_at date, p_method text, p_note text, p_idem_key uuid)  secdef=true  exec=authenticated+service_role
+[W] payroll_finalize(p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid, p_payslips jsonb)  secdef=true  exec=service_role
+[W] payroll_mark_paid(p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid)  secdef=true  exec=service_role
+[W] payroll_reopen(p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid)  secdef=true  exec=service_role
+[W] payroll_run_create(p_store_id uuid, p_period text)  secdef=true  exec=authenticated+service_role
+[R] period_bounds(p_period text)  secdef=false  exec=authenticated+service_role
+[R] pricing_resolve(p_store_id uuid, p_at timestamp with time zone, p_fee_kind text, p_seat_kind text, p_rank_id uuid)  secdef=true  exec=authenticated+service_role
+[R] pricing_resolve_core(p_store_id uuid, p_at timestamp with time zone, p_fee_kind text, p_seat_kind text, p_rank_id uuid)  secdef=true  exec=service_role
+[W] pricing_rule_reorder(p_store_id uuid, p_fee_kind text, p_ids uuid[])  secdef=true  exec=authenticated+service_role
+[W] print_claim(p_store_token text, p_serial text)  secdef=true  exec=service_role
+[W] print_enqueue(p_check_id uuid, p_pay_group text)  secdef=true  exec=authenticated+service_role
+[W] print_result(p_store_token text, p_print_token text, p_success boolean, p_error_code text)  secdef=true  exec=service_role
+[W] product_bulk_insert(p_store_id uuid, p_items jsonb)  secdef=true  exec=authenticated+service_role
+[W] product_category_reorder(p_store_id uuid, p_ids uuid[])  secdef=true  exec=authenticated+service_role
+[W] product_reorder(p_store_id uuid, p_category_id uuid, p_ids uuid[])  secdef=true  exec=authenticated+service_role
+[W] product_stock_add(p_product_id uuid, p_delta integer, p_reason text)  secdef=true  exec=authenticated+service_role
+[R] product_stock_totals(p_store_id uuid)  secdef=true  exec=authenticated+service_role
+[W] punch_proxy(p_cast_id uuid, p_type text, p_note text)  secdef=true  exec=authenticated+service_role
+[W] punch_self(p_type text, p_lat double precision, p_lng double precision)  secdef=true  exec=authenticated+service_role
+[W] receivable_collect(p_receivable_id uuid, p_biz_date date, p_method text, p_note text, p_idem_key uuid)  secdef=true  exec=authenticated+service_role
+[W] receivable_mark_deduct(p_receivable_id uuid, p_consent boolean, p_note text)  secdef=true  exec=authenticated+service_role
+[W] reservation_create(p_store_id uuid, p_reserved_at timestamp with time zone, p_customer_id uuid, p_cast_id uuid, p_guest_name text, p_party_size integer, p_nom_type text, p_memo text, p_seat_id uuid, p_stay_minutes integer)  secdef=true  exec=authenticated+service_role
+[R] reservation_is_closed_day(p_store_id uuid, p_reserved_at timestamp with time zone)  secdef=true  exec=authenticated+service_role
+[W] reservation_set_status(p_reservation_id uuid, p_status text)  secdef=true  exec=authenticated+service_role
+[W] reservation_to_check(p_reservation_id uuid, p_seat_id uuid, p_nom_type text)  secdef=true  exec=authenticated+service_role
+[W] reservation_update(p_reservation_id uuid, p_reserved_at timestamp with time zone, p_customer_id uuid, p_cast_id uuid, p_guest_name text, p_party_size integer, p_nom_type text, p_memo text, p_seat_id uuid, p_stay_minutes integer)  secdef=true  exec=authenticated+service_role
+[W] rotate_store_token(p_store_id uuid)  secdef=true  exec=authenticated+service_role
+[W] set_cast_norm(p_cast_id uuid, p_period text, p_days_target integer, p_dohan_target integer, p_sales_target bigint, p_shimei_target integer)  secdef=true  exec=authenticated+service_role
+[W] set_cast_photo_updated_at(p_cast_id uuid)  secdef=true  exec=authenticated+service_role
+[W] set_cast_pin(p_cast_id uuid, p_pin text)  secdef=true  exec=authenticated+service_role
+[W] set_cast_plan(p_cast_id uuid, p_plan_id uuid, p_overrides jsonb)  secdef=true  exec=authenticated+service_role
+[W] set_cast_rank(p_id uuid, p_store_id uuid, p_name text, p_is_active boolean)  secdef=true  exec=authenticated+service_role
+[W] set_cast_rank_of(p_cast_id uuid, p_rank_id uuid)  secdef=true  exec=authenticated+service_role
+[W] set_cast_register(p_membership_id uuid, p_can_register boolean)  secdef=true  exec=authenticated+service_role
+[W] set_cast_sensitive(p_cast_id uuid, p_real_name text, p_birthday date, p_mynumber text)  secdef=true  exec=authenticated+service_role
+[W] set_cast_tax_profile(p_cast_id uuid, p_mode text, p_invoice text, p_reg_no text, p_reg_valid_from date, p_reg_valid_to date, p_reg_notified_on date)  secdef=true  exec=authenticated+service_role
+[W] set_comp_plan(p_id uuid, p_store_id uuid, p_name text, p_base integer, p_hon_back integer, p_jonai_back integer, p_dohan_back integer, p_sales_slide jsonb, p_point_slide jsonb, p_is_active boolean, p_hon_back_mode text, p_hon_back_rate integer, p_jonai_back_mode text, p_jonai_back_rate integer)  secdef=true  exec=authenticated+service_role
+[W] set_custom_back_def(p_id uuid, p_store_id uuid, p_name text, p_basis text, p_value integer, p_cond jsonb, p_is_active boolean)  secdef=true  exec=authenticated+service_role
+[W] set_deduction(p_id uuid, p_store_id uuid, p_name text, p_amount integer, p_per text, p_is_active boolean)  secdef=true  exec=authenticated+service_role
+[W] set_penalty_config(p_store_id uuid, p_fine_absent integer, p_fine_late integer, p_hours_per_shift numeric, p_norm_on boolean, p_norm_days_flat integer, p_norm_days_per integer, p_norm_dohan_flat integer, p_norm_dohan_per integer, p_late_grace_min integer, p_early_grace_min integer, p_over_grace_min integer)  secdef=true  exec=authenticated+service_role
+[W] set_pricing_rule(p_id uuid, p_store_id uuid, p_fee_kind text, p_seat_kind text, p_dow_mask integer, p_time_from_min integer, p_time_to_min integer, p_rank_id uuid, p_amount integer, p_duration_min integer, p_priority integer, p_is_active boolean)  secdef=true  exec=authenticated+service_role
+[W] set_printer_config(p_store_id uuid, p_enabled boolean, p_serial text)  secdef=true  exec=authenticated+service_role
+[W] set_product(p_id uuid, p_store_id uuid, p_type text, p_category text, p_name text, p_price integer, p_cost integer, p_back_mode text, p_back_value integer, p_unit4 jsonb, p_hon_pt integer, p_is_active boolean, p_reorder_point integer, p_category_id uuid, p_back_exempt_from_split boolean)  secdef=true  exec=authenticated+service_role
+[W] set_product_active(p_id uuid, p_store_id uuid, p_is_active boolean)  secdef=true  exec=authenticated+service_role
+[W] set_product_category(p_id uuid, p_store_id uuid, p_name text, p_sort_order integer, p_is_active boolean)  secdef=true  exec=authenticated+service_role
+[W] set_seat(p_id uuid, p_store_id uuid, p_name text, p_kind text, p_sort_order integer, p_is_active boolean)  secdef=true  exec=authenticated+service_role
+[W] set_staff_perms(p_membership_id uuid, p_can_register boolean, p_can_crm boolean, p_can_shift boolean, p_can_view_backs boolean)  secdef=true  exec=authenticated+service_role
+[W] set_staff_pin(p_membership_id uuid, p_pin text)  secdef=true  exec=authenticated+service_role
+[W] set_staffing_need(p_store_id uuid, p_dow integer, p_required integer)  secdef=true  exec=authenticated+service_role
+[W] set_store_business_hours(p_store_id uuid, p_dow integer, p_is_closed boolean, p_open_hm text, p_close_hm text)  secdef=true  exec=authenticated+service_role
+[W] set_store_cast_register(p_store_id uuid, p_enabled boolean)  secdef=true  exec=authenticated+service_role
+[W] set_store_norm_config(p_store_id uuid, p_sales_enabled boolean, p_shimei_enabled boolean, p_shimei_scope text)  secdef=true  exec=authenticated+service_role
+[W] set_store_okuri_base(p_store_id uuid, p_amount integer)  secdef=true  exec=authenticated+service_role
+[W] set_store_okuri_mode(p_store_id uuid, p_mode text)  secdef=true  exec=authenticated+service_role
+[W] set_store_pricing(p_store_id uuid, p_hon_fee integer, p_jonai_fee integer, p_dohan_fee integer, p_service_rate integer, p_card_tax_rate integer, p_round_unit integer, p_round_mode text)  secdef=true  exec=authenticated+service_role
+[W] set_store_receipt_profile(p_store_id uuid, p_address text, p_tel text, p_reg_no text, p_footer text)  secdef=true  exec=authenticated+service_role
+[W] set_store_time_pricing(p_store_id uuid, p_set_min integer, p_set_fee integer, p_ext_min integer, p_ext_fee integer, p_time_mode text, p_time_per text)  secdef=true  exec=authenticated+service_role
+[R] shift_is_closed_day(p_store_id uuid, p_date date)  secdef=true  exec=authenticated+service_role
+[W] shift_set(p_id uuid, p_cast_id uuid, p_date date, p_start_hm text, p_end_hm text, p_status text)  secdef=true  exec=authenticated+service_role
+[W] shift_wish_decide(p_wish_id uuid, p_accept boolean)  secdef=true  exec=authenticated+service_role
+[W] shift_wish_submit(p_date date, p_start_hm text, p_end_hm text)  secdef=true  exec=authenticated+service_role
+[W] shift_wish_withdraw(p_wish_id uuid)  secdef=true  exec=authenticated+service_role
+[W] staff_change_role(p_membership_id uuid, p_new_role text)  secdef=true  exec=authenticated+service_role
+[W] staff_create(p_auth_user_id uuid, p_email text, p_name text, p_store_id uuid, p_role text)  secdef=true  exec=authenticated+service_role
+[W] staff_deactivate(p_membership_id uuid)  secdef=true  exec=authenticated+service_role
+[W] staff_reactivate(p_membership_id uuid)  secdef=true  exec=authenticated+service_role
+[W] staff_transfer_store(p_membership_id uuid, p_new_store_id uuid)  secdef=true  exec=authenticated+service_role
+[W] staff_update_profile(p_membership_id uuid, p_name text)  secdef=true  exec=authenticated+service_role
+[W] stock_on_check_line()  secdef=true  exec=service_role
+[W] stock_on_check_void()  secdef=true  exec=service_role
+[R] touch_updated_at()  secdef=false  exec=authenticated+service_role
+[W] transport_cancel(p_transport_id uuid)  secdef=true  exec=authenticated+service_role
+[W] transport_issue(p_store_id uuid, p_cast_id uuid, p_amount integer, p_biz_date date, p_note text)  secdef=true  exec=authenticated+service_role
+[W] trial_hire(p_trial_id uuid)  secdef=true  exec=authenticated+service_role
+[W] trial_register(p_store_id uuid, p_name text, p_birthday date, p_real_name text, p_tier text, p_trial_date date, p_memo text)  secdef=true  exec=authenticated+service_role
+[W] trial_reject(p_trial_id uuid)  secdef=true  exec=authenticated+service_role
+[W] trial_update(p_trial_id uuid, p_rating integer, p_documents jsonb, p_memo text, p_tier text)  secdef=true  exec=authenticated+service_role
+[R] withholding_monthly_summary()  secdef=true  exec=authenticated+service_role
+[W] withholding_payment_record(p_target_month text, p_tax_category text, p_paid_on date)  secdef=true  exec=authenticated+service_role
+
+-- 合計 170 関数 / うち書込(has_write) 124

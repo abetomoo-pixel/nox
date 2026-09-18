@@ -1,0 +1,675 @@
+live seat_reorder: 1 本
+
+## attendance 列
+  id uuid NOT NULL default=gen_random_uuid()
+  org_id uuid NOT NULL default=-
+  store_id uuid NOT NULL default=-
+  cast_id uuid NOT NULL default=-
+  date date NOT NULL default=-
+  status text NOT NULL default=-
+  eta text null可 default=-
+  reason text null可 default=-
+  source text NOT NULL default=-
+  created_at timestamp with time zone NOT NULL default=now()
+  updated_at timestamp with time zone NOT NULL default=now()
+## attendance 制約
+  c attendance_eta_check: CHECK (((eta IS NULL) OR (eta ~ '^([0-3][0-9]|4[0-7]):[0-5][0-9]$'::text)))
+  c attendance_source_check: CHECK ((source = ANY (ARRAY['staff'::text, 'self'::text])))
+  c attendance_status_check: CHECK ((status = ANY (ARRAY['shukkin'::text, 'dohan'::text, 'late'::text, 'off'::text, 'absent'::text])))
+  f attendance_cast_id_fkey: FOREIGN KEY (cast_id) REFERENCES casts(id)
+  f attendance_org_id_fkey: FOREIGN KEY (org_id) REFERENCES orgs(id)
+  f attendance_store_id_fkey: FOREIGN KEY (store_id) REFERENCES stores(id)
+  p attendance_pkey: PRIMARY KEY (id)
+  u attendance_cast_id_date_key: UNIQUE (cast_id, date)
+
+## punches 列
+  id uuid NOT NULL default=gen_random_uuid()
+  org_id uuid NOT NULL default=-
+  store_id uuid NOT NULL default=-
+  cast_id uuid NOT NULL default=-
+  punched_at timestamp with time zone NOT NULL default=now()
+  type text NOT NULL default=-
+  lat double precision null可 default=-
+  lng double precision null可 default=-
+  ip text null可 default=-
+  within_geofence boolean null可 default=-
+  source text NOT NULL default='self'::text
+  note text null可 default=-
+  created_at timestamp with time zone NOT NULL default=now()
+## punches 制約
+  c punches_source_check: CHECK ((source = ANY (ARRAY['self'::text, 'manager'::text, 'kiosk'::text])))
+  c punches_type_check: CHECK ((type = ANY (ARRAY['in'::text, 'out'::text])))
+  f punches_cast_id_fkey: FOREIGN KEY (cast_id) REFERENCES casts(id)
+  f punches_org_id_fkey: FOREIGN KEY (org_id) REFERENCES orgs(id)
+  f punches_store_id_fkey: FOREIGN KEY (store_id) REFERENCES stores(id)
+  p punches_pkey: PRIMARY KEY (id)
+
+## payslips 列
+  id uuid NOT NULL default=gen_random_uuid()
+  org_id uuid NOT NULL default=-
+  store_id uuid NOT NULL default=-
+  run_id uuid NOT NULL default=-
+  cast_id uuid NOT NULL default=-
+  period text NOT NULL default=-
+  breakdown_json jsonb NOT NULL default=-
+  net integer NOT NULL default=-
+  paid boolean NOT NULL default=false
+  created_at timestamp with time zone NOT NULL default=now()
+  updated_at timestamp with time zone NOT NULL default=now()
+## payslips 制約
+  c payslips_period_check: CHECK ((period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'::text))
+  f payslips_cast_id_fkey: FOREIGN KEY (cast_id) REFERENCES casts(id)
+  f payslips_org_id_fkey: FOREIGN KEY (org_id) REFERENCES orgs(id)
+  f payslips_run_id_fkey: FOREIGN KEY (run_id) REFERENCES payroll_runs(id)
+  f payslips_store_id_fkey: FOREIGN KEY (store_id) REFERENCES stores(id)
+  p payslips_pkey: PRIMARY KEY (id)
+
+## payroll_runs 列
+  id uuid NOT NULL default=gen_random_uuid()
+  org_id uuid NOT NULL default=-
+  store_id uuid NOT NULL default=-
+  period text NOT NULL default=-
+  period_start date null可 default=-
+  period_end date null可 default=-
+  status text NOT NULL default='draft'::text
+  finalize_idem_key uuid null可 default=-
+  finalized_at timestamp with time zone null可 default=-
+  paid_idem_key uuid null可 default=-
+  paid_at timestamp with time zone null可 default=-
+  created_by uuid NOT NULL default=-
+  created_at timestamp with time zone NOT NULL default=now()
+  updated_at timestamp with time zone NOT NULL default=now()
+  reopen_idem_key uuid null可 default=-
+## payroll_runs 制約
+  c payroll_runs_check: CHECK (((period_end IS NULL) OR (period_start IS NULL) OR (period_end >= period_start)))
+  c payroll_runs_period_check: CHECK ((period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'::text))
+  c payroll_runs_status_check: CHECK ((status = ANY (ARRAY['draft'::text, 'finalized'::text, 'paid'::text])))
+  f payroll_runs_created_by_fkey: FOREIGN KEY (created_by) REFERENCES users(id)
+  f payroll_runs_org_id_fkey: FOREIGN KEY (org_id) REFERENCES orgs(id)
+  f payroll_runs_store_id_fkey: FOREIGN KEY (store_id) REFERENCES stores(id)
+  p payroll_runs_pkey: PRIMARY KEY (id)
+
+## transports 列
+## transports 制約
+
+## transports: （表なし: relation "public.transports" does not exist）
+
+## deduction_rules 列
+## deduction_rules 制約
+
+## deduction_rules: （表なし: relation "public.deduction_rules" does not exist）
+
+## 出退勤・打刻・送り・給与の RPC 署名
+  adv_cancel(p_advance_id uuid) → uuid
+  adv_issue(p_store_id uuid, p_cast_id uuid, p_amount integer, p_advanced_on date, p_note text) → uuid
+  attendance_set(p_cast_id uuid, p_date date, p_status text, p_eta text, p_reason text) → uuid
+  attendance_set_self(p_date date, p_status text, p_eta text, p_reason text) → uuid
+  incentive_cancel(p_incentive_id uuid) → uuid
+  incentive_publish(p_store_id uuid, p_biz_date date, p_kind text, p_amount_mode text, p_amount integer, p_reason text, p_target_cast_ids uuid[]) → uuid
+  kiosk_cast_list() → TABLE(cast_id uuid, cast_name text, has_pin boolean)
+  kiosk_check_detail(p_check_id uuid) → jsonb
+  kiosk_deactivate(p_device_id uuid) → void
+  kiosk_login(p_membership_id uuid, p_pin text) → jsonb
+  kiosk_logout() → void
+  kiosk_operator_list() → TABLE(membership_id uuid, user_name text, role text, has_pin boolean)
+  kiosk_provision(p_auth_user_id uuid, p_store_id uuid, p_label text, p_purpose text) → uuid
+  kiosk_punch(p_cast_id uuid, p_pin text, p_type text) → jsonb
+  kiosk_register_state() → jsonb
+  payroll_finalize(p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid, p_payslips jsonb) → integer
+  payroll_mark_paid(p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid) → text
+  payroll_reopen(p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid, p_reason text) → text
+  payroll_run_create(p_store_id uuid, p_period text) → TABLE(id uuid, status text)
+  punch_proxy(p_cast_id uuid, p_type text, p_note text) → uuid
+  punch_self(p_type text, p_lat double precision, p_lng double precision) → uuid
+  transport_cancel(p_transport_id uuid) → uuid
+  transport_issue(p_store_id uuid, p_cast_id uuid, p_amount integer, p_biz_date date, p_note text) → uuid
+
+## payslips を update／insert する関数（prosrc 走査）
+  payroll_finalize
+  payroll_mark_paid
+
+## attendance を書く関数（prosrc 走査）
+  attendance_set
+  attendance_set_self
+  incentive_cancel
+  incentive_publish
+
+## 表名に transport／okuri／deduct／advance／incentive を含む表
+  advances
+  attendance_incentives
+  deductions
+  transport
+
+## kiosk_punch（1 本・該当行抜粋）
+ 52:       update public.cast_pin
+ 56:       update public.cast_pin
+ 60:     insert into public.audit_logs
+ 77:   update public.cast_pin
+ 82:   update public.kiosk_devices
+ 86:   insert into public.punches (org_id, store_id, cast_id, type, lat, lng, ip, source)
+ 90:   insert into public.audit_logs
+
+## punch_self（1 本・該当行抜粋）
+ 21:   insert into public.punches (org_id, store_id, cast_id, type, lat, lng, ip, source)
+
+## attendance_set（1 本・該当行抜粋）
+  1: CREATE OR REPLACE FUNCTION public.attendance_set(p_cast_id uuid, p_date date, p_status text, p_eta text DEFAULT NULL::text, p_reason text DEFAULT NULL::text)
+ 10:   if public.auth_org_id() is null then raise exception 'forbidden'; end if;
+ 11:   if p_date is null then raise exception 'bad date'; end if;
+ 12:   if p_status is null or p_status not in ('shukkin','dohan','late','off','absent') then raise exception 'bad status'; end if;
+ 13:   if p_eta is not null and p_eta !~ '^([0-3][0-9]|4[0-7]):[0-5][0-9]$' then raise exception 'bad eta'; end if;
+ 15:   if v_cast.id is null or v_cast.org_id <> public.auth_org_id() then raise exception 'forbidden'; end if;
+ 19:     raise exception 'forbidden';
+ 22:   insert into public.attendance (org_id, store_id, cast_id, date, status, eta, reason, source)
+ 23:   values (v_cast.org_id, v_cast.store_id, p_cast_id, p_date, p_status, p_eta, p_reason, 'staff')
+ 24:   on conflict (cast_id, date) do update
+ 25:     set status = excluded.status, eta = excluded.eta, reason = excluded.reason, source = 'staff'
+
+## transport_issue（1 本・該当行抜粋）
+  1: CREATE OR REPLACE FUNCTION public.transport_issue(p_store_id uuid, p_cast_id uuid, p_amount integer, p_biz_date date, p_note text)
+ 14:   if public.auth_org_id() is null then raise exception 'forbidden'; end if;
+ 15:   if not public.billing_writable_of(public.auth_org_id()) then raise exception 'billing locked'; end if;
+ 16:   if p_amount is null or p_amount <= 0 then raise exception 'bad amount'; end if;
+ 17:   if p_biz_date is null then raise exception 'bad date'; end if;
+ 19:   if v_store.org_id is null or v_store.org_id <> public.auth_org_id() then raise exception 'forbidden'; end if;
+ 22:     raise exception 'forbidden';
+ 24:   -- L3' 構造的排他: okuri_mode='actual' の店でのみ実費入力を受理（fail-closed＝flat/未設定/不正は拒否）
+ 25:   v_mode := coalesce(nullif(trim(v_store.settings_json->>'okuri_mode'), ''), 'flat');
+ 26:   if v_mode <> 'actual' then raise exception 'okuri not actual'; end if;
+ 28:   if exists (select 1 from public.payroll_runs
+ 30:     raise exception 'paid period';
+ 34:   if v_cast.id is null then raise exception 'bad cast'; end if;
+ 37:   insert into public.transport (org_id, store_id, cast_id, amount, biz_date, note, created_by)
+ 38:   values (v_store.org_id, p_store_id, p_cast_id, p_amount, p_biz_date, nullif(trim(coalesce(p_note,'')), ''), v_actor)
+ 42:     null, jsonb_build_object('cast_id', p_cast_id, 'amount', p_amount, 'biz_date', p_biz_date), p_store_id);
+
+## payroll_finalize（1 本・該当行抜粋）
+  1: CREATE OR REPLACE FUNCTION public.payroll_finalize(p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid, p_payslips jsonb)
+ 11:   v_status  text;
+ 21:   v_arrec   jsonb;     -- 退避 breakdown.ar の1要素（巻き戻し用）
+ 22:   v_advrec  jsonb;     -- 退避 breakdown.adv の1要素（巻き戻し用・F2e-2）
+ 23:   v_okrec   jsonb;     -- 退避 breakdown.okuri の1要素（巻き戻し用・F2e-2）
+ 24:   v_ar      jsonb;     -- 適用 ar 記録（凍結 breakdown へ注入）
+ 39:   v_bd      jsonb;     -- 凍結 breakdown（ar/adv/okuri 注入後）
+ 48:   select org_id, store_id, period, status, finalize_idem_key, period_start, period_end
+ 49:     into v_org, v_store, v_period, v_status, v_idem, v_old_ps, v_old_pe
+ 51:   if v_org is null then raise exception 'run not found'; end if;
+ 52:   if p_org_id is null or v_org <> p_org_id then raise exception 'forbidden'; end if;
+ 55:   if p_idem_key is not null and v_status = 'finalized' and v_idem is not distinct from p_idem_key then
+ 61:   if v_status = 'paid' then raise exception 'run paid'; end if;
+ 64:   if p_payslips is null or jsonb_typeof(p_payslips) <> 'array' then raise exception 'bad payslips'; end if;
+ 66:     select 1 from jsonb_array_elements(p_payslips) e
+ 67:     where e->>'cast_id' is null or e->>'net' is null
+ 68:        or e->'breakdown'->'pay' is null
+ 69:        or jsonb_typeof(e->'breakdown'->'extras') <> 'array'
+ 70:   ) then raise exception 'bad payslip shape'; end if;
+ 72:   if jsonb_array_length(p_payslips) = 0 then raise exception 'empty payslips'; end if;
+ 74:   -- 差し替え前 breakdown_json を退避（現行どおり）
+ 75:   select jsonb_agg(jsonb_build_object('cast_id', ps.cast_id, 'net', ps.net, 'breakdown', ps.breakdown_json))
+ 84:   -- (B) 巻き戻しフェーズ（再確定・未 paid）: 退避 payslip の breakdown.ar/.adv/.okuri を条件付き復元（drift は触らない）
+ 89:       lateral jsonb_array_elements(coalesce(ps.breakdown_json->'ar', '[]'::jsonb)) ae
+ 93:        set status = v_arrec->>'prev_status',
+ 97:        and r.status = v_arrec->>'applied_status'
+106:       lateral jsonb_array_elements(coalesce(ps.breakdown_json->'adv', '[]'::jsonb)) ae
+110:        set status = v_advrec->>'prev_status',
+114:        and a.status = v_advrec->>'applied_status'
+119:   --   ── okuri（transport・繰越なし＝deduct_period 列なし・status/deducted_amount のみ・F2e-2 追加）──
+123:       lateral jsonb_array_elements(coalesce(ps.breakdown_json->'okuri', '[]'::jsonb)) ae
+127:        set status = v_okrec->>'prev_status',
+130:        and t.status = v_okrec->>'applied_status'
+141:   for v_ps in select ae from lateral jsonb_array_elements(p_payslips) ae loop
+158:            or v_recv.status <> 'open' or not v_recv.deduct_from_cast
+160:           raise exception 'bad receivable';
+165:                status = case when v_full then 'deducted' else status end,
+170:           'prev_status', v_recv.status, 'prev_deduct_period', v_recv.deduct_period, 'prev_deducted_amount', v_recv.deducted_amount,
+171:           'applied_status', case when v_full then 'deducted' else 'open' end,
+183:            or v_recv.status <> 'open' or not v_recv.deduct_from_cast then
+184:           raise exception 'bad receivable';
+188:           'prev_status', v_recv.status, 'prev_deduct_period', v_recv.deduct_period, 'prev_deducted_amount', v_recv.deducted_amount,
+189:           'applied_status', 'open', 'applied_deduct_period', v_next, 'applied_deducted_amount', v_recv.deducted_amount);
+201:            or v_adv.status <> 'open'
+203:           raise exception 'bad advance';
+208:                status = case when v_full then 'deducted' else status end,
+213:           'prev_status', v_adv.status, 'prev_deduct_period', v_adv.deduct_period, 'prev_deducted_amount', v_adv.deducted_amount,
+214:           'applied_status', case when v_full then 'deducted' else 'open' end,
+225:            or v_adv.status <> 'open' then
+226:           raise exception 'bad advance';
+230:           'prev_status', v_adv.status, 'prev_deduct_period', v_adv.deduct_period, 'prev_deducted_amount', v_adv.deducted_amount,
+231:           'applied_status', 'open', 'applied_deduct_period', v_next, 'applied_deducted_amount', v_adv.deducted_amount);
+243:            or v_tr.status <> 'open'
+245:           raise exception 'bad transport';
+250:                status = case when v_full then 'deducted' else status end  -- 繰越なし＝部分は open 据置
+254:           'prev_status', v_tr.status, 'prev_deducted_amount', v_tr.deducted_amount,
+255:           'applied_status', case when v_full then 'deducted' else 'open' end,
+261:     -- 凍結 breakdown = 入力 breakdown に ar/adv/okuri を注入
+262:     v_bd := (v_ps->'breakdown') || jsonb_build_object('ar', v_ar, 'adv', v_advarr, 'okuri', v_okarr);
+263:     insert into public.payslips (org_id, store_id, run_id, cast_id, period, breakdown_json, net)
+264:     values (v_org, v_store, p_run_id, v_cast, v_period, v_bd, (v_ps->>'net')::int);
+270:      set status = 'finalized', finalized_at = now(),
+275:   -- (D) #6 service 経路監査: before に退避 breakdown＋旧窓＋巻き戻し(ar/adv/okuri)・after に新件数/新窓/idem＋適用(ar/adv/okuri)
+
+## payroll_mark_paid（1 本・該当行抜粋）
+  1: CREATE OR REPLACE FUNCTION public.payroll_mark_paid(p_org_id uuid, p_actor uuid, p_run_id uuid, p_idem_key uuid)
+ 13:   select org_id, store_id, status, paid_idem_key
+ 16:   if v_org is null then raise exception 'run not found'; end if;
+ 17:   if p_org_id is null or v_org <> p_org_id then raise exception 'forbidden'; end if;
+ 19:   -- 冪等（原則9 順序）: 既に paid で同一キーなら成功を返す（二重実行防止）
+ 20:   if p_idem_key is not null and v_status = 'paid' and v_idem is not distinct from p_idem_key then
+ 21:     return 'paid';
+ 24:   -- finalized→paid のみ許可（draft/paid からは不可）
+ 25:   if v_status <> 'finalized' then raise exception 'not finalized'; end if;
+ 28:      set status = 'paid', paid_at = now(), paid_idem_key = p_idem_key
+ 30:   update public.payslips set paid = true where run_id = p_run_id; -- F2e 予約列を一括で立てる（実装ノート【10】）
+ 33:   perform public.audit_log_write_service(v_org, p_actor, 'payroll_mark_paid',
+ 36:     jsonb_build_object('status', 'paid', 'idem_key', p_idem_key), v_store);
+ 37:   return 'paid';
+
+## transport 列
+  id uuid NOT NULL
+  org_id uuid NOT NULL
+  store_id uuid NOT NULL
+  cast_id uuid NOT NULL
+  amount integer NOT NULL
+  deducted_amount integer NOT NULL
+  status text NOT NULL
+  biz_date date NOT NULL
+  note text
+  created_by uuid NOT NULL
+  created_at timestamp with time zone NOT NULL
+  updated_at timestamp with time zone NOT NULL
+  cancelled_by uuid
+  cancelled_at timestamp with time zone
+  CHECK transport_amount_check: CHECK ((amount > 0))
+  CHECK transport_deducted_amount_check: CHECK ((deducted_amount >= 0))
+  CHECK transport_deducted_le_amount: CHECK ((deducted_amount <= amount))
+  CHECK transport_status_check: CHECK ((status = ANY (ARRAY['open'::text, 'deducted'::text, 'cancelled'::text])))
+## deductions 列
+  id uuid NOT NULL
+  org_id uuid NOT NULL
+  store_id uuid NOT NULL
+  name text NOT NULL
+  amount integer NOT NULL
+  per text NOT NULL
+  is_active boolean NOT NULL
+  created_at timestamp with time zone NOT NULL
+  updated_at timestamp with time zone NOT NULL
+  kind text NOT NULL
+  basis_confirmed_at timestamp with time zone
+  basis_confirmed_by uuid
+  basis_note text
+  CHECK deductions_amount_check: CHECK ((amount >= 0))
+  CHECK deductions_kind_check: CHECK ((kind = ANY (ARRAY['unworked'::text, 'sanction'::text, 'statutory'::text, 'agreed_cost'::text, 'store_receivable'::text, 'advance_settlement'::text])))
+  CHECK deductions_per_check: CHECK ((per = ANY (ARRAY['day'::text, 'month'::text, 'rate'::text])))
+  CHECK deductions_sanction_basis_check: CHECK (((kind <> 'sanction'::text) OR ((basis_confirmed_at IS NOT NULL) AND (basis_confirmed_by IS NOT NULL) AND (basis_note IS NOT NULL) AND (length(TRIM(BOTH FROM basis_note)) > 0))))
+## attendance_incentives 列
+  id uuid NOT NULL
+  org_id uuid NOT NULL
+  store_id uuid NOT NULL
+  biz_date date NOT NULL
+  kind text NOT NULL
+  amount_mode text NOT NULL
+  amount integer NOT NULL
+  status text NOT NULL
+  created_by uuid NOT NULL
+  created_at timestamp with time zone NOT NULL
+  cancelled_by uuid
+  cancelled_at timestamp with time zone
+  reason text
+  target_cast_ids ARRAY
+  CHECK attendance_incentives_amount_check: CHECK ((amount >= 0))
+  CHECK attendance_incentives_amount_mode_check: CHECK ((amount_mode = ANY (ARRAY['per_head'::text, 'pooled'::text])))
+  CHECK attendance_incentives_kind_check: CHECK ((kind = ANY (ARRAY['bonus'::text, 'drink_boost'::text])))
+  CHECK attendance_incentives_reason_len: CHECK (((reason IS NULL) OR (length(reason) <= 200)))
+  CHECK attendance_incentives_status_check: CHECK ((status = ANY (ARRAY['published'::text, 'cancelled'::text])))
+
+
+# 0915_survey2 追記（2026/9/15 14:01:19・読取のみ）
+
+## a. punches に書く関数（prosrc 走査: insert into public.punches／update public.punches／delete from public.punches）
+  kiosk_punch(p_cast_id uuid, p_pin text, p_type text) insert=true update=false delete=false
+  punch_proxy(p_cast_id uuid, p_type text, p_note text) insert=true update=false delete=false
+  punch_self(p_type text, p_lat double precision, p_lng double precision) insert=true update=false delete=false
+
+## punch_proxy（1 本）（全文）
+  1: CREATE OR REPLACE FUNCTION public.punch_proxy(p_cast_id uuid, p_type text, p_note text DEFAULT NULL::text)
+  2:  RETURNS uuid
+  3:  LANGUAGE plpgsql
+  4:  SECURITY DEFINER
+  5:  SET search_path TO 'public'
+  6: AS $function$
+  7: declare
+  8:   v_cast record; v_ip text; v_id uuid;
+  9: begin
+ 10:   if public.auth_org_id() is null then raise exception 'forbidden'; end if;
+ 11:   if p_type is null or p_type not in ('in','out') then raise exception 'bad type'; end if;
+ 12:   select * into v_cast from public.casts where id = p_cast_id;
+ 13:   if v_cast.id is null or v_cast.org_id <> public.auth_org_id() then raise exception 'forbidden'; end if;
+ 14:   if not v_cast.is_active then raise exception 'inactive cast'; end if;
+ 15:   if not (public.auth_role() = 'owner'
+ 16:           or (public.auth_role() = 'manager' and v_cast.store_id = public.auth_store_id())) then
+ 17:     raise exception 'forbidden';
+ 18:   end if;
+ 19:   begin
+ 20:     v_ip := nullif(current_setting('request.headers', true), '')::jsonb ->> 'x-forwarded-for';
+ 21:   exception when others then
+ 22:     v_ip := null;
+ 23:   end;
+ 24:   insert into public.punches (org_id, store_id, cast_id, type, ip, source, note)
+ 25:   values (v_cast.org_id, v_cast.store_id, p_cast_id, p_type, v_ip, 'manager', p_note)
+ 26:   returning id into v_id;
+ 27:   perform public.audit_log_write('punch_proxy', 'punches:' || v_id::text, null,
+ 28:     (select to_jsonb(p) from public.punches p where p.id = v_id), v_cast.store_id);
+ 29:   return v_id;
+ 30: end $function$
+ 31: 
+
+## kiosk_punch（1 本）（該当行抜粋）
+  1: CREATE OR REPLACE FUNCTION public.kiosk_punch(p_cast_id uuid, p_pin text, p_type text)
+ 17:   if not found then raise exception 'forbidden'; end if;
+ 18:   if p_type is null or p_type not in ('in','out') then raise exception 'bad type'; end if;
+ 76:   -- PIN 一致: カウンタ復元 → 盲目記録 INSERT（punch_self 逐語型・source='kiosk'）
+ 86:   insert into public.punches (org_id, store_id, cast_id, type, lat, lng, ip, source)
+ 87:   values (v_cast.org_id, v_cast.store_id, p_cast_id, p_type, null, null, v_ip, 'kiosk')
+ 94:      'punches:' || v_punch_id::text, null,
+ 96:                         'type', p_type, 'result', 'ok'),
+
+## punch_self（1 本）（該当行抜粋）
+  1: CREATE OR REPLACE FUNCTION public.punch_self(p_type text, p_lat double precision DEFAULT NULL::double precision, p_lng double precision DEFAULT NULL::double precision)
+ 10:   if public.auth_org_id() is null then raise exception 'forbidden'; end if;
+ 12:   if v_cast is null then raise exception 'no cast for caller'; end if;
+ 13:   if p_type is null or p_type not in ('in','out') then raise exception 'bad type'; end if;
+ 21:   insert into public.punches (org_id, store_id, cast_id, type, lat, lng, ip, source)
+ 22:   values (v_row.org_id, v_row.store_id, v_cast, p_type, p_lat, p_lng, v_ip, 'self')
+ 24:   perform public.audit_log_write('punch_self', 'punches:' || v_id::text, null,
+ 25:     (select to_jsonb(p) from public.punches p where p.id = v_id), v_row.store_id);
+
+## punches.source の実データ分布
+  self/in: 218
+
+## b/c. deductions 列（live 逐語）
+  id uuid NOT NULL default=gen_random_uuid()
+  org_id uuid NOT NULL default=-
+  store_id uuid NOT NULL default=-
+  name text NOT NULL default=-
+  amount integer NOT NULL default=0
+  per text NOT NULL default=-
+  is_active boolean NOT NULL default=true
+  created_at timestamp with time zone NOT NULL default=now()
+  updated_at timestamp with time zone NOT NULL default=now()
+  kind text NOT NULL default='agreed_cost'::text
+  basis_confirmed_at timestamp with time zone null可 default=-
+  basis_confirmed_by uuid null可 default=-
+  basis_note text null可 default=-
+## deductions 制約
+  c deductions_amount_check: CHECK ((amount >= 0))
+  c deductions_kind_check: CHECK ((kind = ANY (ARRAY['unworked'::text, 'sanction'::text, 'statutory'::text, 'agreed_cost'::text, 'store_receivable'::text, 'advance_settlement'::text])))
+  c deductions_per_check: CHECK ((per = ANY (ARRAY['day'::text, 'month'::text, 'rate'::text])))
+  c deductions_sanction_basis_check: CHECK (((kind <> 'sanction'::text) OR ((basis_confirmed_at IS NOT NULL) AND (basis_confirmed_by IS NOT NULL) AND (basis_note IS NOT NULL) AND (length(TRIM(BOTH FROM basis_note)) > 0))))
+  f deductions_org_id_fkey: FOREIGN KEY (org_id) REFERENCES orgs(id)
+  f deductions_store_id_fkey: FOREIGN KEY (store_id) REFERENCES stores(id)
+  p deductions_pkey: PRIMARY KEY (id)
+## deductions index
+  CREATE UNIQUE INDEX deductions_pkey ON public.deductions USING btree (id)
+  CREATE INDEX deductions_store_idx ON public.deductions USING btree (store_id)
+  CREATE INDEX deductions_org_idx ON public.deductions USING btree (org_id)
+
+## deductions の実データ（dev・店別 kind/per の分布）
+  CLUB NOX sanction/day: 1 件 amount 1000〜1000
+  NOX-VERIFY-A1 agreed_cost/day: 1 件 amount 2000〜2000
+
+## b/c. attendance_incentives 列（live 逐語）
+  id uuid NOT NULL default=gen_random_uuid()
+  org_id uuid NOT NULL default=-
+  store_id uuid NOT NULL default=-
+  biz_date date NOT NULL default=-
+  kind text NOT NULL default='bonus'::text
+  amount_mode text NOT NULL default=-
+  amount integer NOT NULL default=-
+  status text NOT NULL default='published'::text
+  created_by uuid NOT NULL default=-
+  created_at timestamp with time zone NOT NULL default=now()
+  cancelled_by uuid null可 default=-
+  cancelled_at timestamp with time zone null可 default=-
+  reason text null可 default=-
+  target_cast_ids ARRAY null可 default=-
+## attendance_incentives 制約
+  c attendance_incentives_amount_check: CHECK ((amount >= 0))
+  c attendance_incentives_amount_mode_check: CHECK ((amount_mode = ANY (ARRAY['per_head'::text, 'pooled'::text])))
+  c attendance_incentives_kind_check: CHECK ((kind = ANY (ARRAY['bonus'::text, 'drink_boost'::text])))
+  c attendance_incentives_reason_len: CHECK (((reason IS NULL) OR (length(reason) <= 200)))
+  c attendance_incentives_status_check: CHECK ((status = ANY (ARRAY['published'::text, 'cancelled'::text])))
+  f attendance_incentives_cancelled_by_fkey: FOREIGN KEY (cancelled_by) REFERENCES users(id)
+  f attendance_incentives_created_by_fkey: FOREIGN KEY (created_by) REFERENCES users(id)
+  f attendance_incentives_org_id_fkey: FOREIGN KEY (org_id) REFERENCES orgs(id)
+  f attendance_incentives_store_id_fkey: FOREIGN KEY (store_id) REFERENCES stores(id)
+  p attendance_incentives_pkey: PRIMARY KEY (id)
+## attendance_incentives index
+  CREATE UNIQUE INDEX attendance_incentives_pkey ON public.attendance_incentives USING btree (id)
+  CREATE UNIQUE INDEX attendance_incentives_pub_uidx ON public.attendance_incentives USING btree (store_id, biz_date) WHERE (status = 'published'::text)
+  CREATE INDEX attendance_incentives_store_date_idx ON public.attendance_incentives USING btree (store_id, biz_date)
+  CREATE INDEX attendance_incentives_org_idx ON public.attendance_incentives USING btree (org_id)
+
+## incentive_publish（1 本）（全文）
+  1: CREATE OR REPLACE FUNCTION public.incentive_publish(p_store_id uuid, p_biz_date date, p_kind text, p_amount_mode text, p_amount integer, p_reason text DEFAULT NULL::text, p_target_cast_ids u
+  2:  RETURNS uuid
+  3:  LANGUAGE plpgsql
+  4:  SECURITY DEFINER
+  5:  SET search_path TO 'public'
+  6: AS $function$
+  7: declare
+  8:   v_store record;
+  9:   v_actor uuid;
+ 10:   v_id    uuid;
+ 11: begin
+ 12:   if public.auth_org_id() is null then raise exception 'forbidden'; end if;
+ 13:   if not public.billing_writable_of(public.auth_org_id()) then raise exception 'billing locked'; end if;
+ 14:   -- 入力検証（drink_boost は予約値＝publish は bonus のみ受理・論点4）
+ 15:   if p_biz_date is null then raise exception 'bad date'; end if;
+ 16:   if p_kind is null or p_kind <> 'bonus' then raise exception 'kind reserved'; end if;
+ 17:   if p_amount_mode is null or p_amount_mode not in ('per_head','pooled') then raise exception 'bad mode'; end if;
+ 18:   if p_amount is null or p_amount < 0 then raise exception 'bad amount'; end if;
+ 19:   -- ★mig0095: 理由・対象の形式検証（null=全員=現行完全互換）
+ 20:   if p_reason is not null and length(p_reason) > 200 then raise exception 'bad reason'; end if;
+ 21:   if p_target_cast_ids is not null then
+ 22:     if array_length(p_target_cast_ids, 1) is null then raise exception 'bad target'; end if;
+ 23:     if (select count(*) from unnest(p_target_cast_ids))
+ 24:        <> (select count(distinct x) from unnest(p_target_cast_ids) x) then
+ 25:       raise exception 'bad target';
+ 26:     end if;
+ 27:   end if;
+ 28:   -- store の org 照合＋ロール判定（owner 全店・manager 自店のみ・staff/cast 不可）
+ 29:   select id, org_id into v_store from public.stores where id = p_store_id;
+ 30:   if v_store.org_id is null or v_store.org_id <> public.auth_org_id() then raise exception 'forbidden'; end if;
+ 31:   if not (public.auth_role() = 'owner'
+ 32:           or (public.auth_role() = 'manager' and p_store_id = public.auth_store_id())) then
+ 33:     raise exception 'forbidden';
+ 34:   end if;
+ 35:   -- ★mig0095: 対象 cast の帰属検証（全 id が同 org・同 store。活性列は casts スキーマ非依存＝
+ 36:   --   帰属のみ判定。給与側の受給者は出勤ベース＝recipientsByDate で自然に絞られる）
+ 37:   if p_target_cast_ids is not null then
+ 38:     if exists (
+ 39:       select 1 from unnest(p_target_cast_ids) t(cid)
+ 40:       left join public.casts c
+ 41:         on c.id = t.cid and c.org_id = v_store.org_id and c.store_id = p_store_id
+ 42:       where c.id is null
+ 43:     ) then
+ 44:       raise exception 'bad target';
+ 45:     end if;
+ 46:   end if;
+ 47:   -- publish も paid 期間ガード（論点1・実装ノート【4】）
+ 48:   if exists (select 1 from public.payroll_runs
+ 49:              where store_id = p_store_id and period = to_char(p_biz_date, 'YYYY-MM') and status = 'paid') then
+ 50:     raise exception 'paid period';
+ 51:   end if;
+ 52:   select id into v_actor from public.users where auth_user_id = auth.uid() and is_active;
+ 53:   -- 同日 published は部分ユニークで原理的に排他（exists→insert の TOCTOU を閉じる）。
+ 54:   -- on conflict のターゲットに部分ユニークインデックス述語を明示（insert は status='published' 固定＝必ずマッチ）。
+ 55:   insert into public.attendance_incentives (org_id, store_id, biz_date, kind, amount_mode, amount, status, created_by, reason, target_cast_ids)
+ 56:   values (v_store.org_id, p_store_id, p_biz_date, 'bonus', p_amount_mode, p_amount, 'published', v_actor, nullif(trim(coalesce(p_reason,'')),''), p_target_cast_ids)
+ 57:   on conflict (store_id, biz_date) where status = 'published' do nothing
+ 58:   returning id into v_id;
+ 59:   if v_id is null then raise exception 'already published'; end if; -- 競合で挿入されなかった＝同時発行
+ 60: 
+ 61:   perform public.audit_log_write('incentive_publish', 'attendance_incentives:' || v_id::text,
+ 62:     null, jsonb_build_object('biz_date', p_biz_date, 'amount_mode', p_amount_mode, 'amount', p_amount,
+ 63:                              'reason', p_reason, 'target_count', array_length(p_target_cast_ids, 1)), p_store_id);
+ 64:   return v_id;
+ 65: end $function$
+ 66: 
+
+## incentive_cancel（1 本）（全文）
+  1: CREATE OR REPLACE FUNCTION public.incentive_cancel(p_incentive_id uuid)
+  2:  RETURNS uuid
+  3:  LANGUAGE plpgsql
+  4:  SECURITY DEFINER
+  5:  SET search_path TO 'public'
+  6: AS $function$
+  7: declare
+  8:   v_row   record;
+  9:   v_actor uuid;
+ 10: begin
+ 11:   if public.auth_org_id() is null then raise exception 'forbidden'; end if;
+ 12:   if not public.billing_writable_of(public.auth_org_id()) then raise exception 'billing locked'; end if;
+ 13:   select * into v_row from public.attendance_incentives where id = p_incentive_id;
+ 14:   if v_row.id is null or v_row.org_id <> public.auth_org_id() then raise exception 'forbidden'; end if;
+ 15:   if not (public.auth_role() = 'owner'
+ 16:           or (public.auth_role() = 'manager' and v_row.store_id = public.auth_store_id())) then
+ 17:     raise exception 'forbidden';
+ 18:   end if;
+ 19:   if v_row.status <> 'published' then raise exception 'not published'; end if;
+ 20:   -- paid 期間ガード（凍結済み payslip との不整合防止・実装ノート【4】）
+ 21:   if exists (select 1 from public.payroll_runs
+ 22:              where store_id = v_row.store_id and period = to_char(v_row.biz_date, 'YYYY-MM') and status = 'paid') then
+ 23:     raise exception 'paid period';
+ 24:   end if;
+ 25: 
+ 26:   select id into v_actor from public.users where auth_user_id = auth.uid() and is_active;
+ 27:   update public.attendance_incentives
+ 28:      set status = 'cancelled', cancelled_by = v_actor, cancelled_at = now()
+ 29:    where id = p_incentive_id;
+ 30: 
+ 31:   perform public.audit_log_write('incentive_cancel', 'attendance_incentives:' || p_incentive_id::text,
+ 32:     jsonb_build_object('status', 'published'), jsonb_build_object('status', 'cancelled'), v_row.store_id);
+ 33:   return p_incentive_id;
+ 34: end $function$
+ 35: 
+
+## d. payslips の実データ 1 件（DEMO・最新 run・breakdown_json のキー構造）
+  period=2026-09 net=130251 paid=true
+  top keys: ar, adv, pay, okuri, extras, cast_name
+  pay keys: net, fine, plan, wage, eplan, gross, hasOv, lateN, sRate, wdays, cbacks, wHours, wbasis, absentN, honBack, taxMode, timePay, arDeduct, fixedDed, sanction, champBack, dohanBack, drinkBack, jonaiBack, salesBack, bottleBack, compSkipped, customTotal, normPenalty, okuriDeduct, withholding, guaranteeAdd, advanceDeduct, calculatedBack, achievementBonus
+  pay: {"net":130251,"fine":0,"plan":{"id":"4593b52f-3fbf-4586-a571-d78a0c97118c","base":3000,"name":"レギュラー","honBack":3000,"dohanBack":2000,"jonaiBack":1000,"components":[],"pointSlide":[],"salesSlide":[{"at":100000,"wage":3500}],"honBackMode":"per_count","honBackRate":null,"dohanBackMode":"per_count","dohanBackRate":null,"jonaiBackMode":"per_count","jonaiBackRate":null,"productBackMode":"product_rule","productBackRate":null,"productBackFixed":null},"wage":3000,"eplan":{"id":"4593b52f-3fbf-4586-a571-d78a0c97118c","base":3000,"name":"レギュラー","honBack":3000,"dohanBack":2000,"jonaiBack":1000,"components":[],"pointSlide":[],"salesSlide":[{"at":100000,"wage":3500}],"honBackMode":"per_count","honBackRate":null,"dohanBackMode":"per_count","dohanBackRate":null,"jonaiBackMode":"per_count","jonaiBackRate":null,"productBackMode":"product_rule","productBackRate":null,"productBackFixed":null},"gross":130251
+  extras: []
+  ar: []
+  adv: []
+  okuri: []
+  other: {"cast_name":"あべ"}
+
+## d. pay 全文（plan 除く）
+{
+ "net": 130251,
+ "fine": 0,
+ "wage": 3000,
+ "eplan": {
+  "id": "4593b52f-3fbf-4586-a571-d78a0c97118c",
+  "base": 3000,
+  "name": "レギュラー",
+  "honBack": 3000,
+  "dohanBack": 2000,
+  "jonaiBack": 1000,
+  "components": [],
+  "pointSlide": [],
+  "salesSlide": [
+   {
+    "at": 100000,
+    "wage": 3500
+   }
+  ],
+  "honBackMode": "per_count",
+  "honBackRate": null,
+  "dohanBackMode": "per_count",
+  "dohanBackRate": null,
+  "jonaiBackMode": "per_count",
+  "jonaiBackRate": null,
+  "productBackMode": "product_rule",
+  "productBackRate": null,
+  "productBackFixed": null
+ },
+ "gross": 130251,
+ "hasOv": false,
+ "lateN": 0,
+ "sRate": 0.03,
+ "wdays": [
+  {
+   "d": 1,
+   "pts": 1.4,
+   "basis": "保証",
+   "hours": 0,
+   "sales": 11867,
+   "hourly": 3000
+  },
+  {
+   "d": 2,
+   "pts": 12.3,
+   "basis": "売上",
+   "hours": 0,
+   "sales": 101200,
+   "hourly": 3500
+  },
+  {
+   "d": 10,
+   "pts": 21.2,
+   "basis": "売上",
+   "hours": 0,
+   "sales": 174200,
+   "hourly": 3500
+  }
+ ],
+ "cbacks": [
+  {
+   "id": "eb8c5984-a63b-4f20-8661-f03073319105",
+   "met": true,
+   "cond": null,
+   "name": "シャンパンバック",
+   "basis": "sales",
+   "amount": 57453
+  },
+  {
+   "id": "a9ac7aa6-c4d9-48dc-ae76-8ddee385c21e",
+   "met": true,
+   "cond": null,
+   "name": "ドリンクバック",
+   "basis": "flat",
+   "amount": 500
+  }
+ ],
+ "wHours": 0,
+ "wbasis": {
+  "保証": 1,
+  "売上": 2
+ },
+ "absentN": 0,
+ "honBack": 9000,
+ "taxMode": "委託",
+ "timePay": 0,
+ "arDeduct": 0,
+ "fixedDed": 0,
+ "sanction": null,
+ "champBack": 52000,
+ "dohanBack": 0,
+ "drinkBack": 1480,
+ "jonaiBack": 0,
+ "salesBack": 8618,
+ "bottleBack": 1200,
+ "compSkipped": [],
+ "customTotal": 57953,
+ "normPenalty": 0,
+ "okuriDeduct": 0,
+ "withholding": 0,
+ "guaranteeAdd": 0,
+ "advanceDeduct": 0,
+ "calculatedBack": 0,
+ "achievementBonus": 0
+}
+## plan keys
+id,base,name,honBack,dohanBack,jonaiBack,components,pointSlide,salesSlide,honBackMode,honBackRate,dohanBackMode,dohanBackRate,jonaiBackMode,jonaiBackRate,productBackMode,productBackRate,productBackFixed

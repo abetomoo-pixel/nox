@@ -1,0 +1,35 @@
+[
+ {
+  "id": "3bf28fd6-7312-4fbb-a475-17aef6647f46",
+  "store": "NOX-VERIFY-A1",
+  "name": "NOX-VERIFY-指名ドリンク",
+  "type": "drink",
+  "is_active": true,
+  "created_jst": "2026-09-18 12:04:55",
+  "check_lines": 3,
+  "product_costs": 1,
+  "stock_logs": 1
+ },
+ {
+  "id": "d964efd5-0693-46eb-bb36-952dd2ae7bde",
+  "store": "NOX-VERIFY-A2",
+  "name": "NOX-VERIFY-原価A2",
+  "type": "drink",
+  "is_active": true,
+  "created_jst": "2026-09-18 12:04:55",
+  "check_lines": 0,
+  "product_costs": 0,
+  "stock_logs": 0
+ },
+ {
+  "id": "b9d6ac72-2ad9-4578-9506-9c033e811987",
+  "store": "NOX-VERIFY-A1",
+  "name": "NOX-VERIFY-シャンパン",
+  "type": "champ",
+  "is_active": true,
+  "created_jst": "2026-09-18 12:04:57",
+  "check_lines": 1,
+  "product_costs": 1,
+  "stock_logs": 0
+ }
+]
