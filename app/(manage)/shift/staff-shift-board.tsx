@@ -13,6 +13,7 @@ import { addDays, bizDateOf } from "@/lib/nox/biz-date";
 import { effectivePatterns, fmtEnd30, staffShiftErrJa } from "../master/staff-shift-panel";
 import StaffShiftManage from "./staff-shift-manage";
 
+import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）
 export type Pattern = { id: string; name: string; start_hm: string; end_hm: string; effective_from: string; sort_order: number };
 export type Deadline = { id: string; days_before: number; deadline_hm: string; effective_from: string };
 export type Wish = { id: string; staff_id: string; biz_date: string; pattern_id: string; available: boolean; note: string | null };
@@ -120,7 +121,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
           <button style={btnLight} onClick={() => { setMonth(bizToday.slice(0, 7)); setSelDay(bizToday); }}>今日</button>
         </span>
       </div>
-      {msg && <p style={{ fontSize: 12.5, fontWeight: 700, margin: "0 0 8px", color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>}
+      {msg && <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "0 0 8px" }}>{msg.text}</Message>}{/* ★裁定281（便 U）: 共通部品 */}
 
       {isManagerUp ? (
         <StaffShiftManage storeId={storeId} month={month} bizToday={bizToday} patterns={patterns} deadlines={deadlines} wishes={wishes} shifts={shifts}

@@ -8,7 +8,7 @@ import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
-import Toast from "@/components/ui/toast";
+import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos, uploadCastPhoto } from "@/lib/nox/cast-photo";
@@ -810,7 +810,7 @@ export default function CastsBoard({
                     新しいパスワードを発行します（現在のパスワードは使えなくなります）。新パスワードは次の画面で一度だけ表示されます。
                   </p>
                 )}
-                {invErr && <p style={{ ...t.bad, fontSize: 12.5, margin: "8px 0 0" }}>{invErr}</p>}
+                {invErr && <Message kind="error" style={{ margin: "8px 0 0" }}>{invErr}</Message>}
                 <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button style={btnGhost} disabled={busy} onClick={() => setInvTarget(null)}>キャンセル</button>
                   <button style={btnGold} disabled={busy} onClick={() => void submitInvite()}>
@@ -861,7 +861,7 @@ export default function CastsBoard({
                     inputMode="numeric" autoComplete="off" placeholder="0000"
                     style={{ ...t.input, width: 120, letterSpacing: 6, fontSize: 18, textAlign: "center" }} />
                 </label>
-                {pinErr && <p style={{ ...t.bad, fontSize: 12.5, margin: "8px 0 0" }}>{pinErr}</p>}
+                {pinErr && <Message kind="error" style={{ margin: "8px 0 0" }}>{pinErr}</Message>}
                 <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button style={btnGhost} disabled={busy} onClick={() => setPinTarget(null)}>キャンセル</button>
                   <button style={btnGold} disabled={busy || pinVal.length !== 4} onClick={() => void submitPin()}>
@@ -910,7 +910,7 @@ export default function CastsBoard({
             <input type="file" accept="image/*" disabled={busy}
               onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)} style={{ fontSize: 13 }} />
           </label>
-          {phErr && <p style={{ ...t.bad, fontSize: 12.5, margin: "8px 0 0" }}>{phErr}</p>}
+          {phErr && <Message kind="error" style={{ margin: "8px 0 0" }}>{phErr}</Message>}
           <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
             <button style={btnGhost} disabled={busy} onClick={closePhoto}>キャンセル</button>
             <button style={btnGold} disabled={busy || !phFile} onClick={() => void submitPhoto()}>
@@ -1009,7 +1009,7 @@ function RegisterForm({
           </div>
         )}
       </div>
-      {err && <p style={{ ...t.bad, fontSize: 12, margin: "0 0 10px" }}>{err}</p>}
+      {err && <Message kind="error" style={{ margin: "0 0 10px" }}>{err}</Message>}
       {/* モック `.actions`＝右寄せのフッタ（主ボタン1つ） */}
       <div className="nox-actions" style={{ display: "flex", gap: 9, marginTop: 17 }}>
         <button style={btnGold} disabled={busy} onClick={() => void submit()}>{withTrialFields ? "追加" : "登録する"}</button>

@@ -21,6 +21,7 @@ import CastPicker from "@/components/nox/cast-picker";
 import { businessHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import Picker from "@/components/nox/picker";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 type Cast = { id: string; name: string };
 // E8-1 ⑥: tel＝予約行の電話表示（customers.tel の select 追加のみ・フリー客は列なし＝非表示）
@@ -596,7 +597,7 @@ export default function ReservationPanel({
             </div>
           ))
         )}
-        {msg && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "8px 0 0" }}>{msg}</p>}
+        {msg && <Toast msg={msg} style={{ margin: "8px 0 0" }} />}
       </section>
 
       <section className="nox-cardtop" style={card}>

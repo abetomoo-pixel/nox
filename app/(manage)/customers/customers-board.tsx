@@ -17,6 +17,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
 import Picker from "@/components/nox/picker";
 
+import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
 type Row = {
@@ -431,7 +432,7 @@ export default function CustomersBoard({
         </div>
       )}
 
-      {msg && <p style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes("失敗") ? "var(--bad)" : "var(--ok)", margin: "0 0 8px" }}>{msg}</p>}
+      {msg && <Toast msg={msg} style={{ margin: "0 0 8px" }} />}
 
       {/* 登録フォーム。★裁定253 R7（2026-09-14）: インラインの nox-panel をやめ共通 Modal へ（項目・customer_register の引数は不変）。
           閉じる＝×・背景タップ・Esc。脚＝キャンセル左・登録する 右（244）。 */}
@@ -494,7 +495,7 @@ export default function CustomersBoard({
         </Modal>
       )}
 
-      {err && <p style={{ fontSize: 12.5, color: "var(--bad)", fontWeight: 700 }}>{err}</p>}
+      {err && <Message kind="error">{err}</Message>}
 
       {/* 段U2: リスト＋右詳細の2ペイン（>900）。≤900 は CSS で1カラム＝詳細はリストの下に続けて出る。
           ★行タップは「右詳細を開く」に変わったが、編集・担当割当は従来どおり /customers/[id]（導線を残す）。

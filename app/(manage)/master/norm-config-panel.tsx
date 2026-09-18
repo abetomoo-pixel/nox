@@ -9,6 +9,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type ShimeiScope = "hon" | "hon_jonai";
 
 const card: React.CSSProperties = t.card;
@@ -81,7 +82,7 @@ export default function NormConfigPanel({
             <span style={{ color: "var(--sub)" }}>　※切替は owner のみ可能です。</span>
           </p>
         )}
-        {msg && <p style={{ fontSize: 12, color: msg.startsWith("エラー") ? "var(--bad)" : "var(--ok)", margin: "8px 0 0" }}>{msg}</p>}
+        {msg && <Toast msg={msg} style={{ margin: "8px 0 0" }} />}
       </section>
     </div>
   );

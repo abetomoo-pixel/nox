@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import * as t from "@/lib/nox/ui/theme"; // ★裁定239: 実行ボタンは btnGold（青塗り）経由
 
 export default function ShiftConfirmButton({ shiftId }: { shiftId: string }) {
@@ -38,7 +39,7 @@ export default function ShiftConfirmButton({ shiftId }: { shiftId: string }) {
       >
         {busy ? "確認中…" : "確認する"}
       </button>
-      {err && <span style={{ fontSize: 11, color: "var(--bad)" }}>{err}</span>}
+      {err && <Message kind="error">{err}</Message>}
     </span>
   );
 }

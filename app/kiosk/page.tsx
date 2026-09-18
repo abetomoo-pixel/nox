@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean };
 type Phase = "loading" | "login" | "denied" | "select" | "pin" | "result";
 type PunchResult =
@@ -149,7 +150,7 @@ export default function KioskPage() {
             <label style={t.fieldLabel}>パスワード</label>
             <input type="password" value={loginPw} onChange={(e) => setLoginPw(e.target.value)} required
               autoComplete="current-password" style={{ ...t.input, marginTop: 5 }} />
-            {loginErr && <p style={{ color: "var(--bad)", fontSize: 12.5, margin: "10px 0 0" }}>{loginErr}</p>}
+            {loginErr && <Message kind="error" style={{ margin: "10px 0 0" }}>{loginErr}</Message>}
             <button type="submit" disabled={busy} style={{ ...t.btnGold, width: "100%", marginTop: 14, padding: "13px 0", fontSize: 15 }}>
               {busy ? "確認中…" : "ログイン"}
             </button>

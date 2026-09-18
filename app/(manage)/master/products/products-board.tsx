@@ -11,7 +11,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
-import Toast from "@/components/ui/toast";
+import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import MasterPageHead from "../master-page-head";
 import {
@@ -967,7 +967,7 @@ function BulkProductModal({
         )}
       </div>
 
-      {err && <p style={{ fontSize: 12.5, color: "var(--bad)", margin: "10px 0 0" }}>{err}</p>}
+      {err && <Message kind="error" style={{ margin: "10px 0 0" }}>{err}</Message>}
 
       <div className="nox-formmodal-foot">
         <button style={btnGhostLg} onClick={onClose}>キャンセル</button>

@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Profile = { address: string; tel: string; regNo: string; footer: string };
 type Job = {
   id: string; check_id: string; pay_group: string; status: string;
@@ -140,7 +141,7 @@ export default function PrinterPanel({ storeId, storeName, initialProfile }: { s
               </span>
               <button onClick={() => void rotate()} disabled={busy} style={btn}>{hasToken ? "再発行" : "発行"}</button>
             </div>
-            {msg && <p style={{ fontSize: 12, color: msg.startsWith("エラー") ? "var(--bad)" : "var(--ok)", margin: "8px 0 0" }}>{msg}</p>}
+            {msg && <Toast msg={msg} style={{ margin: "8px 0 0" }} />}
           </section>
 
           <section className="nox-cardtop" style={card}>

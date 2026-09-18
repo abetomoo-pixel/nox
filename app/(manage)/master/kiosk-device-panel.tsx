@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type Device = { id: string; store_id: string; label: string | null; purpose: string; is_active: boolean; created_at: string; last_seen_at: string | null };
 type ProvisionResult = { device_id: string; login_email: string; initial_password: string };
@@ -211,7 +212,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
               </tbody>
             </table>
           </div>
-          {msg && <p style={{ fontSize: 12, color: msg.startsWith("エラー") || msg.startsWith("通信") ? "var(--bad)" : "var(--ok)", margin: "8px 0 0" }}>{msg}</p>}
+          {msg && <Toast msg={msg} style={{ margin: "8px 0 0" }} />}
         </section>
 
         {/* ── 右: 発行カード＋最近の操作 ── */}

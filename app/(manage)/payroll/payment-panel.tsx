@@ -7,6 +7,7 @@ import { useCallback, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Line = { castId: string; castName: string; net: number; paid: number };
 
 export default function PaymentPanel({ storeId, period }: { storeId: string; period: string }) {
@@ -100,7 +101,7 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
       <div className="nox-actions">{/* ★裁定244: 節直下の実行＝中央 */}
         <button onClick={load} disabled={busy || !storeId} style={t.btnGold}>支払状況を表示</button>
       </div>
-      {msg && <p style={{ color: msg.includes("エラー") || msg.includes("超え") ? "var(--bad)" : "var(--sub)", fontSize: 13 }}>{msg}</p>}
+      {msg && <Toast msg={msg} />}
 
       {lines && lines.length > 0 && (
         <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}

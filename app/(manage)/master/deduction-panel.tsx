@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Picker from "@/components/nox/picker";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string };
 type OkuriMode = "flat" | "actual";
 
@@ -87,7 +88,7 @@ export default function DeductionPanel({
         ) : (
           <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>※送り方式の変更は owner のみ可能です。</p>
         )}
-        {modeMsg && <p style={{ fontSize: 12, color: modeMsg.startsWith("エラー") || modeMsg.startsWith("通信") ? "var(--bad)" : "var(--ok)", margin: "6px 0 0" }}>{modeMsg}</p>}
+        {modeMsg && <Toast msg={modeMsg} style={{ margin: "6px 0 0" }} />}
 
         {/* 送りベース額（actual 時のみ表示・owner のみ操作可＝発行金額のプリフィル専用） */}
         {okuriMode === "actual" && (
@@ -106,7 +107,7 @@ export default function DeductionPanel({
             ) : (
               <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>※送りベース額の変更は owner のみ可能です。</p>
             )}
-            {baseMsg && <p style={{ fontSize: 12, color: baseMsg.startsWith("エラー") ? "var(--bad)" : "var(--ok)", margin: "6px 0 0" }}>{baseMsg}</p>}
+            {baseMsg && <Toast msg={baseMsg} style={{ margin: "6px 0 0" }} />}
           </div>
         )}
       </section>
@@ -208,7 +209,7 @@ function IssueForm({
         <button onClick={submit} disabled={busy || disabled} style={btn}>発行</button>
       </div>
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>{hint}</p>
-      {msg && <p style={{ fontSize: 12, color: msg.startsWith("エラー") || msg.startsWith("通信") || msg.includes("ください") ? "var(--bad)" : "var(--ok)", margin: "6px 0 0" }}>{msg}</p>}
+      {msg && <Toast msg={msg} style={{ margin: "6px 0 0" }} />}
     </section>
   );
 }

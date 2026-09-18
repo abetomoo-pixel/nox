@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import { Message } from "@/components/ui/toast";
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -62,11 +63,7 @@ export default function LoginPage() {
               style={{ ...t.input, marginTop: 5 }}
             />
           </div>
-          {error && (
-            <p role="alert" style={{ color: "var(--bad)", fontSize: 13, marginTop: 12, marginBottom: 0 }}>
-              {error}
-            </p>
-          )}
+          {error && <Message kind="error" style={{ margin: "12px 0 0" }}>{error}</Message>}{/* ★裁定281（便 U）: 共通部品（role=alert） */}
           <button type="submit" disabled={busy} style={{ ...t.btnGold, width: "100%", marginTop: 18, opacity: busy ? 0.7 : 1 }}>
             {busy ? "確認中…" : "ログイン"}
           </button>

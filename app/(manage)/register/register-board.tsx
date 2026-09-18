@@ -23,6 +23,7 @@ import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
 // 段R2: reorder_point＝低在庫「残N」のしきい（null=しきい無し＝表示しない）
@@ -2007,7 +2008,7 @@ export default function RegisterBoard({
                   </div>
                 )}
                 {/* R-1a-4: 成功文言まで --bad（赤）で出ていたのを是正＝成功/失敗で色を分ける（state 構造は不変） */}
-                {rcptMsg && <p style={{ fontSize: 12, fontWeight: 700, color: rcptMsg === RCPT_COPIED ? "var(--ok)" : "var(--danger-ink)", margin: "0 0 8px" }}>{rcptMsg}</p>}
+                {rcptMsg && <Toast msg={rcptMsg} style={{ margin: "0 0 8px" }} />}
                 {rcptIssued.map((r) => (
                   <div key={r.id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
                     <span style={{ ...t.num, fontWeight: 800 }}>R-{String(r.serial).padStart(6, "0")}</span>
@@ -2193,7 +2194,7 @@ export default function RegisterBoard({
             <button onClick={() => { setMergeInto(""); setMergeReason(""); setMergeModal(true); }} style={btnLight}>合算</button>
           )}
         </div>
-        {peopleMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-ink)", margin: "6px 0 0" }}>{peopleMsg}</p>}
+        {peopleMsg && <Toast msg={peopleMsg} style={{ margin: "6px 0 0" }} />}
         {/* E8-1c: 人数±の注記（person 制のみ＝table 制は人数が料金に効かないため出さない・嘘をつかない）。
             ★R2-b（mig0097/0097b・裁定 R2-6/R2-7b）: auto 店も時点起算になった＝確定済み延長ブロックは
               変更時点の人数で凍結・進行中ブロックとセット料金のみ現人数で再計算＝文言を実装に追随。
@@ -2575,7 +2576,7 @@ export default function RegisterBoard({
                 </button>
                 {emptySeats.length === 0 && <span style={{ fontSize: 11.5, color: "var(--sub)" }}>空席がありません</span>}
               </div>
-              {seatMsg && <p style={{ fontSize: 12, fontWeight: 700, color: seatMsg.includes("できません") || seatMsg.includes("使用中") || seatMsg.includes("無効") || seatMsg.includes("同じ席") ? "var(--danger-ink)" : "var(--sub)", margin: "8px 0 0" }}>{seatMsg}</p>}
+              {seatMsg && <Toast msg={seatMsg} style={{ margin: "8px 0 0" }} />}
             </div>
           );
         })()}
@@ -2612,7 +2613,7 @@ export default function RegisterBoard({
                 延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(timeCalc.total)}</span>
               </p>
             )}
-            {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-ink)", margin: "8px 0 0" }}>{timeMsg}</p>}
+            {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
           </div>
         )}
 
@@ -2661,7 +2662,7 @@ export default function RegisterBoard({
               <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0",
                 color: msg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>{msg.text}</p>
             )}
-            {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-ink)", margin: "8px 0 0" }}>{timeMsg}</p>}
+            {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
           </div>
         )}
 
@@ -3016,7 +3017,7 @@ export default function RegisterBoard({
             </tbody>
           </table>
           {/* キャストドリンクの起票/取消エラー（握り潰さない＝seatMsg と同流儀で行の直下に出す） */}
-          {claimMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-ink)", margin: "8px 0 0" }}>{claimMsg}</p>}
+          {claimMsg && <Toast msg={claimMsg} style={{ margin: "8px 0 0" }} />}
           {/* 段0R 第1陣: planA .sumrow＝明細の下に伝票サマリ。★表示のみ。
               値は会計タブの「会計（伝票グループ別）」と同一の groupInfo（小計 bx・割引 disc・
               請求 due＝groupDue）を group 横断で合計しただけで、新しい計算ロジックは作っていない。

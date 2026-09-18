@@ -14,6 +14,7 @@ import { pctToBp, bpToPct } from "@/lib/nox/payroll/adjust-route"; // 裁定264-
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
 import PaymentTaxPanel from "./payment-tax-panel";
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: CSV 出力と凍結名解決は月次一覧と共用
 
 type Store = { id: string; name: string };
@@ -587,7 +588,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         );
       })()}
 
-      {msg && <p style={{ color: "var(--bad)", fontSize: 13 }}>{msg}</p>}
+      {msg && <Toast msg={msg} />}
       {finalized && <p style={{ color: "var(--champ)", fontSize: 14, fontWeight: "bold" }}>{finalized}</p>}
 
       {/* 段2: プレビュー（参考値） */}
@@ -870,7 +871,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                         </div>
                       </div>
                     )}
-                    {adjMsg && <p style={{ fontSize: 12, margin: "6px 0 0", color: adjMsg.includes("エラー") || adjMsg.includes("ください") || adjMsg.includes("できません") || adjMsg.includes("ありません") ? "var(--bad)" : "var(--ok)" }}>{adjMsg}</p>}
+                    {adjMsg && <Toast msg={adjMsg} style={{ margin: "6px 0 0" }} />}
                     <button onClick={() => setSlipPreview((v) => !v)} style={{ ...t.btnGhost, ...t.btnSm, marginTop: 10 }}>
                       {slipPreview ? "明細プレビューを閉じる" : "明細プレビュー"}
                     </button>
@@ -947,7 +948,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           {payCount !== null && payCount > 0 && (
             <span style={{ marginLeft: 10, fontSize: 12, color: "var(--bad)" }}>支払記録が {payCount} 件あるため解除できません（先に支払記録をご確認ください）</span>
           )}
-          {reopenMsg && <p style={{ fontSize: 12, marginTop: 8, color: reopenMsg.includes("エラー") || reopenMsg.includes("できません") ? "var(--bad)" : "var(--ok)" }}>{reopenMsg}</p>}
+          {reopenMsg && <Toast msg={reopenMsg} style={{ marginTop: 8 }} />}
         </section>
       )}
 
@@ -980,7 +981,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           </button>
         </section>
       )}
-      {csvMsg && <p style={{ fontSize: 12, color: csvMsg.includes("失敗") || csvMsg.includes("ありません") ? "var(--bad)" : "var(--ok)" }}>{csvMsg}</p>}
+      {csvMsg && <Toast msg={csvMsg} />}
 
       {/* D2 報酬明細（印刷/PDF）: 確定済み run の per-cast スリップを A4・1人1枚で印刷。
           読込後のみ nox-print（印刷対象）＝未読込時は nox-noprint で印刷経路から外す。数値は D3 CSV と同一 breakdown_json 源。 */}
@@ -1010,7 +1011,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
             )}
           </div>
           {printMsg && (
-            <p className="nox-noprint" style={{ fontSize: 12, margin: "8px 0 0", color: printMsg.includes("失敗") || printMsg.includes("ありません") ? "var(--bad)" : "var(--ok)" }}>{printMsg}</p>
+            <Toast msg={printMsg} className="nox-noprint" style={{ margin: "8px 0 0" }} />
           )}
           {printRows && printRows.length > 0 && (
             <div style={{ marginTop: 12 }}>

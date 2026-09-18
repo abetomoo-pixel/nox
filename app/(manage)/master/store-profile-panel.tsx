@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import StoreFlagToggle, { storeProfileErrJa } from "./store-flag-toggle";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean };
 const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false };
@@ -99,7 +100,7 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
             {field("display_name", "表示名", 50, "50 文字まで")}
           </div>
           {msg && (
-            <p style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes("失敗") || msg.includes("ください") ? "var(--bad)" : "var(--ok)", margin: "10px 0 0" }}>{msg}</p>
+            <Toast msg={msg} style={{ margin: "10px 0 0" }} />
           )}
           <div className="nox-actions" style={{ marginTop: 12 }}>
             <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !dirty} onClick={() => { setForm(cur); setMsg(null); }}>元に戻す</button>

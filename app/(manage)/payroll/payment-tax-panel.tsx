@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Row = {
   target_month: string;
   tax_category: string;
@@ -79,7 +80,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
         支払済み（paid）の給与から源泉徴収税額を月次で合算します（会社全体・店舗を合算）。納付期限は支払month の翌月10日です。
         報酬・料金（委託）と給与（雇用）は納付書の様式が別のため、区分ごとに記録します。
       </p>
-      {msg && <p style={{ fontSize: 12, margin: "6px 0 0", color: msg.includes("失敗") || msg.includes("できません") || msg.includes("不正") || msg.includes("済み") ? "var(--bad)" : "var(--ok)" }}>{msg}</p>}
+      {msg && <Toast msg={msg} style={{ margin: "6px 0 0" }} />}
 
       {hasUnpaidFinalized && (
         <p style={{ ...t.alert, marginTop: 10 }}>

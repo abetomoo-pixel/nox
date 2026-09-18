@@ -12,6 +12,7 @@ import * as t from "@/lib/nox/ui/theme";
 // ★B6-4（2026-09-11）: 人件費式は純関数 labor-cost（analytics-board と共用）。率は小数 1 桁 %（旧 Math.round(x*100) の整数 % から統一）
 import { finalRunOf, laborCostOf, laborRatePct, type LaborRun, type LaborSlip } from "@/lib/nox/payroll/labor-cost";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type DR = { biz_date: string; cash: number; card_gross: number; uri: number; other: number; slips: number; guests: number; dohan_checks: number; drink_sales: number };
 type Split = { sales: number; groups: number; guests: number; dohan: number; drink: number; shimei: number };
@@ -161,7 +162,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
         <span style={{ fontSize: 11, color: "var(--sub)", fontWeight: 400 }}>営業月・半期は営業日15日で分割</span>
       </h3>
       {/* ★裁定151（裁定120 適用）: エラー文＝Danger 系の文字色（--danger-ink＝暗面上で可読・裁定124）。他の --bad 系はこの面では触らない */}
-      {msg && <p style={{ fontSize: 12, color: "var(--danger-ink)" }}>{msg}</p>}
+      {msg && <Toast msg={msg} />}
 
       {/* E8-2 #11: 月報 KPI 5枚（売上/営業日数/平均日商/売掛残高/前年同月比＝取得済み材料の再形） */}
       {(() => {

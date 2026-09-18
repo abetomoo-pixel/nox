@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 // cast セルフ連絡は遅刻/当欠のみ（RPC 側でも enforce＝attendance_set_self）。
 export default function AttendanceForm({ defaultDate }: { defaultDate: string }) {
   const router = useRouter();
@@ -55,7 +56,7 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
       <button type="submit" disabled={busy} style={{ ...t.btnGold, padding: "8px 16px", opacity: busy ? 0.7 : 1 }}>
         送信
       </button>
-      {msg && <span style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</span>}
+      {msg && <Toast msg={msg} />}
     </form>
   );
 }

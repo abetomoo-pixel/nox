@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 export type StoreFlagKey = "ext_shimei_enabled" | "dohan_auto_hon" | "shift_cast_confirm" | "show_open_status";
 
 /** set_store_profile の raise 文言 → 日本語（bad name 等は入力欄の制約・forbidden は owner 限定） */
@@ -57,7 +58,7 @@ export default function StoreFlagToggle({
       <div style={{ minWidth: 0, flex: "1 1 240px" }}>
         <div style={{ fontSize: 13, fontWeight: 800 }}>{label}</div>
         {desc && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "2px 0 0", lineHeight: 1.6 }}>{desc}</p>}
-        {msg && <p style={{ fontSize: 12, color: msg.startsWith("保存に失敗") ? "var(--bad)" : "var(--ok)", margin: "6px 0 0" }}>{msg}</p>}
+        {msg && <Toast msg={msg} style={{ margin: "6px 0 0" }} />}
       </div>
       {isOwner ? (
         <div className="nox-seg" role="group" aria-label={label}>

@@ -1688,7 +1688,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           )}
         </div>
         {/* ★便 T-1／T-2: 重なりの案内はボタンの直下（同じカード内）・成否も同じ場所（共有枠には出さない） */}
-        {pOverlapText && <Message kind="warn">{pOverlapText}</Message>}
+        {pOverlapText && <Message kind="error">{pOverlapText}</Message>}{/* ★裁定281（便 U-6①）: 重なりは赤（error）＝作成ボタンは disabled */}
         {pMsg && <Message kind={pMsg.kind} onDismiss={() => setPMsg(null)}>{pMsg.text}</Message>}
         <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
           締切は表示用の目安です（提出のブロックはしません）。公開済みの期間には自動配置できません。

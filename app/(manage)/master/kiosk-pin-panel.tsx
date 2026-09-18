@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 
+import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type OpMember = { id: string; store_id: string; role: string; user_name: string };
 type PinStatus = { membership_id: string; has_pin: boolean; fail_count: number; locked_until: string | null; pin_updated_at: string | null };
@@ -215,7 +216,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
             </tbody>
           </table>
         </div>
-        {pinMsg && <p style={{ fontSize: 12, color: pinMsg.includes("しました") ? "var(--ok)" : "var(--bad)", margin: "8px 0 0" }}>{pinMsg}</p>}
+        {pinMsg && <Toast msg={pinMsg} style={{ margin: "8px 0 0" }} />}
       </section>
 
       {/* ── 右: PINポリシー（mig0108＝実値の表示・owner のみ保存） ── */}
@@ -254,7 +255,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
           ) : (
             <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: 0 }}>変更はオーナーのみ行えます（表示のみ）。</p>
           )}
-          {polMsg && <p style={{ fontSize: 12, color: polMsg.includes("しました") ? "var(--ok)" : "var(--bad)", margin: 0 }}>{polMsg}</p>}
+          {polMsg && <Toast msg={polMsg} style={{ margin: 0 }} />}
         </div>
         <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}>
           PIN の設定は上書きです。設定済みかどうかと失敗回数は左の表で確認できます。
@@ -280,7 +281,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
             {newPin.length === 4 && confirmPin.length === 4 && newPin !== confirmPin && (
               <p style={{ fontSize: 12, color: "var(--bad)", margin: 0 }}>確認用の PIN が一致しません</p>
             )}
-            {modalErr && <p style={{ fontSize: 12, color: "var(--bad)", margin: 0 }}>{modalErr}</p>}
+            {modalErr && <Message kind="error" style={{ margin: 0 }}>{modalErr}</Message>}
             <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
               <button style={btn} onClick={() => setPinTarget(null)}>キャンセル</button>
               <button style={btnOn} disabled={busy || !canSubmit}

@@ -17,6 +17,7 @@ import {
 } from "@/lib/nox/payroll/list";
 import { exportPayrollCsvForRun } from "./export-csv";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type BreakdownJson = { pay?: { gross?: number }; extras?: { amount?: number }[] };
 const yen = (n: number) => "¥" + n.toLocaleString();
@@ -103,7 +104,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
   return (
     <div className="nox-mv1 nox-printpage">{/* 印刷隔離（B4 H37 写し）＝一覧の nox-print だけを出す */}
       <PageHead eyebrow="PAYROLL" title="給与 月次一覧" desc="店舗×期間ごとの確定状況・支払状況を一覧し、明細・CSV・支払済み化へ進みます。" />
-      {msg && <p style={{ fontSize: 12.5, color: msg.includes("失敗") || msg.includes("エラー") ? "var(--danger-ink)" : "var(--ok)", fontWeight: 700 }}>{msg}</p>}
+      {msg && <Toast msg={msg} />}
 
       <div className="nox-ctoolbar">
         <div className="nox-seg" style={{ display: "inline-flex" }}>
@@ -213,7 +214,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
             状態を「確定済み」→「支払済」に変えます（金額は変わりません・元に戻す操作はありません）。
             支払記録が {payPick.paidCount} 件・{yen(payPick.paidTotal)} あります。
           </p>
-          {payMsg && <p style={{ fontSize: 12, color: "var(--danger-ink)", fontWeight: 700, margin: "0 0 10px" }}>{payMsg}</p>}
+          {payMsg && <Toast msg={payMsg} style={{ margin: "0 0 10px" }} />}
           <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
             <button type="button" style={btnLight} disabled={busy} onClick={() => setPayPick(null)}>やめる</button>
             <button type="button" style={{ ...t.btnGold, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void markPaid()}>

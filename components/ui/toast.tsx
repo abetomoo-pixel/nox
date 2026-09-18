@@ -1,33 +1,22 @@
 "use client";
 
 // 共通メッセージ表示（D-2 共通部品化 2026-07-17）。
-// ★名前は toast だが「浮かぶ通知」ではない: 現状 27 箇所すべてがカード内に差し込む inline の <p> で、
-//   D-2 は視覚を 1px も変えない回なので、その最多数派（9 箇所）の見た目をそのまま既定にした。
-//   浮遊トーストへ寄せるかは見た目の変更＝D-3 以降の裁定（ここでは判断しない）。
-// 既定 = <p style={{ fontSize: 13, color: "var(--sub)" }}>（casts-board / comp-master / master-board /
-//   notices-board / incentive-panel / shift-board / staff-board / punch-actions / report-board の 9 箇所と同値）。
-// 置換しないもの（＝現状のまま各画面が持つ・無理に寄せない）:
-//   - 成否で色を出し分ける箇所（msg.startsWith("エラー") ? bad : ok 等）＝13 箇所。色の判定条件が画面ごとに違い、
-//     部品化すると条件を prop で持ち回るだけになって複製が消えない。
-//   - fontSize が既定と違う箇所（register-board 12 / reservation-panel 12.5）＝寄せると視覚が変わる。
-//   - <span> でインライン配置している箇所（attendance-form / wish-form）＝要素型が変わると行内レイアウトが動く。
-//
-// ★裁定281（2026-09-18・便 T／U）: 種別つきの共通部品 Message を同じファイルに足す（既存 Toast は据え置き＝置換は便 U で進める）。
+// ★名前は toast だが「浮かぶ通知」ではない: カード内に差し込む inline の表示。
+// ★裁定281（2026-09-18・便 T／U）: メッセージ表示の型を統一。
 //   281-1 種別 4 つ error／success／warn／info・色は既存トークンのみ（--danger 系／--success 系／--warning 系／--line2・--card2）。
 //   281-2 error＝赤枠＋薄い赤地＋赤系文字＋先頭「！」・success「✓」・warn「△」＝色だけで区別しない。
-//   281-5 error は role="alert"・success／info（warn も）は role="status"。長文は折り返し・横はみ出し 0（overflow-wrap）。
-//   種別→記号／role／トークンの写像は純関数（messagePrefix／messageRole／messageTokens）＝suite で係留。
-import { useState, type CSSProperties, type ReactNode } from "react";
+//   281-3 操作の結果は操作したボタンと同じカード内に出す（各画面の責務）。
+//   281-4 error は自動で消さない。次の操作の開始・タブ切替・同じ枠への success 表示で消える（useClearOn／同一 state の上書き）。
+//   281-5 error は role="alert"・success／info／warn は role="status"。長文は折り返し・横はみ出し 0（overflow-wrap）。
+//   281-6 共通部品 1 本＝Message（kind 明示）。Toast（msg 1 本の従来型・27 箇所＋便 U で置換した箇所）は kind を文言から判定して Message を描く
+//   （messageKindOf＝純関数・「失敗／エラー／できません…」→error・「しました／完了…」→success・他は info）。
+//   種別→記号／role／トークン／文言→種別の写像は純関数＝verify:nox-messages で係留。
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
-/** msg state の定型（useState<string | null> の 27 箇所複製を畳む）。setMsg(null) で消える。 */
+/** msg state の定型（useState<string | null> の複製を畳む）。setMsg(null) で消える。 */
 export function useToast() {
   const [msg, setMsg] = useState<string | null>(null);
   return { msg, setMsg };
-}
-
-export default function Toast({ msg }: { msg: string | null }) {
-  if (!msg) return null;
-  return <p style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</p>;
 }
 
 export type MessageKind = "error" | "success" | "warn" | "info";
@@ -50,13 +39,28 @@ export function messageTokens(kind: MessageKind): { border: string; bg: string; 
   }
 }
 
-export function Message({ kind, children, onDismiss, style }: {
-  kind: MessageKind; children: ReactNode; onDismiss?: () => void; style?: CSSProperties;
+/** 文言→種別（Toast＝msg 1 本の画面用）。error の語が 1 つでもあれば error（「保存に失敗しました」は error）→ 次に success の語 → 他は info */
+// 生の RPC エラー語（'bad name'／'not open'／'forbidden'／'billing locked'／'merge_conflict:…' 等＝日本語化されずに出る画面がある）も error に倒す
+const ERROR_WORDS = /失敗|エラー|できません|できない|不正|権限|見つかりません|超えて|不足|無効|拒否|重複|重なって|以上で|以下で|入力してください|選択してください|指定してください|してください|必要です|forbidden|denied|error|locked|停止しました|中止|競合|^(bad|not|invalid|dup|already|missing|unknown|no) |mismatch|conflict|violates|required|inactive|exists|timeout|feature_disabled/;
+const SUCCESS_WORDS = /しました|完了|済み|コピー|送りました|送信/;
+export function messageKindOf(text: string): MessageKind {
+  if (ERROR_WORDS.test(text)) return "error";
+  if (SUCCESS_WORDS.test(text)) return "success";
+  return "info";
+}
+
+/** 281-4: 依存（タブ・選択など）が変わったら error／msg を消す＝残留の解消を 1 箇所に */
+export function useClearOn(dep: unknown, ...clears: Array<(v: null) => void>) {
+  useEffect(() => { for (const c of clears) c(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [dep]);
+}
+
+export function Message({ kind, children, onDismiss, style, className }: {
+  kind: MessageKind; children: ReactNode; onDismiss?: () => void; style?: CSSProperties; className?: string;
 }) {
   const tk = messageTokens(kind);
   const prefix = messagePrefix(kind);
   return (
-    <div role={messageRole(kind)} data-message-kind={kind} style={{
+    <div role={messageRole(kind)} data-message-kind={kind} className={className} style={{
       display: "flex", alignItems: "flex-start", gap: 8, margin: "8px 0 0", padding: "8px 12px",
       border: `1px solid ${tk.border}`, background: tk.bg, color: tk.ink, borderRadius: 8,
       fontSize: 13, lineHeight: 1.6, maxWidth: "100%", overflowWrap: "anywhere", wordBreak: "break-word", ...style,
@@ -69,4 +73,10 @@ export function Message({ kind, children, onDismiss, style }: {
       )}
     </div>
   );
+}
+
+/** msg 1 本の従来型（kind は文言から判定・明示もできる）。null／空なら描かない */
+export default function Toast({ msg, kind, style, className }: { msg: string | null; kind?: MessageKind; style?: CSSProperties; className?: string }) {
+  if (!msg) return null;
+  return <Message kind={kind ?? messageKindOf(msg)} style={style} className={className}>{msg}</Message>;
 }

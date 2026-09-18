@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Claim = {
   id: string; qty: number; status: string; created_at: string; cast_id: string; check_id: string;
   casts: { name: string } | { name: string }[] | null;
@@ -157,7 +158,7 @@ export default function DrinkClaimQueue() {
           ※バックは目安です（確定額は承認時にサーバで計算されます）。杯数訂正を入れると、その杯数で承認します。
         </p>
       )}
-      {msg && <p style={{ fontSize: 12, color: msg.startsWith("承認") || msg.startsWith("却下") ? "var(--ok)" : "var(--bad)", margin: "6px 0 0" }}>{msg}</p>}
+      {msg && <Toast msg={msg} style={{ margin: "6px 0 0" }} />}
     </section>
   );
 }

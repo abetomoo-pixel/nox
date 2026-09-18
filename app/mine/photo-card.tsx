@@ -10,6 +10,7 @@ import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhoto, uploadCastPhoto } from "@/lib/nox/cast-photo";
 
+import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Me = { id: string; name: string; photo_updated_at: string | null };
 
 export default function PhotoCard({ storeName }: { storeName?: string }) {
@@ -88,7 +89,7 @@ export default function PhotoCard({ storeName }: { storeName?: string }) {
           写真は自動で縮小されます。シフトなど店内の画面に表示されます。
         </p>
         {done && !busy && <p style={{ fontSize: 12.5, color: "var(--ok)", margin: "4px 0 0" }}>保存しました</p>}
-        {err && <p style={{ ...t.bad, fontSize: 12.5, margin: "4px 0 0" }}>{err}</p>}
+        {err && <Message kind="error" style={{ margin: "4px 0 0" }}>{err}</Message>}
       </div>
     </div>
   );

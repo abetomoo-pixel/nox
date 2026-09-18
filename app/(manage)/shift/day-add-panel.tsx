@@ -13,6 +13,7 @@ import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { type BusinessHourRow } from "@/lib/nox/business-hours";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string };
 type Row = { castId: string; start: string; end: string; err: string | null };
 
@@ -175,7 +176,7 @@ export default function DayAddPanel({
           </div>
         </div>
       )}
-      {msg && <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "8px 0 0" }}>{msg}</p>}
+      {msg && <Toast msg={msg} style={{ margin: "8px 0 0" }} />}
     </div>
   );
 }

@@ -27,7 +27,7 @@ import SegSelect from "@/components/ui/seg-select";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
-import Toast from "@/components/ui/toast";
+import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import MasterPageHead from "../master-page-head";
 import PricingPanel from "../pricing-panel";
@@ -1143,7 +1143,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               </label>
               <button type="button" style={btnDark} onClick={() => void runPreview()}>この条件で計算</button>
             </div>
-            {pvErr && <p style={{ fontSize: 12.5, color: "var(--bad)", margin: "10px 0 0" }}>{pvErr}</p>}
+            {pvErr && <Message kind="error" style={{ margin: "10px 0 0" }}>{pvErr}</Message>}
             {pvOut && (
               <div style={{ marginTop: 12, fontSize: 12.5, lineHeight: 2 }}>
                 {/* ★裁定127（P15）: 適用ルール＝セットの解決行の表示名（R9: name null は「表示名なし」・base は「なし」） */}
@@ -1682,7 +1682,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             <span style={{ fontSize: 11.5, color: "var(--sub)", flex: 1, minWidth: 0 }}>
               税設定の保存は開栓済みの伝票に影響しません（開栓時の設定で凍結・mig0113）。
             </span>
-            {taxMsg && <span style={{ fontSize: 12 }}>{taxMsg}</span>}
+            {taxMsg && <Toast msg={taxMsg} />}
             <button style={btnDark} disabled={taxBusy} onClick={() => void saveTaxConfig()}>税設定を保存</button>
           </div>
         </section>
@@ -1784,7 +1784,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             </label>
             <span className="hint">停止中の区分は開栓時に選べません（削除はしない運用です）。</span>
           </div>
-          {cErr && <p style={{ fontSize: 12.5, color: "var(--bad)", margin: "8px 0 0" }}>{cErr}</p>}
+          {cErr && <Message kind="error" style={{ margin: "8px 0 0" }}>{cErr}</Message>}
           <div className="nox-formmodal-foot">
             <button type="button" style={btnGhostLg} disabled={busy} onClick={() => setCatModalOpen(false)}>キャンセル</button>
             <button type="button" style={btnPrimaryLg} disabled={busy} onClick={() => void saveCat()}>この区分を保存</button>
@@ -1943,7 +1943,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             </label>
           </div>
 
-          {mErr && <p style={{ fontSize: 12.5, color: "var(--bad)", margin: "8px 0 0" }}>{mErr}</p>}
+          {mErr && <Message kind="error" style={{ margin: "8px 0 0" }}>{mErr}</Message>}
 
           <div className="nox-formmodal-foot">
             {editKey !== null && (

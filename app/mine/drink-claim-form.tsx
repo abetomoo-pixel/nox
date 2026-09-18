@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Picker from "@/components/nox/picker";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type OpenCheck = { check_id: string; seat_name: string; seat_kind: string | null; started_at: string };
 type Product = { id: string; name: string; type: string };
 type Claim = {
@@ -122,7 +123,7 @@ export default function DrinkClaimForm({ month }: { month: string }) {
           </div>
         </div>
       )}
-      {msg && <p style={{ fontSize: 12.5, color: msg.startsWith("申告しました") ? "var(--ok)" : "var(--bad)", margin: "8px 0 0" }}>{msg}</p>}
+      {msg && <Toast msg={msg} style={{ margin: "8px 0 0" }} />}
 
       <h3 style={{ marginTop: 16 }}>今月の申告（{month}）</h3>
       {claims.length === 0 && <p style={noneP}>申告はまだありません</p>}

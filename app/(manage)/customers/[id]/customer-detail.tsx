@@ -17,6 +17,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal"; // ★裁定253 R7: 顧客編集はモーダル
 import Picker from "@/components/nox/picker";
 
+import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
 type CustRow = {
   id: string; store_id: string; name: string; furigana: string | null; birthday: string | null;
@@ -178,7 +179,7 @@ export default function CustomerDetail({
   if (err) {
     return (
       <div>
-        <p style={{ ...noneP, marginTop: 8 }}>{err}</p>
+        <Message kind="error" style={{ marginTop: 8 }}>{err}</Message>
         <Link href="/customers" className="nox-link" style={{ fontSize: 13 }}>← 顧客一覧へ戻る</Link>
       </div>
     );
@@ -225,7 +226,7 @@ export default function CustomerDetail({
           </div>
         )}
         {assignMsg && (
-          <p style={{ fontSize: 12.5, fontWeight: 700, color: "var(--bad)", margin: "6px 0 0" }}>{assignMsg}</p>
+          <Toast msg={assignMsg} style={{ margin: "6px 0 0" }} />
         )}
       </div>
 
@@ -286,7 +287,7 @@ export default function CustomerDetail({
           <h2 style={{ ...secTitle, margin: 0 }}>編集</h2>
           <button style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} onClick={openEdit}>編集</button>
         </div>
-        {msg && <p style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes("失敗") ? "var(--bad)" : "var(--ok)", margin: "8px 0 0" }}>{msg}</p>}
+        {msg && <Toast msg={msg} style={{ margin: "8px 0 0" }} />}
         {editOpen && (
           <Modal onClose={() => !busy && setEditOpen(false)} maxWidth={480} scroll>
           <div className="nox-formmodal-head">

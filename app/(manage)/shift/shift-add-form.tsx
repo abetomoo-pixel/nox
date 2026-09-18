@@ -29,6 +29,7 @@ import { hm2min } from "@/lib/nox/shift-time";
 // ★裁定245-6: 日セルの「不足 n」＝純関数 gapOf（required−assigned・選択中は −1・0 は充足）
 import { gapOf } from "@/lib/nox/shift/gap";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string };
 type ExistRow = { id: string; date: string; start_hm: string; end_hm: string; status: string };
 type WishRow = { id: string; date: string; start_hm: string; end_hm: string };
@@ -540,7 +541,7 @@ export default function ShiftAddForm({
                     時間競合（同日に登録済み）が残っています: {conflicts.join(", ")} ＝解消するまで保存できません
                   </p>
                 )}
-                {msg && <p style={{ fontSize: 11.5, fontWeight: 700, margin: "8px 0 0", color: msg.includes("失敗") ? "var(--bad)" : "var(--ok)" }}>{msg}</p>}
+                {msg && <Toast msg={msg} style={{ margin: "8px 0 0" }} />}
                 {toast.length > 0 && (
                   <div className="nox-inset" style={{ padding: "8px 12px", marginTop: 6 }}>
                     {toast.map((s, i) => <p key={i} style={{ fontSize: 11, color: "var(--gold2)", margin: "2px 0" }}>{s}</p>)}

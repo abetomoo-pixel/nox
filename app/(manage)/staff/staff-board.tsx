@@ -10,7 +10,7 @@ import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
-import Toast from "@/components/ui/toast";
+import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 
 type Mem = {
@@ -361,7 +361,7 @@ export default function StaffBoard({
                       <span style={{ ...t.input, display: "block", color: "var(--sub)" }}>黒服（staff）</span>
                     )}
                   </label>
-                  {aErr && <p style={{ ...t.bad, fontSize: 12.5, margin: 0 }}>{aErr}</p>}
+                  {aErr && <Message kind="error" style={{ margin: 0 }}>{aErr}</Message>}
                   <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
                     <button style={btnGhost} disabled={busy} onClick={() => setAddOpen(false)}>キャンセル</button>
                     <button style={btnGold} disabled={busy} onClick={() => void submitAdd()}>{busy ? "追加中…" : "追加する"}</button>

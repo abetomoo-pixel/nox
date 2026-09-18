@@ -13,6 +13,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { hm2min, min2hm } from "@/lib/nox/shift-time";
 import { DOW_LABELS, type BusinessHourRow } from "@/lib/nox/business-hours";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 // ★DP-R 第3弾: dirty＝「この曜日をこの画面で触った」印。未設定(exists=false)の曜日を
 //   一括保存で**意図せず作らない**という mig0032 の設計ロックを保ったまま、
@@ -269,7 +270,7 @@ export default function BusinessHoursPanel({
             </span>
           )}
         </div>
-        {cutoffMsg && <p style={{ ...t.sub, fontSize: 12, margin: "10px 0 0" }}>{cutoffMsg}</p>}
+        {cutoffMsg && <Toast msg={cutoffMsg} style={{ margin: "10px 0 0" }} />}
       </section>
 
 
@@ -290,11 +291,7 @@ export default function BusinessHoursPanel({
             </select>
           </div>
         )}
-        {msg && (
-          <p style={{ fontSize: 12.5, fontWeight: 700, color: msg.includes("失敗") || msg.includes("ください") || msg.includes("できません") ? "var(--bad)" : "var(--ok)", margin: "0 0 8px" }}>
-            {msg}
-          </p>
-        )}
+        <Toast msg={msg} style={{ margin: "0 0 8px" }} />{/* ★裁定281（便 U）: 共通部品（種別は文言から） */}
 
         {/* 一括設定（モック .bulk）＝入力欄に流し込むだけ・DB は触らない */}
         <div className="nox-inset" style={{ padding: "10px 12px", marginBottom: 10 }}>

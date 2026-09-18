@@ -23,6 +23,7 @@ import Modal from "@/components/ui/modal";
 import CastPicker from "@/components/nox/cast-picker";
 import { BILLING_LOCKED_MSG_KIOSK, isBillingLocked } from "@/lib/billing/messages";
 
+import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
 type StateSeat = { id: string; name: string; kind: string | null };
 // 純増⑦（0059 v2）: products.category_id / categories 配列 / checks.started_at が追加された
@@ -578,7 +579,7 @@ export default function KioskRegisterPage() {
             <label style={t.fieldLabel}>パスワード</label>
             <input type="password" value={loginPw} onChange={(e) => setLoginPw(e.target.value)} required
               autoComplete="current-password" style={{ ...t.input, marginTop: 5 }} />
-            {loginErr && <p style={{ color: "var(--bad)", fontSize: 12.5, margin: "10px 0 0" }}>{loginErr}</p>}
+            {loginErr && <Message kind="error" style={{ margin: "10px 0 0" }}>{loginErr}</Message>}
             <button type="submit" disabled={busy} style={{ ...t.btnGold, width: "100%", marginTop: 14, padding: "13px 0", fontSize: 15 }}>
               {busy ? "確認中…" : "ログイン"}
             </button>
@@ -600,7 +601,7 @@ export default function KioskRegisterPage() {
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--v2-text)", fontWeight: 700, margin: "0 0 8px" }}>
               操作担当を選んでください
             </p>
-            {lockMsg && <p style={{ textAlign: "center", fontSize: 12.5, color: "var(--sub)", margin: "0 0 14px" }}>{lockMsg}</p>}
+            {lockMsg && <Toast msg={lockMsg} style={{ margin: "0 0 14px", textAlign: "center" }} />}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
               {operators.map((o) => (
                 <button key={o.membership_id} onClick={() => pickOperator(o)} disabled={!o.has_pin}
@@ -636,7 +637,7 @@ export default function KioskRegisterPage() {
               <button style={keyBtn} onClick={() => keyIn("0")}>0</button>
               <button style={{ ...keyBtn, fontSize: 20, color: "var(--sub)" }} onClick={() => setPin((p) => p.slice(0, -1))}>⌫</button>
             </div>
-            {pinMsg && <p style={{ textAlign: "center", color: "var(--bad)", fontSize: 13, fontWeight: 700, margin: "12px 0 0" }}>{pinMsg}</p>}
+            {pinMsg && <Toast msg={pinMsg} style={{ margin: "12px 0 0", textAlign: "center" }} />}
             <button disabled={pin.length !== 4 || busy} onClick={() => void doPinLogin()}
               style={{ ...t.btnGold, width: "100%", marginTop: 16, padding: "16px 0", fontSize: 18, fontWeight: 900, borderRadius: 14, opacity: pin.length === 4 ? 1 : 0.4 }}>
               ログイン
@@ -763,7 +764,7 @@ export default function KioskRegisterPage() {
                   );
                 })}
               </div>
-              {msg && <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: "10px 0 0" }}>{msg}</p>}
+              {msg && <Toast msg={msg} style={{ margin: "10px 0 0" }} />}
             </section>
             </>
             ) : (
@@ -905,7 +906,7 @@ export default function KioskRegisterPage() {
                         {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
                       </select>
                     </div>
-                    {seatMsg && <p style={{ fontSize: 12, fontWeight: 700, color: seatMsg.includes("できません") || seatMsg.includes("使用中") || seatMsg.includes("無効") || seatMsg.includes("同じ席") ? "var(--bad)" : "var(--sub)", margin: "8px 0 0" }}>{seatMsg}</p>}
+                    {seatMsg && <Toast msg={seatMsg} style={{ margin: "8px 0 0" }} />}
                   </div>
                 )}
 
@@ -932,7 +933,7 @@ export default function KioskRegisterPage() {
                         延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(timeCalc.total)}</span>
                       </p>
                     )}
-                    {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
+                    {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
                   </div>
                 )}
 
@@ -957,7 +958,7 @@ export default function KioskRegisterPage() {
                         延長を追加（{yen(detail.check.ext_fee * (detail.check.time_per === "person" ? (detail.check.people ?? 1) : 1))} / {detail.check.ext_min}分）
                       </button>
                     </div>
-                    {timeMsg && <p style={{ fontSize: 12, fontWeight: 700, color: "var(--bad)", margin: "8px 0 0" }}>{timeMsg}</p>}
+                    {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
                   </div>
                 )}
 

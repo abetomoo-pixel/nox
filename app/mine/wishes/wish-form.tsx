@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 export default function WishForm() {
   const router = useRouter();
   const [date, setDate] = useState("");
@@ -71,7 +72,7 @@ export default function WishForm() {
       {closedDay && (
         <span style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700 }}>この日は定休日です（提出できません）</span>
       )}
-      {msg && <span style={{ fontSize: 13, color: "var(--sub)" }}>{msg}</span>}
+      {msg && <Toast msg={msg} />}
     </form>
   );
 }

@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import SegSelect from "@/components/ui/seg-select";
 
+import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type FlagRow = { id: string; store_id: string | null; key: string; enabled: boolean; updated_at: string };
 
@@ -74,7 +75,7 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
         会社の既定を決め、店舗ごとに上書きできます。OFF の機能は導線ごと表示されません（準備中表示にはなりません）。
         切替は監査（flag_toggle）に記録されます。
       </p>
-      {loadErr && <p style={{ fontSize: 12.5, fontWeight: 700, color: "var(--danger-ink)", margin: "0 0 10px" }}>{loadErr}</p>}
+      {loadErr && <Message kind="error" style={{ margin: "0 0 10px" }}>{loadErr}</Message>}
       <div className="nox-tablewrap stickyfirst">{/* ★M18（裁定247・2026-09-18）: 先頭列（機能）を sticky-left＝店舗列が増えて横スクロールしても操作セルの行見出しが残る */}
         <table className="nox-table">
           <thead>

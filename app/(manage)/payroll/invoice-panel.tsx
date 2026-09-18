@@ -9,6 +9,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Row = {
   castId: string; castName: string;
   mode: string | null; invoice: string | null; regNo: string | null;
@@ -105,7 +106,7 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
       <p style={{ ...t.sub, margin: "4px 0 0" }}>
         報酬（個人事業主）は支払調書・源泉徴収（10.21%）の対象。免税事業者への報酬は仕入税額控除に制限（経過措置あり）。区分・登録状況をご確認ください。
       </p>
-      {msg && <p style={{ fontSize: 12, color: msg.includes("エラー") || msg.includes("失敗") ? "var(--bad)" : "var(--ok)", margin: "6px 0 0" }}>{msg}</p>}
+      {msg && <Toast msg={msg} style={{ margin: "6px 0 0" }} />}
 
       {rows && (
         <>

@@ -19,6 +19,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string };
 type Store = { id: string; name: string };
 
@@ -232,7 +233,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
             </select>
           </div>
 
-          {msg && <p style={{ fontSize: 13, color: msg.includes("エラー") ? "var(--bad)" : "var(--ok)", marginTop: 8 }}>{msg}</p>}
+          {msg && <Toast msg={msg} style={{ marginTop: 8 }} />}
 
           {/* 本人情報（owner のみ・manager は封印で読めないため非表示） */}
           {isOwner && (

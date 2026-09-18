@@ -36,6 +36,7 @@ import { diffOf, prevMonthOf, prevYearMonthOf, type Diff, type DiffKind } from "
 import { top3ShareOf, presentDaysOf, productTimeOf, nomStoreOf } from "@/lib/nox/analytics/cast-stats";
 import Picker from "@/components/nox/picker";
 
+import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean; photo_updated_at: string | null };
 // 段A2: 締め済み日報の日別行（dashboard / month-report と同じ列・同じ売上式）
@@ -642,7 +643,7 @@ export default function AnalyticsBoard({
         <Link href="/report" className="nox-link" style={{ marginLeft: "auto" }}>営業中の速報値はホーム・日報で確認 ›</Link>
       </div>
 
-      {err && <p style={{ fontSize: 12.5, color: "var(--danger-ink)", fontWeight: 700 }}>{err}</p>}
+      {err && <Message kind="error">{err}</Message>}
 
       {/* 段A2: KPI 帯4枚＝すべて締め済み daily_reports の再形（全ビュー共通で常時表示・材料も式も不変）。 */}
       <div className="nox-kpis">
@@ -694,7 +695,7 @@ export default function AnalyticsBoard({
         </div>
       </div>
 
-      {t4Err && <p style={{ fontSize: 12.5, color: "var(--danger-ink)", fontWeight: 700 }}>{t4Err}</p>}
+      {t4Err && <Message kind="error">{t4Err}</Message>}
 
       {/* ── E8-6 #1: 4ビュー切替（モック view-tabs 準拠・既存セクションの再配置のみ）── */}
       <nav className="nox-subnav">
@@ -1206,7 +1207,7 @@ export default function AnalyticsBoard({
             </div>
           </div>
         )}
-        {custErr && <p style={{ fontSize: 12.5, color: "var(--danger-ink)", fontWeight: 700 }}>{custErr}</p>}
+        {custErr && <Message kind="error">{custErr}</Message>}
         {!castSel && <p style={noneP}>キャストを選択すると、その月に指名した客の一覧（回数順）を表示します。</p>}
         {castSel && !custErr && custRank.length === 0 && (
           <p style={noneP}>該当なし（この月に客に紐付いた指名がありません）</p>
@@ -1257,7 +1258,7 @@ export default function AnalyticsBoard({
         {/* ★DP2 T5（裁定 DP0-2）: 内部用語「セグメント」を製品文言へ。
             配下のラベル（新規／リピート／離反リスク 中・高）は元から和文＝不触。 */}
         <h3>客層の内訳</h3>
-        {custSummaryErr && <p style={{ fontSize: 12.5, color: "var(--danger-ink)", fontWeight: 700 }}>{custSummaryErr}</p>}
+        {custSummaryErr && <Message kind="error">{custSummaryErr}</Message>}
         {custSummary === null && !custSummaryErr && <p style={noneP}>読み込み中…</p>}
         {custSummary !== null && !custSummaryErr && (
           <>
@@ -1341,7 +1342,7 @@ export default function AnalyticsBoard({
             </button>
             <button style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setTgtOpen(false)}>閉じる</button>
           </div>
-          {tgtMsg && <p style={{ fontSize: 12, color: "var(--danger-ink)", fontWeight: 700, margin: "8px 0 0" }}>{tgtMsg}</p>}
+          {tgtMsg && <Toast msg={tgtMsg} style={{ margin: "8px 0 0" }} />}
           <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
             進捗の分子は締め済み日報の売上（KPI と同じ）。空欄で保存すると目標を外します。
           </p>
