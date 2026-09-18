@@ -95,7 +95,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
       )}
 
       {rows && rows.length > 0 && (
-        <div style={{ overflowX: "auto", marginTop: 10 }}>
+        <div className="nox-tablewrap plain" style={{ marginTop: 10 }}>{/* ★M1 第 2 レーン追補（M20・2026-09-18）: inline overflowX:auto → 共通容器（max-width 100%・iOS 慣性スクロール込み） */}
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>
             <thead>
               <tr>

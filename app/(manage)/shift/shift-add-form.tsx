@@ -383,7 +383,7 @@ export default function ShiftAddForm({
 
           {/* ── 右ペイン: 月カレンダー＋日別時間 ── */}
           <div>
-            {!selCast && <p style={{ fontSize: 13, color: "var(--sub)" }}>左でキャストを選択してください。</p>}
+            {!selCast && <p style={{ fontSize: 13, color: "var(--sub)" }}>キャストを選択してください。</p>}
             {selCast && (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
