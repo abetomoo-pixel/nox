@@ -41,7 +41,7 @@ export function messageTokens(kind: MessageKind): { border: string; bg: string; 
 
 /** 文言→種別（Toast＝msg 1 本の画面用）。error の語が 1 つでもあれば error（「保存に失敗しました」は error）→ 次に success の語 → 他は info */
 // 生の RPC エラー語（'bad name'／'not open'／'forbidden'／'billing locked'／'merge_conflict:…' 等＝日本語化されずに出る画面がある）も error に倒す
-const ERROR_WORDS = /失敗|エラー|できません|できない|不正|権限|見つかりません|超えて|不足|無効|拒否|重複|重なって|以上で|以下で|入力してください|選択してください|指定してください|してください|必要です|forbidden|denied|error|locked|停止しました|中止|競合|^(bad|not|invalid|dup|already|missing|unknown|no) |mismatch|conflict|violates|required|inactive|exists|timeout|feature_disabled/;
+const ERROR_WORDS = /失敗|エラー|できません|できない|不正|権限|見つかりません|超えて|不足|無効|拒否|重複|重なって|以上で|以下で|入力してください|選択してください|指定してください|してください|必要です|forbidden|denied|error|locked|停止しました|中止|競合|長すぎ|使えない|正しくありません|既に|残額があります|処理できません|^(bad|not|invalid|dup|already|missing|unknown|no) |mismatch|conflict|violates|required|inactive|exists|timeout|feature_disabled/;
 const SUCCESS_WORDS = /しました|完了|済み|コピー|送りました|送信/;
 export function messageKindOf(text: string): MessageKind {
   if (ERROR_WORDS.test(text)) return "error";

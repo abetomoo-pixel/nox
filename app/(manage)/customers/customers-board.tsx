@@ -17,6 +17,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
 import Picker from "@/components/nox/picker";
 
+import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
@@ -237,7 +238,7 @@ export default function CustomersBoard({
     setMsg(null);
     const supabase = createClient();
     const { error } = await supabase.rpc("customer_note_remove", { p_note_id: id });
-    setMsg(error ? error.message : "メモを削除しました");
+    setMsg(error ? rpcErrJaCommon(error.message) : "メモを削除しました");
     await loadDetail(sel);
   }
   function openBtl(b: Bottle) {

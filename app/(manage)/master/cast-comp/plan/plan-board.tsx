@@ -16,6 +16,7 @@ import { adoptedMethodsOf, compSummaryOf } from "@/lib/nox/comp-methods";
 import { AssignTab, useCompData, secTitle, productBackArgsOf, type Plan } from "../comp-sections";
 import PlanEditor from "./plan-editor";
 import NormaBoard from "../norma/norma-board";
+import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 
 const card: React.CSSProperties = t.card;
@@ -88,13 +89,13 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
   async function duplicate() {
     if (!sel) return;
     const error = await saveFrom(sel, { id: null, name: `${sel.name}のコピー` });
-    setMsg(error ? error.message : `「${sel.name}」を複製しました（components は複製されません＝個別に追加）`);
+    setMsg(error ? rpcErrJaCommon(error.message) : `「${sel.name}」を複製しました（components は複製されません＝個別に追加）`);
     if (!error) await data.reload();
   }
   async function toggleActive() {
     if (!sel) return;
     const error = await saveFrom(sel, { id: sel.id, active: !sel.is_active });
-    setMsg(error ? error.message : sel.is_active ? `「${sel.name}」を無効化しました` : `「${sel.name}」を有効化しました`);
+    setMsg(error ? rpcErrJaCommon(error.message) : sel.is_active ? `「${sel.name}」を無効化しました` : `「${sel.name}」を有効化しました`);
     if (!error) await data.reload();
   }
 
@@ -175,7 +176,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
       {isSectionOn(settings, "planTabQuota") && (<div style={{ display: tab === "quota" ? undefined : "none" }}>{/* ★裁定269-4: planTabQuota */}
         <div className="nox-cardtop" style={{ ...card, marginBottom: 10 }}>
           <h2 style={secTitle}>店共通（全プラン）</h2>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 2px" }}>雇用キャスト: 減給・罰金の法定上限（労基法91条）は給与計算側で自動制約されます（裁定98）。</p>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 2px" }}>雇用キャスト: 減給・罰金の法定上限（労基法91条）は給与計算側で自動制約されます。</p>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>委託キャスト: 未達処理には契約上の根拠が必要です（法定上限の自動適用はありません）。</p>
           <label style={{ fontSize: 12, color: "var(--sub)", opacity: 0.7 }}>
             <input type="checkbox" disabled /> 契約上の根拠を確認した（確認メモ）

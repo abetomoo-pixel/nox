@@ -359,7 +359,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
           <span style={note}>{id ? "編集中" : "新規"}</span>
           <input placeholder="プラン名" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} />
-          <label style={{ fontSize: 12 }}>保証時給 <input type="number" min={0} value={base} onChange={(e) => setBase(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
+          <label style={{ fontSize: 12 }}>基本時給 <input type="number" min={0} value={base} onChange={(e) => setBase(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
           {/* mig0086: hon/jonai は方式トグル（円/本｜率）＋方式に応じた値入力。円/本値は率中も保持（裁定v）。 */}
           <label style={{ fontSize: 12 }}>本指名方式 <SegSelect value={honMode} onChange={(v) => setHonMode(v as BackModeRow)}
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
@@ -437,7 +437,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
         <div className="nox-inset" style={{ padding: "10px 14px", marginTop: 8 }}>
           <b style={{ fontSize: 13 }}>このプランの構成</b>
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 4, fontSize: 12 }}>
-            <span>保証時給 <b className="num">¥{base.toLocaleString()}</b></span>
+            <span>基本時給 <b className="num">¥{base.toLocaleString()}</b></span>
             <span>本指名 <b className="num">{honMode === "rate" ? `率${honRate}%` : `¥${honBack.toLocaleString()}/本`}</b></span>
             <span>場内 <b className="num">{jonaiMode === "rate" ? `率${jonaiRate}%` : `¥${jonaiBack.toLocaleString()}/本`}</b></span>
             <span>同伴 <b className="num">¥{dohanBack.toLocaleString()}/本</b>（率は準備中）</span>
@@ -551,7 +551,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
   function buildOverrides(d: OvDraft): Record<string, number | string> | null {
     const o: Record<string, number | string> = {};
     if (!d.useBase) {
-      if (d.base === "") { setMsg("保証時給の値を入力してください（既定に戻すはチェックを付ける）"); return null; }
+      if (d.base === "") { setMsg("基本時給の値を入力してください（既定に戻すはチェックを付ける）"); return null; }
       o.base = Number(d.base);
     }
     if (!d.useHon) {
@@ -690,7 +690,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                   <tr>
                     <td colSpan={showProgress ? 6 : 5}>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0" }}>
-                        {ovRow({ label: "保証時給", use: ovd.useBase, onUse: (v) => setOvd((d) => ({ ...d, useBase: v })),
+                        {ovRow({ label: "基本時給", use: ovd.useBase, onUse: (v) => setOvd((d) => ({ ...d, useBase: v })),
                           val: ovd.base, onVal: (v) => setOvd((d) => ({ ...d, base: v })), unit: "円" })}
                         {ovRow({ label: "本指名", use: ovd.useHon, onUse: (v) => setOvd((d) => ({ ...d, useHon: v })),
                           mode: ovd.honMode, onMode: (v) => setOvd((d) => ({ ...d, honMode: v, honVal: "" })),
@@ -878,7 +878,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
           </div>
           {kind === "sanction" && (
             <div style={{ marginTop: 10, padding: "10px 12px", border: "1px solid var(--bad)", borderRadius: 8, fontSize: 12.5 }}>
-              <p style={{ margin: "0 0 6px", color: "var(--bad)", fontWeight: 700 }}>制裁（罰金・減給）の二層ガード（裁定98）</p>
+              <p style={{ margin: "0 0 6px", color: "var(--bad)", fontWeight: 700 }}>制裁（罰金・減給）の二層ガード</p>
               <p style={{ margin: "0 0 4px" }}>・<strong>雇用</strong>キャスト: 労基法91条の上限（1回=平均賃金の半日分・総額=一賃金支払期の賃金総額の1/10）を<strong>給与計算で自動適用</strong>します。</p>
               <p style={{ margin: "0 0 8px" }}>・<strong>委託</strong>キャスト: 確定済み報酬からの控除はフリーランス法上の報酬減額等に該当する場合があります。契約上の根拠の確認が必須です（数値上限の自動適用はありません）。</p>
               <label style={{ display: "block", margin: "0 0 6px" }}>

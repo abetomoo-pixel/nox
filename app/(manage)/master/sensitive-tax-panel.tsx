@@ -294,7 +294,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
         <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
           <section className="nox-cardtop" style={card}>
             <h3 style={h3}>アクセス権限</h3>
-            <p style={subP}>機密情報を閲覧できる役割（RLS / RPC の実測）</p>
+            <p style={subP}>機密情報を閲覧できる役割（実際の権限設定に基づく表示）</p>
             <div style={{ display: "grid", gap: 6, fontSize: 12 }}>
               <div style={t.bdRow}><span style={t.bdKey}>オーナー</span>
                 <span style={t.bdVal}>表示・編集・支払調書用の全表示 <b style={{ color: "var(--ok)" }}>●許可</b></span></div>

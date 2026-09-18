@@ -23,6 +23,7 @@ import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
+import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U／AB）: メッセージ表示の共通部品
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
@@ -940,7 +941,7 @@ export default function RegisterBoard({
       p_check_id: check.id, p_product_id: null, p_qty: 1, p_kind: cKind,
       p_pay_group: cGroup || "A", p_name: cName, p_unit_price: cPrice,
     });
-    setMsg(error ? { to: MSG_DETAIL, text: error.message, kind: "bad" } : null);
+    setMsg(error ? { to: MSG_DETAIL, text: rpcErrJaCommon(error.message), kind: "bad" } : null);
     setCName(""); setCPrice(0);
     await loadCheck(check.id);
   }
@@ -1042,7 +1043,7 @@ export default function RegisterBoard({
     const target = lines.find((l) => l.id === lineId); // 削除後は lines から消えるので先に控える
     const { error } = await supabase.rpc("check_remove_line", { p_line_id: lineId });
     if (error) {
-      setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" });
+      setMsg({ to: MSG_DETAIL, text: rpcErrJaCommon(error.message), kind: "bad" });
       await loadCheck(check.id);
       return;
     }
@@ -1072,7 +1073,7 @@ export default function RegisterBoard({
     setMsg(null);
     for (const l of targets) {
       const { error } = await supabase.rpc("check_remove_line", { p_line_id: l.id });
-      if (error) { setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" }); break; } // 途中失敗は中断（残りは消さない）
+      if (error) { setMsg({ to: MSG_DETAIL, text: rpcErrJaCommon(error.message), kind: "bad" }); break; } // 途中失敗は中断（残りは消さない）
     }
     setClearBusy(false);
     setClearModal(false);
@@ -1204,7 +1205,7 @@ export default function RegisterBoard({
       p_check_id: check.id, p_product_id: p.id, p_qty: 1, p_kind: null,
       p_pay_group: prodGroup || "A", p_name: null, p_unit_price: null,
     });
-    if (error) { setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" }); setClaimBusy(false); return; }
+    if (error) { setMsg({ to: MSG_DETAIL, text: rpcErrJaCommon(error.message), kind: "bad" }); setClaimBusy(false); return; }
     // 直近に追加した当該商品の行へ紐付け（claims の無い最新行＝1杯1行なので一意に決まる）
     const { data: ls } = await supabase.from("check_lines").select("id")
       .eq("check_id", check.id).eq("product_id", p.id)
@@ -1289,7 +1290,7 @@ export default function RegisterBoard({
     });
     // R-1a 段2（裁定61）: 入力額をそのまま出す（サーバへ送った額そのもの＝再計算なし・select 不要）
     setMsg(error
-      ? { to: MSG_PAY, text: error.message, kind: "bad" }
+      ? { to: MSG_PAY, text: rpcErrJaCommon(error.message), kind: "bad" }
       : { to: MSG_PAY, text: `${yen(payAmount)} を入金しました`, kind: "ok" });
     if (!error) { setPayTendered(""); setPayDetail(""); }
     await loadCheck(check.id);
@@ -1303,7 +1304,7 @@ export default function RegisterBoard({
     setMsg(null);
     const { error } = await supabase.rpc("check_close", { p_check_id: check.id, p_idem_key: crypto.randomUUID() });
     // 失敗時は伝票が残る＝詳細ビューへ／成功時は setCheck(null) でフロアへ戻る＝フロアへ（現状の動きを変えない）
-    if (error) { setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" }); return; }
+    if (error) { setMsg({ to: MSG_DETAIL, text: rpcErrJaCommon(error.message), kind: "bad" }); return; }
     setMsg({ to: MSG_FLOOR, text: `会計完了 ${yen(check.total)}`, kind: "ok" });
     setFeeMsg(null); // R-1a 段2-2: 詳細から出る＝fee カードの文言は持ち越さない（msg は floor 宛で残す）
     const gs = Array.from(new Set(lines.map((l) => l.pay_group))).sort();
@@ -1338,7 +1339,7 @@ export default function RegisterBoard({
     if (!reason) return;
     const { error } = await supabase.rpc("check_void", { p_check_id: check.id, p_reason: reason });
     // close と同型＝失敗は伝票が残るので詳細ビュー・成功は setCheck(null) でフロアへ
-    if (error) { setMsg({ to: MSG_DETAIL, text: error.message, kind: "bad" }); return; }
+    if (error) { setMsg({ to: MSG_DETAIL, text: rpcErrJaCommon(error.message), kind: "bad" }); return; }
     setMsg({ to: MSG_FLOOR, text: "伝票を取消しました", kind: "ok" });
     setFeeMsg(null); // R-1a 段2-2: 同上（close と同型）
     setVoidModal(false); setVoidReason("");

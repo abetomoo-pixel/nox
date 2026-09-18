@@ -10,6 +10,7 @@ import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import MonthReport from "./month-report";
 
+import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 type Preview = {
   open: number; slips: number; guests: number; dohan: number;
   cash: number; card: number; cardTax: number; uri: number; other: number; drink: number;
@@ -408,7 +409,7 @@ export default function ReportBoard({
       p_counted_cash: counted === "" ? null : Number(counted),
       p_note: note || null, p_force: force, p_idem_key: crypto.randomUUID(),
     });
-    setMsg(error ? error.message : "締めを確定しました");
+    setMsg(error ? rpcErrJaCommon(error.message) : "締めを確定しました");
     await loadReports();
   }
 
@@ -494,7 +495,7 @@ export default function ReportBoard({
     const { error } = await supabase.rpc("receivable_set_due", {
       p_receivable_id: duePick.id, p_due: dueVal || null,
     });
-    setMsg(error ? error.message : dueVal ? `支払期日を ${dueVal} に設定しました` : "支払期日をクリアしました");
+    setMsg(error ? rpcErrJaCommon(error.message) : dueVal ? `支払期日を ${dueVal} に設定しました` : "支払期日をクリアしました");
     setDuePick(null);
     await loadRecvs();
   }
@@ -506,7 +507,7 @@ export default function ReportBoard({
     const { error } = await supabase.rpc("receivable_mark_deduct", {
       p_receivable_id: r.id, p_consent: true, p_note: null,
     });
-    setMsg(error ? error.message : `${r.casts?.name ?? "本人"} さんの売掛を次回給与で天引き予定にしました。`);
+    setMsg(error ? rpcErrJaCommon(error.message) : `${r.casts?.name ?? "本人"} さんの売掛を次回給与で天引き予定にしました。`);
     await loadRecvs();
   }
 
@@ -1011,7 +1012,7 @@ export default function ReportBoard({
           </table>
           </div>
         )}
-        {preview && <p style={{ ...t.sub, fontSize: 11, margin: "6px 0 0" }}>カード手数料は日報集計用（card_tax_rate で算出）。</p>}{/* ★裁定252（M9）: 短縮したラベルの注記 */}
+        {preview && <p style={{ ...t.sub, fontSize: 11, margin: "6px 0 0" }}>カード手数料は日報集計用（店舗設定のカード手数料率で算出）。</p>}{/* ★裁定252（M9）: 短縮したラベルの注記 */}
       </section>
 
       {/* 締めは manager 以上のみ（RPC 側も owner/manager 強制＝二重） */}

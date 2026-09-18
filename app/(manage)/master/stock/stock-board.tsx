@@ -22,6 +22,7 @@ import { fetchProducts, fetchStockTotals, type MasterProduct as Product } from "
 import { STOCK_REASON_STOCKTAKE, stockReasonLabel } from "@/lib/nox/stock/reasons";
 import { stockUnitOf } from "@/lib/nox/inventory/unit";
 
+import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
@@ -200,7 +201,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
       p_product_id: tProd, p_delta: delta, p_reason: STOCK_REASON_STOCKTAKE,
     });
     setBusy(false);
-    setMsg(error ? error.message : `棚卸しを記録しました（${delta > 0 ? "+" : ""}${delta}${tUnit}）`);
+    setMsg(error ? rpcErrJaCommon(error.message) : `棚卸しを記録しました（${delta > 0 ? "+" : ""}${delta}${tUnit}）`);
     if (!error) {
       setTActual("");
       await reloadStock();

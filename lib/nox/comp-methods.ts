@@ -54,7 +54,7 @@ export function compSummaryOf(
   const yen = (n: number) => `¥${n.toLocaleString()}`;
   const rows: CompSummaryRow[] = [
     { label: "適用人数", value: `${headcount}人` },
-    { label: "保証時給", value: yen(p.base) },
+    { label: "基本時給", value: yen(p.base) },
     { label: "本指名", value: p.hon_back_mode === "rate" ? "率方式" : `${yen(p.hon_back)}/本` },
     { label: "場内", value: p.jonai_back_mode === "rate" ? "率方式" : `${yen(p.jonai_back)}/本` },
     { label: "同伴", value: `${yen(p.dohan_back)}/本` },
@@ -79,8 +79,8 @@ export function adoptedMethodsOf(p: AdoptPlanShape, comps: AdoptCompShape[]): Ad
     (p.jonai_back_mode !== "rate" && p.jonai_back > 0) ||
     p.dohan_back > 0;
   return [
-    { key: "hourly", label: "時給保証", on: p.base > 0 },
-    { key: "guarantee", label: "最低保証", on: activeComp("guarantee_min") },
+    { key: "hourly", label: "基本時給", on: p.base > 0 },
+    { key: "guarantee", label: "月額保証", on: activeComp("guarantee_min") },
     { key: "nomination", label: "指名バック", on: perCountBack || rate },
     { key: "ratio", label: "歩合（率）", on: rate },
     // ★裁定113: plan 方式（売上の割合／販売数×固定額）を採用しているときだけ点灯（product_rule＝商品側の設定＝プランの採用方式ではない）

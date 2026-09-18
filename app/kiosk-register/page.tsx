@@ -23,6 +23,7 @@ import Modal from "@/components/ui/modal";
 import CastPicker from "@/components/nox/cast-picker";
 import { BILLING_LOCKED_MSG_KIOSK, isBillingLocked } from "@/lib/billing/messages";
 
+import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
 type StateSeat = { id: string; name: string; kind: string | null };
@@ -327,7 +328,7 @@ export default function KioskRegisterPage() {
     setOpenBusy(true);
     const { data, error } = await supabase.rpc("check_open", { p_seat_id: seat.id, p_people: n, p_nom_type: "free" });
     setOpenBusy(false);
-    if (error) { if (!sessionLostIf(error)) setMsg(error.message); return; }
+    if (error) { if (!sessionLostIf(error)) setMsg(rpcErrJaCommon(error.message)); return; }
     setOpenSeatTarget(null);
     await refreshState();
     await loadDetail(data as string);
@@ -346,7 +347,7 @@ export default function KioskRegisterPage() {
       p_check_id: detail.check.id, p_nominations: list,
     });
     if (error && sessionLostIf(error)) return;
-    setMsg(error ? error.message : "指名を保存しました");
+    setMsg(error ? rpcErrJaCommon(error.message) : "指名を保存しました");
     await loadDetail(detail.check.id);
   }
 
@@ -362,7 +363,7 @@ export default function KioskRegisterPage() {
       p_pay_group: cGroup || "A", p_name: cName, p_unit_price: cPrice,
     });
     if (error && sessionLostIf(error)) return;
-    setMsg(error ? error.message : null);
+    setMsg(error ? rpcErrJaCommon(error.message) : null);
     setCName(""); setCPrice(0);
     await loadDetail(detail.check.id);
     await refreshState();
@@ -375,7 +376,7 @@ export default function KioskRegisterPage() {
     setMsg(null);
     const { error } = await supabase.rpc("check_remove_line", { p_line_id: lineId });
     if (error && sessionLostIf(error)) return;
-    setMsg(error ? error.message : null);
+    setMsg(error ? rpcErrJaCommon(error.message) : null);
     await loadDetail(detail.check.id);
     await refreshState();
   }
@@ -469,7 +470,7 @@ export default function KioskRegisterPage() {
       p_method_detail: dtl,
     });
     if (error && sessionLostIf(error)) return;
-    setMsg(error ? error.message : "入金しました");
+    setMsg(error ? rpcErrJaCommon(error.message) : "入金しました");
     setPayTendered(""); setPayDetail("");
     await loadDetail(detail.check.id);
   }
@@ -480,7 +481,7 @@ export default function KioskRegisterPage() {
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止・締め前提）
     setMsg(null);
     const { error } = await supabase.rpc("check_close", { p_check_id: detail.check.id, p_idem_key: crypto.randomUUID() });
-    if (error) { if (!sessionLostIf(error)) setMsg(error.message); return; }
+    if (error) { if (!sessionLostIf(error)) setMsg(rpcErrJaCommon(error.message)); return; }
     setMsg(`会計完了 ${yen(detail.check.total)}`);
     // F4b: クローズ後のレシート印刷（printer 無効店は enqueue が 'printer disabled' を返す＝そのまま表示）
     const gs = Array.from(new Set(detail.lines.map((l) => l.pay_group))).sort();

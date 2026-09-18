@@ -24,7 +24,7 @@ export type BackMode = "per_count" | "rate";
 export type CompPlan = {
   id: string;
   name: string;
-  base: number; // 保証時給
+  base: number; // 基本時給（裁定282-1: プラン側の時給＝期限なし。「保証時給」はキャスト個別・期限つき＝overrides.guarantee）
   honBack: number; // 円/本（mode='rate' でも保持＝裁定v・切替往復で値が消えない）
   jonaiBack: number;
   dohanBack: number;

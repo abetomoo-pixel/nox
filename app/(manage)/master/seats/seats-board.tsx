@@ -16,6 +16,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal"; // ★裁定253 R1: 席の追加・編集はモーダル
 import MasterPageHead from "../master-page-head";
+import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder"; // ★裁定255: ∧∨＝seat_reorder（全件配列・1 トランザクション）
 
 export type Seat = { id: string; name: string; kind: string | null; sort_order: number; is_active: boolean };
@@ -68,7 +69,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
       p_id: sId, p_store_id: storeId, p_name: sName, p_kind: sKind, p_sort_order: sSort,
       p_is_active: sActive, // 明示 boolean（原則7）
     });
-    setMsg(error ? error.message : sId ? "席を更新しました" : "席を登録しました");
+    setMsg(error ? rpcErrJaCommon(error.message) : sId ? "席を更新しました" : "席を登録しました");
     if (!error) setSeatOpen(false); // ★裁定253 R1: 保存成功で閉じる（失敗時は開いたまま）
     setSId(null); setSName("");
     await reload();

@@ -687,7 +687,7 @@ export default function CastsBoard({
                     <div className="nox-frow"><span className="k">待遇プラン</span><span className="v">{p.name}{ovCount > 0 && <span style={{ fontSize: 11, color: "var(--gold2)", marginLeft: 6 }}>個別上書きあり</span>}</span></div>
                     {/* ★裁定143（v3.1 K35）: 「保証時給」→「通常時給（プラン基本）」＝comp_plans.base（＋overrides.base）を指す語へ。
                         モックの「入店時給保証」（K33・第2期）と語を衝突させない。値・経路は不変。 */}
-                    <div className="nox-frow"><span className="k">通常時給（プラン基本）</span><span className="v num">¥{num("base", p.base).toLocaleString()}</span></div>
+                    <div className="nox-frow"><span className="k">基本時給</span><span className="v num">¥{num("base", p.base).toLocaleString()}</span></div>
                     <div className="nox-frow"><span className="k">本指名バック</span><span className="v num">{honLabel}</span></div>
                     <div className="nox-frow"><span className="k">場内バック</span><span className="v num">{jonaiLabel}</span></div>
                     <div className="nox-frow"><span className="k">同伴バック</span><span className="v num">¥{num("dohanBack", p.dohan_back).toLocaleString()}/本</span></div>
@@ -697,7 +697,7 @@ export default function CastsBoard({
               {/* ★待遇プランの編集経路は現行この画面に存在しない（マスタ側）。
                   新規 RPC も新規フォームも作らず、管理場所への案内だけを置く＝機能不変。 */}
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px", lineHeight: 1.8 }}>
-                待遇プラン（通常時給＝マスタ側の表記は「保証時給」・スライド・指名バック単価）とキャストへの割当は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。
+                待遇プラン（基本時給・スライド・指名バック単価）とキャストへの割当は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。
                 この画面からは変更できません（現行どおり）。
               </p>
               <Link href="/master/cast-comp/plan" className="nox-link" style={{ display: "inline-block" }}>待遇プラン・報酬シミュレーターへ</Link>

@@ -33,7 +33,7 @@ export default async function CastCompHubPage() {
 
   const cards = [
     { href: "/master/cast-comp/plan", icon: "▲", title: "待遇プラン・報酬シミュレーター",
-      desc: "保証時給、スライド、指名バック単価を試算。プラン割当・上書き・自由バックもここで管理。",
+      desc: "基本時給、スライド、指名バック単価を試算。プラン割当・上書き・自由バックもここで管理。",
       status: `● 有効プラン ${planCount ?? 0}件` },
     { href: "/master/cast-comp/deduction", icon: "▽", title: "控除・送りの設定",
       desc: "固定控除の種別と金額、送り実費/一律、前借り・送り実費の発行を管理。",

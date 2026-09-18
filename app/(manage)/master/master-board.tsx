@@ -84,7 +84,7 @@ export default function MasterBoard() {
       sec: "キャスト・報酬", secDesc: "給与計算とキャスト運用の設定",
       cards: [
         { href: "/master/cast-comp/plan", id: "m-sim", icon: "▲", count: "試算", title: "待遇プラン・報酬シミュレーター",
-          desc: "保証時給、スライド、指名バック、報酬をプラン単位で管理。", status: "● 試算可", tone: "" },
+          desc: "基本時給、スライド、指名バック、報酬をプラン単位で管理。", status: "● 試算可", tone: "" },
         { href: "/master/cast-comp/deduction", id: "m-deduct", icon: "▽", count: "控除", title: "控除・送りの設定",
           desc: "固定控除の種別と金額、送り実費/一律の扱いを管理。", status: "● 有効", tone: "" },
         { href: "/master/cast-comp/norma", id: "m-norm", icon: "◎", count: "ノルマ", title: "ノルマ設定",

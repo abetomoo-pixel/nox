@@ -279,14 +279,14 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 10 }}>
           <label style={lbl}>プラン名
             <input placeholder="プラン名" value={draft.name} onChange={(e) => d({ name: e.target.value })} style={{ ...t.input, width: 170 }} disabled={!isOwner} /></label>
-          <label style={lbl}>保証時給
+          <label style={lbl}>基本時給
             <Unit pre="¥" post="円"><input type="number" min={0} value={draft.base} onChange={(e) => d({ base: Number(e.target.value) })} style={{ ...t.input, width: 90 }} disabled={!isOwner} /></Unit></label>
           <label style={{ ...lbl, flexDirection: "row", alignItems: "center", paddingBottom: 9 }}>
             <input type="checkbox" checked={draft.active} onChange={(e) => d({ active: e.target.checked })} disabled={!isOwner} /> 有効</label>
         </div>
         <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
           <input type="checkbox" checked={useGuarantee} onChange={(e) => setUseGuarantee(e.target.checked)} disabled={!isOwner} />
-          最低月額保証を使う<span style={{ color: "var(--sub)" }}>（月次の床・裁定96-①＝控除前総支給への差額補填）</span>
+          最低月額保証を使う<span style={{ color: "var(--sub)" }}>（月の総支給が保証額に届かない場合に差額を補います）</span>
         </label>
         {useGuarantee && (
           <CompRows kind="guarantee_min" section="基本給・保証" comps={comps} isOwner={isOwner} onSave={saveComp} />
@@ -416,7 +416,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           <h2 style={{ ...secTitle, margin: 0, fontSize: 16 }}>
             達成ボーナス<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>
           </h2>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>目標＝キャスト別ノルマの売上目標（0／未設定は不適用・裁定96-②）。保存は行単位。</p>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>目標＝キャスト別ノルマの売上目標（0／未設定は不適用）。保存は行単位。</p>
           {secErr["達成ボーナス"] && <p style={{ fontSize: 12, color: "var(--bad)", margin: "4px 0 0" }}>{secErr["達成ボーナス"]}</p>}
         </div>
         <CompRows kind="achievement_bonus" section="達成ボーナス" comps={comps} isOwner={isOwner} onSave={saveComp} />

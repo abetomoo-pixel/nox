@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { messageKindOf, messagePrefix, messageRole, messageTokens } from "../components/ui/toast";
+import { rpcErrJa } from "../lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生 RPC 語の共通写像
 
 let pass = 0;
 const fails: string[] = [];
@@ -30,6 +31,12 @@ check("ms(1-6) messageKindOf: 失敗の語は success の語より優先（保�
 check("ms(1-7) messageKindOf: 中立の文言→info", messageKindOf("履歴はありません。") === "info" && messageKindOf("読み込み中") === "info");
 check("ms(1-8) messageKindOf: 生の RPC エラー語（bad name／not open／forbidden／billing locked／merge_conflict:money）→error（日本語化されない画面の保険）", messageKindOf("bad name") === "error" && messageKindOf("not open") === "error" && messageKindOf("forbidden") === "error" && messageKindOf("billing locked") === "error" && messageKindOf("merge_conflict:money") === "error");
 
+// (1b) ★N2-2: 生 RPC 語の共通写像 rpcErrJa（純関数）。逆テスト＝MAP の 'exceeds balance' 行を消す→ms(1b-1) 赤
+check("ms(1b-1) rpcErrJa: 'bad name'／'exceeds balance'／'has payments' が利用者向けの日本語に", rpcErrJa("bad name") === "名前が長すぎるか、使えない文字が含まれています" && rpcErrJa("exceeds balance") === "入金額が残額を超えています" && /入金後は変更できません/.test(rpcErrJa("has payments")));
+check("ms(1b-2) rpcErrJa: 写像に無い英字コードは「処理できませんでした（コード: xxx）」・日本語はそのまま・空は「処理できませんでした」", rpcErrJa("weird_code_x") === "処理できませんでした（コード: weird_code_x）" && rpcErrJa("保存に失敗しました") === "保存に失敗しました" && rpcErrJa(null) === "処理できませんでした");
+check("ms(1b-3) rpcErrJa: 0151 の新語（reason required／biz_date_past／guarantee exists／bad valid_from／bad valid_to／period_not_open）", /理由/.test(rpcErrJa("reason required")) && /過去の営業日/.test(rpcErrJa("biz_date_past")) && /保証時給/.test(rpcErrJa("guarantee exists")) && /開始日/.test(rpcErrJa("bad valid_from")) && /終了日/.test(rpcErrJa("bad valid_to")) && rpcErrJa("period_not_open") === "この日は募集期間外です");
+check("ms(1b-4) rpcErrJa: 写像後の文言は messageKindOf で error に倒れる（赤で出る）", ["bad name", "exceeds balance", "forbidden", "weird_code_x"].every((c) => messageKindOf(rpcErrJa(c)) === "error"));
+
 // (2) 許可列挙型 pin（素の描画 0）
 // 除外: 共通部品自身／kiosk の打刻結果画面（app/kiosk/page.tsx L233 `{result.message}`＝全画面の結果表示・裁定11 の kiosk 面＝メッセージ枠ではない）
 const EXCLUDE = new Set(["components/ui/toast.tsx", "app/kiosk/page.tsx"]);
@@ -39,6 +46,8 @@ const RAW = /<(p|span|div|small|b|strong)[^>]*>\{[A-Za-z]*(msg|Msg|err|Err|error
 const RAW_PROP = /<(p|span|div|small|b|strong)[^>]*>\{[A-Za-z]+\.(text|message|msg)\}<\/\1>/g;
 const COLOR_BRANCH = /color:\s*[A-Za-z]*(msg|Msg|err|Err)[A-Za-z]*\.(includes|startsWith)\([^)]*\)\s*\?\s*"var\(--(bad|ok|danger[^"]*|success[^"]*)\)"/g;
 const BARE = /^\s*\{(msg|err|error|notice)\}\s*$/;
+// ★N2-2: 生の error.message を写像なしで表示 state に置く形（setMsg(error.message)／text: error.message／setMsg(error ? error.message : …)）＝0
+const RAW_ERRMSG = /(setMsg|setErr|setError)\((error|e|err)\.message\)|text:\s*(error|e|err)\.message|setMsg\(error \? error\.message/g;
 function walk(dir: string, out: string[]) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
@@ -54,6 +63,7 @@ for (const f of files) {
   const src = fs.readFileSync(f, "utf8");
   for (const m of src.matchAll(RAW)) hits.push(`${f}: ${m[0].slice(0, 80)}`);
   for (const m of src.matchAll(RAW_PROP)) hits.push(`${f}: prop ${m[0].slice(0, 80)}`);
+  src.split("\n").forEach((l, i) => { if (/^\s*(\/\/|\*|\{\/\*)/.test(l)) return; for (const m of l.matchAll(RAW_ERRMSG)) hits.push(`${f}:${i + 1}: raw error.message ${m[0].slice(0, 80)}`); });
   for (const m of src.matchAll(COLOR_BRANCH)) hits.push(`${f}: 色分岐 ${m[0].slice(0, 80)}`);
   src.split("\n").forEach((l, i) => { if (BARE.test(l)) { const prev = src.split("\n")[i - 1] ?? ""; if (!/Message|Toast/.test(prev)) hits.push(`${f}:${i + 1}: 素の ${l.trim()}`); } });
 }

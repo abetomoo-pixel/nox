@@ -191,7 +191,7 @@ export default function SimulatorPanel({
           {edit && (
             <>
               <div style={{ ...s.row, marginTop: 8 }}>
-                <label style={s.lbl}>保証時給<br /><input type="number" value={edit.base} onChange={(e) => setEdit({ ...edit, base: e.target.value })} style={s.inpS} /></label>
+                <label style={s.lbl}>基本時給<br /><input type="number" value={edit.base} onChange={(e) => setEdit({ ...edit, base: e.target.value })} style={s.inpS} /></label>
                 <label style={s.lbl}>同伴(円/本)<br /><input type="number" value={edit.dohanBack} onChange={(e) => setEdit({ ...edit, dohanBack: e.target.value })} style={s.inpS} /></label>
               </div>
               <div style={s.row}>

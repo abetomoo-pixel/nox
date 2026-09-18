@@ -35,6 +35,7 @@ import type { CompPlan } from "@/lib/nox/pay";
 import IncentivePanel from "./incentive-panel";
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
+import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 type Cast = { id: string; name: string; photo_updated_at: string | null };
 type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string };
 // ★SD V2-2（mig0101）: status 3値（planned→proposed→confirmed）＋wish_id（原型対比）＋source/period_id（自動配置）
@@ -605,7 +606,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     const { error } = await supabase.rpc("attendance_set", {
       p_cast_id: castId, p_date: attDate, p_status: status, p_eta: null, p_reason: null,
     });
-    setMsg(error ? error.message : null);
+    setMsg(error ? rpcErrJaCommon(error.message) : null);
     await loadAtt(attDate);
   }
 

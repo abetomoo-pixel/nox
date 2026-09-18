@@ -17,6 +17,7 @@ import {
 } from "@/lib/nox/payroll/list";
 import { exportPayrollCsvForRun } from "./export-csv";
 
+import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type BreakdownJson = { pay?: { gross?: number }; extras?: { amount?: number }[] };
@@ -46,7 +47,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
   const load = useCallback(async () => {
     const { data: runsData, error } = await supabase
       .from("payroll_runs").select("id, store_id, period, status, finalized_at, paid_at, updated_at").order("period", { ascending: false });
-    if (error) { setMsg(error.message); setRows([]); return; }
+    if (error) { setMsg(rpcErrJaCommon(error.message)); setRows([]); return; }
     const runs = (runsData ?? []) as ListRun[];
     const ids = runs.map((r) => r.id);
     let payslips: ListPayslip[] = [], payments: ListPayment[] = [], audits: ListAudit[] = [];
