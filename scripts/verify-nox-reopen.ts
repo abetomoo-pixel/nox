@@ -226,11 +226,12 @@ async function main() {
         `select proname, replace(prosrc, chr(13), '') as src from pg_proc where pronamespace = 'public'::regnamespace and proname like 'check\\_%' and prosrc like '%assert_day_open(%' order by proname`);
       const chk15 = rows.filter((r) => r.proname !== "check_open" && r.src.split(PERFORM_CHK).length === 2).map((r) => r.proname);
       const open = rows.find((r) => r.proname === "check_open");
-      check("ro(3b-4) ★prosrc: v_chk 版の perform 行がちょうど 1 本ずつ入る関数 = 15", chk15.length === 15 && rows.length === 16, `got ${chk15.length}/${rows.length}: ${chk15.join(",")}`);
+      // ★mig0148（裁定272・2026-09-18）: check_add_referral が check_add_line の冒頭（v_chk 版 perform assert_day_open）を逐語で持つ＝15→16・呼出関数 16→17。
+      check("ro(3b-4) ★prosrc: v_chk 版の perform 行がちょうど 1 本ずつ入る関数 = 16（0148 check_add_referral 込み）", chk15.length === 16 && rows.length === 17, `got ${chk15.length}/${rows.length}: ${chk15.join(",")}`);
       check("ro(3b-5) ★prosrc: check_open は v_seat.store_id 版が 1 本・v_store なし（0141）",
         !!open && open.src.split(PERFORM_OPEN).length === 2 && !open.src.includes("v_store"), open ? "v_seat 版でない" : "check_open に perform なし");
       const callers = await q<{ n: number }>(`select count(*)::int as n from pg_proc where pronamespace='public'::regnamespace and proname <> 'assert_day_open' and prosrc like '%assert_day_open%'`);
-      check("ro(3b-6) prosrc: assert_day_open の呼出関数 = 16", callers[0].n === 16, `got ${callers[0].n}`);
+      check("ro(3b-6) prosrc: assert_day_open の呼出関数 = 17（0148 check_add_referral 込み）", callers[0].n === 17, `got ${callers[0].n}`);
       // 締めのない日（A2・今日）の check_open は flag on でも通る＝0141 の live 実走
       const { data: cOpen, error: eOpen } = await owner.rpc("check_open", { p_seat_id: sA2seat, p_people: 1, p_nom_type: "free" });
       if (typeof cOpen === "string") checkIds.push(cOpen);
