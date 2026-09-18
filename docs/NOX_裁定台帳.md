@@ -3741,6 +3741,7 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 適用（便 AH）: 279-2＝.gitignore に `docs/tmp/` 1 行（本コミット）。279-3＝スキャン結果（docs/tmp/0918_secret_scan.md・値は記録せず・対象 263 本）: (1) JWT 形 0／(2) service_role 等の語 53 本 455 行＝全て SQL／ACL ダンプのロール名・key 形 0／(3) sb-…auth-token cookie **11 本 11 行＝verify ユーザー（NOX-VERIFY-*・dev）の session cookie 値を含む**／(4) 接続文字列 0／(5) password 等 10 本 18 行（★便 H-1 で再分類＝代入形 7 行は全て env `SEED_PASSWORD` の参照・literal **0**・パスワード値の漏えいなし）／(6) sk_live 等 0 → **要ローテーション判断**（dev の verify ユーザーの password 変更＋セッション失効で足りる見込み・本番ユーザー・service key・DB URL の同乗なし）。279-1＝便 AI（0149 改稿 ★A〜★E）／AJ（再突合）。
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝279-1 の例外 2 句（wipe＝store_id in stores(org)・load 直前の store_id／user_id 検査）が live（suite dr(5-7)・dr(4-1) 隔離）。279-3 の後処理（ローテーション）は便 H＝本行の直後に追記。
+- **279-3 ローテーション実施（2026-09-18 16:43 JST・便 H）**: 対象＝NOX-VERIFY-* の auth ユーザー 9 人（供給元は env `SEED_PASSWORD` 1 変数＝tracked の suite／seed／e2e 40 ファイル超が全て env 参照・literal 0＝docs/tmp/0918_rotation.md）→ 全員を同じ新しい乱数値に変更・.env.local 更新（値は記録しない）。セッション失効＝9 人 signOut(global)＋漏えい cookie の demo-manager（NOX-DEMO・verify 外・パスワード不変）は auth.sessions／refresh_tokens 直接削除＝失効後 10 人 sessions 0／有効 refresh_tokens 0。**service key／DB URL の同乗なし**。H-4＝f0 1 走（16:43:23〜17:03:59・1,236s・60 段 ALL PASS・4,404＝inventory 126→132／shift-tabs 14→20 は同時進行の client 便 R／T の suite 追加が走行中に載ったもの・他 58 段は pin と同一・golden 不変）＝新しい資格情報でログイン段が緑。
 
 ## 裁定278（本便で確定・Agoora「推奨で」・2026-09-18）0149 改稿（278-1〜3）
 
