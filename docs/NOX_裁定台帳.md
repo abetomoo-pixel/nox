@@ -3659,9 +3659,42 @@ Postgres がクラッシュし、73 分間無応答になった（§DB 障害）
 
 適用＝**mig0148 手貼り 2026-09-18 11:1x JST**（Agoora・ref hiqbfagmkrdpmlqhkmsu・Success・便 1「docs: v37 収蔵」`fe0e19c` の直後）→ 検証 A-1〜A-6 **ALL OK**（docs/tmp/0148_post.md・11:20 JST）: payroll_adjustments 列 15（末尾 source／carry_from_payslip_id）・CHECK 4（source_ck）・index 5（carryover_uidx＝UNIQUE (run_id, cast_id) WHERE source='carryover'）・FK carry_from→payslips ON DELETE SET NULL／新 RPC 4 本の署名逐語・secdef・search_path・proacl 3 ロール（anon・PUBLIC なし）／'billing locked' referral・norm_self・receivable_policy＝t・carryover_sync＝f／check_lines_kind_check 11 値・products_type_check 5 値・既存行の違反 0／check_group_due proacl {postgres=X/postgres} 不変・prosrc に kind <> 'referral' 2 箇所／set_store_profile f2196d09… 不変・set_store_* 11 本＋money-core 3 本＋不触 9 本（写経元）の md5 が控えと一致／billing 全数 245・gated 128・G2b 0・anon 5 本 BLOCKED。**新 md5(prosrc)**＝payroll_carryover_sync `b9bb34aee0e85c6752928889cabd35db`／check_add_referral `bd6b52952f8aceb36b1576ea84ebc3b7`／set_cast_norm_self `0ce771c7fbd7effea276a3955487bdb2`／set_store_receivable_policy `b1f14280015dcc78a255b67b55e490df`／check_group_due `7114f3c3…→8285d0d8db07720b398705cc779b1d88`（白名単 2 本＝set_product `b07d0343…→5e57813a97fc6ae82c7fd4f86fd3d33d`／product_bulk_insert `cd2d1133…→d87ff33806687039fe9879cd824d791d`）。
 名簿・pin（`8af0be5`）: 課金ゲート正本 A に check_add_referral（A1[K]）／set_cast_norm_self（A7）／set_store_receivable_policy（A8）・B(e) に payroll_carryover_sync＝**全数 241→245・対象 125→128・除外 116→117**（billing 段47-1 の 5 pin＋段47-3 kiosk 腕 16→17）・grants G31 の kiosk 腕 3 pin（18→19／20→21／18→19＝check_add_referral が check_add_line の腕を逐語で持つため＝ブロックの想定外の張り替え点）・anon-guard probe 4 本（988→992）・payroll-adjust 列 15／CHECK 4／index 5／FK 6／署名 3（101→110）・**reopen ro(3b-4)／(3b-6)＝assert_day_open の呼出関数 15→16／16→17**（check_add_referral が check_add_line の perform 行を逐語で持つ＝f0 run1（11:43〜11:50・39 段まで緑）の 40 段目で赤→張り替え・教訓84 の走査で漏れた 2 点目）。★名簿 A 節の説明文に他の live 関数名（check_group_due・auth_cast_id）を書くと docNames パーサが名簿として拾い「対象 130」で赤になった＝説明文では関数名を避ける（本便で文言修正・教訓90）。
-補記（2026-09-18・M-4）: (i) set_store_* の実数＝控え（0147_pre §7）12 本（biz_cutoff／business_hours／cast_register／norm_config／okuri_base／okuri_mode／pin_policy／pricing／profile／receipt_profile／tax_config／time_pricing）に対し live は **13 本**＝控え外は **set_store_receivable_policy（0148 ★8 新設）のみ**。0148 前後で控え 12 本の md5 は全て不変（11 本は pg_get_functiondef の md5・set_store_profile は prosrc md5 f2196d09… で照合）。A-5 の検証式は当初「set_store_* 走査 15 本」を前提にしていたため新設 1 本で 16 本になり NG 表示＝式を「控え 12＋新設 1＋money-core 3＝16 本・新設は控えと照合しない」に直して OK（DB 側の不一致ではない）。(ii) **check_add_referral は kiosk 腕（`auth_kiosk_register_store_id()`／`auth_kiosk_operator()` の OR 連鎖・`coalesce(auth_org_id(), auth_kiosk_org_id())`）を持つ**＝check_add_line の冒頭〜role 判定（custom 分岐の写経元）をそのまま逐語で写したことに由来。名簿 A1 は [K] で収載・billing 段47-3（kiosk 腕 16→17）・grants G31（18→19／20→21／18→19）の pin をそれに合わせた。**現状維持**（腕を外す改修はしていない）。kiosk から紹介料を起票させるかの是非は裁定273 系で相談役が判断。
+補記（2026-09-18・M-4）: (i) set_store_* の実数＝控え（0147_pre §7）12 本（biz_cutoff／business_hours／cast_register／norm_config／okuri_base／okuri_mode／pin_policy／pricing／profile／receipt_profile／tax_config／time_pricing）に対し live は **13 本**＝控え外は **set_store_receivable_policy（0148 ★8 新設）のみ**。0148 前後で控え 12 本の md5 は全て不変（11 本は pg_get_functiondef の md5・set_store_profile は prosrc md5 f2196d09… で照合）。A-5 の検証式は当初「set_store_* 走査 15 本」を前提にしていたため新設 1 本で 16 本になり NG 表示＝式を「控え 12＋新設 1＋money-core 3＝16 本・新設は控えと照合しない」に直して OK（DB 側の不一致ではない）。(ii) **check_add_referral は kiosk 腕（`auth_kiosk_register_store_id()`／`auth_kiosk_operator()` の OR 連鎖・`coalesce(auth_org_id(), auth_kiosk_org_id())`）を持つ**＝check_add_line の冒頭〜role 判定（custom 分岐の写経元）をそのまま逐語で写したことに由来。名簿 A1 は [K] で収載・billing 段47-3（kiosk 腕 16→17）・grants G31（18→19／20→21／18→19）の pin をそれに合わせた。**現状維持**（腕を外す改修はしていない）。kiosk から紹介料を起票させるかの是非は裁定273 系で相談役が判断。→ **追補（2026-09-18 午後・本便で確定・Agoora「推奨で」・相談役ブロック「272 追補2」）: check_add_referral の kiosk 腕は現状維持で確定**（改修しない・名簿 A1[K]／billing 段47-3／grants G31 の pin はこのまま）。
 suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JWT claims emulate＋ROLLBACK＝残留 0・snapshot 一致・逆テスト各 1 本＝壊して赤→戻して緑）: verify:nox-carryover **30**（finalize→次期 sync で carryover 1 行＝amount 4000・源泉後・前期繰越・carry_from／冪等・更新追随／manager 自店可・他 org 'run not found'・staff／cast forbidden／reopen→削除→再 finalize→sync で消える／not draft・not found・前期なし 0／manual 2 行共存・carryover 2 行目は unique 違反／audit 6 行）・verify:nox-referral **25**（kind referral・product null・紹介者／★案 Q＝checks.total 不変（内税・外税）＝DB＝groupDueFull＝receipt の三面鏡／idem・bad amount・既定名「紹介料」・bad name／bad cast・inactive cast・外部紹介 null／forbidden・not open／pay.ts referralTotal 1:1／audit）・verify:nox-cast-norm-self **16**（本人 upsert・署名 5 引数＝他 cast を指せない・sys_norms=false は 'norms off'・入力検証・manager／owner は 'no cast for caller'・audit 4）・verify:nox-product-types **20**（CHECK 逐語 5／11・bulk_insert by_type 5 キー・set_product food／other・check_add_line kind=food・category-map other・pay 器 3 キー）・verify:nox-receivable-policy **13**（3 値受理＋audit 各 1・4 値目／null は 'bad receivable_policy'・manager／他 org／不在は forbidden）。既存 suite 追随＝receipt 64→**67**（referral 行ありでも 381／347／1311）・pricing 150→**151**（段43(21) C1r＝紹介料 1000 込みで DB=TS=手計算 300）・product-bulk 39・setup 61 不変。D-2 実測＝dev 3200 で /api/payroll/preview（A1・2097-12 の draft run）が 2 回とも HTTP 200・server log に `payroll_carryover_sync … changed=0`・audit 2 行（upserted 0／deleted 0）→ run と audit を戻し snapshot 一致。tsc 0・ui-tokens 新規 0。
 コミット 4 本＝`478303d`（client 前倒し）／`fe0e19c`（v37 収蔵）／`8af0be5`（0148 SQL 収蔵＋名簿／probe／pin＋suite 5 本＋三面鏡）／`d7a2084`（reopen pin）＝f0 2 連緑（58 段 4,337・613s／851s）で push（`580718a..d7a2084`・2026-09-18 12:18 JST）。教訓88（DB を触る node -e は finally で閉じる）は本便の全 script で遵守（2026-09-18 承認＝教訓88 として収載）。
+
+## 裁定273（本便で確定・Agoora「推奨で」・2026-09-18）業態別公開デモ（273-1〜8）
+
+出典＝相談役ブロック 2026-09-18 午後（読取調査 docs/tmp/0918_demo_pre.md a〜k を受けた裁定・同日収載）。**本文（逐語）**:
+「[裁定273 業態別公開デモ] 273-1 器は org 4 分割・新設(NOX-DEMO-CABARET/GIRLSBAR/SNACK/LOUNGE)。既存 NOX-DEMO(CLUB NOX)は不触。
+ 273-2 識別子は orgs.is_demo boolean。org_billing.status は使わない。
+ 273-3 種は TS 純関数が今日の営業日基準で過去 14 日分を決定的に生成→jsonb 1 個→RPC demo_org_reset(p_org_id,p_payload) 1 回
+   (service_role 限定・is_demo 以外は raise・子→親削除→jsonb_populate_recordset 投入を 1 トランザクション)。E1/E2/E4 は不採用。
+ 273-4 suite demo-seed で 凍結合計＝check_group_due＝receipt の三点一致を抜き取り。日報は daily_report_close、給与は payroll_finalize 正規経路。golden 不触。
+ 273-5 開いている伝票 3 卓と当日の出勤打刻は入場時補充(直近 3 時間に無ければ今基準で足す)。
+ 273-6 柵は app/api route の共通ガード 1 本(拒否=stripe/billing・invite・staff create/email・mynumber・provision・cast-photo・print)。
+   RPC 128 本と billing_writable_of は無改造。set_store_*・flag・商品・顧客・notice は許可。demo org は setup_done に依らず /setup へ飛ばさない。
+ 273-7 入場は /demo→サーバ完結の generateLink＋verifyOtp。リセット時に demo ユーザーの email/PW を admin で戻す。
+ 273-8 日次 05:00 JST＋org 単位の手動リセット(10 分間隔)・上部帯・/demo noindex・アプリ全体は LP 以外 disallow。
+ 未決★ auth.updateUser 経由のメール変更連打による送信枠の消費。公開の前提=Vercel Pro＋Compute 引き上げ(裁定262)。」
+
+適用＝未着手（0149＝orgs.is_demo＋demo_org_reset の mig と TS 種生成・事前読取は docs/tmp/0149_pre.md）。
+
+## 裁定274（本便で確定・Agoora「推奨で」・2026-09-18）R15 シフト画面の情報設計＝5→3 タブ・語は 3 語固定
+
+出典＝相談役ブロック 2026-09-18 午後（読取調査 docs/tmp/0918_R15_pre.md の分岐点・Q1〜Q5 を受けた裁定・同日収載）。**本文（逐語）**:
+「[裁定274 R15] シフト画面を 5→3 タブ(今日／作る＝[作成|仮]／確定＝[承認待ち|確定シフト])・語は 3 語固定(公開/承認/確定)。
+ status 拡張・既読と同意の分離は第2期。client 1 便。」
+
+適用＝本便 S 段（client 1 便・DB／RPC／監査文言は不変・表示のみ）。
+
+## 裁定275（本便で確定・Agoora「推奨で」・2026-09-18）M12／M13 ヘッダ整理とメニュー再編＝歯車の口
+
+出典＝相談役ブロック 2026-09-18 午後（読取調査 docs/tmp/0918_M_survey.md M12/M13 節を受けた裁定・同日収載）。**本文（逐語）**:
+「[裁定275 M12/M13] 歯車の口は Modal(「その他」Modal 写経)。下タブ=ホーム/レジ/日報/シフト、その他=キャスト/スタッフ/顧客/給与/分析/領収書(＋在庫)、
+ 歯車=マスタ/お知らせ/監査/ご契約/ログアウト。在庫は既存画面があればリンク 1 本・無ければ見送り。≥900 は SideNav 下部に同群。MASTER_NAV 不触。」
+
+適用＝本便 R 段（client 1 便・ルート／URL／role ゲート不変・並びと口の追加のみ）。
 
 ## 裁定D45-1〜8（Agoora 承認 2026-09-11）入金方法別照合の範囲・凍結列・表示先
 
