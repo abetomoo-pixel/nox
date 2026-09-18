@@ -525,7 +525,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     });
     if (error) { setPMsg({ kind: "error", text: error.message.includes("overlap") ? periodErrJa(error.message) : `計画の保存に失敗: ${periodErrJa(error.message)}` }); return; }
     const stLabel = PERIOD_ST_LABEL[pStatus] ?? pStatus;
-    setPMsg({ kind: "success", text: pEditId ? `期間を更新しました(${stLabel})` : `期間を作成しました(${stLabel})` });
+    // ★夜間便 N5-4（裁定287-2）: 募集中で保存したときはキャスト側に案内が出る旨を足す（shift_open_periods_mine が status='open' を返す）
+    setPMsg({ kind: "success", text: (pEditId ? `期間を更新しました(${stLabel})` : `期間を作成しました(${stLabel})`) + (pStatus === "open" ? "。キャストのマイページに希望提出の案内が表示されます" : "") });
     setPNewId(typeof data === "string" ? data : pEditId);
     resetPeriodForm();
     await load();
