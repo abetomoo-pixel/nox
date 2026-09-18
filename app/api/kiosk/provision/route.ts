@@ -19,6 +19,7 @@ import { randomInt } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { demoGuardErr } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // 紛らわしい文字（0/O・1/l/I）を除いた英数＋記号・randomInt は CSPRNG（cast/invite と同一）
@@ -47,6 +48,7 @@ async function guardOwner() {
   ]);
   if (role !== "owner" || !orgId)
     return { ok: false as const, status: 403, body: { error: "forbidden" } };
+  const demo = await demoGuardErr(orgId as string); if (demo) return demo; // ★N7-1: デモ org はキオスク発行不可
   return { ok: true as const, supabase, orgId: orgId as string };
 }
 

@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { assertNotDemo } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIMIT = 20;
 
@@ -23,6 +24,7 @@ export async function GET(req: Request) {
     ]);
     if ((role !== "owner" && role !== "manager") || !orgId)
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    const demo = await assertNotDemo(orgId as string); if (demo) return demo; // ★N7-1: デモ org は印刷ジョブ不可（poll／result は上流で止まる）
 
     // store はサーバ導出が既定。owner のみ query で org 内の他店を指定可（manager は自店固定）。
     const url = new URL(req.url);

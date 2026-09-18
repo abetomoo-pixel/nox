@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { assertNotDemo } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(req: Request) {
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
   ]);
   if (role !== "owner") return NextResponse.json({ error: "forbidden" }, { status: 403 });
   if (!orgId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const demo = await assertNotDemo(orgId as string); if (demo) return demo; // ★N7-1: デモ org は PII 閲覧不可
 
   let body: { castId?: unknown };
   try {

@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { demoGuardErr } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
 export type StaffCreateInput = {
   name: string; // trim 済み（1..80）
   email: string | null; // 実 email（lower/trim 済み）。null=未入力＝合成 email を route が生成
@@ -73,6 +74,7 @@ export async function guardStaffCreate(req: Request): Promise<GuardOk | GuardErr
     if (role !== "staff") return { ok: false, status: 403, body: { error: "forbidden" } };
   }
   if (!orgId) return { ok: false, status: 403, body: { error: "forbidden" } };
+  const demo = await demoGuardErr(orgId as string); if (demo) return demo; // ★N7-1: デモ org はスタッフ作成不可
 
   const admin = createAdminClient();
   // org はサーバ導出（auth_org_id）。store が org 内かを照合＝owner の他 org 混入を遮断。

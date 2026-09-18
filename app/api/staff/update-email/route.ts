@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decideOwnerAccess, parseUpdateEmailBody, performUpdateEmail } from "@/lib/nox/staff/update-email";
 
+import { demoGuardErr } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
 // owner セッション検証（401/403）＋ org サーバ導出（kiosk/provision の guardOwner と同文・判定式は decideOwnerAccess に置いた同式）。
 async function guardOwner() {
   const supabase = await createClient();
@@ -25,6 +26,7 @@ async function guardOwner() {
   ]);
   const d = decideOwnerAccess(role, orgId);
   if (!d.ok) return { ok: false as const, status: d.status, body: { error: d.error } };
+  const demo = await demoGuardErr(orgId as string); if (demo) return demo; // ★N7-1: デモ org はメール変更不可
   return { ok: true as const, supabase, orgId: orgId as string, authUserId: user.id };
 }
 

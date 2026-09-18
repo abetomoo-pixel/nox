@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { demoGuardErr } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
 export type CastInviteInput = {
   castId: string;
   action: "invite" | "reset"; // invite=未結線 cast へアカウント発行 / reset=結線済み cast の PW 再発行
@@ -73,6 +74,7 @@ export async function guardCastInvite(req: Request): Promise<GuardOk | GuardErr>
   if (authRole !== "owner" && authRole !== "manager")
     return { ok: false, status: 403, body: { error: "forbidden" } };
   if (!orgId) return { ok: false, status: 403, body: { error: "forbidden" } };
+  const demo = await demoGuardErr(orgId as string); if (demo) return demo; // ★N7-1: デモ org は招待不可
 
   const admin = createAdminClient();
   // 対象 cast の先引き（org 照合＝owner の他 org 混入遮断・manager は自店照合）

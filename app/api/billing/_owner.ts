@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { assertNotDemo } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
 export type OwnerCtx = { orgId: string; email: string | null };
 
 /** owner でなければ NextResponse（401/403）を返す。owner なら org_id/email を返す。 */
@@ -17,6 +18,7 @@ export async function requireOwner(): Promise<NextResponse | OwnerCtx> {
   ]);
   if (role !== "owner") return NextResponse.json({ error: "請求の操作はオーナーのみ可能です" }, { status: 403 });
   if (typeof orgId !== "string" || !orgId) return NextResponse.json({ error: "組織を解決できませんでした" }, { status: 403 });
+  const demo = await assertNotDemo(orgId); if (demo) return demo; // ★N7-1: デモ org は課金操作不可
   return { orgId, email: user.email ?? null };
 }
 
