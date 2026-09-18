@@ -11,7 +11,10 @@
  *  (5) 'not open'・staff（can_register なし）／他店 manager は 'forbidden'・anon BLOCKED
  *  (6) pay.ts: DB の referral 行 Σ（紹介者別）を referralTotal に渡すと gross が 1:1 で増える（既存 T11 と接続）
  *  (7) audit: check_add_referral 1 行（target check_lines:<id>・after_json.kind='referral'）
- *  逆テスト 1 本（手動・1 回）: lib/nox/check-calc.ts の referral 除外を外す→re(2-3) 赤・戻して緑。
+ *  (8) ★入口→明細別掲→due 不変（裁定272 追補・R11 のレジ入口＝2026-09-18）: lib/nox/register/referral.ts（detailLinesOf／referralRowsOf／referralTotalOf）が
+ *      DB の referral 行を明細から外し Σ を別掲する＝groupDueFull(detailLinesOf(lines)) ＝ checks.total（due 不変）・referralTotalOf＝Σ referral。
+ *      register-board の結線（import・p_idem_key＝crypto.randomUUID()・注記文言・明細は detailLinesOf・合計の別掲）と kiosk-register に入口が無いことを逐語 grep。
+ *  逆テスト 2 本（手動・各 1 回）: lib/nox/check-calc.ts の referral 除外を外す→re(2-3) 赤／lib/nox/register/referral.ts の detailLinesOf を素通しにする→re(8-1) 赤・戻して緑。
  */
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
@@ -20,6 +23,8 @@ import { FIXTURE_USERS, STORE_A1, STORE_B1, loadEnvOrExit } from "./fixtures-f0"
 import { groupDueFull, type DueLine } from "../lib/nox/check-calc";
 import { buildReceiptXml, type ReceiptInput, type ReceiptLine } from "../lib/nox/receipt";
 import { payOf, type PayInput, type CompPlan } from "../lib/nox/pay";
+import { detailLinesOf, referralRowsOf, referralTotalOf } from "../lib/nox/register/referral";
+import fs from "node:fs";
 
 const env = loadEnvOrExit(["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_DB_URL"]);
 
@@ -170,6 +175,19 @@ async function main() {
       check(`re(6-1) 紹介者 cast a の referral Σ=${sumA} を referralTotal に渡すと gross が同額増える・PayResult.referralTotal 保持`, sumA === 2000 && p1.gross - p0.gross === sumA && p1.referralTotal === sumA, `Σ=${sumA} gross ${p0.gross}→${p1.gross}`);
       check("re(6-2) 外部紹介（cast_id null）の行は誰の gross にも載らない（cast 別 Σ の外）", (await q<{ s: number }>(`select coalesce(sum(line_total), 0)::int as s from public.check_lines where check_id = $1 and kind = 'referral' and cast_id is null`, [chk]))[0].s === 1500);
 
+      // ── (8) 入口→明細別掲→due 不変（純関数＋DB 行）──
+      const linesNow = await linesOf(); const sNow = await settingsOf(); const totalNow = await totalOf(); // (3) の外部紹介 1500 を含む現在の行
+      const det = detailLinesOf(linesNow);
+      check("re(8-1) ★detailLinesOf: 明細から referral 行が消え、他の行は全て残る", det.every((l) => l.kind !== "referral") && det.length === linesNow.length - referralRowsOf(linesNow).length && referralRowsOf(linesNow).length === 2, `all=${linesNow.length} detail=${det.length} referral=${referralRowsOf(linesNow).length}`);
+      check("re(8-2) ★due 不変: groupDueFull(明細のみ)＝checks.total（内税）＝referral 込みの鏡像と同値", groupDueFull(det, sNow) === totalNow && groupDueFull(linesNow, sNow) === totalNow && totalNow === total0, `detail=${groupDueFull(det, sNow)} total=${totalNow} total0=${total0}`);
+      check("re(8-3) ★別掲 Σ: referralTotalOf＝2000＋1500＝3500（cast a 2000＋外部 1500）", referralTotalOf(linesNow) === 3500, String(referralTotalOf(linesNow)));
+      const rb = fs.readFileSync("app/(manage)/register/register-board.tsx", "utf8");
+      const kiosk = fs.readFileSync("app/kiosk-register/page.tsx", "utf8");
+      const rpcAt = rb.indexOf('supabase.rpc("check_add_referral"');
+      check("re(8-4) register-board の結線: helper import・check_add_referral 呼び出し・p_idem_key＝crypto.randomUUID()・注記文言・明細は detailLinesOf・合計の別掲",
+        rb.includes('from "@/lib/nox/register/referral"') && rpcAt > 0 && rb.slice(rpcAt, rpcAt + 400).includes("p_idem_key: crypto.randomUUID()") && rb.includes("店が負担する手当です。お客様のお会計には含まれません。") && rb.includes("{detailLinesOf(lines).map((l) => {") && rb.includes("紹介料(店負担)"));
+      check("re(8-5) kiosk-register に紹介料の入口は無い（DB の kiosk 腕は現状維持・UI は出さない＝裁定272 追補）", !kiosk.includes("check_add_referral") && !kiosk.includes("紹介料"));
+
       // ── (7) audit ──
       const au = await q<{ action: string; store_id: string; kind: string | null }>(`select action, store_id, after_json->>'kind' as kind from public.audit_logs where target = $1`, ["check_lines:" + refId]);
       check("re(7-1) audit 1 行: action check_add_referral・store A1・after_json.kind='referral'", au.length === 1 && au[0].action === "check_add_referral" && au[0].store_id === A1.id && au[0].kind === "referral", JSON.stringify(au));
@@ -207,7 +225,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-referral ALL PASS (${pass} assertions)`);
-  console.log("紹介料(0148 ★5／★10・案 Q): kind referral・product null・紹介者 cast / total 不変（内税・外税）＝DB＝groupDueFull＝receipt の三面鏡 / idem・bad amount・紹介料既定名・bad name / bad cast・inactive cast・外部紹介 null / forbidden・not open・anon / pay.ts referralTotal 1:1 / audit（ROLLBACK・残留 0）");
+  console.log("紹介料(0148 ★5／★10・案 Q): kind referral・product null・紹介者 cast / total 不変（内税・外税）＝DB＝groupDueFull＝receipt の三面鏡 / idem・bad amount・紹介料既定名・bad name / bad cast・inactive cast・外部紹介 null / forbidden・not open・anon / pay.ts referralTotal 1:1 / 入口→明細別掲→due 不変（register/referral.ts・register-board 結線・kiosk なし）/ audit（ROLLBACK・残留 0）");
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
