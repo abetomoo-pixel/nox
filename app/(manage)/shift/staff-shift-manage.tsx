@@ -12,6 +12,12 @@ import { hm2min, min2hm } from "@/lib/nox/shift-time";
 import { effectivePatterns, fmtEnd30, staffShiftErrJa } from "../master/staff-shift-panel";
 import type { Deadline, Pattern, StaffShift, Wish } from "./staff-shift-board";
 import { deadlineMsOf } from "./staff-shift-board";
+// ★夜間便 N6（便 S-1〜S-3・裁定287-1・0151 ★1 staff_shift_cancel）: 配置フローをキャスト側と同型に（日付→人／人→日付）・取消
+import StaffPlaceDayModal from "./staff-place-day";
+import StaffPlaceByStaffModal from "./staff-place-by-staff";
+import type { PlaceArgs } from "./staff-place-form";
+import { mdDowOf, wishIdFor } from "@/lib/nox/shift/staff-place";
+import { isRpcMissingError } from "@/lib/nox/ui/rpc-err";
 
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
@@ -34,8 +40,18 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
   const [ovEnd, setOvEnd] = useState("23:00");
   const [ovNext, setOvNext] = useState(false);
   const [ovReason, setOvReason] = useState("");
-  const [pickStaff, setPickStaff] = useState("");
-  const [pickPattern, setPickPattern] = useState("");
+  // ★N6: 入口①（日付セル→モーダル）・入口②（スタッフから配置）・取消 RPC の有無（0151 手貼り前＝'missing'＝取消ボタンを出さない）
+  const [placeDay, setPlaceDay] = useState<string | null>(null);
+  const [byStaff, setByStaff] = useState(false);
+  const [cancelRpc, setCancelRpc] = useState<"unknown" | "ok" | "missing">("unknown");
+  useEffect(() => {
+    // probe: p_id null → RPC は 'invalid_input' を raise（書込なし）。未適用なら PostgREST が「関数が無い」を返す
+    let alive = true;
+    void supabase.rpc("staff_shift_cancel", { p_id: null, p_reason: null })
+      .then(({ error }) => { if (alive) setCancelRpc(error && isRpcMissingError(error.message) ? "missing" : "ok"); });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 名前解決（memberships＝owner/manager 自店・cast 以外／users.name）
   const loadNames = useCallback(async () => {
@@ -56,13 +72,35 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
   const dayShifts = (day: string) => shifts.filter((s) => s.biz_date === day);
   const dayWishes = (day: string) => wishes.filter((w) => w.biz_date === day);
 
-  async function propose(day: string, staffId: string, patternId: string, wishId: string | null) {
-    if (busy) return;
-    setBusy(true); setMsg(null);
-    const { error } = await supabase.rpc("staff_shift_propose", { p_store_id: storeId, p_staff_id: staffId, p_biz_date: day, p_pattern_id: patternId, p_wish_id: wishId });
-    setBusy(false);
-    setMsg(error ? { kind: "bad", text: staffShiftErrJa(error.message) } : { kind: "ok", text: `${nameOf(staffId)} を ${day.slice(5).replace("-", "/")} に配置しました（確認待ち）` });
-    if (!error) await onChanged();
+  // ★N6: 配置＝propose（希望があれば wish_id を添える）→ 時刻を調整していれば override を続けて呼ぶ（枠の時刻で行を作る RPC の仕様のため 2 段）。
+  //   失敗文言を返す（null＝成功）。成否の表示はモーダル内（裁定281-3）＝共有 msg には出さない。
+  async function placeShift(day: string, staffId: string, args: PlaceArgs): Promise<string | null> {
+    if (busy) return "処理中です";
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.rpc("staff_shift_propose", {
+        p_store_id: storeId, p_staff_id: staffId, p_biz_date: day, p_pattern_id: args.patternId, p_wish_id: wishIdFor(wishes, staffId, day, args.patternId),
+      });
+      if (error) return staffShiftErrJa(error.message);
+      const pat = patterns.find((p) => p.id === args.patternId);
+      if (pat && (args.startHm !== pat.start_hm || args.endHm !== pat.end_hm)) {
+        const { error: e2 } = await supabase.rpc("staff_shift_override", { p_shift_id: data as string, p_start_hm: args.startHm, p_end_hm: args.endHm, p_reason: null });
+        if (e2) { await onChanged(); return `配置しましたが時刻の調整に失敗しました（枠の時刻のまま）: ${staffShiftErrJa(e2.message)}`; }
+      }
+      await onChanged();
+      return null;
+    } finally { setBusy(false); }
+  }
+  // ★N6（裁定287-1・0151 ★1）: 取消＝staff_shift_cancel(p_id, p_reason)。confirmed は理由必須（RPC 'reason required'）・過去日は 'biz_date_past'
+  async function cancelShift(s: StaffShift, reason: string | null): Promise<string | null> {
+    if (busy) return "処理中です";
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("staff_shift_cancel", { p_id: s.id, p_reason: reason });
+      if (error) { if (isRpcMissingError(error.message)) setCancelRpc("missing"); return staffShiftErrJa(error.message); }
+      await onChanged();
+      return null;
+    } finally { setBusy(false); }
   }
   function openOverride(s: StaffShift) {
     const endMin = hm2min(s.end_hm);
@@ -105,13 +143,16 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
     await onChanged();
   }
 
-  const eff = effectivePatterns(patterns, selDay);
   const list = dayShifts(selDay);
-  const dws = dayWishes(selDay);
-  const staffOptions = members.filter((m) => m.role !== "cast");
+  // ★N6: モーダルに渡すスタッフ（名前解決済み・cast 以外）
+  const staffList = members.filter((m) => m.role !== "cast").map((m) => ({ id: m.id, name: nameOf(m.id), role: m.role }));
 
   return (
     <>
+      {/* ★N6 S-2: 入口②（補助＝青枠）。S-5: セルの見た目はキャスト側と同じ .nox-cald の button（hover／focus は共通 CSS） */}
+      <div className="nox-actions" style={{ justifyContent: "flex-end", margin: "0 0 8px" }}>
+        <button type="button" style={btnLight} disabled={busy} onClick={() => { setMsg(null); setByStaff(true); }}>スタッフから配置</button>
+      </div>
       {/* 月ストリップ＝営業日ごとの「枠×充足 n/m」（n＝行数・m＝◯希望者） */}
       <div className="nox-calgrid">
         {["日", "月", "火", "水", "木", "金", "土"].map((d) => <div key={d} className="nox-calh">{d}</div>)}
@@ -121,8 +162,8 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
           const ds = dayShifts(day), dw = dayWishes(day);
           const cls = ["nox-cald", day === selDay ? "sel" : "", day === bizToday ? "today" : "", day < bizToday ? "past" : "", ds.length > 0 ? "ok" : ""].filter(Boolean).join(" ");
           return (
-            <button key={day} className={cls} style={{ minHeight: 84, alignItems: "stretch" }} onClick={() => setSelDay(day)}
-              title={`${day}・配置 ${ds.length}／希望 ${dw.filter((w) => w.available).length}`}>
+            <button key={day} className={cls} style={{ minHeight: 84, alignItems: "stretch" }} onClick={() => { setSelDay(day); setMsg(null); setPlaceDay(day); }}
+              title={`${mdDowOf(day)}・配置 ${ds.length}／希望 ${dw.filter((w) => w.available).length}（クリックで配置）`}>
               <span className="nox-cald-n num">{Number(day.slice(8))}</span>
               {e.map((p) => {
                 const n = ds.filter((s) => s.pattern_id === p.id || patterns.find((q) => q.id === s.pattern_id)?.name === p.name).length;
@@ -141,7 +182,8 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
       {/* 選択日の詳細＝希望一覧（配置）＋行（上書き・確定）＋一括確定 */}
       <div style={{ marginTop: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-          <b className="num" style={{ fontSize: 13.5 }}>{selDay}</b>
+          <b className="num" style={{ fontSize: 13.5 }}>{mdDowOf(selDay)}</b>{/* ★N6 S-3: 「M/D(曜)」表記 */}
+          <button style={btnLight} disabled={busy} onClick={() => { setMsg(null); setPlaceDay(selDay); }}>この日に配置</button>
           <span style={{ fontSize: 11, color: "var(--sub)" }}>
             希望締切 {new Date(deadlineMsOf(selDay, deadlines)).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
           </span>
@@ -183,43 +225,17 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
           </table>
         </div>
 
-        {/* 希望一覧（◯）から配置。× と未入力は出さない＝配置するのは「出られる」人 */}
-        <div className="nox-inset" style={{ padding: "10px 12px", marginTop: 10 }}>
-          <b style={{ fontSize: 12.5 }}>希望から配置</b>
-          {dws.filter((w) => w.available).length === 0 ? (
-            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>◯の希望はありません。</p>
-          ) : (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-              {dws.filter((w) => w.available).map((w) => {
-                const pat = patterns.find((p) => p.id === w.pattern_id);
-                const placed = list.some((s) => s.staff_id === w.staff_id && s.wish_id === w.id);
-                return (
-                  <button key={w.id} type="button" className="nox-crow" disabled={busy || placed || selDay < bizToday}
-                    onClick={() => void propose(selDay, w.staff_id, w.pattern_id, w.id)}
-                    style={{ cursor: placed ? "default" : "pointer", opacity: placed ? 0.5 : 1, borderRadius: 8, padding: "6px 10px", border: "1px solid var(--line)", background: "transparent", fontFamily: "inherit", color: "var(--ink)", fontSize: 12.5 }}>
-                    {nameOf(w.staff_id)} <span style={{ color: "var(--sub)" }}>{pat?.name ?? "—"}</span>
-                    {w.note && <span style={{ color: "var(--v2-muted)", marginLeft: 6, fontSize: 11 }}>「{w.note}」</span>}
-                    {placed ? <span className="nox-stpill" style={{ marginLeft: 6 }}>配置済み</span> : <span style={{ marginLeft: 6, color: "var(--champ)" }}>＋配置</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {/* 希望なしで直接配置（設計書 v1 §2: propose は希望なしでも可） */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-            <span style={t.fieldLabel}>直接配置</span>
-            <select value={pickStaff} onChange={(e) => setPickStaff(e.target.value)} style={input}>
-              <option value="">黒服を選ぶ</option>
-              {staffOptions.map((m) => <option key={m.id} value={m.id}>{nameOf(m.id)}{m.role !== "staff" ? `（${m.role}）` : ""}</option>)}
-            </select>
-            <select value={pickPattern} onChange={(e) => setPickPattern(e.target.value)} style={input}>
-              <option value="">枠を選ぶ</option>
-              {eff.map((p) => <option key={p.id} value={p.id}>{p.name} {p.start_hm}〜{fmtEnd30(p.end_hm)}</option>)}
-            </select>
-            <button style={btnLight} disabled={busy || !pickStaff || !pickPattern || selDay < bizToday} onClick={() => void propose(selDay, pickStaff, pickPattern, null)}>配置</button>
-          </div>
-        </div>
+        {/* ★N6 S-3: 「希望から配置」「直接配置（素の select 2 本）」は入口①のモーダルに吸収＝撤去。下段は選択日の配置一覧表のみ */}
       </div>
+
+      {placeDay && (
+        <StaffPlaceDayModal day={placeDay} bizToday={bizToday} patterns={patterns} staff={staffList} wishes={wishes} shifts={shifts} busy={busy}
+          cancelRpc={cancelRpc} onPlace={placeShift} onCancel={cancelShift} onClose={() => setPlaceDay(null)} />
+      )}
+      {byStaff && (
+        <StaffPlaceByStaffModal storeId={storeId} bizToday={bizToday} initialMonth={month} patterns={patterns} staff={staffList} busy={busy}
+          onPlace={placeShift} onChanged={onChanged} onClose={() => setByStaff(false)} />
+      )}
 
       {ov && (
         <Modal onClose={() => setOv(null)}>

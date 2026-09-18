@@ -21,6 +21,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
+// ★夜間便 N6（便 S-6・2026-09-18）: 配置フローの純関数（lib/nox/shift/staff-place.ts）＝DB 前に係留
+import { byStaffNext, canCancel, cancelNeedsReason, defaultPatternFor, mdDowOf, placedDaysOf, staffRowsForDay, wishDaysOf, wishIdFor } from "../lib/nox/shift/staff-place";
+import fs from "node:fs";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -46,8 +49,29 @@ const TABLES = ["staff_shift_patterns", "staff_shift_wishes", "staff_shifts", "s
 const AUDIT_ACTIONS = ["staff_pattern_set", "staff_pattern_delete", "staff_shift_propose", "staff_shift_override", "staff_shift_confirm", "staff_deadline_set"];
 const addDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
+// ★N6 S-6: 純関数の段（DB 不触・9 本）。逆テスト: staffRowsForDay の並び `wa - wb` を `wb - wa` にする→段N6-2 赤・戻して緑
+function pureChecks() {
+  const W = (id: string, staff: string, day: string, pat: string, av = true) => ({ id, staff_id: staff, biz_date: day, pattern_id: pat, available: av, note: null });
+  const S = (id: string, staff: string, day: string, pat: string, status = "proposed") => ({ id, staff_id: staff, biz_date: day, pattern_id: pat, start_hm: "18:00", end_hm: "23:00", status, wish_id: null });
+  const staff = [{ id: "s3", name: "山田", role: "staff" }, { id: "s1", name: "佐藤", role: "staff" }, { id: "s2", name: "鈴木", role: "manager" }];
+  const wishes = [W("w1", "s3", "2026-10-17", "pA"), W("w2", "s1", "2026-10-17", "pB", false), W("w3", "s2", "2026-10-18", "pA"), W("w4", "s3", "2026-10-17", "pB")];
+  const shifts = [S("h1", "s1", "2026-10-17", "pA"), S("h2", "s2", "2026-10-18", "pA", "confirmed")];
+  check("段N6-1 mdDowOf: 'M/D(曜)'（2026-10-17＝土・先頭 0 なし）", mdDowOf("2026-10-17") === "10/17(土)" && mdDowOf("2026-01-05") === "1/5(月)");
+  const rows = staffRowsForDay(staff, wishes, shifts, "2026-10-17");
+  check("段N6-2 staffRowsForDay: ◯ 希望の人が上（× 希望は希望なし扱い）・残りは名前順", rows.map((r) => r.staff.id).join(",") === "s3,s1,s2", rows.map((r) => r.staff.id).join(","));
+  check("段N6-3 staffRowsForDay: 希望の枠（2 本）と配置済み行が付く", rows[0].wishes.map((w) => w.pattern_id).join(",") === "pA,pB" && rows[1].placed?.id === "h1" && rows[2].placed === null);
+  check("段N6-4 wishDaysOf／placedDaysOf: 人ごとの日→枠・日→行", JSON.stringify([...wishDaysOf(wishes, "s3").entries()]) === JSON.stringify([["2026-10-17", ["pA", "pB"]]]) && placedDaysOf(shifts, "s2").get("2026-10-18")?.status === "confirmed" && wishDaysOf(wishes, "s1").size === 0);
+  check("段N6-5 defaultPatternFor: 希望の枠が当日有効なら先頭・無ければ有効枠の先頭・有効枠なしは null", defaultPatternFor(["pA", "pB"], ["pB"]) === "pB" && defaultPatternFor(["pA", "pB"], ["pZ"]) === "pA" && defaultPatternFor([], ["pA"]) === null);
+  check("段N6-6 wishIdFor: 枠が一致する ◯ 希望だけ（× 希望・別枠は null＝wish_mismatch を避ける）", wishIdFor(wishes, "s3", "2026-10-17", "pB") === "w4" && wishIdFor(wishes, "s1", "2026-10-17", "pB") === null && wishIdFor(wishes, "s3", "2026-10-17", "pC") === null);
+  check("段N6-7 canCancel: 過去日は不可（当日は可）・cancelNeedsReason: confirmed だけ", canCancel(shifts[0], "2026-10-17") && !canCancel(shifts[0], "2026-10-18") && cancelNeedsReason(shifts[1]) && !cancelNeedsReason(shifts[0]));
+  check("段N6-8 byStaffNext: pick→(picked)calendar→(day)place→(placed)calendar・(back)calendar・(cleared)pick", byStaffNext("pick", "picked") === "calendar" && byStaffNext("calendar", "day") === "place" && byStaffNext("place", "placed") === "calendar" && byStaffNext("place", "back") === "calendar" && byStaffNext("calendar", "cleared") === "pick" && byStaffNext("pick", "day") === "pick");
+  const mg = fs.readFileSync("app/(manage)/shift/staff-shift-manage.tsx", "utf8");
+  check("段N6-9 配線: 素の select 0・日付セル→モーダル・「スタッフから配置」・取消は RPC 不在で出さない（cancelRpc）", !/<select/.test(mg) && /setPlaceDay\(day\)/.test(mg) && /スタッフから配置/.test(mg) && /cancelRpc=\{cancelRpc\}/.test(mg) && /rpc\("staff_shift_cancel", \{ p_id: s\.id, p_reason: reason \}\)/.test(mg));
+}
+
 async function main() {
   const t0 = Date.now();
+  pureChecks();
   const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });

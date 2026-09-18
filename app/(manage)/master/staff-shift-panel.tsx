@@ -38,6 +38,8 @@ export function staffShiftErrJa(msg: string | undefined): string {
   if (msg.includes("wish_mismatch")) return "希望と日付・本人が一致しません";
   if (msg.includes("already_confirmed")) return "すでに確定済みです";
   if (msg.includes("biz_date_past")) return "過去の営業日は変更できません";
+  if (msg.includes("reason required") || msg.includes("reason_required")) return "確定済みの取消には理由が必要です"; // ★N6（0151 ★1 staff_shift_cancel）
+  if (msg.includes("not found") || msg.includes("not_found")) return "対象の行が見つかりません（すでに取り消されたか、再読込してください）"; // ★N6
   if (msg.includes("staff_shift_patterns_uq") || msg.includes("duplicate key")) return "同じ名前・同じ適用日の枠がすでにあります";
   if (msg.includes("staff_shift_patterns_hm_order") || msg.includes("staff_shifts_hm_order")) return "終了は開始より後にしてください（日跨ぎは「翌日」をオン）";
   if (msg.includes("invalid_input")) return "入力が不正です";
