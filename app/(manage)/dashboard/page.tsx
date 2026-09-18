@@ -62,6 +62,7 @@ export default async function DashboardPage() {
       cutoff={cutoffOf(store)}
       stores={((stores ?? []) as { id: string; name: string; settings_json: unknown }[]).map((s) => ({ id: s.id, name: s.name, cutoff: cutoffOf(s) }))}
       isOwner={role === "owner"}
+      isManagerUp={isManagerUp} // ★N4-3
       casts={(casts ?? []) as { id: string; name: string; photo_updated_at: string | null; store_id: string }[]}
       shortcuts={shortcuts}
     />

@@ -24,6 +24,9 @@ import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 // ★B6-12（2026-09-11）: 出勤扱いの状態集合は cast-stats に集約（旧 PRESENT 直書きと同じ 3 値）
 import { PRESENT_STATUSES } from "@/lib/nox/analytics/cast-stats";
 import DrinkClaimQueue from "../register/drink-claim-queue";
+// ★夜間便 N4-3（裁定282-3）: 保証時給の期限が近いキャスト（純関数・cast_plan 1 select）
+import { guaranteeNoticesOf, type PlanRowLike } from "@/lib/nox/cast/guarantee";
+import { Message } from "@/components/ui/toast";
 
 type Cast = { id: string; name: string; photo_updated_at: string | null; store_id?: string };
 type Att = { cast_id: string; status: string; eta: string | null };
@@ -54,12 +57,14 @@ const dowOf = (ymd: string) => {
 const mdOf = (iso: string) =>
   new Date(iso).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" });
 
-export default function DashboardBoard({ storeId, storeName, cutoff, casts, shortcuts, stores = [], isOwner = false }: {
+export default function DashboardBoard({ storeId, storeName, cutoff, casts, shortcuts, stores = [], isOwner = false, isManagerUp = false }: {
   storeId: string; storeName: string; cutoff: string; casts: Cast[];
   shortcuts: { href: string; label: string; icon: string }[];
   /** ★裁定192（B1・M6）: RLS が返す店一覧（owner=org 全店）。2 店以上かつ owner のときだけセレクタを出す */
   stores?: { id: string; name: string; cutoff: string }[];
   isOwner?: boolean;
+  /** ★N4-3: owner／manager のときだけ保証時給の期限お知らせを読む（staff は cast_plan が 0 行＝読まない） */
+  isManagerUp?: boolean;
 }) {
   const supabase = createClient();
   // ★裁定192（B1・M6）: owner の閲覧切替＝選択店を state で持ち、読取を store_id で絞る（RLS の範囲内・新規 RPC なし）。
@@ -79,6 +84,8 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   const [needs, setNeeds] = useState<Need[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
+  // ★N4-3（裁定282-3）: 保証時給がまもなく終了（7 日以内）のキャスト＝名前・残り日数・終了日
+  const [guaNotices, setGuaNotices] = useState<{ name: string; daysLeft: number; to: string }[]>([]);
 
   const load = useCallback(async () => {
     // ★裁定192: 5 本の読取を選択店（curStoreId）で絞る＝owner の複数店で数字が混ざらない（manager は RLS で自店 1 件＝同値）
@@ -100,6 +107,16 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
     const { data: nt } = await supabase.from("notices")
       .select("id, title, created_at").match(storeFilter)
       .order("pinned", { ascending: false }).order("created_at", { ascending: false }).limit(2);
+    // ★夜間便 N4-3（裁定282-3）: 保証時給の期限＝cast_plan の履歴行（1 select・owner/manager のみ・RLS は owner=org／manager=自店）
+    const { data: gp } = isManagerUp
+      ? await supabase.from("cast_plan").select("cast_id, valid_from, valid_to, overrides_json").match(storeFilter)
+      : { data: null };
+    const rowsOf: Record<string, PlanRowLike[]> = {};
+    for (const r of (gp ?? []) as Record<string, unknown>[]) {
+      (rowsOf[r.cast_id as string] ??= []).push({ valid_from: r.valid_from as string, valid_to: (r.valid_to as string | null) ?? null, overrides_json: r.overrides_json });
+    }
+    const calToday = new Date().toISOString().slice(0, 10);
+    setGuaNotices(guaranteeNoticesOf(casts.filter((c) => !sid || c.store_id === sid).map((c) => ({ name: c.name, rows: rowsOf[c.id] ?? [] })), calToday));
     const reports = (rs ?? []) as ReportRow[];
     setAtts((at ?? []) as Att[]);
     setMonthSales(reports.reduce((a, r) => a + r.cash + r.card_gross + r.uri + r.other, 0));
@@ -330,6 +347,13 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           <h2 style={{ ...secTitle, margin: 0 }}>お知らせ</h2>
           <Link href="/notices" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>すべて ›</Link>
         </div>
+        {/* ★夜間便 N4-3（裁定282-3）: 保証時給がまもなく終了（7 日以内）＝お知らせ枠の先頭に warn 1 枚（owner/manager・該当なしは出さない） */}
+        {guaNotices.length > 0 && (
+          <Message kind="warn" style={{ margin: "0 0 8px" }}>
+            保証時給がまもなく終了: {guaNotices.map((g) => `${g.name}（あと${g.daysLeft}日・${mdOf(g.to)}まで）`).join("、")}
+            <Link href="/casts" className="nox-link" style={{ marginLeft: 8, fontSize: 11, whiteSpace: "nowrap" }}>キャスト管理へ ›</Link>
+          </Message>
+        )}
         {notices.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>お知らせはありません</p>}
         {notices.map((n) => (
           <div key={n.id} className="nox-hrow">

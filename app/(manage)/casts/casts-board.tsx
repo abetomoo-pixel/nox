@@ -8,7 +8,10 @@ import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
-import Toast, { Message } from "@/components/ui/toast";
+import Toast, { Message, type MessageKind } from "@/components/ui/toast";
+import { rpcErrJa, isRpcMissingError } from "@/lib/nox/ui/rpc-err";
+// ★夜間便 N4（裁定282-2／282-3／287-3・0151 ★3）: 保証時給の表示用純関数（DB を知らない）
+import { guaranteeStateOf, guaranteeBadgeOf, addDays, mdOf, type PlanRowLike } from "@/lib/nox/cast/guarantee";
 import Modal from "@/components/ui/modal";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos, uploadCastPhoto } from "@/lib/nox/cast-photo";
@@ -119,6 +122,14 @@ export default function CastsBoard({
   }>>({});
   // E8-5 casts#6（縮小）: 選択キャストの次回シフト（shifts 1行 select・表示専用）
   const [nextShift, setNextShift] = useState<{ date: string; start_hm: string; end_hm: string; status: string } | null>(null);
+  // ★夜間便 N4-1（裁定282-2／287-3）: 保証時給＝cast_plan の履歴行（valid_from／valid_to・overrides_json.guarantee=true）を全件持ち、
+  //   現在行＝今日を含む行（旧: 順不同の最後の行が勝っていた＝履歴行があると現在行を取り違える）。
+  //   guaRpc: set_cast_guarantee の有無（0151 手貼り前は 'missing'＝節ごと非表示）。probe は p_amount null で 'bad amount' が返る＝書込なし。
+  const [planRowsOf, setPlanRowsOf] = useState<Record<string, PlanRowLike[]>>({});
+  const [guaRpc, setGuaRpc] = useState<"unknown" | "ok" | "missing">("unknown");
+  const [guaForm, setGuaForm] = useState<{ mode: "new" | "extend"; amount: string; start: string; end: string } | null>(null);
+  const [guaMsg, setGuaMsg] = useState<{ kind: MessageKind; text: string } | null>(null);
+  const today = new Date().toISOString().slice(0, 10); // 次回シフト（casts#6）と同じ日付の取り方
 
   useEffect(() => { void resolveOrgId(supabase).then(setOrgId); }, [supabase]);
 
@@ -146,17 +157,20 @@ export default function CastsBoard({
   }, [month, myStoreId, stores]);
   useEffect(() => { void loadStats(); }, [loadStats]);
   // E8-5 casts#3/#5: プラン割当＋実値の一括取得（表示専用・2 select のみ）
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
+  //   ★N4-1: valid_from／valid_to を足して履歴行を全件持ち、表示する割当は「今日を含む行」（無ければ valid_to null の行）。保証の保存後に再読込。
+  const loadPlans = useCallback(async () => {
       const [{ data: cp }, { data: pl }] = await Promise.all([
-        supabase.from("cast_plan").select("cast_id, plan_id, overrides_json"),
+        supabase.from("cast_plan").select("cast_id, plan_id, overrides_json, valid_from, valid_to"),
         supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate"),
       ]);
-      if (!alive) return;
       const m: Record<string, { planId: string; ov: Record<string, number | string> }> = {};
+      const rowsOf: Record<string, PlanRowLike[]> = {};
       for (const r of (cp ?? []) as Record<string, unknown>[]) {
-        m[r.cast_id as string] = { planId: r.plan_id as string, ov: (r.overrides_json ?? {}) as Record<string, number | string> };
+        const cid = r.cast_id as string;
+        const vf = (r.valid_from as string) ?? "0000-01-01"; const vt = (r.valid_to as string | null) ?? null;
+        (rowsOf[cid] ??= []).push({ valid_from: vf, valid_to: vt, overrides_json: r.overrides_json });
+        const isCurrent = vf <= today && (vt === null || today <= vt);
+        if (isCurrent || (!m[cid] && vt === null)) m[cid] = { planId: r.plan_id as string, ov: (r.overrides_json ?? {}) as Record<string, number | string> };
       }
       const p: typeof plansById = {};
       for (const r of (pl ?? []) as Record<string, unknown>[]) {
@@ -167,11 +181,19 @@ export default function CastsBoard({
           jonai_back_mode: (r.jonai_back_mode as string) ?? "per_count", jonai_back_rate: r.jonai_back_rate as number | null,
         };
       }
-      setCastPlanOf(m); setPlansById(p);
-    })();
+      setCastPlanOf(m); setPlansById(p); setPlanRowsOf(rowsOf);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today]);
+  useEffect(() => { void loadPlans(); }, [loadPlans]);
+  // ★N4-1: set_cast_guarantee の有無を 1 回だけ探る（引数 null＝RPC は 'bad amount' を raise・書込なし。未適用なら PostgREST が「関数が無い」を返す）
+  useEffect(() => {
+    let alive = true;
+    void supabase.rpc("set_cast_guarantee", { p_cast_id: null, p_amount: null, p_start: null, p_end: null })
+      .then(({ error }) => { if (alive) setGuaRpc(error && isRpcMissingError(error.message) ? "missing" : "ok"); });
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => { setGuaForm(null); setGuaMsg(null); }, [sel, dtab]); // 281-4: 選択・タブが変わったら節内のフォームと成否を消す
   // E8-5 casts#6（縮小）: 選択キャストの次回シフト（今日以降の最初の1行）
   useEffect(() => {
     setNextShift(null);
@@ -276,6 +298,27 @@ export default function CastsBoard({
     await reloadLoginCasts();
   }
 
+  // ★夜間便 N4-1（裁定287-3・0151 ★3）: 保証時給の設定／延長＝set_cast_guarantee(p_cast_id, p_amount, p_start, p_end)。
+  //   延長＝現在の保証の終了日の翌日を開始日にして同じ金額で送る（RPC (b) 経路＝戻し行を保証行に書き換える）。成否は節内の Message。
+  async function saveGuarantee(c: CastLogin) {
+    if (!guaForm) return;
+    const amount = Number(guaForm.amount);
+    const start = guaForm.start; const end = guaForm.end;
+    if (!Number.isInteger(amount) || amount <= 0) { setGuaMsg({ kind: "error", text: "金額は 1 円以上の整数で入力してください" }); return; }
+    if (!start || !end || end < start) { setGuaMsg({ kind: "error", text: "終了日は開始日以降にしてください" }); return; }
+    setBusy(true); setGuaMsg(null);
+    const { error } = await supabase.rpc("set_cast_guarantee", { p_cast_id: c.id, p_amount: amount, p_start: start, p_end: end });
+    setBusy(false);
+    if (error) {
+      if (isRpcMissingError(error.message)) setGuaRpc("missing");
+      setGuaMsg({ kind: "error", text: rpcErrJa(error.message) });
+      return;
+    }
+    setGuaMsg({ kind: "success", text: guaForm.mode === "extend" ? `保証時給を ${mdOf(end)} まで延長しました` : `保証時給を設定しました（${mdOf(start)}〜${mdOf(end)}）` });
+    setGuaForm(null);
+    await loadPlans();
+  }
+
   const docs = (tr: Trial) => tr.documents ?? {};
   const allDocs = (tr: Trial) => DOC_KEYS.every((d) => docs(tr)[d.key] === true);
 
@@ -364,6 +407,8 @@ export default function CastsBoard({
   // E8-5 casts#3: 副次情報のラベル（ランク名・プラン名）
   const rankNameOf = (c: CastLogin) => (c.rank_id ? ranks.find((r) => r.id === c.rank_id)?.name ?? null : null);
   const planNameOf = (id: string) => { const a = castPlanOf[id]; return a ? plansById[a.planId]?.name ?? null : null; };
+  // ★N4-2（裁定282-3）: 保証時給の残りが 7 日以内なら印（純関数・0151 未適用でも cast_plan に保証行が無ければ null）
+  const guaBadgeOf = (id: string) => guaranteeBadgeOf(guaranteeStateOf(planRowsOf[id] ?? [], today));
   const selCast = sel?.kind === "cast" ? loginCasts.find((c) => c.id === sel.id) ?? null : null;
   const selTrial = sel?.kind === "trial" ? trials.find((tr) => tr.id === sel.id) ?? null : null;
 
@@ -513,10 +558,12 @@ export default function CastsBoard({
                   <div className="csub">{c.is_active ? "在籍" : "退店"} / {c.user_id ? "ログイン済み" : "未招待"}</div>
                   {/* E8-5 casts#3: 副次情報（ランク・プラン名）。LINE 連携は T3 後送り＝出さない */}
                   {/* ★裁定196'（B1・K16）: ランク名／プラン名をモックのバッジ形（nox-stpill）へ＝表示スタイルのみ・値は不変・意味名トークン */}
-                  {(rankNameOf(c) || planNameOf(c.id)) && (
+                  {(rankNameOf(c) || planNameOf(c.id) || guaBadgeOf(c.id)) && (
                     <div className="csub" style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
                       {rankNameOf(c) && <span className="nox-stpill" style={{ color: "var(--v2-text)" }}>{rankNameOf(c)}</span>}
                       {planNameOf(c.id) && <span className="nox-stpill" style={{ color: "var(--v2-muted)" }}>{planNameOf(c.id)}</span>}
+                      {/* ★夜間便 N4-2（裁定282-3）: 保証時給の期限が 7 日以内＝「保証 あと n 日」（warn 色・期限切れ当日以降は出さない） */}
+                      {guaBadgeOf(c.id) && <span className="nox-stpill warn">保証 あと{guaBadgeOf(c.id)!.daysLeft}日</span>}
                     </div>
                   )}
                 </div>
@@ -692,6 +739,55 @@ export default function CastsBoard({
                     <div className="nox-frow"><span className="k">場内バック</span><span className="v num">{jonaiLabel}</span></div>
                     <div className="nox-frow"><span className="k">同伴バック</span><span className="v num">¥{num("dohanBack", p.dohan_back).toLocaleString()}/本</span></div>
                   </>
+                );
+              })()}
+              {/* ★夜間便 N4-1（裁定282-2／287-3・0151 ★3 set_cast_guarantee）: 保証時給＝期限つきの個別時給（cast_plan の保証行）。
+                  owner／manager のみ（page.tsx が他ロールを redirect 済み）。RPC 未適用（0151 手貼り前）は節ごと非表示。
+                  延長＝終了日だけ変更（開始日＝現在の終了日の翌日・金額は同じ）。成否は節内の Message（281-3）。 */}
+              {guaRpc !== "missing" && (() => {
+                const st = guaranteeStateOf(planRowsOf[selCast.id] ?? [], today);
+                const cur = st.current;
+                const span = (g: { from: string; to: string | null }) => `${mdOf(g.from)}〜${g.to ? mdOf(g.to) : "期限なし"}`;
+                return (
+                  <div className="nox-inset" style={{ padding: "10px 14px", margin: "6px 0 10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)" }}>保証時給</span>
+                      {cur
+                        ? <button style={btnGhost} disabled={busy || guaRpc !== "ok" || !cur.to}
+                            onClick={() => { setGuaMsg(null); setGuaForm({ mode: "extend", amount: String(cur.base), start: addDays(cur.to ?? today, 1), end: addDays(cur.to ?? today, 30) }); }}>延長</button>
+                        : <button style={btnGhost} disabled={busy || guaRpc !== "ok" || !!st.upcoming}
+                            onClick={() => { setGuaMsg(null); setGuaForm({ mode: "new", amount: "", start: today, end: addDays(today, 29) }); }}>保証を設定</button>}
+                    </div>
+                    <div className="nox-frow"><span className="k">現在</span>
+                      <span className="v num">{cur ? `¥${cur.base.toLocaleString()}　${span(cur)}${st.daysLeft !== null ? `（あと ${st.daysLeft} 日）` : ""}` : "なし"}</span></div>
+                    {st.upcoming && <div className="nox-frow"><span className="k">予定</span><span className="v num">¥{st.upcoming.base.toLocaleString()}　{span(st.upcoming)}</span></div>}
+                    {st.history.length > 0 && (
+                      <div className="nox-frow"><span className="k">履歴</span>
+                        <span className="v" style={{ fontSize: 12, color: "var(--v2-muted)" }}>
+                          {st.history.slice(0, 5).map((g) => `${g.from.slice(0, 4)}年 ${span(g)} ¥${g.base.toLocaleString()}`).join("、")}{st.history.length > 5 ? ` ほか${st.history.length - 5}件` : ""}
+                        </span></div>
+                    )}
+                    {guaForm && (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 8 }}>
+                        {guaForm.mode === "new"
+                          ? <>
+                              <label style={lbl}>金額（円）<br /><input type="number" min={1} step={1} value={guaForm.amount} disabled={busy}
+                                onChange={(e) => setGuaForm({ ...guaForm, amount: e.target.value })} style={{ ...input, width: 110 }} /></label>
+                              <label style={lbl}>開始日<br /><input type="date" min={today} value={guaForm.start} disabled={busy}
+                                onChange={(e) => setGuaForm({ ...guaForm, start: e.target.value, end: guaForm.end < e.target.value ? addDays(e.target.value, 29) : guaForm.end })} style={{ ...input, width: 150 }} /></label>
+                            </>
+                          : <span style={{ fontSize: 12, color: "var(--sub)", paddingBottom: 8 }}>¥{Number(guaForm.amount).toLocaleString()}・{mdOf(guaForm.start)} から続けて</span>}
+                        <label style={lbl}>終了日<br /><input type="date" min={guaForm.start} value={guaForm.end} disabled={busy}
+                          onChange={(e) => setGuaForm({ ...guaForm, end: e.target.value })} style={{ ...input, width: 150 }} /></label>
+                        <button style={btnGold} disabled={busy} onClick={() => void saveGuarantee(selCast)}>{guaForm.mode === "extend" ? "延長する" : "設定する"}</button>
+                        <button style={btnGhost} disabled={busy} onClick={() => { setGuaForm(null); setGuaMsg(null); }}>やめる</button>
+                      </div>
+                    )}
+                    {guaMsg && <Message kind={guaMsg.kind} onDismiss={() => setGuaMsg(null)}>{guaMsg.text}</Message>}
+                    <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "6px 0 0", lineHeight: 1.7 }}>
+                      期間中は基本時給の代わりにこの金額で計算し、終了の翌日から元の待遇に戻ります。
+                    </p>
+                  </div>
                 );
               })()}
               {/* ★待遇プランの編集経路は現行この画面に存在しない（マスタ側）。

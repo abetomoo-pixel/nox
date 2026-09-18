@@ -43,6 +43,12 @@ const MAP: Array<[RegExp, string]> = [
 
 const JA = /[぀-ヿ一-龯]/;
 
+/** ★夜間便 N4（2026-09-18）: RPC がまだ DB に無い（マイグレーション未適用）ときの PostgREST／Postgres の文言＝画面側は節ごと非表示にする */
+export function isRpcMissingError(msg: string | null | undefined): boolean {
+  const m = (msg ?? "").toLowerCase();
+  return /could not find the function|does not exist|pgrst202|schema cache/.test(m);
+}
+
 /** 生の RPC 語→日本語。写像に無い英字コードは「処理できませんでした（コード: xxx）」。日本語が含まれる文言はそのまま */
 export function rpcErrJa(msg: string | null | undefined): string {
   if (!msg) return "処理できませんでした";
