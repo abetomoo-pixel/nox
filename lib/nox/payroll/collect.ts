@@ -7,6 +7,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { periodCalendarDays, type PayrollWindow } from "./window";
 import type { CastRaw, StoreMasters } from "./assemble";
+import { calcPeriodOf } from "./assemble"; // ★0154 D6
+/** ★0154 D2: 'HH:MM'（0-47 域）→ 分（shift-time.hm2min と同式・collect 内で閉じる） */
+const hm2minOf = (hm: string): number => { const [h, mm] = String(hm).split(":").map(Number); return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(mm) ? mm : 0); };
 import type { AdjustmentRow } from "./adjust"; // 裁定258／264
 import type { CompPlan, PlanOverride, Deduction, BackDef, TaxMode } from "../pay";
 import { buildMatchInput, dayWorkedHours, type PunchRow, type ShiftRow, type AttendanceRow } from "../punch-io";
@@ -331,7 +334,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
   for (const a of (attR.data ?? []) as Record<string, unknown>[]) ensure(a.cast_id as string).att.push({ date: a.date as string, status: a.status as AttendanceRow["status"] });
   for (const p of (punchR.data ?? []) as Record<string, unknown>[]) ensure(p.cast_id as string).punches.push({ punched_at: p.punched_at as string, type: p.type as "in" | "out" });
 
-  const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number> }>();
+  const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number }>();
   // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
   const recipientsByDate = new Map<string, string[]>();
   for (const [cid, raw] of byCast) {
@@ -341,6 +344,10 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     let days = 0;
     let anomalyCount = 0;
     const missingOutDates: string[] = []; // ★N3 AV-4: 退勤の記録が無い勤務（in はあり out が無い営業日・表示のみ）
+    // ★0154 D2: 確定シフトの時間（日別・shift_guarantee 用）と出勤区分（shukkin／late／dohan）の回数（per_shift 用）
+    const shiftHoursByDate: Record<string, number> = {};
+    for (const sh of raw.shifts) shiftHoursByDate[sh.date] = (shiftHoursByDate[sh.date] ?? 0) + Math.max(0, (hm2minOf(sh.end_hm) - hm2minOf(sh.start_hm)) / 60);
+    const attendanceDays = raw.att.filter((a) => a.status === "shukkin" || a.status === "late" || a.status === "dohan").length;
     for (const d of m.days) {
       hoursByDate.set(d.bizDate, dayWorkedHours(d));
       if (d.final.type === "ok" || d.final.type === "late") {
@@ -351,7 +358,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       if (d.anomalies.length > 0 || outAnom) anomalyCount += 1;
       if (d.raw.out.type === "noout" && (d.final.type === "ok" || d.final.type === "late")) missingOutDates.push(d.bizDate); // ★N3 AV-4
     }
-    result.set(cid, { days, lateN: m.lateN, absentN: m.absentN, anomalyCount, missingOutDates, hoursByDate });
+    result.set(cid, { days, lateN: m.lateN, absentN: m.absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays });
   }
   // pooled 端数 +1 の順序を確定させるため cast_id 昇順にソート
   for (const [d, list] of recipientsByDate) recipientsByDate.set(d, list.sort());
@@ -604,13 +611,15 @@ export async function collectPeriod(
   if (targetIds.size === 0) return { casts: [], masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast };
 
   // cast 名＋employment（is_active 不問＝退職者含む。employment は裁定98 の二層分岐キー）
-  const { data: castRows, error: eN } = await admin.from("casts").select("id, name, employment").in("id", [...targetIds]);
+  const { data: castRows, error: eN } = await admin.from("casts").select("id, name, employment, joined_on, left_on").in("id", [...targetIds]); // ★0154 D6: 計算期間（入店日／退店日）
   if (eN) throw new Error(`casts: ${eN.message}`);
   const nameById = new Map<string, string>();
   const employmentById = new Map<string, "委託" | "雇用" | null>();
-  for (const c of (castRows ?? []) as { id: string; name: string; employment: "委託" | "雇用" | null }[]) {
+  const calcPeriodById = new Map<string, { start: string; end: string }>(); // ★0154 D6
+  for (const c of (castRows ?? []) as { id: string; name: string; employment: "委託" | "雇用" | null; joined_on: string | null; left_on: string | null }[]) {
     nameById.set(c.id, c.name);
     employmentById.set(c.id, c.employment ?? null);
+    calcPeriodById.set(c.id, calcPeriodOf(win, c.joined_on, c.left_on));
   }
 
   const casts: CastRaw[] = [];
@@ -650,6 +659,8 @@ export async function collectPeriod(
       absentN: p?.absentN ?? 0,
       anomalyCount: p?.anomalyCount ?? 0,
       missingOutDates: p?.missingOutDates ?? [], // ★N3 AV-4（表示のみ・fixture は省略可）
+      ...(p ? { shiftHoursByDate: p.shiftHoursByDate, attendanceDays: p.attendanceDays } : {}), // ★0154 D2
+      ...(calcPeriodById.has(cid) ? { calcPeriod: calcPeriodById.get(cid) } : {}), // ★0154 D6
       plan,
       override: cp?.override,
       ...(guaranteesByCast.has(cid) ? { guarantees: guaranteesByCast.get(cid) } : {}), // ★N3

@@ -25,7 +25,7 @@ export default async function CastsPage() {
   //   （RLS スコープは不変＝取れる範囲は従来どおり自店/自 org）。
   const { data: loginCasts } = await supabase
     .from("casts")
-    .select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on")
+    .select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, employment, employment_valid_from") // ★0154 D2／D6: 契約区分（報酬型の出し分け・区分変更）
     .order("name");
   // D2-4（mig0083/0085）: 指名ランクの割当 UI 用。RLS は owner/manager のみ返す（料率系と同スコープ）。
   const { data: ranks } = await supabase.from("cast_ranks")
@@ -58,4 +58,4 @@ export type Trial = {
 
 // 段C2: 退店済み（is_active=false）も取ってフィルタで出し分けるため is_active/store_id を追加。
 // mig0074: left_on（退店日・date "YYYY-MM-DD"）。null=在籍中（CHECK casts_active_left_on_chk で is_active と一対一）。
-export type CastLogin = { id: string; name: string; user_id: string | null; photo_updated_at: string | null; is_active: boolean; store_id: string; left_on: string | null; rank_id: string | null; joined_on: string | null };
+export type CastLogin = { employment?: "委託" | "雇用" | null; employment_valid_from?: string | null; id: string; name: string; user_id: string | null; photo_updated_at: string | null; is_active: boolean; store_id: string; left_on: string | null; rank_id: string | null; joined_on: string | null };

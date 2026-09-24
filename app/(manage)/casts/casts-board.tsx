@@ -10,6 +10,9 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast, { Message, type MessageKind } from "@/components/ui/toast";
 import { rpcErrJa, isRpcMissingError } from "@/lib/nox/ui/rpc-err";
+import SegSelect from "@/components/ui/seg-select"; // ★0154 D6: 契約区分
+import { NOTE_EMPLOYMENT, NOTE_LABOR, amountKeyOf, laborNoteNeeded, nextPeriodStartOf, overridesWithRule, payRuleLabelOf, payRuleOptionsOf, ruleOfOverrides, type Employment } from "@/lib/nox/cast/pay-rule"; // ★0154 D2／D6
+import type { PayRule } from "@/lib/nox/pay";
 // ★夜間便 N4（裁定282-2／282-3／287-3・0151 ★3）: 保証時給の表示用純関数（DB を知らない）
 import { guaranteeStateOf, guaranteeBadgeOf, addDays, mdOf, type PlanRowLike } from "@/lib/nox/cast/guarantee";
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③: デモでは写真アップロード・招待・PW 再発行の導線を隠す
@@ -118,6 +121,11 @@ export default function CastsBoard({
   // E8-5 casts#3/#5: プラン割当（cast_plan）とプラン実値（comp_plans）＝owner/manager は RLS で読める。
   //   表示専用（編集経路はマスタのまま＝機能不変）。overrides_json は mig0086 の8キー。
   const [castPlanOf, setCastPlanOf] = useState<Record<string, { planId: string; ov: Record<string, number | string> }>>({});
+  // ★0154 D2／D6（裁定291 追補1 B・294-5／294-9）: 報酬型（cast_plan.overrides_json の pay_rule／額）と契約区分（set_cast_employment）の編集状態
+  const [ruleForm, setRuleForm] = useState<{ rule: PayRule; amount: string } | null>(null);
+  const [ruleMsg, setRuleMsg] = useState<{ kind: "error" | "success" | "warn" | "info"; text: string } | null>(null);
+  const [empForm, setEmpForm] = useState<{ employment: Employment; from: string } | null>(null);
+  const [empMsg, setEmpMsg] = useState<{ kind: "error" | "success" | "warn" | "info"; text: string } | null>(null);
   const [plansById, setPlansById] = useState<Record<string, {
     name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
     hon_back_mode: string; hon_back_rate: number | null; jonai_back_mode: string; jonai_back_rate: number | null;
@@ -321,13 +329,46 @@ export default function CastsBoard({
     await loadPlans();
   }
 
+  // ★0154 D2（裁定294-5）: 報酬型の保存＝set_cast_plan（現在行の上書き・overrides は白名単 8 キー＋報酬型 3 キーだけ・guarantee は含めない）
+  async function saveRule(c: CastLogin) {
+    if (!ruleForm) return;
+    const a = castPlanOf[c.id];
+    if (!a) { setRuleMsg({ kind: "error", text: "先に待遇プランを割り当ててください（マスタ ▸ 待遇プラン）" }); return; }
+    if ((a.ov as Record<string, unknown>).guarantee === true) { setRuleMsg({ kind: "warn", text: "保証時給の期間中は報酬型を変更できません（保証の終了後に設定してください）" }); return; }
+    const amount = amountKeyOf(ruleForm.rule) ? Number(ruleForm.amount.replace(/[,，¥￥\s]/g, "")) : null;
+    const ov = overridesWithRule(a.ov, ruleForm.rule, amountKeyOf(ruleForm.rule) ? (Number.isFinite(amount as number) ? (amount as number) : null) : null);
+    if (!ov.ok) { setRuleMsg({ kind: "error", text: ov.err }); return; }
+    setBusy(true); setRuleMsg(null);
+    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: a.planId, p_overrides: ov.overrides, p_valid_from: null });
+    setBusy(false);
+    if (error) { setRuleMsg({ kind: "error", text: rpcErrJa(error.message) }); return; }
+    setRuleMsg({ kind: "success", text: `報酬型を「${payRuleLabelOf(ruleForm.rule, c.employment ?? null)}」にしました` });
+    setRuleForm(null);
+    await loadPlans();
+  }
+  // ★0154 D6（裁定294-9）: 契約区分の変更＝set_cast_employment（owner のみ・給与期の初日のみ・確定済み期には遡れない）
+  async function saveEmployment(c: CastLogin) {
+    if (!empForm) return;
+    setBusy(true); setEmpMsg(null);
+    const { error } = await supabase.rpc("set_cast_employment", { p_cast_id: c.id, p_employment: empForm.employment, p_valid_from: empForm.from });
+    setBusy(false);
+    if (error) {
+      const m = error.message;
+      setEmpMsg({ kind: "error", text: m === "bad valid_from" ? "契約区分の変更は給与期の初日（月初）からのみです" : m === "period finalized" ? "確定済みの給与期には遡れません（次の期の初日以降を指定してください）" : rpcErrJa(m) });
+      return;
+    }
+    setEmpMsg({ kind: "success", text: `契約区分を「${empForm.employment}」にしました（${empForm.from} から）` });
+    setEmpForm(null);
+    await reloadLoginCasts();
+  }
+
   const docs = (tr: Trial) => tr.documents ?? {};
   const allDocs = (tr: Trial) => DOC_KEYS.every((d) => docs(tr)[d.key] === true);
 
   // ── F3g' castログイン招待（招待=未結線 / PW再発行=結線済み・POST /api/cast/invite） ──
   const reloadLoginCasts = useCallback(async () => {
     // mig0074: left_on を含め、page.tsx と同一の取得にする（.eq(is_active,true) を外す＝段C2 の在籍/退店タブ前提）。
-    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on").order("name");
+    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, employment, employment_valid_from").order("name"); // ★0154 D2／D6
     setLoginCasts((data ?? []) as CastLogin[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -743,6 +784,56 @@ export default function CastsBoard({
                     <div className="nox-frow"><span className="k">場内バック</span><span className="v num">{jonaiLabel}</span></div>
                     <div className="nox-frow"><span className="k">同伴バック</span><span className="v num">¥{num("dohanBack", p.dohan_back).toLocaleString()}/本</span></div>
                   </>
+                );
+              })()}
+              {/* ★0154 D2／D6（裁定291 追補1 B・294-5／294-9）: 報酬型（雇用＝実働時間払い／シフト時間保証／固定給・委託＝時間報酬／1 稼働固定）と契約区分。
+                  報酬型＝set_cast_plan の overrides（pay_rule／per_shift_amount／fixed_amount・'bad pay_rule for employment' は和文）。区分＝set_cast_employment（owner・期初のみ）。 */}
+              {(() => {
+                const a = castPlanOf[selCast.id];
+                const emp = (selCast.employment ?? null) as Employment | null;
+                const cur = ruleOfOverrides(a?.ov ?? null);
+                const opts = payRuleOptionsOf(emp);
+                const curLabel = payRuleLabelOf(cur.rule, emp);
+                return (
+                  <div className="nox-inset" style={{ padding: "10px 14px", margin: "6px 0 10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)" }}>報酬型・契約区分</span>
+                      {!ruleForm && <button style={btnGhost} disabled={busy || !a} title={a ? "" : "先に待遇プランを割り当ててください"}
+                        onClick={() => { setRuleMsg(null); setRuleForm({ rule: cur.rule, amount: cur.amount === null ? "" : String(cur.amount) }); }}>報酬型を変更</button>}
+                      {isOwner && !empForm && <button style={btnGhost} disabled={busy}
+                        onClick={() => { setEmpMsg(null); setEmpForm({ employment: emp ?? "委託", from: nextPeriodStartOf(today) }); }}>契約区分を変更</button>}
+                    </div>
+                    <div className="nox-frow"><span className="k">契約区分</span><span className="v">{emp ?? "未設定"}{selCast.employment_valid_from ? <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 6 }}>（{selCast.employment_valid_from} から）</span> : null}</span></div>
+                    <div className="nox-frow"><span className="k">報酬型</span><span className="v">{curLabel}{cur.amount !== null ? <span className="num" style={{ marginLeft: 6 }}>¥{cur.amount.toLocaleString()}{cur.rule === "per_shift" ? "／稼働" : "／期"}</span> : null}</span></div>
+                    {ruleForm && (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 8 }}>
+                        <label style={lbl}>報酬型<br />
+                          <select value={ruleForm.rule} disabled={busy} onChange={(e) => setRuleForm({ ...ruleForm, rule: e.target.value as PayRule })} style={{ ...input, width: 190 }}>
+                            {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select></label>
+                        {amountKeyOf(ruleForm.rule) && (
+                          <label style={lbl}>{ruleForm.rule === "per_shift" ? "1 稼働の額（円）" : "期の定額（円）"}<br />
+                            <input type="number" min={0} step={1} value={ruleForm.amount} disabled={busy} onChange={(e) => setRuleForm({ ...ruleForm, amount: e.target.value })} style={{ ...input, width: 130 }} /></label>
+                        )}
+                        <button style={btnGold} disabled={busy} onClick={() => void saveRule(selCast)}>保存する</button>
+                        <button style={btnGhost} disabled={busy} onClick={() => { setRuleForm(null); setRuleMsg(null); }}>やめる</button>
+                      </div>
+                    )}
+                    {ruleMsg && <Message kind={ruleMsg.kind} onDismiss={() => setRuleMsg(null)}>{ruleMsg.text}</Message>}
+                    {empForm && (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 8 }}>
+                        <SegSelect value={empForm.employment} onChange={(v) => setEmpForm({ ...empForm, employment: v as Employment })} options={[["委託", "委託"], ["雇用", "雇用"]]} ariaLabel="契約区分" />
+                        <label style={lbl}>適用開始（給与期の初日）<br /><input type="date" value={empForm.from} disabled={busy} onChange={(e) => setEmpForm({ ...empForm, from: e.target.value })} style={{ ...input, width: 150 }} /></label>
+                        <button style={btnGold} disabled={busy} onClick={() => void saveEmployment(selCast)}>変更する</button>
+                        <button style={btnGhost} disabled={busy} onClick={() => { setEmpForm(null); setEmpMsg(null); }}>やめる</button>
+                      </div>
+                    )}
+                    {empMsg && <Message kind={empMsg.kind} onDismiss={() => setEmpMsg(null)}>{empMsg.text}</Message>}
+                    <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "6px 0 0", lineHeight: 1.7 }}>
+                      {NOTE_EMPLOYMENT} 区分の変更は給与期の初日からのみ・確定済みの期には遡りません。
+                      {laborNoteNeeded(emp, cur.rule, false) && <><br />{NOTE_LABOR}</>}
+                    </p>
+                  </div>
                 );
               })()}
               {/* ★夜間便 N4-1（裁定282-2／287-3・0151 ★3 set_cast_guarantee）: 保証時給＝期限つきの個別時給（cast_plan の保証行）。

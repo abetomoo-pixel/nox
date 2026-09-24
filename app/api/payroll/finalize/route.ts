@@ -47,6 +47,7 @@ export async function POST(req: Request) {
       adv_deducted: r.advDeducted, // F2e-2: {advance_id, amount}[]（deducted/部分/繰越）
       adv_carried: r.advCarried, // F2e-2: {advance_id}[]（deduct_period→翌 period）
       okuri_deducted: r.okuriDeducted, // F2e-2: {transport_id, amount}[]（繰越なし＝carried 無し）
+      ...(r.calcPeriodStart && r.calcPeriodEnd ? { calc_period_start: r.calcPeriodStart, calc_period_end: r.calcPeriodEnd } : {}), // ★0154 D6（294-8）: 同名キーを finalize が payslips へ写す
     }));
     const { data: count, error: eFin } = await g.admin.rpc("payroll_finalize", {
       p_org_id: g.orgId, // サーバ導出（auth_org_id）

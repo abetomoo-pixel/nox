@@ -39,6 +39,7 @@ import {
   type PayInput,
   type Product,
   type Metrics,
+  payRulesFor, // ★0154 D2
 } from "../lib/nox/pay";
 
 // ── assert ────────────────────────────────────────────────────
@@ -441,6 +442,35 @@ eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
   eq("T13-6 ポイントの月間閾値（50pt）でも段が決まる→4500", `${pts.wage}/${pts.slideBasis?.months[0].ptsWage}`, "4500/4500");
   const reinaAgain2 = payOf(REINA_INPUT);
   eq("T13-7 golden 不変（玲奈 5931／125802・slideBasis キー無し）", `${reinaAgain2.wage}/${reinaAgain2.withholding}/${"slideBasis" in reinaAgain2}`, "5931/125802/false");
+}
+
+// ── T14 ★0154 D2（裁定291 追補1 B／294-5）: 報酬型 pay_rule（actual／shift_guarantee／fixed／per_shift）＝timePay だけを置き換える・actual はキー無し
+//   逆テスト＝pay.ts の `timePayRule +` を `wd.timePay +` にする→T14-3／T14-5／T14-7 赤・戻して緑
+{
+  const P_R: CompPlan = { id: "p_r", name: "報酬型", base: 2000, honBack: 0, jonaiBack: 0, dohanBack: 0, salesSlide: [], pointSlide: [] };
+  const daily = [{ d: 1, hours: 4, sales: 0 }, { d: 2, hours: 6, sales: 0 }, { d: 3, hours: 5, sales: 0 }];
+  const base: PayInput = { ...REINA_INPUT, cast: { hon: 0, jonai: 0, dohan: 0, days: 3, sales: 0 }, daily, plan: P_R, pointProducts: 0, customBackDefs: [], deductions: [], periodDays: 30, extrasTotal: 0, taxMode: "雇用" };
+  const a0 = payOf(base);
+  eq("T14-1 actual（override 無し）＝timePay 2000×15h＝30000・payRule キー無し", `${a0.timePay}/${"payRule" in a0}`, "30000/false");
+  const a1 = payOf({ ...base, override: { pay_rule: "actual" } });
+  eq("T14-2 actual を明示しても同値・キー無し", `${a1.timePay}/${"payRule" in a1}`, "30000/false");
+  const sg = payOf({ ...base, override: { pay_rule: "shift_guarantee" }, shiftHoursByDay: { 1: 6, 2: 5, 3: 5 } });
+  eq("T14-3 shift_guarantee: 日ごと max(実働, シフト)＝6+6+5=17h→34000・guaranteedHours 17・timePayActual 30000・timePay 以外の項は不変", `${sg.timePay}/${sg.payRule?.guaranteedHours}/${sg.payRule?.timePayActual}/${sg.gross - sg.timePay === a0.gross - a0.timePay}`, "34000/17/30000/true");
+  const sg0 = payOf({ ...base, override: { pay_rule: "shift_guarantee" } });
+  eq("T14-4 shift_guarantee 境界: シフト時間の入力が無い＝実働と同値 30000（キーはある）", `${sg0.timePay}/${sg0.payRule?.rule}`, "30000/shift_guarantee");
+  const fx = payOf({ ...base, override: { pay_rule: "fixed", fixed_amount: 300000 } });
+  eq("T14-5 fixed: 期の定額 300000（按分なし＝calcPeriodDays 未指定）・timePay 以外の項は不変", `${fx.timePay}/${fx.payRule?.calcDays}/${fx.payRule?.periodDays}/${fx.gross - fx.timePay === a0.gross - a0.timePay}`, "300000/30/30/true");
+  const fx2 = payOf({ ...base, override: { pay_rule: "fixed", fixed_amount: 300000 }, calcPeriodDays: 15 });
+  const fx3 = payOf({ ...base, override: { pay_rule: "fixed", fixed_amount: 300000 }, calcPeriodDays: 10 });
+  eq("T14-6 fixed 境界: 期中入店（15/30 日）＝暦日按分 150000・roundYen（300000×10/30＝100000）", `${fx2.timePay}/${fx3.timePay}`, "150000/100000");
+  const ps = payOf({ ...base, override: { pay_rule: "per_shift", per_shift_amount: 12000 }, attendanceDays: 4 });
+  eq("T14-7 per_shift: 出勤回数 4×12000＝48000（実働時間は使わない）・timePay 以外の項は不変", `${ps.timePay}/${ps.payRule?.shiftCount}/${ps.gross - ps.timePay === a0.gross - a0.timePay}`, "48000/4/true");
+  const ps0 = payOf({ ...base, override: { pay_rule: "per_shift", per_shift_amount: 12000 } });
+  const ps1 = payOf({ ...base, override: { pay_rule: "per_shift" } });
+  eq("T14-8 per_shift 境界: attendanceDays 未指定＝cast.days（3）×12000＝36000・額 0 なら 0", `${ps0.timePay}/${ps1.timePay}`, "36000/0");
+  eq("T14-9 payRulesFor: 雇用＝actual／shift_guarantee／fixed・委託／null＝actual／per_shift", `${payRulesFor("雇用").join(",")}|${payRulesFor("委託").join(",")}|${payRulesFor(null).join(",")}`, "actual,shift_guarantee,fixed|actual,per_shift|actual,per_shift");
+  const reinaR = payOf(REINA_INPUT);
+  eq("T14-10 golden 不変（玲奈 5931／125802・payRule キー無し）", `${reinaR.wage}/${reinaR.withholding}/${"payRule" in reinaR}`, "5931/125802/false");
 }
 
 if (fails.length) {

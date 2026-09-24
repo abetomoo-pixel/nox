@@ -57,6 +57,10 @@ export type CastRaw = {
   // ★裁定258／264: run 別調整控除（payroll_adjustments・当該 cast 分）。optional＝collect の結線は次レーン（未結線は []）。
   //   二段 payOf（core 187／205）の両方へ同じ行が入る＝調整が先に引かれ available が減る（裁定258 配分順序）。
   adjustments?: AdjustmentRow[];
+  // ★0154 D2／D6（裁定291 追補1 B・294-8）: 報酬型の入力と計算期間。collect が格納・fixture は省略＝従来と同値
+  shiftHoursByDate?: Record<string, number>; // 確定シフトの時間（bizDate→h・shift_guarantee 用）
+  attendanceDays?: number;                   // 出勤区分（shukkin／late／dohan）の回数（per_shift 用）
+  calcPeriod?: { start: string; end: string }; // 計算期間（入店日／退店日で run の期間を切る・payslips.calc_period_* へ凍結）
 };
 
 // 店共通マスタ（loadStoreMasters が組む）。
@@ -102,6 +106,16 @@ export function slideInputOf(raw: Pick<CastRaw, "daily" | "slideApply" | "prevMo
   return Object.keys(byDay).length ? { slideByDay: byDay } : {};
 }
 
+/** 計算期間の暦日数（両端含む・UTC 差分＝window.periodDaysBetween と同式） */
+export function calcDaysOf(p: { start: string; end: string }): number {
+  return Math.round((Date.parse(p.end + "T00:00:00Z") - Date.parse(p.start + "T00:00:00Z")) / 86_400_000) + 1;
+}
+/** ★0154 D6（裁定294-8／税理士 T1）: 計算期間＝run の期間を入店日（joined_on）／退店日（left_on）で切る。両方 null なら run の期間 */
+export function calcPeriodOf(win: { periodStart: string; periodEnd: string }, joinedOn: string | null | undefined, leftOn: string | null | undefined): { start: string; end: string } {
+  const start = joinedOn && joinedOn > win.periodStart ? joinedOn : win.periodStart;
+  const end = leftOn && leftOn < win.periodEnd ? leftOn : win.periodEnd;
+  return { start, end: end < start ? start : end };
+}
 export function buildPayInput(
   raw: CastRaw,
   taxMode: TaxMode,
@@ -140,8 +154,12 @@ export function buildPayInput(
     arDeduct, // 売掛天引き（E9 で算出した確定額）
     advanceDeduct, // 前借り天引き（F2e-2・E9 同型）
     okuriDeduct, // 送り実費天引き（F2e-2・繰越なし）
-    periodDays, // ★計算期間の暦日数（源泉専用・出勤日数 raw.days とは別物）
+    periodDays: raw.calcPeriod ? calcDaysOf(raw.calcPeriod) : periodDays, // ★計算期間の暦日数（源泉専用・出勤日数 raw.days とは別物）。★0154 D6: 計算期間があればその暦日数（欠損は従来）
     extrasTotal, // ★加算合計（gross に入る＝源泉対象）
+    // ★0154 D2: 報酬型の入力（未指定キーは足さない＝従来と 1 バイト同値）
+    ...(raw.shiftHoursByDate ? { shiftHoursByDay: Object.fromEntries(Object.entries(raw.shiftHoursByDate).map(([d, h]) => [dayNum(d), h])) } : {}),
+    ...(raw.attendanceDays !== undefined ? { attendanceDays: raw.attendanceDays } : {}),
+    ...(raw.calcPeriod ? { calcPeriodDays: calcDaysOf(raw.calcPeriod), periodDays } : {}),
     employment: raw.employment, // ★裁定98: sanction 二層ガードの分岐キー
     avgDailyWage: raw.avgDailyWage, // ★裁定98-C: null=暫定式
     taxMode,

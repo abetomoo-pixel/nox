@@ -65,7 +65,26 @@ export type PlanOverride = Partial<
   Pick<CompPlan,
     "base" | "honBack" | "jonaiBack" | "dohanBack"
     | "honBackMode" | "honBackRate" | "jonaiBackMode" | "jonaiBackRate">
->;
+> & {
+  // ★0154 D2（裁定291 追補1 B／294-5）: 報酬型（cast_plan.overrides_json の 3 キー・set_cast_plan の白名単）。欠損＝'actual'（現行式）
+  pay_rule?: PayRule;
+  per_shift_amount?: number; // per_shift: 1 稼働あたりの額（円）
+  fixed_amount?: number;     // fixed: 期の定額（円・期中入退店は calcPeriodDays／periodDays で暦日按分）
+};
+/** 報酬型: actual＝実働時間払い（現行）／shift_guarantee＝日ごと max(実働, 確定シフト時間)（雇用）／fixed＝期の定額（雇用）／per_shift＝出勤回数×額（委託） */
+export type PayRule = "actual" | "shift_guarantee" | "fixed" | "per_shift";
+export const PAY_RULES: readonly PayRule[] = ["actual", "shift_guarantee", "fixed", "per_shift"];
+/** 契約区分ごとに選べる報酬型（set_cast_plan の 'bad pay_rule for employment' と同じ規則） */
+export function payRulesFor(employment: "委託" | "雇用" | null | undefined): PayRule[] {
+  return employment === "雇用" ? ["actual", "shift_guarantee", "fixed"] : ["actual", "per_shift"];
+}
+export type PayRuleDetail = {
+  rule: PayRule;
+  timePayActual: number;     // 現行式（実働）の timePay＝比較・明細用
+  guaranteedHours?: number;  // shift_guarantee: Σmax(実働, シフト)（roundPt1）
+  fixedAmount?: number; calcDays?: number; periodDays?: number; // fixed: 按分の分子・分母
+  perShiftAmount?: number; shiftCount?: number; // per_shift
+};
 
 export type DailyRecord = { d: number; hours: number; sales: number };
 
@@ -226,6 +245,10 @@ export type PayInput = {
   //   core が 'no_employment' blocker で先に止める＝payOf がここで null を見るのは sim 経路のみ（現行式同値で計算）。
   employment?: "委託" | "雇用" | null; // casts.employment
   avgDailyWage?: number | null; // 裁定98-C 平均賃金（直近3確定期）。null=暫定式（provisional）
+  // ★0154 D2（裁定291 追補1 B）: 報酬型の入力。未指定＝従来と 1 バイト同値（override.pay_rule が無ければ読まない）。
+  shiftHoursByDay?: Record<number, number>; // d→確定シフトの時間（shift_guarantee＝日ごと max(実働, シフト)）
+  attendanceDays?: number;                  // 出勤区分（出勤・遅刻・同伴）の回数（per_shift＝回数×額・未指定は cast.days）
+  calcPeriodDays?: number;                  // 計算期間の暦日数（fixed の按分＝calcPeriodDays／periodDays・未指定は periodDays＝按分なし）
   taxMode: TaxMode; // cast_tax_profiles.mode
   salesBackTable?: SalesBackStep[];
   sim?: { days?: number; dohan?: number }; // シミュレーター上書き（days は timePay を変えない）
@@ -255,6 +278,7 @@ export type PayResult = {
   wHours: number;
   wbasis: Partial<Record<WageBasis, number>>;
   wdays: WageDay[];
+  payRule?: PayRuleDetail; // ★0154 D2: 報酬型が actual 以外の cast だけ（breakdown_json に凍結される・actual はキー無し＝golden 不変）
   guarantee?: GuaranteeDetail; // ★N3: 保証が効いた cast だけ（breakdown_json に凍結される）
   slideBasis?: SlideBasisDetail; // ★N3b: 'next' の店だけ（breakdown_json に凍結される）
   honBack: number;
@@ -544,7 +568,33 @@ export function payOf(input: PayInput): PayResult {
 
   const { eplan, hasOv } = applyOverride(input.plan, input.override);
 
+  // ★0154 D2（裁定291 追補1 B）: 報酬型。actual＝現行式（1 バイト同値）。shift_guarantee＝日ごと max(実働, 確定シフト時間) で時給計算。
+  //   fixed＝期の定額（暦日按分）。per_shift＝出勤回数×額。timePay だけを置き換え、バック・控除・源泉の式は不変。
+  const rule: PayRule = input.override?.pay_rule ?? "actual";
+  const dailyEff: DailyRecord[] = rule === "shift_guarantee"
+    ? input.daily.map((r) => ({ ...r, hours: Math.max(r.hours, input.shiftHoursByDay?.[r.d] ?? 0) }))
+    : input.daily;
+  const wd0 = rule === "shift_guarantee"
+    ? wageDetail(dailyEff, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay)
+    : null;
   const wd = wageDetail(input.daily, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay); // ★N3／N3b
+  let payRule: PayRuleDetail | undefined;
+  let timePayRule = wd.timePay;
+  if (rule === "shift_guarantee" && wd0) {
+    timePayRule = wd0.timePay;
+    payRule = { rule, timePayActual: wd.timePay, guaranteedHours: wd0.wHours };
+  } else if (rule === "fixed") {
+    const fixedAmount = Math.max(0, Math.trunc(input.override?.fixed_amount ?? 0));
+    const pd = input.periodDays > 0 ? input.periodDays : 1;
+    const cd = Math.min(pd, Math.max(0, input.calcPeriodDays ?? pd));
+    timePayRule = roundYen((fixedAmount * cd) / pd);
+    payRule = { rule, timePayActual: wd.timePay, fixedAmount, calcDays: cd, periodDays: pd };
+  } else if (rule === "per_shift") {
+    const perShiftAmount = Math.max(0, Math.trunc(input.override?.per_shift_amount ?? 0));
+    const shiftCount = Math.max(0, Math.trunc(input.attendanceDays ?? effDays));
+    timePayRule = perShiftAmount * shiftCount;
+    payRule = { rule, timePayActual: wd.timePay, perShiftAmount, shiftCount };
+  }
 
   // 指名バック（hon/jonai は実績・dohan は sim 上書き可＝モック te と同一）
   // mig0086: mode='rate' は Σ指名料行×%（母数=check_lines・裁定iii/vi・丸めは Σ後 roundYen 1回=裁定iv）。
@@ -611,7 +661,7 @@ export function payOf(input: PayInput): PayResult {
 
   // 総支給（★extrasTotal＝出勤ボーナス等の報奨金も役務提供の対価＝報酬総額に含める・裁定23-b ①）
   const grossBase =
-    wd.timePay +
+    timePayRule +      // ★0154 D2: 報酬型（actual＝wd.timePay と同値）
     honBack +
     jonaiBack +
     dohanBack +
@@ -699,7 +749,8 @@ export function payOf(input: PayInput): PayResult {
     eplan,
     hasOv,
     wage: wd.wage,
-    timePay: wd.timePay,
+    timePay: timePayRule, // ★0154 D2: 報酬型（actual は wd.timePay と同値）
+    ...(payRule ? { payRule } : {}), // ★0154 D2: actual はキー無し（golden 不変）
     wHours: wd.wHours,
     wbasis: wd.wbasis,
     wdays: wd.wdays,

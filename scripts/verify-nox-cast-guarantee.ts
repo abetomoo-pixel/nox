@@ -20,6 +20,7 @@ import { isRpcMissingError, rpcErrJa } from "../lib/nox/ui/rpc-err";
 import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
 import { pgTx } from "./fixtures-pgtx"; // ★0154 (10)／(11)
+import { amountKeyOf, laborNoteNeeded, nextPeriodStartOf, overridesWithRule, payRuleLabelOf, payRuleOptionsOf, ruleOfOverrides } from "../lib/nox/cast/pay-rule"; // ★0154 D2／D6
 
 let pass = 0;
 const fails: string[] = [];
@@ -86,6 +87,14 @@ const db = fs.readFileSync("app/(manage)/dashboard/dashboard-board.tsx", "utf8")
 const dp = fs.readFileSync("app/(manage)/dashboard/page.tsx", "utf8");
 check("gu(8-5) dashboard: owner/manager のときだけ cast_plan 1 select→guaranteeNoticesOf→warn Message・page が isManagerUp を渡す", /isManagerUp\s*\? await supabase\.from\("cast_plan"\)\.select\("cast_id, valid_from, valid_to, overrides_json"\)/.test(db) && /setGuaNotices\(guaranteeNoticesOf\(/.test(db) && /\{guaNotices\.length > 0 && \(\s*<Message kind="warn"/.test(db) && /isManagerUp=\{isManagerUp\}/.test(dp));
 check("gu(8-6) dashboard: cast_plan の select は 1 箇所（追加取得 ≤1）", (db.match(/from\("cast_plan"\)/g) ?? []).length === 1);
+
+// (12) ★0154 D2／D6: 待遇画面の報酬型・契約区分の純関数（lib/nox/cast/pay-rule.ts）
+check("gu(12-1) payRuleOptionsOf: 雇用＝実働時間払い／シフト時間保証／固定給・委託＝時間報酬／1 稼働固定・null は委託と同じ", JSON.stringify(payRuleOptionsOf("雇用").map((o) => o.label)) === JSON.stringify(["実働時間払い", "シフト時間保証", "固定給"]) && JSON.stringify(payRuleOptionsOf("委託").map((o) => o.label)) === JSON.stringify(["時間報酬", "1 稼働固定"]) && payRuleOptionsOf(null).length === 2);
+check("gu(12-2) overridesWithRule: 白名単 8 キーだけ残し guarantee は落とす・actual は 3 キーとも外す・per_shift は額必須（負／小数は err）", JSON.stringify(overridesWithRule({ honBack: 4500, guarantee: true, base: 3000, pay_rule: "fixed", fixed_amount: 1 }, "actual", null)) === JSON.stringify({ ok: true, overrides: { base: 3000, honBack: 4500 } }) && JSON.stringify(overridesWithRule({ honBack: 4500 }, "per_shift", 12000)) === JSON.stringify({ ok: true, overrides: { honBack: 4500, pay_rule: "per_shift", per_shift_amount: 12000 } }) && !overridesWithRule({}, "per_shift", null).ok && !overridesWithRule({}, "fixed", -1).ok && !overridesWithRule({}, "fixed", 1.5).ok && overridesWithRule({}, "shift_guarantee", null).ok);
+check("gu(12-3) ruleOfOverrides／amountKeyOf／payRuleLabelOf: 欠損＝actual・fixed の額を読む・雇用に per_shift は「（委託向け）」注記", ruleOfOverrides(null).rule === "actual" && ruleOfOverrides({ pay_rule: "fixed", fixed_amount: 250000 }).amount === 250000 && amountKeyOf("shift_guarantee") === null && amountKeyOf("fixed") === "fixed_amount" && payRuleLabelOf("per_shift", "雇用").startsWith("（委託向け）"));
+check("gu(12-4) nextPeriodStartOf／laborNoteNeeded: 翌月 1 日（12 月→翌年 1 月）・委託で per_shift か精算調整あり＝注記", nextPeriodStartOf("2026-09-24") === "2026-10-01" && nextPeriodStartOf("2026-12-05") === "2027-01-01" && laborNoteNeeded("委託", "per_shift", false) && laborNoteNeeded(null, "actual", true) && !laborNoteNeeded("雇用", "fixed", true) && !laborNoteNeeded("委託", "actual", false));
+const cb0154 = fs.readFileSync("app/(manage)/casts/casts-board.tsx", "utf8");
+check("gu(12-5) 配線: casts-board＝報酬型を変更（set_cast_plan・p_valid_from null）・契約区分を変更（set_cast_employment・owner）・注記 NOTE_EMPLOYMENT・保証中は変更不可の warn", /supabase\.rpc\("set_cast_plan", \{ p_cast_id: c\.id, p_plan_id: a\.planId, p_overrides: ov\.overrides, p_valid_from: null \}\)/.test(cb0154) && /supabase\.rpc\("set_cast_employment"/.test(cb0154) && /\{NOTE_EMPLOYMENT\}/.test(cb0154) && /保証時給の期間中は報酬型を変更できません/.test(cb0154) && /isOwner && !empForm/.test(cb0154));
 
 // (9) DB 段（mig0151 ★3 set_cast_guarantee＝AG d3 の移植・裁定287-3／289-3〜6）: pg tx で JWT emulate → ROLLBACK＝残留 0
 async function dbChecks() {
