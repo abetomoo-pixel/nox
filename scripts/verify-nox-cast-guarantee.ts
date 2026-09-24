@@ -72,7 +72,7 @@ check("gu(6-1) 既定の終了日＝開始＋29 日（9/18→10/17）", addDays(
 check("gu(6-2) 月末・年末・うるう年をまたぐ", addDays("2026-12-31", 1) === "2027-01-01" && addDays("2028-02-28", 1) === "2028-02-29" && addDays("2026-10-01", -1) === "2026-09-30");
 check("gu(6-3) mdOf 'YYYY-MM-DD'→'M/D'（先頭 0 なし）", mdOf("2026-09-05") === "9/5" && mdOf("2026-12-31") === "12/31");
 // (7)
-check("gu(7-1) isRpcMissingError: PostgREST の不在文言＝true", isRpcMissingError("Could not find the function public.set_cast_guarantee(p_amount, p_cast_id, p_end, p_start) in the schema cache") && isRpcMissingError("function public.set_cast_guarantee(uuid, integer, date, date) does not exist"));
+check("gu(7-1) isRpcMissingError: PostgREST の不在文言（schema cache／PGRST202）＝true・pg の 'does not exist' 単独は対象外（X2-1）", isRpcMissingError("Could not find the function public.set_cast_guarantee(p_amount, p_cast_id, p_end, p_start) in the schema cache") && isRpcMissingError("PGRST202: x") && !isRpcMissingError("function public.set_cast_guarantee(uuid, integer, date, date) does not exist"));
 check("gu(7-2) isRpcMissingError: 通常の raise は false", !isRpcMissingError("bad amount") && !isRpcMissingError("forbidden") && !isRpcMissingError(null) && !isRpcMissingError("guarantee exists"));
 check("gu(7-3) rpcErrJa: guarantee exists／no plan／bad valid_from／bad valid_to が日本語", /既に保証時給/.test(rpcErrJa("guarantee exists")) && /先に報酬プランを設定してください/.test(rpcErrJa("no plan")) && /開始日/.test(rpcErrJa("bad valid_from")) && /終了日/.test(rpcErrJa("bad valid_to")));
 // (8)

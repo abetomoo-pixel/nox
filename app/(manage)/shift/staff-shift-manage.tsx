@@ -16,7 +16,7 @@ import { deadlineMsOf } from "./staff-shift-board";
 import StaffPlaceDayModal from "./staff-place-day";
 import StaffPlaceByStaffModal from "./staff-place-by-staff";
 import type { PlaceArgs } from "./staff-place-form";
-import { mdDowOf, wishIdFor } from "@/lib/nox/shift/staff-place";
+import { mdDowOf, wishIdFor, canCancel, cancelNeedsReason, nextOf30h } from "@/lib/nox/shift/staff-place";
 import { isRpcMissingError } from "@/lib/nox/ui/rpc-err";
 
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
@@ -40,6 +40,9 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
   const [ovEnd, setOvEnd] = useState("23:00");
   const [ovNext, setOvNext] = useState(false);
   const [ovReason, setOvReason] = useState("");
+  // ★便 X2-2（2026-09-24）: 一覧の「取消」＝入口①と同じ理由モーダル（裁定265 の型）。上書き（ov）と排他＝片方を開くと他方を閉じる
+  const [cancelTarget, setCancelTarget] = useState<StaffShift | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
   // ★N6: 入口①（日付セル→モーダル）・入口②（スタッフから配置）・取消 RPC の有無（0151 手貼り前＝'missing'＝取消ボタンを出さない）
   const [placeDay, setPlaceDay] = useState<string | null>(null);
   const [byStaff, setByStaff] = useState(false);
@@ -104,7 +107,22 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
   }
   function openOverride(s: StaffShift) {
     const endMin = hm2min(s.end_hm);
+    setCancelTarget(null); setCancelReason(""); // ★X2-2: 排他
     setOv(s); setOvStart(s.start_hm); setOvNext(endMin >= 1440); setOvEnd(endMin >= 1440 ? min2hm(endMin - 1440) : s.end_hm); setOvReason("");
+  }
+  function openCancel(s: StaffShift) {
+    setOv(null); // ★X2-2: 排他
+    setMsg(null); setCancelReason(""); setCancelTarget(s);
+  }
+  async function submitCancel() {
+    if (!cancelTarget || busy) return;
+    const needs = cancelNeedsReason(cancelTarget);
+    const reason = cancelReason.trim();
+    if (needs && reason.length === 0) return;
+    const err = await cancelShift(cancelTarget, reason.length ? reason : null);
+    if (err) { setMsg({ kind: "bad", text: err }); return; }
+    setMsg({ kind: "ok", text: `${nameOf(cancelTarget.staff_id)} の ${mdDowOf(cancelTarget.biz_date)} の配置を取り消しました` });
+    setCancelTarget(null); setCancelReason("");
   }
   async function submitOverride() {
     if (!ov || busy) return;
@@ -212,9 +230,13 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
                     </td>
                     <td><span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "var(--gold-bd)" } : undefined}>{ST[s.status] ?? s.status}</span></td>
                     <td>
-                      <span style={{ display: "inline-flex", gap: 6 }}>
-                        <button style={btnLight} disabled={busy || selDay < bizToday} onClick={() => openOverride(s)}>時刻を上書き</button>
-                        {s.status === "proposed" && <button style={btnDark} disabled={busy} onClick={() => void confirmOne(s)}>確定</button>}
+                      <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+                        {/* ★便 X2-2: 一覧にも「取消」（Danger 左＝裁定244・過去日と RPC 未適用は出さない・confirmed は理由モーダル）→「時刻を上書き」→「確定」 */}
+                        {cancelRpc !== "missing" && canCancel(s, bizToday) && (
+                          <button type="button" style={{ ...btnLight, border: "1px solid var(--bad)", color: "var(--bad)" }} disabled={busy || cancelRpc !== "ok"} onClick={() => openCancel(s)}>取消</button>
+                        )}
+                        <button type="button" style={btnLight} disabled={busy || selDay < bizToday} onClick={() => openOverride(s)}>時刻を上書き</button>
+                        {s.status === "proposed" && <button type="button" style={btnDark} disabled={busy} onClick={() => void confirmOne(s)}>確定</button>}
                       </span>
                     </td>
                   </tr>
@@ -237,23 +259,55 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
           onPlace={placeShift} onChanged={onChanged} onClose={() => setByStaff(false)} />
       )}
 
-      {ov && (
-        <Modal onClose={() => setOv(null)}>
-          <h3 style={{ ...t.cardTitle, margin: "0 0 8px" }}>時刻を上書き（{nameOf(ov.staff_id)}・{ov.biz_date}）</h3>
-          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" }}>行の時刻だけを変えます（枠は変わりません・確定後も可・監査に残ります）。</p>
+      {/* ★便 X2-2: 上書きモーダル＝裁定265 の型（.nox-formmodal-head／foot・× で閉じる・キャンセル左・実行右）。翌日は終了≦開始で自動オン（X2-3） */}
+      {ov && !cancelTarget && (
+        <Modal onClose={() => { if (!busy) setOv(null); }}>
+          <div className="nox-formmodal-head">
+            <strong>時刻を上書き</strong>
+            <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={() => setOv(null)}>×</button>
+          </div>
+          <p style={{ fontSize: 12.5, margin: "0 0 4px" }}>{nameOf(ov.staff_id)}・{mdDowOf(ov.biz_date)}（現在 {ov.start_hm}〜{fmtEnd30(ov.end_hm)}）</p>
+          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" }}>行の時刻だけを変えます（枠は変わりません・確定後も可・監査に残ります）。終了が開始より前の時刻なら「翌日」が自動でオンになります。</p>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span style={t.fieldLabel}>開始</span>
-            <input type="time" value={ovStart} onChange={(e) => setOvStart(e.target.value)} style={{ ...input, maxWidth: 108 }} />
+            <input type="time" value={ovStart} onChange={(e) => { setOvStart(e.target.value); setOvNext(nextOf30h(e.target.value, ovEnd)); }} style={{ ...input, maxWidth: 108 }} />
             <span style={t.fieldLabel}>終了</span>
-            <input type="time" value={ovEnd} onChange={(e) => setOvEnd(e.target.value)} style={{ ...input, maxWidth: 108 }} />
+            <input type="time" value={ovEnd} onChange={(e) => { setOvEnd(e.target.value); setOvNext(nextOf30h(ovStart, e.target.value)); }} style={{ ...input, maxWidth: 108 }} />
             <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
               <input type="checkbox" checked={ovNext} onChange={(e) => setOvNext(e.target.checked)} />翌日
             </label>
           </div>
           <input value={ovReason} onChange={(e) => setOvReason(e.target.value)} placeholder="理由（任意）" maxLength={200} style={{ ...input, width: "100%", marginTop: 8 }} />
-          <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button style={btnLight} onClick={() => setOv(null)}>キャンセル</button>
-            <button style={btnDark} disabled={busy} onClick={() => void submitOverride()}>上書きする</button>
+          <div className="nox-formmodal-foot">
+            <button type="button" style={btnLight} disabled={busy} onClick={() => setOv(null)}>キャンセル</button>
+            <button type="button" style={btnDark} disabled={busy} onClick={() => void submitOverride()}>{busy ? "保存中…" : "上書きする"}</button>
+          </div>
+        </Modal>
+      )}
+      {/* ★便 X2-2: 一覧の取消＝裁定265 の型（confirmed＝理由必須・proposed＝理由なし可）。入口①（staff-place-day）のモーダルと同文言 */}
+      {cancelTarget && (
+        <Modal onClose={() => { if (!busy) { setCancelTarget(null); setCancelReason(""); } }} maxWidth={430}>
+          <div className="nox-formmodal-head">
+            <strong>配置を取り消す</strong>
+            <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={() => { setCancelTarget(null); setCancelReason(""); }}>×</button>
+          </div>
+          <p style={{ fontSize: 12.5, margin: "0 0 10px" }}>
+            {nameOf(cancelTarget.staff_id)}・{mdDowOf(cancelTarget.biz_date)} {patterns.find((p) => p.id === cancelTarget.pattern_id)?.name ?? "—"} {cancelTarget.start_hm}〜{fmtEnd30(cancelTarget.end_hm)}（{ST[cancelTarget.status] ?? cancelTarget.status}）
+          </p>
+          {cancelNeedsReason(cancelTarget) ? (
+            <>
+              <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }}>確定済みの取消には理由が必要です（200 字まで・監査に残ります）</p>
+              <input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} maxLength={200} placeholder="例: 本人都合で出勤不可" autoFocus style={{ ...t.input, width: "100%" }} />
+            </>
+          ) : (
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }}>確認待ちの行を取り消します（本人の希望は残ります・再配置できます）。</p>
+          )}
+          <div className="nox-formmodal-foot">
+            <button type="button" onClick={() => void submitCancel()} disabled={busy || (cancelNeedsReason(cancelTarget) && cancelReason.trim().length === 0)}
+              style={{ ...t.btnGhost, border: "1px solid var(--bad)", color: "var(--bad)", opacity: busy || (cancelNeedsReason(cancelTarget) && cancelReason.trim().length === 0) ? 0.5 : 1 }}>
+              {busy ? "取消中…" : "取り消す"}
+            </button>
+            <button type="button" onClick={() => { setCancelTarget(null); setCancelReason(""); }} disabled={busy} style={btnLight}>キャンセル</button>
           </div>
         </Modal>
       )}

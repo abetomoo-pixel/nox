@@ -22,7 +22,9 @@ import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
 // ★夜間便 N6（便 S-6・2026-09-18）: 配置フローの純関数（lib/nox/shift/staff-place.ts）＝DB 前に係留
-import { byStaffNext, canCancel, cancelNeedsReason, defaultPatternFor, mdDowOf, placedDaysOf, staffRowsForDay, wishDaysOf, wishIdFor } from "../lib/nox/shift/staff-place";
+import { byStaffNext, canCancel, cancelNeedsReason, defaultPatternFor, mdDowOf, nextOf30h, placedDaysOf, staffRowsForDay, wishDaysOf, wishIdFor } from "../lib/nox/shift/staff-place";
+import { isRpcMissingError } from "../lib/nox/ui/rpc-err";
+import { fmtEnd30 } from "../app/(manage)/master/staff-shift-panel";
 import fs from "node:fs";
 
 const env = loadEnvOrExit([
@@ -69,9 +71,22 @@ function pureChecks() {
   check("段N6-9 配線: 素の select 0・日付セル→モーダル・「スタッフから配置」・取消は RPC 不在で出さない（cancelRpc）", !/<select/.test(mg) && /setPlaceDay\(day\)/.test(mg) && /スタッフから配置/.test(mg) && /cancelRpc=\{cancelRpc\}/.test(mg) && /rpc\("staff_shift_cancel", \{ p_id: s\.id, p_reason: reason \}\)/.test(mg));
 }
 
+// ★便 X2-4（2026-09-24）: probe 判定・一覧ボタン→モーダル・時刻表示（純関数＋逐語 grep）。逆テスト: nextOf30h の `<=` を `<` にする→段X-3 赤・戻して緑
+function x2Checks() {
+  check("段X-1 probe 判定: PostgREST の「Could not find the function …（schema cache）」だけ missing・RPC の raise（'not_found'／'invalid_input'／'forbidden'）は RPC あり", isRpcMissingError("Could not find the function public.staff_shift_cancel(p_id, p_reason) in the schema cache") && !isRpcMissingError("not_found") && !isRpcMissingError("invalid_input") && !isRpcMissingError("forbidden") && !isRpcMissingError(null));
+  const mg = fs.readFileSync("app/(manage)/shift/staff-shift-manage.tsx", "utf8");
+  check("段X-2 一覧の行に「取消」（cancelRpc !== missing かつ canCancel）と「時刻を上書き」（openOverride）が並び、モーダルは ov／cancelTarget で排他（ov && !cancelTarget・openCancel で setOv(null)・openOverride で setCancelTarget(null)）・裁定265 の型（formmodal-head／foot）",
+    /cancelRpc !== "missing" && canCancel\(s, bizToday\) && \(/.test(mg) && /onClick=\{\(\) => openCancel\(s\)\}>取消<\/button>/.test(mg) && /onClick=\{\(\) => openOverride\(s\)\}>時刻を上書き<\/button>/.test(mg)
+      && /\{ov && !cancelTarget && \(/.test(mg) && /function openCancel\(s: StaffShift\) \{\s*setOv\(null\);/.test(mg) && /setCancelTarget\(null\); setCancelReason\(""\); \/\/ ★X2-2: 排他/.test(mg)
+      && (mg.match(/className="nox-formmodal-head"/g) ?? []).length >= 2 && (mg.match(/className="nox-formmodal-foot"/g) ?? []).length >= 2 && /rpc\("staff_shift_override", \{ p_shift_id: ov\.id/.test(mg));
+  check("段X-3 時刻表示: fmtEnd30 は 24:00 以上だけ「翌」（'47:00'→'翌23:00'・'23:00'→'23:00'・'25:00'→'翌01:00'）・nextOf30h は終了≦開始で true（18:00→23:00 false・18:00→01:00 true・18:00→18:00 true・欠損 false）",
+    fmtEnd30("47:00") === "翌23:00" && fmtEnd30("23:00") === "23:00" && fmtEnd30("25:00") === "翌01:00" && !nextOf30h("18:00", "23:00") && nextOf30h("18:00", "01:00") && nextOf30h("18:00", "18:00") && !nextOf30h("", "23:00") && !nextOf30h("18:00", undefined));
+}
+
 async function main() {
   const t0 = Date.now();
   pureChecks();
+  x2Checks();
   const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });

@@ -13,6 +13,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { hm2min, min2hm } from "@/lib/nox/shift-time";
 import { addDays, bizDateOf } from "@/lib/nox/biz-date";
 
+import { nextOf30h } from "@/lib/nox/shift/staff-place"; // ★便 X2-3
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 AB）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type Pattern = { id: string; name: string; start_hm: string; end_hm: string; effective_from: string; sort_order: number };
@@ -195,10 +196,11 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
           <input value={fName} onChange={(e) => setFName(e.target.value)} placeholder="名前（早番 など）" style={{ ...input, width: 140 }} />
           <span style={t.fieldLabel}>開始</span>
-          <input type="time" value={fStart} onChange={(e) => setFStart(e.target.value)} style={{ ...input, maxWidth: 108 }} />
+          <input type="time" value={fStart} onChange={(e) => { setFStart(e.target.value); setFNext(nextOf30h(e.target.value, fEnd)); }} style={{ ...input, maxWidth: 108 }} />
           <span style={t.fieldLabel}>終了</span>
-          <input type="time" value={fEnd} onChange={(e) => setFEnd(e.target.value)} style={{ ...input, maxWidth: 108 }} />
-          <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
+          <input type="time" value={fEnd} onChange={(e) => { setFEnd(e.target.value); setFNext(nextOf30h(fStart, e.target.value)); }} style={{ ...input, maxWidth: 108 }} />
+          {/* ★便 X2-3（2026-09-24）: 「翌日」は終了≦開始で自動オン（18:00→23:00 と入れると外れる＝47:00＝翌23:00 の枠を誤って作らない）。手で切り替えも可 */}
+          <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }} title="終了が開始より前の時刻なら自動でオン">
             <input type="checkbox" checked={fNext} onChange={(e) => setFNext(e.target.checked)} />翌日
           </label>
           <span style={t.fieldLabel}>◯日から</span>

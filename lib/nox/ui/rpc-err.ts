@@ -46,10 +46,11 @@ const MAP: Array<[RegExp, string]> = [
 
 const JA = /[぀-ヿ一-龯]/;
 
-/** ★夜間便 N4（2026-09-18）: RPC がまだ DB に無い（マイグレーション未適用）ときの PostgREST／Postgres の文言＝画面側は節ごと非表示にする */
+/** ★夜間便 N4（2026-09-18）→ 便 X2-1（2026-09-24）: RPC がまだ DB に無い（マイグレーション未適用）ときの PostgREST の文言（"Could not find the function … in the schema cache"／PGRST202）
+ *  だけを true にする。RPC 自身の raise（'not_found'／'invalid_input'／'forbidden' 等）は「RPC あり」＝false。probe（引数 null で raise・書込なし）の判定に使う。 */
 export function isRpcMissingError(msg: string | null | undefined): boolean {
   const m = (msg ?? "").toLowerCase();
-  return /could not find the function|does not exist|pgrst202|schema cache/.test(m);
+  return /could not find the function|pgrst202|schema cache/.test(m);
 }
 
 /** 生の RPC 語→日本語。写像に無い英字コードは「処理できませんでした（コード: xxx）」。日本語が含まれる文言はそのまま */

@@ -8,7 +8,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { hm2min, min2hm } from "@/lib/nox/shift-time";
 import { fmtEnd30 } from "../master/staff-shift-panel";
 import type { Pattern } from "./staff-shift-board";
-import { defaultPatternFor } from "@/lib/nox/shift/staff-place";
+import { defaultPatternFor, nextOf30h } from "@/lib/nox/shift/staff-place";
 
 export type PlaceArgs = { patternId: string; startHm: string; endHm: string };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
@@ -69,9 +69,9 @@ export default function StaffPlaceForm({ staffName, patterns, wishPatternIds, pl
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
             <span style={t.fieldLabel}>開始</span>
-            <input type="time" value={start} disabled={disabled || busy} onChange={(e) => setStart(e.target.value)} style={{ ...input, maxWidth: 108 }} aria-label="開始" />
+            <input type="time" value={start} disabled={disabled || busy} onChange={(e) => { setStart(e.target.value); setNext(nextOf30h(e.target.value, endBase)); }} style={{ ...input, maxWidth: 108 }} aria-label="開始" />
             <span style={t.fieldLabel}>終了</span>
-            <input type="time" value={endBase} disabled={disabled || busy} onChange={(e) => setEndBase(e.target.value)} style={{ ...input, maxWidth: 108 }} aria-label="終了" />
+            <input type="time" value={endBase} disabled={disabled || busy} onChange={(e) => { setEndBase(e.target.value); setNext(nextOf30h(start, e.target.value)); }} style={{ ...input, maxWidth: 108 }} aria-label="終了" />{/* ★X2-3: 翌日は自動判定 */}
             <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
               <input type="checkbox" checked={next} disabled={disabled || busy} onChange={(e) => setNext(e.target.checked)} />翌日
             </label>

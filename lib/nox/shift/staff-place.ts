@@ -73,6 +73,14 @@ export function wishIdFor(wishes: readonly StaffWishLike[], staffId: string, day
   return wishes.find((w) => w.staff_id === staffId && w.biz_date === day && w.pattern_id === patternId && w.available)?.id ?? null;
 }
 
+/** ★便 X2-3（2026-09-24）: time 入力（HH:MM 0〜23 時台）の開始・終了から「翌日」を自動判定＝終了 ≤ 開始なら翌日（30 時間制の end_hm＝終了＋24h）。
+ *  入力が欠けていれば false（現状維持）。18:00→23:00 は false（同日）・18:00→01:00 は true・同時刻は true（0 分の枠は作らない＝RPC hm_order で拒否） */
+export function nextOf30h(startHm: string | null | undefined, endHm: string | null | undefined): boolean {
+  if (!startHm || !endHm || !/^\d{2}:\d{2}$/.test(startHm) || !/^\d{2}:\d{2}$/.test(endHm)) return false;
+  const toMin = (hm: string) => { const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
+  return toMin(endHm) <= toMin(startHm);
+}
+
 /** 取消（裁定287-1）: 過去の営業日は不可（ボタンを出さない）・confirmed は理由必須 */
 export const canCancel = (s: StaffShiftLike, bizToday: string): boolean => s.biz_date >= bizToday;
 export const cancelNeedsReason = (s: StaffShiftLike): boolean => s.status === "confirmed";
