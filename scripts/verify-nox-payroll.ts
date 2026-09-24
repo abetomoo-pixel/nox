@@ -1713,7 +1713,7 @@ async function main() {
     await pg.connect();
     const t = pgTx(pg);
     try {
-      const nul = await t.one<{ n: number; nul: number; inv: number }>(`select count(*)::int n, (count(*) filter (where ps.calc_period_start is null or ps.calc_period_end is null))::int nul, (count(*) filter (where ps.calc_period_end < ps.calc_period_start))::int inv from public.payslips ps join public.stores s on s.id = ps.store_id where s.name not like 'NOX-VERIFY-%'` // 本 suite が admin で直 insert する fixture 行（finalize を通らない＝calc_period null）は除く);
+      const nul = await t.one<{ n: number; nul: number; inv: number }>(`select count(*)::int n, (count(*) filter (where ps.calc_period_start is null or ps.calc_period_end is null))::int nul, (count(*) filter (where ps.calc_period_end < ps.calc_period_start))::int inv from public.payslips ps join public.stores s on s.id = ps.store_id where s.name not like 'NOX-VERIFY-%'`); // 本 suite が admin で直 insert する fixture 行（finalize を通らない＝calc_period null）は除く
       check("段0154-1 ★payslips.calc_period_* の欠損 0・逆転 0（verify fixture 店を除く実店舗行＝既存行は run の period で埋め戻し済み・以後の finalize は必ず書く）", nul.nul === 0 && nul.inv === 0, JSON.stringify(nul));
       const st = await t.storeA1();
       const owner = await t.uidOf("ownerA"), castA = await t.uidOf("castA1a"), castB = await t.uidOf("castA1b");
