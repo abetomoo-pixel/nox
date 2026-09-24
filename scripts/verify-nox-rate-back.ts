@@ -121,7 +121,7 @@ function pureChecks() {
   const t1b = payOf(REINA_INPUT);
   check("段45-1 ★T1b wage=5931（モック忠実ゴールデン不変）", t1b.wage === 5931, `got ${t1b.wage}`);
   check("段45-1 ★T1b withholding=125802", t1b.withholding === 125_802, `got ${t1b.withholding}`);
-  check("段45-1 ★T1b net=1192348", t1b.net === 1_192_348, `got ${t1b.net}`);
+  check("段45-1 ★T1b net=1208848（★0154 D3: 罰金撤去＝ノルマ未達 16,500 分・旧 1192348・wage 5931／withholding 125802 は不変）", t1b.net === 1_208_848, `got ${t1b.net}`);
   // per_count 構造 assert: honBack/jonaiBack は本数×円/本のまま
   check("段45-1 per_count 構造: honBack=48×4000=192000", t1b.honBack === REINA.hon * P_HI.honBack && t1b.honBack === 192_000, `got ${t1b.honBack}`);
   check("段45-1 per_count 構造: jonaiBack=30×1500=45000", t1b.jonaiBack === REINA.jonai * P_HI.jonaiBack && t1b.jonaiBack === 45_000, `got ${t1b.jonaiBack}`);

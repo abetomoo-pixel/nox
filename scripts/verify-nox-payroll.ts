@@ -1298,7 +1298,7 @@ async function main() {
     check("F2f 複合ゴールデン: gross=820500・fixedDed=20000（送り代×days）・fine=0・normPenalty=0（★0154 D3 罰金撤去＝精算調整へ）・withholding=76115",
       cx.gross === 820_500 && cx.fixedDed === 20_000 && cx.fine === 0 && cx.normPenalty === 0 && cx.withholding === 76_115,
       JSON.stringify({ g: cx.gross, fd: cx.fixedDed, fn: cx.fine, np: cx.normPenalty, wh: cx.withholding }));
-    check("F2f 複合ゴールデン: net=700385（gross−fixedDed−fine−withholding−normPenalty）", cx.net === 724_385, `got ${cx.net}`);
+    check("F2f 複合ゴールデン: net=724385（gross−fixedDed−withholding・★0154 D3 罰金撤去＝旧 700385）", cx.net === 724_385, `got ${cx.net}`);
   }
 
   // ── 4 権限拒否（decidePayrollAccess 純関数）──
