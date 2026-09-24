@@ -2846,6 +2846,10 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 提案（番号なし・2026-09-24・便 0151 手貼り後）: mig の pin 走査（AG c-3 型）は「その値を読む suite を全部」挙げる
+
+0151 の c-3 は set_store_profile 白名単の pin を store-profile だけ挙げ、同じ白名単を prosrc から読む store-systems（ss(4-0)＝20 キー）を落とした→ f0 run1 が 51 段目で赤（`5f76dbc` で 21 キーへ）。同じ値を pin する suite は grep（'set_store_profile'／'20 キー'）で全数を挙げてから張り替える。教訓の番号は相談役が振る。
+
 ### 教訓91：逆テストの破壊・復元に git checkout／stash を使わない（相談役起こし）
 
 出典＝相談役 2026-09-18 受領（逐語）: 「[教訓91] 逆テストの破壊・復元に git checkout/stash を使わない。出典=9/18 Y 便の stash 事故(tracked 変更の退避→結線欠落で発覚・pop で復旧)。」実例＝2026-09-18 便 Y（紹介料の入口）の逆テストで、untracked の lib/nox/register/referral.ts を `git checkout --` で戻そうとして失敗し、フォールバックに書いた `|| git stash -q` が **tracked の register-board／layout／nav-icons の未コミット変更を退避**した。直後の suite で結線 grep（re(8-4)）が赤・サイドバーのアイコン欠けで発覚し `git stash pop` で完全復旧（DB 影響なし）。対策＝逆テストは python（または sed）で壊して同じ手段で戻す・退避が要るならファイルのコピー（cp）で行う・`git checkout`／`git stash`／`git restore` を逆テストや一時退避に使わない。
@@ -3740,7 +3744,8 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 289-7 (7) 返す列は start_date／end_date／wish_deadline の 3 列（一致・変更なし）。
 289 追補1（夜間便の仮決め承認）: N4 (a) 延長は終了日翌日から同額（(b) 経路）／(c) 残り日数＝終了日−今日・終了日当日は「あと 0 日」で印あり／(e) 予定があるときは「保証を設定」を無効化（DB も 289-6 ②で止める）。N5 締切超過の日は選べるまま（DB は拒否しない・案内のみ＝裁定43）。N6 別枠なら配置可・同枠は画面で止める・入口①は cast 以外の active membership 全員。N7 B 群（stripe／cron／print poll・result）は差し込みなし・layout の orgs 読取は新規 fetch 1 を記録して許容・dateshift の +1 日は再生側を正とし poc-record.mjs は不触。N8 D1〜D12／E1〜E10 は 0152 の★指定便で裁く。」
 
-適用＝便 S2（0151_holes.sql の改稿＝'not_found'・'guarantee exists' の ①②・未追跡のまま）／S3（client・suite の追従＝rpc-err 和文・AG d3-7）／S4（再突合 BEGIN…ROLLBACK）。手貼りは Agoora（手順は相談役が新 sha を埋めて出す）。
+適用＝便 S2（0151_holes.sql の改稿＝'not_found'・'guarantee exists' の ①②）／S3（client・suite の追従＝rpc-err 和文・AG d3-7＝`96afa4f`）／S4（再突合 BEGIN…ROLLBACK＝致命 0・d3-7 緑）。
+**DB 側 完了（2026-09-24・mig0151 手貼り済・A-0〜A-4 検証 OK＝live に 'not_found'／289-6 の判定式を prosrc で確認・suite 追従 `6d70483`／`30f9b59`・mig 収蔵 `cb24385`）**。手貼りは Agoora（手順は相談役が新 sha を埋めて出す）。
 
 ## 裁定288（本便で確定・Agoora 回答（9/18）に基づく・2026-09-18）スライドの基準と適用月（288-1〜7）
 
@@ -3759,7 +3764,8 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
  288-7 plan-editor の段の入力欄は、店の slide_apply に応じて単位表示を「月間売上 ○円以上」／「1 日の売上 ○円以上」に出し分ける。
    シミュレーションも同じ分岐に従う。」
 
-適用＝夜間便 N3b（計算側＝client・コミットのみ・push は 0151 手貼り後）。ウィザードの 'next' 書き込み（285）は 0151 手貼り後の便。
+適用＝夜間便 N3b（計算側＝client `fc5f7e1`）。ウィザードの 'next' 書き込み（285）＝**`e76fae4`（2026-09-24・完了 step の patch に slide_apply:'next'・既存店は不触＝欠損 'current'・setup suite 61→66）**。
+**DB 側 完了（2026-09-24・mig0151 ★4 手貼り済＝set_store_profile 白名単 21 キー（'slide_apply'）・md5 f2196d09→a988029017d1c9327f33af98f6d0e621・store-profile 58→61／store-systems 21 キー pin `5f76dbc`）**。
 
 ## 裁定287（本便で確定・Agoora「推奨で」・2026-09-18）mig 0151 の設計（穴埋め 4 点）（287-1〜5）
 
@@ -3791,7 +3797,8 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
  287-5 期の途中で保証が切れる場合の日単位の適用は、mig 後の client 便で collect の行選択と pay.ts の base を日ごとに改める(裁定97 の
    「期首時点の 1 行」を、保証行に限り日単位に改める追補として扱う)。」
 
-適用＝起草（便 AE）: supabase/migrations/0151_holes.sql（★1〜★5・未追跡・手貼り待ち・sha256 は本便の報告）。突合＝便 AG（起草者を疑う別パス）。手貼り後ブロックは相談役。
+適用＝起草（便 AE）→ 改稿（便 S2・裁定289）→ 突合（便 AG／S4＝致命 0）。
+**DB 側 完了（2026-09-24・Agoora 手貼り済・sha256 `0abb484903141685c01421e5c90e68283cfef4a11e4fb44cd67e2cf9866c6125`・462 行・37,681 B・set_store_profile 新 md5 `a988029017d1c9327f33af98f6d0e621`・名簿 全数 249／gated 130・md5 控え 17 本不変・service_role statement_timeout 30s 不変・収蔵 `cb24385`）**。client＝夜間便 N4／N5／N6（RPC 不在の probe→隠す型は手貼り後に自動で出る）。
 
 ## 裁定283〜286（本便で確定・Agoora 回答（9/18）と調査結果に基づく・2026-09-18）mig の束ね方・税方式・スライド適用月・紹介料の細目
 
@@ -4675,6 +4682,7 @@ check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履�
 - **f0 新基準 pin（2026-09-18 午後・59 段 4,351・裁定274／275・M15／M18・N）**: 裁定200 の 3 値＝NOX DB 基準（run1 前 13:48:37＝backends 16・postmaster 2026-09-15 16:46・orgs 3／run2 前 14:05:04＝backends 18・同・他プロジェクトの verify なし）→ run1 939s（13:49:06 起動）／run2 1013s（14:05:28 起動）＝いずれも **59 段 ALL PASS・4,351・golden 不変・段別 assertion 数も同一（58 段は前 pin と同一＋59 段目 shift-tabs 14）・同一 HEAD `9e6cf85`**。★run1 の exit を読んでから run2 を起動（正午の停止 1 の再発防止）。push＝`bc56be6..9e6cf85`（91e53f7＝M5 文言＋payment-tax-panel／10f15a1＝裁定273〜275／ee2a3fc＝M15・M18／2c379bf＝M12・M13／9e6cf85＝R15）。
 - **所要の観察（2026-09-18・相談役）**: 9/18 日中の f0＝939s／1013s（夜間 9/17 の 467s／531s 比で約 2 倍・段数は 53→59・BANZEN 並走なし・backends 16〜20）＝**Compute 引き上げ（裁定262）は「f0 が 20 分超」を先行実施の目安**とする（公開デモの前提＝裁定273 未決★と同じ Pro／Compute の束）。
 - **f0 新基準 pin（2026-09-18 夕・59 段 4,356・便 Y／Z＝R11 レジ入口・nav 追補）**: 裁定200 の 3 値＝NOX DB 基準（run1 前 15:10:59＝backends 17（PostgREST 11）／run2 前 15:22:55＝backends 20（PostgREST 11）・postmaster 2026-09-15 16:46・orgs 3・dev 3200 は Agoora 使用中＝PostgREST 分は Agoora の操作を含む・他プロジェクトの verify なし）→ run1 685s（15:11:17 起動）／run2 641s（15:23:13 起動）＝いずれも **59 段 ALL PASS・4,356・golden 不変・段別 assertion 数も同一（referral 25→30 のみ増・他 58 段は前 pin と同一）・同一 HEAD `5208cf1`**。★run1 の exit を読んでから run2 を起動。push＝`53ab697..5208cf1`（3c6fcaa＝R11 レジ入口／5208cf1＝nav-icons 3＋在庫）。
+- **f0 新基準 pin（2026-09-24・65 段 4,563・mig0151 手貼り後＝名簿・probe・pin／suite 追従／setup 'next'）**: 裁定200 の 3 値＝NOX DB 基準（run1 前 14:15:50＝backends 12（PostgREST 7）／run1b 前 14:29:23＝backends 15（PostgREST 8）／run2 前 14:44:58＝backends 16（PostgREST 10）・postmaster 2026-09-15 16:46・orgs 3）→ run1（14:15:57）は 51 段目 store-systems の ss(4-0)（白名単 20 キー pin）が 0151 の slide_apply で赤＝**設計上の pin 漏れ（timeout ではない）**→ `5f76dbc` で 21 キーへ張り替え → **run1b 915s（14:29:30）／run2 897s（14:45:04）＝いずれも 65 段 ALL PASS・4,563・golden 不変（5931／125802／55233）・段別同一・同一 HEAD `e76fae4`**。内訳＝前 pin（夜間便 65 段 4,521）に対し staff-shift 62→70（段 9 取消 8）・open-periods 18→23（DB 段 5）・cast-guarantee 30→41（DB 段 11）・store-profile 58→61・setup 61→66・anon-guard 994→997・grants 330→336＝差 +42。変遷チェーン: 61 段 4,415（R／T／U）→ 65 段 4,521（夜間便 N1〜N9）→ **65 段 4,563（0151）**。push＝`30e91ba..cb24385`（21 本＝夜間便 13＋v38 収蔵・裁定289・追従・B〜D・store-systems pin・mig 収蔵）。
 - **f0 新基準 pin（2026-09-18 夜・61 段 4,415・便 R／T／U＝在庫・期間フォーム・メッセージ型）**: 裁定200 の 3 値＝NOX DB 基準（run1 前 17:35:37＝backends 17（PostgREST 11）／run2 前 17:47:10＝backends 18（PostgREST 11）・postmaster 2026-09-15 16:46・orgs 3・dev 3200 は Agoora 使用中＝PostgREST 分は Agoora の操作を含む・他プロジェクトの verify なし）→ run1 676s（17:35:43 起動）／run2 590s（17:47:15 起動）＝いずれも **61 段 ALL PASS・4,415・golden 不変（5931／125802／55233）・段別同一・同一 HEAD `6ef7c29`**。段別内訳＝前 pin（60 段 4,392）に対し **inventory 126→132（便 R・stockUnitOf 6）＋shift-tabs 14→20（便 T・period 6）＋messages 11（新設・61 段目＝便 U）・他 58 段は同一**。変遷チェーン: 58 段 4,337（0148）→ 59 段 4,351（274／275）→ 59 段 4,356（Y／Z）→ 60 段 4,392（0149／0150）→ **61 段 4,415（R／T／U）**。★run1 の exit を読んでから run2 を起動。push＝`3430e6d..6ef7c29`（36d3c47 R＝在庫／1e007c3 T＝期間フォーム・topbar／574752b U＝メッセージ型／1c807bd 裁定281／712eb1a 裁定282／6ef7c29 裁定280 追補1）。
 - **便 R／S／T／U 適用記録（2026-09-18）**: **R**＝`36d3c47`（/master/stock 棚卸し行＝4 コントロール高さ 34（theme E3 の入力高さ）・補助行「現在庫 n」撤去・数値入力は裁定104 の流儀（.nox-numfield・onWheel blur・右寄せ）・単位＝lib/nox/inventory/unit.ts stockUnitOf（bottle／champ／drink→本・food／other／未知→個）を候補一覧・入力右ラベル・「現在 n本 → 差分 ±m本」・履歴の増減の 4 箇所に（履歴に残数列は無い）・同型行は棚卸し 1 行のみ・inventory 126→132・逆テスト赤→緑・計測 1280px＝4 つとも top 316／height 34・375px＝折り返しで高さ 34 揃い・横はみ出し 0）。**S**＝**停止（RPC 不足）**＝黒服シフトの「取消」（配置済み staff_shifts の削除／取消）に当たる RPC が無い（propose＝insert・override／confirm＝update・status は proposed／confirmed の 2 値・authenticated は SELECT のみ）→ 実装せず docs/tmp/0918_staffshift_flow.md（S-0 のキャスト側 2 入口の構成・現行の黒服側・要る RPC の案 staff_shift_cancel・S 再開時の仮決め）。**T**＝`1e007c3`（期間フォーム＝lib/nox/shift/period.ts（nextPeriodDefaults／periodsOverlap／overlappingPeriods＝店の全期間から・閉区間＝DB の daterange '[]' と同型）・既定＝既存の最終日の翌日から同じ長さ・締切は開始の前日・重なりは赤（裁定281）＋作成 disabled・成否は同カード内（Message）・タブ切替で共有 msg と pMsg を消す・状態 4 値＝picker（裁定259）・作成した期間を一覧で強調（表示月の外でも 1 行）・T-0 d＝「募集中」はキャスト側では shift_wish_submit の門のみ（client の結線 0・RLS で cast は期間を読めない）＝案内文は出さない・topbar .nox-tb の地色 rgba(8,8,8,.94)→var(--bg)・shift-tabs 14→20・目視 5 項目 OK・作った期間は UI 削除で原状）。**U**＝`574752b`＋docs `1c807bd`（裁定281 の適用欄に詳細）。★U の残り＝register-board の routed msg 4 箇所（`{msg.text}`＝to／kind 型）は script と pin の識別子条件（`{識別子}`）を素通り＝次の client 便で Message へ置換し pin を `{x.text}` 型にも広げる。
 - **f0 新基準 pin（2026-09-18 夕・60 段 4,392・mig0149／0150＝demo_org_reset）**: 裁定200 の 3 値＝NOX DB 基準（run1 前 16:12:29＝backends 14（PostgREST 10）／run2 前 16:24:03＝backends 17（PostgREST 11）・postmaster 2026-09-15 16:46・orgs 3・dev 3200 は Agoora 使用中＝PostgREST 分は Agoora の操作を含む・他プロジェクトの verify なし）→ run1 669s（16:12:34 起動）／run2 958s（16:24:08 起動）＝いずれも **60 段 ALL PASS・4,392・golden 不変（5931／125802／55233）・同一 HEAD `425f21c`**。段別内訳＝前 pin（59 段 4,356）に対し **demo-reset 34（新設・60 段目）＋anon-guard 992→994（INTERNAL_PROBES に demo_org_reset＝anon／authenticated の 2 assert）・他 58 段は同一**（billing 53 は pin 値の張り替え＝除外 117→118 で本数不動）。変遷チェーン: 58 段 4,337（0148）→ 59 段 4,351（274／275）→ 59 段 4,356（Y／Z）→ **60 段 4,392（0149／0150）**。★run1 の exit を読んでから run2 を起動。push＝`e803261..425f21c`。
