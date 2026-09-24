@@ -3733,6 +3733,20 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定295（本便で確定・相談役ブロック・2026-09-24）0154 要裁定 (1)〜(12) の裁定（295-1〜7）
+
+出典＝相談役ブロック 2026-09-24（便 S・0154_punch_pay.sql 起草時の要裁定 12 件＝mig 冒頭に列挙・突合 q0924_ag_0154.mjs 致命 0 を受けた裁定・同日収載）。次の裁定番号は 296。**本文（逐語）**:
+「裁定295（2026-09-24・0154 要裁定 (1)〜(12) の裁定）
+295-1 (1) punch_corrections に decide_reason text を追加。rejected は必須・approved は任意。本人の /mine で読める（RLS 本人 select）。
+295-2 (2) sanction の総額上限の基底は起草どおり＝当 run に payslip があればその gross・無ければ平均賃金×当期暦日数の推計。推計基底で通した件は client が明細に「（推計基底）」を付す。
+295-3 (3) sanction は mode='fixed' のみ（率は不可）。
+295-4 (4) 承認時の punches 書込＝既存行 update／新規 insert(source='manager')／削除は delete し punch_corrections.punch_id は SET NULL で履歴を残す。
+295-5 (5) 内部ヘルパー punch_correction_apply は 4 ロール revoke（名簿 A +4・除外 +1）。
+295-6 (6)〜(11) 起草どおり（文言・ack は decided 行のみ・区分変更の期初＝period_bounds の月初・calc_period_* は nullable・営業日窓＝biz_date_of・staff 本人＝auth_cast_id 一致）。S1 の全文で裁定294 と食い違う項があれば手貼り前に相談役へ。
+295-7 (12) demo_org_reset（0149）は触らない。punch_corrections の FK は cast_id→casts ON DELETE CASCADE・punch_id→punches ON DELETE SET NULL。demo の c_wipe は casts の削除で連鎖・c_load は投入しない（空）。」
+
+適用＝便 S3〜S4（0154 の改稿＝decide_reason 列＋FK の 2 点・生成器 gen_0154.py で再生成・改稿前の控え docs/tmp/0154_before_295.sql・再突合 q0924_ag_0154.mjs に d 3 段追加）。手貼りは Agoora（新 sha は改稿後の報告値）。
+
 ## 裁定294（本便で確定・相談役ブロック・2026-09-24）0154 出退勤・報酬型・懲戒減給・計算期間・雇用区分の設計（294-1〜11）
 
 出典＝相談役ブロック 2026-09-24（便 M・docs/tmp/0154_pre.md（D3）と docs/tmp/0924_tx_read.md（TX1-7）の読取を受けた設計裁定・同日収載）。次の裁定番号は 295。**本文（逐語）**:
