@@ -1706,13 +1706,6 @@ async function main() {
     }
   }
 
-  await teardown();
-
-  if (fails.length) {
-    console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
-    for (const f of fails) console.error(" - " + f);
-    process.exit(1);
-  }
   // ── ★mig0154（裁定294-8／295-6）: payslips.calc_period_start／end＝埋め戻し欠損 0・payroll_finalize が p_payslips の同名キーを写す・run 期間外／逆転は 'bad calc period'（pg tx → ROLLBACK）──
   //   逆テスト 1 本（手動・1 回）: 段0154-2 の期待 "2098-09-10" を "2098-09-11" に書き換える→赤・戻して緑。
   {
@@ -1747,6 +1740,13 @@ async function main() {
     }
   }
 
+  await teardown();
+
+  if (fails.length) {
+    console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
+    for (const f of fails) console.error(" - " + f);
+    process.exit(1);
+  }
   console.log(`verify:nox-payroll ALL PASS (${pass} assertions)`);
 }
 
