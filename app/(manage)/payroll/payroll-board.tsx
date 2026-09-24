@@ -17,6 +17,7 @@ import PaymentTaxPanel from "./payment-tax-panel";
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: CSV 出力と凍結名解決は月次一覧と共用
 import { missingOutSummaryOf, frozenRowsOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
+import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
 
 type Store = { id: string; name: string };
 // D3: payslips.breakdown_json（finalize が凍結）の CSV が使う部分。back 内訳の生値は CSV に出さず合算のみ。
@@ -40,6 +41,7 @@ type Row = {
   breakdown?: {
     pay: PayrollCsvPay & {
       wHours?: number; guaranteeAdd?: number; achievementBonus?: number;
+      lateN?: number; absentN?: number; // ★0154 D4: 遅刻・当欠の検知（精算調整の候補）
       wdays?: unknown[]; // ★裁定176（W23・夜間 O3）: PayResult.wdays（日次内訳）＝日数列は length のみ表示（値の再計算なし）
       sanction?: { original?: number; applied?: number } | null;
       plan?: { name?: string }; // ★U-1 是正B: 右パネルのプラン名（PayResult.plan エコー）
@@ -111,6 +113,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   const [rowTax, setRowTax] = useState("");
   // E8-5 payroll#3: 行タップ→個別内訳（preview breakdown の再掲・選択中 castId）
   const [detailCast, setDetailCast] = useState<string | null>(null);
+  const [settle, setSettle] = useState<{ castId: string; castName: string } | null>(null); // ★0154 D4
   // ★U-1 是正B: 右パネルの「明細プレビュー」（PayslipSlip 全体）の開閉
   const [slipPreview, setSlipPreview] = useState(false);
   // ★裁定264-1: 調整控除（run 別・cast 別）。一覧は直 SELECT（RLS）・追加／削除は route（add／delete）。draft 以外は読取のみ（264-9）。
@@ -598,6 +601,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       })()}
 
       {msg && <Toast msg={msg} />}
+      {/* ★0154 D4: 精算調整モーダル（明細から＝当期 draft run へ・成功で調整行と run を再読込） */}
+      {settle && runInfo && (
+        <SettlementModal storeId={storeId} castId={settle.castId} castName={settle.castName} runId={runInfo.id} biz={null}
+          onClose={() => setSettle(null)} onDone={(text) => { setMsg(text); void loadRun(); }} />
+      )}
       {finalized && <p style={{ color: "var(--champ)", fontSize: 14, fontWeight: "bold" }}>{finalized}</p>}
 
       {/* 段2: プレビュー（参考値） */}
@@ -824,6 +832,13 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                       )}
                     </p>
                     {pay.plan?.name && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 6px" }}>{pay.plan.name}</p>}
+                    {/* ★0154 D4（裁定293 追補1-2）: 委託で遅刻／当欠の検知がある行＝「精算調整を登録」（当期 draft のみ・source='settlement'） */}
+                    {r.taxMode === "委託" && ((pay.lateN ?? 0) > 0 || (pay.absentN ?? 0) > 0) && runInfo?.status === "draft" && (
+                      <p style={{ fontSize: 11.5, margin: "0 0 6px" }}>
+                        遅刻 {pay.lateN ?? 0} 回・当欠 {pay.absentN ?? 0} 回の検知があります。
+                        <button type="button" className="nox-link" style={{ marginLeft: 6 }} onClick={() => setSettle({ castId: r.castId, castName: r.castName })}>精算調整を登録</button>
+                      </p>
+                    )}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "4px 0 8px" }}>
                       <span style={{ fontSize: 12, color: "var(--sub)" }}>差引支給額</span>
                       <span className="num" style={{ fontSize: 20, fontWeight: 800, color: "var(--v2-text)" }}>¥{r.net.toLocaleString()}</span>

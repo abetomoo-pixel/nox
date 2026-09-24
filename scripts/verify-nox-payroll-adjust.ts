@@ -23,6 +23,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
 import { pgTx } from "./fixtures-pgtx"; // ★0154 (8)
+import { detectTargetOf, periodRangeOf, presetsOf, settlementArgsOf, settlementCandidatesOf, settlementReasonOf, validatePresets } from "../lib/nox/payroll/settlement"; // ★0154 D4
 import { payOf, withholdingOf, type PayInput, type CompPlan, type PayResult } from "../lib/nox/pay";
 import { adjustOf, adjustAmountOf, totalDeductionsOf, type AdjustmentRow, type DeductionParts } from "../lib/nox/payroll/adjust";
 import { buildPayInput, type CastRaw, type StoreMasters } from "../lib/nox/payroll/assemble";
@@ -82,6 +83,16 @@ const rate = (rateBp: number, before = false) => row({ kind: "rate", rateBp, bef
 const identityHolds = (p: PayResult) => p.net === p.gross - totalDeductionsOf(p) + p.adjustOverflow;
 
 function pureChecks() {
+  // ★0154 D4（裁定293 追補1・294-6／294-7）: 精算調整の純関数（lib/nox/payroll/settlement.ts）
+  {
+    const dflt = presetsOf(null);
+    check("pa(0-9a) presetsOf: 未設定＝既定 3 件（遅刻／当欠／早退・額 0・target 3 値）・形が違う要素は落とす・0 件なら既定", dflt.length === 3 && dflt.map((p) => p.target).join(",") === "late,absent,early" && dflt.every((p) => p.amount === 0) && presetsOf({ settlement_presets: [{ code: "x" }, { code: "a", name: "A", amount: 500, basis: "b", target: "other" }] }).length === 1 && presetsOf({ settlement_presets: [] }).length === 3);
+    check("pa(0-9b) validatePresets: 11 件／code 空／負／小数／code 重複は err・3 件は null", validatePresets(Array.from({ length: 11 }, (_, i) => ({ ...dflt[0], code: "c" + i }))) !== null && validatePresets([{ ...dflt[0], code: " " }]) !== null && validatePresets([{ ...dflt[0], amount: -1 }]) !== null && validatePresets([{ ...dflt[0], amount: 1.5 }]) !== null && validatePresets([dflt[0], { ...dflt[1], code: "late" }]) !== null && validatePresets(dflt) === null);
+    check("pa(0-9c) detectTargetOf: absent＞late（区分）＞late（遅刻分）＞early（退勤が終了より早い）・なし null", detectTargetOf({ attStatus: "absent", lateMin: 10 }) === "absent" && detectTargetOf({ attStatus: "late" }) === "late" && detectTargetOf({ attStatus: "shukkin", lateMin: 5 }) === "late" && detectTargetOf({ attStatus: "shukkin", lateMin: 0, outHm: "25:00", endHm: "26:00" }) === "early" && detectTargetOf({ attStatus: "shukkin", lateMin: 0, outHm: "26:00", endHm: "26:00" }) === null);
+    const a = settlementArgsOf({ runId: "r", castId: "c", preset: dflt[0], amount: 3000, biz: "2026-09-22", shiftId: "s" });
+    check("pa(0-9d) settlementArgsOf: fixed・源泉前・明細に出す・reason「精算調整（遅刻 9/22）」・source settlement・basis＝ひな形の文・target＝shift／額が負・basis 空は err", a.ok && a.args.p_mode === "fixed" && a.args.p_before_withholding === true && a.args.p_show_detail === true && a.args.p_reason === "精算調整（遅刻 9/22）" && a.args.p_source === "settlement" && a.args.p_basis === dflt[0].basis && a.args.p_target_shift_id === "s" && !settlementArgsOf({ runId: "r", castId: "c", preset: dflt[0], amount: -1 }).ok && !settlementArgsOf({ runId: "r", castId: "c", preset: { ...dflt[0], basis: " " }, amount: 1 }).ok && settlementReasonOf(dflt[1], null) === "精算調整（当欠）");
+    check("pa(0-9e) settlementCandidatesOf／periodRangeOf: 遅刻 2＋当欠 1 − 登録 1＝2（0 未満は 0）・2026-02 は 02-01〜02-28", settlementCandidatesOf({ attendance: [{ status: "late" }, { status: "late" }, { status: "absent" }, { status: "shukkin" }], settlements: 1 }) === 2 && settlementCandidatesOf({ attendance: [], settlements: 3 }) === 0 && JSON.stringify(periodRangeOf("2026-02")) === JSON.stringify({ from: "2026-02-01", to: "2026-02-28" }));
+  }
   const base = payOf(BASE);
   const g = base.gross;
   check("pa(0-0) fixture: gross>0・withholding>0・net>0（源泉差が観測できる形）", g > 0 && base.withholding > 0 && base.net > 0, JSON.stringify({ g, wh: base.withholding, net: base.net }));

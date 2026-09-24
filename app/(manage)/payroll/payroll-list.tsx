@@ -7,6 +7,7 @@
 //   裁定238: 「明細へ」＝.nox-link（遷移）／「支払済みにする」＝実行（青塗り＝t.btnGold）／CSV・印刷＝補助（ghost）／店舗別・月別＝(4) 切替（nox-seg）。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtPeriodYM } from "@/lib/nox/payroll/view"; // ★N3 AV-1（2026-09-24）: 期は YYYY/M
+import { periodRangeOf, settlementCandidatesOf } from "@/lib/nox/payroll/settlement"; // ★0154 D4: 未登録候補
 import Link from "next/link";
 import PageHead from "@/components/ui/page-head";
 import Modal from "@/components/ui/modal";
@@ -35,6 +36,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
   const supabase = createClient();
   const role = isOwner ? "owner" : "manager"; // page.tsx が owner／manager 以外を redirect 済み（裁定 B5-5）
   const [rows, setRows] = useState<ListRow[] | null>(null);
+  const [cands, setCands] = useState<Record<string, number>>({}); // ★0154 D4: runId→精算調整の未登録候補（遅刻／当欠の検知 − 登録済み settlement）
   const [msg, setMsg] = useState("");
   const [view, setView] = useState<"store" | "period">("store"); // (4) 切替＝nox-seg（B4 H20 写し・裁定238-a）
   const [storeSel, setStoreSel] = useState(stores[0]?.id ?? "");
@@ -69,6 +71,22 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
       }
     }
     setRows(buildPayrollListRows(runs, payslips, payments, audits));
+    // ★0154 D4（裁定293 追補1-4）: 未登録候補＝期間内の attendance（late／absent）− payroll_adjustments（source='settlement'）。draft の run だけ数える（確定後は登録できない）
+    {
+      const drafts = runs.filter((r) => r.status === "draft");
+      const next: Record<string, number> = {};
+      if (drafts.length > 0) {
+        const { data: adj } = await supabase.from("payroll_adjustments").select("run_id").eq("source", "settlement").in("run_id", drafts.map((r) => r.id));
+        const settledBy = new Map<string, number>();
+        for (const a of (adj ?? []) as { run_id: string }[]) settledBy.set(a.run_id, (settledBy.get(a.run_id) ?? 0) + 1);
+        for (const r of drafts) {
+          const { from, to } = periodRangeOf(r.period);
+          const { data: att } = await supabase.from("attendance").select("status").eq("store_id", r.store_id).gte("date", from).lte("date", to);
+          next[r.id] = settlementCandidatesOf({ attendance: (att ?? []) as { status: string }[], settlements: settledBy.get(r.id) ?? 0 });
+        }
+      }
+      setCands(next);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOwner]);
   useEffect(() => { void load(); }, [load]);
@@ -137,6 +155,10 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
             </span>
           ))}
         </div>
+        {/* ★0154 D4（裁定293 追補1-4）: 表示スコープの draft run の未登録候補（遅刻／当欠の検知 − 登録済み精算調整） */}
+        {(() => { const n = shown.reduce((s, r) => s + (cands[r.runId] ?? 0), 0); return n > 0 ? (
+          <p style={{ fontSize: 12.5, margin: "0 0 8px", color: "var(--gold)" }}>精算調整の未登録候補: {n} 件（未確定の期・遅刻／当欠の検知から登録済みを除いた数）</p>
+        ) : null; })()}
         {rows === null ? (
           <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>読み込み中…</p>
         ) : shown.length === 0 ? (

@@ -11,6 +11,7 @@
 //   271-9 food／other は v1 では投入しない（wine は bottle へ）。271-10 request＝hon。271-11 投入しない項目は本ファイルで触らない。
 //   271-13 ノルマ・罰金・売掛負担は投入しない。
 import raw from "./templates/v1.json";
+import { DEFAULT_SETTLEMENT_PRESETS } from "../payroll/settlement"; // ★0154 D4
 import type { SystemKey } from "../store-systems";
 
 export type BizType = "cabaret" | "girlsbar" | "snack" | "lounge" | "bar";
@@ -230,7 +231,8 @@ export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
   for (const f of sel.flags ?? []) steps.push({ key: `flag_${f.key}`, group: "flags", label: `機能 ${f.key} を ${f.enabled ? "ON" : "OFF"}`, rpc: "flag_set", args: { p_key: f.key, p_store_id: null, p_enabled: f.enabled, p_reason: null } });
   // 9) 最後に setup_done。★裁定285／287-4（0151 ★4・N3b-7）: 新規店はスライド適用月 'next'（翌月反映）を同じ patch で書く。
   //   既存店は不触（欠損＝'current'＝client の slideApplyOf）。set_store_profile の白名単 'slide_apply' は mig0151。
-  steps.push({ key: "done", group: "done", label: "初期設定完了（setup_done・slide_apply=next）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next" } } });
+  // ★0154 D4（裁定293 追補1-1）: 精算調整のひな形の既定 3 件（遅刻／当欠／早退・額 0）も同じ patch で書く（set_store_profile の白名単 settlement_presets＝mig0154）
+  steps.push({ key: "done", group: "done", label: "初期設定完了（setup_done・slide_apply=next・settlement_presets 既定 3 件）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next", settlement_presets: DEFAULT_SETTLEMENT_PRESETS } } });
   return steps;
 }
 

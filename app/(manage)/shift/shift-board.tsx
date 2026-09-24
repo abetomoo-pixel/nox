@@ -22,6 +22,8 @@ import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
 import { firstInLastOut, outButtonOf, punchTimeLabel, punchInAfterAtt } from "@/lib/nox/shift/today-row";
 import PunchCorrectionModal from "@/components/nox/punch-correction-modal"; // ★0154 D1: 出退勤の修正（owner／manager＝申請＝確定）
+import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
+import { detectTargetOf, type SettlementTarget } from "@/lib/nox/payroll/settlement";
 import { KIND_LABEL, correctionSummaryOf, disputedOf, termOf, type CorrectionRow, type PunchKind } from "@/lib/nox/shift/punch-correction";
 import { mdDowOf } from "@/lib/nox/shift/staff-place";
 // ★便 AU2／AU3（2026-09-24・週末バックログ 2／3）: 計画期間の進行段・期間ごとの帯と地色・確定シフトの「未確定」印・月セルの名前合成（純関数）
@@ -255,6 +257,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [corr, setCorr] = useState<{ castId: string; kind: PunchKind; punchId: string | null; punchAtIso: string | null; startHm: string; endHm: string } | null>(null);
   const [punchRef, setPunchRef] = useState<Map<string, { inId: string | null; inIso: string | null; outId: string | null; outIso: string | null }>>(new Map());
   const [disputed, setDisputed] = useState<(CorrectionRow & { id: string })[]>([]);
+  // ★0154 D4: 精算調整モーダルの対象（委託の遅刻／当欠／早退が検知された行）
+  const [settle, setSettle] = useState<{ castId: string; shiftId: string; target: SettlementTarget } | null>(null);
   // ★裁定257 R20-a: penalty_config.late_grace_min（client は SELECT のみ・comp-sections と同じ経路・取れなければ既定 10）
   const [lateGraceMin, setLateGraceMin] = useState<number>(LATE_GRACE_MIN_DEFAULT);
   const [msg, setMsg] = useState<string | null>(null);
@@ -954,6 +958,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       <PageHead eyebrow="SHIFT MANAGEMENT" title="シフト管理"
         desc="申請、承認、出勤状況と人員充足をまとめて管理します。" />
       <Toast msg={msg} />
+      {/* ★0154 D4: 精算調整モーダル（委託のみ・成功＝同じ枠に success） */}
+      {settle && (
+        <SettlementModal storeId={storeId} castId={settle.castId} castName={castName(settle.castId)} biz={todayDate} shiftId={settle.shiftId} target={settle.target}
+          onClose={() => setSettle(null)} onDone={(text) => setMsg(text)} />
+      )}
       {/* ★0154 D1: 修正モーダル（成功＝punches 再読込＋同じ枠に success） */}
       {corr && (
         <PunchCorrectionModal castId={corr.castId} castName={castName(corr.castId)} biz={todayDate} kind={corr.kind} punchId={corr.punchId} punchAtIso={corr.punchAtIso}
@@ -1228,6 +1237,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                     {KIND_LABEL[k]}を修正
                                   </button>
                                 ))}
+                              </div>
+                            );
+                          })()}
+                          {/* ★0154 D4（裁定293 追補1-2）: 委託キャストの遅刻／当欠／早退が検知された行に「精算調整を登録」（ひな形と額を初期表示・当期 draft run へ source='settlement'） */}
+                          {canRecord && casts.find((c) => c.id === s.cast_id)?.employment !== "雇用" && (() => {
+                            const io = punchIO.get(s.cast_id);
+                            const tgt = detectTargetOf({ attStatus: attOf(s.cast_id, todayDate)?.status, lateMin: io?.inHm ? lateMinutesOf(s.start_hm, io.inHm, lateGraceMin) : 0, outHm: io?.outHm, endHm: s.end_hm });
+                            return tgt && (
+                              <div className="nox-actions" style={{ marginTop: 4 }}>
+                                <button type="button" className="nox-link" style={{ fontSize: 11.5 }} onClick={() => setSettle({ castId: s.cast_id, shiftId: s.id, target: tgt })}>精算調整を登録</button>
                               </div>
                             );
                           })()}

@@ -10,6 +10,7 @@ import Toast from "@/components/ui/toast";
 import StoreSystemsPanel from "@/components/nox/store-systems-panel";
 import { storeProfileErrJa } from "../../store-flag-toggle";
 import { SYSTEM_LABELS, type SystemKey } from "@/lib/nox/store-systems";
+import SettlementPresetsEditor from "@/components/nox/settlement-presets-editor"; // ★0154 D4: 精算調整のひな形
 
 const card: React.CSSProperties = t.card;
 const secTitle: React.CSSProperties = t.cardTitle;
@@ -52,6 +53,11 @@ export default function SystemsBoard({ storeId, storeName, isOwner, initialSetti
           未設定の制度は ON として扱います。キャスト個別の設定（上書き・ノルマ目標）がある制度は OFF にできません。
         </p>
         <StoreSystemsPanel settings={settings} onChange={onChange} usage={usage} readOnly={!isOwner} busyKey={busyKey} />
+      </section>
+      {/* ★0154 D4（裁定293 追補1-1／294-7）: 精算調整のひな形（settings_json.settlement_presets・owner のみ編集） */}
+      <section className="nox-cardtop" style={card}>
+        <h2 style={{ ...secTitle, margin: "0 0 4px" }}>精算調整のひな形（委託）</h2>
+        <SettlementPresetsEditor storeId={storeId} settings={settings} readOnly={!isOwner} onSaved={(list) => setSettings((s) => ({ ...s, settlement_presets: list }))} />
       </section>
     </div>
   );

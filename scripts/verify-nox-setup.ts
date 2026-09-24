@@ -8,6 +8,7 @@
  *  逆テスト 2 本（手動・各 1 回）: 食品を除外に戻す（CLASS_TO_TYPE.food を null に）→su(2-3) 赤（裁定272-4 後）／写像順を変える（hours を settings より前に）→su(2-1) 赤。
  */
 import fs from "node:fs";
+import { DEFAULT_SETTLEMENT_PRESETS } from "../lib/nox/payroll/settlement"; // ★0154 D4
 import crypto from "node:crypto";
 import { SYSTEM_KEYS, type SystemKey } from "../lib/nox/store-systems";
 import {
@@ -65,7 +66,7 @@ for (const biz of ["cabaret", "girlsbar", "snack", "lounge", "bar"] as BizType[]
   check(`su(2-6) ${biz}: 席・商品・待遇プラン・料金行の step に冪等ガード（seats_empty／products_empty／plans_empty／rules_empty）`, steps.filter((s) => s.group === "seats").every((s) => s.guard === "seats_empty") && steps.filter((s) => s.group === "products" || s.group === "overrides").every((s) => s.guard === "products_empty")
     && steps.filter((s) => s.group === "comp").every((s) => s.guard === "plans_empty") && steps.filter((s) => s.rpc === "set_pricing_rule").every((s) => s.guard === "rules_empty") && steps.filter((s) => s.rpc === "set_store_time_pricing" || s.rpc === "set_store_pricing").every((s) => !s.guard));
   const done = steps[steps.length - 1];
-  check(`su(2-7) ${biz}: 完了 step＝set_store_profile {setup_done:true, slide_apply:'next'}・先頭 step に biz_type／billing_mode／sys_* 9`, done.rpc === "set_store_profile" && JSON.stringify(done.args?.p_patch) === JSON.stringify({ setup_done: true, slide_apply: "next" })
+  check(`su(2-7) ${biz}: 完了 step＝set_store_profile {setup_done:true, slide_apply:'next'}・先頭 step に biz_type／billing_mode／sys_* 9`, done.rpc === "set_store_profile" && JSON.stringify(done.args?.p_patch) === JSON.stringify({ setup_done: true, slide_apply: "next", settlement_presets: DEFAULT_SETTLEMENT_PRESETS }) /* ★0154 D4: 精算調整の既定 3 件 */
     && (steps[0].args?.p_patch as Record<string, unknown>).biz_type === biz && SYSTEM_KEYS.every((k) => typeof (steps[0].args?.p_patch as Record<string, unknown>)[k] === "boolean"));
   // ★裁定285／287-4（0151・N3b-7）: 完了 step の patch に slide_apply='next'（新規店＝翌月反映）。他の step は slide_apply を書かない（既存店の値は触らない）
   check(`su(2-8) ${biz}: slide_apply='next' は完了 step だけ（他の set_store_profile step には無い）`, (done.args?.p_patch as Record<string, unknown>).slide_apply === "next"
