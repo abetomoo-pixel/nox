@@ -71,7 +71,7 @@ check("gu(6-3) mdOf 'YYYY-MM-DD'→'M/D'（先頭 0 なし）", mdOf("2026-09-05
 // (7)
 check("gu(7-1) isRpcMissingError: PostgREST の不在文言＝true", isRpcMissingError("Could not find the function public.set_cast_guarantee(p_amount, p_cast_id, p_end, p_start) in the schema cache") && isRpcMissingError("function public.set_cast_guarantee(uuid, integer, date, date) does not exist"));
 check("gu(7-2) isRpcMissingError: 通常の raise は false", !isRpcMissingError("bad amount") && !isRpcMissingError("forbidden") && !isRpcMissingError(null) && !isRpcMissingError("guarantee exists"));
-check("gu(7-3) rpcErrJa: guarantee exists／no plan／bad valid_from／bad valid_to が日本語", /既に保証時給/.test(rpcErrJa("guarantee exists")) && /待遇プラン/.test(rpcErrJa("no plan")) && /開始日/.test(rpcErrJa("bad valid_from")) && /終了日/.test(rpcErrJa("bad valid_to")));
+check("gu(7-3) rpcErrJa: guarantee exists／no plan／bad valid_from／bad valid_to が日本語", /既に保証時給/.test(rpcErrJa("guarantee exists")) && /先に報酬プランを設定してください/.test(rpcErrJa("no plan")) && /開始日/.test(rpcErrJa("bad valid_from")) && /終了日/.test(rpcErrJa("bad valid_to")));
 // (8)
 const cb = fs.readFileSync("app/(manage)/casts/casts-board.tsx", "utf8");
 check("gu(8-1) casts-board: cast_plan を valid_from／valid_to つきで読み、今日を含む行を現在行にする", /select\("cast_id, plan_id, overrides_json, valid_from, valid_to"\)/.test(cb) && /isCurrent = vf <= today && \(vt === null \|\| today <= vt\)/.test(cb));
