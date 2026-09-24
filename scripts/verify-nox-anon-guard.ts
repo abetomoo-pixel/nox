@@ -653,6 +653,19 @@ async function main() {
     check(`anon ${fn} BLOCKED（0151）`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段35g: mig0154（裁定294／295・2026-09-24）新 RPC 4 本 anon BLOCKED（引数は null 埋め＝書込なし。revoke all … from public, anon＋grant authenticated, service_role）──
+  //   punch_correction_apply（内部・4 ロール revoke）は段5b の INTERNAL_PROBES（anon）＋段5c 相当（authenticated でも BLOCKED）で係留。
+  const F0154_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["punch_correction_request", { p_cast_id: null, p_punch_id: null, p_biz_date: null, p_kind: null, p_after_at: null, p_reason: null }],
+    ["punch_correction_decide", { p_id: null, p_approve: null, p_reason: null }],
+    ["punch_correction_ack", { p_id: null, p_ack: null }],
+    ["set_cast_employment", { p_cast_id: null, p_employment: null, p_valid_from: null }],
+  ];
+  for (const [fn, args] of F0154_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED（0154）`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段36a: F4b レシート印刷（mig0044/0045）RPC anon BLOCKED ──
   //   claim/result は service_role 限定（内部専用型）＝anon に加え authenticated 負系を段36 本体で実測。
   const F0044_PROBES: Array<[string, Record<string, unknown>]> = [
@@ -679,6 +692,7 @@ async function main() {
     ["cast_sales_aggregate", { p_store_id: null, p_from: null, p_to: null }], // 段9b（F2a-2 内部）
     ["cast_create_apply", { p_org_id: null, p_store_id: null, p_name: null, p_kind: null, p_real_name: null, p_birthday: null }], // 段32（F3d 内部）
     ["demo_org_reset", { p_org_id: null, p_payload: null, p_mode: null }], // mig0149（裁定273／276〜279・service_role 専用＝anon／authenticated とも BLOCKED）
+    ["punch_correction_apply", { p_id: null, p_reason: null }], // mig0154（裁定295-5・内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
   ];
   for (const [fn, args] of INTERNAL_PROBES) {
     const { error } = await anon.rpc(fn, args);

@@ -56,6 +56,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 - ★**mig0151 追随（2026-09-24・裁定287／289）**: 新 RPC **3本**＝ゲート内蔵 2 本を A へ（`set_cast_guarantee`→A7・`staff_shift_cancel`→A8）・非ゲート読取 1 本を B(f) へ
   （`shift_open_periods_mine`＝cast 本人の自店 open 期間 3 列・書込なし・名簿 B(f)＝裁定287-2）。`set_store_profile`（白名単 +slide_apply）は CREATE OR REPLACE のみ＝名前不変で本数不動。
   対象 **128→130**・除外 **118→119**・全数 **246→249**（live 実測 2026-09-24 14:00＝総数 249・'billing locked' 130）。
+- ★**mig0154 追随（2026-09-24・裁定294／295）**: 新関数 **5本**＝ゲート内蔵 4 本を A へ（`punch_correction_request`／`punch_correction_decide`／`punch_correction_ack`→A5・`set_cast_employment`→A10）・
+  内部専用 1 本を B(a) へ（`punch_correction_apply`＝承認済み申請を punches へ写すヘルパー・4 ロール revoke）。`set_cast_plan`（白名単 +3）・`payroll_adjustment_add`（8→11 引数・旧署名 DROP）・
+  `set_store_profile`（白名単 +settlement_presets）・`payroll_finalize`（calc_period_* を写す）は CREATE OR REPLACE のみ＝名前不変で本数不動。
+  対象 **130→134**・除外 **119→120**・全数 **249→254**（live 実測 2026-09-24 18:35＝総数 254・'billing locked' 134）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -150,7 +154,7 @@ adv_issue / transport_issue / incentive_publish /
 **adv_cancel / transport_cancel / incentive_cancel**（裁定D3＝金銭記録の改変。BANZEN de-escalation 前例より判定原理を優先）/
 **receipt_issue / receipt_issue_void**（mig0099＝領収書の発行・取消＝金銭受領証の作成/改変・R2-9/R2-10・E8-6）
 
-### A5. シフト（17本・owner/manager の確定系＋SD 深部＝設計 v1.1 §4 文言修正・SD 設計書 §3）
+### A5. シフト（17本＋0154 の 3 本・owner/manager の確定系＋SD 深部＝設計 v1.1 §4 文言修正・SD 設計書 §3）
 shift_set / shift_wish_decide / set_staffing_need /
 **staffing_need_remove**（mig0095 新設＝バンド削除・ゲートは mig 本文に内蔵）/
 **shift_period_set / shift_period_remove / shift_propose / shift_auto_apply / shift_auto_clear /
@@ -162,6 +166,9 @@ shift_rules_set**（mig0102 新設＝SD 深部の owner/manager 系6本・ゲー
 7引数化のみで既収載）/
 **shift_confirm_bulk**（mig0126 新設＝裁定114・planned/proposed→confirmed 一括・上限62・ゲート内蔵・kiosk 腕なし）
 ※shift_cast_confirm は書込ゆえゲート対象＝失効中は確認も止まる。希望提出（B(i) の事実記録2本）とは性質が異なる。
+
+**punch_correction_request** / **punch_correction_decide** / **punch_correction_ack**（mig0154＝打刻の修正申請・決裁・本人確認＝cast 本人／staff 本人／owner∨manager 自店。owner／manager の申請は同 tx で approved・
+確定は punches の update／insert／delete（B(a) の内部ヘルパー経由）・'period finalized'／'reason required'・ack は本人のみ（decided 行）・ゲート内蔵・監査 6 引数形・裁定294-1〜4／295）
 
 ### A6. 商品・料金マスタ（15本）
 set_product / set_product_active / set_product_category / product_category_reorder / product_bulk_insert /
@@ -200,12 +207,14 @@ owner∨manager 自店判定（0137 のヘルパー）・flag gate の直後に�
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
 
-### A10. スタッフ・キャスト管理（13本）
+### A10. スタッフ・キャスト管理（13本＋0154 の 1 本）
 staff_create / staff_change_role / staff_update_profile / staff_transfer_store / staff_reactivate /
 set_staff_perms / cast_create / cast_invite / **cast_rejoin**（裁定D8＝復帰は拡大操作。leave とは割る） /
 trial_register / trial_update / trial_hire / trial_reject /
 **set_cast_profile**（mig0122＝源氏名・入店日の更新・ゲート内蔵・裁定109）
 （cast_create は [R] 判定だが実体は cast_create_apply（service）へ委譲する書込入口＝対象）
+
+**set_cast_employment**（mig0154＝雇用区分（委託／雇用）の変更＝owner のみ・p_valid_from は給与期の初日（月初）かつ最後に確定した期の翌日以降（'period finalized'）・casts.employment_valid_from・過去分は付け替えない・ゲート内蔵・監査 5 引数・裁定294-9／295-6）
 
 ### A11. デバイス（1本）
 kiosk_provision（新規 kiosk の追加＝拡大操作）
@@ -220,6 +229,8 @@ payroll_reopen / print_claim / print_result / stock_on_check_line / stock_on_che
 pricing_resolve_core / drink_claims_guard_line_update / drink_claims_on_line_delete /
 demo_org_reset（mig0149＝裁定273／276〜279・公開デモ org の録画再生リセット＝wipe→load・service_role 専用の revoke 型で authenticated 実行不可・is_demo=true の org 以外は raise・2026-09-18）
 ＋段47 で「zero-arg ラッパを service 専用 RPC が呼ばない」prosrc 機械検証（設計 §3）
+
+punch_correction_apply（mig0154＝承認済み punch_corrections 行を punches へ写す内部ヘルパー＝request の owner／manager 経路と decide の approve からのみ・4 ロール revoke で authenticated／service_role とも実行不可・原則8＝呼び出し元が二重防御済み・裁定295-5）
 
 ### B(b) トリガ関数（1本）
 touch_updated_at

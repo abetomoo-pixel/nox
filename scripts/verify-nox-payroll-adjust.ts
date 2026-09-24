@@ -47,10 +47,10 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 const T = "payroll_adjustments";
-const ADD_ARGS = "p_run_id uuid, p_cast_id uuid, p_mode text, p_amount integer, p_rate_bp integer, p_before_withholding boolean, p_show_detail boolean, p_reason text";
+const ADD_ARGS = "p_run_id uuid, p_cast_id uuid, p_mode text, p_amount integer, p_rate_bp integer, p_before_withholding boolean, p_show_detail boolean, p_reason text, p_source text, p_basis text, p_target_shift_id uuid"; // ★mig0154: +3（p_source default 'manual'・p_basis／p_target_shift_id default null＝既存 8 引数呼出は不変）
 const DEL_ARGS = "p_id uuid, p_reason text";
 const POLICY_QUAL = "((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (store_id = auth_store_id())) AND (auth_role() = ANY (ARRAY['owner'::text, 'manager'::text])))";
-const COLS = ["id", "org_id", "store_id", "run_id", "cast_id", "mode", "amount", "rate_bp", "before_withholding", "show_detail", "reason", "created_by", "created_at", "source", "carry_from_payslip_id"]; // ★mig0148: 末尾 2 列
+const COLS = ["id", "org_id", "store_id", "run_id", "cast_id", "mode", "amount", "rate_bp", "before_withholding", "show_detail", "reason", "created_by", "created_at", "source", "carry_from_payslip_id", "basis", "target_shift_id"]; // ★mig0148: source／carry_from_payslip_id・★mig0154: basis／target_shift_id
 const SYNC_ARGS = "p_run_id uuid"; // ★mig0148 payroll_carryover_sync
 
 // ── (0) 純関数 fixture（DB 非依存）──
@@ -313,19 +313,20 @@ async function main() {
   // ── (1) 表の形 ──
   {
     const cols = await q<{ column_name: string }>(`select column_name from information_schema.columns where table_schema='public' and table_name=$1 order by ordinal_position`, [T]);
-    check("pa(1-1) 列 15（★mig0148 で 13→15）", cols.length === 15, `${cols.length}`);
+    check("pa(1-1) 列 17（★mig0148 で 13→15・★mig0154 で 15→17）", cols.length === 17, `${cols.length}`);
     check("pa(1-2) 列名と順序", JSON.stringify(cols.map((c) => c.column_name)) === JSON.stringify(COLS), cols.map((c) => c.column_name).join(","));
     const cks = await q<{ conname: string; def: string }>(`select conname, pg_get_constraintdef(oid) as def from pg_constraint where conrelid=('public.' || $1)::regclass and contype='c' order by conname`, [T]);
-    check("pa(1-3) CHECK 4（★mig0148 で 3→4）", cks.length === 4, cks.map((c) => c.conname).join(","));
+    check("pa(1-3) CHECK 5（★mig0148 で 3→4・★mig0154 basis_ck で 4→5）", cks.length === 5, cks.map((c) => c.conname).join(","));
     const def = (n: string) => cks.find((c) => c.conname === n)?.def ?? "";
     check("pa(1-4) CHECK mode ∈ fixed/rate", /mode = ANY \(ARRAY\['fixed'::text, 'rate'::text\]\)/.test(def("payroll_adjustments_mode_ck")), def("payroll_adjustments_mode_ck"));
     check("pa(1-5) CHECK amount 排他（fixed: amount≥0∧rate_bp null／rate: rate_bp 0..10000∧amount null）",
       /mode = 'fixed'::text\) AND \(amount IS NOT NULL\) AND \(amount >= 0\) AND \(rate_bp IS NULL\)/.test(def("payroll_adjustments_amount_ck"))
       && /mode = 'rate'::text\) AND \(rate_bp IS NOT NULL\) AND \(\(rate_bp >= 0\) AND \(rate_bp <= 10000\)\) AND \(amount IS NULL\)/.test(def("payroll_adjustments_amount_ck")), def("payroll_adjustments_amount_ck"));
     check("pa(1-6) CHECK reason trim 1..200", /length\(TRIM\(BOTH FROM reason\)\) >= 1\) AND \(length\(TRIM\(BOTH FROM reason\)\) <= 200\)/.test(def("payroll_adjustments_reason_ck")), def("payroll_adjustments_reason_ck"));
-    check("pa(1-6b) ★mig0148 CHECK source ∈ manual/carryover", /source = ANY \(ARRAY\['manual'::text, 'carryover'::text\]\)/.test(def("payroll_adjustments_source_ck")), def("payroll_adjustments_source_ck"));
+    check("pa(1-6b) ★mig0148／0154 CHECK source ∈ manual/carryover/settlement/sanction", /source = ANY \(ARRAY\['manual'::text, 'carryover'::text, 'settlement'::text, 'sanction'::text\]\)/.test(def("payroll_adjustments_source_ck")), def("payroll_adjustments_source_ck"));
+    check("pa(1-6c) ★mig0154 CHECK basis_ck＝settlement／sanction は basis trim 1..200 必須", /source <> ALL \(ARRAY\['settlement'::text, 'sanction'::text\]\)/.test(def("payroll_adjustments_basis_ck")) && /length\(TRIM\(BOTH FROM COALESCE\(basis, ''::text\)\)\) >= 1/.test(def("payroll_adjustments_basis_ck")), def("payroll_adjustments_basis_ck"));
     const idx = await q<{ indexname: string; indexdef: string }>(`select indexname, indexdef from pg_indexes where schemaname='public' and tablename=$1 order by indexname`, [T]);
-    check("pa(1-7) index 4+pk（★mig0148 で carryover_uidx 追加）", JSON.stringify(idx.map((i) => i.indexname)) === JSON.stringify(["payroll_adjustments_carryover_uidx", "payroll_adjustments_cast_idx", "payroll_adjustments_org_idx", "payroll_adjustments_pkey", "payroll_adjustments_run_idx"]), idx.map((i) => i.indexname).join(","));
+    check("pa(1-7) index 5+pk（★mig0148 carryover_uidx・★mig0154 target_shift_idx）", JSON.stringify(idx.map((i) => i.indexname)) === JSON.stringify(["payroll_adjustments_carryover_uidx", "payroll_adjustments_cast_idx", "payroll_adjustments_org_idx", "payroll_adjustments_pkey", "payroll_adjustments_run_idx", "payroll_adjustments_target_shift_idx"]), idx.map((i) => i.indexname).join(","));
     const uidxDef = idx.find((i) => i.indexname === "payroll_adjustments_carryover_uidx")?.indexdef ?? "";
     check("pa(1-7b) ★mig0148 carryover_uidx＝UNIQUE (run_id, cast_id) WHERE source='carryover'（manual 行には掛からない部分 unique）", /CREATE UNIQUE INDEX payroll_adjustments_carryover_uidx ON public\.payroll_adjustments USING btree \(run_id, cast_id\) WHERE \(source = 'carryover'::text\)/.test(uidxDef), uidxDef);
     const colDef = await q<{ column_name: string; data_type: string; column_default: string | null; is_nullable: string }>(`select column_name, data_type, column_default, is_nullable from information_schema.columns where table_schema='public' and table_name=$1 and column_name in ('source','carry_from_payslip_id') order by ordinal_position`, [T]);
@@ -368,7 +369,7 @@ async function main() {
   {
     const fk = await q<{ conname: string; def: string }>(`select conname, pg_get_constraintdef(oid) as def from pg_constraint where conrelid=('public.' || $1)::regclass and contype='f' order by conname`, [T]);
     const defs = fk.map((f) => f.def);
-    check("pa(3-1) FK 6 本（★mig0148 で carry_from_payslip_id 追加）", fk.length === 6, fk.map((f) => f.conname).join(","));
+    check("pa(3-1) FK 7 本（★mig0148 で carry_from_payslip_id・★mig0154 で target_shift_id 追加）", fk.length === 7, fk.map((f) => f.conname).join(","));
     check("pa(3-7) ★mig0148 carry_from_payslip_id→payslips ON DELETE SET NULL", defs.some((d) => d === "FOREIGN KEY (carry_from_payslip_id) REFERENCES payslips(id) ON DELETE SET NULL"), defs.join(" | "));
     check("pa(3-2) org_id→orgs", defs.some((d) => d === "FOREIGN KEY (org_id) REFERENCES orgs(id)"));
     check("pa(3-3) store_id→stores", defs.some((d) => d === "FOREIGN KEY (store_id) REFERENCES stores(id)"));
@@ -383,7 +384,7 @@ async function main() {
     const add = sig.find((s) => s.proname === "payroll_adjustment_add"), del = sig.find((s) => s.proname === "payroll_adjustment_delete"), sync = sig.find((s) => s.proname === "payroll_carryover_sync");
     check("pa(4-5) ★mig0148 carryover_sync の署名 (uuid)→integer", sync?.args === SYNC_ARGS && sync?.ret === "integer", `${sync?.args} → ${sync?.ret}`);
     check("pa(4-6) ★mig0148 carryover_sync SECURITY DEFINER", sync?.prosecdef === true);
-    check("pa(4-1) add の署名 (uuid,uuid,text,integer,integer,boolean,boolean,text)→uuid", add?.args === ADD_ARGS && add?.ret === "uuid", `${add?.args} → ${add?.ret}`);
+    check("pa(4-1) add の署名 (uuid,uuid,text,integer,integer,boolean,boolean,text,text,text,uuid)→uuid（★mig0154: 11 引数・旧 8 引数は DROP＝同名 1 行）", add?.args === ADD_ARGS && add?.ret === "uuid" && sig.filter((s) => s.proname === "payroll_adjustment_add").length === 1, `${add?.args} → ${add?.ret}`);
     check("pa(4-2) add SECURITY DEFINER", add?.prosecdef === true);
     check("pa(4-3) delete の署名 (uuid,text)→void", del?.args === DEL_ARGS && del?.ret === "void", `${del?.args} → ${del?.ret}`);
     check("pa(4-4) delete SECURITY DEFINER", del?.prosecdef === true);

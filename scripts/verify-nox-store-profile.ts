@@ -43,7 +43,8 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 const has = (e: { message?: string } | null | undefined, s: string) => !!e?.message?.includes(s);
 
-// ★0147: 白名単 20 キー（既存 8＋enum 2＋boolean 10）。★0151（裁定287-4／289）: +slide_apply（enum text 'next'|'current'）＝21 キー
+// ★0147: 白名単 20 キー（既存 8＋enum 2＋boolean 10）。★0151（裁定287-4／289）: +slide_apply（enum text 'next'|'current'）＝21 キー。
+// ★0154（裁定294-7）: +settlement_presets（配列 ≤10・要素 {code,name,amount,basis,target}）＝22 キー（KEYS には足さない＝形が配列のため sp(⑤-10) で個別に係留）
 const NEW_ENUM = ["biz_type", "billing_mode", "slide_apply"] as const;
 const NEW_BOOL = ["setup_done", "sys_hourly", "sys_backs", "sys_sales_rate", "sys_points", "sys_sales_slide", "sys_point_slide", "sys_norms", "sys_penalties", "sys_bonus"] as const;
 const KEYS = ["name", "short", "ext_shimei_enabled", "dohan_auto_hon", "store_code", "display_name", "show_open_status", "shift_cast_confirm", ...NEW_ENUM, ...NEW_BOOL] as const;
@@ -128,6 +129,26 @@ async function main() {
       // ★0151: slide_apply（enum text）
       ["slide_apply", "next", (r) => jsonOf(r).slide_apply],
     ];
+    // ★0154（裁定294-7）sp(⑤-10): settlement_presets＝配列 ≤10・要素の形（欠損キー・target 4 値・amount 整数 ≥0）・'bad type'・空配列可
+    {
+      const presets = [{ code: "late", name: "遅刻", amount: 0, basis: "契約 §5", target: "late" }, { code: "absent", name: "当欠", amount: 0, basis: "契約 §5", target: "absent" }, { code: "early", name: "早退", amount: 0, basis: "契約 §5", target: "early" }];
+      const e1 = (await set(owner, { settlement_presets: presets })).error;
+      const j1 = jsonOf(await read());
+      const bad = [
+        { settlement_presets: Array.from({ length: 11 }, (_, i) => ({ ...presets[0], code: "c" + i })) },
+        { settlement_presets: [{ code: "x", name: "x", amount: 0, basis: "x" }] },
+        { settlement_presets: [{ ...presets[0], target: "x" }] },
+        { settlement_presets: [{ ...presets[0], amount: -1 }] },
+        { settlement_presets: [{ ...presets[0], amount: 1.5 }] },
+        { settlement_presets: { code: "x" } },
+        { settlement_presets: [{ ...presets[0], code: " " }] },
+      ];
+      const badRes: string[] = [];
+      for (const p of bad) badRes.push((await set(owner, p)).error?.message ?? "(通った)");
+      const e2 = (await set(owner, { settlement_presets: [] })).error;
+      if (!e1 && !e2) okCalls += 2;
+      check("sp(⑤-10) ★0154 settlement_presets: 3 件受理（保存 3・要素の形が保たれる）・11 件／target 欠落／target 'x'／負／小数／非配列／code 空は 'bad type'・空配列可", !e1 && Array.isArray(j1.settlement_presets) && (j1.settlement_presets as unknown[]).length === 3 && badRes.every((m) => m.includes("bad type")) && !e2, `${e1?.message ?? "ok"} / ${badRes.join(" / ")} / ${e2?.message ?? "ok"}`);
+    }
     for (const [k, v, get] of one) {
       const { error } = await set(owner, { [k]: v });
       if (!error) okCalls++;
@@ -270,6 +291,8 @@ async function main() {
   }
   // ── ⑩ 後始末 ──
   {
+    // ★0154（sp(⑤-10)）: settlement_presets キーは setter では消せない（白名単の値を書くだけ）＝admin で実行前の settings_json に戻してからキー集合を比べる
+    await admin.from("stores").update({ settings_json: jsonOf(row0) }).eq("id", storeA1);
     const r = await read();
     check("sp(⑩-1) ★列 4 つが実行前の値へ復元（RPC 経路）", r.name === row0.name && r.short === row0.short && r.ext_shimei_enabled === row0.ext_shimei_enabled && r.dohan_auto_hon === row0.dohan_auto_hon, JSON.stringify({ row0, r }));
     check("sp(⑩-2) ★settings_json のキー集合と値が実行前と一致", JSON.stringify(jsonOf(r)) === JSON.stringify(jsonOf(row0)) && Object.keys(jsonOf(r)).sort().join() === keys0.join(), JSON.stringify({ before: jsonOf(row0), after: jsonOf(r) }));
