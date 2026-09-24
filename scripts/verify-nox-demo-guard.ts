@@ -9,6 +9,8 @@
  *   C) ALLOW … デモ内で完結する（給与・入金・前借り・送り・ノルマ・店設定・デモ入場／リセット）
  *  (1) 全 route が A∪B∪C に入る（未分類 0）・(2) A の各 route は柵を通る（逐語 grep）・(3) guard.ts の文言と 403・(4) 表の重複 0
  *  逆テスト 1 本（手動・1 回）: app/api/billing/_owner.ts の assertNotDemo 行を消す→dg(2-*) 赤・戻して緑。
+ *  (5) ★夜間便 N5（裁定293-7・2026-09-24）: /demo の入場前に規約 5 項＋「同意する」チェック・未同意は入場ボタン disabled・route／noindex は不変
+ *  逆テスト 2 本目（手動・1 回）: demo-terms.tsx の disabled={!agreed} を外す→dg(5-2) 赤・戻して緑。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -77,6 +79,14 @@ for (const [r, guardFile] of Object.entries(DENY_GUARDED)) {
 const guard = fs.readFileSync("lib/nox/demo/guard.ts", "utf8");
 check("dg(3-1) guard.ts: 文言「デモ環境ではこの操作はできません」・403・orgs.is_demo を admin で読む・読めなければ false（本番を止めない）", /DEMO_FORBIDDEN_MESSAGE = "デモ環境ではこの操作はできません"/.test(guard) && /status: 403/.test(guard) && /from\("orgs"\)\.select\("is_demo"\)/.test(guard) && /return false;/.test(guard));
 check("dg(3-2) guard.ts はサーバ専用（admin client のみ・use client 指示なし）", !/"use client"/.test(guard) && /createAdminClient/.test(guard));
+
+// (5) ★N5（裁定293-7）: 公開デモの規約
+const demoPage = fs.readFileSync("app/demo/page.tsx", "utf8");
+const demoTerms = fs.readFileSync("components/ui/demo-terms.tsx", "utf8");
+const termsN = (demoTerms.match(/^  "[^"]+",$/gm) || []).length;
+check("dg(5-1) /demo: 規約 5 項（実在人物の個人情報／本番利用禁止／リセット／給与等へ利用しない／不正利用禁止）と「同意する」チェック", termsN === 5 && /実在の人物の個人情報/.test(demoTerms) && /本番の店舗運営には利用しません/.test(demoTerms) && /初期化されます/.test(demoTerms) && /実際の給与・報酬・税務に利用しません/.test(demoTerms) && /不正利用/.test(demoTerms) && /type="checkbox" checked=\{agreed\}/.test(demoTerms) && /上記に同意する/.test(demoTerms), `terms=${termsN}`);
+check("dg(5-2) /demo: 未同意は入場ボタン disabled（aria-disabled・onSubmit も止める）・page は DemoEntry を通す・form POST /api/demo/enter は不変", /disabled=\{!agreed\} aria-disabled=\{!agreed\}/.test(demoTerms) && /onSubmit=\{\(e\) => \{ if \(!agreed\) e\.preventDefault\(\); \}\}/.test(demoTerms) && /<DemoEntry biz=\{BIZ\} roles=\{ROLES\} \/>/.test(demoPage) && /action="\/api\/demo\/enter"/.test(demoTerms) && !/action="\/api\/demo\/enter"/.test(demoPage));
+check("dg(5-3) /demo: noindex 維持（robots index:false・follow:false）・資格情報／リンクを置かない（http は無い）", /robots: \{ index: false, follow: false, nocache: true \}/.test(demoPage) && !/https?:\/\//.test(demoPage) && !/https?:\/\//.test(demoTerms));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
