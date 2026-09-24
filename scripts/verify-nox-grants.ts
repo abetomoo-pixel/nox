@@ -197,6 +197,26 @@ async function main() {
     }
   }
 
+  // G4d: mig0151（裁定287／289・2026-09-24）新 secdef RPC 3 本＝SECURITY DEFINER・search_path=public・EXECUTE は authenticated／service_role 保持・anon／PUBLIC 不在
+  //   （G2b の全数走査に加え、名前で係留＝「revoke を書き忘れて既定 grant が付く」0069 型の再発を関数名で検知）
+  {
+    const NEW_0151 = ["staff_shift_cancel", "shift_open_periods_mine", "set_cast_guarantee"];
+    const r = await db.query(
+      `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
+              has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
+              has_function_privilege('anon', p.oid, 'execute') as anon_ok,
+              has_function_privilege('service_role', p.oid, 'execute') as svc_ok,
+              exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE') as public_ok
+         from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any($1) order by p.proname`,
+      [NEW_0151],
+    );
+    check(`G4d 0151 新 RPC ${NEW_0151.length} 本が存在`, r.rowCount === NEW_0151.length, `got ${r.rowCount}: ${r.rows.map((x) => x.proname).join(", ")}`);
+    for (const row of r.rows) {
+      check(`G4d ${row.proname} SECURITY DEFINER＋search_path=public`, row.prosecdef === true && (row.config as string).includes("search_path=public"), row.config);
+      check(`G4d ${row.proname} EXECUTE = authenticated／service_role 保持・anon／PUBLIC 不在`, row.auth_ok === true && row.svc_ok === true && !row.anon_ok && !row.public_ok, JSON.stringify([row.auth_ok, row.svc_ok, row.anon_ok, row.public_ok]));
+    }
+  }
+
   // G4c: C層② 内部ヘルパー 4 本（mig0136・0137 で can_manage は G4/G4b 側へ）＋C層③ 内部ヘルパー 3 本（mig0138）＝SECURITY DEFINER・search_path 固定・4 ロール明示 revoke（authenticated/anon/service_role/public 不在）
   {
     const INTERNAL = ["staff_shift_biz_today", "staff_shift_gate", "staff_pattern_effective", "staff_shift_deadline_at", // ★0137: can_manage は HELPERS へ（policy から呼ぶ）

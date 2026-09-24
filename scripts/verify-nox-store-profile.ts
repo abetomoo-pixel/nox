@@ -43,8 +43,8 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 const has = (e: { message?: string } | null | undefined, s: string) => !!e?.message?.includes(s);
 
-// ★0147: 白名単 20 キー（既存 8＋enum 2＋boolean 10）
-const NEW_ENUM = ["biz_type", "billing_mode"] as const;
+// ★0147: 白名単 20 キー（既存 8＋enum 2＋boolean 10）。★0151（裁定287-4／289）: +slide_apply（enum text 'next'|'current'）＝21 キー
+const NEW_ENUM = ["biz_type", "billing_mode", "slide_apply"] as const;
 const NEW_BOOL = ["setup_done", "sys_hourly", "sys_backs", "sys_sales_rate", "sys_points", "sys_sales_slide", "sys_point_slide", "sys_norms", "sys_penalties", "sys_bonus"] as const;
 const KEYS = ["name", "short", "ext_shimei_enabled", "dohan_auto_hon", "store_code", "display_name", "show_open_status", "shift_cast_confirm", ...NEW_ENUM, ...NEW_BOOL] as const;
 const JSON_KEYS = ["store_code", "display_name", "show_open_status", "shift_cast_confirm", ...NEW_ENUM, ...NEW_BOOL] as const;
@@ -125,6 +125,8 @@ async function main() {
       ["sys_norms", true, (r) => jsonOf(r).sys_norms],
       ["sys_penalties", true, (r) => jsonOf(r).sys_penalties],
       ["sys_bonus", true, (r) => jsonOf(r).sys_bonus],
+      // ★0151: slide_apply（enum text）
+      ["slide_apply", "next", (r) => jsonOf(r).slide_apply],
     ];
     for (const [k, v, get] of one) {
       const { error } = await set(owner, { [k]: v });
@@ -136,25 +138,26 @@ async function main() {
     {
       const { rows } = await db.query(`select before_json as b, after_json as a, target, store_id from public.audit_logs where org_id = $1 and at >= $2 and action = 'set_store_profile' order by at desc limit 1`, [orgA, t0]);
       const b = rows[0]?.b ?? {}, a = rows[0]?.a ?? {};
-      check("sp(⑨-1) ★1 キー呼び出しの audit: before/after のキーは patch のキーだけ（★0147: 末尾は sys_bonus・before false→after true）",
-        rows.length === 1 && Object.keys(b).join() === "sys_bonus" && Object.keys(a).join() === "sys_bonus" && b.sys_bonus === false && a.sys_bonus === true
+      check("sp(⑨-1) ★1 キー呼び出しの audit: before/after のキーは patch のキーだけ（★0151: 末尾は slide_apply・before ''（未設定＝RPC は '' を控える）→after 'next'）",
+        rows.length === 1 && Object.keys(b).join() === "slide_apply" && Object.keys(a).join() === "slide_apply" && (b.slide_apply === "" || b.slide_apply === null) && a.slide_apply === "next"
           && rows[0].target === `stores:${storeA1}` && rows[0].store_id === storeA1, JSON.stringify(rows[0]));
     }
 
     // ── ② まとめ書き ──
     const all = { name: "NOX-VERIFY-A1 改2", short: "A1b", ext_shimei_enabled: false, dohan_auto_hon: false, store_code: "C2", display_name: "D2", show_open_status: false, shift_cast_confirm: false,
       // ★0147: 12 キー（enum は別値・boolean は ① と逆）
-      biz_type: "lounge", billing_mode: "table", setup_done: true, sys_hourly: false, sys_backs: false, sys_sales_rate: false, sys_points: false, sys_sales_slide: false, sys_point_slide: false, sys_norms: false, sys_penalties: false, sys_bonus: false };
-    const NEW_ALL_OK = (j: Record<string, unknown>) => j.biz_type === "lounge" && j.billing_mode === "table" && j.setup_done === true && NEW_BOOL.slice(1).every((k) => j[k] === false);
+      biz_type: "lounge", billing_mode: "table", setup_done: true, sys_hourly: false, sys_backs: false, sys_sales_rate: false, sys_points: false, sys_sales_slide: false, sys_point_slide: false, sys_norms: false, sys_penalties: false, sys_bonus: false,
+      slide_apply: "current" }; // ★0151
+    const NEW_ALL_OK = (j: Record<string, unknown>) => j.biz_type === "lounge" && j.billing_mode === "table" && j.slide_apply === "current" && j.setup_done === true && NEW_BOOL.slice(1).every((k) => j[k] === false);
     {
       const { error } = await set(owner, all);
       if (!error) okCalls++;
       const r = await read();
       const j = jsonOf(r);
-      check("sp(②) ★20 キーまとめ書きで全部反映（★0147）", !error && r.name === all.name && r.short === all.short && r.ext_shimei_enabled === false && r.dohan_auto_hon === false
+      check("sp(②) ★21 キーまとめ書きで全部反映（★0147＋0151 slide_apply）", !error && r.name === all.name && r.short === all.short && r.ext_shimei_enabled === false && r.dohan_auto_hon === false
         && j.store_code === "C2" && j.display_name === "D2" && j.show_open_status === false && j.shift_cast_confirm === false && NEW_ALL_OK(j), error?.message ?? JSON.stringify(r));
       const { rows } = await db.query(`select before_json as b, after_json as a from public.audit_logs where org_id = $1 and at >= $2 and action = 'set_store_profile' order by at desc limit 1`, [orgA, t0]);
-      check("sp(⑨-2) まとめ書きの audit: before/after とも 20 キー（★0147: 8→20）", rows.length === 1 && Object.keys(rows[0].b).length === 20 && Object.keys(rows[0].a).length === 20, JSON.stringify(rows[0]));
+      check("sp(⑨-2) まとめ書きの audit: before/after とも 21 キー（★0147: 8→20・★0151: 21）", rows.length === 1 && Object.keys(rows[0].b).length === 21 && Object.keys(rows[0].a).length === 21, JSON.stringify(rows[0]));
     }
 
     // ── ③ patch に無いキーは不変 ──
@@ -207,6 +210,11 @@ async function main() {
       check("sp(⑤-6) ★billing_mode 未知値は bad billing_mode", has(e6, "bad billing_mode"), e6?.message ?? "通ってしまった");
       const e7 = (await set(owner, { sys_norms: "true" })).error;
       check("sp(⑤-7) ★制度キー sys_norms に非 boolean は bad type", has(e7, "bad type"), e7?.message ?? "通ってしまった");
+      // ★0151（裁定287-4）: slide_apply は 'next'|'current' のみ・非 string は bad type
+      const e8 = (await set(owner, { slide_apply: "x" })).error;
+      check("sp(⑤-8) ★slide_apply 未知値は bad slide_apply（0151）", has(e8, "bad slide_apply"), e8?.message ?? "通ってしまった");
+      const e9 = (await set(owner, { slide_apply: 1 })).error;
+      check("sp(⑤-9) ★slide_apply に非 string は bad type（0151）", has(e9, "bad type"), e9?.message ?? "通ってしまった");
     }
 
     // ── ⑥ 長さ ──
@@ -277,7 +285,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-store-profile ALL PASS (${pass} assertions)`);
-  console.log("店舗設定 setter(0144＋0147): 20 キー個別 / まとめ書き / enum 未知値・非 string / 制度キー非 boolean / setup_done 埋め戻し / 無いキー不変 / bad key・bad patch / bad type / 長さ 4 種 / short 空→null / manager・cast・他 org forbidden＋anon BLOCKED / audit 1 行=1 呼び出し・キーは patch 分だけ / 復元");
+  console.log("店舗設定 setter(0144＋0147＋0151): 21 キー個別 / まとめ書き / enum 未知値・非 string / 制度キー非 boolean / setup_done 埋め戻し / 無いキー不変 / bad key・bad patch / bad type / 長さ 4 種 / short 空→null / manager・cast・他 org forbidden＋anon BLOCKED / audit 1 行=1 呼び出し・キーは patch 分だけ / 復元");
 }
 
 main().catch((e) => { console.error("✗ 異常終了", e); process.exit(1); });

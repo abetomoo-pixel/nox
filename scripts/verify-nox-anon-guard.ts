@@ -641,6 +641,18 @@ async function main() {
     check(`anon ${fn} BLOCKED`, isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
 
+  // ── 段35f: mig0151（裁定287／289・2026-09-24）新 RPC 3 本 anon BLOCKED（引数は null 埋め＝書込なし。cancel／guarantee＝revoke … from public, anon＋grant authenticated, service_role・
+  //   open_periods_mine＝revoke all from public, anon＝いずれも "permission denied for function"）──
+  const F0151_PROBES: Array<[string, Record<string, unknown>]> = [
+    ["staff_shift_cancel", { p_id: null, p_reason: null }],
+    ["shift_open_periods_mine", {}],
+    ["set_cast_guarantee", { p_cast_id: null, p_amount: null, p_start: null, p_end: null }],
+  ];
+  for (const [fn, args] of F0151_PROBES) {
+    const { error } = await anon.rpc(fn, args);
+    check(`anon ${fn} BLOCKED（0151）`, isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
+
   // ── 段36a: F4b レシート印刷（mig0044/0045）RPC anon BLOCKED ──
   //   claim/result は service_role 限定（内部専用型）＝anon に加え authenticated 負系を段36 本体で実測。
   const F0044_PROBES: Array<[string, Record<string, unknown>]> = [

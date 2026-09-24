@@ -53,6 +53,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   `set_store_receivable_policy`→A8）・非ゲート 1 本を B(e) へ（`payroll_carryover_sync`＝前期 payslip の adjustOverflow を carryover 行へ upsert／削除する繰越消費＝給与の清算・
   owner∨manager 自店・draft のみ）。`set_product`／`product_bulk_insert`（白名単 +food/other）／`check_group_due`（referral 除外・内部専用）は CREATE OR REPLACE のみ＝名前不変で本数不動。
   対象 **125→128**・除外 **116→117**・全数 **241→245**。★教訓21 トリップワイヤの先回り収載（mig 手貼りと同一レーンで名簿＋pin を同時更新・dev 適用済み 9/18 11:1x JST）。
+- ★**mig0151 追随（2026-09-24・裁定287／289）**: 新 RPC **3本**＝ゲート内蔵 2 本を A へ（`set_cast_guarantee`→A7・`staff_shift_cancel`→A8）・非ゲート読取 1 本を B(f) へ
+  （`shift_open_periods_mine`＝cast 本人の自店 open 期間 3 列・書込なし・名簿 B(f)＝裁定287-2）。`set_store_profile`（白名単 +slide_apply）は CREATE OR REPLACE のみ＝名前不変で本数不動。
+  対象 **128→130**・除外 **118→119**・全数 **246→249**（live 実測 2026-09-24 14:00＝総数 249・'billing locked' 130）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -167,14 +170,16 @@ product_reorder / product_stock_add / set_seat / set_pricing_rule / delete_prici
 pricing_rule_reorder / set_store_pricing / set_store_time_pricing /
 **set_pricing_category**（mig0127 新設＝裁定116-1・料金区分の upsert＝唯一の書込経路・停止=is_active false・ゲート内蔵・kiosk 腕なし）
 
-### A7. 待遇・報酬マスタ（12本）
+### A7. 待遇・報酬マスタ（13本）
 set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_comp_plan / set_cast_plan /
 set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config /
 **set_comp_component**（mig0115＝comp_plan_components の唯一の書き手・owner のみ・ゲート内蔵・裁定86） /
 **set_cast_norm_self**（mig0148＝cast 本人の当月ノルマ目標＝A7 の norm setter と同じ本体・cast_id は呼び出し元 JWT から導出で引数に無い・
-店の sys_norms='false' は 'norms off'・ゲート内蔵・監査 set_cast_norm_self・裁定272-3＝R19）
+店の sys_norms='false' は 'norms off'・ゲート内蔵・監査 set_cast_norm_self・裁定272-3＝R19） /
+**set_cast_guarantee**（mig0151＝期限つきの保証時給＝cast_plan の現在行 C を割って保証行（overrides_json に base／guarantee=true）と戻し行を作る・owner∨manager 自店・
+ゲート内蔵・監査 set_cast_guarantee・'guarantee exists' は重なり OR 後続の予定＝裁定287-3／289-6）
 
-### A8. 店設定・日報運用（23本）
+### A8. 店設定・日報運用（24本）
 **report_reopen**（mig0138＝日報の締め解除・owner∨manager 自店∨staff∧can_reopen・理由必須・監査 report_reopen・C層③＝裁定 C③-1） /
 **cash_diff_approve**（mig0138＝現金差異の承認・owner∨manager∨staff∧can_close・理由必須・監査 cash_diff_approve・C層③＝裁定 C③-4／18） /
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /
@@ -188,7 +193,9 @@ set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin 
 **staff_pattern_set** / **staff_pattern_delete** / **staff_deadline_set**（mig0136＋0137＝黒服の勤務パターン枠と締切＝effective_from 型の店設定・owner∨manager 自店・flag gate の直後に課金ゲート＝裁定233） /
 **staff_shift_propose** / **staff_shift_override** / **staff_shift_confirm**（mig0136＋0137＝黒服シフト行の作成・時刻上書き・確定・owner∨manager 自店・課金ゲート＝裁定233。cast の A5 と同列だが店設定と同じ mig のため A8 に置く） /
 **set_store_receivable_policy**（mig0148＝stores.receivable_policy 実列の setter・CHECK 3 値（disabled／customer_only／cast_liability_allowed）・
-okuri_mode setter の骨格逐語・owner 限定・ゲート内蔵・監査 set_store_receivable_policy・裁定272-5）
+okuri_mode setter の骨格逐語・owner 限定・ゲート内蔵・監査 set_store_receivable_policy・裁定272-5） /
+**staff_shift_cancel**（mig0151＝黒服シフト行の取消＝delete・proposed は理由不要・confirmed は 'reason required'・過去日 'biz_date_past'・不在 'not_found'・
+owner∨manager 自店判定（0137 のヘルパー）・flag gate の直後に課金ゲート・監査 before 行全体／after null＝裁定287-1／289-1・教訓90＝説明文に他の関数名を裸で書かない）
 
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
@@ -230,7 +237,7 @@ payroll_run_create / payment_record_add / withholding_payment_record / payroll_a
 （payroll_carryover_sync＝mig0148・裁定272-1: 前期 payslip の adjustOverflow>0 を当 draft run の carryover 行（source='carryover'・部分 unique）へ upsert／0 は削除＝冪等。
   調整控除 add の actor／org／manager 自店／draft 判定を逐語＝同じく非ゲート。A に載せると対象→live assert が赤になる）
 
-### B(f) 読取 RPC（44本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
+### B(f) 読取 RPC（45本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
 **staff_pin_status**（mig0108＝PIN 状態の読取・owner∨manager自店・hash 非返却） /
 **cast_unavailable_list**（mig0125＝出勤不可の読取・STABLE・owner∨manager自店・裁定112） /
 auth_cast_can_register / auth_cast_id / auth_kiosk_org_id / auth_kiosk_register_store_id /
@@ -253,7 +260,8 @@ billing_writable_of / auth_org_billing_writable / nox_receipt_public /
 　2本は 0088 の課金述語とその zero-arg ラッパ＝読取ヘルパー。教訓20 の残差是正。
 　nox_receipt_public＝mig0099 2026-08-20 同時追補: ★NOX 初の anon 白名単1号・裁定 R2-11 改訂＝
 　token 引数の DEFINER 読取・不在/void/期限切れは空 return・grants G2b の白名単 assert が本数=1 を係留）
-**flag_enabled**（mig0135＝機能フラグの解決・店舗行→org 行→false の fail-closed・STABLE 読取・非ゲート・authenticated 実行可・C層①＝裁定182）
+**flag_enabled**（mig0135＝機能フラグの解決・店舗行→org 行→false の fail-closed・STABLE 読取・非ゲート・authenticated 実行可・C層①＝裁定182） /
+**shift_open_periods_mine**（mig0151＝cast 本人の自店 shift_periods（status='open'）の start_date／end_date／wish_deadline 3 列のみ・cast 以外は 0 行・書込なし・非ゲート＝裁定287-2／289-2）
 
 ### B(g) 印刷（1本・「出せる」原則の明文）
 print_enqueue[K]

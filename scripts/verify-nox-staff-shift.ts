@@ -41,9 +41,9 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 const has = (e: { message?: string } | null, s: string) => !!e?.message?.includes(s);
 const DISABLED = "feature_disabled:staff_shift";
-const RPCS = ["staff_pattern_set", "staff_pattern_delete", "staff_wish_set", "staff_shift_propose", "staff_shift_override", "staff_shift_confirm", "staff_deadline_set"];
+const RPCS = ["staff_pattern_set", "staff_pattern_delete", "staff_wish_set", "staff_shift_propose", "staff_shift_override", "staff_shift_confirm", "staff_deadline_set", "staff_shift_cancel"]; // ★0151: +cancel（裁定287-1）
 const HELPERS_INTERNAL = ["staff_shift_biz_today", "staff_shift_gate", "staff_pattern_effective", "staff_shift_deadline_at"]; // ★0137: can_manage は policy から呼ぶ＝authenticated 可
-const GATED = ["staff_pattern_set", "staff_pattern_delete", "staff_shift_propose", "staff_shift_override", "staff_shift_confirm", "staff_deadline_set"];
+const GATED = ["staff_pattern_set", "staff_pattern_delete", "staff_shift_propose", "staff_shift_override", "staff_shift_confirm", "staff_deadline_set", "staff_shift_cancel"]; // ★0151
 const GATE_LINE = "if not public.billing_writable_of(public.auth_org_id()) then raise exception 'billing locked'; end if;";
 const TABLES = ["staff_shift_patterns", "staff_shift_wishes", "staff_shifts", "staff_shift_deadlines"];
 const AUDIT_ACTIONS = ["staff_pattern_set", "staff_pattern_delete", "staff_shift_propose", "staff_shift_override", "staff_shift_confirm", "staff_deadline_set"];
@@ -130,7 +130,7 @@ async function main() {
       const { rows: f } = await db.query(
         `select p.proname, has_function_privilege('authenticated', p.oid, 'execute') as auth_ok, has_function_privilege('anon', p.oid, 'execute') as anon_ok
            from pg_proc p where p.pronamespace='public'::regnamespace and p.proname = any($1) order by p.proname`, [RPCS]);
-      check("ss(1d) ★公開 RPC 7 本＝authenticated 可・anon 不可", f.length === 7 && f.every((r) => r.auth_ok === true && r.anon_ok === false), JSON.stringify(f));
+      check("ss(1d) ★公開 RPC 8 本（0151 で +cancel）＝authenticated 可・anon 不可", f.length === 8 && f.every((r) => r.auth_ok === true && r.anon_ok === false), JSON.stringify(f));
       const { rows: h } = await db.query(
         `select p.proname, prosecdef, coalesce(array_to_string(proconfig, ','), '') as config,
                 has_function_privilege('authenticated', p.oid, 'execute') as auth_ok, has_function_privilege('anon', p.oid, 'execute') as anon_ok,
@@ -146,8 +146,8 @@ async function main() {
       check("ss(1g) ★内部ヘルパー 4 本＝authenticated／anon／service_role とも不可（4 ロール明示 revoke）",
         internal.length === 4 && internal.every((r) => !r.auth_ok && !r.anon_ok && !r.svc_ok), JSON.stringify(internal.map((r) => [r.proname, r.auth_ok, r.anon_ok, r.svc_ok])));
       const { rows: gl } = await db.query(`select proname, (length(prosrc) - length(replace(prosrc, $2, ''))) / length($2) as n, prosrc like '%billing locked%' as gated from pg_proc where pronamespace='public'::regnamespace and proname = any($1) order by proname`, [RPCS, GATE_LINE]);
-      check("ss(1h) ★課金ゲート逐語行＝書込 6 本に各 1・staff_wish_set は 'billing locked' なし（0137・裁定233）",
-        gl.length === 7 && gl.every((r) => (GATED.includes(r.proname) ? Number(r.n) === 1 && r.gated === true : Number(r.n) === 0 && r.gated === false)), JSON.stringify(gl));
+      check("ss(1h) ★課金ゲート逐語行＝書込 7 本（0151 で +cancel）に各 1・staff_wish_set は 'billing locked' なし（0137・裁定233）",
+        gl.length === 8 && gl.every((r) => (GATED.includes(r.proname) ? Number(r.n) === 1 && r.gated === true : Number(r.n) === 0 && r.gated === false)), JSON.stringify(gl));
       const { rows: bt } = await db.query(`select prosrc like '%public.biz_date_of(p_store_id, now())%' as delegates from pg_proc where pronamespace='public'::regnamespace and proname='staff_shift_biz_today'`);
       check("ss(1i) staff_shift_biz_today は biz_date_of（既定 06:00）へ委譲（0137・裁定232）", bt[0]?.delegates === true, JSON.stringify(bt));
     }
