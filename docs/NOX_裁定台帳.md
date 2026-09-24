@@ -2846,9 +2846,11 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
-### 提案（番号なし・2026-09-24・便 0151 手貼り後）: mig の pin 走査（AG c-3 型）は「その値を読む suite を全部」挙げる
+### 教訓92：mig で列・キー・RPC を足すときの pin 走査は「その値を読む suite を全部」挙げる（相談役起こし）
 
-0151 の c-3 は set_store_profile 白名単の pin を store-profile だけ挙げ、同じ白名単を prosrc から読む store-systems（ss(4-0)＝20 キー）を落とした→ f0 run1 が 51 段目で赤（`5f76dbc` で 21 キーへ）。同じ値を pin する suite は grep（'set_store_profile'／'20 キー'）で全数を挙げてから張り替える。教訓の番号は相談役が振る。
+出典＝相談役 2026-09-24 受領（逐語）: 「教訓92 mig で列・キー・RPC を足すときの pin 走査は“その値を読む suite を全部”挙げる(store-profile だけでなく store-systems も 21 キーを pin していた・0151 run1 の赤)」。
+経緯: 0151 の突合 c-3 は set_store_profile 白名単の pin を store-profile だけ挙げ、同じ白名単を prosrc から読む store-systems（ss(4-0)＝20 キー）を落とした→ 2026-09-24 f0 run1 が 51 段目で赤（timeout ではなく設計上の pin 漏れ）→ `5f76dbc` で 21 キーへ張り替え。
+運用: 値・列・キー・関数名を pin する suite は grep（その語・その本数）で全数を挙げてから張り替える。名簿 A/B（billing）・probe（anon-guard）・grants に加え、prosrc を読む suite（store-systems 型）も走査対象。
 
 ### 教訓91：逆テストの破壊・復元に git checkout／stash を使わない（相談役起こし）
 
