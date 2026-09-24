@@ -797,7 +797,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 ];
                 const dedRows: [string, number][] = [
                   [whLabel, z(pay.withholding)], ["送り", z(pay.okuriDeduct)],
-                  [sanctionOriginal > sanctionApplied ? `制裁（原額 ¥${sanctionOriginal.toLocaleString()}→上限適用）` : "制裁（罰金・減給）", sanctionApplied],
+                  [sanctionOriginal > sanctionApplied ? `懲戒減給（原額 ¥${sanctionOriginal.toLocaleString()}→上限適用）` : "懲戒減給", sanctionApplied],
                   ["前借り", z(pay.advanceDeduct)], ["売掛", z(pay.arDeduct)],
                   ["その他", z(pay.fixedDed) - sanctionApplied + z(pay.fine) + z(pay.normPenalty)],
                   // ★裁定258／264: 調整控除（源泉前＝源泉対象額から引いた分／源泉後）。値は preview 再掲のみ

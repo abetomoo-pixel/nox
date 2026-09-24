@@ -46,7 +46,7 @@ export default async function CastCompHubPage() {
       status: castReg ? "● 店として許可中" : "● 店として停止中" },
     // ★裁定269-7／270-2: 使う制度（mig0147・settings_json.sys_*・欠損は ON）
     { href: "/master/cast-comp/systems", icon: "◇", title: "報酬制度",
-      desc: "この店で使う制度（時給・バック・歩合・ポイント・スライド・ノルマ・罰金控除・達成ボーナス）を選ぶ。OFF は表示だけを隠す。",
+      desc: "この店で使う制度（時給・バック・歩合・ポイント・スライド・ノルマ・精算調整・控除・達成ボーナス）を選ぶ。OFF は表示だけを隠す。",
       status: `● 使用中 ${SYSTEM_KEYS.filter((k) => isSystemOn(sj, k)).length}/9` },
   ];
 

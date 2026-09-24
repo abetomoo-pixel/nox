@@ -157,8 +157,8 @@ function pureChecks() {
     check("pa(0-6b) 新キーは 0（adjBefore／adjAfter／adjustOverflow）", undef.adjBefore === 0 && undef.adjAfter === 0 && undef.adjustOverflow === 0);
     check("pa(0-6c) withholding＝withholdingOf(生 gross)・net＝gross−7 項（従来式）", undef.withholding === withholdingOf(g, 30, "委託")
       && undef.net === g - undef.fixedDed - undef.fine - undef.withholding - undef.arDeduct - undef.advanceDeduct - undef.okuriDeduct - undef.normPenalty && identityHolds(undef));
-    check("pa(0-6d) 具体値: timePay 150,000／hon 2,000／jonai 500／salesBack 9,000／gross 161,500／withholding 1,174／net 152,326",
-      undef.timePay === 150_000 && undef.honBack === 2000 && undef.jonaiBack === 500 && undef.salesBack === 9000 && g === 161_500 && undef.withholding === 1174 && undef.net === 152_326, JSON.stringify({ g, wh: undef.withholding, net: undef.net }));
+    check("pa(0-6d) 具体値: timePay 150,000／hon 2,000／jonai 500／salesBack 9,000／gross 161,500／withholding 1,174／net 155,326（★0154 D3: ノルマ未達 3,000 の撤去で 152,326→155,326）",
+      undef.timePay === 150_000 && undef.honBack === 2000 && undef.jonaiBack === 500 && undef.salesBack === 9000 && g === 161_500 && undef.withholding === 1174 && undef.net === 155_326, JSON.stringify({ g, wh: undef.withholding, net: undef.net }));
   }
 
   // 控除計の集約（264-3）＝旧 5 箇所の式と逐語同値（旧式は置換前の文面をそのまま写経）
@@ -295,7 +295,7 @@ function frozenChecks() {
   const pay = { ...payOf({ ...BASE, adjustments: FROZEN_ROWS }), fixedDed: 5000, fine: 3000, normPenalty: 700, withholding: 1174 };
   const html = renderToStaticMarkup(createElement(PayslipSlip, { slip: { period: "2026-09", net: 1, breakdown_json: { pay: { ...pay, adjustOverflow: 5000 }, extras: [], ...keys, ar: [{ action: "deducted", amount: 400 }] } } }));
   const idx = (s2: string) => html.indexOf(s2);
-  const order = ["固定控除", "罰金", "SHOWN-B1", "SHOWN-B2", "源泉（報酬・料金）", "SHOWN-A1", "ノルマ未達", "売掛"].map(idx);
+  const order = ["固定控除", "精算調整（旧: 罰金）", "SHOWN-B1", "SHOWN-B2", "源泉（報酬・料金）", "SHOWN-A1", "ノルマ未達", "売掛"].map(idx); // ★0154 D3: 旧 payslip の fine>0 は「精算調整（旧: 罰金）」で表示
   check("pa(7-6) ★明細の並び＝固定控除→罰金→[before: B1,B2]→源泉→[after: A1]→ノルマ未達→売掛（before は源泉の直前・after は直後・同群は入力順）", order.every((v) => v >= 0) && order.every((v, i) => i === 0 || v > order[i - 1]), JSON.stringify(order));
   check("pa(7-7) 明細に HIDDEN の理由も「超過」も出ない（264-10／264-11）・行の金額は凍結値（1,000／500／200）", !html.includes("HIDDEN") && !html.includes("超過") && html.includes("−¥1,000") && html.includes("−¥500") && html.includes("−¥200"));
   const html0 = renderToStaticMarkup(createElement(PayslipSlip, { slip: { period: "2026-09", net: 1, breakdown_json: { pay, extras: [] } } }));

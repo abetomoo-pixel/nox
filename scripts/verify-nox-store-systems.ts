@@ -45,7 +45,7 @@ function pureChecks() {
   check("ss(2-6) 単キー節（mine ノルマ）＝sys_norms false で消える", isSectionOn({ sys_norms: false }, "mineNormCard") === false && isSectionOn({}, "mineNormCard") === true);
   check("ss(2-7) 全 ON（{}）で 17 節すべて描く", secs.every((s) => isSectionOn({}, s as keyof typeof SECTION_KEYS)));
   check("ss(2-8) 9 キー全 false で 17 節すべて消える", secs.every((s) => !isSectionOn(Object.fromEntries(SYSTEM_KEYS.map((k) => [k, false])), s as keyof typeof SECTION_KEYS)));
-  check("ss(2-9) ラベル 9 語（STEP 3 と同一）", SYSTEM_KEYS.map((k) => SYSTEM_LABELS[k]).join("／") === "時給・最低保証／各種バック／売上歩合／ポイント制／売上スライド／ポイントスライド／ノルマ／罰金・控除／達成ボーナス");
+  check("ss(2-9) ラベル 9 語（STEP 3 と同一）", SYSTEM_KEYS.map((k) => SYSTEM_LABELS[k]).join("／") === "時給・最低保証／各種バック／売上歩合／ポイント制／売上スライド／ポイントスライド／ノルマ／精算調整・控除／達成ボーナス");
 
   // (3) systemUsageOf
   const u = systemUsageOf({

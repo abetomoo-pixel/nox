@@ -339,7 +339,7 @@ export default function SimulatorPanel({
               <label style={s.lbl}>ボトル本数<br /><input type="number" value={f.bottleCnt} onChange={set("bottleCnt")} style={s.inpS} /></label>
             </div>
           </fieldset>
-          <fieldset style={s.fs}><legend style={s.lg}>罰金・ノルマ</legend>
+          <fieldset style={s.fs}><legend style={s.lg}>遅刻・当欠の検知・ノルマ</legend>{/* ★0154 D3: 回数は検知のみ（罰金は計算しない） */}
             <div style={s.row}>
               <label style={s.lbl}>遅刻回数<br /><input type="number" value={f.lateN} onChange={set("lateN")} style={s.inpS} /></label>
               <label style={s.lbl}>欠勤回数<br /><input type="number" value={f.absentN} onChange={set("absentN")} style={s.inpS} /></label>
@@ -349,7 +349,7 @@ export default function SimulatorPanel({
           </fieldset>
         </details>
       ) : (
-      <fieldset style={s.fs}><legend style={s.lg}>罰金・ノルマ</legend>
+      <fieldset style={s.fs}><legend style={s.lg}>遅刻・当欠の検知・ノルマ</legend>{/* ★0154 D3: 回数は検知のみ（罰金は計算しない） */}
         <div style={s.row}>
           <label style={s.lbl}>遅刻回数<br /><input type="number" value={f.lateN} onChange={set("lateN")} style={s.inpS} /></label>
           <label style={s.lbl}>欠勤回数<br /><input type="number" value={f.absentN} onChange={set("absentN")} style={s.inpS} /></label>
@@ -413,9 +413,7 @@ export default function SimulatorPanel({
               <Line label="商品・売上・自由バック" v={yen(result.pay.drinkBack + result.pay.champBack + result.pay.bottleBack + result.pay.calculatedBack + result.pay.salesBack + result.pay.customTotal)} />
               <Line label="総支給（gross）" v={yen(result.pay.gross)} bold />
               <Line label="− 固定控除" v={`−${yen(result.pay.fixedDed)}`} minus />
-              <Line label="− 罰金" v={`−${yen(result.pay.fine)}`} minus />
               <Line label={`− 源泉（${taxMode}）`} v={`−${yen(result.pay.withholding)}`} minus />
-              <Line label="− ノルマ未達" v={`−${yen(result.pay.normPenalty)}`} minus />
               {result.pay.advanceDeduct > 0 && <Line label="− 前借り" v={`−${yen(result.pay.advanceDeduct)}`} minus />}
               {result.pay.okuriDeduct > 0 && <Line label="− 送り実費" v={`−${yen(result.pay.okuriDeduct)}`} minus />}
             </tbody>

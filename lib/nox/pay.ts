@@ -719,13 +719,16 @@ export function payOf(input: PayInput): PayResult {
     }
   }
   const fixedDed = fixedDedBase + (sanction?.applied ?? 0);
-  const fine =
-    input.fine.absentN * input.penalty.fineAbsent +
-    input.fine.lateN * input.penalty.fineLate;
+  // ★0154 D3（裁定293-3・弁護士 L3）: 罰金の自動計算（当欠×額＋遅刻×額）は撤去＝常に 0。回数（fine.absentN／lateN）と閾値（penalty_config）は
+  //   「遅刻・当欠の検知」として残し、減額は精算調整（payroll_adjustments source='settlement'＝裁定293 追補1）で店が個別に登録する。
+  //   キー fine は凍結形・恒等式（net = gross − (fixedDed+fine+…)）の互換のため残す（旧 payslip の fine>0 は表示のみ）。
+  const fine = 0;
   // ★源泉のみ periodDays（計算期間の暦日数）。fixedDedOf / normPenaltyOf は実出勤日数 effDays のまま（裁定23 #3）。
   // ★264-6: before 群の合計を源泉対象額から引く（0 未満は 0 で止める）。adjustments 空なら従来と 1 バイト同値（生 gross）。
   const withholding = withholdingOf(Math.max(0, gross - adj.before), input.periodDays, input.taxMode);
-  const normPenalty = normPenaltyOf(input.normConfig, input.norm, effDays, effDohan);
+  // ★0154 D3（裁定293-3）: ノルマ未達の罰金も撤去＝常に 0（normPenaltyOf は純関数として残す・normConfig は検知の器）。
+  const normPenalty = 0;
+  void normPenaltyOf; void effDohan;
 
   // ★258-8／264-11: 調整控除を引いた差引が負なら net=0 で止め、超過額を adjustOverflow に保持（DB 列は作らない）。
   //   床は調整控除が食い込む分に限る（min(調整合計, −netRaw)）＝adjustments 空なら従来式そのまま（既存の負 net も不変＝回帰）。

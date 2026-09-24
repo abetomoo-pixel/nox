@@ -57,7 +57,7 @@ export type Deduction = { id: string; name: string; amount: number; per: string;
   kind: string; basis_confirmed_at: string | null; basis_note: string | null }; // ★裁定98（mig0117）
 // ★裁定98: 控除種別6値の表示ラベル（DB 固定語彙と1:1）
 export const DED_KIND_JA: Record<string, string> = {
-  unworked: "不就労分", sanction: "制裁（罰金・減給）", statutory: "法定控除",
+  unworked: "不就労分", sanction: "制裁（懲戒減給）", statutory: "法定控除",
   agreed_cost: "実費・協定（送り代等）", store_receivable: "売掛負担", advance_settlement: "前借り精算",
 };
 export type BackDef = { id: string; name: string; basis: string; value: number; cond_json: { metric: string; min: number } | null; is_active: boolean };
@@ -91,15 +91,15 @@ const METRIC_LABEL_JA: Record<string, string> = {
 // 未知の保存値（将来 basis が増えた場合）はそのまま出す＝表示が空にならない。
 const metricJa = (k: string): string => METRIC_LABEL_JA[k] ?? k;
 
-// 罰金・閾値の表示ラベルと単位（★state キー・RPC 引数名は英語のまま不変）。
-//   単位の根拠: 円＝integer 列かつ pay.ts の罰金加算経路（normPenaltyOf / PenaltyConfig）。
+// 遅刻・当欠の検知（閾値）の表示ラベルと単位（★state キー・RPC 引数名は英語のまま不変）。
+//   ★0154 D3（裁定293-3）: 罰金の自動計算は撤去＝fine_absent／fine_late は計算に使われない（列は残す・UI から隠す・保存は現値を送る＝原則7）。
 //              h ＝set_penalty_config の検証 `0 < p_hours_per_shift <= 24`＋pay.ts の wage×hoursPerShift。
 //              分＝punch-match の late/early/over 判定閾値（閲覧ラベルも「N分」表記）。
 const PENALTY_LABEL_JA: Record<keyof Penalty, string> = {
-  fine_absent: "当欠罰金",
-  fine_late: "遅刻罰金",
+  fine_absent: "（旧）当欠罰金・計算に使いません",
+  fine_late: "（旧）遅刻罰金・計算に使いません",
   hours_per_shift: "試算用 1シフト時間",
-  norm_on: "ノルマ罰金を有効にする",
+  norm_on: "ノルマ未達の検知を有効にする（減額は精算調整で登録）",
   norm_days_flat: "出勤日数 未達の定額",
   norm_days_per: "出勤日数 不足1日につき",
   norm_dohan_flat: "同伴 未達の定額",
@@ -148,7 +148,7 @@ export function compErrJa(msg: string | undefined): string {
   if (msg.includes("not found")) return "対象が見つかりません（再読込してください）";
   if (msg.includes("forbidden")) return "権限がありません";
   // ★裁定98（mig0117）: sanction の根拠確認まわり
-  if (msg.includes("basis required")) return "制裁（罰金・減給）は根拠の確認チェックと確認内容の入力が必須です";
+  if (msg.includes("basis required")) return "制裁（懲戒減給）は根拠の確認チェックと確認内容の入力が必須です";
   if (msg.includes("bad basis note")) return "確認内容は 400 字以内で入力してください";
   if (msg.includes("bad kind")) return "控除種別が不正です";
   // ★#77（mig0116 set_cast_plan）: 'bad valid_from'＝過去日（< 今日）または現在行の適用開始日以前
@@ -750,7 +750,7 @@ function FragmentRow({ children }: { children: React.ReactNode }) { return <>{ch
 
 // ── ノルマ（manager 以上・mig0042 で4軸＝日数/同伴＋売上/指名）──
 //   売上・指名の新2軸は表示のみ（payOf/normPenalty 非接続＝/mine の進捗表示用）。
-//   罰金に効くのは従来どおり日数・同伴のみ（罰金・閾値タブの norm_on 配下）。
+//   ★0154 D3: 未達の罰金は撤去（検知のみ・減額は精算調整）。日数・同伴の検知は「遅刻・当欠の検知」タブの norm_on 配下。
 export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: CastRow[]; norms: Norm[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
   const [castId, setCastId] = useState("");
@@ -805,7 +805,7 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
             <button style={btnDark} onClick={save} disabled={!castId || !period}>保存</button>
           </div>
           <p style={{ ...note, marginTop: 8 }}>
-            ※売上・指名ノルマは表示のみ（本人のマイページ進捗表示用・罰金には接続されません）。
+            ※売上・指名ノルマは表示のみ（本人のマイページ進捗表示用・報酬には接続されません。減額は給与の精算調整で登録します）。
             店として採用する軸と指名のカウント定義は「ノルマ設定（店）」パネルで切り替えます。
           </p>
         </>
@@ -880,7 +880,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
           </div>
           {kind === "sanction" && (
             <div style={{ marginTop: 10, padding: "10px 12px", border: "1px solid var(--bad)", borderRadius: 8, fontSize: 12.5 }}>
-              <p style={{ margin: "0 0 6px", color: "var(--bad)", fontWeight: 700 }}>制裁（罰金・減給）の二層ガード</p>
+              <p style={{ margin: "0 0 6px", color: "var(--bad)", fontWeight: 700 }}>制裁（懲戒減給）の二層ガード</p>
               <p style={{ margin: "0 0 4px" }}>・<strong>雇用</strong>キャスト: 労基法91条の上限（1回=平均賃金の半日分・総額=一賃金支払期の賃金総額の1/10）を<strong>給与計算で自動適用</strong>します。</p>
               <p style={{ margin: "0 0 8px" }}>・<strong>委託</strong>キャスト: 確定済み報酬からの控除はフリーランス法上の報酬減額等に該当する場合があります。契約上の根拠の確認が必須です（数値上限の自動適用はありません）。</p>
               <label style={{ display: "block", margin: "0 0 6px" }}>
@@ -897,7 +897,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
   );
 }
 
-// ── 罰金・突合閾値（owner のみ・D3a・全12引数明示送信＝原則7）──
+// ── 遅刻・当欠の検知（閾値・owner のみ・D3a・全12引数明示送信＝原則7）。★0154 D3: 罰金額の欄は隠す（値は現値を送る） ──
 export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, reload }: { penalty: Penalty; setPenalty: (p: Penalty) => void; exists: boolean; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
   // ★表示のみ日本語化（k＝state キー／RPC 引数名は英語のまま save() で明示送信）。
@@ -919,7 +919,7 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
       p_late_grace_min: penalty.late_grace_min, p_early_grace_min: penalty.early_grace_min,
       p_over_grace_min: penalty.over_grace_min,
     });
-    setMsg(error ? compErrJa(error.message) : "罰金・閾値を保存しました");
+    setMsg(error ? compErrJa(error.message) : "遅刻・当欠の検知（閾値）を保存しました");
     if (!error) await reload();
   }
   return (
@@ -927,7 +927,7 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
       <p style={note}>{exists ? "現在の設定（店1行）" : "未設定（既定値・保存で作成）"}</p>
       {isOwner ? (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          {num("fine_absent")}{num("fine_late")}{num("hours_per_shift")}
+          {num("hours_per_shift")}{/* ★0154 D3: fine_absent／fine_late は計算に使わない＝欄を隠す（save は現値を送る） */}
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={penalty.norm_on} onChange={(e) => setPenalty({ ...penalty, norm_on: e.target.checked })} /> {PENALTY_LABEL_JA.norm_on}</label>
           {num("norm_days_flat")}{num("norm_days_per")}{num("norm_dohan_flat")}{num("norm_dohan_per")}
           {num("late_grace_min")}{num("early_grace_min")}{num("over_grace_min")}
@@ -935,8 +935,8 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
         </div>
       ) : (
         <div style={{ fontSize: 12, color: "var(--ink)" }}>
-          <p style={note}>罰金・閾値の編集はオーナーのみ可能です（閲覧のみ）。</p>
-          当欠 {penalty.fine_absent} / 遅刻 {penalty.fine_late} / 遅刻猶予 {penalty.late_grace_min}分 / 早退 {penalty.early_grace_min}分 / 残留 {penalty.over_grace_min}分
+          <p style={note}>遅刻・当欠の検知（閾値）の編集はオーナーのみ可能です（閲覧のみ）。</p>
+          遅刻猶予 {penalty.late_grace_min}分 / 早退 {penalty.early_grace_min}分 / 残留 {penalty.over_grace_min}分
         </div>
       )}
     </div>

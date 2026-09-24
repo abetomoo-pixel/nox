@@ -3,7 +3,7 @@
 // ノルマ設定（店・mig0042）: 売上/指名ノルマの採用トグル×2＋指名カウント定義セレクト。
 // settings_json（sales_norm_enabled/shimei_norm_enabled/shimei_norm_scope）を owner のみ切替
 // （set_store_norm_config・cast-register-panel と同じ店フラグ雛形）。manager は現在値のみ。
-// 裁定: ノルマ未達は表示のみ（罰金非接続）＝このフラグは /mine 進捗カードの出し分けにだけ効く。
+// 裁定: ノルマ未達は表示のみ（報酬非接続＝★0154 D3 で罰金撤去）＝このフラグは /mine 進捗カードの出し分けにだけ効く。
 import { useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
@@ -54,7 +54,7 @@ export default function NormConfigPanel({
       <section className="nox-cardtop" style={card}>
         <h3 style={h3}>売上・指名ノルマの採用</h3>
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
-          採用した軸だけがキャスト本人のマイページに進捗表示されます（未達は表示のみ・罰金には接続されません）。
+          採用した軸だけがキャスト本人のマイページに進捗表示されます（未達は表示のみ・報酬には接続されません）。
           目標値そのものは「報酬設計マスタ → ノルマ」でキャスト×月ごとに設定します。
         </p>
         {isOwner ? (

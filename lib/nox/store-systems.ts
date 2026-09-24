@@ -42,7 +42,7 @@ export const SYSTEM_LABELS: Record<SystemKey, string> = {
   sys_sales_slide: "売上スライド",
   sys_point_slide: "ポイントスライド",
   sys_norms: "ノルマ",
-  sys_penalties: "罰金・控除",
+  sys_penalties: "精算調整・控除", // ★0154 D3（裁定293-3）: 罰金→精算調整
   sys_bonus: "達成ボーナス",
 };
 
@@ -55,7 +55,7 @@ export const SYSTEM_DESCS: Record<SystemKey, string> = {
   sys_sales_slide: "売上帯で時給を変える（待遇プラン スライド・ポイント）",
   sys_point_slide: "pt 帯で時給を変える（待遇プラン スライド・ポイント）",
   sys_norms: "出勤／本指名／同伴／売上の目標（ノルマ設定・キャスト別目標・マイページ進捗）",
-  sys_penalties: "遅刻・欠勤の罰金、固定控除、前借り・送り実費（控除・送り／未達成時のペナルティ）",
+  sys_penalties: "遅刻・当欠の精算調整（検知の閾値）、固定控除、前借り・送り実費（控除・送り／遅刻・当欠の検知）",
   sys_bonus: "目標達成時の加算（待遇プラン 達成ボーナス）",
 };
 

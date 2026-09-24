@@ -177,7 +177,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
       {isSectionOn(settings, "planTabQuota") && (<div style={{ display: tab === "quota" ? undefined : "none" }}>{/* ★裁定269-4: planTabQuota */}
         <div className="nox-cardtop" style={{ ...card, marginBottom: 10 }}>
           <h2 style={secTitle}>店共通（全プラン）</h2>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 2px" }}>雇用キャスト: 減給・罰金の法定上限（労基法91条）は給与計算側で自動制約されます。</p>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 2px" }}>雇用キャスト: 懲戒減給の法定上限（労基法91条）は給与計算側で自動制約されます（罰金の自動計算はありません）。</p>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>委託キャスト: 未達処理には契約上の根拠が必要です（法定上限の自動適用はありません）。</p>
           <label style={{ fontSize: 12, color: "var(--sub)", opacity: 0.7 }}>
             <input type="checkbox" disabled /> 契約上の根拠を確認した（確認メモ）

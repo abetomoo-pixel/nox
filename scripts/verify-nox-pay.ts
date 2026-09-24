@@ -11,7 +11,7 @@
  *  T5  売上バック率の境界（400k/800k/1.5M）
  *  T6  自由バック basis/cond（未達0・達成加算）
  *  T7  源泉（委託式・max0 クランプ・雇用0）
- *  T8  控除 per 3種・罰金・ノルマ達成/未達
+ *  T8  控除 per 3種・罰金の撤去（fine 0＝精算調整へ）・ノルマ達成/未達（検知の純関数のみ・payOf では 0）
  *  T9  net 恒等式＋全金額整数（浮動小数禁止）
  *  T10 シミュレーター（係数 1−源泉率・days 上書きは timePay 不変）
  *
@@ -163,7 +163,7 @@ eq("T1a wbasis 保証=15", reinaDoc.wbasis["保証"], 15);
 eq("T1a timePay", reinaDoc.timePay, 569_200);
 eq("T1a gross", reinaDoc.gross, 1_303_300);
 eq("T1a withholding（periodDays=31・切捨）", reinaDoc.withholding, 117_241);
-eq("T1a net", reinaDoc.net, 1_117_059);
+eq("T1a net（★0154 D3: ノルマ未達 16,500 の撤去で 1,117,059→1,133,559・wage 5170 は不変）", reinaDoc.net, 1_133_559);
 
 // ── T1b 玲奈ケース回帰（モック完全再現＝本指名商品pt 110 を含む）──
 // mock/nox-nightwork-app.html の live 実装（Py + te・Ci[1]=110）と同値。
@@ -181,12 +181,12 @@ eq("T1b salesBack", reina.salesBack, 185_000);
 eq("T1b customTotal（6600+30000+37000）", reina.customTotal, 73_600);
 eq("T1b fixedDed（送り2000×22+厚生5000）", reina.fixedDed, 49_000);
 eq("T1b fine", reina.fine, 0);
-eq("T1b normPenalty（days 9000 + dohan 7500）", reina.normPenalty, 16_500);
+eq("T1b normPenalty（★0154 D3 撤去＝0・検知の純関数 normPenaltyOf は T8 で係留）", reina.normPenalty, 0);
 eq("T1b okuriDeduct", reina.okuriDeduct, 3500);
 eq("T1b timePay（ゴールデン）", reina.timePay, 653_050);
 eq("T1b gross（ゴールデン）", reina.gross, 1_387_150);
 eq("T1b withholding（ゴールデン・periodDays=31・切捨）", reina.withholding, 125_802);
-eq("T1b net（ゴールデン）", reina.net, 1_192_348);
+eq("T1b net（ゴールデン・★0154 D3: 1,192,348→1,208,848＝ノルマ未達 16,500 の撤去分・wage 5931／withholding 125802 は不変）", reina.net, 1_208_848);
 
 // ── T2 階段関数 ───────────────────────────────────────────────
 eq("T2 at ちょうど（80k→4000）", slideAt(P_HI.salesSlide, 80_000), 4000);
@@ -247,12 +247,16 @@ eq("T7 委託 floor((500000−5000×22日※計算期間)×0.1021)＝端数ゼ�
 eq("T7 雇用=0", withholdingOf(500_000, 22, "雇用"), 0);
 eq("T7 マイナスは 0 クランプ", withholdingOf(50_000, 22, "委託"), 0);
 
-// ── T8 控除・罰金・ノルマ ─────────────────────────────────────
+// ── T8 控除・罰金（撤去）・ノルマ ─────────────────────────────
 eq("T8 per=day+month（2000×22+5000）", fixedDedOf(REINA_INPUT.deductions, 22, 0), 49_000);
 eq("T8 per=rate（売上100,000×3%）", fixedDedOf([{ id: "r", name: "率控除", amount: 3, per: "rate" }], 22, 100_000), 3000);
 {
+  // ★0154 D3（裁定293-3）: 罰金の自動計算は撤去＝回数を入れても fine 0・net は変わらない。減額は精算調整（source='settlement'）の行で
   const withFine = payOf({ ...REINA_INPUT, fine: { absentN: 2, lateN: 1 } });
-  eq("T8 罰金（2×10000+1×3000）", withFine.fine, 23_000);
+  eq("T8 罰金は撤去（回数 2／1 でも fine 0・net 不変）", `${withFine.fine}/${withFine.net === reina.net}`, "0/true");
+  const settle = payOf({ ...REINA_INPUT, fine: { absentN: 2, lateN: 1 }, adjustments: [{ castId: "c", kind: "fixed", amount: 23_000, rateBp: null, beforeWithholding: false, showDetail: true, reason: "遅刻精算" }] });
+  eq("T8 精算調整（源泉後・23000）＝adjAfter 23000・net は 23000 減", `${settle.adjAfter}/${reina.net - settle.net}`, "23000/23000");
+  eq("T8 ノルマ未達も payOf では 0（normPenaltyOf は検知の純関数として残す）", `${withFine.normPenalty}/${reina.normPenalty}`, "0/0");
 }
 eq("T8 ノルマ未達（22/24・12/15）", normPenaltyOf(REINA_INPUT.normConfig, { days: 24, dohan: 15 }, 22, 12), 16_500);
 eq("T8 ノルマ達成=0", normPenaltyOf(REINA_INPUT.normConfig, { days: 24, dohan: 15 }, 24, 15), 0);
@@ -286,7 +290,7 @@ eq("T10 係数 雇用（源泉なし=1.0）", simAddedPay(5170, 5, 3, "雇用"),
   const sim = payOf({ ...REINA_INPUT, sim: { days: 24 } });
   eq("T10 days 上書きで timePay 不変", sim.timePay, reina.timePay);
   eq("T10 days 上書きで fixedDed 連動（2000×24+5000）", sim.fixedDed, 53_000);
-  eq("T10 days 達成で days ペナルティ消滅（dohan 7500 のみ）", sim.normPenalty, 7500);
+  eq("T10 days 達成（★0154 D3: sim でも normPenalty は常に 0）", sim.normPenalty, 0);
   const simD = payOf({ ...REINA_INPUT, sim: { days: 24, dohan: 15 } });
   eq("T10 dohan 上書きで dohanBack 連動（15×4000）", simD.dohanBack, 60_000);
   eq("T10 全ノルマ達成で normPenalty=0", simD.normPenalty, 0);

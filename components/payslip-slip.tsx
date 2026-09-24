@@ -93,11 +93,11 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
       {/* ★U-1（裁定99-⑤）: 制裁（裁定98）＝原額→適用額。cap が効いた期は原額を併記（凍結値の再掲のみ） */}
       {sanctionApplied > 0 && (
         <div style={t.slipRow}>
-          <span>制裁（罰金・減給）{sanctionOriginal > sanctionApplied ? `（原額 ${yen(sanctionOriginal)} → 法定上限適用）` : ""}</span>
+          <span>懲戒減給{sanctionOriginal > sanctionApplied ? `（原額 ${yen(sanctionOriginal)} → 法定上限適用）` : ""}</span>
           <span style={{ ...t.num, color: "var(--bad)" }}>−{yen(sanctionApplied)}</span>
         </div>
       )}
-      {ded("罰金", pay.fine ?? 0)}
+      {ded("精算調整（旧: 罰金）", pay.fine ?? 0)}{/* ★0154 D3（裁定293-3）: 新しい明細は常に 0（罰金撤去）・旧 payslip の凍結値だけ出る */}
       {/* ★裁定264-2: before 群（源泉の直前・入力順）。ラベル＝理由（show_detail=true の行のみ凍結されている） */}
       {adj.before.map((a, j) => ded(a.reason, a.amount, `adj-b${j}`))}
       {ded(whLabel, pay.withholding ?? 0)}

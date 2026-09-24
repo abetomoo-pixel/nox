@@ -3,7 +3,7 @@
 // ノルマ設定（D2-2・モック norma.html 準拠の実ページ化＝3実体の統合）。
 //   ① 店の採用フラグ（stores.settings_json・owner 限定）＝NormConfigPanel 移設
 //   ② キャスト別目標（cast_norms・manager 以上）＝旧 CompMaster「ノルマ」タブ
-//   ③ 未達ペナルティ（penalty_config・owner 限定）＝旧 CompMaster「罰金・閾値」タブ
+//   ③ 遅刻・当欠の検知（penalty_config・owner 限定）＝旧 CompMaster「罰金・閾値」タブ
 // ★権限ゲートはセクション別に現行踏襲（①③=owner・②=manager 以上＝各部品内の出し分けのまま）。
 // ★モックの「達成率別の処理」「達成ボーナス」は実装しない（DB 新設＝post-launch 送り・裁定）。
 //   「準備中」表示も出さない＝無いものは画面に出さない。送り理由は docs/NOX_D2残差リスト.md。
@@ -45,7 +45,7 @@ export default function NormaBoard({ storeId, isManagerUp, isOwner, flags, setti
 
       {/* ③ 未達成時のペナルティ（penalty_config・owner のみ編集） */}
       {isSectionOn(settings, "compPenaltyTab") && (<section className="nox-cardtop" style={card}>{/* ★裁定269-4: compPenaltyTab */}
-        <h2 style={secTitle}>未達成時のペナルティ（罰金・閾値）</h2>
+        <h2 style={secTitle}>遅刻・当欠の検知（閾値）</h2>{/* ★0154 D3（裁定293-3）: 罰金の自動計算は撤去＝閾値は検知として残す・減額は精算調整 */}
         <PenaltyTab penalty={data.penalty} setPenalty={data.setPenalty} exists={data.penaltyExists}
           isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={data.reload} />
       </section>)}

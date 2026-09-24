@@ -1291,14 +1291,14 @@ async function main() {
     });
     // 手計算: wage=8000（per-day 300000 が slide 300000 段）/timePay=8000×6×10=480000/salesBack=round(3000000×0.10)=300000（3M≥1.5M 段）
     //   /honBack 20000・jonaiBack 5000・dohanBack 12000・drink1000+champ2000+bottle500/gross=820500
-    //   /fixedDed=2000×10=20000・fine=1×5000+2×2000=9000・withholding=floor((820500−5000×15日※計算期間)×0.1021)=76115
-    //   /normPenalty=(5000+2×2000)+(3000+2×1500)=9000+6000=15000 → net=820500−20000−9000−76115−15000=700385
+    //   /fixedDed=2000×10=20000・★0154 D3（裁定293-3）: fine＝0（罰金撤去・回数 lateN 2／absentN 1 は検知のみ）・withholding=floor((820500−5000×15日※計算期間)×0.1021)=76115
+    //   /normPenalty＝0（撤去）→ net=820500−20000−0−76115−0=724385（旧 700385＝罰金 9000＋ノルマ 15000 を引いていた）
     check("F2f 複合ゴールデン: wage=8000（総売上÷days の per-day slide 判定＝sim 経路の要）・timePay=480000・salesBack=300000",
       cx.wage === 8000 && cx.timePay === 480_000 && cx.salesBack === 300_000, JSON.stringify({ w: cx.wage, t: cx.timePay, sb: cx.salesBack }));
-    check("F2f 複合ゴールデン: gross=820500・fixedDed=20000（送り代×days）・fine=9000・normPenalty=15000・withholding=76115",
-      cx.gross === 820_500 && cx.fixedDed === 20_000 && cx.fine === 9000 && cx.normPenalty === 15_000 && cx.withholding === 76_115,
+    check("F2f 複合ゴールデン: gross=820500・fixedDed=20000（送り代×days）・fine=0・normPenalty=0（★0154 D3 罰金撤去＝精算調整へ）・withholding=76115",
+      cx.gross === 820_500 && cx.fixedDed === 20_000 && cx.fine === 0 && cx.normPenalty === 0 && cx.withholding === 76_115,
       JSON.stringify({ g: cx.gross, fd: cx.fixedDed, fn: cx.fine, np: cx.normPenalty, wh: cx.withholding }));
-    check("F2f 複合ゴールデン: net=700385（gross−fixedDed−fine−withholding−normPenalty）", cx.net === 700_385, `got ${cx.net}`);
+    check("F2f 複合ゴールデン: net=700385（gross−fixedDed−fine−withholding−normPenalty）", cx.net === 724_385, `got ${cx.net}`);
   }
 
   // ── 4 権限拒否（decidePayrollAccess 純関数）──
