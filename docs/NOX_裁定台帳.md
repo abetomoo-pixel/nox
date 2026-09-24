@@ -3711,6 +3711,14 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 適用＝**client `2c379bf`**（2026-09-18・便 R）: components/ui/nav.tsx＝NavGroup に `gear`・TabBar に `gear` prop＝≤899 の下タブ（spPriority 4 本）＋「その他」Modal＋**「歯車」Modal**（見出し「設定」・gear=true の群＝マスタ／お知らせ／監査／ご契約＋脚にログアウト＝form POST /auth/signout・「その他」Modal の写経・Esc／× で閉じる・⚙ は文字 U+2699・aria-label「設定」）。app/(manage)/layout.tsx＝下タブ **ホーム／レジ／日報／シフト**（旧: ホーム／レジ／シフト／キャスト）・分析群の末尾に **在庫**（/master/stock＝既存画面・URL 不変・manager 以上）・店舗群を gear・topbar 左に **≤899 のみロゴ**（SideNav の .brand 写経・900+ は CSS で非表示＝同じ情報を 2 箇所に出さない）・topbar のログアウトは **≤899 で非表示＝歯車へ集約**（900+ は従来どおり）。項目集合・URL・role ゲート・MASTER_NAV（lib/nox/master/nav.ts）は不変。cast は レジ＋歯車（ログアウトのみ）。role 別の口＝docs/tmp/0918_pm2_decisions.md R-3 表。tsc 0・ui-tokens 新規 0。dev 目視＝375px で下タブ 6 項目（ホーム 37／レジ 27／日報 27／シフト 38／その他 38／⚙ 15 px）が 375 に収まり body 不動・その他＝キャスト／スタッフ／給与／顧客／分析／領収書／在庫・歯車＝4 本＋ログアウト・1280px はサイドバー（店舗群が最後）＋topbar ログアウト＝従来どおり。仮決め＝0918_pm2_decisions.md #4〜#9。
 **追補（本便で確定・Agoora「推奨で」・2026-09-18・逐語）**: 「[275 追補] nav-icons 3 個・在庫を営業群へ(5208cf1)。」
+
+**追補2（本便で確定・相談役ブロック・2026-09-24・逐語）**: 「裁定275 追補2（2026-09-24・9/19 の実機指摘によるナビ・ヘッダー改定）
+1 下タブは 5 本「ホーム／レジ／日報／シフト／メニュー」（その他→メニュー・歯車は下タブから外す）。メニューにお知らせを置く。
+2 歯車はヘッダー右（マスタ・監査・ご契約）。ヘッダー左＝ロゴ（ホームへ）＋店舗名。右＝「登録名｜役割」（押すと自分の情報＋ログアウト）。
+3 メニュー・設定はアイコン＋説明＋「›」の一覧型。選択中タブはアイコン＋上辺の線＋太字。
+4 owner 自身のメール変更をローンチ範囲へ（実装は Auth 設定 4 点の後・本追補では読取のみ）。
+5 cast・黒服・kiosk 端末での名前表示は各 role の目視で確認（Agoora）。」
+適用＝夜間便 N4（2026-09-24・client 未 push）: lib/nox/ui/nav-tabs.ts（純関数 tabsFor／splitNav／activeHrefOf／userChipLabelOf・NAV_DESC）＋ components/ui/header-chips.tsx（HeaderGear＝⚙→設定 Modal・UserChip＝「登録名｜役割」→自分の情報＋ログアウト form POST /auth/signout）＋ nav.tsx（下タブ 5 本目「メニュー」＝一覧型 NavListRow・下タブの歯車撤去）＋ (manage)/layout.tsx（ヘッダー左 Link /dashboard＋店舗名・右＝歯車＋登録名チップ・users 行の読取 1 本）＋ globals.css（選択中タブ＝上辺の線＋太字・.nox-navrow／.nox-hdrbtn・トークン新規 0）＋ suite verify-nox-nav 14（f0 71 段目）。4 は読取のみ（AW-5＝docs/tmp/0924_night_log.md）・5 は Agoora。
 適用＝**client `5208cf1`**（便 Z）: components/ui/nav-icons.tsx に /receipts（紙＋金額行）・/master/stock（箱）・/billing（カード）を既存と同じ線幅 1.7・18px・viewBox 24 で追加＝サイドバー 15 項目すべてにアイコン。layout.tsx＝在庫を分析群から営業群（レジ・日報の下）へ＝≤899 の「その他」でも先頭側。項目集合・URL・role 条件は不変。tsc 0・ui-tokens 新規 0・dev 目視。
 
 ## 裁定276（本便で確定・Agoora「推奨で」・2026-09-18）デモの種と 0149 の形（276-1〜5）
