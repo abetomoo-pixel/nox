@@ -3727,6 +3727,21 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定289（本便で確定・相談役ブロック・2026-09-24）0151 要裁定 (1)〜(8) の裁定（289-1〜7）＋追補1（夜間便の仮決め承認）
+
+出典＝相談役ブロック 2026-09-24（便 S1・0151_holes.sql 冒頭の要裁定 (1)〜(8)＝便 AE 起草／便 AG 突合／2026-09-24 R1 再掲を受けた裁定・同日収載）。次の裁定番号は 290。**本文（逐語）**:
+「裁定289（2026-09-24・0151 要裁定 (1)〜(8) の裁定）
+289-1 (1) staff_shift_cancel の行不在は raise 'not_found'（下線）。staff_shift_confirm／override と同じ文言に揃える。'forbidden' は org 不一致のみ。
+289-2 (2) shift_open_periods_mine は cast 以外・cast 行なしの呼び出しで 0 行を返す（raise しない）。読取専用 RPC のため、裁定287-2 を維持。未認証は既存どおり permission denied。
+289-3 (3) set_cast_guarantee は cast_plan の現在行 C が無いとき raise 'no plan'。保証は既存プランへの上書きであり、プラン無しで保証行だけを作らない。client は「先に報酬プランを設定してください」と案内。
+289-4 (4) 保証行の overrides_json は C の他キーを継ぎ base と guarantee だけ上書き（起草どおり）。
+289-5 (5) 戻し行は直前の非保証行が base キーを持つときだけ復元、持たなければ base キーを外す（起草どおり）。
+289-6 (6)(8) 'guarantee exists' は次のいずれかで raise: ①p_start〜p_end と重なる別の保証行がある（valid_to null か valid_to >= p_start、かつ valid_from <= p_end。C 自身は除く） ②valid_from > p_start の別の保証行がある（骨格は C を割る形しか持たず、既存の予定より前に差し込めない）。延長＝前の保証行の valid_to < p_start かつ後続の保証行なし＝通る。
+289-7 (7) 返す列は start_date／end_date／wish_deadline の 3 列（一致・変更なし）。
+289 追補1（夜間便の仮決め承認）: N4 (a) 延長は終了日翌日から同額（(b) 経路）／(c) 残り日数＝終了日−今日・終了日当日は「あと 0 日」で印あり／(e) 予定があるときは「保証を設定」を無効化（DB も 289-6 ②で止める）。N5 締切超過の日は選べるまま（DB は拒否しない・案内のみ＝裁定43）。N6 別枠なら配置可・同枠は画面で止める・入口①は cast 以外の active membership 全員。N7 B 群（stripe／cron／print poll・result）は差し込みなし・layout の orgs 読取は新規 fetch 1 を記録して許容・dateshift の +1 日は再生側を正とし poc-record.mjs は不触。N8 D1〜D12／E1〜E10 は 0152 の★指定便で裁く。」
+
+適用＝便 S2（0151_holes.sql の改稿＝'not_found'・'guarantee exists' の ①②・未追跡のまま）／S3（client・suite の追従＝rpc-err 和文・AG d3-7）／S4（再突合 BEGIN…ROLLBACK）。手貼りは Agoora（手順は相談役が新 sha を埋めて出す）。
+
 ## 裁定288（本便で確定・Agoora 回答（9/18）に基づく・2026-09-18）スライドの基準と適用月（288-1〜7）
 
 出典＝相談役ブロック 2026-09-18 夜（夜間便 N3b-0・同日収載）。**本文（逐語）**:
