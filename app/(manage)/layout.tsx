@@ -2,7 +2,10 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
+import Link from "next/link";
 import { TabBar, type NavGroup } from "@/components/ui/nav";
+import { HeaderGear, UserChip } from "@/components/ui/header-chips"; // ★N4（裁定275 追補2）: ヘッダー右＝歯車＋「登録名｜役割」
+import { splitNav } from "@/lib/nox/ui/nav-tabs";
 import SideNav from "@/components/ui/side-nav";
 import BillingBanner from "@/components/ui/billing-banner";
 // ★夜間便 N7-2（裁定273-6）: デモ org＝帯＋「初期状態に戻す」・/setup へ飛ばさない・導線（ご契約ほか）を隠す
@@ -54,6 +57,11 @@ export default async function ManageLayout({ children }: { children: React.React
   //   ★org_billing の RLS SELECT は owner 限定（mig0087）＝行を読む実装だと owner にしか出ない。
   //     本ラッパは authenticated 全員に grant されており boolean しか返さない＝
   //     全ロールに告知でき、かつ課金情報は漏れない。述語は RPC ゲート94本と同一＝表示と実挙動が食い違わない。
+  // ★N4（裁定275 追補2-2）: 「登録名｜役割」＝自分の users 行（RLS users_select＝auth_user_id = auth.uid() の 1 行・読取 1 本）
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const { data: meRow } = await supabase.from("users").select("name, email").eq("auth_user_id", authUser?.id ?? "").maybeSingle();
+  const meName = (meRow?.name as string | null) ?? null;
+  const meEmail = (meRow?.email as string | null) ?? authUser?.email ?? null;
   const { data: billingWritable } = await supabase.rpc("auth_org_billing_writable");
   const billingLocked = billingWritable === false;
   let staffCrm = false;
@@ -125,14 +133,12 @@ export default async function ManageLayout({ children }: { children: React.React
                 ★店名は**サイドバーの brand**（モックと同じ「N / NOX / CLUB NOX」）に置いたので
                   topbar には出さない＝同じ情報を2箇所に出さない。
                 右は従来どおりロール表示＋ログアウト＝モックの管理者チップ位置と一致。 */}
-            {/* ★裁定275（M12）: ≤899 はヘッダ左にロゴ（SideNav の .brand 写経・900+ はサイドバーに同じ brand があるため CSS で隠す＝同じ情報を 2 箇所に出さない） */}
-            <div className="crumb nox-tb-brand" aria-hidden="true"><span className="brandmark">N</span><b>NOX</b></div>
+            {/* ★裁定275 追補2-2（N4）: ヘッダー左＝ロゴ（ホームへ）＋店舗名。900+ はサイドバーに同じ brand があるため CSS で隠す（同じ情報を 2 箇所に出さない＝仮決め） */}
+            <Link href="/dashboard" className="crumb nox-tb-brand" aria-label="ホームへ"><span className="brandmark" aria-hidden="true">N</span><b>NOX</b><small>{storeLabel}</small></Link>
             <div className="acts">
-              <span style={t.rolePill}>{t.roleLabelJa(role as string)}</span>
-              {/* ★裁定275（M12）: ≤899 のログアウトは下タブの歯車 Modal に集約（CSS で隠す）。900+ は従来どおりここ。POST /auth/signout は不変 */}
-              <form action="/auth/signout" method="post" className="nox-tb-logout" style={{ display: "flex" }}>
-                <button type="submit" className="nox-btn ghost">ログアウト</button>{/* ★裁定242-(6): ログアウト＝補助（青枠） */}
-              </form>
+              {/* ★裁定275 追補2-2（N4）: 右＝歯車（マスタ・監査・ご契約＝gear 群・cast／staff は項目 0＝描かない）＋「登録名｜役割」（自分の情報＋ログアウト）。POST /auth/signout は不変 */}
+              <HeaderGear groups={splitNav(groups, ["/dashboard", "/register", "/report", "/shift"]).gearGroups} />
+              <UserChip name={meName} email={meEmail} roleJa={t.roleLabelJa(role as string)} storeLabel={storeLabel} />
             </div>
           </header>
           <main className="nox-mainarea">
@@ -144,8 +150,8 @@ export default async function ManageLayout({ children }: { children: React.React
       </div>
       {/* 段N: SP（≤899）はボトムタブ4本（ホーム/レジ/シフト/キャスト）＋「その他」シート。
           cast は項目が レジ 1本のみ＝その他は出ない（従来と同一）。 */}
-      {/* ★裁定275（M13）: 下タブ＝ホーム／レジ／日報／シフト（旧: ホーム／レジ／シフト／キャスト）・その他＝残り（キャスト／スタッフ／顧客／給与／分析／領収書／在庫）・歯車＝店舗群＋ログアウト */}
-      <TabBar groups={groups} spPriority={["/dashboard", "/register", "/report", "/shift"]} hideSide gear />
+      {/* ★裁定275 追補2-1（N4）: 下タブ 5 本＝ホーム／レジ／日報／シフト／メニュー（残り＋お知らせ）。歯車はヘッダー右へ */}
+      <TabBar groups={groups} spPriority={["/dashboard", "/register", "/report", "/shift"]} hideSide />
     </div>
   );
 }

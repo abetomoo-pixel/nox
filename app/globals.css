@@ -1314,6 +1314,29 @@ body {
   .nox-tb { padding: 0 14px; }
 }
 
+/* ★夜間便 N4（2026-09-24・裁定275 追補2）: ヘッダー右の口（歯車・「登録名｜役割」）＝既存トークンのみ。ヘッダー左ロゴの店舗名（small）。
+   選択中の下タブ＝アイコン＋上辺の線＋太字。メニュー／設定の一覧型の行＝アイコン＋説明＋「›」（.nox-navsheet-i を継承）。 */
+.nox-tb .nox-tb-brand { text-decoration: none; }
+.nox-tb .nox-tb-brand small { font-size: 11px; color: var(--sub); margin-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nox-hdrbtn {
+  border: 1px solid var(--line2); background: var(--card2); color: var(--ink); border-radius: 999px;
+  padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; max-width: 46vw;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nox-hdrbtn:hover { border-color: var(--gold); }
+.nox-hdrbtn.on { border-color: var(--primary); color: var(--primary-hover); }
+.nox-nav-bottom .nox-tab { border-top: 2px solid transparent; padding-top: 4px; }
+.nox-nav-bottom .nox-tab.on { border-top-color: var(--primary-hover); font-weight: 800; }
+.nox-nav-bottom .nox-tab svg { width: 20px; height: 20px; }
+.nox-navrow { display: flex; align-items: center; gap: 10px; }
+.nox-navrow .nox-navrow-ic { flex: 0 0 auto; display: grid; place-items: center; width: 24px; color: inherit; }
+.nox-navrow .nox-navrow-t { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.nox-navrow .nox-navdesc { font-size: 11px; font-weight: 500; color: var(--sub); }
+.nox-navrow .nox-navchev { margin-left: auto; color: var(--sub); font-size: 18px; line-height: 1; }
+.nox-userinfo { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 13px; }
+.nox-userinfo dt { color: var(--sub); font-size: 11.5px; }
+.nox-userinfo dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+
 /* ── ボタン（E3: モック .btn / .btn.primary / .btn.ghost / .btn.danger / .btn.small 準拠）──
    モック実測（base・9枚/4種の多数派）:
      .btn{height:38px;border:1px solid var(--line2);background:#171715;padding:0 15px;

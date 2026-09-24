@@ -36,6 +36,8 @@ const P: Record<string, ReactNode> = {
   "/receipts": <><path d="M6 3h9l3 3v15H6z" /><path d="M15 3v3h3" /><path d="M9 10h6M9 13.5h6M9 17h3" /></>,
   // 在庫＝箱（上面の稜線）
   "/master/stock": <><path d="M3.5 8.5 12 4l8.5 4.5v8L12 21l-8.5-4.5z" /><path d="M3.5 8.5 12 13l8.5-4.5M12 13v8" /></>,
+  // ★夜間便 N4（裁定275 追補2）: メニュー＝三本線（href ではなく "menu" キー＝下タブ 5 本目）
+  "menu": <><path d="M4 7h16M4 12h16M4 17h16" /></>,
   // ご契約＝カード（決済手段＝レジのレシートとは別の意味で使う）
   "/billing": <><rect x="2.5" y="5.5" width="19" height="13" rx="2.2" /><path d="M2.5 10h19" /><path d="M6.5 14.5h4" /></>,
 };
