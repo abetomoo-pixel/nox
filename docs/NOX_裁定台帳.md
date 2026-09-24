@@ -3733,6 +3733,19 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定291（本便で確定・相談役ブロック・2026-09-24）出退勤の時刻記録・修正・勤務時間の計算方式（291-1〜6）
+
+出典＝相談役ブロック 2026-09-24（便 AT の読取 docs/tmp/0924_at1_read.md＝attendance_set は時刻を書かない・時給の勤務時間は punches・時刻 RPC なし、を受けた裁定・同日収載）。次の裁定番号は 292。**本文（逐語）**:
+「裁定291（2026-09-24・出退勤の時刻記録・修正・勤務時間の計算方式）
+291-1 店の設定 work_hours_basis: 'punch'（実際の出退勤時刻＝現行）／'shift'（確定シフトの時間どおり）。settings_json 白名単 +1（mig 0154）・欠損は 'punch'＝golden 不変・ウィザード STEP 3 に 2 択（既定は 'shift'＝多数派）。
+291-2 'shift' のとき勤務時間＝確定シフトの start〜end。遅刻・当欠は現行の判定と罰金のまま。早上がりは 'shift' では時間を差し引かない（罰金で取る店の型）・本人都合／店都合の区別は第2期。
+291-3 出勤区分（出勤・遅刻・同伴）を今日タブで押したら attendance_set の後に punch_proxy(cast,'in') を呼ぶ（既に in があれば呼ばない）。client のみ・先行可。退勤は現行どおり punch_proxy('out')。
+291-4 mig 0154: punch_set(p_cast_id, p_biz_date, p_kind in/out, p_at, p_reason)／punch_delete(p_punch_id, p_reason)。owner/manager 自店のみ・営業日窓内・確定済み（finalized/paid）の期に属する日は 'period finalized'・理由任意・before/after を audit_logs。名簿 A +2・pin 9 suite。
+291-5 今日タブの時刻表示の右に「修正」（owner/manager）＝出勤・退勤の時刻を入力するモーダル（裁定265 型）。締め前に「退勤の記録が無い勤務が n 件」の warn（AV-4 と同じ文言）。
+291-6 順序: 291-3 と表示は次の client 便・0154 は AU／AX の後の f0 便で push してから起草（0152 より先・小さく独立）。」
+
+適用＝未着手（291-3・291-5 の client は次の client 便／0154 は f0 便の push 後に起草）。読取＝docs/tmp/0924_at1_read.md（AT1-1〜5）・仮決め＝docs/tmp/0924_at_decisions.md。
+
 ## 裁定289（本便で確定・相談役ブロック・2026-09-24）0151 要裁定 (1)〜(8) の裁定（289-1〜7）＋追補1（夜間便の仮決め承認）
 
 出典＝相談役ブロック 2026-09-24（便 S1・0151_holes.sql 冒頭の要裁定 (1)〜(8)＝便 AE 起草／便 AG 突合／2026-09-24 R1 再掲を受けた裁定・同日収載）。次の裁定番号は 290。**本文（逐語）**:
