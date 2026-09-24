@@ -7,10 +7,11 @@
  *  (3) punchTimeLabel: in のみ「出勤 HH:MM」・in＋out「HH:MM → HH:MM」・なし null（偽の時刻を作らない）・out のみ「退勤 HH:MM」
  *  (4) hmJstOf／firstInLastOut: JST の HH:MM・最初の in／最後の out（punch-match S1 と同じ採用規則）・cast 別
  *  (5) 配線（逐語 grep）: shift-board が firstInLastOut／punchTimeLabel／outButtonOf を通し、見出しが M/D(曜)・表が stickyfirst
- *  逆テスト 1 本（手動・1 回）: isArrivedStatus から "late" を外す→tr(1-1)／(2-2) 赤・戻して緑。
+ *  (6) ★便 AY1（裁定291 追補1 A-3）: punchInAfterAtt＝出勤区分かつ in 打刻なしだけ true・休み／当欠 false・in 済みの区分変更 false／配線＝setAtt が成功後に punch_proxy 'in'
+ *  逆テスト 2 本（手動・各 1 回）: isArrivedStatus から "late" を外す→tr(1-1)／(2-2) 赤・戻して緑／punchInAfterAtt の !hasIn を落とす→tr(6-2) 赤・戻して緑。
  */
 import fs from "node:fs";
-import { firstInLastOut, hmJstOf, isArrivedStatus, outButtonOf, punchTimeLabel } from "../lib/nox/shift/today-row";
+import { firstInLastOut, hmJstOf, isArrivedStatus, outButtonOf, punchInAfterAtt, punchTimeLabel } from "../lib/nox/shift/today-row";
 
 let pass = 0;
 const fails: string[] = [];
@@ -54,6 +55,11 @@ const sb = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
 check("tr(5-1) shift-board: firstInLastOut で in／out を持ち、表示は punchTimeLabel", /firstInLastOut\(/.test(sb) && /punchTimeLabel\(/.test(sb));
 check("tr(5-2) shift-board: 退勤ボタンは outButtonOf（出勤区分の行だけ・in なしは disabled）", /outButtonOf\(\{ canRecord/.test(sb) && /ob\.show &&/.test(sb));
 check("tr(5-3) shift-board: 今日タブの表は stickyfirst（名前列を左固定）・状態列は nowrap・見出しの日付は M/D(曜)", /className="nox-tablewrap stickyfirst"/.test(sb) && /mdDowOf\(todayDate\)/.test(sb) && /whiteSpace: "nowrap" \}\}>\{\/\* ★AT2-3: 「確定」[^*]*\*\/\}\s*<span className=\{`nox-stpill/.test(sb));
+// (6) ★便 AY1
+check("tr(6-1) punchInAfterAtt: 出勤・遅刻・同伴で in 打刻なし＝true", punchInAfterAtt({ status: "shukkin", hasIn: false }) && punchInAfterAtt({ status: "late", hasIn: false }) && punchInAfterAtt({ status: "dohan", hasIn: false }));
+check("tr(6-2) punchInAfterAtt: in 打刻が既にあれば区分の変更でも false（増やさない）", !punchInAfterAtt({ status: "shukkin", hasIn: true }) && !punchInAfterAtt({ status: "late", hasIn: true }) && !punchInAfterAtt({ status: "dohan", hasIn: true }));
+check("tr(6-3) punchInAfterAtt: 休み・当欠・未記録は in を書かない", !punchInAfterAtt({ status: "off", hasIn: false }) && !punchInAfterAtt({ status: "absent", hasIn: false }) && !punchInAfterAtt({ status: null, hasIn: false }) && !punchInAfterAtt({ status: "", hasIn: false }));
+check("tr(6-4) shift-board: setAtt は attendance_set 成功後（!error）に punchInAfterAtt を通して punch_proxy 'in' を呼び、失敗は attendance を戻さず警告文で残す", /if \(!error && punchInAfterAtt\(\{ status, hasIn: !!punchIO\.get\(castId\)\?\.inHm \}\)\)/.test(sb) && /supabase\.rpc\("punch_proxy", \{ p_cast_id: castId, p_type: "in", p_note: null \}\)/.test(sb) && /出勤区分は記録しました。出勤の打刻に失敗/.test(sb) && !/attendance_set[\s\S]{0,400}p_status: null/.test(sb));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);

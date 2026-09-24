@@ -20,7 +20,7 @@ import { SHIFT_VIEWS, VIEW_TABS, tabOfView, viewOfTab } from "@/lib/nox/shift/ta
 import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
-import { firstInLastOut, outButtonOf, punchTimeLabel } from "@/lib/nox/shift/today-row";
+import { firstInLastOut, outButtonOf, punchTimeLabel, punchInAfterAtt } from "@/lib/nox/shift/today-row";
 import { mdDowOf } from "@/lib/nox/shift/staff-place";
 // ★便 AU2／AU3（2026-09-24・週末バックログ 2／3）: 計画期間の進行段・期間ごとの帯と地色・確定シフトの「未確定」印・月セルの名前合成（純関数）
 import { PERIOD_STAGES, isUnpublishedDay, periodBandText, periodIndexOfDate, periodStageOf, periodToneOf, stageIndexOf } from "@/lib/nox/shift/period-stage";
@@ -617,6 +617,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     });
     setMsg(error ? rpcErrJaCommon(error.message) : null);
     await loadAtt(attDate);
+    // ★便 AY1（2026-09-24・裁定291 追補1 A-3）: 出勤区分（出勤・遅刻・同伴）を記録できたら in 打刻も残す（punch_proxy 'in'＝時刻は RPC の now()）。
+    //   同営業日に in が既にあれば呼ばない（punch_proxy は盲目記録＝in-in を拒まないため UI で止める）・休み／当欠は呼ばない・区分の変更で増やさない。
+    //   失敗しても attendance は戻さない（区分の記録は成立・打刻だけ失敗＝裁定281 の型で同じ枠に警告）。
+    if (!error && punchInAfterAtt({ status, hasIn: !!punchIO.get(castId)?.inHm })) {
+      const { error: pe } = await supabase.rpc("punch_proxy", { p_cast_id: castId, p_type: "in", p_note: null });
+      if (pe) setMsg(`出勤区分は記録しました。出勤の打刻に失敗: ${rpcErrJa(pe.message)}`);
+      setPunchTick((v) => v + 1);
+    }
   }
 
   // E8-4 #3（mig0095）: 5引数＝時間帯バンドの upsert（同 store/dow/from_min は置換・交差は RPC 'overlap' 拒否）

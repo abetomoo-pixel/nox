@@ -40,3 +40,7 @@ export function firstInLastOut(rows: readonly { cast_id: string; type: "in" | "o
   }
   return m;
 }
+
+/** ★便 AY1（2026-09-24・裁定291 追補1 A-3）: 出勤区分を押したあとに punch_proxy('in') を呼ぶか。
+ *  出勤区分（出勤・遅刻・同伴）で、同営業日に in 打刻が無いときだけ true。休み・当欠は false。既に in があれば区分の変更で増やさない。 */
+export const punchInAfterAtt = (input: { status: string | null | undefined; hasIn: boolean }): boolean => isArrivedStatus(input.status) && !input.hasIn;
