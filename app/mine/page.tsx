@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { bizDateOf } from "@/lib/nox/biz-date";
+import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import { fmtWin } from "@/lib/nox/shift-time";
 import { loadCastSimData } from "@/lib/nox/payroll/sim-data";
 import SimulatorPanel from "@/components/simulator-panel";
@@ -8,6 +8,9 @@ import PayslipSlip from "@/components/payslip-slip";
 import ShiftConfirmButton from "./shift-confirm-button";
 import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
+import PunchCorrectionForm from "./punch-correction-form"; // ★0154 D1
+import PunchCorrectionList from "./punch-correction-list"; // ★0154 D1
+import { termOf, type CorrectionRow } from "@/lib/nox/shift/punch-correction";
 import PhotoCard from "./photo-card";
 import AttendanceForm from "./attendance-form";
 import NormCard from "./norm-card";
@@ -56,6 +59,13 @@ export default async function MinePage() {
     { drink: 0, champ: 0, bottle: 0, pt: 0 },
   );
   const total = sum.drink + sum.champ + sum.bottle;
+
+  // ★0154 D1（裁定294／295）: 自分の cast 行（id・employment＝用語）・今日の自分の打刻（修正対象の選択）・修正申請（RLS 本人・表が無ければ空）
+  const { data: meCast } = await supabase.from("casts").select("id, employment").limit(1).maybeSingle();
+  const term = termOf((meCast?.employment as string | null) ?? null);
+  const { startIso: bizStartIso, endIso: bizEndIso } = bizDateRange(bizToday, cutoff);
+  const { data: todayPunches } = await supabase.from("punches").select("id, type, punched_at").gte("punched_at", bizStartIso).lt("punched_at", bizEndIso).order("punched_at");
+  const { data: corrRows } = await supabase.from("punch_corrections").select("id, cast_id, punch_id, biz_date, kind, before_at, after_at, reason, decision, decide_reason, ack, ack_at, requested_at, decided_at").order("requested_at", { ascending: false }).limit(20);
 
   // 最終打刻(自分の行のみ)
   const { data: punches } = await supabase
@@ -231,6 +241,17 @@ export default async function MinePage() {
         <h3>遅刻・当欠の連絡</h3>
         <AttendanceForm defaultDate={bizToday} />
       </section>
+
+      {/* ★0154 D1（裁定294-2／294-4／295-1）: 出退勤の修正申請（本人）＝店の承認後に punches へ反映・承認分は本人が確認／異議あり */}
+      {meCast?.id && (
+        <section className="nox-panel">
+          <h3>{term}の修正申請</h3>
+          <PunchCorrectionForm castId={meCast.id as string} bizToday={bizToday} punches={(todayPunches ?? []) as { id: string; type: string; punched_at: string }[]} term={term} />
+          <div style={{ marginTop: 10 }}>
+            <PunchCorrectionList rows={(corrRows ?? []) as CorrectionRow[]} term={term} />
+          </div>
+        </section>
+      )}
 
       <section className="nox-panel">
         <h3>

@@ -12,6 +12,7 @@
  */
 import fs from "node:fs";
 import { firstInLastOut, hmJstOf, isArrivedStatus, outButtonOf, punchInAfterAtt, punchTimeLabel } from "../lib/nox/shift/today-row";
+import { ackOptionsOf, correctionSummaryOf, disputedOf, hmOnBizOf, jstIsoOf, requestArgsOf, requestInitOf, termOf } from "../lib/nox/shift/punch-correction"; // ★0154 D1
 
 let pass = 0;
 const fails: string[] = [];
@@ -60,6 +61,20 @@ check("tr(6-1) punchInAfterAtt: 出勤・遅刻・同伴で in 打刻なし＝tr
 check("tr(6-2) punchInAfterAtt: in 打刻が既にあれば区分の変更でも false（増やさない）", !punchInAfterAtt({ status: "shukkin", hasIn: true }) && !punchInAfterAtt({ status: "late", hasIn: true }) && !punchInAfterAtt({ status: "dohan", hasIn: true }));
 check("tr(6-3) punchInAfterAtt: 休み・当欠・未記録は in を書かない", !punchInAfterAtt({ status: "off", hasIn: false }) && !punchInAfterAtt({ status: "absent", hasIn: false }) && !punchInAfterAtt({ status: null, hasIn: false }) && !punchInAfterAtt({ status: "", hasIn: false }));
 check("tr(6-4) shift-board: setAtt は attendance_set 成功後（!error）に punchInAfterAtt を通して punch_proxy 'in' を呼び、失敗は attendance を戻さず警告文で残す", /if \(!error && punchInAfterAtt\(\{ status, hasIn: !!punchIO\.get\(castId\)\?\.inHm \}\)\)/.test(sb) && /supabase\.rpc\("punch_proxy", \{ p_cast_id: castId, p_type: "in", p_note: null \}\)/.test(sb) && /出勤区分は記録しました。出勤の打刻に失敗/.test(sb) && !/attendance_set[\s\S]{0,400}p_status: null/.test(sb));
+// (7) ★0154 D1（裁定294-1〜4／295-1）: 打刻の修正申請の純関数（申請の初期値・引数・ack の遷移・用語）
+check("tr(7-1) termOf: 雇用＝労働時間／委託・null＝稼働実績", termOf("雇用") === "労働時間" && termOf("委託") === "稼働実績" && termOf(null) === "稼働実績");
+check("tr(7-2) jstIsoOf: 営業日 9/22 20:00→11:00Z・26:00→翌 17:00Z（0-47 域）・形が違えば null", jstIsoOf("2026-09-22", "20:00") === "2026-09-22T11:00:00.000Z" && jstIsoOf("2026-09-22", "26:00") === "2026-09-22T17:00:00.000Z" && jstIsoOf("2026-09-22", "48:00") === null && jstIsoOf("x", "20:00") === null);
+check("tr(7-3) hmOnBizOf: 営業日基準の HH:MM（翌 2:00＝26:00）・営業日なしは JST", hmOnBizOf("2026-09-22T17:00:00Z", "2026-09-22") === "26:00" && hmOnBizOf("2026-09-22T11:30:00Z", "2026-09-22") === "20:30" && hmOnBizOf("2026-09-22T17:00:00Z") === "02:00");
+const initU = requestInitOf({ kind: "in", biz: "2026-09-22", punchId: "p1", punchAtIso: "2026-09-22T11:00:00Z", shiftStartHm: "19:00" });
+const initI = requestInitOf({ kind: "out", biz: "2026-09-22", punchId: null, punchAtIso: null, shiftStartHm: "19:00", shiftEndHm: "26:00" });
+check("tr(7-4) requestInitOf: 既存の打刻あり＝update（punch_id・時刻＝現在値）／無し＝insert（時刻＝確定シフトの終了）・シフト無しは空", initU.mode === "update" && initU.punchId === "p1" && initU.hm === "20:00" && initI.mode === "insert" && initI.punchId === null && initI.hm === "26:00" && requestInitOf({ kind: "in", biz: "2026-09-22" }).hm === "");
+const ra = requestArgsOf({ castId: "c", punchId: null, biz: "2026-09-22", kind: "in", hm: "20:30", reason: " 打刻忘れ " });
+check("tr(7-5) requestArgsOf: 理由 trim・時刻→ISO・punch_id null 可／理由空・201 字・時刻不正はエラー文", ra.ok && ra.args.p_after_at === "2026-09-22T11:30:00.000Z" && ra.args.p_reason === "打刻忘れ" && ra.args.p_punch_id === null && !requestArgsOf({ castId: "c", punchId: null, biz: "2026-09-22", kind: "in", hm: "20:30", reason: " " }).ok && !requestArgsOf({ castId: "c", punchId: null, biz: "2026-09-22", kind: "in", hm: "20:30", reason: "あ".repeat(201) }).ok && !requestArgsOf({ castId: "c", punchId: null, biz: "2026-09-22", kind: "in", hm: "9:00", reason: "x" }).ok);
+check("tr(7-6) ackOptionsOf: approved＝confirmed／disputed・pending／rejected＝なし", JSON.stringify(ackOptionsOf({ decision: "approved" })) === JSON.stringify(["confirmed", "disputed"]) && ackOptionsOf({ decision: "pending" }).length === 0 && ackOptionsOf({ decision: "rejected" }).length === 0);
+check("tr(7-7) disputedOf: approved ∧ disputed だけ", disputedOf([{ decision: "approved", ack: "disputed" }, { decision: "approved", ack: "confirmed" }, { decision: "rejected", ack: "disputed" }]).length === 1);
+check("tr(7-8) correctionSummaryOf: 更新「出勤 9/22 20:00 → 20:30」・削除「→ 取消」・新規「（追加）」", correctionSummaryOf({ kind: "in", biz_date: "2026-09-22", before_at: "2026-09-22T11:00:00Z", after_at: "2026-09-22T11:30:00Z" }) === "出勤 9/22 20:00 → 20:30" && correctionSummaryOf({ kind: "out", biz_date: "2026-09-22", before_at: "2026-09-22T17:00:00Z", after_at: null }) === "退勤 9/22 26:00 → 取消" && correctionSummaryOf({ kind: "out", biz_date: "2026-09-22", before_at: null, after_at: "2026-09-22T17:00:00Z" }) === "退勤 9/22 26:00（追加）");
+const mineP = fs.readFileSync("app/mine/page.tsx", "utf8");
+check("tr(7-9) 配線: shift-board＝修正ボタン（canRecord・punchRef）→PunchCorrectionModal・異議あり warn（Message kind warn）／mine＝PunchCorrectionForm＋List・用語 termOf", /<PunchCorrectionModal castId=\{corr\.castId\}/.test(sb) && /\{KIND_LABEL\[k\]\}を修正/.test(sb) && /from\("punch_corrections"\)/.test(sb) && /出退勤の修正に「異議あり」が/.test(sb) && /<PunchCorrectionForm castId=/.test(mineP) && /<PunchCorrectionList rows=/.test(mineP) && /termOf\(/.test(mineP));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);

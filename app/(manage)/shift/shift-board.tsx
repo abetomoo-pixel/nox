@@ -21,6 +21,8 @@ import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; //
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
 import { firstInLastOut, outButtonOf, punchTimeLabel, punchInAfterAtt } from "@/lib/nox/shift/today-row";
+import PunchCorrectionModal from "@/components/nox/punch-correction-modal"; // ★0154 D1: 出退勤の修正（owner／manager＝申請＝確定）
+import { KIND_LABEL, correctionSummaryOf, disputedOf, termOf, type CorrectionRow, type PunchKind } from "@/lib/nox/shift/punch-correction";
 import { mdDowOf } from "@/lib/nox/shift/staff-place";
 // ★便 AU2／AU3（2026-09-24・週末バックログ 2／3）: 計画期間の進行段・期間ごとの帯と地色・確定シフトの「未確定」印・月セルの名前合成（純関数）
 import { PERIOD_STAGES, isUnpublishedDay, periodBandText, periodIndexOfDate, periodStageOf, periodToneOf, stageIndexOf } from "@/lib/nox/shift/period-stage";
@@ -42,7 +44,7 @@ import IncentivePanel from "./incentive-panel";
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
-type Cast = { id: string; name: string; photo_updated_at: string | null };
+type Cast = { id: string; name: string; photo_updated_at: string | null; employment?: string | null }; // ★0154 D1: employment（用語の出し分け）
 type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string };
 // ★SD V2-2（mig0101）: status 3値（planned→proposed→confirmed）＋wish_id（原型対比）＋source/period_id（自動配置）
 type Shift = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string; created_by: string; wish_id: string | null; source: string; period_id: string | null };
@@ -249,6 +251,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★AT2: cast ごとの最初の in／最後の out（punch-match S1 と同じ採用規則・表示専用）
   const [punchIO, setPunchIO] = useState<Map<string, { inHm: string | null; outHm: string | null }>>(new Map());
   const [punchTick, setPunchTick] = useState(0);
+  // ★0154 D1: 修正モーダルの対象（cast・区分・直す打刻）と、店側 warn 用の「異議あり」行（approved ∧ disputed・RLS＝自店 owner/manager）
+  const [corr, setCorr] = useState<{ castId: string; kind: PunchKind; punchId: string | null; punchAtIso: string | null; startHm: string; endHm: string } | null>(null);
+  const [punchRef, setPunchRef] = useState<Map<string, { inId: string | null; inIso: string | null; outId: string | null; outIso: string | null }>>(new Map());
+  const [disputed, setDisputed] = useState<(CorrectionRow & { id: string })[]>([]);
   // ★裁定257 R20-a: penalty_config.late_grace_min（client は SELECT のみ・comp-sections と同じ経路・取れなければ既定 10）
   const [lateGraceMin, setLateGraceMin] = useState<number>(LATE_GRACE_MIN_DEFAULT);
   const [msg, setMsg] = useState<string | null>(null);
@@ -855,11 +861,25 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     let alive = true;
     void (async () => {
       const { startIso, endIso } = bizDateRange(todayDate, cutoff);
-      const { data } = await supabase.from("punches").select("cast_id, type, punched_at")
+      const { data } = await supabase.from("punches").select("id, cast_id, type, punched_at")
         .eq("store_id", storeId).gte("punched_at", startIso).lt("punched_at", endIso).order("punched_at");
       const m = new Map<string, string>();
-      const rows = (data ?? []) as { cast_id: string; type: "in" | "out"; punched_at: string }[];
+      const rows = (data ?? []) as { id: string; cast_id: string; type: "in" | "out"; punched_at: string }[];
       setPunchIO(firstInLastOut(rows)); // ★AT2
+      // ★0154 D1: 修正モーダルに渡す打刻の id／時刻（最初の in・最後の out＝punch-match S1 と同じ採用規則）
+      const ref = new Map<string, { inId: string | null; inIso: string | null; outId: string | null; outIso: string | null }>();
+      for (const p of rows) {
+        const e = ref.get(p.cast_id) ?? { inId: null, inIso: null, outId: null, outIso: null };
+        if (p.type === "in") { if (e.inId === null) { e.inId = p.id; e.inIso = p.punched_at; } } else { e.outId = p.id; e.outIso = p.punched_at; }
+        ref.set(p.cast_id, e);
+      }
+      setPunchRef(ref);
+      // ★0154 D1: 異議あり（approved ∧ disputed）＝店側 warn。表が無い環境（手貼り前）は空のまま
+      if (isManagerUp) {
+        const { data: dr, error: de } = await supabase.from("punch_corrections").select("id, cast_id, punch_id, biz_date, kind, before_at, after_at, reason, decision, decide_reason, ack, ack_at, requested_at, decided_at")
+          .eq("store_id", storeId).eq("decision", "approved").eq("ack", "disputed").order("biz_date", { ascending: false }).limit(50);
+        if (alive) setDisputed(de ? [] : disputedOf((dr ?? []) as (CorrectionRow & { id: string })[]));
+      }
       for (const p of rows) {
         if (p.type === "in") m.set(p.cast_id, new Date(p.punched_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }));
         else m.delete(p.cast_id); // 'out' が後なら「打刻中」ではない＝表示しない
@@ -934,6 +954,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       <PageHead eyebrow="SHIFT MANAGEMENT" title="シフト管理"
         desc="申請、承認、出勤状況と人員充足をまとめて管理します。" />
       <Toast msg={msg} />
+      {/* ★0154 D1: 修正モーダル（成功＝punches 再読込＋同じ枠に success） */}
+      {corr && (
+        <PunchCorrectionModal castId={corr.castId} castName={castName(corr.castId)} biz={todayDate} kind={corr.kind} punchId={corr.punchId} punchAtIso={corr.punchAtIso}
+          shiftStartHm={corr.startHm} shiftEndHm={corr.endHm} term={termOf(casts.find((c) => c.id === corr.castId)?.employment)}
+          onClose={() => setCorr(null)} onDone={(text) => { setMsg(text); setPunchTick((v) => v + 1); }} />
+      )}
 
       {/* 段S-1 サブナビ＝ページ内の収容先を切り替えるだけ。ルート・URL・権限ゲートは不変。
           ★SC-2（裁定44）: 並びを「今日 → 承認待ち → シフト作成 → 仮シフト → 確定シフト」へ。
@@ -1099,6 +1125,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 }}>＋ 当日追加配置</button>
             )}
           </div>
+          {/* ★0154 D1（裁定294-4）: 本人が「異議あり」にした修正＝店側 warn（一覧つき・裁定281 の型） */}
+          {isManagerUp && disputed.length > 0 && (
+            <Message kind="warn" style={{ marginBottom: 10 }}>
+              出退勤の修正に「異議あり」が {disputed.length} 件あります。
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12.5 }}>
+                {disputed.map((r) => <li key={r.id}>{castName(r.cast_id)}: {correctionSummaryOf(r)}（{r.reason}）</li>)}
+              </ul>
+            </Message>
+          )}
           {/* ★B4-a 裁定220/221（H31）: モック v4.1 171 行「出勤予定／出勤済み／遅刻・未着／欠勤」＝上の KPI 帯は残し、ここに 4 カウンタを足す。 */}
           {shiftsOn(todayDate).length > 0 && (
             <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: "6px 12px" }}>
@@ -1180,6 +1215,20 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>
                                 {label}{n === null ? null : <span style={{ marginLeft: 4, opacity: 0.75 }}>(+{n} 分)</span>}
                               </span>
+                            );
+                          })()}
+                          {/* ★0154 D1（裁定294-2）: 出退勤の時刻修正＝owner／manager の申請＝確定（裁定265 型モーダル・理由必須）。表示日が今日のときだけ */}
+                          {canRecord && (() => {
+                            const pr = punchRef.get(s.cast_id);
+                            return (
+                              <div className="nox-actions" style={{ marginTop: 6, gap: 6 }}>
+                                {(["in", "out"] as const).map((k) => (
+                                  <button key={k} type="button" className="nox-link" style={{ fontSize: 11.5 }}
+                                    onClick={() => setCorr({ castId: s.cast_id, kind: k, punchId: k === "in" ? pr?.inId ?? null : pr?.outId ?? null, punchAtIso: k === "in" ? pr?.inIso ?? null : pr?.outIso ?? null, startHm: s.start_hm, endHm: s.end_hm })}>
+                                    {KIND_LABEL[k]}を修正
+                                  </button>
+                                ))}
+                              </div>
                             );
                           })()}
                           {/* ★便 AT2-1: 退勤（punch_proxy 'out'）は出勤区分（出勤・遅刻・同伴）の行にだけ出す。in 打刻が無ければ押せない（orphan_out を作らない＝裁定257 R20-b）。裁定239＝実行 青塗り */}

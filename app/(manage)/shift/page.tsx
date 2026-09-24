@@ -13,7 +13,7 @@ export default async function ShiftPage() {
   // 段P: photo_updated_at を追加（日詳細のアバターを写真にするため。null=写真なし＝頭文字にフォールバック）。
   const { data: casts } = await supabase
     .from("casts")
-    .select("id, name, photo_updated_at")
+    .select("id, name, photo_updated_at, employment") // ★0154 D1: 用語（労働時間／稼働実績）の出し分け
     .eq("is_active", true)
     .order("name");
   return (
