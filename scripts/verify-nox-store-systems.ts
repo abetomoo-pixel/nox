@@ -88,7 +88,7 @@ async function main() {
   const m = src.match(/v_keys\s+text\[\]\s*:=\s*array\[([\s\S]*?)\];/);
   const live = m ? [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]) : [];
   const liveSys = live.filter((k) => k.startsWith("sys_"));
-  check("ss(4-0) live の set_store_profile 白名単を読めた（20 キー）", live.length === 20, `${live.length}: ${live.join(",")}`);
+  check("ss(4-0) live の set_store_profile 白名単を読めた（21 キー＝0147 の 20＋0151 の slide_apply）", live.length === 21 && live.includes("slide_apply"), `${live.length}: ${live.join(",")}`);
   check("ss(4-1) ★SYSTEM_KEYS 9 ＝ live 白名単の sys_* 9（順序込み）", JSON.stringify([...SYSTEM_KEYS]) === JSON.stringify(liveSys), `lib=${SYSTEM_KEYS.join(",")} live=${liveSys.join(",")}`);
   check("ss(4-2) 白名単に setup_done／biz_type／billing_mode も居る（0147 の 12 キー）", ["setup_done", "biz_type", "billing_mode"].every((k) => live.includes(k)));
 
