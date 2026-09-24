@@ -18,6 +18,7 @@ import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセ
 import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: CSV 出力と凍結名解決は月次一覧と共用
 import { missingOutSummaryOf, frozenRowsOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
 import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
+import SanctionModal from "@/components/nox/sanction-modal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 
 type Store = { id: string; name: string };
 // D3: payslips.breakdown_json（finalize が凍結）の CSV が使う部分。back 内訳の生値は CSV に出さず合算のみ。
@@ -114,6 +115,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   // E8-5 payroll#3: 行タップ→個別内訳（preview breakdown の再掲・選択中 castId）
   const [detailCast, setDetailCast] = useState<string | null>(null);
   const [settle, setSettle] = useState<{ castId: string; castName: string } | null>(null); // ★0154 D4
+  const [sanct, setSanct] = useState<{ castId: string; castName: string } | null>(null); // ★0154 D5
   // ★U-1 是正B: 右パネルの「明細プレビュー」（PayslipSlip 全体）の開閉
   const [slipPreview, setSlipPreview] = useState(false);
   // ★裁定264-1: 調整控除（run 別・cast 別）。一覧は直 SELECT（RLS）・追加／削除は route（add／delete）。draft 以外は読取のみ（264-9）。
@@ -606,6 +608,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         <SettlementModal storeId={storeId} castId={settle.castId} castName={settle.castName} runId={runInfo.id} biz={null}
           onClose={() => setSettle(null)} onDone={(text) => { setMsg(text); void loadRun(); }} />
       )}
+      {/* ★0154 D5: 懲戒減給モーダル（雇用・当期 draft run へ・成功で調整行と run を再読込） */}
+      {sanct && runInfo && (
+        <SanctionModal runId={runInfo.id} castId={sanct.castId} castName={sanct.castName}
+          onClose={() => setSanct(null)} onDone={(text) => { setMsg(text); void loadRun(); }} />
+      )}
       {finalized && <p style={{ color: "var(--champ)", fontSize: 14, fontWeight: "bold" }}>{finalized}</p>}
 
       {/* 段2: プレビュー（参考値） */}
@@ -833,6 +840,13 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     </p>
                     {pay.plan?.name && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 6px" }}>{pay.plan.name}</p>}
                     {/* ★0154 D4（裁定293 追補1-2）: 委託で遅刻／当欠の検知がある行＝「精算調整を登録」（当期 draft のみ・source='settlement'） */}
+                    {/* ★0154 D5（裁定293-3／294-6）: 雇用＝懲戒減給（就業規則根拠のチェック必須・上限は RPC 'sanction cap'・常時注記）。draft のみ */}
+                    {r.taxMode === "雇用" && runInfo?.status === "draft" && (
+                      <p style={{ fontSize: 11.5, margin: "0 0 6px" }}>
+                        <button type="button" className="nox-link" onClick={() => setSanct({ castId: r.castId, castName: r.castName })}>懲戒減給を登録</button>
+                        <span style={{ marginLeft: 6, color: "var(--sub)" }}>上限内でも適法とは限りません</span>
+                      </p>
+                    )}
                     {r.taxMode === "委託" && ((pay.lateN ?? 0) > 0 || (pay.absentN ?? 0) > 0) && runInfo?.status === "draft" && (
                       <p style={{ fontSize: 11.5, margin: "0 0 6px" }}>
                         遅刻 {pay.lateN ?? 0} 回・当欠 {pay.absentN ?? 0} 回の検知があります。

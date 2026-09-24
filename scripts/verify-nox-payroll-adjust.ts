@@ -24,6 +24,7 @@ import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
 import { pgTx } from "./fixtures-pgtx"; // ★0154 (8)
 import { detectTargetOf, periodRangeOf, presetsOf, settlementArgsOf, settlementCandidatesOf, settlementReasonOf, validatePresets } from "../lib/nox/payroll/settlement"; // ★0154 D4
+import { NOTE_ESTIMATED, sanctionArgsOf, sanctionErrJa } from "../lib/nox/payroll/sanction"; // ★0154 D5
 import { payOf, withholdingOf, type PayInput, type CompPlan, type PayResult } from "../lib/nox/pay";
 import { adjustOf, adjustAmountOf, totalDeductionsOf, type AdjustmentRow, type DeductionParts } from "../lib/nox/payroll/adjust";
 import { buildPayInput, type CastRaw, type StoreMasters } from "../lib/nox/payroll/assemble";
@@ -92,6 +93,14 @@ function pureChecks() {
     const a = settlementArgsOf({ runId: "r", castId: "c", preset: dflt[0], amount: 3000, biz: "2026-09-22", shiftId: "s" });
     check("pa(0-9d) settlementArgsOf: fixed・源泉前・明細に出す・reason「精算調整（遅刻 9/22）」・source settlement・basis＝ひな形の文・target＝shift／額が負・basis 空は err", a.ok && a.args.p_mode === "fixed" && a.args.p_before_withholding === true && a.args.p_show_detail === true && a.args.p_reason === "精算調整（遅刻 9/22）" && a.args.p_source === "settlement" && a.args.p_basis === dflt[0].basis && a.args.p_target_shift_id === "s" && !settlementArgsOf({ runId: "r", castId: "c", preset: dflt[0], amount: -1 }).ok && !settlementArgsOf({ runId: "r", castId: "c", preset: { ...dflt[0], basis: " " }, amount: 1 }).ok && settlementReasonOf(dflt[1], null) === "精算調整（当欠）");
     check("pa(0-9e) settlementCandidatesOf／periodRangeOf: 遅刻 2＋当欠 1 − 登録 1＝2（0 未満は 0）・2026-02 は 02-01〜02-28", settlementCandidatesOf({ attendance: [{ status: "late" }, { status: "late" }, { status: "absent" }, { status: "shukkin" }], settlements: 1 }) === 2 && settlementCandidatesOf({ attendance: [], settlements: 3 }) === 0 && JSON.stringify(periodRangeOf("2026-02")) === JSON.stringify({ from: "2026-02-01", to: "2026-02-28" }));
+  }
+  // ★0154 D5（裁定293-3／294-6／295）: 懲戒減給の純関数（lib/nox/payroll/sanction.ts）
+  {
+    const ok = sanctionArgsOf({ runId: "r", castId: "c", amount: 3000, reason: "無断欠勤", basisChecked: true, basis: "就業規則 第30条", estimated: false });
+    const est = sanctionArgsOf({ runId: "r", castId: "c", amount: 3000, reason: "無断欠勤", basisChecked: true, basis: "就業規則 第30条", estimated: true });
+    check("pa(0-9f) sanctionArgsOf: fixed・源泉前・source sanction・basis＝就業規則・target null／推計基底は理由に「（推計基底）」を付す（二重には付けない）", ok.ok && ok.args.p_source === "sanction" && ok.args.p_mode === "fixed" && ok.args.p_basis === "就業規則 第30条" && ok.args.p_target_shift_id === null && ok.reason === "無断欠勤" && est.ok && est.reason === "無断欠勤" + NOTE_ESTIMATED && sanctionArgsOf({ runId: "r", castId: "c", amount: 1, reason: "x" + NOTE_ESTIMATED, basisChecked: true, basis: "b", estimated: true }).ok && (sanctionArgsOf({ runId: "r", castId: "c", amount: 1, reason: "x" + NOTE_ESTIMATED, basisChecked: true, basis: "b", estimated: true }) as { reason: string }).reason === "x" + NOTE_ESTIMATED);
+    check("pa(0-9g) sanctionArgsOf: 根拠チェック無し／根拠空／額 0・小数／理由空は err", !sanctionArgsOf({ runId: "r", castId: "c", amount: 1, reason: "x", basisChecked: false, basis: "b", estimated: false }).ok && !sanctionArgsOf({ runId: "r", castId: "c", amount: 1, reason: "x", basisChecked: true, basis: " ", estimated: false }).ok && !sanctionArgsOf({ runId: "r", castId: "c", amount: 0, reason: "x", basisChecked: true, basis: "b", estimated: false }).ok && !sanctionArgsOf({ runId: "r", castId: "c", amount: 1.5, reason: "x", basisChecked: true, basis: "b", estimated: false }).ok && !sanctionArgsOf({ runId: "r", castId: "c", amount: 1, reason: " ", basisChecked: true, basis: "b", estimated: false }).ok);
+    check("pa(0-9h) sanctionErrJa: 'sanction cap'＝「1 件は平均賃金の半額まで・当期の合計は賃金総額の 1/10 まで」・'no basis for average wage'・'bad source for employment'・他は null", /平均賃金の半額まで・当期の合計は賃金総額の 1\/10 まで/.test(sanctionErrJa("sanction cap") ?? "") && /平均賃金を計算できません/.test(sanctionErrJa("no basis for average wage") ?? "") && /雇用キャストにのみ/.test(sanctionErrJa("bad source for employment") ?? "") && sanctionErrJa("forbidden") === null);
   }
   const base = payOf(BASE);
   const g = base.gross;
