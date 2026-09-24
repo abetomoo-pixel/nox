@@ -96,7 +96,7 @@ export default function WishForm() {
     }
     setMsg(null);
     setFailed((f) => { const n = { ...f }; delete n[ymd]; return n; });
-    setSel((s) => toggleDay(s, ymd));
+    setSel((s) => toggleDay(s, ymd, active)); // ★便 AY2（裁定290-1）: 提出済み（pending／accepted）等の非活性日は純関数側でも選択しない
   }
 
   // ★290-3: 選択日ごとに既存 shift_wish_submit を昇順に逐次（非原子）。失敗は和文で残し再提出可

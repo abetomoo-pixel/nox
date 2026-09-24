@@ -57,10 +57,13 @@ export function activeDaysOf(input: { periods: readonly OpenPeriod[] | null; cel
   return out;
 }
 
-/** タップ＝選択／解除（上書きは解除で捨てる） */
-export function toggleDay(sel: Selection, ymd: string): Selection {
+/** タップ＝選択／解除（上書きは解除で捨てる）。
+ *  ★便 AY2（2026-09-24・裁定290-1）: active（活性日＝activeDaysOf）を渡すと、活性でない日（提出済み pending／accepted・定休日・過去日・期間外）は選択しない（解除は常に可）。 */
+export function toggleDay(sel: Selection, ymd: string, active?: ReadonlySet<string>): Selection {
   const next: Selection = { ...sel };
-  if (ymd in next) delete next[ymd]; else next[ymd] = null;
+  if (ymd in next) { delete next[ymd]; return next; }
+  if (active && !active.has(ymd)) return sel;
+  next[ymd] = null;
   return next;
 }
 

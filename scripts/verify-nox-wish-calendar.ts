@@ -36,6 +36,7 @@ let sel = toggleDay({}, "2026-10-12");
 sel = toggleDay(sel, "2026-10-05");
 check("wc(3-1) toggleDay: 追加→2 日・再タップで解除", Object.keys(sel).length === 2 && Object.keys(toggleDay(sel, "2026-10-12")).join() === "2026-10-05");
 sel = setOverride(sel, "2026-10-12", { start: "21:00", end: "25:00" });
+check("wc(3-1b) ★便 AY2（裁定290-1）toggleDay に active を渡すと提出済み（pending 10/6・accepted 10/8）は選択されない・rejected 10/9／withdrawn 10/7 は選択できる・解除は常に可", Object.keys(toggleDay(sel, "2026-10-06", act)).length === Object.keys(sel).length && Object.keys(toggleDay(sel, "2026-10-08", act)).length === Object.keys(sel).length && ("2026-10-09" in toggleDay(sel, "2026-10-09", act)) && ("2026-10-07" in toggleDay(sel, "2026-10-07", act)) && !("2026-10-05" in toggleDay(sel, "2026-10-05", act)), Object.keys(sel).join(","));
 check("wc(3-2) setOverride: 選択中の日だけ上書き・未選択日は無視", sel["2026-10-12"]?.start === "21:00" && setOverride(sel, "2026-10-30", { start: "1", end: "2" }) === sel);
 const rows = composeSubmissions(sel, { start: "20:00", end: "26:00" });
 check("wc(3-3) composeSubmissions: 昇順・上書き > 一括", JSON.stringify(rows) === JSON.stringify([{ date: "2026-10-05", start_hm: "20:00", end_hm: "26:00" }, { date: "2026-10-12", start_hm: "21:00", end_hm: "25:00" }]), JSON.stringify(rows));
@@ -51,6 +52,7 @@ check("wc(5-2) isLiveWish／timesValid（開始 00:00〜23:59・終了 00:00〜4
 // (6)
 const wf = fs.readFileSync("app/mine/wishes/wish-form.tsx", "utf8");
 check("wc(6-1) wish-form: activeDaysOf／composeSubmissions／summarizeResults を通し、shift_wish_submit を逐次（for … of）呼ぶ", /activeDaysOf\(/.test(wf) && /composeSubmissions\(/.test(wf) && /summarizeResults\(/.test(wf) && /for \(const r of rows\) \{[\s\S]*?rpc\("shift_wish_submit"/.test(wf));
+check("wc(6-1b) ★便 AY2: wish-form は toggleDay(s, ymd, active) と活性集合を渡す（提出済みの日は純関数側でも選択しない）", /toggleDay\(s, ymd, active\)/.test(wf));
 check("wc(6-2) wish-form: 旧 input type=date の単発フォームは撤去・月グリッドは nox-calgrid nox-calgrid--fit・提出済みの印は wishMarkOf", !/type="date"/.test(wf) && /className="nox-calgrid nox-calgrid--fit"/.test(wf) && /wishMarkOf\(/.test(wf));
 
 if (fails.length) {
