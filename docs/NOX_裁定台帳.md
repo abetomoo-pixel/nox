@@ -3733,6 +3733,24 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定294（本便で確定・相談役ブロック・2026-09-24）0154 出退勤・報酬型・懲戒減給・計算期間・雇用区分の設計（294-1〜11）
+
+出典＝相談役ブロック 2026-09-24（便 M・docs/tmp/0154_pre.md（D3）と docs/tmp/0924_tx_read.md（TX1-7）の読取を受けた設計裁定・同日収載）。次の裁定番号は 295。**本文（逐語）**:
+「裁定294（2026-09-24・0154 出退勤・報酬型・懲戒減給・計算期間・雇用区分の設計）
+294-1 表 punch_corrections: id／org_id／store_id／cast_id／punch_id(null 可＝新規打刻の申請)／biz_date／kind('in'|'out')／before_at／after_at(null＝削除)／reason(必須 NOT NULL)／requested_by／requested_at／decided_by／decided_at／decision('pending'|'approved'|'rejected')／ack('unconfirmed'|'confirmed'|'disputed')／ack_at。確定時は punches の元行を update（新規は insert・削除は delete）。punches が給与・表示の唯一の読み口であることは不変。
+294-2 RPC punch_correction_request(p_cast_id, p_punch_id, p_biz_date, p_kind, p_after_at, p_reason): cast 本人・staff 本人・owner/manager が呼べる。owner/manager が呼んだ場合は同 tx 内で approved まで進める（申請＝確定・1 行）。営業日窓内・確定済み期（payroll_runs finalized/paid に含まれる日）は 'period finalized'。reason 空は 'reason required'。
+294-3 RPC punch_correction_decide(p_id, p_approve boolean, p_reason): owner/manager。approved で punches を update/insert/delete・audit（理由つき 6 引数の型）。rejected は理由必須。
+294-4 RPC punch_correction_ack(p_id, p_ack): 本人のみ。confirmed／disputed。disputed は店側一覧に表示（client）。
+294-5 cast_plan 白名単 +3: pay_rule('actual'|'shift_guarantee'|'fixed'|'per_shift'・欠損＝'actual')／per_shift_amount(integer ≥0)／fixed_amount(integer ≥0)。set_cast_plan で検査: shift_guarantee／fixed は雇用のみ・per_shift は委託のみ（違反 'bad pay_rule for employment'）。その他保証＝現行 minimum。
+294-6 payroll_adjustment_add に p_source('manual'|'settlement'|'sanction')・p_basis text・p_target_shift_id uuid を追加（既存呼出は 'manual'・null で不変）。settlement は委託のみ・basis 必須。sanction は雇用のみ・basis 必須・91 条検査＝1 件 ≦ floor(平均賃金/2)・当期の sanction 合計 ≦ floor(当期 gross/10)（平均賃金＝直近 3 期の確定 payslip の gross 合計÷暦日数・確定 payslip が無ければ 'no basis for average wage'）。違反 'sanction cap'。
+294-7 settings_json 白名単 +1: settlement_presets（配列・最大 10・各要素 {code, name, amount, basis, target('late'|'absent'|'early'|'other')}・形が違えば 'bad type'）。ウィザードの既定 3 件（遅刻／当欠／早退・額 0・文は店が編集）は client。
+294-8 payslips に calc_period_start／calc_period_end（date・既存行は run の period で埋め戻し）。payroll_finalize は p_payslips の同名キーを写す。days の算出は client（core.ts）で計算期間から。
+294-9 casts に employment_valid_from（date・既存行は null＝不定）。RPC set_cast_employment(p_cast_id, p_employment, p_valid_from): owner のみ・p_valid_from は最後に確定した期の翌日以降かつ給与期の初日のみ・audit。過去分を付け替えない。
+294-10 penalty_config の表・列は不変。自動計算の撤去は client（pay.ts fine・sim）で 0154 手貼り後の同レーン。
+294-11 revoke/grant は 0151 の形。新 RPC 4 本の A/B はゲート行で決める（裁定261）。名簿 A +4 見込み。pin 走査＝payslips 10・punches 8・attendance 8・employment 3・set_store_profile 5・rate-back／store-systems（白名単 8→11）・payroll-adjust（列 +3）・honBackRate 2（教訓92）。」
+
+適用＝便 M2〜M4（起草 supabase/migrations/0154_punch_pay.sql＝未追跡・突合 docs/tmp/q0924_ag_0154.mjs＝BEGIN…ROLLBACK）。手貼りは Agoora（要裁定の裁定後）。
+
 ## 裁定293（本便で確定・相談役ブロック・2026-09-24）弁護士 L1〜L7 の反映（293-1〜8）＋追補1（精算調整の運用形）
 
 出典＝相談役ブロック 2026-09-24（便 D1・docs/NOX_専門家確認事項_2026-08-27.md の弁護士 L1〜L7 の回答を受けた裁定・追補1 は同日先行受領＝215c1e4・本文は本便で差し込み）。次の裁定番号は 294。**本文（逐語）**:
