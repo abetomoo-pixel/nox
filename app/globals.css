@@ -2197,3 +2197,8 @@ body {
 .nox-numfield::-webkit-inner-spin-button,
 .nox-numfield::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
 .nox-numfield { -moz-appearance: textfield; appearance: textfield; }
+
+/* ★便 AU3（2026-09-24・週末バックログ 3）: 確定シフトの 7 列をスマホ幅に収める＝≤899 は minmax(0,1fr)（1fr＝minmax(auto,1fr) は名前の最小幅で溢れる）・
+   セルは min-width 0。時刻 .nox-cald-t は ≤899 で非表示（日詳細モーダルで見る）。900+ は従来どおり。新トークン 0 */
+.nox-calgrid--fit > .nox-cald { min-width: 0; overflow: hidden; }
+@media (max-width: 899px) { .nox-calgrid--fit { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; } .nox-calgrid--fit .nox-cald-t { display: none; } }
