@@ -19,6 +19,9 @@ import { lateMinutesOf } from "@/lib/nox/shift/late"; // ★裁定268: 遅刻分
 import { SHIFT_VIEWS, VIEW_TABS, tabOfView, viewOfTab } from "@/lib/nox/shift/tabs"; // ★裁定274（R15）: 3 タブの写像
 import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
+// ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
+import { firstInLastOut, outButtonOf, punchTimeLabel } from "@/lib/nox/shift/today-row";
+import { mdDowOf } from "@/lib/nox/shift/staff-place";
 // ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
@@ -240,6 +243,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [punchIn, setPunchIn] = useState<Map<string, string>>(new Map());
   // ★裁定257 R20-a: 表示日の打刻行（in／out とも）＝matchPunches の入力。R20-b: 退勤（punch_proxy）後の再読込トリガ
   const [punchRows, setPunchRows] = useState<(PunchRow & { cast_id: string })[]>([]);
+  // ★AT2: cast ごとの最初の in／最後の out（punch-match S1 と同じ採用規則・表示専用）
+  const [punchIO, setPunchIO] = useState<Map<string, { inHm: string | null; outHm: string | null }>>(new Map());
   const [punchTick, setPunchTick] = useState(0);
   // ★裁定257 R20-a: penalty_config.late_grace_min（client は SELECT のみ・comp-sections と同じ経路・取れなければ既定 10）
   const [lateGraceMin, setLateGraceMin] = useState<number>(LATE_GRACE_MIN_DEFAULT);
@@ -814,6 +819,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         .eq("store_id", storeId).gte("punched_at", startIso).lt("punched_at", endIso).order("punched_at");
       const m = new Map<string, string>();
       const rows = (data ?? []) as { cast_id: string; type: "in" | "out"; punched_at: string }[];
+      setPunchIO(firstInLastOut(rows)); // ★AT2
       for (const p of rows) {
         if (p.type === "in") m.set(p.cast_id, new Date(p.punched_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }));
         else m.delete(p.cast_id); // 'out' が後なら「打刻中」ではない＝表示しない
@@ -1034,7 +1040,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
             <div>
-              <h2 style={{ ...secTitle, margin: 0 }}>{tdLabel}のシフト（<span className="num">{todayDate}</span>）</h2>
+              <h2 style={{ ...secTitle, margin: 0 }}>{tdLabel}のシフト（<span className="num">{mdDowOf(todayDate)}</span>）</h2>{/* ★AT2-3: M/D(曜) */}
               <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
                 申請時間・確定時間・出勤記録をこの表で確認します。シフトに無い飛び入り出勤は「＋ 当日追加配置」から先にシフトを足してください。
               </p>
@@ -1073,7 +1079,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           {shiftsOn(todayDate).length === 0 ? (
             <p style={{ fontSize: 13, color: "var(--sub)" }}>本日のシフトはありません</p>
           ) : (
-            <div className="nox-tablewrap">
+            <div className="nox-tablewrap stickyfirst">{/* ★AT2-3: 名前列を左固定（横スクロールしても行の見出しが残る＝M18 と同じ修飾子） */}
               <table className="nox-table">
                 <thead>
                   <tr><th>スタッフ</th><th>申請時間</th><th>確定時間</th><th>出勤記録</th><th>状態</th><th>操作</th></tr>
@@ -1086,7 +1092,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                     const canRecord = isManagerUp && todayDate === bizToday;
                     return (
                       <tr key={s.id}>
-                        <td>
+                        <td style={{ whiteSpace: "nowrap" }}>{/* ★AT2-3: sticky 列は折り返さない */}
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
                             <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
                             {castName(s.cast_id)}
@@ -1123,26 +1129,33 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               見込み {attOf(s.cast_id, todayDate)?.eta}
                             </span>
                           )}
-                          {/* ★B4-a 裁定222（H32）: 最終 'in' の打刻時刻（モック 174 行「20:01打刻」）＝補助表示・書込なし */}
-                          {punchIn.get(s.cast_id) && (
-                            <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
-                              {punchIn.get(s.cast_id)}打刻
-                              {/* ★裁定268: 確定開始との差「(+N 分)」＝猶予 late_grace_min 以内・未着は出さない。KPI（todayCounts）と同じ lateMinutesOf・同じ閾値。
-                                  punchIn は上の effect で punchRows（当日 punches）から作った最終 'in' の HH:MM＝新規 fetch 0 */}
-                              {(() => { const n = lateMinutesOf(s.start_hm, punchIn.get(s.cast_id), lateGraceMin); return n === null ? null : <span style={{ marginLeft: 4, opacity: 0.75 }}>(+{n} 分)</span>; })()}
-                            </span>
-                          )}
-                          {/* ★裁定257 R20-b: 退勤（punch_proxy 'out'）。in 打刻中のキャストだけ押せる（orphan_out を作らない）。裁定239＝実行 青塗り・240＝中央 */}
-                          {canRecord && (
-                            <div className="nox-actions" style={{ marginTop: 6 }}>
-                              <button type="button" style={{ ...btnDark, padding: "4px 12px", fontSize: 12 }}
-                                disabled={!punchIn.has(s.cast_id)}
-                                title={punchIn.has(s.cast_id) ? "退勤を代理で打刻します（訂正・削除はできません）" : "出勤（in）の打刻がありません"}
-                                onClick={() => void proxyOut(s.cast_id)}>退勤</button>
-                            </div>
-                          )}
+                          {/* ★便 AT2-2（2026-09-24）: 出退勤時刻＝punches だけから作る（in のみ「出勤 HH:MM」・退勤後「HH:MM → HH:MM」・打刻なしは区分のみ＝偽の時刻を作らない）。
+                              裁定268 の「(+N 分)」は最初の in（punch-match S1 と同じ）に付ける。旧「HH:MM打刻」表示の置換＝B4-a 裁定222 の補助表示は本行へ */}
+                          {(() => {
+                            const io = punchIO.get(s.cast_id);
+                            const label = punchTimeLabel(io?.inHm, io?.outHm);
+                            if (!label) return null;
+                            const n = io?.inHm ? lateMinutesOf(s.start_hm, io.inHm, lateGraceMin) : null;
+                            return (
+                              <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>
+                                {label}{n === null ? null : <span style={{ marginLeft: 4, opacity: 0.75 }}>(+{n} 分)</span>}
+                              </span>
+                            );
+                          })()}
+                          {/* ★便 AT2-1: 退勤（punch_proxy 'out'）は出勤区分（出勤・遅刻・同伴）の行にだけ出す。in 打刻が無ければ押せない（orphan_out を作らない＝裁定257 R20-b）。裁定239＝実行 青塗り */}
+                          {(() => {
+                            const io = punchIO.get(s.cast_id);
+                            const ob = outButtonOf({ canRecord, attStatus: attOf(s.cast_id, todayDate)?.status, hasIn: !!io?.inHm, hasOut: !!io?.outHm });
+                            return ob.show && (
+                              <div className="nox-actions" style={{ marginTop: 6 }}>
+                                <button type="button" style={{ ...btnDark, padding: "4px 12px", fontSize: 12, opacity: ob.enabled ? 1 : 0.5 }}
+                                  disabled={!ob.enabled} title={ob.title}
+                                  onClick={() => void proxyOut(s.cast_id)}>退勤</button>
+                              </div>
+                            );
+                          })()}
                         </td>
-                        <td>
+                        <td style={{ whiteSpace: "nowrap" }}>{/* ★AT2-3: 「確定」の印を折り返し・見切れさせない */}
                           <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`}
                             style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
                             {SHIFT_ST_LABEL[s.status] ?? s.status}

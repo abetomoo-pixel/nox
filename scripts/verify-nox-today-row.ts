@@ -1,0 +1,63 @@
+/*
+ * verify:nox-today-row — 便 AT2（2026-09-24・週末バックログ 1）/shift 今日タブの行の純関数 lib/nox/shift/today-row.ts の係留（DB 不触）。
+ *   npm run verify:nox-today-row（env 不要）。f0 66 段目。
+ *
+ *  (1) isArrivedStatus: 出勤・遅刻・同伴＝true／休み・当欠・未記録・不明＝false
+ *  (2) outButtonOf: 出勤区分の行にだけ出す・in 打刻なしは押せない・out 済みは押せない・canRecord=false は出さない
+ *  (3) punchTimeLabel: in のみ「出勤 HH:MM」・in＋out「HH:MM → HH:MM」・なし null（偽の時刻を作らない）・out のみ「退勤 HH:MM」
+ *  (4) hmJstOf／firstInLastOut: JST の HH:MM・最初の in／最後の out（punch-match S1 と同じ採用規則）・cast 別
+ *  (5) 配線（逐語 grep）: shift-board が firstInLastOut／punchTimeLabel／outButtonOf を通し、見出しが M/D(曜)・表が stickyfirst
+ *  逆テスト 1 本（手動・1 回）: isArrivedStatus から "late" を外す→tr(1-1)／(2-2) 赤・戻して緑。
+ */
+import fs from "node:fs";
+import { firstInLastOut, hmJstOf, isArrivedStatus, outButtonOf, punchTimeLabel } from "../lib/nox/shift/today-row";
+
+let pass = 0;
+const fails: string[] = [];
+function check(label: string, ok: boolean, detail?: string) {
+  if (ok) pass++;
+  else fails.push(`${label}${detail ? `: ${detail}` : ""}`);
+}
+
+// (1)
+check("tr(1-1) isArrivedStatus: shukkin／late／dohan＝true", isArrivedStatus("shukkin") && isArrivedStatus("late") && isArrivedStatus("dohan"));
+check("tr(1-2) isArrivedStatus: off／absent／null／undefined／''／不明＝false", !isArrivedStatus("off") && !isArrivedStatus("absent") && !isArrivedStatus(null) && !isArrivedStatus(undefined) && !isArrivedStatus("") && !isArrivedStatus("x"));
+// (2)
+const ob = (attStatus: string | null, hasIn: boolean, hasOut = false, canRecord = true) => outButtonOf({ canRecord, attStatus, hasIn, hasOut });
+check("tr(2-1) 出勤区分＋in 打刻あり＝出す・押せる", JSON.stringify([ob("shukkin", true).show, ob("shukkin", true).enabled]) === "[true,true]");
+check("tr(2-2) 遅刻・同伴でも出す（in ありなら押せる）", ob("late", true).enabled && ob("dohan", true).enabled);
+check("tr(2-3) 出勤区分だが in 打刻なし＝出すが押せない（orphan_out を作らない・title に案内）", ob("shukkin", false).show && !ob("shukkin", false).enabled && /出勤（in）の打刻がありません/.test(ob("shukkin", false).title));
+check("tr(2-4) 休み・当欠・未記録＝出さない", !ob("off", true).show && !ob("absent", true).show && !ob(null, true).show);
+check("tr(2-5) out 済み＝出すが押せない", ob("shukkin", true, true).show && !ob("shukkin", true, true).enabled);
+check("tr(2-6) canRecord=false（先の日・staff）＝出さない", !ob("shukkin", true, false, false).show);
+// (3)
+check("tr(3-1) in のみ→「出勤 20:01」", punchTimeLabel("20:01", null) === "出勤 20:01");
+check("tr(3-2) in＋out→「20:01 → 01:30」", punchTimeLabel("20:01", "01:30") === "20:01 → 01:30");
+check("tr(3-3) 打刻なし→null（区分のみ表示・偽の時刻を作らない）", punchTimeLabel(null, null) === null && punchTimeLabel(undefined, undefined) === null && punchTimeLabel("", "") === null);
+check("tr(3-4) out のみ（orphan）→「退勤 01:30」", punchTimeLabel(null, "01:30") === "退勤 01:30");
+// (4)
+check("tr(4-1) hmJstOf: 2026-09-24T11:01:30Z → 20:01（JST）・日跨ぎ 16:30Z → 01:30", hmJstOf("2026-09-24T11:01:30.000Z") === "20:01" && hmJstOf("2026-09-24T16:30:00Z") === "01:30");
+const rows = [
+  { cast_id: "a", type: "in" as const, punched_at: "2026-09-24T11:05:00Z" },
+  { cast_id: "a", type: "in" as const, punched_at: "2026-09-24T11:01:00Z" }, // 早い方＝最初の in
+  { cast_id: "a", type: "out" as const, punched_at: "2026-09-24T15:00:00Z" },
+  { cast_id: "a", type: "out" as const, punched_at: "2026-09-24T16:30:00Z" }, // 遅い方＝最後の out
+  { cast_id: "b", type: "out" as const, punched_at: "2026-09-24T12:00:00Z" }, // orphan
+  { cast_id: "c", type: "in" as const, punched_at: "2026-09-24T12:00:00Z" },
+];
+const m = firstInLastOut(rows);
+check("tr(4-2) firstInLastOut: a＝最初の in 20:01／最後の out 01:30（並び順に依らない）", m.get("a")?.inHm === "20:01" && m.get("a")?.outHm === "01:30");
+check("tr(4-3) firstInLastOut: b＝out のみ・c＝in のみ・無い cast は undefined", m.get("b")?.inHm === null && m.get("b")?.outHm === "21:00" && m.get("c")?.inHm === "21:00" && m.get("c")?.outHm === null && m.get("z") === undefined);
+check("tr(4-4) 空配列＝空 Map", firstInLastOut([]).size === 0);
+// (5)
+const sb = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
+check("tr(5-1) shift-board: firstInLastOut で in／out を持ち、表示は punchTimeLabel", /firstInLastOut\(/.test(sb) && /punchTimeLabel\(/.test(sb));
+check("tr(5-2) shift-board: 退勤ボタンは outButtonOf（出勤区分の行だけ・in なしは disabled）", /outButtonOf\(\{ canRecord/.test(sb) && /ob\.show &&/.test(sb));
+check("tr(5-3) shift-board: 今日タブの表は stickyfirst（名前列を左固定）・状態列は nowrap・見出しの日付は M/D(曜)", /className="nox-tablewrap stickyfirst"/.test(sb) && /mdDowOf\(todayDate\)/.test(sb) && /whiteSpace: "nowrap" \}\}>\{\/\* ★AT2-3: 「確定」[^*]*\*\/\}\s*<span className=\{`nox-stpill/.test(sb));
+
+if (fails.length) {
+  console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
+  for (const f of fails) console.error(" - " + f);
+  process.exit(1);
+}
+console.log(`verify:nox-today-row OK (${pass} checks)`);
