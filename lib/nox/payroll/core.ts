@@ -27,6 +27,7 @@ export type PreviewRow = {
   pay: PayResult;
   extras: Extra[]; // #32 出勤インセンティブの attendance_bonus 行（無ければ空）
   anomalyCount: number;
+  missingOutDates: string[]; // ★N3 AV-4: 退勤の記録が無い勤務（表示のみ）
   taxMode: TaxMode;
   arDeducted: ArDeducted[]; // F2e-1: 今期天引きする receivable と額
   arCarried: ArCarried[]; // F2e-1: 今期引かず翌 period へ繰越する receivable
@@ -223,7 +224,7 @@ export async function computePayrollDraft(
     // ★裁定264-10: 凍結形＝show_detail=true の行だけ理由付きで・false は合算額のみ（率の分母は pay.gross＝payOf と同一）
     const frozenAdj = frozenAdjustmentsOf(c.adjustments ?? [], pay.gross);
     rows.push({
-      castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, taxMode,
+      castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, missingOutDates: c.missingOutDates ?? [], taxMode,
       arDeducted, arCarried, arDeductTotal: arPlan.deduct, arCarriedTotal: arPlan.carriedTotal,
       advDeducted, advCarried, advDeductTotal: advPlan.deduct, advCarriedTotal: advPlan.carriedTotal,
       okuriDeducted, okuriDeductTotal: okuriPlan.deduct,

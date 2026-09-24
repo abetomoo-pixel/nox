@@ -6,6 +6,7 @@
 //   B4 部品の写し: KPI 4 枚（H18）・nox-seg 切替（H20）・印刷隔離 nox-printpage（H37）・変更履歴（H39・owner 限定）・状態バッジ（既存 nox-runbadge）。
 //   裁定238: 「明細へ」＝.nox-link（遷移）／「支払済みにする」＝実行（青塗り＝t.btnGold）／CSV・印刷＝補助（ghost）／店舗別・月別＝(4) 切替（nox-seg）。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { fmtPeriodYM } from "@/lib/nox/payroll/view"; // ★N3 AV-1（2026-09-24）: 期は YYYY/M
 import Link from "next/link";
 import PageHead from "@/components/ui/page-head";
 import Modal from "@/components/ui/modal";
@@ -156,14 +157,14 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
                 {shown.map((r) => (
                   <tr key={r.runId}>
                     <td style={t.td}>{nameOf.get(r.storeId) ?? "—"}</td>
-                    <td style={{ ...t.td, ...t.num }}>{r.period}</td>
-                    <td style={t.td}>
+                    <td style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }} title={r.period}>{fmtPeriodYM(r.period)}</td>{/* ★N3 AV-1: 期は YYYY/M・折り返さない */}
+                    <td style={{ ...t.td, whiteSpace: "nowrap" }}>
                       <span className={`nox-runbadge ${r.status === "paid" ? "paid" : r.status === "finalized" ? "fin" : ""}`}>{STATUS_LABEL[r.status] ?? r.status}</span>
                     </td>
                     <td style={{ ...t.td, ...t.num }}>{r.castCount}</td>
                     <td style={{ ...t.td, ...t.num }}>{r.castCount > 0 ? yen(r.gross) : "—"}</td>
                     <td style={{ ...t.td, ...t.num }}>{r.castCount > 0 ? yen(r.net) : "—"}</td>
-                    <td style={{ ...t.td, ...t.num }}>{r.paidCount > 0 ? `${r.paidCount} 件・${yen(r.paidTotal)}` : r.status === "paid" ? "支払済み化" : "—"}{/* ★#82: 「—」は paid 時「支払済み化」 */}</td>
+                    <td style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }}>{r.paidCount > 0 ? `${r.paidCount} 件・${yen(r.paidTotal)}` : r.status === "paid" ? "支払済み化" : "—"}{/* ★N3 AV-1: 支払状況は折り返さない（縦文字の解消） */}{/* ★#82: 「—」は paid 時「支払済み化」 */}</td>
                     <td style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }}>{fmtAt(r.paidAt ?? r.finalizedAt ?? r.updatedAt)}</td>
                     {isOwner && (
                       <td style={t.td}>

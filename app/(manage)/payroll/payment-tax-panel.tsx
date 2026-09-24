@@ -6,6 +6,7 @@
 //   凍結が無い過去 run は '(未凍結)' として返るため、その行は記録不可＋再確定を促す。
 //   ★源泉の計算・payOf・payslips には一切書き込まない（読取と納付記録のみ）。
 import { useCallback, useEffect, useState } from "react";
+import { fmtMD, fmtPeriodYM } from "@/lib/nox/payroll/view"; // ★N3 AV-1（2026-09-24）: 日付は M/D・期は YYYY/M
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -114,7 +115,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
                 const unfrozen = r.tax_category === UNFROZEN;
                 return (
                   <tr key={keyOf(r)}>
-                    <td style={t.td}>{r.target_month}</td>
+                    <td style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }} title={r.target_month}>{fmtPeriodYM(r.target_month)}</td>{/* ★N3 AV-1: 期は YYYY/M・折り返さない */}
                     <td style={t.td}>
                       {unfrozen
                         ? <span style={{ color: "var(--bad)" }}>{UNFROZEN}</span>
@@ -123,14 +124,14 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
                     <td style={{ ...t.td, ...t.num, textAlign: "right" }}>{r.headcount}</td>
                     <td style={{ ...t.td, ...t.num, textAlign: "right" }}>¥{Number(r.gross_total).toLocaleString()}</td>
                     <td style={{ ...t.td, ...t.num, textAlign: "right" }}>¥{Number(r.withholding_total).toLocaleString()}</td>
-                    <td style={{ ...t.td, ...t.num, color: overdue(r) ? "var(--bad)" : undefined }}>{r.deadline}</td>
-                    <td style={t.td}>
+                    <td style={{ ...t.td, ...t.num, whiteSpace: "nowrap", color: overdue(r) ? "var(--bad)" : undefined }} title={r.deadline}>{fmtMD(r.deadline)}</td>{/* ★N3 AV-1: 日付は M/D（年は title） */}
+                    <td style={{ ...t.td, whiteSpace: "nowrap" }}>{/* ★N3 AV-1: 「納付を記録」の列は折り返さない */}
                       {unfrozen ? (
                         <span style={{ fontSize: 11.5, color: "var(--bad)" }}>
                           税区分が未凍結です。給与を解除して再確定すると区分が記録され、納付を記録できます。
                         </span>
                       ) : r.paid_on ? (
-                        <span style={{ color: "var(--ok)" }}>納付済み（{r.paid_on}）</span>
+                        <span style={{ color: "var(--ok)" }} title={r.paid_on}>納付済み（{fmtMD(r.paid_on)}）</span>
                       ) : (
                         <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
                           <input type="date" value={paidOn[keyOf(r)] ?? todayJst}

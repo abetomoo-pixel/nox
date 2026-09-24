@@ -33,7 +33,7 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
     try {
       const { data: run } = await supabase.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period).maybeSingle();
       if (!run) { setMsg("この店舗・期間の確定給与がありません（先に確定してください）。"); return; }
-      if (run.status === "draft") { setMsg("この期間はまだ確定していません（draft）。"); return; }
+      if (run.status === "draft") { setMsg("この期間はまだ確定していません。"); return; }
       const rid = run.id as string;
       const { data: ps } = await supabase.from("payslips").select("cast_id, net").eq("run_id", rid);
       const rows = (ps ?? []) as { cast_id: string; net: number }[];
@@ -76,7 +76,7 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
       const j = await res.json();
       if (!res.ok) {
         rotate(); // 応答受領＝サーバ処理の帰結確定（4xx/5xx は非コミット）→ 次回は新キー
-        setMsg(res.status === 409 ? "支払額の合計が差引支給額(net)を超えます。" : `エラー(${res.status}): ${j.error ?? ""}`);
+        setMsg(res.status === 409 ? "支払額の合計が差引支給額を超えます。" : `エラー(${res.status}): ${j.error ?? ""}`);
         return;
       }
       rotate(); // 成功＝挿入確定 → 次の別支払いは新キー
@@ -109,7 +109,7 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
           <thead>
             <tr>
               <th style={t.th}>キャスト</th>
-              <th style={{ ...t.th, textAlign: "right" }}>差引支給(net)</th>
+              <th style={{ ...t.th, textAlign: "right" }}>差引支給</th>
               <th style={{ ...t.th, textAlign: "right" }}>支払済</th>
               <th style={{ ...t.th, textAlign: "right" }}>残</th>
               <th style={t.th}>支払記録</th>

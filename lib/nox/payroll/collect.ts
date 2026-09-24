@@ -331,7 +331,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
   for (const a of (attR.data ?? []) as Record<string, unknown>[]) ensure(a.cast_id as string).att.push({ date: a.date as string, status: a.status as AttendanceRow["status"] });
   for (const p of (punchR.data ?? []) as Record<string, unknown>[]) ensure(p.cast_id as string).punches.push({ punched_at: p.punched_at as string, type: p.type as "in" | "out" });
 
-  const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; hoursByDate: Map<string, number> }>();
+  const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number> }>();
   // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
   const recipientsByDate = new Map<string, string[]>();
   for (const [cid, raw] of byCast) {
@@ -340,6 +340,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     const hoursByDate = new Map<string, number>();
     let days = 0;
     let anomalyCount = 0;
+    const missingOutDates: string[] = []; // ★N3 AV-4: 退勤の記録が無い勤務（in はあり out が無い営業日・表示のみ）
     for (const d of m.days) {
       hoursByDate.set(d.bizDate, dayWorkedHours(d));
       if (d.final.type === "ok" || d.final.type === "late") {
@@ -348,8 +349,9 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       }
       const outAnom = d.raw.out.type === "noout" || d.raw.out.type === "early" || d.raw.out.type === "over";
       if (d.anomalies.length > 0 || outAnom) anomalyCount += 1;
+      if (d.raw.out.type === "noout" && (d.final.type === "ok" || d.final.type === "late")) missingOutDates.push(d.bizDate); // ★N3 AV-4
     }
-    result.set(cid, { days, lateN: m.lateN, absentN: m.absentN, anomalyCount, hoursByDate });
+    result.set(cid, { days, lateN: m.lateN, absentN: m.absentN, anomalyCount, missingOutDates, hoursByDate });
   }
   // pooled 端数 +1 の順序を確定させるため cast_id 昇順にソート
   for (const [d, list] of recipientsByDate) recipientsByDate.set(d, list.sort());
@@ -647,6 +649,7 @@ export async function collectPeriod(
       lateN: p?.lateN ?? 0,
       absentN: p?.absentN ?? 0,
       anomalyCount: p?.anomalyCount ?? 0,
+      missingOutDates: p?.missingOutDates ?? [], // ★N3 AV-4（表示のみ・fixture は省略可）
       plan,
       override: cp?.override,
       ...(guaranteesByCast.has(cid) ? { guarantees: guaranteesByCast.get(cid) } : {}), // ★N3

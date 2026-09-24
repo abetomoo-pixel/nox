@@ -26,6 +26,7 @@ export async function POST(req: Request) {
         net: r.net,
         taxMode: r.taxMode,
         anomalyCount: r.anomalyCount,
+        missingOutDates: r.missingOutDates, // ★N3 AV-4: 退勤の記録が無い勤務（表示のみ）
         breakdown: { pay: r.pay, extras: r.extras },
         arDeductTotal: r.arDeductTotal, // F2e-1 売掛天引き明細
         arCarriedTotal: r.arCarriedTotal,

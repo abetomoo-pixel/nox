@@ -16,6 +16,7 @@ import InvoicePanel from "./invoice-panel";
 import PaymentTaxPanel from "./payment-tax-panel";
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: CSV 出力と凍結名解決は月次一覧と共用
+import { missingOutSummaryOf, frozenRowsOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
 
 type Store = { id: string; name: string };
 // D3: payslips.breakdown_json（finalize が凍結）の CSV が使う部分。back 内訳の生値は CSV に出さず合算のみ。
@@ -26,6 +27,8 @@ type BreakdownJson = { pay: BreakdownPay; extras?: BreakdownExtra[]; cast_name?:
 // 明細に出す名前の解決（slipCastName）は export-csv.ts へ移設（B5・実装不変＝凍結名 → 現在名 → "(不明)"）。
 type Row = {
   castId: string; castName: string; net: number; taxMode: string; anomalyCount: number;
+  missingOutDates?: string[]; // ★N3 AV-4: 退勤の記録が無い勤務の営業日（preview が返す・表示のみ）
+  frozen?: true; // ★N3 AV-2: 確定済み run の凍結値（payslips）から作った行＝プレビュー（再計算）ではない
   arDeductTotal?: number; arCarriedTotal?: number;
   advDeductTotal?: number; advCarriedTotal?: number; // F2e-2 前借り（繰越あり）
   okuriDeductTotal?: number; // F2e-2 送り実費（繰越なし）
@@ -142,6 +145,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
     setSum4(null);
     setUnpaid(null); setPrevNet(null);
     setCastPaid(null);
+    setRows(null); // ★N3 AV-2: run が変わったら旧行（凍結／プレビュー）を捨てる
     if (info && (info.status === "finalized" || info.status === "paid")) {
       // E8-5 payroll#5: 件数だけでなく paid_amount も読む（未支払 KPI＝Σnet−Σpaid）。件数判定は不変。
       // ★U-1（裁定99-②）: cast_id も読み、キャスト別表の支払状態列（payStatusOf）に使う。
@@ -179,6 +183,9 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           net += sl.net;
         }
         setSum4({ gross, ded, wh, net, n: slips.length });
+        // ★N3 AV-2: 確定済み run は凍結値を即表示（fetch 増 0＝上で読んだ payslips を写すだけ・凍結名が欠ける旧 payslip は従来どおりプレビュー）
+        const fr = frozenRowsOf(slips as Parameters<typeof frozenRowsOf>[0]);
+        if (fr) { setRows(fr as Row[]); setBlockers([]); setWarnings([]); setIncentives([]); }
         // E8-5 payroll#5: 未支払 KPI（Σnet−Σpaid・PaymentPanel と同一定義）
         setUnpaid(net - paidSum);
       }
@@ -336,7 +343,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         );
         return;
       }
-      setReopenMsg("確定を解除しました（draft に戻しました）。もう一度プレビューから確定できます。");
+      setReopenMsg("確定を解除しました（未確定に戻しました）。もう一度プレビューから確定できます。");
       setRows(null); // 旧プレビュー表を消す（再プレビューを促す）
       await loadRun(); // 1c: runInfo 再読込→CSV/印刷/支払/この解除セクションが draft 状態へ反転
     } catch (e) {
@@ -604,7 +611,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 <th style={t.th}>キャスト</th>
                 <th style={{ ...t.th, textAlign: "right" }}>総支給</th>
                 <th style={{ ...t.th, textAlign: "right" }}>控除計</th>
-                <th style={{ ...t.th, textAlign: "right" }}>差引支給(net)</th>
+                <th style={{ ...t.th, textAlign: "right" }}>差引支給</th>
                 <th style={t.th}>状態</th>
               </tr>
             </thead>
@@ -633,8 +640,21 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
             </div>
           )}
           {anomalyTotal > 0 && (
-            <p style={{ fontSize: 12, color: "var(--bad)" }}>打刻 anomaly（out 欠損等）: 計 <span style={t.num}>{anomalyTotal}</span> 件。確定は止まりませんが内容をご確認ください。</p>
+            <p style={{ fontSize: 12, color: "var(--bad)" }}>打刻の不整合（退勤の記録が無い等）: 計 <span style={t.num}>{anomalyTotal}</span> 件。確定は止まりませんが内容をご確認ください。</p>
           )}
+          {/* ★N3 AV-4（2026-09-24）: 退勤の記録が無い勤務＝既存の punches／attendance（preview の missingOutDates）から。一覧は折りたたみ・出勤板へのリンク */}
+          {(() => {
+            const mo = missingOutSummaryOf(rows);
+            return mo && (
+              <details className="nox-inset" style={{ padding: "8px 12px", marginBottom: 8, fontSize: 12.5 }} role="status">
+                <summary style={{ cursor: "pointer", color: "var(--gold)" }}>△ {mo.text}（一覧を開く）</summary>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                  {mo.items.map((it) => <li key={`${it.castName}-${it.date}`}>{it.castName}: {it.md}</li>)}
+                </ul>
+                <a href="/shift" className="nox-link" style={{ display: "inline-block", marginTop: 4 }}>出勤板で退勤を記録する ›</a>
+              </details>
+            );
+          })()}
           {/* 段Y2: 明細表＝★列構成・並び・数値は現行と完全に同一。
               変えたのは (a) キャスト名に段P の写真アバターを添える (b) net を白太で強調
               (c) ≤641 で補助列（税区分・売掛・前借り・送り・anomaly）を CSS で畳む
@@ -670,8 +690,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>売掛</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>前借り</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>送り</th>
-                <th style={{ ...t.th, textAlign: "right" }}>差引支給(net)</th>
-                <th className="fold" style={{ ...t.th, textAlign: "right" }}>anomaly</th>
+                <th style={{ ...t.th, textAlign: "right" }}>差引支給</th>
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>不整合</th>
                 {/* ★U-1（裁定99-②）: 状態列＝支払状態のみ（未確定/未払/一部/支払済・キャスト単位確定は作らない） */}
                 <th style={t.th}>状態</th>
               </tr>
