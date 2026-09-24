@@ -19,6 +19,7 @@ import { addDays, daysLeftOf, guaranteeBadgeOf, guaranteeNoticesOf, guaranteeRow
 import { isRpcMissingError, rpcErrJa } from "../lib/nox/ui/rpc-err";
 import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
+import { pgTx } from "./fixtures-pgtx"; // ★0154 (10)／(11)
 
 let pass = 0;
 const fails: string[] = [];
@@ -185,7 +186,61 @@ async function dbChecks() {
   }
 }
 
-dbChecks().then(() => {
+// (10)／(11) ★mig0154（裁定294-5／294-9／295-6）: set_cast_plan の pay_rule × employment・set_cast_employment＝AG d5／d9 の移植（pg tx → ROLLBACK）
+//   逆テスト 1 本（手動・1 回）: gu(10-1) の期待 'bad pay_rule for employment' を 'forbidden' に書き換える→赤・戻して緑。
+async function dbChecks0154() {
+  const env = loadEnvOrExit(["SUPABASE_DB_URL"]);
+  const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+  await db.connect();
+  const t = pgTx(db);
+  try {
+    const st = await t.storeA1();
+    const owner = await t.uidOf("ownerA"), mgr = await t.uidOf("managerA1"), castA = await t.uidOf("castA1a"), castB = await t.uidOf("castA1b");
+    const castAId = await t.castOf(st.id, castA.id), castBId = await t.castOf(st.id, castB.id);
+    const before = JSON.stringify(await t.one(`select (select count(*)::int from public.cast_plan where store_id=$1) cp, (select string_agg(employment || coalesce(employment_valid_from::text,'-'), ',' order by name) from public.casts where store_id=$1) emp, (select count(*)::int from public.payroll_runs where store_id=$1) pr, (select count(*)::int from public.audit_logs where org_id=$2) au`, [st.id, st.org_id]));
+    await db.query("begin");
+    try {
+      let plan = (await t.one<{ id: string }>(`select id from public.comp_plans where store_id = $1 and is_active order by created_at limit 1`, [st.id]))?.id;
+      if (!plan) plan = (await t.one<{ id: string }>(`insert into public.comp_plans (org_id, store_id, name, base) values ($1, $2, 'NOX-VERIFY-gu', 3000) returning id`, [st.org_id, st.id])).id;
+      await db.query(`update public.casts set employment='委託' where id=$1`, [castAId]);
+      await db.query(`update public.casts set employment='雇用' where id=$1`, [castBId]);
+      const scp = (who: Parameters<typeof t.as>[0], cid: string, ov: Record<string, unknown>) => t.as(who, `select public.set_cast_plan($1,$2,$3::jsonb,null)`, [cid, plan, JSON.stringify(ov)]);
+      const p = [
+        await scp(owner, castAId, { pay_rule: "per_shift", per_shift_amount: 10000 }),
+        await scp(owner, castAId, { pay_rule: "shift_guarantee" }),
+        await scp(owner, castAId, { pay_rule: "fixed", fixed_amount: 250000 }),
+        await scp(owner, castBId, { pay_rule: "shift_guarantee" }),
+        await scp(owner, castBId, { pay_rule: "fixed", fixed_amount: 250000 }),
+        await scp(owner, castBId, { pay_rule: "per_shift", per_shift_amount: 10000 }),
+      ];
+      check("gu(10-1) ★委託: per_shift 可・shift_guarantee／fixed は 'bad pay_rule for employment'／雇用: shift_guarantee・fixed 可・per_shift は違反（6 通り・294-5）", p[0].ok && t.errOf(p[1]) === "bad pay_rule for employment" && t.errOf(p[2]) === "bad pay_rule for employment" && p[3].ok && p[4].ok && t.errOf(p[5]) === "bad pay_rule for employment", p.map(t.errOf).join(" / "));
+      const p2 = [
+        await scp(owner, castAId, { pay_rule: "actual" }), await scp(owner, castAId, { honBack: 4500 }),
+        await scp(owner, castAId, { pay_rule: "bogus" }), await scp(owner, castAId, { per_shift_amount: -1 }), await scp(owner, castAId, { fixed_amount: 1.5 }), await scp(owner, castAId, { honBackRate: 50 }), await scp(owner, castBId, { pay_rule: 1 }),
+      ];
+      const cur = await t.one<{ o: Record<string, unknown> }>(`select overrides_json o from public.cast_plan where cast_id=$1 and valid_to is null`, [castAId]);
+      check("gu(10-2) ★'actual'／欠損は従来どおり可・'bogus'／負／小数／数値 pay_rule は 'bad overrides'・既存の原子性（honBackRate 単独）も不変", p2[0].ok && p2[1].ok && p2.slice(2).every((r) => t.errOf(r) === "bad overrides") && JSON.stringify(cur.o) === JSON.stringify({ honBack: 4500 }), p2.map(t.errOf).join(" / "));
+      const p3 = await scp(mgr, castBId, { pay_rule: "fixed", fixed_amount: 1 }), p4 = await scp(castA, castAId, { pay_rule: "actual" });
+      check("gu(10-3) manager（自店）は可・cast は forbidden（ロール判定は不変）", p3.ok && t.errOf(p4) === "forbidden", `${t.errOf(p3)} / ${t.errOf(p4)}`);
+      // (11) set_cast_employment: 確定済み 2098-09 を tx 内に作る → 2098-09-01 は 'period finalized'・2098-10-01 は可
+      await db.query(`insert into public.payroll_runs (org_id, store_id, period, status, period_start, period_end, created_by) values ($1,$2,'2098-09','finalized','2098-09-01','2098-09-30',$3)`, [st.org_id, st.id, owner.id]);
+      const se = (who: Parameters<typeof t.as>[0], cid: string, e: string, d: string) => t.as(who, `select public.set_cast_employment($1,$2,$3::date)`, [cid, e, d]);
+      const g = [await se(owner, castAId, "雇用", "2098-09-01"), await se(owner, castAId, "雇用", "2098-10-15"), await se(owner, castAId, "パート", "2098-10-01"), await se(mgr, castAId, "雇用", "2098-10-01"), await se(castA, castAId, "雇用", "2098-10-01"), await se(owner, castAId, "雇用", "2098-10-01")];
+      const ce = await t.one<{ employment: string; f: string }>(`select employment, employment_valid_from::text f from public.casts where id=$1`, [castAId]);
+      const auE = await t.one<{ b: string; a: string; f: string }>(`select before_json->>'employment' b, after_json->>'employment' a, after_json->>'employment_valid_from' f from public.audit_logs where org_id=$1 and action='set_cast_employment' and target=$2`, [st.org_id, "casts:" + castAId]);
+      check("gu(11-1) ★set_cast_employment: 確定済み期に遡る→'period finalized'・月中 'bad valid_from'・'bad employment'・manager／cast 'forbidden'・owner 期初 可（casts 更新・audit before/after・294-9）", t.errOf(g[0]) === "period finalized" && t.errOf(g[1]) === "bad valid_from" && t.errOf(g[2]) === "bad employment" && t.errOf(g[3]) === "forbidden" && t.errOf(g[4]) === "forbidden" && g[5].ok && ce.employment === "雇用" && ce.f === "2098-10-01" && auE?.b === "委託" && auE?.a === "雇用" && auE?.f === "2098-10-01", g.map(t.errOf).join(" / "));
+      check("gu(11-2) 不在 cast は 'forbidden'", t.errOf(await se(owner, "00000000-0000-0000-0000-000000000000", "雇用", "2098-10-01")) === "forbidden");
+    } finally {
+      await db.query("rollback");
+    }
+    const after = JSON.stringify(await t.one(`select (select count(*)::int from public.cast_plan where store_id=$1) cp, (select string_agg(employment || coalesce(employment_valid_from::text,'-'), ',' order by name) from public.casts where store_id=$1) emp, (select count(*)::int from public.payroll_runs where store_id=$1) pr, (select count(*)::int from public.audit_logs where org_id=$2) au`, [st.id, st.org_id]));
+    check("gu(11-3) ROLLBACK 後の残留＝実行前と同値（cast_plan／casts.employment／runs／audit）", after === before, `${before} → ${after}`);
+  } finally {
+    await db.end().catch(() => undefined);
+  }
+}
+
+dbChecks().then(() => dbChecks0154()).then(() => {
   if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);

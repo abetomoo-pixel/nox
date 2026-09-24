@@ -29,7 +29,8 @@ import { kpiOfDraftRows, payStatusOf, issuesOfDraft } from "../lib/nox/payroll/u
 import { adoptedMethodsOf, compSummaryOf, prepItemOf, PREP_ITEMS } from "../lib/nox/comp-methods";
 import { simulate, type SimInput } from "../lib/nox/payroll/sim";
 import { decidePayrollAccess, decideTaxReportAccess, decideReopenAccess } from "../lib/nox/payroll/authz";
-import { Client as PgClient } from "pg"; // ★B5 9 段目: 静的確認（pg_proc）用
+import { Client as PgClient } from "pg"; // ★B5 9 段目: 静的確認（pg_proc）用・★0154 段（calc_period）
+import { pgTx } from "./fixtures-pgtx"; // ★0154
 import { readdirSync } from "node:fs";
 
 const env = loadEnvOrExit([
@@ -1712,6 +1713,40 @@ async function main() {
     for (const f of fails) console.error(" - " + f);
     process.exit(1);
   }
+  // ── ★mig0154（裁定294-8／295-6）: payslips.calc_period_start／end＝埋め戻し欠損 0・payroll_finalize が p_payslips の同名キーを写す・run 期間外／逆転は 'bad calc period'（pg tx → ROLLBACK）──
+  //   逆テスト 1 本（手動・1 回）: 段0154-2 の期待 "2098-09-10" を "2098-09-11" に書き換える→赤・戻して緑。
+  {
+    const pg = new PgClient({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+    await pg.connect();
+    const t = pgTx(pg);
+    try {
+      const nul = await t.one<{ n: number; nul: number; inv: number }>(`select count(*)::int n, (count(*) filter (where calc_period_start is null or calc_period_end is null))::int nul, (count(*) filter (where calc_period_end < calc_period_start))::int inv from public.payslips`);
+      check("段0154-1 ★payslips.calc_period_* の欠損 0・逆転 0（既存行は run の period で埋め戻し済み・以後の finalize は必ず書く）", nul.nul === 0 && nul.inv === 0, JSON.stringify(nul));
+      const st = await t.storeA1();
+      const owner = await t.uidOf("ownerA"), castA = await t.uidOf("castA1a"), castB = await t.uidOf("castA1b");
+      const castAId = await t.castOf(st.id, castA.id), castBId = await t.castOf(st.id, castB.id);
+      await pg.query("begin");
+      try {
+        const run9 = (await t.one<{ id: string }>(`insert into public.payroll_runs (org_id, store_id, period, status, period_start, period_end, created_by) values ($1,$2,'2098-09','draft','2098-09-01','2098-09-30',$3) returning id`, [st.org_id, st.id, owner.id])).id;
+        const psIn = (a: string | null, b: string | null) => JSON.stringify([{ cast_id: castAId, net: 1, breakdown: { pay: { gross: 1 }, extras: [] }, ...(a ? { calc_period_start: a } : {}), ...(b ? { calc_period_end: b } : {}) }, { cast_id: castBId, net: 2, breakdown: { pay: { gross: 2 }, extras: [] } }]);
+        const f = [
+          await t.call(`select public.payroll_finalize($1,$2,$3,gen_random_uuid(),$4::jsonb) n`, [st.org_id, owner.id, run9, psIn("2098-08-31", null)]),
+          await t.call(`select public.payroll_finalize($1,$2,$3,gen_random_uuid(),$4::jsonb) n`, [st.org_id, owner.id, run9, psIn("2098-09-20", "2098-09-10")]),
+          await t.call(`select public.payroll_finalize($1,$2,$3,gen_random_uuid(),$4::jsonb) n`, [st.org_id, owner.id, run9, psIn(null, "2098-10-01")]),
+        ].map(t.errOf);
+        check("段0154-1b ★run 期間外（8/31）／逆転／期末超え（10/1）は 'bad calc period'", f.every((m) => m === "bad calc period"), f.join(" / "));
+        const f4 = await t.call(`select public.payroll_finalize($1,$2,$3,gen_random_uuid(),$4::jsonb) n`, [st.org_id, owner.id, run9, psIn("2098-09-10", null)]);
+        const fr = await t.q<{ cast_id: string; s: string; e: string }>(`select cast_id, calc_period_start::text s, calc_period_end::text e from public.payslips where run_id=$1 order by net`, [run9]);
+        check("段0154-2 ★finalize 2 名: A1a＝calc 9/10〜9/30（同名キーを写す・end 欠損は run の期末）・A1b＝9/1〜9/30（欠損は run の期間）・run finalized", f4.ok && fr[0]?.cast_id === castAId && fr[0]?.s === "2098-09-10" && fr[0]?.e === "2098-09-30" && fr[1]?.s === "2098-09-01" && fr[1]?.e === "2098-09-30" && (await t.one<{ status: string }>(`select status from public.payroll_runs where id=$1`, [run9])).status === "finalized", `${t.errOf(f4)} ${JSON.stringify(fr)}`);
+      } finally {
+        await pg.query("rollback");
+      }
+      check("段0154-3 ROLLBACK 後: 2098-09 run が残らない", (await t.one<{ n: number }>(`select count(*)::int n from public.payroll_runs where store_id=$1 and period='2098-09'`, [st.id])).n === 0);
+    } finally {
+      await pg.end().catch(() => undefined);
+    }
+  }
+
   console.log(`verify:nox-payroll ALL PASS (${pass} assertions)`);
 }
 

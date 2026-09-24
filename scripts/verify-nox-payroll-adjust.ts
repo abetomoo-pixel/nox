@@ -22,6 +22,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
+import { pgTx } from "./fixtures-pgtx"; // ★0154 (8)
 import { payOf, withholdingOf, type PayInput, type CompPlan, type PayResult } from "../lib/nox/pay";
 import { adjustOf, adjustAmountOf, totalDeductionsOf, type AdjustmentRow, type DeductionParts } from "../lib/nox/payroll/adjust";
 import { buildPayInput, type CastRaw, type StoreMasters } from "../lib/nox/payroll/assemble";
@@ -478,6 +479,62 @@ async function main() {
       const after = (await q<{ adj: number; runs: number; audits: number }>(`select (select count(*)::int from public.payroll_adjustments) as adj, (select count(*)::int from public.payroll_runs where period='2099-01') as runs, (select count(*)::int from public.audit_logs where action like 'payroll_adjustment%') as audits`))[0];
       check("pa(5-9) ROLLBACK 後の残留＝実行前と同値（adjustments／2099-01 run／audit）", JSON.stringify(after) === JSON.stringify(before), JSON.stringify({ before, after }));
     }
+  }
+
+  // ── (8) ★mig0154（裁定294-6／295-2／295-3）: source／basis／target_shift_id・settlement 委託のみ・sanction 雇用のみ＋91 条 cap＝AG d6 の移植（pg tx → ROLLBACK）──
+  //   逆テスト 1 本（手動・1 回）: pa(8-6) の 4891 を 4892 に書き換える→赤・戻して緑。
+  {
+    const t = pgTx(db);
+    const st = await t.storeA1();
+    const owner = await t.uidOf("ownerA"), mgr = await t.uidOf("managerA1"), castA = await t.uidOf("castA1a"), castB = await t.uidOf("castA1b");
+    const castAId = await t.castOf(st.id, castA.id), castBId = await t.castOf(st.id, castB.id);
+    const snap = `select (select count(*)::int from public.payroll_adjustments where store_id=$1) pa, (select count(*)::int from public.payroll_runs where store_id=$1) pr, (select count(*)::int from public.payslips where store_id=$1) ps, (select count(*)::int from public.audit_logs where org_id=$2) au`;
+    const before8 = JSON.stringify(await t.one(snap, [st.id, st.org_id]));
+    await db.query("begin");
+    try {
+      await db.query(`update public.casts set employment='委託' where id=$1`, [castAId]);
+      await db.query(`update public.casts set employment='雇用' where id=$1`, [castBId]);
+      const runIds: Record<string, string> = {};
+      for (const [per, stt] of [["2098-05", "paid"], ["2098-06", "finalized"], ["2098-07", "paid"], ["2098-09", "draft"]]) {
+        runIds[per] = (await t.one<{ id: string }>(`insert into public.payroll_runs (org_id, store_id, period, status, period_start, period_end, created_by) values ($1,$2,$3,$4,($3||'-01')::date,(($3||'-01')::date + interval '1 month' - interval '1 day')::date,$5) returning id`, [st.org_id, st.id, per, stt, owner.id])).id;
+      }
+      const run9 = runIds["2098-09"];
+      const add = (who: Parameters<typeof t.as>[0], args: unknown[]) => t.as(who, `select public.payroll_adjustment_add($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) id`, args);
+      const m1 = await t.as(owner, `select public.payroll_adjustment_add($1,$2,'fixed',1000,null,true,true,'旧 8 引数の呼出') id`, [run9, castAId]);
+      const m1row = m1.ok ? await t.one<{ source: string; basis: string | null; target_shift_id: string | null }>(`select source, basis, target_shift_id from public.payroll_adjustments where id=$1`, [m1.rows[0].id]) : null;
+      check("pa(8-1) 旧 8 引数の呼出が既定で通る（source 'manual'・basis null・target null）＝既存呼出不変", m1.ok && m1row?.source === "manual" && m1row?.basis === null && m1row?.target_shift_id === null, t.errOf(m1));
+      const s1 = await add(owner, [run9, castAId, "fixed", 3000, null, true, true, "遅刻精算", "settlement", "遅刻 30 分・契約 §5", null]);
+      const s = [
+        await add(owner, [run9, castAId, "fixed", 3000, null, true, true, "遅刻精算", "settlement", null, null]),
+        await add(owner, [run9, castBId, "fixed", 3000, null, true, true, "遅刻精算", "settlement", "x", null]),
+        await add(owner, [run9, castAId, "fixed", 3000, null, true, true, "x", "carryover", null, null]),
+        await add(owner, [run9, castAId, "fixed", 3000, null, true, true, "x", "bogus", null, null]),
+        await add(owner, [run9, castAId, "fixed", 3000, null, true, true, "x", "sanction", "x", null]),
+      ].map(t.errOf);
+      check("pa(8-2) settlement: 委託 可（basis 保存）・basis 無し 'basis required'・雇用 'bad source for employment'／'carryover'・'bogus' は 'bad source'／委託の sanction は 'bad source for employment'", s1.ok && (await t.one<{ basis: string }>(`select basis from public.payroll_adjustments where id=$1`, [s1.rows[0].id])).basis === "遅刻 30 分・契約 §5" && JSON.stringify(s) === JSON.stringify(["basis required", "bad source for employment", "bad source", "bad source", "bad source for employment"]), `${t.errOf(s1)} / ${s.join(" / ")}`);
+      check("pa(8-3) target_shift_id: 不在 'shift not found'", t.errOf(await add(owner, [run9, castAId, "fixed", 100, null, true, true, "x", "manual", null, "00000000-0000-0000-0000-000000000000"])) === "shift not found");
+      check("pa(8-4) 雇用の sanction・確定 payslip 無し→'no basis for average wage'", t.errOf(await add(owner, [run9, castBId, "fixed", 1000, null, true, true, "懲戒", "sanction", "始末書 9/20", null])) === "no basis for average wage");
+      for (const per of ["2098-05", "2098-06", "2098-07"]) await db.query(`insert into public.payslips (org_id, store_id, run_id, cast_id, period, breakdown_json, net) values ($1,$2,$3,$4,$5,$6::jsonb,300000)`, [st.org_id, st.id, runIds[per], castBId, per, JSON.stringify({ pay: { gross: 300000 }, extras: [] })]);
+      // 平均賃金＝900000÷(31+30+31=92)＝9782（floor）→ 1 件上限 4891・当期 gross（推計）＝9782×30＝293460→ 総額上限 29346
+      const c1 = await add(owner, [run9, castBId, "fixed", 4892, null, true, true, "懲戒", "sanction", "始末書", null]), c2 = await add(owner, [run9, castBId, "fixed", 4891, null, true, true, "懲戒", "sanction", "始末書", null]), c3 = await add(owner, [run9, castBId, "rate", null, 500, true, true, "懲戒", "sanction", "始末書", null]);
+      check("pa(8-5) 91 条 1 件上限: 4892→'sanction cap'・4891（=floor(9782/2)）可・rate は 'bad mode'（295-3）", t.errOf(c1) === "sanction cap" && c2.ok && t.errOf(c3) === "bad mode", [c1, c2, c3].map(t.errOf).join(" / "));
+      let okN = 1; for (let i = 0; i < 5; i++) { if ((await add(owner, [run9, castBId, "fixed", 4891, null, true, true, "懲戒", "sanction", "始末書", null])).ok) okN++; }
+      const c4 = await add(owner, [run9, castBId, "fixed", 1, null, true, true, "懲戒", "sanction", "始末書", null]);
+      const sumS = (await t.one<{ s: number }>(`select coalesce(sum(amount),0)::int s from public.payroll_adjustments where run_id=$1 and cast_id=$2 and source='sanction'`, [run9, castBId])).s;
+      check("pa(8-6) 総額上限（推計 gross 293460 の 1/10＝29346・295-2）: 6 件目まで（=29346）可・7 件目 1 円でも 'sanction cap'", okN === 6 && sumS === 29346 && t.errOf(c4) === "sanction cap", `okN=${okN} sum=${sumS} ${t.errOf(c4)}`);
+      await db.query(`delete from public.payroll_adjustments where run_id=$1 and cast_id=$2 and source='sanction'`, [run9, castBId]);
+      await db.query(`insert into public.payslips (org_id, store_id, run_id, cast_id, period, breakdown_json, net) values ($1,$2,$3,$4,'2098-09',$5::jsonb,100000)`, [st.org_id, st.id, run9, castBId, JSON.stringify({ pay: { gross: 100000 }, extras: [] })]);
+      const c5 = await add(owner, [run9, castBId, "fixed", 4891, null, true, true, "懲戒", "sanction", "始末書", null]), c6 = await add(owner, [run9, castBId, "fixed", 4891, null, true, true, "懲戒", "sanction", "始末書", null]), c7 = await add(owner, [run9, castBId, "fixed", 218, null, true, true, "懲戒", "sanction", "始末書", null]), c8 = await add(owner, [run9, castBId, "fixed", 219, null, true, true, "懲戒", "sanction", "始末書", null]);
+      check("pa(8-7) 当 run の payslip（gross 100000）があればそれが基底＝上限 10000: 4891＋4891＋218（=10000）可・+219 は 'sanction cap'", c5.ok && c6.ok && c7.ok && t.errOf(c8) === "sanction cap", [c5, c6, c7, c8].map(t.errOf).join(" / "));
+      const auAdd = c5.ok ? await t.one<{ s: string; b: string }>(`select after_json->>'source' s, after_json->>'basis' b from public.audit_logs where org_id=$1 and action='payroll_adjustment_add' and target=$2`, [st.org_id, "payroll_adjustments:" + c5.rows[0].id]) : null;
+      check("pa(8-8) audit の after に source／basis", auAdd?.s === "sanction" && auAdd?.b === "始末書", JSON.stringify(auAdd));
+      const mg1 = await add(mgr, [run9, castAId, "fixed", 500, null, true, true, "x", "settlement", "当欠", null]);
+      check("pa(8-9) manager（自店）も settlement 可・既存の 'run not draft'／'reason required' は不変", mg1.ok && t.errOf(await add(owner, [runIds["2098-07"], castAId, "fixed", 1, null, true, true, "x", "manual", null, null])) === "run not draft" && t.errOf(await add(owner, [run9, castAId, "fixed", 1, null, true, true, "", "manual", null, null])) === "reason required", t.errOf(mg1));
+    } finally {
+      await db.query("rollback");
+    }
+    const after8 = JSON.stringify(await t.one(snap, [st.id, st.org_id]));
+    check("pa(8-10) ROLLBACK 後の残留＝実行前と同値（adjustments／runs／payslips／audit）", after8 === before8, `${before8} → ${after8}`);
   }
 
   await db.end();
