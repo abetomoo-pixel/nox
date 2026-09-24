@@ -22,6 +22,9 @@ import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
 import { firstInLastOut, outButtonOf, punchTimeLabel } from "@/lib/nox/shift/today-row";
 import { mdDowOf } from "@/lib/nox/shift/staff-place";
+// ★便 AU2／AU3（2026-09-24・週末バックログ 2／3）: 計画期間の進行段・期間ごとの帯と地色・確定シフトの「未確定」印・月セルの名前合成（純関数）
+import { PERIOD_STAGES, isUnpublishedDay, periodBandText, periodIndexOfDate, periodStageOf, periodToneOf, stageIndexOf } from "@/lib/nox/shift/period-stage";
+import { cellNamesOf } from "@/lib/nox/shift/cell-names";
 // ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
@@ -782,6 +785,35 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const shortage = todayStat.shortage; // E8-4 #2: 最悪バンドの不足数（バンド化に追随）
   const todayBands = bandStatsOf(todayDate);
   // ★SC-8 ⑦: タブ名は選択日に追従（key "today" は据え置き＝裁定44）。
+  // ★便 AU2-2（2026-09-24）: 「作る」タブ上部＝計画期間の進行の帯（4 段・現在段を強調・期間と締切を併記）。月内に複数期間があれば期間ごとの帯（地色＝既存トークン 4 色の循環）と凡例。
+  //   セルの地色＝その日が属する期間（選択中の日は .sel の地色を優先＝表示を変えない側）。RPC なし・取得済み periods の再形。
+  const periodBgOf = (ymd: string): React.CSSProperties | undefined => { const tone = periodToneOf(periodIndexOfDate(periods, ymd)); return tone ? { background: tone } : undefined; };
+  const periodBandsJsx = periods.length > 0 ? (
+    <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10 }}>
+      {(() => {
+        const p0 = periods[0]; const idx = stageIndexOf(p0.status);
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: "var(--sub)" }}>進行</span>
+            {PERIOD_STAGES.map((s, i) => (
+              <span key={s} className="nox-stpill" style={i === idx ? { color: "var(--champ)", borderColor: "var(--gold)", background: "var(--goldface2)" } : i < idx ? { color: "var(--ok)" } : undefined}>{periodStageOf(s)}</span>
+            ))}
+            <span className="num" style={{ fontSize: 11, color: "var(--sub)", marginLeft: 4 }}>{periodBandText(p0)}</span>
+          </div>
+        );
+      })()}
+      {periods.length > 1 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
+          {periods.map((p, i) => (
+            <span key={p.id} className="num" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: periodToneOf(i) ?? undefined, border: "1px solid var(--line)", color: "var(--ink)" }}>
+              {periodBandText(p)}・{periodStageOf(p.status)}
+            </span>
+          ))}
+          <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>凡例: セルの地色＝その日が属する期間</span>
+        </div>
+      )}
+    </div>
+  ) : null;
   const tdLabel = todayDate === bizToday ? "今日"
     : todayDate === addDays(bizToday, 1) ? "明日"
     : todayDate === addDays(bizToday, 2) ? "明後日"
@@ -1258,6 +1290,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               );
             })()}
             {confirmCta}{/* ★裁定253 R12: 仮シフト＝KPI 4 枚の下 */}
+            {periodBandsJsx}{/* ★AU2-2 仮シフト */}
             <div className="nox-calgrid">
               {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}
               {calCells.map((ymd, i) => {
@@ -1266,7 +1299,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 const fc = fcOf(ymd);
                 const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                 return (
-                  <button key={ymd} className={cls}
+                  <button key={ymd} className={cls} style={ymd === selDate ? undefined : periodBgOf(ymd)} /* ★AU2-2: 地色＝期間 */
                     onClick={() => { setSelDate(ymd); setDayModal("calendar"); }}
                     title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}>
                     <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
@@ -1674,6 +1707,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <div className="nox-rs"><div className="l">不足日</div><div className="v num">{shortDays}<small>日</small></div></div>
             </div>
 
+        {periodBandsJsx}{/* ★AU2-2 */}
         {periods.length === 0 && (
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>この月の計画はまだありません。下のフォームで作成できます。</p>
         )}
@@ -1745,7 +1779,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   const man = day.length - auto;
                   const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                   return (
-                    <button key={ymd} className={cls}
+                    <button key={ymd} className={cls} style={ymd === selDate ? undefined : periodBgOf(ymd)} /* ★AU2-2: 地色＝期間 */
                       onClick={() => { setSelDate(ymd); setDayModal("build"); }}
                       title={`${ymd}・自動${auto}件 / 手修正${man}件`}>
                       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
@@ -1871,29 +1905,32 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 <button style={{ ...btnLight, marginLeft: "auto" }}
                   onClick={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }}>今日</button>
               </div>
-              <div className="nox-calgrid">
+              {/* ★便 AU3（2026-09-24）: 7 列をスマホ幅に収める＝.nox-calgrid--fit（≤899 は minmax(0,1fr)・セルは min-width 0）。名前は cellNamesOf（3 名＋他 n）・時刻は .nox-cald-t（≤899 で非表示＝日詳細モーダルで見る） */}
+              <div className="nox-calgrid nox-calgrid--fit">
                 {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}
                 {calCells.map((ymd, i) => {
                   if (!ymd) return <div key={`rb${i}`} />;
                   const list = confirmedOn(ymd);
+                  const cell = cellNamesOf(list.map((x) => castName(x.cast_id)));
+                  const unpublished = isUnpublishedDay(periodsAll, ymd); // ★AU2-3: 期間が未公開の日は「未確定」（期間の無い日は印なし）
                   const cls = ["nox-cald", list.length > 0 ? "ok" : "", isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                   return (
-                    <button key={ymd} className={cls} style={{ minHeight: 92, alignItems: "stretch" }}
+                    <button key={ymd} className={cls} style={{ minHeight: 92, alignItems: "stretch", position: "relative" }}
                       onClick={() => { setSelDate(ymd); setDayModal("roster"); }}
-                      title={list.length === 0 ? `${ymd}・確定なし` : `${ymd}・${list.map((x) => `${castName(x.cast_id)} ${fmtWin(x.start_hm, x.end_hm)}`).join(" / ")}`}>
+                      title={`${ymd}${unpublished ? "・未確定（期間が未公開）" : ""}・${list.length === 0 ? "確定なし" : list.map((x) => `${castName(x.cast_id)} ${fmtWin(x.start_hm, x.end_hm)}`).join(" / ")}`}>
                       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
-                      {/* 先頭3名の名前チップ（例: れいな 20:00-）＋残りは「他N名」に折り畳む */}
-                      {list.slice(0, 3).map((x) => (
+                      {unpublished && <span style={{ position: "absolute", top: 3, right: 5, fontSize: 8.5, color: "var(--v2-muted)" }}>未確定</span>}
+                      {list.slice(0, cell.shown.length).map((x, k) => (
                         <span key={x.id} style={{
                           display: "block", fontSize: 9.5, lineHeight: 1.5, textAlign: "left",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--ok)",
                         }}>
-                          {castName(x.cast_id)} <span className="num">{x.start_hm}-</span>
+                          {cell.shown[k]} <span className="nox-cald-t num">{x.start_hm}-</span>
                         </span>
                       ))}
-                      {list.length > 3 && (
+                      {cell.restLabel && (
                         <span style={{ display: "block", fontSize: 9, color: "var(--v2-muted)", textAlign: "left" }}>
-                          他{list.length - 3}名
+                          {cell.restLabel}
                         </span>
                       )}
                     </button>
