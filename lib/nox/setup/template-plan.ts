@@ -228,8 +228,9 @@ export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
   }
   // 8) 機能スイッチ（変更分だけ・org 既定行）
   for (const f of sel.flags ?? []) steps.push({ key: `flag_${f.key}`, group: "flags", label: `機能 ${f.key} を ${f.enabled ? "ON" : "OFF"}`, rpc: "flag_set", args: { p_key: f.key, p_store_id: null, p_enabled: f.enabled, p_reason: null } });
-  // 9) 最後に setup_done
-  steps.push({ key: "done", group: "done", label: "初期設定完了（setup_done）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true } } });
+  // 9) 最後に setup_done。★裁定285／287-4（0151 ★4・N3b-7）: 新規店はスライド適用月 'next'（翌月反映）を同じ patch で書く。
+  //   既存店は不触（欠損＝'current'＝client の slideApplyOf）。set_store_profile の白名単 'slide_apply' は mig0151。
+  steps.push({ key: "done", group: "done", label: "初期設定完了（setup_done・slide_apply=next）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next" } } });
   return steps;
 }
 
