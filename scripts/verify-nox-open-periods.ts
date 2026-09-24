@@ -49,8 +49,9 @@ check("op(4-2) dateBoundsOf 期間なし→null", dateBoundsOf([]) === null);
 const wf = fs.readFileSync("app/mine/wishes/wish-form.tsx", "utf8");
 check("op(5-1) wish-form: shift_open_periods_mine を呼び、RPC 不在は null（従来どおり）・他の失敗は []（募集なし）", /supabase\.rpc\("shift_open_periods_mine"\)/.test(wf) && /setPeriods\(isRpcMissingError\(error\.message\) \? null : \[\]\)/.test(wf));
 check("op(5-2) wish-form: 案内は Message（締切超過＝warn）・periods が null なら出さない", /const notice = periods \? periodNoticeOf\(periods, today\) : null;/.test(wf) && /<Message kind=\{notice\.kind === "past_deadline" \? "warn" : "info"\}/.test(wf));
-check("op(5-3) wish-form: 日付は min／max＋期間外は送らない（outside）", /min=\{bounds\?\.min\} max=\{bounds\?\.max\}/.test(wf) && /if \(outside\) \{ setMsg\(\{ kind: "error", text: "この日は募集期間外です" \}\); return; \}/.test(wf) && /disabled=\{busy \|\| closedDay \|\| outside\}/.test(wf));
-check("op(5-4) wish-form: 失敗は rpcErrJa 経由（'closed day'／'bad time' は従来文言）・'period_not_open'＝「この日は募集期間外です」", /: rpcErrJa\(error\.message\) \}/.test(wf) && rpcErrJa("period_not_open") === "この日は募集期間外です" && /提出済み/.test(rpcErrJa("duplicate wish")));
+// ★便 AX（裁定290）: 単発の date 入力→月グリッド。期間外の日は活性日の集合（activeDaysOf＝isDateSelectable を内包）で非活性＝送らない
+check("op(5-3) wish-form: 期間外の日はカレンダーで非活性（activeDaysOf＝募集中の期間内だけ）・periods null は全て非活性", /activeDaysOf\(\{ periods, cells, wishes, closedDates, today \}\)/.test(wf) && /disabled=\{disabled \|\| busy\}/.test(wf) && !/type="date"/.test(wf));
+check("op(5-4) wish-form: 失敗は rpcErrJa 経由（'closed day'／'bad time' は専用文言）・'period_not_open'＝「この日は募集期間外です」", /: rpcErrJa\(error\.message\);/.test(wf) && rpcErrJa("period_not_open") === "この日は募集期間外です" && /提出済み/.test(rpcErrJa("duplicate wish")));
 const sb = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
 check("op(5-5) shift-board: 募集中で保存したとき「キャストのマイページに希望提出の案内が表示されます」を足す", /\(pStatus === "open" \? "。キャストのマイページに希望提出の案内が表示されます" : ""\)/.test(sb));
 
