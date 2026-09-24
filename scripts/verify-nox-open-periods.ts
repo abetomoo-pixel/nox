@@ -1,6 +1,7 @@
 /*
  * verify:nox-open-periods — 夜間便 N5（裁定287-2・2026-09-18）キャスト側の募集期間の案内と日付の可否 lib/nox/shift/open-periods.ts の係留（純関数・DB 不触）。
- *   npm run verify:nox-open-periods（env 不要）。f0 63 段目。
+ *   npm run verify:nox-open-periods（(1)〜(5) は env 不要・(6) は SUPABASE_DB_URL＝seed:f0 済み）。f0 63 段目。
+ *  (6) mig0151 ★2 shift_open_periods_mine（AG d2 の移植）: cast＝自店 open のみ 3 列・戻り列・owner／staff 0 行・anon permission denied（pg tx emulate → ROLLBACK）
  *
  *  (1) periodNoticeOf: 期間なし→none／締切前あり→open（M/D〜M/D のシフト希望を受付中（締切 M/D））／すべて締切超過→past_deadline
  *  (2) deadlinePassed: 締切当日は受付中・翌日から超過・締切なしは超過しない
@@ -13,6 +14,8 @@
 import fs from "node:fs";
 import { dateBoundsOf, deadlinePassed, isDateSelectable, periodLineOf, periodNoticeOf, type OpenPeriod } from "../lib/nox/shift/open-periods";
 import { rpcErrJa } from "../lib/nox/ui/rpc-err";
+import { Client } from "pg";
+import { FIXTURE_USERS, STORE_A1, STORE_B1, loadEnvOrExit } from "./fixtures-f0";
 
 let pass = 0;
 const fails: string[] = [];
@@ -51,9 +54,65 @@ check("op(5-4) wish-form: 失敗は rpcErrJa 経由（'closed day'／'bad time' 
 const sb = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
 check("op(5-5) shift-board: 募集中で保存したとき「キャストのマイページに希望提出の案内が表示されます」を足す", /\(pStatus === "open" \? "。キャストのマイページに希望提出の案内が表示されます" : ""\)/.test(sb));
 
-if (fails.length) {
-  console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
-  for (const f of fails) console.error(" - " + f);
-  process.exit(1);
+// (6) DB 段（mig0151 ★2 shift_open_periods_mine＝AG d2 の移植・裁定287-2／289-2）: Postgres 直結の 1 トランザクション内で JWT claims を emulate → ROLLBACK＝残留 0
+async function dbChecks() {
+  const env = loadEnvOrExit(["SUPABASE_DB_URL"]);
+  const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+  await db.connect();
+  const q = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await db.query(sql, params)).rows as T[];
+  type R = { ok: true; rows: Record<string, unknown>[] } | { ok: false; err: string };
+  const call = async (sql: string, params: unknown[] = []): Promise<R> => {
+    await db.query("savepoint sp");
+    try { const rows = (await db.query(sql, params)).rows; await db.query("release savepoint sp"); return { ok: true, rows }; }
+    catch (e) { await db.query("rollback to savepoint sp"); return { ok: false, err: (e as Error).message }; }
+  };
+  const asUid = async (uid: string) => { await db.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: uid, role: "authenticated" })]); await db.query(`set local role authenticated`); };
+  const asAnon = async () => { await db.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ role: "anon" })]); await db.query(`set local role anon`); };
+  const asPg = async () => { await db.query("reset role"); };
+  try {
+    const stA = (await q<{ id: string; org_id: string }>(`select id, org_id from public.stores where name = $1`, [STORE_A1]))[0];
+    const stB = (await q<{ id: string; org_id: string }>(`select id, org_id from public.stores where name = $1`, [STORE_B1]))[0];
+    const uidOf = async (key: keyof typeof FIXTURE_USERS) => (await q<{ id: string; auth_user_id: string }>(`select id, auth_user_id from public.users where email = $1 and is_active`, [FIXTURE_USERS[key].email]))[0];
+    const castU = await uidOf("castA1a"), ownerA = await uidOf("ownerA"), staffU = await uidOf("staffA1"), mgrB = await uidOf("managerB1");
+    check("op(6-0) fixture: A1／B1／cast-a1a／owner-a／staff-a1／manager-b1", !!stA && !!stB && !!castU && !!ownerA && !!staffU && !!mgrB);
+    const snap = async () => JSON.stringify((await q(`select (select count(*)::int from public.shift_periods) n`))[0]);
+    const before = await snap();
+    await db.query("begin");
+    try {
+      const openP = await q<{ s: string; e: string; w: string | null; status: string }>(`select start_date::text s, end_date::text e, wish_deadline::text w, status from public.shift_periods where store_id = $1 order by start_date`, [stA.id]);
+      await db.query(`insert into public.shift_periods (org_id, store_id, start_date, end_date, wish_deadline, status, created_by) values ($1,$2,'2097-01-01','2097-01-15','2096-12-25','draft',$3), ($1,$2,'2097-02-01','2097-02-15','2097-01-25','published',$3), ($1,$2,'2097-03-01','2097-03-15','2097-02-25','closed',$3)`, [stA.org_id, stA.id, ownerA.id]);
+      await db.query(`insert into public.shift_periods (org_id, store_id, start_date, end_date, wish_deadline, status, created_by) values ($1,$2,'2097-04-01','2097-04-15','2097-03-25','open',$3)`, [stB.org_id, stB.id, mgrB.id]);
+      await db.query(`insert into public.shift_periods (org_id, store_id, start_date, end_date, wish_deadline, status, created_by) values ($1,$2,'2097-05-01','2097-05-15','2097-04-25','open',$3)`, [stA.org_id, stA.id, ownerA.id]);
+      const expOpen = openP.filter((p) => p.status === "open").map((p) => [p.s, p.e, p.w]).concat([["2097-05-01", "2097-05-15", "2097-04-25"]]);
+      await asUid(castU.auth_user_id);
+      const op = await call(`select start_date::text s, end_date::text e, wish_deadline::text w from public.shift_open_periods_mine()`);
+      check(`op(6-1) ★cast: 自店の open 期間だけが 3 列で返る（${expOpen.length} 行・draft／published／closed・他店（B1）の open は返らない）`, op.ok && JSON.stringify(op.rows.map((r) => [r.s, r.e, r.w])) === JSON.stringify(expOpen), op.ok ? JSON.stringify(op.rows) : op.err);
+      await asPg();
+      const cols = (await q<{ r: string }>(`select pg_get_function_result(oid) r from pg_proc where pronamespace='public'::regnamespace and proname='shift_open_periods_mine'`))[0];
+      check("op(6-2) 戻り列＝start_date date, end_date date, wish_deadline date のみ（id／status を返さない）", cols?.r === "TABLE(start_date date, end_date date, wish_deadline date)", cols?.r);
+      await asUid(ownerA.auth_user_id);
+      const opO = await call(`select * from public.shift_open_periods_mine()`);
+      await asPg(); await asUid(staffU.auth_user_id);
+      const opS = await call(`select * from public.shift_open_periods_mine()`);
+      await asPg(); await asAnon();
+      const opA = await call(`select * from public.shift_open_periods_mine()`);
+      await asPg();
+      check("op(6-3) ★owner・staff が呼ぶと 0 行（raise しない＝289-2）・anon は permission denied", opO.ok && opO.rows.length === 0 && opS.ok && opS.rows.length === 0 && !opA.ok && /permission denied/.test(opA.err), `${opO.ok ? opO.rows.length : opO.err} / ${opS.ok ? opS.rows.length : opS.err} / ${opA.ok ? "ok" : opA.err}`);
+    } finally {
+      await db.query("rollback");
+    }
+    const after = await snap();
+    check("op(6-9) ROLLBACK 後の残留＝実行前と同値（shift_periods 行数）", after === before, `${before} → ${after}`);
+  } finally {
+    await db.end().catch(() => undefined);
+  }
 }
-console.log(`verify:nox-open-periods OK (${pass} checks)`);
+
+dbChecks().then(() => {
+  if (fails.length) {
+    console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
+    for (const f of fails) console.error(" - " + f);
+    process.exit(1);
+  }
+  console.log(`verify:nox-open-periods OK (${pass} checks)`);
+}).catch((e) => { console.error("✗ 異常終了", e); process.exit(1); });

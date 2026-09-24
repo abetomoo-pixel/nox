@@ -46,7 +46,7 @@ const HELPERS_INTERNAL = ["staff_shift_biz_today", "staff_shift_gate", "staff_pa
 const GATED = ["staff_pattern_set", "staff_pattern_delete", "staff_shift_propose", "staff_shift_override", "staff_shift_confirm", "staff_deadline_set", "staff_shift_cancel"]; // ★0151
 const GATE_LINE = "if not public.billing_writable_of(public.auth_org_id()) then raise exception 'billing locked'; end if;";
 const TABLES = ["staff_shift_patterns", "staff_shift_wishes", "staff_shifts", "staff_shift_deadlines"];
-const AUDIT_ACTIONS = ["staff_pattern_set", "staff_pattern_delete", "staff_shift_propose", "staff_shift_override", "staff_shift_confirm", "staff_deadline_set"];
+const AUDIT_ACTIONS = ["staff_pattern_set", "staff_pattern_delete", "staff_shift_propose", "staff_shift_override", "staff_shift_confirm", "staff_deadline_set", "staff_shift_cancel"]; // ★0151: +cancel
 const addDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 // ★N6 S-6: 純関数の段（DB 不触・9 本）。逆テスト: staffRowsForDay の並び `wa - wb` を `wb - wa` にする→段N6-2 赤・戻して緑
@@ -89,6 +89,7 @@ async function main() {
   const staff2 = await signIn("staffRegOnA1");
   const cast = await signIn("castA1a");
   const mgrB = await signIn("managerB1");
+  const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } }); // ★0151 段 9
   const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
   await db.connect();
 
@@ -291,9 +292,49 @@ async function main() {
       check("ss(8f) 当日以前の行は effective_from_not_future", has(d2.error, "effective_from_not_future"), d2.error?.message ?? "通ってしまった");
       const d3 = await mgr.rpc("staff_pattern_delete", { p_pattern_id: P1b });
       check("ss(8g) 参照のある未来行は pattern_in_use", has(d3.error, "pattern_in_use"), d3.error?.message ?? "通ってしまった");
+      // ══ 9 取消 staff_shift_cancel（mig0151・裁定287-1／289-1＝AG d1 の移植）══
+      {
+        const { error: eOn9 } = await flag(true);
+        check("ss(9a) flag ON（取消の器）", !eOn9, eOn9?.message);
+        const P9 = (await mgr.rpc("staff_pattern_set", { p_store_id: storeA1, p_name: "取消枠", p_start_hm: "17:00", p_end_hm: "22:00", p_effective_from: today, p_sort_order: 9 })).data as string;
+        const pr1 = await mgr.rpc("staff_shift_propose", { p_store_id: storeA1, p_staff_id: staffMid, p_biz_date: D12, p_pattern_id: P9, p_wish_id: null });
+        const id1 = pr1.data as string;
+        const au0 = (await db.query(`select count(*)::int as n from public.audit_logs where org_id = $1 and action = 'staff_shift_cancel'`, [orgA])).rows[0].n as number;
+        const c1 = await mgr.rpc("staff_shift_cancel", { p_id: id1, p_reason: null });
+        const left1 = (await db.query(`select count(*)::int as n from public.staff_shifts where id = $1`, [id1])).rows[0].n as number;
+        const auRow = (await db.query(`select (before_json is not null) as b, (after_json is null) as a, reason from public.audit_logs where org_id = $1 and action = 'staff_shift_cancel' and target = $2`, [orgA, `staff_shifts:${id1}`])).rows[0];
+        check("ss(9b) ★proposed を理由なしで取消→行 0・audit 1（before 行全体・after null・reason null）", !pr1.error && !c1.error && left1 === 0 && !!auRow && auRow.b === true && auRow.a === true && auRow.reason === null, c1.error?.message ?? JSON.stringify({ au0, auRow }));
+        const pr2 = await mgr.rpc("staff_shift_propose", { p_store_id: storeA1, p_staff_id: staffMid, p_biz_date: D12, p_pattern_id: P9, p_wish_id: null });
+        const id2 = pr2.data as string;
+        const cf = await mgr.rpc("staff_shift_confirm", { p_shift_id: id2 });
+        const c2 = await mgr.rpc("staff_shift_cancel", { p_id: id2, p_reason: null });
+        check("ss(9c) ★confirmed を理由なし→'reason required'", !pr2.error && !cf.error && has(c2.error, "reason required"), c2.error?.message ?? "通ってしまった");
+        const c3 = await mgr.rpc("staff_shift_cancel", { p_id: id2, p_reason: "体調不良" });
+        const left3 = (await db.query(`select count(*)::int as n from public.staff_shifts where id = $1`, [id2])).rows[0].n as number;
+        const auR = (await db.query(`select reason from public.audit_logs where org_id = $1 and action = 'staff_shift_cancel' and target = $2`, [orgA, `staff_shifts:${id2}`])).rows[0];
+        check("ss(9d) ★confirmed を理由ありで取消→行 0・audit の reason に理由", !c3.error && left3 === 0 && auR?.reason === "体調不良", c3.error?.message ?? JSON.stringify(auR));
+        const { rows: pastRows } = await db.query(
+          `insert into public.staff_shifts (org_id, store_id, staff_id, biz_date, pattern_id, start_hm, end_hm, status, created_by) values ($1,$2,$3,$4,$5,'17:00','22:00','proposed',$6) returning id`,
+          [orgA, storeA1, staffMid, addDays(today, -3), P9, mgrMid]);
+        const c4 = await mgr.rpc("staff_shift_cancel", { p_id: pastRows[0].id, p_reason: "x" });
+        check("ss(9e) ★過去日の行は 'biz_date_past'（override と同じ判定）", has(c4.error, "biz_date_past"), c4.error?.message ?? "通ってしまった");
+        const pr3 = await mgr.rpc("staff_shift_propose", { p_store_id: storeA1, p_staff_id: staffMid, p_biz_date: D12, p_pattern_id: P9, p_wish_id: null });
+        const id3 = pr3.data as string;
+        const c5 = await staff.rpc("staff_shift_cancel", { p_id: id3, p_reason: null });
+        const c6 = await cast.rpc("staff_shift_cancel", { p_id: id3, p_reason: null });
+        const c7 = await anon.rpc("staff_shift_cancel", { p_id: id3, p_reason: null });
+        check("ss(9f) ★staff 本人・cast は forbidden／feature_disabled・anon は permission denied（行は残る）",
+          !!c5.error && /forbidden|feature_disabled/.test(c5.error.message) && !!c6.error && /forbidden|feature_disabled/.test(c6.error.message) && has(c7.error, "permission denied")
+            && (await db.query(`select count(*)::int as n from public.staff_shifts where id = $1`, [id3])).rows[0].n === 1,
+          `${c5.error?.message} / ${c6.error?.message} / ${c7.error?.message}`);
+        const c8 = await mgr.rpc("staff_shift_cancel", { p_id: bogus, p_reason: null });
+        check("ss(9g) ★存在しない id は 'not_found'（下線＝裁定289-1・confirm／override と同じ文言）", c8.error?.message === "not_found", c8.error?.message ?? "通ってしまった");
+        const c9 = await mgrB.rpc("staff_shift_cancel", { p_id: id3, p_reason: null });
+        check("ss(9h) 他 org の manager は forbidden／feature_disabled（越境不可）", !!c9.error && /forbidden|feature_disabled|not_found/.test(c9.error.message), c9.error?.message ?? "通ってしまった");
+      }
       const { rows: acts } = await db.query(`select action, count(*)::int as n from public.audit_logs where org_id = $1 and action = any($2) group by 1 order by 1`, [orgA, AUDIT_ACTIONS]);
       const names = acts.map((r) => r.action as string);
-      check("ss(8h) ★監査 action 6 種がすべて RPC 名で記録される（C②-11）", AUDIT_ACTIONS.every((a) => names.includes(a)), JSON.stringify(acts));
+      check("ss(8h) ★監査 action 7 種（0151 で +cancel）がすべて RPC 名で記録される（C②-11）", AUDIT_ACTIONS.every((a) => names.includes(a)), JSON.stringify(acts));
     }
   } finally {
     await teardown();
@@ -306,7 +347,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-staff-shift ALL PASS (${pass} assertions・${Math.round((Date.now() - t0) / 1000)}s)`);
-  console.log("黒服シフト(0136): ACL/RLS 4表・7 RPC・6 helper / flag off 7 RPC raise 逐語 / effective_from unique・過去日・解決 / 凍結 / override 監査 / 締切 / 3ロール RLS / confirm・delete・監査 6 action");
+  console.log("黒服シフト(0136＋0151): ACL/RLS 4表・8 RPC・6 helper / 取消（proposed 理由なし・confirmed 理由必須・過去日・not_found・3 ロール） / flag off 7 RPC raise 逐語 / effective_from unique・過去日・解決 / 凍結 / override 監査 / 締切 / 3ロール RLS / confirm・delete・監査 6 action");
 }
 
 main().catch((e) => { console.error("✗ 異常終了", e); process.exit(1); });

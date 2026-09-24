@@ -1,6 +1,7 @@
 /*
  * verify:nox-cast-guarantee — 夜間便 N4（裁定282-2／282-3／287-3・2026-09-18）保証時給の表示用純関数 lib/nox/cast/guarantee.ts の係留（DB 不触）。
- *   npm run verify:nox-cast-guarantee（env 不要）。f0 62 段目。
+ *   npm run verify:nox-cast-guarantee（(1)〜(8) は env 不要・(9) は SUPABASE_DB_URL＝seed:f0 済み）。f0 62 段目。
+ *  (9) mig0151 ★3 set_cast_guarantee（AG d3 の移植）: (a)／重なり／延長／(b)／検証 3／3 ロール／後続の予定より前は exists（289-6 ②）／no plan／audit（pg tx emulate → ROLLBACK）
  *
  *  (1) guaranteeRowsOf: overrides_json.guarantee===true かつ base が数値の行だけ・valid_from 昇順
  *  (2) daysLeftOf: 今日を含まない差（当日=0・7 日後=7・過去は負・to null は null）
@@ -16,6 +17,8 @@
 import fs from "node:fs";
 import { addDays, daysLeftOf, guaranteeBadgeOf, guaranteeNoticesOf, guaranteeRowsOf, guaranteeStateOf, mdOf, type PlanRowLike } from "../lib/nox/cast/guarantee";
 import { isRpcMissingError, rpcErrJa } from "../lib/nox/ui/rpc-err";
+import { Client } from "pg";
+import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
 
 let pass = 0;
 const fails: string[] = [];
@@ -83,9 +86,110 @@ const dp = fs.readFileSync("app/(manage)/dashboard/page.tsx", "utf8");
 check("gu(8-5) dashboard: owner/manager のときだけ cast_plan 1 select→guaranteeNoticesOf→warn Message・page が isManagerUp を渡す", /isManagerUp\s*\? await supabase\.from\("cast_plan"\)\.select\("cast_id, valid_from, valid_to, overrides_json"\)/.test(db) && /setGuaNotices\(guaranteeNoticesOf\(/.test(db) && /\{guaNotices\.length > 0 && \(\s*<Message kind="warn"/.test(db) && /isManagerUp=\{isManagerUp\}/.test(dp));
 check("gu(8-6) dashboard: cast_plan の select は 1 箇所（追加取得 ≤1）", (db.match(/from\("cast_plan"\)/g) ?? []).length === 1);
 
-if (fails.length) {
-  console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
-  for (const f of fails) console.error(" - " + f);
-  process.exit(1);
+// (9) DB 段（mig0151 ★3 set_cast_guarantee＝AG d3 の移植・裁定287-3／289-3〜6）: pg tx で JWT emulate → ROLLBACK＝残留 0
+async function dbChecks() {
+  const env = loadEnvOrExit(["SUPABASE_DB_URL"]);
+  const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+  await db.connect();
+  const q = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => (await db.query(sql, params)).rows as T[];
+  type R = { ok: true; rows: Record<string, unknown>[] } | { ok: false; err: string };
+  const call = async (sql: string, params: unknown[] = []): Promise<R> => {
+    await db.query("savepoint sp");
+    try { const rows = (await db.query(sql, params)).rows; await db.query("release savepoint sp"); return { ok: true, rows }; }
+    catch (e) { await db.query("rollback to savepoint sp"); return { ok: false, err: (e as Error).message }; }
+  };
+  const errOf = (r: R) => (r.ok ? "(no error)" : r.err);
+  const asUid = async (uid: string) => { await db.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: uid, role: "authenticated" })]); await db.query(`set local role authenticated`); };
+  const asAnon = async () => { await db.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ role: "anon" })]); await db.query(`set local role anon`); };
+  const asPg = async () => { await db.query("reset role"); };
+  try {
+    const st = (await q<{ id: string; org_id: string }>(`select id, org_id from public.stores where name = $1`, [STORE_A1]))[0];
+    const uidOf = async (key: keyof typeof FIXTURE_USERS) => (await q<{ id: string; auth_user_id: string }>(`select id, auth_user_id from public.users where email = $1 and is_active`, [FIXTURE_USERS[key].email]))[0];
+    const castU = await uidOf("castA1a"), ownerA = await uidOf("ownerA"), mgrA = await uidOf("managerA1"), staffU = await uidOf("staffA1");
+    const castId = (await q<{ id: string }>(`select c.id from public.casts c where c.store_id = $1 and c.user_id = $2`, [st?.id, castU?.id]))[0]?.id;
+    check("gu(9-0) fixture: A1／cast-a1a／owner-a／manager-a1／staff-a1", !!st && !!castU && !!castId && !!ownerA && !!mgrA && !!staffU);
+    const snap = async () => JSON.stringify((await q(`select (select count(*)::int from public.cast_plan where cast_id = $1) cp, (select count(*)::int from public.comp_plans where store_id = $2) pl, (select count(*)::int from public.audit_logs where org_id = $3) au`, [castId, st.id, st.org_id]))[0]);
+    const before = await snap();
+    const today = (await q<{ d: string }>(`select current_date::text d`))[0].d;
+    const d = (n: number) => addDays(today, n);
+    const rowsOf = async () => q<{ f: string; t: string; o: Record<string, unknown> }>(`select valid_from::text f, coalesce(valid_to::text, '∞') t, overrides_json o from public.cast_plan where cast_id = $1 order by valid_from`, [castId]);
+    const tbl = (rows: { f: string; t: string; o: Record<string, unknown> }[]) => rows.map((r) => `${r.f}〜${r.t} ${JSON.stringify(r.o)}`).join(" | ");
+    await db.query("begin");
+    try {
+      // 器: 現在行 C が無ければ tx 内で comp_plan＋cast_plan を作る（ROLLBACK で消える）
+      const cur0 = (await q<{ id: string }>(`select id from public.cast_plan where cast_id = $1 and valid_to is null`, [castId]))[0];
+      if (!cur0) {
+        let plan = (await q<{ id: string }>(`select id from public.comp_plans where store_id = $1 and is_active order by created_at limit 1`, [st.id]))[0]?.id;
+        if (!plan) plan = (await q<{ id: string }>(`insert into public.comp_plans (org_id, store_id, name, base) values ($1, $2, 'NOX-VERIFY-gu', 3000) returning id`, [st.org_id, st.id]))[0].id;
+        await db.query(`delete from public.cast_plan where cast_id = $1`, [castId]);
+        await db.query(`insert into public.cast_plan (cast_id, org_id, store_id, plan_id, overrides_json, valid_from) values ($1, $2, $3, $4, '{"honBack": 4500}'::jsonb, $5)`, [castId, st.org_id, st.id, plan, d(-30)]);
+      }
+      const base0 = await rowsOf();
+      await asUid(ownerA.auth_user_id);
+      const g1 = await call(`select public.set_cast_guarantee($1, 5000, $2, $3)`, [castId, d(1), d(14)]);
+      await asPg();
+      const r1 = await rowsOf();
+      check("gu(9-1) ★(a) 明日から 14 日→行 +2（C に valid_to・保証行 base 5000 guarantee true・戻し行）・valid_to null は 1 本", g1.ok && r1.length === base0.length + 2 && r1.filter((r) => r.t === "∞").length === 1 && r1.some((r) => r.f === d(1) && r.t === d(14) && r.o.base === 5000 && r.o.guarantee === true) && r1.some((r) => r.f === d(15) && r.t === "∞" && !("guarantee" in r.o)), g1.ok ? tbl(r1) : g1.err);
+      await asUid(ownerA.auth_user_id);
+      const gx = await call(`select public.set_cast_guarantee($1, 6000, $2, $3)`, [castId, d(3), d(10)]);
+      check("gu(9-2) ★期間中に別の保証（重なり）→'guarantee exists'（289-6 ①）", !gx.ok && gx.err === "guarantee exists", errOf(gx));
+      const g2 = await call(`select public.set_cast_guarantee($1, 5500, $2, $3)`, [castId, d(15), d(30)]);
+      await asPg();
+      const r2 = await rowsOf();
+      const back2 = r2.find((r) => r.t === "∞");
+      check("gu(9-3) ★延長＝保証行の終了翌日から呼ぶ→戻し行が保証行（5500・〜+30）に書き換わり・新しい戻し行は base なし（元の非保証に戻る）", g2.ok && r2.some((r) => r.f === d(15) && r.t === d(30) && r.o.base === 5500 && r.o.guarantee === true) && !!back2 && back2.f === d(31) && !("guarantee" in back2.o) && back2.o.base === base0[base0.length - 1].o.base, g2.ok ? tbl(r2) : g2.err);
+      // (b) C.valid_from と同日: 保証を消して C を今日始まりに戻す（tx 内の器の付け替え）
+      await db.query(`delete from public.cast_plan where cast_id = $1 and valid_from >= $2`, [castId, d(1)]);
+      await db.query(`update public.cast_plan set valid_to = null, valid_from = current_date where cast_id = $1 and valid_to = $2`, [castId, d(0)]);
+      await asUid(ownerA.auth_user_id);
+      const g3 = await call(`select public.set_cast_guarantee($1, 4800, current_date, $2)`, [castId, d(7)]);
+      await asPg();
+      const r3 = await rowsOf();
+      check("gu(9-4) ★(b) C.valid_from と同日開始→C が保証行に書き換わり（valid_to=+7・base 4800）・戻し行 1 本（+8〜∞）", g3.ok && r3.some((r) => r.f === today && r.t === d(7) && r.o.base === 4800 && r.o.guarantee === true) && r3.filter((r) => r.t === "∞").length === 1 && r3.find((r) => r.t === "∞")?.f === d(8), g3.ok ? tbl(r3) : g3.err);
+      await asUid(ownerA.auth_user_id);
+      const e1 = await call(`select public.set_cast_guarantee($1, 0, $2, $3)`, [castId, d(20), d(25)]);
+      const e2 = await call(`select public.set_cast_guarantee($1, 5000, $2, $3)`, [castId, d(-1), d(25)]);
+      const e3 = await call(`select public.set_cast_guarantee($1, 5000, $2, $3)`, [castId, d(25), d(20)]);
+      check("gu(9-5) 'bad amount'／'bad valid_from'（過去日）／'bad valid_to'", !e1.ok && e1.err === "bad amount" && !e2.ok && e2.err === "bad valid_from" && !e3.ok && e3.err === "bad valid_to", `${errOf(e1)} / ${errOf(e2)} / ${errOf(e3)}`);
+      await asPg(); await asUid(mgrA.auth_user_id);
+      const m1 = await call(`select public.set_cast_guarantee($1, 5000, $2, $3)`, [castId, d(40), d(45)]);
+      await asPg(); await asUid(staffU.auth_user_id);
+      const m2 = await call(`select public.set_cast_guarantee($1, 5000, $2, $3)`, [castId, d(40), d(45)]);
+      await asPg(); await asUid(castU.auth_user_id);
+      const m3 = await call(`select public.set_cast_guarantee($1, 5000, $2, $3)`, [castId, d(40), d(45)]);
+      await asPg(); await asAnon();
+      const m4 = await call(`select public.set_cast_guarantee($1, 5000, $2, $3)`, [castId, d(40), d(45)]);
+      await asPg();
+      check("gu(9-6) ★manager（自店）は可・staff／cast は forbidden・anon は permission denied", m1.ok && !m2.ok && m2.err === "forbidden" && !m3.ok && m3.err === "forbidden" && !m4.ok && /permission denied/.test(m4.err), `${errOf(m1)} / ${errOf(m2)} / ${errOf(m3)} / ${errOf(m4)}`);
+      const before7 = tbl(await rowsOf());
+      await asUid(ownerA.auth_user_id);
+      const g7 = await call(`select public.set_cast_guarantee($1, 5200, $2, $3)`, [castId, d(13), d(22)]);
+      await asPg();
+      const after7 = tbl(await rowsOf());
+      check("gu(9-7) ★既存の予定保証（+40〜+45）より前の +13〜+22 を設定→'guarantee exists'（289-6 ②）・行不変", !g7.ok && g7.err === "guarantee exists" && before7 === after7, `${errOf(g7)} / 行不変=${before7 === after7}`);
+      await asPg();
+      await db.query(`delete from public.cast_plan where cast_id = $1`, [castId]);
+      await asUid(ownerA.auth_user_id);
+      const np = await call(`select public.set_cast_guarantee($1, 5000, $2, $3)`, [castId, d(1), d(5)]);
+      check("gu(9-8) ★現在行 C が無いキャストは 'no plan'（289-3）", !np.ok && np.err === "no plan", errOf(np));
+      await asPg();
+      const au = (await q<{ n: number }>(`select count(*)::int n from public.audit_logs where org_id = $1 and action = 'set_cast_guarantee'`, [st.org_id]))[0].n;
+      check("gu(9-9) audit: set_cast_guarantee が成功回数分（(a)・延長・(b)・manager＝4 行）", au === 4, `got ${au}`);
+    } finally {
+      await db.query("rollback");
+    }
+    const after = await snap();
+    check("gu(9-10) ROLLBACK 後の残留＝実行前と同値（cast_plan／comp_plans／org A audit）", after === before, `${before} → ${after}`);
+  } finally {
+    await db.end().catch(() => undefined);
+  }
 }
-console.log(`verify:nox-cast-guarantee OK (${pass} checks)`);
+
+dbChecks().then(() => {
+  if (fails.length) {
+    console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
+    for (const f of fails) console.error(" - " + f);
+    process.exit(1);
+  }
+  console.log(`verify:nox-cast-guarantee OK (${pass} checks)`);
+}).catch((e) => { console.error("✗ 異常終了", e); process.exit(1); });
