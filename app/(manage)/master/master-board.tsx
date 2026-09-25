@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { hubCountOf, hubStatusOf, type HubLoadState } from "@/lib/nox/ui/hub-count"; // ★Z152: 取得前は「—」・失敗は「取得できませんでした」
 import {
   fetchProducts, fetchProductCategories, fetchStockTotals,
   type MasterProduct as Product, type MasterCategory as Category,
@@ -34,22 +35,32 @@ export default function MasterBoard() {
   const [stock, setStock] = useState<Record<string, number>>({});
   // ★便 U-2（2026-09-25・0152）: 紹介料の未払件数（referral_payouts.status='unpaid'・RLS owner／manager 自店＝cast 0 行）。count のみ（head）＝fetch +1
   const [unpaidRef, setUnpaidRef] = useState<number | null>(null);
+  // ★Z152: 件数の取得状態＝取得完了前は数値を描かない（0 は実 0 だけ）。主取得（商品／カテゴリ／在庫／席）と紹介者の count は別々に持つ（片方の失敗で他を消さない）
+  const [hubState, setHubState] = useState<HubLoadState>("loading");
+  const [refState, setRefState] = useState<HubLoadState>("loading");
 
   // ★DP1 P1: このページはハブ（概要）のみになった。
   //   products / product_categories / stock_logs は「概要＝ダッシュボード」の
   //   KPI 4枚・低在庫アラート・カード件数が読む＝設計どおり残す（実体は各実ページ側）。
   //   seats も KPI「卓・席」とカードの件数表示が読む（編集は /master/seats）。
   const load = useCallback(async () => {
-    const [ps, cats, st] = await Promise.all([
-      fetchProducts(supabase), fetchProductCategories(supabase), fetchStockTotals(supabase),
-    ]);
-    const { data: ss } = await supabase.from("seats").select("id, name, kind, sort_order, is_active").order("sort_order");
-    const { count: ur } = await supabase.from("referral_payouts").select("id", { count: "exact", head: true }).eq("status", "unpaid"); // ★U-2
-    setUnpaidRef(ur ?? 0);
-    setProducts(ps);
-    setCategories(cats);
-    setSeats((ss ?? []) as Seat[]);
-    setStock(st);
+    try {
+      const [ps, cats, st] = await Promise.all([
+        fetchProducts(supabase), fetchProductCategories(supabase), fetchStockTotals(supabase),
+      ]);
+      const { data: ss, error: se } = await supabase.from("seats").select("id, name, kind, sort_order, is_active").order("sort_order");
+      if (se) throw se;
+      setProducts(ps);
+      setCategories(cats);
+      setSeats((ss ?? []) as Seat[]);
+      setStock(st);
+      setHubState("ok");
+    } catch {
+      setHubState("error"); // ★Z152: 失敗は「—」＋「取得できませんでした」（0 を描かない）
+    }
+    // ★U-2／Z152: 紹介者の未払件数は主取得と独立（失敗しても他の件数は出る）
+    const { count: ur, error: re } = await supabase.from("referral_payouts").select("id", { count: "exact", head: true }).eq("status", "unpaid");
+    if (re) { setRefState("error"); } else { setUnpaidRef(ur ?? 0); setRefState("ok"); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -69,12 +80,12 @@ export default function MasterBoard() {
     {
       sec: "商品・料金", secDesc: "レジ・会計で利用する項目",
       cards: [
-        { href: "/master/products", id: "m-prod", icon: "◇", count: `${products.length}件`, title: "商品マスター",
+        { href: "/master/products", id: "m-prod", icon: "◇", count: hubCountOf(hubState, products.length, "件").text, title: "商品マスター",
           desc: "ドリンク、シャンパン、ボトル、フード、在庫数、発注基準を管理。",
-          status: lowStock > 0 ? `● ${lowStock}件 要補充` : "● 在庫は基準内", tone: lowStock > 0 ? "ng" : "" },
-        { href: "/master/categories", id: "m-cat", icon: "▤", count: `${categories.length}件`, title: "商品カテゴリ",
+          status: hubStatusOf(hubState, lowStock > 0 ? `● ${lowStock}件 要補充` : "● 在庫は基準内"), tone: hubState === "ok" && lowStock > 0 ? "ng" : hubState === "error" ? "mute" : "" },
+        { href: "/master/categories", id: "m-cat", icon: "▤", count: hubCountOf(hubState, categories.length, "件").text, title: "商品カテゴリ",
           desc: "レジのタイル見出しになる分類。並び順と有効/無効を管理。",
-          status: categories.length > 0 ? "● 全件有効" : "● 未登録", tone: categories.length > 0 ? "" : "mute" },
+          status: hubStatusOf(hubState, categories.length > 0 ? "● 全件有効" : "● 未登録"), tone: hubState !== "ok" || categories.length === 0 ? "mute" : "" },
         // ★N3（マスタ v3・S 系「既存」のみ）: カード文言・群名・アイコンを v3 モック逐語へ。
         //   v3 の「利用機能」カード（S4）は N3 時点では器なしで作らなかった → C層①（mig0135）で器ができたため
         //   「店舗・運用」群に「機能の公開」として追加した。裁定120 の Danger 帯・要補充カードは不変。
@@ -100,15 +111,15 @@ export default function MasterBoard() {
           desc: "この店で使う制度を選びます。OFF にした制度は待遇プラン・控除・商品・マイページの該当する節が表示されなくなります。", status: "● 設定可", tone: "" },
         { href: "/master/referrers", id: "m-referrers", icon: "◇", count: "支払", title: "紹介者・紹介料",
           desc: "外部キャッチ／スタッフの紹介者と紹介料の支払を管理。",
-          status: unpaidRef == null ? "● 読込中" : unpaidRef > 0 ? `● 未払 ${unpaidRef} 件` : "● 未払なし", tone: (unpaidRef ?? 0) > 0 ? "warn" : "" },
+          status: hubStatusOf(refState, (unpaidRef ?? 0) > 0 ? `● 未払 ${unpaidRef} 件` : "● 未払なし"), tone: refState === "ok" && (unpaidRef ?? 0) > 0 ? "warn" : refState === "error" ? "mute" : "" },
       ],
     },
     {
       sec: "店舗・運用", secDesc: "フロア・営業時間の設定",
       cards: [
-        { href: "/master/seats", id: "m-seat", icon: "▦", count: `${seats.length}卓`, title: "席・卓マスター",
+        { href: "/master/seats", id: "m-seat", icon: "▦", count: hubCountOf(hubState, seats.length, "卓").text, title: "席・卓マスター",
           desc: "卓／カウンター／VIP の登録と並び順、稼働の有効切替。",
-          status: `● 稼働可能 ${activeSeats}卓`, tone: "" },
+          status: hubStatusOf(hubState, `● 稼働可能 ${activeSeats}卓`), tone: hubState === "error" ? "mute" : "" },
         { href: "/master/business-hours", id: "m-hours", icon: "◔", count: "曜日別", title: "営業時間・定休日",
           desc: "曜日ごとの営業時間と定休日、シフト登録の警告・ブロックに使われます。店舗名・略称などの店舗情報とシフト運用の設定もここで行います。", status: "● 設定可", tone: "" },
         // ★C層①（mig0135・裁定182）: v3 の「利用機能」カード S4 の器＝/master/system の「機能」タブへ着地
@@ -143,7 +154,7 @@ export default function MasterBoard() {
           placeholder="設定名を検索（例：商品、カテゴリ、卓）" aria-label="設定名を検索" /></>} />
 
       {/* aaa .alert＝低在庫の警告バナー（実在する reorder_point 判定・0件なら出さない） */}
-      {lowStock > 0 && (
+      {hubState === "ok" && lowStock > 0 && (
         <div className="nox-alert danger">
           在庫が発注基準を下回っている商品が {lowStock} 件あります。商品マスターから補充基準を確認してください。
         </div>
@@ -151,12 +162,13 @@ export default function MasterBoard() {
 
       {/* aaa .summary＝KPI ステートカード（すべて実在件数） */}
       <section className="nox-summary">
-        <div className="nox-stat2"><small>商品マスター</small><strong>{products.length}</strong><em>公開中 {activeProds}件</em></div>
-        <div className="nox-stat2"><small>商品カテゴリ</small><strong>{categories.length}</strong><em>{categories.length > 0 ? "全件有効" : "未登録"}</em></div>
-        <div className="nox-stat2"><small>卓・席</small><strong>{seats.length}</strong><em>稼働可能 {activeSeats}卓</em></div>
+        {/* ★Z152: 取得完了前は「—」（数値を描かない）・失敗は「取得できませんでした」 */}
+        <div className="nox-stat2"><small>商品マスター</small><strong>{hubCountOf(hubState, products.length).text}</strong><em>{hubState === "ok" ? `公開中 ${activeProds}件` : hubCountOf(hubState, 0).note ?? "—"}</em></div>
+        <div className="nox-stat2"><small>商品カテゴリ</small><strong>{hubCountOf(hubState, categories.length).text}</strong><em>{hubState === "ok" ? (categories.length > 0 ? "全件有効" : "未登録") : hubCountOf(hubState, 0).note ?? "—"}</em></div>
+        <div className="nox-stat2"><small>卓・席</small><strong>{hubCountOf(hubState, seats.length).text}</strong><em>{hubState === "ok" ? `稼働可能 ${activeSeats}卓` : hubCountOf(hubState, 0).note ?? "—"}</em></div>
         <div className="nox-stat2">
-          <small>発注推奨の商品</small><strong>{lowStock}</strong>
-          <em className={lowStock > 0 ? "ng" : ""}>{lowStock > 0 ? "発注基準以下" : "基準内"}</em>
+          <small>発注推奨の商品</small><strong>{hubCountOf(hubState, lowStock).text}</strong>
+          <em className={hubState === "ok" && lowStock > 0 ? "ng" : ""}>{hubState === "ok" ? (lowStock > 0 ? "発注基準以下" : "基準内") : hubCountOf(hubState, 0).note ?? "—"}</em>
         </div>
       </section>
 

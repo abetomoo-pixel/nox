@@ -8,7 +8,8 @@ import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { kpiOfDraftRows, issuesOfDraft, payStatusOf } from "@/lib/nox/payroll/ui-calc";
-import { totalDeductionsOf, frozenAdjustmentKeys, type FrozenAdjustment } from "@/lib/nox/payroll/adjust"; // 裁定264-3: 控除計の式は 1 本に集約／264-10: 明細プレビューの凍結形
+import { totalDeductionsOf, frozenAdjustmentKeys, type FrozenAdjustment } from "@/lib/nox/payroll/adjust";
+import { breakdownLinesOf, hoursCellOf } from "@/lib/nox/payroll/breakdown-lines"; // ★裁定303: 支給／控除の行は PayslipSlip と同じ単一関数・一覧の「打刻なし」 // 裁定264-3: 控除計の式は 1 本に集約／264-10: 明細プレビューの凍結形
 import Modal from "@/components/ui/modal"; // ★裁定265: 調整行の削除理由はモーダル（window.prompt は使わない）
 import { pctToBp, bpToPct } from "@/lib/nox/payroll/adjust-route"; // 裁定264-7: 入力は %・保存は bp（client でも 0..10000 を assert）
 import PaymentPanel from "./payment-panel";
@@ -52,7 +53,7 @@ type Row = {
       guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number }; // ★N3
       slideBasis?: { apply: "next"; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] }; // ★N3b
     };
-    extras?: { amount: number }[];
+    extras?: { kind: string; amount: number; label?: string }[]; // ★裁定303: breakdownLinesOf の BreakdownExtra と同形（kind で行ラベル）
   };
 };
 // ★裁定264-1: payroll_adjustments の 1 行（直 SELECT・RLS＝owner/manager 自店のみ・手順 2 実測 2026-09-15）
@@ -733,7 +734,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     </span>
                   </td>
                   <td className="fold" style={t.td}>{r.taxMode}</td>
-                  <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{pay?.wHours != null ? `${pay.wHours}h` : "-"}</td>
+                  {/* ★裁定303-3: 0h かつ日数>0 は「打刻なし」を薄字で（値は変えない） */}
+                  <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{(() => { const hc = hoursCellOf(pay?.wHours, Array.isArray(pay?.wdays) ? pay.wdays.length : 0); return <>{hc.text}{hc.note && <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)", fontWeight: 400 }}>{hc.note}</span>}</>; })()}</td>
                   {/* ★裁定176（W23）: 日数＝PayResult.wdays の件数（サーバ計算の日次内訳をそのまま数えるだけ） */}
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{Array.isArray(pay?.wdays) ? `${pay.wdays.length}日` : "-"}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{gross != null ? gross.toLocaleString() : "-"}</td>
@@ -794,39 +796,18 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                   return <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>行を選択すると内訳を表示</p>;
                 }
                 const z = (v: number | undefined) => v ?? 0;
-                const extrasTotal = (r.breakdown?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
-                const sanctionApplied = z(pay.sanction?.applied);
-                const sanctionOriginal = z(pay.sanction?.original);
-                const whLabel = r.taxMode === "委託" ? "源泉（報酬・料金）" : r.taxMode === "雇用" ? "源泉（給与）" : "源泉";
-                const earnRows: [string, number][] = [
-                  ["保証給与", z(pay.timePay)],
-                  // ★夜間便 N3（裁定287-5）: 保証時給が効いた cast だけ 2 区分（基本／保証）＝無い cast は従来の行のまま
-                  ...(pay.guarantee ? ([
-                    [`　うち基本（${pay.guarantee.baseHours}h）`, z(pay.guarantee.basePay)],
-                    [`　うち保証 ${pay.guarantee.spans.map((s) => `${Number(s.from.slice(5, 7))}/${Number(s.from.slice(8, 10))}〜${s.to ? `${Number(s.to.slice(5, 7))}/${Number(s.to.slice(8, 10))}` : ""} ¥${s.base.toLocaleString()}`).join("／")}（${pay.guarantee.guaHours}h）`, z(pay.guarantee.guaPay)],
-                  ] as [string, number][]) : []),
-                  // ★夜間便 N3b（裁定288）: 翌月反映の店だけ「スライド: 前月売上 ¥n → 時給 ¥n」（金額列は段の時給・0 は非表示）
-                  ...(pay.slideBasis ? pay.slideBasis.months.map((m) => [`　スライド ${Number(m.month.slice(5, 7))}月分＝前月（${Number(m.prevMonth.slice(5, 7))}月）売上 ¥${m.sales.toLocaleString()}→時給 ¥${m.salesWage.toLocaleString()}／pt ${m.pts}→¥${m.ptsWage.toLocaleString()}`, Math.max(m.salesWage, m.ptsWage)] as [string, number]) : []),
-                  ["最低保証加算", z(pay.guaranteeAdd)],
-                  ["本指名", z(pay.honBack)], ["場内", z(pay.jonaiBack)], ["同伴", z(pay.dohanBack)],
-                  ["歩合", z(pay.salesBack)], ["達成ボーナス", z(pay.achievementBonus)],
-                  ["その他バック", z(pay.drinkBack) + z(pay.champBack) + z(pay.bottleBack) + z(pay.customTotal) + extrasTotal],
-                ];
-                const dedRows: [string, number][] = [
-                  [whLabel, z(pay.withholding)], ["送り", z(pay.okuriDeduct)],
-                  [sanctionOriginal > sanctionApplied ? `懲戒減給（原額 ¥${sanctionOriginal.toLocaleString()}→上限適用）` : "懲戒減給", sanctionApplied],
-                  ["前借り", z(pay.advanceDeduct)], ["売掛", z(pay.arDeduct)],
-                  ["その他", z(pay.fixedDed) - sanctionApplied + z(pay.fine) + z(pay.normPenalty)],
-                  // ★裁定258／264: 調整控除（源泉前＝源泉対象額から引いた分／源泉後）。値は preview 再掲のみ
-                  ["調整控除（源泉前）", z(pay.adjBefore)], ["調整控除（源泉後）", z(pay.adjAfter)],
-                ];
+                // ★裁定303-1／303-2: 支給／控除の行＝PayslipSlip と同じ単一関数（同じ行・同じ順・同じ値）。残り物の行（旧「その他」系の合算行）は作らない。
+                //   preview は凍結前＝調整控除の理由行は breakdown.adjustmentsShown（264-10）・extras は gross に内在（裁定26＝二重加算しない）
+                const bd = breakdownLinesOf({
+                  pay, extras: r.breakdown?.extras ?? [],
+                  adjustments: { before: (r.adjustmentsShown ?? []).filter((a) => a.before_withholding), after: (r.adjustmentsShown ?? []).filter((a) => !a.before_withholding) }, // 264-10: preview が行に載せる凍結形
+                });
                 const adjMine = adjRows.filter((a) => a.cast_id === r.castId);
                 const adjLabel = (a: AdjRow) => a.mode === "fixed" ? `定額 ¥${(a.amount ?? 0).toLocaleString()}` : `率 ${bpToPct(a.rate_bp ?? 0)}%`;
-                const earnTotal = z(pay.gross) + extrasTotal;
-                // 裁定264-3: 控除合計は集約関数（旧: dedRows の Σ＝withholding+okuri+sanction.applied+adv+ar+(fixedDed−sanction.applied+fine+normPenalty) の 7 項と同値）
-                const dedTotal = totalDeductionsOf(pay);
-                const line = (l: string, v: number, neg = false) => (
-                  <div key={l} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0" }}>
+                const earnTotal = bd.earnTotal; // ★裁定303-1: 行の Σ＝gross（extras 内在・裁定26）
+                const dedTotal = bd.dedTotal;   // 裁定264-3: 集約関数と同値（bd.ded の Σ）
+                const line = (l: string, v: number, neg = false, key = l, muted = false) => (
+                  <div key={key} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0", opacity: muted ? 0.75 : 1 }}>
                     <span style={{ color: "var(--sub)" }}>{l}</span>
                     <span className="num" style={neg ? { color: "var(--bad)" } : undefined}>{neg ? "−" : ""}¥{v.toLocaleString()}</span>
                   </div>
@@ -860,12 +841,12 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                       <span className="num" style={{ fontSize: 20, fontWeight: 800, color: "var(--v2-text)" }}>¥{r.net.toLocaleString()}</span>
                     </div>
                     <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "8px 0 2px" }}>支給</p>
-                    {earnRows.filter(([, v]) => v !== 0).map(([l, v]) => line(l, v))}
+                    {bd.earn.map((ln) => line(ln.label, ln.amount, false, ln.key, !!(ln.sub || ln.info)))}{/* ★303-2: 時間行は 0 でも出る（関数が決める） */}
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 800, borderTop: "1px solid var(--line2)", marginTop: 4, paddingTop: 4 }}>
                       <span>支給合計</span><span className="num">¥{earnTotal.toLocaleString()}</span>
                     </div>
                     <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>控除</p>
-                    {dedRows.filter(([, v]) => v !== 0).map(([l, v]) => line(l, v, true))}
+                    {bd.ded.map((ln) => line(ln.label, ln.amount, true, ln.key))}
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 800, borderTop: "1px solid var(--line2)", marginTop: 4, paddingTop: 4 }}>
                       <span>控除合計</span><span className="num" style={{ color: dedTotal > 0 ? "var(--bad)" : undefined }}>{dedTotal > 0 ? `−¥${dedTotal.toLocaleString()}` : "¥0"}</span>
                     </div>

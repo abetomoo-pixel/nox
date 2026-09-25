@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import { BOTTOM_PRIORITY, MENU_LABEL, activeHrefOf, splitNav, tabsFor, userChipLabelOf, type NavGroup } from "../lib/nox/ui/nav-tabs";
 import { MASTER_NAV } from "../lib/nox/master/nav"; // ★U-2: マスタ第 2 ナビの許可列挙
+import { hubCountOf, hubStatusOf } from "../lib/nox/ui/hub-count"; // ★Z152: 取得前は数値を描かない
 
 let pass = 0;
 const fails: string[] = [];
@@ -77,6 +78,8 @@ const sec = mb.slice(mb.indexOf('sec: "キャスト・報酬"'), mb.indexOf('sec
 const titles = [...sec.matchAll(/title: "([^"]+)"/g)].map((m) => m[1]);
 check("nv(5-3) 概要カード「キャスト・報酬」節＝待遇プラン・報酬シミュレーター／控除・送りの設定／ノルマ設定／キャスト会計の許可／報酬制度／紹介者・紹介料（6 枚・許可列挙）",
   JSON.stringify(titles) === JSON.stringify(["待遇プラン・報酬シミュレーター", "控除・送りの設定", "ノルマ設定", "キャスト会計の許可", "報酬制度", "紹介者・紹介料"]), JSON.stringify(titles));
+check("nv(5-5) ★Z152 hubCountOf／hubStatusOf: loading／error は「—」（数値なし）・error は「取得できませんでした」・ok は実数（0 を含む）", hubCountOf("loading", 5).text === "—" && hubCountOf("loading", 5).note === null && hubCountOf("error", 5).text === "—" && hubCountOf("error", 5).note === "取得できませんでした" && hubCountOf("ok", 0, "件").text === "0件" && hubCountOf("ok", 12).text === "12" && hubStatusOf("loading", "● 未払 3 件") === "● —" && hubStatusOf("error", "x") === "● 取得できませんでした" && hubStatusOf("ok", "● 未払 3 件") === "● 未払 3 件");
+check("nv(5-6) ★Z152 配線: master-board の KPI 4 枚とカード件数は hubCountOf 経由（生の {products.length} 等を <strong> に描かない）・状態は hubStatusOf・紹介者の count は主取得と独立（try/catch の外）・「読込中」文言なし", (mb.match(/hubCountOf\(hubState, (products|categories|seats)\.length/g) || []).length >= 6 && mb.includes("hubCountOf(hubState, lowStock)") && !/<strong>\{(products|categories|seats)\.length\}/.test(mb) && !mb.includes("読込中") && mb.includes("hubStatusOf(refState") && mb.indexOf('setRefState("ok")') > mb.indexOf("} catch {"));
 check("nv(5-4) 紹介者カード: href /master/referrers・バッジ「支払」・状態「未払 n 件」＝referral_payouts の unpaid count（head・fetch +1）・0 は「未払なし」",
   sec.includes('href: "/master/referrers"') && sec.includes('count: "支払"') && sec.includes("`● 未払 ${unpaidRef} 件`") && sec.includes('"● 未払なし"') && mb.includes('from("referral_payouts").select("id", { count: "exact", head: true }).eq("status", "unpaid")'));
 if (fails.length) {

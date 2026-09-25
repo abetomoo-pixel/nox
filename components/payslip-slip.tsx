@@ -1,5 +1,6 @@
 import * as t from "@/lib/nox/ui/theme";
 import { readFrozenAdjustments } from "@/lib/nox/payroll/adjust"; // 裁定264-2: 調整控除の並び（before＝源泉の直前・after＝直後・同群は入力順）
+import { breakdownLinesOf, type BreakdownPayLike } from "@/lib/nox/payroll/breakdown-lines"; // ★裁定303: 支給／控除の行は給与右パネルと同じ単一関数
 
 // D2 報酬明細：確定スリップ1件の描画（/mine と manage 給与で共用・presentation-only）。
 // ★数値ロジックは一切持たない＝表示の移設のみ。データ源は既存 payslips.breakdown_json
@@ -40,30 +41,16 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
   const ar = deductTotal(slip.breakdown_json, "ar");
   const adv = deductTotal(slip.breakdown_json, "adv");
   const okuri = deductTotal(slip.breakdown_json, "okuri");
-  const nominBack = (pay.honBack ?? 0) + (pay.jonaiBack ?? 0) + (pay.dohanBack ?? 0);
-  const prodBack = (pay.drinkBack ?? 0) + (pay.champBack ?? 0) + (pay.bottleBack ?? 0) + (pay.salesBack ?? 0) + (pay.customTotal ?? 0);
-  // ★U-1（裁定99-⑤）: sanction は fixedDed に内包されて凍結されている（pay.ts: fixedDed = 非sanction + applied）。
-  //   表示は「固定控除（sanction 除き）」＋「制裁（原額→適用額）」へ分解＝合計は不変・数値の再計算はしない。
-  //   旧 payslip（sanction キーなし）は分解ゼロ＝従来表示と一字一致。
-  const sanctionApplied = pay.sanction?.applied ?? 0;
-  const sanctionOriginal = pay.sanction?.original ?? 0;
-  const fixedDedRest = (pay.fixedDed ?? 0) - sanctionApplied;
-  // 税区分バッジ（裁定28 凍結値）: 委託=報酬の源泉／雇用=給与の源泉。旧データ（未凍結）はバッジなし・行名「源泉」。
-  const taxMode = pay.taxMode === "委託" || pay.taxMode === "雇用" ? pay.taxMode : null;
-  const whLabel = taxMode === "委託" ? "源泉（報酬・料金）" : taxMode === "雇用" ? "源泉（給与）" : "源泉";
-  // ★裁定264-2／264-10: 調整控除＝show_detail=true の行だけ理由をラベルに（before 群→源泉の直前・after 群→直後・入力順）。
-  //   show_detail=false は行を出さず控除計にのみ乗る（adjustments_hidden・理由は凍結されていない）。超過額（pay.adjustOverflow）は明細に出さない（264-11）。
+  // ★裁定303-1: 行は breakdownLinesOf（給与右パネルと同じ関数）。旧 payslip は pay に arDeduct 等が無いので breakdown の ar／adv／okuri（deducted）を渡す
   const adj = readFrozenAdjustments(slip.breakdown_json);
-  const hasDed = fixedDedRest > 0 || sanctionApplied > 0 || (pay.fine ?? 0) > 0 || (pay.withholding ?? 0) > 0 || (pay.normPenalty ?? 0) > 0 || ar > 0 || adv > 0 || okuri > 0
-    || adj.before.length > 0 || adj.after.length > 0 || adj.hiddenTotal > 0;
-  // 支給行（＞0 のみ）／控除行（＞0 のみ・bad 減算）。
-  // ★裁定26: extras（出勤ボーナス等）は gross に内在＝net = gross − 控除（外側加算はしない）。
-  //   「加算」節の明細行は gross の内訳表示であって、控除後に足し戻す金額ではない。
-  const earn = (label: string, v: number) => (
-    <div style={t.slipRow}><span>{label}</span><span style={t.num}>{yen(v)}</span></div>
+  const bd = breakdownLinesOf({ pay: pay as BreakdownPayLike, extras, adjustments: { before: adj.before, after: adj.after }, deducted: { ar, adv, okuri } });
+  const taxMode = pay.taxMode === "委託" || pay.taxMode === "雇用" ? pay.taxMode : null;
+  const hasDed = bd.ded.length > 0;
+  const earn = (label: string, v: number, key: string, muted = false) => (
+    <div key={key} style={{ ...t.slipRow, opacity: muted ? 0.75 : 1 }}><span>{label}</span><span style={t.num}>{yen(v)}</span></div>
   );
-  const ded = (label: string, v: number, key?: string) =>
-    v > 0 ? <div key={key} style={t.slipRow}><span>{label}</span><span style={{ ...t.num, color: "var(--bad)" }}>−{yen(v)}</span></div> : null;
+  const ded = (label: string, v: number, key: string) =>
+    <div key={key} style={t.slipRow}><span>{label}</span><span style={{ ...t.num, color: "var(--bad)" }}>−{yen(v)}</span></div>;
   return (
     <div className="nox-payslip" style={{ marginBottom: 14 }}>
       <div className="ps-hd" style={t.slipHd}>
@@ -76,43 +63,13 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
       </div>
 
       <div style={t.slipSec}>支給</div>
-      {(pay.timePay ?? 0) > 0 && earn(`時給 ${yen(pay.wage ?? 0)}/h × ${pay.wHours ?? 0}h`, pay.timePay ?? 0)}
-      {nominBack > 0 && earn("指名バック（本/場内/同伴）", nominBack)}
-      {prodBack > 0 && earn("商品・売上・自由バック", prodBack)}
-      {/* ★U-1（裁定99-⑤）: 達成ボーナス・最低保証加算は支給側（gross の内訳・控除側に置かない） */}
-      {(pay.achievementBonus ?? 0) > 0 && earn("達成ボーナス", pay.achievementBonus ?? 0)}
-      {(pay.guaranteeAdd ?? 0) > 0 && earn("最低保証加算", pay.guaranteeAdd ?? 0)}
+      {bd.earn.map((ln) => earn(ln.label, ln.amount, ln.key, !!(ln.sub || ln.info)))}{/* ★303-1／303-2: 右パネルと同じ行・同じ順・時間行は 0 でも出る */}
       {(pay.gross ?? 0) > 0 && (
         <div style={t.slipRowB}><span>総支給（賞与等含む）</span><span style={t.num}>{yen(pay.gross ?? 0)}</span></div>
       )}
 
       {hasDed && <div style={t.slipSec}>控除</div>}
-      {ded("固定控除", fixedDedRest)}
-      {/* ★U-1（裁定99-⑤）: 制裁（裁定98）＝原額→適用額。cap が効いた期は原額を併記（凍結値の再掲のみ） */}
-      {sanctionApplied > 0 && (
-        <div style={t.slipRow}>
-          <span>懲戒減給{sanctionOriginal > sanctionApplied ? `（原額 ${yen(sanctionOriginal)} → 法定上限適用）` : ""}</span>
-          <span style={{ ...t.num, color: "var(--bad)" }}>−{yen(sanctionApplied)}</span>
-        </div>
-      )}
-      {ded("精算調整（旧: 罰金）", pay.fine ?? 0)}{/* ★0154 D3（裁定293-3）: 新しい明細は常に 0（罰金撤去）・旧 payslip の凍結値だけ出る */}
-      {/* ★裁定264-2: before 群（源泉の直前・入力順）。ラベル＝理由（show_detail=true の行のみ凍結されている） */}
-      {adj.before.map((a, j) => ded(a.reason, a.amount, `adj-b${j}`))}
-      {ded(whLabel, pay.withholding ?? 0)}
-      {/* ★裁定264-2: after 群（源泉の直後・入力順） */}
-      {adj.after.map((a, j) => ded(a.reason, a.amount, `adj-a${j}`))}
-      {ded("ノルマ未達", pay.normPenalty ?? 0)}
-      {ded("売掛", ar)}
-      {ded("前借り", adv)}
-      {ded("送り", okuri)}
-
-      {extras.length > 0 && <div style={t.slipSec}>加算（総支給の内訳）</div>}
-      {extras.map((e, j) => (
-        <div key={j} style={t.slipRow}>
-          <span>{e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind)}</span>
-          <span style={t.num}>{yen(e.amount)}</span>
-        </div>
-      ))}
+      {bd.ded.map((ln) => ded(ln.label, ln.amount, ln.key))}{/* 264-2: 理由行は before＝源泉の直前・after＝直後（関数が並べる）・非表示分は「明細非表示」行＝控除計と一致 */}
 
       <div className="ps-foot" style={t.slipFoot}><span>手取り</span><b style={t.slipFootVal}>{yen(slip.net)}</b></div>
     </div>
