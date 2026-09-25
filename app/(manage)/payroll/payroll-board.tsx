@@ -19,6 +19,8 @@ import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: C
 import { missingOutSummaryOf, frozenRowsOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
 import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
 import SanctionModal from "@/components/nox/sanction-modal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
+import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
+import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 
 type Store = { id: string; name: string };
 // D3: payslips.breakdown_json（finalize が凍結）の CSV が使う部分。back 内訳の生値は CSV に出さず合算のみ。
@@ -417,6 +419,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   }
   // 264-9: draft（run なしを含む）だけ追加・削除を出す。確定後は読取表示のみ（編集は reopen 後）。
   const adjEditable = (runInfo?.status ?? "draft") === "draft";
+  // ★裁定300-2: 発行日の既定＝今日を期（YYYY-MM）の範囲に丸める（期固定）
+  const periodEndOf = (p: string) => { const [y, m] = p.split("-").map(Number); return `${p}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`; };
 
   // 段Y2: 確定日時の表示整形（値は payroll_runs.finalized_at そのまま・判定には使わない）
   const runFinalizedAt = runInfo?.finalized_at
@@ -929,6 +933,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                       </div>
                     )}
                     {adjMsg && <Toast msg={adjMsg} style={{ margin: "6px 0 0" }} />}
+                    {/* ★裁定300-2（2026-09-25）: 前借り／送り実費の入口（このキャスト・この期に固定・確定後は読取のみ）＝共通部品・既存 RPC。発行後はプレビュー再計算（advanceDeduct／okuriDeduct に反映）。残高は 0156 */}
+                    <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>前借り／送り実費{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
+                    <AdvanceOkuriForm storeId={storeId} casts={[]} castId={r.castId} castName={r.castName}
+                      dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10), `${period}-01`, periodEndOf(period))}
+                      readOnly={!adjEditable} onIssued={() => preview()} />
                     <button onClick={() => setSlipPreview((v) => !v)} style={{ ...t.btnGhost, ...t.btnSm, marginTop: 10 }}>
                       {slipPreview ? "明細プレビューを閉じる" : "明細プレビュー"}
                     </button>

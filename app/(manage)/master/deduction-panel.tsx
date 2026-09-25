@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
-import Picker from "@/components/nox/picker";
+import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-1／300-2: 共通部品（picker・1 段のフォーム行・3 入口で同じ route）
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string };
@@ -112,105 +112,10 @@ export default function DeductionPanel({
         )}
       </section>
 
-      {/* 前借り発行 */}
-      <IssueForm
-        title="前借りの発行"
-        endpoint="/api/advance/issue"
-        dateLabel="前借り日"
-        dateField="advancedOn"
-        storeId={storeId}
-        casts={casts}
-        today={today}
-        disabled={false}
-        hint="給与から天引きされます（手取り不足時は翌月へ繰越）。"
-      />
-
-      {/* 送り実費発行（actual のときのみ有効・金額はベース額をプリフィル＝0 なら空のまま） */}
-      <IssueForm
-        key={`okuri-${okuriBase}`}
-        title="送り実費の発行"
-        endpoint="/api/transport/issue"
-        dateLabel="乗車日（営業日）"
-        dateField="bizDate"
-        storeId={storeId}
-        casts={casts}
-        today={today}
-        disabled={okuriMode !== "actual"}
-        defaultAmount={okuriBase}
-        hint={okuriMode === "actual" ? "当月精算（繰越なし）。手取り不足で引き切れない残は再回収されません。" : "※送り方式が「実費」の店のみ発行できます（上で切替）。"}
-      />
+      {/* ★裁定300-1／300-2（2026-09-25）: 前借り／送り実費の発行＝共通部品（キャストは picker・金額／日付／メモ／発行は 1 段・≤899px は 1 列）。
+          送り実費は送り方式が「実費」のときだけ有効（RPC が二重防御）・ベース額をプリフィル（mig0042） */}
+      <AdvanceOkuriForm key={`okuri-${okuriBase}-${okuriMode}`} storeId={storeId} casts={casts} dateDefault={today} okuriMode={okuriMode} okuriBase={okuriBase} />
     </div>
-  );
-}
-
-function IssueForm({
-  title, endpoint, dateLabel, dateField, storeId, casts, today, disabled, hint, defaultAmount,
-}: {
-  title: string;
-  endpoint: string;
-  dateLabel: string;
-  dateField: "advancedOn" | "bizDate";
-  storeId: string;
-  casts: Cast[];
-  today: string;
-  disabled: boolean;
-  hint: string;
-  defaultAmount?: number; // mig0042: 送りベース額プリフィル（0/未指定なら空のまま・発行時に都度変更可）
-}) {
-  const prefill = defaultAmount && defaultAmount > 0 ? String(defaultAmount) : "";
-  const [castId, setCastId] = useState(casts[0]?.id ?? "");
-  const [amount, setAmount] = useState(prefill);
-  const [date, setDate] = useState(today);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  async function submit() {
-    const amt = Number(amount);
-    if (!castId) { setMsg("キャストを選択してください"); return; }
-    if (!Number.isInteger(amt) || amt <= 0) { setMsg("金額は正の整数で入力してください"); return; }
-    setBusy(true);
-    setMsg("");
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ storeId, castId, amount: amt, [dateField]: date, note: note || null }),
-      });
-      const j = await res.json();
-      if (!res.ok) { setMsg(`エラー(${res.status}): ${j.error ?? ""}`); return; }
-      setMsg("発行しました");
-      setAmount(prefill); // 次の発行に備えベース額へ戻す（未設定なら空）
-      setNote("");
-    } catch (e) {
-      setMsg(`通信エラー: ${(e as Error).message}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="nox-cardtop" style={{ ...card, opacity: disabled ? 0.6 : 1 }}>
-      <h3 style={h3}>{title}</h3>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div style={{ ...lbl, flex: "1 1 220px", minWidth: 200 }}>キャスト<br />{/* ★裁定259（R17・2026-09-17）: 先頭既定で空を許さない＝onClear を渡さない。disabled は従来条件をそのまま Picker へ */}
-          <Picker dense items={casts.map((c) => ({ id: c.id, label: c.name }))} value={castId || null}
-            onPick={setCastId} disabled={disabled} placeholder="キャストを検索" empty="（対象なし）" />
-        </div>
-        <label style={lbl}>金額(円)<br />
-          <input type="number" min={1} step={1} value={amount} onChange={(e) => setAmount(e.target.value)} disabled={disabled} style={{ ...inp, width: 110 }} />
-        </label>
-        <label style={lbl}>{dateLabel}<br />
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} style={inp} />
-        </label>
-        <label style={lbl}>メモ<br />
-          <input type="text" value={note} onChange={(e) => setNote(e.target.value)} disabled={disabled} style={{ ...inp, width: 160 }} />
-        </label>
-        <button onClick={submit} disabled={busy || disabled} style={btn}>発行</button>
-      </div>
-      <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>{hint}</p>
-      {msg && <Toast msg={msg} style={{ margin: "6px 0 0" }} />}
-    </section>
   );
 }
 

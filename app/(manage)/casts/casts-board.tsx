@@ -20,8 +20,10 @@ import Modal from "@/components/ui/modal";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos, uploadCastPhoto } from "@/lib/nox/cast-photo";
 import type { Trial, CastLogin } from "./page";
+import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast 固定・共通部品・既存 RPC）
+import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 
-type Store = { id: string; name: string };
+type Store = { id: string; name: string; settings_json?: Record<string, unknown> | null }; // ★裁定300-2: 送り方式（okuri_mode）・ベース額（okuri_base_amount）
 
 type InviteResult = { login_email: string; initial_password: string | null };
 
@@ -453,6 +455,8 @@ export default function CastsBoard({
   // ★N4-2（裁定282-3）: 保証時給の残りが 7 日以内なら印（純関数・0151 未適用でも cast_plan に保証行が無ければ null）
   const guaBadgeOf = (id: string) => guaranteeBadgeOf(guaranteeStateOf(planRowsOf[id] ?? [], today));
   const selCast = sel?.kind === "cast" ? loginCasts.find((c) => c.id === sel.id) ?? null : null;
+  // ★裁定300-2: 店の送り方式・ベース額（stores.settings_json＝page が同じクエリで渡す）
+  const okuriOf = (sid: string) => { const sj = stores.find((st) => st.id === sid)?.settings_json ?? null; return { mode: sj?.okuri_mode === "actual" ? "actual" : "flat", base: typeof sj?.okuri_base_amount === "number" ? (sj.okuri_base_amount as number) : 0 }; };
   const selTrial = sel?.kind === "trial" ? trials.find((tr) => tr.id === sel.id) ?? null : null;
 
   return (
@@ -891,6 +895,14 @@ export default function CastsBoard({
                 待遇プラン（基本時給・スライド・指名バック単価）とキャストへの割当は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。
                 この画面からは変更できません（現行どおり）。
               </p>
+              {/* ★裁定300-2（2026-09-25）: 前借り／送り実費の入口（このキャストに固定・共通部品・既存 RPC adv_issue／transport_issue）。
+                  owner／manager のみ（page.tsx が他ロールを redirect 済み＝isManagerUp 相当）。残高管理は 0156（300-4）。 */}
+              <div style={{ marginTop: 12 }}>
+                <h3 style={{ ...secTitle, margin: "0 0 6px" }}>前借り／送り実費</h3>
+                <AdvanceOkuriForm storeId={selCast.store_id} casts={[]} castId={selCast.id} castName={selCast.name}
+                  dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))}
+                  okuriMode={okuriOf(selCast.store_id).mode} okuriBase={okuriOf(selCast.store_id).base} />
+              </div>
               <Link href="/master/cast-comp/plan" className="nox-link" style={{ display: "inline-block" }}>待遇プラン・報酬シミュレーターへ</Link>
             </>
           )}

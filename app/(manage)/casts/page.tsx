@@ -17,7 +17,7 @@ export default async function CastsPage() {
     .select("id, store_id, name, real_name, birthday, tier, rating, documents, memo, status, trial_date")
     .eq("status", "trial")
     .order("created_at", { ascending: false });
-  const { data: stores } = await supabase.from("stores").select("id, name").order("name");
+  const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name"); // ★裁定300-2: 送り方式・ベース額（同じ 1 クエリ＝fetch +0）
   const { data: myStoreId } = await supabase.rpc("auth_store_id");
   // F3g' castログイン招待（mig0041）: cast の結線状態（user_id の有無のみ・RLS 自動スコープ）。
   // 段P: photo_updated_at（null=写真なし。実体パスは規約導出＝URL は保存しない）。
@@ -41,7 +41,7 @@ export default async function CastsPage() {
     <CastsBoard
       isOwner={role === "owner"}
       emailByUser={emailByUser}
-      stores={(stores ?? []) as { id: string; name: string }[]}
+      stores={(stores ?? []) as { id: string; name: string; settings_json?: Record<string, unknown> | null }[]}
       myStoreId={(myStoreId as string | null) ?? ""}
       initialTrials={(trials ?? []) as Trial[]}
       initialLoginCasts={(loginCasts ?? []) as CastLogin[]}
