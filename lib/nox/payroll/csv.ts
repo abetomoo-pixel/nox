@@ -3,9 +3,9 @@
 // ★機微生値（口座/マイナンバー/back 内訳の個別額）は列に出さない＝合算のみ（0059 と同方針）。口座は持たない
 //   （振込フォーマットCSVは将来別項）。対象は finalized/paid run のみ（draft は UI 側で非活性）。
 //
-// 総支給 = pay.gross + Σextras.amount（extras=出勤インセンティブ・core.ts が net へ加算）。
-//   これにより「控除計 = 総支給 − 差引」が恒等成立し、「時給計＋バック計＋加算計 = 総支給」も一致する
-//   （Agoora 裁定 2026-07-22。pay.gross 単独だと extras>0 の cast で両者が崩れる）。
+// 総支給 = pay.gross のみ（★裁定303 追補1・2026-09-25: extras は gross に内在＝裁定26・二重加算の是正。旧「pay.gross + Σextras」は 2026-07-22 の
+//   外側加算モデルの名残＝裁定26 で extras が payOf の gross に入ったあとは 1,000 円の extras が総支給に 2,000 円で出ていた）。
+//   「控除計 = 総支給 − 差引」と「時給計＋バック計＋加算計 = 総支給」は gross 内在モデルでそのまま恒等成立する（verify:nox-payroll-csv が係留）。
 
 import { totalDeductionsOf } from "./adjust"; // 裁定264-3: 控除計の式は 1 本に集約
 
@@ -53,7 +53,7 @@ export function payrollCsvCells(r: PayrollCsvRow): (string | number)[] {
   const backTotal = p.honBack + p.jonaiBack + p.dohanBack + p.drinkBack + p.champBack + p.bottleBack + p.salesBack;
   const addTotal = p.customTotal + r.extrasTotal; // ★0152（裁定298-10）: 紹介料は給与に載せない（旧 payslip の referralTotal は読まない・列数 11 は不変）
   const dedTotal = totalDeductionsOf(p); // 裁定264-3（旧: fixedDed+fine+withholding+arDeduct+advanceDeduct+okuriDeduct+normPenalty）
-  const grossTotal = p.gross + r.extrasTotal;
+  const grossTotal = p.gross; // ★裁定303 追補1: extras は gross 内在（裁定26）＝足さない
   return [
     r.castName, r.taxMode, r.period,
     p.timePay, backTotal, addTotal, dedTotal, p.withholding, grossTotal, r.net,

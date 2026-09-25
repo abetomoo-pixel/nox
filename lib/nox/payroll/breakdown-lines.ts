@@ -3,7 +3,7 @@
 //          残り物の行（「その他バック」「その他」）は作らない＝gross／控除計の各項を名前のある行で全部出す。
 //   303-2: 時給行は報酬型に時給を含む cast（actual／shift_guarantee）では 0h でも出す（「時給 ¥n/h × 0h」）。雇用は常に出す。
 //          fixed＝「固定給（按分）」・per_shift＝「1稼働 ¥n × k回」＝その報酬型の時間行として常に出す。非表示は「その報酬型に存在しない行」だけ。
-//   303-3: 一覧の時間セル＝hoursCellOf（0h かつ日数>0 なら「打刻なし」を薄字で・値は変えない）。
+//   303-3: 一覧の時間セル＝hoursCellOf（0h かつ日数>0 なら「打刻なし／不完全」（303 追補1 の文言）を薄字で・値は変えない）。
 //   恒等（pay.ts と同じ）: net = gross − (fixedDed+fine+withholding+ar+adv+okuri+normPenalty+adjBefore+adjAfter) + adjustOverflow。
 //   ★extras（出勤ボーナス等）は gross に内在（裁定26）＝行としては出すが合計に二重加算しない。
 import type { FrozenAdjustment } from "./adjust";
@@ -130,8 +130,8 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   return { earn, ded, earnTotal, dedTotal, net: earnTotal - dedTotal + overflow, whLabel: whLabelOf(p.taxMode), overflow };
 }
 
-/** 303-3: 一覧の時間セル。0h かつ日数>0 は「打刻なし」の注記（値は変えない）。hours が無ければ "-" */
+/** 303-3: 一覧の時間セル。0h かつ日数>0 は「打刻なし／不完全」の注記（303 追補1）（値は変えない）。hours が無ければ "-" */
 export function hoursCellOf(wHours: number | null | undefined, days: number): { text: string; note: string | null } {
   if (wHours == null) return { text: "-", note: null };
-  return { text: `${wHours}h`, note: wHours === 0 && days > 0 ? "打刻なし" : null };
+  return { text: `${wHours}h`, note: wHours === 0 && days > 0 ? "打刻なし／不完全" : null };
 }

@@ -202,7 +202,8 @@ async function main() {
   {
     const NEW_0151 = ["staff_shift_cancel", "shift_open_periods_mine", "set_cast_guarantee",
       "punch_correction_request", "punch_correction_decide", "punch_correction_ack", "set_cast_employment", // ★0154（裁定294／295）: 新 secdef 4 本（同じ revoke／grant 形）
-      "set_referrer", "check_referral_set", "check_referral_remove", "referral_payout_pay", "referral_payouts_pay_bulk", "referral_payouts_unpaid"]; // ★0152（裁定298／299）: 公開 6 本（同じ revoke／grant 形）
+      "set_referrer", "check_referral_set", "check_referral_remove", "referral_payout_pay", "referral_payouts_pay_bulk", "referral_payouts_unpaid",
+      "adv_issue_bulk", "transport_issue_bulk"]; // ★0157（裁定302／304）: 一括発行 2 本（同じ revoke／grant 形） // ★0152（裁定298／299）: 公開 6 本（同じ revoke／grant 形）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
@@ -393,9 +394,16 @@ async function main() {
       tp.rowCount === 2 && tp.rows.every((x) => x.cmd === "SELECT"),
       tp.rows.map((x) => `${x.tablename}:${x.cmd}`).join(", "),
     );
-    for (const fn of ["adv_issue", "adv_cancel", "transport_issue", "transport_cancel", "set_store_okuri_mode"]) {
+    for (const fn of ["adv_issue", "adv_cancel", "transport_issue", "transport_cancel", "set_store_okuri_mode", "adv_issue_bulk", "transport_issue_bulk"]) { // ★0157: bulk 2 本
       const roles = await roleOf(fn);
       check(`G9 ${fn} EXECUTE = authenticated（anon 不在）`, roles.includes("authenticated") && !roles.includes("anon"), `保持者: ${roles.join(", ")}`);
+    }
+    // ★0157（裁定302-2／304）: idem_key 列（uuid・null 可）＋ partial unique index 2 本の名前と定義・列集合（advances 16／transport 15）
+    {
+      const ix = await db.query(`select indexname, indexdef from pg_indexes where schemaname='public' and indexname in ('advances_store_idem_uidx','transport_store_idem_uidx') order by 1`);
+      check("G9 0157 unique index 2 本＝advances_store_idem_uidx／transport_store_idem_uidx（(store_id, idem_key) WHERE idem_key IS NOT NULL）", ix.rowCount === 2 && ix.rows.every((r) => /USING btree \(store_id, idem_key\) WHERE \(idem_key IS NOT NULL\)$/.test(r.indexdef as string)), ix.rows.map((r) => r.indexname).join(","));
+      const cc = await db.query(`select table_name, count(*)::int n, bool_or(column_name='idem_key') has_idem from information_schema.columns where table_schema='public' and table_name in ('advances','transport') group by 1 order by 1`);
+      check("G9 0157 列集合: advances 16 列／transport 15 列（idem_key を含む）", cc.rowCount === 2 && cc.rows[0].n === 16 && cc.rows[0].has_idem === true && cc.rows[1].n === 15 && cc.rows[1].has_idem === true, JSON.stringify(cc.rows));
     }
 
     // G10: F2d mynumber 暗号化/payment（mig0021）— payment_records RLS・パターン1・crypto RPC ACL。

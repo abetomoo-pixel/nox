@@ -64,6 +64,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   `referral_payout_pay`／`referral_payouts_pay_bulk`／`referral_payouts_unpaid`→A4）・内部専用 1 本を B(a) へ（`referral_recalc`＝紹介料の現在値を更新するヘルパー・4 ロール revoke）。
   `check_add_referral`（0148）は **drop**＝A1 から除去。改稿 7 本（会計の group due／recalc／close／void／merge・日報 close・デモ reset）は CREATE OR REPLACE のみ＝名前不変で本数不動。
   対象 **134→139**・除外 **120→121**・全数 **254→260**（live 実測 2026-09-25 12:2x＝総数 260・'billing locked' 139）。
+- ★**mig0157 追随（2026-09-25・裁定302／304）**: 新関数 **2本**＝`adv_issue_bulk`／`transport_issue_bulk` を A4 へ（adv_issue／transport_issue の検査部を写経＝'billing locked' を持つ・件ごと idem・1 tx）。
+  列追加 2（advances.idem_key／transport.idem_key）＋ partial unique 2 は本数非関与。既存 4 本（adv_issue／adv_cancel／transport_issue／transport_cancel）は不触＝md5 不変。
+  対象 **139→141**・除外 **121 不変**・全数 **260→262**（live 実測 2026-09-25 16:46＝A-0／A 検証 ALL OK）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -155,8 +158,9 @@ drink_claim_submit / drink_claim_submit_proxy / drink_claim_decide /
 ### A3. 予約（4本）
 reservation_create / reservation_update / reservation_set_status / reservation_to_check
 
-### A4. 金銭発行・取消（11本）
+### A4. 金銭発行・取消（13本）
 adv_issue / transport_issue / incentive_publish /
+**adv_issue_bulk / transport_issue_bulk**（mig0157＝一括発行・p_items jsonb・件ごと idem＝md5(p_idem_key‖cast_id)・同キー再送は既存 id・'duplicate cast'（裁定304-1）・1 tx で部分成功なし・owner∨manager 自店・裁定302／304・写経で 'billing locked' を持つ） /
 **adv_cancel / transport_cancel / incentive_cancel**（裁定D3＝金銭記録の改変。BANZEN de-escalation 前例より判定原理を優先）/
 **receipt_issue / receipt_issue_void**（mig0099＝領収書の発行・取消＝金銭受領証の作成/改変・R2-9/R2-10・E8-6） /
 **referral_payout_pay**（mig0152＝紹介料の支払確定 1 件・paid_via 2 値・源泉は支払時に確定（外交員報酬＝支払月の累計で差分計上）・冪等・owner∨manager 自店・裁定298-6／7） /

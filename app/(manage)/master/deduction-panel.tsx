@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
-import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-1／300-2: 共通部品（picker・1 段のフォーム行・3 入口で同じ route）
+import IssueBulkForm from "@/components/nox/issue-bulk-form"; // ★裁定302-1／302-3（2026-09-25・mig0157）: マスタ「控除・送り」は一括型（チェックボックス一覧）。casts 詳細・給与右パネルは 1 人型 advance-okuri-form のまま
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string };
@@ -20,15 +20,17 @@ export default function DeductionPanel({
   isOwner,
   initialOkuriMode,
   initialOkuriBase,
+  bizCutoffHm = "06:00",
 }: {
   storeId: string;
   casts: Cast[];
   isOwner: boolean;
   initialOkuriMode: OkuriMode;
   initialOkuriBase: number;
+  /** 営業日切替（settings_json.biz_cutoff_hm）＝一括発行の「当日」判定 */
+  bizCutoffHm?: string;
 }) {
   const supabase = createClient();
-  const today = new Date().toISOString().slice(0, 10);
   const [okuriMode, setOkuriMode] = useState<OkuriMode>(initialOkuriMode);
   const [modeBusy, setModeBusy] = useState(false);
   const [modeMsg, setModeMsg] = useState("");
@@ -112,9 +114,9 @@ export default function DeductionPanel({
         )}
       </section>
 
-      {/* ★裁定300-1／300-2（2026-09-25）: 前借り／送り実費の発行＝共通部品（キャストは picker・金額／日付／メモ／発行は 1 段・≤899px は 1 列）。
+      {/* ★裁定302-1／302-3（2026-09-25・mig0157）: 前借り／送り実費の一括発行＝チェックボックス一覧型（出勤者が上・行ごと金額・共通メモ・1 回の発行＝1 tx）＋当日の発行済み一覧。
           送り実費は送り方式が「実費」のときだけ有効（RPC が二重防御）・ベース額をプリフィル（mig0042） */}
-      <AdvanceOkuriForm key={`okuri-${okuriBase}-${okuriMode}`} storeId={storeId} casts={casts} dateDefault={today} okuriMode={okuriMode} okuriBase={okuriBase} />
+      <IssueBulkForm key={`okuri-${okuriBase}-${okuriMode}`} storeId={storeId} casts={casts} okuriMode={okuriMode} okuriBase={okuriBase} bizCutoffHm={bizCutoffHm} />
     </div>
   );
 }

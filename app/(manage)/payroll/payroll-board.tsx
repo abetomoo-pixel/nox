@@ -17,7 +17,7 @@ import InvoicePanel from "./invoice-panel";
 import PaymentTaxPanel from "./payment-tax-panel";
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: CSV 出力と凍結名解決は月次一覧と共用
-import { missingOutSummaryOf, frozenRowsOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
+import { missingOutSummaryOf, frozenRowsOf, runSummaryOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
 import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
 import SanctionModal from "@/components/nox/sanction-modal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
@@ -99,7 +99,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   // ── 段Y2: 確定済み run の合計サマリ（★凍結値 breakdown_json.pay の Σ のみ）──
   //   ★率計算も丸め直しも net との整合補正も一切しない。各項目の定義は D3 CSV
   //     （lib/nox/payroll/csv.ts payrollCsvCells・verify:nox-payroll-csv 済）と逐語同一:
-  //       総支給 = pay.gross + Σextras.amount
+  //       総支給 = Σpay.gross（★裁定303 追補1: extras は gross 内在＝裁定26・足さない）
   //       控除計 = fixedDed + fine + withholding + arDeduct + advanceDeduct + okuriDeduct + normPenalty
   //       うち源泉 = withholding ／ 差引 = payslips.net（凍結・extras 込み）
   //   プレビュー（未確定）では凍結値が無いので出さない＝従来の net 合計バーのまま。
@@ -174,27 +174,15 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         setCastPaid(m);
       }
       if (slips.length > 0) {
-        let gross = 0, ded = 0, wh = 0, net = 0;
-        // ★欠落キーは 0 扱い（裁定 2026-07-28）。payroll_finalize は実績ゼロの cast に
-        //   breakdown_json.pay = {"net":0}（他17キー欠落）を書くため、素の加算だと NaN になる。
-        //   ここで行うのは「無い項目は 0 円」という既定のみ＝率計算も丸め直しも net との整合補正もしない。
-        //   dev 実データ検算: 2026-09 run Σgross 33,924 − Σ控除計 4,953 = 28,971 = Σnet ✔ /
-        //   2029-01 run（{"net":0} を含む）0 − 0 = 0 = Σnet ✔（不一致 0 件）。
-        const z = (v: number | undefined) => v ?? 0;
-        for (const sl of slips) {
-          const pay = sl.breakdown_json.pay;
-          const extras = (sl.breakdown_json.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
-          gross += z(pay.gross) + extras;
-          ded += totalDeductionsOf(pay); // 裁定264-3（旧: z(fixedDed)+z(fine)+z(withholding)+z(arDeduct)+z(advanceDeduct)+z(okuriDeduct)+z(normPenalty)）
-          wh += z(pay.withholding);
-          net += sl.net;
-        }
-        setSum4({ gross, ded, wh, net, n: slips.length });
+        // ★欠落キーは 0 扱い（裁定 2026-07-28）・控除計は裁定264-3 の 1 本の式・★裁定303 追補1: 総支給＝Σpay.gross（extras は gross 内在＝足さない）
+        //   ＝純関数 runSummaryOf（lib/nox/payroll/view.ts・verify:nox-payroll-view pv(6-6) が golden 3 fixture で Σgross を係留）
+        const sum = runSummaryOf(slips);
+        setSum4(sum);
         // ★N3 AV-2: 確定済み run は凍結値を即表示（fetch 増 0＝上で読んだ payslips を写すだけ・凍結名が欠ける旧 payslip は従来どおりプレビュー）
         const fr = frozenRowsOf(slips as Parameters<typeof frozenRowsOf>[0]);
         if (fr) { setRows(fr as Row[]); setBlockers([]); setWarnings([]); setIncentives([]); }
         // E8-5 payroll#5: 未支払 KPI（Σnet−Σpaid・PaymentPanel と同一定義）
-        setUnpaid(net - paidSum);
+        setUnpaid(sum.net - paidSum);
       }
       // E8-5 payroll#5: 前月比＝前月 run（finalized/paid）の Σnet（無ければ出さない）
       const [y, m] = period.split("-").map(Number);
@@ -720,8 +708,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 && (rowTax === "" || r.taxMode === rowTax)).map((r) => {
                 const z = (v: number | undefined) => v ?? 0;
                 const pay = r.breakdown?.pay;
-                const extras = (r.breakdown?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
-                const gross = pay ? z(pay.gross) + extras : null;
+                const gross = pay ? z(pay.gross) : null; // ★裁定303 追補1: 総支給＝gross（extras は内在＝裁定26・足さない）
                 const ded = pay ? totalDeductionsOf(pay) : null; // 裁定264-3（旧: z(fixedDed)+…+z(normPenalty) の 7 項）
                 return (
                 <tr key={r.castId} onClick={() => { setSlipPreview(false); setDetailCast((v) => (v === r.castId ? null : r.castId)); }}
@@ -734,7 +721,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     </span>
                   </td>
                   <td className="fold" style={t.td}>{r.taxMode}</td>
-                  {/* ★裁定303-3: 0h かつ日数>0 は「打刻なし」を薄字で（値は変えない） */}
+                  {/* ★裁定303-3／303 追補1: 0h かつ日数>0 は「打刻なし／不完全」を薄字で（値は変えない） */}
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{(() => { const hc = hoursCellOf(pay?.wHours, Array.isArray(pay?.wdays) ? pay.wdays.length : 0); return <>{hc.text}{hc.note && <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)", fontWeight: 400 }}>{hc.note}</span>}</>; })()}</td>
                   {/* ★裁定176（W23）: 日数＝PayResult.wdays の件数（サーバ計算の日次内訳をそのまま数えるだけ） */}
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{Array.isArray(pay?.wdays) ? `${pay.wdays.length}日` : "-"}</td>

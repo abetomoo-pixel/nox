@@ -14,7 +14,8 @@ import fs from "node:fs";
 import { payOf } from "../lib/nox/pay";
 import { breakdownLinesOf, hoursCellOf, timeLineOf } from "../lib/nox/payroll/breakdown-lines"; // ★裁定303
 import { REINA_INPUT } from "./fixtures-pay";
-import { fmtMD, fmtPeriodYM, frozenRowsOf, missingOutSummaryOf } from "../lib/nox/payroll/view";
+import { fmtMD, fmtPeriodYM, frozenRowsOf, missingOutSummaryOf, runSummaryOf } from "../lib/nox/payroll/view";
+import { payrollCsvCells } from "../lib/nox/payroll/csv";
 
 let pass = 0;
 const fails: string[] = [];
@@ -65,10 +66,15 @@ check("pv(5-4) collect: missingOutDates＝raw.out 'noout' ∧ final ok|late の 
   check("pv(6-2) 303-2: 0h の時給行＝「時給 ¥n/h × 0h」を出す（amount 0・earn の先頭）・fixed は「固定給」・per_shift は「1稼働 ¥n × k回」", tl.key === "timePay" && /^時給 ¥[\d,]+\/h × 0h$/.test(tl.label) && tl.amount === 0 && breakdownLinesOf({ pay: zero }).earn[0].key === "timePay" && timeLineOf({ payRule: { rule: "fixed", fixedAmount: 300000, calcDays: 31, periodDays: 31 }, timePay: 300000 }).label.startsWith("固定給") && timeLineOf({ payRule: { rule: "per_shift", perShiftAmount: 8000, shiftCount: 12 }, timePay: 96000 }).label === "1稼働 ¥8,000 × 12回", tl.label);
   check("pv(6-3) 残り物の行なし: 「その他」を含むラベル 0・extras は行として出るが合計は gross（二重加算なし）", [...bdR.earn, ...bdR.ded].every((l) => !l.label.includes("その他")) && breakdownLinesOf({ pay: { ...reina, gross: reina.gross + 1000 }, extras: [{ kind: "attendance_bonus", amount: 1000 }] }).earnTotal === reina.gross + 1000 && breakdownLinesOf({ pay: reina, extras: [{ kind: "attendance_bonus", amount: 1000 }] }).earn.some((l) => l.label === "出勤ボーナス" && l.amount === 1000));
   const hc = hoursCellOf(0, 3), hc2 = hoursCellOf(12.5, 3), hc3 = hoursCellOf(0, 0), hc4 = hoursCellOf(undefined, 2);
-  check("pv(6-4) 303-3 hoursCellOf: 0h かつ日数>0＝「打刻なし」・値は変えない・0h/0 日は注記なし・hours 無しは '-'", hc.text === "0h" && hc.note === "打刻なし" && hc2.note === null && hc2.text === "12.5h" && hc3.note === null && hc4.text === "-" && hc4.note === null);
+  check("pv(6-4) 303-3／303 追補1 hoursCellOf: 0h かつ日数>0＝「打刻なし／不完全」・値は変えない・0h/0 日は注記なし・hours 無しは '-'", hc.text === "0h" && hc.note === "打刻なし／不完全" && hc2.note === null && hc2.text === "12.5h" && hc3.note === null && hc4.text === "-" && hc4.note === null);
   const pbSrc = fs.readFileSync("app/(manage)/payroll/payroll-board.tsx", "utf8");
   const psSrc = fs.readFileSync("components/payslip-slip.tsx", "utf8");
   check("pv(6-5) 配線: payroll-board と payslip-slip が同じ関数（breakdownLinesOf）を import・「その他バック」「その他」の行なし・旧 earnRows／nominBack／prodBack なし・一覧は hoursCellOf", pbSrc.includes('from "@/lib/nox/payroll/breakdown-lines"') && psSrc.includes('from "@/lib/nox/payroll/breakdown-lines"') && pbSrc.includes("bd.earn.map(") && psSrc.includes("bd.earn.map(") && !pbSrc.includes("その他バック") && !pbSrc.includes("earnRows") && !psSrc.includes("nominBack") && !psSrc.includes("prodBack") && pbSrc.includes("hoursCellOf(pay?.wHours"));
+  // ★裁定303 追補1（2026-09-25）: KPI 支給総額・一覧の総支給列・CSV 総支給は gross のみ（extras は内在）
+  const slips3 = [reina, koyo, fixed].map((p, k) => ({ cast_id: `c${k}`, net: p.net, breakdown_json: { pay: p, extras: [{ kind: "attendance_bonus", amount: 1000 }], cast_name: `c${k}` } }));
+  const sm = runSummaryOf(slips3);
+  check("pv(6-6) 303 追補1 runSummaryOf: golden 3 fixture で 総支給＝Σgross（extras を足さない）・控除計＝Σ(gross−net)・n＝3・{net:0} 行は 0 扱い", sm.gross === reina.gross + koyo.gross + fixed.gross && sm.net === reina.net + koyo.net + fixed.net && sm.n === 3 && sm.wh === reina.withholding + koyo.withholding + fixed.withholding && runSummaryOf([{ net: 0, breakdown_json: { pay: {} } }]).gross === 0 && payrollCsvCells({ castName: "x", taxMode: "委託", period: "2026-09", pay: reina, extrasTotal: 1000, net: reina.net, paidTotal: 0 })[8] === reina.gross, `${sm.gross} vs ${reina.gross + koyo.gross + fixed.gross}`);
+  check("pv(6-7) 303 追補1 配線: payroll-board の KPI は runSummaryOf・一覧の総支給は z(pay.gross)（`+ extras` なし）・csv.ts の grossTotal = p.gross", pbSrc.includes("runSummaryOf(slips)") && pbSrc.includes("setSum4(sum)") && !/gross \+= z\(pay\.gross\) \+ extras/.test(pbSrc) && !/z\(pay\.gross\) \+ extras/.test(pbSrc) && fs.readFileSync("lib/nox/payroll/csv.ts", "utf8").includes("const grossTotal = p.gross;"));
 }
 
 if (fails.length) {

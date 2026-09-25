@@ -45,6 +45,7 @@ const ALLOW = new Set<string>([
   "payroll/adjustment/add", "payroll/adjustment/delete", "payroll/finalize", "payroll/mark-paid", "payroll/preview", "payroll/tax-overview",
   "payroll/reopen", "payroll/tax-report-csv",
   "payment/record", "advance/issue", "advance/cancel", "transport/issue", "transport/cancel", "incentive/publish", "incentive/cancel",
+  "advance/issue-bulk", "transport/issue-bulk", // ★mig0157（裁定302／304・2026-09-25）: 一括発行＝単発と同じ C（RPC が二重防御・デモ org も可）
   "mine/norm-progress", "mine/norm-set", "store/okuri-mode",
   "demo/enter", "demo/reset",
 ]);

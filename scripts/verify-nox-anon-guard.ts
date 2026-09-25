@@ -465,6 +465,8 @@ async function main() {
     ["adv_cancel", { p_advance_id: null }],
     ["transport_issue", { p_store_id: null, p_cast_id: null, p_amount: null, p_biz_date: null, p_note: null }],
     ["transport_cancel", { p_transport_id: null }],
+    ["adv_issue_bulk", { p_store_id: null, p_items: null, p_idem_key: null }],           // ★mig0157（裁定302／304）: 一括発行 2 本
+    ["transport_issue_bulk", { p_store_id: null, p_items: null, p_idem_key: null }],
     ["set_store_okuri_mode", { p_store_id: null, p_mode: null }],
     ["set_store_biz_cutoff", { p_store_id: null, p_hm: null }],  // ★mig0106（裁定82・起票#14）
     ["set_store_tax_config", { p_store_id: null, p_business_tax_status: null, p_price_display: null,

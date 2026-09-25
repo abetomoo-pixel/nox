@@ -53,5 +53,20 @@ export function frozenRowsOf(slips: readonly FrozenSlip[]): FrozenRow[] | null {
   });
 }
 
+/** ★裁定303 追補1（2026-09-25）: 確定済み run の合計サマリ＝凍結値の Σ のみ。総支給＝Σpay.gross（extras は gross 内在＝裁定26・足さない）。
+ *  欠落キーは 0 扱い（payroll_finalize は実績ゼロの cast に {"net":0} を書く）。率計算も丸め直しも net との整合補正もしない。 */
+export function runSummaryOf(slips: readonly { net: number; breakdown_json: { pay: Partial<PayrollCsvPay> } }[]): { gross: number; ded: number; wh: number; net: number; n: number } {
+  const z = (v: number | undefined) => v ?? 0;
+  let gross = 0, ded = 0, wh = 0, net = 0;
+  for (const sl of slips) {
+    const pay = sl.breakdown_json.pay as PayrollCsvPay;
+    gross += z(pay.gross);
+    ded += totalDeductionsOf(pay);
+    wh += z(pay.withholding);
+    net += z(sl.net);
+  }
+  return { gross, ded, wh, net, n: slips.length };
+}
+
 /** 表示用: 凍結行の控除計（adjust.ts の 1 本の式＝再計算ではなく凍結値の Σ） */
 export const frozenDeductionOf = (pay: PayrollCsvPay): number => totalDeductionsOf(pay);

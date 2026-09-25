@@ -122,7 +122,7 @@ async function main() {
     //   punch_correction_apply（内部・4 ロール revoke）を B(a) へ＝対象 130→134・除外 119→120・全数 249→254。改稿 4 本は名前不変で本数不動（adjustment_add の旧 8 引数は DROP）。
     // ★mig0152（裁定298／299・2026-09-25）: check_referral_set／remove（A1）・set_referrer（A8）・referral_payout_pay／pay_bulk／unpaid（A4）＝ゲート内蔵 6 本を A へ・
     //   referral_recalc（内部・4 ロール revoke）を B(a) へ・check_add_referral（0148）は drop＝対象 134→139・除外 120→121・全数 254→260。改稿 7 本は名前不変で本数不動。
-    check("段47-1 正本の対象139名を読めた", docTargets.size === 139, `got ${docTargets.size}`);
+    check("段47-1 正本の対象141名を読めた", docTargets.size === 141, `got ${docTargets.size}`); // ★0157（裁定302／304）: A4 +2＝139→141
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     // ★mig0113: check_tax_round（内部ヘルパー・非ゲート）を B へ収載＝除外 95→96・全数 201→202。
     // ★mig0119（R-2b・2026-09-01）: 補助2本 nom_unit4_key / nom_type_summary を B(a) へ収載＝除外 96→98・
@@ -156,7 +156,7 @@ async function main() {
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 139本", liveGated.size === 139, `got ${liveGated.size}`);
+    check("段47-1 live のゲート済み関数 = 141本", liveGated.size === 141, `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
     const extra = [...liveGated].filter((n) => !docTargets.has(n));
@@ -175,14 +175,14 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 140（139 ＋ ラッパ自身）", refs[0].n === 140, `got ${refs[0].n}`);
+    check("段47-1 述語を参照する関数 = 142（141 ＋ ラッパ自身）", refs[0].n === 142, `got ${refs[0].n}`);
     // 挿入行の形が全92本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public'
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
-    check("段47-1 挿入行の形が全139本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 139, `got ${shapes[0].n}`);
+    check("段47-1 挿入行の形が全141本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 141, `got ${shapes[0].n}`);
   }
 
   // ══════════════════════════════════════════════════════════

@@ -41,6 +41,7 @@ export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, o
         isOwner={isOwner}
         initialOkuriMode={okuriMode}
         initialOkuriBase={okuriBase}
+        bizCutoffHm={typeof (settings as Record<string, unknown> | undefined)?.biz_cutoff_hm === "string" ? ((settings as Record<string, unknown>).biz_cutoff_hm as string) : "06:00"} // ★302-1: 一括発行の「当日（営業日）」
       />)}{/* ★裁定269-4: deductionPanel */}
 
       {/* ③ 注意事項（モックの静的文言のみ・変更履歴セクションは作らない） */}
