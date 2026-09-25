@@ -3741,6 +3741,23 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定298（本便で確定・Agoora 承認・2026-09-25）0152 紹介料の設計（298-1〜10）
+
+出典＝v39 引き継ぎ §9＋R152（docs/tmp/0152_pre.md・R152-3 の live 読取＝2026-09-25 便 M152-1 で収載）。分岐 D1〜D14（284 分の D8／D10 を除く）への裁定。次の裁定番号は 299。**本文（逐語）**:
+「裁定298（2026-09-25・0152 紹介料の設計・Agoora 承認・出典 v39 §9＋R152）
+298-1 D1 rate 系の丸め＝floor（money 系既定）。rate_set の母数＝kind='set' の line_total 合計（割引前）。rate_account の母数＝当該伝票の全 pay_group の割引後小計（kind<>'discount'・vip_charge を含む・紹介料自身は含めない）。
+298-2 D2 check_lines_kind_check から 'referral' を外す。live に残る referral 行（NOX-DEMO・void 伝票・1 件）は同 mig 内で先に update kind='custom'（where kind='referral'）→ count=0 を assert → CHECK 差し替え。pin 5 suite は張り替え。
+298-3 D3 1 伝票 1 紹介（check_referrals.check_id unique）。付け替え＝check_referral_remove→check_referral_set の 2 操作。check_merge は from 側に紹介があれば 'referral on from' で raise（先に remove させる）。
+298-4 D4 客負担の印字＝初回セット行（block_no=0 の最初の set 行）に合算・qty 据え置き・紹介行は印字しない。set 行が無い伝票は最初の行に合算。
+298-5 D5 スタッフ退店＝トリガなし・client 表示制御のみ。D6 同名重複＝許す（連絡先で区別・UI 警告）。D7 3 表は cast 0 行（RLS）。
+298-6 D9 支払 RPC＝referral_payout_pay（1 件）＋referral_payouts_pay_bulk（一括）の 2 本・未払一覧は referral_payouts_unpaid（RPC）。D11 amount=0 は payout を作らない。D12 mig 1 本（2 パスにしない）。
+298-7 D13 payouts.withholding は支払 RPC で確定。salesperson＝同月（支払月）の当該紹介者への支払累計で (累計−120,000)×10.21% を floor し、既確定分との差分を当該 payout に載せる（負なら 0）。employee＝0（給与側で源泉）。none＝0。
+298-8 D14 check_group_due の除外 2 箇所の削除と三面鏡（check-calc 3・receipt 3）の削除は同便（鏡像 suite の pin 張り替え込み）。
+298-9 負担: burden='customer' は check_referrals.amount を check_group_due の v_bx／v_bx10（pay_group 'A'・taxable_10）に加算＝サ料・税の母数に入る（9/18 Agoora 仕様）。burden='store' は伝票合計に一切乗らない。
+298-10 支払経路: check_close で frozen_at を書き referral_payouts を insert（status 'unpaid'・withholding 0）。check_void は unpaid を 'voided'・paid は据え置き（返金は手動・audit に記録）。paid_via は 'cash_daily'（当日現金＝daily_reports.referral_cash_payout に集計）／'monthly'。給与（payroll）には一切載せない（280・297-5 とは無関係）。」
+
+適用＝便 M152-2（起草 supabase/migrations/0152_referral.sql＝★1〜★21・未追跡）・M152-3（突合 docs/tmp/q0925_ag_0152.mjs＝BEGIN…ROLLBACK）。手貼りは Agoora（要裁定の裁定後）。
+
 ## 裁定297（本便で確定・Agoora 承認・2026-09-25）0154 の運用細目（297-1〜5）
 
 出典＝v39 引き継ぎ §8（docs/handoff/NOX_相談役引き継ぎ_2026-09-25_v39.md・Agoora 承認・2026-09-25 便 D297 で収載）。v39_material §5 の問い 2〜6 への裁定。次の裁定番号は 298。**本文（逐語）**:
@@ -3763,6 +3780,9 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 296-4 mig の同乗先: 0152（伝票のキャスト割当を読む会計系と同じ便）。pay.ts・sim.ts は client。」
 
 適用＝未着手（mig 0152 に同乗＝cast_plan overrides／comp_plans の白名単 +3・欠損は現行 drinkBack へフォールバック＝golden 不変・pay.ts／sim.ts は client）。
+
+**追補1（本便で確定・相談役ブロック 2026-09-25・R152-3(d) の読取＝cast_plan overrides に drinkBack キーは無く区分別単価は products.unit4_json{hon,jonai,dohan,free} に既在・逐語）**: 「裁定296 追補1（2026-09-25）: 296（ドリンクバック区分別）は 0152 から外し、器の指定（商品 unit4 か プラン側 product_back_fixed の区分別か）を Agoora 確認後に 0153 へ同乗（仮置き）。0152 は紹介料のみ。」
+＝296-4 の同乗先は本追補で 0152 → 0153（仮置き）に変更。0152 は紹介料のみ（裁定298）。
 
 ## 裁定295（本便で確定・相談役ブロック・2026-09-24）0154 要裁定 (1)〜(12) の裁定（295-1〜7）
 
