@@ -3859,6 +3859,16 @@ client 撤去（298-8・R152-3(c) 全列挙）: pay.ts 5 箇所・payroll collec
 **追補1（本便で確定・相談役ブロック 2026-09-25・R152-3(d) の読取＝cast_plan overrides に drinkBack キーは無く区分別単価は products.unit4_json{hon,jonai,dohan,free} に既在・逐語）**: 「裁定296 追補1（2026-09-25）: 296（ドリンクバック区分別）は 0152 から外し、器の指定（商品 unit4 か プラン側 product_back_fixed の区分別か）を Agoora 確認後に 0153 へ同乗（仮置き）。0152 は紹介料のみ。」
 ＝296-4 の同乗先は本追補で 0152 → 0153（仮置き）に変更。0152 は紹介料のみ（裁定298）。
 
+**追補2（本便で確定・相談役ブロック 2026-09-25・器の指定・Agoora 承認・同日収載）**。**本文（逐語）**:
+「裁定296 追補2（2026-09-25・器の指定・Agoora 承認）: 0153 に同乗。
+(1) comp_plans に商品バックの区分別固定額 3 欄（product_back_fixed_hon／product_back_fixed_jonai／product_back_fixed_free・integer null）。null＝現行の一律 product_back_fixed を使う（既存プラン不変）。同伴は本指名と同額。
+(2) cast_plan overrides_json に同 3 キー（set_cast_plan の白名単に追加・型検査 integer≥0）。
+(3) 解決順＝商品の unit4（商品側に区分別額があれば最優先）→ cast_plan の区分別 → comp_plans の区分別 → 一律（現行）→ 既定。pay.ts は凍結Σ（check_cast_backs）を読む構造は不変＝配分時（会計確定）に上の順で単価を決める。
+(4) client: 待遇プランと cast 個別の上書きに 3 欄・商品マスターの編集に本／場内／同伴／フリーの 4 欄（既存の器 unit4_json の UI 露出）。
+影響: golden 6 値は区分別が null のため不変。pin＝pay／payroll／payroll-csv／payroll-adjust の drinkBack 段（R152-3 (d)）は値不変・set_cast_plan 白名単 pin は張り替え。」
+
+適用＝未着手（0153 に同乗＝comp_plans 列 +3・set_comp_plan／set_cast_plan の白名単 +3・check_close の単価解決順 (3)・client 4 欄は手貼り後の便）。
+
 ## 裁定295（本便で確定・相談役ブロック・2026-09-24）0154 要裁定 (1)〜(12) の裁定（295-1〜7）
 
 **DB 側 完了（2026-09-24 夕・0154 手貼り済み＝295-1 decide_reason／295-7 FK は live で確認・便 A 検証 NG 0）**。client＝夜間便 2 D1〜D6（未 push）。
