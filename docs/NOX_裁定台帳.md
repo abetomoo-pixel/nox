@@ -3741,6 +3741,18 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定302（本便で確定・Agoora 承認・2026-09-25）前借り／送り実費の一括発行（302-1〜5）
+
+出典＝Agoora 承認（2026-09-25・便 X-0 で収載）。次の裁定番号は 303。**本文（逐語）**:
+「裁定302（2026-09-25・前借り／送り実費の一括発行・Agoora 承認）
+302-1 発行フォームはチェックボックス一覧型: 候補は当日の出勤者（attendance の出勤打刻あり）を上・他は下（検索で絞り込み）。「出勤者を全員チェック」「全解除」。各行に金額欄（送り実費は送りベース額をプリフィル・行ごとに上書き可）・下部に「n 人・合計 ¥m」・メモは共通 1 欄（全行に同じ値）・「一括発行」1 回。
+302-2 DB: transport_issue_bulk／adv_issue_bulk を新設（1 tx・部分成功なし・冪等）。署名＝(p_store_id uuid, p_items jsonb, p_idem_key uuid)・p_items＝[{cast_id, amount, date, note}]。各件は既存の transport_issue／adv_issue と同じ検査（'okuri not actual'・cast の店所属・amount>0）を通す。各件の idem＝md5(p_idem_key || ':' || cast_id)::uuid。返り＝発行 id の配列。同キー再送は既存 id の配列を返し新規 0。
+302-3 発行済み一覧: フォーム直下に当日（営業日）の発行済み（cast・額・メモ・取消）＝既存 adv_cancel／transport_cancel。
+302-4 mig 番号＝0157_issue_bulk（0153 の前に手貼り・番号順に依存しない・0154→0152 の前例）。
+302-5 起票（0156 へ）: 退勤打刻と送りの連動（打刻画面の「送り あり／なし」トグル・日報締めで当日分を確認）／前借りのキャスト申請制（/mine 申請→今日タブ「未決裁」で承認＝発行）／一括発行の LINE 通知は第 2 期。」
+
+適用＝便 X-1（事前読取 docs/tmp/0157_pre.md）・X-2（★指定）・X-3（起草 supabase/migrations/0157_issue_bulk.sql＋突合 BEGIN…ROLLBACK・未追跡）。手貼りは Agoora（要裁定の裁定後）。302-1／302-3 の UI は手貼り後（マスタは一括型・casts／給与は 1 人型のまま）。
+
 ## 裁定301（本便で確定・Agoora 承認・2026-09-25）picker の折りたたみ型（301-1〜4）
 
 出典＝Agoora 承認（2026-09-25・便 W-0 で収載・301-4 は同便の追記）。次の裁定番号は 302。**本文（逐語）**:
