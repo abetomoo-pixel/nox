@@ -3741,6 +3741,25 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定305（本便で確定・Agoora 承認・2026-09-25）0153 顧客複数・ボトルキープの設計（305-1〜12）
+
+出典＝docs/tmp/0153_pre.md §(a) の E1〜E10（便 T-4 読取）と 293-4／296 追補2 を受けた Agoora 承認（2026-09-25・便 M153-1 で収載）。次の裁定番号は 306。**本文（逐語）**:
+「裁定305（2026-09-25・0153 顧客複数・ボトルキープの設計・Agoora 承認・出典 0153_pre §(a) E1〜E10）
+305-1 E1 checks.customer_id は併存（check_customers の position=0 と同値・廃止予定なし）。
+305-2 E2 注文行の顧客は後付け RPC check_line_set_customer(p_line_id, p_customer_id null=解除) で付ける。check_add_line ほか注文 RPC 9 本は不触。
+305-3 E3 check_customer_remove は当該顧客が付いた check_lines.customer_id を null に戻す（拒否しない）。position=0 を外したら次の顧客が繰り上がり checks.customer_id も追従。
+305-4 E4 check_customer_names(p_check_id)＝顧客名＋その顧客の active なキープのボトル名のみを返す。can_register の cast にも開放。電話・メモ・誕生日・グレードは返さない。
+305-5 E5 キープ出し＝bottle_keep_out(p_keep_id, p_check_id, p_idem_key)→ kind 'keep_out'・qty 1・unit_price 0・line_total 0・back_snapshot null（バック 0）・在庫は減らさない（販売時に減算済み）・印字「キープ出し」。last_used_at を更新。check_lines_kind_check に 'keep_out' を追加（pin 5 suite 張り替え）。
+305-6 E6 bottle_keeps に bottle_name text null・last_used_at timestamptz null。
+305-7 E7 bottle_keep_out は kiosk 腕あり（0057 の型・authenticated＋kiosk トークン）。
+305-8 E8 顧客検索は client filter・RPC なし。
+305-9 E9 顧客別売上: 顧客が付いた行はその顧客・付いていない行は check_customers の人数で均等割り・端数は position=0 に寄せる。RPC customer_sales_summary(p_store_id, p_from, p_to)（owner／manager）。
+305-10 E10 単独便。
+305-11 293-4: customers に last_visit_at（check_close で更新）・retention_until（last_visit_at＋店設定 customer_retention_years・既定 5）・deleted_at・anonymized_at。利用目的＝stores.settings_json.customer_purpose（set_store_profile 白名単 +2）。削除・匿名化の RPC は 0155。
+305-12 296 追補2: comp_plans.product_back_fixed_hon／jonai／free（integer null ≥0）・set_comp_plan 署名 +3・set_cast_plan 白名単 +3（productBackFixedHon／Jonai／Free）・check_close の plan_fixed 解決＝商品 unit4（back_mode='unit4'）→ cast_plan 区分別 → comp_plans 区分別 → 一律 product_back_fixed。同伴＝本指名。golden fixture に plan_fixed×unit4 商品の組があれば期待値が動く＝突合で報告（要裁定）。」
+
+適用＝便 M153-2（起草 supabase/migrations/0153_customers_keep.sql＝★1〜★22・未追跡）・M153-3（突合 BEGIN…ROLLBACK）。手貼りは Agoora（要裁定の裁定後）。client（顧客複数 UI・キープ出し・顧客別売上・商品／プランの区分別欄）は手貼り後ブロック。
+
 ## 裁定304（本便で確定・Agoora 承認・2026-09-25）0157 要裁定 (2) の裁定（304-1〜2）
 
 出典＝便 X-3 の報告（0157_issue_bulk.sql 冒頭の要裁定 (1)(2)）を受けた Agoora 承認（2026-09-25・便 S-1 で収載）。次の裁定番号は 305。**本文（逐語）**:
