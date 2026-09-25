@@ -47,12 +47,12 @@ async function main() {
   const mine = fs.readFileSync("app/mine/page.tsx", "utf8");
   const kiosk = fs.readFileSync("app/kiosk-register/page.tsx", "utf8");
   const advR = fs.readFileSync("app/api/advance/issue/route.ts", "utf8"), trR = fs.readFileSync("app/api/transport/issue/route.ts", "utf8");
-  check("ao(2-1) 共通部品: issueBodyOf 経由で fetch（endpoint は純関数が決める）・Picker・.nox-issue-row・readOnly は入口なし・Message", comp.includes("issueBodyOf({ kind, storeId") && comp.includes("fetch(b.endpoint") && comp.includes("<Picker dense") && comp.includes('"nox-issue-row" + (fixed ? " nox-issue-row--fixed" : "")') && comp.includes("if (readOnly)") && comp.includes("<Message kind={msg.kind}") && !comp.includes('"/api/advance/issue"'));
+  check("ao(2-1) 共通部品: issueBodyOf 経由で fetch（endpoint は純関数が決める）・Picker・.nox-issue-row・readOnly は入口なし・Message", comp.includes("issueBodyOf({ kind, storeId") && comp.includes("fetch(b.endpoint") && comp.includes("<Picker dense") && comp.includes('className="nox-issue-row"') && comp.includes("if (readOnly)") && comp.includes("<Message kind={msg.kind}") && !comp.includes('"/api/advance/issue"'));
   check("ao(2-2) 3 入口が同じ部品を import: deduction-panel（旧 IssueForm なし）・casts-board（castId 固定）・payroll-board（castId 固定・readOnly={!adjEditable}）", dp.includes('from "@/components/nox/advance-okuri-form"') && !dp.includes("function IssueForm") && cb.includes('from "@/components/nox/advance-okuri-form"') && cb.includes("castId={selCast.id}") && (cb.match(/<AdvanceOkuriForm/g) || []).length === 1 && pb.includes('from "@/components/nox/advance-okuri-form"') && (pb.match(/<AdvanceOkuriForm/g) || []).length === 1 && pb.includes("castId={r.castId}") && pb.includes("readOnly={!adjEditable}"));
   check("ao(2-3) route は既存 RPC のまま（adv_issue／transport_issue）・新 RPC 0", advR.includes('supabase.rpc("adv_issue"') && trR.includes('supabase.rpc("transport_issue"'));
   const cpg = fs.readFileSync("app/(manage)/casts/page.tsx", "utf8");
   check("ao(2-4) cast 導線なし（/mine・kiosk に部品なし）・casts-board は page.tsx の owner／manager ガードの中（他ロールは redirect）", !mine.includes("advance-okuri") && !kiosk.includes("advance-okuri") && cpg.includes('if (role !== "owner" && role !== "manager") redirect(') && cb.includes("<AdvanceOkuriForm"));
-  check("ao(2-5) globals.css: .nox-issue-row＝既定 1 列（≤899）・≥900 で多列（M5 の型＝mobile-first）", /\.nox-issue-row \{ display: grid; grid-template-columns: 1fr;/.test(css) && /@media \(min-width: 900px\) \{ \.nox-issue-row \{ grid-template-columns: minmax/.test(css));
+  check("ao(2-5) globals.css: .nox-issue-row＝既定 1 列（≤899）・≥900 で多列（M5 の型＝mobile-first）", /\.nox-issue-row \{ display: grid; grid-template-columns: 1fr;/.test(css) && /@media \(min-width: 900px\) \{ \.nox-issue-row \{ grid-template-columns: 120px/.test(css));
 
   // (3) DB
   const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });

@@ -78,26 +78,28 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
   }
 
   return (
-    <section className="nox-cardtop" style={{ ...t.card, opacity: disabled ? 0.6 : 1, marginBottom: 0 }}>
-      <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>{label}の発行{fixed && castName ? `（${castName}）` : ""}</h3>
-      <div className={"nox-issue-row" + (fixed ? " nox-issue-row--fixed" : "")}>
-        {!fixed && (
-          <div style={{ fontSize: 12, color: "var(--sub)" }}>キャスト<br />
-            <Picker dense items={casts.map((c) => ({ id: c.id, label: c.name }))} value={pick} onPick={setPick} disabled={disabled} placeholder="キャストを検索" empty="（対象なし）" />
-          </div>
-        )}
-        <label style={{ fontSize: 12, color: "var(--sub)" }}>金額(円)<br />
+    <section className="nox-cardtop" style={{ ...t.card, opacity: disabled ? 0.6 : 1, marginBottom: 0, paddingBottom: 16 }}>
+      {/* ★301-4: 見出し→12→「キャスト」ラベル→6→picker→16→フォーム行→8→注記→カード下端 16（値は 4/8/12/16/24 のみ・ラベルと入力の間は全ラベル 6） */}
+      <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 12px" }}>{label}の発行{fixed && castName ? `（${castName}）` : ""}</h3>
+      {!fixed && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: "var(--sub)", marginBottom: 6 }}>キャスト</div>
+          <Picker dense items={casts.map((c) => ({ id: c.id, label: c.name }))} value={pick} onPick={setPick} disabled={disabled} placeholder="キャストを検索" empty="（対象なし）" />
+        </div>
+      )}
+      <div className="nox-issue-row">
+        <label style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>金額(円)</span>
           <input type="number" min={1} step={1} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={disabled} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
         </label>
-        <label style={{ fontSize: 12, color: "var(--sub)" }}>{ISSUE_DATE_LABEL[kind]}<br />
+        <label style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>{ISSUE_DATE_LABEL[kind]}</span>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
         </label>
-        <label style={{ fontSize: 12, color: "var(--sub)" }}>メモ<br />
+        <label style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>メモ</span>
           <input type="text" value={note} onChange={(e) => setNote(e.target.value)} disabled={disabled} maxLength={200} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
         </label>
         <button type="button" className="nox-btn" onClick={() => void submit()} disabled={busy || disabled} style={{ alignSelf: "end" }}>{busy ? "発行中…" : "発行"}</button>{/* 実行＝青塗り（裁定242） */}
       </div>
-      <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>{hint}</p>
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "8px 0 0" }}>{hint}</p>
       {msg && <Message kind={msg.kind} onDismiss={() => setMsg(null)}>{msg.text}</Message>}
     </section>
   );

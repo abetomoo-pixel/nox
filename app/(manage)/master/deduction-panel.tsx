@@ -71,7 +71,7 @@ export default function DeductionPanel({
 
   return (
     <div style={{ marginTop: 24 }}>
-      <h2 style={{ ...t.pheadH1, fontSize: 16 }}>天引き（前借り・送り実費）</h2>
+      <h2 style={{ ...t.pheadH1, fontSize: 16, margin: "0 0 12px" }}>天引き（前借り・送り実費）</h2>{/* ★301-4: 上 24（外側 div）・下 12 */}
 
       {/* 送り方式トグル（owner のみ操作可・manager は現在値のみ） */}
       <section className="nox-cardtop" style={card}>
