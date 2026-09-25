@@ -39,18 +39,19 @@ export default async function DashboardPage() {
   }
   // 段H2: アイコンはモック .qi の Unicode 字形を逐語（アイコンライブラリは導入しない＝裁定3・段N と同じ）。
   //   ★href/label/role ゲートは段H から1文字も変えない＝増えたのは icon だけ。
-  const shortcuts: { href: string; label: string; icon: string }[] = [
-    { href: "/register", label: "レジ", icon: "◻" },
-    { href: "/shift", label: "シフト", icon: "☾" },
-    { href: "/report", label: "日報", icon: "▤" },
-    { href: "/notices", label: "お知らせ", icon: "◌" },
-    ...(isManagerUp || staffCrm ? [{ href: "/customers", label: "顧客", icon: "◉" }] : []),
+  // ★裁定306-16: アイコンはメニューシートと同じ線画（NavIcon＝href キー）に統一＝文字記号の icon は撤去
+  const shortcuts: { href: string; label: string }[] = [
+    { href: "/register", label: "レジ" },
+    { href: "/shift", label: "シフト" },
+    { href: "/report", label: "日報" },
+    { href: "/notices", label: "お知らせ" },
+    ...(isManagerUp || staffCrm ? [{ href: "/customers", label: "顧客" }] : []),
     ...(isManagerUp
       ? [
-          { href: "/analytics", label: "分析", icon: "▲" },
-          { href: "/payroll", label: "給与", icon: "¥" },
-          { href: "/casts", label: "キャスト", icon: "♦" },
-          { href: "/master", label: "マスタ", icon: "✦" },
+          { href: "/analytics", label: "分析" },
+          { href: "/payroll", label: "給与" },
+          { href: "/casts", label: "キャスト" },
+          { href: "/master", label: "マスタ" },
         ]
       : []),
   ];

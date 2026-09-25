@@ -63,7 +63,7 @@ const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", d
 // 段B: 商品タイルの type 別見出し（products.type＝drink/champ/bottle・既存カラム）・滞在経過は started_at から算出。
 // 純増⑦: type 別の見出し/順序は lib/nox/ui/product-groups へ移設（カテゴリ未登録時のフォールバックとして同居）
 const elapsedMin = (started: string, now: number) => Math.max(0, Math.floor((now - new Date(started).getTime()) / 60000));
-const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "黒服" };
+const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ" };
 const IDLE_MS = 15 * 60_000; // サーバ側 15分失効（確定④）のローカル鏡像＝表示と自動ロックのみ
 
 // B1/B2 席操作エラーの日本語化（register-board 写経）

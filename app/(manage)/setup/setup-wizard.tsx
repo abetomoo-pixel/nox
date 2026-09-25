@@ -26,7 +26,7 @@ const STEPS = [
   ["確認", "設定内容の確認"],
 ] as const;
 const FLAG_LABELS: Record<string, { label: string; desc: string }> = {
-  staff_shift: { label: "黒服シフト", desc: "黒服・スタッフのシフトと勤務パターン" },
+  staff_shift: { label: "スタッフシフト", desc: "スタッフのシフトと勤務パターン" },
   reopen_flow: { label: "締め解除フロー", desc: "締め解除・給与確定解除・現金差異承認・伝票統合の解除型" },
   qr_order: { label: "QR注文", desc: "お客様スマホからの注文（準備中の機能スイッチ）" },
   notify: { label: "通知", desc: "お知らせの通知（準備中の機能スイッチ）" },

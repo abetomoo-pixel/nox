@@ -20,7 +20,7 @@ import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U�
 type Store = { id: string; name: string };
 type OpMember = { id: string; store_id: string; role: string; user_name: string };
 type PinStatus = { membership_id: string; has_pin: boolean; fail_count: number; locked_until: string | null; pin_updated_at: string | null };
-const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "黒服" };
+const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ" };
 
 const MAX_FAIL_OPTIONS = [3, 5, 10] as const;
 const LOCK_MIN_OPTIONS = [5, 10, 15, 30, 60] as const;

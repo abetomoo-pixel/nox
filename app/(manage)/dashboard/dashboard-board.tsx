@@ -12,6 +12,7 @@
 //     他画面（shift-board / notices-board）と同じ列・同じ RLS を通る読取。
 //   ★予想人件費（段S-2）はホームには出さない（モックにも無い＝店長は /shift で見る）。
 //   ★cast ロールは page.tsx が /mine へ戻すため本ボードに到達しない（対象外）。
+import { NavIcon } from "@/components/ui/nav-icons"; // ★306-16
 import { useCallback, useEffect, useState } from "react";
 import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
@@ -59,7 +60,7 @@ const mdOf = (iso: string) =>
 
 export default function DashboardBoard({ storeId, storeName, cutoff, casts, shortcuts, stores = [], isOwner = false, isManagerUp = false }: {
   storeId: string; storeName: string; cutoff: string; casts: Cast[];
-  shortcuts: { href: string; label: string; icon: string }[];
+  shortcuts: { href: string; label: string }[]; // ★306-16: icon は NavIcon（href キー）
   /** ★裁定192（B1・M6）: RLS が返す店一覧（owner=org 全店）。2 店以上かつ owner のときだけセレクタを出す */
   stores?: { id: string; name: string; cutoff: string }[];
   isOwner?: boolean;
@@ -243,9 +244,9 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "0 0 9px" }}>よく使う業務だけに絞ります。</p>
           <div className="nox-quickgrid">
             {shortcuts.map((s) => (
-              <Link key={s.href} href={s.href} className="nox-quicktile">
-                <span className="nox-quickicon" aria-hidden="true">{s.icon}</span>
-                {s.label}<span aria-hidden="true" style={{ color: "var(--primary)", marginLeft: 3 }}>›</span>{/* ★裁定238-e: カード型 Link は下線化せず末尾「›」を --primary に */}
+              <Link key={s.href} href={s.href} className="nox-quicktile">{/* ★306-15／306-16: 正方形タイル＝末尾の山括弧を出さずタイル全体がタップ対象・アイコンはメニューシートと同じ NavIcon */}
+                <span className="nox-quickicon" aria-hidden="true"><NavIcon href={s.href} /></span>
+                {s.label}
               </Link>
             ))}
           </div>

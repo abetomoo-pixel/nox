@@ -4,6 +4,7 @@
 //   「枠×充足 n/m」（n＝その枠の確定行＋確認待ち行・m＝◯の希望者数）・希望一覧から propose・行の時刻上書き（override・理由任意）・
 //   営業日一括確定＝行ごとに staff_shift_confirm を順次（1 件でも raise したら残りを止めて件数報告）。
 //   行の時刻が当日有効枠と違えば「9:00〜11:00（枠 12:00〜）」。名前＝memberships（自店・cast 以外）→users.name（読取 2・表示専用）。
+import { staffCellCompactOf } from "@/lib/nox/ui/month-nav"; // ★裁定306-10: ≤899px の月セルは「早 0/0」の 1 行ずつ・折返し禁止・3 枠以上は「+n」
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -183,15 +184,25 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
             <button key={day} className={cls} style={{ minHeight: 84, alignItems: "stretch" }} onClick={() => { setSelDay(day); setMsg(null); setPlaceDay(day); }}
               title={`${mdDowOf(day)}・配置 ${ds.length}／希望 ${dw.filter((w) => w.available).length}（クリックで配置）`}>
               <span className="nox-cald-n num">{Number(day.slice(8))}</span>
-              {e.map((p) => {
-                const n = ds.filter((s) => s.pattern_id === p.id || patterns.find((q) => q.id === s.pattern_id)?.name === p.name).length;
-                const m = dw.filter((w) => w.available && (patterns.find((q) => q.id === w.pattern_id)?.name === p.name)).length;
+              {(() => {
+                const rows = e.map((p) => ({
+                  id: p.id, name: p.name,
+                  n: ds.filter((s) => s.pattern_id === p.id || patterns.find((q) => q.id === s.pattern_id)?.name === p.name).length,
+                  m: dw.filter((w) => w.available && (patterns.find((q) => q.id === w.pattern_id)?.name === p.name)).length,
+                }));
+                const compact = staffCellCompactOf(rows); // ★306-10: ≤899px＝「早 0/0」の 1 行ずつ（最大 2 行＋「+n」）・≥900px は現行
                 return (
-                  <span key={p.id} style={{ display: "block", fontSize: 9.5, lineHeight: 1.5, textAlign: "left", color: n > 0 ? "var(--ok)" : "var(--v2-muted)" }}>
-                    {p.name} <span className="num">配置{n}／希望{m}</span>{/* ★裁定235: ラベル＝「配置 n／希望 m」（n＝行数・m＝◯希望者数） */}
-                  </span>
+                  <>
+                    {rows.map((r) => (
+                      <span key={r.id} className="nox-sscell-wide" style={{ display: "block", fontSize: 9.5, lineHeight: 1.5, textAlign: "left", color: r.n > 0 ? "var(--ok)" : "var(--v2-muted)" }}>
+                        {r.name} <span className="num">配置{r.n}／希望{r.m}</span>{/* ★裁定235: ラベル＝「配置 n／希望 m」（n＝行数・m＝◯希望者数） */}
+                      </span>
+                    ))}
+                    {compact.lines.map((l, k) => <span key={`c${k}`} className="nox-sscell-narrow num" style={{ color: rows[k].n > 0 ? "var(--ok)" : "var(--v2-muted)" }}>{l}</span>)}
+                    {compact.more > 0 && <span className="nox-sscell-narrow num" style={{ color: "var(--v2-muted)" }}>+{compact.more}</span>}
+                  </>
                 );
-              })}
+              })()}
             </button>
           );
         })}
@@ -214,7 +225,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
 
         <div className="nox-tablewrap">
           <table className="nox-table">
-            <thead><tr><th>黒服</th><th>枠</th><th>時間</th><th>状態</th><th>操作</th></tr></thead>
+            <thead><tr><th>スタッフ</th><th>枠</th><th>時間</th><th>状態</th><th>操作</th></tr></thead>
             <tbody>
               {list.map((s) => {
                 const pat = patterns.find((p) => p.id === s.pattern_id);
@@ -242,7 +253,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
                   </tr>
                 );
               })}
-              {list.length === 0 && <tr><td colSpan={5} style={{ color: "var(--sub)" }}>この営業日の黒服シフトはまだありません。</td></tr>}
+              {list.length === 0 && <tr><td colSpan={5} style={{ color: "var(--sub)" }}>この営業日のスタッフシフトはまだありません。</td></tr>}
             </tbody>
           </table>
         </div>

@@ -14,6 +14,9 @@
  *      rpc-err が 'guarantee exists'／'no plan'／'bad valid_from' を日本語にする
  *  逆テスト 1 本（手動・1 回）: guaranteeBadgeOf の `> withinDays` を `>= withinDays` にする→gu(4-1) 赤・戻して緑。
  */
+import { planSwitchErrJa, planSwitchValidate, NOTE_PLAN_SWITCH } from "../lib/nox/cast/plan-switch"; // ★裁定306-13
+import { nextPeriodStartOf as nextPeriodStartOf306 } from "../lib/nox/cast/pay-rule";
+import fs306 from "node:fs";
 import fs from "node:fs";
 import { addDays, daysLeftOf, guaranteeBadgeOf, guaranteeNoticesOf, guaranteeRowsOf, guaranteeStateOf, mdOf, type PlanRowLike } from "../lib/nox/cast/guarantee";
 import { isRpcMissingError, rpcErrJa } from "../lib/nox/ui/rpc-err";
@@ -247,6 +250,15 @@ async function dbChecks0154() {
   } finally {
     await db.end().catch(() => undefined);
   }
+}
+
+// ★裁定306-13／306-14（2026-09-25）: 待遇プランの切替（純関数）と casts 詳細の配線
+{
+  check("cg(306-1) planSwitchValidate: プラン必須・日付形・過去日不可・確定済み（finalized／paid）不可・OK は null", planSwitchValidate({ planId: null, from: "2026-10-01", today: "2026-09-25", runStatus: null }) !== null && planSwitchValidate({ planId: "p", from: "2026-9-1", today: "2026-09-25", runStatus: null }) !== null && planSwitchValidate({ planId: "p", from: "2026-09-24", today: "2026-09-25", runStatus: null })?.includes("過去") === true && planSwitchValidate({ planId: "p", from: "2026-10-01", today: "2026-09-25", runStatus: "finalized" })?.includes("確定済み") === true && planSwitchValidate({ planId: "p", from: "2026-10-01", today: "2026-09-25", runStatus: "paid" })?.includes("確定済み") === true && planSwitchValidate({ planId: "p", from: "2026-10-01", today: "2026-09-25", runStatus: "draft" }) === null);
+  check("cg(306-2) planSwitchErrJa: 'bad valid_from'／'plan inactive'／'forbidden' の和文・不明はコード付き／既定の適用開始日＝次の給与期の初日（2026-09-25→2026-10-01・12 月→翌年 1 月）", planSwitchErrJa("bad valid_from").includes("今日以降") && planSwitchErrJa("plan inactive").includes("無効") && planSwitchErrJa("forbidden").includes("権限") && planSwitchErrJa("xyz").includes("コード") && nextPeriodStartOf306("2026-09-25") === "2026-10-01" && nextPeriodStartOf306("2026-12-05") === "2027-01-01");
+  const cb2 = fs306.readFileSync("app/(manage)/casts/casts-board.tsx", "utf8");
+  check("cg(306-3) 配線: 待遇プラン行に「変更」→Picker の候補＝activePlans（is_active≠false のみ・同じ取得に同乗）・適用開始日の既定＝nextPeriodStartOf(today)・保存＝既存 RPC set_cast_plan に現在の上書き（castPlanOf[c.id]?.ov）を渡す・確定済み期は payroll_runs を読んで planSwitchValidate・注記 NOTE_PLAN_SWITCH", cb2.includes("setActivePlans(") && cb2.includes("r.is_active !== false") && cb2.includes("jonai_back_rate, is_active") && cb2.includes("items={activePlans.map((p) => ({ id: p.id, label: p.name }))}") && cb2.includes("from: nextPeriodStartOf(today)") && cb2.includes('supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: planForm.planId, p_overrides: castPlanOf[c.id]?.ov ?? {}, p_valid_from: planForm.from })') && cb2.includes('from("payroll_runs").select("status")') && cb2.includes("planSwitchValidate({") && cb2.includes("NOTE_PLAN_SWITCH") && NOTE_PLAN_SWITCH.includes("上書きは維持"));
+  check("cg(306-4) 306-14: 「契約区分: 未設定」は「未設定（委託として計算）」", cb2.includes('{emp ?? "未設定（委託として計算）"}') && !cb2.includes('{emp ?? "未設定"}'));
 }
 
 dbChecks().then(() => dbChecks0154()).then(() => {

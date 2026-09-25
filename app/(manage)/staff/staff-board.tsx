@@ -180,7 +180,7 @@ export default function StaffBoard({
           ＋追加ボタンは casts/customers と同じくツールバー行（nox-ctoolbar）の右端へ＝
           onClick も disabled 条件も文言も1文字も変えていない。 */}
       <PageHead eyebrow="STAFF ACCOUNTS" title="スタッフ"
-        desc="黒服・店長の権限と在籍を管理します（キャストはマスタ側で管理）。" />
+        desc="スタッフ・店長の権限と在籍を管理します（キャストはマスタ側で管理）。" />
       <Toast msg={msg} />
 
       <div className="nox-ctoolbar">
@@ -234,7 +234,7 @@ export default function StaffBoard({
           );
         })}
         <p style={{ ...t.sub, margin: "8px 0 0" }}>* シフト権限のシフト管理画面への適用は将来リリース（トグルは保存されます）。</p>
-        <p style={{ ...t.sub, margin: "3px 0 0" }}>† バック＝キャストのバック金額（報酬）の閲覧権限。会計権限とは独立です（既定オフ・必要な黒服のみ付与）。</p>
+        <p style={{ ...t.sub, margin: "3px 0 0" }}>† バック＝キャストのバック金額（報酬）の閲覧権限。会計権限とは独立です（既定オフ・必要なスタッフのみ付与）。</p>
       </section>
 
       {/* 編集パネル（Q-1 編集5RPC）。★裁定253 R5（2026-09-14）: インラインの nox-panel をやめ共通 Modal へ（器のみ＝5 RPC・引数・confirm は不変）。
@@ -305,7 +305,7 @@ export default function StaffBoard({
                 if (!confirm(`${users[sel.user_id]?.name ?? ""} を ${t.roleLabelJa(to)} に${to === "manager" ? "昇格" : "降格"}しますか？`)) return;
                 await rpc("役職を変更", "staff_change_role", { p_membership_id: sel.id, p_new_role: to });
                 setSel(null);
-              }}>{sel.role === "staff" ? "店長に昇格" : "黒服に降格"}</button>
+              }}>{sel.role === "staff" ? "店長に昇格" : "スタッフに降格"}</button>
             )}
             {!sel.is_active && (
               <button style={btnGold} disabled={busy} onClick={async () => {
@@ -348,19 +348,19 @@ export default function StaffBoard({
                     {isOwner ? (
                       /* ★裁定40: 権限付与は**ボタン化＋確認ダイアログ必須**。
                          ボタンは1タップで入るぶん取り違えが起きやすいので、店長を選ぶときだけ確認を挟む
-                         （黒服へ戻すときは確認しない＝権限が上がる方向にだけガードを置く）。
+                         （スタッフへ戻すときは確認しない＝権限が上がる方向にだけガードを置く）。
                          ★既存の役職変更（staff_change_role）は元からボタン＋confirm で、ここはその流儀に揃えた。
                          送る値（staff / manager）も submitAdd の引数も1文字も変えていない。 */
                       <SegSelect
                         value={aRole} onChange={(v) => setARole(v as "staff" | "manager")}
-                        options={[["staff", "黒服（staff）"], ["manager", "店長（manager）"]] as const}
+                        options={[["staff", "スタッフ（staff）"], ["manager", "店長（manager）"]] as const}
                         ariaLabel="役職"
                         confirm={(nv, nl) => nv === "manager"
                           ? `${aName.trim() || "この方"} を ${nl} として追加しますか？（店長は売上・給与・設定を操作できます）`
                           : undefined}
                       />
                     ) : (
-                      <span style={{ ...t.input, display: "block", color: "var(--sub)" }}>黒服（staff）</span>
+                      <span style={{ ...t.input, display: "block", color: "var(--sub)" }}>スタッフ（staff）</span>
                     )}
                   </label>
                   {aErr && <Message kind="error" style={{ margin: 0 }}>{aErr}</Message>}

@@ -1,6 +1,6 @@
 "use client";
 
-// ★C層② 面 b（設計書 v1 §4・mig0136/0137）: 黒服本人（role=staff）の月カレンダー×枠の ◯× タップ。
+// ★C層② 面 b（設計書 v1 §4・mig0136/0137）: スタッフ本人（role=staff）の月カレンダー×枠の ◯× タップ。
 //   読取＝staff_shift_patterns／staff_shift_deadlines（自店）・staff_shift_wishes（RLS＝本人行 or 管理者は自店全行）・
 //   staff_shifts（同）・auth_membership_id（RPC）。書込＝staff_wish_set（本人・締切前のみ）。
 //   締切＝staff_shift_deadline_at は内部専用のため client で deadlines 表から同式で算出
@@ -53,7 +53,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
   const [noteOf, setNoteOf] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  // ★便 AB-3（裁定281-4・S-4）: 月送り／今日で残留しない（対象切替 キャスト⇔黒服 は unmount で消える）＝T の 1e007c3 と同じ型
+  // ★便 AB-3（裁定281-4・S-4）: 月送り／今日で残留しない（対象切替 キャスト⇔スタッフ は unmount で消える）＝T の 1e007c3 と同じ型
   useClearOn(month, setMsg as (v: null) => void);
 
   const load = useCallback(async () => {
@@ -111,7 +111,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
     <section className="nox-cardtop" style={t.card}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
         <div>
-          <h2 style={{ ...t.cardTitle, margin: 0 }}>黒服シフト</h2>
+          <h2 style={{ ...t.cardTitle, margin: 0 }}>スタッフシフト</h2>
           <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
             {isManagerUp ? "希望から配置し、営業日ごとに確定します。行の時刻は枠から写して固定（例外は上書き）。" : "枠ごとに ◯× をタップして希望を出します。締切後はロックされます。"}
           </p>

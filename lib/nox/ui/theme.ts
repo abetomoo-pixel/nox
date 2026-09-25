@@ -57,7 +57,7 @@ export function avatarBg(name: string): string {
 
 // ロール表示ラベル（server/client 両用の純関数＝ここは "use client" なし）。
 export function roleLabelJa(role: string): string {
-  return role === "owner" ? "オーナー" : role === "manager" ? "店長" : role === "staff" ? "黒服" : role === "cast" ? "キャスト" : role;
+  return role === "owner" ? "オーナー" : role === "manager" ? "店長" : role === "staff" ? "スタッフ" : role === "cast" ? "キャスト" : role;
 }
 
 // ── canvas（アプリ背景・ログイン背景。.nox-dark と同要素に置くと var(--bg) が解決）─────────

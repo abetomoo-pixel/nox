@@ -125,7 +125,7 @@ export default function MasterBoard() {
         // ★C層①（mig0135・裁定182）: v3 の「利用機能」カード S4 の器＝/master/system の「機能」タブへ着地
         //   （タブ自体は owner のみ描画＝manager はカードから飛んでも既定タブに落ちる。他の「オーナー限定」カードと同型）。
         { href: "/master/system#features", id: "m-features", icon: "◈", count: "2機能", title: "機能の公開",
-          desc: "黒服シフト・締め解除フローの公開を、会社の既定と店舗ごとの上書きで切り替えます。", status: "● オーナー限定", tone: "mute" },
+          desc: "スタッフシフト・締め解除フローの公開を、会社の既定と店舗ごとの上書きで切り替えます。", status: "● オーナー限定", tone: "mute" },
       ],
     },
     {
@@ -190,8 +190,8 @@ export default function MasterBoard() {
                       <div className="icon" aria-hidden="true">{c.icon}</div>
                       <div className="count">{c.count}</div>
                     </div>
-                    <h3>{c.title}<span aria-hidden="true" style={{ color: "var(--primary)", marginLeft: 4 }}>›</span></h3>{/* ★裁定238-e: カード型 Link は下線化せず末尾「›」を --primary に */}
-                    <p>{c.desc}</p>
+                    <h3><span className="nox-cardtitle">{c.title}</span><span className="nox-cardchev" aria-hidden="true" style={{ color: "var(--primary)" }}>›</span></h3>{/* ★306-15: 「タイトル ›」1 行（nowrap・inline） */}{/* ★裁定238-e: カード型 Link は下線化せず末尾「›」を --primary に */}
+                    <p className="nox-carddesc">{c.desc}</p>{/* ★306-15: 説明 1 行 */}
                     <div className="foot">
                       <span className={`status ${c.tone}`}>{c.status}</span>
                       <span className="link">管理する →</span>

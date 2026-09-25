@@ -1,6 +1,6 @@
 "use client";
 
-// ★C層② 面 a（設計書 v1 §4・mig0136/0137）: 店舗設定「黒服シフト」節＝勤務パターン枠と希望締切。
+// ★C層② 面 a（設計書 v1 §4・mig0136/0137）: 店舗設定「スタッフシフト」節＝勤務パターン枠と希望締切。
 //   flag_enabled('staff_shift', store) が false なら節ごと描かない（横断 §4＝導線・画面を出さない）。
 //   読取＝staff_shift_patterns／staff_shift_deadlines（RLS select・owner∨manager 自店）＋stores.settings_json（営業日の cutoff）
 //   ＋flag_enabled（RPC）。書込＝staff_pattern_set／staff_pattern_delete／staff_deadline_set（RPC のみ・課金ゲート内蔵＝0137）。
@@ -28,14 +28,14 @@ export const fmtEnd30 = (hm: string) => { const m = hm2min(hm); return m >= 1440
 
 export function staffShiftErrJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
-  if (msg.includes("feature_disabled")) return "この機能は公開されていません（システム設定の「機能の公開」で黒服シフトを ON にしてください）";
+  if (msg.includes("feature_disabled")) return "この機能は公開されていません（システム設定の「機能の公開」でスタッフシフトを ON にしてください）";
   if (msg.includes("billing locked")) return "課金が停止中のため変更できません";
   if (msg.includes("effective_from_past")) return "適用日は当日（営業日）以降にしてください";
   if (msg.includes("effective_from_not_future")) return "当日以前の行は削除できません（履歴として残ります）";
   if (msg.includes("pattern_in_use")) return "希望またはシフトから参照されている枠は削除できません";
   if (msg.includes("pattern_not_effective")) return "その日に有効な枠ではありません";
   if (msg.includes("deadline_passed")) return "希望の締切を過ぎています";
-  if (msg.includes("staff_not_in_store")) return "この店に所属する黒服ではありません";
+  if (msg.includes("staff_not_in_store")) return "この店に所属するスタッフではありません";
   if (msg.includes("wish_mismatch")) return "希望と日付・本人が一致しません";
   if (msg.includes("already_confirmed")) return "すでに確定済みです";
   if (msg.includes("biz_date_past")) return "過去の営業日は変更できません";
@@ -160,7 +160,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
   return (
     <section className="nox-panel" id="staff-shift">
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <h3 style={{ margin: 0 }}>黒服シフト（勤務パターン枠・希望締切）</h3>
+        <h3 style={{ margin: 0 }}>スタッフシフト（勤務パターン枠・希望締切）</h3>
         {stores.length > 1 && (
           <select value={storeSel} onChange={(e) => setStoreSel(e.target.value)} style={{ ...input, marginLeft: "auto" }}>
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -225,7 +225,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
           <input type="date" value={dFrom} min={bizToday} onChange={(e) => setDFrom(e.target.value)} style={input} />
           <button style={btnDark} disabled={busy} onClick={() => void addDeadline()}>設定</button>
         </div>
-        <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>締切は黒服の希望入力にだけ効きます（店長の配置・時刻上書きは締切後も可）。</p>
+        <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>締切はスタッフの希望入力にだけ効きます（店長の配置・時刻上書きは締切後も可）。</p>
       </div>
     </section>
   );

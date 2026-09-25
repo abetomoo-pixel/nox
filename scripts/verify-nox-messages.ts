@@ -68,6 +68,13 @@ for (const f of files) {
   src.split("\n").forEach((l, i) => { if (BARE.test(l)) { const prev = src.split("\n")[i - 1] ?? ""; if (!/Message|Toast/.test(prev)) hits.push(`${f}:${i + 1}: 素の ${l.trim()}`); } });
 }
 check(`ms(2-1) 素の <p>／<span> でのメッセージ直接描画＝0（走査 ${files.length} ファイル・除外 ${EXCLUDE.size}）`, hits.length === 0, hits.slice(0, 10).join(" | "));
+// ★裁定306-9（2026-09-25）: 画面上の「黒服」は「スタッフ」に統一＝app／components／lib の .ts／.tsx に「黒服」0（許可列挙＝台帳・docs のみ。コードの識別子（staff_*）は不変）
+{
+  const walk2 = (dir: string, out: string[]) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p2 = path.join(dir, e.name); if (e.isDirectory()) walk2(p2, out); else if (/\.tsx?$/.test(e.name)) out.push(p2.replace(/\\/g, "/")); } };
+  const all: string[] = []; for (const r of ["app", "components", "lib"]) if (fs.existsSync(r)) walk2(r, all);
+  const kuro = all.filter((f) => fs.readFileSync(f, "utf8").includes("黒服"));
+  check(`ms(3-1) 306-9 用語統一: app／components／lib に「黒服」0（走査 ${all.length} ファイル）`, kuro.length === 0, kuro.slice(0, 8).join(", "));
+}
 const toastSrc = fs.readFileSync("components/ui/toast.tsx", "utf8");
 check("ms(2-2) Toast は Message を経由（kind 未指定は messageKindOf）・Message は role と data-message-kind を持つ", /messageKindOf\(msg\)/.test(toastSrc) && /role=\{messageRole\(kind\)\}/.test(toastSrc) && /data-message-kind=\{kind\}/.test(toastSrc));
 const shiftSrc = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");

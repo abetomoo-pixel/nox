@@ -45,7 +45,7 @@ function relTime(iso: string): string {
   return `${dt.getMonth() + 1}/${dt.getDate()}`;
 }
 
-const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "黒服" };
+const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ" };
 
 export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: Cast[]; stores: Store[]; isOwner: boolean }) {
   const supabase = createClient();
@@ -300,7 +300,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
                 <span style={t.bdVal}>表示・編集・支払調書用の全表示 <b style={{ color: "var(--ok)" }}>●許可</b></span></div>
               <div style={t.bdRow}><span style={t.bdKey}>店長</span>
                 <span style={t.bdVal}>閲覧不可（封印） <b style={{ color: "var(--sub)" }}>●制限</b></span></div>
-              <div style={t.bdRow}><span style={t.bdKey}>黒服</span>
+              <div style={t.bdRow}><span style={t.bdKey}>スタッフ</span>
                 <span style={t.bdVal}>閲覧不可 <b style={{ color: "var(--sub)" }}>●制限</b></span></div>
             </div>
             <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}>

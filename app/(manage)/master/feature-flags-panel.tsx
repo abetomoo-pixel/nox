@@ -19,7 +19,7 @@ type FlagRow = { id: string; store_id: string | null; key: string; enabled: bool
 
 // 裁定C①-1: key の表示名。裁定C①-2: ローンチ時に出すのは前 2 つ。
 const VISIBLE_KEYS: Array<{ key: string; label: string; desc: string }> = [
-  { key: "staff_shift", label: "黒服シフト", desc: "黒服・スタッフのシフトと勤務パターン（C層②）。" },
+  { key: "staff_shift", label: "スタッフシフト", desc: "スタッフのシフトと勤務パターン（C層②）。" },
   { key: "reopen_flow", label: "締め解除フロー", desc: "締め解除・給与確定解除・現金差異承認・伝票統合の解除型（C層③）。" },
 ];
 
@@ -127,7 +127,7 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
         <label style={{ fontSize: 12, color: "var(--sub)" }}>理由（任意）{" "}
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="例: 9月から黒服シフトを試験運用" style={inp} maxLength={200} />
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="例: 9月からスタッフシフトを試験運用" style={inp} maxLength={200} />
         </label>
         <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>次の切替に添えて監査へ記録します。</span>
       </div>

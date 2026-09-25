@@ -9,7 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Modal from "./modal";
 import { NavIcon } from "./nav-icons";
-import { GEAR_LABEL, NAV_DESC, activeHrefOf, userChipLabelOf, type NavGroup } from "@/lib/nox/ui/nav-tabs";
+import { GEAR_LABEL, NAV_DESC, OPEN_MENU_EVENT, activeHrefOf, hashTargetOf, userChipLabelOf, type NavGroup } from "@/lib/nox/ui/nav-tabs";
 
 /** 一覧型の行（メニュー Modal と設定 Modal で共用）＝アイコン＋ラベル＋説明＋「›」 */
 export function NavListRow({ href, label, on, onClick }: { href: string; label: string; on: boolean; onClick?: () => void }) {
@@ -31,9 +31,23 @@ export function HeaderGear({ groups }: { groups: NavGroup[] }) {
   const items = groups.flatMap((g) => g.items);
   if (items.length === 0) return null;
   const active = activeHrefOf(path, items);
+  // ★裁定306-11: ≤899px はページ内パネルを差し込まず、下タブ「メニュー」と同じボトムシート（nav.tsx）を「設定」節から開く。≥900px は現行の Modal
+  const openGear = () => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 899px)").matches) {
+      window.dispatchEvent(new CustomEvent(OPEN_MENU_EVENT, { detail: { section: "settings" } }));
+      return;
+    }
+    setOpen(true);
+  };
+  // ★306-11（≥900px）: 押下時に該当パネル（同じページのハッシュ）へ scrollIntoView
+  const pick = (href: string) => {
+    setOpen(false);
+    const id = hashTargetOf(href, path);
+    if (id) requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
   return (
     <>
-      <button type="button" className={active ? "nox-hdrbtn on" : "nox-hdrbtn"} aria-label={GEAR_LABEL} title={GEAR_LABEL} onClick={() => setOpen(true)}>
+      <button type="button" className={active ? "nox-hdrbtn on" : "nox-hdrbtn"} aria-label={GEAR_LABEL} title={GEAR_LABEL} onClick={openGear}>
         <span aria-hidden="true">⚙</span>
       </button>
       {open && (
@@ -45,7 +59,7 @@ export function HeaderGear({ groups }: { groups: NavGroup[] }) {
             </div>
             {groups.map((g, gi) => (
               <div key={g.label ?? `gear${gi}`} className="nox-navsheet-g">
-                {g.items.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={() => setOpen(false)} />)}
+                {g.items.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={() => pick(it.href)} />)}
               </div>
             ))}
           </div>

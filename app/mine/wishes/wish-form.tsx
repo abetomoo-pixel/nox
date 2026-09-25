@@ -22,6 +22,8 @@ import {
   summarizeResults, timesValid, toggleDay, wishMarkOf, type Selection, type SubmitResult, type WishLike,
 } from "@/lib/nox/mine/wish-calendar";
 import WithdrawButton from "./withdraw-button";
+import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定306-4／306-6: 年月見出し＋前月／翌月／今月＝確定タブと同じ部品・?ym 同期
+import { outOfPeriodNoteOf, ymFromSearch } from "@/lib/nox/ui/month-nav";
 
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
@@ -31,6 +33,7 @@ export default function WishForm() {
   const today = new Date().toISOString().slice(0, 10);
   const [periods, setPeriods] = useState<OpenPeriod[] | null>(null); // ★N5: null＝RPC 未適用（0151 手貼り前）＝案内も活性化も出ない
   const [month, setMonth] = useState(today.slice(0, 7));
+  useYmQuery(month, setMonth); // ★306-1／306-4: ?ym と同期
   const [wishes, setWishes] = useState<WishLike[]>([]);
   const [sel, setSel] = useState<Selection>({});
   const [defStart, setDefStart] = useState(DEFAULT_START);
@@ -54,7 +57,7 @@ export default function WishForm() {
         start_date: String(r.start_date), end_date: String(r.end_date), wish_deadline: r.wish_deadline ? String(r.wish_deadline) : null,
       }));
       setPeriods(ps);
-      setMonth(initialMonthOf(ps, today)); // ★290-1: 最初に開く月＝募集中の期間の月
+      setMonth(ymFromSearch(window.location.search) ?? initialMonthOf(ps, today)); // ★290-1: 最初に開く月＝募集中の期間の月（★306: ?ym があればそれを優先）
     });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,7 +81,6 @@ export default function WishForm() {
   const cells = monthCellsOf(month);
   const active = activeDaysOf({ periods, cells, wishes, closedDates, today });
   const wishOn = (ymd: string) => wishes.find((w) => w.date === ymd && isLiveWish(w.status)) ?? wishes.find((w) => w.date === ymd) ?? null;
-  const [my, mm] = month.split("-");
   const selDates = Object.keys(sel).sort();
 
   // タップ＝選択／解除。定休日はタップ時に 1 回だけ問い合わせて非活性にする（boolean のみ・失敗時は選べる＝二層目は RPC 'closed day'）
@@ -136,12 +138,10 @@ export default function WishForm() {
       {notice && (
         <Message kind={notice.kind === "past_deadline" ? "warn" : "info"} style={{ margin: "0 0 10px" }}>{notice.text}</Message>
       )}
-      <div className="nox-calhead">
-        <button type="button" style={btnLight} disabled={busy} onClick={() => { setMonth(monthAfterOf(month, -1)); setFocus(null); }} aria-label="前の月">‹</button>
-        <b className="num" style={{ fontSize: 14 }}>{my}年{mm}月</b>
-        <button type="button" style={btnLight} disabled={busy} onClick={() => { setMonth(monthAfterOf(month, 1)); setFocus(null); }} aria-label="次の月">›</button>
-        <span style={{ marginLeft: "auto", fontSize: 10.5, color: "var(--v2-muted)" }}>募集中の日をタップで選択・もう一度で解除</span>
-      </div>
+      {/* ★306-4／306-6: 年月見出し＋前月／翌月／今月＝共用部品。提出可能な期間の外へも移動できる（提出不可の注記＝outOfPeriodNoteOf） */}
+      <MonthNav ym={month} today={today} heading="b" disabled={busy} onChange={(m) => { setMonth(m); setFocus(null); }}
+        note={outOfPeriodNoteOf(active.size, periods, month)}
+        right={<span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>募集中の日をタップで選択・もう一度で解除</span>} />
       {/* ★290-1／AU3: 月グリッド＝button.nox-cald・≤899 は 7 列を収める（.nox-calgrid--fit） */}
       <div className="nox-calgrid nox-calgrid--fit">
         {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}

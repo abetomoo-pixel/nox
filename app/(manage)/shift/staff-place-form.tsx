@@ -1,6 +1,6 @@
 "use client";
 
-// ★夜間便 N6（便 S-1／S-2・裁定287-1・2026-09-18）: 黒服の配置フォーム＝枠の選択（chips・select 不使用＝裁定259）→ 時刻は枠から写す →
+// ★夜間便 N6（便 S-1／S-2・裁定287-1・2026-09-18）: スタッフの配置フォーム＝枠の選択（chips・select 不使用＝裁定259）→ 時刻は枠から写す →
 //   必要なら開始・終了を調整（＝propose の後に staff_shift_override を続けて呼ぶ・呼ぶかどうかは親）→「配置」（実行＝青塗り・裁定239）。
 //   日付起点（staff-place-day）と人起点（staff-place-by-staff）で共用。RPC は持たない（親の onPlace に渡す）。
 import { useState } from "react";
@@ -45,7 +45,7 @@ export default function StaffPlaceForm({ staffName, patterns, wishPatternIds, pl
   return (
     <div>
       <b style={{ fontSize: 13 }}><span style={{ color: "var(--champ)" }}>{staffName}</span> を配置</b>
-      {patterns.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>この日に有効な枠がありません（マスタ ▸ 黒服の勤務パターンで枠を作ってください）。</p>}
+      {patterns.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>この日に有効な枠がありません（マスタ ▸ スタッフの勤務パターンで枠を作ってください）。</p>}
       {patterns.length > 0 && (
         <>
           <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "6px 0 4px" }}>枠を選ぶ（時刻は枠から写します）</p>

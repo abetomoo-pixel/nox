@@ -2228,3 +2228,49 @@ body {
    セルは min-width 0。時刻 .nox-cald-t は ≤899 で非表示（日詳細モーダルで見る）。900+ は従来どおり。新トークン 0 */
 .nox-calgrid--fit > .nox-cald { min-width: 0; overflow: hidden; }
 @media (max-width: 899px) { .nox-calgrid--fit { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; } .nox-calgrid--fit .nox-cald-t { display: none; } }
+
+/* ── ★裁定306（2026-09-25・スマホ実機の崩れ一式）──────────────────────────────
+   306-1／306-6: 年月見出し（MonthNav）＝sticky。306-2／306-4: 見出し下の薄字注記。
+   306-3／306-8: 配置ツール＝≤899 はセグメント 1 行＋ボタン 1 行。306-5: 未確定＝≤899 は上辺 3px の帯＋凡例・≥900 は番号の下の行。
+   306-7: 期間カード＝≤899 は縦 2 段＋右端の横書き小ボタン・フォームは 3 行。306-10: スタッフ月セル＝≤899 は圧縮 1 行ずつ。
+   306-15: 「›」はタイトル行の右端に inline（nowrap）・正方形タイルは「›」なし。値は既存トークンのみ。 */
+.nox-monthnav--sticky { position: sticky; top: 0; z-index: 3; background: var(--card); padding-top: 4px; padding-bottom: 4px; }
+.nox-monthnav .nox-monthnav-h { font-size: 15px; font-weight: 800; color: var(--champ); }
+.nox-monthnav .nox-monthnav-r { margin-left: auto; }
+.nox-monthnav .nox-monthnav-note { flex-basis: 100%; font-size: 10.5px; color: var(--v2-muted); }
+.nox-plantools { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
+@media (max-width: 899px) {
+  .nox-plantools { margin-left: 0; width: 100%; flex-direction: column; align-items: stretch; }
+  .nox-plantools .nox-seg { width: 100%; display: flex; }
+  .nox-plantools .nox-seg > button { flex: 1 1 0; white-space: nowrap; }
+  .nox-plantools > button { width: 100%; }
+}
+.nox-cald .nox-cald-unpub { display: block; font-size: 8.5px; line-height: 1.4; color: var(--v2-muted); text-align: left; }
+.nox-unpub-legend { display: none; }
+.nox-unpub-swatch { display: inline-block; width: 14px; height: 3px; background: var(--gold2); vertical-align: middle; margin-right: 6px; }
+@media (max-width: 899px) {
+  .nox-cald.nox-cald--unpub { border-top: 3px solid var(--gold2); }
+  .nox-cald .nox-cald-unpub { display: none; }
+  .nox-unpub-legend { display: block; }
+}
+.nox-periodcard { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.nox-periodcard:last-of-type { border-bottom: 0; }
+.nox-periodcard .pc-main { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.nox-periodcard .pc-sub { display: inline-flex; gap: 8px; align-items: center; }
+.nox-periodcard .pc-acts { margin-left: auto; display: inline-flex; gap: 6px; flex: 0 0 auto; }
+.nox-periodcard .pc-acts button { writing-mode: horizontal-tb; white-space: nowrap; }
+@media (max-width: 899px) { .nox-periodcard .pc-main { flex-direction: column; align-items: flex-start; gap: 4px; } }
+.nox-periodform { display: grid; gap: 8px; }
+.nox-periodform .pf-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.nox-periodform .pf-acts { display: flex; justify-content: flex-end; gap: 8px; }
+.nox-sscell-narrow { display: none; }
+@media (max-width: 899px) {
+  .nox-sscell-wide { display: none !important; }
+  .nox-sscell-narrow { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 9.5px; line-height: 1.5; text-align: left; }
+}
+.nox-grid3 h3 { display: flex; align-items: baseline; gap: 4px; }
+.nox-grid3 h3 .nox-cardchev { flex: 0 0 auto; white-space: nowrap; }
+.nox-grid3 h3 .nox-cardtitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nox-grid3 p.nox-carddesc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nox-navrow .nox-navchev { flex: 0 0 auto; white-space: nowrap; }
+.nox-quicktile .nox-quickicon svg { width: 20px; height: 20px; }

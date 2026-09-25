@@ -16,6 +16,7 @@ import fs from "node:fs";
 import { BOTTOM_PRIORITY, MENU_LABEL, activeHrefOf, splitNav, tabsFor, userChipLabelOf, type NavGroup } from "../lib/nox/ui/nav-tabs";
 import { MASTER_NAV } from "../lib/nox/master/nav"; // ★U-2: マスタ第 2 ナビの許可列挙
 import { hubCountOf, hubStatusOf } from "../lib/nox/ui/hub-count"; // ★Z152: 取得前は数値を描かない
+import { OPEN_MENU_EVENT, hashTargetOf } from "../lib/nox/ui/nav-tabs"; // ★306-11
 
 let pass = 0;
 const fails: string[] = [];
@@ -80,6 +81,18 @@ check("nv(5-3) 概要カード「キャスト・報酬」節＝待遇プラン�
   JSON.stringify(titles) === JSON.stringify(["待遇プラン・報酬シミュレーター", "控除・送りの設定", "ノルマ設定", "キャスト会計の許可", "報酬制度", "紹介者・紹介料"]), JSON.stringify(titles));
 check("nv(5-5) ★Z152 hubCountOf／hubStatusOf: loading／error は「—」（数値なし）・error は「取得できませんでした」・ok は実数（0 を含む）", hubCountOf("loading", 5).text === "—" && hubCountOf("loading", 5).note === null && hubCountOf("error", 5).text === "—" && hubCountOf("error", 5).note === "取得できませんでした" && hubCountOf("ok", 0, "件").text === "0件" && hubCountOf("ok", 12).text === "12" && hubStatusOf("loading", "● 未払 3 件") === "● —" && hubStatusOf("error", "x") === "● 取得できませんでした" && hubStatusOf("ok", "● 未払 3 件") === "● 未払 3 件");
 check("nv(5-6) ★Z152 配線: master-board の KPI 4 枚とカード件数は hubCountOf 経由（生の {products.length} 等を <strong> に描かない）・状態は hubStatusOf・紹介者の count は主取得と独立（try/catch の外）・「読込中」文言なし", (mb.match(/hubCountOf\(hubState, (products|categories|seats)\.length/g) || []).length >= 6 && mb.includes("hubCountOf(hubState, lowStock)") && !/<strong>\{(products|categories|seats)\.length\}/.test(mb) && !mb.includes("読込中") && mb.includes("hubStatusOf(refState") && mb.indexOf('setRefState("ok")') > mb.indexOf("} catch {"));
+check("nv(6-1) ★306-11 hashTargetOf: 同じページのハッシュ→id・別ページ／ハッシュなし→null・OPEN_MENU_EVENT の名", hashTargetOf("/master/system#features", "/master/system") === "features" && hashTargetOf("/master/system#features", "/master") === null && hashTargetOf("/master", "/master") === null && OPEN_MENU_EVENT === "nox:open-menu");
+{
+  const hc = fs.readFileSync("components/ui/header-chips.tsx", "utf8");
+  const nv2 = fs.readFileSync("components/ui/nav.tsx", "utf8");
+  check("nv(6-2) ★306-11 ⚙: ≤899px は matchMedia で OPEN_MENU_EVENT を dispatch（ページ内パネル 0）・≥900px は現行 Modal＋hashTargetOf→scrollIntoView", hc.includes('window.matchMedia("(max-width: 899px)").matches') && hc.includes('new CustomEvent(OPEN_MENU_EVENT, { detail: { section: "settings" } })') && hc.includes("hashTargetOf(href, path)") && hc.includes("scrollIntoView(") && hc.includes("<Modal onClose={() => setOpen(false)} maxWidth={520} scroll>"));
+  check("nv(6-3) ★306-11 メニューシート: 同一部品（Modal・NavListRow）に「設定」節（id nox-sheet-settings・gearGroups）・OPEN_MENU_EVENT を購読・戻る（popstate）／外側／×／Esc で閉じる（closeSheet＝history.back）", nv2.includes('id="nox-sheet-settings"') && nv2.includes("gearItems.map((it) => <NavListRow") && nv2.includes("window.addEventListener(OPEN_MENU_EVENT, onOpen)") && nv2.includes('window.addEventListener("popstate", onPop)') && nv2.includes("<Modal onClose={closeSheet} maxWidth={520} scroll>") && nv2.includes("window.history.back()"));
+  const db2 = fs.readFileSync("app/(manage)/dashboard/dashboard-board.tsx", "utf8");
+  const dp2 = fs.readFileSync("app/(manage)/dashboard/page.tsx", "utf8");
+  const css2 = fs.readFileSync("app/globals.css", "utf8");
+  check("nv(6-4) ★306-15／306-16 クイック操作タイル: NavIcon（href キー）・文字記号 icon 0（■☾▤◉▲¥♦✦◻◌）・タイルに「›」0", db2.includes("<NavIcon href={s.href} />") && !/icon: "/.test(dp2) && !/[■☾▤◉▲♦✦◻◌]/.test(dp2) && !/nox-quicktile">[\s\S]{0,300}›/.test(db2));
+  check("nv(6-5) ★306-15 「›」の折返し禁止: マスタ概要カードは .nox-cardtitle＋.nox-cardchev（nowrap・h3 は flex）・説明は .nox-carddesc 1 行・メニュー行の .nox-navchev は nowrap", mb.includes('className="nox-cardtitle"') && mb.includes('className="nox-cardchev"') && mb.includes('className="nox-carddesc"') && css2.includes(".nox-grid3 h3 .nox-cardchev { flex: 0 0 auto; white-space: nowrap; }") && css2.includes(".nox-grid3 h3 { display: flex;") && css2.includes(".nox-navrow .nox-navchev { flex: 0 0 auto; white-space: nowrap; }"));
+}
 check("nv(5-4) 紹介者カード: href /master/referrers・バッジ「支払」・状態「未払 n 件」＝referral_payouts の unpaid count（head・fetch +1）・0 は「未払なし」",
   sec.includes('href: "/master/referrers"') && sec.includes('count: "支払"') && sec.includes("`● 未払 ${unpaidRef} 件`") && sec.includes('"● 未払なし"') && mb.includes('from("referral_payouts").select("id", { count: "exact", head: true }).eq("status", "unpaid")'));
 if (fails.length) {

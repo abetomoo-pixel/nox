@@ -73,3 +73,13 @@ export function userChipLabelOf(input: { name: string | null | undefined; email:
   const n = (input.name ?? "").trim() || (input.email ?? "").trim();
   return n ? `${n}｜${input.roleJa}` : input.roleJa;
 }
+
+/** ★裁定306-11（≥900px）: 押した項目が「今いるページのハッシュ」なら scrollIntoView の対象 id（違えば null） */
+export function hashTargetOf(href: string, path: string): string | null {
+  const i = href.indexOf("#");
+  if (i < 0) return null;
+  const base = href.slice(0, i), id = href.slice(i + 1);
+  return id && base === path ? id : null;
+}
+/** ★裁定306-11（≤899px）: ヘッダーの ⚙ は下タブ「メニュー」と同じボトムシートを「設定」節から開く＝window イベント名 */
+export const OPEN_MENU_EVENT = "nox:open-menu";

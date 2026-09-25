@@ -18,7 +18,7 @@ import { usePathname } from "next/navigation";
 import Modal from "./modal"; // ★裁定251（M2）: メニューのシートは共通 Modal 部品を通す
 import { NavIcon } from "./nav-icons";
 import { NavListRow } from "./header-chips";
-import { MENU_LABEL, activeHrefOf, splitNav, type NavGroup, type NavItem } from "@/lib/nox/ui/nav-tabs";
+import { GEAR_LABEL, MENU_LABEL, OPEN_MENU_EVENT, activeHrefOf, splitNav, type NavGroup, type NavItem } from "@/lib/nox/ui/nav-tabs";
 
 export type { NavItem, NavGroup };
 
@@ -28,17 +28,47 @@ export type { NavItem, NavGroup };
 export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGroup[]; spPriority?: string[]; hideSide?: boolean; gear?: boolean }) {
   const path = usePathname() ?? "";
   const [sheet, setSheet] = useState(false);
+  const [section, setSection] = useState<"menu" | "settings">("menu");
+  // ★裁定306-11: 開く＝履歴に 1 段積む（戻るで閉じる）・閉じる＝外側タップ／×／Esc は history.back() で同じ経路を通す
+  const openSheet = (sec: "menu" | "settings") => {
+    setSection(sec);
+    setSheet(true);
+    try { window.history.pushState({ ...(window.history.state ?? {}), noxSheet: 1 }, ""); } catch { /* noop */ }
+  };
+  const closeSheet = () => {
+    if (typeof window !== "undefined" && window.history.state?.noxSheet) { window.history.back(); return; }
+    setSheet(false);
+  };
+  useEffect(() => {
+    const onPop = () => setSheet(false);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  // ★306-11: ヘッダーの歯車（≤899px）＝同じシートを「設定」節から開く
+  useEffect(() => {
+    const onOpen = (e: Event) => { const sec = (e as CustomEvent<{ section?: string }>).detail?.section === "settings" ? "settings" : "menu"; openSheet(sec); };
+    window.addEventListener(OPEN_MENU_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_MENU_EVENT, onOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // 「設定」節から開いたときはその節へスクロール
+  useEffect(() => {
+    if (!sheet || section !== "settings") return;
+    requestAnimationFrame(() => document.getElementById("nox-sheet-settings")?.scrollIntoView({ block: "start" }));
+  }, [sheet, section]);
   // ★裁定251（M2）: Esc で閉じる（シートが開いている間だけ keydown を購読）
   useEffect(() => {
     if (!sheet) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSheet(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeSheet(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheet]);
   const flat = groups.flatMap((g) => g.items);
   const active = activeHrefOf(path, flat);
   // ★N4: ≤899 の振り分け＝優先 4 本／メニュー（残り＋お知らせ）／歯車（ヘッダーへ＝ここでは描かない）
-  const { primary, menuGroups } = splitNav(groups, spPriority);
+  const { primary, menuGroups, gearGroups } = splitNav(groups, spPriority);
+  const gearItems = gearGroups.flatMap((g) => g.items); // ★306-11: シートの「設定」節（≤899px の 歯車 の行き先）
   const menuItems = menuGroups.flatMap((g) => g.items);
   const menuActive = menuItems.some((it) => it.href === active);
 
@@ -69,7 +99,7 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
           </Link>
         ))}
         {menuItems.length > 0 && (
-          <button type="button" className={menuActive ? "nox-tab on" : "nox-tab"} aria-haspopup="dialog" aria-expanded={sheet} onClick={() => setSheet(true)}>
+          <button type="button" className={menuActive ? "nox-tab on" : "nox-tab"} aria-haspopup="dialog" aria-expanded={sheet} onClick={() => openSheet("menu")}>
             <NavIcon href="menu" />
             {MENU_LABEL}
           </button>
@@ -79,18 +109,25 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
       {/* 「メニュー」＝残り項目の一覧型シート。★裁定251（M2・2026-09-14）: 共通 Modal 部品（maxWidth 520・scroll・≤900 はボトムシート）。
           × ボタン（.nox-formmodal-x）と Esc（useEffect の keydown）で閉じる。/mine の TabBar も同じ部品を通る（メニューは出ない）。 */}
       {sheet && (
-        <Modal onClose={() => setSheet(false)} maxWidth={520} scroll>
+        <Modal onClose={closeSheet} maxWidth={520} scroll>
           <div className="nox-navsheet">
             <div className="nox-formmodal-head" style={{ marginBottom: 10 }}>
-              <h2 className="nox-navsheet-h" style={{ margin: 0 }}>{MENU_LABEL}</h2>
-              <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => setSheet(false)}>×</button>
+              <h2 className="nox-navsheet-h" style={{ margin: 0 }}>{section === "settings" ? GEAR_LABEL : MENU_LABEL}</h2>
+              <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={closeSheet}>×</button>
             </div>
             {menuGroups.map((g, gi) => (
               <div key={g.label ?? `s${gi}`} className="nox-navsheet-g">
                 {g.label && <div className="nox-navgroup-h">{g.label}</div>}
-                {g.items.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={() => setSheet(false)} />)}
+                {g.items.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={closeSheet} />)}
               </div>
             ))}
+            {/* ★306-11: 「設定」節（gear 群）＝≤899px の 歯車 はここから開く（ページ内パネルを差し込まない） */}
+            {gearItems.length > 0 && (
+              <div id="nox-sheet-settings" className="nox-navsheet-g">
+                <div className="nox-navgroup-h">{GEAR_LABEL}</div>
+                {gearItems.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={closeSheet} />)}
+              </div>
+            )}
           </div>
         </Modal>
       )}

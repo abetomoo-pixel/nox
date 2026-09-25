@@ -1,6 +1,6 @@
 "use client";
 
-// ★夜間便 N6（便 S-1・裁定287-1・2026-09-18）: 入口①＝黒服カレンダーの日付セル → モーダル「M/D(曜) 黒服を配置」。
+// ★夜間便 N6（便 S-1・裁定287-1・2026-09-18）: 入口①＝スタッフカレンダーの日付セル → モーダル「M/D(曜) スタッフを配置」。
 //   写経元＝キャスト側 DayAddPanel（日詳細モーダル内で人を選び、配置後も閉じず同じ日に続けて配置できる）。
 //   左＝スタッフ一覧（その日に ◯ 希望を出している人を上・希望の枠をバッジ・配置済みは印と枠名）／右＝枠と時刻（StaffPlaceForm）→「配置」。
 //   下＝その日の配置済み一覧と「取消」（Danger＝red 枠・過去日は出さない・confirmed は理由入力のモーダル＝裁定265 の型・prompt 不使用）。
@@ -67,7 +67,7 @@ export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wis
   return (
     <Modal onClose={() => { if (!busy && !cancelTarget) onClose(); }} maxWidth={900} scroll>
       <div className="nox-formmodal-head">
-        <strong className="num">{mdDowOf(day)} 黒服を配置</strong>
+        <strong className="num">{mdDowOf(day)} スタッフを配置</strong>
         <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={onClose}>×</button>
       </div>
       {past && <Message kind="warn" style={{ margin: "0 0 10px" }}>過去の営業日です（配置・取消はできません。閲覧のみ）</Message>}
@@ -96,7 +96,7 @@ export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wis
                 </button>
               );
             })}
-            {rows.length === 0 && <span style={{ fontSize: 12, color: "var(--sub)" }}>この店の黒服（スタッフ）がいません。</span>}
+            {rows.length === 0 && <span style={{ fontSize: 12, color: "var(--sub)" }}>この店のスタッフがいません。</span>}
           </div>
         </div>
         {/* ── 右: 枠と時刻 → 配置 ── */}

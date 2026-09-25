@@ -22,6 +22,8 @@ import { resolveOrgId, signCastPhotos, uploadCastPhoto } from "@/lib/nox/cast-ph
 import type { Trial, CastLogin } from "./page";
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast 固定・共通部品・既存 RPC）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
+import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
+import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
 
 type Store = { id: string; name: string; settings_json?: Record<string, unknown> | null }; // ★裁定300-2: 送り方式（okuri_mode）・ベース額（okuri_base_amount）
 
@@ -128,6 +130,10 @@ export default function CastsBoard({
   const [ruleMsg, setRuleMsg] = useState<{ kind: "error" | "success" | "warn" | "info"; text: string } | null>(null);
   const [empForm, setEmpForm] = useState<{ employment: Employment; from: string } | null>(null);
   const [empMsg, setEmpMsg] = useState<{ kind: "error" | "success" | "warn" | "info"; text: string } | null>(null);
+  // ★裁定306-13: 待遇プランの切替（候補＝店の有効な comp_plans・適用開始日＝次の給与期の初日が既定・過去日不可・確定済みの期は不可・既存 RPC set_cast_plan＝上書きは維持）
+  const [activePlans, setActivePlans] = useState<{ id: string; name: string }[]>([]);
+  const [planForm, setPlanForm] = useState<{ planId: string | null; from: string } | null>(null);
+  const [planMsg, setPlanMsg] = useState<{ kind: "error" | "success" | "warn" | "info"; text: string } | null>(null);
   const [plansById, setPlansById] = useState<Record<string, {
     name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
     hon_back_mode: string; hon_back_rate: number | null; jonai_back_mode: string; jonai_back_rate: number | null;
@@ -173,7 +179,7 @@ export default function CastsBoard({
   const loadPlans = useCallback(async () => {
       const [{ data: cp }, { data: pl }] = await Promise.all([
         supabase.from("cast_plan").select("cast_id, plan_id, overrides_json, valid_from, valid_to"),
-        supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate"),
+        supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, is_active"), // ★306-13: is_active（同じ取得に同乗）
       ]);
       const m: Record<string, { planId: string; ov: Record<string, number | string> }> = {};
       const rowsOf: Record<string, PlanRowLike[]> = {};
@@ -193,6 +199,7 @@ export default function CastsBoard({
           jonai_back_mode: (r.jonai_back_mode as string) ?? "per_count", jonai_back_rate: r.jonai_back_rate as number | null,
         };
       }
+      setActivePlans(((pl ?? []) as Record<string, unknown>[]).filter((r) => r.is_active !== false).map((r) => ({ id: r.id as string, name: r.name as string }))); // ★306-13: 候補＝有効プランのみ
       setCastPlanOf(m); setPlansById(p); setPlanRowsOf(rowsOf);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today]);
@@ -347,6 +354,21 @@ export default function CastsBoard({
     setRuleMsg({ kind: "success", text: `報酬型を「${payRuleLabelOf(ruleForm.rule, c.employment ?? null)}」にしました` });
     setRuleForm(null);
     await loadPlans();
+  }
+  // ★裁定306-13: 待遇プランの切替＝既存 RPC set_cast_plan（p_overrides は現在の上書きをそのまま＝維持）。確定済みの期は payroll_runs を 1 回読んで止める（保存時のみ・+1）
+  async function savePlan(c: { id: string; store_id: string }) {
+    if (!planForm) return;
+    setPlanMsg(null);
+    const { data: run } = await supabase.from("payroll_runs").select("status").eq("store_id", c.store_id).eq("period", planForm.from.slice(0, 7)).maybeSingle();
+    const err = planSwitchValidate({ planId: planForm.planId, from: planForm.from, today, runStatus: (run?.status as string | undefined) ?? null });
+    if (err) { setPlanMsg({ kind: "error", text: err }); return; }
+    setBusy(true);
+    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: planForm.planId, p_overrides: castPlanOf[c.id]?.ov ?? {}, p_valid_from: planForm.from });
+    setBusy(false);
+    if (error) { setPlanMsg({ kind: "error", text: planSwitchErrJa(error.message) }); return; }
+    setPlanMsg({ kind: "success", text: `待遇プランを「${activePlans.find((p) => p.id === planForm.planId)?.name ?? ""}」にしました（${planForm.from} から）。${NOTE_PLAN_SWITCH}` });
+    setPlanForm(null);
+    await load();
   }
   // ★0154 D6（裁定294-9）: 契約区分の変更＝set_cast_employment（owner のみ・給与期の初日のみ・確定済み期には遡れない）
   async function saveEmployment(c: CastLogin) {
@@ -718,6 +740,14 @@ export default function CastsBoard({
                     : "予定なし"}
                 </span>
               </div>
+              {/* ★裁定300-2／306-12（2026-09-25）: 前借り／送り実費の入口（このキャストに固定・共通部品・既存 RPC）＝「基本」タブ（次回シフトの下・機微情報注記の上）。
+                  owner／manager のみ（page.tsx が他ロールを redirect 済み）。残高管理は 0156（300-4）。 */}
+              <div style={{ marginTop: 12, marginBottom: 12 }}>
+                <h3 style={{ ...secTitle, margin: "0 0 6px" }}>前借り／送り実費</h3>
+                <AdvanceOkuriForm storeId={selCast.store_id} casts={[]} castId={selCast.id} castName={selCast.name}
+                  dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))}
+                  okuriMode={okuriOf(selCast.store_id).mode} okuriBase={okuriOf(selCast.store_id).base} />
+              </div>
               {/* ★機微情報の分離を明示（モックの .lockrow 逐語）＝この画面には出さない */}
               <div className="nox-lockrow">
                 本名・生年月日・マイナンバー等の機微情報は「機密・税務情報」（owner/manager 限定・閲覧ログ記録）でのみ扱います。この画面には表示しません。
@@ -761,8 +791,9 @@ export default function CastsBoard({
                 const p = a ? plansById[a.planId] : null;
                 if (!p) {
                   return (
-                    <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px" }}>
+                    <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       待遇プランは未割当です（既定条件で計算されます）。
+                      {!planForm && <button style={btnGhost} disabled={busy} onClick={() => { setPlanMsg(null); setPlanForm({ planId: activePlans[0]?.id ?? null, from: nextPeriodStartOf(today) }); }}>割り当てる</button>}{/* ★306-13 */}
                     </p>
                   );
                 }
@@ -780,7 +811,9 @@ export default function CastsBoard({
                 const ovCount = Object.keys(ov).length;
                 return (
                   <>
-                    <div className="nox-frow"><span className="k">待遇プラン</span><span className="v">{p.name}{ovCount > 0 && <span style={{ fontSize: 11, color: "var(--gold2)", marginLeft: 6 }}>個別上書きあり</span>}</span></div>
+                    <div className="nox-frow"><span className="k">待遇プラン</span><span className="v" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{p.name}{ovCount > 0 && <span style={{ fontSize: 11, color: "var(--gold2)" }}>個別上書きあり</span>}
+                      {!planForm && <button style={btnGhost} disabled={busy} onClick={() => { setPlanMsg(null); setPlanForm({ planId: a!.planId, from: nextPeriodStartOf(today) }); }}>変更</button>}{/* ★306-13 */}
+                    </span></div>
                     {/* ★裁定143（v3.1 K35）: 「保証時給」→「通常時給（プラン基本）」＝comp_plans.base（＋overrides.base）を指す語へ。
                         モックの「入店時給保証」（K33・第2期）と語を衝突させない。値・経路は不変。 */}
                     <div className="nox-frow"><span className="k">基本時給</span><span className="v num">¥{num("base", p.base).toLocaleString()}</span></div>
@@ -790,6 +823,20 @@ export default function CastsBoard({
                   </>
                 );
               })()}
+              {/* ★裁定306-13: 待遇プランの切替フォーム（候補＝店の有効プラン・適用開始日の既定＝次の給与期の初日・上書きは維持） */}
+              {planForm && (
+                <div className="nox-inset" style={{ padding: "10px 14px", margin: "6px 0 10px" }}>
+                  <div style={{ fontSize: 12, color: "var(--sub)", marginBottom: 6 }}>待遇プラン</div>
+                  <Picker dense items={activePlans.map((p) => ({ id: p.id, label: p.name }))} value={planForm.planId} onPick={(id) => setPlanForm({ ...planForm, planId: id })} disabled={busy} placeholder="プランを検索" empty="（有効なプランがありません）" />
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12 }}>
+                    <label style={lbl}>適用開始日（既定＝次の給与期の初日）<br /><input type="date" value={planForm.from} min={today} disabled={busy} onChange={(e) => setPlanForm({ ...planForm, from: e.target.value })} style={{ ...input, width: 160 }} /></label>
+                    <button style={btnGold} disabled={busy} onClick={() => void savePlan(selCast)}>切り替える</button>
+                    <button style={btnGhost} disabled={busy} onClick={() => { setPlanForm(null); setPlanMsg(null); }}>やめる</button>
+                  </div>
+                  <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>{NOTE_PLAN_SWITCH} 過去の日付と確定済みの給与期には適用できません。</p>
+                </div>
+              )}
+              {planMsg && <Message kind={planMsg.kind} onDismiss={() => setPlanMsg(null)}>{planMsg.text}</Message>}
               {/* ★0154 D2／D6（裁定291 追補1 B・294-5／294-9）: 報酬型（雇用＝実働時間払い／シフト時間保証／固定給・委託＝時間報酬／1 稼働固定）と契約区分。
                   報酬型＝set_cast_plan の overrides（pay_rule／per_shift_amount／fixed_amount・'bad pay_rule for employment' は和文）。区分＝set_cast_employment（owner・期初のみ）。 */}
               {(() => {
@@ -807,7 +854,7 @@ export default function CastsBoard({
                       {isOwner && !empForm && <button style={btnGhost} disabled={busy}
                         onClick={() => { setEmpMsg(null); setEmpForm({ employment: emp ?? "委託", from: nextPeriodStartOf(today) }); }}>契約区分を変更</button>}
                     </div>
-                    <div className="nox-frow"><span className="k">契約区分</span><span className="v">{emp ?? "未設定"}{selCast.employment_valid_from ? <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 6 }}>（{selCast.employment_valid_from} から）</span> : null}</span></div>
+                    <div className="nox-frow"><span className="k">契約区分</span><span className="v">{emp ?? "未設定（委託として計算）"}{selCast.employment_valid_from ? <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 6 }}>（{selCast.employment_valid_from} から）</span> : null}</span></div>
                     <div className="nox-frow"><span className="k">報酬型</span><span className="v">{curLabel}{cur.amount !== null ? <span className="num" style={{ marginLeft: 6 }}>¥{cur.amount.toLocaleString()}{cur.rule === "per_shift" ? "／稼働" : "／期"}</span> : null}</span></div>
                     {ruleForm && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 8 }}>
@@ -892,17 +939,8 @@ export default function CastsBoard({
               {/* ★待遇プランの編集経路は現行この画面に存在しない（マスタ側）。
                   新規 RPC も新規フォームも作らず、管理場所への案内だけを置く＝機能不変。 */}
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px", lineHeight: 1.8 }}>
-                待遇プラン（基本時給・スライド・指名バック単価）とキャストへの割当は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。
-                この画面からは変更できません（現行どおり）。
+                待遇プランの中身（基本時給・スライド・指名バック単価）は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。キャストへの割当（切替）は上の「変更」から（306-13）。
               </p>
-              {/* ★裁定300-2（2026-09-25）: 前借り／送り実費の入口（このキャストに固定・共通部品・既存 RPC adv_issue／transport_issue）。
-                  owner／manager のみ（page.tsx が他ロールを redirect 済み＝isManagerUp 相当）。残高管理は 0156（300-4）。 */}
-              <div style={{ marginTop: 12 }}>
-                <h3 style={{ ...secTitle, margin: "0 0 6px" }}>前借り／送り実費</h3>
-                <AdvanceOkuriForm storeId={selCast.store_id} casts={[]} castId={selCast.id} castName={selCast.name}
-                  dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))}
-                  okuriMode={okuriOf(selCast.store_id).mode} okuriBase={okuriOf(selCast.store_id).base} />
-              </div>
               <Link href="/master/cast-comp/plan" className="nox-link" style={{ display: "inline-block" }}>待遇プラン・報酬シミュレーターへ</Link>
             </>
           )}

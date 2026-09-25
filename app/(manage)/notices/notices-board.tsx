@@ -17,8 +17,8 @@ type Notice = {
   pinned: boolean; until: string | null; created_at: string;
 };
 
-const AUD_LABEL: Record<string, string> = { all: "全員", cast: "キャスト", staff: "黒服" };
-const AUD_OPTIONS: Array<[string, string]> = [["all", "全員"], ["cast", "キャスト"], ["staff", "黒服"]];
+const AUD_LABEL: Record<string, string> = { all: "全員", cast: "キャスト", staff: "スタッフ" };
+const AUD_OPTIONS: Array<[string, string]> = [["all", "全員"], ["cast", "キャスト"], ["staff", "スタッフ"]];
 // 掲載期限セグメント（モックの日数セグメント 0/1/3/7 に対応・0=期限なし）
 const UNTIL_SEG: Array<[number, string]> = [[0, "期限なし"], [1, "当日"], [3, "3日"], [7, "7日"]];
 
@@ -208,7 +208,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
   const postedPrev = rows.filter((n) => ymOf(n.created_at) === prevYm).length;
 
   // ★DP3 P1補（裁定 DP3-⑤）: 宛先ごとの人数（モックの配信対象カードに対応）。
-  //   ★`all` は cast＋黒服の和＝「この店に在籍している人」。どちらかが数えられなければ和も出さない。
+  //   ★`all` は cast＋スタッフの和＝「この店に在籍している人」。どちらかが数えられなければ和も出さない。
   //   ★数の意味は **宛先**であって「見える人」ではない。notices の RLS は
   //     `auth_role() <> 'cast' or audience in ('all','cast')`＝**オーナー・店長は宛先に関わらず全件見える**。
   //     その但し書きは画面にも出す（数だけ見せて誤解させない）。
@@ -337,7 +337,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
                       </span>
                       <span style={{ fontSize: 12.5, fontWeight: 700 }}>{l}</span>
                       <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>
-                        {v === "all" ? `キャスト${nOr(cntCast)}・黒服${nOr(cntStaff)}`
+                        {v === "all" ? `キャスト${nOr(cntCast)}・スタッフ${nOr(cntStaff)}`
                           : v === "cast" ? "在籍キャスト"
                           : "キャストには表示されません"}
                       </span>

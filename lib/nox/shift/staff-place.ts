@@ -1,4 +1,4 @@
-// ★夜間便 N6（便 S の再開・裁定287-1・2026-09-18）: 黒服シフトの配置フロー（日付→人／人→日付）の純関数（DB を知らない）。
+// ★夜間便 N6（便 S の再開・裁定287-1・2026-09-18）: スタッフシフトの配置フロー（日付→人／人→日付）の純関数（DB を知らない）。
 //   写経元＝キャスト側の DayAddPanel（日付起点）と ShiftAddForm（キャスト起点）。型は staff-shift-board の Wish／StaffShift と同形。
 export type StaffWishLike = { id: string; staff_id: string; biz_date: string; pattern_id: string; available: boolean; note?: string | null };
 export type StaffShiftLike = { id: string; staff_id: string; biz_date: string; pattern_id: string; start_hm: string; end_hm: string; status: string; wish_id?: string | null };

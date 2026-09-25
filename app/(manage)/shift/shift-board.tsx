@@ -34,10 +34,11 @@ import { cellNamesOf } from "@/lib/nox/shift/cell-names";
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import * as t from "@/lib/nox/ui/theme";
 import Toast, { Message } from "@/components/ui/toast";
-import Picker from "@/components/nox/picker";
+import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定306-1／306-6: 年月見出し＋前月／翌月／今月（確定タブの部品を切り出して共用）・?ym 同期
+import { recruitNoteOf } from "@/lib/nox/ui/month-nav"; // ★306-2 募集期間の注記・306-10 は staff-shift-manage
 import { nextPeriodDefaults, overlappingPeriods, mdOf } from "@/lib/nox/shift/period"; // ★便 T（2026-09-18）: 期間の既定日付・重なり判定（純関数）
 import Modal from "@/components/ui/modal";
-import StaffShiftBoard from "./staff-shift-board"; // ★C層② 面 b/c（黒服）
+import StaffShiftBoard from "./staff-shift-board"; // ★C層② 面 b/c（スタッフ）
 import CastAvatar from "@/components/ui/cast-avatar";
 import DayAddPanel from "./day-add-panel";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
@@ -86,7 +87,7 @@ const shiftStColor = (st: string) =>
 // ★裁定135（v4.1 H9）: draft の表示語を「下書き」→「作成中」（モック逐語）。open/closed/published はモックに無い＝据え置き。
 const PERIOD_ST_LABEL: Record<string, string> = { draft: "作成中", open: "募集中", closed: "締切", published: "公開済み" };
 // ★便 T-5（裁定259）: 状態は 4 値＝素の select ではなく picker
-const PERIOD_ST_ITEMS = Object.entries(PERIOD_ST_LABEL).map(([id, label]) => ({ id, label }));
+const PERIOD_ST_OPTIONS = Object.entries(PERIOD_ST_LABEL) as ReadonlyArray<readonly [string, string]>; // ★306-7: 状態は SegSelect（4 択）に統一＝picker を使わない
 
 const bandLabel = (n: { from_min: number; to_min: number }) =>
   n.from_min === 0 && n.to_min === 1440 ? "終日" : `${min2hm(n.from_min)}〜${min2hm(n.to_min)}`;
@@ -197,7 +198,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [rosterView, setRosterView] = useState<"cal" | "table">("cal");
   // ★裁定253 R9（2026-09-14）: 確定シフト下部の変更履歴＝初期は閉じる（見出しクリックで開閉・件数は閉じていても見出しに出す）
   const [histOpen, setHistOpen] = useState(false);
-  // ★C層② H3（設計書 v1 §4・横断 §4）: 対象切替「キャスト／黒服」＝flag_enabled('staff_shift', 自店) が true のときだけ出す。
+  // ★C層② H3（設計書 v1 §4・横断 §4）: 対象切替「キャスト／スタッフ」＝flag_enabled('staff_shift', 自店) が true のときだけ出す。
   //   off＝切替そのものが無い（現行のまま）。B4 で入れた cast の面は不触。読取 1（RPC・STABLE）。
   const [staffFlag, setStaffFlag] = useState(false);
   const [target, setTarget] = useState<"cast" | "staff">("cast");
@@ -337,7 +338,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ── UI刷新v2 段S-2: 予想人件費（設計正本 §1〜§2・計算の正は lib/nox/labor-forecast.ts）──
   //   ★表示は manager 以上のみ。理由は2つで、どちらも現物由来:
   //     (1) cast_plan の SELECT RLS は「owner/manager ∨ cast_id=auth_cast_id()」＝
-  //         staff（黒服）は 0行になる。出しても必ず「¥0・時給未設定 N人」になり誤情報にしかならない。
+  //         staff（スタッフ）は 0行になる。出しても必ず「¥0・時給未設定 N人」になり誤情報にしかならない。
   //     (2) cast は (manage)/layout が /mine へ戻すため本画面に到達しないが、
   //         到達しても isManagerUp=false ゆえ3箇所とも出ない（設計§3 の「cast に見せない」を構造で担保）。
   //   ★真の防御は RLS（cast は自分の cast_plan/comp_plans しか引けない）＝ここは表示ゲート。
@@ -768,10 +769,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     ...Array.from({ length: leadBlanks }, () => null),
     ...Array.from({ length: monthDays }, (_, i) => `${month}-${pad2(i + 1)}`),
   ];
-  const shiftMonth = (delta: number) => {
-    const d = new Date(my, mm - 1 + delta, 1);
-    setMonth(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
-  };
+  // ★306-1／306-2: 月 state は URL クエリ ?ym=YYYY-MM と同期（前月／翌月／今月は MonthNav・shiftMonth は撤去）
+  useYmQuery(month, setMonth);
 
   // 段S-2: 日→予想人件費。★日ごとに1回だけ計算して KPI・カレンダー・日詳細で使い回す
   //   （表示のたびに再計算しない・SELECT は loadComps の2本きり）。manager 未満は空 Map＝どこにも出ない。
@@ -988,10 +987,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               行っており、配列の並び順に依存する参照はゼロ（前セッションで実測）。
           ★「カレンダー」→「仮シフト」に改名（充足管理の面という位置づけを名前で示す）。
             内部識別子 "calendar" は据え置き。 */}
-      {/* ★C層② H3: 対象切替（モック v4.1 73-79 行「確定シフト｜黒服・スタッフ」）。flag off では描かない。 */}
+      {/* ★C層② H3: 対象切替（モック v4.1 73-79 行「確定シフト｜スタッフ」）。flag off では描かない。 */}
       {staffFlag && (
         <div className="nox-seg" style={{ display: "inline-flex", marginBottom: 8 }}>
-          {([["cast", "キャスト"], ["staff", "黒服"]] as const).map(([k, label]) => (
+          {([["cast", "キャスト"], ["staff", "スタッフ"]] as const).map(([k, label]) => (
             <button key={k} type="button" className={target === k ? "on" : ""} onClick={() => { setDayModal(""); setTarget(k); }}>{label}</button>
           ))}
         </div>
@@ -1361,13 +1360,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       {tab === "calendar" && (
         <div>
           <section className="nox-cardtop" style={card}>
-            <div className="nox-calhead">
-              <button style={btnLight} onClick={() => shiftMonth(-1)} aria-label="前の月">‹</button>
-              <h2 style={{ ...secTitle, margin: 0 }}>{my}年{mm}月</h2>
-              <button style={btnLight} onClick={() => shiftMonth(1)} aria-label="次の月">›</button>
-              <button style={{ ...btnLight, marginLeft: "auto" }}
-                onClick={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }}>今日</button>
-            </div>
+            {/* ★306-6: 年月見出し・‹ ›・今月＝共用部品 MonthNav（見出しは sticky＝306-1） */}
+            <MonthNav ym={month} today={bizToday} heading="h2" sticky onChange={setMonth} onToday={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }} />
             {/* ★DP-R S5: モックの month-summary 帯（確定人時／予想人件費／人員不足日／未処理希望）。
                 すべて**取得済み state の再形**＝新規クエリなし。予想人件費は既存 fcByDate の月合算
                 （E8-4 #4 と同値）で manager 以上のみ。時給未設定が混じる月は「概算」と併記する。 */}
@@ -1765,11 +1759,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           .filter((ymd) => { const st = dayStat(ymd); return st.required > 0 && st.assigned < st.required; }).length;
         return (
           <section className="nox-cardtop" style={card}>
+            {/* ★306-1／306-2: 「配置を組む」の年月見出し＋前月／翌月／今月（sticky）。募集中の期間と表示月が違うときは薄字「募集期間: M月」 */}
+            <MonthNav ym={month} today={bizToday} heading="h2" sticky suffix=" キャストシフト計画" onChange={setMonth} onToday={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }} note={recruitNoteOf(periodsAll, month)} />
             {/* planbar */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
               <div>
                 {/* ★v4.1 H6: 見出しをモック逐語「〜年〜月 キャストシフト計画」へ */}
-                <h2 style={{ ...secTitle, margin: 0 }}>{my}年{mm}月 キャストシフト計画</h2>
+                <h2 style={{ ...secTitle, margin: 0 }}>計画期間</h2>{/* ★306-1: 年月は上の MonthNav が持つ */}
                 <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "2px 0 0" }}>
                   {cur
                     ? <>計画期間 <span className="num">{cur.start_date}〜{cur.end_date}</span> ・ 希望締切 <span className="num">{cur.wish_deadline ?? "—"}</span></>
@@ -1817,28 +1813,38 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         )}
         {/* ★便 T-4: 一覧は表示月に重なる期間＝作成した期間が別の月でも 1 行足して強調する（削除もここから） */}
         {[...periods, ...(pNewId && !periods.some((p) => p.id === pNewId) ? periodsAll.filter((p) => p.id === pNewId) : [])].map((p) => (
-          <div key={p.id} className="nox-listrow" style={{ fontSize: 13, ...(p.id === pNewId ? { outline: "1px solid var(--gold)", outlineOffset: -1, borderRadius: 8 } : {}) }}>
-            <span className="num">{p.start_date} 〜 {p.end_date}</span>
-            <span style={{ fontSize: 12, color: "var(--sub)" }}>希望締切 <span className="num">{p.wish_deadline ?? "—"}</span></span>
-            <span className={`nox-stpill ${p.status === "published" ? "ok" : ""}`}>{PERIOD_ST_LABEL[p.status] ?? p.status}</span>
-            <button style={{ ...btnLight, marginLeft: "auto" }}
-              onClick={() => { setPMsg(null); setPTouched(true); setPEditId(p.id); setPStart(p.start_date); setPEnd(p.end_date); setPDeadline(p.wish_deadline ?? ""); setPStatus(p.status); }}>編集</button>
-            <button style={btnLight} title="シフトから参照されている期間は削除できません"
-              onClick={() => void removePeriod(p.id)}>削除</button>
+          <div key={p.id} className="nox-periodcard" style={p.id === pNewId ? { outline: "1px solid var(--gold)", outlineOffset: -1, borderRadius: 8 } : undefined}>{/* ★306-7: ≤899px は「開始〜終了」「希望締切・状態」の縦 2 段・「編集」「削除」は横書きの小ボタンを右端に横並び */}
+            <div className="pc-main">
+              <span className="num">{p.start_date} 〜 {p.end_date}</span>
+              <span className="pc-sub">
+                <span style={{ fontSize: 12, color: "var(--sub)" }}>希望締切 <span className="num">{p.wish_deadline ?? "—"}</span></span>
+                <span className={`nox-stpill ${p.status === "published" ? "ok" : ""}`}>{PERIOD_ST_LABEL[p.status] ?? p.status}</span>
+              </span>
+            </div>
+            <div className="pc-acts">
+              <button style={btnLight}
+                onClick={() => { setPMsg(null); setPTouched(true); setPEditId(p.id); setPStart(p.start_date); setPEnd(p.end_date); setPDeadline(p.wish_deadline ?? ""); setPStatus(p.status); }}>編集</button>
+              <button style={btnLight} title="シフトから参照されている期間は削除できません"
+                onClick={() => void removePeriod(p.id)}>削除</button>
+            </div>
           </div>
         ))}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-          <span style={{ fontSize: 12, color: "var(--sub)" }}>{pEditId ? "編集中" : "新規"}</span>
-          <label style={{ fontSize: 12 }}>開始 <input type="date" value={pStart} onChange={(e) => { setPTouched(true); setPStart(e.target.value); }} style={input} /></label>
-          <label style={{ fontSize: 12 }}>終了 <input type="date" value={pEnd} onChange={(e) => { setPTouched(true); setPEnd(e.target.value); }} style={input} /></label>
-          <label style={{ fontSize: 12 }}>希望締切 <input type="date" value={pDeadline} onChange={(e) => { setPTouched(true); setPDeadline(e.target.value); }} style={input} /></label>
-          <div style={{ minWidth: 150 }} aria-label="状態">{/* ★便 T-5（裁定259）: 4 値＝picker */}
-            <Picker items={PERIOD_ST_ITEMS} value={pStatus} onPick={(id) => setPStatus(id)} placeholder="状態" limit={4} dense />
+        <div className="nox-periodform" style={{ marginTop: 10 }}>{/* ★306-7: 新規フォーム＝開始／終了 1 行・希望締切／状態 1 行・「作成」は最下段右端。状態は SegSelect（4 択）＝picker を使わない */}
+          <div className="pf-row">
+            <span style={{ fontSize: 12, color: "var(--sub)" }}>{pEditId ? "編集中" : "新規"}</span>
+            <label style={{ fontSize: 12 }}>開始 <input type="date" value={pStart} onChange={(e) => { setPTouched(true); setPStart(e.target.value); }} style={input} /></label>
+            <label style={{ fontSize: 12 }}>終了 <input type="date" value={pEnd} onChange={(e) => { setPTouched(true); setPEnd(e.target.value); }} style={input} /></label>
           </div>
-          <button style={{ ...btnDark, opacity: pOverlapText || !pStart || !pEnd ? 0.45 : 1 }} disabled={!!pOverlapText || !pStart || !pEnd} onClick={() => void savePeriod()}>{pEditId ? "更新" : "作成"}</button>
-          {pEditId && (
-            <button style={btnLight} onClick={() => { setPMsg(null); resetPeriodForm(); }}>やめる</button>
-          )}
+          <div className="pf-row">
+            <label style={{ fontSize: 12 }}>希望締切 <input type="date" value={pDeadline} onChange={(e) => { setPTouched(true); setPDeadline(e.target.value); }} style={input} /></label>
+            <SegSelect value={pStatus} onChange={(v) => setPStatus(v)} options={PERIOD_ST_OPTIONS} ariaLabel="状態" />
+          </div>
+          <div className="pf-acts">
+            {pEditId && (
+              <button style={btnLight} onClick={() => { setPMsg(null); resetPeriodForm(); }}>やめる</button>
+            )}
+            <button style={{ ...btnDark, opacity: pOverlapText || !pStart || !pEnd ? 0.45 : 1 }} disabled={!!pOverlapText || !pStart || !pEnd} onClick={() => void savePeriod()}>{pEditId ? "更新" : "作成"}</button>
+          </div>
         </div>
         {/* ★便 T-1／T-2: 重なりの案内はボタンの直下（同じカード内）・成否も同じ場所（共有枠には出さない） */}
         {pOverlapText && <Message kind="error">{pOverlapText}</Message>}{/* ★裁定281（便 U-6①）: 重なりは赤（error）＝作成ボタンは disabled */}
@@ -1860,14 +1866,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 月カレンダーまたはキャスト別に登録済みシフトを確認します（日付から足すときは日のセル、キャストからまとめて足すときは「＋ キャスト別にまとめて追加」）
               </p>
             </div>
-            <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
+            <span className="nox-plantools">{/* ★306-3: ≤899px はセグメント「月カレンダー／スタッフ別」を幅いっぱいの 1 行・その下に「＋ キャスト別にまとめて追加」を幅いっぱいの 1 行（CSS） */}
               <div className="nox-seg">
                 <button className={planView === "cal" ? "on" : ""} onClick={() => setPlanView("cal")}>月カレンダー</button>
                 <button className={planView === "staff" ? "on" : ""} onClick={() => setPlanView("staff")}>スタッフ別</button>
               </div>
               {/* 現行維持: シフト作成タブからは planned で開く（計画を組む面ゆえ） */}
               {/* ★裁定121-2: キャスト起点ウィザードの名称のみ変更（挙動・RPC は不変） */}
-              <button style={btnDark} onClick={() => { setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>＋ キャスト別にまとめて追加</button>
+              <button style={btnDark} onClick={() => { setAddDate(month === bizToday.slice(0, 7) ? bizToday : `${month}-01`); setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>＋ キャスト別にまとめて追加</button>{/* ★306-2: 対象月＝表示月 */}
             </span>
           </div>
 
@@ -1981,7 +1987,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <b>誰がいつ入るか</b>を見る画面です（人数の過不足は「仮シフト」タブで見ます）。
             </p>
           </div>
-          <span className="nox-noprint" style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
+          <span className="nox-noprint nox-plantools">{/* ★306-8: ≤899px はセグメント 1 行＋ボタン 1 行（CSS .nox-plantools） */}
             <div className="nox-seg">
               <button className={rosterView === "cal" ? "on" : ""} onClick={() => setRosterView("cal")}>カレンダー</button>
               <button className={rosterView === "table" ? "on" : ""} onClick={() => setRosterView("table")}>表で見る</button>
@@ -2002,13 +2008,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               .slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm));
           return (
             <>
-              <div className="nox-calhead">
-                <button style={btnLight} onClick={() => shiftMonth(-1)} aria-label="前の月">‹</button>
-                <h3 style={{ margin: 0, fontSize: 14 }}>{my}年{mm}月</h3>
-                <button style={btnLight} onClick={() => shiftMonth(1)} aria-label="次の月">›</button>
-                <button style={{ ...btnLight, marginLeft: "auto" }}
-                  onClick={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }}>今日</button>
-              </div>
+              {/* ★306-6: 共用部品 MonthNav（確定タブ） */}
+              <MonthNav ym={month} today={bizToday} heading="h3" sticky onChange={setMonth} onToday={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }} />
               {/* ★便 AU3（2026-09-24）: 7 列をスマホ幅に収める＝.nox-calgrid--fit（≤899 は minmax(0,1fr)・セルは min-width 0）。名前は cellNamesOf（3 名＋他 n）・時刻は .nox-cald-t（≤899 で非表示＝日詳細モーダルで見る） */}
               <div className="nox-calgrid nox-calgrid--fit">
                 {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}
@@ -2017,13 +2018,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   const list = confirmedOn(ymd);
                   const cell = cellNamesOf(list.map((x) => castName(x.cast_id)));
                   const unpublished = isUnpublishedDay(periodsAll, ymd); // ★AU2-3: 期間が未公開の日は「未確定」（期間の無い日は印なし）
-                  const cls = ["nox-cald", list.length > 0 ? "ok" : "", isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
+                  const cls = ["nox-cald", list.length > 0 ? "ok" : "", isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : "", unpublished ? "nox-cald--unpub" : ""].filter(Boolean).join(" "); // ★306-5: 未確定＝帯（≤899）
                   return (
                     <button key={ymd} className={cls} style={{ minHeight: 92, alignItems: "stretch", position: "relative" }}
                       onClick={() => { setSelDate(ymd); setDayModal("roster"); }}
                       title={`${ymd}${unpublished ? "・未確定（期間が未公開）" : ""}・${list.length === 0 ? "確定なし" : list.map((x) => `${castName(x.cast_id)} ${fmtWin(x.start_hm, x.end_hm)}`).join(" / ")}`}>
                       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
-                      {unpublished && <span style={{ position: "absolute", top: 3, right: 5, fontSize: 8.5, color: "var(--v2-muted)" }}>未確定</span>}
+                      {unpublished && <span className="nox-cald-unpub">未確定</span>}{/* ★306-5: 日付と重ねない（≥900 は番号の下の行・≤899 は非表示＝上辺の帯） */}
                       {list.slice(0, cell.shown.length).map((x, k) => (
                         <span key={x.id} style={{
                           display: "block", fontSize: 9.5, lineHeight: 1.5, textAlign: "left",
@@ -2042,6 +2043,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 })}
               </div>
 
+              <p className="nox-unpub-legend" style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}><span className="nox-unpub-swatch" aria-hidden="true" />帯＝未確定（期間が未公開）</p>{/* ★306-5: 凡例（≤899 のみ） */}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
                 このカレンダーには<b>確定だけ</b>を出しています（予定・確認待ちは「確定」タブの承認待ち）。
                 セルは先頭3名まで。<b>日を押すとその日の全員が開きます</b>（時間の調整もそこから）。

@@ -1399,7 +1399,7 @@ export default function RegisterBoard({
     setCheck(null);
   }
 
-  // F3c: 割引/無料 申請（黒服 can_register）・適用（owner/manager 直接）
+  // F3c: 割引/無料 申請（スタッフ can_register）・適用（owner/manager 直接）
   async function requestOrApply() {
     if (!check) return;
     if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
@@ -2826,7 +2826,7 @@ export default function RegisterBoard({
           <h3 style={t.cardTitle}>
             割引・無料（{isManagerUp ? "適用・承認" : "申請"}）
           </h3>
-          {/* 申請（黒服 can_register）／適用（owner/manager 直接）フォーム */}
+          {/* 申請（スタッフ can_register）／適用（owner/manager 直接）フォーム */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
             <SegSelect value={apType} onChange={(v) => setApType(v as "discount" | "free")}
             options={[["discount", "割引"], ["free", "無料"]] as const} />
