@@ -3748,7 +3748,7 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 304-1 p_items に同じ cast_id が 2 回以上あれば 'duplicate cast' で raise（全件失敗・部分成功なし）。
 304-2 audit action＝'adv_issue_bulk'／'transport_issue_bulk'・target は行ごと advances:<id>／transport:<id>・after に bulk_idem（起草どおり）。」
 
-適用＝便 S-2（gen_0157.py に 304-1＝ループ前の count(*) <> count(distinct cast_id) → 'duplicate cast'・再生成・改稿前の控え docs/tmp/0157_before_304.sql（sha256 a5269e15…addd））・S-3（再突合 q0925_ag_0157.mjs に d 段 +1）。手貼りは Agoora。
+適用＝便 S-2（gen_0157.py に 304-1＝ループ前の count(*) <> count(distinct cast_id) → 'duplicate cast'・再生成・改稿前の控え docs/tmp/0157_before_304.sql（sha256 a5269e15…addd））・S-3（再突合 q0925_ag_0157.mjs に d 段 +1）。手貼りは Agoora。 → **手貼り済み（2026-09-25・上の 0157 適用欄）**・suite verify-nox-issue-bulk ib(1-4) が 'duplicate cast' を係留・client の和文「同じキャストが重複しています」（bulkErrJa）＝`913f9cc`。
 
 ## 裁定303（本便で確定・Agoora 承認・2026-09-25）給与右パネルの支給内訳（303-1〜3）
 
@@ -3763,7 +3763,7 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 **追補1（本便で確定・相談役ブロック 2026-09-25・便 S-1 で収載）**。**本文（逐語）**:
 「裁定303 追補1（2026-09-25）: payroll-board の KPI 支給総額・一覧の総支給列・csv.ts grossTotal は gross のみ（extras は gross 内在＝裁定26・二重加算の是正）。303-3 の文言は「打刻なし／不完全」。実装は 0157 手貼り後ブロックに同乗。」
 
-適用＝未着手（0157 手貼り後ブロックに同乗）。
+適用＝便 E（0157 手貼り後ブロック・2026-09-25）＝`913f9cc`: csv.ts grossTotal＝p.gross・payroll-board の KPI＝runSummaryOf（lib/nox/payroll/view.ts・Σgross）・一覧の総支給＝gross（`+ extras` 撤去）。golden（玲奈）で extras 1,000 → payOf の gross 1,387,150→1,388,150（+1,000・源泉 +102・net +898）を payroll-csv が係留（旧式なら総支給 +2,000）。303-3 の文言「打刻なし／不完全」（pv(6-4)）。suite payroll-csv 25→27・payroll-view 18→20。
 
 ## 裁定302（本便で確定・Agoora 承認・2026-09-25）前借り／送り実費の一括発行（302-1〜5）
 
@@ -3776,6 +3776,11 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 302-5 起票（0156 へ）: 退勤打刻と送りの連動（打刻画面の「送り あり／なし」トグル・日報締めで当日分を確認）／前借りのキャスト申請制（/mine 申請→今日タブ「未決裁」で承認＝発行）／一括発行の LINE 通知は第 2 期。」
 
 適用＝便 X-1（事前読取 docs/tmp/0157_pre.md）・X-2（★指定）・X-3（起草 supabase/migrations/0157_issue_bulk.sql＋突合 BEGIN…ROLLBACK・未追跡）。手貼りは Agoora（要裁定の裁定後）。302-1／302-3 の UI は手貼り後（マスタは一括型・casts／給与は 1 人型のまま）。
+**0157 適用欄（2026-09-25）**: 手貼り＝Agoora 16:5x JST 申告（CC の A-0／A 検証 16:46 JST ALL OK＝docs/tmp/q0925_a0_0157.mjs・docs/tmp/0157_post_a.json）。sha256 630565ae422819f3609ce603e51ea8f3e07f66b2d3c2be87a7c13bc1100c0dfb（180 行・13,729 B・裁定304 反映版）。
+live md5（CR 除去）＝adv_issue_bulk 18899985／transport_issue_bulk 9d10c990・既存 4 本不変（adv_issue b8568921／adv_cancel 8ff4572b／transport_issue 7740e3c4／transport_cancel 5735aa45）・unique index 2 本（advances_store_idem_uidx／transport_store_idem_uidx）・列集合 advances 16／transport 15。
+名簿 A4 +2＝全数 262／gated 141（billing 段47-1 141／142）。pin 新値＝anon-guard 1012（probe +2）・grants 368（G4d +2・index 2・列集合）・issue-bulk 16（新設・f0 75 段目）・advance-okuri 24（一括の純関数＋配線）・payroll-csv 27・payroll-view 20・demo-guard 18（route 39）。
+client＝302-1／302-3（マスタ「控除・送り」のみ一括型＝components/nox/issue-bulk-form.tsx・lib/nox/payroll/issue-bulk.ts・route /api/advance/issue-bulk／/api/transport/issue-bulk・当日一覧＋取消・fetch +1（attendance／advances／transport の 3 クエリ並列））。
+f0 2 連緑 **75 段 4,856**（run1 は demo-guard dg(1-1) の route 未分類で赤→C に追加・run1b／run2 緑・golden 5931／125802／55233・rate-back 64・billing 53）。push＝`913f9cc`（0157＋client＋suite＋名簿を 1 本）。
 
 ## 裁定301（本便で確定・Agoora 承認・2026-09-25）picker の折りたたみ型（301-1〜4）
 
