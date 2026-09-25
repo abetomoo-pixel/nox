@@ -32,6 +32,8 @@ export default function MasterBoard() {
   // 段0R その2: ハブカードの絞り込み（aaa .search）＝表示フィルタのみ・取得は不変
   const [hubSearch, setHubSearch] = useState("");
   const [stock, setStock] = useState<Record<string, number>>({});
+  // ★便 U-2（2026-09-25・0152）: 紹介料の未払件数（referral_payouts.status='unpaid'・RLS owner／manager 自店＝cast 0 行）。count のみ（head）＝fetch +1
+  const [unpaidRef, setUnpaidRef] = useState<number | null>(null);
 
   // ★DP1 P1: このページはハブ（概要）のみになった。
   //   products / product_categories / stock_logs は「概要＝ダッシュボード」の
@@ -42,6 +44,8 @@ export default function MasterBoard() {
       fetchProducts(supabase), fetchProductCategories(supabase), fetchStockTotals(supabase),
     ]);
     const { data: ss } = await supabase.from("seats").select("id, name, kind, sort_order, is_active").order("sort_order");
+    const { count: ur } = await supabase.from("referral_payouts").select("id", { count: "exact", head: true }).eq("status", "unpaid"); // ★U-2
+    setUnpaidRef(ur ?? 0);
     setProducts(ps);
     setCategories(cats);
     setSeats((ss ?? []) as Seat[]);
@@ -91,6 +95,12 @@ export default function MasterBoard() {
           desc: "売上ノルマ、指名ノルマの採用可否と範囲を設定。", status: "● 設定可", tone: "" },
         { href: "/master/cast-comp/register", id: "m-castreg", icon: "◇", count: "会計権限", title: "キャスト会計の許可",
           desc: "キャスト本人がレジを使えるようにする設定。", status: "● 設定可", tone: "" },
+        // ★便 U-2（2026-09-25）: 概要カードに無かった 2 枚を「キャスト・報酬」節へ（文言は既存タブ／ページ見出しから）
+        { href: "/master/cast-comp/systems", id: "m-systems", icon: "◈", count: "9制度", title: "報酬制度",
+          desc: "この店で使う制度を選びます。OFF にした制度は待遇プラン・控除・商品・マイページの該当する節が表示されなくなります。", status: "● 設定可", tone: "" },
+        { href: "/master/referrers", id: "m-referrers", icon: "◇", count: "支払", title: "紹介者・紹介料",
+          desc: "外部キャッチ／スタッフの紹介者と紹介料の支払を管理。",
+          status: unpaidRef == null ? "● 読込中" : unpaidRef > 0 ? `● 未払 ${unpaidRef} 件` : "● 未払なし", tone: (unpaidRef ?? 0) > 0 ? "warn" : "" },
       ],
     },
     {

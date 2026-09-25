@@ -8,10 +8,13 @@
  *  (3) activeHrefOf（最長一致）・userChipLabelOf（登録名｜役割・無ければメール・それも無ければ役割）
  *  (4) 配線（逐語 grep）: nav.tsx＝splitNav／MENU_LABEL／NavIcon（下タブ）・歯車 ⚙ は無い／header-chips＝HeaderGear／UserChip・ログアウト form POST /auth/signout／
  *      layout＝Link /dashboard（ロゴ＋店舗名）・HeaderGear＋UserChip・旧 rolePill／nox-tb-logout 無し・TabBar に gear 無し／CSS＝.nox-nav-bottom .nox-tab.on（上辺の線・太字）・.nox-navrow
- *  逆テスト 1 本（手動・1 回）: MENU_FROM_GEAR を [] にする→nv(2-2) 赤・戻して緑。
+ *  (5) ★便 U-2（2026-09-25・裁定300 の周辺）: マスタ第 2 ナビ MASTER_NAV＝キャスト・報酬群のタブ列（概要／待遇プラン／控除・送り／ノルマ／キャスト会計／報酬制度／紹介者）と
+ *      店舗・端末群（席・卓／営業時間／スタッフ・システム＝紹介者は移動済み）・概要カード「キャスト・報酬」節の 6 枚（…報酬制度／紹介者・紹介料）・未払件数は referral_payouts の count（許可列挙・裁定260）
+ *  逆テスト 1 本（手動・1 回）: MENU_FROM_GEAR を [] にする→nv(2-2) 赤・戻して緑／MASTER_NAV から「紹介者」を外す→nv(5-1) 赤・戻して緑。
  */
 import fs from "node:fs";
 import { BOTTOM_PRIORITY, MENU_LABEL, activeHrefOf, splitNav, tabsFor, userChipLabelOf, type NavGroup } from "../lib/nox/ui/nav-tabs";
+import { MASTER_NAV } from "../lib/nox/master/nav"; // ★U-2: マスタ第 2 ナビの許可列挙
 
 let pass = 0;
 const fails: string[] = [];
@@ -63,6 +66,19 @@ check("nv(4-2) header-chips: HeaderGear（⚙・gear 群 0 なら null）・User
 check("nv(4-3) layout: ロゴは Link /dashboard＋店舗名（small）・右＝HeaderGear（splitNav の gearGroups）＋UserChip・旧 rolePill／nox-tb-logout は無い・TabBar に gear 無し・users 行の読取 1 本", /<Link href="\/dashboard" className="crumb nox-tb-brand"/.test(lay) && /<small>\{storeLabel\}<\/small>/.test(lay) && /<HeaderGear groups=\{splitNav\(groups/.test(lay) && /<UserChip name=\{meName\} email=\{meEmail\}/.test(lay) && !/t\.rolePill/.test(lay) && !/nox-tb-logout/.test(lay) && /<TabBar groups=\{groups\} spPriority=\{\["\/dashboard", "\/register", "\/report", "\/shift"\]\} hideSide \/>/.test(lay) && /from\("users"\)\.select\("name, email"\)\.eq\("auth_user_id"/.test(lay));
 check("nv(4-4) CSS: 選択中の下タブ＝上辺の線＋太字（.nox-nav-bottom .nox-tab.on）・一覧型の行 .nox-navrow／.nox-navdesc／.nox-navchev・ヘッダーの口 .nox-hdrbtn・トークンのみ（新規 --変数 定義なし）", /\.nox-nav-bottom \.nox-tab\.on \{ border-top-color: var\(--primary-hover\); font-weight: 800; \}/.test(css) && /\.nox-navrow \.nox-navdesc/.test(css) && /\.nox-navrow \.nox-navchev/.test(css) && /\.nox-hdrbtn \{/.test(css) && !/N4[\s\S]{0,2500}--[a-z0-9-]+\s*:\s*[^;]+;\s*\/\*\s*新規/.test(css));
 
+// (5) ★便 U-2: マスタ第 2 ナビと概要カード（許可列挙・裁定260）
+const ccGrp = MASTER_NAV.find((g) => g.key === "cast-comp"), stGrp = MASTER_NAV.find((g) => g.key === "store");
+check("nv(5-1) MASTER_NAV キャスト・報酬群のタブ列＝概要／待遇プラン／控除・送り／ノルマ／キャスト会計／報酬制度／紹介者（紹介者は報酬制度の隣・href /master/referrers）",
+  JSON.stringify(ccGrp?.pages.map((p) => p.label)) === JSON.stringify(["概要", "待遇プラン", "控除・送り", "ノルマ", "キャスト会計", "報酬制度", "紹介者"]) && ccGrp?.pages[6]?.href === "/master/referrers", JSON.stringify(ccGrp?.pages.map((p) => p.label)));
+check("nv(5-2) MASTER_NAV 店舗・端末群＝席・卓／営業時間／スタッフ・システム（紹介者は無い＝移動済み）・全群で /master/referrers は 1 回",
+  JSON.stringify(stGrp?.pages.map((p) => p.label)) === JSON.stringify(["席・卓", "営業時間", "スタッフ・システム"]) && MASTER_NAV.flatMap((g) => g.pages).filter((p) => p.href === "/master/referrers").length === 1, JSON.stringify(stGrp?.pages.map((p) => p.label)));
+const mb = fs.readFileSync("app/(manage)/master/master-board.tsx", "utf8");
+const sec = mb.slice(mb.indexOf('sec: "キャスト・報酬"'), mb.indexOf('sec: "店舗・運用"'));
+const titles = [...sec.matchAll(/title: "([^"]+)"/g)].map((m) => m[1]);
+check("nv(5-3) 概要カード「キャスト・報酬」節＝待遇プラン・報酬シミュレーター／控除・送りの設定／ノルマ設定／キャスト会計の許可／報酬制度／紹介者・紹介料（6 枚・許可列挙）",
+  JSON.stringify(titles) === JSON.stringify(["待遇プラン・報酬シミュレーター", "控除・送りの設定", "ノルマ設定", "キャスト会計の許可", "報酬制度", "紹介者・紹介料"]), JSON.stringify(titles));
+check("nv(5-4) 紹介者カード: href /master/referrers・バッジ「支払」・状態「未払 n 件」＝referral_payouts の unpaid count（head・fetch +1）・0 は「未払なし」",
+  sec.includes('href: "/master/referrers"') && sec.includes('count: "支払"') && sec.includes("`● 未払 ${unpaidRef} 件`") && sec.includes('"● 未払なし"') && mb.includes('from("referral_payouts").select("id", { count: "exact", head: true }).eq("status", "unpaid")'));
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);

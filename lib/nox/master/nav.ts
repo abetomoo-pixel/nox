@@ -36,7 +36,6 @@ export const MASTER_NAV: MasterNavGroup[] = [
       { label: "席・卓", href: "/master/seats" },
       { label: "営業時間", href: "/master/business-hours" },
       { label: "スタッフ・システム", href: "/master/system" },
-      { label: "紹介者", href: "/master/referrers" }, // ★0152（裁定280-2／298-5）: 紹介者マスタ＋紹介料の支払一覧
     ],
   },
   {
@@ -49,6 +48,7 @@ export const MASTER_NAV: MasterNavGroup[] = [
       { label: "ノルマ", href: "/master/cast-comp/norma" },
       { label: "キャスト会計", href: "/master/cast-comp/register" },
       { label: "報酬制度", href: "/master/cast-comp/systems" }, // ★裁定269-7／270-2: 使う制度 9 フラグ（mig0147）
+      { label: "紹介者", href: "/master/referrers" }, // ★0152（裁定280-2／298-5）・便 U-2（2026-09-25）: 紹介者マスタ＋紹介料の支払一覧＝「報酬制度」の隣（店舗・端末群から移動）
     ],
   },
 ];
