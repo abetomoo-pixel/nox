@@ -3741,6 +3741,15 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定304（本便で確定・Agoora 承認・2026-09-25）0157 要裁定 (2) の裁定（304-1〜2）
+
+出典＝便 X-3 の報告（0157_issue_bulk.sql 冒頭の要裁定 (1)(2)）を受けた Agoora 承認（2026-09-25・便 S-1 で収載）。次の裁定番号は 305。**本文（逐語）**:
+「裁定304（2026-09-25・0157 要裁定・Agoora 承認）
+304-1 p_items に同じ cast_id が 2 回以上あれば 'duplicate cast' で raise（全件失敗・部分成功なし）。
+304-2 audit action＝'adv_issue_bulk'／'transport_issue_bulk'・target は行ごと advances:<id>／transport:<id>・after に bulk_idem（起草どおり）。」
+
+適用＝便 S-2（gen_0157.py に 304-1＝ループ前の count(*) <> count(distinct cast_id) → 'duplicate cast'・再生成・改稿前の控え docs/tmp/0157_before_304.sql（sha256 a5269e15…addd））・S-3（再突合 q0925_ag_0157.mjs に d 段 +1）。手貼りは Agoora。
+
 ## 裁定303（本便で確定・Agoora 承認・2026-09-25）給与右パネルの支給内訳（303-1〜3）
 
 出典＝Agoora 承認（2026-09-25・便 Y-0 で収載）。次の裁定番号は 304。**本文（逐語）**:
@@ -3749,7 +3758,12 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 303-2 時給行は報酬型に時給を含む cast では 0h でも表示（「0h × ¥n ＝ ¥0」）。雇用は常に表示。非表示は「その報酬型に存在しない行」のみ。
 303-3 時間 0h かつ日数>0 の cast は一覧の時間セルに「打刻なし」を薄字で出す（値は変えない）。」
 
-適用＝便 Y-1（読取）・Y-2（lib/nox/payroll/breakdown-lines.ts＋両画面の結線・旧計算の撤去）・Y-3（suite payroll-view 追補）・Y-4（f0 2 連→push）。
+適用＝便 Y-1（読取）・Y-2（lib/nox/payroll/breakdown-lines.ts＋両画面の結線・旧計算の撤去）・Y-3（suite payroll-view 追補）・Y-4（f0 2 連→push）＝`f7bc3f2`（2026-09-25・f0 2 連緑 74 段 4,819・Z152 同乗）。
+
+**追補1（本便で確定・相談役ブロック 2026-09-25・便 S-1 で収載）**。**本文（逐語）**:
+「裁定303 追補1（2026-09-25）: payroll-board の KPI 支給総額・一覧の総支給列・csv.ts grossTotal は gross のみ（extras は gross 内在＝裁定26・二重加算の是正）。303-3 の文言は「打刻なし／不完全」。実装は 0157 手貼り後ブロックに同乗。」
+
+適用＝未着手（0157 手貼り後ブロックに同乗）。
 
 ## 裁定302（本便で確定・Agoora 承認・2026-09-25）前借り／送り実費の一括発行（302-1〜5）
 
@@ -3821,7 +3835,7 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 298-9 負担: burden='customer' は check_referrals.amount を check_group_due の v_bx／v_bx10（pay_group 'A'・taxable_10）に加算＝サ料・税の母数に入る（9/18 Agoora 仕様）。burden='store' は伝票合計に一切乗らない。
 298-10 支払経路: check_close で frozen_at を書き referral_payouts を insert（status 'unpaid'・withholding 0）。check_void は unpaid を 'voided'・paid は据え置き（返金は手動・audit に記録）。paid_via は 'cash_daily'（当日現金＝daily_reports.referral_cash_payout に集計）／'monthly'。給与（payroll）には一切載せない（280・297-5 とは無関係）。」
 
-適用＝便 M152-2（起草 supabase/migrations/0152_referral.sql＝★1〜★21・未追跡）・M152-3（突合 docs/tmp/q0925_ag_0152.mjs＝BEGIN…ROLLBACK）。手貼りは Agoora（要裁定の裁定後）。
+適用＝便 M152-2（起草 supabase/migrations/0152_referral.sql＝★1〜★21・未追跡）・M152-3（突合 docs/tmp/q0925_ag_0152.mjs＝BEGIN…ROLLBACK）。手貼りは Agoora（要裁定の裁定後）＝手貼り済み（2026-09-25・便 A 検証 NG 0・`ae557c8`）。**実機目視 OK（Agoora・2026-09-25）**。
 
 **DB 側 完了（2026-09-25 12:2x JST・Agoora 手貼り Success・A-0 APPLIED 12:21・A 検証 docs/tmp/q0925_a152.mjs NG 0）**: sha256 adea663df7c4b3e32a725c1974c87094f2c15b4d0ff0852a0a6748d1c4b7feb3・1,200 行・88,778 B（裁定299 反映版）。
 md5 表（live prosrc は SQL Editor 貼付で CRLF 化＝CR を落とした値で照合＝299-11・ファイル本文と全 14 本一致）: 改稿 7 本＝check_group_due 6c1ef055／check_recalc d90a3988／check_close 31ff9cca／check_void 62daaccf／check_merge f79dc159／daily_report_close 744912a1／demo_org_reset 677cb575。
