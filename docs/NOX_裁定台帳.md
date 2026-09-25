@@ -3741,6 +3741,17 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定308（本便で確定・Agoora・2026-09-25）306 目視の NG（308-1〜3）
+
+出典＝Agoora のスマホ実機目視（裁定306 の 16 項・2026-09-25）を受けた指示（便 K308 で収載）。次の裁定番号は 309。**本文（逐語）**:
+「裁定308（2026-09-25・306 目視の NG・Agoora）
+308-1 /shift 期間の新規フォームの「作成」は幅いっぱいの 1 行（≤899px）。306-7 の「最下段右端」を本項で訂正。
+308-2 「配置を組む」の月カレンダーは曜日行の直上に MonthNav（年月・‹ ›・今月）を sticky で必ず描画（≤899px 含む）。K-1 で描画箇所を逐語確認し、タブ切替や幅で消えない位置に置く。
+308-3 306 のスマホ目視は 308-1／2 を除き OK（Agoora・2026-09-25）＝306 適用欄に記録。
+実装＋suite shift-nav に pin（作成ボタンの幅・MonthNav が 配置タブの曜日行の直前の兄弟要素）・逆テスト → f0 2 連に同乗 → push。」
+
+適用＝便 K308（0153 手貼り後ブロックの f0 2 連に同乗）: 308-1＝.nox-periodform .pf-acts は ≤899px で column・button width 100%（globals.css）／308-2＝MonthNav を「配置を組む」カードの planView 分岐の直前（＝.nox-calgrid の直前の兄弟）へ移設（planbar 上の 1 本は撤去・タブ切替・幅で消えない）／suite shift-nav sn(3-6)（作成ボタン全幅）・sn(2-6)（MonthNav が曜日行の直前の兄弟）。
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
@@ -3752,7 +3763,7 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 307-5 0153 冒頭コメントの不触 md5 控え customer_assign_cast は accfb2a6 が正（accbf2a6 は転記ミス・本文への影響なし）。S-1 で同時に修正。
 S-1 の書き換え＝「要裁定 (4)＝裁定307 で確定（改稿なし・貼付版 sha 417c5952…0b11）」＋307-5 の訂正。新 sha を報告し、台帳の 0153 適用欄には貼付版 sha と収蔵版 sha を併記。続けて B〜G を実行。」
 
-適用＝0153 手貼り後ブロック S-1（0153 冒頭コメントの書き換え＝改稿なし・本文の $$ 内 md5 不変）。307-1 の起票＝v39 §3 残り小物（次の mig で referral_payouts_unpaid を B(f) へ）。
+適用＝0153 手貼り後ブロック S-1（0153 冒頭コメントの書き換え＝改稿なし・本文の $$ 内 md5 不変）。307-1 の起票＝v39 §3 残り小物（次の mig で referral_payouts_unpaid を B(f) へ）。 ＝ S-1 0066094（docs）・手貼り後の A 再走 ALL OK・307-2／307-3／307-4 は customers-keep suite ck(2-1)／ck(5-3)／ck(4-1) が係留・ローカルコミット `未コミット（f0 2 連未達＝run1b 緑 77 段 4,941／run2 pricing statement timeout／run2b DB 無応答＝教訓85 で停止・作業ツリーに保持）`。
 
 ## 裁定306（本便で確定・Agoora 承認・2026-09-25）スマホ実機の崩れ一式（306-1〜16）
 
@@ -3782,6 +3793,7 @@ L3: 「黒服」47 箇所／19 ファイル→「スタッフ」（識別子 sta
 L5: 前借り／送り実費の節を「基本」タブへ（306-12）・待遇プラン行「変更」→Picker（有効プランのみ・同じ取得に is_active 同乗）＋適用開始日（既定 nextPeriodStartOf＝翌月 1 日・過去日不可・確定済み期は payroll_runs を保存時に 1 回読んで拒否）→既存 RPC set_cast_plan（上書き維持＝lib/nox/cast/plan-switch.ts）（306-13）・「未設定（委託として計算）」（306-14）。
 L6: クイック操作タイル＝NavIcon（文字記号撤去）・「›」なし（306-15／16）・マスタ概要カードは .nox-cardtitle＋.nox-cardchev（nowrap）＋.nox-carddesc 1 行・メニュー行の .nox-navchev nowrap。
 suite: verify-nox-shift-nav 17（新設・f0 76 段目）・messages 16・nav 25・cast-guarantee 56・advance-okuri 25・picker 10（allow-list 13／11）。逆テスト＝L1〜L6 各 1（赤→復元→緑）。fetch +1＝casts 詳細の待遇プラン保存時のみ（payroll_runs 1 行）。
+**スマホ目視（Agoora・2026-09-25）＝308-1／308-2 を除き OK（裁定308-3）**。
 
 ## 裁定305（本便で確定・Agoora 承認・2026-09-25）0153 顧客複数・ボトルキープの設計（305-1〜12）
 
@@ -3801,6 +3813,12 @@ suite: verify-nox-shift-nav 17（新設・f0 76 段目）・messages 16・nav 25
 305-12 296 追補2: comp_plans.product_back_fixed_hon／jonai／free（integer null ≥0）・set_comp_plan 署名 +3・set_cast_plan 白名単 +3（productBackFixedHon／Jonai／Free）・check_close の plan_fixed 解決＝商品 unit4（back_mode='unit4'）→ cast_plan 区分別 → comp_plans 区分別 → 一律 product_back_fixed。同伴＝本指名。golden fixture に plan_fixed×unit4 商品の組があれば期待値が動く＝突合で報告（要裁定）。」
 
 適用＝便 M153-2（起草 supabase/migrations/0153_customers_keep.sql＝★1〜★22・未追跡）・M153-3（突合 BEGIN…ROLLBACK）。手貼りは Agoora（要裁定の裁定後）。client（顧客複数 UI・キープ出し・顧客別売上・商品／プランの区分別欄）は手貼り後ブロック。
+**0153 適用欄（2026-09-25）**: 手貼り＝Agoora 18:4x JST（末尾検証 count 1 申告）・CC の A-0／A 検証 18:35 JST ALL OK（docs/tmp/q0925_a0_0153.mjs・docs/tmp/0153_post_a.json）。
+sha256＝**貼付版 417c5952dfc3a9203c1b05004d7e9b21d9df13f82e49cdf6e4ad23f326190b11**（1,838 行・136,831 B）／**収蔵版 4a5145b0adf802a8942421c52105b8656d40002f64bdec28a296f0d1598d7c68**（1,839 行・136,902 B＝S-1 で冒頭コメントのみ書き換え＝要裁定 (4)→裁定307 で確定・307-5 の md5 誤記訂正・本文の $$ 内 md5 不変）。
+live md5（CR 除去・$$ 内）＝check_close 3f4e73b5／demo_org_reset 30c846ae／set_comp_plan 3fdd6e81／set_cast_plan 37dd29a2／set_store_profile e9bb2b66／check_open f306b0a0／check_merge 88e8e203／bottle_keep_register 03ff8bca／bottle_keep_update c1eff580／check_customer_add ed5f7c6e／check_customer_remove 8cd4e3d3／check_line_set_customer 5af12065／check_customer_names 70a81e91／bottle_keep_out e6d14ca5／customer_sales_summary 81c424d5・不触 17 本不変（customer_assign_cast は accfb2a6）。
+名簿 A1 +4／B(f) +2＝対象 145／除外 123／全数 268（billing 段47-1 145／146・段47-3 kiosk 腕 19）。pin 新値＝anon-guard 1018（probe +6）・grants 383（TABLES +check_customers・G4d +6・G9 列集合 customers 18／bottle_keeps 15／check_lines 21／check_customers 8・kind 11 値・G31 21／23／21）・product-types 20（kind 11 値逐語）・category-map 84（keep_out→other）・receipt 68（keep_out 行）・crm-base 24（register 9 引数／update 7 引数）・demo-reset 34（72 表）・customers-keep 32（新設・f0 77 段目）・picker 10（allow-list 14／12）・messages 16。
+client＝D1 レジ「指名・席」の顧客カード（components/nox/check-customers-card.tsx＝names／add／remove／line_set／keep_out・fetch +1＝3 クエリ並列）・D2 顧客詳細のキープ一覧＋顧客別売上（fetch +2）・D3 店舗情報 2 欄（利用目的・保持年数）＋プラン区分別 3 欄（plan_fixed のみ・22 引数）＋cast 上書き 3 キー（商品マスターの unit4 4 欄は既存）・D4 三面鏡＝receipt／category-map の pin（lib 無改変＝¥0 行）・**D5 kiosk のキープ出し＝停止**（裁定11 顧客系非開示＝kiosk に keeps の読取経路がなく 305-7 の腕だけでは選べない＝v40 §3 の問い）。
+f0 2 連緑 **run1b 77 段 4,941（run2／run2b は未達）**（golden 5931／125802／55233・rate-back 64・billing 53）。ローカルコミット **`未コミット（f0 2 連未達＝run1b 緑 77 段 4,941／run2 pricing statement timeout／run2b DB 無応答＝教訓85 で停止・作業ツリーに保持）`**（0153＋client＋suite＋名簿を 1 本・夜間規則で未 push＝朝の相談役確認後）。
 
 ## 裁定304（本便で確定・Agoora 承認・2026-09-25）0157 要裁定 (2) の裁定（304-1〜2）
 
@@ -3947,7 +3965,7 @@ client 撤去（298-8・R152-3(c) 全列挙）: pay.ts 5 箇所・payroll collec
 (4) client: 待遇プランと cast 個別の上書きに 3 欄・商品マスターの編集に本／場内／同伴／フリーの 4 欄（既存の器 unit4_json の UI 露出）。
 影響: golden 6 値は区分別が null のため不変。pin＝pay／payroll／payroll-csv／payroll-adjust の drinkBack 段（R152-3 (d)）は値不変・set_cast_plan 白名単 pin は張り替え。」
 
-適用＝未着手（0153 に同乗＝comp_plans 列 +3・set_comp_plan／set_cast_plan の白名単 +3・check_close の単価解決順 (3)・client 4 欄は手貼り後の便）。
+適用＝**0153 で本番（2026-09-25）**＝comp_plans.product_back_fixed_hon／jonai／free・set_comp_plan 22 引数・set_cast_plan 白名単 +3・check_close の解決順（商品 unit4→cast_plan 区分別→comp_plans 区分別→一律・同伴＝本）＝customers-keep ck(4-1)／(4-2)／(4-3) が係留（本 500＋unit4 700＝1,200／場内 300＋400＝700／上書き 600）。client＝プラン編集の区分別 3 欄（plan_fixed のみ）・cast 上書き 3 キー・商品マスターの unit4 4 欄（既存）＝`未コミット（f0 2 連未達＝run1b 緑 77 段 4,941／run2 pricing statement timeout／run2b DB 無応答＝教訓85 で停止・作業ツリーに保持）`（未 push）。
 
 ## 裁定295（本便で確定・相談役ブロック・2026-09-24）0154 要裁定 (1)〜(12) の裁定（295-1〜7）
 
@@ -4015,6 +4033,7 @@ client（0154 レーン・未 push）: D1 出退勤の修正（今日タブ「�
 6. 器: penalty_config の遅刻／当欠の閾値（何分から遅刻か）は「検知の条件」として残す。額の自動適用だけを撤去。」
 
 適用＝未着手（291 追補1 C-2「報酬調整（契約）」の運用形＝本追補で「精算調整」に確定・0154 の設計材料＝docs/tmp/0924_tx_read.md TX1-7）。
+**293-4 の器＝0153 で本番（2026-09-25・裁定305-11）**: customers.last_visit_at／retention_until（check_close が更新・店設定 customer_retention_years 既定 5）／deleted_at／anonymized_at・stores.settings_json.customer_purpose／customer_retention_years（set_store_profile 白名単 +2・店舗情報 2 欄＝`未コミット（f0 2 連未達＝run1b 緑 77 段 4,941／run2 pricing statement timeout／run2b DB 無応答＝教訓85 で停止・作業ツリーに保持）` 未 push）。削除・匿名化の RPC は 0155（事前読取 docs/tmp/0155_pre.md (d)）。
 
 ## 裁定292（本便で確定・相談役ブロック・2026-09-24）税理士回答 T1〜T9 の反映（292-1〜7）
 
