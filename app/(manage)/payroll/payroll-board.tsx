@@ -47,7 +47,6 @@ type Row = {
       sanction?: { original?: number; applied?: number } | null;
       plan?: { name?: string }; // ★U-1 是正B: 右パネルのプラン名（PayResult.plan エコー）
       adjBefore?: number; adjAfter?: number; adjustOverflow?: number; // ★裁定258／264: 調整控除（源泉前／後）と net 0 床の超過額
-      referralTotal?: number; // ★裁定272-2: 紹介料
       guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number }; // ★N3
       slideBasis?: { apply: "next"; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] }; // ★N3b
     };
@@ -808,7 +807,6 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                   ["本指名", z(pay.honBack)], ["場内", z(pay.jonaiBack)], ["同伴", z(pay.dohanBack)],
                   ["歩合", z(pay.salesBack)], ["達成ボーナス", z(pay.achievementBonus)],
                   ["その他バック", z(pay.drinkBack) + z(pay.champBack) + z(pay.bottleBack) + z(pay.customTotal) + extrasTotal],
-                  ["紹介料", z(pay.referralTotal)], // ★裁定272-2（0 は非表示）
                 ];
                 const dedRows: [string, number][] = [
                   [whLabel, z(pay.withholding)], ["送り", z(pay.okuriDeduct)],

@@ -15,7 +15,6 @@ type SlipPay = {
   wage?: number; wHours?: number; timePay?: number;
   honBack?: number; jonaiBack?: number; dohanBack?: number;
   drinkBack?: number; champBack?: number; bottleBack?: number; salesBack?: number; customTotal?: number;
-  referralTotal?: number; // ★裁定272-2
   gross?: number; fixedDed?: number; fine?: number; withholding?: number; normPenalty?: number;
   // ★U-1（裁定99-⑤）: 凍結済みの追加キー（旧 payslip には無い＝optional・無ければ従来表示と一字一致）
   guaranteeAdd?: number; achievementBonus?: number;
@@ -80,7 +79,6 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
       {(pay.timePay ?? 0) > 0 && earn(`時給 ${yen(pay.wage ?? 0)}/h × ${pay.wHours ?? 0}h`, pay.timePay ?? 0)}
       {nominBack > 0 && earn("指名バック（本/場内/同伴）", nominBack)}
       {prodBack > 0 && earn("商品・売上・自由バック", prodBack)}
-      {(pay.referralTotal ?? 0) > 0 && earn("紹介料", pay.referralTotal ?? 0)}{/* ★裁定272-2 */}
       {/* ★U-1（裁定99-⑤）: 達成ボーナス・最低保証加算は支給側（gross の内訳・控除側に置かない） */}
       {(pay.achievementBonus ?? 0) > 0 && earn("達成ボーナス", pay.achievementBonus ?? 0)}
       {(pay.guaranteeAdd ?? 0) > 0 && earn("最低保証加算", pay.guaranteeAdd ?? 0)}

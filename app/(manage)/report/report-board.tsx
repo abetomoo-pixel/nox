@@ -35,6 +35,7 @@ type Report = {
   ar_collected_card: number;  // ★D45（mig0143）: カード回収（凍結・在高外）
   ar_collected_other: number; // ★D45（mig0143）: その他回収（凍結・在高外）
   expense: number; cash_payout: number; cash_float: number; counted_cash: number | null; diff: number | null;
+  referral_cash_payout: number; // ★0152（裁定298-10）: 当日現金払いの紹介料（渡した額＝額面−源泉・締めで集計・diff 式に減算）
   reclosed_count: number;
   closed_by: string | null; // E8-2 #8: 締め担当（users.name へ表示専用 join）
   // ★C層③（mig0138・設計書 v1 §2）: 解除／再締め／差異承認の列（select * で取得済み＝新規読取 0）。
@@ -1257,8 +1258,8 @@ export default function ReportBoard({
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
           <thead>
             <tr>
-              {["営業日", "伝票", "客数", "現金", "回収現金", "カード回収", "その他回収", "カード", "カード手数料", "売掛", "ドリンク売上", "未会計", "諸経費", "現金支払", "実査差異", "再締め回数", "締め担当", ""].map((h) => (
-                // ★裁定251（M1）: 潰れ型（18 列）＝nowrap で自然幅にし .nox-tablewrap 内で横スクロール
+              {["営業日", "伝票", "客数", "現金", "回収現金", "カード回収", "その他回収", "カード", "カード手数料", "売掛", "ドリンク売上", "未会計", "諸経費", "現金支払", "紹介料(現金)", "実査差異", "再締め回数", "締め担当", ""].map((h) => (
+                // ★裁定251（M1）: 潰れ型（19 列）＝nowrap で自然幅にし .nox-tablewrap 内で横スクロール
                 <th key={h} style={{ ...t.th, whiteSpace: "nowrap" }}>{h}</th>
               ))}
             </tr>
@@ -1281,6 +1282,7 @@ export default function ReportBoard({
                 <td style={{ ...t.td, ...t.num }}>{r.open_checks_count}</td>
                 <td style={{ ...t.td, ...t.num }}>{yen(r.expense)}</td>
                 <td style={{ ...t.td, ...t.num }}>{yen(r.cash_payout)}</td>
+                <td style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.referral_cash_payout ?? 0)}</td>{/* ★0152（裁定298-10） */}
                 <td style={{ ...t.td, ...t.num, color: (r.diff ?? 0) < 0 ? "var(--bad)" : undefined }}>
                   {r.diff == null ? "—" : yen(r.diff)}
                 </td>

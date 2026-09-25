@@ -216,7 +216,6 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
   // ★裁定113: calc＝Σ calculated_back_amount（plan_rate の凍結値・null=0＝旧行/他 mode フォールバック）
   const backByCast = new Map<string, { drink: number; champ: number; bottle: number; pt: number; calc: number }>();
   const champBottleByCast = new Map<string, { champCnt: number; bottleCnt: number }>();
-  const referralByCast = new Map<string, number>(); // ★裁定272-2: kind='referral' ∧ cast_id（紹介者）別 Σline_total
 
   // ★F3f: 承認済 drink_claims の back_amount を cast 別に drink バックへ合流（対象 check の営業日で期間フィルタ）
   const { data: claims, error: eDc } = await admin
@@ -237,11 +236,11 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
     .gte("started_at", win.startTs).lt("started_at", win.endTs);
   if (eC) throw new Error(`checks: ${eC.message}`);
   const checkIds = ((checks ?? []) as { id: string }[]).map((c) => c.id);
-  if (checkIds.length === 0) return { backByCast, champBottleByCast, referralByCast };  // ★drink_claims は既に合流済み
+  if (checkIds.length === 0) return { backByCast, champBottleByCast };  // ★drink_claims は既に合流済み
 
   const [nomsR, linesR, backsR] = await Promise.all([
     admin.from("check_nominations").select("check_id, cast_id").in("check_id", checkIds),
-    admin.from("check_lines").select("check_id, kind, qty, cast_id, line_total").in("check_id", checkIds), // ★裁定272-2: referral 用に cast_id／line_total を併読
+    admin.from("check_lines").select("check_id, kind, qty").in("check_id", checkIds), // ★0152（裁定298-10）: 紹介料は給与に載せない＝紹介料用の併読を撤去
     // ★裁定113: 新3列を読む（source_mode は Σ には不要だが読み手フォールバックの検証用に取得・calc は null=0）
     admin.from("check_cast_backs").select("cast_id, drink_back, champ_back, bottle_back, hon_pt_alloc, source_mode, product_sales_base, calculated_back_amount").in("check_id", checkIds),
   ]);
@@ -261,12 +260,6 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
   const qtyByCheck = new Map<string, { champ: number; bottle: number }>();
   for (const l of (linesR.data ?? []) as Record<string, unknown>[]) {
     const kind = l.kind as string;
-    // ★裁定272-2: 紹介料行＝紹介者（cast_id）の gross へ。fee_kind 系（指名料母数）は触らない。
-    if (kind === "referral") {
-      const rc = l.cast_id as string | null;
-      if (rc) referralByCast.set(rc, (referralByCast.get(rc) ?? 0) + ((l.line_total as number | null) ?? 0));
-      continue;
-    }
     if (kind !== "champ" && kind !== "bottle") continue;
     const cur = qtyByCheck.get(l.check_id as string) ?? { champ: 0, bottle: 0 };
     if (kind === "champ") cur.champ += l.qty as number;
@@ -282,7 +275,7 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
     cur.bottleCnt += q.bottle;
     champBottleByCast.set(cid, cur);
   }
-  return { backByCast, champBottleByCast, referralByCast };
+  return { backByCast, champBottleByCast };
 }
 
 // mig0086: 率バックの母数＝窓内の指名料行（check_lines）を cast 別に集計（率バック設計 v1 裁定iii/vi）。
@@ -650,7 +643,6 @@ export async function collectPeriod(
       daily,
       productBack: { drink: back.drink, champ: back.champ, bottle: back.bottle },
       calculatedBack: back.calc, // ★裁定113
-      referralTotal: acct.referralByCast.get(cid) ?? 0, // ★裁定272-2
       pointProducts: back.pt,
       champCnt: cb.champCnt,
       bottleCnt: cb.bottleCnt,

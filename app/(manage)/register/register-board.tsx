@@ -10,7 +10,6 @@ import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
 import CastPicker from "@/components/nox/cast-picker";
 import Picker from "@/components/nox/picker"; // ★裁定272-2 追補（紹介料の紹介者＝裁定259 の picker）
-import { detailLinesOf, referralRowsOf, referralTotalOf } from "@/lib/nox/register/referral"; // ★案 Q: 紹介料は明細・合計に載せず別掲
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
@@ -94,7 +93,16 @@ const MSG_PAY = "pay";
 const MSG_TIME = "time";
 // feeMsg の描画点（1つ）＝指名カード。★0124: 同伴料カード撤去で FEE_DOHAN は廃止。
 const FEE_SHIMEI = "shimei";
-const FEE_REFERRAL = "referral"; // ★裁定272-2 追補: 紹介料カードの通知の宛先
+const FEE_REFERRAL = "referral"; // ★0152（裁定298）: 紹介カードの通知の宛先
+// ★0152（裁定280／298／299・2026-09-25）: 紹介＝1 伝票 1 紹介（check_referrals）。紹介者は referrers（マスタ「紹介者」）から選ぶ。
+//   method 4 値（率は bp＝1%=100・固定は円）・burden 2 値（客負担は請求に乗る＝表示 due は groupDueFull の第 3 引数で鏡像）。
+type Referrer = { id: string; name: string; kind: string; withholding_category: string; is_active: boolean };
+type CheckReferral = { id: string; referrer_id: string; method: string; value: number; burden: string; amount: number; frozen_at: string | null; memo: string | null };
+const REF_METHODS: ReadonlyArray<readonly [string, string]> = [["set_rate", "セット料金の%"], ["account_rate", "会計の%"], ["fixed_per_person", "1人あたり固定"], ["fixed_per_group", "1組固定"]];
+const REF_BURDENS: ReadonlyArray<readonly [string, string]> = [["store", "店負担"], ["customer", "客負担"]];
+const isRateMethod = (m: string) => m === "set_rate" || m === "account_rate";
+const refMethodLabel = (m: string) => REF_METHODS.find(([k]) => k === m)?.[1] ?? m;
+const refValueLabel = (m: string, v: number) => (isRateMethod(m) ? `${(v / 100).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}%` : `${v.toLocaleString("en-US")}円`);
 // 領収書カードの成功文言（色分けの唯一の分岐点＝入金モーダル :msg と同じ既存の流儀）
 const RCPT_COPIED = "確認用 URL をコピーしました";
 type Line = {
@@ -172,17 +180,17 @@ function claimErrJa(msg: string | undefined): string {
   return msg;
 }
 
-// ★裁定272-2 追補（0148 check_add_referral）エラーの日本語化（握り潰さない）
+// ★0152（裁定298／299）: 紹介 RPC（check_referral_set／remove）の語の日本語化（握り潰さない・共通写像 rpcErrJaCommon へ委譲）
 function referralErrJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
-  if (msg.includes("bad amount")) return "金額は 1 円以上の整数で入力してください";
-  if (msg.includes("bad name")) return "メモは 80 字以内で入力してください";
-  if (msg.includes("inactive cast")) return "そのキャストは在籍していません";
-  if (msg.includes("bad cast")) return "そのキャストは選べません（在籍・自店を確認してください）";
+  if (msg.includes("no people")) return "人数を先に入力してください";
+  if (msg.includes("exists")) return "この伝票には既に紹介が付いています（外してから付け直してください）";
+  if (msg.includes("inactive referrer")) return "その紹介者は無効化されています";
+  if (msg.includes("bad referrer")) return "その紹介者は選べません（自店の紹介者か確認してください）";
+  if (msg.includes("frozen")) return "会計確定後は変更できません";
+  if (msg.includes("has payments")) return "入金後は紹介を変更できません（訂正は伝票取消で）";
   if (msg.includes("not open")) return "この伝票は締められています";
-  if (isBillingLocked(msg)) return BILLING_LOCKED_MSG;
-  if (msg.includes("forbidden")) return "権限がありません";
-  return msg;
+  return rpcErrJaCommon(msg);
 }
 
 // approval RPC エラーの日本語化（F3c）
@@ -244,9 +252,13 @@ export default function RegisterBoard({
   // 段R2: 伝票詳細の3タブ（注文／指名・席／会計）＝現行カード縦積みの収容先を切り替えるだけ。
   //   ★どのカードも中身・RPC・引数は1文字も変えていない（表示位置だけの再配置）。
   const [dtab, setDtab] = useState<"order" | "nom" | "pay">("order");
-  // ★裁定272-2 追補（R11・案 Q）: 紹介料の入口（金額・紹介者 picker・メモ）。p_idem_key は client で uuid を生成（規約 9 と同列）
-  const [refAmount, setRefAmount] = useState("");
-  const [refCast, setRefCast] = useState<string | null>(null);
+  // ★0152（裁定298／299）: 紹介の入口（紹介者 picker・method・率／額・負担・メモ）。p_idem_key は client で uuid を生成（規約 9 と同列）
+  const [referrers, setReferrers] = useState<Referrer[]>([]);
+  const [referral, setReferral] = useState<CheckReferral | null>(null);
+  const [refPick, setRefPick] = useState<string | null>(null);
+  const [refMethod, setRefMethod] = useState("set_rate");
+  const [refValue, setRefValue] = useState("");
+  const [refBurden, setRefBurden] = useState("store");
   const [refMemo, setRefMemo] = useState("");
   // 段R2: 席タイルの会計金額・着卓キャスト・低在庫（いずれも既存テーブルの読取＝presentation）
   const [openTotal, setOpenTotal] = useState<Record<string, number>>({});
@@ -561,6 +573,17 @@ export default function RegisterBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ★0152: 紹介者（自店・有効のみ）＝伝票の店が決まったら読む（RLS owner∨manager 自店・cast 0 行）
+  useEffect(() => {
+    const sid = check?.store_id;
+    if (!sid) { setReferrers([]); return; }
+    void (async () => {
+      const { data } = await supabase.from("referrers").select("id, name, kind, withholding_category, is_active").eq("store_id", sid).eq("is_active", true).order("name");
+      setReferrers((data ?? []) as Referrer[]);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [check?.store_id]);
+
   const loadCheck = useCallback(async (checkId: string) => {
     const { data: c } = await supabase.from("checks").select("*").eq("id", checkId).single();
     const { data: ls } = await supabase
@@ -580,6 +603,8 @@ export default function RegisterBoard({
       .eq("check_id", checkId).order("created_at", { ascending: false });
     // B1/B2: この伝票の追加席一覧（席セクションの表示＋解除ボタン）
     const { data: cs } = await supabase.from("check_seats").select("id, seat_id, check_id").eq("check_id", checkId);
+    // ★0152: この伝票の紹介（1 伝票 1 紹介・無ければ null）
+    const { data: cr } = await supabase.from("check_referrals").select("id, referrer_id, method, value, burden, amount, frozen_at, memo").eq("check_id", checkId).maybeSingle();
     // B4: 伝票の store の time_mode を live 取得（非スナップ＝裁定(g)。RLS で自店/自 org のみ可視）
     if (c) {
       const { data: st } = await supabase.from("stores").select("time_mode").eq("id", (c as CheckRow).store_id).single();
@@ -591,6 +616,7 @@ export default function RegisterBoard({
     //   リロードユーティリティでメッセージ生存期間を持たない（順序入替案だと将来の loadCheck 呼び足しで
     //   再発する）。クリアは席切替（openSeat）でのみ行う。
     setCheckSeats((cs ?? []) as CheckSeatRow[]);
+    setReferral((cr as CheckReferral | null) ?? null); // ★0152
     setCheck(c as CheckRow);
     setLines((ls ?? []) as Line[]);
     setClaims((dcs ?? []) as DrinkClaim[]);
@@ -1018,20 +1044,36 @@ export default function RegisterBoard({
     await loadCheck(check.id);
   }
 
-  // ★裁定272-2 追補（0148 check_add_referral）: 紹介料＝店が負担する手当（伝票合計・課税額には載らない＝案 Q）。
-  //   owner／manager のレジのみ（kiosk-register には出さない＝DB の kiosk 腕は現状維持・裁定272 追補）。
-  async function addReferral() {
+  // ★0152（裁定298-3／299-1）: 紹介を付ける＝check_referral_set（1 伝票 1 紹介・'exists' は外してから）。率は % 入力→bp・固定は円。
+  //   owner／manager のレジのみ（kiosk-register には出さない＝DB の kiosk 腕は現状維持）。
+  async function setReferralOn() {
     if (!check || !isManagerUp) return;
     if (check.status !== "open") { setFeeMsg({ to: FEE_REFERRAL, kind: "bad", text: "この伝票は締められています" }); return; }
-    const amount = Number(refAmount.replace(/[,，¥￥\s]/g, ""));
-    if (!Number.isInteger(amount) || amount <= 0) { setFeeMsg({ to: FEE_REFERRAL, kind: "bad", text: "金額は 1 円以上の整数で入力してください" }); return; }
+    if (!refPick) { setFeeMsg({ to: FEE_REFERRAL, kind: "bad", text: "紹介者を選んでください" }); return; }
+    const raw = Number(refValue.replace(/[,，¥￥%％\s]/g, ""));
+    const rate = isRateMethod(refMethod);
+    const value = rate ? Math.round(raw * 100) : raw; // 率は bp（1% = 100・DB は 0〜10000）
+    if (!Number.isFinite(raw) || raw < 0 || !Number.isInteger(value) || (rate && value > 10000)) {
+      setFeeMsg({ to: FEE_REFERRAL, kind: "bad", text: rate ? "率は 0〜100 の数値で入力してください" : "金額は 0 円以上の整数で入力してください" }); return;
+    }
+    if (refMethod === "fixed_per_person" && check.people == null) { setFeeMsg({ to: FEE_REFERRAL, kind: "bad", text: "人数を先に入力してください" }); return; } // 先回り（RPC の 'no people' が本体・裁定299-1）
     if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
-    const { error } = await supabase.rpc("check_add_referral", {
-      p_check_id: check.id, p_cast_id: refCast, p_amount: amount, p_memo: refMemo.trim() === "" ? null : refMemo.trim(), p_idem_key: crypto.randomUUID(),
+    const { error } = await supabase.rpc("check_referral_set", {
+      p_check_id: check.id, p_referrer_id: refPick, p_method: refMethod, p_value: value, p_burden: refBurden,
+      p_idem_key: crypto.randomUUID(), p_memo: refMemo.trim() === "" ? null : refMemo.trim(),
     });
     if (error) { setFeeMsg({ to: FEE_REFERRAL, kind: "bad", text: referralErrJa(error.message) }); return; }
-    setRefAmount(""); setRefMemo("");
-    setFeeMsg({ to: FEE_REFERRAL, kind: "ok", text: `紹介料 ${yen(amount)} を追加しました（お会計には含まれません）` });
+    setRefValue(""); setRefMemo("");
+    setFeeMsg({ to: FEE_REFERRAL, kind: "ok", text: refBurden === "customer" ? "紹介を付けました（客負担＝お会計に含まれます）" : "紹介を付けました（店負担＝お会計には含まれません）" });
+    await loadCheck(check.id);
+  }
+  // ★0152（裁定298-3／299-4）: 紹介を外す＝check_referral_remove（入金後は 'has payments'・確定後は 'frozen'）
+  async function removeReferral() {
+    if (!check || !isManagerUp || !referral) return;
+    if (dayBlocked()) return;
+    const { error } = await supabase.rpc("check_referral_remove", { p_check_id: check.id });
+    if (error) { setFeeMsg({ to: FEE_REFERRAL, kind: "bad", text: referralErrJa(error.message) }); return; }
+    setFeeMsg({ to: FEE_REFERRAL, kind: "ok", text: "紹介を外しました" });
     await loadCheck(check.id);
   }
 
@@ -1393,12 +1435,13 @@ export default function RegisterBoard({
   const groups = Array.from(new Set(lines.map((l) => l.pay_group))).sort();
   const groupInfo = groups.map((g) => {
     const gl = lines.filter((l) => l.pay_group === g);
-    const bx = gl.filter((l) => l.kind !== "discount" && l.kind !== "referral").reduce((a, l) => a + l.line_total, 0); // ★案 Q: 紹介料は小計に載せない（check_group_due と同じ除外）
+    const refCustomer = g === "A" && referral?.burden === "customer" ? referral.amount : 0; // ★0152（裁定298-9）: 客負担の紹介料は A の小計に乗る（check_group_due と同式）
+    const bx = gl.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0) + refCustomer;
     const disc = gl.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0);
     const net = Math.max(0, bx - disc);
     // ★C4 §6-6: 外税店でも表示 due が DB check_group_due と一致するよう完全鏡像へ
     //   （内税/exempt は groupDueFull 内で従来式 groupDue へ委譲＝1バイト同値・権威はサーバ）。
-    const due = check ? groupDueFull(gl, check) : 0;
+    const due = check ? groupDueFull(gl, check, refCustomer) : 0; // ★0152: 第 3 引数＝客負担の紹介料（A のみ）
     const paid = payments.filter((p) => p.pay_group === g).reduce((a, p) => a + p.amount, 0);
     return { g, bx, disc, net, due, paid, remaining: Math.max(0, due - paid) };
   });
@@ -2179,9 +2222,6 @@ export default function RegisterBoard({
             );
           })()}
           <span className="total num"><small>合計</small>{yen(check.total)}</span>
-          {referralTotalOf(lines) > 0 && (
-            <span style={{ fontSize: 11.5, color: "var(--sub)", whiteSpace: "nowrap" }}>紹介料(店負担) <span className="num">{yen(referralTotalOf(lines))}</span></span>
-          )}{/* ★案 Q: 合計には含めず別掲 */}
           {/* void は manager 以上のみ表示（RPC 側でも owner/manager を強制＝二重） */}
           {isManagerUp && (
             <button onClick={() => { setVoidReason(""); setVoidModal(true); }}
@@ -2280,57 +2320,56 @@ export default function RegisterBoard({
           )}
         </div>
 
-        {/* ★裁定272-2／追補 2（R11・案 Q・2026-09-18）: 紹介料の入口＝owner／manager のレジのみ。追加は check_add_referral・取消は既存 check_remove_line（入金前のみ）。
-            明細一覧には出さず（detailLinesOf）、合計の下に「紹介料(店負担)」を別掲（referralTotalOf）。 */}
+        {/* ★0152（裁定280／298／299・2026-09-25）: 紹介の入口＝owner／manager のレジのみ。1 伝票 1 紹介（check_referrals）＝付与 check_referral_set・取消 check_referral_remove。
+            紹介者はマスタ「紹介者」（referrers）から選ぶ。客負担（burden='customer'）は請求（A）に乗る＝表示 due は groupDueFull の第 3 引数で鏡像・印字は初回セット行に合算（298-4）。 */}
         {isManagerUp && (
           <div className="nox-cardtop" style={card}>
-            <h3 style={t.cardTitle}>紹介料</h3>
-            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
-              店が負担する手当です。お客様のお会計には含まれません。
-            </p>
-            {check.status === "open" && (
-              <div style={{ display: "grid", gap: 8, marginBottom: 8 }}>
+            <h3 style={t.cardTitle}>紹介</h3>
+            {referral ? (
+              <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+                <div>
+                  <b>{referrers.find((r) => r.id === referral.referrer_id)?.name ?? "（紹介者）"}</b>
+                  <span style={{ marginLeft: 8, color: "var(--sub)", fontSize: 11.5 }}>
+                    {refMethodLabel(referral.method)}・{refValueLabel(referral.method, referral.value)}・{referral.burden === "customer" ? "客負担（お会計に含む）" : "店負担"}
+                  </span>
+                </div>
+                <div>紹介料 <span className="num">{yen(referral.amount)}</span>
+                  {referral.frozen_at && <span style={{ marginLeft: 8, color: "var(--sub)", fontSize: 11.5 }}>確定済み</span>}
+                </div>
+                {referral.memo && <div style={{ color: "var(--sub)", fontSize: 11.5 }}>{referral.memo}</div>}
+                {check.status === "open" && !referral.frozen_at && payments.length === 0 && (
+                  <div className="nox-actions" style={{ marginTop: 6 }}>
+                    <button type="button" onClick={() => void removeReferral()}
+                      style={{ ...btnLight, color: "var(--bad)", border: "1px solid var(--bad)" }}>紹介を外す</button>
+                  </div>
+                )}{/* Danger＝red 枠（裁定242）。入金後は RPC が 'has payments'（裁定299-4）＝出さない */}
+              </div>
+            ) : check.status === "open" ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                {referrers.length === 0 && (
+                  <p style={{ fontSize: 11.5, color: "var(--sub)", margin: 0 }}>紹介者が未登録です（マスタ「紹介者」で登録してください）</p>
+                )}
+                <Picker dense items={referrers.map((r) => ({ id: r.id, label: r.kind === "staff" ? `${r.name}（スタッフ）` : r.name }))} value={refPick}
+                  onPick={setRefPick} onClear={() => setRefPick(null)} placeholder="紹介者を検索" />
+                <SegSelect value={refMethod} onChange={setRefMethod} options={REF_METHODS} ariaLabel="紹介料の計算方法" />
                 <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                  金額
-                  <input value={refAmount} inputMode="numeric" placeholder="例: 3000" onChange={(e) => setRefAmount(e.target.value)}
+                  {isRateMethod(refMethod) ? "率" : "金額"}
+                  <input value={refValue} inputMode="decimal" placeholder={isRateMethod(refMethod) ? "例: 10" : "例: 3000"} onChange={(e) => setRefValue(e.target.value)}
                     style={{ ...t.input, width: 120, padding: "6px 8px" }} />
-                  <span style={{ fontSize: 11, color: "var(--sub)" }}>円</span>
+                  <span style={{ fontSize: 11, color: "var(--sub)" }}>{isRateMethod(refMethod) ? "%" : "円"}</span>
                 </label>
-                <Picker dense items={casts.map((c) => ({ id: c.id, label: c.name }))} value={refCast}
-                  onPick={setRefCast} onClear={() => setRefCast(null)} placeholder="紹介者（キャストを検索・未選択＝外部紹介）" />
-                <input value={refMemo} placeholder="メモ（任意・80 字まで）" onChange={(e) => setRefMemo(e.target.value)} style={{ ...t.input, padding: "6px 8px" }} />
+                <SegSelect value={refBurden} onChange={setRefBurden} options={REF_BURDENS} ariaLabel="紹介料の負担" />
+                <input value={refMemo} placeholder="メモ（任意・200 字まで）" onChange={(e) => setRefMemo(e.target.value)} style={{ ...t.input, padding: "6px 8px" }} />
                 <div className="nox-actions">
-                  <button type="button" className="nox-btn" onClick={() => void addReferral()}>追加</button>{/* 実行＝青塗り（裁定242） */}
+                  <button type="button" className="nox-btn" onClick={() => void setReferralOn()}>紹介を付ける</button>{/* 実行＝青塗り（裁定242） */}
                 </div>
               </div>
-            )}
-            {referralRowsOf(lines).length > 0 && (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <tbody>
-                  {referralRowsOf(lines).map((l) => (
-                    <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                      <td style={{ padding: 6 }}>
-                        <b>{l.cast_id ? (casts.find((c) => c.id === l.cast_id)?.name ?? "（キャスト）") : "外部紹介"}</b>
-                        <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>{l.name_snapshot}</span>
-                      </td>
-                      <td className="num" style={{ padding: 6, textAlign: "right", whiteSpace: "nowrap" }}>{yen(l.line_total)}</td>
-                      <td style={{ padding: 6, textAlign: "right", whiteSpace: "nowrap" }}>
-                        {check.status === "open" && payments.length === 0 && (
-                          <button type="button" onClick={() => void removeLine(l.id)}
-                            style={{ ...btnLight, color: "var(--bad)", border: "1px solid var(--bad)" }}>取消</button>
-                        )}{/* Danger＝red 枠（裁定242）。入金後は check_remove_line が 'has payments' で拒否＝出さない */}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            ) : (
+              <p style={{ fontSize: 11.5, color: "var(--sub)", margin: 0 }}>紹介なし</p>
             )}
             {feeMsg?.to === FEE_REFERRAL && (
-              <p style={{ fontSize: 12, fontWeight: 700, margin: "8px 0 0", lineHeight: 1.7,
-                color: feeMsg.kind === "ok" ? "var(--ok)" : "var(--danger-ink)" }}>
-                {feeMsg.text}
-              </p>
-            )}
+              <Message kind={feeMsg.kind === "ok" ? "success" : "error"} onDismiss={() => setFeeMsg(null)}>{feeMsg.text}</Message>
+            )}{/* ★裁定281: 共通部品・操作の近く・残留なし（×で消す） */}
           </div>
         )}
 
@@ -2913,7 +2952,7 @@ export default function RegisterBoard({
           })()}
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <tbody>
-              {detailLinesOf(lines).map((l) => {{/* ★案 Q: 紹介料行は明細に出さない（指名・席タブの紹介料カードで一覧） */}
+              {lines.map((l) => {
                 const isDisc = l.kind === "discount"; // ★F3c: 承認割引（正の値・表示は −・削除不可＝承認経由のみ）
                 // キャストドリンク（mig0070）: 凍結値で判定＝DB（check_close / proxy）と同じ真実を見る。
                 const isExempt = l.back_snapshot?.back_exempt === true;

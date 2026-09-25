@@ -16,7 +16,6 @@ export type PayrollCsvPay = {
   drinkBack: number; champBack: number; bottleBack: number;
   salesBack: number;
   customTotal: number;
-  referralTotal?: number; // ★裁定272-2: 紹介料（加算計に含める・旧 payslip は欠落＝0）
   withholding: number;
   fixedDed: number; fine: number;
   arDeduct: number; advanceDeduct: number; okuriDeduct: number;
@@ -52,7 +51,7 @@ export function payrollRowStatus(paidTotal: number, net: number): string {
 export function payrollCsvCells(r: PayrollCsvRow): (string | number)[] {
   const p = r.pay;
   const backTotal = p.honBack + p.jonaiBack + p.dohanBack + p.drinkBack + p.champBack + p.bottleBack + p.salesBack;
-  const addTotal = p.customTotal + (p.referralTotal ?? 0) + r.extrasTotal; // ★裁定272-2: 紹介料は加算計へ（列数 11 は不変）
+  const addTotal = p.customTotal + r.extrasTotal; // ★0152（裁定298-10）: 紹介料は給与に載せない（旧 payslip の referralTotal は読まない・列数 11 は不変）
   const dedTotal = totalDeductionsOf(p); // 裁定264-3（旧: fixedDed+fine+withholding+arDeduct+advanceDeduct+okuriDeduct+normPenalty）
   const grossTotal = p.gross + r.extrasTotal;
   return [

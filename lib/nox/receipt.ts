@@ -53,7 +53,13 @@ export type ReceiptLine = {
   // ★C3 読み経路段（mig0111）: check_lines.tax_category のスナップショット。省略可＝既存呼び出し不変。
   //   税率別集計（taxable_8 併存・exempt 行の税額除外）は挙動段（C34設計書 §6-4）＝本段では受理のみ。
   tax_category?: string;
+  // ★0152（裁定298-4）: 客負担の紹介料の合算先を選ぶための凍結値（省略可＝既存呼び出し不変）
+  fee_kind?: string | null;
+  block_no?: number | null;
 };
+
+/** ★0152（裁定298-4／298-9）: 伝票の紹介（1 伝票 1 紹介）。burden='customer' の amount だけが請求に乗る＝初回セット行に合算して印字・紹介行は印字しない */
+export type ReceiptReferral = { amount: number; burden: string };
 
 export type ReceiptPayment = {
   method: string; // 'cash' | 'card' | 'ar' | 'other'
@@ -73,6 +79,7 @@ export type ReceiptInput = {
   // ★C4 読み経路段（mig0111）: 店舗税設定。省略＝既定（taxable・内税・floor・surcharge 無効）で
   //   現行と1バイト同値。exempt/外税/card_surcharge の挙動差は挙動段で結線（本段は tax_rounding のみ実効）。
   taxSettings?: Partial<StoreTaxSettings> | null;
+  referral?: ReceiptReferral; // ★0152（裁定298-4／298-9）: 省略＝従来と 1 バイト同値
 };
 
 const WIDTH = 48; // 80mm・Font A
@@ -143,13 +150,23 @@ export function taxOf(groupDue: number, rounding: string = "floor", excludedRate
   return taxRound((groupDue * 10) / 110, rounding);
 }
 
+/** ★0152（裁定298-4）: 客負担の紹介料の合算先＝block_no=0（null 含む）の最初の set 行 → 最初の set 行 → 最初の割引でない行。無ければ -1 */
+export function referralTargetIndex(lines: ReceiptLine[]): number {
+  const first = lines.findIndex((l) => l.kind === "set" && (l.block_no == null || l.block_no === 0));
+  if (first >= 0) return first;
+  const anySet = lines.findIndex((l) => l.kind === "set");
+  if (anySet >= 0) return anySet;
+  return lines.findIndex((l) => l.kind !== "discount");
+}
+
 export function buildReceiptXml(input: ReceiptInput): string {
   const { store, check, payGroup, lines, payments, serviceRate, groupDue, isReprint } = input;
 
   // 金額段（冒頭コメントの順算式＝check_group_due と同式）
-  // ★裁定272 追補（案 Q・mig0148 ★10）: kind 'referral'（紹介料＝店が払う手当）は客への請求ではない＝
-  //   小計・税率別集計から除外（groupDueFull／DB と同じ 2 箇所）し、明細にも印字しない。
-  const gross = lines.filter((l) => l.kind !== "discount" && l.kind !== "referral").reduce((s, l) => s + l.line_total, 0);
+  // ★0152（裁定298-9）: 客負担の紹介料（check_referrals.burden='customer'）は請求の一部＝小計・taxable_10 基底に加算（groupDueFull／DB と同じ 2 箇所）。
+  //   店負担（'store'）は請求に乗らない。行としては印字せず、初回セット行に合算（裁定298-4）。
+  const refAmt = input.referral && input.referral.burden === "customer" ? Math.max(0, input.referral.amount) : 0;
+  const gross = lines.filter((l) => l.kind !== "discount").reduce((s, l) => s + l.line_total, 0) + refAmt;
   const discount = lines.filter((l) => l.kind === "discount").reduce((s, l) => s + l.line_total, 0);
   const net = Math.max(0, gross - discount);
   const service = Math.round((net * serviceRate) / 100);
@@ -160,8 +177,8 @@ export function buildReceiptXml(input: ReceiptInput): string {
   const isExcluded = ts.price_display === "tax_excluded" && ts.business_tax_status === "taxable";
   const isExempt = ts.business_tax_status === "exempt";
   const catOf = (l: ReceiptLine) => l.tax_category ?? "taxable_10";
-  const bx10 = lines.filter((l) => l.kind !== "discount" && l.kind !== "referral" && catOf(l) === "taxable_10").reduce((s2, l) => s2 + l.line_total, 0);
-  const bx8 = lines.filter((l) => l.kind !== "discount" && l.kind !== "referral" && catOf(l) === "taxable_8").reduce((s2, l) => s2 + l.line_total, 0);
+  const bx10 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_10").reduce((s2, l) => s2 + l.line_total, 0) + refAmt; // ★0152
+  const bx8 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_8").reduce((s2, l) => s2 + l.line_total, 0);
   const base10 = Math.max(0, bx10 - discount) + service; // 外税の 10% 基底（clamp＋サ料算入）
   const tax10 = isExcluded ? taxOf(base10, ts.tax_rounding, 10) : 0;
   const tax8 = isExcluded ? taxOf(bx8, ts.tax_rounding, 8) : 0;
@@ -199,16 +216,18 @@ export function buildReceiptXml(input: ReceiptInput): string {
   line(padLine(`No. ${slipNo}`, jstStamp(check.closed_at)));
   line(sep);
 
-  // ── 明細（当該 pay_group のみ・discount はマイナス表記・referral は印字しない＝裁定272 追補）──
-  for (const l of lines) {
-    if (l.kind === "referral") continue;
+  // ── 明細（当該 pay_group のみ・discount はマイナス表記）──
+  //   ★0152（裁定298-4）: 客負担の紹介料は「初回セット行（block_no=0 の最初の set 行）」の行計に合算・qty 表示は据え置き・紹介行は印字しない。
+  //   set 行が無い伝票は最初の（割引でない）行に合算。
+  const refIdx = refAmt > 0 ? referralTargetIndex(lines) : -1;
+  lines.forEach((l, i) => {
     if (l.kind === "discount") {
       line(padLine(`割引 ${l.name_snapshot}`, `-${yen(l.line_total)}`));
     } else {
       const name = l.qty > 1 ? `${l.name_snapshot} x${l.qty}` : l.name_snapshot;
-      line(padLine(name, yen(l.line_total)));
+      line(padLine(name, yen(i === refIdx ? l.line_total + refAmt : l.line_total)));
     }
-  }
+  });
   line(sep);
 
   // ── 金額段 ──

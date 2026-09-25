@@ -36,6 +36,7 @@ export const MASTER_NAV: MasterNavGroup[] = [
       { label: "席・卓", href: "/master/seats" },
       { label: "営業時間", href: "/master/business-hours" },
       { label: "スタッフ・システム", href: "/master/system" },
+      { label: "紹介者", href: "/master/referrers" }, // ★0152（裁定280-2／298-5）: 紹介者マスタ＋紹介料の支払一覧
     ],
   },
   {

@@ -12,7 +12,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildReceiptXml, type ReceiptLine, type ReceiptPayment } from "@/lib/nox/receipt";
 import { buildPrintEnvelope, EMPTY_POLL_RESPONSE } from "@/lib/nox/print-envelope";
-import { groupDue } from "@/lib/nox/check-calc";
+import { groupDueFull } from "@/lib/nox/check-calc"; // ★0152: 税設定＋客負担の紹介料込みの完全鏡像
 
 export const dynamic = "force-dynamic";
 
@@ -63,10 +63,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ store_token: s
     // ── レシート素材の収集（service_role＝RLS バイパス・store_token で店は確定済み）──
     const [{ data: chk }, { data: lines }, { data: pays }] = await Promise.all([
       admin.from("checks")
-        .select("id, store_id, closed_at, nom_type, service_rate, round_unit, round_mode")
+        .select("id, store_id, closed_at, nom_type, service_rate, round_unit, round_mode, business_tax_status, price_display, tax_rounding")
         .eq("id", c.check_id).single(),
       admin.from("check_lines")
-        .select("name_snapshot, qty, unit_price_snapshot, line_total, kind, sort_order, created_at")
+        .select("name_snapshot, qty, unit_price_snapshot, line_total, kind, sort_order, created_at, tax_category, fee_kind, block_no")
         .eq("check_id", c.check_id).eq("pay_group", c.pay_group)
         .order("sort_order", { ascending: true }).order("created_at", { ascending: true }),
       admin.from("payments")
@@ -81,16 +81,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ store_token: s
     const sj = (store?.settings_json ?? {}) as Record<string, unknown>;
     const sjs = (k: string) => (typeof sj[k] === "string" ? (sj[k] as string).trim() : "");
 
-    // group_due = 割引後 net → check-calc.ts（DB 同式 TS 鏡像）
+    // ★0152（裁定298-4／298-9）: 伝票の紹介（1 伝票 1 紹介）。客負担の amount は pay_group 'A' の請求に乗る＝group due と印字の両方へ渡す
+    const { data: cref } = await admin.from("check_referrals").select("amount, burden").eq("check_id", c.check_id).maybeSingle();
+    const referral = c.pay_group === "A" && cref ? { amount: cref.amount as number, burden: cref.burden as string } : undefined;
+    const refCustomer = referral && referral.burden === "customer" ? referral.amount : 0;
+    // group_due ＝ check-calc.ts の完全鏡像（税設定 3 値＋客負担の紹介料＝DB check_group_due と同式）
     const ls = lines as ReceiptLine[];
-    const gross = ls.filter((l) => l.kind !== "discount").reduce((s, l) => s + l.line_total, 0);
-    const discount = ls.filter((l) => l.kind === "discount").reduce((s, l) => s + l.line_total, 0);
-    const net = Math.max(0, gross - discount);
-    const due = groupDue(net, {
+    const due = groupDueFull(ls, {
       service_rate: chk.service_rate as number,
       round_unit: chk.round_unit as number,
       round_mode: chk.round_mode as string,
-    });
+      business_tax_status: chk.business_tax_status as string,
+      price_display: chk.price_display as string,
+      tax_rounding: chk.tax_rounding as string,
+    }, refCustomer);
 
     const xml = buildReceiptXml({
       store: {
@@ -106,6 +110,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ store_token: s
       payments: (pays ?? []) as ReceiptPayment[],
       serviceRate: chk.service_rate as number,
       groupDue: due,
+      referral, // ★0152
       isReprint: c.is_reprint === true,
     });
 
