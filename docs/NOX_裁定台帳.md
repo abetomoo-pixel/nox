@@ -3752,6 +3752,9 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 適用＝便 V-1（読取）・V-2（300-1）・V-3（300-2＋suite verify-nox-advance-okuri）・V-4（f0 2 連→push）。300-3 は V-1(d) の判定のみ（client で足りるなら次便・mig なら 0156 同乗）。
 
+**追補1（本便で確定・相談役ブロック 2026-09-25・V-1(d) の読取＝deductions は店単位 is_active のみで run 別の器なし・逐語）**: 「裁定300 追補1（2026-09-25）: 300-3（固定控除の当期 ON/OFF・額の上書き）は mig が要る＝0156 に同乗。器＝payroll_run_deduction_overrides（run_id×cast_id×deduction_id・enabled・amount_override）＋finalize での凍結。client の負の調整控除で代替しない（二重帳簿）。」
+＝適用: 300-1／300-2 は 2026-09-25 便 V で本番（ef4af53・f0 73 段 4,798）。300-3 は 0156 の起草材料。
+
 ## 裁定299（本便で確定・Agoora 承認・2026-09-25）0152 要裁定 10 件の裁定（299-1〜11）
 
 出典＝便 M152 の報告（docs/tmp/0152_ag_result.json・mig 冒頭の要裁定 (1)〜(10)）を受けた裁定・2026-09-25 便 S152-1 で収載。次の裁定番号は 300。**本文（逐語）**:
