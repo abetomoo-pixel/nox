@@ -22,9 +22,10 @@ import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
 import { firstInLastOut, outButtonOf, punchTimeLabel, punchInAfterAtt } from "@/lib/nox/shift/today-row";
 import PunchCorrectionModal from "@/components/nox/punch-correction-modal"; // ★0154 D1: 出退勤の修正（owner／manager＝申請＝確定）
+import PunchDecideModal from "@/components/nox/punch-decide-modal"; // ★裁定297-1: cast の申請（pending）の承認／却下（理由必須）
 import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
 import { detectTargetOf, type SettlementTarget } from "@/lib/nox/payroll/settlement";
-import { KIND_LABEL, correctionSummaryOf, disputedOf, termOf, type CorrectionRow, type PunchKind } from "@/lib/nox/shift/punch-correction";
+import { KIND_LABEL, correctionSummaryOf, disputedOf, pendingOf, requestedLabelOf, termOf, type CorrectionRow, type PunchKind } from "@/lib/nox/shift/punch-correction";
 import { mdDowOf } from "@/lib/nox/shift/staff-place";
 // ★便 AU2／AU3（2026-09-24・週末バックログ 2／3）: 計画期間の進行段・期間ごとの帯と地色・確定シフトの「未確定」印・月セルの名前合成（純関数）
 import { PERIOD_STAGES, isUnpublishedDay, periodBandText, periodIndexOfDate, periodStageOf, periodToneOf, stageIndexOf } from "@/lib/nox/shift/period-stage";
@@ -257,6 +258,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [corr, setCorr] = useState<{ castId: string; kind: PunchKind; punchId: string | null; punchAtIso: string | null; startHm: string; endHm: string } | null>(null);
   const [punchRef, setPunchRef] = useState<Map<string, { inId: string | null; inIso: string | null; outId: string | null; outIso: string | null }>>(new Map());
   const [disputed, setDisputed] = useState<(CorrectionRow & { id: string })[]>([]);
+  // ★裁定297-1: 未決裁（pending）の一覧と決裁モーダルの対象（承認／却下）
+  const [pending, setPending] = useState<(CorrectionRow & { id: string })[]>([]);
+  const [decideRow, setDecideRow] = useState<{ row: CorrectionRow & { id: string }; approve: boolean } | null>(null);
   // ★0154 D4: 精算調整モーダルの対象（委託の遅刻／当欠／早退が検知された行）
   const [settle, setSettle] = useState<{ castId: string; shiftId: string; target: SettlementTarget } | null>(null);
   // ★裁定257 R20-a: penalty_config.late_grace_min（client は SELECT のみ・comp-sections と同じ経路・取れなければ既定 10）
@@ -880,9 +884,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       setPunchRef(ref);
       // ★0154 D1: 異議あり（approved ∧ disputed）＝店側 warn。表が無い環境（手貼り前）は空のまま
       if (isManagerUp) {
+        // ★裁定297-1: 未決裁（pending）も同じ 1 クエリで取る（or フィルタ＝fetch +0）。分岐は純関数 disputedOf／pendingOf
         const { data: dr, error: de } = await supabase.from("punch_corrections").select("id, cast_id, punch_id, biz_date, kind, before_at, after_at, reason, decision, decide_reason, ack, ack_at, requested_at, decided_at")
-          .eq("store_id", storeId).eq("decision", "approved").eq("ack", "disputed").order("biz_date", { ascending: false }).limit(50);
-        if (alive) setDisputed(de ? [] : disputedOf((dr ?? []) as (CorrectionRow & { id: string })[]));
+          .eq("store_id", storeId).or("decision.eq.pending,and(decision.eq.approved,ack.eq.disputed)").order("biz_date", { ascending: false }).limit(100);
+        const crows = de ? [] : ((dr ?? []) as (CorrectionRow & { id: string })[]);
+        if (alive) { setDisputed(disputedOf(crows)); setPending(pendingOf(crows)); }
       }
       for (const p of rows) {
         if (p.type === "in") m.set(p.cast_id, new Date(p.punched_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }));
@@ -968,6 +974,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         <PunchCorrectionModal castId={corr.castId} castName={castName(corr.castId)} biz={todayDate} kind={corr.kind} punchId={corr.punchId} punchAtIso={corr.punchAtIso}
           shiftStartHm={corr.startHm} shiftEndHm={corr.endHm} term={termOf(casts.find((c) => c.id === corr.castId)?.employment)}
           onClose={() => setCorr(null)} onDone={(text) => { setMsg(text); setPunchTick((v) => v + 1); }} />
+      )}
+      {/* ★裁定297-1: 決裁モーダル（成功＝punches／申請一覧の再読込＋同じ枠に success） */}
+      {decideRow && (
+        <PunchDecideModal row={decideRow.row} castName={castName(decideRow.row.cast_id)} approve={decideRow.approve}
+          onClose={() => setDecideRow(null)} onDone={(text) => { setMsg(text); setPunchTick((v) => v + 1); }} />
       )}
 
       {/* 段S-1 サブナビ＝ページ内の収容先を切り替えるだけ。ルート・URL・権限ゲートは不変。
@@ -1134,6 +1145,23 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 }}>＋ 当日追加配置</button>
             )}
           </div>
+          {/* ★裁定297-1（2026-09-25・裁定295-1）: cast の修正申請（pending）＝店の決裁。承認／却下とも理由必須（decide_reason）・RPC は既存 punch_correction_decide（新 RPC 0）・cast には出ない（isManagerUp） */}
+          {isManagerUp && pending.length > 0 && (
+            <Message kind="warn" style={{ marginBottom: 10 }}>
+              出退勤の修正申請に未決裁が {pending.length} 件あります。
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12.5 }}>
+                {pending.map((r) => (
+                  <li key={r.id} style={{ marginBottom: 4 }}>
+                    {castName(r.cast_id)}: {correctionSummaryOf(r)}（{r.reason}・申請 {requestedLabelOf(r.requested_at)}）
+                    <span style={{ marginLeft: 8, whiteSpace: "nowrap" }}>
+                      <button type="button" className="nox-btn" style={{ padding: "2px 8px", fontSize: 11.5 }} onClick={() => setDecideRow({ row: r, approve: true })}>承認</button>
+                      <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: 4, color: "var(--bad)", border: "1px solid var(--bad)" }} onClick={() => setDecideRow({ row: r, approve: false })}>却下</button>
+                    </span>{/* 実行＝青塗り／Danger＝red 枠（裁定242） */}
+                  </li>
+                ))}
+              </ul>
+            </Message>
+          )}
           {/* ★0154 D1（裁定294-4）: 本人が「異議あり」にした修正＝店側 warn（一覧つき・裁定281 の型） */}
           {isManagerUp && disputed.length > 0 && (
             <Message kind="warn" style={{ marginBottom: 10 }}>

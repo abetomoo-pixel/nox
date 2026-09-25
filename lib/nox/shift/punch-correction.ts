@@ -62,6 +62,29 @@ export function ackOptionsOf(row: Pick<CorrectionRow, "decision">): Ack[] {
   return row.decision === "approved" ? ["confirmed", "disputed"] : [];
 }
 
+/** ★裁定297-1: 店側の未決裁＝pending（申請日時の古い順＝先に来た申請から捌く） */
+export function pendingOf<T extends Pick<CorrectionRow, "decision" | "requested_at">>(rows: readonly T[]): T[] {
+  return rows.filter((r) => r.decision === "pending").slice().sort((a, b) => a.requested_at.localeCompare(b.requested_at));
+}
+
+export type DecideArgs = { p_id: string; p_approve: boolean; p_reason: string };
+/** ★裁定297-1: 決裁 RPC（punch_correction_decide）の引数＝承認／却下とも理由必須（1〜200 字＝decide_reason・裁定295-1）。二層目は RPC の 'reason required' */
+export function decideArgsOf(input: { id: string; approve: boolean; reason: string }): { ok: true; args: DecideArgs } | { ok: false; err: string } {
+  if (!input.id) return { ok: false, err: "対象がありません" };
+  const reason = input.reason.trim();
+  if (reason.length === 0) return { ok: false, err: "理由を入力してください" };
+  if (reason.length > 200) return { ok: false, err: "理由は 200 字までです" };
+  return { ok: true, args: { p_id: input.id, p_approve: input.approve, p_reason: reason } };
+}
+
+/** 申請日時の表示 'M/D HH:MM'（JST）。形が違えばそのまま */
+export function requestedLabelOf(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  const d = new Date(t + 9 * 3600_000);
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
 /** 店側の warn＝approved かつ 異議あり */
 export function disputedOf<T extends Pick<CorrectionRow, "decision" | "ack">>(rows: readonly T[]): T[] {
   return rows.filter((r) => r.decision === "approved" && r.ack === "disputed");
