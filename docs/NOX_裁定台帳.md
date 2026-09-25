@@ -3741,6 +3741,24 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定299（本便で確定・Agoora 承認・2026-09-25）0152 要裁定 10 件の裁定（299-1〜11）
+
+出典＝便 M152 の報告（docs/tmp/0152_ag_result.json・mig 冒頭の要裁定 (1)〜(10)）を受けた裁定・2026-09-25 便 S152-1 で収載。次の裁定番号は 300。**本文（逐語）**:
+「裁定299（2026-09-25・0152 要裁定 10 件の裁定・Agoora 承認・出典 M152 報告）
+299-1 ★8 fixed_per_person: referral_recalc は coalesce(checks.people, 1)（起草どおり・recalc が伝票操作を止めない）。ただし check_referral_set で method='fixed_per_person' かつ checks.people is null のときは 'no people' で raise（人数を先に入れさせる）。改稿はこの 1 点。
+299-2 ★17 daily_report_close の diff 式は referral_cash_payout を減算する（起草どおり・当日現金払いはドロワーから出た現金）。
+299-3 ★6／★7 kiosk 腕は check_add_line／check_remove_line の逐語（腕あり）のまま。0057 の 3 箇所は触らない。
+299-4 ★7 'has payments' は逐語で残す（burden='store' でも支払後は remove 不可・訂正は void 経路）。
+299-5 ★10 一括の冪等＝md5(p_idem_key || ':' || id)::uuid（起草どおり）。
+299-6 ★9 「同月」＝paid_at の JST 暦月（起草どおり・源泉は支払日基準）。
+299-7 ★1 referrers.membership_id は on delete set null・CHECK は external→null のみ・staff の必須は set_referrer で検査（起草どおり）。
+299-8 ★15 paid の payout がある伝票の void は通す・payout は据え置き・audit before に支払行（起草どおり・'referral paid' raise は不採用）。
+299-9 ★3 referral_payouts.check_id unique＋close の早期 return＋not exists の二重化（起草どおり）。
+299-10 ★5 set_referrer の p_is_active null は coalesce(…, true)（起草どおり）。
+299-11 写経の注記: live prosrc の CR は LF に正規化して写す。「★以外 diff 0」は改行コードを除いた意味とする（0152 以降の mig に適用）。」
+
+適用＝便 S152-2〜S152-4（gen_0152.py に 299-1 を入れて再生成・改稿前の控え docs/tmp/0152_before_299.sql（sha256 1323a073…97e1）・再突合 q0925_ag_0152.mjs に d 段 +1）。手貼りは Agoora（相談役の手順）。
+
 ## 裁定298（本便で確定・Agoora 承認・2026-09-25）0152 紹介料の設計（298-1〜10）
 
 出典＝v39 引き継ぎ §9＋R152（docs/tmp/0152_pre.md・R152-3 の live 読取＝2026-09-25 便 M152-1 で収載）。分岐 D1〜D14（284 分の D8／D10 を除く）への裁定。次の裁定番号は 299。**本文（逐語）**:
