@@ -3762,7 +3762,13 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 306-15 「›」の折返し禁止: ホームのクイック操作タイル・メニューシートのカード・マスタ概要カードで「›」はタイトル行の右端に inline（flex・nowrap）。正方形タイルは「›」を出さずタイル全体をタップ対象。横長カードは「タイトル ›」1 行＋説明 1 行。
 306-16 ホームのクイック操作タイルのアイコン（■ ☾ ▤ ◉ ▲ ¥ ♦ ✦ の文字記号）はメニューシートと同じ lucide に統一。」
 
-適用＝便 K-1（読取）・K-2（L1 見出し部品の共用＋月移動＋?ym → L2 シフト画面の崩れ → L3 用語 → L4 ⚙ シート → L5 casts 詳細 → L6 カード）・K-3（verify-nox-shift-nav 新設＋messages／nav／cast-guarantee／advance-okuri 追補）・K-4（f0 2 連→push）。
+適用＝便 K-1（読取）・K-2（L1 見出し部品の共用＋月移動＋?ym → L2 シフト画面の崩れ → L3 用語 → L4 ⚙ シート → L5 casts 詳細 → L6 カード）・K-3（verify-nox-shift-nav 新設＋messages／nav／cast-guarantee／advance-okuri 追補）・K-4（f0 2 連→push）。 ＝ **`de6b376`（2026-09-25・f0 2 連緑 76 段 4,884）**。
+L1: components/nox/month-nav.tsx（MonthNav＝‹ 年月 › 今月・sticky・注記・useYmQuery＝?ym 同期）＋lib/nox/ui/month-nav.ts（ymLabelOf／ymShift／ymFromSearch／ymSearchOf／recruitNoteOf／outOfPeriodNoteOf／staffCellCompactOf）。shift-board 3 箇所（カレンダー／確定／配置を組む）と /mine wish-form が同じ部品（306-6）・旧 shiftMonth 撤去・「＋ キャスト別にまとめて追加」は表示月に追従（306-2）。
+L2: .nox-plantools（306-3／306-8）・未確定＝.nox-cald--unpub の帯＋凡例（306-5）・期間カード .nox-periodcard／フォーム .nox-periodform・状態は SegSelect（PERIOD_ST_OPTIONS・Picker 撤去＝picker suite 12→13 は casts-board の追加で相殺）（306-7）・staff-shift-manage の圧縮セル（306-10）。
+L3: 「黒服」47 箇所／19 ファイル→「スタッフ」（識別子 staff_* 不変・messages ms(3-1) で 0 を係留）。L4: HeaderGear は ≤899px で OPEN_MENU_EVENT を dispatch→nav.tsx のメニューシートに「設定」節（gear 群・id nox-sheet-settings）・戻る（pushState／popstate）／外側／×／Esc で閉じる・≥900px は現行 Modal＋hashTargetOf→scrollIntoView（306-11）。
+L5: 前借り／送り実費の節を「基本」タブへ（306-12）・待遇プラン行「変更」→Picker（有効プランのみ・同じ取得に is_active 同乗）＋適用開始日（既定 nextPeriodStartOf＝翌月 1 日・過去日不可・確定済み期は payroll_runs を保存時に 1 回読んで拒否）→既存 RPC set_cast_plan（上書き維持＝lib/nox/cast/plan-switch.ts）（306-13）・「未設定（委託として計算）」（306-14）。
+L6: クイック操作タイル＝NavIcon（文字記号撤去）・「›」なし（306-15／16）・マスタ概要カードは .nox-cardtitle＋.nox-cardchev（nowrap）＋.nox-carddesc 1 行・メニュー行の .nox-navchev nowrap。
+suite: verify-nox-shift-nav 17（新設・f0 76 段目）・messages 16・nav 25・cast-guarantee 56・advance-okuri 25・picker 10（allow-list 13／11）。逆テスト＝L1〜L6 各 1（赤→復元→緑）。fetch +1＝casts 詳細の待遇プラン保存時のみ（payroll_runs 1 行）。
 
 ## 裁定305（本便で確定・Agoora 承認・2026-09-25）0153 顧客複数・ボトルキープの設計（305-1〜12）
 
