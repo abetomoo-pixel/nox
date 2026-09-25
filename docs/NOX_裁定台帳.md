@@ -3741,6 +3741,19 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 **DB 側 完了（2026-09-18・mig0149／0150 手貼り済・検証 ALL OK・suite verify:nox-demo-reset 34・client `425f21c`）**＝276-1（is_demo 列）・276-2（残す表＝278-1 で 3 表に改定）・276-3（録画再生＝suite で 5 枚三点一致）・cast-photo の storage policy is_demo 句（276-4 後段）が live。276-4 の route 柵・276-5 cron は client 便。
 
+## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
+
+出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
+「裁定307（2026-09-25・0153 要裁定 4 件の裁定・Agoora 承認・出典 M153 報告）
+307-1 読取 2 本（check_customer_names／customer_sales_summary）はゲート行を持たない＝名簿 B(f)（裁定261 の読取は課金停止中も通す）。referral_payouts_unpaid が A なのは 0152 の写経の名残＝起票（次の mig で B(f) に揃える・本便では触らない）。
+307-2 bottle_keep_register の p_check_line_id は bottle_keeps に列を足さず「その購入行の customer_id を持ち主に付ける」。行が伝票に紐づく顧客でなければ 'not on check'（起草どおり）。
+307-3 check_customer_add／check_customer_remove／check_line_set_customer の権限＝check_open と同じ腕（owner／manager／staff can_register／cast can_register・kiosk 腕なし）（起草どおり）。
+307-4 305-12 の unit4 最優先は plan_fixed の cast にも効く（承認済み・live の plan_fixed×unit4 の組 0・golden 3 fixture 不変を突合で実測）。以後この組が出た場合は商品側が勝つ＝仕様であり期待値の張り替えで対応する。
+307-5 0153 冒頭コメントの不触 md5 控え customer_assign_cast は accfb2a6 が正（accbf2a6 は転記ミス・本文への影響なし）。S-1 で同時に修正。
+S-1 の書き換え＝「要裁定 (4)＝裁定307 で確定（改稿なし・貼付版 sha 417c5952…0b11）」＋307-5 の訂正。新 sha を報告し、台帳の 0153 適用欄には貼付版 sha と収蔵版 sha を併記。続けて B〜G を実行。」
+
+適用＝0153 手貼り後ブロック S-1（0153 冒頭コメントの書き換え＝改稿なし・本文の $$ 内 md5 不変）。307-1 の起票＝v39 §3 残り小物（次の mig で referral_payouts_unpaid を B(f) へ）。
+
 ## 裁定306（本便で確定・Agoora 承認・2026-09-25）スマホ実機の崩れ一式（306-1〜16）
 
 出典＝Agoora のスマホ実機目視（2026-09-25）を受けた承認（便 K-0 で収載）。次の裁定番号は 307。**本文（逐語）**:
