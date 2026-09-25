@@ -20,7 +20,7 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 // ── (1) 全組合せの期待表 ──
-//   kind = check_lines_kind_check の8値（live CHECK 実測: set/time/charge/drink/champ/bottle/custom/discount）
+//   kind = check_lines_kind_check の8値（live CHECK 実測: set/time/charge/drink/champ/bottle/custom/discount・0148 の +food/other と 0152 で referral 除去＝10 値・本表は 8 値のまま）
 //   fee_kind = check_lines_fee_kind_check の5値＋null
 const KINDS = ["set", "time", "charge", "drink", "champ", "bottle", "custom", "discount"] as const;
 // ★mig0130（裁定118）: fee_kind 7種化＝ext_shimei/vip_charge を直積へ追加

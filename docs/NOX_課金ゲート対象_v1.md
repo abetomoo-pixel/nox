@@ -60,6 +60,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   内部専用 1 本を B(a) へ（`punch_correction_apply`＝承認済み申請を punches へ写すヘルパー・4 ロール revoke）。`set_cast_plan`（白名単 +3）・`payroll_adjustment_add`（8→11 引数・旧署名 DROP）・
   `set_store_profile`（白名単 +settlement_presets）・`payroll_finalize`（calc_period_* を写す）は CREATE OR REPLACE のみ＝名前不変で本数不動。
   対象 **130→134**・除外 **119→120**・全数 **249→254**（live 実測 2026-09-24 18:35＝総数 254・'billing locked' 134）。
+- ★**mig0152 追随（2026-09-25・裁定298／299）**: 新関数 **7本**＝ゲート内蔵 6 本を A へ（`check_referral_set`[K]／`check_referral_remove`[K]→A1・`set_referrer`→A8・
+  `referral_payout_pay`／`referral_payouts_pay_bulk`／`referral_payouts_unpaid`→A4）・内部専用 1 本を B(a) へ（`referral_recalc`＝紹介料の現在値を更新するヘルパー・4 ロール revoke）。
+  `check_add_referral`（0148）は **drop**＝A1 から除去。改稿 7 本（会計の group due／recalc／close／void／merge・日報 close・デモ reset）は CREATE OR REPLACE のみ＝名前不変で本数不動。
+  対象 **134→139**・除外 **120→121**・全数 **254→260**（live 実測 2026-09-25 12:2x＝総数 260・'billing locked' 139）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -130,7 +134,7 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 
 ## A. 対象（104本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
 
-### A1. レジ・会計（21本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
+### A1. レジ・会計（22本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
 **check_merge**（mig0138＋0139＝open 伝票 2 枚→1 枚の統合・owner∨manager 自店・課金ゲート＋flag reopen_flow＋理由必須・kiosk 腕なし・C層③＝裁定 C③-6〜8） /
 check_open[K] / check_add_line[K] / check_remove_line[K] / check_add_seat[K] / check_remove_seat[K] /
 check_move_seat[K] / check_set_nominations[K] / check_time_charge_apply[K] / check_shimei_add[K] /
@@ -139,8 +143,10 @@ approval_request / approval_direct / approval_decide / bottle_keep_register[K] /
 **check_extension_add[K]**（mig0089 新設＝manual 店の延長行の作成・ゲートは mig 本文に内蔵） /
 **check_set_people[K]**（mig0090 新設＝開卓後の人数修正・ゲートは mig 本文に内蔵） /
 **check_line_set_group[K]**（mig0091 新設＝会計分けの付け替え・ゲートは mig 本文に内蔵） /
-**check_add_referral[K]**（mig0148 新設＝紹介料行（kind 'referral'・product null・紹介者 cast 任意）の追加・check_add_line の冒頭〜role 判定を逐語＝kiosk 腕あり・
-ゲート内蔵・idem＝同キー再送は既存行を返す・裁定272-2＝店が払う手当＝伝票合計・課税額から除外（DB の group due 計算＝案 Q）し cast の gross にのみ載る）
+**check_referral_set[K]**（mig0152 新設＝伝票への紹介の付与（1 伝票 1 紹介・method 4 値・value＝bp／円・burden 2 値）・会計行追加の冒頭〜role 判定を逐語＝kiosk 腕あり・
+ゲート内蔵・idem＝同キー再送は既存行を返す・'exists'／'bad referrer'／'inactive referrer'／'no people'・裁定298-3／299-1） /
+**check_referral_remove[K]**（mig0152 新設＝伝票の紹介の取消・会計行削除の骨格を逐語（'has payments'・'not open'）＋ 'frozen'・裁定298-3／299-4）
+（0148 の check_add_referral は mig0152 で drop＝裁定280-1・298-2）
 
 ### A2. ドリンク申告（4本）
 drink_claim_submit / drink_claim_submit_proxy / drink_claim_decide /
@@ -149,10 +155,13 @@ drink_claim_submit / drink_claim_submit_proxy / drink_claim_decide /
 ### A3. 予約（4本）
 reservation_create / reservation_update / reservation_set_status / reservation_to_check
 
-### A4. 金銭発行・取消（8本）
+### A4. 金銭発行・取消（11本）
 adv_issue / transport_issue / incentive_publish /
 **adv_cancel / transport_cancel / incentive_cancel**（裁定D3＝金銭記録の改変。BANZEN de-escalation 前例より判定原理を優先）/
-**receipt_issue / receipt_issue_void**（mig0099＝領収書の発行・取消＝金銭受領証の作成/改変・R2-9/R2-10・E8-6）
+**receipt_issue / receipt_issue_void**（mig0099＝領収書の発行・取消＝金銭受領証の作成/改変・R2-9/R2-10・E8-6） /
+**referral_payout_pay**（mig0152＝紹介料の支払確定 1 件・paid_via 2 値・源泉は支払時に確定（外交員報酬＝支払月の累計で差分計上）・冪等・owner∨manager 自店・裁定298-6／7） /
+**referral_payouts_pay_bulk**（mig0152＝同 一括・1 tx で部分成功なし・派生 idem・裁定298-6／299-5） /
+**referral_payouts_unpaid**（mig0152＝店×期間の未払一覧・読取だがゲート内蔵＝裁定261 のゲート行で A・owner∨manager 自店）
 
 ### A5. シフト（17本＋0154 の 3 本・owner/manager の確定系＋SD 深部＝設計 v1.1 §4 文言修正・SD 設計書 §3）
 shift_set / shift_wish_decide / set_staffing_need /
@@ -186,7 +195,7 @@ set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_s
 **set_cast_guarantee**（mig0151＝期限つきの保証時給＝cast_plan の現在行 C を割って保証行（overrides_json に base／guarantee=true）と戻し行を作る・owner∨manager 自店・
 ゲート内蔵・監査 set_cast_guarantee・'guarantee exists' は重なり OR 後続の予定＝裁定287-3／289-6）
 
-### A8. 店設定・日報運用（24本）
+### A8. 店設定・日報運用（25本）
 **report_reopen**（mig0138＝日報の締め解除・owner∨manager 自店∨staff∧can_reopen・理由必須・監査 report_reopen・C層③＝裁定 C③-1） /
 **cash_diff_approve**（mig0138＝現金差異の承認・owner∨manager∨staff∧can_close・理由必須・監査 cash_diff_approve・C層③＝裁定 C③-4／18） /
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /
@@ -199,6 +208,7 @@ set_store_cast_register / set_cast_register / set_printer_config / set_cast_pin 
 **flag_set**（mig0135＝機能フラグの upsert・org 既定と店舗上書きの二層・owner 限定・課金ゲート・監査 action flag_toggle・理由は任意・C層①＝裁定182） /
 **staff_pattern_set** / **staff_pattern_delete** / **staff_deadline_set**（mig0136＋0137＝黒服の勤務パターン枠と締切＝effective_from 型の店設定・owner∨manager 自店・flag gate の直後に課金ゲート＝裁定233） /
 **staff_shift_propose** / **staff_shift_override** / **staff_shift_confirm**（mig0136＋0137＝黒服シフト行の作成・時刻上書き・確定・owner∨manager 自店・課金ゲート＝裁定233。cast の A5 と同列だが店設定と同じ mig のため A8 に置く） /
+**set_referrer**（mig0152＝紹介者マスタの upsert・external／staff・withholding_category 3 値（none／salesperson／employee）・is_active・同名重複は許す・owner∨manager 自店・ゲート内蔵・裁定280-2／292-3／298-5） /
 **set_store_receivable_policy**（mig0148＝stores.receivable_policy 実列の setter・CHECK 3 値（disabled／customer_only／cast_liability_allowed）・
 okuri_mode setter の骨格逐語・owner 限定・ゲート内蔵・監査 set_store_receivable_policy・裁定272-5） /
 **staff_shift_cancel**（mig0151＝黒服シフト行の取消＝delete・proposed は理由不要・confirmed は 'reason required'・過去日 'biz_date_past'・不在 'not_found'・
@@ -221,7 +231,7 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 
 ## B. 除外（99本）
 
-### B(a) 構造除外＝authenticated 実行不可（service/内部・27本）→ ゲート不要（B7 回避型(1)）
+### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
 approval_apply / ar_policy_ok / audit_log_write / audit_log_write_service / cast_create_apply /
 cast_sales_aggregate / check_group_due / check_recalc / check_round_amount / **nom_unit4_key** / **nom_type_summary**（mig0119＝R-2b 補助・IMMUTABLE/STABLE の純ヘルパー・4者 revoke＝呼び出し元の公開 RPC が二重防御済み＝原則8 の check_round_amount 型） / **check_tax_round**（mig0113＝税丸め・IMMUTABLE・4者 revoke 済＝教訓43） / comp_plan_slide_check /
 consent_ok / daily_report_aggregate / get_cast_mynumber / payroll_finalize / payroll_mark_paid /
@@ -229,6 +239,8 @@ payroll_reopen / print_claim / print_result / stock_on_check_line / stock_on_che
 pricing_resolve_core / drink_claims_guard_line_update / drink_claims_on_line_delete /
 demo_org_reset（mig0149＝裁定273／276〜279・公開デモ org の録画再生リセット＝wipe→load・service_role 専用の revoke 型で authenticated 実行不可・is_demo=true の org 以外は raise・2026-09-18）
 ＋段47 で「zero-arg ラッパを service 専用 RPC が呼ばない」prosrc 機械検証（設計 §3）
+
+referral_recalc（mig0152＝伝票の紹介料の現在値（method 4 値の式・frozen は触らない）を更新する内部ヘルパー＝会計の recalc と紹介の付与からのみ・4 ロール revoke・裁定286／298-1）
 
 punch_correction_apply（mig0154＝承認済み punch_corrections 行を punches へ写す内部ヘルパー＝request の owner／manager 経路と decide の approve からのみ・4 ロール revoke で authenticated／service_role とも実行不可・原則8＝呼び出し元が二重防御済み・裁定295-5）
 
@@ -313,11 +325,11 @@ staff_deactivate / kiosk_deactivate
 | report_can_close / report_can_reopen / assert_day_open | **内部ヘルパー**（mig0138＝締め／解除の権限判定と締め済み営業日の関所・4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型・C③-2／11） |
 | staff_shift_biz_today / staff_shift_gate / staff_pattern_effective / staff_shift_deadline_at | **内部ヘルパー**（4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型。biz_today は 0137 で biz_date_of へ委譲＝裁定232） |
 
-## C. kiosk 腕を持つ対象（実装注意・17本）
+## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /
 check_pay / check_close ＋ bottle_keep_register ＋ check_extension_add（mig0089）＋
-check_set_people（mig0090）＋ check_line_set_group（mig0091）＋ check_add_referral（mig0148）。
+check_set_people（mig0090）＋ check_line_set_group（mig0091）＋ check_referral_set／check_referral_remove（mig0152・0148 の check_add_referral は drop）。
 （check_void は kiosk 腕なし＝manager 経路のみ。挿入は同じく billing_writable_of(v_org)）
 挿入は **billing_writable_of(v_org)**（引数版・auth 非依存）＝kiosk 腕でも v_org は 0057(2) で確定済み・罠なし。
 段47 (4) で kiosk 腕 locked 拒否を実測。

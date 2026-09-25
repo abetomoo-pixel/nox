@@ -8,7 +8,7 @@
  *  (2) demo_org_reset('all'): 表別件数一致・三点一致 5 枚（check_group_due＝checks.total＝録画値＝groupDueFull 鏡像）・stock_logs の sale 行がトリガ再生成で二重でない・
  *      sale 行の at が元明細の created_at（★7）・demo_reset_at 更新・audit 'demo.reset' 1 行
  *  (3) 復元: reset 前に書き換えた stores.settings_json が payload の値に戻る／owner の emulate で checks を select できる（memberships 復元＝RLS 通過）
- *  (4) 隔離: 他 org（NOX-VERIFY-B）の全表（68 表・memberships は store 経由）の行数が reset 前後で不変
+ *  (4) 隔離: 他 org（NOX-VERIFY-B）の全表（71 表・memberships は store 経由・0152 で referrers／check_referrals／referral_payouts +3）の行数が reset 前後で不変
  *  (5) raise: 'not demo'／'bad mode'／'bad payload'／'bad table'（未知）／'bad table'（orgs・org_billing・users）／'org mismatch'（org_id）／
  *      'org mismatch'（memberships の store_id・user_id が他 org）／'bad stock_logs'
  *  (6) 冪等: 2 回連続 reset で件数・Σtotal 不変。wipe（demo_reset_at 不変）→ load の 2 回呼びでも同結果
@@ -68,10 +68,10 @@ async function main() {
     check("dr(0-1) fixture: A1／org B／owner-a／卓 5／商品 2／cast 2／顧客 が引ける", !!st && !!orgB && !!owner && seats.length === 5 && !!prodDrink && !!prodChamp && casts.length >= 2 && !!cust);
     if (!st || !orgB || !owner || seats.length < 5 || !prodDrink || !prodChamp || casts.length < 2 || !cust) throw new Error("fixture 解決失敗");
 
-    // 表順＝live の関数定数から読む（68 表・memberships 含む）
+    // 表順＝live の関数定数から読む（71 表・memberships 含む・★0152 で +3）
     const src = (await one<{ prosrc: string }>(`select prosrc from pg_proc where pronamespace = 'public'::regnamespace and proname = 'demo_org_reset'`))?.prosrc ?? "";
     const loadArr = (src.match(/c_load constant text\[\] := array\[([\s\S]*?)\];/)?.[1].match(/'([a-z_]+)'/g) ?? []).map((s) => s.replace(/'/g, ""));
-    check("dr(0-2) live demo_org_reset の投入順＝68 表（stores 直後に memberships）", loadArr.length === 68 && loadArr[0] === "stores" && loadArr[1] === "memberships", `got ${loadArr.length}`);
+    check("dr(0-2) live demo_org_reset の投入順＝71 表（stores 直後に memberships・referrers は memberships の後＝0152）", loadArr.length === 71 && loadArr[0] === "stores" && loadArr[1] === "memberships" && loadArr[2] === "referrers", `got ${loadArr.length}`);
     const orgWhere = (t: string) => (t === "memberships" ? `store_id in (select id from public.stores where org_id = $1)` : `org_id = $1`);
     const countsOf = async (org: string) => {
       const o: Record<string, number> = {};
@@ -109,7 +109,7 @@ async function main() {
       { const c = await openChk(seats[1].id, 1, "hon"); await call(`select public.check_set_nominations($1, $2::jsonb)`, [c, JSON.stringify([{ cast_id: casts[0].id, weight: 1, nom_kind: "hon", is_dohan: false, ended: false }])]); await call(`select public.check_shimei_add($1, $2, 'hon', $3::uuid)`, [c, casts[0].id, randomUUID()]); await call(`select public.check_add_line($1, $2, 3, null, 'A', null, null)`, [c, prodDrink.id]); await pay(c, "cash", await totalOf(c)); await close(c); ids.push(c); }
       { const c = await openChk(seats[2].id, 2, "dohan"); await call(`select public.check_set_nominations($1, $2::jsonb)`, [c, JSON.stringify([{ cast_id: casts[1].id, weight: 1, nom_kind: "hon", is_dohan: true, ended: false }])]); await call(`select public.check_dohan_add($1, $2, 1, $3::uuid)`, [c, casts[1].id, randomUUID()]); await call(`select public.check_add_line($1, $2, 1, null, 'A', null, null)`, [c, prodChamp.id]); await pay(c, "card", await totalOf(c)); await close(c); ids.push(c); }
       { const c = await openChk(seats[3].id, 3, "free"); await asPg(); await db.query(`update public.checks set started_at = now() - interval '95 minutes' where id = $1`, [c]); await asUid(owner.auth_user_id); await call(`select public.check_time_charge_apply($1)`, [c]); await pay(c, "cash", await totalOf(c)); await close(c); ids.push(c); }
-      { const c = await openChk(seats[4].id, 2, "free", cust.id); await call(`select public.check_add_line($1, null, 1, 'custom', 'A', 'demo カスタム', 3000)`, [c]); await call(`select public.check_add_referral($1, $2, 2000, 'demo 紹介', $3::uuid)`, [c, casts[0].id, randomUUID()]); await pay(c, "ar", await totalOf(c)); await close(c); ids.push(c); }
+      { const c = await openChk(seats[4].id, 2, "free", cust.id); await call(`select public.check_add_line($1, null, 1, 'custom', 'A', 'demo カスタム', 3000)`, [c]); const rf = await call(`select public.set_referrer(null, $1, 'external', null, 'demo 紹介者', null, 'none', true) id`, [st.id]); if (!rf.ok) throw new Error("set_referrer: " + rf.err); await call(`select public.check_referral_set($1, $2, 'fixed_per_group', 2000, 'store', $3::uuid, 'demo 紹介')`, [c, rf.rows[0].id as string, randomUUID()]); /* ★0152: 店負担＝due 不変（golden 8800）・referrers は c_load に含まれ再生される */ await pay(c, "ar", await totalOf(c)); await close(c); ids.push(c); }
       await asPg();
       const rec: { id: string; due: number; total: number }[] = [];
       for (const id of ids) rec.push({ id, due: (await one<{ d: number }>(`select public.check_group_due($1, 'A') d`, [id])).d, total: (await one<{ total: number; status: string }>(`select total from public.checks where id = $1`, [id])).total });
@@ -170,7 +170,7 @@ async function main() {
       // ── (4) 隔離 ──
       const cntB1 = await countsOf(orgB);
       const diffB = loadArr.filter((t) => cntB1[t] !== cntB0[t]).map((t) => `${t}:${cntB0[t]}→${cntB1[t]}`);
-      check("dr(4-1) 他 org（B）の全 68 表の行数が reset 前後で不変（memberships 含む）", diffB.length === 0, diffB.join(","));
+      check("dr(4-1) 他 org（B）の全 71 表の行数が reset 前後で不変（memberships 含む）", diffB.length === 0, diffB.join(","));
 
       // ── (5) raise ──
       const e1 = await call(`select public.demo_org_reset($1, $2::jsonb, 'all')`, [orgB, "{}"]);
@@ -208,7 +208,7 @@ async function main() {
       const w = await call(`select public.demo_org_reset($1, null, 'wipe')`, [orgA]);
       const cntW = await countsOf(orgA);
       const oW1 = await one<{ demo_reset_at: Date | null }>(`select demo_reset_at from public.orgs where id = $1`, [orgA]);
-      check("dr(6-2) mode=wipe＝68 表が 0（memberships・stores 含む・audit_logs は wipe 自身の 1 行が残る＝★8）・demo_reset_at 不変・users／orgs は残る", w.ok && loadArr.every((t) => t === "audit_logs" || cntW[t] === 0) && String(oW0.demo_reset_at) === String(oW1.demo_reset_at) && (await one<{ n: number }>(`select count(*)::int n from public.users where org_id = $1`, [orgA])).n > 0, `${errOf(w)} nonzero=${loadArr.filter((t) => t !== "audit_logs" && cntW[t] !== 0).join(",")}`);
+      check("dr(6-2) mode=wipe＝71 表が 0（memberships・stores 含む・audit_logs は wipe 自身の 1 行が残る＝★8）・demo_reset_at 不変・users／orgs は残る", w.ok && loadArr.every((t) => t === "audit_logs" || cntW[t] === 0) && String(oW0.demo_reset_at) === String(oW1.demo_reset_at) && (await one<{ n: number }>(`select count(*)::int n from public.users where org_id = $1`, [orgA])).n > 0, `${errOf(w)} nonzero=${loadArr.filter((t) => t !== "audit_logs" && cntW[t] !== 0).join(",")}`);
       const l = await call(`select public.demo_org_reset($1, $2::jsonb, 'load')`, [orgA, payloadStr]);
       const cntL = await countsOf(orgA);
       const sumL = (await one<{ s: number }>(`select coalesce(sum(total), 0)::int s from public.checks where org_id = $1`, [orgA])).s;
@@ -253,7 +253,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-demo-reset ALL PASS (${pass} assertions)`);
-  console.log("demo_org_reset(0149/0150): 録画 5 枚 golden 5 値 / reset all＝件数・三点一致・stock_logs 再生成・★7 at / 復元 settings_json・RLS / 隔離 B 68 表 / raise 8 種 / 冪等 all×2・wipe→load / 権限 anon・authenticated denied / storage is_demo 拒否 / 0150 30s / ROLLBACK 一致");
+  console.log("demo_org_reset(0149/0150): 録画 5 枚 golden 5 値 / reset all＝件数・三点一致・stock_logs 再生成・★7 at / 復元 settings_json・RLS / 隔離 B 71 表 / raise 8 種 / 冪等 all×2・wipe→load / 権限 anon・authenticated denied / storage is_demo 拒否 / 0150 30s / ROLLBACK 一致");
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

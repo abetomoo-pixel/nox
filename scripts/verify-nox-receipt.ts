@@ -8,7 +8,7 @@
  */
 import { createHash } from "node:crypto";
 import {
-  buildReceiptXml, displayWidth, escXml, jstStamp, taxOf,
+  buildReceiptXml, displayWidth, escXml, jstStamp, taxOf, referralTargetIndex,
   type ReceiptInput, type ReceiptLine, type ReceiptPayment,
 } from "../lib/nox/receipt";
 import { taxRound, taxSettingsOf, DEFAULT_TAX_SETTINGS, groupDueFull } from "../lib/nox/check-calc";
@@ -252,18 +252,23 @@ function main() {
     check("C4-4 ★groupDueFull 過剰割引 clamp: base10 は負にしない（due=128）",
       groupDueFull(clampLines, exSettings) === 128, String(groupDueFull(clampLines, exSettings)));
 
-    // ★裁定272 追補（案 Q・mig0148 ★10・2026-09-18）: kind 'referral'（紹介料＝店が払う手当）は伝票合計・課税額から除外
-    //   ＝DB check_group_due の L20／L36 と同じ 2 箇所を groupDueFull／receipt.ts に足した三面鏡。referral 行ありでも T8 と 1 円も動かない。
-    const refLines: ReceiptLine[] = [...exLines, { name_snapshot: "紹介料(検証)", qty: 1, unit_price_snapshot: 1000, line_total: 1000, kind: "referral", tax_category: "taxable_10" }];
-    check("C4-5 ★referral 除外: groupDueFull は referral 1000 込みでも外税 381／内税 347（T8 と同値）",
-      groupDueFull(refLines, exSettings) === 381 && groupDueFull(refLines, { service_rate: 10, round_unit: 1, round_mode: "round" }) === 347,
-      `ex=${groupDueFull(refLines, exSettings)} in=${groupDueFull(refLines, { service_rate: 10, round_unit: 1, round_mode: "round" })}`);
-    const xr = buildReceiptXml({ ...t8, lines: refLines });
-    check("C4-5 ★referral 除外: 領収書は合計 381・消費税(10%) 34 のまま・紹介料の明細行を印字しない・端数調整 行なし",
-      xr.includes("¥381") && xr.includes("消費税(10%)") && xr.includes("¥34") && !xr.includes("紹介料(検証)") && !xr.includes("端数調整"));
-    const refMix: ReceiptLine[] = [...mixLines, { name_snapshot: "紹介料(8%枠)", qty: 1, unit_price_snapshot: 505, line_total: 505, kind: "referral", tax_category: "taxable_8" }];
-    check("C4-5 ★referral 除外: 税率別集計（8%）にも referral を含めない（T9 と同じ 1311）",
-      groupDueFull(refMix, mixSettings) === 1311 && buildReceiptXml({ ...t9, lines: refMix }).includes("¥1,311"), String(groupDueFull(refMix, mixSettings)));
+    // ★0152（裁定298-4／298-9・2026-09-25）: 客負担の紹介料（check_referrals.burden='customer'）は請求（A）に乗る＝groupDueFull の第 3 引数・
+    //   receipt.ts は小計・taxable_10 基底に加算し、明細は初回セット行（block_no=0 の最初の set 行）に合算して印字・紹介行は印字しない（三面鏡）。
+    //   鏡像性質: 客負担 n 円 ≡ taxable_10 の行 n 円を A に足したもの（外税・内税とも）。店負担は 0＝従来と 1 バイト同値。
+    const asLine = (n: number): ReceiptLine => ({ name_snapshot: "紹介料(検証)", qty: 1, unit_price_snapshot: n, line_total: n, kind: "custom", tax_category: "taxable_10" });
+    check("C4-5 ★客負担の紹介料 1000: groupDueFull(lines, s, 1000) ＝ taxable_10 行 1000 を足した due（外税・内税とも）・第 3 引数省略＝従来値 381／347",
+      groupDueFull(exLines, exSettings, 1000) === groupDueFull([...exLines, asLine(1000)], exSettings)
+      && groupDueFull(exLines, { service_rate: 10, round_unit: 1, round_mode: "round" }, 1000) === groupDueFull([...exLines, asLine(1000)], { service_rate: 10, round_unit: 1, round_mode: "round" })
+      && groupDueFull(exLines, exSettings) === 381 && groupDueFull(exLines, { service_rate: 10, round_unit: 1, round_mode: "round" }) === 347,
+      `ex=${groupDueFull(exLines, exSettings, 1000)} in=${groupDueFull(exLines, { service_rate: 10, round_unit: 1, round_mode: "round" }, 1000)}`);
+    const setLines: ReceiptLine[] = [{ name_snapshot: "セット", qty: 1, unit_price_snapshot: 3000, line_total: 3000, kind: "set", fee_kind: "set", block_no: 0 }, ...exLines];
+    const dueRef = groupDueFull(setLines, exSettings, 1000);
+    const xr = buildReceiptXml({ ...t8, lines: setLines, groupDue: dueRef, referral: { amount: 1000, burden: "customer" } });
+    check("C4-5 ★印字合算（298-4）: 客負担 1000 は初回セット行に合算（セット ¥4,000）・紹介行は印字しない・合計＝due・端数調整 行なし",
+      xr.includes("¥4,000") && !xr.includes("紹介料") && xr.includes(`¥${dueRef.toLocaleString("en-US")}`) && !xr.includes("端数調整") && referralTargetIndex(setLines) === 0, xr.slice(0, 400));
+    const xs = buildReceiptXml({ ...t8, lines: setLines, groupDue: groupDueFull(setLines, exSettings), referral: { amount: 1000, burden: "store" } });
+    check("C4-5 ★店負担は請求に乗らない＝セット ¥3,000 のまま・set 行が無ければ最初の行に合算（referralTargetIndex）",
+      xs.includes("¥3,000") && !xs.includes("¥4,000") && referralTargetIndex(exLines) === 0 && referralTargetIndex([{ name_snapshot: "d", qty: 1, unit_price_snapshot: 1, line_total: 1, kind: "discount" }]) === -1);
   }
 
   // 幅の健全性: 全 <text> 行が 48 桁以内（明細・金額段の padLine 出力）

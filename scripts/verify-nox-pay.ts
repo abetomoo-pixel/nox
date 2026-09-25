@@ -388,18 +388,8 @@ eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
 }
 
 
-// ── T11 紹介料 referralTotal（裁定272-2・0148）: 未指定＝0 で golden 不変・正値は gross に 1:1・恒等式 net = gross − 控除計 + overflow ──
+// ── T11（旧 紹介料の gross 加算・裁定272-2）は 0152（裁定298-10）で撤去＝紹介料は給与に載せない（referral_payouts へ）。番号は欠番のまま
 {
-  const ded = (p: ReturnType<typeof payOf>) => p.fixedDed + p.fine + p.withholding + p.arDeduct + p.advanceDeduct + p.okuriDeduct + p.normPenalty + p.adjBefore + p.adjAfter;
-  const r0 = payOf(REINA_INPUT);
-  eq("T11-1 referralTotal 未指定 → 0（golden gross 不変）", r0.referralTotal, 0);
-  eq("T11-2 未指定と 0 明示は同値", payOf({ ...REINA_INPUT, referralTotal: 0 }).gross, r0.gross);
-  const r1 = payOf({ ...REINA_INPUT, referralTotal: 12_000 });
-  eq("T11-3 紹介料 12,000 → gross +12,000", r1.gross - r0.gross, 12_000);
-  eq("T11-4 referralTotal を PayResult に持つ", r1.referralTotal, 12_000);
-  eq("T11-5 恒等 net = gross − 控除計 + overflow", r1.net, r1.gross - ded(r1) + r1.adjustOverflow);
-  eq("T11-6 複数行 Σ（3,000＋4,500＋2,500＝10,000）", payOf({ ...REINA_INPUT, referralTotal: 3_000 + 4_500 + 2_500 }).gross - r0.gross, 10_000);
-  eq("T11-7 整数のまま（浮動小数なし）", Number.isInteger(r1.gross) && Number.isInteger(r1.net), true);
 }
 
 // ── T12 ★夜間便 N3（裁定287-5）: 保証時給の営業日単位適用（guaranteeByDay＝d→base・無指定は従来と 1 バイト同値）

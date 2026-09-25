@@ -3,7 +3,7 @@
  *   npm run verify:nox-product-types（env: URL/PUBLISHABLE/SUPABASE_DB_URL・seed:f0 済み）。f0 57 段目。
  *   Postgres 直結の 1 トランザクション内で JWT claims を emulate → 最後に ROLLBACK＝残留 0・snapshot 一致。
  *
- *  (1) CHECK 逐語: products_type_check 5 値・check_lines_kind_check 11 値（referral／food／other 込み）
+ *  (1) CHECK 逐語: products_type_check 5 値・check_lines_kind_check 10 値（food／other 込み・referral は 0152 で除去）
  *  (2) product_bulk_insert に food／other → 行の type 正・戻り by_type に food／other・audit の by_type にも同 5 キー・未知 type は 'bad type'
  *  (3) set_product に p_type 'food'／'other' → 行 type 正・未知は 'bad type'
  *  (4) check_add_line で food 商品を載せると kind='food'（product.type 由来）・name／price 凍結・back_snapshot は rate 0（bulk 既定）
@@ -38,7 +38,7 @@ async function main() {
   const paySrc = fs.readFileSync("lib/nox/pay.ts", "utf8");
   const colSrc = fs.readFileSync("lib/nox/payroll/collect.ts", "utf8");
   check("pt(6-1) pay.ts: productBack は { drink; champ; bottle } の 3 キー（food／other は報酬計算の器に無い＝影響 0）", /productBack: \{ drink: number; champ: number; bottle: number \}/.test(paySrc));
-  check("pt(6-2) collect.ts: champ／bottle 以外の kind は本数集計に入れない（continue）・referral は紹介者 gross へ分岐", colSrc.includes('if (kind !== "champ" && kind !== "bottle") continue;') && colSrc.includes('if (kind === "referral") {'));
+  check("pt(6-2) collect.ts: champ／bottle 以外の kind は本数集計に入れない（continue）・referral 分岐は 0152 で撤去（紹介料は給与に載せない）", colSrc.includes('if (kind !== "champ" && kind !== "bottle") continue;') && !colSrc.includes('if (kind === "referral") {'));
 
   const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
   await db.connect();
@@ -66,7 +66,7 @@ async function main() {
     const ck = await q<{ conname: string; d: string }>(`select conname, pg_get_constraintdef(oid) as d from pg_constraint where conname in ('check_lines_kind_check','products_type_check') order by 1`);
     const kindDef = ck.find((c) => c.conname === "check_lines_kind_check")?.d ?? "", typeDef = ck.find((c) => c.conname === "products_type_check")?.d ?? "";
     check("pt(1-1) products_type_check＝drink/champ/bottle/food/other の 5 値（逐語）", typeDef === "CHECK ((type = ANY (ARRAY['drink'::text, 'champ'::text, 'bottle'::text, 'food'::text, 'other'::text])))", typeDef);
-    check("pt(1-2) check_lines_kind_check＝8 値＋referral/food/other の 11 値（逐語）", kindDef === "CHECK ((kind = ANY (ARRAY['set'::text, 'time'::text, 'charge'::text, 'drink'::text, 'champ'::text, 'bottle'::text, 'custom'::text, 'discount'::text, 'referral'::text, 'food'::text, 'other'::text])))", kindDef);
+    check("pt(1-2) check_lines_kind_check＝8 値＋food/other の 10 値（逐語・0152 で referral を除去）", kindDef === "CHECK ((kind = ANY (ARRAY['set'::text, 'time'::text, 'charge'::text, 'drink'::text, 'champ'::text, 'bottle'::text, 'custom'::text, 'discount'::text, 'food'::text, 'other'::text])))", kindDef);
 
     const snap = async () => JSON.stringify((await q(`select (select count(*)::int from public.products where store_id = $1) p, (select count(*)::int from public.product_categories where store_id = $1) c, (select count(*)::int from public.product_costs where store_id = $1) pc,
       (select count(*)::int from public.checks where store_id = $1) ch, (select count(*)::int from public.check_lines where store_id = $1) l, (select count(*)::int from public.seats where store_id = $1) s, (select count(*)::int from public.audit_logs where org_id = $2) au`, [st.id, st.org_id]))[0]);

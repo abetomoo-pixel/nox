@@ -201,7 +201,8 @@ async function main() {
   //   （G2b の全数走査に加え、名前で係留＝「revoke を書き忘れて既定 grant が付く」0069 型の再発を関数名で検知）
   {
     const NEW_0151 = ["staff_shift_cancel", "shift_open_periods_mine", "set_cast_guarantee",
-      "punch_correction_request", "punch_correction_decide", "punch_correction_ack", "set_cast_employment"]; // ★0154（裁定294／295）: 新 secdef 4 本（同じ revoke／grant 形）
+      "punch_correction_request", "punch_correction_decide", "punch_correction_ack", "set_cast_employment", // ★0154（裁定294／295）: 新 secdef 4 本（同じ revoke／grant 形）
+      "set_referrer", "check_referral_set", "check_referral_remove", "referral_payout_pay", "referral_payouts_pay_bulk", "referral_payouts_unpaid"]; // ★0152（裁定298／299）: 公開 6 本（同じ revoke／grant 形）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
@@ -211,7 +212,7 @@ async function main() {
          from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any($1) order by p.proname`,
       [NEW_0151],
     );
-    check(`G4d 0151／0154 新 RPC ${NEW_0151.length} 本が存在`, r.rowCount === NEW_0151.length, `got ${r.rowCount}: ${r.rows.map((x) => x.proname).join(", ")}`);
+    check(`G4d 0151／0154／0152 新 RPC ${NEW_0151.length} 本が存在`, r.rowCount === NEW_0151.length, `got ${r.rowCount}: ${r.rows.map((x) => x.proname).join(", ")}`);
     for (const row of r.rows) {
       check(`G4d ${row.proname} SECURITY DEFINER＋search_path=public`, row.prosecdef === true && (row.config as string).includes("search_path=public"), row.config);
       check(`G4d ${row.proname} EXECUTE = authenticated／service_role 保持・anon／PUBLIC 不在`, row.auth_ok === true && row.svc_ok === true && !row.anon_ok && !row.public_ok, JSON.stringify([row.auth_ok, row.svc_ok, row.anon_ok, row.public_ok]));
@@ -222,7 +223,8 @@ async function main() {
   {
     const INTERNAL = ["staff_shift_biz_today", "staff_shift_gate", "staff_pattern_effective", "staff_shift_deadline_at", // ★0137: can_manage は HELPERS へ（policy から呼ぶ）
       "report_can_close", "report_can_reopen", "assert_day_open", // ★0138: C層③ 内部ヘルパー（RPC 本文からのみ・4 ロール revoke）
-      "punch_correction_apply"]; // ★0154（裁定295-5）: 承認済み申請を punches へ写す内部ヘルパー（4 ロール revoke・grant なし）
+      "punch_correction_apply", // ★0154（裁定295-5）: 承認済み申請を punches へ写す内部ヘルパー（4 ロール revoke・grant なし）
+      "referral_recalc"]; // ★0152（裁定286／298-1）: 紹介料の現在値を更新する内部ヘルパー（4 ロール revoke・grant なし）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
@@ -1013,16 +1015,17 @@ async function main() {
                                  'kiosk_register_state','kiosk_check_detail')`,
       );
       // ★mig0148（裁定272・2026-09-18）: check_add_referral（check_add_line の冒頭〜role 判定を逐語＝kiosk 腕あり）で 18→19・20→21・18→19。
-      check("G31 register helper を使う会計RPC = 19本（0057 の12＋0084 shimei/dohan＋0089 extension＋0090 set_people＋0091 line_set_group＋0131 pricing_categories_for_register＋0148 check_add_referral）",
-        reg.rows[0].n === 19, `got ${reg.rows[0].n}`);
+      // ★mig0152（裁定298／299・2026-09-25）: check_add_referral を drop・check_referral_set／remove（同じ冒頭を逐語＝kiosk 腕あり）で 19→20・21→22・19→20。
+      check("G31 register helper を使う会計RPC = 20本（0057 の12＋0084 shimei/dohan＋0089 extension＋0090 set_people＋0091 line_set_group＋0131 pricing_categories_for_register＋0152 check_referral_set／remove）",
+        reg.rows[0].n === 20, `got ${reg.rows[0].n}`);
       const op = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator()%'
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
-      check("G31 operator を使う関数 = 21本（write-arm 系 19＝0131 for_register・0148 check_add_referral 込み＋audit_log_write＋drink_claims_on_line_delete）",
-        op.rows[0].n === 21, `got ${op.rows[0].n}`);
+      check("G31 operator を使う関数 = 22本（write-arm 系 20＝0131 for_register・0152 check_referral_set／remove 込み＋audit_log_write＋drink_claims_on_line_delete）",
+        op.rows[0].n === 22, `got ${op.rows[0].n}`);
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'
@@ -1034,8 +1037,8 @@ async function main() {
          where ns.nspname = 'public' and p.prokind = 'f'
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator() is not null)) is not true then%'`,
       );
-      check("G31 ★kiosk ゲート fail-closed = 19本が (OR連鎖) is not true 形（0058・0084・0089・0090・0091・0131・0148 も同形）",
-        fixed.rows[0].n === 19, `got ${fixed.rows[0].n}`);
+      check("G31 ★kiosk ゲート fail-closed = 20本が (OR連鎖) is not true 形（0058・0084・0089・0090・0091・0131・0152 も同形）",
+        fixed.rows[0].n === 20, `got ${fixed.rows[0].n}`);
       const openGate = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'

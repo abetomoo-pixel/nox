@@ -872,12 +872,20 @@ async function main() {
 
         // C1 外税10%のみ（100down）: net=315 sv=round(31.5)=32 base10=347 tax=floor(34.7)=34 → 381→down100=300
         await runCase("C1 10%のみ", {}, async (cid) => { await addCustom(cid, "c1", 105, 3); }, 300);
-        // ★裁定272 追補（案 Q・mig0148 ★10・2026-09-18）: 紹介料行（kind 'referral'・check_add_referral）を載せても
-        //   DB total（check_group_due の referral 除外）＝TS 鏡像（groupDueFull・referral 込み入力）＝手計算（C1 と同じ 300）の三点一致。
-        await runCase("C1r 10%＋紹介料 1000（referral 除外・案 Q）", {}, async (cid) => {
+        // ★0152（裁定298-9・2026-09-25）: 店負担（burden='store'）の紹介を付けても DB total＝TS 鏡像（groupDueFull・第 3 引数 0）＝手計算（C1 と同じ 300）の三点一致。
+        //   客負担が due に乗る側は verify:nox-referral（鏡像は第 3 引数）で係留。
+        await runCase("C1r 10%＋紹介 1000（店負担＝due 不変・0152）", {}, async (cid) => {
           await addCustom(cid, "c1r", 105, 3);
-          const { error: eRef } = await owner.rpc("check_add_referral", { p_check_id: cid, p_cast_id: null, p_amount: 1000, p_memo: "verify 紹介料", p_idem_key: null });
-          if (eRef) throw new Error("check_add_referral 拒否: " + eRef.message);
+          // ★冪等: 紹介者マスタは tx 外（supabase-js）なので既存の 'verify 紹介者' を再利用（無ければ 1 回だけ作る＝live に増え続けない）
+          const { data: ex } = await admin.from("referrers").select("id").eq("store_id", sA1.id).eq("name", "verify 紹介者").limit(1);
+          let rid: string | null = (ex?.[0]?.id as string | undefined) ?? null;
+          if (!rid) {
+            const { data: created, error: eSr } = await owner.rpc("set_referrer", { p_id: null, p_store_id: sA1.id, p_kind: "external", p_membership_id: null, p_name: "verify 紹介者", p_contact: null, p_withholding_category: "none", p_is_active: true });
+            if (eSr) throw new Error("set_referrer 拒否: " + eSr.message);
+            rid = created as string;
+          }
+          const { error: eRef } = await owner.rpc("check_referral_set", { p_check_id: cid, p_referrer_id: rid, p_method: "fixed_per_group", p_value: 1000, p_burden: "store", p_idem_key: null, p_memo: "verify 紹介" });
+          if (eRef) throw new Error("check_referral_set 拒否: " + eRef.message);
         }, 300);
         // C2 exempt 行混在: 315(10%)+200(exempt) → net=515 sv=52 base10=367→36 → 603→600
         await runCase("C2 exempt混在", {}, async (cid) => {
