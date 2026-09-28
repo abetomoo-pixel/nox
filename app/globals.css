@@ -1375,6 +1375,9 @@ body {
    flex-wrap で 3 個以上は折返し各段中央・モバイル専用 @media なし）。例外（表の行内・ログアウト／印刷・リンク・切替・kiosk 固定・
    横幅いっぱい・文言＋ボタンの左右分割）は使わない。色・トークンなし（ui-tokens 対象外）。theme.ts の actionsRow と同値。 */
 .nox-actions { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* ★便 X-6（2026-09-28・裁定306 の型）: 右寄せの変種 .nox-actions.end＝パネル内の他ボタンと右端を揃える。≤900px は全幅 1 行（306-7 と同じ挙動）。色なし。 */
+.nox-actions.end { justify-content: flex-end; }
+@media (max-width: 900px) { .nox-actions.end > button { width: 100%; } }
 .nox-btn.danger { color: var(--bad); border-color: rgba(216, 108, 100, .28); background: rgba(216, 108, 100, .05); }
 .nox-btn.small { padding: 6px 10px; font-size: 12px; }
 /* ★裁定238（2026-09-10）: リンク＝別画面へ遷移するもの全部。青文字＋下線・枠なし・塗りなし。青は既存トークン --primary / --primary-hover を参照（値は不変）。

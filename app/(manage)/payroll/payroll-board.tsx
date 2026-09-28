@@ -7,7 +7,8 @@ import { buildPayrollCsv, type PayrollCsvRow, type PayrollCsvPay } from "@/lib/n
 import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
-import { kpiOfDraftRows, issuesOfDraft, payStatusOf } from "@/lib/nox/payroll/ui-calc";
+import { kpiOfDraftRows, issuesOfDraft, payStatusCellOf } from "@/lib/nox/payroll/ui-calc"; // ★便 X-7: 状態列は run の status と整合（payStatusCellOf）
+import PeriodPicker from "@/components/nox/period-picker"; // ★便 X-5: 期間＝年・月の picker（値は "YYYY-MM" のまま・キーボード入力も残す）
 import { totalDeductionsOf, frozenAdjustmentKeys, type FrozenAdjustment } from "@/lib/nox/payroll/adjust";
 import { breakdownLinesOf, hoursCellOf } from "@/lib/nox/payroll/breakdown-lines"; // ★裁定303: 支給／控除の行は PayslipSlip と同じ単一関数・一覧の「打刻なし」 // 裁定264-3: 控除計の式は 1 本に集約／264-10: 明細プレビューの凍結形
 import Modal from "@/components/ui/modal"; // ★裁定265: 調整行の削除理由はモーダル（window.prompt は使わない）
@@ -493,7 +494,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         <label style={t.fieldLabel}>
           期間（YYYY-MM）
           <br />
-          <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ ...t.input, width: "auto", marginTop: 5 }} />
+          <span style={{ display: "inline-block", marginTop: 5 }}><PeriodPicker value={period} onChange={setPeriod} /></span>{/* ★便 X-5 */}
         </label>
         <button onClick={preview} disabled={busy || !storeId} style={t.btnGold}>
           プレビュー
@@ -779,11 +780,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                   <td style={{ ...t.td, ...t.num, textAlign: "right", fontWeight: 700, color: "var(--v2-text)" }}>{r.net.toLocaleString()}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: r.anomalyCount ? "var(--bad)" : "var(--sub)" }}>{r.anomalyCount || "-"}</td>
                   {(() => {
-                    // ★U-1（裁定99-②）: 支払状態。確定済み期＝payStatusOf(凍結 net, Σpaid)・draft/run なし＝未確定。
+                    // ★U-1（裁定99-②）→★便 X-7: run の status と整合＝paid なら「支払済」・部分払いは「一部 ¥残」・それ以外「未払」（未支払カードと同じ元＝net − 支払記録合計）。draft/run なし＝未確定
                     const cp = castPaid?.get(r.castId);
-                    const st = castPaid && cp ? payStatusOf(cp.net, cp.paid) : "未確定";
-                    const col = st === "支払済" ? "var(--ok)" : st === "一部" ? "var(--gold)" : st === "未払" ? "var(--bad)" : "var(--sub)";
-                    return <td style={{ ...t.td, fontWeight: 700, color: col }}>{st}</td>;
+                    const cell = payStatusCellOf(runInfo?.status, castPaid && cp ? cp : null);
+                    const col = cell.tone === "ok" ? "var(--ok)" : cell.tone === "part" ? "var(--gold)" : cell.tone === "bad" ? "var(--bad)" : "var(--sub)";
+                    return <td style={{ ...t.td, fontWeight: 700, color: col, whiteSpace: "nowrap" }} title={cp ? `支払済 ¥${cp.paid.toLocaleString()}／差引支給 ¥${cp.net.toLocaleString()}` : undefined}>{cell.label}</td>;
                   })()}
                 </tr>
                 );
@@ -992,9 +993,12 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     <AdvanceOkuriForm storeId={storeId} casts={[]} castId={r.castId} castName={r.castName}
                       dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10), `${period}-01`, periodEndOf(period))}
                       readOnly={!adjEditable} onIssued={() => preview()} />
-                    <button onClick={() => setSlipPreview((v) => !v)} style={{ ...t.btnGhost, ...t.btnSm, marginTop: 10 }}>
-                      {slipPreview ? "明細プレビューを閉じる" : "明細プレビュー"}
-                    </button>
+                    {/* ★便 X-6: 右寄せ（パネル内の他ボタンと揃える）・≤900px は全幅（.nox-actions.end） */}
+                    <div className="nox-actions end" style={{ marginTop: 10 }}>
+                      <button onClick={() => setSlipPreview((v) => !v)} style={{ ...t.btnGhost, ...t.btnSm }}>
+                        {slipPreview ? "明細プレビューを閉じる" : "明細プレビュー"}
+                      </button>
+                    </div>
                     {slipPreview && (
                       <div style={{ marginTop: 10 }}>
                         <PayslipSlip

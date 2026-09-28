@@ -78,3 +78,16 @@ export function issuesOfDraft(
     })),
   ];
 }
+
+// ★便 X-7（2026-09-28）: キャスト行「状態」列＝run の status と整合させた表示文言。
+//   run が paid → 「支払済」（#82 の未支払カードと同じ＝再計算しない）。それ以外の確定済み run は 未支払カードと同じ元（net − 支払記録合計）で
+//   残 > 0 かつ 支払記録あり → 「一部 ¥n」（n＝残額）／残 ≤ 0 → 「支払済」／支払記録なし → 「未払」。cp が無い（draft／run なし／凍結行なし）→ 「未確定」。
+export type PayStatusCell = { label: string; tone: "ok" | "part" | "bad" | "mute" };
+export function payStatusCellOf(runStatus: string | null | undefined, cp: { net: number; paid: number } | null | undefined): PayStatusCell {
+  if (runStatus === "paid") return { label: "支払済", tone: "ok" };
+  if (!cp) return { label: "未確定", tone: "mute" };
+  const st = payStatusOf(cp.net, cp.paid);
+  if (st === "支払済") return { label: "支払済", tone: "ok" };
+  if (st === "一部") return { label: `一部 ¥${(cp.net - cp.paid).toLocaleString()}`, tone: "part" };
+  return { label: "未払", tone: "bad" };
+}

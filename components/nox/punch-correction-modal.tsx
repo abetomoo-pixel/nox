@@ -3,6 +3,8 @@
 // ★0154 D1（2026-09-24・裁定294-2／295）: 今日タブ「修正」＝owner／manager の出退勤時刻の修正（裁定265 型モーダル・理由必須）。
 //   punch_correction_request を呼ぶ＝owner／manager は同 tx で approved（申請＝確定・punches が更新される）。成功で onDone（行の再読込は呼び出し側）。
 //   メッセージは裁定281 の型（Message・同じカード内）。RPC の英語はrpcErrJa で和文化。
+// ★裁定310（2026-09-28・便 X-2）: 本体を PunchCorrectionForm（Modal なし）に切り出し、/shift 今日タブの「調整」モーダルのタブ①（出退勤）に埋め込む。
+//   既定 export の PunchCorrectionModal は同じ本体を Modal で包むだけ（文言・RPC・引数は不変）。
 import { useState } from "react";
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
@@ -11,13 +13,16 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
 import { KIND_LABEL, requestArgsOf, requestInitOf, type PunchKind } from "@/lib/nox/shift/punch-correction";
 
-export default function PunchCorrectionModal({ castId, castName, biz, kind, punchId, punchAtIso, shiftStartHm, shiftEndHm, term, onClose, onDone }: {
+export type PunchCorrectionProps = {
   castId: string; castName: string; biz: string; kind: PunchKind;
   punchId?: string | null; punchAtIso?: string | null; shiftStartHm?: string | null; shiftEndHm?: string | null;
   /** 用語（労働時間／稼働実績） */
   term: string;
   onClose: () => void; onDone: (text: string) => void;
-}) {
+};
+
+/** 修正フォーム本体（Modal なし）。見出し・時刻・理由・実行／キャンセル。埋め込み先が枠を持つ。 */
+export function PunchCorrectionForm({ castId, castName, biz, kind, punchId, punchAtIso, shiftStartHm, shiftEndHm, term, onClose, onDone, showHead = true }: PunchCorrectionProps & { showHead?: boolean }) {
   const supabase = createClient();
   const init = requestInitOf({ kind, biz, punchId, punchAtIso, shiftStartHm, shiftEndHm });
   const [hm, setHm] = useState(init.hm);
@@ -41,11 +46,13 @@ export default function PunchCorrectionModal({ castId, castName, biz, kind, punc
 
   const disabled = busy || reason.trim().length === 0 || hm.trim().length === 0;
   return (
-    <Modal onClose={() => { if (!busy) onClose(); }} maxWidth={430}>
-      <div className="nox-formmodal-head">
-        <strong>{label}の時刻を修正</strong>
-        <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={onClose}>×</button>
-      </div>
+    <>
+      {showHead && (
+        <div className="nox-formmodal-head">
+          <strong>{label}の時刻を修正</strong>
+          <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={onClose}>×</button>
+        </div>
+      )}
       <p style={{ fontSize: 12.5, margin: "0 0 10px" }}>
         {castName}・{biz}（{init.mode === "update" ? `現在 ${init.hm}` : "打刻なし＝新しく記録します"}）
       </p>
@@ -60,6 +67,14 @@ export default function PunchCorrectionModal({ castId, castName, biz, kind, punc
         <button type="button" onClick={() => void submit()} disabled={disabled} style={{ ...t.btnGold, opacity: disabled ? 0.5 : 1 }}>{busy ? "修正中…" : "修正する"}</button>
         <button type="button" onClick={onClose} disabled={busy} style={t.btnGhost}>キャンセル</button>
       </div>
+    </>
+  );
+}
+
+export default function PunchCorrectionModal(props: PunchCorrectionProps) {
+  return (
+    <Modal onClose={props.onClose} maxWidth={430}>
+      <PunchCorrectionForm {...props} />
     </Modal>
   );
 }

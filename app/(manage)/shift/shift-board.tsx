@@ -21,7 +21,7 @@ import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; //
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
 import { firstInLastOut, outButtonOf, punchTimeLabel, punchInAfterAtt } from "@/lib/nox/shift/today-row";
-import PunchCorrectionModal from "@/components/nox/punch-correction-modal"; // ★0154 D1: 出退勤の修正（owner／manager＝申請＝確定）
+import { PunchCorrectionForm } from "@/components/nox/punch-correction-modal"; // ★0154 D1: 出退勤の修正（owner／manager＝申請＝確定）・★裁定310: 「調整」モーダルのタブ①に埋め込む（本体のみ）
 import PunchDecideModal from "@/components/nox/punch-decide-modal"; // ★裁定297-1: cast の申請（pending）の承認／却下（理由必須）
 import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
 import { detectTargetOf, type SettlementTarget } from "@/lib/nox/payroll/settlement";
@@ -256,7 +256,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [punchIO, setPunchIO] = useState<Map<string, { inHm: string | null; outHm: string | null }>>(new Map());
   const [punchTick, setPunchTick] = useState(0);
   // ★0154 D1: 修正モーダルの対象（cast・区分・直す打刻）と、店側 warn 用の「異議あり」行（approved ∧ disputed・RLS＝自店 owner/manager）
-  const [corr, setCorr] = useState<{ castId: string; kind: PunchKind; punchId: string | null; punchAtIso: string | null; startHm: string; endHm: string } | null>(null);
+  // ★裁定310（2026-09-28・便 X-2）: 旧 corr（行の「出勤を修正／退勤を修正」→別モーダル）は廃止＝「調整」モーダルのタブ①に一本化（adjTab／adjCorrKind）
   const [punchRef, setPunchRef] = useState<Map<string, { inId: string | null; inIso: string | null; outId: string | null; outIso: string | null }>>(new Map());
   const [disputed, setDisputed] = useState<(CorrectionRow & { id: string })[]>([]);
   // ★裁定297-1: 未決裁（pending）の一覧と決裁モーダルの対象（承認／却下）
@@ -307,6 +307,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   //   ★メモ欄（モック `adjustNote`）は**そもそも出せない**＝`shifts` にも `shift_wishes` にも
   //     メモ列が無い（実測: shifts 14列 / shift_wishes 12列）。こちらの理由は従来どおり有効。
   const [adjTarget, setAdjTarget] = useState<Shift | null>(null);
+  // ★裁定310（2026-09-28・便 X-2）: 「調整」モーダルはタブ 2 つ＝①出退勤（打刻・既定）②確定シフトの時間。①は表示日（todayDate）の打刻が読めている行だけ
+  //   （他ビューから開いた別日の行は②のみ）。①の修正＝既存 punch_correction_request（PunchCorrectionForm・理由必須・承認導線は現行）。
+  const [adjTab, setAdjTab] = useState<"punch" | "shift">("punch");
+  const [adjCorrKind, setAdjCorrKind] = useState<PunchKind | null>(null);
+  useEffect(() => {
+    if (adjTarget) { setAdjTab(adjTarget.date === todayDate ? "punch" : "shift"); setAdjCorrKind(null); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adjTarget]);
   const [aStart, setAStart] = useState("");
   const [aEnd, setAEnd] = useState("");
   // E8-4 #10: shifts.created_by → users.name（確定シフト一覧の登録者列・CSV）
@@ -986,12 +994,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         <SettlementModal storeId={storeId} castId={settle.castId} castName={castName(settle.castId)} biz={todayDate} shiftId={settle.shiftId} target={settle.target}
           onClose={() => setSettle(null)} onDone={(text) => setMsg(text)} />
       )}
-      {/* ★0154 D1: 修正モーダル（成功＝punches 再読込＋同じ枠に success） */}
-      {corr && (
-        <PunchCorrectionModal castId={corr.castId} castName={castName(corr.castId)} biz={todayDate} kind={corr.kind} punchId={corr.punchId} punchAtIso={corr.punchAtIso}
-          shiftStartHm={corr.startHm} shiftEndHm={corr.endHm} term={termOf(casts.find((c) => c.id === corr.castId)?.employment)}
-          onClose={() => setCorr(null)} onDone={(text) => { setMsg(text); setPunchTick((v) => v + 1); }} />
-      )}
       {/* ★裁定297-1: 決裁モーダル（成功＝punches／申請一覧の再読込＋同じ枠に success） */}
       {decideRow && (
         <PunchDecideModal row={decideRow.row} castName={castName(decideRow.row.cast_id)} approve={decideRow.approve}
@@ -1271,20 +1273,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               </span>
                             );
                           })()}
-                          {/* ★0154 D1（裁定294-2）: 出退勤の時刻修正＝owner／manager の申請＝確定（裁定265 型モーダル・理由必須）。表示日が今日のときだけ */}
-                          {canRecord && (() => {
-                            const pr = punchRef.get(s.cast_id);
-                            return (
-                              <div className="nox-actions" style={{ marginTop: 6, gap: 6 }}>
-                                {(["in", "out"] as const).map((k) => (
-                                  <button key={k} type="button" className="nox-link" style={{ fontSize: 11.5 }}
-                                    onClick={() => setCorr({ castId: s.cast_id, kind: k, punchId: k === "in" ? pr?.inId ?? null : pr?.outId ?? null, punchAtIso: k === "in" ? pr?.inIso ?? null : pr?.outIso ?? null, startHm: s.start_hm, endHm: s.end_hm })}>
-                                    {KIND_LABEL[k]}を修正
-                                  </button>
-                                ))}
-                              </div>
-                            );
-                          })()}
+                          {/* ★裁定310（2026-09-28）: 行の「出勤を修正／退勤を修正」リンクは廃止＝右端の「調整」→モーダル タブ①（出退勤）に一本化 */}
                           {/* ★0154 D4（裁定293 追補1-2）: 委託キャストの遅刻／当欠／早退が検知された行に「精算調整を登録」（ひな形と額を初期表示・当期 draft run へ source='settlement'） */}
                           {canRecord && casts.find((c) => c.id === s.cast_id)?.employment !== "雇用" && (() => {
                             const io = punchIO.get(s.cast_id);
@@ -2432,13 +2421,25 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
              理由の別は宣言部の同趣旨の注記と対。ここは既存 `shift_set` の update 経路を呼ぶだけ。 ── */}
       {adjTarget && isManagerUp && (() => {
         const aHours = shiftHoursStatus(adjTarget.date, aStart, aEnd, bhRows);
+        const hasPunchTab = adjTarget.date === todayDate; // ★裁定310: 打刻（punchIO／punchRef）は表示日の分だけ読んでいる
+        const io = punchIO.get(adjTarget.cast_id);
+        const pr = punchRef.get(adjTarget.cast_id);
+        const canFix = isManagerUp && adjTarget.date === bizToday; // 打刻の書込は当日のみ（SC-8 ⑦ と同じ）
+        const showPunch = hasPunchTab && adjTab === "punch";
         return (
           <Modal onClose={() => setAdjTarget(null)} maxWidth={460}>
             <div className="nox-modalhead">
-              <h3 style={{ ...secTitle, margin: 0 }}>勤務時間を調整</h3>
+              <h3 style={{ ...secTitle, margin: 0 }}>{showPunch ? "出退勤を調整" : "確定シフトの時間を調整"}</h3>
               <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={() => setAdjTarget(null)}>×</button>
             </div>
             <div className="nox-modalbody">
+              {/* ★裁定310: タブ＝①出退勤（既定）②確定シフトの時間。①は表示日の行だけ */}
+              <div className="nox-seg" role="tablist" aria-label="調整の対象" style={{ marginBottom: 12, width: "fit-content" }}>
+                {hasPunchTab && (
+                  <button type="button" role="tab" aria-selected={adjTab === "punch"} className={adjTab === "punch" ? "on" : ""} onClick={() => setAdjTab("punch")}>出退勤</button>
+                )}
+                <button type="button" role="tab" aria-selected={!showPunch} className={!showPunch ? "on" : ""} onClick={() => setAdjTab("shift")}>確定シフトの時間</button>
+              </div>
               <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
                   <span>キャスト</span><span style={{ color: "var(--v2-text)", fontWeight: 700 }}>{castName(adjTarget.cast_id)}</span>
@@ -2447,9 +2448,41 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   <span>日付</span><span className="num">{adjTarget.date}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)" }}>
-                  <span>現在</span><span className="num">{fmtWin(adjTarget.start_hm, adjTarget.end_hm)}</span>
+                  <span>{showPunch ? "確定シフト" : "現在"}</span><span className="num">{fmtWin(adjTarget.start_hm, adjTarget.end_hm)}</span>
                 </div>
+                {showPunch && (["in", "out"] as const).map((k) => {
+                  const hm = k === "in" ? io?.inHm : io?.outHm;
+                  return (
+                    <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, color: "var(--sub)", marginTop: 3 }}>
+                      <span>{KIND_LABEL[k]}（実績）</span>
+                      <span style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
+                        <span className="num" style={{ color: hm ? "var(--v2-text)" : "var(--sub)", fontWeight: 700 }}>{hm ?? "—"}</span>
+                        <button type="button" className="nox-link" style={{ fontSize: 11.5, opacity: canFix ? 1 : 0.5 }} disabled={!canFix}
+                          title={canFix ? undefined : "打刻の修正は当日の分だけできます"} onClick={() => setAdjCorrKind(k)}>{hm ? "修正" : "記録する"}</button>
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
+              {showPunch ? (<>
+                <p style={{ fontSize: 11.5, color: "var(--sub)", margin: 0, lineHeight: 1.7 }}>
+                  打刻の修正は理由が必須で記録に残り、給与に反映されます（承認の流れは現行どおり）。未打刻は「—」。
+                </p>
+                {adjCorrKind && (
+                  <div className="nox-inset" style={{ padding: "10px 14px", marginTop: 10 }}>
+                    <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 6px" }}>{KIND_LABEL[adjCorrKind]}の時刻を修正</p>
+                    <PunchCorrectionForm key={adjCorrKind} showHead={false} castId={adjTarget.cast_id} castName={castName(adjTarget.cast_id)} biz={todayDate} kind={adjCorrKind}
+                      punchId={adjCorrKind === "in" ? pr?.inId ?? null : pr?.outId ?? null} punchAtIso={adjCorrKind === "in" ? pr?.inIso ?? null : pr?.outIso ?? null}
+                      shiftStartHm={adjTarget.start_hm} shiftEndHm={adjTarget.end_hm} term={termOf(casts.find((c) => c.id === adjTarget.cast_id)?.employment)}
+                      onClose={() => setAdjCorrKind(null)} onDone={(text) => { setMsg(text); setPunchTick((v) => v + 1); }} />
+                  </div>
+                )}
+                {!adjCorrKind && (
+                  <div className="nox-actions" style={{ display: "flex", gap: 9, marginTop: 17 }}>
+                    <button style={btnLight} onClick={() => setAdjTarget(null)}>閉じる</button>
+                  </div>
+                )}
+              </>) : (<>
               <div className="nox-field2">
                 <div className="nox-field">
                   <span className="lab">開始</span>
@@ -2462,7 +2495,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 </div>
               </div>
               <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
-                状態（{SHIFT_ST_LABEL[adjTarget.status] ?? adjTarget.status}）は変わりません。時間だけを直します。
+                状態（{SHIFT_ST_LABEL[adjTarget.status] ?? adjTarget.status}）は変わりません。時間だけを直します。打刻は変わりません・給与は動きません。
               </p>
               {aHours.status === "closed" && (
                 <p style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700, margin: "6px 0 0" }}>
@@ -2479,6 +2512,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 <button style={{ ...btnDark, opacity: aHours.status === "closed" ? 0.45 : 1 }}
                   disabled={aHours.status === "closed"} onClick={() => void adjustShift()}>保存</button>
               </div>
+              </>)}
             </div>
           </Modal>
         );
