@@ -3824,6 +3824,19 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 X-3（裁定306 の型）: モーダルは isManagerUp のときだけ描画＝cast は①②とも未描画。cast 本人の打刻修正申請は /mine の現行フォーム（punch-correction-form）のまま。
 suite messages ms(2-4)（注記 2 文・tablist・『を修正』リンク 0・PunchCorrectionModal 参照 0）。
 
+## 裁定311（本便で確定・Agoora・2026-09-28）支払記録の method 選択式・日報「現金支払」の集計プレフィル・支払履歴・内訳行（311-①〜④）
+
+出典＝Agoora 指示（2026-09-28・便 Y-1 で収載）。次の裁定番号は 312。**本文（逐語）**:
+「裁定311 ①支払記録の method は選択式（現金 cash／振込 transfer／その他 other・列は text のまま・既存 null は『その他』表示）②日報『現金支払』は client 集計でプレフィル＝当日営業日の 送り実費（transport・actual 店の発行分）＋前借り（advances.advanced_on）＋日払い（daily_pays.net）＋給与支払（payment_records.method='cash'・paid_at）。手入力で上書き可・集計値と違えば『集計 ¥n と差 ¥m』の注記・保存は現行 cash_payout ③支払記録に履歴一覧（日付・cast・金額・方法・メモ・記録者）④日報に現金支払の内訳行」
+
+適用＝便 Y-2〜Y-5（2026-09-28・client のみ・DB 恒久変更 0・RPC 追加 0・名簿不変）:
+①＝lib/nox/payroll/payment-method.ts（PAYMENT_METHODS＝cash／transfer／other・paymentMethodLabelOf＝null／other→「その他」・列挙外の旧文字列はそのまま）。payment-panel の方法欄を select（既定＝現金）・app/api/payment/record/route.ts は cash／transfer／other 以外を 400（null は旧記録互換で許容→RPC が null 保存）。payment_record_add（0021）は不触＝nullif(trim) のまま。
+②④＝lib/nox/report/cash-payout.ts（純関数: CashPayoutParts・cashPayoutTotalOf・cashPayoutRowsOf・payoutDiffNoteOf＝「集計 ¥n と差 ±¥m」）。report-board は storeId×bizDate×canClose の effect で 4 表を直読（transport は stores.settings_json.okuri_mode='actual' の店だけ・transport／advances は status<>'cancelled'・daily_pays は net・payment_records は method='cash' かつ paid_at＝営業日）→ 合計を payout の既定値に（再締め＝#70 の日報の値を写す経路が優先）。欄の直下に内訳 4 行＋合計＋注記＋「集計値に戻す」。締めの p_cash_payout は現行どおり入力値。
+RLS 確認（live pg_policies・2026-09-28）: transport／advances／daily_pays／payment_records の 4 表とも SELECT ポリシー＝`org_id=auth_org_id() and (owner or store_id=auth_store_id()) and (auth_role()<>'cast' or cast_id=auth_cast_id())`・authenticated は SELECT のみ＝締める側（owner／manager／staff）は自店全行が届く。停止条件（届かない表）なし。
+③＝payment-panel「支払状況を表示」の下に「支払履歴（期間）」＝payment_records（run 全行・paid_at 降順・created_at 降順）・cast 名（casts）・方法（写像）・メモ・記録者（users.name・owner 全員／manager は自店会員の RLS・届かなければ「—」）。行の「支払済」数字を押すとその cast だけに絞る（再押下で全員）。
+Y-5（裁定306 の型）: PaymentPanel は /payroll（page.tsx が owner／manager 以外を redirect）にだけ載る＝cast／staff は未描画。
+suite messages ms(2-6)（payoutDiffNoteOf／paymentMethodLabelOf の純関数＋payment-panel が select・自由入力 placeholder 0＋report-board が内訳 4 語）。
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
@@ -5429,6 +5442,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 84 | **kiosk_register_state に ar_enabled が無い＝kiosk レジは「売掛」を非表示にできない**（低・**起票 2026-09-28 便 T-1**） | 0155 で店設定 settings_json.ar_enabled を足し、管理画面のレジは stores 直読で「売掛」を未描画にした（便 S-2）。kiosk は読取が kiosk_register_state／kiosk_check_detail の 2 本のみ（0059 契約・直 SELECT なし）で店設定を読めず、サーバの 'ar disabled' と文言で受けるのみ。処置＝kiosk_register_state の jsonb に `ar_enabled` 1 キーを足す（0156 ★6 同乗・署名不変・戻りキー追加）→ kiosk の METHOD_LABEL を同じ条件で filter（client 便） |
 | 85 | **get_cast_mynumber_masked の戻りが text 1 値＝廃棄済み（mynumber_deleted_at）を cast 本人に示せない**（低・**起票 2026-09-28 便 T-1**） | 0155 ★6 で cast_sensitive に廃棄記録 3 列を足したが、cast 本人が読む経路は masked（末尾 4 桁 text）のみで、廃棄後は null（未登録と区別できない）。owner 側は audit_logs から日付を拾って表示（便 S-3）。処置＝masked の戻りに `mynumber_deleted_at`／`mynumber_deletion_method` を足す（0156 ★6 同乗・署名（p_cast_id uuid）不変・戻りを record／jsonb へ＝呼び出し元 /mine の追随は client 便・G10 の search_path pin は不変） |
 | 86 | **マスタハブに「店舗情報」カードが無い＝S-1 の「売掛を使う」への導線名が「営業時間・定休日」のまま**（低・**起票 2026-09-28 便 T-1**） | store-profile-panel（店舗情報／シフト運用／売掛・記録の保持）は /master/business-hours の先頭 3 節に置かれ、ハブのカード名・ナビ名は「営業時間・定休日」「営業時間」のみ（便 S 読取 1）。処置＝master-board に「店舗情報」カード（href /master/business-hours・説明に 売掛・保持年数・利用目的）を新設、または store-profile-panel を /master/store へ分離（client・裁定待ち＝nav.ts の pin（verify:nox-nav）張り替え） |
+| 87 | **kiosk_register_state に okuri_mode が無い＝kiosk 打刻の退勤に「送り あり／なし」を出せない**（低・**起票 2026-09-28 便 Y-1**） | 0156 で punch_self／punch_proxy／kiosk_punch に p_okuri が付き、/mine と /shift の退勤は okuri_mode='actual' の店だけトグルを出す（便 V-5）。kiosk（anon 面）は stores.settings_json を読めず kiosk_register_state にも okuri_mode が無い＝トグルを出す判定材料が無い（便 V で未実装＝報告済み）。処置＝次 mig に同乗: kiosk_register_state の jsonb に okuri_mode（ar_enabled と同型・店設定の写し）→ kiosk 打刻の out に「送り あり／なし」→ kiosk_punch p_okuri（client）。 |
 
 ### 未裁定・消し込み待ち
 
