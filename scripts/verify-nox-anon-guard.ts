@@ -498,6 +498,12 @@ async function main() {
     ["customer_summary", { p_customer_id: null }],
     ["customer_list_summary", { p_store_id: null }],
     ["bottle_keep_register", { p_store_id: null, p_customer_id: null, p_product_id: null, p_note: null }],
+    ["check_customer_add", { p_check_id: null, p_customer_id: null }],            // ★mig0153（裁定305／307）: 公開 6 本（keep_out の kiosk 腕は verify:nox-customers-keep で prosrc pin）
+    ["check_customer_remove", { p_check_id: null, p_customer_id: null }],
+    ["check_line_set_customer", { p_line_id: null, p_customer_id: null }],
+    ["check_customer_names", { p_check_id: null }],
+    ["bottle_keep_out", { p_keep_id: null, p_check_id: null, p_idem_key: null }],
+    ["customer_sales_summary", { p_store_id: null, p_from: null, p_to: null }],
     ["set_staff_perms", { p_membership_id: null, p_can_register: null, p_can_crm: null, p_can_shift: null, p_can_view_backs: null, p_can_close: null, p_can_reopen: null }], // 段16a（mig0024→0038 5引数）
   ];
   for (const [fn, args] of F3A2_RPC_PROBES) {

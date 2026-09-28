@@ -14,8 +14,8 @@ import StoreFlagToggle, { storeProfileErrJa } from "./store-flag-toggle";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
-type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean };
-const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false };
+type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）
+const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5" };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
@@ -41,18 +41,22 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
       store_code: typeof sj.store_code === "string" ? sj.store_code : "",
       display_name: typeof sj.display_name === "string" ? sj.display_name : "",
       shift_cast_confirm: sj.shift_cast_confirm === true,
+      customer_purpose: typeof sj.customer_purpose === "string" ? sj.customer_purpose : "", // ★0153
+      customer_retention_years: typeof sj.customer_retention_years === "number" ? String(sj.customer_retention_years) : "5", // ★0153: 既定 5
     };
     setCur(p); setForm(p); setLoaded(true);
   }, [storeSel]);
   useEffect(() => { void load(); }, [load]);
 
   // 変更分だけを patch に（trim 後の比較・空欄は '' のまま送る＝short は RPC 側で null 化）
-  const patchOf = (): Record<string, string> => {
-    const out: Record<string, string> = {};
-    for (const k of ["name", "short", "store_code", "display_name"] as const) {
+  const patchOf = (): Record<string, string | number> => {
+    const out: Record<string, string | number> = {};
+    for (const k of ["name", "short", "store_code", "display_name", "customer_purpose"] as const) {
       const v = form[k].trim();
       if (v !== cur[k]) out[k] = v;
     }
+    // ★0153（裁定305-11）: 保持年数は整数 1〜10（数値で送る＝RPC は 'bad type'／'bad customer_retention_years' で二段）
+    if (form.customer_retention_years.trim() !== cur.customer_retention_years) out.customer_retention_years = Number(form.customer_retention_years);
     return out;
   };
   const dirty = Object.keys(patchOf()).length > 0;
@@ -60,7 +64,9 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
   async function save() {
     const patch = patchOf();
     if (!Object.keys(patch).length) { setMsg("変更がありません"); return; }
-    if ("name" in patch && (patch.name.length < 1 || patch.name.length > 50)) { setMsg("店舗名は 1〜50 文字で入力してください"); return; }
+    if ("name" in patch && (String(patch.name).length < 1 || String(patch.name).length > 50)) { setMsg("店舗名は 1〜50 文字で入力してください"); return; }
+    if ("customer_retention_years" in patch && (!Number.isInteger(patch.customer_retention_years) || (patch.customer_retention_years as number) < 1 || (patch.customer_retention_years as number) > 10)) { setMsg("保持年数は 1〜10 の整数で入力してください"); return; }
+    if ("customer_purpose" in patch && String(patch.customer_purpose).length > 200) { setMsg("利用目的は 200 文字までです"); return; }
     setBusy(true); setMsg(null);
     const supabase = createClient();
     const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeSel, p_patch: patch });
@@ -70,7 +76,7 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
     await load();
   }
 
-  const field = (k: "name" | "short" | "store_code" | "display_name", lbl: string, max: number, hint: string) => (
+  const field = (k: "name" | "short" | "store_code" | "display_name" | "customer_purpose", lbl: string, max: number, hint: string) => (
     <label style={{ display: "block", minWidth: 0 }}>
       <span style={label}>{lbl}<span style={{ fontWeight: 400, marginLeft: 6 }}>{hint}</span></span>
       <input value={form[k]} maxLength={max} disabled={busy || !loaded}
@@ -85,7 +91,7 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
               <h2 style={{ ...secTitle, margin: 0 }}>店舗情報</h2>
-              <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>店舗名・略称・店舗コード・表示名。変更した項目だけを保存します（オーナーのみ）。</p>
+              <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>店舗名・略称・店舗コード・表示名・顧客情報の利用目的と保持年数。変更した項目だけを保存します（オーナーのみ）。</p>
             </div>
             {stores.length > 1 && (
               <select value={storeSel} onChange={(e) => setStoreSel(e.target.value)} style={{ ...input, width: "auto" }} aria-label="店舗">
@@ -98,6 +104,13 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
             {field("short", "略称", 20, "20 文字まで")}
             {field("store_code", "店舗コード", 20, "20 文字まで")}
             {field("display_name", "表示名", 50, "50 文字まで")}
+            {/* ★0153（裁定305-11／293-4）: 顧客情報の利用目的（200 文字）・保持年数（1〜10・既定 5＝最終来店日＋年数が retention_until） */}
+            {field("customer_purpose", "顧客情報の利用目的", 200, "200 文字まで・顧客への説明に使います")}
+            <label style={{ display: "block", minWidth: 0 }}>
+              <span style={label}>顧客情報の保持年数<span style={{ fontWeight: 400, marginLeft: 6 }}>1〜10 年・既定 5（最終来店日から）</span></span>
+              <input type="number" min={1} max={10} step={1} inputMode="numeric" value={form.customer_retention_years} disabled={busy || !loaded}
+                onChange={(e) => setForm((f) => ({ ...f, customer_retention_years: e.target.value }))} style={input} aria-label="顧客情報の保持年数" />
+            </label>
           </div>
           {msg && (
             <Toast msg={msg} style={{ margin: "10px 0 0" }} />

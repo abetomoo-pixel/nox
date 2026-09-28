@@ -9,7 +9,7 @@
  * 段構成（指示の14系）:
  *   (1) set_grade 'vip' → 実測・audit 1行  (2) 同値再呼び → 無音・audit 不増
  *   (3) null → 無印化・audit 増  (4) 'gold' → 'bad grade'  (5) manager 他店（同 org A2 店の客）→ 'forbidden'
- *   (6) register 7引数（remaining 80・期限・棚）→ 3列実測  (7) remaining 101 → 'bad remaining'
+ *   (6) register 7引数（remaining 80・期限・棚）→ 3列実測  (6b)(6c) ★0153 9 引数＝bottle_name／61 字拒否  (7) remaining 101 → 'bad remaining'
  *   (8) 旧4引数 named 呼び → DEFAULT 埋めで正常（後方互換）
  *   (9) bottle_keep_update 素通し5値（status 'empty'）→ 実測・audit before/after
  *   (10) status 'drunk' → 'bad status'
@@ -142,6 +142,20 @@ async function main() {
       !e8 && b8row?.remaining_pct === null && b8row?.expires_on === null && b8row?.shelf_no === null,
       e8?.message ?? JSON.stringify(b8row));
 
+    // ═══ ★0153（裁定305-6／307-2）: 段51(6b) register 9 引数（+p_bottle_name・+p_check_line_id null）→ bottle_name 実測／61 字は 'bad bottle_name' ═══
+    const { data: b6b, error: e6b } = await mgr.rpc("bottle_keep_register", {
+      p_store_id: sA1.id, p_customer_id: custA, p_product_id: prodA, p_note: "段51(6b)",
+      p_remaining_pct: null, p_expires_on: null, p_shelf_no: null, p_bottle_name: "ボトルP51", p_check_line_id: null,
+    });
+    if (typeof b6b === "string") bottleIds.push(b6b);
+    const { data: b6brow } = await admin.from("bottle_keeps").select("bottle_name, last_used_at").eq("id", b6b as string).single();
+    check("段51(6b) ★0153 register 9 引数＝bottle_name 実測（ボトルP51・last_used_at null）", !e6b && b6brow?.bottle_name === "ボトルP51" && b6brow?.last_used_at === null, e6b?.message ?? JSON.stringify(b6brow));
+    const { error: e6c } = await mgr.rpc("bottle_keep_register", {
+      p_store_id: sA1.id, p_customer_id: custA, p_product_id: prodA, p_note: null,
+      p_remaining_pct: null, p_expires_on: null, p_shelf_no: null, p_bottle_name: "あ".repeat(61), p_check_line_id: null,
+    });
+    check("段51(6c) ★0153 bottle_name 61 字は 'bad bottle_name'", has(e6c, "bad bottle_name"), e6c?.message ?? "通ってしまった");
+
     // ═══ (9)(10) bottle_keep_update ═══
     const { error: e9 } = await mgr.rpc("bottle_keep_update", {
       p_id: b6 as string, p_remaining_pct: 20, p_expires_on: "2029-01-31", p_shelf_no: "B-3",
@@ -158,6 +172,13 @@ async function main() {
     const a9 = (au9 ?? [])[0] as { before_json: Record<string, unknown> | null; after_json: Record<string, unknown> | null } | undefined;
     check("段51(9) audit before/after（before=旧値 80・after=20）",
       a9?.before_json?.remaining_pct === 80 && a9?.after_json?.remaining_pct === 20, JSON.stringify(a9));
+    // ★0153（裁定305-6）: 段51(9b) update 7 引数（+p_bottle_name）→ bottle_name 実測
+    const { error: e9b } = await mgr.rpc("bottle_keep_update", {
+      p_id: b6 as string, p_remaining_pct: 20, p_expires_on: "2029-01-31", p_shelf_no: "B-3",
+      p_status: "empty", p_note: "段51更新", p_bottle_name: "ボトルQ51",
+    });
+    const { data: u9b } = await admin.from("bottle_keeps").select("bottle_name").eq("id", b6 as string).single();
+    check("段51(9b) ★0153 update 7 引数＝bottle_name 実測（ボトルQ51）", !e9b && u9b?.bottle_name === "ボトルQ51", e9b?.message ?? JSON.stringify(u9b));
     const { error: e10 } = await mgr.rpc("bottle_keep_update", {
       p_id: b6 as string, p_remaining_pct: 20, p_expires_on: null, p_shelf_no: null,
       p_status: "drunk", p_note: null,

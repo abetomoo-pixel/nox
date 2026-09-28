@@ -42,6 +42,7 @@ const TABLES = [
   "ar_collections", // B6 売掛回収消込台帳（mig0055・authenticated=SELECT のみ。G1/G2/G5 が .length で自動被覆＝教訓B。G29 で policy/grant/RPC ACL を能動 assert）
   "staff_pin", "kiosk_sessions", // K レジ用キオスク（mig0056・deny-all。.length 参照ゆえ G1/G2/G5 が自動被覆＝教訓B。G30 で policy 0本/purpose CHECK/index/provision 署名を能動 assert）
   "staff_shift_patterns", "staff_shift_wishes", "staff_shifts", "staff_shift_deadlines", // C層② 黒服シフト（mig0136・authenticated=SELECT のみ・select policy 4 本＝0135 形。G1/G2/G5 が .length で自動被覆）
+  "check_customers", // ★mig0153（裁定305）: 伝票×顧客の中間表（check_seats 型・authenticated=SELECT のみ・cast 腕なし＝G1/G2/G5 が .length で自動被覆）
   "product_categories", // 純増⑦ 商品カテゴリマスタ（mig0063・authenticated=SELECT のみ＝products_select 同型パターン3。.length 参照ゆえ G1/G2/G5 が自動被覆＝教訓B）
 ];
 const HELPERS = [
@@ -203,7 +204,8 @@ async function main() {
     const NEW_0151 = ["staff_shift_cancel", "shift_open_periods_mine", "set_cast_guarantee",
       "punch_correction_request", "punch_correction_decide", "punch_correction_ack", "set_cast_employment", // ★0154（裁定294／295）: 新 secdef 4 本（同じ revoke／grant 形）
       "set_referrer", "check_referral_set", "check_referral_remove", "referral_payout_pay", "referral_payouts_pay_bulk", "referral_payouts_unpaid",
-      "adv_issue_bulk", "transport_issue_bulk"]; // ★0157（裁定302／304）: 一括発行 2 本（同じ revoke／grant 形） // ★0152（裁定298／299）: 公開 6 本（同じ revoke／grant 形）
+      "adv_issue_bulk", "transport_issue_bulk", // ★0157（裁定302／304）: 一括発行 2 本（同じ revoke／grant 形）
+      "check_customer_add", "check_customer_remove", "check_line_set_customer", "check_customer_names", "bottle_keep_out", "customer_sales_summary"]; // ★0153（裁定305／307）: 公開 6 本 // ★0152（裁定298／299）: 公開 6 本（同じ revoke／grant 形）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
@@ -404,6 +406,12 @@ async function main() {
       check("G9 0157 unique index 2 本＝advances_store_idem_uidx／transport_store_idem_uidx（(store_id, idem_key) WHERE idem_key IS NOT NULL）", ix.rowCount === 2 && ix.rows.every((r) => /USING btree \(store_id, idem_key\) WHERE \(idem_key IS NOT NULL\)$/.test(r.indexdef as string)), ix.rows.map((r) => r.indexname).join(","));
       const cc = await db.query(`select table_name, count(*)::int n, bool_or(column_name='idem_key') has_idem from information_schema.columns where table_schema='public' and table_name in ('advances','transport') group by 1 order by 1`);
       check("G9 0157 列集合: advances 16 列／transport 15 列（idem_key を含む）", cc.rowCount === 2 && cc.rows[0].n === 16 && cc.rows[0].has_idem === true && cc.rows[1].n === 15 && cc.rows[1].has_idem === true, JSON.stringify(cc.rows));
+      // ★0153（裁定305）: 列集合＝customers 18（+4）／bottle_keeps 15（+2）／check_lines 21（+customer_id）／check_customers 8・kind CHECK 11 値
+      const c153 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('customers','bottle_keeps','check_lines','check_customers') group by 1 order by 1`);
+      const n153 = Object.fromEntries(c153.rows.map((r) => [r.table_name, r.n]));
+      check("G9 0153 列集合: customers 18／bottle_keeps 15／check_lines 21／check_customers 8", n153.customers === 18 && n153.bottle_keeps === 15 && n153.check_lines === 21 && n153.check_customers === 8, JSON.stringify(n153));
+      const k153 = await db.query(`select pg_get_constraintdef(oid) d from pg_constraint where conname='check_lines_kind_check'`);
+      check("G9 0153 check_lines_kind_check＝11 値（+keep_out）", (k153.rows[0]?.d as string).includes("'keep_out'") && ((k153.rows[0]?.d as string).match(/::text/g) || []).length === 11, k153.rows[0]?.d);
     }
 
     // G10: F2d mynumber 暗号化/payment（mig0021）— payment_records RLS・パターン1・crypto RPC ACL。
@@ -1025,7 +1033,7 @@ async function main() {
       // ★mig0148（裁定272・2026-09-18）: check_add_referral（check_add_line の冒頭〜role 判定を逐語＝kiosk 腕あり）で 18→19・20→21・18→19。
       // ★mig0152（裁定298／299・2026-09-25）: check_add_referral を drop・check_referral_set／remove（同じ冒頭を逐語＝kiosk 腕あり）で 19→20・21→22・19→20。
       check("G31 register helper を使う会計RPC = 20本（0057 の12＋0084 shimei/dohan＋0089 extension＋0090 set_people＋0091 line_set_group＋0131 pricing_categories_for_register＋0152 check_referral_set／remove）",
-        reg.rows[0].n === 20, `got ${reg.rows[0].n}`);
+        reg.rows[0].n === 21, `got ${reg.rows[0].n}`); // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21
       const op = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
@@ -1033,7 +1041,7 @@ async function main() {
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
       check("G31 operator を使う関数 = 22本（write-arm 系 20＝0131 for_register・0152 check_referral_set／remove 込み＋audit_log_write＋drink_claims_on_line_delete）",
-        op.rows[0].n === 22, `got ${op.rows[0].n}`);
+        op.rows[0].n === 23, `got ${op.rows[0].n}`); // ★mig0153: bottle_keep_out で 22→23
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'
@@ -1046,7 +1054,7 @@ async function main() {
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator() is not null)) is not true then%'`,
       );
       check("G31 ★kiosk ゲート fail-closed = 20本が (OR連鎖) is not true 形（0058・0084・0089・0090・0091・0131・0152 も同形）",
-        fixed.rows[0].n === 20, `got ${fixed.rows[0].n}`);
+        fixed.rows[0].n === 21, `got ${fixed.rows[0].n}`); // ★mig0153: bottle_keep_out（同形の OR 連鎖）で 20→21
       const openGate = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'

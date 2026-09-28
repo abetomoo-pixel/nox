@@ -60,6 +60,8 @@ const t3: ReceiptInput = {
   payments: [{ method: "card", amount: 3300, tendered: null }],
   serviceRate: 10, groupDue: 3300, isReprint: false,
 };
+// ★0153（裁定305-5・D4 三面鏡）: キープ出し行（kind 'keep_out'・¥0・名「キープ出し …」）＝gross／due 不変・印字は名前のみ
+const tKeep: ReceiptInput = { ...t1, lines: [...t1.lines, { name_snapshot: "キープ出し ボトルX", qty: 1, unit_price_snapshot: 0, line_total: 0, kind: "keep_out" }] };
 // T4 再発行（T1 と同伝票・isReprint=true）
 const t4: ReceiptInput = { ...t1, isReprint: true };
 // T5 reg_no 空（未登録店＝登録番号行なし・住所/電話/フッタも空で最小ヘッダ）
@@ -280,7 +282,12 @@ function main() {
     check(`${label} 全行 48 桁以内`, over.length === 0, JSON.stringify(over));
   }
 
-  if (fails.length) {
+  {
+  const x1 = buildReceiptXml(t1), xk = buildReceiptXml(tKeep);
+  const totalsOf = (x: string) => (x.match(/合計[^<]*<\/text>|合計[^\n]*/g) || []).join("|");
+  check("rc(0153) keep_out 行: 印字に「キープ出し ボトルX」が出る・合計行は T1 と同じ（¥0 行＝gross／due 不変）", xk.includes("キープ出し ボトルX") && !x1.includes("キープ出し") && totalsOf(xk) === totalsOf(x1), totalsOf(xk).slice(0, 120));
+}
+if (fails.length) {
     console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
     for (const f of fails) console.error(" - " + f);
     // ゴールデン更新用に現在値を出す（意図した変更のときだけ書き換える）

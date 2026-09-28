@@ -1759,13 +1759,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           .filter((ymd) => { const st = dayStat(ymd); return st.required > 0 && st.assigned < st.required; }).length;
         return (
           <section className="nox-cardtop" style={card}>
-            {/* ★306-1／306-2: 「配置を組む」の年月見出し＋前月／翌月／今月（sticky）。募集中の期間と表示月が違うときは薄字「募集期間: M月」 */}
-            <MonthNav ym={month} today={bizToday} heading="h2" sticky suffix=" キャストシフト計画" onChange={setMonth} onToday={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }} note={recruitNoteOf(periodsAll, month)} />
-            {/* planbar */}
+            {/* planbar（★308-2: 年月見出し MonthNav は下の「配置を組む」カード＝曜日行の直上へ移設） */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
               <div>
                 {/* ★v4.1 H6: 見出しをモック逐語「〜年〜月 キャストシフト計画」へ */}
-                <h2 style={{ ...secTitle, margin: 0 }}>計画期間</h2>{/* ★306-1: 年月は上の MonthNav が持つ */}
+                <h2 style={{ ...secTitle, margin: 0 }}>{my}年{mm}月 キャストシフト計画</h2>{/* ★308-2: 年月見出し MonthNav は「配置を組む」の曜日行の直上 */}
                 <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "2px 0 0" }}>
                   {cur
                     ? <>計画期間 <span className="num">{cur.start_date}〜{cur.end_date}</span> ・ 希望締切 <span className="num">{cur.wish_deadline ?? "—"}</span></>
@@ -1877,6 +1875,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             </span>
           </div>
 
+          {/* ★306-1／306-2／308-2: 「配置を組む」の年月見出し＋前月／翌月／今月（sticky）＝曜日行（.nox-calgrid）の直前の兄弟・タブ切替（planView）や幅で消えない位置。募集中の期間と表示月が違うときは薄字「募集期間: M月」 */}
+          <MonthNav ym={month} today={bizToday} heading="h2" sticky onChange={setMonth} onToday={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }} note={recruitNoteOf(periodsAll, month)} />
           {planView === "cal" ? (
             <>
               <div className="nox-calgrid">

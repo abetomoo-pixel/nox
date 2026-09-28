@@ -27,6 +27,10 @@ type Summary = {
   customer_id: string; visits: number; last_visit: string | null; total_spend: number;
   active_bottles: number; open_receivable: number;
 };
+// ★0153（裁定305-6・D2）: キープ一覧（bottle_name・残量・最終利用日・棚）＝bottle_keeps 直 SELECT（RLS＝can_register 軸・読めなければ空）
+type KeepRow = { id: string; bottle_name: string | null; product_id: string; remaining_pct: number | null; shelf_no: string | null; last_used_at: string | null; opened_at: string; status: string; products: { name: string } | null };
+// ★0153（裁定305-9・D2）: 顧客別売上（customer_sales_summary＝owner／manager・期間）
+type SalesRow = { customer_id: string; name: string; amount: number; check_count: number };
 type Visit = {
   check_id: string; visited_at: string; total: number;
   seat_name: string | null; nom_casts: string[] | null; status: string;
@@ -58,6 +62,11 @@ export default function CustomerDetail({
   const [cust, setCust] = useState<CustRow | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
+  const [keeps, setKeeps] = useState<KeepRow[] | null>(null); // ★0153 D2（null＝未取得）
+  const [salesFrom, setSalesFrom] = useState(() => new Date().toISOString().slice(0, 7) + "-01");
+  const [salesTo, setSalesTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [sales, setSales] = useState<SalesRow | null | undefined>(undefined); // ★0153 D2（undefined＝未取得・null＝期間内 0）
+  const [salesErr, setSalesErr] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -106,9 +115,21 @@ export default function CustomerDetail({
     const { data: v, error: eV } = await supabase.rpc("customer_visit_history", { p_customer_id: customerId });
     if (eV) { setErr(`来店履歴の読み込みに失敗: ${eV.message}`); return; }
     setVisits((v ?? []) as Visit[]);
+    // ★0153 D2: キープ一覧（+1）
+    const { data: ks } = await supabase.from("bottle_keeps").select("id, bottle_name, product_id, remaining_pct, shelf_no, last_used_at, opened_at, status, products(name)").eq("customer_id", customerId).order("opened_at", { ascending: false });
+    setKeeps((ks ?? []) as unknown as KeepRow[]);
   }, [customerId]);
+  // ★0153 D2: 顧客別売上（+1・期間を変えたときだけ再取得）
+  const loadSales = useCallback(async (storeId: string) => {
+    const supabase = createClient();
+    setSalesErr(null);
+    const { data, error } = await supabase.rpc("customer_sales_summary", { p_store_id: storeId, p_from: salesFrom, p_to: salesTo });
+    if (error) { setSales(undefined); setSalesErr(error.message.includes("forbidden") ? "権限がありません（店長以上）" : `売上の読み込みに失敗: ${error.message}`); return; }
+    setSales(((data ?? []) as SalesRow[]).find((r) => r.customer_id === customerId) ?? null);
+  }, [customerId, salesFrom, salesTo]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (cust?.store_id) void loadSales(cust.store_id); }, [cust?.store_id, loadSales]);
 
   function openAssign() {
     if (!cust) return;
@@ -262,6 +283,50 @@ export default function CustomerDetail({
             {cust.prefs ? `好み: ${cust.prefs}` : ""}{cust.prefs && cust.memo ? "・" : ""}{cust.memo ?? ""}
           </p>
         )}
+      </section>
+
+      {/* ★0153（裁定305-6・D2）: キープ一覧 */}
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={secTitle}>キープ</h2>
+        {keeps === null && <p style={noneP}>—</p>}
+        {keeps !== null && keeps.length === 0 && <p style={noneP}>キープはありません</p>}
+        {keeps !== null && keeps.length > 0 && (
+          <div className="nox-tablewrap">
+            <table className="nox-table">
+              <thead><tr><th>ボトル</th><th>残量</th><th>最終利用日</th><th>棚</th><th>状態</th></tr></thead>
+              <tbody>
+                {keeps.map((k) => (
+                  <tr key={k.id}>
+                    <td>{k.bottle_name ?? k.products?.name ?? "（商品）"}</td>
+                    <td className="num">{k.remaining_pct != null ? `${k.remaining_pct}%` : "—"}</td>
+                    <td className="num">{k.last_used_at ? fmtWhen(k.last_used_at) : "—"}</td>
+                    <td>{k.shelf_no ?? "—"}</td>
+                    <td>{k.status === "active" ? "保管中" : k.status === "empty" ? "空" : "終了"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ★0153（裁定305-9・D2）: 顧客別売上（注文者つき行＝この顧客・なし＝伝票の顧客で均等割り・端数は最初の顧客） */}
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={secTitle}>顧客別売上</h2>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 8 }}>
+          <label style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>開始</span><input type="date" value={salesFrom} onChange={(e) => setSalesFrom(e.target.value)} style={input} /></label>
+          <label style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>終了</span><input type="date" value={salesTo} onChange={(e) => setSalesTo(e.target.value)} style={input} /></label>
+        </div>
+        {salesErr && <Message kind="error" onDismiss={() => setSalesErr(null)}>{salesErr}</Message>}{/* 裁定281 */}
+        {!salesErr && sales === undefined && <p style={noneP}>—</p>}
+        {!salesErr && sales === null && <p style={noneP}>期間内の売上はありません</p>}
+        {!salesErr && sales && (
+          <div style={t.kpiGrid}>
+            <div style={t.kpi}><div style={t.kpiLabel}>売上（均等割り込み）</div><div style={t.kpiValGold}>{yen(Number(sales.amount))}</div></div>
+            <div style={t.kpi}><div style={t.kpiLabel}>伝票数</div><div style={t.kpiVal}>{sales.check_count}<span style={{ fontSize: 12, color: "var(--sub)" }}> 枚</span></div></div>
+          </div>
+        )}
+        <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>注文者を付けた行はその顧客に、付けていない行は伝票の顧客の人数で均等に割ります（端数は最初の顧客）。</p>
       </section>
 
       <section className="nox-cardtop" style={t.card}>

@@ -20,7 +20,7 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 // ── (1) 全組合せの期待表 ──
-//   kind = check_lines_kind_check の8値（live CHECK 実測: set/time/charge/drink/champ/bottle/custom/discount・0148 の +food/other と 0152 で referral 除去＝10 値・本表は 8 値のまま）
+//   kind = check_lines_kind_check の8値（live CHECK 実測: set/time/charge/drink/champ/bottle/custom/discount・0148 の +food/other と 0152 で referral 除去・0153 で +keep_out＝11 値・本表は 8 値のまま）
 //   fee_kind = check_lines_fee_kind_check の5値＋null
 const KINDS = ["set", "time", "charge", "drink", "champ", "bottle", "custom", "discount"] as const;
 // ★mig0130（裁定118）: fee_kind 7種化＝ext_shimei/vip_charge を直積へ追加
@@ -44,6 +44,9 @@ for (const k of KINDS) {
     check(`(1) categoryOf(${k}, ${f ?? "null"}) = ${exp}`, got === exp, `got ${got}`);
   }
 }
+
+// ── ★0153（裁定305-5）: kind 'keep_out'（キープ出し・¥0）は「指名・その他」へ（fail-safe と同じ枝・11 値目）──
+check("(1b) categoryOf('keep_out') = other（0153・¥0 行）", categoryOf("keep_out", null) === "other");
 
 // ── (2) 未知 kind の fail-safe ──
 check("(2) 未知 kind → other", categoryOf("mystery", null) === "other", String(categoryOf("mystery", null)));

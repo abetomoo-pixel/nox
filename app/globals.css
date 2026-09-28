@@ -2263,6 +2263,7 @@ body {
 .nox-periodform { display: grid; gap: 8px; }
 .nox-periodform .pf-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .nox-periodform .pf-acts { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 899px) { .nox-periodform .pf-acts { flex-direction: column; } .nox-periodform .pf-acts > button { width: 100%; } } /* ★裁定308-1: 「作成」は幅いっぱいの 1 行 */
 .nox-sscell-narrow { display: none; }
 @media (max-width: 899px) {
   .nox-sscell-wide { display: none !important; }

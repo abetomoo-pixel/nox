@@ -67,6 +67,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 - ★**mig0157 追随（2026-09-25・裁定302／304）**: 新関数 **2本**＝`adv_issue_bulk`／`transport_issue_bulk` を A4 へ（adv_issue／transport_issue の検査部を写経＝'billing locked' を持つ・件ごと idem・1 tx）。
   列追加 2（advances.idem_key／transport.idem_key）＋ partial unique 2 は本数非関与。既存 4 本（adv_issue／adv_cancel／transport_issue／transport_cancel）は不触＝md5 不変。
   対象 **139→141**・除外 **121 不変**・全数 **260→262**（live 実測 2026-09-25 16:46＝A-0／A 検証 ALL OK）。
+- ★**mig0153 追随（2026-09-25・裁定305／307）**: 新関数 **6本**＝ゲート内蔵 4 本を A1 へ（`check_customer_add`／`check_customer_remove`／`check_line_set_customer`・`bottle_keep_out`[K]）・読取 2 本を B(f) へ（`check_customer_names`／`customer_sales_summary`＝ゲート行なし・裁定307-1）。
+  改稿 9 本（check_open／check_merge／check_close／set_comp_plan／set_cast_plan／set_store_profile／demo_org_reset／bottle_keep_register／bottle_keep_update）は名前不変で本数不動（register 7→9 引数・update 6→7 引数・set_comp_plan 19→22 引数＝旧署名 drop）。
+  新表 check_customers（authenticated=SELECT のみ）・列追加 10・kind CHECK +'keep_out' は本数非関与。
+  対象 **141→145**・除外 **121→123**・全数 **262→268**（live 実測 2026-09-25 18:5x＝A-0／A 検証 ALL OK・'billing locked' 145）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -137,12 +141,14 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 
 ## A. 対象（104本）— 冒頭に `if not public.billing_writable_of(v_org) then raise exception 'billing locked'`
 
-### A1. レジ・会計（22本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
+### A1. レジ・会計（26本・[K]=kiosk 腕あり＝v_org 直渡しで挿入）
 **check_merge**（mig0138＋0139＝open 伝票 2 枚→1 枚の統合・owner∨manager 自店・課金ゲート＋flag reopen_flow＋理由必須・kiosk 腕なし・C層③＝裁定 C③-6〜8） /
 check_open[K] / check_add_line[K] / check_remove_line[K] / check_add_seat[K] / check_remove_seat[K] /
 check_move_seat[K] / check_set_nominations[K] / check_time_charge_apply[K] / check_shimei_add[K] /
 check_dohan_add[K] / check_pay[K] / check_close[K] / **check_void**（裁定D1＝金銭記録の改変） /
 approval_request / approval_direct / approval_decide / bottle_keep_register[K] /
+**check_customer_add / check_customer_remove / check_line_set_customer**（mig0153＝伝票の顧客の付け外し（position・remove は行の注文者を null に戻し checks.customer_id を追従）・注文行の顧客（'not on check'）・check_open と同じ腕・kiosk 腕なし・裁定305-1〜3／307-3） /
+**bottle_keep_out[K]**（mig0153＝キープ出し＝kind 'keep_out'・¥0・バック 0・在庫不変・冪等（check_lines.idem_key）・last_used_at 更新・kiosk 腕あり・裁定305-5／305-7） /
 **check_extension_add[K]**（mig0089 新設＝manual 店の延長行の作成・ゲートは mig 本文に内蔵） /
 **check_set_people[K]**（mig0090 新設＝開卓後の人数修正・ゲートは mig 本文に内蔵） /
 **check_line_set_group[K]**（mig0091 新設＝会計分けの付け替え・ゲートは mig 本文に内蔵） /
@@ -264,13 +270,14 @@ payroll_run_create / payment_record_add / withholding_payment_record / payroll_a
 （payroll_carryover_sync＝mig0148・裁定272-1: 前期 payslip の adjustOverflow>0 を当 draft run の carryover 行（source='carryover'・部分 unique）へ upsert／0 は削除＝冪等。
   調整控除 add の actor／org／manager 自店／draft 判定を逐語＝同じく非ゲート。A に載せると対象→live assert が赤になる）
 
-### B(f) 読取 RPC（45本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
+### B(f) 読取 RPC（47本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
 **staff_pin_status**（mig0108＝PIN 状態の読取・owner∨manager自店・hash 非返却） /
 **cast_unavailable_list**（mig0125＝出勤不可の読取・STABLE・owner∨manager自店・裁定112） /
 auth_cast_can_register / auth_cast_id / auth_kiosk_org_id / auth_kiosk_register_store_id /
 auth_kiosk_store_id / auth_org_id / auth_role / auth_staff_can_crm / auth_staff_can_register /
 auth_staff_can_shift / auth_staff_can_view_backs / auth_store_id /
 cast_open_checks / customer_list_summary / customer_summary / customer_visit_history /
+**check_customer_names**（mig0153＝伝票の顧客名＋active キープのボトル名のみ・can_register の cast にも開放・ゲート行なし＝裁定307-1） / **customer_sales_summary**（mig0153＝顧客別売上・owner∨manager 自店・均等割り＝端数は position 0・ゲート行なし＝裁定307-1） /
 get_cast_customer_ranking / get_cast_mynumber_masked / get_cast_ranking / get_cast_sales /
 get_cast_sensitive / get_printer_config / get_store_nom_counts /
 kiosk_cast_list / kiosk_check_detail / kiosk_operator_list / kiosk_register_state /

@@ -27,14 +27,25 @@ export type Plan = {
   hon_back_mode: BackModeRow; hon_back_rate: number | null;
   jonai_back_mode: BackModeRow; jonai_back_rate: number | null;
   product_back_mode?: ProductBackMode | null; product_back_rate?: number | null; product_back_fixed?: number | null;
+  product_back_fixed_hon?: number | null; product_back_fixed_jonai?: number | null; product_back_fixed_free?: number | null; // ★0153（296 追補2／305-12）: 区分別固定額（null＝一律）
 };
+/** ★0153: 区分別 3 欄の文字列→数値（空欄＝null＝一律） */
+export function regionOf(r: { hon: string; jonai: string; free: string }): { hon: number | null; jonai: number | null; free: number | null } {
+  const n = (v: string) => (v.trim() === "" ? null : Math.max(0, Math.trunc(Number(v))));
+  return { hon: n(r.hon), jonai: n(r.jonai), free: n(r.free) };
+}
 /** set_comp_plan の product_back 3引数（原則7＝常に全明示・pair は RPC と同条件＝当該 mode のときだけ値、他は null）。 */
-export function productBackArgsOf(mode: ProductBackMode | null | undefined, rate: number | null | undefined, fixed: number | null | undefined) {
+export function productBackArgsOf(mode: ProductBackMode | null | undefined, rate: number | null | undefined, fixed: number | null | undefined,
+  region?: { hon: number | null; jonai: number | null; free: number | null } | null) {
   const m: ProductBackMode = mode ?? "product_rule";
   return {
     p_product_back_mode: m,
     p_product_back_rate: m === "plan_rate" ? (rate ?? 0) : null,
     p_product_back_fixed: m === "plan_fixed" ? (fixed ?? 0) : null,
+    // ★0153（296 追補2）: 区分別 3 欄＝plan_fixed のときだけ（空欄＝null＝一律 product_back_fixed を使う）。他の方式は null（RPC は 'bad product_back_fixed_hon'）
+    p_product_back_fixed_hon: m === "plan_fixed" ? (region?.hon ?? null) : null,
+    p_product_back_fixed_jonai: m === "plan_fixed" ? (region?.jonai ?? null) : null,
+    p_product_back_fixed_free: m === "plan_fixed" ? (region?.free ?? null) : null,
   };
 }
 /** フロント検証＝RPC の pair/範囲と同条件（rate 0..100 整数・fixed >=0 整数）。null＝OK・文字列＝エラー文。 */
@@ -181,7 +192,7 @@ export function useCompData(storeId: string) {
 
   const load = useCallback(async () => {
     const [p, c, cp, n, d, b, pc] = await Promise.all([
-      supabase.from("comp_plans").select("*").order("name"),
+      supabase.from("comp_plans, product_back_fixed_hon, product_back_fixed_jonai, product_back_fixed_free").select("*").order("name"),
       supabase.from("casts").select("id, name").eq("is_active", true).order("name"),
       // ★mig0114: 期間化後は現在行のみ（valid_to is null）。履歴行が生まれる挙動段の前に必須の追随。
       supabase.from("cast_plan").select("cast_id, plan_id, overrides_json").is("valid_to", null),
@@ -272,6 +283,8 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
   const [active, setActive] = useState(true);
   // ★mig0134: product_back 3項は編集対象外だが、19引数全明示のため編集中プランの値を写して送る（省略＝default で戻る事故の封じ）
   const [pb, setPb] = useState<{ mode: ProductBackMode; rate: number | null; fixed: number | null }>({ mode: "product_rule", rate: null, fixed: null });
+  // ★0153（296 追補2／305-12）: 区分別固定額の 3 欄（文字列＝空欄は null＝一律）。plan_fixed のときだけ表示
+  const [pbRegion, setPbRegion] = useState<{ hon: string; jonai: string; free: string }>({ hon: "", jonai: "", free: "" });
   // ★C1 §6-4: 選択中プランの追加コンポーネント（RLS=comp_plans と同可視・書き手は owner のみ）
   const [comps, setComps] = useState<CompRow[]>([]);
   const [cKind, setCKind] = useState("guarantee_min");
@@ -294,6 +307,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
     setJonaiMode(p.jonai_back_mode ?? "per_count"); setJonaiRate(p.jonai_back_rate ?? 0);
     setSalesSlide(p.sales_slide ?? []); setPointSlide(p.point_slide ?? []); setActive(p.is_active);
     setPb({ mode: p.product_back_mode ?? "product_rule", rate: p.product_back_rate ?? null, fixed: p.product_back_fixed ?? null });
+    setPbRegion({ hon: p.product_back_fixed_hon != null ? String(p.product_back_fixed_hon) : "", jonai: p.product_back_fixed_jonai != null ? String(p.product_back_fixed_jonai) : "", free: p.product_back_fixed_free != null ? String(p.product_back_fixed_free) : "" }); // ★0153
     setCId(null); setCKind("guarantee_min"); setCAmount(0); setCPriority(100); setCActive(true);
     void loadComps(p.id);
   }
@@ -330,10 +344,11 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
       //   UI は per_count 固定＝率は R-2b（同伴 cast_id 必須）後に解錠（RPC も 'dohan rate requires R-2b' で封印中）。
       p_dohan_back_mode: "per_count", p_dohan_back_rate: null,
       // ★mig0134: 19引数全明示（新規＝product_rule/null/null・編集＝行の値を写す）
-      ...productBackArgsOf(id ? pb.mode : "product_rule", id ? pb.rate : null, id ? pb.fixed : null),
+      // ★0153（296 追補2）: 22 引数全明示＝区分別 3 欄（plan_fixed のときだけ値・空欄は null）
+      ...productBackArgsOf(id ? pb.mode : "product_rule", id ? pb.rate : null, id ? pb.fixed : null, id ? regionOf(pbRegion) : null),
     });
     setMsg(error ? compErrJa(error.message) : id ? "プランを更新しました" : "プランを登録しました");
-    if (!error) { setId(null); setName(""); setBase(0); setPb({ mode: "product_rule", rate: null, fixed: null }); await reload(); }
+    if (!error) { setId(null); setName(""); setBase(0); setPb({ mode: "product_rule", rate: null, fixed: null }); setPbRegion({ hon: "", jonai: "", free: "" }); await reload(); }
   }
 
   return (
@@ -380,6 +395,16 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
           <label style={{ fontSize: 12 }}>同伴(円/本) <input type="number" min={0} value={dohanBack} onChange={(e) => setDohanBack(Number(e.target.value))} style={{ ...input, width: 70 }} />
             {/* ★mig0115（裁定86-②）: 同伴の率方式は R-2b（同伴 cast_id 必須）後に解錠＝それまで per_count 固定 */}
             <span className="nox-stpill" style={{ marginLeft: 6 }}>率は準備中（R-2b 後）</span></label>
+          {/* ★0153（296 追補2／305-12）: 商品バック「販売数 × 固定額」の区分別 3 欄（空欄＝一律の固定額）。同伴は本指名と同額。商品側の unit4 が最優先 */}
+          {id && pb.mode === "plan_fixed" && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", width: "100%" }}>
+              <span style={{ fontSize: 12, color: "var(--sub)" }}>商品バック 区分別（円/本・空欄＝一律 {pb.fixed ?? 0} 円）</span>
+              {([["hon", "本指名"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([k, label]) => (
+                <label key={k} style={{ fontSize: 12 }}>{label} <input type="number" min={0} inputMode="numeric" value={pbRegion[k]} placeholder="一律" onChange={(e) => setPbRegion((r) => ({ ...r, [k]: e.target.value }))} style={{ ...input, width: 70 }} /></label>
+              ))}
+              <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>同伴＝本指名と同額・商品の unit4 が最優先</span>
+            </div>
+          )}
           <div style={{ display: "flex", gap: 16, width: "100%" }}>
             <SlideInput label="売上スライド" slide={salesSlide} setSlide={setSalesSlide} />
             <SlideInput label="ポイントスライド" slide={pointSlide} setSlide={setPointSlide} />
@@ -472,6 +497,8 @@ type OvDraft = {
   useHon: boolean; honMode: BackModeRow; honVal: string;
   useJonai: boolean; jonaiMode: BackModeRow; jonaiVal: string;
   useDohan: boolean; dohanVal: string;
+  // ★0153（305-12）: 商品バック区分別固定額の上書き（productBackFixedHon／Jonai／Free・空欄＝上書きなし）
+  pbHon: string; pbJonai: string; pbFree: string;
 };
 function ovDraftFrom(json: Record<string, number | string> | null | undefined): OvDraft {
   const j = json ?? {};
@@ -486,6 +513,7 @@ function ovDraftFrom(json: Record<string, number | string> | null | undefined): 
     jonaiMode: jonaiRate ? "rate" : "per_count",
     jonaiVal: jonaiRate ? String(j.jonaiBackRate ?? "") : j.jonaiBack != null ? String(j.jonaiBack) : "",
     useDohan: j.dohanBack == null, dohanVal: j.dohanBack != null ? String(j.dohanBack) : "",
+    pbHon: j.productBackFixedHon != null ? String(j.productBackFixedHon) : "", pbJonai: j.productBackFixedJonai != null ? String(j.productBackFixedJonai) : "", pbFree: j.productBackFixedFree != null ? String(j.productBackFixedFree) : "", // ★0153
   };
 }
 
@@ -570,6 +598,10 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
       if (d.dohanVal === "") { setMsg("同伴の値を入力してください（既定に戻すはチェックを付ける）"); return null; }
       o.dohanBack = Number(d.dohanVal); // dohan の率方式は封印のまま（裁定86-②・R-2b 後も別 mig で解錠）
     }
+    // ★0153（305-12）: 区分別固定額の上書き（空欄＝キーなし＝プラン側→一律）。負は RPC が 'bad overrides'
+    if (d.pbHon.trim() !== "") o.productBackFixedHon = Number(d.pbHon);
+    if (d.pbJonai.trim() !== "") o.productBackFixedJonai = Number(d.pbJonai);
+    if (d.pbFree.trim() !== "") o.productBackFixedFree = Number(d.pbFree);
     return o;
   }
 
@@ -704,6 +736,13 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                           unit: ovd.jonaiMode === "rate" ? "%" : "円/本" })}
                         {ovRow({ label: "同伴", use: ovd.useDohan, onUse: (v) => setOvd((d) => ({ ...d, useDohan: v })),
                           val: ovd.dohanVal, onVal: (v) => setOvd((d) => ({ ...d, dohanVal: v })), unit: "円/本" })}
+                        {/* ★0153（305-12）: 商品バック区分別固定額の上書き（plan_fixed のプランで効く・空欄＝上書きなし・同伴＝本指名） */}
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: 12 }}>
+                          <span style={{ color: "var(--sub)" }}>商品バック 区分別（円/本・空欄＝プランの値）</span>
+                          {([["pbHon", "本指名"], ["pbJonai", "場内"], ["pbFree", "フリー"]] as const).map(([k, label]) => (
+                            <label key={k}>{label} <input type="number" min={0} inputMode="numeric" value={ovd[k]} placeholder="—" onChange={(e) => { const v = e.target.value; setOvd((d) => ({ ...d, [k]: v })); }} style={{ ...input, width: 70 }} /></label>
+                          ))}
+                        </div>
                         <p style={{ ...note, margin: 0 }}>既定を使う＝プランの値のまま。方式と値はペアで保存されます（この行の「変更」で確定）。</p>
                       </div>
                     </td>

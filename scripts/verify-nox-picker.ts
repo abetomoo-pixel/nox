@@ -41,9 +41,9 @@ const EXPECT: Array<[string, number]> = [
   ["app/(manage)/analytics/analytics-board.tsx", 1], ["app/(manage)/casts/casts-board.tsx", 1], ["app/(manage)/customers/[id]/customer-detail.tsx", 1], ["app/(manage)/customers/customers-board.tsx", 1], // ★306-13: casts-board の待遇プラン候補
   ["app/(manage)/master/cast-comp/comp-sections.tsx", 1], ["app/(manage)/register/bottle-keep-panel.tsx", 2], ["app/(manage)/register/register-board.tsx", 1],
   ["app/(manage)/register/reservation-panel.tsx", 2], ["app/(manage)/shift/staff-place-by-staff.tsx", 1], // ★306-7: shift-board の期間状態は SegSelect へ（picker 撤去）
-  ["app/mine/drink-claim-form.tsx", 1], ["components/nox/advance-okuri-form.tsx", 1], // cast-picker.tsx は <PickerBadge（型）だけ＝<Picker の JSX は無い
+  ["app/mine/drink-claim-form.tsx", 1], ["components/nox/advance-okuri-form.tsx", 1], ["components/nox/check-customers-card.tsx", 1], // ★0153 D1: 伝票の顧客の追加 // cast-picker.tsx は <PickerBadge（型）だけ＝<Picker の JSX は無い
 ];
-check("pk(3-1) <Picker の呼び出し＝13 箇所／11 ファイル（許可列挙・呼び出し側は 301 でコードを変えない）", JSON.stringify(hits) === JSON.stringify(EXPECT) && hits.reduce((a, [, n]) => a + n, 0) === 13, JSON.stringify(hits));
+check("pk(3-1) <Picker の呼び出し＝14 箇所／12 ファイル（許可列挙・呼び出し側は 301 でコードを変えない）", JSON.stringify(hits) === JSON.stringify(EXPECT) && hits.reduce((a, [, n]) => a + n, 0) === 14, JSON.stringify(hits));
 
 // (4) 301-4 の余白
 const ao = fs.readFileSync("components/nox/advance-okuri-form.tsx", "utf8");

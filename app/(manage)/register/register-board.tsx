@@ -20,6 +20,7 @@ import { fetchStockTotals } from "@/lib/nox/master/queries";
 import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
+import CheckCustomersCard from "@/components/nox/check-customers-card"; // ★裁定305（mig0153・D1）: 伝票の顧客・誰の注文・キープ出し
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
@@ -123,6 +124,8 @@ type Line = {
   // R-2a-2（mig0097）: auto 時間行の回次。set=0・extension=1..n・legacy 合算行と手動行は null。
   //   時間帯分解の表示にだけ使う（金額は line_total の凍結値＝再計算しない）。
   block_no: number | null;
+  // ★0153（裁定305-2）: 注文者（check_line_set_customer で後付け・null＝未指定＝均等割り）
+  customer_id?: string | null;
   // キャストドリンク（mig0070）: 按分除外の判定は back_snapshot の凍結値で行う。
   //   ★products.back_exempt_from_split（現価）では判定しない＝行を打った後にマスタのフラグを
   //     切り替えても伝票の帰属経路は変わらない、が 0070 の設計（check_close と
@@ -588,7 +591,7 @@ export default function RegisterBoard({
     const { data: c } = await supabase.from("checks").select("*").eq("id", checkId).single();
     const { data: ls } = await supabase
       // back_snapshot＝キャストドリンク判定の凍結値（mig0070）。中身は back_exempt だけを見る。
-      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category")
+      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category, customer_id") // ★0153: 注文者（同じ取得に同乗）
       .eq("check_id", checkId).order("sort_order");
     // キャストドリンク: 確定済み（approved）の claim だけを引く。void/rejected は行に紐づけない。
     const { data: dcs } = await supabase
@@ -2319,6 +2322,9 @@ export default function RegisterBoard({
             </p>
           )}
         </div>
+
+        {/* ★裁定305（mig0153・2026-09-25・D1）: 伝票の顧客（複数）・追加／外す・注文行の「誰の注文」・キープ出し＝共通部品（RPC が二重防御・fetch +1＝3 クエリ並列） */}
+        <CheckCustomersCard checkId={check.id} storeId={storeId} isOpen={check.status === "open"} lines={lines} products={products} onChanged={() => loadCheck(check.id)} />
 
         {/* ★0152（裁定280／298／299・2026-09-25）: 紹介の入口＝owner／manager のレジのみ。1 伝票 1 紹介（check_referrals）＝付与 check_referral_set・取消 check_referral_remove。
             紹介者はマスタ「紹介者」（referrers）から選ぶ。客負担（burden='customer'）は請求（A）に乗る＝表示 due は groupDueFull の第 3 引数で鏡像・印字は初回セット行に合算（298-4）。 */}
