@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { messageKindOf, messagePrefix, messageRole, messageTokens } from "../components/ui/toast";
 import { rpcErrJa } from "../lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生 RPC 語の共通写像
+import { payStatusCellOf } from "../lib/nox/payroll/ui-calc"; // ★便 X-7: 状態列の文言（純関数）
 
 let pass = 0;
 const fails: string[] = [];
@@ -83,6 +84,11 @@ const toastSrc = fs.readFileSync("components/ui/toast.tsx", "utf8");
 check("ms(2-2) Toast は Message を経由（kind 未指定は messageKindOf）・Message は role と data-message-kind を持つ", /messageKindOf\(msg\)/.test(toastSrc) && /role=\{messageRole\(kind\)\}/.test(toastSrc) && /data-message-kind=\{kind\}/.test(toastSrc));
 const shiftSrc = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
 check("ms(2-3) shift-board: 期間フォームの成否はカード内（pMsg→Message）・タブ切替で共有 msg と pMsg を消す（281-3／281-4）", /useEffect\(\(\) => \{ setMsg\(null\); setPMsg\(null\); \}, \[tab\]\)/.test(shiftSrc) && /\{pMsg && <Message kind=\{pMsg\.kind\}/.test(shiftSrc) && /overlappingPeriods\(/.test(shiftSrc));
+
+// ★裁定310（2026-09-28・便 X-2）: /shift 今日タブの「調整」モーダル＝タブ①出退勤（既定）／②確定シフトの時間。注記 2 文。行の「出勤を修正／退勤を修正」リンクは廃止（0）
+check("ms(2-4) shift-board: 調整モーダルはタブ 2 つ（出退勤／確定シフトの時間）・注記『給与に反映されます』『打刻は変わりません・給与は動きません』・行の『を修正』リンク 0・修正は PunchCorrectionForm", /確定シフトの時間を調整/.test(shiftSrc) && /給与に反映されます/.test(shiftSrc) && /打刻は変わりません・給与は動きません/.test(shiftSrc) && !/{KIND_LABEL[k]}を修正/.test(shiftSrc) && !/PunchCorrectionModal/.test(shiftSrc) && /<PunchCorrectionForm/.test(shiftSrc) && /role="tablist" aria-label="調整の対象"/.test(shiftSrc));
+// ★便 X-7（2026-09-28）: キャスト行「状態」＝run の status と整合（paid→支払済・部分払い→一部 ¥残・他→未払・cp なし→未確定）
+check("ms(2-5) payStatusCellOf: paid→支払済／一部 ¥残（net−Σpaid）／未払／未確定／全額→支払済", payStatusCellOf("paid", { net: 100, paid: 0 }).label === "支払済" && payStatusCellOf("finalized", { net: 10000, paid: 4000 }).label === "一部 ¥6,000" && payStatusCellOf("finalized", { net: 100, paid: 0 }).label === "未払" && payStatusCellOf("draft", null).label === "未確定" && payStatusCellOf("finalized", { net: 100, paid: 100 }).label === "支払済" && payStatusCellOf("finalized", { net: 10000, paid: 4000 }).tone === "part");
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
