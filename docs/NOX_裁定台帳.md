@@ -2846,6 +2846,12 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓93：docs 便は `git commit -- <パス>` でパス指定コミット・stage 済み index に依存しない（相談役起こし）
+
+出典＝相談役 2026-09-28 受領（v40 §10-2 P-1・逐語）: 「教訓93『docs 便は git commit -- <パス> でパス指定コミット・stage 済み index に依存しない（9/25 2412601 の同乗）』」。
+経緯: 2026-09-25 無人便 N3 で、0153 手貼り後ブロック E の直前に stage した supabase/migrations/0153_customers_keep.sql（収蔵版 sha 4a5145b0…7c68）が index に残ったまま docs コミット `2412601` を `git commit -m` で作ったため、docs のみのはずの push に mig 1 本が同乗した（内容は最終の収蔵版＝本番適用済み・害なし・v40 §0 で「そのままで確定」）。
+運用: docs のみの便は `git add <docs パス>` の直後に `git commit -m "..." -- <docs パス>` とパス指定でコミットし、index に何が stage されていても巻き込まない。コミット直前に `git diff --cached --stat` で対象外のパスが無いことを確認する。夜間規則「push は docs のみ」の担保はこの 2 点。
+
 ### 教訓92：mig で列・キー・RPC を足すときの pin 走査は「その値を読む suite を全部」挙げる（相談役起こし）
 
 出典＝相談役 2026-09-24 受領（逐語）: 「教訓92 mig で列・キー・RPC を足すときの pin 走査は“その値を読む suite を全部”挙げる(store-profile だけでなく store-systems も 21 キーを pin していた・0151 run1 の赤)」。
@@ -3814,7 +3820,7 @@ suite: verify-nox-shift-nav 17（新設・f0 76 段目）・messages 16・nav 25
 
 適用＝便 M153-2（起草 supabase/migrations/0153_customers_keep.sql＝★1〜★22・未追跡）・M153-3（突合 BEGIN…ROLLBACK）。手貼りは Agoora（要裁定の裁定後）。client（顧客複数 UI・キープ出し・顧客別売上・商品／プランの区分別欄）は手貼り後ブロック。
 **0153 適用欄（2026-09-25）**: 手貼り＝Agoora 18:4x JST（末尾検証 count 1 申告）・CC の A-0／A 検証 18:35 JST ALL OK（docs/tmp/q0925_a0_0153.mjs・docs/tmp/0153_post_a.json）。
-sha256＝**貼付版 417c5952dfc3a9203c1b05004d7e9b21d9df13f82e49cdf6e4ad23f326190b11**（1,838 行・136,831 B）／**収蔵版 4a5145b0adf802a8942421c52105b8656d40002f64bdec28a296f0d1598d7c68**（1,839 行・136,902 B＝S-1 で冒頭コメントのみ書き換え＝要裁定 (4)→裁定307 で確定・307-5 の md5 誤記訂正・本文の $$ 内 md5 不変）。
+sha256＝**貼付版 417c5952dfc3a9203c1b05004d7e9b21d9df13f82e49cdf6e4ad23f326190b11**（1,838 行・136,831 B）／**収蔵版 4a5145b0adf802a8942421c52105b8656d40002f64bdec28a296f0d1598d7c68**（1,839 行・136,902 B＝S-1 で冒頭コメントのみ書き換え＝要裁定 (4)→裁定307 で確定・307-5 の md5 誤記訂正・本文の $$ 内 md5 不変）。**収蔵版 4a5145b0…7c68＝`2412601` で収蔵**（docs コミットへの同乗＝教訓93・v40 §0 で「そのままで確定」・2026-09-28 便 P-1 追記）。
 live md5（CR 除去・$$ 内）＝check_close 3f4e73b5／demo_org_reset 30c846ae／set_comp_plan 3fdd6e81／set_cast_plan 37dd29a2／set_store_profile e9bb2b66／check_open f306b0a0／check_merge 88e8e203／bottle_keep_register 03ff8bca／bottle_keep_update c1eff580／check_customer_add ed5f7c6e／check_customer_remove 8cd4e3d3／check_line_set_customer 5af12065／check_customer_names 70a81e91／bottle_keep_out e6d14ca5／customer_sales_summary 81c424d5・不触 17 本不変（customer_assign_cast は accfb2a6）。
 名簿 A1 +4／B(f) +2＝対象 145／除外 123／全数 268（billing 段47-1 145／146・段47-3 kiosk 腕 19）。pin 新値＝anon-guard 1018（probe +6）・grants 383（TABLES +check_customers・G4d +6・G9 列集合 customers 18／bottle_keeps 15／check_lines 21／check_customers 8・kind 11 値・G31 21／23／21）・product-types 20（kind 11 値逐語）・category-map 84（keep_out→other）・receipt 68（keep_out 行）・crm-base 24（register 9 引数／update 7 引数）・demo-reset 34（72 表）・customers-keep 32（新設・f0 77 段目）・picker 10（allow-list 14／12）・messages 16。
 client＝D1 レジ「指名・席」の顧客カード（components/nox/check-customers-card.tsx＝names／add／remove／line_set／keep_out・fetch +1＝3 クエリ並列）・D2 顧客詳細のキープ一覧＋顧客別売上（fetch +2）・D3 店舗情報 2 欄（利用目的・保持年数）＋プラン区分別 3 欄（plan_fixed のみ・22 引数）＋cast 上書き 3 キー（商品マスターの unit4 4 欄は既存）・D4 三面鏡＝receipt／category-map の pin（lib 無改変＝¥0 行）・**D5 kiosk のキープ出し＝停止**（裁定11 顧客系非開示＝kiosk に keeps の読取経路がなく 305-7 の腕だけでは選べない＝v40 §3 の問い）。
