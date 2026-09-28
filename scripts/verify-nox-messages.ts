@@ -12,6 +12,8 @@ import path from "node:path";
 import { messageKindOf, messagePrefix, messageRole, messageTokens } from "../components/ui/toast";
 import { rpcErrJa } from "../lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生 RPC 語の共通写像
 import { payStatusCellOf } from "../lib/nox/payroll/ui-calc"; // ★便 X-7: 状態列の文言（純関数）
+import { paymentMethodLabelOf } from "../lib/nox/payroll/payment-method"; // ★裁定311-①
+import { payoutDiffNoteOf, CASH_PAYOUT_LABELS } from "../lib/nox/report/cash-payout"; // ★裁定311-②／④
 
 let pass = 0;
 const fails: string[] = [];
@@ -89,6 +91,15 @@ check("ms(2-3) shift-board: 期間フォームの成否はカード内（pMsg→
 check("ms(2-4) shift-board: 調整モーダルはタブ 2 つ（出退勤／確定シフトの時間）・注記『給与に反映されます』『打刻は変わりません・給与は動きません』・行の『を修正』リンク 0・修正は PunchCorrectionForm", /確定シフトの時間を調整/.test(shiftSrc) && /給与に反映されます/.test(shiftSrc) && /打刻は変わりません・給与は動きません/.test(shiftSrc) && !/{KIND_LABEL[k]}を修正/.test(shiftSrc) && !/PunchCorrectionModal/.test(shiftSrc) && /<PunchCorrectionForm/.test(shiftSrc) && /role="tablist" aria-label="調整の対象"/.test(shiftSrc));
 // ★便 X-7（2026-09-28）: キャスト行「状態」＝run の status と整合（paid→支払済・部分払い→一部 ¥残・他→未払・cp なし→未確定）
 check("ms(2-5) payStatusCellOf: paid→支払済／一部 ¥残（net−Σpaid）／未払／未確定／全額→支払済", payStatusCellOf("paid", { net: 100, paid: 0 }).label === "支払済" && payStatusCellOf("finalized", { net: 10000, paid: 4000 }).label === "一部 ¥6,000" && payStatusCellOf("finalized", { net: 100, paid: 0 }).label === "未払" && payStatusCellOf("draft", null).label === "未確定" && payStatusCellOf("finalized", { net: 100, paid: 100 }).label === "支払済" && payStatusCellOf("finalized", { net: 10000, paid: 4000 }).tone === "part");
+
+// ★裁定311（2026-09-28・便 Y）: ①method 選択式（null／other→その他・cash→現金・transfer→振込・旧自由文はそのまま）②④注記「集計 ¥n と差 ±¥m」・内訳 4 語 ③履歴
+const paySrc = fs.readFileSync("app/(manage)/payroll/payment-panel.tsx", "utf8");
+const reportSrc = fs.readFileSync("app/(manage)/report/report-board.tsx", "utf8");
+check("ms(2-6) 裁定311: paymentMethodLabelOf／payoutDiffNoteOf の文言・payment-panel は select（自由入力 placeholder 0）＋履歴・report-board は内訳 4 語＋注記",
+  paymentMethodLabelOf(null) === "その他" && paymentMethodLabelOf("other") === "その他" && paymentMethodLabelOf("cash") === "現金" && paymentMethodLabelOf("transfer") === "振込" && paymentMethodLabelOf("振込済") === "振込済"
+  && payoutDiffNoteOf(1000, 1000) === null && payoutDiffNoteOf(1000, 800) === "集計 ¥1,000 と差 −¥200" && payoutDiffNoteOf(1000, 1500) === "集計 ¥1,000 と差 +¥500"
+  && paySrc.includes('<select value={pmethod[l.castId] ?? "cash"}') && !paySrc.includes("方法(振込等)") && paySrc.includes("支払履歴（{period}）") && paySrc.includes("paymentMethodLabelOf(h.method)")
+  && reportSrc.includes("payoutDiffNoteOf(total, payout)") && reportSrc.includes("cashPayoutRowsOf(payoutParts)") && ["送り実費", "前借り", "日払い", "給与支払（現金）"].every((w) => Object.values(CASH_PAYOUT_LABELS).includes(w)));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
