@@ -72,8 +72,8 @@ check("nv(4-4) CSS: 選択中の下タブ＝上辺の線＋太字（.nox-nav-bot
 const ccGrp = MASTER_NAV.find((g) => g.key === "cast-comp"), stGrp = MASTER_NAV.find((g) => g.key === "store");
 check("nv(5-1) MASTER_NAV キャスト・報酬群のタブ列＝概要／待遇プラン／控除・送り／ノルマ／キャスト会計／報酬制度／紹介者（紹介者は報酬制度の隣・href /master/referrers）",
   JSON.stringify(ccGrp?.pages.map((p) => p.label)) === JSON.stringify(["概要", "待遇プラン", "控除・送り", "ノルマ", "キャスト会計", "報酬制度", "紹介者"]) && ccGrp?.pages[6]?.href === "/master/referrers", JSON.stringify(ccGrp?.pages.map((p) => p.label)));
-check("nv(5-2) MASTER_NAV 店舗・端末群＝席・卓／営業時間／スタッフ・システム（紹介者は無い＝移動済み）・全群で /master/referrers は 1 回",
-  JSON.stringify(stGrp?.pages.map((p) => p.label)) === JSON.stringify(["席・卓", "営業時間", "スタッフ・システム"]) && MASTER_NAV.flatMap((g) => g.pages).filter((p) => p.href === "/master/referrers").length === 1, JSON.stringify(stGrp?.pages.map((p) => p.label)));
+check("nv(5-2) MASTER_NAV 店舗・端末群＝席・卓／店舗情報／営業時間／スタッフ・システム（紹介者は無い＝移動済み・店舗情報は起票86＝便 V-7）・全群で /master/referrers は 1 回",
+  JSON.stringify(stGrp?.pages.map((p) => p.label)) === JSON.stringify(["席・卓", "店舗情報", "営業時間", "スタッフ・システム"]) && stGrp?.pages.find((p) => p.label === "店舗情報")?.href === "/master/store-profile" && MASTER_NAV.flatMap((g) => g.pages).filter((p) => p.href === "/master/referrers").length === 1, JSON.stringify(stGrp?.pages.map((p) => p.label)));
 const mb = fs.readFileSync("app/(manage)/master/master-board.tsx", "utf8");
 const sec = mb.slice(mb.indexOf('sec: "キャスト・報酬"'), mb.indexOf('sec: "店舗・運用"'));
 const titles = [...sec.matchAll(/title: "([^"]+)"/g)].map((m) => m[1]);

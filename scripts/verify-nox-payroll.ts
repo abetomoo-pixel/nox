@@ -137,7 +137,7 @@ async function main() {
       }
     }
     if (castIds.length) {
-      for (const t of ["punches", "shifts", "attendance", "cast_plan", "cast_tax_profiles", "cast_norms"]) {
+      for (const t of ["punches", "shifts", "attendance", "cast_plan", "cast_tax_profiles", "cast_norms", "daily_pays"]) { // ★0156: daily_pays（cast FK）
         await admin.from(t).delete().in("cast_id", castIds);
       }
       await admin.from("casts").delete().in("id", castIds);
@@ -148,6 +148,7 @@ async function main() {
     const planIds = (pls ?? []).map((r) => r.id as string);
     if (planIds.length) await admin.from("comp_plan_components").delete().in("plan_id", planIds);
     await admin.from("comp_plans").delete().in("name", PLANS);
+    await admin.from("deductions").delete().eq("store_id", storeA1Id).like("name", "NOX-VERIFY-0156-%"); // ★0156 段の固定控除 fixture（override 行は run 削除で cascade）
     // #32 incentive（2026-11 隔離）
     await admin.from("attendance_incentives").delete().eq("store_id", storeA1Id).gte("biz_date", "2026-11-01").lte("biz_date", "2026-11-30");
   }
@@ -1738,6 +1739,50 @@ async function main() {
     } finally {
       await pg.end().catch(() => undefined);
     }
+  }
+
+  // ── ★0156（裁定309-6／309-8・便 V-9）: collect 結線＝daily_pays（日払い済み行＋源泉差引）と payroll_run_deduction_overrides（控除 ON/OFF・金額上書き）──
+  //   fixture は自前で消す（deductions 名＝NOX-VERIFY-0156-*・daily_pays idem・override 行）。run は A1×P の既存行（無ければ draft を admin で挿入）。
+  {
+    const DED_NAME = "NOX-VERIFY-0156-固定控除";
+    const { data: runP } = await admin.from("payroll_runs").select("id").eq("store_id", storeA1Id).eq("period", P).maybeSingle();
+    let runIdP = runP?.id as string | undefined;
+    if (!runIdP) {
+      const { data: ins } = await admin.from("payroll_runs").insert({ org_id: orgAId, store_id: storeA1Id, period: P, status: "draft", created_by: actorId }).select("id").single();
+      runIdP = ins!.id as string;
+    }
+    const rowOf = async () => (await computePayrollDraft(admin, manager, storeA1Id, P, { previewDefaults: true })).rows.find((r) => r.castId === p1)!;
+    const r0 = await rowOf();
+    check("段0156-0 前提: p1 行あり・日払い 0 件・上書き 0 件", !!r0 && r0.dailyN === 0 && r0.deductionOverridesApplied.length === 0, JSON.stringify({ n: r0?.dailyN, ov: r0?.deductionOverridesApplied?.length }));
+    const { data: ded, error: eD } = await admin.from("deductions").insert({ org_id: orgAId, store_id: storeA1Id, name: DED_NAME, amount: 3000, per: "month", is_active: true }).select("id").single();
+    if (eD) throw new Error(`deductions insert: ${eD.message}`);
+    const dedId = ded!.id as string;
+    const r1 = await rowOf();
+    check("段0156-1 固定控除 month 3000 を足すと fixedDed が +3000", r1.pay.fixedDed === r0.pay.fixedDed + 3000, `${r0.pay.fixedDed}→${r1.pay.fixedDed}`);
+    // 日払い 1 行（gross 10000・源泉 510＝floor((10000−5000)×0.1021)＝daily_pay_issue と同値・委託）＋上書き enabled=false
+    const dpIdem = randomUUID();
+    const { error: eDP } = await admin.from("daily_pays").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: p1, biz_date: "2026-09-10", gross: 10000, withholding: 510, withholding_category: "委託", net: 9490, paid_by: actorId, idem_key: dpIdem });
+    if (eDP) throw new Error(`daily_pays insert: ${eDP.message}`);
+    const { error: eOV } = await admin.from("payroll_run_deduction_overrides").insert({ org_id: orgAId, store_id: storeA1Id, run_id: runIdP, cast_id: p1, deduction_id: dedId, enabled: false, amount_override: null, set_by: actorId });
+    if (eOV) throw new Error(`overrides insert: ${eOV.message}`);
+    const d2 = await computePayrollDraft(admin, manager, storeA1Id, P, { previewDefaults: true });
+    const r2 = d2.rows.find((r) => r.castId === p1)!;
+    check("段0156-2 日払い済み: dailyPaidGross=10000・dailyWithheld=510・dailyN=1（pay にも同値）", r2.dailyPaidGross === 10000 && r2.dailyWithheld === 510 && r2.dailyN === 1 && r2.pay.dailyPaidGross === 10000 && r2.pay.dailyWithheld === 510, JSON.stringify({ g: r2.dailyPaidGross, w: r2.dailyWithheld, n: r2.dailyN, pg: r2.pay.dailyPaidGross }));
+    check("段0156-3 源泉差引: withholding = max(0, 元 − 510)", r2.pay.withholding === Math.max(0, r1.pay.withholding - 510), `${r1.pay.withholding}→${r2.pay.withholding}`);
+    const short = Math.max(0, 510 - r1.pay.withholding);
+    check("段0156-4 超過 warn は short>0 のときだけ（kind=daily_withholding_exceeds・dailyWithholdingShort 一致）", d2.warnings.some((w) => w.castId === p1 && w.kind === "daily_withholding_exceeds") === (short > 0) && (r2.pay.dailyWithholdingShort ?? 0) === short, JSON.stringify({ short, ws: d2.warnings.filter((w) => w.castId === p1).map((w) => w.kind) }));
+    check("段0156-5 控除 OFF の上書き: fixedDed が元（控除なし）に戻る・applied に enabled=false が載る", r2.pay.fixedDed === r0.pay.fixedDed && r2.deductionOverridesApplied.some((o) => o.deductionId === dedId && o.enabled === false), JSON.stringify({ fd: r2.pay.fixedDed, ov: r2.deductionOverridesApplied }));
+    check("段0156-6 net 恒等: net = 元 net − 日払い 10000 ＋ 源泉の差引分 ＋ 控除 OFF の 3000", r2.net === r1.net - 10000 + (r1.pay.withholding - r2.pay.withholding) + 3000, `${r1.net}→${r2.net}`);
+    // 金額上書き 1000（enabled=true）
+    await admin.from("payroll_run_deduction_overrides").update({ enabled: true, amount_override: 1000 }).eq("run_id", runIdP).eq("cast_id", p1).eq("deduction_id", dedId);
+    const r3 = await rowOf();
+    check("段0156-7 金額上書き 1000: fixedDed = 元 + 1000・applied に amountOverride=1000", r3.pay.fixedDed === r0.pay.fixedDed + 1000 && r3.deductionOverridesApplied.some((o) => o.deductionId === dedId && o.enabled && o.amountOverride === 1000), JSON.stringify({ fd: r3.pay.fixedDed, ov: r3.deductionOverridesApplied }));
+    // 自前で消す → 元に戻る
+    await admin.from("payroll_run_deduction_overrides").delete().eq("run_id", runIdP).eq("deduction_id", dedId);
+    await admin.from("daily_pays").delete().eq("idem_key", dpIdem);
+    await admin.from("deductions").delete().eq("id", dedId);
+    const r4 = await rowOf();
+    check("段0156-8 fixture 撤去後は元に戻る（fixedDed・withholding・net・dailyN=0・上書き 0）", r4.pay.fixedDed === r0.pay.fixedDed && r4.pay.withholding === r0.pay.withholding && r4.net === r0.net && r4.dailyN === 0 && r4.deductionOverridesApplied.length === 0, JSON.stringify({ fd: [r0.pay.fixedDed, r4.pay.fixedDed], wh: [r0.pay.withholding, r4.pay.withholding], net: [r0.net, r4.net] }));
   }
 
   await teardown();

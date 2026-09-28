@@ -38,6 +38,8 @@ check("ms(1b-3) rpcErrJa: 0151 の新語（reason required／biz_date_past／gua
 check("ms(1b-4) rpcErrJa: 写像後の文言は messageKindOf で error に倒れる（赤で出る）", ["bad name", "exceeds balance", "forbidden", "weird_code_x"].every((c) => messageKindOf(rpcErrJa(c)) === "error"));
 // ★0155（裁定309・便 S-2）: 'ar disabled'（店設定 ar_enabled=false の売掛）は「この店では売掛を使えません」＝二重防御の文言。廃棄・匿名化の 2 語も同便で写像
 check("ms(1b-5) rpcErrJa: 0155 の新語（ar disabled／no mynumber／already anonymized）が利用者向けの日本語に・error に倒れる", rpcErrJa("ar disabled") === "この店では売掛を使えません" && /マイナンバー/.test(rpcErrJa("no mynumber")) && /匿名化/.test(rpcErrJa("already anonymized")) && ["ar disabled", "no mynumber", "already anonymized"].every((c) => messageKindOf(rpcErrJa(c)) === "error"));
+// ★0156（裁定309-6〜9・便 V）: 日払い（paid period）・控除上書き（bad enabled／bad deduction／bad cast）・送り一括（okuri not actual／duplicate cast）
+check("ms(1b-6) rpcErrJa: 0156 の新語 6 語が利用者向けの日本語に・error に倒れる", /支払済み/.test(rpcErrJa("paid period")) && /ON／OFF/.test(rpcErrJa("bad enabled")) && /固定控除/.test(rpcErrJa("bad deduction")) && /所属/.test(rpcErrJa("bad cast")) && /定額/.test(rpcErrJa("okuri not actual")) && /2 回以上/.test(rpcErrJa("duplicate cast")) && ["paid period", "bad enabled", "bad deduction", "bad cast", "okuri not actual", "duplicate cast"].every((c) => messageKindOf(rpcErrJa(c)) === "error"));
 
 // (2) 許可列挙型 pin（素の描画 0）
 // 除外: 共通部品自身／kiosk の打刻結果画面（app/kiosk/page.tsx L233 `{result.message}`＝全画面の結果表示・裁定11 の kiosk 面＝メッセージ枠ではない）
