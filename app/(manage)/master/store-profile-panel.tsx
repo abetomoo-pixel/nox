@@ -14,8 +14,8 @@ import StoreFlagToggle, { storeProfileErrJa } from "./store-flag-toggle";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
-type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）
-const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5" };
+type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）
+const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
@@ -43,6 +43,7 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
       shift_cast_confirm: sj.shift_cast_confirm === true,
       customer_purpose: typeof sj.customer_purpose === "string" ? sj.customer_purpose : "", // ★0153
       customer_retention_years: typeof sj.customer_retention_years === "number" ? String(sj.customer_retention_years) : "5", // ★0153: 既定 5
+      ar_enabled: sj.ar_enabled === true, // ★0155（裁定309-1）: 既存店は 0155 で true・新規店はキー無し＝false（サーバの ar_policy_ok と同じ既定）
     };
     setCur(p); setForm(p); setLoaded(true);
   }, [storeSel]);
@@ -132,6 +133,23 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
             initial={cur.shift_cast_confirm} onSaved={() => load()} />
         )}
       </section>
+
+      {/* ★0155（裁定309-1／309-2・便 S-1）: 売掛の店設定（settings_json.ar_enabled＝check_pay の ar 分岐が ar_policy_ok で読む）＋操作ログ保持の注記（7 年固定＝店設定にしない）。
+          owner 以外は節ごと未描画（S-6）＝RPC も auth_role()<>'owner' で forbidden（表示ゲートは二重防御の外側）。 */}
+      {isOwner && (
+        <section className="nox-cardtop" style={t.card}>
+          <h2 style={{ ...secTitle, margin: "0 0 8px" }}>売掛・記録の保持</h2>
+          {loaded && (
+            <StoreFlagToggle key={`${storeSel}:ar:${cur.ar_enabled}`} storeId={storeSel} flagKey="ar_enabled" isOwner={isOwner}
+              label="売掛を使う"
+              desc="OFF の店ではレジの支払方法に「売掛」が出ず、サーバ側でも売掛の入金を拒否します（既存の売掛の回収はそのまま行えます）"
+              initial={cur.ar_enabled} onSaved={() => load()} />
+          )}
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
+            操作ログの保持: <b style={{ color: "var(--v2-text)" }}>7 年（固定）</b>。7 年を過ぎた操作ログは運用者が定期的に削除し、削除した件数と期間だけが記録に残ります（店ごとの変更はできません）。
+          </p>
+        </section>
+      )}
     </>
   );
 }

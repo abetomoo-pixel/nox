@@ -386,6 +386,7 @@ export default function RegisterBoard({
   const [rcptMsg, setRcptMsg] = useState<string | null>(null);
   const [storeName, setStoreName] = useState("");
   const [invoiceRegNo, setInvoiceRegNo] = useState(""); // 適格請求書の登録番号（settings_json.invoice_reg_no・空=行を出さない）
+  const [arEnabled, setArEnabled] = useState(false); // ★0155（裁定309-1・便 S-2）: settings_json.ar_enabled＝false の店は支払方法「売掛」を出さない（サーバの 'ar disabled' が本体＝二重防御）
   const [checkSeats, setCheckSeats] = useState<CheckSeatRow[]>([]);
   const [seatMsg, setSeatMsgRaw] = useState<string | null>(null);
   const setSeatMsg = useCallback((m: string | null) => setSeatMsgRaw(m == null ? m : c3ErrJa(m)), []); // ★C層③ 写像
@@ -688,6 +689,10 @@ export default function RegisterBoard({
       if (alive) {
         setStoreName((data?.name as string | undefined) ?? "");
         setInvoiceRegNo(((data?.settings_json as Record<string, unknown> | null)?.invoice_reg_no as string | undefined) ?? "");
+        // ★0155（裁定309-1）: 売掛の店設定（キー無し＝false＝新規店の既定「不可」・ar_policy_ok と同じ読み）
+        const ar = (data?.settings_json as Record<string, unknown> | null)?.ar_enabled === true;
+        setArEnabled(ar);
+        if (!ar) setPayMethod((m) => (m === "ar" ? "cash" : m));
         // ★B3: 営業日の判定に使う cutoff（report と同じ既定 06:00）
         const bc = (data?.settings_json as Record<string, unknown> | null)?.biz_cutoff_hm;
         setCutoffHm(typeof bc === "string" && bc ? bc : "06:00");
@@ -1834,7 +1839,8 @@ export default function RegisterBoard({
             )}
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)", marginBottom: 6 }}>支払方法</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-              {Object.entries(METHOD_LABEL).map(([v, l]) => (
+              {/* ★0155（裁定309-1・便 S-2）: ar_enabled=false の店は「売掛」を描画しない（4 値の語彙は不変・payments_method_check も不変） */}
+              {Object.entries(METHOD_LABEL).filter(([v]) => v !== "ar" || arEnabled).map(([v, l]) => (
                 <button key={v} type="button"
                   style={payMethod === v ? { ...t.btnGold, justifyContent: "center", padding: "12px" } : { ...t.btnGhost, justifyContent: "center", padding: "12px" }}
                   onClick={() => { setPayMethod(v); if (!DETAIL_METHODS.has(v)) setPayDetail(""); }}>

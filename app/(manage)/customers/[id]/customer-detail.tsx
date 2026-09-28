@@ -18,10 +18,12 @@ import Modal from "@/components/ui/modal"; // ★裁定253 R7: 顧客編集は�
 import Picker from "@/components/nox/picker";
 
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0155（便 S-4）: 'already anonymized'／'bad reason'／'forbidden' の日本語化
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
 type CustRow = {
   id: string; store_id: string; name: string; furigana: string | null; birthday: string | null;
   tel: string | null; prefs: string | null; memo: string | null; cast_id: string | null; is_active: boolean;
+  anonymized_at: string | null; // ★0155（裁定309-4）: 非 null＝匿名化済み（編集・担当変更・メモ追加は不可）
 };
 type Summary = {
   customer_id: string; visits: number; last_visit: string | null; total_spend: number;
@@ -55,10 +57,15 @@ function daysSince(iso: string): number {
 }
 
 export default function CustomerDetail({
-  customerId, casts, canAssign,
+  customerId, casts, canAssign, isOwner = false,
 }: {
-  customerId: string; casts: Cast[]; canAssign: boolean;
+  customerId: string; casts: Cast[]; canAssign: boolean; isOwner?: boolean; // ★0155（裁定309-4・便 S-4）: 匿名化は owner のみ（節ごと未描画＝S-6）
 }) {
+  // ★0155（裁定309-4／309 追補1 (c)(d)）: 匿名化（customer_anonymize＝owner のみ・理由必須 ≤200・元に戻せない）
+  const [anonOpen, setAnonOpen] = useState(false);
+  const [anonReason, setAnonReason] = useState("");
+  const [anonBusy, setAnonBusy] = useState(false);
+  const [anonMsg, setAnonMsg] = useState<string | null>(null);
   const [cust, setCust] = useState<CustRow | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -104,7 +111,7 @@ export default function CustomerDetail({
     setErr(null);
     const { data: c, error: eC } = await supabase
       .from("customers")
-      .select("id, store_id, name, furigana, birthday, tel, prefs, memo, cast_id, is_active")
+      .select("id, store_id, name, furigana, birthday, tel, prefs, memo, cast_id, is_active, anonymized_at")
       .eq("id", customerId)
       .maybeSingle();
     if (eC || !c) { setErr("顧客が見つかりません"); setCust(null); return; }
@@ -197,6 +204,19 @@ export default function CustomerDetail({
     await load();
   }
 
+  // ★0155（裁定309-4・便 S-4）: 匿名化（owner のみ・理由必須・成功後は再読取＝名前「削除済み顧客」・is_active false・anonymized_at）
+  async function anonymize() {
+    if (!cust || anonReason.trim() === "") return;
+    setAnonBusy(true); setAnonMsg(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("customer_anonymize", { p_customer_id: cust.id, p_reason: anonReason.trim() });
+    setAnonBusy(false);
+    if (error) { setAnonMsg(`匿名化に失敗: ${rpcErrJa(error.message)}`); return; }
+    setAnonOpen(false); setAnonReason("");
+    setAnonMsg("匿名化しました（名前・連絡先・メモを消去し、記録を残しました）");
+    await load();
+  }
+
   if (err) {
     return (
       <div>
@@ -215,14 +235,15 @@ export default function CustomerDetail({
         <Link href="/customers" className="nox-link" style={{ fontSize: 12 }}>← 顧客一覧</Link>
         <h1 style={{ ...t.pheadH1, marginTop: 4, display: "flex", alignItems: "center", gap: 9 }}>
           {cust.name}
-          {!cust.is_active && <span style={dormantPill}>休眠</span>}
+          {!cust.is_active && !cust.anonymized_at && <span style={dormantPill}>休眠</span>}
+          {cust.anonymized_at && <span style={{ ...dormantPill, color: "var(--bad)" }}>削除済み顧客（匿名化 {new Date(cust.anonymized_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" })}）</span>}
         </h1>
         <p style={{ ...t.pheadP, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span>
             {cust.furigana ? `${cust.furigana}・` : ""}担当 {castName(cust.cast_id)}
             {cust.tel ? `・${cust.tel}` : ""}
           </span>
-          {canAssign && (
+          {canAssign && !cust.anonymized_at && (
             <button
               style={{ ...t.btnGhost, ...t.btnSm }}
               onClick={() => (assignOpen ? setAssignOpen(false) : openAssign())}
@@ -346,14 +367,53 @@ export default function CustomerDetail({
         ))}
       </section>
 
+      {/* ★0155（裁定309-4／309 追補1・便 S-4）: 匿名化（owner のみ描画＝S-6・RPC も owner 限定）。物理削除はしない＝来店履歴・売掛の記録は残る */}
+      {isOwner && (
+        <section className="nox-cardtop" style={t.card}>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <h2 style={{ ...secTitle, margin: 0 }}>匿名化（保持期限の履行）</h2>
+            {!cust.anonymized_at && (
+              <button style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto", color: "var(--bad)" }} onClick={() => { setAnonReason(""); setAnonMsg(null); setAnonOpen(true); }}>匿名化</button>
+            )}
+          </div>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0", lineHeight: 1.7 }}>
+            名前を「削除済み顧客」に置き換え、ふりがな・電話・誕生日・好み・備考とメモ履歴を消去します。来店履歴・売掛の記録は残ります。元に戻せません。
+          </p>
+          {cust.anonymized_at && (
+            <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "8px 0 0" }}>匿名化済み <span className="num">{new Date(cust.anonymized_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" })}</span></p>
+          )}
+          {anonMsg && <Toast msg={anonMsg} style={{ margin: "8px 0 0" }} />}
+          {anonOpen && (
+            <Modal onClose={() => !anonBusy && setAnonOpen(false)} maxWidth={460}>
+              <div className="nox-formmodal-head">
+                <strong>{cust.name} を匿名化</strong>
+                <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !anonBusy && setAnonOpen(false)}>×</button>
+              </div>
+              <Message kind="warn" style={{ margin: "4px 0 10px" }}>元に戻せません。名前・連絡先・メモ履歴が消え、以後この顧客は編集できなくなります。</Message>
+              <label style={t.fieldLabel}>理由（必須・200 文字まで）</label>
+              <input value={anonReason} onChange={(e) => setAnonReason(e.target.value)} maxLength={200} disabled={anonBusy}
+                placeholder="例: 保持期限の到来（最終来店から 5 年）" style={{ ...input, width: "100%", marginTop: 4 }} />
+              <div className="nox-formmodal-foot">
+                <button style={{ ...t.btnGhost, ...t.btnSm }} disabled={anonBusy} onClick={() => setAnonOpen(false)}>キャンセル</button>
+                <button style={{ ...t.btnGold, opacity: anonBusy || anonReason.trim() === "" ? 0.6 : 1 }} disabled={anonBusy || anonReason.trim() === ""} onClick={() => void anonymize()}>
+                  {anonBusy ? "匿名化中…" : "匿名化する"}
+                </button>
+              </div>
+            </Modal>
+          )}
+        </section>
+      )}
+
       <section className="nox-cardtop" style={t.card}>
         {/* ★裁定253 R7（2026-09-14）: 編集フォームはインライン展開をやめ共通 Modal へ（項目・customer_update の引数は不変）。ボタンは開くだけ */}
         <div style={{ display: "flex", alignItems: "center" }}>
           <h2 style={{ ...secTitle, margin: 0 }}>編集</h2>
-          <button style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} onClick={openEdit}>編集</button>
+          {!cust.anonymized_at && <button style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} onClick={openEdit}>編集</button>}
         </div>
+        {/* ★0155（裁定309-4）: 匿名化済みは編集不可（RPC 側の拒否は無い＝表示で閉じる・名前は「削除済み顧客」のまま） */}
+        {cust.anonymized_at && <Message kind="info" style={{ margin: "8px 0 0" }}>削除済み顧客のため編集できません。</Message>}
         {msg && <Toast msg={msg} style={{ margin: "8px 0 0" }} />}
-        {editOpen && (
+        {editOpen && !cust.anonymized_at && (
           <Modal onClose={() => !busy && setEditOpen(false)} maxWidth={480} scroll>
           <div className="nox-formmodal-head">
             <strong>{cust?.name ?? "顧客"} を編集</strong>

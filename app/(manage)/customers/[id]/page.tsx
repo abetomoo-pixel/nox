@@ -26,6 +26,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       customerId={id}
       casts={(casts ?? []) as { id: string; name: string; store_id: string; is_active: boolean }[]}
       canAssign={isManagerUp}
+      isOwner={role === "owner"}
     />
   );
 }

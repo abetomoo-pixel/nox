@@ -20,6 +20,8 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import Modal from "@/components/ui/modal"; // ★0155（裁定309-3・便 S-3）: 廃棄の確認ダイアログ
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0155: 'no mynumber'／'bad reason'／'forbidden' の日本語化
 type Cast = { id: string; name: string };
 type Store = { id: string; name: string };
 
@@ -58,6 +60,11 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
   const [mynumber, setMynumber] = useState(""); // 平文入力・空=変更なし（保存後は必ずクリア）
   const [mynumberSet, setMynumberSet] = useState(false);
   const [revealed, setRevealed] = useState<string | null>(null); // 支払調書・一時表示
+  // ★0155（裁定309-3・便 S-3）: 廃棄（cast_mynumber_discard＝owner のみ・理由必須 ≤200）＋廃棄済み表示（audit_logs の 'cast_mynumber_discard'＝cast_sensitive は grant 0 ゆえ列を直読しない）
+  const [discarded, setDiscarded] = useState<{ at: string; method: string } | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [discardReason, setDiscardReason] = useState("");
+  const [discardBusy, setDiscardBusy] = useState(false);
   // 読込成功フラグ。set_* は real_name/birthday/mode/invoice/reg_no を無条件上書きするため、
   // 「現在の cast の現値を確かに読めた」ときだけ保存を許可＝読込エラー時に別 cast の残値を blind write する事故を封じる。
   const [sensitiveReady, setSensitiveReady] = useState(false);
@@ -102,7 +109,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
     setRevealed(null);
     setMynumber("");
     // cast 切替時・読込前に必ず初期化＝直前 cast の値が残って別 cast に上書き保存される事故を防ぐ。
-    setRealName(""); setBirthday(""); setMynumberSet(false);
+    setRealName(""); setBirthday(""); setMynumberSet(false); setDiscarded(null); setDiscardOpen(false); setDiscardReason("");
     setMode("委託"); setInvoice(""); setRegNo("");
     setSensitiveReady(false); setTaxReady(false);
     if (!castId) return;
@@ -116,6 +123,12 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
         setBirthday(row?.birthday ?? "");
         setMynumberSet(row?.mynumber_set === true);
         setSensitiveReady(true);
+        // ★0155（裁定309-3）: 廃棄済みなら日付と方法（after_json.method）を audit から拾う（+1・owner のみ audit_logs を読める）
+        const { data: dl } = await supabase.from("audit_logs").select("at, after_json")
+          .eq("action", "cast_mynumber_discard").eq("target", `cast_sensitive:${castId}`)
+          .order("at", { ascending: false }).limit(1);
+        const d0 = (dl ?? [])[0] as { at: string; after_json: { method?: string } | null } | undefined;
+        setDiscarded(d0 ? { at: d0.at, method: d0.after_json?.method ?? "overwrite_null" } : null);
       }
     }
     // 税務（cast_tax_profiles はパターン2＝manager+ 可視・直 SELECT で現状を読む）。成功時のみ ready。
@@ -183,6 +196,18 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
     setRevealed(j.mynumber ?? "（未登録）");
   }
 
+  // ★0155（裁定309-3・便 S-3）: 廃棄（owner のみ・理由必須・成功後は再読取＝mynumber_set false＋廃棄済み表示）
+  async function discardMynumber() {
+    if (!castId || discardReason.trim() === "") return;
+    setDiscardBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("cast_mynumber_discard", { p_cast_id: castId, p_reason: discardReason.trim() });
+    setDiscardBusy(false);
+    if (error) { setMsg(`廃棄に失敗: ${rpcErrJa(error.message)}`); return; }
+    setDiscardOpen(false); setDiscardReason("");
+    setMsg("マイナンバーを廃棄しました（暗号文を消去し、廃棄の記録を残しました）");
+    await load();
+  }
+
   // 閲覧履歴の写像（target='cast_sensitive:<cast_id>'＝A-6 実測）。
   const castNameOf = (target: string): string => {
     const id = target.split(":")[1] ?? "";
@@ -245,14 +270,22 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
                 <div style={{ gridColumn: "1 / -1" }}>
                   <span style={label}>マイナンバー</span>
                   {mynumberSet && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0 6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0 6px", flexWrap: "wrap" }}>
                       {revealed ? (
                         <span style={{ fontFamily: "monospace", fontSize: 14, background: "var(--bg2)", color: "var(--champ)", border: "1px solid var(--line2)", padding: "2px 8px", borderRadius: 4 }}>{revealed}</span>
                       ) : (
                         <span className="num" style={{ letterSpacing: 2, color: "var(--sub)" }}>•••• •••• ••••</span>
                       )}
                       <button onClick={reveal} disabled={!castId} style={btnLight}>表示</button>
+                      {/* ★0155（裁定309-3・便 S-3）: 廃棄＝確認ダイアログ（理由必須 ≤200）→ cast_mynumber_discard（owner のみ・暗号文を消去し廃棄日時・実行者・方法を記録） */}
+                      <button type="button" onClick={() => { setDiscardReason(""); setDiscardOpen(true); }} disabled={!castId || !sensitiveReady}
+                        style={{ ...btnLight, color: "var(--bad)" }}>廃棄</button>
                     </div>
+                  )}
+                  {!mynumberSet && discarded && (
+                    <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 6px" }}>
+                      廃棄済み {new Date(discarded.at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" })}（方法: {discarded.method}）
+                    </p>
                   )}
                   <input value={mynumber} onChange={(e) => setMynumber(e.target.value)}
                     placeholder={mynumberSet ? "登録済み（変更する場合のみ入力）" : "未登録"} inputMode="numeric" style={{ ...input, width: "100%" }} />
@@ -264,6 +297,24 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
               <div className="nox-actions" style={{ marginTop: 8 }}>
                 <button onClick={saveSensitive} disabled={!castId || !sensitiveReady} style={btnDark}>機密情報を保存</button>
               </div>
+              {discardOpen && (
+                <Modal onClose={() => !discardBusy && setDiscardOpen(false)} maxWidth={460}>
+                  <div className="nox-formmodal-head">
+                    <strong>マイナンバーを廃棄</strong>
+                    <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !discardBusy && setDiscardOpen(false)}>×</button>
+                  </div>
+                  <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "4px 0 10px", lineHeight: 1.7 }}>
+                    暗号化されたマイナンバーを消去し、廃棄日時・実行者・方法（overwrite_null）を記録します。元に戻せません。理由は必須です（200 文字まで）。
+                  </p>
+                  <input value={discardReason} onChange={(e) => setDiscardReason(e.target.value)} maxLength={200} disabled={discardBusy}
+                    placeholder="理由（例: 退店から 7 年経過・法定保存期間満了）" style={{ ...input, width: "100%" }} aria-label="廃棄の理由" />
+                  <div className="nox-formmodal-foot">
+                    <button type="button" style={btnLight} disabled={discardBusy} onClick={() => setDiscardOpen(false)}>キャンセル</button>
+                    <button type="button" style={{ ...btnDark, opacity: discardBusy || discardReason.trim() === "" ? 0.6 : 1 }} disabled={discardBusy || discardReason.trim() === ""}
+                      onClick={() => void discardMynumber()}>{discardBusy ? "廃棄中…" : "廃棄する"}</button>
+                  </div>
+                </Modal>
+              )}
             </div>
           )}
 

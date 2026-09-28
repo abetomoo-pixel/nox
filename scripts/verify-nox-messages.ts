@@ -36,6 +36,8 @@ check("ms(1b-1) rpcErrJa: 'bad name'／'exceeds balance'／'has payments' が利
 check("ms(1b-2) rpcErrJa: 写像に無い英字コードは「処理できませんでした（コード: xxx）」・日本語はそのまま・空は「処理できませんでした」", rpcErrJa("weird_code_x") === "処理できませんでした（コード: weird_code_x）" && rpcErrJa("保存に失敗しました") === "保存に失敗しました" && rpcErrJa(null) === "処理できませんでした");
 check("ms(1b-3) rpcErrJa: 0151 の新語（reason required／biz_date_past／guarantee exists／bad valid_from／bad valid_to／period_not_open）", /理由/.test(rpcErrJa("reason required")) && /過去の営業日/.test(rpcErrJa("biz_date_past")) && /保証時給/.test(rpcErrJa("guarantee exists")) && /開始日/.test(rpcErrJa("bad valid_from")) && /終了日/.test(rpcErrJa("bad valid_to")) && rpcErrJa("period_not_open") === "この日は募集期間外です");
 check("ms(1b-4) rpcErrJa: 写像後の文言は messageKindOf で error に倒れる（赤で出る）", ["bad name", "exceeds balance", "forbidden", "weird_code_x"].every((c) => messageKindOf(rpcErrJa(c)) === "error"));
+// ★0155（裁定309・便 S-2）: 'ar disabled'（店設定 ar_enabled=false の売掛）は「この店では売掛を使えません」＝二重防御の文言。廃棄・匿名化の 2 語も同便で写像
+check("ms(1b-5) rpcErrJa: 0155 の新語（ar disabled／no mynumber／already anonymized）が利用者向けの日本語に・error に倒れる", rpcErrJa("ar disabled") === "この店では売掛を使えません" && /マイナンバー/.test(rpcErrJa("no mynumber")) && /匿名化/.test(rpcErrJa("already anonymized")) && ["ar disabled", "no mynumber", "already anonymized"].every((c) => messageKindOf(rpcErrJa(c)) === "error"));
 
 // (2) 許可列挙型 pin（素の描画 0）
 // 除外: 共通部品自身／kiosk の打刻結果画面（app/kiosk/page.tsx L233 `{result.message}`＝全画面の結果表示・裁定11 の kiosk 面＝メッセージ枠ではない）

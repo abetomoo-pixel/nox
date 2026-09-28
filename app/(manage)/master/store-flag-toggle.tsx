@@ -9,7 +9,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
-export type StoreFlagKey = "ext_shimei_enabled" | "dohan_auto_hon" | "shift_cast_confirm" | "show_open_status";
+export type StoreFlagKey = "ext_shimei_enabled" | "dohan_auto_hon" | "shift_cast_confirm" | "show_open_status" | "ar_enabled"; // ★0155（裁定309-1）: ar_enabled（売掛を使う・owner のみ）
 
 /** set_store_profile の raise 文言 → 日本語（bad name 等は入力欄の制約・forbidden は owner 限定） */
 export function storeProfileErrJa(msg: string | undefined): string {

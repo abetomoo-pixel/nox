@@ -45,7 +45,10 @@ type Bottle = {
 type CustRow = {
   id: string; name: string; furigana: string | null; birthday: string | null; memo: string | null;
   tel: string | null; prefs: string | null; grade: string | null; store_id: string;
+  anonymized_at: string | null; // ★0155（裁定309-4）: 非 null＝匿名化済み（メモ追加不可・「削除済み顧客」表示）
 };
+// ★0155（裁定309-4・便 S-4）: 保持期限到来の候補（customer_anonymize_candidates＝owner のみ）
+type AnonCand = { customer_id: string; store_id: string; name: string; last_visit_at: string | null; retention_until: string; is_active: boolean };
 // E8-3 #8（mig0094）: 顧客メモ履歴（customer_notes・is_removed 除外で取得）
 type Note = { id: string; body: string; author_user_id: string | null; created_at: string };
 
@@ -81,6 +84,7 @@ export default function CustomersBoard({
   const [q, setQ] = useState("");
   const [incDormant, setIncDormant] = useState(false);  // B-3: 休眠込み（既定 OFF=従来・画面ローカル）
   const [sortOldest, setSortOldest] = useState(false);  // B-3: 掘り起こし順（休眠込み時のみ有効）
+  const [anonCands, setAnonCands] = useState<AnonCand[] | null>(null); // ★0155（裁定309-4）: 保持期限到来（owner のみ取得・null＝未取得）
   // ── 段U2: 右詳細ペイン（正本 nox-customers-redesign-mock-v1.html）──
   //   ★編集・担当割当は現行どおり /customers/[id] のまま＝ここは読取と導線だけ（機能/RPC 不変）。
   const [sel, setSel] = useState<string | null>(null);
@@ -136,7 +140,12 @@ export default function CustomersBoard({
     // E8-3 #2: 一覧バッジ用 grade（customers 直 select・RLS スコープ内・表示専用）
     const { data: gs } = await supabase.from("customers").select("id, grade").not("grade", "is", null);
     setGradeOf(Object.fromEntries(((gs ?? []) as { id: string; grade: string }[]).map((g) => [g.id, g.grade])));
-  }, [storeSel, incDormant]);
+    // ★0155（裁定309-4・便 S-4）: 保持期限到来の候補（owner のみ・+1・店絞りは一覧と同じ p_store_id）
+    if (isOwner) {
+      const { data: ac } = await supabase.rpc("customer_anonymize_candidates", { p_store_id: storeSel || null });
+      setAnonCands((ac ?? []) as AnonCand[]);
+    }
+  }, [storeSel, incDormant, isOwner]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -149,7 +158,7 @@ export default function CustomersBoard({
     const supabase = createClient();
     setDTrend(null);
     const [cRes, vRes, bRes, nRes] = await Promise.all([
-      supabase.from("customers").select("id, name, furigana, birthday, memo, tel, prefs, grade, store_id").eq("id", id).maybeSingle(),
+      supabase.from("customers").select("id, name, furigana, birthday, memo, tel, prefs, grade, store_id, anonymized_at").eq("id", id).maybeSingle(),
       supabase.rpc("customer_visit_history", { p_customer_id: id }),
       supabase.from("bottle_keeps").select("id, product_id, status, opened_at, note, remaining_pct, expires_on, shelf_no").eq("customer_id", id).order("created_at", { ascending: false }),
       // E8-3 #8: メモ履歴（is_removed 除外・新しい順。RLS で cast は 0行＝段51(14) 実測済み）
@@ -368,6 +377,33 @@ export default function CustomersBoard({
         </div>
       </div>
 
+      {/* ★0155（裁定309-4・便 S-4）: 保持期限到来（owner のみ描画＝S-6）。行の「詳細」→ /customers/[id] の匿名化節へ。自動化なし */}
+      {isOwner && (
+        <section className="nox-cardtop" style={{ ...t.card, marginBottom: 12 }}>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>保持期限到来（匿名化の候補）</h3>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
+            最終来店から店設定の保持年数を過ぎた顧客。匿名化は各顧客の詳細で行います（理由必須・元に戻せません）。
+          </p>
+          {anonCands === null ? (
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>読み込み中…</p>
+          ) : anonCands.length === 0 ? (
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>該当する顧客はいません。</p>
+          ) : (
+            <div style={{ display: "grid", gap: 6 }}>
+              {anonCands.map((c) => (
+                <div key={c.customer_id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", fontSize: 13, borderBottom: "1px solid var(--line)", padding: "4px 0" }}>
+                  <span style={{ fontWeight: 700 }}>{c.name}</span>
+                  <span style={{ fontSize: 11.5, color: "var(--sub)" }}>{stores.find((s) => s.id === c.store_id)?.name ?? "—"}</span>
+                  <span style={{ fontSize: 11.5, color: "var(--sub)" }}>最終来店 <span className="num">{c.last_visit_at ? fmtLastVisit(c.last_visit_at) : "—"}</span></span>
+                  <span style={{ fontSize: 11.5, color: "var(--bad)" }}>保持期限 <span className="num">{c.retention_until}</span></span>
+                  <Link href={`/customers/${c.customer_id}`} className="nox-link" style={{ marginLeft: "auto", fontSize: 12 }}>詳細 ›</Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* 段0R 第2陣: モック .toolbar＝検索＋セグメント＋右端の顧客登録を1行に（/casts と同じ nox-ctoolbar）。
           ★従来は「顧客一覧」見出し行の追加ボタン／セグメント／検索が縦に散っていたのを並べ替えただけで、
             送る RPC も引数も出し分け条件も1文字も変えていない。 */}
@@ -556,7 +592,10 @@ export default function CustomersBoard({
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CastAvatar name={selRow.name} size={44} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--v2-text)" }}>{selRow.name}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--v2-text)", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    {selRow.name}
+                    {dCust?.anonymized_at && <span className="nox-stpill" style={{ color: "var(--bad)" }}>削除済み顧客</span>}{/* ★0155（裁定309-4） */}
+                  </div>
                   <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>
                     {[dCust?.furigana, `担当：${castName(selRow.cast_id)}`,
                       dCust?.birthday ? `誕生日 ${fmtBirthday(dCust.birthday)}` : null]
@@ -694,12 +733,17 @@ export default function CustomersBoard({
               {isManagerUp || dNotes.length > 0 ? null : (
                 <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>メモはありません</p>
               )}
+              {/* ★0155（裁定309-4）: 匿名化済みはメモ追加不可（入力欄を描画しない） */}
+              {dCust?.anonymized_at ? (
+                <Message kind="info" style={{ marginBottom: 8 }}>削除済み顧客のためメモは追記できません。</Message>
+              ) : (
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                 <input value={noteBody} onChange={(e) => setNoteBody(e.target.value)} maxLength={2000}
                   placeholder="メモを追記（記入者・日時が残ります）" style={{ ...input, flex: 1 }} />
                 <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={!noteBody.trim()}
                   onClick={() => void noteAdd()}>追記</button>
               </div>
+              )}
               {dNotes.map((n) => (
                 <div key={n.id} style={{ borderBottom: "1px solid var(--v2-line)", padding: "6px 0", fontSize: 12.5 }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>

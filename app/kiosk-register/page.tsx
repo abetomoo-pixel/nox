@@ -150,6 +150,8 @@ export default function KioskRegisterPage() {
   const [payAmount, setPayAmount] = useState(0);
   const [payTendered, setPayTendered] = useState("");
   const [payDetail, setPayDetail] = useState("");
+  // ★0155（裁定309-10・便 S-5）: 伝票の顧客名＋active キープのボトル名のみ（kiosk_check_keeps＝305-4 と同一露出・電話・メモ・誕生日は返らない＝裁定11 の例外を本 RPC に限定）。表示のみ。
+  const [kioskKeeps, setKioskKeeps] = useState<{ customer_id: string; pos: number; name: string; bottle_names: string[] }[] | null>(null);
 
   // ローカル idle（表示＋自動ロックのみ・★このタイマーから RPC は呼ばない＝0059 (b) 契約）
   const lastActionRef = useRef<number>(Date.now());
@@ -230,6 +232,9 @@ export default function KioskRegisterPage() {
     const d = data as Detail;
     setDetail(d);
     setTimeCalc(null); setTimeMsg(null);
+    // ★0155（裁定309-10）: 顧客・キープの読取（+1・失敗は空扱い＝伝票操作は止めない）
+    const { data: kk } = await supabase.rpc("kiosk_check_keeps", { p_check_id: checkId });
+    setKioskKeeps((kk ?? []) as { customer_id: string; pos: number; name: string; bottle_names: string[] }[]);
     const w: Record<string, number> = {};
     const ks: Record<string, "hon" | "jonai" | "free"> = {};
     const ds: Record<string, boolean> = {};
@@ -801,6 +806,30 @@ export default function KioskRegisterPage() {
                   常に出るため split 常時＝空列は生じない（v2R の grid 教訓）。 */}
               <div className="nox-checkcols split">
                 <div>
+
+                {/* ★0155（裁定309-10・便 S-5）: 顧客・キープ＝kiosk_check_keeps の表示のみ（顧客名＋active キープのボトル名）。
+                    電話・メモ・誕生日はこの端末に出さない（現状維持）。キープを出す操作・顧客の追加は管理画面のレジで行う。 */}
+                <div className="nox-cardtop" style={card}>
+                  <h3 style={t.cardTitle}>顧客・キープ</h3>
+                  {kioskKeeps === null ? (
+                    <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>読み込み中…</p>
+                  ) : kioskKeeps.length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--sub)", margin: 0, lineHeight: 1.7 }}>この伝票に顧客は登録されていません。顧客の追加・キープ出しは管理画面のレジで行ってください。</p>
+                  ) : (
+                    <div style={{ display: "grid", gap: 6 }}>
+                      {kioskKeeps.map((k) => (
+                        <div key={k.customer_id} style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", fontSize: 13 }}>
+                          <span style={{ fontWeight: 700, color: "var(--v2-text)" }}>{k.name}</span>
+                          {k.pos === 0 && <span className="nox-stpill">代表</span>}
+                          <span style={{ fontSize: 12, color: "var(--sub)" }}>
+                            {k.bottle_names.length === 0 ? "キープなし" : `キープ: ${k.bottle_names.join("・")}`}
+                          </span>
+                        </div>
+                      ))}
+                      <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 0" }}>キープを出す操作は管理画面のレジで行ってください。</p>
+                    </div>
+                  )}
+                </div>
 
                 {/* 指名 */}
                 <div className="nox-cardtop" style={card}>

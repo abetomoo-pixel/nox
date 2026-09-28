@@ -213,6 +213,16 @@ export default function CastsBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { setGuaForm(null); setGuaMsg(null); }, [sel, dtab]); // 281-4: 選択・タブが変わったら節内のフォームと成否を消す
+  // ★0155（裁定309-3・便 S-3）: マイナンバーの廃棄候補（cast_mynumber_discard_candidates＝owner のみ・退店日の翌年 1/1 起算 7 年経過＋登録あり・全店）。owner 以外は取得も描画もしない（S-6）
+  const [discardCands, setDiscardCands] = useState<{ cast_id: string; store_id: string; name: string; left_on: string; due_on: string }[] | null>(null);
+  useEffect(() => {
+    if (!isOwner) return;
+    let alive = true;
+    void supabase.rpc("cast_mynumber_discard_candidates", { p_store_id: null })
+      .then(({ data }) => { if (alive) setDiscardCands((data ?? []) as { cast_id: string; store_id: string; name: string; left_on: string; due_on: string }[]); });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner]);
   // E8-5 casts#6（縮小）: 選択キャストの次回シフト（今日以降の最初の1行）
   useEffect(() => {
     setNextShift(null);
@@ -498,6 +508,36 @@ export default function CastsBoard({
         {/* ★裁定193（B1・K7）: モック KPI「メール未登録」（在籍のうち未招待 or email 未登録） */}
         <div className="nox-rs"><div className="l">メール未登録</div><div className="v num">{kpiNoEmail}名</div></div>
       </div>
+
+      {/* ★0155（裁定309-3・便 S-3）: 廃棄候補（owner のみ描画）。行の「詳細」で既存の詳細モーダルを開く。廃棄の操作はマスタ ▸ システム（機密・税務情報）で行う */}
+      {isOwner && (
+        <section className="nox-cardtop" style={{ ...card, marginBottom: 12 }}>
+          <h3 style={{ ...secTitle, margin: "0 0 4px" }}>マイナンバーの廃棄候補</h3>
+          <p style={{ ...t.sub, margin: "0 0 8px", lineHeight: 1.7 }}>
+            退店日の翌年 1 月 1 日から 7 年を過ぎ、マイナンバーの登録が残っているキャスト。廃棄は
+            <Link href="/master/system" className="nox-link">機密・税務情報</Link>
+            でキャストを選んで行います（理由必須・元に戻せません）。
+          </p>
+          {discardCands === null ? (
+            <p style={{ ...t.sub, margin: 0 }}>読み込み中…</p>
+          ) : discardCands.length === 0 ? (
+            <p style={{ ...t.sub, margin: 0 }}>該当するキャストはいません。</p>
+          ) : (
+            <div style={{ display: "grid", gap: 6 }}>
+              {discardCands.map((c) => (
+                <div key={c.cast_id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", fontSize: 13, borderBottom: "1px solid var(--line)", padding: "4px 0" }}>
+                  <span style={{ fontWeight: 700 }}>{c.name}</span>
+                  <span style={lbl}>{storeName(c.store_id)}</span>
+                  <span style={lbl}>退店日 <span className="num">{c.left_on}</span></span>
+                  <span style={{ ...lbl, color: "var(--bad)" }}>期限 <span className="num">{c.due_on}</span></span>
+                  <button type="button" style={{ ...btnGhost, marginLeft: "auto" }}
+                    onClick={() => { setSel({ kind: "cast", id: c.cast_id }); setDtab("basic"); }}>詳細</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ツールバー＝検索＋在籍/体入/退店済み（既存 is_active と trials の再形・新規取得なし） */}
       <div className="nox-ctoolbar">
