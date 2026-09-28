@@ -3,6 +3,7 @@
 //   route は薄い認証＋入力整形＋エラーマッピングのみ（金額判定・上限は DB 側で再計算＝クライアント値を信用しない）。
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isPaymentMethod } from "@/lib/nox/payroll/payment-method"; // ★裁定311-①
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -25,7 +26,9 @@ export async function POST(req: Request) {
   if (typeof amount !== "number" || !Number.isInteger(amount) || amount <= 0) return NextResponse.json({ error: "amount must be a positive integer" }, { status: 400 });
   if (typeof paidAt !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(paidAt)) return NextResponse.json({ error: "paidAt must be YYYY-MM-DD" }, { status: 400 });
   if (typeof idemKey !== "string" || !UUID_RE.test(idemKey)) return NextResponse.json({ error: "idemKey required (uuid)" }, { status: 400 });
-  const methodVal = typeof method === "string" ? method : null;
+  // ★裁定311-①（便 Y-2）: method は選択式＝cash／transfer／other のみ受ける（列は text のまま・null は旧記録の互換＝「その他」表示）
+  if (method != null && !isPaymentMethod(method)) return NextResponse.json({ error: "method must be cash|transfer|other" }, { status: 400 });
+  const methodVal = isPaymentMethod(method) ? method : null;
   const noteVal = typeof note === "string" ? note : null;
 
   const { data, error } = await supabase.rpc("payment_record_add", {

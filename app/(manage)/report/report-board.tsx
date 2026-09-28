@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
+import { cashPayoutRowsOf, cashPayoutTotalOf, payoutDiffNoteOf, type CashPayoutParts } from "@/lib/nox/report/cash-payout"; // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
 import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -386,6 +387,36 @@ export default function ReportBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, cutoff, isOwner]);
   useEffect(() => { if (isManagerUp) void loadDayExtras(bizDate); }, [isManagerUp, bizDate, loadDayExtras]);
+
+  // ★裁定311-②／④（2026-09-28・便 Y-4）: 「現金支払（送り・日払い等）」の client 集計プレフィル＝当日営業日の
+  //   送り実費（transport.biz_date・okuri_mode='actual' の店だけ・cancelled 除外）＋前借り（advances.advanced_on・cancelled 除外）
+  //   ＋日払い（daily_pays.net）＋給与支払（payment_records.method='cash'・paid_at）。既存 RLS で届く表の直読のみ（4 表とも SELECT ポリシー
+  //   ＝org＋自店（owner は全店）・cast は本人分のみ＝締める側の owner／manager／staff は自店全行）。合計＝既定値（再締め＝#70 の日報の値が優先）。
+  //   手入力で変えたら「集計 ¥n と差 ¥m」を注記。保存は現行どおり daily_report_close の p_cash_payout（入力値）。
+  const [payoutParts, setPayoutParts] = useState<CashPayoutParts | null>(null);
+  useEffect(() => {
+    if (!storeId || !canClose) { setPayoutParts(null); return; }
+    let alive = true;
+    void (async () => {
+      const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
+      const actual = ((st?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual";
+      const [tr, adv, dp, pr] = await Promise.all([
+        actual
+          ? supabase.from("transport").select("amount").eq("store_id", storeId).eq("biz_date", bizDate).neq("status", "cancelled")
+          : Promise.resolve({ data: [] as { amount: number }[] }),
+        supabase.from("advances").select("amount").eq("store_id", storeId).eq("advanced_on", bizDate).neq("status", "cancelled"),
+        supabase.from("daily_pays").select("net").eq("store_id", storeId).eq("biz_date", bizDate),
+        supabase.from("payment_records").select("paid_amount").eq("store_id", storeId).eq("paid_at", bizDate).eq("method", "cash"),
+      ]);
+      if (!alive) return;
+      const sum = (rows: unknown, k: string) => ((rows ?? []) as Record<string, number>[]).reduce((a, r) => a + (r[k] ?? 0), 0);
+      const parts: CashPayoutParts = { okuri: sum(tr.data, "amount"), advance: sum(adv.data, "amount"), daily: sum(dp.data, "net"), salary: sum(pr.data, "paid_amount") };
+      setPayoutParts(parts);
+      if (!recloseTarget) setPayout(cashPayoutTotalOf(parts));
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, bizDate, canClose]);
 
   // 段L2: 表示中の営業日が締め済みか（既に取得済みの reports から引くだけ＝新規取得なし）
   const closedReport = reports.find((r) => r.biz_date === bizDate) ?? null;
@@ -1254,6 +1285,27 @@ export default function ReportBoard({
               <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} /> 未会計があっても強行
             </label>
           </div>
+          {/* ★裁定311-④（便 Y-4）: 現金支払の内訳 4 行（送り実費／前借り／日払い／給与支払（現金））＝集計の元。合計＝既定値。手入力で違えば注記 */}
+          {payoutParts && (() => {
+            const total = cashPayoutTotalOf(payoutParts);
+            const note = payoutDiffNoteOf(total, payout);
+            return (
+              <div className="nox-inset" style={{ padding: "8px 12px", marginTop: 8, fontSize: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", color: "var(--sub)", marginBottom: 2 }}>
+                  <span style={{ fontWeight: 800, color: "var(--champ)" }}>現金支払の内訳（{bizDate}・集計）</span>
+                  <span>合計 <b className="num" style={{ color: "var(--v2-text)" }}>¥{total.toLocaleString()}</b>
+                    {note && <> ・<span style={{ color: "var(--gold2)", fontWeight: 700 }}>{note}</span>
+                      <button type="button" className="nox-link" style={{ fontSize: 11.5, marginLeft: 6 }} onClick={() => setPayout(total)}>集計値に戻す</button></>}
+                  </span>
+                </div>
+                {cashPayoutRowsOf(payoutParts).map((r) => (
+                  <div key={r.key} className="nox-listrow" style={{ padding: "2px 0" }}>
+                    <span style={{ flex: 1 }}>{r.label}</span><b className="num" style={{ color: r.amount ? undefined : "var(--sub)" }}>¥{r.amount.toLocaleString()}</b>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           {/* ★裁定252（244 追補）: 締め確定／再締め＝入力行から外して独立した .nox-actions の行で中央（入力欄・強行チェックの位置は不変） */}
           <div className="nox-actions" style={{ marginTop: 10 }}>
             {recloseTarget
