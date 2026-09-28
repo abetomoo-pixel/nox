@@ -76,6 +76,12 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   **新区分 B(m)「非ゲート書込・法定履行」**へ（309 追補1 (b)）。`referral_payouts_unpaid` はゲート行 1 行を除去して **A4→B(f)**（307-1／309-5）。
   改稿 3 本（`check_pay`＝ar_policy_ok 結線・`set_store_profile`＝白名単 +ar_enabled・`ar_policy_ok`＝本体差替）は名前不変で本数不動。列追加 3（cast_sensitive）・stores.settings_json.ar_enabled 全店 true は本数非関与。
   対象 **145→144**・除外 **123→130**・全数 **268→274**（live 実測 2026-09-28 13:38＝総数 274・'billing locked' 144・md5 12 本一致）。
+- ★**mig0156 追随（2026-09-28・裁定309-6〜9／309 追補2・起票84／85）**: 新関数 **9本**＝ゲート内蔵 1 本を A4 へ（`daily_pay_issue`＝日払いの支払＝金銭発行・'billing locked' あり）・
+  非ゲート書込 2 本を B(e) へ（`payroll_run_deduction_override_set`／`payroll_run_deduction_override_clear`＝run 別控除上書き＝給与の清算・payroll_adjustment 同型）・
+  読取 5 本を B(f) へ（`daily_pays_of_run`／`payroll_run_deduction_overrides_of`／`okuri_today_summary`／`advances_open_balance`／`cast_mynumber_discard_status`＝STABLE・非ゲート）・
+  内部 1 本を B(a) へ（`okuri_default_of`＝送り既定の純ヘルパー・4 ロール revoke）。改稿 4 本（`punch_self`／`punch_proxy`／`kiosk_punch`＝+p_okuri・旧 3 引数署名 drop／`kiosk_register_state`＝'ar_enabled'）は名前不変で本数不動。
+  新表 2（daily_pays 12 列／payroll_run_deduction_overrides 10 列・authenticated=SELECT のみ）・punches.okuri は本数非関与。`get_cast_mynumber_masked` は不触（309 追補2 (f)）。
+  対象 **144→145**・除外 **130→138**・全数 **274→283**（live 実測 2026-09-28 15:54＝総数 283・'billing locked' 145・md5 13 本一致）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -175,7 +181,8 @@ adv_issue / transport_issue / incentive_publish /
 **adv_cancel / transport_cancel / incentive_cancel**（裁定D3＝金銭記録の改変。BANZEN de-escalation 前例より判定原理を優先）/
 **receipt_issue / receipt_issue_void**（mig0099＝領収書の発行・取消＝金銭受領証の作成/改変・R2-9/R2-10・E8-6） /
 **referral_payout_pay**（mig0152＝紹介料の支払確定 1 件・paid_via 2 値・源泉は支払時に確定（外交員報酬＝支払月の累計で差分計上）・冪等・owner∨manager 自店・裁定298-6／7） /
-**referral_payouts_pay_bulk**（mig0152＝同 一括・1 tx で部分成功なし・派生 idem・裁定298-6／299-5）
+**referral_payouts_pay_bulk**（mig0152＝同 一括・1 tx で部分成功なし・派生 idem・裁定298-6／299-5） /
+**daily_pay_issue**（mig0156＝日払いの支払＝金銭発行・owner∨manager 自店・源泉は月次と同式を日数 1 で（委託 floor(max(0, 額−5,000)×10.21%)・雇用 0＋warn）・paid period・冪等・ゲート内蔵・裁定309-6／309 追補2 (c)）
 （未払一覧の読取 RPC は mig0152 で A4 に載っていたが 0152 の写経の名残＝裁定307-1／309-5・mig0155 でゲート行を除去し B(f) へ移動）
 
 ### A5. シフト（17本＋0154 の 3 本・owner/manager の確定系＋SD 深部＝設計 v1.1 §4 文言修正・SD 設計書 §3）
@@ -261,6 +268,8 @@ punch_correction_apply（mig0154＝承認済み punch_corrections 行を punches
 
 audit_purge（mig0155＝audit_logs の 7 年保持＝at < now()-7年 を org ごとに削除し action 'audit_purge' の行に件数・最古・最新・cutoff を残す・service_role 専用の grant 型（authenticated／anon／PUBLIC 不在）＋テナント JWT 遮断・実行は手動＝cron は Vercel Pro 後・裁定309-2／309 追補1 (a)・2026-09-28）
 
+okuri_default_of（mig0156＝送り利用の既定を返す純ヘルパー＝p_okuri 明示があればそれ・無ければ out かつ okuri_mode='actual' の店で false・他は null。打刻 3 本の本文からのみ・4 ロール revoke・裁定309-9／309 追補2 (a)・2026-09-28）
+
 ### B(b) トリガ関数（1本）
 touch_updated_at
 
@@ -271,7 +280,9 @@ punch_self / punch_proxy / kiosk_punch / attendance_set / attendance_set_self
 kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解決＝kiosk 打刻の前提ヘルパー）
 
 ### B(e) payroll 系一式（6本・給与＝過去労働の清算）
-payroll_run_create / payment_record_add / withholding_payment_record / payroll_adjustment_add / payroll_adjustment_delete / payroll_carryover_sync
+payroll_run_create / payment_record_add / withholding_payment_record / payroll_adjustment_add / payroll_adjustment_delete / payroll_carryover_sync /
+**payroll_run_deduction_override_set / payroll_run_deduction_override_clear**（mig0156＝run 別・cast 別の固定控除の上書き（enabled／amount_override）＝draft の run のみ・owner∨manager 自店・
+  ゲート行なし＝給与の清算（payroll_adjustment 同型）・裁定309-8＝300 追補1／309 追補2 (d)・2026-09-28）
 （finalize/mark_paid/reopen は B(a) で既に構造除外）
 （payroll_adjustment_add／_delete＝mig0146・裁定258: ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる）
 （payroll_carryover_sync＝mig0148・裁定272-1: 前期 payslip の adjustOverflow>0 を当 draft run の carryover 行（source='carryover'・部分 unique）へ upsert／0 は削除＝冪等。
@@ -308,6 +319,12 @@ billing_writable_of / auth_org_billing_writable / nox_receipt_public /
 **kiosk_check_keeps**（mig0155＝伝票の顧客名＋active キープのボトル名のみ・305-4 と同一露出・kiosk 腕あり＝裁定11 顧客系非開示の例外を本 RPC に限定・STABLE・ゲート行なし・裁定309-10／309 追補1） /
 **cast_mynumber_discard_candidates**（mig0155＝マイナンバー廃棄候補＝退店日の翌年 1/1 起算 7 年経過＋暗号文あり・owner のみ・STABLE 読取・裁定309-3） /
 **customer_anonymize_candidates**（mig0155＝顧客匿名化候補＝retention_until 到来＋未匿名化・owner のみ・STABLE 読取・裁定309-4）
+
+**daily_pays_of_run**（mig0156＝run 期間内の日払いの cast 別合計（支払済額・源泉既徴収額・件数）＝collect が「日払い済み」控除行に写す・owner∨manager 自店・STABLE・裁定309-6／309 追補2 (b)） /
+**payroll_run_deduction_overrides_of**（mig0156＝run 別控除上書きの読取・owner∨manager 自店・STABLE・裁定309-8） /
+**okuri_today_summary**（mig0156＝okuri=true の退勤打刻のうち未発行のもの（punch 単位・base_amount＝店設定の送りベース額）・owner∨manager 自店・STABLE・裁定309-9／309 追補2 (e)） /
+**advances_open_balance**（mig0156＝前借りの open 残高の cast 別合計・件数・最古日＝年末の貸付残高一覧・owner∨manager 自店・STABLE・裁定309-7） /
+**cast_mynumber_discard_status**（mig0156＝マイナンバー廃棄記録（deleted_at／method／登録の有無）の読取のみ＝値は返さない・audit なし・owner／manager 自店／cast 本人・STABLE・起票85／309 追補2 (f)）
 
 ### B(g) 印刷（1本・「出せる」原則の明文）
 print_enqueue[K]
@@ -380,3 +397,5 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 ★**現在値（2026-09-18・mig0149 追随後）**: A **128** ＋ B **118** ＝ **246** ＝ live pg_proc 実列挙と一致（前＝mig0148 後 A 128＋B 117＝245・その前 mig0146 後 A 125＋B 116＝241。verify:nox-billing 段47-1 の pin＝対象 128／除外 118／ゲート済み 128／述語参照 129／挿入行の形 128）。
 
 ★**現在値（2026-09-28・mig0155 追随後）**: A **144** ＋ B **130** ＝ **274** ＝ live pg_proc 実列挙と一致（前＝mig0153 後 A 145＋B 123＝268。0155＝A4 の未払一覧 1 本を B(f) へ（−1）・非ゲート新設 6 本を B へ（B(a) 1・B(f) 3・B(m) 2）。verify:nox-billing 段47-1 の pin＝対象 144／除外 130／ゲート済み 144／述語参照 145／挿入行の形 144）。
+
+★**現在値（2026-09-28・mig0156 追随後）**: A **145** ＋ B **138** ＝ **283** ＝ live pg_proc 実列挙と一致（0156＝A4 +1（daily_pay_issue）・B(e) +2・B(f) +5・B(a) +1。verify:nox-billing 段47-1 の pin＝対象 145／除外 138／ゲート済み 145／述語参照 146／挿入行の形 145）。

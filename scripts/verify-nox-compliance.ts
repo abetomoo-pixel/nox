@@ -60,7 +60,7 @@ async function main() {
       // (2) audit_purge
       await db.query("insert into public.audit_logs (org_id, store_id, action, target, at) values ($1, $2, 'cp_old_row', 'test', now() - interval '8 years')", [A1.org_id, A1.id]);
       const purge = (await one<{ r: { deleted: number; orgs: number } }>("select public.audit_purge() r")).r;
-      const prow = await q<{ org_id: string; actor_user_id: string | null; reason: string; after_json: Record<string, unknown> }>("select org_id, actor_user_id, reason, after_json from public.audit_logs where action='audit_purge'");
+      const prow = await q<{ org_id: string; actor_user_id: string | null; reason: string; after_json: Record<string, unknown> }>("select org_id, actor_user_id, reason, after_json from public.audit_logs where action='audit_purge' and at >= now()");
       check("cp(2-1) audit_purge(): deleted 1／orgs 1・8 年前の行は消える", purge.deleted === 1 && purge.orgs === 1 && (await one<{ n: number }>("select count(*)::int n from public.audit_logs where action='cp_old_row'")).n === 0, JSON.stringify(purge));
       check("cp(2-2) 'audit_purge' 行 1 行＝org A・actor null・reason 'retention 7y'・after_json deleted=1／oldest／newest／cutoff", prow.length === 1 && prow[0].org_id === A1.org_id && prow[0].actor_user_id === null && prow[0].reason === "retention 7y" && prow[0].after_json.deleted === 1 && !!prow[0].after_json.oldest && !!prow[0].after_json.newest && !!prow[0].after_json.cutoff, JSON.stringify(prow));
       const purgeOwner = await as(owner, "select public.audit_purge() r");
@@ -106,7 +106,7 @@ async function main() {
       const dTwice = await as(owner, "select public.cast_mynumber_discard($1, 'cp 再実行') id", [castA]);
       const cand2 = await as(owner, "select cast_id from public.cast_mynumber_discard_candidates(null)");
       const csRow = await one<{ enc_null: boolean; del_at: boolean; by: string; method: string }>("select mynumber_enc is null enc_null, mynumber_deleted_at is not null del_at, mynumber_deleted_by by, mynumber_deletion_method method from public.cast_sensitive where cast_id=$1", [castA]);
-      const dAudit = await q<{ target: string; before_json: Record<string, unknown>; after_json: Record<string, unknown>; reason: string; store_id: string; actor_user_id: string }>("select target, before_json, after_json, reason, store_id, actor_user_id from public.audit_logs where action='cast_mynumber_discard'");
+      const dAudit = await q<{ target: string; before_json: Record<string, unknown>; after_json: Record<string, unknown>; reason: string; store_id: string; actor_user_id: string }>("select target, before_json, after_json, reason, store_id, actor_user_id from public.audit_logs where action='cast_mynumber_discard' and at >= now()");
       check("cp(4-0) 候補一覧（owner）: left_on 2019-01-01（翌年 1/1 起算 7 年＝2027-01-01・未到来）は 0 行", cand0.ok && cand0.rows.length === 0, JSON.stringify(cand0));
       check("cp(4-1) 候補一覧（owner・全店／店指定）: left_on 2018-06-15→due_on 2026-01-01（到来）で A1a 1 行", cand1.ok && cand1.rows.length === 1 && cand1.rows[0].cast_id === castA && cand1.rows[0].due_on === "2026-01-01" && cand1s.ok && cand1s.rows.length === 1, JSON.stringify(cand1));
       check("cp(4-2) manager: discard／候補一覧とも 'forbidden'", !dMgr.ok && /forbidden/.test(errOf(dMgr)) && !candMgr.ok && /forbidden/.test(errOf(candMgr)), errOf(dMgr) + " / " + errOf(candMgr));
@@ -124,7 +124,7 @@ async function main() {
       const aTwice = await as(owner, "select public.customer_anonymize($1, 'cp 再実行') id", [custs["指名B"]]);
       const cuRow = await one<{ name: string; furigana: string | null; tel: string | null; birthday: string | null; prefs: string | null; memo: string | null; is_active: boolean; anon: boolean }>("select name, furigana, tel, birthday, prefs, memo, is_active, anonymized_at is not null anon from public.customers where id=$1", [custs["指名B"]]);
       const notesLeft = (await one<{ n: number }>("select count(*)::int n from public.customer_notes where customer_id=$1", [custs["指名B"]])).n;
-      const aAudit = await q<{ before_json: unknown; after_json: { notes_deleted: number; fields: string[] }; reason: string; actor_user_id: string }>("select before_json, after_json, reason, actor_user_id from public.audit_logs where action='customer_anonymize'");
+      const aAudit = await q<{ before_json: unknown; after_json: { notes_deleted: number; fields: string[] }; reason: string; actor_user_id: string }>("select before_json, after_json, reason, actor_user_id from public.audit_logs where action='customer_anonymize' and at >= now()");
       check("cp(5-1) manager: anonymize／候補一覧とも 'forbidden'", !aMgr.ok && /forbidden/.test(errOf(aMgr)) && !acMgr.ok && /forbidden/.test(errOf(acMgr)), errOf(aMgr) + " / " + errOf(acMgr));
       check("cp(5-2) 候補一覧（owner）: retention_until 昨日の指名A 1 行", ac1.ok && ac1.rows.length === 1 && ac1.rows[0].customer_id === custs["指名A"], JSON.stringify(ac1));
       check("cp(5-3) owner: 空 reason→'bad reason'／指名B 成功", !aBad.ok && /bad reason/.test(errOf(aBad)) && aOk.ok, errOf(aBad) + " / " + JSON.stringify(aOk));

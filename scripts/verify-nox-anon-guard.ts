@@ -346,11 +346,11 @@ async function main() {
   const F1D_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
     ["shift_wish_submit", { p_date: null, p_start_hm: null, p_end_hm: null }],
     ["shift_wish_withdraw", { p_wish_id: null }],
-    ["punch_self", { p_type: null, p_lat: null, p_lng: null }],
+    ["punch_self", { p_type: null, p_lat: null, p_lng: null, p_okuri: null }], // ★0156（裁定309-9）: 4 引数化（p_okuri default null）
     ["attendance_set_self", { p_date: null, p_status: null, p_eta: null, p_reason: null }],
     ["shift_wish_decide", { p_wish_id: null, p_accept: null }],
     ["shift_set", { p_id: null, p_cast_id: null, p_date: null, p_start_hm: null, p_end_hm: null, p_status: null }],
-    ["punch_proxy", { p_cast_id: null, p_type: null, p_note: null }],
+    ["punch_proxy", { p_cast_id: null, p_type: null, p_note: null, p_okuri: null }], // ★0156: 4 引数化
     ["attendance_set", { p_cast_id: null, p_date: null, p_status: null, p_eta: null, p_reason: null }],
     ["set_staffing_need", { p_store_id: null, p_dow: null, p_required: null }],
   ];
@@ -510,6 +510,14 @@ async function main() {
     ["customer_anonymize_candidates", { p_store_id: null }],
     ["kiosk_check_keeps", { p_check_id: null }],
     ["audit_purge", {}],
+    ["daily_pay_issue", { p_cast_id: null, p_biz_date: null, p_gross: null, p_idem_key: null }],   // ★mig0156（裁定309-6〜9／追補2）: 公開 8 本（okuri_default_of は内部＝grants G4c）
+    ["daily_pays_of_run", { p_run_id: null }],
+    ["payroll_run_deduction_override_set", { p_run_id: null, p_cast_id: null, p_deduction_id: null, p_enabled: null, p_amount_override: null }],
+    ["payroll_run_deduction_override_clear", { p_run_id: null, p_cast_id: null, p_deduction_id: null }],
+    ["payroll_run_deduction_overrides_of", { p_run_id: null }],
+    ["okuri_today_summary", { p_store_id: null, p_biz_date: null }],
+    ["advances_open_balance", { p_store_id: null }],
+    ["cast_mynumber_discard_status", { p_cast_id: null }],
     ["set_staff_perms", { p_membership_id: null, p_can_register: null, p_can_crm: null, p_can_shift: null, p_can_view_backs: null, p_can_close: null, p_can_reopen: null }], // 段16a（mig0024→0038 5引数）
   ];
   for (const [fn, args] of F3A2_RPC_PROBES) {
@@ -599,7 +607,7 @@ async function main() {
     ["kiosk_provision", { p_auth_user_id: null, p_store_id: null, p_label: null }],
     ["kiosk_deactivate", { p_device_id: null }],
     ["set_cast_pin", { p_cast_id: null, p_pin: null }],
-    ["kiosk_punch", { p_cast_id: null, p_pin: null, p_type: null }],
+    ["kiosk_punch", { p_cast_id: null, p_pin: null, p_type: null, p_okuri: null }], // ★0156: 4 引数化
     ["kiosk_cast_list", {}],
   ];
   for (const [fn, args] of F0043_PROBES) {
