@@ -2846,6 +2846,13 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓94：f0 は本番 DB を叩くため 18:00〜翌 06:00 JST は起動しない（営業・締め帯）。帯内は停止して報告（相談役起こし）
+
+出典＝相談役 2026-09-28 受領（便 T-1・逐語）: 「教訓94『f0 は本番 DB を叩くため 18:00〜翌 06:00 JST は起動しない（営業・締め帯）。帯内は停止して報告』」。
+経緯: f0（78 段・約 13 分×2 連）は nox-dev の本番共有 DB に直結して fixture を書き・ROLLBACK する。営業中（開店〜締め）は会計 RPC・打刻・締めの本番書込と並走し、statement timeout／pooler の無応答（9/25 run2b・教訓85）を誘発しやすい。
+便 R（9/28 13:50 起動）で「営業時間帯なら起動せず停止」の指示に対し台帳に帯の定義が無く CC が「昼＝起動可」と判断した＝定義を台帳に置く。
+運用: f0（`npm run verify:f0`）の起動可能帯は **06:00〜18:00 JST**。起動前チェック（裁定200 の 3 値）に加えて機械時刻を確認し、18:00〜翌 06:00 は起動せず「帯内のため停止」と報告して次便に回す。単発 suite の追試（BEGIN…ROLLBACK・1 本）は帯の対象外だが、同じ理由で最小限にする。将来「検証 DB 分離」（ローンチ前ゲート）が入れば本教訓は解除を再裁定する。
+
 ### 教訓93：docs 便は `git commit -- <パス>` でパス指定コミット・stage 済み index に依存しない（相談役起こし）
 
 出典＝相談役 2026-09-28 受領（v40 §10-2 P-1・逐語）: 「教訓93『docs 便は git commit -- <パス> でパス指定コミット・stage 済み index に依存しない（9/25 2412601 の同乗）』」。
@@ -3781,7 +3788,7 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 (d) 改稿: customer_anonymize は customer_notes を同時削除（本文は audit に残さない・件数のみ after_json に 'notes_deleted'）。
 追加: kiosk_check_keeps は STABLE（check_customer_names と同型）。
 適用＝便 Q-2b-2 で gen_0155.mjs／0155_template.sql 経由で改稿（★9 notes 削除＋notes_deleted・★12 stable・冒頭 (d)・期待 md5）・Q-2b-3 で BEGIN…ROLLBACK 追試。手貼りは Agoora・収蔵は手貼り後（教訓93）。
-**0155 適用欄（2026-09-28）**: 手貼り＝Agoora 2026-09-28 13:2x JST（貼付版＝改稿版 sha256 **6b30084efd0170a7c2662e72378e7ebfd660eae4661455d74caf4344f2d5c6bb**・748 行・63,012 B＝収蔵版と同一・ヘッダ書換なし）。CC の適用後読取 13:38 JST＝proof orgs 3・md5 12 本一致（check_pay 05ca579b／set_store_profile 86a7a86b／referral_payouts_unpaid 4340d19f／ar_policy_ok d7b0bfcb／audit_purge f2946b95／cast_mynumber_discard 3c2d917d／cast_mynumber_discard_candidates e285a272／customer_anonymize 11b4f43b／customer_anonymize_candidates d1ce4ace／kiosk_check_keeps b68a8e0c・不触 get_cast_mynumber 20163586／get_cast_mynumber_masked 6f401f45）・proacl 期待どおり（audit_purge＝postgres, service_role・ar_policy_ok＝postgres のみ）・stores ar_true 4／4・cast_sensitive 11 列・relacl 不変（authenticated なし）・pg_proc 全数 274。
+**0155 適用欄（2026-09-28）**: 手貼り＝Agoora 2026-09-28 13:2x JST（貼付版＝改稿版 sha256 **6b30084efd0170a7c2662e72378e7ebfd660eae4661455d74caf4344f2d5c6bb**・748 行・63,012 B＝収蔵版と同一・ヘッダ書換なし）。CC の適用後読取 13:38 JST＝proof orgs 3・md5 12 本一致（check_pay 05ca579b／set_store_profile 86a7a86b／referral_payouts_unpaid 4340d19f／ar_policy_ok d7b0bfcb／audit_purge f2946b95／cast_mynumber_discard 3c2d917d／cast_mynumber_discard_candidates e285a272／customer_anonymize 11b4f43b／customer_anonymize_candidates d1ce4ace／kiosk_check_keeps b68a8e0c・不触 get_cast_mynumber 20163586／get_cast_mynumber_masked 6f401f45）・proacl 期待どおり（audit_purge＝postgres, service_role・ar_policy_ok＝postgres のみ）・stores ar_true 4／4・cast_sensitive 11 列・relacl 不変（authenticated なし）・pg_proc 全数 274。。**目視（Agoora・2026-09-28）＝①〜⑥ OK**（便 S の client＝店設定トグル／レジ売掛非表示／廃棄＋候補／匿名化＋候補／kiosk 顧客・キープ／owner 未描画＝01d0fcd・Vercel Production success 14:54:02）。
 事前突合＝docs/tmp/q0928_ag_0155.mjs（BEGIN…ROLLBACK・36 段 NG 0＝静的列挙 3・md5／proacl／stores／列 7・audit_purge 実削除 4・kiosk_check_keeps 5・discard／候補 7・anonymize／候補 7・検証 1・ROLLBACK 後不変 2）。収蔵＝便 R-1（mig をパス指定コミット・sha 照合済み）。名簿 268→274／billing 145→144・suite 張り替え・compliance suite 新設＝便 R-2〜R-5。
 
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
@@ -5386,6 +5393,9 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 81 | **analytics ヒートマップの曜日行 Fragment に key が無い（React 警告）**（低・**修正済・目視待ち**） | analytics-board の時間帯×曜日ヒートマップで `DOW.map` 直下が `<>…</>`（key なし）＝子の span／div に key があっても親 Fragment に無く "Each child in a list should have a unique key" 警告（2026-09-10 Agoora 目視）。処置（同日・client）＝`<Fragment key={\`r${d}\`}>`（react から Fragment import）。同型（map 直下の key なし `<>`）を app／components で grep＝他 2 件は非該当（master-board は keyed Link の内側の変数・pricing-board は IIFE の戻り）＝置換 1 件。起票・処置 2026-09-10 18:35（client b77961f） |
 | 82 | **月次一覧の支払済み件数と明細の未支払カードが run 状態を見ていない**（中・**起票 2026-09-11**） | **本文（逐語）**: 一覧サマリー「支払済み N 件」は payment_records の有無ではなく run.status=paid の件数。明細「未支払」カードは run が paid なら ¥0・通常色(赤にしない)で「支払済み化済み」を添える。支払状況列「—」は paid 時「支払済み化」。金額の再計算はしない(B5-1)。client のみ・suite なし。起票 2026-09-11。処置（同日・client **`36860ba`**・Agoora 目視 OK 同日）＝list.ts の ListKpi に `paidRuns`（status=paid の run 数）を追加し sumListKpi で集計（paidCount＝payment_records 件数は行の支払状況列用に残す）／payroll-list のサマリー「支払済み N 件」を paidRuns へ・支払状況列の「—」は paid 時「支払済み化」／payroll-board の未支払カードは run が paid なら ¥0・通常色・「支払済み化済み」（Σnet−Σpaid の再計算なし＝表示分岐のみ）。verify:nox-payroll-list は pl(1j) に paidRuns 1＋記録なし run でも 1＋finalized は 0 を、pl(1k) に paidRuns 0 を畳み込み＝19 本不変（pin 3,765 を動かさないため独立 1 本を足さず既存へ畳んだ）。 |
 | 83 | **payroll_runs の store×period unique が index 一覧に出ない（b6_survey 第 2 次 欠陥候補 5）**（低・**観察・クローズ可**） | 第 2 次調査の grep（`create index ... on public.payroll_runs` の 1 行一致）が mig0016:137 の 2 行書き `create unique index if not exists payroll_runs_store_period_uidx`＋次行 `on public.payroll_runs (store_id, period)` を拾えなかった調査側の見落とし。処置＝2026-09-11 live 照合（pg_indexes: `payroll_runs_store_period_uidx` UNIQUE (store_id, period) 実在・pg_constraint に unique 制約なし＝index 方式・proof orgs=3）。補正 mig 不要（裁定234 型の起草不要）。B5 一覧の eq(store_id, period) 1 件前提は担保されている。起票・クローズ 2026-09-11 |
+| 84 | **kiosk_register_state に ar_enabled が無い＝kiosk レジは「売掛」を非表示にできない**（低・**起票 2026-09-28 便 T-1**） | 0155 で店設定 settings_json.ar_enabled を足し、管理画面のレジは stores 直読で「売掛」を未描画にした（便 S-2）。kiosk は読取が kiosk_register_state／kiosk_check_detail の 2 本のみ（0059 契約・直 SELECT なし）で店設定を読めず、サーバの 'ar disabled' と文言で受けるのみ。処置＝kiosk_register_state の jsonb に `ar_enabled` 1 キーを足す（0156 ★6 同乗・署名不変・戻りキー追加）→ kiosk の METHOD_LABEL を同じ条件で filter（client 便） |
+| 85 | **get_cast_mynumber_masked の戻りが text 1 値＝廃棄済み（mynumber_deleted_at）を cast 本人に示せない**（低・**起票 2026-09-28 便 T-1**） | 0155 ★6 で cast_sensitive に廃棄記録 3 列を足したが、cast 本人が読む経路は masked（末尾 4 桁 text）のみで、廃棄後は null（未登録と区別できない）。owner 側は audit_logs から日付を拾って表示（便 S-3）。処置＝masked の戻りに `mynumber_deleted_at`／`mynumber_deletion_method` を足す（0156 ★6 同乗・署名（p_cast_id uuid）不変・戻りを record／jsonb へ＝呼び出し元 /mine の追随は client 便・G10 の search_path pin は不変） |
+| 86 | **マスタハブに「店舗情報」カードが無い＝S-1 の「売掛を使う」への導線名が「営業時間・定休日」のまま**（低・**起票 2026-09-28 便 T-1**） | store-profile-panel（店舗情報／シフト運用／売掛・記録の保持）は /master/business-hours の先頭 3 節に置かれ、ハブのカード名・ナビ名は「営業時間・定休日」「営業時間」のみ（便 S 読取 1）。処置＝master-board に「店舗情報」カード（href /master/business-hours・説明に 売掛・保持年数・利用目的）を新設、または store-profile-panel を /master/store へ分離（client・裁定待ち＝nav.ts の pin（verify:nox-nav）張り替え） |
 
 ### 未裁定・消し込み待ち
 
