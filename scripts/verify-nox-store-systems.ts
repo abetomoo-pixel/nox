@@ -88,7 +88,7 @@ async function main() {
   const m = src.match(/v_keys\s+text\[\]\s*:=\s*array\[([\s\S]*?)\];/);
   const live = m ? [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]) : [];
   const liveSys = live.filter((k) => k.startsWith("sys_"));
-  check("ss(4-0) live の set_store_profile 白名単を読めた（24 キー＝0147 の 20＋0151 の slide_apply＋0154 の settlement_presets＋0153 の customer_purpose／customer_retention_years）", live.length === 24 && live.includes("slide_apply") && live.includes("settlement_presets") && live.includes("customer_purpose") && live.includes("customer_retention_years"), `${live.length}: ${live.join(",")}`);
+  check("ss(4-0) live の set_store_profile 白名単を読めた（25 キー＝0147 の 20＋0151 の slide_apply＋0154 の settlement_presets＋0153 の customer_purpose／customer_retention_years＋0155 の ar_enabled）", live.length === 25 && live.includes("slide_apply") && live.includes("settlement_presets") && live.includes("customer_purpose") && live.includes("customer_retention_years") && live.includes("ar_enabled"), `${live.length}: ${live.join(",")}`);
   check("ss(4-1) ★SYSTEM_KEYS 9 ＝ live 白名単の sys_* 9（順序込み）", JSON.stringify([...SYSTEM_KEYS]) === JSON.stringify(liveSys), `lib=${SYSTEM_KEYS.join(",")} live=${liveSys.join(",")}`);
   check("ss(4-2) 白名単に setup_done／biz_type／billing_mode も居る（0147 の 12 キー）", ["setup_done", "biz_type", "billing_mode"].every((k) => live.includes(k)));
 

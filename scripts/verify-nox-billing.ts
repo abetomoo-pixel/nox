@@ -122,7 +122,10 @@ async function main() {
     //   punch_correction_apply（内部・4 ロール revoke）を B(a) へ＝対象 130→134・除外 119→120・全数 249→254。改稿 4 本は名前不変で本数不動（adjustment_add の旧 8 引数は DROP）。
     // ★mig0152（裁定298／299・2026-09-25）: check_referral_set／remove（A1）・set_referrer（A8）・referral_payout_pay／pay_bulk／unpaid（A4）＝ゲート内蔵 6 本を A へ・
     //   referral_recalc（内部・4 ロール revoke）を B(a) へ・check_add_referral（0148）は drop＝対象 134→139・除外 120→121・全数 254→260。改稿 7 本は名前不変で本数不動。
-    check("段47-1 正本の対象145名を読めた", docTargets.size === 145, `got ${docTargets.size}`); // ★0157: A4 +2＝139→141・★0153（裁定305／307）: A1 +4＝141→145
+    // ★mig0155（裁定309／309 追補1・2026-09-28）: referral_payouts_unpaid のゲート行を除去＝A4→B(f)（307-1／309-5）・新設 6 本は全て非ゲート＝
+    //   audit_purge（service 専用）を B(a)・候補一覧 2 本＋kiosk_check_keeps（読取）を B(f)・cast_mynumber_discard／customer_anonymize を新区分 B(m)「非ゲート書込・法定履行」へ＝
+    //   対象 145→144・除外 123→130・全数 268→274（live 実測 2026-09-28 13:38＝総数 274・'billing locked' 144）。
+    check("段47-1 正本の対象144名を読めた", docTargets.size === 144, `got ${docTargets.size}`); // ★0157: A4 +2＝139→141・★0153（裁定305／307）: A1 +4＝141→145・★0155: A4 −1＝145→144
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     // ★mig0113: check_tax_round（内部ヘルパー・非ゲート）を B へ収載＝除外 95→96・全数 201→202。
     // ★mig0119（R-2b・2026-09-01）: 補助2本 nom_unit4_key / nom_type_summary を B(a) へ収載＝除外 96→98・
@@ -141,7 +144,7 @@ async function main() {
     // ★mig0146（裁定258・2026-09-15）: payroll_adjustment_add／_delete（非ゲート＝給与の清算）を B(e) へ収載＝除外 114→116・全数 239→241・対象 125 不変。
     // ★mig0148（裁定272・2026-09-18）: payroll_carryover_sync（非ゲート＝繰越消費）を B(e) へ収載＝除外 116→117・全数 241→245。
     // ★mig0149（裁定273／276〜279・2026-09-18）: demo_org_reset（service_role 専用・authenticated 実行不可＝構造除外）を B(a) へ収載＝除外 117→118・全数 245→246・対象 128 不変。
-    check("段47-1 正本の除外123名を読めた", docExcluded.size === 123, `got ${docExcluded.size}`); // ★0153: B(f) +2（names／sales_summary＝裁定307-1）
+    check("段47-1 正本の除外130名を読めた", docExcluded.size === 130, `got ${docExcluded.size}`); // ★0153: B(f) +2（names／sales_summary＝裁定307-1）・★0155: +7（B(a) 1・B(f) 4・B(m) 2）
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる
@@ -156,7 +159,7 @@ async function main() {
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 145本", liveGated.size === 145, `got ${liveGated.size}`);
+    check("段47-1 live のゲート済み関数 = 144本", liveGated.size === 144, `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
     const extra = [...liveGated].filter((n) => !docTargets.has(n));
@@ -175,14 +178,14 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 146（145 ＋ ラッパ自身）", refs[0].n === 146, `got ${refs[0].n}`);
+    check("段47-1 述語を参照する関数 = 145（144 ＋ ラッパ自身）", refs[0].n === 145, `got ${refs[0].n}`);
     // 挿入行の形が全92本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public'
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
-    check("段47-1 挿入行の形が全145本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 145, `got ${shapes[0].n}`);
+    check("段47-1 挿入行の形が全144本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 144, `got ${shapes[0].n}`);
   }
 
   // ══════════════════════════════════════════════════════════

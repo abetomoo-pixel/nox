@@ -205,7 +205,8 @@ async function main() {
       "punch_correction_request", "punch_correction_decide", "punch_correction_ack", "set_cast_employment", // ★0154（裁定294／295）: 新 secdef 4 本（同じ revoke／grant 形）
       "set_referrer", "check_referral_set", "check_referral_remove", "referral_payout_pay", "referral_payouts_pay_bulk", "referral_payouts_unpaid",
       "adv_issue_bulk", "transport_issue_bulk", // ★0157（裁定302／304）: 一括発行 2 本（同じ revoke／grant 形）
-      "check_customer_add", "check_customer_remove", "check_line_set_customer", "check_customer_names", "bottle_keep_out", "customer_sales_summary"]; // ★0153（裁定305／307）: 公開 6 本 // ★0152（裁定298／299）: 公開 6 本（同じ revoke／grant 形）
+      "check_customer_add", "check_customer_remove", "check_line_set_customer", "check_customer_names", "bottle_keep_out", "customer_sales_summary", // ★0153（裁定305／307）: 公開 6 本 // ★0152（裁定298／299）: 公開 6 本（同じ revoke／grant 形）
+      "cast_mynumber_discard", "cast_mynumber_discard_candidates", "customer_anonymize", "customer_anonymize_candidates", "kiosk_check_keeps"]; // ★0155（裁定309）: 公開 5 本（audit_purge は service 専用＝G4e）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
@@ -220,6 +221,22 @@ async function main() {
       check(`G4d ${row.proname} SECURITY DEFINER＋search_path=public`, row.prosecdef === true && (row.config as string).includes("search_path=public"), row.config);
       check(`G4d ${row.proname} EXECUTE = authenticated／service_role 保持・anon／PUBLIC 不在`, row.auth_ok === true && row.svc_ok === true && !row.anon_ok && !row.public_ok, JSON.stringify([row.auth_ok, row.svc_ok, row.anon_ok, row.public_ok]));
     }
+  }
+
+  // G4e: mig0155（裁定309-2）audit_purge＝service_role 専用（billing_writable_of 0087 と同型）＝SECURITY DEFINER・search_path=public・EXECUTE は service_role のみ（authenticated／anon／PUBLIC 不在）
+  {
+    const r = await db.query(
+      `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
+              has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
+              has_function_privilege('anon', p.oid, 'execute') as anon_ok,
+              has_function_privilege('service_role', p.oid, 'execute') as svc_ok,
+              exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE') as public_ok
+         from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'audit_purge'`,
+    );
+    check("G4e 0155 audit_purge が 1 本存在", r.rowCount === 1, `got ${r.rowCount}`);
+    const row = r.rows[0] ?? {};
+    check("G4e audit_purge SECURITY DEFINER＋search_path=public", row.prosecdef === true && String(row.config ?? "").includes("search_path=public"), String(row.config));
+    check("G4e audit_purge EXECUTE = service_role のみ（authenticated／anon／PUBLIC 不在）", row.svc_ok === true && row.auth_ok === false && !row.anon_ok && !row.public_ok, JSON.stringify([row.auth_ok, row.svc_ok, row.anon_ok, row.public_ok]));
   }
 
   // G4c: C層② 内部ヘルパー 4 本（mig0136・0137 で can_manage は G4/G4b 側へ）＋C層③ 内部ヘルパー 3 本（mig0138）＝SECURITY DEFINER・search_path 固定・4 ロール明示 revoke（authenticated/anon/service_role/public 不在）
@@ -412,6 +429,9 @@ async function main() {
       check("G9 0153 列集合: customers 18／bottle_keeps 15／check_lines 21／check_customers 8", n153.customers === 18 && n153.bottle_keeps === 15 && n153.check_lines === 21 && n153.check_customers === 8, JSON.stringify(n153));
       const k153 = await db.query(`select pg_get_constraintdef(oid) d from pg_constraint where conname='check_lines_kind_check'`);
       check("G9 0153 check_lines_kind_check＝11 値（+keep_out）", (k153.rows[0]?.d as string).includes("'keep_out'") && ((k153.rows[0]?.d as string).match(/::text/g) || []).length === 11, k153.rows[0]?.d);
+      // ★0155（裁定309-3）: cast_sensitive 11 列（+mynumber_deleted_at／mynumber_deleted_by／mynumber_deletion_method・別表なし）
+      const c155 = await db.query(`select count(*)::int n, bool_and(column_name in ('mynumber_deleted_at','mynumber_deleted_by','mynumber_deletion_method')) filter (where column_name like 'mynumber_del%') three from information_schema.columns where table_schema='public' and table_name='cast_sensitive'`);
+      check("G9 0155 列集合: cast_sensitive 11（+廃棄記録 3 列）", c155.rows[0]?.n === 11 && c155.rows[0]?.three === true, JSON.stringify(c155.rows));
     }
 
     // G10: F2d mynumber 暗号化/payment（mig0021）— payment_records RLS・パターン1・crypto RPC ACL。
@@ -1033,7 +1053,7 @@ async function main() {
       // ★mig0148（裁定272・2026-09-18）: check_add_referral（check_add_line の冒頭〜role 判定を逐語＝kiosk 腕あり）で 18→19・20→21・18→19。
       // ★mig0152（裁定298／299・2026-09-25）: check_add_referral を drop・check_referral_set／remove（同じ冒頭を逐語＝kiosk 腕あり）で 19→20・21→22・19→20。
       check("G31 register helper を使う会計RPC = 20本（0057 の12＋0084 shimei/dohan＋0089 extension＋0090 set_people＋0091 line_set_group＋0131 pricing_categories_for_register＋0152 check_referral_set／remove）",
-        reg.rows[0].n === 21, `got ${reg.rows[0].n}`); // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21
+        reg.rows[0].n === 22, `got ${reg.rows[0].n}`); // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21 // ★mig0155（裁定309-10）: kiosk_check_keeps（kiosk 腕・読取）で 21→22
       const op = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
@@ -1041,7 +1061,7 @@ async function main() {
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
       check("G31 operator を使う関数 = 22本（write-arm 系 20＝0131 for_register・0152 check_referral_set／remove 込み＋audit_log_write＋drink_claims_on_line_delete）",
-        op.rows[0].n === 23, `got ${op.rows[0].n}`); // ★mig0153: bottle_keep_out で 22→23
+        op.rows[0].n === 24, `got ${op.rows[0].n}`); // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'
@@ -1054,7 +1074,7 @@ async function main() {
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator() is not null)) is not true then%'`,
       );
       check("G31 ★kiosk ゲート fail-closed = 20本が (OR連鎖) is not true 形（0058・0084・0089・0090・0091・0131・0152 も同形）",
-        fixed.rows[0].n === 21, `got ${fixed.rows[0].n}`); // ★mig0153: bottle_keep_out（同形の OR 連鎖）で 20→21
+        fixed.rows[0].n === 22, `got ${fixed.rows[0].n}`); // ★mig0153: bottle_keep_out（同形の OR 連鎖）で 20→21 // ★mig0155: kiosk_check_keeps（同形）で 21→22
       const openGate = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'

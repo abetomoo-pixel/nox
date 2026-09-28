@@ -71,6 +71,11 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   改稿 9 本（check_open／check_merge／check_close／set_comp_plan／set_cast_plan／set_store_profile／demo_org_reset／bottle_keep_register／bottle_keep_update）は名前不変で本数不動（register 7→9 引数・update 6→7 引数・set_comp_plan 19→22 引数＝旧署名 drop）。
   新表 check_customers（authenticated=SELECT のみ）・列追加 10・kind CHECK +'keep_out' は本数非関与。
   対象 **141→145**・除外 **121→123**・全数 **262→268**（live 実測 2026-09-25 18:5x＝A-0／A 検証 ALL OK・'billing locked' 145）。
+- ★**mig0155 追随（2026-09-28・裁定309-1〜5・10／309 追補1）**: 新関数 **6本**＝全て非ゲート＝`audit_purge`（service_role 専用・7 年保持の削除＋記録）を B(a) へ・
+  `kiosk_check_keeps`／`cast_mynumber_discard_candidates`／`customer_anonymize_candidates`（STABLE 読取）を B(f) へ・`cast_mynumber_discard`／`customer_anonymize`（法定履行の書込・ゲート行なし）を
+  **新区分 B(m)「非ゲート書込・法定履行」**へ（309 追補1 (b)）。`referral_payouts_unpaid` はゲート行 1 行を除去して **A4→B(f)**（307-1／309-5）。
+  改稿 3 本（`check_pay`＝ar_policy_ok 結線・`set_store_profile`＝白名単 +ar_enabled・`ar_policy_ok`＝本体差替）は名前不変で本数不動。列追加 3（cast_sensitive）・stores.settings_json.ar_enabled 全店 true は本数非関与。
+  対象 **145→144**・除外 **123→130**・全数 **268→274**（live 実測 2026-09-28 13:38＝総数 274・'billing locked' 144・md5 12 本一致）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -170,8 +175,8 @@ adv_issue / transport_issue / incentive_publish /
 **adv_cancel / transport_cancel / incentive_cancel**（裁定D3＝金銭記録の改変。BANZEN de-escalation 前例より判定原理を優先）/
 **receipt_issue / receipt_issue_void**（mig0099＝領収書の発行・取消＝金銭受領証の作成/改変・R2-9/R2-10・E8-6） /
 **referral_payout_pay**（mig0152＝紹介料の支払確定 1 件・paid_via 2 値・源泉は支払時に確定（外交員報酬＝支払月の累計で差分計上）・冪等・owner∨manager 自店・裁定298-6／7） /
-**referral_payouts_pay_bulk**（mig0152＝同 一括・1 tx で部分成功なし・派生 idem・裁定298-6／299-5） /
-**referral_payouts_unpaid**（mig0152＝店×期間の未払一覧・読取だがゲート内蔵＝裁定261 のゲート行で A・owner∨manager 自店）
+**referral_payouts_pay_bulk**（mig0152＝同 一括・1 tx で部分成功なし・派生 idem・裁定298-6／299-5）
+（未払一覧の読取 RPC は mig0152 で A4 に載っていたが 0152 の写経の名残＝裁定307-1／309-5・mig0155 でゲート行を除去し B(f) へ移動）
 
 ### A5. シフト（17本＋0154 の 3 本・owner/manager の確定系＋SD 深部＝設計 v1.1 §4 文言修正・SD 設計書 §3）
 shift_set / shift_wish_decide / set_staffing_need /
@@ -254,6 +259,8 @@ referral_recalc（mig0152＝伝票の紹介料の現在値（method 4 値の式�
 
 punch_correction_apply（mig0154＝承認済み punch_corrections 行を punches へ写す内部ヘルパー＝request の owner／manager 経路と decide の approve からのみ・4 ロール revoke で authenticated／service_role とも実行不可・原則8＝呼び出し元が二重防御済み・裁定295-5）
 
+audit_purge（mig0155＝audit_logs の 7 年保持＝at < now()-7年 を org ごとに削除し action 'audit_purge' の行に件数・最古・最新・cutoff を残す・service_role 専用の grant 型（authenticated／anon／PUBLIC 不在）＋テナント JWT 遮断・実行は手動＝cron は Vercel Pro 後・裁定309-2／309 追補1 (a)・2026-09-28）
+
 ### B(b) トリガ関数（1本）
 touch_updated_at
 
@@ -297,6 +304,11 @@ billing_writable_of / auth_org_billing_writable / nox_receipt_public /
 **flag_enabled**（mig0135＝機能フラグの解決・店舗行→org 行→false の fail-closed・STABLE 読取・非ゲート・authenticated 実行可・C層①＝裁定182） /
 **shift_open_periods_mine**（mig0151＝cast 本人の自店 shift_periods（status='open'）の start_date／end_date／wish_deadline 3 列のみ・cast 以外は 0 行・書込なし・非ゲート＝裁定287-2／289-2）
 
+**referral_payouts_unpaid**（mig0152 新設・mig0155 でゲート行を除去＝店×期間の未払一覧の読取・owner∨manager 自店・裁定261 の「読取は課金停止中も通す」＝裁定307-1／309-5・A4 から移動・2026-09-28） /
+**kiosk_check_keeps**（mig0155＝伝票の顧客名＋active キープのボトル名のみ・305-4 と同一露出・kiosk 腕あり＝裁定11 顧客系非開示の例外を本 RPC に限定・STABLE・ゲート行なし・裁定309-10／309 追補1） /
+**cast_mynumber_discard_candidates**（mig0155＝マイナンバー廃棄候補＝退店日の翌年 1/1 起算 7 年経過＋暗号文あり・owner のみ・STABLE 読取・裁定309-3） /
+**customer_anonymize_candidates**（mig0155＝顧客匿名化候補＝retention_until 到来＋未匿名化・owner のみ・STABLE 読取・裁定309-4）
+
 ### B(g) 印刷（1本・「出せる」原則の明文）
 print_enqueue[K]
 
@@ -336,6 +348,13 @@ staff_deactivate / kiosk_deactivate
 | report_can_close / report_can_reopen / assert_day_open | **内部ヘルパー**（mig0138＝締め／解除の権限判定と締め済み営業日の関所・4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型・C③-2／11） |
 | staff_shift_biz_today / staff_shift_gate / staff_pattern_effective / staff_shift_deadline_at | **内部ヘルパー**（4 ロール明示 revoke・authenticated 実行不可＝B(a) 同型。biz_today は 0137 で biz_date_of へ委譲＝裁定232） |
 
+### B(m) 非ゲート書込・法定履行（2本・2026-09-28・mig0155・裁定309 追補1 (b)）
+法定の廃棄・保持期限の履行は課金停止中も止めない＝裁定261 の「読取は課金停止中も通す」を廃棄系の書込に拡張した新区分。ゲート行（'billing locked'）を持たない書込 RPC はここに置く（A に載せると「対象→live」assert が赤になる）。
+| 関数 | 適用原理 |
+|---|---|
+| cast_mynumber_discard | **法定履行**（マイナンバーの廃棄＝暗号文を null 上書き・廃棄日時／実行者／方法の 3 列＋audit reason・owner のみ・平文は触らない・裁定309-3／309 追補1 (e)） |
+| customer_anonymize | **法定履行**（顧客の匿名化＝name '削除済み顧客'・6 欄 null／false・anonymized_at・customer_notes 同時削除＝件数のみ audit・FK は残す・owner のみ・裁定309-4／309 追補1 (c)(d)） |
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /
@@ -359,3 +378,5 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 非ゲート新設 RPC も mig と同一コミットで B 名簿を追補する（ゲート入りの pin 波及と対称の運用）。
 
 ★**現在値（2026-09-18・mig0149 追随後）**: A **128** ＋ B **118** ＝ **246** ＝ live pg_proc 実列挙と一致（前＝mig0148 後 A 128＋B 117＝245・その前 mig0146 後 A 125＋B 116＝241。verify:nox-billing 段47-1 の pin＝対象 128／除外 118／ゲート済み 128／述語参照 129／挿入行の形 128）。
+
+★**現在値（2026-09-28・mig0155 追随後）**: A **144** ＋ B **130** ＝ **274** ＝ live pg_proc 実列挙と一致（前＝mig0153 後 A 145＋B 123＝268。0155＝A4 の未払一覧 1 本を B(f) へ（−1）・非ゲート新設 6 本を B へ（B(a) 1・B(f) 3・B(m) 2）。verify:nox-billing 段47-1 の pin＝対象 144／除外 130／ゲート済み 144／述語参照 145／挿入行の形 144）。

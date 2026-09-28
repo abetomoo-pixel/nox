@@ -504,6 +504,12 @@ async function main() {
     ["check_customer_names", { p_check_id: null }],
     ["bottle_keep_out", { p_keep_id: null, p_check_id: null, p_idem_key: null }],
     ["customer_sales_summary", { p_store_id: null, p_from: null, p_to: null }],
+    ["cast_mynumber_discard", { p_cast_id: null, p_reason: null }],            // ★mig0155（裁定309-1〜5・10）: 公開 5 本＋service 専用 1 本（audit_purge）
+    ["cast_mynumber_discard_candidates", { p_store_id: null }],
+    ["customer_anonymize", { p_customer_id: null, p_reason: null }],
+    ["customer_anonymize_candidates", { p_store_id: null }],
+    ["kiosk_check_keeps", { p_check_id: null }],
+    ["audit_purge", {}],
     ["set_staff_perms", { p_membership_id: null, p_can_register: null, p_can_crm: null, p_can_shift: null, p_can_view_backs: null, p_can_close: null, p_can_reopen: null }], // 段16a（mig0024→0038 5引数）
   ];
   for (const [fn, args] of F3A2_RPC_PROBES) {
