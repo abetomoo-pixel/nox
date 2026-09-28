@@ -6,7 +6,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { periodCalendarDays, type PayrollWindow } from "./window";
-import type { CastRaw, StoreMasters } from "./assemble";
+import type { CastRaw, StoreMasters, DeductionOverride } from "./assemble"; // ★0156: DeductionOverride（run 別控除上書き）
 import { calcPeriodOf } from "./assemble"; // ★0154 D6
 /** ★0154 D2: 'HH:MM'（0-47 域）→ 分（shift-time.hm2min と同式・collect 内で閉じる） */
 const hm2minOf = (hm: string): number => { const [h, mm] = String(hm).split(":").map(Number); return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(mm) ? mm : 0); };
@@ -532,6 +532,39 @@ export async function loadPayrollAdjustments(admin: SupabaseClient, storeId: str
   for (const r of (data ?? []) as R[]) {
     const cur = byCast.get(r.cast_id) ?? [];
     cur.push({ castId: r.cast_id, kind: r.mode, amount: r.amount, rateBp: r.rate_bp, beforeWithholding: r.before_withholding, showDetail: r.show_detail, reason: r.reason });
+    byCast.set(r.cast_id, cur);
+  }
+  return byCast;
+}
+
+// ★0156（裁定309-6・便 V-2）: 日払い済み（daily_pays）を cast 別に集計＝run 期間内の gross 合計・源泉既徴収額・件数。
+//   ★RPC daily_pays_of_run は JWT（auth_org_id）前提＝service キーの collect からは 'forbidden' になるため、他の集計表と同じく admin で表を直読
+//   （payroll_adjustments と同型・RLS は definer 相当のバイパス・storeId は route guard が org 内を照合済み）。式は RPC と同一（store×期間・cast 別 Σgross／Σwithholding／count）。
+export async function loadDailyPays(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Map<string, { gross: number; withheld: number; n: number }>> {
+  const byCast = new Map<string, { gross: number; withheld: number; n: number }>();
+  const { data, error } = await admin.from("daily_pays").select("cast_id, gross, withholding")
+    .eq("store_id", storeId).gte("biz_date", win.periodStart).lte("biz_date", win.periodEnd);
+  if (error) throw new Error(`daily_pays: ${error.message}`);
+  for (const r of (data ?? []) as { cast_id: string; gross: number; withholding: number }[]) {
+    const cur = byCast.get(r.cast_id) ?? { gross: 0, withheld: 0, n: 0 };
+    cur.gross += r.gross; cur.withheld += r.withholding; cur.n += 1;
+    byCast.set(r.cast_id, cur);
+  }
+  return byCast;
+}
+
+// ★0156（裁定309-8＝300 追補1・便 V-2）: run 別控除上書き（payroll_run_deduction_overrides）を cast 別に読む。run 行（store×period）が無ければ空 Map。
+//   RPC payroll_run_deduction_overrides_of は JWT 前提＝collect（admin）は表を直読（loadPayrollAdjustments と同型）。
+export async function loadDeductionOverrides(admin: SupabaseClient, storeId: string, period: string): Promise<Map<string, DeductionOverride[]>> {
+  const byCast = new Map<string, DeductionOverride[]>();
+  const { data: run, error: eR } = await admin.from("payroll_runs").select("id").eq("store_id", storeId).eq("period", period).maybeSingle();
+  if (eR) throw new Error(`payroll_runs(控除上書き): ${eR.message}`);
+  if (!run) return byCast;
+  const { data, error } = await admin.from("payroll_run_deduction_overrides").select("cast_id, deduction_id, enabled, amount_override").eq("run_id", run.id as string);
+  if (error) throw new Error(`payroll_run_deduction_overrides: ${error.message}`);
+  for (const r of (data ?? []) as { cast_id: string; deduction_id: string; enabled: boolean; amount_override: number | null }[]) {
+    const cur = byCast.get(r.cast_id) ?? [];
+    cur.push({ deductionId: r.deduction_id, enabled: r.enabled, amountOverride: r.amount_override });
     byCast.set(r.cast_id, cur);
   }
   return byCast;

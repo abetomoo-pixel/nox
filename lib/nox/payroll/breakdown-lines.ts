@@ -21,6 +21,7 @@ export type BreakdownPayLike = {
   fixedDed?: number; sanction?: { original?: number; applied?: number } | null; fine?: number; withholding?: number; normPenalty?: number;
   arDeduct?: number; advanceDeduct?: number; okuriDeduct?: number;
   adjBefore?: number; adjAfter?: number; adjustOverflow?: number;
+  dailyPaidGross?: number; dailyWithheld?: number; dailyWithholdingShort?: number; // ★0156（裁定309-6）: 日払い済み（無ければ 0）
   taxMode?: string; net?: number;
 };
 export type BreakdownExtra = { kind: string; amount: number; label?: string };
@@ -123,6 +124,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   dpush("ar", "売掛", input.deducted?.ar != null ? z(input.deducted.ar) : z(p.arDeduct));
   dpush("adv", "前借り", input.deducted?.adv != null ? z(input.deducted.adv) : z(p.advanceDeduct));
   dpush("okuri", "送り", input.deducted?.okuri != null ? z(input.deducted.okuri) : z(p.okuriDeduct));
+  dpush("dailyPaid", "日払い済み", z(p.dailyPaidGross)); // ★0156（裁定309-6）: 支給後控除（無ければ 0＝行は出ない）
 
   const earnTotal = earn.filter((l) => !l.sub && !l.info).reduce((s, l) => s + l.amount, 0);
   const dedTotal = ded.reduce((s, l) => s + l.amount, 0);

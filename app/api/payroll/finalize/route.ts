@@ -41,7 +41,12 @@ export async function POST(req: Request) {
       //     （pay/extras/ar/adv/okuri）とは衝突せず、reopen の巻き戻しも cast_name を参照しない。
       // ★裁定264-10／264-11: show_detail=true の行は {reason, amount, before_withholding}・false は adjustments_hidden（数値）のみ・
       //   超過額は pay.adjustOverflow（数値）のまま。調整が無い run はキーを足さない＝従来の breakdown と完全一致。
-      breakdown: { pay: r.pay, extras: r.extras, cast_name: r.castName, ...frozenAdjustmentKeys(r.adjustmentsShown, r.adjustmentsHiddenTotal) },
+      breakdown: {
+        pay: r.pay, extras: r.extras, cast_name: r.castName, ...frozenAdjustmentKeys(r.adjustmentsShown, r.adjustmentsHiddenTotal),
+        // ★0156（裁定309-6／309-8・便 V-2）: 日払い済み（gross・源泉既徴収・件数）と適用した控除上書き＝凍結は現行（breakdown_json に上書き後の値）。無い cast はキーを足さない
+        ...(r.dailyN > 0 ? { daily_paid_gross: r.dailyPaidGross, daily_withheld: r.dailyWithheld, daily_n: r.dailyN } : {}),
+        ...(r.deductionOverridesApplied.length ? { deduction_overrides: r.deductionOverridesApplied.map((o) => ({ deduction_id: o.deductionId, enabled: o.enabled, amount_override: o.amountOverride })) } : {}),
+      },
       ar_deducted: r.arDeducted, // F2e-1: {receivable_id, amount}[]（finalize が deducted/部分/繰越に遷移）
       ar_carried: r.arCarried, // F2e-1: {receivable_id}[]（deduct_period→翌 period）
       adv_deducted: r.advDeducted, // F2e-2: {advance_id, amount}[]（deducted/部分/繰越）

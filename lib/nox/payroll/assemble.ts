@@ -60,7 +60,29 @@ export type CastRaw = {
   shiftHoursByDate?: Record<string, number>; // 確定シフトの時間（bizDate→h・shift_guarantee 用）
   attendanceDays?: number;                   // 出勤区分（shukkin／late／dohan）の回数（per_shift 用）
   calcPeriod?: { start: string; end: string }; // 計算期間（入店日／退店日で run の期間を切る・payslips.calc_period_* へ凍結）
+  // ★0156（裁定309-6／309-8・便 V-2）: 日払い済み（期間内の daily_pays 合計）と run 別控除上書き（当該 cast 分）。core が格納・fixture は省略＝従来と同値
+  dailyPaid?: { gross: number; withheld: number; n: number };
+  deductionOverrides?: DeductionOverride[];
 };
+
+// ★0156（裁定309-8＝300 追補1）: run 別・cast 別の固定控除の上書き行（payroll_run_deduction_overrides）。
+export type DeductionOverride = { deductionId: string; enabled: boolean; amountOverride: number | null };
+
+/** ★0156: 店の固定控除に cast 別の上書きを当てる（純関数）。enabled=false は除外・amount_override 非 null は amount を置換（per／kind は不変）。上書きが無ければ同じ配列を返す */
+export function applyDeductionOverrides(deductions: Deduction[], overrides: DeductionOverride[] | undefined): { deductions: Deduction[]; applied: DeductionOverride[] } {
+  if (!overrides || overrides.length === 0) return { deductions, applied: [] };
+  const byId = new Map(overrides.map((o) => [o.deductionId, o]));
+  const applied: DeductionOverride[] = [];
+  const out: Deduction[] = [];
+  for (const d of deductions) {
+    const o = byId.get(d.id);
+    if (!o) { out.push(d); continue; }
+    applied.push(o);
+    if (!o.enabled) continue;
+    out.push(o.amountOverride != null ? { ...d, amount: o.amountOverride } : d);
+  }
+  return { deductions: out, applied };
+}
 
 // 店共通マスタ（loadStoreMasters が組む）。
 export type StoreMasters = {
@@ -141,7 +163,7 @@ export function buildPayInput(
     pointProducts: raw.pointProducts,
     customBackDefs: masters.customBackDefs,
     metrics: { champCnt: raw.champCnt, bottleCnt: raw.bottleCnt }, // 論点1: check_lines kind から集計
-    deductions: masters.deductions,
+    deductions: applyDeductionOverrides(masters.deductions, raw.deductionOverrides).deductions, // ★0156（309-8）: cast 別の上書き（無ければ店の控除そのまま）
     penalty: masters.penalty,
     normConfig: masters.normConfig,
     norm: raw.norm,
@@ -162,6 +184,8 @@ export function buildPayInput(
     avgDailyWage: raw.avgDailyWage, // ★裁定98-C: null=暫定式
     taxMode,
     adjustments: raw.adjustments ?? [], // ★裁定258／264: 行のまま渡す（率の分母 gross は payOf 内で確定）
+    // ★0156（309-6）: 日払い済み（無ければキーを足さない＝従来と 1 バイト同値）
+    ...(raw.dailyPaid && (raw.dailyPaid.gross > 0 || raw.dailyPaid.withheld > 0) ? { dailyPaidGross: raw.dailyPaid.gross, dailyWithheld: raw.dailyPaid.withheld } : {}),
   };
 }
 

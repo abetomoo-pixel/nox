@@ -36,7 +36,7 @@ type StateCategory = { id: string; name: string; sort_order: number };
 type StateCast = { id: string; name: string };
 // R-A5（0089 E節）: state.checks へ加算的キー4つ（卓タイルの時間ステータス用スナップ）
 type StateCheck = { id: string; seat_id: string; extra_seat_ids: string[]; total: number; started_at: string; set_min: number; ext_min: number; time_per: string; people: number | null };
-type RegState = { seats: StateSeat[]; products: StateProduct[]; categories: StateCategory[]; casts: StateCast[]; checks: StateCheck[] };
+type RegState = { seats: StateSeat[]; products: StateProduct[]; categories: StateCategory[]; casts: StateCast[]; checks: StateCheck[]; ar_enabled?: boolean }; // ★0156（起票84）: kiosk_register_state に 'ar_enabled'（0156 適用前は undefined＝売掛を出す＝従来）
 // R-A5（0089 F節）: check へスナップ5値を追加（伝票ヘッダの時間ステータス＋延長ボタンのラベル用）
 type DetailCheck = {
   id: string; seat_id: string; status: string; people: number | null; nom_type: string;
@@ -1169,7 +1169,8 @@ export default function KioskRegisterPage() {
                         onChange={(e) => { setPayMethod(e.target.value); if (!DETAIL_METHODS.has(e.target.value)) setPayDetail(""); }}
                         style={input}
                       >
-                        {Object.entries(METHOD_LABEL).map(([v, l]) => (
+                        {/* ★0156（起票84・便 V-7）: 店設定 ar_enabled=false（kiosk_register_state が返す）なら「売掛」を描画しない＝管理画面のレジ（0155 便 S-2）と同じ条件 */}
+                        {Object.entries(METHOD_LABEL).filter(([v]) => v !== "ar" || state?.ar_enabled !== false).map(([v, l]) => (
                           <option key={v} value={v}>{l}</option>
                         ))}
                       </select>

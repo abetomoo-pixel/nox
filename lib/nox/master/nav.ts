@@ -34,6 +34,7 @@ export const MASTER_NAV: MasterNavGroup[] = [
     label: "店舗・端末",
     pages: [
       { label: "席・卓", href: "/master/seats" },
+      { label: "店舗情報", href: "/master/store-profile" }, // ★起票86（便 V-7・2026-09-28）: StoreProfilePanel（店舗情報／シフト運用／売掛・記録の保持）を business-hours から切り出し
       { label: "営業時間", href: "/master/business-hours" },
       { label: "スタッフ・システム", href: "/master/system" },
     ],

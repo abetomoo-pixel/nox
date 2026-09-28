@@ -112,6 +112,10 @@ export default async function MinePage() {
   // 段M2: 所属店（ヘッダ表示用）。cast の可視 store は自店のみ（RLS）＝先頭行が自店（/mine/ranking と同型）。
   const { data: myStores } = await supabase.from("stores").select("id, name, settings_json").limit(1); // ★裁定269: sys_* は既存の自店読取に列を足すだけ
   const myStore = myStores?.[0];
+  // ★0156（起票85・便 V-7）: マイナンバーの廃棄状況（cast_mynumber_discard_status＝cast 本人・値は返さない・audit なし）。廃棄後だけ「廃棄済み YYYY-MM-DD」を出す
+  const { data: discardRows } = meCast ? await supabase.rpc("cast_mynumber_discard_status", { p_cast_id: meCast.id as string }) : { data: null };
+  const discard = ((discardRows ?? []) as { mynumber_deleted_at: string | null; mynumber_deletion_method: string | null; has_mynumber: boolean }[])[0];
+  const discardYmd = discard?.mynumber_deleted_at ? new Date(discard.mynumber_deleted_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }) : null;
 
   // 段M2: 指名ランキングの★自分の行だけ（get_cast_ranking＝金額列を構造的に持たない既存 RPC・
   //   /mine/ranking が既に使っている経路と同一）。他キャストの数字は一切描画しない（順位と母数のみ）。
@@ -163,7 +167,7 @@ export default async function MinePage() {
           文言はそのまま＝移設のみ）。 */}
       <section className="nox-panel">
         <h3>打刻</h3>
-        <PunchActions />
+        <PunchActions okuriActual={((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual"} />{/* ★0156（裁定309-9）: actual 店のみ「送り あり／なし」 */}
         <p className="nox-pstate">
           最終打刻:{" "}
           {last
@@ -183,6 +187,8 @@ export default async function MinePage() {
           <span style={{ marginLeft: "auto" }}>{(slips ?? []).length > 0 && <PrintPayslipButton />}</span>
         </h3>
         {(slips ?? []).length === 0 && <p style={{ ...noneP, marginTop: 11 }}>確定分なし</p>}
+        {/* ★0156（起票85・便 V-7）: マイナンバー廃棄後だけ本人にも「廃棄済み YYYY-MM-DD」を出す（値は出さない・未廃棄は何も出さない） */}
+        {discardYmd && <p style={{ fontSize: 12, color: "var(--sub)", margin: "8px 0 0" }}>マイナンバー 廃棄済み <span className="num">{discardYmd}</span></p>}
         <div style={{ marginTop: 11 }}>
           {(slips ?? []).map((s, i) => (
             <PayslipSlip

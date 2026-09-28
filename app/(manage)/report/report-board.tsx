@@ -402,8 +402,45 @@ export default function ReportBoard({
   // 当日サマリの「売上（暫定）」＝現金＋カード＋売掛＋その他（締め済み日報の売上式と同じ組み立て）
   const previewSales = preview ? preview.cash + preview.card + preview.uri + preview.other : 0;
 
+  // ★0156（裁定309-9・便 V-5）: 締めの直前に「今日の送り n 件」を確認（okuri_mode='actual' の店のみ）。okuri_today_summary（未発行のみ）→ 行ごとに金額（base_amount が null なら必須）
+  //   → transport_issue_bulk(p_idem_key＝punch_id・各件 idem＝md5(punch:cast)＝再送 0 件)→ 締め。0 件なら通常どおり締める。'flat' の店は表示なし。
+  type OkuriRow = { punch_id: string; cast_id: string; cast_name: string; punched_at: string; idem_key: string; base_amount: number | null };
+  const [okuriRows, setOkuriRows] = useState<OkuriRow[] | null>(null);
+  const [okuriAmt, setOkuriAmt] = useState<Record<string, string>>({});
+  const [okuriBusy, setOkuriBusy] = useState(false);
+  const [okuriMsg, setOkuriMsg] = useState<string | null>(null);
   async function closeDay() {
     setMsg(null);
+    // 送り方式が actual なら未発行の送りを確認してから締める（stores 読取 +1・0 件なら即締め）
+    const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
+    if (((st?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual") {
+      const { data: rows, error: eO } = await supabase.rpc("okuri_today_summary", { p_store_id: storeId, p_biz_date: bizDate });
+      if (eO) { setMsg(`送りの確認に失敗: ${rpcErrJaCommon(eO.message)}`); return; }
+      const list = (rows ?? []) as OkuriRow[];
+      if (list.length > 0) {
+        setOkuriRows(list);
+        setOkuriAmt(Object.fromEntries(list.map((r) => [r.punch_id, r.base_amount != null ? String(r.base_amount) : ""])));
+        setOkuriMsg(null);
+        return; // モーダルで確認→issueOkuriAndClose へ
+      }
+    }
+    await closeDayNow();
+  }
+  async function issueOkuriAndClose() {
+    if (!okuriRows) return;
+    if (okuriRows.some((r) => !/^\d+$/.test(okuriAmt[r.punch_id] ?? "") || Number(okuriAmt[r.punch_id]) <= 0)) { setOkuriMsg("すべての行に送りの金額（1 円以上）を入れてください"); return; }
+    setOkuriBusy(true); setOkuriMsg(null);
+    for (const r of okuriRows) {
+      const { error } = await supabase.rpc("transport_issue_bulk", {
+        p_store_id: storeId, p_items: [{ cast_id: r.cast_id, amount: Number(okuriAmt[r.punch_id]), date: bizDate }], p_idem_key: r.punch_id,
+      });
+      if (error) { setOkuriBusy(false); setOkuriMsg(`${r.cast_name} の送りの発行に失敗: ${rpcErrJaCommon(error.message)}`); return; }
+    }
+    setOkuriBusy(false);
+    setOkuriRows(null);
+    await closeDayNow();
+  }
+  async function closeDayNow() {
     const { error } = await supabase.rpc("daily_report_close", {
       p_store_id: storeId, p_biz_date: bizDate,
       p_expense: expense, p_cash_payout: payout, p_cash_float: cashFloat,
@@ -519,6 +556,34 @@ export default function ReportBoard({
       <PageHead eyebrow="DAILY REPORT" title="日報・締め管理"
         desc="営業日の締め、月次集計、売掛回収までを一つの流れで管理します。" />
       <Toast msg={msg} />
+      {/* ★0156（裁定309-9・便 V-5）: 締め前の「今日の送り」確認モーダル（actual 店・未発行 1 件以上のとき） */}
+      {okuriRows && (
+        <Modal onClose={() => !okuriBusy && setOkuriRows(null)} maxWidth={520} scroll>
+          <div className="nox-formmodal-head">
+            <strong>今日の送り {okuriRows.length} 件（合計 ¥{okuriRows.reduce((s, r) => s + (Number(okuriAmt[r.punch_id]) || 0), 0).toLocaleString()}）</strong>
+            <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !okuriBusy && setOkuriRows(null)}>×</button>
+          </div>
+          <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "4px 0 10px", lineHeight: 1.7 }}>
+            退勤時に「送り あり」だった打刻のうち、まだ送り実費を発行していないものです。金額を確認して発行し、そのまま締めます（発行済みは表示されません・再送は二重になりません）。
+          </p>
+          <div style={{ display: "grid", gap: 8 }}>
+            {okuriRows.map((r) => (
+              <label key={r.punch_id} style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 8, alignItems: "center", fontSize: 13 }}>
+                <span>{r.cast_name}<span style={{ marginLeft: 8, fontSize: 11.5, color: "var(--sub)" }}>{new Date(r.punched_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} 退勤</span></span>
+                <input type="number" inputMode="numeric" min={1} step={1} value={okuriAmt[r.punch_id] ?? ""} disabled={okuriBusy}
+                  onChange={(e) => setOkuriAmt((m) => ({ ...m, [r.punch_id]: e.target.value }))} placeholder={r.base_amount == null ? "金額（必須）" : "金額"} style={t.input} aria-label={`${r.cast_name} の送り金額`} />
+              </label>
+            ))}
+          </div>
+          {okuriMsg && <Toast msg={okuriMsg} style={{ margin: "8px 0 0" }} />}
+          <div className="nox-formmodal-foot">
+            <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={okuriBusy} onClick={() => setOkuriRows(null)}>戻る（締めない）</button>
+            <button type="button" style={{ ...t.btnGold, opacity: okuriBusy ? 0.6 : 1 }} disabled={okuriBusy} onClick={() => void issueOkuriAndClose()}>
+              {okuriBusy ? "発行中…" : "送りを発行して締める"}
+            </button>
+          </div>
+        </Modal>
+      )}
       {/* ★C層③: 解除／差異承認の理由モーダル（理由必須 1〜200 字・Modal 共通部品・flag on の導線からのみ開く） */}
       {(reopenPick || approvePick) && (() => {
         const isRe = !!reopenPick;

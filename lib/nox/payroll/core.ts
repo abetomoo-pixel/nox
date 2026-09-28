@@ -8,9 +8,9 @@ import { payOf, type PayResult, type TaxMode } from "../pay";
 import { allocDue } from "../sales-alloc"; // #32 pooled の最大剰余法（sales 按分と同一の整数分配・純関数）
 import { takeHomeFloor } from "../money"; // F2e-1 手取り0下限（social gate TODO）
 import { resolvePayrollWindow, periodDaysBetween } from "./window";
-import { collectPeriod, loadPayrollAdjustments } from "./collect";
+import { collectPeriod, loadPayrollAdjustments, loadDailyPays, loadDeductionOverrides } from "./collect"; // ★0156: 日払い済み・run 別控除上書き
 import { frozenAdjustmentsOf, type FrozenAdjustment } from "./adjust"; // 裁定264-10: 凍結形（show_detail=true の行だけ理由を持つ）
-import { buildPayInput, type Extra } from "./assemble";
+import { buildPayInput, applyDeductionOverrides, type Extra, type DeductionOverride } from "./assemble";
 
 // 天引きの消し込み計画（finalize に同梱＝receivable/advance/transport 遷移の指示）
 export type ArDeducted = { receivable_id: string; amount: number };
@@ -43,13 +43,18 @@ export type PreviewRow = {
   // ★裁定264-10: 凍結する調整行（show_detail=true のみ・入力順）と、false 行の合算額（理由は持たない）
   adjustmentsShown: FrozenAdjustment[];
   adjustmentsHiddenTotal: number;
+  // ★0156（裁定309-6／309-8・便 V-2）: 日払い済み（gross 合計・源泉既徴収・件数）と適用した控除上書き（breakdown_json に凍結）
+  dailyPaidGross: number;
+  dailyWithheld: number;
+  dailyN: number;
+  deductionOverridesApplied: DeductionOverride[];
 };
 export type Blocker = { castId: string; castName: string; reason: "no_plan" | "no_tax" | "no_employment" };
 // ★裁定98: 確定は止めないが人が見るべき事象（blocker と別枠・warnEmptyPool は IncentiveSummary 側に温存）
 export type PayrollWarning = {
   castId: string;
   castName: string;
-  kind: "sanction_capped" | "sanction_contractor" | "avg_wage_provisional";
+  kind: "sanction_capped" | "sanction_contractor" | "avg_wage_provisional" | "daily_withholding_exceeds"; // ★0156: 日払いの既徴収源泉が当期源泉を超えた（源泉は 0 で止める・起票）
   detail: string;
 };
 // 可視化: incentive ごとの総配分額・受給者数（受給者0の pooled は警告・ブロックしない）
@@ -138,6 +143,13 @@ export async function computePayrollDraft(
   // ★裁定258／264: run 別調整控除を cast に載せる（buildPayInput が両段の payOf へ素通し）。対象 cast（sales ∪ punch）に無い cast の行は計算に乗らない。
   const adjByCast = await loadPayrollAdjustments(admin, storeId, period);
   for (const c of casts) c.adjustments = adjByCast.get(c.castId) ?? [];
+  // ★0156（裁定309-6／309-8・便 V-2）: 日払い済み（期間内 daily_pays の cast 別合計）と run 別控除上書きを cast に載せる（buildPayInput が両段の payOf へ素通し）。
+  //   無い cast はキーを持たない＝従来と 1 バイト同値。
+  const [dailyByCast, ovByCast] = await Promise.all([loadDailyPays(admin, storeId, win), loadDeductionOverrides(admin, storeId, period)]);
+  for (const c of casts) {
+    const dp = dailyByCast.get(c.castId); if (dp) c.dailyPaid = dp;
+    const ov = ovByCast.get(c.castId); if (ov && ov.length) c.deductionOverrides = ov;
+  }
 
   // #32: cast の出勤インセンティブ extras を算出（受給者=final∈{ok,late}・確認1／pooled は最大剰余法・端数+1=cast_id 最小）。
   const incentiveExtrasFor = (castId: string): Extra[] => {
@@ -221,6 +233,12 @@ export async function computePayrollDraft(
     }
     // ★裁定98: sanction 由来の警告（確定は止めない・blocker と別枠・導出は純関数）
     warnings.push(...sanctionWarningsOf(c, pay.sanction));
+    // ★0156（裁定309-6）: 日払い時の源泉既徴収が当期源泉を超えた＝源泉 0 で止め、超過は warn（起票＝返金／翌期調整は裁定待ち）
+    if ((pay.dailyWithholdingShort ?? 0) > 0) {
+      warnings.push({ castId: c.castId, castName: c.castName, kind: "daily_withholding_exceeds",
+        detail: `日払いで徴収済みの源泉 ${c.dailyPaid?.withheld ?? 0}円が当期の源泉を ${pay.dailyWithholdingShort}円 超えています（当期源泉は 0・超過分の扱いは要裁定）` });
+    }
+    const ovApplied = applyDeductionOverrides(masters.deductions, c.deductionOverrides).applied; // ★0156（309-8）: 凍結用（実際の適用は buildPayInput 内）
     // ★裁定264-10: 凍結形＝show_detail=true の行だけ理由付きで・false は合算額のみ（率の分母は pay.gross＝payOf と同一）
     const frozenAdj = frozenAdjustmentsOf(c.adjustments ?? [], pay.gross);
     rows.push({
@@ -230,6 +248,7 @@ export async function computePayrollDraft(
       advDeducted, advCarried, advDeductTotal: advPlan.deduct, advCarriedTotal: advPlan.carriedTotal,
       okuriDeducted, okuriDeductTotal: okuriPlan.deduct,
       adjustmentsShown: frozenAdj.shown, adjustmentsHiddenTotal: frozenAdj.hiddenTotal,
+      dailyPaidGross: c.dailyPaid?.gross ?? 0, dailyWithheld: c.dailyPaid?.withheld ?? 0, dailyN: c.dailyPaid?.n ?? 0, deductionOverridesApplied: ovApplied, // ★0156
     });
   }
 

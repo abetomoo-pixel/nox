@@ -22,6 +22,7 @@ import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 
 import SanctionModal from "@/components/nox/sanction-modal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0156（便 V-3）: 控除上書き RPC の raise 語（run not draft／bad deduction／bad enabled）の日本語化
 
 type Store = { id: string; name: string };
 // D3: payslips.breakdown_json（finalize が凍結）の CSV が使う部分。back 内訳の生値は CSV に出さず合算のみ。
@@ -55,7 +56,13 @@ type Row = {
     };
     extras?: { kind: string; amount: number; label?: string }[]; // ★裁定303: breakdownLinesOf の BreakdownExtra と同形（kind で行ラベル）
   };
+  // ★0156（裁定309-6／309-8・便 V-3）: 日払い済み（gross・源泉既徴収・件数）と適用済み控除上書き（preview が返す・凍結は breakdown_json）
+  dailyPaidGross?: number; dailyWithheld?: number; dailyN?: number;
+  deductionOverridesApplied?: { deductionId: string; enabled: boolean; amountOverride: number | null }[];
 };
+// ★0156（裁定309-8）: 店の固定控除（deductions・RLS owner／manager）と run 別上書き（payroll_run_deduction_overrides_of）
+type DedRow = { id: string; name: string; amount: number; per: string; kind: string };
+type OvRow = { cast_id: string; deduction_id: string; enabled: boolean; amount_override: number | null };
 // ★裁定264-1: payroll_adjustments の 1 行（直 SELECT・RLS＝owner/manager 自店のみ・手順 2 実測 2026-09-15）
 type AdjRow = {
   id: string; cast_id: string; mode: "fixed" | "rate"; amount: number | null; rate_bp: number | null;
@@ -122,6 +129,14 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   const [slipPreview, setSlipPreview] = useState(false);
   // ★裁定264-1: 調整控除（run 別・cast 別）。一覧は直 SELECT（RLS）・追加／削除は route（add／delete）。draft 以外は読取のみ（264-9）。
   const [adjRows, setAdjRows] = useState<AdjRow[]>([]);
+  // ★0156（裁定309-8・便 V-3）: 右パネル「固定控除」節＝店の deductions（active）と run 別上書き（draft のみ編集・finalized は読取表示）
+  const [dedRows, setDedRows] = useState<DedRow[]>([]);
+  const [ovRows, setOvRows] = useState<OvRow[]>([]);
+  const [ovBusy, setOvBusy] = useState(false);
+  const [ovMsg, setOvMsg] = useState<string | null>(null);
+  const [ovAmount, setOvAmount] = useState<Record<string, string>>({}); // deduction_id → 入力中の上書き額
+  // ★0156（裁定309-7・便 V-6）: 貸付残高一覧（advances_open_balance）
+  const [openBal, setOpenBal] = useState<{ cast_id: string; cast_name: string; open_total: number; n: number; oldest_on: string }[] | null>(null);
   const [adjMsg, setAdjMsg] = useState("");
   const [adjBusy, setAdjBusy] = useState(false); // 264-8: 送信中の二重発火を止める（add に冪等キーは無い）
   const [adjForm, setAdjForm] = useState<{ kind: "fixed" | "rate"; amount: string; pct: string; before: boolean; showDetail: boolean; reason: string }>(
@@ -146,9 +161,20 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         .select("*") // ★裁定272-1: source 列（0148）は手貼り後に現れる＝列名を固定せず全列で読む
         .eq("run_id", info.id).order("created_at", { ascending: true }).order("id", { ascending: true });
       setAdjRows((aj ?? []) as AdjRow[]);
+      // ★0156（309-8）: 当 run の控除上書き（RPC＝owner∨manager 自店・run 行が無ければ空）
+      const { data: ov } = await supabase.rpc("payroll_run_deduction_overrides_of", { p_run_id: info.id });
+      setOvRows((ov ?? []) as OvRow[]);
     } else {
       setAdjRows([]);
+      setOvRows([]);
     }
+    // ★0156（309-8）: 店の固定控除（active・直 SELECT＝RLS owner／manager）と ★0156（309-7）貸付残高一覧（RPC・+2）
+    const [{ data: ded }, { data: ob }] = await Promise.all([
+      supabase.from("deductions").select("id, name, amount, per, kind").eq("store_id", storeId).eq("is_active", true).order("name"),
+      supabase.rpc("advances_open_balance", { p_store_id: storeId }),
+    ]);
+    setDedRows((ded ?? []) as DedRow[]);
+    setOpenBal((ob ?? []) as { cast_id: string; cast_name: string; open_total: number; n: number; oldest_on: string }[]);
     setSum4(null);
     setUnpaid(null); setPrevNet(null);
     setCastPaid(null);
@@ -408,6 +434,25 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   }
   // 264-9: draft（run なしを含む）だけ追加・削除を出す。確定後は読取表示のみ（編集は reopen 後）。
   const adjEditable = (runInfo?.status ?? "draft") === "draft";
+  // ★0156（裁定309-8・便 V-3）: 控除上書きの set／clear → 再プレビュー＋上書き一覧の再読込（RPC は draft のみ受理＝'run not draft' は写像で表示）
+  async function setOverride(castId: string, deductionId: string, enabled: boolean, amountOverride: number | null) {
+    if (!runInfo) { setOvMsg("先にプレビューして run を作成してください（上書きは run 単位で保存します）"); return; }
+    setOvBusy(true); setOvMsg(null);
+    const { error } = await supabase.rpc("payroll_run_deduction_override_set", { p_run_id: runInfo.id, p_cast_id: castId, p_deduction_id: deductionId, p_enabled: enabled, p_amount_override: amountOverride });
+    setOvBusy(false);
+    if (error) { setOvMsg(`上書きの保存に失敗: ${rpcErrJa(error.message)}`); return; }
+    setOvMsg(enabled ? (amountOverride != null ? `金額を ¥${amountOverride.toLocaleString()} に上書きしました` : "この控除を ON にしました") : "この控除を OFF にしました");
+    await loadRun(); await preview();
+  }
+  async function clearOverride(castId: string, deductionId: string) {
+    if (!runInfo) return;
+    setOvBusy(true); setOvMsg(null);
+    const { error } = await supabase.rpc("payroll_run_deduction_override_clear", { p_run_id: runInfo.id, p_cast_id: castId, p_deduction_id: deductionId });
+    setOvBusy(false);
+    if (error) { setOvMsg(`上書きの解除に失敗: ${rpcErrJa(error.message)}`); return; }
+    setOvMsg("上書きを解除しました（店の設定どおり）");
+    await loadRun(); await preview();
+  }
   // ★裁定300-2: 発行日の既定＝今日を期（YYYY-MM）の範囲に丸める（期固定）
   const periodEndOf = (p: string) => { const [y, m] = p.split("-").map(Number); return `${p}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`; };
 
@@ -901,6 +946,47 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                       </div>
                     )}
                     {adjMsg && <Toast msg={adjMsg} style={{ margin: "6px 0 0" }} />}
+                    {/* ★0156（裁定309-8＝300 追補1・便 V-3）: 固定控除＝店の deductions を行ごとに ON／OFF＋金額上書き（draft のみ編集・finalized は読取表示）→ override_set／clear */}
+                    <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>固定控除{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
+                    {dedRows.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 4px" }}>この店に有効な固定控除はありません</p>}
+                    {dedRows.map((d) => {
+                      const ov = ovRows.find((o) => o.cast_id === r.castId && o.deduction_id === d.id);
+                      const on = ov ? ov.enabled : true;
+                      const eff = ov?.amount_override ?? d.amount;
+                      return (
+                        <div key={d.id} style={{ borderTop: "1px solid var(--line2)", padding: "5px 0", fontSize: 12, display: "grid", gap: 4 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <span style={{ fontWeight: 700, opacity: on ? 1 : 0.55 }}>{d.name}<span style={{ marginLeft: 6, fontSize: 10.5, color: "var(--sub)" }}>{d.per === "day" ? "日額" : d.per === "rate" ? "率" : "月額"}</span></span>
+                            <span className="num" style={{ color: on ? "var(--v2-text)" : "var(--sub)" }}>{on ? `¥${eff.toLocaleString()}${d.per === "rate" ? "%" : ""}` : "OFF"}{ov && <span className="nox-stpill" style={{ marginLeft: 6 }}>上書き</span>}</span>
+                          </div>
+                          {adjEditable && (
+                            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                              <div className="nox-seg" role="group" aria-label={`${d.name} の ON／OFF`}>
+                                <button type="button" className={!on ? "on" : ""} disabled={ovBusy} onClick={() => void setOverride(r.castId, d.id, false, null)}>OFF</button>
+                                <button type="button" className={on ? "on" : ""} disabled={ovBusy} onClick={() => void setOverride(r.castId, d.id, true, ov?.amount_override ?? null)}>ON</button>
+                              </div>
+                              {d.per !== "rate" && (
+                                <>
+                                  <input type="number" inputMode="numeric" min={0} step={1} value={ovAmount[d.id] ?? ""} onChange={(e) => setOvAmount((m) => ({ ...m, [d.id]: e.target.value }))}
+                                    placeholder={`上書き額（店の設定 ¥${d.amount.toLocaleString()}）`} style={{ ...t.input, width: 170 }} aria-label={`${d.name} の上書き額`} disabled={ovBusy} />
+                                  <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={ovBusy || !/^\d+$/.test(ovAmount[d.id] ?? "")}
+                                    onClick={() => void setOverride(r.castId, d.id, true, Number(ovAmount[d.id]))}>金額を上書き</button>
+                                </>
+                              )}
+                              {ov && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={ovBusy} onClick={() => void clearOverride(r.castId, d.id)}>店の設定に戻す</button>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {ovMsg && <Toast msg={ovMsg} style={{ margin: "6px 0 0" }} />}
+                    {/* ★0156（裁定309-6・便 V-3）: 日払い済み（期間内 daily_pays の合計＝支給後控除行・源泉は既徴収分を差引） */}
+                    {(r.dailyN ?? 0) > 0 && (
+                      <p style={{ fontSize: 12, margin: "8px 0 0" }}>
+                        <b style={{ color: "var(--champ)" }}>日払い済み</b> <span className="num">¥{(r.dailyPaidGross ?? 0).toLocaleString()}</span>
+                        <span style={{ color: "var(--sub)" }}>（源泉既徴収 <span className="num">¥{(r.dailyWithheld ?? 0).toLocaleString()}</span>・<span className="num">{r.dailyN}</span> 件）＝差引支給から引かれ、源泉は既徴収分を差し引きます</span>
+                      </p>
+                    )}
                     {/* ★裁定300-2（2026-09-25）: 前借り／送り実費の入口（このキャスト・この期に固定・確定後は読取のみ）＝共通部品・既存 RPC。発行後はプレビュー再計算（advanceDeduct／okuriDeduct に反映）。残高は 0156 */}
                     <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>前借り／送り実費{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
                     <AdvanceOkuriForm storeId={storeId} casts={[]} castId={r.castId} castName={r.castName}
@@ -991,6 +1077,33 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       {/* ── 下段1: 支払・明細（4段目ステップの実体＝支払記録。明細プレビューは右パネル/下の印刷＝PayslipSlip） ── */}
       <h2 style={{ ...t.cardTitle, fontSize: 15, margin: "18px 0 6px" }}>支払・明細</h2>
       {storeId && <PaymentPanel storeId={storeId} period={period} />}
+
+      {/* ★0156（裁定309-7・便 V-6）: 貸付残高一覧＝advances_open_balance（cast 別 open 合計・件数・最古日）。年越しの過払債権は同一行で回収継続（別勘定なし）・貸倒は adv_cancel（理由必須・手動） */}
+      {storeId && (
+        <section className="nox-cardtop" style={t.card}>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>貸付残高一覧（前借りの未回収）</h3>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
+            open の前借り（額−天引き済み）の合計。年を越しても同じ行で天引きを続けます。貸倒にする場合は「控除・送り」の当日一覧から取消（理由必須）してください。
+          </p>
+          {openBal === null ? (
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>読み込み中…</p>
+          ) : openBal.length === 0 ? (
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>未回収の前借りはありません。</p>
+          ) : (
+            <div style={{ display: "grid", gap: 4 }}>
+              {openBal.map((b) => (
+                <div key={b.cast_id} style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap", fontSize: 13, borderBottom: "1px solid var(--line)", padding: "4px 0" }}>
+                  <span style={{ fontWeight: 700 }}>{b.cast_name}</span>
+                  <span className="num" style={{ color: "var(--bad)" }}>¥{b.open_total.toLocaleString()}</span>
+                  <span style={{ fontSize: 11.5, color: "var(--sub)" }}><span className="num">{b.n}</span> 件・最古 <span className="num">{b.oldest_on}</span></span>
+                </div>
+              ))}
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 0" }}>合計 <span className="num">¥{openBal.reduce((s, b) => s + b.open_total, 0).toLocaleString()}</span></p>
+            </div>
+          )}
+          <a href="/master/cast-comp/deduction" className="nox-link" style={{ display: "inline-block", marginTop: 8, fontSize: 12 }}>控除・送り（前借りの発行・取消）へ ›</a>
+        </section>
+      )}
 
       {/* ── 下段2: 税務・出力（CSV／一括PDF／インボイス集計／納付管理＝裁定99-⑧） ── */}
       <h2 style={{ ...t.cardTitle, fontSize: 15, margin: "18px 0 6px" }}>税務・出力</h2>

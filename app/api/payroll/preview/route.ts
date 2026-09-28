@@ -35,6 +35,9 @@ export async function POST(req: Request) {
         okuriDeductTotal: r.okuriDeductTotal, // F2e-2 送り実費天引き（繰越なし）
         adjustmentsShown: r.adjustmentsShown, // ★裁定264-10: 右パネルの明細プレビューが finalize と同じ凍結形を合成するため
         adjustmentsHiddenTotal: r.adjustmentsHiddenTotal,
+        dailyPaidGross: r.dailyPaidGross, dailyWithheld: r.dailyWithheld, dailyN: r.dailyN, // ★0156（309-6）: 右パネル「日払い済み ¥n（源泉既徴収 ¥m・k 件）」
+        deductionOverridesApplied: r.deductionOverridesApplied, // ★0156（309-8）: 右パネル「固定控除」節の現在値
+
       })),
       blockers: draft.blockers,
       warnings: draft.warnings, // ★裁定98: sanction 二層ガードの警告（確定は止めない）

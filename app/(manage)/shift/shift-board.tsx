@@ -910,11 +910,29 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
+  // ★0156（裁定309-9・便 V-5）: 店の送り方式（settings_json.okuri_mode）＝'actual' の店だけ退勤に「送り」チェックを出す（+1・RLS 越しの stores 読取）
+  const [okuriActual, setOkuriActual] = useState(false);
+  const [okuriMark, setOkuriMark] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
+      if (alive) setOkuriActual(((data?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual");
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
   // ★裁定257 R20-b: 退勤＝punch_proxy(source='manager'・owner 全店／manager 自店・inactive cast 拒否・audit は RPC 側)。in 側は出さない（attendance の 5 択が入口）
   async function proxyOut(castId: string) {
     setMsg(null);
-    const { error } = await supabase.rpc("punch_proxy", { p_cast_id: castId, p_type: "out", p_note: null });
-    setMsg(error ? `退勤の記録に失敗: ${rpcErrJa(error.message)}` : `${castName(castId)} の退勤を記録しました`);
+    // ★0156（裁定309-9・便 V-5）: okuri_mode='actual' の店だけ「送り」チェック（既定なし）を p_okuri で送る。'flat' の店は 3 引数のまま（RPC の既定＝null）
+    const okuri = okuriActual ? okuriMark.has(castId) : null;
+    const { error } = await supabase.rpc("punch_proxy", okuriActual
+      ? { p_cast_id: castId, p_type: "out", p_note: null, p_okuri: okuri }
+      : { p_cast_id: castId, p_type: "out", p_note: null });
+    setMsg(error ? `退勤の記録に失敗: ${rpcErrJa(error.message)}` : `${castName(castId)} の退勤を記録しました${okuri ? "（送り あり）" : ""}`);
+    if (!error) setOkuriMark((m) => { const n = new Set(m); n.delete(castId); return n; });
     setPunchTick((v) => v + 1);
   }
   // ★B4-a 裁定221（H31）: カウンタ＝二重計上なし。休み（off）はどれにも数えない。
@@ -1282,7 +1300,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             const io = punchIO.get(s.cast_id);
                             const ob = outButtonOf({ canRecord, attStatus: attOf(s.cast_id, todayDate)?.status, hasIn: !!io?.inHm, hasOut: !!io?.outHm });
                             return ob.show && (
-                              <div className="nox-actions" style={{ marginTop: 6 }}>
+                              <div className="nox-actions" style={{ marginTop: 6, gap: 8, alignItems: "center" }}>
+                                {/* ★0156（裁定309-9）: actual 店のみ「送り」チェック（既定なし）→ punch_proxy の p_okuri */}
+                                {okuriActual && (
+                                  <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, cursor: "pointer" }}>
+                                    <input type="checkbox" checked={okuriMark.has(s.cast_id)} disabled={!ob.enabled}
+                                      onChange={(e) => setOkuriMark((m) => { const n = new Set(m); if (e.target.checked) n.add(s.cast_id); else n.delete(s.cast_id); return n; })} />
+                                    送り
+                                  </label>
+                                )}
                                 <button type="button" style={{ ...btnDark, padding: "4px 12px", fontSize: 12, opacity: ob.enabled ? 1 : 0.5 }}
                                   disabled={!ob.enabled} title={ob.title}
                                   onClick={() => void proxyOut(s.cast_id)}>退勤</button>

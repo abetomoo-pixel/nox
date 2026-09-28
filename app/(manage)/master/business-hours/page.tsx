@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import BusinessHoursPanel from "../business-hours-panel";
 import StaffShiftPanel from "../staff-shift-panel"; // ★C層② 面 a（設計書 v1 §4・flag off＝節ごと不在）
-import StoreProfilePanel from "../store-profile-panel"; // ★mig0144: 店舗情報（owner）＋シフト運用（キャスト確認・裁定245-1）
 import MasterPageHead from "../master-page-head";
 
 export const dynamic = "force-dynamic";
@@ -41,8 +40,7 @@ export default async function MasterBusinessHoursPage() {
         title="営業時間・定休日"
         desc="店舗情報・シフト運用の設定と、曜日ごとの営業時間と定休日。シフト登録の警告・ブロックに使われます。"
       />
-      {/* ★mig0144（set_store_profile）: 先頭に「店舗情報」（owner のみ）と「シフト運用」（キャスト確認トグル）の 2 節 */}
-      <StoreProfilePanel stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
+      {/* ★起票86（便 V-7・2026-09-28）: 店舗情報／シフト運用／売掛・記録の保持（StoreProfilePanel）は /master/store-profile へ切り出し＝ここは営業時間・定休日とスタッフシフトのみ */}
       <BusinessHoursPanel stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
       {/* ★C層② 面 a: 勤務パターン枠＋希望締切（店舗運用の一部＝営業時間の隣・flag_enabled('staff_shift') が true の店だけ） */}
       <StaffShiftPanel stores={(allStores ?? []) as { id: string; name: string }[]} />

@@ -120,6 +120,9 @@ export default function MasterBoard() {
         { href: "/master/seats", id: "m-seat", icon: "▦", count: hubCountOf(hubState, seats.length, "卓").text, title: "席・卓マスター",
           desc: "卓／カウンター／VIP の登録と並び順、稼働の有効切替。",
           status: hubStatusOf(hubState, `● 稼働可能 ${activeSeats}卓`), tone: hubState === "error" ? "mute" : "" },
+        // ★起票86（便 V-7・2026-09-28）: 店舗情報（店舗名・略称・顧客情報の利用目的／保持年数・キャスト確認・売掛を使う・操作ログ保持）＝/master/store-profile へ切り出し
+        { href: "/master/store-profile", id: "m-store", icon: "◆", count: "店舗設定", title: "店舗情報",
+          desc: "店舗名・略称・顧客情報の利用目的と保持年数、キャスト確認、売掛を使うかどうか、操作ログの保持。", status: "● オーナー限定の項目あり", tone: "mute" },
         { href: "/master/business-hours", id: "m-hours", icon: "◔", count: "曜日別", title: "営業時間・定休日",
           desc: "曜日ごとの営業時間と定休日、シフト登録の警告・ブロックに使われます。店舗名・略称などの店舗情報とシフト運用の設定もここで行います。", status: "● 設定可", tone: "" },
         // ★C層①（mig0135・裁定182）: v3 の「利用機能」カード S4 の器＝/master/system の「機能」タブへ着地

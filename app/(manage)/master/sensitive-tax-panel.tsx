@@ -123,12 +123,10 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
         setBirthday(row?.birthday ?? "");
         setMynumberSet(row?.mynumber_set === true);
         setSensitiveReady(true);
-        // ★0155（裁定309-3）: 廃棄済みなら日付と方法（after_json.method）を audit から拾う（+1・owner のみ audit_logs を読める）
-        const { data: dl } = await supabase.from("audit_logs").select("at, after_json")
-          .eq("action", "cast_mynumber_discard").eq("target", `cast_sensitive:${castId}`)
-          .order("at", { ascending: false }).limit(1);
-        const d0 = (dl ?? [])[0] as { at: string; after_json: { method?: string } | null } | undefined;
-        setDiscarded(d0 ? { at: d0.at, method: d0.after_json?.method ?? "overwrite_null" } : null);
+        // ★0156（起票85・便 V-7）: 廃棄記録は cast_mynumber_discard_status（owner／manager 自店／cast 本人・audit なし・値を返さない）から読む（0155 便 S の audit_logs 読取を置換・+1）
+        const { data: ds } = await supabase.rpc("cast_mynumber_discard_status", { p_cast_id: castId });
+        const d0 = ((ds ?? []) as { mynumber_deleted_at: string | null; mynumber_deletion_method: string | null; has_mynumber: boolean }[])[0];
+        setDiscarded(d0?.mynumber_deleted_at ? { at: d0.mynumber_deleted_at, method: d0.mynumber_deletion_method ?? "overwrite_null" } : null);
       }
     }
     // 税務（cast_tax_profiles はパターン2＝manager+ 可視・直 SELECT で現状を読む）。成功時のみ ready。

@@ -21,6 +21,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos, uploadCastPhoto } from "@/lib/nox/cast-photo";
 import type { Trial, CastLogin } from "./page";
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast 固定・共通部品・既存 RPC）
+import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定309-6・便 V-4）: 日払いの発行（cast 固定・daily_pay_issue・源泉プレビュー）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
 import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
@@ -787,6 +788,11 @@ export default function CastsBoard({
                 <AdvanceOkuriForm storeId={selCast.store_id} casts={[]} castId={selCast.id} castName={selCast.name}
                   dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))}
                   okuriMode={okuriOf(selCast.store_id).mode} okuriBase={okuriOf(selCast.store_id).base} />
+              </div>
+              {/* ★0156（裁定309-6／309 追補2・便 V-4）: 日払いの発行（このキャストに固定・owner／manager＝page が他ロールを redirect 済み）。源泉は月次と同式（日数 1）でプレビュー・雇用は 0＋注記 */}
+              <div style={{ marginTop: 12, marginBottom: 12 }}>
+                <h3 style={{ ...secTitle, margin: "0 0 6px" }}>日払いの発行</h3>
+                <DailyPayForm castId={selCast.id} castName={selCast.name} dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))} />
               </div>
               {/* ★機微情報の分離を明示（モックの .lockrow 逐語）＝この画面には出さない */}
               <div className="nox-lockrow">

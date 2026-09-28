@@ -252,6 +252,10 @@ export type PayInput = {
   // ★裁定258／264: run 別調整控除の行（payroll_adjustments・当該 cast 分）。optional＝未指定は []（既存呼び出し・fixture・golden 不変）。
   //   率の分母は payOf 内で確定する gross（258-2）＝集計済み額ではなく行で受ける。
   adjustments?: AdjustmentRow[];
+  // ★0156（裁定309-6・便 V-2）: 日払い済み（daily_pays の期間内合計）。未指定＝従来と 1 バイト同値（golden 不変）。
+  //   dailyPaidGross＝支給後控除行「日払い済み」（gross 合計・net から引く）／dailyWithheld＝源泉の既徴収額（源泉＝max(0, 源泉 − 既徴収)）。
+  dailyPaidGross?: number;
+  dailyWithheld?: number;
 };
 
 // ★裁定98: sanction（制裁控除）の二層ガード結果。
@@ -310,6 +314,11 @@ export type PayResult = {
   adjBefore: number;
   adjAfter: number;
   adjustOverflow: number;
+  // ★0156（裁定309-6）: 日払い（キーは日払いがある cast だけ持つ＝既存 payslip 凍結と golden の互換）。
+  //   dailyWithholdingShort＝既徴収が当期源泉を超えた分（源泉は 0 で止める・core が warn 'daily_withholding_exceeds'）。
+  dailyPaidGross?: number;
+  dailyWithheld?: number;
+  dailyWithholdingShort?: number;
   net: number;
   lateN: number;
   absentN: number;
@@ -719,14 +728,19 @@ export function payOf(input: PayInput): PayResult {
   const fine = 0;
   // ★源泉のみ periodDays（計算期間の暦日数）。fixedDedOf / normPenaltyOf は実出勤日数 effDays のまま（裁定23 #3）。
   // ★264-6: before 群の合計を源泉対象額から引く（0 未満は 0 で止める）。adjustments 空なら従来と 1 バイト同値（生 gross）。
-  const withholding = withholdingOf(Math.max(0, gross - adj.before), input.periodDays, input.taxMode);
+  // ★0156（裁定309-6・便 V-2）: 日払い時に徴収済みの源泉を差し引く（負なら 0・超過は dailyWithholdingShort に保持＝core が warn）。日払いが無ければ従来式そのまま。
+  const withholdingFull = withholdingOf(Math.max(0, gross - adj.before), input.periodDays, input.taxMode);
+  const dailyPaid = input.dailyPaidGross ?? 0;
+  const dailyWithheld = input.dailyWithheld ?? 0;
+  const withholding = Math.max(0, withholdingFull - dailyWithheld);
+  const dailyWithholdingShort = Math.max(0, dailyWithheld - withholdingFull);
   // ★0154 D3（裁定293-3）: ノルマ未達の罰金も撤去＝常に 0（normPenaltyOf は純関数として残す・normConfig は検知の器）。
   const normPenalty = 0;
   void normPenaltyOf; void effDohan;
 
   // ★258-8／264-11: 調整控除を引いた差引が負なら net=0 で止め、超過額を adjustOverflow に保持（DB 列は作らない）。
   //   床は調整控除が食い込む分に限る（min(調整合計, −netRaw)）＝adjustments 空なら従来式そのまま（既存の負 net も不変＝回帰）。
-  //   恒等: net = gross − (fixedDed+fine+withholding+ar+adv+okuri+normPenalty+adjBefore+adjAfter) + adjustOverflow。
+  //   恒等: net = gross − (fixedDed+fine+withholding+ar+adv+okuri+normPenalty+adjBefore+adjAfter+dailyPaidGross) + adjustOverflow（★0156: 日払い済みは支給後控除＝源泉後に引く・無ければ 0）。
   const adjTotal = adj.before + adj.after;
   const netRaw =
     gross -
@@ -737,7 +751,8 @@ export function payOf(input: PayInput): PayResult {
     input.advanceDeduct -
     input.okuriDeduct -
     normPenalty -
-    adjTotal;
+    adjTotal -
+    dailyPaid;
   const adjustOverflow = Math.min(adjTotal, Math.max(0, -netRaw));
   const net = netRaw + adjustOverflow;
 
@@ -779,6 +794,7 @@ export function payOf(input: PayInput): PayResult {
     adjBefore: adj.before, // ★裁定258／264
     adjAfter: adj.after,
     adjustOverflow,
+    ...(dailyPaid || dailyWithheld ? { dailyPaidGross: dailyPaid, dailyWithheld, dailyWithholdingShort } : {}), // ★0156: 日払いがある cast だけキーを持つ（golden 不変）
     net,
     lateN: input.fine.lateN,
     absentN: input.fine.absentN,
