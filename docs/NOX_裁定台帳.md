@@ -3781,6 +3781,8 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 (d) 改稿: customer_anonymize は customer_notes を同時削除（本文は audit に残さない・件数のみ after_json に 'notes_deleted'）。
 追加: kiosk_check_keeps は STABLE（check_customer_names と同型）。
 適用＝便 Q-2b-2 で gen_0155.mjs／0155_template.sql 経由で改稿（★9 notes 削除＋notes_deleted・★12 stable・冒頭 (d)・期待 md5）・Q-2b-3 で BEGIN…ROLLBACK 追試。手貼りは Agoora・収蔵は手貼り後（教訓93）。
+**0155 適用欄（2026-09-28）**: 手貼り＝Agoora 2026-09-28 13:2x JST（貼付版＝改稿版 sha256 **6b30084efd0170a7c2662e72378e7ebfd660eae4661455d74caf4344f2d5c6bb**・748 行・63,012 B＝収蔵版と同一・ヘッダ書換なし）。CC の適用後読取 13:38 JST＝proof orgs 3・md5 12 本一致（check_pay 05ca579b／set_store_profile 86a7a86b／referral_payouts_unpaid 4340d19f／ar_policy_ok d7b0bfcb／audit_purge f2946b95／cast_mynumber_discard 3c2d917d／cast_mynumber_discard_candidates e285a272／customer_anonymize 11b4f43b／customer_anonymize_candidates d1ce4ace／kiosk_check_keeps b68a8e0c・不触 get_cast_mynumber 20163586／get_cast_mynumber_masked 6f401f45）・proacl 期待どおり（audit_purge＝postgres, service_role・ar_policy_ok＝postgres のみ）・stores ar_true 4／4・cast_sensitive 11 列・relacl 不変（authenticated なし）・pg_proc 全数 274。
+事前突合＝docs/tmp/q0928_ag_0155.mjs（BEGIN…ROLLBACK・36 段 NG 0＝静的列挙 3・md5／proacl／stores／列 7・audit_purge 実削除 4・kiosk_check_keeps 5・discard／候補 7・anonymize／候補 7・検証 1・ROLLBACK 後不変 2）。収蔵＝便 R-1（mig をパス指定コミット・sha 照合済み）。名簿 268→274／billing 145→144・suite 張り替え・compliance suite 新設＝便 R-2〜R-5。
 
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
