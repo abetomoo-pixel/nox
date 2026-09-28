@@ -3758,6 +3758,24 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 適用＝便 K308（0153 手貼り後ブロックの f0 2 連に同乗）: 308-1＝.nox-periodform .pf-acts は ≤899px で column・button width 100%（globals.css）／308-2＝MonthNav を「配置を組む」カードの planView 分岐の直前（＝.nox-calgrid の直前の兄弟）へ移設（planbar 上の 1 本は撤去・タブ切替・幅で消えない）／suite shift-nav sn(3-6)（作成ボタン全幅）・sn(2-6)（MonthNav が曜日行の直前の兄弟）。
 
+## 裁定309（2026-09-28・§8 未裁定 10 件・P-4 live 読取 02:15Z 基準）
+
+出典＝v40 §8 の未裁定 10 件と P-4 live 読取（docs/tmp/0155_pre.md／0156_pre.md【DB】節・2026-09-28T02:15:57Z・proof orgs 3）を受けた Agoora 指示（2026-09-28・便 Q-1 で収載）。次の裁定番号は 310。**本文（逐語）**:
+「裁定309（2026-09-28・§8 未裁定 10 件・P-4 live 読取 02:15Z 基準）
+309-1 【293-1 売掛・0155】stores.settings_json.ar_enabled boolean。0155 で既存全店（live で保持店 0＝org 3 の stores 全数）を true に明示 UPDATE・新規店は coalesce で既定 false。check_pay の ar 分岐で ar_policy_ok（0055 の空フック）を結線し false なら raise 'ar disabled'。set_store_profile 白名単 +1。UI＝店設定「売掛を使う」トグル（owner のみ）。
+309-2 【293-2 audit 保持・0155】列を足さない。保持 7 年固定（L2 趣旨・店設定にしない）。audit_purge(service_role のみ)＝at < now()-7年 の行を削除し action 'audit_purge' 1 行に件数・最古・最新を残す。実行は手動＝cron は Vercel Pro 後に起票。
+309-3 【293-5 マイナンバー廃棄・0155】cast_sensitive に mynumber_deleted_at／mynumber_deleted_by／mynumber_deletion_method の 3 列（別表なし）。cast_mynumber_discard(cast_id, reason)（owner のみ・mynumber_enc=null・audit）。廃棄候補一覧 RPC（退店日の翌年 1/1 起算 7 年経過・owner）。自動削除なし。get_cast_mynumber／masked の署名・proacl は不変（20163586／6f401f45）。
+309-4 【305-11 顧客匿名化・0155】物理削除なし。customer_anonymize(customer_id, reason)＝name '削除済み顧客'・furigana／tel／birthday／prefs／memo null・is_active=false・anonymized_at=now()・audit。check_customers／receivables の FK は残す。retention_until 到来の候補一覧 RPC（owner）・自動化なし。deleted_at は予約列のまま不使用。
+309-5 【307-1・0155】referral_payouts_unpaid から billing_writable_of の 1 行のみ除去（A4→B(f)・billing 145→144）。md5 は突合で更新。
+309-6 【T9 日払い・0156】専用表 daily_pays（org・store・cast・biz_date・gross・withholding・net・paid_by・idem_key unique）＋daily_pay_issue（owner／manager・支払時に源泉確定・委託 10.21%・雇用は T10 回答まで 0 で warn）。月次 run は「日払い済み」を支給後控除行（支払済額）と源泉の既徴収額として差し引く。専用 run なし。payment_records（0 行）は触らない。
+309-7 【年越し過払債権・0156】open の advances は年を跨いでも同一行で回収継続（別勘定なし）。年末に「貸付残高一覧」（cast 別 open 合計）を給与画面に出す。貸倒は adv_cancel（理由必須）手動。payroll_carryover_sync 不変。live は advances 0 行＝データ移行なし。
+309-8 【300 追補1・0156】表 payroll_run_deduction_overrides（run_id×cast_id×deduction_id unique・enabled・amount_override）。collect.ts の deductions 読取直後で cast 別に差替え。finalize の凍結は現行（breakdown_json に上書き後の値）。UI＝run 明細右パネル「固定控除」節（draft のみ編集）。
+309-9 【302-5 退勤連動・0156】自動発行なし。out 打刻（punch_self／kiosk_punch／punch_proxy）に punches.okuri boolean。既定は新キーを増やさず既存 settings_json.okuri_mode から導く（値の意味は 0156 pre で確定）。daily_report_close 前に「今日の送り n 件・合計 ¥m」を確認→transport_issue_bulk（idem＝punch id）。手動発行との二重は idem で防ぐ。
+309-10 【D5 kiosk・0155 同乗】kiosk_check_keeps(check_id)＝伝票の顧客名＋active キープのボトル名のみ（裁定11 の例外を明示・305-4 と同一露出）。
+不変: 249・248・256・261・281・265。0155 の器＝309-1〜5・10、0156＝309-6〜9。」
+
+適用＝便 Q-2 で supabase/migrations/0155_compliance.sql を起草（309-1〜5・10）・手貼りは Agoora・収蔵は手貼り後の次便（教訓93）。0156（309-6〜9）は別便。
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
