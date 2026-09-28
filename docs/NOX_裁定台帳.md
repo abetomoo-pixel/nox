@@ -2846,6 +2846,18 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓96：suite の audit_logs 照合は action 名だけで数えない＝target＋`at >= now()` で tx 内に限定（本番の運用履歴で赤になる）（相談役起こし）
+
+出典＝相談役 2026-09-28 受領（便 V-1・逐語）: 「教訓96『suite の audit_logs 照合は action 名だけで数えない＝target＋at >= now() で tx 内に限定（本番の運用履歴で赤になる）』」。
+経緯: 便 U の f0 run1（2026-09-28 16:03〜16:14）が compliance cp(5-5) で赤。suite は `select … from audit_logs where action='customer_anonymize'` で 1 行を期待していたが、同日の Agoora 目視（便 S ①〜⑥）で本番の顧客 1 件が実際に匿名化されており、その運用記録を拾って 2 行になった。関数もデータも正しく、suite の照合が甘かった。
+運用: suite が自分の tx で書いた audit 行を数えるときは、action だけでなく target（`customers:<id>` 等）と `at >= now()`（tx 内の行は transaction timestamp＝now() と同値）で限定する。compliance／daily-pay の 5 箇所を同日に是正（45bef2e）。live に運用履歴が積まれるほど「action 名だけ」の照合は赤くなる＝先回りで限定する。
+
+### 教訓95：単独 suite 走行の直後に門番を走らせない（自分の audit 行で audit 60s が NG）＝60 秒以上空ける（相談役起こし）
+
+出典＝相談役 2026-09-28 受領（便 V-1・逐語）: 「教訓95『単独 suite 走行の直後に門番を走らせない（自分の audit 行で audit 60s が NG）＝60 秒以上空ける』」。
+経緯: 便 U で変更 suite 4 本を単独走した直後（16:01）に裁定200 の門番を走らせ、「直近 60 秒の audit_logs」が 113 行で NG（direct 0・verify proc 0）。行はすべて自分の単独走（billing／anon-guard 等の書込）が残したもので、他プロセスの併走ではなかった。75 秒待って再走（16:03）→ 0 で OK。
+運用: 単独 suite（または seed）を走らせた後は 60 秒以上空けてから門番（docs/tmp/q0928_gate.mjs＝direct／audit 60s／local verify proc）を走らせる。門番の NG は「自分の直前の書込か」をまず疑い、他プロセスの併走と区別して報告する。
+
 ### 教訓94：f0 は本番 DB を叩くため 18:00〜翌 06:00 JST は起動しない（営業・締め帯）。帯内は停止して報告（相談役起こし）
 
 出典＝相談役 2026-09-28 受領（便 T-1・逐語）: 「教訓94『f0 は本番 DB を叩くため 18:00〜翌 06:00 JST は起動しない（営業・締め帯）。帯内は停止して報告』」。
