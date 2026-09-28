@@ -3776,6 +3776,12 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 
 適用＝便 Q-2 で supabase/migrations/0155_compliance.sql を起草（309-1〜5・10）・手貼りは Agoora・収蔵は手貼り後の次便（教訓93）。0156（309-6〜9）は別便。
 
+**309 追補1（2026-09-28・0155 起草判断の裁定・Agoora）**: 0155_compliance.sql 起草版（sha256 a1c11e5b…cd6a7・便 Q-2）冒頭の起草判断 (a)〜(g) を受けた裁定。
+(a)(b)(c)(e)(f)(g) は起草どおり確定＝(a) audit_purge は org ごとに 1 行（org_id NOT NULL）・削除 0 の org は書かない・actor null・reason 'retention 7y'／(b) cast_mynumber_discard／customer_anonymize は billing ゲートなし＝名簿区分は名簿追補時に「非ゲート書込・法定履行」の新区分として裁定／(c) customer_anonymize は owner のみ／(e) mynumber_enc null は 'no mynumber' 拒否・method 'overwrite_null'／(f) 廃棄候補は enc 非 null の退店 cast のみ／(g) 結線位置＝receivables INSERT 直前。
+(d) 改稿: customer_anonymize は customer_notes を同時削除（本文は audit に残さない・件数のみ after_json に 'notes_deleted'）。
+追加: kiosk_check_keeps は STABLE（check_customer_names と同型）。
+適用＝便 Q-2b-2 で gen_0155.mjs／0155_template.sql 経由で改稿（★9 notes 削除＋notes_deleted・★12 stable・冒頭 (d)・期待 md5）・Q-2b-3 で BEGIN…ROLLBACK 追試。手貼りは Agoora・収蔵は手貼り後（教訓93）。
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
