@@ -2846,6 +2846,12 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓97：画面ソースを編集する便は、その画面を読む pin suite を grep で洗い出し、単独走に全部含める（相談役起こし）
+
+出典＝相談役 2026-09-28 受領（便 W-1c・逐語）: 「教訓97『画面ソースを編集する便は、その画面を読む pin suite を grep で洗い出し（scripts/verify-nox-*.ts の import・正規表現）、単独走に全部含める。9/28 便 X で today-row を落として f0 が赤』」。
+経緯: 便 X-2（裁定310）で shift-board の行内「出勤を修正／退勤を修正」リンクと旧 PunchCorrectionModal を除去し、修正フォームを「調整」モーダルのタブ①に埋め込んだ。便 X-4 の検査は tsc／lint／messages／ui-tokens／nav の単独走だけで、shift-board のソースを正規表現で係留している verify-nox-today-row の tr(7-9)（旧配線＝`<PunchCorrectionModal castId={corr.castId}`・`{KIND_LABEL[k]}を修正`）を走らせなかった。便 W の f0 run 1b（18:07〜18:19）が 66 段目 today-row で赤＝pin の取り残し（フレークではない）。
+運用: 画面ファイルを編集したら、コミット前に `grep -ln "<そのファイルのパス>" scripts/verify-nox-*.ts`（readFileSync の対象）で pin suite を洗い出し、単独走に**全部**含める（今回なら today-row＋messages）。pin が意図した変更で赤になるなら、同じ便で suite を新配線に張り替えて suite としてパス個別コミットする。
+
 ### 教訓96：suite の audit_logs 照合は action 名だけで数えない＝target＋`at >= now()` で tx 内に限定（本番の運用履歴で赤になる）（相談役起こし）
 
 出典＝相談役 2026-09-28 受領（便 V-1・逐語）: 「教訓96『suite の audit_logs 照合は action 名だけで数えない＝target＋at >= now() で tx 内に限定（本番の運用履歴で赤になる）』」。
