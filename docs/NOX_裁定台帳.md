@@ -3812,6 +3812,18 @@ suite 5 本（`8af0be5`・全て Postgres 直結 1 トランザクション＋JW
 **0156 適用欄（2026-09-28）**: 手貼り＝Agoora 2026-09-28 15:4x JST（貼付版＝改稿版 sha256 **29d5c427b45788f70a97b000dd91747686f25e2f8e9764247aec919ef07bdc9b**・644 行・45,590 B＝収蔵版と同一・ヘッダ書換なし）。CC の適用後読取 15:54 JST＝proof orgs 3・検証 6 文一致＝md5 13 本一致（punch_self f2c9b923／punch_proxy 83f2a99f／kiosk_punch b31ff8fa／kiosk_register_state e01d2b83／cast_mynumber_discard_status e5a00d20／okuri_default_of 434e69d9／daily_pay_issue bac429f9／daily_pays_of_run da3d45a0／payroll_run_deduction_override_set bfc5fdb4／payroll_run_deduction_override_clear 86badf90／payroll_run_deduction_overrides_of a33a2b30／okuri_today_summary e61e5dd9／advances_open_balance 724d7551）・get_cast_mynumber_masked 6f401f45 不変（戻り text）・列 daily_pays 12／overrides 10／punches 14・policy 2（select）・旧署名 count 3（punch 3 本＝各 1 定義）・proacl 期待どおり（okuri_default_of＝postgres のみ・他 12 本 authenticated, service_role）・pg_proc 全数 283・'billing locked' 145。
 事前突合＝docs/tmp/q0928_ag_0156.mjs（BEGIN…ROLLBACK・37 段 NG 0＝静的 4・md5／署名／proacl／列 5・日払い 8（源泉境界 11 点）・上書き 4・打刻／送り 7・残高 1・同乗 5・検証 1・ROLLBACK 後不変 2）。収蔵＝便 U-1（mig をパス指定コミット・sha 照合済み）。名簿 274→283／billing 144→145・suite 張り替え・daily-pay suite 新設＝便 U-2〜U-5。collect.ts の結線（daily_pays_of_run・overrides）と client（日払い UI・控除上書き・okuri トグル・貸付残高・kiosk 売掛非表示・廃棄状況）は便 V。
 
+## 裁定310（本便で確定・Agoora・2026-09-28）/shift 今日タブの「調整」モーダル＝タブ 2 つ（出退勤／確定シフトの時間）
+
+出典＝Agoora 指示（2026-09-28・便 X-1 で収載）。次の裁定番号は 311。**本文（逐語）**:
+「裁定310 /shift 今日タブの『調整』モーダルはタブ 2 つ＝①出退勤（打刻・既定）②確定シフトの時間。打刻修正は現行 punch_correction（理由必須・承認）に流し『給与に反映されます』の注記、確定枠は『打刻は変わりません・給与は動きません』の注記。行の『出勤を修正／退勤を修正』リンクは廃止しモーダルに一本化」
+
+適用＝便 X-2／X-3（2026-09-28・client のみ・DB 恒久変更 0・RPC 追加 0）: 今日タブの行右端「調整」→ shift-board の調整モーダルに `.nox-seg` の tablist（①出退勤＝既定・②確定シフトの時間）。
+①＝出勤・退勤の実績時刻（punchIO・未打刻は「—」）＋「修正／記録する」→ components/nox/punch-correction-modal.tsx から切り出した PunchCorrectionForm（Modal なし・punch_correction_request・理由必須・owner／manager は同 tx で approved＝承認導線は現行）を同じモーダル内に埋め込む。注記「打刻の修正は理由が必須で記録に残り、給与に反映されます」。打刻の書込は当日のみ（SC-8 ⑦ と同じ・別日は 修正 disabled）。
+②＝現行の開始・終了フォームを移設（見出し「確定シフトの時間を調整」・shift_set update 経路・status 据置）。注記に「打刻は変わりません・給与は動きません」を追加。
+①は表示日（todayDate）の行だけ出す（他ビューから開いた別日の行は打刻を読んでいない＝②のみ・既定②）。行の「出勤を修正／退勤を修正」リンクと旧 corr モーダルは除去。
+X-3（裁定306 の型）: モーダルは isManagerUp のときだけ描画＝cast は①②とも未描画。cast 本人の打刻修正申請は /mine の現行フォーム（punch-correction-form）のまま。
+suite messages ms(2-4)（注記 2 文・tablist・『を修正』リンク 0・PunchCorrectionModal 参照 0）。
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
