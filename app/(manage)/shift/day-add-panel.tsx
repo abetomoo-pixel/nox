@@ -8,6 +8,8 @@
 //   割当（calendar）／配置（build）の2面で共有＝面で挙動を割らない。保存前クローズの破棄確認は親（closeDay）が担う
 //   （onDirtyChange でバッファ有無を親へ通知）。キャスト起点ウィザード（ShiftAddForm）は不触（名称のみ変更）。
 import { useEffect, useMemo, useState } from "react";
+import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
+import { HM_FORMAT_ERR, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
@@ -25,8 +27,7 @@ const hmInput: React.CSSProperties = { ...t.input, width: 68, padding: "5px 6px"
 const FALLBACK_START = "20:00";
 const FALLBACK_END = "26:00";
 // 開始 00:00〜23:59・終了 00:00〜47:59（RPC の 'bad time' と同じ射程＝送る前に弾く）
-const HM_START = /^([01]\d|2[0-3]):[0-5]\d$/;
-const HM_END = /^([0-3]\d|4[0-7]):[0-5]\d$/;
+// ★裁定318（便 X-9-2）: 時刻の検証は normalizeHHMM（開始 0〜23 時・終了 0〜47 時）＝旧 HM_START／HM_END の正規表現と同じ域
 
 /** その日付の曜日の営業時間を [start, end] で返す。引けなければ null（ShiftAddForm.hoursOf と同式）。 */
 function hoursOf(date: string, bhRows: BusinessHourRow[]): [string, string] | null {
@@ -96,9 +97,10 @@ export default function DayAddPanel({
     let ok = 0;
     // 行ごと順次（裁定121-4）。失敗行は err 付きで残す＝部分成功でも閉じない・再試行可。
     for (const r of rows) {
-      if (!HM_START.test(r.start) || !HM_END.test(r.end)) { rest.push({ ...r, err: "時刻は 開始 00:00〜23:59・終了 00:00〜47:59" }); continue; }
+      const st = normalizeHHMM(r.start, 23), en = normalizeHHMM(r.end);
+      if (!st || !en) { rest.push({ ...r, err: `${HM_FORMAT_ERR}・開始 00:00〜23:59・終了 00:00〜47:59` }); continue; }
       const { error } = await supabase.rpc("shift_set", {
-        p_id: null, p_cast_id: r.castId, p_date: date, p_start_hm: r.start, p_end_hm: r.end,
+        p_id: null, p_cast_id: r.castId, p_date: date, p_start_hm: st, p_end_hm: en,
         p_status: "planned", p_override_reason: null,
       });
       if (error) rest.push({ ...r, err: rpcErrJa(error.message) });
@@ -159,9 +161,9 @@ export default function DayAddPanel({
             <div key={r.castId} className="nox-crow" style={{ flexWrap: "wrap" }}>
               <CastAvatar name={nameOf(r.castId)} url={photoUrls.get(r.castId)} variant="flat" />
               <span style={{ flex: 1, minWidth: 0 }}>{nameOf(r.castId)}</span>
-              <input value={r.start} onChange={(e) => setHm(r.castId, "start", e.target.value)} style={hmInput} placeholder="20:00" aria-label="開始" />
+              <HmInput value={r.start} onChange={(v) => setHm(r.castId, "start", v)} maxHour={23} style={hmInput} placeholder="20:00" ariaLabel="開始" />
               <span style={{ color: "var(--sub)" }}>〜</span>
-              <input value={r.end} onChange={(e) => setHm(r.castId, "end", e.target.value)} style={hmInput} placeholder="26:00" aria-label="終了" />
+              <HmInput value={r.end} onChange={(v) => setHm(r.castId, "end", v)} style={hmInput} placeholder="26:00" ariaLabel="終了" />
               <button type="button" style={btnLight} title="この行を取り消す" onClick={() => toggle({ id: r.castId, name: nameOf(r.castId) })}>×</button>
               {r.err && <span style={{ width: "100%", fontSize: 11, color: "var(--danger)" }}>⚠ {r.err}</span>}
             </div>

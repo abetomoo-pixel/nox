@@ -440,6 +440,8 @@ export default function ReportBoard({
   const [okuriAmt, setOkuriAmt] = useState<Record<string, string>>({});
   const [okuriBusy, setOkuriBusy] = useState(false);
   const [okuriMsg, setOkuriMsg] = useState<string | null>(null);
+  // ★裁定317（便 X-9-3）: 発行済みの送り（当日営業日の transport・cancelled 除外）＝締め前モーダルで「発行済み n 件・合計 ¥m」を確認
+  const [okuriIssued, setOkuriIssued] = useState<{ n: number; sum: number }>({ n: 0, sum: 0 });
   async function closeDay() {
     setMsg(null);
     // 送り方式が actual なら未発行の送りを確認してから締める（stores 読取 +1・0 件なら即締め）
@@ -448,7 +450,10 @@ export default function ReportBoard({
       const { data: rows, error: eO } = await supabase.rpc("okuri_today_summary", { p_store_id: storeId, p_biz_date: bizDate });
       if (eO) { setMsg(`送りの確認に失敗: ${rpcErrJaCommon(eO.message)}`); return; }
       const list = (rows ?? []) as OkuriRow[];
-      if (list.length > 0) {
+      const { data: tr } = await supabase.from("transport").select("amount").eq("store_id", storeId).eq("biz_date", bizDate).neq("status", "cancelled");
+      const issued = ((tr ?? []) as { amount: number }[]);
+      setOkuriIssued({ n: issued.length, sum: issued.reduce((a, r) => a + r.amount, 0) });
+      if (list.length > 0 || issued.length > 0) { // ★裁定317: 発行済みだけの日も確認してから締める
         setOkuriRows(list);
         setOkuriAmt(Object.fromEntries(list.map((r) => [r.punch_id, r.base_amount != null ? String(r.base_amount) : ""])));
         setOkuriMsg(null);
@@ -591,11 +596,14 @@ export default function ReportBoard({
       {okuriRows && (
         <Modal onClose={() => !okuriBusy && setOkuriRows(null)} maxWidth={520} scroll>
           <div className="nox-formmodal-head">
-            <strong>今日の送り {okuriRows.length} 件（合計 ¥{okuriRows.reduce((s, r) => s + (Number(okuriAmt[r.punch_id]) || 0), 0).toLocaleString()}）</strong>
+            <strong>今日の送り（発行済み {okuriIssued.n} 件・合計 ¥{okuriIssued.sum.toLocaleString()}／未発行 {okuriRows.length} 件）</strong>
             <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !okuriBusy && setOkuriRows(null)}>×</button>
           </div>
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "4px 0 10px", lineHeight: 1.7 }}>
-            退勤時に「送り あり」だった打刻のうち、まだ送り実費を発行していないものです。金額を確認して発行し、そのまま締めます（発行済みは表示されません・再送は二重になりません）。
+            発行済みの送りは {okuriIssued.n} 件・合計 ¥{okuriIssued.sum.toLocaleString()} です（退勤時に発行した分を含みます）。
+            {okuriRows.length > 0
+              ? " 下は退勤時に「送り」だった打刻のうち、まだ発行していない残りです。金額を確認して発行し、そのまま締めます（再送は二重になりません）。"
+              : " 未発行の送りはありません。確認して締めます。"}
           </p>
           <div style={{ display: "grid", gap: 8 }}>
             {okuriRows.map((r) => (
@@ -610,7 +618,7 @@ export default function ReportBoard({
           <div className="nox-formmodal-foot">
             <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={okuriBusy} onClick={() => setOkuriRows(null)}>戻る（締めない）</button>
             <button type="button" style={{ ...t.btnGold, opacity: okuriBusy ? 0.6 : 1 }} disabled={okuriBusy} onClick={() => void issueOkuriAndClose()}>
-              {okuriBusy ? "発行中…" : "送りを発行して締める"}
+              {okuriBusy ? "処理中…" : okuriRows.length > 0 ? "送りを発行して締める" : "確認して締める"}
             </button>
           </div>
         </Modal>

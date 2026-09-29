@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
+import { HM_FORMAT_ERR, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import SegSelect from "@/components/ui/seg-select";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -19,16 +21,19 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    // ★裁定318: 出勤見込みは正規化後の値を送る（形が違えば送らずに知らせる）
+    const etaN = status === "late" && eta ? normalizeHHMM(eta) : null;
+    if (status === "late" && eta && !etaN) { setMsg(HM_FORMAT_ERR); return; }
     setBusy(true);
     setMsg(null);
     const supabase = createClient();
     const { error } = await supabase.rpc("attendance_set_self", {
       p_date: date,
       p_status: status,
-      p_eta: status === "late" && eta ? eta : null,
+      p_eta: etaN,
       p_reason: reason || null,
     });
-    setMsg(error ? "送信に失敗しました（時刻は 00:00〜47:59 の HH:MM）" : "連絡を送信しました");
+    setMsg(error ? "送信に失敗しました。時刻の形式を確認してください（例 2000・20:00）" : "連絡を送信しました");
     setBusy(false);
     router.refresh();
   }
@@ -40,12 +45,7 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
       <SegSelect value={status} onChange={(v) => setStatus(v as "late" | "absent")}
             options={[["late", "遅刻"], ["absent", "当欠"]] as const} />
       {status === "late" && (
-        <input
-          placeholder="出勤見込み（例 25:30）"
-          value={eta}
-          onChange={(e) => setEta(e.target.value)}
-          style={{ ...input, width: 150 }}
-        />
+        <HmInput placeholder="出勤見込み（例 2530・25:30）" value={eta} onChange={setEta} ariaLabel="出勤見込み" style={{ ...input, width: 170 }} />
       )}
       <input
         placeholder="理由（任意）"

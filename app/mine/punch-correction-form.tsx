@@ -9,7 +9,8 @@ import SegSelect from "@/components/ui/seg-select";
 import Toast from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
-import { HM_30, KIND_LABEL, hmOnBizOf, requestArgsOf, type PunchKind } from "@/lib/nox/shift/punch-correction";
+import { KIND_LABEL, hmOnBizOf, requestArgsOf, type PunchKind } from "@/lib/nox/shift/punch-correction";
+import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 
 export type OwnPunch = { id: string; type: string; punched_at: string };
 
@@ -52,7 +53,7 @@ export default function PunchCorrectionForm({ castId, bizToday, punches, term }:
         </select>
       )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        <input value={hm} onChange={(e) => setHm(e.target.value)} placeholder="時刻 HH:MM（翌日は 24:00〜）" inputMode="numeric" maxLength={5} required pattern={HM_30.source} style={{ ...input, width: 190 }} aria-label="時刻" />
+        <HmInput value={hm} onChange={setHm} placeholder="時刻（例 2000・20:00／翌日は 24:00〜）" required style={{ ...input, width: 190 }} ariaLabel="時刻" />
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="理由（必須・200 字まで）" maxLength={200} required style={{ ...input, flex: "1 1 200px" }} aria-label="理由" />
         <button type="submit" disabled={busy} style={{ ...t.btnGold, ...t.btnSm, opacity: busy ? 0.7 : 1 }}>{busy ? "送信中…" : "修正を申請"}</button>
       </div>

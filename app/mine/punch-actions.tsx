@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 
+// ★裁定317（便 X-9-3）: cast 本人は送りの発行（transport_issue_bulk＝owner／manager のみ）を呼べない＝金額ダイアログは出さず、「あり」の打刻だけ残す（締め前モーダルに未発行として出る）。器は 0158。
 // ★0156（裁定309-9＝302-5・便 V-5）: okuri_mode='actual' の店だけ、退勤に「送り あり／なし」（既定なし）→ punch_self の p_okuri。
 //   'flat'／未設定の店は出さない（p_okuri を送らない＝RPC の既定＝null）。in 打刻は従来どおり 3 引数。
 export default function PunchActions({ okuriActual = false }: { okuriActual?: boolean }) {
@@ -21,7 +22,7 @@ export default function PunchActions({ okuriActual = false }: { okuriActual?: bo
     const { error } = await supabase.rpc("punch_self", type === "out" && okuriActual
       ? { p_type: type, p_lat: null, p_lng: null, p_okuri: okuri }
       : { p_type: type, p_lat: null, p_lng: null });
-    setMsg(error ? "打刻に失敗しました" : type === "in" ? "出勤を打刻しました" : okuriActual && okuri ? "退勤を打刻しました（送り あり）" : "退勤を打刻しました");
+    setMsg(error ? "打刻に失敗しました" : type === "in" ? "出勤を打刻しました" : okuriActual && okuri ? "退勤を打刻しました（送り あり・金額は店が締めのときに確定します）" : "退勤を打刻しました");
     if (!error && type === "out") setOkuri(false);
     setBusy(false);
     router.refresh();

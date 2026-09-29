@@ -7,6 +7,7 @@
 //   提出＝選択日を昇順に既存 shift_wish_submit を逐次（新 RPC なし・非原子）。失敗は rpcErrJa で和文・赤で残し再提出可（裁定281 の型）。
 //   取り下げ＝既存 shift_wish_withdraw（WithdrawButton）のまま。締切超過は案内のみ（裁定43）。1 日 1 枠は DB の部分 unique が守る。
 import { useCallback, useEffect, useState } from "react";
+import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -115,7 +116,7 @@ export default function WishForm() {
       const { error } = await supabase.rpc("shift_wish_submit", { p_date: r.date, p_start_hm: r.start_hm, p_end_hm: r.end_hm });
       if (error) {
         const text = error.message.includes("closed day") ? "定休日です（希望を提出できません）"
-          : error.message.includes("bad time") ? "時刻の形式が正しくありません（開始 00:00〜23:59・終了 00:00〜47:59）"
+          : error.message.includes("bad time") ? "時刻の形式が不正です（例 2000・20:00／開始 00:00〜23:59・終了 00:00〜47:59）"
           : rpcErrJa(error.message);
         results.push({ date: r.date, ok: false, err: text });
       } else results.push({ date: r.date, ok: true });
@@ -181,9 +182,9 @@ export default function WishForm() {
       <div className="nox-inset" style={{ padding: "10px 12px", marginTop: 10 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <b style={{ fontSize: 12.5 }}>時間（一括）</b>
-          <input value={defStart} onChange={(e) => setDefStart(e.target.value)} placeholder="20:00" aria-label="開始（一括）" style={input} disabled={busy} />
+          <HmInput value={defStart} onChange={setDefStart} maxHour={23} placeholder="20:00" ariaLabel="開始（一括）" style={input} disabled={busy} />
           <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
-          <input value={defEnd} onChange={(e) => setDefEnd(e.target.value)} placeholder="26:00" aria-label="終了（一括）" style={input} disabled={busy} />
+          <HmInput value={defEnd} onChange={setDefEnd} placeholder="26:00" ariaLabel="終了（一括）" style={input} disabled={busy} />
           <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>日ごとに変えるときは下で上書き</span>
         </div>
         {selDates.length === 0 ? (
@@ -195,11 +196,11 @@ export default function WishForm() {
               return (
                 <div key={ymd} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 12.5 }}>
                   <span className="num" style={{ minWidth: 72, color: failed[ymd] ? "var(--bad)" : "var(--ink)" }}>{mdDowOf(ymd)}</span>
-                  <input value={o?.start ?? ""} placeholder={defStart} aria-label={`${mdDowOf(ymd)} 開始`} style={input} disabled={busy}
-                    onChange={(e) => setSel((s) => setOverride(s, ymd, { start: e.target.value, end: o?.end ?? "" }))} />
+                  <HmInput value={o?.start ?? ""} maxHour={23} placeholder={defStart} ariaLabel={`${mdDowOf(ymd)} 開始`} style={input} disabled={busy}
+                    onChange={(v) => setSel((s) => setOverride(s, ymd, { start: v, end: o?.end ?? "" }))} />
                   <span style={{ color: "var(--sub)" }}>〜</span>
-                  <input value={o?.end ?? ""} placeholder={defEnd} aria-label={`${mdDowOf(ymd)} 終了`} style={input} disabled={busy}
-                    onChange={(e) => setSel((s) => setOverride(s, ymd, { start: o?.start ?? "", end: e.target.value }))} />
+                  <HmInput value={o?.end ?? ""} placeholder={defEnd} ariaLabel={`${mdDowOf(ymd)} 終了`} style={input} disabled={busy}
+                    onChange={(v) => setSel((s) => setOverride(s, ymd, { start: o?.start ?? "", end: v }))} />
                   {o && (o.start || o.end) && <button type="button" style={{ ...btnLight, padding: "2px 8px" }} disabled={busy} onClick={() => setSel((s) => setOverride(s, ymd, null))}>一括に戻す</button>}
                   <button type="button" style={{ ...btnLight, padding: "2px 8px" }} disabled={busy} onClick={() => { setSel((s) => toggleDay(s, ymd)); setFailed((f) => { const n = { ...f }; delete n[ymd]; return n; }); }}>外す</button>
                   {failed[ymd] && <span style={{ width: "100%", fontSize: 11, color: "var(--bad)" }}>{failed[ymd]}</span>}

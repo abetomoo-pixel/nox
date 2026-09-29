@@ -1,6 +1,8 @@
 // ★0154 D1（2026-09-24・裁定291 追補1 D／294-1〜4／295-1）: 打刻の修正申請の純関数（DB を知らない）。
 //   店側（今日タブ「修正」＝owner／manager の申請＝確定）と本人側（/mine の申請フォーム・申請一覧・確認／異議）で共有。
 //   用語＝casts.employment で「労働時間」（雇用）／「稼働実績」（委託・null）を出し分け（291 追補1 A）。
+import { HM_FORMAT_ERR, normalizeHHMM } from "../time/hhmm"; // ★裁定318（便 X-9-2）: 検証は正規化後
+
 export type PunchKind = "in" | "out";
 export type Decision = "pending" | "approved" | "rejected";
 export type Ack = "unconfirmed" | "confirmed" | "disputed";
@@ -49,8 +51,10 @@ export function requestArgsOf(input: { castId: string; punchId: string | null; b
   const reason = input.reason.trim();
   if (reason.length === 0) return { ok: false, err: "理由を入力してください" };
   if (reason.length > 200) return { ok: false, err: "理由は 200 字までです" };
-  const iso = jstIsoOf(input.biz, input.hm.trim());
-  if (!iso) return { ok: false, err: "時刻は HH:MM（00:00〜47:59）で入力してください" };
+  // ★裁定318: HHMM／HH:MM／H:MM／HH を 'HH:MM'（0〜47 時）に正規化してから ISO 化
+  const hm = normalizeHHMM(input.hm);
+  const iso = hm ? jstIsoOf(input.biz, hm) : null;
+  if (!iso) return { ok: false, err: HM_FORMAT_ERR };
   return { ok: true, args: { p_cast_id: input.castId, p_punch_id: input.punchId, p_biz_date: input.biz, p_kind: input.kind, p_after_at: iso, p_reason: reason } };
 }
 

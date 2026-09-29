@@ -12,6 +12,8 @@ import { createClient } from "@/lib/supabase/client";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
 import { KIND_LABEL, requestArgsOf, requestInitOf, type PunchKind } from "@/lib/nox/shift/punch-correction";
+import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
+import { normalizeHHMM } from "@/lib/nox/time/hhmm";
 
 export type PunchCorrectionProps = {
   castId: string; castName: string; biz: string; kind: PunchKind;
@@ -40,7 +42,7 @@ export function PunchCorrectionForm({ castId, castName, biz, kind, punchId, punc
     const { error } = await supabase.rpc("punch_correction_request", a.args);
     setBusy(false);
     if (error) { setErr(rpcErrJa(error.message)); return; }
-    onDone(`${castName} の${label}を ${hm} に修正しました（${term}の記録に反映されます）`);
+    onDone(`${castName} の${label}を ${normalizeHHMM(hm) ?? hm} に修正しました（${term}の記録に反映されます）`);
     onClose();
   }
 
@@ -57,8 +59,8 @@ export function PunchCorrectionForm({ castId, castName, biz, kind, punchId, punc
         {castName}・{biz}（{init.mode === "update" ? `現在 ${init.hm}` : "打刻なし＝新しく記録します"}）
       </p>
       <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>
-        {label}時刻（HH:MM・翌日は 24:00〜47:59）
-        <input value={hm} onChange={(e) => setHm(e.target.value)} placeholder={kind === "in" ? "20:00" : "26:00"} inputMode="numeric" maxLength={5} autoFocus style={{ ...t.input, width: "100%", marginTop: 4 }} />
+        {label}時刻（例 2000・20:00／翌日は 24:00〜47:59）
+        <HmInput value={hm} onChange={setHm} placeholder={kind === "in" ? "20:00" : "26:00"} autoFocus style={{ ...t.input, width: "100%", marginTop: 4 }} />
       </label>
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }}>理由は必須です（200 字まで・本人に表示され、監査に残ります）</p>
       <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="例: 打刻忘れ（本人申告）" style={{ ...t.input, width: "100%" }} />

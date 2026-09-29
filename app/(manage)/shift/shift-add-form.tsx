@@ -19,6 +19,7 @@
 //  - 不可の登録 UI（★モック不在＝申告済みの配置判断）: 日詳細バーに「出勤不可にする／解除」
 //    （cast_unavailable_set / remove・owner/manager）。
 import { useCallback, useEffect, useState } from "react";
+import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
@@ -73,7 +74,7 @@ function rpcErrJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
   if (msg.includes("closed day")) return "選択された日は定休日です";
   if (msg.includes("unavailable")) return "出勤不可の日です（登録するには理由が必要です）";
-  if (msg.includes("bad time")) return "時刻は 開始 00:00〜23:59・終了 00:00〜47:59 で入力してください";
+  if (msg.includes("bad time")) return "時刻の形式が不正です（例 2000・20:00／開始 00:00〜23:59・終了 00:00〜47:59）";
   if (msg.includes("bad status")) return "状態の指定が不正です";
   if (msg.includes("dup date")) return "同じ日付が2回含まれています";
   if (msg.includes("too many dates")) return "一度に登録できるのは62日までです";
@@ -503,9 +504,9 @@ export default function ShiftAddForm({
                         <div style={{ fontSize: 10, color: "var(--v2-muted)" }}>必要な日だけ下で個別変更できます</div>
                       </div>
                       <label style={{ fontSize: 11 }}>開始<br />
-                        <input value={bulkStart} onChange={(e) => setBulkStart(e.target.value)} style={{ ...input, width: 76 }} /></label>
+                        <HmInput value={bulkStart} onChange={setBulkStart} maxHour={23} ariaLabel="開始（一括）" style={{ ...input, width: 76 }} /></label>
                       <label style={{ fontSize: 11 }}>終了<br />
-                        <input value={bulkEnd} onChange={(e) => setBulkEnd(e.target.value)} style={{ ...input, width: 76 }} /></label>
+                        <HmInput value={bulkEnd} onChange={setBulkEnd} ariaLabel="終了（一括）" style={{ ...input, width: 76 }} /></label>
                       <button style={btnLight} onClick={applyAll}>全日に適用</button>
                     </div>
                     <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
@@ -513,9 +514,9 @@ export default function ShiftAddForm({
                         <div key={d} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
                           border: "1px solid var(--line)", borderRadius: 8, padding: "6px 9px", fontSize: 12 }}>
                           <b className="num" style={{ width: 96 }}>{Number(mm)}/{Number(d.slice(8))}（{DOW[dowOf(d)]}）</b>
-                          <input value={e.start} onChange={(ev) => setDayTime(d, "start", ev.target.value)} style={{ ...input, width: 72, padding: "5px 7px" }} />
+                          <HmInput value={e.start} onChange={(v) => setDayTime(d, "start", v)} maxHour={23} ariaLabel={`${d} 開始`} style={{ ...input, width: 72, padding: "5px 7px" }} />
                           <span style={{ color: "var(--sub)" }}>〜</span>
-                          <input value={e.end} onChange={(ev) => setDayTime(d, "end", ev.target.value)} style={{ ...input, width: 72, padding: "5px 7px" }} />
+                          <HmInput value={e.end} onChange={(v) => setDayTime(d, "end", v)} ariaLabel={`${d} 終了`} style={{ ...input, width: 72, padding: "5px 7px" }} />
                           {hm2min(e.end) >= 1440 && <span className="num" style={{ fontSize: 10.5, color: "var(--sub)" }}>= {fmtNext(e.end)} まで</span>}
                           {e.src === "wish" && <span style={{ fontSize: 10, color: "var(--blue)", fontWeight: 700 }}>希望から</span>}
                           {e.src === "edit" && <span style={{ fontSize: 10, color: "var(--gold2)", fontWeight: 700 }}>登録済みの編集</span>}

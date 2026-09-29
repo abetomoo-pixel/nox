@@ -38,6 +38,10 @@ import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定3
 import { recruitNoteOf } from "@/lib/nox/ui/month-nav"; // ★306-2 募集期間の注記・306-10 は staff-shift-manage
 import { nextPeriodDefaults, overlappingPeriods, mdOf } from "@/lib/nox/shift/period"; // ★便 T（2026-09-18）: 期間の既定日付・重なり判定（純関数）
 import Modal from "@/components/ui/modal";
+import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
+import { HM_FORMAT_ERR, normalizeHHMM } from "@/lib/nox/time/hhmm";
+import OkuriOutDialog from "@/components/nox/okuri-out-dialog"; // ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ
+import { okuriDefaultAmountOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default";
 import StaffShiftBoard from "./staff-shift-board"; // ★C層② 面 b/c（スタッフ）
 import CastAvatar from "@/components/ui/cast-avatar";
 import DayAddPanel from "./day-add-panel";
@@ -523,9 +527,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   async function adjustShift() {
     if (!adjTarget) return;
     setMsg(null);
-    if (shiftHoursStatus(adjTarget.date, aStart, aEnd, bhRows).status === "closed") { setMsg("選択された日は定休日です"); return; }
+    // ★裁定318（便 X-9-2）: 検証は正規化後（開始 0〜23 時・終了 0〜47 時）
+    const st = normalizeHHMM(aStart, 23), en = normalizeHHMM(aEnd);
+    if (!st || !en) { setMsg(HM_FORMAT_ERR); return; }
+    if (shiftHoursStatus(adjTarget.date, st, en, bhRows).status === "closed") { setMsg("選択された日は定休日です"); return; }
     const { error } = await supabase.rpc("shift_set", {
-      p_id: adjTarget.id, p_cast_id: adjTarget.cast_id, p_date: adjTarget.date, p_start_hm: aStart, p_end_hm: aEnd, p_status: adjTarget.status,
+      p_id: adjTarget.id, p_cast_id: adjTarget.cast_id, p_date: adjTarget.date, p_start_hm: st, p_end_hm: en, p_status: adjTarget.status,
     });
     setMsg(error ? `勤務時間の調整に失敗: ${rpcErrJa(error.message)}` : "勤務時間を調整しました");
     if (!error) setAdjTarget(null);
@@ -672,12 +679,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
 
   // E8-4 #3: バンド追加（終日=0〜1440・時刻は HH:MM。検証の正は RPC＝ここは NaN の素通り防止のみ）
   async function addNeed() {
-    const from = nAllDay ? 0 : hm2min(nFrom);
-    const to = nAllDay ? 1440 : hm2min(nTo);
-    if (!/^\d{1,2}:\d{2}$/.test(nAllDay ? "0:00" : nFrom) || !/^\d{1,2}:\d{2}$/.test(nAllDay ? "0:00" : nTo)) {
-      setMsg("時間は HH:MM 形式で入力してください（例 20:00〜24:00）");
-      return;
-    }
+    // ★裁定318（便 X-9-2）: 検証は正規化後（HHMM／HH:MM／H:MM／HH）
+    const nf = nAllDay ? "00:00" : normalizeHHMM(nFrom), nt = nAllDay ? "24:00" : normalizeHHMM(nTo);
+    if (!nf || !nt) { setMsg(HM_FORMAT_ERR); return; }
+    const from = nAllDay ? 0 : hm2min(nf);
+    const to = nAllDay ? 1440 : hm2min(nt);
     const ok = await saveNeed(nDow, nReq, from, to, "時間帯を追加しました");
     if (ok) setNAllDay(false);
   }
@@ -920,13 +926,18 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   }, [storeId]);
   // ★0156（裁定309-9・便 V-5）: 店の送り方式（settings_json.okuri_mode）＝'actual' の店だけ退勤に「送り」チェックを出す（+1・RLS 越しの stores 読取）
   const [okuriActual, setOkuriActual] = useState(false);
-  const [okuriMark, setOkuriMark] = useState<Set<string>>(new Set());
+  // ★裁定317（便 X-9-3）: 「送り」→金額ダイアログ→確定で退勤打刻（p_okuri=true）＋transport_issue_bulk 1 件（idem＝punch id）。旧チェックボックス（okuriMark）は廃止
+  const [okuriBase, setOkuriBase] = useState<unknown>(null);
+  const [okuriDlg, setOkuriDlg] = useState<{ castId: string; def: OkuriDefault } | null>(null);
+  const [okuriBusy, setOkuriBusy] = useState(false);
+  const [okuriErr, setOkuriErr] = useState<string | null>(null);
   useEffect(() => {
     if (!storeId) return;
     let alive = true;
     void (async () => {
       const { data } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
-      if (alive) setOkuriActual(((data?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual");
+      const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
+      if (alive) { setOkuriActual(sj.okuri_mode === "actual"); setOkuriBase(sj.okuri_base_amount ?? null); }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -934,13 +945,42 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★裁定257 R20-b: 退勤＝punch_proxy(source='manager'・owner 全店／manager 自店・inactive cast 拒否・audit は RPC 側)。in 側は出さない（attendance の 5 択が入口）
   async function proxyOut(castId: string) {
     setMsg(null);
-    // ★0156（裁定309-9・便 V-5）: okuri_mode='actual' の店だけ「送り」チェック（既定なし）を p_okuri で送る。'flat' の店は 3 引数のまま（RPC の既定＝null）
-    const okuri = okuriActual ? okuriMark.has(castId) : null;
+    // ★0156（裁定309-9）→★裁定317: 「退勤」＝送りなし。okuri_mode='actual' の店は p_okuri=false を明示・'flat' の店は 3 引数のまま（RPC の既定＝null）
     const { error } = await supabase.rpc("punch_proxy", okuriActual
-      ? { p_cast_id: castId, p_type: "out", p_note: null, p_okuri: okuri }
+      ? { p_cast_id: castId, p_type: "out", p_note: null, p_okuri: false }
       : { p_cast_id: castId, p_type: "out", p_note: null });
-    setMsg(error ? `退勤の記録に失敗: ${rpcErrJa(error.message)}` : `${castName(castId)} の退勤を記録しました${okuri ? "（送り あり）" : ""}`);
-    if (!error) setOkuriMark((m) => { const n = new Set(m); n.delete(castId); return n; });
+    setMsg(error ? `退勤の記録に失敗: ${rpcErrJa(error.message)}` : `${castName(castId)} の退勤を記録しました`);
+    setPunchTick((v) => v + 1);
+  }
+  // ★裁定317（便 X-9-3）: 「送り」押下＝金額ダイアログ。既定＝店設定 okuri_base_amount → 同 cast の直近 transport 額 → 空欄（必須）
+  async function openOkuri(castId: string) {
+    setOkuriErr(null);
+    let last: number | null = null;
+    if (okuriDefaultAmountOf(okuriBase, null).amount === null) {
+      const { data } = await supabase.from("transport").select("amount").eq("cast_id", castId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(1);
+      last = ((data ?? []) as { amount: number }[])[0]?.amount ?? null;
+    }
+    setOkuriDlg({ castId, def: okuriDefaultAmountOf(okuriBase, last) });
+  }
+  // 確定＝退勤打刻（p_okuri=true）→ 戻りの punch id を冪等キーにして transport_issue_bulk（1 件）。打刻成功・発行失敗は「送りは未発行」＝締め前モーダルに残る
+  async function confirmOkuri(amount: number) {
+    if (!okuriDlg || okuriBusy) return;
+    const castId = okuriDlg.castId;
+    setOkuriBusy(true); setOkuriErr(null); setMsg(null);
+    const { data: punchId, error } = await supabase.rpc("punch_proxy", { p_cast_id: castId, p_type: "out", p_note: null, p_okuri: true });
+    if (error || !punchId) {
+      setOkuriBusy(false);
+      setOkuriErr(`退勤の記録に失敗: ${rpcErrJa(error?.message ?? "no punch id")}`);
+      return;
+    }
+    const { error: eT } = await supabase.rpc("transport_issue_bulk", {
+      p_store_id: storeId, p_items: [{ cast_id: castId, amount, date: todayDate }], p_idem_key: punchId as string,
+    });
+    setOkuriBusy(false);
+    setOkuriDlg(null);
+    setMsg(eT
+      ? `${castName(castId)} の退勤は記録しました。送りの発行に失敗したため、送りは未発行です（${rpcErrJa(eT.message)}）。日報の締めの前に発行できます`
+      : `${castName(castId)} の退勤を記録し、送り ¥${amount.toLocaleString()} を発行しました`);
     setPunchTick((v) => v + 1);
   }
   // ★B4-a 裁定221（H31）: カウンタ＝二重計上なし。休み（off）はどれにも数えない。
@@ -993,6 +1033,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       {settle && (
         <SettlementModal storeId={storeId} castId={settle.castId} castName={castName(settle.castId)} biz={todayDate} shiftId={settle.shiftId} target={settle.target}
           onClose={() => setSettle(null)} onDone={(text) => setMsg(text)} />
+      )}
+      {/* ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ */}
+      {okuriDlg && (
+        <OkuriOutDialog castName={castName(okuriDlg.castId)} def={okuriDlg.def} busy={okuriBusy} error={okuriErr}
+          onConfirm={(amount) => void confirmOkuri(amount)} onClose={() => setOkuriDlg(null)} />
       )}
       {/* ★裁定297-1: 決裁モーダル（成功＝punches／申請一覧の再読込＋同じ枠に success） */}
       {decideRow && (
@@ -1277,12 +1322,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                 )}
                                 {canRecord && (
                                   <span className="out">
+                                    {/* ★裁定317（便 X-9-3）: actual 店のみ「送り」→金額ダイアログ→確定で退勤＋送り実費を即時発行 */}
                                     {okuriActual && (
-                                      <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, cursor: outOn ? "pointer" : "default", opacity: outOn ? 1 : 0.5 }}>
-                                        <input type="checkbox" checked={okuriMark.has(s.cast_id)} disabled={!outOn}
-                                          onChange={(e) => setOkuriMark((m) => { const nx = new Set(m); if (e.target.checked) nx.add(s.cast_id); else nx.delete(s.cast_id); return nx; })} />
-                                        送り
-                                      </label>
+                                      <button type="button" style={{ ...btnLight, padding: "4px 12px", fontSize: 12, opacity: outOn ? 1 : 0.5 }}
+                                        disabled={!outOn} title={ob.show ? (outOn ? "送りの金額を確認して退勤を記録します" : ob.title) : "出勤（出勤・遅刻・同伴）を記録すると押せます"}
+                                        onClick={() => void openOkuri(s.cast_id)}>送り</button>
                                     )}
                                     <button type="button" style={{ ...btnDark, padding: "4px 12px", fontSize: 12, opacity: outOn ? 1 : 0.5 }}
                                       disabled={!outOn} title={ob.show ? ob.title : "出勤（出勤・遅刻・同伴）を記録すると押せます"}
@@ -1513,9 +1557,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             </label>
             {!nAllDay && (
               <>
-                <input value={nFrom} onChange={(e) => setNFrom(e.target.value)} style={{ ...input, width: 64 }} placeholder="20:00" />
+                <HmInput value={nFrom} onChange={setNFrom} ariaLabel="開始" style={{ ...input, width: 64 }} placeholder="20:00" />
                 <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
-                <input value={nTo} onChange={(e) => setNTo(e.target.value)} style={{ ...input, width: 64 }} placeholder="24:00" />
+                <HmInput value={nTo} onChange={setNTo} ariaLabel="終了" style={{ ...input, width: 64 }} placeholder="24:00" />
               </>
             )}
             <span style={{ fontSize: 12.5, color: "var(--sub)" }}>必要</span>
@@ -2490,12 +2534,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <div className="nox-field2">
                 <div className="nox-field">
                   <span className="lab">開始</span>
-                  <input value={aStart} onChange={(e) => setAStart(e.target.value)} style={{ ...input, width: "100%" }} />
+                  <HmInput value={aStart} onChange={setAStart} maxHour={23} ariaLabel="開始" style={{ ...input, width: "100%" }} />
                 </div>
                 <div className="nox-field">
                   <span className="lab">終了</span>
-                  <input value={aEnd} onChange={(e) => setAEnd(e.target.value)} style={{ ...input, width: "100%" }} />
-                  <span className="hint">24時以降は 25:00 のように書けます。</span>
+                  <HmInput value={aEnd} onChange={setAEnd} ariaLabel="終了" style={{ ...input, width: "100%" }} />
+                  <span className="hint">2000・20:00 のどちらでも入力できます。24時以降は 25:00（2500）のように書けます。</span>
                 </div>
               </div>
               <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
