@@ -539,11 +539,14 @@ export async function loadPayrollAdjustments(admin: SupabaseClient, storeId: str
 
 // ★0156（裁定309-6・便 V-2）: 日払い済み（daily_pays）を cast 別に集計＝run 期間内の gross 合計・源泉既徴収額・件数。
 //   ★RPC daily_pays_of_run は JWT（auth_org_id）前提＝service キーの collect からは 'forbidden' になるため、他の集計表と同じく admin で表を直読
+// ★0158（裁定312・便 AA-3）: 属する期＝settle_period（null＝営業日の月）＝RPC の coalesce(settle_period, to_char(biz_date,'YYYY-MM')) = period と同じ集合。
+//   支払済み期の営業日で発行した日払いは翌月へ繰り下がる（settle_period＝翌月）＝営業日の月の run には載せず、繰り下げ先の run に載せる。前借り（advances）は deduct_period のまま
 //   （payroll_adjustments と同型・RLS は definer 相当のバイパス・storeId は route guard が org 内を照合済み）。式は RPC と同一（store×期間・cast 別 Σgross／Σwithholding／count）。
 export async function loadDailyPays(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Map<string, { gross: number; withheld: number; n: number }>> {
   const byCast = new Map<string, { gross: number; withheld: number; n: number }>();
   const { data, error } = await admin.from("daily_pays").select("cast_id, gross, withholding")
-    .eq("store_id", storeId).gte("biz_date", win.periodStart).lte("biz_date", win.periodEnd);
+    .eq("store_id", storeId)
+    .or(`settle_period.eq.${win.period},and(settle_period.is.null,biz_date.gte.${win.periodStart},biz_date.lte.${win.periodEnd})`);
   if (error) throw new Error(`daily_pays: ${error.message}`);
   for (const r of (data ?? []) as { cast_id: string; gross: number; withholding: number }[]) {
     const cur = byCast.get(r.cast_id) ?? { gross: 0, withheld: 0, n: 0 };
