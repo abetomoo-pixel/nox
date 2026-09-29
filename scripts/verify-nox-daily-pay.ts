@@ -133,11 +133,12 @@ async function main() {
       const kpR = kp.ok ? (kp.rows[0].r as { ok: boolean; punch_id: string }) : null;
       const kpRow = kpR?.ok ? await one<{ okuri: boolean; source: string }>("select okuri, source from public.punches where id=$1", [kpR.punch_id]) : null;
       check("dp(3-4) kiosk_punch: PIN 一致・out+true→okuri true・source kiosk／3 引数（in）も ok", pinSet.ok && kpR?.ok === true && kpRow?.okuri === true && kpRow?.source === "kiosk" && kpOld.ok && (kpOld.rows[0].r as { ok: boolean }).ok === true, JSON.stringify([errOf(pinSet), kp, kpOld]));
+      // ★教訓98（便 W-1g）: 同一 tx 内の行は順序で同定しない（punched_at＝now() 同値）＝p2 の行は punch_id で find
       const sum1 = await as(mgr, "select punch_id, cast_id, base_amount, idem_key from public.okuri_today_summary($1, $2::date) order by punched_at", [A1.id, bizToday]);
       const sumCast = await as(castU, "select * from public.okuri_today_summary($1, $2::date)", [A1.id, bizToday]);
       const p2id = p2.ok ? (p2.rows[0].id as string) : "";
       const idemExp = (await one<{ k: string }>("select md5($1::text || ':' || $2::text)::uuid k", [p2id, castA])).k;
-      check("dp(3-5) okuri_today_summary（manager・当日）: okuri=true の out 3 件（self／proxy／kiosk）・base_amount 1500・idem_key＝md5(punch_id:cast_id)・cast forbidden", sum1.ok && sum1.rows.length === 3 && sum1.rows.every((r) => r.base_amount === 1500) && sum1.rows[0].punch_id === p2id && sum1.rows[0].idem_key === idemExp && /forbidden/.test(errOf(sumCast)), JSON.stringify(sum1));
+      check("dp(3-5) okuri_today_summary（manager・当日）: okuri=true の out 3 件（self／proxy／kiosk）・base_amount 1500・idem_key＝md5(punch_id:cast_id)・cast forbidden", sum1.ok && sum1.rows.length === 3 && sum1.rows.every((r) => r.base_amount === 1500) && sum1.rows.find((r) => r.punch_id === p2id)?.idem_key === idemExp && /forbidden/.test(errOf(sumCast)), JSON.stringify(sum1));
       const items = JSON.stringify([{ cast_id: castA, amount: 1500, date: bizToday }]);
       const tb1 = await as(mgr, "select public.transport_issue_bulk($1, $2::jsonb, $3) ids", [A1.id, items, p2id]);
       const tb2 = await as(mgr, "select public.transport_issue_bulk($1, $2::jsonb, $3) ids", [A1.id, items, p2id]);
