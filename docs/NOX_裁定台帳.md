@@ -3924,6 +3924,11 @@ DB 側（payroll_finalize のガード）＝0158。★0158 で DB ガードを�
 
 適用＝未着手（mig 0158 ★6＝transport_issue_self／kiosk_transport_issue・★4＝set_store_profile の白名単 okuri_base_amount・★5＝kiosk_register_state に okuri_mode／okuri_base_amount）。client は 0158 手貼り後の便（/mine・kiosk の退勤で「送り」→ 固定額の確認→ 打刻＋発行）。裁定317 適用欄 (c) の「器が無い」をこの裁定で解く。
 
+**319 追補1（2026-09-29・0158 起草判断の裁定・Agoora・便 Z-2b-1 で収載）**: 「0158 起草判断＝(a)(b)(c)(d)(e)(f)(g)(h)(j)(k) 起草どおり。(i) 改稿: 打刻端末用 kiosk_punch_state() returns jsonb(okuri_mode, okuri_base_amount)＝打刻端末の腕（kiosk_devices purpose='punch'・自店）のみ・B(f)」。
+起草どおり確定＝(a) 前借りは settle_period を足さず既存の deduct_period を翌月へ／(b) daily_pays.settle_period は null 可（null＝営業日の月）／(c) adv_issue の戻りは uuid のまま・carried_to は daily_pay_issue の jsonb／(d) adv_issue_bulk にも同じ繰り下げ／(e) 要対応は新表 payroll_attentions・解決の理由は audit／(f) 'period finalized' の解除は punch_correction_request と decide・書込は apply／(g) 確定ガードは同キー再送と 'run paid' の後／(h) kiosk 発行は打刻端末・10 分以内・transport.created_by を null 可／(j) 送りは支払済みの期なら本人・kiosk とも 'paid period'／(k) ベース額 0 は未設定と同じ。
+(i) 改稿＝kiosk_register_state の 2 キー（レジ端末用）はそのまま残し、打刻端末が送りの設定を読む経路として kiosk_punch_state() を新設（kiosk_punch と同じ端末認証・戻りは 2 キーのみ・STABLE・名簿 B(f)）。関数 283 → 288。
+適用＝便 Z-2b-2 で docs/tmp/gen_0158.mjs／0158_template.sql 経由で改稿（★8 kiosk_punch_state・grants は ★9 へ・冒頭の起草判断を「319 追補1 で確定」に書換・検証文 8 文と期待値）。手貼りは Agoora。
+
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
 出典＝Agoora 指示（2026-09-29・便 X-10-1 で収載）。次の裁定番号は 321。**本文（逐語）**:
