@@ -3850,6 +3850,46 @@ RLS 確認（live pg_policies・2026-09-28）: transport／advances／daily_pays
 Y-5（裁定306 の型）: PaymentPanel は /payroll（page.tsx が owner／manager 以外を redirect）にだけ載る＝cast／staff は未描画。
 suite messages ms(2-6)（payoutDiffNoteOf／paymentMethodLabelOf の純関数＋payment-panel が select・自由入力 placeholder 0＋report-board が内訳 4 語）。
 
+## 裁定312（本便で確定・Agoora・2026-09-29）支払済み期間の前借り・日払いは控除先を翌期へ自動繰り下げ（0158）
+
+出典＝Agoora 指示（2026-09-29・便 X-8-1 で収載）。**本文（逐語）**:
+「裁定312 支払済み期間の前借り・日払いは控除先を翌期（deduct_period＝翌月）に自動繰り下げて発行可・発行時に『翌月の給与から控除』を明示・翌期も paid なら拒否」＝0158。
+
+適用＝未着手（mig 0158 ★起草に同乗）。現行は 0156 の 'paid period'（rpcErrJa「その営業日を含む給与は支払済みのため登録できません」）で拒否。
+
+## 裁定313（本便で確定・Agoora・2026-09-29）/shift 今日タブの行は 1 段構成（出勤記録＝セグメント＋退勤・操作＝時刻修正／減額）
+
+出典＝Agoora 指示（2026-09-29・便 X-8-1 で収載）。**本文（逐語）**:
+「裁定313 今日タブの行は 1 段構成。出勤記録列＝セグメント（出勤／遅刻／当欠／同伴／休み）＋同段右に『退勤』（出勤後のみ活性）。操作列＝『時刻修正』（裁定310 のモーダル）『減額』（精算調整の登録）の 2 ボタン。行内のテキストリンクは全廃」
+
+適用＝便 X-8-2／X-8-3（2026-09-29・client のみ・DB 恒久変更 0・RPC 追加 0）: shift-board 今日タブの出勤記録セル＝`.nox-attrow`（セグメント＋打刻時刻の小字＋送りチェック（actual 店）＋「退勤」を同段・≤899px は 2 行折り返し）。「退勤」は書込可の日は常に描画し、出勤区分かつ in 打刻あり・out なしのときだけ活性（判定は従来の outButtonOf）。
+操作列＝`.nox-rowops`（「時刻修正」＝裁定310 のモーダル・「減額」＝SettlementModal＝精算調整の登録。減額は委託キャストで遅刻／当欠／早退が検知された行だけ活性・他は理由を title に出して非活性）。行内の「精算調整を登録」リンクは除去（裁定310 で除去済みの「出勤を修正／退勤を修正」と合わせて行内テキストリンク 0）。≤899px は 2 ボタンを全幅縦積み。
+操作列は isManagerUp のときだけ th／td ごと描画（staff は未描画・cast は layout が /mine へ戻すため画面自体に来ない）。
+★本文の「操作列＝2 ボタン」に対し、未確定（planned／proposed）の行にだけ従来の「確認へ」「承認」を残した（今日タブから確定できなくなるのを避ける＝確定済みの行は 2 ボタン）。不要なら次便で除去。
+
+## 裁定314（本便で確定・Agoora・2026-09-29）ボトル種商品の明細行に「キープ」
+
+出典＝Agoora 指示（2026-09-29・便 X-8-1 で収載）。**本文（逐語）**:
+「裁定314 ボトル種商品の明細行に『キープ』→伝票の顧客から選択→bottle_keeps に active 登録（開栓日＝営業日・ボトル名既定＝商品名・残量任意）→行を『キープ済み』。顧客未付与なら指名・席タブへ誘導」
+
+適用＝便 X-8-10（2026-09-29・client のみ）: live に bottle_keep_register(p_store_id, p_customer_id, p_product_id, p_note, p_remaining_pct, p_expires_on, p_shelf_no, p_bottle_name, p_check_line_id)（0153 ★16・SECURITY DEFINER・authenticated／service_role）があるため client 実装。明細の kind='bottle' 行に「キープ」→ 伝票の顧客（check_customer_names）から選択・ボトル名（既定＝商品名）・残量（任意 0〜100）→ RPC（p_check_line_id＝その行＝行の注文者も同じ顧客になる）。顧客 0 人なら「指名・席」タブへ誘導。
+★bottle_keeps に check_line_id 列が無い（RPC は行の customer_id を更新するだけ）ため、「キープ済み」の判定は「その行の注文者の active なキープに同じ商品があり、opened_at が伝票の開始以降」の近似。厳密な紐づけは 0158 で bottle_keeps.check_line_id を足すのが筋（起票候補）。opened_at は RPC の now()（営業中の登録＝営業日内）。
+
+## 裁定315（本便で確定・Agoora・2026-09-29）確定済み・支払済み期の打刻修正は許可（凍結給与は不変・翌期の調整導線）（0158）
+
+出典＝Agoora 指示（2026-09-29・便 X-8-1 で収載）。**本文（逐語）**:
+「裁定315 確定済み・支払済み期の打刻修正は許可（理由必須・承認・監査は現行）。凍結給与は不変。給与画面の要対応に『確定後の打刻修正: cast・日・before→after』を積み、翌期の調整導線。差額の自動計算は第2期」＝0158。
+
+適用＝未着手（mig 0158 ★起草に同乗）。
+
+## 裁定316（本便で確定・Agoora・2026-09-29）給与確定は期間終了の翌営業日から（API と DB でガード）
+
+出典＝Agoora 指示（2026-09-29・便 X-8-1 で収載）。**本文（逐語）**:
+「裁定316 給与確定は period_end < 今日の営業日のときのみ（期間終了の翌営業日から）。締め前は確定ボタン無効＋『期間終了（M/D）の翌日から確定できます』。プレビュー・内容確認は途中でも可。ガードは API と DB（payroll_finalize）」＝0158（API 側は本便 X-8-13）。
+
+適用（API・client 側）＝便 X-8-13（2026-09-29）: lib/nox/payroll/finalize-guard.ts（純関数 finalizeGuardOf＝period_end < 今日の営業日のときだけ ok・文言「期間終了（M/D）の翌日から確定できます」）。app/api/payroll/finalize/route.ts は run_create の前に resolvePayrollWindow の periodEnd と bizDateOf(now, 店の biz_cutoff_hm) を比べ、未終了なら 400 'period not ended'（run を作らない）。payroll-board は確定ボタンを無効化し同じ文言を表示（プレビューは従来どおり可）。rpcErrJa に 'period not ended'。
+DB 側（payroll_finalize のガード）＝0158。★0158 で DB ガードを入れると、verify-nox-payroll 等の fixture 期間（P＝2026-09 ほか未来期）で admin 直呼びの payroll_finalize が拒否される＝0158 の起草時に suite の期間を過去期へ寄せる／ガードの判定日を引数化する要検討（起草判断の材料）。
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
