@@ -8,6 +8,7 @@
 //   行の「支払済」数字を押すとその cast の履歴だけに絞る（もう一度押すと全員）。
 //   Y-5: この部品は /payroll（page.tsx が owner／manager 以外を redirect）にだけ載る＝cast／staff は未描画。
 import { useCallback, useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { PAYMENT_METHODS, paymentMethodLabelOf, type PaymentMethod } from "@/lib/nox/payroll/payment-method";
@@ -153,13 +154,8 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
                       <span style={{ color: "var(--champ)", fontSize: 12 }}>支払完了</span>
                     ) : (
                       <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                        <input
-                          type="number"
-                          value={amt[l.castId] ?? ""}
-                          placeholder={String(remaining)}
-                          onChange={(e) => setAmt((s) => ({ ...s, [l.castId]: e.target.value }))}
-                          style={{ ...t.input, width: 90 }}
-                        />
+                        <MoneyInput value={amt[l.castId] ?? ""} placeholder={remaining.toLocaleString()} ariaLabel={`${l.castName} の支払額`}
+                          onChange={(v) => setAmt((s) => ({ ...s, [l.castId]: v }))} width={130} />
                         <input
                           type="date"
                           value={pdate[l.castId] ?? ""}

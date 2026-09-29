@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
@@ -107,8 +108,7 @@ export default function IncentivePanel({ storeId, casts, initialDate, cutoff }: 
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} />
         <SegSelect value={mode} onChange={(v) => setMode(v as "per_head" | "pooled")}
             options={[["per_head", "定額/人（各受給者に同額）"], ["pooled", "プール按分（総額を受給者数で分配）"]] as const} />
-        <input type="number" value={amount} min={0} onChange={(e) => setAmount(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 100 }} />
-        <span style={{ fontSize: 12, color: "var(--sub)" }}>円</span>
+        <MoneyInput value={amount} onChange={(v) => setAmount(Number.parseInt(v || "0", 10))} width={130} style={input} ariaLabel="金額" />
         <button style={btnDark} onClick={publish}>発行</button>
       </div>
       {/* E8-4: 理由（任意・200字まで＝RPC 'bad reason' と同じ上限） */}

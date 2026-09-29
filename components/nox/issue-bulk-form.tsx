@@ -7,6 +7,7 @@
 //   フォーム直下に当日（営業日）の発行済み一覧（cast・額・メモ・取消＝既存 adv_cancel／transport_cancel の route）。
 //   メッセージは裁定281 の型（Message・同じカード内・×で消す）。余白は 301-4 の段階（4/8/12/16/24）。取消の確認はインライン 2 段（265: prompt 不使用）。
 import { useCallback, useEffect, useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { createClient } from "@/lib/supabase/client";
 import SegSelect from "@/components/ui/seg-select";
 import { Message } from "@/components/ui/toast";
@@ -144,8 +145,8 @@ export default function IssueBulkForm({ storeId, casts, okuriMode, okuriBase = 0
               {r.name}
               {r.attended && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 8px", border: "1px solid var(--line2)", color: "var(--champ)" }}>出勤</span>}
             </span>
-            <input type="number" min={1} step={1} inputMode="numeric" value={r.amount} placeholder="金額(円)" aria-label={`${r.name} の金額`}
-              onChange={(e) => setRow(r.castId, { amount: e.target.value })} disabled={disabled} style={inp} />
+            <MoneyInput value={r.amount} placeholder="金額" ariaLabel={`${r.name} の金額`}
+              onChange={(v) => setRow(r.castId, { amount: v })} disabled={disabled} style={inp} />
           </label>
         ))}
       </div>

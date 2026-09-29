@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
@@ -609,8 +610,8 @@ export default function ReportBoard({
             {okuriRows.map((r) => (
               <label key={r.punch_id} style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 8, alignItems: "center", fontSize: 13 }}>
                 <span>{r.cast_name}<span style={{ marginLeft: 8, fontSize: 11.5, color: "var(--sub)" }}>{new Date(r.punched_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} 退勤</span></span>
-                <input type="number" inputMode="numeric" min={1} step={1} value={okuriAmt[r.punch_id] ?? ""} disabled={okuriBusy}
-                  onChange={(e) => setOkuriAmt((m) => ({ ...m, [r.punch_id]: e.target.value }))} placeholder={r.base_amount == null ? "金額（必須）" : "金額"} style={t.input} aria-label={`${r.cast_name} の送り金額`} />
+                <MoneyInput value={okuriAmt[r.punch_id] ?? ""} disabled={okuriBusy} width="100%"
+                  onChange={(v) => setOkuriAmt((m) => ({ ...m, [r.punch_id]: v }))} placeholder={r.base_amount == null ? "金額（必須）" : "金額"} ariaLabel={`${r.cast_name} の送り金額`} />
               </label>
             ))}
           </div>

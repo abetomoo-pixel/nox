@@ -5,6 +5,7 @@
 //   確定＝呼び出し側が 退勤打刻（punch_proxy p_okuri=true）→ transport_issue_bulk 1 件（idem＝punch id）を順に呼ぶ（本部品は金額を返すだけ）。
 //   メッセージは裁定281 の型（Message）。RPC 追加 0。
 import { useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
@@ -29,10 +30,10 @@ export default function OkuriOutDialog({ castName, def, busy, error, onConfirm, 
       </div>
       <p style={{ fontSize: 12.5, margin: "0 0 10px" }}>{castName} の退勤を記録し、送り実費を発行します。</p>
       <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>
-        金額（円）
-        <input type="number" inputMode="numeric" min={1} step={1} value={raw} autoFocus disabled={busy}
-          onChange={(e) => setRaw(e.target.value)} placeholder="例: 1500" aria-label="送りの金額"
-          style={{ ...t.input, width: "100%", marginTop: 4 }} />
+        金額
+        <span style={{ display: "block", marginTop: 4 }}>
+          <MoneyInput value={raw} onChange={setRaw} autoFocus disabled={busy} placeholder="例: 1,500" ariaLabel="送りの金額" width="100%" />
+        </span>
       </label>
       <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 6px", lineHeight: 1.7 }}>
         {okuriDefaultNoteOf(def)}。送りは給与の控除（送り実費）として記録され、日報の現金支払に集計されます。

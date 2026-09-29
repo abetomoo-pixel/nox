@@ -11,10 +11,11 @@
 // ★裁定301（2026-09-25）: 折りたたみ型。候補が PICKER_COLLAPSE_AT（9）件以上なら既定で畳む＝選択中の 1 行（チップ・×）＋検索欄のみ。
 //   検索欄のフォーカス／入力でリストを下に開く（絶対配置＝親のフォーム行の高さに影響しない・最大 8 行＋「他 n 名・絞り込んでください」）。
 //   Escape・外側クリック・選択で閉じる。↑↓ Enter・aria-expanded。8 件以下は従来どおり全展開＝prop 追加なし（閾値は lib/nox/ui/picker-view.ts の定数）。
+// ★便 X-11-8（2026-09-29）: 検索候補の共通化＝部分一致・全件（10 件＋「さらに表示」）・キーボード ↑↓／Enter は全展開（8 件以下）でも効く。
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import CastAvatar from "@/components/ui/cast-avatar";
 import * as t from "@/lib/nox/ui/theme";
-import { collapsedOf, moreLabelOf, nextActiveOf, openSliceOf } from "@/lib/nox/ui/picker-view";
+import { PICKER_PAGE, collapsedOf, moreLabelOf, nextActiveOf, openSliceOf } from "@/lib/nox/ui/picker-view";
 
 export type PickerItem = {
   id: string;
@@ -47,6 +48,7 @@ export default function Picker({
   // ★301: 折りたたみ型の開閉と ↑↓ の位置（全展開のときは使わない）
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
+  const [count, setCount] = useState(PICKER_PAGE); // ★X-11-8: 開いたリストの表示件数（「さらに表示」で +10・検索語が変わったら戻す）
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const collapsed = collapsedOf(items.length);
@@ -59,7 +61,8 @@ export default function Picker({
   const hidden = needle === "" ? Math.max(0, sorted.length - shown.length) : 0;
   const selected = value ? items.find((it) => it.id === value) ?? null : null;
   const selectedShown = !!selected && shown.some((it) => it.id === selected.id);
-  const { rows, more } = openSliceOf(shown);
+  const { rows, more } = openSliceOf(shown, count);
+  const keyRows = collapsed ? rows : shown; // ★X-11-8: ↑↓ の対象（全展開は表示中の全行）
 
   // ★301-1: 外側クリックで閉じる（折りたたみ型が開いているときだけ listener を付ける）
   useEffect(() => {
@@ -71,14 +74,14 @@ export default function Picker({
 
   const pick = (id: string) => {
     onPick(id);
-    if (collapsed) { setOpen(false); setQ(""); setActive(-1); }
+    if (collapsed) { setOpen(false); setQ(""); setActive(-1); setCount(PICKER_PAGE); }
+    else setActive(-1);
   };
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!collapsed) return;
-    if (e.key === "Escape") { setOpen(false); setActive(-1); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((a) => nextActiveOf(a, 1, rows.length)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setOpen(true); setActive((a) => nextActiveOf(a, -1, rows.length)); }
-    else if (e.key === "Enter") { if (open && active >= 0 && rows[active]) { e.preventDefault(); pick(rows[active].id); } }
+    if (e.key === "Escape") { if (collapsed) setOpen(false); setActive(-1); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); if (collapsed) setOpen(true); setActive((a) => nextActiveOf(a, 1, keyRows.length)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); if (collapsed) setOpen(true); setActive((a) => nextActiveOf(a, -1, keyRows.length)); }
+    else if (e.key === "Enter") { if ((open || !collapsed) && active >= 0 && keyRows[active]) { e.preventDefault(); pick(keyRows[active].id); } }
   };
 
   const clearBtn = onClear && !disabled ? (
@@ -135,7 +138,7 @@ export default function Picker({
         )}
         <input
           value={q}
-          onChange={(e) => { setQ(e.target.value); setOpen(true); setActive(-1); }}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); setActive(-1); setCount(PICKER_PAGE); }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
@@ -155,7 +158,9 @@ export default function Picker({
           }}>
             {rows.map((it, i) => itemButton(it, i === active))}
             {rows.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>{empty}</p>}
-            {moreLabelOf(more) && <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 2px 0" }}>{moreLabelOf(more)}</p>}
+            {moreLabelOf(more) && (
+              <button type="button" style={{ ...t.btnGhost, ...t.btnSm, justifyContent: "center" }} onMouseDown={(e) => e.preventDefault()} onClick={() => setCount((n) => n + PICKER_PAGE)}>{moreLabelOf(more)}</button>
+            )}
           </div>
         )}
       </div>
@@ -166,7 +171,8 @@ export default function Picker({
     <div style={disabled ? { opacity: 0.55, cursor: "not-allowed" } : undefined} aria-disabled={disabled || undefined}>
       <input
         value={q}
-        onChange={(e) => setQ(e.target.value)}
+        onChange={(e) => { setQ(e.target.value); setActive(-1); }}
+        onKeyDown={onKeyDown}
         placeholder={placeholder}
         aria-label={placeholder}
         disabled={disabled}
@@ -179,7 +185,7 @@ export default function Picker({
         </div>
       )}
       <div style={{ display: "grid", gap: 6, maxHeight: dense ? 220 : 300, overflowY: "auto" }}>
-        {shown.map((it) => itemButton(it))}
+        {shown.map((it, i) => itemButton(it, i === active))}
         {shown.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>{empty}</p>}
       </div>
       {hidden > 0 && (

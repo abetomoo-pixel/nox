@@ -4,6 +4,7 @@
 //   → payroll_adjustment_add(source='sanction')。上限は RPC（'sanction cap'＝和文「1 件は平均賃金の半額・当期合計は賃金総額の 1/10 まで」）。
 //   常時注記「上限内でも適法とは限りません」。当 run に payslip が無い（推計基底）ときは理由に「（推計基底）」を付す。
 import { useEffect, useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
 import { createClient } from "@/lib/supabase/client";
@@ -62,7 +63,7 @@ export default function SanctionModal({ runId, castId, castName, onClose, onDone
         <input type="checkbox" checked={checked} disabled={busy} onChange={(e) => setChecked(e.target.checked)} /> 就業規則に懲戒減給の根拠があることを確認した（必須）
       </label>
       <input value={basis} onChange={(e) => setBasis(e.target.value)} maxLength={200} disabled={busy} placeholder="根拠（就業規則 第○条・懲戒事由）" style={{ ...t.input, width: "100%", marginBottom: 6 }} />
-      <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" disabled={busy} placeholder="額（円）" style={{ ...t.input, width: "100%", marginBottom: 6 }} />
+      <span style={{ display: "block", marginBottom: 6 }}><MoneyInput value={amount} onChange={setAmount} disabled={busy} placeholder="金額" width="100%" ariaLabel="減給の金額" /></span>
       <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} disabled={busy} placeholder="理由（明細に出ます・200 字まで）" style={{ ...t.input, width: "100%" }} />
       {err && <div style={{ marginTop: 8 }}><Message kind="error">{err}</Message></div>}
       <div className="nox-formmodal-foot">

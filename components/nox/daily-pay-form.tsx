@@ -5,6 +5,7 @@
 //   雇用キャストは「源泉 0（税理士確認中＝T10）」の注記（RPC も 0＋warn 'T10 pending'）。発行済み一覧＝当月（biz_date の暦月）・cast 別（daily_pays 直 SELECT＝RLS owner／manager 自店）。
 //   メッセージは裁定281 の型（Toast）。RPC 追加 0。
 import { useCallback, useEffect, useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -62,8 +63,8 @@ export default function DailyPayForm({ castId, castName, dateDefault, readOnly =
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div className="nox-issue-row" style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <label style={t.fieldLabel}>金額（円）<br />
-          <input type="number" inputMode="numeric" min={1} step={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="例: 10000" style={{ ...t.input, width: 130, marginTop: 3 }} disabled={busy} aria-label="日払いの金額" />
+        <label style={t.fieldLabel}>金額<br />
+          <MoneyInput value={amount} onChange={setAmount} placeholder="例: 10,000" width={150} style={{ marginTop: 3 }} disabled={busy} ariaLabel="日払いの金額" />
         </label>
         <label style={t.fieldLabel}>営業日<br />
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...t.input, marginTop: 3 }} disabled={busy} aria-label="日払いの営業日" />

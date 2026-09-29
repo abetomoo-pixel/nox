@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { buildPayrollCsv, type PayrollCsvRow, type PayrollCsvPay } from "@/lib/nox/payroll/csv";
@@ -401,7 +402,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
     const body: Record<string, unknown> = { storeId, period, castId, kind: adjForm.kind, beforeWithholding: adjForm.before, showDetail: adjForm.showDetail, reason };
     if (adjForm.kind === "fixed") {
       const amount = Number(adjForm.amount);
-      if (!Number.isInteger(amount) || amount < 0) { setAdjMsg("金額は 0 以上の整数（円）で入力してください。"); return; }
+      if (!Number.isInteger(amount) || amount < 0) { setAdjMsg("金額は 0 以上の整数で入力してください。"); return; }
       body.amount = amount;
     } else {
       const pct = Number(adjForm.pct);
@@ -930,15 +931,15 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     {adjEditable && (
                       <div style={{ borderTop: "1px solid var(--line2)", paddingTop: 8, marginTop: 4, display: "grid", gap: 6 }}>
                         <div className="nox-seg" role="group" aria-label="調整の種類" style={{ width: "fit-content" }}>
-                          {([["fixed", "定額（円）"], ["rate", "率（%）"]] as const).map(([v, l]) => (
+                          {([["fixed", "定額"], ["rate", "率（%）"]] as const).map(([v, l]) => (
                             <button key={v} type="button" className={adjForm.kind === v ? "on" : ""} aria-pressed={adjForm.kind === v}
                               onClick={() => setAdjForm((f) => ({ ...f, kind: v }))}>{l}</button>
                           ))}
                         </div>
                         {adjForm.kind === "fixed" ? (
-                          <label style={t.fieldLabel}>金額（円・整数）<br />
-                            <input type="number" inputMode="numeric" min={0} step={1} value={adjForm.amount} onChange={(e) => setAdjForm((f) => ({ ...f, amount: e.target.value }))}
-                              placeholder="例: 5000" style={{ ...t.input, width: 140, marginTop: 3 }} />
+                          <label style={t.fieldLabel}>金額<br />
+                            <MoneyInput value={adjForm.amount} onChange={(v) => setAdjForm((f) => ({ ...f, amount: v }))}
+                              placeholder="例: 5,000" width={160} style={{ marginTop: 3 }} ariaLabel="調整の金額" />
                           </label>
                         ) : (
                           <label style={t.fieldLabel}>率（% ・小数 2 桁まで・総支給に対して）<br />
@@ -987,8 +988,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                               </div>
                               {d.per !== "rate" && (
                                 <>
-                                  <input type="number" inputMode="numeric" min={0} step={1} value={ovAmount[d.id] ?? ""} onChange={(e) => setOvAmount((m) => ({ ...m, [d.id]: e.target.value }))}
-                                    placeholder={`上書き額（店の設定 ¥${d.amount.toLocaleString()}）`} style={{ ...t.input, width: 170 }} aria-label={`${d.name} の上書き額`} disabled={ovBusy} />
+                                  <MoneyInput value={ovAmount[d.id] ?? ""} onChange={(v) => setOvAmount((m) => ({ ...m, [d.id]: v }))}
+                                    placeholder={`上書き額（店の設定 ¥${d.amount.toLocaleString()}）`} width={200} ariaLabel={`${d.name} の上書き額`} disabled={ovBusy} />
                                   <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={ovBusy || !/^\d+$/.test(ovAmount[d.id] ?? "")}
                                     onClick={() => void setOverride(r.castId, d.id, true, Number(ovAmount[d.id]))}>金額を上書き</button>
                                 </>

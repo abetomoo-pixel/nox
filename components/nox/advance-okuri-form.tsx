@@ -5,6 +5,7 @@
 //   300-2: castId を渡すとキャスト固定（picker は出さない）・readOnly（確定後）は入口を出さず注記のみ。
 //   メッセージは裁定281 の型（Message・同じカード内・×で消す）。
 import { useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import Picker from "@/components/nox/picker";
 import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
@@ -88,8 +89,8 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
         </div>
       )}
       <div className="nox-issue-row">
-        <label style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>金額(円)</span>
-          <input type="number" min={1} step={1} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={disabled} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
+        <label style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>金額</span>
+          <MoneyInput value={amount} onChange={setAmount} disabled={disabled} width="100%" ariaLabel="金額" style={{ padding: "8px 10px", fontSize: 13 }} />
         </label>
         <label style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>{ISSUE_DATE_LABEL[kind]}</span>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />

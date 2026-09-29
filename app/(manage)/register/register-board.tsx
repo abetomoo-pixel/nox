@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import { groupDueFull, timeStatusOf } from "@/lib/nox/check-calc";
@@ -346,6 +347,8 @@ export default function RegisterBoard({
   const [todayIds, setTodayIds] = useState<Set<string>>(new Set());
   // ★B3 裁定209（#64）: 営業日の attendance にあるキャスト＝「出勤中」（読取 1・表示専用）
   const [attendIds, setAttendIds] = useState<Set<string>>(new Set());
+  // ★裁定322（便 X-11-5）: 当日の確定シフトがある cast（③未出勤（シフトあり）の判定）。attendance と同じ effect で読む（読取 +1・表示専用）
+  const [shiftIds, setShiftIds] = useState<Set<string>>(new Set());
   // ★B3 裁定210（#64）: cast_ranks（読取 1）→ cast id → ランク名。RLS で 0 行のロール（staff）は空 Map＝要素非表示
   const [rankNames, setRankNames] = useState<Map<string, string>>(new Map());
   // 営業日切替（settings_json.biz_cutoff_hm・既存の stores 読取から拾う＝新規クエリ 0）
@@ -760,6 +763,8 @@ export default function RegisterBoard({
       const { data } = await supabase.from("attendance").select("cast_id")
         .eq("store_id", storeId).eq("date", d).in("status", ATTEND_PRESENT);
       if (alive) setAttendIds(new Set((data ?? []).map((r) => r.cast_id as string)));
+      const { data: sh } = await supabase.from("shifts").select("cast_id").eq("store_id", storeId).eq("date", d).eq("status", "confirmed");
+      if (alive) setShiftIds(new Set((sh ?? []).map((r) => r.cast_id as string)));
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1681,7 +1686,7 @@ export default function RegisterBoard({
           {/* ★B3 裁定209〜212（#64・R34 帰属モーダル）: 出勤中／接客中／打刻・ランク名＋［出勤中］［担当中］チップ（絞込のみ・名前順固定） */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
-            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} chips
+            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} chips grouped shiftIds={shiftIds}
             onPick={(id) => {
               const dp = drinkPick;
               setDrinkPick(null);
@@ -2129,9 +2134,8 @@ export default function RegisterBoard({
                                 {splitHeadOk ? yen(splitAuto) : "—"}
                               </span>
                             ) : (
-                              <input type="number" inputMode="numeric" min={1} step={1} value={r.amount} placeholder="金額" disabled={split.busy} aria-label={`${i + 1} 枚目の金額`}
-                                onChange={(e) => setSplit((v) => ({ ...v, rows: v.rows.map((x, k) => (k === i ? { ...x, amount: e.target.value } : x)) }))}
-                                className="num amt" style={{ ...t.input, textAlign: "right" }} />
+                              <MoneyInput value={r.amount} placeholder="金額" disabled={split.busy} ariaLabel={`${i + 1} 枚目の金額`} width="100%"
+                                onChange={(v) => setSplit((s2) => ({ ...s2, rows: s2.rows.map((x, k) => (k === i ? { ...x, amount: v } : x)) }))} />
                             )}
                             <input placeholder="宛名（空欄は上様）" value={r.name} maxLength={100} disabled={split.busy} aria-label={`${i + 1} 枚目の宛名`}
                               onChange={(e) => setSplit((v) => ({ ...v, rows: v.rows.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)) }))} className="nm" style={t.input} />
@@ -2457,7 +2461,7 @@ export default function RegisterBoard({
           {/* ★B3 裁定209〜211（#64・R43）: 候補一覧に出勤中／接客中／打刻・ランク名（cast_ranks が読めたロールのみ） */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
-            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames}
+            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} grouped shiftIds={shiftIds}
             selectedIds={seatedIds} badges={nomBadges} dense
             onPick={(id) => {
               const on = nomWeights[id] !== undefined; // ★裁定110: 名簿＝キー存在
@@ -2494,7 +2498,7 @@ export default function RegisterBoard({
         </div>
 
         {/* ★裁定305（mig0153・2026-09-25・D1）: 伝票の顧客（複数）・追加／外す・注文行の「誰の注文」・キープ出し＝共通部品（RPC が二重防御・fetch +1＝3 クエリ並列） */}
-        <CheckCustomersCard checkId={check.id} storeId={storeId} isOpen={check.status === "open"} lines={lines} products={products} onChanged={() => loadCheck(check.id)} />
+        <CheckCustomersCard checkId={check.id} storeId={storeId} isOpen={check.status === "open"} lines={lines} products={products} onChanged={() => loadCheck(check.id)} castIds={Object.keys(nomWeights)} />
 
         {/* ★0152（裁定280／298／299・2026-09-25）: 紹介の入口＝owner／manager のレジのみ。1 伝票 1 紹介（check_referrals）＝付与 check_referral_set・取消 check_referral_remove。
             紹介者はマスタ「紹介者」（referrers）から選ぶ。客負担（burden='customer'）は請求（A）に乗る＝表示 due は groupDueFull の第 3 引数で鏡像・印字は初回セット行に合算（298-4）。 */}

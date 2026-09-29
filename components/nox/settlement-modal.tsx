@@ -4,6 +4,7 @@
 //   ひな形（store の settlement_presets）と額を初期表示・額は変更可 → payroll_adjustment_add(source='settlement'・basis＝ひな形の文・target＝当日の shift)。
 //   run＝当期（営業日の月）の draft を探す（無ければ「当期の給与が未作成です」）。runId を渡されたときはそれを使う（給与明細から）。
 import { useEffect, useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
 import { createClient } from "@/lib/supabase/client";
@@ -79,8 +80,8 @@ export default function SettlementModal({ storeId, castId, castName, biz, shiftI
               {presets.map((p) => <option key={p.code} value={p.code}>{p.name}（{TARGET_LABEL[p.target]}・既定 ¥{p.amount.toLocaleString()}）</option>)}
             </select>
           </label>
-          <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>額（円・変更可）
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" disabled={busy} style={{ ...t.input, width: "100%", marginTop: 4 }} />
+          <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>金額（変更可）
+            <span style={{ display: "block", marginTop: 4 }}><MoneyInput value={amount} onChange={setAmount} disabled={busy} width="100%" ariaLabel="減額の金額" /></span>
           </label>
           {preset && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 6px" }}>根拠: {preset.basis || "（未設定＝報酬制度の精算調整で文を設定してください）"}</p>}
           {runNg && <Message kind="warn">{runNg}</Message>}

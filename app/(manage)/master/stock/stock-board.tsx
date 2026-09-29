@@ -13,12 +13,19 @@
 // ★ページングも /audit と同型＝PAGE=50・range で1件余分に取り次ページ有無を判定。
 // ★商品絞り込みは eq(product_id)＋order(at desc)＝stock_logs_product_at_idx (product_id, at) が効く形。
 // ★現在庫は fetchStockTotals（④d-1 で product_stock_totals RPC 化済み）＝独自集計を書かない。
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// ★裁定323（2026-09-29・便 X-11-7）: 棚卸しは一覧型。「検索して 1 件選択」（ProductCombo）を撤去し、在庫管理ありの有効商品をカテゴリ順に全行
+//   （商品名・現在庫・実数入力・差分）。検索欄は絞り込み。実数を入れた行だけ「n 件を記録」で一括＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・
+//   失敗した行で停止（記録済みは残す）。記録後は実数欄を空に戻す＝差分 0。無効商品は「無効も表示」。
+//   在庫管理の判定＝products に管理フラグの列は無い → 「product_stock_totals の戻りに行がある商品（stock_logs に 1 行以上）」を管理ありとする（在庫数 null＝管理なし）。
+//   役割の分担: 入荷・返品（増減）＝商品ページの行「入荷」／実数で置き換え＝この在庫ページ。
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import MasterPageHead from "../master-page-head";
-import { fetchProducts, fetchStockTotals, type MasterProduct as Product } from "@/lib/nox/master/queries";
+import { fetchProductCategories, fetchProducts, fetchStockTotals, type MasterCategory, type MasterProduct as Product } from "@/lib/nox/master/queries";
+import { stocktakeRowsOf, stocktakePlanOf } from "@/lib/nox/stock/stocktake";
 import { STOCK_REASON_STOCKTAKE, stockReasonLabel } from "@/lib/nox/stock/reasons";
 import { stockUnitOf } from "@/lib/nox/inventory/unit";
 
@@ -37,102 +44,6 @@ const numWheelBlur = (e: React.WheelEvent<HTMLInputElement>) => { (e.currentTarg
 
 const PAGE = 50;
 
-// E7a: 商品が増えても選べる検索つきコンボボックス（select の置換・表示専用の最小実装）。
-//   共通部品の CastPicker は写真グリッド専用のため流用せず、ここに閉じた素の入力＋候補リストで作る。
-//   ★選択の意味づけ（何に使うか）は呼び出し側・本部品は「絞って選ぶ」だけ。
-function ProductCombo({ products, stock, value, onChange }: {
-  products: Product[]; stock: Record<string, number>;
-  value: string; onChange: (id: string) => void;
-}) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
-  const selected = products.find((p) => p.id === value) ?? null;
-
-  // 外側クリックで閉じる（候補クリックは onMouseDown で先に確定させる）
-  useEffect(() => {
-    if (!open) return;
-    const onDocDown = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDocDown);
-    return () => document.removeEventListener("mousedown", onDocDown);
-  }, [open]);
-
-  const hits = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const list = needle === ""
-      ? products
-      : products.filter((p) => p.name.toLowerCase().includes(needle));
-    return list.slice(0, 50); // 候補は 50 件まで（絞り込めば必ず届く＝件数超過は下の注記で明示）
-  }, [products, q]);
-
-  const pick = (p: Product) => { onChange(p.id); setQ(""); setOpen(false); };
-
-  return (
-    <div ref={boxRef} style={{ position: "relative", minWidth: 240 }}>
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <input
-          value={open ? q : (selected?.name ?? "")}
-          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-          onFocus={() => { setQ(""); setOpen(true); }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") { setOpen(false); return; }
-            if (e.key === "Enter" && open && hits.length > 0) { e.preventDefault(); pick(hits[0]); }
-          }}
-          placeholder={selected ? selected.name : "商品を検索して選択"}
-          aria-label="棚卸しする商品"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls="stock-product-combo-list"
-          aria-autocomplete="list"
-          style={{ ...ctlInput, width: "100%", maxWidth: 240 }}
-        />
-        {selected && (
-          <button
-            style={{ ...t.btnGhost, ...t.btnSm, ...ctlBtn, padding: "0 10px" }} aria-label="商品の選択を解除"
-            onClick={() => { onChange(""); setQ(""); setOpen(false); }}
-          >×</button>
-        )}
-      </div>
-      {/* ★便 R: 補助行「現在庫 n」は右の「現在 n」と重複し左列だけ背が高くなる原因＝削除 */}
-      {open && (
-        <div id="stock-product-combo-list" role="listbox" aria-label="商品の候補" style={{
-          position: "absolute", zIndex: 30, top: "100%", left: 0, marginTop: 4, width: 240,
-          maxHeight: 240, overflowY: "auto", background: "var(--card)", border: "1px solid var(--line)",
-          borderRadius: 9, boxShadow: "0 8px 24px rgba(0,0,0,.35)",
-        }}>
-          {hits.length === 0 && (
-            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0, padding: "10px 12px" }}>該当する商品がありません</p>
-          )}
-          {hits.map((p) => (
-            <button
-              key={p.id}
-              role="option"
-              aria-selected={p.id === value}
-              onMouseDown={(e) => { e.preventDefault(); pick(p); }}
-              style={{
-                display: "flex", width: "100%", gap: 8, alignItems: "center", justifyContent: "space-between",
-                padding: "7px 12px", background: p.id === value ? "var(--card2)" : "transparent",
-                border: 0, borderBottom: "1px solid var(--line2)", color: "var(--ink)",
-                fontFamily: "inherit", fontSize: 12.5, textAlign: "left", cursor: "pointer",
-              }}
-            >
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-              <span style={{ ...t.num, color: "var(--sub)", flexShrink: 0 }}>現在 {stock[p.id] ?? 0}{stockUnitOf(p.type)}</span>
-            </button>
-          ))}
-          {q.trim() === "" && products.length > hits.length && (
-            <p style={{ fontSize: 11, color: "var(--sub)", margin: 0, padding: "8px 12px" }}>
-              ほか {products.length - hits.length} 件（商品名を入力すると絞り込めます）
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 type StockLog = {
   id: string; product_id: string; delta: number; reason: string | null; by_user_id: string | null; at: string;
 };
@@ -149,10 +60,14 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   const [stock, setStock] = useState<Record<string, number>>(initial.stock);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // 棚卸しフォーム（実数入力・delta は UI 計算）
-  const [tProd, setTProd] = useState("");
-  const [tActual, setTActual] = useState("");
+  // ★裁定323: 棚卸し＝一覧型（商品 id → 実数の入力文字列）。delta は UI 計算
+  const [actuals, setActuals] = useState<Record<string, string>>({});
+  const [tq, setTq] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
+  const [categories, setCategories] = useState<MasterCategory[]>([]);
   const [busy, setBusy] = useState(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void fetchProductCategories(supabase).then(setCategories); }, []);
 
   // 履歴（/audit 同型ページング＋商品絞り込み）
   const [logs, setLogs] = useState<StockLog[]>([]);
@@ -186,28 +101,29 @@ export default function StockBoard({ isManagerUp, initial, users }: {
     setStock(st);
   }
 
-  // 差分プレビュー（実数が整数でないときは null＝記録不可）
-  const current = tProd ? (stock[tProd] ?? 0) : null;
-  const actualNum = tActual === "" ? null : Number(tActual);
-  const delta = current != null && actualNum != null && Number.isInteger(actualNum) ? actualNum - current : null;
-  const tUnit = stockUnitOf(products.find((p) => p.id === tProd)?.type);
+  // ★裁定323: 行（在庫管理ありだけ・カテゴリ順）と、記録する行（実数が整数で差分 ≠ 0）
+  const tRows = useMemo(() => stocktakeRowsOf(products, stock, categories, { q: tq, showInactive }), [products, stock, categories, tq, showInactive]);
+  const tPlan = useMemo(() => stocktakePlanOf(products, stock, actuals), [products, stock, actuals]);
+  const unmanaged = products.filter((p) => p.is_active && stock[p.id] === undefined).length;
 
-  async function recordStocktake() {
-    if (!tProd || delta == null || busy) return;
-    if (delta === 0) { setMsg("実数と現在庫が同じです（差分 0 は記録しません）"); return; }
+  async function recordStocktakeAll() {
+    if (busy || tPlan.length === 0) return;
     setBusy(true);
     setMsg(null);
-    const { error } = await supabase.rpc("product_stock_add", {
-      p_product_id: tProd, p_delta: delta, p_reason: STOCK_REASON_STOCKTAKE,
-    });
+    let done = 0; let failed: string | null = null;
+    const cleared: string[] = [];
+    for (const r of tPlan) {
+      const { error } = await supabase.rpc("product_stock_add", { p_product_id: r.id, p_delta: r.delta, p_reason: STOCK_REASON_STOCKTAKE });
+      if (error) { failed = `${r.name}: ${rpcErrJaCommon(error.message)}`; break; }   // 失敗した行で停止（記録済みは残す）
+      done += 1; cleared.push(r.id);
+    }
+    setActuals((a) => { const n = { ...a }; for (const id of cleared) delete n[id]; return n; });   // 記録した行は実数欄を空へ＝差分 0
     setBusy(false);
-    setMsg(error ? rpcErrJaCommon(error.message) : `棚卸しを記録しました（${delta > 0 ? "+" : ""}${delta}${tUnit}）`);
-    if (!error) {
-      setTActual("");
+    setMsg(failed ? `${done} 件を記録しました。次の行の記録に失敗したため中止しました（${failed}）` : `棚卸しを ${done} 件記録しました`);
+    if (done > 0) {
       await reloadStock();
-      // page が既に 0 のときは effect が発火しないため明示リロード
-      setPage(0);
-      await load(0, prodFilter);
+      setPage(0); // page が既に 0 のときは effect が発火しないため明示リロード
+      if (histOpen) await load(0, prodFilter);
     }
   }
 
@@ -223,35 +139,74 @@ export default function StockBoard({ isManagerUp, initial, users }: {
 
       {isManagerUp && (
         <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
-          <h3 style={{ margin: "0 0 10px", fontSize: 14 }}>棚卸し</h3>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            {/* E7a: 商品数が増えても選べるよう select → 検索つきコンボボックスへ（選択の意味・記録経路は不変） */}
-            <ProductCombo products={products} stock={stock} value={tProd}
-              onChange={(id) => { setTProd(id); setTActual(""); }} />
-            <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>
-              実数
-              <input type="number" step={1} value={tActual} onChange={(e) => setTActual(e.target.value)}
-                disabled={!tProd} placeholder="棚の実数" aria-label="棚の実数"
-                className="nox-numfield" inputMode="numeric" onWheel={numWheelBlur}
-                style={{ ...ctlInput, ...t.num, textAlign: "right", width: 90 }} />
-              {/* ★便 R: 単位は入力欄の中に入れず右のラベルで（数字の後ろに半角スペースなし） */}
-              {tProd && <span data-unit style={{ fontSize: 12.5, color: "var(--sub)" }}>{tUnit}</span>}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "0 0 6px" }}>
+            <h3 style={{ margin: 0, fontSize: 14 }}>棚卸し</h3>
+            <span style={{ fontSize: 11.5, color: "var(--sub)" }}>棚の実数を入れた行だけ記録します（差分は自動計算）</span>
+          </div>
+          {/* ★裁定323: 役割の分担を注記（入荷・返品＝商品ページ／実数で置き換え＝在庫ページ） */}
+          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
+            入荷・返品（数を足す／引く）は<Link href="/master/products" className="nox-link">商品ページ</Link>の行「入荷」から。この画面は棚の実数で在庫を置き換えます。
+            {unmanaged > 0 && <> 在庫を持たない商品（入荷の記録が無い商品）<span className="num">{unmanaged}</span> 件は表示していません。</>}
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+            <input value={tq} onChange={(e) => setTq(e.target.value)} placeholder="商品名で絞り込み" aria-label="棚卸しの商品を絞り込み"
+              style={{ ...ctlInput, width: "100%", maxWidth: 240 }} />
+            <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> 無効も表示
             </label>
-            {tProd && (
-              <span style={{ fontSize: 12.5, color: "var(--sub)" }}>
-                現在 <span style={{ ...t.num, color: "var(--ink)" }}>{current}{tUnit}</span>
-                {delta != null && (
-                  <>
-                    {" → 差分 "}
-                    <span style={{ ...t.num, fontWeight: 700, color: delta > 0 ? "var(--ok)" : delta < 0 ? "var(--bad)" : "var(--sub)" }}>
-                      {delta > 0 ? `+${delta}` : delta}{tUnit}
-                    </span>
-                  </>
-                )}
-              </span>
+            <span style={{ fontSize: 11.5, color: "var(--sub)" }}><span className="num">{tRows.length}</span> 件</span>
+          </div>
+          {tRows.length === 0 ? (
+            <p style={{ fontSize: 13, color: "var(--sub)", margin: 0 }}>{tq.trim() ? "該当する商品がありません。" : "在庫を持つ商品がありません（商品ページの「入荷」で在庫を登録すると、ここに出ます）。"}</p>
+          ) : (
+            <div className="nox-ptwrap">
+              <table className="nox-ptable">
+                <thead>
+                  <tr>
+                    <th>商品</th>
+                    <th style={{ width: 90, textAlign: "right" }}>現在庫</th>
+                    <th style={{ width: 130, textAlign: "right" }}>実数</th>
+                    <th style={{ width: 90, textAlign: "right" }}>差分</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tRows.map((r) => {
+                    const raw = actuals[r.id] ?? "";
+                    const n = raw.trim() === "" ? null : Number(raw);
+                    const bad = n !== null && !Number.isInteger(n);
+                    const d = n !== null && !bad ? n - r.current : null;
+                    return (
+                      <tr key={r.id} style={r.isActive ? undefined : { opacity: 0.6 }}>
+                        <td data-label="商品">
+                          {r.head && <span style={{ display: "block", fontSize: 10.5, color: "var(--champ)", fontWeight: 800 }}>{r.categoryName}</span>}
+                          {r.name}{!r.isActive && <span style={{ ...t.tag, fontSize: 10, marginLeft: 6, color: "var(--sub)", borderColor: "var(--line2)" }}>無効</span>}
+                        </td>
+                        <td data-label="現在庫" style={{ textAlign: "right" }}><span style={t.num}>{r.current}{r.unit}</span></td>
+                        <td data-label="実数" style={{ textAlign: "right" }}>
+                          <input type="number" step={1} value={raw} disabled={busy} placeholder="棚の実数" aria-label={`${r.name} の実数`}
+                            onChange={(e) => setActuals((a) => ({ ...a, [r.id]: e.target.value }))}
+                            className="nox-numfield" inputMode="numeric" onWheel={numWheelBlur}
+                            style={{ ...ctlInput, ...t.num, textAlign: "right", width: 90, ...(bad ? { borderColor: "var(--bad)" } : {}) }} />
+                          <span data-unit style={{ fontSize: 12.5, color: "var(--sub)", marginLeft: 4 }}>{r.unit}</span>
+                        </td>
+                        <td data-label="差分" style={{ textAlign: "right" }}>
+                          <span style={{ ...t.num, fontWeight: 700, color: d == null || d === 0 ? "var(--sub)" : d > 0 ? "var(--ok)" : "var(--bad)" }}>
+                            {d == null ? "—" : d > 0 ? `+${d}` : d}{d == null ? "" : r.unit}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="nox-actions end" style={{ marginTop: 10 }}>
+            {Object.values(actuals).some((v) => v.trim() !== "") && (
+              <button style={{ ...t.btnGhost, ...t.btnSm, ...ctlBtn, padding: "0 12px" }} disabled={busy} onClick={() => setActuals({})}>入力を消す</button>
             )}
-            <button style={{ ...btnDark, ...ctlBtn, padding: "0 12px" }} disabled={!tProd || delta == null || delta === 0 || busy} onClick={recordStocktake}>
-              棚卸しを記録
+            <button style={{ ...btnDark, ...ctlBtn, padding: "0 12px", opacity: tPlan.length === 0 || busy ? 0.5 : 1 }} disabled={tPlan.length === 0 || busy} onClick={() => void recordStocktakeAll()}>
+              {busy ? "記録中…" : `${tPlan.length} 件を記録`}
             </button>
           </div>
         </section>
