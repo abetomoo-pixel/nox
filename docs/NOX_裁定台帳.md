@@ -2846,6 +2846,12 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓98：suite は同一 tx 内で作った行を順序（rows[0]・order by 時刻）で同定しない＝now() が同値で並びが不定。id で find する（相談役起こし）
+
+出典＝相談役 2026-09-29 受領（便 W-1f・逐語）: 「教訓98『suite は同一 tx 内で作った行を順序（rows[0]・order by 時刻）で同定しない＝now() が同値で並びが不定。id で find する。9/28 便 U の daily-pay dp(3-5) で run 2 が赤』」。
+経緯: 便 U で新設した verify-nox-daily-pay の dp(3-5) は okuri_today_summary の 3 行（self／proxy／kiosk の out）を `order by punched_at` で受け、`rows[0].punch_id === p2id` で先頭を self の行と決め打ちしていた。3 行とも同じ BEGIN…ROLLBACK 内の挿入で punched_at＝now()＝トランザクション開始時刻の同値＝並びは実行ごとに不定。9/28 便 W の f0 は run 1（18:22〜18:34）緑 79 段 5,074 の直後、run 2（18:35〜18:47）が最終 79 段目の dp(3-5) だけ赤（返った 3 行の中身は正しい＝DB 側の回帰ではない）。教訓96（audit 照合は tx 内に限定）の起草時にも「tx 内の order by at は無意味＝after_json で同定」と同型を踏んでいた。
+運用: 同一 tx で複数行を作る suite は、行を **id（punch_id・返り値の id・idem_key）で find** して照合する。件数は length、集合は every／some で見る。`rows[0]`／`rows[n]` を使ってよいのは 1 行しか返らない照会だけ。時刻で並べたいときは fixture 側で明示の時刻（punched_at を 1 分ずつずらす等）を与える。
+
 ### 教訓97：画面ソースを編集する便は、その画面を読む pin suite を grep で洗い出し、単独走に全部含める（相談役起こし）
 
 出典＝相談役 2026-09-28 受領（便 W-1c・逐語）: 「教訓97『画面ソースを編集する便は、その画面を読む pin suite を grep で洗い出し（scripts/verify-nox-*.ts の import・正規表現）、単独走に全部含める。9/28 便 X で today-row を落として f0 が赤』」。
