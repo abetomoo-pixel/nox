@@ -15,6 +15,8 @@ import { payStatusCellOf } from "../lib/nox/payroll/ui-calc"; // ★便 X-7: 状
 import { paymentMethodLabelOf } from "../lib/nox/payroll/payment-method"; // ★裁定311-①
 import { payoutDiffNoteOf, CASH_PAYOUT_LABELS } from "../lib/nox/report/cash-payout"; // ★裁定311-②／④
 import { finalizeGuardOf, mdLabelOf } from "../lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）
+import { HM_FORMAT_ERR, normalizeHHMM } from "../lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）
+import { okuriAmountOf, okuriDefaultAmountOf, okuriDefaultNoteOf } from "../lib/nox/shift/okuri-default"; // ★裁定317（便 X-9-3）
 
 let pass = 0;
 const fails: string[] = [];
@@ -124,6 +126,29 @@ check("ms(2-9) 裁定314／X-8-8／X-8-9: ボトル行のキープ（bottle_keep
   && keepSrc.includes('rpc("bottle_keep_register"') && keepSrc.includes("p_check_line_id: lineId") && keepSrc.includes("キープ済み") && keepSrc.includes("指名・席タブへ")
   && regSrc.includes('className="nox-rcpt-qr"') && regSrc.includes('className="nox-qrfull"') && regSrc.includes(">取消して分け直す</button>") && regSrc.includes('rpc("receipt_issue_void"')
   && messageKindOf("領収書の取消に失敗しました: 権限がありません（店長以上）") === "error" && messageKindOf("領収書を取り消しました。金額を入れて発行し直せます") === "success");
+
+// ★裁定318（2026-09-29・便 X-9-2）: 時刻入力の正規化（HHMM／HH:MM／H:MM／HH・翌日 24〜47・全角→半角）と文言
+const hmSrc = fs.readFileSync("components/ui/hm-input.tsx", "utf8");
+check("ms(2-10) 裁定318: normalizeHHMM（2000→20:00・20:00・9:30→09:30・20→20:00・2530→25:30・47:59 可・48:00／20:60／abc／空は null・開始欄は 23 時まで）・文言・部品は inputMode numeric＋blur 正規化",
+  normalizeHHMM("2000") === "20:00" && normalizeHHMM("20:00") === "20:00" && normalizeHHMM("9:30") === "09:30" && normalizeHHMM("20") === "20:00" && normalizeHHMM("900") === "09:00"
+  && normalizeHHMM("2530") === "25:30" && normalizeHHMM("47:59") === "47:59" && normalizeHHMM("48:00") === null && normalizeHHMM("20:60") === null && normalizeHHMM("abc") === null && normalizeHHMM("") === null
+  && normalizeHHMM("２０：３０") === "20:30" && normalizeHHMM("2530", 23) === null && normalizeHHMM("2359", 23) === "23:59"
+  && HM_FORMAT_ERR === "時刻の形式が不正です（例 2000・20:00）" && messageKindOf(HM_FORMAT_ERR) === "error"
+  && hmSrc.includes('inputMode="numeric"') && hmSrc.includes("onBlur=") && hmSrc.includes("normalizeHHMM(e.target.value, maxHour)")
+  && !/HH:MM（00:00〜47:59）で入力してください|HH:MM 形式で入力してください/.test(fs.readFileSync("lib/nox/shift/punch-correction.ts", "utf8") + shiftSrc)
+  && (shiftSrc.match(/<HmInput /g) ?? []).length === 4);
+// ★裁定317（便 X-9-3）: 送りの既定額の順（店設定→直近の送り→空欄必須）・金額の検査・文言の種別・shift-board は「送り」→ダイアログ→punch_proxy(p_okuri true)→transport_issue_bulk(idem＝punch id)
+const okuriDlgSrc = fs.readFileSync("components/nox/okuri-out-dialog.tsx", "utf8");
+const reportSrc2 = fs.readFileSync("app/(manage)/report/report-board.tsx", "utf8");
+check("ms(2-11) 裁定317: okuriDefaultAmountOf の順・okuriAmountOf・文言の種別・shift-board の配線・締め前モーダルの発行済み確認",
+  JSON.stringify(okuriDefaultAmountOf(1500, 2000)) === JSON.stringify({ amount: 1500, source: "store" }) && JSON.stringify(okuriDefaultAmountOf(null, 2000)) === JSON.stringify({ amount: 2000, source: "last" })
+  && JSON.stringify(okuriDefaultAmountOf(0, null)) === JSON.stringify({ amount: null, source: null }) && JSON.stringify(okuriDefaultAmountOf("1500", undefined)) === JSON.stringify({ amount: null, source: null })
+  && okuriAmountOf("1500") === 1500 && okuriAmountOf(" 0 ") === null && okuriAmountOf("-5") === null && okuriAmountOf("1.5") === null && okuriAmountOf("") === null
+  && /金額を入力してください/.test(okuriDefaultNoteOf({ amount: null, source: null })) && /店の送りベース額/.test(okuriDefaultNoteOf({ amount: 1, source: "store" })) && /前回の送り額/.test(okuriDefaultNoteOf({ amount: 1, source: "last" }))
+  && messageKindOf("A の退勤は記録しました。送りの発行に失敗したため、送りは未発行です（x）。日報の締めの前に発行できます") === "error" && messageKindOf("A の退勤を記録し、送り ¥1,500 を発行しました") === "success"
+  && shiftSrc.includes('p_type: "out", p_note: null, p_okuri: true') && shiftSrc.includes("p_idem_key: punchId as string") && shiftSrc.includes("<OkuriOutDialog") && !shiftSrc.includes("setOkuriMark")
+  && shiftSrc.indexOf('p_okuri: true') < shiftSrc.indexOf('rpc("transport_issue_bulk"')
+  && okuriDlgSrc.includes("確定して退勤") && reportSrc2.includes("発行済み {okuriIssued.n} 件・合計") && reportSrc2.includes("確認して締める"));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
