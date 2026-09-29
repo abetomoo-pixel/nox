@@ -391,6 +391,12 @@ export default function RegisterBoard({
   const [qrFull, setQrFull] = useState<string | null>(null);
   // ★便 X-8-9: 残額 ¥0 のときの「取消して分け直す」＝確認（理由任意）→ 既存 receipt_issue_void を発行済みの枚数ぶん → 金額欄が再表示（番号は再利用しない＝RPC の採番は max+1）
   const [resplit, setResplit] = useState<{ open: boolean; reason: string; busy: boolean }>({ open: false, reason: "", busy: false });
+  // ★裁定320（便 X-10-2）: 領収書の分割発行 UI。行（金額・宛名・但し書き）・最後の行は自動残額（残額 − 他の行の合計）・「行を追加」・合計＝残額で「n 枚を発行」
+  //   → 既存 receipt_issue を 1 枚ずつ順に・失敗はその行で停止（発行済みは残す）。「取消して分け直す」の後はこの UI を既定で開く
+  type SplitRow = { amount: string; name: string; note: string };
+  const SPLIT_BLANK: SplitRow = { amount: "", name: "", note: "" };
+  const [split, setSplit] = useState<{ open: boolean; rows: SplitRow[]; busy: boolean }>({ open: false, rows: [], busy: false });
+  const openSplit = () => setSplit({ open: true, rows: [{ ...SPLIT_BLANK }, { ...SPLIT_BLANK }], busy: false });
   // ★裁定314（便 X-8-10）: 「キープ済み」の行＝その行の注文者の active なキープに同じ商品があり、開栓が伝票の開始以降（bottle_keeps に行の列が無いための近似）
   const [keptLineIds, setKeptLineIds] = useState<Set<string>>(new Set());
   const [storeName, setStoreName] = useState("");
@@ -2037,6 +2043,45 @@ export default function RegisterBoard({
           {(() => {
             const issuedSum = rcptIssued.reduce((a, r) => a + r.amount, 0);
             const remain = closeInfo.total - issuedSum;
+            const rcptErrJa = (m: string) => (m.includes("bad amount") ? `発行できる残額を超えています（残額 ${yen(remain)}）`
+              : m.includes("not closed") ? "会計済みの伝票のみ発行できます"
+              : m.includes("bad recipient") ? "宛名は100文字以内で入力してください"
+              : m.includes("bad proviso") ? "但し書きは100文字以内で入力してください"
+              : isBillingLocked(m) ? BILLING_LOCKED_MSG
+              : m.includes("busy") ? "発行が混み合っています。もう一度お試しください"
+              : m.includes("forbidden") ? "権限がありません" : m);
+            // ★裁定320: 分割行。最後の行の金額は自動残額（残額 − 他の行の合計）
+            const splitHead = split.rows.slice(0, -1);
+            const splitHeadAmts = splitHead.map((r) => (/^\d+$/.test(r.amount.trim()) ? Number(r.amount.trim()) : NaN));
+            const splitHeadOk = splitHeadAmts.every((a) => Number.isInteger(a) && a > 0);
+            const splitAuto = remain - splitHeadAmts.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
+            const splitOk = split.rows.length >= 2 && splitHeadOk && splitAuto > 0;
+            const doSplitIssue = async () => {
+              if (split.busy || !splitOk) return;
+              setSplit((v) => ({ ...v, busy: true })); setRcptMsg(null);
+              const plan = split.rows.map((r, i) => ({ ...r, amt: i === split.rows.length - 1 ? splitAuto : splitHeadAmts[i] }));
+              let done = 0; let failed: string | null = null;
+              for (const r of plan) {
+                const { data, error } = await supabase.rpc("receipt_issue", {
+                  p_check_id: closeInfo.checkId, p_amount: r.amt,
+                  p_recipient: r.name.trim() === "" ? null : r.name.trim(),
+                  p_proviso: r.note.trim() === "" ? null : r.note.trim(),
+                });
+                if (error) { failed = rcptErrJa(error.message); break; }
+                const x = data as { id: string; serial: number; token: string; amount: number; expires_on: string; biz_date: string; store_name: string };
+                setRcptIssued((xs) => [...xs, { ...x, name: r.name.trim(), note: r.note.trim() }]);
+                done += 1;
+              }
+              if (failed) {
+                // 失敗した行で停止＝発行済みは残し、未発行の行だけ分割欄に残す（最後の行は自動残額に戻る）
+                const rest = split.rows.slice(done);
+                setSplit(rest.length >= 2 ? { open: true, rows: rest, busy: false } : { open: false, rows: [], busy: false }); // 残り 1 枚なら通常の発行欄（空欄＝残額）で出せる
+                setRcptMsg(`${done} 枚を発行しました。${done + 1} 枚目の発行に失敗したため中止しました: ${failed}`);
+                return;
+              }
+              setSplit({ open: false, rows: [], busy: false });
+              setRcptMsg(`領収書を ${done} 枚発行しました`);
+            };
             const doIssue = async () => {
               if (rcptBusy) return;
               const raw = rcptForm.amount.trim();
@@ -2051,14 +2096,7 @@ export default function RegisterBoard({
               });
               setRcptBusy(false);
               if (error) {
-                const m = error.message;
-                setRcptMsg(m.includes("bad amount") ? `発行できる残額を超えています（残額 ${yen(remain)}）`
-                  : m.includes("not closed") ? "会計済みの伝票のみ発行できます"
-                  : m.includes("bad recipient") ? "宛名は100文字以内で入力してください"
-                  : m.includes("bad proviso") ? "但し書きは100文字以内で入力してください"
-                  : isBillingLocked(m) ? BILLING_LOCKED_MSG
-                  : m.includes("busy") ? "発行が混み合っています。もう一度お試しください"
-                  : m.includes("forbidden") ? "権限がありません" : m);
+                setRcptMsg(rcptErrJa(error.message)); // ★裁定320: 文言の写像は分割発行と共用
                 return;
               }
               const r = data as { id: string; serial: number; token: string; amount: number; expires_on: string; biz_date: string; store_name: string };
@@ -2072,7 +2110,56 @@ export default function RegisterBoard({
                   発行ごとに台帳へ記録され、発行番号と確認用 QR がつきます。分割するときは金額を入れて複数回発行してください
                   （残額 <span style={{ ...t.num, fontWeight: 700 }}>{yen(remain)}</span>）。
                 </p>
-                {remain > 0 && (
+                {/* ★裁定320（便 X-10-2）: 分割して発行＝行（金額・宛名・但し書き）・最後の行は自動残額・「行を追加」・合計＝残額で「n 枚を発行」 */}
+                {remain > 0 && split.open && (
+                  <div className="nox-inset" style={{ padding: "10px 12px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                      <b style={{ fontSize: 12.5 }}>分割して発行（{split.rows.length} 枚）</b>
+                      <span style={{ fontSize: 11.5, color: "var(--sub)" }}>合計 <span className="num" style={{ fontWeight: 700, color: splitOk ? "var(--ok)" : "var(--bad)" }}>{yen(splitOk ? remain : splitHeadAmts.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0))}</span>／残額 <span className="num">{yen(remain)}</span></span>
+                    </div>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      {split.rows.map((r, i) => {
+                        const last = i === split.rows.length - 1;
+                        return (
+                          <div key={i} className="nox-splitrow">
+                            <span className="num" style={{ fontSize: 11, color: "var(--sub)", width: 18 }}>{i + 1}</span>
+                            {last ? (
+                              <span className="num amt" aria-label={`${i + 1} 枚目の金額（自動残額）`} title="残額から自動で入ります"
+                                style={{ ...t.input, textAlign: "right", color: splitAuto > 0 ? "var(--ink)" : "var(--bad)", display: "inline-flex", alignItems: "center", justifyContent: "flex-end" }}>
+                                {splitHeadOk ? yen(splitAuto) : "—"}
+                              </span>
+                            ) : (
+                              <input type="number" inputMode="numeric" min={1} step={1} value={r.amount} placeholder="金額" disabled={split.busy} aria-label={`${i + 1} 枚目の金額`}
+                                onChange={(e) => setSplit((v) => ({ ...v, rows: v.rows.map((x, k) => (k === i ? { ...x, amount: e.target.value } : x)) }))}
+                                className="num amt" style={{ ...t.input, textAlign: "right" }} />
+                            )}
+                            <input placeholder="宛名（空欄は上様）" value={r.name} maxLength={100} disabled={split.busy} aria-label={`${i + 1} 枚目の宛名`}
+                              onChange={(e) => setSplit((v) => ({ ...v, rows: v.rows.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)) }))} className="nm" style={t.input} />
+                            <input placeholder="但し書き（空欄はご飲食代として）" value={r.note} maxLength={100} disabled={split.busy} aria-label={`${i + 1} 枚目の但し書き`}
+                              onChange={(e) => setSplit((v) => ({ ...v, rows: v.rows.map((x, k) => (k === i ? { ...x, note: e.target.value } : x)) }))} className="nt" style={t.input} />
+                            {!last && split.rows.length > 2 ? (
+                              <button type="button" style={{ ...btnLight, padding: "2px 8px" }} disabled={split.busy} aria-label={`${i + 1} 枚目の行を外す`}
+                                onClick={() => setSplit((v) => ({ ...v, rows: v.rows.filter((_, k) => k !== i) }))}>×</button>
+                            ) : <span style={{ width: 28 }} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {!splitOk && splitHeadOk && splitAuto <= 0 && (
+                      <p style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700, margin: "6px 0 0" }}>金額の合計が残額（{yen(remain)}）以上です。最後の 1 枚に残る額がありません</p>
+                    )}
+                    <div className="nox-actions" style={{ marginTop: 8, justifyContent: "space-between" }}>
+                      <button type="button" style={btnLight} disabled={split.busy}
+                        onClick={() => setSplit((v) => ({ ...v, rows: [...v.rows.slice(0, -1), { ...SPLIT_BLANK }, v.rows[v.rows.length - 1]] }))}>行を追加</button>
+                      <span style={{ display: "inline-flex", gap: 8 }}>
+                        <button type="button" style={btnLight} disabled={split.busy} onClick={() => setSplit({ open: false, rows: [], busy: false })}>分割をやめる</button>
+                        <button type="button" style={{ ...btnDark, opacity: splitOk && !split.busy ? 1 : 0.45 }} disabled={!splitOk || split.busy}
+                          onClick={() => void doSplitIssue()}>{split.busy ? "発行中…" : `${split.rows.length} 枚を発行`}</button>
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {remain > 0 && !split.open && (
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
                     <input type="number" min={1} value={rcptForm.amount} placeholder={`金額（空欄=残額 ${remain}）`}
                       onChange={(e) => setRcptForm((f) => ({ ...f, amount: e.target.value }))}
@@ -2084,6 +2171,7 @@ export default function RegisterBoard({
                       onChange={(e) => setRcptForm((f) => ({ ...f, note: e.target.value }))}
                       style={{ ...t.input, width: 200 }} />
                     <button style={btnDark} disabled={rcptBusy} onClick={() => void doIssue()}>発行</button>
+                    <button style={btnLight} disabled={rcptBusy} onClick={openSplit}>分割して発行</button>{/* ★裁定320 */}
                   </div>
                 )}
                 {/* R-1a-4: 成功文言まで --bad（赤）で出ていたのを是正＝成功/失敗で色を分ける（state 構造は不変） */}
@@ -2141,6 +2229,7 @@ export default function RegisterBoard({
                               }
                               setRcptIssued(left);
                               setResplit({ open: false, reason: "", busy: false });
+                              if (!failed) openSplit(); // ★裁定320: 取消して分け直す の後は分割発行 UI を既定で開く
                               setRcptMsg(failed
                                 ? `領収書の取消に失敗しました: ${isBillingLocked(failed) ? BILLING_LOCKED_MSG : failed.includes("forbidden") ? "権限がありません（店長以上）" : failed}`
                                 : "領収書を取り消しました。金額を入れて発行し直せます");

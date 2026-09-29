@@ -7,7 +7,8 @@
 //   提出＝選択日を昇順に既存 shift_wish_submit を逐次（新 RPC なし・非原子）。失敗は rpcErrJa で和文・赤で残し再提出可（裁定281 の型）。
 //   取り下げ＝既存 shift_wish_withdraw（WithdrawButton）のまま。締切超過は案内のみ（裁定43）。1 日 1 枠は DB の部分 unique が守る。
 import { useCallback, useEffect, useState } from "react";
-import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
+import HmInput from "@/components/ui/hm-input";
+import { hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -103,6 +104,9 @@ export default function WishForm() {
   }
 
   // ★290-3: 選択日ごとに既存 shift_wish_submit を昇順に逐次（非原子）。失敗は和文で残し再提出可
+  // ★裁定318 追補（便 X-10-3）: 範囲外（開始は 23 時まで・終了は 47 時まで・分は 59 まで）が 1 つでもあれば提出できない
+  const hmBad = hmRangeErrorOf(defStart, 23) !== null || hmRangeErrorOf(defEnd) !== null
+    || selDates.some((ymd) => { const o = sel[ymd] as { start?: string; end?: string } | null | undefined; return !!o && (hmRangeErrorOf(o.start ?? "", 23) !== null || hmRangeErrorOf(o.end ?? "") !== null); });
   async function submitAll() {
     if (busy || selDates.length === 0) return;
     if (!timesValid({ start: defStart, end: defEnd })) { setMsg({ kind: "error", text: "一括の時間は 開始 00:00〜23:59・終了 00:00〜47:59 で入力してください" }); return; }
@@ -210,8 +214,9 @@ export default function WishForm() {
           </div>
         )}
         <div className="nox-actions" style={{ marginTop: 10 }}>
-          <button type="button" disabled={busy || selDates.length === 0} onClick={() => void submitAll()}
-            style={{ ...t.btnGold, padding: "8px 16px", opacity: busy || selDates.length === 0 ? 0.7 : 1 }}>
+          {/* ★318 追補: 一括・日別のどれかが範囲外なら提出を非活性 */}
+          <button type="button" disabled={busy || selDates.length === 0 || hmBad} onClick={() => void submitAll()}
+            style={{ ...t.btnGold, padding: "8px 16px", opacity: busy || selDates.length === 0 || hmBad ? 0.7 : 1 }}>
             {busy ? "提出中…" : `${selDates.length} 日を提出`}
           </button>
         </div>

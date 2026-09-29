@@ -19,7 +19,8 @@
 //  - 不可の登録 UI（★モック不在＝申告済みの配置判断）: 日詳細バーに「出勤不可にする／解除」
 //    （cast_unavailable_set / remove・owner/manager）。
 import { useCallback, useEffect, useState } from "react";
-import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
+import HmInput from "@/components/ui/hm-input";
+import { hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
@@ -259,8 +260,11 @@ export default function ShiftAddForm({
   const conflicts = Object.keys(sel).filter((d) => sel[d].src === "new" && !!existOf(d));
   const selCount = Object.keys(sel).length;
 
+  // ★裁定318 追補（便 X-10-3）: 一括・日別のどれかが範囲外なら保存できない
+  const hmBad = hmRangeErrorOf(bulkStart, 23) !== null || hmRangeErrorOf(bulkEnd) !== null
+    || Object.values(sel).some((e) => hmRangeErrorOf(e.start, 23) !== null || hmRangeErrorOf(e.end) !== null);
   async function save(next: boolean) {
-    if (!selCast || busy || selCount === 0 || conflicts.length > 0) return;
+    if (!selCast || busy || selCount === 0 || conflicts.length > 0 || hmBad) return;
     setBusy(true); setMsg(null); setToast([]);
     const notes: string[] = [];
     let okCount = 0;
@@ -558,11 +562,11 @@ export default function ShiftAddForm({
         <small style={{ color: "var(--sub)" }} className="num">{selCast?.name ?? "—"} ／ {selCount}日分</small>
         <span style={{ marginLeft: "auto", display: "inline-flex", gap: 9 }}>
           <button style={btnLight} onClick={onClose}>キャンセル</button>
-          <button style={{ ...btnLight, opacity: selCount === 0 || conflicts.length > 0 || busy ? 0.45 : 1 }}
-            disabled={selCount === 0 || conflicts.length > 0 || busy}
+          <button style={{ ...btnLight, opacity: selCount === 0 || conflicts.length > 0 || busy || hmBad ? 0.45 : 1 }}
+            disabled={selCount === 0 || conflicts.length > 0 || busy || hmBad}
             onClick={() => void save(true)}>保存して次のキャスト</button>
-          <button style={{ ...btnDark, opacity: selCount === 0 || conflicts.length > 0 || busy ? 0.45 : 1 }}
-            disabled={selCount === 0 || conflicts.length > 0 || busy}
+          <button style={{ ...btnDark, opacity: selCount === 0 || conflicts.length > 0 || busy || hmBad ? 0.45 : 1 }}
+            disabled={selCount === 0 || conflicts.length > 0 || busy || hmBad}
             onClick={() => void save(false)}>{busy ? "保存中…" : `${selCount}日分を保存して閉じる`}</button>
         </span>
       </div>

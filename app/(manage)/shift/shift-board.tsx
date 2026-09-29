@@ -39,7 +39,7 @@ import { recruitNoteOf } from "@/lib/nox/ui/month-nav"; // ★306-2 募集期間
 import { nextPeriodDefaults, overlappingPeriods, mdOf } from "@/lib/nox/shift/period"; // ★便 T（2026-09-18）: 期間の既定日付・重なり判定（純関数）
 import Modal from "@/components/ui/modal";
 import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
-import { HM_FORMAT_ERR, normalizeHHMM } from "@/lib/nox/time/hhmm";
+import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import OkuriOutDialog from "@/components/nox/okuri-out-dialog"; // ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ
 import { okuriDefaultAmountOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default";
 import StaffShiftBoard from "./staff-shift-board"; // ★C層② 面 b/c（スタッフ）
@@ -1565,7 +1565,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             <span style={{ fontSize: 12.5, color: "var(--sub)" }}>必要</span>
             <input type="number" min={0} value={nReq} onChange={(e) => setNReq(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 60 }} />
             <span style={{ fontSize: 12.5, color: "var(--sub)" }}>名</span>
-            <button style={btnDark} onClick={addNeed}>追加</button>
+            <button style={{ ...btnDark, opacity: !nAllDay && (hmRangeErrorOf(nFrom) !== null || hmRangeErrorOf(nTo) !== null) ? 0.45 : 1 }}
+              disabled={!nAllDay && (hmRangeErrorOf(nFrom) !== null || hmRangeErrorOf(nTo) !== null)} onClick={addNeed}>追加</button>{/* ★318 追補: 範囲外は非活性 */}
           </div>
           <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
             人数の変更はフォーカスアウトで保存。時間は 00:00〜24:00（例 20:00〜24:00）。
@@ -2557,8 +2558,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               )}
               <div className="nox-actions" style={{ display: "flex", gap: 9, marginTop: 17 }}>
                 <button style={btnLight} onClick={() => setAdjTarget(null)}>やめる</button>
-                <button style={{ ...btnDark, opacity: aHours.status === "closed" ? 0.45 : 1 }}
-                  disabled={aHours.status === "closed"} onClick={() => void adjustShift()}>保存</button>
+                <button style={{ ...btnDark, opacity: aHours.status === "closed" || hmRangeErrorOf(aStart, 23) !== null || hmRangeErrorOf(aEnd) !== null ? 0.45 : 1 }}
+                  disabled={aHours.status === "closed" || hmRangeErrorOf(aStart, 23) !== null || hmRangeErrorOf(aEnd) !== null} onClick={() => void adjustShift()}>保存</button>{/* ★318 追補: 範囲外は非活性 */}
               </div>
               </>)}
             </div>

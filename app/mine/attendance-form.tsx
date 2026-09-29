@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
-import { HM_FORMAT_ERR, normalizeHHMM } from "@/lib/nox/time/hhmm";
+import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import SegSelect from "@/components/ui/seg-select";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -53,7 +53,7 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
         onChange={(e) => setReason(e.target.value)}
         style={{ ...input, width: 160 }}
       />
-      <button type="submit" disabled={busy} style={{ ...t.btnGold, padding: "8px 16px", opacity: busy ? 0.7 : 1 }}>
+      <button type="submit" disabled={busy || (status === "late" && hmRangeErrorOf(eta) !== null)} style={{ ...t.btnGold, padding: "8px 16px", opacity: busy || (status === "late" && hmRangeErrorOf(eta) !== null) ? 0.7 : 1 }}>{/* ★318 追補 */}
         送信
       </button>
       {msg && <Toast msg={msg} />}

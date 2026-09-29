@@ -13,7 +13,7 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
 import { KIND_LABEL, requestArgsOf, requestInitOf, type PunchKind } from "@/lib/nox/shift/punch-correction";
 import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
-import { normalizeHHMM } from "@/lib/nox/time/hhmm";
+import { hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 
 export type PunchCorrectionProps = {
   castId: string; castName: string; biz: string; kind: PunchKind;
@@ -46,7 +46,7 @@ export function PunchCorrectionForm({ castId, castName, biz, kind, punchId, punc
     onClose();
   }
 
-  const disabled = busy || reason.trim().length === 0 || hm.trim().length === 0;
+  const disabled = busy || reason.trim().length === 0 || hm.trim().length === 0 || hmRangeErrorOf(hm) !== null; // ★318 追補: 範囲外は送信非活性
   return (
     <>
       {showHead && (

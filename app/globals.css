@@ -2304,6 +2304,13 @@ body {
 .nox-qrfull-qr svg { width: 100%; height: 100%; display: block; }
 .nox-qrfull-x { border: 1px solid #222; background: #fff; color: #111; border-radius: 10px; padding: 12px 28px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
 @media print { .nox-qrfull { display: none; } }
+/* ★裁定320（便 X-10-2）: 領収書の分割発行の行＝番号・金額・宛名・但し書き・× */
+.nox-splitrow { display: grid; grid-template-columns: 18px 110px minmax(0, 1fr) minmax(0, 1.3fr) 28px; gap: 6px; align-items: center; }
+.nox-splitrow input, .nox-splitrow .amt { width: 100%; min-width: 0; }
+@media screen and (max-width: 899px) {
+  .nox-splitrow { grid-template-columns: 18px minmax(0, 1fr) 28px; }
+  .nox-splitrow .nm, .nox-splitrow .nt { grid-column: 2 / 3; }
+}
 @media screen and (max-width: 899px) {
   /* X-8-3: 出勤記録は 2 行折り返し（1 行目 セグメント／2 行目 打刻時刻・送り・退勤）・操作 2 ボタンは全幅縦積み */
   .nox-attrow { display: grid; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 6px 10px; }

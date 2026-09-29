@@ -9,7 +9,7 @@
 //   （onDirtyChange でバッファ有無を親へ通知）。キャスト起点ウィザード（ShiftAddForm）は不触（名称のみ変更）。
 import { useEffect, useMemo, useState } from "react";
 import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
-import { HM_FORMAT_ERR, normalizeHHMM } from "@/lib/nox/time/hhmm";
+import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
@@ -171,7 +171,8 @@ export default function DayAddPanel({
           <div className="nox-actions" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
             {/* ★裁定244: 補助 左・実行 右（すべて取り消す→配置の順へ入替）・行は中央 */}
             <button type="button" style={btnLight} disabled={busy} onClick={() => { setRows([]); setMsg(null); }}>すべて取り消す</button>
-            <button type="button" style={btnDark} disabled={busy} onClick={() => void save()}>
+            <button type="button" style={{ ...btnDark, opacity: rows.some((r) => hmRangeErrorOf(r.start, 23) !== null || hmRangeErrorOf(r.end) !== null) ? 0.5 : 1 }}
+              disabled={busy || rows.some((r) => hmRangeErrorOf(r.start, 23) !== null || hmRangeErrorOf(r.end) !== null)} onClick={() => void save()}>{/* ★318 追補: 範囲外は非活性 */}
               {/* ★v4.1 H42: 文言をモック「選択した1名を配置」へ寄せる（複数行バッファ・行ごと shift_set の挙動は不変） */}
               {busy ? "配置中…" : `選択した${rows.length}名を配置（仮シフト）`}
             </button>
