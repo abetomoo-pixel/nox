@@ -17,6 +17,10 @@ import { payoutDiffNoteOf, CASH_PAYOUT_LABELS } from "../lib/nox/report/cash-pay
 import { finalizeGuardOf, mdLabelOf } from "../lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）
 import { HM_FORMAT_ERR, hmRangeErrorOf, maskHHMM, normalizeHHMM } from "../lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）・追補（便 X-10-3）
 import { okuriAmountOf, okuriDefaultAmountOf, okuriDefaultNoteOf } from "../lib/nox/shift/okuri-default"; // ★裁定317（便 X-9-3）
+import { candidatesOf, idleCandidatesOf, pageOf, searchCandidatesOf, lastVisitLabelOf } from "../lib/nox/register/customer-candidates"; // ★便 X-11-2b
+import { castPickerOrder, offDutyToggleLabelOf } from "../lib/nox/register/cast-picker-order"; // ★裁定322
+import { moneyDigitsOf, moneyDisplayOf, moneyValueOf } from "../lib/nox/ui/money"; // ★便 X-11-6
+import { stocktakePlanOf, stocktakeRowsOf } from "../lib/nox/stock/stocktake"; // ★裁定323
 
 let pass = 0;
 const fails: string[] = [];
@@ -167,6 +171,53 @@ check("ms(2-13) 裁定320: 分割して発行（行・最後の行は自動残�
   regSrc.includes(">分割して発行</button>") && regSrc.includes(">行を追加</button>") && regSrc.includes("枚を発行") && regSrc.includes("const splitAuto = remain - ") && regSrc.includes("if (error) { failed = rcptErrJa(error.message); break; }")
   && regSrc.includes("if (!failed) openSplit();") && regSrc.includes('className="nox-splitrow"')
   && messageKindOf("1 枚を発行しました。2 枚目の発行に失敗したため中止しました: 権限がありません") === "error" && messageKindOf("領収書を 3 枚発行しました") === "success");
+
+// ★裁定321／便 X-11-2b／X-11-3（2026-09-29）: レジ顧客カード＝新規登録して追加・候補表示・文言の位置
+const cardSrc = fs.readFileSync("components/nox/check-customers-card.tsx", "utf8");
+const cs = candidatesOf(
+  [{ id: "a", name: "青木", furigana: "あおき", tel: "090-1111-2222" }, { id: "b", name: "馬場", furigana: "ばば", tel: null }, { id: "c", name: "千葉", furigana: "ちば", tel: "03-5555-0000" }, { id: "d", name: "土井", furigana: "どい" }],
+  [{ customer_id: "a", last_visit: "2026-09-01T12:00:00Z", cast_id: "k1", visits: 3 }, { customer_id: "b", last_visit: "2026-09-20T12:00:00Z", cast_id: "k2", visits: 1 }, { customer_id: "c", last_visit: null, cast_id: "k1", visits: 0 }],
+  new Set(["d"]));
+const idleC = idleCandidatesOf(cs, ["k1"]);
+check("ms(2-14) 裁定321／X-11-2b: 候補（伝票の顧客は外す・最近来店は来店ありだけ降順・担当は重複なし）・検索（名前／ふりがな／電話の数字・最終来店の降順）・10 件ずつ・カードの配線と文言",
+  cs.length === 3 && JSON.stringify(idleC.recent.map((c) => c.id)) === JSON.stringify(["b", "a"]) && JSON.stringify(idleC.mine.map((c) => c.id)) === JSON.stringify(["c"])
+  && JSON.stringify(searchCandidatesOf(cs, "ば").map((c) => c.id)) === JSON.stringify(["b", "c"]) && JSON.stringify(searchCandidatesOf(cs, "5555").map((c) => c.id)) === JSON.stringify(["c"]) && searchCandidatesOf(cs, "").length === 0
+  && JSON.stringify(searchCandidatesOf(cs, "09011").map((c) => c.id)) === JSON.stringify(["a"]) && pageOf(Array.from({ length: 25 }, (_, i) => i), 10).rows.length === 10 && pageOf(Array.from({ length: 25 }, (_, i) => i), 20).rest === 5
+  && lastVisitLabelOf(null) === "来店なし" && lastVisitLabelOf("2026-09-20T12:00:00Z") === "最終 2026/9/20"
+  && cardSrc.includes('rpc("customer_register"') && cardSrc.includes('rpc("check_customer_add", { p_check_id: checkId, p_customer_id: r1.data as string })') && cardSrc.includes("を登録して付けました") && cardSrc.includes(">新規登録して追加</button>")
+  && cardSrc.includes("最近来店") && cardSrc.includes("担当キャストの顧客") && cardSrc.includes("さらに表示（残り") && !cardSrc.includes("<Picker") && cardSrc.includes('e.key === "ArrowDown"')
+  && cardSrc.includes('{ kind: "success", text: `${name} を登録して付けました` }') && messageKindOf("顧客の新規登録に失敗: 登録する権限がありません（店長・顧客権限のあるスタッフから登録してください）") === "error" && messageKindOf("山田 を登録しましたが、伝票への追加に失敗: 権限がありません") === "error");
+// ★裁定322（便 X-11-5）: レジのキャスト選択の並び（①接客中→②出勤中→③未出勤シフトあり→④未出勤・群の中は名前順）
+const cpSrc = fs.readFileSync("components/nox/cast-picker.tsx", "utf8");
+const ord = castPickerOrder([{ id: "1", name: "れい" }, { id: "2", name: "あい" }, { id: "3", name: "かな" }, { id: "4", name: "さき" }, { id: "5", name: "うた" }, { id: "6", name: "えま" }],
+  { seatedIds: new Set(["4"]), servingIds: new Set(["1"]), punchedInIds: new Set(["3", "4", "6"]), shiftIds: new Set(["2", "3"]) });
+check("ms(2-15) 裁定322: castPickerOrder（①さき・れい→②えま・かな→③あい→④うた）・working は①②・折りたたみの文言・CastPicker は grouped で lib の並びを使い既定チップ＝出勤中・register の 2 面に適用",
+  JSON.stringify(ord.map((c) => c.name)) === JSON.stringify(["さき", "れい", "えま", "かな", "あい", "うた"]) && JSON.stringify(ord.map((c) => c.group)) === JSON.stringify([1, 1, 2, 2, 3, 4]) && ord.filter((c) => c.working).length === 4
+  && offDutyToggleLabelOf(2, false) === "未出勤を表示（2 人）" && offDutyToggleLabelOf(2, true) === "未出勤を隠す（2 人）"
+  && cpSrc.includes("castPickerOrder(base,") && cpSrc.includes('grouped && chips ? "working" : ""') && cpSrc.includes("offDutyToggleLabelOf(offDuty.length, offOpen)") && cpSrc.includes('"未出勤"')
+  && (regSrc.match(/ grouped shiftIds=\{shiftIds\}/g) ?? []).length === 2 && regSrc.includes('from("shifts").select("cast_id")'));
+// ★便 X-11-6: 金額欄の共通化（数字のみ・3 桁区切り・値は整数・右に「円」・ラベルは「金額」）
+const MONEY_USERS = ["components/nox/advance-okuri-form.tsx", "components/nox/issue-bulk-form.tsx", "components/nox/daily-pay-form.tsx", "app/(manage)/shift/incentive-panel.tsx", "app/(manage)/payroll/payroll-board.tsx",
+  "app/(manage)/payroll/payment-panel.tsx", "components/nox/okuri-out-dialog.tsx", "components/nox/settlement-modal.tsx", "components/nox/sanction-modal.tsx", "app/(manage)/report/report-board.tsx", "app/(manage)/register/register-board.tsx"];
+const moneySrc = fs.readFileSync("components/ui/money-input.tsx", "utf8");
+check("ms(2-16) X-11-6: moneyDigitsOf／moneyDisplayOf／moneyValueOf・MoneyInput（inputMode numeric・右に円）・置換 11 ファイルが MoneyInput を使い、括弧つきの「金額(円)」「金額（円）」「額（円）」が残っていない",
+  moneyDigitsOf("1,500円") === "1500" && moneyDigitsOf("０１２３") === "123" && moneyDigitsOf("-5") === "5" && moneyDigitsOf("000") === "0" && moneyDigitsOf("") === "" && moneyDigitsOf("12345678901") === "123456789"
+  && moneyDisplayOf("1500") === "1,500" && moneyDisplayOf("") === "" && moneyDisplayOf(1234567) === "1,234,567" && moneyValueOf("1,500") === 1500 && moneyValueOf("") === null
+  && moneySrc.includes('inputMode="numeric"') && moneySrc.includes(">円</span>") && moneySrc.includes("moneyDisplayOf(value)")
+  && MONEY_USERS.every((f) => { const s2 = fs.readFileSync(f, "utf8"); return s2.includes("<MoneyInput ") && !/金額\(円\)|金額（円）|金額（円・|額（円）|額（円・/.test(s2); }));
+// ★裁定323（便 X-11-7）: 在庫の棚卸しは一覧型
+const stockSrc = fs.readFileSync("app/(manage)/master/stock/stock-board.tsx", "utf8");
+const stProducts = [{ id: "p1", name: "角", type: "bottle", is_active: true, category_id: "c2", sort_order: 2 }, { id: "p2", name: "ビール", type: "drink", is_active: true, category_id: "c1", sort_order: 1 },
+  { id: "p3", name: "山崎", type: "bottle", is_active: false, category_id: "c2", sort_order: 1 }, { id: "p4", name: "お通し", type: "food", is_active: true, category_id: null, sort_order: 1 }, { id: "p5", name: "響", type: "bottle", is_active: true, category_id: "c2", sort_order: 1 }];
+const stStock = { p1: 5, p2: 0, p3: 2, p5: 3 };
+const stCats = [{ id: "c1", name: "ドリンク", sort_order: 1 }, { id: "c2", name: "ボトル", sort_order: 2 }];
+const stRows = stocktakeRowsOf(stProducts, stStock, stCats);
+check("ms(2-17) 裁定323: 行＝在庫管理ありの有効商品だけ・カテゴリ順（見出しは群の先頭）・無効も表示・絞り込み／記録する行＝整数で差分 ≠ 0／画面は一覧型（ProductCombo なし・n 件を記録・失敗で停止）",
+  JSON.stringify(stRows.map((r) => r.name)) === JSON.stringify(["ビール", "響", "角"]) && JSON.stringify(stRows.map((r) => r.head)) === JSON.stringify([true, true, false]) && stRows[0].current === 0
+  && JSON.stringify(stocktakeRowsOf(stProducts, stStock, stCats, { showInactive: true }).map((r) => r.name).sort()) === JSON.stringify(["ビール", "山崎", "響", "角"].sort()) && stocktakeRowsOf(stProducts, stStock, stCats, { showInactive: true })[3].name === "角" && stocktakeRowsOf(stProducts, stStock, stCats, { q: "角" }).length === 1
+  && JSON.stringify(stocktakePlanOf(stProducts, stStock, { p1: "3", p2: "0", p5: "3.5", p4: "9", p3: " 4 " }).map((r) => [r.id, r.delta])) === JSON.stringify([["p1", -2], ["p3", 2]])
+  && !stockSrc.includes("function ProductCombo") && !stockSrc.includes("<ProductCombo") && stockSrc.includes("件を記録") && stockSrc.includes("無効も表示") && stockSrc.includes("if (error) { failed = ") && stockSrc.includes("商品ページ")
+  && messageKindOf("2 件を記録しました。次の行の記録に失敗したため中止しました（角: 権限がありません）") === "error" && messageKindOf("棚卸しを 3 件記録しました") === "success");
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);

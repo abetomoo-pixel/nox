@@ -17,11 +17,11 @@ const fails: string[] = [];
 function check(label: string, ok: boolean, detail?: string) { if (ok) pass++; else fails.push(`${label}${detail ? `: ${detail}` : ""}`); }
 
 // (1)
-check("pk(1-1) collapsedOf: 9 件以上で折りたたみ・8 件以下は展開（閾値 9・上限 8）", PICKER_COLLAPSE_AT === 9 && PICKER_OPEN_MAX === 8 && collapsedOf(9) && collapsedOf(30) && !collapsedOf(8) && !collapsedOf(0));
+check("pk(1-1) collapsedOf: 9 件以上で折りたたみ・8 件以下は展開（閾値 9・開いたリストは 10 件ずつ＝便 X-11-8）", PICKER_COLLAPSE_AT === 9 && PICKER_OPEN_MAX === 10 && collapsedOf(9) && collapsedOf(30) && !collapsedOf(8) && !collapsedOf(0));
 const s12 = openSliceOf(Array.from({ length: 12 }, (_, i) => i));
 const s5 = openSliceOf([1, 2, 3, 4, 5]);
-check("pk(1-2) openSliceOf: 12 件→8 行＋他 4／5 件→5 行＋他 0", s12.rows.length === 8 && s12.more === 4 && s5.rows.length === 5 && s5.more === 0);
-check("pk(1-3) moreLabelOf: 4→「他 4 名・絞り込んでください」・0→null", moreLabelOf(4) === "他 4 名・絞り込んでください" && moreLabelOf(0) === null);
+check("pk(1-2) openSliceOf: 12 件→10 行＋残り 2／5 件→5 行＋残り 0／25 件を 20 件表示→残り 5（さらに表示で +10）", s12.rows.length === 10 && s12.more === 2 && s5.rows.length === 5 && s5.more === 0 && openSliceOf(Array.from({ length: 25 }, (_, i) => i), 20).rows.length === 20 && openSliceOf(Array.from({ length: 25 }, (_, i) => i), 20).more === 5);
+check("pk(1-3) moreLabelOf: 4→「さらに表示（残り 4 件）」・0→null", moreLabelOf(4) === "さらに表示（残り 4 件）" && moreLabelOf(0) === null);
 check("pk(1-4) nextActiveOf: 未選択から ↓＝0・↑＝末尾・端で止まる・0 行は -1", nextActiveOf(-1, 1, 8) === 0 && nextActiveOf(-1, -1, 8) === 7 && nextActiveOf(7, 1, 8) === 7 && nextActiveOf(0, -1, 8) === 0 && nextActiveOf(3, 1, 8) === 4 && nextActiveOf(2, 1, 0) === -1);
 
 // (2)
@@ -29,7 +29,7 @@ const pk = fs.readFileSync("components/nox/picker.tsx", "utf8");
 check("pk(2-1) picker.tsx: 閾値は定数（collapsedOf(items.length)・prop に閾値なし）・折りたたみ時のリストは position absolute・aria-expanded・aria-controls",
   pk.includes("collapsedOf(items.length)") && !/collapseAt|collapse_at|threshold/.test(pk) && pk.includes('position: "absolute"') && pk.includes("aria-expanded={") && pk.includes("aria-controls="));
 check("pk(2-2) picker.tsx: Escape で閉じる・ArrowDown／ArrowUp で nextActiveOf・Enter で選択・外側クリック（document mousedown）で閉じる・選択で閉じる・フォーカス／入力で開く",
-  pk.includes('e.key === "Escape"') && pk.includes('e.key === "ArrowDown"') && pk.includes('e.key === "ArrowUp"') && pk.includes('e.key === "Enter"') && pk.includes("nextActiveOf(") && pk.includes('document.addEventListener("mousedown"') && pk.includes("pick(") && pk.includes("onFocus={() => setOpen(true)}") && pk.includes("openSliceOf(shown)") && pk.includes("moreLabelOf("));
+  pk.includes('e.key === "Escape"') && pk.includes('e.key === "ArrowDown"') && pk.includes('e.key === "ArrowUp"') && pk.includes('e.key === "Enter"') && pk.includes("nextActiveOf(") && pk.includes('document.addEventListener("mousedown"') && pk.includes("pick(") && pk.includes("onFocus={() => setOpen(true)}") && pk.includes("openSliceOf(shown, count)") && pk.includes("moreLabelOf(") && pk.includes("setCount((n) => n + PICKER_PAGE)") && pk.includes("const keyRows = collapsed ? rows : shown") && (pk.match(/onKeyDown=\{onKeyDown\}/g) ?? []).length === 2);
 check("pk(2-3) 259 R17 の性質は不変: dense／onClear（×）／disabled（opacity .55・not-allowed）／empty／limit 30／選択中の表示・全展開（8 件以下）の一覧は従来の grid",
   pk.includes("onClear?: () => void") && pk.includes("disabled = false") && pk.includes("limit = 30") && pk.includes("opacity: 0.55") && pk.includes('aria-label="選択を解除"') && pk.includes("{shown.length === 0 && <p") && pk.includes("maxHeight: dense ? 220 : 300"));
 
@@ -41,9 +41,9 @@ const EXPECT: Array<[string, number]> = [
   ["app/(manage)/analytics/analytics-board.tsx", 1], ["app/(manage)/casts/casts-board.tsx", 1], ["app/(manage)/customers/[id]/customer-detail.tsx", 1], ["app/(manage)/customers/customers-board.tsx", 1], // ★306-13: casts-board の待遇プラン候補
   ["app/(manage)/master/cast-comp/comp-sections.tsx", 1], ["app/(manage)/register/bottle-keep-panel.tsx", 2], ["app/(manage)/register/register-board.tsx", 1],
   ["app/(manage)/register/reservation-panel.tsx", 2], ["app/(manage)/shift/staff-place-by-staff.tsx", 1], // ★306-7: shift-board の期間状態は SegSelect へ（picker 撤去）
-  ["app/mine/drink-claim-form.tsx", 1], ["components/nox/advance-okuri-form.tsx", 1], ["components/nox/check-customers-card.tsx", 1], // ★0153 D1: 伝票の顧客の追加 // cast-picker.tsx は <PickerBadge（型）だけ＝<Picker の JSX は無い
+  ["app/mine/drink-claim-form.tsx", 1], ["components/nox/advance-okuri-form.tsx", 1], // ★便 X-11-2b: check-customers-card は候補表示を自前の一覧（最近来店・担当・検索 10 件＋さらに表示）へ＝<Picker を撤去 // cast-picker.tsx は <PickerBadge（型）だけ
 ];
-check("pk(3-1) <Picker の呼び出し＝14 箇所／12 ファイル（許可列挙・呼び出し側は 301 でコードを変えない）", JSON.stringify(hits) === JSON.stringify(EXPECT) && hits.reduce((a, [, n]) => a + n, 0) === 14, JSON.stringify(hits));
+check("pk(3-1) <Picker の呼び出し＝13 箇所／11 ファイル（許可列挙・呼び出し側は 301 でコードを変えない）", JSON.stringify(hits) === JSON.stringify(EXPECT) && hits.reduce((a, [, n]) => a + n, 0) === 13, JSON.stringify(hits));
 
 // (4) 301-4 の余白
 const ao = fs.readFileSync("components/nox/advance-okuri-form.tsx", "utf8");
