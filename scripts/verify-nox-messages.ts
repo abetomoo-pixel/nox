@@ -15,7 +15,7 @@ import { payStatusCellOf } from "../lib/nox/payroll/ui-calc"; // ★便 X-7: 状
 import { paymentMethodLabelOf } from "../lib/nox/payroll/payment-method"; // ★裁定311-①
 import { payoutDiffNoteOf, CASH_PAYOUT_LABELS } from "../lib/nox/report/cash-payout"; // ★裁定311-②／④
 import { finalizeGuardOf, mdLabelOf } from "../lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）
-import { HM_FORMAT_ERR, normalizeHHMM } from "../lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）
+import { HM_FORMAT_ERR, hmRangeErrorOf, maskHHMM, normalizeHHMM } from "../lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）・追補（便 X-10-3）
 import { okuriAmountOf, okuriDefaultAmountOf, okuriDefaultNoteOf } from "../lib/nox/shift/okuri-default"; // ★裁定317（便 X-9-3）
 
 let pass = 0;
@@ -149,6 +149,24 @@ check("ms(2-11) 裁定317: okuriDefaultAmountOf の順・okuriAmountOf・文言�
   && shiftSrc.includes('p_type: "out", p_note: null, p_okuri: true') && shiftSrc.includes("p_idem_key: punchId as string") && shiftSrc.includes("<OkuriOutDialog") && !shiftSrc.includes("setOkuriMark")
   && shiftSrc.indexOf('p_okuri: true') < shiftSrc.indexOf('rpc("transport_issue_bulk"')
   && okuriDlgSrc.includes("確定して退勤") && reportSrc2.includes("発行済み {okuriIssued.n} 件・合計") && reportSrc2.includes("確認して締める"));
+
+// ★裁定318 追補（2026-09-29・便 X-10-3）: 入力マスク（数字のみ・最大 4 桁・2 桁で ':'・5 桁目無視・貼り付けも同形・全角）と範囲外のその場判定・送信非活性
+const hmUsers = ["components/nox/punch-correction-modal.tsx", "app/mine/punch-correction-form.tsx", "app/mine/attendance-form.tsx", "app/mine/wishes/wish-form.tsx", "app/(manage)/shift/day-add-panel.tsx", "app/(manage)/shift/shift-add-form.tsx", "app/(manage)/shift/shift-board.tsx"];
+check("ms(2-12) 裁定318 追補: maskHHMM（2→2・20→20:・203→20:3・2030→20:30・20301→20:30・貼り付け 20:30／２０３０／9:30→09:30・英字は落とす）・削除（20:→2・20:3→20）・範囲外の文言（時／分・開始欄は 23 まで）・全経路で送信非活性",
+  maskHHMM("2", "") === "2" && maskHHMM("20", "2") === "20:" && maskHHMM("20:3", "20:") === "20:3" && maskHHMM("20:30", "20:3") === "20:30" && maskHHMM("20:301", "20:30") === "20:30"
+  && maskHHMM("20:30", "") === "20:30" && maskHHMM("２０３０", "") === "20:30" && maskHHMM("9:30", "") === "09:30" && maskHHMM("ab1c2", "") === "12:" && maskHHMM("", "2") === ""
+  && maskHHMM("20", "20:", true) === "2" && maskHHMM("20:", "20:3", true) === "20" && maskHHMM("20:3", "20:30", true) === "20:3" && maskHHMM("203", "20", false) === "20:3"
+  && hmRangeErrorOf("48:") === "時は 00〜47 で入力してください" && hmRangeErrorOf("47:59") === null && hmRangeErrorOf("20:6") === "分は 00〜59 で入力してください" && hmRangeErrorOf("20:59") === null
+  && hmRangeErrorOf("24:", 23) === "時は 00〜23 で入力してください" && hmRangeErrorOf("23:59", 23) === null && hmRangeErrorOf("") === null && hmRangeErrorOf("2") === null
+  && messageKindOf("時は 00〜47 で入力してください") === "error" && messageKindOf("分は 00〜59 で入力してください") === "error"
+  && normalizeHHMM("20:") === "20:00" && normalizeHHMM("20:3") === null
+  && hmSrc.includes("maskHHMM(e.target.value, value, it.startsWith(\"delete\"))") && hmSrc.includes("hmRangeErrorOf(value, maxHour)") && hmSrc.includes('<Message kind="error"')
+  && hmUsers.every((f) => { const s2 = fs.readFileSync(f, "utf8"); return s2.includes("<HmInput ") && s2.includes("hmRangeErrorOf("); }));
+// ★裁定320（便 X-10-2）: 領収書の分割発行 UI
+check("ms(2-13) 裁定320: 分割して発行（行・最後の行は自動残額・行を追加・n 枚を発行・1 枚ずつ receipt_issue・失敗で停止）・取消して分け直す の後は分割 UI を開く・文言の種別",
+  regSrc.includes(">分割して発行</button>") && regSrc.includes(">行を追加</button>") && regSrc.includes("枚を発行") && regSrc.includes("const splitAuto = remain - ") && regSrc.includes("if (error) { failed = rcptErrJa(error.message); break; }")
+  && regSrc.includes("if (!failed) openSplit();") && regSrc.includes('className="nox-splitrow"')
+  && messageKindOf("1 枚を発行しました。2 枚目の発行に失敗したため中止しました: 権限がありません") === "error" && messageKindOf("領収書を 3 枚発行しました") === "success");
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
