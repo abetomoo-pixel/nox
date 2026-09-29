@@ -3912,6 +3912,13 @@ DB 側（payroll_finalize のガード）＝0158。★0158 で DB ガードを�
 置換した自由入力の時刻欄＝打刻修正（components/nox/punch-correction-modal.tsx／app/mine/punch-correction-form.tsx）・確定シフトの時間（shift-board 調整モーダル タブ②）・必要人数の時間帯（shift-board）・その日に追加（day-add-panel）・シフト追加（shift-add-form）・希望提出（mine/wishes/wish-form）・遅刻連絡の出勤見込み（mine/attendance-form）。input type=time の欄（営業時間・料金帯・スタッフ枠・予約）は OS の時刻ピッカーのため対象外。
 検証は正規化後＝requestArgsOf（打刻修正）は内部で正規化してから ISO 化（'9:00'・'2000' も通る）。旧文言「時刻は HH:MM（00:00〜47:59）で入力してください」「時間は HH:MM 形式で入力してください」は HM_FORMAT_ERR に統一。
 
+## 裁定319（本便で確定・Agoora・2026-09-29）cast 本人／kiosk からの送り発行は店設定 okuri_base_amount に固定（0158）
+
+出典＝Agoora 指示（2026-09-29・便 Z-1 で収載）。次の裁定番号は 320。**本文（逐語）**:
+「裁定319 cast 本人（/mine）と kiosk からの送り発行は店設定 okuri_base_amount に固定（変更不可・未設定なら発行不可＝締めで店が入力）。金額変更は manager／owner のみ」
+
+適用＝未着手（mig 0158 ★6＝transport_issue_self／kiosk_transport_issue・★4＝set_store_profile の白名単 okuri_base_amount・★5＝kiosk_register_state に okuri_mode／okuri_base_amount）。client は 0158 手貼り後の便（/mine・kiosk の退勤で「送り」→ 固定額の確認→ 打刻＋発行）。裁定317 適用欄 (c) の「器が無い」をこの裁定で解く。
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
@@ -5518,6 +5525,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 85 | **get_cast_mynumber_masked の戻りが text 1 値＝廃棄済み（mynumber_deleted_at）を cast 本人に示せない**（低・**起票 2026-09-28 便 T-1**） | 0155 ★6 で cast_sensitive に廃棄記録 3 列を足したが、cast 本人が読む経路は masked（末尾 4 桁 text）のみで、廃棄後は null（未登録と区別できない）。owner 側は audit_logs から日付を拾って表示（便 S-3）。処置＝masked の戻りに `mynumber_deleted_at`／`mynumber_deletion_method` を足す（0156 ★6 同乗・署名（p_cast_id uuid）不変・戻りを record／jsonb へ＝呼び出し元 /mine の追随は client 便・G10 の search_path pin は不変） |
 | 86 | **マスタハブに「店舗情報」カードが無い＝S-1 の「売掛を使う」への導線名が「営業時間・定休日」のまま**（低・**起票 2026-09-28 便 T-1**） | store-profile-panel（店舗情報／シフト運用／売掛・記録の保持）は /master/business-hours の先頭 3 節に置かれ、ハブのカード名・ナビ名は「営業時間・定休日」「営業時間」のみ（便 S 読取 1）。処置＝master-board に「店舗情報」カード（href /master/business-hours・説明に 売掛・保持年数・利用目的）を新設、または store-profile-panel を /master/store へ分離（client・裁定待ち＝nav.ts の pin（verify:nox-nav）張り替え） |
 | 87 | **kiosk_register_state に okuri_mode が無い＝kiosk 打刻の退勤に「送り あり／なし」を出せない**（低・**起票 2026-09-28 便 Y-1**） | 0156 で punch_self／punch_proxy／kiosk_punch に p_okuri が付き、/mine と /shift の退勤は okuri_mode='actual' の店だけトグルを出す（便 V-5）。kiosk（anon 面）は stores.settings_json を読めず kiosk_register_state にも okuri_mode が無い＝トグルを出す判定材料が無い（便 V で未実装＝報告済み）。処置＝次 mig に同乗: kiosk_register_state の jsonb に okuri_mode（ar_enabled と同型・店設定の写し）→ kiosk 打刻の out に「送り あり／なし」→ kiosk_punch p_okuri（client）。 |
+| 88 | **裁定316 の DB ガード（payroll_finalize の period not ended）で、未来期・当期を使う suite の fixture が落ちる**（中・**起票 2026-09-29 便 Z-1**） | 本文（逐語）: 「316 の DB ガードで未来期を使う suite は fixture の期を過去月に張り替え（手貼り後の suite 便）」。0158 ★3 で payroll_finalize が coalesce(period_end, period_bounds) >= 今日の営業日 を 'period not ended' で拒否する。verify-nox-payroll（P＝2026-09・2026-11・2026-12・2027-xx・2098-09 ほか）・reopen・payroll-list・payroll-adjust・carryover・advance-okuri・daily-pay・compliance など payroll_finalize を admin／tx 内で直接呼ぶ suite は、期が「今日の営業日より前に終わる月」でないと赤になる。処置＝0158 手貼り後の suite 便で fixture の期を過去月へ張り替える（対象の洗い出しは docs/tmp/0158_pre.md【suite】節）。 |
 
 ### 未裁定・消し込み待ち
 
