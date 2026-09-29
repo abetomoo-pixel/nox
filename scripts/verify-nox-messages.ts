@@ -14,6 +14,7 @@ import { rpcErrJa } from "../lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: �
 import { payStatusCellOf } from "../lib/nox/payroll/ui-calc"; // ★便 X-7: 状態列の文言（純関数）
 import { paymentMethodLabelOf } from "../lib/nox/payroll/payment-method"; // ★裁定311-①
 import { payoutDiffNoteOf, CASH_PAYOUT_LABELS } from "../lib/nox/report/cash-payout"; // ★裁定311-②／④
+import { finalizeGuardOf, mdLabelOf } from "../lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）
 
 let pass = 0;
 const fails: string[] = [];
@@ -100,6 +101,29 @@ check("ms(2-6) 裁定311: paymentMethodLabelOf／payoutDiffNoteOf の文言・pa
   && payoutDiffNoteOf(1000, 1000) === null && payoutDiffNoteOf(1000, 800) === "集計 ¥1,000 と差 −¥200" && payoutDiffNoteOf(1000, 1500) === "集計 ¥1,000 と差 +¥500"
   && paySrc.includes('<select value={pmethod[l.castId] ?? "cash"}') && !paySrc.includes("方法(振込等)") && paySrc.includes("支払履歴（{period}）") && paySrc.includes("paymentMethodLabelOf(h.method)")
   && reportSrc.includes("payoutDiffNoteOf(total, payout)") && reportSrc.includes("cashPayoutRowsOf(payoutParts)") && ["送り実費", "前借り", "日払い", "給与支払（現金）"].every((w) => Object.values(CASH_PAYOUT_LABELS).includes(w)));
+
+// ★裁定313（2026-09-29・便 X-8-2）: 今日タブの行＝1 段。操作列は「時刻修正」「減額」・行内テキストリンク 0（精算調整を登録／を修正）・出勤記録は .nox-attrow
+check("ms(2-7) 裁定313: shift-board 今日タブ＝時刻修正／減額ボタン・行内リンク 0・nox-attrow・退勤は同段・操作列は isManagerUp のときだけ",
+  shiftSrc.includes(">時刻修正</button>") && shiftSrc.includes(">減額</button>") && !shiftSrc.includes("精算調整を登録</button>") && !/\{KIND_LABEL\[k\]\}を修正/.test(shiftSrc)
+  && shiftSrc.includes('<div className="nox-attrow">') && shiftSrc.includes("{isManagerUp && <th>操作</th>}") && shiftSrc.includes("出勤（出勤・遅刻・同伴）を記録すると押せます"));
+// ★裁定316（便 X-8-13）: 確定は期間終了の翌営業日から。文言と判定は純関数 1 本・API は 400 'period not ended'・rpcErrJa は error に倒れる
+const finSrc = fs.readFileSync("app/api/payroll/finalize/route.ts", "utf8");
+const payBoardSrc = fs.readFileSync("app/(manage)/payroll/payroll-board.tsx", "utf8");
+const g930 = finalizeGuardOf("2026-09-30", "2026-09-30");
+const g1001 = finalizeGuardOf("2026-09-30", "2026-10-01");
+check("ms(2-8) 裁定316: finalizeGuardOf（期末当日＝不可・翌営業日＝可）・文言「期間終了（9/30）の翌日から確定できます」・route は run_create の前に 400・画面は確定ボタンを無効化",
+  g930.ok === false && (g930 as { message: string }).message === "期間終了（9/30）の翌日から確定できます" && g1001.ok === true && finalizeGuardOf("2026-09-30", "2026-09-29").ok === false && mdLabelOf("2026-01-05") === "1/5"
+  && messageKindOf(rpcErrJa("period not ended")) === "error" && /翌日から確定できます/.test(rpcErrJa("period not ended"))
+  && finSrc.indexOf("finalizeGuardOf(win.periodEnd") > 0 && finSrc.indexOf("finalizeGuardOf(win.periodEnd") < finSrc.indexOf('rpc("payroll_run_create"')
+  && payBoardSrc.includes("disabled={busy || !guard.ok || blockers.length > 0 || rows.length === 0}"));
+// ★裁定314（便 X-8-10）・便 X-8-8／X-8-9: キープ・領収書 QR・取消して分け直す
+const regSrc = fs.readFileSync("app/(manage)/register/register-board.tsx", "utf8");
+const keepSrc = fs.readFileSync("components/nox/line-keep-button.tsx", "utf8");
+check("ms(2-9) 裁定314／X-8-8／X-8-9: ボトル行のキープ（bottle_keep_register・p_check_line_id・キープ済み・指名・席タブへ）・QR 全画面・取消して分け直す（receipt_issue_void）",
+  regSrc.includes('l.kind === "bottle" && check && (') && regSrc.includes("<LineKeepButton") && regSrc.includes('onNeedCustomer={() => setDtab("nom")}')
+  && keepSrc.includes('rpc("bottle_keep_register"') && keepSrc.includes("p_check_line_id: lineId") && keepSrc.includes("キープ済み") && keepSrc.includes("指名・席タブへ")
+  && regSrc.includes('className="nox-rcpt-qr"') && regSrc.includes('className="nox-qrfull"') && regSrc.includes(">取消して分け直す</button>") && regSrc.includes('rpc("receipt_issue_void"')
+  && messageKindOf("領収書の取消に失敗しました: 権限がありません（店長以上）") === "error" && messageKindOf("領収書を取り消しました。金額を入れて発行し直せます") === "success");
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
