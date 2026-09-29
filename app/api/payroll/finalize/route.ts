@@ -5,12 +5,20 @@ import { NextResponse } from "next/server";
 import { guardPayroll } from "@/lib/nox/payroll/route-guard";
 import { computePayrollDraft } from "@/lib/nox/payroll/core";
 import { frozenAdjustmentKeys } from "@/lib/nox/payroll/adjust"; // 裁定264-10: 調整行の凍結形（無ければキーを足さない）
+import { resolvePayrollWindow } from "@/lib/nox/payroll/window";
+import { bizDateOf } from "@/lib/nox/biz-date";
+import { finalizeGuardOf } from "@/lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）
 
 export async function POST(req: Request) {
   const g = await guardPayroll(req);
   if (!g.ok) return NextResponse.json(g.body, { status: g.status });
   if (!g.idemKey) return NextResponse.json({ error: "idemKey required (uuid)" }, { status: 400 });
   try {
+    // ★裁定316（便 X-8-13）: 確定は期間終了の翌営業日から＝period_end < 今日の営業日（店の biz_cutoff_hm）。未終了は run を作る前に 400。
+    //   DB 側（payroll_finalize）のガードは mig 0158。プレビュー（/api/payroll/preview）は期間の途中でも可＝ここだけ止める。
+    const win = await resolvePayrollWindow(g.admin, g.storeId, g.period);
+    const guard = finalizeGuardOf(win.periodEnd, bizDateOf(new Date().toISOString(), win.cutoffHm));
+    if (!guard.ok) return NextResponse.json({ error: guard.code, message: guard.message, periodEnd: win.periodEnd }, { status: 400 });
     // run_create はユーザー文脈クライアント（manager+ 検証は payroll_run_create 内でも二重防御・audit actor は auth.uid()）
     const { data: rc, error: eRc } = await g.supabase.rpc("payroll_run_create", { p_store_id: g.storeId, p_period: g.period });
     if (eRc) return NextResponse.json({ error: eRc.message }, { status: 500 });

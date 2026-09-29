@@ -23,6 +23,8 @@ import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 
 import SanctionModal from "@/components/nox/sanction-modal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
+import { finalizeGuardOf, PERIOD_NOT_ENDED } from "@/lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）: 確定は期間終了の翌営業日から
+import { bizDateOf } from "@/lib/nox/biz-date";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0156（便 V-3）: 控除上書き RPC の raise 語（run not draft／bad deduction／bad enabled）の日本語化
 
 type Store = { id: string; name: string };
@@ -137,6 +139,19 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   const [ovMsg, setOvMsg] = useState<string | null>(null);
   const [ovAmount, setOvAmount] = useState<Record<string, string>>({}); // deduction_id → 入力中の上書き額
   // ★0156（裁定309-7・便 V-6）: 貸付残高一覧（advances_open_balance）
+  // ★裁定316（便 X-8-13）: 今日の営業日＝店の biz_cutoff_hm（既定 06:00）で切る。stores の RLS 読取 +1（店が変わったときだけ）
+  const [cutoffHm, setCutoffHm] = useState("06:00");
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
+      const v = ((data?.settings_json ?? {}) as Record<string, unknown>).biz_cutoff_hm;
+      if (alive) setCutoffHm(typeof v === "string" && v ? v : "06:00");
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
   const [openBal, setOpenBal] = useState<{ cast_id: string; cast_name: string; open_total: number; n: number; oldest_on: string }[] | null>(null);
   const [adjMsg, setAdjMsg] = useState("");
   const [adjBusy, setAdjBusy] = useState(false); // 264-8: 送信中の二重発火を止める（add に冪等キーは無い）
@@ -323,7 +338,9 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       });
       const j = await res.json();
       if (!res.ok) {
-        if (res.status === 422 && Array.isArray(j.blockers)) {
+        if (res.status === 400 && j.error === PERIOD_NOT_ENDED) {
+          setMsg(`確定できません: ${j.message ?? rpcErrJa(PERIOD_NOT_ENDED)}`); // ★裁定316
+        } else if (res.status === 422 && Array.isArray(j.blockers)) {
           setMsg(`確定不可（税区分/プラン/雇用区分 未設定）: ${(j.blockers as Blocker[]).map((b) => b.castName).join("、")}`);
         } else {
           setMsg(`エラー(${res.status}): ${j.error ?? ""}`);
@@ -806,10 +823,12 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
 
           {/* 段3: 確定。★#78: finalized／paid の間は非表示（draft のみ）。★#75: disabled の理由をボタン脇と title に出す（要対応 N 件） */}
           {status === "draft" && (() => {
-            const why = blockers.length > 0 ? `要対応 ${blockers.length} 件を解消してください` : rows.length === 0 ? "対象キャストがいません（プレビューを実行してください）" : "";
+            // ★裁定316（便 X-8-13）: 期間終了の翌営業日から確定できる（API も同じ判定で 400・DB は 0158）。プレビュー・内容確認は途中でも可
+            const guard = finalizeGuardOf(periodEndOf(period), bizDateOf(new Date().toISOString(), cutoffHm));
+            const why = !guard.ok ? guard.message : blockers.length > 0 ? `要対応 ${blockers.length} 件を解消してください` : rows.length === 0 ? "対象キャストがいません（プレビューを実行してください）" : "";
             return (
               <div className="nox-actions" style={{ gap: 10 }}>{/* ★裁定244: 節直下の実行＝中央（why 注記は隣に残す） */}
-                <button onClick={finalize} disabled={busy || blockers.length > 0 || rows.length === 0}
+                <button onClick={finalize} disabled={busy || !guard.ok || blockers.length > 0 || rows.length === 0}
                   title={why || undefined} style={blockers.length ? { ...t.btnGhost } : { ...t.btnGold }}>
                   この期間を確定する
                 </button>

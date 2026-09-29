@@ -1213,7 +1213,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             <div className="nox-tablewrap stickyfirst">{/* ★AT2-3: 名前列を左固定（横スクロールしても行の見出しが残る＝M18 と同じ修飾子） */}
               <table className="nox-table">
                 <thead>
-                  <tr><th>スタッフ</th><th>申請時間</th><th>確定時間</th><th>出勤記録</th><th>状態</th><th>操作</th></tr>
+                  <tr><th>スタッフ</th><th>申請時間</th><th>確定時間</th><th>出勤記録</th><th>状態</th>{isManagerUp && <th>操作</th>}</tr>{/* ★裁定313／X-8-3: 操作列は owner／manager だけ（staff は列ごと未描画） */}
                 </thead>
                 <tbody>
                   {shiftsOn(todayDate).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((s) => {
@@ -1239,68 +1239,56 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             無く（検証は null / 値域5値 / eta 形式 / org・ロールのみ）、明日以降の
                             「出勤」を記録できてしまうため UI で止める。先の日はラベル表示のみ。 */}
                         <td>
-                          {canRecord ? (
-                            <div className="nox-seg" style={{ display: "inline-flex" }}>
-                              {ATT_OPTIONS.map(([v, l]) => {
-                                const on = (attOf(s.cast_id, todayDate)?.status ?? "") === v;
-                                return (
-                                  <button key={v} className={on ? "on" : ""} aria-pressed={on}
-                                    title={on ? "記録済み（取り消しはできません・選び直してください）" : `${l}として記録`}
-                                    onClick={() => { if (!on) void setAtt(s.cast_id, v); }}>{l}</button>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <span style={{ color: "var(--v2-muted)" }}>
-                              {ATT_OPTIONS.find(([v]) => v === (attOf(s.cast_id, todayDate)?.status ?? ""))?.[1] ?? "—"}
-                            </span>
-                          )}
-                          {attOf(s.cast_id, todayDate)?.eta && (
-                            <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
-                              見込み {attOf(s.cast_id, todayDate)?.eta}
-                            </span>
-                          )}
-                          {/* ★便 AT2-2（2026-09-24）: 出退勤時刻＝punches だけから作る（in のみ「出勤 HH:MM」・退勤後「HH:MM → HH:MM」・打刻なしは区分のみ＝偽の時刻を作らない）。
-                              裁定268 の「(+N 分)」は最初の in（punch-match S1 と同じ）に付ける。旧「HH:MM打刻」表示の置換＝B4-a 裁定222 の補助表示は本行へ */}
+                          {/* ★裁定313（2026-09-29・便 X-8-2）: 1 段構成＝セグメント＋打刻時刻（小字）＋送り（actual 店）＋「退勤」を同段（.nox-attrow・≤899px は 2 行折り返し）。
+                              行内のテキストリンクは 0（「精算調整を登録」は操作列「減額」へ・「出勤を修正／退勤を修正」は裁定310 で「時刻修正」へ）。
+                              ★便 AT2-2: 出退勤時刻＝punches だけから作る（偽の時刻を作らない）・裁定268 の「(+N 分)」は最初の in。
+                              ★便 AT2-1: 退勤（punch_proxy 'out'）は出勤区分の行で in 打刻ありのときだけ押せる（orphan_out を作らない＝裁定257 R20-b）＝判定は outButtonOf のまま。
+                              ★0156（裁定309-9）: actual 店のみ「送り」チェック（既定なし）→ punch_proxy の p_okuri */}
                           {(() => {
                             const io = punchIO.get(s.cast_id);
+                            const att = attOf(s.cast_id, todayDate);
                             const label = punchTimeLabel(io?.inHm, io?.outHm);
-                            if (!label) return null;
                             const n = io?.inHm ? lateMinutesOf(s.start_hm, io.inHm, lateGraceMin) : null;
+                            const ob = outButtonOf({ canRecord, attStatus: att?.status, hasIn: !!io?.inHm, hasOut: !!io?.outHm });
+                            const outOn = ob.show && ob.enabled;
                             return (
-                              <span className="num" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>
-                                {label}{n === null ? null : <span style={{ marginLeft: 4, opacity: 0.75 }}>(+{n} 分)</span>}
-                              </span>
-                            );
-                          })()}
-                          {/* ★裁定310（2026-09-28）: 行の「出勤を修正／退勤を修正」リンクは廃止＝右端の「調整」→モーダル タブ①（出退勤）に一本化 */}
-                          {/* ★0154 D4（裁定293 追補1-2）: 委託キャストの遅刻／当欠／早退が検知された行に「精算調整を登録」（ひな形と額を初期表示・当期 draft run へ source='settlement'） */}
-                          {canRecord && casts.find((c) => c.id === s.cast_id)?.employment !== "雇用" && (() => {
-                            const io = punchIO.get(s.cast_id);
-                            const tgt = detectTargetOf({ attStatus: attOf(s.cast_id, todayDate)?.status, lateMin: io?.inHm ? lateMinutesOf(s.start_hm, io.inHm, lateGraceMin) : 0, outHm: io?.outHm, endHm: s.end_hm });
-                            return tgt && (
-                              <div className="nox-actions" style={{ marginTop: 4 }}>
-                                <button type="button" className="nox-link" style={{ fontSize: 11.5 }} onClick={() => setSettle({ castId: s.cast_id, shiftId: s.id, target: tgt })}>精算調整を登録</button>
-                              </div>
-                            );
-                          })()}
-                          {/* ★便 AT2-1: 退勤（punch_proxy 'out'）は出勤区分（出勤・遅刻・同伴）の行にだけ出す。in 打刻が無ければ押せない（orphan_out を作らない＝裁定257 R20-b）。裁定239＝実行 青塗り */}
-                          {(() => {
-                            const io = punchIO.get(s.cast_id);
-                            const ob = outButtonOf({ canRecord, attStatus: attOf(s.cast_id, todayDate)?.status, hasIn: !!io?.inHm, hasOut: !!io?.outHm });
-                            return ob.show && (
-                              <div className="nox-actions" style={{ marginTop: 6, gap: 8, alignItems: "center" }}>
-                                {/* ★0156（裁定309-9）: actual 店のみ「送り」チェック（既定なし）→ punch_proxy の p_okuri */}
-                                {okuriActual && (
-                                  <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, cursor: "pointer" }}>
-                                    <input type="checkbox" checked={okuriMark.has(s.cast_id)} disabled={!ob.enabled}
-                                      onChange={(e) => setOkuriMark((m) => { const n = new Set(m); if (e.target.checked) n.add(s.cast_id); else n.delete(s.cast_id); return n; })} />
-                                    送り
-                                  </label>
+                              <div className="nox-attrow">
+                                {canRecord ? (
+                                  <div className="nox-seg" style={{ display: "inline-flex" }}>
+                                    {ATT_OPTIONS.map(([v, l]) => {
+                                      const on = (att?.status ?? "") === v;
+                                      return (
+                                        <button key={v} className={on ? "on" : ""} aria-pressed={on}
+                                          title={on ? "記録済み（取り消しはできません・選び直してください）" : `${l}として記録`}
+                                          onClick={() => { if (!on) void setAtt(s.cast_id, v); }}>{l}</button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <span style={{ color: "var(--v2-muted)" }}>
+                                    {ATT_OPTIONS.find(([v]) => v === (att?.status ?? ""))?.[1] ?? "—"}
+                                  </span>
                                 )}
-                                <button type="button" style={{ ...btnDark, padding: "4px 12px", fontSize: 12, opacity: ob.enabled ? 1 : 0.5 }}
-                                  disabled={!ob.enabled} title={ob.title}
-                                  onClick={() => void proxyOut(s.cast_id)}>退勤</button>
+                                {(label || att?.eta) && (
+                                  <span className="num sub">
+                                    {label}{label && n !== null ? <span style={{ marginLeft: 4, opacity: 0.75 }}>(+{n} 分)</span> : null}
+                                    {att?.eta ? <span style={{ marginLeft: label ? 6 : 0 }}>見込み {att.eta}</span> : null}
+                                  </span>
+                                )}
+                                {canRecord && (
+                                  <span className="out">
+                                    {okuriActual && (
+                                      <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, cursor: outOn ? "pointer" : "default", opacity: outOn ? 1 : 0.5 }}>
+                                        <input type="checkbox" checked={okuriMark.has(s.cast_id)} disabled={!outOn}
+                                          onChange={(e) => setOkuriMark((m) => { const nx = new Set(m); if (e.target.checked) nx.add(s.cast_id); else nx.delete(s.cast_id); return nx; })} />
+                                        送り
+                                      </label>
+                                    )}
+                                    <button type="button" style={{ ...btnDark, padding: "4px 12px", fontSize: 12, opacity: outOn ? 1 : 0.5 }}
+                                      disabled={!outOn} title={ob.show ? ob.title : "出勤（出勤・遅刻・同伴）を記録すると押せます"}
+                                      onClick={() => void proxyOut(s.cast_id)}>退勤</button>
+                                  </span>
+                                )}
                               </div>
                             );
                           })()}
@@ -1311,22 +1299,38 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             {SHIFT_ST_LABEL[s.status] ?? s.status}
                           </span>
                         </td>
+                        {/* ★裁定313（便 X-8-2／X-8-3）: 操作列＝「時刻修正」（裁定310 のモーダル）「減額」（精算調整の登録＝SettlementModal）。owner／manager だけ列ごと描画。
+                            減額は委託キャストで遅刻／当欠／早退が検知された行だけ活性（0154 D4 の条件のまま・理由は title）。未確定の行だけ「確認へ」「承認」を足す */}
+                        {isManagerUp && (
                         <td>
-                          {isManagerUp && (
-                            <span style={{ display: "inline-flex", gap: 6 }}>
-                              <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
-                                onClick={() => { setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm); }}>調整</button>
-                              {castConfirm && s.status === "planned" && (
+                          {(() => {
+                            const io = punchIO.get(s.cast_id);
+                            const isItaku = casts.find((c) => c.id === s.cast_id)?.employment !== "雇用";
+                            const tgt = canRecord && isItaku
+                              ? detectTargetOf({ attStatus: attOf(s.cast_id, todayDate)?.status, lateMin: io?.inHm ? lateMinutesOf(s.start_hm, io.inHm, lateGraceMin) : 0, outHm: io?.outHm, endHm: s.end_hm })
+                              : null;
+                            const why = !canRecord ? "減額の登録は当日の分だけできます"
+                              : !isItaku ? "雇用キャストの減給は給与画面から登録します"
+                              : !tgt ? "遅刻・当欠・早退が検知された行だけ登録できます" : undefined;
+                            return (
+                              <span className="nox-rowops">
                                 <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
-                                  onClick={() => void proposeShifts([s.id])}>確認へ</button>
-                              )}
-                              {s.status !== "confirmed" && (
-                                <button style={{ ...btnDark, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
-                                  onClick={() => confirmShift(s)}>承認</button>
-                              )}
-                            </span>
-                          )}
+                                  onClick={() => { setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm); }}>時刻修正</button>
+                                <button style={{ ...btnLight, opacity: tgt ? 1 : 0.45 }} disabled={!tgt} title={why}
+                                  onClick={() => { if (tgt) setSettle({ castId: s.cast_id, shiftId: s.id, target: tgt }); }}>減額</button>
+                                {castConfirm && s.status === "planned" && (
+                                  <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
+                                    onClick={() => void proposeShifts([s.id])}>確認へ</button>
+                                )}
+                                {s.status !== "confirmed" && (
+                                  <button style={{ ...btnDark, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
+                                    onClick={() => confirmShift(s)}>承認</button>
+                                )}
+                              </span>
+                            );
+                          })()}
                         </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -1566,7 +1570,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                     希望を承認するか、時間を調整してキャストへ確認を依頼します
                   </p>
                 </div>
-                <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
+                <span className="nox-bulkops">{/* ★X-8-11: 一括ボタン群は折り返し可（≤899px は全幅） */}
                   {/* ★N4（H19）: 段1（キャスト希望）の一括承認＝定休日の希望は除外して1件ずつ shift_wish_decide */}
                   {isManagerUp && (() => {
                     const ids = wishes.filter((w) => !closedOf(w.date, w.start_hm, w.end_hm)).map((w) => w.id);
@@ -1660,9 +1664,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   <button key={k} type="button" className={queueGroup === k ? "on" : ""} onClick={() => setQueueGroup(k)}>{label}</button>
                 ))}
               </div>
-              <table className="nox-table">
+              <table className="nox-table cardrows">
                 <thead>
-                  <tr><th>スタッフ</th><th>勤務日</th><th>希望／提案時間</th><th>現在の段階</th><th>操作</th></tr>
+                  <tr><th>スタッフ</th><th>勤務日</th><th>希望／提案時間</th><th>現在の段階</th><th>操作</th></tr>{/* ★X-8-11: ≤899px は行をカード化（.nox-table.cardrows・1 段目 名前・日・時間・段階／2 段目 操作を 2 分割全幅） */}
                 </thead>
                 <tbody>
                   {rows.map((r, i) => {
@@ -1675,7 +1679,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                       <Fragment key={r.key}>
                       {head && (
                         <tr>
-                          <td colSpan={5} style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", background: "var(--card2)" }}>
+                          <td colSpan={5} className="grp" style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", background: "var(--card2)" }}>
                             {castName(r.castId)} <span className="num" style={{ fontWeight: 400, color: "var(--sub)" }}>（{countOf(r.castId)}件）</span>
                           </td>
                         </tr>
@@ -1698,9 +1702,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                           </span>
                           {closed && <span style={{ display: "block", fontSize: 10.5, color: "var(--bad)", fontWeight: 700, marginTop: 2 }}>定休日</span>}
                         </td>
-                        <td>
+                        <td className="ops">
                           {isManagerUp && r.kind === "wish" && (
-                            <span style={{ display: "inline-flex", gap: 6 }}>
+                            <span className="nox-rowops">
                               <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 title={closed ? "この希望日は定休日に設定されています（見送りは可能）" : undefined}
                                 onClick={() => decide(r.wish!.id, true)}>希望どおり承認</button>
@@ -1708,7 +1712,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             </span>
                           )}
                           {isManagerUp && r.kind === "planned" && (
-                            <span style={{ display: "inline-flex", gap: 6 }}>
+                            <span className="nox-rowops">
                               <button style={{ ...btnLight, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 onClick={() => { setAdjTarget(r.shift!); setAStart(r.shift!.start_hm); setAEnd(r.shift!.end_hm); }}>時間調整</button>
                               {castConfirm && (
@@ -1723,7 +1727,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             </span>
                           )}
                           {isManagerUp && r.kind === "proposed" && (
-                            <span style={{ display: "inline-flex", gap: 6 }}>
+                            <span className="nox-rowops">
                               <button style={{ ...btnLight, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 onClick={() => { setAdjTarget(r.shift!); setAStart(r.shift!.start_hm); setAEnd(r.shift!.end_hm); }}>再調整</button>
                               <button style={btnLight} onClick={() => void demoteShift(r.shift!)}>差し戻す</button>
@@ -1791,7 +1795,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 <button style={btnLight} title="確定シフトタブへ移動します"
                   onClick={() => { setDayModal(""); setTab("roster"); }}>確定シフトへ</button>
               )}
-              <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
+              <span className="nox-planops">{/* ★X-8-12: ≤899px は縦積み全幅（PC は右寄せ 1 行＝従来） */}
                 {/* ★裁定136（v4.1 H7）: 「必要人数を設定」はモーダル化せず、同タブ内の常設カード（#shift-needs）へスクロール
                     ＝裁定112-A「見る場所と設定する場所の一致」を維持。既存 gotoNeeds（日詳細からの導線）を共用。 */}
                 <button style={btnLight} title="この下の「必要人数（曜日・時間帯別）」へ移動します"
@@ -1809,7 +1813,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             {wishes.length > 0 && (
               <div className="nox-alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
                 <span>未処理の希望が <b className="num">{wishes.length}件</b> あります。先に希望を確認してからシフトを作成できます。</span>
-                <button style={btnLight} onClick={() => { setDayModal(""); setTab("queue"); }}>希望を処理</button>
+                <button className="nox-alert-act" style={btnLight} onClick={() => { setDayModal(""); setTab("queue"); }}>希望を処理</button>{/* ★X-8-12: ≤899px は全幅センター（PC は右寄せ） */}
               </div>
             )}
             {/* plan-kpis 4枚（モック逐語の4項目・すべて取得済み state の再形） */}
@@ -2071,7 +2075,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           <p style={{ fontSize: 13, color: "var(--sub)" }}>なし</p>
         ) : (
           <div className="nox-tablewrap">
-            <table className="nox-table">
+            <table className="nox-table cardrows">
               <thead>
                 <tr><th>スタッフ</th><th>勤務日</th><th>確定時間</th><th>確定者</th><th>状態</th><th className="nox-noprint">操作</th></tr>
               </thead>
@@ -2100,9 +2104,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                         </span>
                         {sClosed && <span style={{ display: "block", fontSize: 10.5, color: "var(--bad)", fontWeight: 700, marginTop: 2 }}>定休日</span>}
                       </td>
-                      <td className="nox-noprint">
+                      <td className="nox-noprint ops">
                         {isManagerUp && (
-                          <span style={{ display: "inline-flex", gap: 6 }}>
+                          <span className="nox-rowops">
                             <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
                               title={sClosed ? "この日は定休日に設定されています" : undefined}
                               onClick={() => { setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm); }}>時間を調整</button>

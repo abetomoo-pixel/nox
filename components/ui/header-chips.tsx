@@ -12,9 +12,10 @@ import { NavIcon } from "./nav-icons";
 import { GEAR_LABEL, NAV_DESC, OPEN_MENU_EVENT, activeHrefOf, hashTargetOf, userChipLabelOf, type NavGroup } from "@/lib/nox/ui/nav-tabs";
 
 /** 一覧型の行（メニュー Modal と設定 Modal で共用）＝アイコン＋ラベル＋説明＋「›」 */
-export function NavListRow({ href, label, on, onClick }: { href: string; label: string; on: boolean; onClick?: () => void }) {
+// ★便 X-8-5（2026-09-29）: replace＝シートが履歴に積んだ 1 段（noxSheet）を行き先で置き換える（シート側は history.back() を呼ばない）
+export function NavListRow({ href, label, on, onClick, replace }: { href: string; label: string; on: boolean; onClick?: () => void; replace?: boolean }) {
   return (
-    <Link href={href} className={on ? "nox-navsheet-i nox-navrow on" : "nox-navsheet-i nox-navrow"} aria-current={on ? "page" : undefined} onClick={onClick}>
+    <Link href={href} replace={replace} className={on ? "nox-navsheet-i nox-navrow on" : "nox-navsheet-i nox-navrow"} aria-current={on ? "page" : undefined} onClick={onClick}>
       <span className="nox-navrow-ic" aria-hidden="true"><NavIcon href={href} /></span>
       <span className="nox-navrow-t">
         <span>{label}</span>

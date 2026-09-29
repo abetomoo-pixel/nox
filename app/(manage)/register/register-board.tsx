@@ -20,6 +20,7 @@ import { fetchStockTotals } from "@/lib/nox/master/queries";
 import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
+import LineKeepButton from "@/components/nox/line-keep-button"; // ★裁定314（便 X-8-10）: ボトル明細の「キープ」
 import CheckCustomersCard from "@/components/nox/check-customers-card"; // ★裁定305（mig0153・D1）: 伝票の顧客・誰の注文・キープ出し
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
@@ -126,6 +127,8 @@ type Line = {
   block_no: number | null;
   // ★0153（裁定305-2）: 注文者（check_line_set_customer で後付け・null＝未指定＝均等割り）
   customer_id?: string | null;
+  // ★裁定314（便 X-8-10）: ボトル明細の「キープ」が bottle_keep_register へ渡す商品（同じ取得に同乗）
+  product_id?: string | null;
   // キャストドリンク（mig0070）: 按分除外の判定は back_snapshot の凍結値で行う。
   //   ★products.back_exempt_from_split（現価）では判定しない＝行を打った後にマスタのフラグを
   //     切り替えても伝票の帰属経路は変わらない、が 0070 の設計（check_close と
@@ -384,6 +387,12 @@ export default function RegisterBoard({
   const [rcptIssued, setRcptIssued] = useState<RcptIssued[]>([]);
   const [rcptBusy, setRcptBusy] = useState(false);
   const [rcptMsg, setRcptMsg] = useState<string | null>(null);
+  // ★便 X-8-8: 領収書 QR の全画面表示（白背景・閉じる）＝公開 URL を持つ
+  const [qrFull, setQrFull] = useState<string | null>(null);
+  // ★便 X-8-9: 残額 ¥0 のときの「取消して分け直す」＝確認（理由任意）→ 既存 receipt_issue_void を発行済みの枚数ぶん → 金額欄が再表示（番号は再利用しない＝RPC の採番は max+1）
+  const [resplit, setResplit] = useState<{ open: boolean; reason: string; busy: boolean }>({ open: false, reason: "", busy: false });
+  // ★裁定314（便 X-8-10）: 「キープ済み」の行＝その行の注文者の active なキープに同じ商品があり、開栓が伝票の開始以降（bottle_keeps に行の列が無いための近似）
+  const [keptLineIds, setKeptLineIds] = useState<Set<string>>(new Set());
   const [storeName, setStoreName] = useState("");
   const [invoiceRegNo, setInvoiceRegNo] = useState(""); // 適格請求書の登録番号（settings_json.invoice_reg_no・空=行を出さない）
   const [arEnabled, setArEnabled] = useState(false); // ★0155（裁定309-1・便 S-2）: settings_json.ar_enabled＝false の店は支払方法「売掛」を出さない（サーバの 'ar disabled' が本体＝二重防御）
@@ -588,11 +597,28 @@ export default function RegisterBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [check?.store_id]);
 
+  useEffect(() => {
+    const targets = lines.filter((l) => l.kind === "bottle" && l.customer_id && l.product_id);
+    if (!check || targets.length === 0) { setKeptLineIds((prev) => (prev.size === 0 ? prev : new Set())); return; }
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("bottle_keeps").select("customer_id, product_id, opened_at")
+        .in("customer_id", [...new Set(targets.map((l) => l.customer_id as string))])
+        .in("product_id", [...new Set(targets.map((l) => l.product_id as string))])
+        .eq("status", "active").gte("opened_at", check.started_at);
+      if (!alive) return;
+      const have = new Set(((data ?? []) as { customer_id: string | null; product_id: string }[]).map((k) => `${k.customer_id}:${k.product_id}`));
+      setKeptLineIds(new Set(targets.filter((l) => have.has(`${l.customer_id}:${l.product_id}`)).map((l) => l.id)));
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines, check?.id]);
+
   const loadCheck = useCallback(async (checkId: string) => {
     const { data: c } = await supabase.from("checks").select("*").eq("id", checkId).single();
     const { data: ls } = await supabase
       // back_snapshot＝キャストドリンク判定の凍結値（mig0070）。中身は back_exempt だけを見る。
-      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category, customer_id") // ★0153: 注文者（同じ取得に同乗）
+      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category, customer_id, product_id") // ★0153: 注文者（同じ取得に同乗）
       .eq("check_id", checkId).order("sort_order");
     // キャストドリンク: 確定済み（approved）の claim だけを引く。void/rejected は行に紐づけない。
     const { data: dcs } = await supabase
@@ -2062,28 +2088,67 @@ export default function RegisterBoard({
                 )}
                 {/* R-1a-4: 成功文言まで --bad（赤）で出ていたのを是正＝成功/失敗で色を分ける（state 構造は不変） */}
                 {rcptMsg && <Toast msg={rcptMsg} style={{ margin: "0 0 8px" }} />}
-                {rcptIssued.map((r) => (
-                  <div key={r.id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
-                    <span style={{ ...t.num, fontWeight: 800 }}>R-{String(r.serial).padStart(6, "0")}</span>
-                    <span style={{ ...t.num }}>{yen(r.amount)}</span>
-                    <span style={{ fontSize: 12 }}>{r.name || "上様"}</span>
-                    {/* QR＝公開 URL（/r/{token}）。印刷面にも同じ QR が載る */}
-                    <span style={{ width: 44, height: 44, background: "#fff", padding: 2, borderRadius: 4 }}
-                      dangerouslySetInnerHTML={{ __html: renderSVG(`${window.location.origin}/r/${r.token}`, { border: 0 }) }} />
-                    <button style={{ ...btnLight, marginLeft: "auto" }}
-                      onClick={() => { void navigator.clipboard?.writeText(`${window.location.origin}/r/${r.token}`); setRcptMsg(RCPT_COPIED); }}>
-                      URL コピー
-                    </button>
-                  </div>
-                ))}
+                {/* ★便 X-8-8: 1 枚＝「R-番号／金額／宛名」1 行 → QR（独立段・中央・240px・タップで全画面）→「URL コピー」「印刷/PDF」2 分割 */}
+                {rcptIssued.map((r) => {
+                  const url = `${window.location.origin}/r/${r.token}`;
+                  return (
+                    <div key={r.id} className="nox-rcpt">
+                      <div className="nox-rcpt-h">
+                        <span className="num" style={{ fontWeight: 800 }}>R-{String(r.serial).padStart(6, "0")}</span>
+                        <span className="num">{yen(r.amount)}</span>
+                        <span style={{ fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name || "上様"}</span>
+                      </div>
+                      {/* QR＝公開 URL（/r/{token}）。印刷面にも同じ QR が載る */}
+                      <button type="button" className="nox-rcpt-qr" aria-label="QR を全画面で表示" title="タップで全画面表示"
+                        onClick={() => setQrFull(url)}
+                        dangerouslySetInnerHTML={{ __html: renderSVG(url, { border: 0 }) }} />
+                      <div className="nox-rcpt-acts">
+                        <button style={btnLight} onClick={() => { void navigator.clipboard?.writeText(url); setRcptMsg(RCPT_COPIED); }}>URL コピー</button>
+                        <button style={btnLight} onClick={() => window.print()}>印刷 / PDF{rcptIssued.length > 1 ? `（${rcptIssued.length}枚）` : ""}</button>
+                      </div>
+                    </div>
+                  );
+                })}
                 {rcptIssued.length > 0 && (
-                  <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8 }}>
-                    <button style={btnLight} onClick={() => window.print()}>
-                      領収書を印刷 / PDF{rcptIssued.length > 1 ? `（${rcptIssued.length}枚）` : ""}
-                    </button>
-                    <span style={{ fontSize: 11.5, color: "var(--sub)" }}>
-                      発行済み {rcptIssued.length}枚・計 {yen(issuedSum)}（取消は「領収書」ページから）
-                    </span>
+                  <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0" }}>
+                    発行済み {rcptIssued.length}枚・計 {yen(issuedSum)}（個別の取消は「領収書」ページから）
+                  </p>
+                )}
+                {/* ★便 X-8-9: 残額 ¥0＝分割をやり直したいとき。発行済みを取消（既存 receipt_issue_void・owner／manager）→ 金額欄が再表示。番号は再利用しない */}
+                {isManagerUp && remain === 0 && rcptIssued.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    {!resplit.open ? (
+                      <div className="nox-actions" style={{ justifyContent: "flex-start" }}>
+                        <button style={{ ...btnLight, color: "var(--bad)", border: "1px solid var(--bad)" }}
+                          onClick={() => setResplit({ open: true, reason: "", busy: false })}>取消して分け直す</button>
+                      </div>
+                    ) : (
+                      <div className="nox-inset" style={{ padding: "10px 12px" }}>
+                        <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 4px" }}>発行済み {rcptIssued.length}枚（計 {yen(issuedSum)}）を取り消して、分け直しますか？</p>
+                        <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>取り消した領収書は台帳に「取消」として残り、番号は再利用されません。お渡し済みの領収書は回収してください。</p>
+                        <input value={resplit.reason} maxLength={200} placeholder="理由（任意）" disabled={resplit.busy}
+                          onChange={(e) => setResplit((v) => ({ ...v, reason: e.target.value }))} style={{ ...t.input, width: "100%" }} />
+                        <div className="nox-actions" style={{ marginTop: 8 }}>
+                          <button style={{ ...btnDark, opacity: resplit.busy ? 0.6 : 1 }} disabled={resplit.busy}
+                            onClick={async () => {
+                              setResplit((v) => ({ ...v, busy: true })); setRcptMsg(null);
+                              const left: typeof rcptIssued = [];
+                              let failed: string | null = null;
+                              for (const r of rcptIssued) {
+                                if (failed) { left.push(r); continue; }
+                                const { error } = await supabase.rpc("receipt_issue_void", { p_issue_id: r.id, p_note: resplit.reason.trim() === "" ? null : resplit.reason.trim() });
+                                if (error) { failed = error.message; left.push(r); }
+                              }
+                              setRcptIssued(left);
+                              setResplit({ open: false, reason: "", busy: false });
+                              setRcptMsg(failed
+                                ? `領収書の取消に失敗しました: ${isBillingLocked(failed) ? BILLING_LOCKED_MSG : failed.includes("forbidden") ? "権限がありません（店長以上）" : failed}`
+                                : "領収書を取り消しました。金額を入れて発行し直せます");
+                            }}>{resplit.busy ? "取消中…" : "取り消して分け直す"}</button>
+                          <button style={btnLight} disabled={resplit.busy} onClick={() => setResplit({ open: false, reason: "", busy: false })}>やめる</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2094,6 +2159,13 @@ export default function RegisterBoard({
             閉じる
           </button>
         </Modal>
+      )}
+      {/* ★便 X-8-8: 領収書 QR の全画面表示（白背景・閉じる）。読み取り機／お客様のスマホに見せる用 */}
+      {qrFull && (
+        <div className="nox-qrfull" role="dialog" aria-modal="true" aria-label="領収書の確認用 QR" onClick={() => setQrFull(null)}>
+          <div className="nox-qrfull-qr" dangerouslySetInnerHTML={{ __html: renderSVG(qrFull, { border: 2 }) }} />
+          <button type="button" className="nox-qrfull-x" onClick={() => setQrFull(null)}>閉じる</button>
+        </div>
       )}
       {/* R2-c: 正式領収書の印字実体（画面非表示・印刷時のみ＝.nox-print-only。白地黒字は帳票専用）。
           発行済み（rcptIssued）を1枚=1ページで印字。R-番号・発行日＋取引日併記（R2-12）・
@@ -2188,6 +2260,8 @@ export default function RegisterBoard({
               </span>
             );
           })()}
+          {/* ★便 X-8-7 (a)（裁定306 の型）: 2 段目＝延長／合計／伝票取消（／合算）。PC は display: contents＝従来の 1 行の並びのまま・≤899px は 100% 幅の 1 段（横はみ出し 0） */}
+          <div className="nox-backbar-row2">
           {/* ★起票#48（裁定112 同乗）: manual 店の延長ボタンを backbar へ複製＝checks スナップ額の表示・
               check_extension_add 呼び（会計タブと同一経路）・入金後 disabled。会計タブ側カードは残置。
               ★#48b: 分割型＝本体は既定延長（現行）・「▾」は ext_menu_snap（開栓時凍結）の一覧から選択
@@ -2243,6 +2317,7 @@ export default function RegisterBoard({
           {reopenFlag && isManagerUp && check.status === "open" && !dayClosed && (
             <button onClick={() => { setMergeInto(""); setMergeReason(""); setMergeModal(true); }} style={btnLight}>合算</button>
           )}
+          </div>
         </div>
         {peopleMsg && <Toast msg={peopleMsg} style={{ margin: "6px 0 0" }} />}
         {/* E8-1c: 人数±の注記（person 制のみ＝table 制は人数が料金に効かないため出さない・嘘をつかない）。
@@ -2962,7 +3037,7 @@ export default function RegisterBoard({
               </div>
             );
           })()}
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table className="nox-olines" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>{/* ★便 X-8-7 (b): ≤899px は 1 行を 2 段に（.nox-olines） */}
             <tbody>
               {lines.map((l) => {
                 const isDisc = l.kind === "discount"; // ★F3c: 承認割引（正の値・表示は −・削除不可＝承認経由のみ）
@@ -2972,7 +3047,7 @@ export default function RegisterBoard({
                 return (
                   <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
                     {/* E8-1 ⑦ → E8-1b F5: バッジタップで付け替え（mig0091・time_auto/discount/入金後は非活性） */}
-                    <td style={{ padding: 6 }}>
+                    <td className="g" style={{ padding: 6 }}>
                       {splitOn && (
                         l.time_auto || isDisc || payments.length > 0 || check?.status !== "open" ? (
                           <span style={{ ...t.tag, fontSize: 10, color: "var(--sub)", borderColor: "var(--line2)" }}
@@ -2990,7 +3065,7 @@ export default function RegisterBoard({
                         )
                       )}
                     </td>
-                    <td style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>
+                    <td className="nm" style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>
                       {l.name_snapshot}
                       {/* R-2a-1: 指名料行は**対象キャスト名を併記**＝同じキャストに2行あるのか、
                           別々のキャストに1行ずつなのかを明細だけで判別できるようにする（表示のみ）。
@@ -3009,14 +3084,21 @@ export default function RegisterBoard({
                       )}
                     </td>
                     {/* E8-1b F1: person 制の時間行は「×N名」（qty=units=人数の意味を明示） */}
-                    <td style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>
+                    <td className="up" style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>
                       {isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}${l.kind === "time" && check?.time_per === "person" ? "名" : ""}`}
                     </td>
-                    <td style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
+                    <td className="am" style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
                       {isDisc ? `−${yen(l.line_total)}` : yen(l.line_total)}
                     </td>
                     {/* キャストドリンク列＝除外指定の行だけに出す（非除外は空セル＝既存行の見え方は不変） */}
-                    <td style={{ padding: 6 }}>
+                    <td className="cd" style={{ padding: 6 }}>
+                      {/* ★裁定314（便 X-8-10）: ボトル種商品の行に「キープ」→伝票の顧客から選択→bottle_keep_register→「キープ済み」。顧客未付与なら指名・席タブへ */}
+                      {l.kind === "bottle" && check && (
+                        <LineKeepButton storeId={check.store_id} checkId={check.id} lineId={l.id} productId={l.product_id} lineName={l.name_snapshot}
+                          lineCustomerId={l.customer_id} kept={keptLineIds.has(l.id)}
+                          onDone={async (text) => { setMsg({ to: MSG_DETAIL, kind: "ok", text }); await loadCheck(check.id); }}
+                          onNeedCustomer={() => setDtab("nom")} />
+                      )}
                       {isExempt && (claim ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
                           <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--champ)" }}>
@@ -3039,7 +3121,7 @@ export default function RegisterBoard({
                         </button>
                       ) : null)}
                     </td>
-                    <td style={{ padding: 6 }}>
+                    <td className="op" style={{ padding: 6 }}>
                       {isDisc ? (
                         <span style={{ fontSize: 11, color: "var(--sub)" }}>承認割引</span>
                       ) : l.time_auto ? (

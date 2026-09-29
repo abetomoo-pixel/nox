@@ -39,6 +39,12 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
     if (typeof window !== "undefined" && window.history.state?.noxSheet) { window.history.back(); return; }
     setSheet(false);
   };
+  // ★便 X-8-5（2026-09-29）: 行（カード）をタップして遷移するときは history.back() を呼ばない。
+  //   原因の切り分け＝行は <Link> 全面タップだったが、onClick の closeSheet が history.back() を呼び、Link の遷移（push）と競合して
+  //   iOS Safari では「戻る」が勝ち遷移しなかった（div onClick／overlay の pointer ではない）。
+  //   対処＝行は <Link replace>（シートが積んだ 1 段を行き先で置き換える）＋ここではシートを閉じるだけ。戻る 1 回で元のページに戻る。
+  //   今いるページの行を押したときは遷移が起きない＝従来どおり closeSheet（積んだ 1 段を戻して閉じる）。
+  const pickFromSheet = () => setSheet(false);
   useEffect(() => {
     const onPop = () => setSheet(false);
     window.addEventListener("popstate", onPop);
@@ -118,14 +124,14 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
             {menuGroups.map((g, gi) => (
               <div key={g.label ?? `s${gi}`} className="nox-navsheet-g">
                 {g.label && <div className="nox-navgroup-h">{g.label}</div>}
-                {g.items.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={closeSheet} />)}
+                {g.items.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={it.href === active ? closeSheet : pickFromSheet} replace />)}
               </div>
             ))}
             {/* ★306-11: 「設定」節（gear 群）＝≤899px の 歯車 はここから開く（ページ内パネルを差し込まない） */}
             {gearItems.length > 0 && (
               <div id="nox-sheet-settings" className="nox-navsheet-g">
                 <div className="nox-navgroup-h">{GEAR_LABEL}</div>
-                {gearItems.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={closeSheet} />)}
+                {gearItems.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={it.href === active ? closeSheet : pickFromSheet} replace />)}
               </div>
             )}
           </div>

@@ -2278,3 +2278,74 @@ body {
 .nox-grid3 p.nox-carddesc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nox-navrow .nox-navchev { flex: 0 0 auto; white-space: nowrap; }
 .nox-quicktile .nox-quickicon svg { width: 20px; height: 20px; }
+
+/* ── ★便 X-8（2026-09-29・裁定313／314／316・裁定306 の型）──────────────────────
+   X-8-2: 今日タブの行＝1 段（.nox-attrow＝セグメント＋打刻時刻＋送り＋退勤）・操作列＝.nox-rowops。
+   X-8-7: 伝票ヘッダーの 2 段目（.nox-backbar-row2）・明細（.nox-olines）。X-8-8: 領収書 QR（.nox-rcpt／.nox-qrfull）。
+   X-8-11／12: 承認待ち等の行カード（.nox-table.cardrows）・一括ボタン群（.nox-bulkops）・計画バー（.nox-planops）。
+   スマホ規則は screen に限定（A4 印刷のページ幅が 899px 未満でも印刷の表は崩さない）。白は帳票・QR 専用（画面の色トークンではない）。 */
+.nox-attrow { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.nox-attrow .sub { font-size: 10.5px; color: var(--v2-muted); white-space: nowrap; }
+.nox-attrow .out { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
+.nox-rowops { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.nox-rowops button { white-space: nowrap; }
+.nox-bulkops { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.nox-planops { margin-left: auto; display: inline-flex; gap: 8px; }
+.nox-backbar-row2 { display: contents; }
+.nox-checkcols > div { min-width: 0; }
+.nox-rcpt { border-top: 1px solid var(--line2); padding: 10px 0; display: grid; gap: 8px; }
+.nox-rcpt-h { display: flex; gap: 10px; align-items: baseline; justify-content: center; min-width: 0; }
+.nox-rcpt-qr { display: block; width: 240px; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 auto; padding: 8px; background: #fff; border: 0; border-radius: 8px; cursor: zoom-in; }
+.nox-rcpt-qr svg { width: 100%; height: 100%; display: block; }
+.nox-rcpt-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nox-rcpt-acts button { width: 100%; justify-content: center; }
+.nox-qrfull { position: fixed; inset: 0; z-index: 3000; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px; }
+.nox-qrfull-qr { width: min(86vw, 70vh); aspect-ratio: 1 / 1; }
+.nox-qrfull-qr svg { width: 100%; height: 100%; display: block; }
+.nox-qrfull-x { border: 1px solid #222; background: #fff; color: #111; border-radius: 10px; padding: 12px 28px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+@media print { .nox-qrfull { display: none; } }
+@media screen and (max-width: 899px) {
+  /* X-8-3: 出勤記録は 2 行折り返し（1 行目 セグメント／2 行目 打刻時刻・送り・退勤）・操作 2 ボタンは全幅縦積み */
+  .nox-attrow { display: grid; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 6px 10px; }
+  .nox-attrow > .nox-seg { grid-column: 1 / -1; }
+  .nox-attrow .out { margin-left: 0; }
+  .nox-rowops { display: flex; flex-direction: column; align-items: stretch; width: 100%; }
+  .nox-rowops button { width: 100%; justify-content: center; }
+  /* X-8-6: ヘッダー＝ロゴ＋店名／登録名｜役割／歯車（歯車を右端）。PC は現行の並び */
+  .nox-tb .acts .nox-userchip { order: 1; }
+  .nox-tb .acts .nox-hdrbtn:not(.nox-userchip) { order: 2; }
+  /* X-8-11: 行をカード化（1 段目 名前・日・時間・段階／2 段目 操作を 2 分割全幅）。縦書きに潰れない */
+  .nox-tablewrap:has(> .nox-table.cardrows) { border: 0; background: transparent; overflow: visible; }
+  .nox-table.cardrows, .nox-table.cardrows tbody { display: block; width: 100%; }
+  .nox-table.cardrows thead { display: none; }
+  .nox-table.cardrows tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 12px; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--card); }
+  .nox-table.cardrows tbody tr:hover { background: var(--card); }
+  .nox-table.cardrows td { display: block; padding: 0; border: 0; min-width: 0; }
+  .nox-table.cardrows td:first-child { font-weight: 800; }
+  .nox-table.cardrows td:empty { display: none; }
+  .nox-table.cardrows td.grp { flex: 0 0 100%; background: transparent !important; }
+  .nox-table.cardrows td.ops { flex: 0 0 100%; margin-top: 6px; }
+  .nox-table.cardrows td.ops .nox-rowops { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+  .nox-table.cardrows td.ops .nox-rowops button { width: 100%; justify-content: center; white-space: nowrap; }
+  .nox-bulkops { margin-left: 0; width: 100%; justify-content: flex-start; }
+  /* X-8-12: 「作る」タブ＝計画バーの 3 ボタンは縦積み全幅・「希望を処理」は全幅センター */
+  .nox-planops { margin-left: 0; width: 100%; display: flex; flex-direction: column; }
+  .nox-planops button { width: 100%; justify-content: center; }
+  .nox-alert-act { width: 100%; justify-content: center; }
+  /* X-8-7 (a): 伝票ヘッダー＝1 段目（← フロア・卓名・人数・滞在・延長回数）は折り返し可／2 段目（延長・合計・伝票取消）は 100% 幅の中・タブは 3 等分 */
+  .nox-checkview { padding: 10px; }
+  .nox-backbar { gap: 6px 8px; }
+  .nox-backbtn { padding: 8px 12px; font-size: 13px; }
+  .nox-backbar .stay { white-space: normal; }
+  .nox-backbar-row2 { display: flex; flex: 0 0 100%; min-width: 0; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .nox-backbar-row2 button { white-space: normal; text-align: left; min-width: 0; }
+  .nox-backbar-row2 .total { margin-left: auto; }
+  .nox-dtabs button { flex: 1 1 0; min-width: 0; text-align: center; justify-content: center; }
+  /* X-8-7 (b): 明細＝2 段（品名全幅＋適用注記小字／会計バッジ・単価×数量・金額・キープ・削除を右寄せ）。品名は縦書きに潰れない */
+  .nox-olines, .nox-olines tbody { display: block; width: 100%; }
+  .nox-olines tr { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 2px 8px; padding: 7px 0; }
+  .nox-olines td { display: block; padding: 0 !important; min-width: 0; }
+  .nox-olines td:empty { display: none; }
+  .nox-olines td.nm { order: -1; flex: 0 0 100%; overflow-wrap: anywhere; }
+  .nox-olines td.g { margin-right: auto; }
+}

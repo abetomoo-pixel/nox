@@ -224,7 +224,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
         </div>
 
         <div className="nox-tablewrap">
-          <table className="nox-table">
+          <table className="nox-table cardrows">{/* ★X-8-11: ≤899px は行をカード化（shift-board の承認待ちと同型） */}
             <thead><tr><th>スタッフ</th><th>枠</th><th>時間</th><th>状態</th><th>操作</th></tr></thead>
             <tbody>
               {list.map((s) => {
@@ -240,8 +240,8 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
                       {differs && <span style={{ fontSize: 10.5, color: "var(--gold2)", marginLeft: 6 }}>（枠 {cur!.start_hm}〜{fmtEnd30(cur!.end_hm)}）</span>}
                     </td>
                     <td><span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "var(--gold-bd)" } : undefined}>{ST[s.status] ?? s.status}</span></td>
-                    <td>
-                      <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+                    <td className="ops">
+                      <span className="nox-rowops">
                         {/* ★便 X2-2: 一覧にも「取消」（Danger 左＝裁定244・過去日と RPC 未適用は出さない・confirmed は理由モーダル）→「時刻を上書き」→「確定」 */}
                         {cancelRpc !== "missing" && canCancel(s, bizToday) && (
                           <button type="button" style={{ ...btnLight, border: "1px solid var(--bad)", color: "var(--bad)" }} disabled={busy || cancelRpc !== "ok"} onClick={() => openCancel(s)}>取消</button>
