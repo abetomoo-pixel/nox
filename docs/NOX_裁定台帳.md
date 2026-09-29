@@ -3890,6 +3890,28 @@ suite messages ms(2-6)（payoutDiffNoteOf／paymentMethodLabelOf の純関数＋
 適用（API・client 側）＝便 X-8-13（2026-09-29）: lib/nox/payroll/finalize-guard.ts（純関数 finalizeGuardOf＝period_end < 今日の営業日のときだけ ok・文言「期間終了（M/D）の翌日から確定できます」）。app/api/payroll/finalize/route.ts は run_create の前に resolvePayrollWindow の periodEnd と bizDateOf(now, 店の biz_cutoff_hm) を比べ、未終了なら 400 'period not ended'（run を作らない）。payroll-board は確定ボタンを無効化し同じ文言を表示（プレビューは従来どおり可）。rpcErrJa に 'period not ended'。
 DB 側（payroll_finalize のガード）＝0158。★0158 で DB ガードを入れると、verify-nox-payroll 等の fixture 期間（P＝2026-09 ほか未来期）で admin 直呼びの payroll_finalize が拒否される＝0158 の起草時に suite の期間を過去期へ寄せる／ガードの判定日を引数化する要検討（起草判断の材料）。
 
+## 裁定317（本便で確定・Agoora・2026-09-29）退勤の送りは金額ダイアログで即時発行・締め前モーダルは確認＋未発行の残り
+
+出典＝Agoora 指示（2026-09-29・便 X-9-1 で収載）。**本文（逐語）**:
+「裁定317 退勤の送りは『送り』押下→金額ダイアログ（既定＝店設定 okuri_base_amount、無ければ同 cast の直近 transport 額、無ければ空欄必須）→変更可→確定で退勤打刻（p_okuri=true）＋transport_issue_bulk 1 件（idem＝punch id）を即時発行。日報締め前モーダルは『発行済み n 件・合計 ¥m』の確認＋未発行の残りのみ。店設定 okuri_base_amount の白名単は 0158」
+
+適用＝便 X-9-3（2026-09-29・client のみ・DB 恒久変更 0・RPC 追加 0）:
+(a) /shift 今日タブ（owner／manager の退勤）＝出勤記録セルの「退勤」の隣に「送り」（okuri_mode='actual' の店のみ・退勤と同じ活性条件）→ 金額ダイアログ（components/nox/okuri-out-dialog.tsx・既定＝lib/nox/shift/okuri-default.ts okuriDefaultAmountOf＝店設定 okuri_base_amount → 同 cast の直近 transport 額 → 空欄必須）→ 確定＝punch_proxy('out', p_okuri=true) → 戻りの punch id を p_idem_key にして transport_issue_bulk（1 件）。打刻成功・発行失敗は「退勤は記録しました。送りは未発行です」を表示＝okuri_today_summary（未発行のみ）に残り、締め前モーダルで発行できる。
+(b) 日報の締め前モーダル＝「発行済み n 件・合計 ¥m」（当日営業日の transport・cancelled 除外）の確認＋未発行の残り（okuri_today_summary）の金額入力（現行）。actual 店で発行済み／未発行のどちらかが 1 件以上あれば開く。
+(c) ★/mine（cast 本人の退勤）と kiosk 打刻は、本便では金額ダイアログ→即時発行を実装できない＝停止して報告:
+  transport_issue_bulk は owner／manager 自店のみ（0157・'forbidden'）＝cast／kiosk からは必ず失敗する。kiosk は okuri_mode を読む経路も無い（起票87）。RPC 追加 0 の便では器が無い。
+  /mine は現行（便 V）の「送り あり／なし」→ punch_self(p_okuri) のまま、あり のときは「送りの金額は店が締めのときに確定します」を表示（未発行として締め前モーダルに残る＝317 の失敗時の扱いと同じ帰結）。kiosk は現行どおり送りの口なし。
+  0158 で (1) cast／kiosk からの送り発行の器（例: punch_self／kiosk_punch に p_okuri_amount を足し同 tx で transport を作る・または cast 自己発行 RPC）(2) kiosk_register_state／kiosk 打刻側に okuri_mode・okuri_base_amount（起票87）(3) okuri_base_amount の白名単、を起草判断にかける。
+
+## 裁定318（本便で確定・Agoora・2026-09-29）時刻入力は HHMM／HH:MM／H:MM／HH を受けて HH:MM に正規化
+
+出典＝Agoora 指示（2026-09-29・便 X-9-1 で収載）。**本文（逐語）**:
+「裁定318 時刻入力は HHMM／HH:MM／H:MM／HH を受けて HH:MM に正規化（翌日 24〜47 も同様）・スマホは inputmode=numeric」
+
+適用＝便 X-9-2（2026-09-29・client のみ）: lib/nox/time/hhmm.ts（純関数 normalizeHHMM＝HHMM／HH:MM／H:MM／HH（＋HMM＝900→09:00）→'HH:MM'・0〜47 時・全角の数字とコロンは半角へ・不正は null／HM_FORMAT_ERR＝「時刻の形式が不正です（例 2000・20:00）」）＋共通部品 components/ui/hm-input.tsx（blur 時に正規化表示・inputmode=numeric・maxLength 5）。
+置換した自由入力の時刻欄＝打刻修正（components/nox/punch-correction-modal.tsx／app/mine/punch-correction-form.tsx）・確定シフトの時間（shift-board 調整モーダル タブ②）・必要人数の時間帯（shift-board）・その日に追加（day-add-panel）・シフト追加（shift-add-form）・希望提出（mine/wishes/wish-form）・遅刻連絡の出勤見込み（mine/attendance-form）。input type=time の欄（営業時間・料金帯・スタッフ枠・予約）は OS の時刻ピッカーのため対象外。
+検証は正規化後＝requestArgsOf（打刻修正）は内部で正規化してから ISO 化（'9:00'・'2000' も通る）。旧文言「時刻は HH:MM（00:00〜47:59）で入力してください」「時間は HH:MM 形式で入力してください」は HM_FORMAT_ERR に統一。
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
