@@ -3939,6 +3939,40 @@ DB 側（payroll_finalize のガード）＝0158。★0158 で DB ガードを�
 「取消して分け直す」（便 X-8-9）が成功したら、この分割 UI を 2 行で開く。
 
 
+## 裁定321（本便で確定・Agoora・2026-09-29）レジ顧客カードの「新規登録して追加」
+
+出典＝Agoora 指示（2026-09-29・便 X-11-1 で収載）。**本文（逐語）**:
+「裁定321 レジ顧客カードに『新規登録して追加』＝名前必須・ふりがな・電話任意→customer_register→check_customer_add で伝票に付ける。権限はレジ操作可の role。詳細は /customers で後編集」
+
+適用＝便 X-11-2／X-11-2b／X-11-3（2026-09-29・client のみ・DB 恒久変更 0・RPC 追加 0）: components/nox/check-customers-card.tsx。
+- 「新規登録して追加」→ インライン入力（名前必須 1〜80 字・ふりがな・電話）→ customer_register → 戻りの id で check_customer_add → 「○○ を登録して付けました」。登録は通ったが追加に失敗したときはその旨を出す。kiosk レジは対象外。
+- ★権限の差: customer_register（0023／0088）は owner／manager／顧客権限のある staff（auth_staff_can_crm）だけ。本文の「レジ操作可の role」（レジ権限のみの staff・レジ可の cast）は RPC が 'forbidden' を返す＝文言「登録する権限がありません」を出す。RPC のゲートを can_register に広げるかは 0158 以降の起草判断（起票候補）。
+- 候補表示（X-11-2b）: 検索欄が空＝一覧は出さず「最近来店 5 人」「担当キャストの顧客（伝票の指名キャストが担当・5 人まで）」。1 文字以上で名前／ふりがな／電話の部分一致・最終来店日の降順・10 件＋「さらに表示」。0 件のときは「新規登録して追加」を主ボタンに。
+  材料＝customers の直読（tel を含む）＋ customer_list_summary(p_include_dormant=true) の戻り（last_visit・cast_id・visits。戻りに電話は無いため電話の一致は customers.tel で見る）。純関数 lib/nox/register/customer-candidates.ts。
+- X-11-3（外す→同じ顧客を追加できない件）: live の RPC は 13 通りすべて成功（外す＝物理削除・unique は (check_id, customer_id) と (check_id, position)・再追加を拒む作りではない＝docs/tmp/q0929_cust_readd.mjs・BEGIN…ROLLBACK）。
+  client は「選択→追加」の 2 段（共通 Picker で選んでから「追加」）で、9 人以上では一覧が畳まれ、結果の文言はカード最下部（誰の注文・キープ出しの下）に出ていた＝押したあとの成否が見えにくい。
+  対処＝候補の行から直接「追加」・文言は追加欄の直下・キーボード ↑↓／Enter。
+
+## 裁定322（本便で確定・Agoora・2026-09-29）レジのキャスト選択の共通の並びと表示
+
+出典＝Agoora 指示（2026-09-29・便 X-11-5 で収載）。**本文（逐語）**:
+「レジのキャスト選択（裁定322）: 指名タブ一覧・商品を付けるキャストのモーダル・キープ／紹介の選択で共通の並びと表示＝①接客中／場内／着卓中 → ②出勤中（in 打刻あり・out なし） → ③未出勤（シフトあり） → ④未出勤。各群は名前順。①②は『出勤中』バッジ、③④はグレー＋『未出勤』ラベルで既定折りたたみ『未出勤を表示（n 人）』。モーダルの既定タブは『出勤中』。判定は当日の punches と確定シフトを既存の読取で。並び関数は lib に 1 本（castPickerOrder）で共有。」
+
+適用＝便 X-11-5（2026-09-29・client のみ）: lib/nox/register/cast-picker-order.ts（castPickerOrder／castPickGroupOf／offDutyToggleLabelOf）＋ components/nox/cast-picker.tsx の grouped・shiftIds。register-board の指名タブ一覧と「商品を付けるキャスト」モーダル（既定チップ＝出勤中）に適用。検索中は未出勤も一緒に出す。
+- 裁定107（並びは名前順固定）は、grouped を渡した面についてこの裁定で置き換え（群の中だけ名前順）。grouped を渡さない面（シフト追加・予約・kiosk レジ）は従来どおり名前順。
+- 確定シフトの読取は register-board に無かったため、attendance を読む effect に 1 本足した（shifts・当日営業日・status='confirmed'・cast_id のみ）。
+- ★キープ／紹介の選択は対象がキャストではない（キープ＝顧客とボトル商品・紹介＝マスタ「紹介者」referrers）＝並びの適用対象なし。紹介者にキャストを結ぶ列は無い。
+
+## 裁定323（本便で確定・Agoora・2026-09-29）在庫の棚卸しは一覧型
+
+出典＝Agoora 指示（2026-09-29・便 X-11-7 で収載）。**本文（逐語）**:
+「在庫 棚卸し（裁定323）: 一覧型＝在庫管理ありの有効商品のみ（在庫を持たない商品＝在庫列 null／管理フラグ off は出さない）をカテゴリ順に全行（商品名・現在庫・実数入力・差分）、検索欄は絞り込み、実数を入れた行だけ『n 件を記録』で一括（既存の棚卸し RPC を行ごと・失敗行で停止・記録後は差分 0）。無効商品は『無効も表示』トグル。商品ページの『入荷』（増減）は現行のまま＝役割を注記で分ける（入荷・返品＝商品ページ／実数で置き換え＝在庫ページ）。在庫管理の判定列が無ければ『在庫数 null＝管理なし』で代用し、判定に使った列を報告。」
+
+適用＝便 X-11-7（2026-09-29・client のみ）: app/(manage)/master/stock/stock-board.tsx の「検索して 1 件選択」（ProductCombo）を撤去し一覧型へ。純関数 lib/nox/stock/stocktake.ts（stocktakeRowsOf／stocktakePlanOf／isStockManaged）。
+- 在庫管理の判定＝products に管理フラグの列は無い → **product_stock_totals の戻りに行がある商品（＝stock_logs に 1 行以上ある商品）** を「管理あり」とした（在庫数が無い＝管理なし）。入荷の記録が無い商品は一覧に出ず、件数だけ注記する。
+- 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
+
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
