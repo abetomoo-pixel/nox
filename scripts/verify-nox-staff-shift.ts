@@ -335,6 +335,9 @@ async function main() {
         check("ss(9e) ★過去日の行は 'biz_date_past'（override と同じ判定）", has(c4.error, "biz_date_past"), c4.error?.message ?? "通ってしまった");
         const pr3 = await mgr.rpc("staff_shift_propose", { p_store_id: storeA1, p_staff_id: staffMid, p_biz_date: D12, p_pattern_id: P9, p_wish_id: null });
         const id3 = pr3.data as string;
+        // ★便 X-8-15（2026-09-29）: 3 回目の propose が失敗すると id3 が null になり、後続の ss(9f)／(9h) が 'invalid_input' で赤になる（9/29 f0 run 2）。
+        //   原因の文言を握り潰さない＝失敗時は propose の戻りをそのまま出して停止する（後続の判定は意味を持たない）。
+        if (pr3.error || !id3) throw new Error(`ss(9f) 前提: 3 回目の staff_shift_propose が失敗: ${pr3.error?.message ?? "id が返らない"}（code ${pr3.error?.code ?? "-"}・details ${pr3.error?.details ?? "-"}）`);
         const c5 = await staff.rpc("staff_shift_cancel", { p_id: id3, p_reason: null });
         const c6 = await cast.rpc("staff_shift_cancel", { p_id: id3, p_reason: null });
         const c7 = await anon.rpc("staff_shift_cancel", { p_id: id3, p_reason: null });
