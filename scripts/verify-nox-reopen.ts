@@ -33,7 +33,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { randomUUID } from "node:crypto";
-import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
+import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit, endedRuns } from "./fixtures-f0"; // ★起票88: 確定の直前に run を「終了済み」にする（0158 ★3 の確定ガード）
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -202,7 +202,7 @@ async function main() {
       const { data: rc, error: eRc } = await mgr.rpc("payroll_run_create", { p_store_id: storeA1, p_period: PERIOD });
       runId = ((rc ?? [])[0] as { id: string } | undefined)?.id ?? null;
       const ps = [{ cast_id: castA, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [], adv_carried: [], okuri_deducted: [] }];
-      const { error: eFin } = await admin.rpc("payroll_finalize", { p_org_id: orgA, p_actor: mgrUserId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: ps });
+      const { error: eFin } = await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgA, p_actor: mgrUserId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: ps });
       check("ro(3a-4) 準備: payroll run 2031-03 を finalize", !eRc && !!runId && !eFin, eRc?.message ?? eFin?.message);
       const r4 = await admin.rpc("payroll_reopen", { p_org_id: orgA, p_actor: mgrUserId, p_run_id: runId, p_idem_key: randomUUID(), p_reason: REASON });
       check("ro(3a-5) ★flag off: payroll_reopen（service）は feature_disabled:reopen_flow", has(r4.error, "feature_disabled:reopen_flow"), r4.error?.message ?? "通ってしまった");

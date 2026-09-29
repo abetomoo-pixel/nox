@@ -1,6 +1,40 @@
 // F0 verify 用の固定フィクスチャ定義（seed:f0 と verify:* で共有）。
 // dev 専用・本番環境では使わない（CLAUDE.md 規約）。
 
+// ★起票88（裁定316・0158 ★3）: payroll_finalize は「期間終了の翌営業日から」＝run の period_end（凍結値・無ければ period_bounds）が今日の営業日以降だと 'period not ended'。
+//   verify の fixture は未来月・当月の run を確定する段が多い（待遇プランの有効開始日・曜日・他 suite との期の住み分けに依存）＝期の文字列は据え置き、
+//   確定の直前に run の凍結値 period_start／period_end を過去日（2000-01-01）に置いて「終了済みの run」にする。finalize が成功すれば凍結値は本来の月初・月末で上書きされる。
+//   同キーの再送（冪等リプレイ）と paid の run には触らない。finalize が失敗したら元の値へ戻す。ガードそのものの検証は verify:nox-0158（段 3-1〜3-4）が持つ。
+export const ENDED_RUN_DATE = "2000-01-01";
+/** pg 直結の suite 用: 確定の直前に流す（$1＝run id） */
+export const ENDED_RUN_SQL = `update public.payroll_runs set period_start = '${ENDED_RUN_DATE}', period_end = '${ENDED_RUN_DATE}' where id = $1 and status <> 'paid'`;
+type RpcResult = { data: unknown; error: { message: string } | null };
+type RunRow = { status: string; finalize_idem_key: string | null; period_start: string | null; period_end: string | null };
+/** supabase-js の service クライアント用: rpc("payroll_finalize") だけを包む（他の呼び出しは素通し） */
+export function endedRuns<T extends object>(client: T): T {
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      const v = Reflect.get(target, prop, receiver) as unknown;
+      if (typeof v !== "function") return v;
+      const fnv = v as (...a: unknown[]) => unknown;
+      if (prop !== "rpc") return fnv.bind(target);
+      return (fn: string, args?: Record<string, unknown>, opts?: unknown) => {
+        if (fn !== "payroll_finalize" || !args || typeof args.p_run_id !== "string") return fnv.call(target, fn, args, opts);
+        const c = target as unknown as { from: (t: string) => { select: (s: string) => { eq: (k: string, v: unknown) => { maybeSingle: () => Promise<{ data: RunRow | null }> } }; update: (v: Record<string, unknown>) => { eq: (k: string, v: unknown) => Promise<unknown> } } };
+        return (async () => {
+          const { data: run } = await c.from("payroll_runs").select("status, finalize_idem_key, period_start, period_end").eq("id", args.p_run_id).maybeSingle();
+          const replay = run?.status === "finalized" && run.finalize_idem_key === args.p_idem_key;
+          const touch = !!run && run.status !== "paid" && !replay;
+          if (touch) await c.from("payroll_runs").update({ period_start: ENDED_RUN_DATE, period_end: ENDED_RUN_DATE }).eq("id", args.p_run_id);
+          const res = (await fnv.call(target, fn, args, opts)) as RpcResult;
+          if (touch && res.error && run) await c.from("payroll_runs").update({ period_start: run.period_start, period_end: run.period_end }).eq("id", args.p_run_id);
+          return res;
+        })();
+      };
+    },
+  }) as T;
+}
+
 export const ORG_A = "NOX-VERIFY-A";
 export const ORG_B = "NOX-VERIFY-B";
 export const STORE_A1 = "NOX-VERIFY-A1";

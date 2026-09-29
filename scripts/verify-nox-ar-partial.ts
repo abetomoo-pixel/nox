@@ -26,7 +26,7 @@
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
-import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
+import { FIXTURE_USERS, STORE_A1, loadEnvOrExit, endedRuns } from "./fixtures-f0"; // ★起票88: 確定の直前に run を「終了済み」にする（0158 ★3 の確定ガード）
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -256,7 +256,7 @@ async function main() {
     //   ★adversarial 検証済み: この assertion の期待値を旧式上限（amount のみ＝超過を成功扱い）へ
     //     一時改変して実行し、スイートが赤くなることを確認してから復元した（改変痕跡は残していない）。
     const overAmt = C.amount - 3000 + 1; // 旧上限（amount）以下・新上限（amount−collected）超＝新旧で判定が割れる境界値
-    const { error: e9 } = await admin.rpc("payroll_finalize", {
+    const { error: e9 } = await endedRuns(admin).rpc("payroll_finalize", {
       p_org_id: sA1.org_id, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: payslips(overAmt),
     });
     const s9 = await recvState(C.recvId);
@@ -267,7 +267,7 @@ async function main() {
 
     // (10) 残額ちょうどの天引き → 'deducted'（新 v_full＝deducted+collected=amount）
     const exactAmt = C.amount - 3000;
-    const { error: e10 } = await admin.rpc("payroll_finalize", {
+    const { error: e10 } = await endedRuns(admin).rpc("payroll_finalize", {
       p_org_id: sA1.org_id, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: payslips(exactAmt),
     });
     const s10 = await recvState(C.recvId);

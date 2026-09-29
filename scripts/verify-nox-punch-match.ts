@@ -341,7 +341,7 @@ async function dbChecks() {
         await t.as(castA, `select public.punch_correction_request($1,null,$2::date,'in',null,$3)`, [castAId, biz, "x"]),
         await t.as(castA, `select public.punch_correction_request($1,$2,$3::date,null,$4::timestamptz,$5)`, [castAId, pInB, biz, newIn, "x"]),
       ].map(t.errOf);
-      check("pm(9-3) 'reason required'／他人 'forbidden'／staff 非本人 'forbidden'／確定済み期 'period finalized'／窓外 'out of biz window'／kind 不一致 'bad type'／新規かつ削除 'invalid_input'／他人の punch 'punch not found'", JSON.stringify(e) === JSON.stringify(["reason required", "forbidden", "forbidden", "period finalized", "out of biz window", "bad type", "invalid_input", "punch not found"]), e.join(" / "));
+      check("pm(9-3) 'reason required'／他人 'forbidden'／staff 非本人 'forbidden'／★0158（裁定315）確定済み期（2098-06 finalized）の申請は通る（pending 1 行）／窓外 'out of biz window'／kind 不一致 'bad type'／新規かつ削除 'invalid_input'／他人の punch 'punch not found'", JSON.stringify(e) === JSON.stringify(["reason required", "forbidden", "forbidden", "(no error)", "out of biz window", "bad type", "invalid_input", "punch not found"]), e.join(" / "));
       check("pm(9-4) pending の ack→'not decided'", t.errOf(await t.as(castA, `select public.punch_correction_ack($1,'confirmed')`, [id1])) === "not decided");
       const d1 = await t.as(mgr, `select public.punch_correction_decide($1,false,null)`, [id1]), d2 = await t.as(staffU, `select public.punch_correction_decide($1,true,null)`, [id1]), d3 = await t.as(castA, `select public.punch_correction_decide($1,true,null)`, [id1]);
       check("pm(9-5) rejected は理由必須 'reason required'・staff／cast の decide は 'forbidden'", t.errOf(d1) === "reason required" && t.errOf(d2) === "forbidden" && t.errOf(d3) === "forbidden", [d1, d2, d3].map(t.errOf).join(" / "));
@@ -367,7 +367,7 @@ async function dbChecks() {
       const an = [await t.as("anon", `select public.punch_correction_request($1,null,$2::date,'in',$3::timestamptz,'x')`, [castAId, biz, newIn]), await t.as("anon", `select public.punch_correction_decide($1,true,null)`, [id1]), await t.as("anon", `select public.punch_correction_ack($1,'confirmed')`, [id1]), await t.as("anon", `select public.punch_correction_apply($1,null)`, [id1]), await t.as(owner, `select public.punch_correction_apply($1,null)`, [id1])];
       check("pm(9-11) anon は 3 本とも permission denied・apply は anon／owner（authenticated）とも permission denied（内部専用）", an.every((x) => !x.ok && /permission denied/.test(x.err)), an.map(t.errOf).join(" / "));
       const rls = [await t.as(castA, `select count(*)::int n from public.punch_corrections`), await t.as(castB, `select count(*)::int n from public.punch_corrections`), await t.as(mgr, `select count(*)::int n from public.punch_corrections`), await t.as(staffU, `select count(*)::int n from public.punch_corrections`)].map((r) => (r.ok ? r.rows[0].n : r.err));
-      check("pm(9-12) RLS: cast A1a＝自分の 2 行・cast A1b＝0・manager＝2・staff＝0", JSON.stringify(rls) === JSON.stringify([2, 0, 2, 0]), rls.join(" / "));
+      check("pm(9-12) RLS: cast A1a＝自分の 3 行（★0158: 確定済み期の申請 1 行が増える）・cast A1b＝0・manager＝3・staff＝0", JSON.stringify(rls) === JSON.stringify([3, 0, 3, 0]), rls.join(" / "));
       // owner／manager 直接＝申請＝確定・1 行（新規 insert／削除）
       const newOut = new Date(new Date(outAt).getTime() + 3600e3).toISOString();
       const puN0 = (await t.one<{ n: number }>(`select count(*)::int n from public.punches where cast_id=$1`, [castAId])).n;
@@ -378,7 +378,11 @@ async function dbChecks() {
       const o2 = await t.as(mgr, `select public.punch_correction_request($1,$2,$3::date,null,null,$4) id`, [castAId, pOut, biz, "重複"]);
       const o2row = o2.ok ? await t.one<{ punch_id: string | null; before_at: string | null; decision: string }>(`select punch_id, before_at, decision from public.punch_corrections where id=$1`, [o2.rows[0].id]) : null;
       check("pm(9-14) manager の削除申請→approved・punches −1（元 out 行が消える）・punch_id は SET NULL・before_at は残る（295-4）", o2.ok && o2row?.decision === "approved" && o2row?.punch_id === null && o2row?.before_at !== null && (await t.one<{ n: number }>(`select count(*)::int n from public.punches where id=$1`, [pOut])).n === 0 && (await t.one<{ n: number }>(`select count(*)::int n from public.punches where cast_id=$1`, [castAId])).n === puN0, t.errOf(o2));
-      check("pm(9-15) owner でも確定済み期（2098-07 paid）は 'period finalized'", t.errOf(await t.as(owner, `select public.punch_correction_request($1,null,'2098-07-10'::date,'in','2098-07-10T20:00:00+09:00'::timestamptz,'x')`, [castAId])) === "period finalized");
+      // ★0158（裁定315）: 確定済み・支払済み期の打刻修正は通る（凍結給与は不変）＝owner の申請は即 approved・punches に反映・その run の要対応（payroll_attentions）に 1 行
+      const o15 = await t.as(owner, `select public.punch_correction_request($1,null,'2098-07-10'::date,'in','2098-07-10T20:00:00+09:00'::timestamptz,'x') id`, [castAId]);
+      const at15 = o15.ok ? await t.q<{ kind: string; period: string; status: string; cid: string }>(`select a.kind, r.period, r.status, a.detail->>'correction_id' cid from public.payroll_attentions a join public.payroll_runs r on r.id = a.run_id where a.cast_id = $1`, [castAId]) : [];
+      check("pm(9-15) ★0158: owner の支払済み期（2098-07 paid）の打刻修正は通る（approved）・payroll_attentions 1 行（kind post_finalize_punch・run 2098-07・correction_id 一致）・'period finalized' は出ない", o15.ok && at15.length === 1 && at15[0].kind === "post_finalize_punch" && at15[0].period === "2098-07" && at15[0].status === "paid" && at15[0].cid === (o15.rows[0].id as string), t.errOf(o15) + JSON.stringify(at15));
+      await t.q(`delete from public.payroll_attentions where cast_id = $1`, [castAId]); // 後段の casts delete（295-7）の前に片付ける（payroll_attentions.cast_id は cascade しない）
       // casts delete で連鎖（295-7＝demo c_wipe の順 punches→casts）
       const castT = (await t.one<{ id: string }>(`insert into public.casts (org_id, store_id, name, employment) values ($1,$2,'NOX-VERIFY-pm 連鎖','委託') returning id`, [st.org_id, st.id])).id;
       const o4 = await t.as(owner, `select public.punch_correction_request($1,null,$2::date,'in',$3::timestamptz,'連鎖テスト') id`, [castT, biz, newIn]);

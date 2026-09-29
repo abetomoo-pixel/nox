@@ -25,8 +25,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import {
   ORG_A, ORG_B, STORE_A1, STORE_A2, STORE_B1, FIXTURE_USERS, FIXTURE_CUSTOMERS, loadEnvOrExit,
-  type FixtureUserKey,
-} from "./fixtures-f0";
+  type FixtureUserKey, endedRuns } from "./fixtures-f0"; // ★起票88: 確定の直前に run を「終了済み」にする（0158 ★3 の確定ガード）
 import { allocateQty, productBackOf, type Product, type NomType } from "../lib/nox/pay";
 import { addDays, bizDateOf } from "../lib/nox/biz-date";
 import { groupDue } from "../lib/nox/check-calc";
@@ -1472,7 +1471,7 @@ async function main() {
     {
       const { data: rcP } = await m.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2029-12" });
       const runP = ((rcP ?? [])[0] as { id: string }).id;
-      const { error: eFinP } = await admin.rpc("payroll_finalize", {
+      const { error: eFinP } = await endedRuns(admin).rpc("payroll_finalize", {
         p_org_id: orgAId, p_actor: actorId, p_run_id: runP, p_idem_key: randomUUID(),
         p_payslips: [{ cast_id: castIdA, net: 10_000, breakdown: { pay: { net: 10_000 }, extras: [] } }],
       });
@@ -1545,14 +1544,14 @@ async function main() {
     await m.auth.signOut();
 
     // ── ② クロス org finalize 拒否（p_org_id 不一致＝org 照合が先）──
-    const { error: eXorg } = await svc.rpc("payroll_finalize", {
+    const { error: eXorg } = await endedRuns(svc).rpc("payroll_finalize", {
       p_org_id: randomUUID(), p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: [ps(castIdA, 1)],
     });
     check("F2c finalize クロス org 拒否（p_org_id 不一致→forbidden）", !!eXorg?.message?.includes("forbidden"), eXorg?.message ?? "通ってしまった");
 
     // ── ③ 正常 finalize（2件・原子的 insert・net 凍結・窓凍結）──
     const idem1 = randomUUID();
-    const { data: fc1, error: eF1 } = await svc.rpc("payroll_finalize", {
+    const { data: fc1, error: eF1 } = await endedRuns(svc).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: idem1, p_payslips: [ps(castIdA, 100_000), ps(castIdB, 80_000)],
     });
     check("F2c finalize 成功（cast_count=2）", !eF1 && fc1 === 2, eF1?.message ?? `got ${fc1}`);
@@ -1570,13 +1569,13 @@ async function main() {
       bjA?.pay?.net === 100_000 && Array.isArray(bjA?.extras) && bjA?.extras.length === 0, JSON.stringify(bjA));
 
     // ── ④ 冪等（同一 idem_key・finalized 済み → 既存件数を返す）──
-    const { data: fRep, error: eRep } = await svc.rpc("payroll_finalize", {
+    const { data: fRep, error: eRep } = await endedRuns(svc).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: idem1, p_payslips: [ps(castIdA, 100_000), ps(castIdB, 80_000)],
     });
     check("F2c finalize 冪等（同一キー・finalized → 既存件数 2）", !eRep && fRep === 2, eRep?.message ?? `got ${fRep}`);
 
     // ── ⑤ 空配列拒否（delete が走らない＝既存明細温存）──
-    const { error: eEmpty } = await svc.rpc("payroll_finalize", {
+    const { error: eEmpty } = await endedRuns(svc).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: [],
     });
     check("F2c 空配列拒否（empty payslips）", !!eEmpty?.message?.includes("empty payslips"), eEmpty?.message ?? "通ってしまった");
@@ -1585,7 +1584,7 @@ async function main() {
 
     // ── ⑥ 混入除去（他店/不存在 cast_id は casts join で除去）──
     const bogus = randomUUID();
-    const { data: fInj, error: eInj } = await svc.rpc("payroll_finalize", {
+    const { data: fInj, error: eInj } = await endedRuns(svc).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: [ps(castIdA, 100_000), ps(bogus, 999_999)],
     });
     check("F2c 混入除去: 不存在 cast は casts join で除去（cast_count=1）", !eInj && fInj === 1, eInj?.message ?? `got ${fInj}`);
@@ -1601,7 +1600,7 @@ async function main() {
       [...arr].sort((a, b) => a.cast_id.localeCompare(b.cast_id)).map((r) => `${r.cast_id}|${r.net}|${JSON.stringify(r.breakdown)}`).join(";");
 
     const idem2 = randomUUID();
-    const { data: fRe, error: eRe } = await svc.rpc("payroll_finalize", {
+    const { data: fRe, error: eRe } = await endedRuns(svc).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: idem2, p_payslips: [ps(castIdA, 111_000), ps(castIdB, 82_000)],
     });
     check("F2c 再確定（未paid・別キー）成功（cast_count=2 差し替え）", !eRe && fRe === 2, eRe?.message);
@@ -1681,7 +1680,7 @@ async function main() {
     const { data: mkRep } = await svc.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: idemPaid });
     check("F2c mark_paid 冪等（同一キー→paid）", mkRep === "paid", `got ${mkRep}`);
     // paid 済み再確定拒否
-    const { error: ePaidF } = await svc.rpc("payroll_finalize", {
+    const { error: ePaidF } = await endedRuns(svc).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: [ps(castIdA, 1)],
     });
     check("F2c paid 済み再確定拒否（run paid）", !!ePaidF?.message?.includes("run paid"), ePaidF?.message ?? "通ってしまった");
@@ -1877,14 +1876,16 @@ async function main() {
     {
       const { data: rcP } = await m.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2028-03" });
       const runP = ((rcP ?? [])[0] as { id: string }).id;
-      await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runP, p_idem_key: randomUUID(),
+      await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runP, p_idem_key: randomUUID(),
         p_payslips: [{ cast_id: castIdA, net: 0, breakdown: { pay: { net: 0 }, extras: [] } }] });
       await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runP, p_idem_key: randomUUID() });
       const { error: eTrPaid } = await m.rpc("transport_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 1000, p_biz_date: "2028-03-15", p_note: null });
       check("F2e-2 transport_issue paid 期間拒否（paid period）", !!eTrPaid?.message?.includes("paid period"), eTrPaid?.message ?? "通ってしまった");
-      // adv_issue も対称の paid ガード（advanced_on→period が paid なら拒否＝mig0019 の adv/transport 対称化）
-      const { error: eAdvPaid } = await m.rpc("adv_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 1000, p_advanced_on: "2028-03-15", p_note: null });
-      check("F2e-2 adv_issue paid 期間拒否（paid period・transport と対称）", !!eAdvPaid?.message?.includes("paid period"), eAdvPaid?.message ?? "通ってしまった");
+      // ★0158 ★1（裁定312）: 前借りは支払済み期でも発行できる＝控除先を翌月へ繰り下げ（deduct_period＝2028-04）。送り（transport）は繰越の列が無いため拒否のまま
+      const { data: advPaidId, error: eAdvPaid } = await m.rpc("adv_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 1000, p_advanced_on: "2028-03-15", p_note: null });
+      const { data: advPaidRow } = await admin.from("advances").select("deduct_period, advanced_on, status").eq("id", (advPaidId as string | null) ?? "00000000-0000-0000-0000-000000000000").maybeSingle();
+      check("F2e-2 ★0158: adv_issue は paid 期でも発行可・deduct_period＝翌月 2028-04（transport は拒否のまま）", !eAdvPaid && advPaidRow?.deduct_period === "2028-04" && advPaidRow?.advanced_on === "2028-03-15" && advPaidRow?.status === "open", eAdvPaid?.message ?? JSON.stringify(advPaidRow));
+      if (advPaidId) await admin.from("advances").delete().eq("id", advPaidId as string);
       await admin.from("payslips").delete().eq("run_id", runP);
       await admin.from("payroll_runs").delete().eq("id", runP);
     }

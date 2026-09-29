@@ -17,7 +17,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { randomUUID } from "node:crypto";
-import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
+import { FIXTURE_USERS, STORE_A1, loadEnvOrExit, ENDED_RUN_SQL } from "./fixtures-f0"; // ★起票88
 
 const env = loadEnvOrExit(["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_DB_URL"]);
 
@@ -78,6 +78,7 @@ async function main() {
         { cast_id: castA, net: 0, breakdown: { pay: { gross: 5000, net: 0, adjustOverflow: overflowA }, extras: [] } },
         { cast_id: castB, net: 3000, breakdown: { pay: { gross: 3000, net: 3000, adjustOverflow: 0 }, extras: [] } },
       ]);
+      await q(ENDED_RUN_SQL, [prev]); // ★起票88: 未来月（2097-11）の run を「終了済み」にしてから確定（0158 ★3）
       const fin = await call(`select public.payroll_finalize($1,$2,$3,$4,$5::jsonb) as n`, [orgA, ownerA.id, prev, randomUUID(), slips(4000)]);
       check("co(1-2) 前期 finalize（payslip 2・cast a の adjustOverflow=4000）", fin.ok && fin.rows[0].n === 2, errOf(fin));
       const prevSlipA = (await q<{ id: string }>(`select id from public.payslips where run_id = $1 and cast_id = $2`, [prev, castA]))[0]?.id;
@@ -142,6 +143,7 @@ async function main() {
       const del = await call(`select public.payroll_adjustment_delete($1,'verify del')`, [adjId]);
       check("co(3-2) 前期の調整行を delete", del.ok, errOf(del));
       await asPg();
+      await q(ENDED_RUN_SQL, [prev]); // ★起票88: reopen 後は凍結値が本来の月末（未来）に戻っている
       const fin2 = await call(`select public.payroll_finalize($1,$2,$3,$4,$5::jsonb) as n`, [orgA, ownerA.id, prev, randomUUID(), slips(0)]);
       check("co(3-3) 前期を再 finalize（overflow 0）", fin2.ok && fin2.rows[0].n === 2, errOf(fin2));
       await asUid(ownerA.auth_user_id);

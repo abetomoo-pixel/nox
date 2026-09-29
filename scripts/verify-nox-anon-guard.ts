@@ -518,6 +518,11 @@ async function main() {
     ["okuri_today_summary", { p_store_id: null, p_biz_date: null }],
     ["advances_open_balance", { p_store_id: null }],
     ["cast_mynumber_discard_status", { p_cast_id: null }],
+    ["payroll_attentions_of", { p_run_id: null }],                              // ★mig0158（裁定315／317／319＋追補1）: 公開 5 本
+    ["payroll_attention_resolve", { p_id: null, p_reason: null }],
+    ["transport_issue_self", { p_punch_id: null }],
+    ["kiosk_transport_issue", { p_punch_id: null }],
+    ["kiosk_punch_state", {}],
     ["set_staff_perms", { p_membership_id: null, p_can_register: null, p_can_crm: null, p_can_shift: null, p_can_view_backs: null, p_can_close: null, p_can_reopen: null }], // 段16a（mig0024→0038 5引数）
   ];
   for (const [fn, args] of F3A2_RPC_PROBES) {

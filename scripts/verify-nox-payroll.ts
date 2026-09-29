@@ -18,7 +18,7 @@
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
-import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
+import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit, endedRuns } from "./fixtures-f0"; // ★起票88: 確定の直前に run を「終了済み」にする（0158 ★3 の確定ガード）
 import { payOf, simAddedPay, type CompPlan, type PayInput, type Deduction } from "../lib/nox/pay";
 import { roundYen, floorYen } from "../lib/nox/money";
 import { resolvePayrollWindow } from "../lib/nox/payroll/window";
@@ -750,7 +750,7 @@ async function main() {
   const runId = ((rc ?? [])[0] as { id: string }).id;
   const strict = await computePayrollDraft(admin, manager, storeA1Id, P, { previewDefaults: false });
   const payslips = strict.rows.map((r) => ({ cast_id: r.castId, net: r.net, breakdown: { pay: r.pay, extras: r.extras } }));
-  const { data: cnt, error: eFin } = await admin.rpc("payroll_finalize", {
+  const { data: cnt, error: eFin } = await endedRuns(admin).rpc("payroll_finalize", {
     p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: payslips,
   });
   check("F2c-2 finalize 成功（P1+P2 の2件）", !eFin && cnt === 2, eFin?.message ?? `got ${cnt}`);
@@ -773,7 +773,7 @@ async function main() {
         cast_id: r.castId, net: r.net,
         breakdown: { pay: r.pay, extras: r.extras, cast_name: r.castId === p1 ? FROZEN : r.castName },
       }));
-      const { error: eF2 } = await admin.rpc("payroll_finalize", {
+      const { error: eF2 } = await endedRuns(admin).rpc("payroll_finalize", {
         p_org_id: orgAId, p_actor: actorId, p_run_id: runId, p_idem_key: randomUUID(), p_payslips: psFrozen,
       });
       const { data: f1 } = await admin.from("payslips").select("breakdown_json").eq("run_id", runId).eq("cast_id", p1).single();
@@ -888,7 +888,7 @@ async function main() {
     const { data: rcI } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2026-11" });
     const runIId = ((rcI ?? [])[0] as { id: string }).id;
     const psI = dI.rows.map((r) => ({ cast_id: r.castId, net: r.net, breakdown: { pay: r.pay, extras: r.extras } }));
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runIId, p_idem_key: randomUUID(), p_payslips: psI });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runIId, p_idem_key: randomUUID(), p_payslips: psI });
     const { data: psI1 } = await admin.from("payslips").select("breakdown_json").eq("run_id", runIId).eq("cast_id", i1).single();
     const bj1 = (psI1?.breakdown_json as { extras?: Ext[] }).extras ?? [];
     check("F2c-3 finalize で extras 凍結（I1 に 3000）", bj1.some((e) => e.amount === 3000 && e.source === inc10), JSON.stringify(bj1));
@@ -897,7 +897,7 @@ async function main() {
     const inc10b = await mkInc("2026-11-10", "per_head", 1000);
     const dI2 = await computePayrollDraft(admin, manager, storeA1Id, "2026-11", { previewDefaults: false });
     const psI2 = dI2.rows.map((r) => ({ cast_id: r.castId, net: r.net, breakdown: { pay: r.pay, extras: r.extras } }));
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runIId, p_idem_key: randomUUID(), p_payslips: psI2 });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runIId, p_idem_key: randomUUID(), p_payslips: psI2 });
     const { data: psI1b } = await admin.from("payslips").select("breakdown_json").eq("run_id", runIId).eq("cast_id", i1).single();
     const bj1b = (psI1b?.breakdown_json as { extras?: Ext[] }).extras ?? [];
     check("F2c-3 再確定で extras 更新（I1 が 1000 へ・旧 3000 は消える）",
@@ -954,17 +954,17 @@ async function main() {
     const { data: rcF } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-01" });
     const runF = ((rcF ?? [])[0] as { id: string }).id;
     const psFED = (amt: number) => [{ cast_id: fed, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [{ receivable_id: R, amount: amt }], ar_carried: [] }];
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runF, p_idem_key: randomUUID(), p_payslips: psFED(3000) });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runF, p_idem_key: randomUUID(), p_payslips: psFED(3000) });
     let rs = await recvState(R);
     check("F2e-1 確約A r1: deducted=3000/open/翌月2027-02", rs.deducted_amount === 3000 && rs.status === "open" && rs.deduct_period === "2027-02", JSON.stringify(rs));
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runF, p_idem_key: randomUUID(), p_payslips: psFED(5000) });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runF, p_idem_key: randomUUID(), p_payslips: psFED(5000) });
     rs = await recvState(R);
     check("F2e-1 確約A r2: deducted=5000（累積でなく巻き戻し後 再マーク）/open/翌月", rs.deducted_amount === 5000 && rs.status === "open" && rs.deduct_period === "2027-02", JSON.stringify(rs));
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runF, p_idem_key: randomUUID(), p_payslips: psFED(10000) });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runF, p_idem_key: randomUUID(), p_payslips: psFED(10000) });
     rs = await recvState(R);
     check("F2e-1 確約A r3: deducted=10000/deducted/period=null（全額・二重巻き戻し/戻し漏れなし）", rs.deducted_amount === 10000 && rs.status === "deducted" && rs.deduct_period === null, JSON.stringify(rs));
     // 原子性: 不存在 receivable → bad receivable・全ロールバック（R は r3 のまま・payslip 1件維持）
-    const { error: eBad } = await admin.rpc("payroll_finalize", {
+    const { error: eBad } = await endedRuns(admin).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runF, p_idem_key: randomUUID(),
       p_payslips: [{ cast_id: fed, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [{ receivable_id: randomUUID(), amount: 1000 }], ar_carried: [] }],
     });
@@ -974,7 +974,7 @@ async function main() {
     check("F2e-1 原子性: 全ロールバック（R は r3 の deducted 維持・payslip 1件）", rs.deducted_amount === 10000 && rs.status === "deducted" && psF === 1, JSON.stringify({ rs, psF }));
     // paid 巻き戻し拒否
     await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runF, p_idem_key: randomUUID() });
-    const { error: ePaidF } = await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runF, p_idem_key: randomUUID(), p_payslips: psFED(1) });
+    const { error: ePaidF } = await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runF, p_idem_key: randomUUID(), p_payslips: psFED(1) });
     check("F2e-1 paid 巻き戻し拒否: run paid", !!ePaidF?.message?.includes("run paid"), ePaidF?.message ?? "通ってしまった");
 
     // ── Group2: core E9（手取り0下限・当月+繰越+古い順・#8・確約B・cutoff）2027-03 ──
@@ -1019,7 +1019,7 @@ async function main() {
     const rV = await mkRecv(fev, 5000, { checkId: chkV });
     const { data: rcV } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-05" });
     const runV = ((rcV ?? [])[0] as { id: string }).id;
-    await admin.rpc("payroll_finalize", {
+    await endedRuns(admin).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runV, p_idem_key: randomUUID(),
       p_payslips: [{ cast_id: fev, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [{ receivable_id: rV, amount: 2000 }], ar_carried: [] }],
     });
@@ -1035,7 +1035,7 @@ async function main() {
     // 2027-03 の fresh run（core E9 テストは preview で run 未作成）。admin craft で castA1a payslip を ar 付き凍結
     const { data: rcM } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-03" });
     const runM = ((rcM ?? [])[0] as { id: string }).id;
-    await admin.rpc("payroll_finalize", {
+    await endedRuns(admin).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: randomUUID(),
       p_payslips: [{ cast_id: castA1aId, net: 2000, breakdown: { pay: { net: 5000 }, extras: [] }, ar_deducted: [{ receivable_id: rMine, amount: 3000 }], ar_carried: [] }],
     });
@@ -1141,15 +1141,15 @@ async function main() {
     const { data: rcA } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-08" });
     const runA = ((rcA ?? [])[0] as { id: string }).id;
     const psAdv = (amt: number) => [{ cast_id: ad1, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [{ advance_id: A, amount: amt }], adv_carried: [], okuri_deducted: [] }];
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runA, p_idem_key: randomUUID(), p_payslips: psAdv(3000) });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runA, p_idem_key: randomUUID(), p_payslips: psAdv(3000) });
     let asA = await advState(A);
     check("F2e-2 adv 段階遷移 r1: deducted=3000/open/繰越2027-09（繰越あり）", asA.deducted_amount === 3000 && asA.status === "open" && asA.deduct_period === "2027-09", JSON.stringify(asA));
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runA, p_idem_key: randomUUID(), p_payslips: psAdv(10000) });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runA, p_idem_key: randomUUID(), p_payslips: psAdv(10000) });
     asA = await advState(A);
     check("F2e-2 adv 段階遷移 r2: deducted=10000/deducted/period=null（巻き戻し→再マーク・累積でない）", asA.deducted_amount === 10000 && asA.status === "deducted" && asA.deduct_period === null, JSON.stringify(asA));
     // #8 各カテゴリ内 超過ガード＋原子性: 別の advance A8(5000) を 6000 天引き → bad advance・全ロールバック
     const A8 = await mkAdv(ad1, 5000, { advancedOn: "2027-08-06" });
-    const { error: eOverA } = await admin.rpc("payroll_finalize", {
+    const { error: eOverA } = await endedRuns(admin).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runA, p_idem_key: randomUUID(),
       p_payslips: [{ cast_id: ad1, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [{ advance_id: A8, amount: 6000 }], adv_carried: [], okuri_deducted: [] }],
     });
@@ -1164,14 +1164,14 @@ async function main() {
     const { data: rcB } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-09" });
     const runB = ((rcB ?? [])[0] as { id: string }).id;
     const psOku = (amt: number) => [{ cast_id: ok1, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [], adv_carried: [], okuri_deducted: [{ transport_id: T, amount: amt }] }];
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runB, p_idem_key: randomUUID(), p_payslips: psOku(3000) });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runB, p_idem_key: randomUUID(), p_payslips: psOku(3000) });
     let ts = await trState(T);
     check("F2e-2 okuri 段階遷移 r1: deducted=3000/open 据置（繰越なし＝deduct_period 列なし・部分は再回収されない）", ts.deducted_amount === 3000 && ts.status === "open", JSON.stringify(ts));
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runB, p_idem_key: randomUUID(), p_payslips: psOku(10000) });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runB, p_idem_key: randomUUID(), p_payslips: psOku(10000) });
     ts = await trState(T);
     check("F2e-2 okuri 段階遷移 r2: deducted=10000/deducted（全額・巻き戻し→再マーク）", ts.deducted_amount === 10000 && ts.status === "deducted", JSON.stringify(ts));
     const T8 = await mkTr(ok1, 4000, { bizDate: "2027-09-09" });
-    const { error: eOverT } = await admin.rpc("payroll_finalize", {
+    const { error: eOverT } = await endedRuns(admin).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runB, p_idem_key: randomUUID(),
       p_payslips: [{ cast_id: ok1, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [], adv_carried: [], okuri_deducted: [{ transport_id: T8, amount: 5000 }] }],
     });
@@ -1191,12 +1191,12 @@ async function main() {
       adv_deducted: [{ advance_id: aAll, amount: ad }], adv_carried: [],
       okuri_deducted: [{ transport_id: tAll, amount: ok }],
     }];
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runC, p_idem_key: randomUUID(), p_payslips: psAll(2000, 3000, 4000) });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runC, p_idem_key: randomUUID(), p_payslips: psAll(2000, 3000, 4000) });
     check("F2e-2 3カテゴリ確定1: ar=2000/adv=3000/okuri=4000（各 open・部分）",
       (await advState(aAll)).deducted_amount === 3000 && (await trState(tAll)).deducted_amount === 4000 &&
       ((await admin.from("receivables").select("deducted_amount").eq("id", rAll).single()).data as { deducted_amount: number }).deducted_amount === 2000, "初回確定");
     // 再確定（別 idem）: 各カテゴリを巻き戻して新値へ再マーク（累積でなく置き換え）
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runC, p_idem_key: randomUUID(), p_payslips: psAll(5000, 8000, 1000) });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runC, p_idem_key: randomUUID(), p_payslips: psAll(5000, 8000, 1000) });
     const rAllS = ((await admin.from("receivables").select("deducted_amount, status, deduct_period").eq("id", rAll).single()).data as AdvSt);
     check("F2e-2 再確定 ar 巻き戻し→再マーク: deducted=5000（累積10000でない）/open/繰越", rAllS.deducted_amount === 5000 && rAllS.status === "open" && rAllS.deduct_period === "2027-12", JSON.stringify(rAllS));
     check("F2e-2 再確定 adv 巻き戻し→再マーク: deducted=8000/deducted/period=null（全額）", (await advState(aAll)).deducted_amount === 8000 && (await advState(aAll)).status === "deducted", JSON.stringify(await advState(aAll)));
@@ -1209,7 +1209,7 @@ async function main() {
     const { data: rcD } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2027-12" });
     const runD = ((rcD ?? [])[0] as { id: string }).id;
     // adv_deducted/okuri_deducted キーを持たない payslip（F2e-1 形）で確定 → jsonb_typeof guard で skip
-    await admin.rpc("payroll_finalize", {
+    await endedRuns(admin).rpc("payroll_finalize", {
       p_org_id: orgAId, p_actor: actorId, p_run_id: runD, p_idem_key: randomUUID(),
       p_payslips: [{ cast_id: bw, net: 5000, breakdown: { pay: { net: 5000 }, extras: [] }, ar_deducted: [], ar_carried: [] }],
     });
@@ -1339,7 +1339,7 @@ async function main() {
     const { data: rcRe } = await manager.rpc("payroll_run_create", { p_store_id: storeA1Id, p_period: "2029-01" });
     const runRe = ((rcRe ?? [])[0] as { id: string }).id;
     const psRe = [{ cast_id: cRe, net: 0, breakdown: { pay: { net: 0 }, extras: [] }, ar_deducted: [{ receivable_id: Rr, amount: 3000 }], ar_carried: [], adv_deducted: [], adv_carried: [], okuri_deducted: [] }];
-    await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_payslips: psRe });
+    await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_payslips: psRe });
 
     const K_re = randomUUID();
     const { data: reRes } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: K_re, p_reason: "NOX-VERIFY reopen" });
@@ -1356,7 +1356,7 @@ async function main() {
     const { error: eNF } = await admin.rpc("payroll_reopen", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_reason: "NOX-VERIFY reopen" });
     check("D1 reopen draft 別 idem→'not finalized'", !!eNF?.message?.includes("not finalized"), eNF?.message ?? "通ってしまった");
 
-    const { error: eReFin } = await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_payslips: psRe });
+    const { error: eReFin } = await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runRe, p_idem_key: randomUUID(), p_payslips: psRe });
     const rr2 = await rState(Rr);
     check("D1 再 finalize 同結果（R=3000/open/2029-02・payslips 1行・サイクル冪等）",
       !eReFin && rr2.deducted_amount === 3000 && rr2.status === "open" && rr2.deduct_period === "2029-02" && (await psN(runRe)) === 1, JSON.stringify(rr2));
@@ -1405,7 +1405,7 @@ async function main() {
       npRunId = ((rcNp ?? [])[0] as { id: string } | undefined)?.id ?? null; // ★既存流儀＝行配列で返る
       const strictNp = await computePayrollDraft(admin, manager, storeA1Id, NP, { previewDefaults: false });
       const psNp = strictNp.rows.map((r) => ({ cast_id: r.castId, net: r.net, breakdown: { pay: r.pay, extras: r.extras } }));
-      await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: npRunId, p_idem_key: randomUUID(), p_payslips: psNp });
+      await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: npRunId, p_idem_key: randomUUID(), p_payslips: psNp });
       // ★org 合算 RPC ゆえ他段の paid run も混ざる。差分で「paid 限定」を証明する。
       type SumRow0 = { target_month: string; tax_category: string; headcount: number; gross_total: number; withholding_total: number; deadline: string; paid_on: string | null };
       const grossOf = (rows: SumRow0[], m: string) => rows.filter((r) => r.target_month === m).reduce((x, r) => x + Number(r.gross_total), 0);
@@ -1676,7 +1676,7 @@ async function main() {
       const eDraft = (await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: randomUUID() })).error;
       check("B5 A3 draft の mark_paid は 'not finalized'", !eRcM && has(eDraft, "not finalized"), eRcM?.message ?? eDraft?.message ?? "通ってしまった");
       const psM = [{ cast_id: cM, net: 1000, breakdown: { pay: { net: 1000 }, extras: [] }, ar_deducted: [], ar_carried: [], adv_deducted: [], adv_carried: [], okuri_deducted: [] }];
-      const { error: eFinM } = await admin.rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: randomUUID(), p_payslips: psM });
+      const { error: eFinM } = await endedRuns(admin).rpc("payroll_finalize", { p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: randomUUID(), p_payslips: psM });
       const K = randomUUID();
       const { data: r1, error: e1 } = await admin.rpc("payroll_mark_paid", { p_org_id: orgAId, p_actor: actorId, p_run_id: runM, p_idem_key: K });
       const row1 = (await admin.from("payroll_runs").select("status, paid_at, paid_idem_key").eq("id", runM).single()).data as { status: string; paid_at: string | null; paid_idem_key: string | null };
@@ -1721,7 +1721,7 @@ async function main() {
       const castAId = await t.castOf(st.id, castA.id), castBId = await t.castOf(st.id, castB.id);
       await pg.query("begin");
       try {
-        const run9 = (await t.one<{ id: string }>(`insert into public.payroll_runs (org_id, store_id, period, status, period_start, period_end, created_by) values ($1,$2,'2098-09','draft','2098-09-01','2098-09-30',$3) returning id`, [st.org_id, st.id, owner.id])).id;
+        const run9 = (await t.one<{ id: string }>(`insert into public.payroll_runs (org_id, store_id, period, status, period_start, period_end, created_by) values ($1,$2,'2098-09','draft','2000-01-01','2000-01-01',$3) returning id`, [st.org_id, st.id, owner.id])).id;
         const psIn = (a: string | null, b: string | null) => JSON.stringify([{ cast_id: castAId, net: 1, breakdown: { pay: { gross: 1 }, extras: [] }, ...(a ? { calc_period_start: a } : {}), ...(b ? { calc_period_end: b } : {}) }, { cast_id: castBId, net: 2, breakdown: { pay: { gross: 2 }, extras: [] } }]);
         const f = [
           await t.call(`select public.payroll_finalize($1,$2,$3,gen_random_uuid(),$4::jsonb) n`, [st.org_id, owner.id, run9, psIn("2098-08-31", null)]),
@@ -1777,6 +1777,20 @@ async function main() {
     await admin.from("payroll_run_deduction_overrides").update({ enabled: true, amount_override: 1000 }).eq("run_id", runIdP).eq("cast_id", p1).eq("deduction_id", dedId);
     const r3 = await rowOf();
     check("段0156-7 金額上書き 1000: fixedDed = 元 + 1000・applied に amountOverride=1000", r3.pay.fixedDed === r0.pay.fixedDed + 1000 && r3.deductionOverridesApplied.some((o) => o.deductionId === dedId && o.enabled && o.amountOverride === 1000), JSON.stringify({ fd: r3.pay.fixedDed, ov: r3.deductionOverridesApplied }));
+    // ★0158（裁定312・便 AA-3 (4)）: 属する期＝settle_period（null＝営業日の月）。営業日が P 内でも settle_period＝翌月の行は P に載らない／営業日が前月でも settle_period＝P の行は P に載る
+    const nextP = ((): string => { const [y, m] = P.split("-").map(Number); return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`; })();
+    const prevDay = ((): string => { const [y, m] = P.split("-").map(Number); return new Date(Date.UTC(y, m - 1, 0)).toISOString().slice(0, 10); })();
+    const spOut = randomUUID(), spIn = randomUUID();
+    const { error: eSP } = await admin.from("daily_pays").insert([
+      { org_id: orgAId, store_id: storeA1Id, cast_id: p1, biz_date: `${P}-11`, gross: 7000, withholding: 204, withholding_category: "委託", net: 6796, paid_by: actorId, idem_key: spOut, settle_period: nextP },
+      { org_id: orgAId, store_id: storeA1Id, cast_id: p1, biz_date: prevDay, gross: 6000, withholding: 102, withholding_category: "委託", net: 5898, paid_by: actorId, idem_key: spIn, settle_period: P },
+    ]);
+    if (eSP) throw new Error(`daily_pays insert（settle_period）: ${eSP.message}`);
+    const r5 = await rowOf();
+    check("段0158-c1 日払いの属する期＝settle_period（null＝営業日の月）: P の run は null の 10000＋前月営業日・settle_period=P の 6000＝16000／源泉 612／3 件ではなく 2 件（営業日が P 内・settle_period=翌月の 7000 は載らない）", r5.dailyPaidGross === 16000 && r5.dailyWithheld === 612 && r5.dailyN === 2, JSON.stringify({ g: r5.dailyPaidGross, w: r5.dailyWithheld, n: r5.dailyN, nextP, prevDay }));
+    const rNext = (await computePayrollDraft(admin, manager, storeA1Id, nextP, { previewDefaults: true })).rows.find((r) => r.castId === p1);
+    check("段0158-c2 繰り下げ先（翌月）の計算には settle_period=翌月の 7000 が載る（行が無い月は対象外＝行があるときだけ照合）", !rNext || (rNext.dailyPaidGross === 7000 && rNext.dailyWithheld === 204 && rNext.dailyN === 1), JSON.stringify({ has: !!rNext, g: rNext?.dailyPaidGross, n: rNext?.dailyN }));
+    await admin.from("daily_pays").delete().in("idem_key", [spOut, spIn]);
     // 自前で消す → 元に戻る
     await admin.from("payroll_run_deduction_overrides").delete().eq("run_id", runIdP).eq("deduction_id", dedId);
     await admin.from("daily_pays").delete().eq("idem_key", dpIdem);

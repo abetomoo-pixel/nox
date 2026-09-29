@@ -27,6 +27,7 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 const TABLES = [
+  "payroll_attentions", // ★0158（裁定315）: 確定後の打刻修正の要対応（authenticated=SELECT のみ・RLS select 1 本。G9 0158 で列集合／policy を能動 assert）
   "daily_pays", "payroll_run_deduction_overrides", // ★0156（裁定309-6／309-8）: 日払い・run 別控除上書き（authenticated=SELECT のみ・RLS select 1 本。G1/G2/G5 が .length で自動被覆＋G9 で列集合／policy を能動 assert）
   "orgs", "stores", "users", "memberships", "casts", "audit_logs",
   "products", "seats", "bottle_keeps", "stock_logs", // F1a（mig0005）
@@ -209,6 +210,7 @@ async function main() {
       "check_customer_add", "check_customer_remove", "check_line_set_customer", "check_customer_names", "bottle_keep_out", "customer_sales_summary", // ★0153（裁定305／307）: 公開 6 本 // ★0152（裁定298／299）: 公開 6 本（同じ revoke／grant 形）
       "cast_mynumber_discard", "cast_mynumber_discard_candidates", "customer_anonymize", "customer_anonymize_candidates", "kiosk_check_keeps", // ★0155（裁定309）: 公開 5 本（audit_purge は service 専用＝G4e）
       "daily_pay_issue", "daily_pays_of_run", "payroll_run_deduction_override_set", "payroll_run_deduction_override_clear", "payroll_run_deduction_overrides_of",
+      "payroll_attentions_of", "payroll_attention_resolve", "transport_issue_self", "kiosk_transport_issue", "kiosk_punch_state", // ★0158（裁定315／317／319＋追補1）: 公開 5 本（punch_correction_apply は内部のまま＝G4c）
       "okuri_today_summary", "advances_open_balance", "cast_mynumber_discard_status"]; // ★0156（裁定309-6〜9／追補2）: 公開 8 本（okuri_default_of は内部＝G4c）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
@@ -430,7 +432,7 @@ async function main() {
       // ★0153（裁定305）: 列集合＝customers 18（+4）／bottle_keeps 15（+2）／check_lines 21（+customer_id）／check_customers 8・kind CHECK 11 値
       const c153 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('customers','bottle_keeps','check_lines','check_customers') group by 1 order by 1`);
       const n153 = Object.fromEntries(c153.rows.map((r) => [r.table_name, r.n]));
-      check("G9 0153 列集合: customers 18／bottle_keeps 15／check_lines 21／check_customers 8", n153.customers === 18 && n153.bottle_keeps === 15 && n153.check_lines === 21 && n153.check_customers === 8, JSON.stringify(n153));
+      check("G9 0153 列集合: customers 18／bottle_keeps 16（★0158: +check_line_id）／check_lines 21／check_customers 8", n153.customers === 18 && n153.bottle_keeps === 16 && n153.check_lines === 21 && n153.check_customers === 8, JSON.stringify(n153));
       const k153 = await db.query(`select pg_get_constraintdef(oid) d from pg_constraint where conname='check_lines_kind_check'`);
       check("G9 0153 check_lines_kind_check＝11 値（+keep_out）", (k153.rows[0]?.d as string).includes("'keep_out'") && ((k153.rows[0]?.d as string).match(/::text/g) || []).length === 11, k153.rows[0]?.d);
       // ★0155（裁定309-3）: cast_sensitive 11 列（+mynumber_deleted_at／mynumber_deleted_by／mynumber_deletion_method・別表なし）
@@ -439,11 +441,22 @@ async function main() {
       // ★0156（裁定309-6／8／9）: 列集合＝punches 14（+okuri）／daily_pays 12／payroll_run_deduction_overrides 10・新表 2 の policy＝select 1 本ずつ・unique（run_id, cast_id, deduction_id）
       const c156 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('punches','daily_pays','payroll_run_deduction_overrides') group by 1 order by 1`);
       const n156 = Object.fromEntries(c156.rows.map((r) => [r.table_name, r.n]));
-      check("G9 0156 列集合: punches 14（+okuri）／daily_pays 12／payroll_run_deduction_overrides 10", n156.punches === 14 && n156.daily_pays === 12 && n156.payroll_run_deduction_overrides === 10, JSON.stringify(n156));
+      check("G9 0156 列集合: punches 14（+okuri）／daily_pays 13（★0158: +settle_period）／payroll_run_deduction_overrides 10", n156.punches === 14 && n156.daily_pays === 13 && n156.payroll_run_deduction_overrides === 10, JSON.stringify(n156));
       const p156 = await db.query(`select tablename, policyname, cmd from pg_policies where schemaname='public' and tablename in ('daily_pays','payroll_run_deduction_overrides') order by 1`);
       check("G9 0156 新表 2 の policy＝select 1 本ずつ（daily_pays_select／payroll_run_deduction_overrides_select）", p156.rowCount === 2 && p156.rows.every((r) => r.cmd === "SELECT") && p156.rows.map((r) => r.policyname).join(",") === "daily_pays_select,payroll_run_deduction_overrides_select", JSON.stringify(p156.rows));
       const u156 = await db.query(`select conname from pg_constraint where conname in ('payroll_run_deduction_overrides_uniq','daily_pays_idem_key_key','daily_pays_net_ck') order by 1`);
       check("G9 0156 制約: overrides unique（run×cast×deduction）・daily_pays idem_key unique・net=gross−withholding CHECK", u156.rowCount === 3, u156.rows.map((r) => r.conname).join(","));
+      // ★0158（裁定312／315／317／319・起票87）: payroll_attentions 10 列・policy＝select 1 本（owner∨manager 自店）・kind CHECK 1 値・追加 3 列は null 可・transport 15 列のまま
+      const c158 = await db.query(`select column_name from information_schema.columns where table_schema='public' and table_name='payroll_attentions' order by ordinal_position`);
+      check("G9 0158 列集合: payroll_attentions 10 列（id／org_id／store_id／cast_id／run_id／kind／detail／created_at／resolved_at／resolved_by）", c158.rows.map((r) => r.column_name).join(",") === "id,org_id,store_id,cast_id,run_id,kind,detail,created_at,resolved_at,resolved_by", c158.rows.map((r) => r.column_name).join(","));
+      const p158 = await db.query(`select policyname, cmd, qual from pg_policies where schemaname='public' and tablename='payroll_attentions'`);
+      check("G9 0158 payroll_attentions の policy＝select 1 本（owner∨manager 自店・cast／staff は 0 行）", p158.rowCount === 1 && p158.rows[0].policyname === "payroll_attentions_select" && p158.rows[0].cmd === "SELECT" && p158.rows[0].qual === "((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR ((auth_role() = 'manager'::text) AND (store_id = auth_store_id()))))", JSON.stringify(p158.rows));
+      const k158 = await db.query(`select pg_get_constraintdef(oid) d from pg_constraint where conname='payroll_attentions_kind_check'`);
+      check("G9 0158 payroll_attentions_kind_check＝1 値（post_finalize_punch）", k158.rows[0]?.d === "CHECK ((kind = 'post_finalize_punch'::text))", k158.rows[0]?.d);
+      const n158 = await db.query(`select table_name || '.' || column_name c, is_nullable from information_schema.columns where table_schema='public' and (table_name, column_name) in (('daily_pays','settle_period'),('bottle_keeps','check_line_id'),('transport','created_by')) order by 1`);
+      check("G9 0158 列 3（bottle_keeps.check_line_id／daily_pays.settle_period／transport.created_by）＝すべて null 可", n158.rowCount === 3 && n158.rows.every((r) => r.is_nullable === "YES"), JSON.stringify(n158.rows));
+      const t158 = await db.query(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='transport'`);
+      check("G9 0158 transport 15 列のまま（created_by は null 可に変えただけ）", t158.rows[0]?.n === 15, String(t158.rows[0]?.n));
     }
 
     // G10: F2d mynumber 暗号化/payment（mig0021）— payment_records RLS・パターン1・crypto RPC ACL。

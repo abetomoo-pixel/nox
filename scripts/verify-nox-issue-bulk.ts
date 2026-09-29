@@ -25,7 +25,7 @@ function check(label: string, ok: boolean, detail?: string) { if (ok) pass++; el
 
 // 既存 4 本の md5（prosrc の CR を落とした値・0157 手貼り前の控え＝docs/tmp/0157_pre_live.md A 表・2026-09-25）
 const MD5_PIN: Record<string, string> = {
-  adv_issue: "b8568921aa110af464b497b0b8add41b",
+  adv_issue: "f25d845d9cfad9f18bda4833eea6d9c2", // ★0158 ★1（裁定312）: 支払済み期は deduct_period＝翌月で発行（旧 b8568921）
   adv_cancel: "8ff4572b1670ac93f3c18f3ce4823c32",
   transport_issue: "7740e3c4d0d079f386c222c96240479f",
   transport_cancel: "5735aa45f3fe6568c36ccad0a0a4b6d1",
@@ -99,7 +99,7 @@ async function main() {
     check("ib(0-3) ROLLBACK 後に okuri_mode が元の値", okuriAfter === A1.okuri, `${A1.okuri} → ${okuriAfter}`);
     // (4) 既存 4 本の md5 不変
     const md = await q<{ proname: string; m: string }>("select proname, md5(replace(prosrc, E'\\r', '')) m from pg_proc where pronamespace='public'::regnamespace and proname = any($1)", [Object.keys(MD5_PIN)]);
-    check("ib(4-1) 既存 4 本（adv_issue／adv_cancel／transport_issue／transport_cancel）の md5（CR 除去）＝0157 手貼り前の控え", md.length === 4 && md.every((r) => MD5_PIN[r.proname] === r.m), md.map((r) => `${r.proname}:${r.m.slice(0, 8)}`).join(","));
+    check("ib(4-1) 既存 4 本（adv_issue／adv_cancel／transport_issue／transport_cancel）の md5（CR 除去）＝控え（adv_issue は 0158 適用後・他 3 本は 0157 手貼り前から不変）", md.length === 4 && md.every((r) => MD5_PIN[r.proname] === r.m), md.map((r) => `${r.proname}:${r.m.slice(0, 8)}`).join(","));
   } finally {
     await db.end().catch(() => undefined);
   }

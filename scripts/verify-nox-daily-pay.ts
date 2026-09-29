@@ -78,10 +78,10 @@ async function main() {
       const dpIdem = await as(mgr, "select public.daily_pay_issue($1, $2::date, 1000, null) r", [castA, bizToday]);
       const dpPaid = await as(mgr, "select public.daily_pay_issue($1, '2020-01-15'::date, 1000, gen_random_uuid()) r", [castA]);
       const dpOther = await as(mgr, "select public.daily_pay_issue($1, $2::date, 1000, $3) r", [castB, bizToday, k1]);
-      check("dp(1-5) cast forbidden／gross 0 'bad amount'／idem null 'idem required'／paid 期 'paid period'／別 cast のキー再利用 'bad idem key'", /forbidden/.test(errOf(dpCast)) && /bad amount/.test(errOf(dpBad)) && /idem required/.test(errOf(dpIdem)) && /paid period/.test(errOf(dpPaid)) && /bad idem key/.test(errOf(dpOther)), [errOf(dpCast), errOf(dpBad), errOf(dpIdem), errOf(dpPaid), errOf(dpOther)].join(" / "));
+      check("dp(1-5) cast forbidden／gross 0 'bad amount'／idem null 'idem required'／★0158（裁定312）paid 期（2020-01）は翌月へ繰り下げて発行（settle_period・carried_to＝2020-02）／別 cast のキー再利用 'bad idem key'", /forbidden/.test(errOf(dpCast)) && /bad amount/.test(errOf(dpBad)) && /idem required/.test(errOf(dpIdem)) && dpPaid.ok && (dpPaid.rows[0].r as { settle_period?: string; carried_to?: string | null }).settle_period === "2020-02" && (dpPaid.rows[0].r as { carried_to?: string | null }).carried_to === "2020-02" && /bad idem key/.test(errOf(dpOther)), [errOf(dpCast), errOf(dpBad), errOf(dpIdem), errOf(dpPaid), errOf(dpOther)].join(" / "));
       const dpAudit = await q<{ after_json: Record<string, unknown> }>("select after_json from public.audit_logs where action='daily_pay_issue' and at >= now()");
       const a10k = dpAudit.find((a) => a.after_json.gross === 10000 && a.after_json.cast_id === castA), aEmp = dpAudit.find((a) => a.after_json.cast_id === castB);
-      check("dp(1-6) audit 'daily_pay_issue' 2＋境界 11 行（再送では書かない）・after に withholding／net／warn", dpAudit.length === 2 + bounds.length && a10k?.after_json.withholding === whOf(10000) && aEmp?.after_json.warn === "T10 pending", `n=${dpAudit.length}`);
+      check("dp(1-6) audit 'daily_pay_issue' 2＋境界 11＋繰り下げ 1 行（再送では書かない）・after に withholding／net／warn", dpAudit.length === 3 + bounds.length && a10k?.after_json.withholding === whOf(10000) && aEmp?.after_json.warn === "T10 pending", `n=${dpAudit.length}`);
       const ofRun = await as(owner, "select cast_id, paid_total, withholding_total, n from public.daily_pays_of_run($1) order by cast_id", [runDraft]);
       const ofRunCast = await as(castU, "select * from public.daily_pays_of_run($1)", [runDraft]);
       const mp = ofRun.ok ? Object.fromEntries(ofRun.rows.map((r) => [r.cast_id as string, r])) : {};
@@ -89,7 +89,7 @@ async function main() {
       check("dp(1-7) daily_pays_of_run（owner・当月 draft run）: 2 行＝A1a 合計／源泉／件数・A1b 5000/0/1・cast forbidden", ofRun.ok && ofRun.rows.length === 2 && mp[castA]?.paid_total === aSum && mp[castA]?.withholding_total === aWh && mp[castA]?.n === 1 + bounds.length && mp[castB]?.paid_total === 5000 && mp[castB]?.withholding_total === 0 && /forbidden/.test(errOf(ofRunCast)), JSON.stringify(ofRun));
       const dpSel = await as(castU, "select count(*)::int n from public.daily_pays");
       const dpSelM = await as(mgr, "select count(*)::int n from public.daily_pays");
-      check("dp(1-8) RLS: cast は本人行のみ・manager は自店全件", dpSel.ok && dpSel.rows[0].n === 1 + bounds.length && dpSelM.ok && dpSelM.rows[0].n === 2 + bounds.length, JSON.stringify([dpSel, dpSelM]));
+      check("dp(1-8) RLS: cast は本人行のみ・manager は自店全件（★0158: 繰り下げ発行の 1 行を含む）", dpSel.ok && dpSel.rows[0].n === 2 + bounds.length && dpSelM.ok && dpSelM.rows[0].n === 3 + bounds.length, JSON.stringify([dpSel, dpSelM]));
 
       // (2) overrides
       const o1 = await as(mgr, "select public.payroll_run_deduction_override_set($1,$2,$3,false,null) id", [runDraft, castA, dedId]);
