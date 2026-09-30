@@ -2846,6 +2846,12 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓99：相談役の裁定本文はブロック内に置く＝ブロック外の本文は CC に届かない（相談役起こし）
+
+出典＝相談役 2026-09-30 受領（便 P-2・逐語）: 「教訓99『相談役の裁定本文はブロック内に置く＝ブロック外の本文は CC に届かない（9/30 S159-1）』」。
+経緯: 便 S159-1「裁定324 追補3 を本文つきで収載（上の逐語）」の「上の逐語」がブロックの外に置かれていたため CC に届かず、教訓70（本文が無い番号は作らない）で停止＝再送で 1 往復を失った（2026-09-30）。
+運用: 裁定・追補・教訓・起票の本文は、CC に渡すブロック（【repo】…報告後停止）の**中**に「---- 本文（逐語） ----」で囲って置く。ブロック外の説明文・チャットの前後の文は CC の入力にならない。CC 側＝本文が無い番号を受けたら収載せず停止して本文を求める（教訓70）。
+
 ### 教訓98：suite は同一 tx 内で作った行を順序（rows[0]・order by 時刻）で同定しない＝now() が同値で並びが不定。id で find する（相談役起こし）
 
 出典＝相談役 2026-09-29 受領（便 W-1f・逐語）: 「教訓98『suite は同一 tx 内で作った行を順序（rows[0]・order by 時刻）で同定しない＝now() が同値で並びが不定。id で find する。9/28 便 U の daily-pay dp(3-5) で run 2 が赤』」。
@@ -3947,6 +3953,7 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 **0158 suite 追随（便 AA・2026-09-29）**: 名簿 A 148／B 140／288・起票88 の処置＝期の文字列は据え置き、確定の直前に run の凍結値 period_start／period_end を 2000-01-01 に置く（scripts/fixtures-f0.ts の endedRuns／ENDED_RUN_SQL・rls 9／payroll 24／ar-partial 2／reopen 1／carryover 2 箇所）＝指示の「期を過去月へ張り替え」とは別の手段（待遇プランの有効開始日・曜日・suite 間の期の住み分けを壊さないため・**9/30 Agoora 追認**）。collect の日払い読取は settle_period（null＝営業日の月）。verify:nox-0158 新設（51）。**f0 pin＝80 段 5,159**（2 連緑 18:49〜19:01／19:03〜19:15・golden 6 値不変）。起票91・92 を収載。
 **便 AB 完了＝台帳の現在地（2026-09-30）**: HEAD **53f42bd**＝origin/main（0 0）・f0 pin **80 段 5,165**（2 連緑 11:00〜11:13／11:14〜11:26・golden 6 値不変）・Vercel success **11:28:06 JST**・messages **38**。0158 の client 追随（裁定312／314／315／316／317／319）は完了。次＝0159 事前読取（docs/tmp/0159_pre.md）→ ★指定 → 起草（スコープ＝324-6＋起票89・91・92 を 1 本）。 **目視（2026-09-30 便 D159-1）**: 9/30 Agoora 目視 OK＝0156 11 点・X-8〜X-11・便 AB。**便 X-12 の中身＝起票90・93・94（0159 client 便に同乗）**。
+**無人便 L 完了＋0159 本番適用＝台帳の現在地（2026-09-30）**: 無人便 L 完了 HEAD **efc7f72**（X-12-1〜3・L-2-1〜4・L-3-1／2）・f0 **81 段 5,208**（2 連緑）・Vercel **13:24:43 JST**／0159 本番適用 **9/30 hh:mm（申告値未受領）（Agoora 申告値）**・sha **00ed3da283e2fd2cbb9ac9887d024819ba69408b39d1c3cdd19fa26add5bf4b7**・live 照合 all_ok（md5 5 本・proacl・列 18／CHECK 6／index 7・関数 290・表 79・'billing locked' 149・形 149・述語参照 150＝docs/tmp/q0930_post_0159.mjs）・名簿 **290**（A 149／B 141）。次＝0159 client 便（店舗設定 UI・STEP 3・明細表示）。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
@@ -3991,6 +3998,20 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 在庫管理の判定＝products に管理フラグの列は無い → **product_stock_totals の戻りに行がある商品（＝stock_logs に 1 行以上ある商品）** を「管理あり」とした（在庫数が無い＝管理なし）。入荷の記録が無い商品は一覧に出ず、件数だけ注記する。
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
+
+## 裁定325（2026-09-30 承認・Agoora）無人便 L の仮決めの追認
+
+出典＝Agoora 承認（2026-09-30・便 P-2 で収載）。無人便 L（HEAD efc7f72）で CC が仮決めした 7 点の追認。次の裁定番号は 326。**本文（逐語）**:
+「裁定325 無人便 L の仮決めの追認（2026-09-30）
+1 保証時給の終了注記＝終了日が当期内または残り 0〜7 日のキャストに「保証時給は M/D まで（以後 基本時給 ¥N）」（基本時給なし／0 は金額を省く）。/casts と給与プレビュー（warning kind guarantee_ending・確定は止めない）。
+2 日払い過徴収 warn＝当期プレビューの差引支給見込み（net＋dailyPaidGross）を、当期の日払い累計＋今回額が超えるとき「当期の見込み手取り ¥N を超えます（翌期で控除）」。同額は出さない・失敗時は出さない・発行は止めない。
+3 shortfall の額＝roundYen(日別 hourly（保証時給・スライド込み）×(遅刻＋早上がり分)÷60)。無断欠勤・不足 0 分・hourly 0 の日は行を出さない。委託の表示名は「報酬調整（契約）」。
+4 pay_time_basis 'shift' は実働のある日だけ hours を確定シフト時間に置換（打刻なし＝0・シフトの無い日は実働）。next の判定は run の期の初日。
+5 日払いフォームの期の注記＝paid は info「翌月へ」・finalized（未払い）は warn「確定解除して再計算するまで給与明細には載りません」。
+6 単位付き金額（円/本・円/点）は MoneyInput の「円」に統一しラベルで単位を示す。数量・分・%・pt は対象外。
+7 RPC 不在の判定＝PGRST202／'Could not find the function'／'schema cache'（0159 適用後は結線に置換＝P-4）。」
+
+適用＝無人便 L（2026-09-30・push 済み efc7f72）で実装済み。7 は便 P-4 で probe を外し結線に置換。
 
 ## 裁定324（2026-09-30 承認・Agoora）勤務時間の計算基準（店設定・2 択）
 
@@ -4041,7 +4062,7 @@ CC の注記（本文には触れない）: 追補2-2 の「mode は 'before' �
 
 適用＝便 S159-2（2026-09-30）で ★2 のゲート行 1 行を除去（改稿前の控え docs/tmp/0159_before_324-3.sql・sha b4f7f933…6aaa）。2〜4 は D159 起草の判断どおり（改稿なし）。
 
-**0159 の欄（起草済み・手貼り待ち）**: supabase/migrations/0159_pay_time_basis.sql＝**起草済み・sha256 00ed3da283e2fd2cbb9ac9887d024819ba69408b39d1c3cdd19fa26add5bf4b7・494 行・33,999 B・再突合 37 段 NG 0（docs/tmp/q0930_ag_0159.mjs・BEGIN…ROLLBACK）・手貼り待ち**（未追跡・生成器 docs/tmp/gen_0159.mjs＋0159_template.sql・写経元 0159_live.json・期待 md5 0159_expected.json＝customer_register e165599a／kiosk_transport_issue 08c5dbc3／demo_org_reset 7b6070a6／payroll_shortfall_sync 0cc27ae4／set_store_pay_time_basis 7b8e7fb1）。適用後の見込み＝関数 290・表 79・名簿 A 149／B 141・'billing locked' 149・形 149・述語参照 150。
+**0159 の欄（起草済み・手貼り待ち）**: supabase/migrations/0159_pay_time_basis.sql＝**起草済み・sha256 00ed3da283e2fd2cbb9ac9887d024819ba69408b39d1c3cdd19fa26add5bf4b7・494 行・33,999 B・再突合 37 段 NG 0（docs/tmp/q0930_ag_0159.mjs・BEGIN…ROLLBACK）→ 本番適用 2026-09-30 hh:mm（申告値未受領）（Agoora 手貼り・Success 申告）→ 便 P-1 で live 照合 all_ok・収蔵**（未追跡・生成器 docs/tmp/gen_0159.mjs＋0159_template.sql・写経元 0159_live.json・期待 md5 0159_expected.json＝customer_register e165599a／kiosk_transport_issue 08c5dbc3／demo_org_reset 7b6070a6／payroll_shortfall_sync 0cc27ae4／set_store_pay_time_basis 7b8e7fb1）。適用後の見込み＝関数 290・表 79・名簿 A 149／B 141・'billing locked' 149・形 149・述語参照 150。
 
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
@@ -5657,6 +5678,10 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 92 | **payroll_attentions の cast_id／store_id／org_id は cascade しない＝cast を消す経路と demo_org_reset が新表を知らない**（中・**起票 2026-09-29 便 AA-3**） | 0158 の payroll_attentions は run_id のみ ON DELETE CASCADE。要対応の行が残る cast は delete が FK で止まる（verify:nox-punch-match pm(9-15) は casts delete の前に自前で消す形にした）。demo_org_reset（0149）は削除対象の表の一覧に payroll_attentions を持たない＝デモ org に要対応が 1 行でもあると reset が FK で失敗しうる（payroll_runs を先に消す順なら cascade で消えるため、live の削除順の確認が先）。処置＝0159 で demo_org_reset の削除順を確認のうえ payroll_attentions を明示で足す。 |
 | 93 | **日払いフォームの「確定済みのため、日払いの発行はできません（読取のみ）」を裁定312 に合わせて見直し**（低・**起票 2026-09-30 便 AC-0**） | 本文（逐語）: 「日払いフォームの『確定済みのため発行できません（読取のみ）』を裁定312 に合わせて見直し＝便 X-12」。裁定312（0158）で支払済みの期の営業日でも日払いは翌月へ繰り下げて発行できるようになったが、components/nox/daily-pay-form.tsx は readOnly（給与画面の adjEditable=false＝確定済み run）で発行欄ごと隠す。処置＝便 X-12 で readOnly の条件を見直す（確定済み run でも発行可・繰り下げ先を表示）。 |
 | 94 | **歯車ポップオーバーが画面上端より上に描画され、名前・メール行が切れる**（中・**起票 2026-09-30 便 D159-1・9/30 Agoora 目視**） | 本文（逐語）: 「歯車ポップオーバーが画面上端より上に描画され名前・メール行が切れる＝ヘッダー直下に固定・viewport 内に収め超過は内部スクロール・≤899 はシート」。処置＝ヘッダーの ⚙ ポップオーバーをヘッダー直下に固定（top をヘッダー高さ基準に）・高さは viewport 内に収め、超過分は内部スクロール（overflow-y: auto）・≤899px は裁定306-11 のボトムシート（overlay・fixed）を使う。便 X-12（0159 client 便に同乗）。 |
+| 95 | **枠マスタ（staff_shift_patterns）の無効化＝器なし**（中・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「枠マスタの無効化＝+disabled_from・staff_pattern_disable／enable（0160）」。現状＝staff_pattern_set は insert のみ・delete は未来行のみ・effectivePatterns は同名の最新行を常に有効とみなす（docs/tmp/0930_pm_pre.md ①）。処置＝0160 で列 disabled_from date と RPC 2 本（owner／manager 自店）・client は effectivePatterns で除外＋「停止中」バッジ。 |
+| 96 | **T6 加盟店契約確認の記録＝器なし（client の ack は保存の前提にするだけで記録が残らない）**（中・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「T6 加盟店契約確認の記録＝器を追加・読取は料金マスタ（0160・白名単 +1 か set_store_tax_config +p_contract_ack は起草時に裁く）」。現状＝pricing-board 340 行の tSurAck は set_store_tax_config に渡らず「保存すると確認の記録が残ります」の文言と食い違う（0930_pm_pre.md ②）。処置＝0160。 |
+| 97 | **未確定 run の自動計算＝cron の器と auth**（低・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「未確定 run の自動計算＝cron は expire-trials に同居・core の service 分岐は裁定要（ローンチ前ゲート）」。現状＝vercel.json の cron は Hobby 上限 2 本を使用済み・computePayrollDraft は managerClient（JWT 前提 RPC）必須＝cron から preview は 401（0930_pm_pre.md ③）。処置＝expire-trials に同居＋core を admin だけで読める集計へ（service 分岐は裁定）。 |
+| 98 | **owner 自身のメール変更＝route が owner を 403**（低・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「owner 自身のメール変更＝update-email.ts 42 行の除外解除・Auth 設定 4 点後（mig 不要）」。現状＝lib/nox/staff/update-email.ts 42 行 decideEmailTarget が role staff／manager 以外を 403（ロックアウト防止）・Auth 設定 4 点（Secure email change・確認必須・レート制限・Site URL）は未決（0930_pm_pre.md ④）。処置＝Auth 設定の後に本人 owner を許可（新メールの確認を client で 1 段）。 |
 
 ### 未裁定・消し込み待ち
 
