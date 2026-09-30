@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { periodCalendarDays, type PayrollWindow } from "./window";
 import type { CastRaw, StoreMasters, DeductionOverride } from "./assemble"; // ★0156: DeductionOverride（run 別控除上書き）
 import { calcPeriodOf } from "./assemble"; // ★0154 D6
+import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）: 勤務時間の計算基準（store 設定・期の初日で解決）
 /** ★0154 D2: 'HH:MM'（0-47 域）→ 分（shift-time.hm2min と同式・collect 内で閉じる） */
 const hm2minOf = (hm: string): number => { const [h, mm] = String(hm).split(":").map(Number); return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(mm) ? mm : 0); };
 import type { AdjustmentRow } from "./adjust"; // 裁定258／264
@@ -79,8 +80,8 @@ export type CollectResult = {
 
 // 店共通マスタ＋cast 個別マスタ（plan/norm/tax）を1回読む。
 // periodEnd は period_bounds 由来の 'YYYY-MM-DD'（win.periodEnd・写像単一ソース＝Date 非経由）。
-async function loadMasters(admin: SupabaseClient, storeId: string, period: string, periodEnd: string) {
-  const [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR] = await Promise.all([
+async function loadMasters(admin: SupabaseClient, storeId: string, period: string, periodEnd: string, runPeriodStart?: string) {
+  const [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR, stR] = await Promise.all([
     admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, dohan_back_mode, dohan_back_rate, product_back_mode, product_back_rate, product_back_fixed").eq("store_id", storeId),
     // ★裁定97: 適用行の選択は3段（期間と重なる行を全部読み、下の castPlanByCast 構築で選ぶ）。
     //   a) 期首（period-01）時点で有効な行があればそれ＝裁定96-④ 不変（期中変更は翌期から）。
@@ -99,8 +100,9 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
     // ★mig0114（読み経路段）: 行型コンポーネント（plan_id で束ねる・空なら旧式同値＝pay.ts 非参照）
     admin.from("comp_plan_components").select("plan_id, kind, mode, amount, rate, params, priority")
       .eq("store_id", storeId).eq("is_active", true).order("priority"),
+    admin.from("stores").select("settings_json").eq("id", storeId).maybeSingle(), // ★324（便 L-2-3）: pay_time_basis／_next／_next_from（配列の末尾＝分割代入の stR と対応）
   ]);
-  for (const r of [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR]) {
+  for (const r of [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR, stR]) {
     if (r.error) throw new Error(`マスタ読み取り: ${r.error.message}`);
   }
   const compsByPlan = new Map<string, CompPlan["components"]>();
@@ -165,7 +167,9 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
     }
   }
   const pen = penR.data as Record<string, unknown> | null;
+  const basis = payTimeBasisOf(((stR.data?.settings_json ?? null) as Record<string, unknown> | null), runPeriodStart ?? `${period}-01`); // ★324-2: run の期の初日 ≥ next_from なら next
   const masters: StoreMasters = {
+    ...(basis === "shift" ? { payTimeBasis: "shift" as const } : {}), // ★324（便 L-2-3）: 'punch'／未設定はキーを足さない（従来と 1 バイト同値）
     penalty: {
       fineAbsent: (pen?.fine_absent as number) ?? 0,
       fineLate: (pen?.fine_late as number) ?? 0,
@@ -615,7 +619,7 @@ export async function collectPeriod(
   }
 
   const [{ plansById, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
-    loadMasters(admin, storeId, win.period, win.periodEnd),
+    loadMasters(admin, storeId, win.period, win.periodEnd, win.periodStart), // ★324（便 L-2-3）
     loadAccounting(admin, storeId, win),
     loadIncentives(admin, storeId, win),
     loadReceivables(admin, storeId, win),

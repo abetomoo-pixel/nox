@@ -244,6 +244,9 @@ export type PayInput = {
   avgDailyWage?: number | null; // 裁定98-C 平均賃金（直近3確定期）。null=暫定式（provisional）
   // ★0154 D2（裁定291 追補1 B）: 報酬型の入力。未指定＝従来と 1 バイト同値（override.pay_rule が無ければ読まない）。
   shiftHoursByDay?: Record<number, number>; // d→確定シフトの時間（shift_guarantee＝日ごと max(実働, シフト)）
+  // ★裁定324-1／324-2（0159 client 前倒し・便 L-2-3）: 勤務時間の計算基準（店設定）。'shift'＝時給部分の hours を確定シフトの時間に置き換える（出勤した日だけ・無断欠勤は 0）。
+  //   未指定・'punch'＝従来と 1 バイト同値（golden 不変）。不足分の控除行（shortfall）は別途 payroll_adjustments に積む＝ここでは扱わない。
+  payTimeBasis?: "punch" | "shift";
   attendanceDays?: number;                  // 出勤区分（出勤・遅刻・同伴）の回数（per_shift＝回数×額・未指定は cast.days）
   calcPeriodDays?: number;                  // 計算期間の暦日数（fixed の按分＝calcPeriodDays／periodDays・未指定は periodDays＝按分なし）
   taxMode: TaxMode; // cast_tax_profiles.mode
@@ -576,13 +579,17 @@ export function payOf(input: PayInput): PayResult {
   // ★0154 D2（裁定291 追補1 B）: 報酬型。actual＝現行式（1 バイト同値）。shift_guarantee＝日ごと max(実働, 確定シフト時間) で時給計算。
   //   fixed＝期の定額（暦日按分）。per_shift＝出勤回数×額。timePay だけを置き換え、バック・控除・源泉の式は不変。
   const rule: PayRule = input.override?.pay_rule ?? "actual";
-  const dailyEff: DailyRecord[] = rule === "shift_guarantee"
-    ? input.daily.map((r) => ({ ...r, hours: Math.max(r.hours, input.shiftHoursByDay?.[r.d] ?? 0) }))
+  // ★324-2（便 L-2-3）: 'shift'＝実働（in〜out）がある日の hours を確定シフトの時間に置き換える（打刻が無い日＝hours 0 のまま＝支給なし・シフトが無い日は実働のまま）
+  const dailyBase: DailyRecord[] = input.payTimeBasis === "shift"
+    ? input.daily.map((r) => (r.hours > 0 && input.shiftHoursByDay?.[r.d] !== undefined ? { ...r, hours: input.shiftHoursByDay[r.d] } : r))
     : input.daily;
+  const dailyEff: DailyRecord[] = rule === "shift_guarantee"
+    ? dailyBase.map((r) => ({ ...r, hours: Math.max(r.hours, input.shiftHoursByDay?.[r.d] ?? 0) }))
+    : dailyBase;
   const wd0 = rule === "shift_guarantee"
     ? wageDetail(dailyEff, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay)
     : null;
-  const wd = wageDetail(input.daily, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay); // ★N3／N3b
+  const wd = wageDetail(dailyBase, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay); // ★N3／N3b（★324-2: 'shift' は dailyBase＝確定シフト時間・'punch' は input.daily と同一参照）
   let payRule: PayRuleDetail | undefined;
   let timePayRule = wd.timePay;
   if (rule === "shift_guarantee" && wd0) {

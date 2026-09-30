@@ -86,6 +86,7 @@ export function applyDeductionOverrides(deductions: Deduction[], overrides: Dedu
 
 // 店共通マスタ（loadStoreMasters が組む）。
 export type StoreMasters = {
+  payTimeBasis?: "punch" | "shift"; // ★裁定324（便 L-2-3）: 店の勤務時間の計算基準（run の期の初日で解決済み・未指定＝'punch'）
   penalty: PenaltyConfig;
   normConfig: NormPenaltyConfig;
   deductions: Deduction[];
@@ -157,6 +158,7 @@ export function buildPayInput(
     plan: raw.plan,
     override: raw.override,
     ...guaranteeInputOf(raw), // ★N3: 保証行が無ければ何も足さない（キー自体を持たない＝従来と 1 バイト同値）
+    ...(masters.payTimeBasis === "shift" ? { payTimeBasis: "shift" as const } : {}), // ★324（便 L-2-3）: 'shift' のときだけキーを足す（'punch'／未指定＝従来と 1 バイト同値）
     ...slideInputOf(raw), // ★N3b: 'next' でなければ何も足さない
     productBack: raw.productBack,
     calculatedBack: raw.calculatedBack, // ★裁定113

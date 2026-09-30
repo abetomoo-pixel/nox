@@ -4,10 +4,16 @@
  *
  *  shortfallRowsOf({ days, hourlyByDate, lateGraceMin, employment }) → 営業日ごとの {biz_date, target_shift_id, minutes_late, minutes_early, amount, basis, reason}
  *   - 遅刻のみ／早上がりのみ／両方／猶予内（0 行）／無断欠勤（in なし＝0 行）／保証時給中（その日の hourly＝保証額）／丸め（roundYen）／名称（雇用・委託）／out なし（早上がりは数えない）
- *  逆テスト 1 本（手動・1 回）: shortfall.ts の `(late + early)) / 60` を `/ 30` にする → sf(1-1) が赤 → 戻す。
+ *  (11)〜(13) ★便 L-2-3: payTimeBasisOf（既定 punch・next_from の境界）・payOf の payTimeBasis 'shift'（出勤日の hours＝確定シフト時間・欠勤日は 0 のまま）・'punch'／未指定＝golden（玲奈 timePay 653,050）不変・buildPayInput は masters.payTimeBasis='shift' のときだけキーを足す
+ *  逆テスト 1 本（手動・1 回）: shortfall.ts の `(late + early)) / 60` を `/ 30` にする → sf(1-1) が赤 → 戻す。逆テスト 2（L-2-3）: pay.ts の dailyBase の `input.payTimeBasis === "shift"` を `=== "punch"` にする → sf(12-1)／(12-3) が赤 → 戻す。
  */
+import fs from "node:fs";
 import { shortfallRowsOf, shortfallBasisOf, shortfallLabelOf } from "../lib/nox/payroll/shortfall";
 import { roundYen } from "../lib/nox/money";
+import { payOf } from "../lib/nox/pay"; // ★便 L-2-3: payTimeBasis 'shift'（確定シフト時間で時給計算）／'punch'＝golden 不変
+import { payTimeBasisOf, PAY_TIME_BASIS_DEFAULT } from "../lib/nox/payroll/time-basis";
+import { buildPayInput, type CastRaw, type StoreMasters } from "../lib/nox/payroll/assemble";
+import { REINA_INPUT } from "./fixtures-pay";
 
 let pass = 0;
 const fails: string[] = [];
@@ -48,6 +54,38 @@ const r9 = run([day({ inHm: "20:30" }), day({ bizDate: "2026-09-11", shiftId: "s
 check("sf(9-1) 複数日は日ごと 1 行（9/10 遅刻・9/11 早上がり 60）・確定シフトなし（shiftId 空）は出さない", r9.length === 2 && r9[0].biz_date === "2026-09-10" && r9[1].biz_date === "2026-09-11" && r9[1].amount === 3000, JSON.stringify(r9.map((r) => [r.biz_date, r.amount])));
 // (10) 日跨ぎ（30h 表記の終了 25:00 に対する 24h 表記の退勤 00:30）
 check("sf(10-1) 日跨ぎ: 退勤 00:30（24h 表示）→ early 30", run([day({ outHm: "00:30" })])[0]?.minutes_early === 30);
+
+// (11) ★裁定324-1／324-2（便 L-2-3）: payTimeBasisOf＝既定 'punch'・next は期の初日 ≥ next_from のときだけ・不正値は既定
+check("sf(11-1) payTimeBasisOf: 欠損／null／不正値 → 'punch'（既定）", payTimeBasisOf(null, "2026-10-01") === "punch" && payTimeBasisOf({}, "2026-10-01") === "punch" && payTimeBasisOf({ pay_time_basis: "daily" }, "2026-10-01") === "punch" && PAY_TIME_BASIS_DEFAULT === "punch");
+check("sf(11-2) 現行 'shift'・next なし → 'shift'", payTimeBasisOf({ pay_time_basis: "shift" }, "2026-10-01") === "shift");
+check("sf(11-3) next 'shift'・next_from 2026-11-01: 期の初日 10/01 → 'punch'（現行）・11/01 → 'shift'・12/01 → 'shift'（settings は書き換えない＝比較で吸収）",
+  payTimeBasisOf({ pay_time_basis: "punch", pay_time_basis_next: "shift", pay_time_basis_next_from: "2026-11-01" }, "2026-10-01") === "punch"
+  && payTimeBasisOf({ pay_time_basis: "punch", pay_time_basis_next: "shift", pay_time_basis_next_from: "2026-11-01" }, "2026-11-01") === "shift"
+  && payTimeBasisOf({ pay_time_basis: "punch", pay_time_basis_next: "shift", pay_time_basis_next_from: "2026-11-01" }, "2026-12-01") === "shift");
+check("sf(11-4) next_from が不正／欠損なら next を無視・next が不正なら現行", payTimeBasisOf({ pay_time_basis: "shift", pay_time_basis_next: "punch", pay_time_basis_next_from: "x" }, "2026-11-01") === "shift" && payTimeBasisOf({ pay_time_basis: "shift", pay_time_basis_next: "punch" }, "2026-11-01") === "shift" && payTimeBasisOf({ pay_time_basis: "punch", pay_time_basis_next: "daily", pay_time_basis_next_from: "2026-01-01" }, "2026-11-01") === "punch");
+// (12) payOf の payTimeBasis: 出勤日（hours>0）だけ確定シフト時間に置き換え・欠勤日（hours 0）は 0 のまま・シフトが無い日は実働のまま
+const golden = payOf(REINA_INPUT);
+const punch = payOf({ ...REINA_INPUT, payTimeBasis: "punch" });
+const shiftHoursByDay = Object.fromEntries(REINA_INPUT.daily.map((r) => [r.d, 6]));
+const shiftEff = payOf({ ...REINA_INPUT, payTimeBasis: "shift", shiftHoursByDay });
+const expectShift = payOf({ ...REINA_INPUT, daily: REINA_INPUT.daily.map((r) => (r.hours > 0 ? { ...r, hours: 6 } : r)) });
+check("sf(12-1) 'shift'＝出勤日の hours を確定シフト時間（6h）に置き換えた計算と 1 バイト同値（timePay／wHours／wage／net）", shiftEff.timePay === expectShift.timePay && shiftEff.wHours === expectShift.wHours && shiftEff.wage === expectShift.wage && shiftEff.net === expectShift.net && shiftEff.timePay !== golden.timePay, JSON.stringify({ s: shiftEff.timePay, e: expectShift.timePay, g: golden.timePay }));
+check("sf(12-2) 'punch'／未指定＝golden 不変（玲奈 timePay 653,050・net 1,208,848・wHours 110.1）", golden.timePay === 653050 && golden.net === 1208848 && golden.wHours === 110.1 && JSON.stringify(punch) === JSON.stringify(golden), JSON.stringify({ t: golden.timePay, n: golden.net, h: golden.wHours }));
+const absent = payOf({ ...REINA_INPUT, payTimeBasis: "shift", daily: [{ d: 1, hours: 0, sales: 0 }, { d: 2, hours: 3, sales: 0 }], shiftHoursByDay: { 1: 5, 2: 5, 3: 5 } });
+const absentExp = payOf({ ...REINA_INPUT, daily: [{ d: 1, hours: 0, sales: 0 }, { d: 2, hours: 5, sales: 0 }] });
+check("sf(12-3) 無断欠勤（hours 0）はシフトがあっても 0 のまま・出勤日は 5h・シフトの無い日は実働（wHours 5.0）", absent.wHours === 5 && absent.timePay === absentExp.timePay && payOf({ ...REINA_INPUT, payTimeBasis: "shift", daily: [{ d: 1, hours: 3, sales: 0 }], shiftHoursByDay: {} }).wHours === 3, JSON.stringify({ h: absent.wHours, t: absent.timePay, e: absentExp.timePay }));
+const sg = payOf({ ...REINA_INPUT, payTimeBasis: "shift", shiftHoursByDay, override: { pay_rule: "shift_guarantee" } });
+check("sf(12-4) shift_guarantee との併用: 'shift' で hours＝6h に置換した後の max(実働, シフト)＝同じ 6h（timePay は sf(12-1) と同値）", sg.timePay === shiftEff.timePay, JSON.stringify({ sg: sg.timePay, s: shiftEff.timePay }));
+// (13) buildPayInput: masters.payTimeBasis='shift' のときだけ PayInput にキーを足す（'punch'／未指定＝キーなし＝従来と 1 バイト同値）
+const rawMin: CastRaw = {
+  castId: "c1", castName: "テスト", sales: 0, hon: 0, jonai: 0, dohan: 0, honShimeiAmt: 0, jonaiShimeiAmt: 0,
+  daily: [{ bizDate: "2026-09-10", sales: 0, hours: 3 }], productBack: { drink: 0, champ: 0, bottle: 0 }, calculatedBack: 0, pointProducts: 0, champCnt: 0, bottleCnt: 0,
+  days: 1, lateN: 0, absentN: 0, anomalyCount: 0, plan: REINA_INPUT.plan, norm: { days: 0, dohan: 0 }, taxProfileMode: "委託", employment: "委託", avgDailyWage: null,
+};
+const mastersBase: StoreMasters = { penalty: REINA_INPUT.penalty, normConfig: REINA_INPUT.normConfig, deductions: [], customBackDefs: [] };
+check("sf(13-1) buildPayInput: masters.payTimeBasis 'shift' → payTimeBasis: 'shift'／'punch'・未指定 → キーなし", buildPayInput(rawMin, "委託", { ...mastersBase, payTimeBasis: "shift" }, 30, 0).payTimeBasis === "shift" && !("payTimeBasis" in buildPayInput(rawMin, "委託", { ...mastersBase, payTimeBasis: "punch" }, 30, 0)) && !("payTimeBasis" in buildPayInput(rawMin, "委託", mastersBase, 30, 0)));
+const collectSrc = fs.readFileSync("lib/nox/payroll/collect.ts", "utf8");
+check("sf(13-2) collect: stores.settings_json を読み payTimeBasisOf(…, win.periodStart) で解決・'shift' のときだけ masters にキーを足す", collectSrc.includes('admin.from("stores").select("settings_json").eq("id", storeId).maybeSingle()') && collectSrc.includes("payTimeBasisOf(((stR.data?.settings_json ?? null) as Record<string, unknown> | null), runPeriodStart ??") && collectSrc.includes("loadMasters(admin, storeId, win.period, win.periodEnd, win.periodStart)") && collectSrc.includes('...(basis === "shift" ? { payTimeBasis: "shift" as const } : {})'));
 
 if (fails.length) {
   console.log(`FAIL ${fails.length} 件 / pass ${pass}`);
