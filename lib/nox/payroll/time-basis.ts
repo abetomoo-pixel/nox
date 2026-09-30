@@ -13,3 +13,28 @@ export function payTimeBasisOf(settings: Record<string, unknown> | null | undefi
   if (next && typeof from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(periodStart) && periodStart >= from) return next;
   return cur;
 }
+
+// ── 表示用（便 C-1／C-2／C-3・2026-09-30）──
+export const PAY_TIME_BASIS_LABEL: Record<PayTimeBasis, string> = { punch: "実打刻", shift: "確定シフトどおり" };
+/** 期ヘッダー用の 1 語（C-3）: 実打刻／確定シフト */
+export const PAY_TIME_BASIS_SHORT: Record<PayTimeBasis, string> = { punch: "実打刻", shift: "確定シフト" };
+
+export type PayTimeBasisView = { current: PayTimeBasis; next: PayTimeBasis | null; nextFrom: string | null };
+/** settings_json → 現在値・予約値・適用日（不正・欠損は既定 'punch'／null）。予約が現在値と同じ・適用日が不正なら予約なし扱い */
+export function payTimeBasisViewOf(settings: Record<string, unknown> | null | undefined): PayTimeBasisView {
+  const cur = asBasis(settings?.pay_time_basis) ?? PAY_TIME_BASIS_DEFAULT;
+  const next = asBasis(settings?.pay_time_basis_next);
+  const from = settings?.pay_time_basis_next_from;
+  const ok = !!next && typeof from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(from);
+  return { current: cur, next: ok ? next : null, nextFrom: ok ? (from as string) : null };
+}
+/** 'YYYY-MM-DD' → 'M/D' */
+const mdOf = (ymd: string) => `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
+/** 予約の注記「M/1 から適用（現在: 実打刻）」。予約なしは null。すでに到来している（today ≥ nextFrom）予約は「M/1 から適用中」 */
+export function payTimeBasisApplyNoteOf(view: PayTimeBasisView, today?: string): string | null {
+  if (!view.next || !view.nextFrom) return null;
+  const arrived = typeof today === "string" && today >= view.nextFrom;
+  return arrived ? `${mdOf(view.nextFrom)} から適用中（${PAY_TIME_BASIS_LABEL[view.next]}）` : `${mdOf(view.nextFrom)} から適用（現在: ${PAY_TIME_BASIS_LABEL[view.current]}）`;
+}
+/** 保存時の apply: 当店に payroll_runs が 1 行以上あれば 'next'（次の暦月の 1 日から）・0 行なら 'now'（即時＝ウィザード STEP 3 と同じ） */
+export const payTimeBasisApplyOf = (runCount: number): "next" | "now" => (runCount > 0 ? "next" : "now");

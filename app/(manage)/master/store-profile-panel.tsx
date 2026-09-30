@@ -13,7 +13,10 @@ import * as t from "@/lib/nox/ui/theme";
 import StoreFlagToggle, { storeProfileErrJa } from "./store-flag-toggle";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
-import MoneyInput from "@/components/ui/money-input"; // ★裁定317（0158・便 AB-6）: 送りの基本額（okuri_base_amount・0〜99,999 の整数・空欄＝未設定＝0 を送る）
+import MoneyInput from "@/components/ui/money-input";
+import SegSelect from "@/components/ui/seg-select";
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
+import { PAY_TIME_BASIS_LABEL, payTimeBasisApplyNoteOf, payTimeBasisApplyOf, payTimeBasisViewOf, type PayTimeBasis, type PayTimeBasisView } from "@/lib/nox/payroll/time-basis"; // ★裁定324（0159・便 C-1）: 勤務時間の計算基準 // ★裁定317（0158・便 AB-6）: 送りの基本額（okuri_base_amount・0〜99,999 の整数・空欄＝未設定＝0 を送る）
 type Store = { id: string; name: string };
 type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）
 const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false };
@@ -29,6 +32,12 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // ★裁定324（0159・便 C-1）: 勤務時間の計算基準（owner／manager）＝現在値・予約値・適用日は settings_json・当店の payroll_runs の有無で 'now'／'next'
+  const [tb, setTb] = useState<PayTimeBasisView>({ current: "punch", next: null, nextFrom: null });
+  const [tbPick, setTbPick] = useState<PayTimeBasis>("punch");
+  const [tbRuns, setTbRuns] = useState<number | null>(null);
+  const [tbBusy, setTbBusy] = useState(false);
+  const [tbMsg, setTbMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!storeSel) return;
@@ -49,6 +58,9 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
       ar_enabled: sj.ar_enabled === true, // ★0155（裁定309-1）: 既存店は 0155 で true・新規店はキー無し＝false（サーバの ar_policy_ok と同じ既定）
     };
     setCur(p); setForm(p); setLoaded(true);
+    const v = payTimeBasisViewOf(sj); setTb(v); setTbPick(v.next ?? v.current); setTbMsg(null); // ★324
+    const { count } = await supabase.from("payroll_runs").select("id", { count: "exact", head: true }).eq("store_id", storeSel); // ★324: runs の有無（新規 fetch はこの 1 回）
+    setTbRuns(count ?? 0);
   }, [storeSel]);
   useEffect(() => { void load(); }, [load]);
 
@@ -80,6 +92,19 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
     setBusy(false);
     if (error) { setMsg(`保存に失敗: ${storeProfileErrJa(error.message)}`); return; }
     setMsg("店舗情報を保存しました");
+    await load();
+  }
+
+  // ★裁定324（0159・便 C-1）: set_store_pay_time_basis(p_store_id, p_value, p_apply)＝runs 0 行は 'now'・1 行以上は 'next'（次の暦月の 1 日から）
+  async function saveTimeBasis() {
+    if (tbBusy || tbRuns === null) return;
+    setTbBusy(true); setTbMsg(null);
+    const supabase = createClient();
+    const apply = payTimeBasisApplyOf(tbRuns);
+    const { error } = await supabase.rpc("set_store_pay_time_basis", { p_store_id: storeSel, p_value: tbPick, p_apply: apply });
+    setTbBusy(false);
+    if (error) { setTbMsg(`保存に失敗: ${rpcErrJa(error.message)}`); return; }
+    setTbMsg(apply === "now" ? `勤務時間の計算基準を「${PAY_TIME_BASIS_LABEL[tbPick]}」にしました` : `勤務時間の計算基準を次の期から「${PAY_TIME_BASIS_LABEL[tbPick]}」にしました`);
     await load();
   }
 
@@ -135,6 +160,28 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
           </div>
         </section>
       )}
+
+      {/* ★裁定324（0159・便 C-1）: 勤務時間の計算基準（owner／manager）＝店舗情報カードの隣。2 択＝実打刻（既定）／確定シフトどおり。
+          当店に給与の計算期間（payroll_runs）が無ければ即時（'now'）・あれば次の暦月の 1 日から（'next'）＝「M/1 から適用（現在: 実打刻）」を表示 */}
+      <section className="nox-cardtop" style={t.card}>
+        <h2 style={{ ...secTitle, margin: "0 0 4px" }}>勤務時間の計算基準</h2>
+        <p style={{ ...t.sub, fontSize: 12, margin: "0 0 10px" }}>時給部分の勤務時間を「実打刻」で計算するか「確定シフトどおり」で計算するかの店設定です。確定シフトどおりの店では、遅刻・早上がりの分が不就労控除（委託は報酬調整）として給与に載ります。切替は次の給与期の初日から（給与の計算期間がまだ無い店は即時）。</p>
+        {loaded && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13 }}>現在: <b>{PAY_TIME_BASIS_LABEL[tb.current]}</b></span>
+              {payTimeBasisApplyNoteOf(tb, new Date().toISOString().slice(0, 10)) && <span style={{ fontSize: 12, color: "var(--champ)", fontWeight: 700 }}>{payTimeBasisApplyNoteOf(tb, new Date().toISOString().slice(0, 10))}</span>}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+              <SegSelect value={tbPick} onChange={(v) => setTbPick(v as PayTimeBasis)} options={[["punch", "実打刻"], ["shift", "確定シフトどおり"]]} />
+              <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={tbBusy || tbRuns === null || tbPick === (tb.next ?? tb.current)} onClick={() => void saveTimeBasis()}>
+                {tbRuns === null ? "読み込み中…" : tbRuns > 0 ? "次の期から切り替える" : "この基準にする"}
+              </button>
+            </div>
+            {tbMsg && <Toast msg={tbMsg} style={{ margin: "10px 0 0" }} />}
+          </>
+        )}
+      </section>
 
       {/* ★裁定245-1: キャスト確認の任意化（settings_json.shift_cast_confirm・既定 OFF）。shift/page.tsx が読む */}
       <section className="nox-cardtop" style={t.card}>
