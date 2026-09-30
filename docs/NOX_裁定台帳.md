@@ -4015,7 +4015,20 @@ CC の事前メモ（起草時の確認点・追補1 で (c)(d) は確定・(a)(
 0159 のスコープ＝324-6（白名単 +3・source CHECK +'shortfall'・biz_date 列・部分 unique・kind CHECK 拡張・RPC payroll_shortfall_sync）＋起票89（customer_register をレジ権限 staff へ）＋起票91（kiosk_transport_issue ゲート行の形・billing pin 147→148）＋起票92（payroll_attentions の cascade・demo_org_reset）を 1 本。
 pay.ts の読取位置と保証時給の参照先（CC 確認点 (a)(b)）は 0159 事前読取で事実を出し、★指定で確定する。」
 
-0159 のスコープ（追補1 で確定）＝324-6 ＋ 起票89 ＋ 起票91 ＋ 起票92 を 1 本。起草の前に事前読取（docs/tmp/0159_pre.md）で (a)(b) の事実を出し、★指定を待つ。
+0159 のスコープ（追補1 で確定）＝324-6 ＋ 起票89 ＋ 起票91 ＋ 起票92 を 1 本。起草の前に事前読取（docs/tmp/0159_pre.md）で (a)(b) の事実を出し、★指定を待つ（→ 便 AC-3 で事前読取済み・追補2 で反映）。
+
+### 裁定324 追補2（0159 事前読取の反映・2026-09-30 受領・便 AC-3 の ③⑤⑥⑧ への裁定）
+
+**本文（逐語）**:
+「裁定324 追補2（0159 事前読取の反映・2026-09-30）
+1 設定の書込は set_store_profile ではなく新 RPC set_store_pay_time_basis(p_store_id uuid, p_value text, p_apply text)。ゲート＝owner／manager 自店（set_store_okuri_mode 骨格）。p_apply='next'＝pay_time_basis_next=p_value・pay_time_basis_next_from=翌暦月 1 日（JST）を settings_json に書く。p_apply='now'＝当店の payroll_runs が 0 行のときのみ pay_time_basis=p_value を直接書く（ウィザード STEP 3 用）・1 行以上なら raise 'runs exist'。値検証は slide_apply 型（'bad pay_time_basis'／'bad apply'）。set_store_profile の白名単は変更しない（追補1 の「白名単 +3」を撤回）。次期初日到来後の昇格は pay.ts の比較（324-2）で吸収し、settings_json は書き換えない。
+2 payroll_shortfall_sync(p_run_id uuid, p_rows jsonb)。金額計算は pay.ts（wageDetail の hourly × 不足分数 ÷ 60・保証時給適用中はその額）で行い、route が p_rows＝[{cast_id, biz_date, amount, target_shift_id, basis, reason}] を渡す。RPC は payroll_carryover_sync の写経＝二重防御 3 段→run 読取（not found／manager 自店／not draft）→upsert on conflict (run_id, cast_id, biz_date) where source='shortfall'→p_rows に無い shortfall 行を delete→audit_log_write 6 引数→件数。基準の shift は target_shift_id（0154 列）に置き、basis text は表示用要約（「遅刻 N 分」「早上がり N 分」「遅刻 N 分・早上がり M 分」）。mode は 'before' 固定。
+3 追補1 の payroll_attentions.kind 拡張は撤回（確定済み期の打刻修正は 315 の既存 kind で要対応に積まれる）。起票92＝payroll_attentions・daily_pays・payroll_run_deduction_overrides の 3 表を demo_org_reset の c_wipe（payroll_adjustments の前）／c_load（payroll_runs の後）に追加。
+4 早上がりは新純関数 earlyLeaveMinutesOf(endHm, outPunchHm)（確定シフト終了との差・猶予なし・client）。close 基準の early_grace は不変。
+5 customer_register の開放は staff のみ（auth_staff_can_register() を足し staff 分岐を can_crm OR can_register に）。cast は含めない。」
+
+追補2 後の 0159 スコープ（起草の入力・確定）: (1) 新 RPC set_store_pay_time_basis（owner／manager 自店・'next'／'now'・'bad pay_time_basis'／'bad apply'／'runs exist'）＝白名単は不変（追補1 の +3 撤回） (2) payroll_adjustments: +biz_date date（null 可・shortfall のみ必須）・source_ck +'shortfall'・部分 unique (run_id, cast_id, biz_date) where source='shortfall'（carryover の unique は不変） (3) 新 RPC payroll_shortfall_sync(p_run_id, p_rows jsonb)＝carryover_sync の写経（金額は pay.ts 側・mode は 'before' 固定＝before_withholding=true・target_shift_id＝基準 shift・basis＝表示用要約） (4) payroll_attentions.kind の拡張なし（撤回） (5) 起票89＝customer_register の staff 分岐を can_crm OR can_register（cast なし） (6) 起票91＝kiosk_transport_issue のゲート行を v_org 形へ（billing 段47-1 147→148） (7) 起票92＝demo_org_reset の c_wipe／c_load に payroll_attentions・daily_pays・payroll_run_deduction_overrides の 3 表。関数 288→290（+2）・表 79 不変。
+CC の注記（本文には触れない）: 追補2-2 の「mode は 'before' 固定」＝payroll_adjustments.mode は 'fixed'／'rate' の 2 値（mode_ck）で 'before' は入らない＝**mode='fixed'・before_withholding=true** と読む（源泉前＝324-3「before 源泉」）。起草でこの読みを冒頭コメントに明記し、違えば★で訂正。
 
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
