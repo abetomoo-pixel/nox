@@ -3961,6 +3961,7 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 **便 AB 完了＝台帳の現在地（2026-09-30）**: HEAD **53f42bd**＝origin/main（0 0）・f0 pin **80 段 5,165**（2 連緑 11:00〜11:13／11:14〜11:26・golden 6 値不変）・Vercel success **11:28:06 JST**・messages **38**。0158 の client 追随（裁定312／314／315／316／317／319）は完了。次＝0159 事前読取（docs/tmp/0159_pre.md）→ ★指定 → 起草（スコープ＝324-6＋起票89・91・92 を 1 本）。 **目視（2026-09-30 便 D159-1）**: 9/30 Agoora 目視 OK＝0156 11 点・X-8〜X-11・便 AB。**便 X-12 の中身＝起票90・93・94（0159 client 便に同乗）**。
 **無人便 L 完了＋0159 本番適用＝台帳の現在地（2026-09-30）**: 無人便 L 完了 HEAD **efc7f72**（X-12-1〜3・L-2-1〜4・L-3-1／2）・f0 **81 段 5,208**（2 連緑）・Vercel **13:24:43 JST**／0159 本番適用 **9/30 午後・時刻不明（Agoora 申告）**・sha **00ed3da283e2fd2cbb9ac9887d024819ba69408b39d1c3cdd19fa26add5bf4b7**・live 照合 all_ok（md5 5 本・proacl・列 18／CHECK 6／index 7・関数 290・表 79・'billing locked' 149・形 149・述語参照 150＝docs/tmp/q0930_post_0159.mjs）・名簿 **290**（A 149／B 141）。次＝0159 client 便（店舗設定 UI・STEP 3・明細表示）。
 **0160 本番適用＝台帳の現在地（2026-09-30）**: 0160 本番適用 **9/30 午後・時刻不明（Agoora 申告）**・sha **d0a1ed21a21ab9312217d04a7fa75cbb5faf58ad734dbbde2c131e8b79fbef1e**・live 照合 all_ok（md5 12 本・proacl・新表 2 の列／policy／grant・reservations 21／shift_wishes 13／patterns 11 列・関数 296・表 81・set_cast_norm_self 不在・'billing locked' 154・形 154・述語参照 155＝docs/tmp/q0930_post_0160.mjs）・名簿 **296**（A 154／B 142）・**表 81**。次＝suite 張替え（便 P160-3）→ f0 2 連 → push → 0160 client 便 M1。
+**便 P160 完了＋0161 本番適用＝台帳の現在地（2026-09-30）**: P160 完了 HEAD **06e04c7**＝origin/main（0 0・push 17:0x）・f0 **84 段 5,276**（2 連緑 16:36:11〜16:47:31／16:49:07〜17:03:35・golden 6 値不変・pin 張替え 7 suite＝grants 461／anon-guard 1045／rls 527／billing 53／customers-keep 32／demo-reset 34／0158 51・cast-norm-self 1・新規 3 suite＝mine-settings 9／reservation-request 12／cast-quota 9）・Vercel success **17:09:26 JST**・名簿 296（A 154／B 142）／0161 本番適用 **9/30 夕・時刻不明（Agoora 申告）**・sha **b45e966180224778f08a26315c1a5df4975898dd298dafd16187d496616b7017**・live 照合 all_ok（17:26:03 JST・md5 5 本・proacl・kind CHECK 2 値・open_punch_ck・run_id null 可・部分 unique・関数 297・表 81・'billing locked' 154・述語参照 155＝docs/tmp/q0930_post_0161.mjs）・名簿 **297**（A 154／B 143）・**表 81**。次＝suite 張替え（便 P161-3）→ f0 2 連 → push → M1（v42 §10-2＋rpc-err 和文 3 種＋/mine 打刻カード 3 状態＝326 追補3）。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
@@ -4005,6 +4006,30 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 在庫管理の判定＝products に管理フラグの列は無い → **product_stock_totals の戻りに行がある商品（＝stock_logs に 1 行以上ある商品）** を「管理あり」とした（在庫数が無い＝管理なし）。入荷の記録が無い商品は一覧に出ず、件数だけ注記する。
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
+
+## 裁定327（2026-09-30 承認・Agoora）打刻の順序検査＝0008 決定1「盲目記録」を退役
+
+出典＝Agoora 指示（2026-09-30・0161 起草便で受領・便 P161 で収載）。次の裁定番号は 328。**本文（逐語）**:
+「裁定327（打刻の順序検査・0008 決定1「盲目記録」を退役）:
+- punch_self（および kiosk 等、cast の打刻を記録する全 RPC。まず一覧を報告）に順序検査を入れる。判定単位は当該店の当日営業日（既存 biz_date 規則）。
+- 出勤: 当日営業日に未閉鎖の出勤があれば 'already in'、当日営業日に閉鎖済みの対があれば 'already out'（同一営業日の再出勤は不可）。
+- 退勤: 当日営業日に未閉鎖の出勤がなければ 'no open punch'。
+- 前営業日以前の未閉鎖出勤は今日の打刻を塞がない。閉鎖は店の修正で行う。注意行の器（0159 の payroll_attentions 系）に 'open_punch' として出す。既存の kind に収まらなければ 0161 で kind を足す。
+- 店側の打刻修正（owner／manager の行編集）は順序検査の対象外。
+- cast 本人の取消は無し。修正は punch_correction_request 経由（M1 の出し分け）。
+- 拒否は rpc-err の既存様式（'already in'／'already out'／'no open punch'）。和文は M1 で client に付ける。」
+
+### 裁定327 追補1（0161 起草判断・2026-09-30 相談役追認）
+
+出典＝相談役追認（2026-09-30・便 P161 で収載）。0161 事前読取（docs/tmp/0161_pre.md）の ★指定 5 点への裁定。**本文（逐語）**:
+「裁定327 追補1（相談役追認）: run_id null 可・punch_proxy も対象・kiosk は raise・open_punch は手動 resolve。0008 決定1 は退役（台帳に「327 により退役」と記す）。」
+
+**0008 決定1「盲目記録」（in-in／孤立 out もそのまま記録・本文の所在＝supabase/migrations/0008_f1d_shift_schema.sql 119 行・docs/NOX_データモデル設計_Supabase版.md 217 行・payOf 精密仕様 192 行 S1）＝裁定327 により退役（2026-09-30・0161 本番適用）**。退役するのは「RPC がシーケンスを検証しない」の部分＝新規打刻を RPC で拒否する。punch-match.ts の S1／S2（既存行の解決規則）は不触＝過去行の in-in／孤立 out はそのまま解決する。
+
+0161-0 読取（docs/tmp/0161_pre.md）: 打刻を書く RPC＝punch_self／punch_proxy／kiosk_punch（順序検査の対象）・punch_correction_apply（店側修正＝対象外）の 4 本（demo_org_reset は payload 投入のみ）。payroll_attentions の kind は 'post_finalize_punch' の 1 値のみ・run_id NOT NULL が壁（打刻時点では期間の run が無い）→ 追補1 で null 可。
+
+適用＝0161_punch_sequence（2026-09-30 本番適用・Agoora 手貼り・live 照合 all_ok 17:26 JST）。
+**0161 の欄（本番適用済み・収蔵）**: supabase/migrations/0161_punch_sequence.sql＝**sha256 b45e966180224778f08a26315c1a5df4975898dd298dafd16187d496616b7017・327 行・20,817 B・突合 24 段 NG 0（docs/tmp/q0930_ag_0161.mjs・BEGIN…ROLLBACK）**・生成器 docs/tmp/gen_0161.mjs＋0161_template.sql・写経元 0161_live.json・期待 md5 0161_expected.json＝punch_self 952f18a4／punch_proxy a760e1a4／kiosk_punch 5a1d5f10／payroll_attentions_of 3721bf4e／punch_seq_check f5fd8b84（新設・内部専用・4 ロール revoke）。器＝★1 payroll_attentions の run_id null 可（FK cascade 不変）・kind CHECK ('post_finalize_punch','open_punch')・open_punch_ck（detail に punch_id／biz_date）・部分 unique（1 打刻 1 行・競合は on conflict do nothing）／★2 punch_seq_check（当日営業日の最終打刻で 'already in'／'already out'／'no open punch'・前営業日以前の未閉鎖 in は塞がず注意行 'open_punch'＋audit 'punch_open_attention'・run があれば run_id）／★3 打刻 3 本の insert 直前に perform 1 行（punch_self は 0008 決定1 のコメント行を差替え）／★4 payroll_attentions_of が run 未作成時に積んだ open_punch を期間で拾う／★5 grants。proof＝関数 297／表 81・'billing locked' 154 不変・名簿 A 154／B 143＝297。pin＝0158（out 始まりの段は in→out）／daily-pay（in→out→out は 'no open punch' を期待）／rls（in-in は 2 度目 'already in'）／anon-guard（probe +1・段35 は out）／grants（G4c 内部 +1・G9 0161）／billing（除外 143）／新規 suite punch-sequence。
 
 ## 裁定326（2026-09-30 承認・Agoora）/mine の再構成と店設定化
 
@@ -5161,6 +5186,7 @@ K36 の説明文もモックの 2 カード語彙（本人レコード／NOXロ�
 - **handoff v36 収蔵（2026-09-17）**: Downloads から `docs/handoff/` へ収蔵（git 追跡へ追加・sha 全64桁付き・教訓72）。v36＝`NOX_相談役引き継ぎ_2026-09-17_v36.md`（12,410 B・sha256 `e39df6315c8818fd0e1d9d1650845548948f548222b8da103c1b5a3ac71fa40b`・64 桁と照合一致・Downloads 原本と収蔵後の再計算がともに同 sha）。v35（`580d0b4`・13,262 B・sha256 `4c2a5b9d6e29d84045e173beaff0cda0a267cf5fa2d19f9edd43d3967c70624a`）に続く版＝本断面（269 出し分け／270・271 ウィザード・f0 pin 52 段 4,175）の最終断面。教訓88 は提案段階＝本収蔵では収載しない。docs のみ＝f0 不走（裁定256）。
 - **handoff v37 収蔵（2026-09-18）**: Downloads から `docs/handoff/` へ収蔵（`fe0e19c`「docs: v37 収蔵」・git 追跡へ追加・sha 全64桁付き・教訓72）。v37＝`NOX_相談役引き継ぎ_2026-09-18_v37.md`（15,811 B・sha256 `e33766f2e0557942befbc259645e33d07d8d73a08242782e01897b1f508e4f5a`・64 桁と照合一致・Downloads 原本と収蔵後の再計算がともに同 sha・cp のバイト複写＝改行変換なし）。v36（`e3b73a0`・12,410 B・sha256 `e39df6315c8818fd0e1d9d1650845548948f548222b8da103c1b5a3ac71fa40b`）に続く版＝本断面（268 遅刻分数・裁定272 0148 設計・0148 起草／突合・client 前倒し 478303d）の最終断面。収蔵時は 0148 未貼付＝478303d を道連れにしないため push せず（同便の報告後に Agoora が 0148 を手貼り）。★便 1 の報告で機械時刻を「02:13 JST」と書いたが Git Bash の `TZ=Asia/Tokyo date` は tzdata 不在で UTC を GMT 表示する＝実際は 11:13 JST（本便で訂正・以後は `date`（Windows ローカル＝JST）と `date -u` を併記）。
 - **handoff v41 収蔵（2026-09-30・便 AC-1）**: Downloads から `docs/handoff/` へバイト複写（git 追跡へ追加・sha 全64桁付き・教訓72）。v41＝`NOX_相談役引き継ぎ_2026-09-30_v41.md`（10,994 B・96 行・sha256 `8f79939553f636be81461cc67383f644ff52de26ab8796bc2a3b901e250cc3c9`・64 桁と期待値（先頭 8f799395・末尾 c3c9）を照合一致）。v38〜v40 は収蔵済み（v40＝3527957）だが本欄に行が無い＝ここで補記（v38 2026-09-24／v39 2026-09-25／v40 2026-09-28・sha は各収蔵コミットの現物）。
+- **handoff v42 収蔵（2026-09-30・便 P161-2）**: Downloads から `docs/handoff/` へバイト複写（git 追跡へ追加・sha 全64桁付き・教訓72）。v42＝`NOX_相談役引き継ぎ_2026-09-30_v42.md`（10,674 B・92 行・sha256 `7bed660fcd3b263602208ed4ba4c2624fea10caffae381107a2ca13f1cf46941`・64 桁と提示値（先頭 7bed660f・末尾 6941／10,674 B／92 行）を照合一致・Downloads 原本と収蔵後の再計算がともに同 sha）。v42 §0 の「P160 の確定値は新チャットで台帳に記す」＝上の現在地（便 P160 完了＋0161 本番適用）で確定。
 - **本番向け付記**: audit_logs の retention（保持期間・アーカイブ）は**ローンチ後必須**（税理士ゲート後＝裁定23 系）。本 gate は verify org 限定であり
   本番 org の行には一切触れない。
 
