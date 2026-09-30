@@ -243,7 +243,7 @@ check("ms(2-18) 裁定315: 要対応の行「確定後の打刻修正: cast・�
   && attentionCarryOf(atUpd, "2026-09").reason.length <= 200
   && splitAttentions([atUpd, atDone, atIns]).open.map((r) => r.id).join(",") === "a1,a2" && splitAttentions([atUpd, atDone, atIns]).resolved.map((r) => r.id).join(",") === "a3"
   && attSrc.includes('rpc("payroll_attentions_of", { p_run_id: runId })') && attSrc.includes('rpc("payroll_attention_resolve", { p_id: id, p_reason: r.length > 0 ? r : null })') && attSrc.includes("<details") && attSrc.includes(">翌期の調整へ</button>") && attSrc.includes(">解決</button>")
-  && payBoardSrcAB.includes("<PayrollAttentions runId={runInfo.id} runPeriod={period}") && payBoardSrcAB.includes('(runInfo.status === "finalized" || runInfo.status === "paid") && (')
+  && payBoardSrcAB.includes("<PayrollAttentions runId={runInfo.id} runPeriod={period}") && !payBoardSrcAB.includes('(runInfo.status === "finalized" || runInfo.status === "paid") && (\n        <PayrollAttentions') // ★0161（便 M1-5）: open_punch は下書きの run にも出る＝status で絞らない
   && payBoardSrcAB.includes("setAdjForm((f) => ({ ...f, kind: c.kind, amount: \"\", pct: \"\", reason: c.reason }))") && messageKindOf("解決済みにしました") === "success");
 // ★裁定315（便 AB-3）: 確定済み期の打刻修正は注記（赤エラーではない）・3 経路
 const pcmSrc = fs.readFileSync("components/nox/punch-correction-modal.tsx", "utf8");
