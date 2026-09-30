@@ -5,9 +5,15 @@ import { mdLabelOf } from "./finalize-guard";
 
 export type AttentionRow = {
   id: string; cast_id: string; cast_name: string; kind: string;
-  detail: { before?: string | null; after?: string | null; biz_date?: string | null; punch_kind?: string | null; punch_id?: string | null; correction_id?: string | null } | null;
+  detail: { before?: string | null; after?: string | null; biz_date?: string | null; punch_kind?: string | null; punch_id?: string | null; correction_id?: string | null; punched_at?: string | null; noticed_at?: string | null } | null;
   created_at: string; resolved_at: string | null; resolved_by: string | null;
 };
+
+// ★0161（裁定327＋追補1・便 M1-5）: kind 2 種＝確定後の打刻修正（0158）／未閉鎖の出勤（前営業日以前・0161 punch_seq_check が積む・run 未作成でも payroll_attentions_of が期間で拾う）
+export const ATTENTION_KIND_LABEL: Record<string, string> = { post_finalize_punch: "確定後の打刻修正", open_punch: "未閉鎖の出勤（前営業日以前）" };
+export const attentionKindLabelOf = (kind: string): string => ATTENTION_KIND_LABEL[kind] ?? "要対応";
+/** 「翌期の調整へ」は確定後の打刻修正だけ（open_punch は差額の話ではない＝修正申請で閉じて解決） */
+export const attentionCanCarry = (row: Pick<AttentionRow, "kind">): boolean => row.kind === "post_finalize_punch";
 
 const kindLabelOf = (k: string | null | undefined): string => (k === "in" || k === "out" ? KIND_LABEL[k as PunchKind] : "打刻");
 const hmOf = (iso: string | null | undefined, biz: string | null | undefined): string => (iso ? hmOnBizOf(iso, biz) : "なし");
@@ -18,10 +24,12 @@ export function attentionChangeOf(row: AttentionRow): string {
   return `${kindLabelOf(d.punch_kind)} ${hmOf(d.before, d.biz_date)}→${hmOf(d.after, d.biz_date)}`;
 }
 
-/** 一覧の 1 行: 「確定後の打刻修正: 玲奈・9/10・出勤 20:00→20:30」 */
+/** 一覧の 1 行: 「確定後の打刻修正: 玲奈・9/10・出勤 20:00→20:30」／★0161「未閉鎖の出勤（前営業日以前）: 玲奈・9/29・出勤 20:00（退勤なし）」 */
 export function attentionLineOf(row: AttentionRow): string {
   const biz = row.detail?.biz_date;
-  return `確定後の打刻修正: ${row.cast_name}・${biz ? mdLabelOf(biz) : "日付なし"}・${attentionChangeOf(row)}`;
+  const day = biz ? mdLabelOf(biz) : "日付なし";
+  if (row.kind === "open_punch") return `${ATTENTION_KIND_LABEL.open_punch}: ${row.cast_name}・${day}・出勤 ${hmOf(row.detail?.punched_at, biz)}（退勤なし）`;
+  return `確定後の打刻修正: ${row.cast_name}・${day}・${attentionChangeOf(row)}`;
 }
 
 /** 'YYYY-MM' の翌月 */

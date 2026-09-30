@@ -101,6 +101,10 @@ const MAP: Array<[RegExp, string]> = [
   [/^bad cast$/, "このキャストはこの店に所属していません（登録できません）"],
   [/^okuri not actual$/, "この店の送りは定額方式です（実費の発行はできません）"],
   [/^duplicate cast$/, "同じキャストが 2 回以上含まれています（重複を除いてください）"],
+  // ★0161（裁定327＋追補1・2026-09-30・便 M1）: 打刻の順序検査（punch_self／punch_proxy／kiosk_punch 共通・端末にも同じ和文）
+  [/^already in$/, "すでに出勤打刻があります"],
+  [/^already out$/, "本日は退勤済みです"],
+  [/^no open punch$/, "出勤打刻がありません"],
   [/permission denied/, "権限がありません"],
 ];
 
