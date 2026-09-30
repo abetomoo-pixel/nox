@@ -95,6 +95,12 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   表 79 不変（payroll_adjustments +biz_date・source_ck +'shortfall'・shortfall_ck・部分 unique shortfall_uidx）。'billing locked' 148→149・挿入行の形 147→149（規約外 0 本）・述語参照 149→150。
   md5 控え（先頭 8 桁・docs/tmp/0159_post_live.json＝live 読取 2026-09-30T04:54:05.478Z から機械生成）: set_store_pay_time_basis 7b8e7fb1・payroll_shortfall_sync 0cc27ae4・customer_register e165599a・kiosk_transport_issue 08c5dbc3・demo_org_reset 7b6070a6。
   対象 **148→149**・除外 **140→141**・全数 **288→290**（live 実測 2026-09-30＝総数 290・'billing locked' 149・md5 5 本一致）。
+- ★**mig0160 追随（2026-09-30・裁定326＋追補1・2・起票95／96）**: 新関数 **7本**＝ゲート内蔵 6 本を A へ（`set_cast_quota`／`set_store_mine_settings`／`staff_pattern_disable`／`staff_pattern_enable`＝A8 店設定・`reservation_request`／`reservation_decide`＝A3 予約）・
+  非ゲート 1 本を B(f) へ（`notice_mark_read`＝cast セルフの既読・書込は自分の既読行だけ＝326 追補1-6）。削除 1 本＝A7 の `set_cast_norm_self`（cast の自己設定は 326-3 で廃止＝drop）。
+  改稿 5 本（`shift_wish_submit`＝4 引数（p_kind default 'work'・旧 3 引数は drop）／`shift_wish_decide`／`shift_auto_apply`＝'off' の wish を拒否／`staff_pattern_effective`＝disabled_from／`demo_org_reset`＝c_wipe／c_load +2 表）は名前不変で本数不動。
+  新表 2（cast_quotas 11 列／cast_notice_reads 5 列・authenticated=SELECT のみ・policy 1）・列 +6（reservations +4／shift_wishes +kind／staff_shift_patterns +disabled_from）は本数非関与。
+  md5 控え（先頭 8 桁・docs/tmp/0160_post_live.json＝live 読取 2026-09-30T07:15:51.139Z から機械生成）: set_cast_quota 1987d03d・set_store_mine_settings 5aaecb0f・staff_pattern_disable cb1d4a34・staff_pattern_enable e768f710・reservation_request f0c51a0a・reservation_decide a0088416・notice_mark_read b1329e24。
+  対象 **149→154**・除外 **141→142**・全数 **290→296**（live 実測 2026-09-30＝総数 296・'billing locked' 154・md5 12 本一致）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -185,8 +191,10 @@ approval_request / approval_direct / approval_decide / bottle_keep_register[K] /
 drink_claim_submit / drink_claim_submit_proxy / drink_claim_decide /
 **drink_claim_void**（裁定D2＝金銭記録（バック申告）の改変）
 
-### A3. 予約（4本）
-reservation_create / reservation_update / reservation_set_status / reservation_to_check
+### A3. 予約（6本）
+reservation_create / reservation_update / reservation_set_status / reservation_to_check /
+**reservation_request**（mig0160＝cast 本人の指名・同伴の予約申請＝自店・自分の担当客のみ・status 'pending'・ゲート内蔵（reservation_create と同区分）・裁定326-4／追補1-1・5／追補2-3） /
+**reservation_decide**（mig0160＝申請の承認（'booked'）／却下（'rejected'＋理由）・owner∨manager 自店∨staff can_crm・pending 以外 'not pending'・ゲート内蔵・裁定326-4）
 
 ### A4. 金銭発行・取消（15本）
 adv_issue / transport_issue / incentive_publish /
@@ -223,16 +231,15 @@ product_reorder / product_stock_add / set_seat / set_pricing_rule / delete_prici
 pricing_rule_reorder / set_store_pricing / set_store_time_pricing /
 **set_pricing_category**（mig0127 新設＝裁定116-1・料金区分の upsert＝唯一の書込経路・停止=is_active false・ゲート内蔵・kiosk 腕なし）
 
-### A7. 待遇・報酬マスタ（13本）
+### A7. 待遇・報酬マスタ（12本）
 set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_comp_plan / set_cast_plan /
 set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_store_norm_config /
 **set_comp_component**（mig0115＝comp_plan_components の唯一の書き手・owner のみ・ゲート内蔵・裁定86） /
-**set_cast_norm_self**（mig0148＝cast 本人の当月ノルマ目標＝A7 の norm setter と同じ本体・cast_id は呼び出し元 JWT から導出で引数に無い・
-店の sys_norms='false' は 'norms off'・ゲート内蔵・監査 set_cast_norm_self・裁定272-3＝R19） /
+（set_cast_norm_self＝mig0148 の cast 自己設定は mig0160（裁定326-3／追補1-2）で drop＝名簿から除去・cast_norms 表と set_cast_norm は不変）
 **set_cast_guarantee**（mig0151＝期限つきの保証時給＝cast_plan の現在行 C を割って保証行（overrides_json に base／guarantee=true）と戻し行を作る・owner∨manager 自店・
 ゲート内蔵・監査 set_cast_guarantee・'guarantee exists' は重なり OR 後続の予定＝裁定287-3／289-6）
 
-### A8. 店設定・日報運用（27本）
+### A8. 店設定・日報運用（31本）
 **report_reopen**（mig0138＝日報の締め解除・owner∨manager 自店∨staff∧can_reopen・理由必須・監査 report_reopen・C層③＝裁定 C③-1） /
 **cash_diff_approve**（mig0138＝現金差異の承認・owner∨manager∨staff∧can_close・理由必須・監査 cash_diff_approve・C層③＝裁定 C③-4／18） /
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /
@@ -252,6 +259,9 @@ okuri_mode setter の骨格逐語・owner 限定・ゲート内蔵・監査 set_
 owner∨manager 自店判定（0137 のヘルパー）・flag gate の直後に課金ゲート・監査 before 行全体／after null＝裁定287-1／289-1・教訓90＝説明文に他の関数名を裸で書かない）
 **payroll_attention_resolve**（mig0158＝確定済み・支払済み期の打刻修正で立った要対応を解決済みにする・理由必須・owner∨manager 自店・凍結給与は動かさない・ゲート内蔵・監査あり・裁定315）
 **set_store_pay_time_basis**（mig0159＝勤務時間の計算基準（'punch'＝実打刻／'shift'＝確定シフトどおり）の店設定・'next'＝次の暦月の 1 日から・'now'＝給与 run が無い店だけ即時・owner∨manager 自店・ゲート内蔵・裁定324-1／324-5／追補2-1・追補3-1）
+**set_cast_quota**（mig0160＝キャスト別・月別のノルマ 4 項目（本指名・場内・同伴・売上・NULL 可）の upsert・owner∨manager 自店・'bad cast'／'bad month'／'bad quota'・ゲート内蔵・裁定326-3／追補1-2） /
+**set_store_mine_settings**（mig0160＝/mine の店設定 8 キー（payslip_visibility／drink_claim／punch_correction_request／ranking／ranking_show_others／reservation_request／shift_request_mode／contract_ack）の白名単＋enum 検証＝settings_json に merge・owner∨manager 自店・ゲート内蔵・裁定326-1／326-7／追補1-4・起票96） /
+**staff_pattern_disable / staff_pattern_enable**（mig0160＝スタッフの枠マスタの無効化（disabled_from）と解除・owner∨manager 自店（staff_shift_can_manage）・過去日 'effective_from_past'・ゲート内蔵・起票95／裁定326 追補2-2・5）
 
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
@@ -306,7 +316,7 @@ payroll_run_create / payment_record_add / withholding_payment_record / payroll_a
 （payroll_carryover_sync＝mig0148・裁定272-1: 前期 payslip の adjustOverflow>0 を当 draft run の carryover 行（source='carryover'・部分 unique）へ upsert／0 は削除＝冪等。
   調整控除 add の actor／org／manager 自店／draft 判定を逐語＝同じく非ゲート。A に載せると対象→live assert が赤になる）
 
-### B(f) 読取 RPC（49本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
+### B(f) 読取 RPC（50本・「見える・出せる」原則＝SELECT/集計/エクスポート源は不触）
 **staff_pin_status**（mig0108＝PIN 状態の読取・owner∨manager自店・hash 非返却） /
 **cast_unavailable_list**（mig0125＝出勤不可の読取・STABLE・owner∨manager自店・裁定112） /
 auth_cast_can_register / auth_cast_id / auth_kiosk_org_id / auth_kiosk_register_store_id /
@@ -345,6 +355,7 @@ billing_writable_of / auth_org_billing_writable / nox_receipt_public /
 **cast_mynumber_discard_status**（mig0156＝マイナンバー廃棄記録（deleted_at／method／登録の有無）の読取のみ＝値は返さない・audit なし・owner／manager 自店／cast 本人・STABLE・起票85／309 追補2 (f)）
 **payroll_attentions_of**（mig0158＝run の要対応（確定後の打刻修正）の一覧・cast 名つき・owner∨manager 自店・STABLE・裁定315） /
 **kiosk_punch_state**（mig0158＝打刻端末が読む店設定 2 キー（送りの方式・送りベース額）・打刻端末の腕のみ・STABLE・裁定319 追補1）
+**notice_mark_read**（mig0160＝cast 本人のお知らせ既読（cast_notice_reads へ冪等 upsert）・自店・audience all|cast のみ・書込は自分の既読行だけ＝非ゲート・裁定326-6／追補1-6）
 
 ### B(g) 印刷（1本・「出せる」原則の明文）
 print_enqueue[K]
@@ -423,3 +434,5 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 ★**現在値（2026-09-29・mig0158 追随後）**: A **148** ＋ B **140** ＝ **288** ＝ live pg_proc 実列挙と一致（0158＝A4 +2・A8 +1・B(f) +2。verify:nox-billing 段47-1 の pin＝対象 148／除外 140／ゲート済み 148／述語参照 149／挿入行の形 147＝起票91）。
 
 ★**現在値（2026-09-30・mig0159 追随後）**: A **149** ＋ B **141** ＝ **290** ＝ live pg_proc 実列挙と一致（0159＝A8 +1・B(e) +1。verify:nox-billing 段47-1 の pin＝対象 149／除外 141／ゲート済み 149／述語参照 150／挿入行の形 149＝起票91 解消）。
+
+★**現在値（2026-09-30・mig0160 追随後）**: A **154** ＋ B **142** ＝ **296** ＝ live pg_proc 実列挙と一致（0160＝A3 +2・A8 +4・A7 −1・B(f) +1。verify:nox-billing 段47-1 の pin＝対象 154／除外 142／ゲート済み 154／述語参照 155／挿入行の形 154）。
