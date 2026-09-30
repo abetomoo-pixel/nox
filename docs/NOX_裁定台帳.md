@@ -4030,6 +4030,19 @@ pay.ts の読取位置と保証時給の参照先（CC 確認点 (a)(b)）は 01
 追補2 後の 0159 スコープ（起草の入力・確定）: (1) 新 RPC set_store_pay_time_basis（owner／manager 自店・'next'／'now'・'bad pay_time_basis'／'bad apply'／'runs exist'）＝白名単は不変（追補1 の +3 撤回） (2) payroll_adjustments: +biz_date date（null 可・shortfall のみ必須）・source_ck +'shortfall'・部分 unique (run_id, cast_id, biz_date) where source='shortfall'（carryover の unique は不変） (3) 新 RPC payroll_shortfall_sync(p_run_id, p_rows jsonb)＝carryover_sync の写経（金額は pay.ts 側・mode は 'before' 固定＝before_withholding=true・target_shift_id＝基準 shift・basis＝表示用要約） (4) payroll_attentions.kind の拡張なし（撤回） (5) 起票89＝customer_register の staff 分岐を can_crm OR can_register（cast なし） (6) 起票91＝kiosk_transport_issue のゲート行を v_org 形へ（billing 段47-1 147→148） (7) 起票92＝demo_org_reset の c_wipe／c_load に payroll_attentions・daily_pays・payroll_run_deduction_overrides の 3 表。関数 288→290（+2）・表 79 不変。
 CC の注記（本文には触れない）: 追補2-2 の「mode は 'before' 固定」＝payroll_adjustments.mode は 'fixed'／'rate' の 2 値（mode_ck）で 'before' は入らない＝**mode='fixed'・before_withholding=true** と読む（源泉前＝324-3「before 源泉」）。起草でこの読みを冒頭コメントに明記し、違えば★で訂正。
 
+### 裁定324 追補3（0159 起草判断・2026-09-30 承認）
+
+出典＝Agoora 承認（2026-09-30・便 S159-1 で収載）。便 D159 の起草判断 4 点（要裁定 1・要追認 1・注記 2）への裁定。**本文（逐語）**:
+「裁定324 追補3（0159 起草判断・2026-09-30）
+1 payroll_shortfall_sync は課金ゲート非適用（B(e)＝給与は過去労働の清算・payroll_adjustment_add／carryover_sync と同列）。名簿は B(e) +1・'billing locked' 149・形 149。set_store_pay_time_basis はゲート適用（A8・店設定）。
+2 demo_org_reset の payroll_run_deduction_overrides は deductions を FK 参照するため c_wipe は 'deductions' の直前・c_load は 'deductions' の直後。他 2 表は payroll_adjustments の前／payroll_runs の後。
+3 set_store_pay_time_basis の 'now' は pay_time_basis のみを書き next／next_from は触らない。
+4 他 org の manager は 'forbidden' ではなく 'run not found'（run を org で引く carryover_sync 同型）。」
+
+適用＝便 S159-2（2026-09-30）で ★2 のゲート行 1 行を除去（改稿前の控え docs/tmp/0159_before_324-3.sql・sha b4f7f933…6aaa）。2〜4 は D159 起草の判断どおり（改稿なし）。
+
+**0159 の欄（起草済み・手貼り待ち）**: supabase/migrations/0159_pay_time_basis.sql＝**起草済み・sha256 00ed3da283e2fd2cbb9ac9887d024819ba69408b39d1c3cdd19fa26add5bf4b7・494 行・33,999 B・再突合 37 段 NG 0（docs/tmp/q0930_ag_0159.mjs・BEGIN…ROLLBACK）・手貼り待ち**（未追跡・生成器 docs/tmp/gen_0159.mjs＋0159_template.sql・写経元 0159_live.json・期待 md5 0159_expected.json＝customer_register e165599a／kiosk_transport_issue 08c5dbc3／demo_org_reset 7b6070a6／payroll_shortfall_sync 0cc27ae4／set_store_pay_time_basis 7b8e7fb1）。適用後の見込み＝関数 290・表 79・名簿 A 149／B 141・'billing locked' 149・形 149・述語参照 150。
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
