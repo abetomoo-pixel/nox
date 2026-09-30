@@ -344,7 +344,7 @@ async function main() {
 
   // ── 段6a: F1d RPC 9本 anon BLOCKED ──
   const F1D_RPC_PROBES: Array<[string, Record<string, unknown>]> = [
-    ["shift_wish_submit", { p_date: null, p_start_hm: null, p_end_hm: null }],
+    ["shift_wish_submit", { p_date: null, p_start_hm: null, p_end_hm: null, p_kind: null }], // ★0160（裁定326 追補2-4）: 4 引数（p_kind）に置換・旧 3 引数は drop
     ["shift_wish_withdraw", { p_wish_id: null }],
     ["punch_self", { p_type: null, p_lat: null, p_lng: null, p_okuri: null }], // ★0156（裁定309-9）: 4 引数化（p_okuri default null）
     ["attendance_set_self", { p_date: null, p_status: null, p_eta: null, p_reason: null }],
@@ -525,6 +525,13 @@ async function main() {
     ["kiosk_punch_state", {}],
     ["payroll_shortfall_sync", { p_run_id: null, p_rows: null }],                 // ★mig0159（裁定324／追補2）: 公開 2 本
     ["set_store_pay_time_basis", { p_store_id: null, p_value: null, p_apply: null }],
+    ["set_cast_quota", { p_store_id: null, p_cast_id: null, p_month: null, p_hon: null, p_jonai: null, p_dohan: null, p_sales: null }], // ★mig0160（裁定326＋追補1・2）: 公開 7 本
+    ["reservation_request", { p_store_id: null, p_customer_id: null, p_at: null, p_kind: null }],
+    ["reservation_decide", { p_reservation_id: null, p_decision: null, p_reason: null }],
+    ["set_store_mine_settings", { p_store_id: null, p_settings: null }],
+    ["notice_mark_read", { p_notice_id: null }],
+    ["staff_pattern_disable", { p_pattern_id: null, p_from: null }],
+    ["staff_pattern_enable", { p_pattern_id: null }],
     ["set_staff_perms", { p_membership_id: null, p_can_register: null, p_can_crm: null, p_can_shift: null, p_can_view_backs: null, p_can_close: null, p_can_reopen: null }], // 段16a（mig0024→0038 5引数）
   ];
   for (const [fn, args] of F3A2_RPC_PROBES) {
@@ -658,10 +665,9 @@ async function main() {
 
   // ── 段35e: mig0148（裁定272・2026-09-18）新 RPC 4 本 anon BLOCKED（引数は null 埋め・revoke all from public, anon＋grant authenticated, service_role）──
   //   payroll_carryover_sync（繰越消費・owner∨manager 自店・draft のみ）／（check_add_referral は mig0152 で drop＝probe から外す）／
-  //   set_cast_norm_self（cast 本人のノルマ目標・auth_cast_id 由来）／set_store_receivable_policy（受取方針・owner 限定）
+  //   （set_cast_norm_self は mig0160 で drop＝probe から外す・不在は verify:nox-cast-norm-self で係留）／set_store_receivable_policy（受取方針・owner 限定）
   const F0148_PROBES: Array<[string, Record<string, unknown>]> = [
     ["payroll_carryover_sync", { p_run_id: null }],
-    ["set_cast_norm_self", { p_period: null, p_days_target: null, p_dohan_target: null, p_sales_target: null, p_shimei_target: null }],
     ["set_store_receivable_policy", { p_store_id: null, p_policy: null }],
   ];
   for (const [fn, args] of F0148_PROBES) {

@@ -700,6 +700,29 @@ async function main() {
     const ca = await signIn("castA1a");
     check("F3a-2 castA1a customers = 自分の指名客2行のみ（指名B/フリー不可視）",
       sameSet(await names(ca, "customers"), [CU.custCastA.name, CU.custDormant.name]));
+    // ★0160（裁定326-4／追補1-1・5）: reservations 21 列（+requested_by_cast／rejected_reason／decided_by／decided_at）・cast の pending 申請は
+    //   本人（cast_id＝自分）に見え・他 cast には見えない・manager 自店には見える（reservations_select は不変＝status を絞らない）。admin で作って finally で消す。
+    {
+      const adm = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { data: stA1 } = await adm.from("stores").select("id, org_id").eq("name", STORE_A1).single();
+      const { data: cu } = await adm.from("customers").select("id").eq("store_id", stA1!.id).eq("name", CU.custCastA.name).single();
+      const { data: rs, error: eRs } = await adm.from("reservations").insert({ org_id: stA1!.org_id, store_id: stA1!.id, customer_id: cu!.id, cast_id: castIdA, reserved_at: "2097-01-01T12:00:00Z", nom_type: "hon", status: "pending", requested_by_cast: castIdA, guest_name: "NOX-VERIFY-0160-pending" }).select("*").single();
+      try {
+        check("F3a-2 ★0160 reservations は 21 列（insert … select * の列数）・pending 行が作れる（status_chk）", !eRs && !!rs && Object.keys(rs).length === 21 && rs.status === "pending", eRs?.message ?? String(Object.keys(rs ?? {}).length));
+        const { data: mine } = await ca.from("reservations").select("id, status, requested_by_cast, rejected_reason, decided_by, decided_at").eq("id", rs!.id);
+        check("F3a-2 ★0160 castA1a は自分の pending 申請が見える（4 列とも読める・decided は null）", (mine ?? []).length === 1 && mine![0].status === "pending" && mine![0].requested_by_cast === castIdA && mine![0].decided_at === null, JSON.stringify(mine));
+        const cb0 = await signIn("castA1b");
+        const { data: other } = await cb0.from("reservations").select("id").eq("id", rs!.id);
+        check("F3a-2 ★0160 castA1b には他 cast の pending 申請が見えない（0 行）", (other ?? []).length === 0, `got ${(other ?? []).length}`);
+        await cb0.auth.signOut();
+        const m0 = await signIn("managerA1");
+        const { data: mg } = await m0.from("reservations").select("id, status").eq("id", rs!.id);
+        check("F3a-2 ★0160 managerA1（自店）には pending が見える（決裁側）", (mg ?? []).length === 1 && mg![0].status === "pending", JSON.stringify(mg));
+        await m0.auth.signOut();
+      } finally {
+        if (rs?.id) await adm.from("reservations").delete().eq("id", rs.id);
+      }
+    }
     await ca.auth.signOut();
 
     // castA1b: 指名B の1行のみ
@@ -829,9 +852,19 @@ async function main() {
     // ── castA1a: セルフ経路 ──
     const c = await signIn("castA1a");
     // 希望提出（自分のみ・26:00 の 24h 超表記）
-    const { data: w1, error: eW } = await c.rpc("shift_wish_submit", { p_date: "2026-07-15", p_start_hm: "20:00", p_end_hm: "26:00" });
+    const { data: w1, error: eW } = await c.rpc("shift_wish_submit", { p_date: "2026-07-15", p_start_hm: "20:00", p_end_hm: "26:00" }); // ★0160: 4 引数（p_kind default 'work'）＝3 引数呼出は同値
     check("F1d wish_submit 成功", !eW && typeof w1 === "string", eW?.message);
     wishId = w1 as string;
+    // ★0160（裁定326-7／追補2-4）: p_kind 省略＝'work'・時刻はそのまま・off 希望は時刻 null（rls 面は cast 自身の行が読める）
+    const { data: wk } = await c.from("shift_wishes").select("kind, start_hm, end_hm").eq("id", wishId).maybeSingle();
+    check("F1d ★0160 shift_wishes.kind＝'work'（p_kind 省略の既定）・時刻不変", wk?.kind === "work" && wk?.start_hm === "20:00" && wk?.end_hm === "26:00", JSON.stringify(wk));
+    const { data: wOff, error: eOff } = await c.rpc("shift_wish_submit", { p_date: "2026-07-16", p_start_hm: null, p_end_hm: null, p_kind: "off" });
+    const { data: wkOff } = await c.from("shift_wishes").select("kind, start_hm, end_hm").eq("id", wOff as string).maybeSingle();
+    check("F1d ★0160 off 希望（p_kind 'off'・時刻 null）が提出でき kind='off'・時刻 null で読める", !eOff && wkOff?.kind === "off" && wkOff?.start_hm === null && wkOff?.end_hm === null, eOff?.message ?? JSON.stringify(wkOff));
+    if (typeof wOff === "string") { // off 希望は 07-16（F1d-SD 専用日）に残さない＝即消す（後段の shift_set／attendance_set と無関係にする）
+      const adm2 = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+      await adm2.from("shift_wishes").delete().eq("id", wOff);
+    }
     // 管理系 RPC は cast から forbidden（punch_proxy / attendance_set / shift_set / wish_decide）
     const { error: eD } = await c.rpc("shift_wish_decide", { p_wish_id: wishId, p_accept: true });
     check("F1d cast から wish_decide 拒否", !!eD?.message?.includes("forbidden"), eD?.message ?? "通ってしまった");

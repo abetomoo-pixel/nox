@@ -27,6 +27,7 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 const TABLES = [
+  "cast_quotas", "cast_notice_reads", // ★0160（裁定326-3／326-6）: キャスト別ノルマ・お知らせ既読（authenticated=SELECT のみ・RLS select 1 本。G9 0160 で列集合／policy を能動 assert）
   "payroll_attentions", // ★0158（裁定315）: 確定後の打刻修正の要対応（authenticated=SELECT のみ・RLS select 1 本。G9 0158 で列集合／policy を能動 assert）
   "daily_pays", "payroll_run_deduction_overrides", // ★0156（裁定309-6／309-8）: 日払い・run 別控除上書き（authenticated=SELECT のみ・RLS select 1 本。G1/G2/G5 が .length で自動被覆＋G9 で列集合／policy を能動 assert）
   "orgs", "stores", "users", "memberships", "casts", "audit_logs",
@@ -210,6 +211,7 @@ async function main() {
       "check_customer_add", "check_customer_remove", "check_line_set_customer", "check_customer_names", "bottle_keep_out", "customer_sales_summary", // ★0153（裁定305／307）: 公開 6 本 // ★0152（裁定298／299）: 公開 6 本（同じ revoke／grant 形）
       "cast_mynumber_discard", "cast_mynumber_discard_candidates", "customer_anonymize", "customer_anonymize_candidates", "kiosk_check_keeps", // ★0155（裁定309）: 公開 5 本（audit_purge は service 専用＝G4e）
       "daily_pay_issue", "daily_pays_of_run", "payroll_run_deduction_override_set", "payroll_run_deduction_override_clear", "payroll_run_deduction_overrides_of",
+      "set_cast_quota", "reservation_request", "reservation_decide", "set_store_mine_settings", "notice_mark_read", "staff_pattern_disable", "staff_pattern_enable", // ★0160（裁定326＋追補1・2）: 公開 7 本（set_cast_norm_self は drop＝名前不在は anon-guard／cast-norm-self で係留）
       "payroll_shortfall_sync", "set_store_pay_time_basis", // ★0159（裁定324＋追補2・3）: 公開 2 本（shortfall_sync は非ゲート＝B(e)・set_store_pay_time_basis はゲート内蔵＝A8）
       "payroll_attentions_of", "payroll_attention_resolve", "transport_issue_self", "kiosk_transport_issue", "kiosk_punch_state", // ★0158（裁定315／317／319＋追補1）: 公開 5 本（punch_correction_apply は内部のまま＝G4c）
       "okuri_today_summary", "advances_open_balance", "cast_mynumber_discard_status"]; // ★0156（裁定309-6〜9／追補2）: 公開 8 本（okuri_default_of は内部＝G4c）
@@ -458,6 +460,24 @@ async function main() {
       check("G9 0158 列 3（bottle_keeps.check_line_id／daily_pays.settle_period／transport.created_by）＝すべて null 可", n158.rowCount === 3 && n158.rows.every((r) => r.is_nullable === "YES"), JSON.stringify(n158.rows));
       const t158 = await db.query(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='transport'`);
       check("G9 0158 transport 15 列のまま（created_by は null 可に変えただけ）", t158.rows[0]?.n === 15, String(t158.rows[0]?.n));
+      // ★0160（裁定326／追補1・2・起票95／96）: 列集合＝cast_quotas 11／cast_notice_reads 5／reservations 21（+4）／shift_wishes 13（+kind）／staff_shift_patterns 11（+disabled_from）・
+      //   新表 2 の policy＝select 1 本ずつ・reservations_status_chk に pending／rejected・shift_wishes_hm_kind_ck（work＝時刻必須 is not null＝教訓100／off＝null）・cast_quotas_uq
+      const c160 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('cast_quotas','cast_notice_reads','reservations','shift_wishes','staff_shift_patterns') group by 1 order by 1`);
+      const n160 = Object.fromEntries(c160.rows.map((r) => [r.table_name, r.n]));
+      check("G9 0160 列集合: cast_quotas 11／cast_notice_reads 5／reservations 21／shift_wishes 13／staff_shift_patterns 11", n160.cast_quotas === 11 && n160.cast_notice_reads === 5 && n160.reservations === 21 && n160.shift_wishes === 13 && n160.staff_shift_patterns === 11, JSON.stringify(n160));
+      const r160 = await db.query(`select column_name, is_nullable from information_schema.columns where table_schema='public' and table_name='reservations' and column_name in ('requested_by_cast','rejected_reason','decided_by','decided_at') order by 1`);
+      check("G9 0160 reservations の追加 4 列（decided_at／decided_by／rejected_reason／requested_by_cast）＝すべて null 可", r160.rowCount === 4 && r160.rows.every((r) => r.is_nullable === "YES"), JSON.stringify(r160.rows));
+      const p160 = await db.query(`select tablename, policyname, cmd from pg_policies where schemaname='public' and tablename in ('cast_quotas','cast_notice_reads') order by 1`);
+      check("G9 0160 新表 2 の policy＝select 1 本ずつ（cast_notice_reads_select／cast_quotas_select）", p160.rowCount === 2 && p160.rows.every((r) => r.cmd === "SELECT") && p160.rows.map((r) => r.policyname).join(",") === "cast_notice_reads_select,cast_quotas_select", JSON.stringify(p160.rows));
+      const k160 = await db.query(`select conname, pg_get_constraintdef(oid) d from pg_constraint where conname in ('reservations_status_chk','shift_wishes_hm_kind_ck','shift_wishes_kind_check','cast_quotas_uq','cast_quotas_month_first_ck') order by 1`);
+      const d160 = Object.fromEntries(k160.rows.map((r) => [r.conname, r.d as string]));
+      check("G9 0160 制約 5: status_chk に pending／rejected・hm_kind_ck に is not null（教訓100）・kind_check work|off・cast_quotas unique（store×cast×month）・月初 CHECK",
+        k160.rowCount === 5 && d160.reservations_status_chk.includes("'pending'") && d160.reservations_status_chk.includes("'rejected'")
+        && d160.shift_wishes_hm_kind_ck.includes("start_hm IS NOT NULL") && d160.shift_wishes_hm_kind_ck.includes("end_hm IS NOT NULL") && d160.shift_wishes_hm_kind_ck.includes("'off'")
+        && d160.shift_wishes_kind_check.includes("'work'") && d160.cast_quotas_uq === "UNIQUE (store_id, cast_id, month)" && d160.cast_quotas_month_first_ck.includes("day"), JSON.stringify(d160));
+      const w160 = await db.query(`select column_name, is_nullable, column_default from information_schema.columns where table_schema='public' and table_name='shift_wishes' and column_name in ('kind','start_hm','end_hm') order by 1`);
+      const wm = Object.fromEntries(w160.rows.map((r) => [r.column_name, r]));
+      check("G9 0160 shift_wishes: kind not null default 'work'・start_hm／end_hm は null 可（off 希望）", w160.rowCount === 3 && wm.kind.is_nullable === "NO" && String(wm.kind.column_default).includes("'work'") && wm.start_hm.is_nullable === "YES" && wm.end_hm.is_nullable === "YES", JSON.stringify(w160.rows));
     }
 
     // G10: F2d mynumber 暗号化/payment（mig0021）— payment_records RLS・パターン1・crypto RPC ACL。
