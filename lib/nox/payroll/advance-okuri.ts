@@ -9,6 +9,13 @@ export type IssueKind = "advance" | "transport";
 export function carriedNoteOf(carried: string | null | undefined): string {
   return typeof carried === "string" && /^\d{4}-\d{2}$/.test(carried) ? `翌月（${carried}）の給与から控除` : "";
 }
+/** ★起票93（裁定312・便 X-12-2）: 日払いフォームの期の注記。paid＝発行できるが控除先は翌月／finalized＝発行できるが凍結明細には載らない／draft・run なし＝注記なし */
+export function dailyPayPeriodNoteOf(status: string | null | undefined, period: string): { kind: "info" | "warn"; text: string } | null {
+  if (!/^\d{4}-\d{2}$/.test(period)) return null;
+  if (status === "paid") { const [y, m] = period.split("-").map(Number); const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`; return { kind: "info", text: `この営業日の期（${period}）は支払済みです。発行した日払いは${carriedNoteOf(next)}します` }; }
+  if (status === "finalized") return { kind: "warn", text: `この営業日の期（${period}）は確定済みです。発行はできますが、確定解除して再計算するまで給与明細には載りません` };
+  return null;
+}
 /** 一括発行: 発行した行の deduct_period から「うち n 件は翌月（YYYY-MM）の給与から控除」。発行日の月と同じ・null は数えない */
 export function carriedBulkNoteOf(date: string, deductPeriods: readonly (string | null | undefined)[]): string {
   const carried = deductPeriods.filter((p): p is string => typeof p === "string" && /^\d{4}-\d{2}$/.test(p) && p !== date.slice(0, 7));

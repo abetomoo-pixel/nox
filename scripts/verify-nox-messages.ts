@@ -24,7 +24,7 @@ import { stocktakePlanOf, stocktakeRowsOf } from "../lib/nox/stock/stocktake"; /
 import { attentionCarryOf, attentionLineOf, isFinalizedDay, nextPeriodOf, splitAttentions, POST_FINALIZE_NOTE, type AttentionRow } from "../lib/nox/payroll/attention"; // ★裁定315（便 AB-2／AB-3）
 import { okuriSelfPlanOf, okuriResultTextOf, OKURI_PENDING_NOTE } from "../lib/nox/shift/okuri-self"; // ★裁定319（便 AB-4／AB-5）
 import { keptLineIdsOf } from "../lib/nox/register/kept-lines"; // ★裁定314（便 AB-7）
-import { carriedBulkNoteOf, carriedNoteOf } from "../lib/nox/payroll/advance-okuri"; // ★裁定312（便 AB-8）
+import { carriedBulkNoteOf, carriedNoteOf, dailyPayPeriodNoteOf } from "../lib/nox/payroll/advance-okuri"; // ★裁定312（便 AB-8）・起票93（便 X-12-2）
 import { notEndedMessageOf } from "../lib/nox/payroll/finalize-guard"; // ★裁定316（便 AB-9）
 
 let pass = 0;
@@ -283,6 +283,13 @@ check("ms(2-23) 裁定312／316: 繰り下げの注記「翌月（YYYY-MM）の�
   && messageKindOf("玲奈 に日払い ¥10,000 を発行しました（源泉 ¥510・手取り ¥9,490）・翌月（2026-10）の給与から控除") === "success"
   && notEndedMessageOf("2026-09-30") === "期間終了（9/30）の翌日から確定できます" && finSrcAB.includes("eFin.message.includes(PERIOD_NOT_ENDED)") && finSrcAB.includes("notEndedMessageOf(win.periodEnd)")
   && payBoardSrcAB.includes("j.message ?? notEndedMessageOf(periodEndOf(period))"));
+
+// ★起票93（裁定312・便 X-12-2）: 日払いフォームは支払済みの期でも発行できる＝「読取のみ」を撤去し、期の注記（paid＝翌月へ・finalized＝凍結明細に載らない）
+const dpf2 = fs.readFileSync("components/nox/daily-pay-form.tsx", "utf8");
+check("ms(2-24) 起票93: dailyPayPeriodNoteOf（paid＝info・翌月の文言は carriedNoteOf と同文／finalized＝warn／draft・null・不正な期＝null）・フォームに「読取のみ」の文言と readOnly prop が無い・payroll_runs を読んで Message で出す",
+  dailyPayPeriodNoteOf("paid", "2026-09")?.kind === "info" && dailyPayPeriodNoteOf("paid", "2026-09")?.text === "この営業日の期（2026-09）は支払済みです。発行した日払いは翌月（2026-10）の給与から控除します"
+  && dailyPayPeriodNoteOf("paid", "2026-12")?.text.includes("翌月（2027-01）") && dailyPayPeriodNoteOf("finalized", "2026-09")?.kind === "warn" && dailyPayPeriodNoteOf("draft", "2026-09") === null && dailyPayPeriodNoteOf(null, "2026-09") === null && dailyPayPeriodNoteOf("paid", "x") === null
+  && !dpf2.includes("読取のみ") && !dpf2.includes("readOnly") && dpf2.includes('from("payroll_runs").select("status")') && dpf2.includes("{periodNote && <Message kind={periodNote.kind}>{periodNote.text}</Message>}"));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);

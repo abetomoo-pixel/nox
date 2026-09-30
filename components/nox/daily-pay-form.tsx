@@ -11,34 +11,37 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import { withholdingOf } from "@/lib/nox/pay";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
-import { carriedNoteOf } from "@/lib/nox/payroll/advance-okuri";
+import { carriedNoteOf, dailyPayPeriodNoteOf } from "@/lib/nox/payroll/advance-okuri";
+import { Message } from "@/components/ui/toast";
 
 type Paid = { id: string; biz_date: string; gross: number; withholding: number; net: number; withholding_category: string };
 const yen = (n: number) => "¥" + n.toLocaleString();
 
-export default function DailyPayForm({ castId, castName, dateDefault, readOnly = false }: {
+export default function DailyPayForm({ castId, castName, dateDefault }: {
   castId: string; castName: string;
   /** 営業日の既定（YYYY-MM-DD・呼び出し側が決める） */
   dateDefault: string;
-  readOnly?: boolean;
 }) {
   const supabase = createClient();
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(dateDefault);
   const [taxMode, setTaxMode] = useState<"委託" | "雇用" | null>(null); // cast_tax_profiles.mode（行なし＝委託＝RPC と同じ既定）
   const [paid, setPaid] = useState<Paid[] | null>(null);
+  const [runStatus, setRunStatus] = useState<string | null>(null); // ★起票93（裁定312・便 X-12-2）: 営業日の期の run 状態（paid＝翌月へ繰り下げ・finalized＝凍結明細に載らない）
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const month = date.slice(0, 7);
-    const [{ data: tp }, { data: dp }] = await Promise.all([
+    const [{ data: tp }, { data: dp }, { data: cs }] = await Promise.all([
       supabase.from("cast_tax_profiles").select("mode").eq("cast_id", castId).maybeSingle(),
+      supabase.from("casts").select("store_id").eq("id", castId).maybeSingle().then(async (c) => c.data?.store_id ? supabase.from("payroll_runs").select("status").eq("store_id", c.data.store_id as string).eq("period", month).maybeSingle() : { data: null }),
       supabase.from("daily_pays").select("id, biz_date, gross, withholding, net, withholding_category").eq("cast_id", castId)
         .gte("biz_date", `${month}-01`).lte("biz_date", `${month}-31`).order("biz_date", { ascending: false }),
     ]);
     setTaxMode((tp?.mode as "委託" | "雇用" | undefined) ?? "委託");
     setPaid((dp ?? []) as Paid[]);
+    setRunStatus((cs as { status?: string } | null)?.status ?? null);
   }, [supabase, castId, date]);
   useEffect(() => { void load(); }, [load]);
 
@@ -60,7 +63,7 @@ export default function DailyPayForm({ castId, castName, dateDefault, readOnly =
     await load();
   }
 
-  if (readOnly) return <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>確定済みのため、日払いの発行はできません（読取のみ）。</p>;
+  const periodNote = dailyPayPeriodNoteOf(runStatus, date.slice(0, 7)); // ★起票93: 支払済みの期でも発行できる（裁定312＝翌月へ繰り下げ）＝発行欄は常に出す
   const sumG = (paid ?? []).reduce((s, p) => s + p.gross, 0), sumW = (paid ?? []).reduce((s, p) => s + p.withholding, 0);
   return (
     <div style={{ display: "grid", gap: 8 }}>
@@ -82,6 +85,7 @@ export default function DailyPayForm({ castId, castName, dateDefault, readOnly =
         ) : "金額を入れると源泉と手取りをプレビューします（月次と同じ式・日数 1）。"}
         {mode === "雇用" && <> ※雇用キャストの日払いは源泉 0 で渡します（税理士確認中・T10）。</>}
       </p>
+      {periodNote && <Message kind={periodNote.kind}>{periodNote.text}</Message>}
       {msg && <Toast msg={msg} />}
       <div>
         <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "4px 0 2px" }}>発行済み（{date.slice(0, 7)}）</p>
