@@ -3946,7 +3946,7 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 手貼りの直後から、未終了の期で payroll_finalize を直接呼ぶ suite は 'period not ended' で赤（起票88・便 X-11 の f0 run 1 が rls で停止）＝便 AA-3 で fixture の期を過去月へ張り替え。
 
 **0158 suite 追随（便 AA・2026-09-29）**: 名簿 A 148／B 140／288・起票88 の処置＝期の文字列は据え置き、確定の直前に run の凍結値 period_start／period_end を 2000-01-01 に置く（scripts/fixtures-f0.ts の endedRuns／ENDED_RUN_SQL・rls 9／payroll 24／ar-partial 2／reopen 1／carryover 2 箇所）＝指示の「期を過去月へ張り替え」とは別の手段（待遇プランの有効開始日・曜日・suite 間の期の住み分けを壊さないため・**9/30 Agoora 追認**）。collect の日払い読取は settle_period（null＝営業日の月）。verify:nox-0158 新設（51）。**f0 pin＝80 段 5,159**（2 連緑 18:49〜19:01／19:03〜19:15・golden 6 値不変）。起票91・92 を収載。
-**便 AB 完了＝台帳の現在地（2026-09-30）**: HEAD **53f42bd**＝origin/main（0 0）・f0 pin **80 段 5,165**（2 連緑 11:00〜11:13／11:14〜11:26・golden 6 値不変）・Vercel success **11:28:06 JST**・messages **38**。0158 の client 追随（裁定312／314／315／316／317／319）は完了。次＝0159 事前読取（docs/tmp/0159_pre.md）→ ★指定 → 起草（スコープ＝324-6＋起票89・91・92 を 1 本）。
+**便 AB 完了＝台帳の現在地（2026-09-30）**: HEAD **53f42bd**＝origin/main（0 0）・f0 pin **80 段 5,165**（2 連緑 11:00〜11:13／11:14〜11:26・golden 6 値不変）・Vercel success **11:28:06 JST**・messages **38**。0158 の client 追随（裁定312／314／315／316／317／319）は完了。次＝0159 事前読取（docs/tmp/0159_pre.md）→ ★指定 → 起草（スコープ＝324-6＋起票89・91・92 を 1 本）。 **目視（2026-09-30 便 D159-1）**: 9/30 Agoora 目視 OK＝0156 11 点・X-8〜X-11・便 AB。**便 X-12 の中身＝起票90・93・94（0159 client 便に同乗）**。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
@@ -5643,6 +5643,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 91 | **kiosk_transport_issue の課金ゲート行が規約の形（引数 v_org／auth_org_id() の 2 種）に当たらない**（低・**起票 2026-09-29 便 AA-3**） | 0158 の kiosk_transport_issue は `billing_writable_of(v_device.org_id)` でゲートしている。ゲート自体は効く（'billing locked' を持つ関数 148 本に含まれる）が、verify:nox-billing 段47-1 の「挿入行の形」は 147 本（148 にならない）。原因＝0158 起草（便 Z-2b）で打刻端末の腕を kiosk_punch から写した際に v_org へ受け直さなかった（CC の起草の見落とし）。暫定＝形の pin を 147 に置き注記（便 AA-3）。処置＝mig 0159 で v_org := v_device.org_id に受けてから規約の 1 行へ直し、pin を 148 に戻す。 |
 | 92 | **payroll_attentions の cast_id／store_id／org_id は cascade しない＝cast を消す経路と demo_org_reset が新表を知らない**（中・**起票 2026-09-29 便 AA-3**） | 0158 の payroll_attentions は run_id のみ ON DELETE CASCADE。要対応の行が残る cast は delete が FK で止まる（verify:nox-punch-match pm(9-15) は casts delete の前に自前で消す形にした）。demo_org_reset（0149）は削除対象の表の一覧に payroll_attentions を持たない＝デモ org に要対応が 1 行でもあると reset が FK で失敗しうる（payroll_runs を先に消す順なら cascade で消えるため、live の削除順の確認が先）。処置＝0159 で demo_org_reset の削除順を確認のうえ payroll_attentions を明示で足す。 |
 | 93 | **日払いフォームの「確定済みのため、日払いの発行はできません（読取のみ）」を裁定312 に合わせて見直し**（低・**起票 2026-09-30 便 AC-0**） | 本文（逐語）: 「日払いフォームの『確定済みのため発行できません（読取のみ）』を裁定312 に合わせて見直し＝便 X-12」。裁定312（0158）で支払済みの期の営業日でも日払いは翌月へ繰り下げて発行できるようになったが、components/nox/daily-pay-form.tsx は readOnly（給与画面の adjEditable=false＝確定済み run）で発行欄ごと隠す。処置＝便 X-12 で readOnly の条件を見直す（確定済み run でも発行可・繰り下げ先を表示）。 |
+| 94 | **歯車ポップオーバーが画面上端より上に描画され、名前・メール行が切れる**（中・**起票 2026-09-30 便 D159-1・9/30 Agoora 目視**） | 本文（逐語）: 「歯車ポップオーバーが画面上端より上に描画され名前・メール行が切れる＝ヘッダー直下に固定・viewport 内に収め超過は内部スクロール・≤899 はシート」。処置＝ヘッダーの ⚙ ポップオーバーをヘッダー直下に固定（top をヘッダー高さ基準に）・高さは viewport 内に収め、超過分は内部スクロール（overflow-y: auto）・≤899px は裁定306-11 のボトムシート（overlay・fixed）を使う。便 X-12（0159 client 便に同乗）。 |
 
 ### 未裁定・消し込み待ち
 
