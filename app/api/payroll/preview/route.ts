@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { guardPayroll } from "@/lib/nox/payroll/route-guard";
 import { computePayrollDraft } from "@/lib/nox/payroll/core";
-import { isRpcMissing, shortfallSyncRowsOf } from "@/lib/nox/payroll/shortfall-sync"; // ★裁定324-4（便 L-2-4）: 不就労控除の同期（RPC 不在なら素通り）
+import { shortfallSyncRowsOf } from "@/lib/nox/payroll/shortfall-sync"; // ★裁定324-4（便 L-2-4→P-4）: 不就労控除の同期（0159 適用済み＝失敗は error）
 
 export async function POST(req: Request) {
   const g = await guardPayroll(req);
@@ -18,13 +18,14 @@ export async function POST(req: Request) {
       console.log(`[payroll/preview] payroll_carryover_sync run=${runRow.id} period=${g.period} changed=${String(n)}`);
     }
     const draft = await computePayrollDraft(g.admin, g.supabase, g.storeId, g.period, { previewDefaults: true });
-    // ★裁定324-4／追補2-2（便 L-2-4）: 店が 'shift' で draft run があるときだけ payroll_shortfall_sync(run_id, p_rows) を 1 回呼ぶ（冪等 upsert＋delete＝0159）。
-    //   0159 手貼り前＝RPC 不在（PGRST202）は素通り（probe はこの 1 回だけ・他に fetch を足さない）。'punch' の店・run なしは呼ばない。RPC の本物のエラーは 500。
+    // ★裁定324-4／追補2-2（便 L-2-4→P-4）: 店が 'shift' で draft run があるときだけ payroll_shortfall_sync(run_id, p_rows) を 1 回呼ぶ（冪等 upsert＋delete＝0159）。
+    //   0159 適用済み（2026-09-30）＝probe（PGRST202 素通り）は撤去・失敗は preview の error（500）＝carryover_sync と同じ扱い。'punch' の店・run なしは呼ばない。
     let shortfallSynced: number | null = null;
     if (draft.payTimeBasis === "shift" && runRow && runRow.status === "draft") {
       const { data: n, error: eSf } = await g.supabase.rpc("payroll_shortfall_sync", { p_run_id: runRow.id as string, p_rows: shortfallSyncRowsOf(draft.shortfall ?? []) });
-      if (eSf && !isRpcMissing(eSf)) return NextResponse.json({ error: `payroll_shortfall_sync: ${eSf.message}` }, { status: 500 });
-      if (!eSf) { shortfallSynced = Number(n); console.log(`[payroll/preview] payroll_shortfall_sync run=${runRow.id} period=${g.period} changed=${String(n)}`); }
+      if (eSf) return NextResponse.json({ error: `payroll_shortfall_sync: ${eSf.message}` }, { status: 500 });
+      shortfallSynced = Number(n);
+      console.log(`[payroll/preview] payroll_shortfall_sync run=${runRow.id} period=${g.period} changed=${String(n)}`);
     }
     return NextResponse.json({
       ...(draft.payTimeBasis === "shift" ? { payTimeBasis: "shift", shortfall: draft.shortfall ?? [], shortfallSynced } : {}), // ★324（便 L-2-4）: 'punch' はキーなし

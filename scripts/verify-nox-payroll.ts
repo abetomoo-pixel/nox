@@ -1812,6 +1812,22 @@ async function main() {
         && sfRows.every((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.biz_date) && r.target_shift_id && r.amount > 0 && r.basis.length > 0 && r.reason.startsWith("不就労控除") || r.reason.startsWith("報酬調整"))
         && dPunch0.payTimeBasis === undefined && dPunch0.shortfall === undefined && dNext.payTimeBasis === undefined, JSON.stringify({ b: dShift.payTimeBasis, n: sfRows.length, sample: sfRows[0] }));
       check("段0159-c2 'punch' に戻すと net が同値（settings を戻した後＝golden 不変・'shift' は時給部分が確定シフト時間ベース＝rows の数は同じ）", JSON.stringify(dPunch1.rows.map((r) => [r.castId, r.net])) === JSON.stringify(dPunch0.rows.map((r) => [r.castId, r.net])) && dShift.rows.length === dPunch0.rows.length, JSON.stringify({ n0: dPunch0.rows.length, n1: dPunch1.rows.length }));
+      // ★便 P-4（0159 適用済み）: route と同じ p_rows を payroll_shortfall_sync に渡す＝run の shortfall 行が draft.shortfall と一致・空の p_rows で 0 行（冪等 delete）。manager の JWT＝preview と同じ経路
+      {
+        const { shortfallSyncRowsOf } = await import("../lib/nox/payroll/shortfall-sync");
+        const pRows = shortfallSyncRowsOf(dShift.shortfall ?? []);
+        const { data: runSt } = await admin.from("payroll_runs").select("status").eq("id", runIdP).single(); // 先行段で finalized になっていることがある＝一時的に draft へ（終わりに戻す）
+        await admin.from("payroll_runs").update({ status: "draft" }).eq("id", runIdP);
+        const { data: n1, error: e1 } = await manager.rpc("payroll_shortfall_sync", { p_run_id: runIdP, p_rows: pRows });
+        const { data: sfRows1 } = await admin.from("payroll_adjustments").select("cast_id, biz_date, amount, target_shift_id, basis, source").eq("run_id", runIdP).eq("source", "shortfall").order("biz_date");
+        const { data: n2, error: e2 } = await manager.rpc("payroll_shortfall_sync", { p_run_id: runIdP, p_rows: [] });
+        const { count: sfLeft } = await admin.from("payroll_adjustments").select("id", { count: "exact", head: true }).eq("run_id", runIdP).eq("source", "shortfall");
+        await admin.from("payroll_runs").update({ status: (runSt?.status as string) ?? "draft" }).eq("id", runIdP);
+        const expectN = pRows.filter((r) => r.amount > 0).length;
+        check("段0159-c3 ★RPC あり: payroll_shortfall_sync(run, draft.shortfall の p_rows)＝戻り＝amount>0 の行数・run の shortfall 行が同じ集合（cast×biz_date×amount）・空の p_rows で全削除（戻り＝削除数・残 0）",
+          !e1 && Number(n1) === expectN && (sfRows1 ?? []).length === expectN && (sfRows1 ?? []).every((r) => pRows.some((p) => p.cast_id === r.cast_id && p.biz_date === r.biz_date && p.amount === r.amount && p.target_shift_id === r.target_shift_id)) && !e2 && Number(n2) === expectN && (sfLeft ?? 0) === 0,
+          JSON.stringify({ e1: e1?.message, n1, expectN, rows: (sfRows1 ?? []).length, e2: e2?.message, n2, sfLeft }));
+      }
     }
     check("段0156-8 fixture 撤去後は元に戻る（fixedDed・withholding・net・dailyN=0・上書き 0）", r4.pay.fixedDed === r0.pay.fixedDed && r4.pay.withholding === r0.pay.withholding && r4.net === r0.net && r4.dailyN === 0 && r4.deductionOverridesApplied.length === 0, JSON.stringify({ fd: [r0.pay.fixedDed, r4.pay.fixedDed], wh: [r0.pay.withholding, r4.pay.withholding], net: [r0.net, r4.net] }));
   }

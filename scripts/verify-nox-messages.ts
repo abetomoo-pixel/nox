@@ -310,6 +310,11 @@ check("ms(2-26) L-3-2: dailyPayOverNoteOf（30,000＋10,000 > 35,000 → 文言�
   && dpf3.includes('{overNote && <Message kind="warn">{overNote}</Message>}')
   && dpf3.includes('fetch("/api/payroll/preview"') && dpf3.includes("setExpectedNet(r ? r.net + (r.dailyPaidGross ?? 0) : null)") && !dpf3.includes("disabled={busy || gross == null || gross <= 0 || overNote"));
 
+// ★0159（便 P-4）: rpc-err に raise 6 語（payroll_shortfall_sync／set_store_pay_time_basis）＝すべて error 種別に倒れる（生の英語が出ない）
+check("ms(2-27) 0159: rpcErrJa の 6 語（bad row／bad cast／bad shift／runs exist／bad pay_time_basis／bad apply）が和文で error 種別・preview の probe（isRpcMissing）は撤去",
+  ["bad row", "bad cast", "bad shift", "runs exist", "bad pay_time_basis", "bad apply"].every((w) => rpcErrJa(w) !== w && messageKindOf(rpcErrJa(w)) === "error")
+  && rpcErrJa("runs exist").includes("次の期") && rpcErrJa("bad pay_time_basis").includes("確定シフトどおり") && !fs.readFileSync("app/api/payroll/preview/route.ts", "utf8").includes("isRpcMissing"));
+
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);
