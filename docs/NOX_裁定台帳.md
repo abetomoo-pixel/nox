@@ -3882,6 +3882,16 @@ suite messages ms(2-6)（payoutDiffNoteOf／paymentMethodLabelOf の純関数＋
 
 適用＝未着手（mig 0158 ★起草に同乗）。
 
+### 裁定315 追補1（便 AB の実装判断・2026-09-30 便 AC-0 で収載）
+
+出典＝便 AB（2026-09-30・client 20c49d9）の報告で CC が示した判断 4 点を、便 AC-0 の指示で追補として収載。**本文**:
+「315 追補1-1（AB-2）『翌期の調整へ』は翌期へ切替→プレビュー→当該 cast の明細を開き、調整入力に種別＝定額・備考『YYYY-MM 確定後の打刻修正（M/D 出勤 hh:mm→hh:mm）の差額』を prefill する。**金額は自動計算しない（手入力）**。翌期に cast の行が無ければメッセージで止める（lib/nox/payroll/attention.ts attentionCarryOf）。
+315 追補1-2（AB-3）確定済み期の判定＝店側（今日タブ①・修正モーダル）は payroll_runs（RLS owner／manager）を cast の所属店×営業日の月で引く。/mine は cast が payroll_runs を読めないため**本人の給与明細（payslips）がある期＝確定済み**とみなす（isFinalizedDay・注記は info・赤エラーではない）。
+315 追補1-3（AB-9）確定できない文言は notEndedMessageOf（期間終了（M/D）の翌日から確定できます）1 本＝ボタン注記・API 400・DB 由来（'period not ended'）の 400 で同文。rpcErrJa の 'period not ended' は日付を持てないため generic 文のまま（messages ms(2-8) が error 種別を要求）。
+315 追補1-4（AB-4／AB-5）送り実費の本人・打刻端末発行が失敗しても、打刻（okuri=true）は残して『送りは店が締めで確定します』を出す（締め前モーダルの未発行に載る）。基本額が未設定（null／0）の店は発行しない。」
+
+適用＝便 AB（2026-09-30）で実装済み（20c49d9・suite 53f42bd messages ms(2-18)〜(2-23)）。
+
 ## 裁定316（本便で確定・Agoora・2026-09-29）給与確定は期間終了の翌営業日から（API と DB でガード）
 
 出典＝Agoora 指示（2026-09-29・便 X-8-1 で収載）。**本文（逐語）**:
@@ -3936,6 +3946,7 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 手貼りの直後から、未終了の期で payroll_finalize を直接呼ぶ suite は 'period not ended' で赤（起票88・便 X-11 の f0 run 1 が rls で停止）＝便 AA-3 で fixture の期を過去月へ張り替え。
 
 **0158 suite 追随（便 AA・2026-09-29）**: 名簿 A 148／B 140／288・起票88 の処置＝期の文字列は据え置き、確定の直前に run の凍結値 period_start／period_end を 2000-01-01 に置く（scripts/fixtures-f0.ts の endedRuns／ENDED_RUN_SQL・rls 9／payroll 24／ar-partial 2／reopen 1／carryover 2 箇所）＝指示の「期を過去月へ張り替え」とは別の手段（待遇プランの有効開始日・曜日・suite 間の期の住み分けを壊さないため・**9/30 Agoora 追認**）。collect の日払い読取は settle_period（null＝営業日の月）。verify:nox-0158 新設（51）。**f0 pin＝80 段 5,159**（2 連緑 18:49〜19:01／19:03〜19:15・golden 6 値不変）。起票91・92 を収載。
+**便 AB 完了＝台帳の現在地（2026-09-30）**: HEAD **53f42bd**＝origin/main（0 0）・f0 pin **80 段 5,165**（2 連緑 11:00〜11:13／11:14〜11:26・golden 6 値不変）・Vercel success **11:28:06 JST**・messages **38**。0158 の client 追随（裁定312／314／315／316／317／319）は完了。次＝0159 事前読取（docs/tmp/0159_pre.md）→ ★指定 → 起草（スコープ＝324-6＋起票89・91・92 を 1 本）。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
@@ -3981,9 +3992,9 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
 
-## 裁定324（提案中・2026-09-30 受領）勤務時間の計算基準（店設定・2 択）
+## 裁定324（2026-09-30 承認・Agoora）勤務時間の計算基準（店設定・2 択）
 
-出典＝Agoora から 2026-09-30 に受領（便 AB の f0 走行中）。承認の明記が無いため教訓70 の運用どおり「（提案中）」で収載＝承認時に見出しを日付へ差し替える。次の裁定番号は 325。**本文（逐語）**:
+出典＝Agoora から 2026-09-30 に受領（便 AB の f0 走行中・「（提案中）」で収載）→ 便 AC-0（2026-09-30）で Agoora 承認を確認し見出しを日付へ差し替え。次の裁定番号は 325。**本文（逐語）**:
 「裁定324 勤務時間の計算基準（店設定・2 択）
 324-1 stores.settings_json.pay_time_basis: 'punch'（実打刻・既定）／'shift'（確定シフトどおり）。欠損は 'punch'＝既存店・golden 不変。set_store_profile 白名単に pay_time_basis／pay_time_basis_next／pay_time_basis_next_from を追加（enum 検証 'bad pay_time_basis'・next_from は date）。
 324-2 切替は次の給与期の初日から。設定変更は pay_time_basis_next＋next_from（＝変更時点の次の期の初日・期の定義は T1 calc_period と同じ）に書き、pay.ts は run の calc_period_start ≥ next_from なら next、未満なら現行値で計算。確定済み期は再計算しない（316・315 と同じ凍結）。
@@ -5051,6 +5062,7 @@ K36 の説明文もモックの 2 カード語彙（本人レコード／NOXロ�
 - **handoff v35 収蔵（2026-09-17）**: Downloads から `docs/handoff/` へ収蔵（git 追跡へ追加・sha 全64桁付き・教訓72）。v35＝`NOX_相談役引き継ぎ_2026-09-17_v35.md`（13,262 B・sha256 `4c2a5b9d6e29d84045e173beaff0cda0a267cf5fa2d19f9edd43d3967c70624a`・64 桁と照合一致・Downloads 原本と収蔵後の再計算がともに同 sha）。v34（`cb916cc`・14,107 B・sha256 `6d1cea98f86990656b7fb2650fa950953c37af3cbb43e6ce38f0fca838cf669d`）に続く版＝本断面（267／259／0147・f0 pin 50 段 4,089）の最終断面。教訓88 は提案段階＝本収蔵では収載しない。docs のみ＝f0 不走（裁定256）。
 - **handoff v36 収蔵（2026-09-17）**: Downloads から `docs/handoff/` へ収蔵（git 追跡へ追加・sha 全64桁付き・教訓72）。v36＝`NOX_相談役引き継ぎ_2026-09-17_v36.md`（12,410 B・sha256 `e39df6315c8818fd0e1d9d1650845548948f548222b8da103c1b5a3ac71fa40b`・64 桁と照合一致・Downloads 原本と収蔵後の再計算がともに同 sha）。v35（`580d0b4`・13,262 B・sha256 `4c2a5b9d6e29d84045e173beaff0cda0a267cf5fa2d19f9edd43d3967c70624a`）に続く版＝本断面（269 出し分け／270・271 ウィザード・f0 pin 52 段 4,175）の最終断面。教訓88 は提案段階＝本収蔵では収載しない。docs のみ＝f0 不走（裁定256）。
 - **handoff v37 収蔵（2026-09-18）**: Downloads から `docs/handoff/` へ収蔵（`fe0e19c`「docs: v37 収蔵」・git 追跡へ追加・sha 全64桁付き・教訓72）。v37＝`NOX_相談役引き継ぎ_2026-09-18_v37.md`（15,811 B・sha256 `e33766f2e0557942befbc259645e33d07d8d73a08242782e01897b1f508e4f5a`・64 桁と照合一致・Downloads 原本と収蔵後の再計算がともに同 sha・cp のバイト複写＝改行変換なし）。v36（`e3b73a0`・12,410 B・sha256 `e39df6315c8818fd0e1d9d1650845548948f548222b8da103c1b5a3ac71fa40b`）に続く版＝本断面（268 遅刻分数・裁定272 0148 設計・0148 起草／突合・client 前倒し 478303d）の最終断面。収蔵時は 0148 未貼付＝478303d を道連れにしないため push せず（同便の報告後に Agoora が 0148 を手貼り）。★便 1 の報告で機械時刻を「02:13 JST」と書いたが Git Bash の `TZ=Asia/Tokyo date` は tzdata 不在で UTC を GMT 表示する＝実際は 11:13 JST（本便で訂正・以後は `date`（Windows ローカル＝JST）と `date -u` を併記）。
+- **handoff v41 収蔵（2026-09-30・便 AC-1）**: Downloads から `docs/handoff/` へバイト複写（git 追跡へ追加・sha 全64桁付き・教訓72）。v41＝`NOX_相談役引き継ぎ_2026-09-30_v41.md`（10,994 B・96 行・sha256 `8f79939553f636be81461cc67383f644ff52de26ab8796bc2a3b901e250cc3c9`・64 桁と期待値（先頭 8f799395・末尾 c3c9）を照合一致）。v38〜v40 は収蔵済み（v40＝3527957）だが本欄に行が無い＝ここで補記（v38 2026-09-24／v39 2026-09-25／v40 2026-09-28・sha は各収蔵コミットの現物）。
 - **本番向け付記**: audit_logs の retention（保持期間・アーカイブ）は**ローンチ後必須**（税理士ゲート後＝裁定23 系）。本 gate は verify org 限定であり
   本番 org の行には一切触れない。
 
@@ -5617,6 +5629,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 90 | **MoneyInput（金額欄の共通部品）に置き換えていない金額入力が残る**（低・**起票 2026-09-29 便 AA-1**） | 本文（逐語）: 「MoneyInput の残り（マスタ・シミュレーター・保証額・売上目標）＝X-12」。便 X-11-6 で置換したのは 11 面（前借り／送り実費の 1 件・一括、日払い、出勤ボーナス、給与の調整と控除上書き、支払記録、送りの金額ダイアログ、減額 2 種、日報の送り行、分割領収書）。残り＝マスタ（料金 pricing-board・商品 products-board・待遇プラン comp-sections／plan-editor）・components/simulator-panel.tsx・casts-board の保証額・analytics-board の売上目標・mine/norm-card。処置＝便 X-12。 |
 | 91 | **kiosk_transport_issue の課金ゲート行が規約の形（引数 v_org／auth_org_id() の 2 種）に当たらない**（低・**起票 2026-09-29 便 AA-3**） | 0158 の kiosk_transport_issue は `billing_writable_of(v_device.org_id)` でゲートしている。ゲート自体は効く（'billing locked' を持つ関数 148 本に含まれる）が、verify:nox-billing 段47-1 の「挿入行の形」は 147 本（148 にならない）。原因＝0158 起草（便 Z-2b）で打刻端末の腕を kiosk_punch から写した際に v_org へ受け直さなかった（CC の起草の見落とし）。暫定＝形の pin を 147 に置き注記（便 AA-3）。処置＝mig 0159 で v_org := v_device.org_id に受けてから規約の 1 行へ直し、pin を 148 に戻す。 |
 | 92 | **payroll_attentions の cast_id／store_id／org_id は cascade しない＝cast を消す経路と demo_org_reset が新表を知らない**（中・**起票 2026-09-29 便 AA-3**） | 0158 の payroll_attentions は run_id のみ ON DELETE CASCADE。要対応の行が残る cast は delete が FK で止まる（verify:nox-punch-match pm(9-15) は casts delete の前に自前で消す形にした）。demo_org_reset（0149）は削除対象の表の一覧に payroll_attentions を持たない＝デモ org に要対応が 1 行でもあると reset が FK で失敗しうる（payroll_runs を先に消す順なら cascade で消えるため、live の削除順の確認が先）。処置＝0159 で demo_org_reset の削除順を確認のうえ payroll_attentions を明示で足す。 |
+| 93 | **日払いフォームの「確定済みのため、日払いの発行はできません（読取のみ）」を裁定312 に合わせて見直し**（低・**起票 2026-09-30 便 AC-0**） | 本文（逐語）: 「日払いフォームの『確定済みのため発行できません（読取のみ）』を裁定312 に合わせて見直し＝便 X-12」。裁定312（0158）で支払済みの期の営業日でも日払いは翌月へ繰り下げて発行できるようになったが、components/nox/daily-pay-form.tsx は readOnly（給与画面の adjEditable=false＝確定済み run）で発行欄ごと隠す。処置＝便 X-12 で readOnly の条件を見直す（確定済み run でも発行可・繰り下げ先を表示）。 |
 
 ### 未裁定・消し込み待ち
 
