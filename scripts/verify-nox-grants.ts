@@ -210,6 +210,7 @@ async function main() {
       "check_customer_add", "check_customer_remove", "check_line_set_customer", "check_customer_names", "bottle_keep_out", "customer_sales_summary", // ★0153（裁定305／307）: 公開 6 本 // ★0152（裁定298／299）: 公開 6 本（同じ revoke／grant 形）
       "cast_mynumber_discard", "cast_mynumber_discard_candidates", "customer_anonymize", "customer_anonymize_candidates", "kiosk_check_keeps", // ★0155（裁定309）: 公開 5 本（audit_purge は service 専用＝G4e）
       "daily_pay_issue", "daily_pays_of_run", "payroll_run_deduction_override_set", "payroll_run_deduction_override_clear", "payroll_run_deduction_overrides_of",
+      "payroll_shortfall_sync", "set_store_pay_time_basis", // ★0159（裁定324＋追補2・3）: 公開 2 本（shortfall_sync は非ゲート＝B(e)・set_store_pay_time_basis はゲート内蔵＝A8）
       "payroll_attentions_of", "payroll_attention_resolve", "transport_issue_self", "kiosk_transport_issue", "kiosk_punch_state", // ★0158（裁定315／317／319＋追補1）: 公開 5 本（punch_correction_apply は内部のまま＝G4c）
       "okuri_today_summary", "advances_open_balance", "cast_mynumber_discard_status"]; // ★0156（裁定309-6〜9／追補2）: 公開 8 本（okuri_default_of は内部＝G4c）
     const r = await db.query(

@@ -53,7 +53,7 @@ const T = "payroll_adjustments";
 const ADD_ARGS = "p_run_id uuid, p_cast_id uuid, p_mode text, p_amount integer, p_rate_bp integer, p_before_withholding boolean, p_show_detail boolean, p_reason text, p_source text, p_basis text, p_target_shift_id uuid"; // ★mig0154: +3（p_source default 'manual'・p_basis／p_target_shift_id default null＝既存 8 引数呼出は不変）
 const DEL_ARGS = "p_id uuid, p_reason text";
 const POLICY_QUAL = "((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (store_id = auth_store_id())) AND (auth_role() = ANY (ARRAY['owner'::text, 'manager'::text])))";
-const COLS = ["id", "org_id", "store_id", "run_id", "cast_id", "mode", "amount", "rate_bp", "before_withholding", "show_detail", "reason", "created_by", "created_at", "source", "carry_from_payslip_id", "basis", "target_shift_id"]; // ★mig0148: source／carry_from_payslip_id・★mig0154: basis／target_shift_id
+const COLS = ["id", "org_id", "store_id", "run_id", "cast_id", "mode", "amount", "rate_bp", "before_withholding", "show_detail", "reason", "created_by", "created_at", "source", "carry_from_payslip_id", "basis", "target_shift_id", "biz_date"]; // ★mig0159（324-4・追補1）: 末尾 biz_date（shortfall の営業日・null 可） // ★mig0148: source／carry_from_payslip_id・★mig0154: basis／target_shift_id
 const SYNC_ARGS = "p_run_id uuid"; // ★mig0148 payroll_carryover_sync
 
 // ── (0) 純関数 fixture（DB 非依存）──
@@ -334,22 +334,25 @@ async function main() {
   // ── (1) 表の形 ──
   {
     const cols = await q<{ column_name: string }>(`select column_name from information_schema.columns where table_schema='public' and table_name=$1 order by ordinal_position`, [T]);
-    check("pa(1-1) 列 17（★mig0148 で 13→15・★mig0154 で 15→17）", cols.length === 17, `${cols.length}`);
+    check("pa(1-1) 列 18（★mig0148 で 13→15・★mig0154 で 15→17・★mig0159 biz_date で 17→18）", cols.length === 18, `${cols.length}`);
     check("pa(1-2) 列名と順序", JSON.stringify(cols.map((c) => c.column_name)) === JSON.stringify(COLS), cols.map((c) => c.column_name).join(","));
     const cks = await q<{ conname: string; def: string }>(`select conname, pg_get_constraintdef(oid) as def from pg_constraint where conrelid=('public.' || $1)::regclass and contype='c' order by conname`, [T]);
-    check("pa(1-3) CHECK 5（★mig0148 で 3→4・★mig0154 basis_ck で 4→5）", cks.length === 5, cks.map((c) => c.conname).join(","));
+    check("pa(1-3) CHECK 6（★mig0148 で 3→4・★mig0154 basis_ck で 4→5・★mig0159 shortfall_ck で 5→6）", cks.length === 6, cks.map((c) => c.conname).join(","));
     const def = (n: string) => cks.find((c) => c.conname === n)?.def ?? "";
     check("pa(1-4) CHECK mode ∈ fixed/rate", /mode = ANY \(ARRAY\['fixed'::text, 'rate'::text\]\)/.test(def("payroll_adjustments_mode_ck")), def("payroll_adjustments_mode_ck"));
     check("pa(1-5) CHECK amount 排他（fixed: amount≥0∧rate_bp null／rate: rate_bp 0..10000∧amount null）",
       /mode = 'fixed'::text\) AND \(amount IS NOT NULL\) AND \(amount >= 0\) AND \(rate_bp IS NULL\)/.test(def("payroll_adjustments_amount_ck"))
       && /mode = 'rate'::text\) AND \(rate_bp IS NOT NULL\) AND \(\(rate_bp >= 0\) AND \(rate_bp <= 10000\)\) AND \(amount IS NULL\)/.test(def("payroll_adjustments_amount_ck")), def("payroll_adjustments_amount_ck"));
     check("pa(1-6) CHECK reason trim 1..200", /length\(TRIM\(BOTH FROM reason\)\) >= 1\) AND \(length\(TRIM\(BOTH FROM reason\)\) <= 200\)/.test(def("payroll_adjustments_reason_ck")), def("payroll_adjustments_reason_ck"));
-    check("pa(1-6b) ★mig0148／0154 CHECK source ∈ manual/carryover/settlement/sanction", /source = ANY \(ARRAY\['manual'::text, 'carryover'::text, 'settlement'::text, 'sanction'::text\]\)/.test(def("payroll_adjustments_source_ck")), def("payroll_adjustments_source_ck"));
+    check("pa(1-6b) ★mig0148／0154／0159 CHECK source ∈ manual/carryover/settlement/sanction/shortfall", /source = ANY \(ARRAY\['manual'::text, 'carryover'::text, 'settlement'::text, 'sanction'::text, 'shortfall'::text\]\)/.test(def("payroll_adjustments_source_ck")), def("payroll_adjustments_source_ck"));
+    check("pa(1-6d) ★mig0159 CHECK shortfall_ck＝shortfall は biz_date／target_shift_id 必須・mode 'fixed'・源泉前", /source <> 'shortfall'::text\) OR \(\(biz_date IS NOT NULL\) AND \(mode = 'fixed'::text\) AND \(before_withholding = true\) AND \(target_shift_id IS NOT NULL\)\)/.test(def("payroll_adjustments_shortfall_ck")), def("payroll_adjustments_shortfall_ck"));
     check("pa(1-6c) ★mig0154 CHECK basis_ck＝settlement／sanction は basis trim 1..200 必須", /source <> ALL \(ARRAY\['settlement'::text, 'sanction'::text\]\)/.test(def("payroll_adjustments_basis_ck")) && /length\(TRIM\(BOTH FROM COALESCE\(basis, ''::text\)\)\) >= 1/.test(def("payroll_adjustments_basis_ck")), def("payroll_adjustments_basis_ck"));
     const idx = await q<{ indexname: string; indexdef: string }>(`select indexname, indexdef from pg_indexes where schemaname='public' and tablename=$1 order by indexname`, [T]);
-    check("pa(1-7) index 5+pk（★mig0148 carryover_uidx・★mig0154 target_shift_idx）", JSON.stringify(idx.map((i) => i.indexname)) === JSON.stringify(["payroll_adjustments_carryover_uidx", "payroll_adjustments_cast_idx", "payroll_adjustments_org_idx", "payroll_adjustments_pkey", "payroll_adjustments_run_idx", "payroll_adjustments_target_shift_idx"]), idx.map((i) => i.indexname).join(","));
+    check("pa(1-7) index 6+pk（★mig0148 carryover_uidx・★mig0154 target_shift_idx・★mig0159 shortfall_uidx）", JSON.stringify(idx.map((i) => i.indexname)) === JSON.stringify(["payroll_adjustments_carryover_uidx", "payroll_adjustments_cast_idx", "payroll_adjustments_org_idx", "payroll_adjustments_pkey", "payroll_adjustments_run_idx", "payroll_adjustments_shortfall_uidx", "payroll_adjustments_target_shift_idx"]), idx.map((i) => i.indexname).join(","));
     const uidxDef = idx.find((i) => i.indexname === "payroll_adjustments_carryover_uidx")?.indexdef ?? "";
     check("pa(1-7b) ★mig0148 carryover_uidx＝UNIQUE (run_id, cast_id) WHERE source='carryover'（manual 行には掛からない部分 unique）", /CREATE UNIQUE INDEX payroll_adjustments_carryover_uidx ON public\.payroll_adjustments USING btree \(run_id, cast_id\) WHERE \(source = 'carryover'::text\)/.test(uidxDef), uidxDef);
+    const sfUidx = idx.find((i) => i.indexname === "payroll_adjustments_shortfall_uidx")?.indexdef ?? "";
+    check("pa(1-7c) ★mig0159 shortfall_uidx＝UNIQUE (run_id, cast_id, biz_date) WHERE source='shortfall'（carryover_uidx とは別の部分 unique）", /CREATE UNIQUE INDEX payroll_adjustments_shortfall_uidx ON public\.payroll_adjustments USING btree \(run_id, cast_id, biz_date\) WHERE \(source = 'shortfall'::text\)/.test(sfUidx), sfUidx);
     const colDef = await q<{ column_name: string; data_type: string; column_default: string | null; is_nullable: string }>(`select column_name, data_type, column_default, is_nullable from information_schema.columns where table_schema='public' and table_name=$1 and column_name in ('source','carry_from_payslip_id') order by ordinal_position`, [T]);
     check("pa(1-11) ★mig0148 source text not null default 'manual'／carry_from_payslip_id uuid null", colDef.length === 2 && colDef[0].column_name === "source" && colDef[0].data_type === "text" && colDef[0].is_nullable === "NO" && colDef[0].column_default === "'manual'::text" && colDef[1].column_name === "carry_from_payslip_id" && colDef[1].data_type === "uuid" && colDef[1].is_nullable === "YES", JSON.stringify(colDef));
     const rls = await q<{ relrowsecurity: boolean }>(`select relrowsecurity from pg_class where oid=('public.' || $1)::regclass`, [T]);

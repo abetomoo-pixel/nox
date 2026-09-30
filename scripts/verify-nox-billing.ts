@@ -129,7 +129,9 @@ async function main() {
     //   対象 144→145・除外 130→138・全数 274→283（live 実測 2026-09-28 15:54＝総数 283・'billing locked' 145）。punch 3 本＋kiosk_register_state は名前不変で本数不動。
     // ★mig0158（裁定312／315／316／317／319＋追補1・2026-09-29）: transport_issue_self／kiosk_transport_issue（ゲート内蔵）を A4・payroll_attention_resolve（同）を A8・読取 2 本（payroll_attentions_of／kiosk_punch_state）を B(f)＝
     //   対象 145→148・除外 138→140・全数 283→288（live 実測 2026-09-29＝総数 288・'billing locked' 148）。改稿 11 本は名前不変で本数不動。
-    check("段47-1 正本の対象148名を読めた", docTargets.size === 148, `got ${docTargets.size}`); // ★0157: A4 +2＝139→141・★0153（裁定305／307）: A1 +4＝141→145・★0155: A4 −1＝145→144
+    // ★mig0159（裁定324＋追補1〜3・起票89／91／92・2026-09-30）: set_store_pay_time_basis（ゲート内蔵）を A8・payroll_shortfall_sync（非ゲート＝給与の清算）を B(e)＝
+    //   対象 148→149・除外 140→141・全数 288→290（live 実測 2026-09-30＝総数 290・'billing locked' 149）。kiosk_transport_issue のゲート行が v_org 形に（起票91 解消）＝挿入行の形 147→149。
+    check("段47-1 正本の対象149名を読めた", docTargets.size === 149, `got ${docTargets.size}`); // ★0157: A4 +2＝139→141・★0153（裁定305／307）: A1 +4＝141→145・★0155: A4 −1＝145→144
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     // ★mig0113: check_tax_round（内部ヘルパー・非ゲート）を B へ収載＝除外 95→96・全数 201→202。
     // ★mig0119（R-2b・2026-09-01）: 補助2本 nom_unit4_key / nom_type_summary を B(a) へ収載＝除外 96→98・
@@ -148,7 +150,7 @@ async function main() {
     // ★mig0146（裁定258・2026-09-15）: payroll_adjustment_add／_delete（非ゲート＝給与の清算）を B(e) へ収載＝除外 114→116・全数 239→241・対象 125 不変。
     // ★mig0148（裁定272・2026-09-18）: payroll_carryover_sync（非ゲート＝繰越消費）を B(e) へ収載＝除外 116→117・全数 241→245。
     // ★mig0149（裁定273／276〜279・2026-09-18）: demo_org_reset（service_role 専用・authenticated 実行不可＝構造除外）を B(a) へ収載＝除外 117→118・全数 245→246・対象 128 不変。
-    check("段47-1 正本の除外140名を読めた", docExcluded.size === 140, `got ${docExcluded.size}`); // ★0153: B(f) +2（names／sales_summary＝裁定307-1）・★0155: +7（B(a) 1・B(f) 4・B(m) 2）
+    check("段47-1 正本の除外141名を読めた", docExcluded.size === 141, `got ${docExcluded.size}`); // ★0153: B(f) +2（names／sales_summary＝裁定307-1）・★0155: +7（B(a) 1・B(f) 4・B(m) 2）
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる
@@ -163,7 +165,7 @@ async function main() {
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 148本", liveGated.size === 148, `got ${liveGated.size}`);
+    check("段47-1 live のゲート済み関数 = 149本", liveGated.size === 149, `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
     const extra = [...liveGated].filter((n) => !docTargets.has(n));
@@ -182,15 +184,15 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 149（148 ＋ ラッパ自身）", refs[0].n === 149, `got ${refs[0].n}`);
+    check("段47-1 述語を参照する関数 = 150（149 ＋ ラッパ自身）", refs[0].n === 150, `got ${refs[0].n}`);
     // 挿入行の形が全92本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public'
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
-    // ★起票91（0158）: kiosk_transport_issue のゲート行は引数が v_device.org_id（打刻端末の org）＝規約の 2 種に当たらない。ゲート自体は効く（'billing locked' は 148 本）。0159 で v_org 形へ直し、この pin を 148 に戻す
-    check("段47-1 挿入行の形が規約どおり＝147 本（引数は v_org / auth_org_id() の2種のみ・ゲート済み 148 本のうち kiosk_transport_issue だけ規約外＝起票91）", shapes[0].n === 147, `got ${shapes[0].n}`);
+    // ★起票91 解消（0159）: kiosk_transport_issue のゲート行を v_org 形へ＝規約外 0 本・形 149＝ゲート済み 149 と一致
+    check("段47-1 挿入行の形が全149本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 149, `got ${shapes[0].n}`);
   }
 
   // ══════════════════════════════════════════════════════════

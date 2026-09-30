@@ -523,6 +523,8 @@ async function main() {
     ["transport_issue_self", { p_punch_id: null }],
     ["kiosk_transport_issue", { p_punch_id: null }],
     ["kiosk_punch_state", {}],
+    ["payroll_shortfall_sync", { p_run_id: null, p_rows: null }],                 // ★mig0159（裁定324／追補2）: 公開 2 本
+    ["set_store_pay_time_basis", { p_store_id: null, p_value: null, p_apply: null }],
     ["set_staff_perms", { p_membership_id: null, p_can_register: null, p_can_crm: null, p_can_shift: null, p_can_view_backs: null, p_can_close: null, p_can_reopen: null }], // 段16a（mig0024→0038 5引数）
   ];
   for (const [fn, args] of F3A2_RPC_PROBES) {
@@ -1062,8 +1064,10 @@ async function main() {
         const { data: sRow } = await admin.from("customers").select("cast_id").eq("id", cS).single();
         check("段15 staff の p_cast_id は無視（null 化）＝担当割当は owner/manager のみ", sRow?.cast_id === null, JSON.stringify(sRow));
       }
-      const { error: eRRegOn } = await regOn.rpc("customer_register", { p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-侵入1" });
-      check("段15 staff(can_register=true/can_crm=false) register forbidden（2軸独立）", forbidden(eRRegOn), eRRegOn?.message ?? "通ってしまった");
+      // ★mig0159（起票89・324 追補2-5）: レジ権限（can_register）の staff にも customer_register を開放＝成功（旧: forbidden＝2 軸独立）。cast は据置＝forbidden
+      const { data: cRegOn, error: eRRegOn } = await regOn.rpc("customer_register", { p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-regon" });
+      check("段15 ★0159 staff(can_register=true/can_crm=false) customer_register 成功（レジ権限に開放・起票89）", !eRRegOn && typeof cRegOn === "string", eRRegOn?.message ?? "(no error)");
+      if (typeof cRegOn === "string") createdCustIds.push(cRegOn);
       const { error: eRRegOff } = await regOff.rpc("customer_register", { p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-侵入2" });
       check("段15 staff(can_crm=false) register forbidden", forbidden(eRRegOff), eRRegOff?.message ?? "通ってしまった");
       const { error: eRCast } = await cast.rpc("customer_register", { p_store_id: storeA1!.id, p_name: "NOX-VERIFY-段15-侵入3" });

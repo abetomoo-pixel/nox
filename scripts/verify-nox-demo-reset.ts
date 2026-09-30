@@ -71,7 +71,7 @@ async function main() {
     // 表順＝live の関数定数から読む（72 表・memberships 含む・★0152 で +3・★0153 で +check_customers）
     const src = (await one<{ prosrc: string }>(`select prosrc from pg_proc where pronamespace = 'public'::regnamespace and proname = 'demo_org_reset'`))?.prosrc ?? "";
     const loadArr = (src.match(/c_load constant text\[\] := array\[([\s\S]*?)\];/)?.[1].match(/'([a-z_]+)'/g) ?? []).map((s) => s.replace(/'/g, ""));
-    check("dr(0-2) live demo_org_reset の投入順＝72 表（stores 直後に memberships・referrers は memberships の後＝0152・check_customers は checks の後＝0153）", loadArr.length === 72 && loadArr[loadArr.indexOf("checks") + 1] === "check_customers" && loadArr[0] === "stores" && loadArr[1] === "memberships" && loadArr[2] === "referrers", `got ${loadArr.length}`);
+    check("dr(0-2) live demo_org_reset の投入順＝75 表（stores 直後に memberships・referrers は memberships の後＝0152・check_customers は checks の後＝0153・★0159: payroll_runs の後に daily_pays→payroll_attentions・deductions の後に payroll_run_deduction_overrides）", loadArr.length === 75 && loadArr[loadArr.indexOf("payroll_runs") + 1] === "daily_pays" && loadArr[loadArr.indexOf("payroll_runs") + 2] === "payroll_attentions" && loadArr[loadArr.indexOf("deductions") + 1] === "payroll_run_deduction_overrides" && loadArr[loadArr.indexOf("checks") + 1] === "check_customers" && loadArr[0] === "stores" && loadArr[1] === "memberships" && loadArr[2] === "referrers", `got ${loadArr.length}`);
     const orgWhere = (t: string) => (t === "memberships" ? `store_id in (select id from public.stores where org_id = $1)` : `org_id = $1`);
     const countsOf = async (org: string) => {
       const o: Record<string, number> = {};
