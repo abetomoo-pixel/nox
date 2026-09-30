@@ -3953,7 +3953,7 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 **0158 suite 追随（便 AA・2026-09-29）**: 名簿 A 148／B 140／288・起票88 の処置＝期の文字列は据え置き、確定の直前に run の凍結値 period_start／period_end を 2000-01-01 に置く（scripts/fixtures-f0.ts の endedRuns／ENDED_RUN_SQL・rls 9／payroll 24／ar-partial 2／reopen 1／carryover 2 箇所）＝指示の「期を過去月へ張り替え」とは別の手段（待遇プランの有効開始日・曜日・suite 間の期の住み分けを壊さないため・**9/30 Agoora 追認**）。collect の日払い読取は settle_period（null＝営業日の月）。verify:nox-0158 新設（51）。**f0 pin＝80 段 5,159**（2 連緑 18:49〜19:01／19:03〜19:15・golden 6 値不変）。起票91・92 を収載。
 **便 AB 完了＝台帳の現在地（2026-09-30）**: HEAD **53f42bd**＝origin/main（0 0）・f0 pin **80 段 5,165**（2 連緑 11:00〜11:13／11:14〜11:26・golden 6 値不変）・Vercel success **11:28:06 JST**・messages **38**。0158 の client 追随（裁定312／314／315／316／317／319）は完了。次＝0159 事前読取（docs/tmp/0159_pre.md）→ ★指定 → 起草（スコープ＝324-6＋起票89・91・92 を 1 本）。 **目視（2026-09-30 便 D159-1）**: 9/30 Agoora 目視 OK＝0156 11 点・X-8〜X-11・便 AB。**便 X-12 の中身＝起票90・93・94（0159 client 便に同乗）**。
-**無人便 L 完了＋0159 本番適用＝台帳の現在地（2026-09-30）**: 無人便 L 完了 HEAD **efc7f72**（X-12-1〜3・L-2-1〜4・L-3-1／2）・f0 **81 段 5,208**（2 連緑）・Vercel **13:24:43 JST**／0159 本番適用 **9/30 hh:mm（申告値未受領）（Agoora 申告値）**・sha **00ed3da283e2fd2cbb9ac9887d024819ba69408b39d1c3cdd19fa26add5bf4b7**・live 照合 all_ok（md5 5 本・proacl・列 18／CHECK 6／index 7・関数 290・表 79・'billing locked' 149・形 149・述語参照 150＝docs/tmp/q0930_post_0159.mjs）・名簿 **290**（A 149／B 141）。次＝0159 client 便（店舗設定 UI・STEP 3・明細表示）。
+**無人便 L 完了＋0159 本番適用＝台帳の現在地（2026-09-30）**: 無人便 L 完了 HEAD **efc7f72**（X-12-1〜3・L-2-1〜4・L-3-1／2）・f0 **81 段 5,208**（2 連緑）・Vercel **13:24:43 JST**／0159 本番適用 **9/30 午後・時刻不明（Agoora 申告）**・sha **00ed3da283e2fd2cbb9ac9887d024819ba69408b39d1c3cdd19fa26add5bf4b7**・live 照合 all_ok（md5 5 本・proacl・列 18／CHECK 6／index 7・関数 290・表 79・'billing locked' 149・形 149・述語参照 150＝docs/tmp/q0930_post_0159.mjs）・名簿 **290**（A 149／B 141）。次＝0159 client 便（店舗設定 UI・STEP 3・明細表示）。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
@@ -3998,6 +3998,22 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 在庫管理の判定＝products に管理フラグの列は無い → **product_stock_totals の戻りに行がある商品（＝stock_logs に 1 行以上ある商品）** を「管理あり」とした（在庫数が無い＝管理なし）。入荷の記録が無い商品は一覧に出ず、件数だけ注記する。
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
+
+## 裁定326（2026-09-30 承認・Agoora）/mine の再構成と店設定化
+
+出典＝Agoora 承認（2026-09-30・便 C-0 で収載）。次の裁定番号は 327。**本文（逐語）**:
+「裁定326 /mine の再構成と店設定化（2026-09-30 承認・Agoora）
+326-1 店設定 mine_settings（owner／manager・settings_json）: payslip_visibility 'off'（既定）／'net_only'（手取りのみ）／'detail'（明細まで）、drink_claim 'off'（既定）／'on'、punch_correction_request 'off'（既定）／'on'、ranking 'off'（既定）／'on'、ranking_show_others 'off'（既定）／'on'（ranking 'on' のときのみ有効）、reservation_request 'on'（既定）／'off'。
+326-2 /mine から報酬シミュレーターと今月のバックの 2 カードを削除。
+326-3 ノルマ進捗: cast の「目標を設定」を廃止。店がキャスト別・月別に本指名件数・場内件数・同伴件数・売上額の 4 項目を設定（未設定項目は出さない・全項目未設定なら非表示）。/mine は当月実績÷ノルマの達成率を項目ごとに表示。実績の集計は指名ランキングと同じ源（本指名・場内・同伴）＋売上は既存の月次売上集計。
+326-4 指名予約・同伴予約の申請: cast が /mine から 顧客（候補表示・裁定321 と同じ）・日時・種別（本指名／同伴）を申請 → status 'pending' → 店（owner／manager／レジ権限 staff）が承認・却下 → 承認済みだけが「指名予約（今日以降）」と店側の予約一覧に載る。店側の予約一覧に「承認待ち」タブ。却下は理由任意。
+326-5 今月の勤怠に出勤・退勤の打刻時刻を表示（「M/D 出勤 hh:mm〜hh:mm」・退勤未打刻は「〜」）。
+326-6 お知らせ未読: cast ごとの既読を持ち、未読 N 件ならナビと /mine の見出しに「お知らせ（N）」。開いたら既読。
+326-7 希望タブは「シフト希望」に改名。店設定 shift_request_mode 'shift'（既定・現行）／'off_only'（休み希望）。off_only ではタブ名「休み希望」・cast は休みたい日だけ提出・提出のない日は出勤可能として店の確定案に載せられる（裁定58 の前倒し）。
+326-8 ranking 'off' の店では /mine のナビ項目とランキングページを出さない（直 URL は /mine へ）。drink_claim／punch_correction_request 'off' も同様にカードを出さない。
+326-9 器＝0160: cast_quotas（org・store・cast・month・4 項目・NULL 可）＋set_cast_quota RPC／予約表に status・requested_by_cast・rejected_reason＋cast 用 RPC reservation_request と店用 reservation_decide／cast_notice_reads（cast×notice）＋既読 RPC／settings_json +7 キー（白名単か専用 RPC は起草時に裁く）。起票95（枠マスタ無効化）・96（T6 契約確認）と同乗。」
+
+適用＝未着手（0160 ★起草の入力＝便 C の後の R160 事前読取 docs/tmp/0160_pre.md → ★指定）。
 
 ## 裁定325（2026-09-30 承認・Agoora）無人便 L の仮決めの追認
 
@@ -4062,7 +4078,7 @@ CC の注記（本文には触れない）: 追補2-2 の「mode は 'before' �
 
 適用＝便 S159-2（2026-09-30）で ★2 のゲート行 1 行を除去（改稿前の控え docs/tmp/0159_before_324-3.sql・sha b4f7f933…6aaa）。2〜4 は D159 起草の判断どおり（改稿なし）。
 
-**0159 の欄（起草済み・手貼り待ち）**: supabase/migrations/0159_pay_time_basis.sql＝**起草済み・sha256 00ed3da283e2fd2cbb9ac9887d024819ba69408b39d1c3cdd19fa26add5bf4b7・494 行・33,999 B・再突合 37 段 NG 0（docs/tmp/q0930_ag_0159.mjs・BEGIN…ROLLBACK）→ 本番適用 2026-09-30 hh:mm（申告値未受領）（Agoora 手貼り・Success 申告）→ 便 P-1 で live 照合 all_ok・収蔵**（未追跡・生成器 docs/tmp/gen_0159.mjs＋0159_template.sql・写経元 0159_live.json・期待 md5 0159_expected.json＝customer_register e165599a／kiosk_transport_issue 08c5dbc3／demo_org_reset 7b6070a6／payroll_shortfall_sync 0cc27ae4／set_store_pay_time_basis 7b8e7fb1）。適用後の見込み＝関数 290・表 79・名簿 A 149／B 141・'billing locked' 149・形 149・述語参照 150。
+**0159 の欄（起草済み・手貼り待ち）**: supabase/migrations/0159_pay_time_basis.sql＝**起草済み・sha256 00ed3da283e2fd2cbb9ac9887d024819ba69408b39d1c3cdd19fa26add5bf4b7・494 行・33,999 B・再突合 37 段 NG 0（docs/tmp/q0930_ag_0159.mjs・BEGIN…ROLLBACK）→ 本番適用 2026-09-30 午後・時刻不明（Agoora 手貼り・Success 申告・便 C-0 で確定）→ 便 P-1 で live 照合 all_ok・収蔵**（未追跡・生成器 docs/tmp/gen_0159.mjs＋0159_template.sql・写経元 0159_live.json・期待 md5 0159_expected.json＝customer_register e165599a／kiosk_transport_issue 08c5dbc3／demo_org_reset 7b6070a6／payroll_shortfall_sync 0cc27ae4／set_store_pay_time_basis 7b8e7fb1）。適用後の見込み＝関数 290・表 79・名簿 A 149／B 141・'billing locked' 149・形 149・述語参照 150。
 
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
@@ -5682,6 +5698,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 96 | **T6 加盟店契約確認の記録＝器なし（client の ack は保存の前提にするだけで記録が残らない）**（中・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「T6 加盟店契約確認の記録＝器を追加・読取は料金マスタ（0160・白名単 +1 か set_store_tax_config +p_contract_ack は起草時に裁く）」。現状＝pricing-board 340 行の tSurAck は set_store_tax_config に渡らず「保存すると確認の記録が残ります」の文言と食い違う（0930_pm_pre.md ②）。処置＝0160。 |
 | 97 | **未確定 run の自動計算＝cron の器と auth**（低・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「未確定 run の自動計算＝cron は expire-trials に同居・core の service 分岐は裁定要（ローンチ前ゲート）」。現状＝vercel.json の cron は Hobby 上限 2 本を使用済み・computePayrollDraft は managerClient（JWT 前提 RPC）必須＝cron から preview は 401（0930_pm_pre.md ③）。処置＝expire-trials に同居＋core を admin だけで読める集計へ（service 分岐は裁定）。 |
 | 98 | **owner 自身のメール変更＝route が owner を 403**（低・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「owner 自身のメール変更＝update-email.ts 42 行の除外解除・Auth 設定 4 点後（mig 不要）」。現状＝lib/nox/staff/update-email.ts 42 行 decideEmailTarget が role staff／manager 以外を 403（ロックアウト防止）・Auth 設定 4 点（Secure email change・確認必須・レート制限・Site URL）は未決（0930_pm_pre.md ④）。処置＝Auth 設定の後に本人 owner を許可（新メールの確認を client で 1 段）。 |
+| — | **0160 のスコープ＝裁定326-9＋起票95・96**（**便 C-0・2026-09-30**） | 0160＝cast_quotas＋set_cast_quota／予約表の status・requested_by_cast・rejected_reason＋reservation_request／reservation_decide／cast_notice_reads＋既読 RPC／settings_json +7 キー（mine_settings 6＋shift_request_mode）＋起票95（staff_shift_patterns の無効化）＋起票96（T6 契約確認の記録）。起草の前に R160 事前読取（docs/tmp/0160_pre.md）→ ★指定。 |
 
 ### 未裁定・消し込み待ち
 
