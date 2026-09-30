@@ -89,6 +89,12 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   ★`kiosk_transport_issue` のゲート行は引数が端末の org（v_device.org_id）＝verify:nox-billing の「挿入行の形」（v_org／auth_org_id() の 2 種）に当たらない＝形の pin は 147・ゲート済み 148（起票91＝0159 で v_org 形へ）。
   md5 控え（先頭 8 桁・docs/tmp/0158_post_full.json＝live 読取 2026-09-29T09:32:12.796Z から機械生成）: payroll_attentions_of 04d88b37・payroll_attention_resolve 01b27881・transport_issue_self 2eebb64f・kiosk_transport_issue 76412c7e・kiosk_punch_state 48300293。
   対象 **145→148**・除外 **138→140**・全数 **283→288**（live 実測 2026-09-29＝総数 288・'billing locked' 148・md5 16 本一致）。
+- ★**mig0159 追随（2026-09-30・裁定324＋追補1〜3・起票89／91／92）**: 新関数 **2本**＝ゲート内蔵 1 本を A8 へ（`set_store_pay_time_basis`＝勤務時間の計算基準の店設定・owner／manager 自店・'billing locked' あり）・
+  非ゲート 1 本を B(e) へ（`payroll_shortfall_sync`＝不就労控除の同期＝給与は過去労働の清算・payroll_carryover_sync と同列＝324 追補3-1）。
+  改稿 3 本（`customer_register`＝staff 分岐に can_register／`kiosk_transport_issue`＝ゲート行を v_org 形（起票91 解消）／`demo_org_reset`＝c_wipe／c_load に 3 表）は名前不変で本数不動。
+  表 79 不変（payroll_adjustments +biz_date・source_ck +'shortfall'・shortfall_ck・部分 unique shortfall_uidx）。'billing locked' 148→149・挿入行の形 147→149（規約外 0 本）・述語参照 149→150。
+  md5 控え（先頭 8 桁・docs/tmp/0159_post_live.json＝live 読取 2026-09-30T04:54:05.478Z から機械生成）: set_store_pay_time_basis 7b8e7fb1・payroll_shortfall_sync 0cc27ae4・customer_register e165599a・kiosk_transport_issue 08c5dbc3・demo_org_reset 7b6070a6。
+  対象 **148→149**・除外 **140→141**・全数 **288→290**（live 実測 2026-09-30＝総数 290・'billing locked' 149・md5 5 本一致）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -226,7 +232,7 @@ set_cast_norm / set_custom_back_def / set_deduction / set_penalty_config / set_s
 **set_cast_guarantee**（mig0151＝期限つきの保証時給＝cast_plan の現在行 C を割って保証行（overrides_json に base／guarantee=true）と戻し行を作る・owner∨manager 自店・
 ゲート内蔵・監査 set_cast_guarantee・'guarantee exists' は重なり OR 後続の予定＝裁定287-3／289-6）
 
-### A8. 店設定・日報運用（26本）
+### A8. 店設定・日報運用（27本）
 **report_reopen**（mig0138＝日報の締め解除・owner∨manager 自店∨staff∧can_reopen・理由必須・監査 report_reopen・C層③＝裁定 C③-1） /
 **cash_diff_approve**（mig0138＝現金差異の承認・owner∨manager∨staff∧can_close・理由必須・監査 cash_diff_approve・C層③＝裁定 C③-4／18） /
 set_store_okuri_base / set_store_okuri_mode / set_store_business_hours / set_store_receipt_profile /
@@ -245,6 +251,7 @@ okuri_mode setter の骨格逐語・owner 限定・ゲート内蔵・監査 set_
 **staff_shift_cancel**（mig0151＝黒服シフト行の取消＝delete・proposed は理由不要・confirmed は 'reason required'・過去日 'biz_date_past'・不在 'not_found'・
 owner∨manager 自店判定（0137 のヘルパー）・flag gate の直後に課金ゲート・監査 before 行全体／after null＝裁定287-1／289-1・教訓90＝説明文に他の関数名を裸で書かない）
 **payroll_attention_resolve**（mig0158＝確定済み・支払済み期の打刻修正で立った要対応を解決済みにする・理由必須・owner∨manager 自店・凍結給与は動かさない・ゲート内蔵・監査あり・裁定315）
+**set_store_pay_time_basis**（mig0159＝勤務時間の計算基準（'punch'＝実打刻／'shift'＝確定シフトどおり）の店設定・'next'＝次の暦月の 1 日から・'now'＝給与 run が無い店だけ即時・owner∨manager 自店・ゲート内蔵・裁定324-1／324-5／追補2-1・追補3-1）
 
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
@@ -289,12 +296,13 @@ punch_self / punch_proxy / kiosk_punch / attendance_set / attendance_set_self
 ### B(d) 打刻導線（3本・B-補2）
 kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解決＝kiosk 打刻の前提ヘルパー）
 
-### B(e) payroll 系一式（6本・給与＝過去労働の清算）
+### B(e) payroll 系一式（9本・給与＝過去労働の清算）
 payroll_run_create / payment_record_add / withholding_payment_record / payroll_adjustment_add / payroll_adjustment_delete / payroll_carryover_sync /
 **payroll_run_deduction_override_set / payroll_run_deduction_override_clear**（mig0156＝run 別・cast 別の固定控除の上書き（enabled／amount_override）＝draft の run のみ・owner∨manager 自店・
   ゲート行なし＝給与の清算（payroll_adjustment 同型）・裁定309-8＝300 追補1／309 追補2 (d)・2026-09-28）
 （finalize/mark_paid/reopen は B(a) で既に構造除外）
 （payroll_adjustment_add／_delete＝mig0146・裁定258: ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる）
+**payroll_shortfall_sync**（mig0159＝不就労控除（遅刻・早上がり）の行を draft run へ冪等 upsert／delete（金額は pay.ts 側・p_rows で受ける）・owner∨manager 自店・ゲート行なし＝給与は過去労働の清算（carryover_sync 同型）・裁定324-4／追補2-2／追補3-1・2026-09-30）
 （payroll_carryover_sync＝mig0148・裁定272-1: 前期 payslip の adjustOverflow>0 を当 draft run の carryover 行（source='carryover'・部分 unique）へ upsert／0 は削除＝冪等。
   調整控除 add の actor／org／manager 自店／draft 判定を逐語＝同じく非ゲート。A に載せると対象→live assert が赤になる）
 
@@ -413,3 +421,5 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 ★**現在値（2026-09-28・mig0156 追随後）**: A **145** ＋ B **138** ＝ **283** ＝ live pg_proc 実列挙と一致（0156＝A4 +1（daily_pay_issue）・B(e) +2・B(f) +5・B(a) +1。verify:nox-billing 段47-1 の pin＝対象 145／除外 138／ゲート済み 145／述語参照 146／挿入行の形 145）。
 
 ★**現在値（2026-09-29・mig0158 追随後）**: A **148** ＋ B **140** ＝ **288** ＝ live pg_proc 実列挙と一致（0158＝A4 +2・A8 +1・B(f) +2。verify:nox-billing 段47-1 の pin＝対象 148／除外 140／ゲート済み 148／述語参照 149／挿入行の形 147＝起票91）。
+
+★**現在値（2026-09-30・mig0159 追随後）**: A **149** ＋ B **141** ＝ **290** ＝ live pg_proc 実列挙と一致（0159＝A8 +1・B(e) +1。verify:nox-billing 段47-1 の pin＝対象 149／除外 141／ゲート済み 149／述語参照 150／挿入行の形 149＝起票91 解消）。
