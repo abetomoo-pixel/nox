@@ -34,6 +34,14 @@ export function shortfallBasisOf(minutesLate: number, minutesEarly: number): str
 /** 雇用＝不就労控除／委託（null 含む）＝報酬調整（契約） */
 export const shortfallLabelOf = (employment: "委託" | "雇用" | null | undefined): string => (employment === "雇用" ? "不就労控除" : "報酬調整（契約）");
 
+/** 明細の理由（便 C-3・324-3）＝「不就労控除（遅刻 N 分／早上がり M 分）」＝basis の区切りだけ「／」（payroll_adjustments.reason・breakdownLinesOf がそのまま行のラベルにする） */
+export function shortfallReasonOf(label: string, minutesLate: number, minutesEarly: number): string {
+  const parts: string[] = [];
+  if (minutesLate > 0) parts.push(`遅刻 ${minutesLate} 分`);
+  if (minutesEarly > 0) parts.push(`早上がり ${minutesEarly} 分`);
+  return `${label}（${parts.join("／")}）`.slice(0, 200);
+}
+
 export function shortfallRowsOf(input: ShortfallInput): ShortfallRow[] {
   const label = shortfallLabelOf(input.employment);
   const out: ShortfallRow[] = [];
@@ -46,7 +54,7 @@ export function shortfallRowsOf(input: ShortfallInput): ShortfallRow[] {
     const amount = roundYen((hourly * (late + early)) / 60);
     if (amount <= 0) continue;
     const basis = shortfallBasisOf(late, early);
-    out.push({ biz_date: d.bizDate, target_shift_id: d.shiftId, minutes_late: late, minutes_early: early, amount, basis, reason: `${label}（${basis}）`.slice(0, 200) });
+    out.push({ biz_date: d.bizDate, target_shift_id: d.shiftId, minutes_late: late, minutes_early: early, amount, basis, reason: shortfallReasonOf(label, late, early) });
   }
   return out;
 }

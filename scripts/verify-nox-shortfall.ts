@@ -8,7 +8,7 @@
  *  逆テスト 1 本（手動・1 回）: shortfall.ts の `(late + early)) / 60` を `/ 30` にする → sf(1-1) が赤 → 戻す。逆テスト 2（L-2-3）: pay.ts の dailyBase の `input.payTimeBasis === "shift"` を `=== "punch"` にする → sf(12-1)／(12-3) が赤 → 戻す。
  */
 import fs from "node:fs";
-import { shortfallRowsOf, shortfallBasisOf, shortfallLabelOf } from "../lib/nox/payroll/shortfall";
+import { shortfallRowsOf, shortfallBasisOf, shortfallLabelOf, shortfallReasonOf } from "../lib/nox/payroll/shortfall";
 import { roundYen } from "../lib/nox/money";
 import { payOf } from "../lib/nox/pay"; // ★便 L-2-3: payTimeBasis 'shift'（確定シフト時間で時給計算）／'punch'＝golden 不変
 import { payTimeBasisOf, PAY_TIME_BASIS_DEFAULT } from "../lib/nox/payroll/time-basis";
@@ -34,7 +34,7 @@ check("sf(2-1) 早上がりのみ（25:00 終了・24:40 退勤）→ early 20�
 check("sf(2-2) 早上がり 1 分でも行が出る（猶予なし）", run([day({ outHm: "24:59" })])[0]?.minutes_early === 1);
 // (3) 両方
 const r3 = run([day({ inHm: "20:15", outHm: "24:30" })]);
-check("sf(3-1) 両方（遅刻 15・早上がり 30）→ amount 2250＝3000×45÷60・basis「遅刻 15 分・早上がり 30 分」", r3.length === 1 && r3[0].minutes_late === 15 && r3[0].minutes_early === 30 && r3[0].amount === 2250 && r3[0].basis === "遅刻 15 分・早上がり 30 分", JSON.stringify(r3));
+check("sf(3-1) 両方（遅刻 15・早上がり 30）→ amount 2250＝3000×45÷60・basis「遅刻 15 分・早上がり 30 分」・reason「不就労控除（遅刻 15 分／早上がり 30 分）」（便 C-3＝明細の行ラベル）", r3.length === 1 && r3[0].minutes_late === 15 && r3[0].minutes_early === 30 && r3[0].amount === 2250 && r3[0].basis === "遅刻 15 分・早上がり 30 分" && r3[0].reason === "不就労控除（遅刻 15 分／早上がり 30 分）" && shortfallReasonOf("報酬調整（契約）", 0, 7) === "報酬調整（契約）（早上がり 7 分）", JSON.stringify(r3));
 // (4) 猶予内
 check("sf(4-1) 猶予内（20:10・猶予 10）と定刻退勤 → 0 行", run([day({ inHm: "20:10" })]).length === 0);
 check("sf(4-2) 猶予 0 で 20:01 → late 1", run([day({ inHm: "20:01" })], "雇用", 0)[0]?.minutes_late === 1);

@@ -16,6 +16,8 @@ import { breakdownLinesOf, hoursCellOf, timeLineOf } from "../lib/nox/payroll/br
 import { REINA_INPUT } from "./fixtures-pay";
 import { fmtMD, fmtPeriodYM, frozenRowsOf, missingOutSummaryOf, runSummaryOf } from "../lib/nox/payroll/view";
 import { payrollCsvCells } from "../lib/nox/payroll/csv";
+import { shortfallRowsOf } from "../lib/nox/payroll/shortfall"; // ★裁定324（便 C-4）: 'shift' 店の fixture＝shortfall 行が明細に出る
+import { PAY_TIME_BASIS_SHORT, payTimeBasisApplyNoteOf, payTimeBasisApplyOf, payTimeBasisViewOf } from "../lib/nox/payroll/time-basis";
 
 let pass = 0;
 const fails: string[] = [];
@@ -75,6 +77,32 @@ check("pv(5-4) collect: missingOutDates＝raw.out 'noout' ∧ final ok|late の 
   const sm = runSummaryOf(slips3);
   check("pv(6-6) 303 追補1 runSummaryOf: golden 3 fixture で 総支給＝Σgross（extras を足さない）・控除計＝Σ(gross−net)・n＝3・{net:0} 行は 0 扱い", sm.gross === reina.gross + koyo.gross + fixed.gross && sm.net === reina.net + koyo.net + fixed.net && sm.n === 3 && sm.wh === reina.withholding + koyo.withholding + fixed.withholding && runSummaryOf([{ net: 0, breakdown_json: { pay: {} } }]).gross === 0 && payrollCsvCells({ castName: "x", taxMode: "委託", period: "2026-09", pay: reina, extrasTotal: 1000, net: reina.net, paidTotal: 0 })[8] === reina.gross, `${sm.gross} vs ${reina.gross + koyo.gross + fixed.gross}`);
   check("pv(6-7) 303 追補1 配線: payroll-board の KPI は runSummaryOf・一覧の総支給は z(pay.gross)（`+ extras` なし）・csv.ts の grossTotal = p.gross", pbSrc.includes("runSummaryOf(slips)") && pbSrc.includes("setSum4(sum)") && !/gross \+= z\(pay\.gross\) \+ extras/.test(pbSrc) && !/z\(pay\.gross\) \+ extras/.test(pbSrc) && fs.readFileSync("lib/nox/payroll/csv.ts", "utf8").includes("const grossTotal = p.gross;"));
+}
+
+// (7) ★裁定324（0159・便 C-3／C-4）: 'shift' 店の fixture＝shortfall 行（不就労控除／報酬調整）が明細の源泉前控除の位置に理由のまま出る・期ヘッダーの計算基準・店舗設定／ウィザードの結線
+{
+  const sf = shortfallRowsOf({ days: [{ bizDate: "2026-09-10", shiftId: "s1", startHm: "20:00", endHm: "25:00", inHm: "20:15", outHm: "24:30" }], hourlyByDate: { "2026-09-10": 3000 }, lateGraceMin: 10, employment: "雇用" });
+  const sfAdj = sf.map((r) => ({ reason: r.reason, amount: r.amount, before_withholding: true })); // payroll_adjustments（source shortfall・show_detail）→ 凍結形と同じ
+  const base = payOf(REINA_INPUT);
+  const withSf = payOf({ ...REINA_INPUT, adjustments: [{ castId: "c", kind: "fixed", amount: sf[0].amount, rateBp: null, beforeWithholding: true, showDetail: true, reason: sf[0].reason }] });
+  const bd = breakdownLinesOf({ pay: withSf, adjustments: { before: sfAdj, after: [] } });
+  const line = bd.ded.find((l) => l.label === "不就労控除（遅刻 15 分／早上がり 30 分）");
+  const whIdx = bd.ded.findIndex((l) => l.key === "withholding"), sfIdx = bd.ded.findIndex((l) => l.label === line?.label);
+  check("pv(7-1) 'shift' 店の fixture: shortfall 1 行（遅刻 15・早上がり 30・3000×45÷60＝2,250）が控除節に理由のまま「不就労控除（遅刻 15 分／早上がり 30 分）」で出る・源泉前（源泉行より前・adj-b）・net は base − 2,250 − 源泉差", sf.length === 1 && sf[0].amount === 2250 && !!line && line.amount === 2250 && line.key.startsWith("adj-b") && sfIdx >= 0 && (whIdx < 0 || sfIdx < whIdx) && bd.net === withSf.net && withSf.net < base.net, JSON.stringify({ sf, line, sfIdx, whIdx }));
+  const sfC = shortfallRowsOf({ days: [{ bizDate: "2026-09-10", shiftId: "s1", startHm: "20:00", endHm: "25:00", inHm: "20:30", outHm: "25:00" }], hourlyByDate: { "2026-09-10": 3000 }, lateGraceMin: 10, employment: "委託" });
+  const bdC = breakdownLinesOf({ pay: payOf({ ...REINA_INPUT, adjustments: [{ castId: "c", kind: "fixed", amount: sfC[0].amount, rateBp: null, beforeWithholding: true, showDetail: true, reason: sfC[0].reason }] }), adjustments: { before: sfC.map((r) => ({ reason: r.reason, amount: r.amount, before_withholding: true })), after: [] } });
+  check("pv(7-2) 委託は「報酬調整（契約）（遅刻 30 分）」の行（同じ位置）", bdC.ded.some((l) => l.label === "報酬調整（契約）（遅刻 30 分）" && l.amount === 1500 && l.key.startsWith("adj-b")), JSON.stringify(bdC.ded.map((l) => l.label)));
+  const sp = fs.readFileSync("app/(manage)/master/store-profile-panel.tsx", "utf8"), wz = fs.readFileSync("app/(manage)/setup/setup-wizard.tsx", "utf8"), tp = fs.readFileSync("lib/nox/setup/template-plan.ts", "utf8");
+  check("pv(7-3) 配線: payroll-board の期ヘッダーに「計算基準: 実打刻／確定シフト」（payTimeBasisOf(storeSettings, 期の初日)）・shortfall 行はバッジ「不就労（自動）」＋削除なし・PayslipSlip は breakdownLinesOf（理由がそのまま行）",
+    pb.includes("計算基準: {PAY_TIME_BASIS_SHORT[b]}") && pb.includes("payTimeBasisOf(storeSettings, `${period}-01`)") && pb.includes('a.source === "shortfall" && <span') && pb.includes('a.source !== "carryover" && a.source !== "shortfall" && (') && PAY_TIME_BASIS_SHORT.shift === "確定シフト" && PAY_TIME_BASIS_SHORT.punch === "実打刻"
+    && fs.readFileSync("components/payslip-slip.tsx", "utf8").includes("breakdownLinesOf({ pay: pay as BreakdownPayLike, extras, adjustments: { before: adj.before, after: adj.after }"));
+  check("pv(7-4) 店舗設定（C-1）: 節「勤務時間の計算基準」＝2 択 SegSelect・set_store_pay_time_basis(p_value, p_apply)・apply＝runs 0 → 'now'／1 以上 → 'next'・注記「M/1 から適用（現在: 実打刻）」・runs の有無は count 1 回",
+    sp.includes(">勤務時間の計算基準</h2>") && sp.includes('rpc("set_store_pay_time_basis", { p_store_id: storeSel, p_value: tbPick, p_apply: apply })') && sp.includes('.from("payroll_runs").select("id", { count: "exact", head: true }).eq("store_id", storeSel)') && (sp.match(/from\("payroll_runs"\)/g) ?? []).length === 1
+    && payTimeBasisApplyOf(0) === "now" && payTimeBasisApplyOf(2) === "next"
+    && payTimeBasisApplyNoteOf(payTimeBasisViewOf({ pay_time_basis: "punch", pay_time_basis_next: "shift", pay_time_basis_next_from: "2026-11-01" }), "2026-10-15") === "11/1 から適用（現在: 実打刻）"
+    && payTimeBasisApplyNoteOf(payTimeBasisViewOf({ pay_time_basis: "punch", pay_time_basis_next: "shift", pay_time_basis_next_from: "2026-11-01" }), "2026-11-02") === "11/1 から適用中（確定シフトどおり）"
+    && payTimeBasisApplyNoteOf(payTimeBasisViewOf({ pay_time_basis: "shift" })) === null && payTimeBasisViewOf({ pay_time_basis_next: "shift", pay_time_basis_next_from: "x" }).next === null);
+  check("pv(7-5) ウィザード STEP 3（C-2）: 2 択（既定 実打刻）・'shift' のときだけ set_store_pay_time_basis(…,'now') を settings 群に 1 本", wz.includes('useState<"punch" | "shift">("punch")') && wz.includes('ariaLabel="勤務時間の計算基準"') && wz.includes("flags: changedFlags, payTimeBasis })") && tp.includes('if (sel.payTimeBasis === "shift") {') && tp.includes('rpc: "set_store_pay_time_basis", args: { p_store_id: s, p_value: "shift", p_apply: "now" }'));
 }
 
 if (fails.length) {

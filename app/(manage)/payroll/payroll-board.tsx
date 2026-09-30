@@ -28,6 +28,7 @@ import { finalizeGuardOf, notEndedMessageOf, PERIOD_NOT_ENDED } from "@/lib/nox/
 import { bizDateOf } from "@/lib/nox/biz-date";
 import PayrollAttentions from "@/components/nox/payroll-attentions"; // ★裁定315（便 AB-2）: 確定後の打刻修正の要対応
 import type { AttentionCarry } from "@/lib/nox/payroll/attention";
+import { PAY_TIME_BASIS_SHORT, payTimeBasisOf, type PayTimeBasis } from "@/lib/nox/payroll/time-basis"; // ★裁定324（0159・便 C-3）: 期ヘッダーの「計算基準」
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0156（便 V-3）: 控除上書き RPC の raise 語（run not draft／bad deduction／bad enabled）の日本語化
 
 type Store = { id: string; name: string };
@@ -73,7 +74,7 @@ type OvRow = { cast_id: string; deduction_id: string; enabled: boolean; amount_o
 type AdjRow = {
   id: string; cast_id: string; mode: "fixed" | "rate"; amount: number | null; rate_bp: number | null;
   before_withholding: boolean; show_detail: boolean; reason: string; created_at: string;
-  source?: "manual" | "carryover"; // ★裁定272-1（0148）: carryover 行＝削除不可・「前期繰越」バッジ（列は手貼り後に現れる＝欠落は manual 扱い）
+  source?: "manual" | "carryover" | "settlement" | "sanction" | "shortfall"; // ★裁定272-1（0148）: carryover 行＝削除不可・「前期繰越」バッジ（列は手貼り後に現れる＝欠落は manual 扱い）
 };
 type Blocker = { castName: string; reason: string };
 // ★裁定98: sanction 二層ガードの警告（blocker と別枠・確定は止めない）。
@@ -144,13 +145,15 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   // ★0156（裁定309-7・便 V-6）: 貸付残高一覧（advances_open_balance）
   // ★裁定316（便 X-8-13）: 今日の営業日＝店の biz_cutoff_hm（既定 06:00）で切る。stores の RLS 読取 +1（店が変わったときだけ）
   const [cutoffHm, setCutoffHm] = useState("06:00");
+  const [storeSettings, setStoreSettings] = useState<Record<string, unknown>>({}); // ★裁定324（便 C-3）: pay_time_basis／_next／_next_from（期ヘッダーの「計算基準」＝pay.ts と同じ payTimeBasisOf）
   useEffect(() => {
     if (!storeId) return;
     let alive = true;
     void (async () => {
       const { data } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
-      const v = ((data?.settings_json ?? {}) as Record<string, unknown>).biz_cutoff_hm;
-      if (alive) setCutoffHm(typeof v === "string" && v ? v : "06:00");
+      const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
+      const v = sj.biz_cutoff_hm;
+      if (alive) { setCutoffHm(typeof v === "string" && v ? v : "06:00"); setStoreSettings(sj); }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -535,6 +538,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           <br />
           <span style={{ display: "inline-block", marginTop: 5 }}><PeriodPicker value={period} onChange={setPeriod} /></span>{/* ★便 X-5 */}
         </label>
+        {/* ★裁定324（0159・便 C-3）: 計算基準（実打刻／確定シフト）＝店設定を run の期の初日で解決（pay.ts と同じ payTimeBasisOf） */}
+        {(() => { const b: PayTimeBasis = payTimeBasisOf(storeSettings, `${period}-01`); return <span className="nox-tag" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="勤務時間の計算基準（店舗設定）">計算基準: {PAY_TIME_BASIS_SHORT[b]}</span>; })()}
         <button onClick={preview} disabled={busy || !storeId} style={t.btnGold}>
           プレビュー
         </button>
@@ -942,11 +947,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     {adjMine.map((a) => (
                       <div key={a.id} style={{ borderTop: "1px solid var(--line2)", padding: "5px 0", fontSize: 12 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                          <span className="num" style={{ fontWeight: 700 }}>{adjLabel(a)}{a.source === "carryover" && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "1px 8px", border: "1px solid var(--line2)", color: "var(--sub)" }}>前期繰越</span>}</span>
+                          <span className="num" style={{ fontWeight: 700 }}>{adjLabel(a)}{a.source === "carryover" && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "1px 8px", border: "1px solid var(--line2)", color: "var(--sub)" }}>前期繰越</span>}{a.source === "shortfall" && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "1px 8px", border: "1px solid var(--line2)", color: "var(--sub)" }}>不就労（自動）</span>}</span>{/* ★裁定324-4（便 C-3）: shortfall 行＝sync が管理 */}
                           <span style={{ color: "var(--sub)", fontSize: 11 }}>{a.before_withholding ? "源泉前" : "源泉後"}・{a.show_detail ? "本人に理由を表示" : "控除計に合算"}</span>
                         </div>
                         <div style={{ color: "var(--sub)", marginTop: 2, wordBreak: "break-all" }}>{a.reason}</div>
-                        {adjEditable && a.source !== "carryover" && (/* ★裁定272-1: carryover 行は sync が管理＝削除ボタンを出さない */
+                        {adjEditable && a.source !== "carryover" && a.source !== "shortfall" && (/* ★裁定272-1／324-4: carryover・shortfall 行は sync が管理＝削除ボタンを出さない */
                           <div className="nox-actions" style={{ justifyContent: "flex-start", marginTop: 4 }}>{/* 裁定244: Danger は左端 */}
                             <button type="button" onClick={() => { setDelReason(""); setDelTarget({ id: a.id, label: `${adjLabel(a)}（${a.reason}）` }); }} disabled={adjBusy || busy}
                               style={{ ...t.btnGhost, ...t.btnSm, border: "1px solid var(--bad)", color: "var(--bad)" }}>削除</button>
