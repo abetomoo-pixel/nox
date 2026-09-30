@@ -3981,6 +3981,20 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
 
+## 裁定324（提案中・2026-09-30 受領）勤務時間の計算基準（店設定・2 択）
+
+出典＝Agoora から 2026-09-30 に受領（便 AB の f0 走行中）。承認の明記が無いため教訓70 の運用どおり「（提案中）」で収載＝承認時に見出しを日付へ差し替える。次の裁定番号は 325。**本文（逐語）**:
+「裁定324 勤務時間の計算基準（店設定・2 択）
+324-1 stores.settings_json.pay_time_basis: 'punch'（実打刻・既定）／'shift'（確定シフトどおり）。欠損は 'punch'＝既存店・golden 不変。set_store_profile 白名単に pay_time_basis／pay_time_basis_next／pay_time_basis_next_from を追加（enum 検証 'bad pay_time_basis'・next_from は date）。
+324-2 切替は次の給与期の初日から。設定変更は pay_time_basis_next＋next_from（＝変更時点の次の期の初日・期の定義は T1 calc_period と同じ）に書き、pay.ts は run の calc_period_start ≥ next_from なら next、未満なら現行値で計算。確定済み期は再計算しない（316・315 と同じ凍結）。
+324-3 'shift' の計算: 時給部分の gross は確定シフトの開始〜終了時間で算出。実打刻との不足分（遅刻＝裁定268 の猶予式を適用・早上がり＝猶予なし）を営業日ごとに自動起票＝payroll_adjustments に source 'shortfall'（basis＝shift_id・punch の元/後・不足分数・時給・理由「不就労控除（遅刻 N 分／早上がり N 分）」を breakdown に凍結・before 源泉・show_detail true）。雇用は不就労控除、委託は報酬調整（契約）として名称のみ出し分け（291 追補1）。額＝基本時給（保証時給適用中はその額）×不足分数÷60・端数は既存の給与丸めに従う。無断欠勤（確定シフトあり・打刻なし）は当日の時給部分を 0＝控除ではなく支給なし。打刻が確定シフトを超える分は払わない（早出・残業は owner／manager が確定シフトを修正して反映）。
+324-4 shortfall の同期は 272-1 carryover_sync と同型＝draft run の preview から毎回 upsert・部分 unique(run_id, cast_id, biz_date) where source='shortfall'・0 なら削除・確定済み期は追随せず 315 の payroll_attentions に積む。手入力の 'settlement'／'sanction' とは別行で共存。
+324-5 権限: 設定変更は owner／manager。時刻修正は 315 のまま。ウィザード STEP 3 に 2 択（既定 punch）。
+324-6 mig 0159＝白名単 +3・payroll_adjustments.source CHECK に 'shortfall'・部分 unique 1・RPC payroll_shortfall_sync(p_run_id)。client 便＝pay.ts 結線・店舗設定 UI・明細表示・STEP 3・suite。」
+
+適用＝未着手（0159 ★起草の入力。0159 の既存スコープ＝起票89・91・92 と同じ mig に載せるか別番号にするかは起草の便で確認）。
+CC の事前メモ（本文には触れない・起草時の確認点）: (a) 324-2 の「現行値」＝pay_time_basis の既定 'punch' を欠損時に読む位置は pay.ts の PayInput（store 設定→calc 入力）で 1 箇所に。(b) 324-3 の「保証時給適用中はその額」は 0154 の cast_guarantee（保証時給の span）を参照＝pay.ts の guarantee.spans と同じ判定を使う。(c) 324-4 の部分 unique は 0148 の carryover（source='carryover'・部分 unique）と同型＝payroll_adjustments に biz_date 列が無ければ列追加が要る（0159 で確認）。(d) 確定済み期の追随停止（315 へ積む）は kind の追加（payroll_attentions_kind_check は 1 値）＝0159 で CHECK を広げる。
+
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
 出典＝便 M153 の報告（0153_customers_keep.sql 冒頭の要裁定 (1)〜(4)・突合 q0925_ag_0153.mjs NG 0）を受けた Agoora 承認（2026-09-25・0153 手貼り後ブロック S-1 で収載）。次の裁定番号は 308。**本文（逐語）**:
