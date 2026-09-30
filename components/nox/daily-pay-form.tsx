@@ -11,6 +11,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import { withholdingOf } from "@/lib/nox/pay";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
+import { carriedNoteOf } from "@/lib/nox/payroll/advance-okuri";
 
 type Paid = { id: string; biz_date: string; gross: number; withholding: number; net: number; withholding_category: string };
 const yen = (n: number) => "¥" + n.toLocaleString();
@@ -52,8 +53,9 @@ export default function DailyPayForm({ castId, castName, dateDefault, readOnly =
     const { data, error } = await supabase.rpc("daily_pay_issue", { p_cast_id: castId, p_biz_date: date, p_gross: gross, p_idem_key: crypto.randomUUID() });
     setBusy(false);
     if (error) { setMsg(`日払いの発行に失敗: ${rpcErrJa(error.message)}`); return; }
-    const r = data as { net: number; withholding: number; warn: string | null; replay: boolean };
-    setMsg(`${castName} に日払い ${yen(gross)} を発行しました（源泉 ${yen(r.withholding)}・手取り ${yen(r.net)}）${r.warn ? "※雇用のため源泉 0（税理士確認中）" : ""}`);
+    const r = data as { net: number; withholding: number; warn: string | null; replay: boolean; carried_to?: string | null };
+    const carried = carriedNoteOf(r.carried_to); // ★裁定312（便 AB-8）: 支払済みの期の営業日＝翌月の給与から控除
+    setMsg(`${castName} に日払い ${yen(gross)} を発行しました（源泉 ${yen(r.withholding)}・手取り ${yen(r.net)}）${carried ? `・${carried}` : ""}${r.warn ? "※雇用のため源泉 0（税理士確認中）" : ""}`);
     setAmount("");
     await load();
   }

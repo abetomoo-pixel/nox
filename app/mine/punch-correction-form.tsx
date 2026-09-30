@@ -11,11 +11,13 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
 import { KIND_LABEL, hmOnBizOf, requestArgsOf, type PunchKind } from "@/lib/nox/shift/punch-correction";
 import HmInput from "@/components/ui/hm-input";
+import { isFinalizedDay, POST_FINALIZE_NOTE } from "@/lib/nox/payroll/attention"; // ★裁定315（便 AB-3）: 確定済み期の日も申請できる＝注記を添える
+import { Message } from "@/components/ui/toast";
 import { hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 
 export type OwnPunch = { id: string; type: string; punched_at: string };
 
-export default function PunchCorrectionForm({ castId, bizToday, punches, term }: { castId: string; bizToday: string; punches: OwnPunch[]; term: string }) {
+export default function PunchCorrectionForm({ castId, bizToday, punches, term, finalizedPeriods = [] }: { castId: string; bizToday: string; punches: OwnPunch[]; term: string; /** 本人の給与明細がある期（'YYYY-MM'）＝確定済み／支払済み */ finalizedPeriods?: string[] }) {
   const router = useRouter();
   const [kind, setKind] = useState<PunchKind>("in");
   const [date, setDate] = useState(bizToday);
@@ -58,6 +60,7 @@ export default function PunchCorrectionForm({ castId, bizToday, punches, term }:
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="理由（必須・200 字まで）" maxLength={200} required style={{ ...input, flex: "1 1 200px" }} aria-label="理由" />
         <button type="submit" disabled={busy || hmRangeErrorOf(hm) !== null} style={{ ...t.btnGold, ...t.btnSm, opacity: busy || hmRangeErrorOf(hm) !== null ? 0.7 : 1 }}>{busy ? "送信中…" : "修正を申請"}</button>{/* ★318 追補: 範囲外は送信非活性 */}
       </div>
+      {isFinalizedDay(date, finalizedPeriods) && <Message kind="info">{POST_FINALIZE_NOTE}</Message>}
       <Toast msg={msg} />
     </form>
   );

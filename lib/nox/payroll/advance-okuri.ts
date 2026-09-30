@@ -3,6 +3,20 @@
 //   同じ route（/api/advance/issue → adv_issue／/api/transport/issue → transport_issue）を呼ぶ＝新 RPC 0（300-2）。
 //   残高管理（貸付・年越し過払債権）は 0156（300-4）＝ここは入口と表示だけ。
 export type IssueKind = "advance" | "transport";
+
+// ★裁定312（0158・便 AB-8）: 支払済みの期の日付で発行した前借り・日払いは、控除先が翌月へ繰り下がる（advances.deduct_period／daily_pay_issue の戻り carried_to）。
+//   発行後の文言に添える注記（繰り下げが無ければ空文字）。carried＝繰り下げ先の 'YYYY-MM'（null＝繰り下げなし）
+export function carriedNoteOf(carried: string | null | undefined): string {
+  return typeof carried === "string" && /^\d{4}-\d{2}$/.test(carried) ? `翌月（${carried}）の給与から控除` : "";
+}
+/** 一括発行: 発行した行の deduct_period から「うち n 件は翌月（YYYY-MM）の給与から控除」。発行日の月と同じ・null は数えない */
+export function carriedBulkNoteOf(date: string, deductPeriods: readonly (string | null | undefined)[]): string {
+  const carried = deductPeriods.filter((p): p is string => typeof p === "string" && /^\d{4}-\d{2}$/.test(p) && p !== date.slice(0, 7));
+  if (carried.length === 0) return "";
+  const periods = [...new Set(carried)].sort();
+  const head = carried.length === deductPeriods.length ? "" : `うち ${carried.length} 件は`;
+  return `${head}翌月（${periods.join("・")}）の給与から控除`;
+}
 export const ISSUE_ENDPOINT: Record<IssueKind, string> = { advance: "/api/advance/issue", transport: "/api/transport/issue" };
 export const ISSUE_LABEL: Record<IssueKind, string> = { advance: "前借り", transport: "送り実費" };
 export const ISSUE_DATE_LABEL: Record<IssueKind, string> = { advance: "前借り日", transport: "乗車日（営業日）" };

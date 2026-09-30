@@ -167,7 +167,8 @@ export default async function MinePage() {
           文言はそのまま＝移設のみ）。 */}
       <section className="nox-panel">
         <h3>打刻</h3>
-        <PunchActions okuriActual={((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual"} />{/* ★0156（裁定309-9）: actual 店のみ「送り あり／なし」 */}
+        <PunchActions okuriActual={((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual"}
+          okuriBase={typeof ((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount === "number" ? (((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount as number) : null} />{/* ★0156（裁定309-9）: actual 店のみ「送り あり／なし」 */}
         <p className="nox-pstate">
           最終打刻:{" "}
           {last
@@ -252,7 +253,8 @@ export default async function MinePage() {
       {meCast?.id && (
         <section className="nox-panel">
           <h3>{term}の修正申請</h3>
-          <PunchCorrectionForm castId={meCast.id as string} bizToday={bizToday} punches={(todayPunches ?? []) as { id: string; type: string; punched_at: string }[]} term={term} />
+          <PunchCorrectionForm castId={meCast.id as string} bizToday={bizToday} punches={(todayPunches ?? []) as { id: string; type: string; punched_at: string }[]} term={term}
+            finalizedPeriods={((slips ?? []) as { period: string }[]).map((s) => s.period)} />{/* ★裁定315（便 AB-3）: 明細がある期＝確定済み */}
           <div style={{ marginTop: 10 }}>
             <PunchCorrectionList rows={(corrRows ?? []) as CorrectionRow[]} term={term} />
           </div>

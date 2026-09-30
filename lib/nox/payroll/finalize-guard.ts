@@ -6,10 +6,13 @@ export const PERIOD_NOT_ENDED = "period not ended";
 /** 'YYYY-MM-DD' → 'M/D'（先頭 0 なし） */
 export const mdLabelOf = (ymd: string): string => `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
 
+/** 確定できない理由の文言（ボタンの非活性の注記・API の 400・DB の 'period not ended' で同文） */
+export const notEndedMessageOf = (periodEnd: string): string => `期間終了（${mdLabelOf(periodEnd)}）の翌日から確定できます`;
+
 export type FinalizeGuard = { ok: true } | { ok: false; code: typeof PERIOD_NOT_ENDED; message: string };
 
 /** periodEnd・bizToday は 'YYYY-MM-DD'（文字列比較＝暦順）。periodEnd < bizToday のときだけ ok */
 export function finalizeGuardOf(periodEnd: string, bizToday: string): FinalizeGuard {
   if (periodEnd < bizToday) return { ok: true };
-  return { ok: false, code: PERIOD_NOT_ENDED, message: `期間終了（${mdLabelOf(periodEnd)}）の翌日から確定できます` };
+  return { ok: false, code: PERIOD_NOT_ENDED, message: notEndedMessageOf(periodEnd) };
 }

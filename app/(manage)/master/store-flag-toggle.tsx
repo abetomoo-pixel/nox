@@ -18,6 +18,7 @@ export function storeProfileErrJa(msg: string | undefined): string {
   if (msg.includes("bad short")) return "略称は 20 文字以内で入力してください";
   if (msg.includes("bad store_code")) return "店舗コードは 20 文字以内で入力してください";
   if (msg.includes("bad display_name")) return "表示名は 50 文字以内で入力してください";
+  if (msg.includes("bad okuri_base_amount")) return "送りの基本額は 0〜99,999 の整数で入力してください"; // ★裁定317（0158）
   if (msg.includes("bad key")) return "送信内容に設定できない項目が含まれています";
   if (msg.includes("bad type")) return "送信内容の形式が不正です";
   if (msg.includes("bad patch")) return "変更がありません";

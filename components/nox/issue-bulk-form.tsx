@@ -13,7 +13,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
 import { bizDateOf } from "@/lib/nox/biz-date";
-import { ISSUE_DATE_LABEL, ISSUE_LABEL, okuriEnabledOf, type IssueKind } from "@/lib/nox/payroll/advance-okuri";
+import { ISSUE_DATE_LABEL, ISSUE_LABEL, okuriEnabledOf, carriedBulkNoteOf, type IssueKind } from "@/lib/nox/payroll/advance-okuri";
 import { ATTENDED_STATUSES, bulkBodyOf, bulkErrJa, bulkSuccessTextOf, bulkSummaryOf, candidatesOf, checkAttended, issuedRowsOf, uncheckAll, type BulkRow, type IssuedRow } from "@/lib/nox/payroll/issue-bulk";
 
 export type BulkCast = { id: string; name: string };
@@ -82,7 +82,13 @@ export default function IssueBulkForm({ storeId, casts, okuriMode, okuriBase = 0
       const res = await fetch(b.endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b.body) });
       const j = (await res.json().catch(() => ({}))) as { ids?: string[]; error?: string };
       if (!res.ok) { setMsg({ kind: "error", text: bulkErrJa(res.status, j.error) }); return; } // 失敗時は同じ idemKey で再送＝冪等
-      setMsg({ kind: "success", text: bulkSuccessTextOf(kind, b.body.items.length, summary.total, date) });
+      // ★裁定312（便 AB-8）: 前借りの一括発行も、発行後に advances を再読して繰り下げ先を添える
+      let carried = "";
+      if (kind === "advance" && j.ids?.length) {
+        const { data: adv } = await supabase.from("advances").select("deduct_period").in("id", j.ids);
+        carried = carriedBulkNoteOf(date, ((adv ?? []) as { deduct_period: string | null }[]).map((a) => a.deduct_period));
+      }
+      setMsg({ kind: "success", text: bulkSuccessTextOf(kind, b.body.items.length, summary.total, date) + (carried ? `・${carried}` : "") });
       setIdemKey(crypto.randomUUID());
       setRows((rs) => uncheckAll(rs));
       setNote("");

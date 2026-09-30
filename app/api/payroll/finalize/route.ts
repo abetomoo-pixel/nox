@@ -7,7 +7,7 @@ import { computePayrollDraft } from "@/lib/nox/payroll/core";
 import { frozenAdjustmentKeys } from "@/lib/nox/payroll/adjust"; // 裁定264-10: 調整行の凍結形（無ければキーを足さない）
 import { resolvePayrollWindow } from "@/lib/nox/payroll/window";
 import { bizDateOf } from "@/lib/nox/biz-date";
-import { finalizeGuardOf } from "@/lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）
+import { finalizeGuardOf, notEndedMessageOf, PERIOD_NOT_ENDED } from "@/lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）
 
 export async function POST(req: Request) {
   const g = await guardPayroll(req);
@@ -69,6 +69,8 @@ export async function POST(req: Request) {
       p_idem_key: g.idemKey,
       p_payslips: payslips,
     });
+    // ★裁定316（0158・便 AB-9）: DB のガード（run の凍結 period_end が今日の営業日以降）に当たったときも、API の先行ガードと同じ形で返す
+    if (eFin && eFin.message.includes(PERIOD_NOT_ENDED)) return NextResponse.json({ error: PERIOD_NOT_ENDED, message: notEndedMessageOf(win.periodEnd), periodEnd: win.periodEnd }, { status: 400 });
     if (eFin) return NextResponse.json({ error: eFin.message }, { status: 500 });
     return NextResponse.json({ runId: run.id, castCount: count });
   } catch (e) {

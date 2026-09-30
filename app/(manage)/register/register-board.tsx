@@ -21,6 +21,7 @@ import { fetchStockTotals } from "@/lib/nox/master/queries";
 import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
+import { keptLineIdsOf } from "@/lib/nox/register/kept-lines"; // ★裁定314（便 AB-7）: キープ済みの行の判定（check_line_id の一致）
 import LineKeepButton from "@/components/nox/line-keep-button"; // ★裁定314（便 X-8-10）: ボトル明細の「キープ」
 import CheckCustomersCard from "@/components/nox/check-customers-card"; // ★裁定305（mig0153・D1）: 伝票の顧客・誰の注文・キープ出し
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
@@ -400,7 +401,7 @@ export default function RegisterBoard({
   const SPLIT_BLANK: SplitRow = { amount: "", name: "", note: "" };
   const [split, setSplit] = useState<{ open: boolean; rows: SplitRow[]; busy: boolean }>({ open: false, rows: [], busy: false });
   const openSplit = () => setSplit({ open: true, rows: [{ ...SPLIT_BLANK }, { ...SPLIT_BLANK }], busy: false });
-  // ★裁定314（便 X-8-10）: 「キープ済み」の行＝その行の注文者の active なキープに同じ商品があり、開栓が伝票の開始以降（bottle_keeps に行の列が無いための近似）
+  // ★裁定314（0158・便 AB-7）: 「キープ済み」の行＝bottle_keeps.check_line_id がその明細行を指す（厳密）。旧: 注文者×商品×開栓日時の近似（便 X-8-10）は撤去
   const [keptLineIds, setKeptLineIds] = useState<Set<string>>(new Set());
   const [storeName, setStoreName] = useState("");
   const [invoiceRegNo, setInvoiceRegNo] = useState(""); // 適格請求書の登録番号（settings_json.invoice_reg_no・空=行を出さない）
@@ -607,17 +608,13 @@ export default function RegisterBoard({
   }, [check?.store_id]);
 
   useEffect(() => {
-    const targets = lines.filter((l) => l.kind === "bottle" && l.customer_id && l.product_id);
+    const targets = lines.filter((l) => l.kind === "bottle");
     if (!check || targets.length === 0) { setKeptLineIds((prev) => (prev.size === 0 ? prev : new Set())); return; }
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("bottle_keeps").select("customer_id, product_id, opened_at")
-        .in("customer_id", [...new Set(targets.map((l) => l.customer_id as string))])
-        .in("product_id", [...new Set(targets.map((l) => l.product_id as string))])
-        .eq("status", "active").gte("opened_at", check.started_at);
+      const { data } = await supabase.from("bottle_keeps").select("check_line_id").in("check_line_id", targets.map((l) => l.id));
       if (!alive) return;
-      const have = new Set(((data ?? []) as { customer_id: string | null; product_id: string }[]).map((k) => `${k.customer_id}:${k.product_id}`));
-      setKeptLineIds(new Set(targets.filter((l) => have.has(`${l.customer_id}:${l.product_id}`)).map((l) => l.id)));
+      setKeptLineIds(keptLineIdsOf(targets.map((l) => l.id), (data ?? []) as { check_line_id: string | null }[]));
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps

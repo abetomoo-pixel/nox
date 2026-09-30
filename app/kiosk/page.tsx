@@ -12,10 +12,13 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+// ★裁定319／319 追補1（0158・便 AB-4）: 退勤の前に kiosk_punch_state を読み、送りの方式が実費（actual）の店だけ「送り あり／なし」を聞く。
+//   あり＝kiosk_punch(p_okuri=true)→kiosk_transport_issue(punch_id)（金額はサーバが店の基本額で決める）。基本額が未設定の店は発行せず注記のみ。一律（flat）の店は口を出さない。
+import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean };
-type Phase = "loading" | "login" | "denied" | "select" | "pin" | "result";
+type Phase = "loading" | "login" | "denied" | "select" | "pin" | "okuri" | "result";
 type PunchResult =
-  | { kind: "ok"; name: string; type: "in" | "out"; time: string }
+  | { kind: "ok"; name: string; type: "in" | "out"; time: string; note?: string }
   | { kind: "ng"; message: string };
 
 const RESULT_MS = 4000; // 結果表示 → name-select 自動復帰
@@ -41,6 +44,7 @@ export default function KioskPage() {
   const [loginPw, setLoginPw] = useState("");
   const [loginErr, setLoginErr] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [okuriPlan, setOkuriPlan] = useState<OkuriSelfPlan | null>(null);
 
   // kiosk_cast_list が唯一の読み口: 1行以上=キオスク端末（他ロール/非端末は 0行＝fail-closed）
   const loadList = useCallback(async (): Promise<boolean> => {
@@ -73,7 +77,7 @@ export default function KioskPage() {
   }
 
   function backToSelect() {
-    setTarget(null); setPin(""); setResult(null); setPhase("select");
+    setTarget(null); setPin(""); setResult(null); setOkuriPlan(null); setPhase("select");
     void loadList(); // has_pin 変化を拾う（安価な唯一の読み口）
   }
 
@@ -86,10 +90,32 @@ export default function KioskPage() {
     setPin((p) => (p.length >= 4 ? p : p + d)); // 関数型更新（連打でも取りこぼさない）
   }
 
-  async function punch(type: "in" | "out") {
+  /** 退勤: 実費の店なら先に「送り あり／なし」を聞く（読取に失敗したら聞かずに従来どおり打刻） */
+  async function startOut() {
     if (!target || pin.length !== 4 || busy) return;
     setBusy(true);
-    const { data, error } = await supabase.rpc("kiosk_punch", { p_cast_id: target.cast_id, p_pin: pin, p_type: type });
+    const { data, error } = await supabase.rpc("kiosk_punch_state");
+    setBusy(false);
+    const plan = okuriSelfPlanOf(error ? null : (data as { okuri_mode?: unknown; okuri_base_amount?: unknown } | null));
+    if (!plan.ask) { void punch("out"); return; }
+    setOkuriPlan(plan); setPhase("okuri");
+  }
+
+  async function punch(type: "in" | "out", okuri?: boolean) {
+    if (!target || pin.length !== 4 || busy) return;
+    setBusy(true);
+    const { data, error } = await supabase.rpc("kiosk_punch", okuri === undefined
+      ? { p_cast_id: target.cast_id, p_pin: pin, p_type: type }
+      : { p_cast_id: target.cast_id, p_pin: pin, p_type: type, p_okuri: okuri });
+    // 送り あり: 基本額がある店だけ発行（失敗しても打刻は残る＝店が締めで確定）
+    let note: string | undefined;
+    const pj = data as { ok?: boolean; punch_id?: string } | null;
+    if (!error && pj?.ok && type === "out" && okuri) {
+      if (okuriPlan?.issue && pj.punch_id) {
+        const { error: eT } = await supabase.rpc("kiosk_transport_issue", { p_punch_id: pj.punch_id });
+        note = eT ? OKURI_PENDING_NOTE : `送り ¥${(okuriPlan.amount ?? 0).toLocaleString()} を記録しました`;
+      } else note = OKURI_PENDING_NOTE;
+    }
     setBusy(false);
     let r: PunchResult;
     if (error) {
@@ -100,7 +126,7 @@ export default function KioskPage() {
         const time = new Date(j.punched_at ?? Date.now()).toLocaleTimeString("ja-JP", {
           timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit",
         });
-        r = { kind: "ok", name: target.cast_name, type, time };
+        r = { kind: "ok", name: target.cast_name, type, time, note };
       } else if (j.reason === "wrong_pin") {
         r = { kind: "ng", message: "PINが違います" }; // 残回数はあえて出さない（シンプル・総当たりヒント回避）
       } else if (j.reason === "locked") {
@@ -210,12 +236,28 @@ export default function KioskPage() {
                 style={{ ...t.btnGold, padding: "20px 0", fontSize: 20, fontWeight: 900, borderRadius: 14, opacity: pin.length === 4 ? 1 : 0.4 }}>
                 出勤
               </button>
-              <button disabled={pin.length !== 4 || busy} onClick={() => void punch("out")}
+              <button disabled={pin.length !== 4 || busy} onClick={() => void startOut()}
                 style={{ ...bigBtn, color: "var(--champ)", opacity: pin.length === 4 ? 1 : 0.4 }}>
                 退勤
               </button>
             </div>
             <button onClick={backToSelect} style={{ ...t.btnGhost, ...t.btnSm, marginTop: 16, width: "100%" }}>もどる</button>
+          </div>
+        )}
+
+        {phase === "okuri" && target && okuriPlan && (
+          <div style={{ maxWidth: 380, margin: "0 auto" }}>
+            <p style={{ textAlign: "center", fontSize: 17, fontWeight: 800, margin: "0 0 4px" }}>{target.cast_name}</p>
+            <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>送りを使いますか</p>
+            <p style={{ textAlign: "center", fontSize: 14, margin: "0 0 14px" }}>
+              {okuriPlan.amount !== null ? <>送り <b style={t.num}>¥{okuriPlan.amount.toLocaleString()}</b></> : OKURI_PENDING_NOTE}
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <button disabled={busy} onClick={() => void punch("out", true)}
+                style={{ ...t.btnGold, padding: "20px 0", fontSize: 18, fontWeight: 900, borderRadius: 14 }}>送り あり</button>
+              <button disabled={busy} onClick={() => void punch("out", false)} style={{ ...bigBtn, fontSize: 18 }}>送り なし</button>
+            </div>
+            <button onClick={() => { setOkuriPlan(null); setPhase("pin"); }} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm, marginTop: 16, width: "100%" }}>もどる</button>
           </div>
         )}
 
@@ -228,6 +270,7 @@ export default function KioskPage() {
                 </p>
                 <p style={{ fontSize: 17, fontWeight: 700, margin: "0 0 4px" }}>{result.name} さん</p>
                 <p style={{ ...t.num, fontSize: 28, fontWeight: 700, margin: 0 }}>{result.time}</p>
+                {result.note && <p style={{ fontSize: 14, margin: "8px 0 0" }}>{result.note}</p>}
               </>
             ) : (
               <p style={{ fontSize: 18, fontWeight: 800, margin: "10px 0" }}>{result.message}</p>

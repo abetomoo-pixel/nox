@@ -24,8 +24,10 @@ import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 
 import SanctionModal from "@/components/nox/sanction-modal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
-import { finalizeGuardOf, PERIOD_NOT_ENDED } from "@/lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）: 確定は期間終了の翌営業日から
+import { finalizeGuardOf, notEndedMessageOf, PERIOD_NOT_ENDED } from "@/lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）: 確定は期間終了の翌営業日から
 import { bizDateOf } from "@/lib/nox/biz-date";
+import PayrollAttentions from "@/components/nox/payroll-attentions"; // ★裁定315（便 AB-2）: 確定後の打刻修正の要対応
+import type { AttentionCarry } from "@/lib/nox/payroll/attention";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0156（便 V-3）: 控除上書き RPC の raise 語（run not draft／bad deduction／bad enabled）の日本語化
 
 type Store = { id: string; name: string };
@@ -241,6 +243,23 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   }, [storeId, period]);
   useEffect(() => { void loadRun(); }, [loadRun, finalized]);
 
+  // ★裁定315（便 AB-2）: 「翌期の調整へ」＝翌期へ切り替え→プレビュー→当該 cast の明細を開き、調整入力に種別（定額）と備考を入れる（金額は人が決める）
+  const [carry, setCarry] = useState<AttentionCarry | null>(null);
+  useEffect(() => {
+    if (!carry || carry.period !== period) return;
+    const c = carry;
+    setCarry(null);
+    void (async () => {
+      await loadRun();
+      const list = await preview();
+      setAdjForm((f) => ({ ...f, kind: c.kind, amount: "", pct: "", reason: c.reason }));
+      setSlipPreview(false);
+      if (list?.some((r) => r.castId === c.castId)) { setDetailCast(c.castId); setAdjMsg(`${c.castName} の調整入力に備考を入れました。金額を入力して追加してください。`); }
+      else setMsg(`${c.period} に ${c.castName} の行がありません（在籍・待遇の設定を確認してください）`);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carry, period]);
+
   // 段P: 明細表のアバターを写真に（写真ありの行だけ 1 リクエスト・失敗時は頭文字へフォールバック）。
   //   ★表示だけ＝金額にも並びにも一切関与しない。
   useEffect(() => {
@@ -296,7 +315,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
     }
   }
 
-  async function preview() {
+  async function preview(): Promise<Row[] | null> {
     setBusy(true);
     setMsg("");
     setFinalized(null);
@@ -313,14 +332,16 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         setWarnings([]);
         setIncentives([]);
         setMsg(`エラー(${res.status}): ${j.error ?? ""}`);
-        return;
+        return null;
       }
       setRows(j.rows as Row[]);
       setBlockers((j.blockers ?? []) as Blocker[]);
       setWarnings((j.warnings ?? []) as Warning[]); // ★裁定98
       setIncentives((j.incentives ?? []) as Incentive[]);
+      return j.rows as Row[];
     } catch (e) {
       setMsg(`通信エラー: ${(e as Error).message}`);
+      return null;
     } finally {
       setBusy(false);
     }
@@ -340,7 +361,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       const j = await res.json();
       if (!res.ok) {
         if (res.status === 400 && j.error === PERIOD_NOT_ENDED) {
-          setMsg(`確定できません: ${j.message ?? rpcErrJa(PERIOD_NOT_ENDED)}`); // ★裁定316
+          setMsg(`確定できません: ${j.message ?? notEndedMessageOf(periodEndOf(period))}`); // ★裁定316（便 AB-9: ボタンの注記と同文）
         } else if (res.status === 422 && Array.isArray(j.blockers)) {
           setMsg(`確定不可（税区分/プラン/雇用区分 未設定）: ${(j.blockers as Blocker[]).map((b) => b.castName).join("、")}`);
         } else {
@@ -657,6 +678,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         </section>
         );
       })()}
+
+      {/* ★裁定315（便 AB-2）: 確定後の打刻修正（確定済み／支払済みの run だけ・0 件なら何も出さない） */}
+      {runInfo && (runInfo.status === "finalized" || runInfo.status === "paid") && (
+        <PayrollAttentions runId={runInfo.id} runPeriod={period} onCarry={(c) => { setMsg(""); setCarry(c); setPeriod(c.period); }} />
+      )}
 
       {msg && <Toast msg={msg} />}
       {/* ★0154 D4: 精算調整モーダル（明細から＝当期 draft run へ・成功で調整行と run を再読込） */}
@@ -1012,7 +1038,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>前借り／送り実費{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
                     <AdvanceOkuriForm storeId={storeId} casts={[]} castId={r.castId} castName={r.castName}
                       dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10), `${period}-01`, periodEndOf(period))}
-                      readOnly={!adjEditable} onIssued={() => preview()} />
+                      readOnly={!adjEditable} onIssued={() => { void preview(); }} />
                     {/* ★便 X-6: 右寄せ（パネル内の他ボタンと揃える）・≤900px は全幅（.nox-actions.end） */}
                     <div className="nox-actions end" style={{ marginTop: 10 }}>
                       <button onClick={() => setSlipPreview((v) => !v)} style={{ ...t.btnGhost, ...t.btnSm }}>

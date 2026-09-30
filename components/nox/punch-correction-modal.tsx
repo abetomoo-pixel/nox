@@ -5,7 +5,8 @@
 //   メッセージは裁定281 の型（Message・同じカード内）。RPC の英語はrpcErrJa で和文化。
 // ★裁定310（2026-09-28・便 X-2）: 本体を PunchCorrectionForm（Modal なし）に切り出し、/shift 今日タブの「調整」モーダルのタブ①（出退勤）に埋め込む。
 //   既定 export の PunchCorrectionModal は同じ本体を Modal で包むだけ（文言・RPC・引数は不変）。
-import { useState } from "react";
+// ★裁定315（0158・便 AB-3）: 確定済み・支払済みの期の日も修正できる（旧: 'period finalized' の赤エラー）。その日は注記を添える（給与は変わらず、給与画面の要対応に積まれる）。
+import { useEffect, useState } from "react";
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
 import { createClient } from "@/lib/supabase/client";
@@ -14,6 +15,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { KIND_LABEL, requestArgsOf, requestInitOf, type PunchKind } from "@/lib/nox/shift/punch-correction";
 import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
+import { isFinalizedDay, POST_FINALIZE_NOTE } from "@/lib/nox/payroll/attention";
 
 export type PunchCorrectionProps = {
   castId: string; castName: string; biz: string; kind: PunchKind;
@@ -32,6 +34,20 @@ export function PunchCorrectionForm({ castId, castName, biz, kind, punchId, punc
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const label = KIND_LABEL[kind];
+  // ★裁定315: その営業日の月の run が確定済み／支払済みか（payroll_runs＝RLS owner／manager 自店・cast の所属店で引く）
+  const [finalizedPeriods, setFinalizedPeriods] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const { data: c } = await supabase.from("casts").select("store_id").eq("id", castId).maybeSingle();
+      if (!c?.store_id) return;
+      const { data: r } = await supabase.from("payroll_runs").select("period").eq("store_id", c.store_id as string).eq("period", biz.slice(0, 7)).in("status", ["finalized", "paid"]);
+      if (alive) setFinalizedPeriods(((r ?? []) as { period: string }[]).map((x) => x.period));
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [castId, biz]);
+  const postFinalize = isFinalizedDay(biz, finalizedPeriods);
 
   async function submit() {
     if (busy) return;
@@ -64,6 +80,7 @@ export function PunchCorrectionForm({ castId, castName, biz, kind, punchId, punc
       </label>
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }}>理由は必須です（200 字まで・本人に表示され、監査に残ります）</p>
       <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="例: 打刻忘れ（本人申告）" style={{ ...t.input, width: "100%" }} />
+      {postFinalize && <div style={{ marginTop: 8 }}><Message kind="info">{POST_FINALIZE_NOTE}</Message></div>}
       {err && <div style={{ marginTop: 8 }}><Message kind="error">{err}</Message></div>}
       <div className="nox-formmodal-foot">
         <button type="button" onClick={() => void submit()} disabled={disabled} style={{ ...t.btnGold, opacity: disabled ? 0.5 : 1 }}>{busy ? "修正中…" : "修正する"}</button>

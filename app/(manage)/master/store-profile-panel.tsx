@@ -13,9 +13,10 @@ import * as t from "@/lib/nox/ui/theme";
 import StoreFlagToggle, { storeProfileErrJa } from "./store-flag-toggle";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import MoneyInput from "@/components/ui/money-input"; // ★裁定317（0158・便 AB-6）: 送りの基本額（okuri_base_amount・0〜99,999 の整数・空欄＝未設定＝0 を送る）
 type Store = { id: string; name: string };
-type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）
-const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false };
+type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）
+const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
@@ -43,6 +44,8 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
       shift_cast_confirm: sj.shift_cast_confirm === true,
       customer_purpose: typeof sj.customer_purpose === "string" ? sj.customer_purpose : "", // ★0153
       customer_retention_years: typeof sj.customer_retention_years === "number" ? String(sj.customer_retention_years) : "5", // ★0153: 既定 5
+      okuri_base_amount: typeof sj.okuri_base_amount === "number" && sj.okuri_base_amount > 0 ? String(sj.okuri_base_amount) : "", // ★裁定317: 0／キー無し＝未設定
+      okuri_actual: sj.okuri_mode === "actual",
       ar_enabled: sj.ar_enabled === true, // ★0155（裁定309-1）: 既存店は 0155 で true・新規店はキー無し＝false（サーバの ar_policy_ok と同じ既定）
     };
     setCur(p); setForm(p); setLoaded(true);
@@ -58,6 +61,8 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
     }
     // ★0153（裁定305-11）: 保持年数は整数 1〜10（数値で送る＝RPC は 'bad type'／'bad customer_retention_years' で二段）
     if (form.customer_retention_years.trim() !== cur.customer_retention_years) out.customer_retention_years = Number(form.customer_retention_years);
+    // ★裁定317（便 AB-6）: 送りの基本額は数値で送る（空欄＝0＝未設定）。送りの方式が一律の店は欄が非活性＝差分が出ない
+    if (form.okuri_base_amount !== cur.okuri_base_amount) out.okuri_base_amount = form.okuri_base_amount === "" ? 0 : Number(form.okuri_base_amount);
     return out;
   };
   const dirty = Object.keys(patchOf()).length > 0;
@@ -68,6 +73,7 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
     if ("name" in patch && (String(patch.name).length < 1 || String(patch.name).length > 50)) { setMsg("店舗名は 1〜50 文字で入力してください"); return; }
     if ("customer_retention_years" in patch && (!Number.isInteger(patch.customer_retention_years) || (patch.customer_retention_years as number) < 1 || (patch.customer_retention_years as number) > 10)) { setMsg("保持年数は 1〜10 の整数で入力してください"); return; }
     if ("customer_purpose" in patch && String(patch.customer_purpose).length > 200) { setMsg("利用目的は 200 文字までです"); return; }
+    if ("okuri_base_amount" in patch && (!Number.isInteger(patch.okuri_base_amount) || (patch.okuri_base_amount as number) < 0 || (patch.okuri_base_amount as number) > 99999)) { setMsg("送りの基本額は 0〜99,999 の整数で入力してください"); return; }
     setBusy(true); setMsg(null);
     const supabase = createClient();
     const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeSel, p_patch: patch });
@@ -92,7 +98,7 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
               <h2 style={{ ...secTitle, margin: 0 }}>店舗情報</h2>
-              <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>店舗名・略称・店舗コード・表示名・顧客情報の利用目的と保持年数。変更した項目だけを保存します（オーナーのみ）。</p>
+              <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>店舗名・略称・店舗コード・表示名・顧客情報の利用目的と保持年数・送りの基本額。変更した項目だけを保存します（オーナーのみ）。</p>
             </div>
             {stores.length > 1 && (
               <select value={storeSel} onChange={(e) => setStoreSel(e.target.value)} style={{ ...input, width: "auto" }} aria-label="店舗">
@@ -111,6 +117,13 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
               <span style={label}>顧客情報の保持年数<span style={{ fontWeight: 400, marginLeft: 6 }}>1〜10 年・既定 5（最終来店日から）</span></span>
               <input type="number" min={1} max={10} step={1} inputMode="numeric" value={form.customer_retention_years} disabled={busy || !loaded}
                 onChange={(e) => setForm((f) => ({ ...f, customer_retention_years: e.target.value }))} style={input} aria-label="顧客情報の保持年数" />
+            </label>
+            {/* ★裁定317（0158・便 AB-6）: 送りの基本額＝退勤の「送り あり」で記録する 1 回分の金額。送りの方式が実費の店だけ入力できる */}
+            <label style={{ display: "block", minWidth: 0 }}>
+              <span style={label}>送りの基本額<span style={{ fontWeight: 400, marginLeft: 6 }}>{form.okuri_actual ? "0〜99,999・空欄は未設定（店が締めで金額を決めます）" : "送りの方式が「一律」の店では使いません"}</span></span>
+              <MoneyInput value={form.okuri_base_amount} disabled={busy || !loaded || !form.okuri_actual} width="100%" style={{ padding: "8px 10px", fontSize: 13 }} ariaLabel="送りの基本額"
+                onChange={(v) => setForm((f) => ({ ...f, okuri_base_amount: v.slice(0, 5) }))} />
+              {!form.okuri_actual && loaded && <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>送りの方式は「マスタ › キャスト・報酬 › 控除・送り」で切り替えます</span>}
             </label>
           </div>
           {msg && (

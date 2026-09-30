@@ -9,7 +9,8 @@ import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額�
 import Picker from "@/components/nox/picker";
 import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
-import { ISSUE_DATE_LABEL, ISSUE_LABEL, issueBodyOf, issueErrJa, okuriEnabledOf, type IssueKind } from "@/lib/nox/payroll/advance-okuri";
+import { ISSUE_DATE_LABEL, ISSUE_LABEL, issueBodyOf, issueErrJa, okuriEnabledOf, carriedBulkNoteOf, type IssueKind } from "@/lib/nox/payroll/advance-okuri";
+import { createClient } from "@/lib/supabase/client";
 
 export type IssueCast = { id: string; name: string };
 
@@ -70,7 +71,13 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
       const j = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!res.ok) { setMsg({ kind: "error", text: issueErrJa(res.status, j.error) }); return; }
       const who = fixed ? (castName ?? "") : (casts.find((c) => c.id === pick)?.name ?? "");
-      setMsg({ kind: "success", text: `${who ? who + " の" : ""}${label} ${b.body.amount.toLocaleString("en-US")} 円を発行しました（${date}）` });
+      // ★裁定312（便 AB-8）: 前借りは発行後に advances を再読＝控除先が翌月へ繰り下がっていれば添える（送り実費は繰越なし）
+      let carried = "";
+      if (kind === "advance" && j.id) {
+        const { data: adv } = await createClient().from("advances").select("deduct_period").eq("id", j.id).maybeSingle();
+        carried = carriedBulkNoteOf(date, [(adv?.deduct_period as string | null | undefined) ?? null]);
+      }
+      setMsg({ kind: "success", text: `${who ? who + " の" : ""}${label} ${b.body.amount.toLocaleString("en-US")} 円を発行しました（${date}）${carried ? `・${carried}` : ""}` });
       setAmount(prefill); setNote("");
       if (j.id && onIssued) await onIssued(kind, j.id);
     } catch (e) {
