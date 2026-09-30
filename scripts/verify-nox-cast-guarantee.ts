@@ -18,7 +18,7 @@ import { planSwitchErrJa, planSwitchValidate, NOTE_PLAN_SWITCH } from "../lib/no
 import { nextPeriodStartOf as nextPeriodStartOf306 } from "../lib/nox/cast/pay-rule";
 import fs306 from "node:fs";
 import fs from "node:fs";
-import { addDays, daysLeftOf, guaranteeBadgeOf, guaranteeNoticesOf, guaranteeRowsOf, guaranteeStateOf, mdOf, type PlanRowLike } from "../lib/nox/cast/guarantee";
+import { addDays, daysLeftOf, guaranteeBadgeOf, guaranteeEndNoteOf, guaranteeNoticesOf, guaranteeRowsOf, guaranteeStateOf, mdOf, type PlanRowLike } from "../lib/nox/cast/guarantee"; // ★便 L-3-1: 終了の注記
 import { isRpcMissingError, rpcErrJa } from "../lib/nox/ui/rpc-err";
 import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
@@ -63,6 +63,12 @@ const one = (to: string | null) => guaranteeStateOf([{ valid_from: "2026-09-01",
 check("gu(4-1) 残り 7＝印・残り 8＝なし", guaranteeBadgeOf(one("2026-09-25"))?.daysLeft === 7 && guaranteeBadgeOf(one("2026-09-26")) === null);
 check("gu(4-2) 残り 0＝印（当日）・残り 1＝印", guaranteeBadgeOf(one(T))?.daysLeft === 0 && guaranteeBadgeOf(one("2026-09-19"))?.daysLeft === 1);
 check("gu(4-3) 期限なし・保証なし＝null", guaranteeBadgeOf(one(null)) === null && guaranteeBadgeOf(guaranteeStateOf([], T)) === null);
+// (4b) ★便 L-3-1（仮決め・閾値 7 日）: 「保証時給は M/D まで（以後 基本時給 ¥N）」＝7 日以内 or 当期内（periodEnd）・期限なし／終了済み／8 日以上かつ期外は null・plan base なしは金額を省く
+check("gu(4b-1) 残り 7（9/25）→「保証時給は 9/25 まで（以後 基本時給 ¥3,000）」・残り 8（9/26・periodEnd なし）→ null", guaranteeEndNoteOf(one("2026-09-25"), 3000) === "保証時給は 9/25 まで（以後 基本時給 ¥3,000）" && guaranteeEndNoteOf(one("2026-09-26"), 3000) === null);
+check("gu(4b-2) 残り 8 でも当期内（periodEnd 2026-09-30）なら出る・当期外（to 10/05・periodEnd 9/30）は null", guaranteeEndNoteOf(one("2026-09-26"), 3000, { periodEnd: "2026-09-30" }) === "保証時給は 9/26 まで（以後 基本時給 ¥3,000）" && guaranteeEndNoteOf(one("2026-10-05"), 3000, { periodEnd: "2026-09-30" }) === null);
+check("gu(4b-3) 期限なし／終了済み（history）／保証なし → null・plan base なし／0 → 金額を省く", guaranteeEndNoteOf(one(null), 3000) === null && guaranteeEndNoteOf(guaranteeStateOf([{ valid_from: "2026-08-01", valid_to: "2026-08-31", overrides_json: { base: 4000, guarantee: true } }], T), 3000, { periodEnd: "2026-09-30" }) === null && guaranteeEndNoteOf(guaranteeStateOf([], T), 3000) === null && guaranteeEndNoteOf(one(T), null) === `保証時給は ${mdOf(T)} まで` && guaranteeEndNoteOf(one(T), 0) === `保証時給は ${mdOf(T)} まで`);
+const coreSrcG = fs.readFileSync("lib/nox/payroll/core.ts", "utf8"), castsSrcG = fs.readFileSync("app/(manage)/casts/casts-board.tsx", "utf8"), uiCalcSrc = fs.readFileSync("lib/nox/payroll/ui-calc.ts", "utf8");
+check("gu(4b-4) 結線: core は c.guarantees から warning kind 'guarantee_ending'（detail＝注記・periodEnd＝win.periodEnd）・ui-calc に和名・/casts は保証時給の節に注記行（plansById の base）", coreSrcG.includes('kind: "guarantee_ending", detail: note') && coreSrcG.includes("guaranteeEndNoteOf(gst, c.plan?.base ?? null, { periodEnd: win.periodEnd })") && uiCalcSrc.includes('guarantee_ending: "保証時給の終了"') && castsSrcG.includes("guaranteeEndNoteOf(st, castPlanOf[selCast.id] ? plansById[castPlanOf[selCast.id].planId]?.base ?? null : null)"));
 check("gu(4-4) withinDays を 3 にすると残り 4 は null・残り 3 は印", guaranteeBadgeOf(one("2026-09-22"), 3) === null && guaranteeBadgeOf(one("2026-09-21"), 3)?.daysLeft === 3);
 // (5)
 const g = (to: string | null): PlanRowLike[] => [{ valid_from: "2026-09-01", valid_to: to, overrides_json: { base: 4000, guarantee: true } }];

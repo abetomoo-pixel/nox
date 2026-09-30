@@ -15,7 +15,7 @@ import SegSelect from "@/components/ui/seg-select"; // ★0154 D6: 契約区分
 import { NOTE_EMPLOYMENT, NOTE_LABOR, amountKeyOf, laborNoteNeeded, nextPeriodStartOf, overridesWithRule, payRuleLabelOf, payRuleOptionsOf, ruleOfOverrides, type Employment } from "@/lib/nox/cast/pay-rule"; // ★0154 D2／D6
 import type { PayRule } from "@/lib/nox/pay";
 // ★夜間便 N4（裁定282-2／282-3／287-3・0151 ★3）: 保証時給の表示用純関数（DB を知らない）
-import { guaranteeStateOf, guaranteeBadgeOf, addDays, mdOf, type PlanRowLike } from "@/lib/nox/cast/guarantee";
+import { guaranteeStateOf, guaranteeBadgeOf, guaranteeEndNoteOf, addDays, mdOf, type PlanRowLike } from "@/lib/nox/cast/guarantee"; // ★便 L-3-1: 終了の注記
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③: デモでは写真アップロード・招待・PW 再発行の導線を隠す
 import Modal from "@/components/ui/modal";
 import CastAvatar from "@/components/ui/cast-avatar";
@@ -953,6 +953,7 @@ export default function CastsBoard({
                     </div>
                     <div className="nox-frow"><span className="k">現在</span>
                       <span className="v num">{cur ? `¥${cur.base.toLocaleString()}　${span(cur)}${st.daysLeft !== null ? `（あと ${st.daysLeft} 日）` : ""}` : "なし"}</span></div>
+                    {(() => { const note = guaranteeEndNoteOf(st, castPlanOf[selCast.id] ? plansById[castPlanOf[selCast.id].planId]?.base ?? null : null); return note ? <div className="nox-frow"><span className="k">注記</span><span className="v" style={{ color: "var(--warning)", fontWeight: 700 }}>{note}</span></div> : null; })()}{/* ★便 L-3-1: 7 日以内に終了 */}
                     {st.upcoming && <div className="nox-frow"><span className="k">予定</span><span className="v num">¥{st.upcoming.base.toLocaleString()}　{span(st.upcoming)}</span></div>}
                     {st.history.length > 0 && (
                       <div className="nox-frow"><span className="k">履歴</span>

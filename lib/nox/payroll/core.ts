@@ -11,6 +11,8 @@ import { resolvePayrollWindow, periodDaysBetween } from "./window";
 import { collectPeriod, loadPayrollAdjustments, loadDailyPays, loadDeductionOverrides } from "./collect"; // ★0156: 日払い済み・run 別控除上書き
 import { shortfallRowsOf, type ShortfallRow } from "./shortfall"; // ★裁定324-3／324-4（便 L-2-4）: 不就労控除の行（'shift' の店だけ・route が payroll_shortfall_sync へ渡す）
 import { LATE_GRACE_MIN_DEFAULT } from "../punch-match";
+import { guaranteeEndNoteOf, guaranteeStateOf } from "../cast/guarantee"; // ★便 L-3-1: 保証時給の終了の注記（当期内または 7 日以内）
+import { bizDateOf } from "../biz-date";
 import { frozenAdjustmentsOf, type FrozenAdjustment } from "./adjust"; // 裁定264-10: 凍結形（show_detail=true の行だけ理由を持つ）
 import { buildPayInput, applyDeductionOverrides, type Extra, type DeductionOverride } from "./assemble";
 
@@ -56,7 +58,7 @@ export type Blocker = { castId: string; castName: string; reason: "no_plan" | "n
 export type PayrollWarning = {
   castId: string;
   castName: string;
-  kind: "sanction_capped" | "sanction_contractor" | "avg_wage_provisional" | "daily_withholding_exceeds"; // ★0156: 日払いの既徴収源泉が当期源泉を超えた（源泉は 0 で止める・起票）
+  kind: "sanction_capped" | "sanction_contractor" | "avg_wage_provisional" | "daily_withholding_exceeds" | "guarantee_ending"; // ★0156: 日払いの既徴収源泉が当期源泉を超えた（源泉は 0 で止める・起票）
   detail: string;
 };
 // 可視化: incentive ごとの総配分額・受給者数（受給者0の pooled は警告・ブロックしない）
@@ -183,6 +185,7 @@ export async function computePayrollDraft(
   const blockers: Blocker[] = [];
   const warnings: PayrollWarning[] = [];
   const shortfall: { castId: string; rows: ShortfallRow[] }[] = []; // ★324-3（便 L-2-4）
+  const bizToday = bizDateOf(new Date().toISOString(), win.cutoffHm); // ★便 L-3-1: 保証時給の残り日数の基準（店の営業日）
   // ★裁定98: 店に active な sanction 控除があるとき、employment 未設定の cast は二層のどちらを
   //   通すか決められない＝blocker（sanction が無ければ従来どおり・blocker なし）。
   const hasSanction = masters.deductions.some((d) => d.kind === "sanction");
@@ -246,6 +249,12 @@ export async function computePayrollDraft(
     const ovApplied = applyDeductionOverrides(masters.deductions, c.deductionOverrides).applied; // ★0156（309-8）: 凍結用（実際の適用は buildPayInput 内）
     // ★裁定264-10: 凍結形＝show_detail=true の行だけ理由付きで・false は合算額のみ（率の分母は pay.gross＝payOf と同一）
     const frozenAdj = frozenAdjustmentsOf(c.adjustments ?? [], pay.gross);
+    // ★便 L-3-1（仮決め）: 保証時給の終了が当期内または今日から 7 日以内 → warning（確定は止めない・新規 fetch 0＝collect の guarantees）
+    if (c.guarantees?.length) {
+      const gst = guaranteeStateOf(c.guarantees.map((g) => ({ valid_from: g.validFrom, valid_to: g.validTo, overrides_json: { guarantee: true, base: g.base } })), bizToday);
+      const note = guaranteeEndNoteOf(gst, c.plan?.base ?? null, { periodEnd: win.periodEnd });
+      if (note) warnings.push({ castId: c.castId, castName: c.castName, kind: "guarantee_ending", detail: note });
+    }
     // ★324-3／324-4（便 L-2-4）: 'shift' の店＝営業日ごとの不足分（遅刻＝猶予あり・早上がり＝猶予なし）×その日の時給（pay.wdays の hourly＝保証時給込み）
     if (masters.payTimeBasis === "shift" && c.shortfallDays?.length) {
       const hourlyByDate: Record<string, number> = {};

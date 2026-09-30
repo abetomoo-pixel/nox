@@ -59,6 +59,7 @@ export const ISSUE_BLOCKER_JA: Record<string, string> = {
 export const ISSUE_WARNING_JA: Record<string, string> = {
   sanction_capped: "制裁控除を法定上限で制限", sanction_contractor: "委託への制裁控除",
   avg_wage_provisional: "平均賃金が暫定式",
+  guarantee_ending: "保証時給の終了", // ★便 L-3-1: 当期内または 7 日以内に終了（detail＝「保証時給は M/D まで（以後 基本時給 ¥N）」）
 };
 
 export function issuesOfDraft(

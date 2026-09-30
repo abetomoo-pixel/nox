@@ -57,3 +57,16 @@ export function guaranteeNoticesOf(items: readonly { name: string; rows: readonl
 
 /** 'YYYY-MM-DD' → 'M/D' */
 export const mdOf = (ymd: string): string => `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
+
+// ★便 L-3-1（2026-09-30・仮決め）: 保証時給の終了の注記＝「保証時給は M/D まで（以後 基本時給 ¥N）」。
+//   出す条件＝現在の保証行に終了日があり、(a) 終了日が当期内（periodEnd 以下）または (b) 今日から 7 日以内（0〜7・withinDays）。期限なし・終了済みは出さない。
+//   /casts（today 基準・periodEnd なし）と給与プレビュー（当期の periodEnd 基準）で同じ関数。planBase＝待遇プランの基本時給（無ければ金額を省く）。
+export function guaranteeEndNoteOf(state: GuaranteeState, planBase: number | null | undefined, opts: { periodEnd?: string | null; withinDays?: number } = {}): string | null {
+  const cur = state.current;
+  if (!cur || !cur.to || state.daysLeft === null || state.daysLeft < 0) return null;
+  const within = state.daysLeft <= (opts.withinDays ?? 7);
+  const inPeriod = !!opts.periodEnd && cur.to <= opts.periodEnd;
+  if (!within && !inPeriod) return null;
+  const after = typeof planBase === "number" && planBase > 0 ? `（以後 基本時給 ¥${planBase.toLocaleString()}）` : "";
+  return `保証時給は ${mdOf(cur.to)} まで${after}`;
+}
