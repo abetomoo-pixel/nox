@@ -7,7 +7,7 @@
  *   - 打刻なし・開始なし・形式外 null／日跨ぎ（30 時間制の開始 25:30 と 24 時間表示の打刻 01:40）／早出 null／猶予 0
  *  逆テスト 1 本（手動・1 回）: late.ts の `diff > grace` を `diff > 0`（猶予を無視）にする → lt(1-1)・(1-2)・(3-3) が赤 → 戻す。
  */
-import { lateMinutesOf } from "../lib/nox/shift/late";
+import { lateMinutesOf, earlyLeaveMinutesOf } from "../lib/nox/shift/late"; // ★便 L-2-1: 早上がり（猶予なし）
 import { LATE_GRACE_MIN_DEFAULT, matchPunches } from "../lib/nox/punch-match";
 import { buildMatchInput } from "../lib/nox/punch-io";
 
@@ -64,10 +64,19 @@ for (const [inHm, grace] of [["20:10", 10], ["20:11", 10], ["20:00", 0], ["20:01
     (fin?.type === "late") === (n !== null) && (fin?.type !== "late" || fin.min === n), JSON.stringify({ fin, n }));
 }
 
+// (6) ★裁定324-3／追補2-4（便 L-2-1）: 早上がり＝確定シフトの終了との差・猶予なし・退勤が終了以後は 0・欠損は null・日跨ぎ
+const e = (end: string | null | undefined, out: string | null | undefined) => earlyLeaveMinutesOf(end, out);
+check("lt(6-1) 終了 23:00・退勤 22:30 → 30（猶予なし）", e("23:00", "22:30") === 30, String(e("23:00", "22:30")));
+check("lt(6-2) 終了 23:00・退勤 22:59 → 1（1 分でも早上がり）", e("23:00", "22:59") === 1);
+check("lt(6-3) 終了ちょうど・終了以後（23:00／23:30）→ 0", e("23:00", "23:00") === 0 && e("23:00", "23:30") === 0);
+check("lt(6-4) 打刻なし／終了なし／形式外 → null", e("23:00", null) === null && e("23:00", "") === null && e(null, "22:00") === null && e("2300", "22:00") === null && e("23:00", "22時") === null);
+check("lt(6-5) 日跨ぎ: 終了 25:00・退勤 00:30（24h 表示）→ 30／退勤 24:30（30h 表示）→ 30／退勤 01:00 → 0", e("25:00", "00:30") === 30 && e("25:00", "24:30") === 30 && e("25:00", "01:00") === 0, JSON.stringify([e("25:00", "00:30"), e("25:00", "24:30"), e("25:00", "01:00")]));
+check("lt(6-6) 同日: 終了 23:00・退勤 20:00 → 180（wrap しない）", e("23:00", "20:00") === 180);
+
 if (fails.length) {
   console.log(`FAIL ${fails.length} 件 / pass ${pass}`);
   for (const x of fails) console.log(` - ${x}`);
   process.exit(1);
 }
 console.log(`verify:nox-late ALL PASS (${pass} assertions)`);
-console.log("遅刻分数(裁定268): 猶予内/ちょうど null・猶予+1 で数値（開始からの差）・欠損/形式外 null・猶予 0・日跨ぎ（30h 開始×24h 打刻）・punch-match と同境界");
+console.log("遅刻分数(裁定268): 猶予内/ちょうど null・猶予+1 で数値（開始からの差）・欠損/形式外 null・猶予 0・日跨ぎ（30h 開始×24h 打刻）・punch-match と同境界 / 早上がり(324-3): 終了との差・猶予なし・以後 0・日跨ぎ");
