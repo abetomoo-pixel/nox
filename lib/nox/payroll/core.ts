@@ -9,6 +9,8 @@ import { allocDue } from "../sales-alloc"; // #32 pooled の最大剰余法（sa
 import { takeHomeFloor } from "../money"; // F2e-1 手取り0下限（social gate TODO）
 import { resolvePayrollWindow, periodDaysBetween } from "./window";
 import { collectPeriod, loadPayrollAdjustments, loadDailyPays, loadDeductionOverrides } from "./collect"; // ★0156: 日払い済み・run 別控除上書き
+import { shortfallRowsOf, type ShortfallRow } from "./shortfall"; // ★裁定324-3／324-4（便 L-2-4）: 不就労控除の行（'shift' の店だけ・route が payroll_shortfall_sync へ渡す）
+import { LATE_GRACE_MIN_DEFAULT } from "../punch-match";
 import { frozenAdjustmentsOf, type FrozenAdjustment } from "./adjust"; // 裁定264-10: 凍結形（show_detail=true の行だけ理由を持つ）
 import { buildPayInput, applyDeductionOverrides, type Extra, type DeductionOverride } from "./assemble";
 
@@ -67,7 +69,9 @@ export type IncentiveSummary = {
   distributedTotal: number;
   warnEmptyPool: boolean;
 };
-export type PayrollDraft = { rows: PreviewRow[]; blockers: Blocker[]; warnings: PayrollWarning[]; incentives: IncentiveSummary[]; period: string; storeId: string };
+export type PayrollDraft = { rows: PreviewRow[]; blockers: Blocker[]; warnings: PayrollWarning[]; incentives: IncentiveSummary[]; period: string; storeId: string;
+  /** ★裁定324（便 L-2-4）: 店の勤務時間の計算基準（'shift' のときだけ shortfall を持つ・'punch'＝undefined） */
+  payTimeBasis?: "shift"; shortfall?: { castId: string; rows: ShortfallRow[] }[] };
 
 // ★裁定98: sanction 系の blocker/warning 導出（純関数）。export＝verify が DB 非依存で判別的に係留するため
 //   （allocateCategory と同じ建付け）。core 本体はこの2関数を経由する＝検証対象と実挙動が一致する。
@@ -178,6 +182,7 @@ export async function computePayrollDraft(
   const rows: PreviewRow[] = [];
   const blockers: Blocker[] = [];
   const warnings: PayrollWarning[] = [];
+  const shortfall: { castId: string; rows: ShortfallRow[] }[] = []; // ★324-3（便 L-2-4）
   // ★裁定98: 店に active な sanction 控除があるとき、employment 未設定の cast は二層のどちらを
   //   通すか決められない＝blocker（sanction が無ければ従来どおり・blocker なし）。
   const hasSanction = masters.deductions.some((d) => d.kind === "sanction");
@@ -241,6 +246,13 @@ export async function computePayrollDraft(
     const ovApplied = applyDeductionOverrides(masters.deductions, c.deductionOverrides).applied; // ★0156（309-8）: 凍結用（実際の適用は buildPayInput 内）
     // ★裁定264-10: 凍結形＝show_detail=true の行だけ理由付きで・false は合算額のみ（率の分母は pay.gross＝payOf と同一）
     const frozenAdj = frozenAdjustmentsOf(c.adjustments ?? [], pay.gross);
+    // ★324-3／324-4（便 L-2-4）: 'shift' の店＝営業日ごとの不足分（遅刻＝猶予あり・早上がり＝猶予なし）×その日の時給（pay.wdays の hourly＝保証時給込み）
+    if (masters.payTimeBasis === "shift" && c.shortfallDays?.length) {
+      const hourlyByDate: Record<string, number> = {};
+      for (const w of pay.wdays) hourlyByDate[`${period}-${String(w.d).padStart(2, "0")}`] = w.hourly;
+      const sfRows = shortfallRowsOf({ days: c.shortfallDays, hourlyByDate, lateGraceMin: masters.lateGraceMin ?? LATE_GRACE_MIN_DEFAULT, employment: c.employment ?? null });
+      shortfall.push({ castId: c.castId, rows: sfRows });
+    }
     rows.push({
       castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, missingOutDates: c.missingOutDates ?? [], taxMode,
       ...(c.calcPeriod ? { calcPeriodStart: c.calcPeriod.start, calcPeriodEnd: c.calcPeriod.end } : {}), // ★0154 D6
@@ -261,5 +273,5 @@ export async function computePayrollDraft(
       recipientCount: n, distributedTotal, warnEmptyPool: inc.amountMode === "pooled" && n === 0,
     };
   });
-  return { rows, blockers, warnings, incentives: incentiveSummary, period, storeId };
+  return { rows, blockers, warnings, incentives: incentiveSummary, period, storeId, ...(masters.payTimeBasis === "shift" ? { payTimeBasis: "shift" as const, shortfall } : {}) }; // ★324（便 L-2-4）: 'punch' はキーなし
 }

@@ -14,6 +14,7 @@ import { payOf } from "../lib/nox/pay"; // ★便 L-2-3: payTimeBasis 'shift'（
 import { payTimeBasisOf, PAY_TIME_BASIS_DEFAULT } from "../lib/nox/payroll/time-basis";
 import { buildPayInput, type CastRaw, type StoreMasters } from "../lib/nox/payroll/assemble";
 import { REINA_INPUT } from "./fixtures-pay";
+import { isRpcMissing, shortfallSyncRowsOf } from "../lib/nox/payroll/shortfall-sync"; // ★便 L-2-4
 
 let pass = 0;
 const fails: string[] = [];
@@ -86,6 +87,13 @@ const mastersBase: StoreMasters = { penalty: REINA_INPUT.penalty, normConfig: RE
 check("sf(13-1) buildPayInput: masters.payTimeBasis 'shift' → payTimeBasis: 'shift'／'punch'・未指定 → キーなし", buildPayInput(rawMin, "委託", { ...mastersBase, payTimeBasis: "shift" }, 30, 0).payTimeBasis === "shift" && !("payTimeBasis" in buildPayInput(rawMin, "委託", { ...mastersBase, payTimeBasis: "punch" }, 30, 0)) && !("payTimeBasis" in buildPayInput(rawMin, "委託", mastersBase, 30, 0)));
 const collectSrc = fs.readFileSync("lib/nox/payroll/collect.ts", "utf8");
 check("sf(13-2) collect: stores.settings_json を読み payTimeBasisOf(…, win.periodStart) で解決・'shift' のときだけ masters にキーを足す", collectSrc.includes('admin.from("stores").select("settings_json").eq("id", storeId).maybeSingle()') && collectSrc.includes("payTimeBasisOf(((stR.data?.settings_json ?? null) as Record<string, unknown> | null), runPeriodStart ??") && collectSrc.includes("loadMasters(admin, storeId, win.period, win.periodEnd, win.periodStart)") && collectSrc.includes('...(basis === "shift" ? { payTimeBasis: "shift" as const } : {})'));
+
+// (14) ★裁定324-4（便 L-2-4）: preview → payroll_shortfall_sync の結線＝p_rows の形・RPC 不在（PGRST202）は素通り・'shift' かつ draft run のときだけ 1 回
+check("sf(14-1) shortfallSyncRowsOf: cast ごとの行を {cast_id, biz_date, amount, target_shift_id, basis, reason} に平坦化（0 も渡す＝RPC 側で delete）", JSON.stringify(shortfallSyncRowsOf([{ castId: "c1", rows: [{ biz_date: "2026-09-10", target_shift_id: "s1", minutes_late: 30, minutes_early: 0, amount: 1500, basis: "遅刻 30 分", reason: "不就労控除（遅刻 30 分）" }] }, { castId: "c2", rows: [] }])) === JSON.stringify([{ cast_id: "c1", biz_date: "2026-09-10", amount: 1500, target_shift_id: "s1", basis: "遅刻 30 分", reason: "不就労控除（遅刻 30 分）" }]));
+check("sf(14-2) isRpcMissing: PGRST202／'Could not find the function'／schema cache → true・他の error／null → false", isRpcMissing({ code: "PGRST202", message: "x" }) && isRpcMissing({ message: "Could not find the function public.payroll_shortfall_sync(p_rows, p_run_id) in the schema cache" }) && !isRpcMissing({ code: "P0001", message: "bad row" }) && !isRpcMissing(null));
+const prevSrc = fs.readFileSync("app/api/payroll/preview/route.ts", "utf8");
+const coreSrc = fs.readFileSync("lib/nox/payroll/core.ts", "utf8");
+check("sf(14-3) preview route: 'shift' かつ draft run のときだけ rpc(\"payroll_shortfall_sync\") を 1 回・RPC 不在は素通り（isRpcMissing）・本物の error は 500・core は masters.payTimeBasis==='shift' のときだけ shortfallRowsOf（hourly＝pay.wdays）", (prevSrc.match(/rpc\("payroll_shortfall_sync"/g) ?? []).length === 1 && prevSrc.includes('if (draft.payTimeBasis === "shift" && runRow && runRow.status === "draft") {') && prevSrc.includes("if (eSf && !isRpcMissing(eSf)) return NextResponse.json") && coreSrc.includes('if (masters.payTimeBasis === "shift" && c.shortfallDays?.length) {') && coreSrc.includes("for (const w of pay.wdays) hourlyByDate["));
 
 if (fails.length) {
   console.log(`FAIL ${fails.length} 件 / pass ${pass}`);

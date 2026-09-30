@@ -1796,6 +1796,23 @@ async function main() {
     await admin.from("daily_pays").delete().eq("idem_key", dpIdem);
     await admin.from("deductions").delete().eq("id", dedId);
     const r4 = await rowOf();
+    // ★裁定324（便 L-2-4）: 店設定 pay_time_basis='shift' で draft に payTimeBasis／shortfall が載り、'punch'（未設定）に戻すとキーが消え net が同値
+    {
+      const { data: st0 } = await admin.from("stores").select("settings_json").eq("id", storeA1Id).single();
+      const sj0 = (st0?.settings_json ?? {}) as Record<string, unknown>;
+      const dPunch0 = await computePayrollDraft(admin, manager, storeA1Id, P, { previewDefaults: true });
+      await admin.from("stores").update({ settings_json: { ...sj0, pay_time_basis: "shift" } }).eq("id", storeA1Id);
+      const dShift = await computePayrollDraft(admin, manager, storeA1Id, P, { previewDefaults: true });
+      await admin.from("stores").update({ settings_json: { ...sj0, pay_time_basis: "punch", pay_time_basis_next: "shift", pay_time_basis_next_from: "2099-01-01" } }).eq("id", storeA1Id);
+      const dNext = await computePayrollDraft(admin, manager, storeA1Id, P, { previewDefaults: true });
+      await admin.from("stores").update({ settings_json: sj0 }).eq("id", storeA1Id);
+      const dPunch1 = await computePayrollDraft(admin, manager, storeA1Id, P, { previewDefaults: true });
+      const sfRows = (dShift.shortfall ?? []).flatMap((c) => c.rows);
+      check("段0159-c1 pay_time_basis='shift': draft.payTimeBasis='shift'・shortfall は cast ごとの配列（行は {biz_date, target_shift_id, amount>0, basis, reason}）・'punch'／next_from 未到来はキーなし", dShift.payTimeBasis === "shift" && Array.isArray(dShift.shortfall)
+        && sfRows.every((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.biz_date) && r.target_shift_id && r.amount > 0 && r.basis.length > 0 && r.reason.startsWith("不就労控除") || r.reason.startsWith("報酬調整"))
+        && dPunch0.payTimeBasis === undefined && dPunch0.shortfall === undefined && dNext.payTimeBasis === undefined, JSON.stringify({ b: dShift.payTimeBasis, n: sfRows.length, sample: sfRows[0] }));
+      check("段0159-c2 'punch' に戻すと net が同値（settings を戻した後＝golden 不変・'shift' は時給部分が確定シフト時間ベース＝rows の数は同じ）", JSON.stringify(dPunch1.rows.map((r) => [r.castId, r.net])) === JSON.stringify(dPunch0.rows.map((r) => [r.castId, r.net])) && dShift.rows.length === dPunch0.rows.length, JSON.stringify({ n0: dPunch0.rows.length, n1: dPunch1.rows.length }));
+    }
     check("段0156-8 fixture 撤去後は元に戻る（fixedDed・withholding・net・dailyN=0・上書き 0）", r4.pay.fixedDed === r0.pay.fixedDed && r4.pay.withholding === r0.pay.withholding && r4.net === r0.net && r4.dailyN === 0 && r4.deductionOverridesApplied.length === 0, JSON.stringify({ fd: [r0.pay.fixedDed, r4.pay.fixedDed], wh: [r0.pay.withholding, r4.pay.withholding], net: [r0.net, r4.net] }));
   }
 

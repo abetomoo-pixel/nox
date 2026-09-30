@@ -8,7 +8,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { periodCalendarDays, type PayrollWindow } from "./window";
 import type { CastRaw, StoreMasters, DeductionOverride } from "./assemble"; // ★0156: DeductionOverride（run 別控除上書き）
 import { calcPeriodOf } from "./assemble"; // ★0154 D6
-import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）: 勤務時間の計算基準（store 設定・期の初日で解決）
+import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）
+import type { ShortfallDay } from "./shortfall"; // ★裁定324-3（便 L-2-4）: 不就労控除の入力（営業日ごとの確定シフト×打刻）: 勤務時間の計算基準（store 設定・期の初日で解決）
 /** ★0154 D2: 'HH:MM'（0-47 域）→ 分（shift-time.hm2min と同式・collect 内で閉じる） */
 const hm2minOf = (hm: string): number => { const [h, mm] = String(hm).split(":").map(Number); return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(mm) ? mm : 0); };
 import type { AdjustmentRow } from "./adjust"; // 裁定258／264
@@ -202,6 +203,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
     taxByCast.set(t.cast_id as string, t.mode as TaxMode);
   }
   const lateGrace = (pen?.late_grace_min as number) ?? undefined;
+  masters.lateGraceMin = lateGrace; // ★324-3（便 L-2-4）: shortfall の遅刻猶予（裁定268＝punch-match と同じ値）
   const earlyGrace = (pen?.early_grace_min as number) ?? undefined;
   const overGrace = (pen?.over_grace_min as number) ?? undefined;
   return { plansById, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace: { lateGrace, earlyGrace, overGrace } }; // ★N3: guaranteesByCast
@@ -316,22 +318,22 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     // ★SD-4（2026-08-21・設計書 §1）: 給与分母は confirmed のみ＝この .eq は不変。
     //   mig0101 で status が 3値化（planned→proposed→confirmed）されたが、中間 status（proposed）は
     //   キャスト確認待ちの未確定＝給与の出勤分母に数えない。ここを広げる変更は SD-4 の再裁定が要る。
-    admin.from("shifts").select("cast_id, date, start_hm, end_hm").eq("store_id", storeId).eq("status", "confirmed").gte("date", win.periodStart).lte("date", win.periodEnd),
+    admin.from("shifts").select("id, cast_id, date, start_hm, end_hm").eq("store_id", storeId).eq("status", "confirmed").gte("date", win.periodStart).lte("date", win.periodEnd), // ★324-3（便 L-2-4）: +id（shortfall の target_shift_id）
     admin.from("attendance").select("cast_id, date, status").eq("store_id", storeId).gte("date", win.periodStart).lte("date", win.periodEnd),
     admin.from("punches").select("cast_id, punched_at, type").eq("store_id", storeId).gte("punched_at", win.startTs).lt("punched_at", win.endTs),
   ]);
   for (const r of [shiftsR, attR, punchR]) if (r.error) throw new Error(`打刻: ${r.error.message}`);
-  const byCast = new Map<string, { shifts: ShiftRow[]; att: AttendanceRow[]; punches: PunchRow[] }>();
+  const byCast = new Map<string, { shifts: ShiftRow[]; shiftIds: Map<string, string>; att: AttendanceRow[]; punches: PunchRow[] }>();
   const ensure = (cid: string) => {
     let e = byCast.get(cid);
-    if (!e) { e = { shifts: [], att: [], punches: [] }; byCast.set(cid, e); }
+    if (!e) { e = { shifts: [], shiftIds: new Map(), att: [], punches: [] }; byCast.set(cid, e); }
     return e;
   };
-  for (const s of (shiftsR.data ?? []) as Record<string, unknown>[]) ensure(s.cast_id as string).shifts.push({ date: s.date as string, start_hm: s.start_hm as string, end_hm: s.end_hm as string });
+  for (const s of (shiftsR.data ?? []) as Record<string, unknown>[]) { const e = ensure(s.cast_id as string); e.shifts.push({ date: s.date as string, start_hm: s.start_hm as string, end_hm: s.end_hm as string }); e.shiftIds.set(s.date as string, s.id as string); } // ★324-3: 日→shift id（同日 2 枠は後勝ち＝1 日 1 枠が前提）
   for (const a of (attR.data ?? []) as Record<string, unknown>[]) ensure(a.cast_id as string).att.push({ date: a.date as string, status: a.status as AttendanceRow["status"] });
   for (const p of (punchR.data ?? []) as Record<string, unknown>[]) ensure(p.cast_id as string).punches.push({ punched_at: p.punched_at as string, type: p.type as "in" | "out" });
 
-  const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number }>();
+  const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[] }>();
   // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
   const recipientsByDate = new Map<string, string[]>();
   for (const [cid, raw] of byCast) {
@@ -345,8 +347,15 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     const shiftHoursByDate: Record<string, number> = {};
     for (const sh of raw.shifts) shiftHoursByDate[sh.date] = (shiftHoursByDate[sh.date] ?? 0) + Math.max(0, (hm2minOf(sh.end_hm) - hm2minOf(sh.start_hm)) / 60);
     const attendanceDays = raw.att.filter((a) => a.status === "shukkin" || a.status === "late" || a.status === "dohan").length;
+    // ★324-3（便 L-2-4）: 確定シフトがある営業日の (shift id・開始／終了・in／out の HH:MM)＝shortfallRowsOf の入力（in なし＝無断欠勤は行にせず null で渡す）
+    const shiftByDate = new Map(raw.shifts.map((sh) => [sh.date, sh]));
+    const shortfallDays: ShortfallDay[] = [];
     for (const d of m.days) {
       hoursByDate.set(d.bizDate, dayWorkedHours(d));
+      const sh = shiftByDate.get(d.bizDate), sid = raw.shiftIds.get(d.bizDate);
+      if (sh && sid) shortfallDays.push({ bizDate: d.bizDate, shiftId: sid, startHm: sh.start_hm, endHm: sh.end_hm,
+        inHm: d.raw.in.type === "ok" || d.raw.in.type === "late" ? d.raw.in.act : null,
+        outHm: d.raw.out.type === "ok" || d.raw.out.type === "early" || d.raw.out.type === "over" ? d.raw.out.out : null });
       if (d.final.type === "ok" || d.final.type === "late") {
         days += 1;
         (recipientsByDate.get(d.bizDate) ?? recipientsByDate.set(d.bizDate, []).get(d.bizDate)!).push(cid);
@@ -355,7 +364,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       if (d.anomalies.length > 0 || outAnom) anomalyCount += 1;
       if (d.raw.out.type === "noout" && (d.final.type === "ok" || d.final.type === "late")) missingOutDates.push(d.bizDate); // ★N3 AV-4
     }
-    result.set(cid, { days, lateN: m.lateN, absentN: m.absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays });
+    result.set(cid, { days, lateN: m.lateN, absentN: m.absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
   }
   // pooled 端数 +1 の順序を確定させるため cast_id 昇順にソート
   for (const [d, list] of recipientsByDate) recipientsByDate.set(d, list.sort());
@@ -692,6 +701,7 @@ export async function collectPeriod(
       anomalyCount: p?.anomalyCount ?? 0,
       missingOutDates: p?.missingOutDates ?? [], // ★N3 AV-4（表示のみ・fixture は省略可）
       ...(p ? { shiftHoursByDate: p.shiftHoursByDate, attendanceDays: p.attendanceDays } : {}), // ★0154 D2
+      ...(p && p.shortfallDays.length ? { shortfallDays: p.shortfallDays } : {}), // ★324-3（便 L-2-4）: 確定シフトがある日だけ
       ...(calcPeriodById.has(cid) ? { calcPeriod: calcPeriodById.get(cid) } : {}), // ★0154 D6
       plan,
       override: cp?.override,

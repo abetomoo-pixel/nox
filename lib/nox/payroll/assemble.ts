@@ -58,6 +58,7 @@ export type CastRaw = {
   adjustments?: AdjustmentRow[];
   // ★0154 D2／D6（裁定291 追補1 B・294-8）: 報酬型の入力と計算期間。collect が格納・fixture は省略＝従来と同値
   shiftHoursByDate?: Record<string, number>; // 確定シフトの時間（bizDate→h・shift_guarantee 用）
+  shortfallDays?: { bizDate: string; shiftId: string; startHm: string; endHm: string; inHm: string | null; outHm: string | null }[]; // ★324-3（便 L-2-4）: 不就労控除の入力（collect が格納・fixture は省略）
   attendanceDays?: number;                   // 出勤区分（shukkin／late／dohan）の回数（per_shift 用）
   calcPeriod?: { start: string; end: string }; // 計算期間（入店日／退店日で run の期間を切る・payslips.calc_period_* へ凍結）
   // ★0156（裁定309-6／309-8・便 V-2）: 日払い済み（期間内の daily_pays 合計）と run 別控除上書き（当該 cast 分）。core が格納・fixture は省略＝従来と同値
@@ -86,7 +87,8 @@ export function applyDeductionOverrides(deductions: Deduction[], overrides: Dedu
 
 // 店共通マスタ（loadStoreMasters が組む）。
 export type StoreMasters = {
-  payTimeBasis?: "punch" | "shift"; // ★裁定324（便 L-2-3）: 店の勤務時間の計算基準（run の期の初日で解決済み・未指定＝'punch'）
+  payTimeBasis?: "punch" | "shift"; // ★裁定324（便 L-2-3）
+  lateGraceMin?: number; // ★裁定324-3（便 L-2-4）: 遅刻の猶予（penalty_config.late_grace_min・未設定＝punch-match の既定 10）: 店の勤務時間の計算基準（run の期の初日で解決済み・未指定＝'punch'）
   penalty: PenaltyConfig;
   normConfig: NormPenaltyConfig;
   deductions: Deduction[];
