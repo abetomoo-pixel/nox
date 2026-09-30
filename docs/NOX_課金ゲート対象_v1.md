@@ -101,6 +101,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   新表 2（cast_quotas 11 列／cast_notice_reads 5 列・authenticated=SELECT のみ・policy 1）・列 +6（reservations +4／shift_wishes +kind／staff_shift_patterns +disabled_from）は本数非関与。
   md5 控え（先頭 8 桁・docs/tmp/0160_post_live.json＝live 読取 2026-09-30T07:15:51.139Z から機械生成）: set_cast_quota 1987d03d・set_store_mine_settings 5aaecb0f・staff_pattern_disable cb1d4a34・staff_pattern_enable e768f710・reservation_request f0c51a0a・reservation_decide a0088416・notice_mark_read b1329e24。
   対象 **149→154**・除外 **141→142**・全数 **290→296**（live 実測 2026-09-30＝総数 296・'billing locked' 154・md5 12 本一致）。
+- ★**mig0161 追随（2026-09-30・裁定327＋追補1）**: 新関数 **1本**＝内部専用を B(a) へ（`punch_seq_check`＝打刻の順序検査（'already in'／'already out'／'no open punch'）と前営業日以前の未閉鎖 in の注意行 'open_punch'・4 ロール revoke で authenticated／service_role とも実行不可）。
+  改稿 4 本（`punch_self`／`punch_proxy`／`kiosk_punch`＝insert 直前に順序検査 1 行・`payroll_attentions_of`＝run 未作成時に積んだ open_punch を期間で拾う）は名前不変で本数不動。payroll_attentions の run_id null 可・kind CHECK 2 値・部分 unique は本数非関与。
+  md5 控え（先頭 8 桁・docs/tmp/0161_post_live.json＝live 読取 2026-09-30T08:26:03Z から機械生成）: punch_seq_check f5fd8b84・punch_self 952f18a4・punch_proxy a760e1a4・kiosk_punch 5a1d5f10・payroll_attentions_of 3721bf4e。
+  対象 **154 不変**・除外 **142→143**・全数 **296→297**（live 実測 2026-09-30＝総数 297・'billing locked' 154・md5 5 本一致）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -296,6 +300,8 @@ punch_correction_apply（mig0154＝承認済み punch_corrections 行を punches
 audit_purge（mig0155＝audit_logs の 7 年保持＝at < now()-7年 を org ごとに削除し action 'audit_purge' の行に件数・最古・最新・cutoff を残す・service_role 専用の grant 型（authenticated／anon／PUBLIC 不在）＋テナント JWT 遮断・実行は手動＝cron は Vercel Pro 後・裁定309-2／309 追補1 (a)・2026-09-28）
 
 okuri_default_of（mig0156＝送り利用の既定を返す純ヘルパー＝p_okuri 明示があればそれ・無ければ out かつ okuri_mode='actual' の店で false・他は null。打刻 3 本の本文からのみ・4 ロール revoke・裁定309-9／309 追補2 (a)・2026-09-28）
+
+punch_seq_check（mig0161＝打刻の順序検査＝当日営業日の最終打刻で 'already in'／'already out'／'no open punch' を raise し、前営業日以前の未閉鎖 in は塞がずに注意行 'open_punch' を積む内部ヘルパー。打刻 3 本の本文からのみ・4 ロール revoke で authenticated／service_role とも実行不可・原則8＝呼び出し元が二重防御済み・裁定327＋追補1・2026-09-30）
 
 ### B(b) トリガ関数（1本）
 touch_updated_at
