@@ -21,6 +21,11 @@ import { candidatesOf, idleCandidatesOf, pageOf, searchCandidatesOf, lastVisitLa
 import { castPickerOrder, offDutyToggleLabelOf } from "../lib/nox/register/cast-picker-order"; // ★裁定322
 import { moneyDigitsOf, moneyDisplayOf, moneyValueOf } from "../lib/nox/ui/money"; // ★便 X-11-6
 import { stocktakePlanOf, stocktakeRowsOf } from "../lib/nox/stock/stocktake"; // ★裁定323
+import { attentionCarryOf, attentionLineOf, isFinalizedDay, nextPeriodOf, splitAttentions, POST_FINALIZE_NOTE, type AttentionRow } from "../lib/nox/payroll/attention"; // ★裁定315（便 AB-2／AB-3）
+import { okuriSelfPlanOf, okuriResultTextOf, OKURI_PENDING_NOTE } from "../lib/nox/shift/okuri-self"; // ★裁定319（便 AB-4／AB-5）
+import { keptLineIdsOf } from "../lib/nox/register/kept-lines"; // ★裁定314（便 AB-7）
+import { carriedBulkNoteOf, carriedNoteOf } from "../lib/nox/payroll/advance-okuri"; // ★裁定312（便 AB-8）
+import { notEndedMessageOf } from "../lib/nox/payroll/finalize-guard"; // ★裁定316（便 AB-9）
 
 let pass = 0;
 const fails: string[] = [];
@@ -218,6 +223,63 @@ check("ms(2-17) 裁定323: 行＝在庫管理ありの有効商品だけ・カ�
   && JSON.stringify(stocktakePlanOf(stProducts, stStock, { p1: "3", p2: "0", p5: "3.5", p4: "9", p3: " 4 " }).map((r) => [r.id, r.delta])) === JSON.stringify([["p1", -2], ["p3", 2]])
   && !stockSrc.includes("function ProductCombo") && !stockSrc.includes("<ProductCombo") && stockSrc.includes("件を記録") && stockSrc.includes("無効も表示") && stockSrc.includes("if (error) { failed = ") && stockSrc.includes("商品ページ")
   && messageKindOf("2 件を記録しました。次の行の記録に失敗したため中止しました（角: 権限がありません）") === "error" && messageKindOf("棚卸しを 3 件記録しました") === "success");
+
+// ── 便 AB（0158 client・2026-09-30）──
+// ★裁定315（便 AB-2）: 給与画面の要対応（確定後の打刻修正）
+const atRow = (o: Partial<AttentionRow> & { detail: AttentionRow["detail"] }): AttentionRow => ({ id: "a1", cast_id: "c1", cast_name: "玲奈", kind: "post_finalize_punch", created_at: "2026-10-02T03:00:00+00:00", resolved_at: null, resolved_by: null, ...o });
+const atUpd = atRow({ detail: { before: "2026-09-10T11:00:00+00:00", after: "2026-09-10T11:30:00+00:00", biz_date: "2026-09-10", punch_kind: "in" } });
+const atIns = atRow({ id: "a2", detail: { before: null, after: "2026-09-10T17:00:00+00:00", biz_date: "2026-09-10", punch_kind: "out" } });
+const atDone = atRow({ id: "a3", resolved_at: "2026-10-03T00:00:00+00:00", detail: { before: "2026-09-11T11:00:00+00:00", after: null, biz_date: "2026-09-11", punch_kind: "in" } });
+const attSrc = fs.readFileSync("components/nox/payroll-attentions.tsx", "utf8");
+const payBoardSrcAB = fs.readFileSync("app/(manage)/payroll/payroll-board.tsx", "utf8");
+check("ms(2-18) 裁定315: 要対応の行「確定後の打刻修正: cast・日・出勤 hh:mm→hh:mm」（追加は なし→・翌 2:00 は 26:00・削除は →なし）・翌期と prefill（定額・備考 200 字まで）・解決済みの仕分け・画面は RPC 2 本＋解決済みの折りたたみ＋翌期の調整へ",
+  attentionLineOf(atUpd) === "確定後の打刻修正: 玲奈・9/10・出勤 20:00→20:30" && attentionLineOf(atIns) === "確定後の打刻修正: 玲奈・9/10・退勤 なし→26:00" && attentionLineOf(atDone) === "確定後の打刻修正: 玲奈・9/11・出勤 20:00→なし"
+  && nextPeriodOf("2026-09") === "2026-10" && nextPeriodOf("2026-12") === "2027-01"
+  && JSON.stringify(attentionCarryOf(atUpd, "2026-09")) === JSON.stringify({ period: "2026-10", castId: "c1", castName: "玲奈", kind: "fixed", reason: "2026-09 確定後の打刻修正（9/10 出勤 20:00→20:30）の差額" })
+  && attentionCarryOf(atUpd, "2026-09").reason.length <= 200
+  && splitAttentions([atUpd, atDone, atIns]).open.map((r) => r.id).join(",") === "a1,a2" && splitAttentions([atUpd, atDone, atIns]).resolved.map((r) => r.id).join(",") === "a3"
+  && attSrc.includes('rpc("payroll_attentions_of", { p_run_id: runId })') && attSrc.includes('rpc("payroll_attention_resolve", { p_id: id, p_reason: r.length > 0 ? r : null })') && attSrc.includes("<details") && attSrc.includes(">翌期の調整へ</button>") && attSrc.includes(">解決</button>")
+  && payBoardSrcAB.includes("<PayrollAttentions runId={runInfo.id} runPeriod={period}") && payBoardSrcAB.includes('(runInfo.status === "finalized" || runInfo.status === "paid") && (')
+  && payBoardSrcAB.includes("setAdjForm((f) => ({ ...f, kind: c.kind, amount: \"\", pct: \"\", reason: c.reason }))") && messageKindOf("解決済みにしました") === "success");
+// ★裁定315（便 AB-3）: 確定済み期の打刻修正は注記（赤エラーではない）・3 経路
+const pcmSrc = fs.readFileSync("components/nox/punch-correction-modal.tsx", "utf8");
+const minePcSrc = fs.readFileSync("app/mine/punch-correction-form.tsx", "utf8");
+const minePageSrc = fs.readFileSync("app/mine/page.tsx", "utf8");
+check("ms(2-19) 裁定315: 注記の文言・isFinalizedDay（月で判定）・注記は info（error に倒れない）・店側の修正フォーム（今日タブ①とモーダルが共用）と /mine の申請に出る・/mine は本人の明細がある期で判定",
+  POST_FINALIZE_NOTE === "この日の給与は確定済みです。修正は記録され、差額は翌期の調整で扱います" && isFinalizedDay("2026-09-10", ["2026-09"]) && !isFinalizedDay("2026-10-01", ["2026-09"]) && !isFinalizedDay("", ["2026-09"])
+  && pcmSrc.includes('<Message kind="info">{POST_FINALIZE_NOTE}</Message>') && pcmSrc.includes('.in("status", ["finalized", "paid"])') && shiftSrc.includes("<PunchCorrectionForm")
+  && minePcSrc.includes("isFinalizedDay(date, finalizedPeriods) && <Message kind=\"info\">{POST_FINALIZE_NOTE}</Message>") && minePageSrc.includes("finalizedPeriods={((slips ?? []) as { period: string }[]).map((s) => s.period)}"));
+// ★裁定319／追補1（便 AB-4／AB-5）: 送りの本人発行・打刻端末発行
+const kioskSrc = fs.readFileSync("app/kiosk/page.tsx", "utf8");
+const minePunchSrc = fs.readFileSync("app/mine/punch-actions.tsx", "utf8");
+check("ms(2-20) 裁定319: okuriSelfPlanOf（flat／未設定は聞かない・actual＋基本額＝発行・actual＋基本額なし／0／小数＝聞くが発行しない）・文言（記録しました／送りは店が締めで確定します）",
+  JSON.stringify(okuriSelfPlanOf({ okuri_mode: "flat", okuri_base_amount: 1500 })) === JSON.stringify({ ask: false, issue: false, amount: null }) && okuriSelfPlanOf(null).ask === false
+  && JSON.stringify(okuriSelfPlanOf({ okuri_mode: "actual", okuri_base_amount: 1500 })) === JSON.stringify({ ask: true, issue: true, amount: 1500 })
+  && [null, 0, 1500.5, "1500"].every((b) => JSON.stringify(okuriSelfPlanOf({ okuri_mode: "actual", okuri_base_amount: b })) === JSON.stringify({ ask: true, issue: false, amount: null }))
+  && OKURI_PENDING_NOTE === "送りは店が締めで確定します" && okuriResultTextOf(true, "issued", 1500) === "退勤を打刻しました（送り ¥1,500 を記録しました）" && okuriResultTextOf(true, "pending", null) === "退勤を打刻しました（送りは店が締めで確定します）"
+  && okuriResultTextOf(false, "none", null) === "退勤を打刻しました" && messageKindOf(okuriResultTextOf(true, "pending", null)) === "success" && messageKindOf(okuriResultTextOf(true, "issued", 1500)) === "success");
+check("ms(2-21) 裁定319: /kiosk は退勤の前に kiosk_punch_state→あり／なし→kiosk_punch(p_okuri)→kiosk_transport_issue(punch_id)・/mine は punch_self→transport_issue_self・金額の入力欄は無い（表示のみ）",
+  kioskSrc.indexOf('rpc("kiosk_punch_state")') > 0 && kioskSrc.indexOf('rpc("kiosk_punch_state")') < kioskSrc.indexOf('rpc("kiosk_punch",') && kioskSrc.includes("p_okuri: okuri }") && kioskSrc.includes('rpc("kiosk_transport_issue", { p_punch_id: pj.punch_id })')
+  && kioskSrc.includes("onClick={() => void startOut()}") && kioskSrc.includes("if (!plan.ask) { void punch(\"out\"); return; }") && !kioskSrc.includes("MoneyInput")
+  && minePunchSrc.includes('rpc("transport_issue_self", { p_punch_id: punchId })') && minePunchSrc.includes("okuriResultTextOf(okuriActual && okuri, outcome, plan.amount)") && !minePunchSrc.includes("MoneyInput") && !minePunchSrc.includes("<input"));
+// ★裁定317（便 AB-6）・裁定314（便 AB-7）
+const spSrc = fs.readFileSync("app/(manage)/master/store-profile-panel.tsx", "utf8");
+check("ms(2-22) 裁定317／314: 店舗情報に「送りの基本額」（MoneyInput・数値で送る・空欄＝0・一律の店は非活性＋注記）・キープ済みの行＝check_line_id の一致（近似の読取を撤去）",
+  spSrc.includes("<MoneyInput value={form.okuri_base_amount}") && spSrc.includes("!form.okuri_actual}") && spSrc.includes('out.okuri_base_amount = form.okuri_base_amount === "" ? 0 : Number(form.okuri_base_amount)') && spSrc.includes("送りの方式が「一律」の店では使いません")
+  && [...keptLineIdsOf(["l1", "l2", "l3"], [{ check_line_id: "l2" }, { check_line_id: null }, { check_line_id: "x" }])].join(",") === "l2" && keptLineIdsOf(["l1"], []).size === 0
+  && regSrc.includes('.from("bottle_keeps").select("check_line_id").in("check_line_id", targets.map((l) => l.id))') && !regSrc.includes('.gte("opened_at", check.started_at)'));
+// ★裁定312（便 AB-8）・裁定316（便 AB-9）
+const dpfSrc = fs.readFileSync("components/nox/daily-pay-form.tsx", "utf8");
+const aofSrc = fs.readFileSync("components/nox/advance-okuri-form.tsx", "utf8");
+const ibfSrc = fs.readFileSync("components/nox/issue-bulk-form.tsx", "utf8");
+const finSrcAB = fs.readFileSync("app/api/payroll/finalize/route.ts", "utf8");
+check("ms(2-23) 裁定312／316: 繰り下げの注記「翌月（YYYY-MM）の給与から控除」（同月・null は出さない・一括は うち n 件）・日払いは戻り carried_to・前借りは発行後に advances を再読・確定の文言は 1 本（DB の 'period not ended' も同じ 400）",
+  carriedNoteOf("2026-10") === "翌月（2026-10）の給与から控除" && carriedNoteOf(null) === "" && carriedNoteOf(undefined) === ""
+  && carriedBulkNoteOf("2026-09-15", ["2026-10"]) === "翌月（2026-10）の給与から控除" && carriedBulkNoteOf("2026-09-15", [null, "2026-09"]) === "" && carriedBulkNoteOf("2026-09-15", ["2026-10", null, "2026-10"]) === "うち 2 件は翌月（2026-10）の給与から控除"
+  && dpfSrc.includes("carriedNoteOf(r.carried_to)") && aofSrc.includes('.from("advances").select("deduct_period").eq("id", j.id)') && ibfSrc.includes('.from("advances").select("deduct_period").in("id", j.ids)')
+  && messageKindOf("玲奈 に日払い ¥10,000 を発行しました（源泉 ¥510・手取り ¥9,490）・翌月（2026-10）の給与から控除") === "success"
+  && notEndedMessageOf("2026-09-30") === "期間終了（9/30）の翌日から確定できます" && finSrcAB.includes("eFin.message.includes(PERIOD_NOT_ENDED)") && finSrcAB.includes("notEndedMessageOf(win.periodEnd)")
+  && payBoardSrcAB.includes("j.message ?? notEndedMessageOf(periodEndOf(period))"));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
