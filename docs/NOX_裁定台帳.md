@@ -3992,8 +3992,19 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 324-5 権限: 設定変更は owner／manager。時刻修正は 315 のまま。ウィザード STEP 3 に 2 択（既定 punch）。
 324-6 mig 0159＝白名単 +3・payroll_adjustments.source CHECK に 'shortfall'・部分 unique 1・RPC payroll_shortfall_sync(p_run_id)。client 便＝pay.ts 結線・店舗設定 UI・明細表示・STEP 3・suite。」
 
-適用＝未着手（0159 ★起草の入力。0159 の既存スコープ＝起票89・91・92 と同じ mig に載せるか別番号にするかは起草の便で確認）。
-CC の事前メモ（本文には触れない・起草時の確認点）: (a) 324-2 の「現行値」＝pay_time_basis の既定 'punch' を欠損時に読む位置は pay.ts の PayInput（store 設定→calc 入力）で 1 箇所に。(b) 324-3 の「保証時給適用中はその額」は 0154 の cast_guarantee（保証時給の span）を参照＝pay.ts の guarantee.spans と同じ判定を使う。(c) 324-4 の部分 unique は 0148 の carryover（source='carryover'・部分 unique）と同型＝payroll_adjustments に biz_date 列が無ければ列追加が要る（0159 で確認）。(d) 確定済み期の追随停止（315 へ積む）は kind の追加（payroll_attentions_kind_check は 1 値）＝0159 で CHECK を広げる。
+適用＝未着手（0159 ★起草の入力）。
+CC の事前メモ（起草時の確認点・追補1 で (c)(d) は確定・(a)(b) は 0159 事前読取で事実を出す）: (a) 324-2 の「現行値」＝pay_time_basis の既定 'punch' を欠損時に読む位置は pay.ts の PayInput（store 設定→calc 入力）で 1 箇所に。(b) 324-3 の「保証時給適用中はその額」は 0154 の cast_guarantee（保証時給の span）を参照＝pay.ts の guarantee.spans と同じ判定を使う。(c) 324-4 の部分 unique は 0148 の carryover（source='carryover'・部分 unique）と同型＝payroll_adjustments に biz_date 列が無い→追補1 で列追加に確定。(d) 確定済み期の追随停止（315 へ積む）は kind の追加（payroll_attentions_kind_check は 1 値）→追補1 で 'shortfall_after_finalize' に確定。
+
+### 裁定324 追補1（起草前提の補正・2026-09-30 受領）
+
+**本文（逐語）**:
+「裁定324 追補1（起草前提の補正）
+324-4 の部分 unique は payroll_adjustments に biz_date date 列（NULL 可・shortfall のみ必須）を追加して (run_id, cast_id, biz_date) where source='shortfall' とする。carryover の既存 unique は不変。
+324-4 の「確定済み期は payroll_attentions に積む」は payroll_attentions.kind の CHECK を拡張（現行 1 値＋'shortfall_after_finalize'）して受ける。
+0159 のスコープ＝324-6（白名単 +3・source CHECK +'shortfall'・biz_date 列・部分 unique・kind CHECK 拡張・RPC payroll_shortfall_sync）＋起票89（customer_register をレジ権限 staff へ）＋起票91（kiosk_transport_issue ゲート行の形・billing pin 147→148）＋起票92（payroll_attentions の cascade・demo_org_reset）を 1 本。
+pay.ts の読取位置と保証時給の参照先（CC 確認点 (a)(b)）は 0159 事前読取で事実を出し、★指定で確定する。」
+
+0159 のスコープ（追補1 で確定）＝324-6 ＋ 起票89 ＋ 起票91 ＋ 起票92 を 1 本。起草の前に事前読取（docs/tmp/0159_pre.md）で (a)(b) の事実を出し、★指定を待つ。
 
 ## 裁定307（本便で確定・Agoora 承認・2026-09-25）0153 要裁定 4 件の裁定（307-1〜5）
 
