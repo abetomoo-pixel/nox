@@ -22,6 +22,7 @@ import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
@@ -1331,11 +1332,7 @@ export default function AnalyticsBoard({
         <Modal onClose={() => setTgtOpen(false)}>
           <h3 style={{ margin: "0 0 10px" }}>月間売上目標（{stores.find((s) => s.id === storeId)?.name ?? ""}・{period}）</h3>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <input
-              type="number" min={0} value={tgtInput} onChange={(e) => setTgtInput(e.target.value)}
-              placeholder="例 8000000" className="nox-input" style={{ width: 160 }} aria-label="月間売上目標（円）"
-            />
-            <span style={{ fontSize: 12, color: "var(--sub)" }}>円</span>
+            <MoneyInput value={tgtInput} onChange={setTgtInput} placeholder="例 8,000,000" className="nox-input" width={180} ariaLabel="月間売上目標" />
             <button style={{ ...t.btnGold, padding: "8px 16px", opacity: tgtBusy ? 0.6 : 1 }} disabled={tgtBusy}
               onClick={() => void saveTarget(tgtInput.trim() === "" ? null : Number(tgtInput))}>
               {tgtInput.trim() === "" ? "クリア（目標なしに戻す）" : "保存"}

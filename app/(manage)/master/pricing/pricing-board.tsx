@@ -27,6 +27,7 @@ import SegSelect from "@/components/ui/seg-select";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import MasterPageHead from "../master-page-head";
@@ -1305,15 +1306,15 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                           )}
                         </td>
                         <td data-label="本指名料" style={{ textAlign: "right" }}>
-                          <input type="number" min={0} value={vals.hon}
+                          <MoneyInput value={vals.hon}
                             placeholder={isDefault ? `基本 ${yen(store.hon_fee)}` : "既定を適用"}
-                            onChange={(e) => setRankVals((p) => ({ ...p, [row.key]: { ...vals, hon: e.target.value } }))}
-                            style={{ ...input, width: 110, textAlign: "right" }} />
+                            onChange={(v) => setRankVals((p) => ({ ...p, [row.key]: { ...vals, hon: v } }))}
+                            style={{ ...input, textAlign: "right" }} width={110} ariaLabel="本指名料" />
                         </td>
                         <td data-label="場内指名料" style={{ textAlign: "right" }}>
-                          <input type="number" min={0} value={vals.jonai}
+                          <MoneyInput value={vals.jonai}
                             placeholder={isDefault ? `基本 ${yen(store.jonai_fee)}` : "既定を適用"}
-                            onChange={(e) => setRankVals((p) => ({ ...p, [row.key]: { ...vals, jonai: e.target.value } }))}
+                            onChange={(v) => setRankVals((p) => ({ ...p, [row.key]: { ...vals, jonai: v } }))} ariaLabel="場内指名料"
                             style={{ ...input, width: 110, textAlign: "right" }} />
                         </td>
                         <td className="col-state" data-label="状態">
@@ -1885,30 +1886,30 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           <div className="nox-field">
             <span className="lab">料金（空欄＝その料金はこの帯では設定しない）</span>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <label style={{ fontSize: 12, color: "var(--sub)" }}>セット料金（円）
-                <input type="number" min={0} value={mSetFee} onChange={(e) => setMSetFee(e.target.value)}
-                  style={{ ...inputLg, marginTop: 4 }} placeholder={`基本 ${yen(store.set_fee)}`} />
+              <label style={{ fontSize: 12, color: "var(--sub)" }}>セット料金
+                <MoneyInput value={mSetFee} onChange={setMSetFee}
+                  style={{ ...inputLg, marginTop: 4 }} width="100%" placeholder={`基本 ${yen(store.set_fee)}`} ariaLabel="セット料金" />
               </label>
               <label style={{ fontSize: 12, color: "var(--sub)" }}>セット時間（分・空欄＝基本 {store.set_min}分）
                 <input type="number" min={1} value={mSetMin} onChange={(e) => setMSetMin(e.target.value)}
                   disabled={mSetFee === ""} style={{ ...inputLg, marginTop: 4 }} />
               </label>
-              <label style={{ fontSize: 12, color: "var(--sub)" }}>延長料金（円）
-                <input type="number" min={0} value={mExtFee} onChange={(e) => setMExtFee(e.target.value)}
-                  style={{ ...inputLg, marginTop: 4 }} placeholder={`基本 ${yen(store.ext_fee)}`} />
+              <label style={{ fontSize: 12, color: "var(--sub)" }}>延長料金
+                <MoneyInput value={mExtFee} onChange={setMExtFee}
+                  style={{ ...inputLg, marginTop: 4 }} width="100%" placeholder={`基本 ${yen(store.ext_fee)}`} ariaLabel="延長料金" />
               </label>
               <label style={{ fontSize: 12, color: "var(--sub)" }}>延長単位（分・空欄＝基本 {store.ext_min}分）
                 <input type="number" min={1} value={mExtMin} onChange={(e) => setMExtMin(e.target.value)}
                   disabled={mExtFee === ""} style={{ ...inputLg, marginTop: 4 }} />
               </label>
-              <label style={{ fontSize: 12, color: "var(--sub)" }}>同伴料金（円・人数分加算）
-                <input type="number" min={0} value={mDohan} onChange={(e) => setMDohan(e.target.value)}
-                  style={{ ...inputLg, marginTop: 4 }} placeholder={`基本 ${yen(store.dohan_fee)}`} />
+              <label style={{ fontSize: 12, color: "var(--sub)" }}>同伴料金（人数分加算）
+                <MoneyInput value={mDohan} onChange={setMDohan}
+                  style={{ ...inputLg, marginTop: 4 }} width="100%" placeholder={`基本 ${yen(store.dohan_fee)}`} ariaLabel="同伴料金" />
               </label>
               {/* ★mig0130（裁定118）: VIPチャージ＝額のみ（分数なし・セット/延長とは独立の加算行） */}
-              <label style={{ fontSize: 12, color: "var(--sub)" }}>VIPチャージ（円・セットに加算）
-                <input type="number" min={0} value={mVip} onChange={(e) => setMVip(e.target.value)}
-                  style={{ ...inputLg, marginTop: 4 }} placeholder="例 3000（空欄=なし）" />
+              <label style={{ fontSize: 12, color: "var(--sub)" }}>VIPチャージ（セットに加算）
+                <MoneyInput value={mVip} onChange={setMVip}
+                  style={{ ...inputLg, marginTop: 4 }} width="100%" placeholder="例 3,000（空欄=なし）" ariaLabel="VIPチャージ" />
               </label>
             </div>
             <span className="hint">

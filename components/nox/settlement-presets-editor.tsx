@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Message } from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { DEFAULT_SETTLEMENT_PRESETS, TARGET_LABEL, presetsOf, validatePresets, type SettlementPreset, type SettlementTarget } from "@/lib/nox/payroll/settlement";
 
 export default function SettlementPresetsEditor({ storeId, settings, readOnly, onSaved }: {
@@ -38,7 +39,7 @@ export default function SettlementPresetsEditor({ storeId, settings, readOnly, o
       </p>
       <div className="nox-tablewrap plain">
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>
-          <thead><tr><th style={t.th}>名称</th><th style={t.th}>対象</th><th style={{ ...t.th, textAlign: "right" }}>既定額（円）</th><th style={t.th}>契約根拠の文（明細の basis）</th>{!readOnly && <th style={t.th}></th>}</tr></thead>
+          <thead><tr><th style={t.th}>名称</th><th style={t.th}>対象</th><th style={{ ...t.th, textAlign: "right" }}>既定額</th><th style={t.th}>契約根拠の文（明細の basis）</th>{!readOnly && <th style={t.th}></th>}</tr></thead>
           <tbody>
             {list.map((p, i) => (
               <tr key={p.code + i}>
@@ -48,7 +49,7 @@ export default function SettlementPresetsEditor({ storeId, settings, readOnly, o
                     {(Object.keys(TARGET_LABEL) as SettlementTarget[]).map((k) => <option key={k} value={k}>{TARGET_LABEL[k]}</option>)}
                   </select>
                 </td>
-                <td style={{ ...t.td, textAlign: "right" }}><input type="number" min={0} step={1} value={p.amount} disabled={readOnly || busy} onChange={(e) => set(i, { amount: Number(e.target.value) })} className="num" style={{ ...t.input, width: 100, textAlign: "right" }} /></td>
+                <td style={{ ...t.td, textAlign: "right" }}><MoneyInput value={p.amount} disabled={readOnly || busy} onChange={(v) => set(i, { amount: Number(v || 0) })} style={{ ...t.input, textAlign: "right" }} width={120} ariaLabel="既定額" /></td>
                 <td style={t.td}><input value={p.basis} disabled={readOnly || busy} maxLength={200} onChange={(e) => set(i, { basis: e.target.value })} style={{ ...t.input, width: "100%", minWidth: 220 }} /></td>
                 {!readOnly && <td style={t.td}><button type="button" className="nox-btn small ghost" disabled={busy || list.length <= 1} onClick={() => setList((l) => l.filter((_, j) => j !== i))}>削除</button></td>}
               </tr>

@@ -8,6 +8,7 @@ import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import Toast, { Message, type MessageKind } from "@/components/ui/toast";
 import { rpcErrJa, isRpcMissingError } from "@/lib/nox/ui/rpc-err";
 import SegSelect from "@/components/ui/seg-select"; // ★0154 D6: 契約区分
@@ -909,8 +910,8 @@ export default function CastsBoard({
                             {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select></label>
                         {amountKeyOf(ruleForm.rule) && (
-                          <label style={lbl}>{ruleForm.rule === "per_shift" ? "1 稼働の額（円）" : "期の定額（円）"}<br />
-                            <input type="number" min={0} step={1} value={ruleForm.amount} disabled={busy} onChange={(e) => setRuleForm({ ...ruleForm, amount: e.target.value })} style={{ ...input, width: 130 }} /></label>
+                          <label style={lbl}>{ruleForm.rule === "per_shift" ? "1 稼働の額" : "期の定額"}<br />
+                            <MoneyInput value={ruleForm.amount} disabled={busy} onChange={(v) => setRuleForm({ ...ruleForm, amount: v })} style={input} width={140} ariaLabel="報酬型の額" /></label>
                         )}
                         <button style={btnGold} disabled={busy} onClick={() => void saveRule(selCast)}>保存する</button>
                         <button style={btnGhost} disabled={busy} onClick={() => { setRuleForm(null); setRuleMsg(null); }}>やめる</button>
@@ -963,8 +964,8 @@ export default function CastsBoard({
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 8 }}>
                         {guaForm.mode === "new"
                           ? <>
-                              <label style={lbl}>金額（円）<br /><input type="number" min={1} step={1} value={guaForm.amount} disabled={busy}
-                                onChange={(e) => setGuaForm({ ...guaForm, amount: e.target.value })} style={{ ...input, width: 110 }} /></label>
+                              <label style={lbl}>金額<br /><MoneyInput value={guaForm.amount} disabled={busy}
+                                onChange={(v) => setGuaForm({ ...guaForm, amount: v })} style={input} width={130} ariaLabel="保証時給の金額" /></label>
                               <label style={lbl}>開始日<br /><input type="date" min={today} value={guaForm.start} disabled={busy}
                                 onChange={(e) => setGuaForm({ ...guaForm, start: e.target.value, end: guaForm.end < e.target.value ? addDays(e.target.value, 29) : guaForm.end })} style={{ ...input, width: 150 }} /></label>
                             </>

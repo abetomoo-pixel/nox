@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
@@ -687,8 +688,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
 
           <div className="nox-field">
             <span className="lab">販売価格<span className="req">*</span></span>
-            <input type="number" inputMode="numeric" min={0} value={pPrice}
-              onChange={(e) => setPPrice(Number(e.target.value))} style={inputLg} />
+            <MoneyInput value={pPrice} onChange={(v) => setPPrice(Number(v || 0))} style={inputLg} width="100%" ariaLabel="販売価格" />
           </div>
 
           {/* 詳細（原価/発注点/バック設定/unit4/本指名pt）＝日常運用では触らない項目をここへ寄せた */}
@@ -703,8 +703,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
               <div className="nox-field2">
                 <div className="nox-field">
                   <span className="lab">原価</span>
-                  <input type="number" inputMode="numeric" min={0} value={pCost}
-                    onChange={(e) => setPCost(e.target.value)} placeholder="任意" disabled={costsError} style={inputLg} />
+                  <MoneyInput value={pCost} onChange={setPCost} placeholder="任意" disabled={costsError} style={inputLg} width="100%" ariaLabel="原価" />
                 </div>
                 {/* 純増①（mig0062）: 発注点。空欄＝しきい無し（在庫バー非表示）＝null 送信 */}
                 <div className="nox-field">
@@ -732,9 +731,9 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
                 <div className="nox-field2">
                   {([["hon", "本指名"], ["jonai", "場内指名"], ["dohan", "同伴"], ["free", "フリー"]] as const).map(([k, label]) => (
                     <div className="nox-field" key={k}>
-                      <span className="lab">{label}（円）</span>
-                      <input type="number" inputMode="numeric" min={0} value={pUnit4[k] ?? 0}
-                        onChange={(e) => setPUnit4((u) => ({ ...u, [k]: Number(e.target.value) }))} style={inputLg} />
+                      <span className="lab">{label}</span>
+                      <MoneyInput value={pUnit4[k] ?? 0}
+                        onChange={(v) => setPUnit4((u) => ({ ...u, [k]: Number(v || 0) }))} style={inputLg} width="100%" ariaLabel={`${label}のバック`} />
                     </div>
                   ))}
                 </div>

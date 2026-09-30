@@ -7,6 +7,7 @@ import { PRODUCT_BACK_OPTIONS, type ProductBackMode } from "@/lib/nox/comp-metho
 import type { StoreMasters } from "@/lib/nox/payroll/assemble";
 import { simulate, type SimInput } from "@/lib/nox/payroll/sim";
 import * as t from "@/lib/nox/ui/theme";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 
 // F2f 報酬シミュレーター（cast/店 1画面・役割分岐）。
 //   cast モード＝自分のプラン/店マスタ固定・open 残（前借り/送り）を反映・売掛は確定明細参照の注記誘導。
@@ -138,6 +139,7 @@ export default function SimulatorPanel({
   }, [effPlan, f, mode, override, masters, taxMode, applyDeducts, openAdv, openOkuri, periodDaysOk, periodDaysNum]);
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  const setV = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: v }); // ★便 X-12-1: MoneyInput（数字列）用
   const yen = (n: number) => "¥" + Math.round(n).toLocaleString();
 
   if (!selectedPlan) {
@@ -196,8 +198,8 @@ export default function SimulatorPanel({
           {edit && (
             <>
               <div style={{ ...s.row, marginTop: 8 }}>
-                <label style={s.lbl}>基本時給<br /><input type="number" value={edit.base} onChange={(e) => setEdit({ ...edit, base: e.target.value })} style={s.inpS} /></label>
-                <label style={s.lbl}>同伴(円/本)<br /><input type="number" value={edit.dohanBack} onChange={(e) => setEdit({ ...edit, dohanBack: e.target.value })} style={s.inpS} /></label>
+                <label style={s.lbl}>基本時給<br /><MoneyInput value={edit.base} onChange={(v) => setEdit({ ...edit, base: v })} style={s.inpS} ariaLabel="基本時給" /></label>
+                <label style={s.lbl}>同伴（1 本あたり）<br /><MoneyInput value={edit.dohanBack} onChange={(v) => setEdit({ ...edit, dohanBack: v })} style={s.inpS} ariaLabel="同伴バック" /></label>
               </div>
               <div style={s.row}>
                 <label style={s.lbl}>本指名方式<br />
@@ -207,7 +209,7 @@ export default function SimulatorPanel({
                 {edit.honBackMode === "rate" ? (
                   <label style={s.lbl}>本指名率(%)<br /><input type="number" value={edit.honBackRate} onChange={(e) => setEdit({ ...edit, honBackRate: e.target.value })} style={s.inpS} /></label>
                 ) : (
-                  <label style={s.lbl}>本指名(円/本)<br /><input type="number" value={edit.honBack} onChange={(e) => setEdit({ ...edit, honBack: e.target.value })} style={s.inpS} /></label>
+                  <label style={s.lbl}>本指名（1 本あたり）<br /><MoneyInput value={edit.honBack} onChange={(v) => setEdit({ ...edit, honBack: v })} style={s.inpS} ariaLabel="本指名バック" /></label>
                 )}
                 <label style={s.lbl}>場内方式<br />
                   <SegSelect value={edit.jonaiBackMode} onChange={(v) => setEdit({ ...edit, jonaiBackMode: v as BackMode })}
@@ -216,7 +218,7 @@ export default function SimulatorPanel({
                 {edit.jonaiBackMode === "rate" ? (
                   <label style={s.lbl}>場内率(%)<br /><input type="number" value={edit.jonaiBackRate} onChange={(e) => setEdit({ ...edit, jonaiBackRate: e.target.value })} style={s.inpS} /></label>
                 ) : (
-                  <label style={s.lbl}>場内(円/本)<br /><input type="number" value={edit.jonaiBack} onChange={(e) => setEdit({ ...edit, jonaiBack: e.target.value })} style={s.inpS} /></label>
+                  <label style={s.lbl}>場内（1 本あたり）<br /><MoneyInput value={edit.jonaiBack} onChange={(v) => setEdit({ ...edit, jonaiBack: v })} style={s.inpS} ariaLabel="場内指名バック" /></label>
                 )}
               </div>
               {/* ★裁定113/123: 商品販売バックの方式3択（単位 UI は方式に連動＝UI 共通規約 §4） */}
@@ -229,7 +231,7 @@ export default function SimulatorPanel({
                   <label style={s.lbl}>売上の割合(%)<br /><input type="number" min={0} max={100} value={edit.productBackRate} onChange={(e) => setEdit({ ...edit, productBackRate: e.target.value })} style={s.inpS} /></label>
                 )}
                 {edit.productBackMode === "plan_fixed" && (
-                  <label style={s.lbl}>固定額(円/点)<br /><input type="number" min={0} value={edit.productBackFixed} onChange={(e) => setEdit({ ...edit, productBackFixed: e.target.value })} style={s.inpS} /></label>
+                  <label style={s.lbl}>固定額（1 点あたり）<br /><MoneyInput value={edit.productBackFixed} onChange={(v) => setEdit({ ...edit, productBackFixed: v })} ariaLabel="商品バック固定額" style={s.inpS} /></label>
                 )}
               </div>
             </>
@@ -247,9 +249,9 @@ export default function SimulatorPanel({
           </label>
           <label style={s.lbl}>出勤日数<br /><input type="number" value={f.days} onChange={set("days")} style={s.inpS} /></label>
           <label style={s.lbl}>1日の時間<br /><input type="number" value={f.hoursPerDay} onChange={set("hoursPerDay")} style={s.inpS} /></label>
-          <label style={s.lbl}>総売上(円)<br /><input type="number" value={f.sales} onChange={set("sales")} style={s.inp} /></label>
+          <label style={s.lbl}>総売上<br /><MoneyInput value={f.sales} onChange={setV("sales")} style={s.inp} ariaLabel="総売上" /></label>
           {slideApply === "next" && (<>{/* ★N3b（裁定288-7）: 翌月反映＝段は前月合計で決まる */}
-            <label style={s.lbl}>前月の売上合計(円)<br /><input type="number" value={f.prevSales} onChange={set("prevSales")} style={s.inp} /></label>
+            <label style={s.lbl}>前月の売上合計<br /><MoneyInput value={f.prevSales} onChange={setV("prevSales")} style={s.inp} ariaLabel="前月の売上合計" /></label>
             <label style={s.lbl}>前月のポイント合計<br /><input type="number" value={f.prevPts} onChange={set("prevPts")} style={s.inpS} /></label>
           </>)}
         </div>
@@ -266,12 +268,12 @@ export default function SimulatorPanel({
             rate の母数は「レジで指名料を追加した伝票の指名料額」（裁定vi）＝本数入力はバックに効かないため出さない。 */}
         <div style={s.row}>
           {effHonMode === "rate" ? (
-            <label style={s.lbl}>本指名料額(円/期間)<br /><input type="number" value={f.honShimeiAmt} onChange={set("honShimeiAmt")} style={s.inp} /></label>
+            <label style={s.lbl}>本指名料額（期間）<br /><MoneyInput value={f.honShimeiAmt} onChange={setV("honShimeiAmt")} style={s.inp} ariaLabel="本指名料額" /></label>
           ) : (
             <label style={s.lbl}>本指名(本)<br /><input type="number" value={f.hon} onChange={set("hon")} style={s.inpS} /></label>
           )}
           {effJonaiMode === "rate" ? (
-            <label style={s.lbl}>場内指名料額(円/期間)<br /><input type="number" value={f.jonaiShimeiAmt} onChange={set("jonaiShimeiAmt")} style={s.inp} /></label>
+            <label style={s.lbl}>場内指名料額（期間）<br /><MoneyInput value={f.jonaiShimeiAmt} onChange={setV("jonaiShimeiAmt")} style={s.inp} ariaLabel="場内指名料額" /></label>
           ) : (
             <label style={s.lbl}>場内(本)<br /><input type="number" value={f.jonai} onChange={set("jonai")} style={s.inpS} /></label>
           )}
@@ -289,19 +291,19 @@ export default function SimulatorPanel({
             plan_rate/plan_fixed では商品ごとのバック額は close で 0 凍結＝入力を出さない（sim.ts が同じ鏡像で 0 に落とす）。 */}
         {effPbMode === "product_rule" ? (
           <div style={s.row}>
-            <label style={s.lbl}>ドリンクバック(円)<br /><input type="number" value={f.drink} onChange={set("drink")} style={s.inpS} /></label>
+            <label style={s.lbl}>ドリンクバック<br /><MoneyInput value={f.drink} onChange={setV("drink")} style={s.inpS} ariaLabel="ドリンクバック" /></label>
             {!compact && (
               <>
-                <label style={s.lbl}>シャンパン(円)<br /><input type="number" value={f.champ} onChange={set("champ")} style={s.inpS} /></label>
-                <label style={s.lbl}>ボトル(円)<br /><input type="number" value={f.bottle} onChange={set("bottle")} style={s.inpS} /></label>
+                <label style={s.lbl}>シャンパン<br /><MoneyInput value={f.champ} onChange={setV("champ")} style={s.inpS} ariaLabel="シャンパン" /></label>
+                <label style={s.lbl}>ボトル<br /><MoneyInput value={f.bottle} onChange={setV("bottle")} style={s.inpS} ariaLabel="ボトル" /></label>
               </>
             )}
           </div>
         ) : effPbMode === "plan_rate" ? (
           <div style={s.row} data-testid="sim-pb-sales">
-            <label style={s.lbl}>ドリンク売上(円)<br /><input type="number" value={f.pbSalesDrink} onChange={set("pbSalesDrink")} style={s.inpS} /></label>
-            <label style={s.lbl}>シャンパン売上(円)<br /><input type="number" value={f.pbSalesChamp} onChange={set("pbSalesChamp")} style={s.inpS} /></label>
-            <label style={s.lbl}>ボトル売上(円)<br /><input type="number" value={f.pbSalesBottle} onChange={set("pbSalesBottle")} style={s.inpS} /></label>
+            <label style={s.lbl}>ドリンク売上<br /><MoneyInput value={f.pbSalesDrink} onChange={setV("pbSalesDrink")} style={s.inpS} ariaLabel="ドリンク売上" /></label>
+            <label style={s.lbl}>シャンパン売上<br /><MoneyInput value={f.pbSalesChamp} onChange={setV("pbSalesChamp")} style={s.inpS} ariaLabel="シャンパン売上" /></label>
+            <label style={s.lbl}>ボトル売上<br /><MoneyInput value={f.pbSalesBottle} onChange={setV("pbSalesBottle")} style={s.inpS} ariaLabel="ボトル売上" /></label>
             <span style={{ ...s.lbl, alignSelf: "flex-end" }}>× {effPlan?.productBackRate ?? 0}%</span>
           </div>
         ) : (
@@ -329,8 +331,8 @@ export default function SimulatorPanel({
               <label style={s.lbl}>本指名商品pt<br /><input type="number" value={f.pointProducts} onChange={set("pointProducts")} style={s.inpS} /></label>
               {effPbMode === "product_rule" && (
                 <>
-                  <label style={s.lbl}>シャンパン(円)<br /><input type="number" value={f.champ} onChange={set("champ")} style={s.inpS} /></label>
-                  <label style={s.lbl}>ボトル(円)<br /><input type="number" value={f.bottle} onChange={set("bottle")} style={s.inpS} /></label>
+                  <label style={s.lbl}>シャンパン<br /><MoneyInput value={f.champ} onChange={setV("champ")} style={s.inpS} ariaLabel="シャンパン" /></label>
+                  <label style={s.lbl}>ボトル<br /><MoneyInput value={f.bottle} onChange={setV("bottle")} style={s.inpS} ariaLabel="ボトル" /></label>
                 </>
               )}
             </div>

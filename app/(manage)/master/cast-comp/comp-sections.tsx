@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 
 // キャスト・報酬レーン D2-1: 旧 CompMaster（報酬設計マスタ 6タブ）の解体先。
 //   ★各タブ子コンポーネントは comp-master.tsx から**逐語移設**（JSX・RPC・引数・権限出し分けとも
@@ -252,7 +253,7 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthl
               <td>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   <span style={unit}>¥</span>
-                  <input type="number" min={0} value={r.wage} onChange={(e) => set(i, "wage", Number(e.target.value))} style={{ ...input, width: 90 }} />
+                  <MoneyInput value={r.wage} onChange={(v) => set(i, "wage", Number(v || 0))} style={input} width={110} ariaLabel="時給" />
                   <span style={unit}>円</span>
                 </span>
               </td>
@@ -376,23 +377,23 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
           <span style={note}>{id ? "編集中" : "新規"}</span>
           <input placeholder="プラン名" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} />
-          <label style={{ fontSize: 12 }}>基本時給 <input type="number" min={0} value={base} onChange={(e) => setBase(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
+          <label style={{ fontSize: 12 }}>基本時給 <MoneyInput value={base} onChange={(v) => setBase(Number(v || 0))} style={input} width={110} ariaLabel="基本時給" /></label>
           {/* mig0086: hon/jonai は方式トグル（円/本｜率）＋方式に応じた値入力。円/本値は率中も保持（裁定v）。 */}
           <label style={{ fontSize: 12 }}>本指名方式 <SegSelect value={honMode} onChange={(v) => setHonMode(v as BackModeRow)}
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {honMode === "rate" ? (
             <label style={{ fontSize: 12 }}>本 率(%) <input type="number" min={0} max={100} value={honRate} onChange={(e) => setHonRate(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
           ) : (
-            <label style={{ fontSize: 12 }}>本(円/本) <input type="number" min={0} value={honBack} onChange={(e) => setHonBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+            <label style={{ fontSize: 12 }}>本（1 本あたり） <MoneyInput value={honBack} onChange={(v) => setHonBack(Number(v || 0))} style={input} width={100} ariaLabel="本指名バック" /></label>
           )}
           <label style={{ fontSize: 12 }}>場内方式 <SegSelect value={jonaiMode} onChange={(v) => setJonaiMode(v as BackModeRow)}
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {jonaiMode === "rate" ? (
             <label style={{ fontSize: 12 }}>場内 率(%) <input type="number" min={0} max={100} value={jonaiRate} onChange={(e) => setJonaiRate(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
           ) : (
-            <label style={{ fontSize: 12 }}>場内(円/本) <input type="number" min={0} value={jonaiBack} onChange={(e) => setJonaiBack(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+            <label style={{ fontSize: 12 }}>場内（1 本あたり） <MoneyInput value={jonaiBack} onChange={(v) => setJonaiBack(Number(v || 0))} style={input} width={100} ariaLabel="場内指名バック" /></label>
           )}
-          <label style={{ fontSize: 12 }}>同伴(円/本) <input type="number" min={0} value={dohanBack} onChange={(e) => setDohanBack(Number(e.target.value))} style={{ ...input, width: 70 }} />
+          <label style={{ fontSize: 12 }}>同伴（1 本あたり） <MoneyInput value={dohanBack} onChange={(v) => setDohanBack(Number(v || 0))} style={input} width={100} ariaLabel="同伴バック" />
             {/* ★mig0115（裁定86-②）: 同伴の率方式は R-2b（同伴 cast_id 必須）後に解錠＝それまで per_count 固定 */}
             <span className="nox-stpill" style={{ marginLeft: 6 }}>率は準備中（R-2b 後）</span></label>
           {/* ★0153（296 追補2／305-12）: 商品バック「販売数 × 固定額」の区分別 3 欄（空欄＝一律の固定額）。同伴は本指名と同額。商品側の unit4 が最優先 */}
@@ -446,7 +447,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
               <SegSelect value={cKind} onChange={(v) => setCKind(v)}
                 options={[["guarantee_min", "最低保証"], ["achievement_bonus", "達成ボーナス"]] as const} />
               <label style={{ fontSize: 12 }}>{cKind === "guarantee_min" ? "保証額(円)" : "加算額(円)"}
-                <input type="number" min={0} value={cAmount} onChange={(e) => setCAmount(Number(e.target.value))} style={{ ...input, width: 100 }} /></label>
+                <MoneyInput value={cAmount} onChange={(v) => setCAmount(Number(v || 0))} style={input} width={120} ariaLabel="金額" /></label>
               {/* ★判定単位は v2.0 UI では月固定（半月/日は挙動段で解錠・params={"period":"month"} を送信） */}
               <span style={note}>{cKind === "guarantee_min" ? "判定単位: 月（固定）" : "しきい値: ノルマ達成100%・1段（固定）"}</span>
               <label style={{ fontSize: 12 }}>priority <input type="number" value={cPriority} onChange={(e) => setCPriority(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
@@ -910,7 +911,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
                 {Object.entries(DED_KIND_JA).map(([k, ja]) => <option key={k} value={k}>{ja}</option>)}
               </select>
             </label>
-            <label style={{ fontSize: 12 }}>額 <input type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} style={{ ...input, width: 80 }} /></label>
+            <label style={{ fontSize: 12 }}>金額 <MoneyInput value={amount} onChange={(v) => setAmount(Number(v || 0))} style={input} width={110} ariaLabel="金額" /></label>
             <SegSelect value={per} onChange={(v) => setPer(v)}
               options={[["day", "日ごと"], ["month", "月ごと"], ["rate", "売上%"]] as const} />
             <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>

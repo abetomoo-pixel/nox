@@ -203,7 +203,10 @@ check("ms(2-15) 裁定322: castPickerOrder（①さき・れい→②えま・�
   && (regSrc.match(/ grouped shiftIds=\{shiftIds\}/g) ?? []).length === 2 && regSrc.includes('from("shifts").select("cast_id")'));
 // ★便 X-11-6: 金額欄の共通化（数字のみ・3 桁区切り・値は整数・右に「円」・ラベルは「金額」）
 const MONEY_USERS = ["components/nox/advance-okuri-form.tsx", "components/nox/issue-bulk-form.tsx", "components/nox/daily-pay-form.tsx", "app/(manage)/shift/incentive-panel.tsx", "app/(manage)/payroll/payroll-board.tsx",
-  "app/(manage)/payroll/payment-panel.tsx", "components/nox/okuri-out-dialog.tsx", "components/nox/settlement-modal.tsx", "components/nox/sanction-modal.tsx", "app/(manage)/report/report-board.tsx", "app/(manage)/register/register-board.tsx"];
+  "app/(manage)/payroll/payment-panel.tsx", "components/nox/okuri-out-dialog.tsx", "components/nox/settlement-modal.tsx", "components/nox/sanction-modal.tsx", "app/(manage)/report/report-board.tsx", "app/(manage)/register/register-board.tsx",
+  // ★便 X-12-1（起票90・2026-09-30）: 残り 8 ファイル（料金・商品・待遇 2・シミュレーター・保証額／報酬型の額・売上目標・精算プリセット）＝41 箇所
+  "app/(manage)/master/pricing/pricing-board.tsx", "app/(manage)/master/products/products-board.tsx", "app/(manage)/master/cast-comp/comp-sections.tsx", "app/(manage)/master/cast-comp/plan/plan-editor.tsx",
+  "components/simulator-panel.tsx", "app/(manage)/casts/casts-board.tsx", "app/(manage)/analytics/analytics-board.tsx", "components/nox/settlement-presets-editor.tsx"];
 const moneySrc = fs.readFileSync("components/ui/money-input.tsx", "utf8");
 check("ms(2-16) X-11-6: moneyDigitsOf／moneyDisplayOf／moneyValueOf・MoneyInput（inputMode numeric・右に円）・置換 11 ファイルが MoneyInput を使い、括弧つきの「金額(円)」「金額（円）」「額（円）」が残っていない",
   moneyDigitsOf("1,500円") === "1500" && moneyDigitsOf("０１２３") === "123" && moneyDigitsOf("-5") === "5" && moneyDigitsOf("000") === "0" && moneyDigitsOf("") === "" && moneyDigitsOf("12345678901") === "123456789"

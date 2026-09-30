@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
 import { slideApplyOf } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）: 単位表示の出し分け
@@ -91,7 +92,7 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: 12, color: "var(--sub)" }}>{editId ? "編集中" : "追加"}</span>
           <label style={{ fontSize: 12 }}>{kind === "guarantee_min" ? "保証額(円/月)" : "加算額(円)"}{" "}
-            <input type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} style={{ ...t.input, width: 110 }} /></label>
+            <MoneyInput value={amount} onChange={(v) => setAmount(Number(v || 0))} style={t.input} width={130} ariaLabel="金額" /></label>
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }}
             onClick={() => void onSave(section, kind, { id: editId, amount, priority: FIXED_PRIORITY, active })}>
@@ -281,7 +282,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           <label style={lbl}>プラン名
             <input placeholder="プラン名" value={draft.name} onChange={(e) => d({ name: e.target.value })} style={{ ...t.input, width: 170 }} disabled={!isOwner} /></label>
           <label style={lbl}>基本時給
-            <Unit pre="¥" post="円"><input type="number" min={0} value={draft.base} onChange={(e) => d({ base: Number(e.target.value) })} style={{ ...t.input, width: 90 }} disabled={!isOwner} /></Unit></label>
+            <MoneyInput value={draft.base} onChange={(v) => d({ base: Number(v || 0) })} style={t.input} width={120} disabled={!isOwner} ariaLabel="基本時給" /></label>
           <label style={{ ...lbl, flexDirection: "row", alignItems: "center", paddingBottom: 9 }}>
             <input type="checkbox" checked={draft.active} onChange={(e) => d({ active: e.target.checked })} disabled={!isOwner} /> 有効</label>
         </div>
@@ -317,7 +318,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
                 <label style={lbl}>{mode === "rate" ? "バック率" : "バック額"}
                   {mode === "rate"
                     ? <Unit post="%"><input type="number" min={0} max={100} value={rate} onChange={(e) => setRate(Number(e.target.value))} style={{ ...t.input, width: 80 }} disabled={!isOwner} /></Unit>
-                    : <Unit pre="¥" post="円/本"><input type="number" min={0} value={amt} onChange={(e) => setAmt(Number(e.target.value))} style={{ ...t.input, width: 100 }} disabled={!isOwner} /></Unit>}
+                    : <Unit post="/本"><MoneyInput value={amt} onChange={(v) => setAmt(Number(v || 0))} style={t.input} width={120} disabled={!isOwner} ariaLabel="バック単価" /></Unit>}
                 </label>
               </div>
             </div>
@@ -328,7 +329,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
               {/* 同伴の割合方式は R-2b まで封印（裁定86-②・対応表 C18＝準備中）＝トグルは出さず固定額のみ */}
               <span style={{ fontSize: 11, color: "var(--sub)" }}>固定額 円/本（割合方式は準備中）</span>
               <label style={lbl}>バック額
-                <Unit pre="¥" post="円/本"><input type="number" min={0} value={draft.dohanBack} onChange={(e) => d({ dohanBack: Number(e.target.value) })} style={{ ...t.input, width: 100 }} disabled={!isOwner} /></Unit>
+                <Unit post="/本"><MoneyInput value={draft.dohanBack} onChange={(v) => d({ dohanBack: Number(v || 0) })} style={t.input} width={120} disabled={!isOwner} ariaLabel="同伴バック" /></Unit>
               </label>
             </div>
           </div>
@@ -360,8 +361,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
             )}
             {draft.productBackMode === "plan_fixed" && (
               <label style={{ fontSize: 12 }} data-testid="pb-fixed">固定額{" "}
-                <Unit pre="¥" post="円/点"><input type="number" min={0} step={1} value={draft.productBackFixed}
-                  onChange={(e) => d({ productBackFixed: Number(e.target.value) })} style={{ ...t.input, width: 90 }} disabled={!isOwner} /></Unit>
+                <Unit post="/点"><MoneyInput value={draft.productBackFixed}
+                  onChange={(v) => d({ productBackFixed: Number(v || 0) })} style={t.input} width={120} disabled={!isOwner} ariaLabel="商品バック固定額" /></Unit>
               </label>
             )}
           </div>
@@ -382,7 +383,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
               ))}
               {presetName && (
                 <>
-                  <label style={{ fontSize: 12 }}>{presetName} 定額(円) <input type="number" min={0} value={presetValue} onChange={(e) => setPresetValue(Number(e.target.value))} style={{ ...t.input, width: 90 }} /></label>
+                  <label style={{ fontSize: 12 }}>{presetName} 定額 <MoneyInput value={presetValue} onChange={(v) => setPresetValue(Number(v || 0))} style={t.input} width={120} ariaLabel="定額" /></label>
                   <button type="button" style={{ ...t.btnGold, ...t.btnSm }} onClick={() => void savePreset()}>プリセットを保存</button>
                 </>
               )}
