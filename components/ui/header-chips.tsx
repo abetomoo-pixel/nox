@@ -52,7 +52,7 @@ export function HeaderGear({ groups }: { groups: NavGroup[] }) {
         <span aria-hidden="true">⚙</span>
       </button>
       {open && (
-        <Modal onClose={() => setOpen(false)} maxWidth={520} scroll>
+        <Modal onClose={() => setOpen(false)} maxWidth={520} variant="top">{/* ★起票94（便 X-12-3）: ヘッダー直下に固定・超過は内部スクロール（≤899 はシート） */}
           <div className="nox-navsheet">
             <div className="nox-formmodal-head" style={{ marginBottom: 10 }}>
               <h2 className="nox-navsheet-h" style={{ margin: 0 }}>{GEAR_LABEL}</h2>
@@ -77,7 +77,7 @@ export function UserChip({ name, email, roleJa, storeLabel }: { name: string | n
     <>
       <button type="button" className="nox-hdrbtn nox-userchip" title="自分の情報" onClick={() => setOpen(true)}>{label}</button>
       {open && (
-        <Modal onClose={() => setOpen(false)} maxWidth={430}>
+        <Modal onClose={() => setOpen(false)} maxWidth={430} variant="top">{/* ★起票94（便 X-12-3）: 名前・メール行とログアウトが常に viewport 内 */}
           <div className="nox-navsheet">
             <div className="nox-formmodal-head" style={{ marginBottom: 10 }}>
               <h2 className="nox-navsheet-h" style={{ margin: 0 }}>自分の情報</h2>

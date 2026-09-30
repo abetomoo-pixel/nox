@@ -494,6 +494,13 @@ body {
    スクロール自体（overflow:auto）は modal.tsx が inline で当てる（t.card の inline
    overflow:hidden は CSS から上書きできないため）。ここは高さ上限だけを与える。 */
 .nox-modal-scroll .nox-modal-card { max-height: calc(100vh - 36px); }  /* overlay の padding 18px×2 */
+
+/* ★起票94（便 X-12-3・2026-09-30）: variant="top"＝ヘッダー直下に固定（歯車・自分の情報）。上端＝.nox-tb 64px＋8px・高さ上限＝100vh−(64+8×2)＝内部スクロール（modal.tsx が overflow:auto を inline で当てる）。
+   ≤900px は既存のシート分岐へ素通し（この節は min-width:901px の中だけ）。数値は lib/nox/ui/popover.ts（HEADER_H／POP_GAP）と同値＝ms(2-25) が pin。 */
+@media (min-width: 901px) {
+  .nox-modal-top { align-items: flex-start; padding-top: 72px; }
+  .nox-modal-top .nox-modal-card { max-height: calc(100vh - 80px); }
+}
 @media (max-width: 900px) {
   .nox-modal-scroll .nox-modal-card { max-height: 88vh; }
 }

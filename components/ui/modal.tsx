@@ -37,8 +37,8 @@ export default function Modal({
   onClose: () => void;
   /** カード幅。既定 430（printer-panel のみ 520 を渡す＝置換前と同値。>900 で有効・≤900 はシートが全幅化）。 */
   maxWidth?: number;
-  /** "center"（既定）=中央オーバーレイ／"drawer"=右端から全高スライドイン（>900px のみ・≤900 はシート）。 */
-  variant?: "center" | "drawer";
+  /** "center"（既定）=中央オーバーレイ／"drawer"=右端から全高スライドイン（>900px のみ・≤900 はシート）／"top"=ヘッダー直下に固定（★起票94・>900px のみ・≤900 はシート・高さ上限＋中身スクロール）。 */
+  variant?: "center" | "drawer" | "top";
   /** true=カードに高さ上限を与えて中身をスクロールさせる（position:sticky のフッタが効くようになる）。 */
   scroll?: boolean;
   children: ReactNode;
@@ -51,6 +51,7 @@ export default function Modal({
   }, [onClose]);
   const overlayCls = "nox-modal-overlay"
     + (variant === "drawer" ? " nox-modal-drawer" : "")
+    + (variant === "top" ? " nox-modal-top" : "")   // ★起票94（便 X-12-3）: 上端＝ヘッダー下端＋8px・max-height＝100vh−80px（globals.css・lib/nox/ui/popover.ts と同値）
     + (scroll ? " nox-modal-scroll" : "");
   const cardStyle: CSSProperties = {
     ...t.card,
@@ -64,7 +65,7 @@ export default function Modal({
     // ★drawer / scroll のときだけ中身をスクロールさせる。t.card が inline で overflow:hidden を
     //   持つため CSS では上書きできない（inline が勝つ）＝ここで inline 対 inline で差し替える。
     //   どちらも渡さない既存6箇所は t.card の hidden のまま＝1px も変わらない。
-    ...(variant === "drawer" || scroll ? { overflow: "auto" as const } : null),
+    ...(variant === "drawer" || variant === "top" || scroll ? { overflow: "auto" as const } : null),
   };
   return (
     <div className={overlayCls} onClick={onClose}>

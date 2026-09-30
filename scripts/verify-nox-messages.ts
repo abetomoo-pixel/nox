@@ -26,6 +26,7 @@ import { okuriSelfPlanOf, okuriResultTextOf, OKURI_PENDING_NOTE } from "../lib/n
 import { keptLineIdsOf } from "../lib/nox/register/kept-lines"; // ★裁定314（便 AB-7）
 import { carriedBulkNoteOf, carriedNoteOf, dailyPayPeriodNoteOf } from "../lib/nox/payroll/advance-okuri"; // ★裁定312（便 AB-8）・起票93（便 X-12-2）
 import { notEndedMessageOf } from "../lib/nox/payroll/finalize-guard"; // ★裁定316（便 AB-9）
+import { popoverBoxOf, HEADER_H, POP_GAP } from "../lib/nox/ui/popover"; // ★起票94（便 X-12-3）
 
 let pass = 0;
 const fails: string[] = [];
@@ -288,8 +289,19 @@ check("ms(2-23) 裁定312／316: 繰り下げの注記「翌月（YYYY-MM）の�
 const dpf2 = fs.readFileSync("components/nox/daily-pay-form.tsx", "utf8");
 check("ms(2-24) 起票93: dailyPayPeriodNoteOf（paid＝info・翌月の文言は carriedNoteOf と同文／finalized＝warn／draft・null・不正な期＝null）・フォームに「読取のみ」の文言と readOnly prop が無い・payroll_runs を読んで Message で出す",
   dailyPayPeriodNoteOf("paid", "2026-09")?.kind === "info" && dailyPayPeriodNoteOf("paid", "2026-09")?.text === "この営業日の期（2026-09）は支払済みです。発行した日払いは翌月（2026-10）の給与から控除します"
-  && dailyPayPeriodNoteOf("paid", "2026-12")?.text.includes("翌月（2027-01）") && dailyPayPeriodNoteOf("finalized", "2026-09")?.kind === "warn" && dailyPayPeriodNoteOf("draft", "2026-09") === null && dailyPayPeriodNoteOf(null, "2026-09") === null && dailyPayPeriodNoteOf("paid", "x") === null
+  && dailyPayPeriodNoteOf("paid", "2026-12")?.text.includes("翌月（2027-01）") === true && dailyPayPeriodNoteOf("finalized", "2026-09")?.kind === "warn" && dailyPayPeriodNoteOf("draft", "2026-09") === null && dailyPayPeriodNoteOf(null, "2026-09") === null && dailyPayPeriodNoteOf("paid", "x") === null
   && !dpf2.includes("読取のみ") && !dpf2.includes("readOnly") && dpf2.includes('from("payroll_runs").select("status")') && dpf2.includes("{periodNote && <Message kind={periodNote.kind}>{periodNote.text}</Message>}"));
+
+// ★起票94（便 X-12-3）: 歯車・自分の情報のポップオーバー＝ヘッダー直下に固定（上方向へ出さない）・高さ上限＝viewport−ヘッダー−余白×2（内部スクロール）・≤899 はシート
+const modalSrc = fs.readFileSync("components/ui/modal.tsx", "utf8");
+const chipsSrc = fs.readFileSync("components/ui/header-chips.tsx", "utf8");
+const cssSrc = fs.readFileSync("app/globals.css", "utf8");
+const box600 = popoverBoxOf(600);
+check("ms(2-25) 起票94: 画面高 600px でポップオーバー上端（72）≥ ヘッダー下端（64）・max-height 520＝600−64−16・CSS .nox-modal-top（padding-top 72px／max-height calc(100vh − 80px)・min-width 901px の中）が純関数と同値・HeaderGear／UserChip は variant=\"top\"・modal は top で overflow auto",
+  box600.top === HEADER_H + POP_GAP && box600.top >= HEADER_H && box600.maxHeight === 600 - HEADER_H - POP_GAP * 2 && popoverBoxOf(200).maxHeight === 120
+  && cssSrc.includes(`.nox-modal-top { align-items: flex-start; padding-top: ${HEADER_H + POP_GAP}px; }`) && cssSrc.includes(`.nox-modal-top .nox-modal-card { max-height: calc(100vh - ${HEADER_H + POP_GAP * 2}px); }`)
+  && cssSrc.indexOf("@media (min-width: 901px) {\n  .nox-modal-top") > 0 && /\.nox-tb \{[^}]*height: 64px/.test(cssSrc)
+  && (chipsSrc.match(/variant="top"/g) ?? []).length === 2 && !chipsSrc.includes("maxWidth={520} scroll>") && modalSrc.includes('(variant === "top" ? " nox-modal-top" : "")') && modalSrc.includes('variant === "drawer" || variant === "top" || scroll ? { overflow: "auto" as const }'));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
