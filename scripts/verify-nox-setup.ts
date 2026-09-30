@@ -25,9 +25,9 @@ function check(label: string, ok: boolean, detail?: string) {
 const ORDER: PlanStep["group"][] = ["settings", "hours", "seats", "pricing", "comp", "products", "overrides", "flags", "done"];
 const systemsAll = Object.fromEntries(SYSTEM_KEYS.map((k) => [k, k === "sys_hourly" || k === "sys_backs"])) as Record<SystemKey, boolean>;
 const CUR = { card_tax_rate: 5, round_unit: 100, round_mode: "down", time_mode: "manual", time_per: "table" };
-const planOf = (biz: BizType, includeProducts = true) => buildSetupPlan({
+const planOf = (biz: BizType, includeProducts = true, payTimeBasis?: "punch" | "shift") => buildSetupPlan({
   storeId: "00000000-0000-4000-8000-000000000001", biz, storeName: null, hours: hoursOf(templateOf(biz)), systems: systemsAll, includeProducts, receivablePolicy: "customer_only",
-  billingMode: "table", pricing: pricingOf(templateOf(biz)), current: CUR, flags: [{ key: "qr_order", enabled: true }],
+  billingMode: "table", pricing: pricingOf(templateOf(biz)), current: CUR, flags: [{ key: "qr_order", enabled: true }], ...(payTimeBasis ? { payTimeBasis } : {}), // ★裁定324（便 C-2）
 });
 const ordered = (steps: PlanStep[]) => steps.every((s, i) => i === 0 || ORDER.indexOf(s.group) >= ORDER.indexOf(steps[i - 1].group));
 
@@ -59,6 +59,13 @@ for (const biz of ["cabaret", "girlsbar", "snack", "lounge", "bar"] as BizType[]
   check(`su(2-2) ${biz}: 営業時間 7＋cutoff 1・席 ${e.seats}・料金 2＋rules ${e.rules}・報酬 ${e.comp}・商品 ${e.included ? 1 : 0}・上書き ${e.overrides ? 1 : 0}・機能 1・完了 1`,
     n("hours") === 8 && n("seats") === e.seats && n("pricing") === 2 + e.rules && n("comp") === e.comp && n("products") === (e.included ? 1 : 0) && n("overrides") === (e.overrides ? 1 : 0) && n("flags") === 1 && n("done") === 1,
     JSON.stringify({ hours: n("hours"), seats: n("seats"), pricing: n("pricing"), comp: n("comp"), products: n("products"), overrides: n("overrides"), flags: n("flags") }));
+  { // ★裁定324（0159・便 C-2）: payTimeBasis 'shift' で settings 群に set_store_pay_time_basis(…,'now') が 1 本増える・'punch'／未指定は増えない・順序（settings→hours）は不変
+    const withShift = planOf(biz, true, "shift"), withPunch = planOf(biz, true, "punch");
+    const st = withShift.find((s) => s.rpc === "set_store_pay_time_basis");
+    check(`su(2-9) ★${biz}: payTimeBasis 'shift' → set_store_pay_time_basis(p_value 'shift', p_apply 'now') が settings 群に 1 本（receivable_policy の後・hours の前）・'punch'／未指定は 0 本・他の段数は不変`,
+      withShift.length === steps.length + 1 && !!st && st.group === "settings" && st.args?.p_value === "shift" && st.args?.p_apply === "now" && withShift.indexOf(st) === withShift.findIndex((s) => s.key === "receivable_policy") + 1 && withShift[withShift.indexOf(st) + 1].group === "hours"
+      && withPunch.length === steps.length && !withPunch.some((s) => s.rpc === "set_store_pay_time_basis") && ordered(withShift), JSON.stringify({ n0: steps.length, n1: withShift.length, st }));
+  }
   check(`su(2-3) ★${biz}: 商品 ${e.products} 件中 投入 ${e.included}・除外 ${e.food}（271-9 は裁定272-4 で解除＝0）`, (t?.products.length ?? 0) === e.products && pp.included.length === e.included && pp.excludedTotal === e.food && excludedFoodCountOf(biz) === e.food, JSON.stringify({ all: t?.products.length, inc: pp.included.length, ex: pp.excluded }));
   check(`su(2-4) ${biz}: back 上書き ${e.overrides} 件・未対応 back 0（gross_profit_pct 使用 0）`, pp.overrides === e.overrides && pp.unsupportedBack === 0, JSON.stringify({ ov: pp.overrides, un: pp.unsupportedBack }));
   const bulk = steps.find((s) => s.key === "products_bulk");

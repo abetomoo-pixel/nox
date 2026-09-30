@@ -172,6 +172,7 @@ export type SetupSelection = {
   pricing: PricingInput;
   current: { card_tax_rate: number; round_unit: number; round_mode: string; time_mode: string; time_per: string };
   flags?: Array<{ key: string; enabled: boolean }>; // 変更する feature_flags（org 既定行）だけ
+  payTimeBasis?: "punch" | "shift"; // ★裁定324（0159・便 C-2）: STEP 3 の 2 択（既定 'punch'＝書かない・'shift' のときだけ set_store_pay_time_basis(…,'now')）
 };
 export type ReceivablePolicy = "disabled" | "customer_only" | "cast_liability_allowed"; // ★裁定272-5: CHECK 3 値（既定 customer_only）
 export const RECEIVABLE_POLICIES = [["customer_only", "客の売掛のみ"], ["cast_liability_allowed", "キャスト負担も可"], ["disabled", "売掛を使わない"]] as const;
@@ -188,6 +189,10 @@ export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
   // ★裁定272-5（0148）: 受取方針＝settings 段の直後（実列・owner 限定 RPC・0148 手貼り前は RPC 不在で失敗位置に出る）
   steps.push({ key: "receivable_policy", group: "settings", label: `売掛の受取方針（${RECEIVABLE_POLICIES.find(([k]) => k === sel.receivablePolicy)?.[1] ?? sel.receivablePolicy}）`, rpc: "set_store_receivable_policy",
     args: { p_store_id: s, p_policy: sel.receivablePolicy } });
+  // ★裁定324（0159・便 C-2）: 勤務時間の計算基準＝'shift' を選んだときだけ 'now' で書く（新規店＝payroll_runs 0 行が前提・1 行以上なら RPC が 'runs exist' で止める＝店舗設定の「次の期から」へ）
+  if (sel.payTimeBasis === "shift") {
+    steps.push({ key: "pay_time_basis", group: "settings", label: "勤務時間の計算基準（確定シフトどおり）", rpc: "set_store_pay_time_basis", args: { p_store_id: s, p_value: "shift", p_apply: "now" } });
+  }
   // 2) 営業時間 7 曜日＋cutoff
   const close30 = to30h(sel.hours.open, sel.hours.close);
   for (let dow = 0; dow <= 6; dow++) {

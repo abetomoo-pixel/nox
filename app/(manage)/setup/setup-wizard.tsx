@@ -57,6 +57,7 @@ export default function SetupWizard({ store, counts, orgFlags }: {
   const [pricing, setPricing] = useState<PricingInput | null>(null);
   // STEP 3（既定＝時給・各種バックのみ ON）
   const [systems, setSystems] = useState<Record<SystemKey, boolean>>(() => Object.fromEntries(SYSTEM_KEYS.map((k) => [k, SYSTEM_DEFAULTS_ON.includes(k)])) as Record<SystemKey, boolean>);
+  const [payTimeBasis, setPayTimeBasis] = useState<"punch" | "shift">("punch"); // ★裁定324（0159・便 C-2）: STEP 3 の 2 択（既定 実打刻）
   // STEP 4
   const [billingMode, setBillingMode] = useState<"table" | "individual" | "mixed">("table");
   const [receivablePolicy, setReceivablePolicy] = useState<ReceivablePolicy>("customer_only"); // ★裁定272-5
@@ -80,7 +81,7 @@ export default function SetupWizard({ store, counts, orgFlags }: {
   }
   const changedFlags = Object.keys(FLAG_LABELS).filter((k) => (orgFlags.find((f) => f.key === k)?.enabled ?? false) !== flags[k]).map((k) => ({ key: k, enabled: flags[k] }));
   const plan: PlanStep[] = useMemo(() => (biz && pricingEff)
-    ? buildSetupPlan({ storeId: store.id, biz, storeName: storeName.trim() !== store.name ? storeName : null, hours, systems, includeProducts, billingMode, receivablePolicy, pricing: pricingEff, current: store.current, flags: changedFlags })
+    ? buildSetupPlan({ storeId: store.id, biz, storeName: storeName.trim() !== store.name ? storeName : null, hours, systems, includeProducts, billingMode, receivablePolicy, pricing: pricingEff, current: store.current, flags: changedFlags, payTimeBasis })
     : [], [biz, pricingEff, store.id, store.name, storeName, hours, systems, includeProducts, billingMode, receivablePolicy, store.current, changedFlags]);
   const summary = planSummaryOf(plan);
 
@@ -225,6 +226,9 @@ export default function SetupWizard({ store, counts, orgFlags }: {
           <h2 style={secTitle}>STEP 3　キャスト待遇（使う制度）</h2>
           <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 10px" }}>採用する待遇制度を選びます。既定は「時給・最低保証」と「各種バック」のみ ON。OFF にした制度は該当する画面の節が表示されないだけで、後から変更できます。</p>
           <StoreSystemsPanel settings={systems} onChange={(k, next) => setSystems((s) => ({ ...s, [k]: next }))} usage={usage} />
+          {/* ★裁定324（0159・便 C-2）: 勤務時間の計算基準＝実打刻（既定）／確定シフトどおり。保存は完了時に set_store_pay_time_basis(…,'now')（'shift' のときだけ） */}
+          <div style={{ fontSize: 12, fontWeight: 800, margin: "14px 0 6px" }}>勤務時間の計算基準 <span style={{ fontWeight: 400, color: "var(--sub)" }}>時給部分を実打刻で計算するか、確定シフトどおりに計算するか（後から店舗設定で次の期から切替できます）</span></div>
+          <SegSelect value={payTimeBasis} onChange={(v) => setPayTimeBasis(v as "punch" | "shift")} options={[["punch", "実打刻"], ["shift", "確定シフトどおり"]]} ariaLabel="勤務時間の計算基準" />
           {/* ★0154 D4（裁定293 追補1-1）: 精算調整のひな形は完了時に既定 3 件（遅刻／当欠／早退・額 0）を作る＝文と額は「報酬制度」で編集 */}
           <p style={{ ...t.sub, fontSize: 12, margin: "10px 0 0" }}>精算調整のひな形（遅刻／当欠／早退・既定額 0）は初期設定の完了時に作られます。文と額は「マスタ ▸ 報酬制度」で編集できます。</p>
         </section>
