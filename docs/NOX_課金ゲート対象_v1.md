@@ -261,7 +261,7 @@ owner∨manager 自店判定（0137 のヘルパー）・flag gate の直後に�
 **set_store_pay_time_basis**（mig0159＝勤務時間の計算基準（'punch'＝実打刻／'shift'＝確定シフトどおり）の店設定・'next'＝次の暦月の 1 日から・'now'＝給与 run が無い店だけ即時・owner∨manager 自店・ゲート内蔵・裁定324-1／324-5／追補2-1・追補3-1）
 **set_cast_quota**（mig0160＝キャスト別・月別のノルマ 4 項目（本指名・場内・同伴・売上・NULL 可）の upsert・owner∨manager 自店・'bad cast'／'bad month'／'bad quota'・ゲート内蔵・裁定326-3／追補1-2） /
 **set_store_mine_settings**（mig0160＝/mine の店設定 8 キー（payslip_visibility／drink_claim／punch_correction_request／ranking／ranking_show_others／reservation_request／shift_request_mode／contract_ack）の白名単＋enum 検証＝settings_json に merge・owner∨manager 自店・ゲート内蔵・裁定326-1／326-7／追補1-4・起票96） /
-**staff_pattern_disable / staff_pattern_enable**（mig0160＝スタッフの枠マスタの無効化（disabled_from）と解除・owner∨manager 自店（staff_shift_can_manage）・過去日 'effective_from_past'・ゲート内蔵・起票95／裁定326 追補2-2・5）
+**staff_pattern_disable / staff_pattern_enable**（mig0160＝スタッフの枠マスタの無効化（disabled_from）と解除・owner∨manager 自店（スタッフシフトの管理権限ヘルパー＝0137 で判定）・過去日 'effective_from_past'・ゲート内蔵・起票95／裁定326 追補2-2・5）
 
 ### A9. 顧客・告知（6本）
 customer_register / customer_update / customer_assign_cast / notice_create / notice_update / notice_delete
