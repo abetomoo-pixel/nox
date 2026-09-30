@@ -793,7 +793,7 @@ export default function CastsBoard({
               {/* ★0156（裁定309-6／309 追補2・便 V-4）: 日払いの発行（このキャストに固定・owner／manager＝page が他ロールを redirect 済み）。源泉は月次と同式（日数 1）でプレビュー・雇用は 0＋注記 */}
               <div style={{ marginTop: 12, marginBottom: 12 }}>
                 <h3 style={{ ...secTitle, margin: "0 0 6px" }}>日払いの発行</h3>
-                <DailyPayForm castId={selCast.id} castName={selCast.name} dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))} />
+                <DailyPayForm castId={selCast.id} castName={selCast.name} storeId={selCast.store_id} dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))} />{/* ★便 L-3-2: storeId＝過徴収 warn の当期プレビュー */}
               </div>
               {/* ★機微情報の分離を明示（モックの .lockrow 逐語）＝この画面には出さない */}
               <div className="nox-lockrow">

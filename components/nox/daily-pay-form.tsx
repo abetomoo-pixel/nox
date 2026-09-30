@@ -11,14 +11,16 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import { withholdingOf } from "@/lib/nox/pay";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
-import { carriedNoteOf, dailyPayPeriodNoteOf } from "@/lib/nox/payroll/advance-okuri";
+import { carriedNoteOf, dailyPayPeriodNoteOf, dailyPayOverNoteOf } from "@/lib/nox/payroll/advance-okuri";
 import { Message } from "@/components/ui/toast";
 
 type Paid = { id: string; biz_date: string; gross: number; withholding: number; net: number; withholding_category: string };
 const yen = (n: number) => "¥" + n.toLocaleString();
 
-export default function DailyPayForm({ castId, castName, dateDefault }: {
+export default function DailyPayForm({ castId, castName, dateDefault, storeId }: {
   castId: string; castName: string;
+  /** ★便 L-3-2: 当期プレビュー（/api/payroll/preview）で見込み手取りを読むための店（無ければ過徴収 warn を出さない） */
+  storeId?: string;
   /** 営業日の既定（YYYY-MM-DD・呼び出し側が決める） */
   dateDefault: string;
 }) {
@@ -27,7 +29,8 @@ export default function DailyPayForm({ castId, castName, dateDefault }: {
   const [date, setDate] = useState(dateDefault);
   const [taxMode, setTaxMode] = useState<"委託" | "雇用" | null>(null); // cast_tax_profiles.mode（行なし＝委託＝RPC と同じ既定）
   const [paid, setPaid] = useState<Paid[] | null>(null);
-  const [runStatus, setRunStatus] = useState<string | null>(null); // ★起票93（裁定312・便 X-12-2）: 営業日の期の run 状態（paid＝翌月へ繰り下げ・finalized＝凍結明細に載らない）
+  const [runStatus, setRunStatus] = useState<string | null>(null);
+  const [expectedNet, setExpectedNet] = useState<number | null>(null); // ★便 L-3-2（仮決め）: 当期の差引支給見込み（日払い前＝preview の net＋dailyPaidGross） // ★起票93（裁定312・便 X-12-2）: 営業日の期の run 状態（paid＝翌月へ繰り下げ・finalized＝凍結明細に載らない）
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -44,6 +47,21 @@ export default function DailyPayForm({ castId, castName, dateDefault }: {
     setRunStatus((cs as { status?: string } | null)?.status ?? null);
   }, [supabase, castId, date]);
   useEffect(() => { void load(); }, [load]);
+  // ★便 L-3-2: 当期プレビュー（参考値）を月ごとに 1 回読む。失敗・行なしは warn を出さない（発行は止めない）
+  useEffect(() => {
+    if (!storeId) { setExpectedNet(null); return; }
+    let alive = true;
+    const month = date.slice(0, 7);
+    void (async () => {
+      try {
+        const res = await fetch("/api/payroll/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ storeId, period: month }) });
+        const j = (await res.json()) as { rows?: { castId: string; net: number; dailyPaidGross?: number }[] };
+        const r = res.ok ? j.rows?.find((x) => x.castId === castId) : undefined;
+        if (alive) setExpectedNet(r ? r.net + (r.dailyPaidGross ?? 0) : null);
+      } catch { if (alive) setExpectedNet(null); }
+    })();
+    return () => { alive = false; };
+  }, [storeId, castId, date.slice(0, 7)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gross = /^\d+$/.test(amount) ? Number(amount) : null;
   const mode = taxMode ?? "委託";
@@ -63,7 +81,8 @@ export default function DailyPayForm({ castId, castName, dateDefault }: {
     await load();
   }
 
-  const periodNote = dailyPayPeriodNoteOf(runStatus, date.slice(0, 7)); // ★起票93: 支払済みの期でも発行できる（裁定312＝翌月へ繰り下げ）＝発行欄は常に出す
+  const periodNote = dailyPayPeriodNoteOf(runStatus, date.slice(0, 7));
+  const overNote = dailyPayOverNoteOf((paid ?? []).reduce((s, p) => s + p.gross, 0), gross ?? 0, expectedNet); // ★便 L-3-2: 過徴収 warn（止めない） // ★起票93: 支払済みの期でも発行できる（裁定312＝翌月へ繰り下げ）＝発行欄は常に出す
   const sumG = (paid ?? []).reduce((s, p) => s + p.gross, 0), sumW = (paid ?? []).reduce((s, p) => s + p.withholding, 0);
   return (
     <div style={{ display: "grid", gap: 8 }}>
@@ -85,6 +104,7 @@ export default function DailyPayForm({ castId, castName, dateDefault }: {
         ) : "金額を入れると源泉と手取りをプレビューします（月次と同じ式・日数 1）。"}
         {mode === "雇用" && <> ※雇用キャストの日払いは源泉 0 で渡します（税理士確認中・T10）。</>}
       </p>
+      {overNote && <Message kind="warn">{overNote}</Message>}
       {periodNote && <Message kind={periodNote.kind}>{periodNote.text}</Message>}
       {msg && <Toast msg={msg} />}
       <div>

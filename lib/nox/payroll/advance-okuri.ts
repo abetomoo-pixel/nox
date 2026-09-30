@@ -16,6 +16,12 @@ export function dailyPayPeriodNoteOf(status: string | null | undefined, period: 
   if (status === "finalized") return { kind: "warn", text: `この営業日の期（${period}）は確定済みです。発行はできますが、確定解除して再計算するまで給与明細には載りません` };
   return null;
 }
+/** ★便 L-3-2（仮決め）: 日払いの過徴収 warn。当期の日払い累計＋今回額 > 当期プレビューの差引支給見込み（日払い前＝preview の net＋dailyPaidGross）のとき文言を返す。発行は止めない。
+ *  expectedNet が null（プレビュー未取得・行なし）や gross 0 以下は null */
+export function dailyPayOverNoteOf(issuedSum: number, gross: number, expectedNet: number | null | undefined): string | null {
+  if (typeof expectedNet !== "number" || !Number.isFinite(expectedNet) || gross <= 0) return null;
+  return issuedSum + gross > expectedNet ? `当期の見込み手取り ¥${Math.max(0, expectedNet).toLocaleString()} を超えます（翌期で控除）` : null;
+}
 /** 一括発行: 発行した行の deduct_period から「うち n 件は翌月（YYYY-MM）の給与から控除」。発行日の月と同じ・null は数えない */
 export function carriedBulkNoteOf(date: string, deductPeriods: readonly (string | null | undefined)[]): string {
   const carried = deductPeriods.filter((p): p is string => typeof p === "string" && /^\d{4}-\d{2}$/.test(p) && p !== date.slice(0, 7));

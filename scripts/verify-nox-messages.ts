@@ -24,7 +24,7 @@ import { stocktakePlanOf, stocktakeRowsOf } from "../lib/nox/stock/stocktake"; /
 import { attentionCarryOf, attentionLineOf, isFinalizedDay, nextPeriodOf, splitAttentions, POST_FINALIZE_NOTE, type AttentionRow } from "../lib/nox/payroll/attention"; // ★裁定315（便 AB-2／AB-3）
 import { okuriSelfPlanOf, okuriResultTextOf, OKURI_PENDING_NOTE } from "../lib/nox/shift/okuri-self"; // ★裁定319（便 AB-4／AB-5）
 import { keptLineIdsOf } from "../lib/nox/register/kept-lines"; // ★裁定314（便 AB-7）
-import { carriedBulkNoteOf, carriedNoteOf, dailyPayPeriodNoteOf } from "../lib/nox/payroll/advance-okuri"; // ★裁定312（便 AB-8）・起票93（便 X-12-2）
+import { carriedBulkNoteOf, carriedNoteOf, dailyPayPeriodNoteOf, dailyPayOverNoteOf } from "../lib/nox/payroll/advance-okuri"; // ★裁定312（便 AB-8）・起票93（便 X-12-2）
 import { notEndedMessageOf } from "../lib/nox/payroll/finalize-guard"; // ★裁定316（便 AB-9）
 import { popoverBoxOf, HEADER_H, POP_GAP } from "../lib/nox/ui/popover"; // ★起票94（便 X-12-3）
 
@@ -302,6 +302,13 @@ check("ms(2-25) 起票94: 画面高 600px でポップオーバー上端（72）
   && cssSrc.includes(`.nox-modal-top { align-items: flex-start; padding-top: ${HEADER_H + POP_GAP}px; }`) && cssSrc.includes(`.nox-modal-top .nox-modal-card { max-height: calc(100vh - ${HEADER_H + POP_GAP * 2}px); }`)
   && cssSrc.indexOf("@media (min-width: 901px) {\n  .nox-modal-top") > 0 && /\.nox-tb \{[^}]*height: 64px/.test(cssSrc)
   && (chipsSrc.match(/variant="top"/g) ?? []).length === 2 && !chipsSrc.includes("maxWidth={520} scroll>") && modalSrc.includes('(variant === "top" ? " nox-modal-top" : "")') && modalSrc.includes('variant === "drawer" || variant === "top" || scroll ? { overflow: "auto" as const }'));
+
+// ★便 L-3-2（仮決め）: 日払いの過徴収 warn＝累計＋今回 > 見込み手取り（日払い前）→ warn・発行は止めない・プレビュー未取得は出さない
+const dpf3 = fs.readFileSync("components/nox/daily-pay-form.tsx", "utf8");
+check("ms(2-26) L-3-2: dailyPayOverNoteOf（30,000＋10,000 > 35,000 → 文言／＝ちょうどは出さない／expectedNet null・gross 0 は null）・フォームは preview を月ごとに読み Message warn・発行ボタンの disabled に overNote を使わない",
+  dailyPayOverNoteOf(30000, 10000, 35000) === "当期の見込み手取り ¥35,000 を超えます（翌期で控除）" && dailyPayOverNoteOf(30000, 5000, 35000) === null && dailyPayOverNoteOf(0, 1000, null) === null && dailyPayOverNoteOf(0, 0, 100) === null && dailyPayOverNoteOf(0, 1000, -500) === "当期の見込み手取り ¥0 を超えます（翌期で控除）"
+  && dpf3.includes('{overNote && <Message kind="warn">{overNote}</Message>}')
+  && dpf3.includes('fetch("/api/payroll/preview"') && dpf3.includes("setExpectedNet(r ? r.net + (r.dailyPaidGross ?? 0) : null)") && !dpf3.includes("disabled={busy || gross == null || gross <= 0 || overNote"));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
