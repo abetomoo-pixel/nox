@@ -684,8 +684,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         );
       })()}
 
-      {/* ★裁定315（便 AB-2）: 確定後の打刻修正（確定済み／支払済みの run だけ・0 件なら何も出さない） */}
-      {runInfo && (runInfo.status === "finalized" || runInfo.status === "paid") && (
+      {/* ★裁定315（便 AB-2）: 確定後の打刻修正（0 件なら何も出さない）。★0161（裁定327・便 M1-5）: 未閉鎖の出勤（open_punch）は下書きの run にも積まれる＝status で絞らず run があれば描く */}
+      {runInfo && (
         <PayrollAttentions runId={runInfo.id} runPeriod={period} onCarry={(c) => { setMsg(""); setCarry(c); setPeriod(c.period); }} />
       )}
 

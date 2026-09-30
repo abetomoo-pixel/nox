@@ -17,6 +17,8 @@ import NormCard from "./norm-card";
 import DrinkClaimForm from "./drink-claim-form";
 import PrintPayslipButton from "./print-payslip-button";
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
+import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: mine_settings の出し分け（既存の自店読取に相乗り＝新規 fetch 0）
+import { punchHeadOf, punchStateOf } from "@/lib/nox/shift/punch-state"; // ★裁定326 追補3（便 M1-4）: 打刻カードの 3 状態（todayPunches から＝新規 fetch 0）
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +114,8 @@ export default async function MinePage() {
   // 段M2: 所属店（ヘッダ表示用）。cast の可視 store は自店のみ（RLS）＝先頭行が自店（/mine/ranking と同型）。
   const { data: myStores } = await supabase.from("stores").select("id, name, settings_json").limit(1); // ★裁定269: sys_* は既存の自店読取に列を足すだけ
   const myStore = myStores?.[0];
+  const ms = mineSettingsOf(myStore?.settings_json); // ★326-8: drink_claim／punch_correction_request／ranking の出し分け（reservation_request の申請カードは M3）
+  const ps = punchStateOf((todayPunches ?? []) as { type: string; punched_at: string }[]); // ★326 追補3: 当日営業日の自分の打刻 → 未出勤／出勤中／退勤済み
   // ★0156（起票85・便 V-7）: マイナンバーの廃棄状況（cast_mynumber_discard_status＝cast 本人・値は返さない・audit なし）。廃棄後だけ「廃棄済み YYYY-MM-DD」を出す
   const { data: discardRows } = meCast ? await supabase.rpc("cast_mynumber_discard_status", { p_cast_id: meCast.id as string }) : { data: null };
   const discard = ((discardRows ?? []) as { mynumber_deleted_at: string | null; mynumber_deletion_method: string | null; has_mynumber: boolean }[])[0];
@@ -166,8 +170,8 @@ export default async function MinePage() {
       {/* 段M2: 打刻はスマホで一番使うのでヘッダ直後へ（section の中身・PunchActions・最終打刻の
           文言はそのまま＝移設のみ）。 */}
       <section className="nox-panel">
-        <h3>打刻</h3>
-        <PunchActions okuriActual={((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual"}
+        <h3>打刻{punchHeadOf(ps.state, ps.inAt) && <span className="num" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--ok)" }}>{punchHeadOf(ps.state, ps.inAt)}</span>}</h3>{/* ★326 追補3: 出勤中は見出し横に「出勤中 HH:MM〜」 */}
+        <PunchActions state={ps.state} okuriActual={((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual"}
           okuriBase={typeof ((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount === "number" ? (((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount as number) : null} />{/* ★0156（裁定309-9）: actual 店のみ「送り あり／なし」 */}
         <p className="nox-pstate">
           最終打刻:{" "}
@@ -223,7 +227,7 @@ export default async function MinePage() {
       </section>
 
       {/* F3f 自己申告ドリンク（独立枠＝上の「今月のバック」には出ない・承認後に給与明細へ合算） */}
-      <DrinkClaimForm month={month} />
+      {ms.drink_claim && <DrinkClaimForm month={month} />}{/* ★326-8: drink_claim OFF＝カード非表示 */}
 
       <section className="nox-panel">
         <h3>今月の出勤ボーナス（{month}）</h3>
@@ -250,7 +254,7 @@ export default async function MinePage() {
       </section>
 
       {/* ★0154 D1（裁定294-2／294-4／295-1）: 出退勤の修正申請（本人）＝店の承認後に punches へ反映・承認分は本人が確認／異議あり */}
-      {meCast?.id && (
+      {ms.punch_correction_request && meCast?.id && (/* ★326-8: punch_correction_request OFF＝修正申請カード非表示 */
         <section className="nox-panel">
           <h3>{term}の修正申請</h3>
           <PunchCorrectionForm castId={meCast.id as string} bizToday={bizToday} punches={(todayPunches ?? []) as { id: string; type: string; punched_at: string }[]} term={term}
@@ -288,7 +292,7 @@ export default async function MinePage() {
       {/* 段M2: 指名ランキング＝★自分の順位のみ。順位・母数・自分の件数だけを出し、
           他キャストの名前も数字も描画しない（1位との差のような他人由来の値も出さない）。
           値は /mine/ranking が既に使っている get_cast_ranking の自分の行そのもの＝情報は増えない。 */}
-      {myRank && (
+      {ms.ranking && myRank && (/* ★326-8: ranking OFF＝カードもナビもページも出さない（直 URL は /mine へ） */
         <section className="nox-panel">
           <h3>指名ランキング（{month}）</h3>
           <div className="nox-myrank">

@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
+import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: ranking OFF の店は直 URL も /mine へ
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +30,9 @@ export default async function RankingPage() {
   const supabase = await createClient();
   const period = bizDateOf(new Date().toISOString(), await loadCutoff(supabase)).slice(0, 7);
   // cast の可視 store は自店のみ（RLS）＝先頭行が自店
-  const { data: stores } = await supabase.from("stores").select("id, name").limit(1);
+  const { data: stores } = await supabase.from("stores").select("id, name, settings_json").limit(1);
   const store = stores?.[0];
+  if (!mineSettingsOf(store?.settings_json).ranking) redirect("/mine"); // ★326-8: ranking OFF＝ページを出さない
   const { data } = store
     ? await supabase.rpc("get_cast_ranking", { p_store_id: store.id, p_period: period })
     : { data: [] as RankRow[] };

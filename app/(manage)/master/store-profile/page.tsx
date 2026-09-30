@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import StoreProfilePanel from "../store-profile-panel";
+import MineSettingsPanel from "../mine-settings-panel"; // ★裁定326-1（0160・便 M1-2）: キャスト画面の設定（owner／manager）
 import MasterPageHead from "../master-page-head";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +24,11 @@ export default async function MasterStoreProfilePage() {
       <MasterPageHead
         eyebrow="STORE PROFILE"
         title="店舗情報"
-        desc="店舗名・略称・顧客情報の利用目的と保持年数、シフト運用（キャスト確認）、売掛を使うかどうかと操作ログの保持。オーナー限定の項目は他のロールには表示されません。"
+        desc="店舗名・略称・顧客情報の利用目的と保持年数、シフト運用（キャスト確認）、売掛を使うかどうかと操作ログの保持、キャスト画面の設定。オーナー限定の項目は他のロールには表示されません。"
       />
       <StoreProfilePanel stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={role === "owner"} />
+      {/* ★裁定326-1／326-8（便 M1-2）: キャスト画面の設定＝店舗情報カードの隣（owner／manager 自店＝RPC set_store_mine_settings の判定と同じ） */}
+      <MineSettingsPanel stores={(allStores ?? []) as { id: string; name: string }[]} />
     </div>
   );
 }

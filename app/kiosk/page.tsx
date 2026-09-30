@@ -15,6 +15,7 @@ import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メ
 // ★裁定319／319 追補1（0158・便 AB-4）: 退勤の前に kiosk_punch_state を読み、送りの方式が実費（actual）の店だけ「送り あり／なし」を聞く。
 //   あり＝kiosk_punch(p_okuri=true)→kiosk_transport_issue(punch_id)（金額はサーバが店の基本額で決める）。基本額が未設定の店は発行せず注記のみ。一律（flat）の店は口を出さない。
 import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1-4）: 順序検査の拒否 3 語は端末にも同じ和文
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean };
 type Phase = "loading" | "login" | "denied" | "select" | "pin" | "okuri" | "result";
 type PunchResult =
@@ -119,7 +120,8 @@ export default function KioskPage() {
     setBusy(false);
     let r: PunchResult;
     if (error) {
-      r = { kind: "ng", message: "この端末は現在使用できません（店に確認してください）" };
+      // ★裁定327（0161）: kiosk_punch は順序検査を raise で返す（'already in'／'already out'／'no open punch'）＝rpcErrJa の和文。それ以外は従来の端末文言
+      r = { kind: "ng", message: /already in|already out|no open punch/.test(error.message) ? rpcErrJa(error.message) : "この端末は現在使用できません（店に確認してください）" };
     } else {
       const j = data as { ok: boolean; reason?: string; punched_at?: string; locked_until?: string };
       if (j.ok) {

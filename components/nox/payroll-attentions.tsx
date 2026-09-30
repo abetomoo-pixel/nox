@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Message } from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
-import { attentionCarryOf, attentionLineOf, splitAttentions, type AttentionCarry, type AttentionRow } from "@/lib/nox/payroll/attention";
+import { attentionCanCarry, attentionCarryOf, attentionLineOf, splitAttentions, type AttentionCarry, type AttentionRow } from "@/lib/nox/payroll/attention";
 
 export default function PayrollAttentions({ runId, runPeriod, onCarry }: { runId: string; runPeriod: string; onCarry: (c: AttentionCarry) => void }) {
   const supabase = createClient();
@@ -43,9 +43,10 @@ export default function PayrollAttentions({ runId, runPeriod, onCarry }: { runId
   if (!rows || rows.length === 0) return msg ? <Message kind={msg.kind}>{msg.text}</Message> : null;
   const { open, resolved } = splitAttentions(rows);
   return (
-    <section className="nox-cardtop" style={{ ...t.card, fontSize: 12.5 }} aria-label="確定後の打刻修正">
-      <strong style={{ color: open.length > 0 ? "var(--danger-ink)" : "var(--ink)" }}>確定後の打刻修正{open.length > 0 ? `（要対応 ${open.length} 件）` : "（要対応なし）"}</strong>
-      <p style={{ color: "var(--sub)", margin: "4px 0 6px" }}>確定済みの給与は変わりません。差額は翌期の調整で扱います。</p>
+    <section className="nox-cardtop" style={{ ...t.card, fontSize: 12.5 }} aria-label="要対応（打刻）">
+      {/* ★0161（裁定327・便 M1-5）: kind 2 種（確定後の打刻修正／未閉鎖の出勤）を同じ器で。open_punch は「翌期の調整へ」を出さず、修正申請で閉じて「解決」 */}
+      <strong style={{ color: open.length > 0 ? "var(--danger-ink)" : "var(--ink)" }}>要対応（打刻）{open.length > 0 ? `（${open.length} 件）` : "（なし）"}</strong>
+      <p style={{ color: "var(--sub)", margin: "4px 0 6px" }}>確定後の打刻修正: 確定済みの給与は変わりません。差額は翌期の調整で扱います。／未閉鎖の出勤: 前営業日以前の退勤がありません。店側の打刻修正で退勤を入れ、「解決」を押してください。</p>
       {open.map((r) => (
         <div key={r.id} style={{ borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
           <div style={{ overflowWrap: "anywhere" }}>{attentionLineOf(r)}</div>
@@ -59,7 +60,7 @@ export default function PayrollAttentions({ runId, runPeriod, onCarry }: { runId
             </div>
           ) : (
             <div className="nox-actions" style={{ justifyContent: "flex-start", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => onCarry(attentionCarryOf(r, runPeriod))} disabled={busy} style={{ ...t.btnGold, ...t.btnSm }}>翌期の調整へ</button>
+              {attentionCanCarry(r) && <button type="button" onClick={() => onCarry(attentionCarryOf(r, runPeriod))} disabled={busy} style={{ ...t.btnGold, ...t.btnSm }}>翌期の調整へ</button>}
               <button type="button" onClick={() => { setMsg(null); setReason(""); setTarget(r.id); }} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm }}>解決</button>
             </div>
           )}
