@@ -4013,7 +4013,21 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 326-8 ranking 'off' の店では /mine のナビ項目とランキングページを出さない（直 URL は /mine へ）。drink_claim／punch_correction_request 'off' も同様にカードを出さない。
 326-9 器＝0160: cast_quotas（org・store・cast・month・4 項目・NULL 可）＋set_cast_quota RPC／予約表に status・requested_by_cast・rejected_reason＋cast 用 RPC reservation_request と店用 reservation_decide／cast_notice_reads（cast×notice）＋既読 RPC／settings_json +7 キー（白名単か専用 RPC は起草時に裁く）。起票95（枠マスタ無効化）・96（T6 契約確認）と同乗。」
 
-適用＝未着手（0160 ★起草の入力＝便 C の後の R160 事前読取 docs/tmp/0160_pre.md → ★指定）。
+適用＝未着手（0160 ★起草の入力＝便 C の後の R160 事前読取 docs/tmp/0160_pre.md → 追補1 で ★指定 6 点を確定 → 便 D160 で起草）。
+
+### 裁定326 追補1（0160 起草判断・2026-09-30）
+
+出典＝Agoora（2026-09-30・便 D160-1 で収載）。R160 事前読取（docs/tmp/0160_pre.md）の ★指定 6 点への裁定。**本文（逐語）**:
+「裁定326 追補1（0160 起草判断・2026-09-30）
+1 予約申請の承認者＝reservation_create と同じゲート（owner／manager／レジ権限 staff＝can_crm）。can_register は含めない。
+2 ノルマは新表 cast_quotas（本指名・場内・同伴・売上の 4 項目・NULL 可）。既存 cast_norms は表・読取とも残し、cast の自己設定 set_cast_norm_self は削除。/mine の目標カードは cast_quotas のみを読む。
+3 休み希望は shift_wishes に kind（work／off）を足す形。'off' は時刻 NULL。確定案の候補条件（提出のない日＝出勤可能）は client（autoassign 純関数）で反転。
+4 mine_settings は専用 RPC set_store_mine_settings（owner／manager）・8 キー（326-1 の 6＋shift_request_mode＋contract_ack）。set_store_profile の白名単は不変。
+5 cast の予約申請は自分の担当客の中から（customer_list_summary と同じ判定）。新規顧客の登録は不可（追補2-5 のまま）。
+6 名簿区分＝店設定系 4 本は A・予約 2 本は reservation_create と同区分・notice_mark_read は B（cast セルフ）。」
+
+0160 のスコープ（追補1＋便 D160 の ★1〜★8）: ★1 cast_quotas＋set_cast_quota／★2 set_cast_norm_self を revoke→drop／★3 reservations の status +pending・rejected・列 +4（requested_by_cast／rejected_reason／decided_by／decided_at）＋reservation_request（cast セルフ）／reservation_decide／★4 shift_wishes +kind（work／off・off は時刻 NULL）＋submit に p_kind／★5 set_store_mine_settings（8 キー・contract_ack＝起票96）／★6 cast_notice_reads＋notice_mark_read／★7 staff_shift_patterns +disabled_from＋staff_pattern_disable／enable（起票95）／★8 demo_org_reset に 2 表。名簿＝A +4（set_cast_quota／set_store_mine_settings／staff_pattern_disable／enable）・予約 2 本＝A3（reservation_create と同区分）・B +1（notice_mark_read）・A −1（set_cast_norm_self drop）。
+
 
 ## 裁定325（2026-09-30 承認・Agoora）無人便 L の仮決めの追認
 
