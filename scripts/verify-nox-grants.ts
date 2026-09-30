@@ -253,7 +253,8 @@ async function main() {
       "report_can_close", "report_can_reopen", "assert_day_open", // ★0138: C層③ 内部ヘルパー（RPC 本文からのみ・4 ロール revoke）
       "punch_correction_apply", // ★0154（裁定295-5）: 承認済み申請を punches へ写す内部ヘルパー（4 ロール revoke・grant なし）
       "referral_recalc", // ★0152（裁定286／298-1）: 紹介料の現在値を更新する内部ヘルパー（4 ロール revoke・grant なし）
-      "okuri_default_of"]; // ★0156（裁定309-9／追補2 (a)）: 送り既定の純ヘルパー（打刻 3 本の本文からのみ・4 ロール revoke・grant なし）
+      "okuri_default_of", // ★0156（裁定309-9／追補2 (a)）: 送り既定の純ヘルパー（打刻 3 本の本文からのみ・4 ロール revoke・grant なし）
+      "punch_seq_check"]; // ★0161（裁定327＋追補1）: 打刻の順序検査＋前営業日の未閉鎖 in の注意行（打刻 3 本の本文からのみ・4 ロール revoke・grant なし）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
@@ -455,7 +456,7 @@ async function main() {
       const p158 = await db.query(`select policyname, cmd, qual from pg_policies where schemaname='public' and tablename='payroll_attentions'`);
       check("G9 0158 payroll_attentions の policy＝select 1 本（owner∨manager 自店・cast／staff は 0 行）", p158.rowCount === 1 && p158.rows[0].policyname === "payroll_attentions_select" && p158.rows[0].cmd === "SELECT" && p158.rows[0].qual === "((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR ((auth_role() = 'manager'::text) AND (store_id = auth_store_id()))))", JSON.stringify(p158.rows));
       const k158 = await db.query(`select pg_get_constraintdef(oid) d from pg_constraint where conname='payroll_attentions_kind_check'`);
-      check("G9 0158 payroll_attentions_kind_check＝1 値（post_finalize_punch）", k158.rows[0]?.d === "CHECK ((kind = 'post_finalize_punch'::text))", k158.rows[0]?.d);
+      check("G9 0158 payroll_attentions_kind_check＝2 値（post_finalize_punch／open_punch・★0161 で +1）", k158.rows[0]?.d === "CHECK ((kind = ANY (ARRAY['post_finalize_punch'::text, 'open_punch'::text])))", k158.rows[0]?.d);
       const n158 = await db.query(`select table_name || '.' || column_name c, is_nullable from information_schema.columns where table_schema='public' and (table_name, column_name) in (('daily_pays','settle_period'),('bottle_keeps','check_line_id'),('transport','created_by')) order by 1`);
       check("G9 0158 列 3（bottle_keeps.check_line_id／daily_pays.settle_period／transport.created_by）＝すべて null 可", n158.rowCount === 3 && n158.rows.every((r) => r.is_nullable === "YES"), JSON.stringify(n158.rows));
       const t158 = await db.query(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='transport'`);
@@ -478,6 +479,14 @@ async function main() {
       const w160 = await db.query(`select column_name, is_nullable, column_default from information_schema.columns where table_schema='public' and table_name='shift_wishes' and column_name in ('kind','start_hm','end_hm') order by 1`);
       const wm = Object.fromEntries(w160.rows.map((r) => [r.column_name, r]));
       check("G9 0160 shift_wishes: kind not null default 'work'・start_hm／end_hm は null 可（off 希望）", w160.rowCount === 3 && wm.kind.is_nullable === "NO" && String(wm.kind.column_default).includes("'work'") && wm.start_hm.is_nullable === "YES" && wm.end_hm.is_nullable === "YES", JSON.stringify(w160.rows));
+      // ★0161（裁定327＋追補1）: payroll_attentions の run_id null 可（FK on delete cascade 不変）・open_punch_ck（detail に punch_id／biz_date）・部分 unique payroll_attentions_open_punch_uq（kind='open_punch'）・10 列のまま
+      const n161 = await db.query(`select is_nullable from information_schema.columns where table_schema='public' and table_name='payroll_attentions' and column_name='run_id'`);
+      const k161 = await db.query(`select conname, pg_get_constraintdef(oid) d from pg_constraint where conname in ('payroll_attentions_open_punch_ck','payroll_attentions_run_id_fkey') order by 1`);
+      const i161 = await db.query(`select indexdef from pg_indexes where schemaname='public' and indexname='payroll_attentions_open_punch_uq'`);
+      const c161 = await db.query(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='payroll_attentions'`);
+      check("G9 0161 payroll_attentions: run_id null 可・FK on delete cascade 不変・open_punch_ck（punch_id／biz_date）・部分 unique index（kind='open_punch'）・10 列のまま",
+        n161.rows[0]?.is_nullable === "YES" && k161.rowCount === 2 && (k161.rows[0].d as string).includes("punch_id") && (k161.rows[0].d as string).includes("biz_date") && (k161.rows[1].d as string).includes("ON DELETE CASCADE")
+        && i161.rowCount === 1 && /UNIQUE/.test(i161.rows[0].indexdef as string) && /kind = 'open_punch'/.test(i161.rows[0].indexdef as string) && c161.rows[0].n === 10, JSON.stringify([n161.rows, k161.rows, i161.rows, c161.rows]));
     }
 
     // G10: F2d mynumber 暗号化/payment（mig0021）— payment_records RLS・パターン1・crypto RPC ACL。

@@ -875,12 +875,12 @@ async function main() {
     const { error: eSs } = await c.rpc("shift_set", { p_id: null, p_cast_id: castIdA, p_date: "2026-07-15", p_start_hm: "20:00", p_end_hm: "26:00", p_status: "planned" });
     check("F1d cast から shift_set 拒否", !!eSs?.message?.includes("forbidden"), eSs?.message ?? "通ってしまった");
 
-    // 盲目記録: in-in が両方記録される（決定1）
+    // ★0161（裁定327）: 順序検査＝in-in は 2 度目が 'already in'（0008 決定1「盲目記録」は退役・拒否は行を残さない）
     const { data: p1 } = await c.rpc("punch_self", { p_type: "in", p_lat: null, p_lng: null });
-    const { data: p2 } = await c.rpc("punch_self", { p_type: "in", p_lat: 35.66, p_lng: 139.7 });
-    check("F1d punch_self in-in 両方成功（盲目記録）", typeof p1 === "string" && typeof p2 === "string" && p1 !== p2);
-    const { data: myPunches } = await c.from("punches").select("id, type, cast_id").in("id", [p1, p2]);
-    check("F1d in-in が2行とも記録", (myPunches ?? []).length === 2 && (myPunches ?? []).every((r) => r.type === "in"));
+    const { data: p2, error: eP2 } = await c.rpc("punch_self", { p_type: "in", p_lat: 35.66, p_lng: 139.7 });
+    check("F1d punch_self in→in: 1 回目成功・2 回目 'already in'（裁定327）", typeof p1 === "string" && p2 == null && !!eP2?.message?.includes("already in"), eP2?.message ?? "通ってしまった");
+    const { data: myPunches } = await c.from("punches").select("id, type, cast_id").in("id", [p1]);
+    check("F1d in は 1 行だけ記録（拒否は残さない）", (myPunches ?? []).length === 1 && (myPunches ?? []).every((r) => r.type === "in"));
     // ★掃除（教訓30 の一般則・2026-09-01 実測）: punch_self の当日打刻を残すと、暦が9月に入った時点で
     //   payroll スイートの P=2026-09 窓に入り「F2c-2 P（完全期間）は blockers 無し」を no_tax で汚染する
     //   （8月中は無症状の時限装置）。作った2行はその場で消す（billing 段47-3 は created.punches で掃除済みの前例）。
@@ -888,7 +888,7 @@ async function main() {
       const adminP = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
-      await adminP.from("punches").delete().in("id", [p1 as string, p2 as string]);
+      await adminP.from("punches").delete().in("id", [p1 as string]);
     }
 
     // attendance_set_self: late+eta OK・shukkin は拒否（連絡は late/absent のみ）

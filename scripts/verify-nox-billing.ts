@@ -133,6 +133,7 @@ async function main() {
     //   対象 148→149・除外 140→141・全数 288→290（live 実測 2026-09-30＝総数 290・'billing locked' 149）。kiosk_transport_issue のゲート行が v_org 形に（起票91 解消）＝挿入行の形 147→149。
     // ★mig0160（裁定326＋追補1・2・起票95／96・2026-09-30）: A3 +2（reservation_request／decide）・A8 +4（set_cast_quota／set_store_mine_settings／staff_pattern_disable／enable）・A7 −1（set_cast_norm_self drop）・B(f) +1（notice_mark_read）＝
     //   対象 149→154・除外 141→142・全数 290→296（live 実測 2026-09-30＝総数 296・'billing locked' 154・形 154・述語参照 155）。改稿 5 本は名前不変で本数不動。
+    // ★mig0161（裁定327＋追補1・2026-09-30）: B(a) +1（punch_seq_check＝内部専用・4 ロール revoke）＝対象 154 不変・除外 142→143・全数 296→297（'billing locked' 154・形 154・述語参照 155 不変）。改稿 4 本は名前不変で本数不動。
     check("段47-1 正本の対象154名を読めた", docTargets.size === 154, `got ${docTargets.size}`); // ★0157: A4 +2＝139→141・★0153（裁定305／307）: A1 +4＝141→145・★0155: A4 −1＝145→144
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     // ★mig0113: check_tax_round（内部ヘルパー・非ゲート）を B へ収載＝除外 95→96・全数 201→202。
@@ -152,7 +153,7 @@ async function main() {
     // ★mig0146（裁定258・2026-09-15）: payroll_adjustment_add／_delete（非ゲート＝給与の清算）を B(e) へ収載＝除外 114→116・全数 239→241・対象 125 不変。
     // ★mig0148（裁定272・2026-09-18）: payroll_carryover_sync（非ゲート＝繰越消費）を B(e) へ収載＝除外 116→117・全数 241→245。
     // ★mig0149（裁定273／276〜279・2026-09-18）: demo_org_reset（service_role 専用・authenticated 実行不可＝構造除外）を B(a) へ収載＝除外 117→118・全数 245→246・対象 128 不変。
-    check("段47-1 正本の除外142名を読めた", docExcluded.size === 142, `got ${docExcluded.size}`); // ★0153: B(f) +2（names／sales_summary＝裁定307-1）・★0155: +7（B(a) 1・B(f) 4・B(m) 2）
+    check("段47-1 正本の除外143名を読めた", docExcluded.size === 143, `got ${docExcluded.size}`); // ★0153: B(f) +2（names／sales_summary＝裁定307-1）・★0155: +7（B(a) 1・B(f) 4・B(m) 2）・★0161: B(a) +1（punch_seq_check）
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる
@@ -343,8 +344,10 @@ async function main() {
 
     // 除外代表: ★実際に成功する（read-only 失効の要＝止めない側。「locked が出ない」だけでは弱い）
     const { data: punchId, error: ePunch } = await castA.rpc("punch_self", { p_type: "in" });
-    check("段47-3 ★除外 punch_self は locked 中でも成功する（打刻＝事実記録・止めない）",
-      !ePunch && typeof punchId === "string", ePunch?.message ?? `got ${JSON.stringify(punchId)}`);
+    // ★0161（裁定327）: 打刻は順序検査つき＝castA の当日の状態次第で 'already in'／'already out' が返る。それも「ゲート（locked）を通過して本体に到達した」証拠＝通過扱い・locked は不可。
+    const seqWord = /already in|already out|no open punch/.test(ePunch?.message ?? "");
+    check("段47-3 ★除外 punch_self は locked 中でも成功する（打刻＝事実記録・止めない・★0161: 順序検査の拒否語は通過扱い）",
+      ((!ePunch && typeof punchId === "string") || seqWord) && !locked(ePunch), ePunch?.message ?? `got ${JSON.stringify(punchId)}`);
     if (typeof punchId === "string") created.punches.push(punchId);
     const { data: runRows, error: eRun } = await mgr.rpc("payroll_run_create", { p_store_id: storeA1, p_period: "2029-07" });
     check("段47-3 ★除外 payroll_run_create は locked 中でも成功する（給与＝清算・止めない）",

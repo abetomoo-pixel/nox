@@ -743,6 +743,7 @@ async function main() {
     ["demo_org_reset", { p_org_id: null, p_payload: null, p_mode: null }], // mig0149（裁定273／276〜279・service_role 専用＝anon／authenticated とも BLOCKED）
     ["punch_correction_apply", { p_id: null, p_reason: null }], // mig0154（裁定295-5・内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
     ["referral_recalc", { p_check_id: null }], // mig0152（裁定286／298-1・内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
+    ["punch_seq_check", { p_store_id: null, p_cast_id: null, p_type: null, p_at: null }], // mig0161（裁定327＋追補1・打刻の順序検査＝内部ヘルパー・4 ロール revoke・anon／authenticated とも BLOCKED）
   ];
   for (const [fn, args] of INTERNAL_PROBES) {
     const { error } = await anon.rpc(fn, args);
@@ -5291,8 +5292,8 @@ async function main() {
 
         // テスト解除: locked_until を過去へ（admin 直接 UPDATE）
         await admin.from("cast_pin").update({ locked_until: new Date(Date.now() - 60_000).toISOString() }).eq("cast_id", castIdA);
-        const r6 = await kp("1234");
-        check("段35 ★ロック解除後 正PIN = ok:true", r6.ok === true && typeof r6.punch_id === "string", JSON.stringify(r6));
+        const r6 = await kp("1234", "out");   // ★0161（裁定327）: r1 の in が開いている＝2 度目の in は 'already in' なので out で成功を見る
+        check("段35 ★ロック解除後 正PIN = ok:true（★0161: out）", r6.ok === true && typeof r6.punch_id === "string", JSON.stringify(r6));
         const st6 = await pinRow();
         check("段35 成功でカウンタ復元（fail_count 0・locked_until null）", st6.fail_count === 0 && st6.locked_until === null, JSON.stringify(st6));
 

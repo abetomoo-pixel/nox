@@ -114,25 +114,35 @@ async function main() {
 
       // (3) punches.okuri
       const okuriOf = async (r: { ok: boolean; rows?: Record<string, unknown>[] }) => (r.ok && r.rows ? (await one<{ okuri: boolean | null }>("select okuri from public.punches where id=$1", [r.rows[0].id])).okuri : "ERR");
+      // ★0161（裁定327）: 打刻は順序検査つき＝2 度目の out は 'no open punch'（赤を期待する段に）・同一営業日の再出勤は RPC では 'already out' なので直 insert の in で開き直す（reopen）
+      await db.query("delete from public.punches where cast_id = any($1) and punched_at >= now() - interval '2 days'", [[castA, castB]]);
+      const reopen = async (castId: string) => { await db.query("insert into public.punches (org_id, store_id, cast_id, type, source) values ($1,$2,$3,'in','self')", [A1.org_id, A1.id, castId]); };
       const p1 = await as(castU, "select public.punch_self('in', null, null) id");
       const p2 = await as(castU, "select public.punch_self('out', null, null, true) id");
       const p3 = await as(castU, "select public.punch_self('out', null, null) id");
+      await reopen(castA);
+      const p3b = await as(castU, "select public.punch_self('out', null, null) id");
+      await reopen(castB);
       const p4 = await as(mgr, "select public.punch_proxy($1, 'out', null, true) id", [castB]);
+      await reopen(castB);
       const p5 = await as(mgr, "select public.punch_proxy($1, 'out', 'dp-代理') id", [castB]);
-      check("dp(3-1) punch_self: in→okuri null／out+true→true／out 省略（actual 店）→false・旧 3 引数呼出は互換", (await okuriOf(p1)) === null && (await okuriOf(p2)) === true && (await okuriOf(p3)) === false, JSON.stringify([await okuriOf(p1), await okuriOf(p2), await okuriOf(p3)]));
+      check("dp(3-1) punch_self: in→okuri null／out+true→true／閉鎖後の out は 'no open punch'（★0161）／開き直した out 省略（actual 店）→false・旧 3 引数呼出は互換", (await okuriOf(p1)) === null && (await okuriOf(p2)) === true && /no open punch/.test(errOf(p3)) && (await okuriOf(p3b)) === false, JSON.stringify([await okuriOf(p1), await okuriOf(p2), errOf(p3), await okuriOf(p3b)]));
       check("dp(3-2) punch_proxy: out+true→true／3 引数（note）→false", (await okuriOf(p4)) === true && (await okuriOf(p5)) === false, JSON.stringify([await okuriOf(p4), await okuriOf(p5)]));
       await db.query("update public.stores set settings_json = jsonb_set(settings_json, '{okuri_mode}', '\"flat\"'::jsonb, true) where id=$1", [A1.id]);
+      await reopen(castA);
       const p6 = await as(castU, "select public.punch_self('out', null, null) id");
       await db.query("update public.stores set settings_json = jsonb_set(settings_json, '{okuri_mode}', '\"actual\"'::jsonb, true) where id=$1", [A1.id]);
       check("dp(3-3) flat の店: out 省略→okuri null（追補2 (a)）", (await okuriOf(p6)) === null, String(await okuriOf(p6)));
       const kioskUid = (await one<{ u: string }>("select gen_random_uuid() u")).u;
       await db.query("insert into public.kiosk_devices (org_id, store_id, auth_user_id, label, is_active, purpose) values ($1,$2,$3,'dp-punch',true,'punch')", [A1.org_id, A1.id, kioskUid]);
       const pinSet = await as(mgr, "select public.set_cast_pin($1, '1234') r", [castB]);
+      await reopen(castB);
       const kp = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'out', true) r", [castB]);
       const kpOld = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'in') r", [castB]);
       const kpR = kp.ok ? (kp.rows[0].r as { ok: boolean; punch_id: string }) : null;
       const kpRow = kpR?.ok ? await one<{ okuri: boolean; source: string }>("select okuri, source from public.punches where id=$1", [kpR.punch_id]) : null;
-      check("dp(3-4) kiosk_punch: PIN 一致・out+true→okuri true・source kiosk／3 引数（in）も ok", pinSet.ok && kpR?.ok === true && kpRow?.okuri === true && kpRow?.source === "kiosk" && kpOld.ok && (kpOld.rows[0].r as { ok: boolean }).ok === true, JSON.stringify([errOf(pinSet), kp, kpOld]));
+      // ★0161（裁定327＋追補1）: 閉鎖後の in は kiosk でも raise 'already out'（3 引数の呼出が順序検査まで到達＝署名互換の証拠）
+      check("dp(3-4) kiosk_punch: PIN 一致・out+true→okuri true・source kiosk／3 引数（in）は閉鎖後なので 'already out'（★0161）", pinSet.ok && kpR?.ok === true && kpRow?.okuri === true && kpRow?.source === "kiosk" && /already out/.test(errOf(kpOld)), JSON.stringify([errOf(pinSet), kp, errOf(kpOld)]));
       // ★教訓98（便 W-1g）: 同一 tx 内の行は順序で同定しない（punched_at＝now() 同値）＝p2 の行は punch_id で find
       const sum1 = await as(mgr, "select punch_id, cast_id, base_amount, idem_key from public.okuri_today_summary($1, $2::date) order by punched_at", [A1.id, bizToday]);
       const sumCast = await as(castU, "select * from public.okuri_today_summary($1, $2::date)", [A1.id, bizToday]);

@@ -43,10 +43,10 @@ const EXPECTED: Record<string, string> = {
   adv_issue: "f25d845d", adv_issue_bulk: "0e2044cc", daily_pay_issue: "7e9d29d0", daily_pays_of_run: "b81e8659", punch_correction_request: "2588fd86", punch_correction_decide: "e5dc188e",
   punch_correction_apply: "857dd4cf", payroll_finalize: "e402804d", set_store_profile: "4f2e9f82", kiosk_register_state: "a4426533", bottle_keep_register: "e9028559",
 };
-const EXPECTED_NEW: Record<string, string> = { payroll_attentions_of: "04d88b37", payroll_attention_resolve: "01b27881", transport_issue_self: "2eebb64f", kiosk_transport_issue: "08c5dbc3", kiosk_punch_state: "48300293" }; // ★0159（起票91）: kiosk_transport_issue のゲート行を v_org 形に＝76412c7e→08c5dbc3
+const EXPECTED_NEW: Record<string, string> = { payroll_attentions_of: "3721bf4e", payroll_attention_resolve: "01b27881", transport_issue_self: "2eebb64f", kiosk_transport_issue: "08c5dbc3", kiosk_punch_state: "48300293" }; // ★0159（起票91）: kiosk_transport_issue のゲート行を v_org 形に＝76412c7e→08c5dbc3・★0161（裁定327）: payroll_attentions_of は run 未作成の open_punch を期間で拾う＝04d88b37→3721bf4e
 const UNTOUCHED: Record<string, string> = {
-  payroll_mark_paid: "409c9770", payroll_reopen: "80f042e4", transport_issue_bulk: "9d10c990", transport_issue: "7740e3c4", kiosk_punch: "b31ff8fa", punch_self: "f2c9b923",
-  punch_proxy: "83f2a99f", okuri_today_summary: "e61e5dd9", okuri_default_of: "434e69d9", biz_date_of: "196c453f", period_bounds: "96e10e9a", audit_log_write: "182eba3a",
+  payroll_mark_paid: "409c9770", payroll_reopen: "80f042e4", transport_issue_bulk: "9d10c990", transport_issue: "7740e3c4", kiosk_punch: "5a1d5f10", punch_self: "952f18a4",   // ★0161: 打刻 3 本は順序検査 1 行（kiosk_punch b31ff8fa→5a1d5f10・punch_self f2c9b923→952f18a4）
+  punch_proxy: "a760e1a4", okuri_today_summary: "e61e5dd9", okuri_default_of: "434e69d9", biz_date_of: "196c453f", period_bounds: "96e10e9a", audit_log_write: "182eba3a",   // ★0161: punch_proxy 83f2a99f→a760e1a4
 };
 const TOUCH = Object.keys(EXPECTED), NEW = Object.keys(EXPECTED_NEW), CTRL = Object.keys(UNTOUCHED);
 
@@ -87,7 +87,7 @@ async function main() {
     check("s-1", "収蔵した mig の sha256＝貼付版（手貼りした本文と repo の本文が同じ）", createHash("sha256").update(raw).digest("hex") === MIG_SHA256, createHash("sha256").update(raw).digest("hex"));
     check("s-2", "不触 12 本の live md5＝控え", CTRL.every((n) => live0[n]?.m === UNTOUCHED[n]), CTRL.map((n) => `${n}:${live0[n]?.m}/${UNTOUCHED[n]}`).join(" "));
     const fnCount0 = (await one("select count(*)::int n from pg_proc where pronamespace='public'::regnamespace")).n as number;
-    check("s-3", "新設 5 本が存在・payroll_attentions が存在・関数 296（★0159 で +2・★0160 で +7−1）", NEW.every((n) => !!live0[n]) && (await one("select to_regclass('public.payroll_attentions')::text r")).r !== null && fnCount0 === 296, `fn ${fnCount0}`);
+    check("s-3", "新設 5 本が存在・payroll_attentions が存在・関数 297（★0159 で +2・★0160 で +7−1・★0161 で +1）", NEW.every((n) => !!live0[n]) && (await one("select to_regclass('public.payroll_attentions')::text r")).r !== null && fnCount0 === 297, `fn ${fnCount0}`);
     const colsOf = async (): Promise<Record<string, number>> => Object.fromEntries((await q("select table_name t, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('daily_pays','bottle_keeps','advances','transport','payroll_attentions') group by 1")).map((r) => [r.t, r.n]));
     const c0 = await colsOf();
     check("s-4", "0158 が列を足していない表は不変: advances 16 列・transport 15 列", c0.advances === 16 && c0.transport === 15, c0);
@@ -272,6 +272,11 @@ async function main() {
 
       // ── ★6 裁定319 ──
       const Rcur = await runOf(curP, "draft");
+      // ★0161（裁定327）: 打刻は順序検査つき＝out は当日営業日に未閉鎖の in が要る・同一営業日の再出勤は RPC では 'already out'。
+      //   当日の状態を tx 内で空にし、out の前に in を置く。2 度目以降の out は直 insert の in で開き直す（reopen）。okuri の意味と summary の件数は不変。
+      await q("delete from public.punches where cast_id = any($1) and punched_at >= now() - interval '2 days'", [[castA, castB]]);
+      const reopen = async (castId: string) => { await q("insert into public.punches (org_id, store_id, cast_id, type, source) values ($1,$2,$3,'in','self')", [A1.org_id, A1.id, castId]); };
+      const pin0 = await as(castU, "select public.punch_self('in', null, null) id");
       const p1 = await as(castU, "select public.punch_self('out', null, null, true) id");
       const p1id = rowsOf(p1)[0]?.id ?? null;
       const auSN = async () => (await one("select count(*)::int n from public.audit_logs where action='transport_issue_self' and at >= now()")).n as number;
@@ -282,17 +287,19 @@ async function main() {
       const t1b = await as(castU, "select public.transport_issue_self($1) id", [p1id]);
       const auS1 = await auSN();
       check("6-1", "★cast 本人: 自分の out 打刻（okuri=true）→ 発行 OK・金額＝店の okuri_base_amount 1500・idem＝md5(punch:cast)・biz_date＝打刻の営業日・created_by＝本人・再送は同 id（行 1・audit 1）",
-        p1.ok && t1.ok && t1row?.amount === 1500 && t1row?.cast_id === castA && t1row?.created_by === castU.id && t1row?.d === bizToday && t1row?.status === "open" && t1row?.idem_key === t1row?.k
+        pin0.ok && p1.ok && t1.ok && t1row?.amount === 1500 && t1row?.cast_id === castA && t1row?.created_by === castU.id && t1row?.d === bizToday && t1row?.status === "open" && t1row?.idem_key === t1row?.k
         && t1b.ok && rowsOf(t1b)[0].id === t1id && auS1 - auS0 === 1 && (await one("select count(*)::int n from public.transport where idem_key=$1", [t1row?.idem_key])).n === 1, [err(p1), err(t1), err(t1b)].join(" / ") + JSON.stringify(t1row));
       const t2 = await as(castU2, "select public.transport_issue_self($1) id", [p1id]);
       const t2m = await as(mgr, "select public.transport_issue_self($1) id", [p1id]);
       const t2n = await as(castU, "select public.transport_issue_self(gen_random_uuid()) id");
       check("6-2", "★他人の打刻は forbidden・manager（cast でない）も forbidden・存在しない id も forbidden（同文言）", has(t2, "forbidden") && has(t2m, "forbidden") && has(t2n, "forbidden"), [err(t2), err(t2m), err(t2n)].join(" / "));
-      const p2 = await as(castU, "select public.punch_self('out', null, null, false) id");
-      const p3 = await as(castU, "select public.punch_self('in', null, null) id");
+      // ★0161: 閉鎖済みの日に out／in を RPC で足すと 'no open punch'／'already out'＝発行側の検査（not okuri punch）を見る段なので直 insert で行を作る
+      const p2 = await T.call("insert into public.punches (org_id, store_id, cast_id, type, source, okuri) values ($1,$2,$3,'out','self',false) returning id", [A1.org_id, A1.id, castA]);
+      const p3 = await T.call("insert into public.punches (org_id, store_id, cast_id, type, source) values ($1,$2,$3,'in','self') returning id", [A1.org_id, A1.id, castA]);
       const t3 = await as(castU, "select public.transport_issue_self($1) id", [rowsOf(p2)[0]?.id]);
       const t4 = await as(castU, "select public.transport_issue_self($1) id", [rowsOf(p3)[0]?.id]);
       check("6-3", "okuri=false の out・in 打刻は 'not okuri punch'", has(t3, "not okuri punch") && has(t4, "not okuri punch"), [err(t3), err(t4)].join(" / "));
+      await as(castU2, "select public.punch_self('in', null, null) id");   // ★0161: out の前に in
       const p4 = await as(castU2, "select public.punch_self('out', null, null, true) id");
       const p4id = rowsOf(p4)[0]?.id;
       await q("update public.stores set settings_json = settings_json - 'okuri_base_amount' where id=$1", [A1.id]);
@@ -313,6 +320,7 @@ async function main() {
       const kdev = (await one("insert into public.kiosk_devices (org_id, store_id, auth_user_id, label, is_active, purpose) values ($1,$2,$3,'v0158-punch',true,'punch') returning id", [A1.org_id, A1.id, kioskUid])).id;
       await q("delete from public.transport where cast_id = any($1) and biz_date = $2::date", [[castA, castB], bizToday]);
       const pin = await as(mgr, "select public.set_cast_pin($1, '1234') r", [castB]);
+      await reopen(castB);   // ★0161
       const kp = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'out', true) r", [castB]);
       const kpid = rowsOf(kp)[0]?.r?.ok ? rowsOf(kp)[0].r.punch_id : null;
       const kt1 = await as({ auth_user_id: kioskUid }, "select public.kiosk_transport_issue($1) id", [kpid]);
@@ -328,21 +336,24 @@ async function main() {
       const kt4 = await as({ auth_user_id: regUid }, "select public.kiosk_transport_issue($1) id", [kpid]);
       const kt5 = await as(castU2, "select public.kiosk_transport_issue($1) id", [kpid]);
       check("6-7", "kiosk: self 打刻（source≠kiosk）は forbidden・manager／cast／レジ端末（purpose=register）からは forbidden", has(kt2, "forbidden") && has(kt3, "forbidden") && has(kt4, "forbidden") && has(kt5, "forbidden"), [err(kt2), err(kt3), err(kt4), err(kt5)].join(" / "));
+      await reopen(castB);   // ★0161
       const kp2 = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'out', true) r", [castB]);
       const kp2id = rowsOf(kp2)[0]?.r?.punch_id ?? null;
       await q("update public.punches set punched_at = now() - interval '11 minutes' where id=$1", [kp2id]);
       const kt6 = await as({ auth_user_id: kioskUid }, "select public.kiosk_transport_issue($1) id", [kp2id]);
+      await reopen(castB);   // ★0161
       const kp3 = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'out', false) r", [castB]);
       const kt7 = await as({ auth_user_id: kioskUid }, "select public.kiosk_transport_issue($1) id", [rowsOf(kp3)[0]?.r?.punch_id]);
       check("6-8", "kiosk: 打刻から 10 分超は 'punch expired'・okuri=false は 'not okuri punch'", has(kt6, "punch expired") && has(kt7, "not okuri punch"), [err(kt6), err(kt7)].join(" / "));
       await q("update public.payroll_runs set status='paid' where id=$1", [Rcur]);
       const p5 = await as(castU, "select public.punch_self('out', null, null, true) id");
       const t8 = await as(castU, "select public.transport_issue_self($1) id", [rowsOf(p5)[0]?.id]);
+      await reopen(castB);   // ★0161
       const kp4 = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'out', true) r", [castB]);
       const kt8 = await as({ auth_user_id: kioskUid }, "select public.kiosk_transport_issue($1) id", [rowsOf(kp4)[0]?.r?.punch_id]);
       check("6-9", "その営業日を含む run が paid: 本人・kiosk とも 'paid period'（transport は繰越の列なし）", has(t8, "paid period") && has(kt8, "paid period"), [err(t8), err(kt8)].join(" / "));
       const tbu = await md5s(["transport_issue_bulk", "transport_issue", "kiosk_punch", "punch_self"]);
-      check("6-10", "既存 transport_issue_bulk／transport_issue／kiosk_punch／punch_self は不触", tbu.length === 4 && tbu.every((r) => r.m === UNTOUCHED[r.p]), tbu.map((r) => [r.p, r.m]));
+      check("6-10", "既存 transport_issue_bulk／transport_issue は不触・kiosk_punch／punch_self は 0161 後の値（順序検査 1 行）", tbu.length === 4 && tbu.every((r) => r.m === UNTOUCHED[r.p]), tbu.map((r) => [r.p, r.m]));
 
       // ── ★8 裁定319 追補1: kiosk_punch_state ──
       const ks1 = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch_state() s");
@@ -397,7 +408,7 @@ async function main() {
       check("t-1", "検証ブロック 8 文: 行数 1／16／3／7／3／1／3／1・md5 16 本＝控え（kiosk_transport_issue は 0159 後の値）・不触 3 本不変・列 3 行とも null 可・RLS t＋policy 1（SELECT）・grant authenticated=SELECT のみ（anon なし）・関数 296・表 81（★0160）",
         JSON.stringify(counts) === JSON.stringify([1, 16, 3, 7, 3, 1, 3, 1]) && Object.keys(expAll).length === 16 && Object.keys(expAll).every((n) => md5Tail[n] === expAll[n])
         && tr[2].every((x) => UNTOUCHED[x.proname] === x.md5) && tr[4].every((x) => x.is_nullable === "YES") && tr[5][0].relrowsecurity === true && tr[5][0].policyname === "payroll_attentions_select" && tr[5][0].cmd === "SELECT"
-        && tg.some((g) => g.grantee === "authenticated" && g.string_agg === "SELECT") && !tg.some((g) => g.grantee === "anon") && Number(tr[7][0].functions) === 296 && Number(tr[7][0].tables) === 81, // ★0159: 関数 290 → ★0160: 296・表 81
+        && tg.some((g) => g.grantee === "authenticated" && g.string_agg === "SELECT") && !tg.some((g) => g.grantee === "anon") && Number(tr[7][0].functions) === 297 && Number(tr[7][0].tables) === 81, // ★0159: 関数 290 → ★0160: 296 → ★0161: 297・表 81
         JSON.stringify(counts) + JSON.stringify(tr[7]) + JSON.stringify(Object.keys(expAll).filter((n) => md5Tail[n] !== expAll[n])));
     } catch (e) {
       check("x-0", "例外なし", false, (e as Error).message);
