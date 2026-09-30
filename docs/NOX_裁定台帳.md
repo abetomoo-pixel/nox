@@ -2846,6 +2846,12 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓100：hm 等の正規表現 CHECK は NULL を素通りする＝NULL 不可なら is not null を明示（0160 ★4・相談役起こし）
+
+出典＝相談役 2026-09-30 受領（便 S160-1・逐語）: 「教訓100『hm 等の正規表現 CHECK は NULL を素通りする＝NULL 不可なら is not null を明示（0160 ★4）』」。
+経緯: 0160 ★4 の shift_wishes_hm_kind_ck を `kind='work' and start_hm ~ '…' and end_hm ~ '…'` と書いたところ、突合 4-2（work の片方 NULL）が通ってしまった＝SQL の CHECK は NULL（unknown）を違反にしない（`NULL ~ regex` は NULL・`and` の結果も NULL）。`is not null` を足して赤→緑（2026-09-30 便 D160-3）。
+運用: 列を null 可にした上で条件つきの CHECK を書くときは、必須側に `col is not null and col ~ '…'` を明示する。突合には「必須側の片方だけ NULL」の段を必ず置く（0160 の 4-2 型）。
+
 ### 教訓99：相談役の裁定本文はブロック内に置く＝ブロック外の本文は CC に届かない（相談役起こし）
 
 出典＝相談役 2026-09-30 受領（便 P-2・逐語）: 「教訓99『相談役の裁定本文はブロック内に置く＝ブロック外の本文は CC に届かない（9/30 S159-1）』」。
@@ -4027,6 +4033,20 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 6 名簿区分＝店設定系 4 本は A・予約 2 本は reservation_create と同区分・notice_mark_read は B（cast セルフ）。」
 
 0160 のスコープ（追補1＋便 D160 の ★1〜★8）: ★1 cast_quotas＋set_cast_quota／★2 set_cast_norm_self を revoke→drop／★3 reservations の status +pending・rejected・列 +4（requested_by_cast／rejected_reason／decided_by／decided_at）＋reservation_request（cast セルフ）／reservation_decide／★4 shift_wishes +kind（work／off・off は時刻 NULL）＋submit に p_kind／★5 set_store_mine_settings（8 キー・contract_ack＝起票96）／★6 cast_notice_reads＋notice_mark_read／★7 staff_shift_patterns +disabled_from＋staff_pattern_disable／enable（起票95）／★8 demo_org_reset に 2 表。名簿＝A +4（set_cast_quota／set_store_mine_settings／staff_pattern_disable／enable）・予約 2 本＝A3（reservation_create と同区分）・B +1（notice_mark_read）・A −1（set_cast_norm_self drop）。
+
+### 裁定326 追補2（0160 起草判断・2026-09-30 承認）
+
+出典＝Agoora 承認（2026-09-30・便 S160-1 で収載）。便 D160 の起草判断 5 点への追認。**本文（逐語）**:
+「裁定326 追補2（0160 起草判断・2026-09-30）
+1 shift_wish_decide と shift_auto_apply は kind='off' の wish を accept／自動配置しない（'off wish' で拒否・reject は可）。shifts の時刻 NULL を作らないため。
+2 staff_pattern_effective（内部・staff_shift_propose／staff_wish_set が呼ぶ）に disabled_from is null or disabled_from > p_biz_date を追加。枠マスタ一覧の絞りは client。
+3 reservation_request は reservation_create と同区分 A3（課金ゲート適用）。created_by＝cast の user_id。decided_by／decided_at を持つ。
+4 shift_wish_submit は 4 引数（p_kind default 'work'）に置換（旧 3 引数は drop）。既存呼出は同値。
+5 他 org の manager が staff_pattern_disable／enable を呼ぶと feature_disabled:staff_shift（staff_shift_gate の既存挙動・不変）。」
+
+適用＝便 D160-2 の起草どおり（改稿なし）。
+
+**0160 の欄（起草済み・手貼り待ち）**: supabase/migrations/0160_mine_settings.sql＝**起草済み・sha256 d0a1ed21a21ab9312217d04a7fa75cbb5faf58ad734dbbde2c131e8b79fbef1e・707 行・49,748 B・突合 36 段 NG 0（docs/tmp/q0930_ag_0160.mjs・BEGIN…ROLLBACK）・手貼り待ち・適用後の proof＝関数 296／表 81**（未追跡・生成器 docs/tmp/gen_0160.mjs＋0160_template.sql・写経元 0160_live.json・期待 md5 0160_expected.json＝decide 4c8c7d6b／auto_apply 55cbb0e8／pattern_effective a65c716d／demo_org_reset a331cdcd／submit 4afdf603／set_cast_quota 1987d03d／reservation_request f0c51a0a／reservation_decide a0088416／set_store_mine_settings 5aaecb0f／notice_mark_read b1329e24／staff_pattern_disable cb1d4a34／staff_pattern_enable e768f710・削除 set_cast_norm_self cfde419e）。適用後の見込み＝名簿 A 154／B 142＝296・'billing locked' 154・形 154・述語参照 155・表 81。
 
 
 ## 裁定325（2026-09-30 承認・Agoora）無人便 L の仮決めの追認
