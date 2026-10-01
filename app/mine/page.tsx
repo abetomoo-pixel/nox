@@ -6,6 +6,7 @@ import PayslipSlip from "@/components/payslip-slip";
 import { ATTENDANCE_MONTH_NOTE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
 import { nextPeriodOf } from "@/lib/nox/payroll/attention";
 import { mdLabelOf } from "@/lib/nox/payroll/finalize-guard";
+import ReservationRequestCard from "./reservation-request-card"; // ★裁定326-4（便 M3-2）: 予約申請（店設定 reservation_request ON のときだけ）
 import ShiftConfirmButton from "./shift-confirm-button";
 import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
@@ -175,7 +176,7 @@ export default async function MinePage() {
         <p className="nox-pstate">
           最終打刻:{" "}
           {last
-            ? `${last.type === "in" ? "出勤" : "退勤"}（${new Date(last.punched_at as string).toLocaleString("ja-JP")}）`
+            ? `${last.type === "in" ? "出勤" : "退勤"}（${rsvWhen(last.punched_at as string)}）`
             : "なし"}
         </p>
         {/* ★裁定326-5（便 M2-1）: 当日の出勤・退勤時刻（M1 の状態表示は置き換えず追記）＋当月の勤怠一覧（折りたたみ・実働＝給与と同じ dayWorkedHours） */}
@@ -316,6 +317,9 @@ export default async function MinePage() {
           </div>
         </section>
       )}
+
+      {/* ★裁定326-4／326-8（便 M3-2）: 予約申請カード＝店設定 reservation_request ON のときだけ（OFF＝非表示・予約一覧は残す） */}
+      {ms.reservation_request && myStore && <ReservationRequestCard storeId={myStore.id as string} bizToday={bizToday} />}
 
       <section className="nox-panel">
         <h3>指名予約（今日以降）</h3>

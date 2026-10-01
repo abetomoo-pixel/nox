@@ -34,8 +34,8 @@ type Reservation = {
 };
 
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
-const STATUS_LABEL: Record<string, string> = { booked: "予約", visited: "来店済", no_show: "不来店", cancelled: "取消" };
-const STATUS_COLOR: Record<string, string> = { booked: "var(--gold)", visited: "var(--ok)", no_show: "var(--sub)", cancelled: "var(--sub)" };
+const STATUS_LABEL: Record<string, string> = { booked: "予約", visited: "来店済", no_show: "不来店", cancelled: "取消", pending: "承認待ち", rejected: "却下" }; // ★0160（裁定326-4・便 M3-3）: cast の申請 2 値
+const STATUS_COLOR: Record<string, string> = { booked: "var(--gold)", visited: "var(--ok)", no_show: "var(--sub)", cancelled: "var(--sub)", pending: "var(--champ)", rejected: "var(--sub)" };
 const STAY_OPTIONS: Array<[number, string]> = [[60, "1時間"], [90, "1時間30分"], [120, "2時間"], [180, "3時間"]];
 
 // tstzrange 文字列（PostgREST 返却・例 ["2026-07-14 09:00:00+00","2026-07-14 11:00:00+00")）のパース。
@@ -69,6 +69,12 @@ function rpcErrJa(msg: string | undefined): string {
   if (msg.includes("invalid store")) return "卓の店舗が一致しません";
   if (msg.includes("not editable")) return "この予約は変更できません（確定済み）";
   if (msg.includes("closed day")) return "選択された日は定休日です";
+  // ★0160（裁定326-4／追補1-1・便 M3-3）: 申請の決裁（reservation_decide）
+  if (msg.includes("not pending")) return "この申請はすでに決裁済みです";
+  if (msg.includes("bad decision")) return "決裁の種別が正しくありません";
+  if (msg.includes("bad reason")) return "理由は 200 字以内で入力してください";
+  if (msg.includes("billing locked")) return "ご契約の状態により、この操作は現在できません";
+  if (msg.includes("forbidden")) return "権限がありません（承認・却下はオーナー・店長・顧客権限のあるスタッフ）";
   return msg;
 }
 
@@ -220,7 +226,8 @@ export default function ReservationPanel({
   const dowJa = ["日", "月", "火", "水", "木", "金", "土"];
   const visible = rows.filter((r) => {
     if (selDate && jstOf(r.reserved_at) !== selDate) return false;
-    if (statusFilter === "" ? r.status === "cancelled" : r.status !== statusFilter) return false;
+    // ★326-4（便 M3-3）: 「すべて」は承認済みの予約だけ（cast の申請＝pending／rejected は「承認待ち」「却下」タブ）
+    if (statusFilter === "" ? (r.status === "cancelled" || r.status === "pending" || r.status === "rejected") : r.status !== statusFilter) return false;
     if (q.trim() !== "") {
       const needle = q.trim();
       const tel = custTel(r.customer_id) ?? "";
@@ -355,6 +362,23 @@ export default function ReservationPanel({
     await load();
   }
 
+  // ★0160（裁定326-4／追補1-1・便 M3-3）: cast の申請の決裁＝承認→'booked'（通常の予約として一覧へ・担当 cast 付き）／却下→理由必須→'rejected'。
+  //   承認者＝このパネルが見える人（owner／manager／staff can_crm＝register/page の showReserve と reservation_decide の判定が同じ）。
+  const [decideId, setDecideId] = useState<string | null>(null);
+  const [decideReason, setDecideReason] = useState("");
+  const pendingCount = rows.filter((r) => r.status === "pending").length;
+  async function decide(r: Reservation, decision: "approve" | "reject") {
+    const reason = decideReason.trim();
+    if (decision === "reject" && reason.length === 0) { setMsg("却下には理由を入力してください"); return; }
+    setMsg(null); setBusy(true);
+    const { error } = await supabase.rpc("reservation_decide", { p_reservation_id: r.id, p_decision: decision, p_reason: decision === "reject" ? reason : null });
+    setBusy(false);
+    if (error) { setMsg(`${decision === "approve" ? "承認" : "却下"}に失敗: ${rpcErrJa(error.message)}`); return; }
+    setDecideId(null); setDecideReason("");
+    setMsg(decision === "approve" ? `${dispName(r)} の申請を承認しました（予約として確定）` : `${dispName(r)} の申請を却下しました`);
+    await load();
+  }
+
   // 来店処理の卓候補: 予約と同じ店・空き卓のみ（使用中は seat occupied で拒否される＝UI でも先に絞る）
   const seatOptions = (r: Reservation) => seats.filter((s) => s.store_id === r.store_id && !openSeats[s.id]);
 
@@ -421,7 +445,7 @@ export default function ReservationPanel({
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="顧客名・電話で検索"
             style={{ ...input, width: 190 }} />
           <SegSelect value={statusFilter} onChange={(v) => setStatusFilter(v)}
-            options={[["", "すべて（取消を除く）"], ["booked", "予約済み"], ["visited", "来店済"], ["no_show", "不来店"], ["cancelled", "取消のみ"]] as const} />
+            options={[["", "すべて（取消を除く）"], ["pending", pendingCount > 0 ? `承認待ち（${pendingCount}）` : "承認待ち"], ["booked", "予約済み"], ["visited", "来店済"], ["no_show", "不来店"], ["rejected", "却下"], ["cancelled", "取消のみ"]]} />{/* ★326-4: 承認待ち（件数バッジ）・却下 */}
         </div>
         {visible.length === 0 ? (
           <p style={{ ...t.sub, margin: 0 }}>予約はありません。</p>
@@ -446,6 +470,13 @@ export default function ReservationPanel({
                 )}
                 <span style={pill(r.status)}>{STATUS_LABEL[r.status] ?? r.status}</span>
                 <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                  {/* ★326-4（便 M3-3）: 承認待ち＝承認／却下（理由必須は下の inset） */}
+                  {r.status === "pending" && (
+                    <>
+                      <button style={btnDark} disabled={busy} onClick={() => void decide(r, "approve")}>承認</button>
+                      <button style={{ ...btnLight, color: "var(--bad)" }} disabled={busy} onClick={() => { setDecideId(decideId === r.id ? null : r.id); setDecideReason(""); }}>却下</button>
+                    </>
+                  )}
                   {r.status === "booked" && (
                     <button style={btnDark} disabled={busy}
                       onClick={() => {
@@ -474,7 +505,16 @@ export default function ReservationPanel({
               <div style={{ ...t.sub, marginTop: 3 }}>
                 担当 {castName(r.cast_id) ?? "未定"}
                 {r.nom_type ? `・${NOM_LABEL[r.nom_type]}` : ""}
+                {r.status === "pending" && "・キャストからの申請"}
               </div>
+              {/* ★326-4（便 M3-3）: 却下は理由必須（RPC は任意＝UI で必須にする） */}
+              {decideId === r.id && r.status === "pending" && (
+                <div className="nox-inset" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8, padding: 10 }}>
+                  <input value={decideReason} onChange={(e) => setDecideReason(e.target.value)} maxLength={200} placeholder="却下の理由（必須・200 字まで）" style={{ ...input, flex: "1 1 220px" }} autoFocus aria-label="却下の理由" />
+                  <button style={{ ...btnDark, opacity: busy || decideReason.trim().length === 0 ? 0.6 : 1 }} disabled={busy || decideReason.trim().length === 0} onClick={() => void decide(r, "reject")}>却下する</button>
+                  <button style={btnLight} onClick={() => { setDecideId(null); setDecideReason(""); }}>閉じる</button>
+                </div>
+              )}
               {/* E8-1 ⑥: 申し送り（memo）は独立行で目立たせる（モック resnote） */}
               {r.memo && (
                 <div style={{ fontSize: 12, color: "var(--gold2)", marginTop: 3, lineHeight: 1.6 }}>

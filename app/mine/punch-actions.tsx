@@ -54,7 +54,7 @@ export default function PunchActions({ okuriActual = false, okuriBase = null, st
        ★送る打刻 RPC も引数も文言も変えていない。★0156: actual 店のみ送りトグルを足す。★326 追補3: disabled は 3 状態（punchButtonsOf）で決める */
     <div>
       {okuriActual && (
-        <div className="nox-seg" role="group" aria-label="送り" style={{ marginBottom: 8, width: "fit-content", opacity: btn.okuriEnabled ? 1 : 0.5 }}>
+        <div className="nox-seg nox-punchseg" role="group" aria-label="送り" style={{ marginBottom: 8, width: "fit-content", opacity: btn.okuriEnabled ? 1 : 0.5 }}>{/* ★M3-1: disabled は not-allowed・hover で色が変わらない（globals.css） */}
           <button type="button" className={!okuri ? "on" : ""} disabled={busy || !btn.okuriEnabled} onClick={() => setOkuri(false)}>送り なし</button>
           <button type="button" className={okuri ? "on" : ""} disabled={busy || !btn.okuriEnabled} onClick={() => setOkuri(true)}>送り あり</button>
         </div>
@@ -65,10 +65,10 @@ export default function PunchActions({ okuriActual = false, okuriBase = null, st
         </p>
       )}
       <div className="nox-punchrow">
-        <button style={{ ...(btn.inEnabled ? t.btnGold : t.btnGhost), padding: 16, fontSize: 15, opacity: busy || !btn.inEnabled ? 0.55 : 1 }} disabled={busy || !btn.inEnabled} onClick={() => punch("in")} aria-disabled={!btn.inEnabled}>
+        <button className="nox-punchbtn" style={{ ...(btn.inEnabled ? t.btnGold : t.btnGhost), padding: 16, fontSize: 15, opacity: busy || !btn.inEnabled ? 0.55 : 1 }} disabled={busy || !btn.inEnabled} onClick={() => punch("in")} aria-disabled={!btn.inEnabled}>
           出勤
         </button>
-        <button style={{ ...(btn.outEnabled ? t.btnGold : t.btnGhost), padding: 16, fontSize: 15, opacity: busy || !btn.outEnabled ? 0.55 : 1 }} disabled={busy || !btn.outEnabled} onClick={() => punch("out")} aria-disabled={!btn.outEnabled}>
+        <button className="nox-punchbtn" style={{ ...(btn.outEnabled ? t.btnGold : t.btnGhost), padding: 16, fontSize: 15, opacity: busy || !btn.outEnabled ? 0.55 : 1 }} disabled={busy || !btn.outEnabled} onClick={() => punch("out")} aria-disabled={!btn.outEnabled}>
           退勤
         </button>
       </div>

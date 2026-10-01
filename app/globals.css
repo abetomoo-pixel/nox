@@ -2363,3 +2363,7 @@ body {
   .nox-olines td.nm { order: -1; flex: 0 0 100%; overflow-wrap: anywhere; }
   .nox-olines td.g { margin-right: auto; }
 }
+
+/* ★裁定326 追補3（便 M3-1・2026-10-01）: /mine 打刻カードの不活性ボタン＝cursor not-allowed・hover で色が変わらない（出勤／退勤＝.nox-punchbtn・送りトグル＝.nox-punchseg） */
+.nox-punchbtn:disabled, .nox-punchseg button:disabled { cursor: not-allowed; }
+.nox-punchbtn:disabled:hover, .nox-punchseg button:disabled:hover { filter: none; background: inherit; color: inherit; border-color: inherit; }
