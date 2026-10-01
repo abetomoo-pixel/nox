@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>NOX | 初期設定 v5（モック）</title>
+<style>
+:root{
+  --bg:#080808;--panel:#121210;--panel2:#171714;--line:#2d2c27;--line2:#403d34;
+  --gold:#c9a85a;--gold2:#e2c77c;--text:#f5f1e7;--muted:#a19e95;--dim:#77746c;
+  --action:#4f9fe8;--actionbg:rgba(79,159,232,.13);--actionline:rgba(79,159,232,.45);
+  --green:#77ba83;--warn:#d79a55
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--bg);color-scheme:dark}
+body{margin:0;background:radial-gradient(circle at 80% -10%,rgba(201,168,90,.08),transparent 32%),var(--bg);
+  color:var(--text);font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic UI",system-ui,sans-serif;font-size:15px;line-height:1.6;
+  padding-bottom:env(safe-area-inset-bottom)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:2px solid var(--action);outline-offset:2px}
+input[type=text],input[type=number],input[type=time]{width:100%;height:46px;border:1px solid var(--line2);background:#0c0c0b;border-radius:9px;padding:0 12px;font-size:16px}
+/* ===== 上部ヘッダー＋ステップ ===== */
+.top{position:sticky;top:0;z-index:10;background:rgba(9,9,8,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
+.toprow{display:flex;align-items:center;gap:14px;padding:10px 22px 0;max-width:1180px;margin:auto}
+.mark{width:34px;height:34px;border:1px solid var(--gold);border-radius:8px;display:grid;place-items:center;color:var(--gold2);font:16px Georgia,serif;flex:none}
+.brand b{font:17px Georgia,serif;letter-spacing:.14em}.brand small{color:var(--muted);font-size:12px;margin-left:8px}
+.toprow .tpl{margin-left:auto;font-size:12px;color:var(--muted);text-align:right}
+.toprow .tpl b{color:var(--gold2);font-weight:600}
+.stepper{display:flex;gap:6px;overflow-x:auto;padding:10px 22px 12px;max-width:1180px;margin:auto;scrollbar-width:none}
+.stepper::-webkit-scrollbar{display:none}
+.st{flex:1 0 auto;min-width:128px;min-height:52px;display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--panel);border-radius:11px;padding:6px 12px;text-align:left;color:var(--muted)}
+.st .n{width:26px;height:26px;border-radius:50%;border:1px solid var(--line2);display:grid;place-items:center;font-size:13px;flex:none}
+.st b{display:block;font-size:14px;font-weight:600;line-height:1.3}.st small{display:block;font-size:11px;color:var(--dim);line-height:1.3}
+.st.on{border-color:var(--action);background:var(--actionbg);color:var(--text)}
+.st.on .n{border-color:var(--action);background:var(--action);color:#fff}
+.st.done .n{border-color:var(--green);color:var(--green)}
+.st:disabled{opacity:.4;cursor:not-allowed}
+/* ===== 本文 ===== */
+.content{max-width:1180px;margin:auto;padding:22px 22px 130px}
+h1{font-size:23px;margin:0 0 4px}
+.lead{color:var(--muted);margin:0 0 18px;font-size:14px}
+.card{border:1px solid var(--line);border-radius:13px;background:var(--panel);margin-bottom:14px}
+.card>header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}
+.card>header h2{margin:0;font-size:16px}.card>header p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.body{padding:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.field{display:flex;flex-direction:column;gap:5px}.field>label{font-size:13px;color:var(--muted)}
+.unit{display:grid;grid-template-columns:1fr auto;border:1px solid var(--line2);background:#0c0c0b;border-radius:9px;overflow:hidden;min-width:0}
+.unit input{border:0;background:transparent;text-align:right;height:44px;min-width:0}
+.unit span{padding:0 10px;display:flex;align-items:center;border-left:1px solid var(--line);color:var(--muted);font-size:13px;white-space:nowrap}
+.tag{font-size:12px;border-radius:999px;padding:2px 9px;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
+.tag.req{border-color:rgba(215,154,85,.5);color:var(--warn)}
+.tag.ok{border-color:rgba(119,186,131,.45);color:var(--green)}
+.tag.gold{border-color:rgba(201,168,90,.5);color:var(--gold2)}
+.note{font-size:13px;color:var(--muted);border-left:2px solid var(--line2);padding:2px 0 2px 10px;margin:12px 0 0}
+.note.warn{border-color:var(--warn);color:#e3c29b}
+.opt{position:relative;text-align:left;border:1px solid var(--line);background:var(--panel2);border-radius:12px;padding:14px}
+.opt b{display:block;font-size:15px}.opt small{display:block;color:var(--muted);font-size:13px;line-height:1.5}
+.opt.sel{border-color:var(--action);background:var(--actionbg)}
+.opt.sel::after{content:"選択中";position:absolute;right:12px;top:12px;font-size:12px;color:#dcebfa;border:1px solid var(--actionline);border-radius:999px;padding:1px 9px}
+/* テンプレカード */
+.tpls{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.tplc{min-height:178px;display:flex;flex-direction:column}
+.tplc .biz{font-size:12px;color:var(--gold2)}
+.tplc .nm{font:600 18px Georgia,"Noto Sans JP",serif;letter-spacing:.04em;margin:2px 0 6px}
+.tplc .tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.tplc .stats{margin-top:auto;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);padding-top:9px}
+.tplc .stats div{font-size:11px;color:var(--muted)}.tplc .stats b{display:block;font-size:16px;color:var(--text);font-weight:600}
+/* トグル行 */
+.row{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:13px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0;padding-top:0}
+.row b{display:block;font-size:15px}.row small{display:block;color:var(--muted);font-size:13px}
+.sw{width:52px;height:30px;border-radius:15px;border:1px solid var(--line2);background:#1f1e1a;position:relative;padding:0;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#77746c;transition:left .15s}
+.sw[aria-checked=true]{background:var(--action);border-color:var(--action)}
+.sw[aria-checked=true]::after{left:25px;background:#fff}
+.sub{margin-top:10px;padding:12px;border:1px dashed var(--line2);border-radius:10px}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;flex-wrap:wrap}
+.seg button{border:0;background:transparent;min-height:44px;padding:0 16px;color:var(--muted);font-size:14px}
+.seg button+button{border-left:1px solid var(--line2)}
+.seg button.sel{background:var(--actionbg);color:var(--text);box-shadow:inset 0 -2px 0 var(--action)}
+/* 料金ルール */
+.rule{border:1px solid var(--line);border-radius:12px;background:var(--panel2);margin-bottom:10px}
+.rule.off{opacity:.55}
+.rule header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.rule header b{font-size:15px}.rule header .seat{font-size:12px;margin-left:8px}
+.rule .body{display:grid;grid-template-columns:auto 1fr;gap:12px 16px;align-items:center}
+.wd{display:flex;gap:5px;flex-wrap:wrap}
+.wd button{width:40px;height:40px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--dim);font-size:14px}
+.wd button.sel{border-color:var(--action);background:var(--actionbg);color:var(--text)}
+.rule .vals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.lbl{font-size:13px;color:var(--muted)}
+.timebox{font-size:14px;color:var(--text)}
+table.rk{width:100%;border-collapse:collapse}.rk th{font-size:12px;color:var(--muted);font-weight:500;text-align:left;padding:0 6px 6px}
+.rk td{padding:5px 6px;border-top:1px solid var(--line)}
+/* 商品 */
+.ptools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:12px}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-width:100%}
+.chip{flex:none;border:1px solid var(--line2);background:transparent;border-radius:999px;min-height:38px;padding:0 14px;font-size:13px;color:var(--muted)}
+.chip.sel{border-color:var(--action);color:var(--text);background:var(--actionbg)}
+.cat{margin-bottom:18px}
+.cathead{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;padding:0 4px}
+.cathead b{font-size:14px;color:var(--gold2)}
+.linkbtn{background:none;border:0;color:var(--action);text-decoration:underline;font-size:13px;padding:8px 0;min-height:36px}
+.tablewrap{overflow-x:auto}
+table.pt{width:100%;border-collapse:collapse;min-width:640px}
+.pt th{font-size:12px;color:var(--dim);font-weight:500;text-align:left;padding:4px 6px}
+.pt td{border-top:1px solid var(--line);padding:6px;vertical-align:middle}
+.pt tr.off td{opacity:.4}
+.pt td.ck{width:44px}.pt td.pr{width:148px}.pt td.cs{width:110px;color:var(--muted);font-size:13px;text-align:right}
+.pt td.bk{width:210px;font-size:13px;color:#cfcabd}.pt td.fl{width:70px}
+.pt input[type=checkbox]{width:22px;height:22px;accent-color:var(--action)}
+/* 報酬 */
+.split{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+.preview{position:sticky;top:150px;border:1px solid rgba(201,168,90,.35);border-radius:13px;background:linear-gradient(160deg,rgba(201,168,90,.07),var(--panel) 40%);padding:16px}
+.preview h3{margin:0 0 2px;font-size:15px;color:var(--gold2)}
+.preview .cond{color:var(--muted);font-size:12px;margin-bottom:10px}
+.pl{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:6px 0;border-top:1px solid var(--line)}
+.pl span{color:var(--muted)}
+.total{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:10px;border-top:1px solid var(--gold)}
+.total b{font-size:24px;font-family:Georgia,serif;color:var(--gold2)}
+.ptabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tiers td{padding:5px 4px}
+/* 確認 */
+.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rcard{border:1px solid var(--line);border-radius:12px;background:var(--panel2);padding:12px 14px}
+.rcard header{display:flex;justify-content:space-between;align-items:center}
+.rcard h3{margin:0;font-size:15px}
+.rl{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid #24231f;font-size:14px}
+.rl:first-of-type{border-top:0}.rl span{color:var(--muted)}.rl b{text-align:right;font-weight:600}
+/* フッター */
+.foot{position:fixed;left:0;right:0;bottom:0;border-top:1px solid var(--line);background:rgba(10,10,9,.96);backdrop-filter:blur(10px);z-index:10;padding-bottom:env(safe-area-inset-bottom)}
+.footin{max-width:1180px;margin:auto;padding:12px 22px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.foot small{color:var(--muted);font-size:13px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.btn{min-height:48px;border:1px solid var(--line2);background:#1b1b18;border-radius:10px;padding:0 20px;font-weight:600;font-size:15px}
+.btn.primary{background:var(--action);border-color:var(--action);color:#fff}
+.btn.ghost{background:transparent;border-color:var(--actionline);color:#cfe3f7}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.done{max-width:640px;margin:50px auto;text-align:center}
+/* iPad 縦（〜1024）・スマホ */
+@media(max-width:1024px){.tpls{grid-template-columns:1fr 1fr}.split{grid-template-columns:1fr}.preview{position:static}
+  .st{min-width:112px}.st small{display:none}}
+@media(max-width:700px){.grid3,.grid4,.rgrid{grid-template-columns:1fr 1fr}.tpls{grid-template-columns:1fr}
+  .rule .body{grid-template-columns:1fr}.rule .vals{grid-template-columns:1fr 1fr}
+  .footin{flex-direction:column;align-items:stretch}.foot small{text-align:center}
+  .acts{display:grid;grid-template-columns:1fr 1fr}.acts .btn.primary{grid-column:1/-1;order:-1}
+  .st{min-width:auto}.st b{font-size:13px}.toprow .tpl{display:none}}
+@media(max-width:440px){.grid2,.grid3,.rgrid{grid-template-columns:1fr}}
+
+.bizgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.bizc{min-height:104px}.bizc .price{display:block;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:13px;color:#cfcabd}
+.feat{display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:center;padding:13px 0;border-top:1px solid var(--line)}
+.feat:first-child{border-top:0;padding-top:0}
+.feat b{display:block;font-size:15px}.feat small{display:block;color:var(--muted);font-size:12px}
+.pt input.nm{height:40px;font-size:15px}
+.bkcell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bkcell input[type=checkbox]{width:22px;height:22px;accent-color:var(--action)}
+.bkcell .seg button{min-height:36px;padding:0 10px;font-size:13px}
+.bkcell .unit{width:120px}.bkcell .unit input{height:36px}
+.nomrow td{border-top:0!important;padding-top:0!important}
+.nomgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 0 8px 50px}
+.nomgrid .field>label{font-size:12px}
+@media(max-width:1024px){.bizgrid{grid-template-columns:repeat(3,1fr)}.feat{grid-template-columns:1fr}}
+@media(max-width:700px){.bizgrid{grid-template-columns:1fr 1fr}.nomgrid{grid-template-columns:1fr 1fr;padding-left:0}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head>
+<body>
+<header class="top">
+  <div class="toprow"><div class="mark">N</div><div class="brand"><b>NOX</b><small>初期設定</small></div><div class="tpl" id="tplname"></div></div>
+  <nav class="stepper" id="stepper" aria-label="初期設定のステップ"></nav>
+</header>
+<main class="content" id="view"></main>
+<div class="foot" id="foot"><div class="footin" id="footin"></div></div>
+
+<script>
+/* ===== 元データ（NOX_demo_data_20261001 の 01_master から生成） ===== */
+const SRC = [{"id":"DEMO-CAB-01","code":"LUNA","name":"CLUB LUNA","type":"キャバクラ・標準","service":20.0,"vip":"none","ar":false,"nom":true,"wish":"availability","casts":7,"staff":2,"seats":{"normal":7},"tables":["A1","A2","A3","B1","B2","A4","B3"],"rules":[{"n":"平日アーリー","wd":[1,2,3,4],"s":1200,"e":1260,"seat":"normal","m":60,"p":4500,"x":2500,"vs":0,"on":true},{"n":"平日通常","wd":[1,2,3,4],"s":1260,"e":1800,"seat":"normal","m":60,"p":6000,"x":3000,"vs":0,"on":true},{"n":"週末通常","wd":[5,6],"s":1200,"e":1800,"seat":"normal","m":60,"p":6500,"x":3500,"vs":0,"on":true},{"n":"日曜通常","wd":[7],"s":1200,"e":1800,"seat":"normal","m":60,"p":6000,"x":3000,"vs":0,"on":false}],"ranks":[{"n":"default","hon":3000,"jonai":2000,"dohan":4000}],"plans":[{"id":"LUNA-PLAN-STD","n":"LUNA Standard","base":3000,"hon":1200,"jonai":600,"dohan":1500,"slide":false,"cnt":7,"bonus":[["monthly_sales_yen",500000,10000],["monthly_sales_yen",1000000,30000],["monthly_sales_yen",1500000,50000]],"tiers":[]}],"products":[{"c":"キャスト","k":"drink","n":"Cast Drink S","p":1100,"cost":150,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":1,"stk":false,"on":true},{"c":"キャスト","k":"drink","n":"Cast Drink M","p":1650,"cost":220,"bm":"by_nomination","bp":0.0,"b":[500,400,500,300],"pt":2,"stk":false,"on":true},{"c":"キャスト","k":"drink","n":"Cast Drink L","p":2200,"cost":300,"bm":"by_nomination","bp":0.0,"b":[700,600,700,500],"pt":3,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"生ビール","p":880,"cost":260,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"コロナ","p":990,"cost":350,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ウイスキー","k":"drink","n":"ハイボール","p":880,"cost":140,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"サワー","k":"drink","n":"レモンサワー","p":880,"cost":130,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"焼酎","k":"bottle","n":"黒霧島","p":5500,"cost":1300,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":2,"stk":true,"on":true},{"c":"焼酎","k":"bottle","n":"吉四六","p":8800,"cost":2400,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":3,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"角瓶","p":6600,"cost":1900,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":2,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"山崎","p":22000,"cost":8000,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":5,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"響","p":27500,"cost":11000,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":6,"stk":true,"on":true},{"c":"ワイン","k":"bottle","n":"赤ワイン","p":8800,"cost":2500,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":2,"stk":true,"on":true},{"c":"ワイン","k":"bottle","n":"白ワイン","p":8800,"cost":2500,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":2,"stk":true,"on":true},{"c":"スパークリング","k":"champagne","n":"カフェ・ド・パリ","p":11000,"cost":2000,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":5,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"モエ","p":22000,"cost":6500,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":10,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"ヴーヴ・クリコ","p":27500,"cost":8500,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":12,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"ドン・ペリニヨン","p":66000,"cost":24000,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":30,"stk":true,"on":true},{"c":"ソフトドリンク","k":"drink","n":"ウーロン茶","p":660,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ソフトドリンク","k":"drink","n":"コーラ","p":660,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"ミックスナッツ","p":880,"cost":180,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"フルーツ盛り","p":3300,"cost":1100,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true}]},{"id":"DEMO-CAB-02","code":"NOIR","name":"CLUB NOIR","type":"キャバクラ・VIP専用料金","service":25.0,"vip":"dedicated_rate","ar":true,"nom":true,"wish":"availability","casts":8,"staff":2,"seats":{"normal":3,"vip":4},"tables":["A1","A2","A3","VIP-1","VIP-2","VIP-3","VIP-4"],"rules":[{"n":"通常アーリー","wd":[1,2,3,4],"s":1200,"e":1260,"seat":"normal","m":60,"p":8000,"x":4000,"vs":0,"on":true},{"n":"通常メイン","wd":[1,2,3,4],"s":1260,"e":1800,"seat":"normal","m":60,"p":9000,"x":4500,"vs":0,"on":true},{"n":"週末通常","wd":[5,6],"s":1200,"e":1800,"seat":"normal","m":60,"p":10000,"x":5000,"vs":0,"on":true},{"n":"VIP平日","wd":[1,2,3,4],"s":1200,"e":1800,"seat":"vip","m":60,"p":12000,"x":6000,"vs":0,"on":true},{"n":"VIP週末","wd":[5,6],"s":1200,"e":1800,"seat":"vip","m":60,"p":14000,"x":7000,"vs":0,"on":true}],"ranks":[{"n":"default","hon":3000,"jonai":2000,"dohan":5000},{"n":"A","hon":4000,"jonai":2500,"dohan":5000},{"n":"S","hon":5000,"jonai":3000,"dohan":5000}],"plans":[{"id":"NOIR-PLAN-STD","n":"NOIR Standard","base":3500,"hon":1500,"jonai":800,"dohan":2000,"slide":false,"cnt":3,"bonus":[["monthly_sales_yen",700000,15000],["monthly_sales_yen",1200000,40000],["monthly_sales_yen",2000000,80000]],"tiers":[]},{"id":"NOIR-PLAN-PREMIUM","n":"NOIR Premium","base":4500,"hon":2000,"jonai":1000,"dohan":2500,"slide":false,"cnt":3,"bonus":[["monthly_sales_yen",1000000,30000],["monthly_sales_yen",2000000,80000],["monthly_sales_yen",3000000,150000]],"tiers":[]},{"id":"NOIR-PLAN-NEW","n":"NOIR 新人保証","base":4000,"hon":1000,"jonai":500,"dohan":1500,"slide":false,"cnt":2,"bonus":[],"tiers":[]}],"products":[{"c":"キャスト","k":"drink","n":"Premium Drink S","p":1650,"cost":180,"bm":"by_nomination","bp":0.0,"b":[500,400,500,300],"pt":2,"stk":false,"on":true},{"c":"キャスト","k":"drink","n":"Premium Drink M","p":2200,"cost":250,"bm":"by_nomination","bp":0.0,"b":[700,500,700,400],"pt":3,"stk":false,"on":true},{"c":"キャスト","k":"drink","n":"Premium Drink L","p":3300,"cost":380,"bm":"by_nomination","bp":0.0,"b":[1000,800,1000,700],"pt":5,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"生ビール","p":1100,"cost":260,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"コロナ","p":1320,"cost":350,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ウイスキー","k":"drink","n":"山崎ハイボール","p":1650,"cost":500,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ウイスキー","k":"drink","n":"白州ハイボール","p":1650,"cost":500,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"焼酎","k":"bottle","n":"吉四六","p":11000,"cost":2400,"bm":"by_nomination","bp":0.0,"b":[1000,700,1000,500],"pt":5,"stk":true,"on":true},{"c":"焼酎","k":"bottle","n":"魔王","p":27500,"cost":8500,"bm":"by_nomination","bp":0.0,"b":[2500,1500,2500,1000],"pt":10,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"山崎NV","p":33000,"cost":8000,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":10,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"白州NV","p":33000,"cost":8000,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":10,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"響JH","p":44000,"cost":11000,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":15,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"マッカラン12年","p":33000,"cost":10000,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":10,"stk":true,"on":true},{"c":"スパークリング","k":"champagne","n":"カフェ・ド・パリ","p":16500,"cost":2000,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":5,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"モエ","p":27500,"cost":6500,"bm":"percentage","bp":20.0,"b":[0,0,0,0],"pt":10,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"ヴーヴ・クリコ","p":38500,"cost":8500,"bm":"percentage","bp":20.0,"b":[0,0,0,0],"pt":15,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"ベルエポック","p":66000,"cost":22000,"bm":"percentage","bp":20.0,"b":[0,0,0,0],"pt":25,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"ドン・ペリニヨン","p":88000,"cost":24000,"bm":"percentage","bp":25.0,"b":[0,0,0,0],"pt":30,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"クリュッグ","p":99000,"cost":35000,"bm":"percentage","bp":25.0,"b":[0,0,0,0],"pt":40,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"アルマンド ゴールド","p":165000,"cost":48000,"bm":"percentage","bp":25.0,"b":[0,0,0,0],"pt":50,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"ソウメイ","p":110000,"cost":38000,"bm":"percentage","bp":25.0,"b":[0,0,0,0],"pt":40,"stk":true,"on":true},{"c":"ソフトドリンク","k":"drink","n":"ウーロン茶","p":770,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ソフトドリンク","k":"drink","n":"ペリエ","p":880,"cost":180,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"軽食","k":"food","n":"フルーツ盛り","p":5500,"cost":1500,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"チーズ盛り","p":2200,"cost":600,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true}]},{"id":"DEMO-CAB-03","code":"ACE","name":"CLUB ACE","type":"キャバクラ・売上スライド","service":20.0,"vip":"surcharge","ar":true,"nom":true,"wish":"availability","casts":7,"staff":2,"seats":{"normal":4,"vip":2},"tables":["A1","A2","A3","B1","VIP-1","VIP-2"],"rules":[{"n":"平日通常","wd":[1,2,3,4],"s":1200,"e":1800,"seat":"any","m":60,"p":7000,"x":3500,"vs":5000,"on":true},{"n":"週末通常","wd":[5,6],"s":1200,"e":1800,"seat":"any","m":60,"p":8000,"x":4000,"vs":5000,"on":true}],"ranks":[{"n":"default","hon":3000,"jonai":2000,"dohan":4000}],"plans":[{"id":"ACE-PLAN-SLIDE","n":"ACE Sales Slide","base":2500,"hon":1000,"jonai":500,"dohan":1500,"slide":true,"cnt":7,"bonus":[["monthly_sales_yen",500000,10000],["monthly_sales_yen",1000000,30000],["monthly_sales_yen",2000000,80000],["monthly_main_count",10,5000],["monthly_main_count",20,15000],["monthly_main_count",30,30000]],"tiers":[[0,2500],[30000,3000],[70000,3500],[120000,4500]]}],"products":[{"c":"キャスト","k":"drink","n":"Cast Drink S","p":1100,"cost":150,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":false,"on":true},{"c":"キャスト","k":"drink","n":"Cast Drink M","p":1650,"cost":220,"bm":"by_nomination","bp":0.0,"b":[500,400,500,300],"pt":0,"stk":false,"on":true},{"c":"キャスト","k":"drink","n":"Cast Drink L","p":2200,"cost":300,"bm":"by_nomination","bp":0.0,"b":[700,500,700,500],"pt":0,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"生ビール","p":880,"cost":260,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ウイスキー","k":"drink","n":"ハイボール","p":880,"cost":140,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"サワー","k":"drink","n":"レモンサワー","p":880,"cost":130,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"焼酎","k":"bottle","n":"黒霧島","p":5500,"cost":1300,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"焼酎","k":"bottle","n":"吉四六","p":8800,"cost":2400,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"山崎","p":22000,"cost":8000,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"響","p":27500,"cost":11000,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"スパークリング","k":"champagne","n":"カフェ・ド・パリ","p":11000,"cost":2000,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"モエ","p":22000,"cost":6500,"bm":"percentage","bp":20.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"ヴーヴ・クリコ","p":27500,"cost":8500,"bm":"percentage","bp":20.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"ドン・ペリニヨン","p":66000,"cost":24000,"bm":"percentage","bp":20.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"アルマンド","p":110000,"cost":48000,"bm":"percentage","bp":20.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ソフトドリンク","k":"drink","n":"ウーロン茶","p":660,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ソフトドリンク","k":"drink","n":"コーラ","p":660,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"ミックスナッツ","p":880,"cost":180,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"フルーツ盛り","p":3300,"cost":1100,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true}]},{"id":"DEMO-GIRLS","code":"LILY","name":"Girls Bar LILY","type":"ガールズバー","service":10.0,"vip":"none","ar":false,"nom":false,"wish":"availability","casts":6,"staff":1,"seats":{"normal":8},"tables":["C1","C2","C3","C4","C5","C6","C7","C8"],"rules":[{"n":"通常","wd":[1,2,3,4,7],"s":0,"e":1800,"seat":"normal","m":60,"p":3300,"x":1650,"vs":0,"on":true},{"n":"週末","wd":[5,6],"s":0,"e":1800,"seat":"normal","m":60,"p":3850,"x":1980,"vs":0,"on":true}],"ranks":[],"plans":[{"id":"LILY-PLAN-STD","n":"LILY Standard","base":1800,"hon":0,"jonai":0,"dohan":0,"slide":false,"cnt":6,"bonus":[["monthly_sales_yen",200000,5000],["monthly_sales_yen",400000,15000],["monthly_sales_yen",700000,30000]],"tiers":[]}],"products":[{"c":"キャスト","k":"drink","n":"Cast Drink S","p":1100,"cost":150,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":false,"on":true},{"c":"キャスト","k":"drink","n":"Cast Drink M","p":1650,"cost":220,"bm":"by_nomination","bp":0.0,"b":[500,500,500,500],"pt":0,"stk":false,"on":true},{"c":"キャスト","k":"drink","n":"Cast Drink L","p":2200,"cost":300,"bm":"by_nomination","bp":0.0,"b":[700,700,700,700],"pt":0,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"生ビール","p":770,"cost":260,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"コロナ","p":880,"cost":350,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ウイスキー","k":"drink","n":"ハイボール","p":770,"cost":130,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"サワー","k":"drink","n":"レモンサワー","p":770,"cost":130,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"カクテル","k":"drink","n":"カシスオレンジ","p":880,"cost":170,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"カクテル","k":"drink","n":"ファジーネーブル","p":880,"cost":170,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"カクテル","k":"drink","n":"ジントニック","p":880,"cost":170,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"カクテル","k":"drink","n":"モスコミュール","p":880,"cost":180,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"キャストショット","k":"drink","n":"キャスト用テキーラ","p":1100,"cost":220,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":false,"on":true},{"c":"キャストショット","k":"drink","n":"キャスト用イエーガー","p":1100,"cost":240,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":false,"on":true},{"c":"キャストショット","k":"drink","n":"キャスト用クライナー","p":1100,"cost":300,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":false,"on":true},{"c":"キャストショット","k":"drink","n":"キャスト用コカレロ","p":1320,"cost":300,"bm":"by_nomination","bp":0.0,"b":[400,400,400,400],"pt":0,"stk":false,"on":true},{"c":"スパークリング","k":"champagne","n":"カフェ・ド・パリ","p":8800,"cost":2000,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"モエ","p":16500,"cost":6500,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"ヴーヴ","p":22000,"cost":8500,"bm":"percentage","bp":15.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ソフトドリンク","k":"drink","n":"ウーロン茶","p":550,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ソフトドリンク","k":"drink","n":"オレンジ","p":550,"cost":100,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ソフトドリンク","k":"drink","n":"コーラ","p":550,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"ミックスナッツ","p":660,"cost":180,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"ポテトフライ","p":880,"cost":250,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true}]},{"id":"DEMO-SNACK","code":"MUSE","name":"SNACK MUSE","type":"スナック","service":10.0,"vip":"none","ar":false,"nom":false,"wish":"availability","casts":5,"staff":1,"seats":{"normal":5},"tables":["T1","T2","T3","T4","T5"],"rules":[{"n":"通常料金","wd":[1,2,3,4,5,6],"s":0,"e":1800,"seat":"normal","m":90,"p":5500,"x":2200,"vs":0,"on":true}],"ranks":[],"plans":[{"id":"MUSE-PLAN-STD","n":"MUSE Standard","base":1800,"hon":0,"jonai":0,"dohan":0,"slide":false,"cnt":5,"bonus":[["monthly_sales_yen",300000,5000],["monthly_sales_yen",500000,15000],["monthly_sales_yen",800000,30000]],"tiers":[]}],"products":[{"c":"キャスト","k":"drink","n":"キャストドリンク","p":1100,"cost":150,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":false,"on":true},{"c":"キャスト","k":"drink","n":"キャストドリンクW","p":2200,"cost":300,"bm":"by_nomination","bp":0.0,"b":[600,600,600,600],"pt":0,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"生ビール","p":770,"cost":260,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"瓶ビール","p":880,"cost":300,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ウイスキー","k":"drink","n":"ハイボール","p":770,"cost":130,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"サワー","k":"drink","n":"レモンサワー","p":770,"cost":130,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"焼酎","k":"bottle","n":"黒霧島","p":4400,"cost":1300,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":true,"on":true},{"c":"焼酎","k":"bottle","n":"吉四六","p":7700,"cost":2400,"bm":"by_nomination","bp":0.0,"b":[500,500,500,500],"pt":0,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"角瓶","p":5500,"cost":1900,"bm":"by_nomination","bp":0.0,"b":[500,500,500,500],"pt":0,"stk":true,"on":true},{"c":"ウイスキー","k":"bottle","n":"シーバス12年","p":11000,"cost":4000,"bm":"by_nomination","bp":0.0,"b":[800,800,800,800],"pt":0,"stk":true,"on":true},{"c":"ワイン","k":"bottle","n":"赤ワイン","p":5500,"cost":1600,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ワイン","k":"bottle","n":"白ワイン","p":5500,"cost":1600,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"スパークリング","k":"champagne","n":"カフェ・ド・パリ","p":8800,"cost":2000,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"モエ","p":16500,"cost":6500,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ソフトドリンク","k":"drink","n":"ウーロン茶","p":550,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ソフトドリンク","k":"drink","n":"コーラ","p":550,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"ミックスナッツ","p":660,"cost":180,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"チョコレート","p":660,"cost":200,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"枝豆","p":660,"cost":180,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"チーズ盛り","p":1100,"cost":380,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true}]},{"id":"DEMO-BAR","code":"NEST","name":"BAR NEST","type":"バー・スタッフバックあり","service":0.0,"vip":"none","ar":false,"nom":false,"wish":"shift","casts":0,"staff":6,"seats":{"normal":5,"counter":1},"tables":["B1","B2","B3","B4","B5","カウンター"],"rules":[{"n":"テーブルチャージ","wd":[1,2,3,4,5,6,7],"s":0,"e":1800,"seat":"any","m":0,"p":1100,"x":0,"vs":0,"on":true}],"ranks":[],"plans":[{"id":"NEST-PLAN-STAFF","n":"NEST Staff","base":1600,"hon":0,"jonai":0,"dohan":0,"slide":false,"cnt":0,"bonus":[["monthly_sales_yen",150000,5000],["monthly_sales_yen",300000,10000],["monthly_sales_yen",500000,20000]],"tiers":[]}],"products":[{"c":"スタッフ","k":"drink","n":"Staff Drink","p":1100,"cost":150,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"生ビール","p":770,"cost":260,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ビール","k":"drink","n":"コロナ","p":880,"cost":350,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ビール","k":"drink","n":"ハイネケン","p":880,"cost":350,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ウイスキー","k":"drink","n":"ハイボール","p":770,"cost":130,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ウイスキー","k":"drink","n":"ジャックダニエル","p":880,"cost":180,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ウイスキー","k":"drink","n":"メーカーズマーク","p":990,"cost":220,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ウイスキー","k":"drink","n":"山崎","p":1650,"cost":500,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ウイスキー","k":"drink","n":"白州","p":1650,"cost":500,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"カクテル","k":"drink","n":"ジントニック","p":880,"cost":170,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"カクテル","k":"drink","n":"モスコミュール","p":880,"cost":180,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"カクテル","k":"drink","n":"カシスオレンジ","p":880,"cost":170,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"カクテル","k":"drink","n":"カルーアミルク","p":880,"cost":200,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"スタッフショット","k":"drink","n":"スタッフ用テキーラ","p":1100,"cost":220,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":false,"on":true},{"c":"スタッフショット","k":"drink","n":"スタッフ用イエーガー","p":1100,"cost":240,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":false,"on":true},{"c":"スタッフショット","k":"drink","n":"スタッフ用クライナー","p":1100,"cost":300,"bm":"by_nomination","bp":0.0,"b":[300,300,300,300],"pt":0,"stk":false,"on":true},{"c":"スタッフショット","k":"drink","n":"スタッフ用コカレロ","p":1320,"cost":300,"bm":"by_nomination","bp":0.0,"b":[400,400,400,400],"pt":0,"stk":false,"on":true},{"c":"ワイン","k":"drink","n":"グラス赤","p":880,"cost":230,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ワイン","k":"drink","n":"グラス白","p":880,"cost":230,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ワイン","k":"bottle","n":"ボトル赤","p":5500,"cost":1600,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ワイン","k":"bottle","n":"ボトル白","p":5500,"cost":1600,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"スパークリング","k":"champagne","n":"カフェ・ド・パリ","p":8800,"cost":2000,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"シャンパン","k":"champagne","n":"モエ","p":16500,"cost":6500,"bm":"percentage","bp":10.0,"b":[0,0,0,0],"pt":0,"stk":true,"on":true},{"c":"ソフトドリンク","k":"drink","n":"ウーロン茶","p":550,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ソフトドリンク","k":"drink","n":"コーラ","p":550,"cost":70,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"ソフトドリンク","k":"drink","n":"ジンジャーエール","p":550,"cost":80,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"ミックスナッツ","p":660,"cost":180,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"ビーフジャーキー","p":880,"cost":300,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true},{"c":"軽食","k":"food","n":"チーズ盛り","p":1320,"cost":450,"bm":"none","bp":0.0,"b":[0,0,0,0],"pt":0,"stk":false,"on":true}]}];
+const src = code => SRC.find(x=>x.code===code);
+/* 業態 → 土台にするデモ店舗（画面には店名を出さない） */
+const BIZ = {
+  cabaret:{name:"キャバクラ",desc:"セット・指名・同伴中心",base:"LUNA"},
+  lounge:{name:"ラウンジ",desc:"高単価・VIP寄り",base:"NOIR"},
+  girlsbar:{name:"ガールズバー",desc:"チャージ＋ドリンク中心",base:"LILY"},
+  snack:{name:"スナック",desc:"セット＋ボトル中心",base:"MUSE"},
+  bar:{name:"バー",desc:"商品会計＋チャージ中心",base:"NEST"}
+};
+const STEPS=[
+  {t:"お店について",s:"業態・特徴・店舗情報"},
+  {t:"料金",s:"セット・延長・指名料"},
+  {t:"商品",s:"名前・価格・バック"},
+  {t:"キャスト報酬",s:"時給・給与の締め日"},
+  {t:"会計と運用",s:"税・支払い方法・打刻"},
+  {t:"確認",s:"見直して完了"}];
+const WD=["月","火","水","木","金","土","日"];
+const SEATN={normal:"通常",vip:"VIP",counter:"カウンター",any:"全席"};
+const KLS={drink:"ドリンク",bottle:"ボトル",champagne:"シャンパン",food:"フード"};
+
+const S={step:0,visited:new Set([0]),finished:false,
+  biz:null,feat:null,name:"",addr:"",tel:"",inv:{on:false,no:"",from:""},receiptNote:"飲食代",
+  pay:{cycle:"monthly",close:"end",payDay:10,semi:[[15,25,0],["end",10,1]],wClose:7,wPay:3},grace:5,
+  open:"20:00",close:"01:00",seats:{normal:0,vip:0,counter:0},
+  service:0,rules:[],ranks:[],products:[],pf:"all",plans:[],plan:0,comp:null,ops:null};
+
+/* ===== 特徴の既定（業態ごと） ===== */
+function defaultFeat(k){
+  const t=src(BIZ[k].base);
+  return {vip: k==="lounge"?"dedicated":"none",
+          nom: k==="lounge"?"flat":(t.ranks.length?"flat":"none"),
+          slide:false, newbie:false, bonus:t.plans.some(p=>p.bonus.length)};
+}
+/* 業態＋特徴からテンプレを組み立てる */
+function build(){
+  const k=S.biz,f=S.feat,t=src(BIZ[k].base);
+  S.service=t.service;
+  S.seats={normal:t.seats.normal||0,vip:t.seats.vip||0,counter:t.seats.counter||0};
+  // 料金：土台の通常席ルール
+  let rules=t.rules.filter(r=>r.seat!=="vip").map(r=>({...r,wd:[...r.wd],seat:r.seat==="any"?"normal":r.seat,vs:0}));
+  if(f.vip==="dedicated"){
+    const vipSrc=k==="lounge"||k==="cabaret"?src("NOIR").rules.filter(r=>r.seat==="vip"):[];
+    const base=rules.find(r=>r.on)||rules[0];
+    const add=vipSrc.length?vipSrc.map(r=>({...r,wd:[...r.wd]}))
+      :[{n:"VIP",wd:[1,2,3,4,5,6,7],s:base.s,e:base.e,seat:"vip",m:base.m,p:Math.round(base.p*1.5/500)*500,x:Math.round(base.x*1.5/500)*500,vs:0,on:true}];
+    rules=rules.concat(add);
+    if(!S.seats.vip)S.seats.vip=2;
+  }else if(f.vip==="surcharge"){
+    rules.forEach(r=>{r.seat="any";r.vs=5000});
+    if(!S.seats.vip)S.seats.vip=2;
+  }else S.seats.vip=0;
+  S.rules=rules;
+  // 指名料
+  const flat=(t.ranks[0]||src("LUNA").ranks[0]);
+  S.ranks=f.nom==="none"?[]:f.nom==="rank"?src("NOIR").ranks.map(r=>({...r})):[{...flat,n:"default"}];
+  // 商品
+  S.products=t.products.map(p=>{
+    const same=p.b.every(v=>v===p.b[0]);
+    return {c:p.c,k:p.k,n:p.n,p:p.p,cost:p.cost,stk:p.stk,pt:p.pt,sel:p.on,
+      bk:p.bm!=="none", bmode:p.bm==="percentage"?"pct":(same?"yen":"nom"),
+      pct:p.bp||10, yen:p.b[0]||300, nomv:[...p.b]};
+  });
+  S.pf="all";
+  // 報酬プラン
+  const p0=t.plans[0];
+  const plan={n:"標準",base:p0.base,hon:p0.hon,jonai:p0.jonai,dohan:p0.dohan,cnt:0,
+    bonus:f.bonus?(p0.bonus.length?p0.bonus:src("LUNA").plans[0].bonus).map(b=>[...b]):[],
+    tiers:f.slide?src("ACE").plans[0].tiers.map((x,i)=>i===0?[0,p0.base]:[x[0],p0.base+(x[1]-2500)]):[]};
+  if(f.nom!=="none"&&!plan.hon){plan.hon=1000;plan.jonai=500;plan.dohan=1500}
+  if(f.nom==="none"){plan.hon=plan.jonai=plan.dohan=0}
+  S.plans=[plan];
+  if(f.newbie)S.plans.push({...plan,n:"新人保証",base:plan.base+500,bonus:[],tiers:[]});
+  S.plan=0;
+}
+function pickBiz(k){
+  S.biz=k;S.feat=defaultFeat(k);build();
+  S.comp={contract:null,payType:null,timeBasis:"shift",slideApply:"next",deduct:true,presets:false,daily:true,okuri:1000,norms:false};
+  const t=src(BIZ[k].base);
+  S.ops={tax:"out",card:false,cardRate:4,pm:{cash:true,card:true,emoney:false,qr:false},ar:t.ar?"store":"none",referral:false,
+    punchSelf:true,punchProxy:true,kiosk:false,
+    mineSlip:"off",wishMode:t.wish==="off_only"?"off_only":"shift",reserve:true,drinkReport:false,fixReq:false,ranking:false};
+}
+
+/* ===== 部品 ===== */
+const yen=n=>(Math.round(n)||0).toLocaleString("ja-JP");
+const hm=m=>{const h=Math.floor(m/60),mm=String(m%60).padStart(2,"0");return h>=24?`翌${h-24}:${mm}`:`${h}:${mm}`};
+const sw=(on,act,label)=>`<button class="sw" role="switch" aria-checked="${!!on}" aria-label="${label}" data-act="${act}"></button>`;
+const seg=(val,opts,act)=>`<div class="seg" role="radiogroup">${opts.map(([v,l])=>`<button role="radio" aria-checked="${v===val}" class="${v===val?"sel":""}" data-act="${act}" data-v="${v}">${l}</button>`).join("")}</div>`;
+const num=(val,unit,bind,w)=>`<div class="unit"${w?` style="max-width:${w}px"`:""}><input type="number" inputmode="numeric" value="${val}" data-bind="${bind}"><span>${unit}</span></div>`;
+function featLabel(){
+  if(!S.biz)return"";const f=S.feat,x=[];
+  if(f.vip==="dedicated")x.push("VIP専用料金");if(f.vip==="surcharge")x.push("VIP加算");
+  if(f.nom==="flat")x.push("指名料あり");if(f.nom==="rank")x.push("ランク別指名料");
+  if(f.slide)x.push("売上スライド");if(f.newbie)x.push("新人保証");if(f.bonus)x.push("達成ボーナス");
+  return `${BIZ[S.biz].name}${x.length?"｜"+x.join("・"):""}`;
+}
+
+/* ===== STEP 1 ===== */
+function vStore(){
+  const f=S.feat;
+  return `
+  <h1>お店について</h1>
+  <p class="lead">業態と特徴を選ぶと、料金・商品・報酬の初期値が組み上がります。次の画面から金額や名前を調整します。</p>
+  <div class="card"><header><div><h2>業態</h2></div><span class="tag req">必須</span></header><div class="body">
+    <div class="bizgrid">${Object.entries(BIZ).map(([k,b])=>{const t=src(b.base),r=t.rules.find(x=>x.on);
+      return `<button class="opt bizc ${S.biz===k?"sel":""}" data-act="biz" data-v="${k}"><b>${b.name}</b><small>${b.desc}</small>
+      <span class="price">${r.m?`セット ${yen(r.p)}円 / ${r.m}分〜`:`チャージ ${yen(r.p)}円`}</span></button>`}).join("")}</div>
+  </div></div>
+  ${S.biz?`
+  <div class="card"><header><div><h2>お店の特徴</h2><p>当てはまるものを選んでください。料金表・報酬プランの形が変わります</p></div></header><div class="body">
+    <div class="feat"><div><b>VIP 席</b><small>VIP の料金の取り方</small></div>${seg(f.vip,[["none","なし"],["dedicated","VIP 専用の料金表"],["surcharge","通常料金＋VIP 加算"]],"f:vip")}</div>
+    <div class="feat"><div><b>指名料</b><small>お客様に請求する指名料</small></div>${seg(f.nom,[["none","取らない"],["flat","全員同じ額"],["rank","キャストのランク別"]],"f:nom")}</div>
+    <div class="feat"><div><b>売上スライド</b><small>売上で時給が上がる</small></div>${seg(f.slide?"on":"off",[["off","なし"],["on","あり"]],"f:slide")}</div>
+    <div class="feat"><div><b>新人保証</b><small>入店直後は高めの時給を保証</small></div>${seg(f.newbie?"on":"off",[["off","なし"],["on","あり"]],"f:newbie")}</div>
+    <div class="feat"><div><b>達成ボーナス</b><small>月の売上・本指名で支給</small></div>${seg(f.bonus?"on":"off",[["off","なし"],["on","あり"]],"f:bonus")}</div>
+    ${S.visited.size>1?`<p class="note warn">業態や特徴を変えると、料金・商品・報酬で調整した値は初期値に戻ります。</p>`:""}
+  </div></div>
+  <div class="card"><header><div><h2>店舗情報</h2><p>領収書と給与明細に印字されます</p></div><span class="tag req">必須</span></header><div class="body">
+    <div class="grid2">
+      <div class="field"><label for="f-name">店舗名（領収書の表記）</label><input id="f-name" type="text" value="${S.name}" data-bind="name" placeholder="例：CLUB NOX"></div>
+      <div class="field"><label for="f-tel">電話番号</label><input id="f-tel" type="text" inputmode="tel" value="${S.tel}" data-bind="tel" placeholder="03-0000-0000"></div>
+    </div>
+    <div class="field" style="margin-top:12px"><label for="f-addr">住所</label><input id="f-addr" type="text" value="${S.addr}" data-bind="addr" placeholder="東京都新宿区歌舞伎町…"></div>
+    <div class="row" style="margin-top:14px"><div><b>インボイスの登録</b><small>登録番号を領収書に印字します。登録日より前の会計には印字しません</small></div>${seg(S.inv.on?"on":"off",[["off","登録していない"],["on","登録している"]],"inv")}</div>
+    ${S.inv.on?`<div class="sub grid2">
+      <div class="field"><label for="f-invno">登録番号</label><div class="unit" style="grid-template-columns:auto 1fr"><span style="border-left:0;border-right:1px solid var(--line)">T</span><input id="f-invno" type="text" inputmode="numeric" maxlength="13" value="${S.inv.no}" data-bind="inv.no" placeholder="13 桁の数字" style="text-align:left"></div></div>
+      <div class="field"><label for="f-invfrom">登録日</label><input id="f-invfrom" type="date" value="${S.inv.from}" data-bind="inv.from" style="width:100%;height:46px;border:1px solid var(--line2);background:#0c0c0b;border-radius:9px;padding:0 12px;font-size:16px"></div>
+      ${S.inv.no&&!/^\d{13}$/.test(S.inv.no)?`<p class="note warn" style="grid-column:1/-1;margin:0">登録番号は T のあとに数字 13 桁です。</p>`:""}
+    </div>`:""}
+    <div class="field" style="margin-top:12px;max-width:320px"><label for="f-note">領収書の但し書き（既定）</label><input id="f-note" type="text" value="${S.receiptNote}" data-bind="receiptNote"></div>
+  </div></div>
+  <div class="card"><header><div><h2>営業時間と席</h2></div></header><div class="body">
+    <div class="grid4">
+      <div class="field"><label for="f-open">営業開始</label><input id="f-open" type="time" value="${S.open}" data-bind="open"></div>
+      <div class="field"><label for="f-close">営業終了</label><input id="f-close" type="time" value="${S.close}" data-bind="close"></div>
+      <div class="field" style="grid-column:span 2"><label>営業日の区切り</label><div style="min-height:46px;display:flex;align-items:center;color:var(--muted);font-size:14px">${bizNote()}</div></div>
+    </div>
+    <div class="grid3" style="margin-top:12px">
+      <div class="field"><label>通常席</label>${num(S.seats.normal,"卓","seats.normal")}</div>
+      <div class="field"><label>VIP 席</label>${num(S.seats.vip,"卓","seats.vip")}</div>
+      <div class="field"><label>カウンター</label>${num(S.seats.counter,"席","seats.counter")}</div>
+    </div>
+  </div></div>`:""}`;
+}
+function bizNote(){
+  const [oh]=S.open.split(":").map(Number),[ch,cm]=S.close.split(":").map(Number);
+  return ch<oh?`翌 ${ch}:${String(cm).padStart(2,"0")} までを前日の営業として集計します`:"当日中に閉店";
+}
+
+/* ===== STEP 2 ===== */
+function vPrice(){
+  return `
+  <h1>料金</h1>
+  <p class="lead">曜日と時間帯で料金を分けられます。名前・曜日・金額をお店に合わせてください。</p>
+  <div class="card"><header><div><h2>セット料金</h2><p>税・サービス料は会計時に加算します</p></div><div class="field" style="width:160px"><label>サービス料</label>${num(S.service,"%","service")}</div></header>
+  <div class="body">
+  ${S.rules.map((r,i)=>`
+   <div class="rule ${r.on?"":"off"}"><header><div style="display:flex;gap:8px;align-items:center;flex:1"><input type="text" value="${r.n}" data-bind="rule.${i}.n" style="max-width:260px;height:40px" aria-label="料金の名前"><span class="tag">${SEATN[r.seat]||r.seat}</span></div>${sw(r.on,`ruleOn:${i}`,`${r.n}を使う`)}</header>
+    <div class="body">
+      <span class="lbl">曜日</span><div class="wd">${WD.map((w,k)=>`<button class="${r.wd.includes(k+1)?"sel":""}" data-act="wd" data-v="${i}:${k+1}" aria-pressed="${r.wd.includes(k+1)}">${w}</button>`).join("")}</div>
+      <span class="lbl">時間</span><div class="timebox">${r.s===0&&r.e>=1800?"営業時間中ずっと":`${hm(r.s)}〜${hm(r.e)}`}</div>
+      <span class="lbl">金額</span><div class="vals">
+        ${r.m?`<div class="field"><label>セット（${r.m}分）</label>${num(r.p,"円",`rule.${i}.p`)}</div>
+        <div class="field"><label>延長（30分）</label>${num(r.x,"円",`rule.${i}.x`)}</div>`
+        :`<div class="field"><label>チャージ</label>${num(r.p,"円",`rule.${i}.p`)}</div>`}
+        ${r.vs?`<div class="field"><label>VIP 加算（1人・60分）</label>${num(r.vs,"円",`rule.${i}.vs`)}</div>`:""}
+      </div>
+    </div></div>`).join("")}
+  <button class="btn ghost" data-act="addRule">＋ 料金を追加</button>
+  </div></div>
+  ${S.ranks.length?`
+  <div class="card"><header><div><h2>指名料（お客様に請求）</h2><p>${S.ranks.length>1?"ランクはキャスト登録時に選びます":"同伴を付けると本指名料も自動で付きます"}</p></div></header><div class="body">
+   <table class="rk"><thead><tr><th>${S.ranks.length>1?"ランク":""}</th><th>本指名</th><th>場内指名</th><th>同伴</th></tr></thead><tbody>
+   ${S.ranks.map((r,i)=>`<tr><td style="width:90px">${r.n==="default"?"標準":r.n}</td><td>${num(r.hon,"円",`rank.${i}.hon`)}</td><td>${num(r.jonai,"円",`rank.${i}.jonai`)}</td><td>${num(r.dohan,"円",`rank.${i}.dohan`)}</td></tr>`).join("")}
+   </tbody></table></div></div>`:""}`;
+}
+
+/* ===== STEP 3 ===== */
+function backCell(p,i){
+  if(!p.bk)return `<div class="bkcell"><label style="display:flex;gap:8px;align-items:center;min-height:40px"><input type="checkbox" data-act="bk" data-v="${i}"> バックあり</label></div>`;
+  return `<div class="bkcell"><input type="checkbox" checked data-act="bk" data-v="${i}" aria-label="バックあり">
+    ${seg(p.bmode,[["pct","率"],["yen","金額"],["nom","指名別"]],`bmode:${i}`)}
+    ${p.bmode==="pct"?num(p.pct,"%",`prod.${i}.pct`):p.bmode==="yen"?num(p.yen,"円",`prod.${i}.yen`):""}</div>`;
+}
+function vProd(){
+  const cats=[...new Set(S.products.map(p=>p.c))];
+  const sel=S.products.filter(p=>p.sel).length;
+  const list=S.pf==="all"?cats:[S.pf];
+  return `
+  <h1>商品</h1>
+  <p class="lead">使わない商品はチェックを外し、名前と価格をお店のメニューに合わせてください。バックは「バックあり」にすると率か金額を入れられます。</p>
+  <div class="ptools">
+    <div class="chips"><button class="chip ${S.pf==="all"?"sel":""}" data-act="pf" data-v="all">すべて</button>
+    ${cats.map(c=>`<button class="chip ${S.pf===c?"sel":""}" data-act="pf" data-v="${c}">${c}</button>`).join("")}</div>
+    <span class="tag ok">${sel} / ${S.products.length} 品を登録</span>
+  </div>
+  <div class="card"><div class="body">
+  ${list.map(c=>{
+    const items=S.products.map((p,i)=>[p,i]).filter(([p])=>p.c===c);
+    const all=items.every(([p])=>p.sel);
+    return `<div class="cat"><div class="cathead"><b>${c}</b><button class="linkbtn" data-act="catAll" data-v="${c}">${all?"すべて外す":"すべて選ぶ"}</button></div>
+    <div class="tablewrap"><table class="pt"><thead><tr><th></th><th>メニュー名</th><th>価格（税・サ別）</th><th>バック</th><th>在庫</th></tr></thead><tbody>
+    ${items.map(([p,i])=>`<tr class="${p.sel?"":"off"}">
+      <td class="ck"><input type="checkbox" ${p.sel?"checked":""} data-act="pSel" data-v="${i}" aria-label="${p.n}を登録"></td>
+      <td><input class="nm" type="text" value="${p.n}" data-bind="prod.${i}.n" aria-label="メニュー名"></td>
+      <td class="pr">${num(p.p,"円",`prod.${i}.p`)}</td>
+      <td style="width:330px">${backCell(p,i)}</td>
+      <td class="fl">${p.stk?`<span class="tag">管理</span>`:""}</td></tr>
+      ${p.bk&&p.bmode==="nom"?`<tr class="nomrow ${p.sel?"":"off"}"><td colspan="5"><div class="nomgrid">
+        ${["本指名","場内","同伴","フリー"].map((l,j)=>`<div class="field"><label>${l}</label>${num(p.nomv[j],"円",`nom.${i}.${j}`)}</div>`).join("")}</div></td></tr>`:""}`).join("")}
+    </tbody></table></div></div>`;}).join("")}
+  <button class="btn ghost" data-act="addProd">＋ メニューを追加</button>
+  </div></div>`;
+}
+
+/* ===== STEP 4 ===== */
+function vComp(){
+  const c=S.comp,emp=c.contract==="employ",con=c.contract==="contract";
+  const p=S.plans[S.plan];
+  const payOpts=emp?[["hourly","時給","勤務時間 × 時給"],["fixed","固定給","月額または日額"]]
+    :con?[["hourly","時間報酬","稼働時間 × 時間単価"],["perShift","1 稼働固定","1 回の出勤ごとに定額"],["rateOnly","売上歩合のみ","時間報酬なし"]]:[];
+  const hourly=c.payType==="hourly";
+  return `
+  <h1>キャスト報酬</h1>
+  <p class="lead">キャストごとの上書き（保証時給など）は登録後に /casts から。商品のバックは前の画面で設定済みです。</p>
+  <div class="split"><div>
+  <div class="card"><header><div><h2>契約の形</h2><p>給与計算・控除・源泉の扱いが変わります</p></div><span class="tag req">必須</span></header><div class="body">
+    <div class="grid2">
+      <button class="opt ${emp?"sel":""}" data-act="contract" data-v="employ"><b>雇用</b><small>アルバイト・社員。給与明細を出します</small></button>
+      <button class="opt ${con?"sel":""}" data-act="contract" data-v="contract"><b>業務委託</b><small>報酬として支払い、源泉徴収の対象になります</small></button>
+    </div>
+    <p class="note">混在していても大丈夫です。多い方を選び、個別のキャストは後から切り替えます（給与期の初日から有効）。</p>
+    ${c.contract?`<div class="grid3" style="margin-top:14px">${payOpts.map(([v,l,d])=>`<button class="opt ${c.payType===v?"sel":""}" data-act="payType" data-v="${v}"><b>${l}</b><small>${d}</small></button>`).join("")}</div>`:""}
+    ${hourly?`<div class="field" style="margin-top:14px"><label>勤務時間の数え方</label>${seg(c.timeBasis,[["shift","確定シフトどおり（既定）"],["punch","実際の出退勤"]],"timeBasis")}</div>
+      <p class="note">${c.timeBasis==="shift"?"確定シフトの時間で払います。遅刻・早上がりは打刻から判定して差し引き、シフトより長い分は払いません。":"出勤〜退勤の打刻で計算します。打刻の修正は店長が行います。"}</p>
+      <div class="field" style="margin-top:12px;max-width:260px"><label>遅刻とみなすまでの猶予</label>${num(S.grace,"分","grace")}</div>`:""}
+  </div></div>
+
+  <div class="card"><header><div><h2>報酬プラン</h2><p>${S.plans.length>1?"キャスト登録時にプランを選びます":"全員共通のプランです"}</p></div></header><div class="body">
+    ${S.plans.length>1?`<div class="ptabs">${S.plans.map((x,i)=>`<button class="chip ${S.plan===i?"sel":""}" data-act="plan" data-v="${i}">${x.n}</button>`).join("")}</div>`:""}
+    <div class="grid2">
+      <div class="field"><label>プラン名</label><input type="text" value="${p.n}" data-bind="plan.n"></div>
+      <div class="field"><label>${c.payType==="perShift"?"1 稼働あたり":c.payType==="fixed"?"固定額（日）":"基本時給"}</label>${num(p.base,c.payType==="perShift"?"円/回":c.payType==="fixed"?"円/日":"円/時","plan.base")}</div>
+    </div>
+    ${S.feat.nom!=="none"?`<div class="grid3" style="margin-top:12px">
+      <div class="field"><label>本指名バック</label>${num(p.hon,"円/件","plan.hon")}</div>
+      <div class="field"><label>場内指名バック</label>${num(p.jonai,"円/件","plan.jonai")}</div>
+      <div class="field"><label>同伴バック</label>${num(p.dohan,"円/件","plan.dohan")}</div></div>`:""}
+    ${p.n==="新人保証"?`<p class="note">保証する期間（例：入店から 2 か月）はキャスト登録時に入れます。終了後は標準プランに戻ります。</p>`:""}
+  </div></div>
+
+  ${p.bonus.length?`<div class="card"><header><div><h2>達成ボーナス</h2><p>到達した一番上の段だけ支給</p></div></header><div class="body">
+    <table class="tiers" style="width:100%"><tbody>${p.bonus.map((b,i)=>`<tr><td style="width:24%;color:var(--muted);font-size:13px">${b[0]==="monthly_main_count"?"月の本指名":"月の売上"}</td><td>${num(b[1],b[0]==="monthly_main_count"?"本以上":"円以上",`bonus.${i}.1`)}</td><td style="text-align:center;color:var(--muted)">→</td><td>${num(b[2],"円",`bonus.${i}.2`)}</td></tr>`).join("")}</tbody></table>
+  </div></div>`:""}
+
+  ${p.tiers.length?`<div class="card"><header><div><h2>売上スライド</h2><p>前月の売上で今月の時給が決まります</p></div></header><div class="body">
+    <table class="tiers" style="width:100%"><tbody>${p.tiers.map((x,i)=>`<tr><td>${num(x[0],"円以上",`tier.${i}.0`)}</td><td style="text-align:center;color:var(--muted)">→</td><td>${num(x[1],"円/時",`tier.${i}.1`)}</td></tr>`).join("")}</tbody></table>
+  </div></div>`:""}
+
+  ${payCard()}
+  <div class="card"><header><div><h2>控除・支払い</h2></div></header><div class="body">
+    ${!con?`<div class="row"><div><b>不就労控除</b><small>遅刻・早上がり・欠勤の時間分を差し引きます</small></div>${sw(c.deduct,"t:deduct","不就労控除")}</div>`:""}
+    ${con?`<div class="row"><div><b>精算調整のひな形</b><small>契約で決めた調整を 1 タップで登録。金額 0 で用意します</small></div>${sw(c.presets,"t:presets","精算調整のひな形")}</div>`:""}
+    <div class="row"><div><b>ノルマ（目標）</b><small>月目標を店がキャスト別に設定</small></div>${sw(c.norms,"t:norms","ノルマ")}</div>
+    <div class="row"><div><b>日払い・前借り</b><small>支払った額は給与から自動で差し引きます</small></div>${sw(c.daily,"t:daily","日払い")}</div>
+    <div class="row"><div><b>送りの基本額</b><small>退勤時に金額が入り、店長が確定します</small></div>${num(c.okuri,"円","comp.okuri",170)}</div>
+  </div></div>
+  </div>
+  <aside class="preview" id="preview">${previewHTML()}</aside></div>`;
+}
+function previewHTML(){
+  const c=S.comp,p=S.plans[S.plan];if(!p)return"";
+  const drink=S.products.find(x=>x.sel&&x.bk&&x.k==="drink"&&x.bmode!=="pct");
+  const hrs=5,cups=4,L=[];
+  if(c.payType==="perShift"||c.payType==="fixed")L.push(["1 日の固定額",p.base]);
+  else if(c.payType!=="rateOnly")L.push([`時給 ${yen(p.base)}円 × ${hrs}時間`,p.base*hrs]);
+  if(p.hon)L.push(["本指名 1 件",p.hon]);
+  if(p.jonai)L.push(["場内指名 1 件",p.jonai]);
+  if(drink)L.push([`${drink.n} ${cups} 杯（本指名席）`,(drink.bmode==="yen"?drink.yen:drink.nomv[0])*cups]);
+  const tot=L.reduce((a,l)=>a+l[1],0);
+  return `<h3>1 日の報酬の目安</h3><div class="cond">${p.n}・確定シフト ${hrs} 時間・本指名 1・場内 1・ドリンク ${cups} 杯</div>
+  ${c.payType?"":`<div class="cond" style="color:var(--warn)">契約の形と報酬の型を選ぶと確定します</div>`}
+  ${L.filter(l=>l[1]>0).map(l=>`<div class="pl"><span>${l[0]}</span><b>${yen(l[1])}円</b></div>`).join("")}
+  <div class="total"><span>合計</span><b>${yen(tot)}円</b></div>
+  <p class="note">${c.contract==="contract"?"源泉徴収前":"控除前"}の額です。ボーナス・スライドは月末に加わります。</p>`;
+}
+
+/* 給与の締め日・支払日 */
+const dayOpts=(v,bind)=>`<select data-bind="${bind}" style="width:100%;height:46px;border:1px solid var(--line2);background:#0c0c0b;border-radius:9px;padding:0 10px;font-size:16px">${[...Array(28)].map((_,i)=>`<option value="${i+1}" ${v===i+1?"selected":""}>${i+1}日</option>`).join("")}<option value="end" ${v==="end"?"selected":""}>月末</option></select>`;
+const dname=v=>v==="end"?"月末":`${v}日`;
+function payLabel(){const p=S.pay;
+  if(p.cycle==="monthly")return `${dname(p.close)}締め・翌月${p.payDay}日払い`;
+  if(p.cycle==="semi")return p.semi.map(x=>`${dname(x[0])}締め${x[2]?"翌月":"当月"}${x[1]}日払い`).join("／");
+  return `${WD[p.wClose-1]}曜締め・次の${WD[p.wPay-1]}曜払い`;}
+function pmLabel(){const m=S.ops.pm;return ["現金",m.card&&"カード",m.emoney&&"電子マネー",m.qr&&"QR"].filter(Boolean).join("・")}
+function payCard(){const p=S.pay;
+  return `<div class="card"><header><div><h2>給与の締め日と支払日</h2><p>給与期の区切りになります。日払い・前借りはこの期の給与から差し引きます</p></div><span class="tag req">必須</span></header><div class="body">
+    <div class="field"><label>支払いの回数</label>${seg(p.cycle,[["monthly","月 1 回"],["semi","月 2 回"],["weekly","毎週"]],"cycle")}</div>
+    ${p.cycle==="monthly"?`<div class="grid2" style="margin-top:12px"><div class="field"><label>締め日</label>${dayOpts(p.close,"payd.close")}</div><div class="field"><label>支払日（翌月）</label>${dayOpts(p.payDay,"payd.payDay")}</div></div>`
+    :p.cycle==="semi"?p.semi.map((x,i)=>`<div class="grid3" style="margin-top:12px"><div class="field"><label>${i+1} 回目の締め日</label>${dayOpts(x[0],`semi.${i}.0`)}</div><div class="field"><label>支払う月</label>${seg(x[2]?"next":"same",[["same","当月"],["next","翌月"]],`semiM:${i}`)}</div><div class="field"><label>支払日</label>${dayOpts(x[1],`semi.${i}.1`)}</div></div>`).join("")
+    :`<div class="grid2" style="margin-top:12px"><div class="field"><label>締めの曜日</label>${seg(String(p.wClose),WD.map((w,k)=>[String(k+1),w]),"wClose")}</div><div class="field"><label>支払いの曜日</label>${seg(String(p.wPay),WD.map((w,k)=>[String(k+1),w]),"wPay")}</div></div>`}
+    <p class="note">給与の確定は締め日の翌営業日から行えます。</p>
+  </div></div>`;}
+
+/* ===== STEP 5 ===== */
+function vOps(){
+  const o=S.ops,shift=S.comp.timeBasis==="shift";
+  return `
+  <h1>会計と運用</h1>
+  <p class="lead">レジの会計ルール、出退勤の押し方、キャストのスマホに見せるものを決めます。</p>
+  <div class="card"><header><div><h2>会計</h2><p>会計は卓ごとに行います</p></div></header><div class="body">
+    <div class="field"><label>消費税の表示</label>${seg(o.tax,[["out","税抜（外税）"],["in","税込（内税）"]],"o:tax")}</div>
+    <p class="note">外税では「小計＋サービス料 ${S.service}%」に消費税 10% がかかります。</p>
+    ${o.pm.card?`<div class="row" style="margin-top:12px"><div><b>カード手数料をお客様に上乗せ</b><small>カード払いのときだけ加算</small></div>${sw(o.card,"o:card","カード手数料")}</div>
+    ${o.card?`<div class="sub" style="max-width:260px"><div class="field"><label>上乗せ率</label>${num(o.cardRate,"%","cardRate")}</div></div>`:""}`:""}
+    <div class="row"><div><b>売掛（ツケ）</b><small>未回収分を誰が負うか</small></div>${seg(o.ar,[["none","受けない"],["store","店が負担して受ける"]],"o:ar")}</div>
+    <div class="row"><div><b>紹介料（キャッチ）</b><small>紹介者マスタと、レジの「紹介」ボタンを使います</small></div>${sw(o.referral,"o:referral","紹介料")}</div>
+  </div></div>
+  <div class="card"><header><div><h2>お客様の支払い方法</h2><p>レジの会計ボタンと、日報の入金照合に使います</p></div><span class="tag req">必須</span></header><div class="body">
+    <div class="row"><div><b>現金</b><small>常に使います</small></div><span class="tag ok">使う</span></div>
+    <div class="row"><div><b>クレジットカード</b></div>${sw(o.pm.card,"pm:card","クレジットカード")}</div>
+    <div class="row"><div><b>電子マネー</b><small>交通系・iD など</small></div>${sw(o.pm.emoney,"pm:emoney","電子マネー")}</div>
+    <div class="row"><div><b>QR コード決済</b><small>PayPay など</small></div>${sw(o.pm.qr,"pm:qr","QR決済")}</div>
+    <p class="note">売掛は上の「売掛（ツケ）」の設定に従います。</p>
+  </div></div>
+  <div class="card"><header><div><h2>出退勤の打刻</h2><p>${shift?"確定シフトどおりに払う設定です。打刻は遅刻・早上がりの判定に使います":"打刻の時間で給与を計算します"}</p></div></header><div class="body">
+    <div class="row"><div><b>キャスト本人がスマホで押す</b><small>自分の画面の「出勤」「退勤」</small></div>${sw(o.punchSelf,"o:punchSelf","本人打刻")}</div>
+    <div class="row"><div><b>スタッフが代わりに押す</b><small>店長・黒服が今日のシフト一覧から押す</small></div>${sw(o.punchProxy,"o:punchProxy","スタッフ代行")}</div>
+    <div class="row"><div><b>店の端末（キオスク）で押す</b><small>店に置いた端末でキャストが押す</small></div>${sw(o.kiosk,"o:kiosk","キオスク")}</div>
+    ${!o.punchSelf&&!o.punchProxy&&!o.kiosk?`<p class="note warn">打刻の方法を 1 つ以上選んでください。</p>`:""}
+  </div></div>
+  <div class="card"><header><div><h2>キャストのスマホ画面</h2><p>あとから店舗設定で切り替えられます</p></div></header><div class="body">
+    <div class="field"><label>給与明細</label>${seg(o.mineSlip,[["off","見せない"],["net_only","手取りだけ"],["detail","明細まで"]],"o:mineSlip")}</div>
+    <div class="field" style="margin-top:14px"><label>シフトの出し方</label>${seg(o.wishMode,[["shift","出勤希望を出す"],["off_only","休み希望だけ出す"]],"o:wishMode")}</div>
+    <p class="note">${o.wishMode==="off_only"?"休み希望がない日は「出勤できる」として扱います。":"キャストは出勤できる日と時間を提出します。"}</p>
+    <div class="row" style="margin-top:12px"><div><b>指名予約・同伴予約の申請</b><small>キャストが申請→店が承認</small></div>${sw(o.reserve,"o:reserve","予約申請")}</div>
+    <div class="row"><div><b>ドリンクの自己申告</b><small>キャストが飲んだ杯数を申告</small></div>${sw(o.drinkReport,"o:drinkReport","ドリンク申告")}</div>
+    <div class="row"><div><b>出退勤の修正申請</b><small>押し忘れをキャストが申請→店長が確定</small></div>${sw(o.fixReq,"o:fixReq","修正申請")}</div>
+    <div class="row"><div><b>指名ランキング</b><small>オフにするとページごと表示しません</small></div>${sw(o.ranking,"o:ranking","ランキング")}</div>
+  </div></div>`;
+}
+
+/* ===== STEP 6 ===== */
+function vReview(){
+  const c=S.comp,o=S.ops,on=S.products.filter(p=>p.sel);
+  const pt={hourly:c.contract==="contract"?"時間報酬":"時給",fixed:"固定給",perShift:"1 稼働固定",rateOnly:"売上歩合のみ"};
+  const card=(h,i,rows)=>`<div class="rcard"><header><h3>${h}</h3><button class="linkbtn" data-act="go" data-v="${i}">修正</button></header>${rows.map(r=>`<div class="rl"><span>${r[0]}</span><b>${r[1]}</b></div>`).join("")}</div>`;
+  const punch=[o.punchSelf&&"本人",o.punchProxy&&"スタッフ代行",o.kiosk&&"キオスク"].filter(Boolean).join("・")||"未選択";
+  const miss=missing();
+  return `
+  <h1>確認</h1>
+  <p class="lead">この内容でお店を作ります。完了後もマスタからすべて変更できます。</p>
+  ${miss.length?`<div class="card"><div class="body"><p class="note warn" style="margin:0">未入力があります：${miss.join("、")}</p></div></div>`:""}
+  <div class="rgrid">
+   ${card("お店について",0,[["店舗名",S.name||"未入力"],["住所",S.addr||"未入力"],["インボイス",S.inv.on?`T${S.inv.no}（${S.inv.from||"登録日未入力"}〜）`:"登録なし"],["タイプ",featLabel()],["営業時間",`${S.open}〜${S.close}`],["席",`通常 ${S.seats.normal}・VIP ${S.seats.vip}・カウンター ${S.seats.counter}`]])}
+   ${card("料金",1,[["サービス料",`${S.service}%`],...S.rules.filter(r=>r.on).map(r=>[r.n,`${r.wd.map(d=>WD[d-1]).join("")}・${yen(r.p)}円`]),["指名料",S.ranks.length?(S.ranks.length>1?`ランク別 ${S.ranks.length} 段`:"全員同じ額"):"取らない"]])}
+   ${card("商品",2,[["登録する商品",`${on.length} 品`],["バックあり",`${on.filter(p=>p.bk).length} 品`]])}
+   ${card("キャスト報酬",3,[["契約の形",c.contract==="employ"?"雇用":c.contract==="contract"?"業務委託":"未選択"],["報酬の型",pt[c.payType]||"未選択"],["勤務時間",c.timeBasis==="shift"?"確定シフトどおり":"実際の出退勤"],["遅刻の猶予",`${S.grace} 分`],["給与の締め・支払",payLabel()],...S.plans.map(p=>[p.n,`時給 ${yen(p.base)}円${p.hon?`・本指名 ${yen(p.hon)}円`:""}`])])}
+   ${card("会計と打刻",4,[["消費税",o.tax==="in"?"税込":"税抜（外税）"],["売掛",o.ar==="none"?"受けない":"店が負担"],["支払い方法",pmLabel()],["紹介料",o.referral?"使う":"使わない"],["打刻",punch]])}
+   ${card("キャストのスマホ画面",4,[["給与明細",{off:"見せない",net_only:"手取りだけ",detail:"明細まで"}[o.mineSlip]],["シフト",o.wishMode==="shift"?"出勤希望":"休み希望だけ"],["予約申請",o.reserve?"受け付ける":"受け付けない"],["ドリンク申告・修正申請・ランキング",[o.drinkReport,o.fixReq,o.ranking].map(x=>x?"ON":"OFF").join("・")]])}
+  </div>`;
+}
+function vDone(){
+  return `<div class="done card"><div class="body" style="padding:40px 20px">
+   <div style="font-size:34px;color:var(--green)">✓</div><h1>お店の準備ができました</h1>
+   <p class="lead" style="margin-top:8px">お店のルールはすべて入りました。営業を始める前に、次の準備をしてください。</p>
+   <div style="text-align:left">${[
+     ["キャスト・スタッフを招待する","プラン・ランク・契約の形はここで選びます"],
+     ["シフトを作って確定する","給与は確定シフトの時間で計算します"],
+     ...(S.products.some(p=>p.sel&&p.stk)?[["在庫の数を入れる",`在庫管理の商品 ${S.products.filter(p=>p.sel&&p.stk).length} 品`]]:[]),
+     ["レジ端末でログインする",S.ops.kiosk?"キオスク端末の登録もここから":"iPad・PC どちらでも使えます"]
+   ].map((x,i)=>`<div class="row"><div><b>${i+1}. ${x[0]}</b><small>${x[1]}</small></div><button class="btn ghost" style="min-height:40px">開く</button></div>`).join("")}</div>
+   <p class="note" style="text-align:left;margin-top:20px">モック：<button class="linkbtn" data-act="restart">最初からやり直す</button></p></div></div>`;
+}
+
+/* ===== 判定・描画 ===== */
+const punchOk=()=>S.ops&&(S.ops.punchSelf||S.ops.punchProxy||S.ops.kiosk);
+const invOk=()=>!S.inv.on||(/^\d{13}$/.test(S.inv.no)&&!!S.inv.from);
+const canNext=i=>i===0?!!S.biz&&!!S.name.trim()&&!!S.addr.trim()&&invOk():i===3?!!(S.comp.contract&&S.comp.payType):i===4?punchOk():true;
+const missing=()=>{const m=[];if(!S.name.trim())m.push("店舗名");if(!S.addr.trim())m.push("住所");if(!invOk())m.push("インボイス登録番号");if(!S.comp.contract)m.push("契約の形");if(!S.comp.payType)m.push("報酬の型");if(!punchOk())m.push("打刻の方法");return m};
+function render(){
+  const i=S.step;
+  document.getElementById("tplname").innerHTML=S.biz?`<b>${featLabel()}</b>`:"";
+  document.getElementById("stepper").innerHTML=STEPS.map((s,k)=>`<button class="st ${k===i&&!S.finished?"on":""} ${S.visited.has(k)&&k!==i&&canNext(k)?"done":""}" data-act="go" data-v="${k}" ${!S.biz&&k>0?"disabled":""} ${k===i?'aria-current="step"':""}>
+    <span class="n">${(S.visited.has(k)&&k<i&&canNext(k))||S.finished?"✓":k+1}</span><span><b>${s.t}</b><small>${s.s}</small></span></button>`).join("");
+  const cur=document.querySelector(".st.on");if(cur&&cur.scrollIntoView)cur.scrollIntoView({inline:"nearest",block:"nearest"});
+  document.getElementById("view").innerHTML=S.finished?vDone():[vStore,vPrice,vProd,vComp,vOps,vReview][i]();
+  const f=document.getElementById("foot");
+  if(S.finished){f.style.display="none";return}
+  f.style.display="";
+  const last=i===STEPS.length-1,ok=canNext(i)&&(!last||!missing().length);
+  const hint=i===0&&!S.biz?"業態を選ぶと次へ進めます":i===0&&!ok?"店舗名・住所（インボイス登録時は番号と登録日）を入れてください":i===3&&!ok?"契約の形と報酬の型を選んでください":i===4&&!ok?"打刻の方法を選んでください":`STEP ${i+1} / ${STEPS.length}`;
+  document.getElementById("footin").innerHTML=`<small>${hint}</small><div class="acts">
+    ${i>0?`<button class="btn" data-act="prev">戻る</button>`:""}
+    <button class="btn primary" data-act="${last?"finish":"next"}" ${ok?"":"disabled"}>${last?"この内容で始める":"次へ："+STEPS[i+1].t}</button></div>`;
+}
+function setPath(path,val){
+  const p=path.split("."),n=+val;
+  switch(p[0]){
+    case "rule":S.rules[+p[1]][p[2]]=p[2]==="n"?val:n;return;
+    case "rank":S.ranks[+p[1]][p[2]]=n;return;
+    case "prod":S.products[+p[1]][p[2]]=p[2]==="n"?val:n;return;
+    case "nom":S.products[+p[1]].nomv[+p[2]]=n;return;
+    case "seats":S.seats[p[1]]=n;return;
+    case "plan":S.plans[S.plan][p[1]]=p[1]==="n"?val:n;return;
+    case "bonus":S.plans[S.plan].bonus[+p[1]][+p[2]]=n;return;
+    case "tier":S.plans[S.plan].tiers[+p[1]][+p[2]]=n;return;
+    case "comp":S.comp[p[1]]=n;return;
+    case "service":S.service=n;return;
+    case "grace":S.grace=n;return;
+    case "cardRate":S.ops.cardRate=n;return;
+    case "inv":S.inv[p[1]]=val;return;
+    case "payd":S.pay[p[1]]=p[1]==="close"&&val==="end"?"end":n;return;
+    case "semi":S.pay.semi[+p[1]][+p[2]]=val==="end"?"end":n;return;
+    default:S[p[0]]=val;
+  }
+}
+document.addEventListener("change",e=>{if(e.target.tagName==="SELECT"&&e.target.dataset.bind){setPath(e.target.dataset.bind,e.target.value);}});
+document.addEventListener("input",e=>{
+  const b=e.target.dataset.bind;if(!b)return;
+  setPath(b,e.target.value);
+  const pv=document.getElementById("preview");if(pv&&/^(plan|comp)/.test(b))pv.innerHTML=previewHTML();
+  if(b==="open"||b==="close")render();
+  if(/^(name|addr|inv)/.test(b)){const btn=document.querySelector('#footin [data-act=next]');if(btn)btn.disabled=!canNext(S.step);
+    const sm=document.querySelector('#footin small');if(sm&&S.step===0)sm.textContent=canNext(0)?"STEP 1 / 6":"店舗名・住所（インボイス登録時は番号と登録日）を入れてください";
+    if(b==="inv.no"&&(e.target.value.length===13||e.target.value.length===0)){const pos=e.target.selectionStart;render();const el=document.getElementById("f-invno");if(el){el.focus();el.setSelectionRange(pos,pos)}}}
+});
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-act]");if(!t||t.disabled)return;
+  const a=t.dataset.act,v=t.dataset.v;
+  if(a==="pSel"){S.products[+v].sel=t.checked;render();return}
+  if(a==="bk"){S.products[+v].bk=t.checked;render();return}
+  if(a.startsWith("bmode:")){S.products[+a.split(":")[1]].bmode=v;render();return}
+  if(a.startsWith("ruleOn:")){const r=S.rules[+a.split(":")[1]];r.on=!r.on;render();return}
+  if(a==="inv"){S.inv.on=v==="on";render();return}
+  if(a==="cycle"){S.pay.cycle=v;render();return}
+  if(a.startsWith("semiM:")){S.pay.semi[+a.split(":")[1]][2]=v==="next"?1:0;render();return}
+  if(a==="wClose"||a==="wPay"){S.pay[a]=+v;render();return}
+  if(a.startsWith("pm:")){const k=a.slice(3);S.ops.pm[k]=!S.ops.pm[k];if(k==="card"&&!S.ops.pm.card)S.ops.card=false;render();return}
+  if(a.startsWith("f:")){const k=a.slice(2);S.feat[k]=(k==="vip"||k==="nom")?v:v==="on";build();render();return}
+  switch(a){
+    case "biz":if(S.biz!==v)pickBiz(v);break;
+    case "go":if(S.biz){S.step=+v;S.visited.add(+v);S.finished=false;scrollTo(0,0)}break;
+    case "next":S.step++;S.visited.add(S.step);scrollTo(0,0);break;
+    case "prev":S.step--;scrollTo(0,0);break;
+    case "finish":S.finished=true;scrollTo(0,0);break;
+    case "restart":location.reload();return;
+    case "wd":{const[ri,d]=v.split(":").map(Number);const w=S.rules[ri].wd;const k=w.indexOf(d);k<0?w.push(d):w.splice(k,1);w.sort();}break;
+    case "addRule":S.rules.push({n:"追加の料金",wd:[5,6],s:1200,e:1800,seat:"normal",m:S.rules[0].m,p:S.rules[0].p,x:S.rules[0].x,vs:0,on:true});break;
+    case "addProd":{const c=S.pf==="all"?S.products[0].c:S.pf;S.products.push({c,k:"drink",n:"",p:0,cost:0,stk:false,pt:0,sel:true,bk:false,bmode:"yen",pct:10,yen:300,nomv:[300,300,300,300]});}break;
+    case "pf":S.pf=v;break;
+    case "catAll":{const it=S.products.filter(p=>p.c===v),all=it.every(p=>p.sel);it.forEach(p=>p.sel=!all)}break;
+    case "plan":S.plan=+v;break;
+    case "contract":S.comp.contract=v;S.comp.payType=null;break;
+    case "payType":S.comp.payType=v;break;
+    case "timeBasis":S.comp.timeBasis=v;break;
+    default:
+      if(a.startsWith("t:")){const k=a.slice(2);S.comp[k]=!S.comp[k]}
+      else if(a.startsWith("o:")){const k=a.slice(2);v!==undefined?S.ops[k]=v:S.ops[k]=!S.ops[k]}
+  }
+  render();
+});
+render();
+
+</script>
+</body></html>
