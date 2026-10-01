@@ -4082,6 +4082,13 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 適用＝便 M1（7c6e6f3）どおり。便 M2 の仮決め（/mine 再構成の見た目・文言・並び）は便 M2 の最終報告に一覧＝追補5 で追認。
 
+### 裁定326 追補5（便 M2 の仮決め 9 点の追認・2026-10-01 相談役追認）
+
+出典＝相談役追認（2026-10-01・便 M3-0 で収載）。便 M2（626fabc）の最終報告の仮決め一覧をそのまま追認。**本文**:
+「裁定326 追補5（M2 の仮決め）: ① ノルマの目標 0 は NULL と同じ「目標なし」（進捗に出さない）・達成率は切捨て・100% 超もそのまま・バーは 100 で止める。② 店側の月選択は今月／翌月の 2 択（月＝casts-board 既存の month）・空欄保存で全項目 NULL に戻せる。③ /mine のノルマカードは店設定 sys_norms（269-4）の出し分けを据え置き・旧 norm-set route は削除。④ 勤怠は当日「出勤 HH:MM／退勤 HH:MM」1 行・一覧は打刻のある日だけ新しい日が先・実働は dayWorkedHours（確定シフトのある日だけ・退勤なしは —）・シフトのない日の in／out は出す。⑤ 当月の打刻を 1 本で読み当日分を絞る・shifts は当月初から 1 本（直近 7 件はそこから）。⑥ 明細 'net_only' の PDF は同じ DOM の印刷・マイナンバー廃棄済みの注記は明細カードの外。⑦ お知らせの既読は一覧を開いた時点で未読分を一括記録・開いた回は「新着」・未読数は notices と cast_notice_reads の 2 本読み。⑧ rpc-err に 'bad quota'／'bad month'・入力検証の和文は quotaArgsOf。⑨ verify-nox-payroll の fixture の cast_plan は valid_from 2020-01-01 に固定（教訓46 の実例）。」
+
+適用＝便 M2（626fabc）どおり。
+
 **0160 の欄（起草済み・手貼り待ち）**: supabase/migrations/0160_mine_settings.sql＝**起草済み・sha256 d0a1ed21a21ab9312217d04a7fa75cbb5faf58ad734dbbde2c131e8b79fbef1e・707 行・49,748 B・突合 36 段 NG 0（docs/tmp/q0930_ag_0160.mjs・BEGIN…ROLLBACK）・手貼り待ち・適用後の proof＝関数 296／表 81**（未追跡・生成器 docs/tmp/gen_0160.mjs＋0160_template.sql・写経元 0160_live.json・期待 md5 0160_expected.json＝decide 4c8c7d6b／auto_apply 55cbb0e8／pattern_effective a65c716d／demo_org_reset a331cdcd／submit 4afdf603／set_cast_quota 1987d03d／reservation_request f0c51a0a／reservation_decide a0088416／set_store_mine_settings 5aaecb0f／notice_mark_read b1329e24／staff_pattern_disable cb1d4a34／staff_pattern_enable e768f710・削除 set_cast_norm_self cfde419e）。適用後の見込み＝名簿 A 154／B 142＝296・'billing locked' 154・形 154・述語参照 155・表 81。
 
 
@@ -5769,6 +5776,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 96 | **T6 加盟店契約確認の記録＝器なし（client の ack は保存の前提にするだけで記録が残らない）**（中・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「T6 加盟店契約確認の記録＝器を追加・読取は料金マスタ（0160・白名単 +1 か set_store_tax_config +p_contract_ack は起草時に裁く）」。現状＝pricing-board 340 行の tSurAck は set_store_tax_config に渡らず「保存すると確認の記録が残ります」の文言と食い違う（0930_pm_pre.md ②）。処置＝0160。 |
 | 97 | **未確定 run の自動計算＝cron の器と auth**（低・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「未確定 run の自動計算＝cron は expire-trials に同居・core の service 分岐は裁定要（ローンチ前ゲート）」。現状＝vercel.json の cron は Hobby 上限 2 本を使用済み・computePayrollDraft は managerClient（JWT 前提 RPC）必須＝cron から preview は 401（0930_pm_pre.md ③）。処置＝expire-trials に同居＋core を admin だけで読める集計へ（service 分岐は裁定）。 |
 | 98 | **owner 自身のメール変更＝route が owner を 403**（低・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「owner 自身のメール変更＝update-email.ts 42 行の除外解除・Auth 設定 4 点後（mig 不要）」。現状＝lib/nox/staff/update-email.ts 42 行 decideEmailTarget が role staff／manager 以外を 403（ロックアウト防止）・Auth 設定 4 点（Secure email change・確認必須・レート制限・Site URL）は未決（0930_pm_pre.md ④）。処置＝Auth 設定の後に本人 owner を許可（新メールの確認を client で 1 段）。 |
+| 99 | **/mine 勤怠一覧の実働表示を店の計算基準（裁定324 pay_time_basis）に合わせる**（低・**起票 2026-10-01 便 M3-0**・第 2 期） | 本文: 便 M2 の勤怠一覧（lib/nox/mine/attendance-month.ts）は実働＝dayWorkedHours（実打刻の in〜out）で表示している。計算基準 'shift' の店では給与の時給部分が確定シフトの時間に置換される（324-2）ため、一覧の実働と明細の時間が食い違い得る。処置＝第 2 期で表示側に pay_time_basis の分岐（'shift' は確定シフト時間を併記 or 置換）を足す。本便では注記のみ。 |
 | — | **0160 のスコープ＝裁定326-9＋起票95・96**（**便 C-0・2026-09-30**） | 0160＝cast_quotas＋set_cast_quota／予約表の status・requested_by_cast・rejected_reason＋reservation_request／reservation_decide／cast_notice_reads＋既読 RPC／settings_json +7 キー（mine_settings 6＋shift_request_mode）＋起票95（staff_shift_patterns の無効化）＋起票96（T6 契約確認の記録）。起草の前に R160 事前読取（docs/tmp/0160_pre.md）→ ★指定。 |
 
 ### 未裁定・消し込み待ち
