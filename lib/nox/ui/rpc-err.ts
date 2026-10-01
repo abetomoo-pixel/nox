@@ -108,6 +108,11 @@ const MAP: Array<[RegExp, string]> = [
   // ★0160（裁定326-3・便 M2-2）: set_cast_quota（'bad cast' は 0156 の既存行）
   [/^bad quota$/, "目標は 0 以上の整数で入力してください（空欄＝目標なし）"],
   [/^bad month$/, "月の指定が正しくありません（月初の日付で指定してください）"],
+  // ★0160（裁定326-4／追補1-5・便 M3）: 予約申請 reservation_request／決裁 reservation_decide／承認前の伝票化
+  [/^bad customer$/, "担当客の中から選んでください"],
+  [/^bad reserved_at$/, "来店日時を入力してください"],
+  [/^bad decision$/, "決裁の種別が正しくありません"],
+  [/^not bookable$/, "承認前の申請は予約として扱えません（先に承認してください）"],
   [/permission denied/, "権限がありません"],
 ];
 
