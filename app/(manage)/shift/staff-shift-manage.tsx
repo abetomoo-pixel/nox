@@ -19,6 +19,8 @@ import StaffPlaceByStaffModal from "./staff-place-by-staff";
 import type { PlaceArgs } from "./staff-place-form";
 import { mdDowOf, wishIdFor, canCancel, cancelNeedsReason, nextOf30h } from "@/lib/nox/shift/staff-place";
 import { isRpcMissingError } from "@/lib/nox/ui/rpc-err";
+import { resolveOrgId } from "@/lib/nox/cast-photo"; // ★0162（裁定329・便 M5-1）: スタッフ枠にスタッフ写真（署名 URL・未登録は頭文字）
+import { signUserPhotos } from "@/lib/nox/staff-photo";
 
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
@@ -34,6 +36,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
   const supabase = createClient();
   const [members, setMembers] = useState<Member[]>([]);
   const [names, setNames] = useState<Map<string, string>>(new Map());
+  const [photoByMember, setPhotoByMember] = useState<Map<string, string>>(new Map()); // ★0162: membership id → 署名 URL
   const [busy, setBusy] = useState(false);
   const [selDay, setSelDay] = useState<string>(bizToday.startsWith(month) ? bizToday : `${month}-01`);
   const [ov, setOv] = useState<StaffShift | null>(null);
@@ -64,9 +67,16 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
     setMembers(list);
     const uids = [...new Set(list.map((m) => m.user_id))];
     if (uids.length) {
-      const { data: us } = await supabase.from("users").select("id, name").in("id", uids);
-      const byUser = new Map(((us ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name]));
+      const { data: us } = await supabase.from("users").select("id, name, photo_updated_at").in("id", uids); // ★0162: +photo_updated_at
+      const rows = (us ?? []) as { id: string; name: string; photo_updated_at: string | null }[];
+      const byUser = new Map(rows.map((u) => [u.id, u.name]));
       setNames(new Map(list.map((m) => [m.id, byUser.get(m.user_id) ?? "—"])));
+      // ★0162（便 M5-1）: スタッフ写真の署名 URL（写真のある人だけ・org_id は 1 回）
+      const org = await resolveOrgId(supabase);
+      if (org) {
+        const urls = await signUserPhotos(supabase, org, rows);
+        setPhotoByMember(new Map(list.map((m) => [m.id, urls.get(m.user_id) ?? ""]).filter(([, u]) => u) as [string, string][]));
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
@@ -164,7 +174,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
 
   const list = dayShifts(selDay);
   // ★N6: モーダルに渡すスタッフ（名前解決済み・cast 以外）
-  const staffList = members.filter((m) => m.role !== "cast").map((m) => ({ id: m.id, name: nameOf(m.id), role: m.role }));
+  const staffList = members.filter((m) => m.role !== "cast").map((m) => ({ id: m.id, name: nameOf(m.id), role: m.role, photoUrl: photoByMember.get(m.id) ?? null })); // ★0162: +photoUrl
 
   return (
     <>

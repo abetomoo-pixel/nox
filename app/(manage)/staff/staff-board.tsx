@@ -14,12 +14,16 @@ import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
+// ★0162（裁定329／329 追補1・便 M5-1）: スタッフ写真＝キャストと同じ bucket・同じ縮小・u_{user_id}.jpg。登録／差替え＝uploadUserPhoto・削除＝storage.remove → clear_user_photo
+import { resolveOrgId } from "@/lib/nox/cast-photo";
+import { photoActionLabelOf, removeUserPhoto, signUserPhotos, uploadUserPhoto } from "@/lib/nox/staff-photo";
 type Mem = {
   id: string; user_id: string; store_id: string; role: string; is_active: boolean;
   can_register: boolean; can_crm: boolean; can_shift: boolean; can_view_backs: boolean;
   can_close: boolean; can_reopen: boolean; // ★C層③（mig0138・横断 §2）: 締め／解除の個別付与
 };
-type UserRow = { id: string; name: string | null; email: string; auth_user_id: string };
+type UserRow = { id: string; name: string | null; email: string; auth_user_id: string; photo_updated_at: string | null }; // ★0162（裁定329・便 M5-1）: スタッフ写真
 type Store = { id: string; name: string };
 
 type CreateResult = { membership_id: string; login_email: string; initial_password: string | null };
@@ -56,6 +60,10 @@ export default function StaffBoard({
   const isDemo = useIsDemo(); // ★N7-2 ③
   const [mems, setMems] = useState<Mem[]>([]);
   const [users, setUsers] = useState<Record<string, UserRow>>({});
+  // ★0162（便 M5-1）: 写真＝org_id を 1 回引き、users の photo_updated_at から署名 URL（user_id → URL）
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
+  const [phBusy, setPhBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -77,6 +85,42 @@ export default function StaffBoard({
   const [copied, setCopied] = useState(false);
 
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? "—";
+  useEffect(() => { void resolveOrgId(supabase).then((o) => setOrgId(o)); }, [supabase]);
+  useEffect(() => {
+    if (!orgId) return;
+    let alive = true;
+    void signUserPhotos(supabase, orgId, Object.values(users)).then((m) => { if (alive) setPhotoUrls(m); });
+    return () => { alive = false; };
+  }, [orgId, users, supabase]);
+  /** ★0162（便 M5-1）: 写真の登録／差替え（owner・manager 自店＝真の防御は storage policy と set_user_photo_updated_at の同一式） */
+  async function pickStaffPhoto(userId: string, f: File | null) {
+    if (!f || !orgId) return;
+    setPhBusy(true); setMsg(null);
+    try {
+      await uploadUserPhoto(supabase, orgId, userId, f);
+      await load();
+      setMsg("写真を保存しました");
+    } catch (e) {
+      setMsg(rpcErrJa(e instanceof Error ? e.message : "保存に失敗しました"));
+    } finally {
+      setPhBusy(false);
+    }
+  }
+  /** ★0162（329 追補1）: 削除＝storage.remove（delete policy）→ clear_user_photo（null 戻し） */
+  async function removeStaffPhoto(userId: string, name: string) {
+    if (!orgId) return;
+    if (!confirm(`${name} の写真を削除しますか？`)) return;
+    setPhBusy(true); setMsg(null);
+    try {
+      await removeUserPhoto(supabase, orgId, userId);
+      await load();
+      setMsg("写真を削除しました");
+    } catch (e) {
+      setMsg(rpcErrJa(e instanceof Error ? e.message : "削除に失敗しました"));
+    } finally {
+      setPhBusy(false);
+    }
+  }
 
   const load = useCallback(async () => {
     // 一覧＝staff/manager のみ（cast はキャスト管理で別画面）。inactive（在籍解除済み）も表示＝再雇用の入口。
@@ -88,7 +132,7 @@ export default function StaffBoard({
     const userIds = [...new Set(rows.map((m) => m.user_id))];
     const map: Record<string, UserRow> = {};
     if (userIds.length) {
-      const { data: us } = await supabase.from("users").select("id, name, email, auth_user_id").in("id", userIds);
+      const { data: us } = await supabase.from("users").select("id, name, email, auth_user_id, photo_updated_at").in("id", userIds); // ★0162: +photo_updated_at
       for (const u of (us ?? []) as UserRow[]) map[u.id] = u;
     }
     // 並び: 店 → manager 先頭 → 名前
@@ -202,7 +246,7 @@ export default function StaffBoard({
           return (
             <div key={m.id} className="nox-srow2" onClick={() => openEdit(m)}
               style={{ cursor: "pointer", opacity: dim ? 0.55 : 1, background: sel?.id === m.id ? "var(--card2)" : "transparent" }}>
-              <CastAvatar name={u?.name ?? ""} size={34} />
+              <CastAvatar name={u?.name ?? ""} url={photoUrls.get(m.user_id)} size={34} />{/* ★0162（便 M5-1）: スタッフ写真（未登録は頭文字） */}
               <div style={{ minWidth: 0 }}>
                 <div className="nm">
                   {u?.name ?? "—"}
@@ -253,6 +297,22 @@ export default function StaffBoard({
               setSel(null);
             }}>名前を更新</button>
           </div>
+          {!isDemo && (
+            // ★0162（裁定329／329 追補1・便 M5-1）: スタッフ写真の登録・差替え・削除（owner／manager。manager の他店は RLS／RPC が拒否＝和文で返る）
+            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12 }}>
+              <CastAvatar name={users[sel.user_id]?.name ?? ""} url={photoUrls.get(sel.user_id)} size={56} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label>
+                  <span className="nox-photoedit" style={{ cursor: phBusy || busy ? "default" : "pointer", opacity: phBusy ? 0.5 : 1 }}>{photoActionLabelOf(!!users[sel.user_id]?.photo_updated_at, phBusy)}</span>
+                  <input type="file" accept="image/*" disabled={phBusy || busy || !orgId} onChange={(e) => { void pickStaffPhoto(sel.user_id, e.target.files?.[0] ?? null); e.target.value = ""; }} style={{ display: "none" }} />
+                </label>
+                {users[sel.user_id]?.photo_updated_at && (
+                  <button type="button" className="nox-photoedit" disabled={phBusy || busy || !orgId} onClick={() => void removeStaffPhoto(sel.user_id, users[sel.user_id]?.name ?? "")}>写真を削除</button>
+                )}
+                <span style={{ ...t.sub, fontSize: 11 }}>自動で縮小・JPEG 化されます。スタッフ一覧・シフトに表示されます。</span>
+              </div>
+            </div>
+          )}
           {isOwner && !isDemo && ( // ★N7-2 ③: デモはメール変更の導線を隠す
             // ★裁定267-2: メール（ログイン ID）の変更＝owner にのみ描画（manager には開かない・route の guardOwner が真の防御）。
             //   「名前を更新」と同型（入力＋btnGold）。送信中は disabled。成功で一覧（users.email）を再取得し入力へ反映。新トークン 0。

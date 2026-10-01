@@ -14,6 +14,8 @@ import PunchCorrectionForm from "./punch-correction-form"; // ★0154 D1
 import PunchCorrectionList from "./punch-correction-list"; // ★0154 D1
 import { termOf, type CorrectionRow } from "@/lib/nox/shift/punch-correction";
 import PhotoCard from "./photo-card";
+import ContractAckGate from "./contract-ack-gate"; // ★0162 ★4（裁定326 追補7-6・便 M5-2）: 契約確認（店 ON かつ未記録のときだけ最上部）
+import { contractAckGateOf } from "@/lib/nox/mine/contract-ack";
 import AttendanceForm from "./attendance-form";
 import NormCard from "./norm-card";
 import DrinkClaimForm from "./drink-claim-form";
@@ -107,6 +109,9 @@ export default async function MinePage() {
   const { data: myStores } = await supabase.from("stores").select("id, name, settings_json").limit(1); // ★裁定269: sys_* は既存の自店読取に列を足すだけ
   const myStore = myStores?.[0];
   const ms = mineSettingsOf(myStore?.settings_json); // ★326-8: drink_claim／punch_correction_request／ranking の出し分け（reservation_request の申請カードは M3）
+  // ★0162 ★4（便 M5-2）: 契約確認の要否＝店の contract_ack が ON のときだけ cast_contract_ack_needed()（cast セルフ・非ゲート）。読めなければ出さない（止めない）
+  const { data: ackNeeded } = ms.contract_ack ? await supabase.rpc("cast_contract_ack_needed") : { data: null };
+  const showContractAck = contractAckGateOf(ms.contract_ack, typeof ackNeeded === "boolean" ? ackNeeded : null);
   const ps = punchStateOf((todayPunches ?? []) as { type: string; punched_at: string }[]); // ★326 追補3: 当日営業日の自分の打刻 → 未出勤／出勤中／退勤済み
   // ★326-5: 当月の勤怠一覧（日付・出勤・退勤・実働＝dayWorkedHours・確定シフトのある日だけ時間が出る）と当日の出勤・退勤時刻
   const attRows = monthAttendanceRowsOf({
@@ -165,6 +170,7 @@ export default async function MinePage() {
     <div className="nox-printpage nox-minewrap nox-mv1 nox-mv1-m">
       {/* 段P: プロフィール写真（本人スコープのみ・client 自己完結＝他カードの取得に影響しない）
           段M2: モックの .me ヘッダ（写真＋名前＋店）へ。店名は上で引いた自店を渡すだけ。 */}
+      {showContractAck && <ContractAckGate />}{/* ★0162 ★4（便 M5-2）: 初回表示の契約確認＝記録済みは出さない・rev 更新で再表示 */}
       <PhotoCard storeName={myStore?.name as string | undefined} />
 
       {/* 段M2: 打刻はスマホで一番使うのでヘッダ直後へ（section の中身・PunchActions・最終打刻の

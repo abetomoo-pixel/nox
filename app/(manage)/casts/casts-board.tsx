@@ -20,6 +20,7 @@ import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③: デモでは
 import Modal from "@/components/ui/modal";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos, uploadCastPhoto } from "@/lib/nox/cast-photo";
+import { removeCastPhoto } from "@/lib/nox/staff-photo"; // ★0162（裁定329／329 追補1・便 M5-1）: 削除＝storage.remove → clear_cast_photo
 import type { Trial, CastLogin } from "./page";
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast 固定・共通部品・既存 RPC）
 import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定309-6・便 V-4）: 日払いの発行（cast 固定・daily_pay_issue・源泉プレビュー）
@@ -288,6 +289,21 @@ export default function CastsBoard({
     setPhFile(f);
     setPhPreview(f ? URL.createObjectURL(f) : null);
     setPhErr(null);
+  }
+  /** ★0162（裁定329／329 追補1・便 M5-1）: 写真の削除＝Storage の実体 → clear_cast_photo。成功で一覧の photo_updated_at を取り直す（署名 URL が消える） */
+  async function deletePhoto(c: CastLogin) {
+    if (!orgId) return;
+    if (!confirm(`${c.name} の写真を削除しますか？`)) return;
+    setBusy(true);
+    try {
+      await removeCastPhoto(supabase, orgId, c.id);
+      await reloadLoginCasts();
+      setMsg("写真を削除しました");
+    } catch (e) {
+      setMsg(rpcErrJa(e instanceof Error ? e.message : "削除に失敗しました"));
+    } finally {
+      setBusy(false);
+    }
   }
   async function submitPhoto() {
     if (!phTarget || !phFile || !orgId) return;
@@ -732,6 +748,12 @@ export default function CastsBoard({
                   写真を変更
                 </button>
               )}{/* ★N7-2 ③: デモは storage policy（0149 ★10）でも拒否＝導線ごと隠す */}
+              {!isDemo && photoUrls.has(selCast.id) && (
+                // ★0162（裁定329／329 追補1・便 M5-1）: 削除＝storage.remove（delete policy）→ clear_cast_photo（null 戻し）。写真があるときだけ
+                <button className="nox-photoedit" disabled={busy || !orgId} onClick={() => void deletePhoto(selCast)} style={{ marginLeft: 6 }}>
+                  写真を削除
+                </button>
+              )}
             </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: "var(--v2-text)" }}>{selCast.name}</div>

@@ -87,7 +87,7 @@ export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wis
                     cursor: past ? "default" : "pointer", textAlign: "left", width: "100%", borderRadius: 8, fontFamily: "inherit", padding: "5px 8px",
                     background: on ? "var(--goldface2)" : "transparent", border: on ? "1px solid var(--gold)" : "1px solid transparent", color: on ? "var(--champ)" : "var(--ink)",
                   }}>
-                  <CastAvatar name={r.staff.name} variant="flat" />
+                  <CastAvatar name={r.staff.name} url={r.staff.photoUrl ?? undefined} variant="flat" />{/* ★0162（裁定329・便 M5-1）: スタッフ写真（未登録は頭文字） */}
                   <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {r.staff.name}{r.staff.role && r.staff.role !== "staff" && <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4 }}>（{r.staff.role}）</span>}
                   </span>

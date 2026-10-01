@@ -82,7 +82,7 @@ export default function StaffPlaceByStaffModal({ storeId, bizToday, initialMonth
         {/* ── 左: スタッフを選ぶ（picker・裁定259）── */}
         <div>
           <b style={{ fontSize: 13, display: "block", marginBottom: 6 }}>1. スタッフを選ぶ</b>
-          <Picker items={staff.map((s) => ({ id: s.id, label: s.name, sublabel: s.role && s.role !== "staff" ? s.role : undefined, avatar: true }))}
+          <Picker items={staff.map((s) => ({ id: s.id, label: s.name, sublabel: s.role && s.role !== "staff" ? s.role : undefined, avatar: s.photoUrl ? { url: s.photoUrl } : true }))}
             value={staffId} onPick={pick} onClear={clear} disabled={busy} placeholder="名前で検索" empty="この店のスタッフがいません" dense />
         </div>
         {/* ── 右: (2) 月カレンダー／(3) 枠と時刻 ── */}

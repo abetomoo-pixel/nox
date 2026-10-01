@@ -59,7 +59,7 @@ export default async function ManageLayout({ children }: { children: React.React
   //     全ロールに告知でき、かつ課金情報は漏れない。述語は RPC ゲート94本と同一＝表示と実挙動が食い違わない。
   // ★N4（裁定275 追補2-2）: 「登録名｜役割」＝自分の users 行（RLS users_select＝auth_user_id = auth.uid() の 1 行・読取 1 本）
   const { data: { user: authUser } } = await supabase.auth.getUser();
-  const { data: meRow } = await supabase.from("users").select("name, email").eq("auth_user_id", authUser?.id ?? "").maybeSingle();
+  const { data: meRow } = await supabase.from("users").select("id, name, email, photo_updated_at").eq("auth_user_id", authUser?.id ?? "").maybeSingle(); // ★0162（裁定329・便 M5-1）: +id／photo_updated_at（自分の写真＝UserChip）
   const meName = (meRow?.name as string | null) ?? null;
   const meEmail = (meRow?.email as string | null) ?? authUser?.email ?? null;
   const { data: billingWritable } = await supabase.rpc("auth_org_billing_writable");
@@ -138,7 +138,7 @@ export default async function ManageLayout({ children }: { children: React.React
             <div className="acts">
               {/* ★裁定275 追補2-2（N4）: 右＝歯車（マスタ・監査・ご契約＝gear 群・cast／staff は項目 0＝描かない）＋「登録名｜役割」（自分の情報＋ログアウト）。POST /auth/signout は不変 */}
               <HeaderGear groups={splitNav(groups, ["/dashboard", "/register", "/report", "/shift"]).gearGroups} />
-              <UserChip name={meName} email={meEmail} roleJa={t.roleLabelJa(role as string)} storeLabel={storeLabel} />
+              <UserChip name={meName} email={meEmail} roleJa={t.roleLabelJa(role as string)} storeLabel={storeLabel} meId={(meRow?.id as string | null) ?? null} mePhotoAt={(meRow?.photo_updated_at as string | null) ?? null} canPhoto={role !== "cast"} isDemo={isDemo} />{/* ★0162（便 M5-1）: 本人の写真＝owner／manager／staff（cast は /mine）・デモは隠す */}
             </div>
           </header>
           <main className="nox-mainarea">

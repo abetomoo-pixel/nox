@@ -4,12 +4,19 @@
 //   HeaderGear ＝ 歯車（マスタ・監査・ご契約＝gear 群）→ 一覧型（アイコン＋説明＋「›」）の Modal。
 //   UserChip   ＝ 「登録名｜役割」→ 自分の情報（表示のみ）＋ログアウト（form POST /auth/signout＝経路不変）。
 //   ★ルート／URL／権限ゲートは非改変＝表示だけ。既存トークン・既存部品（Modal・NavIcon・.nox-navsheet-*）のみ・ui-tokens 新規 0。
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Modal from "./modal";
 import { NavIcon } from "./nav-icons";
 import { GEAR_LABEL, NAV_DESC, OPEN_MENU_EVENT, activeHrefOf, hashTargetOf, userChipLabelOf, type NavGroup } from "@/lib/nox/ui/nav-tabs";
+// ★0162（裁定329・便 M5-1）: スタッフ本人の「写真を変更」＝「自分の情報」Modal に置く（キャストの /mine photo-card と同じ部品・同じ縮小・u_{user_id}.jpg）
+import { createClient } from "@/lib/supabase/client";
+import CastAvatar from "./cast-avatar";
+import { Message } from "./toast";
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
+import { resolveOrgId } from "@/lib/nox/cast-photo";
+import { photoActionLabelOf, removeUserPhoto, signUserPhoto, uploadUserPhoto } from "@/lib/nox/staff-photo";
 
 /** 一覧型の行（メニュー Modal と設定 Modal で共用）＝アイコン＋ラベル＋説明＋「›」 */
 // ★便 X-8-5（2026-09-29）: replace＝シートが履歴に積んだ 1 段（noxSheet）を行き先で置き換える（シート側は history.back() を呼ばない）
@@ -70,8 +77,61 @@ export function HeaderGear({ groups }: { groups: NavGroup[] }) {
   );
 }
 
-export function UserChip({ name, email, roleJa, storeLabel }: { name: string | null; email: string | null; roleJa: string; storeLabel?: string }) {
+export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhotoAt = null, canPhoto = false, isDemo = false }: {
+  name: string | null; email: string | null; roleJa: string; storeLabel?: string;
+  /** ★0162（便 M5-1）: 自分の users.id・写真の最終更新・写真を触れる役割（owner／manager／staff＝cast は /mine）・デモは導線を隠す */
+  meId?: string | null; mePhotoAt?: string | null; canPhoto?: boolean; isDemo?: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  const [supabase] = useState(() => createClient());
+  const [photoAt, setPhotoAt] = useState<string | null>(mePhotoAt);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [photoErr, setPhotoErr] = useState<string | null>(null);
+  const [photoDone, setPhotoDone] = useState<string | null>(null);
+  const showPhoto = canPhoto && !isDemo && !!meId;
+  // 開いたときだけ署名 URL（1 回・1 人分）。写真が無い（null）なら発行しない
+  useEffect(() => {
+    if (!open || !showPhoto || !meId) return;
+    let alive = true;
+    void (async () => {
+      const org = await resolveOrgId(supabase);
+      if (!alive || !org) return;
+      setOrgId(org);
+      const u = photoAt ? await signUserPhoto(supabase, org, meId, photoAt) : null;
+      if (alive) setPhotoUrl(u);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, showPhoto, meId, photoAt]);
+  async function onPickPhoto(f: File | null) {
+    if (!f || !meId || !orgId) return;
+    setBusy(true); setPhotoErr(null); setPhotoDone(null);
+    try {
+      const stamped = await uploadUserPhoto(supabase, orgId, meId, f);
+      setPhotoAt(stamped);
+      setPhotoDone("写真を保存しました");
+    } catch (e) {
+      setPhotoErr(rpcErrJa(e instanceof Error ? e.message : "保存に失敗しました"));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function onRemovePhoto() {
+    if (!meId || !orgId) return;
+    if (!confirm("自分の写真を削除しますか？")) return;
+    setBusy(true); setPhotoErr(null); setPhotoDone(null);
+    try {
+      await removeUserPhoto(supabase, orgId, meId); // ★329 追補1: storage.remove（delete policy）→ clear_user_photo（null 戻し）
+      setPhotoAt(null); setPhotoUrl(null);
+      setPhotoDone("写真を削除しました");
+    } catch (e) {
+      setPhotoErr(rpcErrJa(e instanceof Error ? e.message : "削除に失敗しました"));
+    } finally {
+      setBusy(false);
+    }
+  }
   const label = userChipLabelOf({ name, email, roleJa });
   return (
     <>
@@ -83,6 +143,21 @@ export function UserChip({ name, email, roleJa, storeLabel }: { name: string | n
               <h2 className="nox-navsheet-h" style={{ margin: 0 }}>自分の情報</h2>
               <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => setOpen(false)}>×</button>
             </div>
+            {showPhoto && (
+              // ★0162（裁定329・便 M5-1）: 本人の写真＝CastAvatar（未登録は頭文字）＋「写真を登録／変更」（nox-photoedit＝/mine と同じ）＋「写真を削除」（写真があるとき）
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <CastAvatar name={(name ?? "").trim() || "?"} url={photoUrl} size={56} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label>
+                    <span className="nox-photoedit" style={{ cursor: busy ? "default" : "pointer", opacity: busy ? 0.5 : 1 }}>{photoActionLabelOf(!!photoAt, busy)}</span>
+                    <input type="file" accept="image/*" disabled={busy} onChange={(e) => { void onPickPhoto(e.target.files?.[0] ?? null); e.target.value = ""; }} style={{ display: "none" }} />
+                  </label>
+                  {photoAt && <button type="button" className="nox-photoedit" disabled={busy} onClick={() => void onRemovePhoto()}>写真を削除</button>}
+                </div>
+              </div>
+            )}
+            {photoErr && <Message kind="error" style={{ margin: "0 0 8px" }}>{photoErr}</Message>}
+            {photoDone && <Message kind="success" style={{ margin: "0 0 8px" }}>{photoDone}</Message>}
             <dl className="nox-userinfo">
               <dt>登録名</dt><dd>{(name ?? "").trim() || "—"}</dd>
               <dt>メール</dt><dd>{email || "—"}</dd>
