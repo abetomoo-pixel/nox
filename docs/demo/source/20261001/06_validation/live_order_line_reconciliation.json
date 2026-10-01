@@ -1,0 +1,26 @@
+{
+  "dataset": "live_order_line_reconciliation",
+  "record_count": 2,
+  "records": [
+    {
+      "order_id": "LIVE-MUSE-T1",
+      "store_id": "DEMO-SNACK",
+      "subtotal_from_listed_lines_yen": 14960,
+      "service_yen": 1496,
+      "tax_yen": 1645,
+      "total_from_listed_lines_yen": 18101,
+      "stated_bill_target_yen": 24860,
+      "difference_yen": -6759
+    },
+    {
+      "order_id": "LIVE-NOIR-VIP-1",
+      "store_id": "DEMO-CAB-02",
+      "subtotal_from_listed_lines_yen": 101800,
+      "service_yen": 25450,
+      "tax_yen": 12725,
+      "total_from_listed_lines_yen": 139975,
+      "stated_bill_target_yen": 188100,
+      "difference_yen": -48125
+    }
+  ]
+}

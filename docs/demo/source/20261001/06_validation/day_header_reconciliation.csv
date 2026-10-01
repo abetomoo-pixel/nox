@@ -1,0 +1,7 @@
+﻿store_id,business_date,stated_day_total_yen,header_sum_yen,difference_yen,complete_line_data
+DEMO-SNACK,2026-09-19,176000,176000,0,false
+DEMO-CAB-01,2026-09-17,324000,324000,0,false
+DEMO-CAB-02,2026-09-18,610000,610000,0,false
+DEMO-CAB-03,2026-09-25,434000,434000,0,false
+DEMO-GIRLS,2026-09-19,273000,273000,0,false
+DEMO-BAR,2026-09-26,218000,218000,0,false

@@ -1,0 +1,48 @@
+{
+  "reference_validation_passed": true,
+  "checks_executed": 5121,
+  "errors": [],
+  "application_integration_tested": false,
+  "september_complete_order_history": false,
+  "payroll_finalized": false,
+  "source_review_items": 36,
+  "source_review_by_severity": {
+    "BLOCKER": 8,
+    "CORRECTED": 3,
+    "MISMATCH": 8,
+    "REVIEW": 17
+  },
+  "reference_receipts": [
+    {
+      "order_id": "M0919-004",
+      "total_yen": 35404,
+      "total_back_yen": 2000
+    },
+    {
+      "order_id": "L0917-002",
+      "total_yen": 65736,
+      "total_back_yen": 7700
+    },
+    {
+      "order_id": "N0918-008",
+      "total_yen": 264825,
+      "total_back_yen": 32000
+    },
+    {
+      "order_id": "A0925-008",
+      "total_yen": 203280,
+      "total_back_yen": 28000
+    },
+    {
+      "order_id": "G0919-004",
+      "total_yen": 70143,
+      "total_back_yen": 9475
+    },
+    {
+      "order_id": "B0926-004",
+      "total_yen": 36542,
+      "total_back_yen": 3750
+    }
+  ],
+  "note": "PASS validates the supplied reference arithmetic and identifiers only. Targets and unresolved implementation questions are not certified."
+}

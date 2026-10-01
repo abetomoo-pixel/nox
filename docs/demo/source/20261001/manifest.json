@@ -1,0 +1,634 @@
+{
+  "package_version": "1.0",
+  "created_on": "2026-10-01",
+  "file_count_excluding_manifest": 124,
+  "dataset_count": 51,
+  "store_count": 6,
+  "product_count": 138,
+  "person_count": 47,
+  "customer_count": 49,
+  "reference_receipts": 6,
+  "application_verified": false,
+  "files": [
+    {
+      "path": "00_docs/CALCULATION_RULES.md",
+      "bytes": 5437,
+      "sha256": "4a02e5658103aa7735a9f171d858c30b5b96930227c28db59663185b1cfa0f4f"
+    },
+    {
+      "path": "00_docs/DATA_DICTIONARY.md",
+      "bytes": 1429,
+      "sha256": "6f0ac5879c72e923c6612b02e6affdca6c196024223af9dd629ae089fc1a4e9a"
+    },
+    {
+      "path": "00_docs/DEMO_GUIDE.md",
+      "bytes": 3679,
+      "sha256": "89e7f0af4f6aa4d43f1b046eff7633fb1f9853f20e80fcb5da346edd2100bdba"
+    },
+    {
+      "path": "00_docs/IMPORT_GUIDE.md",
+      "bytes": 3686,
+      "sha256": "111d56e70617a33925060d908260a5c46c29176eb6993f6d81ee18b73f95e504"
+    },
+    {
+      "path": "00_docs/REVIEW_NOTES.md",
+      "bytes": 12082,
+      "sha256": "b459e251dab70980bbfd6e1bf044b2dcb139e9b6d1e326b247a74ef14cb0f59b"
+    },
+    {
+      "path": "00_docs/SOURCES_AND_STATUS.md",
+      "bytes": 1803,
+      "sha256": "b8b6914ab8e66c7fe94adcb318b7d9bc4fa9676d380b581a89d52bac345bd219"
+    },
+    {
+      "path": "00_docs/dataset_schemas.json",
+      "bytes": 124115,
+      "sha256": "8ce3fddfcf636cbd0eec23ce2b5d693f62334138cf5439c4eaed245285b97d67"
+    },
+    {
+      "path": "00_docs/field_dictionary.csv",
+      "bytes": 61241,
+      "sha256": "348c8371bfb153a0f4b8a8b0e3701c66f435ea011282ea8d771a527c4356e8d7"
+    },
+    {
+      "path": "00_overview/store_summary.csv",
+      "bytes": 495,
+      "sha256": "8cc84806f52331be721067c01a37c579183fe3bd67994af46fe2ce9da71db066"
+    },
+    {
+      "path": "00_overview/store_summary.json",
+      "bytes": 2279,
+      "sha256": "1737060b41f231d44cd3ebc7f5c9b1c02227f348aad0ebb51a39b0ae21e7d5da"
+    },
+    {
+      "path": "01_master/bonus_rule_proposals.csv",
+      "bytes": 3403,
+      "sha256": "af8ec4e3300b4603269d2e6f2d7af4657d8aa97e73ac450a143695be8d783311"
+    },
+    {
+      "path": "01_master/bonus_rule_proposals.json",
+      "bytes": 7953,
+      "sha256": "8b0fee00735685394109749926827fd9d56ba04fa63b845373c9beb5777f6f51"
+    },
+    {
+      "path": "01_master/categories.csv",
+      "bytes": 2387,
+      "sha256": "d2997bb2188f96c0853404be5d61e7a232d6fb3d2d3f6a1be49ee53632d0700e"
+    },
+    {
+      "path": "01_master/categories.json",
+      "bytes": 8223,
+      "sha256": "578b2dd4090cc0a5d46d4ef3db32d5521e351a43b2c6d316c971d3cfb85eb4f0"
+    },
+    {
+      "path": "01_master/compensation_plans.csv",
+      "bytes": 1411,
+      "sha256": "6c12b75e6e5de0af0767ff1aacb0596a649a2ce498281e54729ff124b95b654a"
+    },
+    {
+      "path": "01_master/compensation_plans.json",
+      "bytes": 4754,
+      "sha256": "7146693bc31fe98691695999ae2fdf0660a0e8036ec7b1f481517b8a148f4d76"
+    },
+    {
+      "path": "01_master/newcomer_guarantee_proposals.csv",
+      "bytes": 415,
+      "sha256": "55fa52cded43e6ced5177a7abe78cf462251e7fa0196f2bf71d462ef40ace9bd"
+    },
+    {
+      "path": "01_master/newcomer_guarantee_proposals.json",
+      "bytes": 916,
+      "sha256": "62694650ea01a9bb93e04017d356016fc778a3a2152da2a32fc0c7a185d0191b"
+    },
+    {
+      "path": "01_master/nomination_ranks.csv",
+      "bytes": 656,
+      "sha256": "f328b9aee0aebf56cbcf313bd7dfaa619f41e707acf4c53def743e64c0a070b1"
+    },
+    {
+      "path": "01_master/nomination_ranks.json",
+      "bytes": 1911,
+      "sha256": "eda67090b55400619e326d096b14a1a5e0aea27e26b002f03eba2804c4629dfe"
+    },
+    {
+      "path": "01_master/people.csv",
+      "bytes": 6391,
+      "sha256": "a25dc5d2ee9b08ce5575fd813682e53546023a9e85045f027a6457defb198798"
+    },
+    {
+      "path": "01_master/people.json",
+      "bytes": 24413,
+      "sha256": "a23145b83488e0a9ee995b0a09e33c2502e4567c4dcaf3cf683f9e589142f27a"
+    },
+    {
+      "path": "01_master/person_plan_assignments.csv",
+      "bytes": 5554,
+      "sha256": "e8791baddda2a599eddfb03d1de46c7f9816fe9f74eed700de6d40c925c8afa1"
+    },
+    {
+      "path": "01_master/person_plan_assignments.json",
+      "bytes": 12618,
+      "sha256": "d75e91254210b328c1d45146c6424dcdd911f02ce38de17d8430be8a49aefee3"
+    },
+    {
+      "path": "01_master/pricing_rules.csv",
+      "bytes": 4422,
+      "sha256": "34ecd3c8b32f7f6c782971c03ddd15bc80e9847cd2a9f7b9f7924eee809b3aef"
+    },
+    {
+      "path": "01_master/pricing_rules.json",
+      "bytes": 13223,
+      "sha256": "3c4b5b4f92f378d906eb8117cefa35905ca13d514315ff506ff19db12cec64f4"
+    },
+    {
+      "path": "01_master/products.csv",
+      "bytes": 51727,
+      "sha256": "21b042f050e5827e30f2906fbcfabfa7fafa55f26e4a73df3c9204982795380d"
+    },
+    {
+      "path": "01_master/products.json",
+      "bytes": 154079,
+      "sha256": "4641e70a1fa84240b8e7f3c191da8071f1891b0e816913f32ac581cd6f725ff4"
+    },
+    {
+      "path": "01_master/sales_slide_tiers.csv",
+      "bytes": 455,
+      "sha256": "85f14cd8011eea9b3b79897083ab32b344a0e71f5e3ddd76716a1b46da492e15"
+    },
+    {
+      "path": "01_master/sales_slide_tiers.json",
+      "bytes": 1250,
+      "sha256": "45016a7cfe52afb57091ab7de630f0e974625ce3f666d6cf24949e23e1519da8"
+    },
+    {
+      "path": "01_master/september_business_calendar.csv",
+      "bytes": 5736,
+      "sha256": "63b68f9e49a231685958c65cc8a408432684f537a9966eb2035e27d696531946"
+    },
+    {
+      "path": "01_master/september_business_calendar.json",
+      "bytes": 24438,
+      "sha256": "aac9f3a030fe3ac35fce1c88c029edd612da070737984829f95aeb64e30909c3"
+    },
+    {
+      "path": "01_master/stores.csv",
+      "bytes": 1530,
+      "sha256": "cecc9daaef23b8cebbd01e706d7c0ea5dd62354b82578283352322261f4fe371"
+    },
+    {
+      "path": "01_master/stores.json",
+      "bytes": 4100,
+      "sha256": "d1bc87e6e3fcfb1e729cd5e6d8863f57ea8832a70372d08ceede999580127711"
+    },
+    {
+      "path": "01_master/tables.csv",
+      "bytes": 2379,
+      "sha256": "843e08b0ef6d98e2775fe94a9301538bca121ec990663c6825e3c34715819a23"
+    },
+    {
+      "path": "01_master/tables.json",
+      "bytes": 8959,
+      "sha256": "d803b46a7baea98bd06639f75e67dcbd2adaf932c29323aa229946b50e1355f6"
+    },
+    {
+      "path": "02_september_targets/ace_hourly_band_targets.csv",
+      "bytes": 2272,
+      "sha256": "e7f19d6741ecef4c8cf9a9627e9f8eff1cecff23c874915e690388ef9180b338"
+    },
+    {
+      "path": "02_september_targets/ace_hourly_band_targets.json",
+      "bytes": 6734,
+      "sha256": "736bb2c43376ab7db660e46c4ed4f83368a074ea57753112820ae05264a03a8e"
+    },
+    {
+      "path": "02_september_targets/baseline_day_header_targets.csv",
+      "bytes": 5187,
+      "sha256": "4edc99f4985443756f8e6f976cede762643a85ccd4b8b64d2eea4bd9f483b644"
+    },
+    {
+      "path": "02_september_targets/baseline_day_header_targets.json",
+      "bytes": 16805,
+      "sha256": "9e5a335e11d318fafe2b16443edee57a67ae3dda1d9b7cfa6f7654a64154887d"
+    },
+    {
+      "path": "02_september_targets/cast_monthly_targets.csv",
+      "bytes": 4568,
+      "sha256": "76ce2e33b6076668cd911392812afd2169a696f8db38d29ccc1ad315e2de1696"
+    },
+    {
+      "path": "02_september_targets/cast_monthly_targets.json",
+      "bytes": 24222,
+      "sha256": "5cf4bfe6f43ddce640d0af2c11f75534f27b66622a5864dccd6445b6b09f4047"
+    },
+    {
+      "path": "02_september_targets/daily_sales_targets.csv",
+      "bytes": 11003,
+      "sha256": "c1c2b4a4d86b0d02051026fd213af653ed98c795fb411564aaa357ed363a6f1f"
+    },
+    {
+      "path": "02_september_targets/daily_sales_targets.json",
+      "bytes": 45535,
+      "sha256": "88557199166b8b73fd87e36076e3159f95600b0306a3647c455b0c11a931b8df"
+    },
+    {
+      "path": "02_september_targets/inventory_snapshot_targets.csv",
+      "bytes": 3358,
+      "sha256": "48acc1ba8f96679fa6a6afa60bb876664cae84ee94afdfc153ee130486a3f7ae"
+    },
+    {
+      "path": "02_september_targets/inventory_snapshot_targets.json",
+      "bytes": 14092,
+      "sha256": "9c6e4506ff9852dc379c5b188bbba3d26630545212a8a9cc4506e3bb7a170dae"
+    },
+    {
+      "path": "02_september_targets/monthly_sales_targets.csv",
+      "bytes": 726,
+      "sha256": "0cbb1efd09bf1d7aeaf6f23c034be7a41a73bc2b3d1a6dbaecbe392c5a042b40"
+    },
+    {
+      "path": "02_september_targets/monthly_sales_targets.json",
+      "bytes": 2685,
+      "sha256": "5ccb9d9e4d3667ea87fd4148e13a47b3d894ed802b0079e713d357bda816d9ae"
+    },
+    {
+      "path": "02_september_targets/noir_champagne_sales_targets.csv",
+      "bytes": 669,
+      "sha256": "3c326fe9938b1d02af30cfb143c7becd66b323b92668af574d4afb10ee0db44b"
+    },
+    {
+      "path": "02_september_targets/noir_champagne_sales_targets.json",
+      "bytes": 1884,
+      "sha256": "9b3f741151ff71a721512044b81f7a02ef13a916934ed9b32e8f9b895ab4605b"
+    },
+    {
+      "path": "02_september_targets/payroll_reference_calculation.csv",
+      "bytes": 12953,
+      "sha256": "64a374053c18e297ae2a82c18ab00f8bce5c725fb466e4a9b4d4385eb6ed81a7"
+    },
+    {
+      "path": "02_september_targets/payroll_reference_calculation.json",
+      "bytes": 32299,
+      "sha256": "42579cc40ea6fa77429261bf6d93ad5d919e42cca29100f4dd808b163641c9e5"
+    },
+    {
+      "path": "02_september_targets/payroll_reference_totals.csv",
+      "bytes": 537,
+      "sha256": "09ae6aff193f75c2c0f771dd7c0031aa2227666bd22fdd54cf95ec2c7ee514fc"
+    },
+    {
+      "path": "02_september_targets/payroll_reference_totals.json",
+      "bytes": 1909,
+      "sha256": "0d983ed005a77c273395acfb5703c0507703c8ace362e7944ad50a807bc6bb41"
+    },
+    {
+      "path": "02_september_targets/ranking_reference.csv",
+      "bytes": 13019,
+      "sha256": "461215f35804d6508d9855b21d224a94fe10e939c1978aca682c19ea703dd888"
+    },
+    {
+      "path": "02_september_targets/ranking_reference.json",
+      "bytes": 33721,
+      "sha256": "02c02273a2b00c44694c69035d0c702c07b23db72582ead67f8c9332ee5fce64"
+    },
+    {
+      "path": "03_reference_receipts/expected_results.csv",
+      "bytes": 761,
+      "sha256": "7f922aada4d10064620740b8dcebdc07abc4e2e52865296071da3bcf2a7073e0"
+    },
+    {
+      "path": "03_reference_receipts/expected_results.json",
+      "bytes": 2597,
+      "sha256": "b492fbf21105d1f0dd799e3ab3efe128354a33b01416215e99a15c2b3e23f7cf"
+    },
+    {
+      "path": "03_reference_receipts/order_items.csv",
+      "bytes": 6166,
+      "sha256": "1b033abf7557cd93b25820daae8abdd119f127d32ca6ede403e633b881ffe0bb"
+    },
+    {
+      "path": "03_reference_receipts/order_items.json",
+      "bytes": 26689,
+      "sha256": "ca0e61780c7804c91fa6ff86d0c32dd4242dcb668c4739aecc5cdbfb12eaf506"
+    },
+    {
+      "path": "03_reference_receipts/order_reward_calculations.csv",
+      "bytes": 1348,
+      "sha256": "2a688c311d8e12a1f6f1537b9ea5d4b65f1a8494997e795ae87dce7e6d609626"
+    },
+    {
+      "path": "03_reference_receipts/order_reward_calculations.json",
+      "bytes": 4791,
+      "sha256": "bfda2e79a7f061554e45b47149a1760a25d856509f818708deca3b9348470dd4"
+    },
+    {
+      "path": "03_reference_receipts/orders.csv",
+      "bytes": 1567,
+      "sha256": "ef9d3f003d83cc790ddf1be3e6f8f23fe3967093f33cee0923f98bbad9858242"
+    },
+    {
+      "path": "03_reference_receipts/orders.json",
+      "bytes": 4816,
+      "sha256": "85705407cd2b53c5575239b0442ad033dc183f16ae245142c864200a2a44ea6d"
+    },
+    {
+      "path": "03_reference_receipts/payment_examples.csv",
+      "bytes": 1070,
+      "sha256": "80d10a64dd9c0ff30558acaa584e74182772638ddcfadec5fb09d644524658ac"
+    },
+    {
+      "path": "03_reference_receipts/payment_examples.json",
+      "bytes": 2155,
+      "sha256": "8feaa3d4a5bc3495c3fcaf7d82260eba9454a5f2cc30d4462d5347930684c5f3"
+    },
+    {
+      "path": "03_reference_receipts/standalone_slide_test.csv",
+      "bytes": 383,
+      "sha256": "d9389f28b278bae29d7bd2125681149667e44ca1787428d2e4fcf26c4594ed76"
+    },
+    {
+      "path": "03_reference_receipts/standalone_slide_test.json",
+      "bytes": 1531,
+      "sha256": "3a6e70b15540236042dea04afa7e61c76cca7f0dbd0b77d59d2e5459db0aa728"
+    },
+    {
+      "path": "04_crm/bottle_keep_snapshots.csv",
+      "bytes": 741,
+      "sha256": "8a64059041de6bc315a3b1a4993c435d758ce29988cf09c39597e5f5b718aba3"
+    },
+    {
+      "path": "04_crm/bottle_keep_snapshots.json",
+      "bytes": 2297,
+      "sha256": "557d3213330afeaa59fc71c664b1957dfc8e5b55dcd779963d9d1ab6939ee7fc"
+    },
+    {
+      "path": "04_crm/customer_monthly_targets.csv",
+      "bytes": 3442,
+      "sha256": "639b0e4a11203898ff2fc6d54ea12fbb18e14ac7effcad74d519141c2e7affeb"
+    },
+    {
+      "path": "04_crm/customer_monthly_targets.json",
+      "bytes": 19530,
+      "sha256": "fa133495e4af407d3a1b93bd125474b46604f6b8d04b444e718110fe94eba574"
+    },
+    {
+      "path": "04_crm/customer_visit_targets.csv",
+      "bytes": 878,
+      "sha256": "fdb8c0ad0489732d3167c9ed202f86abb6905deda4e3c3e08f15b00a2a879dfd"
+    },
+    {
+      "path": "04_crm/customer_visit_targets.json",
+      "bytes": 2551,
+      "sha256": "84de6b7a06d5742a56abc52f35ed4a637710bcb32b9cdda57cca4188967da69b"
+    },
+    {
+      "path": "04_crm/customers.csv",
+      "bytes": 5453,
+      "sha256": "5c67c359d43f62ed730ef42d968405f02e9b27777d24b3e0a797205661c06af5"
+    },
+    {
+      "path": "04_crm/customers.json",
+      "bytes": 19936,
+      "sha256": "6fdede09b61b3659eaa2376670e9b6c5e3a254889d87f90e5d7aaf5c087a25e3"
+    },
+    {
+      "path": "04_crm/future_receipt_allocation_example.csv",
+      "bytes": 365,
+      "sha256": "a266658e25c2f6858dc7f4105a99f60f043ca501b4134c7b5968ec51e9a98c42"
+    },
+    {
+      "path": "04_crm/future_receipt_allocation_example.json",
+      "bytes": 875,
+      "sha256": "6b578d84e73305728ac52e769d96730346bcf44e3d8f0d1d329583ee95d8e203"
+    },
+    {
+      "path": "04_crm/receivable_balances.csv",
+      "bytes": 405,
+      "sha256": "f0c9c0ebc2d69715cf8b97cc5c3329cab2b8d7906c56ce56f138cfdb2dcee446"
+    },
+    {
+      "path": "04_crm/receivable_balances.json",
+      "bytes": 915,
+      "sha256": "bb994cf6723d30e6bcb4606f3719ae67048c1c57d306fc447f1195dcd00d53fe"
+    },
+    {
+      "path": "04_crm/receivable_opening_snapshots.csv",
+      "bytes": 943,
+      "sha256": "9bbf3fbd640de15ba689ffecddefc4a847ed4ac7b9ee94e4020709c722ad3327"
+    },
+    {
+      "path": "04_crm/receivable_opening_snapshots.json",
+      "bytes": 2929,
+      "sha256": "4d0a8c9dbd691edf4752eb9abbc38ac83ac70e6cbaf65f69f66f006527711561"
+    },
+    {
+      "path": "05_live_targets/bottle_keep_use_target.csv",
+      "bytes": 189,
+      "sha256": "1badcc7418172cf11bb978f79d65dd0751a8d25085eaa0a15870729e8d3cac0a"
+    },
+    {
+      "path": "05_live_targets/bottle_keep_use_target.json",
+      "bytes": 360,
+      "sha256": "31ba4c0672bef8e874a3aba7e8862ddb3ed57655eef464b17b5162f17df2bcac"
+    },
+    {
+      "path": "05_live_targets/cast_back_targets.csv",
+      "bytes": 911,
+      "sha256": "ca11a410998ef2dced84c7ccd100b507ab24ceadfcfb3dd11f76ecfb553d4ead"
+    },
+    {
+      "path": "05_live_targets/cast_back_targets.json",
+      "bytes": 3055,
+      "sha256": "87a451610b4f80dbb94aad7f789601e488c06aa5efd15102122711d5e3fc14a4"
+    },
+    {
+      "path": "05_live_targets/cast_sales_targets.csv",
+      "bytes": 1220,
+      "sha256": "48397b31c3b5eb94ffd960c428e265d66f38906c9958f317a1767dfdff76cbb2"
+    },
+    {
+      "path": "05_live_targets/cast_sales_targets.json",
+      "bytes": 3711,
+      "sha256": "c520767276e671a65b24f57a0cb40b9fdc0034de73fd494178c91797c9d2a9d1"
+    },
+    {
+      "path": "05_live_targets/home_attention_targets.csv",
+      "bytes": 436,
+      "sha256": "c2d1d4c7975c52d3f4e360a5e6fcbf5020b0b4d24e44f934c6f2ec7c9ecad871"
+    },
+    {
+      "path": "05_live_targets/home_attention_targets.json",
+      "bytes": 943,
+      "sha256": "9f6b8d0d94b1f874515870008f6f0815021b7c119dbc937bab64f6d0083103ed"
+    },
+    {
+      "path": "05_live_targets/inventory_alert_targets.csv",
+      "bytes": 1651,
+      "sha256": "7ff1d2828d590f59492cbe708bfe227e4259f485ddf26cedb95d9fc62e161082"
+    },
+    {
+      "path": "05_live_targets/inventory_alert_targets.json",
+      "bytes": 3369,
+      "sha256": "a09df6c273d6571d519dd88744fc1c55eafe300a780246ff4c130fbc3557290b"
+    },
+    {
+      "path": "05_live_targets/live_dashboard_targets.csv",
+      "bytes": 1373,
+      "sha256": "a2c17a06daf584ac741e620db35da8d2f71f6b57d2b7863c1f1691499f27d27a"
+    },
+    {
+      "path": "05_live_targets/live_dashboard_targets.json",
+      "bytes": 3684,
+      "sha256": "5f83ac86adddfd3c06d3a9403f087d72b1e04f1b8ccb156825a2a74c3f4a109b"
+    },
+    {
+      "path": "05_live_targets/open_order_header_targets.csv",
+      "bytes": 4082,
+      "sha256": "af6418a2ed2ab31dca3a31ee6a8bd77e1ac0ef60927822ed80b727c789291b6d"
+    },
+    {
+      "path": "05_live_targets/open_order_header_targets.json",
+      "bytes": 13973,
+      "sha256": "ba5a0a9607c3318c57e884452d14d40050ec69f6a7bf4300ebf03362a9eb3b0c"
+    },
+    {
+      "path": "05_live_targets/partial_open_order_line_targets.csv",
+      "bytes": 1224,
+      "sha256": "a4a6798e330caff504e75d392e0f9d7d9ab308feda517514717137a9babe6dff"
+    },
+    {
+      "path": "05_live_targets/partial_open_order_line_targets.json",
+      "bytes": 3802,
+      "sha256": "625434e49a60d6debffea7d3a5525a484091c759390f21385e2619c5d01a8ef6"
+    },
+    {
+      "path": "05_live_targets/reservation_targets.csv",
+      "bytes": 940,
+      "sha256": "dcb6529f9e9bc35a4fd3eb8e99878e39794463033bb00e384f8aa62ff025b72c"
+    },
+    {
+      "path": "05_live_targets/reservation_targets.json",
+      "bytes": 2446,
+      "sha256": "be4fa456e373a84ec628979c62097f76e37baaf581db5bd5c0bf8713bff8073e"
+    },
+    {
+      "path": "05_live_targets/shift_targets.csv",
+      "bytes": 6512,
+      "sha256": "831ac0b17b7f0e945035c0092957146db5526d1004e8e53590ce1818a2102a10"
+    },
+    {
+      "path": "05_live_targets/shift_targets.json",
+      "bytes": 21263,
+      "sha256": "1f5d077e7bf4052c2eaaf9ef1afe3cf0b290d7f5b8dba2328f20718a86192017"
+    },
+    {
+      "path": "05_live_targets/table_state_targets.csv",
+      "bytes": 4435,
+      "sha256": "4801886e477d87c28dc20989a847ee3f3e32cf57d1bebd9d6f857ffa2f1b89f4"
+    },
+    {
+      "path": "05_live_targets/table_state_targets.json",
+      "bytes": 13982,
+      "sha256": "66665f7ac5c0316f599f2b742ab30aba736cd5eeec4d3a883509aa57c3743823"
+    },
+    {
+      "path": "06_validation/VALIDATION_REPORT.md",
+      "bytes": 1804,
+      "sha256": "67b22fdb353d75cee6fd3287aa5f66e1feb6d93fe6a6dedeefe009bd23d664fa"
+    },
+    {
+      "path": "06_validation/day_header_reconciliation.csv",
+      "bytes": 368,
+      "sha256": "563e28aed28b625e3094c667f28fe1cdc6cee1a26299751d0772cac0f3617421"
+    },
+    {
+      "path": "06_validation/day_header_reconciliation.json",
+      "bytes": 1364,
+      "sha256": "ccda1e65ebd9fca44a7983fd320a9d680a8f2feed983980c5f5f58ba23dbe20b"
+    },
+    {
+      "path": "06_validation/live_order_line_reconciliation.csv",
+      "bytes": 267,
+      "sha256": "03b3a403b6720a1195697619bad6ecaccfe91c4e5a6fe29489ad43bd71fe080f"
+    },
+    {
+      "path": "06_validation/live_order_line_reconciliation.json",
+      "bytes": 678,
+      "sha256": "fe4ae6d5c5c2bf9b9ff0867a87dd818b3323ad0e1fd45713f20d8881b85b1928"
+    },
+    {
+      "path": "06_validation/review_issues.csv",
+      "bytes": 11001,
+      "sha256": "55050c68060e0c872719574c3670869d7e3c0a44c4c3c0aa1dfee3082cf470e3"
+    },
+    {
+      "path": "06_validation/review_issues.json",
+      "bytes": 15808,
+      "sha256": "a5d7d1bb4e5a3a2af01084ec5212d6898c92afa70e22d3be1d24d0fcee7017c4"
+    },
+    {
+      "path": "06_validation/validate.py",
+      "bytes": 12356,
+      "sha256": "1231c09bcb469e2196396951d424d4f101efde5f6b84b61153ed70a66703db91"
+    },
+    {
+      "path": "06_validation/validation_report.json",
+      "bytes": 1123,
+      "sha256": "f80c2453b31ac1eb2d8c6aa1aaf43890f4094b18e174c602994ce04e8670fa50"
+    },
+    {
+      "path": "06_validation/workbook_check.json",
+      "bytes": 246,
+      "sha256": "08a5e8da1705210a1f2f63cdeebb2948687bae0749ec130779d69381fe029215"
+    },
+    {
+      "path": "07_by_store/ACE.json",
+      "bytes": 129924,
+      "sha256": "5dab2c3c72879643ca2baebc28248f0ea5acae7df2f379cf35365219fa2b4c3a"
+    },
+    {
+      "path": "07_by_store/LILY.json",
+      "bytes": 109993,
+      "sha256": "ef410857dc807ac9911643e064c09d7c096bf266eeefac0f5fb5599842e70a30"
+    },
+    {
+      "path": "07_by_store/LUNA.json",
+      "bytes": 121671,
+      "sha256": "2214317f67fe835016470ece1d3a2b5a9f3a464061a407bc8b1df213f22fc6d4"
+    },
+    {
+      "path": "07_by_store/MUSE.json",
+      "bytes": 99037,
+      "sha256": "37a7d3bdee74cbe2a869c09b913c1edbf97a3a9e2ba52fa29eab48a2dddc4c74"
+    },
+    {
+      "path": "07_by_store/NEST.json",
+      "bytes": 108077,
+      "sha256": "f8b26a3bd75d7cea20f3b4b9aad03fbdef059c7fc1e17b243e469d2534abc663"
+    },
+    {
+      "path": "07_by_store/NOIR.json",
+      "bytes": 143611,
+      "sha256": "a5bd3b246d6fac6052f530091daf4c858ea98219282e5a3cd5b7ec840deea2f4"
+    },
+    {
+      "path": "DATASET_INDEX.csv",
+      "bytes": 7017,
+      "sha256": "8e47f93d1698c2ca861328c70f530733e16b5b98c3a62083ac14aca25c8bb1e2"
+    },
+    {
+      "path": "NOX_demo_review.xlsx",
+      "bytes": 99273,
+      "sha256": "8458dff03abec56eb592155564a2cd3ee94d0503fc692bed3a8e46060975deef"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3996,
+      "sha256": "ebd65a26b35ba77973293e2fd950de9837ed5ecbfb9effa9b7ae3c3d46b5fb45"
+    },
+    {
+      "path": "nox_demo_all.json",
+      "bytes": 708562,
+      "sha256": "dedd476924d95becf9fe179a0d21dbde5b91e1ba392075ad3c5c3bef1c84c0ad"
+    }
+  ]
+}

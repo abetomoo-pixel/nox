@@ -1,0 +1,3 @@
+﻿order_id,store_id,subtotal_from_listed_lines_yen,service_yen,tax_yen,total_from_listed_lines_yen,stated_bill_target_yen,difference_yen
+LIVE-MUSE-T1,DEMO-SNACK,14960,1496,1645,18101,24860,-6759
+LIVE-NOIR-VIP-1,DEMO-CAB-02,101800,25450,12725,139975,188100,-48125

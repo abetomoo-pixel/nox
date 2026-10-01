@@ -1,0 +1,4383 @@
+{
+  "stores": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "store_code": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "business_type": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "currency": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "timezone": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "is_demo": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "service_bps": {
+          "type": [
+            "integer"
+          ],
+          "description": "サービス料率・bps"
+        },
+        "tax_bps": {
+          "type": [
+            "integer"
+          ],
+          "description": "税率パラメーター・bps"
+        },
+        "price_basis": {
+          "type": [
+            "string"
+          ],
+          "description": "価格基準"
+        },
+        "cost_basis": {
+          "type": [
+            "string"
+          ],
+          "description": "原価基準"
+        },
+        "vip_mode": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "auto_extension": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "receivables_enabled_demo": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "nomination_enabled": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "minimum_monthly_guarantee_enabled": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "reference_clock": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "store_id",
+        "store_code",
+        "store_name",
+        "business_type",
+        "currency",
+        "timezone",
+        "is_demo",
+        "service_bps",
+        "tax_bps",
+        "price_basis",
+        "cost_basis",
+        "vip_mode",
+        "auto_extension",
+        "receivables_enabled_demo",
+        "nomination_enabled",
+        "minimum_monthly_guarantee_enabled",
+        "reference_clock",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "categories": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "category_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "display_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "sort_order": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "category_id",
+        "store_id",
+        "display_name",
+        "sort_order"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "products": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "product_id": {
+          "type": [
+            "string"
+          ],
+          "description": "商品ID"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "product_key": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "product_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "accounting_class": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "display_category_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "display_category_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "selling_price_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "販売価格・税サービス料加算前"
+        },
+        "cost_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "仮置き商品原価"
+        },
+        "price_basis": {
+          "type": [
+            "string"
+          ],
+          "description": "価格基準"
+        },
+        "cost_basis": {
+          "type": [
+            "string"
+          ],
+          "description": "原価基準"
+        },
+        "sale_unit": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "stock_tracking": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "reorder_point": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "back_mode": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "back_rate_bps": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "商品バック率・bps"
+        },
+        "back_main_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "本指名単価"
+        },
+        "back_inhouse_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "場内単価"
+        },
+        "back_accompanied_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "同伴単価"
+        },
+        "back_free_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "フリー単価"
+        },
+        "nomination_points_per_unit": {
+          "type": [
+            "integer"
+          ],
+          "description": "商品1単位の本指名pt設定案"
+        },
+        "cast_drink_exclude_from_shared_sales": {
+          "type": [
+            "boolean"
+          ],
+          "description": "キャストドリンク・共有按分除外フラグ"
+        },
+        "assigned_person_required": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "is_active": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "sort_order": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "source": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "notes": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "product_id",
+        "store_id",
+        "product_key",
+        "product_name",
+        "accounting_class",
+        "display_category_id",
+        "display_category_name",
+        "selling_price_yen",
+        "cost_yen",
+        "price_basis",
+        "cost_basis",
+        "sale_unit",
+        "stock_tracking",
+        "reorder_point",
+        "back_mode",
+        "back_rate_bps",
+        "back_main_yen",
+        "back_inhouse_yen",
+        "back_accompanied_yen",
+        "back_free_yen",
+        "nomination_points_per_unit",
+        "cast_drink_exclude_from_shared_sales",
+        "assigned_person_required",
+        "is_active",
+        "sort_order",
+        "record_status",
+        "source",
+        "notes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "pricing_rules": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "pricing_rule_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "display_group": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "iso_weekdays": {
+          "type": [
+            "array"
+          ],
+          "description": "ISO曜日番号・月1〜日7"
+        },
+        "start_minute": {
+          "type": [
+            "integer"
+          ],
+          "description": "営業日00:00からの開始分"
+        },
+        "end_minute_exclusive": {
+          "type": [
+            "integer"
+          ],
+          "description": "営業日00:00からの終了分・境界を含まない"
+        },
+        "seat_type": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "set_minutes": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "set_price_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "extension_minutes": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "extension_price_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "vip_surcharge_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "vip_surcharge_unit": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "vip_extension_surcharge_yen": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "service_bps": {
+          "type": [
+            "integer"
+          ],
+          "description": "サービス料率・bps"
+        },
+        "tax_bps": {
+          "type": [
+            "integer"
+          ],
+          "description": "税率パラメーター・bps"
+        },
+        "price_snapshot_at": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "auto_extension": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "priority": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "is_active": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "notes": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "pricing_rule_id",
+        "store_id",
+        "display_group",
+        "iso_weekdays",
+        "start_minute",
+        "end_minute_exclusive",
+        "seat_type",
+        "set_minutes",
+        "set_price_yen",
+        "extension_minutes",
+        "extension_price_yen",
+        "vip_surcharge_yen",
+        "vip_surcharge_unit",
+        "vip_extension_surcharge_yen",
+        "service_bps",
+        "tax_bps",
+        "price_snapshot_at",
+        "auto_extension",
+        "priority",
+        "is_active",
+        "record_status",
+        "notes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "nomination_ranks": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "rank_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "rank_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "main_charge_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "inhouse_charge_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "accompanied_charge_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "auto_add_main_with_accompanied": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "reference_charge_unit": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "extension_recharge": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "rank_id",
+        "store_id",
+        "rank_name",
+        "main_charge_yen",
+        "inhouse_charge_yen",
+        "accompanied_charge_yen",
+        "auto_add_main_with_accompanied",
+        "reference_charge_unit",
+        "extension_recharge"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "compensation_plans": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "type": [
+            "string"
+          ],
+          "description": "報酬プランID"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "plan_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "base_hourly_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "main_reward_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "inhouse_reward_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "accompanied_reward_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "product_back_policy": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "plan_specific_product_override": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "minimum_monthly_guarantee": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "sales_slide": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "point_slide": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "bonus_tier_policy": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "sales_slide_application_timing": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "plan_id",
+        "store_id",
+        "plan_name",
+        "base_hourly_yen",
+        "main_reward_yen",
+        "inhouse_reward_yen",
+        "accompanied_reward_yen",
+        "product_back_policy",
+        "plan_specific_product_override",
+        "minimum_monthly_guarantee",
+        "sales_slide",
+        "point_slide",
+        "bonus_tier_policy",
+        "sales_slide_application_timing",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "bonus_rule_proposals": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "bonus_rule_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "plan_id": {
+          "type": [
+            "string"
+          ],
+          "description": "報酬プランID"
+        },
+        "metric": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "threshold": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "bonus_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "aggregation": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "execution_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "bonus_rule_id",
+        "store_id",
+        "plan_id",
+        "metric",
+        "threshold",
+        "bonus_yen",
+        "aggregation",
+        "execution_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "sales_slide_tiers": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "slide_tier_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "plan_id": {
+          "type": [
+            "string"
+          ],
+          "description": "報酬プランID"
+        },
+        "tier": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "daily_sales_threshold_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "hourly_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "application_timing": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "slide_tier_id",
+        "store_id",
+        "plan_id",
+        "tier",
+        "daily_sales_threshold_yen",
+        "hourly_yen",
+        "application_timing",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "people": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "display_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "business_role": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "system_role_candidate": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "back_eligible": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "plan_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "報酬プランID"
+        },
+        "rank_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "base_hourly_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "shift_request_type": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "joined_on": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "入店日"
+        },
+        "employment_contract_type": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "is_active": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "is_demo": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "person_id",
+        "store_id",
+        "display_name",
+        "business_role",
+        "system_role_candidate",
+        "back_eligible",
+        "plan_id",
+        "rank_id",
+        "base_hourly_yen",
+        "shift_request_type",
+        "joined_on",
+        "employment_contract_type",
+        "is_active",
+        "is_demo",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "person_plan_assignments": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "assignment_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "plan_id": {
+          "type": [
+            "string"
+          ],
+          "description": "報酬プランID"
+        },
+        "rank_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "valid_from": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "valid_to": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "note": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "assignment_id",
+        "store_id",
+        "person_id",
+        "plan_id",
+        "rank_id",
+        "valid_from",
+        "valid_to",
+        "note"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "newcomer_guarantee_proposals": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "guarantee_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "valid_from": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "valid_to_inclusive": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "hourly_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "plan_id": {
+          "type": [
+            "string"
+          ],
+          "description": "報酬プランID"
+        },
+        "next_plan_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "switch_on": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "auto_switch_verified": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "guarantee_id",
+        "store_id",
+        "person_id",
+        "valid_from",
+        "valid_to_inclusive",
+        "hourly_yen",
+        "plan_id",
+        "next_plan_id",
+        "switch_on",
+        "auto_switch_verified",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "september_business_calendar": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "business_date": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "is_open": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "closed_reason": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "store_id",
+        "business_date",
+        "is_open",
+        "closed_reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "daily_sales_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "business_date": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "iso_weekday": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "is_open": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "target_gross_sales_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "derived_from_order_lines": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "store_id",
+        "business_date",
+        "iso_weekday",
+        "is_open",
+        "target_gross_sales_yen",
+        "record_status",
+        "derived_from_order_lines"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "monthly_sales_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "month": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "stated_monthly_gross_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "daily_target_sum_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "difference_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "stated_open_days": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "daily_open_days": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "visit_groups_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "guests_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "guest_average_from_target_yen": {
+          "type": [
+            "number"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "derived_from_order_lines": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "store_id",
+        "month",
+        "stated_monthly_gross_yen",
+        "daily_target_sum_yen",
+        "difference_yen",
+        "stated_open_days",
+        "daily_open_days",
+        "visit_groups_target",
+        "guests_target",
+        "guest_average_from_target_yen",
+        "record_status",
+        "derived_from_order_lines"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "ace_hourly_band_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "month": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "hourly_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "hours": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "component_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "store_id",
+        "person_id",
+        "month",
+        "hourly_yen",
+        "hours",
+        "component_yen",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "cast_monthly_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "display_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "month": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "hours_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "sales_target_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "main_count_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "inhouse_count_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "accompanied_count_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "product_reward_target_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "stated_bonus_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "stated_total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "cast_drink_count_target": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "shot_count_target": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "champagne_count_target": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "eligible_in_period": {
+          "type": [
+            "boolean"
+          ],
+          "description": "対象月への計上対象か"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "derived_from_order_lines": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "store_id",
+        "person_id",
+        "display_name",
+        "month",
+        "hours_target",
+        "sales_target_yen",
+        "main_count_target",
+        "inhouse_count_target",
+        "accompanied_count_target",
+        "product_reward_target_yen",
+        "stated_bonus_yen",
+        "stated_total_yen",
+        "cast_drink_count_target",
+        "shot_count_target",
+        "champagne_count_target",
+        "eligible_in_period",
+        "record_status",
+        "derived_from_order_lines"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "payroll_reference_calculation": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "display_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "month": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "plan_id": {
+          "type": [
+            "string"
+          ],
+          "description": "報酬プランID"
+        },
+        "hours_input": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "hourly_component_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "nomination_component_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "product_reward_input_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "bonus_from_proposed_rules_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "arithmetic_total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "eligible_in_period": {
+          "type": [
+            "boolean"
+          ],
+          "description": "対象月への計上対象か"
+        },
+        "included_reference_total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "stated_total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "difference_from_stated_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "payroll_finalized": {
+          "type": [
+            "boolean"
+          ],
+          "description": "給与確定済みか・本パッケージではfalse"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "notes": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "store_id",
+        "person_id",
+        "display_name",
+        "month",
+        "plan_id",
+        "hours_input",
+        "hourly_component_yen",
+        "nomination_component_yen",
+        "product_reward_input_yen",
+        "bonus_from_proposed_rules_yen",
+        "arithmetic_total_yen",
+        "eligible_in_period",
+        "included_reference_total_yen",
+        "stated_total_yen",
+        "difference_from_stated_yen",
+        "payroll_finalized",
+        "record_status",
+        "notes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "payroll_reference_totals": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "month": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "stated_total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "arithmetic_total_all_rows_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "eligible_reference_total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "excluded_rows": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "staff_payroll_included": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "store_id",
+        "month",
+        "stated_total_yen",
+        "arithmetic_total_all_rows_yen",
+        "eligible_reference_total_yen",
+        "excluded_rows",
+        "staff_payroll_included",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "ranking_reference": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "month": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "metric": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "ordinal": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "value": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "store_id",
+        "month",
+        "metric",
+        "ordinal",
+        "person_id",
+        "value",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "inventory_snapshot_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "product_id": {
+          "type": [
+            "string"
+          ],
+          "description": "商品ID"
+        },
+        "product_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "as_of": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "opening_units": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "received_units_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "sold_units_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "closing_units_arithmetic": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "stated_closing_units": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "reorder_point": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "alert_reference": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "movement_events_available": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "store_id",
+        "product_id",
+        "product_name",
+        "as_of",
+        "opening_units",
+        "received_units_target",
+        "sold_units_target",
+        "closing_units_arithmetic",
+        "stated_closing_units",
+        "reorder_point",
+        "alert_reference",
+        "record_status",
+        "movement_events_available"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "noir_champagne_sales_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "product_id": {
+          "type": [
+            "string"
+          ],
+          "description": "商品ID"
+        },
+        "product_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "month": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "quantity_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "store_id",
+        "product_id",
+        "product_name",
+        "month",
+        "quantity_target",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "baseline_day_header_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "business_date": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "opened_at": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "guests": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "source_assignee_names": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "gross_amount_target_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "item_lines_available": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "order_id",
+        "store_id",
+        "business_date",
+        "opened_at",
+        "guests",
+        "source_assignee_names",
+        "gross_amount_target_yen",
+        "record_status",
+        "item_lines_available"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "day_header_reconciliation": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "business_date": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "stated_day_total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "header_sum_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "difference_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "complete_line_data": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "store_id",
+        "business_date",
+        "stated_day_total_yen",
+        "header_sum_yen",
+        "difference_yen",
+        "complete_line_data"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "orders": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "business_date": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "opened_at": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "table_label": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "guest_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "pricing_rule_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "customer_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "subtotal_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "service_bps": {
+          "type": [
+            "integer"
+          ],
+          "description": "サービス料率・bps"
+        },
+        "service_fee_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "tax_bps": {
+          "type": [
+            "integer"
+          ],
+          "description": "税率パラメーター・bps"
+        },
+        "tax_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "known_product_cost_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "product_back_total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "nomination_back_total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "receivable_amount_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "order_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "has_complete_item_lines": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "nomination_repeat_on_extension": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "order_id",
+        "store_id",
+        "business_date",
+        "opened_at",
+        "table_label",
+        "guest_count",
+        "pricing_rule_id",
+        "customer_id",
+        "subtotal_yen",
+        "service_bps",
+        "service_fee_yen",
+        "tax_bps",
+        "tax_yen",
+        "total_yen",
+        "known_product_cost_yen",
+        "product_back_total_yen",
+        "nomination_back_total_yen",
+        "receivable_amount_yen",
+        "order_status",
+        "has_complete_item_lines",
+        "record_status",
+        "nomination_repeat_on_extension"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "order_items": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "order_item_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "order_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "line_number": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "line_type": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "charge_type": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "product_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "商品ID"
+        },
+        "description": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "quantity": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "unit_price_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "line_subtotal_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "unit_cost_yen": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "known_product_cost_yen": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "recipient_person_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "nomination_status": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "product_back_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "nomination_back_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "stock_units_consumed": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "order_item_id",
+        "order_id",
+        "store_id",
+        "line_number",
+        "line_type",
+        "charge_type",
+        "product_id",
+        "description",
+        "quantity",
+        "unit_price_yen",
+        "line_subtotal_yen",
+        "unit_cost_yen",
+        "known_product_cost_yen",
+        "recipient_person_id",
+        "nomination_status",
+        "product_back_yen",
+        "nomination_back_yen",
+        "stock_units_consumed",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "order_reward_calculations": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "display_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "product_reward_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "main_reward_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "inhouse_reward_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "accompanied_reward_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "total_reward_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "order_id",
+        "store_id",
+        "person_id",
+        "display_name",
+        "product_reward_yen",
+        "main_reward_yen",
+        "inhouse_reward_yen",
+        "accompanied_reward_yen",
+        "total_reward_yen",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "payment_examples": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "payment_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "order_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "method": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "amount_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "posted": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "provenance": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "payment_id",
+        "order_id",
+        "store_id",
+        "method",
+        "amount_yen",
+        "posted",
+        "provenance",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "expected_results": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "test_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "order_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "expected_subtotal_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "expected_service_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "expected_tax_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "expected_total_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "expected_product_back_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "expected_nomination_back_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "expected_receivable_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "test_id",
+        "store_id",
+        "order_id",
+        "expected_subtotal_yen",
+        "expected_service_yen",
+        "expected_tax_yen",
+        "expected_total_yen",
+        "expected_product_back_yen",
+        "expected_nomination_back_yen",
+        "expected_receivable_yen",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "standalone_slide_test": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "test_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "input_daily_allocated_sales_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "expected_hourly_band_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "actual_application_date": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "test_id",
+        "store_id",
+        "input_daily_allocated_sales_yen",
+        "expected_hourly_band_yen",
+        "actual_application_date"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "customers": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "customer_id": {
+          "type": [
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "display_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "customer_label": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "relationship_person_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "relationship_type": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "phone": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "email": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "address": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "is_demo": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "notes": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "customer_id",
+        "store_id",
+        "display_name",
+        "customer_label",
+        "relationship_person_id",
+        "relationship_type",
+        "phone",
+        "email",
+        "address",
+        "is_demo",
+        "record_status",
+        "notes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "customer_monthly_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "customer_id": {
+          "type": [
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "month": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "visits_target": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "gross_spending_target_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "vip_visits_target": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "bottle_keep_label": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "lifetime_spending_target_yen": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "last_visit_target": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "derived_from_receipts": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "customer_id",
+        "store_id",
+        "month",
+        "visits_target",
+        "gross_spending_target_yen",
+        "vip_visits_target",
+        "bottle_keep_label",
+        "lifetime_spending_target_yen",
+        "last_visit_target",
+        "record_status",
+        "derived_from_receipts"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "customer_visit_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "visit_target_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "customer_id": {
+          "type": [
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "business_date": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "summary": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "nomination_person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "gross_amount_target_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "order_id": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "visit_target_id",
+        "store_id",
+        "customer_id",
+        "business_date",
+        "summary",
+        "nomination_person_id",
+        "gross_amount_target_yen",
+        "order_id",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "bottle_keep_snapshots": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "bottle_keep_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "customer_id": {
+          "type": [
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "product_id": {
+          "type": [
+            "string"
+          ],
+          "description": "商品ID"
+        },
+        "purchase_order_id": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "opened_on": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "remaining_percent_estimate": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "last_used_on": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "expires_on": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "state": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "use_decrements_sale_inventory": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "bottle_keep_id",
+        "store_id",
+        "customer_id",
+        "product_id",
+        "purchase_order_id",
+        "opened_on",
+        "remaining_percent_estimate",
+        "last_used_on",
+        "expires_on",
+        "state",
+        "use_decrements_sale_inventory",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "receivable_opening_snapshots": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "receivable_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "customer_id": {
+          "type": [
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "originated_on": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "source_order_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "根拠伝票ID・未作成ならnull"
+        },
+        "principal_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "prior_received_aggregate_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "opening_balance_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "開始売掛残高"
+        },
+        "as_of": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "prior_payment_events_available": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "deduct_from_cast_payroll": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "receivable_id",
+        "store_id",
+        "customer_id",
+        "originated_on",
+        "source_order_id",
+        "principal_yen",
+        "prior_received_aggregate_yen",
+        "opening_balance_yen",
+        "as_of",
+        "prior_payment_events_available",
+        "record_status",
+        "deduct_from_cast_payroll"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "receivable_balances": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "customer_id": {
+          "type": [
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "balance_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "as_of": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "store_id",
+        "customer_id",
+        "balance_yen",
+        "as_of",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "future_receipt_allocation_example": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "scenario_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "customer_id": {
+          "type": [
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "scenario_date": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "total_payment_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "receivable_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "balance_before_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "allocated_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "balance_after_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "posted": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "allocation_policy": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "store_id",
+        "customer_id",
+        "scenario_date",
+        "total_payment_yen",
+        "receivable_id",
+        "balance_before_yen",
+        "allocated_yen",
+        "balance_after_yen",
+        "posted",
+        "allocation_policy"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "tables": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "table_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "display_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "seat_type": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "capacity": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "is_active": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "table_id",
+        "store_id",
+        "display_name",
+        "seat_type",
+        "capacity",
+        "is_active",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "table_state_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "table_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "as_of": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "state_target": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "guests_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "customer_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "assigned_person_ids": {
+          "type": [
+            "array"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "current_bill_target_yen": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "未会計表示額の案"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "store_id",
+        "table_id",
+        "as_of",
+        "state_target",
+        "guests_target",
+        "customer_id",
+        "assigned_person_ids",
+        "current_bill_target_yen",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "open_order_header_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "table_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "business_date": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "as_of": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "opened_at": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "customer_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "guest_count_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "gross_amount_target_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "order_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "complete_item_lines_available": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "order_id",
+        "store_id",
+        "table_id",
+        "business_date",
+        "as_of",
+        "opened_at",
+        "customer_id",
+        "guest_count_target",
+        "gross_amount_target_yen",
+        "order_status",
+        "complete_item_lines_available",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "live_dashboard_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "as_of": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "front_staff_on_duty_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "occupied_groups_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "occupied_guests_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "reservations_remaining_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "stated_today_sales_target_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "confirmed_sales_yen": {
+          "type": [
+            "null"
+          ],
+          "description": "確定売上・元イベント不足のためnull"
+        },
+        "open_bill_target_sum_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "table_rows_occupied_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "table_rows_guests_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "notes": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "store_id",
+        "as_of",
+        "front_staff_on_duty_target",
+        "occupied_groups_target",
+        "occupied_guests_target",
+        "reservations_remaining_target",
+        "stated_today_sales_target_yen",
+        "confirmed_sales_yen",
+        "open_bill_target_sum_yen",
+        "table_rows_occupied_count",
+        "table_rows_guests_count",
+        "record_status",
+        "notes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "reservation_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "reservation_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "scheduled_at": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "customer_id": {
+          "type": [
+            "string"
+          ],
+          "description": "顧客ID"
+        },
+        "guest_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "table_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "assigned_person_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "is_demo": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "reservation_id",
+        "store_id",
+        "scheduled_at",
+        "customer_id",
+        "guest_count",
+        "table_id",
+        "assigned_person_id",
+        "status",
+        "is_demo"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "shift_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "shift_target_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "business_date": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "planned_start_at": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "planned_end_at": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "actual_clock_in_at": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "actual_clock_out_at": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "state_target": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "shift_request_type": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "shift_target_id",
+        "store_id",
+        "person_id",
+        "business_date",
+        "planned_start_at",
+        "planned_end_at",
+        "actual_clock_in_at",
+        "actual_clock_out_at",
+        "state_target",
+        "shift_request_type",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "cast_sales_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "as_of": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "sales_target_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "confirmed_allocated_sales_yen": {
+          "type": [
+            "null"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "source_includes_unpaid_orders": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "store_id",
+        "person_id",
+        "as_of",
+        "sales_target_yen",
+        "confirmed_allocated_sales_yen",
+        "source_includes_unpaid_orders",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "cast_back_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "person_id": {
+          "type": [
+            "string"
+          ],
+          "description": "人物ID"
+        },
+        "as_of": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "drink_count_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "shot_count_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "champagne_note": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "back_amount_target_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "sku_mix_available": {
+          "type": [
+            "boolean"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "store_id",
+        "person_id",
+        "as_of",
+        "drink_count_target",
+        "shot_count_target",
+        "champagne_note",
+        "back_amount_target_yen",
+        "record_status",
+        "sku_mix_available"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "partial_open_order_line_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "item_target_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "order_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "product_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "商品ID"
+        },
+        "charge_type": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "quantity": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "unit_price_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "recipient_person_id": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "nomination_status": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "item_target_id",
+        "order_id",
+        "store_id",
+        "product_id",
+        "charge_type",
+        "quantity",
+        "unit_price_yen",
+        "recipient_person_id",
+        "nomination_status",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "live_order_line_reconciliation": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "subtotal_from_listed_lines_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "service_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "tax_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "total_from_listed_lines_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "stated_bill_target_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "difference_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        }
+      },
+      "required": [
+        "order_id",
+        "store_id",
+        "subtotal_from_listed_lines_yen",
+        "service_yen",
+        "tax_yen",
+        "total_from_listed_lines_yen",
+        "stated_bill_target_yen",
+        "difference_yen"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "bottle_keep_use_target": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "order_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "bottle_keep_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "inventory_decrement_units": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "remaining_percent_before": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "remaining_percent_after": {
+          "type": [
+            "null"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "store_id",
+        "order_id",
+        "bottle_keep_id",
+        "inventory_decrement_units",
+        "remaining_percent_before",
+        "remaining_percent_after",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "inventory_alert_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "product_id": {
+          "type": [
+            "string"
+          ],
+          "description": "商品ID"
+        },
+        "as_of": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "quantity_target": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "reorder_point": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "state_target": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        },
+        "notes": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "store_id",
+        "product_id",
+        "as_of",
+        "quantity_target",
+        "reorder_point",
+        "state_target",
+        "record_status",
+        "notes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "home_attention_targets": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "attention_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "kind": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "message": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "record_status": {
+          "type": [
+            "string"
+          ],
+          "description": "データ状態"
+        }
+      },
+      "required": [
+        "store_id",
+        "attention_id",
+        "kind",
+        "message",
+        "record_status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "store_summary": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "store_id": {
+          "type": [
+            "string"
+          ],
+          "description": "店舗ID"
+        },
+        "store_name": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "product_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "front_people_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "support_people_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "plan_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "customer_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "table_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "reference_receipt_count": {
+          "type": [
+            "integer"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "monthly_target_gross_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        },
+        "receivable_snapshot_balance_yen": {
+          "type": [
+            "integer"
+          ],
+          "description": "円単位の金額（接尾辞_yen）"
+        }
+      },
+      "required": [
+        "store_id",
+        "store_name",
+        "product_count",
+        "front_people_count",
+        "support_people_count",
+        "plan_count",
+        "customer_count",
+        "table_count",
+        "reference_receipt_count",
+        "monthly_target_gross_yen",
+        "receivable_snapshot_balance_yen"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "review_issues": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "issue_id": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "severity": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "subject": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "detail": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "treatment": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        },
+        "dataset": {
+          "type": [
+            "string"
+          ],
+          "description": "データ名とフィールド名に対応。詳細は計算ルール／導入ガイドを参照。"
+        }
+      },
+      "required": [
+        "issue_id",
+        "severity",
+        "subject",
+        "detail",
+        "treatment",
+        "dataset"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

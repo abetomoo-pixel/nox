@@ -1,0 +1,54 @@
+{
+  "dataset": "day_header_reconciliation",
+  "record_count": 6,
+  "records": [
+    {
+      "store_id": "DEMO-SNACK",
+      "business_date": "2026-09-19",
+      "stated_day_total_yen": 176000,
+      "header_sum_yen": 176000,
+      "difference_yen": 0,
+      "complete_line_data": false
+    },
+    {
+      "store_id": "DEMO-CAB-01",
+      "business_date": "2026-09-17",
+      "stated_day_total_yen": 324000,
+      "header_sum_yen": 324000,
+      "difference_yen": 0,
+      "complete_line_data": false
+    },
+    {
+      "store_id": "DEMO-CAB-02",
+      "business_date": "2026-09-18",
+      "stated_day_total_yen": 610000,
+      "header_sum_yen": 610000,
+      "difference_yen": 0,
+      "complete_line_data": false
+    },
+    {
+      "store_id": "DEMO-CAB-03",
+      "business_date": "2026-09-25",
+      "stated_day_total_yen": 434000,
+      "header_sum_yen": 434000,
+      "difference_yen": 0,
+      "complete_line_data": false
+    },
+    {
+      "store_id": "DEMO-GIRLS",
+      "business_date": "2026-09-19",
+      "stated_day_total_yen": 273000,
+      "header_sum_yen": 273000,
+      "difference_yen": 0,
+      "complete_line_data": false
+    },
+    {
+      "store_id": "DEMO-BAR",
+      "business_date": "2026-09-26",
+      "stated_day_total_yen": 218000,
+      "header_sum_yen": 218000,
+      "difference_yen": 0,
+      "complete_line_data": false
+    }
+  ]
+}
