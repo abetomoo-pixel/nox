@@ -105,6 +105,9 @@ const MAP: Array<[RegExp, string]> = [
   [/^already in$/, "すでに出勤打刻があります"],
   [/^already out$/, "本日は退勤済みです"],
   [/^no open punch$/, "出勤打刻がありません"],
+  // ★0160（裁定326-3・便 M2-2）: set_cast_quota（'bad cast' は 0156 の既存行）
+  [/^bad quota$/, "目標は 0 以上の整数で入力してください（空欄＝目標なし）"],
+  [/^bad month$/, "月の指定が正しくありません（月初の日付で指定してください）"],
   [/permission denied/, "権限がありません"],
 ];
 
