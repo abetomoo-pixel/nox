@@ -3963,6 +3963,7 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 **0160 本番適用＝台帳の現在地（2026-09-30）**: 0160 本番適用 **9/30 午後・時刻不明（Agoora 申告）**・sha **d0a1ed21a21ab9312217d04a7fa75cbb5faf58ad734dbbde2c131e8b79fbef1e**・live 照合 all_ok（md5 12 本・proacl・新表 2 の列／policy／grant・reservations 21／shift_wishes 13／patterns 11 列・関数 296・表 81・set_cast_norm_self 不在・'billing locked' 154・形 154・述語参照 155＝docs/tmp/q0930_post_0160.mjs）・名簿 **296**（A 154／B 142）・**表 81**。次＝suite 張替え（便 P160-3）→ f0 2 連 → push → 0160 client 便 M1。
 **便 P160 完了＋0161 本番適用＝台帳の現在地（2026-09-30）**: P160 完了 HEAD **06e04c7**＝origin/main（0 0・push 17:0x）・f0 **84 段 5,276**（2 連緑 16:36:11〜16:47:31／16:49:07〜17:03:35・golden 6 値不変・pin 張替え 7 suite＝grants 461／anon-guard 1045／rls 527／billing 53／customers-keep 32／demo-reset 34／0158 51・cast-norm-self 1・新規 3 suite＝mine-settings 9／reservation-request 12／cast-quota 9）・Vercel success **17:09:26 JST**・名簿 296（A 154／B 142）／0161 本番適用 **9/30 夕・時刻不明（確定＝Agoora 申告「不明」・便 M1-0）**・sha **b45e966180224778f08a26315c1a5df4975898dd298dafd16187d496616b7017**・live 照合 all_ok（17:26:03 JST・md5 5 本・proacl・kind CHECK 2 値・open_punch_ck・run_id null 可・部分 unique・関数 297・表 81・'billing locked' 154・述語参照 155＝docs/tmp/q0930_post_0161.mjs）・名簿 **297**（A 154／B 143）・**表 81**。次＝suite 張替え（便 P161-3）→ f0 2 連 → push → M1（v42 §10-2＋rpc-err 和文 3 種＋/mine 打刻カード 3 状態＝326 追補3）。
 **便 P161 完了＝台帳の現在地（2026-09-30）**: HEAD **51b5ee3**＝origin/main（0 0・push 18:11）＝d4b0e01（0161 収蔵・名簿 297）／d1cd92c（裁定327＋追補1・0008 決定1 退役・v42 収蔵）／51b5ee3（verify 張替え＋新規 suite punch-sequence 12）・f0 **85 段 5,293**（2 連緑 17:43:21〜17:56:01／17:57:01〜18:10:36・golden 6 値不変・pin＝0158 51／daily-pay 34／rls 527／anon-guard 1047／grants 464／billing 53・新規 punch-sequence 12・逆テスト赤→緑）・名簿 **297**（A 154／B 143）・proof 関数 297／表 81・v42 収蔵 sha **7bed660fcd3b263602208ed4ba4c2624fea10caffae381107a2ca13f1cf46941**（10,674 B・92 行・提示値と一致）・Vercel success **18:13:20 JST**。次＝M1（0160 client 第 1 便＝mine_settings ヘルパ・店舗設定 UI・/mine 出し分け・打刻カード 3 状態・rpc-err 和文・注意行 open_punch）。
+**便 M1〜M4 完了＝台帳の現在地（2026-10-01）**: HEAD **30bfb7e**＝origin/main（0 0・push 14:0x）＝7c6e6f3（M1 mine_settings ヘルパ・店舗設定 UI・打刻カード 3 状態）／626fabc（M2 /mine 再構成・ノルマ・お知らせ未読・勤怠一覧・87 段 5,324）／a6eea90（M3 予約申請・承認待ちタブ・88 段 5,337）／bcdc669・5639aad・4624059・30bfb7e（M4 シフト希望／休み希望・autoassign 候補反転・枠マスタ無効化・T6 契約確認の記録）・f0 **89 段 5,349**（2 連緑 13:35:12〜13:49:42／13:50:42〜14:07:25・golden 6 値不変）・DB 恒久変更 0（0001〜0161 適用済み）・教訓98（同一 tx の now() 固定＝打刻の順序不定→suite は clock_timestamp()）。追補6（M3）・追補7（M4）＝追認待ち。便 D0（裁定328・デモ環境の設計）＝docs のみ。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
@@ -4007,6 +4008,32 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 在庫管理の判定＝products に管理フラグの列は無い → **product_stock_totals の戻りに行がある商品（＝stock_logs に 1 行以上ある商品）** を「管理あり」とした（在庫数が無い＝管理なし）。入荷の記録が無い商品は一覧に出ず、件数だけ注記する。
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
+
+## 裁定329（提案中・相談役ブロック 2026-10-01・便 M5）スタッフの写真
+
+出典＝相談役ブロック 2026-10-01（便 M5・ブロック内の裁定）。承認前＝「（提案中）」。**本文（逐語）**:
+「裁定329（スタッフの写真・ブロック内）:
+- スタッフ（owner／manager／staff）もキャストと同じく写真を登録できる。保存先・縮小・権限の型はキャストと同一（新しい bucket や別経路は作らない）。
+- 本人: 自分のプロフィール（キャストの /mine 相当の画面。無ければ店側ナビの「自分」節）から「写真を変更」。
+- 店側: /staff のスタッフ詳細から owner／manager が登録・差替え・削除。/casts のキャスト詳細にも同じ操作を揃える（現状なければ追加・あれば不変）。
+- 表示: スタッフ一覧・シフト（スタッフ枠）・担当や承認者の表示・お知らせの差出人など、キャスト写真を出している箇所と同じ場所にスタッフも出す。未登録はイニシャル表示（既存の挙動）。
+- 削除時は Storage の実体も消す（キャストと同じ）。」
+
+適用＝便 M5-0 読取（2026-10-01）: **client のみでは不可＝0162 要**。キャスト写真の器＝Storage bucket cast-photos・パス `{org_id}/{cast_id}.jpg`・policy 3 本（insert／update／select＝casts 表の id と filename を照合・owner∨manager 自店∨本人・delete policy なし）・casts.photo_updated_at（0064）・RPC set_cast_photo_updated_at（casts 限定）。users／memberships に写真列なし・削除経路（Storage remove）はキャストにも無い。0162 の中身は便 M5 の報告に列挙（起草は相談役の指示後）。
+
+## 裁定328（提案中・相談役ブロック 2026-10-01・便 D0）デモ環境
+
+出典＝相談役ブロック 2026-10-01（便 D0・ブロック内の裁定）。承認前＝「（提案中）」・次＝相談役の追認（328 追補）。**本文（逐語）**:
+「裁定328（デモ環境・ブロック内）:
+- デモは 6 店舗（MUSE／LUNA／NOIR／ACE／LILY／NEST）を公開の「触れる」環境として用意し、毎日 1 回（JST 05:00・営業日切替後）と手動で初期状態へ巻き戻す。
+- 日付は投入時に「リセット日基準の相対日」へ変換する（当日＝営業中のライブ状態・先月＝9 月相当の全月実績）。固定日付は持たない。
+- 先月分の伝票・打刻は日次目標（daily_sales_targets・shift_targets・cast_monthly_targets）に合うよう生成し、golden＝代表伝票 6 件の金額とバック・月次売上 43,740,000・報酬参考 13,648,300（±丸め）・ランキング参考。
+- デモ org は課金ゲート外（既存の demo 区分に揃える）・owner のメール／パスワード変更不可・org 削除・Auth 系・外部送信（LINE／メール）なし・kiosk トークン固定・この制限は demo フラグで判定し本番 org には影響しない。
+- 巻き戻しは ID 固定（UUID 対応表を payload に持つ）・二重計上 0・同時利用中でも完了する（トランザクション単位は org）。
+- パッケージ側の保留 5 項目（多段ボーナス・指名ボーナス・pt 自動付与・新人保証の自動終了・時給スライド適用日）は投入対象外。
+- 率は bps→NOX の単位へ変換・価格は税前値として投入。」
+
+適用＝便 D0（2026-10-01・読取と設計のみ・DB 恒久変更 0）: 収蔵 docs/demo/source/20261001/（nox_demo_all.json・manifest・00_docs 8・06_validation 10＝21 ファイル・manifest sha 20/20 一致・validate.py は Downloads の完全展開で PASS 5,121 checks）・対応表 docs/demo/mapping_20261001.md・生成案 docs/demo/gen_plan.md・巻き戻し設計 docs/demo/reset_design.md・DEMO_USERS 案 docs/demo/demo_users.md。次＝相談役の追認（328 追補・確認点①05:00 と cutoff 06:00 の前後／②共通パスワードを置かない／③役割 4／④cast は代表伝票の受領者／⑤kiosk ユーザー）→便 D1（0162 起草・生成器）→Agoora の Auth 設定 4 点→D2（--apply・録画・LP）。
 
 ## 裁定327（2026-09-30 承認・Agoora）打刻の順序検査＝0008 決定1「盲目記録」を退役
 
