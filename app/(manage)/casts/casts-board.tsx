@@ -26,6 +26,7 @@ import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定3
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
 import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
+import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
 
 type Store = { id: string; name: string; settings_json?: Record<string, unknown> | null }; // ★裁定300-2: 送り方式（okuri_mode）・ベース額（okuri_base_amount）
 
@@ -150,6 +151,34 @@ export default function CastsBoard({
   const [guaForm, setGuaForm] = useState<{ mode: "new" | "extend"; amount: string; start: string; end: string } | null>(null);
   const [guaMsg, setGuaMsg] = useState<{ kind: MessageKind; text: string } | null>(null);
   const today = new Date().toISOString().slice(0, 10); // 次回シフト（casts#6）と同じ日付の取り方
+  // ★0160（裁定326-3・便 M2-2）: 今月のノルマ＝cast_quotas（店×cast×月初 date・4 項目・NULL＝目標なし）。月は今月／翌月（month と同じ取り方）・保存は set_cast_quota（owner／manager 自店）
+  const [quotaMonth, setQuotaMonth] = useState<string>(`${month}-01`);
+  const [quotaCur, setQuotaCur] = useState<QuotaForm>(QUOTA_FORM_EMPTY);
+  const [quotaForm, setQuotaForm] = useState<QuotaForm>(QUOTA_FORM_EMPTY);
+  const [quotaBusy, setQuotaBusy] = useState(false);
+  const [quotaMsg, setQuotaMsg] = useState<{ kind: MessageKind; text: string } | null>(null);
+  const selCastId = sel?.kind === "cast" ? sel.id : null;
+  useEffect(() => {
+    let alive = true;
+    setQuotaMsg(null);
+    if (!selCastId) { setQuotaCur(QUOTA_FORM_EMPTY); setQuotaForm(QUOTA_FORM_EMPTY); return; }
+    void supabase.from("cast_quotas").select("hon, jonai, dohan, sales").eq("cast_id", selCastId).eq("month", quotaMonth).maybeSingle().then(({ data }) => {
+      if (!alive) return;
+      const f = quotaFormOf((data ?? null) as Partial<Quota> | null);
+      setQuotaCur(f); setQuotaForm(f);
+    });
+    return () => { alive = false; };
+  }, [supabase, selCastId, quotaMonth]);
+  async function saveQuota(c: CastLogin) {
+    const a = quotaArgsOf(quotaForm);
+    if (!a.ok) { setQuotaMsg({ kind: "error", text: a.err }); return; }
+    setQuotaBusy(true); setQuotaMsg(null);
+    const { error } = await supabase.rpc("set_cast_quota", { p_store_id: c.store_id, p_cast_id: c.id, p_month: quotaMonth, ...a.args });
+    setQuotaBusy(false);
+    if (error) { setQuotaMsg({ kind: "error", text: rpcErrJa(error.message) }); return; }
+    setQuotaCur(quotaForm);
+    setQuotaMsg({ kind: "success", text: "ノルマを保存しました" });
+  }
 
   useEffect(() => { void resolveOrgId(supabase).then(setOrgId); }, [supabase]);
 
@@ -794,6 +823,30 @@ export default function CastsBoard({
               <div style={{ marginTop: 12, marginBottom: 12 }}>
                 <h3 style={{ ...secTitle, margin: "0 0 6px" }}>日払いの発行</h3>
                 <DailyPayForm castId={selCast.id} castName={selCast.name} storeId={selCast.store_id} dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))} />{/* ★便 L-3-2: storeId＝過徴収 warn の当期プレビュー */}
+              </div>
+              {/* ★0160（裁定326-3・便 M2-2）: 今月のノルマ（本指名／場内／同伴／売上・月単位＝今月／翌月・空欄＝目標なし）＝set_cast_quota。
+                  キャストのマイページに「実績／目標・達成率」で出る（目標が無い項目は出ない）。owner／manager のみ（page.tsx が他ロールを redirect 済み）。 */}
+              <div style={{ marginTop: 12, marginBottom: 12 }}>
+                <h3 style={{ ...secTitle, margin: "0 0 6px" }}>今月のノルマ</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+                  <SegSelect value={quotaMonth} onChange={(v) => setQuotaMonth(v)} options={quotaMonthOptionsOf(month)} disabled={quotaBusy} ariaLabel="ノルマの月" />
+                  <span style={lbl}>空欄＝目標なし。キャストのマイページに「実績／目標・達成率」が出ます</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
+                  {QUOTA_KEYS.map((k) => (
+                    <label key={k} style={{ display: "block", minWidth: 0 }}>
+                      <span style={{ ...lbl, display: "block", marginBottom: 3 }}>{QUOTA_LABEL[k]}（{QUOTA_UNIT[k]}）</span>
+                      {k === "sales"
+                        ? <MoneyInput value={quotaForm.sales} disabled={quotaBusy} width="100%" style={{ padding: "8px 10px", fontSize: 13 }} ariaLabel="売上の目標" onChange={(v) => setQuotaForm((f) => ({ ...f, sales: v.slice(0, 12) }))} />
+                        : <input inputMode="numeric" value={quotaForm[k]} disabled={quotaBusy} onChange={(e) => setQuotaForm((f) => ({ ...f, [k]: e.target.value }))} style={{ ...input, width: "100%" }} aria-label={`${QUOTA_LABEL[k]}の目標`} />}
+                    </label>
+                  ))}
+                </div>
+                {quotaMsg && <Message kind={quotaMsg.kind} style={{ margin: "8px 0 0" }}>{quotaMsg.text}</Message>}
+                <div className="nox-actions" style={{ marginTop: 8 }}>
+                  <button type="button" style={btnGhost} disabled={quotaBusy || quotaFormEquals(quotaForm, quotaCur)} onClick={() => { setQuotaForm(quotaCur); setQuotaMsg(null); }}>元に戻す</button>
+                  <button type="button" style={btnGold} disabled={quotaBusy || quotaFormEquals(quotaForm, quotaCur)} onClick={() => void saveQuota(selCast)}>ノルマを保存</button>
+                </div>
               </div>
               {/* ★機微情報の分離を明示（モックの .lockrow 逐語）＝この画面には出さない */}
               <div className="nox-lockrow">

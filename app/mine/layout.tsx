@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import DemoBanner from "@/components/ui/demo-banner";
 import { DemoProvider } from "@/lib/nox/demo/context";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: ranking OFF の店はナビ項目を出さない
+import { noticeNavLabelOf, unreadCountOf } from "@/lib/nox/mine/notice-unread"; // ★裁定326-6（便 M2-3）: お知らせ未読数「お知らせ（N）」
 
 // cast エリアの layout。auth_role() rpc は「ここで1回/リクエスト」のみ（F1f plan §2）。
 // リダイレクトは利便のため・真の防御は RLS/RPC（cast 以外がすり抜けても DB は cast データを返さない…の逆も同様）。
@@ -20,6 +21,12 @@ export default async function MineLayout({ children }: { children: React.ReactNo
   // ★326-8: 自店の settings_json（cast の RLS で自店 1 行が読める＝mig0106）→ mine_settings。ranking OFF ならナビからランキングを外す（ページ側は /mine へ redirect）
   const { data: storeRow } = await supabase.from("stores").select("settings_json").limit(1).maybeSingle();
   const ms = mineSettingsOf(storeRow?.settings_json);
+  // ★326-6（便 M2-3）: 未読＝可視のお知らせ（RLS＝自店・audience all|cast）− 自分の既読（cast_notice_reads・RLS 本人）。0 は文言だけ
+  const [{ data: noticeRows }, { data: readRows }] = await Promise.all([
+    supabase.from("notices").select("id"),
+    supabase.from("cast_notice_reads").select("notice_id"),
+  ]);
+  const unread = unreadCountOf(((noticeRows ?? []) as { id: string }[]).map((r) => r.id), ((readRows ?? []) as { notice_id: string }[]).map((r) => r.notice_id));
   // 段N: TabBar が群構造になったため1群（見出しなし）で渡す＝/mine の並び・挙動は完全に不変。
   //   spPriority は渡さない＝4項目をそのままボトムタブに並べる（従来どおり）。
   const groups: NavGroup[] = [{
@@ -28,7 +35,7 @@ export default async function MineLayout({ children }: { children: React.ReactNo
       { href: "/mine", label: "マイ" },
       { href: "/mine/wishes", label: "希望" },
       { href: "/mine/ranking", label: "ランキング" },
-      { href: "/mine/notices", label: "お知らせ" },
+      { href: "/mine/notices", label: noticeNavLabelOf(unread) },
     ].filter((i) => i.href !== "/mine/ranking" || ms.ranking),
   }];
   return (

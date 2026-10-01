@@ -35,7 +35,9 @@ const deductTotal = (bj: unknown, key: "ar" | "adv" | "okuri"): number => {
 };
 
 // castName を渡すと見出しに併記（manage 全員分で誰の明細か明示）。/mine は period のみ（従来と一字一致）。
-export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; castName?: string }) {
+// ★裁定326-1（便 M2-4・2026-10-01）: compact＝payslip_visibility 'net_only'（手取りと期のみ）。期ヘッダー（期・区分バッジ）＋手取り 1 行だけ・支給／控除／総支給の行は描かない。
+//   印刷（PDF）は同じ DOM を @media print が白地反転するだけ＝簡易版 PDF も同じ部品（新しい印刷 CSS は書かない）。
+export default function PayslipSlip({ slip, castName, compact = false }: { slip: PayslipRow; castName?: string; compact?: boolean }) {
   const pay = payOf(slip.breakdown_json);
   const extras = extrasOf(slip.breakdown_json);
   const ar = deductTotal(slip.breakdown_json, "ar");
@@ -46,6 +48,20 @@ export default function PayslipSlip({ slip, castName }: { slip: PayslipRow; cast
   const bd = breakdownLinesOf({ pay: pay as BreakdownPayLike, extras, adjustments: { before: adj.before, after: adj.after }, deducted: { ar, adv, okuri } });
   const taxMode = pay.taxMode === "委託" || pay.taxMode === "雇用" ? pay.taxMode : null;
   const hasDed = bd.ded.length > 0;
+  if (compact) {
+    return (
+      <div className="nox-payslip nox-payslip-compact" style={{ marginBottom: 14 }}>
+        <div className="ps-hd" style={t.slipHd}>
+          {castName ? `${castName}　${slip.period}` : slip.period}
+          {taxMode && (
+            <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
+              border: "1px solid var(--line2)", color: "var(--champ)" }}>{taxMode}</span>
+          )}
+        </div>
+        <div className="ps-foot" style={t.slipFoot}><span>手取り</span><b style={t.slipFootVal}>{yen(slip.net)}</b></div>
+      </div>
+    );
+  }
   const earn = (label: string, v: number, key: string, muted = false) => (
     <div key={key} style={{ ...t.slipRow, opacity: muted ? 0.75 : 1 }}><span>{label}</span><span style={t.num}>{yen(v)}</span></div>
   );

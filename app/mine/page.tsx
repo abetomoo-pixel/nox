@@ -2,9 +2,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import { fmtWin } from "@/lib/nox/shift-time";
-import { loadCastSimData } from "@/lib/nox/payroll/sim-data";
-import SimulatorPanel from "@/components/simulator-panel";
 import PayslipSlip from "@/components/payslip-slip";
+import { ATTENDANCE_MONTH_NOTE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
+import { nextPeriodOf } from "@/lib/nox/payroll/attention";
+import { mdLabelOf } from "@/lib/nox/payroll/finalize-guard";
 import ShiftConfirmButton from "./shift-confirm-button";
 import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
@@ -43,30 +44,18 @@ export default async function MinePage() {
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const month = bizToday.slice(0, 7);
 
-  // 今月のバック（check_cast_backs＝パターン1）。月の帰属は行の created_at（≒close 時刻）を
-  // 営業日に変換して判定（表示用の近似・給与の厳密集計は F2 のサーバ集計が正）。
-  const { data: backs } = await supabase
-    .from("check_cast_backs")
-    .select("drink_back, champ_back, bottle_back, hon_pt_alloc, created_at");
-  const inMonth = (backs ?? []).filter(
-    (b) => bizDateOf(b.created_at as string, cutoff).slice(0, 7) === month,
-  );
-  const sum = inMonth.reduce(
-    (a, b) => ({
-      drink: a.drink + b.drink_back,
-      champ: a.champ + b.champ_back,
-      bottle: a.bottle + b.bottle_back,
-      pt: a.pt + b.hon_pt_alloc,
-    }),
-    { drink: 0, champ: 0, bottle: 0, pt: 0 },
-  );
-  const total = sum.drink + sum.champ + sum.bottle;
+  // ★裁定326-2（便 M2-1）: 「今月のバック」「報酬シミュレーター」の 2 カードは削除（check_cast_backs の読取と sim-data の読取も外した）
 
-  // ★0154 D1（裁定294／295）: 自分の cast 行（id・employment＝用語）・今日の自分の打刻（修正対象の選択）・修正申請（RLS 本人・表が無ければ空）
+  // ★0154 D1（裁定294／295）: 自分の cast 行（id・employment＝用語）・修正申請（RLS 本人・表が無ければ空）
   const { data: meCast } = await supabase.from("casts").select("id, employment").limit(1).maybeSingle();
   const term = termOf((meCast?.employment as string | null) ?? null);
   const { startIso: bizStartIso, endIso: bizEndIso } = bizDateRange(bizToday, cutoff);
-  const { data: todayPunches } = await supabase.from("punches").select("id, type, punched_at").gte("punched_at", bizStartIso).lt("punched_at", bizEndIso).order("punched_at");
+  // ★裁定326-5（便 M2-1）: 当月の自分の打刻を 1 本で読む（勤怠一覧）→ 当日分はここから絞る（旧 todayPunches の fetch と置換＝新規 fetch 0）
+  const nextMonth = nextPeriodOf(month);
+  const { startIso: monthStartIso } = bizDateRange(`${month}-01`, cutoff);
+  const { startIso: monthEndIso } = bizDateRange(`${nextMonth}-01`, cutoff);
+  const { data: monthPunches } = await supabase.from("punches").select("id, type, punched_at").gte("punched_at", monthStartIso).lt("punched_at", monthEndIso).order("punched_at");
+  const todayPunches = ((monthPunches ?? []) as { id: string; type: string; punched_at: string }[]).filter((p) => Date.parse(p.punched_at) >= Date.parse(bizStartIso) && Date.parse(p.punched_at) < Date.parse(bizEndIso));
   const { data: corrRows } = await supabase.from("punch_corrections").select("id, cast_id, punch_id, biz_date, kind, before_at, after_at, reason, decision, decide_reason, ack, ack_at, requested_at, decided_at").order("requested_at", { ascending: false }).limit(20);
 
   // 最終打刻(自分の行のみ)
@@ -77,13 +66,15 @@ export default async function MinePage() {
     .limit(1);
   const last = punches?.[0];
 
-  // 直近の確定シフト
-  const { data: shifts } = await supabase
+  // 直近の確定シフト（★326-5: 当月初からまとめて読み、直近 7 件はここから絞る・当月の確定分は勤怠一覧の実働計算に使う＝新規 fetch 0）
+  const { data: shiftsAll } = await supabase
     .from("shifts")
     .select("id, date, start_hm, end_hm, status") // ★SD V2-3: id 追加（shift_cast_confirm の対象特定）
-    .gte("date", bizToday)
-    .order("date")
-    .limit(7);
+    .gte("date", `${month}-01`)
+    .order("date");
+  type ShiftLite = { id: string; date: string; start_hm: string; end_hm: string; status: string };
+  const shifts = ((shiftsAll ?? []) as ShiftLite[]).filter((s) => s.date >= bizToday).slice(0, 7);
+  const monthConfirmedShifts = ((shiftsAll ?? []) as ShiftLite[]).filter((s) => s.status === "confirmed" && s.date < `${nextMonth}-01`);
 
   // 今月の勤怠
   const { data: att } = await supabase
@@ -116,6 +107,13 @@ export default async function MinePage() {
   const myStore = myStores?.[0];
   const ms = mineSettingsOf(myStore?.settings_json); // ★326-8: drink_claim／punch_correction_request／ranking の出し分け（reservation_request の申請カードは M3）
   const ps = punchStateOf((todayPunches ?? []) as { type: string; punched_at: string }[]); // ★326 追補3: 当日営業日の自分の打刻 → 未出勤／出勤中／退勤済み
+  // ★326-5: 当月の勤怠一覧（日付・出勤・退勤・実働＝dayWorkedHours・確定シフトのある日だけ時間が出る）と当日の出勤・退勤時刻
+  const attRows = monthAttendanceRowsOf({
+    punches: ((monthPunches ?? []) as { type: string; punched_at: string }[]).map((p) => ({ punched_at: p.punched_at, type: p.type as "in" | "out" })),
+    shifts: monthConfirmedShifts.map((s) => ({ date: s.date, start_hm: s.start_hm, end_hm: s.end_hm })),
+    cutoffHm: cutoff, closeHm: closeHmOf(myStore?.settings_json),
+  });
+  const todayRow = attRows.find((r) => r.bizDate === bizToday) ?? null;
   // ★0156（起票85・便 V-7）: マイナンバーの廃棄状況（cast_mynumber_discard_status＝cast 本人・値は返さない・audit なし）。廃棄後だけ「廃棄済み YYYY-MM-DD」を出す
   const { data: discardRows } = meCast ? await supabase.rpc("cast_mynumber_discard_status", { p_cast_id: meCast.id as string }) : { data: null };
   const discard = ((discardRows ?? []) as { mynumber_deleted_at: string | null; mynumber_deletion_method: string | null; has_mynumber: boolean }[])[0];
@@ -152,11 +150,12 @@ export default async function MinePage() {
     });
   const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
 
-  // F2f 報酬シミュレーター用データ（自分のプラン＋店マスタ＋open 前借り/送り残・RLS 読取・売掛は読まない）。
-  const sim = await loadCastSimData(supabase);
-
   const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
   const noteP: React.CSSProperties = { fontSize: 12, color: "var(--sub)", margin: 0 };
+  const thL: React.CSSProperties = { textAlign: "left", fontWeight: 700, color: "var(--sub)", padding: "3px 0", borderBottom: "1px solid var(--line2)" };
+  const thR: React.CSSProperties = { ...thL, textAlign: "right" };
+  const tdL: React.CSSProperties = { padding: "3px 0", borderBottom: "1px solid var(--line2)" };
+  const tdR: React.CSSProperties = { ...tdL, textAlign: "right" };
 
   return (
     /* 段0R 第3陣: モック正本どおりモバイルファースト1カラム（max-width 430・nox-minewrap）。
@@ -179,54 +178,60 @@ export default async function MinePage() {
             ? `${last.type === "in" ? "出勤" : "退勤"}（${new Date(last.punched_at as string).toLocaleString("ja-JP")}）`
             : "なし"}
         </p>
+        {/* ★裁定326-5（便 M2-1）: 当日の出勤・退勤時刻（M1 の状態表示は置き換えず追記）＋当月の勤怠一覧（折りたたみ・実働＝給与と同じ dayWorkedHours） */}
+        <p className="nox-pstate num">{todayInOutLabelOf(todayRow)}</p>
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ fontSize: 12.5, color: "var(--sub)", cursor: "pointer" }}>今月の勤怠一覧（{attRows.length} 日）</summary>
+          {attRows.length === 0 ? <p style={{ ...noneP, marginTop: 6 }}>打刻なし</p> : (
+            <table style={{ width: "100%", fontSize: 12.5, marginTop: 6, borderCollapse: "collapse" }}>
+              <thead><tr><th style={thL}>日付</th><th style={thR}>出勤</th><th style={thR}>退勤</th><th style={thR}>実働</th></tr></thead>
+              <tbody>
+                {attRows.map((r) => (
+                  <tr key={r.bizDate}>
+                    <td className="num" style={tdL}>{mdLabelOf(r.bizDate)}</td>
+                    <td className="num" style={tdR}>{r.inHm ?? "—"}</td>
+                    <td className="num" style={tdR}>{r.outHm ?? "—"}</td>
+                    <td className="num" style={tdR}>{hoursLabelOf(r.hours)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p style={{ ...noteP, marginTop: 4 }}>{ATTENDANCE_MONTH_NOTE}</p>
+        </details>
       </section>
 
       {/* ノルマ進捗（mig0042・表示のみ）: 採用軸かつ目標>0 の軸だけ・全非表示ならカード自体出ない
           ★店が採用している軸のときだけ出る現行条件はそのまま（部品側の判定に一切触れていない）。 */}
       {isSectionOn((myStore?.settings_json ?? null) as StoreSettings, "mineNormCard") && <NormCard />}{/* ★裁定269-4: mineNormCard */}
 
-      {/* 印刷隔離の対象マーカーは維持（器だけ差し替え・明細スリップ部品は非改変） */}
+      {/* 印刷隔離の対象マーカーは維持（器だけ差し替え・明細スリップ部品は非改変）
+          ★裁定326-1（便 M2-1／M2-4）: payslip_visibility 'off'＝カードごと出さない（PDF ボタンも無し）／'net_only'＝期ヘッダー＋手取り 1 行（compact・PDF は同じ DOM）／'detail'＝現状 */}
+      {ms.payslip_visibility !== "off" && (
       <section className="nox-panel nox-print">
         <h3>
           確定給与明細
           <span style={{ marginLeft: "auto" }}>{(slips ?? []).length > 0 && <PrintPayslipButton />}</span>
         </h3>
         {(slips ?? []).length === 0 && <p style={{ ...noneP, marginTop: 11 }}>確定分なし</p>}
-        {/* ★0156（起票85・便 V-7）: マイナンバー廃棄後だけ本人にも「廃棄済み YYYY-MM-DD」を出す（値は出さない・未廃棄は何も出さない） */}
-        {discardYmd && <p style={{ fontSize: 12, color: "var(--sub)", margin: "8px 0 0" }}>マイナンバー 廃棄済み <span className="num">{discardYmd}</span></p>}
         <div style={{ marginTop: 11 }}>
           {(slips ?? []).map((s, i) => (
             <PayslipSlip
               key={i}
+              compact={ms.payslip_visibility === "net_only"}
               slip={{ period: s.period as string, net: s.net as number, breakdown_json: s.breakdown_json }}
             />
           ))}
         </div>
-        <p style={{ ...noteP, marginTop: 6 }}>※確定後の明細です。売掛・前借り・送りの未収残は店にご確認ください。</p>
+        <p style={{ ...noteP, marginTop: 6 }}>{ms.payslip_visibility === "net_only" ? "※手取りと期のみの表示です。内訳は店にご確認ください。" : "※確定後の明細です。売掛・前借り・送りの未収残は店にご確認ください。"}</p>
       </section>
+      )}
+      {/* ★0156（起票85・便 V-7）: マイナンバー廃棄後だけ本人にも「廃棄済み YYYY-MM-DD」を出す（値は出さない・未廃棄は何も出さない）。★M2: 明細カードの外へ（明細 'off' の店でも出す） */}
+      {discardYmd && <p className="nox-pstate" style={{ margin: "0 0 10px" }}>マイナンバー 廃棄済み <span className="num">{discardYmd}</span></p>}
 
-      <SimulatorPanel
-        mode="cast"
-        plans={sim.plans}
-        masters={sim.masters}
-        openAdv={sim.openAdv}
-        openOkuri={sim.openOkuri}
-        override={sim.override}
-        defaultTaxMode="委託"
-      />
+      {/* ★裁定326-2（便 M2-1）: 報酬シミュレーターと今月のバックの 2 カードは削除 */}
 
-      <section className="nox-panel">
-        <h3>今月のバック（{month}）</h3>
-        <div style={{ ...t.num, fontSize: 28, fontWeight: 700, color: "var(--champ)" }}>{yen(total)}</div>
-        <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--sub)", marginTop: 8, flexWrap: "wrap" }}>
-          <span>ドリンク <span style={{ ...t.num, color: "var(--ink)" }}>{yen(sum.drink)}</span></span>
-          <span>シャンパン <span style={{ ...t.num, color: "var(--ink)" }}>{yen(sum.champ)}</span></span>
-          <span>ボトル <span style={{ ...t.num, color: "var(--ink)" }}>{yen(sum.bottle)}</span></span>
-          <span>本指名商品 <span style={{ ...t.num, color: "var(--ink)" }}>{sum.pt}</span>pt</span>
-        </div>
-      </section>
-
-      {/* F3f 自己申告ドリンク（独立枠＝上の「今月のバック」には出ない・承認後に給与明細へ合算） */}
+      {/* F3f 自己申告ドリンク（独立枠・承認後に給与明細へ合算） */}
       {ms.drink_claim && <DrinkClaimForm month={month} />}{/* ★326-8: drink_claim OFF＝カード非表示 */}
 
       <section className="nox-panel">

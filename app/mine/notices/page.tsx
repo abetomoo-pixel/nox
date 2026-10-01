@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
+import { NOTICE_NEW_BADGE, unreadIdsOf } from "@/lib/nox/mine/notice-unread"; // ★裁定326-6（便 M2-3）: 開いたら既読（notice_mark_read）・開いた時点の未読に「新着」
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,10 @@ export default async function MineNoticesPage() {
     .select("id, title, body, pinned, until, created_at")
     .order("pinned", { ascending: false })
     .order("created_at", { ascending: false });
+  // ★326-6: 既読の記録＝未読分だけ notice_mark_read（冪等・RPC 側で自店・audience を再検査・audit は初回だけ）。失敗しても表示は止めない
+  const { data: readRows } = await supabase.from("cast_notice_reads").select("notice_id");
+  const unreadIds = new Set(unreadIdsOf(((notices ?? []) as { id: string }[]).map((n) => n.id), ((readRows ?? []) as { notice_id: string }[]).map((r) => r.notice_id)));
+  await Promise.all([...unreadIds].map((id) => supabase.rpc("notice_mark_read", { p_notice_id: id })));
 
   const title: React.CSSProperties = t.cardTitle;
   const when = (iso: string) =>
@@ -45,6 +50,7 @@ export default async function MineNoticesPage() {
             <div key={n.id as string} style={{ padding: "9px 0", borderBottom: "1px solid var(--line2)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {n.pinned === true && <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--gold2)" }}>ピン</span>}
+                {unreadIds.has(n.id as string) && <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--champ)" }}>{NOTICE_NEW_BADGE}</span>}{/* ★326-6: 開いた時点で未読だったもの */}
                 <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>{n.title as string}</span>
                 {expired && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--bad)" }}>期限切れ</span>}
                 <span style={{ marginLeft: "auto", ...t.num, fontSize: 11.5, color: "var(--sub)" }}>{when(n.created_at as string)}</span>
