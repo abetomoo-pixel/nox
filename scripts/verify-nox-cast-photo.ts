@@ -2,7 +2,9 @@
  * verify:nox-cast-photo — 段P キャスト写真（mig0064/0065＋Storage cast-photos）の runtime 実証
  *   実行: npm run verify:nox-cast-photo（env: .env.local）
  *
- * ★ポリシー定義の目視 ≠ runtime 緑：Storage RLS（insert/update/select の3本・delete なし）と
+ * ★0162（裁定329／329 追補1・2026-10-01）: policy は 4 本（insert／update／delete に cast 腕＋users 腕 u_{user_id}.jpg・select は org フォルダ）。段 (n)〜(r)＝users 腕の 4 象限・
+ *   cast は u_ 不可・set_user_photo_updated_at／clear_user_photo／clear_cast_photo・storage.remove で実体が消える（delete policy の runtime 実証）・audit 3 action。
+ * ★ポリシー定義の目視 ≠ runtime 緑：Storage RLS（0162 前は insert/update/select の3本・delete なし）と
  *   RPC set_cast_photo_updated_at の authz が「同一式で・実セッションで・両方」効いて初めて
  *   片肺状態（ファイルは置けたが打刻できない／その逆）が無いと言える。
  *
@@ -26,6 +28,7 @@
  * fixture: 他店キャスト1行を admin で動的生成→finally で全消し（storage 実体・photo_updated_at・audit 行も掃く）。
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import { FIXTURE_USERS, ORG_A, STORE_A1, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
 
 const env = loadEnvOrExit([
@@ -61,6 +64,7 @@ async function signIn(key: keyof typeof FIXTURE_USERS): Promise<SupabaseClient> 
 }
 
 const path = (orgId: string, castId: string) => `${orgId}/${castId}.jpg`;
+const upath = (orgId: string, userId: string) => `${orgId}/u_${userId}.jpg`; // ★0162（裁定329）: スタッフ写真＝同 bucket・u_ 接頭
 const up = (c: SupabaseClient, p: string, body: Buffer) =>
   c.storage.from(BUCKET).upload(p, body, { upsert: true, contentType: "image/jpeg" });
 
@@ -99,6 +103,22 @@ async function main() {
   const manager = await signIn("managerA1");
   const staff = await signIn("staffA1");
   const managerB = await signIn("managerB1");
+
+  // ★0162: users.id（u_ パスの主語）＝セッションの auth uid → users 行。他店（A2）staff は users＋memberships を admin で動的生成（finally で削除）
+  const uidOfSession = async (c: SupabaseClient) => (await c.auth.getUser()).data.user?.id as string;
+  const userIdOf = async (authUid: string) => (await admin.from("users").select("id").eq("auth_user_id", authUid).single()).data?.id as string;
+  const staffUserId = await userIdOf(await uidOfSession(staff));
+  const managerUserId = await userIdOf(await uidOfSession(manager));
+  const castUserId = await userIdOf(await uidOfSession(castCli));
+  if (!staffUserId || !managerUserId || !castUserId) throw new Error("users.id が引けない（staff／manager／cast）");
+  const { data: uA2 } = await admin
+    .from("users")
+    .insert({ org_id: orgId, auth_user_id: randomUUID(), email: `nox-verify-photo-a2-${Date.now()}@example.com`, name: "NOX-VERIFY-PHOTO-A2-STAFF" })
+    .select("id")
+    .single();
+  if (!uA2) throw new Error("fixture user(A2 staff) を作れない");
+  const staffA2UserId = uA2.id as string;
+  await admin.from("memberships").insert({ user_id: staffA2UserId, store_id: sA2.id, role: "staff" });
 
   try {
     // ── Storage ──
@@ -194,12 +214,91 @@ async function main() {
         .eq("target", `casts:${castId}`);
       check("(m) ★audit action='set_cast_photo' が実在", (data ?? []).length >= 1, `rows=${(data ?? []).length}`);
     }
+
+    // ── ★0162（裁定329／329 追補1）: スタッフ写真＝users 腕（u_{user_id}.jpg）・delete policy・clear_*（実 Storage で runtime 実証）──
+    // (n) users 腕: staff 本人 OK・owner→manager OK・manager→自店 staff OK（update 腕＝上書き）
+    {
+      const { error: e1 } = await up(staff, upath(orgId, staffUserId), JPEG_1);
+      check("(n) ★staff 本人が自分の u_ 写真をアップロードできる", !e1, e1?.message);
+      const { error: e2 } = await up(owner, upath(orgId, managerUserId), JPEG_1);
+      check("(n) ★owner がスタッフ（manager）の u_ 写真をアップロードできる", !e2, e2?.message);
+      const { error: e3 } = await up(manager, upath(orgId, staffUserId), JPEG_2);
+      check("(n) ★manager が自店 staff の u_ 写真を上書きできる", !e3, e3?.message);
+    }
+    // (o) users 腕の拒否: cast は u_ パス不可（自分の users 行でも）・staff は他人不可・manager は他店 staff 不可・他 org 不可
+    {
+      const { error: e1 } = await up(castCli, upath(orgId, castUserId), JPEG_1);
+      check("(o) ★cast は u_ パスを使えない（自分の users 行でも RLS 拒否＝329 追補1）", isAuthzErr(e1), e1 ? e1.message : "エラーが出ない＝素通り");
+      const { error: e2 } = await up(staff, upath(orgId, managerUserId), JPEG_1);
+      check("(o) ★staff は他人の u_ 写真を書けない", isAuthzErr(e2), e2 ? e2.message : "エラーが出ない＝素通り");
+      const { error: e3 } = await up(manager, upath(orgId, staffA2UserId), JPEG_1);
+      check("(o) ★manager は他店 staff の u_ 写真を書けない", isAuthzErr(e3), e3 ? e3.message : "エラーが出ない＝素通り");
+      const { error: e4 } = await up(managerB, upath(orgId, staffUserId), JPEG_1);
+      check("(o) ★他 org は u_ 写真を書けない", isAuthzErr(e4), e4 ? e4.message : "エラーが出ない＝素通り");
+    }
+    // (p) RPC set_user_photo_updated_at／clear_user_photo（authz は policy と同一式）
+    {
+      const { data, error } = await staff.rpc("set_user_photo_updated_at", { p_user_id: staffUserId });
+      const { data: row } = await admin.from("users").select("photo_updated_at").eq("id", staffUserId).single();
+      check("(p) ★staff 本人の打刻が成功（round-trip）", !error && !!data && !!row?.photo_updated_at && Date.parse(row.photo_updated_at as string) === Date.parse(data as string), error?.message ?? `ret=${data} sel=${row?.photo_updated_at}`);
+      const { error: e2 } = await manager.rpc("set_user_photo_updated_at", { p_user_id: staffA2UserId });
+      check("(p) ★manager 他店 staff は 'forbidden'", has(e2, "forbidden"), e2?.message ?? "エラーが出ない＝素通り");
+      const { error: e3 } = await castCli.rpc("set_user_photo_updated_at", { p_user_id: castUserId });
+      check("(p) ★cast は自分の users 行でも 'forbidden'", has(e3, "forbidden"), e3?.message ?? "エラーが出ない＝素通り");
+      const { error: e4 } = await managerB.rpc("set_user_photo_updated_at", { p_user_id: staffUserId });
+      check("(p) 他 org は 'not found'", has(e4, "not found"), e4?.message ?? "エラーが出ない＝素通り");
+      const { error: e5 } = await staff.rpc("clear_user_photo", { p_user_id: managerUserId });
+      check("(p) ★staff は他人の clear_user_photo 不可 'forbidden'", has(e5, "forbidden"), e5?.message ?? "エラーが出ない＝素通り");
+      const { error: e6 } = await staff.rpc("clear_user_photo", { p_user_id: staffUserId });
+      const { data: row2 } = await admin.from("users").select("photo_updated_at").eq("id", staffUserId).single();
+      check("(p) ★staff 本人の clear_user_photo で null", !e6 && row2?.photo_updated_at === null, e6?.message ?? `sel=${row2?.photo_updated_at}`);
+    }
+    // (q) delete policy＝storage.remove の runtime 実証: staff 本人が自分の u_ 実体を消せる・他人の実体は消えない・owner は cast の実体を消せる・cast 本人も消せる
+    {
+      const existsAdmin = async (p: string) => {
+        const [folder, file] = [p.slice(0, p.indexOf("/")), p.slice(p.indexOf("/") + 1)];
+        const { data } = await admin.storage.from(BUCKET).list(folder, { search: file });
+        return (data ?? []).some((o) => o.name === file);
+      };
+      const { error: r1 } = await staff.storage.from(BUCKET).remove([upath(orgId, managerUserId)]);
+      check("(q) ★staff は他人（manager）の u_ 実体を消せない（RLS＝実体が残る）", await existsAdmin(upath(orgId, managerUserId)), r1 ? r1.message : "remove はエラーなし＝RLS で 0 行");
+      const { error: r2 } = await staff.storage.from(BUCKET).remove([upath(orgId, staffUserId)]);
+      check("(q) ★staff 本人は自分の u_ 実体を消せる（削除で Storage 実体が消える）", !r2 && !(await existsAdmin(upath(orgId, staffUserId))), r2?.message ?? "実体が残っている");
+      const { error: r3 } = await owner.storage.from(BUCKET).remove([path(orgId, castId)]);
+      check("(q) ★owner はキャストの実体を消せる", !r3 && !(await existsAdmin(path(orgId, castId))), r3?.message ?? "実体が残っている");
+      const { error: u2 } = await up(castCliB, path(orgId, castIdB), JPEG_1);
+      const { error: r4 } = await castCliB.storage.from(BUCKET).remove([path(orgId, castIdB)]);
+      check("(q) ★cast 本人は自分の実体を消せる", !u2 && !r4 && !(await existsAdmin(path(orgId, castIdB))), u2?.message ?? r4?.message ?? "実体が残っている");
+      const { error: r5 } = await castCli.storage.from(BUCKET).remove([upath(orgId, managerUserId)]);
+      check("(q) ★cast は u_ 実体を消せない", await existsAdmin(upath(orgId, managerUserId)), r5 ? r5.message : "remove はエラーなし＝RLS で 0 行");
+    }
+    // (r) clear_cast_photo: owner で null・cast 本人で null・他 cast／staff は 'forbidden'・audit 行
+    {
+      await owner.rpc("set_cast_photo_updated_at", { p_cast_id: castId });
+      const { error: e1 } = await castCliB.rpc("clear_cast_photo", { p_cast_id: castId });
+      check("(r) ★他 cast の clear_cast_photo は 'forbidden'", has(e1, "forbidden"), e1?.message ?? "エラーが出ない＝素通り");
+      const { error: e2 } = await staff.rpc("clear_cast_photo", { p_cast_id: castId });
+      check("(r) ★staff の clear_cast_photo は 'forbidden'", has(e2, "forbidden"), e2?.message ?? "エラーが出ない＝素通り");
+      const { error: e3 } = await owner.rpc("clear_cast_photo", { p_cast_id: castId });
+      const { data: row } = await admin.from("casts").select("photo_updated_at").eq("id", castId).single();
+      check("(r) ★owner の clear_cast_photo で null", !e3 && row?.photo_updated_at === null, e3?.message ?? `sel=${row?.photo_updated_at}`);
+      await castCli.rpc("set_cast_photo_updated_at", { p_cast_id: castId });
+      const { error: e4 } = await castCli.rpc("clear_cast_photo", { p_cast_id: castId });
+      const { data: row2 } = await admin.from("casts").select("photo_updated_at").eq("id", castId).single();
+      check("(r) ★cast 本人の clear_cast_photo で null", !e4 && row2?.photo_updated_at === null, e4?.message ?? `sel=${row2?.photo_updated_at}`);
+      const { data: au } = await admin.from("audit_logs").select("action").eq("org_id", orgId).in("action", ["set_user_photo", "clear_user_photo", "clear_cast_photo"]);
+      const n = (a: string) => (au ?? []).filter((x) => x.action === a).length;
+      check("(r) ★audit: set_user_photo 1・clear_user_photo 1・clear_cast_photo 2", n("set_user_photo") === 1 && n("clear_user_photo") === 1 && n("clear_cast_photo") === 2, JSON.stringify([n("set_user_photo"), n("clear_user_photo"), n("clear_cast_photo")]));
+    }
   } finally {
-    // fixture 全消し: storage 実体 → photo_updated_at リセット → audit 行 → fixture cast（service key）
-    await admin.storage.from(BUCKET).remove([path(orgId, castId), path(orgId, castIdB), path(orgId, castIdA2)]);
+    // fixture 全消し: storage 実体 → photo_updated_at リセット → audit 行 → fixture cast／user（service key）
+    await admin.storage.from(BUCKET).remove([path(orgId, castId), path(orgId, castIdB), path(orgId, castIdA2), upath(orgId, staffUserId), upath(orgId, managerUserId), upath(orgId, castUserId), upath(orgId, staffA2UserId)]);
     await admin.from("casts").update({ photo_updated_at: null }).in("id", [castId, castIdB]);
-    await admin.from("audit_logs").delete().eq("org_id", orgId).eq("action", "set_cast_photo");
+    await admin.from("users").update({ photo_updated_at: null }).in("id", [staffUserId, managerUserId]);
+    await admin.from("audit_logs").delete().eq("org_id", orgId).in("action", ["set_cast_photo", "clear_cast_photo", "set_user_photo", "clear_user_photo"]);
     await admin.from("casts").delete().eq("id", castIdA2);
+    await admin.from("memberships").delete().eq("user_id", staffA2UserId);
+    await admin.from("users").delete().eq("id", staffA2UserId);
   }
 
   // 成功行は他スイートと同書式（"ALL PASS (N assertions)"）に統一＝集計 grep から漏れない（2026-08 是正）

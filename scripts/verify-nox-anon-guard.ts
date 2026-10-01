@@ -532,6 +532,11 @@ async function main() {
     ["notice_mark_read", { p_notice_id: null }],
     ["staff_pattern_disable", { p_pattern_id: null, p_from: null }],
     ["staff_pattern_enable", { p_pattern_id: null }],
+    ["set_user_photo_updated_at", { p_user_id: null }],                         // ★mig0162（裁定329／326 追補7-6）: 公開 5 本（非ゲート）
+    ["clear_cast_photo", { p_cast_id: null }],
+    ["clear_user_photo", { p_user_id: null }],
+    ["cast_contract_ack_needed", {}],
+    ["cast_contract_ack_self", {}],
     ["set_staff_perms", { p_membership_id: null, p_can_register: null, p_can_crm: null, p_can_shift: null, p_can_view_backs: null, p_can_close: null, p_can_reopen: null }], // 段16a（mig0024→0038 5引数）
   ];
   for (const [fn, args] of F3A2_RPC_PROBES) {

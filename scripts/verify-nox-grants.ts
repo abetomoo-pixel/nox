@@ -27,6 +27,7 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 const TABLES = [
+  "cast_contract_acks", // ★0162（裁定329／326 追補7-6）: cast の契約確認記録（cast×contract_rev・authenticated=SELECT のみ・RLS select 1 本。G9 0162 で列集合／policy を能動 assert）
   "cast_quotas", "cast_notice_reads", // ★0160（裁定326-3／326-6）: キャスト別ノルマ・お知らせ既読（authenticated=SELECT のみ・RLS select 1 本。G9 0160 で列集合／policy を能動 assert）
   "payroll_attentions", // ★0158（裁定315）: 確定後の打刻修正の要対応（authenticated=SELECT のみ・RLS select 1 本。G9 0158 で列集合／policy を能動 assert）
   "daily_pays", "payroll_run_deduction_overrides", // ★0156（裁定309-6／309-8）: 日払い・run 別控除上書き（authenticated=SELECT のみ・RLS select 1 本。G1/G2/G5 が .length で自動被覆＋G9 で列集合／policy を能動 assert）
@@ -214,7 +215,8 @@ async function main() {
       "set_cast_quota", "reservation_request", "reservation_decide", "set_store_mine_settings", "notice_mark_read", "staff_pattern_disable", "staff_pattern_enable", // ★0160（裁定326＋追補1・2）: 公開 7 本（set_cast_norm_self は drop＝名前不在は anon-guard／cast-norm-self で係留）
       "payroll_shortfall_sync", "set_store_pay_time_basis", // ★0159（裁定324＋追補2・3）: 公開 2 本（shortfall_sync は非ゲート＝B(e)・set_store_pay_time_basis はゲート内蔵＝A8）
       "payroll_attentions_of", "payroll_attention_resolve", "transport_issue_self", "kiosk_transport_issue", "kiosk_punch_state", // ★0158（裁定315／317／319＋追補1）: 公開 5 本（punch_correction_apply は内部のまま＝G4c）
-      "okuri_today_summary", "advances_open_balance", "cast_mynumber_discard_status"]; // ★0156（裁定309-6〜9／追補2）: 公開 8 本（okuri_default_of は内部＝G4c）
+      "okuri_today_summary", "advances_open_balance", "cast_mynumber_discard_status", // ★0156（裁定309-6〜9／追補2）: 公開 8 本（okuri_default_of は内部＝G4c）
+      "set_user_photo_updated_at", "clear_cast_photo", "clear_user_photo", "cast_contract_ack_needed", "cast_contract_ack_self"]; // ★0162（裁定329／326 追補7-6）: 公開 5 本（非ゲート・authenticated＋service_role）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
@@ -487,6 +489,23 @@ async function main() {
       check("G9 0161 payroll_attentions: run_id null 可・FK on delete cascade 不変・open_punch_ck（punch_id／biz_date）・部分 unique index（kind='open_punch'）・10 列のまま",
         n161.rows[0]?.is_nullable === "YES" && k161.rowCount === 2 && (k161.rows[0].d as string).includes("punch_id") && (k161.rows[0].d as string).includes("biz_date") && (k161.rows[1].d as string).includes("ON DELETE CASCADE")
         && i161.rowCount === 1 && /UNIQUE/.test(i161.rows[0].indexdef as string) && /kind = 'open_punch'/.test(i161.rows[0].indexdef as string) && c161.rows[0].n === 10, JSON.stringify([n161.rows, k161.rows, i161.rows, c161.rows]));
+      // ★0162（裁定329／326 追補7-6・329 追補1）: users.photo_updated_at null 可／cast_contract_acks 5 列・PK (cast_id, contract_rev)・FK cascade 3・index 1・policy select 1／
+      //   storage cast-photos policy 4 本（insert／update／delete に cast 腕＋users 腕 'u_'＋is_demo 句・select は org フォルダのみ＝不触）
+      const u162 = await db.query(`select is_nullable, data_type from information_schema.columns where table_schema='public' and table_name='users' and column_name='photo_updated_at'`);
+      const c162 = await db.query(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='cast_contract_acks'`);
+      const k162 = await db.query(`select contype, pg_get_constraintdef(oid) d from pg_constraint where conrelid='public.cast_contract_acks'::regclass order by contype, d`);
+      const p162 = await db.query(`select policyname, cmd from pg_policies where schemaname='public' and tablename='cast_contract_acks'`);
+      const i162 = await db.query(`select count(*)::int n from pg_indexes where schemaname='public' and indexname='cast_contract_acks_store_rev_idx'`);
+      check("G9 0162 users.photo_updated_at＝timestamptz null 可／cast_contract_acks 5 列・PK (cast_id, contract_rev)・FK on delete cascade 3・index 1・policy select 1",
+        u162.rowCount === 1 && u162.rows[0].is_nullable === "YES" && u162.rows[0].data_type === "timestamp with time zone" && c162.rows[0].n === 5
+        && k162.rows.filter((r) => r.contype === "p").length === 1 && (k162.rows.find((r) => r.contype === "p")?.d as string) === "PRIMARY KEY (cast_id, contract_rev)"
+        && k162.rows.filter((r) => r.contype === "f" && /ON DELETE CASCADE/.test(r.d as string)).length === 3 && i162.rows[0].n === 1
+        && p162.rowCount === 1 && p162.rows[0].policyname === "cast_contract_acks_select" && p162.rows[0].cmd === "SELECT", JSON.stringify([u162.rows, c162.rows, k162.rows, p162.rows]));
+      const s162 = await db.query(`select policyname, cmd, strpos(coalesce(qual,'') || coalesce(with_check,''), 'u_') > 0 users_arm, strpos(coalesce(qual,'') || coalesce(with_check,''), 'is_demo') > 0 demo_arm, strpos(coalesce(qual,'') || coalesce(with_check,''), 'auth_cast_id') > 0 cast_arm from pg_policies where schemaname='storage' and tablename='objects' and policyname like 'cast_photos_%' order by 1`);
+      const sm = Object.fromEntries(s162.rows.map((r) => [r.policyname, r]));
+      check("G9 0162 storage cast-photos policy 4 本: insert／update／delete＝cast 腕＋users 腕（u_）＋is_demo 句・select＝org フォルダのみ（腕なし＝0162 不触）",
+        s162.rowCount === 4 && ["cast_photos_insert", "cast_photos_update", "cast_photos_delete"].every((n) => sm[n] && sm[n].users_arm === true && sm[n].demo_arm === true && sm[n].cast_arm === true)
+        && sm.cast_photos_delete.cmd === "DELETE" && sm.cast_photos_select && sm.cast_photos_select.users_arm === false && sm.cast_photos_select.demo_arm === false && sm.cast_photos_select.cast_arm === false, JSON.stringify(s162.rows));
     }
 
     // G10: F2d mynumber 暗号化/payment（mig0021）— payment_records RLS・パターン1・crypto RPC ACL。
