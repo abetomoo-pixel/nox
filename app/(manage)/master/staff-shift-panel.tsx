@@ -15,8 +15,11 @@ import { addDays, bizDateOf } from "@/lib/nox/biz-date";
 
 import { nextOf30h } from "@/lib/nox/shift/staff-place"; // ★便 X2-3
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 AB）: メッセージ表示の共通部品
+import SegSelect from "@/components/ui/seg-select";
+// ★起票95／裁定326 追補2-2（0160 disabled_from・staff_pattern_disable／enable・便 M4-3）: 枠の無効化＝「M/1 から無効」（翌月以降の月初だけ）・取消＝disabled_from を NULL
+import { disableMonthOptionsOf, isPatternEnabledOn, patternDisableStateOf } from "@/lib/nox/shift/pattern-disable";
 type Store = { id: string; name: string };
-type Pattern = { id: string; name: string; start_hm: string; end_hm: string; effective_from: string; sort_order: number };
+type Pattern = { id: string; name: string; start_hm: string; end_hm: string; effective_from: string; sort_order: number; disabled_from?: string | null };
 type Deadline = { id: string; days_before: number; deadline_hm: string; effective_from: string };
 
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
@@ -49,11 +52,13 @@ export function staffShiftErrJa(msg: string | undefined): string {
   return msg;
 }
 
-/** 営業日 D に有効な枠＝同名で effective_from ≤ D の最大行（RPC の staff_pattern_effective と同式） */
+/** 営業日 D に有効な枠＝同名で effective_from ≤ D の最大行（RPC の staff_pattern_effective と同式）。
+ *  ★0160（追補2-2・便 M4-3）: disabled_from is null or > D も同式で足す（列を読んでいない呼び出し側は undefined＝有効のまま＝従来どおり） */
 export function effectivePatterns(rows: Pattern[], day: string): Pattern[] {
   const byName = new Map<string, Pattern>();
   for (const p of rows) {
     if (p.effective_from > day) continue;
+    if (!isPatternEnabledOn(p.disabled_from, day)) continue;
     const cur = byName.get(p.name);
     if (!cur || p.effective_from > cur.effective_from) byName.set(p.name, p);
   }
@@ -70,6 +75,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
   const [showPast, setShowPast] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [disMonth, setDisMonth] = useState<Record<string, string>>({}); // ★M4-3: 枠ごとの「M/1 から無効」の選択（未選択＝翌月）
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   // 追加フォーム（既定＝翌営業日から）
   const [fName, setFName] = useState("");
@@ -91,7 +97,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
     const bc = (st?.settings_json as Record<string, unknown> | null)?.biz_cutoff_hm;
     setCutoff(typeof bc === "string" && bc ? bc : "06:00");
     const { data: ps } = await supabase.from("staff_shift_patterns")
-      .select("id, name, start_hm, end_hm, effective_from, sort_order").eq("store_id", storeSel)
+      .select("id, name, start_hm, end_hm, effective_from, sort_order, disabled_from").eq("store_id", storeSel)
       .order("name").order("effective_from", { ascending: false });
     setPatterns((ps ?? []) as Pattern[]);
     const { data: ds } = await supabase.from("staff_shift_deadlines")
@@ -108,7 +114,12 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
   const current = effectivePatterns(patterns, bizToday);
   const currentIds = new Set(current.map((p) => p.id));
   const reserved = patterns.filter((p) => p.effective_from > bizToday);
-  const past = patterns.filter((p) => p.effective_from <= bizToday && !currentIds.has(p.id));
+  // ★M4-3: 無効化済み（disabled_from ≤ 営業日）は effectivePatterns から外れる＝「現在有効」に出ないので別群で見せる（グレー＋「無効（M/1 から）」）
+  const disabledNow = patterns.filter((p) => p.effective_from <= bizToday && !isPatternEnabledOn(p.disabled_from, bizToday));
+  const disabledIds = new Set(disabledNow.map((p) => p.id));
+  const past = patterns.filter((p) => p.effective_from <= bizToday && !currentIds.has(p.id) && !disabledIds.has(p.id));
+  const disOpts = disableMonthOptionsOf(bizToday);
+  const disMonthOf = (id: string) => disMonth[id] ?? disOpts[0][0];
   const curDeadline = deadlines.find((d) => d.effective_from <= bizToday) ?? null; // desc 順＝先頭が最大
   const reservedDeadlines = deadlines.filter((d) => d.effective_from > bizToday);
 
@@ -133,6 +144,24 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
     setMsg(error ? { kind: "bad", text: staffShiftErrJa(error.message) } : { kind: "ok", text: `予約行「${p.name}（${p.effective_from} から）」を削除しました` });
     if (!error) await load();
   }
+  // ★0160（起票95・追補2-2・便 M4-3）: 無効化＝staff_pattern_disable(p_pattern_id, p_from＝月初)／取消＝staff_pattern_enable（owner／manager 自店＝RPC が最終防御）
+  async function disablePattern(p: Pattern) {
+    if (busy) return;
+    const from = disMonthOf(p.id);
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("staff_pattern_disable", { p_pattern_id: p.id, p_from: from });
+    setBusy(false);
+    setMsg(error ? { kind: "bad", text: staffShiftErrJa(error.message) } : { kind: "ok", text: `枠「${p.name}」を ${from} から無効にします（それより前の日は従来どおり）` });
+    if (!error) await load();
+  }
+  async function enablePattern(p: Pattern) {
+    if (busy) return;
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("staff_pattern_enable", { p_pattern_id: p.id });
+    setBusy(false);
+    setMsg(error ? { kind: "bad", text: staffShiftErrJa(error.message) } : { kind: "ok", text: `枠「${p.name}」の無効化を取り消しました` });
+    if (!error) await load();
+  }
   async function addDeadline() {
     if (busy) return;
     setBusy(true); setMsg(null);
@@ -142,20 +171,35 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
     if (!error) await load();
   }
 
-  const row = (p: Pattern, kind: "current" | "reserved" | "past") => (
-    <tr key={p.id} style={kind === "past" ? { opacity: 0.6 } : undefined}>
+  const row = (p: Pattern, kind: "current" | "reserved" | "past" | "disabled") => {
+    const ds = patternDisableStateOf(p.disabled_from, bizToday); // ★M4-3: active／scheduled（M/1 から無効）／disabled（無効）
+    const muted = kind === "past" || kind === "disabled";
+    return (
+    <tr key={p.id} style={muted ? { opacity: 0.6 } : undefined}>
       <td style={{ fontWeight: 800 }}>{p.name}</td>
       <td className="num">{p.start_hm}〜{fmtEnd30(p.end_hm)}</td>
       <td className="num">{p.effective_from}</td>
       <td>
-        <span className={`nox-stpill ${kind === "current" ? "ok" : ""}`}
-          style={kind === "reserved" ? { color: "var(--gold2)", borderColor: "var(--gold-bd)" } : undefined}>
-          {kind === "current" ? "現在有効" : kind === "reserved" ? "予約" : "過去"}
+        <span className={`nox-stpill ${kind === "current" && ds.state === "active" ? "ok" : ""}`}
+          style={kind === "reserved" ? { color: "var(--gold2)", borderColor: "var(--gold-bd)" } : kind === "disabled" ? { color: "var(--sub)" } : undefined}>
+          {kind === "disabled" ? ds.label : kind === "current" ? "現在有効" : kind === "reserved" ? "予約" : "過去"}
         </span>
+        {kind !== "disabled" && ds.state === "scheduled" && <span className="nox-stpill" style={{ marginLeft: 6, color: "var(--gold2)" }}>{ds.label}</span>}
       </td>
-      <td>{kind === "reserved" && <button style={{ ...btnLight, color: "var(--bad)" }} disabled={busy} onClick={() => void removePattern(p)}>削除</button>}</td>
+      <td style={{ whiteSpace: "nowrap" }}>
+        {kind === "reserved" && <button style={{ ...btnLight, color: "var(--bad)" }} disabled={busy} onClick={() => void removePattern(p)}>削除</button>}
+        {/* ★M4-3: 無効化（翌月以降の月初から）／取消。過去行は対象外 */}
+        {(kind === "current" || kind === "reserved") && ds.state === "active" && (
+          <span style={{ display: "inline-flex", gap: 6, alignItems: "center", marginLeft: kind === "reserved" ? 6 : 0 }}>
+            <SegSelect value={disMonthOf(p.id)} onChange={(v) => setDisMonth((m) => ({ ...m, [p.id]: v }))} options={disOpts.slice(0, 3)} disabled={busy} ariaLabel={`${p.name} を無効にする月`} />
+            <button style={btnLight} disabled={busy} onClick={() => void disablePattern(p)}>無効にする</button>
+          </span>
+        )}
+        {ds.state !== "active" && <button style={btnLight} disabled={busy} onClick={() => void enablePattern(p)}>無効を取消</button>}
+      </td>
     </tr>
-  );
+    );
+  };
 
   return (
     <section className="nox-panel" id="staff-shift">
@@ -168,7 +212,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
         )}
       </div>
       <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "4px 0 10px", lineHeight: 1.7 }}>
-        枠は「◯日から」で予約します。シフト行は作成時に枠の時刻を写して固定され、枠を変えても過去の行は変わりません（例外は行ごとの時刻上書き）。営業日＝<span className="num">{bizToday}</span>。
+        枠は「◯日から」で予約します。シフト行は作成時に枠の時刻を写して固定され、枠を変えても過去の行は変わりません（例外は行ごとの時刻上書き）。無効化は翌月以降の月初から（「無効にする」）・取消もできます。営業日＝<span className="num">{bizToday}</span>。
       </p>
       {msg && <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "0 0 8px" }}>{msg.text}</Message>}{/* ★裁定281（便 AB） */}
 
@@ -178,8 +222,9 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
           <tbody>
             {current.map((p) => row(p, "current"))}
             {reserved.map((p) => row(p, "reserved"))}
+            {disabledNow.map((p) => row(p, "disabled"))}{/* ★M4-3: 無効化済み＝グレー・取消可 */}
             {showPast && past.map((p) => row(p, "past"))}
-            {current.length + reserved.length === 0 && (
+            {current.length + reserved.length + disabledNow.length === 0 && (
               <tr><td colSpan={5} style={{ color: "var(--sub)" }}>枠がまだありません。下のフォームから追加してください。</td></tr>
             )}
           </tbody>

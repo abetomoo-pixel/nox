@@ -8,6 +8,7 @@ import DemoBanner from "@/components/ui/demo-banner";
 import { DemoProvider } from "@/lib/nox/demo/context";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: ranking OFF の店はナビ項目を出さない
 import { noticeNavLabelOf, unreadCountOf } from "@/lib/nox/mine/notice-unread"; // ★裁定326-6（便 M2-3）: お知らせ未読数「お知らせ（N）」
+import { wishNavLabelOf } from "@/lib/nox/mine/wish-mode"; // ★裁定326-7（便 M4-1）: 「シフト希望」／'off_only' は「休み希望」
 
 // cast エリアの layout。auth_role() rpc は「ここで1回/リクエスト」のみ（F1f plan §2）。
 // リダイレクトは利便のため・真の防御は RLS/RPC（cast 以外がすり抜けても DB は cast データを返さない…の逆も同様）。
@@ -33,7 +34,7 @@ export default async function MineLayout({ children }: { children: React.ReactNo
     label: null,
     items: [
       { href: "/mine", label: "マイ" },
-      { href: "/mine/wishes", label: "希望" },
+      { href: "/mine/wishes", label: wishNavLabelOf(ms.shift_request_mode) },
       { href: "/mine/ranking", label: "ランキング" },
       { href: "/mine/notices", label: noticeNavLabelOf(unread) },
     ].filter((i) => i.href !== "/mine/ranking" || ms.ranking),

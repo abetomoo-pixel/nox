@@ -26,11 +26,14 @@ import {
 import WithdrawButton from "./withdraw-button";
 import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定306-4／306-6: 年月見出し＋前月／翌月／今月＝確定タブと同じ部品・?ym 同期
 import { outOfPeriodNoteOf, ymFromSearch } from "@/lib/nox/ui/month-nav";
+// ★裁定326-7／追補2-4（0160・便 M4-1）: 店設定 shift_request_mode。'off_only'＝休み希望（kind 'off'・時刻なし＝時間欄を出さない）。'shift'＝従来（kind 'work'）
+import { wishNeedsTimes, wishPageTextOf, wishRowLabelOf, wishSubmitArgsOf, type WishMode } from "@/lib/nox/mine/wish-mode";
 
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 
-export default function WishForm() {
+export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
+  const needsTimes = wishNeedsTimes(mode);
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
   const [periods, setPeriods] = useState<OpenPeriod[] | null>(null); // ★N5: null＝RPC 未適用（0151 手貼り前）＝案内も活性化も出ない
@@ -73,7 +76,7 @@ export default function WishForm() {
   // 表示月の自分の希望（RLS＝自分の行のみ）＝提出済みの印と活性日の判定
   const loadWishes = useCallback(async () => {
     const supabase = createClient();
-    const { data } = await supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status")
+    const { data } = await supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status, kind")
       .gte("date", `${month}-01`).lt("date", `${monthAfterOf(month, 1)}-01`).order("date");
     setWishes((data ?? []) as WishLike[]);
   }, [month]);
@@ -105,19 +108,20 @@ export default function WishForm() {
 
   // ★290-3: 選択日ごとに既存 shift_wish_submit を昇順に逐次（非原子）。失敗は和文で残し再提出可
   // ★裁定318 追補（便 X-10-3）: 範囲外（開始は 23 時まで・終了は 47 時まで・分は 59 まで）が 1 つでもあれば提出できない
-  const hmBad = hmRangeErrorOf(defStart, 23) !== null || hmRangeErrorOf(defEnd) !== null
-    || selDates.some((ymd) => { const o = sel[ymd] as { start?: string; end?: string } | null | undefined; return !!o && (hmRangeErrorOf(o.start ?? "", 23) !== null || hmRangeErrorOf(o.end ?? "") !== null); });
+  const hmBad = needsTimes && (hmRangeErrorOf(defStart, 23) !== null || hmRangeErrorOf(defEnd) !== null
+    || selDates.some((ymd) => { const o = sel[ymd] as { start?: string; end?: string } | null | undefined; return !!o && (hmRangeErrorOf(o.start ?? "", 23) !== null || hmRangeErrorOf(o.end ?? "") !== null); }));
   async function submitAll() {
     if (busy || selDates.length === 0) return;
-    if (!timesValid({ start: defStart, end: defEnd })) { setMsg({ kind: "error", text: "一括の時間は 開始 00:00〜23:59・終了 00:00〜47:59 で入力してください" }); return; }
+    if (needsTimes && !timesValid({ start: defStart, end: defEnd })) { setMsg({ kind: "error", text: "一括の時間は 開始 00:00〜23:59・終了 00:00〜47:59 で入力してください" }); return; }
     const rows = composeSubmissions(sel, { start: defStart, end: defEnd });
-    const bad = rows.find((r) => !timesValid({ start: r.start_hm, end: r.end_hm }));
+    const bad = needsTimes ? rows.find((r) => !timesValid({ start: r.start_hm, end: r.end_hm })) : undefined;
     if (bad) { setMsg({ kind: "error", text: `${mdDowOf(bad.date)} の時間が正しくありません（開始 00:00〜23:59・終了 00:00〜47:59）` }); return; }
     setBusy(true); setMsg(null);
     const supabase = createClient();
     const results: SubmitResult[] = [];
     for (const r of rows) {
-      const { error } = await supabase.rpc("shift_wish_submit", { p_date: r.date, p_start_hm: r.start_hm, p_end_hm: r.end_hm });
+      // ★M4-1: 'off_only' は時刻 null＋kind 'off'・'shift' は時刻＋kind 'work'（0160 の 4 引数）
+      const { error } = await supabase.rpc("shift_wish_submit", wishSubmitArgsOf(r, mode));
       if (error) {
         const text = error.message.includes("closed day") ? "定休日です（希望を提出できません）"
           : error.message.includes("bad time") ? "時刻の形式が不正です（例 2000・20:00／開始 00:00〜23:59・終了 00:00〜47:59）"
@@ -165,18 +169,18 @@ export default function WishForm() {
               title={err ? `${mdDowOf(ymd)}: ${err}` : mark ? `${mdDowOf(ymd)}: ${mark}` : isActive ? `${mdDowOf(ymd)}: 募集中` : `${mdDowOf(ymd)}: 募集期間外`}>
               <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
               {mark && <span style={{ fontSize: 8.5, color: w?.status === "accepted" ? "var(--ok)" : w?.status === "rejected" ? "var(--sub)" : "var(--champ)" }}>{mark}</span>}
-              {on && <span className="num" style={{ fontSize: 8.5, color: "var(--champ)" }}>{sel[ymd] ? `${sel[ymd]!.start}-` : "選択"}</span>}
+              {on && <span className="num" style={{ fontSize: 8.5, color: "var(--champ)" }}>{needsTimes && sel[ymd] ? `${sel[ymd]!.start}-` : needsTimes ? "選択" : "休み"}</span>}
               {err && <span style={{ fontSize: 8.5, color: "var(--bad)" }}>失敗</span>}
             </button>
           );
         })}
       </div>
-      <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>印: 審査中／承認／却下。募集期間外・定休日・提出済みの日は選べません。</p>
+      <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>{wishPageTextOf(mode).markNote}</p>
 
       {/* 提出済みの日をタップ＝既存の取り下げ（pending のみ） */}
       {focusWish && (
         <div className="nox-inset" style={{ padding: "8px 12px", marginTop: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="num" style={{ fontSize: 12.5 }}>{mdDowOf(focusWish.date)} {fmtWin(focusWish.start_hm, focusWish.end_hm)}</span>
+          <span className="num" style={{ fontSize: 12.5 }}>{mdDowOf(focusWish.date)} {wishRowLabelOf({ kind: (focusWish as { kind?: string | null }).kind, start_hm: focusWish.start_hm, end_hm: focusWish.end_hm })}</span>
           <span style={{ fontSize: 12, color: "var(--sub)" }}>{wishMarkOf(focusWish.status)}</span>
           {focusWish.status === "pending" && <WithdrawButton wishId={focusWish.id} />}
         </div>
@@ -184,6 +188,7 @@ export default function WishForm() {
 
       {/* ★290-2: 時間 一括（既定 20:00〜26:00）＋選択日の一覧（日別上書き） */}
       <div className="nox-inset" style={{ padding: "10px 12px", marginTop: 10 }}>
+        {needsTimes ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <b style={{ fontSize: 12.5 }}>時間（一括）</b>
           <HmInput value={defStart} onChange={setDefStart} maxHour={23} placeholder="20:00" ariaLabel="開始（一括）" style={input} disabled={busy} />
@@ -191,6 +196,9 @@ export default function WishForm() {
           <HmInput value={defEnd} onChange={setDefEnd} placeholder="26:00" ariaLabel="終了（一括）" style={input} disabled={busy} />
           <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>日ごとに変えるときは下で上書き</span>
         </div>
+        ) : (
+        <b style={{ fontSize: 12.5 }}>休みたい日（時間は入力しません）</b>
+        )}{/* ★M4-1（326-7）: 'off_only' は時間欄を出さない */}
         {selDates.length === 0 ? (
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "8px 0 0" }}>カレンダーで日を選んでください。</p>
         ) : (
@@ -200,12 +208,14 @@ export default function WishForm() {
               return (
                 <div key={ymd} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 12.5 }}>
                   <span className="num" style={{ minWidth: 72, color: failed[ymd] ? "var(--bad)" : "var(--ink)" }}>{mdDowOf(ymd)}</span>
+                  {needsTimes ? (<>
                   <HmInput value={o?.start ?? ""} maxHour={23} placeholder={defStart} ariaLabel={`${mdDowOf(ymd)} 開始`} style={input} disabled={busy}
                     onChange={(v) => setSel((s) => setOverride(s, ymd, { start: v, end: o?.end ?? "" }))} />
                   <span style={{ color: "var(--sub)" }}>〜</span>
                   <HmInput value={o?.end ?? ""} placeholder={defEnd} ariaLabel={`${mdDowOf(ymd)} 終了`} style={input} disabled={busy}
                     onChange={(v) => setSel((s) => setOverride(s, ymd, { start: o?.start ?? "", end: v }))} />
                   {o && (o.start || o.end) && <button type="button" style={{ ...btnLight, padding: "2px 8px" }} disabled={busy} onClick={() => setSel((s) => setOverride(s, ymd, null))}>一括に戻す</button>}
+                  </>) : <span style={{ color: "var(--sub)" }}>休み</span>}
                   <button type="button" style={{ ...btnLight, padding: "2px 8px" }} disabled={busy} onClick={() => { setSel((s) => toggleDay(s, ymd)); setFailed((f) => { const n = { ...f }; delete n[ymd]; return n; }); }}>外す</button>
                   {failed[ymd] && <span style={{ width: "100%", fontSize: 11, color: "var(--bad)" }}>{failed[ymd]}</span>}
                 </div>

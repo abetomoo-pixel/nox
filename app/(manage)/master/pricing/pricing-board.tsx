@@ -34,6 +34,7 @@ import MasterPageHead from "../master-page-head";
 import PricingPanel from "../pricing-panel";
 import TimePricingPanel from "../time-pricing-panel";
 import StoreFlagToggle from "../store-flag-toggle"; // ★mig0144: ext_shimei_enabled／dohan_auto_hon のトグル（set_store_profile）
+import { mineSettingsErrJa, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★0160（起票96・便 M4-4）: contract_ack（加盟店契約の確認の記録＝店設定 8 キー目）
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
 
 const card: React.CSSProperties = t.card;
@@ -63,6 +64,7 @@ export type StoreFallback = {
   // ★mig0111/0113（C4・裁定90）: 税設定6列
   business_tax_status: string; price_display: string; invoice_status: string;
   invoice_reg_no: string | null; tax_rounding: string; card_surcharge_rate: number | null;
+  settings_json?: unknown; // ★0160（起票96・便 M4-4）: contract_ack（加盟店契約の確認の記録＝店設定 8 キー目）を読む
 };
 
 // ★mig0130（裁定118）: vip_charge を帯の4枠目へ（帯グルーピング・保存分解・M3 集約の対象）
@@ -312,6 +314,18 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   const [tSurOn, setTSurOn] = useState(store.card_surcharge_rate !== null);
   const [tSurRate, setTSurRate] = useState(store.card_surcharge_rate === null ? "" : String(store.card_surcharge_rate));
   const [tSurAck, setTSurAck] = useState(false); // 裁定87 第2層＝有効化時の契約確認チェック
+  // ★0160（起票96・T6・便 M4-4）: 契約確認の記録＝店設定 contract_ack（set_store_mine_settings・owner／manager）。有効化の保存でチェック済みなら true を記録・ON/OFF でも直接切替
+  const [ackRecorded, setAckRecorded] = useState<boolean>(mineSettingsOf(store.settings_json).contract_ack);
+  const [ackBusy, setAckBusy] = useState(false);
+  async function recordContractAck(on: boolean) {
+    if (ackBusy) return;
+    setAckBusy(true);
+    const { error } = await supabase.rpc("set_store_mine_settings", { p_store_id: storeId, p_settings: { contract_ack: on } });
+    setAckBusy(false);
+    if (error) { setTaxMsg(`契約確認の記録に失敗: ${mineSettingsErrJa(error.message)}`); return false; }
+    setAckRecorded(on);
+    return true;
+  }
   const [taxSavedSur, setTaxSavedSur] = useState<number | null>(store.card_surcharge_rate); // 保存済み値（有効化の判定用）
   const [taxBusy, setTaxBusy] = useState(false);
   const [taxMsg, setTaxMsg] = useState<string | null>(null);
@@ -352,8 +366,10 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
     });
     setTaxBusy(false);
     if (error) { setTaxMsg(taxErrJa(error.message)); return; }
+    const acked = tSurOn && taxSavedSur === null && tSurAck; // ★M4-4: 有効化の保存で契約確認にチェック＝記録（contract_ack true）
     setTaxSavedSur(surRate); setTSurAck(false);
-    setTaxMsg("税設定を保存しました（開栓済みの伝票には影響しません）");
+    if (acked && !ackRecorded) { const ok = await recordContractAck(true); if (!ok) return; }
+    setTaxMsg(acked ? "税設定を保存し、契約確認を記録しました（開栓済みの伝票には影響しません）" : "税設定を保存しました（開栓済みの伝票には影響しません）");
   }
   const [mErr, setMErr] = useState<string | null>(null);
 
@@ -1667,7 +1683,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           {tSurOn && (
             <div style={{ fontSize: 11.5, color: "var(--warning)", margin: "6px 0 2px" }}>
               加盟店契約でカード手数料の転嫁が禁止・制限されている場合があります。契約上の可否を確認してください
-              {taxSavedSur === null && (
+              {taxSavedSur === null && !ackRecorded && (
                 // ★裁定132: 未定義だった var(--fg) → --ink（本文基底色・警告帯の中でチェック行だけ通常文字色へ戻す）
                 <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, color: "var(--ink)" }}>
                   <input type="checkbox" checked={tSurAck} onChange={(e) => setTSurAck(e.target.checked)} />
@@ -1676,6 +1692,14 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               )}
             </div>
           )}
+          {/* ★0160（起票96・T6・便 M4-4）: 加盟店契約の確認の記録＝店設定 contract_ack（owner／manager・set_store_mine_settings）。記録済みなら有効化時のチェックは出さない。改定時は店が OFF→ON で再確認（仮決め） */}
+          <div className="nox-listrow" style={{ marginTop: 6 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              加盟店契約の確認（記録）
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>{ackRecorded ? "契約上の可否を確認済みとして記録しています。契約内容が改定されたら OFF にして再確認してください" : "未記録。カード手数料を有効化して保存すると記録されます（ここで直接 ON にもできます）"}</span>
+            </span>
+            <SegSelect value={ackRecorded ? "on" : "off"} onChange={(v) => void recordContractAck(v === "on")} options={[["off", "OFF"], ["on", "ON"]] as const} disabled={ackBusy} ariaLabel="加盟店契約の確認（記録）" />
+          </div>
         </section>
 
         <section className="nox-cardtop" style={card}>
