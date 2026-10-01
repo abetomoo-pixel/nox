@@ -105,6 +105,10 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   改稿 4 本（`punch_self`／`punch_proxy`／`kiosk_punch`＝insert 直前に順序検査 1 行・`payroll_attentions_of`＝run 未作成時に積んだ open_punch を期間で拾う）は名前不変で本数不動。payroll_attentions の run_id null 可・kind CHECK 2 値・部分 unique は本数非関与。
   md5 控え（先頭 8 桁・docs/tmp/0161_post_live.json＝live 読取 2026-09-30T08:26:03Z から機械生成）: punch_seq_check f5fd8b84・punch_self 952f18a4・punch_proxy a760e1a4・kiosk_punch 5a1d5f10・payroll_attentions_of 3721bf4e。
   対象 **154 不変**・除外 **142→143**・全数 **296→297**（live 実測 2026-09-30＝総数 297・'billing locked' 154・md5 5 本一致）。
+- ★**mig0162 追随（2026-10-01・裁定329／326 追補7-6・329 追補1）**: 新関数 **5本**＝全て非ゲートを B(a) へ（写真 3 本＝`set_user_photo_updated_at`（スタッフ写真の打刻・owner∨manager 自店∨本人）／`clear_cast_photo`／`clear_user_photo`（photo_updated_at の null 戻し・実体削除は client から delete policy 経由）＝写真は課金ゲート外（0065 の set_cast_photo_updated_at と同区分）・契約確認 2 本＝`cast_contract_ack_needed`／`cast_contract_ack_self`（cast セルフ・店の contract_ack ON と contract_ack_rev が有るときだけ・冪等））。
+  改稿 2 本（`set_store_mine_settings`＝contract_ack の OFF→ON で contract_ack_rev＝clock_timestamp() を併せて保存・白名単 8 不変／`demo_org_reset`＝c_wipe／c_load に cast_contract_acks）は名前不変で本数不動。新表 1（cast_contract_acks 5 列・authenticated=SELECT のみ・policy 1）・users.photo_updated_at・storage policy 4 本（delete 新設）は本数非関与。
+  md5 控え（先頭 8 桁・docs/tmp/0162_post_live.json＝live 読取 2026-10-01T05:54:02Z から機械生成）: set_user_photo_updated_at 97a3da84・clear_cast_photo 22c0d2b2・clear_user_photo 372b28e5・cast_contract_ack_needed a7b2ca2f・cast_contract_ack_self e9dc61dd・set_store_mine_settings 09595c7e・demo_org_reset a4bd6a18。
+  対象 **154 不変**・除外 **143→148**・全数 **297→302**（live 実測 2026-10-01＝総数 302・'billing locked' 154・md5 7 本一致）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -302,6 +306,16 @@ audit_purge（mig0155＝audit_logs の 7 年保持＝at < now()-7年 を org ご
 okuri_default_of（mig0156＝送り利用の既定を返す純ヘルパー＝p_okuri 明示があればそれ・無ければ out かつ okuri_mode='actual' の店で false・他は null。打刻 3 本の本文からのみ・4 ロール revoke・裁定309-9／309 追補2 (a)・2026-09-28）
 
 punch_seq_check（mig0161＝打刻の順序検査＝当日営業日の最終打刻で 'already in'／'already out'／'no open punch' を raise し、前営業日以前の未閉鎖 in は塞がずに注意行 'open_punch' を積む内部ヘルパー。打刻 3 本の本文からのみ・4 ロール revoke で authenticated／service_role とも実行不可・原則8＝呼び出し元が二重防御済み・裁定327＋追補1・2026-09-30）
+
+set_user_photo_updated_at（mig0162＝スタッフ写真の打刻＝users.photo_updated_at を now() に・authz は storage cast_photos_* の users 腕と同一式（owner∨manager 自店∨本人）・非ゲート＝写真は課金ゲート外・裁定329）
+
+clear_cast_photo（mig0162＝キャスト写真の null 戻し＝casts.photo_updated_at を null に・authz は 0065 の打刻と同一式・Storage の実体削除は client から delete policy 経由・非ゲート・裁定329 追補1）
+
+clear_user_photo（mig0162＝スタッフ写真の null 戻し＝users.photo_updated_at を null に・authz は users 腕と同一式・非ゲート・裁定329 追補1）
+
+cast_contract_ack_needed（mig0162＝cast セルフの読取＝店の contract_ack が ON かつ contract_ack_rev が有り、その rev の記録が無ければ true・非ゲート・326 追補7-6）
+
+cast_contract_ack_self（mig0162＝cast セルフの確認記録＝cast_contract_acks へ (cast_id, contract_rev) を冪等 insert・店が ON でなければ 'not required'・audit は 1 回目だけ・非ゲート・326 追補7-6）
 
 ### B(b) トリガ関数（1本）
 touch_updated_at

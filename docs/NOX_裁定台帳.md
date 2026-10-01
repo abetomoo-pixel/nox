@@ -4015,6 +4015,20 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
 
+## 裁定331（2026-10-01 確定・相談役）初期設定 v5
+
+出典＝相談役チャット 2026-10-01（便 MC0 の直前・逐語）。正本モック＝docs/handoff/mock/20261001/nox-setup-v5.html（MC0-1 で収蔵）。**本文（逐語）**:
+「裁定331（初期設定 v5）＝正本モック nox-setup-v5.html・6 ステップ・業態テンプレ 6 種・達成ボーナス多段／売上スライド／新人保証の自動終了は現行で動く範囲のみ表示（未実装は非表示・第 2 期）・勤務時間の数え方＝324・キャストのスマホ画面＝326 の 8 キー・打刻方法 3 択。差し戻しはモック修正で行う（BANZEN UH と同じ運用）。順序＝MC（2 便）→W5（3 便）→D1。」
+
+適用＝便 MC0（読取・対応表 docs/handoff/mock/20261001/setup_map.md）→ W5（3 便想定・client）。
+
+## 裁定330（2026-10-01 確定・相談役）マスタ整理
+
+出典＝相談役チャット 2026-10-01（便 MC0 の直前・逐語）。正本モック＝docs/handoff/mock/20261001/nox-master-consolidated.html（MC0-1 で収蔵）。**本文（逐語）**:
+「裁定330（マスタ整理）＝正本モック docs/handoff/mock/20261001/nox-master-consolidated.html・トップ 4 パネル 9 入口・既存編集画面をタブ内に配置・旧 URL 維持・在庫はマスタから外し営業メニューへ・店舗名編集は店舗情報に一本化・キャスト会計の許可は権限へ・データ管理（利用目的・保持年数・操作ログ）は店舗情報から分離・設定値／計算／権限／履歴は不変。」
+
+適用＝便 MC0（読取・対応表 docs/handoff/mock/20261001/master_map.md）→ MC（2 便想定・client）。順序＝MC → W5 → D1（裁定331 と同文）。
+
 ## 裁定329（2026-10-01 確定・相談役・便 M5）スタッフの写真
 
 出典＝相談役ブロック 2026-10-01（便 M5・ブロック内の裁定）。便「台帳記入＋0162 起草」で確定（0162 の範囲＝写真＋cast_contract_acks）。**本文（逐語）**:
@@ -4026,6 +4040,14 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 削除時は Storage の実体も消す（キャストと同じ）。」
 
 適用＝便 M5-0 読取（2026-10-01）: **client のみでは不可＝0162 要**。キャスト写真の器＝Storage bucket cast-photos・パス `{org_id}/{cast_id}.jpg`・policy 3 本（insert／update／select＝casts 表の id と filename を照合・owner∨manager 自店∨本人・delete policy なし）・casts.photo_updated_at（0064）・RPC set_cast_photo_updated_at（casts 限定）。users／memberships に写真列なし・削除経路（Storage remove）はキャストにも無い。0162 の中身＝便「台帳記入＋0162 起草」で起草（★1 users.photo_updated_at＋パス {org_id}/u_{user_id}.jpg・★2 Storage policy の users 腕＋delete policy 新設・★3 set_user_photo_updated_at／clear_cast_photo／clear_user_photo・★4 cast_contract_acks＋cast_contract_ack_self／cast_contract_ack_needed・★5 名簿＝非ゲート）。手貼りは Agoora・client は 0162 適用後（便 M5-1〜3）。
+
+### 裁定329 追補1（2026-10-01 確定・相談役追認・便 P162）0162 の起草判断の追認
+
+出典＝相談役ブロック 2026-10-01（便 P162）。**本文（逐語）**: 「329 追補1（相談役追認）: select policy 不触・contract_ack_rev は OFF→ON の切替時刻（clock_timestamp）・cast は u_ パス不可・clear_* RPC は null 戻しのみで実体削除は client から policy 経由。」
+
+適用＝0162（下の欄）どおり。client（M5-1）: 削除＝storage.remove → clear_*（実体が残っても署名 URL は出ない）。
+
+**0162 の欄（本番適用済み・収蔵）**: supabase/migrations/0162_staff_photo_contract_ack.sql＝**sha256 e635d114ae50ce9f414e58ee23eb9ea2948145fc774af07bafc0d52d1c702a1d・523 行・37,533 B・突合 30 段 NG 0（docs/tmp/q1001_ag_0162.mjs・BEGIN…ROLLBACK）**・生成器 docs/tmp/gen_0162.mjs＋0162_template.sql・写経元 0162_live.json・期待 md5 0162_expected.json＝set_store_mine_settings 09595c7e／demo_org_reset a4bd6a18／新設 set_user_photo_updated_at 97a3da84・clear_cast_photo 22c0d2b2・clear_user_photo 372b28e5・cast_contract_ack_needed a7b2ca2f・cast_contract_ack_self e9dc61dd。器＝★1 users.photo_updated_at null 可（パス {org_id}/u_{user_id}.jpg・既存 bucket 同居）／★2 storage policy cast_photos_insert／update を drop→create（cast 腕・is_demo 句は live 逐語＋users 腕＝owner∨manager 自店∨本人（role owner／manager／staff＝cast は u_ 不可））・cast_photos_delete 新設（using＝update の using と同文）・select 不触／★3 RPC 3 本（非ゲート・authz は policy と同一式・audit 'set_user_photo'／'clear_cast_photo'／'clear_user_photo'）／★4 cast_contract_acks（cast_id・contract_rev・org_id・store_id・acked_at・PK (cast_id, contract_rev)・RLS select＝cast 本人∨owner∨manager 自店・grant SELECT のみ）＋set_store_mine_settings に ★3 行（contract_ack の false／欠損→true で settings_json.contract_ack_rev＝clock_timestamp()・白名単 8 不変）＋cast_contract_ack_needed／cast_contract_ack_self（cast セルフ・'not required'・冪等・audit 'cast_contract_ack'）／★5 grants（新設 5＝authenticated＋service_role・再作成 2 は live 再掲）・demo_org_reset 配列に cast_contract_acks（cast_quotas の直前に消し・直後に入れる＝80／78）。**本番適用＝2026-10-01・時刻不明（Agoora 申告・proof 302／82・users.photo_updated_at・cast_contract_acks 5 列を Agoora が確認）**・live 照合 docs/tmp/q1001_post_0162.mjs all_ok（2026-10-01T05:54:02Z＝関数 302／表 82・md5 7 本・不触 24 本・policy 4 本・demo 80／78・rev 行）。名簿 A 154／B 143→148＝302（課金ゲート対象 v1 に mig0162 追随・B(a) 5 本）。
 
 ## 裁定328（2026-10-01 確定・相談役・便 D0）デモ環境
 
