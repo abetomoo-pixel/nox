@@ -275,7 +275,8 @@ async function main() {
       // ★0161（裁定327）: 打刻は順序検査つき＝out は当日営業日に未閉鎖の in が要る・同一営業日の再出勤は RPC では 'already out'。
       //   当日の状態を tx 内で空にし、out の前に in を置く。2 度目以降の out は直 insert の in で開き直す（reopen）。okuri の意味と summary の件数は不変。
       await q("delete from public.punches where cast_id = any($1) and punched_at >= now() - interval '2 days'", [[castA, castB]]);
-      const reopen = async (castId: string) => { await q("insert into public.punches (org_id, store_id, cast_id, type, source) values ($1,$2,$3,'in','self')", [A1.org_id, A1.id, castId]); };
+      // ★教訓98（便 M4 の f0 run2 で赤）: 同一 tx 内は now() が固定＝直 insert の in と RPC の out が同時刻になり「最終打刻」の順序が不定→'no open punch'。reopen は clock_timestamp() で必ず最新にする
+      const reopen = async (castId: string) => { await q("insert into public.punches (org_id, store_id, cast_id, type, source, punched_at, created_at) values ($1,$2,$3,'in','self', clock_timestamp(), clock_timestamp())", [A1.org_id, A1.id, castId]); };
       const pin0 = await as(castU, "select public.punch_self('in', null, null) id");
       const p1 = await as(castU, "select public.punch_self('out', null, null, true) id");
       const p1id = rowsOf(p1)[0]?.id ?? null;

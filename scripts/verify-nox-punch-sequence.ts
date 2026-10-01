@@ -46,7 +46,9 @@ async function main() {
         return { user: u, cast: c.id };
       };
       const cnt = async (castId: string) => (await one<{ n: number }>("select count(*)::int n from public.punches where cast_id=$1", [castId])).n;
-      const self = (who: { auth_user_id: string }, type: "in" | "out") => as(who, `select public.punch_self('${type}', null, null) id`);
+      // ★教訓98: 同一 tx 内は now() が固定＝RPC が入れた打刻が同時刻に並び「最終打刻」の順序が不定になる。成功した打刻は clock_timestamp() へ寄せて順序を確定する（本番は打刻ごとに時刻が進む）
+      const bump = async (id: unknown) => { if (typeof id === "string") await q("update public.punches set punched_at = clock_timestamp(), created_at = clock_timestamp() where id=$1", [id]); };
+      const self = async (who: { auth_user_id: string }, type: "in" | "out") => { const r = await as(who, `select public.punch_self('${type}', null, null) id`); if (r.ok) await bump(r.rows[0]?.id); return r; };
       const T1 = await mkCast("t1"), T2 = await mkCast("t2"), T3 = await mkCast("t3"), T4 = await mkCast("t4"), T5 = await mkCast("t5"), T6 = await mkCast("t6");
       // (1) punch_self の 3 拒否
       const c11 = await self(T1.user, "in"), c12 = await self(T1.user, "in"), c13 = await self(T1.user, "out"), c14 = await self(T1.user, "out"), c15 = await self(T1.user, "in");
@@ -88,7 +90,7 @@ async function main() {
       check("ps(5-2) payroll_attention_resolve で open_punch を解決できる（resolved_at）", rs.ok && a3[0]?.resolved_at !== null, errOf(rs));
       // (6) punch_proxy（追補1＝対象）: run 期間が既にあるので注意行に run_id が付く
       const old4 = await one<{ id: string }>("insert into public.punches (org_id, store_id, cast_id, punched_at, type, source) values ($1, $2, $3, now() - interval '1 day', 'in', 'self') returning id", [A1.org_id, A1.id, T4.cast]);
-      const proxy = (type: "in" | "out") => as(mgr, `select public.punch_proxy($1, '${type}', null) id`, [T4.cast]);
+      const proxy = async (type: "in" | "out") => { const r = await as(mgr, `select public.punch_proxy($1, '${type}', null) id`, [T4.cast]); if (r.ok) await bump(r.rows[0]?.id); return r; };
       const p41 = await proxy("in");
       const a4 = await q<{ run_id: string | null; pid: string }>("select run_id, detail->>'punch_id' pid from public.payroll_attentions where cast_id=$1", [T4.cast]);
       const p42 = await proxy("in"), p43 = await proxy("out"), p44 = await proxy("out"), p45 = await proxy("in");
@@ -97,7 +99,7 @@ async function main() {
       const kioskUid = (await one<{ u: string }>("select gen_random_uuid() u")).u;
       await q("insert into public.kiosk_devices (org_id, store_id, auth_user_id, label, is_active, purpose) values ($1,$2,$3,'ps-punch',true,'punch')", [A1.org_id, A1.id, kioskUid]);
       const pinSet = await as(mgr, "select public.set_cast_pin($1, '1234') r", [T5.cast]);
-      const kiosk = (type: "in" | "out") => as({ auth_user_id: kioskUid }, `select public.kiosk_punch($1, '1234', '${type}') r`, [T5.cast]);
+      const kiosk = async (type: "in" | "out") => { const r = await as({ auth_user_id: kioskUid }, `select public.kiosk_punch($1, '1234', '${type}') r`, [T5.cast]); if (r.ok) await bump((r.rows[0]?.r as { punch_id?: string } | undefined)?.punch_id); return r; };
       const k1 = await kiosk("in"), k2 = await kiosk("in"), k3 = await kiosk("out"), k4 = await kiosk("out");
       const k1ok = k1.ok && (k1.rows[0].r as { ok: boolean }).ok === true, k3ok = k3.ok && (k3.rows[0].r as { ok: boolean }).ok === true;
       check("ps(7-1) kiosk_punch: in OK → in raise 'already in' → out OK → out raise 'no open punch'（rpc-err 様式・端末の和文は M1）", pinSet.ok && k1ok && has(k2, "already in") && k3ok && has(k4, "no open punch"), [errOf(pinSet), errOf(k1), errOf(k2), errOf(k3), errOf(k4)].join(" | "));
@@ -105,8 +107,9 @@ async function main() {
       const c61 = await self(T6.user, "in"), c62 = await self(T6.user, "out");
       const bizToday = (await one<{ d: string }>("select public.biz_date_of($1, now())::text d", [A1.id])).d;
       const fix = await as(mgr, "select public.punch_correction_request($1, null, $2::date, 'out', now(), '店側修正の検証（0161 suite）') id", [T6.cast, bizToday]);
-      const last6 = await one<{ type: string; source: string }>("select type, source from public.punches where cast_id=$1 order by punched_at desc, created_at desc limit 1", [T6.cast]);
-      check("ps(8-1) punch_correction_apply（manager の修正申請＝即確定）は順序検査の対象外＝閉鎖済みの営業日に out を足せる（行 3・source manager）", c61.ok && c62.ok && fix.ok && (await cnt(T6.cast)) === 3 && last6?.type === "out" && last6?.source === "manager", errOf(fix));
+      // ★教訓98: 修正で入った行は now()（tx 開始時刻）＝順序では同定しない→「manager の out が 1 行増えた」で見る
+      const fixRows = await one<{ n: number; m: number }>("select count(*)::int n, count(*) filter (where source='manager' and type='out')::int m from public.punches where cast_id=$1", [T6.cast]);
+      check("ps(8-1) punch_correction_apply（manager の修正申請＝即確定）は順序検査の対象外＝閉鎖済みの営業日に out を足せる（行 3・manager の out 1）", c61.ok && c62.ok && fix.ok && fixRows.n === 3 && fixRows.m === 1, errOf(fix) + JSON.stringify(fixRows));
       // (9) 内部専用
       const d1 = await as("anon", "select public.punch_seq_check($1, $2, 'in', now())", [A1.id, T1.cast]);
       const d2 = await as(castU, "select public.punch_seq_check($1, $2, 'in', now())", [A1.id, T1.cast]);

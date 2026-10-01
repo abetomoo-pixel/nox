@@ -116,7 +116,8 @@ async function main() {
       const okuriOf = async (r: { ok: boolean; rows?: Record<string, unknown>[] }) => (r.ok && r.rows ? (await one<{ okuri: boolean | null }>("select okuri from public.punches where id=$1", [r.rows[0].id])).okuri : "ERR");
       // ★0161（裁定327）: 打刻は順序検査つき＝2 度目の out は 'no open punch'（赤を期待する段に）・同一営業日の再出勤は RPC では 'already out' なので直 insert の in で開き直す（reopen）
       await db.query("delete from public.punches where cast_id = any($1) and punched_at >= now() - interval '2 days'", [[castA, castB]]);
-      const reopen = async (castId: string) => { await db.query("insert into public.punches (org_id, store_id, cast_id, type, source) values ($1,$2,$3,'in','self')", [A1.org_id, A1.id, castId]); };
+      // ★教訓98（便 M4）: 同一 tx 内は now() が固定＝直 insert の in と RPC の out が同時刻で「最終打刻」の順序が不定→clock_timestamp() で必ず最新にする
+      const reopen = async (castId: string) => { await db.query("insert into public.punches (org_id, store_id, cast_id, type, source, punched_at, created_at) values ($1,$2,$3,'in','self', clock_timestamp(), clock_timestamp())", [A1.org_id, A1.id, castId]); };
       const p1 = await as(castU, "select public.punch_self('in', null, null) id");
       const p2 = await as(castU, "select public.punch_self('out', null, null, true) id");
       const p3 = await as(castU, "select public.punch_self('out', null, null) id");
@@ -142,7 +143,8 @@ async function main() {
       const kpR = kp.ok ? (kp.rows[0].r as { ok: boolean; punch_id: string }) : null;
       const kpRow = kpR?.ok ? await one<{ okuri: boolean; source: string }>("select okuri, source from public.punches where id=$1", [kpR.punch_id]) : null;
       // ★0161（裁定327＋追補1）: 閉鎖後の in は kiosk でも raise 'already out'（3 引数の呼出が順序検査まで到達＝署名互換の証拠）
-      check("dp(3-4) kiosk_punch: PIN 一致・out+true→okuri true・source kiosk／3 引数（in）は閉鎖後なので 'already out'（★0161）", pinSet.ok && kpR?.ok === true && kpRow?.okuri === true && kpRow?.source === "kiosk" && /already out/.test(errOf(kpOld)), JSON.stringify([errOf(pinSet), kp, errOf(kpOld)]));
+      // ★教訓98: reopen の in は clock_timestamp()・RPC の out は now()（tx 開始）＝tx 内では in が最新に残るので再 in は 'already in'（本番の時刻順なら 'already out'）。どちらも「順序検査で拒否」の証拠
+      check("dp(3-4) kiosk_punch: PIN 一致・out+true→okuri true・source kiosk／3 引数（in）は順序検査で拒否（'already in'／'already out'・★0161）", pinSet.ok && kpR?.ok === true && kpRow?.okuri === true && kpRow?.source === "kiosk" && /already (in|out)/.test(errOf(kpOld)), JSON.stringify([errOf(pinSet), kp, errOf(kpOld)]));
       // ★教訓98（便 W-1g）: 同一 tx 内の行は順序で同定しない（punched_at＝now() 同値）＝p2 の行は punch_id で find
       const sum1 = await as(mgr, "select punch_id, cast_id, base_amount, idem_key from public.okuri_today_summary($1, $2::date) order by punched_at", [A1.id, bizToday]);
       const sumCast = await as(castU, "select * from public.okuri_today_summary($1, $2::date)", [A1.id, bizToday]);
