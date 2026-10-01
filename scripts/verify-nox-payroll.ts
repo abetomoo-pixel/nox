@@ -204,7 +204,7 @@ async function main() {
   const pNo = await mkCast(CAST_NAMES[4], true);
   const seatId = await mkSeat(SEATS[0], storeA1Id);
   const planId = await mkPlan(PLANS[0], storeA1Id);
-  for (const cid of [p1, p2, p3]) await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {} });
+  for (const cid of [p1, p2, p3]) await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {}, valid_from: "2020-01-01" }); // ★教訓46（2026-10-01 便 M2）: valid_from 既定＝今日は月替わりで P=2026-09 の期末を超え 'plan 未設定' になる＝固定日
   // p4 は plan 無し（no_plan blocker）。p1/p2 のみ tax 登録（p3=no_tax）。
   for (const cid of [p1, p2]) await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, mode: "委託" });
   await mkCheck(storeA1Id, seatId, "2026-09-10T22:00:00+09:00", p1, [{ kind: "set", unit: 10000, qty: 1 }, { kind: "champ", unit: 4000, qty: 2 }]);
@@ -217,7 +217,7 @@ async function main() {
   const a2 = await mkCast(CAST_NAMES[5], true, storeA2Id);
   const seat2 = await mkSeat(SEATS[1], storeA2Id);
   const plan2 = await mkPlan(PLANS[1], storeA2Id);
-  await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2, plan_id: plan2, overrides_json: {} });
+  await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2, plan_id: plan2, overrides_json: {}, valid_from: "2020-01-01" }); // ★教訓46（2026-10-01）: 同上
   await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA2Id, cast_id: a2, mode: "委託" });
   await mkCheck(storeA2Id, seat2, "2026-09-14T22:00:00+09:00", a2, [{ kind: "set", unit: 10000, qty: 1 }]);
 
@@ -667,7 +667,7 @@ async function main() {
   const i4 = await mkCast(CAST_NAMES[9], true);
   const i5 = await mkCast(CAST_NAMES[10], true);
   for (const cid of [i1, i2, i3, i4, i5]) {
-    await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {} });
+    await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {}, valid_from: "2020-01-01" }); // ★教訓46（2026-10-01 便 M2）: valid_from 既定＝今日は月替わりで P=2026-09 の期末を超え 'plan 未設定' になる＝固定日
     await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, mode: "委託" });
   }
   // 打刻: I1（11-10,11-20 ok）・I2（11-20 ok・11-10 は shift+absent＝受給対象外）・I3（11-20 ok）・I4（11-30 cutoff跨ぎ ok）
@@ -943,7 +943,7 @@ async function main() {
     };
     const addCast = async (name: string) => {
       const cid = await mkCast(name, true);
-      await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {} });
+      await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {}, valid_from: "2020-01-01" }); // ★教訓46（2026-10-01 便 M2）: valid_from 既定＝今日は月替わりで P=2026-09 の期末を超え 'plan 未設定' になる＝固定日
       await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, mode: "委託" });
       return cid;
     };
@@ -1063,7 +1063,7 @@ async function main() {
       (await admin.from("transport").select("deducted_amount, status").eq("id", id).single()).data as { deducted_amount: number; status: string };
     const addC = async (name: string) => {
       const cid = await mkCast(name, true);
-      await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {} });
+      await admin.from("cast_plan").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, plan_id: planId, overrides_json: {}, valid_from: "2020-01-01" }); // ★教訓46（2026-10-01 便 M2）: valid_from 既定＝今日は月替わりで P=2026-09 の期末を超え 'plan 未設定' になる＝固定日
       await admin.from("cast_tax_profiles").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: cid, mode: "委託" });
       return cid;
     };

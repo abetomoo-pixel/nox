@@ -46,7 +46,7 @@ const ALLOW = new Set<string>([
   "payroll/reopen", "payroll/tax-report-csv",
   "payment/record", "advance/issue", "advance/cancel", "transport/issue", "transport/cancel", "incentive/publish", "incentive/cancel",
   "advance/issue-bulk", "transport/issue-bulk", // ★mig0157（裁定302／304・2026-09-25）: 一括発行＝単発と同じ C（RPC が二重防御・デモ org も可）
-  "mine/norm-progress", "mine/norm-set", "store/okuri-mode",
+  "mine/norm-progress", "store/okuri-mode", // ★便 M2-1（裁定326-3）: mine/norm-set は削除（set_cast_norm_self は 0160 で drop＝cast の自己設定は廃止）
   "demo/enter", "demo/reset",
 ]);
 
