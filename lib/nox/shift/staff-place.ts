@@ -2,7 +2,7 @@
 //   写経元＝キャスト側の DayAddPanel（日付起点）と ShiftAddForm（キャスト起点）。型は staff-shift-board の Wish／StaffShift と同形。
 export type StaffWishLike = { id: string; staff_id: string; biz_date: string; pattern_id: string; available: boolean; note?: string | null };
 export type StaffShiftLike = { id: string; staff_id: string; biz_date: string; pattern_id: string; start_hm: string; end_hm: string; status: string; wish_id?: string | null };
-export type StaffLike = { id: string; name: string; role?: string };
+export type StaffLike = { id: string; name: string; role?: string; photoUrl?: string | null }; // ★0162（裁定329・便 M5-1）: スタッフ写真の署名 URL（無ければ頭文字）
 
 const DOW_JA = ["日", "月", "火", "水", "木", "金", "土"];
 

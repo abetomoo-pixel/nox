@@ -115,6 +115,9 @@ const MAP: Array<[RegExp, string]> = [
   [/^not bookable$/, "承認前の申請は予約として扱えません（先に承認してください）"],
   // ★0160（裁定326-7／追補2-1・便 M4-1）: 休み希望（kind 'off'）はシフト案にならない（shift_wish_decide accept／shift_auto_apply）
   [/^off wish/, "休み希望はシフト案にできません（却下のみできます）"],
+  // ★0162（裁定329／326 追補7-6・便 M5）: スタッフ写真 set_user_photo_updated_at／clear_user_photo・契約確認 cast_contract_ack_self
+  [/^bad user$/, "スタッフの指定が正しくありません"],
+  [/^not required$/, "この店では契約確認は不要です"],
   [/permission denied/, "権限がありません"],
 ];
 
