@@ -2846,6 +2846,12 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓101：同一 tx 内は now() 固定で打刻順序が不定・suite は clock_timestamp()（相談役起こし）
+
+出典＝相談役 2026-10-01 受領（便「台帳記入＋0162 起草」・逐語）: 「教訓101＝『同一 tx 内は now() 固定で打刻順序が不定・suite は clock_timestamp()』（CC 提案の『教訓98（提案）』はこの番号に改める・既存 98 は不変）」。
+経緯: 便 M4 の f0 run2 で 0158 suite（6-6／6-8／6-9）が 'no open punch'／'invalid_input' で赤。原因＝BEGIN…ROLLBACK の 1 tx 内で直 insert した in（punched_at default now()）と RPC が入れた out（now()）が同時刻＝punch_seq_check の「最終打刻」（order by punched_at desc）の並びが不定で、out が in より前に見えることがある（0161 で順序検査が入ったため顕在化）。本番は打刻ごとに時刻が進むため影響なし。
+運用: suite が同一 tx 内で「時刻の前後」に意味のある行を作るときは now() ではなく clock_timestamp() を入れる（0158／daily-pay の reopen fixture・punch-sequence は成功した打刻の punched_at／created_at を clock_timestamp() へ寄せる）。並びの同定は教訓98（id で find）・時刻の前後は本教訓（clock_timestamp()）。
+
 ### 教訓100：hm 等の正規表現 CHECK は NULL を素通りする＝NULL 不可なら is not null を明示（0160 ★4・相談役起こし）
 
 出典＝相談役 2026-09-30 受領（便 S160-1・逐語）: 「教訓100『hm 等の正規表現 CHECK は NULL を素通りする＝NULL 不可なら is not null を明示（0160 ★4）』」。
@@ -4009,9 +4015,9 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
 
-## 裁定329（提案中・相談役ブロック 2026-10-01・便 M5）スタッフの写真
+## 裁定329（2026-10-01 確定・相談役・便 M5）スタッフの写真
 
-出典＝相談役ブロック 2026-10-01（便 M5・ブロック内の裁定）。承認前＝「（提案中）」。**本文（逐語）**:
+出典＝相談役ブロック 2026-10-01（便 M5・ブロック内の裁定）。便「台帳記入＋0162 起草」で確定（0162 の範囲＝写真＋cast_contract_acks）。**本文（逐語）**:
 「裁定329（スタッフの写真・ブロック内）:
 - スタッフ（owner／manager／staff）もキャストと同じく写真を登録できる。保存先・縮小・権限の型はキャストと同一（新しい bucket や別経路は作らない）。
 - 本人: 自分のプロフィール（キャストの /mine 相当の画面。無ければ店側ナビの「自分」節）から「写真を変更」。
@@ -4019,11 +4025,11 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 表示: スタッフ一覧・シフト（スタッフ枠）・担当や承認者の表示・お知らせの差出人など、キャスト写真を出している箇所と同じ場所にスタッフも出す。未登録はイニシャル表示（既存の挙動）。
 - 削除時は Storage の実体も消す（キャストと同じ）。」
 
-適用＝便 M5-0 読取（2026-10-01）: **client のみでは不可＝0162 要**。キャスト写真の器＝Storage bucket cast-photos・パス `{org_id}/{cast_id}.jpg`・policy 3 本（insert／update／select＝casts 表の id と filename を照合・owner∨manager 自店∨本人・delete policy なし）・casts.photo_updated_at（0064）・RPC set_cast_photo_updated_at（casts 限定）。users／memberships に写真列なし・削除経路（Storage remove）はキャストにも無い。0162 の中身は便 M5 の報告に列挙（起草は相談役の指示後）。
+適用＝便 M5-0 読取（2026-10-01）: **client のみでは不可＝0162 要**。キャスト写真の器＝Storage bucket cast-photos・パス `{org_id}/{cast_id}.jpg`・policy 3 本（insert／update／select＝casts 表の id と filename を照合・owner∨manager 自店∨本人・delete policy なし）・casts.photo_updated_at（0064）・RPC set_cast_photo_updated_at（casts 限定）。users／memberships に写真列なし・削除経路（Storage remove）はキャストにも無い。0162 の中身＝便「台帳記入＋0162 起草」で起草（★1 users.photo_updated_at＋パス {org_id}/u_{user_id}.jpg・★2 Storage policy の users 腕＋delete policy 新設・★3 set_user_photo_updated_at／clear_cast_photo／clear_user_photo・★4 cast_contract_acks＋cast_contract_ack_self／cast_contract_ack_needed・★5 名簿＝非ゲート）。手貼りは Agoora・client は 0162 適用後（便 M5-1〜3）。
 
-## 裁定328（提案中・相談役ブロック 2026-10-01・便 D0）デモ環境
+## 裁定328（2026-10-01 確定・相談役・便 D0）デモ環境
 
-出典＝相談役ブロック 2026-10-01（便 D0・ブロック内の裁定）。承認前＝「（提案中）」・次＝相談役の追認（328 追補）。**本文（逐語）**:
+出典＝相談役ブロック 2026-10-01（便 D0・ブロック内の裁定）。便「台帳記入＋0162 起草」で確定・追補1 を併載。**本文（逐語）**:
 「裁定328（デモ環境・ブロック内）:
 - デモは 6 店舗（MUSE／LUNA／NOIR／ACE／LILY／NEST）を公開の「触れる」環境として用意し、毎日 1 回（JST 05:00・営業日切替後）と手動で初期状態へ巻き戻す。
 - 日付は投入時に「リセット日基準の相対日」へ変換する（当日＝営業中のライブ状態・先月＝9 月相当の全月実績）。固定日付は持たない。
@@ -4034,6 +4040,18 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 率は bps→NOX の単位へ変換・価格は税前値として投入。」
 
 適用＝便 D0（2026-10-01・読取と設計のみ・DB 恒久変更 0）: 収蔵 docs/demo/source/20261001/（nox_demo_all.json・manifest・00_docs 8・06_validation 10＝21 ファイル・manifest sha 20/20 一致・validate.py は Downloads の完全展開で PASS 5,121 checks）・対応表 docs/demo/mapping_20261001.md・生成案 docs/demo/gen_plan.md・巻き戻し設計 docs/demo/reset_design.md・DEMO_USERS 案 docs/demo/demo_users.md。次＝相談役の追認（328 追補・確認点①05:00 と cutoff 06:00 の前後／②共通パスワードを置かない／③役割 4／④cast は代表伝票の受領者／⑤kiosk ユーザー）→便 D1（0162 起草・生成器）→Agoora の Auth 設定 4 点→D2（--apply・録画・LP）。
+
+### 裁定328 追補1（2026-10-01 確定・相談役）D0 の確認点 5 つ
+
+出典＝相談役ブロック 2026-10-01（便「台帳記入＋0162 起草」）＋同日のチャット（②入場方式）。**本文**:
+「裁定328 追補1:
+① 巻き戻しの時刻＝**JST 06:05**（cutoff 06:00 の後＝営業日切替後）。05:00 は改める。
+② 入場方式＝**入口ページで店（6）×役割（owner／manager／staff／cast）のボタン 1 つでログイン・パスワード／メール入力なし・セッション 24 時間・kiosk は固定トークンの端末ページ。DEMO_USERS の共通パスワードは置かない（magiclink も使わない）。入口の実装は D1（0163 と同じ便）。**
+③ 役割＝**4**（owner／manager／staff／cast・staff を入場 route に追加）。
+④ cast のデモユーザー＝**代表伝票の受領者 6 名**（MUSE さおり／LUNA みさき／NOIR あべ／ACE ひなの／LILY みく／NEST ケン）に結線。
+⑤ kiosk＝**店ごと 1 台・6 本固定**（録画に kiosk_devices を含めて ID 固定）。」
+
+mig の範囲＝**0162＝写真（裁定329）＋cast_contract_acks（326 追補7-6）**・**0163＝デモ cron（pg_cron→pg_net）・Vault・入場ログ（293-7）＝便 D1**。現状の入場 route（app/api/demo/enter）は generateLink(magiclink)→verifyOtp をサーバ内で完結（メール送信なし）＝②の「magiclink も使わない」は D1 で route を改める（セッション 24 時間の発行方式は D1 の設計）。
 
 ## 裁定327（2026-09-30 承認・Agoora）打刻の順序検査＝0008 決定1「盲目記録」を退役
 
@@ -4116,13 +4134,36 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 適用＝便 M2（626fabc）どおり。
 
-### 裁定326 追補6（便 M3 の仮決め・保留）
+### 裁定326 追補6（便 M3 の仮決め 9 点の追認・2026-10-01 相談役追認）
 
-便 M3（a6eea90）の仮決め 9 点（予約申請＝入力 4 つ・取消は店へ・来店日時は今より後・申請一覧の並び・店側は既存の絞り込みに「承認待ち（N）」「却下」・却下理由は UI で必須・承認者は showReserve に乗せる・rpc-err 4 語・通知なし）は docs/tmp/v43_pre.md の一覧のとおり。**追補6 は相談役の追認待ち（保留）**＝本文は追認時に写す。
+出典＝相談役追認（2026-10-01・便「台帳記入＋0162 起草」で収載）。便 M3（a6eea90）の最終報告の仮決め一覧（docs/tmp/v43_pre.md §M3）をそのまま追認。**本文**:
+「裁定326 追補6（M3 の仮決め）:
+1. 申請の入力は担当客・来店日・来店予定時刻・区分の 4 つ。人数・備考は RPC（4 引数）に無いため送らない＝注記「人数や卓の希望も店で設定します」。
+2. 申請の取消 RPC は無い＝取消ボタンを出さず「申請の取消・承認後の変更は店にご連絡ください」。
+3. 来店日時は今より後だけ（client 検証）・日付欄の min は当日営業日。区分の既定＝本指名。時刻の既定＝20:00。
+4. 自分の申請一覧＝requested_by_cast が入っている行（RLS で cast_id＝自分）・承認待ちを先→来店日時の新しい順・最大 20 件・却下は理由を併記。承認済みは既存の「指名予約（今日以降）」にも出る（重複表示は許容）。
+5. 店側＝既存の予約一覧の状態絞り込みに「承認待ち（N）」「却下」を足す（別ページ・別タブ構造は作らない）。「すべて（取消を除く）」は承認済みの予約だけ（pending／rejected を除く）。件数バッジは日付バーの絞りに関係なく全件。
+6. 却下の理由は UI で必須（RPC は任意）・200 字。承認は確認ダイアログなし（1 タップ）。
+7. 承認者の出し分けは既存の showReserve（owner／manager／staff can_crm）に乗せる＝新しい権限判定を client に書かない（RPC が最終防御）。
+8. rpc-err に 'bad customer'／'bad reserved_at'／'bad decision'／'not bookable' の和文。パネル側の局所写像にも 'not pending'／'bad decision'／'bad reason'／'billing locked'／'forbidden' を追加。
+9. 承認／却下の結果の通知は無し（cast は申請一覧の状態で見る＝LINE 通知と同じ束で第 2 期）。」
 
-### 裁定326 追補7（便 M4 の仮決め・提案中）
+適用＝便 M3（a6eea90）どおり。
 
-便 M4（無人便）の仮決め＝便 M4 の最終報告に一覧。追認時に本文を写す。
+### 裁定326 追補7（便 M4 の仮決め 8 点の追認・2026-10-01 相談役追認）
+
+出典＝相談役追認（2026-10-01・便「台帳記入＋0162 起草」で収載）。便 M4（30bfb7e）の最終報告の仮決め一覧を追認。6 は 0162 送り・8 は教訓101 へ。**本文**:
+「裁定326 追補7（M4 の仮決め）:
+1. 'off_only' の提出＝shift_wish_submit(p_date, null, null, 'off')。時間欄（一括・日別）を出さず、選択日の印は「休み」。提出済み一覧・フォーカス行の時間は「休み」。
+2. ページ文言: 'shift'＝「シフト希望／希望を提出・審査状況を確認／希望を提出」・'off_only'＝「休み希望／休みたい日を提出・審査状況を確認／休みたい日を提出」＋説明 1 行。ナビも同じ語（「希望」→「シフト希望」／「休み希望」）。/mine の「＋ 希望を提出」リンクの文言は据え置き。
+3. autoassign の候補反転＝アダプタ candidateWishesOf（純関数）。'off_only' は期間の各日×各 cast で off（pending／accepted）の無い組を仮想 wish（既定の帯時間・id "virtual:<cast>:<date>"）にする。仮想 id は shift_auto_apply に渡せない＝確定案にするときは shift_bulk_set（placementsOfVirtual）。自動配置 UI は裁定112-A で撤去済み＝呼び出し側は無い（アダプタのみ・計算本体は不触）。
+4. 枠の無効化＝翌月以降の月初 3 か月から選ぶ（SegSelect）。無効化済み行は effectivePatterns から外れる（RPC と同じ条件を client の同関数に 1 行足した＝配置フォームの候補からも消える）。過去行は対象外。取消＝staff_pattern_enable。
+5. T6 contract_ack＝店単位の boolean（0160）。料金マスタの手数料節に「加盟店契約の確認（記録）」OFF/ON を置き、手数料の有効化保存でチェック済みなら自動で ON。改定日の列は無い＝改定時は店が OFF→ON で再確認（手動）。記録済みの店では有効化時のチェック行を出さない。
+6. cast の /mine 初回表示の契約確認画面＋記録は器なし＝**0162 送り**（cast_contract_acks（cast×rev）＋RPC cast_contract_ack_self／cast_contract_ack_needed＝0162 ★4）。
+7. rpc-err に 'off wish'（接頭一致＝shift_auto_apply の「off wish: <id>」も拾う）。
+8. suite の同一 tx 内の now() 固定＝**教訓101** として独立（既存 98 は不変）。」
+
+適用＝便 M4（bcdc669／5639aad／4624059／30bfb7e）どおり。
 
 **0160 の欄（起草済み・手貼り待ち）**: supabase/migrations/0160_mine_settings.sql＝**起草済み・sha256 d0a1ed21a21ab9312217d04a7fa75cbb5faf58ad734dbbde2c131e8b79fbef1e・707 行・49,748 B・突合 36 段 NG 0（docs/tmp/q0930_ag_0160.mjs・BEGIN…ROLLBACK）・手貼り待ち・適用後の proof＝関数 296／表 81**（未追跡・生成器 docs/tmp/gen_0160.mjs＋0160_template.sql・写経元 0160_live.json・期待 md5 0160_expected.json＝decide 4c8c7d6b／auto_apply 55cbb0e8／pattern_effective a65c716d／demo_org_reset a331cdcd／submit 4afdf603／set_cast_quota 1987d03d／reservation_request f0c51a0a／reservation_decide a0088416／set_store_mine_settings 5aaecb0f／notice_mark_read b1329e24／staff_pattern_disable cb1d4a34／staff_pattern_enable e768f710・削除 set_cast_norm_self cfde419e）。適用後の見込み＝名簿 A 154／B 142＝296・'billing locked' 154・形 154・述語参照 155・表 81。
 
