@@ -4073,6 +4073,15 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 適用＝便 D160-2 の起草どおり（改稿なし）。
 
+### 裁定326 追補4（便 M1 の判断・2026-10-01 相談役追認）
+
+出典＝相談役追認（2026-10-01・便 M2-0 で収載）。便 M1（7c6e6f3）で CC が仮決めした 3 点の追認。**本文**:
+「裁定326 追補4（M1 の判断）: ① ranking OFF の店では /mine の指名ランキングカードも非表示（ナビ項目・ランキングページと同じ扱い）。② /mine の layout に自店 settings_json の読取 1 本を足す（ナビの出し分け用・page 側は既存の店読取に相乗り）。③ 給与画面の要対応（打刻）の描画条件は「run があれば」（open_punch は下書きの run にも積まれる＝status で絞らない）。」
+
+326-1 への補記（便 M2-0・意味の変更なし・326-7／起票96 からの転記）: shift_request_mode の既定は 'shift'（'shift'／'off_only'）・contract_ack の既定は false（boolean・T6 契約確認の記録）。
+
+適用＝便 M1（7c6e6f3）どおり。便 M2 の仮決め（/mine 再構成の見た目・文言・並び）は便 M2 の最終報告に一覧＝追補5 で追認。
+
 **0160 の欄（起草済み・手貼り待ち）**: supabase/migrations/0160_mine_settings.sql＝**起草済み・sha256 d0a1ed21a21ab9312217d04a7fa75cbb5faf58ad734dbbde2c131e8b79fbef1e・707 行・49,748 B・突合 36 段 NG 0（docs/tmp/q0930_ag_0160.mjs・BEGIN…ROLLBACK）・手貼り待ち・適用後の proof＝関数 296／表 81**（未追跡・生成器 docs/tmp/gen_0160.mjs＋0160_template.sql・写経元 0160_live.json・期待 md5 0160_expected.json＝decide 4c8c7d6b／auto_apply 55cbb0e8／pattern_effective a65c716d／demo_org_reset a331cdcd／submit 4afdf603／set_cast_quota 1987d03d／reservation_request f0c51a0a／reservation_decide a0088416／set_store_mine_settings 5aaecb0f／notice_mark_read b1329e24／staff_pattern_disable cb1d4a34／staff_pattern_enable e768f710・削除 set_cast_norm_self cfde419e）。適用後の見込み＝名簿 A 154／B 142＝296・'billing locked' 154・形 154・述語参照 155・表 81。
 
 
