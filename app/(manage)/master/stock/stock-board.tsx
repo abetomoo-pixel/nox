@@ -58,6 +58,8 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>(initial.products);
   const [stock, setStock] = useState<Record<string, number>>(initial.stock);
+  // ★裁定330（便 MC1）: 発注推奨＝在庫が発注基準（reorder_point）以下の商品数（旧マスタトップの KPI・警告と同じ式）
+  const lowStock = products.filter((p) => p.reorder_point != null && (stock[p.id] ?? 0) <= (p.reorder_point ?? 0)).length;
   const [msg, setMsg] = useState<string | null>(null);
 
   // ★裁定323: 棚卸し＝一覧型（商品 id → 実数の入力文字列）。delta は UI 計算
@@ -136,6 +138,12 @@ export default function StockBoard({ isManagerUp, initial, users }: {
         title="在庫（棚卸し・履歴）"
         desc="棚卸しは実数を入力すると差分を自動計算して記録します。入荷は商品ページの行から、売上による減算は会計から自動で入ります。"
       />
+      {/* ★裁定330（便 MC1）: 発注推奨の警告はマスタトップから在庫画面へ（判定＝reorder_point・0 件なら出さない・文言は旧トップと同じ） */}
+      {lowStock > 0 && (
+        <div className="nox-alert danger">
+          在庫が発注基準を下回っている商品が {lowStock} 件あります。商品マスターから補充基準を確認してください。
+        </div>
+      )}
 
       {isManagerUp && (
         <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>

@@ -23,6 +23,7 @@
 //   （stores.time_per＝店単位の設定でルール軸ではない＝基本料金タブで設定）。
 // ★書込は全て RPC 専任。エラーは fn_set_pricing_rule の bad 系トークン対応表で日本語化。
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation"; // ★裁定330（便 MC1）: 入口「料金・会計」のタブ＝?tab=
 import SegSelect from "@/components/ui/seg-select";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -198,7 +199,12 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   const cutoffMin = hmToMin(bizCutoffHm);
   // ★116-UI 段②b（裁定117・対応表 T1〜T4）: 3責務分割＝料金マスタ／料金適用ルール／会計設定。
   //   「基本料金」タブは器ごと廃止（中身は master/checkout へ移設・UI は分ける DB は分けない）。
-  const [tab, setTab] = useState<"master" | "rules" | "checkout">("master");
+  // ★裁定330（便 MC1）: 入口「料金・会計」のタブ（master-subnav）＝?tab=master／rules／checkout を初期タブにする（内側のピル 3 本と挙動は同じ・URL の無指定は従来の "master"）
+  const sp = useSearchParams();
+  const spTab = sp?.get("tab");
+  const initTab: "master" | "rules" | "checkout" = spTab === "rules" || spTab === "checkout" || spTab === "master" ? spTab : "master";
+  const [tab, setTab] = useState<"master" | "rules" | "checkout">(initTab);
+  useEffect(() => { if (spTab === "rules" || spTab === "checkout" || spTab === "master") setTab(spTab); }, [spTab]);
   const [rules, setRules] = useState<PricingRule[]>(initial.rules);
   const [ranks, setRanks] = useState<CastRank[]>(initial.ranks);
   const [msg, setMsg] = useState<string | null>(null);
