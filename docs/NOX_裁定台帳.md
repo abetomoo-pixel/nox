@@ -4089,6 +4089,14 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 適用＝便 M2（626fabc）どおり。
 
+### 裁定326 追補6（便 M3 の仮決め・保留）
+
+便 M3（a6eea90）の仮決め 9 点（予約申請＝入力 4 つ・取消は店へ・来店日時は今より後・申請一覧の並び・店側は既存の絞り込みに「承認待ち（N）」「却下」・却下理由は UI で必須・承認者は showReserve に乗せる・rpc-err 4 語・通知なし）は docs/tmp/v43_pre.md の一覧のとおり。**追補6 は相談役の追認待ち（保留）**＝本文は追認時に写す。
+
+### 裁定326 追補7（便 M4 の仮決め・提案中）
+
+便 M4（無人便）の仮決め＝便 M4 の最終報告に一覧。追認時に本文を写す。
+
 **0160 の欄（起草済み・手貼り待ち）**: supabase/migrations/0160_mine_settings.sql＝**起草済み・sha256 d0a1ed21a21ab9312217d04a7fa75cbb5faf58ad734dbbde2c131e8b79fbef1e・707 行・49,748 B・突合 36 段 NG 0（docs/tmp/q0930_ag_0160.mjs・BEGIN…ROLLBACK）・手貼り待ち・適用後の proof＝関数 296／表 81**（未追跡・生成器 docs/tmp/gen_0160.mjs＋0160_template.sql・写経元 0160_live.json・期待 md5 0160_expected.json＝decide 4c8c7d6b／auto_apply 55cbb0e8／pattern_effective a65c716d／demo_org_reset a331cdcd／submit 4afdf603／set_cast_quota 1987d03d／reservation_request f0c51a0a／reservation_decide a0088416／set_store_mine_settings 5aaecb0f／notice_mark_read b1329e24／staff_pattern_disable cb1d4a34／staff_pattern_enable e768f710・削除 set_cast_norm_self cfde419e）。適用後の見込み＝名簿 A 154／B 142＝296・'billing locked' 154・形 154・述語参照 155・表 81。
 
 
