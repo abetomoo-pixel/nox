@@ -113,6 +113,8 @@ const MAP: Array<[RegExp, string]> = [
   [/^bad reserved_at$/, "来店日時を入力してください"],
   [/^bad decision$/, "決裁の種別が正しくありません"],
   [/^not bookable$/, "承認前の申請は予約として扱えません（先に承認してください）"],
+  // ★0160（裁定326-7／追補2-1・便 M4-1）: 休み希望（kind 'off'）はシフト案にならない（shift_wish_decide accept／shift_auto_apply）
+  [/^off wish/, "休み希望はシフト案にできません（却下のみできます）"],
   [/permission denied/, "権限がありません"],
 ];
 
