@@ -3972,6 +3972,7 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 **便 M1〜M4 完了＝台帳の現在地（2026-10-01）**: HEAD **30bfb7e**＝origin/main（0 0・push 14:0x）＝7c6e6f3（M1 mine_settings ヘルパ・店舗設定 UI・打刻カード 3 状態）／626fabc（M2 /mine 再構成・ノルマ・お知らせ未読・勤怠一覧・87 段 5,324）／a6eea90（M3 予約申請・承認待ちタブ・88 段 5,337）／bcdc669・5639aad・4624059・30bfb7e（M4 シフト希望／休み希望・autoassign 候補反転・枠マスタ無効化・T6 契約確認の記録）・f0 **89 段 5,349**（2 連緑 13:35:12〜13:49:42／13:50:42〜14:07:25・golden 6 値不変）・DB 恒久変更 0（0001〜0161 適用済み）・教訓98（同一 tx の now() 固定＝打刻の順序不定→suite は clock_timestamp()）。追補6（M3）・追補7（M4）＝追認待ち。便 D0（裁定328・デモ環境の設計）＝docs のみ。
 **便 P162 完了＝台帳の現在地（2026-10-01）**: HEAD **4dea3ba**＋docs（本行）＝origin/main（push 16:2x）＝666f8ca（0162 収蔵・名簿 302＝A 154／B 148・台帳 329 追補1・0162 の欄・裁定330／331）／4dea3ba（verify pin 張替え 7 suite＋新規 contract-ack 12）。f0 **90 段 5,402**（2 連緑 15:32:39〜15:48:08／16:00:53〜16:16:10・間の run4 は shift-bands の connection pool timeout＝既知フレーク型・golden 6 値不変）。proof 関数 302／表 82・0162 本番適用 10/1 時刻不明（Agoora 申告・live 照合 all_ok 05:54Z）。次＝M5-1〜4（スタッフ写真と契約確認の client）→ MC0（裁定330／331 の読取）。
 **便 M5 完了＝台帳の現在地（2026-10-01）**: 便 M5-1〜4（裁定329＋追補1・326 追補7-6＝スタッフ写真と cast の契約確認の client）＝lib（staff-photo・mine/contract-ack・rpc-err・shift/staff-place）／client（UserChip「自分の情報」に本人の写真・/staff 編集 Modal に登録／差替え／削除・/casts 詳細に「写真を削除」・スタッフ枠の avatar・/mine 契約確認 gate）／verify（新規 staff-photo 12・nav nv(4-3) 張替え）。f0 **91 段 5,414**（2 連緑 16:27:17〜16:38:53／16:39:53〜16:51:05・golden 6 値不変）。仮決め 9 点＝docs/tmp/v43_pre.md（329 追補2 で追認を求める）。デモ写真＝docs/tmp/demo_photos/casts 38/38（staff 0/9）。次＝MC0（裁定330／331 の読取・収蔵）→ MC1。
+**便 MC0＋MC1 完了＝台帳の現在地（2026-10-01）**: MC0＝09902cb（docs/handoff/mock/20261001＝正本モック 3 ファイル・master_map.md・setup_map.md）。MC1（裁定330 第 1 便・client のみ・DB 恒久変更 0）＝lib/nox/master/nav.ts を 3 層（群 4／入口 9／タブ）に・master-board＝4 パネル × 9 入口＋検索（在庫カードと発注推奨の KPI／警告は在庫画面へ）・master-subnav＝「マスタ ▸ 群 ▾ ▸ 入口 ▾」＋入口内タブ・pricing-board が ?tab= を初期タブに・旧 17 href は全部そのまま有効（redirect 不要＝resolveMasterNav が入口・タブへ解決）。verify＝新規 master-top 10・nav nv(5-1)〜(5-4) 張替え。f0 **92 段 5,424**（2 連緑 16:57:42〜17:13:15／17:14:15〜17:28:22・golden 6 値不変）。仮決め 9 点＝docs/tmp/v43_pre.md（330 追補で追認を求める）。次＝MC2（店舗設定の利用機能／店舗情報分割・データ管理の分離・キャスト会計の移動・席・卓／営業時間）。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
@@ -4030,6 +4031,8 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 「裁定330（マスタ整理）＝正本モック docs/handoff/mock/20261001/nox-master-consolidated.html・トップ 4 パネル 9 入口・既存編集画面をタブ内に配置・旧 URL 維持・在庫はマスタから外し営業メニューへ・店舗名編集は店舗情報に一本化・キャスト会計の許可は権限へ・データ管理（利用目的・保持年数・操作ログ）は店舗情報から分離・設定値／計算／権限／履歴は不変。」
 
 適用＝便 MC0（読取・対応表 docs/handoff/mock/20261001/master_map.md）→ MC（2 便想定・client）。順序＝MC → W5 → D1（裁定331 と同文）。
+
+**MC1 適用（2026-10-01）**: トップ 4 パネル × 9 入口・入口内タブ・在庫はマスタ外（営業メニュー）・旧 URL 維持（新 route 0）。MC2 送り＝店舗設定の利用機能／店舗情報分割・データ管理の分離・キャスト会計の許可の移動（MC1 は報酬設定のタブに仮置き）・報酬制度／機能の公開の置き場。仮決め 9 点は docs/tmp/v43_pre.md（追補で追認）。
 
 ## 裁定329（2026-10-01 確定・相談役・便 M5）スタッフの写真
 
