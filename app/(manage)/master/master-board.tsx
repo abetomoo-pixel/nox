@@ -67,15 +67,15 @@ export default function MasterBoard() {
       case "/master/referrers":
         return { count: "支払", status: hubStatusOf(refState, (unpaidRef ?? 0) > 0 ? `● 未払 ${unpaidRef} 件` : "● 未払なし"), tone: refState === "ok" && (unpaidRef ?? 0) > 0 ? "warn" : refState === "error" ? "mute" : "" };
       case "/master/store-profile":
-        return { count: "店舗設定", status: "● オーナー限定の項目あり", tone: "mute" };
+        return { count: "2タブ", status: "● オーナー限定の項目あり", tone: "mute" };
       case "/master/seats":
         return { count: hubState === "ok" ? `${seats.length}席・卓 / 稼働${activeSeats}` : hubCountOf(hubState, 0).text, status: hubStatusOf(hubState, `● 稼働可能 ${activeSeats}卓`), tone: hubState === "error" ? "mute" : "" };
       case "/master/business-hours":
         return { count: "曜日別", status: "● 有効", tone: "" };
       case "/master/system":
         return { count: "オーナー", status: "● オーナー限定", tone: "mute" };
-      case "/master/system#secrets":
-        return { count: "機密", status: "● 閲覧ログあり", tone: "warn" };
+      case "/master/cast-comp/register":
+        return { count: "3タブ", status: "● 閲覧ログあり（機密情報）", tone: "warn" };
       default:
         return { count: "", status: "", tone: "" };
     }

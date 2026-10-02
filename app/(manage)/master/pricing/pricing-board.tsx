@@ -23,7 +23,7 @@
 //   （stores.time_per＝店単位の設定でルール軸ではない＝基本料金タブで設定）。
 // ★書込は全て RPC 専任。エラーは fn_set_pricing_rule の bad 系トークン対応表で日本語化。
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation"; // ★裁定330（便 MC1）: 入口「料金・会計」のタブ＝?tab=
+import { useRouter, useSearchParams } from "next/navigation"; // ★裁定330（便 MC1／MC2）: 入口「料金・会計」のタブ＝?tab=（内側ピルは MC2 で撤去）
 import SegSelect from "@/components/ui/seg-select";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -201,6 +201,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   //   「基本料金」タブは器ごと廃止（中身は master/checkout へ移設・UI は分ける DB は分けない）。
   // ★裁定330（便 MC1）: 入口「料金・会計」のタブ（master-subnav）＝?tab=master／rules／checkout を初期タブにする（内側のピル 3 本と挙動は同じ・URL の無指定は従来の "master"）
   const sp = useSearchParams();
+  const router = useRouter();
   const spTab = sp?.get("tab");
   const initTab: "master" | "rules" | "checkout" = spTab === "rules" || spTab === "checkout" || spTab === "master" ? spTab : "master";
   const [tab, setTab] = useState<"master" | "rules" | "checkout">(initTab);
@@ -903,14 +904,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
         で管理します（ランク別指名料の「請求額」はこのページ・「バック額」は待遇プラン側）。
       </p>
 
-      {/* 3タブ（v3 の master / rules / accounting 写像＝裁定117） */}
-      <div className="nox-pillbar" style={{ marginBottom: 12 }}>
-        {([["master", "料金マスタ"], ["rules", "料金適用ルール"], ["checkout", "会計設定"]] as const).map(([k, label]) => (
-          <button key={k} type="button" className={`nox-pill${tab === k ? " on" : ""}`} onClick={() => setTab(k)}>
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* 3タブ（v3 の master / rules / accounting 写像＝裁定117）→ ★裁定330 追補1（便 MC2）: 内側のピルは撤去＝入口「料金・会計」の外側タブ（?tab=master／rules／checkout・master-subnav）の 1 本 */}
 
       {/* ═══ 料金適用ルール（旧・時間帯料金＝T2 改称） ═══ */}
       {tab === "rules" && (
@@ -1435,7 +1429,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                   <span style={{ fontSize: 11, color: "var(--v2-muted)", flex: 1, minWidth: 0 }}>
                     VIP専用料金とVIPチャージの両方を使う店舗にも対応できます。実際の適用条件は料金適用ルール側で管理します。
                   </span>
-                  <button type="button" style={btnLight} onClick={() => setTab("rules")}>ルールで設定</button>
+                  <button type="button" style={btnLight} onClick={() => router.push("/master/pricing?tab=rules")}>ルールで設定</button>{/* ★MC2: タブは URL（?tab）で切替＝外側タブと同期 */}
                 </div>
               </section>
             );

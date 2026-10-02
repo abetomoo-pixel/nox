@@ -25,7 +25,13 @@ const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
 const label: React.CSSProperties = { ...t.fieldLabel, display: "block", marginBottom: 4 };
 
-export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]; isOwner: boolean }) {
+export type StoreProfileSection = "profile" | "data" | "timeBasis" | "shift" | "ar";
+const ALL_SECTIONS: StoreProfileSection[] = ["profile", "data", "timeBasis", "shift", "ar"];
+// ★裁定330（便 MC2）: 店舗設定を 3 面（利用機能／店舗情報／データ管理）に分けるため、どの節を描くかを sections で受ける（既定＝全節＝従来どおり）。
+//   profile＝店舗名・略称・店舗コード・表示名・送りの基本額／data＝顧客情報の利用目的・保持年数・操作ログの保持／timeBasis＝勤務時間の計算基準／shift＝キャスト確認／ar＝売掛を使う。
+//   節を分けても patchOf・save・RPC は 1 文字も変えない（見えない欄は form と cur が同値＝差分に出ない）。
+export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECTIONS }: { stores: Store[]; isOwner: boolean; sections?: StoreProfileSection[] }) {
+  const on = (k: StoreProfileSection) => sections.includes(k);
   const [storeSel, setStoreSel] = useState(stores[0]?.id ?? "");
   const [cur, setCur] = useState<Profile>(EMPTY);   // サーバ現値
   const [form, setForm] = useState<Profile>(EMPTY); // 入力中
@@ -118,11 +124,11 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
 
   return (
     <>
-      {isOwner && (
+      {isOwner && (on("profile") || on("data")) && (
         <section className="nox-cardtop" style={t.card}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
-              <h2 style={{ ...secTitle, margin: 0 }}>店舗情報</h2>
+              <h2 style={{ ...secTitle, margin: 0 }}>{on("profile") ? "店舗情報" : "データ管理"}</h2>
               <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>店舗名・略称・店舗コード・表示名・顧客情報の利用目的と保持年数・送りの基本額。変更した項目だけを保存します（オーナーのみ）。</p>
             </div>
             {stores.length > 1 && (
@@ -132,38 +138,44 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
             )}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-            {field("name", "店舗名", 50, "必須・50 文字まで")}
-            {field("short", "略称", 20, "20 文字まで")}
-            {field("store_code", "店舗コード", 20, "20 文字まで")}
-            {field("display_name", "表示名", 50, "50 文字まで")}
-            {/* ★0153（裁定305-11／293-4）: 顧客情報の利用目的（200 文字）・保持年数（1〜10・既定 5＝最終来店日＋年数が retention_until） */}
-            {field("customer_purpose", "顧客情報の利用目的", 200, "200 文字まで・顧客への説明に使います")}
-            <label style={{ display: "block", minWidth: 0 }}>
+            {on("profile") && field("name", "店舗名", 50, "必須・50 文字まで")}
+            {on("profile") && field("short", "略称", 20, "20 文字まで")}
+            {on("profile") && field("store_code", "店舗コード", 20, "20 文字まで")}
+            {on("profile") && field("display_name", "表示名", 50, "50 文字まで")}
+            {/* ★0153（裁定305-11／293-4）: 顧客情報の利用目的（200 文字）・保持年数（1〜10・既定 5＝最終来店日＋年数が retention_until）→ ★MC2: データ管理の面（sections に "data"） */}
+            {on("data") && field("customer_purpose", "顧客情報の利用目的", 200, "200 文字まで・顧客への説明に使います")}
+            {on("data") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>顧客情報の保持年数<span style={{ fontWeight: 400, marginLeft: 6 }}>1〜10 年・既定 5（最終来店日から）</span></span>
               <input type="number" min={1} max={10} step={1} inputMode="numeric" value={form.customer_retention_years} disabled={busy || !loaded}
                 onChange={(e) => setForm((f) => ({ ...f, customer_retention_years: e.target.value }))} style={input} aria-label="顧客情報の保持年数" />
-            </label>
+            </label>}
             {/* ★裁定317（0158・便 AB-6）: 送りの基本額＝退勤の「送り あり」で記録する 1 回分の金額。送りの方式が実費の店だけ入力できる */}
-            <label style={{ display: "block", minWidth: 0 }}>
+            {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>送りの基本額<span style={{ fontWeight: 400, marginLeft: 6 }}>{form.okuri_actual ? "0〜99,999・空欄は未設定（店が締めで金額を決めます）" : "送りの方式が「一律」の店では使いません"}</span></span>
               <MoneyInput value={form.okuri_base_amount} disabled={busy || !loaded || !form.okuri_actual} width="100%" style={{ padding: "8px 10px", fontSize: 13 }} ariaLabel="送りの基本額"
                 onChange={(v) => setForm((f) => ({ ...f, okuri_base_amount: v.slice(0, 5) }))} />
               {!form.okuri_actual && loaded && <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>送りの方式は「マスタ › キャスト・報酬 › 控除・送り」で切り替えます</span>}
-            </label>
+            </label>}
+            {/* ★MC2: データ管理の面には操作ログの保持（7 年固定）の注記を同じカードに */}
+            {on("data") && !on("ar") && (
+              <p style={{ fontSize: 12, color: "var(--sub)", margin: 0, lineHeight: 1.7, gridColumn: "1 / -1" }}>
+                操作ログの保持: <b style={{ color: "var(--v2-text)" }}>7 年（固定）</b>。7 年を過ぎた操作ログは運用者が定期的に削除し、削除した件数と期間だけが記録に残ります（裁定309-2）。
+              </p>
+            )}
           </div>
           {msg && (
             <Toast msg={msg} style={{ margin: "10px 0 0" }} />
           )}
           <div className="nox-actions" style={{ marginTop: 12 }}>
             <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !dirty} onClick={() => { setForm(cur); setMsg(null); }}>元に戻す</button>
-            <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !dirty || !loaded} onClick={() => void save()}>店舗情報を保存</button>
+            <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !dirty || !loaded} onClick={() => void save()}>{on("profile") ? "店舗情報を保存" : "データ管理を保存"}</button>
           </div>
         </section>
       )}
 
       {/* ★裁定324（0159・便 C-1）: 勤務時間の計算基準（owner／manager）＝店舗情報カードの隣。2 択＝実打刻（既定）／確定シフトどおり。
           当店に給与の計算期間（payroll_runs）が無ければ即時（'now'）・あれば次の暦月の 1 日から（'next'）＝「M/1 から適用（現在: 実打刻）」を表示 */}
-      <section className="nox-cardtop" style={t.card}>
+      {on("timeBasis") && <section className="nox-cardtop" style={t.card}>
         <h2 style={{ ...secTitle, margin: "0 0 4px" }}>勤務時間の計算基準</h2>
         <p style={{ ...t.sub, fontSize: 12, margin: "0 0 10px" }}>時給部分の勤務時間を「実打刻」で計算するか「確定シフトどおり」で計算するかの店設定です。確定シフトどおりの店では、遅刻・早上がりの分が不就労控除（委託は報酬調整）として給与に載ります。切替は次の給与期の初日から（給与の計算期間がまだ無い店は即時）。</p>
         {loaded && (
@@ -181,10 +193,10 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
             {tbMsg && <Toast msg={tbMsg} style={{ margin: "10px 0 0" }} />}
           </>
         )}
-      </section>
+      </section>}
 
       {/* ★裁定245-1: キャスト確認の任意化（settings_json.shift_cast_confirm・既定 OFF）。shift/page.tsx が読む */}
-      <section className="nox-cardtop" style={t.card}>
+      {on("shift") && <section className="nox-cardtop" style={t.card}>
         <h2 style={{ ...secTitle, margin: "0 0 8px" }}>シフト運用</h2>
         {loaded && (
           <StoreFlagToggle key={`${storeSel}:${cur.shift_cast_confirm}`} storeId={storeSel} flagKey="shift_cast_confirm" isOwner={isOwner}
@@ -192,22 +204,22 @@ export default function StoreProfilePanel({ stores, isOwner }: { stores: Store[]
             desc="ONにすると、承認後にキャストの確認を挟みます。OFF の店は承認した時点で確定できます"
             initial={cur.shift_cast_confirm} onSaved={() => load()} />
         )}
-      </section>
+      </section>}
 
       {/* ★0155（裁定309-1／309-2・便 S-1）: 売掛の店設定（settings_json.ar_enabled＝check_pay の ar 分岐が ar_policy_ok で読む）＋操作ログ保持の注記（7 年固定＝店設定にしない）。
           owner 以外は節ごと未描画（S-6）＝RPC も auth_role()<>'owner' で forbidden（表示ゲートは二重防御の外側）。 */}
-      {isOwner && (
+      {isOwner && on("ar") && (
         <section className="nox-cardtop" style={t.card}>
-          <h2 style={{ ...secTitle, margin: "0 0 8px" }}>売掛・記録の保持</h2>
+          <h2 style={{ ...secTitle, margin: "0 0 8px" }}>{on("data") ? "売掛・記録の保持" : "売掛"}</h2>
           {loaded && (
             <StoreFlagToggle key={`${storeSel}:ar:${cur.ar_enabled}`} storeId={storeSel} flagKey="ar_enabled" isOwner={isOwner}
               label="売掛を使う"
               desc="OFF の店ではレジの支払方法に「売掛」が出ず、サーバ側でも売掛の入金を拒否します（既存の売掛の回収はそのまま行えます）"
               initial={cur.ar_enabled} onSaved={() => load()} />
           )}
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
+          {on("data") && <p style={{ fontSize: 12, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
             操作ログの保持: <b style={{ color: "var(--v2-text)" }}>7 年（固定）</b>。7 年を過ぎた操作ログは運用者が定期的に削除し、削除した件数と期間だけが記録に残ります（店ごとの変更はできません）。
-          </p>
+          </p>}
         </section>
       )}
     </>

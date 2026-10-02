@@ -6,7 +6,7 @@ import KioskDevicePanel from "../kiosk-device-panel";
 import KioskPinPanel from "../kiosk-pin-panel";
 import PrinterPanel from "../printer-panel";
 import SensitiveTaxPanel from "../sensitive-tax-panel";
-import FeatureFlagsPanel from "../feature-flags-panel";
+import Link from "next/link"; // ★裁定330（便 MC2）: 機能の公開は店舗設定 ＞ 利用機能へ（案内行のリンク）
 import MasterPageHead from "../master-page-head";
 import SystemBoard, { type SystemTab } from "./system-board";
 
@@ -125,12 +125,7 @@ export default async function MasterSystemPage() {
   }
   // ★C層①（mig0135・設計書 v1 §4・裁定182）: 機能の公開＝owner のみタブを出す（manager 以下は配列に入れない＝非表示）。
   //   読取は feature_flags（RLS）・切替は flag_set（RPC 側でも owner 限定＝二重）。
-  if (isOwner) {
-    tabs.push({
-      key: "features", label: "◈ 機能の公開",
-      node: <FeatureFlagsPanel stores={(allStores ?? []) as { id: string; name: string }[]} />,
-    });
-  }
+  // ★裁定330（便 MC2）: 機能の公開は「店舗設定 ＞ 利用機能」（/master/store-profile?tab=features）へ移した＝ここにはタブを置かない（ページ上部に案内行）。
   tabs.push({
     key: "secrets", label: "▰ 機密・税務情報",
     node: <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]}
@@ -144,6 +139,8 @@ export default async function MasterSystemPage() {
         title="スタッフ・システム"
         desc="店舗端末、操作権限、印刷、機密情報を管理します。"
       />
+      {/* ★裁定330（便 MC2）: 機能の公開（feature_flags）は「店舗設定 ＞ 利用機能」へ移した＝旧 URL（#features）で来た人への案内行 */}
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "-6px 0 12px" }}>機能の公開（スタッフシフト・締め解除フロー）は <Link href="/master/store-profile?tab=features" style={{ color: "var(--primary)", fontWeight: 700 }}>店舗設定 › 利用機能</Link> へ移りました。</p>
       <div className="nox-kpirow">
         <div className="nox-kpi2">
           <div className="nox-kpi2-l">登録端末</div>
