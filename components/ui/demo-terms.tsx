@@ -1,7 +1,8 @@
 "use client";
 
 // ★夜間便 N5（2026-09-24・裁定293-7）: 公開デモの入場前の規約＝5 項＋「同意する」チェック。未同意は入場ボタンを押せない（disabled）。
-//   client のみ（DB 非依存・route /api/demo/enter は不変・noindex は page の metadata が維持）。資格情報・リンクは置かない。
+//   ★裁定328 追補1（便 D1・2026-10-02）: 店 6 × 役割 4 のボタン＋店ごとの「端末（キオスク）」＝固定端末ユーザー。初期化は毎日 06:05。
+//   client のみ（DB 非依存・route /api/demo/enter は form POST {store, role}・noindex は page の metadata が維持）。資格情報・リンクは置かない。
 import { useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -9,16 +10,25 @@ import * as t from "@/lib/nox/ui/theme";
 export const DEMO_TERMS: readonly string[] = [
   "実在の人物の個人情報（氏名・連絡先・写真など）を入力しません。",
   "本番の店舗運営には利用しません（デモは体験用です）。",
-  "入力したデータは他の閲覧者にも見え、毎朝 5 時に初期化されます。",
+  "入力したデータは他の閲覧者にも見え、毎日 06:05 に初期化されます。",
   "デモの計算結果を実際の給与・報酬・税務に利用しません。",
   "不正利用（大量の入力・自動化・他者になりすます操作など）を行いません。",
 ];
 
-export type DemoBiz = { key: string; label: string; desc: string };
+export type DemoBiz = { key: string; label: string; desc: string; sub?: string };
 export type DemoRole = { key: string; label: string; desc: string };
 
-export default function DemoEntry({ biz, roles }: { biz: readonly DemoBiz[]; roles: readonly DemoRole[] }) {
+export default function DemoEntry({ biz, roles, kiosk }: { biz: readonly DemoBiz[]; roles: readonly DemoRole[]; kiosk?: DemoRole | null }) {
   const [agreed, setAgreed] = useState(false);
+  const btn = (store: string, r: DemoRole, ghost = false) => (
+    <form key={r.key} method="post" action="/api/demo/enter" style={{ margin: 0 }} onSubmit={(e) => { if (!agreed) e.preventDefault(); }}>
+      <input type="hidden" name="store" value={store} />
+      <input type="hidden" name="role" value={r.key} />
+      <button type="submit" disabled={!agreed} aria-disabled={!agreed}
+        style={{ ...(ghost ? t.btnGhost : t.btnGold), ...t.btnSm, padding: "8px 14px", opacity: agreed ? 1 : 0.5, cursor: agreed ? "pointer" : "not-allowed" }}
+        title={agreed ? r.desc : "先に規約へ同意してください"}>{r.label}で入る</button>
+    </form>
+  );
   return (
     <>
       <section className="nox-cardtop" style={{ ...t.card, marginBottom: 12 }} aria-labelledby="demo-terms-h">
@@ -34,18 +44,11 @@ export default function DemoEntry({ biz, roles }: { biz: readonly DemoBiz[]; rol
       </section>
       {biz.map((b) => (
         <section key={b.key} className="nox-cardtop" style={{ ...t.card, marginBottom: 12 }}>
-          <h2 style={{ ...t.cardTitle, margin: "0 0 2px" }}>{b.label}</h2>
+          <h2 style={{ ...t.cardTitle, margin: "0 0 2px" }}>{b.label}{b.sub && <span style={{ fontSize: 11.5, fontWeight: 400, color: "var(--sub)", marginLeft: 8 }}>{b.sub}</span>}</h2>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>{b.desc}</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {roles.map((r) => (
-              <form key={r.key} method="post" action="/api/demo/enter" style={{ margin: 0 }} onSubmit={(e) => { if (!agreed) e.preventDefault(); }}>
-                <input type="hidden" name="biz" value={b.key} />
-                <input type="hidden" name="role" value={r.key} />
-                <button type="submit" disabled={!agreed} aria-disabled={!agreed}
-                  style={{ ...t.btnGold, ...t.btnSm, padding: "8px 14px", opacity: agreed ? 1 : 0.5, cursor: agreed ? "pointer" : "not-allowed" }}
-                  title={agreed ? r.desc : "先に規約へ同意してください"}>{r.label}で入る</button>
-              </form>
-            ))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {roles.map((r) => btn(b.key, r))}
+            {kiosk && btn(b.key, kiosk, true)}
           </div>
         </section>
       ))}

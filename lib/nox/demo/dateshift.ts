@@ -5,15 +5,19 @@
 //   再生側（本ファイル）: 営業日＝targetBiz + $rel。暦日は 30 時間制を考慮＝JST 時刻 t が cutoff より前（深夜）なら翌暦日
 //   （営業日 D の範囲＝[D cutoff, D+1 cutoff)＝lib/nox/biz-date.ts と同じ規約）。★poc-record.mjs の fromRel はこの +1 日を持たない
 //   （cutoff 前の深夜の伝票が前営業日に落ちる）＝採取側と対にするため本関数を正とする（夜間便ログに記録）。
+//   ★裁定328（便 D1・2026-10-02）: 月相対 { $m: 月オフセット, d: 日 }（＋ t）を追加＝「先月＝R の前月の同じ日」（固定日付を持たない・gen_plan §2）。
+//     d が写像先の月に無い（2 月の 29／30／31）ときは末日に畳む（仮決め）。
 import { addDays, bizDateOf } from "@/lib/nox/biz-date";
 
 export type RelDate = { $rel: number };
 export type RelTs = { $rel: number; t: string };
+export type RelMonth = { $m: number; d: number; t?: string; fmt?: "ym" }; // fmt "ym"＝'YYYY-MM'（period 列・text）
 const DAY = 86_400_000;
 const pad = (n: number): string => String(n).padStart(2, "0");
 
-export const isRel = (v: unknown): v is RelDate | RelTs =>
-  !!v && typeof v === "object" && !Array.isArray(v) && typeof (v as { $rel?: unknown }).$rel === "number";
+export const isRel = (v: unknown): v is RelDate | RelTs | RelMonth =>
+  !!v && typeof v === "object" && !Array.isArray(v) && (typeof (v as { $rel?: unknown }).$rel === "number" || (typeof (v as { $m?: unknown }).$m === "number" && typeof (v as { d?: unknown }).d === "number"));
+export const isRelMonth = (v: unknown): v is RelMonth => !!v && typeof v === "object" && typeof (v as { $m?: unknown }).$m === "number" && typeof (v as { d?: unknown }).d === "number";
 
 /** 暦日の差（b − a・日） */
 const daysBetween = (a: string, b: string): number => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DAY);
@@ -21,12 +25,26 @@ const daysBetween = (a: string, b: string): number => Math.round((Date.parse(`${
 /** date 列: 営業日 targetBiz + $rel */
 export const relToDate = (v: RelDate, targetBiz: string): string => addDays(targetBiz, v.$rel);
 
+/** 月相対: targetBiz の月 + $m の d 日（無い日は末日） */
+export function relMonthToDate(v: RelMonth, targetBiz: string): string {
+  const [y, m] = targetBiz.split("-").map(Number);
+  const first = new Date(Date.UTC(y, m - 1 + v.$m, 1));
+  const dim = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  const d = Math.min(Math.max(1, Math.round(v.d)), dim);
+  return `${first.getUTCFullYear()}-${pad(first.getUTCMonth() + 1)}-${pad(d)}`;
+}
+
+/** 営業日 biz の JST 時刻 t（cutoff 前の深夜は翌暦日）→ ISO（UTC） */
+function bizTimeToIso(biz: string, t: string, cutoffHm: string): string {
+  const hm = t.slice(0, 5);
+  const day = hm < cutoffHm ? addDays(biz, 1) : biz;
+  const tt = /^\d{2}:\d{2}$/.test(t) ? `${t}:00` : t;
+  return new Date(`${day}T${tt}+09:00`).toISOString();
+}
+
 /** timestamptz 列: 営業日 targetBiz + $rel の JST 時刻 t（cutoff 前の深夜は翌暦日）→ ISO（UTC） */
 export function relToIso(v: RelTs, targetBiz: string, cutoffHm: string): string {
-  const biz = addDays(targetBiz, v.$rel);
-  const hm = v.t.slice(0, 5);
-  const day = hm < cutoffHm ? addDays(biz, 1) : biz;
-  return new Date(`${day}T${v.t}+09:00`).toISOString();
+  return bizTimeToIso(addDays(targetBiz, v.$rel), v.t, cutoffHm);
 }
 
 /** 採取側の鏡像: ISO → { $rel, t }（bizDateOf で営業日を求め、採取時の営業日 baseBiz からの差） */
@@ -38,11 +56,14 @@ export function isoToRel(iso: string, baseBiz: string, cutoffHm: string): RelTs 
 }
 export const dateToRel = (ymd: string, baseBiz: string): RelDate => ({ $rel: daysBetween(baseBiz, ymd) });
 
-/** 行の値のうち { $rel } 形だけを実値へ（他はそのまま） */
+/** 行の値のうち { $rel }／{ $m, d } 形だけを実値へ（他はそのまま） */
 export function shiftRow(row: Record<string, unknown>, targetBiz: string, cutoffHm: string): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(row)) {
-    if (isRel(v)) out[k] = "t" in v && typeof v.t === "string" ? relToIso(v as RelTs, targetBiz, cutoffHm) : relToDate(v, targetBiz);
+    if (isRelMonth(v)) {
+      const biz = relMonthToDate(v, targetBiz);
+      out[k] = v.fmt === "ym" ? biz.slice(0, 7) : typeof v.t === "string" ? bizTimeToIso(biz, v.t, cutoffHm) : biz;
+    } else if (isRel(v)) out[k] = "t" in v && typeof v.t === "string" ? relToIso(v as RelTs, targetBiz, cutoffHm) : relToDate(v as RelDate, targetBiz);
     else out[k] = v;
   }
   return out;

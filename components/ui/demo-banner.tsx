@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
 import { Message, type MessageKind } from "@/components/ui/toast";
 
-export const DEMO_BANNER_MSG = "デモ環境です。入力内容は他の閲覧者にも見えます。個人情報を入力しないでください。毎朝 5 時に初期化されます";
+export const DEMO_BANNER_MSG = "デモ環境・毎日 06:05 に初期化。入力内容は他の閲覧者にも見えます。個人情報を入力しないでください"; // ★328 追補1 ①（便 D1）: 06:05＝営業日切替後
 
 export default function DemoBanner() {
   const router = useRouter();

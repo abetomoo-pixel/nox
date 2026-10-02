@@ -1,53 +1,88 @@
-// ★夜間便 N7-4（裁定276・277・2026-09-18）: デモ org の種＝録画 JSON（lib/nox/demo/recordings/<業態>.json）を営業日 bizDate 基準に直し、
-//   service role で demo_org_reset(p_org_id, p_payload, p_mode) を呼ぶ（サーバ専用・route と cron が共用）。
-//   録画 JSON の形（採取側 poc-record.mjs と対）:
-//     { meta: { cutoff: '06:00', users: { owner: '<録画時の users.id>', manager: ..., cast: ... } }, tables: { <表名>: [<行 … 日付は {$rel}>] } }
-//   ★録画は本便時点で存在しない（裁定276-1 の PoC のみ）＝無ければ「録画なし」で 503。
-//   ★id の付け替え: 同じ録画を 4 org に載せると PK が衝突するため、録画中の uuid は org ごとに決定的に写像する（sha1 で v5 風）。
-//     ただし録画時の users.id（meta.users）は demo org の実ユーザー（役割で対応）へ写す＝users は demo_org_reset が残す 3 表の 1 つ。
+// ★夜間便 N7-4（裁定276・277・2026-09-18）→ ★裁定328（便 D1・2026-10-02）: デモ org の種＝payload JSON（docs/demo/payload/<店コード>.json）を
+//   営業日 bizDate 基準に直し、service role で demo_org_reset(p_org_id, p_payload, p_mode) を呼ぶ（サーバ専用・route と cron が共用）。
+//   payload JSON の形（生成器 scripts/demo/gen-demo.mjs と対・旧「録画」と同形）:
+//     { meta: { cutoff: '06:00', store: 'muse', users: { owner: '<payload 内の users.id>', manager: …, staff: …, cast: …, kiosk: '<auth user id の仮>' },
+//              ids: { '<source_id>': '<uuid>' } }, tables: { <表名>: [<行 … 日付は {$rel} か {$m, d}>] } }
+//   ★店は 6（MUSE／LUNA／NOIR／ACE／LILY／NEST＝org 名 NOX-DEMO-<CODE>）・役割は 4（owner／manager／staff／cast）＋kiosk（端末ユーザー）。
+//   ★id の付け替え: payload の uuid は org ごとに決定的に写像（sha1 v5 風）＝ID 固定（毎回同じ）・他 org と衝突しない。
+//     payload の users.id（meta.users）は demo org の実ユーザー（役割で対応）へ写す＝users は demo_org_reset が残す 3 表の 1 つ。
+//   ★payload が 1 MB（裁定277-4）を超えるときは wipe → load を日付群ごとに分けて順に呼ぶ（器＝RPC は不変・D1-2）。
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { shiftPayload } from "./dateshift";
 
-export const DEMO_BIZ_TYPES = ["cabaret", "girlsbar", "snack", "lounge"] as const;
-export type DemoBiz = (typeof DEMO_BIZ_TYPES)[number];
+export const DEMO_STORES = ["muse", "luna", "noir", "ace", "lily", "nest"] as const;
+export type DemoStore = (typeof DEMO_STORES)[number];
+/** 互換名（旧 route／suite が業態キーで参照していた定数＝店コード 6 に置換） */
+export const DEMO_BIZ_TYPES = DEMO_STORES;
+export type DemoBiz = DemoStore;
+export const DEMO_STORE_LABEL: Record<DemoStore, { name: string; biz: string; desc: string }> = {
+  muse: { name: "SNACK MUSE", biz: "スナック", desc: "セット・ボトルキープ・つまみ" },
+  luna: { name: "CLUB LUNA", biz: "キャバクラ・標準", desc: "指名・同伴・セット・延長" },
+  noir: { name: "CLUB NOIR", biz: "キャバクラ・VIP 専用料金", desc: "VIP 席の料金表・ランク別指名料・売掛" },
+  ace: { name: "CLUB ACE", biz: "キャバクラ・売上スライド", desc: "VIP 加算・売上スライド時給・売掛" },
+  lily: { name: "Girls Bar LILY", biz: "ガールズバー", desc: "カウンター・チャージ・キャストショット" },
+  nest: { name: "BAR NEST", biz: "バー", desc: "テーブルチャージ・商品会計・スタッフバック" },
+};
+export const DEMO_ROLES = ["owner", "manager", "staff", "cast"] as const;
+export type DemoRole = (typeof DEMO_ROLES)[number];
+export const DEMO_ROLE_LABEL: Record<DemoRole, { label: string; desc: string; dest: string }> = {
+  owner: { label: "オーナー", desc: "すべての画面・設定・給与", dest: "/dashboard" },
+  manager: { label: "店長", desc: "レジ・シフト・日報・キャスト", dest: "/dashboard" },
+  staff: { label: "スタッフ", desc: "レジ・打刻の代行・日報", dest: "/register" },
+  cast: { label: "キャスト", desc: "マイページ・希望シフト・ランキング", dest: "/mine" },
+};
+/** 端末（kiosk）＝役割ではなく店ごとの固定端末ユーザー（328 追補1 ⑤・kiosk_devices と結線） */
+export const DEMO_KIOSK_KEY = "kiosk";
 export const DEMO_ORG_PREFIX = "NOX-DEMO-";
 export const RESET_INTERVAL_MIN = 10;
 export const RESET_TIMEOUT_MS = 8_000;
+export const PAYLOAD_MAX_BYTES = 1_000_000; // 裁定277-4: 1 org＝payload 1 MB 以下（超えたら分割して load）
+export const DEMO_RESET_TIME_JA = "毎日 06:05"; // ★328 追補1 ①: 営業日切替（cutoff 06:00）の後
 
-/** 'NOX-DEMO-CABARET' → 'cabaret'（対応表に無ければ null） */
-export function bizOfOrgName(name: string | null | undefined): DemoBiz | null {
+export const demoOrgName = (store: DemoStore): string => `${DEMO_ORG_PREFIX}${store.toUpperCase()}`;
+/** 'NOX-DEMO-MUSE' → 'muse'（対応表に無ければ null） */
+export function storeOfOrgName(name: string | null | undefined): DemoStore | null {
   if (!name || !name.startsWith(DEMO_ORG_PREFIX)) return null;
   const k = name.slice(DEMO_ORG_PREFIX.length).toLowerCase();
-  return (DEMO_BIZ_TYPES as readonly string[]).includes(k) ? (k as DemoBiz) : null;
+  return (DEMO_STORES as readonly string[]).includes(k) ? (k as DemoStore) : null;
 }
+/** 互換名 */
+export const bizOfOrgName = storeOfOrgName;
+export const isDemoRole = (v: string): v is DemoRole => (DEMO_ROLES as readonly string[]).includes(v);
+export const isDemoStore = (v: string): v is DemoStore => (DEMO_STORES as readonly string[]).includes(v);
+/** 入場後の初期画面（328 追補1 ③: staff はレジ） */
+export const demoDestOf = (role: DemoRole | typeof DEMO_KIOSK_KEY): string => (role === DEMO_KIOSK_KEY ? "/kiosk" : DEMO_ROLE_LABEL[role].dest);
 
-export const recordingPath = (biz: DemoBiz): string => path.join(process.cwd(), "lib", "nox", "demo", "recordings", `${biz}.json`);
+export const payloadPath = (store: DemoStore): string => path.join(process.cwd(), "docs", "demo", "payload", `${store}.json`);
+/** 互換名 */
+export const recordingPath = payloadPath;
 
-type Recording = { meta?: { cutoff?: string; users?: Record<string, string> }; tables?: Record<string, Record<string, unknown>[]> } & Record<string, unknown>;
+export type Recording = { meta?: { cutoff?: string; store?: string; users?: Record<string, string>; ids?: Record<string, string> }; tables?: Record<string, Record<string, unknown>[]> } & Record<string, unknown>;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** 録画中の uuid → org ごとに決定的な uuid（v5 風・sha1）。同じ録画を複数 org に載せても PK が衝突しない */
+/** payload の uuid → org ごとに決定的な uuid（v5 風・sha1）。同じ payload を複数 org に載せても PK が衝突しない・毎回同じ（ID 固定） */
 export function remapUuid(orgId: string, id: string): string {
   const h = createHash("sha1").update(`nox-demo:${orgId}:${id.toLowerCase()}`).digest("hex");
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16).padStart(2, "0")}${h.slice(18, 20)}-${h.slice(20, 32)}`;
 }
 
-export type BuildOk = { ok: true; biz: DemoBiz; payload: Record<string, Record<string, unknown>[]>; tables: number; rows: number };
+export type BuildOk = { ok: true; biz: DemoStore; payload: Record<string, Record<string, unknown>[]>; tables: number; rows: number };
 export type BuildErr = { ok: false; status: 403 | 503; error: string };
 
 /**
- * 録画 JSON → demo_org_reset の p_payload。
- *   userIdByRole: demo org の users.id（役割→id）。録画の meta.users の id をこれへ写す（無ければその値は写像せず＝load で 'org mismatch'／FK に落ちる）。
+ * payload JSON → demo_org_reset の p_payload。
+ *   userIdByRole: demo org の users.id（役割→id）。payload の meta.users の id をこれへ写す（無ければその値は写像せず＝load で 'org mismatch'／FK に落ちる）。
+ *   ★kiosk_devices.auth_user_id は users ではなく auth ユーザー id＝meta.users.kiosk と userIdByRole.kiosk（auth user id）で写す。
  */
 export function buildPayloadFromRecording(orgId: string, bizDate: string, rec: Recording, userIdByRole: Record<string, string> = {}): BuildOk | BuildErr {
   const tables = (rec.tables ?? Object.fromEntries(Object.entries(rec).filter(([k, v]) => k !== "meta" && Array.isArray(v)))) as Record<string, Record<string, unknown>[]>;
   if (!tables || Object.keys(tables).length === 0) return { ok: false, status: 503, error: "録画なし" };
   const cutoff = rec.meta?.cutoff && /^\d{2}:\d{2}$/.test(rec.meta.cutoff) ? rec.meta.cutoff : "06:00";
   const userMap = new Map<string, string>();
-  for (const [role, recId] of Object.entries(rec.meta?.users ?? {})) if (userIdByRole[role]) userMap.set(recId.toLowerCase(), userIdByRole[role]);
+  for (const [role, recId] of Object.entries(rec.meta?.users ?? {})) if (userIdByRole[role] && UUID_RE.test(recId)) userMap.set(recId.toLowerCase(), userIdByRole[role]);
   const mapId = (v: string): string => userMap.get(v.toLowerCase()) ?? remapUuid(orgId, v);
   const shifted = shiftPayload(tables, bizDate, cutoff);
   const out: Record<string, Record<string, unknown>[]> = {};
@@ -64,35 +99,38 @@ export function buildPayloadFromRecording(orgId: string, bizDate: string, rec: R
     });
     rows += list.length;
   }
-  return { ok: true, biz: (rec.meta as { biz?: DemoBiz } | undefined)?.biz ?? "cabaret", payload: out, tables: Object.keys(out).length, rows };
+  const store = (rec.meta?.store && isDemoStore(rec.meta.store) ? rec.meta.store : "luna") as DemoStore;
+  return { ok: true, biz: store, payload: out, tables: Object.keys(out).length, rows };
 }
 
-/** org を admin で引き、業態の録画 JSON を読んで payload を組む。録画が無ければ 503「録画なし」・demo でなければ 403 */
+/** org を admin で引き、店の payload JSON を読んで payload を組む。無ければ 503「録画なし」・demo でなければ 403 */
 export async function buildPayload(admin: SupabaseClient, orgId: string, bizDate: string): Promise<BuildOk | BuildErr> {
   const { data: org } = await admin.from("orgs").select("id, name, is_demo").eq("id", orgId).maybeSingle();
   if (!org || org.is_demo !== true) return { ok: false, status: 403, error: "デモ環境のみ実行できます" };
-  const biz = bizOfOrgName(org.name as string);
-  if (!biz) return { ok: false, status: 503, error: "録画なし（業態を判定できません）" };
-  const p = recordingPath(biz);
+  const store = storeOfOrgName(org.name as string);
+  if (!store) return { ok: false, status: 503, error: "録画なし（店を判定できません）" };
+  const p = payloadPath(store);
   if (!fs.existsSync(p)) return { ok: false, status: 503, error: "録画なし" };
   let rec: Recording;
   try { rec = JSON.parse(fs.readFileSync(p, "utf8")) as Recording; } catch { return { ok: false, status: 503, error: "録画なし（JSON を読めません）" }; }
-  // demo org の users（役割→users.id）＝録画の meta.users と役割で対応させる。役割は env DEMO_USERS（業態:役割→auth user id）から引く
+  // demo org の users（役割→users.id）＝payload の meta.users と役割で対応させる。役割は env DEMO_USERS（店:役割→auth user id）から引く
   const userIdByRole: Record<string, string> = {};
   const envMap = parseDemoUsers(process.env.DEMO_USERS);
   if (envMap) {
     const { data: users } = await admin.from("users").select("id, auth_user_id").eq("org_id", orgId);
-    for (const role of ["owner", "manager", "cast"]) {
-      const auid = envMap[`${biz}:${role}`];
+    for (const role of DEMO_ROLES) {
+      const auid = envMap[`${store}:${role}`];
       const u = auid ? (users ?? []).find((x) => x.auth_user_id === auid) : null;
       if (u) userIdByRole[role] = u.id as string;
     }
+    const kioskAuth = envMap[`${store}:${DEMO_KIOSK_KEY}`];
+    if (kioskAuth) userIdByRole[DEMO_KIOSK_KEY] = kioskAuth; // kiosk_devices.auth_user_id（auth user id そのもの）
   }
   const built = buildPayloadFromRecording(orgId, bizDate, rec, userIdByRole);
-  return built.ok ? { ...built, biz } : built;
+  return built.ok ? { ...built, biz: store } : built;
 }
 
-/** env DEMO_USERS（JSON: {"cabaret:owner":"<auth user id>", …}）。無い・壊れている＝null */
+/** env DEMO_USERS（JSON: {"muse:owner":"<auth user id>", …}）。無い・壊れている＝null */
 export function parseDemoUsers(raw: string | undefined): Record<string, string> | null {
   if (!raw) return null;
   try {
@@ -104,30 +142,83 @@ export function parseDemoUsers(raw: string | undefined): Record<string, string> 
   } catch { return null; }
 }
 
-export type ResetResult = { ok: true; mode: "all" | "wipe+load"; result: unknown } | { ok: false; error: string };
-
-/** demo_org_reset を 'all' で 1 回。RESET_TIMEOUT_MS を超えて応答が無ければ 'wipe'→'load' の 2 回呼びへ切り替える */
-export async function runDemoReset(admin: SupabaseClient, orgId: string, payload: Record<string, unknown[]>): Promise<ResetResult> {
-  const call = (mode: "all" | "wipe" | "load") => admin.rpc("demo_org_reset", { p_org_id: orgId, p_payload: mode === "wipe" ? null : payload, p_mode: mode });
-  const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), RESET_TIMEOUT_MS));
-  const first = await Promise.race([call("all"), timeout]);
-  if (first !== "timeout") {
-    if (first.error) return { ok: false, error: first.error.message };
-    return { ok: true, mode: "all", result: first.data };
+// ── ★D1-2: payload の分割（1 MB 超は日付群ごとに load を分ける・器＝RPC は不変）──
+/** 伝票・日次系（日付で切れる表）。それ以外（マスタ・当日のライブ状態を含む全表）は先頭の chunk にまとめる */
+export const DATED_TABLES: readonly string[] = ["checks", "check_lines", "check_nominations", "check_cast_backs", "check_seats", "payments", "receivables", "ar_collections", "punches", "shifts", "attendance", "daily_reports", "stock_logs"];
+export const payloadBytes = (p: Record<string, unknown[]>): number => Buffer.byteLength(JSON.stringify(p));
+/**
+ * 行の「日付群キー」＝checks は id・明細系は check_id で親の日に付ける・日次系は自分の日付列。
+ * 日付は shift 後（実値）でも前（{$rel}／{$m,d}）でも文字列化して比較するだけ（同じ日なら同じキー）。
+ */
+function dayKeyOf(table: string, row: Record<string, unknown>, checkDay: Map<string, string>): string {
+  const d = (v: unknown): string => (v && typeof v === "object" ? JSON.stringify(v) : String(v ?? "")).slice(0, 32);
+  if (table === "checks") return d(row.started_at);
+  if (["check_lines", "check_nominations", "check_cast_backs", "check_seats", "payments"].includes(table)) return checkDay.get(String(row.check_id)) ?? "";
+  if (table === "receivables") return row.check_id ? (checkDay.get(String(row.check_id)) ?? d(row.created_at)) : d(row.created_at);
+  if (table === "ar_collections") return d(row.biz_date);
+  if (table === "punches") return d(row.punched_at);
+  if (table === "shifts" || table === "attendance") return d(row.date);
+  if (table === "daily_reports") return d(row.biz_date);
+  if (table === "stock_logs") return d(row.at);
+  return "";
+}
+/** payload → [先頭 chunk（マスタ＋日付なし行）, 日付群 chunk…]。各 chunk ≤ maxBytes を目標（1 日分が超えるときはその日だけで 1 chunk） */
+export function splitPayload(payload: Record<string, Record<string, unknown>[]>, maxBytes = PAYLOAD_MAX_BYTES): Record<string, Record<string, unknown>[]>[] {
+  if (payloadBytes(payload) <= maxBytes) return [payload];
+  const head: Record<string, Record<string, unknown>[]> = {};
+  const byDay = new Map<string, Record<string, Record<string, unknown>[]>>();
+  const checkDay = new Map<string, string>();
+  for (const r of payload.checks ?? []) checkDay.set(String(r.id), dayKeyOf("checks", r, checkDay));
+  for (const [t, rows] of Object.entries(payload)) {
+    if (!DATED_TABLES.includes(t)) { head[t] = rows; continue; }
+    for (const r of rows) {
+      const k = dayKeyOf(t, r, checkDay);
+      if (!k) { (head[t] ??= []).push(r); continue; }
+      const g = byDay.get(k) ?? {}; (g[t] ??= []).push(r); byDay.set(k, g);
+    }
   }
-  const w = await call("wipe");
+  const chunks: Record<string, Record<string, unknown>[]>[] = [head];
+  let cur: Record<string, Record<string, unknown>[]> = {}; let curBytes = 2;
+  const flush = () => { if (Object.keys(cur).length) chunks.push(cur); cur = {}; curBytes = 2; };
+  for (const k of [...byDay.keys()].sort()) {
+    const g = byDay.get(k)!; const b = payloadBytes(g);
+    if (curBytes + b > maxBytes && curBytes > 2) flush();
+    for (const [t, rows] of Object.entries(g)) (cur[t] ??= []).push(...rows);
+    curBytes += b;
+  }
+  flush();
+  return chunks;
+}
+
+export type ResetResult = { ok: true; mode: "all" | "wipe+load"; chunks: number; result: unknown } | { ok: false; error: string };
+
+/** demo_org_reset: payload が 1 MB 以下なら 'all' 1 回（RESET_TIMEOUT_MS 超は 'wipe'→'load'）。超えるなら 'wipe' → 分割した 'load' を順に */
+export async function runDemoReset(admin: SupabaseClient, orgId: string, payload: Record<string, Record<string, unknown>[]>): Promise<ResetResult> {
+  const call = (mode: "all" | "wipe" | "load", p: Record<string, unknown[]> | null) => admin.rpc("demo_org_reset", { p_org_id: orgId, p_payload: p, p_mode: mode });
+  const chunks = splitPayload(payload);
+  if (chunks.length === 1) {
+    const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), RESET_TIMEOUT_MS));
+    const first = await Promise.race([call("all", payload), timeout]);
+    if (first !== "timeout") {
+      if (first.error) return { ok: false, error: first.error.message };
+      return { ok: true, mode: "all", chunks: 1, result: first.data };
+    }
+  }
+  const w = await call("wipe", null);
   if (w.error) return { ok: false, error: `wipe: ${w.error.message}` };
-  const l = await call("load");
-  if (l.error) return { ok: false, error: `load: ${l.error.message}` };
-  return { ok: true, mode: "wipe+load", result: { wipe: w.data, load: l.data } };
+  const results: unknown[] = [w.data];
+  for (let i = 0; i < chunks.length; i++) {
+    const l = await call("load", chunks[i]);
+    if (l.error) return { ok: false, error: `load ${i + 1}/${chunks.length}: ${l.error.message}` };
+    results.push(l.data);
+  }
+  return { ok: true, mode: "wipe+load", chunks: chunks.length, result: results };
 }
 
 /**
- * 再生後の後処理（裁定276-4）: 過去営業日の daily_report_close と給与の正規経路を呼ぶ。
- *   ★TODO（本便では形だけ）: 録画データが無く、締め対象の営業日と給与期間を決められないため中身は未実装＝呼んでも何もしない。
- *   実装時は (1) 録画の meta に「締め済み営業日の $rel 一覧」を持たせ bizDate 基準に直して daily_report_close を順に呼ぶ、
- *   (2) 給与は payroll の正規 route（/api/payroll/finalize）と同じサーバ再計算経路を service で呼ぶ（凍結値の直書きはしない）。
+ * 再生後の後処理（裁定276-4）: 給与の正規経路（M の payroll_run_create→finalize）は D2 で結線（payload には payslips を入れない＝凍結値を直書きしない）。
+ *   ★本便（D1）では形だけ＝呼んでも何もしない。
  */
 export async function afterResetHooks(_admin: SupabaseClient, _orgId: string, _bizDate: string): Promise<{ skipped: true; todo: string }> {
-  return { skipped: true, todo: "daily_report_close（過去営業日）と給与の正規経路＝録画データ整備後に実装" };
+  return { skipped: true, todo: "給与の正規経路（payroll_run_create→payroll_finalize）＝D2 で結線" };
 }
