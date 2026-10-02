@@ -22,7 +22,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
 // ★夜間便 N6（便 S-6・2026-09-18）: 配置フローの純関数（lib/nox/shift/staff-place.ts）＝DB 前に係留
-import { byStaffNext, canCancel, cancelNeedsReason, defaultPatternFor, mdDowOf, nextOf30h, placedDaysOf, staffRowsForDay, wishDaysOf, wishIdFor } from "../lib/nox/shift/staff-place";
+import { DAY_BLOCK_JA, byStaffNext, canCancel, cancelNeedsReason, dayBlockOf, dayPlansOf, defaultPatternFor, defaultPatternNameFor, mdDowOf, nextOf30h, partitionResults, patternChoicesOf, placeLabelOf, placedDaysOf, staffRowsForDay, toggleDay, wishDaysOf, wishIdFor, type PatternLike } from "../lib/nox/shift/staff-place";
 import { isRpcMissingError } from "../lib/nox/ui/rpc-err";
 import { fmtEnd30 } from "../app/(manage)/master/staff-shift-panel";
 import fs from "node:fs";
@@ -66,12 +66,50 @@ function pureChecks() {
   check("段N6-5 defaultPatternFor: 希望の枠が当日有効なら先頭・無ければ有効枠の先頭・有効枠なしは null", defaultPatternFor(["pA", "pB"], ["pB"]) === "pB" && defaultPatternFor(["pA", "pB"], ["pZ"]) === "pA" && defaultPatternFor([], ["pA"]) === null);
   check("段N6-6 wishIdFor: 枠が一致する ◯ 希望だけ（× 希望・別枠は null＝wish_mismatch を避ける）", wishIdFor(wishes, "s3", "2026-10-17", "pB") === "w4" && wishIdFor(wishes, "s1", "2026-10-17", "pB") === null && wishIdFor(wishes, "s3", "2026-10-17", "pC") === null);
   check("段N6-7 canCancel: 過去日は不可（当日は可）・cancelNeedsReason: confirmed だけ", canCancel(shifts[0], "2026-10-17") && !canCancel(shifts[0], "2026-10-18") && cancelNeedsReason(shifts[1]) && !cancelNeedsReason(shifts[0]));
-  check("段N6-8 byStaffNext: pick→(picked)calendar→(day)place→(placed)calendar・(back)calendar・(cleared)pick", byStaffNext("pick", "picked") === "calendar" && byStaffNext("calendar", "day") === "place" && byStaffNext("place", "placed") === "calendar" && byStaffNext("place", "back") === "calendar" && byStaffNext("calendar", "cleared") === "pick" && byStaffNext("pick", "day") === "pick");
+  check("段N6-8 byStaffNext（★裁定333 で 2 状態）: pick→(picked)select・select→(placed)select・(cleared)pick・pick に placed は無効", byStaffNext("pick", "picked") === "select" && byStaffNext("select", "placed") === "select" && byStaffNext("select", "cleared") === "pick" && byStaffNext("pick", "placed") === "select" && byStaffNext("pick", "cleared") === "pick");
   const mg = fs.readFileSync("app/(manage)/shift/staff-shift-manage.tsx", "utf8");
   check("段N6-9 配線: 素の select 0・日付セル→モーダル・「スタッフから配置」・取消は RPC 不在で出さない（cancelRpc）", !/<select/.test(mg) && /setPlaceDay\(day\)/.test(mg) && /スタッフから配置/.test(mg) && /cancelRpc=\{cancelRpc\}/.test(mg) && /rpc\("staff_shift_cancel", \{ p_id: s\.id, p_reason: reason \}\)/.test(mg));
 }
 
 // ★便 X2-4（2026-09-24）: probe 判定・一覧ボタン→モーダル・時刻表示（純関数＋逐語 grep）。逆テスト: nextOf30h の `<=` を `<` にする→段X-3 赤・戻して緑
+// ★裁定333（便 S1・2026-10-02）: スタッフから配置の複数日化＝純関数（dayBlockOf／toggleDay／patternChoicesOf／defaultPatternNameFor／dayPlansOf／partitionResults／placeLabelOf）＋モーダルの逐語 grep。
+//   逆テスト: dayBlockOf の placed 判定を外す→段S1-1 赤／モーダルの moveMonth に setSelDays([]) を足す→段S1-8 赤・戻して緑
+function s1Checks() {
+  const closed = new Set([1]); // 月曜が定休
+  check("段S1-1 dayBlockOf: 過去→past・定休日（月曜）→closed・配置済み→placed・有効枠 0→no_pattern・選べる→null・優先順＝past＞closed＞placed＞no_pattern",
+    dayBlockOf("2026-10-16", { bizToday: "2026-10-17", closedDows: closed, placed: false, effectiveCount: 2 }) === "past"
+    && dayBlockOf("2026-10-19", { bizToday: "2026-10-17", closedDows: closed, placed: true, effectiveCount: 0 }) === "closed"
+    && dayBlockOf("2026-10-20", { bizToday: "2026-10-17", closedDows: [1], placed: true, effectiveCount: 0 }) === "placed"
+    && dayBlockOf("2026-10-20", { bizToday: "2026-10-17", closedDows: closed, placed: false, effectiveCount: 0 }) === "no_pattern"
+    && dayBlockOf("2026-10-20", { bizToday: "2026-10-17", closedDows: closed, placed: false, effectiveCount: 1 }) === null
+    && dayBlockOf("2026-10-17", { bizToday: "2026-10-17", closedDows: closed, placed: false, effectiveCount: 1 }) === null
+    && DAY_BLOCK_JA.placed === "配置済み" && DAY_BLOCK_JA.closed === "定休日");
+  check("段S1-2 toggleDay: 追加は昇順・再クリックで解除・元配列は不変", toggleDay(["2026-10-20"], "2026-10-18").join() === "2026-10-18,2026-10-20" && toggleDay(["2026-10-18", "2026-10-20"], "2026-10-20").join() === "2026-10-18" && (() => { const a = ["2026-10-20"]; toggleDay(a, "2026-10-21"); return a.length === 1; })());
+  const pA1: PatternLike = { id: "pA1", name: "早番", start_hm: "17:00", end_hm: "23:00" }, pA2: PatternLike = { id: "pA2", name: "早番", start_hm: "18:00", end_hm: "24:00" }, pB: PatternLike = { id: "pB", name: "遅番", start_hm: "21:00", end_hm: "27:00" };
+  const eff = new Map<string, PatternLike[]>([["2026-10-18", [pA1, pB]], ["2026-10-20", [pA2]]]);
+  const choices = patternChoicesOf(["2026-10-18", "2026-10-20"], eff);
+  check("段S1-3 patternChoicesOf: 名前で束ねる（早番＝2 日・版は日ごと・sample は先頭の日の版）・遅番＝1 日", choices.map((c) => c.name + ":" + c.days + ":" + c.sample.id).join("|") === "早番:2:pA1|遅番:1:pB");
+  check("段S1-4 defaultPatternNameFor: ◯ 希望の枠名で最多→無ければ全日で有効な枠→無ければ先頭・空は null", defaultPatternNameFor(choices, ["2026-10-18", "2026-10-20"], new Map([["2026-10-18", ["遅番"]]])) === "遅番"
+    && defaultPatternNameFor(choices, ["2026-10-18", "2026-10-20"], new Map()) === "早番" && defaultPatternNameFor([{ name: "遅番", days: 1, sample: pB }], ["2026-10-18", "2026-10-20"], new Map()) === "遅番" && defaultPatternNameFor([], [], new Map()) === null);
+  const wishes = [{ id: "w1", staff_id: "s1", biz_date: "2026-10-20", pattern_id: "pA2", available: true }];
+  const plans = dayPlansOf(["2026-10-18", "2026-10-20", "2026-10-21"], "早番", null, eff, wishes, "s1");
+  check("段S1-5 dayPlansOf（時刻は枠のまま）: 日ごとに有効な同名の版（pA1／pA2）・時刻は版から・adjusted false・希望の wish_id は枠一致の日だけ・有効な版が無い日は pattern null",
+    plans.map((p) => (p.pattern?.id ?? "-") + ":" + p.startHm + "-" + p.endHm + ":" + p.adjusted + ":" + (p.wishId ?? "-")).join("|") === "pA1:17:00-23:00:false:-|pA2:18:00-24:00:false:w1|-:-:false:-", JSON.stringify(plans));
+  const plans2 = dayPlansOf(["2026-10-18", "2026-10-20"], "早番", { startHm: "18:00", endHm: "25:00" }, eff, wishes, "s1");
+  check("段S1-6 dayPlansOf（時刻を上書き・翌日またぎ 25:00）: 全日に同じ時刻・版の時刻と違う日だけ adjusted（pA1＝true・pA2＝end 違い＝true）・一致なら false", plans2.map((p) => p.startHm + "-" + p.endHm + ":" + p.adjusted).join("|") === "18:00-25:00:true|18:00-25:00:true"
+    && dayPlansOf(["2026-10-20"], "早番", { startHm: "18:00", endHm: "24:00" }, eff, wishes, "s1")[0].adjusted === false);
+  check("段S1-7 partitionResults／placeLabelOf: 成功は選択から外す・失敗は赤で残す（全取消なし）・「N 日に配置」", JSON.stringify(partitionResults([{ day: "a", error: null }, { day: "b", error: "x" }, { day: "c", error: null }])) === JSON.stringify({ ok: ["a", "c"], failed: [{ day: "b", error: "x" }] })
+    && placeLabelOf(3, false) === "3 日に配置" && placeLabelOf(0, false) === "配置" && placeLabelOf(2, true) === "配置中…");
+  const sbs = fs.readFileSync("app/(manage)/shift/staff-place-by-staff.tsx", "utf8");
+  check("段S1-8 モーダル配線: 複数選択（toggleDay・aria-pressed）・選べない日は dayBlockOf で disabled＋理由 title・月送りで選択を保持（moveMonth は setMonth だけ）・枠と時刻は 1 回（翌日チェック）・一覧の個別 ×・「N 日に配置」＝placeLabelOf・失敗は partitionResults で赤（outline var(--bad)）・定休日＝store_business_hours・従来の 1 日画面（StaffPlaceForm）は無い",
+    sbs.includes("setSelDays((s) => toggleDay(s, d))") && sbs.includes("aria-pressed={sel}") && sbs.includes("const block = dayBlockOf(ymd, { bizToday, closedDows, placed: !!p, effectiveCount: eff.length });") && sbs.includes("disabled={!!block || busy || running}") && sbs.includes("DAY_BLOCK_JA[block]")
+    && sbs.includes("function moveMonth(n: number) { setMonth(monthAfter(month, n)); }") && sbs.includes("onChange={(e) => { setNext(e.target.checked); setTimesTouched(true); }} />翌日")
+    && sbs.includes("aria-label={`${p.day} を外す`}") && sbs.includes("{placeLabelOf(selDays.length, running)}") && sbs.includes("const { ok, failed: ng } = partitionResults(results);") && sbs.includes("outline: \"2px solid var(--bad)\"")
+    && sbs.includes("from(\"store_business_hours\").select(\"dow, is_closed\")") && !sbs.includes("<StaffPlaceForm") && sbs.includes("setSelDays((s) => s.filter((d) => !ok.includes(d)))"));
+  const sp = fs.readFileSync("app/(manage)/master/staff-shift-panel.tsx", "utf8");
+  check("段S1-9 rpc-err 和文: staff_shifts_uq → 「この日はすでにこの枠に配置済みです…」（既存様式・duplicate key の前）", sp.indexOf("msg.includes(\"staff_shifts_uq\")") > 0 && sp.indexOf("msg.includes(\"staff_shifts_uq\")") < sp.indexOf("msg.includes(\"staff_shift_patterns_uq\")"));
+}
+
 function x2Checks() {
   check("段X-1 probe 判定: PostgREST の「Could not find the function …（schema cache）」だけ missing・RPC の raise（'not_found'／'invalid_input'／'forbidden'）は RPC あり", isRpcMissingError("Could not find the function public.staff_shift_cancel(p_id, p_reason) in the schema cache") && !isRpcMissingError("not_found") && !isRpcMissingError("invalid_input") && !isRpcMissingError("forbidden") && !isRpcMissingError(null));
   const mg = fs.readFileSync("app/(manage)/shift/staff-shift-manage.tsx", "utf8");
@@ -87,6 +125,7 @@ async function main() {
   const t0 = Date.now();
   pureChecks();
   x2Checks();
+  s1Checks();
   const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
