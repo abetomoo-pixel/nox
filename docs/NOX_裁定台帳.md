@@ -3980,6 +3980,8 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 **便 MC2 完了＝台帳の現在地（2026-10-01）**: MC2（裁定330 第 2 便・330 追補1／329 追補2 の適用・client のみ・DB 恒久変更 0）＝店舗設定を 2 タブ（?tab=features 利用機能＝報酬制度 9・売掛・機能の公開（owner）・勤務時間の計算基準・キャスト画面の設定／?tab=info 店舗情報）に・権限・情報管理（入口 href /master/cast-comp/register）＝キャスト会計の許可／データ管理（?tab=data）／機密情報の 3 タブ・報酬設定＝待遇プラン／控除・送り／ノルマ・料金・会計の内側ピル撤去（外側 ?tab の 1 本・「ルールで設定」は router.push）・/master/system の「機能の公開」タブ撤去（案内行＋リンク）・旧 href 17 本は alias で解決（新 route 0）・contract-ack 2 行目を 329 追補2 の文面に。verify＝master-top 14（タブ構成・alias・店舗設定 3 面・system に機能の公開なし・内側ピルなし）・nav nv(5-1)／(5-2) 張替え。f0 **92 段 5,428（2 連緑 15:22:07〜15:45:46／15:46:48〜16:04:32・RTT 60 ms で 1 走 18〜24 分・前日 10-01 の run1 緑 92 段 5,428 は不採用・10-02 の最初の 2 連は rls 固定具 prof1〜4 の残置（10-01 run2 の REST 劣化で teardown 無音失敗）で anon-guard 段35 が赤→同経路で除去して再走）**・golden 6 値不変。仮決め 9 点＝docs/tmp/v43_pre.md「MC2 の仮決め」（330 追補2 で追認を求める）。次＝便 W5-1（初期設定 v5 第 1 便）。
 
+**便 W5-1 完了＝台帳の現在地（2026-10-02）**: W5-1（裁定331 第 1 便・client＋JSON のみ・DB 恒久変更 0・新 RPC 0）＝初期設定ウィザードを 6 ステップ（お店について／料金／商品／キャスト報酬／会計と運用／確認→次にやること・モック文言）に・業態 5 × 特徴 5（VIP 席の取り方／指名料／売上スライド／新人保証／達成ボーナス）→ テンプレ 6 種（lib/nox/setup/templates/v2.json＝正本モックの SRC 6 店・v1.json は廃止）を composeDraft（モック build() の写経）で組み立て・計画＝既存 RPC 17 本（set_store_profile／receivable_policy／pay_time_basis／receipt_profile／penalty_config／mine_settings／business_hours／biz_cutoff／seat／pricing／time_pricing／pricing_rule（VIP 専用 set＋extension・VIP 加算）／comp_plan（プランごと・sales_slide 3 段）／comp_component（達成ボーナス 1 段・plan id は実行時）／product_bulk_insert／set_product（back・本指名pt の上書き）／flag_set）・進捗バー・途中保存（localStorage 下書き＝補助・正は DB）・あとで設定（laterDefaultsOf）・完了画面「次にやること」（/casts・/shift・/master/stock・/master/system#devices）。C 5（インボイス登録日・締め日／支払日・内税・支払い方法・打刻方法）・D 5（ランク別指名料・多段ボーナス・売上歩合のみ・自動切替・スタッフバック）は SETUP_HIDDEN_ITEMS＝非表示。verify＝setup 79（JSON v2 sha・業態 5 の計画配列・特徴の分岐・写像・目安・あとで設定・次にやること・画面 pin・逆テスト 2 本）・payroll-view pv(7-5) 張替え。ブラウザ実描画＝6 STEP 遷移・console 0（書込は未実行）。f0 **92 段 5,445（2 連緑 17:07:28〜17:19:15／17:20:16〜17:40:46・S1 と同じ合成ツリー）**・golden 6 値不変。仮決め 21 点＝docs/tmp/v43_pre.md「W5-1 の仮決め」（331 追補で追認を求める）。次＝相談役の裁定（締め日／支払日・0164 の範囲・フロア機能）→ W5-2（B の結線）。
+
 **便 S1 完了＝台帳の現在地（2026-10-02）**: S1（裁定333・client のみ・DB 恒久変更 0・新 RPC 0）＝「スタッフから配置」を複数日化（人を選ぶ→カレンダーで複数日トグル（月送りで保持・過去日／定休日／配置済み／有効枠なしは選べず理由を表示）→枠（名前で束ね日ごとに有効版へ解決）と時刻を 1 回→右の「選択した日」一覧（×・N 日に配置）→ staff_shift_propose（＋override）を日ごとに順次・失敗は赤で残し成功分はそのまま）。旧 3 状態と 1 日画面は撤去（入口①は従来どおり）。verify＝staff-shift 82（段S1-1〜9 新規・N6-8 張替え・逆テスト 2 本）・picker 10・staff-photo 12・ui-tokens 新規 0・tsc 0・lint 0。f0 **92 段 5,445（2 連緑 17:07:28〜17:19:15／17:20:16〜17:40:46・S1＋W5-1 の合成ツリー・直前の run G／H は messages ms(2-1) の 1 段赤＝S1 モーダルの素の span 描画→裁定281-3 の型に差し替えて再走）**・golden 6 値不変（W5-1 と同じ合成ツリー＝仮決め 1）。仮決め 10 点＝docs/tmp/v43_pre.md「S1 の仮決め」。目視＝staff_shift ON の店で（NOX-VERIFY は OFF のためブラウザ未確認）。次＝W5-1 のコミット・報告。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
@@ -4053,6 +4055,8 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 「裁定331（初期設定 v5）＝正本モック nox-setup-v5.html・6 ステップ・業態テンプレ 6 種・達成ボーナス多段／売上スライド／新人保証の自動終了は現行で動く範囲のみ表示（未実装は非表示・第 2 期）・勤務時間の数え方＝324・キャストのスマホ画面＝326 の 8 キー・打刻方法 3 択。差し戻しはモック修正で行う（BANZEN UH と同じ運用）。順序＝MC（2 便）→W5（3 便）→D1。」
 
 適用＝便 MC0（読取・対応表 docs/handoff/mock/20261001/setup_map.md）→ W5（3 便想定・client）。
+
+**W5-1 適用（2026-10-02）**: 6 ステップ化・テンプレ 6 種（v2.json＝モック SRC）・特徴 5 の分岐（VIP 専用料金表／VIP 加算／指名料なし／売上スライド 3 段（当日判定の文言）／新人保証 2 本目／達成ボーナス 1 段）・C／D 非表示（SETUP_HIDDEN_ITEMS 10）・進捗バー・途中保存・あとで設定・次にやること。B（曜日時間帯の料金行・ランク別指名料・個別商品選択・契約の形）は W5-2。仮決め 21 点＝docs/tmp/v43_pre.md（追補で追認）。
 
 ## 裁定330（2026-10-01 確定・相談役）マスタ整理
 
