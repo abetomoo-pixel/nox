@@ -60,6 +60,15 @@ check("ds(5-2) buildPayloadFromRecording: org_id を付け替え・uuid を写�
 check("ds(5-3) buildPayloadFromRecording: 表が無ければ 503「録画なし」", (() => { const r = buildPayloadFromRecording(O1, T, { meta: {} }); return !r.ok && r.status === 503 && r.error === "録画なし"; })());
 check("ds(5-4) parseDemoUsers: JSON 以外・配列・uuid でない値は捨てる", parseDemoUsers(undefined) === null && parseDemoUsers("{bad") === null && parseDemoUsers("[]") === null && JSON.stringify(parseDemoUsers(`{"cabaret:owner":"${U}","x":"nope"}`)) === JSON.stringify({ "cabaret:owner": U }));
 
+// (6) ★裁定328（便 D1）: 月相対 { $m, d }（先月＝R の前月の同じ日・無い日は末日・fmt "ym"＝'YYYY-MM'）
+{
+  const sm = shiftRow({ a: { $m: -1, d: 19 }, b: { $m: -1, d: 31 }, c: { $m: -1, d: 3, t: "02:15:00" }, d: { $m: -1, d: 1, fmt: "ym" }, e: { $m: 0, d: 1, fmt: "ym" }, keep: "2026-09-19" }, "2026-10-20", "06:00");
+  check("ds(6-1) {$m:-1,d:19}＝先月 9/19・d:31 は 9 月の末日 9/30 に畳む・t 付きは cutoff 前＝翌暦日 9/4 02:15 JST・fmt ym＝'2026-09'／'2026-10'・文字列はそのまま", sm.a === "2026-09-19" && sm.b === "2026-09-30" && sm.c === "2026-09-03T17:15:00.000Z" && sm.d === "2026-09" && sm.e === "2026-10" && sm.keep === "2026-09-19", JSON.stringify(sm));
+  const feb = shiftRow({ a: { $m: -1, d: 30 } }, "2026-03-15", "06:00");
+  check("ds(6-2) 2 月へ写すと 30 日は 2/28（末日）・年跨ぎ（1 月の前月＝前年 12 月）", feb.a === "2026-02-28" && shiftRow({ a: { $m: -1, d: 5 } }, "2026-01-10", "06:00").a === "2025-12-05");
+  check("ds(6-3) isRel は {$m,d} も true（$m だけ・d だけは false）", isRel({ $m: -1, d: 1 }) && !isRel({ $m: -1 }) && !isRel({ d: 1 }));
+}
+
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);

@@ -86,8 +86,24 @@ const demoPage = fs.readFileSync("app/demo/page.tsx", "utf8");
 const demoTerms = fs.readFileSync("components/ui/demo-terms.tsx", "utf8");
 const termsN = (demoTerms.match(/^  "[^"]+",$/gm) || []).length;
 check("dg(5-1) /demo: 規約 5 項（実在人物の個人情報／本番利用禁止／リセット／給与等へ利用しない／不正利用禁止）と「同意する」チェック", termsN === 5 && /実在の人物の個人情報/.test(demoTerms) && /本番の店舗運営には利用しません/.test(demoTerms) && /初期化されます/.test(demoTerms) && /実際の給与・報酬・税務に利用しません/.test(demoTerms) && /不正利用/.test(demoTerms) && /type="checkbox" checked=\{agreed\}/.test(demoTerms) && /上記に同意する/.test(demoTerms), `terms=${termsN}`);
-check("dg(5-2) /demo: 未同意は入場ボタン disabled（aria-disabled・onSubmit も止める）・page は DemoEntry を通す・form POST /api/demo/enter は不変", /disabled=\{!agreed\} aria-disabled=\{!agreed\}/.test(demoTerms) && /onSubmit=\{\(e\) => \{ if \(!agreed\) e\.preventDefault\(\); \}\}/.test(demoTerms) && /<DemoEntry biz=\{BIZ\} roles=\{ROLES\} \/>/.test(demoPage) && /action="\/api\/demo\/enter"/.test(demoTerms) && !/action="\/api\/demo\/enter"/.test(demoPage));
+check("dg(5-2) /demo: 未同意は入場ボタン disabled（aria-disabled・onSubmit も止める）・page は DemoEntry を通す・form POST /api/demo/enter は不変", /disabled=\{!agreed\} aria-disabled=\{!agreed\}/.test(demoTerms) && /onSubmit=\{\(e\) => \{ if \(!agreed\) e\.preventDefault\(\); \}\}/.test(demoTerms) && /<DemoEntry biz=\{STORES\} roles=\{ROLES\} kiosk=\{KIOSK\} \/>/.test(demoPage) && /action="\/api\/demo\/enter"/.test(demoTerms) && !/action="\/api\/demo\/enter"/.test(demoPage));
 check("dg(5-3) /demo: noindex 維持（robots index:false・follow:false）・資格情報／リンクを置かない（http は無い）", /robots: \{ index: false, follow: false, nocache: true \}/.test(demoPage) && !/https?:\/\//.test(demoPage) && !/https?:\/\//.test(demoTerms));
+
+// (6) ★裁定328（便 D1-5）: デモ制限 5 種＝demo フラグで判定し本番 org には影響しない（柵の所在を列挙）
+{
+  const layout = fs.readFileSync("app/(manage)/layout.tsx", "utf8");
+  const routes6 = files.map((f) => f.replace(/^app\/api\//, "").replace(/\/route\.ts$/, ""));
+  const walk2 = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk2(path.join(d, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(d, e.name)] : []));
+  const clientSrc = walk2("app").concat(walk2("components")).map((f) => fs.readFileSync(f, "utf8"));
+  check("dg(6-1) ①メール／パスワード変更: staff/update-email は柵 A・パスワード／メール変更の route は他に無い・client は auth.updateUser を呼ばない", "staff/update-email" in DENY_GUARDED && !routes6.some((r) => /password|email/.test(r) && r !== "staff/update-email") && !clientSrc.some((s) => /auth\.updateUser\(/.test(s)));
+  check("dg(6-2) ②org 削除・Auth 系（招待・スタッフ作成・キオスク発行）: org 削除 route なし・cast/invite／staff/create／kiosk/provision は柵 A", !routes6.some((r) => /org.*delete|delete.*org/.test(r)) && ["cast/invite", "staff/create", "kiosk/provision"].every((r) => r in DENY_GUARDED));
+  const enter = fs.readFileSync("app/api/demo/enter/route.ts", "utf8");
+  check("dg(6-3) ③外部送信（LINE／メール／Stripe）: LINE・メール送信の route なし・billing 4 本は柵 A・stripe/webhook はセッション無し（B）・demo/enter の magiclink は送信しない", !routes6.some((r) => /line|mail/.test(r) && r !== "staff/update-email") && ["billing/checkout", "billing/interval", "billing/portal", "billing/switch-to-card"].every((r) => r in DENY_GUARDED) && DENY_NO_SESSION.has("stripe/webhook") && !/sendEmail|inviteUserByEmail|signInWithOtp/.test(enter));
+  check("dg(6-4) ④写真・印刷: storage policy の is_demo 句（0149 ★10）＋ client は useIsDemo で導線を隠す（photo-card／casts／staff）・print/jobs は柵 A", "print/jobs" in DENY_GUARDED && ["app/mine/photo-card.tsx", "app/(manage)/casts/casts-board.tsx", "app/(manage)/staff/staff-board.tsx"].every((f) => /useIsDemo\(\)/.test(fs.readFileSync(f, "utf8"))));
+  check("dg(6-5) ⑤判定は demo フラグ（orgs.is_demo）だけ・本番 org には効かない: guard は読めなければ false・layout は is_demo で帯と「ご契約」を切替・/setup へ飛ばさない", /return data\?\.is_demo === true;/.test(guard) && layout.includes("{isDemo && <DemoBanner />}") && layout.includes('role === "owner" && !isDemo ? [{ href: "/billing"') && layout.includes('if (role === "owner" && !isDemo)'));
+  const demoPage2 = fs.readFileSync("app/demo/page.tsx", "utf8");
+  check("dg(6-6) ★/demo は seed の DEMO_STORES（6）× DEMO_ROLES（4）＋ 端末（kiosk）・入場 route は store/role を検査（demo-payload suite dp(4-1) と対）", demoPage2.includes("DEMO_STORES.map(") && demoPage2.includes("DEMO_ROLES.map(") && demoPage2.includes("kiosk={KIOSK}"));
+}
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
