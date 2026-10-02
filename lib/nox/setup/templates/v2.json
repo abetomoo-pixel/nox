@@ -1,0 +1,2605 @@
+{
+ "schema_version": "2.0",
+ "source": "docs/handoff/mock/20261001/nox-setup-v5.html（裁定331 正本モック・SRC 6 店＝デモ店舗の値・店名は出さない）",
+ "back_types": {
+  "none": "バックなし",
+  "fixed": "固定額",
+  "sale_pct": "売価%",
+  "unit4": "指名別（本指名／場内／同伴／フリー）",
+  "product_specific": "商品個別"
+ },
+ "template_policy": {
+  "purpose": "NOX 初期設定の初期値。導入店舗が編集する前提（業界標準価格を保証しない）。",
+  "do_not_auto_enable": [
+   "quota",
+   "penalty",
+   "cast_debt_deduction"
+  ]
+ },
+ "store_templates": [
+  {
+   "template_id": "cabaret_standard",
+   "store_type": "キャバクラ",
+   "template_name": "キャバクラ・標準",
+   "assumption": "セット・指名・同伴中心の標準形。平日アーリー／平日通常／週末通常の料金行、同額の指名料、標準プラン 1 本。",
+   "business_hours": {
+    "open": "20:00",
+    "close": "01:00",
+    "business_day_cutoff": "06:00"
+   },
+   "features": {
+    "vip": "none",
+    "nomination": true,
+    "accounts_receivable": false,
+    "shift_request_mode": "shift"
+   },
+   "seats": {
+    "table_count": 7,
+    "vip_count": 0,
+    "counter_count": 0
+   },
+   "service_charge_pct": 20,
+   "pricing_rules": [
+    {
+     "name": "平日アーリー",
+     "iso_weekdays": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "start_min": 1200,
+     "end_min": 1260,
+     "seat": "normal",
+     "set_min": 60,
+     "set_fee": 4500,
+     "extension_30_fee": 2500,
+     "vip_surcharge": 0,
+     "enabled": true
+    },
+    {
+     "name": "平日通常",
+     "iso_weekdays": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "start_min": 1260,
+     "end_min": 1800,
+     "seat": "normal",
+     "set_min": 60,
+     "set_fee": 6000,
+     "extension_30_fee": 3000,
+     "vip_surcharge": 0,
+     "enabled": true
+    },
+    {
+     "name": "週末通常",
+     "iso_weekdays": [
+      5,
+      6
+     ],
+     "start_min": 1200,
+     "end_min": 1800,
+     "seat": "normal",
+     "set_min": 60,
+     "set_fee": 6500,
+     "extension_30_fee": 3500,
+     "vip_surcharge": 0,
+     "enabled": true
+    },
+    {
+     "name": "日曜通常",
+     "iso_weekdays": [
+      7
+     ],
+     "start_min": 1200,
+     "end_min": 1800,
+     "seat": "normal",
+     "set_min": 60,
+     "set_fee": 6000,
+     "extension_30_fee": 3000,
+     "vip_surcharge": 0,
+     "enabled": false
+    }
+   ],
+   "ranks": [
+    {
+     "name": "default",
+     "main_nomination_yen": 3000,
+     "in_house_nomination_yen": 2000,
+     "accompaniment_yen": 4000
+    }
+   ],
+   "plans": [
+    {
+     "name": "LUNA Standard",
+     "hourly_yen": 3000,
+     "main_nomination_back": 1200,
+     "in_house_nomination_back": 600,
+     "accompaniment_back": 1500,
+     "achievement_bonus": [
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 500000,
+       "add_yen": 10000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 1000000,
+       "add_yen": 30000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 1500000,
+       "add_yen": 50000
+      }
+     ],
+     "sales_slide": []
+    }
+   ],
+   "products": [
+    {
+     "name": "Cast Drink S",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 150,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 1,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "Cast Drink M",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 220,
+     "sale_price_yen": 1650,
+     "inventory_managed": false,
+     "hon_pt": 2,
+     "back": {
+      "type": "unit4",
+      "value": {
+       "hon": 500,
+       "jonai": 400,
+       "dohan": 500,
+       "free": 300
+      }
+     },
+     "status": "active"
+    },
+    {
+     "name": "Cast Drink L",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 300,
+     "sale_price_yen": 2200,
+     "inventory_managed": false,
+     "hon_pt": 3,
+     "back": {
+      "type": "unit4",
+      "value": {
+       "hon": 700,
+       "jonai": 600,
+       "dohan": 700,
+       "free": 500
+      }
+     },
+     "status": "active"
+    },
+    {
+     "name": "生ビール",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 260,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "コロナ",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 350,
+     "sale_price_yen": 990,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ハイボール",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 140,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "レモンサワー",
+     "accounting_class": "drink",
+     "display_category": "サワー",
+     "cost_yen": 130,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "黒霧島",
+     "accounting_class": "bottle",
+     "display_category": "焼酎",
+     "cost_yen": 1300,
+     "sale_price_yen": 5500,
+     "inventory_managed": true,
+     "hon_pt": 2,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "吉四六",
+     "accounting_class": "bottle",
+     "display_category": "焼酎",
+     "cost_yen": 2400,
+     "sale_price_yen": 8800,
+     "inventory_managed": true,
+     "hon_pt": 3,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "角瓶",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 1900,
+     "sale_price_yen": 6600,
+     "inventory_managed": true,
+     "hon_pt": 2,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "山崎",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 8000,
+     "sale_price_yen": 22000,
+     "inventory_managed": true,
+     "hon_pt": 5,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "響",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 11000,
+     "sale_price_yen": 27500,
+     "inventory_managed": true,
+     "hon_pt": 6,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "赤ワイン",
+     "accounting_class": "bottle",
+     "display_category": "ワイン",
+     "cost_yen": 2500,
+     "sale_price_yen": 8800,
+     "inventory_managed": true,
+     "hon_pt": 2,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "白ワイン",
+     "accounting_class": "bottle",
+     "display_category": "ワイン",
+     "cost_yen": 2500,
+     "sale_price_yen": 8800,
+     "inventory_managed": true,
+     "hon_pt": 2,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "カフェ・ド・パリ",
+     "accounting_class": "champagne",
+     "display_category": "スパークリング",
+     "cost_yen": 2000,
+     "sale_price_yen": 11000,
+     "inventory_managed": true,
+     "hon_pt": 5,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "モエ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 6500,
+     "sale_price_yen": 22000,
+     "inventory_managed": true,
+     "hon_pt": 10,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "ヴーヴ・クリコ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 8500,
+     "sale_price_yen": 27500,
+     "inventory_managed": true,
+     "hon_pt": 12,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "ドン・ペリニヨン",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 24000,
+     "sale_price_yen": 66000,
+     "inventory_managed": true,
+     "hon_pt": 30,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "ウーロン茶",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 660,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "コーラ",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 660,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ミックスナッツ",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 180,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "フルーツ盛り",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 1100,
+     "sale_price_yen": 3300,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    }
+   ]
+  },
+  {
+   "template_id": "cabaret_vip",
+   "store_type": "キャバクラ",
+   "template_name": "キャバクラ・VIP専用料金",
+   "assumption": "VIP 席は専用の料金表（VIP 平日／VIP 週末）。指名料はランク別（標準／A／S）。プランは Standard／Premium／新人保証の 3 本。",
+   "business_hours": {
+    "open": "20:00",
+    "close": "01:00",
+    "business_day_cutoff": "06:00"
+   },
+   "features": {
+    "vip": "dedicated",
+    "nomination": true,
+    "accounts_receivable": true,
+    "shift_request_mode": "shift"
+   },
+   "seats": {
+    "table_count": 3,
+    "vip_count": 4,
+    "counter_count": 0
+   },
+   "service_charge_pct": 25,
+   "pricing_rules": [
+    {
+     "name": "通常アーリー",
+     "iso_weekdays": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "start_min": 1200,
+     "end_min": 1260,
+     "seat": "normal",
+     "set_min": 60,
+     "set_fee": 8000,
+     "extension_30_fee": 4000,
+     "vip_surcharge": 0,
+     "enabled": true
+    },
+    {
+     "name": "通常メイン",
+     "iso_weekdays": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "start_min": 1260,
+     "end_min": 1800,
+     "seat": "normal",
+     "set_min": 60,
+     "set_fee": 9000,
+     "extension_30_fee": 4500,
+     "vip_surcharge": 0,
+     "enabled": true
+    },
+    {
+     "name": "週末通常",
+     "iso_weekdays": [
+      5,
+      6
+     ],
+     "start_min": 1200,
+     "end_min": 1800,
+     "seat": "normal",
+     "set_min": 60,
+     "set_fee": 10000,
+     "extension_30_fee": 5000,
+     "vip_surcharge": 0,
+     "enabled": true
+    },
+    {
+     "name": "VIP平日",
+     "iso_weekdays": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "start_min": 1200,
+     "end_min": 1800,
+     "seat": "vip",
+     "set_min": 60,
+     "set_fee": 12000,
+     "extension_30_fee": 6000,
+     "vip_surcharge": 0,
+     "enabled": true
+    },
+    {
+     "name": "VIP週末",
+     "iso_weekdays": [
+      5,
+      6
+     ],
+     "start_min": 1200,
+     "end_min": 1800,
+     "seat": "vip",
+     "set_min": 60,
+     "set_fee": 14000,
+     "extension_30_fee": 7000,
+     "vip_surcharge": 0,
+     "enabled": true
+    }
+   ],
+   "ranks": [
+    {
+     "name": "default",
+     "main_nomination_yen": 3000,
+     "in_house_nomination_yen": 2000,
+     "accompaniment_yen": 5000
+    },
+    {
+     "name": "A",
+     "main_nomination_yen": 4000,
+     "in_house_nomination_yen": 2500,
+     "accompaniment_yen": 5000
+    },
+    {
+     "name": "S",
+     "main_nomination_yen": 5000,
+     "in_house_nomination_yen": 3000,
+     "accompaniment_yen": 5000
+    }
+   ],
+   "plans": [
+    {
+     "name": "NOIR Standard",
+     "hourly_yen": 3500,
+     "main_nomination_back": 1500,
+     "in_house_nomination_back": 800,
+     "accompaniment_back": 2000,
+     "achievement_bonus": [
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 700000,
+       "add_yen": 15000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 1200000,
+       "add_yen": 40000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 2000000,
+       "add_yen": 80000
+      }
+     ],
+     "sales_slide": []
+    },
+    {
+     "name": "NOIR Premium",
+     "hourly_yen": 4500,
+     "main_nomination_back": 2000,
+     "in_house_nomination_back": 1000,
+     "accompaniment_back": 2500,
+     "achievement_bonus": [
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 1000000,
+       "add_yen": 30000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 2000000,
+       "add_yen": 80000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 3000000,
+       "add_yen": 150000
+      }
+     ],
+     "sales_slide": []
+    },
+    {
+     "name": "NOIR 新人保証",
+     "hourly_yen": 4000,
+     "main_nomination_back": 1000,
+     "in_house_nomination_back": 500,
+     "accompaniment_back": 1500,
+     "achievement_bonus": [],
+     "sales_slide": []
+    }
+   ],
+   "products": [
+    {
+     "name": "Premium Drink S",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 180,
+     "sale_price_yen": 1650,
+     "inventory_managed": false,
+     "hon_pt": 2,
+     "back": {
+      "type": "unit4",
+      "value": {
+       "hon": 500,
+       "jonai": 400,
+       "dohan": 500,
+       "free": 300
+      }
+     },
+     "status": "active"
+    },
+    {
+     "name": "Premium Drink M",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 250,
+     "sale_price_yen": 2200,
+     "inventory_managed": false,
+     "hon_pt": 3,
+     "back": {
+      "type": "unit4",
+      "value": {
+       "hon": 700,
+       "jonai": 500,
+       "dohan": 700,
+       "free": 400
+      }
+     },
+     "status": "active"
+    },
+    {
+     "name": "Premium Drink L",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 380,
+     "sale_price_yen": 3300,
+     "inventory_managed": false,
+     "hon_pt": 5,
+     "back": {
+      "type": "unit4",
+      "value": {
+       "hon": 1000,
+       "jonai": 800,
+       "dohan": 1000,
+       "free": 700
+      }
+     },
+     "status": "active"
+    },
+    {
+     "name": "生ビール",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 260,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "コロナ",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 350,
+     "sale_price_yen": 1320,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "山崎ハイボール",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 500,
+     "sale_price_yen": 1650,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "白州ハイボール",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 500,
+     "sale_price_yen": 1650,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "吉四六",
+     "accounting_class": "bottle",
+     "display_category": "焼酎",
+     "cost_yen": 2400,
+     "sale_price_yen": 11000,
+     "inventory_managed": true,
+     "hon_pt": 5,
+     "back": {
+      "type": "unit4",
+      "value": {
+       "hon": 1000,
+       "jonai": 700,
+       "dohan": 1000,
+       "free": 500
+      }
+     },
+     "status": "active"
+    },
+    {
+     "name": "魔王",
+     "accounting_class": "bottle",
+     "display_category": "焼酎",
+     "cost_yen": 8500,
+     "sale_price_yen": 27500,
+     "inventory_managed": true,
+     "hon_pt": 10,
+     "back": {
+      "type": "unit4",
+      "value": {
+       "hon": 2500,
+       "jonai": 1500,
+       "dohan": 2500,
+       "free": 1000
+      }
+     },
+     "status": "active"
+    },
+    {
+     "name": "山崎NV",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 8000,
+     "sale_price_yen": 33000,
+     "inventory_managed": true,
+     "hon_pt": 10,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "白州NV",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 8000,
+     "sale_price_yen": 33000,
+     "inventory_managed": true,
+     "hon_pt": 10,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "響JH",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 11000,
+     "sale_price_yen": 44000,
+     "inventory_managed": true,
+     "hon_pt": 15,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "マッカラン12年",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 10000,
+     "sale_price_yen": 33000,
+     "inventory_managed": true,
+     "hon_pt": 10,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "カフェ・ド・パリ",
+     "accounting_class": "champagne",
+     "display_category": "スパークリング",
+     "cost_yen": 2000,
+     "sale_price_yen": 16500,
+     "inventory_managed": true,
+     "hon_pt": 5,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "モエ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 6500,
+     "sale_price_yen": 27500,
+     "inventory_managed": true,
+     "hon_pt": 10,
+     "back": {
+      "type": "sale_pct",
+      "value": 20
+     },
+     "status": "active"
+    },
+    {
+     "name": "ヴーヴ・クリコ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 8500,
+     "sale_price_yen": 38500,
+     "inventory_managed": true,
+     "hon_pt": 15,
+     "back": {
+      "type": "sale_pct",
+      "value": 20
+     },
+     "status": "active"
+    },
+    {
+     "name": "ベルエポック",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 22000,
+     "sale_price_yen": 66000,
+     "inventory_managed": true,
+     "hon_pt": 25,
+     "back": {
+      "type": "sale_pct",
+      "value": 20
+     },
+     "status": "active"
+    },
+    {
+     "name": "ドン・ペリニヨン",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 24000,
+     "sale_price_yen": 88000,
+     "inventory_managed": true,
+     "hon_pt": 30,
+     "back": {
+      "type": "sale_pct",
+      "value": 25
+     },
+     "status": "active"
+    },
+    {
+     "name": "クリュッグ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 35000,
+     "sale_price_yen": 99000,
+     "inventory_managed": true,
+     "hon_pt": 40,
+     "back": {
+      "type": "sale_pct",
+      "value": 25
+     },
+     "status": "active"
+    },
+    {
+     "name": "アルマンド ゴールド",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 48000,
+     "sale_price_yen": 165000,
+     "inventory_managed": true,
+     "hon_pt": 50,
+     "back": {
+      "type": "sale_pct",
+      "value": 25
+     },
+     "status": "active"
+    },
+    {
+     "name": "ソウメイ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 38000,
+     "sale_price_yen": 110000,
+     "inventory_managed": true,
+     "hon_pt": 40,
+     "back": {
+      "type": "sale_pct",
+      "value": 25
+     },
+     "status": "active"
+    },
+    {
+     "name": "ウーロン茶",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 770,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ペリエ",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 180,
+     "sale_price_yen": 880,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "フルーツ盛り",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 1500,
+     "sale_price_yen": 5500,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "チーズ盛り",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 600,
+     "sale_price_yen": 2200,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    }
+   ]
+  },
+  {
+   "template_id": "cabaret_slide",
+   "store_type": "キャバクラ",
+   "template_name": "キャバクラ・売上スライド",
+   "assumption": "通常料金＋VIP 加算（1 人・60 分）。売上スライド（その日の売上で当日の時給）。",
+   "business_hours": {
+    "open": "20:00",
+    "close": "01:00",
+    "business_day_cutoff": "06:00"
+   },
+   "features": {
+    "vip": "surcharge",
+    "nomination": true,
+    "accounts_receivable": true,
+    "shift_request_mode": "shift"
+   },
+   "seats": {
+    "table_count": 4,
+    "vip_count": 2,
+    "counter_count": 0
+   },
+   "service_charge_pct": 20,
+   "pricing_rules": [
+    {
+     "name": "平日通常",
+     "iso_weekdays": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "start_min": 1200,
+     "end_min": 1800,
+     "seat": "any",
+     "set_min": 60,
+     "set_fee": 7000,
+     "extension_30_fee": 3500,
+     "vip_surcharge": 5000,
+     "enabled": true
+    },
+    {
+     "name": "週末通常",
+     "iso_weekdays": [
+      5,
+      6
+     ],
+     "start_min": 1200,
+     "end_min": 1800,
+     "seat": "any",
+     "set_min": 60,
+     "set_fee": 8000,
+     "extension_30_fee": 4000,
+     "vip_surcharge": 5000,
+     "enabled": true
+    }
+   ],
+   "ranks": [
+    {
+     "name": "default",
+     "main_nomination_yen": 3000,
+     "in_house_nomination_yen": 2000,
+     "accompaniment_yen": 4000
+    }
+   ],
+   "plans": [
+    {
+     "name": "ACE Sales Slide",
+     "hourly_yen": 2500,
+     "main_nomination_back": 1000,
+     "in_house_nomination_back": 500,
+     "accompaniment_back": 1500,
+     "achievement_bonus": [
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 500000,
+       "add_yen": 10000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 1000000,
+       "add_yen": 30000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 2000000,
+       "add_yen": 80000
+      },
+      {
+       "metric": "monthly_main_count",
+       "threshold": 10,
+       "add_yen": 5000
+      },
+      {
+       "metric": "monthly_main_count",
+       "threshold": 20,
+       "add_yen": 15000
+      },
+      {
+       "metric": "monthly_main_count",
+       "threshold": 30,
+       "add_yen": 30000
+      }
+     ],
+     "sales_slide": [
+      {
+       "at": 0,
+       "wage": 2500
+      },
+      {
+       "at": 30000,
+       "wage": 3000
+      },
+      {
+       "at": 70000,
+       "wage": 3500
+      },
+      {
+       "at": 120000,
+       "wage": 4500
+      }
+     ]
+    }
+   ],
+   "products": [
+    {
+     "name": "Cast Drink S",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 150,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "Cast Drink M",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 220,
+     "sale_price_yen": 1650,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "unit4",
+      "value": {
+       "hon": 500,
+       "jonai": 400,
+       "dohan": 500,
+       "free": 300
+      }
+     },
+     "status": "active"
+    },
+    {
+     "name": "Cast Drink L",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 300,
+     "sale_price_yen": 2200,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "unit4",
+      "value": {
+       "hon": 700,
+       "jonai": 500,
+       "dohan": 700,
+       "free": 500
+      }
+     },
+     "status": "active"
+    },
+    {
+     "name": "生ビール",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 260,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ハイボール",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 140,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "レモンサワー",
+     "accounting_class": "drink",
+     "display_category": "サワー",
+     "cost_yen": 130,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "黒霧島",
+     "accounting_class": "bottle",
+     "display_category": "焼酎",
+     "cost_yen": 1300,
+     "sale_price_yen": 5500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "吉四六",
+     "accounting_class": "bottle",
+     "display_category": "焼酎",
+     "cost_yen": 2400,
+     "sale_price_yen": 8800,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "山崎",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 8000,
+     "sale_price_yen": 22000,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "響",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 11000,
+     "sale_price_yen": 27500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "カフェ・ド・パリ",
+     "accounting_class": "champagne",
+     "display_category": "スパークリング",
+     "cost_yen": 2000,
+     "sale_price_yen": 11000,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "モエ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 6500,
+     "sale_price_yen": 22000,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 20
+     },
+     "status": "active"
+    },
+    {
+     "name": "ヴーヴ・クリコ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 8500,
+     "sale_price_yen": 27500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 20
+     },
+     "status": "active"
+    },
+    {
+     "name": "ドン・ペリニヨン",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 24000,
+     "sale_price_yen": 66000,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 20
+     },
+     "status": "active"
+    },
+    {
+     "name": "アルマンド",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 48000,
+     "sale_price_yen": 110000,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 20
+     },
+     "status": "active"
+    },
+    {
+     "name": "ウーロン茶",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 660,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "コーラ",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 660,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ミックスナッツ",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 180,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "フルーツ盛り",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 1100,
+     "sale_price_yen": 3300,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    }
+   ]
+  },
+  {
+   "template_id": "girlsbar_standard",
+   "store_type": "ガールズバー",
+   "template_name": "ガールズバー",
+   "assumption": "チャージ＋ドリンク中心。指名料なし。キャストショットは指名別のバック。",
+   "business_hours": {
+    "open": "20:00",
+    "close": "01:00",
+    "business_day_cutoff": "06:00"
+   },
+   "features": {
+    "vip": "none",
+    "nomination": false,
+    "accounts_receivable": false,
+    "shift_request_mode": "shift"
+   },
+   "seats": {
+    "table_count": 8,
+    "vip_count": 0,
+    "counter_count": 0
+   },
+   "service_charge_pct": 10,
+   "pricing_rules": [
+    {
+     "name": "通常",
+     "iso_weekdays": [
+      1,
+      2,
+      3,
+      4,
+      7
+     ],
+     "start_min": 0,
+     "end_min": 1800,
+     "seat": "normal",
+     "set_min": 60,
+     "set_fee": 3300,
+     "extension_30_fee": 1650,
+     "vip_surcharge": 0,
+     "enabled": true
+    },
+    {
+     "name": "週末",
+     "iso_weekdays": [
+      5,
+      6
+     ],
+     "start_min": 0,
+     "end_min": 1800,
+     "seat": "normal",
+     "set_min": 60,
+     "set_fee": 3850,
+     "extension_30_fee": 1980,
+     "vip_surcharge": 0,
+     "enabled": true
+    }
+   ],
+   "ranks": [],
+   "plans": [
+    {
+     "name": "LILY Standard",
+     "hourly_yen": 1800,
+     "main_nomination_back": 0,
+     "in_house_nomination_back": 0,
+     "accompaniment_back": 0,
+     "achievement_bonus": [
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 200000,
+       "add_yen": 5000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 400000,
+       "add_yen": 15000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 700000,
+       "add_yen": 30000
+      }
+     ],
+     "sales_slide": []
+    }
+   ],
+   "products": [
+    {
+     "name": "Cast Drink S",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 150,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "Cast Drink M",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 220,
+     "sale_price_yen": 1650,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 500
+     },
+     "status": "active"
+    },
+    {
+     "name": "Cast Drink L",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 300,
+     "sale_price_yen": 2200,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 700
+     },
+     "status": "active"
+    },
+    {
+     "name": "生ビール",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 260,
+     "sale_price_yen": 770,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "コロナ",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 350,
+     "sale_price_yen": 880,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ハイボール",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 130,
+     "sale_price_yen": 770,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "レモンサワー",
+     "accounting_class": "drink",
+     "display_category": "サワー",
+     "cost_yen": 130,
+     "sale_price_yen": 770,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "カシスオレンジ",
+     "accounting_class": "drink",
+     "display_category": "カクテル",
+     "cost_yen": 170,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ファジーネーブル",
+     "accounting_class": "drink",
+     "display_category": "カクテル",
+     "cost_yen": 170,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ジントニック",
+     "accounting_class": "drink",
+     "display_category": "カクテル",
+     "cost_yen": 170,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "モスコミュール",
+     "accounting_class": "drink",
+     "display_category": "カクテル",
+     "cost_yen": 180,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "キャスト用テキーラ",
+     "accounting_class": "drink",
+     "display_category": "キャストショット",
+     "cost_yen": 220,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "キャスト用イエーガー",
+     "accounting_class": "drink",
+     "display_category": "キャストショット",
+     "cost_yen": 240,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "キャスト用クライナー",
+     "accounting_class": "drink",
+     "display_category": "キャストショット",
+     "cost_yen": 300,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "キャスト用コカレロ",
+     "accounting_class": "drink",
+     "display_category": "キャストショット",
+     "cost_yen": 300,
+     "sale_price_yen": 1320,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 400
+     },
+     "status": "active"
+    },
+    {
+     "name": "カフェ・ド・パリ",
+     "accounting_class": "champagne",
+     "display_category": "スパークリング",
+     "cost_yen": 2000,
+     "sale_price_yen": 8800,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "モエ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 6500,
+     "sale_price_yen": 16500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "ヴーヴ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 8500,
+     "sale_price_yen": 22000,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 15
+     },
+     "status": "active"
+    },
+    {
+     "name": "ウーロン茶",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 550,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "オレンジ",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 100,
+     "sale_price_yen": 550,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "コーラ",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 550,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ミックスナッツ",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 180,
+     "sale_price_yen": 660,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ポテトフライ",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 250,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    }
+   ]
+  },
+  {
+   "template_id": "snack_standard",
+   "store_type": "スナック",
+   "template_name": "スナック",
+   "assumption": "セット（90 分）＋ボトル中心。指名料なし。キャストドリンクは指名別のバック。",
+   "business_hours": {
+    "open": "20:00",
+    "close": "01:00",
+    "business_day_cutoff": "06:00"
+   },
+   "features": {
+    "vip": "none",
+    "nomination": false,
+    "accounts_receivable": false,
+    "shift_request_mode": "shift"
+   },
+   "seats": {
+    "table_count": 5,
+    "vip_count": 0,
+    "counter_count": 0
+   },
+   "service_charge_pct": 10,
+   "pricing_rules": [
+    {
+     "name": "通常料金",
+     "iso_weekdays": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+     ],
+     "start_min": 0,
+     "end_min": 1800,
+     "seat": "normal",
+     "set_min": 90,
+     "set_fee": 5500,
+     "extension_30_fee": 2200,
+     "vip_surcharge": 0,
+     "enabled": true
+    }
+   ],
+   "ranks": [],
+   "plans": [
+    {
+     "name": "MUSE Standard",
+     "hourly_yen": 1800,
+     "main_nomination_back": 0,
+     "in_house_nomination_back": 0,
+     "accompaniment_back": 0,
+     "achievement_bonus": [
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 300000,
+       "add_yen": 5000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 500000,
+       "add_yen": 15000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 800000,
+       "add_yen": 30000
+      }
+     ],
+     "sales_slide": []
+    }
+   ],
+   "products": [
+    {
+     "name": "キャストドリンク",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 150,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "キャストドリンクW",
+     "accounting_class": "drink",
+     "display_category": "キャスト",
+     "cost_yen": 300,
+     "sale_price_yen": 2200,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 600
+     },
+     "status": "active"
+    },
+    {
+     "name": "生ビール",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 260,
+     "sale_price_yen": 770,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "瓶ビール",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 300,
+     "sale_price_yen": 880,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ハイボール",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 130,
+     "sale_price_yen": 770,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "レモンサワー",
+     "accounting_class": "drink",
+     "display_category": "サワー",
+     "cost_yen": 130,
+     "sale_price_yen": 770,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "黒霧島",
+     "accounting_class": "bottle",
+     "display_category": "焼酎",
+     "cost_yen": 1300,
+     "sale_price_yen": 4400,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "吉四六",
+     "accounting_class": "bottle",
+     "display_category": "焼酎",
+     "cost_yen": 2400,
+     "sale_price_yen": 7700,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 500
+     },
+     "status": "active"
+    },
+    {
+     "name": "角瓶",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 1900,
+     "sale_price_yen": 5500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 500
+     },
+     "status": "active"
+    },
+    {
+     "name": "シーバス12年",
+     "accounting_class": "bottle",
+     "display_category": "ウイスキー",
+     "cost_yen": 4000,
+     "sale_price_yen": 11000,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 800
+     },
+     "status": "active"
+    },
+    {
+     "name": "赤ワイン",
+     "accounting_class": "bottle",
+     "display_category": "ワイン",
+     "cost_yen": 1600,
+     "sale_price_yen": 5500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "白ワイン",
+     "accounting_class": "bottle",
+     "display_category": "ワイン",
+     "cost_yen": 1600,
+     "sale_price_yen": 5500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "カフェ・ド・パリ",
+     "accounting_class": "champagne",
+     "display_category": "スパークリング",
+     "cost_yen": 2000,
+     "sale_price_yen": 8800,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "モエ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 6500,
+     "sale_price_yen": 16500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "ウーロン茶",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 550,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "コーラ",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 550,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ミックスナッツ",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 180,
+     "sale_price_yen": 660,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "チョコレート",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 200,
+     "sale_price_yen": 660,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "枝豆",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 180,
+     "sale_price_yen": 660,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "チーズ盛り",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 380,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    }
+   ]
+  },
+  {
+   "template_id": "bar_staffback",
+   "store_type": "バー",
+   "template_name": "バー・スタッフバックあり",
+   "assumption": "テーブルチャージ＋商品会計。接客スタッフをキャストとして登録し、ショット・シャンパンにバックを付ける（スタッフへの直接バックは器なし）。",
+   "business_hours": {
+    "open": "20:00",
+    "close": "01:00",
+    "business_day_cutoff": "06:00"
+   },
+   "features": {
+    "vip": "none",
+    "nomination": false,
+    "accounts_receivable": false,
+    "shift_request_mode": "shift"
+   },
+   "seats": {
+    "table_count": 5,
+    "vip_count": 0,
+    "counter_count": 1
+   },
+   "service_charge_pct": 0,
+   "pricing_rules": [
+    {
+     "name": "テーブルチャージ",
+     "iso_weekdays": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ],
+     "start_min": 0,
+     "end_min": 1800,
+     "seat": "any",
+     "set_min": 0,
+     "set_fee": 1100,
+     "extension_30_fee": 0,
+     "vip_surcharge": 0,
+     "enabled": true
+    }
+   ],
+   "ranks": [],
+   "plans": [
+    {
+     "name": "NEST Staff",
+     "hourly_yen": 1600,
+     "main_nomination_back": 0,
+     "in_house_nomination_back": 0,
+     "accompaniment_back": 0,
+     "achievement_bonus": [
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 150000,
+       "add_yen": 5000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 300000,
+       "add_yen": 10000
+      },
+      {
+       "metric": "monthly_sales_yen",
+       "threshold": 500000,
+       "add_yen": 20000
+      }
+     ],
+     "sales_slide": []
+    }
+   ],
+   "products": [
+    {
+     "name": "Staff Drink",
+     "accounting_class": "drink",
+     "display_category": "スタッフ",
+     "cost_yen": 150,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "生ビール",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 260,
+     "sale_price_yen": 770,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "コロナ",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 350,
+     "sale_price_yen": 880,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ハイネケン",
+     "accounting_class": "drink",
+     "display_category": "ビール",
+     "cost_yen": 350,
+     "sale_price_yen": 880,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ハイボール",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 130,
+     "sale_price_yen": 770,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ジャックダニエル",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 180,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "メーカーズマーク",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 220,
+     "sale_price_yen": 990,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "山崎",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 500,
+     "sale_price_yen": 1650,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "白州",
+     "accounting_class": "drink",
+     "display_category": "ウイスキー",
+     "cost_yen": 500,
+     "sale_price_yen": 1650,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ジントニック",
+     "accounting_class": "drink",
+     "display_category": "カクテル",
+     "cost_yen": 170,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "モスコミュール",
+     "accounting_class": "drink",
+     "display_category": "カクテル",
+     "cost_yen": 180,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "カシスオレンジ",
+     "accounting_class": "drink",
+     "display_category": "カクテル",
+     "cost_yen": 170,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "カルーアミルク",
+     "accounting_class": "drink",
+     "display_category": "カクテル",
+     "cost_yen": 200,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "スタッフ用テキーラ",
+     "accounting_class": "drink",
+     "display_category": "スタッフショット",
+     "cost_yen": 220,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "スタッフ用イエーガー",
+     "accounting_class": "drink",
+     "display_category": "スタッフショット",
+     "cost_yen": 240,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "スタッフ用クライナー",
+     "accounting_class": "drink",
+     "display_category": "スタッフショット",
+     "cost_yen": 300,
+     "sale_price_yen": 1100,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 300
+     },
+     "status": "active"
+    },
+    {
+     "name": "スタッフ用コカレロ",
+     "accounting_class": "drink",
+     "display_category": "スタッフショット",
+     "cost_yen": 300,
+     "sale_price_yen": 1320,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "fixed",
+      "value": 400
+     },
+     "status": "active"
+    },
+    {
+     "name": "グラス赤",
+     "accounting_class": "drink",
+     "display_category": "ワイン",
+     "cost_yen": 230,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "グラス白",
+     "accounting_class": "drink",
+     "display_category": "ワイン",
+     "cost_yen": 230,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ボトル赤",
+     "accounting_class": "bottle",
+     "display_category": "ワイン",
+     "cost_yen": 1600,
+     "sale_price_yen": 5500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ボトル白",
+     "accounting_class": "bottle",
+     "display_category": "ワイン",
+     "cost_yen": 1600,
+     "sale_price_yen": 5500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "カフェ・ド・パリ",
+     "accounting_class": "champagne",
+     "display_category": "スパークリング",
+     "cost_yen": 2000,
+     "sale_price_yen": 8800,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "モエ",
+     "accounting_class": "champagne",
+     "display_category": "シャンパン",
+     "cost_yen": 6500,
+     "sale_price_yen": 16500,
+     "inventory_managed": true,
+     "hon_pt": 0,
+     "back": {
+      "type": "sale_pct",
+      "value": 10
+     },
+     "status": "active"
+    },
+    {
+     "name": "ウーロン茶",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 550,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "コーラ",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 70,
+     "sale_price_yen": 550,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ジンジャーエール",
+     "accounting_class": "drink",
+     "display_category": "ソフトドリンク",
+     "cost_yen": 80,
+     "sale_price_yen": 550,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ミックスナッツ",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 180,
+     "sale_price_yen": 660,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "ビーフジャーキー",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 300,
+     "sale_price_yen": 880,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    },
+    {
+     "name": "チーズ盛り",
+     "accounting_class": "food",
+     "display_category": "軽食",
+     "cost_yen": 450,
+     "sale_price_yen": 1320,
+     "inventory_managed": false,
+     "hon_pt": 0,
+     "back": {
+      "type": "none"
+     },
+     "status": "active"
+    }
+   ]
+  }
+ ]
+}
