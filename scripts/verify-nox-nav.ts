@@ -70,11 +70,11 @@ check("nv(4-4) CSS: 選択中の下タブ＝上辺の線＋太字（.nox-nav-bot
 
 // (5) ★便 U-2: マスタ第 2 ナビと概要カード（許可列挙・裁定260）→ ★裁定330（便 MC1・2026-10-01）: 3 層（群 4／入口 9／タブ）＝nv(5-1)〜(5-3) を新構成へ張替え（詳細は verify:nox-master-top）
 const ccGrp = MASTER_NAV.find((g) => g.key === "cast-comp"), stGrp = MASTER_NAV.find((g) => g.key === "store");
-check("nv(5-1) MASTER_NAV＝4 群（商品・料金／キャスト・報酬／店舗・運用／スタッフ・システム）・入口 9・キャスト・報酬群＝報酬設定（タブ 5＝待遇プラン／控除・送り／ノルマ／キャスト会計／報酬制度＝MC1 仮置き）＋紹介者・紹介料（href /master/referrers）",
+check("nv(5-1) MASTER_NAV＝4 群（商品・料金／キャスト・報酬／店舗・運用／スタッフ・システム）・入口 9・キャスト・報酬群＝報酬設定（タブ 3＝待遇プラン／控除・送り／ノルマ・★MC2: 仮置き 2 タブは外した）＋紹介者・紹介料（href /master/referrers）",
   JSON.stringify(MASTER_NAV.map((g) => g.label)) === JSON.stringify(["商品・料金", "キャスト・報酬", "店舗・運用", "スタッフ・システム"]) && MASTER_NAV.reduce((n, g) => n + g.pages.length, 0) === 9
-  && JSON.stringify(ccGrp?.pages.map((p) => p.label)) === JSON.stringify(["報酬設定", "紹介者・紹介料"]) && JSON.stringify(ccGrp?.pages[0]?.tabs?.map((t) => t.label)) === JSON.stringify(["待遇プラン", "控除・送り", "ノルマ", "キャスト会計", "報酬制度"]) && ccGrp?.pages[1]?.href === "/master/referrers", JSON.stringify(ccGrp?.pages.map((p) => p.label)));
-check("nv(5-2) MASTER_NAV 店舗・運用群＝店舗設定（/master/store-profile・タブ 店舗情報／機能の公開）／席・卓／営業時間・定休日・在庫（/master/stock）は無い・全群で /master/referrers は 1 回",
-  JSON.stringify(stGrp?.pages.map((p) => p.label)) === JSON.stringify(["店舗設定", "席・卓", "営業時間・定休日"]) && stGrp?.pages[0]?.href === "/master/store-profile"
+  && JSON.stringify(ccGrp?.pages.map((p) => p.label)) === JSON.stringify(["報酬設定", "紹介者・紹介料"]) && JSON.stringify(ccGrp?.pages[0]?.tabs?.map((t) => t.label)) === JSON.stringify(["待遇プラン", "控除・送り", "ノルマ"]) && ccGrp?.pages[1]?.href === "/master/referrers", JSON.stringify(ccGrp?.pages.map((p) => p.label)));
+check("nv(5-2) MASTER_NAV 店舗・運用群＝店舗設定（/master/store-profile・タブ 利用機能／店舗情報＝★MC2）／席・卓／営業時間・定休日・在庫（/master/stock）は無い・全群で /master/referrers は 1 回",
+  JSON.stringify(stGrp?.pages.map((p) => p.label)) === JSON.stringify(["店舗設定", "席・卓", "営業時間・定休日"]) && stGrp?.pages[0]?.href === "/master/store-profile" && JSON.stringify(stGrp?.pages[0]?.tabs?.map((t) => t.label)) === JSON.stringify(["利用機能", "店舗情報"])
   && !MASTER_NAV.some((g) => g.pages.some((p) => p.href === "/master/stock" || (p.tabs ?? []).some((t) => t.href === "/master/stock"))) && MASTER_NAV.flatMap((g) => g.pages).filter((p) => p.href === "/master/referrers").length === 1, JSON.stringify(stGrp?.pages.map((p) => p.label)));
 const mb = fs.readFileSync("app/(manage)/master/master-board.tsx", "utf8");
 check("nv(5-3) 概要（マスタトップ）＝MASTER_NAV から 4 パネルを描く（固定の HUBS 配列は無い）・在庫カード無し・入口カードは Link（href＝入口の先頭）",
