@@ -4037,6 +4037,8 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 適用＝0164 起草（stores に pay_day／use_vip／use_counter ＋ setup_map C 5 項目の器）→ W5-2／W5-3。締め日は payroll_runs.period（YYYY-MM）のまま＝migration なし。
 
+**0164 の欄（起草・突合済み・手貼りは Agoora・0163 の後）**: supabase/migrations/0164_store_ops_settings.sql＝**sha256 02d378983e202eacae914e5c9cf4489732dbb32526d6f366e5612ac3a2f4dcfc・458 行・45,322 B・突合 11 段 NG 0（docs/tmp/q1002_ag_0164.mjs・BEGIN…ROLLBACK）**・生成器 docs/tmp/gen_0164.mjs＋0164_template.sql・写経元 docs/tmp/0163_live.json の set_store_profile（4f2e9f82 → 期待 2e7b4963・★追加 74 行・他は 1 バイト不変）。中身＝stores に 7 列（invoice_registered_on date null／pay_day int 25・1〜31／tax_inclusive_display bool false／use_vip・use_counter bool true／payment_methods jsonb {cash,card,emoney,qr}／punch_methods jsonb {self,proxy,kiosk}）＋ set_store_profile の白名単 +7（列側・型検査・cash は常に true・打刻は 1 つ以上・監査 before/after）。新規 RPC なし＝名簿不変（303／83／154 は 0163 後の値）。締め日は列を足さない（月末固定）。**demo 表への影響＝stores の NOT NULL 列が増える→payload の stores 行に 7 列が要る（jsonb_populate_recordset は default を使わない・c-10 で実証）＝手貼り後に columns スナップショットを取り直して gen-demo を再実行**。手貼り後に赤になる段＝docs/tmp/0164_pre.md §5。
+
 ## 裁定333（2026-10-02 確定・相談役・便 S1）スタッフから配置の複数日化
 
 出典＝相談役ブロック 2026-10-02（【予約の変更】MC2 の push・報告後、W5-1 の前に便 S1）。**本文（逐語）**:
