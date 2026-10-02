@@ -102,7 +102,7 @@ check("pv(5-4) collect: missingOutDates＝raw.out 'noout' ∧ final ok|late の 
     && payTimeBasisApplyNoteOf(payTimeBasisViewOf({ pay_time_basis: "punch", pay_time_basis_next: "shift", pay_time_basis_next_from: "2026-11-01" }), "2026-10-15") === "11/1 から適用（現在: 実打刻）"
     && payTimeBasisApplyNoteOf(payTimeBasisViewOf({ pay_time_basis: "punch", pay_time_basis_next: "shift", pay_time_basis_next_from: "2026-11-01" }), "2026-11-02") === "11/1 から適用中（確定シフトどおり）"
     && payTimeBasisApplyNoteOf(payTimeBasisViewOf({ pay_time_basis: "shift" })) === null && payTimeBasisViewOf({ pay_time_basis_next: "shift", pay_time_basis_next_from: "x" }).next === null);
-  check("pv(7-5) ウィザード STEP 3（C-2）: 2 択（既定 実打刻）・'shift' のときだけ set_store_pay_time_basis(…,'now') を settings 群に 1 本", wz.includes('useState<"punch" | "shift">("punch")') && wz.includes('ariaLabel="勤務時間の計算基準"') && wz.includes("flags: changedFlags, payTimeBasis })") && tp.includes('if (sel.payTimeBasis === "shift") {') && tp.includes('rpc: "set_store_pay_time_basis", args: { p_store_id: s, p_value: "shift", p_apply: "now" }'));
+  check("pv(7-5) ウィザード STEP 4（C-2・W5-1 で 6 ステップ化）: 2 択（既定 実打刻）・'shift' のときだけ set_store_pay_time_basis(…,'now') を settings 群に 1 本", wz.includes('useState<"punch" | "shift">("punch")') && wz.includes('ariaLabel="勤務時間の計算基準"') && wz.includes("payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, mine, current: store.current, flags: changedFlags })") /* ★W5-1: 6 ステップ化で buildSetupPlan の引数が増えた */ && tp.includes('if (sel.payTimeBasis === "shift") {') && tp.includes('rpc: "set_store_pay_time_basis", args: { p_store_id: s, p_value: "shift", p_apply: "now" }'));
 }
 
 if (fails.length) {
