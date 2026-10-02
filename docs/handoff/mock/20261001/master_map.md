@@ -40,7 +40,7 @@
 | 入口 | タブ | 現行 route | component | 権限 | 分類 |
 |---|---|---|---|---|---|
 | 店舗設定 | 利用機能＝報酬制度（sys_* 9）／フロア機能（VIP・カウンター）／売掛利用（ar_enabled）／スタッフシフト・締め解除フロー（feature_flags） | /master/cast-comp/systems（報酬制度）・/master/store-profile（売掛）・/master/system#features（機能の公開） | SystemsBoard・StoreProfilePanel の「売掛・記録の保持」節・FeatureFlagsPanel | owner（manager 閲覧） | **タブ化**（3 画面の節を 1 タブへ）。**フロア機能（VIP・カウンターを使うか）は器なし**＝stores に列なし・seats.kind の有無で代替＝第 2 期（0163 以降の候補・設定だけなら settings_json 白名単 +2 で足りる） |
-| 店舗設定 | 店舗情報＝店舗名・略称・店舗コード・表示名／キャスト確認（shift_cast_confirm） | /master/store-profile | StoreProfilePanel の「店舗情報」「シフト運用」節 | owner（manager 閲覧） | **重複除去**＝店舗名の編集はここだけ（現状: business-hours ページは StoreProfilePanel を切り出し済み＝起票86 で重複は既に解消・モックの「営業時間画面で重複して編集しない」は現状と一致）。**M1 の「キャスト画面の設定」（MineSettingsPanel・8 キー）＝この「店舗情報」タブの隣の節として置く（提案）**／**0159 の「勤務時間の計算基準」（pay_time_basis）＝「利用機能」タブの報酬制度の直下（提案・制度の ON/OFF と計算基準を同じ面で見る）** |
+| 店舗設定 | 店舗情報＝店舗名・略称・店舗コード・表示名／キャスト確認（shift_cast_confirm） | /master/store-profile | StoreProfilePanel の「店舗情報」「シフト運用」節 | owner（manager 閲覧） | **重複除去**＝店舗名の編集はここだけ（現状: business-hours ページは StoreProfilePanel を切り出し済み＝起票86 で重複は既に解消・モックの「営業時間画面で重複して編集しない」は現状と一致）。**M1 の「キャスト画面の設定」（MineSettingsPanel・8 キー）＝「店舗設定 ＞ 利用機能」タブ（330 追補1 で確定・MC2 適用）**／**0159 の「勤務時間の計算基準」（pay_time_basis）＝「利用機能」タブの報酬制度の直下（MC2 適用）** |
 | 席・卓 | 席・卓一覧（登録・並び順・稼働） | /master/seats | SeatsBoard | owner／manager | 移動のみ（席種ごとの料金ルールへのリンク＝/master/pricing?tab=rules） |
 | 営業時間・定休日 | 営業時間・シフト運用＝曜日別営業時間・定休日／シフト登録（スタッフ枠＝枠マスタ・締切） | /master/business-hours | BusinessHoursPanel＋StaffShiftPanel | owner／manager | 移動のみ（店舗名の注記＝「店舗設定 ＞ 店舗情報に統一」） |
 
@@ -77,3 +77,11 @@
 - **MC1**＝トップ（master-board の HUBS を 4 パネル × 9 入口へ・在庫カードを外す・検索は既存 hubHit を維持）＋MASTER_NAV の 4 群再編（商品・料金／キャスト・報酬／店舗・運用／スタッフ・システム＝モックの 4 パネル・キャスト会計を権限へ・報酬制度を店舗設定へ）＋nav 張替え。URL 不変・component 不触。
 - **MC2**＝タブ化（商品管理＝products＋categories の 2 タブ・報酬設定＝plan／deduction／norma の 3 タブ・店舗設定＝利用機能／店舗情報の 2 タブ・端末・印刷／権限・情報管理＝system-board の分割）＋DataRetentionPanel の切り出し＋M1 節・0159 節の置き場。pin 張替え（store-profile・mine-settings）。
 - migration: **MC では 0**（フロア機能の設定キーは第 2 期・要るなら 0163 以降の settings_json 白名単 +2＝set_store_profile の ★置換）。
+
+## 8. MC2 の適用（2026-10-01）
+
+- 店舗設定（/master/store-profile）＝?tab=features（利用機能＝SystemsBoard（sys_* 9・ノルマを使う）／売掛／機能の公開（owner）／勤務時間の計算基準／キャスト画面の設定）・?tab=info（店舗情報＝店舗名・略称・店舗コード・表示名・送りの基本額・キャスト確認）。住所・電話・インボイス登録番号は端末・印刷 ＞ レシート・プリンタのまま（二重編集を作らない）。
+- 権限・情報管理（入口 href /master/cast-comp/register）＝キャスト会計の許可（既存 page）／データ管理（/master/store-profile?tab=data＝利用目的・保持年数・操作ログ保持）／機密情報（/master/system#secrets）。
+- 報酬設定＝待遇プラン／控除・送り／ノルマ（MC1 の仮置き 2 タブを外す）。料金・会計＝内側ピル撤去（外側 ?tab の 1 本）。/master/system の「機能の公開」タブは撤去（案内行＋リンク）。
+- 旧 href 17 本＝全部有効（/master/cast-comp/systems・/master/system#features は「店舗設定 ＞ 利用機能」の alias として解決・ページは従来どおり描く）。新 route 0・新 RPC 0。
+- フロア機能（VIP／カウンター）は器なし＝本便では出さない（W5 の 0164 で裁定）。

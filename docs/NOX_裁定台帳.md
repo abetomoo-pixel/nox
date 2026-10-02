@@ -2846,6 +2846,10 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓102：疎通門番は DB 実行時間と回線 RTT を分けて判定する（select 1 の壁時計は回線を含む・相談役起こし）
+
+2026-10-02: 再開門番「直結 select 1 が 10 ms 台」が 47〜84 ms で NG になったが、explain analyze の Execution Time は 0.056 ms・ICMP RTT が Supabase edge 60 ms（google 3 ms）＝回線経路の遅延で DB は健全だった。壁時計 1 本では「DB が重い（昨日型＝503・pool timeout・秒単位クエリ）」と「回線が遠い」を区別できない。以後の門番＝裁定332 の 3 値（REST 認証付き 200×3／Execution Time<5 ms／RTT<150 ms）・ステータスは当該リージョンのみ・RTT>50 ms なら所要見込みを先に報告。
+
 ### 教訓101：同一 tx 内は now() 固定で打刻順序が不定・suite は clock_timestamp()（相談役起こし）
 
 出典＝相談役 2026-10-01 受領（便「台帳記入＋0162 起草」・逐語）: 「教訓101＝『同一 tx 内は now() 固定で打刻順序が不定・suite は clock_timestamp()』（CC 提案の『教訓98（提案）』はこの番号に改める・既存 98 は不変）」。
@@ -3974,6 +3978,8 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 **便 M5 完了＝台帳の現在地（2026-10-01）**: 便 M5-1〜4（裁定329＋追補1・326 追補7-6＝スタッフ写真と cast の契約確認の client）＝lib（staff-photo・mine/contract-ack・rpc-err・shift/staff-place）／client（UserChip「自分の情報」に本人の写真・/staff 編集 Modal に登録／差替え／削除・/casts 詳細に「写真を削除」・スタッフ枠の avatar・/mine 契約確認 gate）／verify（新規 staff-photo 12・nav nv(4-3) 張替え）。f0 **91 段 5,414**（2 連緑 16:27:17〜16:38:53／16:39:53〜16:51:05・golden 6 値不変）。仮決め 9 点＝docs/tmp/v43_pre.md（329 追補2 で追認を求める）。デモ写真＝docs/tmp/demo_photos/casts 38/38（staff 0/9）。次＝MC0（裁定330／331 の読取・収蔵）→ MC1。
 **便 MC0＋MC1 完了＝台帳の現在地（2026-10-01）**: MC0＝09902cb（docs/handoff/mock/20261001＝正本モック 3 ファイル・master_map.md・setup_map.md）。MC1（裁定330 第 1 便・client のみ・DB 恒久変更 0）＝lib/nox/master/nav.ts を 3 層（群 4／入口 9／タブ）に・master-board＝4 パネル × 9 入口＋検索（在庫カードと発注推奨の KPI／警告は在庫画面へ）・master-subnav＝「マスタ ▸ 群 ▾ ▸ 入口 ▾」＋入口内タブ・pricing-board が ?tab= を初期タブに・旧 17 href は全部そのまま有効（redirect 不要＝resolveMasterNav が入口・タブへ解決）。verify＝新規 master-top 10・nav nv(5-1)〜(5-4) 張替え。f0 **92 段 5,424**（2 連緑 16:57:42〜17:13:15／17:14:15〜17:28:22・golden 6 値不変）。仮決め 9 点＝docs/tmp/v43_pre.md（330 追補で追認を求める）。次＝MC2（店舗設定の利用機能／店舗情報分割・データ管理の分離・キャスト会計の移動・席・卓／営業時間）。
 
+**便 MC2 完了＝台帳の現在地（2026-10-01）**: MC2（裁定330 第 2 便・330 追補1／329 追補2 の適用・client のみ・DB 恒久変更 0）＝店舗設定を 2 タブ（?tab=features 利用機能＝報酬制度 9・売掛・機能の公開（owner）・勤務時間の計算基準・キャスト画面の設定／?tab=info 店舗情報）に・権限・情報管理（入口 href /master/cast-comp/register）＝キャスト会計の許可／データ管理（?tab=data）／機密情報の 3 タブ・報酬設定＝待遇プラン／控除・送り／ノルマ・料金・会計の内側ピル撤去（外側 ?tab の 1 本・「ルールで設定」は router.push）・/master/system の「機能の公開」タブ撤去（案内行＋リンク）・旧 href 17 本は alias で解決（新 route 0）・contract-ack 2 行目を 329 追補2 の文面に。verify＝master-top 14（タブ構成・alias・店舗設定 3 面・system に機能の公開なし・内側ピルなし）・nav nv(5-1)／(5-2) 張替え。f0 **92 段 5,428（2 連緑 15:22:07〜15:45:46／15:46:48〜16:04:32・RTT 60 ms で 1 走 18〜24 分・前日 10-01 の run1 緑 92 段 5,428 は不採用・10-02 の最初の 2 連は rls 固定具 prof1〜4 の残置（10-01 run2 の REST 劣化で teardown 無音失敗）で anon-guard 段35 が赤→同経路で除去して再走）**・golden 6 値不変。仮決め 9 点＝docs/tmp/v43_pre.md「MC2 の仮決め」（330 追補2 で追認を求める）。次＝便 W5-1（初期設定 v5 第 1 便）。
+
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
 出典＝Agoora 指示（2026-09-29・便 X-10-1 で収載）。次の裁定番号は 321。**本文（逐語）**:
@@ -4018,6 +4024,15 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
 
+## 裁定332（2026-10-02 確定・相談役）疎通門番の判定
+
+出典＝相談役ブロック 2026-10-02（便「MC2 再開」R-0 停止の報告への回答・逐語）。**本文（逐語）**:
+「裁定332（疎通門番の判定）＝f0 前の疎通は 3 値＝①REST 認証付き GET が 200（3 回）②DB 実行時間＝explain analyze の Execution Time が 5 ms 未満（select 1 ではなく実クエリ）③回線 RTT（Supabase edge への ICMP）が 150 ms 未満。Supabase ステータスは「当該リージョン（ap-northeast-1）に障害なし」で可・他リージョンの Degraded は無視。RTT が 50 ms 超なら f0 の所要見込みを報告してから起動し、1 走が 60 分を超えるかタイムアウト型フレークが 2 回続いたら停止。」
+
+背景＝2026-10-01 夜に nox-dev の PostgREST が 503 PGRST002（schema cache 不可）・pool checkout timeout・anon-guard の insert null（15〜49 分）で f0 2 連が取れず教訓85 で停止。翌 10-02 の再開門番「select 1 が 10 ms 台」は回線 RTT（Supabase edge 60 ms・1.1.1.1 53 ms・google 3 ms）を含むため NG となり、DB 実行時間（explain analyze 0.056 ms）は健全だった＝教訓102。計測＝docs/tmp/q1002_exec.mjs（explain analyze）・q1002_rest_auth.mjs（認証付き REST）・q1001_lat.mjs（壁時計）。
+
+適用＝便「MC2 再開」R-0（2026-10-02 15:0x・REST 200×3・Execution 0.056 ms・RTT 60 ms＝3 値 OK）から f0 を起動。
+
 ## 裁定331（2026-10-01 確定・相談役）初期設定 v5
 
 出典＝相談役チャット 2026-10-01（便 MC0 の直前・逐語）。正本モック＝docs/handoff/mock/20261001/nox-setup-v5.html（MC0-1 で収蔵）。**本文（逐語）**:
@@ -4033,6 +4048,15 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 適用＝便 MC0（読取・対応表 docs/handoff/mock/20261001/master_map.md）→ MC（2 便想定・client）。順序＝MC → W5 → D1（裁定331 と同文）。
 
 **MC1 適用（2026-10-01）**: トップ 4 パネル × 9 入口・入口内タブ・在庫はマスタ外（営業メニュー）・旧 URL 維持（新 route 0）。MC2 送り＝店舗設定の利用機能／店舗情報分割・データ管理の分離・キャスト会計の許可の移動（MC1 は報酬設定のタブに仮置き）・報酬制度／機能の公開の置き場。仮決め 9 点は docs/tmp/v43_pre.md（追補で追認）。
+
+### 裁定330 追補1（2026-10-01 確定・相談役追認・便 MC2）MC1 の仮決め 9 点の追認
+
+出典＝相談役ブロック 2026-10-01（便 MC2 の直前）。**本文（逐語）**: 「330 追補1＝MC1 の仮決め 9 点を追認、ただし ⑤料金・会計の内側ピルは MC2 で撤去し外側 ?tab= の 1 本に／M1『キャスト画面の設定』の置き場は『店舗設定 ＞ 利用機能』タブに変更（master_map を更新）。」
+9 点＝docs/tmp/v43_pre.md「MC1 の仮決め」（①3 層の nav ②入口の href＝先頭タブ ③旧 URL の redirect 不要 ④MC2 までの仮置き ⑤料金・会計の ?tab（→内側ピルは MC2 で撤去） ⑥パンくず ⑦KPI と在庫警告の移設 ⑧検索 ⑨オーナーバッジ）。
+
+適用＝便 MC2（pricing-board の内側ピル撤去・MineSettingsPanel を店舗設定 ＞ 利用機能タブへ・master_map.md 更新）。
+
+**MC2 適用（2026-10-01）**: 店舗設定 2 タブ（利用機能／店舗情報・住所／電話／インボイス番号は端末・印刷のまま＝二重編集を作らない）・権限・情報管理 3 タブ（キャスト会計の許可／データ管理／機密情報）・報酬設定 3 タブ・料金・会計の内側ピル撤去・system の機能の公開タブ撤去・旧 href は alias 解決（/master/cast-comp/systems・/master/system#features → 店舗設定／利用機能）。新 route 0・新 RPC 0。フロア機能（VIP／カウンター）は器なし＝出さない（W5 の 0164 で裁定）。master_map.md §8。仮決め 9 点＝docs/tmp/v43_pre.md「MC2 の仮決め」（追補2 で追認）。
 
 ## 裁定329（2026-10-01 確定・相談役・便 M5）スタッフの写真
 
@@ -4051,6 +4075,13 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 出典＝相談役ブロック 2026-10-01（便 P162）。**本文（逐語）**: 「329 追補1（相談役追認）: select policy 不触・contract_ack_rev は OFF→ON の切替時刻（clock_timestamp）・cast は u_ パス不可・clear_* RPC は null 戻しのみで実体削除は client から policy 経由。」
 
 適用＝0162（下の欄）どおり。client（M5-1）: 削除＝storage.remove → clear_*（実体が残っても署名 URL は出ない）。
+
+### 裁定329 追補2（2026-10-01 確定・相談役追認・便 MC2）M5 の仮決め 9 点の追認
+
+出典＝相談役ブロック 2026-10-01（便 MC2 の直前）。**本文（逐語）**: 「329 追補2＝M5 の仮決め 9 点を追認（⑥の cast 向け 1 行は『上記の報酬条件を確認しました。条件が改定された場合は、この画面がもう一度表示されます。』に差替え）。」
+9 点＝docs/tmp/v43_pre.md「M5 の仮決め」（①本人の写真＝「自分の情報」Modal ②削除＝storage.remove→clear_* ③/staff 編集 Modal ④/casts 詳細の削除 ⑤表示＝一覧・スタッフ枠（承認者・差出人は器なし） ⑥契約確認の文面 ⑦表示条件＝店 ON ∧ 未記録 ⑧rpc-err 2 語 ⑨suite staff-photo 12）。
+
+適用＝便 MC2（lib/nox/mine/contract-ack.ts の 2 行目を差替え・staff-photo suite の pin を追従）。
 
 **0162 の欄（本番適用済み・収蔵）**: supabase/migrations/0162_staff_photo_contract_ack.sql＝**sha256 e635d114ae50ce9f414e58ee23eb9ea2948145fc774af07bafc0d52d1c702a1d・523 行・37,533 B・突合 30 段 NG 0（docs/tmp/q1001_ag_0162.mjs・BEGIN…ROLLBACK）**・生成器 docs/tmp/gen_0162.mjs＋0162_template.sql・写経元 0162_live.json・期待 md5 0162_expected.json＝set_store_mine_settings 09595c7e／demo_org_reset a4bd6a18／新設 set_user_photo_updated_at 97a3da84・clear_cast_photo 22c0d2b2・clear_user_photo 372b28e5・cast_contract_ack_needed a7b2ca2f・cast_contract_ack_self e9dc61dd。器＝★1 users.photo_updated_at null 可（パス {org_id}/u_{user_id}.jpg・既存 bucket 同居）／★2 storage policy cast_photos_insert／update を drop→create（cast 腕・is_demo 句は live 逐語＋users 腕＝owner∨manager 自店∨本人（role owner／manager／staff＝cast は u_ 不可））・cast_photos_delete 新設（using＝update の using と同文）・select 不触／★3 RPC 3 本（非ゲート・authz は policy と同一式・audit 'set_user_photo'／'clear_cast_photo'／'clear_user_photo'）／★4 cast_contract_acks（cast_id・contract_rev・org_id・store_id・acked_at・PK (cast_id, contract_rev)・RLS select＝cast 本人∨owner∨manager 自店・grant SELECT のみ）＋set_store_mine_settings に ★3 行（contract_ack の false／欠損→true で settings_json.contract_ack_rev＝clock_timestamp()・白名単 8 不変）＋cast_contract_ack_needed／cast_contract_ack_self（cast セルフ・'not required'・冪等・audit 'cast_contract_ack'）／★5 grants（新設 5＝authenticated＋service_role・再作成 2 は live 再掲）・demo_org_reset 配列に cast_contract_acks（cast_quotas の直前に消し・直後に入れる＝80／78）。**本番適用＝2026-10-01・時刻不明（Agoora 申告・proof 302／82・users.photo_updated_at・cast_contract_acks 5 列を Agoora が確認）**・live 照合 docs/tmp/q1001_post_0162.mjs all_ok（2026-10-01T05:54:02Z＝関数 302／表 82・md5 7 本・不触 24 本・policy 4 本・demo 80／78・rev 行）。名簿 A 154／B 143→148＝302（課金ゲート対象 v1 に mig0162 追随・B(a) 5 本）。
 
