@@ -10,7 +10,7 @@ export const CONTRACT_ACK_STORE_TEXT = "加盟店契約でカード手数料の�
 
 export const CONTRACT_ACK_LINES: readonly string[] = [
   CONTRACT_ACK_STORE_TEXT,
-  "この店の料金・手数料の取り扱い（カード手数料の転嫁を含む）について、店から説明を受けて確認しました。",
+  "上記の報酬条件を確認しました。条件が改定された場合は、この画面がもう一度表示されます。", // ★329 追補2（2026-10-01・相談役）: 文面差替え
 ];
 
 export const CONTRACT_ACK_BUTTON = "確認しました";
