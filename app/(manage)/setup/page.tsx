@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
+import { mineSettingsOf } from "@/lib/nox/store/mine-settings";
 import SetupWizard from "./setup-wizard";
 
 export const dynamic = "force-dynamic";
 
-// 初期設定ウィザード（裁定270-1／271）。owner のみ。対象店＝settings_json.setup_done !== true の先頭店（無ければ先頭店＝再実行）。
-//   server は現値（料金の現値マージ用・setup 済み判定・冪等ガード用の件数・feature_flags の org 既定行）を読むだけ＝書込は client の計画実行。
+// 初期設定ウィザード（裁定270-1／271 → 331 v5・便 W5-1）。owner のみ。対象店＝settings_json.setup_done !== true の先頭店（無ければ先頭店＝再実行）。
+//   server は現値（料金の現値マージ用・領収書の表記 4 項目・キャスト画面の 8 キー・setup 済み判定・冪等ガード用の件数・feature_flags の org 既定行）を読むだけ＝書込は client の計画実行。
 export default async function SetupPage() {
   const { role } = await getSessionRole();
   if (role !== "owner") redirect(role === "cast" ? "/mine" : "/dashboard");
@@ -26,12 +27,19 @@ export default async function SetupPage() {
     supabase.from("feature_flags").select("key, enabled, store_id").is("store_id", null),
   ]);
   const flagRows = ((flags ?? []) as Array<{ key: string; enabled: boolean }>).map((f) => ({ key: f.key, enabled: f.enabled }));
+  const sj = target.settings_json ?? {};
+  const str = (k: string) => (typeof sj[k] === "string" ? (sj[k] as string) : "");
   return (
     <SetupWizard
       store={{ id: target.id, name: target.name, setupDone: target.settings_json?.setup_done === true,
-        current: { card_tax_rate: target.card_tax_rate, round_unit: target.round_unit, round_mode: target.round_mode, time_mode: target.time_mode, time_per: target.time_per } }}
+        current: {
+          card_tax_rate: target.card_tax_rate, round_unit: target.round_unit, round_mode: target.round_mode, time_mode: target.time_mode, time_per: target.time_per,
+          receipt: { address: str("receipt_address"), tel: str("receipt_tel"), reg_no: str("invoice_reg_no"), footer: str("receipt_footer") }, // set_store_receipt_profile の 4 引数明示送信（原則7）
+          mine: mineSettingsOf(sj), // set_store_mine_settings の差分元（326 の 8 キー）
+        } }}
       counts={{ seats: seats ?? 0, products: products ?? 0, plans: plans ?? 0, rules: rules ?? 0 }}
       orgFlags={flagRows}
+      isOwner={role === "owner"}
     />
   );
 }
