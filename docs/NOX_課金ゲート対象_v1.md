@@ -109,6 +109,13 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   改稿 2 本（`set_store_mine_settings`＝contract_ack の OFF→ON で contract_ack_rev＝clock_timestamp() を併せて保存・白名単 8 不変／`demo_org_reset`＝c_wipe／c_load に cast_contract_acks）は名前不変で本数不動。新表 1（cast_contract_acks 5 列・authenticated=SELECT のみ・policy 1）・users.photo_updated_at・storage policy 4 本（delete 新設）は本数非関与。
   md5 控え（先頭 8 桁・docs/tmp/0162_post_live.json＝live 読取 2026-10-01T05:54:02Z から機械生成）: set_user_photo_updated_at 97a3da84・clear_cast_photo 22c0d2b2・clear_user_photo 372b28e5・cast_contract_ack_needed a7b2ca2f・cast_contract_ack_self e9dc61dd・set_store_mine_settings 09595c7e・demo_org_reset a4bd6a18。
   対象 **154 不変**・除外 **143→148**・全数 **297→302**（live 実測 2026-10-01＝総数 302・'billing locked' 154・md5 7 本一致）。
+- ★**mig0163 追随（2026-10-08・裁定328 追補1・便 D1-6・便 P163 で収載）**: 新関数 **1本**＝非ゲートを B(a) へ（`demo_entries_purge`＝デモ入場ログ demo_entries の 30 日 purge・service_role 専用の grant 型＝audit_purge 0155 と同型・pg_cron 'nox-demo-entries-purge' から呼ぶ）。
+  改稿なし（demo_org_reset a4bd6a18／audit_purge f2946b95 不触）。新表 1（demo_entries 7 列・RLS 有効・policy 0・anon／authenticated grant 0・service_role の INSERT／SELECT のみ）・拡張 2（pg_cron／pg_net）・cron.job 8 本（Vault 参照）は本数非関与。
+  md5 控え（先頭 8 桁・docs/tmp/0163_0164_post_live.json＝live 読取 2026-10-08T02:20:44Z から機械生成）: demo_entries_purge fdc33bb7・demo_org_reset a4bd6a18・audit_purge f2946b95。
+  対象 **154 不変**・除外 **148→149**・全数 **302→303**（live 実測 2026-10-08＝総数 303・'billing locked' 154・述語参照 155・md5 3 本一致）。
+- ★**mig0164 追随（2026-10-08・裁定331 C 5 項目＋裁定334・334 追補1・便 P163 で収載）**: 新関数 **0本**。改稿 1 本（`set_store_profile`＝白名単 +7 列側＝invoice_registered_on／pay_day／tax_inclusive_display／use_vip／use_counter／payment_methods／punch_methods・型検査・cash は常に true・打刻は 1 つ以上・before/after 監査・owner 限定と課金ゲートは不変）は名前不変で本数不動。stores +7 列（既定付き・CHECK 3 本）は本数非関与。
+  md5 控え（同上）: set_store_profile 4f2e9f82→**2e7b4963**・demo_org_reset a4bd6a18。
+  対象 **154 不変**・除外 **149 不変**・全数 **303 不変**（live 実測 2026-10-08＝総数 303・'billing locked' 154・述語参照 155）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
   対象 **125 不変**・除外 **114→116**・全数 **239→241**。★教訓21 トリップワイヤが f0 実走（本日 2 走目・段47-1 liveOnly=2）で検知→収載（8例目）。
@@ -317,6 +324,8 @@ cast_contract_ack_needed（mig0162＝cast セルフの読取＝店の contract_a
 
 cast_contract_ack_self（mig0162＝cast セルフの確認記録＝cast_contract_acks へ (cast_id, contract_rev) を冪等 insert・店が ON でなければ 'not required'・audit は 1 回目だけ・非ゲート・326 追補7-6）
 
+demo_entries_purge（mig0163＝デモ入場ログ demo_entries の 30 日より前の行を org ごとに削除し audit 'demo.entries.purged'（audit_log_write_service）に件数を残す・service_role 専用の grant 型（4 ロール明示 revoke→service_role grant・テナント JWT からの呼出は 'forbidden'＝audit_purge 0155 と同型）・pg_cron 'nox-demo-entries-purge'（UTC 20:15＝JST 05:15）から呼ぶ・非ゲート・裁定328 追補1・293-7・本番適用 2026-10-08）
+
 ### B(b) トリガ関数（1本）
 touch_updated_at
 
@@ -456,3 +465,5 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 ★**現在値（2026-09-30・mig0159 追随後）**: A **149** ＋ B **141** ＝ **290** ＝ live pg_proc 実列挙と一致（0159＝A8 +1・B(e) +1。verify:nox-billing 段47-1 の pin＝対象 149／除外 141／ゲート済み 149／述語参照 150／挿入行の形 149＝起票91 解消）。
 
 ★**現在値（2026-09-30・mig0160 追随後）**: A **154** ＋ B **142** ＝ **296** ＝ live pg_proc 実列挙と一致（0160＝A3 +2・A8 +4・A7 −1・B(f) +1。verify:nox-billing 段47-1 の pin＝対象 154／除外 142／ゲート済み 154／述語参照 155／挿入行の形 154）。
+
+★**現在値（2026-10-08・mig0163／0164 追随後）**: A **154** ＋ B **149** ＝ **303** ＝ live pg_proc 実列挙と一致（0161＝B(a) +1（punch_seq_check）・0162＝B(a) +5・0163＝B(a) +1（demo_entries_purge）・0164＝本数不動（set_store_profile 改稿）。verify:nox-billing 段47-1 の pin＝対象 154／除外 149／ゲート済み 154／述語参照 155／挿入行の形 154）。

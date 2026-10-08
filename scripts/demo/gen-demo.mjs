@@ -60,7 +60,7 @@ function completeRows(table, rows, keyOf) {
       else if (c.t === "date") o[c.c] = dateLike && typeof dateLike === "object" ? { ...dateLike, t: undefined } : dateLike;
       else if (c.t === "boolean") o[c.c] = /true/.test(d);
       else if (/int|numeric|double/.test(c.t)) o[c.c] = Number((d.match(/-?\d+(\.\d+)?/) ?? [0])[0]);
-      else if (c.t === "jsonb") o[c.c] = d.startsWith("'[]'") ? [] : {};
+      else if (c.t === "jsonb") { const jm = d.match(/^'([\s\S]*)'::jsonb$/); let jv = null; if (jm) { try { jv = JSON.parse(jm[1]); } catch { jv = null; } } o[c.c] = jv ?? (d.startsWith("'[]'") ? [] : {}); } // ★0164: default の実値（{cash,card,emoney,qr}／{self,proxy,kiosk}）を写す
       else if (c.t === "text") { const m = d.match(/^'([^']*)'::text/); o[c.c] = m ? m[1] : ""; }
       else if (c.t === "ARRAY") o[c.c] = [];
       else o[c.c] = null;

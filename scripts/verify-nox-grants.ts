@@ -27,6 +27,7 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 const TABLES = [
+  "demo_entries", // ★0163（裁定328 追補1・293-7・本番適用 2026-10-08）: デモ入場ログ（RLS 有効・policy 0・anon／authenticated grant 0・service_role の INSERT／SELECT のみ＝入場 route が admin で書く。G1/G2/G5 が .length で自動被覆・G4e 0163 で purge 関数の ACL を能動 assert）
   "cast_contract_acks", // ★0162（裁定329／326 追補7-6）: cast の契約確認記録（cast×contract_rev・authenticated=SELECT のみ・RLS select 1 本。G9 0162 で列集合／policy を能動 assert）
   "cast_quotas", "cast_notice_reads", // ★0160（裁定326-3／326-6）: キャスト別ノルマ・お知らせ既読（authenticated=SELECT のみ・RLS select 1 本。G9 0160 で列集合／policy を能動 assert）
   "payroll_attentions", // ★0158（裁定315）: 確定後の打刻修正の要対応（authenticated=SELECT のみ・RLS select 1 本。G9 0158 で列集合／policy を能動 assert）
@@ -247,6 +248,21 @@ async function main() {
     const row = r.rows[0] ?? {};
     check("G4e audit_purge SECURITY DEFINER＋search_path=public", row.prosecdef === true && String(row.config ?? "").includes("search_path=public"), String(row.config));
     check("G4e audit_purge EXECUTE = service_role のみ（authenticated／anon／PUBLIC 不在）", row.svc_ok === true && row.auth_ok === false && !row.anon_ok && !row.public_ok, JSON.stringify([row.auth_ok, row.svc_ok, row.anon_ok, row.public_ok]));
+  }
+  // G4e: mig0163（裁定328 追補1・便 D1-6・本番適用 2026-10-08）demo_entries_purge＝service_role 専用（demo_entries_purge 0155 と同型・入場ログ 30 日 purge）＝SECURITY DEFINER・search_path=public・EXECUTE は service_role のみ（authenticated／anon／PUBLIC 不在）
+  {
+    const r = await db.query(
+      `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
+              has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
+              has_function_privilege('anon', p.oid, 'execute') as anon_ok,
+              has_function_privilege('service_role', p.oid, 'execute') as svc_ok,
+              exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE') as public_ok
+         from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'demo_entries_purge'`,
+    );
+    check("G4e 0163 demo_entries_purge が 1 本存在", r.rowCount === 1, `got ${r.rowCount}`);
+    const row = r.rows[0] ?? {};
+    check("G4e demo_entries_purge SECURITY DEFINER＋search_path=public", row.prosecdef === true && String(row.config ?? "").includes("search_path=public"), String(row.config));
+    check("G4e demo_entries_purge EXECUTE = service_role のみ（authenticated／anon／PUBLIC 不在）", row.svc_ok === true && row.auth_ok === false && !row.anon_ok && !row.public_ok, JSON.stringify([row.auth_ok, row.svc_ok, row.anon_ok, row.public_ok]));
   }
 
   // G4c: C層② 内部ヘルパー 4 本（mig0136・0137 で can_manage は G4/G4b 側へ）＋C層③ 内部ヘルパー 3 本（mig0138）＝SECURITY DEFINER・search_path 固定・4 ロール明示 revoke（authenticated/anon/service_role/public 不在）

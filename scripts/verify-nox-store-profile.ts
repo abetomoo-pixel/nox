@@ -75,6 +75,11 @@ async function main() {
   const read = async (): Promise<Row> => (await admin.from("stores").select(SEL).eq("id", storeA1).single()).data as Row;
   const set = (c: ReturnType<typeof mk>, patch: unknown, store = storeA1) => c.rpc("set_store_profile", { p_store_id: store, p_patch: patch });
   const row0 = await read();
+  // ★0164（2026-10-08 本番適用）: 列側 7 キー（teardown で RPC 経路で戻す）
+  const SEL7 = "invoice_registered_on, pay_day, tax_inclusive_display, use_vip, use_counter, payment_methods, punch_methods";
+  const K7 = ["invoice_registered_on", "pay_day", "tax_inclusive_display", "use_vip", "use_counter", "payment_methods", "punch_methods"] as const;
+  const read7 = async () => (await admin.from("stores").select(SEL7).eq("id", storeA1).single()).data as Record<string, unknown>;
+  const row7 = await read7();
   const keys0 = Object.keys(row0.settings_json ?? {}).sort();
   const jsonOf = (r: Row) => (r.settings_json ?? {}) as Record<string, unknown>;
   let okCalls = 0; // 成功した RPC 呼び出し数（⑨ の期待）
@@ -93,6 +98,8 @@ async function main() {
     };
     const { error } = await set(owner, back);
     if (error) console.error(`[store-profile teardown] set_store_profile 復元: ${error.message}`);
+    const { error: e7 } = await set(owner, Object.fromEntries(K7.map((k) => [k, row7[k]]))); // ★0164: 7 キーも RPC 経路で戻す
+    if (e7) console.error(`[store-profile teardown] set_store_profile 7 キー復元: ${e7.message}`);
     // 実行前に無かった json キーだけ落としてキー集合を復元（値の復元は上の RPC・ここはキー削除のみ）
     const absent = JSON_KEYS.filter((k) => !(k in jsonOf(row0)));
     if (absent.length) await db.query(`update public.stores set settings_json = settings_json - $2::text[] where id = $1`, [storeA1, absent]);
@@ -194,6 +201,33 @@ async function main() {
           && after.name === before.name && after.short === before.short && after.ext_shimei_enabled === before.ext_shimei_enabled && after.dohan_auto_hon === before.dohan_auto_hon,
         error?.message ?? JSON.stringify({ before, after }));
       check("sp(③-2) 実行前からあった settings_json のキーは残っている", keys0.every((k) => k in jsonOf(after)), `keys0=${keys0.join(",")} now=${Object.keys(jsonOf(after)).join(",")}`);
+    }
+
+    // ── ⑪ ★0164（裁定331 C 5 項目＋334・2026-10-08 本番適用）: 列側 7 キー＝invoice_registered_on／pay_day／tax_inclusive_display／use_vip／use_counter／payment_methods／punch_methods ──
+    {
+      const norm = (v: unknown) => JSON.stringify(Object.fromEntries(Object.entries((v ?? {}) as Record<string, unknown>).sort()));
+      const b7 = await read7();
+      const w = { invoice_registered_on: "2026-10-01", pay_day: 15, tax_inclusive_display: true, use_vip: false, use_counter: false, payment_methods: { card: false, qr: true }, punch_methods: { proxy: false } };
+      const { error: e1 } = await set(owner, w); if (!e1) okCalls++;
+      const a7 = await read7();
+      check("sp(⑪-1) ★0164 owner が 7 キーを書ける（date／int／boolean 3／jsonb 2 は現値とマージ・無いキーは不変）", !e1 && a7.invoice_registered_on === "2026-10-01" && a7.pay_day === 15 && a7.tax_inclusive_display === true && a7.use_vip === false && a7.use_counter === false
+        && norm(a7.payment_methods) === norm({ ...(b7.payment_methods as Record<string, unknown>), card: false, qr: true }) && norm(a7.punch_methods) === norm({ ...(b7.punch_methods as Record<string, unknown>), proxy: false }), e1?.message ?? JSON.stringify(a7));
+      const { rows: al } = await db.query(`select before_json as b, after_json as a from public.audit_logs where org_id = $1 and at >= $2 and action = 'set_store_profile' order by at desc limit 1`, [orgA, t0]);
+      check("sp(⑪-2) ★0164 audit: before/after に 7 キー（before＝実行前値・after＝書いた値・pay_day 15）", al.length === 1 && K7.every((k) => k in al[0].b && k in al[0].a) && al[0].a.pay_day === 15 && al[0].b.pay_day === b7.pay_day && al[0].a.use_vip === false, JSON.stringify(al[0]));
+      const bad: Array<[string, unknown, string]> = [
+        ["pay_day 0", { pay_day: 0 }, "bad pay_day"], ["pay_day 32", { pay_day: 32 }, "bad pay_day"], ["pay_day 小数", { pay_day: 15.5 }, "bad pay_day"], ["pay_day 文字列", { pay_day: "25" }, "bad type"],
+        ["invoice_registered_on 形式外", { invoice_registered_on: "2026/10/01" }, "bad type"], ["use_vip 非 boolean", { use_vip: "true" }, "bad type"], ["tax_inclusive_display 数値", { tax_inclusive_display: 1 }, "bad type"],
+        ["payment_methods cash false", { payment_methods: { cash: false } }, "bad payment_methods"], ["payment_methods 未知キー", { payment_methods: { paypay: true } }, "bad payment_methods"], ["payment_methods 非 boolean 値", { payment_methods: { card: "yes" } }, "bad payment_methods"], ["payment_methods 配列", { payment_methods: [true] }, "bad type"],
+        ["punch_methods 全部 false", { punch_methods: { self: false, proxy: false, kiosk: false } }, "bad punch_methods"], ["punch_methods 未知キー", { punch_methods: { nfc: true } }, "bad punch_methods"],
+      ];
+      for (const [label, patch, msg] of bad) { const { error } = await set(owner, patch); check(`sp(⑪-3) ★0164 ${label} は ${msg}`, has(error, msg), error?.message ?? "通ってしまった"); }
+      const { error: eM } = await set(mgr, { pay_day: 20 }); check("sp(⑪-4) ★0164 manager の pay_day は forbidden（owner 限定は不変）", has(eM, "forbidden"), eM?.message ?? "通ってしまった");
+      const { error: eC } = await set(cast, { use_vip: true }); check("sp(⑪-5) ★0164 cast の use_vip は forbidden", has(eC, "forbidden"), eC?.message ?? "通ってしまった");
+      const c7 = await read7(); check("sp(⑪-6) ★0164 拒否 patch の後も値は ⑪-1 のまま（pay_day 15・use_vip false・punch proxy false）", c7.pay_day === 15 && c7.use_vip === false && (c7.punch_methods as Record<string, unknown>).proxy === false, JSON.stringify(c7));
+      const { error: eN } = await set(owner, { invoice_registered_on: null }); if (!eN) okCalls++;
+      check("sp(⑪-7) ★0164 invoice_registered_on は null を書ける（未登録／不明）", !eN && (await read7()).invoice_registered_on === null, eN?.message ?? "");
+      const { error: eR } = await set(owner, Object.fromEntries(K7.map((k) => [k, b7[k]]))); if (!eR) okCalls++;
+      check("sp(⑪-8) ★0164 7 キーを実行前値へ復元（RPC 経路・jsonb は全キー明示）", !eR && JSON.stringify(await read7()) === JSON.stringify(b7), eR?.message ?? JSON.stringify(await read7()));
     }
 
     // ── ④ 白名単外・bad patch ──
@@ -308,7 +342,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`verify:nox-store-profile ALL PASS (${pass} assertions)`);
-  console.log("店舗設定 setter(0144＋0147＋0151): 21 キー個別 / まとめ書き / enum 未知値・非 string / 制度キー非 boolean / setup_done 埋め戻し / 無いキー不変 / bad key・bad patch / bad type / 長さ 4 種 / short 空→null / manager・cast・他 org forbidden＋anon BLOCKED / audit 1 行=1 呼び出し・キーは patch 分だけ / 復元");
+  console.log("店舗設定 setter(0144＋0147＋0151＋0164 列側 7 キー): 21 キー個別 / まとめ書き / enum 未知値・非 string / 制度キー非 boolean / setup_done 埋め戻し / 無いキー不変 / bad key・bad patch / bad type / 長さ 4 種 / short 空→null / manager・cast・他 org forbidden＋anon BLOCKED / audit 1 行=1 呼び出し・キーは patch 分だけ / 復元");
 }
 
 main().catch((e) => { console.error("✗ 異常終了", e); process.exit(1); });

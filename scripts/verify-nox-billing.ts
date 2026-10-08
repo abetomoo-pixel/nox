@@ -155,7 +155,9 @@ async function main() {
     // ★mig0149（裁定273／276〜279・2026-09-18）: demo_org_reset（service_role 専用・authenticated 実行不可＝構造除外）を B(a) へ収載＝除外 117→118・全数 245→246・対象 128 不変。
     // ★mig0162（裁定329／326 追補7-6・329 追補1・2026-10-01）: 公開 5 本＝全て非ゲート＝B(a) +5（set_user_photo_updated_at／clear_cast_photo／clear_user_photo＝写真は課金ゲート外・cast_contract_ack_needed／cast_contract_ack_self＝cast セルフ）
     //   ＝対象 154 不変・除外 143→148・全数 297→302（live 実測 2026-10-01＝総数 302・'billing locked' 154・形 154・述語参照 155 不変）。改稿 2 本（set_store_mine_settings＝contract_ack_rev・demo_org_reset＝配列 +1）は名前不変で本数不動。
-    check("段47-1 正本の除外148名を読めた", docExcluded.size === 148, `got ${docExcluded.size}`); // ★0153: B(f) +2（names／sales_summary＝裁定307-1）・★0155: +7（B(a) 1・B(f) 4・B(m) 2）・★0161: B(a) +1（punch_seq_check）・★0162: B(a) +5
+    // ★mig0163（裁定328 追補1・2026-10-08 本番適用）: demo_entries_purge（service_role 専用・入場ログ 30 日 purge・非ゲート）を B(a) へ収載＝対象 154 不変・除外 148→149・全数 302→303
+    //   （live 実測 2026-10-08＝総数 303・'billing locked' 154・形 154・述語参照 155）。★mig0164（裁定331 C 5 項目＋334）: set_store_profile 改稿（白名単 +7 列側・md5 4f2e9f82→2e7b4963）は名前不変で本数不動。
+    check("段47-1 正本の除外149名を読めた", docExcluded.size === 149, `got ${docExcluded.size}`); // ★0163: B(a) +1（demo_entries_purge）・ // ★0153: B(f) +2（names／sales_summary＝裁定307-1）・★0155: +7（B(a) 1・B(f) 4・B(m) 2）・★0161: B(a) +1（punch_seq_check）・★0162: B(a) +5
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる

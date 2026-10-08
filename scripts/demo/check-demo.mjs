@@ -4,7 +4,7 @@
 //   golden（docs/demo/gen_plan.md §4）: 代表伝票 6 件の total（check_group_due＝checks.total＝expected）とバック・月次売上 43,740,000（店別・Σ daily_reports ±1%）・
 //   日次売上 ±1%・ランキング（get_cast_ranking の売上順）・在庫（opening＋received−sold＝closing）・売掛残・NOIR シャンパン本数・payload サイズ（1 MB 超は分割）。
 //   報酬参考 13,648,300 は payroll（D2 の正規経路）＝本便では「給与の前提数（指名回数・ドリンク本数）」の充足だけを出す。
-//   実行: npx tsx scripts/demo/check-demo.mjs [--store=noir]（.ts の lib を import するため tsx）。結果＝docs/demo/check_20261002.md（追記ではなく上書き）。
+//   実行: npx tsx scripts/demo/check-demo.mjs [--store=noir]（.ts の lib を import するため tsx）。結果＝docs/demo/check_<YYYYMMDD>.md（実行日・上書き。★P163: 20261002 はクローズ節つきの記録として残す）。
 import { Client } from "pg";
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -133,7 +133,8 @@ try {
   md.push("", `## 集計: ${out.length} 段・NG ${ng.length}`, "", "| 店 | payload B | chunk | wipe→load ms | 月次ずれ % | 日次最大ずれ % |", "|---|---|---|---|---|---|");
   for (const [c, s] of Object.entries(summary)) md.push(`| ${c} | ${yen(s.bytes)} | ${s.chunks} | ${s.totalMs} | ${s.monthPct} | ${s.worstDay} |`);
   md.push("", "## 読み方", "- 「在庫 sold＝目標」「指名回数」「NOIR シャンパン 108」の NG は、パッケージの目標が NOX の人数単価（セット×人数）と同じ月次売上の中に収まらないための縮小（生成器の優先順＝売上 ±1% ＞ 指名 ＞ 在庫 ＞ キャストドリンク ＞ シャンパン）。D1 の報告で裁定を求める。", "- 報酬参考 13,648,300 は payroll（D2 の正規経路）で突合＝本便では対象外。");
-  fs.writeFileSync("docs/demo/check_20261002.md", md.join("\n") + "\n");
-  console.log(`check-demo: ${out.length} 段・NG ${ng.length} → docs/demo/check_20261002.md`);
+  const outFile = `docs/demo/check_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}.md`;
+  fs.writeFileSync(outFile, md.join("\n") + "\n");
+  console.log(`check-demo: ${out.length} 段・NG ${ng.length} → ${outFile}`);
   process.exit(ng.length ? 1 : 0);
 } finally { await db.end().catch(() => {}); }

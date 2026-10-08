@@ -510,6 +510,7 @@ async function main() {
     ["customer_anonymize_candidates", { p_store_id: null }],
     ["kiosk_check_keeps", { p_check_id: null }],
     ["audit_purge", {}],
+    ["demo_entries_purge", {}],                                               // ★mig0163（裁定328 追補1・2026-10-08）: service 専用 1 本（入場ログ 30 日 purge）＝anon／authenticated とも BLOCKED
     ["daily_pay_issue", { p_cast_id: null, p_biz_date: null, p_gross: null, p_idem_key: null }],   // ★mig0156（裁定309-6〜9／追補2）: 公開 8 本（okuri_default_of は内部＝grants G4c）
     ["daily_pays_of_run", { p_run_id: null }],
     ["payroll_run_deduction_override_set", { p_run_id: null, p_cast_id: null, p_deduction_id: null, p_enabled: null, p_amount_override: null }],
@@ -776,6 +777,7 @@ async function main() {
     "product_costs", // 台帳#40（mig0049/0050・原価分離）
     "ar_collections", // B6 売掛回収消込台帳（mig0055・authenticated=SELECT のみ・anon DENIED）
     "staff_pin", "kiosk_sessions", // K レジ用キオスク（mig0056・deny-all＝authenticated ですら SELECT 不可・staff_pin は PK=membership_id）
+    "demo_entries", // ★mig0163（裁定328 追補1）: デモ入場ログ（service_role の INSERT／SELECT のみ＝anon DENIED・authenticated も grant 0）
   ]) {
     // PK=cast_id/store_id/product_id/membership_id のテーブルは id 列なし。存在しない列だと権限エラーの前に列エラーになるため列名を合わせる。
     const pkCastId = ["cast_plan", "cast_sensitive", "cast_tax_profiles", "cast_pin"].includes(table);
@@ -807,6 +809,7 @@ async function main() {
     const F2C_SVC_ONLY: Array<[string, Record<string, unknown>]> = [
       ["payroll_finalize", { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null, p_payslips: null }],
       ["payroll_mark_paid", { p_org_id: null, p_actor: null, p_run_id: null, p_idem_key: null }],
+      ["demo_entries_purge", {}], // ★mig0163（裁定328 追補1）: service_role 専用＝authenticated でも BLOCKED（anon は上の公開 probe 一覧で BLOCKED）
     ];
     for (const [fn, args] of F2C_SVC_ONLY) {
       const { error: eSvc } = await authed.rpc(fn, args);
