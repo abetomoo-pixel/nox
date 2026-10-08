@@ -5,12 +5,14 @@
 //   ★資格情報・リンク・token をレスポンスにもログにも出さない。env が無い／対応が無い＝503「デモは準備中です」。
 //   ★対象ユーザーが demo org（orgs.is_demo）に属していなければ 403＝env の誤設定で本番ユーザーに入れない（kiosk は kiosk_devices の org で判定）。
 //   ★入場ログ＝demo_entries（0163）へ service で 1 行（表が無い間は no-op・失敗しても入場は止めない）。
-//   ★セッション 24 時間＝Supabase Auth の JWT／refresh の有効期限設定（Agoora・Auth 設定）＝route では持たない。
+//   ★セッション 24 時間＝★D2-b（328 追補4）: Free は refresh token が無期限のため、本 route が httpOnly cookie nox_demo_until（入場＋24h）を置き、
+//     middleware（lib/supabase/middleware.ts）がデモユーザー（DEMO_USERS の auth user id）かつ期限切れ／欠落なら signOut → /demo?expired=1（lib/nox/demo/session.ts）。
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEMO_KIOSK_KEY, demoDestOf, isDemoRole, isDemoStore, parseDemoUsers } from "@/lib/nox/demo/seed";
+import { DEMO_UNTIL_COOKIE, demoUntilCookieOptions, demoUntilValue } from "@/lib/nox/demo/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,5 +75,8 @@ export async function POST(req: Request) {
   if (eOtp) { console.error("demo enter: verify failed"); return plain(500, "デモに入れませんでした。もう一度お試しください"); }
 
   await logEntry(admin, orgId, store, role, req);
-  return NextResponse.redirect(new URL(demoDestOf(role as "owner" | "manager" | "staff" | "cast" | typeof DEMO_KIOSK_KEY), req.url), 303);
+  const res = NextResponse.redirect(new URL(demoDestOf(role as "owner" | "manager" | "staff" | "cast" | typeof DEMO_KIOSK_KEY), req.url), 303);
+  // ★D2-b（328 追補4）: デモのセッション期限＝入場＋24h（httpOnly・Secure（https）・SameSite=Lax・path=/）。値は epoch ms＝資格情報ではない
+  res.cookies.set(DEMO_UNTIL_COOKIE, demoUntilValue(Date.now()), demoUntilCookieOptions(new URL(req.url).protocol === "https:"));
+  return res;
 }

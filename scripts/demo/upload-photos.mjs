@@ -46,8 +46,10 @@ export function planOf(kind, root = ROOT) {
 }
 
 let total = 0;
+const plans = {};
 for (const kind of KINDS) {
   const p = planOf(kind);
+  plans[kind] = p;
   if (p.missingDir) { console.log(`${kind}: ${p.dir} が無い（0 件）`); continue; }
   console.log(`## ${kind} (${p.files.length}) ${p.dir}`);
   for (const f of p.files) console.log(`  ${f.file}  ${f.px ?? "?"}  ${Math.round(f.bytes / 1024)}KB  ${f.sha256.slice(0, 16)}…  ${f.target ?? "結線先なし（ids.json に無い）"}`);
@@ -57,5 +59,56 @@ for (const kind of KINDS) {
 }
 console.log(`合計 ${total} 件`);
 if (MODE === "dry-run") { console.log("dry-run: Storage は触っていません（512px 縮小は --apply 時）"); process.exit(0); }
-console.error("--apply は D2 で結線（sharp による 512px 縮小＋Storage upload＋photo_updated_at の更新）。本便では実行しません");
-process.exit(2);
+
+// ── --apply（★D2-b・裁定335＝sharp は devDependency・2026-10-08）──
+//   実体: cast-photos/{org_id}/{cast_id}.jpg（cast_id＝remapUuid(orgId, ids.people[personId])＝lib/nox/demo/seed.ts と同式）／{org_id}/u_{user_id}.jpg（user_id＝demo org の staff ユーザー users.id＝email demo-<店>-staff@nox-demo.local）。
+//   縮小: 長辺 512px・JPEG q85・EXIF 回転（lib/nox/cast-photo.ts downscaleToJpeg と同じ形）・2 MiB 超は投入しない（bucket 上限）。
+//   打刻: casts.photo_updated_at／users.photo_updated_at を admin で now() に（行が無い＝casts は payload の再生前＝reset 後に afterResetHooks が打刻する）。
+//   ★org は NOX-DEMO-<CODE> かつ is_demo=true だけ（本番 org には触れない）。ref は URL の目視（.env.local）。
+process.loadEnvFile(".env.local");
+const { createClient } = await import("@supabase/supabase-js");
+const sharp = (await import("sharp")).default;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL, secret = process.env.SUPABASE_SECRET_KEY;
+if (!url || !secret) { console.error("env NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SECRET_KEY が必要です"); process.exit(2); }
+console.log(`apply ref=${(url.match(/https?:\/\/([a-z0-9]+)\./) ?? [])[1] ?? "?"}`);
+const admin = createClient(url, secret, { auth: { autoRefreshToken: false, persistSession: false } });
+const BUCKET = "cast-photos", MAX_PX = 512, QUALITY = 85, MAX_BYTES = 2 * 1024 * 1024;
+function remapUuid(orgId, id) {
+  const h = createHash("sha1").update(`nox-demo:${orgId}:${id.toLowerCase()}`).digest("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80).toString(16).padStart(2, "0")}${h.slice(18, 20)}-${h.slice(20, 32)}`;
+}
+const orgCache = new Map();
+async function orgOf(store) {
+  if (orgCache.has(store)) return orgCache.get(store);
+  const { data } = await admin.from("orgs").select("id, is_demo").eq("name", `NOX-DEMO-${store.toUpperCase()}`).maybeSingle();
+  const org = data && data.is_demo === true ? data.id : null;
+  orgCache.set(store, org);
+  return org;
+}
+const sum = { uploaded: 0, casts_stamped: 0, users_stamped: 0, no_target: 0, no_org: 0, no_row: 0, failed: 0 };
+for (const kind of KINDS) {
+  for (const f of plans[kind]?.files ?? []) {
+    if (!f.target) { sum.no_target++; continue; }
+    const store = f.personId.split("-")[0].toLowerCase();
+    const orgId = await orgOf(store);
+    if (!orgId) { sum.no_org++; console.log(`  skip ${f.file}: demo org NOX-DEMO-${store.toUpperCase()} が無い`); continue; }
+    let objPath, table, rowId;
+    if (kind === "casts") { rowId = remapUuid(orgId, f.uuid); objPath = `${orgId}/${rowId}.jpg`; table = "casts"; }
+    else {
+      const { data: u } = await admin.from("users").select("id").eq("org_id", orgId).eq("email", `demo-${store}-staff@nox-demo.local`).maybeSingle();
+      if (!u) { sum.no_row++; console.log(`  skip ${f.file}: staff ユーザー（users）が無い`); continue; }
+      rowId = u.id; objPath = `${orgId}/u_${rowId}.jpg`; table = "users";
+    }
+    const buf = await sharp(fs.readFileSync(path.join(plans[kind].dir, f.file))).rotate().resize({ width: MAX_PX, height: MAX_PX, fit: "inside", withoutEnlargement: true }).jpeg({ quality: QUALITY }).toBuffer();
+    if (buf.length > MAX_BYTES) { sum.failed++; console.log(`  fail ${f.file}: 縮小後も ${buf.length} B`); continue; }
+    const { error: eUp } = await admin.storage.from(BUCKET).upload(objPath, buf, { upsert: true, contentType: "image/jpeg" });
+    if (eUp) { sum.failed++; console.log(`  fail ${f.file}: upload ${eUp.message}`); continue; }
+    sum.uploaded++;
+    const { data: upd, error: eSt } = await admin.from(table).update({ photo_updated_at: new Date().toISOString() }).eq("org_id", orgId).eq("id", rowId).select("id");
+    if (eSt) { console.log(`  warn ${f.file}: ${table}.photo_updated_at ${eSt.message}`); }
+    else if (!upd?.length) { sum.no_row++; console.log(`  note ${f.file}: ${objPath}（${buf.length} B）投入済み・${table} 行なし＝reset 後に afterResetHooks が打刻`); }
+    else { if (table === "casts") sum.casts_stamped++; else sum.users_stamped++; console.log(`  ok ${f.file} → ${objPath}（${buf.length} B）・${table}.photo_updated_at`); }
+  }
+}
+console.log("apply 集計: " + JSON.stringify(sum));
+process.exit(sum.failed ? 1 : 0);

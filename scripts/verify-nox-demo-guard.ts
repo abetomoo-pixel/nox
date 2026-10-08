@@ -14,6 +14,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { DEMO_SESSION_MS, demoSessionExpired, demoUntilCookieOptions, demoUntilValue, isDemoAuthUserId, isDemoSessionExemptPath } from "../lib/nox/demo/session";
 
 let pass = 0;
 const fails: string[] = [];
@@ -103,6 +104,28 @@ check("dg(5-3) /demo: noindex 維持（robots index:false・follow:false）・�
   check("dg(6-5) ⑤判定は demo フラグ（orgs.is_demo）だけ・本番 org には効かない: guard は読めなければ false・layout は is_demo で帯と「ご契約」を切替・/setup へ飛ばさない", /return data\?\.is_demo === true;/.test(guard) && layout.includes("{isDemo && <DemoBanner />}") && layout.includes('role === "owner" && !isDemo ? [{ href: "/billing"') && layout.includes('if (role === "owner" && !isDemo)'));
   const demoPage2 = fs.readFileSync("app/demo/page.tsx", "utf8");
   check("dg(6-6) ★/demo は seed の DEMO_STORES（6）× DEMO_ROLES（4）＋ 端末（kiosk）・入場 route は store/role を検査（demo-payload suite dp(4-1) と対）", demoPage2.includes("DEMO_STORES.map(") && demoPage2.includes("DEMO_ROLES.map(") && demoPage2.includes("kiosk={KIOSK}"));
+}
+
+// (7) ★裁定328 追補4（便 D2-b・2026-10-08）: デモのセッション 24 時間＝cookie nox_demo_until（入場 route）＋ middleware の期限判定（本番ユーザーは通らない）
+{
+  const ses = fs.readFileSync("lib/nox/demo/session.ts", "utf8");
+  const enter = fs.readFileSync("app/api/demo/enter/route.ts", "utf8");
+  const mw = fs.readFileSync("lib/supabase/middleware.ts", "utf8");
+  const demoPage3 = fs.readFileSync("app/demo/page.tsx", "utf8");
+  // 純関数の挙動＝session.ts を require せずに読む（suite は env 不要・tsx なので import 可）
+  const now = Date.UTC(2026, 9, 8, 3, 0, 0);
+  const ENV = JSON.stringify({ "muse:owner": "11111111-1111-4111-8111-111111111111", "muse:kiosk": "22222222-2222-4222-8222-222222222222" });
+  check("dg(7-1) session.ts: 24h 定数・cookie 名 nox_demo_until・期限内は通過（now+1h＝false）・期限切れ／欠落／壊れた値／24h 超の値は遮断（true）", /DEMO_SESSION_MS = 24 \* 60 \* 60 \* 1000/.test(ses) && /DEMO_UNTIL_COOKIE = "nox_demo_until"/.test(ses)
+    && demoSessionExpired(String(now + 3_600_000), now) === false && demoSessionExpired(String(now - 1), now) === true && demoSessionExpired(undefined, now) === true && demoSessionExpired("abc", now) === true && demoSessionExpired(String(now + DEMO_SESSION_MS + 1), now) === true
+    && demoSessionExpired(demoUntilValue(now), now) === false && demoSessionExpired(demoUntilValue(now), now + DEMO_SESSION_MS) === true);
+  check("dg(7-2) 非デモユーザーは非影響: DEMO_USERS に無い id・env 無し・壊れた env は isDemoAuthUserId=false（本番ユーザーが middleware の分岐に入らない）・デモの id は true（大文字小文字を問わない）",
+    isDemoAuthUserId(ENV, "33333333-3333-4333-8333-333333333333") === false && isDemoAuthUserId(undefined, "11111111-1111-4111-8111-111111111111") === false && isDemoAuthUserId("{bad", "11111111-1111-4111-8111-111111111111") === false && isDemoAuthUserId(ENV, null) === false
+    && isDemoAuthUserId(ENV, "11111111-1111-4111-8111-111111111111") === true && isDemoAuthUserId(ENV, "22222222-2222-4222-8222-222222222222".toUpperCase()) === true
+    && isDemoSessionExemptPath("/demo") && isDemoSessionExemptPath("/api/demo/enter") && !isDemoSessionExemptPath("/dashboard") && !isDemoSessionExemptPath("/mine"));
+  check("dg(7-3) 入場 route が cookie を置く（httpOnly・Secure は https のとき・SameSite=Lax・path=/・maxAge 86400＝24h）・middleware はデモユーザーかつ期限切れで signOut → /demo?expired=1・入口と /api/demo は除外・/demo に 24 時間の文言",
+    enter.includes("res.cookies.set(DEMO_UNTIL_COOKIE, demoUntilValue(Date.now()), demoUntilCookieOptions(") && /httpOnly: true, secure, sameSite: "lax", path: "\/", maxAge: Math\.floor\(DEMO_SESSION_MS \/ 1000\)/.test(ses) && demoUntilCookieOptions(true).maxAge === 86400 && demoUntilCookieOptions(false).secure === false
+    && mw.includes("isDemoAuthUserId(process.env.DEMO_USERS, user.id) && demoSessionExpired(request.cookies.get(DEMO_UNTIL_COOKIE)?.value, Date.now())") && mw.includes("await supabase.auth.signOut();") && mw.includes('url.search = "?expired=1";') && mw.includes("!isDemoSessionExemptPath(path)")
+    && mw.includes('redirect.cookies.set(DEMO_UNTIL_COOKIE, "", { path: "/", maxAge: 0 });') && demoPage3.includes("DEMO_SESSION_JA") && demoPage3.includes("<DemoExpiredNote />") && /DEMO_SESSION_JA = "お試しは 24 時間で終了します。再度入場できます。"/.test(ses));
 }
 
 if (fails.length) {

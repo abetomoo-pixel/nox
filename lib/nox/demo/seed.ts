@@ -12,6 +12,8 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { shiftPayload } from "./dateshift";
+import { parseDemoUsers } from "./session";
+import { CAST_PHOTO_BUCKET } from "../cast-photo";
 
 export const DEMO_STORES = ["muse", "luna", "noir", "ace", "lily", "nest"] as const;
 export type DemoStore = (typeof DEMO_STORES)[number];
@@ -130,17 +132,8 @@ export async function buildPayload(admin: SupabaseClient, orgId: string, bizDate
   return built.ok ? { ...built, biz: store } : built;
 }
 
-/** env DEMO_USERS（JSON: {"muse:owner":"<auth user id>", …}）。無い・壊れている＝null */
-export function parseDemoUsers(raw: string | undefined): Record<string, string> | null {
-  if (!raw) return null;
-  try {
-    const o = JSON.parse(raw) as unknown;
-    if (!o || typeof o !== "object" || Array.isArray(o)) return null;
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(o as Record<string, unknown>)) if (typeof v === "string" && UUID_RE.test(v)) out[k] = v;
-    return out;
-  } catch { return null; }
-}
+/** env DEMO_USERS の解釈＝session.ts（Edge の middleware と共用・★D2-b で移動・互換のため再 export） */
+export { parseDemoUsers } from "./session";
 
 // ── ★D1-2: payload の分割（1 MB 超は日付群ごとに load を分ける・器＝RPC は不変）──
 /** 伝票・日次系（日付で切れる表）。それ以外（マスタ・当日のライブ状態を含む全表）は先頭の chunk にまとめる */
@@ -215,10 +208,35 @@ export async function runDemoReset(admin: SupabaseClient, orgId: string, payload
   return { ok: true, mode: "wipe+load", chunks: chunks.length, result: results };
 }
 
+export type AfterResetResult = { photos: { casts: number; users: number }; payroll: "D2-c" };
+
 /**
- * 再生後の後処理（裁定276-4）: 給与の正規経路（M の payroll_run_create→finalize）は D2 で結線（payload には payslips を入れない＝凍結値を直書きしない）。
- *   ★本便（D1）では形だけ＝呼んでも何もしない。
+ * 再生後の後処理（裁定276-4）:
+ *   ★D2-b（328 追補4・2026-10-08）写真の再打刻＝payload の casts.photo_updated_at は null（写真の有無は DB 列＝null で「写真なし」）なので、
+ *     reset のたびに Storage（cast-photos/{org_id}/）に実体がある cast／user の photo_updated_at を now() に戻す（実体は wipe で消えない・users は残る 3 表だが同じ式で揃える）。
+ *     admin（service）で casts／users を直接 update＝RPC set_*_photo_updated_at は本人／自店の authz（デモの cron にはセッションが無い）。
+ *   給与の正規経路（payroll_run_create→payroll_finalize）＝D2-c（報酬参考 13,648,300 の突合）。
  */
-export async function afterResetHooks(_admin: SupabaseClient, _orgId: string, _bizDate: string): Promise<{ skipped: true; todo: string }> {
-  return { skipped: true, todo: "給与の正規経路（payroll_run_create→payroll_finalize）＝D2 で結線" };
+export async function afterResetHooks(admin: SupabaseClient, orgId: string, _bizDate: string): Promise<AfterResetResult> {
+  const out: AfterResetResult = { photos: { casts: 0, users: 0 }, payroll: "D2-c" };
+  try {
+    const { data: objs, error } = await admin.storage.from(CAST_PHOTO_BUCKET).list(orgId, { limit: 1000 });
+    if (error || !objs) return out;
+    const castIds: string[] = [], userIds: string[] = [];
+    for (const o of objs) {
+      const m = /^(u_)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jpg$/i.exec(o.name);
+      if (!m) continue;
+      (m[1] ? userIds : castIds).push(m[2]);
+    }
+    const now = new Date().toISOString();
+    if (castIds.length) {
+      const { data } = await admin.from("casts").update({ photo_updated_at: now }).eq("org_id", orgId).in("id", castIds).select("id");
+      out.photos.casts = data?.length ?? 0;
+    }
+    if (userIds.length) {
+      const { data } = await admin.from("users").update({ photo_updated_at: now }).eq("org_id", orgId).in("id", userIds).select("id");
+      out.photos.users = data?.length ?? 0;
+    }
+  } catch (e) { console.error(`afterResetHooks: ${e instanceof Error ? e.message : String(e)}`); }
+  return out;
 }

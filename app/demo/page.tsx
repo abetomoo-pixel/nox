@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import * as t from "@/lib/nox/ui/theme";
+import { Suspense } from "react";
 import DemoEntry, { type DemoBiz, type DemoRole } from "@/components/ui/demo-terms"; // ★夜間便 N5（裁定293-7）: 入場前の規約＋同意チェック（未同意は入場不可）
+import DemoExpiredNote from "@/components/ui/demo-expired-note"; // ★D2-b（328 追補4）: ?expired=1 の 1 行（client で query を読む＝page は force-static のまま）
+import { DEMO_SESSION_JA } from "@/lib/nox/demo/session";
 import { DEMO_KIOSK_KEY, DEMO_RESET_TIME_JA, DEMO_ROLES, DEMO_ROLE_LABEL, DEMO_STORES, DEMO_STORE_LABEL } from "@/lib/nox/demo/seed";
 
 // ★夜間便 N7-3（裁定273／277・2026-09-18）→ ★裁定328 追補1 ②③⑤（便 D1・2026-10-02）: 公開デモの入口＝店 6 × 役割 4 のボタン＋店ごとの端末（kiosk）（noindex）。
@@ -26,6 +29,9 @@ export default function DemoPage() {
           <p style={t.pheadP}>店と役割を選ぶと、そのままログインした状態で画面が開きます（パスワードやメールの入力はありません）。デモの入力内容は他の閲覧者にも見え、{DEMO_RESET_TIME_JA}に初期状態へ戻ります。</p>
         </header>
         {/* ★N5（裁定293-7）: 規約 5 項＋「同意する」→ 入場ボタン（form POST /api/demo/enter は不変・未同意は disabled） */}
+        {/* ★D2-b（328 追補4）: セッションは入場から 24 時間（cookie nox_demo_until・middleware で区切る）。再入場は何度でも可 */}
+        <p style={{ fontSize: 13, color: "var(--v2-muted)", margin: "0 0 12px", lineHeight: 1.7 }}>{DEMO_SESSION_JA}</p>
+        <Suspense fallback={null}><DemoExpiredNote /></Suspense>
         <DemoEntry biz={STORES} roles={ROLES} kiosk={KIOSK} />
         <p style={{ fontSize: 11, color: "var(--v2-muted)", marginTop: 10, lineHeight: 1.7 }}>
           デモ環境では、ご契約（お支払い）・招待・スタッフ作成・メール／パスワードの変更・組織の削除・写真のアップロード・キオスク発行・印刷・外部への送信（LINE／メール）はできません。
