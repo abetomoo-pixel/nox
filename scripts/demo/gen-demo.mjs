@@ -14,6 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
+import { PROFILES, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
@@ -90,17 +91,18 @@ for (const st of STORES) {
   const openHm = mainRule.start_minute >= 1140 ? hms(mainRule.start_minute).slice(0, 5) : "19:00";
   const closeMin = 1500; // 翌 01:00（30 時間制）
   // ★X-13-9（便 X-13a・2026-10-08）: 機能の公開＝会社の既定（store_id null）で「スタッフシフト」「締め解除フロー」を ON（flag_enabled は店舗行→org 行→false）
-  for (const key of ["staff_shift", "reopen_flow"]) push("feature_flags", { id: uid(`flag:${code}:${key}`), store_id: null, key, enabled: true, updated_by: null });
+  const PF = PROFILES[code]; // ★X-13c: 店のプロファイル
+  for (const key of ["staff_shift", "reopen_flow"]) push("feature_flags", { id: uid(`flag:${code}:${key}`), store_id: null, key, enabled: key === "reopen_flow" ? !!PF.reopen : true, updated_by: null }); // ★X-13c: 締め解除フローは店で差
   push("stores", {
     id: storeId, name: st.store_name, short: st.store_code, open_time: openHm,
     settings_json: { biz_type: ({ MUSE: "snack", LUNA: "cabaret", NOIR: "cabaret", ACE: "cabaret", LILY: "girlsbar", NEST: "bar" })[st.store_code], biz_cutoff_hm: "06:00", setup_done: true, billing_mode: "table",
-      sys_hourly: true, sys_backs: true, sys_sales_rate: false, sys_points: st.store_code === "NOIR", sys_sales_slide: st.store_code === "ACE", sys_point_slide: false, sys_norms: true, sys_penalties: false, sys_bonus: false,
-      slide_apply: "current", receipt_address: "東京都新宿区歌舞伎町 1-1-1（デモ）", receipt_tel: "03-0000-0000", receipt_footer: "飲食代", okuri_base_amount: 1000,
+      ...sysSettingsOf(code), pay_time_basis: PF.basis, shift_cast_confirm: PF.confirm, // ★X-13c: 報酬制度の ON/OFF・勤務時間の計算基準・キャスト確認＝プロファイル
+      slide_apply: "current", receipt_address: "東京都新宿区歌舞伎町 1-1-1（デモ）", receipt_tel: "03-0000-0000", receipt_footer: "飲食代", okuri_base_amount: PF.okuri, /* ★X-13c: 送り（0＝なし） */
       payslip_visibility: "detail", reservation_request: "on", drink_claim: "on", ranking: "on", shift_request_mode: "shift" },
     hon_fee: defRank?.main_charge_yen ?? 0, jonai_fee: defRank?.inhouse_charge_yen ?? 0, dohan_fee: defRank?.accompanied_charge_yen ?? 0, service_rate: tax.service_rate, card_tax_rate: 0,
     round_unit: 1, round_mode: "down", set_min: mainRule.set_minutes || 60, set_fee: mainRule.set_price_yen, ext_min: mainRule.extension_minutes || 30, ext_fee: mainRule.extension_price_yen,
     time_mode: "manual", time_per: "person", business_tax_status: "taxable", price_display: "tax_excluded", invoice_status: "registered", invoice_reg_no: null, tax_rounding: "floor", card_surcharge_rate: null,
-    receivable_policy: st.receivables_enabled_demo ? "customer_only" : "disabled", dohan_auto_hon: true, ext_shimei_enabled: false,
+    receivable_policy: PF.receivable, /* ★X-13c: 売掛＝プロファイル（旧＝receivables_enabled_demo） */ dohan_auto_hon: true, ext_shimei_enabled: false,
   });
   const memb = (role, user, extra = {}) => push("memberships", { id: uid(`memb:${code}:${role}`), user_id: user, store_id: storeId, role, is_active: true, can_register: role !== "cast", can_crm: role !== "cast", can_shift: role !== "cast", can_view_backs: role !== "cast", can_close: role !== "cast", can_reopen: role === "owner" || role === "manager", ...extra });
   // memberships は org_id 列なし（demo_org_reset の例外）＝org_id を外す
@@ -119,6 +121,7 @@ for (const st of STORES) {
       track_stock: p.accounting_class !== "drink", /* ★X-13-8／X-13b（0166）: グラス物（drink＝キャストドリンク・ソフト・サワー・ハイボール・生ビール・カクテル・ショット）は在庫を管理しない＝false。シャンパン・ボトル・フードは true */
       category_id: uid(`cat:${p.display_category_id}`), back_exempt_from_split: !!p.cast_drink_exclude_from_shared_sales && !(p.nomination_points_per_unit > 0), sort_order: i + 1, tax_category: "taxable_10" };
     if (row.back_mode === "rate") row.unit4_json = null; else row.back_value = null;
+    Object.assign(row, profileBackOf(code, row, i)); // ★X-13c（X-13-15）: 全ドリンクに商品バック＝率％型 3 店（銘柄別 10〜30%）／4 段階型 3 店（本＞場内＞同伴＞フリー）・フードは店で付ける／付けない
     push("products", row);
     if (p.cost_yen != null) push("product_costs", { product_id: row.id, store_id: storeId, cost: p.cost_yen });
     PRODUCT[p.product_id] = { ...p, row };
@@ -169,6 +172,10 @@ for (const st of STORES) {
   push("store_sales_targets", { id: uid(`sst:${code}:prev`), store_id: storeId, period: { $m: -1, d: 1, fmt: "ym" }, sales_target: monthly.stated_monthly_gross_yen });
   push("store_sales_targets", { id: uid(`sst:${code}:cur`), store_id: storeId, period: { $m: 0, d: 1, fmt: "ym" }, sales_target: monthly.stated_monthly_gross_yen });
   const cmt = D("cast_monthly_targets").filter((r) => r.store_id === S);
+  // ★X-13c: キャスト別ノルマ目標（cast_norms・当月）＝ノルマを使う店だけ（日数＝hours÷6・同伴・売上・指名＝本＋場内）
+  if (PF.sys.norms) for (const r of cmt) if (CAST[r.person_id]) push("cast_norms", { id: uid(`norm:${r.person_id}:cur`), store_id: storeId, cast_id: CAST[r.person_id].id, period: { $m: 0, d: 1, fmt: "ym" }, days_target: Math.max(1, Math.round((r.hours_target ?? 0) / 6)), dohan_target: r.accompanied_count_target || 0, sales_target: r.sales_target_yen || 0, shimei_target: (r.main_count_target || 0) + (r.inhouse_count_target || 0) });
+  // ★X-13c: 達成ボーナス（1 段・金額）＝達成ボーナスを使う店の全プラン（目標＝cast_norms.sales_target・無ければ不適用）
+  if (PF.sys.bonus) for (const p of plans) push("comp_plan_components", { id: uid(`comp:${p.plan_id}:bonus`), store_id: storeId, plan_id: uid(`plan:${p.plan_id}`), kind: "achievement_bonus", mode: "amount", amount: 10000, rate: null, params: { thresholds: [{ pct: 100 }] }, priority: 100, is_active: true });
   for (const r of cmt) if (CAST[r.person_id]) for (const [k, m] of [["prev", -1], ["cur", 0]]) push("cast_quotas", { id: uid(`quota:${r.person_id}:${k}`), store_id: storeId, cast_id: CAST[r.person_id].id, month: { $m: m, d: 1 }, hon: r.main_count_target || null, jonai: r.inhouse_count_target || null, dohan: r.accompanied_count_target || null, sales: r.sales_target_yen || null });
   push("kiosk_devices", { id: uid(`kiosk:${code}`), store_id: storeId, auth_user_id: users.kiosk, label: `${st.store_name} 打刻端末`, is_active: true, purpose: "punch" });
   push("notices", { id: uid(`notice:${code}`), store_id: storeId, title: "デモ環境へようこそ", body: `${st.store_name} のデモです。入力内容は毎日 06:05 に初期状態へ戻ります。`, audience: "all", pinned: true, until: null, created_by: users.owner, created_at: { $rel: -7, t: "12:00:00" } });
@@ -432,12 +439,45 @@ for (const st of STORES) {
   for (const r of D("reservation_targets").filter((r) => r.store_id === S)) { const t = r.scheduled_at.slice(11, 19); const tbl = tables.find((x) => x.table_id === r.table_id);
     push("reservations", { id: uid(`res:${r.reservation_id}`), store_id: storeId, customer_id: custId(r.customer_id), cast_id: r.assigned_person_id && CAST[r.assigned_person_id] ? CAST[r.assigned_person_id].id : null, guest_name: null, reserved_at: TODAY(t), party_size: r.guest_count, nom_type: r.assigned_person_id ? "hon" : "free", status: "booked", memo: null, check_id: null, created_by: users.manager, created_at: { $rel: -1, t: "15:00:00" }, updated_at: { $rel: -1, t: "15:00:00" }, seat_id: null, stay: null, requested_by_cast: null, rejected_reason: null, decided_by: null, decided_at: null }); void tbl; }
   if (st.store_code === "NOIR") push("reservations", { id: uid(`res:${code}:pending`), store_id: storeId, customer_id: custId(custs[1]?.customer_id), cast_id: CAST[castIds[1]].id, guest_name: null, reserved_at: TODAY("23:30:00"), party_size: 2, nom_type: "hon", status: "pending", memo: "キャスト申請（デモ）", check_id: null, created_by: users.cast, created_at: { $rel: 0, t: "15:00:00" }, updated_at: { $rel: 0, t: "15:00:00" }, seat_id: null, stay: null, requested_by_cast: CAST[castIds[1]].id, rejected_reason: null, decided_by: null, decided_at: null });
-  for (const s of D("shift_targets").filter((r) => r.store_id === S && r.planned_start_at && r.planned_end_at)) { const c = CAST[s.person_id]; if (!c) continue; const sh = s.planned_start_at.slice(11, 16), eh0 = s.planned_end_at.slice(11, 16); const eh = eh0 < sh ? `${pad(Number(eh0.slice(0, 2)) + 24)}${eh0.slice(2)}` : eh0;
-    push("shifts", { id: uid(`shift:${s.person_id}:today`), store_id: storeId, cast_id: c.id, date: { $rel: 0 }, start_hm: sh, end_hm: eh, status: "confirmed", wish_id: null, created_by: users.manager, created_at: { $rel: -3, t: "12:00:00" }, updated_at: { $rel: -3, t: "12:00:00" }, source: "manual", period_id: null, override_reason: null });
-    if (s.state_target === "on_duty_target") { const inT = `${pad(Number(sh.slice(0, 2)))}:${pad((Number(sh.slice(3, 5)) + 3) % 60)}:00`; push("attendance", { id: uid(`att:${s.person_id}:today`), store_id: storeId, cast_id: c.id, date: { $rel: 0 }, status: "shukkin", eta: null, reason: null, source: "self", created_at: TODAY(inT), updated_at: TODAY(inT) }); push("punches", { id: uid(`punch:${s.person_id}:today:in`), store_id: storeId, cast_id: c.id, punched_at: TODAY(inT), type: "in", lat: null, lng: null, ip: null, within_geofence: null, source: "self", note: null, created_at: TODAY(inT), okuri: null }); } }
-
+  // ★X-13c（X-13-16）: 必要人数（曜日別・終日）＋当日から 7 日分の確定シフト（キャスト・スタッフ）＋翌週 7 日分の募集（期間 open・希望 pending／accepted・仮シフト proposed）
+  //   日付は {$rel:i}（R 基準）＝曜日は実行日で決まるため、充足／不足は「日ごとの人数パターン」（PROFILES.shift.pattern）で作る（dow 0＝日曜は定休の店は required 0）。
+  {
+    const SP = PF.shift; const castRows = Object.values(CAST);
+    const closedSun = closedDows.includes(7);
+    for (let dow = 0; dow <= 6; dow++) push("staffing_needs", { id: uid(`need:${code}:${dow}`), store_id: storeId, dow, required: dow === 0 && closedSun ? 0 : (dow === 5 || dow === 6 ? SP.fri_sat : SP.base), from_min: 0, to_min: 1440 });
+    const endHm = `${pad(Math.floor((openMin + 360) / 60))}:${pad((openMin + 360) % 60)}`; const startHm = hms(openMin).slice(0, 5);
+    const perCur = uid(`period:${code}:cur`), perNext = uid(`period:${code}:next`);
+    push("shift_periods", { id: perCur, store_id: storeId, start_date: { $rel: 0 }, end_date: { $rel: 6 }, wish_deadline: { $rel: -5 }, status: "published", created_by: users.manager, created_at: { $rel: -8, t: "12:00:00" }, updated_at: { $rel: -1, t: "12:00:00" } });
+    push("shift_periods", { id: perNext, store_id: storeId, start_date: { $rel: 7 }, end_date: { $rel: 13 }, wish_deadline: { $rel: 3 }, status: "open", created_by: users.manager, created_at: { $rel: -1, t: "12:00:00" }, updated_at: { $rel: -1, t: "12:00:00" } });
+    // 当日の on_duty（shift_targets）は必ず今日の確定に含める（in 打刻と整合）
+    const todayDuty = D("shift_targets").filter((r) => r.store_id === S && r.state_target === "on_duty_target" && CAST[r.person_id]).map((r) => CAST[r.person_id]);
+    for (let i = 0; i <= 6; i++) {
+      const want = Math.min(castRows.length, SP.pattern[i] ?? SP.base);
+      const picked = i === 0 ? [...todayDuty] : [];
+      for (let k = 0; picked.length < want && k < castRows.length * 2; k++) { const c = castRows[(k + i * 2) % castRows.length]; if (!picked.includes(c)) picked.push(c); }
+      for (const c of picked) push("shifts", { id: uid(`shift:${code}:${i}:${c.person_id}`), store_id: storeId, cast_id: c.id, date: { $rel: i }, start_hm: startHm, end_hm: endHm, status: "confirmed", wish_id: null, created_by: users.manager, created_at: { $rel: -3, t: "12:00:00" }, updated_at: { $rel: -3, t: "12:00:00" }, source: "manual", period_id: perCur, override_reason: null });
+    }
+    // 当日の on_duty＝attendance（shukkin）＋ in 打刻（shift_targets の planned_start から）
+    for (const r of D("shift_targets").filter((x) => x.store_id === S && x.state_target === "on_duty_target" && CAST[x.person_id] && x.planned_start_at)) { const c = CAST[r.person_id]; const sh = r.planned_start_at.slice(11, 16); const inT = `${pad(Number(sh.slice(0, 2)))}:${pad((Number(sh.slice(3, 5)) + 3) % 60)}:00`;
+      push("attendance", { id: uid(`att:${r.person_id}:today`), store_id: storeId, cast_id: c.id, date: { $rel: 0 }, status: "shukkin", eta: null, reason: null, source: "self", created_at: TODAY(inT), updated_at: TODAY(inT) });
+      push("punches", { id: uid(`punch:${r.person_id}:today:in`), store_id: storeId, cast_id: c.id, punched_at: TODAY(inT), type: "in", lat: null, lng: null, ip: null, within_geofence: null, source: "self", note: null, created_at: TODAY(inT), okuri: null }); }
+    // 翌週＝希望（pending を数件・accepted は仮シフト proposed）
+    castRows.forEach((c, ci) => { const days = [...new Set([7 + (ci % 3), 9 + (ci % 2), 11 + ((ci + 1) % 3)])]; // 同じ日が重ならないように（wish の PK＝cast×日）
+      days.forEach((d, j) => { const accepted = (ci + j) % 3 === 0; const wid = uid(`wish:${code}:${c.person_id}:${d}`);
+        push("shift_wishes", { id: wid, store_id: storeId, cast_id: c.id, date: { $rel: d }, start_hm: startHm, end_hm: endHm, status: accepted ? "accepted" : "pending", decided_by: accepted ? users.manager : null, decided_at: accepted ? { $rel: -1, t: "15:00:00" } : null, created_at: { $rel: -2, t: "13:00:00" }, updated_at: { $rel: -1, t: "13:00:00" }, kind: "work" });
+        if (accepted) push("shifts", { id: uid(`shift:${code}:prop:${c.person_id}:${d}`), store_id: storeId, cast_id: c.id, date: { $rel: d }, start_hm: startHm, end_hm: endHm, status: "proposed", wish_id: wid, created_by: users.manager, created_at: { $rel: -1, t: "15:00:00" }, updated_at: { $rel: -1, t: "15:00:00" }, source: "manual", period_id: perNext, override_reason: null });
+      }); });
+    // スタッフ（黒服）＝枠 2 本・staff／manager の membership・当週 confirmed・翌週 proposed＋希望
+    const mStaff = T.memberships.find((m) => m.role === "staff"), mMgr = T.memberships.find((m) => m.role === "manager"); const mgrMemb = mMgr ? mMgr.id : null; // ★staff_shift_patterns／staff_shifts の created_by・confirmed_by は memberships(id)
+    const patEarly = uid(`pat:${code}:early`), patLate = uid(`pat:${code}:late`);
+    push("staff_shift_patterns", { id: patEarly, store_id: storeId, name: "早番", start_hm: "18:00", end_hm: "25:00", effective_from: { $rel: -30 }, sort_order: 1, created_by: mgrMemb, created_at: { $rel: -30, t: "12:00:00" }, disabled_from: null });
+    push("staff_shift_patterns", { id: patLate, store_id: storeId, name: "遅番", start_hm: "21:00", end_hm: "28:00", effective_from: { $rel: -30 }, sort_order: 2, created_by: mgrMemb, created_at: { $rel: -30, t: "12:00:00" }, disabled_from: null });
+    const pushStaff = (m, i, pat, status) => m && push("staff_shifts", { id: uid(`ss:${code}:${m.role}:${i}`), store_id: storeId, staff_id: m.id, biz_date: { $rel: i }, pattern_id: pat === "early" ? patEarly : patLate, start_hm: pat === "early" ? "18:00" : "21:00", end_hm: pat === "early" ? "25:00" : "28:00", status, wish_id: null, confirmed_by: status === "confirmed" ? mgrMemb : null, confirmed_at: status === "confirmed" ? { $rel: -2, t: "12:00:00" } : null, override_by: null, override_at: null, created_by: mgrMemb, created_at: { $rel: -2, t: "12:00:00" } });
+    for (let i = 0; i <= 6; i++) { pushStaff(mStaff, i, "early", "confirmed"); if (i % 2 === 0) pushStaff(mMgr, i, "late", "confirmed"); }
+    for (let i = 7; i <= 13; i++) { if (i % 7 !== 0 && i % 7 !== 3) pushStaff(mStaff, i, i % 2 ? "late" : "early", "proposed"); if (mStaff) push("staff_shift_wishes", { id: uid(`ssw:${code}:${i}`), store_id: storeId, staff_id: mStaff.id, biz_date: { $rel: i }, pattern_id: i % 2 ? patLate : patEarly, available: i % 7 !== 3, note: i % 7 === 3 ? "私用で休み希望" : null, created_at: { $rel: -2, t: "13:00:00" }, updated_at: { $rel: -2, t: "13:00:00" } }); }
+  }
   for (const t of Object.keys(T)) T[t] = completeRows(t, T[t], (r) => r.id ?? `${r.cast_id ?? ""}:${r.product_id ?? ""}:${r.store_id ?? ""}`);
-  const meta = { cutoff: "06:00", store: code, users, generated_at: "2026-10-02", source: "docs/demo/source/20261001/nox_demo_all.json", notes: ["先月＝{$m:-1,d}（R の前月）", "当日＝{$rel:0,t}", "payroll は投入しない（D2 の正規経路）"] };
+  const meta = { cutoff: "06:00", store: code, users, generated_at: "2026-10-02", source: "docs/demo/source/20261001/nox_demo_all.json", notes: ["先月＝{$m:-1,d}（R の前月）", "当日＝{$rel:0,t}", "payroll は投入しない（D2 の正規経路）", "X-13c: プロファイル＝scripts/demo/profiles.mjs（表＝docs/demo/store_profiles_20261009.md）・全ドリンクバック・必要人数＋14 日分シフト"] };
   const payload = { meta, tables: T };
   const json = JSON.stringify(payload);
   fs.writeFileSync(path.join(OUT_DIR, `${code}.json`), JSON.stringify(payload, null, 0) + "\n");

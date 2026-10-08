@@ -76,13 +76,14 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   for (const st of stores) {
     const p = JSON.parse(src(`docs/demo/payload/${st}.json`)) as { tables: Record<string, Record<string, unknown>[]> };
     const ff = p.tables.feature_flags ?? [];
-    const keys = ff.filter((f) => f.enabled === true && f.store_id === null).map((f) => f.key).sort();
+    const keys = ff.filter((f) => f.store_id === null).map((f) => f.key).sort(); // ★X-13c: reopen_flow は店で ON/OFF（profiles）＝行の有無と staff_shift ON を見る
+    const ssOn = ff.find((f) => f.key === "staff_shift")?.enabled === true;
     const prods = p.tables.products ?? [];
     const falses = prods.filter((r) => r.track_stock === false), trues = prods.filter((r) => r.track_stock === true);
-    const ok = keys.join(",") === "reopen_flow,staff_shift" && ff.length === 2 && prods.length > 0 && prods.every((r) => typeof r.track_stock === "boolean") && falses.length > 0 && falses.every((r) => r.type === "drink") && prods.filter((r) => r.type !== "drink").every((r) => r.track_stock === true) && trues.length > 0; // ★X-13b: グラス物（type drink）は false・他は true
+    const ok = keys.join(",") === "reopen_flow,staff_shift" && ssOn && ff.length === 2 && prods.length > 0 && prods.every((r) => typeof r.track_stock === "boolean") && falses.length > 0 && falses.every((r) => r.type === "drink") && prods.filter((r) => r.type !== "drink").every((r) => r.track_stock === true) && trues.length > 0; // ★X-13b: グラス物（type drink）は false・他は true
     if (!ok) okAll = false; detail.push(`${st}:${keys.join("|")}/${ff.length}/${prods.every((r) => r.track_stock === true)}`);
   }
-  check("x13(demo-flags-1) 6 店とも feature_flags＝org 既定（store_id null）staff_shift／reopen_flow ON の 2 行・products.track_stock＝グラス物（drink）false・他 true（★X-13b）", okAll, detail.join(" "));
+  check("x13(demo-flags-1) 6 店とも feature_flags＝org 既定（store_id null）staff_shift ON＋reopen_flow（店で ON/OFF＝★X-13c）の 2 行・products.track_stock＝グラス物（drink）false・他 true（★X-13b）", okAll, detail.join(" "));
   const gen = src("scripts/demo/gen-demo.mjs");
   check("x13(demo-flags-2) gen-demo＝feature_flags 2 行＋products.track_stock＝accounting_class !== drink（★X-13b・列が無い間は populate が無視）", gen.includes('for (const key of ["staff_shift", "reopen_flow"]) push("feature_flags", {') && gen.includes('track_stock: p.accounting_class !== "drink",'));
 }
