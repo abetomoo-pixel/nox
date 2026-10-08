@@ -4018,6 +4018,8 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 **G-2 切り分け**＝③の変種（N+1 型＝CTE inline による check_group_due の再評価）。①index 不足ではない（due=0 で 30 ms・index scan 使用）②RLS 述語ではない（SECURITY DEFINER＝定義者で実行・SubPlan 0）。案: **A（推奨）＝0165 で cast_sales_aggregate の `groups as (` を `groups as materialized (` に（1 語・PG17・結果不変・期待 1 か月 ≈ 100 ms＝87 倍・mig 要（CREATE OR REPLACE・写経元 live f765c36a・差分 1 語）・名簿不変（B(a) 内部ヘルパー・ACL postgres のみ不変・関数数 303 不変）・pin＝md5 控え無し（autocharge／r2b／rls は挙動 pin＝golden 不変で証明）・demo_org_reset 不触）**。B＝check_group_due の本体を集合演算として CTE に展開（関数呼出をやめる）＝大改修・二重定義の保守負担・不採用。C（G-3・DB 不変）＝lib/nox/payroll/collect.ts で窓を 7 日ずつに分割して get_cast_sales を複数回呼び連結（行は cast×biz_date＝重複なし・slide 'next' の前月窓も同様）＝月 4〜5 回 × 0.75 s ≈ 3〜4 s で 8 s 内だが超線形のため密度 2 倍の店で再発＝暫定ゲートとしてのみ妥当・A の後は不要。**0165 の骨子（起草はしない）**＝単一 tx／冒頭コメント（名・翻訳元 0014 系・検証クエリ）／cast_sales_aggregate を live 本文の写経＋1 語（materialized）で CREATE OR REPLACE（署名・STABLE・SECURITY DEFINER・search_path 不変）／grant 文なし（内部専用＝4 ロール revoke 済みを再掲 revoke で保全）／検証＝md5 新値・`explain (analyze) select * from cast_sales_aggregate(NOIR, '2026-09-01','2026-09-30')` が 200 ms 未満・関数 303／表 83 不変／f0 golden 6 値不変（cast-stats／payroll／r2b／autocharge）。docs＝教訓104 採番・328 追補6・起票100。コミット「docs: G1 読取・起票100」。次＝相談役の裁定→便 G2（0165 起草・突合・手貼り案内）。
 
+**便 G2 完了（0165 起草・突合・手貼り案内）＝台帳の現在地（2026-10-08）**: DB 恒久変更 0（突合は tx 内 rollback・f0 走行外）。裁定336＝案 A を収載。0165＝sha 75be081a…59b0・7,756 B・131／130 行・突合 13 段 NG 0（md5 e232dac8・explain 82.6 ms・get_cast_sales 8,749→127 ms・行 147／Σ 9,099,065／署名 71b0a188 不変・303／83・ACL 不変）。0158 に s-2b（過渡 pin・単独走 52 緑）。手貼り案内 docs/demo/handpaste_0165.md（結論 3 行・形の確認クエリ・proof は 9＝本番 3＋デモ 6）。f0 不走（mig 起草＋pin 追加＝単独走 1 本）。コミット「feat(0165): cast_sales_aggregate materialized 起草（裁定336・起票100）」。次＝Agoora 手貼り→便 P165（live 照合・収蔵・0158 を e232dac8 に絞る・f0 2 連・push）→NOIR 給与プレビューの目視で起票100 クローズ。
+
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
 出典＝Agoora 指示（2026-09-29・便 X-10-1 で収載）。次の裁定番号は 321。**本文（逐語）**:
@@ -4061,6 +4063,18 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 在庫管理の判定＝products に管理フラグの列は無い → **product_stock_totals の戻りに行がある商品（＝stock_logs に 1 行以上ある商品）** を「管理あり」とした（在庫数が無い＝管理なし）。入荷の記録が無い商品は一覧に出ず、件数だけ注記する。
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
+
+## 裁定336（2026-10-08 確定・相談役・便 G2）起票100 の処置＝案 A（cast_sales_aggregate の CTE groups を materialized に）
+
+出典＝相談役ブロック 2026-10-08（便 G2 の前提「裁定336＝案 A」・逐語）。**本文（逐語）**: 「裁定336＝案 A。」
+案 A（便 G1 の 3 案・台帳「便 G1 完了」）＝0165 で cast_sales_aggregate の `groups as (` を `groups as materialized (` に（1 語・PG17・結果不変・名簿不変）。B（check_group_due の集合展開）・C（app 側 7 日分割）は不採用。
+
+適用＝便 G2（2026-10-08）: 0165 起草（下の欄）・突合 13 段 NG 0・手貼り案内 docs/demo/handpaste_0165.md（教訓104 の形）・0158 に過渡 pin s-2b（f765c36a｜e232dac8→P165 で 1 値）。
+
+**0165 の欄（起草・突合済み・手貼りは Agoora）**: supabase/migrations/0165_cast_sales_aggregate_materialized.sql＝**sha256 75be081a485238a96e70ce6e5cad4ce9621d16e58bd52d43507080ebd91559b0・7,756 B・131 行（台帳方式）／130（wc -l）・LF・突合 13 段 NG 0（docs/tmp/q1008_ag_0165.mjs・BEGIN…ROLLBACK・文単位 2 文）**。生成器 docs/tmp/gen_0165.mjs（live を dump→1 語置換・出現 1 回と長さ +13 を assert）・写経元 docs/tmp/0165_live.json（cast_sales_aggregate f765c36a）・期待 docs/tmp/0165_expected.json＝**cast_sales_aggregate f765c36a → e232dac8**・不触 get_cast_sales eaec39a4／check_group_due 6c1ef055／demo_org_reset a4bd6a18。中身＝★1 cast_sales_aggregate の CREATE OR REPLACE（live 写経＋materialized）★2 4 ロール明示 revoke 再掲（ACL {postgres=X/postgres} 不変）。突合の 4 値＝①適用後 md5 e232dac8・prosrc＝live＋' materialized'（他 1 バイト不変・署名／STABLE／SECURITY DEFINER／search_path 不変）②explain (analyze) cast_sales_aggregate(NOIR, 09-01, 09-30)＝**82.6 ms**（<200）・get_cast_sales 同範囲 wall **8,749 ms → 127 ms**（owner JWT）③get_cast_sales の行数 147・Σsales 9,099,065・Σhon 233／jonai 120／dohan 41・全行の署名 71b0a188＝適用前と同一④関数 303／表 83／'billing locked' 154 不変・ACL 不変・authenticated 直呼びは permission denied のまま・ROLLBACK 後 f765c36a。名簿不変（内部ヘルパー B(a)）。手貼り後に赤になる段＝なし（0158 s-2b は両値可→P165 で e232dac8 に絞る）。
+
+**教訓候補（CC 提案・採番は相談役）: STABLE な plpgsql 関数を CTE 内で呼ぶときは、その CTE を materialized にする（または結果を 1 回だけ評価する形にする）。** PG12 以降は 1 回参照の CTE が inline されるため、関数の戻り値が後段の join／window の行ごと・参照ごとに再評価され、呼出回数が (check,pay_group) の数十倍になる（起票100＝8,359 ms→95 ms）。index／RLS を疑う前に「due=0 に置換した同クエリ」と「VOLATILE ラッパで呼出回数を数える」で切り分ける（docs/tmp/q1008_g1.mjs／q1008_g1b.mjs の型）。
+**恒久注意（追加・便 G2）: Agoora 向けの md（手貼り案内・目視案内）は冒頭に「結論 3 行」を置く**（何を・どこに・何を返すか）。例文に角括弧のプレースホルダを残さず、確認クエリは値を出さず形を返す（教訓104）。
 
 ## 裁定335（2026-10-08 確定・相談役・v43 §3）sharp を devDependency に追加して良い
 
