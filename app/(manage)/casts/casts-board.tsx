@@ -19,6 +19,7 @@ import { guaranteeStateOf, guaranteeBadgeOf, guaranteeEndNoteOf, addDays, mdOf, 
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③: デモでは写真アップロード・招待・PW 再発行の導線を隠す
 import Modal from "@/components/ui/modal";
 import CastAvatar from "@/components/ui/cast-avatar";
+import PhotoEdit from "@/components/ui/photo-edit"; // ★X-13-5: 写真の現在・変更・削除（スタッフ編集と同じ部品）
 import { resolveOrgId, signCastPhotos, uploadCastPhoto } from "@/lib/nox/cast-photo";
 import { removeCastPhoto } from "@/lib/nox/staff-photo"; // ★0162（裁定329／329 追補1・便 M5-1）: 削除＝storage.remove → clear_cast_photo
 import type { Trial, CastLogin } from "./page";
@@ -100,10 +101,6 @@ export default function CastsBoard({
   //   set_cast_photo_updated_at の同一 authz＝UI を通さない直叩きでも他店の子は差し替えられない。
   const [orgId, setOrgId] = useState<string | null>(null);
   const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
-  const [phTarget, setPhTarget] = useState<CastLogin | null>(null);
-  const [phFile, setPhFile] = useState<File | null>(null);
-  const [phPreview, setPhPreview] = useState<string | null>(null);
-  const [phErr, setPhErr] = useState<string | null>(null);
 
   // ── 段C2（キャスト刷新・正本 nox-casts-redesign-mock-v1.html）──
   //   テーブル→カードグリッド＋詳細3タブ。フィルタ/検索/月次2数値はすべて既存データの client 再形。
@@ -116,6 +113,8 @@ export default function CastsBoard({
   const [profEdit, setProfEdit] = useState(false);
   const [profName, setProfName] = useState("");
   const [profJoined, setProfJoined] = useState("");
+  // ★X-13-6（便 X-13a）: 別キャストを開いたとき前回の編集 draft（源氏名・入店日）が残らないように＝sel が変わったら編集を閉じ draft を空に
+  useEffect(() => { setProfEdit(false); setProfName(""); setProfJoined(""); }, [sel]);
   const [showAdd, setShowAdd] = useState(false);
   // 月次2数値（相談役メモ②）＝現物確認の結果★どちらも新規 RPC なしで取れる:
   //   今月指名＝既存 get_cast_ranking（cast_id 付きで hon/jonai/dohan を返す・dashboard と同じ呼び方）
@@ -276,20 +275,6 @@ export default function CastsBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, loginCasts]);
 
-  function openPhoto(c: CastLogin) {
-    setPhTarget(c); setPhFile(null); setPhErr(null);
-    setPhPreview(null);
-  }
-  function closePhoto() {
-    if (phPreview) URL.revokeObjectURL(phPreview);
-    setPhTarget(null); setPhFile(null); setPhPreview(null); setPhErr(null);
-  }
-  function pickPhoto(f: File | null) {
-    if (phPreview) URL.revokeObjectURL(phPreview);
-    setPhFile(f);
-    setPhPreview(f ? URL.createObjectURL(f) : null);
-    setPhErr(null);
-  }
   /** ★0162（裁定329／329 追補1・便 M5-1）: 写真の削除＝Storage の実体 → clear_cast_photo。成功で一覧の photo_updated_at を取り直す（署名 URL が消える） */
   async function deletePhoto(c: CastLogin) {
     if (!orgId) return;
@@ -305,16 +290,16 @@ export default function CastsBoard({
       setBusy(false);
     }
   }
-  async function submitPhoto() {
-    if (!phTarget || !phFile || !orgId) return;
-    setBusy(true); setPhErr(null);
+  /** ★X-13-5（便 X-13a）: 写真の登録／差替え＝直接 pick（PhotoEdit）→ uploadCastPhoto（縮小・Storage・打刻は lib）。旧プレビュー付きモーダル経路は撤去 */
+  async function uploadPhotoDirect(c: CastLogin, f: File) {
+    if (!orgId) return;
+    setBusy(true);
     try {
-      await uploadCastPhoto(supabase, orgId, phTarget.id, phFile);
+      await uploadCastPhoto(supabase, orgId, c.id, f);
       await reloadLoginCasts(); // photo_updated_at を取り直す＝署名 URL も新しい v= で張り直る
       setMsg("写真を保存しました");
-      closePhoto();
     } catch (e) {
-      setPhErr(e instanceof Error ? e.message : "保存に失敗しました");
+      setMsg(rpcErrJa(e instanceof Error ? e.message : "保存に失敗しました"));
     } finally {
       setBusy(false);
     }
@@ -740,20 +725,11 @@ export default function CastsBoard({
         <Modal onClose={() => !busy && setSel(null)} maxWidth={640} scroll>
           <div className="nox-cdrawer">
             <div style={{ textAlign: "center" }}>
-              <CastAvatar name={selCast.name} url={photoUrls.get(selCast.id)} size={64} />
-              {/* 段P 実装済みの写真変更を流用（送る RPC も同じ） */}
-              {/* モック .photoedit＝点線チップ（送る RPC は段P の openPhoto のまま） */}
-              {!isDemo && (
-                <button className="nox-photoedit" disabled={busy || !orgId} onClick={() => openPhoto(selCast)}>
-                  写真を変更
-                </button>
-              )}{/* ★N7-2 ③: デモは storage policy（0149 ★10）でも拒否＝導線ごと隠す */}
-              {!isDemo && photoUrls.has(selCast.id) && (
-                // ★0162（裁定329／329 追補1・便 M5-1）: 削除＝storage.remove（delete policy）→ clear_cast_photo（null 戻し）。写真があるときだけ
-                <button className="nox-photoedit" disabled={busy || !orgId} onClick={() => void deletePhoto(selCast)} style={{ marginLeft: 6 }}>
-                  写真を削除
-                </button>
-              )}
+              {/* ★X-13-5（便 X-13a）: ヘッダー写真の下に「写真を変更」を常時表示＝共通部品 PhotoEdit（スタッフ編集 X-13-4 と同じ）。
+                  デモ org は表示するが無効（裁定328 ④＝storage policy が真の防御・useIsDemo で理由を出す） */}
+              <PhotoEdit name={selCast.name} url={photoUrls.get(selCast.id)} hasPhoto={photoUrls.has(selCast.id)} busy={busy || !orgId} size={64} layout="col"
+                disabled={isDemo} disabledReason="デモ環境では写真を変更できません"
+                onPick={(f) => void uploadPhotoDirect(selCast, f)} onRemove={() => void deletePhoto(selCast)} />
             </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: "var(--v2-text)" }}>{selCast.name}</div>
@@ -1249,41 +1225,6 @@ export default function CastsBoard({
       )}
 
       {/* 段P: 写真アップロードモーダル（現在の写真→ファイル選択→プレビュー→保存。削除経路は持たない＝差し替えは上書き） */}
-      {phTarget && (
-        <Modal onClose={() => !busy && closePhoto()}>
-          {/* ★裁定144（v3.1 K24）: 文言をモック「プロフィール写真／キャスト一覧・レジ・指名画面などで使用します」へ。
-              削除・トリミング・D&D は対象外（削除は bucket policy 追加＝mig 領域・A層では触らない）。 */}
-          <h2 style={secTitle}>プロフィール写真（{phTarget.name}）</h2>
-          <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
-            キャスト一覧・レジ・指名画面などで使用します。自動で縮小・JPEG 化されます（元画像はそのままです）。
-          </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {/* 左＝現在（写真 or 頭文字）・右＝選択中プレビュー。選択前は現在のみ */}
-            <CastAvatar name={phTarget.name} url={photoUrls.get(phTarget.id)} size={64} />
-            {phPreview && (
-              <>
-                <span style={{ color: "var(--sub)", fontSize: 13 }} aria-hidden="true">→</span>
-                <span className="nox-ava" style={{ width: 64, height: 64, overflow: "hidden", padding: 0, background: "var(--v2-ava)" }} aria-hidden="true">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- ローカル blob プレビュー */}
-                  <img src={phPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                </span>
-              </>
-            )}
-          </div>
-          <label style={{ display: "grid", gap: 4, marginTop: 12 }}>
-            <span style={t.fieldLabel}>写真を選ぶ（JPEG/PNG）</span>
-            <input type="file" accept="image/*" disabled={busy}
-              onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)} style={{ fontSize: 13 }} />
-          </label>
-          {phErr && <Message kind="error" style={{ margin: "8px 0 0" }}>{phErr}</Message>}
-          <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button style={btnGhost} disabled={busy} onClick={closePhoto}>キャンセル</button>
-            <button style={btnGold} disabled={busy || !phFile} onClick={() => void submitPhoto()}>
-              {busy ? "処理中…" : "写真を保存"}
-            </button>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }

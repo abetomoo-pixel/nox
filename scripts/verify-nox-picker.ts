@@ -39,11 +39,11 @@ const files = [...walk("app"), ...walk("components")];
 const hits = files.map((f) => [f, (fs.readFileSync(f, "utf8").match(/<Picker\b/g) || []).length] as const).filter(([, n]) => n > 0).sort((a, b) => a[0].localeCompare(b[0]));
 const EXPECT: Array<[string, number]> = [
   ["app/(manage)/analytics/analytics-board.tsx", 1], ["app/(manage)/casts/casts-board.tsx", 1], ["app/(manage)/customers/[id]/customer-detail.tsx", 1], ["app/(manage)/customers/customers-board.tsx", 1], // ★306-13: casts-board の待遇プラン候補
-  ["app/(manage)/master/cast-comp/comp-sections.tsx", 1], ["app/(manage)/register/bottle-keep-panel.tsx", 2], ["app/(manage)/register/register-board.tsx", 1],
+  ["app/(manage)/register/bottle-keep-panel.tsx", 2], ["app/(manage)/register/register-board.tsx", 1], // ★便 X-13a（X-13-3）: comp-sections の NormTab は表＋チェック選択へ＝<Picker を撤去（−1）
   ["app/(manage)/register/reservation-panel.tsx", 2], ["app/(manage)/shift/staff-place-by-staff.tsx", 1], // ★306-7: shift-board の期間状態は SegSelect へ（picker 撤去）
   ["app/mine/drink-claim-form.tsx", 1], ["app/mine/reservation-request-card.tsx", 1], ["components/nox/advance-okuri-form.tsx", 1], // ★便 M3-2（裁定326-4）: 予約申請の担当客＝Picker（裁定259 と同型） // ★便 X-11-2b: check-customers-card は候補表示を自前の一覧（最近来店・担当・検索 10 件＋さらに表示）へ＝<Picker を撤去 // cast-picker.tsx は <PickerBadge（型）だけ
 ];
-check("pk(3-1) <Picker の呼び出し＝14 箇所／12 ファイル（許可列挙・呼び出し側は 301 でコードを変えない・★M3-2: 予約申請カード +1）", JSON.stringify(hits) === JSON.stringify(EXPECT) && hits.reduce((a, [, n]) => a + n, 0) === 14, JSON.stringify(hits));
+check("pk(3-1) <Picker の呼び出し＝13 箇所／11 ファイル（許可列挙・呼び出し側は 301 でコードを変えない・★M3-2: 予約申請カード +1・★X-13a: comp-sections −1）", JSON.stringify(hits) === JSON.stringify(EXPECT) && hits.reduce((a, [, n]) => a + n, 0) === 13, JSON.stringify(hits));
 
 // (4) 301-4 の余白
 const ao = fs.readFileSync("components/nox/advance-okuri-form.tsx", "utf8");

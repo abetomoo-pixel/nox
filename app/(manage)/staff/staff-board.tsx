@@ -10,6 +10,7 @@ import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
+import PhotoEdit from "@/components/ui/photo-edit"; // ★X-13-4: 名前の横に写真（現在・変更・削除）＝キャスト詳細と同じ部品
 import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 
@@ -290,6 +291,11 @@ export default function StaffBoard({
             <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !busy && setSel(null)}>×</button>
           </div>
           <p style={{ ...t.sub, margin: "-8px 0 12px" }}>{storeName(sel.store_id)} / {t.roleLabelJa(sel.role)} / {sel.is_active ? "在籍" : "解除"}</p>
+          {/* ★X-13-4（便 X-13a）: 名前の横に写真（現在・変更・削除）＝共通部品 PhotoEdit（キャスト詳細 X-13-5 と同じ経路）。デモは表示するが無効（裁定328 ④） */}
+          <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+            <PhotoEdit name={users[sel.user_id]?.name ?? ""} url={photoUrls.get(sel.user_id)} hasPhoto={!!users[sel.user_id]?.photo_updated_at} busy={phBusy || busy || !orgId} size={56}
+              disabled={isDemo} disabledReason="デモ環境では写真を変更できません" note="自動で縮小・JPEG 化されます。スタッフ一覧・シフトに表示されます。"
+              onPick={(f) => void pickStaffPhoto(sel.user_id, f)} onRemove={() => void removeStaffPhoto(sel.user_id, users[sel.user_id]?.name ?? "")} />
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input placeholder="名前" value={eName} onChange={(e) => setEName(e.target.value)} style={{ ...input, width: 170 }} />
             <button style={btnGold} disabled={busy} onClick={async () => {
@@ -297,22 +303,7 @@ export default function StaffBoard({
               setSel(null);
             }}>名前を更新</button>
           </div>
-          {!isDemo && (
-            // ★0162（裁定329／329 追補1・便 M5-1）: スタッフ写真の登録・差替え・削除（owner／manager。manager の他店は RLS／RPC が拒否＝和文で返る）
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12 }}>
-              <CastAvatar name={users[sel.user_id]?.name ?? ""} url={photoUrls.get(sel.user_id)} size={56} />
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <label>
-                  <span className="nox-photoedit" style={{ cursor: phBusy || busy ? "default" : "pointer", opacity: phBusy ? 0.5 : 1 }}>{photoActionLabelOf(!!users[sel.user_id]?.photo_updated_at, phBusy)}</span>
-                  <input type="file" accept="image/*" disabled={phBusy || busy || !orgId} onChange={(e) => { void pickStaffPhoto(sel.user_id, e.target.files?.[0] ?? null); e.target.value = ""; }} style={{ display: "none" }} />
-                </label>
-                {users[sel.user_id]?.photo_updated_at && (
-                  <button type="button" className="nox-photoedit" disabled={phBusy || busy || !orgId} onClick={() => void removeStaffPhoto(sel.user_id, users[sel.user_id]?.name ?? "")}>写真を削除</button>
-                )}
-                <span style={{ ...t.sub, fontSize: 11 }}>自動で縮小・JPEG 化されます。スタッフ一覧・シフトに表示されます。</span>
-              </div>
-            </div>
-          )}
+          </div>
           {isOwner && !isDemo && ( // ★N7-2 ③: デモはメール変更の導線を隠す
             // ★裁定267-2: メール（ログイン ID）の変更＝owner にのみ描画（manager には開かない・route の guardOwner が真の防御）。
             //   「名前を更新」と同型（入力＋btnGold）。送信中は disabled。成功で一覧（users.email）を再取得し入力へ反映。新トークン 0。

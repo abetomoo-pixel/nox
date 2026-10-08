@@ -89,6 +89,8 @@ for (const st of STORES) {
   const openDays = cal.filter((r) => r.is_open).map((r) => r.business_date).sort();
   const openHm = mainRule.start_minute >= 1140 ? hms(mainRule.start_minute).slice(0, 5) : "19:00";
   const closeMin = 1500; // 翌 01:00（30 時間制）
+  // ★X-13-9（便 X-13a・2026-10-08）: 機能の公開＝会社の既定（store_id null）で「スタッフシフト」「締め解除フロー」を ON（flag_enabled は店舗行→org 行→false）
+  for (const key of ["staff_shift", "reopen_flow"]) push("feature_flags", { id: uid(`flag:${code}:${key}`), store_id: null, key, enabled: true, updated_by: null });
   push("stores", {
     id: storeId, name: st.store_name, short: st.store_code, open_time: openHm,
     settings_json: { biz_type: ({ MUSE: "snack", LUNA: "cabaret", NOIR: "cabaret", ACE: "cabaret", LILY: "girlsbar", NEST: "bar" })[st.store_code], biz_cutoff_hm: "06:00", setup_done: true, billing_mode: "table",
@@ -114,6 +116,7 @@ for (const st of STORES) {
     const row = { id: uid(`prod:${p.product_id}`), store_id: storeId, type: CLASS[p.accounting_class] ?? "other", category: p.display_category_name, name: p.product_name, price: p.selling_price_yen,
       back_mode: p.back_mode === "percentage" ? "rate" : "unit4", back_value: p.back_mode === "percentage" ? p.back_rate_bps / 100 : (p.back_mode === "none" ? 0 : null),
       unit4_json: p.back_mode === "none" ? { hon: 0, jonai: 0, dohan: 0, free: 0 } : unit4, hon_pt: p.nomination_points_per_unit ?? 0, is_active: true, reorder_point: p.reorder_point ?? null,
+      track_stock: true, /* ★X-13-8（0166）: 列が無い間は jsonb_populate_recordset が無視・適用後は NOT NULL を満たす。false の銘柄は X-13b */
       category_id: uid(`cat:${p.display_category_id}`), back_exempt_from_split: !!p.cast_drink_exclude_from_shared_sales && !(p.nomination_points_per_unit > 0), sort_order: i + 1, tax_category: "taxable_10" };
     if (row.back_mode === "rate") row.unit4_json = null; else row.back_value = null;
     push("products", row);

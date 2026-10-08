@@ -792,57 +792,80 @@ function FragmentRow({ children }: { children: React.ReactNode }) { return <>{ch
 //   売上・指名の新2軸は表示のみ（payOf/normPenalty 非接続＝/mine の進捗表示用）。
 //   ★0154 D3: 未達の罰金は撤去（検知のみ・減額は精算調整）。日数・同伴の検知は「遅刻・当欠の検知」タブの norm_on 配下。
 export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: CastRow[]; norms: Norm[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+  // ★X-13-3（便 X-13a・2026-10-08）: 表形式（1 人＝1 行・列＝期間／日数(日)／同伴(回)／売上(円)／指名(回)・単位は見出しに固定・3 桁区切り）
+  //   ＋チェックで複数選択→「選択した N 人にまとめて入力」（空欄の項目は変えない＝その人の現在値を再送・無ければ 0）。期間の初期値＝当月。
+  //   RPC は set_cast_norm 6 引数のまま（1 人ずつ順に・失敗は和文で止める）。
   const supabase = createClient();
-  const [castId, setCastId] = useState("");
-  const [period, setPeriod] = useState("");
-  const [days, setDays] = useState(0);
-  const [dohan, setDohan] = useState(0);
-  const [sales, setSales] = useState(0);
-  const [shimei, setShimei] = useState(0);
-  const castName = (cid: string) => casts.find((c) => c.id === cid)?.name ?? cid;
+  const [period, setPeriod] = useState(currentPeriodOf());
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<NormBulk>({ days: "", dohan: "", sales: "", shimei: "" });
+  const [busy, setBusy] = useState(false);
+  const normOf = (cid: string): Norm | null => norms.find((n) => n.cast_id === cid && n.period === period) ?? null;
+  const toggle = (cid: string) => setPicked((prev) => { const n = new Set(prev); if (n.has(cid)) n.delete(cid); else n.add(cid); return n; });
+  const allOn = casts.length > 0 && casts.every((c) => picked.has(c.id));
+  const toggleAll = () => setPicked(allOn ? new Set() : new Set(casts.map((c) => c.id)));
+  const anyInput = Object.values(bulk).some((v) => v.trim() !== "");
 
-  async function save() {
-    // 6引数を常に明示送信（mig0042 で4引数版は drop 済・部分省略は関数不一致で失敗する）
-    const { error } = await supabase.rpc("set_cast_norm", {
-      p_cast_id: castId, p_period: period, p_days_target: days, p_dohan_target: dohan,
-      p_sales_target: sales, p_shimei_target: shimei,
-    });
-    setMsg(error ? compErrJa(error.message) : "ノルマを保存しました");
-    if (!error) await reload();
+  async function saveBulk() {
+    const ids = casts.map((c) => c.id).filter((id) => picked.has(id));
+    if (ids.length === 0 || !period || busy) return;
+    setBusy(true);
+    let ng: string | null = null;
+    for (const cid of ids) {
+      const cur = normOf(cid);
+      const args = normBulkArgsOf(bulk, cur);
+      // 6引数を常に明示送信（mig0042 で4引数版は drop 済・部分省略は関数不一致で失敗する）
+      const { error } = await supabase.rpc("set_cast_norm", { p_cast_id: cid, p_period: period, ...args });
+      if (error) { ng = compErrJa(error.message); break; }
+    }
+    setBusy(false);
+    setMsg(ng ?? `${ids.length} 人のノルマを保存しました（${period}）`);
+    if (!ng) { setBulk({ days: "", dohan: "", sales: "", shimei: "" }); setPicked(new Set()); }
+    await reload();
   }
+  const fmt = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString());
+  const cell = (k: keyof NormBulk, v: string) => <input inputMode="numeric" placeholder="変えない" value={v} disabled={busy} onChange={(e) => setBulk((b) => ({ ...b, [k]: e.target.value.replace(/[^0-9]/g, "") }))} className="nox-numfield num" style={{ ...input, width: k === "sales" ? 110 : 70, textAlign: "right" }} aria-label={NORM_COL_LABEL[k]} />;
   return (
     <div>
+      {isManagerUp && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+          <label style={{ fontSize: 12 }}>期間 <input type="month" value={period} onChange={(e) => { setPeriod(e.target.value); }} style={{ ...input, width: 140 }} aria-label="ノルマの期間（月）" /></label>
+          <span style={note}>表はこの期間の目標を表示します（未設定は —）。</span>
+        </div>
+      )}
       <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
-      <table className="nox-table" style={{ marginBottom: 10 }}>
-        <thead><tr>{["キャスト", "期間", "日数目標", "同伴目標", "売上目標", "指名目標"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+      <table className="nox-table nox-normtable" style={{ marginBottom: 10 }}>
+        <thead><tr>
+          {isManagerUp && <th style={{ width: 34 }}><input type="checkbox" checked={allOn} onChange={toggleAll} aria-label="全員を選択" disabled={busy} /></th>}
+          {["キャスト", "期間", "日数(日)", "同伴(回)", "売上(円)", "指名(回)"].map((h) => <th key={h}>{h}</th>)}
+        </tr></thead>
         <tbody>
-          {norms.map((n) => (
-            <tr key={n.id}>
-              <td>{castName(n.cast_id)}</td>
-              <td className="num">{n.period}</td>
-              <td className="num">{n.days_target}</td>
-              <td className="num">{n.dohan_target}</td>
-              <td className="num">{(n.sales_target ?? 0).toLocaleString()}</td>
-              <td className="num">{n.shimei_target}</td>
+          {casts.map((c) => { const n = normOf(c.id); return (
+            <tr key={c.id} className={picked.has(c.id) ? "on" : undefined} onClick={isManagerUp ? () => toggle(c.id) : undefined} style={isManagerUp ? { cursor: "pointer" } : undefined}>
+              {isManagerUp && <td onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} aria-label={`${c.name} を選択`} disabled={busy} /></td>}
+              <td>{c.name}</td>
+              <td className="num">{n ? n.period : period}</td>
+              <td className="num">{fmt(n?.days_target)}</td>
+              <td className="num">{fmt(n?.dohan_target)}</td>
+              <td className="num">{fmt(n?.sales_target)}</td>
+              <td className="num">{fmt(n?.shimei_target)}</td>
             </tr>
-          ))}
+          ); })}
+          {casts.length === 0 && <tr><td colSpan={isManagerUp ? 7 : 6} style={note}>在籍キャストがいません</td></tr>}
         </tbody>
       </table>
       </div>
       {isManagerUp ? (
         <>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: "1 1 220px", minWidth: 200 }}>{/* ★裁定259（R18・2026-09-17）: ノルマのキャスト select→Picker（未選択は onClear・保存は castId 必須のまま） */}
-              <Picker dense items={casts.map((c) => ({ id: c.id, label: c.name }))} value={castId || null}
-                onPick={setCastId} onClear={() => setCastId("")} placeholder="キャストを検索" />
+          <div className="nox-inset" style={{ padding: "10px 12px" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <label style={{ fontSize: 12 }}>日数(日) {cell("days", bulk.days)}</label>
+              <label style={{ fontSize: 12 }}>同伴(回) {cell("dohan", bulk.dohan)}</label>
+              <label style={{ fontSize: 12 }}>売上(円) {cell("sales", bulk.sales)}</label>
+              <label style={{ fontSize: 12 }}>指名(回) {cell("shimei", bulk.shimei)}</label>
+              <button style={btnDark} onClick={() => void saveBulk()} disabled={busy || picked.size === 0 || !period || !anyInput}>選択した {picked.size} 人にまとめて入力</button>
             </div>
-            <input placeholder="2026-07" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ ...input, width: 90 }} />
-            {/* ★裁定104: スピナー非表示・桁数幅（日数/同伴/指名=4桁・売上=7桁）・右寄せ・ホイール無効 */}
-            <label style={{ fontSize: 12 }}>日数 <input type="number" min={0} value={days} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} onChange={(e) => setDays(Number(e.target.value))} style={numFieldStyle(4)} /></label>
-            <label style={{ fontSize: 12 }}>同伴 <input type="number" min={0} value={dohan} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} onChange={(e) => setDohan(Number(e.target.value))} style={numFieldStyle(4)} /></label>
-            <label style={{ fontSize: 12 }}>売上(円) <input type="number" min={0} value={sales} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} onChange={(e) => setSales(Number(e.target.value))} style={numFieldStyle(7)} /></label>
-            <label style={{ fontSize: 12 }}>指名 <input type="number" min={0} value={shimei} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} onChange={(e) => setShimei(Number(e.target.value))} style={numFieldStyle(4)} /></label>
-            <button style={btnDark} onClick={save} disabled={!castId || !period}>保存</button>
+            <p style={{ ...note, marginTop: 6 }}>空欄の項目は変えません（その人の現在値のまま）。表の行をタップして選択します。</p>
           </div>
           <p style={{ ...note, marginTop: 8 }}>
             ※売上・指名ノルマは表示のみ（本人のマイページ進捗表示用・報酬には接続されません。減額は給与の精算調整で登録します）。
@@ -852,6 +875,19 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
       ) : <p style={note}>ノルマはマネージャー以上のみ可能です。</p>}
     </div>
   );
+}
+
+/** ★X-13-3: まとめて入力の下書き（空欄＝変えない） */
+export type NormBulk = { days: string; dohan: string; sales: string; shimei: string };
+export const NORM_COL_LABEL: Record<keyof NormBulk, string> = { days: "日数(日)", dohan: "同伴(回)", sales: "売上(円)", shimei: "指名(回)" };
+/** 当月 'YYYY-MM'（端末のローカル時刻＝JST 運用） */
+export function currentPeriodOf(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+/** 空欄は現在値（無ければ 0）を再送＝set_cast_norm は 6 引数を常に明示送信 */
+export function normBulkArgsOf(b: NormBulk, cur: Pick<Norm, "days_target" | "dohan_target" | "sales_target" | "shimei_target"> | null): { p_days_target: number; p_dohan_target: number; p_sales_target: number; p_shimei_target: number } {
+  const v = (s: string, curv: number | null | undefined) => (s.trim() === "" ? (curv ?? 0) : Number(s));
+  return { p_days_target: v(b.days, cur?.days_target), p_dohan_target: v(b.dohan, cur?.dohan_target), p_sales_target: v(b.sales, cur?.sales_target), p_shimei_target: v(b.shimei, cur?.shimei_target) };
 }
 
 // ── 控除（manager 以上）──

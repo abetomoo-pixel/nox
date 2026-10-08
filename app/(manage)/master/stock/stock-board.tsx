@@ -59,7 +59,8 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   const [products, setProducts] = useState<Product[]>(initial.products);
   const [stock, setStock] = useState<Record<string, number>>(initial.stock);
   // ★裁定330（便 MC1）: 発注推奨＝在庫が発注基準（reorder_point）以下の商品数（旧マスタトップの KPI・警告と同じ式）
-  const lowStock = products.filter((p) => p.reorder_point != null && (stock[p.id] ?? 0) <= (p.reorder_point ?? 0)).length;
+  const managedProducts = useMemo(() => products.filter((p) => p.track_stock !== false), [products]); // ★X-13-8（0166）: 在庫を管理しない商品は在庫画面の対象外
+  const lowStock = managedProducts.filter((p) => p.reorder_point != null && (stock[p.id] ?? 0) <= (p.reorder_point ?? 0)).length;
   const [msg, setMsg] = useState<string | null>(null);
 
   // ★裁定323: 棚卸し＝一覧型（商品 id → 実数の入力文字列）。delta は UI 計算
@@ -104,9 +105,9 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   }
 
   // ★裁定323: 行（在庫管理ありだけ・カテゴリ順）と、記録する行（実数が整数で差分 ≠ 0）
-  const tRows = useMemo(() => stocktakeRowsOf(products, stock, categories, { q: tq, showInactive }), [products, stock, categories, tq, showInactive]);
-  const tPlan = useMemo(() => stocktakePlanOf(products, stock, actuals), [products, stock, actuals]);
-  const unmanaged = products.filter((p) => p.is_active && stock[p.id] === undefined).length;
+  const tRows = useMemo(() => stocktakeRowsOf(managedProducts, stock, categories, { q: tq, showInactive }), [managedProducts, stock, categories, tq, showInactive]);
+  const tPlan = useMemo(() => stocktakePlanOf(managedProducts, stock, actuals), [managedProducts, stock, actuals]);
+  const unmanaged = products.filter((p) => p.is_active && (p.track_stock === false || stock[p.id] === undefined)).length; // ★X-13-8: track_stock=false も「管理なし」に数える
 
   async function recordStocktakeAll() {
     if (busy || tPlan.length === 0) return;

@@ -7,6 +7,7 @@
 //   裁定238: 「明細へ」＝.nox-link（遷移）／「支払済みにする」＝実行（青塗り＝t.btnGold）／CSV・印刷＝補助（ghost）／店舗別・月別＝(4) 切替（nox-seg）。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtPeriodYM } from "@/lib/nox/payroll/view"; // ★N3 AV-1（2026-09-24）: 期は YYYY/M
+import { finalizedPeriodsOf, periodCandidatesOf, periodOptionLabelOf, prevPeriodOf, previewHrefOf } from "@/lib/nox/payroll/list-periods"; // ★X-13-12／X-13-14: 期間候補（当月＋過去 12 か月・確定済みに印）と空状態の導線
 import { periodRangeOf, settlementCandidatesOf } from "@/lib/nox/payroll/settlement"; // ★0154 D4: 未登録候補
 import Link from "next/link";
 import PageHead from "@/components/ui/page-head";
@@ -91,10 +92,14 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
   }, [isOwner]);
   useEffect(() => { void load(); }, [load]);
 
-  const periods = useMemo(() => {
-    const s = new Set<string>([new Date().toISOString().slice(0, 7), ...(rows ?? []).map((r) => r.period)]);
-    return [...s].sort().reverse();
-  }, [rows]);
+  // ★X-13-14（便 X-13a）: 月別の期間候補＝当月＋過去 12 か月（run の有無に関わらず選択可）＋ run のある期間・確定済み（finalized／paid）に ✓ の印
+  const currentYm = new Date().toISOString().slice(0, 7);
+  const periods = useMemo(() => periodCandidatesOf(currentYm, (rows ?? []).map((r) => r.period), 12), [rows, currentYm]);
+  const finalizedPeriods = useMemo(() => finalizedPeriodsOf(rows ?? []), [rows]);
+  // ★X-13-12（便 X-13a）: 空状態の導線＝「先月のプレビューを開く」（期間選択付き・既定＝先月・店舗は選択中の店舗）
+  const [emptyPeriod, setEmptyPeriod] = useState(prevPeriodOf(currentYm));
+  const [emptyStore, setEmptyStore] = useState(stores[0]?.id ?? "");
+  useEffect(() => { setEmptyStore(storeSel); }, [storeSel]);
   const shown = useMemo(() => (rows ?? []).filter((r) => (view === "store" ? r.storeId === storeSel : r.period === periodSel)), [rows, view, storeSel, periodSel]);
   const kpi = sumListKpi(shown);
 
@@ -137,8 +142,8 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         ) : (
-          <select value={periodSel} onChange={(e) => setPeriodSel(e.target.value)} style={{ ...t.input, width: "auto" }}>
-            {periods.map((p) => <option key={p} value={p}>{p}</option>)}
+          <select value={periodSel} onChange={(e) => setPeriodSel(e.target.value)} style={{ ...t.input, width: "auto" }} aria-label="期間（当月＋過去 12 か月）">
+            {periods.map((p) => <option key={p} value={p}>{periodOptionLabelOf(p, finalizedPeriods, fmtPeriodYM)}</option>)}
           </select>
         )}
         <button type="button" style={{ ...btnLight, marginLeft: "auto" }} onClick={() => window.print()}>印刷</button>
@@ -162,9 +167,25 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
         {rows === null ? (
           <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>読み込み中…</p>
         ) : shown.length === 0 ? (
-          <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>
-            この{view === "store" ? "店舗" : "期間"}に給与 run がありません。明細画面のプレビューから確定すると 1 行できます。
-          </p>
+          <div>
+            <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 8px" }}>
+              この{view === "store" ? "店舗" : "期間"}に給与 run がありません。明細画面のプレビューから確定すると 1 行できます。
+            </p>
+            {/* ★X-13-12（便 X-13a）: 空状態から直接プレビューへ＝店舗と期間を選んで「先月のプレビューを開く」（既定＝先月・遷移先は明細画面＝プレビュー） */}
+            <div className="nox-inset" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "9px 12px" }}>
+              {stores.length > 1 && (
+                <select value={emptyStore} onChange={(e) => setEmptyStore(e.target.value)} style={{ ...t.input, width: "auto" }} aria-label="プレビューする店舗">
+                  {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              )}
+              <select value={emptyPeriod} onChange={(e) => setEmptyPeriod(e.target.value)} style={{ ...t.input, width: "auto" }} aria-label="プレビューする期間">
+                {periods.map((p) => <option key={p} value={p}>{periodOptionLabelOf(p, finalizedPeriods, fmtPeriodYM)}</option>)}
+              </select>
+              <Link href={previewHrefOf(emptyStore || stores[0]?.id || "", emptyPeriod)} className="nox-btn" style={{ ...t.btnGold, ...t.btnSm, textDecoration: "none" }} aria-disabled={!emptyStore && stores.length === 0}>
+                {emptyPeriod === prevPeriodOf(currentYm) ? "先月のプレビューを開く" : `${fmtPeriodYM(emptyPeriod)} のプレビューを開く`}
+              </Link>
+            </div>
+          </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>

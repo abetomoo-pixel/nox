@@ -32,7 +32,7 @@ type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
 // 段R2: reorder_point＝低在庫「残N」のしきい（null=しきい無し＝表示しない）
 // mig0081: sort_order＝カテゴリ内の並び順（groupProducts が sort_order→name で並べる）。
-type Product = { id: string; name: string; type: string; price: number; category_id: string | null; reorder_point: number | null; sort_order: number; back_exempt_from_split: boolean | null };
+type Product = { track_stock?: boolean; /* ★0166（X-13-8）: false＝在庫「—」（手貼り前は列が無い＝undefined） */ id: string; name: string; type: string; price: number; category_id: string | null; reorder_point: number | null; sort_order: number; back_exempt_from_split: boolean | null };
 type Category = { id: string; name: string; sort_order: number };
 type Cast = { id: string; name: string; photo_updated_at: string | null; rank_id?: string | null };
 // ★B3 裁定209（#64）: 「出勤中」＝営業日の attendance で出勤扱いの status（出勤板／casts-board と同じ PRESENT 集合）
@@ -799,7 +799,7 @@ export default function RegisterBoard({
    *  reorder_point 未設定＝数のみ（low=false）・設定あり＝しきい以下で low=true（現行「残N」の色）。 */
   const stockLabelOf = (p: Product): { n: number; low: boolean } | null => {
     const n = stockOf[p.id];
-    if (n == null) return null;
+    if (n == null || p.track_stock === false) return null; // ★X-13-8: 在庫を管理しない商品は残数を出さない
     return { n, low: p.reorder_point != null && n <= p.reorder_point };
   };
 
@@ -2494,62 +2494,7 @@ export default function RegisterBoard({
           )}
         </div>
 
-        {/* ★裁定305（mig0153・2026-09-25・D1）: 伝票の顧客（複数）・追加／外す・注文行の「誰の注文」・キープ出し＝共通部品（RPC が二重防御・fetch +1＝3 クエリ並列） */}
-        <CheckCustomersCard checkId={check.id} storeId={storeId} isOpen={check.status === "open"} lines={lines} products={products} onChanged={() => loadCheck(check.id)} castIds={Object.keys(nomWeights)} />
-
-        {/* ★0152（裁定280／298／299・2026-09-25）: 紹介の入口＝owner／manager のレジのみ。1 伝票 1 紹介（check_referrals）＝付与 check_referral_set・取消 check_referral_remove。
-            紹介者はマスタ「紹介者」（referrers）から選ぶ。客負担（burden='customer'）は請求（A）に乗る＝表示 due は groupDueFull の第 3 引数で鏡像・印字は初回セット行に合算（298-4）。 */}
-        {isManagerUp && (
-          <div className="nox-cardtop" style={card}>
-            <h3 style={t.cardTitle}>紹介</h3>
-            {referral ? (
-              <div style={{ fontSize: 13, lineHeight: 1.8 }}>
-                <div>
-                  <b>{referrers.find((r) => r.id === referral.referrer_id)?.name ?? "（紹介者）"}</b>
-                  <span style={{ marginLeft: 8, color: "var(--sub)", fontSize: 11.5 }}>
-                    {refMethodLabel(referral.method)}・{refValueLabel(referral.method, referral.value)}・{referral.burden === "customer" ? "客負担（お会計に含む）" : "店負担"}
-                  </span>
-                </div>
-                <div>紹介料 <span className="num">{yen(referral.amount)}</span>
-                  {referral.frozen_at && <span style={{ marginLeft: 8, color: "var(--sub)", fontSize: 11.5 }}>確定済み</span>}
-                </div>
-                {referral.memo && <div style={{ color: "var(--sub)", fontSize: 11.5 }}>{referral.memo}</div>}
-                {check.status === "open" && !referral.frozen_at && payments.length === 0 && (
-                  <div className="nox-actions" style={{ marginTop: 6 }}>
-                    <button type="button" onClick={() => void removeReferral()}
-                      style={{ ...btnLight, color: "var(--bad)", border: "1px solid var(--bad)" }}>紹介を外す</button>
-                  </div>
-                )}{/* Danger＝red 枠（裁定242）。入金後は RPC が 'has payments'（裁定299-4）＝出さない */}
-              </div>
-            ) : check.status === "open" ? (
-              <div style={{ display: "grid", gap: 8 }}>
-                {referrers.length === 0 && (
-                  <p style={{ fontSize: 11.5, color: "var(--sub)", margin: 0 }}>紹介者が未登録です（マスタ「紹介者」で登録してください）</p>
-                )}
-                <Picker dense items={referrers.map((r) => ({ id: r.id, label: r.kind === "staff" ? `${r.name}（スタッフ）` : r.name }))} value={refPick}
-                  onPick={setRefPick} onClear={() => setRefPick(null)} placeholder="紹介者を検索" />
-                <SegSelect value={refMethod} onChange={setRefMethod} options={REF_METHODS} ariaLabel="紹介料の計算方法" />
-                <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                  {isRateMethod(refMethod) ? "率" : "金額"}
-                  <input value={refValue} inputMode="decimal" placeholder={isRateMethod(refMethod) ? "例: 10" : "例: 3000"} onChange={(e) => setRefValue(e.target.value)}
-                    style={{ ...t.input, width: 120, padding: "6px 8px" }} />
-                  <span style={{ fontSize: 11, color: "var(--sub)" }}>{isRateMethod(refMethod) ? "%" : "円"}</span>
-                </label>
-                <SegSelect value={refBurden} onChange={setRefBurden} options={REF_BURDENS} ariaLabel="紹介料の負担" />
-                <input value={refMemo} placeholder="メモ（任意・200 字まで）" onChange={(e) => setRefMemo(e.target.value)} style={{ ...t.input, padding: "6px 8px" }} />
-                <div className="nox-actions">
-                  <button type="button" className="nox-btn" onClick={() => void setReferralOn()}>紹介を付ける</button>{/* 実行＝青塗り（裁定242） */}
-                </div>
-              </div>
-            ) : (
-              <p style={{ fontSize: 11.5, color: "var(--sub)", margin: 0 }}>紹介なし</p>
-            )}
-            {feeMsg?.to === FEE_REFERRAL && (
-              <Message kind={feeMsg.kind === "ok" ? "success" : "error"} onDismiss={() => setFeeMsg(null)}>{feeMsg.text}</Message>
-            )}{/* ★裁定281: 共通部品・操作の近く・残留なし（×で消す） */}
-          </div>
-        )}
-
+        {/* ★X-13-1（便 X-13a）: 並び＝指名 → 指名の分配率 → 顧客 → 紹介 → 席 */}
         {/* R-2a-2（モック nox-register-pos `assignmentView` / renderShares）: 指名の分配率カード。
             旧 <details>「按分の重みを微調整」を独立カードへ。入力は **%**（1〜100 の整数）＝
             ratio_weight は integer の相対重みで分母は Σ なので、合計100 の % はそのまま重みとして
@@ -2562,7 +2507,7 @@ export default function RegisterBoard({
                 <h3 style={{ ...t.cardTitle, marginBottom: 2 }}>指名の分配率</h3>
                 {/* ★裁定105: %＝金額按分のみ（分母は伝票内全行・現行維持）。本数は種別ごと1人1件＝DB 既定。 */}
                 <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
-                  売上・バック金額の按分比率（指名本数には影響しません）。
+                  {nomSelected.length === 1 ? "1 名のため 100% で固定です（指名本数には影響しません）。" : "売上・バック金額の按分比率（指名本数には影響しません）。"}
                 </p>
               </div>
               {/* モック seatbadge 相当＝合計バッジ（total===100 ? ok : bad） */}
@@ -2689,6 +2634,7 @@ export default function RegisterBoard({
                     <span style={{ fontSize: 11, color: "var(--sub)" }}>名</span>
                   </label>
                 )}
+                {nomSelected.length === 1 ? (<b className="num" style={{ fontSize: 13 }}>100%</b>) : (
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   <input
                     type="number" min={0} max={100} value={nomWeights[ca.id] ?? 0} aria-label={`${ca.name} の分配率`}
@@ -2707,6 +2653,7 @@ export default function RegisterBoard({
                   />
                   <span style={{ fontSize: 12, color: "var(--sub)" }}>%</span>
                 </label>
+                )}
                 <button type="button" aria-label={`${ca.name}を分配から外す`}
                   onClick={() => void removeShareCast(ca.id)}
                   style={{ ...btnLight, padding: "2px 9px", fontWeight: 800,
@@ -2716,6 +2663,8 @@ export default function RegisterBoard({
               </div>
               );
             })}
+            {/* ★X-13-1（便 X-13a）: キャスト 1 人のときは分配率を 1 行（名前・100%）に畳む＝合計バー・均等は出さない */}
+            {nomSelected.length > 1 && (<>
             <div style={{ marginTop: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 11.5 }}>
                 <span style={{ color: "var(--sub)" }}>分配率の合計</span>
@@ -2744,6 +2693,7 @@ export default function RegisterBoard({
                 ※変更は自動で保存されます（「分配を保存」ボタンは廃止）
               </span>
             </div>
+            </>)}
             {/* ★0124（裁定111-4）: モック .notice 相当＝取消・値引きの例外経路の案内 */}
             <div className="nox-inset" style={{ padding: "9px 12px", margin: "10px 0 0" }}>
               <p style={{ fontSize: 11, color: "var(--sub)", margin: 0, lineHeight: 1.7 }}>
@@ -2755,6 +2705,62 @@ export default function RegisterBoard({
               ※件数換算は表示上の目安です（バック金額は比率で分配・指名本数の集計は在席キャストに計上）。
               ※延長しても指名本数は増えません（延長指名料を設定している店舗のみ、延長時に料金だけ自動追加します）。
             </p>
+          </div>
+        )}
+
+        {/* ★裁定305（mig0153・2026-09-25・D1）: 伝票の顧客（複数）・追加／外す・注文行の「誰の注文」・キープ出し＝共通部品（RPC が二重防御・fetch +1＝3 クエリ並列） */}
+        <CheckCustomersCard checkId={check.id} storeId={storeId} isOpen={check.status === "open"} lines={lines} products={products} onChanged={() => loadCheck(check.id)} castIds={Object.keys(nomWeights)} />
+
+        {/* ★0152（裁定280／298／299・2026-09-25）: 紹介の入口＝owner／manager のレジのみ。1 伝票 1 紹介（check_referrals）＝付与 check_referral_set・取消 check_referral_remove。
+            紹介者はマスタ「紹介者」（referrers）から選ぶ。客負担（burden='customer'）は請求（A）に乗る＝表示 due は groupDueFull の第 3 引数で鏡像・印字は初回セット行に合算（298-4）。 */}
+        {isManagerUp && (
+          <div className="nox-cardtop" style={card}>
+            <h3 style={t.cardTitle}>紹介</h3>
+            {referral ? (
+              <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+                <div>
+                  <b>{referrers.find((r) => r.id === referral.referrer_id)?.name ?? "（紹介者）"}</b>
+                  <span style={{ marginLeft: 8, color: "var(--sub)", fontSize: 11.5 }}>
+                    {refMethodLabel(referral.method)}・{refValueLabel(referral.method, referral.value)}・{referral.burden === "customer" ? "客負担（お会計に含む）" : "店負担"}
+                  </span>
+                </div>
+                <div>紹介料 <span className="num">{yen(referral.amount)}</span>
+                  {referral.frozen_at && <span style={{ marginLeft: 8, color: "var(--sub)", fontSize: 11.5 }}>確定済み</span>}
+                </div>
+                {referral.memo && <div style={{ color: "var(--sub)", fontSize: 11.5 }}>{referral.memo}</div>}
+                {check.status === "open" && !referral.frozen_at && payments.length === 0 && (
+                  <div className="nox-actions" style={{ marginTop: 6 }}>
+                    <button type="button" onClick={() => void removeReferral()}
+                      style={{ ...btnLight, color: "var(--bad)", border: "1px solid var(--bad)" }}>紹介を外す</button>
+                  </div>
+                )}{/* Danger＝red 枠（裁定242）。入金後は RPC が 'has payments'（裁定299-4）＝出さない */}
+              </div>
+            ) : check.status === "open" ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                {referrers.length === 0 && (
+                  <p style={{ fontSize: 11.5, color: "var(--sub)", margin: 0 }}>紹介者が未登録です（マスタ「紹介者」で登録してください）</p>
+                )}
+                <Picker dense items={referrers.map((r) => ({ id: r.id, label: r.kind === "staff" ? `${r.name}（スタッフ）` : r.name }))} value={refPick}
+                  onPick={setRefPick} onClear={() => setRefPick(null)} placeholder="紹介者を検索" />
+                <SegSelect value={refMethod} onChange={setRefMethod} options={REF_METHODS} ariaLabel="紹介料の計算方法" />
+                <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                  {isRateMethod(refMethod) ? "率" : "金額"}
+                  <input value={refValue} inputMode="decimal" placeholder={isRateMethod(refMethod) ? "例: 10" : "例: 3000"} onChange={(e) => setRefValue(e.target.value)}
+                    style={{ ...t.input, width: 120, padding: "6px 8px" }} />
+                  <span style={{ fontSize: 11, color: "var(--sub)" }}>{isRateMethod(refMethod) ? "%" : "円"}</span>
+                </label>
+                <SegSelect value={refBurden} onChange={setRefBurden} options={REF_BURDENS} ariaLabel="紹介料の負担" />
+                <input value={refMemo} placeholder="メモ（任意・200 字まで）" onChange={(e) => setRefMemo(e.target.value)} style={{ ...t.input, padding: "6px 8px" }} />
+                <div className="nox-actions">
+                  <button type="button" className="nox-btn" onClick={() => void setReferralOn()}>紹介を付ける</button>{/* 実行＝青塗り（裁定242） */}
+                </div>
+              </div>
+            ) : (
+              <p style={{ fontSize: 11.5, color: "var(--sub)", margin: 0 }}>紹介なし</p>
+            )}
+            {feeMsg?.to === FEE_REFERRAL && (
+              <Message kind={feeMsg.kind === "ok" ? "success" : "error"} onDismiss={() => setFeeMsg(null)}>{feeMsg.text}</Message>
+            )}{/* ★裁定281: 共通部品・操作の近く・残留なし（×で消す） */}
           </div>
         )}
 

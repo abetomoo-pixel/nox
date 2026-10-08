@@ -160,10 +160,10 @@ export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhoto
             {photoDone && <Message kind="success" style={{ margin: "0 0 8px" }}>{photoDone}</Message>}
             <dl className="nox-userinfo">
               <dt>登録名</dt><dd>{(name ?? "").trim() || "—"}</dd>
-              <dt>メール</dt><dd>{email || "—"}</dd>
               <dt>役割</dt><dd>{roleJa}</dd>
               {storeLabel && <><dt>店舗</dt><dd>{storeLabel}</dd></>}
             </dl>
+            {/* ★X-13-2（便 X-13a）: メールは PC・スマホとも非表示（ログイン ID を画面に出さない）。変更の案内 1 行は残す。≤900px は Modal の既存シート（variant top は ≥901 のみ） */}
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0" }}>登録名・メールの変更はスタッフ画面（オーナー）から行います。</p>
             <div className="nox-navsheet-g nox-actions" style={{ marginTop: 14 }}>
               <form action="/auth/signout" method="post" style={{ display: "flex" }}>

@@ -13,6 +13,7 @@ import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import Toast, { Message } from "@/components/ui/toast";
+import { rpcErrJa, isRpcMissingError } from "@/lib/nox/ui/rpc-err"; // ★X-13-8: set_product_track_stock の和文（0166 手貼り前は RPC 不在）
 import Modal from "@/components/ui/modal";
 import MasterPageHead from "../master-page-head";
 import {
@@ -46,13 +47,25 @@ const TYPE_LABEL_JA: Record<string, string> = { drink: "ドリンク", champ: "�
 // ★「固定額」モードは DB に存在しない。「—」は CHECK 違反行が混入した場合の防御表示（構造上は起きない）。
 //   unit4 の4つ組はここでは展開しない（混むため）。★本指名pt はここに出さない（別軸の値）。
 //   ★名称は現行語彙のまま（「商品販売バック」への統一は裁定113 レーンで一括）。
-function backCell(p: Product) {
-  const text = p.back_mode === "rate" && p.back_value != null ? `${p.back_value}%`
-    : p.back_mode === "unit4" && p.unit4_json != null ? "4段階"
-    : null;
-  return text != null
-    ? <span style={p.back_mode === "rate" ? t.num : undefined}>{text}</span>
-    : <span style={{ color: "var(--sub)", opacity: 0.7 }}>—</span>;
+// ★X-13-7（便 X-13a・2026-10-08）: 率 0・4 段階すべて 0 は「—」。値ありは「本／場内／同伴／フリー」を並べて表示（長ければ「4段階 ▸」でタップ展開）。
+export function backTextOf(p: Pick<Product, "back_mode" | "back_value" | "unit4_json">): string | null {
+  if (p.back_mode === "rate") return p.back_value != null && p.back_value > 0 ? `${p.back_value}%` : null;
+  if (p.back_mode === "unit4" && p.unit4_json != null) {
+    const u = p.unit4_json;
+    const vals = [Number(u.hon ?? 0), Number(u.jonai ?? 0), Number(u.dohan ?? 0), Number(u.free ?? 0)];
+    if (vals.every((v) => !v)) return null;
+    return `本 ${vals[0].toLocaleString()}／場内 ${vals[1].toLocaleString()}／同伴 ${vals[2].toLocaleString()}／フリー ${vals[3].toLocaleString()}`;
+  }
+  return null;
+}
+export const BACK_TEXT_LONG = 22; // これより長い 4 段階は「4段階 ▸」に畳む
+function BackCellView({ p }: { p: Product }) {
+  const [open, setOpen] = useState(false);
+  const text = backTextOf(p);
+  if (text == null) return <span style={{ color: "var(--sub)", opacity: 0.7 }}>—</span>;
+  const long = text.length > BACK_TEXT_LONG;
+  if (long && !open) return <button type="button" className="nox-link" aria-expanded={false} onClick={() => setOpen(true)} style={{ fontSize: 12, padding: 0 }}>4段階 ▸</button>;
+  return <span className={p.back_mode === "rate" ? "num" : undefined} style={{ fontSize: 12, whiteSpace: "nowrap", cursor: long ? "pointer" : undefined }} onClick={long ? () => setOpen(false) : undefined}>{text}</span>;
 }
 
 // 純増①（mig0061）在庫セル: バッジ（数値）＋残量バー。バーは reorder_point 比（満位＝発注点×2）で、
@@ -146,6 +159,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
   const [showInactive, setShowInactive] = useState(false); // 既定＝有効のみ
   const [visible, setVisible] = useState(PAGE); // 逐次表示（verify org 297件でも破綻しない）
   const [detailOpen, setDetailOpen] = useState(false); // 商品フォームの「詳細」節（既定 閉）
+  const [trackBusy, setTrackBusy] = useState(false); // ★X-13-8: 在庫を管理するトグル（0166 set_product_track_stock）
   // ★レーン④a: 数値4列のソート。null=未ソート＝取得順のまま＝既定の並びは従来と同一。
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -262,6 +276,15 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
   }
 
   // ★④c（裁定L）: 行から入荷を記録する。★増減（delta）で入れる＝append-only の意味論そのまま。
+  /** ★X-13-8（便 X-13a・0166）: 在庫を管理するの切替＝set_product_track_stock（owner∨manager 自店・課金ゲート・監査）。RPC 不在（0166 手貼り前）は和文で案内 */
+  async function toggleTrackStock(productId: string, next: boolean) {
+    setTrackBusy(true);
+    const { error } = await supabase.rpc("set_product_track_stock", { p_product_id: productId, p_track: next });
+    setTrackBusy(false);
+    if (error) { setMsg(isRpcMissingError(error.message) ? "在庫管理の切替は 0166 適用後に使えます" : rpcErrJa(error.message)); return; }
+    setProducts((prev) => prev.map((x) => (x.id === productId ? { ...x, track_stock: next } : x)));
+    setMsg(next ? "在庫を管理する設定にしました" : "在庫を管理しない設定にしました（在庫「—」）");
+  }
   //   現在庫の絶対値を書き換える形にはしない（棚卸しは /master/stock の仕事）。
   async function addStock() {
     if (!stockTarget || !stDelta) return;
@@ -552,8 +575,8 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
                     <span style={{ ...t.num, fontSize: 13.5, fontWeight: 700, color: "var(--champ)", whiteSpace: "nowrap" }}>{yen(p.price)}</span>
                   </td>
                   {/* 純増①（mig0061）: 残量バー＝Σdelta と reorder_point のみ（新規取得なし・表示のみ）。 */}
-                  <td className="col-stock" data-label="在庫">{stockCell(stock[p.id] ?? 0, p.reorder_point)}</td>
-                  {showBack && <td className="col-back" data-label="バック">{backCell(p)}</td>}
+                  <td className="col-stock" data-label="在庫">{p.track_stock === false ? <span style={{ color: "var(--sub)", opacity: 0.7 }} title="在庫を管理しない商品">—</span> : stockCell(stock[p.id] ?? 0, p.reorder_point)}</td>{/* ★X-13-8: 管理なしは「—」（発注点も出さない） */}
+                  {showBack && <td className="col-back" data-label="バック"><BackCellView p={p} /></td>}
                   <td className="col-state" data-label="状態">
                     {/* ★④c（裁定K）: ●ドット付きバッジを1タップのトグルに（set_product_active）。
                         manager 未満は従来どおり表示のみ（span のまま）。 */}
@@ -704,6 +727,16 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
                 <div className="nox-field">
                   <span className="lab">原価</span>
                   <MoneyInput value={pCost} onChange={setPCost} placeholder="任意" disabled={costsError} style={inputLg} width="100%" ariaLabel="原価" />
+                </div>
+                {/* ★X-13-8（便 X-13a・0166）: 在庫を管理する＝products.track_stock。既存商品だけ切替可（新規は登録後）。手貼り前は RPC 不在＝和文で案内 */}
+                <div className="nox-field">
+                  <span className="lab">在庫を管理する</span>
+                  {pId ? (() => { const cur = products.find((x) => x.id === pId); const on = cur?.track_stock !== false; return (
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+                      <input type="checkbox" checked={on} disabled={busyId != null || trackBusy} aria-label="在庫を管理する" onChange={(e) => void toggleTrackStock(pId, e.target.checked)} />
+                      {on ? "管理する（在庫数・発注点を表示）" : "管理しない（在庫「—」・発注点なし）"}
+                    </label>
+                  ); })() : <span style={{ fontSize: 12, color: "var(--sub)" }}>登録後に切り替えられます（既定＝管理する）</span>}
                 </div>
                 {/* 純増①（mig0062）: 発注点。空欄＝しきい無し（在庫バー非表示）＝null 送信 */}
                 <div className="nox-field">

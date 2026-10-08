@@ -54,7 +54,9 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
     ? { eyebrow: "STORE PROFILE", title: "店舗設定 › 店舗情報", desc: "店舗名・略称・店舗コード・表示名・送りの基本額とキャスト確認。住所・電話・インボイス登録番号は「端末・印刷 › レシート・プリンタ」で編集します（二重に編集する場所を作りません）。" }
     : tab === "data"
       ? { eyebrow: "DATA MANAGEMENT", title: "権限・情報管理 › データ管理", desc: "顧客情報の利用目的と保持年数、操作ログの保持。店舗情報から分離した設定です（保存先は同じ set_store_profile）。" }
-      : { eyebrow: "STORE SETTINGS", title: "店舗設定 › 利用機能", desc: "この店舗で使う機能の選択です。報酬制度（ノルマを使うかを含む）・売掛・機能の公開・勤務時間の計算基準・キャスト画面の設定。金額や計算条件は各マスタで管理します。" };
+      : { eyebrow: "STORE SETTINGS", title: "店舗設定 › 利用機能", desc: isOwner
+          ? "この店舗で使う機能の選択です。報酬制度（ノルマを使うかを含む）・売掛・機能の公開・勤務時間の計算基準・キャスト画面の設定。金額や計算条件は各マスタで管理します。"
+          : "この店舗で使う機能の選択です。報酬制度（ノルマを使うかを含む）・売掛・勤務時間の計算基準・キャスト画面の設定。金額や計算条件は各マスタで管理します。" }; // ★X-13-10（便 X-13a）: 機能の公開は owner だけに描く＝店長の説明文からも外す
 
   return (
     <div className="nox-mv1">

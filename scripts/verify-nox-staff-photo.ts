@@ -49,13 +49,13 @@ check("sp(2-2) layout: users 行の読取に id・photo_updated_at・UserChip �
 
 // (3) 店側
 const sb = src("app/(manage)/staff/staff-board.tsx"), cb = src("app/(manage)/casts/casts-board.tsx");
-check("sp(3-1) staff-board: UserRow.photo_updated_at・select に photo_updated_at・signUserPhotos → 一覧 avatar url={photoUrls.get(m.user_id)}・編集 Modal＝uploadUserPhoto／removeUserPhoto（!isDemo）・写真を削除は写真があるときだけ・和文は rpcErrJa",
+check("sp(3-1) staff-board: UserRow.photo_updated_at・select に photo_updated_at・signUserPhotos → 一覧 avatar url={photoUrls.get(m.user_id)}・編集 Modal＝PhotoEdit（★X-13-4: 名前の横・uploadUserPhoto／removeUserPhoto・デモは disabled＋理由）・和文は rpcErrJa",
   sb.includes("photo_updated_at: string | null }") && sb.includes('select("id, name, email, auth_user_id, photo_updated_at")') && sb.includes("signUserPhotos(supabase, orgId, Object.values(users))")
   && sb.includes('<CastAvatar name={u?.name ?? ""} url={photoUrls.get(m.user_id)} size={34} />') && sb.includes("await uploadUserPhoto(supabase, orgId, userId, f)") && sb.includes("await removeUserPhoto(supabase, orgId, userId)")
-  && sb.includes("{!isDemo && (\n            // ★0162") && sb.includes("{users[sel.user_id]?.photo_updated_at && (") && sb.includes(">写真を削除</button>") && (sb.match(/rpcErrJa\(/g) ?? []).length >= 2);
-check("sp(3-2) casts-board: removeCastPhoto を import・deletePhoto＝confirm → removeCastPhoto → reloadLoginCasts・「写真を削除」は !isDemo && photoUrls.has(selCast.id) のときだけ・登録／差替え（openPhoto／uploadCastPhoto）は不変",
+  && sb.includes('<PhotoEdit name={users[sel.user_id]?.name ?? ""}') && sb.includes("hasPhoto={!!users[sel.user_id]?.photo_updated_at}") && sb.includes('disabled={isDemo} disabledReason="デモ環境では写真を変更できません"') && sb.includes("onRemove={() => void removeStaffPhoto(sel.user_id,") && (sb.match(/rpcErrJa\(/g) ?? []).length >= 2);
+check("sp(3-2) casts-board: removeCastPhoto を import・deletePhoto＝confirm → removeCastPhoto → reloadLoginCasts・PhotoEdit（★X-13-5: hasPhoto で削除・デモは disabled）・登録／差替え＝uploadPhotoDirect→uploadCastPhoto（旧モーダル経路は撤去）",
   cb.includes('import { removeCastPhoto } from "@/lib/nox/staff-photo"') && cb.includes("async function deletePhoto(c: CastLogin)") && cb.includes("await removeCastPhoto(supabase, orgId, c.id);\n      await reloadLoginCasts();")
-  && cb.includes("{!isDemo && photoUrls.has(selCast.id) && (") && cb.includes("onClick={() => void deletePhoto(selCast)}") && cb.includes("await uploadCastPhoto(supabase, orgId, phTarget.id, phFile);") && cb.includes("onClick={() => openPhoto(selCast)}"));
+  && cb.includes("hasPhoto={photoUrls.has(selCast.id)}") && cb.includes("onRemove={() => void deletePhoto(selCast)}") && cb.includes("await uploadCastPhoto(supabase, orgId, c.id, f);") && cb.includes('disabled={isDemo} disabledReason="デモ環境では写真を変更できません"') && !cb.includes("openPhoto("));
 
 // (4) 表示（スタッフ枠）
 const sp = src("lib/nox/shift/staff-place.ts"), sm = src("app/(manage)/shift/staff-shift-manage.tsx"), sd = src("app/(manage)/shift/staff-place-day.tsx"), sbs = src("app/(manage)/shift/staff-place-by-staff.tsx");
