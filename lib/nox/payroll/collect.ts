@@ -244,11 +244,18 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
   const checkIds = ((checks ?? []) as { id: string }[]).map((c) => c.id);
   if (checkIds.length === 0) return { backByCast, champBottleByCast };  // ★drink_claims は既に合流済み
 
+  // ★便 X-13b（2026-10-08・起票候補）: .in("check_id", 全件) は閉じ伝票 ~400 件超で URL が 16 KB を超え fetch が HeadersOverflow（UND_ERR_HEADERS_OVERFLOW）で落ちる
+  //   （月 458 伝票の CLUB LUNA で再現＝「会計明細: TypeError: fetch failed」）。150 件ずつに分けて読み連結する（意味・順序は不変＝Σ と cast 別の集計だけ）。
+  const inChunks = async <T,>(fn: (ids: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>, size = 150): Promise<{ data: T[]; error: { message: string } | null }> => {
+    const out: T[] = [];
+    for (let i = 0; i < checkIds.length; i += size) { const r = await fn(checkIds.slice(i, i + size)); if (r.error) return { data: out, error: r.error }; out.push(...(r.data ?? [])); }
+    return { data: out, error: null };
+  };
   const [nomsR, linesR, backsR] = await Promise.all([
-    admin.from("check_nominations").select("check_id, cast_id").in("check_id", checkIds),
-    admin.from("check_lines").select("check_id, kind, qty").in("check_id", checkIds), // ★0152（裁定298-10）: 紹介料は給与に載せない＝紹介料用の併読を撤去
+    inChunks((ids) => admin.from("check_nominations").select("check_id, cast_id").in("check_id", ids)),
+    inChunks((ids) => admin.from("check_lines").select("check_id, kind, qty").in("check_id", ids)), // ★0152（裁定298-10）: 紹介料は給与に載せない＝紹介料用の併読を撤去
     // ★裁定113: 新3列を読む（source_mode は Σ には不要だが読み手フォールバックの検証用に取得・calc は null=0）
-    admin.from("check_cast_backs").select("cast_id, drink_back, champ_back, bottle_back, hon_pt_alloc, source_mode, product_sales_base, calculated_back_amount").in("check_id", checkIds),
+    inChunks((ids) => admin.from("check_cast_backs").select("cast_id, drink_back, champ_back, bottle_back, hon_pt_alloc, source_mode, product_sales_base, calculated_back_amount").in("check_id", ids)),
   ]);
   for (const r of [nomsR, linesR, backsR]) if (r.error) throw new Error(`会計明細: ${r.error.message}`);
 

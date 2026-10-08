@@ -115,6 +115,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   対象 **154 不変**・除外 **148→149**・全数 **302→303**（live 実測 2026-10-08＝総数 303・'billing locked' 154・述語参照 155・md5 3 本一致）。
 - ★**mig0164 追随（2026-10-08・裁定331 C 5 項目＋裁定334・334 追補1・便 P163 で収載）**: 新関数 **0本**。改稿 1 本（`set_store_profile`＝白名単 +7 列側＝invoice_registered_on／pay_day／tax_inclusive_display／use_vip／use_counter／payment_methods／punch_methods・型検査・cash は常に true・打刻は 1 つ以上・before/after 監査・owner 限定と課金ゲートは不変）は名前不変で本数不動。stores +7 列（既定付き・CHECK 3 本）は本数非関与。
   md5 控え（同上）: set_store_profile 4f2e9f82→**2e7b4963**・demo_org_reset a4bd6a18。
+- ★**mig0166 追随（2026-10-08・便 X-13a 起草／便 P166 で収載）**: 新関数 **1本**＝ゲート内蔵を A6 へ（`set_product_track_stock`＝商品の「在庫を管理する」の切替・owner∨manager 自店・課金ゲート・監査）。列 +1（products.track_stock boolean not null default true）は本数非関与。改稿なし。
+  md5 控え（先頭 8 桁・docs/tmp/0166_post_live.json＝live 読取 2026-10-08T08:48:32Z）: set_product_track_stock **594c5e98**・不触 set_product／demo_org_reset a4bd6a18／cast_sales_aggregate e232dac8。
+  対象 **154→155**・除外 **149 不変**・全数 **303→304**（live 実測 2026-10-08＝総数 304・'billing locked' 155・述語参照 156・形 155）。
   対象 **154 不変**・除外 **149 不変**・全数 **303 不変**（live 実測 2026-10-08＝総数 303・'billing locked' 154・述語参照 155）。
 - ★**mig0146 追随（2026-09-15・裁定258）**: 新 RPC **2本**を B(e) へ収載＝`payroll_adjustment_add`／`payroll_adjustment_delete`（run 別調整控除の入力・owner∨manager 自店・
   ゲート行（'billing locked'）を持たない＝給与は過去労働の清算で非ゲート。A に載せると対象→live assert が赤になる・dev 適用済み 9/15 14:4x）。
@@ -244,7 +247,8 @@ set_product / set_product_active / set_product_category / product_category_reord
 **seat_reorder**（mig0145＝席の並べ替え 1..N 再採番・owner∨manager 自店・課金ゲート・監査 seat_reorder・kiosk 腕なし・裁定255） /
 product_reorder / product_stock_add / set_seat / set_pricing_rule / delete_pricing_rule /
 pricing_rule_reorder / set_store_pricing / set_store_time_pricing /
-**set_pricing_category**（mig0127 新設＝裁定116-1・料金区分の upsert＝唯一の書込経路・停止=is_active false・ゲート内蔵・kiosk 腕なし）
+**set_pricing_category**（mig0127 新設＝裁定116-1・料金区分の upsert＝唯一の書込経路・停止=is_active false・ゲート内蔵・kiosk 腕なし） /
+**set_product_track_stock**（mig0166＝便 X-13a／P166・商品の「在庫を管理する」の切替＝products.track_stock・owner∨manager 自店・cast／他店 forbidden・同値は no-op・監査 set_product_track_stock・規則A形 v_org・kiosk 腕なし・2026-10-08）
 
 ### A7. 待遇・報酬マスタ（12本）
 set_cast_rank / set_cast_rank_of / cast_rank_reorder / delete_cast_rank / set_comp_plan / set_cast_plan /
@@ -467,3 +471,5 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 ★**現在値（2026-09-30・mig0160 追随後）**: A **154** ＋ B **142** ＝ **296** ＝ live pg_proc 実列挙と一致（0160＝A3 +2・A8 +4・A7 −1・B(f) +1。verify:nox-billing 段47-1 の pin＝対象 154／除外 142／ゲート済み 154／述語参照 155／挿入行の形 154）。
 
 ★**現在値（2026-10-08・mig0163／0164 追随後）**: A **154** ＋ B **149** ＝ **303** ＝ live pg_proc 実列挙と一致（0161＝B(a) +1（punch_seq_check）・0162＝B(a) +5・0163＝B(a) +1（demo_entries_purge）・0164＝本数不動（set_store_profile 改稿）。verify:nox-billing 段47-1 の pin＝対象 154／除外 149／ゲート済み 154／述語参照 155／挿入行の形 154）。
+
+★**現在値（2026-10-08・mig0165／0166 追随後）**: A **155** ＋ B **149** ＝ **304** ＝ live pg_proc 実列挙と一致（0165＝本数不動（cast_sales_aggregate 改稿 e232dac8）・0166＝A6 +1（set_product_track_stock）。verify:nox-billing 段47-1 の pin＝対象 155／除外 149／ゲート済み 155／述語参照 156／挿入行の形 155）。

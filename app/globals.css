@@ -9,6 +9,7 @@
    ここでは**その4本を2つの役へ合成するだけ**＝画面側は --font-sans / --font-serif の2語彙のみ使う。 */
 
 :root {
+  --nox-bnav-h: 64px; /* ★X-13-11（便 X-13b）: ≤899 の下部タブ（.nox-tabbar）の高さ＝本文の下余白の基準（padding 9+9・アイコン＋ラベル） */
   --ink: #171717;
   --bg: #fafafa;
 
@@ -197,7 +198,7 @@ body {
 }
 .nox-main {
   flex: 1;
-  padding: 16px 16px calc(96px + env(safe-area-inset-bottom));
+  padding: 16px 16px calc(var(--nox-bnav-h) + 32px + env(safe-area-inset-bottom, 0px)); /* ★X-13-11: 下余白＝下部ナビ高さ＋余白＋safe-area（/mine） */
 }
 .nox-tabbar {
   position: fixed;
@@ -1450,9 +1451,10 @@ body {
      （ナビの構造を変えないため＝E2 の意図的な非追随）。サイドバーを隠して1列にするだけ。 */
   .nox-layout { grid-template-columns: 1fr; }
   .nox-side { display: none; }
-  .nox-mainarea { padding: 20px; }
+  /* ★X-13-11（便 X-13b）: 最下段の操作（店舗設定・キャスト詳細・ノルマ・商品編集・レジ会計・スタッフ編集）が下部タブに隠れない＝下余白＝下部ナビ高さ＋余白＋safe-area */
+  .nox-mainarea { padding: 20px 20px calc(var(--nox-bnav-h) + 24px + env(safe-area-inset-bottom, 0px)); }
 }
-@media (max-width: 641px) { .nox-mainarea { padding: 16px; } }
+@media (max-width: 641px) { .nox-mainarea { padding: 16px 16px calc(var(--nox-bnav-h) + 20px + env(safe-area-inset-bottom, 0px)); } }
 
 /* ── ヒーロー（aaa .hero/.search）＝ページ名＋説明＋検索 ────────────── */
 .nox-hero { display: flex; justify-content: space-between; gap: 20px; align-items: flex-end; margin-bottom: 24px; }

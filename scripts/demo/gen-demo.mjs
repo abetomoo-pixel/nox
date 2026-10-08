@@ -116,7 +116,7 @@ for (const st of STORES) {
     const row = { id: uid(`prod:${p.product_id}`), store_id: storeId, type: CLASS[p.accounting_class] ?? "other", category: p.display_category_name, name: p.product_name, price: p.selling_price_yen,
       back_mode: p.back_mode === "percentage" ? "rate" : "unit4", back_value: p.back_mode === "percentage" ? p.back_rate_bps / 100 : (p.back_mode === "none" ? 0 : null),
       unit4_json: p.back_mode === "none" ? { hon: 0, jonai: 0, dohan: 0, free: 0 } : unit4, hon_pt: p.nomination_points_per_unit ?? 0, is_active: true, reorder_point: p.reorder_point ?? null,
-      track_stock: true, /* ★X-13-8（0166）: 列が無い間は jsonb_populate_recordset が無視・適用後は NOT NULL を満たす。false の銘柄は X-13b */
+      track_stock: p.accounting_class !== "drink", /* ★X-13-8／X-13b（0166）: グラス物（drink＝キャストドリンク・ソフト・サワー・ハイボール・生ビール・カクテル・ショット）は在庫を管理しない＝false。シャンパン・ボトル・フードは true */
       category_id: uid(`cat:${p.display_category_id}`), back_exempt_from_split: !!p.cast_drink_exclude_from_shared_sales && !(p.nomination_points_per_unit > 0), sort_order: i + 1, tax_category: "taxable_10" };
     if (row.back_mode === "rate") row.unit4_json = null; else row.back_value = null;
     push("products", row);

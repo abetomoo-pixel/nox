@@ -14,6 +14,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { shiftPayload } from "./dateshift";
 import { parseDemoUsers } from "./session";
 import { CAST_PHOTO_BUCKET } from "../cast-photo";
+import { createClient as createSbClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
+import { computePayrollDraft } from "../payroll/core";
+import { payslipsOfDraft } from "../payroll/finalize-payslips";
+import { prevPeriodOf } from "../payroll/list-periods";
 
 export const DEMO_STORES = ["muse", "luna", "noir", "ace", "lily", "nest"] as const;
 export type DemoStore = (typeof DEMO_STORES)[number];
@@ -208,7 +213,8 @@ export async function runDemoReset(admin: SupabaseClient, orgId: string, payload
   return { ok: true, mode: "wipe+load", chunks: chunks.length, result: results };
 }
 
-export type AfterResetResult = { photos: { casts: number; users: number }; payroll: "D2-c" };
+export type DemoFinalizeStore = { store: string; status: "finalized" | "skipped" | "failed"; castCount?: number; ms: number; reason?: string };
+export type AfterResetResult = { photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string } };
 
 /**
  * 再生後の後処理（裁定276-4）:
@@ -218,7 +224,7 @@ export type AfterResetResult = { photos: { casts: number; users: number }; payro
  *   給与の正規経路（payroll_run_create→payroll_finalize）＝D2-c（報酬参考 13,648,300 の突合）。
  */
 export async function afterResetHooks(admin: SupabaseClient, orgId: string, _bizDate: string): Promise<AfterResetResult> {
-  const out: AfterResetResult = { photos: { casts: 0, users: 0 }, payroll: "D2-c" };
+  const out: AfterResetResult = { photos: { casts: 0, users: 0 }, payroll: { period: prevPeriodOf(_bizDate.slice(0, 7)), stores: [], ms: 0 } };
   try {
     const { data: objs, error } = await admin.storage.from(CAST_PHOTO_BUCKET).list(orgId, { limit: 1000 });
     if (error || !objs) return out;
@@ -238,5 +244,62 @@ export async function afterResetHooks(admin: SupabaseClient, orgId: string, _biz
       out.photos.users = data?.length ?? 0;
     }
   } catch (e) { console.error(`afterResetHooks: ${e instanceof Error ? e.message : String(e)}`); }
+  // ★X-13-13（便 X-13b・2026-10-08）: 先月分を正規経路で確定（payroll_run_create → computePayrollDraft（owner 文脈）→ payroll_finalize（service））。
+  //   冪等＝その店×先月に finalized／paid の run があれば skip（reset は payroll_runs を wipe するため毎回作り直す）。失敗 org は audit 'demo.finalize.failed' に理由・写真 hook も reset も止めない。
+  //   owner 文脈＝demo owner の magiclink をサーバ内で消費（入場 route と同じ・メールは送らない）。報酬参考との差は 328 追補6 の仕様差。
+  out.payroll = await finalizePrevMonthForDemo(admin, orgId, _bizDate).catch((e) => ({ period: prevPeriodOf(_bizDate.slice(0, 7)), stores: [], ms: 0, reason: e instanceof Error ? e.message : String(e) }));
   return out;
+}
+
+/** demo org の owner（memberships.role='owner'・is_active）のユーザー文脈クライアント（magiclink をサーバ内で消費・24h cookie は置かない＝セッションは使い捨て） */
+async function demoOwnerClientOf(admin: SupabaseClient, orgId: string): Promise<{ client: SupabaseClient; userId: string } | null> {
+  const { data: users } = await admin.from("users").select("id, auth_user_id, email").eq("org_id", orgId).eq("is_active", true);
+  const ids = (users ?? []).map((u) => u.id as string);
+  if (ids.length === 0) return null;
+  const { data: ms } = await admin.from("memberships").select("user_id").eq("role", "owner").eq("is_active", true).in("user_id", ids).limit(1);
+  const owner = (users ?? []).find((u) => u.id === ms?.[0]?.user_id);
+  if (!owner?.email) return null;
+  const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email: owner.email as string });
+  const tokenHash = link?.properties?.hashed_token;
+  if (error || !tokenHash) return null;
+  const client = createSbClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { error: eOtp } = await client.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" });
+  if (eOtp) return null;
+  return { client, userId: owner.id as string };
+}
+
+/** 先月分の確定（6 店＝org ごとに呼ばれる・店ごとに 1 run）。所要は呼び出し側が結果の ms で見る（cron の 2 分間隔に収めること） */
+export async function finalizePrevMonthForDemo(admin: SupabaseClient, orgId: string, bizDate: string): Promise<AfterResetResult["payroll"]> {
+  const t0 = Date.now();
+  const period = prevPeriodOf(bizDate.slice(0, 7));
+  const result: AfterResetResult["payroll"] = { period, stores: [], ms: 0 };
+  const fail = async (storeId: string, name: string, reason: string, ms: number) => {
+    result.stores.push({ store: name, status: "failed", ms, reason: reason.slice(0, 200) });
+    try { await admin.rpc("audit_log_write_service", { p_org_id: orgId, p_actor: null, p_action: "demo.finalize.failed", p_target: `stores:${storeId}`, p_before: null, p_after: { period, reason: reason.slice(0, 200) }, p_store_id: storeId }); } catch { /* 記録失敗でも止めない */ }
+  };
+  const { data: stores } = await admin.from("stores").select("id, name").eq("org_id", orgId).order("name");
+  const ownerCtx = await demoOwnerClientOf(admin, orgId);
+  if (!ownerCtx) { for (const s of stores ?? []) await fail(s.id as string, s.name as string, "owner context unavailable", 0); result.ms = Date.now() - t0; return result; }
+  try {
+    for (const s of stores ?? []) {
+      const storeId = s.id as string, name = s.name as string, ts = Date.now();
+      try {
+        const { data: existing } = await admin.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period).maybeSingle();
+        if (existing && (existing.status === "finalized" || existing.status === "paid")) { result.stores.push({ store: name, status: "skipped", ms: Date.now() - ts }); continue; }
+        const { data: rc, error: eRc } = await ownerCtx.client.rpc("payroll_run_create", { p_store_id: storeId, p_period: period });
+        const run = ((rc ?? []) as { id: string; status: string }[])[0];
+        if (eRc || !run) { await fail(storeId, name, `run_create: ${eRc?.message ?? "no run"}`, Date.now() - ts); continue; }
+        const draft = await computePayrollDraft(admin, ownerCtx.client, storeId, period, { previewDefaults: false });
+        if (draft.blockers.length > 0) { await fail(storeId, name, `blockers: ${draft.blockers.map((b) => `${b.castName}:${b.reason}`).join(",")}`, Date.now() - ts); continue; }
+        if (draft.rows.length === 0) { await fail(storeId, name, "no active casts in period", Date.now() - ts); continue; }
+        const { data: count, error: eFin } = await admin.rpc("payroll_finalize", { p_org_id: orgId, p_actor: ownerCtx.userId, p_run_id: run.id, p_idem_key: randomUUID(), p_payslips: payslipsOfDraft(draft.rows) });
+        if (eFin) { await fail(storeId, name, `finalize: ${eFin.message}`, Date.now() - ts); continue; }
+        result.stores.push({ store: name, status: "finalized", castCount: Number(count ?? 0), ms: Date.now() - ts });
+      } catch (e) { await fail(storeId, name, e instanceof Error ? e.message : String(e), Date.now() - ts); }
+    }
+  } finally {
+    await ownerCtx.client.auth.signOut().catch(() => undefined); // 使い捨てセッションを閉じる
+  }
+  result.ms = Date.now() - t0;
+  return result;
 }

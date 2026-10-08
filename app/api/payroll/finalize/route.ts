@@ -4,7 +4,7 @@
 import { NextResponse } from "next/server";
 import { guardPayroll } from "@/lib/nox/payroll/route-guard";
 import { computePayrollDraft } from "@/lib/nox/payroll/core";
-import { frozenAdjustmentKeys } from "@/lib/nox/payroll/adjust"; // 裁定264-10: 調整行の凍結形（無ければキーを足さない）
+import { payslipsOfDraft } from "@/lib/nox/payroll/finalize-payslips"; // ★X-13-13: 凍結の形（裁定264-10／0156／0154 D6 の規則をそのまま移動）
 import { resolvePayrollWindow } from "@/lib/nox/payroll/window";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { finalizeGuardOf, notEndedMessageOf, PERIOD_NOT_ENDED } from "@/lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）
@@ -40,28 +40,7 @@ export async function POST(req: Request) {
     const { data: actor, error: eA } = await g.admin.from("users").select("id").eq("auth_user_id", g.authUserId).single();
     if (eA || !actor) return NextResponse.json({ error: "actor resolve failed" }, { status: 500 });
 
-    const payslips = draft.rows.map((r) => ({
-      cast_id: r.castId,
-      net: r.net,
-      // (a) 発行時点キャスト名の凍結: 確定後に源氏名を改名しても、この明細の表示名は発行時のまま。
-      //   ★DB 変更は不要＝payroll_finalize は breakdown をそのまま採用し ar/adv/okuri だけを注入する
-      //     （器の検証も pay/extras の存在チェックのみ＝余分なキーを拒否しない）。予約キー5つ
-      //     （pay/extras/ar/adv/okuri）とは衝突せず、reopen の巻き戻しも cast_name を参照しない。
-      // ★裁定264-10／264-11: show_detail=true の行は {reason, amount, before_withholding}・false は adjustments_hidden（数値）のみ・
-      //   超過額は pay.adjustOverflow（数値）のまま。調整が無い run はキーを足さない＝従来の breakdown と完全一致。
-      breakdown: {
-        pay: r.pay, extras: r.extras, cast_name: r.castName, ...frozenAdjustmentKeys(r.adjustmentsShown, r.adjustmentsHiddenTotal),
-        // ★0156（裁定309-6／309-8・便 V-2）: 日払い済み（gross・源泉既徴収・件数）と適用した控除上書き＝凍結は現行（breakdown_json に上書き後の値）。無い cast はキーを足さない
-        ...(r.dailyN > 0 ? { daily_paid_gross: r.dailyPaidGross, daily_withheld: r.dailyWithheld, daily_n: r.dailyN } : {}),
-        ...(r.deductionOverridesApplied.length ? { deduction_overrides: r.deductionOverridesApplied.map((o) => ({ deduction_id: o.deductionId, enabled: o.enabled, amount_override: o.amountOverride })) } : {}),
-      },
-      ar_deducted: r.arDeducted, // F2e-1: {receivable_id, amount}[]（finalize が deducted/部分/繰越に遷移）
-      ar_carried: r.arCarried, // F2e-1: {receivable_id}[]（deduct_period→翌 period）
-      adv_deducted: r.advDeducted, // F2e-2: {advance_id, amount}[]（deducted/部分/繰越）
-      adv_carried: r.advCarried, // F2e-2: {advance_id}[]（deduct_period→翌 period）
-      okuri_deducted: r.okuriDeducted, // F2e-2: {transport_id, amount}[]（繰越なし＝carried 無し）
-      ...(r.calcPeriodStart && r.calcPeriodEnd ? { calc_period_start: r.calcPeriodStart, calc_period_end: r.calcPeriodEnd } : {}), // ★0154 D6（294-8）: 同名キーを finalize が payslips へ写す
-    }));
+    const payslips = payslipsOfDraft(draft.rows); // ★X-13-13（便 X-13b）: 凍結の形は lib/nox/payroll/finalize-payslips.ts（demo の afterResetHooks と同じ 1 関数）
     const { data: count, error: eFin } = await g.admin.rpc("payroll_finalize", {
       p_org_id: g.orgId, // サーバ導出（auth_org_id）
       p_actor: actor.id, // p_actor = users.id

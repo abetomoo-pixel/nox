@@ -217,7 +217,8 @@ async function main() {
       "payroll_shortfall_sync", "set_store_pay_time_basis", // ★0159（裁定324＋追補2・3）: 公開 2 本（shortfall_sync は非ゲート＝B(e)・set_store_pay_time_basis はゲート内蔵＝A8）
       "payroll_attentions_of", "payroll_attention_resolve", "transport_issue_self", "kiosk_transport_issue", "kiosk_punch_state", // ★0158（裁定315／317／319＋追補1）: 公開 5 本（punch_correction_apply は内部のまま＝G4c）
       "okuri_today_summary", "advances_open_balance", "cast_mynumber_discard_status", // ★0156（裁定309-6〜9／追補2）: 公開 8 本（okuri_default_of は内部＝G4c）
-      "set_user_photo_updated_at", "clear_cast_photo", "clear_user_photo", "cast_contract_ack_needed", "cast_contract_ack_self"]; // ★0162（裁定329／326 追補7-6）: 公開 5 本（非ゲート・authenticated＋service_role）
+      "set_user_photo_updated_at", "clear_cast_photo", "clear_user_photo", "cast_contract_ack_needed", "cast_contract_ack_self", // ★0162（裁定329／326 追補7-6）: 公開 5 本（非ゲート・authenticated＋service_role）
+      "set_product_track_stock"]; // ★0166（X-13-8・便 P166）: 公開 1 本（ゲート内蔵＝A6・authenticated＋service_role）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
