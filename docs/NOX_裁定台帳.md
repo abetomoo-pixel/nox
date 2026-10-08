@@ -3986,6 +3986,8 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 **便 S1 完了＝台帳の現在地（2026-10-02）**: S1（裁定333・client のみ・DB 恒久変更 0・新 RPC 0）＝「スタッフから配置」を複数日化（人を選ぶ→カレンダーで複数日トグル（月送りで保持・過去日／定休日／配置済み／有効枠なしは選べず理由を表示）→枠（名前で束ね日ごとに有効版へ解決）と時刻を 1 回→右の「選択した日」一覧（×・N 日に配置）→ staff_shift_propose（＋override）を日ごとに順次・失敗は赤で残し成功分はそのまま）。旧 3 状態と 1 日画面は撤去（入口①は従来どおり）。verify＝staff-shift 82（段S1-1〜9 新規・N6-8 張替え・逆テスト 2 本）・picker 10・staff-photo 12・ui-tokens 新規 0・tsc 0・lint 0。f0 **92 段 5,445（2 連緑 17:07:28〜17:19:15／17:20:16〜17:40:46・S1＋W5-1 の合成ツリー・直前の run G／H は messages ms(2-1) の 1 段赤＝S1 モーダルの素の span 描画→裁定281-3 の型に差し替えて再走）**・golden 6 値不変（W5-1 と同じ合成ツリー＝仮決め 1）。仮決め 10 点＝docs/tmp/v43_pre.md「S1 の仮決め」。目視＝staff_shift ON の店で（NOX-VERIFY は OFF のためブラウザ未確認）。次＝W5-1 のコミット・報告。
 
+**便 V 完了（v43 収蔵＋追補記入）＝台帳の現在地（2026-10-08）**: 前提照合＝HEAD c8a402e＝origin/main（rev-list 0 0・変更 0・未追跡＝scripts/demo/poc-record.mjs と docs/tmp（.gitignore）・0163／0164 は追跡済み＝f2573d4／c8a402e）・DB 恒久変更 0・DB 読取 0。V-0＝v43 収蔵（sha e4fbaab9…45ba・12,851 B・101 行＝提示値と一致・上の引き継ぎ欄）。V-1＝330 追補2／331 追補1／333 追補1／328 追補2／334 追補1／裁定335 を v43 §3 の逐語＋v43_pre.md の仮決め本文の転記で収載・docs/demo/check_20261002.md の NG 5 を仕様差でクローズ。V-2＝手貼り案内 docs/demo/handpaste_0163_0164.md（本番 ref hiqbfagmkrdpmlqhkmsu の URL 目視・sha／バイト／行・0163→Success→0164・proof＝cron.job 8／demo_entries／stores 列 7／md5 2e7b4963／関数 303／表 83・Success 時刻の控え）。コミット「docs: v43 収蔵・追補」＝docs のみ（コード・mig 不触・f0 不走＝裁定256）。★0163／0164 の行数は `wc -l` では 103／457（末尾改行あり・CR 0）・台帳と v43 の 104／458 は split('\n') の数え方（0162 の 523 は wc と一致）＝sha とバイト数が一致しているため不一致ではない（手貼り案内に両方を記す）。次＝Agoora 手貼り（0163→0164）→便 P163（収蔵・名簿・pin 張替え・f0 2 連・push）→D2。
+
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
 出典＝Agoora 指示（2026-09-29・便 X-10-1 で収載）。次の裁定番号は 321。**本文（逐語）**:
@@ -4030,12 +4032,32 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - 記録＝既存 product_stock_add(delta, '棚卸し') を行ごとに順に・失敗した行で停止（記録済みは残す）・記録した行は実数欄を空に戻す。差分 0 と整数でない入力は対象外。
 
 
+## 裁定335（2026-10-08 確定・相談役・v43 §3）sharp を devDependency に追加して良い
+
+出典＝相談役引き継ぎ v43 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-08_v43.md・「提案・新チャットで確定」＝便 V-1 で確定・2026-10-08）。**本文（逐語）**:
+「**裁定335**（提案・新チャットで確定）＝sharp を devDependency に追加して良い（upload-photos の 512px 縮小・本番バンドル不変）。」
+
+背景＝D1 の仮決め ⑫（scripts/demo/upload-photos.mjs の --apply は 512px 縮小に sharp が要る・D1 は dry-run 47 件まで＝328 追補2）。適用＝D2 の --apply 便で package.json の devDependencies に追加（便 V-1 では package.json 不触＝docs のみ）。追加時の確認＝next build の本番バンドルに sharp が入らないこと（scripts/ からのみ import・app/ と lib/ では import しない）を f0 の前に確認し、台帳の本欄に追加コミットのハッシュを記す。
+
 ## 裁定334（2026-10-02 確定・相談役）W5 の未裁定＝締め日／支払日・フロア機能
 
 出典＝相談役ブロック 2026-10-02（【予約・無人便の追加】D1→0164 起草・逐語）。**本文（逐語）**:
 「裁定334（W5 の未裁定）＝給与の締め日は月末固定（既存の期単位・324 と整合）／支払日は店設定 pay_day（翌月 1〜31・既定 25・表示と「次にやること」の案内用・計算には使わない）／フロア機能＝stores に use_vip・use_counter（boolean・既定 true）で席・卓 UI の表示切替のみ・計算不変。裁定333（S1）の仮決めは報告で追認待ち。」
 
 適用＝0164 起草（stores に pay_day／use_vip／use_counter ＋ setup_map C 5 項目の器）→ W5-2／W5-3。締め日は payroll_runs.period（YYYY-MM）のまま＝migration なし。
+
+### 裁定334 追補1（2026-10-08 確定・相談役追認・v43 §3）0164 の起草判断の追認
+
+出典＝相談役引き継ぎ v43 §3（便 V-1 で収載・2026-10-08）。**本文（逐語）**: 「**334 追補1**＝0164 の起草判断を追認（set_store_profile 置換・新規 RPC なし・非ゲート）。」
+追認された起草判断 6 点＝docs/tmp/v43_pre.md「0164 の仮決め」（逐語転記・docs/tmp は未追跡のため台帳が正）:
+1. 7 項目は settings_json ではなく **stores の実列**（既定付き・既存行は既定で埋まる）。締め日は列を足さない（月末固定＝334）。
+2. 設定の書き手＝既存 set_store_profile の白名単 +7（新 RPC なし・owner 限定・課金ゲート・'bad key'／'bad type' の流儀はそのまま）。jsonb 2 項目は現値とマージ（無いキーは不変）・cash は常に true・打刻は 1 つ以上。
+3. invoice_registered_on は 'YYYY-MM-DD' か null（印字判定は receipt＝W5-3 の client・check_close 時点との比較）。
+4. payment_methods は UI の出し分けだけ（記録は payments.method の 4 値＋method_detail のまま）。punch_methods も UI だけ（RPC 側の拒否は裁定要）。
+5. **demo payload への影響**＝stores の NOT NULL 列が増える→手貼り後に columns_20261002.json を取り直して gen-demo を再実行（payload の sha が変わる＝demo-payload suite dp(1-1) 張替え）。
+6. 手貼り順＝0163 → 0164（独立だが名簿の pin を 1 回で張り替えるため連続で）。
+
+適用＝0164 は起草どおり（下の欄・手貼りは Agoora・0163 の後）。手貼り案内＝docs/demo/handpaste_0163_0164.md（便 V-2・2026-10-08）。④ の「punch_methods の RPC 側の拒否」は引き続き裁定待ち（本追補は UI の出し分けまで）。
 
 **0164 の欄（起草・突合済み・手貼りは Agoora・0163 の後）**: supabase/migrations/0164_store_ops_settings.sql＝**sha256 02d378983e202eacae914e5c9cf4489732dbb32526d6f366e5612ac3a2f4dcfc・458 行・45,322 B・突合 11 段 NG 0（docs/tmp/q1002_ag_0164.mjs・BEGIN…ROLLBACK）**・生成器 docs/tmp/gen_0164.mjs＋0164_template.sql・写経元 docs/tmp/0163_live.json の set_store_profile（4f2e9f82 → 期待 2e7b4963・★追加 74 行・他は 1 バイト不変）。中身＝stores に 7 列（invoice_registered_on date null／pay_day int 25・1〜31／tax_inclusive_display bool false／use_vip・use_counter bool true／payment_methods jsonb {cash,card,emoney,qr}／punch_methods jsonb {self,proxy,kiosk}）＋ set_store_profile の白名単 +7（列側・型検査・cash は常に true・打刻は 1 つ以上・監査 before/after）。新規 RPC なし＝名簿不変（303／83／154 は 0163 後の値）。締め日は列を足さない（月末固定）。**demo 表への影響＝stores の NOT NULL 列が増える→payload の stores 行に 7 列が要る（jsonb_populate_recordset は default を使わない・c-10 で実証）＝手貼り後に columns スナップショットを取り直して gen-demo を再実行**。手貼り後に赤になる段＝docs/tmp/0164_pre.md §5。
 
@@ -4050,6 +4072,24 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 - キャスト側の複数日 UI の部品を再利用し、見た目・文言を揃える。」
 
 適用＝便 S1（2026-10-02・client のみ・DB 恒久変更 0）: app/(manage)/shift/staff-place-by-staff.tsx を 2 状態（pick／select）に書き換え・lib/nox/shift/staff-place.ts に純関数（dayBlockOf／toggleDay／patternChoicesOf／defaultPatternNameFor／dayPlansOf／partitionResults／placeLabelOf）・staffShiftErrJa に staff_shifts_uq の和文・verify staff-shift 段S1-1〜9（＋N6-8 張替え）。一括 RPC は無いため staff_shift_propose（＋override）を日ごとに順次。仮決め 10 点＝docs/tmp/v43_pre.md「S1 の仮決め」（追補で追認）。
+
+### 裁定333 追補1（2026-10-08 確定・相談役追認・v43 §3）S1 の仮決め 11 点の追認
+
+出典＝相談役引き継ぎ v43 §3（便 V-1 で収載・2026-10-08）。**本文（逐語）**: 「**333 追補1**＝S1 の仮決め 11 点を追認（propose の順次投入・部分失敗は残す・旧 1 日画面は撤去）。」
+11 点＝docs/tmp/v43_pre.md「S1 の仮決め」（逐語転記・docs/tmp は未追跡のため台帳が正。上の適用欄の「仮決め 10 点」は便 S1 報告時の数＝11 点目は messages suite ms(2-1) の赤を受けて同便内で追加した分）:
+1. 便の順序＝「MC2 → S1 → W5-1」の指示を受けた時点で W5-1 の実装が作業ツリーに済んでいたため、W5-1 を退避せず S1 を重ね、f0 2 連は両便の合成ツリーで 1 回・コミットは S1（lib／app／verify）→ W5-1（lib＋JSON／app／verify）の順にパス指定・報告は S1 → W5-1 の順。
+2. 状態遷移＝2 状態（pick／select）。配置後も select に留まる（失敗した日が赤で残る・続けて別の日を選べる）。旧 3 状態（calendar／place）と StaffPlaceForm の 1 日画面は本モーダルから撤去（日付起点の入口①＝staff-place-day は従来どおり StaffPlaceForm）。
+3. 枠は「名前」で束ねる（枠は日ごとに有効な版が違う）。日ごとに同名の有効版へ解決し、無い日は一覧に赤で「有効な枠がありません」＝配置ボタンは押せない（その日を外すか別の枠）。既定の枠＝選択日の ◯ 希望の枠名で最多・無ければ全日で有効な枠・無ければ先頭。
+4. 時刻は 1 回だけ（枠から写す・上書き可・翌日は終了≦開始で自動オン）。枠の時刻と違う日だけ配置後に staff_shift_override（従来の 2 段・親の onPlace）。
+5. 投入＝既存 staff_shift_propose を日ごとに順次（一括 RPC は無い・新規 RPC なし）。親の onPlace が日ごとに onChanged を呼ぶ（従来どおり）。失敗した日は赤で残し成功分はそのまま。
+6. 選べない日＝過去日／定休日（store_business_hours.is_closed の曜日）／配置済み（枠を問わず・既存行があれば）／有効な枠なし。優先順＝この順で title に理由。定休日の読取は本モーダル自前（RPC 側の検査は従来どおり）。
+7. 月送りしても選択は保持。希望・配置の読取は「表示中の月＋選択日の月」の範囲に広げる（他月の配置済みも判定できる）。他月で見えていない重複は RPC の staff_shifts_uq → 和文「この日はすでにこの枠に配置済みです…」（S1-2・既存様式に 1 行）。
+8. 右の一覧＝日付（M/D(曜)）・枠・時刻・「上書き」「希望から」印・個別の ×・「選択をすべて解除」・「N 日に配置」（0 日は disabled）。結果の文言＝「N 日に配置しました（確認待ち）」＋失敗数（warn）。
+9. 見た目・文言＝キャスト側 ShiftAddForm の凡例（■ 今回選択・● 登録済み…）と「選択した日」一覧の型に揃える（部品はクラスと配置を写経・コンポーネントの共有は型が違うため行わない）。
+10. モーダル幅 1100・右ペインは nox-2col で「枠と時刻」と「選択した日」を並べる（≤899 は 1 列）。
+11. 失敗した日の理由＝行には「失敗」バッジ（赤枠・title に理由）・理由の本文は一覧の下の Message（kind error）に列挙（裁定281-3＝素の span で文言を描かない。messages suite ms(2-1) が検知したため差し替え）。
+
+適用＝便 S1 の実装どおり（変更なし・client のみ・DB 恒久変更 0）。目視は v43 §4-2（Agoora・NG は X-13 に束ねる）。
 
 ## 裁定332（2026-10-02 確定・相談役）疎通門番の判定
 
@@ -4069,6 +4109,34 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 
 **W5-1 適用（2026-10-02）**: 6 ステップ化・テンプレ 6 種（v2.json＝モック SRC）・特徴 5 の分岐（VIP 専用料金表／VIP 加算／指名料なし／売上スライド 3 段（当日判定の文言）／新人保証 2 本目／達成ボーナス 1 段）・C／D 非表示（SETUP_HIDDEN_ITEMS 10）・進捗バー・途中保存・あとで設定・次にやること。B（曜日時間帯の料金行・ランク別指名料・個別商品選択・契約の形）は W5-2。仮決め 21 点＝docs/tmp/v43_pre.md（追補で追認）。
 
+### 裁定331 追補1（2026-10-08 確定・相談役追認・v43 §3）W5-1 の仮決め 21 点の追認（④⑱ は W5-2 で開く）
+
+出典＝相談役引き継ぎ v43 §3（便 V-1 で収載・2026-10-08）。**本文（逐語）**: 「**331 追補1**＝W5-1 の仮決め 21 点を追認。うち ④「キャストのランク別」は W5-2 で開く・⑱ 商品の個別選択は W5-2。」
+21 点＝docs/tmp/v43_pre.md「W5-1 の仮決め」（逐語転記・docs/tmp は未追跡のため台帳が正）:
+1. 業態 5＝モック BIZ（キャバクラ／ラウンジ／ガールズバー／スナック／バー・順序と文言そのまま）。ラウンジの土台＝cabaret_vip（モック BIZ.lounge.base＝NOIR）。biz_type enum は 5 のまま（migration 0）。
+2. テンプレ JSON＝v1.json（4 テンプレ＋bar 空・2026-09）を v2.json（正本モック nox-setup-v5.html の SRC 6 店をそのまま JSON 化・6 テンプレ・57,349 B）へ全置換。v1 の lounge_standard は廃止（ラウンジは cabaret_vip）。bar の空テンプレは廃止（bar_staffback＝テーブルチャージ 1,100・商品 29）。
+3. 営業時間の既定＝モックの S 既定（20:00〜01:00・営業日の切替 06:00）を 6 テンプレ共通に（v1 の業態別の値は使わない）。
+4. 指名料の 3 択のうち「キャストのランク別」は W5-2（ランク行＋ランク別ルールの結線）まで画面に出さない（型と SETUP_HIDDEN_ITEMS に残す）。
+5. 売上スライドの説明文はモック「前月の売上で今月の時給が決まります」ではなく現行の判定「その日の売上で当日の時給が決まります（3 段）」（裁定331 の指示どおり）。段＝cabaret_slide（ACE）の 4 段を基本時給差で写し at=0 を除く 3 段。
+6. 達成ボーナス＝1 段・金額のみ（set_comp_component kind achievement_bonus・mode amount・params thresholds[{pct:100,add}]）。目標額はキャスト別目標（ノルマ）で設定する旨を注記（モックの「月の売上 N 円以上」の閾値は器が無い）。plan id は実行時に set_comp_plan の戻りから取る（argsOf 'comp_component'）。
+7. 勤務時間の数え方＝裁定324（既定 実打刻）。モックの「確定シフトどおり（既定）」の「（既定）」は実打刻側へ移す。説明文はモックの 2 文そのまま。
+8. STEP 4／5 の副題＝モック「時給・給与の締め日」「税・支払い方法・打刻」は C 非表示と矛盾するため「時給・バック・控除」「会計・キャストのスマホ画面」に言い換え（題 6 本はそのまま）。
+9. 遅刻とみなすまでの猶予＝値を触ったときだけ set_penalty_config（12 引数明示・他 11 は comp-sections の DEFAULT_PENALTY と同値・既定表示 10 分）。
+10. 送りの基本額＝set_store_profile の patch okuri_base_amount（既定 1,000＝モック comp.okuri）。別 RPC（set_store_okuri_base）は使わない。
+11. カード手数料＝ON で p_card_tax_rate に率・OFF で 0（現行の「現値マージ」を置換）。既定＝現値>0 なら ON・率は現値（0 なら 4%＝モック cardRate）。
+12. キャストのスマホ画面＝mine 8 キーのうち 7（給与明細 3 値／シフトの出し方／予約申請／ドリンク申告／修正申請／ランキング）を STEP 5 に。contract_ack と ranking_show_others は出さない（店舗設定で）。書込＝set_store_mine_settings の差分だけ。
+13. 必須＝店舗名・住所（モック canNext どおり）。電話・住所は set_store_receipt_profile（reg_no／footer は現値を明示送信）。インボイス登録・但し書きは出さない（C／裁定要）。
+14. 完了画面「次にやること」の導線＝招待 /casts・シフト /shift・在庫 /master/stock（在庫管理の商品があるときだけ）・レジ端末 /master/system#devices（owner 以外は /register）。完了後の router.push('/dashboard') は撤去（完了画面に留まる）。
+15. 途中保存＝localStorage の下書き（店ごとのキー・hydration 後に復元・完了で削除・「最初からやり直す」）。正は DB（完了時の計画実行＝現行 W/S の保存機構）＝下書きは補助のみ。
+16. 「あとで設定」＝STEP 2〜5 の footnav。laterDefaultsOf（テンプレ値・実打刻・猶予 null・ノルマ OFF・送り 1,000・卓会計・カード現値・売掛＝テンプレ ar なら customer_only／無ければ disabled・スマホ画面＝既定＋テンプレの shift_request_mode）を入れて進む。確認表に「あとで設定」の印・「ここで設定する」で解除。
+17. 使う制度（sys_* 9）のパネルはモックに無いため撤去し、特徴とスイッチから導く（hourly／backs ON・sales_slide＝スライド・bonus＝達成ボーナス・norms＝ノルマ・他 OFF）。残りは店舗設定 › 利用機能で。
+18. 商品＝一覧表示＋「商品テンプレを取り込む」1 本（1 品ずつの選択・名前／価格の編集は W5-2）。上書き＝back 非既定か本指名pt>0 の商品（set_product 15 引数・hon_pt はテンプレ値）。
+19. VIP 専用の料金表＝cabaret_vip の VIP 行（VIP平日／VIP週末）の先頭有効行を seat_kind 'VIP' の set／extension 2 本で投入（曜日時間帯の行は W5-2）。VIP 元が無い業態は通常の 1.5 倍を 500 円単位で合成（モック build どおり）。VIP 加算＝vip_charge 1 本（5,000）。
+20. 受取方針＝モックの 2 択（受けない／店が負担して受ける）を現行 3 値（RECEIVABLE_POLICIES）で出す。紹介料＝器なし（表示のみ・紹介者マスタへの案内）。不就労控除・日払い・精算調整のひな形＝表示のみ（常に ON／完了時 3 件）。
+21. 1 日の報酬の目安＝モック previewHTML の写経（時間報酬 5 時間・本指名 1・場内 1・指名別バックの先頭ドリンク 4 杯）。契約の形／報酬の型は W5-2（器なし＝既定表示）のため目安は時間報酬で固定。
+
+適用＝W5-1 の実装どおり（変更なし）。④（指名料「キャストのランク別」＝ランク行＋ランク別ルールの結線）と ⑱（商品の 1 品ずつの選択・名前／価格の編集）は W5-2 で開く（SETUP_HIDDEN_ITEMS から外す・0164 の C 5 項目の UI と同便＝v43 §4-3）。
+
 ## 裁定330（2026-10-01 確定・相談役）マスタ整理
 
 出典＝相談役チャット 2026-10-01（便 MC0 の直前・逐語）。正本モック＝docs/handoff/mock/20261001/nox-master-consolidated.html（MC0-1 で収蔵）。**本文（逐語）**:
@@ -4086,6 +4154,22 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 適用＝便 MC2（pricing-board の内側ピル撤去・MineSettingsPanel を店舗設定 ＞ 利用機能タブへ・master_map.md 更新）。
 
 **MC2 適用（2026-10-01）**: 店舗設定 2 タブ（利用機能／店舗情報・住所／電話／インボイス番号は端末・印刷のまま＝二重編集を作らない）・権限・情報管理 3 タブ（キャスト会計の許可／データ管理／機密情報）・報酬設定 3 タブ・料金・会計の内側ピル撤去・system の機能の公開タブ撤去・旧 href は alias 解決（/master/cast-comp/systems・/master/system#features → 店舗設定／利用機能）。新 route 0・新 RPC 0。フロア機能（VIP／カウンター）は器なし＝出さない（W5 の 0164 で裁定）。master_map.md §8。仮決め 9 点＝docs/tmp/v43_pre.md「MC2 の仮決め」（追補2 で追認）。
+
+### 裁定330 追補2（2026-10-08 確定・相談役追認・v43 §3）MC2 の仮決め 9 点の追認
+
+出典＝相談役引き継ぎ v43 §3（便 V-1 で収載・2026-10-08）。**本文（逐語）**: 「**330 追補2**＝MC2 の仮決め 9 点を追認（v43_pre.md「MC2 の仮決め」）。」
+9 点＝docs/tmp/v43_pre.md「MC2 の仮決め」（逐語転記・docs/tmp は未追跡のため台帳が正）:
+1. 店舗設定の 2 タブ＝?tab=features（利用機能・既定）／?tab=info（店舗情報）。利用機能＝SystemsBoard（sys_* 9＝「ノルマを使う」は sys_norms として含む・別トグルは作らない）＋売掛＋機能の公開（owner）＋勤務時間の計算基準＋キャスト画面の設定。
+2. 店舗情報タブ＝店舗名・略称・店舗コード・表示名・送りの基本額・キャスト確認。**住所・電話・インボイス登録番号は端末・印刷 ＞ レシート・プリンタのまま**（set_store_receipt_profile の器＝二重編集を作らない・注記で導線）。送りの基本額は店舗情報に据え置き（控除・送り画面に注記あり）。
+3. データ管理＝/master/store-profile?tab=data（権限・情報管理の入口のタブ）＝顧客情報の利用目的・保持年数・操作ログの保持（7 年固定の注記）。StoreProfilePanel に sections（profile／data／timeBasis／shift／ar・既定＝全節）を足して描く節を選ぶだけ＝フォーム・RPC・patchOf は不変。
+4. 権限・情報管理の入口 href＝/master/cast-comp/register（キャスト会計の許可＝既存 page）。タブ＝キャスト会計の許可／データ管理／機密情報（/master/system#secrets）。新 route 0。
+5. 旧 href は alias で解決（/master/cast-comp/systems・/master/system#features → 店舗設定／利用機能）。ページの描画は従来どおり（報酬制度ページは残る・system ページの「機能の公開」タブは撤去し案内行＋リンク）。
+6. 料金・会計＝内側ピル撤去・「ルールで設定」ボタンは router.push(?tab=rules)。
+7. 在庫（/master/stock）は引き続きナビ外（旧 17 href のうち 16 解決・在庫は null）＝「17/17 解決」は在庫を営業メニューと数える解釈。
+8. /master/cast-comp（概要ページ）はナビ未登録のまま残す（カード 5 枚の文言は旧構成＝MC3 か撤去を裁定）。
+9. 新 suite 段＝master-top 14（タブ構成・alias・店舗設定 3 面・system に機能の公開なし・内側ピルなし）。nav nv(5-1)／(5-2) 張替え。
+
+適用＝MC2 の実装どおり（変更なし・client のみ・DB 恒久変更 0）。⑧ の /master/cast-comp 概要ページ（カード 5 枚の旧文言）の MC3 か撤去かは本追補の射程外＝引き続き裁定待ち。目視は v43 §4-2（Agoora・NG は X-13 に束ねる）。
 
 ## 裁定329（2026-10-01 確定・相談役・便 M5）スタッフの写真
 
@@ -4139,6 +4223,39 @@ proacl 7 行（新設 5 本＝authenticated＋service_role・punch_correction_ap
 ⑤ kiosk＝**店ごと 1 台・6 本固定**（録画に kiosk_devices を含めて ID 固定）。」
 
 **D1 適用（2026-10-02）**: 上記の現在地 D1 のとおり（生成器・突合・6 店化・入口・制限・0163 起草）。②入場方式＝ボタン 1 つ（magiclink はサーバ内で消費・送信しない・24 時間は Auth 設定）・③役割 4＋端末・④cast＝代表伝票の受領者 6 名を users.cast に結線・⑤kiosk 6 台＝payload の kiosk_devices（auth_user_id＝DEMO_USERS の `<store>:kiosk`）。パッケージ側の不一致 5 点（v43_pre「D1 の不一致」）は 328 追補2 で裁定を求める。
+
+### 裁定328 追補2（2026-10-08 確定・相談役・v43 §3）D1 の仮決め 15 点の追認＋golden 不一致 5 点の確定（check_20261002 の NG 5＝仕様差でクローズ）
+
+出典＝相談役引き継ぎ v43 §3（便 V-1 で収載・2026-10-08）。**本文（逐語）**:
+「**328 追補2**＝D1 の仮決め 15 点を追認。**golden 不一致 5 点は CC の優先順（売上 ±1% ＞ 指名 ＞ 在庫 ＞ ドリンク ＞ シャンパン）で確定**＝①NOIR シャンパン 59 本 ②在庫 sold の不足は closing 成立で可 ③ACE 同伴 1〜2 回不足は可 ④人数は予算優先 ⑤報酬参考 13,648,300 は D2 の正規経路（確定処理）で突合。check_20261002 の NG 5 は「仕様差」として記録しクローズ。」
+
+15 点＝docs/tmp/v43_pre.md「D1 の仮決め」（逐語転記・docs/tmp は未追跡のため台帳が正）:
+1. payload の形＝旧「録画」と同形（meta＋tables・日付は {$rel}／{$m,d}）。**月相対 {$m:-1, d}** を dateshift に追加（先月＝R の前月の同じ日・無い日は末日に畳む・fmt "ym" で 'YYYY-MM'）。固定日付を持たない（328）。
+2. ID 固定＝source_id → uuid（sha1 v5 風・docs/demo/ids.json）→ 再生時に org ごと remapUuid（既存）。payload の users は meta.users（役割）→ demo org の users.id に写す（kiosk は auth user id）。
+3. 伝票の total は lib/nox/check-calc の groupDueFull（check_group_due の鏡像）で計算して凍結＝再生後の三点一致（check-demo c 系で確認）。店設定＝外税（price_display 'tax_excluded'）・round_unit 1・down・tax_rounding floor・time_per 'person'（代表伝票のセット qty＝人数から）。
+4. 先月の生成＝予算配分（セット→指名→在庫商品→キャストドリンク→延長→人数→汎用商品で ±0.5%）。固定行（代表伝票 6・48 ヘッダ＝「飲食代」1 行で gross に合わせる・LU-C001 の 7 来店）は先に置く。曜日依存の料金は**写像元（9 月）の曜日**で選ぶ（写像先の実曜日では引き直さない＝gen_plan §2 と違う・ランダム性を抑えるため）。
+5. 指名は同じ種類だけを同じ伝票に（get_cast_ranking は checks.nom_type で数える）。指名のない店（MUSE／LILY／NEST）はバック順を参考（product_reward_target）に揃える後処理。
+6. daily_reports は凍結値（生成値）で投入（正規経路 daily_report_close は呼ばない）。payroll_runs／payslips は投入しない（D2 の正規経路）。stock_logs は '入荷' の opening／received だけ（sale 行はトリガ再生成）。
+7. memberships＝demo ユーザー 4 名（owner／manager／staff／cast）だけ。people の STAFF（9 名）のうち代表 1 名を staff ユーザーに結線・残り 8 名は users が無い（写真の結線先なし 3＝staff 9 のうち代表 6 名以外）。
+8. kiosk＝店ごと 1 台（kiosk_devices.auth_user_id＝DEMO_USERS の `<store>:kiosk`・purpose punch）。入場は /demo の「端末（キオスク）で入る」→ /kiosk（kiosk ユーザーの magiclink をサーバ内で消費）。
+9. 入場 route＝store 6 × role 4 ＋ kiosk・staff の初期画面は /register・入場ログ demo_entries（0163）は表が無い間 no-op・IP は sha256 先頭 16 桁・UA 200 字。セッション 24 時間は Auth 設定（Agoora）。
+10. 日次リセットの起動＝0163 の pg_cron → pg_net → 既存 cron route（?org=<code>・6 job を 2 分おき・?retry=1 を 06:35・失敗は audit 'demo.reset.failed'）。URL と秘密は Vault（手順書）。
+11. 1 MB 超の payload＝wipe → 分割 load（先頭 chunk＝マスタ＋当日・以降は日付群）。RPC は不変。
+12. upload-photos の --apply（512px 縮小）は sharp が要る＝D2 で devDependency を足す（裁定要）。D1 は dry-run（47 件・sha）まで。
+13. 既存 demo 入口の文言（毎朝 5 時）→「毎日 06:05」に統一（帯・規約・入口）。
+14. 0163 の purge は 30 日（裁定293-7）・service_role 専用・audit に件数。demo_entries は demo_org_reset の c_load に入れない（ログは reset で消えない）。
+15. 突合（check-demo）は仮 org を tx 内に作って demo_org_reset を流す（本物の demo org は D2 まで無い）。
+
+golden 不一致 5 点（docs/tmp/v43_pre.md「D1 の不一致」の逐語＋本追補の確定）:
+1. **NOIR シャンパン 108 本**: 生成 59/108（高額 5 銘柄が置けない）。セット（人数分・8,000〜14,000）＋指名料で月次 13,680,000 の 8 割を使うため、シャンパン 108 本（約 900 万円）は同じ月次に収まらない。優先順＝売上 ±1% ＞ 指名回数 ＞ 在庫 ＞ キャストドリンク ＞ キャスト別シャンパン で縮小。→ **確定 ①＝59 本で可**（カフェ・ド・パリ 14・モエ 24・ヴーヴ・クリコ 20・ドン・ペリニヨン 1＝check_20261002 の生成値）。
+2. **在庫 30 商品の sold＝目標**: luna 1 商品（ドン・ペリニヨン）・noir 5・ace 5 が不足（同じ理由）。closing は opening＋received−sold で整合（在庫 golden の式は成立・値が目標と違う）。→ **確定 ②＝closing の式が成立していれば可**（sold の目標値との差は仕様差）。
+3. **ACE の同伴回数**: 5 名で 1〜2 回不足（予算）。本指名／場内は全店一致。→ **確定 ③＝可**（ひなの 8/9・るな 5/6・あい 3/4・めい 1/2・もも 2/3）。
+4. 人数（guests_target）は予算優先で縮小（1 人基本＋余りを配る＝guestsShort muse 126／luna 186／noir 292／ace 289／lily 211／nest 0）。→ **確定 ④＝予算優先**（人数は golden に含めない）。
+5. 報酬参考 13,648,300 は payroll（D2 の正規経路）＝本便の突合対象外。→ **確定 ⑤＝D2 の正規経路（payroll_finalize＝確定処理）で突合**（±丸め＝裁定328 本文）。
+
+クローズ＝docs/demo/check_20261002.md の NG 5（luna 在庫 sold 不足 1／noir 在庫 sold 不足 5／noir シャンパン 59/108／ace 在庫 sold 不足 5／ace 指名回数（同伴）不足 5 名）を**仕様差として記録しクローズ**（同ファイル末尾に 2026-10-08 の注記）。D2 の再突合（0164 後の columns 取り直し→gen-demo 再実行→check 83 段）では、この 5 段は「仕様差（328 追補2）」の既知 NG として扱い、**それ以外の NG が 0** であることを合格条件とする（v43 §4-1「NG は仕様差 5 のみ」）。生成器の優先順（売上 ±1% ＞ 指名 ＞ 在庫 ＞ キャストドリンク ＞ キャスト別シャンパン）は本追補で確定＝以後は変えない。
+
+適用＝D1 の実装どおり（変更なし）。⑫ の sharp は裁定335 で確定（D2 で devDependency）。
 
 **0163 の欄（起草・突合済み・手貼りは Agoora）**: supabase/migrations/0163_demo_entries_cron.sql＝**sha256 f5b8bc61d6928a6f91ed2b5611c7084fca100907d7dfb22ad48a0a2fc3973530・104 行・9,887 B・突合 16 段 NG 0（docs/tmp/q1002_ag_0163.mjs・BEGIN…ROLLBACK・文単位）**・生成器 docs/tmp/gen_0163.mjs＋0163_template.sql・写経元 docs/tmp/0163_live.json・期待 md5 docs/tmp/0163_expected.json＝demo_entries_purge fdc33bb7・不触 demo_org_reset a4bd6a18／audit_purge f2946b95。中身＝pg_cron（pg_catalog）＋pg_net（extensions）／demo_entries（RLS・policy 0・service_role の select／insert のみ＝4 ロール revoke）／demo_entries_purge（30 日・audit 'demo.entries.purged'・service_role 専用）／cron 8 job（reset 6＝UTC 21:05〜15・retry 21:35・purge 20:15・Vault 参照・冪等）。手貼り後に赤になる段＝docs/tmp/0163_pre.md §4（grants／anon-guard／billing／0158）。★教訓候補（提案中）: 生成物を 1 文字列で流すと pg_cron の create extension を含む並びで 25P02＝突合は文単位で流す（SQL Editor の手貼りは文単位＝影響なし）。
 
@@ -5371,6 +5488,7 @@ K36 の説明文もモックの 2 カード語彙（本人レコード／NOXロ�
 - **handoff v37 収蔵（2026-09-18）**: Downloads から `docs/handoff/` へ収蔵（`fe0e19c`「docs: v37 収蔵」・git 追跡へ追加・sha 全64桁付き・教訓72）。v37＝`NOX_相談役引き継ぎ_2026-09-18_v37.md`（15,811 B・sha256 `e33766f2e0557942befbc259645e33d07d8d73a08242782e01897b1f508e4f5a`・64 桁と照合一致・Downloads 原本と収蔵後の再計算がともに同 sha・cp のバイト複写＝改行変換なし）。v36（`e3b73a0`・12,410 B・sha256 `e39df6315c8818fd0e1d9d1650845548948f548222b8da103c1b5a3ac71fa40b`）に続く版＝本断面（268 遅刻分数・裁定272 0148 設計・0148 起草／突合・client 前倒し 478303d）の最終断面。収蔵時は 0148 未貼付＝478303d を道連れにしないため push せず（同便の報告後に Agoora が 0148 を手貼り）。★便 1 の報告で機械時刻を「02:13 JST」と書いたが Git Bash の `TZ=Asia/Tokyo date` は tzdata 不在で UTC を GMT 表示する＝実際は 11:13 JST（本便で訂正・以後は `date`（Windows ローカル＝JST）と `date -u` を併記）。
 - **handoff v41 収蔵（2026-09-30・便 AC-1）**: Downloads から `docs/handoff/` へバイト複写（git 追跡へ追加・sha 全64桁付き・教訓72）。v41＝`NOX_相談役引き継ぎ_2026-09-30_v41.md`（10,994 B・96 行・sha256 `8f79939553f636be81461cc67383f644ff52de26ab8796bc2a3b901e250cc3c9`・64 桁と期待値（先頭 8f799395・末尾 c3c9）を照合一致）。v38〜v40 は収蔵済み（v40＝3527957）だが本欄に行が無い＝ここで補記（v38 2026-09-24／v39 2026-09-25／v40 2026-09-28・sha は各収蔵コミットの現物）。
 - **handoff v42 収蔵（2026-09-30・便 P161-2）**: Downloads から `docs/handoff/` へバイト複写（git 追跡へ追加・sha 全64桁付き・教訓72）。v42＝`NOX_相談役引き継ぎ_2026-09-30_v42.md`（10,674 B・92 行・sha256 `7bed660fcd3b263602208ed4ba4c2624fea10caffae381107a2ca13f1cf46941`・64 桁と提示値（先頭 7bed660f・末尾 6941／10,674 B／92 行）を照合一致・Downloads 原本と収蔵後の再計算がともに同 sha）。v42 §0 の「P160 の確定値は新チャットで台帳に記す」＝上の現在地（便 P160 完了＋0161 本番適用）で確定。
+- **handoff v43 収蔵（2026-10-08・便 V-0）**: Downloads から `docs/handoff/` へバイト複写（cp・改行変換なし・git 追跡へ追加・sha 全64桁付き・教訓72）。v43＝`NOX_相談役引き継ぎ_2026-10-08_v43.md`（12,851 B・101 行（LF・CR 0）・sha256 `e4fbaab95203201ea901d1166cbb6f7bc1d96fd94462bbca6169fa8f38cc45ba`・64 桁と提示値（先頭 e4fbaab9・末尾 45ba／12,851 B／101 行）を照合一致・Downloads 原本と収蔵後の再計算がともに同 sha・cmp 一致）。v42（`d1cd92c`・10,674 B・sha256 `7bed660fcd3b263602208ed4ba4c2624fea10caffae381107a2ca13f1cf46941`）に続く版＝本断面（M3〜M5・MC0〜MC2・S1・W5-1・D0／D1・0163／0164 起草・f0 93 段 5,506）の最終断面。同じ docs コミット「docs: v43 収蔵・追補」で §3 の追補（330 追補2／331 追補1／333 追補1／328 追補2／334 追補1）と裁定335 を収載。教訓103 は提案段階＝本収蔵では採番しない（本文は便 V の報告に貼付・採番は相談役）。docs のみ＝f0 不走（裁定256）。
 - **本番向け付記**: audit_logs の retention（保持期間・アーカイブ）は**ローンチ後必須**（税理士ゲート後＝裁定23 系）。本 gate は verify org 限定であり
   本番 org の行には一切触れない。
 
