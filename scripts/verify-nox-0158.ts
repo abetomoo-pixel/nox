@@ -86,9 +86,9 @@ async function main() {
     // ── (s) 静的（適用後）──
     check("s-1", "収蔵した mig の sha256＝貼付版（手貼りした本文と repo の本文が同じ）", createHash("sha256").update(raw).digest("hex") === MIG_SHA256, createHash("sha256").update(raw).digest("hex"));
     check("s-2", "不触 12 本の live md5＝控え", CTRL.every((n) => live0[n]?.m === UNTOUCHED[n]), CTRL.map((n) => `${n}:${live0[n]?.m}/${UNTOUCHED[n]}`).join(" "));
-    // ★0165（裁定336・起票100・便 G2）: cast_sales_aggregate の CTE groups を materialized に（1 語）。手貼り前は f765c36a・後は e232dac8＝便 P165 で 1 値（e232dac8）に絞る
+    // ★0165（裁定336・起票100・便 G2）: cast_sales_aggregate の CTE groups を materialized に（1 語）。本番適用 2026-10-08（時刻不明）＝e232dac8 の 1 値（過渡の 2 値許容は便 P165 で撤去）
     { const m = (await one("select left(md5(replace(prosrc, E'\r', '')), 8) m from pg_proc where proname='cast_sales_aggregate' and pronamespace='public'::regnamespace")).m as string;
-      check("s-2b", "★0165 cast_sales_aggregate の md5 ∈ {f765c36a（0165 前）, e232dac8（0165 後＝groups as materialized）}（P165 で e232dac8 に絞る）", m === "f765c36a" || m === "e232dac8", m); }
+      check("s-2b", "★0165 cast_sales_aggregate の md5＝e232dac8（groups as materialized・本番適用 2026-10-08・便 P165 で 1 値に確定）", m === "e232dac8", m); }
     const fnCount0 = (await one("select count(*)::int n from pg_proc where pronamespace='public'::regnamespace")).n as number;
     check("s-3", "新設 5 本が存在・payroll_attentions が存在・関数 303（★0159 で +2・★0160 で +7−1・★0161 で +1・★0162 で +5・★0163 で +1）", NEW.every((n) => !!live0[n]) && (await one("select to_regclass('public.payroll_attentions')::text r")).r !== null && fnCount0 === 303, `fn ${fnCount0}`);
     const colsOf = async (): Promise<Record<string, number>> => Object.fromEntries((await q("select table_name t, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('daily_pays','bottle_keeps','advances','transport','payroll_attentions') group by 1")).map((r) => [r.t, r.n]));
