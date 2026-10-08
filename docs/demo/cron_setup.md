@@ -14,7 +14,8 @@
 ```sql
 select 'nox-project-proof', count(*) from public.orgs;                       -- 貼り先証明
 select vault.create_secret('https://nox-kappa-eight.vercel.app/api/cron/demo-reset', 'nox_demo_reset_url', 'デモ日次リセットの route（0163 の cron job が参照）');   -- ★ホスト＝Vercel Production（nox-kappa-eight.vercel.app）。10/8 にプレースホルダ「<本番の NOX ホスト>」のまま投入された（便 D2-a で検知）＝下の update_secret で差替え
-select vault.create_secret('<Vercel env CRON_SECRET と同じ値>', 'nox_cron_secret', 'cron route の Bearer（0163 の cron job が参照）');
+select vault.create_secret('', 'nox_cron_secret', 'cron route の Bearer（0163 の cron job が参照）');   -- ★第 1 引数の '' の中に Vercel → nox → Settings → Environment Variables → CRON_SECRET の値をそのまま貼る（角括弧の例文は置かない＝10/8 に例文のまま投入された・教訓104 候補）
+select name, length(decrypted_secret) as len, decrypted_secret ~ '^[A-Za-z0-9_\-]+$' as ascii_ok, substring(decrypted_secret from '^https?://([^/]+)') as host from vault.decrypted_secrets where name like 'nox_%' order by name;   -- 形の確認（値は出さない）: nox_cron_secret は ascii_ok true・nox_demo_reset_url の host は nox-kappa-eight.vercel.app
 select name, description, created_at from vault.secrets where name like 'nox_%' order by name;   -- 3 行（nox_mynumber_key ＋ 2）
 ```
 
@@ -29,6 +30,8 @@ select name, substring(decrypted_secret from '^https?://([^/]+)') as host from v
 ```
 
 ## 3. 動作確認（手貼り後）
+
+★初回の巻き戻し（便 D2-c・2026-10-08）: 作ったばかりの demo org は memberships が無く（payload が供給）、帯の「初期状態に戻す」（POST /api/demo/reset）は auth_org_id が null で 403 になる。**初回は本節の once job か、route を同ヘッダ（Authorization: Bearer CRON_SECRET）で GET する**（?org=<店コード>）。2 回目以降は帯のボタンで可（10 分間隔）。
 
 ```sql
 select jobname, schedule, active from cron.job where jobname like 'nox-demo-%' order by jobname;   -- 8 行
