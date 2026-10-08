@@ -13,12 +13,20 @@
 
 ```sql
 select 'nox-project-proof', count(*) from public.orgs;                       -- 貼り先証明
-select vault.create_secret('https://<本番の NOX ホスト>/api/cron/demo-reset', 'nox_demo_reset_url', 'デモ日次リセットの route（0163 の cron job が参照）');
+select vault.create_secret('https://nox-kappa-eight.vercel.app/api/cron/demo-reset', 'nox_demo_reset_url', 'デモ日次リセットの route（0163 の cron job が参照）');   -- ★ホスト＝Vercel Production（nox-kappa-eight.vercel.app）。10/8 にプレースホルダ「<本番の NOX ホスト>」のまま投入された（便 D2-a で検知）＝下の update_secret で差替え
 select vault.create_secret('<Vercel env CRON_SECRET と同じ値>', 'nox_cron_secret', 'cron route の Bearer（0163 の cron job が参照）');
 select name, description, created_at from vault.secrets where name like 'nox_%' order by name;   -- 3 行（nox_mynumber_key ＋ 2）
 ```
 
 値の更新は `select vault.update_secret((select id from vault.secrets where name='nox_demo_reset_url'), '<新しい URL>');`。
+
+**★差替え（2026-10-08・便 D2-a の検知）**: 投入済みの値がプレースホルダのままなので、SQL Editor（本番 ref hiqbfagmkrdpmlqhkmsu を URL で目視・貼り先証明を先頭に）で次を実行:
+
+```sql
+select 'nox-project-proof', count(*) from public.orgs;
+select vault.update_secret((select id from vault.secrets where name='nox_demo_reset_url'), 'https://nox-kappa-eight.vercel.app/api/cron/demo-reset');
+select name, substring(decrypted_secret from '^https?://([^/]+)') as host from vault.decrypted_secrets where name='nox_demo_reset_url';   -- host＝nox-kappa-eight.vercel.app（値そのものは出さない）
+```
 
 ## 3. 動作確認（手貼り後）
 
