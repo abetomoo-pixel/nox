@@ -13,6 +13,8 @@ import PeriodPicker from "@/components/nox/period-picker"; // ★便 X-5: 期間
 import { totalDeductionsOf, frozenAdjustmentKeys, type FrozenAdjustment } from "@/lib/nox/payroll/adjust";
 import { breakdownLinesOf, hoursCellOf } from "@/lib/nox/payroll/breakdown-lines"; // ★裁定303: 支給／控除の行は PayslipSlip と同じ単一関数・一覧の「打刻なし」 // 裁定264-3: 控除計の式は 1 本に集約／264-10: 明細プレビューの凍結形
 import Modal from "@/components/ui/modal"; // ★裁定265: 調整行の削除理由はモーダル（window.prompt は使わない）
+import { PAYMENT_METHODS, paymentMethodLabelOf, type PaymentMethod } from "@/lib/nox/payroll/payment-method"; // ★裁定340（便 X-13d-2a）: 支払ダイアログの方法
+import { bulkPlanOf, bulkSummaryOf, payDialogDefaultsOf, payDialogErrorOf, remainingOf, type BulkResult, type PayDialogDraft, type PayLine } from "@/lib/nox/payroll/pay-record"; // ★裁定340
 import { pctToBp, bpToPct } from "@/lib/nox/payroll/adjust-route"; // 裁定264-7: 入力は %・保存は bp（client でも 0..10000 を assert）
 import PaymentPanel from "./payment-panel";
 import InvoicePanel from "./invoice-panel";
@@ -506,6 +508,20 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
 
   const total = rows?.reduce((s, r) => s + r.net, 0) ?? 0;
   const anomalyTotal = rows?.reduce((s, r) => s + r.anomalyCount, 0) ?? 0;
+  // ★裁定340（便 X-13d-2a・X-13-24）: 支払ダイアログ（①行の「未払」②内訳の「支払を記録」）と一括記録（③未払カード）。RPC は既存 payment_record_add（/api/payment/record）だけ。
+  const [payDlg, setPayDlg] = useState<PayLine | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const recordPayment = async (castId: string, d: PayDialogDraft): Promise<{ ok: boolean; error?: string }> => {
+    if (!runInfo) return { ok: false, error: "確定済みの期間だけ記録できます" };
+    try {
+      const res = await fetch("/api/payment/record", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ runId: runInfo.id, castId, amount: d.amount, paidAt: d.paidAt, method: d.method, note: d.note || null, idemKey: crypto.randomUUID() }) });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) return { ok: false, error: res.status === 409 ? "支払額の合計が差引支給額を超えます" : `エラー(${res.status}): ${j.error ?? ""}` };
+      return { ok: true };
+    } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  };
+  const payLinesOf = (): PayLine[] => (rows ?? []).map((r) => { const cp = castPaid?.get(r.castId); return { castId: r.castId, castName: r.castName, net: cp?.net ?? r.net, paid: cp?.paid ?? 0 }; });
 
   return (
     <div className="nox-printpage">
@@ -561,7 +577,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         // ステップ状態: draft＝①済（rows あり）②現在地／finalized＝③まで済・④現在地／paid＝全て済
         const stage = status === "paid" ? 4 : status === "finalized" ? 3 : rows ? 1 : 0;
         const next = status === "paid" ? "この期間は支払済みです"
-          : status === "finalized" ? "次: 下の「支払・明細」で支払いを記録"
+          : status === "finalized" ? "次: 行の「未払」を押して支払を記録"
           : rows ? "次: 要対応を確認して「この期間を確定する」"
           : "次: プレビューで勤怠・売上を取り込む";
         const STEPS = [
@@ -641,7 +657,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
               ) : kpi && isFrozen && unpaid !== null ? (
                 <>
                   <div className="v num" style={{ color: unpaid > 0 ? "var(--bad)" : "var(--ok)" }}>¥{unpaid.toLocaleString()}</div>
-                  <div className="l" style={{ marginTop: 2 }}>{unpaid <= 0 ? "全額支払済み" : "支払記録は下の「支払・明細」"}</div>
+                  <div className="l" style={{ marginTop: 2 }}>{unpaid <= 0 ? "全額支払済み" : "行の「未払」を押して支払を記録"}</div>
+                  {/* ★裁定340-③: 未払の全員を一括記録（方法と日付を 1 回選ぶ→確認→1 人ずつ既存 RPC） */}
+                  {unpaid > 0 && status === "finalized" && (
+                    <div className="nox-actions" style={{ marginTop: 6 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => setBulkOpen(true)}>未払の全員を一括記録</button></div>
+                  )}
                 </>
               ) : (
                 <>
@@ -690,6 +710,16 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       )}
 
       {msg && <Toast msg={msg} />}
+
+      {/* ★裁定340（便 X-13d-2a）: 支払ダイアログ＝①行の「未払」／②内訳の「支払を記録」から。既存 RPC payment_record_add（/api/payment/record）・成功で loadRun（支払状態と未支払 KPI を再読込） */}
+      {payDlg && (
+        <PayDialog line={payDlg} onClose={() => setPayDlg(null)}
+          onSubmit={async (d) => { const r = await recordPayment(payDlg.castId, d); if (r.ok) { setPayDlg(null); setMsg(`${payDlg.castName} の支払を記録しました（${d.amount.toLocaleString()} 円）`); await loadRun(); } return r; }} />
+      )}
+      {bulkOpen && (
+        <BulkPayDialog lines={payLinesOf()} onClose={() => setBulkOpen(false)}
+          onRun={async (d, items) => { const out: BulkResult[] = []; for (const it of items) { const r = await recordPayment(it.castId, { ...d, amount: it.amount }); out.push({ ...it, ok: r.ok, error: r.error }); } await loadRun(); return out; }} />
+      )}
       {/* ★0154 D4: 精算調整モーダル（明細から＝当期 draft run へ・成功で調整行と run を再読込） */}
       {settle && runInfo && (
         <SettlementModal storeId={storeId} castId={settle.castId} castName={settle.castName} runId={runInfo.id} biz={null}
@@ -823,7 +853,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{gross != null ? gross.toLocaleString() : "-"}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: ded ? "var(--bad)" : "var(--sub)" }}>{ded ? `−${ded.toLocaleString()}` : "-"}</td>
                   {dedCell(r.arDeductTotal, r.arCarriedTotal, "fold")}
-                  {dedCell(r.advDeductTotal, r.advCarriedTotal, "fold")}
+                  {advCell(r.advDeductTotal, r.advCarriedTotal, "fold")}
                   {dedCell(r.okuriDeductTotal, undefined, "fold")}
                   {/* net＝読む情報の最重要値ゆえ白太（値そのものは r.net のまま・書式も toLocaleString で不変） */}
                   <td style={{ ...t.td, ...t.num, textAlign: "right", fontWeight: 700, color: "var(--v2-text)" }}>{r.net.toLocaleString()}</td>
@@ -833,7 +863,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     const cp = castPaid?.get(r.castId);
                     const cell = payStatusCellOf(runInfo?.status, castPaid && cp ? cp : null);
                     const col = cell.tone === "ok" ? "var(--ok)" : cell.tone === "part" ? "var(--gold)" : cell.tone === "bad" ? "var(--bad)" : "var(--sub)";
-                    return <td style={{ ...t.td, fontWeight: 700, color: col, whiteSpace: "nowrap" }} title={cp ? `支払済 ¥${cp.paid.toLocaleString()}／差引支給 ¥${cp.net.toLocaleString()}` : undefined}>{cell.label}</td>;
+                    const payable = runInfo?.status === "finalized" && !!cp && cell.tone !== "ok" && cell.tone !== "mute"; // ★裁定340-①: 未払／一部を押すと支払ダイアログ
+                    return <td style={{ ...t.td, fontWeight: 700, color: col, whiteSpace: "nowrap" }} title={cp ? `支払済 ¥${cp.paid.toLocaleString()}／差引支給 ¥${cp.net.toLocaleString()}` : undefined}>{payable ? <button type="button" className="nox-link" style={{ fontWeight: 700, color: col, padding: 0 }} title="押して支払を記録" onClick={(e) => { e.stopPropagation(); setPayDlg({ castId: r.castId, castName: r.castName, net: cp!.net, paid: cp!.paid }); }}>{cell.label}</button> : cell.label}</td>;
                   })()}
                 </tr>
                 );
@@ -923,6 +954,9 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "4px 0 8px" }}>
                       <span style={{ fontSize: 12, color: "var(--sub)" }}>差引支給額</span>
                       <span className="num" style={{ fontSize: 20, fontWeight: 800, color: "var(--v2-text)" }}>¥{r.net.toLocaleString()}</span>
+                      {(() => { const cp = castPaid?.get(r.castId); return runInfo?.status === "finalized" && cp && remainingOf(cp) > 0
+                        ? (<button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: 8 }} onClick={() => setPayDlg({ castId: r.castId, castName: r.castName, net: cp.net, paid: cp.paid })}>支払を記録</button>) /* ★裁定340-② */
+                        : null; })()}
                     </div>
                     <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "8px 0 2px" }}>支給</p>
                     {bd.earn.map((ln) => line(ln.label, ln.amount, false, ln.key, !!(ln.sub || ln.info)))}{/* ★303-2: 時間行は 0 でも出る（関数が決める） */}
@@ -1045,7 +1079,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                       dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10), `${period}-01`, periodEndOf(period))}
                       readOnly={!adjEditable} onIssued={() => { void preview(); }} />
                     {/* ★便 X-6: 右寄せ（パネル内の他ボタンと揃える）・≤900px は全幅（.nox-actions.end） */}
-                    <div className="nox-actions end" style={{ marginTop: 10 }}>
+                    <div className="nox-actions" style={{ marginTop: 10 }}>{/* ★X-13-25（便 X-13d-2a）: 中央寄せ＝共通 .nox-actions（他画面の閉じる行と同じ） */}
                       <button onClick={() => setSlipPreview((v) => !v)} style={{ ...t.btnGhost, ...t.btnSm }}>
                         {slipPreview ? "明細プレビューを閉じる" : "明細プレビュー"}
                       </button>
@@ -1239,11 +1273,104 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
 
 // 天引きセル（−¥X ＋ 繰越表示）。carried 未指定（送り実費＝繰越なし）は繰越を出さない。
 // 段Y2: 第3引数 cls は SP 列畳み（.fold）のためだけ＝セルの中身・数値・色は一切変えていない。
+// ★X-13-26（便 X-13d-2a）: 前借り列＝2 行（上段「天引き N」＝今期の天引き額・下段「残 N」＝翌期へ繰り越す残高・0 は「—」）。値は collect/core の advDeductTotal／advCarriedTotal（規則 A＝発行日の期で天引き）。
+function advCell(deduct?: number, carried?: number, cls?: string) {
+  return (
+    <td className={cls} style={{ ...t.td, ...t.num, textAlign: "right", lineHeight: 1.3 }}>
+      <div style={{ color: deduct ? "var(--bad)" : "var(--sub)", whiteSpace: "nowrap" }}><span style={{ fontSize: 10.5, color: "var(--sub)" }}>天引き </span>{deduct ? `−${deduct.toLocaleString()}` : "—"}</div>
+      <div style={{ color: carried ? "var(--champ)" : "var(--sub)", whiteSpace: "nowrap" }}><span style={{ fontSize: 10.5, color: "var(--sub)" }}>残 </span>{carried ? carried.toLocaleString() : "—"}</div>
+    </td>
+  );
+}
 function dedCell(deduct?: number, carried?: number, cls?: string) {
   return (
     <td className={cls} style={{ ...t.td, ...t.num, textAlign: "right", color: deduct ? "var(--bad)" : "var(--sub)" }}>
       {deduct ? `−${deduct.toLocaleString()}` : "-"}
       {carried ? <span style={{ color: "var(--champ)", fontSize: 11 }}>（繰越 {carried.toLocaleString()}）</span> : null}
     </td>
+  );
+}
+
+// ★裁定340（便 X-13d-2a）: 支払ダイアログ（1 人）＝支払日（既定 今日）・方法（現金／振込／その他）・金額（既定 残額・部分支払可）・メモ。検証は payDialogErrorOf（RPC と同じ輪郭）。
+function PayDialog({ line, onClose, onSubmit }: { line: PayLine; onClose: () => void; onSubmit: (d: PayDialogDraft) => Promise<{ ok: boolean; error?: string }> }) {
+  const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+  const [d, setD] = useState<PayDialogDraft>(() => payDialogDefaultsOf(line, today));
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const rem = remainingOf(line);
+  return (
+    <Modal onClose={() => { if (!busy) onClose(); }} maxWidth={430}>
+      <div className="nox-formmodal-head"><h2 style={{ margin: 0, fontSize: 15 }}>支払を記録 — {line.castName}</h2><button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={onClose} disabled={busy}>×</button></div>
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 10px" }}>差引支給 <span className="num">{line.net.toLocaleString()} 円</span>・支払済 <span className="num">{line.paid.toLocaleString()} 円</span>・残額 <b className="num" style={{ color: "var(--v2-text)" }}>{rem.toLocaleString()} 円</b></p>
+      <div style={{ display: "grid", gap: 10 }}>
+        <label style={{ fontSize: 12, display: "grid", gap: 4 }}>支払日<input type="date" value={d.paidAt} onChange={(e) => setD({ ...d, paidAt: e.target.value })} style={{ ...t.input, width: 170 }} disabled={busy} /></label>
+        <label style={{ fontSize: 12, display: "grid", gap: 4 }}>方法
+          <select value={d.method} onChange={(e) => setD({ ...d, method: e.target.value as PaymentMethod })} style={{ ...t.input, width: 170 }} disabled={busy}>
+            {PAYMENT_METHODS.map(([m, l]) => <option key={m} value={m}>{l}</option>)}
+          </select></label>
+        <label style={{ fontSize: 12, display: "grid", gap: 4 }}>金額（部分支払も可）<MoneyInput value={d.amount} onChange={(v) => setD({ ...d, amount: Number(v || 0) })} width={170} ariaLabel="支払額" disabled={busy} invalid={d.amount > rem} /></label>
+        <label style={{ fontSize: 12, display: "grid", gap: 4 }}>メモ（任意）<input value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} maxLength={200} style={t.input} disabled={busy} /></label>
+        {err && <Toast msg={err} />}
+        <div className="nox-actions">
+          <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={onClose} disabled={busy}>キャンセル</button>
+          <button type="button" style={t.btnGold} disabled={busy || !!payDialogErrorOf(d, line)} title={payDialogErrorOf(d, line) ?? ""}
+            onClick={async () => { const e = payDialogErrorOf(d, line); if (e) { setErr(e); return; } setBusy(true); setErr(null); const r = await onSubmit(d); setBusy(false); if (!r.ok) setErr(r.error ?? "記録できませんでした"); }}>
+            {d.amount >= rem ? "全額を支払済にする" : "この金額を記録"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ★裁定340-③: 未払の全員を一括記録＝方法と日付を 1 回選ぶ→確認（人数・合計）→1 人ずつ順に既存 RPC。失敗した人は赤で残し成功分はそのまま（裁定333 の流儀）。
+function BulkPayDialog({ lines, onClose, onRun }: { lines: PayLine[]; onClose: () => void; onRun: (d: PayDialogDraft, items: { castId: string; castName: string; amount: number }[]) => Promise<BulkResult[]> }) {
+  const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+  const plan = bulkPlanOf(lines);
+  const [d, setD] = useState<PayDialogDraft>({ amount: 0, paidAt: today, method: "cash", note: "" });
+  const [step, setStep] = useState<"form" | "confirm" | "done">("form");
+  const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState<BulkResult[] | null>(null);
+  const sum = results ? bulkSummaryOf(results) : null;
+  return (
+    <Modal onClose={() => { if (!busy) onClose(); }} maxWidth={480} scroll>
+      <div className="nox-formmodal-head"><h2 style={{ margin: 0, fontSize: 15 }}>未払の全員を一括記録</h2><button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={onClose} disabled={busy}>×</button></div>
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 10px" }}>対象 <b className="num">{plan.items.length}</b> 人・合計 <b className="num" style={{ color: "var(--v2-text)" }}>{plan.total.toLocaleString()} 円</b>（各人の残額を全額）</p>
+      {step === "form" && (
+        <div style={{ display: "grid", gap: 10 }}>
+          <label style={{ fontSize: 12, display: "grid", gap: 4 }}>支払日<input type="date" value={d.paidAt} onChange={(e) => setD({ ...d, paidAt: e.target.value })} style={{ ...t.input, width: 170 }} /></label>
+          <label style={{ fontSize: 12, display: "grid", gap: 4 }}>方法
+            <select value={d.method} onChange={(e) => setD({ ...d, method: e.target.value as PaymentMethod })} style={{ ...t.input, width: 170 }}>
+              {PAYMENT_METHODS.map(([m, l]) => <option key={m} value={m}>{l}</option>)}
+            </select></label>
+          <label style={{ fontSize: 12, display: "grid", gap: 4 }}>メモ（任意・全員に同じ）<input value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} maxLength={200} style={t.input} /></label>
+          <div className="nox-actions">
+            <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={onClose}>キャンセル</button>
+            <button type="button" style={t.btnGold} disabled={plan.items.length === 0 || !/^\d{4}-\d{2}-\d{2}$/.test(d.paidAt)} onClick={() => setStep("confirm")}>確認へ</button>
+          </div>
+        </div>
+      )}
+      {step === "confirm" && (
+        <div style={{ display: "grid", gap: 10 }}>
+          <p style={{ fontSize: 12, margin: 0 }}>{d.paidAt}・{paymentMethodLabelOf(d.method)} で、次の {plan.items.length} 人の残額を全額「支払済」にします。1 人ずつ順に記録し、失敗した人は赤で残します。</p>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, maxHeight: 220, overflow: "auto" }}>
+            {plan.items.map((it) => <li key={it.castId}>{it.castName} <span className="num">{it.amount.toLocaleString()} 円</span></li>)}
+          </ul>
+          <div className="nox-actions">
+            <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setStep("form")} disabled={busy}>戻る</button>
+            <button type="button" style={t.btnGold} disabled={busy} onClick={async () => { setBusy(true); const out = await onRun(d, plan.items); setResults(out); setBusy(false); setStep("done"); }}>{busy ? "記録中…" : `${plan.items.length} 人を記録する`}</button>
+          </div>
+        </div>
+      )}
+      {step === "done" && results && sum && (
+        <div style={{ display: "grid", gap: 10 }}>
+          <Toast msg={sum.text} kind={sum.ngN ? "error" : "success"} />
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, maxHeight: 220, overflow: "auto" }}>
+            {results.map((r) => <li key={r.castId} style={{ color: r.ok ? undefined : "var(--bad)" }}>{r.castName} <span className="num">{r.amount.toLocaleString()} 円</span>{r.ok ? " ✓" : ` ✗ ${r.error ?? ""}`}</li>)}
+          </ul>
+          <div className="nox-actions"><button type="button" style={t.btnGold} onClick={onClose}>閉じる</button></div>
+        </div>
+      )}
+    </Modal>
   );
 }

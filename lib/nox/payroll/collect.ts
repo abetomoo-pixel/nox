@@ -17,6 +17,7 @@ import type { CompPlan, PlanOverride, Deduction, BackDef, TaxMode } from "../pay
 import { buildMatchInput, dayWorkedHours, type PunchRow, type ShiftRow, type AttendanceRow } from "../punch-io";
 import { matchPunches } from "../punch-match";
 import { bizDateOf } from "../biz-date";
+import { anomalyFlagsOf } from "./anomaly"; // ★X-13-27（便 X-13d-2a）: 未来日の確定シフトは不整合に数えない
 
 import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
 import { monthsInRange, prevMonthOf, lastDayOf } from "./slide"; // ★N3b（裁定288）
@@ -343,6 +344,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
   const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[] }>();
   // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
   const recipientsByDate = new Map<string, string[]>();
+  const todayBiz = bizDateOf(new Date().toISOString(), win.cutoffHm); // ★X-13-27: 営業日の今日（store の cutoff）
   for (const [cid, raw] of byCast) {
     const built = buildMatchInput({ cutoffHm: win.cutoffHm, shifts: raw.shifts, attendance: raw.att, punches: raw.punches });
     const m = matchPunches({ ...built, config: { close: win.closeHm, lateGraceMin: grace.lateGrace, earlyGraceMin: grace.earlyGrace, overGraceMin: grace.overGrace } });
@@ -367,9 +369,10 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
         days += 1;
         (recipientsByDate.get(d.bizDate) ?? recipientsByDate.set(d.bizDate, []).get(d.bizDate)!).push(cid);
       }
-      const outAnom = d.raw.out.type === "noout" || d.raw.out.type === "early" || d.raw.out.type === "over";
-      if (d.anomalies.length > 0 || outAnom) anomalyCount += 1;
-      if (d.raw.out.type === "noout" && (d.final.type === "ok" || d.final.type === "late")) missingOutDates.push(d.bizDate); // ★N3 AV-4
+      // ★X-13-27（便 X-13d-2a）: 不整合・退勤なしは今日までの営業日だけ（未来日の確定シフトは数えない＝純関数 anomalyFlagsOf）
+      const af = anomalyFlagsOf({ bizDate: d.bizDate, anomalies: d.anomalies, rawOutType: d.raw.out.type, finalType: d.final.type }, todayBiz);
+      if (af.counted) anomalyCount += 1;
+      if (af.missingOut) missingOutDates.push(d.bizDate); // ★N3 AV-4
     }
     result.set(cid, { days, lateN: m.lateN, absentN: m.absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
   }

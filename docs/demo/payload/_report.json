@@ -1,9 +1,9 @@
 {
  "stores": {
   "muse": {
-   "bytes": 1232274,
-   "rows": 2142,
-   "tables": 35,
+   "bytes": 1232823,
+   "rows": 2143,
+   "tables": 36,
    "checks": 281,
    "lines": 773,
    "monthGross": 3176557,
@@ -120,12 +120,12 @@
      ]
     }
    ],
-   "sha256": "fca56337135b54bd646ef287bc95f15c5a3c9b5a8da26475e8d8add89c0e6eaf"
+   "sha256": "819a5d7976755fb87b8c3b989c1a7a91fb90d92c8a11274d5aa6458086e5fbec"
   },
   "luna": {
-   "bytes": 1884826,
-   "rows": 3269,
-   "tables": 38,
+   "bytes": 1885375,
+   "rows": 3270,
+   "tables": 39,
    "checks": 462,
    "lines": 1322,
    "monthGross": 7845799,
@@ -277,12 +277,12 @@
      ]
     }
    ],
-   "sha256": "e61e2b900fb138c8d7072e65f152a50cfbee2030bbc909e49d0451520706f71b"
+   "sha256": "d34dfe064c67e6c7dd1f6a0bedde827d98405a50c9a7a68c499f3a6f2d505042"
   },
   "noir": {
-   "bytes": 2061242,
-   "rows": 3629,
-   "tables": 38,
+   "bytes": 2061791,
+   "rows": 3630,
+   "tables": 39,
    "checks": 506,
    "lines": 1356,
    "monthGross": 13681604,
@@ -500,12 +500,12 @@
      ]
     }
    ],
-   "sha256": "6385a44633ec1798c6dd605b2d64f9ceed2f42c8a8d57715ae99b63a2b4922b9"
+   "sha256": "a9c53af4e539f37cc62697a0ac878407c2f12fe6cc44bafeb92ab30418b534c6"
   },
   "ace": {
-   "bytes": 1933429,
-   "rows": 3359,
-   "tables": 39,
+   "bytes": 1933978,
+   "rows": 3360,
+   "tables": 40,
    "checks": 485,
    "lines": 1448,
    "monthGross": 9236403,
@@ -657,12 +657,12 @@
      ]
     }
    ],
-   "sha256": "8efa97fd919717294d08ac69e17b2f49425e0390960de82a65b08b1bc40304c7"
+   "sha256": "39ef5c005323629ad3df1d87922afc574997969491df5f89ea6a7e6cc6dc91a3"
   },
   "lily": {
-   "bytes": 2604590,
-   "rows": 4471,
-   "tables": 35,
+   "bytes": 2605139,
+   "rows": 4472,
+   "tables": 36,
    "checks": 594,
    "lines": 1935,
    "monthGross": 5712067,
@@ -794,12 +794,12 @@
      ]
     }
    ],
-   "sha256": "1ce77ba4a30c8bf713ce40e71a8649fd3047374dc1fa41624d0033dce27f6bc6"
+   "sha256": "e468b21cf56ea8e3f259ab847ce3a8ca3b1e30244a6515b942dd507ef6dec907"
   },
   "nest": {
-   "bytes": 2842142,
-   "rows": 4775,
-   "tables": 33,
+   "bytes": 2842691,
+   "rows": 4776,
+   "tables": 34,
    "checks": 507,
    "lines": 2716,
    "monthGross": 4055999,
@@ -921,7 +921,7 @@
      ]
     }
    ],
-   "sha256": "9f0cdb214e17fd277df74e8c38120624205238bcfe17052a86a99938cbf6c6d1"
+   "sha256": "132b78aebe8e18ac4bc367bc28e61b158c29ac25a29c5f2dd7c025f5558ac64c"
   }
  },
  "ids": 0

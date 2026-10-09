@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
-import { EXTRA_PLANS, PROFILES, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { ADVANCES, EXTRA_PLANS, PROFILES, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
@@ -186,6 +186,9 @@ for (const st of STORES) {
   if (PF.sys.bonus) for (const p of plans) push("comp_plan_components", { id: uid(`comp:${p.plan_id}:bonus`), store_id: storeId, plan_id: uid(`plan:${p.plan_id}`), kind: "achievement_bonus", mode: "amount", amount: 10000, rate: null, params: { thresholds: [{ pct: 100 }] }, priority: 100, is_active: true });
   for (const r of cmt) if (CAST[r.person_id]) for (const [k, m] of [["prev", -1], ["cur", 0]]) push("cast_quotas", { id: uid(`quota:${r.person_id}:${k}`), store_id: storeId, cast_id: CAST[r.person_id].id, month: { $m: m, d: 1 }, hon: r.main_count_target || null, jonai: r.inhouse_count_target || null, dohan: r.accompanied_count_target || null, sales: r.sales_target_yen || null });
   push("kiosk_devices", { id: uid(`kiosk:${code}`), store_id: storeId, auth_user_id: users.kiosk, label: `${st.store_name} 打刻端末`, is_active: true, purpose: "punch" });
+  // ★X-13-26（便 X-13d-2a）: 前借り＝代表キャストに 1 件・先月の中旬（$m:-1 d:15）＝先月分の確定（finalize hook）で天引き済み・当月に繰越なし（規則 A＝発行日の期で天引き）
+  if (ADVANCES[code] > 0) push("advances", { id: uid(`adv:${code}:rep`), store_id: storeId, cast_id: CAST[repCast.person_id].id, amount: ADVANCES[code], deducted_amount: 0, status: "open", deduct_period: null,
+    advanced_on: { $m: -1, d: 15 }, note: "デモ: 先月中旬の前借り", created_by: users.owner, created_at: { $m: -1, d: 15, t: "20:00:00" }, updated_at: { $m: -1, d: 15, t: "20:00:00" }, cancelled_by: null, cancelled_at: null, idem_key: null });
   push("notices", { id: uid(`notice:${code}`), store_id: storeId, title: "デモ環境へようこそ", body: `${st.store_name} のデモです。入力内容は毎日 06:05 に初期状態へ戻ります。`, audience: "all", pinned: true, until: null, created_by: users.owner, created_at: { $rel: -7, t: "12:00:00" } });
   // キープ・売掛（開始残高）
   for (const b of D("bottle_keep_snapshots").filter((b) => b.store_id === S)) push("bottle_keeps", { id: uid(`keep:${b.bottle_keep_id}`), store_id: storeId, customer_id: custId(b.customer_id), product_id: uid(`prod:${b.product_id}`), opened_at: { $rel: -Math.max(1, Math.round((Date.parse("2026-10-01") - Date.parse(b.opened_on)) / 86400000)), t: "22:00:00" }, status: "active", remaining_pct: b.remaining_percent_estimate, bottle_name: PRODUCT[b.product_id]?.product_name ?? null, last_used_at: b.last_used_on ? { $rel: -Math.max(1, Math.round((Date.parse("2026-10-01") - Date.parse(b.last_used_on)) / 86400000)), t: "22:30:00" } : null, note: null });

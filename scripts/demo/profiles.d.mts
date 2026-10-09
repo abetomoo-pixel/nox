@@ -9,6 +9,8 @@ export type Profile = {
 export const PROFILES: Record<string, Profile>;
 export const PROFILE_CODES: string[];
 /** ★X-13-21（便 X-13d-1）: 1 本だけの店に足す 2〜3 本目の待遇プラン */
+/** ★X-13-26（便 X-13d-2a）: 代表キャストの前借り額（0＝なし） */
+export const ADVANCES: Record<string, number>;
 export const EXTRA_PLANS: Record<string, { key: string; name: string; base: number; hon: number; jonai: number; dohan: number }[]>;
 export function sysSettingsOf(code: string): Record<string, boolean>;
 export function backKeyOf(row: { type?: string; category?: string | null }): "champ" | "bottle" | "food" | "cast" | "soft" | "glass";

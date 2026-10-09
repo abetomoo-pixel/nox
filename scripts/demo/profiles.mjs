@@ -31,6 +31,8 @@ export const PROFILES = {
 export const PROFILE_CODES = Object.keys(PROFILES);
 /** ★X-13-21（便 X-13d-1・仮決め）: 待遇プランが 1 本だけの店に 2〜3 本目を足す（源泉 nox_demo_all.json の compensation_plans は不変＝gen-demo が末尾に足し、キャストは順番に割り振る）。
  *  NOIR は源泉で 3 本・LILY は源泉 1 本（live の 3 本中 2 本はデモ内で手入力されたもの＝reset で消える）・ACE は源泉 1 本（売上スライド）のまま＝相談役ブロック「ACE はプラン 0 のまま（仕様）」に合わせ据え置き（実体は 1 本）。 */
+/** ★X-13-26（便 X-13d-2a・仮決め）: 代表キャストの前借り（先月の中旬＝{$m:-1,d:15}・open）＝先月分の確定（finalize hook）で天引き済み・当月に繰越なし。0＝入れない */
+export const ADVANCES = { muse: 50000, luna: 30000, noir: 30000, ace: 30000, lily: 30000, nest: 30000 };
 export const EXTRA_PLANS = {
   muse: [{ key: "senior", name: "MUSE Senior", base: 2000, hon: 500, jonai: 300, dohan: 300 }],
   luna: [{ key: "premium", name: "LUNA Premium", base: 3500, hon: 1000, jonai: 500, dohan: 500 }, { key: "rookie", name: "LUNA 新人", base: 2500, hon: 500, jonai: 300, dohan: 300 }],
