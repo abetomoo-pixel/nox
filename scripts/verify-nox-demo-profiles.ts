@@ -45,6 +45,10 @@ for (const code of codes) {
     const exIds = new Set(plans.filter((p) => ex.some((x) => x.name === p.name)).map((p) => p.id));
     check(`dpf(2-5) ${code}: comp_plans ${plans.length} 本（追加 ${ex.length}・ACE 以外は ≥2）・cast_plan＝casts ${casts.length} 全員・追加プランへの割当 ${cps.filter((c) => exIds.has(c.plan_id)).length} 人`,
       exIds.size === ex.length && (code === "ace" ? plans.length === 1 : plans.length >= 2) && cps.length === casts.length && new Set(cps.map((c) => c.cast_id)).size === casts.length && (ex.length === 0 || cps.some((c) => exIds.has(c.plan_id)))); }
+  // ★裁定337（便 X-13d-2b）: 3 方式が混ざる（null＝店の既定・'shift'・'off_only' が各 1 人以上）／★0168 先行: comp_plans.slide_period＝ACE／NOIR monthly・LUNA half・他 daily
+  { const cs = (T.casts ?? []) as { shift_request_mode?: string | null }[]; const m = (v: string | null) => cs.filter((c) => (c.shift_request_mode ?? null) === v).length;
+    const sp = new Set(((T.comp_plans ?? []) as { slide_period?: string }[]).map((p) => p.slide_period)); const exp = ({ ace: "monthly", noir: "monthly", luna: "half" } as Record<string, string>)[code] ?? "daily";
+    check(`dpf(2-6) ${code}: シフト希望の方式＝既定 ${m(null)}／shift ${m("shift")}／off_only ${m("off_only")}（各 ≥1）・comp_plans.slide_period＝${[...sp].join(",")}（期待 ${exp}）`, m(null) >= 1 && m("shift") >= 1 && m("off_only") >= 1 && sp.size === 1 && sp.has(exp)); }
   const needs = T.staffing_needs ?? [];
   const wk = [0, 1, 2, 3, 4, 5, 6].map((i) => T.shifts.filter((s) => s.date?.$rel === i && s.status === "confirmed").length);
   const want = p.shift.pattern.map((n: number) => Math.min(n, T.casts.length));

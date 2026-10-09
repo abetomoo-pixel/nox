@@ -5,6 +5,7 @@
 //   ★シフトの営業日判定は shiftHoursStatus（date 直＝cutoff 変換なし・mig0008 決定3）。
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
+import { SHIFT_REQUEST_MODE_LABEL } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: 配置ビューの印
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import CastPicker from "@/components/nox/cast-picker";
@@ -52,7 +53,7 @@ import IncentivePanel from "./incentive-panel";
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
-type Cast = { id: string; name: string; photo_updated_at: string | null; employment?: string | null }; // ★0154 D1: employment（用語の出し分け）
+type Cast = { id: string; name: string; photo_updated_at: string | null; employment?: string | null; shift_request_mode?: "shift" | "off_only" | null }; // ★0154 D1: employment（用語の出し分け）・★裁定337（0167）: 個別の方式（null＝店の既定）
 type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string };
 // ★SD V2-2（mig0101）: status 3値（planned→proposed→confirmed）＋wish_id（原型対比）＋source/period_id（自動配置）
 type Shift = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string; created_by: string; wish_id: string | null; source: string; period_id: string | null };
@@ -1998,7 +1999,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                     <tbody>
                       {rows.map((c) => (
                         <tr key={c.id}>
-                          <td style={{ ...cellTd, textAlign: "left", whiteSpace: "nowrap" }}>{c.name}</td>
+                          <td style={{ ...cellTd, textAlign: "left", whiteSpace: "nowrap" }}>{c.name}
+                            {/* ★裁定337（0167・便 X-13d-2b）: キャスト個別のシフト希望の方式の印（店の既定に従う人は印なし） */}
+                            {c.shift_request_mode && <span className="nox-stpill" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }} title="このキャストだけの方式（キャスト詳細 › 待遇で変更）">{SHIFT_REQUEST_MODE_LABEL[c.shift_request_mode]}</span>}
+                          </td>
                           {days.map((d) => {
                             const mine = shifts.filter((x) => x.cast_id === c.id && x.date === d);
                             const top = mine.some((x) => x.status === "confirmed") ? "confirmed"

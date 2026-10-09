@@ -10,7 +10,7 @@
  *  逆テスト 1 本（手動・1 回）: wishSubmitArgsOf の 'off' を 'ofx' にする→wm(1-2) 赤・戻して緑。
  */
 import fs from "node:fs";
-import { OFF_MODE_NOTE, wishNavLabelOf, wishNeedsTimes, wishPageTextOf, wishRowLabelOf, wishSubmitArgsOf } from "../lib/nox/mine/wish-mode";
+import { OFF_MODE_NOTE, resolveWishMode, wishNavLabelOf, wishNeedsTimes, wishPageTextOf, wishRowLabelOf, wishSubmitArgsOf } from "../lib/nox/mine/wish-mode";
 import { candidateWishesOf, datesBetween, isVirtualWishId, placementsOfVirtual } from "../lib/nox/shift/autoassign-mode";
 import { disableMonthOptionsOf, isPatternEnabledOn, patternDisableStateOf } from "../lib/nox/shift/pattern-disable";
 import { rpcErrJa } from "../lib/nox/ui/rpc-err";
@@ -38,6 +38,10 @@ const wishes = [
 const cs = candidateWishesOf({ mode: "shift", wishes, castIds: ["a", "b"], startDate: "2026-10-01", endDate: "2026-10-02", defaultStart: "20:00", defaultEnd: "26:00" });
 check("wm(2-1) 'shift': pending の work だけ（off・rejected は除外）＝w1 のみ・時刻は wish の値", cs.length === 1 && cs[0].id === "w1" && cs[0].startHm === "20:00", JSON.stringify(cs));
 const co = candidateWishesOf({ mode: "off_only", wishes, castIds: ["a", "b"], startDate: "2026-10-01", endDate: "2026-10-02", defaultStart: "20:00", defaultEnd: "26:00" });
+// ★裁定337（0167・便 X-13d-2b）: キャスト個別の方式（castModes）＝店既定 'shift' でも 'off_only' の人は反転・'shift' の人は work wish・null は店の既定
+const cm = candidateWishesOf({ mode: "shift", wishes, castIds: ["a", "b"], startDate: "2026-10-01", endDate: "2026-10-02", defaultStart: "20:00", defaultEnd: "25:00", castModes: { a: "off_only", b: null } });
+check("wm(2-5) ★裁定337 castModes: a（個別 off_only）は反転＝仮想 wish・b（null＝店既定 shift）は work wish だけ", cm.filter((w) => w.castId === "a").every((w) => isVirtualWishId(w.id)) && cm.some((w) => w.castId === "a") && cm.filter((w) => w.castId === "b").every((w) => !isVirtualWishId(w.id)), JSON.stringify(cm.map((w) => w.id)));
+check("wm(2-6) ★裁定337 resolveWishMode: 'off_only'／'shift' は個別が勝つ・null／不正値は店の既定", resolveWishMode("off_only", "shift") === "off_only" && resolveWishMode("shift", "off_only") === "shift" && resolveWishMode(null, "off_only") === "off_only" && resolveWishMode("x", "shift") === "shift");
 check("wm(2-2) 'off_only': 候補反転＝2 日×2 人のうち b の off（10/1 pending・10/2 accepted）を除く 2 件（a の 2 日）・仮想 id・既定の帯時間", co.length === 2 && co.every((w) => w.castId === "a" && isVirtualWishId(w.id) && w.startHm === "20:00" && w.endHm === "26:00") && co.map((w) => w.date).join(",") === "2026-10-01,2026-10-02", JSON.stringify(co));
 check("wm(2-3) placementsOfVirtual（仮想 id → cast×日付・実 id は無視）・datesBetween（両端含む・月またぎ）", JSON.stringify(placementsOfVirtual([co[0].id, "w1"])) === JSON.stringify([{ castId: "a", date: "2026-10-01" }]) && JSON.stringify(datesBetween("2026-09-29", "2026-10-02")) === JSON.stringify(["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"]));
 
@@ -52,7 +56,7 @@ check("wm(3-2) patternDisableStateOf: null＝active／未来＝scheduled「11/1 
 // (4)
 const src = (p: string) => fs.readFileSync(p, "utf8");
 const layout = src("app/mine/layout.tsx"), wpage = src("app/mine/wishes/page.tsx"), wf = src("app/mine/wishes/wish-form.tsx"), panel = src("app/(manage)/master/staff-shift-panel.tsx"), pb = src("app/(manage)/master/pricing/pricing-board.tsx");
-check("wm(4-1) layout＝wishNavLabelOf(ms.shift_request_mode)／wishes page＝店設定→mode・<WishForm mode={mode}・kind を読む・wishRowLabelOf・文言は wishPageTextOf", layout.includes('{ href: "/mine/wishes", label: wishNavLabelOf(ms.shift_request_mode) }')
+check("wm(4-1) ★裁定337: layout＝auth_cast_id→resolveWishMode→wishNavLabelOf(wishMode)／wishes page＝店設定→mode・<WishForm mode={mode}・kind を読む・wishRowLabelOf・文言は wishPageTextOf", layout.includes('{ href: "/mine/wishes", label: wishNavLabelOf(wishMode) }')
   && wpage.includes("mineSettingsOf(storeRow?.settings_json).shift_request_mode") && wpage.includes("<WishForm mode={mode} />") && wpage.includes('.select("id, date, start_hm, end_hm, status, kind")') && wpage.includes("wishRowLabelOf({") && wpage.includes("wishPageTextOf(mode)"));
 check("wm(4-2) wish-form: wishSubmitArgsOf(r, mode) を rpc に渡す・needsTimes で時間欄（一括・日別）を出し分け・既存 pin（toggleDay(s, ymd, active)／composeSubmissions／for of rpc／MonthNav 1／useYmQuery）は不変",
   wf.includes('supabase.rpc("shift_wish_submit", wishSubmitArgsOf(r, mode))') && wf.includes("const needsTimes = wishNeedsTimes(mode);") && wf.includes("{needsTimes ? (") && wf.includes("休みたい日（時間は入力しません）")

@@ -27,6 +27,7 @@ import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定
 import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定309-6・便 V-4）: 日払いの発行（cast 固定・daily_pay_issue・源泉プレビュー）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
+import { SHIFT_REQUEST_MODE_LABEL, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: シフト希望の方式のラベルと店の既定
 import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
 import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
 
@@ -434,12 +435,25 @@ export default function CastsBoard({
   // ── F3g' castログイン招待（招待=未結線 / PW再発行=結線済み・POST /api/cast/invite） ──
   const reloadLoginCasts = useCallback(async () => {
     // mig0074: left_on を含め、page.tsx と同一の取得にする（.eq(is_active,true) を外す＝段C2 の在籍/退店タブ前提）。
-    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, employment, employment_valid_from").order("name"); // ★0154 D2／D6
+    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, employment, employment_valid_from, shift_request_mode").order("name"); // ★0154 D2／D6
     setLoginCasts((data ?? []) as CastLogin[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // D2-4: 指名ランクの割当（set_cast_rank_of）。null=解除。失敗トークンは日本語化。
+  // ★裁定337（0167・便 X-13d-2b）: シフト希望の方式＝キャスト個別の上書き（null＝店の既定に従う）。保存は set_cast_shift_request_mode（owner ∨ manager 自店・課金ゲート・監査）。
+  async function setShiftMode(c: CastLogin, mode: "shift" | "off_only" | null) {
+    setMsg(null);
+    setBusy(true);
+    const { error } = await supabase.rpc("set_cast_shift_request_mode", { p_cast_id: c.id, p_mode: mode });
+    setBusy(false);
+    if (error) {
+      setMsg(error.message.includes("forbidden") ? "権限がありません" : error.message.includes("billing locked") ? "ご契約の状態により変更できません" : error.message.includes("bad mode") ? "方式の値が正しくありません" : error.message);
+      return;
+    }
+    setLoginCasts((rows) => rows.map((r) => (r.id === c.id ? { ...r, shift_request_mode: mode } : r)));
+    setMsg(mode === null ? "シフト希望の方式を店の既定に戻しました" : `シフト希望の方式を「${SHIFT_REQUEST_MODE_LABEL[mode]}」にしました`);
+  }
   async function assignRank(c: CastLogin, rankId: string | null) {
     setMsg(null);
     setBusy(true);
@@ -859,6 +873,20 @@ export default function CastsBoard({
 
           {dtab === "comp" && (
             <>
+              {/* ★裁定337（0167・便 X-13d-2b）: シフト希望の方式＝3 択（店の既定に従う／シフト希望／休み希望のみ）・既定＝店の既定に従う（null）。/mine と自動配置の候補は「キャスト個別→店の既定」で解決 */}
+              <div className="nox-frow">
+                <span className="k">シフト希望の方式</span>
+                <span className="v">
+                  <select value={selCast.shift_request_mode ?? ""} disabled={busy} aria-label="シフト希望の方式"
+                    onChange={(e) => void setShiftMode(selCast, e.target.value === "" ? null : (e.target.value as "shift" | "off_only"))}
+                    style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12.5 }}>
+                    <option value="">店の既定に従う（{SHIFT_REQUEST_MODE_LABEL[mineSettingsOf(stores.find((st) => st.id === selCast.store_id)?.settings_json).shift_request_mode]}）</option>
+                    <option value="shift">{SHIFT_REQUEST_MODE_LABEL.shift}</option>
+                    <option value="off_only">{SHIFT_REQUEST_MODE_LABEL.off_only}</option>
+                  </select>
+                  <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 8 }}>キャストのスマホ（シフト希望／休み希望）と自動配置の候補に効きます</span>
+                </span>
+              </div>
               {/* D2-4（mig0083/0085）: 指名ランクの割当（set_cast_rank_of・null=ランクなし）。
                   ランク別指名料（pricing_rules）の解決軸＝行追加時のキャストの現在ランクで決まる。 */}
               <div className="nox-frow">

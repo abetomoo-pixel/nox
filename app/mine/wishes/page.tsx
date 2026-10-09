@@ -3,7 +3,7 @@ import * as t from "@/lib/nox/ui/theme";
 import WishForm from "./wish-form";
 import WithdrawButton from "./withdraw-button";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-7（便 M4-1）: 店設定 shift_request_mode（'shift'／'off_only'）
-import { wishPageTextOf, wishRowLabelOf } from "@/lib/nox/mine/wish-mode";
+import { resolveWishMode, wishPageTextOf, wishRowLabelOf } from "@/lib/nox/mine/wish-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,10 @@ const STATUS_COLOR: Record<string, string> = {
 export default async function WishesPage() {
   const supabase = await createClient();
   const { data: storeRow } = await supabase.from("stores").select("settings_json").limit(1).maybeSingle(); // cast の RLS で自店 1 行（mig0106）
-  const mode = mineSettingsOf(storeRow?.settings_json).shift_request_mode;
+  // ★裁定337（0167・便 X-13d-2b）: キャスト個別（casts.shift_request_mode・auth_cast_id で自分の行）→店の既定 で解決。'off_only' の候補反転（M4）も同じ解決値（autoassign-mode.castModes）
+  const { data: myCastId } = await supabase.rpc("auth_cast_id");
+  const { data: meCast } = myCastId ? await supabase.from("casts").select("shift_request_mode").eq("id", myCastId as string).maybeSingle() : { data: null };
+  const mode = resolveWishMode((meCast as { shift_request_mode?: string | null } | null)?.shift_request_mode, mineSettingsOf(storeRow?.settings_json).shift_request_mode);
   const text = wishPageTextOf(mode);
   const { data: wishes } = await supabase
     .from("shift_wishes")

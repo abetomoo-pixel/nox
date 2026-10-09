@@ -144,23 +144,26 @@ for (const st of STORES) {
     push("pricing_rules", { id: uid(`rank:${r.rank_id}:hon`), store_id: storeId, fee_kind: "hon_shimei", seat_kind: null, dow_mask: null, time_from_min: null, time_to_min: null, rank_id: uid(`rank:${r.rank_id}`), amount: r.main_charge_yen, duration_min: null, priority: 100, is_active: true, name: `本指名（${r.rank_name === "default" ? "標準" : r.rank_name}）`, tax_category: "taxable_10", category_id: null, billing_unit: null });
     push("pricing_rules", { id: uid(`rank:${r.rank_id}:jonai`), store_id: storeId, fee_kind: "jonai_shimei", seat_kind: null, dow_mask: null, time_from_min: null, time_to_min: null, rank_id: uid(`rank:${r.rank_id}`), amount: r.inhouse_charge_yen, duration_min: null, priority: 100, is_active: true, name: `場内指名（${r.rank_name === "default" ? "標準" : r.rank_name}）`, tax_category: "taxable_10", category_id: null, billing_unit: null });
   }
+  const SLIDE_PERIOD = { ace: "monthly", noir: "monthly", luna: "half" }; // ★0168（裁定338 R-4）: 月次 2 店・半月 1 店・他 daily（列が無い間は populate が無視）
   const plans = D("compensation_plans").filter((p) => p.store_id === S);
   const slide = D("sales_slide_tiers").filter((t) => t.store_id === S && t.tier > 0).map((t) => ({ at: t.daily_sales_threshold_yen, wage: t.hourly_yen }));
   for (const p of plans) push("comp_plans", { id: uid(`plan:${p.plan_id}`), store_id: storeId, name: p.plan_name, base: p.base_hourly_yen, hon_back: p.main_reward_yen, jonai_back: p.inhouse_reward_yen, dohan_back: p.accompanied_reward_yen,
-    sales_slide: p.sales_slide ? slide : [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "product_rule", product_back_rate: null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null });
+    sales_slide: p.sales_slide ? slide : [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "product_rule", product_back_rate: null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SLIDE_PERIOD[code] ?? "daily" }); // ★0168（裁定338・便 X-13d-2b 先行）: 判定期間（列が無い間は無視）
   // ★X-13-21（便 X-13d-1）: 1 本だけの店に 2〜3 本目（EXTRA_PLANS）＝キャストは [源泉のプラン, 追加…] を順番に割り振る（overrides は従来どおり {}）
   const extraPlans = (EXTRA_PLANS[code] ?? []).map((x) => ({ ...x, id: uid(`plan:x:${code}:${x.key}`) }));
   for (const x of extraPlans) push("comp_plans", { id: x.id, store_id: storeId, name: x.name, base: x.base, hon_back: x.hon, jonai_back: x.jonai, dohan_back: x.dohan,
-    sales_slide: [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "product_rule", product_back_rate: null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null });
+    sales_slide: [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "product_rule", product_back_rate: null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SLIDE_PERIOD[code] ?? "daily" }); // ★0168（裁定338・便 X-13d-2b 先行）: 判定期間（列が無い間は無視）
   let castSeq = 0;
   const people = D("people").filter((p) => p.store_id === S);
   const castsSrc = people.filter((p) => p.system_role_candidate === "cast" || p.system_role_candidate === "needs_confirmation");
   { const repStaff = people.find((p) => p.system_role_candidate === "staff" && p.display_name === ({ MUSE: "田中", LUNA: "山本", NOIR: "鈴木", ACE: "小林", LILY: "松本", NEST: "中村" })[st.store_code]) ?? people.find((p) => p.system_role_candidate === "staff"); if (repStaff) staffUsers[repStaff.person_id] = users.staff; }
   const repCast = castsSrc.find((c) => c.display_name === ({ MUSE: "さおり", LUNA: "みさき", NOIR: "あべ", ACE: "ひなの", LILY: "みく", NEST: "ケン" })[st.store_code]) ?? castsSrc[0];
   const CAST = {};
+  let castIdx = 0; // ★裁定337（便 X-13d-2b）: 3 方式が混ざる（idx%4＝1→'off_only'・2→'shift'（明示）・他→null＝店の既定）
   for (const c of castsSrc) {
     const id = uid(`cast:${c.person_id}`);
-    push("casts", { id, store_id: storeId, user_id: c === repCast ? users.cast : null, name: c.display_name, kind: c.business_role, employment: "委託", is_active: true, joined_on: c.joined_on ? M(dayOf(c.joined_on)) : null, left_on: null, rank_id: c.rank_id ? uid(`rank:${c.rank_id}`) : (defRank ? uid(`rank:${defRank.rank_id}`) : null) });
+    const srm = castIdx % 4 === 1 ? "off_only" : castIdx % 4 === 2 ? "shift" : null; castIdx++; // ★裁定337
+    push("casts", { id, store_id: storeId, user_id: c === repCast ? users.cast : null, name: c.display_name, kind: c.business_role, employment: "委託", is_active: true, joined_on: c.joined_on ? M(dayOf(c.joined_on)) : null, left_on: null, rank_id: c.rank_id ? uid(`rank:${c.rank_id}`) : (defRank ? uid(`rank:${defRank.rank_id}`) : null), shift_request_mode: srm });
     const pa = D("person_plan_assignments").filter((a) => a.person_id === c.person_id && !a.valid_to).pop() ?? D("person_plan_assignments").find((a) => a.person_id === c.person_id);
     const srcPlanId = uid(`plan:${pa?.plan_id ?? c.plan_id ?? plans[0].plan_id}`);
     const slot = extraPlans.length ? castSeq++ % (extraPlans.length + 1) : 0; // ★X-13-21: 0＝源泉のプラン・1〜＝追加プラン

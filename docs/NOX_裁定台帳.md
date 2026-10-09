@@ -2846,6 +2846,11 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓108：pin は「実装の文字列」ではなく「挙動（PostgREST 200・行数）」で張る＝欠陥を含む文字列を pin にすると欠陥が固定化される（CC 提案 2026-10-09 便 X-13d-1・相談役採番 2026-10-09 便 X-13d-2b）
+
+経緯: customers-keep ck(6-3) が from("comp_plans, product_back_fixed_hon, product_back_fixed_jonai, product_back_fixed_free") という壊れた from 文字列を「区分別 3 欄を読む証拠」として pin にしていた。PostgREST は PGRST205（404）を返し plans が常に空になっていたのに suite は緑のまま＝X-13-23 は 11 日間（9/28 19aba5d〜10/9）見逃された。
+運用: ①suite に文字列 pin を足すときは、その文字列が仕様か偶然かを 1 行で書く ②一覧読取は suite で PostgREST 200・行数（≥1）を見る（verify-nox-comp-list の型＝同じ形の select が error null・壊れた形は PGRST205）③欠陥を直したら、その欠陥文字列を含む pin を grep して張替える（ck(6-3) は select("*") の形へ）。
+
 ### 教訓107：PostgREST の `.in()` は 150 件で分割する（URL 16 KB 超で undici HeadersOverflow＝DB ではなく HTTP 層・CC 提案 2026-10-09 便 V44・相談役採番 2026-10-09 便 V44 続き）
 
 経緯: id を URL のクエリに展開するため 400 件超で URL が 16 KB を超え、undici が HeadersOverflow（HTTP 431 相当）で落ちる＝DB 側のエラーではなく HTTP 層。便 P166 で collect.ts の check_id の `.in()` が月 500 伝票級の店（NOIR）で再現→150 件チャンクに分割して解消。
@@ -4082,6 +4087,8 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 - **A-1 裁定340**（上）。**A-2 X-13-25**＝.nox-actions（中央）。**A-3 X-13-26**＝advCell 2 行（天引き／残・0 は「—」）・売掛／送りは dedCell のまま。**A-4 X-13-27**＝lib/nox/payroll/anomaly.ts anomalyFlagsOf（bizDate > 営業日の今日→counted／missingOut とも false）・collect.ts は todayBiz＝bizDateOf(now, win.cutoffHm)・pv(5-4) の pin を純関数へ張替え。★仮決め: 未来日は不整合と退勤なしだけ除外し days／absentN／確定シフト時間（報酬型 shift 基準）は従来どおり（未来日の absent 計上・shift 基準の時給は別起票候補）。**A-5 デモ**＝profiles.mjs ADVANCES（MUSE 50,000・他 30,000・0＝なし）→gen-demo が代表キャストに 1 件（advanced_on {$m:-1,d:15}・open・deduct_period null・created_by users.owner）→先月分の finalize hook で天引き（規則 A）→当月に繰越なし。payload sha＝muse 819a5d79／luna d34dfe06／noir a9c53af4／ace 39ef5c00／lily e468b21c／nest 132b78ae（表 +1＝advances）・check-demo 89 段 NG 5（仕様差 5 のみ）・demo-profiles 59・demo-payload 53。X-13-21 は d-1 で充足（6 店 全員割当・プラン 2〜3 本・ACE 1 据え置き）。**A-6 0167 起草**＝supabase/migrations/0167_cast_shift_request_mode.sql（sha256 608c1bcbd4ee6c369c2349c7e728e5f1accdfde2a3ae3e5f1e9da1867797e8fb・6,491 B・69 行（台帳方式）／68（wc -l）・LF）＝★1 casts.shift_request_mode text null＋CHECK（is null or in ('shift','off_only')＝教訓100 で NULL を明示）★2 set_cast_shift_request_mode(p_cast_id uuid, p_mode text)（規則A形＝billing locked・owner ∨ manager 自店・cast forbidden・null＝店の既定に戻す・'bad mode'・no-op・audit）★3 grants（public／anon revoke・authenticated）。突合 docs/tmp/q1009_ag_0167.mjs＝15 段 NG 0（文単位 7 文・新 md5 ee7f7243・関数 305／表 83／'billing locked' 156・既存 48 行は NULL・rollback 後 304／0）。手貼り案内 docs/demo/handpaste_0167.md（結論 3 行・docs/handoff/sql は存在しないため従来どおり supabase/migrations＋docs/demo）。A-4 の RPC 変更は不要＝0167 に同乗なし。
 - **suite**＝新規 verify-nox-x13d2 23（f0 98 段目＝pay 10／close 1／adv 1／anom 4／demo 6／mig 1）・pin 張替え pv(5-4)・ms(2-1) は共通 Toast へ寄せて不変。tsc 0（教訓106）。f0 **98 段 5,680（2 連緑 17:02:52〜17:15:01（729 s）／17:16:12〜17:28:05（713 s）・golden 6 値不変）**。コミット「feat: X-13d-2a（340・25〜27・payload）」→push→Vercel success→6 店 reset→live（MUSE 2026-09 さおり 天引き 50,000／2026-10 不整合 25→4）＝実測は報告と次便の現在地。**仮決め一覧は最終報告の冒頭（相談役が追補で追認）**。次＝Agoora の 0167 手貼り→d-2b（P167・裁定337 client・デモ 3 方式）・読取便 338-R。
 
+**便 P167＋X-13d-2b 完了（0167 収蔵・裁定337 client・デモ 3 方式・0168 起草）＝台帳の現在地（2026-10-09）**: 前提照合＝HEAD 6078228＝origin/main（0 0）・DB 恒久変更 0（0167 は Agoora 適用済み 18:24・0168 は起草のみ）・本番書込＝デモ 6 店の reset（push→Vercel success 後）・DB 読取＝P-1 proof／B-4 件数／0168 突合（BEGIN…ROLLBACK）。P-1＝0167 の欄（裁定337 節）。B-1＝裁定337 の適用欄。B-2＝payload sha（casts 3 方式・comp_plans.slide_period 先行）＝muse c609e7e7／luna b5dd13a5／noir a882fa5d／ace 157a5bba／lily 1dbcf5e4／nest 1e79d4ae・check-demo 89 段 NG 5（仕様差 5 のみ）・demo-profiles 65・demo-payload 53。B-3＝本欄・339 追補1・340 追補1・338 追補1（0168 の欄）・起票101・教訓108・x13_ledger（#18 クローズ・#20 0168 起草）。B-4＝起票101 の件数（MUSE 21／CLUB NOX 57）。B-5＝0168（上）。tsc 0。f0 **99 段 5,708（2 連緑 18:40:37〜18:51:22（645 s）／18:53:49〜19:05:28（699 s）・golden 6 値不変・新 suite 337 15＝99 段目・anon-guard 1057→1059・grants 483→485・m4 12→14・demo-profiles 59→65・0158 52→54）**。コミット「feat: P167・X-13d-2b（337 client・デモ 3 方式）」→push→Vercel success→6 店 reset→live（MUSE キャスト詳細の 3 択・/mine の反転・作る画面の印）＝実測は報告。★仮決めは報告の冒頭。次＝Agoora の 0168 手貼り→P168（338 の lib・UI・デモ 月次 2 店＝ACE／NOIR・半月 1 店＝LUNA）。
+
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
 出典＝Agoora 指示（2026-09-29・便 X-10-1 で収載）。次の裁定番号は 321。**本文（逐語）**:
@@ -4144,6 +4151,11 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 適用＝便 X-13d-2a（2026-10-09・client のみ・DB 恒久変更 0）: lib/nox/payroll/pay-record.ts（純関数＝既定値 remainingOf／payDialogDefaultsOf・検証 payDialogErrorOf（RPC と同じ輪郭＝正の整数・残額以内・日付・メモ 200）・一括計画 bulkPlanOf（残額 > 0 だけ）・applyPaidOf／unpaidTotalOf・結果文 bulkSummaryOf）＋payroll-board.tsx の PayDialog／BulkPayDialog（Modal・PAYMENT_METHODS・MoneyInput）。①状態列の「未払」「一部」は確定済み run だけ button（支払済／未確定は文字のまま）②内訳パネルの手取りの右に「支払を記録」（確定済み∧残額 > 0）③未払カードに「未払の全員を一括記録」（確定済み∧未払 > 0）＝方法・日付・メモを 1 回→確認（人数・合計・一覧）→1 人ずつ /api/payment/record（payment_record_add・冪等キーは人ごと）→失敗した人は赤で残し成功分はそのまま（続行・全取消なし）。成功後は loadRun（payment_records／payslips の再読込＝支払状態と未支払 KPI）。「支払状況を表示」（PaymentPanel）は残す。★仮決め: suite はデモ MUSE に書かない（デモ org を支払済みで汚さない＝純関数で「1 件記録→残額 0→未払合計が減る」を係留・x13d2 pay(1-4)）／一括は部分失敗でも続行（333 の「失敗した日は赤で残し成功分はそのまま」の読み）／金額の既定＝残額（部分払い後は残り）。
 
+### 裁定340 追補1（2026-10-09 確定・相談役追認・便 X-13d-2b）便 X-13d-2a の仮決めの追認
+
+出典＝相談役ブロック 2026-10-09（便 P167＋X-13d-2b B-3）。**本文（逐語）**: 「340 追補1（d-2a ⑩⑪⑬⑭⑮ 追認・2026-10-09）」。
+仮決め ⑩suite はデモ MUSE に支払を書かない ⑪一括は部分失敗でも続行し赤で残す ⑬デモ前借り＝MUSE 50,000・他 30,000・代表キャスト・先月 15 日 ⑭docs/handoff/sql は無いため 0167 も supabase/migrations＋docs/demo ⑮0167 の setter は set_cast_shift_request_mode（null＝店の既定）＝追認。⑫（未来日の除外は不整合と退勤なしだけ）は起票101 で裁く。適用＝変更なし。
+
 ## 裁定339（2026-10-09 確定・相談役・便 X-13d-1 D-0）X-13-23＝待遇プラン一覧の読取修正（from に列名が混入・error を握りつぶさない）
 
 出典＝相談役ブロック 2026-10-09（便 X-13d-1 D-0・便 X-13-23 読取の報告を受けて確定）。**本文（逐語）**:
@@ -4153,6 +4165,11 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 適用＝便 X-13d-1（2026-10-09・本便のコミット（docs 同梱））: comp-sections.tsx の from を表名だけに・useCompData(storeId, onError?) で 7 本の読取の error を最初の 1 件だけ rpcErrJa で赤帯（plan-board／norma-board／deduction-board が setMsg を渡す）・失敗した読取は直前値を保持（if (!p.error) setPlans …）。suite＝新規 verify-nox-comp-list 7（f0 97 段目＝owner A の同じ形の select が error null／壊れた from は PGRST205／CLUB NOX・NOX-DEMO-MUSE の行数 ≥1／逐語）＋x13 comp-list 3。★customers-keep ck(6-3) の旧 pin は壊れた from 文字列そのものを「区分別 3 欄を読む証拠」にしていた＝欠陥を固定化（教訓108 案）→ select("*") の形へ張替え。本番確認＝cl(3-1)（CLUB NOX 5 本＝レギュラー／エース／体験入店／基本／あああ）・無効化や整理は Agoora が画面で（本便は DB 不触）。
 
+### 裁定339 追補1（2026-10-09 確定・相談役追認・便 X-13d-2b）便 X-13d-1 の仮決めの追認
+
+出典＝相談役ブロック 2026-10-09（便 P167＋X-13d-2b B-3）。**本文（逐語）**: 「339 追補1（d-1 ①〜⑨ 追認・2026-10-09）」。
+仮決め ①スマホの境界は既存の ≤900 ②日報の 19 列表もカード化（裁定251 の横スクロールは PC だけ維持）③systemUsageOf はプラン本体の値でも数える ④EXTRA_PLANS（MUSE Senior／LUNA Premium・新人／LILY Senior／NEST Senior・ACE 据え置き＝源泉 1 本）⑤LILY の live 3 本中 2 本はデモ内の手入力 ⑥CompRows のラベル「保証額（月）」「加算額」⑦HeaderGear の aria-current・title ⑧pin 張替え ck(6-3)／sp(2-1)／ms(2-25)／nv(6-2) ⑨pv(5-4)＝追認。適用＝変更なし。
+
 ## 裁定338（2026-10-09 確定・相談役・v44 §3）売上スライド／ポイントスライドの判定期間＝月次（既定）／半月／日次
 
 出典＝相談役引き継ぎ v44 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-09_v44.md・「新チャットで台帳に記す・本書で確定」＝便 V44 V-1(b) で記入・2026-10-09）。**本文（逐語）**:
@@ -4160,12 +4177,24 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 実装便＝W5-2（0164 の C5 判定基準／対象と同じ便・X-13 台帳 #20＝docs/demo/x13_ledger.md）。mig 要否＝W5-2 の設計で決める（v44 §2）。適用＝未（本便は記入のみ・DB 恒久変更 0）。
 
+### 裁定338 追補1（2026-10-09 確定・相談役・便 X-13d-2b・読取便 338-R を受けて）判定期間の計算と遡及＝mig 0168
+
+出典＝相談役ブロック 2026-10-09（便 P167＋X-13d-2b B-3）。**本文（逐語）**:
+「monthly／half は期間累計（按分後）で段を決め、その期間の全勤務時間に適用。確定時に段確定・プレビューは期首〜今日の累計で暫定（印）。daily は同日反映（現状の実装どおり・文言を直す）。slide_apply='next' は『前の期間の累計』として両立。ポイントスライドも同じ期間。mig＝0168」
+
+読取便 338-R（2026-10-09）＝段判定は lib/nox/pay.ts wageDetail（slideAt・営業日ごとの按分後売上で同日の時給・run／プレビューで再計算・確定で payslips.breakdown_json に凍結）。店設定 slide_apply='next'（0151）は collect.ts 612〜635 の前月合計→assemble slideInputOf→pay の slideByDay＝「前月基準の月次」の器が既にある。C5（判定基準／対象＝何の売上・誰の売上）は直交し PREP_ITEMS に残置。
+**0168 の欄（起草・未適用・便 X-13d-2b・2026-10-09）**: supabase/migrations/0168_comp_plan_slide_period.sql＝**sha256 44674b5d7ee7a055eab8c8746884977d9c82ce838da6df4caffd9b060121256e・14,894 B・180 行（台帳方式）／179（wc -l）・LF**・生成器 scratchpad/gen_0168.py（写経元＝0153 ★7 の set_comp_plan 全文＝docs/tmp/0153_set_comp_plan.sql・★以外 1 バイト不変）・突合 docs/tmp/q1009_ag_0168.mjs **15 段 NG 0**（文単位 8 文・新 md5 **3ebd1624**・関数 305／表 83／'billing locked' 156 不変・既存 21 行 daily・22 引数呼びは default 'daily' で通る・'weekly'／NULL は 'bad slide_period'・manager forbidden・22 引数版は残らない・payload（noir）populate NOT NULL 充足・rollback 後 305／0／3fdd6e81）。中身＝★1 comp_plans.slide_period text not null default 'daily'＋CHECK（monthly／half／daily）★2 set_comp_plan 23 引数（末尾 p_slide_period default 'daily'・NULL は明示拒否＝教訓100・insert／update に列・22 引数版 drop）★3 grants。手貼り案内 docs/demo/handpaste_0168.md（0167 の後）。payload は先行して comp_plans に slide_period（ACE／NOIR monthly・LUNA half・他 daily＝338 R-4・列が無い間は無視）。lib（slide.ts 期間キー／collect 期間累計／assemble slideByDay・pay.ts 不変）と UI（3 択・青ピル・説明文 3 種・新規プランの初期値 monthly）は適用後の便 P168。
+
 ## 裁定337（2026-10-09 確定・相談役・v44 §3）シフト希望の方式をキャスト別に上書き可（0167）
 
 出典＝相談役引き継ぎ v44 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-09_v44.md・「新チャットで台帳に記す・本書で確定」＝便 V44 V-1(a) で記入・2026-10-09）。**本文（逐語）**:
 「シフト希望の方式をキャスト別に上書き可。キャスト詳細（待遇タブ）に『店の既定に従う／シフト希望／休み希望のみ』の 3 択・既定＝店の既定に従う・/mine は『キャスト個別→店の既定』で解決し 'off_only' の候補反転（M4）も解決値で・店側『作る』画面に方式の印・0167（casts +1 列 nullable）・デモは 3 方式が混ざるよう payload。」
 
 実装便＝X-13d（X-13 台帳 #18＝docs/demo/x13_ledger.md）。mig＝0167（casts +1 列 nullable＝null は「店の既定に従う」・起草待ち→手貼り→P167）。適用＝未（本便は記入のみ・DB 恒久変更 0）。
+
+**0167 の欄（本番適用済み・収蔵＝便 P167・2026-10-09）**: supabase/migrations/0167_cast_shift_request_mode.sql＝**sha256 608c1bcbd4ee6c369c2349c7e728e5f1accdfde2a3ae3e5f1e9da1867797e8fb・6,491 B・69 行（台帳方式）／68（wc -l）・LF・突合 15 段 NG 0（docs/tmp/q1009_ag_0167.mjs・BEGIN…ROLLBACK・文単位 7 文）**。手貼り＝Agoora 2026-10-09 **18:24 JST**（Success・No rows returned）。live proof（docs/tmp/q1009_p167.mjs）＝関数 **305**／表 83／set_cast_shift_request_mode md5 **ee7f7243**／casts.shift_request_mode text・NULL 可／CHECK＝IS NULL OR IN ('shift','off_only')／既存 48 行 NULL／'billing locked' **156**／authenticated 可・anon 不可／不触 set_comp_plan 3fdd6e81・demo_org_reset a4bd6a18・cast_sales_aggregate e232dac8・set_product_track_stock 594c5e98。名簿＝A10 +1（set_cast_shift_request_mode）＝対象 **156**／除外 149／全数 **305**（docs/NOX_課金ゲート対象_v1.md）。pin 張替え＝billing 段47-1（156／157／156）・anon-guard（probe +1・authenticated(cast) 不可 +1）・grants（公開 +1）・0158（s-2d md5 ee7f7243・関数 305）。
+
+**適用（client）＝便 X-13d-2b（2026-10-09）**: ①キャスト詳細（待遇タブ）に「シフト希望の方式」3 択（店の既定に従う（既定の表示付き）／シフト希望／休み希望のみ・既定＝null）→ set_cast_shift_request_mode・casts の select に列。②/mine＝layout（ナビ文言）と wishes page（文言・WishForm）は auth_cast_id で自分の casts 行→ resolveWishMode（キャスト個別→店の既定）。③自動配置の候補 candidateWishesOf に castModes（cast ごとに解決・'off_only' の人だけ反転＝M4 の反転も解決値）。④店側「作る」＝配置ビュー（キャスト×日）のキャスト名に個別の方式の印（null は印なし）。⑤デモ＝gen-demo が casts に 3 方式を混ぜる（idx%4＝1 off_only・2 shift・他 null）。suite＝新規 verify-nox-337 15（f0 99 段目）・m4-wish-mode wm(2-5)(2-6)＋wm(4-1) 張替え・demo-profiles dpf(2-6)。
 
 ## 裁定336（2026-10-08 確定・相談役・便 G2）起票100 の処置＝案 A（cast_sales_aggregate の CTE groups を materialized に）
 
@@ -6269,6 +6298,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 98 | **owner 自身のメール変更＝route が owner を 403**（低・**起票 2026-09-30 便 P-2**） | 本文（逐語）: 「owner 自身のメール変更＝update-email.ts 42 行の除外解除・Auth 設定 4 点後（mig 不要）」。現状＝lib/nox/staff/update-email.ts 42 行 decideEmailTarget が role staff／manager 以外を 403（ロックアウト防止）・Auth 設定 4 点（Secure email change・確認必須・レート制限・Site URL）は未決（0930_pm_pre.md ④）。処置＝Auth 設定の後に本人 owner を許可（新メールの確認を client で 1 段）。 |
 | 99 | **/mine 勤怠一覧の実働表示を店の計算基準（裁定324 pay_time_basis）に合わせる**（低・**起票 2026-10-01 便 M3-0**・第 2 期） | 本文: 便 M2 の勤怠一覧（lib/nox/mine/attendance-month.ts）は実働＝dayWorkedHours（実打刻の in〜out）で表示している。計算基準 'shift' の店では給与の時給部分が確定シフトの時間に置換される（324-2）ため、一覧の実働と明細の時間が食い違い得る。処置＝第 2 期で表示側に pay_time_basis の分岐（'shift' は確定シフト時間を併記 or 置換）を足す。本便では注記のみ。 |
 | 100 | **get_cast_sales（cast_sales_aggregate）が月次で 8 秒超＝給与プレビュー／確定が statement timeout**（高・**起票 2026-10-08 便 G1**・裁定336＝案 A・**0165 本番適用済み 2026-10-08（便 P165）＝live で 6 店の preview 200・NOIR 7,134 ms・get_cast_sales 85 ms＝目視クローズ待ち（Agoora が /demo NOIR owner で給与プレビュー 2026-09 を開く）**） | 本文: cast_sales_aggregate（mig0014 系・STABLE・SECURITY DEFINER・md5 f765c36a）の CTE `groups` が `check_group_due(check_id, pay_group)`（STABLE plpgsql・md5 6c1ef055）を呼ぶが、PG12 以降は 1 回参照の CTE が inline（subquery 化）され、due が後段の join（noms）と window（ranked）の行ごと・参照ごとに再評価される＝N+1 型。実測（NOIR demo org・closed 501 件・owner JWT・timeout off・2026-10-08）: 1 週間 751.6 ms（(check,pay_group) 124）／2 週間 2,102 ms（246）／1 か月 **8,359 ms**（501・Buffers shared hit 1,412,836）＝超線形。due を 0 にした同クエリは 3.6／8.7／**30.6 ms**＝重さは check_group_due の再評価に集中・SubPlan／InitPlan 0（SECURITY DEFINER＝RLS 不適用・index は checks_store_status_idx／check_nominations_check_idx を使用＝index 不足ではない）。`groups as materialized` にすると 1 週間 17.1 ms／1 か月 **95.5 ms**（Buffers 7,931・呼出 501 回＝1.0 倍）＝87 倍。再現: owner で /api/payroll/preview {storeId: NOIR, period: '2026-09'} → 500「get_cast_sales: canceling statement due to statement timeout」（authenticated の statement_timeout 8s）。本番でも月 500 伝票級の店で再現。ゲート: 0165 適用までは NOIR の給与プレビュー／確定は失敗する（visual_check 2-10 は NG 記録扱い）・暫定の app 側回避（collect.ts で窓を 7 日ずつ分割＝月 3〜4 s）は DB 不変だが密度 2 倍の店で再発するため採らない（裁定要）。処置案＝台帳「便 G1 完了」の 3 案（推奨 A＝0165 で `groups as materialized` の 1 語・意味不変・名簿不変）。 |
+| 101 | **未来日の確定シフトを days／absentN／シフト基準の時給に数えるか**（低・**起票 2026-10-09 便 X-13d-2b B-4**） | 本文: X-13-27 で未来日（営業日の今日より後）の確定シフトは「不整合」と「退勤なし」から除外した（anomalyFlagsOf）が、matchPunches の days（final ok／late＝未来日は 0）・absentN（未来日は in なし→absent で +1）・shiftHoursByDate（報酬型 shift 基準＝確定シフトの時間）は従来どおり未来日を含む。件数（2026-10-09 読取・docs/tmp/q1009_p167.mjs）＝デモ MUSE 2026-10: 未来日の確定シフト **21**（5 名・126 h）／過去 4・本番 CLUB NOX 2026-10: **57**（6 名・240 h）／過去 25・両店とも pay_time_basis 'punch'（＝シフト基準の時給には現状効かない・absentN は未来日ぶん増える＝罰金撤去（293-3）後は金額に効かず表示「当欠 N」だけ）。処置案＝absentN と shiftHoursByDate も今日までに絞る（lib 1 箇所・payroll suite の fixture は過去日なので pin 不変の見込み）・裁定要。 |
 | — | **0160 のスコープ＝裁定326-9＋起票95・96**（**便 C-0・2026-09-30**） | 0160＝cast_quotas＋set_cast_quota／予約表の status・requested_by_cast・rejected_reason＋reservation_request／reservation_decide／cast_notice_reads＋既読 RPC／settings_json +7 キー（mine_settings 6＋shift_request_mode）＋起票95（staff_shift_patterns の無効化）＋起票96（T6 契約確認の記録）。起草の前に R160 事前読取（docs/tmp/0160_pre.md）→ ★指定。 |
 
 ### 未裁定・消し込み待ち

@@ -115,6 +115,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   対象 **154 不変**・除外 **148→149**・全数 **302→303**（live 実測 2026-10-08＝総数 303・'billing locked' 154・述語参照 155・md5 3 本一致）。
 - ★**mig0164 追随（2026-10-08・裁定331 C 5 項目＋裁定334・334 追補1・便 P163 で収載）**: 新関数 **0本**。改稿 1 本（`set_store_profile`＝白名単 +7 列側＝invoice_registered_on／pay_day／tax_inclusive_display／use_vip／use_counter／payment_methods／punch_methods・型検査・cash は常に true・打刻は 1 つ以上・before/after 監査・owner 限定と課金ゲートは不変）は名前不変で本数不動。stores +7 列（既定付き・CHECK 3 本）は本数非関与。
   md5 控え（同上）: set_store_profile 4f2e9f82→**2e7b4963**・demo_org_reset a4bd6a18。
+- ★**mig0167 追随（2026-10-09・便 X-13d-2a 起草／便 P167 で収載）**: 新関数 **1本**＝ゲート内蔵を A10 へ（`set_cast_shift_request_mode`＝裁定337 シフト希望の方式のキャスト個別上書き・owner ∨ manager 自店・課金ゲート・監査）。列 +1（casts.shift_request_mode text null＋CHECK）は本数非関与。改稿なし。
+  md5 控え（先頭 8 桁・live 読取 2026-10-09＝docs/tmp/q1009_p167.mjs）: set_cast_shift_request_mode **ee7f7243**・不触 set_comp_plan 3fdd6e81／demo_org_reset a4bd6a18／cast_sales_aggregate e232dac8／set_product_track_stock 594c5e98。
+  対象 **155→156**・除外 **149 不変**・全数 **304→305**（live 実測 2026-10-09＝総数 305・'billing locked' 156・述語参照 157・形 156）。
 - ★**mig0166 追随（2026-10-08・便 X-13a 起草／便 P166 で収載）**: 新関数 **1本**＝ゲート内蔵を A6 へ（`set_product_track_stock`＝商品の「在庫を管理する」の切替・owner∨manager 自店・課金ゲート・監査）。列 +1（products.track_stock boolean not null default true）は本数非関与。改稿なし。
   md5 控え（先頭 8 桁・docs/tmp/0166_post_live.json＝live 読取 2026-10-08T08:48:32Z）: set_product_track_stock **594c5e98**・不触 set_product／demo_org_reset a4bd6a18／cast_sales_aggregate e232dac8。
   対象 **154→155**・除外 **149 不変**・全数 **303→304**（live 実測 2026-10-08＝総数 304・'billing locked' 155・述語参照 156・形 155）。
@@ -290,6 +293,7 @@ staff_create / staff_change_role / staff_update_profile / staff_transfer_store /
 set_staff_perms / cast_create / cast_invite / **cast_rejoin**（裁定D8＝復帰は拡大操作。leave とは割る） /
 trial_register / trial_update / trial_hire / trial_reject /
 **set_cast_profile**（mig0122＝源氏名・入店日の更新・ゲート内蔵・裁定109）
+**set_cast_shift_request_mode**（mig0167＝裁定337 シフト希望の方式のキャスト個別上書き（null＝店の既定に従う／shift／off_only）・owner ∨ manager 自店・ゲート内蔵・監査・便 P167）
 （cast_create は [R] 判定だが実体は cast_create_apply（service）へ委譲する書込入口＝対象）
 
 **set_cast_employment**（mig0154＝雇用区分（委託／雇用）の変更＝owner のみ・p_valid_from は給与期の初日（月初）かつ最後に確定した期の翌日以降（'period finalized'）・casts.employment_valid_from・過去分は付け替えない・ゲート内蔵・監査 5 引数・裁定294-9／295-6）

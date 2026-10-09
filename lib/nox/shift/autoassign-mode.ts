@@ -4,7 +4,7 @@
 //   'off_only'＝候補を反転: 期間の各日 × 各 cast について、その日に生きている（pending／accepted）'off' wish が無ければ候補（既定の帯時間で仮想 wish を作る）・off の日は除外。
 //   ★仮想 wish の id は "virtual:<castId>:<date>"＝shift_auto_apply（wish id を受ける）には渡せない。'off_only' の結果を確定案にするときは shift_bulk_set（cast×日付×時間）で置く（呼び出し側の責務・仮決め）。
 import type { AutoWish } from "../shift-autoassign";
-import type { WishMode } from "../mine/wish-mode";
+import { resolveWishMode, type WishMode } from "../mine/wish-mode";
 
 export type WishRowForAuto = { id: string; castId: string; date: string; startHm: string | null; endHm: string | null; status: string; kind: string | null };
 
@@ -20,7 +20,19 @@ export function datesBetween(start: string, end: string): string[] {
 }
 
 /** autoAssign に渡す候補 wishes */
-export function candidateWishesOf(input: { mode: WishMode; wishes: readonly WishRowForAuto[]; castIds: readonly string[]; startDate: string; endDate: string; defaultStart: string; defaultEnd: string }): AutoWish[] {
+export function candidateWishesOf(input: { mode: WishMode; wishes: readonly WishRowForAuto[]; castIds: readonly string[]; startDate: string; endDate: string; defaultStart: string; defaultEnd: string;
+  /** ★裁定337（便 X-13d-2b）: キャスト個別の方式（null＝店の既定 mode）。渡したときは cast ごとに解決して 'shift' の人は work wish・'off_only' の人は反転（仮想 wish） */
+  castModes?: Readonly<Record<string, WishMode | null | undefined>> }): AutoWish[] {
+  if (input.castModes) {
+    const eff = (castId: string): WishMode => resolveWishMode(input.castModes?.[castId], input.mode);
+    const work = input.wishes
+      .filter((w) => eff(w.castId) === "shift" && w.status === "pending" && w.kind !== "off" && !!w.startHm && !!w.endHm)
+      .map((w) => ({ id: w.id, castId: w.castId, date: w.date, startHm: w.startHm as string, endHm: w.endHm as string }));
+    const offCasts = input.castIds.filter((c) => eff(c) === "off_only");
+    if (offCasts.length === 0) return work;
+    const virt = candidateWishesOf({ ...input, castModes: undefined, mode: "off_only", castIds: offCasts });
+    return [...work, ...virt];
+  }
   if (input.mode !== "off_only") {
     return input.wishes
       .filter((w) => w.status === "pending" && w.kind !== "off" && !!w.startHm && !!w.endHm)

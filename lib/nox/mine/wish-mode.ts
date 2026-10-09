@@ -34,3 +34,8 @@ export function wishRowLabelOf(w: { kind?: string | null; start_hm: string | nul
 
 /** 'off_only' では時刻の検証を飛ばす（時刻を送らない） */
 export const wishNeedsTimes = (mode: WishMode): boolean => mode !== "off_only";
+
+/** ★裁定337（0167・便 X-13d-2b）: キャスト個別の方式（casts.shift_request_mode・null＝店の既定に従う）→店の既定で解決。/mine と自動配置の候補はこの解決値を使う */
+export function resolveWishMode(castMode: string | null | undefined, storeMode: WishMode): WishMode {
+  return castMode === "off_only" || castMode === "shift" ? castMode : storeMode;
+}
