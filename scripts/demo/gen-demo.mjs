@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
-import { PROFILES, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { EXTRA_PLANS, PROFILES, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
@@ -148,6 +148,11 @@ for (const st of STORES) {
   const slide = D("sales_slide_tiers").filter((t) => t.store_id === S && t.tier > 0).map((t) => ({ at: t.daily_sales_threshold_yen, wage: t.hourly_yen }));
   for (const p of plans) push("comp_plans", { id: uid(`plan:${p.plan_id}`), store_id: storeId, name: p.plan_name, base: p.base_hourly_yen, hon_back: p.main_reward_yen, jonai_back: p.inhouse_reward_yen, dohan_back: p.accompanied_reward_yen,
     sales_slide: p.sales_slide ? slide : [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "product_rule", product_back_rate: null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null });
+  // ★X-13-21（便 X-13d-1）: 1 本だけの店に 2〜3 本目（EXTRA_PLANS）＝キャストは [源泉のプラン, 追加…] を順番に割り振る（overrides は従来どおり {}）
+  const extraPlans = (EXTRA_PLANS[code] ?? []).map((x) => ({ ...x, id: uid(`plan:x:${code}:${x.key}`) }));
+  for (const x of extraPlans) push("comp_plans", { id: x.id, store_id: storeId, name: x.name, base: x.base, hon_back: x.hon, jonai_back: x.jonai, dohan_back: x.dohan,
+    sales_slide: [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "product_rule", product_back_rate: null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null });
+  let castSeq = 0;
   const people = D("people").filter((p) => p.store_id === S);
   const castsSrc = people.filter((p) => p.system_role_candidate === "cast" || p.system_role_candidate === "needs_confirmation");
   { const repStaff = people.find((p) => p.system_role_candidate === "staff" && p.display_name === ({ MUSE: "田中", LUNA: "山本", NOIR: "鈴木", ACE: "小林", LILY: "松本", NEST: "中村" })[st.store_code]) ?? people.find((p) => p.system_role_candidate === "staff"); if (repStaff) staffUsers[repStaff.person_id] = users.staff; }
@@ -157,7 +162,9 @@ for (const st of STORES) {
     const id = uid(`cast:${c.person_id}`);
     push("casts", { id, store_id: storeId, user_id: c === repCast ? users.cast : null, name: c.display_name, kind: c.business_role, employment: "委託", is_active: true, joined_on: c.joined_on ? M(dayOf(c.joined_on)) : null, left_on: null, rank_id: c.rank_id ? uid(`rank:${c.rank_id}`) : (defRank ? uid(`rank:${defRank.rank_id}`) : null) });
     const pa = D("person_plan_assignments").filter((a) => a.person_id === c.person_id && !a.valid_to).pop() ?? D("person_plan_assignments").find((a) => a.person_id === c.person_id);
-    const planId = uid(`plan:${pa?.plan_id ?? c.plan_id ?? plans[0].plan_id}`);
+    const srcPlanId = uid(`plan:${pa?.plan_id ?? c.plan_id ?? plans[0].plan_id}`);
+    const slot = extraPlans.length ? castSeq++ % (extraPlans.length + 1) : 0; // ★X-13-21: 0＝源泉のプラン・1〜＝追加プラン
+    const planId = slot === 0 ? srcPlanId : extraPlans[slot - 1].id;
     push("cast_plan", { id: uid(`castplan:${c.person_id}`), cast_id: id, store_id: storeId, plan_id: planId, overrides_json: {}, valid_from: { $rel: -400 }, valid_to: null });
     push("cast_tax_profiles", { cast_id: id, store_id: storeId, mode: "委託", invoice: "免税", reg_no: null });
     CAST[c.person_id] = { ...c, id };
@@ -175,6 +182,7 @@ for (const st of STORES) {
   // ★X-13c: キャスト別ノルマ目標（cast_norms・当月）＝ノルマを使う店だけ（日数＝hours÷6・同伴・売上・指名＝本＋場内）
   if (PF.sys.norms) for (const r of cmt) if (CAST[r.person_id]) push("cast_norms", { id: uid(`norm:${r.person_id}:cur`), store_id: storeId, cast_id: CAST[r.person_id].id, period: { $m: 0, d: 1, fmt: "ym" }, days_target: Math.max(1, Math.round((r.hours_target ?? 0) / 6)), dohan_target: r.accompanied_count_target || 0, sales_target: r.sales_target_yen || 0, shimei_target: (r.main_count_target || 0) + (r.inhouse_count_target || 0) });
   // ★X-13c: 達成ボーナス（1 段・金額）＝達成ボーナスを使う店の全プラン（目標＝cast_norms.sales_target・無ければ不適用）
+  if (PF.sys.bonus) for (const x of extraPlans) push("comp_plan_components", { id: uid(`comp:x:${code}:${x.key}:bonus`), store_id: storeId, plan_id: x.id, kind: "achievement_bonus", mode: "amount", amount: 10000, rate: null, params: { thresholds: [{ pct: 100 }] }, priority: 100, is_active: true }); // ★X-13-21: 追加プランにも達成ボーナス
   if (PF.sys.bonus) for (const p of plans) push("comp_plan_components", { id: uid(`comp:${p.plan_id}:bonus`), store_id: storeId, plan_id: uid(`plan:${p.plan_id}`), kind: "achievement_bonus", mode: "amount", amount: 10000, rate: null, params: { thresholds: [{ pct: 100 }] }, priority: 100, is_active: true });
   for (const r of cmt) if (CAST[r.person_id]) for (const [k, m] of [["prev", -1], ["cur", 0]]) push("cast_quotas", { id: uid(`quota:${r.person_id}:${k}`), store_id: storeId, cast_id: CAST[r.person_id].id, month: { $m: m, d: 1 }, hon: r.main_count_target || null, jonai: r.inhouse_count_target || null, dohan: r.accompanied_count_target || null, sales: r.sales_target_yen || null });
   push("kiosk_devices", { id: uid(`kiosk:${code}`), store_id: storeId, auth_user_id: users.kiosk, label: `${st.store_name} 打刻端末`, is_active: true, purpose: "punch" });

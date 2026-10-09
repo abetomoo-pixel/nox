@@ -1256,7 +1256,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             <p style={{ fontSize: 13, color: "var(--sub)" }}>本日のシフトはありません</p>
           ) : (
             <div className="nox-tablewrap stickyfirst">{/* ★AT2-3: 名前列を左固定（横スクロールしても行の見出しが残る＝M18 と同じ修飾子） */}
-              <table className="nox-table">
+              <table className="nox-table cardrows">{/* ★X-13-17（便 X-13d-1）: ≤899 は 1 人 1 カード（氏名／申請・確定／出勤記録／状態／操作を縦積み・横スクロール廃止）・PC は表のまま */}
                 <thead>
                   <tr><th>スタッフ</th><th>申請時間</th><th>確定時間</th><th>出勤記録</th><th>状態</th>{isManagerUp && <th>操作</th>}</tr>{/* ★裁定313／X-8-3: 操作列は owner／manager だけ（staff は列ごと未描画） */}
                 </thead>
@@ -1274,16 +1274,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             {castName(s.cast_id)}
                           </span>
                         </td>
-                        <td className="num" style={{ color: "var(--v2-muted)" }}>
+                        <td className="num" data-label="申請" style={{ color: "var(--v2-muted)" }}>
                           {w ? fmtWin(w.start_hm, w.end_hm) : "—"}
                         </td>
-                        <td className="num">{fmtWin(s.start_hm, s.end_hm)}</td>
+                        <td className="num" data-label="確定">{fmtWin(s.start_hm, s.end_hm)}</td>
                         {/* ★R1: 出勤記録＝旧「出勤板」の統合先。プルダウンではなくボタン群
                             （既存 .nox-seg の文法＝選択中は金枠）。押すと attendance_set をそのまま呼ぶ。
                             ★SC-8 ⑦: 書き込みは**今日だけ**＝attendance_set は RPC 側に未来日ガードが
                             無く（検証は null / 値域5値 / eta 形式 / org・ロールのみ）、明日以降の
                             「出勤」を記録できてしまうため UI で止める。先の日はラベル表示のみ。 */}
-                        <td>
+                        <td className="wide">
                           {/* ★裁定313（2026-09-29・便 X-8-2）: 1 段構成＝セグメント＋打刻時刻（小字）＋送り（actual 店）＋「退勤」を同段（.nox-attrow・≤899px は 2 行折り返し）。
                               行内のテキストリンクは 0（「精算調整を登録」は操作列「減額」へ・「出勤を修正／退勤を修正」は裁定310 で「時刻修正」へ）。
                               ★便 AT2-2: 出退勤時刻＝punches だけから作る（偽の時刻を作らない）・裁定268 の「(+N 分)」は最初の in。
@@ -1337,7 +1337,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             );
                           })()}
                         </td>
-                        <td style={{ whiteSpace: "nowrap" }}>{/* ★AT2-3: 「確定」の印を折り返し・見切れさせない */}
+                        <td data-label="状態" style={{ whiteSpace: "nowrap" }}>{/* ★AT2-3: 「確定」の印を折り返し・見切れさせない */}
                           <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`}
                             style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
                             {SHIFT_ST_LABEL[s.status] ?? s.status}
@@ -1346,7 +1346,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                         {/* ★裁定313（便 X-8-2／X-8-3）: 操作列＝「時刻修正」（裁定310 のモーダル）「減額」（精算調整の登録＝SettlementModal）。owner／manager だけ列ごと描画。
                             減額は委託キャストで遅刻／当欠／早退が検知された行だけ活性（0154 D4 の条件のまま・理由は title）。未確定の行だけ「確認へ」「承認」を足す */}
                         {isManagerUp && (
-                        <td>
+                        <td className="ops">
                           {(() => {
                             const io = punchIO.get(s.cast_id);
                             const isItaku = casts.find((c) => c.id === s.cast_id)?.employment !== "雇用";

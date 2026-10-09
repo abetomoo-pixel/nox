@@ -102,6 +102,26 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   check("x13(payroll-empty-1) 空状態＝「先月のプレビューを開く」（期間選択付き・既定＝先月・店舗は選択中）→ /payroll?store=&period=（明細＝プレビュー）", s.includes('"先月のプレビューを開く"') && s.includes("useState(prevPeriodOf(currentYm))") && s.includes("useEffect(() => { setEmptyStore(storeSel); }, [storeSel]);") && s.includes("href={previewHrefOf(emptyStore || stores[0]?.id || \"\", emptyPeriod)}") && previewHrefOf("s1", "2026-09") === "/payroll?store=s1&period=2026-09" && s.includes("この{view === \"store\" ? \"店舗\" : \"期間\"}に給与 run がありません。"));
 }
 
+// ★便 X-13d-1（2026-10-09）: 裁定339（X-13-23 一覧読取）／X-13-17（カード化）／X-13-19（スライド 1 段 1 行・接尾「円」）／X-13-22（歯車＝/master 直リンク）
+{
+  const cs = src("app/(manage)/master/cast-comp/comp-sections.tsx");
+  check("x13(comp-list-1) 裁定339: useCompData の一覧読取＝from(\"comp_plans\").select(\"*\")（列名を from に混ぜない＝PGRST205 の再発防止）", cs.includes('supabase.from("comp_plans").select("*").order("name")') && !cs.includes('from("comp_plans, '));
+  check("x13(comp-list-2) 裁定339: error は onError（赤帯・rpc-err の和文）へ・失敗した読取は直前値を保持（if (!p.error) setPlans）", cs.includes("onError?: (m: string) => void") && cs.includes("if (!p.error) setPlans(") && cs.includes("rpcErrJa(errs[0].message)") && !cs.includes("    setPlans((p.data ?? []) as Plan[]);"));
+  const pb = src("app/(manage)/master/cast-comp/plan/plan-board.tsx"), nb = src("app/(manage)/master/cast-comp/norma/norma-board.tsx"), ddb = src("app/(manage)/master/cast-comp/deduction/deduction-board.tsx");
+  check("x13(comp-list-3) 裁定339: 3 ボードとも useCompData(storeId, setMsg)", [pb, nb, ddb].every((x) => x.includes("useCompData(storeId, setMsg)")));
+  const sb = src("app/(manage)/shift/shift-board.tsx"), pl = src("app/(manage)/payroll/payroll-list.tsx"), rb = src("app/(manage)/report/report-board.tsx"), cd = src("app/(manage)/customers/[id]/customer-detail.tsx"), css = src("app/globals.css");
+  check("x13(cards-1) X-13-17: シフト「今日」の表＝.nox-table.cardrows（申請／確定 data-label・出勤記録 wide・操作 ops・PC は表のまま）", sb.includes('<table className="nox-table cardrows">{/* ★X-13-17') && sb.includes('data-label="申請"') && sb.includes('data-label="確定"') && sb.includes('<td className="wide">\n                          {/* ★裁定313') && sb.includes('<td className="ops">\n                          {(() => {\n                            const io = punchIO'));
+  check("x13(cards-2) X-13-17 同型: 給与 月次一覧／日報 全列表＋回収履歴／顧客キープ＝cardrows＋data-label（在庫は .nox-ptable で既にカード）", pl.includes('<table className="nox-table cardrows"') && (pl.match(/data-label="/g) ?? []).length >= 8 && (rb.match(/<table className="nox-table cardrows"/g) ?? []).length === 2 && (rb.match(/data-label="/g) ?? []).length >= 22 && cd.includes('<table className="nox-table cardrows">') && css.includes(".nox-ptable td::before { content: attr(data-label)"));
+  check("x13(cards-3) CSS: cardrows の data-label 見出し・wide・ops・名前列 sticky の解除は ≤899 の節・td の padding/border は inline style にも効く（!important）", css.includes('.nox-table.cardrows td[data-label]::before { content: attr(data-label);') && css.includes(".nox-table.cardrows td.wide { flex: 0 0 100%;") && css.includes(".nox-tablewrap.stickyfirst:has(> .nox-table.cardrows) th:first-child") && css.includes(".nox-table.cardrows td { display: block; padding: 0 !important; border: 0 !important;"));
+  check("x13(slide-1) X-13-19: SlideInput＝1 段 1 行（.nox-sliderow・MoneyInput×2・「→ 時給」）・¥ 接頭なし・「円 円」なし", cs.includes('<div key={i} className="nox-sliderow">') && cs.includes('<span className="u">→ 時給</span>') && !cs.includes("<span style={unit}>¥</span>") && !cs.includes("<span style={unit}>円</span>") && css.includes(".nox-sliderow { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;"));
+  const pe = src("app/(manage)/master/cast-comp/plan/plan-editor.tsx");
+  check("x13(slide-2) X-13-19: CompRows（保証・達成ボーナス）の金額＝接尾「円」・ラベルに（円）を重ねない・¥ 接頭 0", pe.includes('{(c.amount ?? 0).toLocaleString()} 円</td>') && !pe.includes("保証額(円/月)") && !pe.includes("加算額(円)") && !pe.includes("¥{") && !cs.includes("¥{sales.toLocaleString()}"));
+  const hc = src("components/ui/header-chips.tsx");
+  check("x13(gear-1) X-13-22: ヘッダーの歯車＝/master 直リンク（Link）・ポップオーバー／matchMedia／hashTargetOf なし・PC も同じ・gear 群 0 なら null", hc.includes('<Link href="/master" className={on ? "nox-hdrbtn on" : "nox-hdrbtn"}') && !hc.includes("matchMedia") && !hc.includes("hashTargetOf") && hc.includes("if (items.length === 0) return null;"));
+  const ss = src("lib/nox/store-systems.ts"), sp = src("app/(manage)/master/cast-comp/systems/page.tsx"), spp = src("app/(manage)/master/store-profile/page.tsx");
+  check("x13(usage-1) X-13-21: systemUsageOf はプラン側の値でも数える（plans／components 任意）・systems と store-profile の 2 面が comp_plans／comp_plan_components を渡す", ss.includes("plans?: PlanRow[]; components?: PlanComponentRow[]") && ss.includes("if (bonusPlans.has(p.id)) sets.sys_bonus.add(r.cast_id);") && [sp, spp].every((x) => x.includes('from("comp_plans").select("id, base, hon_back, jonai_back, dohan_back, hon_back_mode, jonai_back_mode, dohan_back_mode, sales_slide, point_slide")') && x.includes('from("comp_plan_components").select("plan_id, kind, is_active")') && x.includes('select("cast_id, plan_id, overrides_json")')));
+}
+
 if (fails.length) {
   console.error(`verify:nox-x13 FAIL ${fails.length} / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);
@@ -109,3 +129,4 @@ if (fails.length) {
 }
 console.log(`verify:nox-x13 OK (${pass} checks)`);
 console.log("目視 NG X-13-1〜10＋12／14（便 X-13a）: register-nom／header-sheet／quota-table／staff-photo／cast-photo／products-back／inventory-track（0166）／demo-flags／store-settings／payroll-empty／payroll-periods");
+console.log("便 X-13d-1（2026-10-09）: comp-list 3（裁定339）／cards 3（X-13-17）／slide 2（X-13-19）／gear 1（X-13-22）／usage 1（X-13-21）");

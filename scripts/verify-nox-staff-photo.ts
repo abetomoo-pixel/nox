@@ -38,11 +38,11 @@ check("sp(1-3) photoVersionOf＝v=epoch（null はそのまま・? と & を選�
 
 // (2) 本人
 const chips = src("components/ui/header-chips.tsx"), lay = src("app/(manage)/layout.tsx");
-check("sp(2-1) UserChip: props meId／mePhotoAt／canPhoto／isDemo・showPhoto＝canPhoto && !isDemo && !!meId・uploadUserPhoto／removeUserPhoto／signUserPhoto・CastAvatar・写真を削除・variant=\"top\" は 2（ms(2-25) 不変）",
+check("sp(2-1) UserChip: props meId／mePhotoAt／canPhoto／isDemo・showPhoto＝canPhoto && !isDemo && !!meId・uploadUserPhoto／removeUserPhoto／signUserPhoto・CastAvatar・写真を削除・variant=\"top\" は 1（UserChip のみ・HeaderGear は X-13-22 で /master 直リンク＝ms(2-25) と同値）",
   /meId\?: string \| null; mePhotoAt\?: string \| null; canPhoto\?: boolean; isDemo\?: boolean;/.test(chips) && chips.includes("const showPhoto = canPhoto && !isDemo && !!meId;")
   && chips.includes("await uploadUserPhoto(supabase, orgId, meId, f)") && chips.includes("await removeUserPhoto(supabase, orgId, meId)") && chips.includes("signUserPhoto(supabase, org, meId, photoAt)")
   && chips.includes('<CastAvatar name={(name ?? "").trim() || "?"} url={photoUrl} size={56} />') && chips.includes(">写真を削除</button>") && chips.includes("photoActionLabelOf(!!photoAt, busy)")
-  && (chips.match(/variant="top"/g) ?? []).length === 2 && chips.includes('<Message kind="error"') && chips.includes("rpcErrJa("));
+  && (chips.match(/variant="top"/g) ?? []).length === 1 && chips.includes('<Message kind="error"') && chips.includes("rpcErrJa("));
 check("sp(2-2) layout: users 行の読取に id・photo_updated_at・UserChip に meId／mePhotoAt／canPhoto={role !== \"cast\"}／isDemo（nv(4-3) の name／email 形は不変）",
   lay.includes('.select("id, name, email, photo_updated_at").eq("auth_user_id"') && lay.includes("<UserChip name={meName} email={meEmail}") && lay.includes("meId={(meRow?.id as string | null) ?? null}")
   && lay.includes("mePhotoAt={(meRow?.photo_updated_at as string | null) ?? null}") && lay.includes('canPhoto={role !== "cast"}') && lay.includes("isDemo={isDemo} />"));

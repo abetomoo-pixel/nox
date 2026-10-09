@@ -40,7 +40,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
 }) {
   const supabase = createClient();
   const [msg, setMsg] = useState<string | null>(null);
-  const data = useCompData(storeId);
+  const data = useCompData(storeId, setMsg); // ★裁定339: 一覧読取の error は赤帯（直前値は保持）
   const [tab, setTab] = useState<TabKey>("base");
   const [selId, setSelId] = useState<string | null>(null);
   const [selComps, setSelComps] = useState<{ kind: string; is_active: boolean; amount: number | null }[]>([]);

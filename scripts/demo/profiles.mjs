@@ -29,6 +29,15 @@ export const PROFILES = {
     shift: { base: 3, fri_sat: 4, fill: "short", pattern: [2, 3, 2, 3, 3, 4, 2] } },
 };
 export const PROFILE_CODES = Object.keys(PROFILES);
+/** ★X-13-21（便 X-13d-1・仮決め）: 待遇プランが 1 本だけの店に 2〜3 本目を足す（源泉 nox_demo_all.json の compensation_plans は不変＝gen-demo が末尾に足し、キャストは順番に割り振る）。
+ *  NOIR は源泉で 3 本・LILY は源泉 1 本（live の 3 本中 2 本はデモ内で手入力されたもの＝reset で消える）・ACE は源泉 1 本（売上スライド）のまま＝相談役ブロック「ACE はプラン 0 のまま（仕様）」に合わせ据え置き（実体は 1 本）。 */
+export const EXTRA_PLANS = {
+  muse: [{ key: "senior", name: "MUSE Senior", base: 2000, hon: 500, jonai: 300, dohan: 300 }],
+  luna: [{ key: "premium", name: "LUNA Premium", base: 3500, hon: 1000, jonai: 500, dohan: 500 }, { key: "rookie", name: "LUNA 新人", base: 2500, hon: 500, jonai: 300, dohan: 300 }],
+  noir: [], ace: [],
+  lily: [{ key: "senior", name: "LILY Senior", base: 2200, hon: 300, jonai: 200, dohan: 200 }],
+  nest: [{ key: "senior", name: "NEST Senior", base: 1800, hon: 300, jonai: 200, dohan: 200 }],
+};
 /** sys_* 9 キー（stores.settings_json）＝PROFILES.sys から。sales_rate／point_slide／penalties は全店 false */
 export function sysSettingsOf(code) {
   const s = PROFILES[code].sys;

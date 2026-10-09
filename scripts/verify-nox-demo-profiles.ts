@@ -8,7 +8,7 @@
  *  逆テスト 1 本（手動・1 回）: profiles.mjs の noir.back を "rate" に→dpf(1-2) 赤・戻して緑。
  */
 import fs from "node:fs";
-import { PROFILES, PROFILE_CODES, backKeyOf, sysSettingsOf } from "../scripts/demo/profiles.mjs";
+import { EXTRA_PLANS, PROFILES, PROFILE_CODES, backKeyOf, sysSettingsOf } from "../scripts/demo/profiles.mjs";
 
 let pass = 0;
 const fails: string[] = [];
@@ -40,6 +40,11 @@ for (const code of codes) {
   const noBack = prods.filter((r) => (r.back_mode === "rate" && !(r.back_value > 0)) || (r.back_mode === "unit4" && Object.values(r.unit4_json ?? {}).every((v) => !v)));
   check(`dpf(2-3) ${code}: バック型＝全商品 ${p.back}・ドリンク ${drinks.length} 本は全部バックあり・「—」はフードだけ（${noBack.length}）`, prods.every((r) => r.back_mode === p.back) && drinks.every((r) => !noBack.includes(r)) && noBack.every((r) => backKeyOf(r) === "food") && (p.back !== "rate" || drinks.every((r) => r.back_value >= 10 && r.back_value <= 30)) && (p.back !== "unit4" || drinks.every((r) => r.unit4_json.hon >= r.unit4_json.jonai && r.unit4_json.jonai >= r.unit4_json.dohan && r.unit4_json.dohan >= r.unit4_json.free && r.unit4_json.free > 0)), `noBack=${noBack.map((r) => r.name).join(",")}`);
   check(`dpf(2-4) ${code}: cast_norms ${p.sys.norms ? "あり（当月・全キャスト）" : "なし"}・comp_plan_components ${p.sys.bonus ? "あり（achievement_bonus）" : "なし"}`, (p.sys.norms ? (T.cast_norms ?? []).length === T.casts.length && (T.cast_norms ?? []).every((n) => n.period?.fmt === "ym" && n.period?.$m === 0) : !(T.cast_norms ?? []).length) && (p.sys.bonus ? (T.comp_plan_components ?? []).length === T.comp_plans.length && (T.comp_plan_components ?? []).every((c) => c.kind === "achievement_bonus" && c.mode === "amount" && c.amount === 10000) : !(T.comp_plan_components ?? []).length));
+  // ★X-13-21（便 X-13d-1）: 待遇プラン＝源泉＋EXTRA_PLANS（1 本の店に 2〜3 本目・ACE は 1 本のまま）・cast_plan は全キャスト・追加プランにも割当あり
+  { const ex = (EXTRA_PLANS as Record<string, { name: string }[]>)[code] ?? []; const plans = T.comp_plans ?? []; const cps = T.cast_plan ?? []; const casts = T.casts ?? [];
+    const exIds = new Set(plans.filter((p) => ex.some((x) => x.name === p.name)).map((p) => p.id));
+    check(`dpf(2-5) ${code}: comp_plans ${plans.length} 本（追加 ${ex.length}・ACE 以外は ≥2）・cast_plan＝casts ${casts.length} 全員・追加プランへの割当 ${cps.filter((c) => exIds.has(c.plan_id)).length} 人`,
+      exIds.size === ex.length && (code === "ace" ? plans.length === 1 : plans.length >= 2) && cps.length === casts.length && new Set(cps.map((c) => c.cast_id)).size === casts.length && (ex.length === 0 || cps.some((c) => exIds.has(c.plan_id)))); }
   const needs = T.staffing_needs ?? [];
   const wk = [0, 1, 2, 3, 4, 5, 6].map((i) => T.shifts.filter((s) => s.date?.$rel === i && s.status === "confirmed").length);
   const want = p.shift.pattern.map((n: number) => Math.min(n, T.casts.length));

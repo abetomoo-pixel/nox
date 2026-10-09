@@ -79,7 +79,7 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
             {rows.map((c) => (
               <tr key={c.id} onClick={() => { if (!isOwner) return; setEditId(c.id); setAmount(c.amount ?? 0); setActive(c.is_active); }}
                 style={{ cursor: isOwner ? "pointer" : "default" }}>
-                <td className="num">¥{(c.amount ?? 0).toLocaleString()}</td>
+                <td className="num">{(c.amount ?? 0).toLocaleString()} 円</td>{/* ★X-13-19: 通貨は接尾「円」（¥ 接頭撤去） */}
                 <td>{kind === "guarantee_min" ? "月（固定）" : "達成100%・1段（固定）"}</td>
                 <td style={{ color: c.is_active ? "var(--ok)" : "var(--sub)" }}>{c.is_active ? "有効" : "無効"}</td>
               </tr>
@@ -91,7 +91,7 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
       {isOwner && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: 12, color: "var(--sub)" }}>{editId ? "編集中" : "追加"}</span>
-          <label style={{ fontSize: 12 }}>{kind === "guarantee_min" ? "保証額(円/月)" : "加算額(円)"}{" "}
+          <label style={{ fontSize: 12 }}>{kind === "guarantee_min" ? "保証額（月）" : "加算額"}{/* ★X-13-19: 単位は MoneyInput の「円」だけ（「円 円」の二重を解消） */}{" "}
             <MoneyInput value={amount} onChange={(v) => setAmount(Number(v || 0))} style={t.input} width={130} ariaLabel="金額" /></label>
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }}
@@ -402,7 +402,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           判定基準: <b style={{ color: "var(--v2-text)" }}>{slideApplyOf(settings) === "next" ? "前月の月間売上／前月の月間pt（翌月に反映）" : "日次売上（按分後）／日次pt"}</b>・対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）{/* ★N3b（裁定288-7） */}
           <span className="nox-stpill" style={{ marginLeft: 8, opacity: 0.8 }}>判定基準・対象の選択: 準備中（C5）</span>
         </p>
-        {/* ★N2: 段は固定列の表（規約 §6）・単位常時表示（¥ … 以上／… pt以上／¥ … 円）＝SlideInput の basis で切替 */}
+        {/* ★N2→★X-13-19: 段は 1 段 1 行（[判定] 円 以上 → 時給 [時給] 円・通貨は接尾のみ）＝SlideInput の basis で切替 */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
           <SlideInput label="売上スライド（3段）" desc={slideApplyOf(settings) === "next" ? "前月の月間売上を基準に当月の時給へ反映。" : "日次売上（按分後）を基準に翌日以降の時給へ反映。"} basis="yen" monthly={slideApplyOf(settings) === "next"} slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
           <SlideInput label="ポイントスライド（3段）" desc={slideApplyOf(settings) === "next" ? "前月の月間ポイントを基準に当月の時給へ反映。" : "獲得ポイントを基準に翌日以降の時給へ反映。"} basis="pt" monthly={slideApplyOf(settings) === "next"} slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />

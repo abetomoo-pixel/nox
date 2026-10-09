@@ -75,6 +75,20 @@ function pureChecks() {
   check("ss(3-7) 空入力は全 0", SYSTEM_KEYS.every((k) => z[k] === 0));
   const bad = systemUsageOf({ castPlans: [{ cast_id: "x", overrides_json: { base: "3500" } }], castNorms: [] });
   check("ss(3-8) 数値でない base（文字列）は数えない", bad.sys_hourly === 0);
+  // ★X-13-21（便 X-13d-1）: プラン側の値でも数える（割当のみ・overrides なしのキャスト＝デモ 6 店の「使用中 0 名」の原因）
+  const u2 = systemUsageOf({
+    castPlans: [{ cast_id: "d1", plan_id: "p1", overrides_json: {} }, { cast_id: "d2", plan_id: "p2", overrides_json: {} }, { cast_id: "d3", plan_id: "p9", overrides_json: {} }],
+    castNorms: [],
+    plans: [
+      { id: "p1", base: 3000, hon_back: 500, jonai_back: 0, dohan_back: 0, hon_back_mode: "per_count", jonai_back_mode: "per_count", sales_slide: [{ at: 1, wage: 1 }], point_slide: [] },
+      { id: "p2", base: 0, hon_back: 0, jonai_back: 0, dohan_back: 0, hon_back_mode: "rate", jonai_back_mode: "per_count", sales_slide: [], point_slide: [{ at: 1, wage: 1 }] },
+    ],
+    components: [{ plan_id: "p1", kind: "achievement_bonus", is_active: true }, { plan_id: "p2", kind: "achievement_bonus", is_active: false }],
+  });
+  check("ss(3-9) ★X-13-21 プラン値: base>0 の plan に割当＝sys_hourly（d1）・hon_back>0＝sys_backs（d1）", u2.sys_hourly === 1 && u2.sys_backs === 1, JSON.stringify(u2));
+  check("ss(3-10) ★X-13-21 プラン値: *_back_mode='rate'＝sys_sales_rate（d2）・sales_slide≠[]＝sys_sales_slide（d1）・point_slide≠[]＝sys_point_slide（d2）", u2.sys_sales_rate === 1 && u2.sys_sales_slide === 1 && u2.sys_point_slide === 1, JSON.stringify(u2));
+  check("ss(3-11) ★X-13-21 プラン値: achievement_bonus（有効）の plan に割当＝sys_bonus（d1 のみ・p2 は無効）・無い plan_id（p9）は数えない・points／penalties は 0", u2.sys_bonus === 1 && u2.sys_points === 0 && u2.sys_penalties === 0, JSON.stringify(u2));
+  check("ss(3-12) ★X-13-21 plans 省略＝従来どおり（overrides と norms だけ＝全 0）", JSON.stringify(systemUsageOf({ castPlans: [{ cast_id: "d1", plan_id: "p1", overrides_json: {} }], castNorms: [] })) === JSON.stringify(z));
 }
 
 async function main() {

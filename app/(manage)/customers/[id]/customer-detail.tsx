@@ -313,16 +313,16 @@ export default function CustomerDetail({
         {keeps !== null && keeps.length === 0 && <p style={noneP}>キープはありません</p>}
         {keeps !== null && keeps.length > 0 && (
           <div className="nox-tablewrap">
-            <table className="nox-table">
+            <table className="nox-table cardrows">{/* ★X-13-17（便 X-13d-1）: ≤899 は 1 本 1 カード */}
               <thead><tr><th>ボトル</th><th>残量</th><th>最終利用日</th><th>棚</th><th>状態</th></tr></thead>
               <tbody>
                 {keeps.map((k) => (
                   <tr key={k.id}>
                     <td>{k.bottle_name ?? k.products?.name ?? "（商品）"}</td>
-                    <td className="num">{k.remaining_pct != null ? `${k.remaining_pct}%` : "—"}</td>
-                    <td className="num">{k.last_used_at ? fmtWhen(k.last_used_at) : "—"}</td>
-                    <td>{k.shelf_no ?? "—"}</td>
-                    <td>{k.status === "active" ? "保管中" : k.status === "empty" ? "空" : "終了"}</td>
+                    <td className="num" data-label="残量">{k.remaining_pct != null ? `${k.remaining_pct}%` : "—"}</td>
+                    <td className="num" data-label="最終利用日">{k.last_used_at ? fmtWhen(k.last_used_at) : "—"}</td>
+                    <td data-label="棚">{k.shelf_no ?? "—"}</td>
+                    <td data-label="状態">{k.status === "active" ? "保管中" : k.status === "empty" ? "空" : "終了"}</td>
                   </tr>
                 ))}
               </tbody>

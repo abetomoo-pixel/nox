@@ -187,8 +187,8 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
             </div>
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+          <div className="nox-tablewrap plain">{/* ★X-13-17（便 X-13d-1）: ≤899 は 1 run 1 カード（.nox-table.cardrows・data-label）・PC は表のまま */}
+            <table className="nox-table cardrows" style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
               <thead>
                 <tr>
                   {["店舗", "期間", "状態", "対象者", "総支給", "差引支給", "支払状況", "更新日時", ...(isOwner ? ["履歴"] : []), "操作"].map((h) => (
@@ -200,17 +200,17 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
                 {shown.map((r) => (
                   <tr key={r.runId}>
                     <td style={t.td}>{nameOf.get(r.storeId) ?? "—"}</td>
-                    <td style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }} title={r.period}>{fmtPeriodYM(r.period)}</td>{/* ★N3 AV-1: 期は YYYY/M・折り返さない */}
-                    <td style={{ ...t.td, whiteSpace: "nowrap" }}>
+                    <td data-label="期間" style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }} title={r.period}>{fmtPeriodYM(r.period)}</td>{/* ★N3 AV-1: 期は YYYY/M・折り返さない */}
+                    <td data-label="状態" style={{ ...t.td, whiteSpace: "nowrap" }}>
                       <span className={`nox-runbadge ${r.status === "paid" ? "paid" : r.status === "finalized" ? "fin" : ""}`}>{STATUS_LABEL[r.status] ?? r.status}</span>
                     </td>
-                    <td style={{ ...t.td, ...t.num }}>{r.castCount}</td>
-                    <td style={{ ...t.td, ...t.num }}>{r.castCount > 0 ? yen(r.gross) : "—"}</td>
-                    <td style={{ ...t.td, ...t.num }}>{r.castCount > 0 ? yen(r.net) : "—"}</td>
-                    <td style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }}>{r.paidCount > 0 ? `${r.paidCount} 件・${yen(r.paidTotal)}` : r.status === "paid" ? "支払済み化" : "—"}{/* ★N3 AV-1: 支払状況は折り返さない（縦文字の解消） */}{/* ★#82: 「—」は paid 時「支払済み化」 */}</td>
-                    <td style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }}>{fmtAt(r.paidAt ?? r.finalizedAt ?? r.updatedAt)}</td>
+                    <td data-label="対象者" style={{ ...t.td, ...t.num }}>{r.castCount}</td>
+                    <td data-label="総支給" style={{ ...t.td, ...t.num }}>{r.castCount > 0 ? yen(r.gross) : "—"}</td>
+                    <td data-label="差引支給" style={{ ...t.td, ...t.num }}>{r.castCount > 0 ? yen(r.net) : "—"}</td>
+                    <td data-label="支払状況" style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }}>{r.paidCount > 0 ? `${r.paidCount} 件・${yen(r.paidTotal)}` : r.status === "paid" ? "支払済み化" : "—"}{/* ★N3 AV-1: 支払状況は折り返さない（縦文字の解消） */}{/* ★#82: 「—」は paid 時「支払済み化」 */}</td>
+                    <td data-label="更新" style={{ ...t.td, ...t.num, whiteSpace: "nowrap" }}>{fmtAt(r.paidAt ?? r.finalizedAt ?? r.updatedAt)}</td>
                     {isOwner && (
-                      <td style={t.td}>
+                      <td className="wide" data-label="履歴" style={t.td}>
                         {r.lastAction ? (
                           <details>
                             <summary style={{ cursor: "pointer", whiteSpace: "nowrap" }}>{ACTION_LABEL[r.lastAction.action] ?? r.lastAction.action}・{fmtAt(r.lastAction.at)}</summary>
@@ -219,13 +219,15 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
                         ) : "—"}
                       </td>
                     )}
-                    <td style={{ ...t.td, whiteSpace: "nowrap" }}>
+                    <td className="ops" style={{ ...t.td, whiteSpace: "nowrap" }}>
+                      <span className="nox-rowops">
                       <Link href={`/payroll?store=${encodeURIComponent(r.storeId)}&period=${r.period}`} className="nox-link">明細へ</Link>
-                      <button type="button" style={{ ...btnLight, marginLeft: 8 }} disabled={busy || !r.csvEnabled}
+                      <button type="button" style={btnLight} disabled={busy || !r.csvEnabled}
                         title={r.csvEnabled ? "" : "確定済みの期間のみ出力できます"} onClick={() => void csv(r)}>CSV</button>
                       {markPaidEnabled(role, r.status) && (
-                        <button type="button" style={{ ...t.btnGold, marginLeft: 8 }} disabled={busy} onClick={() => { setPayMsg(""); setPayPick(r); }}>支払済みにする</button>
+                        <button type="button" style={t.btnGold} disabled={busy} onClick={() => { setPayMsg(""); setPayPick(r); }}>支払済みにする</button>
                       )}
+                      </span>
                     </td>
                   </tr>
                 ))}

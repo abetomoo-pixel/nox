@@ -2298,6 +2298,10 @@ body {
 .nox-attrow .out { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex: 0 0 auto; }
 .nox-rowops { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .nox-rowops button { white-space: nowrap; }
+/* ★X-13-19（便 X-13d-1）: スライド・ポイントの段＝1 段 1 行（n段 [判定] 円 以上 → 時給 [時給] 円）。縦折返しなし */
+.nox-sliderow { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 0; }
+.nox-sliderow .n { flex: 0 0 auto; font-size: 12px; color: var(--sub); white-space: nowrap; }
+.nox-sliderow .u { flex: 0 0 auto; font-size: 12px; color: var(--sub); white-space: nowrap; }
 .nox-bulkops { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .nox-planops { margin-left: auto; display: inline-flex; gap: 8px; }
 .nox-backbar-row2 { display: contents; }
@@ -2336,13 +2340,21 @@ body {
   .nox-table.cardrows thead { display: none; }
   .nox-table.cardrows tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 12px; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--card); }
   .nox-table.cardrows tbody tr:hover { background: var(--card); }
-  .nox-table.cardrows td { display: block; padding: 0; border: 0; min-width: 0; }
+  .nox-table.cardrows td { display: block; padding: 0 !important; border: 0 !important; min-width: 0; } /* ★X-13-17: inline style（t.td）の表にも効かせる */
   .nox-table.cardrows td:first-child { font-weight: 800; }
   .nox-table.cardrows td:empty { display: none; }
   .nox-table.cardrows td.grp { flex: 0 0 100%; background: transparent !important; }
   .nox-table.cardrows td.ops { flex: 0 0 100%; margin-top: 6px; }
   .nox-table.cardrows td.ops .nox-rowops { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
   .nox-table.cardrows td.ops .nox-rowops button { width: 100%; justify-content: center; white-space: nowrap; }
+  /* ★X-13-17（便 X-13d-1）: 今日の表・給与一覧・日報・顧客キープを同じ型でカード化＝data-label を見出しに出す・wide は 1 行占有・操作は縦積み全幅・名前列の sticky は解除 */
+  .nox-table.cardrows td[data-label]::before { content: attr(data-label); display: inline-block; margin-right: 6px; color: var(--sub); font-size: 10.5px; font-weight: 400; letter-spacing: .04em; white-space: nowrap; }
+  .nox-table.cardrows td.wide { flex: 0 0 100%; white-space: normal !important; }
+  .nox-table.cardrows td.ops { white-space: normal !important; }
+  .nox-table.cardrows td.ops .nox-rowops a { text-align: center; }
+  .nox-tablewrap.stickyfirst:has(> .nox-table.cardrows) th:first-child, .nox-tablewrap.stickyfirst:has(> .nox-table.cardrows) td:first-child { position: static; background: transparent; }
+  .nox-sliderow .nox-money { flex: 1 1 0; min-width: 0; width: auto !important; }
+  .nox-sliderow .u { font-size: 11px; }
   .nox-bulkops { margin-left: 0; width: 100%; justify-content: flex-start; }
   /* X-8-12: 「作る」タブ＝計画バーの 3 ボタンは縦積み全幅・「希望を処理」は全幅センター */
   .nox-planops { margin-left: 0; width: 100%; display: flex; flex-direction: column; }

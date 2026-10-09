@@ -1,7 +1,7 @@
 "use client";
 
 // ★夜間便 N4（2026-09-24・裁定275 追補2-2／3）: ヘッダー右の 2 つの口。
-//   HeaderGear ＝ 歯車（マスタ・監査・ご契約＝gear 群）→ 一覧型（アイコン＋説明＋「›」）の Modal。
+//   HeaderGear ＝ 歯車 → ★X-13-22（便 X-13d-1）: /master（マスタトップ）への直リンク（旧: gear 群の一覧型 Modal／≤899 はメニューシートの「設定」節＝重複のため撤去）。
 //   UserChip   ＝ 「登録名｜役割」→ 自分の情報（表示のみ）＋ログアウト（form POST /auth/signout＝経路不変）。
 //   ★ルート／URL／権限ゲートは非改変＝表示だけ。既存トークン・既存部品（Modal・NavIcon・.nox-navsheet-*）のみ・ui-tokens 新規 0。
 import { useEffect, useState } from "react";
@@ -9,7 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Modal from "./modal";
 import { NavIcon } from "./nav-icons";
-import { GEAR_LABEL, NAV_DESC, OPEN_MENU_EVENT, activeHrefOf, hashTargetOf, userChipLabelOf, type NavGroup } from "@/lib/nox/ui/nav-tabs";
+import { GEAR_LABEL, NAV_DESC, activeHrefOf, userChipLabelOf, type NavGroup } from "@/lib/nox/ui/nav-tabs";
 // ★0162（裁定329・便 M5-1）: スタッフ本人の「写真を変更」＝「自分の情報」Modal に置く（キャストの /mine photo-card と同じ部品・同じ縮小・u_{user_id}.jpg）
 import { createClient } from "@/lib/supabase/client";
 import CastAvatar from "./cast-avatar";
@@ -34,46 +34,17 @@ export function NavListRow({ href, label, on, onClick, replace }: { href: string
 }
 
 export function HeaderGear({ groups }: { groups: NavGroup[] }) {
+  // ★X-13-22（便 X-13d-1）: 歯車＝マスタトップ（/master）への直リンク。ポップオーバーとメニューシートを開くイベントの発火は撤去（下タブ「メニュー」の「設定」節と重複していた）。
+  //   PC も同じ直リンク。gear 群が 0（権限なし）なら描かない＝従来どおり。選択中の印は gear 群のいずれかのページにいるとき。
   const path = usePathname() ?? "";
-  const [open, setOpen] = useState(false);
   const items = groups.flatMap((g) => g.items);
   if (items.length === 0) return null;
   const active = activeHrefOf(path, items);
-  // ★裁定306-11: ≤899px はページ内パネルを差し込まず、下タブ「メニュー」と同じボトムシート（nav.tsx）を「設定」節から開く。≥900px は現行の Modal
-  const openGear = () => {
-    if (typeof window !== "undefined" && window.matchMedia("(max-width: 899px)").matches) {
-      window.dispatchEvent(new CustomEvent(OPEN_MENU_EVENT, { detail: { section: "settings" } }));
-      return;
-    }
-    setOpen(true);
-  };
-  // ★306-11（≥900px）: 押下時に該当パネル（同じページのハッシュ）へ scrollIntoView
-  const pick = (href: string) => {
-    setOpen(false);
-    const id = hashTargetOf(href, path);
-    if (id) requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  };
+  const on = !!active || path === "/master" || path.startsWith("/master/");
   return (
-    <>
-      <button type="button" className={active ? "nox-hdrbtn on" : "nox-hdrbtn"} aria-label={GEAR_LABEL} title={GEAR_LABEL} onClick={openGear}>
-        <span aria-hidden="true">⚙</span>
-      </button>
-      {open && (
-        <Modal onClose={() => setOpen(false)} maxWidth={520} variant="top">{/* ★起票94（便 X-12-3）: ヘッダー直下に固定・超過は内部スクロール（≤899 はシート） */}
-          <div className="nox-navsheet">
-            <div className="nox-formmodal-head" style={{ marginBottom: 10 }}>
-              <h2 className="nox-navsheet-h" style={{ margin: 0 }}>{GEAR_LABEL}</h2>
-              <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => setOpen(false)}>×</button>
-            </div>
-            {groups.map((g, gi) => (
-              <div key={g.label ?? `gear${gi}`} className="nox-navsheet-g">
-                {g.items.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={() => pick(it.href)} />)}
-              </div>
-            ))}
-          </div>
-        </Modal>
-      )}
-    </>
+    <Link href="/master" className={on ? "nox-hdrbtn on" : "nox-hdrbtn"} aria-label={GEAR_LABEL} title={`${GEAR_LABEL}（マスタ）`} aria-current={on ? "page" : undefined}>
+      <span aria-hidden="true">⚙</span>
+    </Link>
   );
 }
 

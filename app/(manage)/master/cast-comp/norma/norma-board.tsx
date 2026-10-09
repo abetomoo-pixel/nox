@@ -22,7 +22,7 @@ export default function NormaBoard({ storeId, isManagerUp, isOwner, flags, setti
   flags: { salesEnabled: boolean; shimeiEnabled: boolean; shimeiScope: "hon" | "hon_jonai" };
 }) {
   const [msg, setMsg] = useState<string | null>(null);
-  const data = useCompData(storeId);
+  const data = useCompData(storeId, setMsg); // ★裁定339: 一覧読取の error は赤帯（直前値は保持）
 
   return (
     <div>

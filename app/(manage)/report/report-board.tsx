@@ -804,7 +804,7 @@ export default function ReportBoard({
             <p style={{ ...t.sub, margin: 0 }}>当月の回収はまだありません。</p>
           ) : (
             <div className="nox-tablewrap plain">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし） */}
-            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+            <table className="nox-table cardrows" style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>{/* ★X-13-17（便 X-13d-1）: ≤899 はカード化（data-label） */}
               <thead>
                 <tr>{["入金日", "方法", "金額", "顧客", "担当", "登録者"].map((h) => <th key={h} style={t.th}>{h}</th>)}</tr>
               </thead>
@@ -812,11 +812,11 @@ export default function ReportBoard({
                 {colHist.map((c) => (
                   <tr key={c.id}>
                     <td style={{ ...t.td, ...t.num }}>{c.biz_date}</td>
-                    <td style={t.td}>{METHOD_LABEL[c.method] ?? c.method}</td>
-                    <td style={{ ...t.td, ...t.num }}>{yen(c.amount)}</td>
-                    <td style={t.td}>{c.customers?.name ?? "フリー"}</td>
-                    <td style={t.td}>{c.casts?.name ?? "—"}</td>
-                    <td style={t.td}>{c.creator?.name ?? "—"}</td>
+                    <td data-label="方法" style={t.td}>{METHOD_LABEL[c.method] ?? c.method}</td>
+                    <td data-label="金額" style={{ ...t.td, ...t.num }}>{yen(c.amount)}</td>
+                    <td data-label="顧客" style={t.td}>{c.customers?.name ?? "フリー"}</td>
+                    <td data-label="担当" style={t.td}>{c.casts?.name ?? "—"}</td>
+                    <td data-label="登録者" style={t.td}>{c.creator?.name ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1381,7 +1381,7 @@ export default function ReportBoard({
         ))}
         <p style={{ ...t.sub, fontSize: 11, margin: "10px 0 6px" }}>全列（実査差異・再締め等）は下の表で確認できます。</p>
         <div className="nox-tablewrap plain">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし） */}
-        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+        <table className="nox-table cardrows" style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>{/* ★X-13-17（便 X-13d-1）: ≤899 は 1 日 1 カード（19 列を data-label 付きで縦に）・PC は裁定251 の横スクロールのまま */}
           <thead>
             <tr>
               {["営業日", "伝票", "客数", "現金", "回収現金", "カード回収", "その他回収", "カード", "カード手数料", "売掛", "ドリンク売上", "未会計", "諸経費", "現金支払", "紹介料(現金)", "実査差異", "再締め回数", "締め担当", ""].map((h) => (
@@ -1394,28 +1394,28 @@ export default function ReportBoard({
             {reports.map((r) => (
               <tr key={r.id}>
                 <td style={{ ...t.td, ...t.num }}>{r.biz_date}</td>
-                <td style={{ ...t.td, ...t.num }}>{r.slips}</td>
-                <td style={{ ...t.td, ...t.num }}>{r.guests}</td>
-                <td style={{ ...t.td, ...t.num }}>{yen(r.cash)}</td>
-                <td style={{ ...t.td, ...t.num, color: r.ar_collected > 0 ? "var(--champ)" : undefined }}>{yen(r.ar_collected)}</td>
+                <td data-label="伝票" style={{ ...t.td, ...t.num }}>{r.slips}</td>
+                <td data-label="客数" style={{ ...t.td, ...t.num }}>{r.guests}</td>
+                <td data-label="現金" style={{ ...t.td, ...t.num }}>{yen(r.cash)}</td>
+                <td data-label="回収現金" style={{ ...t.td, ...t.num, color: r.ar_collected > 0 ? "var(--champ)" : undefined }}>{yen(r.ar_collected)}</td>
                 {/* ★D45（mig0143）: 凍結 2 列（在高外・締め時の値） */}
-                <td style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.ar_collected_card)}</td>
-                <td style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.ar_collected_other)}</td>
-                <td style={{ ...t.td, ...t.num }}>{yen(r.card_gross)}</td>
-                <td style={{ ...t.td, ...t.num }}>{yen(r.card_tax)}</td>
-                <td style={{ ...t.td, ...t.num }}>{yen(r.uri)}</td>
-                <td style={{ ...t.td, ...t.num }}>{yen(r.drink_sales)}</td>
-                <td style={{ ...t.td, ...t.num }}>{r.open_checks_count}</td>
-                <td style={{ ...t.td, ...t.num }}>{yen(r.expense)}</td>
-                <td style={{ ...t.td, ...t.num }}>{yen(r.cash_payout)}</td>
-                <td style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.referral_cash_payout ?? 0)}</td>{/* ★0152（裁定298-10） */}
-                <td style={{ ...t.td, ...t.num, color: (r.diff ?? 0) < 0 ? "var(--bad)" : undefined }}>
+                <td data-label="カード回収" style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.ar_collected_card)}</td>
+                <td data-label="その他回収" style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.ar_collected_other)}</td>
+                <td data-label="カード" style={{ ...t.td, ...t.num }}>{yen(r.card_gross)}</td>
+                <td data-label="カード手数料" style={{ ...t.td, ...t.num }}>{yen(r.card_tax)}</td>
+                <td data-label="売掛" style={{ ...t.td, ...t.num }}>{yen(r.uri)}</td>
+                <td data-label="ドリンク売上" style={{ ...t.td, ...t.num }}>{yen(r.drink_sales)}</td>
+                <td data-label="未会計" style={{ ...t.td, ...t.num }}>{r.open_checks_count}</td>
+                <td data-label="諸経費" style={{ ...t.td, ...t.num }}>{yen(r.expense)}</td>
+                <td data-label="現金支払" style={{ ...t.td, ...t.num }}>{yen(r.cash_payout)}</td>
+                <td data-label="紹介料(現金)" style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.referral_cash_payout ?? 0)}</td>{/* ★0152（裁定298-10） */}
+                <td data-label="実査差異" style={{ ...t.td, ...t.num, color: (r.diff ?? 0) < 0 ? "var(--bad)" : undefined }}>
                   {r.diff == null ? "—" : yen(r.diff)}
                 </td>
-                <td style={{ ...t.td, ...t.num }}>{r.reclosed_count}</td>
+                <td data-label="再締め回数" style={{ ...t.td, ...t.num }}>{r.reclosed_count}</td>
                 {/* E8-2 #8: 締め担当（closed_by → users.name・表示専用） */}
-                <td style={t.td}>{r.closed_by ? closerNames[r.closed_by] ?? "—" : "—"}</td>
-                <td style={{ ...t.td, whiteSpace: "nowrap" }}>
+                <td data-label="締め担当" style={t.td}>{r.closed_by ? closerNames[r.closed_by] ?? "—" : "—"}</td>
+                <td className="wide" style={{ ...t.td, whiteSpace: "nowrap" }}>
                   {/* ★C層③（設計書 v1 §4 面 a）: flag on＝締め済み行に「解除」（can_reopen）→ 解除中バッジ＋「再締め」（can_close）。
                       差異あり（実査入力済み・diff≠0・未承認・解除中でない）＝「差異を承認」（can_close）→ 承認済み（理由／承認者／日時）。
                       can_close／can_reopen のない staff にはボタン不在。flag off＝従来どおり manager 以上の「再締め」のみ（導線不在＝横断 §4）。

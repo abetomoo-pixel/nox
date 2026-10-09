@@ -21,7 +21,7 @@ export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, o
   settings?: StoreSettings; // ★裁定269
 }) {
   const [msg, setMsg] = useState<string | null>(null);
-  const data = useCompData(storeId);
+  const data = useCompData(storeId, setMsg); // ★裁定339: 一覧読取の error は赤帯（直前値は保持）
 
   return (
     <div>

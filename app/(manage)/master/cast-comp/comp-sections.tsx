@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定339: 一覧読取の error を和文で赤帯へ
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 
 // キャスト・報酬レーン D2-1: 旧 CompMaster（報酬設計マスタ 6タブ）の解体先。
@@ -180,7 +181,7 @@ export const DEFAULT_PENALTY: Penalty = {
 };
 
 /** 旧 CompMaster の load を移設した共通データフック（読みは RLS・書きは各セクションの RPC）。 */
-export function useCompData(storeId: string) {
+export function useCompData(storeId: string, onError?: (m: string) => void) {
   const supabase = createClient();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [casts, setCasts] = useState<CastRow[]>([]);
@@ -193,7 +194,7 @@ export function useCompData(storeId: string) {
 
   const load = useCallback(async () => {
     const [p, c, cp, n, d, b, pc] = await Promise.all([
-      supabase.from("comp_plans, product_back_fixed_hon, product_back_fixed_jonai, product_back_fixed_free").select("*").order("name"),
+      supabase.from("comp_plans").select("*").order("name"), // ★裁定339（便 X-13d-1・X-13-23）: from は表名だけ（0153 便で列名が from に混入→PostgREST PGRST205 404→plans が常に空だった）
       supabase.from("casts").select("id, name").eq("is_active", true).order("name"),
       // ★mig0114: 期間化後は現在行のみ（valid_to is null）。履歴行が生まれる挙動段の前に必須の追随。
       supabase.from("cast_plan").select("cast_id, plan_id, overrides_json").is("valid_to", null),
@@ -202,12 +203,15 @@ export function useCompData(storeId: string) {
       supabase.from("custom_back_defs").select("id, name, basis, value, cond_json, is_active").order("name"),
       supabase.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
     ]);
-    setPlans((p.data ?? []) as Plan[]);
-    setCasts((c.data ?? []) as CastRow[]);
-    setCastPlans((cp.data ?? []) as CastPlan[]);
-    setNorms((n.data ?? []) as Norm[]);
-    setDeductions((d.data ?? []) as Deduction[]);
-    setBacks((b.data ?? []) as BackDef[]);
+    // ★裁定339: error を握りつぶさない＝失敗した読取は直前値を保持（[] に落とさない）・最初の error を赤帯（rpc-err の和文）へ
+    const errs = [p, c, cp, n, d, b, pc].map((r) => r.error).filter((e): e is NonNullable<typeof e> => !!e);
+    if (errs.length > 0) onError?.(`${rpcErrJa(errs[0].message)}（一覧の読取に失敗・表示は直前の値のままです）`);
+    if (!p.error) setPlans((p.data ?? []) as Plan[]);
+    if (!c.error) setCasts((c.data ?? []) as CastRow[]);
+    if (!cp.error) setCastPlans((cp.data ?? []) as CastPlan[]);
+    if (!n.error) setNorms((n.data ?? []) as Norm[]);
+    if (!d.error) setDeductions((d.data ?? []) as Deduction[]);
+    if (!b.error) setBacks((b.data ?? []) as BackDef[]);
     if (pc.data) { setPenalty(pc.data as unknown as Penalty); setPenaltyExists(true); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
@@ -226,41 +230,33 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthl
   monthly?: boolean;
 }) {
   // 3段固定入力（at 昇順 strict は RPC が検証・空段は送信時に除外）
+  // ★X-13-19（便 X-13d-1）: 1 段 1 行「n段 [判定] 円 以上 → 時給 [時給] 円」。通貨は接尾「円」のみ（¥ 接頭と「円 円」の二重を撤去）・
+  //   ≤899 は .nox-sliderow の入力欄が伸縮して折り返さない（globals.css）。値・保存形（at/wage の 3 段）は不変＝表示だけ。
   const rows: Slide[] = [0, 1, 2].map((i) => slide[i] ?? { at: 0, wage: 0 });
   const set = (i: number, key: "at" | "wage", v: number) => {
     const next = rows.map((r, j) => (j === i ? { ...r, [key]: v } : r));
     setSlide(next);
   };
-  const unit: React.CSSProperties = { fontSize: 12, color: "var(--sub)" };
+  const atLabel = basis === "yen" ? (monthly ? "以上（月間売上）" : "以上（1 日の売上）") : (monthly ? "pt 以上（月間）" : "pt 以上（1 日）");
   return (
     <div style={{ marginTop: 6 }}>
       <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
       <div style={{ ...note, margin: "2px 0 6px" }}>{desc ?? "3段・昇順・0 の段は無効として除外"}</div>
-      <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
-      <table className="nox-table" style={{ width: "auto" }}>
-        <thead><tr><th style={{ width: 48 }}>段</th><th>判定基準</th><th>時給</th></tr></thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i}>
-              <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>{i + 1}段</td>
-              <td>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  {basis === "yen" && <span style={unit}>¥</span>}
-                  <input type="number" min={0} value={r.at} onChange={(e) => set(i, "at", Number(e.target.value))} style={{ ...input, width: 110 }} />
-                  <span style={unit}>{basis === "yen" ? (monthly ? "以上（月間売上）" : "以上（1 日の売上）") : (monthly ? "pt以上（月間）" : "pt以上（1 日）")}</span>
-                </span>
-              </td>
-              <td>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <span style={unit}>¥</span>
-                  <MoneyInput value={r.wage} onChange={(v) => set(i, "wage", Number(v || 0))} style={input} width={110} ariaLabel="時給" />
-                  <span style={unit}>円</span>
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div style={{ display: "grid", gap: 6 }}>
+        {rows.map((r, i) => (
+          <div key={i} className="nox-sliderow">
+            <span className="n num">{i + 1}段</span>
+            {basis === "yen"
+              ? <MoneyInput value={r.at} onChange={(v) => set(i, "at", Number(v || 0))} style={input} width={118} ariaLabel={`${i + 1}段の判定基準（売上）`} />
+              : <span className="nox-money" style={{ display: "inline-flex", alignItems: "center", gap: 4, width: 118 }}>
+                  <input type="number" min={0} value={r.at} onChange={(e) => set(i, "at", Number(e.target.value))} aria-label={`${i + 1}段の判定基準（pt）`}
+                    className="num" style={{ ...input, width: "100%", minWidth: 0, textAlign: "right" }} />
+                </span>}
+            <span className="u">{atLabel}</span>
+            <span className="u">→ 時給</span>
+            <MoneyInput value={r.wage} onChange={(v) => set(i, "wage", Number(v || 0))} style={input} width={118} ariaLabel={`${i + 1}段の時給`} />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -684,11 +680,11 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                     return (
                       <td className="num" style={{ fontSize: 12 }}>
                         {target > 0
-                          ? <>¥{sales.toLocaleString()} / ¥{target.toLocaleString()}
+                          ? <>{sales.toLocaleString()} 円 / {target.toLocaleString()} 円{/* ★X-13-19: 通貨は接尾「円」 */}
                               <span style={{ marginLeft: 6, color: sales >= target ? "var(--ok)" : "var(--sub)" }}>
                                 {Math.floor((sales * 100) / target)}%
                               </span></>
-                          : sales > 0 ? <>¥{sales.toLocaleString()}<span style={{ marginLeft: 6, color: "var(--sub)" }}>目標なし</span></> : "—"}
+                          : sales > 0 ? <>{sales.toLocaleString()} 円<span style={{ marginLeft: 6, color: "var(--sub)" }}>目標なし</span></> : "—"}
                       </td>
                     );
                   })()}

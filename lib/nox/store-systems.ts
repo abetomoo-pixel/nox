@@ -4,7 +4,7 @@
 //   - 269-4: 出し分けは isSystemOn 1 本。欠損・null・非 boolean は ON（false のときだけ OFF）。
 //     複数制度にまたがる節（例: 歩合・バック＝各種バック∨売上歩合）は SECTION_KEYS に「その節が要る制度」を列挙し
 //     isSectionOn（＝いずれかが ON）で判定する＝16 箇所に個別条件を書かない。
-//   - 269-3: systemUsageOf＝「制度 X を既に使っている cast 数」。入力は cast_plan.overrides_json と cast_norms の行だけ。
+//   - 269-3: systemUsageOf＝「制度 X を既に使っている cast 数」。入力は cast_plan.overrides_json と cast_norms の行（★X-13-21: 任意で comp_plans／comp_plan_components＝プラン側の値でも数える）。
 //
 // ★対応表（0917_survey2.md §g (1)「cast 単位の設定の所在」を根拠）:
 //   | 制度キー          | cast 単位の設定の所在（数える列）                                                   |
@@ -93,13 +93,16 @@ export function isSectionOn(settings: StoreSettings, section: SectionKey): boole
   return SECTION_KEYS[section].some((k) => isSystemOn(settings, k));
 }
 
-export type CastPlanRow = { cast_id: string; overrides_json: unknown };
+export type CastPlanRow = { cast_id: string; plan_id?: string | null; overrides_json: unknown };
+/** ★X-13-21（便 X-13d-1）: プラン側の値（comp_plans）＝割当だけで overrides の無いキャストも「使っている」と数えるための行 */
+export type PlanRow = { id: string; base?: number | null; hon_back?: number | null; jonai_back?: number | null; dohan_back?: number | null; hon_back_mode?: string | null; jonai_back_mode?: string | null; dohan_back_mode?: string | null; sales_slide?: unknown; point_slide?: unknown };
+export type PlanComponentRow = { plan_id: string; kind: string; is_active?: boolean | null };
 export type CastNormRow = { cast_id: string; days_target?: number | null; dohan_target?: number | null; sales_target?: number | null; shimei_target?: number | null };
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
 /** 269-3: 制度 X を既に使っている cast 数（cast 単位に設定がある行を数える・重複 cast は 1）。 */
-export function systemUsageOf(rows: { castPlans: CastPlanRow[]; castNorms: CastNormRow[] }): Record<SystemKey, number> {
+export function systemUsageOf(rows: { castPlans: CastPlanRow[]; castNorms: CastNormRow[]; plans?: PlanRow[]; components?: PlanComponentRow[] }): Record<SystemKey, number> {
   const sets: Record<SystemKey, Set<string>> = Object.fromEntries(SYSTEM_KEYS.map((k) => [k, new Set<string>()])) as Record<SystemKey, Set<string>>;
   for (const r of rows.castPlans ?? []) {
     const o = (r.overrides_json && typeof r.overrides_json === "object" ? r.overrides_json : {}) as Record<string, unknown>;
@@ -109,6 +112,22 @@ export function systemUsageOf(rows: { castPlans: CastPlanRow[]; castNorms: CastN
   }
   for (const n of rows.castNorms ?? []) {
     if ((n.days_target ?? 0) > 0 || (n.dohan_target ?? 0) > 0 || (n.sales_target ?? 0) > 0 || (n.shimei_target ?? 0) > 0) sets.sys_norms.add(n.cast_id);
+  }
+  // ★X-13-21（便 X-13d-1・仮決め）: プラン側の値でも数える＝割当だけで overrides が無いキャスト（デモ 6 店＝「使用中 0 名」の原因）を「使っている」と数える。
+  //   base>0→時給／各バック>0→バック／*_back_mode='rate'→売上歩合／sales_slide≠[]→売上スライド／point_slide≠[]→ポイントスライド／achievement_bonus（有効）→達成ボーナス。
+  //   plans を渡さない呼び出しは従来どおり（overrides と norms だけ）。ポイント制・精算調整は cast 単位の器が無いため 0 のまま。
+  const planById = new Map((rows.plans ?? []).map((p) => [p.id, p] as const));
+  const bonusPlans = new Set((rows.components ?? []).filter((c) => c.kind === "achievement_bonus" && c.is_active !== false).map((c) => c.plan_id));
+  const arr = (v: unknown) => Array.isArray(v) && v.length > 0;
+  for (const r of rows.castPlans ?? []) {
+    const p = r.plan_id ? planById.get(r.plan_id) : undefined;
+    if (!p) continue;
+    if ((p.base ?? 0) > 0) sets.sys_hourly.add(r.cast_id);
+    if ((p.hon_back ?? 0) > 0 || (p.jonai_back ?? 0) > 0 || (p.dohan_back ?? 0) > 0) sets.sys_backs.add(r.cast_id);
+    if (p.hon_back_mode === "rate" || p.jonai_back_mode === "rate" || p.dohan_back_mode === "rate") sets.sys_sales_rate.add(r.cast_id);
+    if (arr(p.sales_slide)) sets.sys_sales_slide.add(r.cast_id);
+    if (arr(p.point_slide)) sets.sys_point_slide.add(r.cast_id);
+    if (bonusPlans.has(p.id)) sets.sys_bonus.add(r.cast_id);
   }
   return Object.fromEntries(SYSTEM_KEYS.map((k) => [k, sets[k].size])) as Record<SystemKey, number>;
 }

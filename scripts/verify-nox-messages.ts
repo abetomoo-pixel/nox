@@ -297,11 +297,11 @@ const modalSrc = fs.readFileSync("components/ui/modal.tsx", "utf8");
 const chipsSrc = fs.readFileSync("components/ui/header-chips.tsx", "utf8");
 const cssSrc = fs.readFileSync("app/globals.css", "utf8");
 const box600 = popoverBoxOf(600);
-check("ms(2-25) 起票94: 画面高 600px でポップオーバー上端（72）≥ ヘッダー下端（64）・max-height 520＝600−64−16・CSS .nox-modal-top（padding-top 72px／max-height calc(100vh − 80px)・min-width 901px の中）が純関数と同値・HeaderGear／UserChip は variant=\"top\"・modal は top で overflow auto",
+check("ms(2-25) 起票94: 画面高 600px でポップオーバー上端（72）≥ ヘッダー下端（64）・max-height 520＝600−64−16・CSS .nox-modal-top（padding-top 72px／max-height calc(100vh − 80px)・min-width 901px の中）が純関数と同値・UserChip は variant=\"top\"（HeaderGear は X-13-22 で /master 直リンク＝1 本）・modal は top で overflow auto",
   box600.top === HEADER_H + POP_GAP && box600.top >= HEADER_H && box600.maxHeight === 600 - HEADER_H - POP_GAP * 2 && popoverBoxOf(200).maxHeight === 120
   && cssSrc.includes(`.nox-modal-top { align-items: flex-start; padding-top: ${HEADER_H + POP_GAP}px; }`) && cssSrc.includes(`.nox-modal-top .nox-modal-card { max-height: calc(100vh - ${HEADER_H + POP_GAP * 2}px); }`)
   && cssSrc.indexOf("@media (min-width: 901px) {\n  .nox-modal-top") > 0 && /\.nox-tb \{[^}]*height: 64px/.test(cssSrc)
-  && (chipsSrc.match(/variant="top"/g) ?? []).length === 2 && !chipsSrc.includes("maxWidth={520} scroll>") && modalSrc.includes('(variant === "top" ? " nox-modal-top" : "")') && modalSrc.includes('variant === "drawer" || variant === "top" || scroll ? { overflow: "auto" as const }'));
+  && (chipsSrc.match(/variant="top"/g) ?? []).length === 1 && !chipsSrc.includes("maxWidth={520} scroll>") && modalSrc.includes('(variant === "top" ? " nox-modal-top" : "")') && modalSrc.includes('variant === "drawer" || variant === "top" || scroll ? { overflow: "auto" as const }'));
 
 // ★便 L-3-2（仮決め）: 日払いの過徴収 warn＝累計＋今回 > 見込み手取り（日払い前）→ warn・発行は止めない・プレビュー未取得は出さない
 const dpf3 = fs.readFileSync("components/nox/daily-pay-form.tsx", "utf8");

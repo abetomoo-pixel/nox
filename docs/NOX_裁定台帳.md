@@ -4075,6 +4075,8 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 6 店とも 200・往復 1.5〜1.7 s（iad1 の 7.1〜12.5 s から 5.5〜10.8 s 短縮・初回 MUSE 6.2 s は cold start）。NOIR の DB 側 get_cast_sales 85 ms は不変の前提（本便は DB 不読）。gross は X-13c の payload 差替え後の値＝P165（5,497,431）とは payload が違うため不一致で正。VP-7＝本欄・恒久注意 21〜23（V-2 の読取注意）・起票97 の状態「Pro 移行済み・裁定可」。コミット「docs: Vercel Pro＋hnd1 移行後の読取」＝docs のみ。次＝X-13d。
 
+**便 X-13d-1 完了（裁定339＋X-13-17／19／21／22＋目視手順書）＝台帳の現在地（2026-10-09）**: 前提照合＝HEAD 6fcfe5b＝origin/main（0 0）・DB 恒久変更 0・mig 起草なし・本番書込＝デモ 6 店の reset（push→Vercel success 後に実施・実測は便 X-13d-2a の現在地に記載）。D-0＝裁定339（上）。D-1（X-13-17）＝既存の .nox-table.cardrows（X-8-11）を拡張（td[data-label]::before の見出し・td.wide・td.ops・stickyfirst 解除・inline style の表にも効く !important）し、①シフト「今日」の表（shift-board）②給与 月次一覧（payroll-list・wrapper を .nox-tablewrap plain に）③日報 全列表（19 列）＋回収履歴（report-board）④顧客詳細のキープ一覧（customer-detail）を ≤900 で 1 行 1 カード・PC は表のまま。在庫（stock-board）は .nox-ptable で既にカード＝変更なし。D-2（X-13-19）＝SlideInput を 1 段 1 行「n段 [判定] 円 以上 → 時給 [時給] 円」（MoneyInput×2・.nox-sliderow・≤899 は入力欄が伸縮＝折返しなし）・¥ 接頭と「円 円」の二重を撤去・CompRows（最低月額保証／達成ボーナス）も接尾「円」・ラベル「保証額（月）」「加算額」・ノルマ表の売上「x 円 / y 円」。D-3（X-13-22）＝HeaderGear を Link /master（PC も同じ・ポップオーバーと OPEN_MENU_EVENT の発火を撤去・gear 群 0 なら null）→ pin 張替え nv(6-2)／ms(2-25)／sp(2-1)（variant="top" 2→1）。D-4（X-13-21）＝live 読取: 6 店とも cast_plan は全員割当（overrides {}）・プランは NOIR 3／LILY 3（うち 2 はデモ内の手入力＝reset で消える・源泉 1）／MUSE・LUNA・ACE・NEST 1。「使用中 0 名」の原因＝systemUsageOf が cast_plan.overrides_json だけを数える（プラン本体の値を見ない）→ **仮決め**: plans／components を任意で受け取りプラン側の値でも数える（base>0→時給・バック>0→各種バック・rate→売上歩合・slide≠[]→スライド・achievement_bonus 有効→達成ボーナス）＝systems／store-profile の 2 面が comp_plans・comp_plan_components を渡す・store-systems ss(3-9)〜(3-12)。payload＝profiles.mjs EXTRA_PLANS（MUSE +1 Senior／LUNA +2 Premium・新人／LILY +1 Senior／NEST +1 Senior・ACE 据え置き＝実体 1 本）→ gen-demo が末尾に足しキャストを順番に割当（達成ボーナス店は追加プランにも）→ check-demo 89 段 NG 5（仕様差 5 のみ）・demo-profiles 59（dpf(2-5) 新設）・demo-payload 53。D-5＝docs/demo/visual_check_20261009.md（#1〜14・23・17／19／21／22・PC／スマホ別・結論 3 行）。D-7＝x13_ledger.md（#17／19／21／22／23）。tsc 0（教訓106）。f0 **97 段 5,657（2 連緑 16:21:25〜16:33:12（707 s）／16:34:23〜16:47:43（800 s）・golden 6 値不変・新 suite comp-list 7＝97 段目・x13 24→34・store-systems 30→34・demo-profiles 53→59）**。コミット「feat: X-13d-1（339・17・19・21・22）」＝本便のコミット（docs 同梱）。教訓108 案＝報告に貼付（採番は相談役）。次＝Agoora の目視（visual_check_20261009）→d-2（0167 起草→手貼り→P167→裁定337 client・X-13c 赤入れ反映）。
+
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
 出典＝Agoora 指示（2026-09-29・便 X-10-1 で収載）。次の裁定番号は 321。**本文（逐語）**:
@@ -4129,6 +4131,15 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 内容＝便 X-13a で components/ui/photo-edit.tsx を共通部品にし、デモ org（orgs.is_demo）では「写真を変更／削除」を隠すのではなく disabled＋理由「デモ環境では写真を変更できません」で表示する（真の防御は storage policy 0149 ★10・dg(6-4) の useIsDemo pin は維持）。328 本文 ④「写真のアップロード不可」の制限は不変＝見せ方だけ。
 
 **恒久注意（追加・便 P166）: 本番 route（cron／手動の demo reset）はデプロイ済み repo の payload（docs/demo/payload）を読む＝payload を変えたら push→Vercel success の後に reset する**（push 前の reset は旧 payload＝便 X-13a で flag 0 行の実例）。
+
+## 裁定339（2026-10-09 確定・相談役・便 X-13d-1 D-0）X-13-23＝待遇プラン一覧の読取修正（from に列名が混入・error を握りつぶさない）
+
+出典＝相談役ブロック 2026-10-09（便 X-13d-1 D-0・便 X-13-23 読取の報告を受けて確定）。**本文（逐語）**:
+「comp-sections.tsx の useCompData.load の一覧読取を from("comp_plans").select("*") に修正。同 hook の全読取で error を握りつぶさない＝error 時は setMsg 赤帯（rpc-err の和文）・plans は直前値を保持（[] に落とさない）。suite に「待遇プラン一覧読取＝PostgREST 200・行数≧1（CLUB NOX・デモ MUSE）」を追加。plan-board の select に既存 4 プラン＋新規が出ることを本番で確認（読取のみ・無効化は Agoora が画面で行う）。」
+
+背景（便 X-13-23 読取・2026-10-09）: CLUB NOX で「あああ」（base 2,000）は 15:40:39 JST に INSERT 済み（audit set_comp_plan あり）なのに一覧にも編集中にも出なかった。原因＝0153 client 便（19aba5d・2026-09-28）で comp-sections.tsx:196 の from が `"comp_plans, product_back_fixed_hon, product_back_fixed_jonai, product_back_fixed_free"` になり、PostgREST が PGRST205（404「Could not find the table」）→ error を捨てて plans=[]（9/28 以降・全店・デモ 6 店も）。保存後の setSelId(newId) は plans に無いため draft が BLANK に戻る＝「入力が空に戻る」症状。RPC（set_comp_plan 0153・md5 3fdd6e81）は正常。
+
+適用＝便 X-13d-1（2026-10-09・本便のコミット（docs 同梱））: comp-sections.tsx の from を表名だけに・useCompData(storeId, onError?) で 7 本の読取の error を最初の 1 件だけ rpcErrJa で赤帯（plan-board／norma-board／deduction-board が setMsg を渡す）・失敗した読取は直前値を保持（if (!p.error) setPlans …）。suite＝新規 verify-nox-comp-list 7（f0 97 段目＝owner A の同じ形の select が error null／壊れた from は PGRST205／CLUB NOX・NOX-DEMO-MUSE の行数 ≥1／逐語）＋x13 comp-list 3。★customers-keep ck(6-3) の旧 pin は壊れた from 文字列そのものを「区分別 3 欄を読む証拠」にしていた＝欠陥を固定化（教訓108 案）→ select("*") の形へ張替え。本番確認＝cl(3-1)（CLUB NOX 5 本＝レギュラー／エース／体験入店／基本／あああ）・無効化や整理は Agoora が画面で（本便は DB 不触）。
 
 ## 裁定338（2026-10-09 確定・相談役・v44 §3）売上スライド／ポイントスライドの判定期間＝月次（既定）／半月／日次
 
