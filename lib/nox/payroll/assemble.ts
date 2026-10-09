@@ -3,6 +3,7 @@
 // 天引き3種（arDeduct/advanceDeduct/okuriDeduct）は二段 payOf の確定天引き額（F2e-1 で ar・F2e-2 で adv/okuri を結線）。
 // net = pay.net（B: サーバが net の責務）。★extras は gross に内在化され源泉対象＝外側加算は行わない（裁定26）。
 
+import { periodKeyOf } from "./slide"; // ★裁定338（0168）
 import type {
   PayInput,
   CompPlan,
@@ -49,6 +50,10 @@ export type CastRaw = {
   // ★夜間便 N3b（裁定288）: slide_apply と「営業日の暦月→その前月の合計」。'next' の店でだけ collect が格納（'current'／fixture は無し＝従来と同値）
   slideApply?: "next" | "current";
   prevMonthTotals?: Record<string, { sales: number; pts: number }>; // key＝営業日が属する暦月 'YYYY-MM'（値＝その前月の合計）
+  // ★裁定338＋追補1（0168・便 P168）: プランの判定期間（monthly／half のときだけ collect が格納・daily／fixture は無し＝従来と同値）。slideTotals＝期間キー→累計（'next' なら前の期間の累計）
+  slidePeriod?: "monthly" | "half";
+  slideTotals?: Record<string, { sales: number; pts: number }>;
+  slideProvisional?: boolean; // 期の末日が今日より後＝期首〜今日の累計で暫定
   norm: { days: number; dohan: number; salesTarget?: number }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
   employment: "委託" | "雇用" | null; // ★裁定98: casts.employment（null＋sanction 行ありは core が no_employment blocker）
@@ -119,7 +124,13 @@ export function guaranteeInputOf(raw: Pick<CastRaw, "daily" | "guarantees">): Pi
 }
 
 /** ★N3b: 'next' の店の営業日ごとに「その暦月の前月の合計」を写す。'current'／欠損・前月データ無し＝{}（キーを足さない） */
-export function slideInputOf(raw: Pick<CastRaw, "daily" | "slideApply" | "prevMonthTotals">): Pick<PayInput, "slideByDay"> {
+export function slideInputOf(raw: Pick<CastRaw, "daily" | "slideApply" | "prevMonthTotals" | "slidePeriod" | "slideTotals">): Pick<PayInput, "slideByDay"> {
+  // ★裁定338＋追補1（0168・便 P168）: monthly／half＝その営業日が属する期間の累計を全日に載せる（同じ段がその期間の全勤務時間に当たる・pay.ts は不変）
+  if (raw.slidePeriod === "monthly" || raw.slidePeriod === "half") {
+    const byDay: Record<number, { month: string; sales: number; pts: number }> = {};
+    for (const d of raw.daily) { const key = periodKeyOf(d.bizDate, raw.slidePeriod); const t = raw.slideTotals?.[key] ?? { sales: 0, pts: 0 }; byDay[dayNum(d.bizDate)] = { month: key, sales: t.sales, pts: t.pts }; }
+    return Object.keys(byDay).length ? { slideByDay: byDay } : {};
+  }
   if (raw.slideApply !== "next") return {};
   const byDay: Record<number, { month: string; sales: number; pts: number }> = {};
   for (const d of raw.daily) {

@@ -9,7 +9,9 @@ import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { kpiOfDraftRows, issuesOfDraft, payStatusCellOf } from "@/lib/nox/payroll/ui-calc"; // ★便 X-7: 状態列は run の status と整合（payStatusCellOf）
-import PeriodPicker from "@/components/nox/period-picker"; // ★便 X-5: 期間＝年・月の picker（値は "YYYY-MM" のまま・キーボード入力も残す）
+import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P168）: 期間＝select（当月＋過去 12 か月・確定の印・もっと前…）。旧 picker（便 X-5・テキスト＋▾）は撤去
+import { finalizedPeriodsOf } from "@/lib/nox/payroll/list-periods"; // ★X-13-28: 確定済みの月の印
+//残す）
 import { totalDeductionsOf, frozenAdjustmentKeys, type FrozenAdjustment } from "@/lib/nox/payroll/adjust";
 import { breakdownLinesOf, hoursCellOf } from "@/lib/nox/payroll/breakdown-lines"; // ★裁定303: 支給／控除の行は PayslipSlip と同じ単一関数・一覧の「打刻なし」 // 裁定264-3: 控除計の式は 1 本に集約／264-10: 明細プレビューの凍結形
 import Modal from "@/components/ui/modal"; // ★裁定265: 調整行の削除理由はモーダル（window.prompt は使わない）
@@ -61,7 +63,7 @@ type Row = {
       plan?: { name?: string }; // ★U-1 是正B: 右パネルのプラン名（PayResult.plan エコー）
       adjBefore?: number; adjAfter?: number; adjustOverflow?: number; // ★裁定258／264: 調整控除（源泉前／後）と net 0 床の超過額
       guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number }; // ★N3
-      slideBasis?: { apply: "next"; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] }; // ★N3b
+      slideBasis?: { apply: string; provisional?: boolean; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] }; // ★N3b
     };
     extras?: { kind: string; amount: number; label?: string }[]; // ★裁定303: breakdownLinesOf の BreakdownExtra と同形（kind で行ラベル）
   };
@@ -511,6 +513,13 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   // ★裁定340（便 X-13d-2a・X-13-24）: 支払ダイアログ（①行の「未払」②内訳の「支払を記録」）と一括記録（③未払カード）。RPC は既存 payment_record_add（/api/payment/record）だけ。
   const [payDlg, setPayDlg] = useState<PayLine | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  // ★X-13-28（便 P168）: 期間 select の「確定」の印＝この店の run（finalized／paid）の月。run の状態が変わったら読み直す
+  const [runPeriods, setRunPeriods] = useState<{ period: string; status: string }[]>([]);
+  useEffect(() => {
+    if (!storeId) { setRunPeriods([]); return; }
+    void supabase.from("payroll_runs").select("period, status").eq("store_id", storeId).then(({ data }) => setRunPeriods((data ?? []) as { period: string; status: string }[]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, runInfo?.status]);
   const recordPayment = async (castId: string, d: PayDialogDraft): Promise<{ ok: boolean; error?: string }> => {
     if (!runInfo) return { ok: false, error: "確定済みの期間だけ記録できます" };
     try {
@@ -552,7 +561,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         <label style={t.fieldLabel}>
           期間（YYYY-MM）
           <br />
-          <span style={{ display: "inline-block", marginTop: 5 }}><PeriodPicker value={period} onChange={setPeriod} /></span>{/* ★便 X-5 */}
+          <span style={{ display: "inline-block", marginTop: 5 }}><PeriodSelect value={period} onChange={setPeriod} finalized={finalizedPeriodsOf(runPeriods)} runPeriods={runPeriods.map((r) => r.period)} /></span>{/* ★X-13-28（便 P168） */}
         </label>
         {/* ★裁定324（0159・便 C-3）: 計算基準（実打刻／確定シフト）＝店設定を run の期の初日で解決（pay.ts と同じ payTimeBasisOf） */}
         {(() => { const b: PayTimeBasis = payTimeBasisOf(storeSettings, `${period}-01`); return <span className="nox-tag" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="勤務時間の計算基準（店舗設定）">計算基準: {PAY_TIME_BASIS_SHORT[b]}</span>; })()}

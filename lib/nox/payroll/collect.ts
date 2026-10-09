@@ -20,7 +20,7 @@ import { bizDateOf } from "../biz-date";
 import { anomalyFlagsOf } from "./anomaly"; // ★X-13-27（便 X-13d-2a）: 未来日の確定シフトは不整合に数えない
 
 import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
-import { monthsInRange, prevMonthOf, lastDayOf } from "./slide"; // ★N3b（裁定288）
+import { monthsInRange, prevMonthOf, lastDayOf, periodKeysInRange, periodRangeOfKey, prevPeriodKeyOf, slidePeriodOf, type SlidePeriod, type SlideTotals } from "./slide"; // ★N3b（裁定288）・★裁定338（0168・便 P168）
 import type { PayrollWindow as _PW } from "./window";
 const addDaysYmd = (ymd: string, n: number) => { const [y, mo, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, mo - 1, d + n)).toISOString().slice(0, 10); }; // ★N3b
 void (0 as unknown as _PW);
@@ -84,7 +84,7 @@ export type CollectResult = {
 // periodEnd は period_bounds 由来の 'YYYY-MM-DD'（win.periodEnd・写像単一ソース＝Date 非経由）。
 async function loadMasters(admin: SupabaseClient, storeId: string, period: string, periodEnd: string, runPeriodStart?: string) {
   const [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR, stR] = await Promise.all([
-    admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, dohan_back_mode, dohan_back_rate, product_back_mode, product_back_rate, product_back_fixed").eq("store_id", storeId),
+    admin.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, dohan_back_mode, dohan_back_rate, product_back_mode, product_back_rate, product_back_fixed, slide_period").eq("store_id", storeId),
     // ★裁定97: 適用行の選択は3段（期間と重なる行を全部読み、下の castPlanByCast 構築で選ぶ）。
     //   a) 期首（period-01）時点で有効な行があればそれ＝裁定96-④ 不変（期中変更は翌期から）。
     //   b) 無ければ期間内（期首 < valid_from ≤ 期末）で最も早い valid_from の行＝backfill 導入月の救済。日割りなし。
@@ -118,7 +118,9 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
     compsByPlan.set(r.plan_id as string, arr);
   }
   const plansById = new Map<string, CompPlan>();
+  const slidePeriodByPlan = new Map<string, SlidePeriod>(); // ★裁定338（0168）: プランの判定期間（CompPlan＝pay.ts は不変＝別 map）
   for (const p of (plansR.data ?? []) as Record<string, unknown>[]) {
+    slidePeriodByPlan.set(p.id as string, slidePeriodOf(p.slide_period));
     plansById.set(p.id as string, {
       id: p.id as string,
       name: p.name as string,
@@ -207,7 +209,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
   masters.lateGraceMin = lateGrace; // ★324-3（便 L-2-4）: shortfall の遅刻猶予（裁定268＝punch-match と同じ値）
   const earlyGrace = (pen?.early_grace_min as number) ?? undefined;
   const overGrace = (pen?.over_grace_min as number) ?? undefined;
-  return { plansById, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace: { lateGrace, earlyGrace, overGrace } }; // ★N3: guaranteesByCast
+  return { plansById, slidePeriodByPlan, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace: { lateGrace, earlyGrace, overGrace } }; // ★N3: guaranteesByCast・★裁定338: slidePeriodByPlan
 }
 
 // 窓内 closed 非 void の会計から cast 別のバック・pt・champ/bottle 本数を集計。
@@ -637,7 +639,7 @@ export async function collectPeriod(
     }
   }
 
-  const [{ plansById, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
+  const [{ plansById, slidePeriodByPlan, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
     loadMasters(admin, storeId, win.period, win.periodEnd, win.periodStart), // ★324（便 L-2-3）
     loadAccounting(admin, storeId, win),
     loadIncentives(admin, storeId, win),
@@ -660,6 +662,43 @@ export async function collectPeriod(
 
   // 対象 cast = sales ∪ punch（is_active 不問・稼働ゼロ除外）
   const targetIds = new Set<string>([...salesByCast.keys(), ...punchByCast.keys()]);
+  // ★裁定338＋追補1（0168・便 P168）: 期間累計（monthly／half）＝cast ごとに有効プランの slide_period で期間キーを決め、日次売上（按分後）と pts（castPts＝指名回数＋pt 商品）を期間ごとに累計。
+  //   'next'（店設定 slide_apply）は「前の期間の累計」。期の外や半月の窓は get_cast_sales／loadAccounting を窓ごとに引く（pt は窓単位）。daily のプランは従来どおり（slideByDay なし）。
+  //   プレビュー＝期の末日が今日より後なら暫定（provisional）。確定（finalize）は期末後に走る＝期間全体の累計で段確定。
+  const slideTodayBiz = bizDateOf(new Date().toISOString(), win.cutoffHm);
+  const slidePeriodByCast = new Map<string, SlidePeriod>();
+  for (const cid of targetIds) { const cpx = castPlanByCast.get(cid); const sp = cpx ? slidePeriodByPlan.get(cpx.planId) ?? "daily" : "daily"; if (sp !== "daily") slidePeriodByCast.set(cid, sp); }
+  const slideTotalsByCast = new Map<string, SlideTotals>();
+  if (slidePeriodByCast.size > 0) {
+    type Agg = { sales: number; hon: number; jonai: number; dohan: number; pt: number };
+    const needKeys = new Set<string>();
+    for (const sp of new Set(slidePeriodByCast.values())) for (const k of periodKeysInRange(win.periodStart, win.periodEnd, sp)) needKeys.add(win.slideApply === "next" ? prevPeriodKeyOf(k) : k);
+    const totalsByKey = new Map<string, Map<string, Agg>>();
+    for (const key of needKeys) {
+      const r = periodRangeOfKey(key);
+      const inWin = r.start >= win.periodStart && r.end <= win.periodEnd;
+      let rows: SalesRow[];
+      if (inWin) rows = salesRows.filter((x) => x.biz_date >= r.start && x.biz_date <= r.end);
+      else { const { data, error } = await managerClient.rpc("get_cast_sales", { p_store_id: storeId, p_from: r.start, p_to: r.end }); if (error) throw new Error(`get_cast_sales(${key}): ${error.message}`); rows = (data ?? []) as SalesRow[]; }
+      const whole = inWin && r.start === win.periodStart && r.end === win.periodEnd;
+      const wk: PayrollWindow = { ...win, period: key.slice(0, 7), periodStart: r.start, periodEnd: r.end, startTs: `${r.start}T${win.cutoffHm}:00+09:00`, endTs: `${addDaysYmd(r.end, 1)}T${win.cutoffHm}:00+09:00` };
+      const a2 = whole ? acct : await loadAccounting(admin, storeId, wk);
+      const mm = new Map<string, Agg>();
+      for (const x of rows) { const cur = mm.get(x.cast_id) ?? { sales: 0, hon: 0, jonai: 0, dohan: 0, pt: 0 }; cur.sales += x.sales; cur.hon += x.hon; cur.jonai += x.jonai; cur.dohan += x.dohan; mm.set(x.cast_id, cur); }
+      for (const [cid2, b] of a2.backByCast) { const cur = mm.get(cid2) ?? { sales: 0, hon: 0, jonai: 0, dohan: 0, pt: 0 }; cur.pt = b.pt; mm.set(cid2, cur); }
+      totalsByKey.set(key, mm);
+    }
+    for (const [cid, sp] of slidePeriodByCast) {
+      const rec: SlideTotals = {};
+      for (const k of periodKeysInRange(win.periodStart, win.periodEnd, sp)) {
+        const src = win.slideApply === "next" ? prevPeriodKeyOf(k) : k;
+        const a = totalsByKey.get(src)?.get(cid) ?? { sales: 0, hon: 0, jonai: 0, dohan: 0, pt: 0 };
+        rec[k] = { sales: a.sales, pts: castPts(a, a.pt) };
+      }
+      slideTotalsByCast.set(cid, rec);
+    }
+  }
+  const slideProvisionalOf = (sp: SlidePeriod): boolean => win.slideApply !== "next" && periodKeysInRange(win.periodStart, win.periodEnd, sp).some((k) => periodRangeOfKey(k).end > slideTodayBiz);
   if (targetIds.size === 0) return { casts: [], masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast };
 
   // cast 名＋employment（is_active 不問＝退職者含む。employment は裁定98 の二層分岐キー）
@@ -717,6 +756,7 @@ export async function collectPeriod(
       override: cp?.override,
       ...(guaranteesByCast.has(cid) ? { guarantees: guaranteesByCast.get(cid) } : {}), // ★N3
       ...(win.slideApply === "next" ? { slideApply: "next" as const, prevMonthTotals: prevTotalsByCast.get(cid) ?? {} } : {}), // ★N3b
+      ...(slidePeriodByCast.has(cid) ? { slidePeriod: slidePeriodByCast.get(cid) as "monthly" | "half", slideTotals: slideTotalsByCast.get(cid) ?? {}, slideProvisional: slideProvisionalOf(slidePeriodByCast.get(cid) as SlidePeriod) } : {}), // ★裁定338（0168）
       norm: normByCast.get(cid) ?? { days: 0, dohan: 0, salesTarget: 0 },
       taxProfileMode: taxByCast.get(cid) ?? null,
       employment: employmentById.get(cid) ?? null, // ★裁定98: 二層ガードの分岐キー

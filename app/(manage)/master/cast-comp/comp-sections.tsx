@@ -5,6 +5,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定339: 一覧読取の error を和文で赤帯へ
+import { slideAtLabelOf, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★裁定338（0168）: 判定期間の単位ラベル
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 
 // キャスト・報酬レーン D2-1: 旧 CompMaster（報酬設計マスタ 6タブ）の解体先。
@@ -21,8 +22,10 @@ export type BackModeRow = "per_count" | "rate";
 //   型・ラベル正本は lib/nox/comp-methods.ts（simulator と共有）＝ここは再 export のみ。
 import { PRODUCT_BACK_OPTIONS, type ProductBackMode } from "@/lib/nox/comp-methods";
 import Picker from "@/components/nox/picker";
+import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P168）: 月の選択＝共通 select
 export { PRODUCT_BACK_OPTIONS, type ProductBackMode };
 export type Plan = {
+  slide_period?: string | null; // ★裁定338（0168）: 判定期間（monthly／half／daily・旧行は daily）
   id: string; name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
   sales_slide: Slide[]; point_slide: Slide[]; is_active: boolean;
   // mig0086: 率バック方式（hon/jonai 独立・rate 中も円/本値は保持＝裁定v）
@@ -224,10 +227,12 @@ export function useCompData(storeId: string, onError?: (m: string) => void) {
 // ── プラン（owner のみ編集・D3a）──
 // ★N2（報酬プラン v3.1・規約 §6）: 段は固定列の表（段／判定基準／時給）・単位常時表示（basis=yen: `¥ … 以上`／pt: `… pt以上`・時給 `¥ … 円`）。
 //   値・保存形（at/wage の3段・at=0 除外は送信時）は不変＝表示だけ。basis 省略時は従来呼び出し（PlanTab）と互換。
-export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthly = false }: {
+export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthly = false, period }: {
   label: string; slide: Slide[]; setSlide: (s: Slide[]) => void; basis?: "yen" | "pt"; desc?: string;
-  /** ★N3b（裁定288-7）: 店の slide_apply='next' なら閾値は「月間」（前月合計）・それ以外は「1 日」 */
+  /** ★N3b（裁定288-7）: 店の slide_apply='next' なら閾値は「月間」（前月合計）・それ以外は「1 日」（period 未指定のとき） */
   monthly?: boolean;
+  /** ★裁定338（0168・便 P168）: プランの判定期間＝閾値の単位ラベル（monthly／half／daily） */
+  period?: SlidePeriod;
 }) {
   // 3段固定入力（at 昇順 strict は RPC が検証・空段は送信時に除外）
   // ★X-13-19（便 X-13d-1）: 1 段 1 行「n段 [判定] 円 以上 → 時給 [時給] 円」。通貨は接尾「円」のみ（¥ 接頭と「円 円」の二重を撤去）・
@@ -237,7 +242,7 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthl
     const next = rows.map((r, j) => (j === i ? { ...r, [key]: v } : r));
     setSlide(next);
   };
-  const atLabel = basis === "yen" ? (monthly ? "以上（月間売上）" : "以上（1 日の売上）") : (monthly ? "pt 以上（月間）" : "pt 以上（1 日）");
+  const atLabel = period ? slideAtLabelOf(period, basis) : basis === "yen" ? (monthly ? "以上（月間売上）" : "以上（1 日の売上）") : (monthly ? "pt 以上（月間）" : "pt 以上（1 日）"); // ★裁定338: period 優先
   return (
     <div style={{ marginTop: 6 }}>
       <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
@@ -825,7 +830,7 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
     <div>
       {isManagerUp && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-          <label style={{ fontSize: 12 }}>期間 <input type="month" value={period} onChange={(e) => { setPeriod(e.target.value); }} style={{ ...input, width: 140 }} aria-label="ノルマの期間（月）" /></label>
+          <label style={{ fontSize: 12 }}>期間 <PeriodSelect value={period} onChange={(v) => setPeriod(v)} ariaLabel="ノルマの期間（月）" /></label>{/* ★X-13-28（便 P168）: 月の選択は共通 select */}
           <span style={note}>表はこの期間の目標を表示します（未設定は —）。</span>
         </div>
       )}

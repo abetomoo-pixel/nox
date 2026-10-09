@@ -22,6 +22,7 @@ import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P168）
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
@@ -610,7 +611,7 @@ export default function AnalyticsBoard({
             );
           })}
         </div>
-        <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="対象月（YYYY-MM）" className="nox-input" style={{ width: "auto" }} />
+        <PeriodSelect value={period} onChange={setPeriod} ariaLabel="対象月" />{/* ★X-13-28（便 P168）: 月の選択は共通 select */}
         {stores.length > 1 && (
           <select
             value={storeId}

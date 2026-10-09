@@ -3,6 +3,7 @@
 // 確定前ガード（blockers）: cast_plan 未設定（no_plan）／cast_tax_profiles 未登録（no_tax）。
 //   プレビューは既定 '委託' で試算しつつ blocker を警告返し。確定は blocker があれば route が 422（論点2）。
 
+import { slideBasisForPeriodOf } from "./slide"; // ★裁定338（0168・便 P168）
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { payOf, type PayResult, type TaxMode } from "../pay";
 import { allocDue } from "../sales-alloc"; // #32 pooled の最大剰余法（sales 按分と同一の整数分配・純関数）
@@ -234,6 +235,8 @@ export async function computePayrollDraft(
     const arCarried: ArCarried[] = arPlan.carried.map((x) => ({ receivable_id: x.id }));
 
     const pay = payOf(buildPayInput(c, taxMode, masters, periodDays, extrasTotal, arPlan.deduct, advPlan.deduct, okuriPlan.deduct));
+    // ★裁定338＋追補1（0168・便 P168）: monthly／half の判定材料を凍結形へ（apply＝期間・provisional＝期首〜今日の暫定・pay.ts は 'next' 形のまま＝ここで写す）
+    if (c.slidePeriod && pay.slideBasis) (pay as { slideBasis?: unknown }).slideBasis = slideBasisForPeriodOf(pay.slideBasis, c.slidePeriod, !!c.slideProvisional, win.slideApply === "next");
     const net = pay.net; // = available − (okuri+adv+ar)（pay.net が3天引き込み・extras は gross 側で計上済み）
     // net 恒等（B・必須ステップ）: 凍結する net は必ず payOf の結果そのものを通す（クライアント値を使わない）。
     if (net !== pay.net) {

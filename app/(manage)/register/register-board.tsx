@@ -2578,6 +2578,12 @@ export default function RegisterBoard({
                     )}
                   </span>
                 </div>
+                {/* ★裁定341（便 P168）: 場内→本指名の切替は非遡及が既定（既出のドリンクは注文時点の率のまま）。「既出も本指名の率にする」は 0169（check_nominations.prev_kind／kind_changed_at＋check_close の読み替え＋適用 RPC）の適用後に有効化＝今は店長以上に無効表示 */}
+                {kind === "jonai" && isManagerUp && (
+                  <label style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)", margin: "0 0 4px" }} title="0169 適用後に有効（現状は会計時の指名区分で全行を計算＝遡及）">
+                    <input type="checkbox" disabled aria-label="この伝票の既出ドリンクも本指名の率にする（準備中）" /> この伝票の既出ドリンクも本指名の率にする（準備中）
+                  </label>
+                )}
                 <span className="nox-seg" style={{ display: "inline-flex" }}>
                   {([["hon", "本"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([v, l]) => (
                     <button key={v} type="button" className={kind === v ? "on" : ""} disabled={lockDerive}

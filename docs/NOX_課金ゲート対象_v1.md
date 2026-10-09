@@ -115,6 +115,8 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   対象 **154 不変**・除外 **148→149**・全数 **302→303**（live 実測 2026-10-08＝総数 303・'billing locked' 154・述語参照 155・md5 3 本一致）。
 - ★**mig0164 追随（2026-10-08・裁定331 C 5 項目＋裁定334・334 追補1・便 P163 で収載）**: 新関数 **0本**。改稿 1 本（`set_store_profile`＝白名単 +7 列側＝invoice_registered_on／pay_day／tax_inclusive_display／use_vip／use_counter／payment_methods／punch_methods・型検査・cash は常に true・打刻は 1 つ以上・before/after 監査・owner 限定と課金ゲートは不変）は名前不変で本数不動。stores +7 列（既定付き・CHECK 3 本）は本数非関与。
   md5 控え（同上）: set_store_profile 4f2e9f82→**2e7b4963**・demo_org_reset a4bd6a18。
+- ★**mig0168 追随（2026-10-09・便 X-13d-2b 起草／便 P168 で収載）**: 新関数 **0本**。改稿 1 本（`set_comp_plan`＝23 引数・末尾 p_slide_period text default 'daily'・22 引数版 drop・名前不変で本数不動・ゲート行の形 auth_org_id() 不変）。列 +1（comp_plans.slide_period text not null default 'daily'＋CHECK）は本数非関与。
+  md5 控え（先頭 8 桁・live 読取 2026-10-09＝便 P168 proof）: set_comp_plan 3fdd6e81→**3ebd1624**。対象 **156 不変**・除外 149 不変・全数 **305 不変**（'billing locked' 156・述語参照 157・形 156）。
 - ★**mig0167 追随（2026-10-09・便 X-13d-2a 起草／便 P167 で収載）**: 新関数 **1本**＝ゲート内蔵を A10 へ（`set_cast_shift_request_mode`＝裁定337 シフト希望の方式のキャスト個別上書き・owner ∨ manager 自店・課金ゲート・監査）。列 +1（casts.shift_request_mode text null＋CHECK）は本数非関与。改稿なし。
   md5 控え（先頭 8 桁・live 読取 2026-10-09＝docs/tmp/q1009_p167.mjs）: set_cast_shift_request_mode **ee7f7243**・不触 set_comp_plan 3fdd6e81／demo_org_reset a4bd6a18／cast_sales_aggregate e232dac8／set_product_track_stock 594c5e98。
   対象 **155→156**・除外 **149 不変**・全数 **304→305**（live 実測 2026-10-09＝総数 305・'billing locked' 156・述語参照 157・形 156）。

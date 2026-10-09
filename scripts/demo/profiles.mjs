@@ -7,11 +7,11 @@ export const PROFILES = {
     back: "rate", rate: { cast: 30, champ: 20, bottle: 15, glass: 15, soft: 10, food: 10 }, price: "低（セット 5,500・指名なし・シャンパン 8,800〜16,500）",
     basis: "punch", okuri: 0, receivable: "disabled", reopen: false, confirm: false,
     shift: { base: 3, fri_sat: 4, fill: "full", pattern: [3, 3, 4, 3, 4, 4, 3] } },
-  luna: { template: "cabaret", scale: "中（キャスト 7・月 462 伝票・客単価 1.7 万）", sys: { hourly: true, backs: true, norms: true, bonus: true, points: false, sales_slide: false },
+  luna: { template: "cabaret", scale: "中（キャスト 7・月 462 伝票・客単価 1.7 万）", sys: { hourly: true, backs: true, norms: true, bonus: true, points: false, sales_slide: true, point_slide: false },
     back: "unit4", u4: { hon: 0.10, jonai: 0.08, dohan: 0.08, free: 0.05 }, u4cast: { hon: 500, jonai: 400, dohan: 400, free: 300 }, food: false, price: "中（セット 4,500〜6,500・指名 3,000・シャンパン 11,000〜66,000）",
     basis: "punch", okuri: 1000, receivable: "customer_only", reopen: true, confirm: false,
     shift: { base: 4, fri_sat: 5, fill: "full", pattern: [4, 4, 5, 4, 5, 5, 4] } },
-  noir: { template: "lounge", scale: "大（キャスト 8・月 506 伝票・客単価 2.7 万＝最高価格帯）", sys: { hourly: true, backs: true, norms: true, bonus: false, points: true, sales_slide: false },
+  noir: { template: "lounge", scale: "大（キャスト 8・月 506 伝票・客単価 2.7 万＝最高価格帯）", sys: { hourly: true, backs: true, norms: true, bonus: false, points: true, sales_slide: false, point_slide: true },
     back: "unit4", u4: { hon: 0.12, jonai: 0.10, dohan: 0.10, free: 0.06 }, u4cast: { hon: 600, jonai: 500, dohan: 500, free: 300 }, food: false, price: "高（セット 8,000〜14,000・指名 3,000〜5,000・シャンパン 16,500〜165,000）",
     basis: "shift", okuri: 1500, receivable: "customer_only", reopen: true, confirm: true,
     shift: { base: 5, fri_sat: 6, fill: "short", pattern: [4, 5, 3, 5, 4, 6, 5] } },
@@ -32,6 +32,13 @@ export const PROFILE_CODES = Object.keys(PROFILES);
 /** ★X-13-21（便 X-13d-1・仮決め）: 待遇プランが 1 本だけの店に 2〜3 本目を足す（源泉 nox_demo_all.json の compensation_plans は不変＝gen-demo が末尾に足し、キャストは順番に割り振る）。
  *  NOIR は源泉で 3 本・LILY は源泉 1 本（live の 3 本中 2 本はデモ内で手入力されたもの＝reset で消える）・ACE は源泉 1 本（売上スライド）のまま＝相談役ブロック「ACE はプラン 0 のまま（仕様）」に合わせ据え置き（実体は 1 本）。 */
 /** ★X-13-26（便 X-13d-2a・仮決め）: 代表キャストの前借り（先月の中旬＝{$m:-1,d:15}・open）＝先月分の確定（finalize hook）で天引き済み・当月に繰越なし。0＝入れない */
+/** ★裁定338（0168・便 P168・仮決め）: スライドの判定期間と段＝ACE 月次（売上・源泉の日次閾値 30k／70k／120k を月規模へ）・NOIR 月次（ポイント）・LUNA 半月（売上）・他は daily（スライドなし）。
+ *  9 月分は reset の finalize hook で凍結明細に反映される（再確定不要）。 */
+export const SLIDES = {
+  ace: { period: "monthly", sales: [{ at: 800000, wage: 3000 }, { at: 1200000, wage: 3500 }, { at: 1600000, wage: 4500 }] },
+  noir: { period: "monthly", points: [{ at: 60, wage: 4000 }, { at: 120, wage: 4500 }, { at: 200, wage: 5000 }] },
+  luna: { period: "half", sales: [{ at: 400000, wage: 3300 }, { at: 700000, wage: 3600 }, { at: 1000000, wage: 4000 }] },
+};
 export const ADVANCES = { muse: 50000, luna: 30000, noir: 30000, ace: 30000, lily: 30000, nest: 30000 };
 export const EXTRA_PLANS = {
   muse: [{ key: "senior", name: "MUSE Senior", base: 2000, hon: 500, jonai: 300, dohan: 300 }],
@@ -43,7 +50,7 @@ export const EXTRA_PLANS = {
 /** sys_* 9 キー（stores.settings_json）＝PROFILES.sys から。sales_rate／point_slide／penalties は全店 false */
 export function sysSettingsOf(code) {
   const s = PROFILES[code].sys;
-  return { sys_hourly: !!s.hourly, sys_backs: !!s.backs, sys_sales_rate: false, sys_points: !!s.points, sys_sales_slide: !!s.sales_slide, sys_point_slide: false, sys_norms: !!s.norms, sys_penalties: false, sys_bonus: !!s.bonus };
+  return { sys_hourly: !!s.hourly, sys_backs: !!s.backs, sys_sales_rate: false, sys_points: !!s.points, sys_sales_slide: !!s.sales_slide, sys_point_slide: !!s.point_slide, sys_norms: !!s.norms, sys_penalties: false, sys_bonus: !!s.bonus };
 }
 /** 商品の分類（gen-demo の行＝type／category）→ バック表の鍵 */
 export function backKeyOf(row) {

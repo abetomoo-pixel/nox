@@ -123,7 +123,7 @@
    "sha256": "c609e7e7dd011ed5879f3c9b5dd6a9019b15f469c7ed82cc6ad67780e67eb4ec"
   },
   "luna": {
-   "bytes": 1885641,
+   "bytes": 1885874,
    "rows": 3270,
    "tables": 39,
    "checks": 462,
@@ -277,10 +277,10 @@
      ]
     }
    ],
-   "sha256": "b5dd13a507ea427eaee564e03ec5c49e4ca8c684f106800f97e6ef71985cf69f"
+   "sha256": "d1b7d256e3353efc7b3f6773ddd8f7cf559e2fc3f6a0cfa83d61b89dafa8d24f"
   },
   "noir": {
-   "bytes": 2062092,
+   "bytes": 2062292,
    "rows": 3630,
    "tables": 39,
    "checks": 506,
@@ -500,10 +500,10 @@
      ]
     }
    ],
-   "sha256": "a882fa5de5b6ec464a92658fe7e8b6cb045f47e5c6395cbe9fb5376a640b84b9"
+   "sha256": "fcec954b8fd24f46dfb88fd9b7b97603bf955210b4a2d34ab279152912f8d21f"
   },
   "ace": {
-   "bytes": 1934203,
+   "bytes": 1934207,
    "rows": 3360,
    "tables": 40,
    "checks": 485,
@@ -657,7 +657,7 @@
      ]
     }
    ],
-   "sha256": "157a5bba90b45bccfbb868c658bc03bd956b3755b28cf7587cf641e1acc08065"
+   "sha256": "3dfb96557fc3dfe2ed67c24e616c87dce50b5346ca55bfd947d43427088a5834"
   },
   "lily": {
    "bytes": 2605356,
@@ -797,7 +797,7 @@
    "sha256": "1dbcf5e4f45357602831ef43a483a9331a641e810608c4671289f75f928d7f25"
   },
   "nest": {
-   "bytes": 2842876,
+   "bytes": 2842882,
    "rows": 4776,
    "tables": 34,
    "checks": 507,
@@ -921,7 +921,7 @@
      ]
     }
    ],
-   "sha256": "1e79d4aeb900d8ebc5c125d9a8c8c217a029a826af58169c0b08b03c1de6fd99"
+   "sha256": "752a4757bb75362cf6b4f2f4b69325036ba04042838f4341cd69f17af986592e"
   }
  },
  "ids": 0

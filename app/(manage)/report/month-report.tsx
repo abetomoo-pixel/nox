@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P168）
 // ★B6-4（2026-09-11）: 人件費式は純関数 labor-cost（analytics-board と共用）。率は小数 1 桁 %（旧 Math.round(x*100) の整数 % から統一）
 import { finalRunOf, laborCostOf, laborRatePct, type LaborRun, type LaborSlip } from "@/lib/nox/payroll/labor-cost";
 
@@ -158,7 +159,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
-        <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="対象月" style={{ ...t.input, width: "auto", fontSize: 13, fontWeight: 400 }} />
+        <PeriodSelect value={period} onChange={setPeriod} ariaLabel="対象月" />{/* ★X-13-28（便 P168）: 月の選択は共通 select */}
         <span style={{ fontSize: 11, color: "var(--sub)", fontWeight: 400 }}>営業月・半期は営業日15日で分割</span>
       </h3>
       {/* ★裁定151（裁定120 適用）: エラー文＝Danger 系の文字色（--danger-ink＝暗面上で可読・裁定124）。他の --bad 系はこの面では触らない */}

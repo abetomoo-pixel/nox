@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
-import { ADVANCES, EXTRA_PLANS, PROFILES, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
@@ -144,15 +144,15 @@ for (const st of STORES) {
     push("pricing_rules", { id: uid(`rank:${r.rank_id}:hon`), store_id: storeId, fee_kind: "hon_shimei", seat_kind: null, dow_mask: null, time_from_min: null, time_to_min: null, rank_id: uid(`rank:${r.rank_id}`), amount: r.main_charge_yen, duration_min: null, priority: 100, is_active: true, name: `本指名（${r.rank_name === "default" ? "標準" : r.rank_name}）`, tax_category: "taxable_10", category_id: null, billing_unit: null });
     push("pricing_rules", { id: uid(`rank:${r.rank_id}:jonai`), store_id: storeId, fee_kind: "jonai_shimei", seat_kind: null, dow_mask: null, time_from_min: null, time_to_min: null, rank_id: uid(`rank:${r.rank_id}`), amount: r.inhouse_charge_yen, duration_min: null, priority: 100, is_active: true, name: `場内指名（${r.rank_name === "default" ? "標準" : r.rank_name}）`, tax_category: "taxable_10", category_id: null, billing_unit: null });
   }
-  const SLIDE_PERIOD = { ace: "monthly", noir: "monthly", luna: "half" }; // ★0168（裁定338 R-4）: 月次 2 店・半月 1 店・他 daily（列が無い間は populate が無視）
+  const SL = SLIDES[code] ?? {}; // ★裁定338（0168・便 P168）: 判定期間と段（profiles.mjs SLIDES＝ACE／NOIR 月次・LUNA 半月・他 daily）
   const plans = D("compensation_plans").filter((p) => p.store_id === S);
   const slide = D("sales_slide_tiers").filter((t) => t.store_id === S && t.tier > 0).map((t) => ({ at: t.daily_sales_threshold_yen, wage: t.hourly_yen }));
   for (const p of plans) push("comp_plans", { id: uid(`plan:${p.plan_id}`), store_id: storeId, name: p.plan_name, base: p.base_hourly_yen, hon_back: p.main_reward_yen, jonai_back: p.inhouse_reward_yen, dohan_back: p.accompanied_reward_yen,
-    sales_slide: p.sales_slide ? slide : [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "product_rule", product_back_rate: null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SLIDE_PERIOD[code] ?? "daily" }); // ★0168（裁定338・便 X-13d-2b 先行）: 判定期間（列が無い間は無視）
+    sales_slide: SL.sales ?? (p.sales_slide ? slide : []), point_slide: SL.points ?? [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "product_rule", product_back_rate: null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SL.period ?? "daily" }); // ★0168（裁定338・便 P168）: 判定期間
   // ★X-13-21（便 X-13d-1）: 1 本だけの店に 2〜3 本目（EXTRA_PLANS）＝キャストは [源泉のプラン, 追加…] を順番に割り振る（overrides は従来どおり {}）
   const extraPlans = (EXTRA_PLANS[code] ?? []).map((x) => ({ ...x, id: uid(`plan:x:${code}:${x.key}`) }));
   for (const x of extraPlans) push("comp_plans", { id: x.id, store_id: storeId, name: x.name, base: x.base, hon_back: x.hon, jonai_back: x.jonai, dohan_back: x.dohan,
-    sales_slide: [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "product_rule", product_back_rate: null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SLIDE_PERIOD[code] ?? "daily" }); // ★0168（裁定338・便 X-13d-2b 先行）: 判定期間（列が無い間は無視）
+    sales_slide: SL.sales ?? [], point_slide: SL.points ?? [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "product_rule", product_back_rate: null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SL.period ?? "daily" }); // ★裁定338: 追加プランにも同じ段 // ★0168（裁定338・便 P168）: 判定期間
   let castSeq = 0;
   const people = D("people").filter((p) => p.store_id === S);
   const castsSrc = people.filter((p) => p.system_role_candidate === "cast" || p.system_role_candidate === "needs_confirmation");
@@ -162,7 +162,7 @@ for (const st of STORES) {
   let castIdx = 0; // ★裁定337（便 X-13d-2b）: 3 方式が混ざる（idx%4＝1→'off_only'・2→'shift'（明示）・他→null＝店の既定）
   for (const c of castsSrc) {
     const id = uid(`cast:${c.person_id}`);
-    const srm = castIdx % 4 === 1 ? "off_only" : castIdx % 4 === 2 ? "shift" : null; castIdx++; // ★裁定337
+    const srm = (c === repCast && code === "nest") ? "off_only" : castIdx % 4 === 1 ? "off_only" : castIdx % 4 === 2 ? "shift" : null; castIdx++; // ★裁定337（P168: NEST の代表キャストは off_only＝デモの cast ログインで反転を見せる）
     push("casts", { id, store_id: storeId, user_id: c === repCast ? users.cast : null, name: c.display_name, kind: c.business_role, employment: "委託", is_active: true, joined_on: c.joined_on ? M(dayOf(c.joined_on)) : null, left_on: null, rank_id: c.rank_id ? uid(`rank:${c.rank_id}`) : (defRank ? uid(`rank:${defRank.rank_id}`) : null), shift_request_mode: srm });
     const pa = D("person_plan_assignments").filter((a) => a.person_id === c.person_id && !a.valid_to).pop() ?? D("person_plan_assignments").find((a) => a.person_id === c.person_id);
     const srcPlanId = uid(`plan:${pa?.plan_id ?? c.plan_id ?? plans[0].plan_id}`);

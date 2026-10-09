@@ -11,7 +11,7 @@ import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
-import { slideApplyOf } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）: 単位表示の出し分け
+import { slideApplyOf, slideDescOf, slidePeriodOf, slidePillOf, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）・★裁定338（0168）: 判定期間
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import {
   SlideInput, compErrJa, secTitle, BackTab, PRODUCT_BACK_OPTIONS, productBackArgsOf, productBackErrOf,
@@ -23,6 +23,7 @@ type Draft = {
   honBack: number; jonaiBack: number; dohanBack: number;
   honMode: BackModeRow; honRate: number; jonaiMode: BackModeRow; jonaiRate: number;
   salesSlide: Slide[]; pointSlide: Slide[];
+  slidePeriod: SlidePeriod; // ★裁定338（0168・便 P168）: 判定期間（新規プランの初期値 monthly・既存は現状値＝旧行 daily）
   // ★裁定113/123（mig0134）: 商品販売バック3方式。rate/fixed は当該 mode のときだけ送信（他は null＝RPC pair と同条件）。
   //   値は mode 切替中も保持（hon/jonai の円/本値と同じ流儀＝裁定v）。
   productBackMode: ProductBackMode; productBackRate: number; productBackFixed: number;
@@ -32,6 +33,7 @@ const BLANK: Draft = {
   honBack: 0, jonaiBack: 0, dohanBack: 0,
   honMode: "per_count", honRate: 0, jonaiMode: "per_count", jonaiRate: 0,
   salesSlide: [], pointSlide: [],
+  slidePeriod: "monthly", // ★裁定338: 新規プランの初期値＝月次
   productBackMode: "product_rule", productBackRate: 0, productBackFixed: 0,
 };
 const draftOf = (p: Plan): Draft => ({
@@ -40,6 +42,7 @@ const draftOf = (p: Plan): Draft => ({
   honMode: (p.hon_back_mode ?? "per_count") as BackModeRow, honRate: p.hon_back_rate ?? 0,
   jonaiMode: (p.jonai_back_mode ?? "per_count") as BackModeRow, jonaiRate: p.jonai_back_rate ?? 0,
   salesSlide: p.sales_slide ?? [], pointSlide: p.point_slide ?? [],
+  slidePeriod: slidePeriodOf(p.slide_period), // ★裁定338: 既存プランは現状値（旧行＝daily・読み替えなし）
   productBackMode: p.product_back_mode ?? "product_rule",
   productBackRate: p.product_back_rate ?? 0, productBackFixed: p.product_back_fixed ?? 0,
 });
@@ -171,6 +174,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       p_hon_back: draft.honBack, p_jonai_back: draft.jonaiBack, p_dohan_back: draft.dohanBack,
       p_sales_slide: clean(draft.salesSlide), p_point_slide: clean(draft.pointSlide),
       p_is_active: draft.active,
+      p_slide_period: draft.slidePeriod, // ★裁定338（0168）: 23 引数目（判定期間）
       p_hon_back_mode: draft.honMode, p_hon_back_rate: draft.honMode === "rate" ? draft.honRate : null,
       p_jonai_back_mode: draft.jonaiMode, p_jonai_back_rate: draft.jonaiMode === "rate" ? draft.jonaiRate : null,
       p_dohan_back_mode: "per_count", p_dohan_back_rate: null, // R-2b まで封印（裁定86-②）
@@ -396,16 +400,21 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
 
       {/* ── ④ スライド・ポイント ── */}
       {on.slides && (<section id="slides" className="nox-cardtop" style={{ ...secCard, display: vis.slides ? undefined : "none" }}>{/* ★裁定269-4: planEditorSlides */}
-        <SecHead title="スライド・ポイント" keys={["salesSlide", "pointSlide"]} section="スライド" desc="売上・ポイント実績に応じた時給スライドを設定します。" />
-        {/* ★裁定106 B2: 判定基準・対象は固定表示（選択は器なし＝準備中）。3段固定＝行は常に3本（4段目の器なし）。 */}
-        <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
-          判定基準: <b style={{ color: "var(--v2-text)" }}>{slideApplyOf(settings) === "next" ? "前月の月間売上／前月の月間pt（翌月に反映）" : "日次売上（按分後）／日次pt"}</b>・対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）{/* ★N3b（裁定288-7） */}
-          <span className="nox-stpill" style={{ marginLeft: 8, opacity: 0.8 }}>判定基準・対象の選択: 準備中（C5）</span>
+        <SecHead title="スライド・ポイント" keys={["salesSlide", "pointSlide", "slidePeriod"]} section="スライド" desc="売上・ポイント実績に応じた時給スライドを設定します。" />
+        {/* ★裁定338＋追補1（0168・便 P168）: 判定期間＝3 択（月次（既定）／半月／日次）・owner・保存は set_comp_plan 23 引数。青ピルと説明文は期間で切替（翌日反映の語は使わない）。判定基準・対象（C5）は準備中のまま */}
+        <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span>判定期間:</span>
+          <select value={draft.slidePeriod} disabled={!isOwner} aria-label="スライドの判定期間" onChange={(e) => d({ slidePeriod: e.target.value as SlidePeriod })} style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12.5 }}>
+            <option value="monthly">月次（既定）</option><option value="half">半月</option><option value="daily">日次</option>
+          </select>
+          <span className="nox-stpill">{slidePillOf(draft.slidePeriod, slideApplyOf(settings) === "next")}</span>
+          <span>対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）</span>
+          <span className="nox-stpill" style={{ opacity: 0.8 }}>判定基準・対象の選択: 準備中（C5）</span>
         </p>
         {/* ★N2→★X-13-19: 段は 1 段 1 行（[判定] 円 以上 → 時給 [時給] 円・通貨は接尾のみ）＝SlideInput の basis で切替 */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
-          <SlideInput label="売上スライド（3段）" desc={slideApplyOf(settings) === "next" ? "前月の月間売上を基準に当月の時給へ反映。" : "日次売上（按分後）を基準に翌日以降の時給へ反映。"} basis="yen" monthly={slideApplyOf(settings) === "next"} slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
-          <SlideInput label="ポイントスライド（3段）" desc={slideApplyOf(settings) === "next" ? "前月の月間ポイントを基準に当月の時給へ反映。" : "獲得ポイントを基準に翌日以降の時給へ反映。"} basis="pt" monthly={slideApplyOf(settings) === "next"} slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
+          <SlideInput label="売上スライド（3段）" desc={slideDescOf(draft.slidePeriod, "yen", slideApplyOf(settings) === "next")} basis="yen" period={draft.slidePeriod} slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
+          <SlideInput label="ポイントスライド（3段）" desc={slideDescOf(draft.slidePeriod, "pt", slideApplyOf(settings) === "next")} basis="pt" period={draft.slidePeriod} slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <Prep k="point_rules" /><Prep k="gross_profit_slide" /><Prep k="slide_ratio_col" />

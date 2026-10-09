@@ -6,13 +6,14 @@
 //   303-3: 一覧の時間セル＝hoursCellOf（0h かつ日数>0 なら「打刻なし／不完全」（303 追補1 の文言）を薄字で・値は変えない）。
 //   恒等（pay.ts と同じ）: net = gross − (fixedDed+fine+withholding+ar+adv+okuri+normPenalty+adjBefore+adjAfter) + adjustOverflow。
 //   ★extras（出勤ボーナス等）は gross に内在（裁定26）＝行としては出すが合計に二重加算しない。
+import { periodLabelOf } from "./slide"; // ★裁定338（0168・便 P168）
 import type { FrozenAdjustment } from "./adjust";
 
 export type BreakdownPayLike = {
   wage?: number; wHours?: number; timePay?: number;
   payRule?: { rule?: string; guaranteedHours?: number; fixedAmount?: number; calcDays?: number; periodDays?: number; perShiftAmount?: number; shiftCount?: number } | null;
   guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number } | null;
-  slideBasis?: { apply?: string; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] } | null;
+  slideBasis?: { apply?: string; provisional?: boolean; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] } | null;
   honBack?: number; jonaiBack?: number; dohanBack?: number;
   drinkBack?: number; champBack?: number; bottleBack?: number; calculatedBack?: number; salesBack?: number;
   customTotal?: number; cbacks?: { name?: string; amount?: number }[];
@@ -86,7 +87,10 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   }
   if (p.slideBasis?.months?.length) {
     for (const m of p.slideBasis.months) {
-      push(`slide-${m.month}`, `　スライド ${Number(m.month.slice(5, 7))}月分＝前月（${Number(m.prevMonth.slice(5, 7))}月）売上 ${yen(m.sales)}→時給 ${yen(m.salesWage)}／pt ${m.pts}→${yen(m.ptsWage)}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
+      // ★裁定338＋追補1（0168・便 P168）: monthly／half＝期間の累計（暫定の印）・'next'＝従来の前月表示
+      const ap = p.slideBasis.apply;
+      if (ap === "monthly" || ap === "half") push(`slide-${m.month}`, `　スライド ${periodLabelOf(m.month)}＝${ap === "monthly" ? "月" : "半月"}の累計${m.prevMonth !== m.month ? `（${periodLabelOf(m.prevMonth)} 基準）` : ""}${p.slideBasis.provisional ? "・暫定（期首〜今日）" : ""} 売上 ${yen(m.sales)}→時給 ${yen(m.salesWage)}／pt ${m.pts}→${yen(m.ptsWage)}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
+      else push(`slide-${m.month}`, `　スライド ${Number(m.month.slice(5, 7))}月分＝前月（${Number(m.prevMonth.slice(5, 7))}月）売上 ${yen(m.sales)}→時給 ${yen(m.salesWage)}／pt ${m.pts}→${yen(m.ptsWage)}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
     }
   }
   push("honBack", "本指名バック", z(p.honBack));
