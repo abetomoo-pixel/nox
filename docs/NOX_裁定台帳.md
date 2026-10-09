@@ -2846,6 +2846,16 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓107：PostgREST の `.in()` は 150 件で分割する（URL 16 KB 超で undici HeadersOverflow＝DB ではなく HTTP 層・CC 提案 2026-10-09 便 V44・相談役採番 2026-10-09 便 V44 続き）
+
+経緯: id を URL のクエリに展開するため 400 件超で URL が 16 KB を超え、undici が HeadersOverflow（HTTP 431 相当）で落ちる＝DB 側のエラーではなく HTTP 層。便 P166 で collect.ts の check_id の `.in()` が月 500 伝票級の店（NOIR）で再現→150 件チャンクに分割して解消。
+運用: 可変長の id 配列を `.in()` に渡す箇所は lib の 1 本（chunk 150）を経由し、新規の読取で素の `.in()` を書かない。
+
+### 教訓106：push 前に tsc を通す（Vercel のビルドは tsc 赤で failure＝本番 route が旧デプロイの payload を読み続ける・CC 提案 2026-10-09 便 V44・相談役採番 2026-10-09 便 V44 続き）
+
+経緯: Vercel のビルドは tsc 赤で failure になり、本番 route（cron／demo reset）が旧デプロイの payload を読み続ける。便 X-13c で db5f6ca（型宣言なし）が failure→5f8cb1f（profiles.d.mts）で success の実例。
+運用: client／scripts を触った便は `npx tsc --noEmit` を f0 の前・commit の前に 1 回走らせ、報告に「tsc 0」を書く。次＝教訓108。
+
 ### 教訓105：STABLE な plpgsql 関数を CTE 内で呼ぶときは、その CTE を materialized にする（PG12 以降の inline 化で行ごと・参照ごとに再評価される＝N+1 型・CC 提案 2026-10-08 便 G2・相談役採番 2026-10-08 便 P165）
 
 経緯: cast_sales_aggregate（mig0014 系）の CTE groups が check_group_due（STABLE plpgsql）を呼び、1 回参照の CTE が inline されて後段の join（noms）と window（ranked）の行ごと・参照ごとに再評価された。NOIR（closed 501 件・1 か月）で 8,359 ms＞authenticated の statement_timeout 8s＝給与プレビュー 500（起票100）。`groups as materialized` で 1 回評価（呼出 501 回）＝95.5 ms（87 倍）・結果の行は不変（0165・裁定336）。
@@ -4043,6 +4053,8 @@ C-4＝gen-demo→check-demo **89 段・NG 5（仕様差 5 のみ）**→payload 
 suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin を店別 reopen に・payload 系 4 本緑。f0 **96 段 5,630（2 連緑 18:48:26〜19:03:16／19:03:29〜19:1x・新規 demo-profiles 53）**（golden 6 値不変）。コミット「feat(X-13c): demo 6 店の差別化・全ドリンクバック・必要人数と 14 日分シフト」。次＝Agoora が表に赤を入れる→X-13d で反映→W5-2。
 
 **便 V44 完了（v44 収蔵＋裁定337／338・恒久注意 18〜20・X-13 台帳）＝台帳の現在地（2026-10-09）**: 前提照合＝HEAD 817e423＝origin/main（rev-list 0 0・変更 0・未追跡＝scripts/demo/poc-record.mjs と docs/tmp（.gitignore）・0163〜0166 は追跡済み）・DB 恒久変更 0・DB 読取 0（V-2 無人 reset の読取は Agoora の GO 待ち＝本便に含めず）。V-0＝v44 収蔵（sha 93ac76ee…6d21・14,494 B・103 行＝提示値と一致・引き継ぎ欄）。V-1＝裁定337／338 を v44 §3 の逐語で収載（裁定336 の上）・恒久注意欄に 18〜20・次番号は最大番号で確認（裁定 336→次 339・起票 100→次 101・教訓 105→106／107 は候補）。V-1b＝docs/demo/x13_ledger.md（v44 §4 の #1〜22・状態列つきを転記）。教訓106／107 は本文案を報告に貼付（採番は相談役）。コミット「docs: v44 収蔵・裁定337／338・X-13 台帳」＝docs のみ（コード・mig 不触・f0 不走＝裁定256）。次＝Agoora の無人 reset 確認（§5-0）→V-2 読取→Vercel Pro＋hnd1→読取便（ホスト不変・env 5 本・cron route 200・/demo 4 role 200・6 店 preview ms）→X-13d。
+
+**便 V44 続き完了（V-2 初回無人 reset 読取＋教訓106／107 採番）＝台帳の現在地（2026-10-09）**: 前提照合＝HEAD abda9c5＝origin/main（0 0・変更 0・未追跡 poc-record.mjs のみ）・DB 恒久変更 0・DB 読取＝V-2 の SELECT のみ（docs/tmp/q1009_v2_reset.mjs／_d.mjs・default_transaction_read_only）・f0 不走。**V-2 実測（2026-10-09 JST）＝初回無人 reset OK**: (a) cron.job_run_details 8 本すべて succeeded（purge 05:15:00／reset muse 06:05・luna 06:07・noir 06:09・ace 06:11・lily 06:13・nest 06:15／retry 06:35・return_message '1 row'）。(b) net._http_response 7 本すべて status_code 200・timed_out false・error_msg null（6 店＝ok true・mode wipe+load・chunks muse 3／luna 3／noir 3／ace 3／lily 4／nest 4・retry＝count 6・6 店とも skipped 'already reset today'）。★created は要求時刻（分 +0.3 秒）で応答時刻ではない＝所要秒は start_time→demo_reset_at／finalized_at で測る。(c) audit demo.reset 26 行（wipe 6＋load 20＝chunk 数と一致）・demo.reset.failed 0・demo.finalize.failed 0（finalize hook は失敗時のみ audit＝成功は payroll_runs で証明）・demo.entries.purged 0（30 日超の行なし＝削除 0 件は audit を書かない仕様・0163）。(d) 6 org の demo_reset_at＝10/9 06:05:08／06:07:05／06:09:07／06:11:06／06:13:10／06:15:13＝wipe+load 8／5／7／6／10／13 秒・payroll_runs 2026-09 finalized 6（06:05:11／06:07:17／06:09:11／06:11:11／06:13:13／06:15:17＝起動から 11／17／11／11／13／17 秒）・写真打刻 casts 38/38・staff（users.photo_updated_at・memberships→stores 経由）6。(e) cron.job 8（purge 1＋reset 6＋retry 1・once の残骸なし・全 active）。docs/demo/cron_setup.md 末尾に「初回無人 reset OK」1 行。V-3＝教訓106（push 前に tsc）・107（PostgREST .in() 150 件分割）を V44 報告の本文案の逐語で教訓欄（教訓105 の上）に採番・恒久注意欄に「（候補）」表記は無し（v44 §10 のみ）＝変更なし・次＝教訓108。コミット「docs: 無人 reset 初回読取・教訓106／107」＝docs のみ（f0 不走＝裁定256）。次＝Agoora の Vercel Pro＋hnd1→読取便（ホスト不変・env 5 本・cron route 200・/demo 4 role 200・6 店 preview ms）→X-13d。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 

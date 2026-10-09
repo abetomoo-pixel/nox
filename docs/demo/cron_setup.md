@@ -57,3 +57,5 @@ route 側の応答＝`{ ok, count, retry, results: [{ org, ok, mode, chunks }] }
 - 一時停止: `update cron.job set active=false where jobname like 'nox-demo-reset%';`
 - 全撤去: `select cron.unschedule(jobname) from cron.job where jobname like 'nox-demo-%';`（表・関数・拡張は残る＝0163 の器）。
 - Vercel Pro へ移行した日に vercel.json の crons へ切り替える場合は、上の全撤去を先に行う（二重起動を避ける＝裁定276-5）。
+
+初回無人 reset OK（2026-10-09 JST・便 V44 続き V-2 読取）: purge 05:15 succeeded／reset 6 店 06:05〜06:15＝status_code muse 200・luna 200・noir 200・ace 200・lily 200・nest 200（wipe+load chunk 3／3／3／3／4／4・所要 wipe+load 8／5／7／6／10／13 秒・finalize まで 11／17／11／11／13／17 秒）／retry 06:35 200（6 店 skipped already reset today）／cron.job_run_details 8 本 succeeded・audit demo.reset 26（failed 0）・demo.finalize.failed 0・payroll_runs 2026-09 finalized 6・写真 casts 38＋staff 6・cron.job 8。
