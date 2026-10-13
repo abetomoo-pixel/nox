@@ -6,6 +6,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { periodCalendarDays, type PayrollWindow } from "./window";
+import { sumCastSales } from "./cast-sales"; // ★裁定346: cast 別合算の純関数（ランキング・/mine ノルマ進捗と共用）
 import type { CastRaw, StoreMasters, DeductionOverride } from "./assemble"; // ★0156: DeductionOverride（run 別控除上書き）
 import { calcPeriodOf } from "./assemble"; // ★0154 D6
 import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）
@@ -658,12 +659,12 @@ export async function collectPeriod(
   const { byCast: punchByCast, recipientsByDate } = await loadPunch(admin, storeId, win, grace);
 
   // sales を cast 別に集計＋日次
+  // ★裁定346（便 N1013b）: 期間合計は純関数 sumCastSales（ランキングの売上軸・/mine ノルマ進捗と同じ関数）＝値は従来の合算と同一。日次は従来どおりここで積む
   const salesByCast = new Map<string, { sales: number; hon: number; jonai: number; dohan: number; daily: Map<string, number> }>();
+  for (const [cid, tot] of sumCastSales(salesRows)) salesByCast.set(cid, { ...tot, daily: new Map() });
   for (const r of salesRows) {
-    const cur = salesByCast.get(r.cast_id) ?? { sales: 0, hon: 0, jonai: 0, dohan: 0, daily: new Map() };
-    cur.sales += r.sales; cur.hon += r.hon; cur.jonai += r.jonai; cur.dohan += r.dohan;
+    const cur = salesByCast.get(r.cast_id)!;
     cur.daily.set(r.biz_date, (cur.daily.get(r.biz_date) ?? 0) + r.sales);
-    salesByCast.set(r.cast_id, cur);
   }
 
   // 対象 cast = sales ∪ punch（is_active 不問・稼働ゼロ除外）

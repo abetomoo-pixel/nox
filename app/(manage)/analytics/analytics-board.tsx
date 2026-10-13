@@ -19,6 +19,7 @@
 //     プレースホルダ（製品文言）に留める。DB・RPC は不触。
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import PageHead from "@/components/ui/page-head";
+import SegSelect from "@/components/ui/seg-select"; // ★裁定346: ランキングの軸切替
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -36,6 +37,7 @@ import { finalRunOf, laborCostOf, laborRatePct, castLaborRatePct, type LaborRun,
 import { diffOf, prevMonthOf, prevYearMonthOf, type Diff, type DiffKind } from "@/lib/nox/analytics/compare";
 // ★B6-12（2026-09-11）: 指名（店合計）・集中度・出勤実績・商品／時間（明細）＝純関数 cast-stats（出勤扱いの状態集合もここに集約）
 import { top3ShareOf, presentDaysOf, productTimeOf, nomStoreOf } from "@/lib/nox/analytics/cast-stats";
+import { castSalesRankingOf, RANK_AXIS_LABEL, type RankAxis } from "@/lib/nox/payroll/cast-sales"; // ★裁定346: 売上軸＝給与の collect と同じ合算（純関数）
 import Picker from "@/components/nox/picker";
 
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
@@ -139,6 +141,7 @@ export default function AnalyticsBoard({
   const [period, setPeriod] = useState(thisMonth);
   const [sales, setSales] = useState<SalesRow[]>([]);
   const [ranking, setRanking] = useState<RankRow[]>([]);
+  const [rankAxis, setRankAxis] = useState<RankAxis>("nom"); // ★裁定346: ランキングの軸（指名数／売上）
   const [err, setErr] = useState<string | null>(null);
   // section3（B-2）: cast 別指名客ランキング
   const [castSel, setCastSel] = useState("");
@@ -450,17 +453,8 @@ export default function AnalyticsBoard({
   const dropCount = selTotalNom - custSum;
 
   // 売上貢献: 日次を cast 単位に月次合算 → sales 降順（同額は名前昇順で決定的に）
-  const salesRanking = useMemo(() => {
-    const m = new Map<string, { sales: number; hon: number; jonai: number; dohan: number }>();
-    for (const r of sales) {
-      const a = m.get(r.cast_id) ?? { sales: 0, hon: 0, jonai: 0, dohan: 0 };
-      a.sales += r.sales; a.hon += r.hon; a.jonai += r.jonai; a.dohan += r.dohan;
-      m.set(r.cast_id, a);
-    }
-    return [...m.entries()]
-      .map(([castId, a]) => ({ castId, name: castName(castId), ...a }))
-      .sort((x, y) => y.sales - x.sales || x.name.localeCompare(y.name));
-  }, [sales, castName]);
+  // ★裁定346: 合算と並びは純関数 castSalesRankingOf（給与の collect と同じ sumCastSales）＝別計算を作らない
+  const salesRanking = useMemo(() => castSalesRankingOf(sales, castName), [sales, castName]);
   // E8-6 #10: 構成%の分母＝按分売上の総和（同じ集計軸の中でだけ%を出す＝日報売上と混ぜない）
   const salesRankTotal = salesRanking.reduce((a, r) => a + r.sales, 0);
   // ★B6-12（9/11 改定）: 集中度（上位 3 名）＝上位 3 行の按分売上 ¥ 合計 ÷ salesRankTotal（小数 1 桁 %・丸め済み構成 % は足さない）。総和 0／行 0 は null（「—」）。
@@ -1140,9 +1134,14 @@ export default function AnalyticsBoard({
       </section>
 
       <section className="nox-panel">
-        <h3>指名件数ランキング（{period}）</h3>
-        {ranking.length === 0 && <p style={noneP}>該当なし（アクティブなキャストがいません）</p>}
-        {ranking.length > 0 && (
+        <h3>キャストランキング（{period}・{RANK_AXIS_LABEL[rankAxis]}）</h3>
+        {/* ★裁定346: 軸の切替＝指名数（get_cast_ranking）／売上（按分後＝給与の collect と同じ純関数）。期間・対象（自店のアクティブ cast）・並び口は既存のまま */}
+        <div style={{ marginBottom: 8 }}>
+          <SegSelect value={rankAxis} onChange={(v) => setRankAxis(v as RankAxis)} options={[["nom", RANK_AXIS_LABEL.nom], ["sales", RANK_AXIS_LABEL.sales]] as const} />
+        </div>
+        {rankAxis === "nom" && ranking.length === 0 && <p style={noneP}>該当なし（アクティブなキャストがいません）</p>}
+        {rankAxis === "sales" && salesRanking.length === 0 && <p style={noneP}>該当なし（按分売上のある伝票がありません）</p>}
+        {rankAxis === "nom" && ranking.length > 0 && (
           <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
           <table className="nox-table">
             <thead>
@@ -1168,8 +1167,38 @@ export default function AnalyticsBoard({
           </table>
           </div>
         )}
+        {rankAxis === "sales" && salesRanking.length > 0 && (
+          <div className="nox-tablewrap plain" data-rank-axis="sales">
+          <table className="nox-table">
+            <thead>
+              <tr>
+                <th>順位</th>
+                <th>名前</th>
+                <th className="num">売上（按分）</th>
+                <th className="num">本指名</th>
+                <th className="num">場内</th>
+                <th className="num">同伴</th>
+              </tr>
+            </thead>
+            <tbody>
+              {salesRanking.map((r) => (
+                <tr key={r.castId}>
+                  <td><span className={`nox-medal ${r.rank === 1 ? "g1" : r.rank === 2 ? "g2" : r.rank === 3 ? "g3" : "gx"}`}>{r.rank}</span></td>
+                  <td>{r.name}</td>
+                  <td className="num">¥{r.sales.toLocaleString()}</td>
+                  <td className="num">{r.hon}</td>
+                  <td className="num">{r.jonai}</td>
+                  <td className="num">{r.dohan}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
         <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
-          ※伝票単位の指名回数（金額とは別軸＝売上貢献の件数と一致しないことがあります）。
+          {rankAxis === "nom"
+            ? "※伝票単位の指名回数（金額とは別軸＝売上貢献の件数と一致しないことがあります）。"
+            : "※売上は給与と同じ按分後の額（卓合計を在席指名の重みで按分）。キャストのマイページには他人の金額は出ません。"}
         </p>
       </section>
 

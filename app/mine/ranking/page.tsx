@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: ranking OFF の店は直 URL も /mine へ
+import { castRankingModeOf } from "@/lib/nox/payroll/cast-sales"; // ★裁定346: off／self／top
 
 export const dynamic = "force-dynamic";
 
@@ -32,11 +33,15 @@ export default async function RankingPage() {
   // cast の可視 store は自店のみ（RLS）＝先頭行が自店
   const { data: stores } = await supabase.from("stores").select("id, name, settings_json").limit(1);
   const store = stores?.[0];
-  if (!mineSettingsOf(store?.settings_json).ranking) redirect("/mine"); // ★326-8: ranking OFF＝ページを出さない
+  const ms = mineSettingsOf(store?.settings_json);
+  const rankMode = castRankingModeOf(ms); // ★裁定346: off／self／top（既存キー ranking・ranking_show_others から写像）
+  if (rankMode === "off") redirect("/mine"); // ★326-8: ranking OFF＝ページを出さない
   const { data } = store
     ? await supabase.rpc("get_cast_ranking", { p_store_id: store.id, p_period: period })
     : { data: [] as RankRow[] };
-  const rows = (data ?? []) as RankRow[];
+  const allRows = (data ?? []) as RankRow[];
+  // ★裁定346: self＝自分の行だけ（他人は名前も出さない）・top＝全員の名前と件数（金額は RPC が構造的に返さない）
+  const rows = rankMode === "self" ? allRows.filter((r) => r.is_self) : allRows;
 
   const thNum: React.CSSProperties = { ...t.th, textAlign: "right" };
   const tdNum: React.CSSProperties = { ...t.td, textAlign: "right", fontFamily: t.font.num };
@@ -45,7 +50,7 @@ export default async function RankingPage() {
     <div>
       <div style={{ margin: "2px 0 14px" }}>
         <h1 style={t.pheadH1}>ランキング（{period}）</h1>
-        <p style={t.pheadP}>指名件数によるランキングです。</p>
+        <p style={t.pheadP}>指名件数によるランキングです。{rankMode === "self" ? `（自分の順位のみ・${allRows.length}人中）` : ""}</p>{/* ★裁定346: self は他人の名前を出さない */}
       </div>
 
       <section className="nox-cardtop" style={t.card}>

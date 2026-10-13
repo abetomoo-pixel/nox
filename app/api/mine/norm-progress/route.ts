@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { resolvePayrollWindow } from "@/lib/nox/payroll/window";
+import { sumCastSales, type CastSalesRow } from "@/lib/nox/payroll/cast-sales"; // ★裁定346: 給与と同じ合算
 
 export async function GET() {
   try {
@@ -47,14 +48,8 @@ export async function GET() {
     // hon/jonai/dohan/sales = get_cast_sales 月レンジ合算（cast=本人スコープは RPC 内で物理保証）
     const { data: salesRows, error: eSales } = await supabase.rpc("get_cast_sales", { p_store_id: storeId, p_from: win.periodStart, p_to: win.periodEnd });
     if (eSales) return NextResponse.json({ error: `get_cast_sales failed: ${eSales.message}` }, { status: 500 });
-    const actual = { hon: 0, jonai: 0, dohan: 0, sales: 0 };
-    for (const r of (salesRows ?? []) as Array<Record<string, unknown>>) {
-      if (r.cast_id !== castId) continue; // RPC が本人限定だが念のため照合
-      actual.sales += (r.sales as number) ?? 0;
-      actual.hon += (r.hon as number) ?? 0;
-      actual.jonai += (r.jonai as number) ?? 0;
-      actual.dohan += (r.dohan as number) ?? 0;
-    }
+    // ★裁定346（便 N1013b）: 合算は給与の collect と同じ純関数（sumCastSales）＝ランキングの売上軸と同じ額。本人行だけに絞る（RPC が本人限定だが念のため照合）
+    const actual = sumCastSales(((salesRows ?? []) as CastSalesRow[]).filter((r) => r.cast_id === castId)).get(castId) ?? { hon: 0, jonai: 0, dohan: 0, sales: 0 };
 
     // 目標 = cast_quotas の当月行（RLS: cast 本人の行のみ・未登録は null）
     const { data: quotaRow, error: eQuota } = await supabase.from("cast_quotas").select("hon, jonai, dohan, sales").eq("cast_id", castId).eq("month", `${period}-01`).maybeSingle();
