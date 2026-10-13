@@ -4099,6 +4099,8 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 **便 V45 完了（v45 収蔵＋裁定342・教訓109・追補記入＋週末 reset 読取）＝台帳の現在地（2026-10-13）**: 前提照合＝HEAD 7e60c1a＝origin/main（rev-list 0 0・変更 0・未追跡 poc-record.mjs・docs/tmp は .gitignore・0167〜0169 追跡済み・0169 未適用）・DB 恒久変更 0・DB 読取＝V-2 の SELECT のみ（docs/tmp/q1013_v2_reset.mjs／q1013_v2_ttl.mjs・default_transaction_read_only）・f0 不走。V-0＝v45 収蔵（sha256 8e8a931d…1d85・15,054 B・105 行 LF＝提示値と一致・引き継ぎ欄に行）。V-1＝裁定342（起票101 クローズ・次 102）・教訓109（次 110）・337 追補1・338 追補2・341 追補1（pin 張替え一覧の追認を含む）・X-13-28 追補（⑤＝4 画面を period-select に統一・native type="month" も置換＝docs/demo/x13_ledger.md #28 に注記）・X-13-29（#29 は便 P168 で既に行あり＝名前と状態を v45 §3 へ更新）・恒久注意欄 24〜26。次の採番＝裁定343・教訓110・起票102。**V-2 実測（10/10〜10/13 JST）＝失敗 0**: (a) cron.job_run_details＝4 日 × 8 本＝32 本すべて succeeded（purge 05:15／reset muse 06:05・luna 06:07・noir 06:09・ace 06:11・lily 06:13・nest 06:15／retry 06:35・return_message '1 row'・runid 11〜42）。(b) net._http_response＝**10/13 分の 7 本のみ残存・すべて 200**（timed_out false・error_msg null・6 店 ok true・mode wipe+load・chunks 3／3／3／3／4／4・retry count 6＝6 店とも skipped 'already reset today'）。★10/10〜10/12 の応答行は **pg_net.ttl＝6 hours（pg_net 0.20.3）で消えており読めない**＝status_code の実測は 10/13 分だけ・10/10〜12 は cron 側 succeeded（要求の発行）と 10/13 の正常が証拠（恒久注意候補「net._http_response は 6 時間で消える＝当日 12:35 JST までに読む」＝採番は相談役）。(c) audit demo.reset 26 行（10/13・wipe 6＋load 20＝chunk 数と一致・demo.reset.failed／demo.finalize.failed 0・10/10〜12 の行は翌日の wipe で消えるため残らない）。(d) 6 org の demo_reset_at＝10/13 06:05:08（muse）／06:07:05（luna）／06:09:06（noir）／06:11:07（ace）／06:13:07（lily）／06:15:07（nest）＝全 6 店 10/13・payroll_runs 2026-09 finalized 6（06:05:10／06:07:08／06:09:09／06:11:10／06:13:11／06:15:11）・casts 38／写真打刻 38。(e) cron.job 8（purge 1＋reset 6＋retry 1・全 active・once の残骸なし）。docs/demo/cron_setup.md 末尾に「10/10〜13 無人 reset OK」1 行。コミット「docs: v45 収蔵・裁定342・教訓109・週末 reset」＝docs のみ（f0 不走＝裁定256）。次＝Agoora の目視（v45 §5-1）→「あああ」無効化→0169 手貼り→P169（相談役が出す）。
 
+**便 P169 完了（0169 収蔵・X-13-29 結線・裁定342・6 店 reset）＝台帳の現在地（2026-10-13）**: 前提照合＝HEAD 6eb3bf2＝origin/main（0 0・変更 0）・DB 恒久変更 0（0169 は Agoora 手貼り 11:34・P-0 で 5 点照合＝1 回目は未適用を検知して停止→再手貼り後に一致）・本番書込＝デモ 6 店の reset と P-7 の live 試走（MUSE 伝票 2 枚＝翌朝の reset で消える）・DB 読取＝P-0 proof／342 計測（admin・SELECT）。P-1＝0169 の欄・名簿 306（A 157／B 149）・gated 157・pin 張替え（上）。P-2＝341 追補2（X-13-29 の仮決め 7 点）。P-3＝342 の適用欄（MUSE 当欠 21→0・CLUB NOX 80→33）。P-4＝目視 NG なし（Agoora 記入）。P-5＝本欄・342 追補1（SX-1）・恒久注意27／28（SX-1）・x13_ledger #29。tsc 0。f0 **101 段 5,750（2 連緑 03:00:52〜03:15:33 UTC（run1 再走）／03:16:57〜03:30:19 UTC（802 s・run1 877 s）・golden 6 値不変・新 suite 341 21＝101 段目・anon-guard 1059→1061・grants 485→487・0158 54→57）**。★run1 の 1 回目は仮決め B-3（受給者判定も今日まで）で payroll F2c-3 が赤→取り消して再走（走数 1 消費・342 追補1 で追認）。コミット「feat: 0169 収蔵・X-13-29 結線・裁定342」（000d9a7）＋「docs: 341 追補2・342 実測・恒久注意27」（本行・便 SX-1／SX-2 の記入を同乗）→push→Vercel success→6 店 reset（同一店 10 分間隔）→live（レジの切替オフ／オン＋率変更 audit 1 件・MUSE 2026-10 プレビューの当欠）＝実測は報告。次＝W5-2（相談役が出す）。
+
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
 出典＝Agoora 指示（2026-09-29・便 X-10-1 で収載）。次の裁定番号は 321。**本文（逐語）**:
@@ -4161,6 +4163,13 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 実装便＝P169（0169 収蔵・X-13-29 と同じ便）。器＝lib（matchPunches の days／absentN・shiftHoursByDate を営業日の今日までに絞る＝X-13-27 anomalyFlagsOf と同経路・collect.ts）・RPC 不変の見込み・mig なし。検証＝デモ MUSE 2026-10（未来日の確定シフト 21・5 名・126 h）／本番 CLUB NOX 2026-10（57・6 名・240 h）の before／after（件数の出典＝起票101・docs/tmp/q1009_p167.mjs）。適用＝未（本便は記入のみ・DB 恒久変更 0）。起票101＝本裁定でクローズ（起票欄に注記）・次＝起票102・次の裁定番号は 343。
 
+**適用（lib）＝便 P169（2026-10-13）**: lib/nox/payroll/anomaly.ts に純関数 2 本（punchCountsUpToOf＝days／lateN／absentN を営業日の今日まで・shiftHoursUpToOf＝'shift' 基準の時給の母数を今日まで）。collect.ts の loadPunch が todayBiz（店の cutoff）で呼ぶ（旧 m.absentN／m.lateN の直渡しを撤去・matchPunches は不変）。受給者判定は不変（342 追補1）。attendanceDays／shortfallDays／hoursByDate は不変（仮決め B-4）。RPC 不変・mig なし。**実測（2026-10 プレビュー相当＝lib loadPunch を admin で計測・docs/tmp/q1013_342_measure.mts・before→after）**: デモ MUSE＝当欠 **21→0**・日数 4→4・不整合 4→4・確定シフト時間 150 h→24 h（未来 21 日 126 h を除外）／本番 CLUB NOX＝当欠 **80→33**・日数 2→2・不整合 36→36・343 h→147 h（未来 47 日 196 h を除外・10/9 の 57 から日が進んだ分）。両店 pay_time_basis 'punch'。live（本番 route の /api/payroll/preview・MUSE owner）の当欠は便 P169 の報告に記載。仮決め一覧＝docs/tmp/p169_decisions.md §B。
+
+### 裁定342 追補1（2026-10-13 確定・相談役・便 SX-1）受給者判定は 342 の対象外
+
+出典＝相談役ブロック 2026-10-13（便 SX-1）。**本文（逐語）**: 「受給者判定（run に載せる対象）は 342 の対象外＝未来日のみの確定シフトでも run に載せる・金額は 0。P169 仮決め B-3 の取り消しを追認」。次＝追補 2。
+経緯＝便 P169 の仮決め B-3（出勤インセンティブの受給者判定も今日まで）で f0 run1 が payroll suite F2c-3（未来月 2026-11 の fixture に打刻を置く）で赤→取り消して再走（collect.ts の受給者判定は final ok／late のまま・days／lateN／absentN／shiftHoursByDate だけ今日まで）。docs/tmp/p169_decisions.md B-3。
+
 ## 裁定341（2026-10-09 確定・相談役・無人便 P168 P-5）レジ＝場内→本指名の切替は非遡及が既定（既出のドリンクは注文時点の率）・「既出も本指名の率にする」チェック（店長以上・既定オフ）
 
 出典＝相談役ブロック 2026-10-09（無人便 P168 P-5）。**本文（逐語）**:
@@ -4169,12 +4178,26 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 読取（2026-10-09・便 P168）: 切替＝register-board の指名種別セグメント（本／場内／フリー）→ autoSaveNoms → RPC check_set_nominations(p_check_id, p_nominations)（live md5 1dbd13ca・0124 判断C＝指名料の明細行を付け替えるだけ）。ドリンクの区分別バック（unit4 のキー・pt）は **会計時 check_close（live 3f4e73b5）が check_nominations の現在の nom_kind で全行を計算**（v_kinds[i]・nom_unit4_key／pt）＝現状は**遡及**（切替前に出た行も本指名の率）。行に区分のスナップショットは無い（check_lines に nom 系の列なし）。
 適用＝RPC 変更が要る→ **0169 起草のみ**（下の欄）。client（便 P168）＝指名種別が場内のとき、店長以上に無効チェック「この伝票の既出ドリンクも本指名の率にする（準備中）」を表示（0169 適用後の便 P169 で切替ダイアログ＋check_nomination_rate_apply に結線）。suite 338 r341(1-1)。
 
-**0169 の欄（起草・未適用・便 P168・2026-10-09）**: supabase/migrations/0169_nomination_rate_nonretro.sql＝生成器 scratchpad/gen_0169.py（写経元＝live pg_get_functiondef＝check_set_nominations 1dbd13ca／check_close 3f4e73b5・★以外 1 バイト不変）。sha256 82ed5269116edc3a4bb7124432dd177aeacf5ca3f9a953a384806e17001906e6・35,895 B・528 行（台帳方式）／527（wc -l）・LF・突合 docs/tmp/q1009_ag_0169.mjs 15 段 NG 0（文単位 11 文・新 md5 check_set_nominations 1dbd13ca→97dd24bb／check_close 3f4e73b5→69cf2a19／check_nomination_rate_apply 84f6f80e・関数 306／表 83／'billing locked' 157・改稿 2 本の ACL 不変・manager の check_open→場内→本指名で prev_kind 'jonai'＋kind_changed_at・同伴 ON では引継ぎ・apply で消える＋audit note・cast forbidden・rollback 後 305／0／1dbd13ca／3f4e73b5）。中身＝★1 check_nominations.prev_kind text null＋kind_changed_at timestamptz null（CHECK prev_kind in hon／jonai／free）★2 check_set_nominations 改稿（旧行の切替記録を退避・引継ぎ・場内→本指名の遷移で prev_kind='jonai'／kind_changed_at=now()・監査 before/after に 2 キー）★3 check_close 改稿（行の created_at < kind_changed_at なら旧区分で unit4 キーと pt＝v_k・plan_rate／plan_fixed の母数は不変）★4 新規 RPC check_nomination_rate_apply(p_check_id, p_cast_id)（店長以上・課金ゲート・open のみ・記録を消す・audit note「指名切替に伴う率変更」・記録なしは no-op）★5 grants。名簿＝A1 +1（306・'billing locked' 157）。手貼り案内 docs/demo/handpaste_0169.md（0168 の後）。
+**0169 の欄（本番適用済み・起草＝便 P168・収蔵＝便 P169・2026-10-13）**: supabase/migrations/0169_nomination_rate_nonretro.sql＝生成器 scratchpad/gen_0169.py（写経元＝live pg_get_functiondef＝check_set_nominations 1dbd13ca／check_close 3f4e73b5・★以外 1 バイト不変）。sha256 82ed5269116edc3a4bb7124432dd177aeacf5ca3f9a953a384806e17001906e6・35,895 B・528 行（台帳方式）／527（wc -l）・LF・突合 docs/tmp/q1009_ag_0169.mjs 15 段 NG 0（文単位 11 文・新 md5 check_set_nominations 1dbd13ca→97dd24bb／check_close 3f4e73b5→69cf2a19／check_nomination_rate_apply 84f6f80e・関数 306／表 83／'billing locked' 157・改稿 2 本の ACL 不変・manager の check_open→場内→本指名で prev_kind 'jonai'＋kind_changed_at・同伴 ON では引継ぎ・apply で消える＋audit note・cast forbidden・rollback 後 305／0／1dbd13ca／3f4e73b5）。中身＝★1 check_nominations.prev_kind text null＋kind_changed_at timestamptz null（CHECK prev_kind in hon／jonai／free）★2 check_set_nominations 改稿（旧行の切替記録を退避・引継ぎ・場内→本指名の遷移で prev_kind='jonai'／kind_changed_at=now()・監査 before/after に 2 キー）★3 check_close 改稿（行の created_at < kind_changed_at なら旧区分で unit4 キーと pt＝v_k・plan_rate／plan_fixed の母数は不変）★4 新規 RPC check_nomination_rate_apply(p_check_id, p_cast_id)（店長以上・課金ゲート・open のみ・記録を消す・audit note「指名切替に伴う率変更」・記録なしは no-op）★5 grants。名簿＝A1 +1（306・'billing locked' 157）。手貼り案内 docs/demo/handpaste_0169.md（0168 の後）。
+
+**0169 適用（本番・収蔵＝便 P169・2026-10-13）**: 手貼り＝Agoora 2026-10-13 **11:34 JST**（Success）。★1 回目（10/13 午前・「Success 確認済み」の申告）は P-0 の live 照合で **未適用**（関数 305・列 0・新 RPC なし・md5 旧値）→停止報告→再手貼り 11:34→P-0 再照合で 5 点一致（恒久注意28 の実例）。live proof（docs/tmp/q1013_p0_0169c.mjs）＝関数 **306**／表 83／check_set_nominations md5 **97dd24bb**／check_close **69cf2a19**／check_nomination_rate_apply **84f6f80e**（ACL＝authenticated=X・anon なし）／check_nominations.prev_kind・kind_changed_at 2 列／'billing locked' **157**。sha256 82ed5269…06e6 不変。名簿＝A1 +1（check_nomination_rate_apply）＝対象 **157**／除外 149／全数 **306**（docs/NOX_課金ゲート対象_v1.md mig0169 追随）。pin 張替え＝billing 段47-1（157／158／157）・anon-guard（probe +1＋authenticated(cast) +1＝1059→1061）・grants（公開 +1＝485→487）・0158（s-2e／s-2f／s-2g md5 3 本＋s-3／t-1 関数 306＝54→57）・338 r341(1-1)（挙動 pin へ張替え＝教訓108）。
 
 ### 裁定341 追補1（2026-10-13 確定・相談役追認・v45 §3）便 P168 の仮決め ⑥⑦⑧ と P167／P168 の pin 張替え一覧の追認
 
 出典＝相談役引き継ぎ v45 §3（便 V45 V-1 で記入・2026-10-13）。**本文（逐語）**: 「⑥⑦⑧（チェックは無効表示で先置き／audit after に kind_switch／ACL 不変）→341 追補1。P167／P168 の pin 張替え一覧も同追補で追認。」
 内容＝⑥ client（便 P168）は指名種別が場内のとき、店長以上に無効チェック「この伝票の既出ドリンクも本指名の率にする（準備中）」を先置き（結線は P169＝X-13-29）。⑦ 0169 の check_set_nominations は切替記録（prev_kind／kind_changed_at）を監査の after に kind_switch として残す。⑧ 改稿 2 本（check_set_nominations／check_close）の ACL は不変・新 RPC check_nomination_rate_apply は店長以上＋課金ゲート（名簿 A1 +1＝306・gated 157）。**pin 張替え一覧（P167／P168）の追認**＝billing 段47-1（156／157／156）・anon-guard（0167 probe＋authenticated(cast) 不可）・grants（公開 +1）・0158（s-2d ee7f7243・関数 305 ×2）・m4 wm(2-5)(2-6)＋wm(4-1)（layout＝解決値）・demo-profiles dpf(2-6)・dpf(1-3)（売上スライド 2・ポイントスライド 1）・337 c337(4-1)（SLIDES）・x13 quota-table-3（PeriodSelect）。
+
+### 裁定341 追補2（2026-10-13・CC 仮決め・便 P169＝X-13-29 の結線・相談役の追認待ち）
+
+出典＝便 P169 の仮決め一覧（docs/tmp/p169_decisions.md §A）。実装＝app/(manage)/register/register-board.tsx（client のみ・RPC／mig 不変）。**仮決め（7 点）**:
+A-1 場内→本指名の切替は店長以上にだけ切替ダイアログ（nox-inset・「本指名に切り替える」／「やめる」）。staff は従来どおり即保存（ダイアログもチェックも出ない＝RPC が店長以上）。
+A-2 ダイアログのチェックは既定オフ。確定＝check_set_nominations（名簿保存）→保存成功のときだけ check_nomination_rate_apply。
+A-3 切替記録（kind_changed_at）が残る本指名キャストには行の下に常設のチェック「この伝票の既出ドリンクも本指名の率にする（切替前の N 行は場内の率）」（店長以上・open のみ・オンで即 RPC・N＝created_at < kind_changed_at のドリンク／シャンパン／ボトル行＝check_close と同じ判定）。
+A-4 行の区分表示＝切替前の行にタグ「{キャスト} 場内の率（切替前）」。apply で記録が消えるとタグも消える（行の select に created_at・名簿の select に prev_kind／kind_changed_at を追加＝表示のみ）。
+A-5 RPC 失敗は和訳して赤（forbidden／billing locked／not open／not found）・成功文言「…本指名の率にしました（監査: 指名切替に伴う率変更）」。
+A-6 P168 の無効チェック「（準備中）」は撤去（文字列 0）。338 suite の r341(1-1) は挙動 pin に張替え。
+A-7 kiosk-register は触らない（店長以上の操作がない）。
+suite＝新規 verify:nox-341 21（f0 101 段目＝f342 4／r341 client 4／r341 DB 13: 切替記録・切替前 300＋後 400＝700（チェックオフ）・staff／cast forbidden・manager apply で記録消去＋audit note 1 行＋close 800・記録なしは no-op・close 後は 'not open'）。
 
 ## 裁定340（2026-10-09 確定・相談役・便 X-13d-2a A-1）X-13-24＝支払記録の導線（行の「未払」→ダイアログ／内訳の「支払を記録」／未払の全員を一括記録・client のみ）
 
@@ -4568,7 +4591,7 @@ mig の範囲＝**0162＝写真（裁定329）＋cast_contract_acks（326 追補
 326-4 指名予約・同伴予約の申請: cast が /mine から 顧客（候補表示・裁定321 と同じ）・日時・種別（本指名／同伴）を申請 → status 'pending' → 店（owner／manager／レジ権限 staff）が承認・却下 → 承認済みだけが「指名予約（今日以降）」と店側の予約一覧に載る。店側の予約一覧に「承認待ち」タブ。却下は理由任意。
 326-5 今月の勤怠に出勤・退勤の打刻時刻を表示（「M/D 出勤 hh:mm〜hh:mm」・退勤未打刻は「〜」）。
 326-6 お知らせ未読: cast ごとの既読を持ち、未読 N 件ならナビと /mine の見出しに「お知らせ（N）」。開いたら既読。
-326-7 希望タブは「シフト希望」に改名。店設定 shift_request_mode 'shift'（既定・現行）／'off_only'（休み希望）。off_only ではタブ名「休み希望」・cast は休みたい日だけ提出・提出のない日は出勤可能として店の確定案に載せられる（裁定58 の前倒し）。
+326-7 希望タブは「シフト希望」に改名。店設定 shift_request_mode 'shift'（既定・現行）／'off_only'（休み希望）。off_only ではタブ名「休み希望」・cast は休みたい日だけ提出・提出のない日は出勤可能として店の確定案に載せられる（裁定58 の前倒し）。（注記・2026-10-13 便 SX-1: 裁定58 は欠番（裁定50〜60 欠番・2026-08-25）。290-5／326-7 の「休みだけ提出（裁定58）」は本項＝shift_wishes.kind 'off'（0160）を指す）
 326-8 ranking 'off' の店では /mine のナビ項目とランキングページを出さない（直 URL は /mine へ）。drink_claim／punch_correction_request 'off' も同様にカードを出さない。
 326-9 器＝0160: cast_quotas（org・store・cast・month・4 項目・NULL 可）＋set_cast_quota RPC／予約表に status・requested_by_cast・rejected_reason＋cast 用 RPC reservation_request と店用 reservation_decide／cast_notice_reads（cast×notice）＋既読 RPC／settings_json +7 キー（白名単か専用 RPC は起草時に裁く）。起票95（枠マスタ無効化）・96（T6 契約確認）と同乗。」
 
@@ -5911,6 +5934,9 @@ announcements v2）＝正本化後の収蔵ファイルは v8.1／v12.1／v4.1�
 24. **手貼りは f0 走行中でも可だが md5／関数数の pin が赤になる＝張替えで再走**（0168 で実証＝P167 の f0 run1 走行中に適用）。
 25. **コミット直後に台帳パッチの書込と CRLF 化を確認**（P168 コミット 2 の補正＝コミット 3 の実例）。
 26. **datalist 不使用**（教訓109＝候補付き入力は select で出す・▾ を描くなら必ず動作を結ぶ）。
+（27＝便 P169 P-5・28＝便 SX-1・2026-10-13 収載・相談役の逐語）
+27. **net._http_response は pg_net.ttl 6 時間で消える＝HTTP 応答を読むなら当日 12:35 JST（retry 06:35＋6 h）まで。それ以前の日の正常性は cron.job_run_details の succeeded と当日分の 200 からの推定**（便 V45 V-2 で実証）。
+28. **手貼り後は手順書の検証クエリの返り値を CC に貼る。SQL Editor の Success 表示は適用の証明にならない**（0169 で実証＝10/13 の 1 回目は「Success 確認済み」でも本番に未適用・P-0 の 5 点照合で検知）。次＝恒久注意 29。
 
 既存裁定との突合5点＝対応表 v1 §12（優先順位数値露出 vs 裁定115-②／締め解除→再締め vs reclose・裁定12①／顧客按分禁止と
 check_cast_backs／機能フラグ共通定義 vs 裁定101 自動導出／履歴・適用期間 vs 現行の上書き更新）→ **裁定125 で決着**。
