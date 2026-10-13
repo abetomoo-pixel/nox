@@ -95,8 +95,14 @@ async function main() {
     // ★0167（裁定337・便 P167）: set_cast_shift_request_mode の md5 控え（本番適用 2026-10-09 18:24 JST）
     { const m = (await one("select left(md5(replace(prosrc, E'\\r', '')), 8) m from pg_proc where proname='set_cast_shift_request_mode' and pronamespace='public'::regnamespace")).m as string;
       check("s-2d", "★0167 set_cast_shift_request_mode の md5＝ee7f7243（ゲート内蔵・監査・null＝店の既定）", m === "ee7f7243", m); }
+    // ★0169（裁定341・便 P169）: check_set_nominations／check_close の改稿と check_nomination_rate_apply の md5 控え（本番適用 2026-10-13 11:34 JST）
+    { const rows = await q("select proname, left(md5(replace(prosrc, E'\\r', '')), 8) m from pg_proc where pronamespace='public'::regnamespace and proname in ('check_set_nominations','check_close','check_nomination_rate_apply') order by proname");
+      const md = Object.fromEntries(rows.map((r) => [r.proname as string, r.m as string]));
+      check("s-2e", "★0169 check_set_nominations の md5＝97dd24bb（場内→本指名で prev_kind／kind_changed_at を記録・他の遷移は引継ぎ）", md.check_set_nominations === "97dd24bb", JSON.stringify(md));
+      check("s-2f", "★0169 check_close の md5＝69cf2a19（行の created_at < kind_changed_at なら旧区分で unit4 キーと pt）", md.check_close === "69cf2a19", JSON.stringify(md));
+      check("s-2g", "★0169 check_nomination_rate_apply の md5＝84f6f80e（店長以上・課金ゲート・open のみ・記録を消す・監査 note）", md.check_nomination_rate_apply === "84f6f80e", JSON.stringify(md)); }
     const fnCount0 = (await one("select count(*)::int n from pg_proc where pronamespace='public'::regnamespace")).n as number;
-    check("s-3", "新設 5 本が存在・payroll_attentions が存在・関数 305（★0159 で +2・★0160 で +7−1・★0161 で +1・★0162 で +5・★0163 で +1・★0166 で +1・★0167 で +1）", NEW.every((n) => !!live0[n]) && (await one("select to_regclass('public.payroll_attentions')::text r")).r !== null && fnCount0 === 305, `fn ${fnCount0}`);
+    check("s-3", "新設 5 本が存在・payroll_attentions が存在・関数 306（★0159 で +2・★0160 で +7−1・★0161 で +1・★0162 で +5・★0163 で +1・★0166 で +1・★0167 で +1・★0169 で +1）", NEW.every((n) => !!live0[n]) && (await one("select to_regclass('public.payroll_attentions')::text r")).r !== null && fnCount0 === 306, `fn ${fnCount0}`);
     const colsOf = async (): Promise<Record<string, number>> => Object.fromEntries((await q("select table_name t, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('daily_pays','bottle_keeps','advances','transport','payroll_attentions') group by 1")).map((r) => [r.t, r.n]));
     const c0 = await colsOf();
     check("s-4", "0158 が列を足していない表は不変: advances 16 列・transport 15 列", c0.advances === 16 && c0.transport === 15, c0);
@@ -415,10 +421,10 @@ async function main() {
       const md5Tail: Record<string, string> = Object.fromEntries((tr[1] ?? []).map((x) => [x.proname, x.md5]));
       const expAll = { ...EXPECTED, ...EXPECTED_NEW };
       const tg = tr[6] ?? [];
-      check("t-1", "検証ブロック 8 文: 行数 1／16／3／7／3／1／3／1・md5 16 本＝控え（kiosk_transport_issue は 0159 後の値）・不触 3 本不変・列 3 行とも null 可・RLS t＋policy 1（SELECT）・grant authenticated=SELECT のみ（anon なし）・関数 304・表 83（★0163・★0166）",
+      check("t-1", "検証ブロック 8 文: 行数 1／16／3／7／3／1／3／1・md5 16 本＝控え（kiosk_transport_issue は 0159 後の値）・不触 3 本不変・列 3 行とも null 可・RLS t＋policy 1（SELECT）・grant authenticated=SELECT のみ（anon なし）・関数 306・表 83（★0163・★0166・★0167・★0169）",
         JSON.stringify(counts) === JSON.stringify([1, 16, 3, 7, 3, 1, 3, 1]) && Object.keys(expAll).length === 16 && Object.keys(expAll).every((n) => md5Tail[n] === expAll[n])
         && tr[2].every((x) => UNTOUCHED[x.proname] === x.md5) && tr[4].every((x) => x.is_nullable === "YES") && tr[5][0].relrowsecurity === true && tr[5][0].policyname === "payroll_attentions_select" && tr[5][0].cmd === "SELECT"
-        && tg.some((g) => g.grantee === "authenticated" && g.string_agg === "SELECT") && !tg.some((g) => g.grantee === "anon") && Number(tr[7][0].functions) === 305 && Number(tr[7][0].tables) === 83, // ★0167: 305（便 P167）★0159: 関数 290 → ★0160: 296 → ★0161: 297 → ★0162: 302・表 81 → 82 → ★0163: 303・83（demo_entries_purge／demo_entries）・★0164／0165 は本数不動・★0166: 304（set_product_track_stock）
+        && tg.some((g) => g.grantee === "authenticated" && g.string_agg === "SELECT") && !tg.some((g) => g.grantee === "anon") && Number(tr[7][0].functions) === 306 && Number(tr[7][0].tables) === 83, // ★0167: 305（便 P167）★0159: 関数 290 → ★0160: 296 → ★0161: 297 → ★0162: 302・表 81 → 82 → ★0163: 303・83（demo_entries_purge／demo_entries）・★0164／0165 は本数不動・★0166: 304（set_product_track_stock）
         JSON.stringify(counts) + JSON.stringify(tr[7]) + JSON.stringify(Object.keys(expAll).filter((n) => md5Tail[n] !== expAll[n])));
     } catch (e) {
       check("x-0", "例外なし", false, (e as Error).message);

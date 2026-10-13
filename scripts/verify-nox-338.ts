@@ -6,7 +6,7 @@
  *  sp(3) 配線: collect（slidePeriodByPlan・期間累計・provisional）・assemble（slidePeriod 優先）・core（slideBasisForPeriodOf）・breakdown-lines（期間ラベル・暫定）
  *  sp(4) UI: plan-editor 3 択（monthly 既定）・p_slide_period・ピル・説明文 3 種・「翌日以降」0／SlideInput period
  *  ps(1) X-13-28: PeriodSelect（select・もっと前…・確定の印）＝給与・分析・月報・ノルマの 4 箇所・period-picker 撤去
- *  r341(1) レジ: 場内のとき店長以上に無効チェック「既出ドリンクも本指名の率にする（準備中）」
+ *  r341(1) レジ: 0169 適用後＝切替ダイアログ（既定オフ）＋切替記録のあるキャストにチェック→check_nomination_rate_apply（便 P169・実走は verify:nox-341）
  */
 import fs from "node:fs";
 import { periodKeyOf, periodRangeOfKey, prevPeriodKeyOf, periodKeysInRange, periodLabelOf, slideDescOf, slidePillOf, slideAtLabelOf, slideBasisForPeriodOf } from "../lib/nox/payroll/slide";
@@ -53,7 +53,8 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const pb = src("app/(manage)/payroll/payroll-board.tsx"), an = src("app/(manage)/analytics/analytics-board.tsx"), mr = src("app/(manage)/report/month-report.tsx"), ps = src("components/nox/period-select.tsx");
   check("ps(1-1) X-13-28: PeriodSelect（select・periodCandidatesOf・確定の印・もっと前…）＝給与（finalized）・分析・月報・ノルマの 4 箇所・period-picker 撤去・type=\"month\" 0", ps.includes('<option value={PERIOD_MORE}>もっと前…</option>') && ps.includes("periodCandidatesOf(current, [...runPeriods, value].filter(Boolean), back)") && pb.includes("<PeriodSelect value={period} onChange={setPeriod} finalized={finalizedPeriodsOf(runPeriods)}") && an.includes('<PeriodSelect value={period} onChange={setPeriod} ariaLabel="対象月" />') && mr.includes('<PeriodSelect value={period} onChange={setPeriod} ariaLabel="対象月" />') && cs.includes('<PeriodSelect value={period} onChange={(v) => setPeriod(v)} ariaLabel="ノルマの期間（月）" />') && !fs.existsSync("components/nox/period-picker.tsx") && ![pb, an, mr, cs].some((x) => x.includes('type="month"')));
   const rb = src("app/(manage)/register/register-board.tsx");
-  check("r341(1-1) レジ: 場内のとき店長以上に無効チェック（既出ドリンクも本指名の率にする（準備中））・既定は非遡及＝0169 待ち", rb.includes('{kind === "jonai" && isManagerUp && (') && rb.includes('<input type="checkbox" disabled aria-label="この伝票の既出ドリンクも本指名の率にする（準備中）" />'));
+  check("r341(1-1) レジ（0169 適用後・便 P169）: 場内→本指名は店長以上に切替ダイアログ（チェック既定オフ＝非遡及）・切替記録のある本指名キャストにチェック→check_nomination_rate_apply・無効「（準備中）」0（実走は verify:nox-341）",
+    rb.includes('kind === "hon" && nomRow?.kind_changed_at && isManagerUp') && rb.includes("setRateDlg({ castId: ca.id") && rb.includes('supabase.rpc("check_nomination_rate_apply"') && !rb.includes("本指名の率にする（準備中）"));
 }
 
 if (fails.length) {

@@ -584,6 +584,7 @@ async function main() {
     ["set_store_cast_register", { p_store_id: null, p_enabled: null }],
     ["set_store_profile", { p_store_id: null, p_patch: null }], // ★mig0144（店舗設定の統合 setter・owner 限定）
     ["set_cast_shift_request_mode", { p_cast_id: null, p_mode: null }], // ★mig0167（裁定337・便 P167）: シフト希望の方式のキャスト個別上書き（owner∨manager 自店・課金ゲート内蔵）＝anon BLOCKED
+    ["check_nomination_rate_apply", { p_check_id: null, p_cast_id: null }], // ★mig0169（裁定341・便 P169）: 既出ドリンクも本指名の率にする（owner∨manager 自店・open のみ・課金ゲート内蔵・監査）＝anon BLOCKED
     ["set_product_track_stock", { p_product_id: null, p_track: null }], // ★mig0166（X-13-8・便 P166）: 在庫を管理するの切替（owner∨manager 自店・課金ゲート内蔵）＝anon BLOCKED
     ["set_cast_register", { p_membership_id: null, p_can_register: null }],
   ];
@@ -816,6 +817,11 @@ async function main() {
     {
       const { error: eSm } = await authed.rpc("set_cast_shift_request_mode", { p_cast_id: null, p_mode: "shift" });
       check("authenticated(cast) set_cast_shift_request_mode は成功しない（bad args／forbidden）", !!eSm && /bad args|forbidden/.test(eSm.message), eSm?.message ?? "実行できてしまった");
+    }
+    // ★mig0169（裁定341・便 P169）: check_nomination_rate_apply は authenticated の cast でも通らない（null 引数＝'bad args'・実 id は role 検査で 'forbidden'＝verify:nox-341 r341(3-2)）
+    {
+      const { error: eRa } = await authed.rpc("check_nomination_rate_apply", { p_check_id: null, p_cast_id: null });
+      check("authenticated(cast) check_nomination_rate_apply は成功しない（bad args／forbidden）", !!eRa && /bad args|forbidden/.test(eRa.message), eRa?.message ?? "実行できてしまった");
     }
     // 段11b: F2c finalize/mark_paid は service_role 限定＝authenticated でも BLOCKED（positive assert）
     const F2C_SVC_ONLY: Array<[string, Record<string, unknown>]> = [

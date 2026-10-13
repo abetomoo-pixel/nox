@@ -17,7 +17,7 @@ import type { CompPlan, PlanOverride, Deduction, BackDef, TaxMode } from "../pay
 import { buildMatchInput, dayWorkedHours, type PunchRow, type ShiftRow, type AttendanceRow } from "../punch-io";
 import { matchPunches } from "../punch-match";
 import { bizDateOf } from "../biz-date";
-import { anomalyFlagsOf } from "./anomaly"; // ★X-13-27（便 X-13d-2a）: 未来日の確定シフトは不整合に数えない
+import { anomalyFlagsOf, punchCountsUpToOf, shiftHoursUpToOf } from "./anomaly"; // ★X-13-27（便 X-13d-2a）: 未来日の確定シフトは不整合に数えない・★裁定342（便 P169）: 日数・当欠・シフト時間も今日まで
 
 import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
 import { monthsInRange, prevMonthOf, lastDayOf, periodKeysInRange, periodRangeOfKey, prevPeriodKeyOf, slidePeriodOf, type SlidePeriod, type SlideTotals } from "./slide"; // ★N3b（裁定288）・★裁定338（0168・便 P168）
@@ -351,12 +351,15 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     const built = buildMatchInput({ cutoffHm: win.cutoffHm, shifts: raw.shifts, attendance: raw.att, punches: raw.punches });
     const m = matchPunches({ ...built, config: { close: win.closeHm, lateGraceMin: grace.lateGrace, earlyGraceMin: grace.earlyGrace, overGraceMin: grace.overGrace } });
     const hoursByDate = new Map<string, number>();
-    let days = 0;
     let anomalyCount = 0;
     const missingOutDates: string[] = []; // ★N3 AV-4: 退勤の記録が無い勤務（in はあり out が無い営業日・表示のみ）
+    // ★裁定342（便 P169）: 日数・遅刻・当欠は営業日の今日までの日だけ（未来日の確定シフトは数えない＝純関数 punchCountsUpToOf・旧 m.lateN／m.absentN は未来日を含んでいた）
+    const { days, lateN, absentN } = punchCountsUpToOf(m.days.map((d) => ({ bizDate: d.bizDate, finalType: d.final.type })), todayBiz);
     // ★0154 D2: 確定シフトの時間（日別・shift_guarantee 用）と出勤区分（shukkin／late／dohan）の回数（per_shift 用）
-    const shiftHoursByDate: Record<string, number> = {};
-    for (const sh of raw.shifts) shiftHoursByDate[sh.date] = (shiftHoursByDate[sh.date] ?? 0) + Math.max(0, (hm2minOf(sh.end_hm) - hm2minOf(sh.start_hm)) / 60);
+    //   ★裁定342: 'shift' 基準の時給の母数も今日まで（未来日の確定シフトの時間は含めない＝shiftHoursUpToOf）
+    const shiftHoursAll: Record<string, number> = {};
+    for (const sh of raw.shifts) shiftHoursAll[sh.date] = (shiftHoursAll[sh.date] ?? 0) + Math.max(0, (hm2minOf(sh.end_hm) - hm2minOf(sh.start_hm)) / 60);
+    const shiftHoursByDate = shiftHoursUpToOf(shiftHoursAll, todayBiz);
     const attendanceDays = raw.att.filter((a) => a.status === "shukkin" || a.status === "late" || a.status === "dohan").length;
     // ★324-3（便 L-2-4）: 確定シフトがある営業日の (shift id・開始／終了・in／out の HH:MM)＝shortfallRowsOf の入力（in なし＝無断欠勤は行にせず null で渡す）
     const shiftByDate = new Map(raw.shifts.map((sh) => [sh.date, sh]));
@@ -367,8 +370,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       if (sh && sid) shortfallDays.push({ bizDate: d.bizDate, shiftId: sid, startHm: sh.start_hm, endHm: sh.end_hm,
         inHm: d.raw.in.type === "ok" || d.raw.in.type === "late" ? d.raw.in.act : null,
         outHm: d.raw.out.type === "ok" || d.raw.out.type === "early" || d.raw.out.type === "over" ? d.raw.out.out : null });
-      if (d.final.type === "ok" || d.final.type === "late") {
-        days += 1;
+      if (d.final.type === "ok" || d.final.type === "late") { // 受給者判定（出勤インセンティブ）は不変＝final ok／late（打刻がある日）。★裁定342 の射程外（未来日に打刻は無い・payroll suite の fixture は未来月に打刻を置く）
         (recipientsByDate.get(d.bizDate) ?? recipientsByDate.set(d.bizDate, []).get(d.bizDate)!).push(cid);
       }
       // ★X-13-27（便 X-13d-2a）: 不整合・退勤なしは今日までの営業日だけ（未来日の確定シフトは数えない＝純関数 anomalyFlagsOf）
@@ -376,7 +378,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       if (af.counted) anomalyCount += 1;
       if (af.missingOut) missingOutDates.push(d.bizDate); // ★N3 AV-4
     }
-    result.set(cid, { days, lateN: m.lateN, absentN: m.absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
+    result.set(cid, { days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
   }
   // pooled 端数 +1 の順序を確定させるため cast_id 昇順にソート
   for (const [d, list] of recipientsByDate) recipientsByDate.set(d, list.sort());

@@ -219,7 +219,8 @@ async function main() {
       "okuri_today_summary", "advances_open_balance", "cast_mynumber_discard_status", // ★0156（裁定309-6〜9／追補2）: 公開 8 本（okuri_default_of は内部＝G4c）
       "set_user_photo_updated_at", "clear_cast_photo", "clear_user_photo", "cast_contract_ack_needed", "cast_contract_ack_self", // ★0162（裁定329／326 追補7-6）: 公開 5 本（非ゲート・authenticated＋service_role）
       "set_product_track_stock", // ★0166（X-13-8・便 P166）: 公開 1 本（ゲート内蔵＝A6・authenticated＋service_role）
-      "set_cast_shift_request_mode"]; // ★0167（裁定337・便 P167）: 公開 1 本（ゲート内蔵＝A10・authenticated）
+      "set_cast_shift_request_mode", // ★0167（裁定337・便 P167）: 公開 1 本（ゲート内蔵＝A10・authenticated）
+      "check_nomination_rate_apply"]; // ★0169（裁定341・便 P169）: 公開 1 本（ゲート内蔵＝A1・authenticated・店長以上・open のみ）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,

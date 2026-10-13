@@ -131,6 +131,8 @@ type Line = {
   customer_id?: string | null;
   // ★裁定314（便 X-8-10）: ボトル明細の「キープ」が bottle_keep_register へ渡す商品（同じ取得に同乗）
   product_id?: string | null;
+  // ★0169（裁定341・便 P169）: 行の作成時刻＝名簿の kind_changed_at より前の行は「場内の率（切替前）」の印（check_close と同じ判定）
+  created_at?: string | null;
   // キャストドリンク（mig0070）: 按分除外の判定は back_snapshot の凍結値で行う。
   //   ★products.back_exempt_from_split（現価）では判定しない＝行を打った後にマスタのフラグを
   //     切り替えても伝票の帰属経路は変わらない、が 0070 の設計（check_close と
@@ -143,7 +145,9 @@ type Line = {
 type DrinkClaim = { id: string; check_line_id: string | null; cast_id: string; back_amount: number };
 type Payment = { id: string; pay_group: string; method: string; amount: number; tendered: number | null; method_detail: string | null };
 // ★R-2b（裁定100・mig0118/0119）: 種別と同伴はキャスト別の行属性（checks.nom_type は派生サマリ）。
-type Nom = { cast_id: string; ratio_weight: number; nom_kind: "hon" | "jonai" | "free"; is_dohan: boolean };
+// ★0169（裁定341・便 P169）: prev_kind／kind_changed_at＝場内→本指名に切り替えた記録（非 null＝切替前に出た行は場内の率のまま＝非遡及）。
+//   check_nomination_rate_apply で消える（＝全行が本指名の率）。
+type Nom = { cast_id: string; ratio_weight: number; nom_kind: "hon" | "jonai" | "free"; is_dohan: boolean; prev_kind: string | null; kind_changed_at: string | null };
 // F3c 二重承認（approvals・mig0035/0036）
 type Approval = {
   id: string; pay_group: string; type: string; amount: number; status: string;
@@ -513,6 +517,10 @@ export default function RegisterBoard({
   // ★0124（裁定111-2）: 行内の同伴人数ステッパー（既定1）。保存時に dohan_count で送る＝
   //   RPC が同伴料行ちょうど1本のときだけ qty を同期（手動取消・複数行は no-op＝判断H）。
   const [nomDohanN, setNomDohanN] = useState<Record<string, number>>({});
+  // ★0169（裁定341・X-13-29・便 P169）: 場内→本指名の切替ダイアログ（店長以上）。チェック「既出のドリンクも本指名の率にする」は既定オフ＝非遡及。
+  //   確定＝名簿保存（check_set_nominations）→ オンなら check_nomination_rate_apply（監査「指名切替に伴う率変更」）。
+  const [rateDlg, setRateDlg] = useState<{ castId: string; name: string; kinds: Record<string, "hon" | "jonai" | "free">; weights: Record<string, number>; apply: boolean } | null>(null);
+  const [rateBusy, setRateBusy] = useState(false);
   // ★0124（裁定111-3）: %・人数の連続入力は blur で1回保存＝キーストロークごとの RPC を避ける。
   //   トグル系（種別/同伴/名簿タップ/均等）は即時保存。dirty は入力系の未保存編集の有無。
   const [nomDirty, setNomDirty] = useState(false);
@@ -624,7 +632,7 @@ export default function RegisterBoard({
     const { data: c } = await supabase.from("checks").select("*").eq("id", checkId).single();
     const { data: ls } = await supabase
       // back_snapshot＝キャストドリンク判定の凍結値（mig0070）。中身は back_exempt だけを見る。
-      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category, customer_id, product_id") // ★0153: 注文者（同じ取得に同乗）
+      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category, customer_id, product_id, created_at") // ★0153: 注文者（同じ取得に同乗）
       .eq("check_id", checkId).order("sort_order");
     // キャストドリンク: 確定済み（approved）の claim だけを引く。void/rejected は行に紐づけない。
     const { data: dcs } = await supabase
@@ -633,7 +641,7 @@ export default function RegisterBoard({
     const { data: ps } = await supabase
       .from("payments").select("id, pay_group, method, amount, tendered, method_detail").eq("check_id", checkId).order("paid_at");
     const { data: ns } = await supabase
-      .from("check_nominations").select("cast_id, ratio_weight, nom_kind, is_dohan").eq("check_id", checkId).order("position");
+      .from("check_nominations").select("cast_id, ratio_weight, nom_kind, is_dohan, prev_kind, kind_changed_at").eq("check_id", checkId).order("position"); // ★0169（裁定341）: 切替記録の 2 列
     const { data: aps } = await supabase
       .from("approvals").select("id, pay_group, type, amount, status, reason, requested_by, created_at")
       .eq("check_id", checkId).order("created_at", { ascending: false });
@@ -936,6 +944,36 @@ export default function RegisterBoard({
     setFeeBusy(false);
     if (error) setMsg({ to: MSG_DETAIL, text: chargeErrJa(error.message), kind: "bad" });
     await loadCheck(check.id); // 失敗時も DB の姿へ巻き戻す（派生は RPC 内で原子＝中途半端は残らない）
+    return !error; // ★0169（裁定341）: 切替ダイアログが「保存成功のときだけ率変更を続ける」ために返す
+  }
+
+  // ★0169（裁定341・X-13-29・便 P169）: 「この伝票の既出ドリンクも本指名の率にする」＝check_nomination_rate_apply(p_check_id, p_cast_id)
+  //   店長以上・open のみ・切替記録（prev_kind／kind_changed_at）を消す＝会計時に全行が本指名の率。監査 'check_nomination_rate_apply'（note「指名切替に伴う率変更」）。
+  //   記録なしは RPC 側で no-op（監査も書かない）。失敗は和訳して赤（握り潰さない）。
+  async function rateApply(castId: string, castNameJa: string): Promise<boolean> {
+    if (!check || rateBusy) return false;
+    setRateBusy(true);
+    const { error } = await supabase.rpc("check_nomination_rate_apply", { p_check_id: check.id, p_cast_id: castId });
+    setRateBusy(false);
+    if (error) {
+      const m = error.message;
+      const ja = m.includes("forbidden") ? "権限がありません（店長以上）" : m.includes("billing locked") ? "課金が停止中のため変更できません"
+        : m.includes("not open") ? "会計済みの伝票は変更できません" : m.includes("not found") ? "名簿にいないキャストです" : m;
+      setMsg({ to: MSG_DETAIL, text: `率変更に失敗: ${ja}`, kind: "bad" });
+      await loadCheck(check.id);
+      return false;
+    }
+    setMsg({ to: MSG_DETAIL, text: `${castNameJa} の既出ドリンクも本指名の率にしました（監査: 指名切替に伴う率変更）`, kind: "ok" });
+    await loadCheck(check.id);
+    return true;
+  }
+  // 切替ダイアログの確定＝名簿を保存（場内→本指名）→ チェックがオンなら率変更
+  async function confirmRateDlg() {
+    if (!rateDlg) return;
+    const d = rateDlg;
+    setRateDlg(null);
+    const saved = await autoSaveNoms(d.weights, d.kinds, nomDohan, nomDohanN);
+    if (saved && d.apply) await rateApply(d.castId, d.name);
   }
 
   // R-1a 段2（裁定61-2）: 追加した行の**実額**を1回の select で読む共通経路。
@@ -2578,12 +2616,23 @@ export default function RegisterBoard({
                     )}
                   </span>
                 </div>
-                {/* ★裁定341（便 P168）: 場内→本指名の切替は非遡及が既定（既出のドリンクは注文時点の率のまま）。「既出も本指名の率にする」は 0169（check_nominations.prev_kind／kind_changed_at＋check_close の読み替え＋適用 RPC）の適用後に有効化＝今は店長以上に無効表示 */}
-                {kind === "jonai" && isManagerUp && (
-                  <label style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)", margin: "0 0 4px" }} title="0169 適用後に有効（現状は会計時の指名区分で全行を計算＝遡及）">
-                    <input type="checkbox" disabled aria-label="この伝票の既出ドリンクも本指名の率にする（準備中）" /> この伝票の既出ドリンクも本指名の率にする（準備中）
-                  </label>
-                )}
+                {/* ★裁定341（0169・便 P169＝X-13-29）: 場内→本指名の切替は非遡及が既定（切替前に出たドリンクは場内の率のまま＝check_close が行の created_at と kind_changed_at で判定）。
+                    切替記録がある本指名キャスト（店長以上）には「この伝票の既出ドリンクも本指名の率にする」チェック＝オンで check_nomination_rate_apply（監査「指名切替に伴う率変更」）。
+                    切替ダイアログ（下の nox-inset）でも同じチェックを既定オフで出す。staff は切替はできるがチェックは出ない（RPC も店長以上）。 */}
+                {(() => {
+                  const nomRow = noms.find((n) => n.cast_id === ca.id);
+                  const preN = nomRow?.kind_changed_at
+                    ? lines.filter((l) => l.product_id && (l.kind === "drink" || l.kind === "champ" || l.kind === "bottle") && !!l.created_at && l.created_at < nomRow.kind_changed_at!).length
+                    : 0;
+                  return kind === "hon" && nomRow?.kind_changed_at && isManagerUp && check.status === "open" ? (
+                    <label style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)", margin: "0 0 4px" }}
+                      title="切替前に出たドリンクは場内の率で計算されます（非遡及）。オンにすると全行を本指名の率で計算します（監査に残ります）">
+                      <input type="checkbox" checked={false} disabled={rateBusy || feeBusy} aria-label="この伝票の既出ドリンクも本指名の率にする"
+                        onChange={(e) => { if (e.target.checked) void rateApply(ca.id, ca.name); }} />
+                      {" "}この伝票の既出ドリンクも本指名の率にする（切替前の {preN} 行は場内の率）
+                    </label>
+                  ) : null;
+                })()}
                 <span className="nox-seg" style={{ display: "inline-flex" }}>
                   {([["hon", "本"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([v, l]) => (
                     <button key={v} type="button" className={kind === v ? "on" : ""} disabled={lockDerive}
@@ -2598,6 +2647,8 @@ export default function RegisterBoard({
                         // ★裁定110 A2-(1)(3): 種別変更＝既定分配を再適用（手動値はここでリセット）→即時自動保存（裁定111-3）
                         const kinds = { ...nomKinds, [ca.id]: v };
                         const weights = defaultWeights(Object.keys(nomWeights), kinds);
+                        // ★0169（裁定341・X-13-29）: 場内→本指名は店長以上に切替ダイアログ（チェック既定オフ＝非遡及）。確定で保存→オンなら率変更。
+                        if (v === "hon" && kind === "jonai" && isManagerUp) { setRateDlg({ castId: ca.id, name: ca.name, kinds, weights, apply: false }); return; }
                         setNomKinds(kinds);
                         setNomWeights(weights);
                         void autoSaveNoms(weights, kinds, nomDohan, nomDohanN);
@@ -2606,6 +2657,23 @@ export default function RegisterBoard({
                     </button>
                   ))}
                 </span>
+                {rateDlg && rateDlg.castId === ca.id && (
+                  <div className="nox-inset" role="dialog" aria-label="場内から本指名への切替" style={{ padding: "9px 12px", margin: "6px 0 0", width: "100%" }}>
+                    <b style={{ fontSize: 12 }}>{ca.name} を場内から本指名に切り替えます</b>
+                    <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 6px", lineHeight: 1.6 }}>
+                      切替より前に出たドリンクは場内の率のまま計算します（既定）。
+                    </p>
+                    <label style={{ display: "block", fontSize: 11.5, margin: "0 0 8px" }}>
+                      <input type="checkbox" checked={rateDlg.apply} aria-label="この伝票の既出ドリンクも本指名の率にする"
+                        onChange={(e) => setRateDlg({ ...rateDlg, apply: e.target.checked })} />
+                      {" "}この伝票の既出ドリンクも本指名の率にする
+                    </label>
+                    <div className="nox-actions">
+                      <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={feeBusy || rateBusy} onClick={() => void confirmRateDlg()}>本指名に切り替える</button>
+                      <button type="button" style={{ ...btnLight, ...t.btnSm }} onClick={() => setRateDlg(null)}>やめる</button>
+                    </div>
+                  </div>
+                )}
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11.5 }}>
                   <input type="checkbox" checked={dohan} disabled={lockDerive}
                     onChange={(e) => {
@@ -3177,6 +3245,15 @@ export default function RegisterBoard({
                           {castName(l.cast_id)}
                         </span>
                       )}
+                      {/* ★0169（裁定341・便 P169）: 行の区分表示＝本指名に切り替えた記録（kind_changed_at）より前に出たドリンク行は
+                          「場内の率（切替前）」の印（check_close と同じ判定＝行の created_at < kind_changed_at）。率変更（apply）で記録が消えると印も消える。 */}
+                      {l.product_id && (l.kind === "drink" || l.kind === "champ" || l.kind === "bottle") && !!l.created_at
+                        && noms.filter((n) => n.nom_kind === "hon" && n.kind_changed_at && l.created_at! < n.kind_changed_at).map((n) => (
+                          <span key={n.cast_id} style={{ ...t.tag, fontSize: 10, padding: "1px 6px", marginLeft: 6, color: "var(--sub)", borderColor: "var(--line2)" }}
+                            title="本指名への切替より前に出た行＝場内の率で計算（非遡及）">
+                            {castName(n.cast_id)} {NOM_LABEL[n.prev_kind ?? "jonai"]}の率（切替前）
+                          </span>
+                        ))}
                       {/* ★mig0129（裁定119）: セット行に凍結の適用ルール名を併記（not null のときのみ・
                           区分バッジと同系の控えめ表示。name null ルール/フォールバック/旧伝票は非表示） */}
                       {l.time_auto && l.fee_kind === "set" && check?.set_rule_name && (

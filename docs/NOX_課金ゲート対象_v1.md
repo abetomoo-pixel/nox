@@ -115,6 +115,9 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   対象 **154 不変**・除外 **148→149**・全数 **302→303**（live 実測 2026-10-08＝総数 303・'billing locked' 154・述語参照 155・md5 3 本一致）。
 - ★**mig0164 追随（2026-10-08・裁定331 C 5 項目＋裁定334・334 追補1・便 P163 で収載）**: 新関数 **0本**。改稿 1 本（`set_store_profile`＝白名単 +7 列側＝invoice_registered_on／pay_day／tax_inclusive_display／use_vip／use_counter／payment_methods／punch_methods・型検査・cash は常に true・打刻は 1 つ以上・before/after 監査・owner 限定と課金ゲートは不変）は名前不変で本数不動。stores +7 列（既定付き・CHECK 3 本）は本数非関与。
   md5 控え（同上）: set_store_profile 4f2e9f82→**2e7b4963**・demo_org_reset a4bd6a18。
+- ★**mig0169 追随（2026-10-09・便 P168 起草／便 P169 で収載・本番適用 2026-10-13 11:34 JST）**: 新関数 **1本**＝ゲート内蔵を A1 へ（`check_nomination_rate_apply`＝裁定341 場内→本指名の切替記録を消す＝既出のドリンクも本指名の率・owner∨manager 自店・open のみ・課金ゲート・監査）。改稿 2 本（`check_set_nominations`＝場内→本指名の遷移で prev_kind／kind_changed_at を記録・`check_close`＝行の created_at < kind_changed_at なら旧区分で unit4 キーと pt）は名前不変で本数不動・ACL 不変。列 +2（check_nominations.prev_kind text null＋CHECK／kind_changed_at timestamptz null）は本数非関与。
+  md5 控え（先頭 8 桁・live 読取 2026-10-13＝docs/tmp/q1013_p0_0169c.mjs）: check_set_nominations 1dbd13ca→**97dd24bb**・check_close 3f4e73b5→**69cf2a19**・check_nomination_rate_apply **84f6f80e**・不触 set_comp_plan 3ebd1624／set_cast_shift_request_mode ee7f7243。
+  対象 **156→157**・除外 **149 不変**・全数 **305→306**（live 実測 2026-10-13＝総数 306・'billing locked' 157・述語参照 158・形 157）。
 - ★**mig0168 追随（2026-10-09・便 X-13d-2b 起草／便 P168 で収載）**: 新関数 **0本**。改稿 1 本（`set_comp_plan`＝23 引数・末尾 p_slide_period text default 'daily'・22 引数版 drop・名前不変で本数不動・ゲート行の形 auth_org_id() 不変）。列 +1（comp_plans.slide_period text not null default 'daily'＋CHECK）は本数非関与。
   md5 控え（先頭 8 桁・live 読取 2026-10-09＝便 P168 proof）: set_comp_plan 3fdd6e81→**3ebd1624**。対象 **156 不変**・除外 149 不変・全数 **305 不変**（'billing locked' 156・述語参照 157・形 156）。
 - ★**mig0167 追随（2026-10-09・便 X-13d-2a 起草／便 P167 で収載）**: 新関数 **1本**＝ゲート内蔵を A10 へ（`set_cast_shift_request_mode`＝裁定337 シフト希望の方式のキャスト個別上書き・owner ∨ manager 自店・課金ゲート・監査）。列 +1（casts.shift_request_mode text null＋CHECK）は本数非関与。改稿なし。
@@ -199,6 +202,7 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
 check_open[K] / check_add_line[K] / check_remove_line[K] / check_add_seat[K] / check_remove_seat[K] /
 check_move_seat[K] / check_set_nominations[K] / check_time_charge_apply[K] / check_shimei_add[K] /
 check_dohan_add[K] / check_pay[K] / check_close[K] / **check_void**（裁定D1＝金銭記録の改変） /
+**check_nomination_rate_apply**（mig0169＝場内→本指名の切替記録（prev_kind／kind_changed_at）を消す＝この伝票の既出ドリンクも本指名の率・owner∨manager 自店・open のみ・課金ゲート内蔵（v_org 形）・監査 note「指名切替に伴う率変更」・記録なしは no-op・kiosk 腕なし・裁定341） /
 approval_request / approval_direct / approval_decide / bottle_keep_register[K] /
 **check_customer_add / check_customer_remove / check_line_set_customer**（mig0153＝伝票の顧客の付け外し（position・remove は行の注文者を null に戻し checks.customer_id を追従）・注文行の顧客（'not on check'）・check_open と同じ腕・kiosk 腕なし・裁定305-1〜3／307-3） /
 **bottle_keep_out[K]**（mig0153＝キープ出し＝kind 'keep_out'・¥0・バック 0・在庫不変・冪等（check_lines.idem_key）・last_used_at 更新・kiosk 腕あり・裁定305-5／305-7） /
