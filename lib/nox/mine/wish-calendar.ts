@@ -2,6 +2,7 @@
 //   活性日＝募集中（open）の期間に含まれる日（lib/nox/shift/open-periods.isDateSelectable）で、定休日でも提出済み（pending／accepted）でもない日。
 //   時間＝一括既定（店の営業時間は cast から読めない＝RLS パターン2・未設定なら 20:00〜26:00）＋日別の上書き。提出＝選択日を昇順に逐次 shift_wish_submit（非原子）。
 import { isDateSelectable, type OpenPeriod } from "../shift/open-periods";
+import { WISH_STATE_LABEL } from "../shift/wish-state"; // ★裁定345: 4 段の語
 
 export const DEFAULT_START = "20:00";
 export const DEFAULT_END = "26:00";
@@ -35,11 +36,11 @@ export function initialMonthOf(periods: readonly OpenPeriod[] | null, today: str
 /** 生きている希望（1 日 1 枠＝DB の部分 unique と同じ範囲） */
 export const isLiveWish = (status: string): boolean => status === "pending" || status === "accepted";
 
-/** 提出済みの印: 審査中／承認／却下（取下げは印なし） */
+/** 提出済みの印: 審査中／採用／見送り（取下げは印なし）＝★裁定345: 語は lib/nox/shift/wish-state.ts の 4 段と同じ（カレンダーは shifts を持たないため「採用」まで） */
 export function wishMarkOf(status: string | null | undefined): string | null {
-  if (status === "pending") return "審査中";
-  if (status === "accepted") return "承認";
-  if (status === "rejected") return "却下";
+  if (status === "pending") return WISH_STATE_LABEL.pending;
+  if (status === "accepted") return "採用";
+  if (status === "rejected") return WISH_STATE_LABEL.rejected;
   return null;
 }
 

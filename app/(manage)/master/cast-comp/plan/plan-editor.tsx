@@ -462,9 +462,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           {secErr["達成ボーナス"] && <p style={{ fontSize: 12, color: "var(--bad)", margin: "4px 0 0" }}>{secErr["達成ボーナス"]}</p>}
         </div>
         <CompRows kind="achievement_bonus" section="達成ボーナス" comps={comps} isOwner={isOwner} onSave={saveComp} />
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-          <Prep k="achievement_params" /><Prep k="achievement_metrics" />
-        </div>
+        {/* ★便 N1013b B-9: 達成ボーナスの準備中チップ 2 つ（多段しきい値・他軸）は撤去（器なし＝起票110／111 第 2 期） */}
       </section>)}
     </div>
   );

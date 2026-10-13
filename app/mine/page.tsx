@@ -8,6 +8,8 @@ import { nextPeriodOf } from "@/lib/nox/payroll/attention";
 import { mdLabelOf } from "@/lib/nox/payroll/finalize-guard";
 import ReservationRequestCard from "./reservation-request-card"; // ★裁定326-4（便 M3-2）: 予約申請（店設定 reservation_request ON のときだけ）
 import ShiftConfirmButton from "./shift-confirm-button";
+import { MINE_RECENT_SHIFT_LIMIT, WISH_STATE_COLOR, wishStateDetailOf, wishStateOf, type ShiftStatusLike } from "@/lib/nox/shift/wish-state"; // ★裁定345: 4 段の語・直近 14 件
+import { castRankingModeOf } from "@/lib/nox/payroll/cast-sales"; // ★裁定346: off／self／top
 import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
 import PunchCorrectionForm from "./punch-correction-form"; // ★0154 D1
@@ -73,11 +75,14 @@ export default async function MinePage() {
   // 直近の確定シフト（★326-5: 当月初からまとめて読み、直近 7 件はここから絞る・当月の確定分は勤怠一覧の実働計算に使う＝新規 fetch 0）
   const { data: shiftsAll } = await supabase
     .from("shifts")
-    .select("id, date, start_hm, end_hm, status") // ★SD V2-3: id 追加（shift_cast_confirm の対象特定）
+    .select("id, date, start_hm, end_hm, status, wish_id") // ★SD V2-3: id 追加（shift_cast_confirm の対象特定）・★裁定345: wish_id（希望由来の印）
     .gte("date", `${month}-01`)
     .order("date");
-  type ShiftLite = { id: string; date: string; start_hm: string; end_hm: string; status: string };
-  const shifts = ((shiftsAll ?? []) as ShiftLite[]).filter((s) => s.date >= bizToday).slice(0, 7);
+  type ShiftLite = { id: string; date: string; start_hm: string; end_hm: string; status: string; wish_id: string | null };
+  // ★裁定345: 直近＝今日以降の先頭 14 件（旧 7 件＝8 件目以降が切れて「採用なのに直近に無い」に見えた GV-1）。残りは /mine/wishes#shifts「すべて見る」
+  const upcoming = ((shiftsAll ?? []) as ShiftLite[]).filter((s) => s.date >= bizToday);
+  const shifts = upcoming.slice(0, MINE_RECENT_SHIFT_LIMIT);
+  const moreShifts = upcoming.length - shifts.length;
   const monthConfirmedShifts = ((shiftsAll ?? []) as ShiftLite[]).filter((s) => s.status === "confirmed" && s.date < `${nextMonth}-01`);
 
   // 今月の勤怠
@@ -293,24 +298,32 @@ export default async function MinePage() {
         </h3>
         {(shifts ?? []).length === 0 && <p style={noneP}>予定なし</p>}
         <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
-          {(shifts ?? []).map((s, i) => (
-            <li key={i} style={{ padding: "3px 0" }}>
+          {(shifts ?? []).map((s, i) => {
+            // ★裁定345: 語は 4 段の純関数（審査中／採用・確認待ち／採用・確定）＝/mine 希望・管理側と同じ。proposed は「確認する」ボタン（shift_cast_confirm＝本人のみ・一方向）
+            const k = wishStateOf(s.wish_id ? "accepted" : null, s.status as ShiftStatusLike);
+            const d = wishStateDetailOf(k, s.status as ShiftStatusLike, ((myStore?.settings_json ?? {}) as Record<string, unknown>).shift_cast_confirm === true);
+            return (
+            <li key={i} style={{ padding: "3px 0" }} data-state={k}>
               {s.date} {fmtWin(s.start_hm as string, s.end_hm as string)}{" "}
-              {/* ★SD V2-3（mig0101/0102）: status 3値＝proposed は「確認待ち」＋「確認する」ボタン
-                  （shift_cast_confirm＝proposed→confirmed 一方向・本人のみ）。confirmed/planned は表示のみ。 */}
-              <span style={{ color: s.status === "confirmed" ? "var(--ok)" : "var(--sub)" }}>
-                （{s.status === "confirmed" ? "確定" : s.status === "proposed" ? "確認待ち" : "予定"}）
+              <span style={{ color: WISH_STATE_COLOR[k] }}>
+                （{k === "accepted_fixed" ? "採用・確定" : "採用・確認待ち"}{d ? `・${d}` : ""}）
               </span>
               {s.status === "proposed" && <ShiftConfirmButton shiftId={s.id as string} />}
             </li>
-          ))}
+            );
+          })}
         </ul>
+        {moreShifts > 0 && (
+          <p style={{ fontSize: 12, margin: "6px 0 0" }}>
+            <Link href="/mine/wishes#shifts" className="nox-link">すべて見る（あと {moreShifts} 件）</Link>
+          </p>
+        )}
       </section>
 
       {/* 段M2: 指名ランキング＝★自分の順位のみ。順位・母数・自分の件数だけを出し、
           他キャストの名前も数字も描画しない（1位との差のような他人由来の値も出さない）。
           値は /mine/ranking が既に使っている get_cast_ranking の自分の行そのもの＝情報は増えない。 */}
-      {ms.ranking && myRank && (/* ★326-8: ranking OFF＝カードもナビもページも出さない（直 URL は /mine へ） */
+      {castRankingModeOf(ms) !== "off" && myRank && (/* ★326-8: ranking OFF＝カードもナビもページも出さない（直 URL は /mine へ）・★裁定346: self／top とも自分の順位カードは出す（他人の名前は /mine/ranking 側で出し分け） */
         <section className="nox-panel">
           <h3>指名ランキング（{month}）</h3>
           <div className="nox-myrank">

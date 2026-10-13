@@ -183,10 +183,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
           <h2 style={secTitle}>店共通（全プラン）</h2>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 2px" }}>雇用キャスト: 懲戒減給の法定上限（労基法91条）は給与計算側で自動制約されます（罰金の自動計算はありません）。</p>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>委託キャスト: 未達処理には契約上の根拠が必要です（法定上限の自動適用はありません）。</p>
-          <label style={{ fontSize: 12, color: "var(--sub)", opacity: 0.7 }}>
-            <input type="checkbox" disabled /> 契約上の根拠を確認した（確認メモ）
-            <span className="nox-stpill" style={{ marginLeft: 8 }}>準備中（penalty_config に確認記録の器なし・C5）</span>
-          </label>
+          {/* ★便 N1013b B-9: 「契約上の根拠を確認した（確認メモ）」の disabled チェックと準備中チップは撤去（器なし＝起票109 第 2 期・押せないものを置かない＝教訓25） */}
         </div>
         <NormaBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={isOwner} flags={normFlags} settings={settings} />
       </div>)}

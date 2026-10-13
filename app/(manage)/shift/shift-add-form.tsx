@@ -304,7 +304,7 @@ export default function ShiftAddForm({
     // ② 希望日: accept →（時刻変更ありのみ）shift_set 更新の2段（裁定112-G'）
     for (const [d, e] of wishDays) {
       const { data: sid, error } = await supabase.rpc("shift_wish_decide", { p_wish_id: e.wishId, p_accept: true });
-      if (error) { notes.push(`${d}: 希望の承認に失敗（${rpcErrJa(error.message)}）`); continue; }
+      if (error) { notes.push(`${d}: 希望の採用に失敗（${rpcErrJa(error.message)}）`); continue; } // ★裁定345: 語＝採用
       okCount += 1;
       if (e.start !== e.wishStart || e.end !== e.wishEnd) {
         const { error: e2 } = await supabase.rpc("shift_set", {
@@ -533,9 +533,9 @@ export default function ShiftAddForm({
                     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
                       <span style={{ fontSize: 11, color: "var(--sub)" }}>新規日の状態</span>
                       <SegSelect value={fStatus} onChange={(v) => setFStatus(v)}
-                        options={[["planned", "予定"], ["proposed", "確認待ち"], ["confirmed", "確定"]] as const} />
+                        options={[["planned", "採用・確認待ち（管理者確認）"], ["proposed", "採用・確認待ち（キャスト確認）"], ["confirmed", "採用・確定"]] as const} />{/* ★裁定345: 4 段の語 */}
                       <span style={{ fontSize: 10, color: "var(--v2-muted)" }}>
-                        希望日は承認（予定）として取り込み・登録済みの編集は元の状態を保ちます
+                        希望日は採用（管理者確認）として取り込み・登録済みの編集は元の状態を保ちます
                       </span>
                     </div>
                   </div>

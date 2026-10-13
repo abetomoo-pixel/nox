@@ -6,6 +6,7 @@
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
 import { SHIFT_REQUEST_MODE_LABEL } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: 配置ビューの印
+import { PROXY_CONFIRM_LABEL, WISH_STATE_LABEL, wishStateTextOf } from "@/lib/nox/shift/wish-state"; // ★裁定345: 4 段の語・「代行確定」
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import CastPicker from "@/components/nox/cast-picker";
@@ -87,7 +88,8 @@ const worstFill = (fills: Fill[]): Fill =>
 const FILL_COLOR: Record<Fill, string> = { ok: "var(--ok)", warn: "var(--gold2)", ng: "var(--bad)", none: "var(--line2)" };
 // ★SD V2-2: status 3値の表示語彙（planned=予定・proposed=確認待ち・confirmed=確定）。
 //   4段フロー（設計書 §5）: 希望=shift_wishes(pending) → 管理者確認=planned → キャスト確認=proposed → 確定=confirmed。
-const SHIFT_ST_LABEL: Record<string, string> = { planned: "予定", proposed: "確認待ち", confirmed: "確定" };
+// ★裁定345（便 N1013b）: 語は lib/nox/shift/wish-state.ts の 4 段（planned／proposed＝採用・確認待ち・confirmed＝採用・確定）＝/mine と同じ純関数
+const SHIFT_ST_LABEL: Record<string, string> = { planned: WISH_STATE_LABEL.accepted_wait, proposed: WISH_STATE_LABEL.accepted_wait, confirmed: WISH_STATE_LABEL.accepted_fixed };
 const shiftStColor = (st: string) =>
   st === "confirmed" ? "var(--ok)" : st === "proposed" ? "var(--gold2)" : "var(--champ)";
 // ★裁定135（v4.1 H9）: draft の表示語を「下書き」→「作成中」（モック逐語）。open/closed/published はモックに無い＝据え置き。
@@ -173,7 +175,7 @@ const SHIFT_ACTION_LABEL: Record<string, string> = {
   shift_wish_submit: "希望提出", shift_wish_withdraw: "希望取下げ",
 };
 
-export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = false, role = "", cutoff, castConfirm = false }: { storeId: string; casts: Cast[]; isManagerUp: boolean; isOwner?: boolean; role?: string; cutoff: string; castConfirm?: boolean }) {
+export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = false, role = "", cutoff, castConfirm = false, penaltiesOn = true }: { storeId: string; casts: Cast[]; isManagerUp: boolean; isOwner?: boolean; role?: string; cutoff: string; castConfirm?: boolean; penaltiesOn?: boolean }) { // ★GV-3（便 N1013b B-8）: penaltiesOn＝店の制度「精算調整・控除」（sys_penalties）＝OFF の店は今日タブの「減額」を出さない
   const supabase = createClient();
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -474,13 +476,19 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
 
   async function decide(wishId: string, accept: boolean) {
     setMsg(null);
-    const { error } = await supabase.rpc("shift_wish_decide", { p_wish_id: wishId, p_accept: accept });
+    const { data: sid, error } = await supabase.rpc("shift_wish_decide", { p_wish_id: wishId, p_accept: accept });
+    // ★裁定345: shift_cast_confirm OFF の店は「採用＝確定」＝採用で生成された shift（planned）をその場で shift_confirm_bulk（1 件）。RPC 不触・audit は既存 2 本
+    let fixErr: string | null = null;
+    if (!error && accept && !castConfirm && typeof sid === "string") {
+      const { error: e2 } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: [sid] });
+      if (e2) fixErr = bulkErrJa(e2.message);
+    }
     // B-5②: 採用は RPC 二層目でも closed day 拒否（raise=ロールバックで wish は pending 維持・見送りは可＝非対称）
     setMsg(error
       ? (accept && error.message.includes("closed day")
           ? "この希望日は定休日に設定されています。採用できません（見送りは可能です）"
           : rpcErrJa(error.message))
-      : accept ? "採用しシフト案に追加しました" : "見送りました");
+      : accept ? (castConfirm ? "採用しシフト案に追加しました" : fixErr ? `採用しましたが確定に失敗: ${fixErr}` : "採用し確定しました（キャスト確認なしの店）") : "見送りました");
     await load();
   }
   // ★N4（対応表 H19・B層＝器あり UI なし）: 希望の一括承認＝**新 RPC は作らない**。表示中の pending 希望を
@@ -488,15 +496,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   //   事前に除外＝行の「希望通り承認」と同じ disabled 規則）。途中失敗は件数で報告し、残りは続行する。
   async function approveAllWishes(ids: string[]) {
     if (ids.length === 0) return;
-    if (!confirm(`表示中の希望 ${ids.length}件をまとめて承認（シフト案に追加）しますか？`)) return;
+    if (!confirm(`表示中の希望 ${ids.length}件をまとめて採用（シフト案に追加）しますか？`)) return;
     setMsg(null);
     let ok = 0; const errs: string[] = [];
     for (const id of ids) {
       const { error } = await supabase.rpc("shift_wish_decide", { p_wish_id: id, p_accept: true });
       if (error) errs.push(rpcErrJa(error.message)); else ok++;
     }
-    setMsg(errs.length === 0 ? `${ok}件の希望を承認しシフト案に追加しました`
-      : `${ok}件を承認・${errs.length}件は失敗（${errs[0]}）`);
+    setMsg(errs.length === 0 ? `${ok}件の希望を採用しシフト案に追加しました`
+      : `${ok}件を採用・${errs.length}件は失敗（${errs[0]}）`); // ★裁定345: 語＝採用
     await load();
   }
   // ★N4（対応表 H30・B層）: shift_remove（0103 裁定D）の UI 結線＝計画中／確認待ちの行を個別削除。
@@ -518,7 +526,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     const { error } = await supabase.rpc("shift_set", {
       p_id: s.id, p_cast_id: s.cast_id, p_date: s.date, p_start_hm: s.start_hm, p_end_hm: s.end_hm, p_status: "confirmed",
     });
-    setMsg(error ? `承認に失敗: ${rpcErrJa(error.message)}` : "承認しました");
+    setMsg(error ? `${PROXY_CONFIRM_LABEL}に失敗: ${rpcErrJa(error.message)}` : `${PROXY_CONFIRM_LABEL}しました`); // ★裁定345: 「承認」→「代行確定」
     await load();
   }
 
@@ -611,22 +619,22 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const bulkErrJa = (m: string) => (m.includes("bad rows") || m.includes("concurrent change") ? "他の操作と競合しました。最新状態を確認してください" : rpcErrJa(m));
   async function confirmBulkShifts(ids: string[]) {
     if (ids.length === 0) return;
-    if (!confirm(`表示中の予定・確認待ち ${ids.length}件をまとめて承認しますか？`)) return;
+    if (!confirm(`表示中の採用・確認待ち ${ids.length}件をまとめて${PROXY_CONFIRM_LABEL}しますか？`)) return; // ★裁定345
     setMsg(null);
     let done = 0;
     for (const chunk of chunkOf(ids, 62)) {
       const { data: n, error } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: chunk });
-      if (error) { setMsg(`${done}／${ids.length}件承認・残りは再試行してください（${bulkErrJa(error.message)}）`); await load(); return; }
+      if (error) { setMsg(`${done}／${ids.length}件${PROXY_CONFIRM_LABEL}・残りは再試行してください（${bulkErrJa(error.message)}）`); await load(); return; }
       done += Number(n ?? chunk.length);
     }
-    setMsg(`${done}件を承認しました`);
+    setMsg(`${done}件を${PROXY_CONFIRM_LABEL}しました`); // ★裁定345
     await load();
   }
   // ★裁定245-2: 承認待ちの行「確定」＝shift_confirm_bulk を 1 件で（planned／proposed とも・キャスト確認の有無に依らない）
   async function confirmOne(id: string) {
     setMsg(null);
     const { error } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: [id] });
-    setMsg(error ? `承認に失敗: ${bulkErrJa(error.message)}` : "承認しました");
+    setMsg(error ? `${PROXY_CONFIRM_LABEL}に失敗: ${bulkErrJa(error.message)}` : `${PROXY_CONFIRM_LABEL}しました`); // ★裁定345
     await load();
   }
 
@@ -1020,8 +1028,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const unconfirmedN = shifts.filter((x) => x.date.slice(0, 7) === month && (x.status === "proposed" || (castConfirm && x.status === "planned"))).length;
   const confirmCta = isManagerUp && unconfirmedN > 0 ? (
     <div className="nox-actions nox-noprint" style={{ marginTop: 10, marginBottom: 10 }}>
-      <button type="button" style={btnDark} title="承認待ちで内容を確認してから承認します"
-        onClick={() => { setDayModal(""); setTab("queue"); }}>承認する（{unconfirmedN} 件）</button>
+      <button type="button" style={btnDark} title={`承認待ちで内容を確認してから${PROXY_CONFIRM_LABEL}します`}
+        onClick={() => { setDayModal(""); setTab("queue"); }}>{PROXY_CONFIRM_LABEL}する（{unconfirmedN} 件）</button>{/* ★裁定345 */}
     </div>
   ) : null;
 
@@ -1167,7 +1175,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           <div className="nox-kpi2-s">{fillRate === null ? "必要人数 未設定" : `充足率 ${fillRate}%`}</div>
         </div>
         <div className="nox-kpi2">
-          <div className="nox-kpi2-l">未承認</div>
+          <div className="nox-kpi2-l">{WISH_STATE_LABEL.pending}</div>{/* ★裁定345: 旧「未承認」 */}
           <div className="nox-kpi2-v num">{wishes.length}<small>件</small></div>
           <div className="nox-kpi2-s">承認待ち</div>
         </div>
@@ -1364,15 +1372,17 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               <span className="nox-rowops">
                                 <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
                                   onClick={() => { setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm); }}>時刻修正</button>
+                                {penaltiesOn && (/* ★GV-3: sys_penalties OFF の店は減額の口を出さない */
                                 <button style={{ ...btnLight, opacity: tgt ? 1 : 0.45 }} disabled={!tgt} title={why}
                                   onClick={() => { if (tgt) setSettle({ castId: s.cast_id, shiftId: s.id, target: tgt }); }}>減額</button>
+                                )}
                                 {castConfirm && s.status === "planned" && (
                                   <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
                                     onClick={() => void proposeShifts([s.id])}>確認へ</button>
                                 )}
                                 {s.status !== "confirmed" && (
                                   <button style={{ ...btnDark, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
-                                    onClick={() => confirmShift(s)}>承認</button>
+                                    onClick={() => confirmShift(s)}>{PROXY_CONFIRM_LABEL}</button>
                                 )}
                               </span>
                             );
@@ -1600,15 +1610,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           // ★裁定133（v4.1 H5）: 4段のまま語彙をモック「申請→承認→…→仮シフト→確定」へ寄せる
           //   （「作成・公開」は period 側の状態＝この帯には載せない）。括弧内は従来の段名＝意味を残す。
           // ★裁定245-1: キャスト確認 OFF（settings_json.shift_cast_confirm≠true）は 3 段＝申請→承認→確定（proposed は承認済み（未確定）として段 2 に合算）
+          // ★裁定345: 語＝審査中／採用・確認待ち／採用・確定（4 段の純関数と同じ）。OFF の店は採用＝確定（段 2 は残存の planned／proposed）
           const steps: Array<[string, string, number]> = castConfirm ? [
-            ["1", "申請（キャスト希望）", wishes.length],
-            ["2", "承認（管理者確認・時間調整）", planned.length],
-            ["3", "仮シフト（キャスト確認）", proposed.length],
-            ["4", "確定", shifts.filter((x) => x.status === "confirmed").length],
+            ["1", `${WISH_STATE_LABEL.pending}（キャスト希望）`, wishes.length],
+            ["2", `${WISH_STATE_LABEL.accepted_wait}（管理者確認・時間調整）`, planned.length],
+            ["3", `${WISH_STATE_LABEL.accepted_wait}（キャスト確認）`, proposed.length],
+            ["4", WISH_STATE_LABEL.accepted_fixed, shifts.filter((x) => x.status === "confirmed").length],
           ] : [
-            ["1", "申請（キャスト希望）", wishes.length],
-            ["2", "承認（管理者確認・時間調整）", planned.length + proposed.length],
-            ["3", "確定", shifts.filter((x) => x.status === "confirmed").length],
+            ["1", `${WISH_STATE_LABEL.pending}（キャスト希望）`, wishes.length],
+            ["2", `${WISH_STATE_LABEL.accepted_wait}（店の確定待ち）`, planned.length + proposed.length],
+            ["3", WISH_STATE_LABEL.accepted_fixed, shifts.filter((x) => x.status === "confirmed").length],
           ];
           return (
             <>
@@ -1616,7 +1627,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 <div>
                   <h2 style={{ ...secTitle, margin: 0 }}>承認待ちシフト</h2>
                   <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
-                    希望を承認するか、時間を調整してキャストへ確認を依頼します
+                    希望を採用するか、時間を調整してキャストへ確認を依頼します（店側の確定は「{PROXY_CONFIRM_LABEL}」）
                   </p>
                 </div>
                 <span className="nox-bulkops">{/* ★X-8-11: 一括ボタン群は折り返し可（≤899px は全幅） */}
@@ -1624,9 +1635,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   {isManagerUp && (() => {
                     const ids = wishes.filter((w) => !closedOf(w.date, w.start_hm, w.end_hm)).map((w) => w.id);
                     return ids.length > 0 ? (
-                      <button style={btnLight} title="表示中の希望（定休日を除く）をまとめて承認しシフト案に追加します"
+                      <button style={btnLight} title="表示中の希望（定休日を除く）をまとめて採用しシフト案に追加します"
                         onClick={() => void approveAllWishes(ids)}>
-                        {ids.length}件の希望をまとめて承認
+                        {ids.length}件の希望をまとめて採用
                       </button>
                     ) : null;
                   })()}
@@ -1642,9 +1653,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   {isManagerUp && (
                     <button style={{ ...btnDark, opacity: planned.length + proposed.length === 0 ? 0.45 : 1 }}
                       disabled={planned.length + proposed.length === 0}
-                      title="表示中の予定・確認待ちをまとめて承認します（62件ずつ順に送ります）"
+                      title={`表示中の採用・確認待ちをまとめて${PROXY_CONFIRM_LABEL}します（62件ずつ順に送ります）`}
                       onClick={() => void confirmBulkShifts([...planned, ...proposed].map((x) => x.id))}>
-                      {planned.length + proposed.length}件を一括承認
+                      {planned.length + proposed.length}件を一括{PROXY_CONFIRM_LABEL}
                     </button>
                   )}
                   <span className="nox-stpill">{wishes.length + planned.length + proposed.length}件</span>
@@ -1693,12 +1704,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             stage: string; kind: "wish" | "planned" | "proposed"; wish?: Wish; shift?: Shift };
           const rows: Row[] = [
             ...wishes.map((w) => ({ key: `w${w.id}`, castId: w.cast_id, date: w.date,
-              wishHm: fmtWin(w.start_hm, w.end_hm), nowHm: null, stage: "キャスト希望", kind: "wish" as const, wish: w })),
+              wishHm: fmtWin(w.start_hm, w.end_hm), nowHm: null, stage: `${WISH_STATE_LABEL.pending}（キャスト希望）`, kind: "wish" as const, wish: w })), // ★裁定345
             ...shifts.filter((x) => x.status === "planned" || x.status === "proposed").map((x) => {
               const w = x.wish_id ? wishAll.find((y) => y.id === x.wish_id) : undefined;
               return { key: `s${x.id}`, castId: x.cast_id, date: x.date,
                 wishHm: w ? fmtWin(w.start_hm, w.end_hm) : null, nowHm: fmtWin(x.start_hm, x.end_hm),
-                stage: x.status === "planned" ? "管理者確認" : castConfirm ? "キャスト確認待ち" : "承認済み（未確定）", // ★裁定245-1
+                stage: wishStateTextOf("accepted", x.status as "planned" | "proposed", castConfirm), // ★裁定345: 「採用・確認待ち（管理者確認／キャスト確認待ち／店の確定待ち）」＝/mine と同じ純関数（旧 245-1 の語は廃止）
                 kind: x.status as "planned" | "proposed", shift: x };
             }),
           ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.key < b.key ? -1 : 1));
@@ -1756,7 +1767,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             <span className="nox-rowops">
                               <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 title={closed ? "この希望日は定休日に設定されています（見送りは可能）" : undefined}
-                                onClick={() => decide(r.wish!.id, true)}>希望どおり承認</button>
+                                onClick={() => decide(r.wish!.id, true)}>希望どおり採用</button>
                               <button style={btnLight} onClick={() => decide(r.wish!.id, false)}>見送り</button>
                             </span>
                           )}
@@ -1770,7 +1781,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               )}
                               {/* ★裁定245-2: 行の確定（実行＝青塗り）＝shift_confirm_bulk を 1 件で。操作列は 244 の例外＝配置不変 */}
                               <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
-                                onClick={() => void confirmOne(r.shift!.id)}>承認</button>
+                                onClick={() => void confirmOne(r.shift!.id)}>{PROXY_CONFIRM_LABEL}</button>
                               {/* ★N4（H30）: shift_remove の UI 結線（計画中の行を削除・wish 由来は希望へ戻る） */}
                               <button style={{ ...btnLight, color: "var(--bad)" }} onClick={() => void removeShift(r.shift!)}>削除</button>
                             </span>
@@ -1782,7 +1793,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               <button style={btnLight} onClick={() => void demoteShift(r.shift!)}>差し戻す</button>
                               {/* ★裁定245-2: 行の確定（実行＝青塗り）＝shift_confirm_bulk を 1 件で */}
                               <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
-                                onClick={() => void confirmOne(r.shift!.id)}>承認</button>
+                                onClick={() => void confirmOne(r.shift!.id)}>{PROXY_CONFIRM_LABEL}</button>
                               <button style={{ ...btnLight, color: "var(--bad)" }} onClick={() => void removeShift(r.shift!)}>削除</button>
                             </span>
                           )}
@@ -2116,7 +2127,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
 
               <p className="nox-unpub-legend" style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}><span className="nox-unpub-swatch" aria-hidden="true" />帯＝未確定（期間が未公開）</p>{/* ★306-5: 凡例（≤899 のみ） */}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
-                このカレンダーには<b>確定だけ</b>を出しています（予定・確認待ちは「確定」タブの承認待ち）。
+                このカレンダーには<b>確定だけ</b>を出しています（採用・確認待ちは「確定」タブの承認待ち）。
                 セルは先頭3名まで。<b>日を押すとその日の全員が開きます</b>（時間の調整もそこから）。
               </p>
             </>
@@ -2411,7 +2422,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 );
               })}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
-                ここには<b>確定だけ</b>を出しています（予定・確認待ちは「確定」タブの承認待ち）。
+                ここには<b>確定だけ</b>を出しています（採用・確認待ちは「確定」タブの承認待ち）。
               </p>
             </div>
           </Modal>

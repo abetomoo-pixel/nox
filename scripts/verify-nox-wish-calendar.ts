@@ -47,7 +47,7 @@ check("wc(4-1) summarizeResults: 1/2 件・失敗 1・warn・文言", sum.ok ===
 check("wc(4-2) 全成功 success「2/2 件を提出しました」・全失敗 error", summarizeResults([{ date: "a", ok: true }, { date: "b", ok: true }]).text === "2/2 件を提出しました" && summarizeResults([{ date: "a", ok: true }, { date: "b", ok: true }]).kind === "success" && summarizeResults([{ date: "a", ok: false, err: "x" }]).kind === "error");
 check("wc(4-3) selectionAfterSubmit: 成功日を外し失敗日（上書きごと）を残す", JSON.stringify(selectionAfterSubmit(sel, res)) === JSON.stringify({ "2026-10-12": { start: "21:00", end: "25:00" } }));
 // (5)
-check("wc(5-1) wishMarkOf: pending 審査中／accepted 承認／rejected 却下／withdrawn・null は印なし", wishMarkOf("pending") === "審査中" && wishMarkOf("accepted") === "承認" && wishMarkOf("rejected") === "却下" && wishMarkOf("withdrawn") === null && wishMarkOf(null) === null);
+check("wc(5-1) wishMarkOf: pending 審査中／accepted 採用／rejected 見送り（★裁定345 の 4 段の語）／withdrawn・null は印なし", wishMarkOf("pending") === "審査中" && wishMarkOf("accepted") === "採用" && wishMarkOf("rejected") === "見送り" && wishMarkOf("withdrawn") === null && wishMarkOf(null) === null);
 check("wc(5-2) isLiveWish／timesValid（開始 00:00〜23:59・終了 00:00〜47:59）", isLiveWish("pending") && isLiveWish("accepted") && !isLiveWish("rejected") && timesValid({ start: "20:00", end: "26:00" }) && timesValid({ start: "23:59", end: "47:59" }) && !timesValid({ start: "24:00", end: "26:00" }) && !timesValid({ start: "20:00", end: "48:00" }) && !timesValid({ start: "2000", end: "26:00" }));
 // (6)
 const wf = fs.readFileSync("app/mine/wishes/wish-form.tsx", "utf8");
