@@ -26,7 +26,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   check("lp(1-3) 6 店カード＝DEMO_STORES.map・「この店で試す」＝/demo?store=<key>&role=owner・主 CTA＝/demo",
     lp.includes("const STORES = DEMO_STORES.map((s) => ({ key: s, ...DEMO_STORE_LABEL[s], video: videoSrcOf(s) }));") && lp.includes("href={`/demo?store=${s.key}&role=owner`}") && lp.includes(">この店で試す</Link>") && lp.includes('<Link href="/demo" style={{ ...t.btnGold'));
   check("lp(1-4) 動画＝public/lp/<store>.mp4（fs.existsSync・無い店はポスター枠 data-poster）", lp.includes('path.join(process.cwd(), "public", "lp", `${store}.mp4`)') && lp.includes("return fs.existsSync(p) ? `/lp/${store}.mp4` : null;") && lp.includes('data-poster="1"') && lp.includes("<video src={s.video} controls muted playsInline preload=\"none\""));
-  check("lp(1-5) 料金＝mailto・/terms へのリンクなし・スマホ 1 列（auto-fill minmax）", lp.includes('export const LP_CONTACT_MAILTO = "mailto:') && lp.includes("href={LP_CONTACT_MAILTO}") && !/href="\/terms"/.test(lp) && lp.includes('gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))"'));
+  check("lp(1-5) 料金＝mailto・/terms へのリンクなし・スマホ 1 列（auto-fill minmax）", lp.includes('const LP_CONTACT_MAILTO = "mailto:') && !lp.includes("export const LP_CONTACT_MAILTO") && lp.includes("href={LP_CONTACT_MAILTO}") && !/href="\/terms"/.test(lp) && lp.includes('gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))"'));
   check("lp(1-6) 資格情報・外部リンクを置かない（http は無い・mailto のみ）", !/https?:\/\//.test(lp));
 }
 

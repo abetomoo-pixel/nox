@@ -17,8 +17,8 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-static";
 
-/** 料金・お問い合わせの導線（器なし＝mailto・仮決め＝Agoora 記入で差替え） */
-export const LP_CONTACT_MAILTO = "mailto:info@agoora.co.jp?subject=NOX%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B";
+/** 料金・お問い合わせの導線（器なし＝mailto・仮決め＝Agoora 記入で差替え）。★page.tsx から export しない（Next の Page export 検査＝build 失敗） */
+const LP_CONTACT_MAILTO = "mailto:info@agoora.co.jp?subject=NOX%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B";
 
 /** 動画＝public/lp/<store>.mp4（1 本 ≤4MB・H.264・音なし・字幕焼き込み）。ビルド時に有無を見る（static）＝無い店はポスター枠 */
 function videoSrcOf(store: string): string | null {
