@@ -1,7 +1,7 @@
 # ローンチ前ゲート表（2026-10-13・便 G-R・読取のみ・HEAD 6c6f66e＝origin/main）
 
 **結論 3 行**
-1. ゲート 12 項目のうち CC が閉じられるものは 0（client 済みが 6＝#75〜#79・#81 の目視待ち）。残りは Agoora の目視 4（#75〜81・4 role・起票100・Auth 設定 4 点）・相談役の裁定 3（起票97・起票98 の 3 択・第 2 期一覧の確定）・専門家 3（L3・L6・T10）。
+1. ゲート 12 項目のうち CC が閉じられるものは 0（client 済みが 6＝#75〜#79・#81 の目視待ち）。残りは Agoora の目視 4（#75〜81・4 role・起票100・Auth 設定 4 点）・相談役の裁定 1（第 2 期一覧の確定）・専門家 3（L3・L6・T10）。**2026-10-13 便 N1013b で更新: 起票97＝第 2 期クローズ・起票98＝実装は第 2 期（Auth 4 点は Agoora ローンチ前）・/lp 実装済み（noindex）・G-3 の 3 点（Stripe／Supabase プラン／PITR）＝Agoora 確認。**
 2. 環境は「Vercel Pro（hnd1）・本番ドメイン nox-kappa-eight.vercel.app（カスタムドメインなし）・Supabase は Free と推定（PITR なし・Compute は直接接続上限 60）・Auth はサインアップ無効と確認メール必須まで設定済み・Stripe の env 4 本は本番に入っているか未記録」。値は 1 つも読んでいない。
 3. 第 2 期送りは 24 件を 1 表に束ねた（起票 5＋v43 §4 の 12＋v45 追加 2＋[[nox]] の 5）。起票105 は台帳に存在しない（起票表は 104 まで・次番号 105）。
 
@@ -14,15 +14,15 @@
 | 1 | 確認クローズ #75〜#79・#81 | Agoora | **未**（client 済・目視待ち・9/18 の 0918_close_checklist.md は ☐ のまま） | gate_visual_20261014.md の /payroll（LUNA）・/master/cast-comp/plan（LUNA）・/analytics（ACE）の行で OK を記入→台帳の起票表 6 行を「クローズ（目視 OK 日付）」に書き換え（#80 と同形） |
 | 2 | 4 role 全画面目視 | Agoora | **未**（順路表＝docs/dp/gate_visual_20261014.md・67 画面・約 3 時間） | 全行 OK／NG 記入。NG は X-13 台帳へ番号で束ねる |
 | 3 | 起票100 の目視クローズ | Agoora | **未**（0165 本番適用済み・live で NOIR preview 7,134 ms） | /demo NOIR owner で給与プレビュー 2026-09 を開く（順路表 owner /payroll 2 店目） |
-| 4 | 起票97 未確定 run の自動計算 | 相談役 | **裁定可**（Vercel Pro 移行済み・Hobby の cron 2 本上限は解除） | クローズ／ローンチ前実装／第 2 期の 3 択（本書 G-2） |
-| 5 | 起票98 owner 自身のメール変更 | 相談役→Agoora→CC | **Auth 設定 4 点の後**（本書 G-2・G-3） | 3 択。実装なら update-email.ts 42 行の条件に本人 owner を足す（client のみ・mig 不要） |
-| 6 | Auth 設定 4 点（Secure email change／サインアップ無効／OTP 期限 5〜10 分／JWT・セッション 24h） | Agoora | **一部済**＝サインアップ無効は設定済み（public settings で disable_signup true）・確認メール必須（mailer_autoconfirm false）。残り 3 点はダッシュボードでしか読めない＝未確認 | Agoora がダッシュボードで 3 点を確認・設定→台帳の 297-5 持越し（AW-5）を閉じる |
+| 4 | 起票97 未確定 run の自動計算 | 相談役 | **第 2 期クローズ（2026-10-13 便 N1013b B-4）**＝手動プレビューで足りる・自動計算（core の service 分岐）は第 2 期 | 閉じた（ゲート外） |
+| 5 | 起票98 owner 自身のメール変更 | Agoora（Auth）→CC（第 2 期） | **実装は第 2 期（2026-10-13 便 N1013b B-4）**・Auth 設定 4 点は Agoora がローンチ前（#6） | #6 が閉じればゲート外。実装は第 2 期（update-email.ts 42 行の条件に本人 owner＝client のみ） |
+| 6 | Auth 設定 4 点（Secure email change／サインアップ無効／OTP 期限 5〜10 分／JWT・セッション 24h） | **Agoora（ローンチ前）** | **一部済**＝サインアップ無効は設定済み（public settings で disable_signup true）・確認メール必須（mailer_autoconfirm false）。残り 3 点はダッシュボードでしか読めない＝**Agoora 確認** | Agoora がダッシュボードで 3 点を確認・設定→台帳の 297-5 持越し（AW-5）を閉じる |
 | 7 | L6 利用規約 | 専門家待ち | **未**（293-6 で責任分割の方針は確定・本文なし） | 文言到着→/terms（lp_plan.md L-2・器 60 行）→LP 公開 |
 | 8 | L3 労働者性の注記文言 | 専門家待ち | **未**（C-3 の注記は仮文言で実装済み） | 文言到着→client 1 箇所差替え（pin 1 本） |
 | 9 | T10 日払いの 5,000 円控除・月内複数回の日数・雇用の日額表 | 専門家待ち | **未**（0156 日払いは委託 10.21%・periodDays 式で稼働） | 回答→pay.ts withholdingOf の差替え点（F2 差し替え点に記録済み）→golden 張替え |
 | 10 | 第 2 期送り一覧 | 相談役 | **確定案あり**（本書 G-4・24 件） | 相談役が番号を確定→台帳「第 2 期」節に収載 |
-| 11 | 録画・LP | CC（Agoora 収録） | **設計案まで**（docs/tmp/lp_plan.md・/lp 200〜260 行・/terms 器・suite） | 相談役が LP 本便を出す→L6 が来るまで noindex で置く |
-| 12 | Stripe 本番キー・Vercel env | Agoora | **未記録**（コードは STRIPE_SECRET_KEY／STRIPE_WEBHOOK_SECRET／STRIPE_PRICE_NOX_MONTHLY／STRIPE_PRICE_NOX_YEARLY を参照・Vercel に有るか・live か test かは台帳に記録なし＝VP-2 は 5 本のみ確認） | Agoora がダッシュボードで名前の有無と接頭辞（sk_live／sk_test）だけ確認して台帳へ（値は書かない） |
+| 11 | 録画・LP | CC（Agoora 収録） | **/lp 実装済み（2026-10-13 便 N1013b・裁定344・noindex のまま）**・動画は Agoora 収録後に public/lp/<store>.mp4（無い間はポスター枠）・/terms は L6 待ち | 録画 6 本→L6→robots／metadata の index 開放（公開ゲートの後） |
+| 12 | Stripe 本番キー・Vercel env／Supabase プラン／PITR（G-3 の 3 点） | **Agoora 確認** | **未記録**（Stripe＝コードは STRIPE_SECRET_KEY／STRIPE_WEBHOOK_SECRET／STRIPE_PRICE_NOX_MONTHLY／STRIPE_PRICE_NOX_YEARLY を参照・Vercel に有るか・live か test かは台帳に記録なし／Supabase プラン＝Free 推定（runbook「Pro 確定」と食い違い）／PITR＝SQL で読めない） | Agoora がダッシュボードで 3 点を確認して台帳へ（Stripe は名前の有無と接頭辞 sk_live／sk_test だけ・値は書かない） |
 
 ゲート外（ローンチ後でよいが記録）: Supabase Pro／Compute（裁定262＝本番 DB 切替の前提・現状 Free 推定）・PITR（Pro のアドオン・runbook §は Pro 前提で書かれている）・監視（runbook に記述 0・起票#4）・カスタムドメイン（なし）・robots の LP 開放（/ は allow 済み・/lp を足す）。
 
