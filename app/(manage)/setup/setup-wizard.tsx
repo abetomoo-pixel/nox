@@ -19,6 +19,7 @@ import {
   laterDefaultsOf, nextActionsOf, planSummaryOf, previewLinesOf, pricingOf, productCategoriesOf, productOverrideArgs, productsPlanOf, seatsOf, templateOf, to30h,
   type BizType, type DraftPlan, type NomMode, type PlanStep, type PricingInput, type ProductRow, type ReceivablePolicy, type SeatCounts, type SetupCurrent, type SetupFeatures, type VipMode,
 } from "@/lib/nox/setup/template-plan";
+import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsSummaryOf, type OpsProfile } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2a）: STEP 5「会計と運用」＝stores の列 7 つ
 
 const FLAG_LABELS: Record<string, { label: string; desc: string }> = {
   staff_shift: { label: "スタッフシフト", desc: "スタッフのシフトと勤務パターン" },
@@ -46,6 +47,7 @@ type Draft = {
   pricing: PricingInput | null; includeProducts: boolean; plans: DraftPlan[] | null; planIdx: number;
   payTimeBasis: "punch" | "shift"; lateGraceMin: number | null; norms: boolean; okuriBase: number;
   billingMode: "table" | "individual" | "mixed"; cardFee: { on: boolean; rate: number }; receivablePolicy: ReceivablePolicy; flags: Record<string, boolean>; mine: MineSettings;
+  prodSel?: Record<string, { on: boolean; name: string; price: number }>; ops?: OpsProfile; // ★便 W5-2a（331 ⑱・0164）
   savedAt: string;
 };
 
@@ -99,6 +101,10 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
   // STEP 2〜3
   const [pricing, setPricing] = useState<PricingInput | null>(null);
   const [includeProducts, setIncludeProducts] = useState(true);
+  // ★裁定331 ⑱（便 W5-2a）: 商品テンプレの 1 品ずつの選択（既定＝全選択）と名前／価格の inline 編集。キーはテンプレの商品名。無いキー＝選択・テンプレ値。
+  const [prodSel, setProdSel] = useState<Record<string, { on: boolean; name: string; price: number }>>({});
+  // ★0164（便 W5-2a）: 会計と運用（stores の列 7 つ）＝初期値は現値（page が読む）。差分だけが settings の patch に同乗。
+  const [ops, setOps] = useState<OpsProfile>(store.current.ops ?? OPS_DEFAULT);
   // STEP 4
   const [plans, setPlans] = useState<DraftPlan[] | null>(null);
   const [planIdx, setPlanIdx] = useState(0);
@@ -123,7 +129,13 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
   const pricingEff = pricing ?? (draft ? pricingOf(draft) : null);
   const plansEff = useMemo(() => plans ?? draft?.plans ?? [], [plans, draft]);
   const products = useMemo(() => draft?.products ?? [], [draft]);
-  const pp = useMemo(() => productsPlanOf(products), [products]);
+  // ★裁定331 ⑱（便 W5-2a）: 選択した行だけ・名前／価格は編集値（テンプレ名で引く＝bulk と上書きの両方が同じ名前を使う）
+  const selOf = (name: string, price: number) => prodSel[name] ?? { on: true, name, price };
+  const productsEff = useMemo(() => products.filter((p) => (prodSel[p.name]?.on ?? true)).map((p) => {
+    const s = prodSel[p.name]; return s ? { ...p, name: s.name.trim() || p.name, sale_price_yen: Math.max(0, Math.round(s.price)) } : p;
+  }), [products, prodSel]);
+  const ppAll = useMemo(() => productsPlanOf(products), [products]); // テンプレの全候補（表の行）
+  const pp = useMemo(() => productsPlanOf(productsEff), [productsEff]); // 取り込む分（件数・計画）
   const cats = productCategoriesOf(products);
   const later = biz && draft ? laterDefaultsOf(biz, draft, store.current) : null;
 
@@ -150,6 +162,7 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
           setHours(d.hours); setHoursTouched(d.hoursTouched); setSeats(d.seats); setPricing(d.pricing); setIncludeProducts(d.includeProducts); setPlans(d.plans); setPlanIdx(d.planIdx ?? 0);
           setPayTimeBasis(d.payTimeBasis); setLateGraceMin(d.lateGraceMin); setNorms(d.norms); setOkuriBase(d.okuriBase); setBillingMode(d.billingMode); setCardFee(d.cardFee);
           setReceivablePolicy(d.receivablePolicy); setFlags(d.flags); setMine(d.mine); setRestoredAt(d.savedAt);
+          if (d.prodSel) setProdSel(d.prodSel); if (d.ops) setOps(d.ops); // ★便 W5-2a
         }
       }
     } catch { /* 下書きが壊れていれば無視（最初から） */ }
@@ -157,9 +170,9 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
   }, [store.id]);
   useEffect(() => {
     if (!hydrated || !biz || run.completed) return;
-    const d: Draft = { step, visited, skipped, biz, features, storeName, tel, address, hours, hoursTouched, seats, pricing, includeProducts, plans, planIdx, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, flags, mine, savedAt: new Date().toISOString() };
+    const d: Draft = { step, visited, skipped, biz, features, storeName, tel, address, hours, hoursTouched, seats, pricing, includeProducts, plans, planIdx, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, flags, mine, prodSel, ops, savedAt: new Date().toISOString() };
     try { window.localStorage.setItem(DRAFT_KEY(store.id), JSON.stringify(d)); } catch { /* 容量超過などは無視 */ }
-  }, [hydrated, run.completed, store.id, step, visited, skipped, biz, features, storeName, tel, address, hours, hoursTouched, seats, pricing, includeProducts, plans, planIdx, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, flags, mine]);
+  }, [hydrated, run.completed, store.id, step, visited, skipped, biz, features, storeName, tel, address, hours, hoursTouched, seats, pricing, includeProducts, plans, planIdx, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, flags, mine, prodSel, ops]);
   function restart() {
     try { window.localStorage.removeItem(DRAFT_KEY(store.id)); } catch { /* noop */ }
     window.location.reload();
@@ -167,9 +180,9 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
 
   const changedFlags = Object.keys(FLAG_LABELS).filter((k) => (orgFlags.find((f) => f.key === k)?.enabled ?? false) !== flags[k]).map((k) => ({ key: k, enabled: flags[k] }));
   const plan: PlanStep[] = useMemo(() => (biz && features && pricingEff)
-    ? buildSetupPlan({ storeId: store.id, biz, features, storeName: storeName.trim() !== store.name ? storeName : null, tel, address, hours, seats: seatsEff, includeProducts, products, pricing: pricingEff, plans: plansEff,
-      payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, mine, current: store.current, flags: changedFlags })
-    : [], [biz, features, pricingEff, store, storeName, tel, address, hours, seatsEff, includeProducts, products, plansEff, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, mine, changedFlags]);
+    ? buildSetupPlan({ storeId: store.id, biz, features, storeName: storeName.trim() !== store.name ? storeName : null, tel, address, hours, seats: seatsEff, includeProducts, products: productsEff, pricing: pricingEff, plans: plansEff,
+      payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, mine, current: store.current, flags: changedFlags, ops }) // ★便 W5-2a: 選択した商品だけ・会計と運用の差分
+    : [], [biz, features, pricingEff, store, storeName, tel, address, hours, seatsEff, includeProducts, productsEff, plansEff, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, mine, changedFlags, ops]);
   const summary = planSummaryOf(plan);
 
   async function refreshCounts() {
@@ -203,7 +216,7 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
             if (error) throw new Error(`products 読取: ${error.message}`);
             productRows = (data ?? []) as ProductRow[];
           }
-          for (const o of productOverrideArgs(store.id, products, productRows)) {
+          for (const o of productOverrideArgs(store.id, productsEff, productRows)) { // ★便 W5-2a: 選択・編集後の商品で上書き（bulk と同じ名前）
             const { error } = await supabase.rpc("set_product", o.args);
             if (error) throw new Error(`${o.name}: ${error.message}`);
           }
@@ -404,24 +417,29 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
           </div>
           <div className="nox-tablewrap plain">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-              <thead><tr><th style={t.th}>メニュー名</th><th style={t.th}>分類</th><th style={{ ...t.th, textAlign: "right" }}>価格（税・サ別）</th><th style={t.th}>バック</th><th style={t.th}>在庫</th></tr></thead>
+              {/* ★裁定331 ⑱（便 W5-2a）: 行チェック（既定＝全選択）＋名前／価格の inline 編集。「取り込む」はチェック分だけ（product_bulk_insert＋set_product の上書き＝同じ RPC） */}
+              <thead><tr><th style={{ ...t.th, width: 34 }}><input type="checkbox" aria-label="全部を選択" checked={ppAll.included.every((p) => selOf(p.name, p.price).on)} disabled={!includeProducts}
+                onChange={(e) => setProdSel(Object.fromEntries(ppAll.included.map((p) => [p.name, { ...selOf(p.name, p.price), on: e.target.checked }])))} /></th><th style={t.th}>メニュー名</th><th style={t.th}>分類</th><th style={{ ...t.th, textAlign: "right" }}>価格（税・サ別）</th><th style={t.th}>バック</th><th style={t.th}>在庫</th></tr></thead>
               <tbody>
-                {pp.included.map((p) => (
-                  <tr key={p.name}>
-                    <td style={t.td}>{p.name}</td><td style={{ ...t.td, color: "var(--sub)" }}>{p.category}</td>
-                    <td style={{ ...t.td, textAlign: "right" }} className="num">{yen(p.price)}</td>
+                {ppAll.included.map((p) => { const s = selOf(p.name, p.price); return (
+                  <tr key={p.name} style={{ opacity: s.on && includeProducts ? 1 : 0.55 }}>
+                    <td style={t.td}><input type="checkbox" checked={s.on} disabled={!includeProducts} aria-label={`${p.name} を取り込む`} onChange={(e) => setProdSel((m) => ({ ...m, [p.name]: { ...s, on: e.target.checked } }))} /></td>
+                    <td style={t.td}><input value={s.name} maxLength={60} disabled={!includeProducts || !s.on} aria-label={`${p.name} の名前`} onChange={(e) => setProdSel((m) => ({ ...m, [p.name]: { ...s, name: e.target.value } }))} style={{ ...input, width: "100%", minWidth: 120, padding: "4px 8px" }} /></td>
+                    <td style={{ ...t.td, color: "var(--sub)" }}>{p.category}</td>
+                    <td style={{ ...t.td, textAlign: "right" }}><input type="number" inputMode="numeric" min={0} step={100} value={s.price} disabled={!includeProducts || !s.on} aria-label={`${p.name} の価格`} className="num"
+                      onChange={(e) => setProdSel((m) => ({ ...m, [p.name]: { ...s, price: Math.max(0, Number(e.target.value)) } }))} style={{ ...input, width: 96, padding: "4px 8px", textAlign: "right" }} /></td>
                     <td style={t.td}>{p.back.isDefault ? <span style={{ color: "var(--sub)" }}>なし</span> : p.back.back_mode === "rate" ? `率 ${p.back.back_value}%` : p.back.unit4 && p.back.unit4.hon === p.back.unit4.free ? `金額 ${yen(p.back.unit4.hon)}` : `指名別 ${yen(p.back.unit4?.hon ?? 0)}〜`}{p.hon_pt > 0 ? `・${p.hon_pt}pt` : ""}</td>
                     <td style={t.td}>{p.stock ? <span className="nox-stpill">管理</span> : ""}</td>
                   </tr>
-                ))}
+                ); })}
               </tbody>
             </table>
           </div>
           <label style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, cursor: "pointer" }}>
             <input type="checkbox" checked={includeProducts} onChange={(e) => setIncludeProducts(e.target.checked)} style={{ width: 18, height: 18 }} />
-            商品テンプレを取り込む（{pp.included.length} 件・バックあり {pp.overrides} 件・在庫管理 {pp.stock} 件）
+            商品テンプレを取り込む（チェックした {pp.included.length} / {ppAll.included.length} 件・バックあり {pp.overrides} 件・在庫管理 {pp.stock} 件）
           </label>
-          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>既存の商品があるときは投入しません。1 品ずつの選択・追加は「マスタ › 商品管理」で。</p>
+          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>既存の商品があるときは投入しません。チェックを外した商品は登録せず、名前と価格はここで直せます（バックと本指名 pt はテンプレ値・あとから「マスタ › 商品管理」で）。</p>
         </section>
       )}
 
@@ -514,6 +532,36 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
           <Row title="売掛（ツケ）" sub="未回収分を誰が負うか"><SegSelect value={receivablePolicy} onChange={(v) => setReceivablePolicy(v as ReceivablePolicy)} options={RECEIVABLE_POLICIES} ariaLabel="売掛の受取方針" /></Row>
           <Row title="紹介料（キャッチ）" sub="紹介者マスタと、レジの「紹介」ボタンを使います"><span style={{ fontSize: 12, color: "var(--sub)" }}>紹介者は「マスタ › 紹介者・紹介料」で登録</span></Row>
 
+          {/* ★0164（裁定331 C 5 項目＋裁定334・便 W5-2a）: 会計と運用＝stores の列 7 つ（set_store_profile の patch に差分だけ同乗・計算は変わらず表示と出し分けだけ） */}
+          <div style={h3}>会計と運用 <span style={hint}>あとから店舗設定 › 店舗情報で変えられます</span></div>
+          <Row title="インボイス登録日" sub="登録日より前の会計には登録番号を印字しません・空欄＝未登録">
+            <input type="date" value={ops.invoice_registered_on} aria-label="インボイス登録日" onChange={(e) => setOps({ ...ops, invoice_registered_on: e.target.value })} style={{ ...input, width: 160 }} />
+          </Row>
+          <Row title="給与の支払日" sub="翌月 1〜31 日・締め日は月末固定（表示と案内に使います）">
+            <NumField label="支払日" value={Number(ops.pay_day) || 0} unit="日" width={70} onChange={(n) => setOps({ ...ops, pay_day: String(Math.max(1, Math.min(31, Math.round(n || 1)))) })} />
+          </Row>
+          <Row title="消費税の表示" sub="ON＝内税で表示（計算は変わりません）"><Switch on={ops.tax_inclusive_display} onChange={(v) => setOps({ ...ops, tax_inclusive_display: v })} label="消費税の表示（内税）" /></Row>
+          <Row title="VIP 席を使う" sub="OFF にするとレジの卓席と席マスタに VIP を出しません"><Switch on={ops.use_vip} onChange={(v) => setOps({ ...ops, use_vip: v })} label="VIP 席を使う" /></Row>
+          <Row title="カウンターを使う" sub="OFF にするとレジの卓席と席マスタにカウンターを出しません"><Switch on={ops.use_counter} onChange={(v) => setOps({ ...ops, use_counter: v })} label="カウンターを使う" /></Row>
+          <Row title="お客様の支払い方法" sub="レジの入金ボタンに出すもの・現金は常に ON">
+            <span style={{ display: "inline-flex", gap: 12, flexWrap: "wrap", fontSize: 12.5 }}>
+              {PAYMENT_METHOD_LABEL.map(([k, l]) => (
+                <label key={k} style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
+                  <input type="checkbox" checked={ops.payment_methods[k]} disabled={k === "cash"} aria-label={`支払い方法 ${l}`} onChange={(e) => setOps({ ...ops, payment_methods: { ...ops.payment_methods, [k]: e.target.checked, cash: true } })} />{l}
+                </label>
+              ))}
+            </span>
+          </Row>
+          <Row title="出退勤の打刻" sub="使う方法を 1 つ以上・OFF は導線を出しません">
+            <span style={{ display: "inline-flex", gap: 12, flexWrap: "wrap", fontSize: 12.5 }}>
+              {PUNCH_METHOD_LABEL.map(([k, l]) => (
+                <label key={k} style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
+                  <input type="checkbox" checked={ops.punch_methods[k]} aria-label={`打刻方法 ${l}`} onChange={(e) => { const next = { ...ops.punch_methods, [k]: e.target.checked }; if (Object.values(next).some(Boolean)) setOps({ ...ops, punch_methods: next }); }} />{l}
+                </label>
+              ))}
+            </span>
+          </Row>
+
           <div style={h3}>使う機能 <span style={hint}>会社の既定（全店）として保存します</span></div>
           {Object.entries(FLAG_LABELS).map(([k, v]) => <Row key={k} title={v.label} sub={v.desc}><Switch on={flags[k]} onChange={(on) => setFlags((f) => ({ ...f, [k]: on }))} label={v.label} /></Row>)}
 
@@ -541,7 +589,7 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
                   [1, "料金", `サービス料 ${pricingEff.service_rate}%・${pricingEff.set_min ? `セット ${yen(pricingEff.set_fee)}/${pricingEff.set_min}分` : `チャージ ${yen(pricingEff.set_fee)}`}・延長 ${yen(pricingEff.ext_fee)}/30分${pricingEff.vip_rows ? `・VIP セット ${yen(pricingEff.vip_rows.set_fee)}` : ""}${pricingEff.vip_charge != null ? `・VIP 加算 ${yen(pricingEff.vip_charge)}` : ""}・指名料 ${features.nom === "none" ? "取らない" : `本指名 ${yen(pricingEff.hon_fee)}／場内 ${yen(pricingEff.jonai_fee)}／同伴 ${yen(pricingEff.dohan_fee)}`}`],
                   [2, "商品", includeProducts && pp.included.length ? `${pp.included.length} 品を登録（バックあり ${pp.overrides} 品・在庫管理 ${pp.stock} 品）${liveCounts.products > 0 ? "（既存 " + liveCounts.products + " 件あり＝投入しない）" : ""}` : "取り込まない"],
                   [3, "キャスト報酬", `勤務時間 ${payTimeBasis === "shift" ? "確定シフトどおり" : "実際の出退勤"}・遅刻の猶予 ${lateGraceMin ?? 10} 分${lateGraceMin == null ? "（既定）" : ""}・${plansEff.map((p) => `${p.name} 時給 ${yen(p.base)}${p.hon ? `／本指名 ${yen(p.hon)}` : ""}${p.slide.length ? "／スライド" : ""}${p.bonus.length ? `／達成 ${yen(p.bonus[0].add_yen)}` : ""}`).join("・")}${liveCounts.plans > 0 ? "（既存プランあり＝投入しない）" : ""}・ノルマ ${norms ? "使う" : "使わない"}・送り ${yen(okuriBase)}`],
-                  [4, "会計と運用", `${BILLING_MODES.find(([k]) => k === billingMode)?.[1]}・カード手数料 ${cardFee.on ? `${cardFee.rate}%` : "なし"}・売掛 ${RECEIVABLE_POLICIES.find(([k]) => k === receivablePolicy)?.[1]}・機能 ${changedFlags.length ? changedFlags.map((f) => `${FLAG_LABELS[f.key].label} ${f.enabled ? "ON" : "OFF"}`).join("・") : "変更なし"}`],
+                  [4, "会計と運用", `${BILLING_MODES.find(([k]) => k === billingMode)?.[1]}・カード手数料 ${cardFee.on ? `${cardFee.rate}%` : "なし"}・売掛 ${RECEIVABLE_POLICIES.find(([k]) => k === receivablePolicy)?.[1]}・機能 ${changedFlags.length ? changedFlags.map((f) => `${FLAG_LABELS[f.key].label} ${f.enabled ? "ON" : "OFF"}`).join("・") : "変更なし"}／${opsSummaryOf(ops)}`],
                   [4, "キャストのスマホ画面", `給与明細 ${PAYSLIP_LABEL[mine.payslip_visibility]}・シフト ${mine.shift_request_mode === "shift" ? "出勤希望" : "休み希望だけ"}・予約申請 ${mine.reservation_request ? "受け付ける" : "受け付けない"}・ドリンク申告／修正申請／ランキング ${[mine.drink_claim, mine.punch_correction_request, mine.ranking].map((x) => (x ? "ON" : "OFF")).join("／")}`],
                   [-1, "書込", `${plan.length} 件（店舗設定 ${summary.settings}・営業時間 ${summary.hours}・席 ${summary.seats}・料金 ${summary.pricing}・報酬 ${summary.comp}・商品 ${summary.products + summary.overrides}・機能 ${summary.flags}・完了 ${summary.done}）`],
                 ] as const).map(([i, k, v]) => (

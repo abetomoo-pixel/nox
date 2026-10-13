@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import RegisterBoard from "./register-board";
+import { seatsVisibleOf } from "@/lib/nox/floor-kinds"; // ★0164（便 W5-2a）
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +13,14 @@ export default async function RegisterPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
-  const { data: seats } = await supabase
+  const { data: seatsAll } = await supabase
     .from("seats")
     .select("id, name, kind, store_id")
     .eq("is_active", true)
     .order("sort_order");
+  // ★0164（裁定334・便 W5-2a）: フロアの種別表示切替＝use_vip／use_counter が false の店はその種別の席タイルを出さない（席モデル・RPC・計算は不変・席の行は残る）
+  const { data: storeFlags } = await supabase.from("stores").select("id, use_vip, use_counter");
+  const seats = seatsVisibleOf((seatsAll ?? []) as { id: string; name: string; kind: string | null; store_id: string }[], (storeFlags ?? []) as { id: string; use_vip: boolean; use_counter: boolean }[]);
   // 純増⑦（mig0063）: タイル見出しのカテゴリ化＝products に category_id を1列追加＋カテゴリ一覧（active のみ）。
   const { data: products } = await supabase
     .from("products")

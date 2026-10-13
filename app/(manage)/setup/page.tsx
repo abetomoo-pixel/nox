@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings";
+import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2a）
 import SetupWizard from "./setup-wizard";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function SetupPage() {
   const supabase = await createClient();
   const { data: stores } = await supabase
     .from("stores")
-    .select("id, name, settings_json, card_tax_rate, round_unit, round_mode, time_mode, time_per")
+    .select("id, name, settings_json, card_tax_rate, round_unit, round_mode, time_mode, time_per, invoice_registered_on, pay_day, tax_inclusive_display, use_vip, use_counter, payment_methods, punch_methods") // ★0164（便 W5-2a）: 会計と運用の現値
     .order("name");
   const rows = (stores ?? []) as Array<{ id: string; name: string; settings_json: Record<string, unknown> | null; card_tax_rate: number; round_unit: number; round_mode: string; time_mode: string; time_per: string }>;
   const target = rows.find((r) => r.settings_json?.setup_done !== true) ?? rows[0];
@@ -36,6 +37,7 @@ export default async function SetupPage() {
           card_tax_rate: target.card_tax_rate, round_unit: target.round_unit, round_mode: target.round_mode, time_mode: target.time_mode, time_per: target.time_per,
           receipt: { address: str("receipt_address"), tel: str("receipt_tel"), reg_no: str("invoice_reg_no"), footer: str("receipt_footer") }, // set_store_receipt_profile の 4 引数明示送信（原則7）
           mine: mineSettingsOf(sj), // set_store_mine_settings の差分元（326 の 8 キー）
+          ops: opsProfileOf(target as unknown as Record<string, unknown>), // ★0164（便 W5-2a）: 会計と運用（STEP 5）の初期値＝現値
         } }}
       counts={{ seats: seats ?? 0, products: products ?? 0, plans: plans ?? 0, rules: rules ?? 0 }}
       orgFlags={flagRows}

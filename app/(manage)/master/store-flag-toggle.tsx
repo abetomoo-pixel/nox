@@ -19,6 +19,9 @@ export function storeProfileErrJa(msg: string | undefined): string {
   if (msg.includes("bad store_code")) return "店舗コードは 20 文字以内で入力してください";
   if (msg.includes("bad display_name")) return "表示名は 50 文字以内で入力してください";
   if (msg.includes("bad okuri_base_amount")) return "送りの基本額は 0〜99,999 の整数で入力してください"; // ★裁定317（0158）
+  if (msg.includes("bad pay_day")) return "支払日は 1〜31 の整数で入力してください"; // ★0164（便 W5-2a）
+  if (msg.includes("bad payment_methods")) return "支払い方法の形式が不正です（現金は常に ON）"; // ★0164（便 W5-2a）
+  if (msg.includes("bad punch_methods")) return "打刻方法は 1 つ以上 ON にしてください"; // ★0164（便 W5-2a）
   if (msg.includes("bad key")) return "送信内容に設定できない項目が含まれています";
   if (msg.includes("bad type")) return "送信内容の形式が不正です";
   if (msg.includes("bad patch")) return "変更がありません";

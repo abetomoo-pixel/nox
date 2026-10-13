@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import SeatsBoard from "./seats-board";
+import { hiddenKindsOf } from "@/lib/nox/floor-kinds"; // ★0164（便 W5-2a）
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,9 @@ export default async function MasterSeatsPage() {
   if (!isManagerUp) redirect("/dashboard");
 
   const supabase = await createClient();
-  const { data: stores } = await supabase.from("stores").select("id").order("name").limit(1);
+  const { data: stores } = await supabase.from("stores").select("id, use_vip, use_counter").order("name").limit(1); // ★0164（裁定334・便 W5-2a）: 種別の表示切替
   const storeId = (stores?.[0]?.id as string | undefined) ?? "";
+  const hiddenKinds = hiddenKindsOf({ use_vip: stores?.[0]?.use_vip !== false, use_counter: stores?.[0]?.use_counter !== false });
   const { data: seats } = await supabase
     .from("seats")
     .select("id, name, kind, sort_order, is_active")
@@ -32,6 +34,7 @@ export default async function MasterSeatsPage() {
     <SeatsBoard
       storeId={storeId}
       isManagerUp={isManagerUp}
+      hiddenKinds={hiddenKinds}
       initial={(seats ?? []) as { id: string; name: string; kind: string | null; sort_order: number; is_active: boolean }[]}
     />
   );

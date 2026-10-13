@@ -56,7 +56,7 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
   }
 
   const head = tab === "info"
-    ? { eyebrow: "STORE PROFILE", title: "店舗設定 › 店舗情報", desc: "店舗名・略称・店舗コード・表示名・送りの基本額とキャスト確認。住所・電話・インボイス登録番号は「端末・印刷 › レシート・プリンタ」で編集します（二重に編集する場所を作りません）。" }
+    ? { eyebrow: "STORE PROFILE", title: "店舗設定 › 店舗情報", desc: "店舗名・略称・店舗コード・表示名・送りの基本額とキャスト確認、会計と運用（インボイス登録日・支払日・消費税の表示・フロア・支払い方法・打刻方法）。住所・電話・インボイス登録番号は「端末・印刷 › レシート・プリンタ」で編集します（二重に編集する場所を作りません）。" }
     : tab === "data"
       ? { eyebrow: "DATA MANAGEMENT", title: "権限・情報管理 › データ管理", desc: "顧客情報の利用目的と保持年数、操作ログの保持。店舗情報から分離した設定です（保存先は同じ set_store_profile）。" }
       : { eyebrow: "STORE SETTINGS", title: "店舗設定 › 利用機能", desc: isOwner
@@ -77,7 +77,7 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
           <MineSettingsPanel stores={stores} />
         </>
       )}
-      {tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile", "shift"]} />}
+      {tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile", "shift", "ops"]} />}{/* ★0164（便 W5-2a）: 会計と運用＝列 7 つ */}
       {tab === "data" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["data"]} />}
     </div>
   );

@@ -18,15 +18,19 @@ import SegSelect from "@/components/ui/seg-select";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { PAY_TIME_BASIS_LABEL, payTimeBasisApplyNoteOf, payTimeBasisApplyOf, payTimeBasisViewOf, type PayTimeBasis, type PayTimeBasisView } from "@/lib/nox/payroll/time-basis"; // ★裁定324（0159・便 C-1）: 勤務時間の計算基準 // ★裁定317（0158・便 AB-6）: 送りの基本額（okuri_base_amount・0〜99,999 の整数・空欄＝未設定＝0 を送る）
 type Store = { id: string; name: string };
-type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）
-const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false };
+// ★0164（裁定331 C 5 項目＋裁定334・便 W5-2a・2026-10-13）: 「会計と運用」節＝stores の列 7 つ（settings_json ではない）を同じ set_store_profile の patch で保存。
+//   invoice_registered_on（'YYYY-MM-DD'／null）・pay_day（1〜31・表示と案内用）・tax_inclusive_display（表示だけ）・use_vip／use_counter（フロアの種別表示）・
+//   payment_methods {cash,card,emoney,qr}（cash は常に true）・punch_methods {self,proxy,kiosk}（1 つ以上 true）。RPC の型検査（'bad pay_day'／'bad payment_methods'／'bad punch_methods'）が本体。
+import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsPatchErrorOf, opsPatchOf, opsProfileOf, type OpsProfile } from "@/lib/nox/store/ops-profile"; // 純関数＝lib（setup page（server）と共用）
+type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）
+const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, ops: OPS_DEFAULT };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
 const label: React.CSSProperties = { ...t.fieldLabel, display: "block", marginBottom: 4 };
 
-export type StoreProfileSection = "profile" | "data" | "timeBasis" | "shift" | "ar";
-const ALL_SECTIONS: StoreProfileSection[] = ["profile", "data", "timeBasis", "shift", "ar"];
+export type StoreProfileSection = "profile" | "data" | "timeBasis" | "shift" | "ar" | "ops";
+const ALL_SECTIONS: StoreProfileSection[] = ["profile", "data", "timeBasis", "shift", "ar", "ops"];
 // ★裁定330（便 MC2）: 店舗設定を 3 面（利用機能／店舗情報／データ管理）に分けるため、どの節を描くかを sections で受ける（既定＝全節＝従来どおり）。
 //   profile＝店舗名・略称・店舗コード・表示名・送りの基本額／data＝顧客情報の利用目的・保持年数・操作ログの保持／timeBasis＝勤務時間の計算基準／shift＝キャスト確認／ar＝売掛を使う。
 //   節を分けても patchOf・save・RPC は 1 文字も変えない（見えない欄は form と cur が同値＝差分に出ない）。
@@ -48,10 +52,11 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
   const load = useCallback(async () => {
     if (!storeSel) return;
     const supabase = createClient();
-    const { data, error } = await supabase.from("stores").select("name, short, settings_json").eq("id", storeSel).single();
+    const { data, error } = await supabase.from("stores").select("name, short, settings_json, invoice_registered_on, pay_day, tax_inclusive_display, use_vip, use_counter, payment_methods, punch_methods").eq("id", storeSel).single(); // ★0164（便 W5-2a）: 列 7 つ
     if (error) { setMsg(`読み込みに失敗: ${error.message}`); return; }
     const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
     const p: Profile = {
+      ops: opsProfileOf(data as Record<string, unknown> | null), // ★0164（便 W5-2a）
       name: typeof data?.name === "string" ? data.name : "",
       short: typeof data?.short === "string" ? data.short : "",
       store_code: typeof sj.store_code === "string" ? sj.store_code : "",
@@ -71,8 +76,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
   useEffect(() => { void load(); }, [load]);
 
   // 変更分だけを patch に（trim 後の比較・空欄は '' のまま送る＝short は RPC 側で null 化）
-  const patchOf = (): Record<string, string | number> => {
-    const out: Record<string, string | number> = {};
+  const patchOf = (): Record<string, unknown> => {
+    const out: Record<string, unknown> = { ...opsPatchOf(form.ops, cur.ops) }; // ★0164（便 W5-2a）: 会計と運用の 7 列（変更分だけ）
     for (const k of ["name", "short", "store_code", "display_name", "customer_purpose"] as const) {
       const v = form[k].trim();
       if (v !== cur[k]) out[k] = v;
@@ -92,14 +97,20 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     if ("customer_retention_years" in patch && (!Number.isInteger(patch.customer_retention_years) || (patch.customer_retention_years as number) < 1 || (patch.customer_retention_years as number) > 10)) { setMsg("保持年数は 1〜10 の整数で入力してください"); return; }
     if ("customer_purpose" in patch && String(patch.customer_purpose).length > 200) { setMsg("利用目的は 200 文字までです"); return; }
     if ("okuri_base_amount" in patch && (!Number.isInteger(patch.okuri_base_amount) || (patch.okuri_base_amount as number) < 0 || (patch.okuri_base_amount as number) > 99999)) { setMsg("送りの基本額は 0〜99,999 の整数で入力してください"); return; }
+    // ★0164（便 W5-2a）: 会計と運用＝RPC の 'bad pay_day'／'bad payment_methods'／'bad punch_methods' と同じ条件を先回り（二重防御の外側）
+    { const e = opsPatchErrorOf(patch); if (e) { setMsg(e); return; } }
     setBusy(true); setMsg(null);
     const supabase = createClient();
     const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeSel, p_patch: patch });
     setBusy(false);
     if (error) { setMsg(`保存に失敗: ${storeProfileErrJa(error.message)}`); return; }
-    setMsg("店舗情報を保存しました");
+    setMsg(on("ops") && !on("profile") && !on("data") ? "会計と運用を保存しました" : "店舗情報を保存しました");
     await load();
   }
+  const setOps = (patch: Partial<OpsProfile>) => setForm((f) => ({ ...f, ops: { ...f.ops, ...patch } }));
+  const onOff = (v: boolean, lbl: string, onChange: (b: boolean) => void) => (
+    <SegSelect value={v ? "on" : "off"} onChange={(x) => onChange(x === "on")} options={[["off", "OFF"], ["on", "ON"]]} aria-label={lbl} />
+  );
 
   // ★裁定324（0159・便 C-1）: set_store_pay_time_basis(p_store_id, p_value, p_apply)＝runs 0 行は 'now'・1 行以上は 'next'（次の暦月の 1 日から）
   async function saveTimeBasis() {
@@ -169,6 +180,66 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
           <div className="nox-actions" style={{ marginTop: 12 }}>
             <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !dirty} onClick={() => { setForm(cur); setMsg(null); }}>元に戻す</button>
             <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !dirty || !loaded} onClick={() => void save()}>{on("profile") ? "店舗情報を保存" : "データ管理を保存"}</button>
+          </div>
+        </section>
+      )}
+
+      {/* ★0164（裁定331 C 5 項目＋裁定334・便 W5-2a）: 会計と運用＝stores の列 7 つを set_store_profile の patch で保存（owner のみ＝RPC と同じ）。
+          インボイス登録日（印字判定は receipt 側＝W5-3）／支払日（締め日は月末固定＝334・表示と案内用）／内税表示（表示だけ・計算不変）／
+          フロア（VIP・カウンターの種別表示＝register／seats が読む・既存の席は残る）／支払い方法（レジのボタン出し分け・現金は常に ON）／打刻方法（1 つ以上・RPC は拒否しない） */}
+      {isOwner && on("ops") && (
+        <section className="nox-cardtop" style={t.card} aria-label="会計と運用">
+          <h2 style={{ ...secTitle, margin: "0 0 4px" }}>会計と運用</h2>
+          <p style={{ ...t.sub, fontSize: 12, margin: "0 0 10px" }}>インボイス登録日・給与の支払日・消費税の表示・フロアの席種・レジの支払い方法・打刻方法。計算は変わらず、表示と出し分けだけが変わります。</p>
+          {loaded && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+              <label style={{ display: "block", minWidth: 0 }}>
+                <span style={label}>インボイス登録日<span style={{ fontWeight: 400, marginLeft: 6 }}>登録日より前の会計には登録番号を印字しません・空欄＝未登録</span></span>
+                <input type="date" value={form.ops.invoice_registered_on} disabled={busy} onChange={(e) => setOps({ invoice_registered_on: e.target.value })} style={input} aria-label="インボイス登録日" />
+              </label>
+              <label style={{ display: "block", minWidth: 0 }}>
+                <span style={label}>給与の支払日<span style={{ fontWeight: 400, marginLeft: 6 }}>翌月 1〜31 日・締め日は月末固定・表示と案内に使います</span></span>
+                <input type="number" min={1} max={31} step={1} inputMode="numeric" value={form.ops.pay_day} disabled={busy} onChange={(e) => setOps({ pay_day: e.target.value })} style={input} aria-label="給与の支払日" />
+              </label>
+              <div style={{ minWidth: 0 }}>
+                <span style={label}>消費税の表示<span style={{ fontWeight: 400, marginLeft: 6 }}>ON＝内税で表示（計算は変わりません）</span></span>
+                {onOff(form.ops.tax_inclusive_display, "消費税の表示（内税）", (b) => setOps({ tax_inclusive_display: b }))}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <span style={label}>フロア<span style={{ fontWeight: 400, marginLeft: 6 }}>OFF の席種はレジの卓席と席マスタの選択肢に出しません（登録済みの席は残ります）</span></span>
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
+                  <span style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5 }}>VIP {onOff(form.ops.use_vip, "VIP 席を使う", (b) => setOps({ use_vip: b }))}</span>
+                  <span style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5 }}>カウンター {onOff(form.ops.use_counter, "カウンターを使う", (b) => setOps({ use_counter: b }))}</span>
+                </div>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <span style={label}>お客様の支払い方法<span style={{ fontWeight: 400, marginLeft: 6 }}>レジの入金ボタンに出すもの・現金は常に ON</span></span>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12.5 }}>
+                  {PAYMENT_METHOD_LABEL.map(([k, l]) => (
+                    <label key={k} style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
+                      <input type="checkbox" checked={form.ops.payment_methods[k]} disabled={busy || k === "cash"} aria-label={`支払い方法 ${l}`}
+                        onChange={(e) => setOps({ payment_methods: { ...form.ops.payment_methods, [k]: e.target.checked, cash: true } })} />{l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <span style={label}>出退勤の打刻<span style={{ fontWeight: 400, marginLeft: 6 }}>使う方法を 1 つ以上・OFF は導線を出しません</span></span>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12.5 }}>
+                  {PUNCH_METHOD_LABEL.map(([k, l]) => (
+                    <label key={k} style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
+                      <input type="checkbox" checked={form.ops.punch_methods[k]} disabled={busy} aria-label={`打刻方法 ${l}`}
+                        onChange={(e) => setOps({ punch_methods: { ...form.ops.punch_methods, [k]: e.target.checked } })} />{l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {msg && !on("profile") && !on("data") && <Toast msg={msg} style={{ margin: "10px 0 0" }} />}
+          <div className="nox-actions" style={{ marginTop: 12 }}>
+            <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !dirty} onClick={() => { setForm(cur); setMsg(null); }}>元に戻す</button>
+            <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !dirty || !loaded} onClick={() => void save()}>会計と運用を保存</button>
           </div>
         </section>
       )}

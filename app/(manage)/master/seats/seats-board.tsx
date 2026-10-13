@@ -27,9 +27,11 @@ const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 
-export default function SeatsBoard({ storeId, isManagerUp, initial }: {
-  storeId: string; isManagerUp: boolean; initial: Seat[];
+// ★0164（裁定334・便 W5-2a）: hiddenKinds＝店設定 use_vip／use_counter が false の席種（lib/nox/floor-kinds）。フィルタと新規追加の選択肢から外すだけ＝登録済みの行・RPC・引数は不変。
+export default function SeatsBoard({ storeId, isManagerUp, initial, hiddenKinds = [] }: {
+  storeId: string; isManagerUp: boolean; initial: Seat[]; hiddenKinds?: string[];
 }) {
+  const kindOn = (k: string) => !hiddenKinds.includes(k);
   const supabase = createClient();
   const [seats, setSeats] = useState<Seat[]>(initial);
   const [msg, setMsg] = useState<string | null>(null);
@@ -114,7 +116,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
           <input value={seatQ} onChange={(e) => setSeatQ(e.target.value)} placeholder="席名で検索"
             aria-label="席名で検索" style={{ ...input, width: 160 }} />
           <div className="nox-seg">
-            {([["", "すべて"], ["卓", "卓"], ["カウンター", "カウンター"], ["VIP", "VIP"]] as const).map(([v, label]) => (
+            {([["", "すべて"], ["卓", "卓"], ["カウンター", "カウンター"], ["VIP", "VIP"]] as const).filter(([v]) => v === "" || kindOn(v)).map(([v, label]) => (
               <button key={v || "all"} className={seatKind === v ? "on" : ""} onClick={() => setSeatKind(v)}>{label}</button>
             ))}
           </div>
@@ -162,7 +164,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial }: {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input placeholder="席名" value={sName} onChange={(e) => setSName(e.target.value)} style={{ ...input, width: 140 }} />
             <SegSelect value={sKind} onChange={(v) => setSKind(v)}
-            options={[["卓", "卓"], ["カウンター", "カウンター"], ["VIP", "VIP"]] as const} />
+            options={([["卓", "卓"], ["カウンター", "カウンター"], ["VIP", "VIP"]] as const).filter(([v]) => kindOn(v) || v === sKind)} />
             <label style={{ fontSize: 12 }}>表示順 <input type="number" min={0} value={sSort} onChange={(e) => setSSort(Number(e.target.value))} style={{ ...input, width: 56 }} /></label>
             {/* 段G: 既存 boolean(is_active) のトグルを canonical スイッチ表示へ（状態・挙動は不変） */}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12 }}>

@@ -52,8 +52,8 @@ const n = (steps: PlanStep[], g: PlanStep["group"]) => steps.filter((s) => s.gro
     BIZ_TYPES.map((b) => `${b.key}:${b.label}:${b.templateId}`).join("|") === "cabaret:キャバクラ:cabaret_standard|lounge:ラウンジ:cabaret_vip|girlsbar:ガールズバー:girlsbar_standard|snack:スナック:snack_standard|bar:バー:bar_staffback"
     && BIZ_TYPES.map((b) => b.sub).join("|") === "セット・指名・同伴中心|高単価・VIP寄り|チャージ＋ドリンク中心|セット＋ボトル中心|商品会計＋チャージ中心" && BIZ_ALL.every((b) => templateOf(b).products.length > 0));
   check("su(1-4) ★6 ステップ＝お店について／料金／商品／キャスト報酬／会計と運用／確認（モック STEPS の題）", SETUP_STEPS.length === 6 && SETUP_STEPS.map((s) => s[0]).join("／") === "お店について／料金／商品／キャスト報酬／会計と運用／確認");
-  check("su(1-5) 特徴の選択肢＝VIP 3（なし／VIP 専用の料金表／通常料金＋VIP 加算）・指名料 2（取らない／全員同じ額＝ランク別は W5-2）・C 5 件＋D 5 件が非表示一覧に", VIP_MODES.map((x) => x[1]).join("／") === "なし／VIP 専用の料金表／通常料金＋VIP 加算" && NOM_MODES.map((x) => x[1]).join("／") === "取らない／全員同じ額"
-    && SETUP_HIDDEN_ITEMS.filter((x) => x.cls === "C").length === 5 && SETUP_HIDDEN_ITEMS.filter((x) => x.cls === "D").length === 5);
+  check("su(1-5) 特徴の選択肢＝VIP 3（なし／VIP 専用の料金表／通常料金＋VIP 加算）・指名料 2（取らない／全員同じ額＝ランク別は W5-2）・C 0 件（便 W5-2a で結線）＋D 5 件が非表示一覧に", VIP_MODES.map((x) => x[1]).join("／") === "なし／VIP 専用の料金表／通常料金＋VIP 加算" && NOM_MODES.map((x) => x[1]).join("／") === "取らない／全員同じ額"
+    && SETUP_HIDDEN_ITEMS.filter((x) => x.cls === "C").length === 0 && SETUP_HIDDEN_ITEMS.filter((x) => x.cls === "D").length === 5); // ★便 W5-2a: C 5 件は 0164 の列 7 つを STEP 5 に結線＝一覧から外した
 }
 
 // (2) 既定特徴の計画配列（5 業態）
@@ -174,7 +174,7 @@ for (const biz of BIZ_ALL) {
     && ["STEP 1　お店について", "STEP 2　料金", "STEP 3　商品", "STEP 4　キャスト報酬", "STEP 5　会計と運用", "STEP 6　確認"].every((h) => wz.includes(`>${h}</h2>`)));
   const wzBody = wz.replace(/^\s*\/\/.*$/gm, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, ""); // 本文＝コメント（行頭 // と {/* */}）を除いた描画部
   const leaked = SETUP_HIDDEN_ITEMS.map((x) => x.label).filter((l) => wzBody.includes(l));
-  check("su(5-2) ★C／D 非表示: SETUP_HIDDEN_ITEMS の見出し 10 件がウィザード本文に無い（インボイス／締め日／消費税／支払い方法／打刻／ランク別／多段／売上歩合のみ／自動切替／スタッフバック）", leaked.length === 0, leaked.join("・"));
+  check("su(5-2) ★D 非表示: SETUP_HIDDEN_ITEMS の見出し 5 件がウィザード本文に無い（ランク別／多段／売上歩合のみ／自動切替／スタッフバック・C 5 件は便 W5-2a で STEP 5 に結線）", leaked.length === 0, leaked.join("・"));
   check("su(5-3) ★途中保存＝localStorage（店ごとのキー・復元は hydration 後・完了で削除・「最初からやり直す」）", wz.includes("nox.setup.v5.draft.${storeId}") && wz.includes("window.localStorage.getItem(DRAFT_KEY(store.id))") && wz.includes("window.localStorage.setItem(DRAFT_KEY(store.id), JSON.stringify(d))") && (wz.match(/window\.localStorage\.removeItem\(DRAFT_KEY\(store\.id\)\)/g) ?? []).length === 2 && wz.includes("最初からやり直す"));
   check("su(5-4) ★あとで設定＝STEP 2〜5 の footnav（laterDefaultsOf の値を入れて進む・確認表に「あとで設定」・「ここで設定する」で解除）", wz.includes("{step > 0 && step < LAST && <button") && wz.includes("onClick={skipLater}>あとで設定</button>") && wz.includes("if (step === 1) setPricing(later.pricing);") && wz.includes("if (step === 4) { setBillingMode(later.billingMode);") && wz.includes("ここで設定する"));
   check("su(5-5) ★完了画面＝「お店の準備ができました」＋nextActionsOf の導線（Link「開く」）・router.push('/dashboard') は無い・下書きを消す", wz.includes("お店の準備ができました") && wz.includes("const acts = nextActionsOf(includeProducts ? pp.stock : 0, isOwner);") && wz.includes(">開く</Link>") && !wz.includes('router.push("/dashboard")'));

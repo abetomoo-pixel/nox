@@ -16,6 +16,7 @@
 import raw from "./templates/v2.json";
 import { DEFAULT_SETTLEMENT_PRESETS } from "../payroll/settlement"; // ★0154 D4
 import { MINE_SETTINGS_DEFAULT, mineSettingsPatchOf, type MineSettings } from "../store/mine-settings"; // ★0160（326 の 8 キー）
+import { opsPatchOf, type OpsProfile } from "../store/ops-profile"; // ★0164（便 W5-2a）: 会計と運用の差分 patch
 import type { SystemKey } from "../store-systems";
 
 // ── 業態（モック BIZ の 5 件・順序・文言そのまま）。templateId＝土台テンプレ ──
@@ -39,13 +40,9 @@ export const SETUP_STEPS: ReadonlyArray<readonly [string, string]> = [
 ];
 
 /** 331-2／setup_map §8 の C／D＝本便では画面に出さない項目（suite がウィザード本文に無いことを pin） */
+// ★便 W5-2a（2026-10-13）: C 5 項目（インボイスの登録／給与の締め日と支払日／消費税の表示／お客様の支払い方法／出退勤の打刻）は 0164 の列 7 つを STEP 5「会計と運用」に結線＝一覧から外した（締め日は月末固定＝334・支払日だけ）。
 export const SETUP_HIDDEN_ITEMS: ReadonlyArray<{ label: string; cls: "C" | "D"; when: string }> = [
-  { label: "インボイスの登録", cls: "C", when: "0164（登録日の器）" },
-  { label: "給与の締め日と支払日", cls: "C", when: "裁定待ち（pay_cycle・第 2 期候補）" },
-  { label: "消費税の表示", cls: "C", when: "裁定待ち（内税表示）" },
-  { label: "お客様の支払い方法", cls: "C", when: "0164（payment_methods）" },
-  { label: "出退勤の打刻", cls: "C", when: "0164（punch_methods）" },
-  { label: "キャストのランク別", cls: "D", when: "W5-2（ランク行＋ランク別ルールの結線）" },
+  { label: "キャストのランク別", cls: "D", when: "W5-2b（0170＝ランク別スライド＋ランク別ルールの結線）" },
   { label: "達成ボーナスの多段", cls: "D", when: "第 2 期" },
   { label: "売上歩合のみ", cls: "D", when: "第 2 期" },
   { label: "新人保証のプラン自動切替", cls: "D", when: "第 2 期（期間満了＝現行）" },
@@ -282,6 +279,7 @@ export type SetupCurrent = {
   card_tax_rate: number; round_unit: number; round_mode: string; time_mode: string; time_per: string;
   receipt: { address: string; tel: string; reg_no: string; footer: string }; // set_store_receipt_profile の現値（4 引数明示送信＝原則7）
   mine: MineSettings; // set_store_mine_settings の差分元
+  ops?: OpsProfile; // ★0164（便 W5-2a）: 会計と運用（stores の列 7 つ）の現値＝差分だけ settings の patch に同乗
 };
 export type SetupSelection = {
   storeId: string;
@@ -305,13 +303,15 @@ export type SetupSelection = {
   mine: MineSettings;
   current: SetupCurrent;
   flags?: Array<{ key: string; enabled: boolean }>;
+  ops?: OpsProfile; // ★0164（便 W5-2a）: STEP 5「会計と運用」の入力（current.ops との差分だけを settings の patch に同乗・同じ set_store_profile）
 };
 
 export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
   const s = sel.storeId;
   const steps: PlanStep[] = [];
-  // 1) settings_json（biz_type／billing_mode／sys_* 9／送りの基本額・店舗名は変更時のみ）
-  const patch: Record<string, unknown> = { biz_type: sel.biz, billing_mode: sel.billingMode, ...systemsOf(sel.features, sel.norms), okuri_base_amount: Math.max(0, Math.min(99999, Math.round(sel.okuriBase || 0))) };
+  // 1) settings_json（biz_type／billing_mode／sys_* 9／送りの基本額・店舗名は変更時のみ）＋★0164 会計と運用（列 7 つ・差分のみ）
+  const patch: Record<string, unknown> = { biz_type: sel.biz, billing_mode: sel.billingMode, ...systemsOf(sel.features, sel.norms), okuri_base_amount: Math.max(0, Math.min(99999, Math.round(sel.okuriBase || 0))),
+    ...(sel.ops && sel.current.ops ? opsPatchOf(sel.ops, sel.current.ops) : {}) };
   if (sel.storeName && sel.storeName.trim()) patch.name = sel.storeName.trim();
   steps.push({ key: "settings", group: "settings", label: "店舗設定（業態・会計方式・使う制度・送りの基本額）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: patch } });
   steps.push({ key: "receivable_policy", group: "settings", label: `売掛の受取方針（${RECEIVABLE_POLICIES.find(([k]) => k === sel.receivablePolicy)?.[1] ?? sel.receivablePolicy}）`, rpc: "set_store_receivable_policy",
