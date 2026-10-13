@@ -26,6 +26,7 @@ import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P
 export { PRODUCT_BACK_OPTIONS, type ProductBackMode };
 export type Plan = {
   slide_period?: string | null; // ★裁定338（0168）: 判定期間（monthly／half／daily・旧行は daily）
+  slide_basis?: string | null; slide_rank_ids?: string[] | null; // ★裁定343（0170）: 判定基準（sales／hon_count／dohan_count）・対象ランク（空＝全員）
   id: string; name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
   sales_slide: Slide[]; point_slide: Slide[]; is_active: boolean;
   // mig0086: 率バック方式（hon/jonai 独立・rate 中も円/本値は保持＝裁定v）
@@ -228,7 +229,7 @@ export function useCompData(storeId: string, onError?: (m: string) => void) {
 // ★N2（報酬プラン v3.1・規約 §6）: 段は固定列の表（段／判定基準／時給）・単位常時表示（basis=yen: `¥ … 以上`／pt: `… pt以上`・時給 `¥ … 円`）。
 //   値・保存形（at/wage の3段・at=0 除外は送信時）は不変＝表示だけ。basis 省略時は従来呼び出し（PlanTab）と互換。
 export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthly = false, period }: {
-  label: string; slide: Slide[]; setSlide: (s: Slide[]) => void; basis?: "yen" | "pt"; desc?: string;
+  label: string; slide: Slide[]; setSlide: (s: Slide[]) => void; basis?: "yen" | "pt" | "count"; desc?: string; // ★裁定343: "count"＝件数基準（本指名／同伴の件数・単位は件）
   /** ★N3b（裁定288-7）: 店の slide_apply='next' なら閾値は「月間」（前月合計）・それ以外は「1 日」（period 未指定のとき） */
   monthly?: boolean;
   /** ★裁定338（0168・便 P168）: プランの判定期間＝閾値の単位ラベル（monthly／half／daily） */
@@ -254,7 +255,7 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthl
             {basis === "yen"
               ? <MoneyInput value={r.at} onChange={(v) => set(i, "at", Number(v || 0))} style={input} width={118} ariaLabel={`${i + 1}段の判定基準（売上）`} />
               : <span className="nox-money" style={{ display: "inline-flex", alignItems: "center", gap: 4, width: 118 }}>
-                  <input type="number" min={0} value={r.at} onChange={(e) => set(i, "at", Number(e.target.value))} aria-label={`${i + 1}段の判定基準（pt）`}
+                  <input type="number" min={0} value={r.at} onChange={(e) => set(i, "at", Number(e.target.value))} aria-label={`${i + 1}段の判定基準（${basis === "count" ? "件数" : "pt"}）`}
                     className="num" style={{ ...input, width: "100%", minWidth: 0, textAlign: "right" }} />
                 </span>}
             <span className="u">{atLabel}</span>

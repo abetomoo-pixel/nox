@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
+import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: 支払い方法の出し分け
 import { groupDueFull, timeStatusOf } from "@/lib/nox/check-calc";
 import { bizDateOf } from "@/lib/nox/biz-date"; // ★B3 裁定209: attendance の営業日判定（純関数）
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
@@ -169,6 +170,9 @@ const elapsedMin = (started: string, now: number) => Math.max(0, Math.floor((now
 const METHOD_LABEL: Record<string, string> = { cash: "現金", card: "カード", ar: "売掛", other: "その他" };
 // 内訳メモを出す手段（cash/ar は出さない＝現金は内訳不要・売掛は receivables が台帳）
 const DETAIL_METHODS = new Set(["card", "other"]);
+// ★0164（便 W5-2b）: 店設定 payment_methods（cash／card／emoney／qr）でレジの入金ボタンを出し分ける。電子マネー・QR は payments.method 'other'＋method_detail（固定語）で記録＝RPC・CHECK 不変。
+const OPS_METHOD_LABEL: Record<"emoney" | "qr", string> = { emoney: "電子マネー", qr: "QR 決済" };
+const rpcMethodOf = (m: string): string => (m === "emoney" || m === "qr" ? "other" : m);
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
 // R-2a: 指名料の課金行（mig0084・cast_id を持つ2種）。同伴料行（fee_kind='dohan'）は cast_id=null＝ここに含めない。
 const SHIMEI_FEE_KINDS = new Set(["hon_shimei", "jonai_shimei"]);
@@ -409,6 +413,8 @@ export default function RegisterBoard({
   const [keptLineIds, setKeptLineIds] = useState<Set<string>>(new Set());
   const [storeName, setStoreName] = useState("");
   const [invoiceRegNo, setInvoiceRegNo] = useState(""); // 適格請求書の登録番号（settings_json.invoice_reg_no・空=行を出さない）
+  const [payMethodsOn, setPayMethodsOn] = useState<{ card: boolean; emoney: boolean; qr: boolean }>({ card: true, emoney: false, qr: false }); // ★0164（便 W5-2b）: 入金ボタンの出し分け（現金は常に）
+  const [taxInclusive, setTaxInclusive] = useState(false); // ★0164（便 W5-2b）: 内税表示の店＝金額表記の印（計算は不変）
   const [arEnabled, setArEnabled] = useState(false); // ★0155（裁定309-1・便 S-2）: settings_json.ar_enabled＝false の店は支払方法「売掛」を出さない（サーバの 'ar disabled' が本体＝二重防御）
   const [checkSeats, setCheckSeats] = useState<CheckSeatRow[]>([]);
   const [seatMsg, setSeatMsgRaw] = useState<string | null>(null);
@@ -725,7 +731,7 @@ export default function RegisterBoard({
     if (!storeId) return;
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("stores").select("name, settings_json, card_surcharge_rate").eq("id", storeId).single();
+      const { data } = await supabase.from("stores").select("name, settings_json, card_surcharge_rate, payment_methods, tax_inclusive_display").eq("id", storeId).single(); // ★0164（便 W5-2b）: 支払い方法・内税表示
       if (alive) {
         setStoreName((data?.name as string | undefined) ?? "");
         setInvoiceRegNo(((data?.settings_json as Record<string, unknown> | null)?.invoice_reg_no as string | undefined) ?? "");
@@ -733,6 +739,11 @@ export default function RegisterBoard({
         const ar = (data?.settings_json as Record<string, unknown> | null)?.ar_enabled === true;
         setArEnabled(ar);
         if (!ar) setPayMethod((m) => (m === "ar" ? "cash" : m));
+        // ★0164（便 W5-2b）: 支払い方法（列 payment_methods・既定 {cash,card}）と内税表示（列 tax_inclusive_display）。OFF の方法が選択中なら現金へ戻す
+        const pm = opsProfileOf(data as Record<string, unknown> | null).payment_methods;
+        setPayMethodsOn({ card: pm.card, emoney: pm.emoney, qr: pm.qr });
+        setTaxInclusive((data as Record<string, unknown> | null)?.tax_inclusive_display === true);
+        setPayMethod((m) => ((m === "card" && !pm.card) || (m === "emoney" && !pm.emoney) || (m === "qr" && !pm.qr) ? "cash" : m));
         // ★B3: 営業日の判定に使う cutoff（report と同じ既定 06:00）
         const bc = (data?.settings_json as Record<string, unknown> | null)?.biz_cutoff_hm;
         setCutoffHm(typeof bc === "string" && bc ? bc : "06:00");
@@ -1402,9 +1413,10 @@ export default function RegisterBoard({
     if (!(await tb.flush())) return false; // money 系: 保留を先に確定（失敗＝中止・入金前提）
     setMsg(null);
     // F4c: detail は card/other のときだけ送る（空/空白のみは null＝RPC 側も nullif(trim()) で二重に守る）
-    const detail = DETAIL_METHODS.has(payMethod) && payDetail.trim() ? payDetail.trim() : null;
+    // ★0164（便 W5-2b）: 電子マネー／QR は 'other'＋固定の method_detail（店設定の出し分け・記録の語彙は不変）
+    const detail = payMethod === "emoney" || payMethod === "qr" ? OPS_METHOD_LABEL[payMethod] : (DETAIL_METHODS.has(payMethod) && payDetail.trim() ? payDetail.trim() : null);
     const { error } = await supabase.rpc("check_pay", {
-      p_check_id: check.id, p_method: payMethod, p_amount: payAmount,
+      p_check_id: check.id, p_method: rpcMethodOf(payMethod), p_amount: payAmount,
       p_pay_group: payGroup || "A",
       p_tendered: payMethod === "cash" && payTendered ? Number(payTendered) : null,
       p_idem_key: crypto.randomUUID(),
@@ -1909,10 +1921,15 @@ export default function RegisterBoard({
                 )}
               </div>
             )}
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)", marginBottom: 6 }}>支払方法</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)", marginBottom: 6, display: "flex", gap: 8, alignItems: "center" }}>支払方法
+              {/* ★0164（便 W5-2b）: 内税表示の店＝金額表記の印（計算・行の凍結値は不変） */}
+              {taxInclusive && <span className="nox-stpill" title="店設定「消費税の表示」が内税＝金額は税込で表記します（計算は変わりません）">金額表記: 内税</span>}
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
               {/* ★0155（裁定309-1・便 S-2）: ar_enabled=false の店は「売掛」を描画しない（4 値の語彙は不変・payments_method_check も不変） */}
-              {Object.entries(METHOD_LABEL).filter(([v]) => v !== "ar" || arEnabled).map(([v, l]) => (
+              {/* ★0164（便 W5-2b）: 店設定 payment_methods で カード／電子マネー／QR 決済 を出し分け（現金は常に・その他は残す）。電子マネー／QR＝'other'＋固定 detail */}
+              {([["cash", METHOD_LABEL.cash], ...(payMethodsOn.card ? [["card", METHOD_LABEL.card]] : []), ...(arEnabled ? [["ar", METHOD_LABEL.ar]] : []),
+                ...(payMethodsOn.emoney ? [["emoney", OPS_METHOD_LABEL.emoney]] : []), ...(payMethodsOn.qr ? [["qr", OPS_METHOD_LABEL.qr]] : []), ["other", METHOD_LABEL.other]] as [string, string][]).map(([v, l]) => (
                 <button key={v} type="button"
                   style={payMethod === v ? { ...t.btnGold, justifyContent: "center", padding: "12px" } : { ...t.btnGhost, justifyContent: "center", padding: "12px" }}
                   onClick={() => { setPayMethod(v); if (!DETAIL_METHODS.has(v)) setPayDetail(""); }}>

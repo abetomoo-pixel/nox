@@ -36,7 +36,7 @@ export const PROFILE_CODES = Object.keys(PROFILES);
  *  9 月分は reset の finalize hook で凍結明細に反映される（再確定不要）。 */
 export const SLIDES = {
   ace: { period: "monthly", sales: [{ at: 800000, wage: 3000 }, { at: 1200000, wage: 3500 }, { at: 1600000, wage: 4500 }] },
-  noir: { period: "monthly", points: [{ at: 60, wage: 4000 }, { at: 120, wage: 4500 }, { at: 200, wage: 5000 }] },
+  noir: { period: "monthly", points: [{ at: 60, wage: 4000 }, { at: 120, wage: 4500 }, { at: 200, wage: 5000 }], basis: "hon_count", sales: [{ at: 3, wage: 4000 }, { at: 6, wage: 4500 }, { at: 10, wage: 5000 }], ranks: ["S", "A"] }, // ★裁定343（0170・便 W5-2b）: 判定基準＝本指名の件数（月次 3／6／10 件）・対象ランク S／A（default の 3 名は対象外＝base）
   luna: { period: "half", sales: [{ at: 400000, wage: 3300 }, { at: 700000, wage: 3600 }, { at: 1000000, wage: 4000 }] },
 };
 export const ADVANCES = { muse: 50000, luna: 30000, noir: 30000, ace: 30000, lily: 30000, nest: 30000 };

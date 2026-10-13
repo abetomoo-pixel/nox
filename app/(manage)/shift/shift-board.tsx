@@ -22,6 +22,7 @@ import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; //
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
 import { firstInLastOut, outButtonOf, punchTimeLabel, punchInAfterAtt } from "@/lib/nox/shift/today-row";
+import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.proxy
 import { PunchCorrectionForm } from "@/components/nox/punch-correction-modal"; // ★0154 D1: 出退勤の修正（owner／manager＝申請＝確定）・★裁定310: 「調整」モーダルのタブ①に埋め込む（本体のみ）
 import PunchDecideModal from "@/components/nox/punch-decide-modal"; // ★裁定297-1: cast の申請（pending）の承認／却下（理由必須）
 import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
@@ -651,7 +652,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     // ★便 AY1（2026-09-24・裁定291 追補1 A-3）: 出勤区分（出勤・遅刻・同伴）を記録できたら in 打刻も残す（punch_proxy 'in'＝時刻は RPC の now()）。
     //   同営業日に in が既にあれば呼ばない（punch_proxy は盲目記録＝in-in を拒まないため UI で止める）・休み／当欠は呼ばない・区分の変更で増やさない。
     //   失敗しても attendance は戻さない（区分の記録は成立・打刻だけ失敗＝裁定281 の型で同じ枠に警告）。
-    if (!error && punchInAfterAtt({ status, hasIn: !!punchIO.get(castId)?.inHm })) {
+    if (!error && proxyPunchOn && punchInAfterAtt({ status, hasIn: !!punchIO.get(castId)?.inHm })) { // ★0164（便 W5-2b）: 代行 OFF の店は in 打刻を残さない（区分の記録だけ）
       const { error: pe } = await supabase.rpc("punch_proxy", { p_cast_id: castId, p_type: "in", p_note: null });
       if (pe) setMsg(`出勤区分は記録しました。出勤の打刻に失敗: ${rpcErrJa(pe.message)}`);
       setPunchTick((v) => v + 1);
@@ -927,6 +928,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   }, [storeId]);
   // ★0156（裁定309-9・便 V-5）: 店の送り方式（settings_json.okuri_mode）＝'actual' の店だけ退勤に「送り」チェックを出す（+1・RLS 越しの stores 読取）
   const [okuriActual, setOkuriActual] = useState(false);
+  const [proxyPunchOn, setProxyPunchOn] = useState(true); // ★0164（便 W5-2b）: 店設定 punch_methods.proxy（代行の退勤ボタン・出勤区分後の in 打刻の出し分け）
   // ★裁定317（便 X-9-3）: 「送り」→金額ダイアログ→確定で退勤打刻（p_okuri=true）＋transport_issue_bulk 1 件（idem＝punch id）。旧チェックボックス（okuriMark）は廃止
   const [okuriBase, setOkuriBase] = useState<unknown>(null);
   const [okuriDlg, setOkuriDlg] = useState<{ castId: string; def: OkuriDefault } | null>(null);
@@ -936,9 +938,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     if (!storeId) return;
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
+      const { data } = await supabase.from("stores").select("settings_json, punch_methods").eq("id", storeId).maybeSingle(); // ★0164（便 W5-2b）: punch_methods（代行の出し分け）
       const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
-      if (alive) { setOkuriActual(sj.okuri_mode === "actual"); setOkuriBase(sj.okuri_base_amount ?? null); }
+      if (alive) { setOkuriActual(sj.okuri_mode === "actual"); setOkuriBase(sj.okuri_base_amount ?? null); setProxyPunchOn(opsProfileOf(data as Record<string, unknown> | null).punch_methods.proxy); }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1295,7 +1297,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             const att = attOf(s.cast_id, todayDate);
                             const label = punchTimeLabel(io?.inHm, io?.outHm);
                             const n = io?.inHm ? lateMinutesOf(s.start_hm, io.inHm, lateGraceMin) : null;
-                            const ob = outButtonOf({ canRecord, attStatus: att?.status, hasIn: !!io?.inHm, hasOut: !!io?.outHm });
+                            const ob0 = outButtonOf({ canRecord, attStatus: att?.status, hasIn: !!io?.inHm, hasOut: !!io?.outHm });
+                            const ob = proxyPunchOn ? ob0 : { ...ob0, show: false }; // ★0164（便 W5-2b）: 店設定 punch_methods.proxy が OFF なら代行の退勤ボタンを出さない（RPC は拒否しない）
                             const outOn = ob.show && ob.enabled;
                             return (
                               <div className="nox-attrow">

@@ -45,10 +45,12 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
   // E8-2 #11: KPI 追加材料（売掛残高・前年同月売上）
   const [arBalance, setArBalance] = useState(0);
   const [prevYearSales, setPrevYearSales] = useState<number | null>(null);
+  const [payDay, setPayDay] = useState<number | null>(null); // ★0164（便 W5-2b・裁定334）: 見出しに「締め 月末・支払日 翌月 N 日」（表示のみ・集計は不変）
 
   const load = useCallback(async () => {
     if (!storeId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) return;
     setLoading(true); setMsg(null);
+    { const { data: st } = await supabase.from("stores").select("pay_day").eq("id", storeId).maybeSingle(); setPayDay(typeof st?.pay_day === "number" ? st.pay_day : null); } // ★0164
     // 月境界（period_bounds・営業月）
     const { data: pb, error: ePb } = await supabase.rpc("period_bounds", { p_period: period });
     const pbr = (pb as Array<{ period_start: string; period_end: string }> | null)?.[0];
@@ -154,6 +156,8 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
     <section className="nox-panel">
       <h3>
         月報
+        {/* ★0164（便 W5-2b・裁定334）: 締め日は月末固定・支払日は店設定 pay_day（翌月 N 日）＝見出しの注記（表示のみ） */}
+        {payDay !== null && <span style={{ fontSize: 12, fontWeight: 400, color: "var(--sub)", marginLeft: 8 }} title="締め日（月末固定）と支払日（店舗設定 › 会計と運用）">締め 月末・支払日 翌月 {payDay} 日</span>}
         {stores.length > 1 && (
           <select value={storeId} onChange={(e) => setStoreId(e.target.value)} aria-label="店舗" style={{ ...t.input, width: "auto", fontSize: 13, fontWeight: 400 }}>
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

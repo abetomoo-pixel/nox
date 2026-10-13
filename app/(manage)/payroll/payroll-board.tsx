@@ -9,7 +9,8 @@ import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { kpiOfDraftRows, issuesOfDraft, payStatusCellOf } from "@/lib/nox/payroll/ui-calc"; // ★便 X-7: 状態列は run の status と整合（payStatusCellOf）
-import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P168）: 期間＝select（当月＋過去 12 か月・確定の印・もっと前…）。旧 picker（便 X-5・テキスト＋▾）は撤去
+import PeriodSelect from "@/components/nox/period-select";
+import { OPS_DEFAULT, opsProfileOf, type OpsProfile } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: 支払日・内税表示 // ★X-13-28（便 P168）: 期間＝select（当月＋過去 12 か月・確定の印・もっと前…）。旧 picker（便 X-5・テキスト＋▾）は撤去
 import { finalizedPeriodsOf } from "@/lib/nox/payroll/list-periods"; // ★X-13-28: 確定済みの月の印
 //残す）
 import { totalDeductionsOf, frozenAdjustmentKeys, type FrozenAdjustment } from "@/lib/nox/payroll/adjust";
@@ -150,14 +151,15 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   // ★裁定316（便 X-8-13）: 今日の営業日＝店の biz_cutoff_hm（既定 06:00）で切る。stores の RLS 読取 +1（店が変わったときだけ）
   const [cutoffHm, setCutoffHm] = useState("06:00");
   const [storeSettings, setStoreSettings] = useState<Record<string, unknown>>({}); // ★裁定324（便 C-3）: pay_time_basis／_next／_next_from（期ヘッダーの「計算基準」＝pay.ts と同じ payTimeBasisOf）
+  const [storeOps, setStoreOps] = useState<OpsProfile>(OPS_DEFAULT); // ★0164（便 W5-2b）: 支払日（翌月 N 日・締め日は月末固定）・内税表示＝期ヘッダーの表記（計算は不変）
   useEffect(() => {
     if (!storeId) return;
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
+      const { data } = await supabase.from("stores").select("settings_json, pay_day, tax_inclusive_display").eq("id", storeId).maybeSingle(); // ★0164（便 W5-2b）: 支払日・内税表示（期ヘッダーの表記）
       const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
       const v = sj.biz_cutoff_hm;
-      if (alive) { setCutoffHm(typeof v === "string" && v ? v : "06:00"); setStoreSettings(sj); }
+      if (alive) { setCutoffHm(typeof v === "string" && v ? v : "06:00"); setStoreSettings(sj); setStoreOps(opsProfileOf(data as Record<string, unknown> | null)); }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -563,6 +565,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           <br />
           <span style={{ display: "inline-block", marginTop: 5 }}><PeriodSelect value={period} onChange={setPeriod} finalized={finalizedPeriodsOf(runPeriods)} runPeriods={runPeriods.map((r) => r.period)} /></span>{/* ★X-13-28（便 P168） */}
         </label>
+        {/* ★0164（便 W5-2b・裁定334）: 締め日は月末固定・支払日は店設定 pay_day（翌月 N 日・表示と案内用）・内税表示の店は金額表記の印（計算は不変） */}
+        <span className="nox-tag" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="締め日（月末固定）と支払日（店舗設定 › 会計と運用）・金額表記">締め 月末・支払日 翌月 {storeOps.pay_day} 日{storeOps.tax_inclusive_display ? "・金額表記 内税" : ""}</span>
         {/* ★裁定324（0159・便 C-3）: 計算基準（実打刻／確定シフト）＝店設定を run の期の初日で解決（pay.ts と同じ payTimeBasisOf） */}
         {(() => { const b: PayTimeBasis = payTimeBasisOf(storeSettings, `${period}-01`); return <span className="nox-tag" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="勤務時間の計算基準（店舗設定）">計算基準: {PAY_TIME_BASIS_SHORT[b]}</span>; })()}
         <button onClick={preview} disabled={busy || !storeId} style={t.btnGold}>

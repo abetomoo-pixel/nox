@@ -101,6 +101,11 @@ async function main() {
       check("s-2e", "★0169 check_set_nominations の md5＝97dd24bb（場内→本指名で prev_kind／kind_changed_at を記録・他の遷移は引継ぎ）", md.check_set_nominations === "97dd24bb", JSON.stringify(md));
       check("s-2f", "★0169 check_close の md5＝69cf2a19（行の created_at < kind_changed_at なら旧区分で unit4 キーと pt）", md.check_close === "69cf2a19", JSON.stringify(md));
       check("s-2g", "★0169 check_nomination_rate_apply の md5＝84f6f80e（店長以上・課金ゲート・open のみ・記録を消す・監査 note）", md.check_nomination_rate_apply === "84f6f80e", JSON.stringify(md)); }
+    // ★0170（裁定343・便 W5-2b）: set_comp_plan 25 引数の md5 控え（本番適用 2026-10-13）＋comp_plans の列数（26→28＝slide_basis／slide_rank_ids）
+    { const m = (await one("select left(md5(replace(prosrc, E'\r', '')), 8) m from pg_proc where proname='set_comp_plan' and pronamespace='public'::regnamespace")).m as string;
+      check("s-2h", "★0170 set_comp_plan の md5＝1cddaa0e（25 引数・末尾 p_slide_basis／p_slide_rank_ids・NULL は 'bad slide_basis'／'bad slide_rank_ids'）", m === "1cddaa0e", m);
+      const nc = (await one("select count(*)::int n from information_schema.columns where table_schema='public' and table_name='comp_plans'")).n as number;
+      check("s-2i", "★0170 comp_plans の列数＝28（slide_basis・slide_rank_ids）", nc === 28, String(nc)); }
     const fnCount0 = (await one("select count(*)::int n from pg_proc where pronamespace='public'::regnamespace")).n as number;
     check("s-3", "新設 5 本が存在・payroll_attentions が存在・関数 306（★0159 で +2・★0160 で +7−1・★0161 で +1・★0162 で +5・★0163 で +1・★0166 で +1・★0167 で +1・★0169 で +1）", NEW.every((n) => !!live0[n]) && (await one("select to_regclass('public.payroll_attentions')::text r")).r !== null && fnCount0 === 306, `fn ${fnCount0}`);
     const colsOf = async (): Promise<Record<string, number>> => Object.fromEntries((await q("select table_name t, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('daily_pays','bottle_keeps','advances','transport','payroll_attentions') group by 1")).map((r) => [r.t, r.n]));

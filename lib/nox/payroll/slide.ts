@@ -83,9 +83,38 @@ export function periodLabelOf(key: string): string {
   return `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
 }
 export const SLIDE_PERIOD_LABEL: Record<SlidePeriod, string> = { monthly: "月次", half: "半月", daily: "日次" };
-/** 判定の説明文（UI 共通・「翌日以降」は使わない） */
-export function slideDescOf(period: SlidePeriod, basis: "yen" | "pt", next: boolean): string {
-  const what = basis === "yen" ? "売上（按分後）" : "ポイント";
+// ★裁定343（0170・便 W5-2b・2026-10-13）: 判定基準（comp_plans.slide_basis）と対象（comp_plans.slide_rank_ids）。338 の判定期間とは直交。
+//   sales＝自分の按分後売上（現行）／hon_count＝本指名の件数／dohan_count＝同伴の件数（get_cast_sales の hon／dohan＝伝票単位）。ポイントスライドは pts のまま。
+//   対象＝空配列は全員・非空ならそのランク（casts.rank_id）のキャストだけスライドを当て、対象外は基本率（base）のまま。個人上書き（overrides_json）には持たない。
+export type SlideBasis = "sales" | "hon_count" | "dohan_count";
+export const slideBasisOf = (v: unknown): SlideBasis => (v === "hon_count" || v === "dohan_count" ? v : "sales");
+export const SLIDE_BASIS_LABEL: Record<SlideBasis, string> = { sales: "売上", hon_count: "本指名の件数", dohan_count: "同伴の件数" };
+/** 判定値の単位（入力欄・明細） */
+export const slideBasisUnitOf = (b: SlideBasis): "yen" | "count" => (b === "sales" ? "yen" : "count");
+/** 期間の集計（sales／hon／dohan）から判定値を取る（collect と suite が同じ式を使う） */
+export function slideBasisValueOf(b: SlideBasis, agg: { sales: number; hon: number; dohan: number }): number {
+  return b === "hon_count" ? agg.hon : b === "dohan_count" ? agg.dohan : agg.sales;
+}
+/** 対象ランクの判定＝空は全員・非空は含まれるランクだけ（rank なしは対象外） */
+export function slideRankIncludedOf(rankIds: readonly string[], castRankId: string | null | undefined): boolean {
+  return rankIds.length === 0 || (!!castRankId && rankIds.includes(castRankId));
+}
+export type SlideScope = { basis: SlideBasis; rankIds: string[]; castRankId: string | null; excluded: boolean };
+/** 青ピル（基準・対象）＝sales・全員なら空（従来どおり印なし） */
+export function slideBasisPillOf(basis: SlideBasis, rankIds: readonly string[], rankNames?: readonly string[]): string {
+  const parts: string[] = [];
+  if (basis !== "sales") parts.push(`判定基準: ${SLIDE_BASIS_LABEL[basis]}`);
+  if (rankIds.length) parts.push(`対象: ${rankNames?.length ? rankNames.join("・") : `${rankIds.length} ランク`}`);
+  return parts.join("・");
+}
+/** 凍結形（breakdown_json.slideBasis）に基準と対象を足す＝slideBasisForPeriodOf の上に乗せる（months が無い（対象外）ときも形を残す） */
+export function slideScopeFreezeOf(frozen: { apply: string; provisional: boolean; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] } | null, scope: SlideScope | undefined, basis: SlideBasis) {
+  const base = frozen ?? { apply: "daily", provisional: false, months: [] };
+  return { ...base, ...(basis !== "sales" ? { basis } : {}), ...(scope && scope.rankIds.length ? { scope: { rankIds: scope.rankIds, castRankId: scope.castRankId, excluded: scope.excluded } } : {}) };
+}
+/** 判定の説明文（UI 共通・「翌日以降」は使わない）。basis 'count'＝件数基準（裁定343） */
+export function slideDescOf(period: SlidePeriod, basis: "yen" | "pt" | "count", next: boolean, countLabel?: string): string {
+  const what = basis === "yen" ? "売上（按分後）" : basis === "count" ? (countLabel ?? "件数") : "ポイント";
   if (period === "monthly") return next ? `前月の累計${what}で段を決め、当月の時給に適用します。` : `月の累計${what}で段を決め、その月の時給に適用します。`;
   if (period === "half") return next ? `前の半月の累計${what}で段を決め、当半月の時給に適用します。` : `1〜15 日・16〜末日の累計${what}で段を決め、その半月の時給に適用します。`;
   return next ? `前月の${what}の合計で段を決め、当月の時給に適用します。` : `その日の${what}で段を決め、その日の時給に適用します。`;
@@ -96,9 +125,9 @@ export function slidePillOf(period: SlidePeriod, next: boolean): string {
   return period === "daily" ? (next ? "判定期間: 日次（前月基準＝店設定 slide_apply）" : "判定期間: 日次（その日の売上・ポイント）") : `判定期間: ${p}（${next ? "前の期間" : "期間"}の累計・確定で段確定／プレビューは暫定）`;
 }
 /** 入力欄の単位ラベル */
-export function slideAtLabelOf(period: SlidePeriod, basis: "yen" | "pt"): string {
+export function slideAtLabelOf(period: SlidePeriod, basis: "yen" | "pt" | "count"): string {
   const w = period === "monthly" ? "月の累計" : period === "half" ? "半月の累計" : "1 日の";
-  return basis === "yen" ? `以上（${w}売上）` : `pt 以上（${w}）`;
+  return basis === "yen" ? `以上（${w}売上）` : basis === "count" ? `件 以上（${w}件数）` : `pt 以上（${w}）`; // ★裁定343: 件数基準
 }
 /** 凍結形（breakdown_json.slideBasis）: pay.ts が作る 'next' 形の months を期間形へ（apply＝期間・provisional＝期首〜今日の暫定・prevMonth＝元の期間キー） */
 export function slideBasisForPeriodOf(basis: { months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] }, period: SlidePeriod, provisional: boolean, next: boolean) {

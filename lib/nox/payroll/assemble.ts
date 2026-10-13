@@ -4,6 +4,8 @@
 // net = pay.net（B: サーバが net の責務）。★extras は gross に内在化され源泉対象＝外側加算は行わない（裁定26）。
 
 import { periodKeyOf } from "./slide"; // ★裁定338（0168）
+import { castPts } from "../pay"; // ★裁定343（0170・便 W5-2b）: daily＋件数基準の dayPts（pay.ts と同じ式）
+import { roundPt1 } from "../money";
 import type {
   PayInput,
   CompPlan,
@@ -54,6 +56,12 @@ export type CastRaw = {
   slidePeriod?: "monthly" | "half";
   slideTotals?: Record<string, { sales: number; pts: number }>;
   slideProvisional?: boolean; // 期の末日が今日より後＝期首〜今日の累計で暫定
+  // ★裁定343（0170・便 W5-2b）: 判定基準と対象（sales・全員のときは collect が格納しない＝従来と同値）。
+  //   slideBasis＝hon_count／dohan_count（monthly／half は slideTotals.sales に件数が入る・daily は slideDailyBasis＝bizDate→件数）。
+  //   slideScope＝対象ランク（非空のときだけ）・excluded＝対象外（collect がプランの段を空にして base のまま・凍結形に印）。
+  slideBasis?: "hon_count" | "dohan_count";
+  slideDailyBasis?: Record<string, number>;
+  slideScope?: { basis: "sales" | "hon_count" | "dohan_count"; rankIds: string[]; castRankId: string | null; excluded: boolean };
   norm: { days: number; dohan: number; salesTarget?: number }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
   employment: "委託" | "雇用" | null; // ★裁定98: casts.employment（null＋sanction 行ありは core が no_employment blocker）
@@ -124,11 +132,20 @@ export function guaranteeInputOf(raw: Pick<CastRaw, "daily" | "guarantees">): Pi
 }
 
 /** ★N3b: 'next' の店の営業日ごとに「その暦月の前月の合計」を写す。'current'／欠損・前月データ無し＝{}（キーを足さない） */
-export function slideInputOf(raw: Pick<CastRaw, "daily" | "slideApply" | "prevMonthTotals" | "slidePeriod" | "slideTotals">): Pick<PayInput, "slideByDay"> {
+export function slideInputOf(raw: Pick<CastRaw, "daily" | "slideApply" | "prevMonthTotals" | "slidePeriod" | "slideTotals"> & Partial<Pick<CastRaw, "slideBasis" | "slideDailyBasis" | "sales" | "hon" | "jonai" | "dohan" | "pointProducts">>): Pick<PayInput, "slideByDay"> {
   // ★裁定338＋追補1（0168・便 P168）: monthly／half＝その営業日が属する期間の累計を全日に載せる（同じ段がその期間の全勤務時間に当たる・pay.ts は不変）
+  //   ★裁定343（0170・便 W5-2b）: 件数基準（hon_count／dohan_count）は collect が slideTotals.sales に件数を入れる＝ここは同じ式（判定値の意味だけ変わる）
   if (raw.slidePeriod === "monthly" || raw.slidePeriod === "half") {
     const byDay: Record<number, { month: string; sales: number; pts: number }> = {};
     for (const d of raw.daily) { const key = periodKeyOf(d.bizDate, raw.slidePeriod); const t = raw.slideTotals?.[key] ?? { sales: 0, pts: 0 }; byDay[dayNum(d.bizDate)] = { month: key, sales: t.sales, pts: t.pts }; }
+    return Object.keys(byDay).length ? { slideByDay: byDay } : {};
+  }
+  // ★裁定343: daily＋件数基準＝その日の件数で段（month＝営業日・pts は pay.ts の dayPts と同じ式＝月の総 pt を日次売上比で按分）。'next' の店は従来（前月売上）を優先しない＝基準が件数なら件数
+  if (raw.slideBasis && raw.slideDailyBasis) {
+    const pts = castPts({ hon: raw.hon ?? 0, jonai: raw.jonai ?? 0, dohan: raw.dohan ?? 0 }, raw.pointProducts ?? 0);
+    const totalSales = raw.daily.reduce((s, d) => s + d.sales, 0) || raw.sales || 1;
+    const byDay: Record<number, { month: string; sales: number; pts: number }> = {};
+    for (const d of raw.daily) byDay[dayNum(d.bizDate)] = { month: d.bizDate, sales: raw.slideDailyBasis[d.bizDate] ?? 0, pts: roundPt1(pts * (d.sales / totalSales)) };
     return Object.keys(byDay).length ? { slideByDay: byDay } : {};
   }
   if (raw.slideApply !== "next") return {};

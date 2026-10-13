@@ -16,7 +16,7 @@ import { adoptedMethodsOf, compSummaryOf } from "@/lib/nox/comp-methods";
 import { AssignTab, useCompData, secTitle, productBackArgsOf, type Plan } from "../comp-sections";
 import PlanEditor from "./plan-editor";
 import NormaBoard from "../norma/norma-board";
-import { slideApplyOf } from "@/lib/nox/payroll/slide"; // ★N3b
+import { slideApplyOf, slideBasisOf, slideBasisPillOf } from "@/lib/nox/payroll/slide"; // ★N3b・★裁定343（0170）: 判定基準・対象ランクの印
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 
@@ -135,6 +135,10 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
                   {sel.is_active ? "有効" : "無効"}
                 </span>
                 <span style={{ fontSize: 12, color: "var(--sub)" }}>適用中 <b className="num" style={{ color: "var(--v2-text)" }}>{headOf(sel.id)}</b>人</span>
+                {/* ★裁定343（0170・便 W5-2b）: 判定基準（件数）と対象ランクの印＝sales・全員なら出さない（従来どおり） */}
+                {slideBasisPillOf(slideBasisOf(sel.slide_basis), sel.slide_rank_ids ?? []) && (
+                  <span className="nox-stpill" style={{ borderColor: "rgba(201, 162, 74, .45)", color: "var(--champ)" }}>{slideBasisPillOf(slideBasisOf(sel.slide_basis), sel.slide_rank_ids ?? [])}</span>
+                )}
               </>
             ) : (
               <span style={{ fontSize: 13, fontWeight: 800, color: "var(--champ)" }}>新規プラン（基本・保証の保存で作成）</span>

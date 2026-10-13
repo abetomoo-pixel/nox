@@ -13,7 +13,7 @@ export type BreakdownPayLike = {
   wage?: number; wHours?: number; timePay?: number;
   payRule?: { rule?: string; guaranteedHours?: number; fixedAmount?: number; calcDays?: number; periodDays?: number; perShiftAmount?: number; shiftCount?: number } | null;
   guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number } | null;
-  slideBasis?: { apply?: string; provisional?: boolean; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] } | null;
+  slideBasis?: { apply?: string; provisional?: boolean; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[]; basis?: string; scope?: { rankIds: string[]; castRankId: string | null; excluded: boolean } } | null; // ★裁定343: basis／scope
   honBack?: number; jonaiBack?: number; dohanBack?: number;
   drinkBack?: number; champBack?: number; bottleBack?: number; calculatedBack?: number; salesBack?: number;
   customTotal?: number; cbacks?: { name?: string; amount?: number }[];
@@ -85,12 +85,20 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
     push("guaBase", `　うち基本（${p.guarantee.baseHours}h）`, z(p.guarantee.basePay), { keepZero: true, sub: true });
     push("guaPay", `　うち保証 ${p.guarantee.spans.map((s) => `${md(s.from)}〜${s.to ? md(s.to) : ""} ${yen(s.base)}`).join("／")}（${p.guarantee.guaHours}h）`, z(p.guarantee.guaPay), { keepZero: true, sub: true });
   }
-  if (p.slideBasis?.months?.length) {
+  // ★裁定343（0170・便 W5-2b）: 判定基準（件数）と対象（ランク）の印。対象外＝1 行「対象外」・daily＋件数＝営業日ごとの行を 1 行に畳む（件数は判定値）
+  const sbBasis = p.slideBasis?.basis;
+  const bLabel = sbBasis === "hon_count" ? "本指名" : sbBasis === "dohan_count" ? "同伴" : null;
+  const bVal = (n: number) => (bLabel ? `${bLabel} ${n} 件` : `売上 ${yen(n)}`);
+  if (p.slideBasis?.scope?.excluded) push("slide-scope", `　スライド＝対象外（このキャストのランクは対象ランクに含まれない＝基本率のまま）`, 0, { keepZero: true, info: true });
+  else if (p.slideBasis?.months?.length && p.slideBasis.apply === "daily" && bLabel) {
+    const ms = p.slideBasis.months;
+    push("slide-daily", `　スライド 日次＝その日の${bLabel}の件数で段（${ms.length} 日・${ms.filter((m) => m.salesWage > 0).length} 日で段あり）${p.slideBasis.scope ? "・対象ランク" : ""}`, Math.max(...ms.map((m) => Math.max(m.salesWage, m.ptsWage))), { keepZero: true, info: true });
+  } else if (p.slideBasis?.months?.length) {
     for (const m of p.slideBasis.months) {
       // ★裁定338＋追補1（0168・便 P168）: monthly／half＝期間の累計（暫定の印）・'next'＝従来の前月表示
       const ap = p.slideBasis.apply;
-      if (ap === "monthly" || ap === "half") push(`slide-${m.month}`, `　スライド ${periodLabelOf(m.month)}＝${ap === "monthly" ? "月" : "半月"}の累計${m.prevMonth !== m.month ? `（${periodLabelOf(m.prevMonth)} 基準）` : ""}${p.slideBasis.provisional ? "・暫定（期首〜今日）" : ""} 売上 ${yen(m.sales)}→時給 ${yen(m.salesWage)}／pt ${m.pts}→${yen(m.ptsWage)}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
-      else push(`slide-${m.month}`, `　スライド ${Number(m.month.slice(5, 7))}月分＝前月（${Number(m.prevMonth.slice(5, 7))}月）売上 ${yen(m.sales)}→時給 ${yen(m.salesWage)}／pt ${m.pts}→${yen(m.ptsWage)}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
+      if (ap === "monthly" || ap === "half") push(`slide-${m.month}`, `　スライド ${periodLabelOf(m.month)}＝${ap === "monthly" ? "月" : "半月"}の累計${m.prevMonth !== m.month ? `（${periodLabelOf(m.prevMonth)} 基準）` : ""}${p.slideBasis.provisional ? "・暫定（期首〜今日）" : ""} ${bVal(m.sales)}→時給 ${yen(m.salesWage)}／pt ${m.pts}→${yen(m.ptsWage)}${p.slideBasis.scope ? "・対象ランク" : ""}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
+      else push(`slide-${m.month}`, `　スライド ${Number(m.month.slice(5, 7))}月分＝前月（${Number(m.prevMonth.slice(5, 7))}月）${bVal(m.sales)}→時給 ${yen(m.salesWage)}／pt ${m.pts}→${yen(m.ptsWage)}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
     }
   }
   push("honBack", "本指名バック", z(p.honBack));
