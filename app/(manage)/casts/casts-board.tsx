@@ -27,6 +27,7 @@ import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定
 import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定309-6・便 V-4）: 日払いの発行（cast 固定・daily_pay_issue・源泉プレビュー）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
+import { isSystemOn } from "@/lib/nox/store-systems"; // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
 import { SHIFT_REQUEST_MODE_LABEL, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: シフト希望の方式のラベルと店の既定
 import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
 import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
@@ -533,6 +534,8 @@ export default function CastsBoard({
   // ★N4-2（裁定282-3）: 保証時給の残りが 7 日以内なら印（純関数・0151 未適用でも cast_plan に保証行が無ければ null）
   const guaBadgeOf = (id: string) => guaranteeBadgeOf(guaranteeStateOf(planRowsOf[id] ?? [], today));
   const selCast = sel?.kind === "cast" ? loginCasts.find((c) => c.id === sel.id) ?? null : null;
+  // ★GV-3（便 N1013b B-8）: 店の制度「ノルマ」の ON/OFF（sys_norms・欠損＝ON）＝今月のノルマの入力口の出し分け
+  const normsOnOf = (sid: string) => isSystemOn(stores.find((st) => st.id === sid)?.settings_json ?? null, "sys_norms");
   // ★裁定300-2: 店の送り方式・ベース額（stores.settings_json＝page が同じクエリで渡す）
   const okuriOf = (sid: string) => { const sj = stores.find((st) => st.id === sid)?.settings_json ?? null; return { mode: sj?.okuri_mode === "actual" ? "actual" : "flat", base: typeof sj?.okuri_base_amount === "number" ? (sj.okuri_base_amount as number) : 0 }; };
   const selTrial = sel?.kind === "trial" ? trials.find((tr) => tr.id === sel.id) ?? null : null;
@@ -838,7 +841,9 @@ export default function CastsBoard({
               </div>
               {/* ★0160（裁定326-3・便 M2-2）: 今月のノルマ（本指名／場内／同伴／売上・月単位＝今月／翌月・空欄＝目標なし）＝set_cast_quota。
                   キャストのマイページに「実績／目標・達成率」で出る（目標が無い項目は出ない）。owner／manager のみ（page.tsx が他ロールを redirect 済み）。 */}
-              <div style={{ marginTop: 12, marginBottom: 12 }}>
+              {/* ★GV-3（便 N1013b B-8）: 店の制度「ノルマ」（sys_norms）が OFF の店は入力口を出さない（/mine のノルマカード・報酬設定のノルマタブと同じ鍵） */}
+              <div style={{ marginTop: 12, marginBottom: 12, display: normsOnOf(selCast.store_id) ? undefined : "none" }}
+                data-norms-off={normsOnOf(selCast.store_id) ? undefined : "1"} aria-hidden={!normsOnOf(selCast.store_id)}>
                 <h3 style={{ ...secTitle, margin: "0 0 6px" }}>今月のノルマ</h3>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
                   <SegSelect value={quotaMonth} onChange={(v) => setQuotaMonth(v)} options={quotaMonthOptionsOf(month)} disabled={quotaBusy} ariaLabel="ノルマの月" />

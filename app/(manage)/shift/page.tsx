@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import ShiftBoard from "./shift-board";
+import { isSystemOn } from "@/lib/nox/store-systems"; // ★GV-3: sys_penalties
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export default async function ShiftPage() {
       })()}
       // ★裁定245-1: キャスト確認の任意化＝settings_json.shift_cast_confirm（boolean・キー無し＝false）。setter は店舗設定 setter mig（別）
       castConfirm={((stores?.[0]?.settings_json ?? {}) as Record<string, unknown>).shift_cast_confirm === true}
+      // ★GV-3（便 N1013b B-8）: 店の制度「精算調整・控除」（sys_penalties）が OFF の店は今日タブの「減額」を出さない（欠損＝ON）
+      penaltiesOn={isSystemOn((stores?.[0]?.settings_json ?? null) as Record<string, unknown> | null, "sys_penalties")}
     />
   );
 }
