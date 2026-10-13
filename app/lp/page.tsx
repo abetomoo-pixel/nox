@@ -3,7 +3,7 @@ import Link from "next/link";
 import fs from "node:fs";
 import path from "node:path";
 import * as t from "@/lib/nox/ui/theme";
-import { DEMO_TERMS } from "@/components/ui/demo-terms";
+import { DEMO_TERMS } from "@/lib/nox/demo/terms"; // ★正本（"use client" の demo-terms.tsx から値は読めない）
 import { DEMO_RESET_TIME_JA, DEMO_STORES, DEMO_STORE_LABEL } from "@/lib/nox/demo/seed";
 
 // ★裁定344（便 N1013b・2026-10-13）: LP＝/lp（Next.js 内の static route・/demo と同じ土台）。

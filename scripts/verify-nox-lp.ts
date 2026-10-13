@@ -21,7 +21,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const lp = src("app/lp/page.tsx");
   check("lp(1-1) force-static・noindex（robots index:false）", lp.includes('export const dynamic = "force-static";') && lp.includes("robots: { index: false, follow: false }"));
   check("lp(1-2) 文言の出所＝DEMO_RESET_TIME_JA／DEMO_STORES／DEMO_STORE_LABEL（seed.ts）・DEMO_TERMS（demo-terms.tsx）を import＝二重化しない",
-    lp.includes('import { DEMO_RESET_TIME_JA, DEMO_STORES, DEMO_STORE_LABEL } from "@/lib/nox/demo/seed";') && lp.includes('import { DEMO_TERMS } from "@/components/ui/demo-terms";')
+    lp.includes('import { DEMO_RESET_TIME_JA, DEMO_STORES, DEMO_STORE_LABEL } from "@/lib/nox/demo/seed";') && lp.includes('import { DEMO_TERMS } from "@/lib/nox/demo/terms";') && src("components/ui/demo-terms.tsx").includes('import { DEMO_TERMS } from "@/lib/nox/demo/terms";\nexport { DEMO_TERMS };')
     && lp.includes("{DEMO_TERMS.map((s) => <li key={s}>{s}</li>)}") && lp.includes("デモは{DEMO_RESET_TIME_JA}に初期化されます") && !/毎日 06:05/.test(lp));
   check("lp(1-3) 6 店カード＝DEMO_STORES.map・「この店で試す」＝/demo?store=<key>&role=owner・主 CTA＝/demo",
     lp.includes("const STORES = DEMO_STORES.map((s) => ({ key: s, ...DEMO_STORE_LABEL[s], video: videoSrcOf(s) }));") && lp.includes("href={`/demo?store=${s.key}&role=owner`}") && lp.includes(">この店で試す</Link>") && lp.includes('<Link href="/demo" style={{ ...t.btnGold'));

@@ -85,8 +85,9 @@ check("dg(3-2) guard.ts はサーバ専用（admin client のみ・use client �
 // (5) ★N5（裁定293-7）: 公開デモの規約
 const demoPage = fs.readFileSync("app/demo/page.tsx", "utf8");
 const demoTerms = fs.readFileSync("components/ui/demo-terms.tsx", "utf8");
-const termsN = (demoTerms.match(/^  "[^"]+",$/gm) || []).length;
-check("dg(5-1) /demo: 規約 5 項（実在人物の個人情報／本番利用禁止／リセット／給与等へ利用しない／不正利用禁止）と「同意する」チェック", termsN === 5 && /実在の人物の個人情報/.test(demoTerms) && /本番の店舗運営には利用しません/.test(demoTerms) && /初期化されます/.test(demoTerms) && /実際の給与・報酬・税務に利用しません/.test(demoTerms) && /不正利用/.test(demoTerms) && /type="checkbox" checked=\{agreed\}/.test(demoTerms) && /上記に同意する/.test(demoTerms), `terms=${termsN}`);
+const termsSrc = fs.readFileSync("lib/nox/demo/terms.ts", "utf8"); // ★裁定344: 規約 5 項の正本は lib（server の /lp も読む）・demo-terms.tsx は再 export
+const termsN = (termsSrc.match(/^  "[^"]+",$/gm) || []).length;
+check("dg(5-1) /demo: 規約 5 項（実在人物の個人情報／本番利用禁止／リセット／給与等へ利用しない／不正利用禁止＝lib/nox/demo/terms.ts）と「同意する」チェック", termsN === 5 && /実在の人物の個人情報/.test(termsSrc) && /本番の店舗運営には利用しません/.test(termsSrc) && /初期化されます/.test(termsSrc) && /実際の給与・報酬・税務に利用しません/.test(termsSrc) && /不正利用/.test(termsSrc) && demoTerms.includes('import { DEMO_TERMS } from "@/lib/nox/demo/terms";') && /type="checkbox" checked=\{agreed\}/.test(demoTerms) && /上記に同意する/.test(demoTerms), `terms=${termsN}`);
 check("dg(5-2) /demo: 未同意は入場ボタン disabled（aria-disabled・onSubmit も止める）・page は DemoEntry を通す・form POST /api/demo/enter は不変", /disabled=\{!agreed\} aria-disabled=\{!agreed\}/.test(demoTerms) && /onSubmit=\{\(e\) => \{ if \(!agreed\) e\.preventDefault\(\); \}\}/.test(demoTerms) && /<DemoEntry biz=\{STORES\} roles=\{ROLES\} kiosk=\{KIOSK\} \/>/.test(demoPage) && /action="\/api\/demo\/enter"/.test(demoTerms) && !/action="\/api\/demo\/enter"/.test(demoPage));
 check("dg(5-3) /demo: noindex 維持（robots index:false・follow:false）・資格情報／リンクを置かない（http は無い）", /robots: \{ index: false, follow: false, nocache: true \}/.test(demoPage) && !/https?:\/\//.test(demoPage) && !/https?:\/\//.test(demoTerms));
 

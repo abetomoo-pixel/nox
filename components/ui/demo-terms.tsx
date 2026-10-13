@@ -7,14 +7,9 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
 
-/** 規約 5 項（裁定293-7＝実在人物の個人情報を入力しない／本番利用禁止／データはリセットされる／計算結果を給与等へ利用しない／不正利用禁止） */
-export const DEMO_TERMS: readonly string[] = [
-  "実在の人物の個人情報（氏名・連絡先・写真など）を入力しません。",
-  "本番の店舗運営には利用しません（デモは体験用です）。",
-  "入力したデータは他の閲覧者にも見え、毎日 06:05 に初期化されます。",
-  "デモの計算結果を実際の給与・報酬・税務に利用しません。",
-  "不正利用（大量の入力・自動化・他者になりすます操作など）を行いません。",
-];
+/** 規約 5 項（裁定293-7）＝正本は lib/nox/demo/terms.ts（server の /lp も同じ 1 本を読む・裁定344）。ここは再 export（既存 import の互換） */
+import { DEMO_TERMS } from "@/lib/nox/demo/terms";
+export { DEMO_TERMS };
 
 export type DemoBiz = { key: string; label: string; desc: string; sub?: string };
 export type DemoRole = { key: string; label: string; desc: string };
