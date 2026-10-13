@@ -51,5 +51,5 @@ export function demoUntilCookieOptions(secure: boolean): { httpOnly: true; secur
 
 /** middleware が期限判定を行わないパス（入場 route 自身・入口ページ・静的） */
 export function isDemoSessionExemptPath(pathname: string): boolean {
-  return pathname === "/demo" || pathname.startsWith("/api/demo/") || pathname.startsWith("/auth/");
+  return pathname === "/demo" || pathname === "/lp" || pathname.startsWith("/api/demo/") || pathname.startsWith("/auth/"); // ★裁定344: /lp（LP＝デモの前室）も期限切れ判定の対象外
 }

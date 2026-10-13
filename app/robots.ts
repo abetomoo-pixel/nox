@@ -5,7 +5,7 @@ import type { MetadataRoute } from "next";
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
-      { userAgent: "*", allow: ["/$", "/demo", "/demo/"], disallow: ["/"] },
+      { userAgent: "*", allow: ["/$", "/demo", "/demo/", "/lp", "/lp/"], disallow: ["/"] }, // ★裁定344: /lp（LP）を allow＝公開までは page の metadata noindex で止める
     ],
   };
 }

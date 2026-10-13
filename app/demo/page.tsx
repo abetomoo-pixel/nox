@@ -32,7 +32,8 @@ export default function DemoPage() {
         {/* ★D2-b（328 追補4）: セッションは入場から 24 時間（cookie nox_demo_until・middleware で区切る）。再入場は何度でも可 */}
         <p style={{ fontSize: 13, color: "var(--v2-muted)", margin: "0 0 12px", lineHeight: 1.7 }}>{DEMO_SESSION_JA}</p>
         <Suspense fallback={null}><DemoExpiredNote /></Suspense>
-        <DemoEntry biz={STORES} roles={ROLES} kiosk={KIOSK} />
+        {/* ★裁定344: DemoEntry は ?store=&role=（LP「この店で試す」）を useSearchParams で読む＝Suspense で包む（page は force-static のまま） */}
+        <Suspense fallback={null}><DemoEntry biz={STORES} roles={ROLES} kiosk={KIOSK} /></Suspense>
         <p style={{ fontSize: 11, color: "var(--v2-muted)", marginTop: 10, lineHeight: 1.7 }}>
           デモ環境では、ご契約（お支払い）・招待・スタッフ作成・メール／パスワードの変更・組織の削除・写真のアップロード・キオスク発行・印刷・外部への送信（LINE／メール）はできません。
         </p>
