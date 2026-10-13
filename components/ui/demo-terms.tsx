@@ -3,8 +3,7 @@
 // ★夜間便 N5（2026-09-24・裁定293-7）: 公開デモの入場前の規約＝5 項＋「同意する」チェック。未同意は入場ボタンを押せない（disabled）。
 //   ★裁定328 追補1（便 D1・2026-10-02）: 店 6 × 役割 4 のボタン＋店ごとの「端末（キオスク）」＝固定端末ユーザー。初期化は毎日 06:05。
 //   client のみ（DB 非依存・route /api/demo/enter は form POST {store, role}・noindex は page の metadata が維持）。資格情報・リンクは置かない。
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
 
 /** 規約 5 項（裁定293-7）＝正本は lib/nox/demo/terms.ts（server の /lp も同じ 1 本を読む・裁定344）。ここは再 export（既存 import の互換） */
@@ -28,8 +27,10 @@ export function demoBizOrderOf(biz: readonly DemoBiz[], initialStore: string | n
 
 export default function DemoEntry({ biz, roles, kiosk }: { biz: readonly DemoBiz[]; roles: readonly DemoRole[]; kiosk?: DemoRole | null }) {
   const [agreed, setAgreed] = useState(false);
-  const sp = useSearchParams(); // ★裁定344: ?store=&role=（page は force-static のまま＝client で読む・Suspense は page 側）
-  const init = demoInitialSelectionOf(biz, roles, sp?.get("store"), sp?.get("role"));
+  // ★裁定344: ?store=&role=（LP「この店で試す」）。page は force-static＝useSearchParams は空を返すため、mount 後に window.location.search を読む（SSR は初期選択なし＝従来の並び）
+  const [q, setQ] = useState<{ store: string | null; role: string | null }>({ store: null, role: null });
+  useEffect(() => { const u = new URLSearchParams(window.location.search); setQ({ store: u.get("store"), role: u.get("role") }); }, []);
+  const init = demoInitialSelectionOf(biz, roles, q.store, q.role);
   const ordered = demoBizOrderOf(biz, init.store);
   const btn = (store: string, r: DemoRole, ghost = false) => {
     const picked = init.store === store && init.role === r.key;

@@ -40,7 +40,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   check("lp(2-3) demoBizOrderOf: 初期選択の店を先頭・他は元の並び・なしは元の並び", demoBizOrderOf(biz, "lily").map((b) => b.key).join(",") === "lily,muse,luna,noir,ace,nest" && demoBizOrderOf(biz, null).map((b) => b.key).join(",") === DEMO_STORES.join(","));
   const dt = src("components/ui/demo-terms.tsx");
   check("lp(2-4) DemoEntry: useSearchParams で ?store=&role=・初期選択の店は data-initial・役割ボタンは data-picked（入場は form POST のまま・同意必須のまま）",
-    dt.includes('const sp = useSearchParams();') && dt.includes('demoInitialSelectionOf(biz, roles, sp?.get("store"), sp?.get("role"))') && dt.includes('data-initial={init.store === b.key ? "1" : undefined}') && dt.includes('data-picked={picked ? "1" : undefined}')
+    dt.includes('useEffect(() => { const u = new URLSearchParams(window.location.search); setQ({ store: u.get("store"), role: u.get("role") }); }, []);') && dt.includes("demoInitialSelectionOf(biz, roles, q.store, q.role)") && !dt.includes("useSearchParams()") && dt.includes('data-initial={init.store === b.key ? "1" : undefined}') && dt.includes('data-picked={picked ? "1" : undefined}')
     && dt.includes('<input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)}') && dt.includes("disabled={!agreed} aria-disabled={!agreed}"));
 }
 
