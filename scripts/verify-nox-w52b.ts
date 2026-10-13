@@ -14,6 +14,7 @@ import { SLIDE_BASIS_LABEL, slideAtLabelOf, slideBasisOf, slideBasisPillOf, slid
 import { slideInputOf } from "../lib/nox/payroll/assemble";
 import { wageDetail, type CompPlan } from "../lib/nox/pay";
 import { breakdownLinesOf } from "../lib/nox/payroll/breakdown-lines";
+import { buildPayloadFromRecording } from "../lib/nox/demo/seed"; // ★uuid[] の写像（sb(5-5)）
 
 let pass = 0;
 const fails: string[] = [];
@@ -82,6 +83,11 @@ const J = (v: unknown) => JSON.stringify(v);
     && pe.includes('supabase.from("cast_ranks").select("id, name").eq("store_id", storeId).eq("is_active", true)') && pe.includes("aria-label={`対象ランク ${r.name}`}") && pe.includes('basis={draft.slideBasis === "sales" ? "yen" : "count"}') && pe.includes("slideBasisPillOf(draft.slideBasis, draft.slideRankIds,")
     && pe.includes('slideBasis: "sales", slideRankIds: [],') && pe.includes("slideBasis: slideBasisOf(p.slide_basis), slideRankIds:") && !pe.includes("準備中（C5）"));
   check("sb(5-4) comp-sections Plan 型に slide_basis／slide_rank_ids・SlideInput basis 'count'・plan-board の印", cs.includes("slide_basis?: string | null; slide_rank_ids?: string[] | null;") && cs.includes('basis?: "yen" | "pt" | "count"') && pb.includes("slideBasisPillOf(slideBasisOf(sel.slide_basis), sel.slide_rank_ids ?? [])"));
+  // ★デモ reset の id 付け替え＝uuid[] 列（slide_rank_ids）も cast_ranks.id と同じ写像（素通しだと reset 後に全員が対象外＝live で検知）
+  const org = "11111111-1111-4111-8111-111111111111", r1 = "22222222-2222-4222-8222-222222222222", r2 = "33333333-3333-4333-8333-333333333333";
+  const built = buildPayloadFromRecording(org, "2026-10-13", { meta: { cutoff: "06:00", store: "noir", users: {} }, tables: { cast_ranks: [{ id: r1, org_id: "x", store_id: "y" }, { id: r2, org_id: "x", store_id: "y" }], comp_plans: [{ id: "44444444-4444-4444-8444-444444444444", org_id: "x", store_id: "y", slide_rank_ids: [r1, r2], sales_slide: [{ at: 3, wage: 4000 }] }] } } as unknown as Parameters<typeof buildPayloadFromRecording>[2]);
+  const bp = built.ok ? built.payload : null;
+  check("sb(5-5) seed.ts: payload の uuid[]（slide_rank_ids）も remapUuid で cast_ranks.id と同じ写像・配列以外（sales_slide の jsonb）は不変", !!bp && JSON.stringify(bp.comp_plans[0].slide_rank_ids) === JSON.stringify(bp.cast_ranks.map((r) => r.id)) && (bp.comp_plans[0].slide_rank_ids as string[])[0] !== r1 && JSON.stringify(bp.comp_plans[0].sales_slide) === JSON.stringify([{ at: 3, wage: 4000 }]), JSON.stringify(bp?.comp_plans?.[0]));
 }
 // op(1) 読取側
 {

@@ -100,6 +100,8 @@ export function buildPayloadFromRecording(orgId: string, bizDate: string, rec: R
       for (const [k, v] of Object.entries(r)) {
         if (k === "org_id") o[k] = orgId;
         else if (typeof v === "string" && UUID_RE.test(v)) o[k] = mapId(v);
+        // ★裁定343（0170・便 W5-2b）: uuid[] 列（comp_plans.slide_rank_ids＝cast_ranks.id の配列）も同じ写像で付け替える（素通しだと reset 後に誰も対象にならない）
+        else if (Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "string" && UUID_RE.test(x))) o[k] = (v as string[]).map((x) => mapId(x));
         else o[k] = v;
       }
       return o;
