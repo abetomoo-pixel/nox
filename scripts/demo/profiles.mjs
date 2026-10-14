@@ -3,7 +3,7 @@
 //   軸: template（331 の 5 種・キャバクラは LUNA／ACE の 2 店で規模違い）／sys（報酬制度の ON/OFF）／back（率％型 3 店・4 段階型 3 店）／price（価格帯の札）／
 //       basis（勤務時間の計算基準）／okuri（送りの基本額 0＝なし）／receivable（売掛）／reopen（締め解除フロー）／confirm（キャスト確認）／shift（必要人数と充足・不足の型）。
 export const PROFILES = {
-  muse: { template: "cabaret", nominations: true, scale: "小（キャスト 5・月 281 伝票・客単価 1.1 万）", sys: { hourly: true, backs: true, norms: true, bonus: false, points: true, sales_slide: true, point_slide: true, sales_rate: true }, // ★348 追補2（便 N1014 B-1／B-4）: 業態キャバクラ・指名 ON（源泉が指名なしのため gen-demo が本指名／場内／同伴を注入＝併用と売上歩合が 9 月で発火） // ★裁定348: 併用（売上段＋pt 段）＋売上歩合（商品バック plan_rate 10%）＋ノルマ 4 軸＋送り実費
+  muse: { template: "cabaret", attributeServing: true, nominations: true, scale: "小（キャスト 5・月 281 伝票・客単価 1.1 万）", sys: { hourly: true, backs: true, norms: true, bonus: false, points: true, sales_slide: true, point_slide: true, sales_rate: true }, // ★348 追補2（便 N1014 B-1／B-4）: 業態キャバクラ・指名 ON（源泉が指名なしのため gen-demo が本指名／場内／同伴を注入＝併用と売上歩合が 9 月で発火） // ★裁定348: 併用（売上段＋pt 段）＋売上歩合（商品バック plan_rate 10%）＋ノルマ 4 軸＋送り実費
     back: "rate", rate: { cast: 30, champ: 20, bottle: 15, glass: 15, soft: 10, food: 10 }, price: "低（セット 5,500・指名なし・シャンパン 8,800〜16,500）",
     basis: "punch", okuri: 1000, okuriMode: "actual", receivable: "disabled", reopen: false, confirm: false, normAxes: ["days", "dohan", "sales", "shimei"], employment: "委託", dailyPay: false, wishMode: "shift",
     showcase: "併用＝売上段と pt 段の高い方（pay.ts max）・売上歩合＝商品バック 10%・ノルマ 4 軸・送り実費",
@@ -23,7 +23,7 @@ export const PROFILES = {
     basis: "punch", okuri: 1000, okuriMode: "actual", receivable: "customer_only", reopen: true, confirm: true, normAxes: ["sales", "shimei"], employment: "委託", dailyPay: false, wishMode: "shift",
     showcase: "月次売上スライド（¥1,295,563→時給 ¥3,500）・指名・商品バック・売上・指名ノルマ・送り実費",
     shift: { base: 4, fri_sat: 5, fill: "short", pattern: [3, 4, 4, 2, 5, 3, 4] } },
-  lily: { template: "girlsbar", scale: "中（キャスト 6・月 594 伝票・客単価 1.0 万）", sys: { hourly: true, backs: true, norms: true, bonus: true, points: false, sales_slide: false }, // ★裁定348: 雇用・確定シフト基準＋達成ボーナス＋日払い＋日数ノルマ＋送り店負担
+  lily: { template: "girlsbar", attributeServing: true, scale: "中（キャスト 6・月 594 伝票・客単価 1.0 万）", sys: { hourly: true, backs: true, norms: true, bonus: true, points: false, sales_slide: false }, // ★裁定348: 雇用・確定シフト基準＋達成ボーナス＋日払い＋日数ノルマ＋送り店負担
     back: "rate", rate: { cast: 25, champ: 20, bottle: 15, glass: 15, soft: 10, food: 0 }, price: "低（チャージ 3,300〜3,850・指名なし・シャンパン 8,800〜22,000）",
     basis: "shift", okuri: 0, okuriMode: null, receivable: "disabled", reopen: false, confirm: false, normAxes: ["days", "sales"], /* ★348 追補2（B-2）: 達成ボーナスの目標＝売上（cast_norms.sales_target）のため sales も採用 */ employment: "雇用", dailyPay: true, wishMode: "shift",
     showcase: "雇用（源泉 0・確定シフト基準）・達成ボーナス 10,000・日払い 2 件（先月）＝明細で天引き・日数ノルマ・送り店負担（控除なし）",

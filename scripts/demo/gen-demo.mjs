@@ -190,7 +190,7 @@ for (const st of STORES) {
         push("shifts", { id: uid(`shift:trial:${c.person_id}:${d}`), store_id: storeId, cast_id: id, date: { $rel: d }, start_hm: "20:00", end_hm: "26:00", status: "confirmed", wish_id: null, created_by: users.manager, created_at: { $rel: d - 1, t: "12:00:00" }, updated_at: { $rel: d - 1, t: "12:00:00" }, source: "manual", period_id: null, override_reason: null });
         push("attendance", { id: uid(`att:trial:${c.person_id}:${d}`), store_id: storeId, cast_id: id, date: { $rel: d }, status: "shukkin", eta: null, reason: null, source: "self", created_at: { $rel: d, t: inT }, updated_at: { $rel: d, t: inT } });
         push("punches", { id: uid(`punch:trial:${c.person_id}:${d}:in`), store_id: storeId, cast_id: id, punched_at: { $rel: d, t: inT }, type: "in", lat: null, lng: null, ip: null, within_geofence: null, source: "self", note: null, created_at: { $rel: d, t: inT }, okuri: null });
-        if (d < 0) push("punches", { id: uid(`punch:trial:${c.person_id}:${d}:out`), store_id: storeId, cast_id: id, punched_at: { $rel: d + 1, t: "02:00:00" }, type: "out", lat: null, lng: null, ip: null, within_geofence: null, source: "self", note: null, created_at: { $rel: d + 1, t: "02:00:00" }, okuri: null });
+        if (d < 0) push("punches", { id: uid(`punch:trial:${c.person_id}:${d}:out`), store_id: storeId, cast_id: id, punched_at: { $rel: d, t: "02:00:00" }, type: "out" /* ★便 N1014 修正: $rel は営業日＝02:00 は同じ営業日の翌暦日に載る（d+1 だと 1 日遅れ＝退勤なしになる） */, lat: null, lng: null, ip: null, within_geofence: null, source: "self", note: null, created_at: { $rel: d + 1, t: "02:00:00" }, okuri: null });
       }
     } else push("cast_plan", { id: uid(`castplan:${c.person_id}`), cast_id: id, store_id: storeId, plan_id: planId, overrides_json: {}, valid_from: { $rel: -400 }, valid_to: null });
     push("cast_tax_profiles", { cast_id: id, store_id: storeId, mode: PF.employment ?? "委託", invoice: "免税", reg_no: null }); // ★裁定348: 雇用は源泉 0（pay.ts withholdingOf）
@@ -287,7 +287,7 @@ for (const st of STORES) {
     const mins = Number(h.opened_at.slice(11, 13)) * 60 + Number(h.opened_at.slice(14, 16));
     const castName = (h.source_assignee_names ?? "").split(/[、,・]/)[0]; const cast = castsSrc.find((c) => c.display_name === castName);
     emitCheck({ key: h.order_id, seatId: uid(`seat:${tables[seq % tables.length].table_id}`), people: h.guests, nomType: "free", customerId: null, dayNum: dayOf(h.business_date), startMin: mins < 360 ? mins + 1440 : mins,
-      lines: [{ kind: "other", name: "飲食代", unit: sol.s, qty: 1, line_total: sol.s, cast_id: cast ? cast.id ?? CAST[cast.person_id].id : null }], noms: [], payments: [{ method: "cash", amount: sol.g }] });
+      lines: [{ kind: "other", name: "飲食代", unit: sol.s, qty: 1, line_total: sol.s, cast_id: cast ? cast.id ?? CAST[cast.person_id].id : null }], noms: PF.attributeServing && cast ? [{ cast_id: cast.id ?? CAST[cast.person_id].id, kind: "free", dohan: false }] : [], payments: [{ method: "cash", amount: sol.g }] });
   }
 
   // ── 先月の生成（日次目標 ±1%・予算配分）──
@@ -425,6 +425,7 @@ for (const st of STORES) {
       const cust = c.custSrc ?? (custPool.length && rand() < 0.35 ? custPool.pop() : null);
       const r = (pi * 37 + day.dNum * 11) % 100;
       const pays = st.receivables_enabled_demo && cust && r >= 95 ? [{ method: "card", amount: Math.floor(total * 0.6) }, { method: "ar", amount: total - Math.floor(total * 0.6) }] : r >= 60 ? [{ method: "card", amount: total }] : [{ method: "cash", amount: total }];
+      if (PF.attributeServing && c.noms.length === 0 && c.serving) c.noms.push({ cast_id: c.serving, kind: "free", dohan: false }); // ★便 N1014 B-1／B-2 修正: 在席（フリー・料金なし）で売上を按分（MUSE さおり の売上段・LILY の達成ボーナス）
       emitCheck({ key: c.key, seatId: c.seatId, people: c.people, nomType: c.nomType, customerId: custId(cust), dayNum: day.dNum, startMin: c.startMin, lines: c.lines, noms: c.noms, payments: pays, backsByCast: c.backs });
     }
     const dayRows = checksByDay[day.dNum] ?? [];
