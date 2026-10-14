@@ -1,7 +1,7 @@
 # ローンチ前ゲート表（2026-10-13・便 G-R・読取のみ・HEAD 6c6f66e＝origin/main）
 
 **結論 3 行**
-1. ゲート 12 項目のうち CC が閉じられるものは 0（client 済みが 6＝#75〜#79・#81 の目視待ち）。残りは Agoora の目視 4（#75〜81・4 role・起票100・Auth 設定 4 点）・相談役の裁定 1（第 2 期一覧の確定）・専門家 3（L3・L6・T10）。**2026-10-13 便 N1013b で更新: 起票97＝第 2 期クローズ・起票98＝実装は第 2 期（Auth 4 点は Agoora ローンチ前）・/lp 実装済み（noindex）・G-3 の 3 点（Stripe／Supabase プラン／PITR）＝Agoora 確認。**
+1. ゲート 12 項目のうち CC が閉じられるものは 0（client 済みが 6＝#75〜#79・#81 の目視待ち）。残りは Agoora の目視 4（#75〜81・4 role・起票100・Auth 設定 4 点）・相談役の裁定 1（第 2 期一覧の確定）・専門家 3（L3・L6・T10）→**2026-10-14 便 N1014 X で 3 件とも回答受領＝裁定349〜351 案（相談役確定待ち）・0172 の要否＝要る（docs/tmp/x_plan.md）**。**2026-10-13 便 N1013b で更新: 起票97＝第 2 期クローズ・起票98＝実装は第 2 期（Auth 4 点は Agoora ローンチ前）・/lp 実装済み（noindex）・G-3 の 3 点（Stripe／Supabase プラン／PITR）＝Agoora 確認。**
 2. 環境は「Vercel Pro（hnd1）・本番ドメイン nox-kappa-eight.vercel.app（カスタムドメインなし）・Supabase は Free と推定（PITR なし・Compute は直接接続上限 60）・Auth はサインアップ無効と確認メール必須まで設定済み・Stripe の env 4 本は本番に入っているか未記録」。値は 1 つも読んでいない。
 3. 第 2 期送りは 24 件を 1 表に束ねた（起票 5＋v43 §4 の 12＋v45 追加 2＋[[nox]] の 5）。起票105 は台帳に存在しない（起票表は 104 まで・次番号 105）。
 
@@ -17,9 +17,9 @@
 | 4 | 起票97 未確定 run の自動計算 | 相談役 | **第 2 期クローズ（2026-10-13 便 N1013b B-4）**＝手動プレビューで足りる・自動計算（core の service 分岐）は第 2 期 | 閉じた（ゲート外） |
 | 5 | 起票98 owner 自身のメール変更 | Agoora（Auth）→CC（第 2 期） | **実装は第 2 期（2026-10-13 便 N1013b B-4）**・Auth 設定 4 点は Agoora がローンチ前（#6） | #6 が閉じればゲート外。実装は第 2 期（update-email.ts 42 行の条件に本人 owner＝client のみ） |
 | 6 | Auth 設定 4 点（Secure email change／サインアップ無効／OTP 期限 5〜10 分／JWT・セッション 24h） | **Agoora（ローンチ前）** | **一部済**＝サインアップ無効は設定済み（public settings で disable_signup true）・確認メール必須（mailer_autoconfirm false）。残り 3 点はダッシュボードでしか読めない＝**Agoora 確認** | Agoora がダッシュボードで 3 点を確認・設定→台帳の 297-5 持越し（AW-5）を閉じる |
-| 7 | L6 利用規約 | 専門家待ち | **未**（293-6 で責任分割の方針は確定・本文なし） | 文言到着→/terms（lp_plan.md L-2・器 60 行）→LP 公開 |
-| 8 | L3 労働者性の注記文言 | 専門家待ち | **未**（C-3 の注記は仮文言で実装済み） | 文言到着→client 1 箇所差替え（pin 1 本） |
-| 9 | T10 日払いの 5,000 円控除・月内複数回の日数・雇用の日額表 | 専門家待ち | **未**（0156 日払いは委託 10.21%・periodDays 式で稼働） | 回答→pay.ts withholdingOf の差替え点（F2 差し替え点に記録済み）→golden 張替え |
+| 7 | L6 利用規約 | CC（雛形）→弁護士確認→相談役（裁定351） | **回答受領 2026-10-14（便 N1014 X-4）**＝雛形先行 OK・本番店舗の開通は規約同意を必須ゲート。雛形 v0.9＝docs/legal/terms_store_v0.9.md（16 条・各条【弁護士確認】）・同意記録 terms_acceptances（org 単位）＋開通ゲート（デモ除外）は 0172 同乗＝裁定351 案 | 相談役が 351 を確定→0172→/terms（lp_plan.md L-2・器 60 行）→弁護士確認→LP 公開 |
+| 8 | L3 労働者性の注記文言 | 相談役（裁定350）→CC | **回答受領 2026-10-14（便 N1014 X-3）**＝文言 2 段確定（本文 1 段＋減額・控除の下の 1 文）。差替え＝lib/nox/cast/pay-rule.ts の NOTE_EMPLOYMENT＋NOTE_LABOR→本文 1 段・報酬調整（契約）の下に 1 文（mig 0・pin 2 本）＝裁定350 案 | 相談役が 350 を確定→client 1 便 |
+| 9 | T10 日払いの 5,000 円控除・月内複数回の日数・雇用の日額表 | 相談役（裁定349）→CC（0172） | **回答受領 2026-10-14（便 N1014 X-2）**＝「日数」は暦日数（現行の periodDays と一致・golden 不変）。欠け＝日払いの settlement（日次精算・1 日分控除）／advance（前払・仮払・控除なし）の区別・雇用の税額表（日額／月額・甲／乙）・店設定（契約区分／精算方式／途中払い）＝0172（daily_pays.kind・cast_tax_profiles 扶養申告書・stores 2 キー）。丙欄＝起票113（第 2 期） | 相談役が 349 を確定→0172 起草→実装便 |
 | 10 | 第 2 期送り一覧 | 相談役 | **確定案あり**（本書 G-4・24 件） | 相談役が番号を確定→台帳「第 2 期」節に収載 |
 | 11 | 録画・LP | CC（Agoora 収録） | **/lp 実装済み（2026-10-13 便 N1013b・裁定344・noindex のまま）**・動画は Agoora 収録後に public/lp/<store>.mp4（無い間はポスター枠）・/terms は L6 待ち | 録画 6 本→L6→robots／metadata の index 開放（公開ゲートの後） |
 | 12 | Stripe 本番キー・Vercel env／Supabase プラン／PITR（G-3 の 3 点） | **Agoora 確認** | **未記録**（Stripe＝コードは STRIPE_SECRET_KEY／STRIPE_WEBHOOK_SECRET／STRIPE_PRICE_NOX_MONTHLY／STRIPE_PRICE_NOX_YEARLY を参照・Vercel に有るか・live か test かは台帳に記録なし／Supabase プラン＝Free 推定（runbook「Pro 確定」と食い違い）／PITR＝SQL で読めない） | Agoora がダッシュボードで 3 点を確認して台帳へ（Stripe は名前の有無と接頭辞 sk_live／sk_test だけ・値は書かない） |
