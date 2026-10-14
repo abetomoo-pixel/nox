@@ -115,6 +115,8 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   対象 **154 不変**・除外 **148→149**・全数 **302→303**（live 実測 2026-10-08＝総数 303・'billing locked' 154・述語参照 155・md5 3 本一致）。
 - ★**mig0164 追随（2026-10-08・裁定331 C 5 項目＋裁定334・334 追補1・便 P163 で収載）**: 新関数 **0本**。改稿 1 本（`set_store_profile`＝白名単 +7 列側＝invoice_registered_on／pay_day／tax_inclusive_display／use_vip／use_counter／payment_methods／punch_methods・型検査・cash は常に true・打刻は 1 つ以上・before/after 監査・owner 限定と課金ゲートは不変）は名前不変で本数不動。stores +7 列（既定付き・CHECK 3 本）は本数非関与。
   md5 控え（同上）: set_store_profile 4f2e9f82→**2e7b4963**・demo_org_reset a4bd6a18。
+- ★**mig0171 追随（2026-10-14・便 N1013b 起草／便 V1014 再起草／本番適用 2026-10-14（時刻は Agoora 記入待ち・Success 表示のみ）・便 DM-1 の f0 で収載）**: 新関数 **2本**＝ゲート内蔵 1 本を A8 へ（`set_store_norm_axes`＝ノルマの採用軸・owner∨manager 自店・課金ゲート・監査）・読取 1 本を B(f) へ（`get_cast_sales_rank`＝売上軸の順位・cast は自分の 1 行だけ・STABLE・非ゲート）。改稿 1 本（`set_comp_plan`＝29 引数・末尾 p_norm_days／dohan／sales／shimei_target default null・25 引数版 drop・名前不変で本数不動）。列 +4（comp_plans.norm_*_target integer null）は本数非関与。
+  md5 控え（先頭 8 桁・live 読取 2026-10-14＝docs/tmp/q1014_p171_q0.mjs）: set_comp_plan 1cddaa0e→**4fa34575**。対象 **157→158**・除外 **149→150**・全数 **306→308**（live 実測 2026-10-14＝総数 308・'billing locked' 158）。
 - ★**mig0169 追随（2026-10-09・便 P168 起草／便 P169 で収載・本番適用 2026-10-13 11:34 JST）**: 新関数 **1本**＝ゲート内蔵を A1 へ（`check_nomination_rate_apply`＝裁定341 場内→本指名の切替記録を消す＝既出のドリンクも本指名の率・owner∨manager 自店・open のみ・課金ゲート・監査）。改稿 2 本（`check_set_nominations`＝場内→本指名の遷移で prev_kind／kind_changed_at を記録・`check_close`＝行の created_at < kind_changed_at なら旧区分で unit4 キーと pt）は名前不変で本数不動・ACL 不変。列 +2（check_nominations.prev_kind text null＋CHECK／kind_changed_at timestamptz null）は本数非関与。
   md5 控え（先頭 8 桁・live 読取 2026-10-13＝docs/tmp/q1013_p0_0169c.mjs）: check_set_nominations 1dbd13ca→**97dd24bb**・check_close 3f4e73b5→**69cf2a19**・check_nomination_rate_apply **84f6f80e**・不触 set_comp_plan 3ebd1624／set_cast_shift_request_mode ee7f7243。
   対象 **156→157**・除外 **149 不変**・全数 **305→306**（live 実測 2026-10-13＝総数 306・'billing locked' 157・述語参照 158・形 157）。
@@ -304,6 +306,8 @@ trial_register / trial_update / trial_hire / trial_reject /
 
 **set_cast_employment**（mig0154＝雇用区分（委託／雇用）の変更＝owner のみ・p_valid_from は給与期の初日（月初）かつ最後に確定した期の翌日以降（'period finalized'）・casts.employment_valid_from・過去分は付け替えない・ゲート内蔵・監査 5 引数・裁定294-9／295-6）
 
+**set_store_norm_axes**（mig0171＝ノルマの採用軸（settings_json.norm_axes＝{days,dohan,sales,shimei} boolean・欠損＝ON）の店設定・owner ∨ manager 自店・4 キー boolean 以外は拒否・ゲート内蔵・監査・GV-2／裁定347 追補1・本番適用 2026-10-14）
+
 ### A11. デバイス（1本）
 kiosk_provision（新規 kiosk の追加＝拡大操作）
 
@@ -398,7 +402,8 @@ billing_writable_of / auth_org_billing_writable / nox_receipt_public /
 **cast_mynumber_discard_status**（mig0156＝マイナンバー廃棄記録（deleted_at／method／登録の有無）の読取のみ＝値は返さない・audit なし・owner／manager 自店／cast 本人・STABLE・起票85／309 追補2 (f)）
 **payroll_attentions_of**（mig0158＝run の要対応（確定後の打刻修正）の一覧・cast 名つき・owner∨manager 自店・STABLE・裁定315） /
 **kiosk_punch_state**（mig0158＝打刻端末が読む店設定 2 キー（送りの方式・送りベース額）・打刻端末の腕のみ・STABLE・裁定319 追補1）
-**notice_mark_read**（mig0160＝cast 本人のお知らせ既読（cast_notice_reads へ冪等 upsert）・自店・audience all|cast のみ・書込は自分の既読行だけ＝非ゲート・裁定326-6／追補1-6）
+**notice_mark_read**（mig0160＝cast 本人のお知らせ既読（cast_notice_reads へ冪等 upsert）・自店・audience all|cast のみ・書込は自分の既読行だけ＝非ゲート・裁定326-6／追補1-6） /
+**get_cast_sales_rank**（mig0171＝売上軸の順位（cast_sales_aggregate＝給与と同じ按分を period_bounds の月で合算）・owner∨manager 自店＝全員・cast＝自分の 1 行だけ（他人の金額・順位は返さない）・staff は forbidden・STABLE・起票112／裁定346 追補1・本番適用 2026-10-14）
 
 ### B(g) 印刷（1本・「出せる」原則の明文）
 print_enqueue[K]
