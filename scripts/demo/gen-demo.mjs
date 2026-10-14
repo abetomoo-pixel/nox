@@ -98,7 +98,7 @@ for (const st of STORES) {
   for (const key of ["staff_shift", "reopen_flow"]) push("feature_flags", { id: uid(`flag:${code}:${key}`), store_id: null, key, enabled: key === "reopen_flow" ? !!PF.reopen : true, updated_by: null }); // ★X-13c: 締め解除フローは店で差
   push("stores", {
     id: storeId, name: st.store_name, short: st.store_code, open_time: openHm,
-    settings_json: { biz_type: ({ MUSE: "snack", LUNA: "cabaret", NOIR: "cabaret", ACE: "cabaret", LILY: "girlsbar", NEST: "bar" })[st.store_code], biz_cutoff_hm: "06:00", setup_done: true, billing_mode: "table",
+    settings_json: { biz_type: ({ MUSE: "cabaret", LUNA: "cabaret", NOIR: "lounge", ACE: "cabaret", LILY: "girlsbar", NEST: "snack" })[st.store_code] /* ★便 N1014 B-4: 業態＝store_profiles §3c（MUSE キャバクラ・NOIR ラウンジ・NEST スナック） */, norm_axes: { days: PF.normAxes.includes("days"), dohan: PF.normAxes.includes("dohan"), sales: PF.normAxes.includes("sales"), shimei: PF.normAxes.includes("shimei") } /* ★便 N1014 live 修正: 採用軸（0171 set_store_norm_axes の形）＝P171 の D-3 が payload に落ちていなかった（live は null＝全 ON） */, biz_cutoff_hm: "06:00", setup_done: true, billing_mode: "table",
       ...sysSettingsOf(code), pay_time_basis: PF.basis, shift_cast_confirm: PF.confirm, // ★X-13c: 報酬制度の ON/OFF・勤務時間の計算基準・キャスト確認＝プロファイル
       slide_apply: "current", receipt_address: "東京都新宿区歌舞伎町 1-1-1（デモ）", receipt_tel: "03-0000-0000", receipt_footer: "飲食代", okuri_base_amount: PF.okuri, /* ★X-13c: 送り（0＝なし） */ ...(PF.okuriMode ? { okuri_mode: PF.okuriMode } : {}), /* ★裁定348: 送りの方式 flat／actual（0158・無しはキー無し） */
       payslip_visibility: "detail", reservation_request: "on", drink_claim: "on", ranking: "on", shift_request_mode: PF.wishMode ?? "shift" /* ★裁定348: NEST＝休み希望のみ */ },
