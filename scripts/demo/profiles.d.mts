@@ -17,3 +17,6 @@ export const EXTRA_PLANS: Record<string, { key: string; name: string; base: numb
 export function sysSettingsOf(code: string): Record<string, boolean>;
 export function backKeyOf(row: { type?: string; category?: string | null }): "champ" | "bottle" | "food" | "cast" | "soft" | "glass";
 export function backOf(code: string, row: { type?: string; category?: string | null; price?: number }, i: number): { back_mode: "rate" | "unit4"; back_value: number | null; unit4_json: Record<string, number> | null };
+
+/** ★裁定348 追補1（便 DM-1 D-2b）: 体験入店＝基本時給・保証額・保証期間（R からの相対日）・割当キャスト名 */
+export declare const TRIAL: Record<string, { base: number; gua: number; from: number; to: number; cast: string }>;

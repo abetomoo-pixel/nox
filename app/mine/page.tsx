@@ -110,6 +110,12 @@ export default async function MinePage() {
     .order("period", { ascending: false })
     .limit(6);
   // breakdown_json の解釈と1件描画は共有 PayslipSlip へ移設（D2＝表示の移設のみ・数値ロジック非改変）。
+  // ★裁定348 追補1（便 DM-1 D-2b）: 期限付き保証時給の印＝今日を含む cast_plan 行（自分の行＝RLS）の overrides_json.guarantee が true なら「保証時給（〜MM/DD）¥X」。期限切れは何も出さない（基本時給に戻る）
+  const { data: guaRows } = meCast
+    ? await supabase.from("cast_plan").select("overrides_json, valid_from, valid_to").eq("cast_id", meCast.id as string).lte("valid_from", bizToday).or(`valid_to.is.null,valid_to.gte.${bizToday}`).limit(3)
+    : { data: null };
+  const guaRow = ((guaRows ?? []) as { overrides_json: Record<string, unknown> | null; valid_from: string; valid_to: string | null }[]).find((r) => r.overrides_json?.guarantee === true && typeof r.overrides_json?.base === "number");
+  const guaLabel = guaRow ? `保証時給（〜${guaRow.valid_to ? guaRow.valid_to.slice(5).replace("-", "/") : ""}）${yen(guaRow.overrides_json!.base as number)}` : null;
 
   // 段M2: 所属店（ヘッダ表示用）。cast の可視 store は自店のみ（RLS）＝先頭行が自店（/mine/ranking と同型）。
   const { data: myStores } = await supabase.from("stores").select("id, name, settings_json, punch_methods").limit(1); // ★裁定269: sys_* は既存の自店読取に列を足すだけ・★0164（便 W5-2b）: punch_methods（本人打刻の出し分け）
@@ -225,6 +231,11 @@ export default async function MinePage() {
 
       {/* 印刷隔離の対象マーカーは維持（器だけ差し替え・明細スリップ部品は非改変）
           ★裁定326-1（便 M2-1／M2-4）: payslip_visibility 'off'＝カードごと出さない（PDF ボタンも無し）／'net_only'＝期ヘッダー＋手取り 1 行（compact・PDF は同じ DOM）／'detail'＝現状 */}
+      {guaLabel && (/* ★裁定348 追補1: 期限付き保証時給の印（期間中だけ） */
+        <p style={{ fontSize: 12.5, margin: "0 0 10px" }} data-guarantee="1">
+          <span className="nox-stpill ok">{guaLabel}</span><span style={{ color: "var(--sub)", marginLeft: 8 }}>期間中は時給の下限がこの額になります（期限後は基本時給）</span>
+        </p>
+      )}
       {ms.payslip_visibility !== "off" && (
       <section className="nox-panel nox-print">
         <h3>
