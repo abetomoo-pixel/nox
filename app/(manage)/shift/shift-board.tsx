@@ -959,7 +959,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     if (!storeId || !okuriActual) return;
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("transport").select("cast_id").eq("store_id", storeId).eq("date", todayDate).neq("status", "cancelled");
+      const { data } = await supabase.from("transport").select("cast_id").eq("store_id", storeId).eq("biz_date", todayDate).neq("status", "cancelled"); // ★便 N1014 live 修正: 列は biz_date（date は無い＝クエリが黙って空→「送り済」が出なかった）
       if (alive) setOkuriIssued(new Set(((data ?? []) as { cast_id: string }[]).map((r) => r.cast_id)));
     })();
     return () => { alive = false; };
