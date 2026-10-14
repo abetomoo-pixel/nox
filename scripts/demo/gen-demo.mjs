@@ -77,6 +77,7 @@ for (const st of STORES) {
   const orgId = uid(`org:${code}`), storeId = uid(`store:${S}`);
   const users = { owner: uid(`user:${code}:owner`), manager: uid(`user:${code}:manager`), staff: uid(`user:${code}:staff`), cast: uid(`user:${code}:cast`), kiosk: uid(`auth:${code}:kiosk`) };
   const T = {}; const push = (t, row) => { (T[t] ??= []).push({ org_id: orgId, ...row }); return row; };
+  const trialIds = new Set(); // ★便 N1014: 体験入店の出勤行（重複時に落とす側）
   const tax = { service_rate: st.service_bps / 100, round_unit: 1, round_mode: "down", business_tax_status: "taxable", price_display: "tax_excluded", tax_rounding: "floor" };
   const due = (lines) => groupDueFull(lines.map((l) => ({ line_total: l.line_total, kind: l.kind, tax_category: "taxable_10" })), tax);
 
@@ -185,6 +186,7 @@ for (const st of STORES) {
       // ★348 追補2（便 N1014 B-3）: 10 月の出勤＝保証期間内 2 日（NEST は期限切れ前 2 日）＋期間外 1 日（基本時給の行が並ぶ）。過去日は in/out 両方・R 当日は in のみ（当日は on_duty と同じ扱い）
       for (const d of (TR.from < 0 ? [TR.from, TR.from + 1, TR.to + 1] : [TR.from - 1, TR.from, TR.from + 1]).filter((x) => x <= 0)) {
         const inT = "20:00:00", outT = "26:00:00";
+        trialIds.add(uid(`shift:trial:${c.person_id}:${d}`)); trialIds.add(uid(`att:trial:${c.person_id}:${d}`)); trialIds.add(uid(`punch:trial:${c.person_id}:${d}:in`)); trialIds.add(uid(`punch:trial:${c.person_id}:${d}:out`));
         push("shifts", { id: uid(`shift:trial:${c.person_id}:${d}`), store_id: storeId, cast_id: id, date: { $rel: d }, start_hm: "20:00", end_hm: "26:00", status: "confirmed", wish_id: null, created_by: users.manager, created_at: { $rel: d - 1, t: "12:00:00" }, updated_at: { $rel: d - 1, t: "12:00:00" }, source: "manual", period_id: null, override_reason: null });
         push("attendance", { id: uid(`att:trial:${c.person_id}:${d}`), store_id: storeId, cast_id: id, date: { $rel: d }, status: "shukkin", eta: null, reason: null, source: "self", created_at: { $rel: d, t: inT }, updated_at: { $rel: d, t: inT } });
         push("punches", { id: uid(`punch:trial:${c.person_id}:${d}:in`), store_id: storeId, cast_id: id, punched_at: { $rel: d, t: inT }, type: "in", lat: null, lng: null, ip: null, within_geofence: null, source: "self", note: null, created_at: { $rel: d, t: inT }, okuri: null });
@@ -521,6 +523,18 @@ for (const st of STORES) {
   }
   for (const t of Object.keys(T)) T[t] = completeRows(t, T[t], (r) => r.id ?? `${r.cast_id ?? ""}:${r.product_id ?? ""}:${r.store_id ?? ""}`);
   const meta = { cutoff: "06:00", store: code, users, generated_at: "2026-10-02", source: "docs/demo/source/20261001/nox_demo_all.json", notes: ["先月＝{$m:-1,d}（R の前月）", "当日＝{$rel:0,t}", "payroll は投入しない（D2 の正規経路）", "X-13c: プロファイル＝scripts/demo/profiles.mjs（表＝docs/demo/store_profiles_20261009.md）・全ドリンクバック・必要人数＋14 日分シフト"] };
+  // ★便 N1014 B-3 修正: 体験入店の 10 月出勤（trial 行）は元データの同日行と重複しうる（shifts／attendance＝unique(cast_id,date)・punches＝同時刻）→ unique 違反で demo_org_reset の最終 chunk が失敗（19:30 の reset で MUSE／LUNA／ACE／LILY が "reset failed"）。元データの行を正とし trial 行を落とす
+  {
+    const keyOf = { shifts: (r) => `${r.cast_id}|${JSON.stringify(r.date)}`, attendance: (r) => `${r.cast_id}|${JSON.stringify(r.date)}`, punches: (r) => `${r.cast_id}|${r.type}|${JSON.stringify(r.punched_at)}` };
+    for (const [tb, kf] of Object.entries(keyOf)) {
+      const rows = T[tb] ?? []; const isTrial = (r) => /^(shift|att|punch):trial:/.test(String(r.__key ?? ""));
+      const base = new Set(rows.filter((r) => !trialIds.has(r.id)).map(kf));
+      const before = rows.length;
+      T[tb] = rows.filter((r) => !trialIds.has(r.id) || !base.has(kf(r)));
+      if (T[tb].length !== before) report.trialDedup = { ...(report.trialDedup ?? {}), [`${code}.${tb}`]: before - T[tb].length };
+      void isTrial;
+    }
+  }
   const payload = { meta, tables: T };
   const json = JSON.stringify(payload);
   fs.writeFileSync(path.join(OUT_DIR, `${code}.json`), JSON.stringify(payload, null, 0) + "\n");

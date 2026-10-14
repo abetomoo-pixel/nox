@@ -1,8 +1,8 @@
 {
  "stores": {
   "muse": {
-   "bytes": 1219609,
-   "rows": 2138,
+   "bytes": 1218787,
+   "rows": 2136,
    "tables": 40,
    "checks": 281,
    "lines": 728,
@@ -120,11 +120,11 @@
      ]
     }
    ],
-   "sha256": "532d1f65ce598f6ff2d0db1a35c959b9f82bb59319d8358c8209184270c7a769"
+   "sha256": "1286faee12bbb43a530ebaf5051ecc24e29593404e38b974f638db2e7a47b667"
   },
   "luna": {
-   "bytes": 1884937,
-   "rows": 3266,
+   "bytes": 1884115,
+   "rows": 3264,
    "tables": 39,
    "checks": 462,
    "lines": 1322,
@@ -277,7 +277,7 @@
      ]
     }
    ],
-   "sha256": "fd352db6af93675529ef75b25d899a45d3caf97257e539dc760e15fb35cc8db2"
+   "sha256": "65470cd0a4ef342ff945c1b708024832633649e812738d0d676a60f2a9da6814"
   },
   "noir": {
    "bytes": 2062249,
@@ -503,8 +503,8 @@
    "sha256": "8522b2db5c065e8130e589a1e1c59a2f312a5c8bfc7352933339479157c47707"
   },
   "ace": {
-   "bytes": 1936602,
-   "rows": 3365,
+   "bytes": 1936129,
+   "rows": 3364,
    "tables": 41,
    "checks": 485,
    "lines": 1448,
@@ -657,11 +657,11 @@
      ]
     }
    ],
-   "sha256": "795c4f3668f0bcb5fd84747ec0fd3e6fc069f4f30a78317feddfe4a6f43db3fc"
+   "sha256": "879645a66087b9b43487d761acd70ff558bc92f4d9f7d48b06ad047cb7f45b83"
   },
   "lily": {
-   "bytes": 2609786,
-   "rows": 4481,
+   "bytes": 2609313,
+   "rows": 4480,
    "tables": 39,
    "checks": 594,
    "lines": 1935,
@@ -794,7 +794,7 @@
      ]
     }
    ],
-   "sha256": "420f790086eaa0d0bab195f1033705a10d34c1d5f6512922d6bdf9617f53b478"
+   "sha256": "492372615afd6e58dadeb8fbf2379b85f1e608d7cc0ac3028650fa9177e61b14"
   },
   "nest": {
    "bytes": 2848179,
@@ -924,5 +924,13 @@
    "sha256": "14b73c7a4a22332dbf7708d59c5d9e58e4bdf8d549f2e709e8f77aa8d014f931"
   }
  },
- "ids": 0
+ "ids": 0,
+ "trialDedup": {
+  "muse.shifts": 1,
+  "muse.attendance": 1,
+  "luna.shifts": 1,
+  "luna.attendance": 1,
+  "ace.shifts": 1,
+  "lily.shifts": 1
+ }
 }
