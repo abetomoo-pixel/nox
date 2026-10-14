@@ -7,9 +7,9 @@
 //   店の sys_norms OFF は /mine 側の isSectionOn("mineNormCard") で本カードごと非マウント（裁定269-4・据え置き）。
 import { useEffect, useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
-import { QUOTA_EMPTY_NOTE, QUOTA_PROGRESS_NOTE, quotaAxesOf, quotaFmt, type Quota, type QuotaActual } from "@/lib/nox/mine/quota";
+import { QUOTA_EMPTY_NOTE, QUOTA_PROGRESS_NOTE, cardAxesOf, cardFmt, type CardActual, type CardQuota } from "@/lib/nox/mine/quota"; // ★裁定347 追補2（便 N1014 A-4）: 採用軸すべて（出勤日数を含む）＝cardAxesOf（quotaAxesOf と同じ規則）
 
-type NormProgress = { period: string; quota: Partial<Quota> | null; actual: QuotaActual };
+type NormProgress = { period: string; quota: CardQuota | null; actual: CardActual };
 
 export default function NormCard() {
   const [data, setData] = useState<NormProgress | null>(null);
@@ -24,7 +24,7 @@ export default function NormCard() {
   }, []);
 
   if (!data) return null; // 読込中/取得失敗はカードごと出さない（進捗は補助情報）
-  const axes = quotaAxesOf(data.quota, data.actual);
+  const axes = cardAxesOf(data.quota, data.actual); // ★裁定347 追補2: days を含む採用軸
 
   return (
     <section className="nox-panel">
@@ -35,7 +35,7 @@ export default function NormCard() {
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 13 }}>
             <span style={{ fontWeight: 700 }}>{a.label}</span>
             <span style={{ ...t.num, marginLeft: "auto" }}>
-              {quotaFmt(a.key, a.actual)} <span style={{ color: "var(--sub)" }}>/ {quotaFmt(a.key, a.target)}</span>
+              {cardFmt(a.key, a.actual)} <span style={{ color: "var(--sub)" }}>/ {cardFmt(a.key, a.target)}</span>
               <span style={{ marginLeft: 8, fontWeight: 700, color: a.done ? "var(--gold)" : "var(--ink)" }}>{a.rate}%</span>
             </span>
             {a.done && (

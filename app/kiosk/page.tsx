@@ -199,7 +199,7 @@ export default function KioskPage() {
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 16px" }}>
               名前を選んでください
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+            <div className="nox-kioskgrid" data-kiosk-grid="1">{/* ★GV-4（便 N1014 A-3）: 名前タイル＝≥900px 4 列・600〜899 3 列・それ未満 2 列（globals.css） */}
               {casts.map((c) => (
                 <button key={c.cast_id} onClick={() => pick(c)} disabled={!c.has_pin}
                   style={{ ...bigBtn, opacity: c.has_pin ? 1 : 0.35, cursor: c.has_pin ? "pointer" : "not-allowed" }}>

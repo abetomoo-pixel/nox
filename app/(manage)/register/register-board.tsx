@@ -887,6 +887,7 @@ export default function RegisterBoard({
     setOpenPeople("");
     setOpenRuleSel(""); // R2-a: 卓を替えたら常に「自動」へ戻す（前回選択の持ち越し事故防止）
     setOpenCatSel(openCats[0]?.id ?? ""); // ★116-UI（D2）: 既定=sort 最小の active 区分（0件は ""=無送信）
+    setOpenPeople("1"); // ★裁定352: ステッパーの既定 1
     setOpenSeatTarget(seat);
   }
 
@@ -1656,57 +1657,65 @@ export default function RegisterBoard({
           明示確定にする（誤タップ開栓の防止）。人数は任意＝空欄なら従来どおり null 送信
           （time_per='person' の店は人数倍に効くため入力を促す注記を出す）。 */}
       {openSeatTarget && (
-        <Modal onClose={() => { if (!openBusy) setOpenSeatTarget(null); }}>
-          <h3 style={{ ...t.cardTitle, margin: "0 0 6px" }}>{openSeatTarget.name} を開卓</h3>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
+        <Modal onClose={() => { if (!openBusy) setOpenSeatTarget(null); }} maxWidth={560}>{/* ★裁定352 改訂（便 N1014 A-1）: BANZEN 形＝中央寄せ・幅 80%（上限 560px・globals.css :has）・文字と余白 1.5 倍 */}
+          <div data-open-seat-modal="1" style={{ padding: "6px 4px 2px" }}>
+          <h3 style={{ ...t.cardTitle, fontSize: 21, margin: "0 0 10px" }}>{openSeatTarget.name} を開卓</h3>{/* ★裁定352: 見出し「<卓名> を開卓」 */}
+          <p style={{ fontSize: 15, color: "var(--sub)", margin: "0 0 20px", lineHeight: 1.75 }}>
             開卓するとセット時間が始まり、伝票が作成されます（セット料金は明細に自動で入ります）。
           </p>
-          <label style={{ ...t.fieldLabel, display: "block", marginBottom: 14 }}>
-            人数（任意・空欄可）
-            <input
-              type="number" min={1} value={openPeople} placeholder="例: 2"
-              onChange={(e) => setOpenPeople(e.target.value)}
-              style={{ ...t.input, width: 110, display: "block", marginTop: 5 }}
-            />
-          </label>
+          {/* ★裁定352: 人数＝−／＋ステッパー（既定 1・下限 1・上限＝卓の定員があればそれ・無ければ 20）・直接入力なし。送る RPC（check_open・p_people）は不変 */}
+          {(() => { const cap = (openSeatTarget as { capacity?: number | null }).capacity; const max = typeof cap === "number" && cap > 0 ? cap : 20; const n = Math.max(1, Number(openPeople) || 1); return (
+          <div style={{ marginBottom: 22 }} data-people-stepper="1" data-people-max={max}>
+            <span style={{ ...t.fieldLabel, fontSize: 15, display: "block", marginBottom: 10 }}>人数</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18 }}>
+              <button type="button" aria-label="人数を減らす" disabled={openBusy || n <= 1} onClick={() => setOpenPeople(String(Math.max(1, n - 1)))}
+                style={{ ...btnLight, width: 72, height: 60, fontSize: 30, fontWeight: 800, padding: 0, opacity: n <= 1 ? 0.4 : 1 }}>−</button>
+              <span className="num" aria-live="polite" style={{ minWidth: 96, textAlign: "center", fontSize: 40, fontWeight: 800 }}>{n}<span style={{ fontSize: 18, fontWeight: 600, marginLeft: 6 }}>名</span></span>
+              <button type="button" aria-label="人数を増やす" disabled={openBusy || n >= max} onClick={() => setOpenPeople(String(Math.min(max, n + 1)))}
+                style={{ ...btnLight, width: 72, height: 60, fontSize: 30, fontWeight: 800, padding: 0, opacity: n >= max ? 0.4 : 1 }}>＋</button>
+            </div>
+          </div>
+          ); })()}
           {/* ★116-UI（D2・設計ロック §2）: 料金区分セレクタ。active 1件以上の店のみ表示・既定=sort 最小・
               「指定なし」なし。区分は開栓時に凍結（mig0128）＝あとから変更不可。 */}
           {openCats.length >= 1 && (
-            <label style={{ ...t.fieldLabel, display: "block", marginBottom: 14 }}>
+            <label style={{ ...t.fieldLabel, fontSize: 15, display: "block", marginBottom: 20 }}>
               料金区分
               <select
                 value={openCatSel} onChange={(e) => setOpenCatSel(e.target.value)}
-                style={{ ...t.input, width: "100%", maxWidth: 280, display: "block", marginTop: 5 }}
+                style={{ ...t.input, fontSize: 15, width: "100%", maxWidth: 360, display: "block", marginTop: 8 }}
               >
                 {openCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              <span style={{ fontSize: 10.5, color: "var(--v2-muted)", display: "block", marginTop: 3 }}>
+              <span style={{ fontSize: 13, color: "var(--v2-muted)", display: "block", marginTop: 5 }}>
                 区分は開栓時に確定します。あとから変更はできません（変更は会計取消→再開卓）。
               </span>
             </label>
           )}
-          {/* R2-a（mig0098 R2-5）: 開卓時ルール選択（owner/manager・有効 set ルール2件以上の店のみ表示＝
-              0〜1件は現行と同じ見た目）。選び直しは不可（void→再開卓）＝RPC 側の裁定どおり。 */}
+          {/* R2-a（mig0098 R2-5）: 開卓時ルール選択（owner/manager・有効 set ルール2件以上の店のみ表示＝0〜1件は非表示）。選び直しは不可（void→再開卓）＝RPC 側の裁定どおり。
+              ★裁定352 改訂: プルダウン廃止→横並びのセグメント（自動／各ルール名・選択中は金塗り・既定は自動） */}
           {isManagerUp && setRules.length >= 2 && (
-            <label style={{ ...t.fieldLabel, display: "block", marginBottom: 14 }}>
-              セット料金ルール
-              <select
-                value={openRuleSel} onChange={(e) => setOpenRuleSel(e.target.value)}
-                style={{ ...t.input, width: "100%", maxWidth: 280, display: "block", marginTop: 5 }}
-              >
-                <option value="">自動（優先順位で決定）</option>
-                {setRules.map((r) => <option key={r.id} value={r.id}>{setRuleLabel(r)}</option>)}
-              </select>
-              <span style={{ fontSize: 10.5, color: "var(--v2-muted)", display: "block", marginTop: 3 }}>
+            <div style={{ marginBottom: 20 }} data-rule-seg="1">
+              <span style={{ ...t.fieldLabel, fontSize: 15, display: "block", marginBottom: 10 }}>セット料金ルール</span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[{ id: "", label: "自動" }, ...setRules.map((r) => ({ id: r.id, label: setRuleLabel(r) }))].map((o) => (
+                  <button key={o.id || "auto"} type="button" disabled={openBusy} onClick={() => setOpenRuleSel(o.id)} aria-pressed={openRuleSel === o.id}
+                    style={{ ...(openRuleSel === o.id ? t.btnGold : btnLight), minHeight: 44, padding: "8px 16px", fontSize: 15, fontWeight: 800 }}>{o.label}</button>
+                ))}
+              </div>
+              <span style={{ fontSize: 13, color: "var(--v2-muted)", display: "block", marginTop: 6 }}>
                 開卓後の変更はできません（選び直しは会計取消→再開卓）。
               </span>
-            </label>
+            </div>
           )}
-          <div className="nox-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button style={btnLight} disabled={openBusy} onClick={() => setOpenSeatTarget(null)}>やめる</button>
+          {/* ★裁定352 改訂: 主ボタン「開卓（セット開始）」を中央に大きく 1 つ（幅 100%・高さ 56px）。「予約を入れる」「やめる」はその下に小さく横並び（相席・予約の導線は不変） */}
+          <button style={{ ...t.btnGold, width: "100%", minHeight: 56, fontSize: 18, fontWeight: 800 }} disabled={openBusy} onClick={() => void confirmOpenSeat()} data-open-seat="1">
+            開卓（セット開始）
+          </button>
+          <div className="nox-actions" style={{ display: "flex", gap: 18, justifyContent: "center", alignItems: "center", marginTop: 12 }}>
             {/* E8-1 ⑥: 卓起点予約＝この卓をプリフィルして予約タブへ（reserve タブが出せるロールのみ） */}
             {showReserve && (
-              <button style={btnLight} disabled={openBusy}
+              <button type="button" className="nox-link" style={{ background: "none", border: 0, fontSize: 13, cursor: "pointer" }} disabled={openBusy}
                 onClick={() => {
                   setReservePrefillSeat(openSeatTarget.id);
                   setOpenSeatTarget(null);
@@ -1715,9 +1724,9 @@ export default function RegisterBoard({
                 予約を入れる
               </button>
             )}
-            <button style={{ ...t.btnGold, fontWeight: 800 }} disabled={openBusy} onClick={() => void confirmOpenSeat()}>
-              開卓（セット開始）
-            </button>
+            <button type="button" className="nox-link" style={{ background: "none", border: 0, fontSize: 13, cursor: "pointer", color: "var(--sub)" }} disabled={openBusy}
+              onClick={() => setOpenSeatTarget(null)} data-open-cancel="1">やめる</button>
+          </div>
           </div>
         </Modal>
       )}

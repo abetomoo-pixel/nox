@@ -62,7 +62,7 @@ export type CastRaw = {
   slideBasis?: "hon_count" | "dohan_count";
   slideDailyBasis?: Record<string, number>;
   slideScope?: { basis: "sales" | "hon_count" | "dohan_count"; rankIds: string[]; castRankId: string | null; excluded: boolean };
-  norm: { days: number; dohan: number; salesTarget?: number }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）
+  norm: { days: number; dohan: number; salesTarget?: number; salesTargetSource?: "override" | "plan" | null }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）・★裁定347 追補2（便 N1014 A-4）: 出所（個別／プラン既定）＝core が凍結形へ
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
   employment: "委託" | "雇用" | null; // ★裁定98: casts.employment（null＋sanction 行ありは core が no_employment blocker）
   avgDailyWage: number | null; // ★裁定98-C: 平均賃金（直近3確定期）。null=payOf の暫定式

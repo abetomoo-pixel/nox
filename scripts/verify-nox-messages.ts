@@ -157,7 +157,7 @@ check("ms(2-11) 裁定317: okuriDefaultAmountOf の順・okuriAmountOf・文言�
   && /金額を入力してください/.test(okuriDefaultNoteOf({ amount: null, source: null })) && /店の送りベース額/.test(okuriDefaultNoteOf({ amount: 1, source: "store" })) && /前回の送り額/.test(okuriDefaultNoteOf({ amount: 1, source: "last" }))
   && messageKindOf("A の退勤は記録しました。送りの発行に失敗したため、送りは未発行です（x）。日報の締めの前に発行できます") === "error" && messageKindOf("A の退勤を記録し、送り ¥1,500 を発行しました") === "success"
   && shiftSrc.includes('p_type: "out", p_note: null, p_okuri: true') && shiftSrc.includes("p_idem_key: punchId as string") && shiftSrc.includes("<OkuriOutDialog") && !shiftSrc.includes("setOkuriMark")
-  && shiftSrc.indexOf('p_okuri: true') < shiftSrc.indexOf('rpc("transport_issue_bulk"')
+  && shiftSrc.indexOf('p_okuri: true') < shiftSrc.lastIndexOf('rpc("transport_issue_bulk"') /* ★裁定357（便 N1014 A-6）: 退勤後の単独発行（issueOnly）は先に置かれるため最後の発行呼び出しで順を見る */
   && okuriDlgSrc.includes("確定して退勤") && reportSrc2.includes("発行済み {okuriIssued.n} 件・合計") && reportSrc2.includes("確認して締める"));
 
 // ★裁定318 追補（2026-09-29・便 X-10-3）: 入力マスク（数字のみ・最大 4 桁・2 桁で ':'・5 桁目無視・貼り付けも同形・全角）と範囲外のその場判定・送信非活性

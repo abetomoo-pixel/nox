@@ -2381,3 +2381,11 @@ body {
 /* ★裁定326 追補3（便 M3-1・2026-10-01）: /mine 打刻カードの不活性ボタン＝cursor not-allowed・hover で色が変わらない（出勤／退勤＝.nox-punchbtn・送りトグル＝.nox-punchseg） */
 .nox-punchbtn:disabled, .nox-punchseg button:disabled { cursor: not-allowed; }
 .nox-punchbtn:disabled:hover, .nox-punchseg button:disabled:hover { filter: none; background: inherit; color: inherit; border-color: inherit; }
+
+/* ★GV-4（便 N1014 A-3）: /kiosk の名前タイル＝グリッド（≥900px 4 列・600〜899 3 列・それ未満 2 列） */
+.nox-kioskgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 600px) { .nox-kioskgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 900px) { .nox-kioskgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* ★裁定352 改訂（便 N1014 A-1）: 開卓モーダル＝画面幅の 80%（上限は Modal maxWidth 560px・>900px の中央ダイアログのみ・≤900 はシート全幅） */
+@media (min-width: 901px) { .nox-modal-card:has(> [data-open-seat-modal]) { width: 80vw; } }

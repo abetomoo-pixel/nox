@@ -18,6 +18,7 @@ export type BreakdownPayLike = {
   drinkBack?: number; champBack?: number; bottleBack?: number; calculatedBack?: number; salesBack?: number;
   customTotal?: number; cbacks?: { name?: string; amount?: number }[];
   achievementBonus?: number; guaranteeAdd?: number;
+  normTarget?: { sales: number; source: "override" | "plan" | null }; // ★裁定347 追補2（便 N1014 A-4）: 達成ボーナスの目標の出所（プラン既定から継承したときだけ凍結）
   gross?: number;
   fixedDed?: number; sanction?: { original?: number; applied?: number } | null; fine?: number; withholding?: number; normPenalty?: number;
   arDeduct?: number; advanceDeduct?: number; okuriDeduct?: number;
@@ -116,7 +117,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   } else {
     push("customTotal", "自由設計バック", z(p.customTotal));
   }
-  push("achievementBonus", "達成ボーナス", z(p.achievementBonus));
+  push("achievementBonus", p.normTarget?.source === "plan" ? `達成ボーナス（目標 ¥${p.normTarget.sales.toLocaleString()}＝プランの既定）` : "達成ボーナス", z(p.achievementBonus)); // ★裁定347 追補2: 既定から継承した目標は明細に出所を出す
   push("guaranteeAdd", "最低保証加算", z(p.guaranteeAdd));
   for (const [i, e] of (input.extras ?? []).entries()) push(`extra-${i}`, e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind), z(e.amount));
 

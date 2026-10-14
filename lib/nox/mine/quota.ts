@@ -57,3 +57,25 @@ export function quotaArgsOf(form: QuotaForm): { ok: true; args: Record<`p_${Quot
 
 /** 2 つの入力が同じか（保存ボタンの活性） */
 export const quotaFormEquals = (a: QuotaForm, b: QuotaForm): boolean => QUOTA_KEYS.every((k) => a[k].trim() === b[k].trim());
+
+// ★裁定347 追補2（便 N1014 A-4）: /mine のノルマカードは採用軸すべて（出勤日数を含む）。days は cast_quotas に無い＝cast_norms（個別）／プラン既定から解決・実績＝今月の in 打刻の営業日数
+export type CardKey = "days" | QuotaKey;
+export const CARD_KEYS: readonly CardKey[] = ["days", ...QUOTA_KEYS];
+export const CARD_LABEL: Record<CardKey, string> = { days: "出勤日数", ...QUOTA_LABEL };
+export const CARD_UNIT: Record<CardKey, string> = { days: "日", ...QUOTA_UNIT };
+export type CardQuota = Partial<Record<CardKey, number | null>>;
+export type CardActual = Partial<Record<CardKey, number>>;
+export type CardAxis = { key: CardKey; label: string; actual: number; target: number; rate: number; pct: number; done: boolean };
+export const cardFmt = (key: CardKey, n: number): string => (key === "sales" ? "¥" + n.toLocaleString() : `${n}${CARD_UNIT[key]}`);
+/** 目標が設定された項目だけ（NULL／0 は出さない）＝quotaAxesOf と同じ規則で days を先頭に */
+export function cardAxesOf(quota: CardQuota | null | undefined, actual: CardActual): CardAxis[] {
+  const out: CardAxis[] = [];
+  for (const k of CARD_KEYS) {
+    const target = quota?.[k];
+    if (typeof target !== "number" || !Number.isFinite(target) || target <= 0) continue;
+    const a = actual[k] ?? 0;
+    const rate = Math.floor((a / target) * 100);
+    out.push({ key: k, label: CARD_LABEL[k], actual: a, target, rate, pct: Math.min(100, rate), done: a >= target });
+  }
+  return out;
+}

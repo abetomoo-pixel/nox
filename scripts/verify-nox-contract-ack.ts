@@ -29,8 +29,8 @@ async function main() {
     const owner = await uidOf("ownerA"), mgr = await uidOf("managerA1"), mgrB = await uidOf("managerB1"), staff = await uidOf("staffA1"), castU = await uidOf("castA1a"), castU2 = await uidOf("castA1b");
     const castA = await castOf(A1.id, castU.id);
     check("ca(0-1) fixture: A1／owner-a／manager-a1／manager-b1／staff-a1／cast-a1a（casts 行）／cast-a1b", !!A1 && !!owner && !!mgr && !!mgrB && !!staff && !!castU && !!castA && !!castU2);
-    const snapSql = `select (select count(*)::int from public.cast_contract_acks) ac, (select count(*)::int from public.audit_logs) au, (select settings_json::text from public.stores where id=$1) sj`;
-    const before = JSON.stringify(await one(snapSql, [A1.id]));
+    const snapSql = `select (select count(*)::int from public.cast_contract_acks) ac, (select count(*)::int from public.audit_logs where org_id=$2) au, (select settings_json::text from public.stores where id=$1) sj`; // ★便 N1014: audit_logs は fixture org に絞る（全体件数だとデモ org の実利用（check_add_line 等）が並走したとき偽赤＝f0 run1d で実証）
+    const before = JSON.stringify(await one(snapSql, [A1.id, A1.org_id]));
     await db.query("begin");
     try {
       const sj = async () => (await one<{ s: Record<string, unknown> }>("select settings_json s from public.stores where id=$1", [A1.id])).s;
@@ -91,7 +91,7 @@ async function main() {
     } finally {
       await db.query("rollback");
     }
-    const after = JSON.stringify(await one(snapSql, [A1.id]));
+    const after = JSON.stringify(await one(snapSql, [A1.id, A1.org_id]));
     check("ca(0-2) ROLLBACK 後: cast_contract_acks／audit_logs の行数と A1 settings_json が before と一致（残留 0）", after === before, `${before} → ${after}`);
   } finally {
     await db.end().catch(() => undefined);

@@ -28,6 +28,8 @@ import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定3
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
 import { isSystemOn } from "@/lib/nox/store-systems";
+import { firstInLastOut, isTodayWorking, todayStateOf, type TodayState } from "@/lib/nox/shift/today-row"; // ★裁定353（便 N1014 A-2）: 今日の状態＝今日タブと同じ純関数
+import { bizDateOf } from "@/lib/nox/biz-date";
 import { NORM_AXIS_LABEL, hasOverride, normAxesOf, normTargetsOf, planDefaultQuotaOf, quotaKeysOfAxes, resolveQuotaOf, shimeiScopeOf } from "@/lib/nox/store/norm-axes"; // ★裁定347／GV-2（0171・便 P171）: 継承・上書き・採用軸 // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
 import { SHIFT_REQUEST_MODE_LABEL, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: シフト希望の方式のラベルと店の既定
 import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
@@ -108,7 +110,8 @@ export default function CastsBoard({
   // ── 段C2（キャスト刷新・正本 nox-casts-redesign-mock-v1.html）──
   //   テーブル→カードグリッド＋詳細3タブ。フィルタ/検索/月次2数値はすべて既存データの client 再形。
   //   ★機微情報（本名・生年月日・マイナンバー等）はこの画面に持ち込まない＝現行の分離設計を維持。
-  const [filter, setFilter] = useState<"active" | "trial" | "left">("active");
+  const [filter, setFilter] = useState<"active" | "trial" | "left" | "today">("active"); // ★裁定353: 「今日出勤」フィルタ
+  const [todayOf, setTodayOf] = useState<Record<string, TodayState>>({}); // ★裁定353: cast → 今日の状態
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<{ kind: "cast" | "trial"; id: string } | null>(null);
   const [dtab, setDtab] = useState<"basic" | "comp" | "account">("basic");
@@ -259,6 +262,32 @@ export default function CastsBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today]);
   useEffect(() => { void loadPlans(); }, [loadPlans]);
+  // ★裁定353（便 N1014 A-2）: 今日（営業日＝店の cutoff）の確定シフト／出勤区分／打刻＝各 1 クエリ→todayStateOf（今日タブと同じ材料・別計算なし）
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const sj = (stores[0]?.settings_json ?? {}) as Record<string, unknown>;
+      const cutoff = typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00";
+      const bizToday = bizDateOf(new Date().toISOString(), cutoff);
+      const next = new Date(`${bizToday}T${cutoff}:00+09:00`); next.setDate(next.getDate() + 1);
+      const [sh, at, pu] = await Promise.all([
+        supabase.from("shifts").select("cast_id, start_hm, end_hm, status").eq("date", bizToday),
+        supabase.from("attendance").select("cast_id, status").eq("date", bizToday),
+        supabase.from("punches").select("cast_id, type, punched_at").gte("punched_at", `${bizToday}T${cutoff}:00+09:00`).lt("punched_at", next.toISOString()),
+      ]);
+      if (!alive) return;
+      const io = firstInLastOut(((pu.data ?? []) as { cast_id: string; type: "in" | "out"; punched_at: string }[]));
+      const attBy = new Map(((at.data ?? []) as { cast_id: string; status: string }[]).map((r) => [r.cast_id, r.status]));
+      const shBy = new Map<string, { start_hm: string; end_hm: string; status: string }>();
+      for (const r of ((sh.data ?? []) as { cast_id: string; start_hm: string; end_hm: string; status: string }[])) { const cur = shBy.get(r.cast_id); if (!cur || r.status === "confirmed") shBy.set(r.cast_id, r); }
+      const m: Record<string, TodayState> = {};
+      for (const cid of new Set([...shBy.keys(), ...attBy.keys(), ...io.keys()])) m[cid] = todayStateOf({ shift: shBy.get(cid) ?? null, attStatus: attBy.get(cid) ?? null, inHm: io.get(cid)?.inHm ?? null, outHm: io.get(cid)?.outHm ?? null });
+      setTodayOf(m);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stores]);
+  const todayStateOfCast = (cid: string): TodayState => todayOf[cid] ?? { key: "none", label: "予定なし" };
   // ★N4-1: set_cast_guarantee の有無を 1 回だけ探る（引数 null＝RPC は 'bad amount' を raise・書込なし。未適用なら PostgREST が「関数が無い」を返す）
   useEffect(() => {
     let alive = true;
@@ -540,7 +569,7 @@ export default function CastsBoard({
   // E8-5 casts#2: ランク絞り込み（"none"=ランクなし）を検索に AND 合成
   const rankHit = (c: CastLogin) =>
     rankFilter === "" || (rankFilter === "none" ? !c.rank_id : c.rank_id === rankFilter);
-  const shownCasts = loginCasts.filter((c) => c.is_active === (filter === "active") && hit(c.name) && rankHit(c));
+  const shownCasts = loginCasts.filter((c) => (filter === "today" ? c.is_active && isTodayWorking(todayStateOfCast(c.id)) : c.is_active === (filter === "active")) && hit(c.name) && rankHit(c)); // ★裁定353: 今日出勤＝確定シフトあり／出勤中／退勤
   const shownTrials = trials.filter((tr) => hit(tr.name));
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? "—";
   const nomTotal = (id: string) => { const r = rankOf[id]; return r ? r.hon + r.jonai + r.dohan : 0; };
@@ -617,7 +646,7 @@ export default function CastsBoard({
           style={{ ...input, width: 200 }} aria-label="名前で検索"
         />
         <div className="nox-seg">
-          {([["active", "在籍"], ["trial", "体入"], ["left", "退店済み"]] as const).map(([k, label]) => (
+          {([["active", "在籍"], ["today", "今日出勤"], ["trial", "体入"], ["left", "退店済み"]] as const).map(([k, label]) => (/* ★裁定353: 「今日出勤」 */
             <button key={k} className={filter === k ? "on" : ""}
               onClick={() => { setFilter(k); setSel(null); }}>{label}</button>
           ))}
@@ -724,7 +753,7 @@ export default function CastsBoard({
         <div className="nox-cardgrid">
           {shownCasts.length === 0 && (
             <p style={{ ...t.sub, margin: 0 }}>
-              {filter === "active" ? "在籍キャストがいません。" : "退店済みのキャストはいません。"}
+              {filter === "active" ? "在籍キャストがいません。" : filter === "today" ? "今日の出勤（確定シフト・出勤中・退勤）はいません。" : "退店済みのキャストはいません。"}
             </p>
           )}
           {shownCasts.map((c) => (
@@ -736,6 +765,7 @@ export default function CastsBoard({
                 <div>
                   <div className="cname">{c.name}</div>
                   <div className="csub">{c.is_active ? "在籍" : "退店"} / {c.user_id ? "ログイン済み" : "未招待"}</div>
+                  {c.is_active && <div className="csub" data-today-state={todayStateOfCast(c.id).key} style={{ color: todayStateOfCast(c.id).key === "working" ? "var(--ok)" : todayStateOfCast(c.id).key === "absent" ? "var(--bad)" : undefined }}>今日: {todayStateOfCast(c.id).label}</div>}{/* ★裁定353: 今日の状態 1 行 */}
                   {/* E8-5 casts#3: 副次情報（ランク・プラン名）。LINE 連携は T3 後送り＝出さない */}
                   {/* ★裁定196'（B1・K16）: ランク名／プラン名をモックのバッジ形（nox-stpill）へ＝表示スタイルのみ・値は不変・意味名トークン */}
                   {(rankNameOf(c) || planNameOf(c.id) || guaBadgeOf(c.id)) && (

@@ -22,7 +22,7 @@ import { SHIFT_VIEWS, VIEW_TABS, tabOfView, viewOfTab } from "@/lib/nox/shift/ta
 import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
-import { firstInLastOut, outButtonOf, punchTimeLabel, punchInAfterAtt } from "@/lib/nox/shift/today-row";
+import { firstInLastOut, okuriButtonOf, outButtonOf, outDialogNeeded, punchTimeLabel, punchInAfterAtt } from "@/lib/nox/shift/today-row"; // ★裁定357（GV-5・便 N1014 A-6）: 送りは退勤後も営業日内は可・退勤ダイアログ 2 択
 import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.proxy
 import { PunchCorrectionForm } from "@/components/nox/punch-correction-modal"; // ★0154 D1: 出退勤の修正（owner／manager＝申請＝確定）・★裁定310: 「調整」モーダルのタブ①に埋め込む（本体のみ）
 import PunchDecideModal from "@/components/nox/punch-decide-modal"; // ★裁定297-1: cast の申請（pending）の承認／却下（理由必須）
@@ -939,7 +939,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [proxyPunchOn, setProxyPunchOn] = useState(true); // ★0164（便 W5-2b）: 店設定 punch_methods.proxy（代行の退勤ボタン・出勤区分後の in 打刻の出し分け）
   // ★裁定317（便 X-9-3）: 「送り」→金額ダイアログ→確定で退勤打刻（p_okuri=true）＋transport_issue_bulk 1 件（idem＝punch id）。旧チェックボックス（okuriMark）は廃止
   const [okuriBase, setOkuriBase] = useState<unknown>(null);
-  const [okuriDlg, setOkuriDlg] = useState<{ castId: string; def: OkuriDefault } | null>(null);
+  const [okuriDlg, setOkuriDlg] = useState<{ castId: string; def: OkuriDefault; mode: "outAndIssue" | "issueOnly"; fromOut: boolean } | null>(null); // ★裁定357: mode＝退勤＋送り／送りのみ・fromOut＝「退勤」から開いた（2 択）
+  const [okuriIssued, setOkuriIssued] = useState<Set<string>>(new Set()); // ★裁定357: 当日発行済みの cast（transport・cancelled 以外）＝1 クエリ
   const [okuriBusy, setOkuriBusy] = useState(false);
   const [okuriErr, setOkuriErr] = useState<string | null>(null);
   useEffect(() => {
@@ -953,6 +954,17 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
+  // ★裁定357（便 N1014 A-6）: 当日の送り発行済み（transport.date＝今日・cancelled 以外）＝cast の集合（1 クエリ・N+1 なし）。punchTick で再読込
+  useEffect(() => {
+    if (!storeId || !okuriActual) return;
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("transport").select("cast_id").eq("store_id", storeId).eq("date", todayDate).neq("status", "cancelled");
+      if (alive) setOkuriIssued(new Set(((data ?? []) as { cast_id: string }[]).map((r) => r.cast_id)));
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, okuriActual, todayDate, punchTick]);
   // ★裁定257 R20-b: 退勤＝punch_proxy(source='manager'・owner 全店／manager 自店・inactive cast 拒否・audit は RPC 側)。in 側は出さない（attendance の 5 択が入口）
   async function proxyOut(castId: string) {
     setMsg(null);
@@ -963,21 +975,37 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     setMsg(error ? `退勤の記録に失敗: ${rpcErrJa(error.message)}` : `${castName(castId)} の退勤を記録しました`);
     setPunchTick((v) => v + 1);
   }
+  // ★裁定357: 「退勤」押下＝実費の店で当日の送りが未発行ならダイアログ（送りを発行して退勤（既定）／退勤のみ）。実費以外の店はダイアログなし＝そのまま退勤
+  async function outPressed(castId: string) {
+    if (outDialogNeeded({ okuriActual, issuedToday: okuriIssued.has(castId) })) { await openOkuri(castId, "outAndIssue", true); return; }
+    await proxyOut(castId);
+  }
   // ★裁定317（便 X-9-3）: 「送り」押下＝金額ダイアログ。既定＝店設定 okuri_base_amount → 同 cast の直近 transport 額 → 空欄（必須）
-  async function openOkuri(castId: string) {
+  async function openOkuri(castId: string, mode: "outAndIssue" | "issueOnly" = "outAndIssue", fromOut = false) {
     setOkuriErr(null);
     let last: number | null = null;
     if (okuriDefaultAmountOf(okuriBase, null).amount === null) {
       const { data } = await supabase.from("transport").select("amount").eq("cast_id", castId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(1);
       last = ((data ?? []) as { amount: number }[])[0]?.amount ?? null;
     }
-    setOkuriDlg({ castId, def: okuriDefaultAmountOf(okuriBase, last) });
+    setOkuriDlg({ castId, def: okuriDefaultAmountOf(okuriBase, last), mode, fromOut });
   }
   // 確定＝退勤打刻（p_okuri=true）→ 戻りの punch id を冪等キーにして transport_issue_bulk（1 件）。打刻成功・発行失敗は「送りは未発行」＝締め前モーダルに残る
   async function confirmOkuri(amount: number) {
     if (!okuriDlg || okuriBusy) return;
     const castId = okuriDlg.castId;
     setOkuriBusy(true); setOkuriErr(null); setMsg(null);
+    // ★裁定357: 退勤後（issueOnly）＝打刻せず送りだけ発行。冪等キー＝その cast の最後の out 打刻 id（punchRows）
+    if (okuriDlg.mode === "issueOnly") {
+      const outRow = punchRows.filter((r) => r.cast_id === castId && r.type === "out").sort((a, b) => (a.punched_at < b.punched_at ? 1 : -1))[0];
+      const { error: eI } = await supabase.rpc("transport_issue_bulk", { p_store_id: storeId, p_items: [{ cast_id: castId, amount, date: todayDate }], p_idem_key: (outRow as { id?: string } | undefined)?.id ?? crypto.randomUUID() });
+      setOkuriBusy(false);
+      if (eI) { setOkuriErr(`送りの発行に失敗: ${rpcErrJa(eI.message)}`); return; }
+      setOkuriDlg(null);
+      setMsg(`${castName(castId)} の送り ¥${amount.toLocaleString()} を発行しました（退勤は記録済み）`);
+      setPunchTick((v) => v + 1);
+      return;
+    }
     const { data: punchId, error } = await supabase.rpc("punch_proxy", { p_cast_id: castId, p_type: "out", p_note: null, p_okuri: true });
     if (error || !punchId) {
       setOkuriBusy(false);
@@ -1047,7 +1075,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       )}
       {/* ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ */}
       {okuriDlg && (
-        <OkuriOutDialog castName={castName(okuriDlg.castId)} def={okuriDlg.def} busy={okuriBusy} error={okuriErr}
+        <OkuriOutDialog castName={castName(okuriDlg.castId)} def={okuriDlg.def} busy={okuriBusy} error={okuriErr} mode={okuriDlg.mode}
+          onOutOnly={okuriDlg.fromOut ? () => { const cid = okuriDlg.castId; setOkuriDlg(null); void proxyOut(cid); } : undefined} /* ★裁定357: 2 択の「退勤のみ」 */
           onConfirm={(amount) => void confirmOkuri(amount)} onClose={() => setOkuriDlg(null)} />
       )}
       {/* ★裁定297-1: 決裁モーダル（成功＝punches／申請一覧の再読込＋同じ枠に success） */}
@@ -1335,14 +1364,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                 {canRecord && (
                                   <span className="out">
                                     {/* ★裁定317（便 X-9-3）: actual 店のみ「送り」→金額ダイアログ→確定で退勤＋送り実費を即時発行 */}
-                                    {okuriActual && (
-                                      <button type="button" style={{ ...btnLight, padding: "4px 12px", fontSize: 12, opacity: outOn ? 1 : 0.5 }}
-                                        disabled={!outOn} title={ob.show ? (outOn ? "送りの金額を確認して退勤を記録します" : ob.title) : "出勤（出勤・遅刻・同伴）を記録すると押せます"}
-                                        onClick={() => void openOkuri(s.cast_id)}>送り</button>
-                                    )}
+                                    {/* ★裁定357（GV-5・便 N1014 A-6）: 「送り」＝okuriButtonOf（退勤後も営業日内は有効・disabled は方式と当日発行済みのみ）。退勤前＝退勤＋送り／退勤後＝送りだけ発行 */}
+                                    {(() => { const okb = okuriButtonOf({ canRecord, okuriActual, attStatus: att?.status, hasIn: !!io?.inHm, issuedToday: okuriIssued.has(s.cast_id) }); return okb.show ? (
+                                      <button type="button" style={{ ...btnLight, padding: "4px 12px", fontSize: 12, opacity: okb.enabled ? 1 : 0.5 }} data-okuri-issued={okuriIssued.has(s.cast_id) ? "1" : undefined}
+                                        disabled={!okb.enabled} title={okb.title}
+                                        onClick={() => void openOkuri(s.cast_id, io?.outHm ? "issueOnly" : "outAndIssue")}>送り{okuriIssued.has(s.cast_id) ? "済" : ""}</button>
+                                    ) : null; })()}
                                     <button type="button" style={{ ...btnDark, padding: "4px 12px", fontSize: 12, opacity: outOn ? 1 : 0.5 }}
                                       disabled={!outOn} title={ob.show ? ob.title : "出勤（出勤・遅刻・同伴）を記録すると押せます"}
-                                      onClick={() => void proxyOut(s.cast_id)}>退勤</button>
+                                      onClick={() => void outPressed(s.cast_id)}>退勤</button>
                                   </span>
                                 )}
                               </div>

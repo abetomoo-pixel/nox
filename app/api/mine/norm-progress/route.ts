@@ -14,7 +14,7 @@ import { bizDateOf } from "@/lib/nox/biz-date";
 import { resolvePayrollWindow } from "@/lib/nox/payroll/window";
 import { sumCastSales, type CastSalesRow } from "@/lib/nox/payroll/cast-sales"; // ★裁定346: 給与と同じ合算
 import { createAdminClient } from "@/lib/supabase/admin"; // ★裁定347（0171）: プラン既定と店設定の読取（cast の RLS は comp_plans を読めない）
-import { normAxesOf, normTargetsOf, planDefaultQuotaOf, resolveQuotaOf, shimeiScopeOf } from "@/lib/nox/store/norm-axes";
+import { normAxesOf, normTargetsOf, planDefaultQuotaOf, resolveNormTargetsOf, resolveQuotaOf, shimeiScopeOf } from "@/lib/nox/store/norm-axes";
 import type { Quota } from "@/lib/nox/mine/quota";
 
 export async function GET() {
@@ -71,8 +71,15 @@ export async function GET() {
     const axes = normAxesOf(storeSj?.settings_json);
     const scope = shimeiScopeOf(storeSj?.settings_json);
     const resolved = resolveQuotaOf(planDefaultQuotaOf(normTargetsOf(planRow ?? null), axes), (quotaRow ?? null) as Partial<Quota> | null, axes, scope);
+    // ★裁定347 追補2（便 N1014 A-4）: 出勤日数の軸＝目標は cast_norms（当月・個別＝非 0）＞プラン既定 norm_days_target・実績＝今月の in 打刻の営業日数（本人セッション＝RLS 自分の行）
+    const { data: normRow } = await admin.from("cast_norms").select("days_target").eq("cast_id", castId).eq("period", period).maybeSingle();
+    const daysT = resolveNormTargetsOf(normTargetsOf(planRow ?? null), { days: normRow?.days_target ?? 0 }, axes);
+    const { data: inRows } = await supabase.from("punches").select("punched_at").eq("type", "in").gte("punched_at", win.startTs).lt("punched_at", win.endTs);
+    const daysActual = new Set(((inRows ?? []) as { punched_at: string }[]).map((r) => bizDateOf(r.punched_at, win.cutoffHm)).filter((d) => d >= win.periodStart && d <= win.periodEnd)).size;
+    const quota = { days: axes.days ? daysT.value.days : null, ...resolved.quota };
+    const source = { days: axes.days ? daysT.source.days : null, ...resolved.source };
 
-    return NextResponse.json({ period, quota: resolved.quota, source: resolved.source, actual });
+    return NextResponse.json({ period, quota, source, actual: { days: daysActual, ...actual } });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

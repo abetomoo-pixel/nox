@@ -11,7 +11,7 @@
  *  逆テスト 2 本（手動・各 1 回）: isArrivedStatus から "late" を外す→tr(1-1)／(2-2) 赤・戻して緑／punchInAfterAtt の !hasIn を落とす→tr(6-2) 赤・戻して緑。
  */
 import fs from "node:fs";
-import { firstInLastOut, hmJstOf, isArrivedStatus, outButtonOf, punchInAfterAtt, punchTimeLabel } from "../lib/nox/shift/today-row";
+import { firstInLastOut, hmJstOf, isArrivedStatus, okuriButtonOf, outButtonOf, outDialogNeeded, punchInAfterAtt, punchTimeLabel } from "../lib/nox/shift/today-row";
 import { ackOptionsOf, correctionSummaryOf, disputedOf, hmOnBizOf, jstIsoOf, requestArgsOf, requestInitOf, termOf } from "../lib/nox/shift/punch-correction"; // ★0154 D1
 
 let pass = 0;
@@ -76,6 +76,16 @@ check("tr(7-8) correctionSummaryOf: 更新「出勤 9/22 20:00 → 20:30」・�
 const mineP = fs.readFileSync("app/mine/page.tsx", "utf8");
 // ★裁定310（2026-09-28・便 X-2／W-1d）: 配線を張り替え＝行内「出勤を修正／退勤を修正」リンクと旧 PunchCorrectionModal は 0。修正は「調整」モーダル タブ①の PunchCorrectionForm（punchRef から punchId／punchAtIso）。mine 側は不変
 check("tr(7-9) 配線: shift-board＝調整モーダル タブ①の PunchCorrectionForm（adjCorrKind・punchRef・tablist）・行内『を修正』リンク 0・PunchCorrectionModal 参照 0・異議あり warn（Message kind warn）／mine＝PunchCorrectionForm＋List・用語 termOf", /<PunchCorrectionForm key=\{adjCorrKind\} showHead=\{false\} castId=\{adjTarget\.cast_id\}/.test(sb) && /punchRef\.get\(adjTarget\.cast_id\)/.test(sb) && /role="tablist" aria-label="調整の対象"/.test(sb) && !/\{KIND_LABEL\[k\]\}を修正/.test(sb) && !/PunchCorrectionModal/.test(sb) && /from\("punch_corrections"\)/.test(sb) && /出退勤の修正に「異議あり」が/.test(sb) && /<PunchCorrectionForm castId=/.test(mineP) && /<PunchCorrectionList rows=/.test(mineP) && /termOf\(/.test(mineP));
+
+// ★裁定357（GV-5・便 N1014 A-6）: 「送り」は退勤後も営業日内は可（disabled は方式と当日発行済みのみ）・退勤ダイアログ 2 択・実費以外はダイアログなし
+{
+  const okb = (hasOut: boolean, issued: boolean, actual = true) => okuriButtonOf({ canRecord: true, okuriActual: actual, attStatus: "shukkin", hasIn: true, issuedToday: issued });
+  check("tr(8-1) okuriButtonOf: 退勤後（out 済み）でも当日未発行なら押せる・当日発行済みは押せない・方式が実費でない店は出さない", okb(true, false).enabled && !okb(true, true).enabled && !okb(false, false, false).show && okuriButtonOf({ canRecord: true, okuriActual: true, attStatus: "off", hasIn: false, issuedToday: false }).show === true && !okuriButtonOf({ canRecord: true, okuriActual: true, attStatus: "off", hasIn: false, issuedToday: false }).enabled);
+  check("tr(8-2) outDialogNeeded: 実費の店で当日未発行＝ダイアログ（送りを発行して退勤／退勤のみ）・発行済みはなし", outDialogNeeded({ okuriActual: true, issuedToday: false }) && !outDialogNeeded({ okuriActual: true, issuedToday: true }));
+  check("tr(8-3) 実費以外の店はダイアログなし＝そのまま退勤", !outDialogNeeded({ okuriActual: false, issuedToday: false }));
+  const dlg = fs.readFileSync("components/nox/okuri-out-dialog.tsx", "utf8");
+  check("tr(8-4) 配線: shift-board＝okuriButtonOf／outPressed（outDialogNeeded）／issueOnly は transport_issue_bulk だけ・ダイアログ＝mode と「退勤のみ」（onOutOnly）", /okuriButtonOf\(\{ canRecord, okuriActual/.test(sb) && /outDialogNeeded\(\{ okuriActual, issuedToday: okuriIssued\.has\(castId\) \}\)/.test(sb) && /onClick=\{\(\) => void outPressed\(s\.cast_id\)\}>退勤<\/button>/.test(sb) && /okuriDlg\.mode === "issueOnly"/.test(sb) && /from\("transport"\)\.select\("cast_id"\)\.eq\("store_id", storeId\)\.eq\("date", todayDate\)/.test(sb) && dlg.includes('data-okuri-outonly="1">退勤のみ</button>') && dlg.includes('mode === "issueOnly" ? "送りを発行" : onOutOnly ? "送りを発行して退勤" : "確定して退勤"'));
+}
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);

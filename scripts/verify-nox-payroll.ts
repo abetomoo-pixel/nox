@@ -31,7 +31,8 @@ import { simulate, type SimInput } from "../lib/nox/payroll/sim";
 import { decidePayrollAccess, decideTaxReportAccess, decideReopenAccess } from "../lib/nox/payroll/authz";
 import { Client as PgClient } from "pg"; // ★B5 9 段目: 静的確認（pg_proc）用・★0154 段（calc_period）
 import { pgTx } from "./fixtures-pgtx"; // ★0154
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { breakdownLinesOf } from "../lib/nox/payroll/breakdown-lines"; // ★便 N1014 A-4
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -1595,6 +1596,19 @@ async function main() {
   }
 
   // ══════════════════════════════════════════════════════════
+  // ★裁定347 追補2 修正（便 N1014 A-4・DB 非依存）: 達成ボーナスの目標＝/mine と同じ純関数（個別＞プラン既定＞なし）で解決し、プラン既定から継承したときだけ core が凍結形に normTarget{source:"plan"} を出す→明細ラベルに「＝プランの既定」。個別（override）／null は従来ラベル＝既存 21 プランは 1 バイト同値
+  {
+    const coreSrc = readFileSync("lib/nox/payroll/core.ts", "utf8");
+    const colSrc = readFileSync("lib/nox/payroll/collect.ts", "utf8");
+    type BI = Parameters<typeof breakdownLinesOf>[0];
+    const planL = breakdownLinesOf({ pay: { achievementBonus: 10000, normTarget: { sales: 500000, source: "plan" } } } as BI).earn.find((l) => l.key === "achievementBonus");
+    const ovL = breakdownLinesOf({ pay: { achievementBonus: 10000, normTarget: { sales: 300000, source: "override" } } } as BI).earn.find((l) => l.key === "achievementBonus");
+    const nullL = breakdownLinesOf({ pay: { achievementBonus: 10000 } } as BI).earn.find((l) => l.key === "achievementBonus");
+    check("段N1014-1 達成ボーナスの目標の出所: collect が resolveNormTargetsOf（個別＞既定）で解決・core は source plan のときだけ normTarget を凍結・明細ラベル「達成ボーナス（目標 ¥500,000＝プランの既定）」／override・null は「達成ボーナス」",
+      colSrc.includes("resolveNormTargetsOf(") && colSrc.includes("salesTargetSource") && coreSrc.includes('if (c.norm.salesTargetSource === "plan" && (c.norm.salesTarget ?? 0) > 0)') && planL?.label === "達成ボーナス（目標 ¥500,000＝プランの既定）" && planL?.amount === 10000 && ovL?.label === "達成ボーナス" && nullL?.label === "達成ボーナス",
+      `plan=${planL?.label} ov=${ovL?.label} null=${nullL?.label}`);
+  }
+
   // ★U-2（裁定101）: 待遇画面の表示層 純関数（comp-methods・DB 非依存）
   // ══════════════════════════════════════════════════════════
   {

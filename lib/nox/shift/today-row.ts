@@ -44,3 +44,32 @@ export function firstInLastOut(rows: readonly { cast_id: string; type: "in" | "o
 /** ★便 AY1（2026-09-24・裁定291 追補1 A-3）: 出勤区分を押したあとに punch_proxy('in') を呼ぶか。
  *  出勤区分（出勤・遅刻・同伴）で、同営業日に in 打刻が無いときだけ true。休み・当欠は false。既に in があれば区分の変更で増やさない。 */
 export const punchInAfterAtt = (input: { status: string | null | undefined; hasIn: boolean }): boolean => isArrivedStatus(input.status) && !input.hasIn;
+
+/** ★裁定353（便 N1014 A-2）: キャストカードの「今日の状態」1 行＝今日タブと同じ材料（確定シフトの時間・出勤区分 attendance・最初の in／最後の out＝firstInLastOut／punchTimeLabel）から導く。
+ *   予定なし／出勤予定 HH:MM〜翌HH:MM／出勤中 HH:MM〜（予定 翌HH:MM）／退勤 HH:MM〜HH:MM／未出勤 HH:MM 予定／休み希望・当欠（attendance off／absent）。
+ *   「〜翌HH:MM」＝end_hm が 24:00 以上なら翌日表記（fmtWin と同じ読み替え・24 を引く）。now は使わない（判定は材料の有無だけ＝今日タブと同じ） */
+export type TodayState = { key: "none" | "planned" | "working" | "done" | "absentPlanned" | "off" | "absent"; label: string };
+const hmNext = (hm: string | null | undefined): string => { if (!hm) return ""; const [h, m] = hm.split(":").map(Number); return h >= 24 ? `翌${String(h - 24).padStart(2, "0")}:${String(m).padStart(2, "0")}` : hm; };
+export function todayStateOf(input: { shift: { start_hm: string; end_hm: string; status: string } | null; attStatus: string | null | undefined; inHm: string | null; outHm: string | null }): TodayState {
+  const { shift, attStatus, inHm, outHm } = input;
+  if (attStatus === "off") return { key: "off", label: "休み希望" };
+  if (attStatus === "absent") return { key: "absent", label: "当欠" };
+  if (inHm && outHm) return { key: "done", label: `退勤 ${punchTimeLabel(inHm, outHm) ?? `${inHm}〜${outHm}`}` };
+  if (inHm) return { key: "working", label: `出勤中 ${inHm}〜${shift ? `（予定 ${hmNext(shift.end_hm)}）` : ""}` };
+  if (shift && shift.status === "confirmed") return { key: isArrivedStatus(attStatus) ? "planned" : "absentPlanned", label: isArrivedStatus(attStatus) ? `出勤予定 ${shift.start_hm}〜${hmNext(shift.end_hm)}` : `未出勤 ${shift.start_hm} 予定` };
+  if (shift) return { key: "planned", label: `出勤予定 ${shift.start_hm}〜${hmNext(shift.end_hm)}（${shift.status === "proposed" ? "確認待ち" : "予定"}）` };
+  return { key: "none", label: "予定なし" };
+}
+/** ★裁定357（GV-5・便 N1014 A-6）: 今日タブの「送り」＝送り実費の店で、出勤区分の行かつ in 打刻あり・**退勤後も営業日の終了まで有効**。disabled は「方式が実費でない」「当日発行済み」のみ（out 済みでは止めない） */
+export function okuriButtonOf(input: { canRecord: boolean; okuriActual: boolean; attStatus: string | null | undefined; hasIn: boolean; issuedToday: boolean }): { show: boolean; enabled: boolean; title: string } {
+  if (!input.canRecord || !input.okuriActual) return { show: false, enabled: false, title: "送りの方式が実費の店だけ発行できます" };
+  if (!isArrivedStatus(input.attStatus)) return { show: true, enabled: false, title: "出勤（出勤・遅刻・同伴）を記録すると押せます" };
+  if (input.issuedToday) return { show: true, enabled: false, title: "本日の送りは発行済みです（訂正は時刻修正と同じ扱い＝理由必須）" };
+  if (!input.hasIn) return { show: true, enabled: false, title: "出勤（in）の打刻がありません" };
+  return { show: true, enabled: true, title: "送り実費を発行します（退勤後でも営業日内は発行できます）" };
+}
+/** ★裁定357: 「退勤」を押したときにダイアログ（送りを発行して退勤／退勤のみ）を出すか＝実費の店で当日未発行のときだけ。実費以外の店はダイアログなし */
+export const outDialogNeeded = (input: { okuriActual: boolean; issuedToday: boolean }): boolean => input.okuriActual && !input.issuedToday;
+
+/** 「今日出勤」フィルタ＝確定シフトあり／出勤中／退勤 */
+export const isTodayWorking = (s: TodayState): boolean => s.key === "planned" || s.key === "working" || s.key === "done" || s.key === "absentPlanned";
