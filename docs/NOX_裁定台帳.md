@@ -4123,6 +4123,8 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 **教訓候補 E-1〜E-5（便 N1013b・docs/tmp/n1013b_decisions.md・逐語・採番は相談役）**: E-1「push 後 /lp が 404 のまま＝Vercel build 失敗（tsc は緑）→app/lp/page.tsx の export const LP_CONTACT_MAILTO を非 export に（Next の Page export 検査）＝page.tsx から Page 以外を export しない」／E-2「2 回目も 404＝"use client" の demo-terms.tsx から DEMO_TERMS を server component（/lp）が値として読めない（client reference）→正本を lib/nox/demo/terms.ts へ・demo-terms.tsx は再 export＝"use client" モジュールの非コンポーネント値は server から読まない＝純データは lib へ」／E-3「/demo?store=ace の初期選択が効かない＝force-static では useSearchParams が空→mount 後に window.location.search を読む（SSR は初期選択なし）＝force-static の page で query を使うなら useEffect＋window.location」／E-4「tsc 緑でも build は別物＝push 前に next build（dev 非稼働なら可・NEXT_DIST_DIR 分離・tsconfig 復元・出力削除）→3 回目の fix 前に local build で確認してから push＝route／export／client 境界を触った便は push 前に local build」（E-1〜E-4 は教訓111 に束ねた）／E-5「在宅ブラウザの目視は hydration 前に JS を評価すると「効いていない」に見える→実クリック後に再評価」。追加候補 E-6（便 DM-1）「N1013b の fix 3 本（/lp）は f0 2 連の後に積んだ＝demo-payload dp(5-1)（demo-terms.tsx の 06:05 文言）が HEAD で赤のまま push されていた（DM-1 の単独走で検知・pin を lib/nox/demo/terms.ts へ）→f0 後の fix コミットは、触った文字列を pin する suite を単独走してから push」。
 
+**便 DM-1 完了（裁定348 マトリクス＋追補1 体験入店・payload 再生成）＝台帳の現在地（2026-10-14）**: 前提照合＝HEAD 4399e8f＝origin/main（0 0・変更 0）。DB 恒久変更 0・読取は SELECT／preview のみ。D-1＝併用は高い方（pay.ts max・mig 0）。D-2／D-2b＝profiles.mjs（表＋TRIAL）・gen-demo・/mine の保証印・payload 6 本再生成（proposed 0・体験入店 6・cast_plan 3 行形 6・daily_pays LILY 4）・suite demo-profiles 77（+12）・demo-payload 53（dp(5-1) 張替え＝N1013b の fix 後に赤だった pin）→tsc 0→f0 107 段 5,873 2 連緑（run1 15:15／run2 15:38 JST・107 段 5,873）→コミット「feat: デモ 6 店の報酬形態マトリクス（裁定348）」＋docs（7849838（feat）／1c652b2（docs））→push→Vercel→6 店 reset→live（after）: 6 店 reset 15:48 JST（体験入店 6・保証 3 行形 6・LILY daily_pays 4）→preview 2026-09 after＝ACE ひなの 月次スライド ¥1,295,563→3,500（不変）／LUNA みさき 半月 2 行（不変）／NOIR あべ 本指名 53 件→5,000・対象ランク（不変）／LILY みく 雇用＝源泉 23,654→0・日払い済み 30,000 天引き（net 351,680）／NEST レン 体験入店 base 1,200（gross 112,180→91,860）／体験入店 6 名の gross＝まり 307,187→253,145・まい 586,567→234,827・こころ 560,614→155,091・るな 472,757→329,670・ゆな 411,570→314,370。★MUSE さおり の併用は「売上 ¥0→¥0／pt 0→¥0」＝指名なしの店は按分売上 0・pt 0 で段が発火しない（裁定要＝dm1_decisions.md）。★達成ボーナスは cast_norms が当月分だけ＝9 月の確定明細には出ない（10 月は売上 0）。★保証時給の明細行は 10 月の時間 0 のため未発生＝DB の 3 行形で確認（/mine の印は体験入店キャストが demo ログイン対象外＝目視不可）。仮決め一覧＝docs/tmp/dm1_decisions.md（教訓候補 E-6＝f0 後の fix は pin suite を単独走）。
+
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
 出典＝Agoora 指示（2026-09-29・便 X-10-1 で収載）。次の裁定番号は 321。**本文（逐語）**:
@@ -4177,6 +4179,20 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 内容＝便 X-13a で components/ui/photo-edit.tsx を共通部品にし、デモ org（orgs.is_demo）では「写真を変更／削除」を隠すのではなく disabled＋理由「デモ環境では写真を変更できません」で表示する（真の防御は storage policy 0149 ★10・dg(6-4) の useIsDemo pin は維持）。328 本文 ④「写真のアップロード不可」の制限は不変＝見せ方だけ。
 
 **恒久注意（追加・便 P166）: 本番 route（cron／手動の demo reset）はデプロイ済み repo の payload（docs/demo/payload）を読む＝payload を変えたら push→Vercel success の後に reset する**（push 前の reset は旧 payload＝便 X-13a で flag 0 行の実例）。
+
+## 裁定348（2026-10-14 確定・相談役・便 DM-1）デモ 6 店の報酬形態マトリクス
+
+出典＝相談役ブロック 2026-10-14（便 DM-1 D-2・相談役提示の表）。**本文（逐語）**: 「ACE 売上月次＋指名・商品バック＋売上・指名ノルマ＋送り実費／LUNA 売上半月＋ドリンク区分別＋日数・同伴＋送り定額／NOIR pt 月次・本指名件数・S／A＋商品 pt・指名バック＋指名ノルマ＋送りなし／MUSE 併用＋売上歩合＋4 軸＋送り実費／NEST スライドなし・固定＋期限付き保証＋ノルマなし・休み希望のみ＋送り定額／LILY 雇用・確定シフト基準＋達成ボーナス＋日払い＋日数ノルマ＋送り店負担」。既存の X-13 で目視 OK 済みの値（ACE の段・LUNA の半月・NOIR の件数）は動かさない。店ごとに「見せ場 1 行」を store_profiles に追記。
+
+D-1 読取（併用）＝**高い方**（lib/nox/pay.ts wageDetail `hourly = max(bySales, byPts, base)`・同値時 売上＞ポイント＞保証・338 の期間累計も同じ式）＝器あり・mig 0。
+
+適用＝便 DM-1（client・payload のみ・DB 恒久変更 0）: scripts/demo/profiles.mjs（PROFILES に okuriMode／normAxes／employment／dailyPay／wishMode／showcase・sys を表に・SLIDES.muse＝月次 売上段 30／50／80 万→2,200／2,500／3,000＋pt 段 40／80／150→2,300／2,600／3,000・sysSettingsOf に sales_rate）・gen-demo.mjs（okuri_mode・shift_request_mode・MUSE 商品バック plan_rate 10%・LILY 雇用／cast_tax_profiles 雇用／daily_pays 4 件・cast_norms／cast_quotas は採用軸だけ・達成ボーナスは LILY のみ）・payload 6 本再生成・suite demo-profiles（dpf(1-3)(1-4)(2-1)(2-4)(2-5)(2-6) 張替え＋(2-7)(2-8) 新設）・demo-payload dp(5-1)（06:05 の文言＝lib/nox/demo/terms.ts）・337。器なしの言い換え＝売上歩合＝商品バック plan_rate（指名料の率ではなく売上の割合）・送り店負担＝送りなし（okuri_mode は flat／actual）。仮決め一覧＝docs/tmp/dm1_decisions.md。
+
+### 裁定348 追補1（2026-10-14 確定・相談役・便 DM-1 D-2b）体験入店
+
+**本文（逐語）**: 「体験入店＝6 店すべてに待遇プラン「体験入店」（スライド・バックなし・基本時給は店ごとに別額）を置き、各店 1 名を体験入店プランに割り当て、set_cast_guarantee の期限付き保証時給（開始＝デモ基準日・期間 3 営業日・額は店ごと別・NEST だけは期限切れ済み＝基本時給に戻った状態）を payload に入れる。/mine と給与プレビューに「保証時給（〜10/xx）」の印が出ること・期限切れ後は基本時給で計算されることを D-3 の before／after と live に含める。」
+
+適用＝便 DM-1: profiles.mjs TRIAL（base＝MUSE 1,500／LUNA 2,000／NOIR 2,500／ACE 2,200／LILY 1,300／NEST 1,200・保証＝2,300／3,000／3,500／3,200／1,800／1,800・R〜R+2・NEST は R-5〜R-3・割当＝まり／まい／こころ／るな／ゆな／レン）・gen-demo（プラン＝スライド 0・指名バック 0・商品バック plan_fixed 0／cast_plan は set_cast_guarantee の 3 行形＝直前行 valid_to R-1・保証行 {base, guarantee:true}・戻し行 R+3〜）・/mine の印「保証時給（〜MM/DD）¥X」（app/mine/page.tsx・今日を含む保証行があるときだけ・期限後は出さない）・給与プレビューは既存の明細行「うち保証 MM/DD〜MM/DD ¥X」。
 
 ## 裁定346（2026-10-13 確定・相談役・便 N1013b B-2b）ランキングに売上軸・キャスト側は off／self／top
 
