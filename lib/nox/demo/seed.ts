@@ -26,12 +26,12 @@ export type DemoStore = (typeof DEMO_STORES)[number];
 export const DEMO_BIZ_TYPES = DEMO_STORES;
 export type DemoBiz = DemoStore;
 export const DEMO_STORE_LABEL: Record<DemoStore, { name: string; biz: string; desc: string }> = {
-  muse: { name: "SNACK MUSE", biz: "スナック", desc: "セット・ボトルキープ・つまみ" },
+  muse: { name: "SNACK MUSE", biz: "キャバクラ", desc: "セット・ボトルキープ・つまみ・指名（併用スライド）" }, // ★348 追補2（便 N1014 B-4）: 業態キャバクラ（店名は不変）
   luna: { name: "CLUB LUNA", biz: "キャバクラ・標準", desc: "指名・同伴・セット・延長" },
   noir: { name: "CLUB NOIR", biz: "キャバクラ・VIP 専用料金", desc: "VIP 席の料金表・ランク別指名料・売掛" },
   ace: { name: "CLUB ACE", biz: "キャバクラ・売上スライド", desc: "VIP 加算・売上スライド時給・売掛" },
   lily: { name: "Girls Bar LILY", biz: "ガールズバー", desc: "カウンター・チャージ・キャストショット" },
-  nest: { name: "BAR NEST", biz: "バー", desc: "テーブルチャージ・商品会計・スタッフバック" },
+  nest: { name: "BAR NEST", biz: "スナック", desc: "テーブルチャージ・商品会計・スタッフバック" }, // ★348 追補2（B-4）: 業態スナック（店名は不変）
 };
 export const DEMO_ROLES = ["owner", "manager", "staff", "cast"] as const;
 export type DemoRole = (typeof DEMO_ROLES)[number];

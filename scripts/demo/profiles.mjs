@@ -3,7 +3,7 @@
 //   軸: template（331 の 5 種・キャバクラは LUNA／ACE の 2 店で規模違い）／sys（報酬制度の ON/OFF）／back（率％型 3 店・4 段階型 3 店）／price（価格帯の札）／
 //       basis（勤務時間の計算基準）／okuri（送りの基本額 0＝なし）／receivable（売掛）／reopen（締め解除フロー）／confirm（キャスト確認）／shift（必要人数と充足・不足の型）。
 export const PROFILES = {
-  muse: { template: "snack", scale: "小（キャスト 5・月 281 伝票・客単価 1.1 万）", sys: { hourly: true, backs: true, norms: true, bonus: false, points: true, sales_slide: true, point_slide: true, sales_rate: true }, // ★裁定348: 併用（売上段＋pt 段）＋売上歩合（商品バック plan_rate 10%）＋ノルマ 4 軸＋送り実費
+  muse: { template: "cabaret", nominations: true, scale: "小（キャスト 5・月 281 伝票・客単価 1.1 万）", sys: { hourly: true, backs: true, norms: true, bonus: false, points: true, sales_slide: true, point_slide: true, sales_rate: true }, // ★348 追補2（便 N1014 B-1／B-4）: 業態キャバクラ・指名 ON（源泉が指名なしのため gen-demo が本指名／場内／同伴を注入＝併用と売上歩合が 9 月で発火） // ★裁定348: 併用（売上段＋pt 段）＋売上歩合（商品バック plan_rate 10%）＋ノルマ 4 軸＋送り実費
     back: "rate", rate: { cast: 30, champ: 20, bottle: 15, glass: 15, soft: 10, food: 10 }, price: "低（セット 5,500・指名なし・シャンパン 8,800〜16,500）",
     basis: "punch", okuri: 1000, okuriMode: "actual", receivable: "disabled", reopen: false, confirm: false, normAxes: ["days", "dohan", "sales", "shimei"], employment: "委託", dailyPay: false, wishMode: "shift",
     showcase: "併用＝売上段と pt 段の高い方（pay.ts max）・売上歩合＝商品バック 10%・ノルマ 4 軸・送り実費",
@@ -25,10 +25,10 @@ export const PROFILES = {
     shift: { base: 4, fri_sat: 5, fill: "short", pattern: [3, 4, 4, 2, 5, 3, 4] } },
   lily: { template: "girlsbar", scale: "中（キャスト 6・月 594 伝票・客単価 1.0 万）", sys: { hourly: true, backs: true, norms: true, bonus: true, points: false, sales_slide: false }, // ★裁定348: 雇用・確定シフト基準＋達成ボーナス＋日払い＋日数ノルマ＋送り店負担
     back: "rate", rate: { cast: 25, champ: 20, bottle: 15, glass: 15, soft: 10, food: 0 }, price: "低（チャージ 3,300〜3,850・指名なし・シャンパン 8,800〜22,000）",
-    basis: "shift", okuri: 0, okuriMode: null, receivable: "disabled", reopen: false, confirm: false, normAxes: ["days"], employment: "雇用", dailyPay: true, wishMode: "shift",
+    basis: "shift", okuri: 0, okuriMode: null, receivable: "disabled", reopen: false, confirm: false, normAxes: ["days", "sales"], /* ★348 追補2（B-2）: 達成ボーナスの目標＝売上（cast_norms.sales_target）のため sales も採用 */ employment: "雇用", dailyPay: true, wishMode: "shift",
     showcase: "雇用（源泉 0・確定シフト基準）・達成ボーナス 10,000・日払い 2 件（先月）＝明細で天引き・日数ノルマ・送り店負担（控除なし）",
     shift: { base: 3, fri_sat: 4, fill: "full", pattern: [3, 3, 3, 4, 4, 4, 3] } },
-  nest: { template: "bar", scale: "小（キャスト 5・月 507 伝票・客単価 0.8 万）", sys: { hourly: true, backs: true, norms: false, bonus: false, points: false, sales_slide: false }, // ★裁定348: スライドなし・固定＋期限付き保証（期限切れ済み）＋ノルマなし・休み希望のみ＋送り定額
+  nest: { template: "snack", scale: "小（キャスト 5・月 507 伝票・客単価 0.8 万）", /* ★348 追補2（B-4）: 業態スナック（旧 bar） */ sys: { hourly: true, backs: true, norms: false, bonus: false, points: false, sales_slide: false }, // ★裁定348: スライドなし・固定＋期限付き保証（期限切れ済み）＋ノルマなし・休み希望のみ＋送り定額
     back: "rate", rate: { cast: 20, champ: 15, bottle: 10, glass: 10, soft: 5, food: 0 }, price: "低（テーブルチャージ 1,100・指名なし・シャンパン 8,800〜16,500）",
     basis: "punch", okuri: 1000, okuriMode: "flat", receivable: "disabled", reopen: false, confirm: false, normAxes: [], employment: "委託", dailyPay: false, wishMode: "off_only",
     showcase: "スライドなし・固定時給・体験入店の保証時給は期限切れ済み（基本時給に戻る）・ノルマなし・店の既定＝休み希望のみ・送り定額 1,000",
@@ -44,7 +44,7 @@ export const SLIDES = {
   ace: { period: "monthly", sales: [{ at: 800000, wage: 3000 }, { at: 1200000, wage: 3500 }, { at: 1600000, wage: 4500 }] },
   noir: { period: "monthly", points: [{ at: 60, wage: 4000 }, { at: 120, wage: 4500 }, { at: 200, wage: 5000 }], basis: "hon_count", sales: [{ at: 3, wage: 4000 }, { at: 6, wage: 4500 }, { at: 10, wage: 5000 }], ranks: ["S", "A"] }, // ★裁定343（0170・便 W5-2b）: 判定基準＝本指名の件数（月次 3／6／10 件）・対象ランク S／A（default の 3 名は対象外＝base）
   luna: { period: "half", sales: [{ at: 400000, wage: 3300 }, { at: 700000, wage: 3600 }, { at: 1000000, wage: 4000 }] },
-  muse: { period: "monthly", sales: [{ at: 300000, wage: 2200 }, { at: 500000, wage: 2500 }, { at: 800000, wage: 3000 }], points: [{ at: 40, wage: 2300 }, { at: 80, wage: 2600 }, { at: 150, wage: 3000 }] }, // ★裁定348: 併用＝同一プランに売上段と pt 段（pay.ts は max＝高い方）
+  muse: { period: "monthly", sales: [{ at: 300000, wage: 2200 }, { at: 500000, wage: 2500 }, { at: 800000, wage: 3000 }], points: [{ at: 10, wage: 2300 }, { at: 20, wage: 2600 }, { at: 40, wage: 3000 }] }, // ★348 追補2（B-1）: pt 段は注入した指名（本 3／場内 1／同伴 2 pt）で届く値へ // ★裁定348: 併用＝同一プランに売上段と pt 段（pay.ts は max＝高い方）
 };
 /** ★裁定348 追補1（便 DM-1 D-2b）: 体験入店プラン（スライド・バックなし・基本時給は店ごと）＋各店 1 名を割当＋期限付き保証時給（set_cast_guarantee の 3 行形＝直前行 valid_to／保証行 {base, guarantee:true}／戻し行）。
  *  from／to は R からの相対日（3 営業日＝R〜R+2）。NEST だけ期限切れ済み（R-5〜R-3）＝基本時給に戻った状態。cast は代表キャスト以外から名前で固定（台本で使う りな／れいな は避ける） */

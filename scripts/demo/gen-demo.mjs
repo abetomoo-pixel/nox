@@ -83,7 +83,9 @@ for (const st of STORES) {
   // ── マスタ ──
   const rules = D("pricing_rules").filter((r) => r.store_id === S);
   const mainRule = rules.find((r) => r.seat_type !== "vip" && r.is_active) ?? rules[0];
-  const ranks = D("nomination_ranks").filter((r) => r.store_id === S);
+  const ranks = (() => { const src0 = D("nomination_ranks").filter((r) => r.store_id === S).map((r) => (PROFILES[code]?.nominations && !(r.main_charge_yen > 0) ? { ...r, main_charge_yen: 3000, inhouse_charge_yen: 2000, accompanied_charge_yen: 3000 } : r));
+    // ★348 追補2（便 N1014 B-1）: 指名 ON の店で源泉にランクが無い（MUSE＝指名なし）→ 既定ランク 1 本を注入（指名料 本 3,000／場内 2,000／同伴 3,000）＝addNom が指名を積める
+    return src0.length === 0 && PROFILES[code]?.nominations ? [{ rank_id: `${code}-default`, store_id: S, rank_name: "default", main_charge_yen: 3000, inhouse_charge_yen: 2000, accompanied_charge_yen: 3000 }] : src0; })(); /* PF はこの行の後で定義＝PROFILES[code] を直接読む */ // ★348 追補2（便 N1014 B-1）: 指名 ON の店で源泉の指名料が 0 なら注入（本 3,000／場内 2,000／同伴 3,000）
   const defRank = ranks.find((r) => r.rank_name === "default") ?? ranks[0] ?? null;
   const cal = D("september_business_calendar").filter((r) => r.store_id === S);
   const closedDows = [1, 2, 3, 4, 5, 6, 7].filter((dw) => cal.filter((r) => isodow(r.business_date) === dw).every((r) => !r.is_open));
@@ -180,6 +182,14 @@ for (const st of STORES) {
       push("cast_plan", { id: uid(`castplan:${c.person_id}`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: {}, valid_from: { $rel: -400 }, valid_to: { $rel: TR.from - 1 } });
       push("cast_plan", { id: uid(`castplan:${c.person_id}:gua`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: { base: TR.gua, guarantee: true }, valid_from: { $rel: TR.from }, valid_to: { $rel: TR.to } });
       push("cast_plan", { id: uid(`castplan:${c.person_id}:back`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: {}, valid_from: { $rel: TR.to + 1 }, valid_to: null });
+      // ★348 追補2（便 N1014 B-3）: 10 月の出勤＝保証期間内 2 日（NEST は期限切れ前 2 日）＋期間外 1 日（基本時給の行が並ぶ）。過去日は in/out 両方・R 当日は in のみ（当日は on_duty と同じ扱い）
+      for (const d of (TR.from < 0 ? [TR.from, TR.from + 1, TR.to + 1] : [TR.from - 1, TR.from, TR.from + 1]).filter((x) => x <= 0)) {
+        const inT = "20:00:00", outT = "26:00:00";
+        push("shifts", { id: uid(`shift:trial:${c.person_id}:${d}`), store_id: storeId, cast_id: id, date: { $rel: d }, start_hm: "20:00", end_hm: "26:00", status: "confirmed", wish_id: null, created_by: users.manager, created_at: { $rel: d - 1, t: "12:00:00" }, updated_at: { $rel: d - 1, t: "12:00:00" }, source: "manual", period_id: null, override_reason: null });
+        push("attendance", { id: uid(`att:trial:${c.person_id}:${d}`), store_id: storeId, cast_id: id, date: { $rel: d }, status: "shukkin", eta: null, reason: null, source: "self", created_at: { $rel: d, t: inT }, updated_at: { $rel: d, t: inT } });
+        push("punches", { id: uid(`punch:trial:${c.person_id}:${d}:in`), store_id: storeId, cast_id: id, punched_at: { $rel: d, t: inT }, type: "in", lat: null, lng: null, ip: null, within_geofence: null, source: "self", note: null, created_at: { $rel: d, t: inT }, okuri: null });
+        if (d < 0) push("punches", { id: uid(`punch:trial:${c.person_id}:${d}:out`), store_id: storeId, cast_id: id, punched_at: { $rel: d + 1, t: "02:00:00" }, type: "out", lat: null, lng: null, ip: null, within_geofence: null, source: "self", note: null, created_at: { $rel: d + 1, t: "02:00:00" }, okuri: null });
+      }
     } else push("cast_plan", { id: uid(`castplan:${c.person_id}`), cast_id: id, store_id: storeId, plan_id: planId, overrides_json: {}, valid_from: { $rel: -400 }, valid_to: null });
     push("cast_tax_profiles", { cast_id: id, store_id: storeId, mode: PF.employment ?? "委託", invoice: "免税", reg_no: null }); // ★裁定348: 雇用は源泉 0（pay.ts withholdingOf）
     CAST[c.person_id] = { ...c, id };
@@ -193,8 +203,10 @@ for (const st of STORES) {
   const monthly = D("monthly_sales_targets").find((m) => m.store_id === S);
   push("store_sales_targets", { id: uid(`sst:${code}:prev`), store_id: storeId, period: { $m: -1, d: 1, fmt: "ym" }, sales_target: monthly.stated_monthly_gross_yen });
   push("store_sales_targets", { id: uid(`sst:${code}:cur`), store_id: storeId, period: { $m: 0, d: 1, fmt: "ym" }, sales_target: monthly.stated_monthly_gross_yen });
-  const cmt = D("cast_monthly_targets").filter((r) => r.store_id === S);
+  const cmt = D("cast_monthly_targets").filter((r) => r.store_id === S).map((r, i) => (PF.nominations && !(r.main_count_target > 0) ? { ...r, main_count_target: 6 - (i % 3), inhouse_count_target: 3, accompanied_count_target: 2 } : r)); // ★348 追補2（B-1）: 指名 ON の店で源泉の指名回数が 0 なら注入（本 4〜6／場内 3／同伴 2＝pt 約 20〜25）
   // ★X-13c: キャスト別ノルマ目標（cast_norms・当月）＝ノルマを使う店だけ（日数＝hours÷6・同伴・売上・指名＝本＋場内）
+  // ★348 追補2（便 N1014 B-2）: LILY＝先月（9 月）の cast_norms を 2 名（代表＝売上目標 300,000＝達成→達成ボーナス行／体験入店＝9,000,000＝未達）
+  if (PF.dailyPay) for (const c of castsSrc.filter((x) => x === repCast || x.display_name === TR.cast)) push("cast_norms", { id: uid(`norm:${c.person_id}:prev`), store_id: storeId, cast_id: CAST[c.person_id].id, period: { $m: -1, d: 1, fmt: "ym" }, days_target: 0, dohan_target: 0, sales_target: c === repCast ? 300000 : 9000000, shimei_target: 0 });
   // ★裁定347（0171・便 P171 Q-5）: キャスト別の目標（上書き）は各店 1 名（代表キャスト）だけ＝他はプラン既定を継承（cast_norms／cast_quotas とも）
   if (PF.sys.norms) for (const r of cmt) if (CAST[r.person_id] && r.person_id === repCast.person_id) push("cast_norms", { id: uid(`norm:${r.person_id}:cur`), store_id: storeId, cast_id: CAST[r.person_id].id, period: { $m: 0, d: 1, fmt: "ym" }, days_target: PF.normAxes.includes("days") ? Math.max(1, Math.round((r.hours_target ?? 0) / 6)) : 0, dohan_target: PF.normAxes.includes("dohan") ? (r.accompanied_count_target || 0) : 0, sales_target: PF.normAxes.includes("sales") ? (r.sales_target_yen || 0) : 0, shimei_target: PF.normAxes.includes("shimei") ? (r.main_count_target || 0) + (r.inhouse_count_target || 0) : 0 }); // ★裁定348: 採用軸だけ（他は 0＝目標なし）
   // ★X-13c: 達成ボーナス（1 段・金額）＝達成ボーナスを使う店の全プラン（目標＝cast_norms.sales_target・無ければ不適用）
@@ -203,6 +215,8 @@ for (const st of STORES) {
   for (const r of cmt) if (CAST[r.person_id] && r.person_id === repCast.person_id) for (const [k, m] of [["prev", -1], ["cur", 0]]) push("cast_quotas", { id: uid(`quota:${r.person_id}:${k}`), store_id: storeId, cast_id: CAST[r.person_id].id, month: { $m: m, d: 1 }, hon: PF.normAxes.includes("shimei") ? (r.main_count_target || null) : null, jonai: PF.normAxes.includes("shimei") ? (r.inhouse_count_target || null) : null, dohan: PF.normAxes.includes("dohan") ? (r.accompanied_count_target || null) : null, sales: PF.normAxes.includes("sales") ? (r.sales_target_yen || null) : null }); // ★裁定348: 採用軸だけ（/mine のカードは目標のある軸だけ出る）
   // ★裁定348（便 DM-1）: 日払い＝LILY（雇用・源泉 0）の 2 名（代表＋体験入店）に先月 10 日・20 日の 2 件＝先月分の確定（finalize hook）で「日払い済み」として天引き
   if (PF.dailyPay) for (const c of castsSrc.filter((x) => x === repCast || x.display_name === TR.cast)) for (const d of [10, 20]) push("daily_pays", { id: uid(`dp:${code}:${c.person_id}:${d}`), store_id: storeId, cast_id: CAST[c.person_id].id, biz_date: { $m: -1, d }, gross: 15000, withholding: 0, withholding_category: PF.employment ?? "委託", net: 15000, paid_by: users.manager, idem_key: uid(`dpk:${code}:${c.person_id}:${d}`), created_at: { $m: -1, d, t: "23:30:00" } });
+  // ★裁定354（便 N1014 B-5）: デモのキャスト全員に PIN 1234（bcrypt 固定＝live crypt('1234', gen_salt('bf'))・/kiosk で押せる）。本番 org には無関係（gen-demo はデモ専用）
+  for (const c of castsSrc) if (CAST[c.person_id]) push("cast_pin", { cast_id: CAST[c.person_id].id, store_id: storeId, pin_hash: "$2a$06$es6a5JEXahHwq41iFe.f9OWukggPKCQgYnB32ozpl.8mpEOK1EJh2", fail_count: 0, locked_until: null, updated_at: { $rel: -1, t: "12:00:00" } });
   push("kiosk_devices", { id: uid(`kiosk:${code}`), store_id: storeId, auth_user_id: users.kiosk, label: `${st.store_name} 打刻端末`, is_active: true, purpose: "punch" });
   // ★X-13-26（便 X-13d-2a）: 前借り＝代表キャストに 1 件・先月の中旬（$m:-1 d:15）＝先月分の確定（finalize hook）で天引き済み・当月に繰越なし（規則 A＝発行日の期で天引き）
   if (ADVANCES[code] > 0) push("advances", { id: uid(`adv:${code}:rep`), store_id: storeId, cast_id: CAST[repCast.person_id].id, amount: ADVANCES[code], deducted_amount: 0, status: "open", deduct_period: null,

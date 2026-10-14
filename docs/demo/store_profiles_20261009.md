@@ -73,6 +73,19 @@
 
 器なしの言い換え: 「売上歩合」＝商品バック plan_rate（売上の割合）・「送り店負担」＝送りなし（okuri_mode は flat／actual の 2 値）。仮決め＝docs/tmp/dm1_decisions.md。
 
+## 3c. 業態（裁定348 追補2・便 N1014 B-4・2026-10-14）
+
+| 店 | 業態 | profiles.mjs template | 備考 |
+|---|---|---|---|
+| ACE | キャバクラ | cabaret | 大・売上月次 |
+| LUNA | キャバクラ | cabaret | 中・売上半月 |
+| NOIR | ラウンジ | lounge | pt 月次・S／A |
+| MUSE | キャバクラ | cabaret（旧 snack） | 指名 ON＝源泉（指名なし）に gen-demo が本指名／場内／同伴を注入＝併用と売上歩合が 9 月で発火 |
+| NEST | スナック | snack（旧 bar） | スライドなし・休み希望のみ |
+| LILY | ガールズバー | girlsbar | 雇用・日払い |
+
+/demo・/lp の店カードの業態ラベル（lib/nox/demo/seed.ts DEMO_STORE_LABEL.biz）も同じ（店名 SNACK MUSE／BAR NEST は不変）。
+
 ## 4. 所在
 
 - 正本（定数）: scripts/demo/profiles.mjs（PROFILES・sysSettingsOf・backOf）。
