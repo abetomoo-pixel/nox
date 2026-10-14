@@ -2846,9 +2846,13 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓113：payload の pin は == null で張る（2026-10-14・便 N1014・相談役採番）
+
+**本文（逐語）**: 「payload の pin は == null で張る」。出典＝便 P171 の na(4-1)（教訓候補 E-7）＝payload の行にキーが無い列は jsonb_populate で null になるが、payload を読む suite では undefined＝`=== null` が偽になる→`== null`（キー無し＝null）で書く。次＝114。
+
 ### 教訓112：ブラウザ目視は hydration 前に JS を評価すると「効いていない」に見える→実クリック後に再評価（2026-10-14・便 P171・相談役採番）
 
-**本文（逐語）**: 「ブラウザ目視は hydration 前に JS を評価すると『効いていない』に見える→実クリック後に再評価」。出典＝便 N1013b の /demo 初期選択（E-5）。次＝113。
+**本文（逐語）**: 「ブラウザ目視は hydration 前に JS を評価すると『効いていない』に見える→実クリック後に再評価」。出典＝便 N1013b の /demo 初期選択（E-5）。次＝113（→便 N1014 で採番済み・次＝114）。
 
 ### 教訓111：push 前に tsc だけでなく local next build を通す（2026-10-14・便 V1014・相談役採番）
 
@@ -4131,7 +4135,9 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 **便 P171 完了（0171 収蔵＋裁定347 client＋ノルマ 4 軸 UI＋346 self＋デモ既定目標）＝台帳の現在地（2026-10-14）**: 前提照合＝HEAD 6d280f8（DM-1 完了時）＝origin/main（0 0・変更 0・未追跡＝docs/expert/answers_20261014.md（Agoora）・poc-record.mjs）。【検証値】は未記入のまま Q-0 を CC の live 照合で代替（全点一致・上の 0171 の欄）。DB 恒久変更 0。client＝norm-axes.ts（新）・plan-editor・casts-board・comp-sections・norma-board・norm-config-panel・norm-progress・/mine/ranking・profiles／gen-demo（payload 6 本再生成）・suite norm-axes 28（f0 108 段目）・pin 張替え x13(quota-table-1)／dpf(2-4)／rk(4-4)→tsc 0→local next build 緑→f0 108 段 5,901 2 連緑（run1 16:44／run2 17:04 JST・108 段 5,901（run1 初回は w52a mg(1-3) の pin 赤＝gen-demo の行末 ...normDefaultsOf＝張替えて再走））→コミット「feat: 0171 収蔵・裁定347・ノルマ 4 軸・346 self」＋docs（63d6395（feat））→push→Vercel→6 店 reset→live: 6 店 reset 17:1x JST（プラン既定＝ACE Sales Slide 売上 800,000／指名 30・MUSE 2 本・quotas は代表 1 名・norms 1 行）→ACE ひなの の /api/mine/norm-progress＝個別（hon 34／sales 2,350,000・source override）→set_cast_quota null で既定（hon 30／sales 800,000・source plan）→同伴 OFF（set_store_norm_axes）で dohan null（ACE は同伴を採用しない店＝元から null＝弱い検証）→ON と個別を戻して override に復帰／/mine/ranking＝自分の按分売上 1 件だけ（他人の額 0）・selfOnly／配信 JS＝casts「プランの既定に戻す」「個別」・plan「プラン既定の目標」「出勤日数」set_store_norm_axes「プランの既定（継承）」。
 
-**教訓候補 E-6／E-7（採番は相談役）**: E-6「f0 後の fix コミットは、触った文字列を pin する suite を単独走してから push（便 DM-1 で dp(5-1) の赤を検知）」／E-7「payload の行にキーが無い列は jsonb_populate で null になるが、payload を読む suite では undefined＝`=== null` が偽になる→payload を読む pin は `== null` で書く（便 P171 na(4-1)）」。
+**便 N1014 完了（裁定352〜357・GV-4／GV-5・347 追補2 修正・348 追補2・裁定354・専門家回答 T10／L3／L6 収蔵＝裁定349〜351 案）＝台帳の現在地（2026-10-14）**: 前提照合＝HEAD d6d49fe（P171 完了時）＝origin/main（0 0・変更 0・未追跡＝answers_20261014.md・poc-record.mjs）。DB 恒久変更 0・読取は SELECT／preview のみ。A（client）＝裁定352 改訂版の開卓モーダル・353 今日の状態・GV-4 kiosk グリッド・347 追補2 修正（/mine の日数・達成ボーナスの目標の出所）・357 送り（退勤後も可・退勤ダイアログ）。A-5（355）は器なし→0172 案。B（payload）＝348 追補2＋354（PIN 1234・/kiosk 上部の注記は器なし＝入口のみ）。X＝専門家確認事項 ④ に逐語転記・T11 起票・裁定349〜351 案・起票113・規約雛形 docs/legal/terms_store_v0.9.md・docs/tmp/x_plan.md。suite n1014 16（新・f0 109 段目）・today-row +4・payroll +1・張替え demo-profiles／norm-axes／mine-recon。f0＝**2 連緑 109 段 5,922**（run1e 18:56／run2b 19:27・golden 5170／5931・withholding 125802 不変・+21＝n1014 16・today-row 4・payroll 1）。★run1＝anon-guard の statement timeout（E-9）・run1b＝crm-base の statement timeout・run1c＝messages ms(2-11) の pin（E-10・張替え）・run1d＝contract-ack ca(0-2)（E-11・デモ実利用の並走→fixture org に絞った）・run2＝product-back-modes の statement timeout→run2b 緑（同日 statement timeout 3 回＝DB 側の間欠負荷・要観察）。コミット＝4d61b2c（feat A・client＋suite）／3fb3268（feat B・デモ）／3af8907（docs X・専門家回答）／07be9a8（fix: 体験入店の出勤行の重複→demo reset 失敗の修正）／76b92c3（fix: 在席（フリー）で売上を按分＝MUSE・LILY・体験入店の退勤は同じ営業日）／56a5a25（fix: 「送り済」＝transport.biz_date）／d27bed9（fix: 店設定 norm_axes・biz_type）＋本 docs（N1014 の現在地・裁定352〜357・349〜351 案）・push 済み（d27bed9＝origin/main・本 docs の後に更新）。★19:30 の 6 店 reset＝MUSE／LUNA／ACE／LILY が「reset failed」（最終 chunk の shifts／attendance unique 違反＝体験入店の 10 月出勤が元データの同日行と重複）・NOIR／NEST 成功→gen-demo に重複ガード→07be9a8→再 reset（E-12 候補・markFailed の audit 行が残らない＝起票候補）。live（2026-10-14 19:5x〜20:3x・6 店 reset 19:30／19:44／19:54／20:14 の 4 回＝payload 修正 3 回）＝MUSE 店長 T4 開卓（人数 3→伝票「¥5,500 × 3名」・BANZEN 形モーダル）／ACE /casts「今日: 未出勤 20:00 予定」×5・「出勤中 20:00〜（予定 翌02:00）」（るな）・「今日出勤」で予定なしが消える／ACE kiosk あい 1234→「出勤しました」（punches source kiosk 20:07）・グリッド 4／3／2 列（1280／700／500）／ACE るな 退勤→ダイアログ「送りを発行して退勤／退勤のみ」→「退勤を記録し、送り ¥1,000 を発行しました」→行「送り済」（56a5a25 後）・10 月 preview net 12,200＝13,200−送り 1,000／MUSE さおり 9 月＝売上 ¥1,063,856→¥3,000・pt 31→¥2,600＝3,000 採用（76b92c3 後）／LILY みく 達成ボーナス 10,000・ゆな なし／NEST レン 保証 12h＋基本 6h／ACE るな 10/13 基本 2,200（保証は 10/14 以降の時間が付いてから）／LUNA みさき /mine「出勤日数 1日/21日・同伴 0件/8件」→owner で同伴 OFF→キャスト別ノルマ目標の列・キャスト詳細「今月のノルマ」（採用していない軸は出ません）・/mine の 3 画面から同伴が消える→ON に戻した。★4 店 reset failed（重複）・按分 0（MUSE 売上段／LILY ボーナス）・退勤の $rel・「送り済」の列名・norm_axes 欠落の 5 件を live で検知して修正。仮決め一覧＝docs/tmp/n1014_decisions.md。次＝相談役が 349〜351（＋356）を確定→0172 起草（daily_pays.kind・扶養申告書・店設定 2 キー・terms_acceptances・staff_punches／contracts）→実装便。
+
+**教訓候補 E-6／E-7（採番は相談役）**: E-6「f0 後の fix コミットは、触った文字列を pin する suite を単独走してから push（便 DM-1 で dp(5-1) の赤を検知）」／E-7「payload の行にキーが無い列は jsonb_populate で null になるが、payload を読む suite では undefined＝`=== null` が偽になる→payload を読む pin は `== null` で書く（便 P171 na(4-1)）」＝**教訓113 で採番（便 N1014）**。E-6 は候補のまま。**便 N1014 の候補 E-8／E-9（docs/tmp/n1014_decisions.md 逐語）**: E-8「文字列 pin の『不在』判定は対象ブロックの範囲で行う（`!rb.includes(">やめる</button>")` は他ダイアログの『やめる』で偽になる＝便 N1014 nd(1-2)）」／E-9「anon-guard の statement timeout は再走で消える既知のフレーク（便 N1014 f0 run1＝段28-18→28-21／22 連鎖）＝★f0フレーク=statement timeout型は再実行」／E-10「教訓110 の grep は『変えた文字列』だけでなく『変えたファイルを読む suite』を対象にする（便 N1014 f0 run1c＝messages ms(2-11) が shift-board の呼び出し順を indexOf で pin→A-6 の分岐追加で順が入れ替わり赤→lastIndexOf に張替え）」／E-11「suite の before／after スナップショットは fixture org に絞る（全体件数は、デモ org の実利用が並走すると偽赤＝便 N1014 f0 run1d の contract-ack ca(0-2)＝18:39 に LUNA デモで check_add_line が走っていた→audit_logs の count を org_id で絞った）」／E-12「payload に相対日の行を足すときは元データとの unique（shifts／attendance＝cast_id×date・punches）を生成器で先に落とす（便 N1014 19:30 の reset で 4 店が最終 chunk の unique 違反＝wipe 後に途中まで載った状態・route の markFailed の audit 行は残っていない）」／E-13「payload の相対日 $rel は営業日＝深夜（02:00）の退勤は in と同じ $rel に載せる（d+1 だと 1 日遅れ＝退勤なし・便 N1014 NEST レン）」。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
@@ -4188,6 +4194,51 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 **恒久注意（追加・便 P166）: 本番 route（cron／手動の demo reset）はデプロイ済み repo の payload（docs/demo/payload）を読む＝payload を変えたら push→Vercel success の後に reset する**（push 前の reset は旧 payload＝便 X-13a で flag 0 行の実例）。
 
+## 裁定357（2026-10-14 確定・相談役・便 N1014 A-6＝GV-5）送り実費の発行は退勤後も営業日内は可・退勤時に未発行ならダイアログ
+
+出典＝相談役ブロック 2026-10-14（便 N1014 A-6・Agoora 目視 GV-5）。**本文（逐語）**: 「送り実費の発行は退勤後も営業日内は可。退勤時に未発行ならダイアログで『送りを発行して退勤／退勤のみ』。disabled は方式と当日発行済みのみ」。
+適用＝便 N1014（client のみ・mig 0）: lib/nox/shift/today-row.ts（okuriButtonOf＝有効条件は 実費店・出勤打刻あり・当日未発行＝退勤後も可／outDialogNeeded＝実費店かつ当日未発行）・/shift 今日タブ（「送り」→発行済みは「送り済」disabled・「退勤」→実費店で未発行なら退勤ダイアログ＝「送りを発行して退勤」（既定・金額は前回値か店の既定・メモ任意）／「退勤のみ」・実費以外はダイアログなし・退勤後の単独発行は transport_issue_bulk のみ＝冪等キー＝最後の out 打刻 id）・components/nox/okuri-out-dialog.tsx（mode outAndIssue／issueOnly・onOutOnly）。翌営業日以降の発行は既存の時刻修正と同じ扱い（本便は触らない）。suite today-row tr(8-1)〜(8-4)。仮決め＝docs/tmp/n1014_decisions.md §A-6。
+
+## 裁定356（案・2026-10-14・便 N1014 X-7＝読取のみ・【相談役確定待ち】）スタッフの勤怠・報酬
+
+出典＝相談役ブロック 2026-10-14（便 N1014 X-7 差し替え）。**案（逐語）**: 「スタッフも契約区分 雇用／委託。雇用＝時給×実働＋固定手当−控除・源泉は給与所得（甲／乙・月額表／日額表）。委託＝時給×実働か固定報酬・源泉率は既定 0（T11 税理士確認後に確定）・インボイスはキャスト委託と同じ器・労働者性注記（350）を同文で表示。月次締め・本人は自分の勤怠と明細のみ・店長は自店の勤怠修正と報酬プレビュー・確定は owner・店長自身の報酬は owner のみ」。
+読取＝器なし（スタッフの打刻表・勤怠・報酬・memberships の契約区分／時給／税区分すべて無し。在るのは staff_pin／set_staff_pin／kiosk_login＝レジ kiosk のログイン）。差分（DB＝0172 同乗: staff_contracts／staff_punches／staff_pay_runs＋lines・RPC 5・lib/nox/staff/pay.ts・UI 4 画面・suite +12 段）＝docs/tmp/x_plan.md X-7。T11（委託スタッフの源泉と支払調書）を専門家確認事項に起票。
+
+## 裁定355（2026-10-14 確定・相談役・便 N1014 A-5）/kiosk のスタッフ群＝器なし・0172 案へ
+
+出典＝相談役ブロック 2026-10-14（便 N1014 A-5）。**本文（逐語）**: 「裁定355（X-1 で器ありの場合のみ）＝/kiosk の一覧を『キャスト』『スタッフ』の 2 群・スタッフも PIN→出勤／退勤・書き先はスタッフ勤怠（分離）・オーナーは出さない。器が無ければ 0172 案に『memberships に PIN（hash）』を含めて報告」。
+読取（X-1）＝PIN は**あり**（staff_pin＝membership_id PK・pin_hash・set_staff_pin／kiosk_login）・スタッフの打刻表・勤怠 RPC は**なし**→実装せず。0172 案＝staff_punches（membership_id・in／out・biz_date・source kiosk／manual）＋staff_punch（PIN＝kiosk_login 流用）＝裁定356 の表と同じ便（docs/tmp/x_plan.md X-1／X-7）。
+
+## 裁定354（2026-10-14 確定・相談役・便 N1014 B-5）デモ 6 店のキャスト全員に PIN 1234
+
+出典＝相談役ブロック 2026-10-14（便 N1014 B-5）。**本文（逐語）**: 「裁定354＝デモ 6 店のキャスト全員（A-5 実装時はスタッフも）に PIN 1234 を payload で設定（既存経路・デモ org のみ）。/demo の『打刻端末で開く』脇と /kiosk 上部（デモ org のみ）に『デモの PIN は 1234』。本番 org は表示なし・PIN 未設定は押せないまま」。
+適用＝便 N1014（payload・client のみ）: gen-demo が cast_pin を全キャストに生成（bcrypt cost 6 の固定ハッシュ＝1234）・components/ui/demo-terms.tsx の「打刻端末で開く」脇に `data-demo-pin`「デモの PIN は 1234」。★/kiosk 上部の注記は**出さない**（kiosk は PIN 前の匿名面で orgs.is_demo を読めない＝器なし・仮決め B-5）。スタッフの PIN は A-5 器なしのため未設定。suite n1014 nd(3-2)／nd(4-1)。
+
+## 裁定353（2026-10-14 確定・相談役・便 N1014 A-2）/casts のカードに「今日の状態」1 行＋「今日出勤」フィルタ
+
+出典＝相談役ブロック 2026-10-14（便 N1014 A-2）。**本文（逐語）**: 「/casts のカードに『今日の状態』1 行＝予定なし／出勤予定 HH:MM〜翌HH:MM／出勤中 HH:MM〜（予定 翌HH:MM）／退勤 HH:MM〜HH:MM／未出勤 HH:MM 予定／休み希望・当欠。今日タブ（/shift）の判定純関数をそのまま呼ぶ・別計算を作らない。一覧上部に『今日出勤』フィルタ。casts-board の select に今日の shifts と punches（1 クエリ・N+1 禁止）」。
+適用＝便 N1014（client のみ・mig 0）: lib/nox/shift/today-row.ts に todayStateOf（7 種・今日タブと同じ firstInLastOut／punchTimeLabel／bizDateOf）と isTodayWorking・casts-board は shifts／attendance／punches を表ごとに 1 クエリ（キャストごとの問い合わせ 0）・カード「今日: …」（data-today-state）・フィルタ「今日出勤」＝is_active かつ isTodayWorking。suite n1014 nd(2-1)〜(2-3)。仮決め＝n1014_decisions.md §A-2。
+
+## 裁定352（2026-10-14 確定・相談役・便 N1014 A-1＝改訂版）開卓モーダル＝BANZEN 形
+
+出典＝相談役ブロック 2026-10-14（便 N1014 A-1・便の途中で改訂版が届き初版を上書き）。**本文（逐語・改訂版）**: 「開卓モーダルは中央寄せで大きく・人数は −／＋ステッパー・セット料金ルールは横並びセグメント・『開卓（セット開始）』を中央に大きく 1 つ・予約とやめるはその下に小さく」。指示の詳細＝「中央寄せ・幅は画面の 80%（上限 560px）・文字と余白を今の 1.5 倍。見出し『<卓名> を開卓』。人数＝−／＋ステッパー（既定 1・下限 1・上限＝卓の定員があればそれ・無ければ 20・直接入力なし）。セット料金ルール＝プルダウン廃止→横並びのセグメント（自動／各ルール名・選択中は金塗り・既定は自動・ルールが 1 つなら非表示）。主ボタン『開卓（セット開始）』を中央に大きく 1 つ（幅 100%・高さ 56px）。『予約を入れる』『やめる』はその下に小さく横並び。開卓 RPC は既存のまま・相席導線は不変・kiosk 不触」。初版（「席を開くダイアログは席名を見出し・人数は −／＋ステッパー（既定 1・上限は席定員か 20）・『席を開く』1 ボタン・直接入力なし」）は改訂で置換。
+適用＝便 N1014（client のみ・mig 0・check_open の引数 1 バイト不変）: app/(manage)/register/register-board.tsx（Modal maxWidth 560＋globals.css `.nox-modal-card:has(> [data-open-seat-modal]) { width: 80vw }`（>900px のみ・≤900 はシート全幅）・見出し 21px・本文 15px・ステッパー 72×60・ルール＝data-rule-seg（owner／manager かつ有効ルール 2 件以上のときのみ）・主ボタン data-open-seat 幅 100%／56px・予約／やめる（data-open-cancel）は下に小さく）。料金区分（116-UI）は対象外＝select のまま。suite n1014 nd(1-1)／(1-2)。仮決め＝n1014_decisions.md §A-1。
+
+### GV-4（2026-10-14・便 N1014 A-3・裁定番号なし）/kiosk の名前タイルをグリッドに
+適用＝app/kiosk/page.tsx `.nox-kioskgrid`（globals.css＝2 列・≥600px 3 列・≥900px 4 列）。suite n1014 nd(3-1)。
+
+## 裁定351（案・2026-10-14・便 N1014 X-4・【相談役確定待ち】）店舗向け利用規約＝雛形 v0.9 先行・本番 org の開通は同意ゲート
+
+**案**: 「店舗向け利用規約は雛形 v0.9（docs/legal/terms_store_v0.9.md・16 見出し＝サービス内容／アカウント管理／利用料金・支払／店舗データの取扱い／個人情報／再委託／禁止事項／バックアップ・データ保持／解約時のデータ／メンテナンス・停止／知的財産／免責・損害賠償／契約解除／規約変更／反社／準拠法・管轄・各条【弁護士確認】）で先行実装。同意は店舗・法人単位＝terms_acceptances（org_id・terms_version・accepted_at・accepted_by_user_id＝owner）＋RPC terms_accept（owner・冪等・audit）。本番 org（is_demo＝false）は現行 version の同意が無ければ /terms/accept へ誘導する必須ゲート（デモ org は除外・置き場＝(manage)/layout の org 読取直後）。デモ規約（L7）はそのまま完了。/terms は lp_plan.md L-2 の器（60 行・noindex・弁護士確認後に公開）。DB＝0172 同乗（表 1・RPC 1・suite 4 段）」。出典＝弁護士回答 2026-10-14（専門家確認事項 L6 ④・逐語）。読取＝docs/tmp/x_plan.md X-4。
+
+## 裁定350（案・2026-10-14・便 N1014 X-3・【相談役確定待ち】）労働者性の注記＝弁護士の文言 2 段へ差し替え
+
+**案**: 「契約区分の注記（NOTE_EMPLOYMENT＋NOTE_LABOR＝lib/nox/cast/pay-rule.ts・キャスト詳細『待遇・バック』）を本文 1 段『業務委託として登録しても、法令上の労働者性や税務上の所得区分が確定するものではありません。仕事を断る自由、業務上の指揮監督、勤務時間・場所の拘束、代替性、報酬の決め方など、実際の働き方によっては労働者に該当する場合があります。』に差し替え、報酬調整（契約）の減額・控除の下に『報酬の減額・控除を設定する場合は、契約上の根拠と実際の運用が一致していることを確認してください。』を追加。291 追補1 の考え方は維持。mig 0・client 2 箇所・pin 2 本」。出典＝弁護士回答 2026-10-14（専門家確認事項 L3 ④・逐語）。読取＝docs/tmp/x_plan.md X-3。
+
+## 裁定349（案・2026-10-14・便 N1014 X-2・【相談役確定待ち】）日払いの源泉＝日数は暦日数・日払いは settlement／advance・雇用は税額表
+
+**案**: 「委託の源泉は（報酬 − 5,000 円 × 計算期間の暦日数）× 10.21%・日数＝精算方式の暦日数（月次 28〜31／半月 13〜16／週次 7／日次 1）。日払いは settlement（日次精算・1 日分控除・期間精算から除外）と advance（前払・仮払・控除なし）＝『日払いの発行』は settlement・『前借りの発行』は advance。雇用は支払方式で日額表／月額表・扶養控除等申告書あり甲／なし乙・丙欄は第 2 期（起票113）。店設定は契約区分／精算方式／途中払いの 3 フィールド（『日払い ON』の 1 フラグで源泉方式を決めない）」。出典＝税理士回答 2026-10-14（専門家確認事項 T10 ④・逐語）。読取＝現行の「暦日数 × 5,000」は回答と一致（golden 不変）・欠け＝daily_pays.kind・雇用の税額表・扶養申告書の列・店設定の 2 キー＝**0172 が要る**（docs/tmp/x_plan.md X-2 の表）。
+
 ## 裁定348（2026-10-14 確定・相談役・便 DM-1）デモ 6 店の報酬形態マトリクス
 
 出典＝相談役ブロック 2026-10-14（便 DM-1 D-2・相談役提示の表）。**本文（逐語）**: 「ACE 売上月次＋指名・商品バック＋売上・指名ノルマ＋送り実費／LUNA 売上半月＋ドリンク区分別＋日数・同伴＋送り定額／NOIR pt 月次・本指名件数・S／A＋商品 pt・指名バック＋指名ノルマ＋送りなし／MUSE 併用＋売上歩合＋4 軸＋送り実費／NEST スライドなし・固定＋期限付き保証＋ノルマなし・休み希望のみ＋送り定額／LILY 雇用・確定シフト基準＋達成ボーナス＋日払い＋日数ノルマ＋送り店負担」。既存の X-13 で目視 OK 済みの値（ACE の段・LUNA の半月・NOIR の件数）は動かさない。店ごとに「見せ場 1 行」を store_profiles に追記。
@@ -4201,6 +4252,11 @@ D-1 読取（併用）＝**高い方**（lib/nox/pay.ts wageDetail `hourly = max
 **本文（逐語）**: 「体験入店＝6 店すべてに待遇プラン「体験入店」（スライド・バックなし・基本時給は店ごとに別額）を置き、各店 1 名を体験入店プランに割り当て、set_cast_guarantee の期限付き保証時給（開始＝デモ基準日・期間 3 営業日・額は店ごと別・NEST だけは期限切れ済み＝基本時給に戻った状態）を payload に入れる。/mine と給与プレビューに「保証時給（〜10/xx）」の印が出ること・期限切れ後は基本時給で計算されることを D-3 の before／after と live に含める。」
 
 適用＝便 DM-1: profiles.mjs TRIAL（base＝MUSE 1,500／LUNA 2,000／NOIR 2,500／ACE 2,200／LILY 1,300／NEST 1,200・保証＝2,300／3,000／3,500／3,200／1,800／1,800・R〜R+2・NEST は R-5〜R-3・割当＝まり／まい／こころ／るな／ゆな／レン）・gen-demo（プラン＝スライド 0・指名バック 0・商品バック plan_fixed 0／cast_plan は set_cast_guarantee の 3 行形＝直前行 valid_to R-1・保証行 {base, guarantee:true}・戻し行 R+3〜）・/mine の印「保証時給（〜MM/DD）¥X」（app/mine/page.tsx・今日を含む保証行があるときだけ・期限後は出さない）・給与プレビューは既存の明細行「うち保証 MM/DD〜MM/DD ¥X」。
+
+### 裁定348 追補2（2026-10-14 確定・相談役・便 N1014 B-1〜B-4）MUSE 指名 ON・LILY 9 月ノルマ・体験入店の 10 月出勤・業態
+
+**本文（逐語）**: 「B-1 profiles.mjs＝MUSE を指名 ON（キャバ型）に戻し、併用（売上段＋pt 段）と売上歩合が 2026-09 で発火する伝票・pt を入れる（さおり で両段に値・高い方が採用）。B-2 LILY＝2026-09 の cast_norms 2 名分（1 名達成＝達成ボーナス行あり・1 名未達）。B-3 体験入店 6 名＝2026-10 に出勤 2〜3 日・保証時給の明細行と NEST レン の期限切れ後＝基本時給行。B-4 store_profiles に業態 1 行（ACE キャバクラ／LUNA キャバクラ／NOIR ラウンジ／MUSE キャバクラ／NEST スナック／LILY ガールズバー）・profiles.mjs の業態テンプレと一致（不一致なら profiles.mjs を合わせる）」。
+適用＝便 N1014（payload のみ・DB 恒久変更 0）: profiles.mjs（muse＝cabaret・nominations true・pt 段 10／20／40→2,300／2,600／3,000・lily normAxes days／sales・nest＝snack）・gen-demo（MUSE に既定ランク 1 本と指名を注入＝check_nominations 53・LILY 先月の cast_norms＝みく 300,000 達成／ゆな 9,000,000 未達・体験入店 6 名の 10 月出勤＝保証期間 [R−1, R, R+1]（NEST は [R, R+1, 期限+1]）の今日以前＝確定シフト＋出勤＋in 20:00／out 翌 02:00）・store_profiles §3c 業態・seed.ts DEMO_STORE_LABEL（muse キャバクラ・nest スナック）。before／after（給与プレビュー・docs/tmp/dm1_preview_*.json）＝【B-6 の表】。suite n1014 nd(4-1)〜(4-4)・demo-profiles 張替え。
 
 ## 裁定346（2026-10-13 確定・相談役・便 N1013b B-2b）ランキングに売上軸・キャスト側は off／self／top
 
@@ -4243,14 +4299,14 @@ D-1 読取（併用）＝**高い方**（lib/nox/pay.ts wageDetail `hourly = max
 
 ### 裁定347 追補2（2026-10-14・便 P171・実装仮決め＝相談役が追認／差替え）
 
-適用＝便 P171（client のみ・0171 適用後）: lib/nox/store/norm-axes.ts（normAxesOf＝欠損 ON・quotaKeysOfAxes・planDefaultQuotaOf＝shimei は指名のカウントで hon へ・resolveQuotaOf＝個別＞既定＞なし・resolveNormTargetsOf＝cast_norms の 0＝継承）・plan-editor 節⑥「ノルマ（プラン既定の目標）」（set_comp_plan 29 引数・空＝null・OFF 軸は入力口なし）・casts-board「今月のノルマ」（placeholder に既定・印「個別」・「プランの既定に戻す」＝set_cast_quota 4 引数 null・採用軸だけ）・comp-sections「キャスト別ノルマ目標」（採用軸の列・継承＝薄・上書き＝濃・一括は上書き）・norm-config-panel（4 軸＝set_store_norm_axes→旧 2 キーを同期して set_store_norm_config）・/api/mine/norm-progress（admin で現在の cast_plan→comp_plans.norm_*・店設定で解決・source を返す）・/mine/ranking（get_cast_sales_rank の自分の行＝「売上の順位: N位 / M人中」＝346 追補1）・デモ（プラン既定＝基本 12／4／500,000／20・優遇 16／6／800,000／30・体験入店は空・個別上書きは代表キャスト 1 名）。仮決め一覧＝docs/tmp/p171_decisions.md（C-1〜C-5・A-1／A-2・R-1／R-2・D-1〜D-3）。★2 表（cast_quotas／cast_norms）は統合しない・days は /mine の進捗カードに出ない・達成ボーナスの目標はプラン既定を見ない（C-5＝裁定要）。suite norm-axes 28。
+適用＝便 P171（client のみ・0171 適用後）: lib/nox/store/norm-axes.ts（normAxesOf＝欠損 ON・quotaKeysOfAxes・planDefaultQuotaOf＝shimei は指名のカウントで hon へ・resolveQuotaOf＝個別＞既定＞なし・resolveNormTargetsOf＝cast_norms の 0＝継承）・plan-editor 節⑥「ノルマ（プラン既定の目標）」（set_comp_plan 29 引数・空＝null・OFF 軸は入力口なし）・casts-board「今月のノルマ」（placeholder に既定・印「個別」・「プランの既定に戻す」＝set_cast_quota 4 引数 null・採用軸だけ）・comp-sections「キャスト別ノルマ目標」（採用軸の列・継承＝薄・上書き＝濃・一括は上書き）・norm-config-panel（4 軸＝set_store_norm_axes→旧 2 キーを同期して set_store_norm_config）・/api/mine/norm-progress（admin で現在の cast_plan→comp_plans.norm_*・店設定で解決・source を返す）・/mine/ranking（get_cast_sales_rank の自分の行＝「売上の順位: N位 / M人中」＝346 追補1）・デモ（プラン既定＝基本 12／4／500,000／20・優遇 16／6／800,000／30・体験入店は空・個別上書きは代表キャスト 1 名）。仮決め一覧＝docs/tmp/p171_decisions.md（C-1〜C-5・A-1／A-2・R-1／R-2・D-1〜D-3）。★2 表（cast_quotas／cast_norms）は統合しない（統合は第 2 期＝起票114）。**修正 2 点（相談役 2026-10-14・便 N1014 A-4）**＝① /mine の進捗カードは採用軸すべて（days を含む＝cast_norms の days_target を個別＞プラン既定＞なしで解決・実績＝自分の in 打刻の営業日数）・② 達成ボーナスの目標（collect）は /mine と同じ純関数で解決し、core はプラン既定から継承したときだけ凍結形に normTarget{source:"plan"} を出す（明細「達成ボーナス（目標 ¥X＝プランの既定）」・既存 21 プランは既定 null＝従来どおり cast_norms・凍結形 1 バイト同値）。suite norm-axes 28・payroll 段N1014-1。
 
 ## 裁定343（2026-10-13 確定・相談役・便 W5-2b 再開ブロック）待遇プランの判定基準と対象はプランの属性（comp_plans.slide_basis／slide_rank_ids・0170）
 
 出典＝相談役ブロック 2026-10-13（便 W5-2b 再開＝「B-4 用の逐語」・便 W5-2a では【相談役記入】の仮置き）。**本文（逐語）**:
 「待遇プランの判定基準と対象はプランの属性として持つ。comp_plans.slide_basis は sales／hon_count／dohan_count の 3 値・既定 sales、comp_plans.slide_rank_ids は空＝全員。338 の判定期間（月次／半月／日次）とは直交。set_comp_plan は 25 引数・既存呼び出しは既定で挙動不変。個人上書き（overrides_json）には持たない」。
 
-**0171 の欄（本番適用済み・起草＝便 N1013b／再起草＝便 V1014・収蔵＝便 DM-1（pin）／便 P171（client）・2026-10-14）**: supabase/migrations/0171_plan_norm_targets_axes.sql＝生成器 docs/tmp/gen_0171.mjs（写経元＝live pg_get_functiondef＝set_comp_plan 1cddaa0e・2026-10-13 読取・★以外 1 バイト不変）。sha256 **fb8b168bad748be5df07b8ccaf7b32b47167c98a668dc0830499fbeabb656b51**・22,870 B・268 行（台帳方式）／267（wc -l）・LF。本番適用＝Agoora 手貼り 2026-10-14（Success 表示のみ・時刻は記入待ち）→live 照合（docs/tmp/q1014_p171_q0.mjs・便 P171 Q-0）**全点一致**＝関数 **308**（+2＝set_store_norm_axes／get_cast_sales_rank）・'billing locked' **158**（+1）・set_comp_plan 29 引数 md5 **4fa34575**・comp_plans の既定目標 4 列（norm_days／dohan／sales／shimei_target integer null）・新 RPC 2 本の proacl＝authenticated（＋service_role＝Supabase 既定）。pin 張替え（便 DM-1 の f0 で収蔵）＝0158 s-2h（md5）／s-2i（列 28→32）／s-3・t-1（関数 306→308）・billing 段47-1（対象 157→158・除外 149→150・gated 158・述語参照 159・形 158）・課金ゲート名簿（A8 +set_store_norm_axes・B(f) +get_cast_sales_rank・mig0171 追随）。
+**0171 の欄（本番適用済み・起草＝便 N1013b／再起草＝便 V1014・収蔵＝便 DM-1（pin）／便 P171（client）・2026-10-14）**: supabase/migrations/0171_plan_norm_targets_axes.sql＝生成器 docs/tmp/gen_0171.mjs（写経元＝live pg_get_functiondef＝set_comp_plan 1cddaa0e・2026-10-13 読取・★以外 1 バイト不変）。sha256 **fb8b168bad748be5df07b8ccaf7b32b47167c98a668dc0830499fbeabb656b51**・22,870 B・268 行（台帳方式）／267（wc -l）・LF。本番適用＝Agoora 手貼り 2026-10-14（**時刻不明**・Success 表示のみ＝便 N1014 で「10/14・不明」として確定）→live 照合（docs/tmp/q1014_p171_q0.mjs・便 P171 Q-0）**全点一致**＝関数 **308**（+2＝set_store_norm_axes／get_cast_sales_rank）・'billing locked' **158**（+1）・set_comp_plan 29 引数 md5 **4fa34575**・comp_plans の既定目標 4 列（norm_days／dohan／sales／shimei_target integer null）・新 RPC 2 本の proacl＝authenticated（＋service_role＝Supabase 既定）。pin 張替え（便 DM-1 の f0 で収蔵）＝0158 s-2h（md5）／s-2i（列 28→32）／s-3・t-1（関数 306→308）・billing 段47-1（対象 157→158・除外 149→150・gated 158・述語参照 159・形 158）・課金ゲート名簿（A8 +set_store_norm_axes・B(f) +get_cast_sales_rank・mig0171 追随）。
 
 **0170 の欄（本番適用済み・起草＝便 W5-2a・収蔵＝便 W5-2b・2026-10-13）**: supabase/migrations/0170_comp_plan_slide_basis.sql＝生成器 docs/tmp/gen_0170.mjs（写経元＝live pg_get_functiondef＝set_comp_plan 3ebd1624・2026-10-13 読取・★以外 1 バイト不変）。sha256 **f854521f7899fc6151469d69208bac1eb87348989202992b63d6d98fcc6886bb**・17,200 B・192 行（台帳方式）／191（wc -l）・LF・突合 docs/tmp/q1013_ag_0170.mjs **12 段 NG 0**（BEGIN…ROLLBACK＝列 2 本 NOT NULL 既定 'sales'／'{}'・CHECK 3 値・既存 21 行は sales・全員・set_comp_plan 1 本 25 引数・新 md5 **1cddaa0e**・ACL secdef authenticated＋service_role・ゲート行あり・関数 306／表 83／'billing locked' 157 不変・auth なし forbidden・23 引数呼出も default で解決・rollback 後 306／3ebd1624／列 0）。中身＝★1 comp_plans.slide_basis text not null default 'sales'＋CHECK（sales／hon_count／dohan_count）・slide_rank_ids uuid[] not null default '{}' ★2 set_comp_plan 25 引数（末尾 p_slide_basis default 'sales'・p_slide_rank_ids default '{}'・NULL は 'bad slide_basis'／'bad slide_rank_ids'・rank id は自店の有効な cast_ranks・重複拒否・insert／update に 2 列・23 引数版 drop）★3 grants。関数数見込み 306→306（置換）・名簿不変（A7・改稿のみ）。md5 pin 候補＝set_comp_plan 3ebd1624→1cddaa0e（手貼り後に live で確定）。手貼り案内 docs/demo/handpaste_0170.md（0169 の後・末尾に恒久注意28 の定型 1 文）。デモ＝gen-demo の comp_plans 行に slide_basis 'sales'・slide_rank_ids [] を先行投入（payload 6 本再生成・0170 適用後の 06:05 reset を壊さない）。
 
@@ -6503,6 +6559,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 109 | **未達処理の根拠確認記録**（第 2 期・**起票 2026-10-13 便 N1013b B-9**） | 本文: penalty_config に確認記録の器なし（旧 PREP_ITEMS penalty_basis_record）。plan-board の disabled チェック「契約上の根拠を確認した」と準備中チップは撤去（教訓25）。処置案＝penalty_config +confirmed_at／confirmed_by＋set RPC。 |
 | 110 | **達成ボーナスの多段しきい値**（第 2 期・**起票 2026-10-13 便 N1013b B-9**） | 本文: comp_plan_components は 100%・1 段固定（旧 PREP_ITEMS achievement_params）。処置案＝params_json に段配列・pay.ts の達成判定を段ごとに。準備中チップは撤去済み。 |
 | 111 | **達成条件の他軸（出勤／本指名／同伴）**（第 2 期・**起票 2026-10-13 便 N1013b B-9**） | 本文: 達成ボーナスの目標は売上のみ（旧 PREP_ITEMS achievement_metrics）。処置案＝params_json に metric（days／hon／dohan／sales）＋collect の実績の引き回し。準備中チップは撤去済み。 |
+| 113 | **雇用キャスト・スタッフの丙欄（日雇賃金）**（第 2 期・**起票 2026-10-14 便 N1014 X-6**） | 本文: T10 回答（2026-10-14）＝「日払いだから丙欄」ではない・丙欄は日雇賃金の要件（2 か月以内の有期雇用等）を満たす場合だけ・2 か月を超えれば使えない。NOX は雇用の税額表（日額／月額・甲／乙）を 0172（裁定349 案）で持ち、丙欄は雇用期間の要件判定が要るため第 2 期。処置案＝cast_tax_profiles（staff_contracts も）に employment_until date＋税額表 '丙' の分岐と 2 か月超の警告。 |
+| 114 | **ノルマ 2 表（cast_quotas／cast_norms）の統合**（第 2 期・**起票 2026-10-14 便 N1014 C**） | 本文: 347 追補2 の★＝cast_quotas（hon／jonai／dohan／sales＝/mine カード・casts-board「今月のノルマ」）と cast_norms（days／dohan／sales／shimei＝comp-sections・達成ボーナスの目標）は別表のまま。本便は days を cast_norms から /mine に引き、達成ボーナスの目標を同じ純関数（個別＞プラン既定＞なし）で解決して整合させた。統合＝1 表 5 軸＋period＋set RPC 1 本＋旧 2 RPC（set_cast_quota／set_cast_norm）の互換＝mig 1 本・UI 3 画面・suite 4 本の張替え。次＝起票115。 |
 | 112 | **キャスト側ランキングの売上軸（自分の順位）**（第 2 期・**起票 2026-10-13 便 N1013b B-2b**） | 本文: 裁定346 の売上軸は管理側のみ。cast は get_cast_sales で本人行しか読めず（金額の RLS）、順位には他人の額が要る＝RPC（順位と名前だけ返す・金額は本人分のみ or null）が要る＝0172 候補。 **→ 2026-10-14 便 V1014 V-2: 0171 に get_cast_sales_rank を同乗（cast＝自分の 1 行だけ）＝クローズ（裁定346 追補1）** |
 | — | **0160 のスコープ＝裁定326-9＋起票95・96**（**便 C-0・2026-09-30**） | 0160＝cast_quotas＋set_cast_quota／予約表の status・requested_by_cast・rejected_reason＋reservation_request／reservation_decide／cast_notice_reads＋既読 RPC／settings_json +7 キー（mine_settings 6＋shift_request_mode）＋起票95（staff_shift_patterns の無効化）＋起票96（T6 契約確認の記録）。起草の前に R160 事前読取（docs/tmp/0160_pre.md）→ ★指定。 |
 
