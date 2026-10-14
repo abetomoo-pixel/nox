@@ -27,7 +27,8 @@ import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定
 import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定309-6・便 V-4）: 日払いの発行（cast 固定・daily_pay_issue・源泉プレビュー）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
-import { isSystemOn } from "@/lib/nox/store-systems"; // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
+import { isSystemOn } from "@/lib/nox/store-systems";
+import { NORM_AXIS_LABEL, hasOverride, normAxesOf, normTargetsOf, planDefaultQuotaOf, quotaKeysOfAxes, resolveQuotaOf, shimeiScopeOf } from "@/lib/nox/store/norm-axes"; // ★裁定347／GV-2（0171・便 P171）: 継承・上書き・採用軸 // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
 import { SHIFT_REQUEST_MODE_LABEL, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: シフト希望の方式のラベルと店の既定
 import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
 import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
@@ -142,6 +143,7 @@ export default function CastsBoard({
   const [plansById, setPlansById] = useState<Record<string, {
     name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
     hon_back_mode: string; hon_back_rate: number | null; jonai_back_mode: string; jonai_back_rate: number | null;
+    norm_days_target?: number | null; norm_dohan_target?: number | null; norm_sales_target?: number | null; norm_shimei_target?: number | null; // ★裁定347（0171）: プラン既定の目標
   }>>({});
   // E8-5 casts#6（縮小）: 選択キャストの次回シフト（shifts 1行 select・表示専用）
   const [nextShift, setNextShift] = useState<{ date: string; start_hm: string; end_hm: string; status: string } | null>(null);
@@ -157,6 +159,7 @@ export default function CastsBoard({
   const [quotaMonth, setQuotaMonth] = useState<string>(`${month}-01`);
   const [quotaCur, setQuotaCur] = useState<QuotaForm>(QUOTA_FORM_EMPTY);
   const [quotaForm, setQuotaForm] = useState<QuotaForm>(QUOTA_FORM_EMPTY);
+  const [quotaRow, setQuotaRow] = useState<Partial<Quota> | null>(null); // ★裁定347: 個別（null＝継承）
   const [quotaBusy, setQuotaBusy] = useState(false);
   const [quotaMsg, setQuotaMsg] = useState<{ kind: MessageKind; text: string } | null>(null);
   const selCastId = sel?.kind === "cast" ? sel.id : null;
@@ -167,6 +170,7 @@ export default function CastsBoard({
     void supabase.from("cast_quotas").select("hon, jonai, dohan, sales").eq("cast_id", selCastId).eq("month", quotaMonth).maybeSingle().then(({ data }) => {
       if (!alive) return;
       const f = quotaFormOf((data ?? null) as Partial<Quota> | null);
+      setQuotaRow((data ?? null) as Partial<Quota> | null); // ★裁定347
       setQuotaCur(f); setQuotaForm(f);
     });
     return () => { alive = false; };
@@ -179,8 +183,25 @@ export default function CastsBoard({
     setQuotaBusy(false);
     if (error) { setQuotaMsg({ kind: "error", text: rpcErrJa(error.message) }); return; }
     setQuotaCur(quotaForm);
+    setQuotaRow(Object.fromEntries(QUOTA_KEYS.map((k) => [k, quotaForm[k].trim() === "" ? null : Number(quotaForm[k].replace(/[^0-9]/g, ""))])) as Partial<Quota>); // ★裁定347: 保存後の個別値
     setQuotaMsg({ kind: "success", text: "ノルマを保存しました" });
   }
+  // ★裁定347（0171・便 P171）: 「プランの既定に戻す」＝個別を全部 null にして保存（set_cast_quota 4 引数 null＝目標なし＝継承）
+  async function resetQuotaToPlan(c: CastLogin) {
+    setQuotaBusy(true); setQuotaMsg(null);
+    const { error } = await supabase.rpc("set_cast_quota", { p_store_id: c.store_id, p_cast_id: c.id, p_month: quotaMonth, p_hon: null, p_jonai: null, p_dohan: null, p_sales: null });
+    setQuotaBusy(false);
+    if (error) { setQuotaMsg({ kind: "error", text: rpcErrJa(error.message) }); return; }
+    setQuotaRow(null); setQuotaCur(QUOTA_FORM_EMPTY); setQuotaForm(QUOTA_FORM_EMPTY);
+    setQuotaMsg({ kind: "success", text: "プランの既定に戻しました" });
+  }
+  /** ★裁定347: 選択キャストのプラン既定（cast_plan 現在行→comp_plans.norm_*）と採用軸・指名カウントから解決（個別＞既定＞なし） */
+  const quotaResolvedOf = (c: CastLogin) => {
+    const sj = stores.find((st) => st.id === c.store_id)?.settings_json ?? null;
+    const axes = normAxesOf(sj); const scope = shimeiScopeOf(sj);
+    const a = castPlanOf[c.id]; const pl = a ? plansById[a.planId] : null;
+    return { axes, scope, keys: quotaKeysOfAxes(axes, scope), res: resolveQuotaOf(planDefaultQuotaOf(normTargetsOf(pl ?? null), axes), quotaRow, axes, scope) };
+  };
 
   useEffect(() => { void resolveOrgId(supabase).then(setOrgId); }, [supabase]);
 
@@ -212,7 +233,7 @@ export default function CastsBoard({
   const loadPlans = useCallback(async () => {
       const [{ data: cp }, { data: pl }] = await Promise.all([
         supabase.from("cast_plan").select("cast_id, plan_id, overrides_json, valid_from, valid_to"),
-        supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, is_active"), // ★306-13: is_active（同じ取得に同乗）
+        supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, is_active, norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target"), // ★裁定347（0171）: 既定目標 4 列 // ★306-13: is_active（同じ取得に同乗）
       ]);
       const m: Record<string, { planId: string; ov: Record<string, number | string> }> = {};
       const rowsOf: Record<string, PlanRowLike[]> = {};
@@ -230,6 +251,7 @@ export default function CastsBoard({
           hon_back: r.hon_back as number, jonai_back: r.jonai_back as number, dohan_back: r.dohan_back as number,
           hon_back_mode: (r.hon_back_mode as string) ?? "per_count", hon_back_rate: r.hon_back_rate as number | null,
           jonai_back_mode: (r.jonai_back_mode as string) ?? "per_count", jonai_back_rate: r.jonai_back_rate as number | null,
+          norm_days_target: r.norm_days_target as number | null, norm_dohan_target: r.norm_dohan_target as number | null, norm_sales_target: r.norm_sales_target as number | null, norm_shimei_target: r.norm_shimei_target as number | null, // ★裁定347
         };
       }
       setActivePlans(((pl ?? []) as Record<string, unknown>[]).filter((r) => r.is_active !== false).map((r) => ({ id: r.id as string, name: r.name as string }))); // ★306-13: 候補＝有効プランのみ
@@ -849,16 +871,27 @@ export default function CastsBoard({
                   <SegSelect value={quotaMonth} onChange={(v) => setQuotaMonth(v)} options={quotaMonthOptionsOf(month)} disabled={quotaBusy} ariaLabel="ノルマの月" />
                   <span style={lbl}>空欄＝目標なし。キャストのマイページに「実績／目標・達成率」が出ます</span>
                 </div>
+                {(() => { const q = quotaResolvedOf(selCast); return (<>
+                <p style={{ ...lbl, margin: "0 0 6px" }} data-quota-source={JSON.stringify(q.res.source)}>
+                  {hasOverride(q.res) ? <span className="nox-stpill ok" style={{ marginRight: 6 }}>個別</span> : <span className="nox-stpill" style={{ marginRight: 6 }}>プランの既定を継承</span>}
+                  空欄＝プランの既定を継承（薄い数字）。入力すると個別の目標として上書きします。採用していない軸は出ません（{Object.entries(q.axes).filter(([, v]) => !v).map(([k]) => NORM_AXIS_LABEL[k as keyof typeof NORM_AXIS_LABEL]).join("・") || "なし"}）。
+                </p>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
-                  {QUOTA_KEYS.map((k) => (
-                    <label key={k} style={{ display: "block", minWidth: 0 }}>
-                      <span style={{ ...lbl, display: "block", marginBottom: 3 }}>{QUOTA_LABEL[k]}（{QUOTA_UNIT[k]}）</span>
+                  {QUOTA_KEYS.filter((k) => q.keys.includes(k)).map((k) => (
+                    <label key={k} style={{ display: "block", minWidth: 0 }} data-quota-key={k} data-source={q.res.source[k] ?? "none"}>
+                      <span style={{ ...lbl, display: "block", marginBottom: 3 }}>{QUOTA_LABEL[k]}（{QUOTA_UNIT[k]}）{q.res.source[k] === "override" ? <span className="nox-stpill ok" style={{ marginLeft: 6 }}>個別</span> : q.res.source[k] === "plan" ? <span style={{ color: "var(--sub)", marginLeft: 6 }}>既定 {k === "sales" ? "¥" + (q.res.quota[k] ?? 0).toLocaleString() : q.res.quota[k]}</span> : null}</span>
                       {k === "sales"
-                        ? <MoneyInput value={quotaForm.sales} disabled={quotaBusy} width="100%" style={{ padding: "8px 10px", fontSize: 13 }} ariaLabel="売上の目標" onChange={(v) => setQuotaForm((f) => ({ ...f, sales: v.slice(0, 12) }))} />
-                        : <input inputMode="numeric" value={quotaForm[k]} disabled={quotaBusy} onChange={(e) => setQuotaForm((f) => ({ ...f, [k]: e.target.value }))} style={{ ...input, width: "100%" }} aria-label={`${QUOTA_LABEL[k]}の目標`} />}
+                        ? <MoneyInput value={quotaForm.sales} disabled={quotaBusy} width="100%" style={{ padding: "8px 10px", fontSize: 13 }} ariaLabel="売上の目標" onChange={(v) => setQuotaForm((f) => ({ ...f, sales: v }))} />
+                        : <input inputMode="numeric" value={quotaForm[k]} disabled={quotaBusy} placeholder={q.res.source[k] === "plan" ? String(q.res.quota[k]) : "目標なし"} onChange={(e) => setQuotaForm((f) => ({ ...f, [k]: e.target.value.replace(/[^0-9]/g, "") }))} style={{ ...input, width: "100%" }} />}
                     </label>
                   ))}
                 </div>
+                {hasOverride(q.res) && (
+                  <div className="nox-actions" style={{ marginTop: 6 }}>
+                    <button type="button" style={btnGhost} disabled={quotaBusy} onClick={() => void resetQuotaToPlan(selCast)}>プランの既定に戻す</button>
+                  </div>
+                )}
+                </>); })()}
                 {quotaMsg && <Message kind={quotaMsg.kind} style={{ margin: "8px 0 0" }}>{quotaMsg.text}</Message>}
                 <div className="nox-actions" style={{ marginTop: 8 }}>
                   <button type="button" style={btnGhost} disabled={quotaBusy || quotaFormEquals(quotaForm, quotaCur)} onClick={() => { setQuotaForm(quotaCur); setQuotaMsg(null); }}>元に戻す</button>

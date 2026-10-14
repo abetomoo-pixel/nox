@@ -11,6 +11,7 @@ import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
+import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf } from "@/lib/nox/store/norm-axes"; // ★裁定347（0171・便 P171）: プラン既定の目標 4 軸（採用 OFF の軸は入力口を出さない）
 import { SLIDE_BASIS_LABEL, slideApplyOf, slideBasisOf, slideBasisPillOf, slideDescOf, slidePeriodOf, slidePillOf, type SlideBasis, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）・★裁定338（0168）: 判定期間
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import {
@@ -28,6 +29,8 @@ type Draft = {
   // ★裁定113/123（mig0134）: 商品販売バック3方式。rate/fixed は当該 mode のときだけ送信（他は null＝RPC pair と同条件）。
   //   値は mode 切替中も保持（hon/jonai の円/本値と同じ流儀＝裁定v）。
   productBackMode: ProductBackMode; productBackRate: number; productBackFixed: number;
+  // ★裁定347（0171・便 P171）: プラン既定の目標 4 軸（空文字＝継承なし＝null）。キャスト別（cast_quotas／cast_norms）が上書き
+  normDays: string; normDohan: string; normSales: string; normShimei: string;
 };
 const BLANK: Draft = {
   id: null, name: "", base: 0, active: true,
@@ -37,7 +40,10 @@ const BLANK: Draft = {
   slidePeriod: "monthly", // ★裁定338: 新規プランの初期値＝月次
   slideBasis: "sales", slideRankIds: [], // ★裁定343: 既定＝売上・全員
   productBackMode: "product_rule", productBackRate: 0, productBackFixed: 0,
+  normDays: "", normDohan: "", normSales: "", normShimei: "", // ★裁定347: 既定＝継承なし
 };
+const normStr = (v: number | null | undefined): string => (typeof v === "number" && Number.isFinite(v) ? String(v) : "");
+const normArg = (s: string): number | null => (s.trim() === "" ? null : Number(s.replace(/[^0-9]/g, "")));
 const draftOf = (p: Plan): Draft => ({
   id: p.id, name: p.name, base: p.base, active: p.is_active,
   honBack: p.hon_back, jonaiBack: p.jonai_back, dohanBack: p.dohan_back,
@@ -48,6 +54,7 @@ const draftOf = (p: Plan): Draft => ({
   slideBasis: slideBasisOf(p.slide_basis), slideRankIds: Array.isArray(p.slide_rank_ids) ? (p.slide_rank_ids as string[]) : [], // ★裁定343: 既存プランは sales・全員（0170 の既定）
   productBackMode: p.product_back_mode ?? "product_rule",
   productBackRate: p.product_back_rate ?? 0, productBackFixed: p.product_back_fixed ?? 0,
+  normDays: normStr(p.norm_days_target), normDohan: normStr(p.norm_dohan_target), normSales: normStr(p.norm_sales_target), normShimei: normStr(p.norm_shimei_target), // ★裁定347（0171）
 });
 const PB_KEYS: (keyof Draft)[] = ["productBackMode", "productBackRate", "productBackFixed"];
 
@@ -190,6 +197,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       p_is_active: draft.active,
       p_slide_period: draft.slidePeriod, // ★裁定338（0168）: 23 引数目（判定期間）
       p_slide_basis: draft.slideBasis, p_slide_rank_ids: draft.slideRankIds, // ★裁定343（0170）: 24・25 引数目（判定基準・対象ランク＝空は全員）
+      p_norm_days_target: normArg(draft.normDays), p_norm_dohan_target: normArg(draft.normDohan), p_norm_sales_target: normArg(draft.normSales), p_norm_shimei_target: normArg(draft.normShimei), // ★裁定347（0171）: 26〜29 引数目（プラン既定の目標・空＝null＝継承なし）
       p_hon_back_mode: draft.honMode, p_hon_back_rate: draft.honMode === "rate" ? draft.honRate : null,
       p_jonai_back_mode: draft.jonaiMode, p_jonai_back_rate: draft.jonaiMode === "rate" ? draft.jonaiRate : null,
       p_dohan_back_mode: "per_count", p_dohan_back_rate: null, // R-2b まで封印（裁定86-②）
@@ -463,6 +471,31 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         </div>
         <CompRows kind="achievement_bonus" section="達成ボーナス" comps={comps} isOwner={isOwner} onSave={saveComp} />
         {/* ★便 N1013b B-9: 達成ボーナスの準備中チップ 2 つ（多段しきい値・他軸）は撤去（器なし＝起票110／111 第 2 期） */}
+      </section>)}
+
+      {/* ── ⑥ ノルマ（プラン既定の目標）── ★裁定347（0171・便 P171）: 4 軸の既定目標（空＝継承なし）。キャスト別（キャスト詳細「今月のノルマ」／キャスト別ノルマ目標）が上書き。採用 OFF の軸（店設定 norm_axes）は入力口を出さない */}
+      {isSectionOn(settings, "planTabQuota") && (<section id="norm-defaults" className="nox-cardtop" style={secCard} data-section="norm-defaults">
+        <div style={{ marginBottom: 12 }}>
+          <h2 style={{ ...secTitle, margin: 0, fontSize: 16 }}>
+            ノルマ（プラン既定の目標）<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>
+          </h2>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>このプランのキャストに継承される月の目標。空＝既定なし。キャスト個別の目標（キャスト詳細「今月のノルマ」）があればそちらが優先されます。保存は「基本」の保存と同じボタン（set_comp_plan）。</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
+          {NORM_AXES.filter((k) => normAxesOf(settings)[k]).map((k) => {
+            const field = ({ days: "normDays", dohan: "normDohan", sales: "normSales", shimei: "normShimei" } as const)[k];
+            return (
+              <label key={k} style={{ display: "block", minWidth: 0 }}>
+                <span style={{ fontSize: 11, color: "var(--sub)", display: "block", marginBottom: 3 }}>{NORM_AXIS_LABEL[k]}（{NORM_AXIS_UNIT[k]}）</span>
+                <input inputMode="numeric" value={draft[field]} disabled={!isOwner} placeholder="既定なし" aria-label={`プラン既定の目標 ${NORM_AXIS_LABEL[k]}`}
+                  onChange={(e) => d({ [field]: e.target.value.replace(/[^0-9]/g, "") } as Partial<Draft>)} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
+              </label>
+            );
+          })}
+        </div>
+        {NORM_AXES.filter((k) => !normAxesOf(settings)[k]).length > 0 && (
+          <p style={{ fontSize: 11, color: "var(--sub)", margin: "6px 0 0" }}>採用していない軸（{NORM_AXES.filter((k) => !normAxesOf(settings)[k]).map((k) => NORM_AXIS_LABEL[k]).join("・")}）は「ノルマ設定（店）」で ON にすると入力できます。</p>
+        )}
       </section>)}
     </div>
   );

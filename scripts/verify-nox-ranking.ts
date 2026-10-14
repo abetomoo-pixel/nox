@@ -57,7 +57,7 @@ const rows: CastSalesRow[] = [
   const ab = src("app/(manage)/analytics/analytics-board.tsx");
   check("rk(4-3) analytics: salesRanking＝castSalesRankingOf・軸切替（SegSelect nom／sales）・売上列「売上（按分）」・見出し", ab.includes("const salesRanking = useMemo(() => castSalesRankingOf(sales, castName), [sales, castName]);") && ab.includes('options={[["nom", RANK_AXIS_LABEL.nom], ["sales", RANK_AXIS_LABEL.sales]] as const}') && ab.includes('<th className="num">売上（按分）</th>') && ab.includes("<h3>キャストランキング（{period}・{RANK_AXIS_LABEL[rankAxis]}）</h3>"));
   const rp = src("app/mine/ranking/page.tsx");
-  check("rk(4-4) /mine/ranking: castRankingModeOf・self は自分の行だけ・off は /mine へ・金額列なし", rp.includes("const rankMode = castRankingModeOf(ms);") && rp.includes('if (rankMode === "off") redirect("/mine");') && rp.includes('const rows = rankMode === "self" ? allRows.filter((r) => r.is_self) : allRows;') && !rp.includes("toLocaleString()") && !rp.includes("¥{"));
+  check("rk(4-4) /mine/ranking: castRankingModeOf・self は自分の行だけ・off は /mine へ・金額列なし", rp.includes("const rankMode = castRankingModeOf(ms);") && rp.includes('if (rankMode === "off") redirect("/mine");') && rp.includes('const rows = rankMode === "self" ? allRows.filter((r) => r.is_self) : allRows;') && rp.includes('supabase.rpc("get_cast_sales_rank", { p_store_id: store.id, p_period: period })') && rp.includes("mySales.sales.toLocaleString()") && (rp.match(/toLocaleString\(\)/g) ?? []).length === 1); // ★裁定346 追補1（0171）: 売上の順位＝自分の 1 行（get_cast_sales_rank）・金額は自分の分だけ（toLocaleString は 1 箇所）
   const mp = src("app/mine/page.tsx");
   check("rk(4-5) /mine: off 以外は自分の順位カード", mp.includes('{castRankingModeOf(ms) !== "off" && myRank && ('));
   const panel = src("app/(manage)/master/mine-settings-panel.tsx");

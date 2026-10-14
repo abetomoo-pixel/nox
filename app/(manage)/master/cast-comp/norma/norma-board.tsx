@@ -13,6 +13,7 @@ import Toast from "@/components/ui/toast";
 import NormConfigPanel from "../../norm-config-panel";
 import { NormTab, PenaltyTab, useCompData, secTitle } from "../comp-sections";
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
+import { normAxesOf } from "@/lib/nox/store/norm-axes"; // ★GV-2（0171）: ノルマの採用軸
 
 const card: React.CSSProperties = t.card;
 
@@ -32,15 +33,15 @@ export default function NormaBoard({ storeId, isManagerUp, isOwner, flags, setti
       {isSectionOn(settings, "normConfigPanel") && (<NormConfigPanel
         storeId={storeId}
         isOwner={isOwner}
-        initialSalesEnabled={flags.salesEnabled}
-        initialShimeiEnabled={flags.shimeiEnabled}
+        initialAxes={normAxesOf(settings)}
         initialShimeiScope={flags.shimeiScope}
-      />)}{/* ★裁定269-4: normConfigPanel */}
+        legacy={{ salesEnabled: flags.salesEnabled, shimeiEnabled: flags.shimeiEnabled }}
+      />)}{/* ★裁定269-4: normConfigPanel ・★GV-2（0171・便 P171）: 採用を 4 軸（set_store_norm_axes）に */}
 
       {/* ② キャスト別の目標（cast_norms・manager 以上） */}
       {isSectionOn(settings, "compNormTab") && (<section className="nox-cardtop" style={{ ...card, margin: "14px 0" }}>{/* ★裁定269-4: compNormTab */}
         <h2 style={secTitle}>キャスト別ノルマ目標</h2>
-        <NormTab casts={data.casts} norms={data.norms} isManagerUp={isManagerUp} setMsg={setMsg} reload={data.reload} />
+        <NormTab casts={data.casts} norms={data.norms} isManagerUp={isManagerUp} setMsg={setMsg} reload={data.reload} plans={data.plans} castPlans={data.castPlans} settings={settings} />{/* ★裁定347（0171）: 継承値の薄濃・採用軸 */}
       </section>)}
 
       {/* ③ 未達成時のペナルティ（penalty_config・owner のみ編集） */}

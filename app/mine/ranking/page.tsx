@@ -42,6 +42,9 @@ export default async function RankingPage() {
   const allRows = (data ?? []) as RankRow[];
   // ★裁定346: self＝自分の行だけ（他人は名前も出さない）・top＝全員の名前と件数（金額は RPC が構造的に返さない）
   const rows = rankMode === "self" ? allRows.filter((r) => r.is_self) : allRows;
+  // ★裁定346 追補1（0171・便 P171）: 売上軸の自分の順位＝get_cast_sales_rank（cast は自分の 1 行だけ＝他人の金額・順位は返らない・売上は給与と同じ按分）
+  const { data: salesRank } = store ? await supabase.rpc("get_cast_sales_rank", { p_store_id: store.id, p_period: period }) : { data: null };
+  const mySales = ((salesRank ?? []) as { rank: number; sales: number; is_self: boolean }[]).find((r) => r.is_self) ?? null;
 
   const thNum: React.CSSProperties = { ...t.th, textAlign: "right" };
   const tdNum: React.CSSProperties = { ...t.td, textAlign: "right", fontFamily: t.font.num };
@@ -51,6 +54,11 @@ export default async function RankingPage() {
       <div style={{ margin: "2px 0 14px" }}>
         <h1 style={t.pheadH1}>ランキング（{period}）</h1>
         <p style={t.pheadP}>指名件数によるランキングです。{rankMode === "self" ? `（自分の順位のみ・${allRows.length}人中）` : ""}</p>{/* ★裁定346: self は他人の名前を出さない */}
+        {mySales && (/* ★裁定346 追補1（0171）: 売上軸の自分の順位（self・top とも自分の行だけ・他人の金額は出ない） */
+          <p style={{ fontSize: 13, margin: "6px 0 0" }} data-sales-rank={mySales.rank}>
+            売上の順位: <b className="num">{mySales.rank}位</b> / {allRows.length}人中 <span style={{ color: "var(--sub)" }}>（自分の按分売上 ¥{mySales.sales.toLocaleString()}・他の人の額は出ません）</span>
+          </p>
+        )}
       </div>
 
       <section className="nox-cardtop" style={t.card}>

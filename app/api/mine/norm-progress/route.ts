@@ -13,6 +13,9 @@ import { createClient } from "@/lib/supabase/server";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { resolvePayrollWindow } from "@/lib/nox/payroll/window";
 import { sumCastSales, type CastSalesRow } from "@/lib/nox/payroll/cast-sales"; // ★裁定346: 給与と同じ合算
+import { createAdminClient } from "@/lib/supabase/admin"; // ★裁定347（0171）: プラン既定と店設定の読取（cast の RLS は comp_plans を読めない）
+import { normAxesOf, normTargetsOf, planDefaultQuotaOf, resolveQuotaOf, shimeiScopeOf } from "@/lib/nox/store/norm-axes";
+import type { Quota } from "@/lib/nox/mine/quota";
 
 export async function GET() {
   try {
@@ -55,7 +58,21 @@ export async function GET() {
     const { data: quotaRow, error: eQuota } = await supabase.from("cast_quotas").select("hon, jonai, dohan, sales").eq("cast_id", castId).eq("month", `${period}-01`).maybeSingle();
     if (eQuota) return NextResponse.json({ error: `cast_quotas failed: ${eQuota.message}` }, { status: 500 });
 
-    return NextResponse.json({ period, quota: quotaRow ?? null, actual });
+    // ★裁定347／追補1・GV-2（0171・便 P171）: 目標の解決＝個別（cast_quotas の非 null）＞プラン既定（現在の cast_plan→comp_plans.norm_*_target）＞なし。採用 OFF の軸（店設定 norm_axes）は出さない。
+    //   プラン既定と店設定は admin で読む（cast の RLS は comp_plans を読めない）。返すのは本人分の目標だけ（他人の値は触らない）。
+    const admin = createAdminClient();
+    const today = bizDateOf(new Date().toISOString(), win.cutoffHm);
+    const [{ data: cpRows }, { data: storeSj }] = await Promise.all([
+      admin.from("cast_plan").select("plan_id, valid_from, valid_to").eq("cast_id", castId).lte("valid_from", today).or(`valid_to.is.null,valid_to.gte.${today}`).order("valid_from", { ascending: false }).limit(1),
+      admin.from("stores").select("settings_json").eq("id", storeId).maybeSingle(),
+    ]);
+    const planId = (cpRows ?? [])[0]?.plan_id as string | undefined;
+    const { data: planRow } = planId ? await admin.from("comp_plans").select("norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target").eq("id", planId).maybeSingle() : { data: null };
+    const axes = normAxesOf(storeSj?.settings_json);
+    const scope = shimeiScopeOf(storeSj?.settings_json);
+    const resolved = resolveQuotaOf(planDefaultQuotaOf(normTargetsOf(planRow ?? null), axes), (quotaRow ?? null) as Partial<Quota> | null, axes, scope);
+
+    return NextResponse.json({ period, quota: resolved.quota, source: resolved.source, actual });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

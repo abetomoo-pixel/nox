@@ -1,5 +1,7 @@
 "use client";
 
+import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf, normTargetsOf, resolveNormTargetsOf, type NormTargets } from "@/lib/nox/store/norm-axes"; // ★裁定347（0171・便 P171）: 継承値の薄濃・採用軸の列
+import type { StoreSettings } from "@/lib/nox/store-systems";
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
@@ -27,6 +29,7 @@ export { PRODUCT_BACK_OPTIONS, type ProductBackMode };
 export type Plan = {
   slide_period?: string | null; // ★裁定338（0168）: 判定期間（monthly／half／daily・旧行は daily）
   slide_basis?: string | null; slide_rank_ids?: string[] | null; // ★裁定343（0170）: 判定基準（sales／hon_count／dohan_count）・対象ランク（空＝全員）
+  norm_days_target?: number | null; norm_dohan_target?: number | null; norm_sales_target?: number | null; norm_shimei_target?: number | null; // ★裁定347（0171）: プラン既定の目標（null＝継承なし）
   id: string; name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
   sales_slide: Slide[]; point_slide: Slide[]; is_active: boolean;
   // mig0086: 率バック方式（hon/jonai 独立・rate 中も円/本値は保持＝裁定v）
@@ -793,7 +796,12 @@ function FragmentRow({ children }: { children: React.ReactNode }) { return <>{ch
 // ── ノルマ（manager 以上・mig0042 で4軸＝日数/同伴＋売上/指名）──
 //   売上・指名の新2軸は表示のみ（payOf/normPenalty 非接続＝/mine の進捗表示用）。
 //   ★0154 D3: 未達の罰金は撤去（検知のみ・減額は精算調整）。日数・同伴の検知は「遅刻・当欠の検知」タブの norm_on 配下。
-export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: CastRow[]; norms: Norm[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [], castPlans = [], settings = null }: { casts: CastRow[]; norms: Norm[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void>; plans?: Plan[]; castPlans?: CastPlan[]; settings?: StoreSettings }) {
+  // ★裁定347（0171・便 P171）: 継承値（プラン既定 comp_plans.norm_*_target）を薄く・上書き（cast_norms の非 0）を濃く。採用 OFF の軸（店設定 norm_axes）は列ごと出さない。一括入力は上書きとして保存（RPC 不変）
+  const axes = normAxesOf(settings);
+  const axisCols = NORM_AXES.filter((k) => axes[k]);
+  const planOfCast = (cid: string): NormTargets => { const cp = castPlans.find((x) => x.cast_id === cid); const p = cp ? plans.find((x) => x.id === cp.plan_id) : null; return normTargetsOf(p ?? null); };
+  const resolvedOf = (cid: string, n: Norm | null) => resolveNormTargetsOf(planOfCast(cid), n ? { days: n.days_target, dohan: n.dohan_target, sales: n.sales_target, shimei: n.shimei_target } : null, axes);
   // ★X-13-3（便 X-13a・2026-10-08）: 表形式（1 人＝1 行・列＝期間／日数(日)／同伴(回)／売上(円)／指名(回)・単位は見出しに固定・3 桁区切り）
   //   ＋チェックで複数選択→「選択した N 人にまとめて入力」（空欄の項目は変えない＝その人の現在値を再送・無ければ 0）。期間の初期値＝当月。
   //   RPC は set_cast_norm 6 引数のまま（1 人ずつ順に・失敗は和文で止める）。
@@ -839,21 +847,21 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
       <table className="nox-table nox-normtable" style={{ marginBottom: 10 }}>
         <thead><tr>
           {isManagerUp && <th style={{ width: 34 }}><input type="checkbox" checked={allOn} onChange={toggleAll} aria-label="全員を選択" disabled={busy} /></th>}
-          {["キャスト", "期間", "日数(日)", "同伴(回)", "売上(円)", "指名(回)"].map((h) => <th key={h}>{h}</th>)}
+          {["キャスト", "期間", ...axisCols.map((k) => `${NORM_AXIS_LABEL[k]}(${NORM_AXIS_UNIT[k]})`)].map((h) => <th key={h}>{h}</th>)}{/* ★裁定347: 採用軸だけ */}
         </tr></thead>
         <tbody>
-          {casts.map((c) => { const n = normOf(c.id); return (
+          {casts.map((c) => { const n = normOf(c.id); const r = resolvedOf(c.id, n); return (
             <tr key={c.id} className={picked.has(c.id) ? "on" : undefined} onClick={isManagerUp ? () => toggle(c.id) : undefined} style={isManagerUp ? { cursor: "pointer" } : undefined}>
               {isManagerUp && <td onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} aria-label={`${c.name} を選択`} disabled={busy} /></td>}
               <td>{c.name}</td>
               <td className="num">{n ? n.period : period}</td>
-              <td className="num">{fmt(n?.days_target)}</td>
-              <td className="num">{fmt(n?.dohan_target)}</td>
-              <td className="num">{fmt(n?.sales_target)}</td>
-              <td className="num">{fmt(n?.shimei_target)}</td>
+              {axisCols.map((k) => (/* ★裁定347: 上書き（cast_norms）＝濃・継承（プラン既定）＝薄＋title・なし＝— */
+                <td key={k} className="num" data-source={r.source[k] ?? "none"} title={r.source[k] === "plan" ? "プランの既定（継承）" : r.source[k] === "override" ? "個別の上書き" : undefined}
+                  style={r.source[k] === "plan" ? { color: "var(--sub)", opacity: 0.75 } : r.source[k] === "override" ? { fontWeight: 700 } : undefined}>{fmt(r.value[k])}</td>
+              ))}
             </tr>
           ); })}
-          {casts.length === 0 && <tr><td colSpan={isManagerUp ? 7 : 6} style={note}>在籍キャストがいません</td></tr>}
+          {casts.length === 0 && <tr><td colSpan={(isManagerUp ? 3 : 2) + axisCols.length} style={note}>在籍キャストがいません</td></tr>}
         </tbody>
       </table>
       </div>
@@ -861,10 +869,10 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload }: { casts: 
         <>
           <div className="nox-inset" style={{ padding: "10px 12px" }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <label style={{ fontSize: 12 }}>日数(日) {cell("days", bulk.days)}</label>
-              <label style={{ fontSize: 12 }}>同伴(回) {cell("dohan", bulk.dohan)}</label>
-              <label style={{ fontSize: 12 }}>売上(円) {cell("sales", bulk.sales)}</label>
-              <label style={{ fontSize: 12 }}>指名(回) {cell("shimei", bulk.shimei)}</label>
+              {axes.days && <label style={{ fontSize: 12 }}>日数(日) {cell("days", bulk.days)}</label>}
+              {axes.dohan && <label style={{ fontSize: 12 }}>同伴(回) {cell("dohan", bulk.dohan)}</label>}
+              {axes.sales && <label style={{ fontSize: 12 }}>売上(円) {cell("sales", bulk.sales)}</label>}
+              {axes.shimei && <label style={{ fontSize: 12 }}>指名(回) {cell("shimei", bulk.shimei)}</label>}
               <button style={btnDark} onClick={() => void saveBulk()} disabled={busy || picked.size === 0 || !period || !anyInput}>選択した {picked.size} 人にまとめて入力</button>
             </div>
             <p style={{ ...note, marginTop: 6 }}>空欄の項目は変えません（その人の現在値のまま）。表の行をタップして選択します。</p>
