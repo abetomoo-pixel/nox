@@ -24,7 +24,8 @@
 | 11 | 録画・LP | CC（Agoora 収録） | **/lp 実装済み（2026-10-13 便 N1013b・裁定344・noindex のまま）**・動画は Agoora 収録後に public/lp/<store>.mp4（無い間はポスター枠）・/terms は L6 待ち | 録画 6 本→L6→robots／metadata の index 開放（公開ゲートの後） |
 | 12 | Stripe 本番キー・Vercel env／Supabase プラン／PITR（G-3 の 3 点） | **Agoora 確認** | **未記録**（Stripe＝コードは STRIPE_SECRET_KEY／STRIPE_WEBHOOK_SECRET／STRIPE_PRICE_NOX_MONTHLY／STRIPE_PRICE_NOX_YEARLY を参照・Vercel に有るか・live か test かは台帳に記録なし／Supabase プラン＝Free 推定（runbook「Pro 確定」と食い違い）／PITR＝SQL で読めない） | Agoora がダッシュボードで 3 点を確認して台帳へ（Stripe は名前の有無と接頭辞 sk_live／sk_test だけ・値は書かない） |
 
-ゲート外（ローンチ後でよいが記録）: Supabase Pro／Compute（裁定262＝本番 DB 切替の前提・現状 Free 推定）・PITR（Pro のアドオン・runbook §は Pro 前提で書かれている）・監視（runbook に記述 0・起票#4）・カスタムドメイン（なし）・robots の LP 開放（/ は allow 済み・/lp を足す）。
+ゲート外（ローンチ後でよいが記録）: Supabase Pro／Compute（裁定262＝本番 DB 切替の前提・現状 Free 推定）・PITR（Pro のアドオン・runbook §は Pro 前提で書かれている）・監視（runbook に記述 0・起票#4）・カスタムドメイン（なし）・robots の LP 開放（/lp は allow 済み・metadata の noindex を外すのが公開ゲート）。
+**0171（起草のみ・2026-10-14 便 V1014 で再起草）**＝裁定347 プラン既定の目標 4 列＋set_comp_plan 29 引数＋GV-2 set_store_norm_axes＋起票112 get_cast_sales_rank（sha256 fb8b168b…b656b51・22,870 B・268 行・関数見込み 308）。適用＝相談役が 347／GV-2 を裁いた後に Agoora 手貼り（docs/demo/handpaste_0171.md）。
 
 ---
 
@@ -129,6 +130,10 @@
 | 21 | shift-add-form の prompt（モーダル内の入力案内） | [[nox]]・裁定112 | UI のみ |
 | 22 | シャンパン tier の上位段 | [[nox]] | 料金表の拡張 |
 | 23 | R15 シフト画面の残り（裁定274 で 3 タブ化済み・残分） | [[nox]]・裁定270-4 | 設計裁定が先 |
-| 24 | 準備中 3 点（pt 付与ルール・粗利基準・帯の歩合 % 列）＝mig 3 本・client 約 280 行 | lp_plan.md L-4 | 器なし・ローンチ範囲外 |
+| 24 | 準備中 3 点（pt 付与ルール・粗利基準・帯の歩合 % 列）＝mig 3 本・client 約 280 行 | lp_plan.md L-4・起票106〜108 | 器なし・ローンチ範囲外 |
+| 25 | GV-3 残り①＝kiosk 系（/kiosk の punch_methods.kiosk＝起票103・/kiosk-register の席種 use_vip／use_counter と支払方法 payment_methods） | 便 N1013b B-8（2026-10-13）・便 V1014 で収載 | kiosk の腕は stores を読めない＝kiosk_punch_state／kiosk_register_state の戻りに足す mig・RPC 側の拒否は裁定要 |
+| 26 | GV-3 残り②＝/analytics 席稼働の VIP 列（use_vip OFF の店で過去月の VIP 実績を隠すか） | 便 N1013b B-8・便 V1014 で収載 | 表示だけ・判断要（OFF 前の実績は残す案が自然） |
+
+起票112（キャスト側ランキングの売上軸）は 0171 に get_cast_sales_rank を同乗してクローズ（便 V1014・裁定346 追補1）＝第 2 期には送らない。
 
 束ねた重複: 「スタッフ LINE」は 11 に合流。「売上スライド（331 非表示）」は 15 に合流（343 の判定基準は実装済みのため対象外）。起票100／101 は解決済み（0165・裁定342）のため載せない。

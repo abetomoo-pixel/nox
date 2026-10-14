@@ -8,7 +8,9 @@
 --   ★3 stores.settings_json.norm_axes＝{"days":bool,"dohan":bool,"sales":bool,"shimei":bool}（欠損＝ON）。書込は新 RPC set_store_norm_axes（owner／manager 自店・4 キー boolean のみ・他キー拒否・audit_log_write）＝set_store_profile の白名単（0164 v_keys）は触らない。
 --       読取は client（lib/nox/store/norm-axes.ts 予定）＝OFF の軸を /mine ノルマカード・キャスト別ノルマ目標の列・キャスト詳細の入力口から消す（GV-2）。
 --
--- 名簿・suite への影響（適用後の便で反映）: 関数 +1（set_store_norm_axes＝307）・'billing locked' +1（158）・anon-guard に 1 本（anon BLOCKED）・grants（公開 secdef の全数走査＝新関数は authenticated のみ）・0158 の md5 pin（set_comp_plan 1cddaa0e→4fa34575）。
+--   ★4（起票112・裁定346 self）get_cast_sales_rank(p_store_id, p_period)＝売上軸の順位。cast は自分の 1 行だけ（他人の金額・順位は返さない）・owner／manager は全員。売上＝cast_sales_aggregate（給与と同じ按分）。
+--
+-- 名簿・suite への影響（適用後の便で反映）: 関数 +2（set_store_norm_axes・get_cast_sales_rank＝308）・'billing locked' +1（158＝set_store_norm_axes のみ・読取 RPC は billing を見ない）・anon-guard に 2 本（anon BLOCKED・cast は自分の行だけ）・grants（公開 secdef の全数走査＝新関数は authenticated のみ）・0158 の md5 pin（set_comp_plan 1cddaa0e→4fa34575）・rls／cast プライバシー（cast が他人の sales を読めない＝RPC で保証）。
 --
 -- 検証クエリ（Run 後・下の commit; の後ろ・貼り先証明を先頭に・値は形だけ返す）:
 --   select 'nox-project-proof', count(*) from public.orgs;                                                                                         -- 9
@@ -17,7 +19,8 @@
 --   select pg_get_function_identity_arguments(oid) from pg_proc where proname='set_comp_plan';                                                    -- 1 行・末尾が p_norm_shimei_target integer（25 引数版は無い）
 --   select left(md5(replace(prosrc, E'\r', '')),8) from pg_proc where proname='set_comp_plan';                                                    -- 4fa34575
 --   select proacl::text from pg_proc where proname='set_store_norm_axes';                                                                        -- authenticated／service_role のみ（anon なし）
---   select (select count(*) from pg_proc where pronamespace='public'::regnamespace) functions, (select count(*) from pg_tables where schemaname='public') tables;   -- 307／83
+--   select proname, proacl::text from pg_proc where proname='get_cast_sales_rank';                                                              -- 1 行・authenticated のみ（anon・service_role なし）
+--   select (select count(*) from pg_proc where pronamespace='public'::regnamespace) functions, (select count(*) from pg_tables where schemaname='public') tables;   -- 308／83
 begin;
 
 -- ★1 comp_plans のプラン既定の目標 4 軸（既存行は null＝継承なし＝読み替えなし）
@@ -220,6 +223,45 @@ end
 $fn$;
 revoke all on function public.set_store_norm_axes(uuid, jsonb) from public, anon;
 grant execute on function public.set_store_norm_axes(uuid, jsonb) to authenticated, service_role;
+
+-- ★4（起票112・裁定346 の self）get_cast_sales_rank: 売上軸の順位。owner／manager＝自店（owner は org 内の指定店）の全員（順位・名前・按分売上）／cast＝自分の 1 行だけ（他人の金額・順位は返さない）。
+--     売上＝cast_sales_aggregate（get_cast_sales と同じ按分＝給与の collect と同じ額）を period_bounds の月で合算。期間・対象（自店の有効 cast）・並び（売上降順→名前→id）は get_cast_ranking と同じ口。
+create or replace function public.get_cast_sales_rank(p_store_id uuid, p_period text)
+returns table (rank integer, cast_id uuid, cast_name text, sales integer, is_self boolean)
+language plpgsql stable security definer set search_path = public
+as $fn$
+declare
+  v_org uuid; v_first date; v_last date; v_self uuid; v_role text;
+begin
+  if public.auth_org_id() is null then raise exception 'forbidden'; end if;
+  if p_period is null or p_period !~ '^\d{4}-(0[1-9]|1[0-2])$' then raise exception 'bad period'; end if;
+  select s.org_id into v_org from public.stores s where s.id = p_store_id;
+  if v_org is null or v_org <> public.auth_org_id() then raise exception 'forbidden'; end if;
+  v_role := public.auth_role();
+  if not (v_role = 'owner' or p_store_id = public.auth_store_id()) then raise exception 'forbidden'; end if;
+  if v_role not in ('owner','manager','cast') then raise exception 'forbidden'; end if;   -- staff は金額を見ない（D6a）
+  select pb.period_start into v_first from public.period_bounds(p_period) pb;
+  v_last := (v_first + interval '1 month' - interval '1 day')::date;
+  v_self := public.auth_cast_id();
+  if v_role = 'cast' and v_self is null then raise exception 'forbidden'; end if;   -- fail-closed
+  return query
+  with agg as (
+    select a.cast_id as cid, sum(a.sales)::int as sales
+      from public.cast_sales_aggregate(p_store_id, v_first, v_last) a
+     group by a.cast_id
+  ), ranked as (
+    select row_number() over (order by coalesce(g.sales, 0) desc, ca.name asc, ca.id asc)::int as rank,
+           ca.id as cast_id, ca.name as cast_name, coalesce(g.sales, 0)::int as sales, coalesce(ca.id = v_self, false) as is_self
+      from public.casts ca
+      left join agg g on g.cid = ca.id
+     where ca.org_id = v_org and ca.store_id = p_store_id and ca.is_active
+  )
+  select r.rank, r.cast_id, r.cast_name, r.sales, r.is_self from ranked r
+   where v_role in ('owner','manager') or r.cast_id = v_self;   -- cast＝自分の 1 行だけ
+end
+$fn$;
+revoke execute on function public.get_cast_sales_rank(uuid, text) from public, anon;
+grant execute on function public.get_cast_sales_rank(uuid, text) to authenticated;
 
 commit;
 -- ===== end 0171 =====

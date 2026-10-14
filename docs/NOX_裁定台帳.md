@@ -2846,6 +2846,10 @@ plan_rate 同形）・`calculated_back_amount`＝**同腕按分数量Σ×product
   （教訓56）。pb c 系を凍結形へ張替（c2＝base 2000／calc 60000・c3＝jonai でも数量>0 で行あり・c4＝fixed 0 境界）＝29 assert。
   給与側（collect/payOf）は裁定123 前提で縮退実装（裁定113 節「113 給与側消化」参照）。
 
+### 教訓111：push 前に tsc だけでなく local next build を通す（2026-10-14・便 V1014・相談役採番）
+
+**本文（逐語）**: 「push 前に tsc だけでなく local next build を通す。Vercel build は page.tsx の非 Page export と "use client" の値を server から読む型で落ちる」。出典＝便 N1013b の fix 408788b／eeed3d0（/lp が 404 のまま 2 回）。手順＝dev 非稼働なら `NEXT_DIST_DIR=.next-verify npx next build`→出力削除→tsconfig.json を git checkout（build が include を書き換える）。次＝112。
+
 ### 教訓110：client の文字列を変えたら f0 の前に、その文字列を pin している suite を grep して張り替える（f0 で見つけるのは走数の無駄・CC 提案 2026-10-13 便 W5-2a・相談役採番 2026-10-13 便 W5-2b）
 
 本文（逐語）: 「client の文字列を変えたら f0 の前に、その文字列を pin している suite を grep して張り替える。f0 で見つけるのは走数の無駄（W5-2a で赤 2 回）」。次＝教訓111。
@@ -4115,6 +4119,10 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 **便 N1013b 完了（裁定344 /lp・345 4 段・346 売上軸・準備中チップ 6 撤去・GV-3 総点検・0171 起草）＝台帳の現在地（2026-10-13）**: 前提照合＝HEAD 702e8da＝origin/main（0 0・変更 0）。DB 恒久変更 0・読取は SELECT のみ（live set_comp_plan の functiondef を docs/tmp/0171_set_comp_plan_live.sql へ＝md5 1cddaa0e）。B-1〜B-3／B-2b／B-8／B-9＝client のみ（lib 2 新規＝shift/wish-state.ts・payroll/cast-sales.ts・app/lp/page.tsx 新規・/mine 3 面・shift-board・analytics・casts-board・collect・norm-progress・demo-terms・session／robots・comp-methods・gen-demo＋payload 6 本再生成）。B-6／B-7＝器なし＝0171 起草のみ（適用しない・裁定347 は「提案中」）。suite 新設 4＝lp 13／wish-state 25／ranking 14／systems-off 12・pin 張替え＝payroll U2 c3・wc(5-1)・dpf(3-3)・mr(5-2)・mc(4-1)(4-3)・demo-payload（_report 同期）→tsc 0→f0 107 段 5,861 2 連緑（run1 18:33／run2 18:50 JST・107 段 5,861）→コミット「feat: /lp（裁定344）」「feat: シフト状態表示の一本化（裁定345）・準備中チップ撤去」「feat: ノルマ 4 軸の採用と OFF の非表示（GV-2）・設定 OFF の総点検（GV-3）」「docs: 裁定344／345／346・起票97／98／105〜112・ゲート表」（99c496a／ac16e44／4040a58／17a9b3a）→push→**Vercel build 失敗 2 回→fix 408788b（page.tsx の非 Page export＝Next の Page export 検査）／eeed3d0（"use client" の DEMO_TERMS を server の /lp から値として読めない→lib/nox/demo/terms.ts へ）→/lp 200（19:04 JST）→fix 2f4e9a3（force-static では useSearchParams が空＝mount 後に window.location.search）**→6 店 reset 19:08 JST（6/6 200・wipe+load）→live（docs/tmp/q1013_n1013b_live.mjs／live2.mjs・19:2x JST）: /lp 200（6 店カード・この店で試す 6 リンク・ポスター枠 6・noindex・mailto）／/demo?store=ace&role=owner＝ACE カードが先頭＋金枠・「オーナーで入る（おすすめ）」（ブラウザ目視）／ACE ひなの＝reset 後の希望 3 件（10/21・23・24＝open 期間内・10/27〜29 は reset で期間外）を本人 RPC で提出→owner が採用→**/mine 直近 4 件・/mine/wishes 提出済み＋今日以降のシフト節とも「採用・確認待ち（管理者確認）」**・shift-board の配信 JS に「代行確定」「採用・確認待ち」・旧「承認」ボタン 0／analytics JS に「売上（按分）」＋軸切替／plan JS に準備中チップ 5 語なし／casts JS に normsOnOf／ACE（sys_norms false）の /mine にノルマカードなし／/mine/ranking＝self（自分の行だけ・¥ なし）。**GV-1 の 10/29 相当（8 件目）は reset 後は 5 件のため再現不可＝上限 14 は suite ws(3-3) で係留**。起票 次＝113。仮決め一覧＝docs/tmp/n1013b_decisions.md。
 
+**便 V1014 完了（10/14 無人 reset 読取＋0171 再起草（起票112 同乗）＋追認 docs）＝台帳の現在地（2026-10-14）**: 前提照合＝HEAD 4399e8f＝origin/main（0 0）。★変更 0 ではない＝便 DM-1（裁定348）が作業中（profiles／gen-demo／payload／suite／app/mine が未コミット・f0 run1 走行中）のため、V1014 は DM-1 が触っていないファイル（台帳・launch_gate・cron_setup・0171・handpaste）だけを明示パスでコミット。DB 恒久変更 0・f0 不走。V-1＝10/14 無人 reset OK（purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝8 job succeeded・http 200×7・demo_reset_at 6 org＝10/14・NOIR slide_rank_ids 3 本 A/S 一致）→cron_setup.md に 1 行。V-2＝0171 再起草（上の 347 追補1）。V-3＝347／345／344／346 追補1・教訓111・launch_gate（起票112 クローズ・GV-3 残りを第 2 期一覧 25／26 へ）。
+
+**教訓候補 E-1〜E-5（便 N1013b・docs/tmp/n1013b_decisions.md・逐語・採番は相談役）**: E-1「push 後 /lp が 404 のまま＝Vercel build 失敗（tsc は緑）→app/lp/page.tsx の export const LP_CONTACT_MAILTO を非 export に（Next の Page export 検査）＝page.tsx から Page 以外を export しない」／E-2「2 回目も 404＝"use client" の demo-terms.tsx から DEMO_TERMS を server component（/lp）が値として読めない（client reference）→正本を lib/nox/demo/terms.ts へ・demo-terms.tsx は再 export＝"use client" モジュールの非コンポーネント値は server から読まない＝純データは lib へ」／E-3「/demo?store=ace の初期選択が効かない＝force-static では useSearchParams が空→mount 後に window.location.search を読む（SSR は初期選択なし）＝force-static の page で query を使うなら useEffect＋window.location」／E-4「tsc 緑でも build は別物＝push 前に next build（dev 非稼働なら可・NEXT_DIST_DIR 分離・tsconfig 復元・出力削除）→3 回目の fix 前に local build で確認してから push＝route／export／client 境界を触った便は push 前に local build」（E-1〜E-4 は教訓111 に束ねた）／E-5「在宅ブラウザの目視は hydration 前に JS を評価すると「効いていない」に見える→実クリック後に再評価」。追加候補 E-6（便 DM-1）「N1013b の fix 3 本（/lp）は f0 2 連の後に積んだ＝demo-payload dp(5-1)（demo-terms.tsx の 06:05 文言）が HEAD で赤のまま push されていた（DM-1 の単独走で検知・pin を lib/nox/demo/terms.ts へ）→f0 後の fix コミットは、触った文字列を pin する suite を単独走してから push」。
+
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
 出典＝Agoora 指示（2026-09-29・便 X-10-1 で収載）。次の裁定番号は 321。**本文（逐語）**:
@@ -4177,11 +4185,19 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 適用＝便 N1013b（client のみ・mig 0）: lib/nox/payroll/cast-sales.ts（sumCastSales／castSalesRankingOf＝collect・/api/mine/norm-progress・analytics の 3 箇所が同じ関数・castRankingModeOf＝既存キー ranking×ranking_show_others→off／self／top）・analytics-board（キャストランキングの軸切替 指名数／売上）・/mine/ranking（self＝自分の行だけ）・/mine（off 以外はカード）・mine-settings-panel の説明。suite ranking 14。
 ★キャスト側の売上軸の順位は器なし（get_cast_sales は cast に本人行のみ・順位は他人の額が要る）＝起票112（0172 候補）。仮決め＝docs/tmp/n1013b_decisions.md §B-2b。
 
+### 裁定346 追補1（2026-10-14 確定・相談役・便 V1014 V-3）self は 0171 の器で実装
+
+**本文（逐語）**: 「346 追補1（self は 0171 の器で実装）」。読取＝cast は get_cast_sales で本人行しか読めず順位に他人の額が要る（便 N1013b 仮決め R-4）→0171 に get_cast_sales_rank(p_store_id, p_period)（cast＝自分の 1 行だけ・owner／manager＝全員・売上＝cast_sales_aggregate）を同乗（起票112 はクローズ）。client（/mine ランキングの売上順位 self・top は名前のみ）は 0171 適用後の便。
+
 ## 裁定345（2026-10-13 確定・相談役・便 N1013b B-2）シフト希望の表示状態＝シフトの状態から導く 4 段
 
 出典＝相談役ブロック 2026-10-13（便 N1013b B-2・読取＝docs/tmp/sr_plan.md・GV-1 ACE ひなの）。**本文（逐語）**: 「シフト希望の表示状態はシフトの状態から導く 4 段＝審査中／採用・確認待ち／採用・確定／見送り。3 画面とも同じ純関数。管理側の確定ボタンは『代行確定』（manager 以上）。shift_cast_confirm OFF の店は採用＝確定」
 
 適用＝便 N1013b（client のみ・mig 0・RPC 不触）: lib/nox/shift/wish-state.ts（wishStateOf／wishStateDetailOf／wishStateTextOf・PROXY_CONFIRM_LABEL・MINE_RECENT_SHIFT_LIMIT 14）・/mine/wishes（shifts を wish_id で結線・今日以降のシフト節）・/mine 直近（14 件＋「すべて見る」＝GV-1 の 10/29 はこれで出る）・shift-board（SHIFT_ST_LABEL＝4 段・queue の段＝wishStateTextOf・「承認」→「代行確定」・OFF の店は採用→shift_confirm_bulk 即時）・wish-calendar（採用／見送り）・gen-demo（採用済み＝planned・payload 6 本再生成）。タブ名「承認待ち」は不変（裁定274）。suite wish-state 25・wc(5-1)／dpf(3-3) 張替え。
+
+### 裁定345 追補1（2026-10-14 確定・相談役・便 V1014 V-3）OFF 店は採用で即 confirm・代行確定の理由省略
+
+**本文（逐語）**: 「345 追補1（OFF 店は採用で即 confirm・代行確定の理由省略）」＝便 N1013b の仮決め S-1（shift_cast_confirm OFF の店の「採用＝確定」は採用操作で shift_wish_decide の戻り id を shift_confirm_bulk 1 件へ＝ラベルは常に shifts.status から）と S-5（「代行確定」の理由は RPC に器が無い＝入力欄なし）を追認。S-2〜S-4・S-6・S-7 も同じ扱い。
 
 ## 裁定344（2026-10-13 確定・相談役・便 N1013b B-1）LP＝/lp
 
@@ -4189,9 +4205,17 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 適用＝便 N1013b（client のみ）: app/lp/page.tsx（force-static・noindex＝公開ゲートの後に index・6 店カード＝DEMO_STORES／DEMO_STORE_LABEL・動画は public/lp/<store>.mp4 が無い間はポスター枠・この店で試す＝/demo?store=&role=owner・料金＝mailto・/terms リンクなし・スマホ 1 列）・demo-terms（demoInitialSelectionOf／demoBizOrderOf・?store=&role= の初期選択）・/demo page（Suspense）・session.ts（/lp exempt）・robots.ts（allow /lp）。suite lp 13。仮決め＝docs/tmp/n1013b_decisions.md §B-1。
 
+### 裁定344 追補1（2026-10-14 確定・相談役・便 V1014 V-3）mailto 仮・初期選択は mount 後に window.location
+
+**本文（逐語）**: 「344 追補1（mailto 仮・初期選択は mount 後に window.location）」＝便 N1013b の仮決め L-2（LP_CONTACT_MAILTO＝mailto:info@agoora.co.jp は仮・Agoora 記入で差替え）と fix 2f4e9a3（force-static では useSearchParams が空＝DemoEntry は mount 後に window.location.search を読む・SSR は初期選択なし）を追認。L-1（noindex のまま）・L-3〜L-7 も同じ扱い。
+
 ## 裁定347（提案中・2026-10-13・便 N1013b B-7＝読取と 0171 起草のみ）プラン既定の目標（4 軸）
 
 読取＝comp_plans にプラン既定の目標の器なし（列は slide_* まで・cast_norms はキャスト別のみ）。起草＝supabase/migrations/0171_plan_norm_targets_axes.sql（生成器 docs/tmp/gen_0171.mjs・写経元 live set_comp_plan 1cddaa0e・sha256 cf0b8a6313a8ffb7cf1242023fa6d50094033d7745e0be7db42e83dd32b56c97・19,486 B・226 行・手順 docs/demo/handpaste_0171.md）＝comp_plans 4 列（norm_days／dohan／sales／shimei_target・null＝継承なし）＋set_comp_plan 29 引数（default null＝既存は挙動不変）＋**GV-2 のノルマ採用軸 set_store_norm_axes（settings_json.norm_axes・4 キー boolean・欠損＝ON）**を同乗。**適用しない**＝相談役が 347 と GV-2 を裁いてから Agoora 手貼り→client（継承・上書き印・「プランの既定に戻す」・表の薄濃・OFF 軸の非表示・suite norm-axes）。
+
+### 裁定347 追補1（2026-10-14 確定・相談役・便 V1014 V-3）N1013b の B-6／B-7 仮決めを追認
+
+**本文（逐語）**: 「347 追補1（N1013b の B-6／B-7 仮決め追認）」＝仮決め N-1（ノルマの採用軸は settings_json の既存キーで持てない→0171 に専用 RPC set_store_norm_axes・set_store_profile の白名単は触らない）・N-2（0171＝comp_plans 4 列＋set_comp_plan 29 引数＋set_store_norm_axes・生成器 docs/tmp/gen_0171.mjs）・N-3（client と suite norm-axes は 0171 適用後）を追認。**便 V1014 V-2 で 0171 を再起草**＝起票112 の get_cast_sales_rank を同乗（sha256 fb8b168bad748be5df07b8ccaf7b32b47167c98a668dc0830499fbeabb656b51・22,870 B・268 行・関数見込み 308・'billing locked' 158・set_comp_plan md5 pin 候補 1cddaa0e→4fa34575・手順 docs/demo/handpaste_0171.md）。適用は Agoora 手貼り（相談役が 347 と GV-2 を裁いた後）。
 
 ## 裁定343（2026-10-13 確定・相談役・便 W5-2b 再開ブロック）待遇プランの判定基準と対象はプランの属性（comp_plans.slide_basis／slide_rank_ids・0170）
 
@@ -6449,7 +6473,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 109 | **未達処理の根拠確認記録**（第 2 期・**起票 2026-10-13 便 N1013b B-9**） | 本文: penalty_config に確認記録の器なし（旧 PREP_ITEMS penalty_basis_record）。plan-board の disabled チェック「契約上の根拠を確認した」と準備中チップは撤去（教訓25）。処置案＝penalty_config +confirmed_at／confirmed_by＋set RPC。 |
 | 110 | **達成ボーナスの多段しきい値**（第 2 期・**起票 2026-10-13 便 N1013b B-9**） | 本文: comp_plan_components は 100%・1 段固定（旧 PREP_ITEMS achievement_params）。処置案＝params_json に段配列・pay.ts の達成判定を段ごとに。準備中チップは撤去済み。 |
 | 111 | **達成条件の他軸（出勤／本指名／同伴）**（第 2 期・**起票 2026-10-13 便 N1013b B-9**） | 本文: 達成ボーナスの目標は売上のみ（旧 PREP_ITEMS achievement_metrics）。処置案＝params_json に metric（days／hon／dohan／sales）＋collect の実績の引き回し。準備中チップは撤去済み。 |
-| 112 | **キャスト側ランキングの売上軸（自分の順位）**（第 2 期・**起票 2026-10-13 便 N1013b B-2b**） | 本文: 裁定346 の売上軸は管理側のみ。cast は get_cast_sales で本人行しか読めず（金額の RLS）、順位には他人の額が要る＝RPC（順位と名前だけ返す・金額は本人分のみ or null）が要る＝0172 候補。 |
+| 112 | **キャスト側ランキングの売上軸（自分の順位）**（第 2 期・**起票 2026-10-13 便 N1013b B-2b**） | 本文: 裁定346 の売上軸は管理側のみ。cast は get_cast_sales で本人行しか読めず（金額の RLS）、順位には他人の額が要る＝RPC（順位と名前だけ返す・金額は本人分のみ or null）が要る＝0172 候補。 **→ 2026-10-14 便 V1014 V-2: 0171 に get_cast_sales_rank を同乗（cast＝自分の 1 行だけ）＝クローズ（裁定346 追補1）** |
 | — | **0160 のスコープ＝裁定326-9＋起票95・96**（**便 C-0・2026-09-30**） | 0160＝cast_quotas＋set_cast_quota／予約表の status・requested_by_cast・rejected_reason＋reservation_request／reservation_decide／cast_notice_reads＋既読 RPC／settings_json +7 キー（mine_settings 6＋shift_request_mode）＋起票95（staff_shift_patterns の無効化）＋起票96（T6 契約確認の記録）。起草の前に R160 事前読取（docs/tmp/0160_pre.md）→ ★指定。 |
 
 ### 未裁定・消し込み待ち

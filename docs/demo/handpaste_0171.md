@@ -1,9 +1,9 @@
-# 0171 手貼り案内（Agoora 向け・2026-10-13・便 N1013b 起草＝裁定347（読取）＋GV-2・★起草のみ＝相談役の裁定後に貼る）
+# 0171 手貼り案内（Agoora 向け・2026-10-14 再起草・便 N1013b 起草→便 V1014 で起票112 を同乗＝裁定347（読取）＋GV-2＋裁定346 self・★相談役の裁定後に貼る）
 
 **結論 3 行**
 1. 本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor に `supabase/migrations/0171_plan_norm_targets_axes.sql` の全文を貼って Run（1 本だけ・所要 1 分）。**0170 の後**に貼る。**相談役が 347 と GV-2 を裁くまで貼らない。**
-2. 中身＝待遇プランに「プラン既定の目標 4 軸」（出勤日数・同伴・売上・指名＝null＝継承なし）の列 4 つを足し set_comp_plan を 29 引数にする（既存の 25 引数の呼び出しは既定で挙動不変）＋店設定「ノルマの採用軸」（settings_json.norm_axes）を書く専用 RPC set_store_norm_axes を足す。既存データの読み替えなし。
-3. Success 後に §3 の検証クエリを貼り、**返った値（列 4 行／unchanged＝total／引数 1 行／md5 4fa34575／proacl／307・83）を CC へ貼る**。client（継承・上書き印・「プランの既定に戻す」・OFF 軸の非表示）は適用後の便。
+2. 中身＝①待遇プランに「プラン既定の目標 4 軸」（出勤日数・同伴・売上・指名＝null＝継承なし）の列 4 つを足し set_comp_plan を 29 引数にする（既存の 25 引数の呼び出しは既定で挙動不変）②店設定「ノルマの採用軸」（settings_json.norm_axes）を書く専用 RPC set_store_norm_axes ③キャスト本人が自分の売上順位だけ読める RPC get_cast_sales_rank（起票112・他人の金額・順位は返さない・owner／manager は全員）。既存データの読み替えなし。
+3. Success 後に §3 の検証クエリを貼り、**返った値（列 4 行／unchanged＝total／引数 1 行／md5 4fa34575／proacl 2 行／308・83）を CC へ貼る**。client（継承・上書き印・「プランの既定に戻す」・OFF 軸の非表示・/mine の売上順位 self）は適用後の便。
 
 ## 1. 貼る前に
 
@@ -11,7 +11,7 @@
 |---|---|
 | アドレスバー | `https://supabase.com/dashboard/project/hiqbfagmkrdpmlqhkmsu/sql/new`（`project/` の直後が hiqbfagmkrdpmlqhkmsu） |
 | ファイル | supabase/migrations/0171_plan_norm_targets_axes.sql（HEAD の現物） |
-| sha256 | `cf0b8a6313a8ffb7cf1242023fa6d50094033d7745e0be7db42e83dd32b56c97`（19,486 B・226 行（台帳方式）／225（wc -l）・LF） |
+| sha256 | `fb8b168bad748be5df07b8ccaf7b32b47167c98a668dc0830499fbeabb656b51`（22,870 B・268 行（台帳方式）／267（wc -l）・LF・便 V1014 再起草） |
 | 改行 | LF・CR 0 |
 | 順序 | 0170（適用済み 2026-10-13）の後 |
 
@@ -39,9 +39,10 @@ select count(*) filter (where norm_days_target is null and norm_dohan_target is 
 select pg_get_function_identity_arguments(oid) from pg_proc where proname='set_comp_plan';                                                    -- 1 行・末尾が p_norm_shimei_target integer（25 引数版は無い）
 select left(md5(replace(prosrc, E'\r', '')),8) from pg_proc where proname='set_comp_plan';                                                    -- 4fa34575
 select proacl::text from pg_proc where proname='set_store_norm_axes';                                                                        -- authenticated／service_role のみ（anon なし）
-select (select count(*) from pg_proc where pronamespace='public'::regnamespace) functions, (select count(*) from pg_tables where schemaname='public') tables;   -- 307／83
+select proname, proacl::text from pg_proc where proname='get_cast_sales_rank';                                                              -- 1 行・authenticated のみ（anon・service_role なし）
+select (select count(*) from pg_proc where pronamespace='public'::regnamespace) functions, (select count(*) from pg_tables where schemaname='public') tables;   -- 308／83
 ```
 
-返すもの: 7 行の結果（値は形どおりか）＋ Success 時刻。CC が live 照合→0158 の md5 pin 張替え（1cddaa0e→4fa34575）・名簿（関数 307・'billing locked' 158）・anon-guard に set_store_norm_axes の 1 本→client（lib/nox/store/norm-axes.ts・plan-editor の既定目標・cast-comp のノルマ表の薄濃・/mine ノルマカードの軸）→f0 2 連→push。
+返すもの: 8 行の結果（値は形どおりか）＋ Success 時刻。CC が live 照合→0158 の md5 pin 張替え（1cddaa0e→4fa34575）・名簿（関数 308・'billing locked' 158）・anon-guard に set_store_norm_axes／get_cast_sales_rank の 2 本（cast は自分の 1 行だけ＝他人の行 0 を assert）→client（lib/nox/store/norm-axes.ts・plan-editor の既定目標・cast-comp のノルマ表の薄濃・/mine ノルマカードの軸・/mine ランキングの売上順位 self）→f0 2 連→push。
 
 **Success 表示は適用の証明にならない（恒久注意28）＝上の検証クエリの返り値（値の形）を貼ってから次便を出す。1 行でも形が違えば未適用として CC が停止する。**
