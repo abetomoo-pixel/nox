@@ -4137,6 +4137,8 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 **便 N1014 完了（裁定352〜357・GV-4／GV-5・347 追補2 修正・348 追補2・裁定354・専門家回答 T10／L3／L6 収蔵＝裁定349〜351 案）＝台帳の現在地（2026-10-14）**: 前提照合＝HEAD d6d49fe（P171 完了時）＝origin/main（0 0・変更 0・未追跡＝answers_20261014.md・poc-record.mjs）。DB 恒久変更 0・読取は SELECT／preview のみ。A（client）＝裁定352 改訂版の開卓モーダル・353 今日の状態・GV-4 kiosk グリッド・347 追補2 修正（/mine の日数・達成ボーナスの目標の出所）・357 送り（退勤後も可・退勤ダイアログ）。A-5（355）は器なし→0172 案。B（payload）＝348 追補2＋354（PIN 1234・/kiosk 上部の注記は器なし＝入口のみ）。X＝専門家確認事項 ④ に逐語転記・T11 起票・裁定349〜351 案・起票113・規約雛形 docs/legal/terms_store_v0.9.md・docs/tmp/x_plan.md。suite n1014 16（新・f0 109 段目）・today-row +4・payroll +1・張替え demo-profiles／norm-axes／mine-recon。f0＝**2 連緑 109 段 5,922**（run1e 18:56／run2b 19:27・golden 5170／5931・withholding 125802 不変・+21＝n1014 16・today-row 4・payroll 1）。★run1＝anon-guard の statement timeout（E-9）・run1b＝crm-base の statement timeout・run1c＝messages ms(2-11) の pin（E-10・張替え）・run1d＝contract-ack ca(0-2)（E-11・デモ実利用の並走→fixture org に絞った）・run2＝product-back-modes の statement timeout→run2b 緑（同日 statement timeout 3 回＝DB 側の間欠負荷・要観察）。コミット＝4d61b2c（feat A・client＋suite）／3fb3268（feat B・デモ）／3af8907（docs X・専門家回答）／07be9a8（fix: 体験入店の出勤行の重複→demo reset 失敗の修正）／76b92c3（fix: 在席（フリー）で売上を按分＝MUSE・LILY・体験入店の退勤は同じ営業日）／56a5a25（fix: 「送り済」＝transport.biz_date）／d27bed9（fix: 店設定 norm_axes・biz_type）＋本 docs（N1014 の現在地・裁定352〜357・349〜351 案）・push 済み（d27bed9＝origin/main・本 docs の後に更新）。★19:30 の 6 店 reset＝MUSE／LUNA／ACE／LILY が「reset failed」（最終 chunk の shifts／attendance unique 違反＝体験入店の 10 月出勤が元データの同日行と重複）・NOIR／NEST 成功→gen-demo に重複ガード→07be9a8→再 reset（E-12 候補・markFailed の audit 行が残らない＝起票候補）。live（2026-10-14 19:5x〜20:3x・6 店 reset 19:30／19:44／19:54／20:14 の 4 回＝payload 修正 3 回）＝MUSE 店長 T4 開卓（人数 3→伝票「¥5,500 × 3名」・BANZEN 形モーダル）／ACE /casts「今日: 未出勤 20:00 予定」×5・「出勤中 20:00〜（予定 翌02:00）」（るな）・「今日出勤」で予定なしが消える／ACE kiosk あい 1234→「出勤しました」（punches source kiosk 20:07）・グリッド 4／3／2 列（1280／700／500）／ACE るな 退勤→ダイアログ「送りを発行して退勤／退勤のみ」→「退勤を記録し、送り ¥1,000 を発行しました」→行「送り済」（56a5a25 後）・10 月 preview net 12,200＝13,200−送り 1,000／MUSE さおり 9 月＝売上 ¥1,063,856→¥3,000・pt 31→¥2,600＝3,000 採用（76b92c3 後）／LILY みく 達成ボーナス 10,000・ゆな なし／NEST レン 保証 12h＋基本 6h／ACE るな 10/13 基本 2,200（保証は 10/14 以降の時間が付いてから）／LUNA みさき /mine「出勤日数 1日/21日・同伴 0件/8件」→owner で同伴 OFF→キャスト別ノルマ目標の列・キャスト詳細「今月のノルマ」（採用していない軸は出ません）・/mine の 3 画面から同伴が消える→ON に戻した。★4 店 reset failed（重複）・按分 0（MUSE 売上段／LILY ボーナス）・退勤の $rel・「送り済」の列名・norm_axes 欠落の 5 件を live で検知して修正。仮決め一覧＝docs/tmp/n1014_decisions.md。次＝相談役が 349〜351（＋356）を確定→0172 起草（daily_pays.kind・扶養申告書・店設定 2 キー・terms_acceptances・staff_punches／contracts）→実装便。
 
+**便 GV-A 完了（裁定358〜371＝目視指摘 GV-6〜22・PWA standalone 対応）＝台帳の現在地（2026-10-15）**: 前提照合＝HEAD 54747ad（N1014 完了時）＝origin/main（0 0・変更 0）。DB 恒久変更 0・RPC 不触・reset 不要。client＝shift-board（358・371）・register-board（359・360・367・368〜370）・side-nav／nav（361・362）・dashboard／analytics／mine ranking（363）・customers-board（364）・payroll-board（365）・payslip-slip／theme（366・369）・customer-pick-modal（新）・okuri-out-dialog（369）・globals.css・manifest（shortcuts）。suite 新設 9（today-layout 3／nomination-card 4／register-tabs 3／sidebar-rail 3／menu-grid 3／ranking-default 3／register-customer 3／register-sticky 3／statement-print 3）＋customers-keep ck(7-1)・payroll-view pv(7-1)・張替え 6（n1014／today-row／messages／nav／x13／customers-keep）。f0＝**2 連緑 118 段 5,952**（run1 15:42／run2 15:59・golden 5170／5931・withholding 125802 不変・+30＝新 suite 9 本 28＋ck 1＋pv 1）。コミット＝f594df9（feat・client＋suite＋manifest）＋本 docs（裁定358〜371・x13_ledger 28〜41）＋live 後の docs。live＝【LIVE】。仮決め一覧＝docs/tmp/gva_decisions.md（A-1〜A-14・E-15 候補）。x13_ledger に GV-6〜22「反映・目視待ち」。次＝Agoora のスクショ目視（GV-6〜22）→便 GV-B（裁定372〜382・0172 起草）。
+
 **教訓候補 E-6／E-7（採番は相談役）**: E-6「f0 後の fix コミットは、触った文字列を pin する suite を単独走してから push（便 DM-1 で dp(5-1) の赤を検知）」／E-7「payload の行にキーが無い列は jsonb_populate で null になるが、payload を読む suite では undefined＝`=== null` が偽になる→payload を読む pin は `== null` で書く（便 P171 na(4-1)）」＝**教訓113 で採番（便 N1014）**。E-6 は候補のまま。**便 N1014 の候補 E-8／E-9（docs/tmp/n1014_decisions.md 逐語）**: E-8「文字列 pin の『不在』判定は対象ブロックの範囲で行う（`!rb.includes(">やめる</button>")` は他ダイアログの『やめる』で偽になる＝便 N1014 nd(1-2)）」／E-9「anon-guard の statement timeout は再走で消える既知のフレーク（便 N1014 f0 run1＝段28-18→28-21／22 連鎖）＝★f0フレーク=statement timeout型は再実行」／E-10「教訓110 の grep は『変えた文字列』だけでなく『変えたファイルを読む suite』を対象にする（便 N1014 f0 run1c＝messages ms(2-11) が shift-board の呼び出し順を indexOf で pin→A-6 の分岐追加で順が入れ替わり赤→lastIndexOf に張替え）」／E-11「suite の before／after スナップショットは fixture org に絞る（全体件数は、デモ org の実利用が並走すると偽赤＝便 N1014 f0 run1d の contract-ack ca(0-2)＝18:39 に LUNA デモで check_add_line が走っていた→audit_logs の count を org_id で絞った）」／E-12「payload に相対日の行を足すときは元データとの unique（shifts／attendance＝cast_id×date・punches）を生成器で先に落とす（便 N1014 19:30 の reset で 4 店が最終 chunk の unique 違反＝wipe 後に途中まで載った状態・route の markFailed の audit 行は残っていない）」／E-13「payload の相対日 $rel は営業日＝深夜（02:00）の退勤は in と同じ $rel に載せる（d+1 だと 1 日遅れ＝退勤なし・便 N1014 NEST レン）」。
 
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
@@ -4193,6 +4195,76 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 内容＝便 X-13a で components/ui/photo-edit.tsx を共通部品にし、デモ org（orgs.is_demo）では「写真を変更／削除」を隠すのではなく disabled＋理由「デモ環境では写真を変更できません」で表示する（真の防御は storage policy 0149 ★10・dg(6-4) の useIsDemo pin は維持）。328 本文 ④「写真のアップロード不可」の制限は不変＝見せ方だけ。
 
 **恒久注意（追加・便 P166）: 本番 route（cron／手動の demo reset）はデプロイ済み repo の payload（docs/demo/payload）を読む＝payload を変えたら push→Vercel success の後に reset する**（push 前の reset は旧 payload＝便 X-13a で flag 0 行の実例）。
+
+## 裁定371（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-22）今日タブのカードは 3 段固定＝見出し／5 分割セグメント／送り・退勤 50／50・時刻修正は文字リンク
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「/shift 今日タブのカード（900〜1279px と 900px 未満）を 3 段構成に固定＝1 段目 写真・名前・状態チップ（左）＋確定時刻（右寄せ・18px）・打刻済み時刻はその下に小さく・「申請」は値がある時のみ／2 段目 出勤・遅刻・当欠・同伴・休み の 5 分割セグメント幅 100%（選択中は金塗り・高さ 48px）／3 段目 「送り」「退勤」を 50／50 の副ボタン（48px・送り実費以外の店は退勤 100%）・「時刻修正」は右下の文字リンク。カード間 12px・内側余白 16px。1280px 以上の表形式は V-1 のまま。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: globals.css `.nox-todaywrap`（<1280・grid-template-areas name／state／conf・req・att・ops）・shift-board の td に c-name／c-req（data-empty）／c-conf／c-state・.nox-seg 5 列 48px 金塗り・.out 50／50（送りなし店は 100%）・.nox-rowops は文字リンク。suite today-row tr(5-3) 張替え・today-layout tl(3)。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定370（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-21）誰の注文は商品行のみ・行内チップから同じモーダル・料金行は対象外
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「「誰の注文を付ける」セクションを廃止し、明細の各商品行に「お客様」チップ（未指定＝灰「お客様 未指定」／指定済み＝金枠「H様」）を置き、タップで①と同じモーダル（見出し「このボトルのお客様を選ぶ」・ドリンク等は「この注文のお客様を選ぶ」）。料金行（セット・延長・指名料・サービス料）には出さない。画面・明細・印刷の用語は「お客様」で統一（「誰の注文」「名義」は使わない）。既存の保存先（注文行の customer_id）は不変。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: register-board の明細 cd 列に `.nox-custchip`（customerChipLineOf＝商品行だけ）・check-customers-card の「誰の注文」節を撤去＋文言「来店のお客様（併存）」・customer-pick-modal（customerPickTitleOf／customerChipLabelOf）。suite register-customer rc(3)・customers-keep ck(6-1) 張替え。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定369（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-20）主ボタン 56px 幅 100% 中央・副 48px・行内は小
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「ボタン基準＝主ボタン 高さ 56px・幅 100%・中央／副ボタン 高さ 48px・横並び中央／行内操作（削除・キープ・誰）は小の枠ボタンのまま。この基準を lib の button variant に置き、レジ・開卓モーダル・退勤ダイアログ・切替確認に適用。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: lib/nox/ui/theme.ts btnPrimary56／btnSecondary48／btnRow48→開卓モーダル（主）・okuri-out-dialog（確定＝主・退勤のみ／キャンセル＝副）・341 の切替確認（副 2 本）・お客様モーダル。suite register-customer rc(2)・n1014 nd(1-2) 張替え。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定368（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-19）ボトル投入直後に顧客選択モーダル・顧客セクションへ飛ばない
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「ボトル（キープ対象の商品）を明細に入れた直後に顧客選択モーダル（キャスト選択モーダルと同形＝最近来店 5 名・名前／ふりがな／電話検索・「新規登録して追加」・「あとで」）。選んだ顧客が伝票に未付与なら来店名義として併存で追加。顧客セクションへの遷移はしない。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: components/nox/customer-pick-modal.tsx（候補＝customers 1 本＋customer_list_summary 1 本＝N+1 なし・未付与なら check_customer_add→check_line_set_customer）・register-board の useEffect（この伝票を開いてから増えたボトル行だけ自動オープン）・キープ登録の onNeedCustomer も同じモーダル。suite register-customer rc(1)・messages ms(2-9) 張替え。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定367（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-15〜18）上部ヘッダーは非固定・レジは伝票操作バーとセグメントの 2 段を固定・人数変更の注記は削除
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「アプリ上部ヘッダー（ロゴ・店名・ユーザーチップ）は全画面で非固定（スクロールで流れる・下部ナビと PC サイドバーは不変）。/register では伝票の操作バー（卓名・人数・延長・合計・伝票取消・合算）と「注文／指名・席／会計」セグメント（V-3）の 2 段を上部に sticky（上部ヘッダーが流れた後は画面最上部に張り付く・背景は不透明）。注記「※セット中の人数変更はセット料金に反映されます…」は削除し、開卓モーダル（A-1）の人数ステッパー脇に「延長は追加時点の人数で確定」の 1 行だけ。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: globals.css `.nox-tb { position: static }`・`.nox-regsticky`（backbar＋row2＋セグメント・不透明）・register-board の注記 2 本削除＋開卓モーダルに data-people-note。suite register-sticky rs(1)〜(3)（PWA 含む）。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定366（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-14）報酬明細は 1 人 1 カード・手取りは黒地に金枠金文字
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「報酬明細（印刷／PDF）は 1 人 1 カード＝外周 1px 枠・見出し行は名前を 22px・月と契約区分チップを右・カード間は 24px・印刷時は 1 人 1 ページ（page-break-after）。支給／控除の見出し帯は薄灰。手取り帯は金塗り＋黒文字を廃止→黒地・金 2px 枠・金文字 28px 太字・右寄せ。PDF 出力も同じ CSS。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: components/payslip-slip.tsx（ps-name／ps-meta・marginBottom 24）・theme slipHd／slipName／slipSec／slipFoot／slipFootVal・globals.css `.nox-payslip` 枠＋@media print の .ps-foot（黒地金枠金文字・print-color-adjust exact）。suite statement-print sp(1)〜(3)。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定365（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-13）給与一覧は全幅・1280px 未満は 7 列横書き・900px 未満はカード
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「/payroll の月次一覧は表を全幅に。1280px 未満は縦書きヘッダ廃止・列は キャスト／時間／日数／総支給／控除計／手取り／前借り の 7 列（税区分は名前の下のチップ・売掛は手取り列の下に小さく）。900px 未満は 1 人 1 カード（X-13-17 と同形）。名前・日数は折り返さない。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: payroll-board `.nox-paytable.v365`＋`.nox-paycols`（右パネルは ≥1280 だけ横並び）・名前下 .nox-paytax・手取り下 .nox-payar・globals.css（<1280＝nth-child で 税区分／売掛／送り／不整合 を隠す・<900 カード）。suite payroll-view pv(7-1)。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定364（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-12）顧客詳細はすべての幅でモーダル表示・右パネルと下送りは廃止
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「/customers の顧客詳細を右パネル／下送りからモーダルに統一（全幅・中央寄せ・幅は画面の 90%・上限 720px・概要／来店／ボトル／メモのタブはそのまま・「詳細・編集を開く」も内部で遷移）。一覧の選択行は金枠のまま残し、× か背景タップで閉じる。幅 1280px 以上でもモーダル（右パネルは廃止）。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: customers-board＝右パネルの中身を Modal（maxWidth 720・≥901 は 90vw＝globals.css :has）へ・一覧は 1 列（.nox-2pane 不使用）・onClose＝setSel(null)。suite customers-keep ck(7-1)。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定363（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-11）ランキングの既定軸は売上（按分）＝ホームの「本指名ランキング」カードを「売上ランキング（今月）」に変え本指名件数は切替で
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「ランキングの既定軸は売上（按分）＝ホームの「本指名ランキング」カードを「売上ランキング（今月）」に変え本指名件数は切替で。/analytics と /mine/ranking の既定も売上・切替で本指名件数（346 の off／self／top は不変）。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: dashboard-board（get_cast_sales 当月→castSalesRankingOf 上位 5・SegSelect 売上／本指名件数・既定 sales）・analytics-board 既定 sales・/mine/ranking（既定＝売上の順位＝自分の行・本指名件数は ?axis=nom・346 不変）。suite ranking-default rd(1)〜(3)。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定362（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-10）メニュー一覧（下部ナビ「メニュー」）: 600〜899px は 2 列グリッド・900px 以上は 3 列・600px 未満は 1 列
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「メニュー一覧（下部ナビ「メニュー」）: 600〜899px は 2 列グリッド・900px 以上は 3 列・600px 未満は 1 列。カード内の「＞」を削除しカード全体をタップ対象（説明 1 行は残す）。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: nav.tsx の項目 map を `.nox-navsheet-grid` で包む・Modal 760・globals.css（1／2／3 列・.nox-navchev 非表示）。suite menu-grid mg(1)〜(3)・nav nv(6-3) 張替え。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定361（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-9）サイドバー: 幅 900〜1279px はアイコンのみのレール（64px・ラベルはホバー／長押し・現在地は金）
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「サイドバー: 幅 900〜1279px はアイコンのみのレール（64px・ラベルはホバー／長押し・現在地は金）。1280px 以上は全幅。/register・/floor・/kiosk はレールも畳んで左上 ≡ のドロワーに。手動の「畳む／広げる」トグルを置き localStorage に記憶（try/catch）。900px 未満は下部ナビのまま。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: side-nav.tsx（mode＝hidden／rail／full・localStorage nox.sidenav・matchMedia 1280・data-side-toggle・≡ data-nav-burger→TabBar のシート drawer 節＝全項目）・nav.tsx sheetGroups・globals.css（.is-rail 64px・.is-hidden）。/kiosk は (manage) 外＝対象なし（仮決め）。suite sidebar-rail sr(1)〜(3)。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定360（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-8）伝票の「注文／指名・席／会計」をタブから大きな 3 分割セグメントに＝選択中は金塗り・未選択は枠のみ・高さ 1.5 倍・アイコン付き（注文／指名・席／会計）・伝票上部に sticky
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「伝票の「注文／指名・席／会計」をタブから大きな 3 分割セグメントに＝選択中は金塗り・未選択は枠のみ・高さ 1.5 倍・アイコン付き（注文／指名・席／会計）・伝票上部に sticky。会計は右端で主ボタン色（青塗り）。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: register-board `.nox-dtabs--seg`（DTAB_ICON・会計は .pay）＝裁定367 の sticky 器の中。suite register-tabs rt(1)〜(3)。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定359（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-7）レジ「指名の分配率」: キャスト 1 人＝1 カード（写真・名前・ランクを左に大きく・右に区分の切替のみ）
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「レジ「指名の分配率」: キャスト 1 人＝1 カード（写真・名前・ランクを左に大きく・右に区分の切替のみ）。選択中の区分は金塗り・未選択は枠のみ・行の左帯を区分色（本＝金／場内＝青／フリー＝灰）。常時表示は「分配率の合計」バーと「均等に分配」だけ。「料金と実績を分離」「件数換算は目安」「変更時点で明細を同期」の 3 注記は見出し横の ⓘ に畳む。「本指名料 ¥3,000 自動加算」は区分ボタン下に「¥3,000」のみ。341 の切替確認は行内のまま・見出しを「<名前> → 本指名」に短縮。同伴チップと % 入力は行右端にまとめる。1 行の高さを現状の半分以下に。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: register-board `.nox-nomcard`（data-kind＝左帯色・写真 36px・nox-seg gold・¥ のみ・右端に同伴チップ／人数／%／×・341 の見出し）・3 注記は `<details>` の ⓘ・ハンドラは逐語不変。suite nomination-card nc(1)〜(4)・x13 nom-2 張替え。仮決め＝docs/tmp/gva_decisions.md。
+
+## 裁定358（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-6）/shift 今日タブ: 幅 1280px 未満では右カラム（時間帯別の充足・出勤ボーナス）を「今日のシフト」表の下に落とし、表を全幅に
+
+出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「/shift 今日タブ: 幅 1280px 未満では右カラム（時間帯別の充足・出勤ボーナス）を「今日のシフト」表の下に落とし、表を全幅に。表の列は iPad 横で折り返さない（確定時間は 1 行・操作ボタンは 2 段可）。」
+適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: shift-board `.nox-2col.nox-2col--today`（globals.css＝1 列・≥1280 で 1fr 380px）。suite today-layout tl(1)〜(3)。仮決め＝docs/tmp/gva_decisions.md。
 
 ## 裁定357（2026-10-14 確定・相談役・便 N1014 A-6＝GV-5）送り実費の発行は退勤後も営業日内は可・退勤時に未発行ならダイアログ
 
