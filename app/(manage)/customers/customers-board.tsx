@@ -538,7 +538,7 @@ export default function CustomersBoard({
           ★行タップは「右詳細を開く」に変わったが、編集・担当割当は従来どおり /customers/[id]（導線を残す）。
           段0R 第2陣: モックどおり .list と .detail をそれぞれ独立カード（nox-panel）にし、
           2ペインを1枚の大カードの中に入れる従来の入れ子をやめた（器だけの変更）。 */}
-      <div className="nox-2pane">
+      <div className="nox-custlist" data-cust-list="1">{/* ★裁定364（GV-12・便 GV-A）: 右パネルと下送りは廃止＝一覧は 1 列・詳細はすべての幅でモーダル */}
         <div className="nox-panel">
             {!err && display.length === 0 && <p style={{ fontSize: 13, color: "var(--v2-muted)", margin: 0 }}>該当する顧客がいません</p>}
             {display.map((r) => (
@@ -588,7 +588,8 @@ export default function CustomersBoard({
           {/* 右詳細＝3stat／ボトルキープ／来店履歴／メモ（すべて既存データ・編集は [id] へ）。
               段0R 第2陣: 器を inline t.card から共通クラス nox-panel へ（背景だけ card2 を維持）。 */}
           {selRow && (
-            <div className="nox-panel" style={{ marginBottom: 0, background: "var(--card2)" }}>
+            <Modal onClose={() => setSel(null)} maxWidth={720} scroll>{/* ★裁定364: 幅 90%（上限 720・globals.css :has）・概要／来店／ボトル／メモのタブはそのまま・× か背景タップで閉じる（一覧の選択行は金枠のまま） */}
+            <div className="nox-panel" data-cust-modal="1" style={{ marginBottom: 0, background: "transparent", border: 0, padding: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CastAvatar name={selRow.name} size={44} />
                 <div style={{ minWidth: 0 }}>
@@ -774,6 +775,7 @@ export default function CustomersBoard({
                 詳細・編集を開く ›
               </Link>
             </div>
+            </Modal>
           )}
 
           {/* E8-3 #7: ボトル編集モーダル（bottle_keep_update・素通し5値） */}

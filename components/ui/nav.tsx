@@ -28,9 +28,9 @@ export type { NavItem, NavGroup };
 export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGroup[]; spPriority?: string[]; hideSide?: boolean; gear?: boolean }) {
   const path = usePathname() ?? "";
   const [sheet, setSheet] = useState(false);
-  const [section, setSection] = useState<"menu" | "settings">("menu");
+  const [section, setSection] = useState<"menu" | "settings" | "drawer">("menu"); // ★裁定361（GV-9・便 GV-A）: drawer＝/register /floor の ≡（全項目）
   // ★裁定306-11: 開く＝履歴に 1 段積む（戻るで閉じる）・閉じる＝外側タップ／×／Esc は history.back() で同じ経路を通す
-  const openSheet = (sec: "menu" | "settings") => {
+  const openSheet = (sec: "menu" | "settings" | "drawer") => {
     setSection(sec);
     setSheet(true);
     try { window.history.pushState({ ...(window.history.state ?? {}), noxSheet: 1 }, ""); } catch { /* noop */ }
@@ -52,7 +52,7 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
   }, []);
   // ★306-11: ヘッダーの歯車（≤899px）＝同じシートを「設定」節から開く
   useEffect(() => {
-    const onOpen = (e: Event) => { const sec = (e as CustomEvent<{ section?: string }>).detail?.section === "settings" ? "settings" : "menu"; openSheet(sec); };
+    const onOpen = (e: Event) => { const d = (e as CustomEvent<{ section?: string }>).detail?.section; const sec = d === "settings" ? "settings" : d === "drawer" ? "drawer" : "menu"; openSheet(sec); };
     window.addEventListener(OPEN_MENU_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_MENU_EVENT, onOpen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,6 +77,7 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
   const gearItems = gearGroups.flatMap((g) => g.items); // ★306-11: シートの「設定」節（≤899px の 歯車 の行き先）
   const menuItems = menuGroups.flatMap((g) => g.items);
   const menuActive = menuItems.some((it) => it.href === active);
+  const sheetGroups = section === "drawer" ? groups : menuGroups; // ★裁定361: ドロワーは優先 4 本も含む全項目
 
   return (
     <>
@@ -115,23 +116,27 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
       {/* 「メニュー」＝残り項目の一覧型シート。★裁定251（M2・2026-09-14）: 共通 Modal 部品（maxWidth 520・scroll・≤900 はボトムシート）。
           × ボタン（.nox-formmodal-x）と Esc（useEffect の keydown）で閉じる。/mine の TabBar も同じ部品を通る（メニューは出ない）。 */}
       {sheet && (
-        <Modal onClose={closeSheet} maxWidth={520} scroll>
+        <Modal onClose={closeSheet} maxWidth={760} scroll>{/* ★裁定362（GV-10）: ≥900 は 3 列のため 760 */}
           <div className="nox-navsheet">
             <div className="nox-formmodal-head" style={{ marginBottom: 10 }}>
               <h2 className="nox-navsheet-h" style={{ margin: 0 }}>{section === "settings" ? GEAR_LABEL : MENU_LABEL}</h2>
               <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={closeSheet}>×</button>
             </div>
-            {menuGroups.map((g, gi) => (
+            {sheetGroups.map((g, gi) => (
               <div key={g.label ?? `s${gi}`} className="nox-navsheet-g">
                 {g.label && <div className="nox-navgroup-h">{g.label}</div>}
-                {g.items.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={it.href === active ? closeSheet : pickFromSheet} replace />)}
+                <div className="nox-navsheet-grid">{/* ★裁定362（GV-10・便 GV-A）: <600 1 列・600〜899 2 列・≥900 3 列・「›」なし */}
+                  {g.items.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={it.href === active ? closeSheet : pickFromSheet} replace />)}
+                </div>
               </div>
             ))}
             {/* ★306-11: 「設定」節（gear 群）＝≤899px の 歯車 はここから開く（ページ内パネルを差し込まない） */}
             {gearItems.length > 0 && (
               <div id="nox-sheet-settings" className="nox-navsheet-g">
                 <div className="nox-navgroup-h">{GEAR_LABEL}</div>
-                {gearItems.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={it.href === active ? closeSheet : pickFromSheet} replace />)}
+                <div className="nox-navsheet-grid">
+                  {gearItems.map((it) => <NavListRow key={it.href} href={it.href} label={it.label} on={it.href === active} onClick={it.href === active ? closeSheet : pickFromSheet} replace />)}
+                </div>
               </div>
             )}
           </div>

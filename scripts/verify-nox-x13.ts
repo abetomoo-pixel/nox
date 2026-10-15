@@ -29,7 +29,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const s = src("app/(manage)/register/register-board.tsx");
   const iNom = s.indexOf("<h3 style={t.cardTitle}>指名</h3>"), iShare = s.indexOf("指名の分配率</h3>"), iCust = s.indexOf("<CheckCustomersCard checkId={check.id}"), iRef = s.indexOf("<h3 style={t.cardTitle}>紹介</h3>"), iSeat = s.indexOf("<h3 style={t.cardTitle}>席</h3>");
   check("x13(register-nom-1) 並び＝指名 → 分配率 → 顧客 → 紹介 → 席", iNom > 0 && iNom < iShare && iShare < iCust && iCust < iRef && iRef < iSeat, [iNom, iShare, iCust, iRef, iSeat].join(","));
-  check("x13(register-nom-2) 1 人のときは % 入力を「100%」に畳み、合計バーと均等は出さない", s.includes('{nomSelected.length === 1 ? (<b className="num" style={{ fontSize: 13 }}>100%</b>) : (') && s.includes("{nomSelected.length > 1 && (<>") && s.includes('"1 名のため 100% で固定です（指名本数には影響しません）。"'));
+  check("x13(register-nom-2) 1 人のときは % 入力を「100%」に畳み、合計バーと均等は出さない", s.includes('{nomSelected.length === 1 ? (<b className="num" style={{ fontSize: 13 }}>100%</b>) : (') && s.includes("{nomSelected.length > 1 && (<>") && s.includes("1 名のため 100% で固定です（指名本数には影響しません）。") /* ★裁定359（便 GV-A）: カード化で JSX テキストに */);
   check("x13(register-nom-3) 種別（本／場内／フリー）と同伴のトグルは 1 人でも残る（畳むのは分配率だけ）", s.includes('([["hon", "本"], ["jonai", "場内"], ["free", "フリー"]] as const).map(') && (s.match(/分配率の合計/g) ?? []).length === 1);
 }
 // header-sheet

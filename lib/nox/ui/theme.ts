@@ -163,6 +163,11 @@ export const btnSm: CSSProperties = { padding: "6px 10px", fontSize: 12, borderR
 //   別々に持つと必ず片方だけ動いて食い違うため）。inputLg は input の宣言より後に置く（TDZ 回避）。
 export const btnPrimaryLg: CSSProperties = { ...btnGold, width: "100%", padding: "14px", fontSize: 14 };
 export const btnGhostLg: CSSProperties = { ...btnGhost, width: "100%", padding: "12px", fontSize: 13 };
+// ★裁定369（GV-20・便 GV-A）: ボタン基準＝主ボタン 高さ 56px・幅 100%・中央／副ボタン 高さ 48px・横並び中央／行内操作（削除・キープ・お客様）は btnSm の枠ボタンのまま。
+//   適用＝レジ（お客様モーダル）・開卓モーダル・退勤ダイアログ・場内→本指名の切替確認。
+export const btnPrimary56: CSSProperties = { ...btnGold, width: "100%", minHeight: 56, fontSize: 16, fontWeight: 800 };
+export const btnSecondary48: CSSProperties = { ...btnGhost, minHeight: 48, padding: "0 18px", fontSize: 14, fontWeight: 700 };
+export const btnRow48: CSSProperties = { display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 10, flexWrap: "wrap" };
 // ★裁定240／244（2026-09-11）: ボタン行の共通ラッパ（inline style 派生用・globals.css .nox-actions と同値）。並び順＝Danger 左端・補助・実行右端／ダイアログはキャンセル左・確定右。
 export const actionsRow: CSSProperties = { display: "flex", justifyContent: "center", alignItems: "center", gap: 8, flexWrap: "wrap" };
 
@@ -265,9 +270,11 @@ export const logo: CSSProperties = {
 // ★E5b: 画面側の #0E0E14（旧パレットの青み暗色・非モック由来）を --card へ是正（最近傍トークン・
 //   E4 の #23232B→--card2 と同規模の是正）。印刷側は @media print の `.ps-hd { background:#fff!important }`
 //   が literal に依存せずクラスで反転するため、この変更は印刷出力に波及しない（分離を実測確認）。
-export const slipHd: CSSProperties = { textAlign: "center", fontWeight: 800, letterSpacing: 3, background: "var(--card)", border: "1px solid var(--line2)", borderRadius: 8, padding: 7 };
+// ★裁定366（GV-14・便 GV-A）: 見出し行＝名前 22px 左・月と契約区分チップ 右（中央寄せ・字間 3 は廃止）
+export const slipHd: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, fontWeight: 800, background: "var(--card)", border: "1px solid var(--line2)", borderRadius: 8, padding: "8px 12px" };
+export const slipName: CSSProperties = { fontSize: 22, fontWeight: 800, color: "var(--ink)", lineHeight: 1.2 };
 export const slipSub: CSSProperties = { textAlign: "center", fontSize: 11.5, color: "var(--sub)", margin: "8px 0 10px" };
-export const slipSec: CSSProperties = { fontWeight: 800, fontSize: 12, background: "var(--card2)", borderLeft: "3px solid var(--gold)", padding: "4px 9px", margin: "10px 0 4px" };
+export const slipSec: CSSProperties = { fontWeight: 800, fontSize: 12, background: "var(--line)", color: "var(--ink)", borderLeft: "3px solid var(--gold)", padding: "4px 9px", margin: "10px 0 4px" }; // ★裁定366: 支給／控除の見出し帯は薄灰
 export const slipRow: CSSProperties = { display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: 4, borderBottom: "1px dashed var(--line)" };
 export const slipRowB: CSSProperties = { ...slipRow, fontWeight: 800, color: "var(--champ)", borderBottom: "1px solid var(--line2)" }; // .sliprow.b（強調行）
 // ★E4-0: 金地の上の文字＝--on-gold へ（#0B0B0F は旧 --bg のベタ書きだった）。
@@ -275,5 +282,6 @@ export const slipRowB: CSSProperties = { ...slipRow, fontWeight: 800, color: "va
 //     errBox（上の alert）は印刷経路（.nox-print 内）に登場せず印刷都合ではなかった → E5c の I1 裁定で
 //     --bad-bg/--bad-bd/--bad-ink を新設しトークン化済。avatar は avatarBg() の name 由来 HSL
 //     ＝パレット色でなく機能色（identicon）・印刷経路にも不在＝是正対象外（e5_gaps.md I2）。
-export const slipFoot: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, background: "linear-gradient(135deg,var(--gold),var(--gold2))", color: "var(--on-gold)", borderRadius: 9, padding: "9px 13px", fontWeight: 800 };
-export const slipFootVal: CSSProperties = { fontFamily: font.num, fontSize: 19, fontVariantNumeric: "tabular-nums" }; // .slipfoot b（font.num・NOX num 規約で tabular 付与）
+// ★裁定366（GV-14・便 GV-A）: 手取り帯＝金塗り＋黒文字を廃止→黒地・金 2px 枠・金文字 28px 太字・右寄せ（印刷・PDF も同じ＝globals.css @media print .ps-foot）
+export const slipFoot: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 12, background: "#000", color: "var(--gold)", border: "2px solid var(--gold)", borderRadius: 10, padding: "10px 14px", fontWeight: 800 };
+export const slipFootVal: CSSProperties = { fontFamily: font.num, fontSize: 28, fontWeight: 800, fontVariantNumeric: "tabular-nums", textAlign: "right", marginLeft: "auto" }; // .slipfoot b（font.num・NOX num 規約で tabular 付与）

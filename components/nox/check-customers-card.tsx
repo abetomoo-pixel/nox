@@ -34,11 +34,11 @@ export function checkCustomerErrJa(msg: string | null | undefined): string {
   return `処理できませんでした（コード: ${m || "unknown"}）`;
 }
 
-export default function CheckCustomersCard({ checkId, storeId, isOpen, lines, products, onChanged, castIds = [] }: {
+export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _lines, products, onChanged, castIds = [] }: {
   checkId: string; storeId: string; isOpen: boolean;
   /** ★X-11-2b: 伝票の指名キャスト（担当キャストの顧客の候補に使う） */
   castIds?: string[];
-  /** 伝票の明細（注文者の付け替え対象＝自動時間行以外） */
+  /** 伝票の明細（370 で未使用＝互換のため残す） */
   lines: CustomerLine[];
   products: { id: string; name: string }[];
   /** RPC 後に親の伝票を読み直す */
@@ -55,7 +55,6 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines, pr
   const [reg, setReg] = useState<{ open: boolean; name: string; furigana: string; tel: string }>({ open: false, name: "", furigana: "", tel: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "success" | "error" | "info"; text: string } | null>(null);
-  const [whoOpen, setWhoOpen] = useState(false);
 
   const load = useCallback(async () => {
     const [n, c, sm] = await Promise.all([
@@ -126,11 +125,10 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines, pr
     </div>
   );
 
-  const targetLines = lines.filter((l) => !l.time_auto && l.kind !== "keep_out");
   return (
     <div className="nox-cardtop" style={t.card}>
       <h3 style={t.cardTitle}>顧客</h3>
-      <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" }}>この伝票のお客様。最初の 1 人が来店の名義（併存）になります。注文行ごとに「誰の注文」を付けられます。</p>
+      <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" }}>この伝票のお客様。最初の 1 人が来店のお客様（併存）になります。注文ごとのお客様は明細の「お客様」チップから付けます。</p>
       {named === null && <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>—</p>}
       {named !== null && named.length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>顧客はまだ付いていません。</p>}
       {named !== null && named.length > 0 && (
@@ -223,26 +221,7 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines, pr
           {msg && <div style={{ marginTop: 8 }}><Message kind={msg.kind} onDismiss={() => setMsg(null)}>{msg.text}</Message></div>}
         </div>
       )}
-      {/* 誰の注文＝注文行ごとに顧客を付ける（null＝解除） */}
-      {isOpen && named !== null && named.length > 0 && targetLines.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setWhoOpen((v) => !v)} aria-expanded={whoOpen}>誰の注文 {whoOpen ? "を閉じる" : "を付ける"}</button>
-          {whoOpen && (
-            <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
-              {targetLines.map((l) => (
-                <div key={l.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center", fontSize: 12.5 }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.name_snapshot} <span className="num" style={{ color: "var(--sub)" }}>¥{l.line_total.toLocaleString("en-US")}</span></span>
-                  <select value={l.customer_id ?? ""} disabled={busy} aria-label={`${l.name_snapshot} の注文者`} style={{ ...t.input, width: "auto", padding: "6px 8px", fontSize: 12 }}
-                    onChange={(e) => { const v = e.target.value || null; void call("注文者", "check_line_set_customer", { p_line_id: l.id, p_customer_id: v }, v ? `${l.name_snapshot} を ${nameOf(v)} の注文にしました` : `${l.name_snapshot} の注文者を解除しました`); }}>
-                    <option value="">（未指定＝均等割り）</option>
-                    {named.map((r) => <option key={r.customer_id} value={r.customer_id}>{r.name}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* ★裁定370（GV-21・便 GV-A）: 「誰の注文を付ける」セクションは廃止＝明細の各商品行の「お客様」チップ（register-board）から同じモーダルで付ける。用語は「お客様」で統一 */}
       {/* キープ出し＝顧客の active なキープから 1 タップ（bottle_keep_out・冪等キーは押下ごと） */}
       {named !== null && named.length > 0 && keeps.length > 0 && (
         <div>

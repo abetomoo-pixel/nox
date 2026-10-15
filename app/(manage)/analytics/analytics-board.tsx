@@ -141,7 +141,7 @@ export default function AnalyticsBoard({
   const [period, setPeriod] = useState(thisMonth);
   const [sales, setSales] = useState<SalesRow[]>([]);
   const [ranking, setRanking] = useState<RankRow[]>([]);
-  const [rankAxis, setRankAxis] = useState<RankAxis>("nom"); // ★裁定346: ランキングの軸（指名数／売上）
+  const [rankAxis, setRankAxis] = useState<RankAxis>("sales"); // ★裁定346: ランキングの軸（指名数／売上）→★裁定363（GV-11・便 GV-A）: 既定＝売上
   const [err, setErr] = useState<string | null>(null);
   // section3（B-2）: cast 別指名客ランキング
   const [castSel, setCastSel] = useState("");

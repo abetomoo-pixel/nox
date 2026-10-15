@@ -1226,7 +1226,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         )}
       </div>
 
-      <div className="nox-2col">
+      <div className="nox-2col nox-2col--today">{/* ★裁定358（GV-6・便 GV-A）: 右カラムは ≥1280 だけ横並び・900〜1279 は表の下 */}
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
             <div>
@@ -1295,7 +1295,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           {shiftsOn(todayDate).length === 0 ? (
             <p style={{ fontSize: 13, color: "var(--sub)" }}>本日のシフトはありません</p>
           ) : (
-            <div className="nox-tablewrap stickyfirst">{/* ★AT2-3: 名前列を左固定（横スクロールしても行の見出しが残る＝M18 と同じ修飾子） */}
+            <div className="nox-tablewrap stickyfirst nox-todaywrap">{/* ★裁定371（GV-22・便 GV-A）: <1280 は 3 段カード（globals.css .nox-todaywrap）。★AT2-3: 名前列を左固定（横スクロールしても行の見出しが残る＝M18 と同じ修飾子） */}
               <table className="nox-table cardrows">{/* ★X-13-17（便 X-13d-1）: ≤899 は 1 人 1 カード（氏名／申請・確定／出勤記録／状態／操作を縦積み・横スクロール廃止）・PC は表のまま */}
                 <thead>
                   <tr><th>スタッフ</th><th>申請時間</th><th>確定時間</th><th>出勤記録</th><th>状態</th>{isManagerUp && <th>操作</th>}</tr>{/* ★裁定313／X-8-3: 操作列は owner／manager だけ（staff は列ごと未描画） */}
@@ -1308,16 +1308,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                     const canRecord = isManagerUp && todayDate === bizToday;
                     return (
                       <tr key={s.id}>
-                        <td style={{ whiteSpace: "nowrap" }}>{/* ★AT2-3: sticky 列は折り返さない */}
+                        <td className="c-name" style={{ whiteSpace: "nowrap" }}>{/* ★AT2-3: sticky 列は折り返さない */}
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
                             <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
                             {castName(s.cast_id)}
                           </span>
                         </td>
-                        <td className="num" data-label="申請" style={{ color: "var(--v2-muted)" }}>
+                        <td className="num c-req" data-label="申請" data-empty={w ? undefined : "1"} style={{ color: "var(--v2-muted)" }}>{/* ★371: カードでは値がある時だけ */}
                           {w ? fmtWin(w.start_hm, w.end_hm) : "—"}
                         </td>
-                        <td className="num" data-label="確定">{fmtWin(s.start_hm, s.end_hm)}</td>
+                        <td className="num c-conf" data-label="確定">{fmtWin(s.start_hm, s.end_hm)}</td>
                         {/* ★R1: 出勤記録＝旧「出勤板」の統合先。プルダウンではなくボタン群
                             （既存 .nox-seg の文法＝選択中は金枠）。押すと attendance_set をそのまま呼ぶ。
                             ★SC-8 ⑦: 書き込みは**今日だけ**＝attendance_set は RPC 側に未来日ガードが
@@ -1379,7 +1379,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             );
                           })()}
                         </td>
-                        <td data-label="状態" style={{ whiteSpace: "nowrap" }}>{/* ★AT2-3: 「確定」の印を折り返し・見切れさせない */}
+                        <td className="c-state" data-label="状態" style={{ whiteSpace: "nowrap" }}>{/* ★AT2-3: 「確定」の印を折り返し・見切れさせない */}
                           <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`}
                             style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
                             {SHIFT_ST_LABEL[s.status] ?? s.status}

@@ -805,7 +805,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
               (c) ≤641 で補助列（税区分・売掛・前借り・送り・anomaly）を CSS で畳む
                   ＝列を削除するのではなく狭い画面で隠すだけ（>641 では全列が出る）。 */}
           {/* ★U-1 是正B: 表=左 2/3・明細=右 1/3（sticky）。狭幅は flexWrap で縦積み。 */}
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div className="nox-paycols" style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>{/* ★裁定365（GV-13・便 GV-A）: 表は全幅＝右パネルは ≥1280 だけ横並び */}
           <div style={{ flex: "2 1 480px", minWidth: 0 }}>
           {/* E8-5 payroll#4（T2）: 名前検索＝client フィルタ（並び・数値は不変） */}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
@@ -821,7 +821,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
             </div>
           </div>
           <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
-          <table className="nox-paytable" style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginBottom: 12 }}>
+          <table className="nox-paytable v365" style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, marginBottom: 12 }}>{/* ★裁定365: <1280 は 7 列（税区分＝名前下チップ・売掛＝手取り下・送り／不整合は隠す）・<900 はカード（globals.css） */}
             <thead>
               <tr>
                 <th style={t.th}>キャスト</th>
@@ -851,25 +851,26 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 return (
                 <tr key={r.castId} onClick={() => { setSlipPreview(false); setDetailCast((v) => (v === r.castId ? null : r.castId)); }}
                   style={{ cursor: "pointer", background: detailCast === r.castId ? "var(--card2)" : undefined }}>
-                  <td style={t.td}>
+                  <td className="c-name" style={t.td}>
                     {/* 段0R 第2陣: モック .castcell 逐語（アバター30px・gap9・名前 bold）。表示のみ・値と並びは不変。 */}
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
                       <CastAvatar name={r.castName} url={photoUrls.get(castIdOf[r.castId] ?? r.castId)} variant="flat" size={30} />
                       <span style={{ fontWeight: 700 }}>{r.castName}</span>
+                      <span className="nox-paytax">{r.taxMode}</span>{/* ★裁定365: <1280 の税区分チップ */}
                     </span>
                   </td>
                   <td className="fold" style={t.td}>{r.taxMode}</td>
                   {/* ★裁定303-3／303 追補1: 0h かつ日数>0 は「打刻なし／不完全」を薄字で（値は変えない） */}
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{(() => { const hc = hoursCellOf(pay?.wHours, Array.isArray(pay?.wdays) ? pay.wdays.length : 0); return <>{hc.text}{hc.note && <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)", fontWeight: 400 }}>{hc.note}</span>}</>; })()}</td>
                   {/* ★裁定176（W23）: 日数＝PayResult.wdays の件数（サーバ計算の日次内訳をそのまま数えるだけ） */}
-                  <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{Array.isArray(pay?.wdays) ? `${pay.wdays.length}日` : "-"}</td>
+                  <td className="fold c-days" style={{ ...t.td, ...t.num, textAlign: "right" }}>{Array.isArray(pay?.wdays) ? `${pay.wdays.length}日` : "-"}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{gross != null ? gross.toLocaleString() : "-"}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: ded ? "var(--bad)" : "var(--sub)" }}>{ded ? `−${ded.toLocaleString()}` : "-"}</td>
                   {dedCell(r.arDeductTotal, r.arCarriedTotal, "fold")}
                   {advCell(r.advDeductTotal, r.advCarriedTotal, "fold")}
                   {dedCell(r.okuriDeductTotal, undefined, "fold")}
                   {/* net＝読む情報の最重要値ゆえ白太（値そのものは r.net のまま・書式も toLocaleString で不変） */}
-                  <td style={{ ...t.td, ...t.num, textAlign: "right", fontWeight: 700, color: "var(--v2-text)" }}>{r.net.toLocaleString()}</td>
+                  <td className="c-net" style={{ ...t.td, ...t.num, textAlign: "right", fontWeight: 700, color: "var(--v2-text)" }}>{r.net.toLocaleString()}{r.arDeductTotal ? <small className="nox-payar">売掛 −{r.arDeductTotal.toLocaleString()}</small> : null}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: r.anomalyCount ? "var(--bad)" : "var(--sub)" }}>{r.anomalyCount || "-"}</td>
                   {(() => {
                     // ★U-1（裁定99-②）→★便 X-7: run の status と整合＝paid なら「支払済」・部分払いは「一部 ¥残」・それ以外「未払」（未支払カードと同じ元＝net − 支払記録合計）。draft/run なし＝未確定

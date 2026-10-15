@@ -2106,8 +2106,9 @@ body {
      var 上書きだけに頼らずクラスで明示反転する従来方式を維持＝印刷出力は不変） */
   .nox-payslip { break-inside: avoid; page-break-inside: avoid; margin: 0 0 8mm !important; }
   .ps-hd { background: #fff !important; color: #000 !important; }
-  .ps-foot { background: #fff !important; color: #000 !important; border: 2px solid #000 !important; }
-  .ps-foot, .ps-foot * { color: #000 !important; }
+  /* ★裁定366（GV-14・便 GV-A）: 手取り帯は印刷・PDF も黒地・金 2px 枠・金文字（画面と同じ CSS） */
+  .ps-foot { background: #000 !important; color: #c9a24a !important; border: 2px solid #c9a24a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .ps-foot, .ps-foot * { color: #c9a24a !important; }
 
   /* manage 全員分＝1人1ページ */
   .nox-print-page { break-after: page; page-break-after: always; }
@@ -2389,3 +2390,113 @@ body {
 
 /* ★裁定352 改訂（便 N1014 A-1）: 開卓モーダル＝画面幅の 80%（上限は Modal maxWidth 560px・>900px の中央ダイアログのみ・≤900 はシート全幅） */
 @media (min-width: 901px) { .nox-modal-card:has(> [data-open-seat-modal]) { width: 80vw; } }
+
+/* ═══ 便 GV-A（2026-10-14・裁定358〜371＝目視指摘 GV-6〜22）═══ */
+/* 358: 今日タブの右カラム（時間帯別の充足・出勤ボーナス）は ≥1280 だけ横並び・900〜1279 は表の下へ（表は全幅） */
+.nox-2col.nox-2col--today { grid-template-columns: 1fr; }
+@media (min-width: 1280px) { .nox-2col.nox-2col--today { grid-template-columns: 1fr 380px; } }
+/* 360: 伝票の「注文／指名・席／会計」＝3 分割セグメント（等幅・高さ 1.5 倍・アイコン・選択中 金塗り・未選択 枠のみ・会計は右端で主ボタン色） */
+.nox-dtabs.nox-dtabs--seg { gap: 8px; margin-bottom: 10px; }
+.nox-dtabs.nox-dtabs--seg button { flex: 1 1 0; min-width: 0; min-height: 52px; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line2); color: var(--ink); background: transparent; border-radius: 10px; }
+.nox-dtabs.nox-dtabs--seg button svg { width: 18px; height: 18px; flex: 0 0 auto; }
+.nox-dtabs.nox-dtabs--seg button.on { background: var(--gold); border-color: var(--gold); color: #000; }
+.nox-dtabs.nox-dtabs--seg button.pay { border-color: var(--primary); color: var(--primary-hover); }
+.nox-dtabs.nox-dtabs--seg button.pay.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+/* 367: 上部ヘッダー（ロゴ・店名・ユーザーチップ）は非固定＝スクロールで流れる（下部ナビ・サイドバーは不変）。レジは操作バー＋セグメントの 2 段だけ sticky（不透明） */
+.nox-tb { position: static; }
+.nox-regsticky { position: sticky; top: 0; z-index: 6; background: var(--bg); padding-top: 2px; }
+.nox-regsticky .nox-backbar { position: static; }
+.nox-regsticky .nox-dtabs { margin-bottom: 0; padding-bottom: 8px; }
+/* 361: サイドバー＝900〜1279 はアイコンのレール（64px・ラベルは title・現在地は金）・≥1280 は全幅・手動トグル（localStorage）・/register /floor はレールも畳んで ≡ ドロワー */
+.nox-layout:has(> .nox-side.is-rail) { grid-template-columns: 64px minmax(0, 1fr); }
+.nox-layout:has(> .nox-side.is-hidden) { grid-template-columns: minmax(0, 1fr); }
+.nox-side.is-hidden { display: none; }
+.nox-side.is-rail { padding: 18px 8px; }
+.nox-side.is-rail .brand { justify-content: center; padding: 0 0 18px; }
+.nox-side.is-rail .brand > div, .nox-side.is-rail .group, .nox-side.is-rail a > span { display: none; }
+.nox-side.is-rail a { justify-content: center; padding: 12px 0; }
+.nox-side.is-rail a.active { color: var(--gold); box-shadow: inset 2px 0 var(--gold); background: var(--goldface2); }
+.nox-sidetoggle { margin-top: auto; background: transparent; border: 1px solid var(--line); color: var(--sub); border-radius: 8px; padding: 8px; font: inherit; font-size: 11px; cursor: pointer; }
+.nox-side.is-rail .nox-sidetoggle span { display: none; }
+.nox-navburger { display: none; position: fixed; top: 10px; left: 10px; z-index: 30; width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line2); background: var(--card); color: var(--ink); font-size: 20px; cursor: pointer; }
+@media (min-width: 901px) { .nox-navburger.show { display: inline-flex; align-items: center; justify-content: center; } }
+/* 362: メニュー一覧＝グリッド（<600 1 列・600〜899 2 列・≥900 3 列）・「›」なし・カード全体がタップ対象 */
+.nox-navsheet { max-width: 760px; }
+.nox-navsheet-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 600px) { .nox-navsheet-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 900px) { .nox-navsheet-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.nox-navsheet-grid .nox-navsheet-i { margin-bottom: 0; }
+.nox-navsheet-grid .nox-navchev { display: none; }
+/* 364: 顧客詳細モーダル＝すべての幅でモーダル（幅 90%・上限 720）・一覧は 1 列 */
+@media (min-width: 901px) { .nox-modal-card:has(> [data-cust-modal]) { width: 90vw; } }
+/* 365: 給与の月次一覧＝全幅。<1280 は 7 列（キャスト／時間／日数／総支給／控除計／手取り／前借り・税区分＝名前下のチップ・売掛＝手取り下）・<900 は 1 人 1 カード */
+.nox-paytax, .nox-payar { display: none; }
+.nox-paytable.v365 td.c-name > span, .nox-paytable.v365 td.c-days { white-space: nowrap; }
+@media (max-width: 1279px) {
+  .nox-paycols > aside { position: static !important; flex: 1 1 100% !important; }
+  .nox-paytable.v365 th:nth-child(2), .nox-paytable.v365 td:nth-child(2), .nox-paytable.v365 th:nth-child(7), .nox-paytable.v365 td:nth-child(7), .nox-paytable.v365 th:nth-child(9), .nox-paytable.v365 td:nth-child(9), .nox-paytable.v365 th:nth-child(11), .nox-paytable.v365 td:nth-child(11) { display: none; }
+  .nox-paytable.v365 .nox-paytax { display: inline-block; font-size: 10px; color: var(--sub); border: 1px solid var(--line2); border-radius: 999px; padding: 0 6px; margin-left: 6px; }
+  .nox-paytable.v365 .nox-payar { display: block; font-size: 10px; color: var(--bad); }
+}
+@media (max-width: 899px) {
+  .nox-tablewrap:has(> .nox-paytable.v365) { border: 0; background: transparent; overflow: visible; }
+  .nox-paytable.v365, .nox-paytable.v365 tbody { display: block; width: 100%; }
+  .nox-paytable.v365 thead { display: none; }
+  .nox-paytable.v365 tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 12px; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--card2); }
+  .nox-paytable.v365 td { display: block; padding: 0 !important; border: 0 !important; min-width: 0; }
+  .nox-paytable.v365 td.c-name { flex: 0 0 100%; }
+  .nox-paytable.v365 td.c-net { margin-left: auto; font-size: 16px; }
+}
+/* 366: 報酬明細＝1 人 1 カード（外周 1px 枠・カード間 24px・見出し帯は theme slipSec 薄灰・手取り帯は theme slipFoot 黒地金枠金文字） */
+.nox-payslip { border: 1px solid var(--line2); border-radius: 12px; padding: 12px 14px; }
+/* 371: 今日タブのカード（<1280）＝3 段固定（1 段目 写真・名前・状態チップ＋確定時刻 右 18px／2 段目 5 分割セグメント 48px 金塗り／3 段目 送り・退勤 50／50 48px・時刻修正は右下の文字リンク）・カード間 12px・内側 16px */
+@media (max-width: 1279px) {
+  .nox-todaywrap:has(> .nox-table.cardrows) { border: 0; background: transparent; overflow: visible; }
+  .nox-todaywrap .nox-table.cardrows, .nox-todaywrap .nox-table.cardrows tbody { display: block; width: 100%; }
+  .nox-todaywrap .nox-table.cardrows thead { display: none; }
+  .nox-todaywrap .nox-table.cardrows tr { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "name state conf" "req req req" "att att att" "ops ops ops"; align-items: center; gap: 6px 10px; padding: 16px; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card2); }
+  .nox-todaywrap .nox-table.cardrows td { display: block; padding: 0 !important; border: 0 !important; min-width: 0; white-space: normal !important; }
+  .nox-todaywrap .nox-table.cardrows td.c-name { grid-area: name; font-weight: 800; }
+  .nox-todaywrap .nox-table.cardrows td.c-state { grid-area: state; }
+  .nox-todaywrap .nox-table.cardrows td.c-state::before { content: none; }
+  .nox-todaywrap .nox-table.cardrows td.c-conf { grid-area: conf; font-size: 18px; font-weight: 800; text-align: right; }
+  .nox-todaywrap .nox-table.cardrows td.c-conf::before { content: none; }
+  .nox-todaywrap .nox-table.cardrows td.c-req { grid-area: req; font-size: 11px; }
+  .nox-todaywrap .nox-table.cardrows td.c-req[data-empty="1"] { display: none; }
+  .nox-todaywrap .nox-table.cardrows td.wide { grid-area: att; }
+  .nox-todaywrap .nox-table.cardrows td.ops { grid-area: ops; margin-top: 0; }
+  .nox-todaywrap .nox-attrow { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .nox-todaywrap .nox-attrow > .nox-seg { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); width: 100%; height: 48px; grid-column: auto; }
+  .nox-todaywrap .nox-attrow > .nox-seg button { font-size: 13px; padding: 0; }
+  .nox-todaywrap .nox-attrow > .nox-seg button.on { background: var(--gold); color: #000; font-weight: 800; }
+  .nox-todaywrap .nox-attrow .sub { font-size: 11px; }
+  .nox-todaywrap .nox-attrow .out { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin: 0; }
+  .nox-todaywrap .nox-attrow .out:has(> button:only-child) { grid-template-columns: 1fr; }
+  .nox-todaywrap .nox-attrow .out button { min-height: 48px; font-size: 14px !important; justify-content: center; }
+  .nox-todaywrap .nox-table.cardrows td.ops .nox-rowops { display: flex; justify-content: flex-end; gap: 10px; width: 100%; }
+  .nox-todaywrap .nox-table.cardrows td.ops .nox-rowops button { width: auto; background: none !important; border: 0 !important; color: var(--primary) !important; text-decoration: underline; padding: 4px 2px; }
+}
+
+/* 359: 指名の分配率＝キャスト 1 人 1 カード（左帯＝区分色・写真＋名前 左・区分セグメント 中・同伴チップ＋% 右端・行の高さ 1/2） */
+.nox-nomcard { display: grid; grid-template-columns: auto 1fr auto auto; grid-template-areas: "av nm kind right" "ra ra ra ra" "dlg dlg dlg dlg"; align-items: center; gap: 2px 10px; padding: 5px 8px 5px 12px; border: 1px solid var(--line); border-left-width: 4px; border-left-color: var(--line2); border-radius: 10px; margin-bottom: 6px; background: var(--card2); }
+.nox-nomcard[data-kind="hon"] { border-left-color: var(--gold); }
+.nox-nomcard[data-kind="jonai"] { border-left-color: var(--primary); }
+.nox-nomcard > .nox-avatar, .nox-nomcard > span:first-child, .nox-nomcard > div:first-child { grid-area: av; }
+.nox-nomcard .nm { grid-area: nm; display: flex; align-items: baseline; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.nox-nomcard .nm b { font-size: 14px; }
+.nox-nomcard .nm .rk { font-size: 10.5px; color: var(--sub); }
+.nox-nomcard .kind { grid-area: kind; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.nox-nomcard .kind .fee { font-size: 10.5px; color: var(--ok); }
+.nox-nomcard .right { grid-area: right; display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.nox-nomcard .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; border: 1px solid var(--line2); border-radius: 999px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+.nox-nomcard .chip.on { border-color: var(--gold); color: var(--champ); background: var(--goldface2); }
+.nox-nomcard .rateapply { grid-area: ra; }
+.nox-nomcard .nox-inset[role="dialog"] { grid-area: dlg; }
+.nox-seg.gold button.on { background: var(--gold); color: #000; font-weight: 800; }
+.nox-infofold { position: relative; }
+.nox-infofold > summary::-webkit-details-marker { display: none; }
+@media (max-width: 641px) { .nox-nomcard { grid-template-columns: auto 1fr auto; grid-template-areas: "av nm kind" "right right right" "ra ra ra" "dlg dlg dlg"; } }
+
+/* 370: 商品行の「お客様」チップ（未指定＝灰／指定済み＝金枠） */
+.nox-custchip { font: inherit; font-size: 11px; line-height: 1; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line2); background: transparent; color: var(--sub); cursor: pointer; white-space: nowrap; margin-right: 6px; }
+.nox-custchip.on { border-color: var(--gold); color: var(--champ); background: var(--goldface2); font-weight: 700; }

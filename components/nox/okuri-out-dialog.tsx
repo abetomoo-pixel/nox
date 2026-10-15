@@ -46,12 +46,12 @@ export default function OkuriOutDialog({ castName, def, busy, error, onConfirm, 
       </p>
       {error && <div style={{ marginTop: 8 }}><Message kind="error">{error}</Message></div>}
       <div className="nox-formmodal-foot">
-        <button type="button" style={{ ...t.btnGold, opacity: busy || amount === null ? 0.5 : 1 }} disabled={busy || amount === null} data-okuri-confirm="1"
+        <button type="button" style={{ ...t.btnPrimary56, opacity: busy || amount === null ? 0.5 : 1 }} disabled={busy || amount === null} data-okuri-confirm="1"
           onClick={() => { if (amount !== null) onConfirm(amount); }}>{busy ? "記録中…" : mode === "issueOnly" ? "送りを発行" : onOutOnly ? "送りを発行して退勤" : "確定して退勤"}</button>
         {onOutOnly && (/* ★裁定357: 2 択＝「退勤のみ」（送りは発行しない・営業日内なら後から「送り」で発行できる） */
-          <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={onOutOnly} data-okuri-outonly="1">退勤のみ</button>
+          <button type="button" style={t.btnSecondary48} disabled={busy} onClick={onOutOnly} data-okuri-outonly="1">退勤のみ</button>
         )}
-        <button type="button" style={t.btnGhost} disabled={busy} onClick={onClose}>キャンセル</button>
+        <button type="button" style={t.btnSecondary48} disabled={busy} onClick={onClose}>キャンセル</button>
       </div>
     </Modal>
   );

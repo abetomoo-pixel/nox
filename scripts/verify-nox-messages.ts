@@ -132,7 +132,7 @@ check("ms(2-8) 裁定316: finalizeGuardOf（期末当日＝不可・翌営業日
 const regSrc = fs.readFileSync("app/(manage)/register/register-board.tsx", "utf8");
 const keepSrc = fs.readFileSync("components/nox/line-keep-button.tsx", "utf8");
 check("ms(2-9) 裁定314／X-8-8／X-8-9: ボトル行のキープ（bottle_keep_register・p_check_line_id・キープ済み・指名・席タブへ）・QR 全画面・取消して分け直す（receipt_issue_void）",
-  regSrc.includes('l.kind === "bottle" && check && (') && regSrc.includes("<LineKeepButton") && regSrc.includes('onNeedCustomer={() => setDtab("nom")}')
+  regSrc.includes('l.kind === "bottle" && check && (') && regSrc.includes("<LineKeepButton") && regSrc.includes('onNeedCustomer={() => setCustPick({') /* ★裁定368（便 GV-A）: 顧客セクションへ飛ばず同じモーダル */
   && keepSrc.includes('rpc("bottle_keep_register"') && keepSrc.includes("p_check_line_id: lineId") && keepSrc.includes("キープ済み") && keepSrc.includes("指名・席タブへ")
   && regSrc.includes('className="nox-rcpt-qr"') && regSrc.includes('className="nox-qrfull"') && regSrc.includes(">取消して分け直す</button>") && regSrc.includes('rpc("receipt_issue_void"')
   && messageKindOf("領収書の取消に失敗しました: 権限がありません（店長以上）") === "error" && messageKindOf("領収書を取り消しました。金額を入れて発行し直せます") === "success");

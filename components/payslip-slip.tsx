@@ -50,14 +50,14 @@ export default function PayslipSlip({ slip, castName, compact = false }: { slip:
   const hasDed = bd.ded.length > 0;
   if (compact) {
     return (
-      <div className="nox-payslip nox-payslip-compact" style={{ marginBottom: 14 }}>
-        <div className="ps-hd" style={t.slipHd}>
-          {castName ? `${castName}　${slip.period}` : slip.period}
-          {taxMode && (
-            <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
-              border: "1px solid var(--line2)", color: "var(--champ)" }}>{taxMode}</span>
-          )}
-        </div>
+      <div className="nox-payslip nox-payslip-compact" style={{ marginBottom: 24 }}>
+        <div className="ps-hd" style={t.slipHd}>{/* ★裁定366（GV-14・便 GV-A）: 名前 22px 左・月と契約区分チップ 右 */}
+        <span className="ps-name" style={t.slipName}>{castName ?? slip.period}</span>
+        <span className="ps-meta" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--sub)" }}>
+          {castName ? <span className="num">{slip.period}</span> : null}
+          {taxMode && (<span className="ps-tax" style={{ fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px", border: "1px solid var(--line2)", color: "var(--champ)" }}>{taxMode}</span>)}
+        </span>
+      </div>
         <div className="ps-foot" style={t.slipFoot}><span>手取り</span><b style={t.slipFootVal}>{yen(slip.net)}</b></div>
       </div>
     );
@@ -68,14 +68,13 @@ export default function PayslipSlip({ slip, castName, compact = false }: { slip:
   const ded = (label: string, v: number, key: string) =>
     <div key={key} style={t.slipRow}><span>{label}</span><span style={{ ...t.num, color: "var(--bad)" }}>−{yen(v)}</span></div>;
   return (
-    <div className="nox-payslip" style={{ marginBottom: 14 }}>
-      <div className="ps-hd" style={t.slipHd}>
-        {castName ? `${castName}　${slip.period}` : slip.period}
-        {/* ★U-1（裁定99-⑤）: 税区分バッジ（凍結 taxMode・旧データは非表示） */}
-        {taxMode && (
-          <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
-            border: "1px solid var(--line2)", color: "var(--champ)" }}>{taxMode}</span>
-        )}
+    <div className="nox-payslip" style={{ marginBottom: 24 }}>{/* ★裁定366: 1 人 1 カード（外周 1px 枠＝globals.css .nox-payslip・カード間 24px・印刷は 1 人 1 ページ＝.nox-print-page） */}
+      <div className="ps-hd" style={t.slipHd}>{/* ★裁定366（GV-14・便 GV-A）: 名前 22px 左・月と契約区分チップ 右 */}
+        <span className="ps-name" style={t.slipName}>{castName ?? slip.period}</span>
+        <span className="ps-meta" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--sub)" }}>
+          {castName ? <span className="num">{slip.period}</span> : null}
+          {taxMode && (<span className="ps-tax" style={{ fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px", border: "1px solid var(--line2)", color: "var(--champ)" }}>{taxMode}</span>)}
+        </span>
       </div>
 
       <div style={t.slipSec}>支給</div>

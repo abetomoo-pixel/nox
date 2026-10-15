@@ -10,7 +10,7 @@
  *      collect が missingOutDates（noout ∧ final ok|late）を積み preview route が返す
  *  逆テスト 1 本（手動・1 回）: frozenRowsOf の cast_name 欠け判定を外す→pv(4-3) 赤・戻して緑。
  */
-import fs from "node:fs";
+import fs, { readFileSync } from "node:fs";
 import { payOf } from "../lib/nox/pay";
 import { breakdownLinesOf, hoursCellOf, timeLineOf } from "../lib/nox/payroll/breakdown-lines"; // ★裁定303
 import { REINA_INPUT } from "./fixtures-pay";
@@ -54,6 +54,8 @@ const rt = fs.readFileSync("app/api/payroll/preview/route.ts", "utf8");
 check("pv(5-1) payroll-board: 確定済み run は frozenRowsOf（loadRun 内・payslips を写すだけ）・警告は missingOutSummaryOf（一覧＋出勤板リンク）", /const fr = frozenRowsOf\(slips/.test(pb) && /if \(fr\) \{ setRows\(fr as Row\[\]\);/.test(pb) && /missingOutSummaryOf\(rows\)/.test(pb) && /href="\/shift" className="nox-link"/.test(pb) && /退勤の記録が無い勤務/.test(fs.readFileSync("lib/nox/payroll/view.ts", "utf8")));
 check("pv(5-2) 表示語: 「差引支給(net)」「anomaly」「（draft）」が payroll の tsx に残っていない・見出しは「差引支給」「不整合」", ![pb, pl, pt, pp].some((s) => /差引支給\(net\)|>anomaly<|（draft）|\(net\)を超え/.test(s)) && /打刻の不整合（退勤の記録が無い等）/.test(pb) && />不整合<\/th>/.test(pb));
 check("pv(5-3) list／tax: 期は fmtPeriodYM・日付は fmtMD（title に元の値）・支払状況／納付状態／期限の td は nowrap", /fmtPeriodYM\(r\.period\)/.test(pl) && /title=\{r\.period\}/.test(pl) && /fmtPeriodYM\(r\.target_month\)/.test(pt) && /fmtMD\(r\.deadline\)/.test(pt) && /title=\{r\.deadline\}/.test(pt) && /fmtMD\(r\.paid_on\)/.test(pt) && (pl.match(/whiteSpace: "nowrap"/g) || []).length >= 5 && (pt.match(/whiteSpace: "nowrap"/g) || []).length >= 3);
+// ★裁定365（GV-13・便 GV-A）: 月次一覧＝全幅・<1280 は 7 列（税区分＝名前下チップ・売掛＝手取り下・送り／不整合は隠す）・<900 はカード・名前／日数は折り返さない
+check("pv(7-1) 裁定365: payroll-board＝.nox-paytable.v365・.nox-paycols（右パネルは ≥1280 だけ横並び）・名前下 .nox-paytax・手取り下 .nox-payar・CSS の 1279／899 節", pb.includes('<table className="nox-paytable v365"') && pb.includes('className="nox-paycols"') && pb.includes('<span className="nox-paytax">{r.taxMode}</span>') && pb.includes('<small className="nox-payar">売掛 −') && pb.includes('<td className="fold c-days"') && (() => { const css = readFileSync("app/globals.css", "utf8"); return css.includes(".nox-paycols > aside { position: static !important;") && css.includes(".nox-paytable.v365 th:nth-child(2), .nox-paytable.v365 td:nth-child(2), .nox-paytable.v365 th:nth-child(7)") && css.includes(".nox-paytable.v365 thead { display: none; }") && css.includes(".nox-paytable.v365 td.c-name > span, .nox-paytable.v365 td.c-days { white-space: nowrap; }"); })());
 check("pv(5-4) collect: missingOutDates＝raw.out 'noout' ∧ final ok|late の bizDate・route が返す・assemble／core は表示専用（fixture 省略可）", /missingOutDates\.push\(d\.bizDate\)/.test(co) && /anomalyFlagsOf\(\{ bizDate: d\.bizDate, anomalies: d\.anomalies, rawOutType: d\.raw\.out\.type, finalType: d\.final\.type \}, todayBiz\)/.test(co) && /rawOutType === "noout" && \(d\.finalType === "ok" \|\| d\.finalType === "late"\)/.test(fs.readFileSync("lib/nox/payroll/anomaly.ts", "utf8")) /* ★X-13-27（便 X-13d-2a）: 判定は純関数 anomalyFlagsOf（未来日は数えない）へ */ && /missingOutDates: r\.missingOutDates/.test(rt) && /missingOutDates\?: string\[\];/.test(fs.readFileSync("lib/nox/payroll/assemble.ts", "utf8")));
 
 // (6) ★裁定303（2026-09-25）: 支給内訳の単一関数・0h の時間行・雇用の常時表示・行合計＝net・「打乱なし」

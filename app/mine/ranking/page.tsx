@@ -27,8 +27,9 @@ type RankRow = {
 };
 
 // ランキング（get_cast_ranking＝順位/件数のみ・金額列は RPC が構造的に返さない＝¥ は一切出さない）。
-export default async function RankingPage() {
+export default async function RankingPage({ searchParams }: { searchParams?: Promise<{ axis?: string }> }) {
   const supabase = await createClient();
+  const axis: "sales" | "nom" = (await searchParams)?.axis === "nom" ? "nom" : "sales"; // ★裁定363（GV-11・便 GV-A）: 既定＝売上・本指名件数は切替（?axis=nom）
   const period = bizDateOf(new Date().toISOString(), await loadCutoff(supabase)).slice(0, 7);
   // cast の可視 store は自店のみ（RLS）＝先頭行が自店
   const { data: stores } = await supabase.from("stores").select("id, name, settings_json").limit(1);
@@ -53,7 +54,8 @@ export default async function RankingPage() {
     <div>
       <div style={{ margin: "2px 0 14px" }}>
         <h1 style={t.pheadH1}>ランキング（{period}）</h1>
-        <p style={t.pheadP}>指名件数によるランキングです。{rankMode === "self" ? `（自分の順位のみ・${allRows.length}人中）` : ""}</p>{/* ★裁定346: self は他人の名前を出さない */}
+        <p style={t.pheadP}>{axis === "sales" ? "売上（按分）によるランキングです。" : "指名件数によるランキングです。"}{rankMode === "self" ? `（自分の順位のみ・${allRows.length}人中）` : ""}</p>{/* ★裁定363: 既定＝売上 */}
+        <p style={{ fontSize: 12, margin: "6px 0 0" }} data-rank-axis={axis}>{axis === "sales" ? <a href="/mine/ranking?axis=nom" className="nox-link">本指名件数で見る ›</a> : <a href="/mine/ranking" className="nox-link">売上で見る ›</a>}</p>{/* ★裁定346: self は他人の名前を出さない */}
         {mySales && (/* ★裁定346 追補1（0171）: 売上軸の自分の順位（self・top とも自分の行だけ・他人の金額は出ない） */
           <p style={{ fontSize: 13, margin: "6px 0 0" }} data-sales-rank={mySales.rank}>
             売上の順位: <b className="num">{mySales.rank}位</b> / {allRows.length}人中 <span style={{ color: "var(--sub)" }}>（自分の按分売上 ¥{mySales.sales.toLocaleString()}・他の人の額は出ません）</span>
@@ -61,6 +63,7 @@ export default async function RankingPage() {
         )}
       </div>
 
+      {axis === "nom" && (
       <section className="nox-cardtop" style={t.card}>
         <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
@@ -99,6 +102,7 @@ export default async function RankingPage() {
         </table>
         </div>
       </section>
+      )}
     </div>
   );
 }

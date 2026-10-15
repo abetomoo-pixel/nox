@@ -23,7 +23,8 @@ import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
 import { keptLineIdsOf } from "@/lib/nox/register/kept-lines"; // ★裁定314（便 AB-7）: キープ済みの行の判定（check_line_id の一致）
-import LineKeepButton from "@/components/nox/line-keep-button"; // ★裁定314（便 X-8-10）: ボトル明細の「キープ」
+import LineKeepButton from "@/components/nox/line-keep-button";
+import CustomerPickModal, { customerChipLabelOf, customerChipLineOf, type CustomerPickTarget } from "@/components/nox/customer-pick-modal"; // ★裁定368／370（GV-19・21・便 GV-A）: お客様を選ぶ共通モーダル・商品行の「お客様」チップ // ★裁定314（便 X-8-10）: ボトル明細の「キープ」
 import CheckCustomersCard from "@/components/nox/check-customers-card"; // ★裁定305（mig0153・D1）: 伝票の顧客・誰の注文・キープ出し
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
@@ -254,6 +255,12 @@ const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto" };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
+// ★裁定360（GV-8・便 GV-A）: セグメントのアイコン（注文＝リスト／指名・席＝人／会計＝カード）
+const DTAB_ICON: Record<"order" | "nom" | "pay", React.ReactNode> = {
+  order: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" /></svg>,
+  nom: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6" /></svg>,
+  pay: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M3 10h18" /></svg>,
+};
 
 export default function RegisterBoard({
   seats, products, categories, casts, isManagerUp, showReserve, storeId,
@@ -295,6 +302,15 @@ export default function RegisterBoard({
     });
   };
   const [photoUrls, setPhotoUrls] = useState<Map<string, string>>(new Map());
+  // ★裁定368／370（便 GV-A）: お客様モーダルの対象行・伝票のお客様名（check_customer_names＝1 クエリ）・ボトル投入直後の自動オープン（この伝票を開いてから増えたボトル行だけ）
+  const [custPick, setCustPick] = useState<CustomerPickTarget | null>(null);
+  const [custNames, setCustNames] = useState<Map<string, string>>(new Map());
+  const seenLineIds = useRef<{ checkId: string; ids: Set<string> } | null>(null);
+  const loadCustNames = useCallback(async (checkId: string) => {
+    const { data } = await supabase.rpc("check_customer_names", { p_check_id: checkId });
+    setCustNames(new Map(((data ?? []) as { customer_id: string; name: string }[]).map((r) => [r.customer_id, r.name])));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // B1/B2: 追加席（相席）の占有マップ seat_id→ホスト伝票 id（フロアの「同一会計」表示・タップで
   //   union consult がホスト伝票を返す）。primaryOf は checkId→主席 seat_id（ホスト名の解決用）。
   const [addMap, setAddMap] = useState<Record<string, string>>({});
@@ -838,6 +854,16 @@ export default function RegisterBoard({
   );
   const reloadCurrent = useCallback(async () => { if (check) await loadCheck(check.id); }, [check, loadCheck]);
   const tb = useTapBatch(commitLine, reloadCurrent, (m) => setMsg({ to: MSG_DETAIL, text: m, kind: "bad" }));
+  // ★裁定368（GV-19）: ボトル（キープ対象の商品）を明細に入れた直後にお客様モーダル＝この伝票を開いてから増えたボトル行（お客様未指定）だけ。顧客セクションへは飛ばない
+  useEffect(() => {
+    if (!check) { seenLineIds.current = null; return; }
+    const ids = new Set(lines.map((l) => l.id));
+    if (!seenLineIds.current || seenLineIds.current.checkId !== check.id) { seenLineIds.current = { checkId: check.id, ids }; void loadCustNames(check.id); return; }
+    const fresh = lines.find((l) => !seenLineIds.current!.ids.has(l.id) && l.kind === "bottle" && !l.customer_id && customerChipLineOf(l));
+    seenLineIds.current = { checkId: check.id, ids };
+    if (fresh && check.status === "open" && !custPick) setCustPick({ lineId: fresh.id, lineName: fresh.name_snapshot, isBottle: true, currentCustomerId: null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [check?.id, check?.status, lines]);
   // ★C層③: 締め済み日の先回り（true＝中止・文言は c3ErrJa の 'day closed' と同一）。flag off は常に false（従来どおり）。
   const dayBlocked = (): boolean => {
     if (!dayClosed) return false;
@@ -1676,6 +1702,7 @@ export default function RegisterBoard({
             </div>
           </div>
           ); })()}
+          <p style={{ fontSize: 13, color: "var(--sub)", margin: "-12px 0 18px", textAlign: "center" }} data-people-note="1">延長は追加時点の人数で確定</p>{/* ★裁定367: 人数変更の注記はこの 1 行だけ */}
           {/* ★116-UI（D2・設計ロック §2）: 料金区分セレクタ。active 1件以上の店のみ表示・既定=sort 最小・
               「指定なし」なし。区分は開栓時に凍結（mig0128）＝あとから変更不可。 */}
           {openCats.length >= 1 && (
@@ -1709,7 +1736,7 @@ export default function RegisterBoard({
             </div>
           )}
           {/* ★裁定352 改訂: 主ボタン「開卓（セット開始）」を中央に大きく 1 つ（幅 100%・高さ 56px）。「予約を入れる」「やめる」はその下に小さく横並び（相席・予約の導線は不変） */}
-          <button style={{ ...t.btnGold, width: "100%", minHeight: 56, fontSize: 18, fontWeight: 800 }} disabled={openBusy} onClick={() => void confirmOpenSeat()} data-open-seat="1">
+          <button style={t.btnPrimary56} disabled={openBusy} onClick={() => void confirmOpenSeat()} data-open-seat="1">
             開卓（セット開始）
           </button>
           <div className="nox-actions" style={{ display: "flex", gap: 18, justifyContent: "center", alignItems: "center", marginTop: 12 }}>
@@ -1729,6 +1756,16 @@ export default function RegisterBoard({
           </div>
           </div>
         </Modal>
+      )}
+      {/* ★裁定368／370（便 GV-A）: お客様を選ぶ共通モーダル（ボトル投入直後・お客様チップ・キープ登録の未付与） */}
+      {custPick && check && (
+        <CustomerPickModal storeId={check.store_id} checkId={check.id} target={custPick} castIds={nomSelected.map((c) => c.id)}
+          onClose={() => setCustPick(null)}
+          onPicked={async (name) => {
+            const ln = custPick.lineName; setCustPick(null);
+            setMsg({ to: MSG_DETAIL, kind: "ok", text: name ? `${ln} のお客様を ${name} にしました` : `${ln} のお客様を外しました` });
+            await loadCheck(check.id); await loadCustNames(check.id);
+          }} />
       )}
       {/* ── E8-1 ⑤/#8: キャストドリンクの対象指定モーダル（タップ時＝product／行の後付け＝line）── */}
       {drinkPick && (
@@ -2366,6 +2403,7 @@ export default function RegisterBoard({
       /* ── 伝票ビュー（全面）── */
       <div className="nox-checkview">
         {/* backbar（sticky）＝「← フロア」は既存 closeDetail の再利用（新規ロジックなし）＋卓名・滞在・合計 */}
+        <div className="nox-regsticky" data-regsticky="1">{/* ★裁定367（GV-15〜18・便 GV-A）: 伝票の操作バー（卓名・人数・延長・合計・伝票取消・合算）＋セグメントの 2 段を sticky（上部ヘッダーが流れた後は最上部に張り付く・背景は不透明） */}
         <div className="nox-backbar">
           <button type="button" className="nox-backbtn" onClick={() => void closeDetail()}>← フロア</button>
           <span className="t">{seats.find((s) => s.id === check.seat_id)?.name}</span>
@@ -2473,18 +2511,20 @@ export default function RegisterBoard({
           )}
           </div>
         </div>
+        {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。
+            ★裁定360（GV-8・便 GV-A）: 3 分割セグメント（等幅・高さ 1.5 倍・アイコン・選択中 金塗り・会計は右端で主ボタン色）＝伝票上部に sticky（裁定367 の器） */}
+        <div className="nox-dtabs nox-dtabs--seg" data-dtabs-seg="1">
+          {([["order", "注文"], ["nom", "指名・席"], ["pay", "会計"]] as const).map(([k, label]) => (
+            <button key={k} type="button" className={`${dtab === k ? "on" : ""}${k === "pay" ? " pay" : ""}`} onClick={() => setDtab(k)}>{DTAB_ICON[k]}{label}</button>
+          ))}
+        </div>
+        </div>{/* /nox-regsticky */}
         {peopleMsg && <Toast msg={peopleMsg} style={{ margin: "6px 0 0" }} />}
         {/* E8-1c: 人数±の注記（person 制のみ＝table 制は人数が料金に効かないため出さない・嘘をつかない）。
             ★R2-b（mig0097/0097b・裁定 R2-6/R2-7b）: auto 店も時点起算になった＝確定済み延長ブロックは
               変更時点の人数で凍結・進行中ブロックとセット料金のみ現人数で再計算＝文言を実装に追随。
             manual 店=set 行のみ即時追随・押下済み延長行は凍結（0089/0090 設計）＝従来文言のまま。 */}
-        {check.status === "open" && check.time_per === "person" && (
-          <p style={{ fontSize: 11, color: "var(--sub)", margin: "6px 0 0", lineHeight: 1.6 }}>
-            {timeMode === "auto"
-              ? "※セット中の人数変更はセット料金に反映されます。確定済みの延長には反映されません（延長は各回の確定時点の人数のまま・進行中の延長のみ新しい人数になります）"
-              : "※セット中の人数変更はセット料金に反映されます。追加済みの延長行には反映されません（延長は追加時点の人数で確定します）"}
-          </p>
-        )}
+        {/* ★裁定367: 人数変更の注記 2 本（person 制の auto／manual 文言）は削除＝開卓モーダルの人数脇に「延長は追加時点の人数で確定」1 行だけ */}
 
         {/* R-1a（裁定61）: 描画点＝伝票詳細ビュー。旧実装は msg の描画点が入金モーダルとフロアにしか無く、
             指名の保存・割引/無料の適用と申請・承認/却下の文言が state に入るだけで**画面に出なかった**。
@@ -2500,12 +2540,6 @@ export default function RegisterBoard({
           <Message kind={msg.kind === "ok" ? "success" : "error"}>{msg.text}</Message>
         )}{/* ★裁定281（便 AB） */}
 
-        {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。 */}
-        <div className="nox-dtabs">
-          {([["order", "注文"], ["nom", "指名・席"], ["pay", "会計"]] as const).map(([k, label]) => (
-            <button key={k} type="button" className={dtab === k ? "on" : ""} onClick={() => setDtab(k)}>{label}</button>
-          ))}
-        </div>
 
         {/* planB .checkcols＝左 1.4fr（操作）／右 1fr（明細・会計）。★各カードの dtab 条件は 1文字も変えていない。
             指名・席タブは右カラムに出るカードが無いため split を付けない＝空列を作らない（v2R の grid 教訓）。 */}
@@ -2565,31 +2599,26 @@ export default function RegisterBoard({
             check_set_nominations に渡せる（RPC・スキーマ非改変）。
             ★0121（裁定107）: 旧「free は weight=1 固定」は撤去＝全行に％入力。 */}
         {nomSelected.length > 0 && (
-          <div className="nox-cardtop" style={card}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-              <div>
-                <h3 style={{ ...t.cardTitle, marginBottom: 2 }}>指名の分配率</h3>
-                {/* ★裁定105: %＝金額按分のみ（分母は伝票内全行・現行維持）。本数は種別ごと1人1件＝DB 既定。 */}
-                <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
-                  {nomSelected.length === 1 ? "1 名のため 100% で固定です（指名本数には影響しません）。" : "売上・バック金額の按分比率（指名本数には影響しません）。"}
-                </p>
-              </div>
+          <div className="nox-cardtop" style={card} data-nom-cards="1">{/* ★裁定359（GV-7・便 GV-A）: キャスト 1 人＝1 カード（写真・名前・ランク 左／区分の切替 右）・選択中は金塗り・左帯＝区分色（本＝金／場内＝青／フリー＝灰）・常時表示は合計バーと「均等に分配」だけ・3 注記は ⓘ に畳む・自動加算は区分ボタン下に「¥3,000」のみ・341 の切替確認は行内のまま見出し「<名前> → 本指名」・同伴チップと % は右端・行の高さは従来の半分以下 */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <h3 style={{ ...t.cardTitle, margin: 0 }}>指名の分配率</h3>
+              <details className="nox-infofold" data-nom-info="1" style={{ fontSize: 11, color: "var(--sub)" }}>
+                <summary aria-label="分配率の注記" title="料金と実績を分離・件数換算は目安・変更時点で明細を同期" style={{ cursor: "pointer", listStyle: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 999, border: "1px solid var(--line2)", fontWeight: 800 }}>ⓘ</summary>
+                <div className="nox-inset" style={{ padding: "9px 12px", margin: "6px 0 0", lineHeight: 1.7, position: "absolute", zIndex: 5, maxWidth: 360 }}>
+                  <p style={{ margin: 0 }}><b>料金と実績を分離</b>＝指名本数は種別ごとに1人1件で計上します。％は売上とバック金額の取り分にのみ効きます。</p>
+                  <p style={{ margin: "4px 0 0" }}>「本／場内／同伴」を変更した時点で実績と料金明細を同期します。料金をサービスしたい場合は、会計タブの明細から当該行の「取消」または値引きを行ってください（取り消した料金行は種別を変えても復活しません）。</p>
+                  <p style={{ margin: "4px 0 0" }}>※件数換算は表示上の目安です（バック金額は比率で分配・指名本数の集計は在席キャストに計上）。※延長しても指名本数は増えません（延長指名料を設定している店舗のみ、延長時に料金だけ自動追加します）。</p>
+                </div>
+              </details>
               {/* モック seatbadge 相当＝合計バッジ（total===100 ? ok : bad） */}
-              <span style={{ ...t.tag, whiteSpace: "nowrap",
+              <span style={{ ...t.tag, whiteSpace: "nowrap", marginLeft: "auto",
                 color: nomTotalW === 100 ? "var(--ok)" : "var(--bad)",
                 borderColor: "var(--line2)" }}>
                 合計{nomTotalW}%
               </span>
             </div>
+            {nomSelected.length === 1 && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px" }}>1 名のため 100% で固定です（指名本数には影響しません）。</p>}
             {/* ★0121（裁定107）: 旧「free は weight=1 固定」は RPC ごと撤去＝全行に％入力（種別と％は独立）。 */}
-            {/* R-2a-3: 分配結果カードを統合＝1行に 名前／副文（{種別}の実績配分）／%入力／件数相当／×。
-                同じ人名を2枚のカードで2度読ませない（モックは横並び2カラム・実装は縦積みのための統合判断）。 */}
-            <div className="nox-inset" style={{ padding: "9px 12px", margin: "0 0 4px" }}>
-              <b style={{ fontSize: 12 }}>料金と実績を分離</b>
-              <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 0", lineHeight: 1.7 }}>
-                指名本数は種別ごとに1人1件で計上します。％は売上とバック金額の取り分にのみ効きます。
-              </p>
-            </div>
             {nomSelected.map((ca) => {
               // ★R-2b: 種別・同伴はキャスト行の属性（裁定100・同時成立可＝裁定86-④）。
               // ★0121（裁定107）: free の weight=1 固定を撤去＝全行に％入力（「均等」表示なし）。
@@ -2602,90 +2631,123 @@ export default function RegisterBoard({
               const shimeiLine = lines.find((l) => l.cast_id === ca.id
                 && l.fee_kind === (kind === "hon" ? "hon_shimei" : "jonai_shimei"));
               const dohanLine = lines.find((l) => l.cast_id === ca.id && l.fee_kind === "dohan");
-              const autoParts: string[] = [];
-              if (kind !== "free" && shimeiLine) autoParts.push(`${NOM_LABEL[kind]}料 ${yen(shimeiLine.line_total)}`);
-              if (dohan && dohanLine) autoParts.push(`同伴 ${yen(dohanLine.line_total)}`);
+              const nomRow = noms.find((n) => n.cast_id === ca.id);
+              const preN = nomRow?.kind_changed_at
+                ? lines.filter((l) => l.product_id && (l.kind === "drink" || l.kind === "champ" || l.kind === "bottle") && !!l.created_at && l.created_at < nomRow.kind_changed_at!).length
+                : 0;
               return (
-              <div key={ca.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 90 }}>
-                  <b style={{ fontSize: 12.5 }}>{ca.name}</b>
+              <div key={ca.id} className="nox-nomcard" data-kind={kind} data-dohan={dohan ? "1" : undefined}>
+                <CastAvatar name={ca.name} url={photoUrls.get(ca.id)} variant="flat" size={36} />
+                <div className="nm">
+                  <b>{ca.name}</b>
                   {/* ★B3 裁定210（#64 指名カード）: ランク名＝読めた id だけ（モック 163 行「あべ｜エース」） */}
-                  {rankNames.get(ca.id) && (
-                    <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 6 }}>{rankNames.get(ca.id)}</span>
-                  )}
-                  {/* ★裁定105: 本数はキャスト行の種別で1人1件（％非依存）＝行に種別バッジ＋「1件」・同伴は別バッジ */}
-                  <span style={{ display: "flex", gap: 4, marginTop: 2, flexWrap: "wrap" }}>
-                    {kind !== "free" && (
-                      <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--champ)" }}>
-                        {NOM_LABEL[kind]} <span className="num">1件</span>
-                      </span>
-                    )}
-                    {dohan && (
-                      <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--champ)" }}>
-                        同伴 <span className="num">1件</span>
-                      </span>
-                    )}
-                    {kind === "free" && !dohan && (
-                      <span style={{ fontSize: 10.5, color: "var(--sub)" }}>実績カウントなし</span>
-                    )}
-                    {/* ★裁定110 A2-(5): 0% 行＝按分なし（本数は種別どおり計上・金額の取り分だけ 0） */}
-                    {(nomWeights[ca.id] ?? 0) === 0 && (
-                      <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--sub)", borderColor: "var(--line2)" }}>
-                        按分なし
-                      </span>
-                    )}
-                    {/* ★0124（裁定111-4）: モック .autocharge 相当＝自動加算の凍結値表示 */}
-                    {autoParts.length > 0 && (
-                      <span style={{ fontSize: 10, color: "var(--ok)", whiteSpace: "nowrap" }}>
-                        {autoParts.join(" + ")} 自動加算
-                      </span>
-                    )}
-                  </span>
+                  {rankNames.get(ca.id) && <span className="rk">{rankNames.get(ca.id)}</span>}
+                  {/* ★裁定110 A2-(5): 0% 行＝按分なし（本数は種別どおり計上・金額の取り分だけ 0） */}
+                  {(nomWeights[ca.id] ?? 0) === 0 && <span className="rk">按分なし</span>}
                 </div>
-                {/* ★裁定341（0169・便 P169＝X-13-29）: 場内→本指名の切替は非遡及が既定（切替前に出たドリンクは場内の率のまま＝check_close が行の created_at と kind_changed_at で判定）。
-                    切替記録がある本指名キャスト（店長以上）には「この伝票の既出ドリンクも本指名の率にする」チェック＝オンで check_nomination_rate_apply（監査「指名切替に伴う率変更」）。
-                    切替ダイアログ（下の nox-inset）でも同じチェックを既定オフで出す。staff は切替はできるがチェックは出ない（RPC も店長以上）。 */}
-                {(() => {
-                  const nomRow = noms.find((n) => n.cast_id === ca.id);
-                  const preN = nomRow?.kind_changed_at
-                    ? lines.filter((l) => l.product_id && (l.kind === "drink" || l.kind === "champ" || l.kind === "bottle") && !!l.created_at && l.created_at < nomRow.kind_changed_at!).length
-                    : 0;
-                  return kind === "hon" && nomRow?.kind_changed_at && isManagerUp && check.status === "open" ? (
-                    <label style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)", margin: "0 0 4px" }}
-                      title="切替前に出たドリンクは場内の率で計算されます（非遡及）。オンにすると全行を本指名の率で計算します（監査に残ります）">
-                      <input type="checkbox" checked={false} disabled={rateBusy || feeBusy} aria-label="この伝票の既出ドリンクも本指名の率にする"
-                        onChange={(e) => { if (e.target.checked) void rateApply(ca.id, ca.name); }} />
-                      {" "}この伝票の既出ドリンクも本指名の率にする（切替前の {preN} 行は場内の率）
+                <div className="kind">
+                  <span className="nox-seg gold" style={{ display: "inline-flex" }}>
+                    {([["hon", "本"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([v, l]) => (
+                      <button key={v} type="button" className={kind === v ? "on" : ""} disabled={lockDerive}
+                        style={{ fontWeight: 700, fontSize: 11, padding: "5px 9px" }}
+                        onClick={() => {
+                          if (v === kind) return;
+                          // ★0124（裁定111-1）: 本/場内→フリーは課金行の取消を伴う＝確認してから保存
+                          if (v === "free" && kind !== "free"
+                              && !window.confirm(`${ca.name} をフリーに戻します。付いている${NOM_LABEL[kind]}料の明細行を取り消します。よろしいですか？`)) {
+                            return;
+                          }
+                          // ★裁定110 A2-(1)(3): 種別変更＝既定分配を再適用（手動値はここでリセット）→即時自動保存（裁定111-3）
+                          const kinds = { ...nomKinds, [ca.id]: v };
+                          const weights = defaultWeights(Object.keys(nomWeights), kinds);
+                          // ★0169（裁定341・X-13-29）: 場内→本指名は店長以上に切替ダイアログ（チェック既定オフ＝非遡及）。確定はダイアログ側
+                          if (v === "hon" && kind === "jonai" && isManagerUp) { setRateDlg({ castId: ca.id, name: ca.name, kinds, weights, apply: false }); return; }
+                          setNomKinds(kinds);
+                          setNomWeights(weights);
+                          void autoSaveNoms(weights, kinds, nomDohan, nomDohanN);
+                        }}>
+                        {l}
+                      </button>
+                    ))}
+                  </span>
+                  {/* ★0124（裁定111-4）→★裁定359: 自動加算は「¥3,000」のみ（伝票に実際に書かれた行の凍結値・取消済みなら出ない） */}
+                  {kind !== "free" && shimeiLine && <span className="fee num" data-nom-fee="1">{yen(shimeiLine.line_total)}</span>}
+                </div>
+                <div className="right">
+                  <label className={`chip${dohan ? " on" : ""}`} data-dohan-chip="1">
+                    <input type="checkbox" checked={dohan} disabled={lockDerive}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        // ★0124（裁定111-2）: OFF は同伴料行の取消を伴う＝確認してから保存。ON は即時保存（既定1名）。
+                        if (!on && !window.confirm(`${ca.name} の同伴を解除します。同伴料の明細行を取り消します。よろしいですか？`)) return;
+                        const dohans = { ...nomDohan, [ca.id]: on };
+                        const dohanNs = { ...nomDohanN, [ca.id]: on ? Math.max(1, nomDohanN[ca.id] ?? 1) : 1 };
+                        setNomDohan(dohans);
+                        setNomDohanN(dohanNs);
+                        void autoSaveNoms(nomWeights, nomKinds, dohans, dohanNs);
+                      }} />
+                    同伴{dohan && dohanLine ? <span className="num" style={{ marginLeft: 3, color: "var(--ok)" }}>{yen(dohanLine.line_total)}</span> : null}
+                  </label>
+                  {dohan && (
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11.5 }}>
+                      <input
+                        type="number" min={1} max={30} value={nomDohanN[ca.id] ?? 1} disabled={lockDerive}
+                        aria-label={`${ca.name} の同伴人数`}
+                        onChange={(e) => {
+                          const n = Math.min(30, Math.max(1, Math.trunc(Number(e.target.value) || 1)));
+                          setNomDohanN((prev) => ({ ...prev, [ca.id]: n }));
+                          setNomDirty(true);
+                        }}
+                        onBlur={() => {
+                          if (!nomDirty) return;
+                          setNomDirty(false);
+                          void autoSaveNoms(nomWeights, nomKinds, nomDohan, nomDohanN);
+                        }}
+                        className="num" style={{ ...input, width: 48, padding: "4px 6px", textAlign: "right" }}
+                      />
+                      <span style={{ fontSize: 11, color: "var(--sub)" }}>名</span>
                     </label>
-                  ) : null;
-                })()}
-                <span className="nox-seg" style={{ display: "inline-flex" }}>
-                  {([["hon", "本"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([v, l]) => (
-                    <button key={v} type="button" className={kind === v ? "on" : ""} disabled={lockDerive}
-                      style={{ fontWeight: 700, fontSize: 11, padding: "5px 9px" }}
-                      onClick={() => {
-                        if (v === kind) return;
-                        // ★0124（裁定111-1）: 本/場内→フリーは課金行の取消を伴う＝確認してから保存
-                        if (v === "free" && kind !== "free"
-                            && !window.confirm(`${ca.name} をフリーに戻します。付いている${NOM_LABEL[kind]}料の明細行を取り消します。よろしいですか？`)) {
-                          return;
-                        }
-                        // ★裁定110 A2-(1)(3): 種別変更＝既定分配を再適用（手動値はここでリセット）→即時自動保存（裁定111-3）
-                        const kinds = { ...nomKinds, [ca.id]: v };
-                        const weights = defaultWeights(Object.keys(nomWeights), kinds);
-                        // ★0169（裁定341・X-13-29）: 場内→本指名は店長以上に切替ダイアログ（チェック既定オフ＝非遡及）。確定で保存→オンなら率変更。
-                        if (v === "hon" && kind === "jonai" && isManagerUp) { setRateDlg({ castId: ca.id, name: ca.name, kinds, weights, apply: false }); return; }
-                        setNomKinds(kinds);
-                        setNomWeights(weights);
-                        void autoSaveNoms(weights, kinds, nomDohan, nomDohanN);
-                      }}>
-                      {l}
-                    </button>
-                  ))}
-                </span>
+                  )}
+                  {nomSelected.length === 1 ? (<b className="num" style={{ fontSize: 13 }}>100%</b>) : (
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      type="number" min={0} max={100} value={nomWeights[ca.id] ?? 0} aria-label={`${ca.name} の分配率`}
+                      onChange={(e) => {
+                        // ★裁定110 A2-(2)(4): 0〜100 clamp・編集行を確定し残りを 0 でない他行へ現在比で自動補完（Σ=100 恒等）
+                        setNomWeights((prev) => redistribute(prev, ca.id, Number(e.target.value)));
+                        setNomDirty(true);
+                      }}
+                      onBlur={() => {
+                        // ★0124（裁定111-3）: %の確定（blur）で自動保存＝キーストロークごとの RPC を避ける
+                        if (!nomDirty) return;
+                        setNomDirty(false);
+                        void autoSaveNoms(nomWeights, nomKinds, nomDohan, nomDohanN);
+                      }}
+                      className="num" style={{ ...input, width: 60, padding: "4px 6px", textAlign: "right" }}
+                    />
+                    <span style={{ fontSize: 12, color: "var(--sub)" }}>%</span>
+                  </label>
+                  )}
+                  <button type="button" aria-label={`${ca.name}を分配から外す`}
+                    onClick={() => void removeShareCast(ca.id)}
+                    style={{ ...btnLight, padding: "2px 9px", fontWeight: 800,
+                      color: "var(--bad)", border: "1px solid var(--bad)" }}>
+                    ×
+                  </button>
+                </div>
+                {/* ★裁定341（0169・便 P169＝X-13-29）: 場内→本指名の切替は非遡及が既定（切替前に出たドリンクは場内の率のまま）。切替記録がある本指名キャスト（店長以上）には既出ドリンクの率を本指名にするチェック。
+                    ★裁定359: 切替確認は行内のまま・見出しは「<名前> → 本指名」・ボタンは副 48px 横並び（裁定369） */}
+                {kind === "hon" && nomRow?.kind_changed_at && isManagerUp && check.status === "open" ? (
+                  <label className="rateapply" style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}
+                    title="切替前に出たドリンクは場内の率で計算されます（非遡及）。オンにすると全行を本指名の率で計算します（監査に残ります）">
+                    <input type="checkbox" checked={false} disabled={rateBusy || feeBusy} aria-label="この伝票の既出ドリンクも本指名の率にする"
+                      onChange={(e) => { if (e.target.checked) void rateApply(ca.id, ca.name); }} />
+                    {" "}この伝票の既出ドリンクも本指名の率にする（切替前の {preN} 行は場内の率）
+                  </label>
+                ) : null}
                 {rateDlg && rateDlg.castId === ca.id && (
-                  <div className="nox-inset" role="dialog" aria-label="場内から本指名への切替" style={{ padding: "9px 12px", margin: "6px 0 0", width: "100%" }}>
-                    <b style={{ fontSize: 12 }}>{ca.name} を場内から本指名に切り替えます</b>
+                  <div className="nox-inset" role="dialog" aria-label="場内から本指名への切替" style={{ padding: "9px 12px", margin: "4px 0 0" }}>
+                    <b style={{ fontSize: 13 }}>{ca.name} → 本指名</b>
                     <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 6px", lineHeight: 1.6 }}>
                       切替より前に出たドリンクは場内の率のまま計算します（既定）。
                     </p>
@@ -2694,72 +2756,12 @@ export default function RegisterBoard({
                         onChange={(e) => setRateDlg({ ...rateDlg, apply: e.target.checked })} />
                       {" "}この伝票の既出ドリンクも本指名の率にする
                     </label>
-                    <div className="nox-actions">
-                      <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={feeBusy || rateBusy} onClick={() => void confirmRateDlg()}>本指名に切り替える</button>
-                      <button type="button" style={{ ...btnLight, ...t.btnSm }} onClick={() => setRateDlg(null)}>やめる</button>
+                    <div style={t.btnRow48}>
+                      <button type="button" style={{ ...t.btnSecondary48, ...t.btnGold, minHeight: 48 }} disabled={feeBusy || rateBusy} onClick={() => void confirmRateDlg()}>本指名に切り替える</button>
+                      <button type="button" style={t.btnSecondary48} onClick={() => setRateDlg(null)}>やめる</button>
                     </div>
                   </div>
                 )}
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11.5 }}>
-                  <input type="checkbox" checked={dohan} disabled={lockDerive}
-                    onChange={(e) => {
-                      const on = e.target.checked;
-                      // ★0124（裁定111-2）: OFF は同伴料行の取消を伴う＝確認してから保存。ON は即時保存（既定1名）。
-                      if (!on && !window.confirm(`${ca.name} の同伴を解除します。同伴料の明細行を取り消します。よろしいですか？`)) return;
-                      const dohans = { ...nomDohan, [ca.id]: on };
-                      const dohanNs = { ...nomDohanN, [ca.id]: on ? Math.max(1, nomDohanN[ca.id] ?? 1) : 1 };
-                      setNomDohan(dohans);
-                      setNomDohanN(dohanNs);
-                      void autoSaveNoms(nomWeights, nomKinds, dohans, dohanNs);
-                    }} />
-                  同伴
-                </label>
-                {dohan && (
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11.5 }}>
-                    <input
-                      type="number" min={1} max={30} value={nomDohanN[ca.id] ?? 1} disabled={lockDerive}
-                      aria-label={`${ca.name} の同伴人数`}
-                      onChange={(e) => {
-                        const n = Math.min(30, Math.max(1, Math.trunc(Number(e.target.value) || 1)));
-                        setNomDohanN((prev) => ({ ...prev, [ca.id]: n }));
-                        setNomDirty(true);
-                      }}
-                      onBlur={() => {
-                        if (!nomDirty) return;
-                        setNomDirty(false);
-                        void autoSaveNoms(nomWeights, nomKinds, nomDohan, nomDohanN);
-                      }}
-                      className="num" style={{ ...input, width: 52, padding: "6px 6px", textAlign: "right" }}
-                    />
-                    <span style={{ fontSize: 11, color: "var(--sub)" }}>名</span>
-                  </label>
-                )}
-                {nomSelected.length === 1 ? (<b className="num" style={{ fontSize: 13 }}>100%</b>) : (
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <input
-                    type="number" min={0} max={100} value={nomWeights[ca.id] ?? 0} aria-label={`${ca.name} の分配率`}
-                    onChange={(e) => {
-                      // ★裁定110 A2-(2)(4): 0〜100 clamp・編集行を確定し残りを 0 でない他行へ現在比で自動補完（Σ=100 恒等）
-                      setNomWeights((prev) => redistribute(prev, ca.id, Number(e.target.value)));
-                      setNomDirty(true);
-                    }}
-                    onBlur={() => {
-                      // ★0124（裁定111-3）: %の確定（blur）で自動保存＝キーストロークごとの RPC を避ける
-                      if (!nomDirty) return;
-                      setNomDirty(false);
-                      void autoSaveNoms(nomWeights, nomKinds, nomDohan, nomDohanN);
-                    }}
-                    className="num" style={{ ...input, width: 64, padding: "6px 6px", textAlign: "right" }}
-                  />
-                  <span style={{ fontSize: 12, color: "var(--sub)" }}>%</span>
-                </label>
-                )}
-                <button type="button" aria-label={`${ca.name}を分配から外す`}
-                  onClick={() => void removeShareCast(ca.id)}
-                  style={{ ...btnLight, padding: "2px 9px", fontWeight: 800,
-                    color: "var(--bad)", border: "1px solid var(--bad)" }}>
-                  ×
-                </button>
               </div>
               );
             })}
@@ -2789,22 +2791,8 @@ export default function RegisterBoard({
                 }}>
                 均等に分配
               </button>
-              <span style={{ fontSize: 11, color: "var(--sub)" }}>
-                ※変更は自動で保存されます（「分配を保存」ボタンは廃止）
-              </span>
             </div>
             </>)}
-            {/* ★0124（裁定111-4）: モック .notice 相当＝取消・値引きの例外経路の案内 */}
-            <div className="nox-inset" style={{ padding: "9px 12px", margin: "10px 0 0" }}>
-              <p style={{ fontSize: 11, color: "var(--sub)", margin: 0, lineHeight: 1.7 }}>
-                「本／場内／同伴」を変更した時点で実績と料金明細を同期します。
-                料金をサービスしたい場合は、会計タブの明細から当該行の「取消」または値引きを行ってください（取り消した行は復活しません）。
-              </p>
-            </div>
-            <p style={{ fontSize: 10.5, color: "var(--sub)", margin: "8px 0 0", lineHeight: 1.7 }}>
-              ※件数換算は表示上の目安です（バック金額は比率で分配・指名本数の集計は在席キャストに計上）。
-              ※延長しても指名本数は増えません（延長指名料を設定している店舗のみ、延長時に料金だけ自動追加します）。
-            </p>
           </div>
         )}
 
@@ -3297,12 +3285,19 @@ export default function RegisterBoard({
                     </td>
                     {/* キャストドリンク列＝除外指定の行だけに出す（非除外は空セル＝既存行の見え方は不変） */}
                     <td className="cd" style={{ padding: 6 }}>
-                      {/* ★裁定314（便 X-8-10）: ボトル種商品の行に「キープ」→伝票の顧客から選択→bottle_keep_register→「キープ済み」。顧客未付与なら指名・席タブへ */}
+                      {/* ★裁定370（GV-21・便 GV-A）: 商品行の「お客様」チップ（未指定＝灰／指定済み＝金枠）→タップで 368 と同じモーダル。料金行（セット・延長・指名料・サービス料）には出さない。保存先＝注文行の customer_id（不変） */}
+                      {check && check.status === "open" && customerChipLineOf(l) && (
+                        <button type="button" className={`nox-custchip${l.customer_id ? " on" : ""}`} data-cust-chip={l.customer_id ? "1" : "0"} disabled={claimBusy}
+                          onClick={() => setCustPick({ lineId: l.id, lineName: l.name_snapshot, isBottle: l.kind === "bottle", currentCustomerId: l.customer_id ?? null })}>
+                          {customerChipLabelOf(l.customer_id ? custNames.get(l.customer_id) ?? "お客様" : null)}
+                        </button>
+                      )}
+                      {/* ★裁定368（便 GV-A）: キープ登録で伝票にお客様が居ないときも顧客セクションへ飛ばず同じモーダル（onNeedCustomer）。★裁定314（便 X-8-10）: ボトル種商品の行に「キープ」→伝票の顧客から選択→bottle_keep_register→「キープ済み」。顧客未付与なら指名・席タブへ */}
                       {l.kind === "bottle" && check && (
                         <LineKeepButton storeId={check.store_id} checkId={check.id} lineId={l.id} productId={l.product_id} lineName={l.name_snapshot}
                           lineCustomerId={l.customer_id} kept={keptLineIds.has(l.id)}
                           onDone={async (text) => { setMsg({ to: MSG_DETAIL, kind: "ok", text }); await loadCheck(check.id); }}
-                          onNeedCustomer={() => setDtab("nom")} />
+                          onNeedCustomer={() => setCustPick({ lineId: l.id, lineName: l.name_snapshot, isBottle: true, currentCustomerId: l.customer_id ?? null })} />
                       )}
                       {isExempt && (claim ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>

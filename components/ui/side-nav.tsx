@@ -9,6 +9,8 @@
 //     （/master と /master/products の二重点灯を防ぐ）。TabBar 側は1文字も触っていない。
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { OPEN_MENU_EVENT } from "@/lib/nox/ui/nav-tabs"; // ★裁定361（GV-9・便 GV-A）: ≡ ドロワー＝TabBar のシートを drawer 節で開く
 import type { NavGroup } from "./nav";
 import { NavIcon } from "./nav-icons";
 
@@ -22,6 +24,20 @@ export default function SideNav({ groups, storeLabel }: {
   storeLabel?: string;
 }) {
   const path = usePathname() ?? "";
+  // ★裁定361（GV-9・便 GV-A）: 900〜1279px はアイコンのみのレール（64px・ラベルはホバー title・現在地は金）・≥1280 は全幅。
+  //   手動の「畳む／広げる」は localStorage（try/catch・key nox.sidenav＝"rail"|"full"）に記憶。/register・/floor はレールも畳み、左上 ≡ でドロワー（TabBar のシート）。<900 は下部ナビのまま（CSS が aside を隠す）。
+  const [pref, setPref] = useState<"rail" | "full" | null>(null);
+  const [wide, setWide] = useState(true);
+  useEffect(() => {
+    try { const v = window.localStorage.getItem("nox.sidenav"); if (v === "rail" || v === "full") setPref(v); } catch { /* noop */ }
+    const mq = window.matchMedia("(min-width: 1280px)");
+    const sync = () => setWide(mq.matches);
+    sync(); mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const drawerRoute = path === "/register" || path.startsWith("/register/") || path === "/floor" || path.startsWith("/floor/");
+  const mode: "full" | "rail" | "hidden" = drawerRoute ? "hidden" : (pref ?? (wide ? "full" : "rail"));
+  const toggle = () => { const next = mode === "rail" ? "full" : "rail"; setPref(next); try { window.localStorage.setItem("nox.sidenav", next); } catch { /* noop */ } };
   const flat = groups.flatMap((g) => g.items);
   const active = flat.reduce<string>((best, it) => {
     const hit = path === it.href || path.startsWith(it.href + "/");
@@ -30,7 +46,12 @@ export default function SideNav({ groups, storeLabel }: {
   }, "");
 
   return (
-    <aside className="nox-side">
+    <>
+    {mode === "hidden" && (
+      <button type="button" className="nox-navburger show" aria-label="メニューを開く" data-nav-burger="1"
+        onClick={() => window.dispatchEvent(new CustomEvent(OPEN_MENU_EVENT, { detail: { section: "drawer" } }))}>≡</button>
+    )}
+    <aside className={`nox-side${mode === "rail" ? " is-rail" : mode === "hidden" ? " is-hidden" : ""}`} data-side-mode={mode}>
       {/* E2: モック .brand（brandmark＋NOX＋店名）。リンクではない＝遷移を増やさない。 */}
       <div className="brand">
         <div className="brandmark" aria-hidden="true">N</div>
@@ -47,7 +68,7 @@ export default function SideNav({ groups, storeLabel }: {
           {g.items.map((it) => {
             const on = it.href === active;
             return (
-              <Link key={it.href} href={it.href} className={on ? "active" : undefined}
+              <Link key={it.href} href={it.href} className={on ? "active" : undefined} title={it.label}
                 aria-current={on ? "page" : undefined}
                 onClick={() => {
                   // E8-1b F4: アクティブ項目の再クリック＝同一 URL 遷移は App Router で no-op のため、
@@ -61,6 +82,8 @@ export default function SideNav({ groups, storeLabel }: {
           })}
         </div>
       ))}
+      <button type="button" className="nox-sidetoggle" onClick={toggle} aria-label={mode === "rail" ? "サイドバーを広げる" : "サイドバーを畳む"} data-side-toggle="1">{mode === "rail" ? "»" : "«"}<span> {mode === "rail" ? "広げる" : "畳む"}</span></button>
     </aside>
+    </>
   );
 }

@@ -55,7 +55,7 @@ check("tr(4-4) 空配列＝空 Map", firstInLastOut([]).size === 0);
 const sb = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
 check("tr(5-1) shift-board: firstInLastOut で in／out を持ち、表示は punchTimeLabel", /firstInLastOut\(/.test(sb) && /punchTimeLabel\(/.test(sb));
 check("tr(5-2) shift-board: 退勤ボタンは outButtonOf（出勤区分の行だけ・in なしは disabled）", /outButtonOf\(\{ canRecord/.test(sb) && /ob\.show &&/.test(sb));
-check("tr(5-3) shift-board: 今日タブの表は stickyfirst（名前列を左固定）・状態列は nowrap・見出しの日付は M/D(曜)", /className="nox-tablewrap stickyfirst"/.test(sb) && /mdDowOf\(todayDate\)/.test(sb) && /whiteSpace: "nowrap" \}\}>\{\/\* ★AT2-3: 「確定」[^*]*\*\/\}\s*<span className=\{`nox-stpill/.test(sb));
+check("tr(5-3) shift-board: 今日タブの表は stickyfirst（名前列を左固定）・状態列は nowrap・見出しの日付は M/D(曜)", /className="nox-tablewrap stickyfirst nox-todaywrap"/.test(sb) /* ★裁定371（便 GV-A）: <1280 は 3 段カード */ && /mdDowOf\(todayDate\)/.test(sb) && /whiteSpace: "nowrap" \}\}>\{\/\* ★AT2-3: 「確定」[^*]*\*\/\}\s*<span className=\{`nox-stpill/.test(sb));
 // (6) ★便 AY1
 check("tr(6-1) punchInAfterAtt: 出勤・遅刻・同伴で in 打刻なし＝true", punchInAfterAtt({ status: "shukkin", hasIn: false }) && punchInAfterAtt({ status: "late", hasIn: false }) && punchInAfterAtt({ status: "dohan", hasIn: false }));
 check("tr(6-2) punchInAfterAtt: in 打刻が既にあれば区分の変更でも false（増やさない）", !punchInAfterAtt({ status: "shukkin", hasIn: true }) && !punchInAfterAtt({ status: "late", hasIn: true }) && !punchInAfterAtt({ status: "dohan", hasIn: true }));
