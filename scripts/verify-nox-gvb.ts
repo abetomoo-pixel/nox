@@ -50,7 +50,7 @@ check("gvb(5-1) 会計①＝伝票／請求（サ料込）／入金済／残額�
 check("gvb(5-2) 入金モーダル＝数字キーパッド（0〜9・00・⌫・C）・「入金する」主 56（data-pay-submit）・③「会計を完了」は allCovered のときだけ（主 56・← フロア 副 48）",
   rb.includes('data-pay-keypad="1"') && rb.includes('(["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0", "⌫"] as const)') && rb.includes('style={t.btnPrimary56} data-pay-submit="1"') && rb.includes('{allCovered && (/* ★裁定375') && rb.includes('data-pay-close="1">会計を完了</button>'));
 // (6) 376
-check("gvb(6-1) 領収書発行＝入力 1 行 1 項目（金額／宛名／但し書き・幅 100%）・「発行」主 56・「分割して発行」「閉じる」副 48・説明は 1 文", rb.includes('data-rcpt-form="1"') && rb.includes('style={t.btnPrimary56} disabled={rcptBusy} onClick={() => void doIssue()} data-rcpt-issue="1">発行</button>') && rb.includes('style={t.btnSecondary48} disabled={rcptBusy} onClick={openSplit}>分割して発行</button>') && rb.includes("発行ごとに台帳へ記録され、発行番号と確認用 QR がつきます。") && !rb.includes("分割するときは金額を入れて複数回発行してください"));
+check("gvb(6-1) 領収書発行＝入力 1 行 1 項目（金額／宛名／但し書き・幅 100%）・「発行」主 56・「分割して発行」「閉じる」副 48・説明は 1 文", rb.includes('data-rcpt-form="1"') && rb.includes('style={t.btnPrimary56} disabled={rcptBusy} onClick={() => void doIssue()} data-rcpt-issue="1">発行</button>') && rb.includes('style={t.btnSecondary48} disabled={rcptBusy} onClick={openSplit}>分割して発行</button>') && rb.includes("発行ごとに台帳へ記録され、発行番号と確認用 QR がつきます（残額 ") && !rb.includes("分割するときは金額を入れて複数回発行してください") && rb.includes('data-close-sheet="1"') && (rb.match(/>閉じる<\/button>/g) ?? []).length >= 1);
 // (7) 377
 const pm = src("components/nox/customer-pick-modal.tsx"); const cc = src("components/nox/check-customers-card.tsx"); const lk = src("components/nox/line-keep-button.tsx");
 check("gvb(7-1) 共通モーダル＝4 タブ（この伝票のお客様／候補／全員／新規登録して選ぶ）・検索は最上部固定（data-cust-search）・50 音チップ・担当キャストチップ・50 件ずつ・mode line／add／select",

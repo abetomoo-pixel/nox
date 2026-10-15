@@ -2227,8 +2227,7 @@ export default function RegisterBoard({
               <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
                 <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 4px", color: "var(--champ)" }}>領収書発行（台帳記録・発行番号つき）</p>
                 <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.6 }}>
-                  発行ごとに台帳へ記録され、発行番号と確認用 QR がつきます。
-                  （残額 <span style={{ ...t.num, fontWeight: 700 }}>{yen(remain)}</span>）。
+                  発行ごとに台帳へ記録され、発行番号と確認用 QR がつきます（残額 <span style={{ ...t.num, fontWeight: 700 }}>{yen(remain)}</span>）。{/* ★裁定376: 説明は 1 文 */}
                 </p>
                 {/* ★裁定320（便 X-10-2）: 分割して発行＝行（金額・宛名・但し書き）・最後の行は自動残額・「行を追加」・合計＝残額で「n 枚を発行」 */}
                 {remain > 0 && split.open && (
@@ -2291,8 +2290,7 @@ export default function RegisterBoard({
                       style={{ ...t.input, width: "100%" }} />
                     <button type="button" style={t.btnPrimary56} disabled={rcptBusy} onClick={() => void doIssue()} data-rcpt-issue="1">発行</button>
                     <div style={t.btnRow48}>
-                      <button type="button" style={t.btnSecondary48} disabled={rcptBusy} onClick={openSplit}>分割して発行</button>{/* ★裁定320 */}
-                      <button type="button" style={t.btnSecondary48} onClick={() => setCloseInfo(null)}>閉じる</button>
+                      <button type="button" style={t.btnSecondary48} disabled={rcptBusy} onClick={openSplit}>分割して発行</button>{/* ★裁定320。「閉じる」はシート末尾の 1 つ（副 48）＝重複させない */}
                     </div>
                   </div>
                 )}
@@ -2365,8 +2363,8 @@ export default function RegisterBoard({
               </div>
             );
           })()}
-          <button style={{ ...t.btnGold, width: "100%", padding: "12px 0", fontWeight: 800, justifyContent: "center" }}
-            onClick={() => setCloseInfo(null)}>
+          <button type="button" style={{ ...t.btnSecondary48, width: "100%" }} data-close-sheet="1"
+            onClick={() => setCloseInfo(null)}>{/* ★裁定376: 副 48・シートに 1 つ */}
             閉じる
           </button>
         </Modal>
