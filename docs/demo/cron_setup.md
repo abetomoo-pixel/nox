@@ -62,3 +62,4 @@ route 側の応答＝`{ ok, count, retry, results: [{ org, ok, mode, chunks }] }
 10/10〜13 無人 reset OK（2026-10-13 JST・便 V45 V-2 読取）: cron.job_run_details 4 日 × 8 本＝32 本すべて succeeded（purge 05:15／reset 6 店 06:05〜06:15／retry 06:35）・10/13 の net._http_response 7 本すべて 200（6 店 wipe+load chunk 3／3／3／3／4／4・retry は 6 店 skipped）・6 org の demo_reset_at＝10/13（06:05:08〜06:15:07）・payroll_runs 2026-09 finalized 6・cron.job 8。★10/10〜12 の HTTP 応答行は pg_net.ttl（6 時間）で消えるため status_code は当日分しか読めない＝読むなら当日 12:35 JST（retry 06:35＋6 h）まで。
 
 - 2026-10-14 無人 reset OK（uuid[] 写像後 初回）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝8 job succeeded・http 200×7・demo_reset_at 6 org＝10/14・NOIR slide_rank_ids 3 本とも A/S 一致（便 V1014 V-1）。
+- 2026-10-15 無人 reset OK（gen-demo 重複ガード＋norm_axes 後 初回）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝8 job succeeded・http 200×7（06:05〜06:35）・demo_reset_at 6 org＝10/15（便 GV-B P-0）。★失敗理由の audit 行は未整備＝起票115。
