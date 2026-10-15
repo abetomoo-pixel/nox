@@ -156,7 +156,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
         </section>
         {/* 6タブ ★N2（規約 §8）: 折返し可＋上下の行の間に罫線（各ボタンの上罫線を -1px で重ね、1行目は容器の overflow で隠れる）
             ・選択中は青地（.on＝primary-soft）＋青の下線（inset shadow）。 */}
-        <div className="nox-seg" style={{ display: "flex", flexWrap: "wrap", width: "100%" }}>
+        <div className="nox-seg nox-segtabs" style={{ display: "flex", width: "100%" }} data-segtabs="1">{/* ★裁定382（GV-B W-1・372②）: 6 タブ＝48px・金塗り・収まらなければ横スクロール 1 段 */}
           {TABS.filter(([k]) => tabOn(k)).map(([k, label]) => (
             <button key={k} className={tab === k ? "on" : ""}
               style={{ flex: "1 1 120px", fontWeight: 800, fontSize: 12.5, padding: "8px 6px", borderTop: "1px solid var(--line)", marginTop: -1,

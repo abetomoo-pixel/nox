@@ -28,7 +28,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 {
   const sb = src("app/(manage)/shift/shift-board.tsx");
   const sp = src("app/(manage)/shift/page.tsx");
-  check("so(2-1) shift-board: 減額は penaltiesOn（既定 true）で出し分け・page が isSystemOn(sys_penalties) を渡す", sb.includes("penaltiesOn = true }") && sb.includes("{penaltiesOn && (/* ★GV-3: sys_penalties OFF の店は減額の口を出さない */") && sp.includes('penaltiesOn={isSystemOn((stores?.[0]?.settings_json ?? null) as Record<string, unknown> | null, "sys_penalties")}'));
+  check("so(2-1) shift-board: 減額は penaltiesOn（既定 true）で出し分け・page が isSystemOn(sys_penalties) を渡す", sb.includes("penaltiesOn = true }") && sb.includes("{!io?.outHm && penaltiesOn && (/* ★GV-3: sys_penalties OFF の店は減額の口を出さない。★裁定383: 退勤後は「時刻修正」だけ */") && sp.includes('penaltiesOn={isSystemOn((stores?.[0]?.settings_json ?? null) as Record<string, unknown> | null, "sys_penalties")}'));
   check("so(2-2) sys_penalties OFF: compDeductionTab／deductionPanel が消える（compPenaltyTab は norms が ON なら残る）", !isSectionOn({ sys_penalties: false }, "compDeductionTab") && !isSectionOn({ sys_penalties: false }, "deductionPanel") && isSectionOn({ sys_penalties: false }, "compPenaltyTab") && !isSectionOn({ sys_penalties: false, sys_norms: false }, "compPenaltyTab"));
   check("so(2-3) SECTION_KEYS 17 節・isSystemOn は false のみ OFF", Object.keys(SECTION_KEYS).length === 17 && isSystemOn({ sys_norms: false }, "sys_norms") === false && isSystemOn({ sys_norms: "off" }, "sys_norms") === true);
 }

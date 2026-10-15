@@ -25,10 +25,17 @@ const BADGE_STYLE: Record<PickerBadge["tone"], { color: string; borderColor: str
   muted: { color: "var(--sub)", borderColor: "var(--line2)" },
 };
 
+/** ★裁定384（GV-B W-14・2026-10-15）: 既定チップ＝この伝票を担当中（seated）がいれば「担当中」→いなければ「出勤中」→それも 0 なら「すべて」 */
+export function pickerDefaultChipOf(i: { seated: number; working: number }): "seated" | "working" | "" {
+  return i.seated > 0 ? "seated" : i.working > 0 ? "working" : "";
+}
+
 export default function CastPicker({
   casts, photoUrls, seatedIds, todayIds, attendIds, servingIds, shiftIds, rankNames, chips = false, grouped = false,
-  selectedIds, badges, onPick, size = 44, dense = false,
+  selectedIds, badges, onPick, size = 44, dense = false, defaultChip,
 }: {
+  /** ★裁定384: 既定チップ（pickerDefaultChipOf）。省略＝従来（grouped＆chips なら出勤中） */
+  defaultChip?: "" | "working" | "seated";
   casts: PickerCast[];
   /** 署名 URL の Map（無い環境＝kiosk は頭文字アバターへ自動フォールバック） */
   photoUrls?: Map<string, string>;
@@ -58,7 +65,7 @@ export default function CastPicker({
 }) {
   const [q, setQ] = useState("");
   // ★B3 裁定212: チップの絞込。★裁定322: grouped かつ chips の既定は「出勤中」（working）
-  const [chip, setChip] = useState<"" | "attend" | "seated" | "working">(grouped && chips ? "working" : "");
+  const [chip, setChip] = useState<"" | "attend" | "seated" | "working">(defaultChip ?? (grouped && chips ? "working" : "")); // ★裁定384: 既定＝担当中→出勤中→すべて
   const [offOpen, setOffOpen] = useState(false);
   const needle = q.trim();
   const sorted = useMemo(() => {

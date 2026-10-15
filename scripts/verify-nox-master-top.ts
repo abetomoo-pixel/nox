@@ -68,7 +68,7 @@ check("mt(4-1) master-board: MASTER_NAV.map で 4 パネル・検索＝masterSea
 const sn = src("app/(manage)/master/master-subnav.tsx");
 check("mt(5-1) master-subnav: resolveMasterNav(pathname, search, hash)・hashchange 購読・群／入口の select 2 つ・入口内タブ＝.nox-seg の Link（on＝cur.tab）・「マスタ」は /master への Link",
   sn.includes("resolveMasterNav(pathname, search, hash)") && sn.includes('window.addEventListener("hashchange", apply)') && (sn.match(/<select/g) ?? []).length === 2 && sn.includes('aria-label="入口を切り替え"')
-  && sn.includes("const on = p.href === cur?.tab?.href;") && sn.includes('<Link href="/master" style={crumbRoot}>マスタ</Link>') && sn.includes('className="nox-seg"'));
+  && sn.includes("const on = p.href === cur?.tab?.href;") && sn.includes('<Link href="/master" style={crumbRoot}>マスタ</Link>') && sn.includes('className="nox-seg nox-segtabs"') /* ★裁定382（便 GV-B）: 48px・幅 100% のセグメント */);
 
 // (6) 在庫画面・料金画面
 const sb = src("app/(manage)/master/stock/stock-board.tsx"), pb = src("app/(manage)/master/pricing/pricing-board.tsx"), pbC = codeOf(pb);

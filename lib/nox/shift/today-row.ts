@@ -73,3 +73,16 @@ export const outDialogNeeded = (input: { okuriActual: boolean; issuedToday: bool
 
 /** 「今日出勤」フィルタ＝確定シフトあり／出勤中／退勤 */
 export const isTodayWorking = (s: TodayState): boolean => s.key === "planned" || s.key === "working" || s.key === "done" || s.key === "absentPlanned";
+
+// ★裁定383（GV-B W-13・2026-10-15）: 今日タブの出勤記録＝出勤前（in 打刻なし）＝5 択のセグメント／出勤後（in あり・out なし）＝「出勤 HH:MM」チップ（猶予超過は「遅刻 HH:MM」を自動判定・店設定 late_grace）＋「同伴」トグルだけ・当欠と休みは非表示／退勤後（out あり）＝「出勤 HH:MM〜HH:MM」の実績チップ＋同伴の結果だけ・操作は「時刻修正」だけ。遅刻を手で付ける操作は廃止（時刻修正で代替）。表・カード（371）とも同じ切替
+export type AttRowMode = "pre" | "arrived" | "done";
+export const attRowModeOf = (i: { hasIn: boolean; hasOut: boolean }): AttRowMode => (i.hasOut ? "done" : i.hasIn ? "arrived" : "pre");
+/** 出勤後／退勤後のチップ文言。lateMin＝lateMinutesOf（猶予超過分・超過なしは null／0） */
+export function arrivedChipOf(i: { inHm: string | null | undefined; outHm: string | null | undefined; lateMin: number | null | undefined }): { label: string; late: boolean } {
+  const inHm = i.inHm ?? "--:--";
+  const late = (i.lateMin ?? 0) > 0;
+  if (i.outHm) return { label: `出勤 ${inHm}〜${i.outHm}`, late };
+  return late ? { label: `遅刻 ${inHm}`, late: true } : { label: `出勤 ${inHm}`, late: false };
+}
+/** 出勤後に出す操作＝同伴トグルだけ（当欠・休みは非表示）。設定済み（dohan）はチップ */
+export const dohanToggleOf = (attStatus: string | null | undefined): { show: boolean; set: boolean } => ({ show: true, set: attStatus === "dohan" });

@@ -534,6 +534,14 @@ export function withholdingOf(
     : 0;
 }
 
+/** ★裁定373（GV-B W-3・2026-10-15）: ノルマ未達の減額は軸ごと「定額／不足 1 件ごと」の 1 方式。両方入っている既存店は「不足ごと」扱い（定額は使わない） */
+export type NormPenaltyMode = "flat" | "per";
+export const normPenaltyModeOf = (flat: number, per: number): NormPenaltyMode => (per > 0 ? "per" : "flat");
+/** 1 方式の減額額（軸 1 つ分）: 未達でなければ 0・per＞0 なら不足件数×per・それ以外は定額 */
+export function normPenaltyOneOf(flat: number, per: number, target: number, actual: number): number {
+  if (target <= 0 || actual >= target) return 0;
+  return normPenaltyModeOf(flat, per) === "per" ? (target - actual) * per : flat;
+}
 /** ノルマ未達ペナルティ（精密仕様 §3）: on 時のみ・達成で 0 */
 export function normPenaltyOf(
   cfg: NormPenaltyConfig,

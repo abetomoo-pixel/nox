@@ -65,9 +65,11 @@ export default async function ManageLayout({ children }: { children: React.React
   const { data: billingWritable } = await supabase.rpc("auth_org_billing_writable");
   const billingLocked = billingWritable === false;
   let staffCrm = false;
+  let staffShift = false; // ★裁定381（GV-B W-10）: staff のシフトは can_shift（auth_staff_can_shift）で出し分け＝/shift の redirect と同じ述語
   if (role === "staff") {
-    const { data } = await supabase.rpc("auth_staff_can_crm");
+    const [{ data }, { data: sh }] = await Promise.all([supabase.rpc("auth_staff_can_crm"), supabase.rpc("auth_staff_can_shift")]);
     staffCrm = data === true;
+    staffShift = sh === true;
   }
   // ★UI刷新v2 段N（正本 nox-nav-redesign-mock-v2.html）: 5群構成へ再編。
   //   ★ルート/URL/ページ実体/role ゲートは完全不変＝並び・群見出し・ラベルだけを変えた
@@ -85,7 +87,7 @@ export default async function ManageLayout({ children }: { children: React.React
           ...(isManagerUp ? [{ href: "/master/stock", label: "在庫" }] : []),
         ] },
         { label: "スタッフ", items: [
-          { href: "/shift", label: "シフト" },
+          ...(isManagerUp || staffShift ? [{ href: "/shift", label: "シフト" }] : []), // ★裁定381: staff は can_shift のみ
           // 文言統一（Agoora 裁定確定）: 旧称を廃し「キャスト」表記に統一
           ...(isManagerUp ? [{ href: "/casts", label: "キャスト" }, { href: "/staff", label: "スタッフ" }, { href: "/payroll", label: "給与" }] : []),
         ] },

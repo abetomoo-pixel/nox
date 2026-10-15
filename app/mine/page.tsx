@@ -312,7 +312,7 @@ export default async function MinePage() {
           {(shifts ?? []).map((s, i) => {
             // ★裁定345: 語は 4 段の純関数（審査中／採用・確認待ち／採用・確定）＝/mine 希望・管理側と同じ。proposed は「確認する」ボタン（shift_cast_confirm＝本人のみ・一方向）
             const k = wishStateOf(s.wish_id ? "accepted" : null, s.status as ShiftStatusLike);
-            const d = wishStateDetailOf(k, s.status as ShiftStatusLike, ((myStore?.settings_json ?? {}) as Record<string, unknown>).shift_cast_confirm === true);
+            const d = wishStateDetailOf(k, s.status as ShiftStatusLike, true); // ★裁定380（GV-B W-9）: 店設定 shift_cast_confirm は廃止＝送り返しは常に「キャスト確認待ち」
             return (
             <li key={i} style={{ padding: "3px 0" }} data-state={k}>
               {s.date} {fmtWin(s.start_hm as string, s.end_hm as string)}{" "}

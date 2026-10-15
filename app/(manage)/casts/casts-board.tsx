@@ -30,10 +30,12 @@ import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プラ�
 import { isSystemOn } from "@/lib/nox/store-systems";
 import { firstInLastOut, isTodayWorking, todayStateOf, type TodayState } from "@/lib/nox/shift/today-row"; // ★裁定353（便 N1014 A-2）: 今日の状態＝今日タブと同じ純関数
 import { bizDateOf } from "@/lib/nox/biz-date";
-import { NORM_AXIS_LABEL, hasOverride, normAxesOf, normTargetsOf, planDefaultQuotaOf, quotaKeysOfAxes, resolveQuotaOf, shimeiScopeOf } from "@/lib/nox/store/norm-axes"; // ★裁定347／GV-2（0171・便 P171）: 継承・上書き・採用軸 // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
+import { NORM_STATUS_LABEL, castNormStatusOf, currentWageOf, monthElapsedOf, normRateOf, wageTiersOf, type CurrentWage, type NormStatus } from "@/lib/nox/cast/current-wage"; // ★裁定374（GV-B W-4）: 今期の時給（プレビューと同じ純関数）・達成状況
+import { sumCastSales, type CastSalesRow } from "@/lib/nox/payroll/cast-sales"; // ★裁定374: 実績＝/mine と同じ合算（get_cast_sales 月レンジ）
+import { NORM_AXIS_LABEL, hasOverride, normAxesOf, normTargetsOf, planDefaultQuotaOf, quotaKeysOfAxes, resolveQuotaOf, shimeiScopeOf, resolveNormTargetsOf } from "@/lib/nox/store/norm-axes"; // ★裁定347／GV-2（0171・便 P171）: 継承・上書き・採用軸 // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
 import { SHIFT_REQUEST_MODE_LABEL, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: シフト希望の方式のラベルと店の既定
 import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
-import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
+import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm, cardAxesOf, cardFmt, type CardAxis } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
 
 type Store = { id: string; name: string; settings_json?: Record<string, unknown> | null }; // ★裁定300-2: 送り方式（okuri_mode）・ベース額（okuri_base_amount）
 
@@ -163,6 +165,12 @@ export default function CastsBoard({
   const [quotaCur, setQuotaCur] = useState<QuotaForm>(QUOTA_FORM_EMPTY);
   const [quotaForm, setQuotaForm] = useState<QuotaForm>(QUOTA_FORM_EMPTY);
   const [quotaRow, setQuotaRow] = useState<Partial<Quota> | null>(null); // ★裁定347: 個別（null＝継承）
+  // ★裁定374（GV-B W-4）: 今期の時給（給与プレビュー 1 リクエスト）とノルマ達成状況（get_cast_sales 1 本＋cast_quotas／cast_norms／in 打刻 各 1 本＝N+1 なし）。表示専用・計算は純関数
+  const [w4, setW4] = useState<{ pay: Record<string, { pay: Record<string, unknown>; planName: string }>; sales: CastSalesRow[]; quotas: Record<string, Partial<Quota>>; norms: Record<string, { days_target: number }>; inDays: Record<string, number> }>({ pay: {}, sales: [], quotas: {}, norms: {}, inDays: {} });
+  const [planFilter, setPlanFilter] = useState<string>("");
+  const [normFilter, setNormFilter] = useState<"" | NormStatus>("");
+  const [wageFilter, setWageFilter] = useState<string>("");
+  const [sortKey, setSortKey] = useState<"name" | "wage" | "rate">("name");
   const [quotaBusy, setQuotaBusy] = useState(false);
   const [quotaMsg, setQuotaMsg] = useState<{ kind: MessageKind; text: string } | null>(null);
   const selCastId = sel?.kind === "cast" ? sel.id : null;
@@ -207,6 +215,38 @@ export default function CastsBoard({
   };
 
   useEffect(() => { void resolveOrgId(supabase).then(setOrgId); }, [supabase]);
+  // ★裁定374（GV-B W-4）: 今期の時給＝/api/payroll/preview（当月・給与と同じ純関数）／実績＝get_cast_sales（当月）／個別目標＝cast_quotas・cast_norms（当月）／出勤日数＝in 打刻の営業日
+  useEffect(() => {
+    const storeId = myStoreId || stores[0]?.id || "";
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const sj = (stores.find((st) => st.id === storeId)?.settings_json ?? {}) as Record<string, unknown>;
+      const cutoff = typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00";
+      const mEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+      const [pv, sr, qr, nr, pr] = await Promise.all([
+        fetch("/api/payroll/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ storeId, period: month }) }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        supabase.rpc("get_cast_sales", { p_store_id: storeId, p_from: `${month}-01`, p_to: mEnd }),
+        supabase.from("cast_quotas").select("cast_id, hon, jonai, dohan, sales").eq("month", `${month}-01`),
+        supabase.from("cast_norms").select("cast_id, days_target").eq("period", month),
+        supabase.from("punches").select("cast_id, punched_at").eq("type", "in").gte("punched_at", `${month}-01T${cutoff}:00+09:00`),
+      ]);
+      if (!alive) return;
+      const pay: Record<string, { pay: Record<string, unknown>; planName: string }> = {};
+      for (const r of ((pv as { rows?: { castId: string; breakdown?: { pay?: Record<string, unknown> } }[] } | null)?.rows ?? [])) pay[r.castId] = { pay: r.breakdown?.pay ?? {}, planName: String((r.breakdown?.pay as { plan?: { name?: string } } | undefined)?.plan?.name ?? "") };
+      const quotas: Record<string, Partial<Quota>> = {};
+      for (const r of (qr.data ?? []) as { cast_id: string; hon: number | null; jonai: number | null; dohan: number | null; sales: number | null }[]) quotas[r.cast_id] = { hon: r.hon, jonai: r.jonai, dohan: r.dohan, sales: r.sales };
+      const norms: Record<string, { days_target: number }> = {};
+      for (const r of (nr.data ?? []) as { cast_id: string; days_target: number }[]) norms[r.cast_id] = { days_target: r.days_target };
+      const inDays: Record<string, number> = {};
+      const seen: Record<string, Set<string>> = {};
+      for (const r of (pr.data ?? []) as { cast_id: string; punched_at: string }[]) { const d = bizDateOf(r.punched_at, cutoff); if (d.slice(0, 7) !== month) continue; (seen[r.cast_id] ??= new Set()).add(d); }
+      for (const [cid, set] of Object.entries(seen)) inDays[cid] = set.size;
+      setW4({ pay, sales: (sr.data ?? []) as CastSalesRow[], quotas, norms, inDays });
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myStoreId, stores, month]);
 
   const loadStats = useCallback(async () => {
     const storeId = myStoreId || stores[0]?.id || "";
@@ -236,7 +276,7 @@ export default function CastsBoard({
   const loadPlans = useCallback(async () => {
       const [{ data: cp }, { data: pl }] = await Promise.all([
         supabase.from("cast_plan").select("cast_id, plan_id, overrides_json, valid_from, valid_to"),
-        supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, is_active, norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target"), // ★裁定347（0171）: 既定目標 4 列 // ★306-13: is_active（同じ取得に同乗）
+        supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, is_active, norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target, slide_period") /* ★裁定374: 判定期間 */, // ★裁定347（0171）: 既定目標 4 列 // ★306-13: is_active（同じ取得に同乗）
       ]);
       const m: Record<string, { planId: string; ov: Record<string, number | string> }> = {};
       const rowsOf: Record<string, PlanRowLike[]> = {};
@@ -569,7 +609,29 @@ export default function CastsBoard({
   // E8-5 casts#2: ランク絞り込み（"none"=ランクなし）を検索に AND 合成
   const rankHit = (c: CastLogin) =>
     rankFilter === "" || (rankFilter === "none" ? !c.rank_id : c.rank_id === rankFilter);
-  const shownCasts = loginCasts.filter((c) => (filter === "today" ? c.is_active && isTodayWorking(todayStateOfCast(c.id)) : c.is_active === (filter === "active")) && hit(c.name) && rankHit(c)); // ★裁定353: 今日出勤＝確定シフトあり／出勤中／退勤
+  // ★裁定374（GV-B W-4）: 今期の時給＝プレビューの PayResult から（currentWageOf）・達成状況＝/mine と同じ cardAxesOf（個別＞プラン既定＞なし・採用軸だけ）
+  const calToday = new Date().toISOString().slice(0, 10);
+  const salesByCast = sumCastSales(w4.sales);
+  const wageOf = (c: CastLogin): CurrentWage | null => { const pv = w4.pay[c.id]; if (!pv) return null; const a = castPlanOf[c.id]; const pl = a ? (plansById[a.planId] as unknown as { slide_period?: unknown } | undefined) : undefined; return currentWageOf(pv.pay as never, { planName: pv.planName || (a ? plansById[a.planId]?.name : null) || null, slidePeriod: pl?.slide_period, today: calToday }); };
+  const normAxesOfCast = (c: CastLogin): CardAxis[] => {
+    const sj = stores.find((st) => st.id === c.store_id)?.settings_json ?? null;
+    const axes = normAxesOf(sj); const scope = shimeiScopeOf(sj);
+    const a = castPlanOf[c.id]; const pl = a ? plansById[a.planId] : null;
+    const resolved = resolveQuotaOf(planDefaultQuotaOf(normTargetsOf(pl ?? null), axes), w4.quotas[c.id] ?? null, axes, scope);
+    const daysT = resolveNormTargetsOf(normTargetsOf(pl ?? null), { days: w4.norms[c.id]?.days_target ?? 0 }, axes);
+    const act = salesByCast.get(c.id) ?? { hon: 0, jonai: 0, dohan: 0, sales: 0 };
+    return cardAxesOf({ days: axes.days ? daysT.value.days : null, ...resolved.quota }, { days: w4.inDays[c.id] ?? 0, hon: act.hon, jonai: act.jonai, dohan: act.dohan, sales: act.sales });
+  };
+  const normStatusOf = (c: CastLogin): NormStatus => castNormStatusOf(normAxesOfCast(c), monthElapsedOf(calToday));
+  const wageTiers = wageTiersOf(loginCasts.filter((c) => c.is_active).map((c) => wageOf(c)?.hourly ?? 0));
+  const planNames = [...new Set(loginCasts.filter((c) => c.is_active).map((c) => { const a = castPlanOf[c.id]; return a ? plansById[a.planId]?.name ?? "" : ""; }).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja"));
+  const w4Hit = (c: CastLogin) => (planFilter === "" || (castPlanOf[c.id] ? plansById[castPlanOf[c.id].planId]?.name === planFilter : false))
+    && (normFilter === "" || normStatusOf(c) === normFilter)
+    && (wageFilter === "" || String(wageOf(c)?.hourly ?? 0) === wageFilter);
+  const shownCasts = loginCasts.filter((c) => (filter === "today" ? c.is_active && isTodayWorking(todayStateOfCast(c.id)) : c.is_active === (filter === "active")) && hit(c.name) && rankHit(c) && w4Hit(c))
+    .sort((a, b) => sortKey === "wage" ? (wageOf(b)?.hourly ?? 0) - (wageOf(a)?.hourly ?? 0) || a.name.localeCompare(b.name, "ja")
+      : sortKey === "rate" ? normRateOf(normAxesOfCast(b)) - normRateOf(normAxesOfCast(a)) || a.name.localeCompare(b.name, "ja")
+      : a.name.localeCompare(b.name, "ja")); // ★裁定374: 並び替え＝名前・時給・達成率 // ★裁定353: 今日出勤＝確定シフトあり／出勤中／退勤
   const shownTrials = trials.filter((tr) => hit(tr.name));
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? "—";
   const nomTotal = (id: string) => { const r = rankOf[id]; return r ? r.hon + r.jonai + r.dohan : 0; };
@@ -655,6 +717,26 @@ export default function CastsBoard({
           ＋ {filter === "trial" ? "体入を追加" : "キャスト登録"}
         </button>
       </div>
+      {/* ★裁定374（GV-B W-4）: 絞り込みチップ＝待遇プラン／ノルマ（達成・進行中・未達）／時給の段・並び替え＝名前・時給・達成率（既存 state の再形＋当月の実績 1 本） */}
+      {filter !== "trial" && (
+        <div className="nox-ctoolbar" data-w4-filters="1" style={{ gap: 8, flexWrap: "wrap", margin: "0 0 10px" }}>
+          <span style={{ fontSize: 11, color: "var(--sub)" }}>並び替え</span>
+          <SegSelect value={sortKey} onChange={(v) => setSortKey(v as "name" | "wage" | "rate")} options={[["name", "名前"], ["wage", "時給"], ["rate", "達成率"]] as const} ariaLabel="並び替え" />
+          {planNames.length > 0 && (
+            <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+              {["", ...planNames].map((n) => <button key={n || "all"} type="button" className={`nox-chip${planFilter === n ? " on" : ""}`} style={{ ...btnGhost, ...t.btnSm, ...(planFilter === n ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}) }} onClick={() => setPlanFilter(n)}>{n || "全プラン"}</button>)}
+            </span>
+          )}
+          <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+            {([["", "ノルマ: 全員"], ["done", "達成"], ["progress", "進行中"], ["behind", "未達"]] as const).map(([k, l]) => <button key={k || "all"} type="button" className={`nox-chip${normFilter === k ? " on" : ""}`} style={{ ...btnGhost, ...t.btnSm, ...(normFilter === k ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}) }} onClick={() => setNormFilter(k)}>{l}</button>)}
+          </span>
+          {wageTiers.length > 1 && (
+            <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+              {["", ...wageTiers.map(String)].map((w) => <button key={w || "all"} type="button" className={`nox-chip${wageFilter === w ? " on" : ""}`} style={{ ...btnGhost, ...t.btnSm, ...(wageFilter === w ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}) }} onClick={() => setWageFilter(w)}>{w ? `¥${Number(w).toLocaleString()}` : "時給: 全段"}</button>)}
+            </span>
+          )}
+        </div>
+      )}
       {/* E8-5 casts#2（T2）: ランク絞り込み＝チップ（プルダウン新設禁止の規律）。ranks が無い店は出さない */}
       {filter !== "trial" && ranks.filter((r) => r.is_active).length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 12px" }}>
@@ -781,7 +863,23 @@ export default function CastsBoard({
               <div className="cstats">
                 <div className="cstat"><div className="l">今月指名</div><div className="v num">{nomTotal(c.id)}件</div></div>
                 <div className="cstat"><div className="l">今月出勤</div><div className="v num">{attDaysOf[c.id] ?? 0}日</div></div>
+                {(() => { const w = wageOf(c); return w ? (/* ★裁定374（GV-B W-4）: 今期の時給＝給与プレビューと同じ純関数・判定期間併記・保証中／体験入店の印 */
+                  <div className="cstat" data-w4-wage={w.hourly}><div className="l">今期の時給</div><div className="v num">¥{w.hourly.toLocaleString()}<small style={{ fontWeight: 400, fontSize: 9.5, marginLeft: 3 }}>{w.basis}</small></div>
+                    <div style={{ fontSize: 9.5, color: "var(--v2-muted)" }}>{w.periodLabel}{w.guarantee ? <span className="nox-stpill warn" style={{ marginLeft: 4 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 4 }}>体験入店</span> : null}</div></div>
+                ) : null; })()}
               </div>
+              {(() => { const axes = normAxesOfCast(c); return axes.length > 0 ? (/* ★裁定374: ノルマ達成状況＝採用軸ごとの 実績／目標＋進捗バー（/mine と同値） */
+                <div className="nox-w4norm" data-w4-norm={normStatusOf(c)} style={{ marginTop: 8, display: "grid", gap: 4 }}>
+                  <div style={{ fontSize: 10.5, color: "var(--sub)" }}>ノルマ <b style={{ color: normStatusOf(c) === "done" ? "var(--ok)" : normStatusOf(c) === "behind" ? "var(--bad)" : "var(--champ)" }}>{NORM_STATUS_LABEL[normStatusOf(c)]}</b></div>
+                  {axes.map((a) => (
+                    <div key={a.key} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 6, alignItems: "center", fontSize: 10.5 }}>
+                      <span style={{ color: "var(--sub)" }}>{a.label}</span>
+                      <span style={{ height: 5, background: "var(--line)", borderRadius: 3, overflow: "hidden" }}><i style={{ display: "block", height: "100%", width: `${a.pct}%`, background: a.done ? "var(--ok)" : "var(--gold)" }} /></span>
+                      <span className="num">{cardFmt(a.key, a.actual)} / {cardFmt(a.key, a.target)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null; })()}
             </button>
           ))}
         </div>
@@ -859,6 +957,29 @@ export default function CastsBoard({
                     : <button style={btnGhost} disabled={busy} onClick={() => void castLeaveRejoin(selCast, "rejoin")}>復活</button>}
                 </span>
               </div>
+              {(() => { const w = wageOf(selCast); const axes = normAxesOfCast(selCast); return (<>{/* ★裁定374（GV-B W-4）: 詳細にも今期の時給とノルマ達成状況 */}
+                {w && (
+                  <div className="nox-frow" data-w4-detail="wage">
+                    <span className="k">今期の時給</span>
+                    <span className="v"><b className="num">¥{w.hourly.toLocaleString()}</b> <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>{w.basis}・{w.periodLabel}</span>{w.guarantee ? <span className="nox-stpill warn" style={{ marginLeft: 6 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 6 }}>体験入店</span> : null}</span>
+                  </div>
+                )}
+                {axes.length > 0 && (
+                  <div className="nox-frow" data-w4-detail="norm">
+                    <span className="k">ノルマ達成状況</span>
+                    <span className="v" style={{ display: "grid", gap: 4 }}>
+                      <b style={{ fontSize: 12 }}>{NORM_STATUS_LABEL[normStatusOf(selCast)]}</b>
+                      {axes.map((a) => (
+                        <span key={a.key} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 6, alignItems: "center", fontSize: 11 }}>
+                          <span style={{ color: "var(--sub)" }}>{a.label}</span>
+                          <span style={{ height: 6, background: "var(--line)", borderRadius: 3, overflow: "hidden" }}><i style={{ display: "block", height: "100%", width: `${a.pct}%`, background: a.done ? "var(--ok)" : "var(--gold)" }} /></span>
+                          <span className="num">{cardFmt(a.key, a.actual)} / {cardFmt(a.key, a.target)}（{a.pct}%）</span>
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                )}
+              </>); })()}
               <div className="nox-frow">
                 <span className="k">今月指名</span>
                 <span className="v num">

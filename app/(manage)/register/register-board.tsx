@@ -10,7 +10,7 @@ import { bizDateOf } from "@/lib/nox/biz-date"; // ★B3 裁定209: attendance �
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
 import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
-import CastPicker from "@/components/nox/cast-picker";
+import CastPicker, { pickerDefaultChipOf } from "@/components/nox/cast-picker"; // ★裁定384（GV-B W-14）: 既定チップ
 import Picker from "@/components/nox/picker"; // ★裁定272-2 追補（紹介料の紹介者＝裁定259 の picker）
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
@@ -1777,9 +1777,12 @@ export default function RegisterBoard({
             キャストドリンクの帰属先を選びます（バック額は行の凍結値からサーバが計算）。
           </p>
           {/* ★B3 裁定209〜212（#64・R34 帰属モーダル）: 出勤中／接客中／打刻・ランク名＋［出勤中］［担当中］チップ（絞込のみ・名前順固定） */}
+          {/* ★裁定384（GV-B W-14）: 既定タブ＝担当中→出勤中→すべて・担当中が 1 人だけなら選択済みにして「追加」1 タップ */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
             attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} chips grouped shiftIds={shiftIds}
+            defaultChip={pickerDefaultChipOf({ seated: seatedIds.size, working: attendIds.size + todayIds.size })}
+            selectedIds={seatedIds.size === 1 ? seatedIds : undefined}
             onPick={(id) => {
               const dp = drinkPick;
               setDrinkPick(null);
@@ -1787,6 +1790,12 @@ export default function RegisterBoard({
               else void claimAssign(dp.lineId, id);
             }}
           />
+          {seatedIds.size === 1 && (/* ★裁定384: 担当中 1 人＝選択済み・「追加」1 タップ */
+            <button type="button" style={{ ...t.btnPrimary56, marginTop: 10 }} disabled={claimBusy} data-pick-single="1"
+              onClick={() => { const id = [...seatedIds][0]; const dp = drinkPick; setDrinkPick(null); if (dp.mode === "product") void addExemptWithCast(dp.product, id); else void claimAssign(dp.lineId, id); }}>
+              {castName([...seatedIds][0])} に追加
+            </button>
+          )}
           <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 12 }}>
             {drinkPick.mode === "product" && (
               <button style={btnLight} disabled={claimBusy}
@@ -2008,7 +2017,15 @@ export default function RegisterBoard({
               入金額
               <input type="number" min={1} step={1} value={payAmount}
                 onChange={(e) => setPayAmount(Number(e.target.value))}
-                style={{ ...t.input, display: "block", marginTop: 5 }} inputMode="numeric" />
+                style={{ ...t.input, display: "block", marginTop: 5, fontSize: 18, textAlign: "right" }} inputMode="numeric" />
+              {/* ★裁定375（GV-B W-5）: 数字キーパッド（0〜9・00・⌫・C）＝入金額だけを編集。送る引数は不変 */}
+              <div data-pay-keypad="1" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 8 }}>
+                {(["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0", "⌫"] as const).map((k) => (
+                  <button key={k} type="button" style={{ ...btnLight, minHeight: 44, fontSize: 18, fontWeight: 800, justifyContent: "center" }}
+                    onClick={() => { const cur = String(payAmount > 0 ? payAmount : ""); const next = k === "⌫" ? cur.slice(0, -1) : (cur + k).slice(0, 8); setPayAmount(Number(next || 0)); }}>{k}</button>
+                ))}
+                <button type="button" style={{ ...btnLight, minHeight: 44, fontWeight: 800, justifyContent: "center", gridColumn: "1 / -1" }} onClick={() => setPayAmount(balance)}>C（残額に戻す）</button>
+              </div>
               <span style={{ fontSize: 11, color: "var(--sub)", marginTop: 4, display: "block", lineHeight: 1.6 }}>
                 既定は残額（{yen(balance)}）。一部だけ受け取るときは金額を減らしてください。
               </span>
@@ -2048,7 +2065,7 @@ export default function RegisterBoard({
               <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "0 0 10px" }}>{msg.text}</Message>
             )}{/* ★裁定281（便 AB）: routed msg も共通部品（kind は既存の ok／bad に従う） */}
             <button
-              style={{ ...t.btnGold, width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 900, justifyContent: "center" }}
+              style={t.btnPrimary56} data-pay-submit="1"
               disabled={!amtValid || insufficient}
               onClick={async () => { const ok = await pay(); if (ok) setPayModal(false); }}>
               入金する（{amtValid ? yen(payAmount) : "—"}）
@@ -2210,7 +2227,7 @@ export default function RegisterBoard({
               <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
                 <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 4px", color: "var(--champ)" }}>領収書発行（台帳記録・発行番号つき）</p>
                 <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.6 }}>
-                  発行ごとに台帳へ記録され、発行番号と確認用 QR がつきます。分割するときは金額を入れて複数回発行してください
+                  発行ごとに台帳へ記録され、発行番号と確認用 QR がつきます。
                   （残額 <span style={{ ...t.num, fontWeight: 700 }}>{yen(remain)}</span>）。
                 </p>
                 {/* ★裁定320（便 X-10-2）: 分割して発行＝行（金額・宛名・但し書き）・最後の行は自動残額・「行を追加」・合計＝残額で「n 枚を発行」 */}
@@ -2262,18 +2279,21 @@ export default function RegisterBoard({
                   </div>
                 )}
                 {remain > 0 && !split.open && (
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+                  <div data-rcpt-form="1" style={{ display: "grid", gap: 8 }}>{/* ★裁定376（GV-B W-6）: 入力 1 行 1 項目・「発行」主 中央 100% 56px・「分割して発行」「閉じる」副 */}
                     <input type="number" min={1} value={rcptForm.amount} placeholder={`金額（空欄=残額 ${remain}）`}
                       onChange={(e) => setRcptForm((f) => ({ ...f, amount: e.target.value }))}
-                      className="num" style={{ ...t.input, width: 150, textAlign: "right" }} />
+                      className="num" style={{ ...t.input, width: "100%", textAlign: "right" }} />
                     <input placeholder="宛名（空欄は上様）" value={rcptForm.name} maxLength={100}
                       onChange={(e) => setRcptForm((f) => ({ ...f, name: e.target.value }))}
-                      style={{ ...t.input, width: 150 }} />
+                      style={{ ...t.input, width: "100%" }} />
                     <input placeholder="但し書き（空欄はご飲食代として）" value={rcptForm.note} maxLength={100}
                       onChange={(e) => setRcptForm((f) => ({ ...f, note: e.target.value }))}
-                      style={{ ...t.input, width: 200 }} />
-                    <button style={btnDark} disabled={rcptBusy} onClick={() => void doIssue()}>発行</button>
-                    <button style={btnLight} disabled={rcptBusy} onClick={openSplit}>分割して発行</button>{/* ★裁定320 */}
+                      style={{ ...t.input, width: "100%" }} />
+                    <button type="button" style={t.btnPrimary56} disabled={rcptBusy} onClick={() => void doIssue()} data-rcpt-issue="1">発行</button>
+                    <div style={t.btnRow48}>
+                      <button type="button" style={t.btnSecondary48} disabled={rcptBusy} onClick={openSplit}>分割して発行</button>{/* ★裁定320 */}
+                      <button type="button" style={t.btnSecondary48} onClick={() => setCloseInfo(null)}>閉じる</button>
+                    </div>
                   </div>
                 )}
                 {/* R-1a-4: 成功文言まで --bad（赤）で出ていたのを是正＝成功/失敗で色を分ける（state 構造は不変） */}
@@ -2558,6 +2578,7 @@ export default function RegisterBoard({
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
             attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} grouped shiftIds={shiftIds}
             selectedIds={seatedIds} badges={nomBadges} dense
+            defaultChip={pickerDefaultChipOf({ seated: seatedIds.size, working: attendIds.size + todayIds.size })} /* ★裁定384: 分配率カードの追加も同じ既定順 */
             onPick={(id) => {
               const on = nomWeights[id] !== undefined; // ★裁定110: 名簿＝キー存在
               // ★0121（裁定107 段1-(3)）: 再タップ（選択解除）も課金行が残るキャストは拒否＝× と同じ関所
@@ -3422,9 +3443,7 @@ export default function RegisterBoard({
             <thead>
               <tr>
                 <th style={t.th}>伝票</th>
-                <th style={t.th}>小計</th>
-                <th style={t.th}>割引</th>
-                <th style={t.th}>請求（サ料込）</th>
+                <th style={t.th}>請求（サ料込）</th>{/* ★裁定375（GV-B W-5）: 4 列＝伝票／請求／入金済／残額 */}
                 <th style={t.th}>入金済</th>
                 <th style={t.th}>残額</th>
               </tr>
@@ -3433,8 +3452,6 @@ export default function RegisterBoard({
               {groupInfo.map((gi) => (
                 <tr key={gi.g}>
                   <td style={t.td}>{gi.g}</td>
-                  <td style={{ ...t.td, ...t.num }}>{yen(gi.bx)}</td>
-                  <td style={{ ...t.td, ...t.num, color: gi.disc > 0 ? "var(--bad)" : "var(--sub)" }}>{gi.disc > 0 ? `−${yen(gi.disc)}` : "—"}</td>
                   <td style={{ ...t.td, ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(gi.due)}</td>
                   <td style={{ ...t.td, ...t.num }}>{yen(gi.paid)}</td>
                   <td style={{ ...t.td, ...t.num, color: gi.remaining > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(gi.remaining)}</td>
@@ -3445,32 +3462,26 @@ export default function RegisterBoard({
           </div>
           {/* E8-1 ④/⑦: 1行フォーム → 会計分けセグメント（現行位置）＋入金モーダル（BANZEN 型）。
               送る引数（check_pay の7引数）は不変＝入力 UI の置換のみ。 */}
-          <h3 style={{ ...t.cardTitle, margin: "14px 0 4px" }}>② 入金</h3>
-          <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>
-            支払方法と金額を選んで入金します。現金・カードを組み合わせる（併用）ときは、金額を分けて複数回入金します。
-          </p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-            {groupSeg(payGroup || "A", setPayGroup)}
-            {(() => {
-              const gi = groupInfo.find((x) => x.g === (payGroup || "A"));
-              const remaining = gi?.remaining ?? 0;
-              return (
-                <button
-                  style={btnDark}
-                  disabled={check.status !== "open" || remaining <= 0}
-                  title={remaining <= 0 ? "この会計の残額はありません" : ""}
-                  onClick={() => {
-                    setPayAmount(remaining);
-                    setPayTendered("");
-                    setPayDetail("");
-                    setPayModal(true);
-                  }}
-                >
-                  入金する{splitOn ? `（会計${payGroup || "A"}）` : ""}
-                </button>
-              );
-            })()}
-          </div>
+          {/* ★裁定375（GV-B W-5）: 1 画面 1 ステップ＝①請求表→「入金へ進む」主（入金モーダル＝支払方法セグメント→金額（既定残額・数字キーパッド）→「入金する」主）・「会計を分ける」副。残額 0 で両ボタン非表示＝履歴だけ残し③へ */}
+          {!allCovered && (
+            <div data-pay-step="1" style={{ display: "grid", gap: 8, margin: "10px 0 8px" }}>
+              {splitOn && <div>{groupSeg(payGroup || "A", setPayGroup)}</div>}
+              {(() => {
+                const gi = groupInfo.find((x) => x.g === (payGroup || "A"));
+                const remaining = gi?.remaining ?? 0;
+                return (
+                  <button type="button" style={t.btnPrimary56} data-pay-next="1" disabled={check.status !== "open" || remaining <= 0}
+                    onClick={() => { setPayAmount(remaining); setPayTendered(""); setPayDetail(""); setPayModal(true); }}>
+                    入金へ進む{splitOn ? `（会計${payGroup || "A"}）` : ""}
+                  </button>
+                );
+              })()}
+              <div style={t.btnRow48}>
+                <button type="button" style={t.btnSecondary48} data-pay-split="1" disabled={groupChoices.length >= 6}
+                  title={groupChoices.length >= 6 ? "会計分けは最大6つ（A〜F）です" : ""} onClick={() => addSplitGroup(setPayGroup)}>会計を分ける</button>
+              </div>
+            </div>
+          )}
           {/* ★台帳 #37（裁定 2026-07-17）: void 伝票の payments は無印（status 列を持たない）＝
               日次集計は checks.status='closed' の join で自動除外・端末側の返金で端末日計も減るため突合は成立する。 */}
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -3491,22 +3502,14 @@ export default function RegisterBoard({
           {/* 動線改修v3: モック .payrow＝主ボタン＋戻るの2列（≤641 で下部 sticky・safe-area 対応）。
               ★会計完了はハンドラも充足判定による disabled も文言も1文字も変えていない。
                 「← フロア」は backbar と同じ既存 closeDetail の再利用（新規ロジックなし）。 */}
+          {allCovered && (/* ★裁定375: ③＝「会計を完了」主・「← フロア」副（残額があるうちは非表示＝①②で案内） */
+          <div data-pay-step="3">
           <h3 style={{ ...t.cardTitle, margin: "14px 0 4px" }}>③ 会計を完了</h3>
-          <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>
-            {allCovered
-              ? "すべての伝票の残額が 0 になりました。完了すると伝票が締まります。"
-              : "残額があるうちは完了できません（上の入金を済ませてください）。"}
-          </p>
-          <div className="nox-payrow">
-          <button
-            onClick={closeCheck}
-            disabled={!allCovered}
-            style={{ ...btnDark, padding: "13px 28px", opacity: allCovered ? 1 : 0.4 }}
-          >
-            会計を完了
-          </button>
-          <button type="button" className="nox-backbtn" onClick={() => void closeDetail()}>← フロア</button>
+          <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>すべての伝票の残額が 0 になりました。完了すると伝票が締まります。</p>
+          <button type="button" onClick={closeCheck} disabled={!allCovered} style={t.btnPrimary56} data-pay-close="1">会計を完了</button>
+          <div style={t.btnRow48}><button type="button" style={t.btnSecondary48} onClick={() => void closeDetail()}>← フロア</button></div>
           </div>
+          )}
         </div>
         )}
           </div>

@@ -27,7 +27,7 @@ export default function PageHead({
   return (
     <div className="nox-pagehead">
       <div>
-        <div className="eyebrow">{eyebrow}</div>
+        <div className="eyebrow" aria-hidden="true">{eyebrow}</div>{/* ★裁定382（GV-B W-1）: 英字の飾りチップは廃止＝CSS で非表示（prop は互換） */}
         <h1>{title}</h1>
         {desc && <p>{desc}</p>}
       </div>

@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation"; // ★裁定330（便 MC1／MC2）: 入口「料金・会計」のタブ＝?tab=（内側ピルは MC2 で撤去）
 import SegSelect from "@/components/ui/seg-select";
+import { ResponsiveTable } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -961,8 +962,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                 料金区分は未設定です（開栓時の区分セレクタは表示されません）。
               </p>
             ) : (
-              <div className="nox-ptwrap">
-                <table className="nox-ptable">
+              <ResponsiveTable className="nox-ptwrap">{/* ★裁定382（GV-B W-1）: <600 は 1 行 1 カード */}
+                <table className="nox-ptable nox-rtable">
                   <thead>
                     <tr>
                       {/* ★裁定R2: sort 数値は非露出＝並びは ∧∨（先頭の有効な区分が開栓時の既定） */}
@@ -999,7 +1000,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ResponsiveTable>
             )}
             <p style={{ fontSize: 11, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
               区分は削除せず「停止」で運用します（過去の伝票が区分を参照しているため）。
@@ -1016,8 +1017,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                 時間帯料金は未設定です。すべての伝票に「基本料金」（会計設定タブのフォールバック値）が適用されています。
               </p>
             ) : (
-              <div className="nox-ptwrap">
-                <table className="nox-ptable">
+              <ResponsiveTable className="nox-ptwrap">{/* ★裁定382（GV-B W-1）: <600 は 1 行 1 カード */}
+                <table className="nox-ptable nox-rtable">
                   <thead>
                     <tr>
                       {/* ★裁定115-②/117: priority 数値は UI 非露出（順序=表示順・数値は内部表現） */}
@@ -1086,7 +1087,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ResponsiveTable>
             )}
             {/* E8-5 pricing⑥: 重複帯の警告（表示のみ・解決は現行どおり priority）。 */}
             {bandOverlaps.length > 0 && (
@@ -1525,7 +1526,6 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               <h3 style={{ margin: 0, fontSize: 14 }}>営業日・時間計算</h3>
               <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>伝票の日付と時間料金の基準</p>
             </div>
-            <span className="nox-stpill" style={{ marginLeft: "auto" }}>DATE &amp; TIME</span>
           </div>
           <div className="nox-listrow">
             <span style={{ flex: 1, minWidth: 0 }}>
@@ -1569,7 +1569,6 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                 ルールが1件も一致しないときに使われます（店単位の独立した値・席種別のフォールバックはありません）。
               </p>
             </div>
-            <span className="nox-stpill" style={{ marginLeft: "auto" }}>FALLBACK</span>
           </div>
           <TimePricingPanel storeId={storeId} initial={{
             set_min: store.set_min, set_fee: store.set_fee, ext_min: store.ext_min, ext_fee: store.ext_fee,

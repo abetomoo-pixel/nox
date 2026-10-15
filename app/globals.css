@@ -2500,3 +2500,46 @@ body {
 /* 370: 商品行の「お客様」チップ（未指定＝灰／指定済み＝金枠） */
 .nox-custchip { font: inherit; font-size: 11px; line-height: 1; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line2); background: transparent; color: var(--sub); cursor: pointer; white-space: nowrap; margin-right: 6px; }
 .nox-custchip.on { border-color: var(--gold); color: var(--champ); background: var(--goldface2); font-weight: 700; }
+
+/* ═══ 便 GV-B（2026-10-15・裁定372〜384＝目視指摘 GV-23〜37）═══ */
+/* 372①: body の横スクロールを 0 に（固定幅・min-width・長い行は折り返す／切る） */
+html, body { overflow-x: hidden; }
+.nox-mainarea, .nox-mainwrap, .nox-main { min-width: 0; }
+.nox-mainarea > * { max-width: 100%; }
+.nox-mainarea table { max-width: 100%; }
+/* 382: 英字の飾りチップ（イーブロー・DATE & TIME 等）は廃止 */
+.nox-pagehead .eyebrow { display: none; }
+/* 382: ResponsiveTable＝600px 未満は 1 行 1 カード（見出しは data-label）・縦書きヘッダ全廃 */
+@media (max-width: 599px) {
+  .nox-rwrap { border: 0; background: transparent; overflow: visible; }
+  .nox-rwrap table { display: block; width: 100%; border-collapse: collapse; }
+  .nox-rwrap table thead { display: none; }
+  .nox-rwrap table tbody { display: block; width: 100%; }
+  .nox-rwrap table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 12px; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--card2); }
+  .nox-rwrap table td { display: block; padding: 0 !important; border: 0 !important; min-width: 0; white-space: normal !important; text-align: left !important; writing-mode: horizontal-tb !important; }
+  .nox-rwrap table td:empty { display: none; }
+  .nox-rwrap table td[data-label]::before { content: attr(data-label); display: inline-block; margin-right: 6px; color: var(--sub); font-size: 10.5px; }
+  .nox-rwrap table td[colspan] { flex: 0 0 100%; }
+}
+.nox-rwrap table th { writing-mode: horizontal-tb !important; white-space: nowrap; }
+/* 382: FieldStack＝ラベル上・入力下（children が複数なら 1 行） */
+.nox-fieldstack { display: grid; gap: 4px; margin-bottom: 12px; }
+.nox-fieldstack > .l { font-size: 12px; color: var(--sub); font-weight: 700; }
+.nox-fieldstack > .f { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.nox-fieldstack > .n { font-size: 11px; color: var(--v2-muted); line-height: 1.6; }
+/* 382: SegmentTabs＝48px・幅 100%・選択中 金塗り・収まらなければ横スクロール 1 段 */
+.nox-segtabs { display: flex; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line2); border-radius: 10px; scrollbar-width: thin; }
+.nox-segtabs > button, .nox-segtabs > a { flex: 1 0 auto; min-height: 48px; min-width: 0; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 700; color: var(--sub); background: transparent; border: 0; border-right: 1px solid var(--line2); cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.nox-segtabs > :last-child { border-right: 0; }
+.nox-segtabs > .on { background: var(--gold); color: #000; }
+.nox-segtabs > button:disabled { opacity: .5; cursor: not-allowed; }
+.nox-seg.nox-segtabs > button, .nox-seg.nox-segtabs > a { min-height: 48px; box-shadow: none !important; border-top: 0 !important; margin-top: 0 !important; }
+.nox-seg.nox-segtabs > button.on, .nox-seg.nox-segtabs > a.on { background: var(--gold) !important; color: #000 !important; }
+/* 382: InfoNote＝最初の 1 文＋ⓘ */
+.nox-infonote { font-size: 11.5px; color: var(--sub); margin: 0 0 10px; line-height: 1.7; }
+details.nox-infonote > summary { cursor: pointer; list-style: none; }
+details.nox-infonote > summary::-webkit-details-marker { display: none; }
+details.nox-infonote .i { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin-left: 6px; border: 1px solid var(--line2); border-radius: 999px; font-size: 11px; font-weight: 800; color: var(--champ); }
+details.nox-infonote .r { margin-top: 4px; }
+/* 375: disabled は必ず減光 */
+button:disabled, .nox-btn:disabled { opacity: .45; cursor: not-allowed; }

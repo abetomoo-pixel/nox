@@ -779,7 +779,7 @@ export default function AnalyticsBoard({
                       <div style={{ flex: 1, height: 8, borderRadius: 4, background: "var(--line2)", overflow: "hidden" }}>
                         <div style={{ width: `${Math.round((v / catMax) * 100)}%`, height: "100%", background: "var(--gold)" }} />
                       </div>
-                      <span className="num" style={{ width: 130, textAlign: "right", flexShrink: 0 }}>{yen(v)}（{pct}%）</span>
+                      <span className="num" style={{ maxWidth: 130, textAlign: "right", flexShrink: 1, minWidth: 0 }}>{/* ★裁定372①（GV-B W-2）: 固定幅をやめ横はみ出し 0 */}{yen(v)}（{pct}%）</span>
                     </div>
                   );
                 })}
@@ -981,7 +981,7 @@ export default function AnalyticsBoard({
                       });
                     })()}
                   </svg>
-                  <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ flex: 1, minWidth: "min(200px, 100%)" }}>
                     {payMix.map((x) => (
                       <div key={x.k} className="nox-srow">
                         <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: x.color, marginRight: 6 }} />{x.k}</span>

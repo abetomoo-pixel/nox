@@ -11,8 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 // ★便 X-11-2b: 候補表示＝検索欄が空なら一覧は出さず「最近来店 5 人」「担当キャストの顧客（5 人まで）」。1 文字以上で名前／ふりがな／電話の部分一致・
 //   最終来店日の降順・10 件＋「さらに表示」。0 件のときは「新規登録して追加」を主ボタンに。材料＝customers の直読（tel を含む）＋ customer_list_summary の戻り。
 // ★便 X-11-3: 候補の行から直接「追加」（選択→追加の 2 段をやめる）・メッセージは追加欄の直下に出す（カードの最下部だと見えない）。
-import { CANDIDATE_PAGE, candidatesOf, idleCandidatesOf, lastVisitLabelOf, pageOf, searchCandidatesOf, type Candidate, type CandidateSummary } from "@/lib/nox/register/customer-candidates";
 import { Message } from "@/components/ui/toast";
+import CustomerPickModal from "@/components/nox/customer-pick-modal"; // ★裁定377（GV-B W-7）: 伝票の顧客追加も共通モーダル
 import * as t from "@/lib/nox/ui/theme";
 
 type Named = { customer_id: string; pos: number; name: string; bottle_names: string[] };
@@ -48,21 +48,15 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _l
   const [named, setNamed] = useState<Named[] | null>(null);
   const [custs, setCusts] = useState<Cust[]>([]);
   const [keeps, setKeeps] = useState<Keep[]>([]);
-  const [summary, setSummary] = useState<CandidateSummary[]>([]);
-  const [q, setQ] = useState("");
-  const [shown, setShown] = useState(CANDIDATE_PAGE);
-  const [active, setActive] = useState(-1); // ★X-11-8: 検索候補の ↑↓ の位置
-  const [reg, setReg] = useState<{ open: boolean; name: string; furigana: string; tel: string }>({ open: false, name: "", furigana: "", tel: "" });
   const [busy, setBusy] = useState(false);
+  const [pickOpen, setPickOpen] = useState(false); // ★裁定377
   const [msg, setMsg] = useState<{ kind: "success" | "error" | "info"; text: string } | null>(null);
 
   const load = useCallback(async () => {
-    const [n, c, sm] = await Promise.all([
+    const [n, c] = await Promise.all([
       supabase.rpc("check_customer_names", { p_check_id: checkId }),
       supabase.from("customers").select("id, name, furigana, tel").eq("store_id", storeId).eq("is_active", true).order("name"),
-      supabase.rpc("customer_list_summary", { p_store_id: storeId, p_include_dormant: true }), // ★X-11-2b: 最終来店・担当（読めないロールは空＝名前順の検索だけになる）
-    ]);
-    setSummary(sm.error ? [] : ((sm.data ?? []) as CandidateSummary[]));
+    ]); // ★裁定377: 候補（customer_list_summary）は共通モーダル側で読む
     const rows = ((n.data ?? []) as Named[]);
     setNamed(n.error ? [] : rows);
     setCusts(((c.data ?? []) as Cust[]));
@@ -73,11 +67,6 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _l
   }, [supabase, checkId, storeId]);
   useEffect(() => { void load(); }, [load]);
 
-  const onCheck = new Set((named ?? []).map((r) => r.customer_id));
-  const candidates = candidatesOf(custs, summary, onCheck);
-  const idle = idleCandidatesOf(candidates, castIds);
-  const hits = pageOf(searchCandidatesOf(candidates, q), shown);
-  const searching = q.trim() !== "";
   const nameOf = (id: string | null | undefined) => (named ?? []).find((r) => r.customer_id === id)?.name ?? custs.find((c) => c.id === id)?.name ?? "（顧客）";
   const productName = (id: string) => products.find((p) => p.id === id)?.name ?? "（商品）";
 
@@ -91,39 +80,6 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _l
     await load();
     await onChanged();
   }
-
-  // ★裁定321: 新規登録して追加（customer_register → check_customer_add）。登録は通ったが追加に失敗したときは、その旨を出して一覧に残す
-  async function registerAndAdd() {
-    if (busy) return;
-    const name = reg.name.trim();
-    if (name === "" || name.length > 80) { setMsg({ kind: "error", text: "名前は 1〜80 文字で入力してください" }); return; }
-    setBusy(true); setMsg(null);
-    const r1 = await supabase.rpc("customer_register", { p_store_id: storeId, p_name: name, p_furigana: reg.furigana.trim() || null, p_tel: reg.tel.trim() || null });
-    if (r1.error) {
-      setBusy(false);
-      setMsg({ kind: "error", text: r1.error.message.includes("forbidden") ? "顧客の新規登録に失敗: 登録する権限がありません（店長・顧客権限のあるスタッフから登録してください）" : `顧客の新規登録に失敗: ${checkCustomerErrJa(r1.error.message)}` });
-      return;
-    }
-    const r2 = await supabase.rpc("check_customer_add", { p_check_id: checkId, p_customer_id: r1.data as string });
-    setBusy(false);
-    setMsg(r2.error
-      ? { kind: "error", text: `${name} を登録しましたが、伝票への追加に失敗: ${checkCustomerErrJa(r2.error.message)}` }
-      : { kind: "success", text: `${name} を登録して付けました` });
-    setReg({ open: false, name: "", furigana: "", tel: "" }); setQ(""); setShown(CANDIDATE_PAGE);
-    await load();
-    if (!r2.error) await onChanged();
-  }
-  const addRow = (c: Candidate, i = -1) => (
-    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "5px 4px", borderBottom: "1px solid var(--line2)", ...(i >= 0 && i === active ? { outline: "1px solid var(--champ)", borderRadius: 8 } : {}) }}>
-      <span style={{ minWidth: 0, flex: 1 }}>
-        <span style={{ fontWeight: 700 }}>{c.name}</span>
-        {c.furigana && <span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 6 }}>{c.furigana}</span>}
-        <span style={{ display: "block", fontSize: 11, color: "var(--sub)" }}>{lastVisitLabelOf(c.lastVisit)}{c.visits > 0 ? `・${c.visits} 回` : ""}</span>
-      </span>
-      <button type="button" className="nox-btn" disabled={busy}
-        onClick={() => void call("追加", "check_customer_add", { p_check_id: checkId, p_customer_id: c.id }, `${c.name} を追加しました`)}>追加</button>
-    </div>
-  );
 
   return (
     <div className="nox-cardtop" style={t.card}>
@@ -144,82 +100,15 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _l
           ))}
         </div>
       )}
-      {isOpen && (
+      {isOpen && (/* ★裁定377（GV-B W-7）: 伝票の顧客追加＝共通モーダル（①この伝票のお客様②候補③全員④新規登録）。旧インライン候補は撤去 */
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 12, color: "var(--sub)", marginBottom: 6 }}>顧客を追加</div>
-          {custs.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }}>顧客一覧を読める権限がありません（既存の顧客の追加は店長・顧客権限のあるスタッフから）。</p>}
-          {custs.length > 0 && (
-            <>
-              <input value={q} onChange={(e) => { setQ(e.target.value); setShown(CANDIDATE_PAGE); setActive(-1); }} placeholder="名前・ふりがな・電話で検索" aria-label="顧客を検索" disabled={busy}
-                onKeyDown={(e) => {
-                  // ★X-11-8: キーボード ↑↓ で候補を選び Enter で追加（検索中の一覧が対象）
-                  if (!searching || hits.rows.length === 0) return;
-                  if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(hits.rows.length - 1, a + 1)); }
-                  else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
-                  else if (e.key === "Enter" && active >= 0 && hits.rows[active]) { e.preventDefault(); const c = hits.rows[active]; void call("追加", "check_customer_add", { p_check_id: checkId, p_customer_id: c.id }, `${c.name} を追加しました`); }
-                }}
-                style={{ ...t.input, width: "100%", maxWidth: 320, marginBottom: 6 }} />
-              {/* ★X-11-2b: 検索欄が空＝一覧は出さない。最近来店 5 人と担当キャストの顧客だけ */}
-              {!searching && (
-                <>
-                  {idle.recent.length > 0 && (
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: "var(--champ)" }}>最近来店</div>
-                      {idle.recent.map((c) => addRow(c))}
-                    </div>
-                  )}
-                  {idle.mine.length > 0 && (
-                    <div style={{ marginBottom: 6 }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: "var(--champ)" }}>担当キャストの顧客</div>
-                      {idle.mine.map((c) => addRow(c))}
-                    </div>
-                  )}
-                  {idle.recent.length === 0 && idle.mine.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }}>名前・ふりがな・電話の一部を入れると候補が出ます。</p>}
-                </>
-              )}
-              {searching && (
-                <div style={{ marginBottom: 6 }}>
-                  {hits.rows.map((c, i) => addRow(c, i))}
-                  {hits.rest > 0 && (
-                    <div className="nox-actions" style={{ marginTop: 6 }}>
-                      <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setShown((n) => n + CANDIDATE_PAGE)}>さらに表示（残り {hits.rest} 人）</button>
-                    </div>
-                  )}
-                  {hits.rows.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>該当する顧客がいません。</p>}
-                </div>
-              )}
-            </>
-          )}
-          {/* ★裁定321: 新規登録して追加（0 件のときは主ボタン） */}
-          {!reg.open ? (
-            <div className="nox-actions" style={{ justifyContent: "flex-start", marginTop: 4 }}>
-              <button type="button" disabled={busy}
-                style={searching && hits.rows.length === 0 ? { ...t.btnGold, ...t.btnSm } : { ...t.btnGhost, ...t.btnSm }}
-                onClick={() => setReg({ open: true, name: q.trim(), furigana: "", tel: "" })}>新規登録して追加</button>
-            </div>
-          ) : (
-            <div className="nox-inset" style={{ padding: "10px 12px", marginTop: 4 }}>
-              <div style={{ display: "grid", gap: 6 }}>
-                <label style={{ ...t.fieldLabel, display: "block" }}>名前（必須）
-                  <input value={reg.name} maxLength={80} autoFocus disabled={busy} onChange={(e) => setReg((v) => ({ ...v, name: e.target.value }))} style={{ ...t.input, width: "100%", marginTop: 3 }} aria-label="新しい顧客の名前" />
-                </label>
-                <label style={{ ...t.fieldLabel, display: "block" }}>ふりがな（任意）
-                  <input value={reg.furigana} maxLength={80} disabled={busy} onChange={(e) => setReg((v) => ({ ...v, furigana: e.target.value }))} style={{ ...t.input, width: "100%", marginTop: 3 }} aria-label="新しい顧客のふりがな" />
-                </label>
-                <label style={{ ...t.fieldLabel, display: "block" }}>電話（任意）
-                  <input value={reg.tel} maxLength={30} inputMode="tel" disabled={busy} onChange={(e) => setReg((v) => ({ ...v, tel: e.target.value }))} style={{ ...t.input, width: "100%", marginTop: 3 }} aria-label="新しい顧客の電話" />
-                </label>
-              </div>
-              <p style={{ fontSize: 11, color: "var(--sub)", margin: "6px 0 0" }}>誕生日・好み・担当などの詳細は、あとで顧客ページで編集できます。</p>
-              <div className="nox-actions" style={{ marginTop: 8 }}>
-                <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => setReg({ open: false, name: "", furigana: "", tel: "" })}>やめる</button>
-                <button type="button" style={{ ...t.btnGold, ...t.btnSm, opacity: busy || reg.name.trim() === "" ? 0.5 : 1 }} disabled={busy || reg.name.trim() === ""} onClick={() => void registerAndAdd()}>{busy ? "登録中…" : "登録して追加"}</button>
-              </div>
-            </div>
-          )}
-          {/* ★X-11-3: メッセージは追加欄の直下（最下部だと誰の注文／キープ出しの下に隠れて見えない） */}
+          <button type="button" style={{ ...t.btnSecondary48, width: "100%" }} disabled={busy} data-cust-add="1" onClick={() => setPickOpen(true)}>＋ お客様を追加</button>
           {msg && <div style={{ marginTop: 8 }}><Message kind={msg.kind} onDismiss={() => setMsg(null)}>{msg.text}</Message></div>}
         </div>
+      )}
+      {pickOpen && (
+        <CustomerPickModal storeId={storeId} checkId={checkId} mode="add" castIds={castIds} onClose={() => setPickOpen(false)}
+          onPicked={async (name) => { setPickOpen(false); setMsg({ kind: "success", text: `${name ?? "お客様"} を追加しました` }); await load(); await onChanged(); }} />
       )}
       {/* ★裁定370（GV-21・便 GV-A）: 「誰の注文を付ける」セクションは廃止＝明細の各商品行の「お客様」チップ（register-board）から同じモーダルで付ける。用語は「お客様」で統一 */}
       {/* キープ出し＝顧客の active なキープから 1 タップ（bottle_keep_out・冪等キーは押下ごと） */}

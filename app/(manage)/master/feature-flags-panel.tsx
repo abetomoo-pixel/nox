@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import SegSelect from "@/components/ui/seg-select";
+import { FieldStack, ResponsiveTable } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）
 
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
@@ -76,7 +77,7 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
         切替は監査（flag_toggle）に記録されます。
       </p>
       {loadErr && <Message kind="error" style={{ margin: "0 0 10px" }}>{loadErr}</Message>}
-      <div className="nox-tablewrap stickyfirst">{/* ★M18（裁定247・2026-09-18）: 先頭列（機能）を sticky-left＝店舗列が増えて横スクロールしても操作セルの行見出しが残る */}
+      <ResponsiveTable className="stickyfirst">{/* ★裁定382（GV-B W-1）: <600 は 1 行 1 カード（機能／会社の既定／店舗ごと）。★M18（裁定247・2026-09-18）: 先頭列（機能）を sticky-left */}
         <table className="nox-table">
           <thead>
             <tr>
@@ -124,12 +125,11 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
             })}
           </tbody>
         </table>
-      </div>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-        <label style={{ fontSize: 12, color: "var(--sub)" }}>理由（任意）{" "}
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="例: 9月からスタッフシフトを試験運用" style={inp} maxLength={200} />
-        </label>
-        <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>次の切替に添えて監査へ記録します。</span>
+      </ResponsiveTable>
+      <div style={{ marginTop: 10 }}>
+        <FieldStack label="理由（任意）" note="次の切替に添えて監査へ記録します。">{/* ★裁定382: ラベル上・入力下 */}
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="例: 9月からスタッフシフトを試験運用" style={{ ...inp, width: "100%", maxWidth: 360 }} maxLength={200} />
+        </FieldStack>
       </div>
       {msg && <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "10px 0 0" }}>{msg.text}</Message>}{/* ★裁定281（便 AB） */}
       <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>

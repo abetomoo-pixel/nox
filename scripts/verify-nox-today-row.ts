@@ -11,7 +11,7 @@
  *  逆テスト 2 本（手動・各 1 回）: isArrivedStatus から "late" を外す→tr(1-1)／(2-2) 赤・戻して緑／punchInAfterAtt の !hasIn を落とす→tr(6-2) 赤・戻して緑。
  */
 import fs from "node:fs";
-import { firstInLastOut, hmJstOf, isArrivedStatus, okuriButtonOf, outButtonOf, outDialogNeeded, punchInAfterAtt, punchTimeLabel } from "../lib/nox/shift/today-row";
+import { firstInLastOut, hmJstOf, isArrivedStatus, okuriButtonOf, outButtonOf, outDialogNeeded, punchInAfterAtt, punchTimeLabel, attRowModeOf, arrivedChipOf, dohanToggleOf } from "../lib/nox/shift/today-row"; // ★裁定383（GV-B W-13）: +3
 import { ackOptionsOf, correctionSummaryOf, disputedOf, hmOnBizOf, jstIsoOf, requestArgsOf, requestInitOf, termOf } from "../lib/nox/shift/punch-correction"; // ★0154 D1
 
 let pass = 0;
@@ -85,6 +85,19 @@ check("tr(7-9) 配線: shift-board＝調整モーダル タブ①の PunchCorrec
   check("tr(8-3) 実費以外の店はダイアログなし＝そのまま退勤", !outDialogNeeded({ okuriActual: false, issuedToday: false }));
   const dlg = fs.readFileSync("components/nox/okuri-out-dialog.tsx", "utf8");
   check("tr(8-4) 配線: shift-board＝okuriButtonOf／outPressed（outDialogNeeded）／issueOnly は transport_issue_bulk だけ・ダイアログ＝mode と「退勤のみ」（onOutOnly）", /okuriButtonOf\(\{ canRecord, okuriActual/.test(sb) && /outDialogNeeded\(\{ okuriActual, issuedToday: okuriIssued\.has\(castId\) \}\)/.test(sb) && /onClick=\{\(\) => void outPressed\(s\.cast_id\)\}>退勤<\/button>/.test(sb) && /okuriDlg\.mode === "issueOnly"/.test(sb) && /from\("transport"\)\.select\("cast_id"\)\.eq\("store_id", storeId\)\.eq\("biz_date", todayDate\)/.test(sb) && dlg.includes('data-okuri-outonly="1">退勤のみ</button>') && dlg.includes('mode === "issueOnly" ? "送りを発行" : onOutOnly ? "送りを発行して退勤" : "確定して退勤"'));
+}
+
+// ★裁定383（GV-B W-13・2026-10-15）: 今日タブの出勤記録は 3 状態＝出勤前（5 択）／出勤後（出勤チップ＋同伴だけ）／退勤後（実績チップだけ・操作なし）・遅刻は猶予から自動
+{
+  const sb = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
+  check("tr(9-1) attRowModeOf: in も out もなし＝pre／in だけ＝arrived／out あり＝done（in なしの out も done）", attRowModeOf({ hasIn: false, hasOut: false }) === "pre" && attRowModeOf({ hasIn: true, hasOut: false }) === "arrived" && attRowModeOf({ hasIn: true, hasOut: true }) === "done" && attRowModeOf({ hasIn: false, hasOut: true }) === "done");
+  check("tr(9-2) arrivedChipOf: 猶予内＝「出勤 HH:MM」／猶予超過＝「遅刻 HH:MM」（late）／退勤後＝「出勤 HH:MM〜HH:MM」（late は維持）・dohanToggleOf＝常に出す・dohan なら set",
+    JSON.stringify(arrivedChipOf({ inHm: "20:05", outHm: null, lateMin: 0 })) === JSON.stringify({ label: "出勤 20:05", late: false }) && JSON.stringify(arrivedChipOf({ inHm: "20:25", outHm: null, lateMin: 10 })) === JSON.stringify({ label: "遅刻 20:25", late: true })
+    && JSON.stringify(arrivedChipOf({ inHm: "20:25", outHm: "01:30", lateMin: 10 })) === JSON.stringify({ label: "出勤 20:25〜01:30", late: true }) && arrivedChipOf({ inHm: null, outHm: null, lateMin: null }).label === "出勤 --:--"
+    && JSON.stringify(dohanToggleOf("dohan")) === JSON.stringify({ show: true, set: true }) && JSON.stringify(dohanToggleOf("arrived")) === JSON.stringify({ show: true, set: false }) && dohanToggleOf(null).set === false);
+  check("tr(9-3) 配線: 行に data-att-mode＝attRowModeOf・pre だけ 5 択セグメント・arrived／done はチップ（data-att-chip）＋同伴トグル（data-dohan-toggle）・done は操作列も非表示（減額／確認へ／確定）",
+    sb.includes("data-att-mode={attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm })}") && sb.includes("const chip = arrivedChipOf({ inHm: io?.inHm, outHm: io?.outHm, lateMin: n });") && sb.includes("const dh = dohanToggleOf(att?.status);") && sb.includes("data-att-chip") && sb.includes("data-dohan-toggle")
+    && sb.includes('attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm }) === "pre" && (canRecord ? (') && sb.includes('attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm }) !== "done" && (/* ★裁定383'));
 }
 
 if (fails.length) {

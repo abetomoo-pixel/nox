@@ -11,6 +11,7 @@ import { Message } from "@/components/ui/toast";
 import { createClient } from "@/lib/supabase/client";
 import { checkCustomerErrJa } from "@/components/nox/check-customers-card";
 import * as t from "@/lib/nox/ui/theme";
+import CustomerPickModal from "@/components/nox/customer-pick-modal"; // ★裁定377（GV-B W-7）: 持ち主は共通モーダルで選ぶ
 
 type Named = { customer_id: string; pos: number; name: string };
 
@@ -24,7 +25,7 @@ export function keepErrJa(msg: string | null | undefined): string {
   return checkCustomerErrJa(m);
 }
 
-export default function LineKeepButton({ storeId, checkId, lineId, productId, lineName, lineCustomerId, kept, onDone, onNeedCustomer }: {
+export default function LineKeepButton({ storeId, checkId, lineId, productId, lineName, lineCustomerId, kept, onDone }: {
   storeId: string; checkId: string; lineId: string; productId: string | null | undefined; lineName: string;
   lineCustomerId?: string | null;
   /** すでにキープ登録済みの行（親の判定） */
@@ -41,6 +42,8 @@ export default function LineKeepButton({ storeId, checkId, lineId, productId, li
   const [pct, setPct] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [pick, setPick] = useState(false); // ★裁定377
+  const [custName, setCustName] = useState<string>("");
 
   if (kept) return <span style={{ ...t.tag, fontSize: 10, color: "var(--ok)", borderColor: "var(--line2)", whiteSpace: "nowrap" }}>キープ済み</span>;
   if (!productId) return null;
@@ -83,21 +86,22 @@ export default function LineKeepButton({ storeId, checkId, lineId, productId, li
           {named === null && <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>読み込み中…</p>}
           {named !== null && named.length === 0 && !err && (
             <>
-              <Message kind="info">この伝票にはまだ顧客が付いていません。先に「指名・席」タブで顧客を追加してください。</Message>
+              <Message kind="info">この伝票にはまだお客様が付いていません。「お客様を選ぶ」から選べます（伝票にも併存で追加されます）。</Message>
               <div className="nox-formmodal-foot">
-                <button type="button" style={t.btnGold} onClick={() => { setOpen(false); onNeedCustomer(); }}>指名・席タブへ</button>
+                <button type="button" style={t.btnGold} onClick={() => setPick(true)} data-keep-pick="1">お客様を選ぶ</button>
                 <button type="button" style={t.btnGhost} onClick={() => setOpen(false)}>キャンセル</button>
               </div>
             </>
           )}
           {named !== null && named.length > 0 && (
             <>
-              <label style={{ ...t.fieldLabel, display: "block", marginBottom: 8 }}>
-                持ち主（この伝票の顧客）
-                <select value={cust} onChange={(e) => setCust(e.target.value)} disabled={busy} style={{ ...t.input, width: "100%", marginTop: 4 }}>
-                  {named.map((r) => <option key={r.customer_id} value={r.customer_id}>{r.name}</option>)}
-                </select>
-              </label>
+              <div style={{ ...t.fieldLabel, display: "block", marginBottom: 8 }} data-keep-owner="1">{/* ★裁定377（GV-B W-7）: 持ち主＝共通モーダル（①この伝票のお客様②候補③全員④新規） */}
+                持ち主（お客様）
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+                  <b style={{ fontSize: 14, color: "var(--champ)" }}>{custName || named.find((r) => r.customer_id === cust)?.name || "未選択"}</b>
+                  <button type="button" style={{ ...t.btnSecondary48, minHeight: 40 }} disabled={busy} onClick={() => setPick(true)}>お客様を選ぶ</button>
+                </div>
+              </div>
               <label style={{ ...t.fieldLabel, display: "block", marginBottom: 8 }}>
                 ボトル名（60 文字まで・既定は商品名）
                 <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} disabled={busy} style={{ ...t.input, width: "100%", marginTop: 4 }} />
@@ -116,6 +120,20 @@ export default function LineKeepButton({ storeId, checkId, lineId, productId, li
           )}
           {named !== null && named.length === 0 && err && <Message kind="error">{err}</Message>}
         </Modal>
+      )}
+      {pick && (/* ★裁定377: select モード＝選んだお客様が伝票に未付与なら併存で追加してから持ち主にする */
+        <CustomerPickModal storeId={storeId} checkId={checkId} mode="select" onClose={() => setPick(false)}
+          onPicked={async (name, id) => {
+            setPick(false);
+            if (!id) return;
+            if (!(named ?? []).some((r) => r.customer_id === id)) {
+              const r1 = await supabase.rpc("check_customer_add", { p_check_id: checkId, p_customer_id: id });
+              if (r1.error && !r1.error.message.includes("exists")) { setErr(keepErrJa(r1.error.message)); return; }
+              const { data } = await supabase.rpc("check_customer_names", { p_check_id: checkId });
+              setNamed((data ?? []) as Named[]);
+            }
+            setCust(id); setCustName(name ?? "");
+          }} />
       )}
     </>
   );

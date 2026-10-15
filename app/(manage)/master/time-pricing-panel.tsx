@@ -9,6 +9,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast, { useToast } from "@/components/ui/toast";
+import { FieldStack, SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）
 
 export type TimePricing = {
   set_min: number; set_fee: number; ext_min: number; ext_fee: number;
@@ -22,7 +23,7 @@ const stepBtn: React.CSSProperties = {
   ...t.btnGhost, width: 30, height: 30, padding: 0, fontSize: 16, fontWeight: 700,
   display: "inline-flex", alignItems: "center", justifyContent: "center",
 };
-const segBtn = (on: boolean): React.CSSProperties => ({
+const _segBtn = (on: boolean): React.CSSProperties => ({ // ★裁定382: SegmentTabs へ置換（互換で残す・未使用）
   fontFamily: "inherit", fontWeight: 800, fontSize: 13, padding: "8px 18px", borderRadius: 9, cursor: "pointer",
   border: on ? "1px solid var(--primary)" : "1px solid var(--line2)",
   background: on ? "var(--primary-soft)" : "transparent", // ★夜間レーン裁定③: 選択=青soft（旧: 金グラデ）
@@ -36,6 +37,7 @@ function errJa(msg: string | undefined): string {
   return msg;
 }
 
+void _segBtn;
 export default function TimePricingPanel({ storeId, initial }: { storeId: string; initial: TimePricing }) {
   const supabase = createClient();
   const { msg, setMsg } = useToast();
@@ -74,12 +76,9 @@ export default function TimePricingPanel({ storeId, initial }: { storeId: string
       <button type="button" style={stepBtn} onClick={() => set(value + 500)}>＋</button>
     </div>
   );
+  // ★裁定382（GV-B W-1）: ラベル上・入力下＝ステッパー（分）と金額は 1 行
   const row = (label: string, minEl: React.ReactNode, feeEl: React.ReactNode) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-      <span style={{ fontSize: 12.5, color: "var(--sub)", minWidth: 84 }}>{label}</span>
-      {minEl}
-      {feeEl}
-    </div>
+    <FieldStack label={label}>{minEl}{feeEl}</FieldStack>
   );
 
   return (
@@ -91,19 +90,14 @@ export default function TimePricingPanel({ storeId, initial }: { storeId: string
         自動モードの時間料金は伝票グループ A に付きます（グループ分割の伝票は手動で調整してください）。
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12.5, color: "var(--sub)", minWidth: 84 }}>時間制課金</span>
-          <button type="button" style={segBtn(mode === "manual")} onClick={() => setMode("manual")}>手動</button>
-          <button type="button" style={segBtn(mode === "auto")} onClick={() => setMode("auto")}>自動</button>
-          <span style={{ fontSize: 11, color: "var(--sub)" }}>自動＝経過から算出・手動＝明細行を手入力</span>
-        </div>
+        <FieldStack label="時間制課金" note="自動＝経過から算出・手動＝明細行を手入力">{/* ★裁定382: セグメント 48px 幅 100% 金塗り */}
+          <SegmentTabs value={mode} onChange={(v) => setMode(v)} options={[["manual", "手動"], ["auto", "自動"]] as const} ariaLabel="時間制課金" />
+        </FieldStack>
         {row("セット料金", minStepper(setMin, setSetMin), feeStepper(setFee, setSetFee))}
         {row("延長料金", minStepper(extMin, setExtMin), feeStepper(extFee, setExtFee))}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12.5, color: "var(--sub)", minWidth: 84 }}>単位</span>
-          <button type="button" style={segBtn(per === "table")} onClick={() => setPer("table")}>卓単位</button>
-          <button type="button" style={segBtn(per === "person")} onClick={() => setPer("person")}>人数単位</button>
-        </div>
+        <FieldStack label="単位">
+          <SegmentTabs value={per} onChange={(v) => setPer(v)} options={[["table", "卓単位"], ["person", "人数単位"]] as const} ariaLabel="単位" />
+        </FieldStack>
         {/* E8-1b F1: 単位の説明を明文化（実機目視所感＝卓/名の意味が伝わらない） */}
         <p style={{ fontSize: 11.5, color: "var(--sub)", margin: 0, lineHeight: 1.7 }}>
           卓単位＝1伝票につきセット・延長を各1つ計上します（人数に関係なく同額）。<br />

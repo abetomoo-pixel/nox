@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import { TelLink } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B W-10）
 import Modal from "@/components/ui/modal"; // ★裁定253 R7: 顧客編集はモーダル
 import Picker from "@/components/nox/picker";
 
@@ -241,7 +242,7 @@ export default function CustomerDetail({
         <p style={{ ...t.pheadP, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span>
             {cust.furigana ? `${cust.furigana}・` : ""}担当 {castName(cust.cast_id)}
-            {cust.tel ? `・${cust.tel}` : ""}
+            {cust.tel ? <>・<TelLink tel={cust.tel} /></> : ""}{/* ★裁定381: tel: リンク */}
           </span>
           {canAssign && !cust.anonymized_at && (
             <button

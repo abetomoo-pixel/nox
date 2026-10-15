@@ -75,7 +75,7 @@ export default function MasterSubnav() {
       {/* 入口内タブ＝タブが2つ以上あるときだけ出す（1件のタブ行は情報量ゼロ）。既存の page／?tab=／#hash をそのまま Link で持つ */}
       {tabs.length > 1 && (
         <div className="nox-ctoolbar" style={{ flexWrap: "nowrap", overflowX: "auto" }}>
-          <div className="nox-seg" style={{ flex: "0 0 auto" }}>
+          <div className="nox-seg nox-segtabs" style={{ flex: "1 1 auto" }} data-segtabs="1">{/* ★裁定382（GV-B W-1）: 48px・幅 100%・金塗り・横スクロール 1 段 */}
             {tabs.map((p) => {
               const on = p.href === cur?.tab?.href;
               return (

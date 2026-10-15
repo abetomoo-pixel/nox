@@ -18,7 +18,7 @@ export default async function WishesPage() {
   const supabase = await createClient();
   const { data: storeRow } = await supabase.from("stores").select("settings_json").limit(1).maybeSingle(); // cast の RLS で自店 1 行（mig0106）
   const sj = (storeRow?.settings_json ?? {}) as Record<string, unknown>;
-  const castConfirm = sj.shift_cast_confirm === true; // ★裁定245-1／345: 店のキャスト確認（内訳の語だけに使う）
+  const castConfirm = true; // ★裁定380（GV-B W-9）: 店設定 shift_cast_confirm は廃止＝送り返し（proposed）は常に「キャスト確認待ち」
   const cutoff = typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00";
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   // ★裁定337（0167・便 X-13d-2b）: キャスト個別（casts.shift_request_mode・auth_cast_id で自分の行）→店の既定 で解決。'off_only' の候補反転（M4）も同じ解決値（autoassign-mode.castModeOf）

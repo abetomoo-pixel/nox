@@ -2,7 +2,8 @@
 //   /mine 希望（app/mine/wishes）・/mine 直近のシフト（app/mine/page）・管理側（app/(manage)/shift/shift-board）の 3 画面が
 //   同じ純関数（wishStateOf）から語を出す＝希望側が独自の状態を持たない。
 //   DB の実体は 2 列だけ: shift_wishes.status（pending／accepted／rejected／withdrawn）と shifts.status（planned／proposed／confirmed）。
-//   ★shift_cast_confirm OFF の店は「採用＝確定」＝採用（shift_wish_decide）の直後に shift_confirm_bulk([生成 shift]) を呼ぶ（client・RPC 不触）。
+//   ★裁定380（GV-B W-9・2026-10-15）: 店設定 shift_cast_confirm は UI から廃止＝3 本道（希望どおり採用＝採用直後に shift_confirm_bulk で即確定／調整して確定＝shift_set confirmed／
+//     調整して送り返す＝shift_set planned→shift_propose＝キャスト確認待ち）。castConfirm 引数は常に true で呼ぶ（proposed＝「キャスト確認待ち」）。
 //     ラベルは常に shifts.status から導く（OFF の店の planned／proposed 残存行を「確定」と呼ばない＝給与の分母は confirmed のみ）。
 //   管理側の確定ボタンは「代行確定」（manager 以上・shift_confirm_bulk＝audit action は既存を流用）。
 export type WishStateKey = "pending" | "accepted_wait" | "accepted_fixed" | "rejected" | "withdrawn";

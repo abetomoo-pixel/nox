@@ -266,15 +266,23 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
         )}
       </section>}
 
-      {/* ★裁定245-1: キャスト確認の任意化（settings_json.shift_cast_confirm・既定 OFF）。shift/page.tsx が読む */}
-      {on("shift") && <section className="nox-cardtop" style={t.card}>
+      {/* ★裁定380（GV-B W-9）: キャスト確認トグル（shift_cast_confirm）は UI から廃止＝希望は 3 本道（希望どおり採用＝即確定／調整して確定／調整して送り返す）。
+          自動確定時間（送り返したまま放置された分を自動で確定する時間）は 0172 の店設定キー＝表示先行（非活性） */}
+      {on("shift") && <section className="nox-cardtop" style={t.card} data-shift-ops="1">
         <h2 style={{ ...secTitle, margin: "0 0 8px" }}>シフト運用</h2>
-        {loaded && (
-          <StoreFlagToggle key={`${storeSel}:${cur.shift_cast_confirm}`} storeId={storeSel} flagKey="shift_cast_confirm" isOwner={isOwner}
-            label="キャスト確認"
-            desc="ONにすると、承認後にキャストの確認を挟みます。OFF の店は承認した時点で確定できます"
-            initial={cur.shift_cast_confirm} onSaved={() => load()} />
-        )}
+        <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
+          キャストの希望は「希望どおり採用（即確定）」「調整して確定」「調整して送り返す（キャスト確認待ち）」の 3 つで処理します。店ごとの切替はありません。
+        </p>
+        <label style={{ display: "grid", gap: 4, maxWidth: 320 }}>
+          <span style={t.fieldLabel}>送り返しの自動確定時間（準備中）</span>
+          <select disabled style={{ ...t.input, opacity: 0.6 }} defaultValue="" aria-disabled>
+            <option value="">自動確定しない</option>
+            <option value="24">24 時間後</option>
+            <option value="48">48 時間後</option>
+            <option value="72">72 時間後</option>
+          </select>
+          <span style={{ fontSize: 11, color: "var(--sub)" }}>送り返したまま確認されない希望を、設定した時間後に自動で確定します（次のデータ更新で有効になります）。</span>
+        </label>
       </section>}
 
       {/* ★0155（裁定309-1／309-2・便 S-1）: 売掛の店設定（settings_json.ar_enabled＝check_pay の ar 分岐が ar_policy_ok で読む）＋操作ログ保持の注記（7 年固定＝店設定にしない）。

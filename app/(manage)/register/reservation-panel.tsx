@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import { SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定378（GV-B W-8）
 import CastPicker from "@/components/nox/cast-picker";
 import { businessHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import Picker from "@/components/nox/picker";
@@ -157,7 +158,8 @@ export default function ReservationPanel({
   // 来店処理（行ごとの展開）
   const [visitId, setVisitId] = useState<string | null>(null);
   const [vSeat, setVSeat] = useState("");
-  const [vNom, setVNom] = useState("");   // ''=予約の nom_type に従う（null 送信）
+  const [vNom, setVNom] = useState("");   // ★裁定378（GV-B W-8）: 来店時の指名種別＝4 分割（hon／jonai／dohan／free・「予約どおり」は廃止＝予約の nom_type を初期値に）
+  const [vCast, setVCast] = useState(""); // ★裁定378: 来店時のキャスト（予約の担当が初期値・同伴は相手・フリーは非表示）
 
   // 予約編集（F3b-B 新設・booked のみ・行ごとの展開）
   const [editId, setEditId] = useState<string | null>(null);
@@ -338,17 +340,22 @@ export default function ReservationPanel({
   async function toCheck(r: Reservation) {
     if (!vSeat) { setMsg("卓を選択してください"); return; }
     setMsg(null); setBusy(true);
-    const { error } = await supabase.rpc("reservation_to_check", {
+    const { data: checkId, error } = await supabase.rpc("reservation_to_check", {
       p_reservation_id: r.id, p_seat_id: vSeat, p_nom_type: vNom || null,
     });
+    if (error) { setBusy(false); setMsg(`来店処理に失敗: ${rpcErrJa(error.message)}`); return; }
+    // ★裁定378（GV-B W-8）: 選んだキャストが予約の担当と違う／種別を変えた→開いた伝票の名簿を check_set_nominations で上書き（RPC 不変・1 件）
+    if (vCast && vNom && vNom !== "free" && typeof checkId === "string" && (vCast !== r.cast_id || (r.nom_type ?? "free") !== vNom)) {
+      const { error: eN } = await supabase.rpc("check_set_nominations", { p_check_id: checkId, p_nominations: [{ cast_id: vCast, weight: 1, nom_kind: vNom === "dohan" ? "hon" : vNom, is_dohan: vNom === "dohan", ...(vNom === "dohan" ? { dohan_count: 1 } : {}) }] });
+      if (eN) setMsg(`伝票は開きましたが指名の設定に失敗: ${rpcErrJa(eN.message)}`);
+    }
     setBusy(false);
-    if (error) { setMsg(`来店処理に失敗: ${rpcErrJa(error.message)}`); return; }
     // 指名 cast が退店済み（active casts に不在）なら指名スキップで開店した旨を表示（発見3）
     const skipped = r.cast_id != null && !casts.some((c) => c.id === r.cast_id);
     setMsg(skipped
       ? "伝票を開きました（指名キャストは退店済みのため指名なしで開店しています）"
       : "予約から伝票を開きました（卓席・会計タブで操作できます）");
-    setVisitId(null); setVSeat(""); setVNom("");
+    setVisitId(null); setVSeat(""); setVNom(""); setVCast("");
     await load();
   }
 
@@ -478,13 +485,13 @@ export default function ReservationPanel({
                     </>
                   )}
                   {r.status === "booked" && (
-                    <button style={btnDark} disabled={busy}
+                    <button style={{ ...btnDark, minHeight: 48 }} disabled={busy} data-rsv-visit-btn="1"
                       onClick={() => {
-                        if (visitId === r.id) { setVisitId(null); setVSeat(""); setVNom(""); return; }
+                        if (visitId === r.id) { setVisitId(null); setVSeat(""); setVNom(""); setVCast(""); return; }
                         setVisitId(r.id); setEditId(null);
                         // 席予約は予約卓を既定選択（使用中なら空＝候補からも除外され自然に別卓選択）
                         setVSeat(r.seat_id && !openSeats[r.seat_id] ? r.seat_id : "");
-                        setVNom("");
+                        setVNom(r.nom_type ?? "free"); setVCast(r.cast_id ?? ""); // ★裁定378: 予約の種別・担当が初期値
                       }}>
                       来店済
                     </button>
@@ -523,26 +530,37 @@ export default function ReservationPanel({
               )}
               {/* 来店処理（卓選択 + nom_type 上書き → reservation_to_check・席予約は予約卓を既定選択） */}
               {visitId === r.id && r.status === "booked" && (
-                <div className="nox-inset" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8, padding: 10 }}>
+                <div className="nox-inset" data-rsv-visit="1" style={{ display: "grid", gap: 10, marginTop: 8, padding: 12 }}>{/* ★裁定378（GV-B W-8）: 卓タイル→指名種別 4 分割（「予約どおり」廃止・予約の担当は初期値）→キャスト選択（同伴は相手・フリーは非表示）→「伝票を開く」主 */}
                   <span style={t.fieldLabel}>卓</span>
-                  <select value={vSeat} onChange={(e) => setVSeat(e.target.value)} style={input}>
-                    <option value="">空き卓を選択</option>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: 6 }} data-rsv-seats="1">
                     {seatOptions(r).map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}{s.kind ? `（${s.kind}）` : ""}{r.seat_id === s.id ? "（予約卓）" : ""}
-                      </option>
+                      <button key={s.id} type="button" aria-pressed={vSeat === s.id} onClick={() => setVSeat(s.id)}
+                        style={{ ...btnLight, minHeight: 48, justifyContent: "center", ...(vSeat === s.id ? { background: "var(--gold)", color: "#000", border: "1px solid var(--gold)", fontWeight: 800 } : {}) }}>
+                        {s.name}{s.kind ? `（${s.kind}）` : ""}{r.seat_id === s.id ? "・予約卓" : ""}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                   {r.seat_id && openSeats[r.seat_id] && (
                     <span style={{ fontSize: 11.5, color: "var(--bad)", fontWeight: 700 }}>
                       予約卓（{seatName(r.seat_id)}）は使用中のため別の卓を選択してください
                     </span>
                   )}
                   <span style={t.fieldLabel}>指名種別</span>
-                  <NomSeg value={vNom} onChange={setVNom}
-                    emptyLabel={r.nom_type ? `予約どおり（${NOM_LABEL[r.nom_type]}）` : "指定なし"} />
-                  <button style={btnDark} disabled={busy || !vSeat} onClick={() => void toCheck(r)}>伝票を開く</button>
-                  <button style={btnLight} onClick={() => setVisitId(null)}>閉じる</button>
+                  <SegmentTabs value={(vNom || "free") as "hon" | "jonai" | "dohan" | "free"} onChange={(v) => setVNom(v)} ariaLabel="指名種別"
+                    options={[["hon", "本指名"], ["jonai", "場内"], ["dohan", "同伴"], ["free", "フリー"]] as const} />
+                  {vNom && vNom !== "free" && (
+                    <>
+                      <span style={t.fieldLabel}>{vNom === "dohan" ? "同伴の相手" : "キャスト"}</span>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }} data-rsv-casts="1">
+                        {casts.map((c) => (
+                          <button key={c.id} type="button" aria-pressed={vCast === c.id} onClick={() => setVCast(c.id)}
+                            style={{ ...btnLight, minHeight: 40, ...(vCast === c.id ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface2)", fontWeight: 800 } : {}) }}>{c.name}</button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  <button type="button" style={t.btnPrimary56} disabled={busy || !vSeat} onClick={() => void toCheck(r)} data-rsv-open="1">伝票を開く</button>
+                  <div style={t.btnRow48}><button type="button" style={t.btnSecondary48} onClick={() => setVisitId(null)}>閉じる</button></div>
                 </div>
               )}
               {/* 予約編集（F3b-B 新設・booked のみ・全フィールド明示送信＝規約7） */}

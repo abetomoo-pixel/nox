@@ -4,8 +4,10 @@ import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf, normTargetsOf, 
 import type { StoreSettings } from "@/lib/nox/store-systems";
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
+import { ResponsiveTable, SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）・373（W-3）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import { normPenaltyModeOf } from "@/lib/nox/pay"; // ★裁定373
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定339: 一覧読取の error を和文で赤帯へ
 import { slideAtLabelOf, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★裁定338（0168）: 判定期間の単位ラベル
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
@@ -843,8 +845,8 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
           <span style={note}>表はこの期間の目標を表示します（未設定は —）。</span>
         </div>
       )}
-      <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
-      <table className="nox-table nox-normtable" style={{ marginBottom: 10 }}>
+      <ResponsiveTable className="plain">{/* ★裁定382（GV-B W-1）: <600 は 1 行 1 カード。★M1 第 2 レーン（裁定251）: 横スクロール容器 */}
+      <table className="nox-table nox-normtable nox-rtable" style={{ marginBottom: 10 }}>
         <thead><tr>
           {isManagerUp && <th style={{ width: 34 }}><input type="checkbox" checked={allOn} onChange={toggleAll} aria-label="全員を選択" disabled={busy} /></th>}
           {["キャスト", "期間", ...axisCols.map((k) => `${NORM_AXIS_LABEL[k]}(${NORM_AXIS_UNIT[k]})`)].map((h) => <th key={h}>{h}</th>)}{/* ★裁定347: 採用軸だけ */}
@@ -864,7 +866,7 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
           {casts.length === 0 && <tr><td colSpan={(isManagerUp ? 3 : 2) + axisCols.length} style={note}>在籍キャストがいません</td></tr>}
         </tbody>
       </table>
-      </div>
+      </ResponsiveTable>
       {isManagerUp ? (
         <>
           <div className="nox-inset" style={{ padding: "10px 12px" }}>
@@ -1015,7 +1017,29 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           {num("hours_per_shift")}{/* ★0154 D3: fine_absent／fine_late は計算に使わない＝欄を隠す（save は現値を送る） */}
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={penalty.norm_on} onChange={(e) => setPenalty({ ...penalty, norm_on: e.target.checked })} /> {PENALTY_LABEL_JA.norm_on}</label>
-          {num("norm_days_flat")}{num("norm_days_per")}{num("norm_dohan_flat")}{num("norm_dohan_per")}
+          {/* ★裁定373（GV-B W-3）: 軸（出勤日数／同伴）ごとに「定額／不足 1 件ごと」のセグメントで 1 方式・入力は 1 つ・未選択側は 0（RPC が null を拒むため＝0172 で null 許容を同乗・仮決め）。両方入っている既存店は「不足ごと」扱い */}
+          {([["days", "出勤日数", "norm_days_flat", "norm_days_per", "日"], ["dohan", "同伴", "norm_dohan_flat", "norm_dohan_per", "本"]] as const).map(([ax, label, fk, pk, unit]) => {
+            const flat = penalty[fk] as number, per = penalty[pk] as number;
+            const mode = normPenaltyModeOf(flat, per);
+            const both = flat > 0 && per > 0;
+            return (
+              <div key={ax} className="nox-fieldstack" data-penalty-axis={ax} data-penalty-mode={mode} style={{ marginBottom: 0 }}>
+                <span className="l">{label}ノルマ 未達の減額</span>
+                <div className="f">
+                  <SegmentTabs value={mode} ariaLabel={`${label}ノルマ 未達の減額の方式`}
+                    onChange={(m) => setPenalty(m === "per" ? { ...penalty, [fk]: 0, [pk]: per > 0 ? per : Math.max(flat, 0) } : { ...penalty, [pk]: 0, [fk]: flat > 0 ? flat : Math.max(per, 0) })}
+                    options={[["flat", "定額"], ["per", `不足 1 ${unit}ごと`]] as const} />
+                  <label style={{ fontSize: 12 }}>
+                    <input type="number" min={0} value={mode === "per" ? per : flat} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur}
+                      aria-label={`${label}ノルマ 未達の減額（${mode === "per" ? `不足 1 ${unit}ごと` : "定額"}）`}
+                      onChange={(e) => setPenalty(mode === "per" ? { ...penalty, [pk]: Number(e.target.value), [fk]: 0 } : { ...penalty, [fk]: Number(e.target.value), [pk]: 0 })}
+                      style={numFieldStyle(7)} /> 円{mode === "per" ? `／${unit}` : ""}
+                  </label>
+                </div>
+                {both && <div className="n" data-penalty-both="1">定額 {flat.toLocaleString()} 円と不足ごと {per.toLocaleString()} 円の両方が入っています＝「不足ごと」扱い（保存で定額は 0 になります）</div>}
+              </div>
+            );
+          })}
           {num("late_grace_min")}{num("early_grace_min")}{num("over_grace_min")}
           <button style={btnDark} onClick={save}>保存</button>
         </div>

@@ -117,7 +117,7 @@ check("ms(2-6) 裁定311: paymentMethodLabelOf／payoutDiffNoteOf の文言・pa
 // ★裁定313（2026-09-29・便 X-8-2）: 今日タブの行＝1 段。操作列は「時刻修正」「減額」・行内テキストリンク 0（精算調整を登録／を修正）・出勤記録は .nox-attrow
 check("ms(2-7) 裁定313: shift-board 今日タブ＝時刻修正／減額ボタン・行内リンク 0・nox-attrow・退勤は同段・操作列は isManagerUp のときだけ",
   shiftSrc.includes(">時刻修正</button>") && shiftSrc.includes(">減額</button>") && !shiftSrc.includes("精算調整を登録</button>") && !/\{KIND_LABEL\[k\]\}を修正/.test(shiftSrc)
-  && shiftSrc.includes('<div className="nox-attrow">') && shiftSrc.includes("{isManagerUp && <th>操作</th>}") && shiftSrc.includes("出勤（出勤・遅刻・同伴）を記録すると押せます"));
+  && shiftSrc.includes('<div className="nox-attrow" data-att-mode={attRowModeOf(') /* ★裁定383（便 GV-B）: 3 状態の印 */ && shiftSrc.includes("{isManagerUp && <th>操作</th>}") && shiftSrc.includes("出勤（出勤・遅刻・同伴）を記録すると押せます"));
 // ★裁定316（便 X-8-13）: 確定は期間終了の翌営業日から。文言と判定は純関数 1 本・API は 400 'period not ended'・rpcErrJa は error に倒れる
 const finSrc = fs.readFileSync("app/api/payroll/finalize/route.ts", "utf8");
 const payBoardSrc = fs.readFileSync("app/(manage)/payroll/payroll-board.tsx", "utf8");
@@ -133,7 +133,7 @@ const regSrc = fs.readFileSync("app/(manage)/register/register-board.tsx", "utf8
 const keepSrc = fs.readFileSync("components/nox/line-keep-button.tsx", "utf8");
 check("ms(2-9) 裁定314／X-8-8／X-8-9: ボトル行のキープ（bottle_keep_register・p_check_line_id・キープ済み・指名・席タブへ）・QR 全画面・取消して分け直す（receipt_issue_void）",
   regSrc.includes('l.kind === "bottle" && check && (') && regSrc.includes("<LineKeepButton") && regSrc.includes('onNeedCustomer={() => setCustPick({') /* ★裁定368（便 GV-A）: 顧客セクションへ飛ばず同じモーダル */
-  && keepSrc.includes('rpc("bottle_keep_register"') && keepSrc.includes("p_check_line_id: lineId") && keepSrc.includes("キープ済み") && keepSrc.includes("指名・席タブへ")
+  && keepSrc.includes('rpc("bottle_keep_register"') && keepSrc.includes("p_check_line_id: lineId") && keepSrc.includes("キープ済み") && keepSrc.includes('data-keep-pick="1">お客様を選ぶ</button>') /* ★裁定377（便 GV-B）: 「指名・席タブへ」→共通モーダル */
   && regSrc.includes('className="nox-rcpt-qr"') && regSrc.includes('className="nox-qrfull"') && regSrc.includes(">取消して分け直す</button>") && regSrc.includes('rpc("receipt_issue_void"')
   && messageKindOf("領収書の取消に失敗しました: 権限がありません（店長以上）") === "error" && messageKindOf("領収書を取り消しました。金額を入れて発行し直せます") === "success");
 
@@ -146,7 +146,7 @@ check("ms(2-10) 裁定318: normalizeHHMM（2000→20:00・20:00・9:30→09:30�
   && HM_FORMAT_ERR === "時刻の形式が不正です（例 2000・20:00）" && messageKindOf(HM_FORMAT_ERR) === "error"
   && hmSrc.includes('inputMode="numeric"') && hmSrc.includes("onBlur=") && hmSrc.includes("normalizeHHMM(e.target.value, maxHour)")
   && !/HH:MM（00:00〜47:59）で入力してください|HH:MM 形式で入力してください/.test(fs.readFileSync("lib/nox/shift/punch-correction.ts", "utf8") + shiftSrc)
-  && (shiftSrc.match(/<HmInput /g) ?? []).length === 4);
+  && (shiftSrc.match(/<HmInput /g) ?? []).length === 6); // ★裁定380（便 GV-B）: 希望の調整モーダル（開始／終了）で +2
 // ★裁定317（便 X-9-3）: 送りの既定額の順（店設定→直近の送り→空欄必須）・金額の検査・文言の種別・shift-board は「送り」→ダイアログ→punch_proxy(p_okuri true)→transport_issue_bulk(idem＝punch id)
 const okuriDlgSrc = fs.readFileSync("components/nox/okuri-out-dialog.tsx", "utf8");
 const reportSrc2 = fs.readFileSync("app/(manage)/report/report-board.tsx", "utf8");
@@ -180,6 +180,7 @@ check("ms(2-13) 裁定320: 分割して発行（行・最後の行は自動残�
 
 // ★裁定321／便 X-11-2b／X-11-3（2026-09-29）: レジ顧客カード＝新規登録して追加・候補表示・文言の位置
 const cardSrc = fs.readFileSync("components/nox/check-customers-card.tsx", "utf8");
+const pickSrc = fs.readFileSync("components/nox/customer-pick-modal.tsx", "utf8"); // ★裁定377
 const cs = candidatesOf(
   [{ id: "a", name: "青木", furigana: "あおき", tel: "090-1111-2222" }, { id: "b", name: "馬場", furigana: "ばば", tel: null }, { id: "c", name: "千葉", furigana: "ちば", tel: "03-5555-0000" }, { id: "d", name: "土井", furigana: "どい" }],
   [{ customer_id: "a", last_visit: "2026-09-01T12:00:00Z", cast_id: "k1", visits: 3 }, { customer_id: "b", last_visit: "2026-09-20T12:00:00Z", cast_id: "k2", visits: 1 }, { customer_id: "c", last_visit: null, cast_id: "k1", visits: 0 }],
@@ -190,9 +191,10 @@ check("ms(2-14) 裁定321／X-11-2b: 候補（伝票の顧客は外す・最近�
   && JSON.stringify(searchCandidatesOf(cs, "ば").map((c) => c.id)) === JSON.stringify(["b", "c"]) && JSON.stringify(searchCandidatesOf(cs, "5555").map((c) => c.id)) === JSON.stringify(["c"]) && searchCandidatesOf(cs, "").length === 0
   && JSON.stringify(searchCandidatesOf(cs, "09011").map((c) => c.id)) === JSON.stringify(["a"]) && pageOf(Array.from({ length: 25 }, (_, i) => i), 10).rows.length === 10 && pageOf(Array.from({ length: 25 }, (_, i) => i), 20).rest === 5
   && lastVisitLabelOf(null) === "来店なし" && lastVisitLabelOf("2026-09-20T12:00:00Z") === "最終 2026/9/20"
-  && cardSrc.includes('rpc("customer_register"') && cardSrc.includes('rpc("check_customer_add", { p_check_id: checkId, p_customer_id: r1.data as string })') && cardSrc.includes("を登録して付けました") && cardSrc.includes(">新規登録して追加</button>")
-  && cardSrc.includes("最近来店") && cardSrc.includes("担当キャストの顧客") && cardSrc.includes("さらに表示（残り") && !cardSrc.includes("<Picker") && cardSrc.includes('e.key === "ArrowDown"')
-  && cardSrc.includes('{ kind: "success", text: `${name} を登録して付けました` }') && messageKindOf("顧客の新規登録に失敗: 登録する権限がありません（店長・顧客権限のあるスタッフから登録してください）") === "error" && messageKindOf("山田 を登録しましたが、伝票への追加に失敗: 権限がありません") === "error");
+  // ★裁定377（GV-B W-7・2026-10-15）: 候補・新規登録はカードから共通モーダル（customer-pick-modal・mode="add"）へ移設＝カードは「＋ お客様を追加」1 ボタン
+  && cardSrc.includes('<CustomerPickModal storeId={storeId} checkId={checkId} mode="add" castIds={castIds}') && cardSrc.includes('data-cust-add="1"') && !cardSrc.includes('rpc("customer_register"') && !cardSrc.includes("<Picker")
+  && pickSrc.includes('rpc("customer_register"') && pickSrc.includes('rpc("check_customer_add", { p_check_id: checkId, p_customer_id: customerId })') && pickSrc.includes("最近来店") && pickSrc.includes('new: "新規登録して選ぶ"') && pickSrc.includes("さらに表示（残り")
+  && messageKindOf("顧客の新規登録に失敗: 登録する権限がありません（店長・顧客権限のあるスタッフから登録してください）") === "error" && messageKindOf("山田 を登録しましたが、伝票への追加に失敗: 権限がありません") === "error");
 // ★裁定322（便 X-11-5）: レジのキャスト選択の並び（①接客中→②出勤中→③未出勤シフトあり→④未出勤・群の中は名前順）
 const cpSrc = fs.readFileSync("components/nox/cast-picker.tsx", "utf8");
 const ord = castPickerOrder([{ id: "1", name: "れい" }, { id: "2", name: "あい" }, { id: "3", name: "かな" }, { id: "4", name: "さき" }, { id: "5", name: "うた" }, { id: "6", name: "えま" }],

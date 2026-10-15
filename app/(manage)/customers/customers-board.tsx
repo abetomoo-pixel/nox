@@ -13,6 +13,7 @@ import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import { TelLink } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B W-10）
 import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
 import Picker from "@/components/nox/picker";
@@ -626,7 +627,7 @@ export default function CustomersBoard({
               {/* E8-3 #5: PROFILE グリッド（電話・誕生日・担当・来店傾向）。来店傾向は T4 従属＝E8-6 で実装 */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", marginTop: 10, fontSize: 12 }}>
                 {([
-                  ["電話", dCust?.tel ?? "—"],
+                  ["電話", <TelLink key="tel" tel={dCust?.tel} />], // ★裁定381: tel: リンク
                   ["誕生日", dCust?.birthday ? fmtBirthday(dCust.birthday) : "—"],
                   ["担当", castName(selRow.cast_id)],
                   ["最終来店", selRow.last_visit ? fmtLastVisit(selRow.last_visit) : "—"],

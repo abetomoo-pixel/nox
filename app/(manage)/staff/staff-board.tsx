@@ -13,6 +13,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import PhotoEdit from "@/components/ui/photo-edit"; // ★X-13-4: 名前の横に写真（現在・変更・削除）＝キャスト詳細と同じ部品
 import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
+import { FieldStack, SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B W-10）
 
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
@@ -81,6 +82,10 @@ export default function StaffBoard({
   const [aStore, setAStore] = useState(myStoreId || stores[0]?.id || "");
   const [aRole, setARole] = useState<"staff" | "manager">("staff");
   const [aIdemKey, setAIdemKey] = useState("");
+  // ★裁定381（GV-B W-10）: 電話・LINE ID・契約区分＝器は 0172（memberships 電話・LINE ID／staff_contracts）に同乗＝client 先行（今は送らない・画面で注記）
+  const [aTel, setATel] = useState("");
+  const [aLine, setALine] = useState("");
+  const [aContract, setAContract] = useState<"employee" | "parttime" | "contractor">("parttime");
   const [aErr, setAErr] = useState<string | null>(null);
   const [aResult, setAResult] = useState<CreateResult | null>(null);
   const [copied, setCopied] = useState(false);
@@ -182,7 +187,7 @@ export default function StaffBoard({
   }
 
   function openAdd() {
-    setAName(""); setAEmail(""); setAStore(isOwner ? (stores[0]?.id ?? "") : myStoreId);
+    setAName(""); setAEmail(""); setATel(""); setALine(""); setAContract("parttime"); setAStore(isOwner ? (stores[0]?.id ?? "") : myStoreId); // ★裁定381
     setARole("staff"); setAErr(null); setAResult(null); setCopied(false);
     setAIdemKey(crypto.randomUUID()); // 送信意図ごとに1つ＝リトライは同キー（route が二重作成を止める）
     setAddOpen(true);
@@ -213,6 +218,36 @@ export default function StaffBoard({
     }
   }
 
+  // ★裁定381（GV-B W-10）: 編集シートの保存＝1 ボタン（名前は staff_update_profile・メールは owner のみ POST /api/staff/update-email＝変わった項目だけ送る）
+  async function saveEdit() {
+    if (!sel) return;
+    const u = users[sel.user_id];
+    const nameChanged = eName.trim() !== (u?.name ?? "");
+    const emailChanged = isOwner && !isDemo && eEmail.trim().length > 0 && eEmail.trim().toLowerCase() !== (u?.email ?? "").toLowerCase();
+    if (!nameChanged && !emailChanged) { setMsg("変更はありません"); return; }
+    setBusy(true); setMsg(null);
+    try {
+      const done: string[] = [];
+      if (nameChanged) {
+        if (eName.trim() === "") { setMsg("名前を入力してください"); return; }
+        const { error } = await supabase.rpc("staff_update_profile", { p_membership_id: sel.id, p_name: eName.trim() });
+        if (error) { setMsg(`名前の更新に失敗: ${rpcErrJa(error.message)}`); return; }
+        done.push("名前");
+      }
+      if (emailChanged) {
+        const res = await fetch("/api/staff/update-email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: sel.user_id, email: eEmail.trim() }) });
+        const j = (await res.json().catch(() => ({}))) as { error?: string; email?: string };
+        if (!res.ok) { setMsg(`${done.length > 0 ? "名前は保存しました・" : ""}メールの更新に失敗: ${j.error ?? res.status}`); await load(); return; }
+        done.push("メール（新しいメールでログインします）");
+      }
+      setMsg(`${done.join("・")}を保存しました`);
+      await load();
+      setSel(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function copyPassword() {
     if (!aResult?.initial_password) return;
     await navigator.clipboard.writeText(`${aResult.login_email}\n${aResult.initial_password}`);
@@ -229,7 +264,7 @@ export default function StaffBoard({
       <Toast msg={msg} />
 
       <div className="nox-ctoolbar">
-        {!isDemo && <button style={{ ...btnGold, marginLeft: "auto" }} onClick={openAdd} disabled={busy}>＋ スタッフを追加</button>}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}
+        {!isDemo && <button style={{ ...btnGold, marginLeft: "auto", minHeight: 44 }} onClick={openAdd} disabled={busy} data-staff-add="1">＋ スタッフ登録</button>}{/* ★裁定381 */}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}
       </div>
 
       <section className="nox-panel">
@@ -278,7 +313,7 @@ export default function StaffBoard({
             </div>
           );
         })}
-        <p style={{ ...t.sub, margin: "8px 0 0" }}>* シフト権限のシフト管理画面への適用は将来リリース（トグルは保存されます）。</p>
+        <p style={{ ...t.sub, margin: "8px 0 0" }}>* シフト＝シフト画面を開ける権限（OFF のスタッフはメニューに出ず、開いてもホームへ戻ります）。</p>{/* ★裁定381（GV-B W-10）: can_shift を効かせた（shift/page.tsx・layout.tsx） */}
         <p style={{ ...t.sub, margin: "3px 0 0" }}>† バック＝キャストのバック金額（報酬）の閲覧権限。会計権限とは独立です（既定オフ・必要なスタッフのみ付与）。</p>
       </section>
 
@@ -296,37 +331,19 @@ export default function StaffBoard({
             <PhotoEdit name={users[sel.user_id]?.name ?? ""} url={photoUrls.get(sel.user_id)} hasPhoto={!!users[sel.user_id]?.photo_updated_at} busy={phBusy || busy || !orgId} size={56}
               disabled={isDemo} disabledReason="デモ環境では写真を変更できません" note="自動で縮小・JPEG 化されます。スタッフ一覧・シフトに表示されます。"
               onPick={(f) => void pickStaffPhoto(sel.user_id, f)} onRemove={() => void removeStaffPhoto(sel.user_id, users[sel.user_id]?.name ?? "")} />
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <input placeholder="名前" value={eName} onChange={(e) => setEName(e.target.value)} style={{ ...input, width: 170 }} />
-            <button style={btnGold} disabled={busy} onClick={async () => {
-              await rpc("名前を更新", "staff_update_profile", { p_membership_id: sel.id, p_name: eName.trim() });
-              setSel(null);
-            }}>名前を更新</button>
           </div>
+          {/* ★裁定381（GV-B W-10）: 入力は 1 行 1 項目・保存は 1 ボタン（変わった項目だけ送る＝名前 staff_update_profile／メール owner のみ update-email） */}
+          <div style={{ display: "grid", gap: 10, marginTop: 12 }} data-staff-edit="1">
+            <FieldStack label="名前" htmlFor="staff-edit-name">
+              <input id="staff-edit-name" placeholder="名前" value={eName} onChange={(e) => setEName(e.target.value)} style={{ ...t.input, width: "100%" }} />
+            </FieldStack>
+            {isOwner && !isDemo && (
+              <FieldStack label="メール（ログインID）" htmlFor="staff-edit-email" note="変更すると新しいメールでログインします">
+                <input id="staff-edit-email" type="email" placeholder="メール（ログインID）" value={eEmail} onChange={(e) => setEEmail(e.target.value)} style={{ ...t.input, width: "100%" }} />
+              </FieldStack>
+            )}
+            <button type="button" style={t.btnPrimary56} disabled={busy} data-staff-save="1" onClick={() => void saveEdit()}>{busy ? "保存中…" : "保存"}</button>
           </div>
-          {isOwner && !isDemo && ( // ★N7-2 ③: デモはメール変更の導線を隠す
-            // ★裁定267-2: メール（ログイン ID）の変更＝owner にのみ描画（manager には開かない・route の guardOwner が真の防御）。
-            //   「名前を更新」と同型（入力＋btnGold）。送信中は disabled。成功で一覧（users.email）を再取得し入力へ反映。新トークン 0。
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-              <input type="email" placeholder="メール（ログインID）" value={eEmail} onChange={(e) => setEEmail(e.target.value)} style={{ ...input, width: 240 }} />
-              <button style={btnGold} disabled={busy || eEmail.trim().length === 0} onClick={async () => {
-                setBusy(true); setMsg(null);
-                try {
-                  const res = await fetch("/api/staff/update-email", {
-                    method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ userId: sel.user_id, email: eEmail.trim() }),
-                  });
-                  const j = (await res.json().catch(() => ({}))) as { error?: string; email?: string };
-                  if (!res.ok) { setMsg(`メールの更新に失敗: ${j.error ?? res.status}`); return; }
-                  setMsg("メールを更新しました（新しいメールでログインします）");
-                  setEEmail(j.email ?? eEmail.trim().toLowerCase());
-                  await load();
-                } finally {
-                  setBusy(false);
-                }
-              }}>メールを更新</button>
-            </div>
-          )}
           {isOwner && stores.length > 1 && sel.is_active && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
               <span style={t.fieldLabel}>異動先</span>
@@ -373,7 +390,7 @@ export default function StaffBoard({
         <Modal onClose={() => !busy && !aResult && setAddOpen(false)}>
             {!aResult ? (
               <>
-                <h2 style={secTitle}>スタッフを追加</h2>
+                <h2 style={secTitle}>スタッフ登録</h2>{/* ★裁定381 */}
                 <div style={{ display: "grid", gap: 10 }}>
                   <label style={{ display: "grid", gap: 4 }}>
                     <span style={t.fieldLabel}>名前（必須）</span>
@@ -382,7 +399,16 @@ export default function StaffBoard({
                   <label style={{ display: "grid", gap: 4 }}>
                     <span style={t.fieldLabel}>メールアドレス（任意）</span>
                     <input value={aEmail} onChange={(e) => setAEmail(e.target.value)} style={t.input}
-                      placeholder="未入力なら自動でログインIDを発行" type="email" />
+                      placeholder="入力したときだけログインIDに使います（未入力なら自動発行）" type="email" />
+                  </label>
+                  {/* ★裁定381（GV-B W-10）: 電話・LINE ID・契約区分＝器は 0172 に同乗（memberships 電話・LINE ID／staff_contracts 契約区分）＝今は保存されない（注記） */}
+                  <label style={{ display: "grid", gap: 4 }}>
+                    <span style={t.fieldLabel}>電話番号（任意）</span>
+                    <input value={aTel} onChange={(e) => setATel(e.target.value)} style={t.input} inputMode="tel" placeholder="090-0000-0000" maxLength={30} data-staff-tel="1" />
+                  </label>
+                  <label style={{ display: "grid", gap: 4 }}>
+                    <span style={t.fieldLabel}>LINE ID（任意）</span>
+                    <input value={aLine} onChange={(e) => setALine(e.target.value)} style={t.input} placeholder="@line_id" maxLength={40} data-staff-line="1" />
                   </label>
                   <label style={{ display: "grid", gap: 4 }}>
                     <span style={t.fieldLabel}>配属店</span>
@@ -414,16 +440,22 @@ export default function StaffBoard({
                       <span style={{ ...t.input, display: "block", color: "var(--sub)" }}>スタッフ（staff）</span>
                     )}
                   </label>
+                  <div style={{ display: "grid", gap: 4 }}>
+                    <span style={t.fieldLabel}>契約区分</span>
+                    <SegmentTabs value={aContract} onChange={(v) => setAContract(v)} ariaLabel="契約区分"
+                      options={[["employee", "正社員"], ["parttime", "アルバイト"], ["contractor", "業務委託"]] as const} />
+                  </div>
+                  <p style={{ ...t.sub, margin: 0, lineHeight: 1.6 }}>電話番号・LINE ID・契約区分は次のデータ更新（0172）から保存されます。写真は登録後に一覧の行から追加できます。</p>
                   {aErr && <Message kind="error" style={{ margin: 0 }}>{aErr}</Message>}
-                  <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
-                    <button style={btnGhost} disabled={busy} onClick={() => setAddOpen(false)}>キャンセル</button>
-                    <button style={btnGold} disabled={busy} onClick={() => void submitAdd()}>{busy ? "追加中…" : "追加する"}</button>
+                  <button type="button" style={t.btnPrimary56} disabled={busy} data-staff-register="1" onClick={() => void submitAdd()}>{busy ? "登録中…" : "登録する"}</button>
+                  <div style={t.btnRow48}>
+                    <button type="button" style={t.btnSecondary48} disabled={busy} onClick={() => setAddOpen(false)}>キャンセル</button>
                   </div>
                 </div>
               </>
             ) : aResult.initial_password ? (
               <>
-                <h2 style={secTitle}>スタッフを追加しました</h2>
+                <h2 style={secTitle}>スタッフを登録しました</h2>
                 <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
                   <div style={t.bdRow}><span style={t.bdKey}>ログインID</span><span style={{ ...t.bdVal, wordBreak: "break-all" }}>{aResult.login_email}</span></div>
                   <div style={t.bdRow}><span style={t.bdKey}>初期パスワード</span><span style={{ ...t.bdVal, color: "var(--champ)", letterSpacing: 1 }}>{aResult.initial_password}</span></div>
