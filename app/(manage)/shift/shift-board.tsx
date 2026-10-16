@@ -1397,7 +1397,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                   );
                                 })()}
                                 {attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm }) === "pre" && (canRecord ? (
-                                  <div className="nox-seg" style={{ display: "inline-flex" }}>
+                                  <div className="nox-seg nox-attseg" style={{ display: "inline-flex" }} data-att-seg="1">{/* ★GV-47（便 HF-1）: ≤899 は横並びチップ（globals.css .nox-attseg）・PC は .nox-seg のまま */}
                                     {ATT_OPTIONS.map(([v, l]) => {
                                       const on = (att?.status ?? "") === v;
                                       return (

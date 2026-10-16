@@ -1449,7 +1449,7 @@ body {
 @media (max-width: 900px) {
   /* ★SP はモックの「アイコン列の上部固定バー」には追随せず、NOX 既存のボトムタブを維持する
      （ナビの構造を変えないため＝E2 の意図的な非追随）。サイドバーを隠して1列にするだけ。 */
-  .nox-layout { grid-template-columns: 1fr; }
+  .nox-layout { grid-template-columns: minmax(0, 1fr); } /* ★HF-1（便 HF-1・2026-10-16）: 361 の :has(> .nox-side.is-rail) は ≥901 の節へ＝900px 未満は rail の有無にかかわらず 1 列・本文 100% */
   .nox-side { display: none; }
   /* ★X-13-11（便 X-13b）: 最下段の操作（店舗設定・キャスト詳細・ノルマ・商品編集・レジ会計・スタッフ編集）が下部タブに隠れない＝下余白＝下部ナビ高さ＋余白＋safe-area */
   .nox-mainarea { padding: 20px 20px calc(var(--nox-bnav-h) + 24px + env(safe-area-inset-bottom, 0px)); }
@@ -2329,6 +2329,10 @@ body {
   /* X-8-3: 出勤記録は 2 行折り返し（1 行目 セグメント／2 行目 打刻時刻・送り・退勤）・操作 2 ボタンは全幅縦積み */
   .nox-attrow { display: grid; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 6px 10px; }
   .nox-attrow > .nox-seg { grid-column: 1 / -1; }
+  /* ★GV-47（便 HF-1・2026-10-16）: 出勤前の 5 択（出勤・遅刻・当欠・同伴・休み）は横並びチップ＝折り返し可・各 36px・1 枠に連結しない。PC（≥900）は .nox-seg のまま */
+  .nox-attrow > .nox-attseg { display: flex; flex-wrap: wrap; gap: 6px; border: 0; border-radius: 0; overflow: visible; }
+  .nox-attrow > .nox-attseg > button { border: 1px solid var(--v2-line); border-radius: 999px; min-height: 36px; padding: 6px 12px; font-size: 13px; }
+  .nox-attrow > .nox-attseg > button.on { border-color: var(--primary); }
   .nox-attrow .out { margin-left: 0; }
   .nox-rowops { display: flex; flex-direction: column; align-items: stretch; width: 100%; }
   .nox-rowops button { width: 100%; justify-content: center; }
@@ -2408,8 +2412,11 @@ body {
 .nox-regsticky .nox-backbar { position: static; }
 .nox-regsticky .nox-dtabs { margin-bottom: 0; padding-bottom: 8px; }
 /* 361: サイドバー＝900〜1279 はアイコンのレール（64px・ラベルは title・現在地は金）・≥1280 は全幅・手動トグル（localStorage）・/register /floor はレールも畳んで ≡ ドロワー */
+/* ★HF-1（便 HF-1・2026-10-16）: この 2 行は ≥901 だけ＝900px 未満では :has の詳細度が上の「.nox-layout { 1 列 }」に勝って本文が 64px に潰れていた（V46 V-1 実測） */
+@media (min-width: 901px) {
 .nox-layout:has(> .nox-side.is-rail) { grid-template-columns: 64px minmax(0, 1fr); }
 .nox-layout:has(> .nox-side.is-hidden) { grid-template-columns: minmax(0, 1fr); }
+}
 .nox-side.is-hidden { display: none; }
 .nox-side.is-rail { padding: 18px 8px; }
 .nox-side.is-rail .brand { justify-content: center; padding: 0 0 18px; }
@@ -2543,3 +2550,9 @@ details.nox-infonote .i { display: inline-flex; align-items: center; justify-con
 details.nox-infonote .r { margin-top: 4px; }
 /* 375: disabled は必ず減光 */
 button:disabled, .nox-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ★GV-46（便 HF-1・2026-10-16）: 900px 未満は input／select／textarea の文字を 16px 以上（iOS の自動ズームを避ける＝viewport の maximum-scale は変えない）。
+   各画面の inline の fontSize 13（theme t.input）を上書きするため !important。チェック・ラジオ・レンジ・色・ファイルは対象外。PC（≥900）は不変 */
+@media (max-width: 899px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]), select, textarea { font-size: 16px !important; }
+}
