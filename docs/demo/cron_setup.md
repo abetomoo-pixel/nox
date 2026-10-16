@@ -52,6 +52,19 @@ route 側の応答＝`{ ok, count, retry, results: [{ org, ok, mode, chunks }] }
 | nox-demo-reset-muse／luna／noir／ace／lily／nest | 21:05／07／09／11／13／15 | 06:05〜06:15 | 店ごとに `?org=<code>`（営業日切替 06:00 の後） |
 | nox-demo-reset-retry | 21:35 | 06:35 | `?retry=1`＝demo_reset_at がその営業日でない org だけ |
 
+## 5. 止め方・戻し方
+
+- 一時停止: `update cron.job set active=false where jobname like 'nox-demo-reset%';`
+- 全撤去: `select cron.unschedule(jobname) from cron.job where jobname like 'nox-demo-%';`（表・関数・拡張は残る＝0163 の器）。
+- Vercel Pro へ移行した日に vercel.json の crons へ切り替える場合は、上の全撤去を先に行う（二重起動を避ける＝裁定276-5）。
+
+初回無人 reset OK（2026-10-09 JST・便 V44 続き V-2 読取）: purge 05:15 succeeded／reset 6 店 06:05〜06:15＝status_code muse 200・luna 200・noir 200・ace 200・lily 200・nest 200（wipe+load chunk 3／3／3／3／4／4・所要 wipe+load 8／5／7／6／10／13 秒・finalize まで 11／17／11／11／13／17 秒）／retry 06:35 200（6 店 skipped already reset today）／cron.job_run_details 8 本 succeeded・audit demo.reset 26（failed 0）・demo.finalize.failed 0・payroll_runs 2026-09 finalized 6・写真 casts 38＋staff 6・cron.job 8。
+10/10〜13 無人 reset OK（2026-10-13 JST・便 V45 V-2 読取）: cron.job_run_details 4 日 × 8 本＝32 本すべて succeeded（purge 05:15／reset 6 店 06:05〜06:15／retry 06:35）・10/13 の net._http_response 7 本すべて 200（6 店 wipe+load chunk 3／3／3／3／4／4・retry は 6 店 skipped）・6 org の demo_reset_at＝10/13（06:05:08〜06:15:07）・payroll_runs 2026-09 finalized 6・cron.job 8。★10/10〜12 の HTTP 応答行は pg_net.ttl（6 時間）で消えるため status_code は当日分しか読めない＝読むなら当日 12:35 JST（retry 06:35＋6 h）まで。
+
+- 2026-10-14 無人 reset OK（uuid[] 写像後 初回）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝8 job succeeded・http 200×7・demo_reset_at 6 org＝10/14・NOIR slide_rank_ids 3 本とも A/S 一致（便 V1014 V-1）。
+- 2026-10-15 無人 reset OK（gen-demo 重複ガード＋norm_axes 後 初回）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝8 job succeeded・http 200×7（06:05〜06:35）・demo_reset_at 6 org＝10/15（便 GV-B P-0）。★失敗理由の audit 行は未整備＝起票115。
+- 2026-10-16 無人 reset OK（便 V46 V-3・10:29 JST 読取＝SELECT のみ）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝cron.job_run_details runid 59〜66 の 8 job succeeded（'1 row'）・net._http_response id 52〜58＝http 200×7（timed_out false・error_msg null・6 店 wipe+load chunks 3／3／3／3／4／4・retry は 6 店 skipped already reset today）・audit demo.reset 26（failed 0）・demo_reset_at 6 org＝10/16（06:05:08〜06:15:07）・payroll_runs 2026-09 finalized 6・casts 38／写真 38・cron.job 8 active。
+
 ## 6. シフトの自動確定（裁定380・0172・便 P172・2026-10-16）＝Agoora 手貼り
 
 店設定「送り返しの自動確定時間」（settings_json.shift_auto_confirm_hours＝1〜168・0＝しない）が入っている店だけ、送り返し（status proposed）のまま放置された希望を設定時間後に確定する。route＝`/api/cron/shift-auto-confirm`（GET＋Bearer CRON_SECRET・demo-reset と同型・15 分間隔）。URL は Vault の nox_demo_reset_url の末尾を置換（新しい秘密は作らない）。
@@ -65,16 +78,4 @@ select jobname, schedule, active from cron.job where jobname='nox-shift-auto-con
 ```
 
 止め方＝`select cron.unschedule('nox-shift-auto-confirm');`。route 側は確定した店ごとに audit 'shift.auto_confirm'（audit_log_write_service＝service_role に grant が無く現状は console だけ＝起票115 と同根）。
-
-## 5. 止め方・戻し方
-
-- 一時停止: `update cron.job set active=false where jobname like 'nox-demo-reset%';`
-- 全撤去: `select cron.unschedule(jobname) from cron.job where jobname like 'nox-demo-%';`（表・関数・拡張は残る＝0163 の器）。
-- Vercel Pro へ移行した日に vercel.json の crons へ切り替える場合は、上の全撤去を先に行う（二重起動を避ける＝裁定276-5）。
-
-初回無人 reset OK（2026-10-09 JST・便 V44 続き V-2 読取）: purge 05:15 succeeded／reset 6 店 06:05〜06:15＝status_code muse 200・luna 200・noir 200・ace 200・lily 200・nest 200（wipe+load chunk 3／3／3／3／4／4・所要 wipe+load 8／5／7／6／10／13 秒・finalize まで 11／17／11／11／13／17 秒）／retry 06:35 200（6 店 skipped already reset today）／cron.job_run_details 8 本 succeeded・audit demo.reset 26（failed 0）・demo.finalize.failed 0・payroll_runs 2026-09 finalized 6・写真 casts 38＋staff 6・cron.job 8。
-10/10〜13 無人 reset OK（2026-10-13 JST・便 V45 V-2 読取）: cron.job_run_details 4 日 × 8 本＝32 本すべて succeeded（purge 05:15／reset 6 店 06:05〜06:15／retry 06:35）・10/13 の net._http_response 7 本すべて 200（6 店 wipe+load chunk 3／3／3／3／4／4・retry は 6 店 skipped）・6 org の demo_reset_at＝10/13（06:05:08〜06:15:07）・payroll_runs 2026-09 finalized 6・cron.job 8。★10/10〜12 の HTTP 応答行は pg_net.ttl（6 時間）で消えるため status_code は当日分しか読めない＝読むなら当日 12:35 JST（retry 06:35＋6 h）まで。
-
-- 2026-10-14 無人 reset OK（uuid[] 写像後 初回）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝8 job succeeded・http 200×7・demo_reset_at 6 org＝10/14・NOIR slide_rank_ids 3 本とも A/S 一致（便 V1014 V-1）。
-- 2026-10-15 無人 reset OK（gen-demo 重複ガード＋norm_axes 後 初回）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝8 job succeeded・http 200×7（06:05〜06:35）・demo_reset_at 6 org＝10/15（便 GV-B P-0）。★失敗理由の audit 行は未整備＝起票115。
-- 2026-10-16 無人 reset OK（便 V46 V-3・10:29 JST 読取＝SELECT のみ）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝cron.job_run_details runid 59〜66 の 8 job succeeded（'1 row'）・net._http_response id 52〜58＝http 200×7（timed_out false・error_msg null・6 店 wipe+load chunks 3／3／3／3／4／4・retry は 6 店 skipped already reset today）・audit demo.reset 26（failed 0）・demo_reset_at 6 org＝10/16（06:05:08〜06:15:07）・payroll_runs 2026-09 finalized 6・casts 38／写真 38・cron.job 8 active。
+- 2026-10-16 14:00 JST 初回 200・count 0（Agoora 手貼り登録・以後 15 分ごと 14:15／14:30 succeeded＝便 HF-1 で SELECT 確認）。
