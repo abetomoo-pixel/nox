@@ -63,3 +63,4 @@ route 側の応答＝`{ ok, count, retry, results: [{ org, ok, mode, chunks }] }
 
 - 2026-10-14 無人 reset OK（uuid[] 写像後 初回）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝8 job succeeded・http 200×7・demo_reset_at 6 org＝10/14・NOIR slide_rank_ids 3 本とも A/S 一致（便 V1014 V-1）。
 - 2026-10-15 無人 reset OK（gen-demo 重複ガード＋norm_axes 後 初回）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝8 job succeeded・http 200×7（06:05〜06:35）・demo_reset_at 6 org＝10/15（便 GV-B P-0）。★失敗理由の audit 行は未整備＝起票115。
+- 2026-10-16 無人 reset OK（便 V46 V-3・10:29 JST 読取＝SELECT のみ）: purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝cron.job_run_details runid 59〜66 の 8 job succeeded（'1 row'）・net._http_response id 52〜58＝http 200×7（timed_out false・error_msg null・6 店 wipe+load chunks 3／3／3／3／4／4・retry は 6 店 skipped already reset today）・audit demo.reset 26（failed 0）・demo_reset_at 6 org＝10/16（06:05:08〜06:15:07）・payroll_runs 2026-09 finalized 6・casts 38／写真 38・cron.job 8 active。

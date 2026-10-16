@@ -4147,6 +4147,44 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 **教訓候補 E-6／E-7（採番は相談役）**: E-6「f0 後の fix コミットは、触った文字列を pin する suite を単独走してから push（便 DM-1 で dp(5-1) の赤を検知）」／E-7「payload の行にキーが無い列は jsonb_populate で null になるが、payload を読む suite では undefined＝`=== null` が偽になる→payload を読む pin は `== null` で書く（便 P171 na(4-1)）」＝**教訓113 で採番（便 N1014）**。E-6 は候補のまま。**便 N1014 の候補 E-8／E-9（docs/tmp/n1014_decisions.md 逐語）**: E-8「文字列 pin の『不在』判定は対象ブロックの範囲で行う（`!rb.includes(">やめる</button>")` は他ダイアログの『やめる』で偽になる＝便 N1014 nd(1-2)）」／E-9「anon-guard の statement timeout は再走で消える既知のフレーク（便 N1014 f0 run1＝段28-18→28-21／22 連鎖）＝★f0フレーク=statement timeout型は再実行」／E-10「教訓110 の grep は『変えた文字列』だけでなく『変えたファイルを読む suite』を対象にする（便 N1014 f0 run1c＝messages ms(2-11) が shift-board の呼び出し順を indexOf で pin→A-6 の分岐追加で順が入れ替わり赤→lastIndexOf に張替え）」／E-11「suite の before／after スナップショットは fixture org に絞る（全体件数は、デモ org の実利用が並走すると偽赤＝便 N1014 f0 run1d の contract-ack ca(0-2)＝18:39 に LUNA デモで check_add_line が走っていた→audit_logs の count を org_id で絞った）」／E-12「payload に相対日の行を足すときは元データとの unique（shifts／attendance＝cast_id×date・punches）を生成器で先に落とす（便 N1014 19:30 の reset で 4 店が最終 chunk の unique 違反＝wipe 後に途中まで載った状態・route の markFailed の audit 行は残っていない）」／E-13「payload の相対日 $rel は営業日＝深夜（02:00）の退勤は in と同じ $rel に載せる（d+1 だと 1 日遅れ＝退勤なし・便 N1014 NEST レン）」。
 
+**裁定372〜384 追補1（2026-10-16 確定・相談役 v46 §3・便 V46 V-2）＝便 GV-B の仮決め B-1〜B-17 を追認**: 出典＝相談役引き継ぎ v46 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-16_v46.md・「新チャットで台帳に記す・本書で確定」＝便 V46 V-2 で記入・2026-10-16）。**本文（逐語）**: 「**GV-B の仮決め B-1〜B-17**＝追認（372〜384 追補1）。」仮決めの逐語（docs/tmp/gvb_decisions.md は .gitignore＝ここが追跡される唯一の写し）:
+
+| # | 裁定 | 仮決め | 理由 |
+|---|---|---|---|
+| B-1 | 382 | 共通部品＝components/ui/responsive-kit.tsx（lib ではなく components/ui＝JSX を含むため）。ResponsiveTable は thead の文言を MutationObserver で td の data-label に写す（<600 のカード化は CSS だけ）。SegmentTabs は .nox-seg と同居（.nox-seg.nox-segtabs の上書き） | 既存の .nox-seg pin を壊さない |
+| B-2 | 382 | InfoNote は部品だけ（最初の 1 文＋ⓘ details）。2 行超の説明文は本便の 6 面に無かった＝適用先 0 | 適用先が無い部品を無理に当てない |
+| B-3 | 382 | 英字チップ（eyebrow）は DOM に残し aria-hidden＋CSS display none（PageHead の props は不変＝各画面の pin を壊さない） | 既存 pin との共存 |
+| B-4 | 372① | html／body overflow-x hidden＋.nox-main* min-width 0＋/analytics の固定幅（maxWidth 130・min(200px,100%)）。/shift 確定タブ上部の金色の帯は再現せず（同根ではない＝触らない） | 全画面 grep の型 |
+| B-5 | 373 | 軸ごとに「定額／不足 1 件ごと」のセグメント 1 つ＋金額 1 つ。未選択側は **0 を送る**（set_penalty_config は 12 引数とも null を拒否＝null は送れない）。両方入っている既存店は normPenaltyModeOf＝「不足ごと」扱い（per＞0）＝一覧に件数（data-penalty-both の注記）。normPenaltyOf（golden 16,500）は不変＝新純関数 normPenaltyModeOf／normPenaltyOneOf を足しただけ | RPC 不触 |
+| B-6 | 374 | 今期の時給＝/api/payroll/preview（当月）の PayResult の wdays 最終営業日の hourly／basis（別計算なし）。判定期間＝プランの slide_period＋店の slide_apply（next＝前期の実績で判定／current＝当期の累計）。達成状況＝cardAxesOf（/mine と同値）→ none／done／progress（経過率以上）／behind（経過率未満）。絞り込み＝待遇プラン／ノルマ／時給の段／今日出勤（ランクは既存チップ）。並び替え＝名前／時給／達成率。読取＝preview 1 本＋get_cast_sales 1 本＋cast_quotas／cast_norms／punches 各 1 クエリ | 1 クエリ＝表ごと（キャストごとの問い合わせ 0） |
+| B-7 | 375 | ②は既存の入金モーダルを「入金へ進む」から開く（支払方法セグメント→金額＝既定残額→数字キーパッド→「入金する」主 56）。①の表は 4 列（伝票／請求（サ料込）／入金済／残額）＝小計・割引の列は落とした。③は allCovered のときだけ描画（残額があるうちは①②だけ）。会計分けは「会計を分ける」副 48（addSplitGroup 不変） | RPC・引数不変 |
+| B-8 | 376 | 金額／宛名／但し書きを 1 行 1 項目（幅 100%）・「発行」主 56・「分割して発行」「閉じる」副 48。説明は 1 文（分割の案内文は削除＝ボタンが語る） | — |
+| B-9 | 377 | 共通モーダル 1 つ（customer-pick-modal）に mode＝line（商品行・ボトル）／add（伝票の顧客追加）／select（キープの持ち主）。候補＝customer_list_summary＋customers（既存 2 本・N+1 なし・RPC 新設なし）。③全員＝50 音チップ（kanaRowOf＝ふりがな→名前）＋担当キャストチップ＋50 件ずつ。④新規登録＝customer_register→（add／line は check_customer_add）。select は選んだお客様が伝票に未付与なら併存で check_customer_add してから持ち主に。旧インライン候補（check-customers-card）と「指名・席タブへ」誘導は撤去 | 器あり＝0172 同乗不要 |
+| B-10 | 378 | 卓タイル（開いている卓は選べない・予約卓に印）→指名種別 4 分割（初期値＝予約の nom_type・無ければフリー）→キャスト（初期値＝予約の担当・同伴は「同伴の相手」・フリーは非表示）→「伝票を開く」主 56。reservation_to_check は不変（p_nom_type に選択値）。キャストか種別を変えたときだけ戻り id で check_set_nominations（1 件・同伴＝hon＋is_dohan＋dohan_count 1）。予約カードの来店ボタンは 48px | RPC 新設なし |
+| B-11 | 380 | 3 本道＝「希望どおり採用」＝shift_wish_decide→shift_confirm_bulk（即確定・店設定に依らない）／「調整」→希望の調整モーダル＝採用→shift_set（時間）→「調整して確定」は status confirmed・「調整して送り返す」は planned→shift_propose（キャスト確認待ち）。planned／proposed 行の調整モーダルも同じ 2 ボタン（confirmed は従来の保存）。planned 行に代行確定は出さない（調整して確定で代替）・一括代行確定は proposed のみ。承認待ちの既定＝キャスト別・見出し行で折りたたみ（既定は展開）。段は 3（審査中／採用・確認待ち（調整中・送り返し）／採用・確定）。castConfirm は常に true（proposed＝「キャスト確認待ち」）＝shift/page の prop は残すが読まない | RPC 3 本のみ |
+| B-12 | 380 | 店設定「キャスト確認」トグルは撤去。「送り返しの自動確定時間（準備中）」を非活性 select で表示先行（0172 の shift_auto_confirm_hours＝整数 0〜168）。実行器（cron／RPC）は別起票 | 器は 0172 |
+| B-13 | 381 | 「＋ スタッフ登録」＝名前必須・メール任意（入力したときだけログイン ID＝招待メールは送らない＝初期パスワード表示の現行経路）・電話・LINE ID・配属店・役職・契約区分（正社員／アルバイト／業務委託）＝電話・LINE ID・契約区分は **送らない**（器は 0172）＝注記。写真は登録後（編集シート）。編集シート＝名前／メール（owner）を縦積み・「保存」1 ボタン（変わった項目だけ送る）。電話番号の tel: リンク＝TelLink（顧客一覧の詳細・顧客詳細）＝スタッフには電話列が無い（0172 後） | 器は 0172 |
+| B-14 | 381 | 「シフト権限の適用は将来リリース」注記は**効かせた**＝staff かつ can_shift≠true は /shift を /dashboard へ・nav のシフトも出さない（auth_staff_can_shift＝0022 で既設・authenticated 実行可＝live 確認）。理由＝/customers の can_crm と同型の器が既にあり、トグルが保存されるのに効かない方が事故（教訓25＝表示と状態は同コミット）。★影響＝can_shift=false の既存 staff（本番 CLUB NOX の staff 行）はシフト画面が開けなくなる＝相談役が「外す」なら shift/page.tsx と layout.tsx の 2 箇所を戻すだけ。デモ 6 店の staff は can_shift=true（gen-demo） | — |
+| B-15 | 383 | 出勤前＝5 択セグメント（出勤・遅刻・当欠・同伴・休み＝現行の 5 語のまま）／出勤後＝「出勤 HH:MM」or「遅刻 HH:MM」（lateMinutesOf＝店設定 late_grace から自動）＋同伴トグルだけ／退勤後＝「出勤 HH:MM〜HH:MM」チップ＋操作なし（時刻修正は従来の文字リンク）。★「遅刻を手で付ける操作は廃止」と「出勤前＝5 択」は両立しない（5 択に遅刻が含まれる）＝出勤前の 5 択は現行どおり残し、出勤後の遅刻は自動判定のみにした。4 択（遅刻を外す）にするなら attendance の status 'late' を手で付ける経路が消える＝裁定要 | 逐語の矛盾 |
+| B-16 | 384 | pickerDefaultChipOf＝seated＞0→担当中／working＞0→出勤中／それ以外→すべて。担当中 1 人なら selectedIds に入れて「{名前} に追加」主 56（data-pick-single）。分配率カードの CastPicker・378 のキャスト選択（予約の担当が初期値）にも同じ既定。切替ダイアログ（341）は CastPicker を使っていない＝対象外 | — |
+| B-17 | 0172 | daily_pays.kind 既定 settlement・既存行も settlement（現行＝発行時 1 日分控除）。daily_pay_issue は p_kind（advance＝控除なし）。daily_pays_of_run は戻り型に settlement_gross／settlement_withholding／advance_gross を足すだけ（既存 4 列不変）＝「期間精算から settlement を除く」計算は client（lib/nox/payroll）の次便。cast_private は実在せず（cast_sensitive／cast_tax_profiles）＝扶養申告書は cast_tax_profiles に 2 列＋set_cast_dependents_form。PIN hash は staff_pin が既にある＝memberships に足さない。W-7 の RPC は不要。terms_accept は billing lock を見ない（開通前の同意）・terms_accepted_version_ok はデモ org 常に true | 器の最小 |
+
+**便 V46 完了（v46 収蔵＋§3 の台帳記入＋HF-1 状態確認＋10/16 reset 読取）＝台帳の現在地（2026-10-16）**: 前提照合＝HEAD 2ddb5c0＝origin/main（rev-list 0 0・変更 0・未追跡＝poc-record.mjs のみ・★docs/expert/answers_20261014.md は 3af8907 で追跡済み＝v46 §0 と不一致だが安全側＝停止せず報告）・DB 恒久変更 0・DB 読取＝V-3 と W-10 の SELECT のみ（docs/tmp/q1016_v3_reset.mjs／q1016_can_shift.mjs・default_transaction_read_only）・f0 不走・migration 0。V-0＝v46 収蔵（sha256 5f001543…97fa・15,191 B・96 行 LF＝提示値と一致・引き継ぎ欄に行）・poc-record.mjs→docs/dp/poc_record_20261016.md（起票105 の処置）。V-1＝HF-1（361 の副作用＝900px 未満で本文が潰れる）の fix コミットは無し（直近コミットに「fix: 361」なし）＝390px の DOM 実測は【V-1 実測】に追記。V-2＝裁定379 欠番（380 参照）・381／383／373 に GV-B 要判断 3 点の確定（①can_shift 追認＝本番 CLUB NOX の can_shift=false は 1 件（佐藤）・②W-13 撤回＝5 択は残す・③W-3 0 送信追認）・372〜384 追補1（B-1〜B-17 追認・表を逐語で収載）・教訓候補 E-8〜E-17 の整列（下）・385／386 を案【相談役確定待ち】・387／388・352 追補1／356 追補1／370 追補1 を「確定・未実装（GV-C）」で記入・x13_ledger #57〜61（GV-38〜42）。V-3＝10/16 無人 reset OK（cron.job_run_details runid 59〜66＝purge 05:15・reset 6 店 06:05〜06:15・retry 06:35＝8 本すべて succeeded '1 row'／net._http_response id 52〜58＝7 本すべて 200・timed_out false・error_msg null（6 店 wipe+load chunks 3／3／3／3／4／4・retry は 6 店 skipped 'already reset today'）／audit demo.reset 26（4＋4＋4＋4＋5＋5・failed 0）／6 org demo_reset_at＝10/16（muse 06:05:08・luna 06:07:07・noir 06:09:05・ace 06:11:06・lily 06:13:08・nest 06:15:07）／payroll_runs 2026-09 finalized 6／casts 38・写真 38／cron.job 8 active）＝cron_setup.md に 1 行。次の採番＝裁定389・教訓115・起票117・恒久注意30（v46 §0 のとおり）。コミット「docs: v46 収蔵・裁定379 欠番・GV-B 追認・385／386 案・10/16 reset」＝docs のみ（裁定256）。次＝Agoora 0172 手貼り→P172。
+【V-1 実測】HF-1 実測（2026-10-16 10:5x JST・本番ホスト nox-kappa-eight.vercel.app＝HEAD 2ddb5c0 のデプロイ・デモ ACE オーナー・/dashboard・★ローカル dev は DEMO_USERS が無く /api/demo/enter 503「デモは準備中です」のため本番ホストで読取・登録／保存なし）: **390×844＝本文が 64px に潰れる＝HF-1 は未修正**。innerWidth 390・body scrollWidth 390（横はみ出し 0）だが .nox-layout の computed grid-template-columns＝「64px 326px」・aside.nox-side は class is-rail（data-side-mode rail）かつ display none・.nox-mainwrap／.nox-mainarea／.nox-tb の幅＝64px（本文の最初のカード 32px）。800×900 も同じ（「64px 721px」・mainarea 64）。1000×900 は正常（レール 64 表示・mainarea 921）。原因＝globals.css:2411 `.nox-layout:has(> .nox-side.is-rail) { grid-template-columns: 64px minmax(0, 1fr); }` が @media なし＝<900 の `.nox-layout { grid-template-columns: 1fr; }`（:1452）より詳細度が高く勝ち、aside が display none でも 64px の列が残って main が 1 列目（64px）に落ちる。side-nav.tsx は matchMedia 1280 だけで <900 を hidden にしない。修正案（本便では触らない＝P172 の前に相談役が別便で出す）＝2411〜2412 を @media (min-width: 900px) で包む（最小 1 行）か side-nav で <900 を hidden 扱いに＋suite sidebar-rail に <900 の pin を足す。
+
+**教訓候補 E-8〜E-17（整列・便 V46 V-2・2026-10-16・採番は相談役＝v46 §3「E-16・E-17 を優先」で先頭に）**:
+- E-16「JSX の `{/* */}` コメントは三項演算子・`&&` の括弧の内側（`</button>` の直後）に置けない＝`)}` の外へ（便 GV-B で 2 回・N1014 でも 1 回）」（docs/tmp/gvb_decisions.md 逐語）。
+- E-17「ブロックの裁定番号に本文が無いとき（GV-B の 379）は見出しを作らず報告で返す（教訓70 の運用）」（同上）。
+- E-8「文字列 pin の『不在』判定は対象ブロックの範囲で行う（`!rb.includes(">やめる</button>")` は他ダイアログの『やめる』で偽になる＝便 N1014 nd(1-2)）」（上の候補段落の逐語）。
+- E-9「anon-guard の statement timeout は再走で消える既知のフレーク（便 N1014 f0 run1＝段28-18→28-21／22 連鎖）＝★f0フレーク=statement timeout型は再実行」（同上・起票116 で観察中）。
+- E-10「教訓110 の grep は『変えた文字列』だけでなく『変えたファイルを読む suite』を対象にする（便 N1014 f0 run1c＝messages ms(2-11) が shift-board の呼び出し順を indexOf で pin→A-6 の分岐追加で順が入れ替わり赤→lastIndexOf に張替え）」（同上）。
+- E-11「suite の before／after スナップショットは fixture org に絞る（全体件数は、デモ org の実利用が並走すると偽赤＝便 N1014 f0 run1d の contract-ack ca(0-2)＝18:39 に LUNA デモで check_add_line が走っていた→audit_logs の count を org_id で絞った）」（同上）。
+- E-12「payload に相対日の行を足すときは元データとの unique（shifts／attendance＝cast_id×date・punches）を生成器で先に落とす（便 N1014 19:30 の reset で 4 店が最終 chunk の unique 違反＝wipe 後に途中まで載った状態・route の markFailed の audit 行は残っていない）」（同上・起票115）。
+- E-13「payload の相対日 $rel は営業日＝深夜（02:00）の退勤は in と同じ $rel に載せる（d+1 だと 1 日遅れ＝退勤なし・便 N1014 NEST レン）」（同上）。
+- E-14「supabase-js の .eq(存在しない列) は黙って空＝列名は型か suite で縛る」（docs/tmp/n1014_decisions.md 逐語・live 修正 56a5a25＝今日タブの「送り済」判定の transport 列名 biz_date）。
+- E-15「共有クラス（.nox-2col／.nox-dtabs／cardrows）の既定を変えず修飾子クラスで足す＝他画面の pin と目視を壊さない」（docs/tmp/gva_decisions.md 逐語・便 GV-A）。
+- E-6 は候補のまま（教訓114 と同趣旨＝相談役の判断）。
+
 ## 裁定320（本便で確定・Agoora・2026-09-29）領収書の分割発行 UI
 
 出典＝Agoora 指示（2026-09-29・便 X-10-1 で収載）。次の裁定番号は 321。**本文（逐語）**:
@@ -4202,6 +4240,26 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 **恒久注意（追加・便 P166）: 本番 route（cron／手動の demo reset）はデプロイ済み repo の payload（docs/demo/payload）を読む＝payload を変えたら push→Vercel success の後に reset する**（push 前の reset は旧 payload＝便 X-13a で flag 0 行の実例）。
 
+## 裁定388（確定・未実装（GV-C）・2026-10-16・相談役 v46 §3）給与一覧の自動表示（プレビュー廃止）
+
+出典＝相談役引き継ぎ v46 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-16_v46.md・「新チャットで台帳に記す・本書で確定」＝便 V46 V-2 で記入・2026-10-16）。**本文（逐語）**: 「**未実装の確定裁定（GV-C として 1 便）**＝387（お預かり 1 欄）・352 追補1（開卓時のお客様）・388（給与一覧の自動表示）・356 追補1（給与画面のキャスト／スタッフ切替・計算は 0172 後）・370 追補1（お客様チップは条件付き・同一行 ×N 集約）。」／v46 §1「388（給与一覧の自動表示＝未実装）」／v46 §8-4「388 給与一覧の自動表示（プレビュー廃止）」。
+適用＝未実装（GV-C＝相談役が出す便・client のみ・f0 2 連・live は ACE 390px）。GV 台帳 #41（x13_ledger）。
+
+## 裁定387（確定・未実装（GV-C）・2026-10-16・相談役 v46 §3）お預かり 1 欄
+
+出典＝相談役引き継ぎ v46 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-16_v46.md・「新チャットで台帳に記す・本書で確定」＝便 V46 V-2 で記入・2026-10-16）。**本文（逐語）**: 「387（お預かり 1 欄）」（上の 388 の逐語と同じ 1 文）／v46 §1「387（お預かり 1 欄＝未実装）」／v46 §8-4「387 お預かり 1 欄」。
+適用＝未実装（GV-C）。GV 台帳 #38（x13_ledger）。
+
+## 裁定386（案・【相談役確定待ち】・2026-10-16 記入・相談役 v46 §3）途中合流＝セット終了後の＋は合流（セット料金を引き直さない）・店設定「合流セット（既定）／延長のみ」
+
+出典＝相談役引き継ぎ v46 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-16_v46.md・「新チャットで台帳に記す・本書で確定」＝便 V46 V-2 で記入・2026-10-16）。**案（逐語）**: 「**案（読取後に確定）**＝385（延長を最大 3 パターン・レジで選択・自動延長の既定・料金ルールごと）・386（セット終了後の＋は合流＝セット料金を引き直さず・店設定「合流セット（既定）／延長のみ」・−は引き直さない）。」／v46 §1「386（途中合流＝案・既定は合流セット）」。
+適用＝未着手（EX-R＝読取のみ（fee_rules／pricing_resolve／延長ボタン／自動延長／check_set_headcount の現状と差分・0173 要否・見積→docs/tmp/ex_plan.md）→0173（器）→EX-1）。確定は読取後に相談役。
+
+## 裁定385（案・【相談役確定待ち】・2026-10-16 記入・相談役 v46 §3）延長パターン＝最大 3 パターン・レジで選択・自動延長の既定・料金ルールごと
+
+出典＝相談役引き継ぎ v46 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-16_v46.md・「新チャットで台帳に記す・本書で確定」＝便 V46 V-2 で記入・2026-10-16）。**案（逐語）**: 「385（延長を最大 3 パターン・レジで選択・自動延長の既定・料金ルールごと）」（上の 386 と同じ 1 文）／v46 §1「385（延長パターン＝案）」。
+適用＝未着手（EX-R→0173→EX-1・386 と同便）。確定は読取後に相談役。
+
 ## 裁定384（2026-10-15 確定・相談役・便 GV-B W-14＝目視指摘 GV-37）キャスト選択の既定は担当中→出勤中→すべて・担当中 1 人なら選択済み
 
 出典＝相談役ブロック 2026-10-15（便 GV-B W-14）。**本文（逐語）**: 「キャスト選択の既定は担当中→出勤中→すべて・担当中 1 人なら選択済み」。指示の詳細＝「キャストドリンクの帰属先モーダル（『<商品> を付けるキャスト』）の既定タブ＝この伝票を担当中のキャストがいれば『担当中』、いなければ『出勤中』、それも 0 なら『すべて』。担当中が 1 人だけなら選択済みにして『追加』1 タップで通す。同じ既定順を 359 の分配率カードの追加・378 のキャスト選択・切替ダイアログにも適用」。
@@ -4211,6 +4269,8 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 出典＝相談役ブロック 2026-10-15（便 GV-B W-13）。**本文（逐語）**: 「今日タブの出勤記録は出勤前＝5 択・出勤後＝出勤チップ＋同伴のみ・退勤後＝実績チップのみ・遅刻は猶予から自動」。指示の詳細＝「/shift 今日タブの行（表・カードとも）: 出勤前＝5 分割セグメント／出勤後＝セグメントを畳み『出勤 HH:MM』チップ（猶予超過は『遅刻 HH:MM』を自動判定・店設定 late_grace）＋『同伴』トグル（未設定なら押せる・設定済みはチップ）のみ・当欠と休みは非表示／退勤後＝『出勤 HH:MM〜HH:MM』の実績チップ＋同伴の結果のみ・操作は『時刻修正』だけ。遅刻を手で付ける操作は廃止（時刻修正で代替）。371 のカード 2 段目も同じ切替」。
 適用＝便 GV-B（client のみ）: lib/nox/shift/today-row.ts に attRowModeOf（pre／arrived／done）・arrivedChipOf・dohanToggleOf、shift-board の行に data-att-mode（pre だけ 5 択・arrived／done はチップ＋同伴トグル・done は減額／確認へ／確定も非表示）。★「出勤前＝5 択」と「遅刻を手で付ける操作は廃止」は両立しない（5 択に遅刻が含まれる）＝出勤前の 5 択は現行どおり・出勤後の遅刻は自動判定のみ（仮決め B-15・4 択にするなら裁定要）。suite today-row tr(9-1〜3)・systems-off so(2-1) 張替え。
+
+**確定（相談役 v46 §3・便 V46 V-2・2026-10-16）＝W-13 の撤回**: 「②W-13 の「遅刻を手で付ける操作は廃止」は撤回＝出勤前 5 択は残す・出勤後は 383 どおり（出勤チップ＋同伴のみ）」。＝仮決め B-15（出勤前 5 択は現行の 5 語のまま・出勤後の遅刻は自動判定のみ）を追認・client の変更なし。
 
 ## 裁定382（2026-10-15 確定・相談役・便 GV-B W-1＝目視指摘 GV-24／35）スマホ幅の共通ルール＝ResponsiveTable／FieldStack／SegmentTabs／InfoNote・英字の飾りチップは廃止
 
@@ -4222,10 +4282,17 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 出典＝相談役ブロック 2026-10-15（便 GV-B W-10）。**本文（逐語）**: 「/staff に『＋スタッフ登録』（名前必須・メール任意＝入力時のみ招待・電話・LINE ID テキスト・役割・契約区分・写真）・編集シートは『保存』1 ボタン・電話番号は全画面 tel: リンク・『シフト権限の適用は将来リリース』注記は権限を効かせるか外す（理由を報告）。器は 0172 に同乗・client 先行」。
 適用＝便 GV-B（client のみ）: staff-board＝「＋ スタッフ登録」モーダル（名前／メール（入力したときだけログイン ID＝招待メールは送らない現行経路）／電話／LINE ID／配属店／役職／契約区分 セグメント／写真は登録後の注記・「登録する」主 56）＝電話・LINE ID・契約区分は**送らない**（器＝0172 ★6 memberships.tel／line_id・★5 staff_contracts・注記あり）。編集シート＝名前／メール（owner）縦積み＋「保存」1 ボタン（変わった項目だけ staff_update_profile／update-email）。tel: リンク＝components/ui/responsive-kit.tsx TelLink（顧客一覧の詳細・顧客詳細＝スタッフには電話列が無い）。**シフト権限は効かせた**＝staff かつ auth_staff_can_shift≠true は /shift を /dashboard へ・nav のシフトも出さない（理由＝/customers の can_crm と同型の器 auth_staff_can_shift が 0022 で既設・トグルが保存されるのに効かないのは教訓25 の逆。★影響＝can_shift=false の既存 staff はシフト画面が開けなくなる＝外すなら shift/page.tsx と layout.tsx の 2 箇所を戻す・仮決め B-14）。注記は撤去。suite gvb(10-1)〜(10-4)。
 
+**確定（相談役 v46 §3・便 V46 V-2・2026-10-16）＝W-10 can_shift 追認**: 「①W-10 シフト権限（can_shift）を効かせた＝追認（既存 staff で can_shift=false の人は /shift が開けない＝本番 org の該当者を V46 で読んで報告）」。V46 の SELECT 実測（2026-10-16 10:29 JST・memberships→stores→orgs）: 本番 org（is_demo=false・verify 以外）＝NOX-DEMO（CLUB NOX）の active staff 2 のうち **can_shift=false は 1 件**（佐藤・can_register true／can_crm false）・田中は true。検査用テナント NOX-VERIFY-A＝staff 4 すべて false（fixture）・NOX-VERIFY-B＝staff 0。デモ 6 店＝各 staff 1・すべて true（gen-demo）。仮決め B-14 のとおり 2 箇所（shift/page.tsx・layout.tsx）は戻さない。
+
 ## 裁定380（2026-10-15 確定・相談役・便 GV-B W-9＝目視指摘 GV-31／32）シフト希望の 3 本道＝希望どおり採用（即確定）／調整して確定／調整して送り返す・店設定 shift_cast_confirm は廃止（345 追補2 を置換）
 
 出典＝相談役ブロック 2026-10-15（便 GV-B W-9）。**本文（逐語）**: 「シフト希望の 3 本道（希望どおり採用＝即確定／調整して確定／調整して送り返す＝確認待ち）・店設定 shift_cast_confirm を UI から廃止・承認待ちはキャスト別折りたたみ・一括は『希望どおり一括採用』・『代行確定』は送り返し放置分のみ・自動確定は店設定キー（0172 に同乗・client は表示先行）。345 追補2 を 380 で置換」。
 適用＝便 GV-B（client のみ・RPC は既存 3 本＝shift_wish_decide／shift_set／shift_propose＋shift_confirm_bulk）: shift-board＝「希望どおり採用」＝採用→shift_confirm_bulk（店設定に依らず即確定）・「調整」→希望の調整モーダル（採用→shift_set で時間→「調整して確定」＝confirmed／「調整して送り返す」＝planned→shift_propose）・planned／proposed 行の調整モーダルも同じ 2 ボタン（confirmed は従来の保存）・planned 行に代行確定なし・一括＝「希望どおり一括採用」（採用→62 件ずつ confirm）・一括代行確定は proposed のみ・承認待ちの既定＝キャスト別（見出し行で折りたたみ）・段は 3（審査中／採用・確認待ち（調整中・送り返し）／採用・確定）・castConfirm は常に true（送り返し＝「キャスト確認待ち」・/mine 2 面も同じ）。store-profile-panel＝キャスト確認トグル撤去・「送り返しの自動確定時間（準備中）」非活性（0172 ★3 shift_auto_confirm_hours・実行器は別起票）。345 追補2（OFF の店は採用＝確定）は本裁定で置換。suite gvb(9-1)〜(9-3)・wish-state ws(4-3) 張替え。
+
+## 裁定379（欠番・2026-10-16 確定・相談役 v46 §3）380 に統合＝380 参照
+
+出典＝相談役引き継ぎ v46 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-16_v46.md・「新チャットで台帳に記す・本書で確定」＝便 V46 V-2 で記入・2026-10-16）。**本文（逐語）**: 「**裁定379＝欠番**（380 に統合）。台帳に「379 欠番・380 参照」の 1 行。」
+経緯＝便 GV-B のブロックで 379 だけ本文が無く、教訓70（本文の無い番号は作らない）により見出しを作らず報告で返した（仮決め一覧 docs/tmp/gvb_decisions.md 結論 2・教訓候補 E-17）。本行が「379 欠番・380 参照」の 1 行。
 
 ## 裁定378（2026-10-15 確定・相談役・便 GV-B W-8＝目視指摘 GV-30）予約の来店処理＝卓タイル→指名種別 4 分割→キャスト選択→「伝票を開く」
 
@@ -4257,6 +4324,8 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 出典＝相談役ブロック 2026-10-15（便 GV-B W-3）。**本文（逐語）**: 「ノルマ未達の減額は軸（出勤日数／同伴）ごとに『定額／不足 1 件ごと』のセグメントで 1 方式・入力は 1 つ・未選択側は null・両方入っている既存店は『不足ごと』扱いで件数を一覧に」。
 適用＝便 GV-B（client のみ・set_penalty_config 不触）: lib/nox/pay.ts に normPenaltyModeOf（per＞0 なら不足ごと）・normPenaltyOneOf（normPenaltyOf＝golden 16,500 は不変）・comp-sections の PenaltyTab＝軸ごとに SegmentTabs＋金額 1 つ。★未選択側は **0 を送る**（RPC は 12 引数とも null を拒否＝null は送れない・仮決め B-5）。両方入っている既存店は「不足ごと」扱い＋注記（data-penalty-both）。suite gvb(3-1)(3-2)。
 
+**確定（相談役 v46 §3・便 V46 V-2・2026-10-16）＝W-3 の 0 送信 追認**: 「③W-3 の未選択側は 0 送信＝追認（表示は「未使用」）」。＝仮決め B-5（set_penalty_config は null を拒否＝未選択側は 0 を送る）を追認。★表示「未使用」の文言は本便では client を触らない（docs のみ＝裁定256）＝plan-board の未選択側の見せ方は次の client 便で「未使用」に合わせる（報告に記載）。
+
 ## 裁定372（2026-10-15 確定・相談役・便 GV-B W-2＝目視指摘 GV-23／24）横はみ出し 0（①）・6 タブの共通部品化（②＝382）
 
 出典＝相談役ブロック 2026-10-15（便 GV-B W-2）。**本文（逐語）**: 「/analytics 他で body の横スクロールを 0 に（固定幅・min-width・長い行を潰す・X-13-19 の型で全画面 grep）。/shift 確定タブ上部の金色の帯の描画崩れも同根なら一緒に」。②（6 タブ）は裁定382 の適用面。
@@ -4271,6 +4340,8 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 出典＝相談役ブロック 2026-10-14（便 GV-A）。**本文（逐語）**: 「「誰の注文を付ける」セクションを廃止し、明細の各商品行に「お客様」チップ（未指定＝灰「お客様 未指定」／指定済み＝金枠「H様」）を置き、タップで①と同じモーダル（見出し「このボトルのお客様を選ぶ」・ドリンク等は「この注文のお客様を選ぶ」）。料金行（セット・延長・指名料・サービス料）には出さない。画面・明細・印刷の用語は「お客様」で統一（「誰の注文」「名義」は使わない）。既存の保存先（注文行の customer_id）は不変。」
 適用＝便 GV-A（client のみ・DB 恒久変更 0・RPC 不触）: register-board の明細 cd 列に `.nox-custchip`（customerChipLineOf＝商品行だけ）・check-customers-card の「誰の注文」節を撤去＋文言「来店のお客様（併存）」・customer-pick-modal（customerPickTitleOf／customerChipLabelOf）。suite register-customer rc(3)・customers-keep ck(6-1) 張替え。仮決め＝docs/tmp/gva_decisions.md。
+
+**370 追補1（確定・未実装（GV-C）・2026-10-16・相談役 v46 §3）＝お客様チップは条件付き・同一行 ×N 集約**: 出典＝相談役引き継ぎ v46 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-16_v46.md・「新チャットで台帳に記す・本書で確定」＝便 V46 V-2 で記入・2026-10-16）。**本文（逐語）**: 「370 追補1（お客様チップは条件付き・同一行 ×N 集約）」／v46 §8-4「370 追補1 お客様チップ条件付き＋×N 集約」。適用＝未実装（GV-C）。GV 台帳 #42。
 
 ## 裁定369（2026-10-14 確定・相談役・便 GV-A＝目視指摘 GV-20）主ボタン 56px 幅 100% 中央・副 48px・行内は小
 
@@ -4344,6 +4415,8 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 出典＝相談役ブロック 2026-10-14（便 N1014 X-7 差し替え）。**案（逐語）**: 「スタッフも契約区分 雇用／委託。雇用＝時給×実働＋固定手当−控除・源泉は給与所得（甲／乙・月額表／日額表）。委託＝時給×実働か固定報酬・源泉率は既定 0（T11 税理士確認後に確定）・インボイスはキャスト委託と同じ器・労働者性注記（350）を同文で表示。月次締め・本人は自分の勤怠と明細のみ・店長は自店の勤怠修正と報酬プレビュー・確定は owner・店長自身の報酬は owner のみ」。
 読取＝器なし（スタッフの打刻表・勤怠・報酬・memberships の契約区分／時給／税区分すべて無し。在るのは staff_pin／set_staff_pin／kiosk_login＝レジ kiosk のログイン）。差分（DB＝0172 同乗: staff_contracts／staff_punches／staff_pay_runs＋lines・RPC 5・lib/nox/staff/pay.ts・UI 4 画面・suite +12 段）＝docs/tmp/x_plan.md X-7。T11（委託スタッフの源泉と支払調書）を専門家確認事項に起票。
 
+**356 追補1（確定・未実装（GV-C）・2026-10-16・相談役 v46 §3）＝給与画面のキャスト／スタッフ切替（計算は 0172 後）**: 出典＝相談役引き継ぎ v46 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-16_v46.md・「新チャットで台帳に記す・本書で確定」＝便 V46 V-2 で記入・2026-10-16）。**本文（逐語）**: 「356 追補1（給与画面のキャスト／スタッフ切替・計算は 0172 後）」／v46 §1「356（スタッフ勤怠・報酬・雇用／委託＋追補1 給与画面の切替＝未実装）」／v46 §8-4「356 追補1 キャスト／スタッフ切替（器のみ）」。適用＝未実装（GV-C・器のみ）。
+
 ## 裁定355（2026-10-14 確定・相談役・便 N1014 A-5）/kiosk のスタッフ群＝器なし・0172 案へ
 
 出典＝相談役ブロック 2026-10-14（便 N1014 A-5）。**本文（逐語）**: 「裁定355（X-1 で器ありの場合のみ）＝/kiosk の一覧を『キャスト』『スタッフ』の 2 群・スタッフも PIN→出勤／退勤・書き先はスタッフ勤怠（分離）・オーナーは出さない。器が無ければ 0172 案に『memberships に PIN（hash）』を含めて報告」。
@@ -4363,6 +4436,8 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 
 出典＝相談役ブロック 2026-10-14（便 N1014 A-1・便の途中で改訂版が届き初版を上書き）。**本文（逐語・改訂版）**: 「開卓モーダルは中央寄せで大きく・人数は −／＋ステッパー・セット料金ルールは横並びセグメント・『開卓（セット開始）』を中央に大きく 1 つ・予約とやめるはその下に小さく」。指示の詳細＝「中央寄せ・幅は画面の 80%（上限 560px）・文字と余白を今の 1.5 倍。見出し『<卓名> を開卓』。人数＝−／＋ステッパー（既定 1・下限 1・上限＝卓の定員があればそれ・無ければ 20・直接入力なし）。セット料金ルール＝プルダウン廃止→横並びのセグメント（自動／各ルール名・選択中は金塗り・既定は自動・ルールが 1 つなら非表示）。主ボタン『開卓（セット開始）』を中央に大きく 1 つ（幅 100%・高さ 56px）。『予約を入れる』『やめる』はその下に小さく横並び。開卓 RPC は既存のまま・相席導線は不変・kiosk 不触」。初版（「席を開くダイアログは席名を見出し・人数は −／＋ステッパー（既定 1・上限は席定員か 20）・『席を開く』1 ボタン・直接入力なし」）は改訂で置換。
 適用＝便 N1014（client のみ・mig 0・check_open の引数 1 バイト不変）: app/(manage)/register/register-board.tsx（Modal maxWidth 560＋globals.css `.nox-modal-card:has(> [data-open-seat-modal]) { width: 80vw }`（>900px のみ・≤900 はシート全幅）・見出し 21px・本文 15px・ステッパー 72×60・ルール＝data-rule-seg（owner／manager かつ有効ルール 2 件以上のときのみ）・主ボタン data-open-seat 幅 100%／56px・予約／やめる（data-open-cancel）は下に小さく）。料金区分（116-UI）は対象外＝select のまま。suite n1014 nd(1-1)／(1-2)。仮決め＝n1014_decisions.md §A-1。
+
+**352 追補1（確定・未実装（GV-C）・2026-10-16・相談役 v46 §3）＝開卓時のお客様**: 出典＝相談役引き継ぎ v46 §3（docs/handoff/NOX_相談役引き継ぎ_2026-10-16_v46.md・「新チャットで台帳に記す・本書で確定」＝便 V46 V-2 で記入・2026-10-16）。**本文（逐語）**: 「352 追補1（開卓時のお客様）」（裁定388 の欄の逐語 1 文）／v46 §1「352（開卓モーダル＋追補1 開卓時のお客様＝未実装）」／v46 §8-4「352 追補1 開卓時のお客様」。適用＝未実装（GV-C）。GV 台帳 #40。
 
 ### GV-4（2026-10-14・便 N1014 A-3・裁定番号なし）/kiosk の名前タイルをグリッドに
 適用＝app/kiosk/page.tsx `.nox-kioskgrid`（globals.css＝2 列・≥600px 3 列・≥900px 4 列）。suite n1014 nd(3-1)。
@@ -6103,6 +6178,7 @@ K36 の説明文もモックの 2 カード語彙（本人レコード／NOXロ�
 - **handoff v43 収蔵（2026-10-08・便 V-0）**: Downloads から `docs/handoff/` へバイト複写（cp・改行変換なし・git 追跡へ追加・sha 全64桁付き・教訓72）。v43＝`NOX_相談役引き継ぎ_2026-10-08_v43.md`（12,851 B・101 行（LF・CR 0）・sha256 `e4fbaab95203201ea901d1166cbb6f7bc1d96fd94462bbca6169fa8f38cc45ba`・64 桁と提示値（先頭 e4fbaab9・末尾 45ba／12,851 B／101 行）を照合一致・Downloads 原本と収蔵後の再計算がともに同 sha・cmp 一致）。v42（`d1cd92c`・10,674 B・sha256 `7bed660fcd3b263602208ed4ba4c2624fea10caffae381107a2ca13f1cf46941`）に続く版＝本断面（M3〜M5・MC0〜MC2・S1・W5-1・D0／D1・0163／0164 起草・f0 93 段 5,506）の最終断面。同じ docs コミット「docs: v43 収蔵・追補」で §3 の追補（330 追補2／331 追補1／333 追補1／328 追補2／334 追補1）と裁定335 を収載。教訓103 は提案段階＝本収蔵では採番しない（本文は便 V の報告に貼付・採番は相談役）。docs のみ＝f0 不走（裁定256）。
 - **handoff v44 収蔵（2026-10-09・便 V44 V-0）**: Downloads から `docs/handoff/` へバイト複写（cp・改行変換なし・git 追跡へ追加・sha 全64桁付き・教訓72）。v44＝`NOX_相談役引き継ぎ_2026-10-09_v44.md`（14,494 B・103 行（LF・CR 0）・sha256 `93ac76ee3046ffbd89e1e9be82397def7e33d776aa734c0b2ad3de0fd2667d21`・64 桁と提示値（先頭 93ac76ee・末尾 6d21／14,494 B／103 行）を照合一致・Downloads 原本と収蔵後の再計算がともに同 sha）。v43（`9b2021a`・12,851 B・sha256 `e4fbaab95203201ea901d1166cbb6f7bc1d96fd94462bbca6169fa8f38cc45ba`）に続く版＝本断面（便 V〜X-13c・0163〜0166 本番適用・名簿 304・f0 96 段 5,630）の最終断面。同じ docs コミット「docs: v44 収蔵・裁定337／338・X-13 台帳」で §3 の裁定337・338・恒久注意 3 点（恒久注意欄 18〜20）と X-13 台帳の転記（docs/demo/x13_ledger.md）を収載。教訓106／107 は提案段階＝本収蔵では採番しない（本文は便 V44 の報告に貼付・採番は相談役）。docs のみ＝f0 不走（裁定256）。
 - **handoff v45 収蔵（2026-10-13・便 V45 V-0）**: Downloads から `docs/handoff/` へバイト複写（cp・改行変換なし・git 追跡へ追加・sha 全64桁付き・教訓72）。v45＝`NOX_相談役引き継ぎ_2026-10-13_v45.md`（15,054 B・105 行（LF・CR 0）・sha256 `8e8a931d5cacf3ad4e33edf16c0e57cd3dc36639edc91012cd45caea878a1d85`・64 桁と提示値（先頭 8e8a931d・末尾 1d85／15,054 B／105 行）を照合一致・Downloads 原本と収蔵後の再計算がともに同 sha）。v44（`abda9c5`・14,494 B・sha256 `93ac76ee3046ffbd89e1e9be82397def7e33d776aa734c0b2ad3de0fd2667d21`）に続く版＝本断面（便 V44〜P168・0167／0168 本番適用・0169 起草・名簿 305・f0 100 段 5,722）の最終断面。同じ docs コミット「docs: v45 収蔵・裁定342・教訓109・週末 reset」で §3（337 追補1・338 追補2・X-13-28 追補・341 追補1・教訓109・裁定342・X-13-29・恒久注意欄 24〜26）と V-2（10/10〜10/13 の無人 reset 読取）を収載。docs のみ＝f0 不走（裁定256）。
+- **handoff v46 収蔵（2026-10-16・便 V46 V-0）**: Downloads から `docs/handoff/` へバイト複写（cp・改行変換なし・git 追跡へ追加・sha 全64桁付き・教訓72）。v46＝`NOX_相談役引き継ぎ_2026-10-16_v46.md`（15,191 B・96 行（LF・CR 0）・sha256 `5f001543c24874dc2e96b0c5e4607303a14add8c446f81951d7828e2464597fa`・64 桁と提示値（先頭 5f001543・末尾 97fa／15,191 B／96 行）を照合一致・Downloads 原本と収蔵後の再計算がともに同 sha・cmp バイト一致）。併せて＝docs/expert/answers_20261014.md は `3af8907`（便 N1014）で既に追跡済み（v46 §0 の「未追跡」は旧い＝前提の不一致はこの 1 点のみ・停止せず報告）・scripts/demo/poc-record.mjs は docs/dp/poc_record_20261016.md に逐語で md 化して本体削除（起票105 の処置・docs/tmp/0149_poc.md は .gitignore のまま）。
 - **本番向け付記**: audit_logs の retention（保持期間・アーカイブ）は**ローンチ後必須**（税理士ゲート後＝裁定23 系）。本 gate は verify org 限定であり
   本番 org の行には一切触れない。
 
