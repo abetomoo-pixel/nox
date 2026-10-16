@@ -259,6 +259,12 @@ export type PayInput = {
   //   dailyPaidGross＝支給後控除行「日払い済み」（gross 合計・net から引く）／dailyWithheld＝源泉の既徴収額（源泉＝max(0, 源泉 − 既徴収)）。
   dailyPaidGross?: number;
   dailyWithheld?: number;
+  // ★0172（裁定349・便 P172）: 日払いの種別。settlement（日次精算＝1 日分控除済み）は期間精算から除外＝源泉の課税ベースから引き、既徴収の相殺はしない。
+  //   advance（前払・仮払＝控除なし）は従来どおり支給後控除（日払い済み）だけ。未指定＝両方 0（golden 不変）。
+  dailySettlementGross?: number;
+  dailyAdvanceGross?: number;
+  // ★0172（裁定349）: 雇用の甲欄／乙欄（扶養控除等申告書の提出あり＝甲・なし＝乙）。税額表は器なし（起票113＝第 2 期）＝源泉は 0 のまま・区分だけ凍結に残す
+  taxClass?: EmployeeTaxClass;
 };
 
 // ★裁定98: sanction（制裁控除）の二層ガード結果。
@@ -322,6 +328,9 @@ export type PayResult = {
   dailyPaidGross?: number;
   dailyWithheld?: number;
   dailyWithholdingShort?: number;
+  dailySettlementGross?: number; // ★0172（裁定349）: 日次精算の合計（課税ベースから除外した額・あるときだけ）
+  dailyAdvanceGross?: number;    // ★0172（裁定349）: 前払の合計（支給後控除のみ・あるときだけ）
+  taxClass?: EmployeeTaxClass;   // ★0172（裁定349）: 雇用の甲／乙（雇用のときだけ）
   net: number;
   lateN: number;
   absentN: number;
@@ -528,10 +537,22 @@ export function withholdingOf(
   gross: number,
   periodDays: number,
   taxMode: TaxMode,
+  taxClass?: EmployeeTaxClass,
 ): number {
   return taxMode === "委託"
     ? floorYen(Math.max(0, gross - 5000 * periodDays) * 0.1021)
-    : 0;
+    : employeeWithholdingOf(gross, taxClass ?? "乙");
+}
+
+/** ★0172（裁定349・便 P172）: 雇用キャストの源泉区分＝扶養控除等申告書の提出あり＝甲欄／なし＝乙欄（日額表／月額表は支払方式で選ぶ）。 */
+export type EmployeeTaxClass = "甲" | "乙";
+export const employeeTaxClassOf = (dependentsForm: boolean | null | undefined): EmployeeTaxClass => (dependentsForm === true ? "甲" : "乙");
+/** 税額表（日額表／月額表・甲／乙）は器なし（起票113＝第 2 期）＝搭載されるまで false。true にした時点で employeeWithholdingOf が表を引く */
+export const EMPLOYEE_TAX_TABLE_READY = false;
+/** 雇用の源泉＝税額表の器が無い間は 0（裁定349 確定＝「雇用の税額表は器が別＝0172 には載せない」）。区分は甲／乙で分岐済み＝表が入れば差し替え 1 箇所 */
+export function employeeWithholdingOf(gross: number, taxClass: EmployeeTaxClass): number {
+  void gross; void taxClass;
+  return EMPLOYEE_TAX_TABLE_READY ? 0 : 0;
 }
 
 /** ★裁定373（GV-B W-3・2026-10-15）: ノルマ未達の減額は軸ごと「定額／不足 1 件ごと」の 1 方式。両方入っている既存店は「不足ごと」扱い（定額は使わない） */
@@ -744,11 +765,15 @@ export function payOf(input: PayInput): PayResult {
   // ★源泉のみ periodDays（計算期間の暦日数）。fixedDedOf / normPenaltyOf は実出勤日数 effDays のまま（裁定23 #3）。
   // ★264-6: before 群の合計を源泉対象額から引く（0 未満は 0 で止める）。adjustments 空なら従来と 1 バイト同値（生 gross）。
   // ★0156（裁定309-6・便 V-2）: 日払い時に徴収済みの源泉を差し引く（負なら 0・超過は dailyWithholdingShort に保持＝core が warn）。日払いが無ければ従来式そのまま。
-  const withholdingFull = withholdingOf(Math.max(0, gross - adj.before), input.periodDays, input.taxMode);
-  const dailyPaid = input.dailyPaidGross ?? 0;
+  // ★0172（裁定349・便 P172）: 日払いの種別で分岐＝settlement（日次精算）は期間精算から除外＝課税ベースから引く・既徴収の相殺はしない（日次で完結）。
+  //   advance（前払）は課税ベースを変えず支給後控除だけ。dailyWithheld は凍結用に残す（源泉からは引かない＝dailyWithholdingShort は常に 0）。
+  const dailySettlement = input.dailySettlementGross ?? 0;
+  const dailyAdvance = input.dailyAdvanceGross ?? 0;
+  const withholdingFull = withholdingOf(Math.max(0, gross - adj.before - dailySettlement), input.periodDays, input.taxMode, input.taxClass);
+  const dailyPaid = input.dailyPaidGross ?? dailySettlement + dailyAdvance;
   const dailyWithheld = input.dailyWithheld ?? 0;
-  const withholding = Math.max(0, withholdingFull - dailyWithheld);
-  const dailyWithholdingShort = Math.max(0, dailyWithheld - withholdingFull);
+  const withholding = withholdingFull;
+  const dailyWithholdingShort = 0;
   // ★0154 D3（裁定293-3）: ノルマ未達の罰金も撤去＝常に 0（normPenaltyOf は純関数として残す・normConfig は検知の器）。
   const normPenalty = 0;
   void normPenaltyOf; void effDohan;
@@ -810,6 +835,9 @@ export function payOf(input: PayInput): PayResult {
     adjAfter: adj.after,
     adjustOverflow,
     ...(dailyPaid || dailyWithheld ? { dailyPaidGross: dailyPaid, dailyWithheld, dailyWithholdingShort } : {}), // ★0156: 日払いがある cast だけキーを持つ（golden 不変）
+    ...(dailySettlement ? { dailySettlementGross: dailySettlement } : {}), // ★0172（裁定349）: 種別別の合計（あるときだけ）
+    ...(dailyAdvance ? { dailyAdvanceGross: dailyAdvance } : {}),
+    ...(input.taxMode === "雇用" && input.taxClass ? { taxClass: input.taxClass } : {}), // ★0172（裁定349）: 雇用の甲／乙（雇用のときだけ）
     net,
     lateN: input.fine.lateN,
     absentN: input.fine.absentN,

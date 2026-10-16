@@ -52,6 +52,20 @@ route 側の応答＝`{ ok, count, retry, results: [{ org, ok, mode, chunks }] }
 | nox-demo-reset-muse／luna／noir／ace／lily／nest | 21:05／07／09／11／13／15 | 06:05〜06:15 | 店ごとに `?org=<code>`（営業日切替 06:00 の後） |
 | nox-demo-reset-retry | 21:35 | 06:35 | `?retry=1`＝demo_reset_at がその営業日でない org だけ |
 
+## 6. シフトの自動確定（裁定380・0172・便 P172・2026-10-16）＝Agoora 手貼り
+
+店設定「送り返しの自動確定時間」（settings_json.shift_auto_confirm_hours＝1〜168・0＝しない）が入っている店だけ、送り返し（status proposed）のまま放置された希望を設定時間後に確定する。route＝`/api/cron/shift-auto-confirm`（GET＋Bearer CRON_SECRET・demo-reset と同型・15 分間隔）。URL は Vault の nox_demo_reset_url の末尾を置換（新しい秘密は作らない）。
+
+```sql
+select 'nox-project-proof', count(*) from public.orgs;                       -- 貼り先証明（hiqbfagmkrdpmlqhkmsu）
+select cron.unschedule('nox-shift-auto-confirm') where exists (select 1 from cron.job where jobname='nox-shift-auto-confirm');   -- 冪等
+select cron.schedule('nox-shift-auto-confirm', '*/15 * * * *', $$select net.http_get(url := replace((select decrypted_secret from vault.decrypted_secrets where name = 'nox_demo_reset_url'), '/api/cron/demo-reset', '/api/cron/shift-auto-confirm'), headers := jsonb_build_object('Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'nox_cron_secret')), timeout_milliseconds := 60000)$$);
+select jobname, schedule, active from cron.job where jobname='nox-shift-auto-confirm';   -- 1 行
+-- 動作確認（15 分後）: select id, status_code, left(content::text, 200) from net._http_response order by id desc limit 3;   -- {"ok":true,"count":<店数>,"results":[{"store":…,"hours":…,"confirmed":n}]}
+```
+
+止め方＝`select cron.unschedule('nox-shift-auto-confirm');`。route 側は確定した店ごとに audit 'shift.auto_confirm'（audit_log_write_service＝service_role に grant が無く現状は console だけ＝起票115 と同根）。
+
 ## 5. 止め方・戻し方
 
 - 一時停止: `update cron.job set active=false where jobname like 'nox-demo-reset%';`

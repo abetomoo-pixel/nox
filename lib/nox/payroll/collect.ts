@@ -100,7 +100,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
     admin.from("deductions").select("id, name, amount, per, kind, basis_confirmed_at").eq("store_id", storeId).eq("is_active", true),
     admin.from("custom_back_defs").select("id, name, basis, value, cond_json").eq("store_id", storeId).eq("is_active", true),
     admin.from("cast_norms").select("cast_id, days_target, dohan_target, sales_target, shimei_target").eq("store_id", storeId).eq("period", period), // ★347 追補2: shimei も（解決の入力）
-    admin.from("cast_tax_profiles").select("cast_id, mode").eq("store_id", storeId),
+    admin.from("cast_tax_profiles").select("cast_id, mode, dependents_form").eq("store_id", storeId), // ★0172（裁定349）: +dependents_form（雇用の甲／乙）
     // ★mig0114（読み経路段）: 行型コンポーネント（plan_id で束ねる・空なら旧式同値＝pay.ts 非参照）
     admin.from("comp_plan_components").select("plan_id, kind, mode, amount, rate, params, priority")
       .eq("store_id", storeId).eq("is_active", true).order("priority"),
@@ -211,14 +211,16 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
   }
   const normAxes = normAxesOf(stR.data?.settings_json ?? null); // ★347 追補2: 採用軸（OFF の軸は目標なし）
   const taxByCast = new Map<string, TaxMode>();
+  const depByCast = new Map<string, boolean>(); // ★0172（裁定349）: 扶養控除等申告書の提出（雇用の甲／乙）
   for (const t of (taxR.data ?? []) as Record<string, unknown>[]) {
     taxByCast.set(t.cast_id as string, t.mode as TaxMode);
+    depByCast.set(t.cast_id as string, t.dependents_form === true);
   }
   const lateGrace = (pen?.late_grace_min as number) ?? undefined;
   masters.lateGraceMin = lateGrace; // ★324-3（便 L-2-4）: shortfall の遅刻猶予（裁定268＝punch-match と同じ値）
   const earlyGrace = (pen?.early_grace_min as number) ?? undefined;
   const overGrace = (pen?.over_grace_min as number) ?? undefined;
-  return { plansById, slidePeriodByPlan, slideBasisByPlan, slideRankIdsByPlan, planNormById, normAxes, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace: { lateGrace, earlyGrace, overGrace } }; // ★N3: guaranteesByCast・★裁定338: slidePeriodByPlan・★裁定343: slideBasisByPlan／slideRankIdsByPlan
+  return { plansById, slidePeriodByPlan, slideBasisByPlan, slideRankIdsByPlan, planNormById, normAxes, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, depByCast, grace: { lateGrace, earlyGrace, overGrace } }; // ★N3: guaranteesByCast・★裁定338: slidePeriodByPlan・★裁定343: slideBasisByPlan／slideRankIdsByPlan
 }
 
 // 窓内 closed 非 void の会計から cast 別のバック・pt・champ/bottle 本数を集計。
@@ -578,15 +580,18 @@ export async function loadPayrollAdjustments(admin: SupabaseClient, storeId: str
 // ★0158（裁定312・便 AA-3）: 属する期＝settle_period（null＝営業日の月）＝RPC の coalesce(settle_period, to_char(biz_date,'YYYY-MM')) = period と同じ集合。
 //   支払済み期の営業日で発行した日払いは翌月へ繰り下がる（settle_period＝翌月）＝営業日の月の run には載せず、繰り下げ先の run に載せる。前借り（advances）は deduct_period のまま
 //   （payroll_adjustments と同型・RLS は definer 相当のバイパス・storeId は route guard が org 内を照合済み）。式は RPC と同一（store×期間・cast 別 Σgross／Σwithholding／count）。
-export async function loadDailyPays(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Map<string, { gross: number; withheld: number; n: number }>> {
-  const byCast = new Map<string, { gross: number; withheld: number; n: number }>();
-  const { data, error } = await admin.from("daily_pays").select("cast_id, gross, withholding")
+// ★0172（裁定349・便 P172）: 種別 kind（settlement＝日次精算／advance＝前払）を別に合計する＝settlement は課税ベースから除外・advance は支給後控除のみ（pay.ts）。
+export type DailyPaidSum = { gross: number; withheld: number; n: number; settlementGross: number; advanceGross: number };
+export async function loadDailyPays(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Map<string, DailyPaidSum>> {
+  const byCast = new Map<string, DailyPaidSum>();
+  const { data, error } = await admin.from("daily_pays").select("cast_id, gross, withholding, kind")
     .eq("store_id", storeId)
     .or(`settle_period.eq.${win.period},and(settle_period.is.null,biz_date.gte.${win.periodStart},biz_date.lte.${win.periodEnd})`);
   if (error) throw new Error(`daily_pays: ${error.message}`);
-  for (const r of (data ?? []) as { cast_id: string; gross: number; withholding: number }[]) {
-    const cur = byCast.get(r.cast_id) ?? { gross: 0, withheld: 0, n: 0 };
+  for (const r of (data ?? []) as { cast_id: string; gross: number; withholding: number; kind: string | null }[]) {
+    const cur = byCast.get(r.cast_id) ?? { gross: 0, withheld: 0, n: 0, settlementGross: 0, advanceGross: 0 };
     cur.gross += r.gross; cur.withheld += r.withholding; cur.n += 1;
+    if (r.kind === "advance") cur.advanceGross += r.gross; else cur.settlementGross += r.gross; // 既定（null・旧行）＝settlement（0172 の列既定と同じ）
     byCast.set(r.cast_id, cur);
   }
   return byCast;
@@ -650,7 +655,7 @@ export async function collectPeriod(
     }
   }
 
-  const [{ plansById, slidePeriodByPlan, slideBasisByPlan, slideRankIdsByPlan, planNormById, normAxes, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
+  const [{ plansById, slidePeriodByPlan, slideBasisByPlan, slideRankIdsByPlan, planNormById, normAxes, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, depByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
     loadMasters(admin, storeId, win.period, win.periodEnd, win.periodStart), // ★324（便 L-2-3）
     loadAccounting(admin, storeId, win),
     loadIncentives(admin, storeId, win),
@@ -800,6 +805,7 @@ export async function collectPeriod(
         return { days: n.days, dohan: n.dohan, salesTarget: r.value.sales ?? 0, salesTargetSource: (r.source.sales ?? null) as QuotaSource };
       })(),
       taxProfileMode: taxByCast.get(cid) ?? null,
+      dependentsForm: depByCast.get(cid) ?? null, // ★0172（裁定349）: 雇用の甲／乙の入力（assemble が employeeTaxClassOf で区分に）
       employment: employmentById.get(cid) ?? null, // ★裁定98: 二層ガードの分岐キー
       avgDailyWage: avgWageByCast.get(cid) ?? null, // ★裁定98-C: null=暫定式（pay.ts 側）
     });

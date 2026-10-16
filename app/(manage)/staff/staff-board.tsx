@@ -13,7 +13,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import PhotoEdit from "@/components/ui/photo-edit"; // ★X-13-4: 名前の横に写真（現在・変更・削除）＝キャスト詳細と同じ部品
 import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
-import { FieldStack, SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B W-10）
+import { FieldStack, SegmentTabs, TelLink } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B W-10）・★0172: TelLink（スタッフの電話）
 
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
@@ -24,6 +24,7 @@ type Mem = {
   id: string; user_id: string; store_id: string; role: string; is_active: boolean;
   can_register: boolean; can_crm: boolean; can_shift: boolean; can_view_backs: boolean;
   can_close: boolean; can_reopen: boolean; // ★C層③（mig0138・横断 §2）: 締め／解除の個別付与
+  tel: string | null; line_id: string | null; // ★0172（裁定381・便 P172）: 電話・LINE ID（memberships の列）
 };
 type UserRow = { id: string; name: string | null; email: string; auth_user_id: string; photo_updated_at: string | null }; // ★0162（裁定329・便 M5-1）: スタッフ写真
 type Store = { id: string; name: string };
@@ -54,9 +55,10 @@ const PERM_DEFS: Array<[ PermKey, string ]> = [
 ];
 
 export default function StaffBoard({
-  isOwner, stores, myStoreId, myAuthUserId,
+  isOwner, stores, myStoreId, myAuthUserId, tabs,
 }: {
   isOwner: boolean; stores: Store[]; myStoreId: string; myAuthUserId: string;
+  tabs?: React.ReactNode; // ★0172（裁定356・便 P172）: 一覧／勤怠・報酬のタブ（page が描く）
 }) {
   const supabase = createClient();
   const isDemo = useIsDemo(); // ★N7-2 ③
@@ -74,6 +76,8 @@ export default function StaffBoard({
   const [eName, setEName] = useState("");
   const [eStore, setEStore] = useState("");
   const [eEmail, setEEmail] = useState(""); // ★裁定267-2: メール（ログイン ID）変更＝owner のみ・POST /api/staff/update-email
+  const [eTel, setETel] = useState("");   // ★0172（裁定381・便 P172）: 編集シートの電話・LINE ID（staff_update_profile の p_tel／p_line_id＝null は変更なし）
+  const [eLine, setELine] = useState("");
 
   // 追加モーダル
   const [addOpen, setAddOpen] = useState(false);
@@ -82,7 +86,7 @@ export default function StaffBoard({
   const [aStore, setAStore] = useState(myStoreId || stores[0]?.id || "");
   const [aRole, setARole] = useState<"staff" | "manager">("staff");
   const [aIdemKey, setAIdemKey] = useState("");
-  // ★裁定381（GV-B W-10）: 電話・LINE ID・契約区分＝器は 0172（memberships 電話・LINE ID／staff_contracts）に同乗＝client 先行（今は送らない・画面で注記）
+  // ★裁定381（GV-B W-10）→★0172（便 P172）: 電話・LINE ID は memberships.tel／line_id へ保存（staff_create 7 引数）。契約区分（staff_contracts）は器のみ＝書込 RPC は次便＝注記
   const [aTel, setATel] = useState("");
   const [aLine, setALine] = useState("");
   const [aContract, setAContract] = useState<"employee" | "parttime" | "contractor">("parttime");
@@ -132,7 +136,7 @@ export default function StaffBoard({
     // 一覧＝staff/manager のみ（cast はキャスト管理で別画面）。inactive（在籍解除済み）も表示＝再雇用の入口。
     const { data: mm } = await supabase
       .from("memberships")
-      .select("id, user_id, store_id, role, is_active, can_register, can_crm, can_shift, can_view_backs, can_close, can_reopen")
+      .select("id, user_id, store_id, role, is_active, can_register, can_crm, can_shift, can_view_backs, can_close, can_reopen, tel, line_id") // ★0172: +tel／line_id
       .in("role", ["staff", "manager"]);
     const rows = (mm ?? []) as Mem[];
     const userIds = [...new Set(rows.map((m) => m.user_id))];
@@ -183,6 +187,7 @@ export default function StaffBoard({
     setSel(m);
     setEName(users[m.user_id]?.name ?? "");
     setEEmail(users[m.user_id]?.email ?? "");
+    setETel(m.tel ?? ""); setELine(m.line_id ?? ""); // ★0172
     setEStore(stores.find((s) => s.id !== m.store_id)?.id ?? "");
   }
 
@@ -206,6 +211,8 @@ export default function StaffBoard({
           storeId: isOwner ? aStore : myStoreId, // manager は自店固定（RPC でも二重に守る）
           role: isOwner ? aRole : "staff",       // manager は staff 固定
           idemKey: aIdemKey,
+          tel: aTel.trim() || undefined,     // ★0172（裁定381）: 任意＝空は送らない（route が null）
+          lineId: aLine.trim() || undefined,
         }),
       });
       const body = (await res.json()) as CreateResult & { error?: string };
@@ -224,15 +231,19 @@ export default function StaffBoard({
     const u = users[sel.user_id];
     const nameChanged = eName.trim() !== (u?.name ?? "");
     const emailChanged = isOwner && !isDemo && eEmail.trim().length > 0 && eEmail.trim().toLowerCase() !== (u?.email ?? "").toLowerCase();
-    if (!nameChanged && !emailChanged) { setMsg("変更はありません"); return; }
+    const telChanged = eTel.trim() !== (sel.tel ?? "");   // ★0172（裁定381）: 変わった項目だけ（''＝消す・null＝変更なし＝RPC の nullif(trim)）
+    const lineChanged = eLine.trim() !== (sel.line_id ?? "");
+    if (!nameChanged && !emailChanged && !telChanged && !lineChanged) { setMsg("変更はありません"); return; }
     setBusy(true); setMsg(null);
     try {
       const done: string[] = [];
-      if (nameChanged) {
+      if (nameChanged || telChanged || lineChanged) {
         if (eName.trim() === "") { setMsg("名前を入力してください"); return; }
-        const { error } = await supabase.rpc("staff_update_profile", { p_membership_id: sel.id, p_name: eName.trim() });
-        if (error) { setMsg(`名前の更新に失敗: ${rpcErrJa(error.message)}`); return; }
-        done.push("名前");
+        const { error } = await supabase.rpc("staff_update_profile", { p_membership_id: sel.id, p_name: eName.trim(), p_tel: telChanged ? eTel.trim() : null, p_line_id: lineChanged ? eLine.trim() : null }); // ★0172: 4 引数
+        if (error) { setMsg(`${nameChanged ? "名前" : "連絡先"}の更新に失敗: ${rpcErrJa(error.message)}`); return; }
+        if (nameChanged) done.push("名前");
+        if (telChanged) done.push("電話番号");
+        if (lineChanged) done.push("LINE ID");
       }
       if (emailChanged) {
         const res = await fetch("/api/staff/update-email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: sel.user_id, email: eEmail.trim() }) });
@@ -262,6 +273,7 @@ export default function StaffBoard({
       <PageHead eyebrow="STAFF ACCOUNTS" title="スタッフ"
         desc="スタッフ・店長の権限と在籍を管理します（キャストはマスタ側で管理）。" />
       <Toast msg={msg} />
+      {tabs}{/* ★0172（裁定356・便 P172）: 一覧／勤怠・報酬 */}
 
       <div className="nox-ctoolbar">
         {!isDemo && <button style={{ ...btnGold, marginLeft: "auto", minHeight: 44 }} onClick={openAdd} disabled={busy} data-staff-add="1">＋ スタッフ登録</button>}{/* ★裁定381 */}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}
@@ -293,7 +305,7 @@ export default function StaffBoard({
                   </span>
                 </div>
                 <div className="role">
-                  {u?.email ?? "—"}{isOwner ? ` / ${storeName(m.store_id)}` : ""}
+                  {u?.email ?? "—"}{isOwner ? ` / ${storeName(m.store_id)}` : ""}{m.tel ? <> / <TelLink tel={m.tel} /></> : null}{/* ★0172（裁定381）: tel: リンク */}
                 </div>
               </div>
               <div className="nox-perms" onClick={(e) => e.stopPropagation()}>
@@ -336,6 +348,13 @@ export default function StaffBoard({
           <div style={{ display: "grid", gap: 10, marginTop: 12 }} data-staff-edit="1">
             <FieldStack label="名前" htmlFor="staff-edit-name">
               <input id="staff-edit-name" placeholder="名前" value={eName} onChange={(e) => setEName(e.target.value)} style={{ ...t.input, width: "100%" }} />
+            </FieldStack>
+            {/* ★0172（裁定381・便 P172）: 電話・LINE ID（memberships.tel／line_id）＝空で保存＝消す */}
+            <FieldStack label="電話番号" htmlFor="staff-edit-tel">
+              <input id="staff-edit-tel" inputMode="tel" placeholder="090-0000-0000" maxLength={30} value={eTel} onChange={(e) => setETel(e.target.value)} style={{ ...t.input, width: "100%" }} data-staff-edit-tel="1" />
+            </FieldStack>
+            <FieldStack label="LINE ID" htmlFor="staff-edit-line">
+              <input id="staff-edit-line" placeholder="@line_id" maxLength={40} value={eLine} onChange={(e) => setELine(e.target.value)} style={{ ...t.input, width: "100%" }} data-staff-edit-line="1" />
             </FieldStack>
             {isOwner && !isDemo && (
               <FieldStack label="メール（ログインID）" htmlFor="staff-edit-email" note="変更すると新しいメールでログインします">
@@ -401,7 +420,7 @@ export default function StaffBoard({
                     <input value={aEmail} onChange={(e) => setAEmail(e.target.value)} style={t.input}
                       placeholder="入力したときだけログインIDに使います（未入力なら自動発行）" type="email" />
                   </label>
-                  {/* ★裁定381（GV-B W-10）: 電話・LINE ID・契約区分＝器は 0172 に同乗（memberships 電話・LINE ID／staff_contracts 契約区分）＝今は保存されない（注記） */}
+                  {/* ★裁定381（GV-B W-10）→★0172（便 P172）: 電話・LINE ID は staff_create の p_tel／p_line_id で保存。契約区分は staff_contracts（器のみ＝書込 RPC は次便）＝注記 */}
                   <label style={{ display: "grid", gap: 4 }}>
                     <span style={t.fieldLabel}>電話番号（任意）</span>
                     <input value={aTel} onChange={(e) => setATel(e.target.value)} style={t.input} inputMode="tel" placeholder="090-0000-0000" maxLength={30} data-staff-tel="1" />
@@ -445,7 +464,7 @@ export default function StaffBoard({
                     <SegmentTabs value={aContract} onChange={(v) => setAContract(v)} ariaLabel="契約区分"
                       options={[["employee", "正社員"], ["parttime", "アルバイト"], ["contractor", "業務委託"]] as const} />
                   </div>
-                  <p style={{ ...t.sub, margin: 0, lineHeight: 1.6 }}>電話番号・LINE ID・契約区分は次のデータ更新（0172）から保存されます。写真は登録後に一覧の行から追加できます。</p>
+                  <p style={{ ...t.sub, margin: 0, lineHeight: 1.6 }}>電話番号・LINE ID は登録時に保存されます。契約区分（時給・手当）は「勤怠・報酬」タブで次のデータ更新から設定します。写真は登録後に一覧の行から追加できます。</p>
                   {aErr && <Message kind="error" style={{ margin: 0 }}>{aErr}</Message>}
                   <button type="button" style={t.btnPrimary56} disabled={busy} data-staff-register="1" onClick={() => void submitAdd()}>{busy ? "登録中…" : "登録する"}</button>
                   <div style={t.btnRow48}>

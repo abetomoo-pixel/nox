@@ -11,6 +11,7 @@ import BillingBanner from "@/components/ui/billing-banner";
 // ★夜間便 N7-2（裁定273-6）: デモ org＝帯＋「初期状態に戻す」・/setup へ飛ばさない・導線（ご契約ほか）を隠す
 import DemoBanner from "@/components/ui/demo-banner";
 import { DemoProvider } from "@/lib/nox/demo/context";
+import { TERMS_VERSION, termsGateRedirectOf } from "@/lib/nox/terms"; // ★0172（裁定351・便 P172）: 本番 org の同意ゲート
 import * as t from "@/lib/nox/ui/theme";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
@@ -45,6 +46,13 @@ export default async function ManageLayout({ children }: { children: React.React
   // ★N7-2: デモ org の判定＝orgs.is_demo（RLS orgs_select＝自 org 1 行・読取 1 本。0149 ★1 の列）
   const { data: orgRow } = await supabase.from("orgs").select("is_demo").limit(1).maybeSingle();
   const isDemo = orgRow?.is_demo === true;
+  // ★0172（裁定351・便 P172）: 本番 org の開通ゲート＝現行版（TERMS_VERSION）の同意が無ければ /terms/accept へ（デモ org は RPC が常に true＝読取 1 本・owner 以外も案内画面へ）。
+  //   置き場＝org 読取の直後（裁定351 案）。真の防御は RPC terms_accept（owner のみ・冪等）＝ここは導線。
+  if (!isDemo) {
+    const { data: termsOk } = await supabase.rpc("terms_accepted_version_ok", { p_version: TERMS_VERSION });
+    const to = termsGateRedirectOf(isDemo, termsOk === true, (await headers()).get("x-pathname") ?? "");
+    if (to) redirect(to);
+  }
   if (role === "owner" && !isDemo) { // ★N7-2 ②: デモは setup_done に依らず /setup へ飛ばさない
     const pathname = (await headers()).get("x-pathname") ?? "";
     const needsSetup = (storeRows ?? []).some((r) => ((r.settings_json as Record<string, unknown> | null)?.setup_done) !== true);
@@ -90,6 +98,7 @@ export default async function ManageLayout({ children }: { children: React.React
           ...(isManagerUp || staffShift ? [{ href: "/shift", label: "シフト" }] : []), // ★裁定381: staff は can_shift のみ
           // 文言統一（Agoora 裁定確定）: 旧称を廃し「キャスト」表記に統一
           ...(isManagerUp ? [{ href: "/casts", label: "キャスト" }, { href: "/staff", label: "スタッフ" }, { href: "/payroll", label: "給与" }] : []),
+          ...(role === "staff" ? [{ href: "/staff/me", label: "勤怠" }] : []), // ★0172（裁定356・便 P172）: スタッフ本人の勤怠・報酬（読取のみ）
         ] },
         { label: "顧客", items: [
           ...(isManagerUp || staffCrm ? [{ href: "/customers", label: "顧客" }] : []),

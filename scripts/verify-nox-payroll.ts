@@ -19,7 +19,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit, endedRuns } from "./fixtures-f0"; // ★起票88: 確定の直前に run を「終了済み」にする（0158 ★3 の確定ガード）
-import { payOf, simAddedPay, type CompPlan, type PayInput, type Deduction } from "../lib/nox/pay";
+import { payOf, simAddedPay, withholdingOf, type CompPlan, type PayInput, type Deduction } from "../lib/nox/pay"; // ★0172: withholdingOf（段0156-3）
 import { roundYen, floorYen } from "../lib/nox/money";
 import { resolvePayrollWindow } from "../lib/nox/payroll/window";
 import { collectPeriod } from "../lib/nox/payroll/collect";
@@ -1784,15 +1784,23 @@ async function main() {
     const d2 = await computePayrollDraft(admin, manager, storeA1Id, P, { previewDefaults: true });
     const r2 = d2.rows.find((r) => r.castId === p1)!;
     check("段0156-2 日払い済み: dailyPaidGross=10000・dailyWithheld=510・dailyN=1（pay にも同値）", r2.dailyPaidGross === 10000 && r2.dailyWithheld === 510 && r2.dailyN === 1 && r2.pay.dailyPaidGross === 10000 && r2.pay.dailyWithheld === 510, JSON.stringify({ g: r2.dailyPaidGross, w: r2.dailyWithheld, n: r2.dailyN, pg: r2.pay.dailyPaidGross }));
-    check("段0156-3 源泉差引: withholding = max(0, 元 − 510)", r2.pay.withholding === Math.max(0, r1.pay.withholding - 510), `${r1.pay.withholding}→${r2.pay.withholding}`);
-    const short = Math.max(0, 510 - r1.pay.withholding);
-    check("段0156-4 超過 warn は short>0 のときだけ（kind=daily_withholding_exceeds・dailyWithholdingShort 一致）", d2.warnings.some((w) => w.castId === p1 && w.kind === "daily_withholding_exceeds") === (short > 0) && (r2.pay.dailyWithholdingShort ?? 0) === short, JSON.stringify({ short, ws: d2.warnings.filter((w) => w.castId === p1).map((w) => w.kind) }));
+    // ★0172（裁定349・便 P172）: settlement（kind 既定）は期間精算から除外＝課税ベース（gross−adjBefore）から 10000 を引いて源泉を計算・既徴収 510 は相殺しない（dailyWithholdingShort は常に 0・warn なし）
+    const pdOf = (r: typeof r1): number => [...Array(32).keys()].slice(1).find((pd) => withholdingOf(Math.max(0, r.pay.gross - r.pay.adjBefore), pd, "委託") === r.pay.withholding) ?? 31;
+    const pd1 = pdOf(r1);
+    check("段0156-3 源泉＝課税ベースから日次精算 10000 を除外（withholdingOf(gross−adjBefore−10000, periodDays)）・既徴収の相殺なし・dailySettlementGross 10000（0172）", r2.pay.withholding === withholdingOf(Math.max(0, r2.pay.gross - r2.pay.adjBefore - 10000), pd1, "委託") && r2.pay.dailySettlementGross === 10000 && (r2.pay.dailyAdvanceGross ?? 0) === 0 && r2.dailySettlementGross === 10000 && r2.dailyAdvanceGross === 0, JSON.stringify({ pd1, w1: r1.pay.withholding, w2: r2.pay.withholding, g: r2.pay.gross }));
+    check("段0156-4 既徴収の超過 warn は出ない（0172＝日次精算は期間精算から除外＝dailyWithholdingShort 0）", !d2.warnings.some((w) => w.castId === p1 && w.kind === "daily_withholding_exceeds") && (r2.pay.dailyWithholdingShort ?? 0) === 0);
     check("段0156-5 控除 OFF の上書き: fixedDed が元（控除なし）に戻る・applied に enabled=false が載る", r2.pay.fixedDed === r0.pay.fixedDed && r2.deductionOverridesApplied.some((o) => o.deductionId === dedId && o.enabled === false), JSON.stringify({ fd: r2.pay.fixedDed, ov: r2.deductionOverridesApplied }));
     check("段0156-6 net 恒等: net = 元 net − 日払い 10000 ＋ 源泉の差引分 ＋ 控除 OFF の 3000", r2.net === r1.net - 10000 + (r1.pay.withholding - r2.pay.withholding) + 3000, `${r1.net}→${r2.net}`);
     // 金額上書き 1000（enabled=true）
     await admin.from("payroll_run_deduction_overrides").update({ enabled: true, amount_override: 1000 }).eq("run_id", runIdP).eq("cast_id", p1).eq("deduction_id", dedId);
     const r3 = await rowOf();
     check("段0156-7 金額上書き 1000: fixedDed = 元 + 1000・applied に amountOverride=1000", r3.pay.fixedDed === r0.pay.fixedDed + 1000 && r3.deductionOverridesApplied.some((o) => o.deductionId === dedId && o.enabled && o.amountOverride === 1000), JSON.stringify({ fd: r3.pay.fixedDed, ov: r3.deductionOverridesApplied }));
+    // ★0172（裁定349・便 P172）: kind='advance'（前払・控除なし）は課税ベースを変えず支給後控除だけ（dailyAdvanceGross）
+    const advIdem = randomUUID();
+    { const { error: eA } = await admin.from("daily_pays").insert({ org_id: orgAId, store_id: storeA1Id, cast_id: p1, biz_date: `${P}-12`, gross: 4000, withholding: 0, withholding_category: "委託", net: 4000, paid_by: actorId, idem_key: advIdem, kind: "advance" }); if (eA) throw new Error(`daily_pays insert（advance）: ${eA.message}`); }
+    const rA = await rowOf();
+    check("段0172-1 前払 4000（kind advance）: dailyAdvanceGross 4000・dailySettlementGross 10000 のまま・源泉は不変・net −4000・dailyPaidGross 14000", rA.dailyAdvanceGross === 4000 && rA.pay.dailyAdvanceGross === 4000 && rA.dailySettlementGross === 10000 && rA.pay.withholding === r3.pay.withholding && rA.net === r3.net - 4000 && rA.dailyPaidGross === 14000, JSON.stringify({ a: rA.dailyAdvanceGross, s: rA.dailySettlementGross, w: [r3.pay.withholding, rA.pay.withholding], n: [r3.net, rA.net] }));
+    await admin.from("daily_pays").delete().eq("idem_key", advIdem);
     // ★0158（裁定312・便 AA-3 (4)）: 属する期＝settle_period（null＝営業日の月）。営業日が P 内でも settle_period＝翌月の行は P に載らない／営業日が前月でも settle_period＝P の行は P に載る
     const nextP = ((): string => { const [y, m] = P.split("-").map(Number); return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`; })();
     const prevDay = ((): string => { const [y, m] = P.split("-").map(Number); return new Date(Date.UTC(y, m - 1, 0)).toISOString().slice(0, 10); })();

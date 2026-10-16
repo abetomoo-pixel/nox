@@ -39,7 +39,7 @@ const DENY_GUARDED: Record<string, string> = {
 };
 // B) セッション無し（差し込みなし）
 const DENY_NO_SESSION = new Set<string>([
-  "stripe/webhook", "cron/expire-trials", "cron/billing-reminders", "cron/demo-reset", "print/poll/[store_token]", "print/result/[store_token]",
+  "stripe/webhook", "cron/expire-trials", "cron/billing-reminders", "cron/demo-reset", "cron/shift-auto-confirm" /* ★0172（裁定380・便 P172）: Bearer CRON_SECRET のみ・セッション無し */, "print/poll/[store_token]", "print/result/[store_token]",
 ]);
 // C) 許可
 const ALLOW = new Set<string>([

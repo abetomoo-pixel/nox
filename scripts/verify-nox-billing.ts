@@ -134,7 +134,7 @@ async function main() {
     // ★mig0160（裁定326＋追補1・2・起票95／96・2026-09-30）: A3 +2（reservation_request／decide）・A8 +4（set_cast_quota／set_store_mine_settings／staff_pattern_disable／enable）・A7 −1（set_cast_norm_self drop）・B(f) +1（notice_mark_read）＝
     //   対象 149→154・除外 141→142・全数 290→296（live 実測 2026-09-30＝総数 296・'billing locked' 154・形 154・述語参照 155）。改稿 5 本は名前不変で本数不動。
     // ★mig0161（裁定327＋追補1・2026-09-30）: B(a) +1（punch_seq_check＝内部専用・4 ロール revoke）＝対象 154 不変・除外 142→143・全数 296→297（'billing locked' 154・形 154・述語参照 155 不変）。改稿 4 本は名前不変で本数不動。
-    check("段47-1 正本の対象158名を読めた", docTargets.size === 158, // ★0171（2026-10-14 本番適用・便 DM-1 で収載）: A8 +1（set_store_norm_axes）＝157→158 // ★0169（裁定341・便 P169）: A1 +1（check_nomination_rate_apply＝ゲート内蔵）★0167（裁定337・便 P167）: A10 +1（set_cast_shift_request_mode＝ゲート内蔵）★0166（X-13-8・便 P166）: A6 +1（set_product_track_stock＝ゲート内蔵）
+    check("段47-1 正本の対象159名を読めた", docTargets.size === 159, // ★0172（2026-10-16 本番適用・便 P172）: A10 +1（set_cast_dependents_form）＝158→159 // ★0171（2026-10-14 本番適用・便 DM-1 で収載）: A8 +1（set_store_norm_axes）＝157→158 // ★0169（裁定341・便 P169）: A1 +1（check_nomination_rate_apply＝ゲート内蔵）★0167（裁定337・便 P167）: A10 +1（set_cast_shift_request_mode＝ゲート内蔵）★0166（X-13-8・便 P166）: A6 +1（set_product_track_stock＝ゲート内蔵）
        `got ${docTargets.size}`); // ★0157: A4 +2＝139→141・★0153（裁定305／307）: A1 +4＝141→145・★0155: A4 −1＝145→144
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     // ★mig0113: check_tax_round（内部ヘルパー・非ゲート）を B へ収載＝除外 95→96・全数 201→202。
@@ -158,7 +158,7 @@ async function main() {
     //   ＝対象 154 不変・除外 143→148・全数 297→302（live 実測 2026-10-01＝総数 302・'billing locked' 154・形 154・述語参照 155 不変）。改稿 2 本（set_store_mine_settings＝contract_ack_rev・demo_org_reset＝配列 +1）は名前不変で本数不動。
     // ★mig0163（裁定328 追補1・2026-10-08 本番適用）: demo_entries_purge（service_role 専用・入場ログ 30 日 purge・非ゲート）を B(a) へ収載＝対象 154 不変・除外 148→149・全数 302→303
     //   （live 実測 2026-10-08＝総数 303・'billing locked' 154・形 154・述語参照 155）。★mig0164（裁定331 C 5 項目＋334）: set_store_profile 改稿（白名単 +7 列側・md5 4f2e9f82→2e7b4963）は名前不変で本数不動。
-    check("段47-1 正本の除外150名を読めた", docExcluded.size === 150, `got ${docExcluded.size}`); // ★0171: B(f) +1（get_cast_sales_rank）＝149→150 // ★0163: B(a) +1（demo_entries_purge）・ // ★0153: B(f) +2（names／sales_summary＝裁定307-1）・★0155: +7（B(a) 1・B(f) 4・B(m) 2）・★0161: B(a) +1（punch_seq_check）・★0162: B(a) +5
+    check("段47-1 正本の除外152名を読めた", docExcluded.size === 152, /* ★0172: B(f) +1（terms_accepted_version_ok）・B(m) +1（terms_accept）＝150→152 */ `got ${docExcluded.size}`); // ★0171: B(f) +1（get_cast_sales_rank）＝149→150 // ★0163: B(a) +1（demo_entries_purge）・ // ★0153: B(f) +2（names／sales_summary＝裁定307-1）・★0155: +7（B(a) 1・B(f) 4・B(m) 2）・★0161: B(a) +1（punch_seq_check）・★0162: B(a) +5
 
     // ★E8-6c（裁定 E8-6-9・教訓21）: 名簿の全数同期を機械で強制＝live pg_proc 全数 = 正本 A∪B。
     //   ゲート入り新設は pin 波及で赤になるが、非ゲート新設はどの pin も赤にしないまま名簿から漏れる
@@ -173,7 +173,7 @@ async function main() {
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 158本", liveGated.size === 158, // ★0171: 157→158（set_store_norm_axes） // ★0169: 156→157・★0167: 155→156・★0166: 154→155
+    check("段47-1 live のゲート済み関数 = 159本", liveGated.size === 159, // ★0172: 158→159（set_cast_dependents_form） // ★0171: 157→158（set_store_norm_axes） // ★0169: 156→157・★0167: 155→156・★0166: 154→155
        `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
@@ -193,7 +193,7 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 159（158 ＋ ラッパ自身）", refs[0].n === 159, // ★0171: 158→159 // ★0169: 157→158・★0167: 156→157・★0166: 155→156
+    check("段47-1 述語を参照する関数 = 160（159 ＋ ラッパ自身）", refs[0].n === 160, // ★0172: 159→160 // ★0171: 158→159 // ★0169: 157→158・★0167: 156→157・★0166: 155→156
        `got ${refs[0].n}`);
     // 挿入行の形が全92本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
@@ -202,7 +202,7 @@ async function main() {
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
     // ★起票91 解消（0159）: kiosk_transport_issue のゲート行を v_org 形へ＝規約外 0 本・形 149＝ゲート済み 149 と一致
-    check("段47-1 挿入行の形が全158本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 158, // ★0171: 157→158 // ★0169: 156→157（check_nomination_rate_apply は v_org 形）★0167: 155→156（set_cast_shift_request_mode は v_org 形）★0166: 154→155（set_product_track_stock は v_org 形）
+    check("段47-1 挿入行の形が全159本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 159, // ★0172: 158→159 // ★0171: 157→158 // ★0169: 156→157（check_nomination_rate_apply は v_org 形）★0167: 155→156（set_cast_shift_request_mode は v_org 形）★0166: 154→155（set_product_track_stock は v_org 形）
        `got ${shapes[0].n}`);
   }
 

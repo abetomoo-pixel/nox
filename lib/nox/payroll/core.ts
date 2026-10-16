@@ -52,6 +52,8 @@ export type PreviewRow = {
   dailyPaidGross: number;
   dailyWithheld: number;
   dailyN: number;
+  dailySettlementGross: number; // ★0172（裁定349・便 P172）: 日次精算（課税ベースから除外）の合計
+  dailyAdvanceGross: number;    // ★0172（裁定349）: 前払（支給後控除のみ）の合計
   deductionOverridesApplied: DeductionOverride[];
 };
 export type Blocker = { castId: string; castName: string; reason: "no_plan" | "no_tax" | "no_employment" };
@@ -280,6 +282,7 @@ export async function computePayrollDraft(
       okuriDeducted, okuriDeductTotal: okuriPlan.deduct,
       adjustmentsShown: frozenAdj.shown, adjustmentsHiddenTotal: frozenAdj.hiddenTotal,
       dailyPaidGross: c.dailyPaid?.gross ?? 0, dailyWithheld: c.dailyPaid?.withheld ?? 0, dailyN: c.dailyPaid?.n ?? 0, deductionOverridesApplied: ovApplied, // ★0156
+      dailySettlementGross: c.dailyPaid?.settlementGross ?? 0, dailyAdvanceGross: c.dailyPaid?.advanceGross ?? 0, // ★0172（裁定349）
     });
   }
 

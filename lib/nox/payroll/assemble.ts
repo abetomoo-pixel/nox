@@ -4,7 +4,7 @@
 // net = pay.net（B: サーバが net の責務）。★extras は gross に内在化され源泉対象＝外側加算は行わない（裁定26）。
 
 import { periodKeyOf } from "./slide"; // ★裁定338（0168）
-import { castPts } from "../pay"; // ★裁定343（0170・便 W5-2b）: daily＋件数基準の dayPts（pay.ts と同じ式）
+import { castPts, employeeTaxClassOf } from "../pay"; // ★裁定343（0170・便 W5-2b）: daily＋件数基準の dayPts（pay.ts と同じ式）
 import { roundPt1 } from "../money";
 import type {
   PayInput,
@@ -64,6 +64,7 @@ export type CastRaw = {
   slideScope?: { basis: "sales" | "hon_count" | "dohan_count"; rankIds: string[]; castRankId: string | null; excluded: boolean };
   norm: { days: number; dohan: number; salesTarget?: number; salesTargetSource?: "override" | "plan" | null }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）・★裁定347 追補2（便 N1014 A-4）: 出所（個別／プラン既定）＝core が凍結形へ
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
+  dependentsForm?: boolean | null; // ★0172（裁定349）: 扶養控除等申告書の提出（雇用の甲／乙・fixture は省略＝乙）
   employment: "委託" | "雇用" | null; // ★裁定98: casts.employment（null＋sanction 行ありは core が no_employment blocker）
   avgDailyWage: number | null; // ★裁定98-C: 平均賃金（直近3確定期）。null=payOf の暫定式
   // ★裁定258／264: run 別調整控除（payroll_adjustments・当該 cast 分）。optional＝collect の結線は次レーン（未結線は []）。
@@ -75,7 +76,7 @@ export type CastRaw = {
   attendanceDays?: number;                   // 出勤区分（shukkin／late／dohan）の回数（per_shift 用）
   calcPeriod?: { start: string; end: string }; // 計算期間（入店日／退店日で run の期間を切る・payslips.calc_period_* へ凍結）
   // ★0156（裁定309-6／309-8・便 V-2）: 日払い済み（期間内の daily_pays 合計）と run 別控除上書き（当該 cast 分）。core が格納・fixture は省略＝従来と同値
-  dailyPaid?: { gross: number; withheld: number; n: number };
+  dailyPaid?: { gross: number; withheld: number; n: number; settlementGross?: number; advanceGross?: number }; // ★0172（裁定349）: 種別別の合計（collect が格納）
   deductionOverrides?: DeductionOverride[];
 };
 
@@ -217,7 +218,8 @@ export function buildPayInput(
     taxMode,
     adjustments: raw.adjustments ?? [], // ★裁定258／264: 行のまま渡す（率の分母 gross は payOf 内で確定）
     // ★0156（309-6）: 日払い済み（無ければキーを足さない＝従来と 1 バイト同値）
-    ...(raw.dailyPaid && (raw.dailyPaid.gross > 0 || raw.dailyPaid.withheld > 0) ? { dailyPaidGross: raw.dailyPaid.gross, dailyWithheld: raw.dailyPaid.withheld } : {}),
+    ...(raw.dailyPaid && (raw.dailyPaid.gross > 0 || raw.dailyPaid.withheld > 0) ? { dailyPaidGross: raw.dailyPaid.gross, dailyWithheld: raw.dailyPaid.withheld, dailySettlementGross: raw.dailyPaid.settlementGross ?? 0, dailyAdvanceGross: raw.dailyPaid.advanceGross ?? 0 } : {}), // ★0172（裁定349）: 種別別
+    ...(taxMode === "雇用" ? { taxClass: employeeTaxClassOf(raw.dependentsForm) } : {}), // ★0172（裁定349）: 雇用の甲／乙（委託はキーなし＝golden 不変）
   };
 }
 

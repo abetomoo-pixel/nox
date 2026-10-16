@@ -51,3 +51,6 @@ select (select count(*) from pg_proc where pronamespace='public'::regnamespace) 
 返すもの: 10 行の結果（値は形どおりか）＋ Success 時刻。CC が live 照合→md5 pin 5 本の張替え（daily_pay_issue 7e9d29d0→94f989f9・daily_pays_of_run b81e8659→37ff6ed0・set_store_profile 2e7b4963→67e96c04・staff_create e69adbe4→8c2fef04・staff_update_profile f6633371→b710ebae）・名簿（関数 311・テーブル 87・'billing locked' 159）・anon-guard に 3 本（set_cast_dependents_form／terms_accept／terms_accepted_version_ok）・grants（新 4 表＝authenticated SELECT のみ）・rls（staff_* の本人行）→client→f0 2 連→push。
 
 **Success 表示は適用の証明にならない（恒久注意28）＝上の検証クエリの返り値（値の形）を貼ってから次便を出す。1 行でも形が違えば未適用として CC が停止する。**
+
+## 4. 適用記録
+- **2026-10-16 10:25 JST Agoora 手貼り（検証 12 項目すべて期待値＝相談役ブロック P172 前提）**→CC live 照合（便 P172 Q-0・docs/tmp/q1016_p172_q0.mjs・SELECT のみ）＝関数 **311**／表 **87**／'billing locked' **159**／md5 5 本（prosrc・\r 除去・先頭 8 桁）＝daily_pay_issue 94f989f9・daily_pays_of_run 37ff6ed0・set_store_profile 67e96c04・staff_create 8c2fef04・staff_update_profile b710ebae＝**pin と全一致**・列 5／新表 4（RLS 有効・authenticated=SELECT のみ）／proacl 7 本（authenticated＋service_role・anon なし）。pin 張替え＝0158 s-2／t-1・billing 段47-1・grants TABLES・名簿 mig0172 追随・新 suite verify:nox-p172（f0 121 段目）。

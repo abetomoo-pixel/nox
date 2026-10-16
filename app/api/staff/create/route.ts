@@ -33,7 +33,7 @@ function syntheticEmail(orgId: string, seed: string): string {
 export async function POST(req: Request) {
   const g = await guardStaffCreate(req);
   if (!g.ok) return NextResponse.json(g.body, { status: g.status });
-  const { name, email, storeId, role, idemKey } = g.input;
+  const { name, email, storeId, role, idemKey, tel, lineId } = g.input;
 
   try {
     // ── ② 既存 email 先引き（実 email）／リプレイ検知（合成 email＝idemKey 由来） ──
@@ -94,6 +94,8 @@ export async function POST(req: Request) {
       p_name: name,
       p_store_id: storeId,
       p_role: role,
+      p_tel: tel,       // ★0172（裁定381・便 P172）: 7 引数版（null＝未設定）
+      p_line_id: lineId,
     });
     if (eRpc) {
       // ── ⑦ 補償: 今回作った auth user を巻き戻す（既存 user 追加のときは触らない） ──

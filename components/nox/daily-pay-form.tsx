@@ -6,6 +6,8 @@
 //   メッセージは裁定281 の型（Toast）。RPC 追加 0。
 import { useCallback, useEffect, useState } from "react";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
+import SegSelect from "@/components/ui/seg-select";
+import { DAILY_PAY_KIND_LABEL, dailyPayKindDeductsNow, type DailyPayKind } from "@/lib/nox/payroll/settlement-cycle"; // ★0172（裁定349・便 P172）: 日払いの種別
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -14,7 +16,7 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { carriedNoteOf, dailyPayPeriodNoteOf, dailyPayOverNoteOf } from "@/lib/nox/payroll/advance-okuri";
 import { Message } from "@/components/ui/toast";
 
-type Paid = { id: string; biz_date: string; gross: number; withholding: number; net: number; withholding_category: string };
+type Paid = { id: string; biz_date: string; gross: number; withholding: number; net: number; withholding_category: string; kind: string | null }; // ★0172: +kind
 const yen = (n: number) => "¥" + n.toLocaleString();
 
 export default function DailyPayForm({ castId, castName, dateDefault, storeId }: {
@@ -27,6 +29,7 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId }:
   const supabase = createClient();
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(dateDefault);
+  const [kind, setKind] = useState<DailyPayKind>("advance"); // ★0172（裁定349・便 P172）: 既定 advance（前払＝控除なし・期の精算で控除）／settlement（日次精算＝1 日分控除・期間精算から除外）
   const [taxMode, setTaxMode] = useState<"委託" | "雇用" | null>(null); // cast_tax_profiles.mode（行なし＝委託＝RPC と同じ既定）
   const [paid, setPaid] = useState<Paid[] | null>(null);
   const [runStatus, setRunStatus] = useState<string | null>(null);
@@ -39,7 +42,7 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId }:
     const [{ data: tp }, { data: dp }, { data: cs }] = await Promise.all([
       supabase.from("cast_tax_profiles").select("mode").eq("cast_id", castId).maybeSingle(),
       supabase.from("casts").select("store_id").eq("id", castId).maybeSingle().then(async (c) => c.data?.store_id ? supabase.from("payroll_runs").select("status").eq("store_id", c.data.store_id as string).eq("period", month).maybeSingle() : { data: null }),
-      supabase.from("daily_pays").select("id, biz_date, gross, withholding, net, withholding_category").eq("cast_id", castId)
+      supabase.from("daily_pays").select("id, biz_date, gross, withholding, net, withholding_category, kind").eq("cast_id", castId)
         .gte("biz_date", `${month}-01`).lte("biz_date", `${month}-31`).order("biz_date", { ascending: false }),
     ]);
     setTaxMode((tp?.mode as "委託" | "雇用" | undefined) ?? "委託");
@@ -66,17 +69,17 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId }:
   const gross = /^\d+$/.test(amount) ? Number(amount) : null;
   const mode = taxMode ?? "委託";
   // ★月次 run と同じ式を日数 1 で（lib/nox/pay.ts withholdingOf＝委託 floor(max(0, gross−5000)×0.1021)・雇用 0）＝RPC daily_pay_issue と同値（double precision）
-  const wh = gross != null ? withholdingOf(gross, 1, mode) : null;
+  const wh = gross != null ? (dailyPayKindDeductsNow(kind) ? withholdingOf(gross, 1, mode) : 0) : null; // ★0172: advance は控除なし（RPC daily_pay_issue と同値）
 
   async function issue() {
     if (gross == null || gross <= 0 || busy) return;
     setBusy(true); setMsg(null);
-    const { data, error } = await supabase.rpc("daily_pay_issue", { p_cast_id: castId, p_biz_date: date, p_gross: gross, p_idem_key: crypto.randomUUID() });
+    const { data, error } = await supabase.rpc("daily_pay_issue", { p_cast_id: castId, p_biz_date: date, p_gross: gross, p_idem_key: crypto.randomUUID(), p_kind: kind }); // ★0172: p_kind
     setBusy(false);
     if (error) { setMsg(`日払いの発行に失敗: ${rpcErrJa(error.message)}`); return; }
     const r = data as { net: number; withholding: number; warn: string | null; replay: boolean; carried_to?: string | null };
     const carried = carriedNoteOf(r.carried_to); // ★裁定312（便 AB-8）: 支払済みの期の営業日＝翌月の給与から控除
-    setMsg(`${castName} に日払い ${yen(gross)} を発行しました（源泉 ${yen(r.withholding)}・手取り ${yen(r.net)}）${carried ? `・${carried}` : ""}${r.warn ? "※雇用のため源泉 0（税理士確認中）" : ""}`);
+    setMsg(`${castName} に${DAILY_PAY_KIND_LABEL[kind]} ${yen(gross)} を発行しました（源泉 ${yen(r.withholding)}・手取り ${yen(r.net)}）${carried ? `・${carried}` : ""}${r.warn ? "※雇用のため源泉 0（税理士確認中）" : ""}`);
     setAmount("");
     await load();
   }
@@ -86,6 +89,12 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId }:
   const sumG = (paid ?? []).reduce((s, p) => s + p.gross, 0), sumW = (paid ?? []).reduce((s, p) => s + p.withholding, 0);
   return (
     <div style={{ display: "grid", gap: 8 }}>
+      {/* ★0172（裁定349・便 P172）: 種別＝前払（既定・控除なし・期の精算で控除）／日払い（日次精算＝1 日分の源泉を引いて渡す・期間精算から除外） */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-daily-pay-kind={kind}>
+        <span style={t.fieldLabel}>種別</span>
+        <SegSelect value={kind} onChange={(v) => setKind(v as DailyPayKind)} disabled={busy} ariaLabel="日払いの種別"
+          options={[["advance", DAILY_PAY_KIND_LABEL.advance], ["settlement", DAILY_PAY_KIND_LABEL.settlement]] as const} />
+      </div>
       <div className="nox-issue-row" style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
         <label style={t.fieldLabel}>金額<br />
           <MoneyInput value={amount} onChange={setAmount} placeholder="例: 10,000" width={150} style={{ marginTop: 3 }} disabled={busy} ariaLabel="日払いの金額" />
@@ -94,13 +103,13 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId }:
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...t.input, marginTop: 3 }} disabled={busy} aria-label="日払いの営業日" />
         </label>
         <button type="button" onClick={() => void issue()} disabled={busy || gross == null || gross <= 0} style={{ ...t.btnGold, ...t.btnSm, opacity: gross ? 1 : 0.6 }}>
-          {busy ? "発行中…" : "日払いを発行"}
+          {busy ? "発行中…" : kind === "advance" ? "前払を発行" : "日払いを発行"}
         </button>
       </div>
       {/* プレビュー＝月次と同式（日数 1）。雇用は源泉 0＝T10 の注記 */}
       <p style={{ fontSize: 12, color: "var(--sub)", margin: 0, lineHeight: 1.7 }}>
         {gross != null && gross > 0 ? (
-          <>源泉 <span className="num">{yen(wh ?? 0)}</span>・手取り <span className="num" style={{ color: "var(--v2-text)", fontWeight: 700 }}>{yen(gross - (wh ?? 0))}</span>（{mode}・計算期間 1 日＝月次と同じ式）</>
+          <>源泉 <span className="num">{yen(wh ?? 0)}</span>・手取り <span className="num" style={{ color: "var(--v2-text)", fontWeight: 700 }}>{yen(gross - (wh ?? 0))}</span>（{kind === "advance" ? "前払＝控除なし・期の精算で控除" : `${mode}・計算期間 1 日＝月次と同じ式・期間精算から除外`}）</>
         ) : "金額を入れると源泉と手取りをプレビューします（月次と同じ式・日数 1）。"}
         {mode === "雇用" && <> ※雇用キャストの日払いは源泉 0 で渡します（税理士確認中・T10）。</>}
       </p>
@@ -119,7 +128,7 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId }:
               <div key={p.id} style={{ display: "flex", gap: 10, fontSize: 12.5, alignItems: "baseline" }}>
                 <span className="num" style={{ color: "var(--sub)" }}>{p.biz_date}</span>
                 <span className="num">{yen(p.gross)}</span>
-                <span style={{ fontSize: 11.5, color: "var(--sub)" }}>源泉 <span className="num">{yen(p.withholding)}</span>・手取り <span className="num">{yen(p.net)}</span>・{p.withholding_category}</span>
+                <span style={{ fontSize: 11.5, color: "var(--sub)" }}>源泉 <span className="num">{yen(p.withholding)}</span>・手取り <span className="num">{yen(p.net)}</span>・{p.withholding_category}・{p.kind === "advance" ? "前払" : "日次精算"}</span>
               </div>
             ))}
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "4px 0 0" }}>合計 <span className="num">{yen(sumG)}</span>（源泉既徴収 <span className="num">{yen(sumW)}</span>・<span className="num">{paid.length}</span> 件）＝月次の給与では「日払い済み」として差し引かれます</p>

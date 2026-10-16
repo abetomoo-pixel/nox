@@ -22,8 +22,10 @@ type Store = { id: string; name: string };
 //   invoice_registered_on（'YYYY-MM-DD'／null）・pay_day（1〜31・表示と案内用）・tax_inclusive_display（表示だけ）・use_vip／use_counter（フロアの種別表示）・
 //   payment_methods {cash,card,emoney,qr}（cash は常に true）・punch_methods {self,proxy,kiosk}（1 つ以上 true）。RPC の型検査（'bad pay_day'／'bad payment_methods'／'bad punch_methods'）が本体。
 import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsPatchErrorOf, opsPatchOf, opsProfileOf, type OpsProfile } from "@/lib/nox/store/ops-profile"; // 純関数＝lib（setup page（server）と共用）
-type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）
-const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, ops: OPS_DEFAULT };
+import { MID_PAY_OPTIONS, SETTLEMENT_CYCLE_OPTIONS, midPayOf, settlementCycleOf } from "@/lib/nox/payroll/settlement-cycle"; // ★0172（裁定349・便 P172）: 店設定 2 キー
+import { SHIFT_AUTO_CONFIRM_OPTIONS, autoConfirmHoursOf } from "@/lib/nox/shift/auto-confirm"; // ★0172（裁定380・便 P172）: 自動確定時間
+type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
+const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
@@ -67,6 +69,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
       okuri_base_amount: typeof sj.okuri_base_amount === "number" && sj.okuri_base_amount > 0 ? String(sj.okuri_base_amount) : "", // ★裁定317: 0／キー無し＝未設定
       okuri_actual: sj.okuri_mode === "actual",
       ar_enabled: sj.ar_enabled === true, // ★0155（裁定309-1）: 既存店は 0155 で true・新規店はキー無し＝false（サーバの ar_policy_ok と同じ既定）
+      settlement_cycle: settlementCycleOf(sj), mid_pay: midPayOf(sj), shift_auto_confirm_hours: String(autoConfirmHoursOf(sj)), // ★0172（裁定349／380）: 欠損＝既定（monthly／none／0）
     };
     setCur(p); setForm(p); setLoaded(true);
     const v = payTimeBasisViewOf(sj); setTb(v); setTbPick(v.next ?? v.current); setTbMsg(null); // ★324
@@ -86,6 +89,10 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     if (form.customer_retention_years.trim() !== cur.customer_retention_years) out.customer_retention_years = Number(form.customer_retention_years);
     // ★裁定317（便 AB-6）: 送りの基本額は数値で送る（空欄＝0＝未設定）。送りの方式が一律の店は欄が非活性＝差分が出ない
     if (form.okuri_base_amount !== cur.okuri_base_amount) out.okuri_base_amount = form.okuri_base_amount === "" ? 0 : Number(form.okuri_base_amount);
+    // ★0172（裁定349／380・便 P172）: 店設定 3 キー（文字列 2・整数 1＝set_store_profile の白名単と検証 'bad settlement_cycle'／'bad mid_pay'／'bad shift_auto_confirm_hours'）
+    if (form.settlement_cycle !== cur.settlement_cycle) out.settlement_cycle = form.settlement_cycle;
+    if (form.mid_pay !== cur.mid_pay) out.mid_pay = form.mid_pay;
+    if (form.shift_auto_confirm_hours !== cur.shift_auto_confirm_hours) out.shift_auto_confirm_hours = Number(form.shift_auto_confirm_hours);
     return out;
   };
   const dirty = Object.keys(patchOf()).length > 0;
@@ -100,14 +107,26 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     // ★0164（便 W5-2a）: 会計と運用＝RPC の 'bad pay_day'／'bad payment_methods'／'bad punch_methods' と同じ条件を先回り（二重防御の外側）
     { const e = opsPatchErrorOf(patch); if (e) { setMsg(e); return; } }
     setBusy(true); setMsg(null);
-    const supabase = createClient();
-    const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeSel, p_patch: patch });
+    const { error } = await setStoreProfile(patch);
     setBusy(false);
     if (error) { setMsg(`保存に失敗: ${storeProfileErrJa(error.message)}`); return; }
     setMsg(on("ops") && !on("profile") && !on("data") ? "会計と運用を保存しました" : "店舗情報を保存しました");
     await load();
   }
   const setOps = (patch: Partial<OpsProfile>) => setForm((f) => ({ ...f, ops: { ...f.ops, ...patch } }));
+  // ★0172（便 P172）: set_store_profile の呼び口は 1 箇所（店舗情報の保存と自動確定時間の保存が共用）
+  const setStoreProfile = (patch: Record<string, unknown>) => createClient().rpc("set_store_profile", { p_store_id: storeSel, p_patch: patch });
+  // ★0172（裁定380・便 P172）: 自動確定時間だけを保存（シフト運用の節は店舗情報の保存ボタンと別のタブに出る）
+  async function saveShiftAuto() {
+    const v = Number(form.shift_auto_confirm_hours);
+    if (!Number.isInteger(v) || v < 0 || v > 168) { setMsg("自動確定時間は 0〜168 の整数で指定してください"); return; }
+    setBusy(true); setMsg(null);
+    const { error } = await setStoreProfile({ shift_auto_confirm_hours: v }); // ★0172: RPC の呼び口は 1 箇所（setStoreProfile＝mt(7-3) の pin）
+    setBusy(false);
+    if (error) { setMsg(`保存に失敗: ${storeProfileErrJa(error.message)}`); return; }
+    setMsg(v > 0 ? `自動確定時間を ${v} 時間後に設定しました` : "自動確定しない設定にしました");
+    await load();
+  }
   const onOff = (v: boolean, lbl: string, onChange: (b: boolean) => void) => (
     <SegSelect value={v ? "on" : "off"} onChange={(x) => onChange(x === "on")} options={[["off", "OFF"], ["on", "ON"]]} aria-label={lbl} />
   );
@@ -166,6 +185,19 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               <MoneyInput value={form.okuri_base_amount} disabled={busy || !loaded || !form.okuri_actual} width="100%" style={{ padding: "8px 10px", fontSize: 13 }} ariaLabel="送りの基本額"
                 onChange={(v) => setForm((f) => ({ ...f, okuri_base_amount: v.slice(0, 5) }))} />
               {!form.okuri_actual && loaded && <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>送りの方式は「マスタ › キャスト・報酬 › 控除・送り」で切り替えます</span>}
+            </label>}
+            {/* ★0172（裁定349・便 P172）: 精算方式（源泉の暦日数の単位＝月次／半月／週次／日次）と途中払い（なし／前払）＝settings_json の 2 キー（set_store_profile の白名単） */}
+            {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
+              <span style={label}>精算方式<span style={{ fontWeight: 400, marginLeft: 6 }}>源泉の計算期間（暦日数）の単位</span></span>
+              <select value={form.settlement_cycle} disabled={busy || !loaded} onChange={(e) => setForm((f) => ({ ...f, settlement_cycle: e.target.value }))} style={input} aria-label="精算方式" data-settlement-cycle="1">
+                {SETTLEMENT_CYCLE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </label>}
+            {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
+              <span style={label}>途中払い<span style={{ fontWeight: 400, marginLeft: 6 }}>前払（仮払）は控除なし＝期の精算で控除</span></span>
+              <select value={form.mid_pay} disabled={busy || !loaded} onChange={(e) => setForm((f) => ({ ...f, mid_pay: e.target.value }))} style={input} aria-label="途中払い" data-mid-pay="1">
+                {MID_PAY_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
             </label>}
             {/* ★MC2: データ管理の面には操作ログの保持（7 年固定）の注記を同じカードに */}
             {on("data") && !on("ar") && (
@@ -273,16 +305,17 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
         <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
           キャストの希望は「希望どおり採用（即確定）」「調整して確定」「調整して送り返す（キャスト確認待ち）」の 3 つで処理します。店ごとの切替はありません。
         </p>
+        {/* ★0172（裁定380・便 P172）: 自動確定時間＝店設定 shift_auto_confirm_hours（0＝しない・1〜168 時間）。実行器＝/api/cron/shift-auto-confirm（15 分間隔・cron_setup.md §6）。owner は切替・manager は現在値のみ */}
         <label style={{ display: "grid", gap: 4, maxWidth: 320 }}>
-          <span style={t.fieldLabel}>送り返しの自動確定時間（準備中）</span>
-          <select disabled style={{ ...t.input, opacity: 0.6 }} defaultValue="" aria-disabled>
-            <option value="">自動確定しない</option>
-            <option value="24">24 時間後</option>
-            <option value="48">48 時間後</option>
-            <option value="72">72 時間後</option>
+          <span style={t.fieldLabel}>送り返しの自動確定時間</span>
+          <select value={form.shift_auto_confirm_hours} disabled={busy || !loaded || !isOwner} style={t.input} onChange={(e) => setForm((f) => ({ ...f, shift_auto_confirm_hours: e.target.value }))} aria-label="送り返しの自動確定時間" data-shift-auto-confirm="1">
+            {SHIFT_AUTO_CONFIRM_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
-          <span style={{ fontSize: 11, color: "var(--sub)" }}>送り返したまま確認されない希望を、設定した時間後に自動で確定します（次のデータ更新で有効になります）。</span>
+          <span style={{ fontSize: 11, color: "var(--sub)" }}>送り返したまま確認されない希望を、設定した時間後に自動で確定します（15 分ごとに確認）。</span>
         </label>
+        {isOwner && <div className="nox-actions" style={{ marginTop: 10 }}>
+          <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !loaded || form.shift_auto_confirm_hours === cur.shift_auto_confirm_hours} onClick={() => void saveShiftAuto()}>自動確定時間を保存</button>
+        </div>}
       </section>}
 
       {/* ★0155（裁定309-1／309-2・便 S-1）: 売掛の店設定（settings_json.ar_enabled＝check_pay の ar 分岐が ar_policy_ok で読む）＋操作ログ保持の注記（7 年固定＝店設定にしない）。

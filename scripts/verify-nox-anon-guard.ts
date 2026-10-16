@@ -1967,9 +1967,18 @@ async function main() {
         // ═══ ① bad 系（入力検証・owner セッション）═══
         const { error: eB1 } = await owner.rpc("staff_create", scArgs({ p_auth_user_id: null }));
         check("段18 ① p_auth_user_id null = bad auth user", has(eB1, "bad auth user"), eB1?.message ?? "通ってしまった");
-        for (const [label, em] of [["null", null], ["空白のみ", "   "], ["256字", "a".repeat(256)]] as Array<[string, string | null]>) {
+        for (const [label, em] of [["256字", "a".repeat(256)]] as Array<[string, string | null]>) {
           const { error } = await owner.rpc("staff_create", scArgs({ p_email: em }));
           check(`段18 ① email ${label} = bad email`, has(error, "bad email"), error?.message ?? "通ってしまった");
+        }
+        // ★0172（裁定381・便 P172・本番適用 2026-10-16）: email null／空白のみ＝RPC が合成 email（s-<8桁>@o-<org 8桁>.nox.local）を作って成功（route の syntheticEmail と同形）。
+        //   生成物は SC prefix の外＝finally の掃除に乗らないので、その場で membership→users の順に消す（固定カウント非汚染）。
+        for (const [label, em] of [["null", null], ["空白のみ", "   "]] as Array<[string, string | null]>) {
+          const { data: mid, error } = await owner.rpc("staff_create", scArgs({ p_email: em }));
+          const { data: mrow } = typeof mid === "string" ? await admin.from("memberships").select("user_id").eq("id", mid).maybeSingle() : { data: null };
+          const { data: urow } = mrow ? await admin.from("users").select("email").eq("id", mrow.user_id as string).maybeSingle() : { data: null };
+          check(`段18 ① email ${label} = 合成 email で成功（0172・s-8桁@o-8桁.nox.local）`, !error && typeof mid === "string" && /^s-[0-9a-f]{8}@o-[0-9a-f]{8}\.nox\.local$/.test(String(urow?.email ?? "")), error?.message ?? String(urow?.email ?? "no user"));
+          if (mrow) { await admin.from("memberships").delete().eq("id", mid as string); await admin.from("users").delete().eq("id", mrow.user_id as string); }
         }
         for (const [label, nm] of [["null", null], ["空白のみ", "   "], ["81字", "あ".repeat(81)]] as Array<[string, string | null]>) {
           const { error } = await owner.rpc("staff_create", scArgs({ p_name: nm }));

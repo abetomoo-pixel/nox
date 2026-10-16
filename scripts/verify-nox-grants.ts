@@ -27,6 +27,7 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 const TABLES = [
+  "terms_acceptances", "staff_contracts", "staff_punches", "staff_payroll_runs", // ★0172（裁定351／355／356・本番適用 2026-10-16）: 同意記録・スタッフ契約／打刻／給与 run（器のみ・authenticated=SELECT のみ・RLS select 1 本。p172(6-1) で列／policy／ACL を能動 assert）
   "demo_entries", // ★0163（裁定328 追補1・293-7・本番適用 2026-10-08）: デモ入場ログ（RLS 有効・policy 0・anon／authenticated grant 0・service_role の INSERT／SELECT のみ＝入場 route が admin で書く。G1/G2/G5 が .length で自動被覆・G4e 0163 で purge 関数の ACL を能動 assert）
   "cast_contract_acks", // ★0162（裁定329／326 追補7-6）: cast の契約確認記録（cast×contract_rev・authenticated=SELECT のみ・RLS select 1 本。G9 0162 で列集合／policy を能動 assert）
   "cast_quotas", "cast_notice_reads", // ★0160（裁定326-3／326-6）: キャスト別ノルマ・お知らせ既読（authenticated=SELECT のみ・RLS select 1 本。G9 0160 で列集合／policy を能動 assert）
@@ -466,7 +467,7 @@ async function main() {
       // ★0156（裁定309-6／8／9）: 列集合＝punches 14（+okuri）／daily_pays 12／payroll_run_deduction_overrides 10・新表 2 の policy＝select 1 本ずつ・unique（run_id, cast_id, deduction_id）
       const c156 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('punches','daily_pays','payroll_run_deduction_overrides') group by 1 order by 1`);
       const n156 = Object.fromEntries(c156.rows.map((r) => [r.table_name, r.n]));
-      check("G9 0156 列集合: punches 14（+okuri）／daily_pays 13（★0158: +settle_period）／payroll_run_deduction_overrides 10", n156.punches === 14 && n156.daily_pays === 13 && n156.payroll_run_deduction_overrides === 10, JSON.stringify(n156));
+      check("G9 0156 列集合: punches 14（+okuri）／daily_pays 14（★0158: +settle_period・★0172: +kind）／payroll_run_deduction_overrides 10", n156.punches === 14 && n156.daily_pays === 14 && n156.payroll_run_deduction_overrides === 10, JSON.stringify(n156));
       const p156 = await db.query(`select tablename, policyname, cmd from pg_policies where schemaname='public' and tablename in ('daily_pays','payroll_run_deduction_overrides') order by 1`);
       check("G9 0156 新表 2 の policy＝select 1 本ずつ（daily_pays_select／payroll_run_deduction_overrides_select）", p156.rowCount === 2 && p156.rows.every((r) => r.cmd === "SELECT") && p156.rows.map((r) => r.policyname).join(",") === "daily_pays_select,payroll_run_deduction_overrides_select", JSON.stringify(p156.rows));
       const u156 = await db.query(`select conname from pg_constraint where conname in ('payroll_run_deduction_overrides_uniq','daily_pays_idem_key_key','daily_pays_net_ck') order by 1`);

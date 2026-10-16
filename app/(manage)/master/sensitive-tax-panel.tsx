@@ -74,6 +74,10 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
   const [mode, setMode] = useState("委託");
   const [invoice, setInvoice] = useState(""); // ''=未設定
   const [regNo, setRegNo] = useState("");
+  // ★0172（裁定349・便 P172）: 扶養控除等申告書（雇用＝提出あり＝甲欄／なし＝乙欄）＝cast_tax_profiles.dependents_form／_on・保存は set_cast_dependents_form（税区分の保存の後）
+  const [depForm, setDepForm] = useState(false);
+  const [depOn, setDepOn] = useState("");
+  const [depCur, setDepCur] = useState<{ form: boolean; on: string }>({ form: false, on: "" });
   // mig0073: 登録の効力期間・通知受領日。★本パネルに入力 UI は持たない（編集は payroll のインボイス欄）が、
   //   set_cast_tax_profile は upsert で excluded を無条件代入するため、読んだ現値をそのまま送り返さないと
   //   ここから保存した瞬間に3日付が null で消える（＝素通し必須）。
@@ -131,7 +135,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
     }
     // 税務（cast_tax_profiles はパターン2＝manager+ 可視・直 SELECT で現状を読む）。成功時のみ ready。
     const { data: t, error: eT } = await supabase.from("cast_tax_profiles")
-      .select("mode, invoice, reg_no, reg_valid_from, reg_valid_to, reg_notified_on").eq("cast_id", castId).maybeSingle();
+      .select("mode, invoice, reg_no, reg_valid_from, reg_valid_to, reg_notified_on, dependents_form, dependents_form_on").eq("cast_id", castId).maybeSingle(); // ★0172: +扶養申告書
     if (eT) { setMsg((prev) => prev ?? `税務読込エラー: ${eT.message}（もう一度キャストを選択してください）`); }
     else {
       setMode((t?.mode as string) ?? "委託");
@@ -140,6 +144,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
       setRegValidFrom((t?.reg_valid_from as string | null) ?? null);
       setRegValidTo((t?.reg_valid_to as string | null) ?? null);
       setRegNotifiedOn((t?.reg_notified_on as string | null) ?? null);
+      { const f = t?.dependents_form === true; const on = (t?.dependents_form_on as string | null) ?? ""; setDepForm(f); setDepOn(on); setDepCur({ form: f, on }); } // ★0172
       setTaxReady(true);
     }
   }, [castId, isOwner, supabase]);
@@ -177,6 +182,11 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
       p_reg_notified_on: regNotifiedOn,
     });
     if (error) { setMsg(`税務保存エラー: ${error.message}`); return; }
+    // ★0172（裁定349）: 扶養控除等申告書＝雇用のときだけ・変わったときだけ（set_cast_dependents_form＝owner∨manager 自店・税区分の行が先）
+    if (mode === "雇用" && (depForm !== depCur.form || (depForm && (depOn || "") !== depCur.on))) {
+      const { error: eD } = await supabase.rpc("set_cast_dependents_form", { p_cast_id: castId, p_submitted: depForm, p_on: depForm && depOn ? depOn : null });
+      if (eD) { setMsg(`扶養申告書の保存エラー: ${eD.message}`); void load(); return; }
+    }
     setMsg("税務情報を保存しました");
     void load();
   }
@@ -331,6 +341,16 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
               <label style={label}>登録番号（T＋13桁）<br />
                 <input value={regNo} onChange={(e) => setRegNo(e.target.value)} placeholder="T1234567890123" style={{ ...input, width: 160 }} />
               </label>
+              {/* ★0172（裁定349・便 P172）: 雇用＝扶養控除等申告書の提出あり＝甲欄／なし＝乙欄（税額表は次のデータ更新＝源泉 0 のまま・区分だけ記録） */}
+              {mode === "雇用" && (
+                <label style={label} data-dependents-form="1">扶養控除等申告書<br />
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <input type="checkbox" checked={depForm} onChange={(e) => setDepForm(e.target.checked)} aria-label="扶養控除等申告書の提出あり" />
+                    <span style={{ fontSize: 12.5 }}>提出あり（{depForm ? "甲" : "乙"}欄）</span>
+                    <input type="date" value={depOn} disabled={!depForm} onChange={(e) => setDepOn(e.target.value)} style={{ ...input, width: 150 }} aria-label="提出日" />
+                  </span>
+                </label>
+              )}
             </div>
             <div className="nox-actions" style={{ marginTop: 8 }}>
               <button onClick={saveTax} disabled={!castId || !taxReady} style={btnDark}>税務情報を保存</button>

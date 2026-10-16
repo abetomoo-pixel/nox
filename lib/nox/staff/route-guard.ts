@@ -15,6 +15,8 @@ export type StaffCreateInput = {
   storeId: string;
   role: "staff" | "manager";
   idemKey: string; // 必須（二重 POST 対策＋合成 email の導出材料）
+  tel: string | null;    // ★0172（裁定381・便 P172）: 任意・30 文字（memberships.tel）
+  lineId: string | null; // ★0172（裁定381）: 任意・40 文字（memberships.line_id）
 };
 export type GuardOk = {
   ok: true;
@@ -37,7 +39,7 @@ export async function guardStaffCreate(req: Request): Promise<GuardOk | GuardErr
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, status: 401, body: { error: "unauthenticated" } };
 
-  let body: { name?: unknown; email?: unknown; storeId?: unknown; role?: unknown; idemKey?: unknown };
+  let body: { name?: unknown; email?: unknown; storeId?: unknown; role?: unknown; idemKey?: unknown; tel?: unknown; lineId?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -60,6 +62,12 @@ export async function guardStaffCreate(req: Request): Promise<GuardOk | GuardErr
     if (email.length > 255 || !EMAIL_RE.test(email))
       return { ok: false, status: 400, body: { error: "bad email format" } };
   }
+
+  // ★0172（裁定381・便 P172）: 電話・LINE ID は任意（trim・空＝null＝RPC は変更なし扱い＝未設定のまま）。長さは RPC（'bad tel'／'bad line_id'）と同じ上限を先回り
+  const tel = typeof body.tel === "string" && body.tel.trim().length > 0 ? body.tel.trim() : null;
+  if (tel && tel.length > 30) return { ok: false, status: 400, body: { error: "bad tel (max 30)" } };
+  const lineId = typeof body.lineId === "string" && body.lineId.trim().length > 0 ? body.lineId.trim() : null;
+  if (lineId && lineId.length > 40) return { ok: false, status: 400, body: { error: "bad line_id (max 40)" } };
 
   const [{ data: authRole }, { data: authStoreId }, { data: orgId }] = await Promise.all([
     supabase.rpc("auth_role"),
@@ -87,6 +95,6 @@ export async function guardStaffCreate(req: Request): Promise<GuardOk | GuardErr
     admin,
     orgId: orgId as string,
     authUserId: user.id,
-    input: { name, email, storeId, role, idemKey: body.idemKey },
+    input: { name, email, storeId, role, idemKey: body.idemKey, tel, lineId },
   };
 }
