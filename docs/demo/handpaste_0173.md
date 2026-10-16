@@ -11,10 +11,11 @@
 |---|---|
 | アドレスバー | `https://supabase.com/dashboard/project/hiqbfagmkrdpmlqhkmsu/sql/new`（`project/` の直後が hiqbfagmkrdpmlqhkmsu） |
 | ファイル | supabase/migrations/0173_register_payment.sql（HEAD の現物） |
-| sha256 | `eca8c2d8ce9d1c7cd3c051c8a33028c601b5f65cff84c072487e509d8ee198a8`（195,980 B・2780 行・LF・CR 0） |
+| sha256 | `7b116cea9ca08a5e3f88a6e6f9b66a47693eae2056c464298a0cfd969f09faef`（196,017 B・2781 行・LF・CR 0） |
 | 改行 | LF・CR 0 |
 | 順序 | 0172（適用済み）の後・**0174 より先** |
 | 生成器 | docs/tmp/gen_0173.mjs（写経元＝docs/tmp/0173_live.json＝2026-10-16 読取。live の関数の md5（\r 込み）が pin と一致しないと生成しない） |
+| 構文検査 | scripts/mig-check.mjs＝libpg_query（全体）＋ローカル Postgres（plpgsql・ROLLBACK）で **errors 0**（2026-10-16・docs/dp/mig_check.md・恒久注意30＝初回手貼りの 42601 を修正後） |
 
 手元で再計算する場合（Git Bash）:
 
@@ -73,7 +74,7 @@ select proname, left(md5(replace(prosrc, E'\r', '')),8) from pg_proc where prona
   -- staff_pin_status c70866bf
   -- set_staff_pin bda3b520
   -- daily_report_aggregate ca2dd22d
-  -- bottle_keep_register 579efaff
+  -- bottle_keep_register 6cce7d77
   -- check_line_set_customer 644cd7ba
   -- check_close f94dc8c3
   -- check_void 4eb77409

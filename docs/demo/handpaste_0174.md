@@ -11,10 +11,11 @@
 |---|---|
 | アドレスバー | `https://supabase.com/dashboard/project/hiqbfagmkrdpmlqhkmsu/sql/new`（`project/` の直後が hiqbfagmkrdpmlqhkmsu） |
 | ファイル | supabase/migrations/0174_comp_norm_staff.sql（HEAD の現物） |
-| sha256 | `9cf29ac285ee44ef27a1bd7349d5a0d0f2926c5c208b36817928cc17ba6a9c76`（45,573 B・612 行・LF・CR 0） |
+| sha256 | `8c2df449a1648f22b5a060f75931fd300e102bac796153abe02421ada9b9f009`（45,628 B・613 行・LF・CR 0） |
 | 改行 | LF・CR 0 |
 | 順序 | **0173 の後**（0173 が set_store_profile を改稿するため・0174 は同じ関数を触らない） |
 | 生成器 | docs/tmp/gen_0174.mjs（写経元＝docs/tmp/0173_live.json＝2026-10-16 読取。live の関数の md5（\r 込み）が pin と一致しないと生成しない） |
+| 構文検査 | scripts/mig-check.mjs＝libpg_query（全体）＋ローカル Postgres（plpgsql・ROLLBACK）で **errors 0**（2026-10-16・docs/dp/mig_check.md・恒久注意30） |
 
 手元で再計算する場合（Git Bash）:
 
@@ -52,7 +53,7 @@ select proname, left(md5(replace(prosrc, E'\r', '')),8) from pg_proc where prona
   -- comp_plan_slide_check 8aedb6d7
   -- set_penalty_config d6c05607
   -- set_comp_plan 21afb3f5
-  -- demo_org_reset 4a1fa1ea
+  -- demo_org_reset 3cdf7a30
   -- kiosk_staff_list 53e9d7a7
   -- staff_punch 250c61b0
 -- 5 proacl（authenticated／service_role のみ・anon なし・demo_org_reset は既存 ACL のまま）

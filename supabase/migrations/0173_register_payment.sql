@@ -2032,8 +2032,9 @@ begin
     if not exists (select 1 from public.check_customers cc where cc.check_id = v_line.check_id and cc.customer_id = p_customer_id) then raise exception 'not on check'; end if;
     update public.check_lines set customer_id = p_customer_id where id = p_check_line_id;
   end if;
+  -- ★5 0173（裁定392）: status＝p_status（'active'／'pending'）
   insert into public.bottle_keeps (org_id, store_id, customer_id, product_id, status, opened_at, note, remaining_pct, expires_on, shelf_no, bottle_name, check_line_id)   -- ★16: 末尾 ')' → ', bottle_name)'（0158 ★7: +check_line_id）
-  values (v_org, p_store_id, p_customer_id, p_product_id, p_status, now(), p_note,   -- ★5 0173: 'active' → p_status p_remaining_pct, p_expires_on, p_shelf_no, nullif(trim(coalesce(p_bottle_name, '')), ''), p_check_line_id)   -- ★16（0158 ★7: 購入行との紐づけ＝裁定314）
+  values (v_org, p_store_id, p_customer_id, p_product_id, p_status, now(), p_note, p_remaining_pct, p_expires_on, p_shelf_no, nullif(trim(coalesce(p_bottle_name, '')), ''), p_check_line_id)   -- ★16（0158 ★7: 購入行との紐づけ＝裁定314）
   returning id into v_id;
 
   perform public.audit_log_write('bottle_keep_register', 'bottle_keeps:' || v_id::text, null,
@@ -2757,7 +2758,7 @@ select proname, left(md5(replace(prosrc, E'\r', '')),8) from pg_proc where prona
   -- staff_pin_status c70866bf
   -- set_staff_pin bda3b520
   -- daily_report_aggregate ca2dd22d
-  -- bottle_keep_register 579efaff
+  -- bottle_keep_register 6cce7d77
   -- check_line_set_customer 644cd7ba
   -- check_close f94dc8c3
   -- check_void 4eb77409

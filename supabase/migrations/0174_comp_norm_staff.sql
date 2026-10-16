@@ -317,8 +317,9 @@ declare
     'withholding_payments','check_referrals','referral_payouts','check_lines','stock_logs','checks','customers','kiosk_devices','payroll_runs','pricing_categories','products','seats',
     'shift_periods','shift_wishes','staff_shift_wishes','cast_contract_acks','cast_quotas','casts','product_categories','staff_shift_patterns','cast_ranks','referrers','staff_contracts','staff_punches','staff_payroll_runs','terms_acceptances','memberships','stores'];   -- ★8 0160: +cast_quotas（casts より先に消す）・★5 0162: +cast_contract_acks（casts より先に消す）・★6 0174: +4 表（0172 の staff 3 表＋terms_acceptances＝memberships より先に消す・FK membership_id）
   -- ★4 投入順（削除順の逆・53 手目の stock_logs 再削除を除く 68 表・stores 直後に memberships）（0152 ★20: +3＝71 表・0153 ★21: +check_customers（'checks' の後）＝72 表）
+  -- ★6 0174: +4 表（0172 の staff 3 表＋terms_acceptances＝memberships の直後に投入）
   c_load constant text[] := array[
-    'stores','memberships','staff_contracts','staff_punches','staff_payroll_runs','terms_acceptances','referrers','cast_ranks',   -- ★6 0174: +4 表（memberships の後）'staff_shift_patterns','product_categories','casts','cast_quotas','cast_contract_acks','staff_shift_wishes','shift_wishes','shift_periods','seats','products',   -- ★8 0160: +cast_quotas（casts の後）・★5 0162: +cast_contract_acks（casts の後）
+    'stores','memberships','staff_contracts','staff_punches','staff_payroll_runs','terms_acceptances','referrers','cast_ranks','staff_shift_patterns','product_categories','casts','cast_quotas','cast_contract_acks','staff_shift_wishes','shift_wishes','shift_periods','seats','products',   -- ★8 0160: +cast_quotas（casts の後）・★5 0162: +cast_contract_acks（casts の後）
     'pricing_categories','payroll_runs','daily_pays','payroll_attentions','kiosk_devices','customers','checks','check_customers','check_lines','check_referrals','referral_payouts','withholding_payments','trials','transport','store_sales_targets',   -- ★6 0159: +2（payroll_runs の後）
     'store_business_hours','stock_logs','staffing_needs','staff_shifts','staff_shift_deadlines','staff_pin','shifts','shift_rules','reservations','receivables',
     'receipt_issues','punches','product_costs','printer_config','print_jobs','pricing_rules','penalty_config','payslips','payroll_adjustments','payments',
@@ -591,7 +592,7 @@ select proname, left(md5(replace(prosrc, E'\r', '')),8) from pg_proc where prona
   -- comp_plan_slide_check 8aedb6d7
   -- set_penalty_config d6c05607
   -- set_comp_plan 21afb3f5
-  -- demo_org_reset 4a1fa1ea
+  -- demo_org_reset 3cdf7a30
   -- kiosk_staff_list 53e9d7a7
   -- staff_punch 250c61b0
 -- 5 proacl（authenticated／service_role のみ・anon なし・demo_org_reset は既存 ACL のまま）
