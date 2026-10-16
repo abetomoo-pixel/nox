@@ -38,3 +38,5 @@ handpaste_NNNN.md は本テンプレの構成で書く（0163〜0170 の実例�
 ```
 
 末尾の太字 1 文は固定（恒久注意28＝0169 で「Success 確認済み」の申告が未適用だった実例）。
+
+★恒久注意31（便 VQ・2026-10-16）: Supabase SQL Editor は最後の文の結果しか返さない＝検証は union all の 1 文（mig／k／v／expected／ok の形＝docs/demo/verify_0173_0174.sql）にまとめ、§3 はそのファイルを貼る案内にする。

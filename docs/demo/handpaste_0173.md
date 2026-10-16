@@ -3,7 +3,7 @@
 **結論 3 行**
 1. 本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor に `supabase/migrations/0173_register_payment.sql` の全文を貼って Run（1 本だけ・所要 1〜3 分）。**0172（適用済み）の後・**0174 より先****
 2. 中身＝①延長パターン（既定・1 店 3 本・レジの切替 RPC）②途中合流（店設定 join_mode・セット凍結・合流セット行）③キャストのレジ運用（店設定 cast_register_device・日次の締めの cast 枝・操作者 membership 列 3 本・レジ端末の候補に cast）④日報の売上 2 分類（set_ext_nom／products）⑤会計前キープ（bottle_keeps 'pending'・レジの「キープ」→会計で確定・取消で削除・顧客 summary に pending_bottles）⑥支払手数料（店設定 pay_fee_rates・伝票行 'pay_fee'・受取額＝入金額＋手数料・日報 pay_fee_total・キャスト売上から除外）⑦体入の店設定 2 キー（trial_guarantee_days／default_plan_id）。既存データの読み替え＝なし（新列は既定／null・既存キープは active のまま・既存の延長ルールは既定なし＝解決順不変・手数料は率の無い店で 0）。
-3. Success 後に §3 の検証クエリを貼り、**返った値（9／8 行／2 行／1 行／1 行／7 行／md5 24 本／proacl 24 行／active だけ／0／0／312・87・160）を CC へ貼る**。client（延長の選択・合流・キャストのレジ設定・日報 2 行・キープ pending・手数料の入金モーダル・体入の一括操作）は適用後の便（P173）。
+3. Success 後に §3 の **docs/demo/verify_0173_0174.sql（1 文・31 行）** を貼り、**返った 31 行（ok 列）を CC へ貼る**。client（延長の選択・合流・キャストのレジ設定・日報 2 行・キープ pending・手数料の入金モーダル・体入の一括操作）は適用後の便（P173）。
 
 ## 1. 貼る前に
 
@@ -34,70 +34,19 @@ sha256sum supabase/migrations/0173_register_payment.sql
 1. SQL Editor の新規タブに `0173_register_payment.sql` の全文（冒頭コメントから `-- ===== end 0173 =====` まで）を貼る。
 2. Run。右下に Success が出たら時刻（JST）を控える。
 
-## 3. 検証クエリ（Success の後に 1 つずつ・値ではなく形を見る）
+## 3. 検証（Success の後・1 文で）
 
-ファイル末尾の `-- ===== verify =====` 以下と同じ 13 本（下に再掲）。
+**Supabase SQL Editor は最後の文の結果しか返さない（恒久注意31）**＝ファイル末尾の `-- ===== verify =====` の 13 本を 1 本ずつ貼る方式は 0173 の手貼りで 12 本分が未取得になった。代わりに **`docs/demo/verify_0173_0174.sql`（union all の 1 文・31 行＝mig／k／v／expected／ok）を全文貼って Run** し、返った 31 行をそのまま CC へ貼る（SELECT のみ・書込なし）。
 
-```sql
--- ===== verify（Success の後に 1 つずつ・値ではなく形を見る） =====
--- 1 貼り先証明
-select 'nox-project-proof', count(*) from public.orgs;                                                                                         -- 9
--- 2 列（7 本）
-select table_name, column_name, data_type, column_default from information_schema.columns where table_schema='public'
-   and ((table_name='pricing_rules' and column_name='is_default_ext') or (table_name='checks' and column_name in ('set_frozen','opened_by_membership'))
-        or (table_name='payments' and column_name='by_membership') or (table_name='daily_reports' and column_name in ('closed_by_membership','set_ext_nom','products','pay_fee_total')))
- order by 1, 2;                                                                                                                                 -- 8 行
--- 3 CHECK（pending／pay_fee）
-select conname, pg_get_constraintdef(oid) from pg_constraint where conname in ('bottle_keeps_status_check','check_lines_fee_kind_check') order by 1;   -- 2 行・'pending'／'pay_fee' を含む
--- 4 index・policy
-select indexname from pg_indexes where tablename='pricing_rules' and indexname='pricing_rules_default_ext_uidx';                              -- 1 行
-select policyname, qual from pg_policies where tablename='daily_reports';                                                                      -- 1 行・auth_cast_can_register を含む
--- 5 引数（署名が変わった 6 本＋新設 1 本＝各 1 行・旧版なし）
-select proname, pg_get_function_identity_arguments(oid) from pg_proc where pronamespace='public'::regnamespace
-   and proname in ('set_pricing_rule','check_pay','bottle_keep_register','check_line_set_customer','check_group_due','customer_summary','check_set_ext_rule') order by 1;   -- 7 行
--- 6 md5（24 本）
-select proname, left(md5(replace(prosrc, E'\r', '')),8) from pg_proc where pronamespace='public'::regnamespace
-   and proname in ('check_group_due','pricing_resolve_core','set_pricing_rule','check_open','check_time_charge_apply','check_set_people','set_store_profile','report_can_close','daily_report_reclose','cash_diff_approve','daily_report_close','kiosk_login','kiosk_operator_list','staff_pin_status','set_staff_pin','daily_report_aggregate','bottle_keep_register','check_line_set_customer','check_close','check_void','customer_summary','check_pay','cast_sales_aggregate','check_set_ext_rule') order by 1;
-  -- check_group_due 5c667792
-  -- pricing_resolve_core 4779acc3
-  -- set_pricing_rule d41e22d9
-  -- check_open 82dfd091
-  -- check_time_charge_apply 8305089f
-  -- check_set_people 1f6b9fd8
-  -- set_store_profile 45012c75
-  -- report_can_close 12b4ad7a
-  -- daily_report_reclose a140f36c
-  -- cash_diff_approve 12810b5f
-  -- daily_report_close f599bd09
-  -- kiosk_login 90ab95a4
-  -- kiosk_operator_list e9c868bf
-  -- staff_pin_status c70866bf
-  -- set_staff_pin bda3b520
-  -- daily_report_aggregate ca2dd22d
-  -- bottle_keep_register 6cce7d77
-  -- check_line_set_customer 644cd7ba
-  -- check_close f94dc8c3
-  -- check_void 4eb77409
-  -- customer_summary c83aa2af
-  -- check_pay c11691b8
-  -- cast_sales_aggregate 34a0bf1e
-  -- check_set_ext_rule 02b145a6
--- 7 proacl（公開 RPC は authenticated／service_role のみ・anon なし・内部専用は null）
-select proname, proacl::text from pg_proc where pronamespace='public'::regnamespace
-   and proname in ('check_group_due','pricing_resolve_core','set_pricing_rule','check_open','check_time_charge_apply','check_set_people','set_store_profile','report_can_close','daily_report_reclose','cash_diff_approve','daily_report_close','kiosk_login','kiosk_operator_list','staff_pin_status','set_staff_pin','daily_report_aggregate','bottle_keep_register','check_line_set_customer','check_close','check_void','customer_summary','check_pay','cast_sales_aggregate','check_set_ext_rule') order by 1;                                            -- 24 行
--- 8 既存データ不変
-select status, count(*) from public.bottle_keeps group by 1;                                                                                   -- active だけ（既存行）
-select count(*) from public.pricing_rules where is_default_ext;                                                                                -- 0
-select count(*) from public.checks where set_frozen;                                                                                           -- 0
--- 9 名簿
-select (select count(*) from pg_proc where pronamespace='public'::regnamespace) functions,
-       (select count(*) from pg_tables where schemaname='public') tables,
-       (select count(*) from pg_proc where pronamespace='public'::regnamespace and prosrc like '%billing locked%') gated;                       -- 312／87／160
-```
+| 見るところ | 期待 |
+|---|---|
+| ok 列 | mig='both'／'0173' の行が全部 true（**0173 だけ適用の時点では「関数数」が 312＝false・mig='0174' の行は false＝想定どおり**） |
+| 「md5 不一致の関数名」の v | 空（1 本でも名前が出たら未適用か改稿ずれ＝CC が止める） |
+| 「関数数」「表数」「'billing locked' 関数数」 | 312／87／160（0174 後は 314／87／160） |
 
-返すもの: 上の結果（値は形どおりか）＋ Success 時刻。CC が live 照合→md5 pin 24 本の張替え・名簿（関数 312・表 87・'billing locked' 160）・anon-guard／grants／rls の段→client→f0 2 連→push。
+返すもの: 31 行の結果＋Success 時刻。CC が live 照合→md5 pin の張替え・名簿・anon-guard／grants／rls の段→client→f0 2 連→push。
 
-**Success 表示は適用の証明にならない（恒久注意28）＝上の検証クエリの返り値（値の形）を貼ってから次便を出す。1 行でも形が違えば未適用として CC が停止する。**
+**Success 表示は適用の証明にならない（恒久注意28）＝上の 1 文の返り値（ok 列）を貼ってから次便を出す。1 行でも形が違えば未適用として CC が停止する。**
 
 ## 4. 適用記録
-- （未適用・2026-10-16 起草）
+- 2026-10-16 Agoora 手貼り（時刻＝申告待ち・SQL Editor の最終行＝functions 312／tables 87／gated 160 の申告＝0173）。**live 照合（CC・便 VQ・2026-10-16・SELECT のみ＝docs/demo/verify_0173_0174.sql を default_transaction_read_only で実行）**: 31 行すべて ok=true＝**0173 と 0174 の両方が本番に適用済み**（関数 314／表 87／'billing locked' 160・md5 pin 24＋6 全一致・不一致名 空・新列 8＋6・CHECK pending／pay_fee・index・policy cast 枝・引数 17／8／17／30・旧版なし・新設 3 本・anon 付与 0・内部専用 5 本 authenticated なし・thresholds 移行 2/2・既存データ不変＝bottle_keeps active 以外 0／is_default_ext 0／set_frozen 0／slide_apply null／4 段以上 0・demo_org_reset 4 表）。手貼りの時刻は Agoora の申告待ち。

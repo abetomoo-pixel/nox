@@ -3,7 +3,7 @@
 **結論 3 行**
 1. 本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor に `supabase/migrations/0174_comp_norm_staff.sql` の全文を貼って Run（1 本だけ・所要 1〜3 分）。****0173 の後**（0173 が set_store_profile を改稿するため・0174 は同じ関数を触らない）**
 2. 中身＝①スライド段数 1〜10（comp_plan_slide_check）②達成ボーナスの多段（thresholds の各要素に amount＝移行 SQL・live 2 行）③ノルマ未達の減額 4 軸（penalty_config +5 列・set_penalty_config 17 引数）④スライドの判定タイミング（comp_plans.slide_apply null・set_comp_plan 30 引数）⑤打刻端末のスタッフ群（kiosk_staff_list／staff_punch）⑥demo_org_reset の配列に staff 3 表＋terms_acceptances。既存データの読み替え＝achievement_bonus の thresholds に amount を足すだけ（live 2 行・値はコンポーネントの amount）。slide_apply は全プラン null（店設定に従う）。
-3. Success 後に §3 の検証クエリを貼り、**返った値（9／6 行／4 行／md5 6 本／proacl 6 行／migrated＝total／0／0／1 行／314・87・160）を CC へ貼る**。client（スライド可変行・達成ボーナス多段・ノルマ減額 4 軸・プランの判定タイミング・打刻端末のスタッフ画面・payload 4 表）は適用後の便（P173）。
+3. Success 後に §3 の **docs/demo/verify_0173_0174.sql（1 文・31 行）** を貼り、**返った 31 行（ok 列）を CC へ貼る**。client（スライド可変行・達成ボーナス多段・ノルマ減額 4 軸・プランの判定タイミング・打刻端末のスタッフ画面・payload 4 表）は適用後の便（P173）。
 
 ## 1. 貼る前に
 
@@ -33,48 +33,19 @@ sha256sum supabase/migrations/0174_comp_norm_staff.sql
 1. SQL Editor の新規タブに `0174_comp_norm_staff.sql` の全文（冒頭コメントから `-- ===== end 0174 =====` まで）を貼る。
 2. Run。右下に Success が出たら時刻（JST）を控える。
 
-## 3. 検証クエリ（Success の後に 1 つずつ・値ではなく形を見る）
+## 3. 検証（Success の後・1 文で）
 
-ファイル末尾の `-- ===== verify =====` 以下と同じ 11 本（下に再掲）。
+**Supabase SQL Editor は最後の文の結果しか返さない（恒久注意31）**＝ファイル末尾の `-- ===== verify =====` の 11 本を 1 本ずつ貼る方式は 0173 の手貼りで 12 本分が未取得になった。代わりに **`docs/demo/verify_0173_0174.sql`（union all の 1 文・31 行＝mig／k／v／expected／ok）を全文貼って Run** し、返った 31 行をそのまま CC へ貼る（SELECT のみ・書込なし）。
 
-```sql
--- ===== verify（Success の後に 1 つずつ・値ではなく形を見る） =====
--- 1 貼り先証明
-select 'nox-project-proof', count(*) from public.orgs;                                                                                         -- 9
--- 2 列（6 本）
-select table_name, column_name, data_type, column_default from information_schema.columns where table_schema='public'
-   and ((table_name='penalty_config' and column_name like 'norm_s%') or (table_name='comp_plans' and column_name='slide_apply')) order by 1, 2;   -- 6 行
--- 3 引数（各 1 行・旧版なし）
-select proname, pg_get_function_identity_arguments(oid) from pg_proc where pronamespace='public'::regnamespace
-   and proname in ('set_penalty_config','set_comp_plan','kiosk_staff_list','staff_punch') order by 1;                                       -- 4 行（17 引数／30 引数／0／3）
--- 4 md5（6 本）
-select proname, left(md5(replace(prosrc, E'\r', '')),8) from pg_proc where pronamespace='public'::regnamespace
-   and proname in ('comp_plan_slide_check','set_penalty_config','set_comp_plan','demo_org_reset','kiosk_staff_list','staff_punch') order by 1;
-  -- comp_plan_slide_check 8aedb6d7
-  -- set_penalty_config d6c05607
-  -- set_comp_plan 21afb3f5
-  -- demo_org_reset 3cdf7a30
-  -- kiosk_staff_list 53e9d7a7
-  -- staff_punch 250c61b0
--- 5 proacl（authenticated／service_role のみ・anon なし・demo_org_reset は既存 ACL のまま）
-select proname, proacl::text from pg_proc where pronamespace='public'::regnamespace and proname in ('comp_plan_slide_check','set_penalty_config','set_comp_plan','demo_org_reset','kiosk_staff_list','staff_punch') order by 1;   -- 6 行
--- 6 ★2 移行＝achievement_bonus の全要素に amount
-select count(*) filter (where not exists (select 1 from jsonb_array_elements(params->'thresholds') e where not (e ? 'amount'))) migrated, count(*) total
-  from public.comp_plan_components where kind = 'achievement_bonus';                                                                            -- migrated＝total（live 2／2）
--- 7 既存データ不変
-select count(*) from public.comp_plans where slide_apply is not null;                                                                          -- 0
-select count(*) from public.comp_plans where jsonb_array_length(sales_slide) > 3 or jsonb_array_length(point_slide) > 3;                       -- 0
--- 8 demo_org_reset の配列に 4 表
-select proname from pg_proc where proname='demo_org_reset' and prosrc like '%''staff_contracts'',''staff_punches'',''staff_payroll_runs'',''terms_acceptances''%';   -- 1 行
--- 9 名簿
-select (select count(*) from pg_proc where pronamespace='public'::regnamespace) functions,
-       (select count(*) from pg_tables where schemaname='public') tables,
-       (select count(*) from pg_proc where pronamespace='public'::regnamespace and prosrc like '%billing locked%') gated;                       -- 314／87／160
-```
+| 見るところ | 期待 |
+|---|---|
+| ok 列 | 全行 true（0173→0174 の両方が入った状態） |
+| 「md5 不一致の関数名」の v | 空（1 本でも名前が出たら未適用か改稿ずれ＝CC が止める） |
+| 「関数数」「表数」「'billing locked' 関数数」 | 314／87／160 |
 
-返すもの: 上の結果（値は形どおりか）＋ Success 時刻。CC が live 照合→md5 pin 6 本の張替え・名簿（関数 314・表 87・'billing locked' 160）・anon-guard／grants／rls の段→client→f0 2 連→push。
+返すもの: 31 行の結果＋Success 時刻。CC が live 照合→md5 pin の張替え・名簿・anon-guard／grants／rls の段→client→f0 2 連→push。
 
-**Success 表示は適用の証明にならない（恒久注意28）＝上の検証クエリの返り値（値の形）を貼ってから次便を出す。1 行でも形が違えば未適用として CC が停止する。**
+**Success 表示は適用の証明にならない（恒久注意28）＝上の 1 文の返り値（ok 列）を貼ってから次便を出す。1 行でも形が違えば未適用として CC が停止する。**
 
 ## 4. 適用記録
-- （未適用・2026-10-16 起草）
+- 2026-10-16 Agoora 手貼り（時刻＝申告待ち・SQL Editor の最終行＝functions 312／tables 87／gated 160 の申告＝0173）。**live 照合（CC・便 VQ・2026-10-16・SELECT のみ＝docs/demo/verify_0173_0174.sql を default_transaction_read_only で実行）**: 31 行すべて ok=true＝**0173 と 0174 の両方が本番に適用済み**（関数 314／表 87／'billing locked' 160・md5 pin 24＋6 全一致・不一致名 空・新列 8＋6・CHECK pending／pay_fee・index・policy cast 枝・引数 17／8／17／30・旧版なし・新設 3 本・anon 付与 0・内部専用 5 本 authenticated なし・thresholds 移行 2/2・既存データ不変＝bottle_keeps active 以外 0／is_default_ext 0／set_frozen 0／slide_apply null／4 段以上 0・demo_org_reset 4 表）。手貼りの時刻は Agoora の申告待ち。
