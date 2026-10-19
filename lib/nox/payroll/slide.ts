@@ -4,6 +4,9 @@
 export type SlideApply = "next" | "current";
 
 /** stores.settings_json.slide_apply → 'next' のときだけ 'next'。欠損・不正値は 'current'（288-4） */
+/** ★便 P174 T-4（裁定395・395 追補2）: 判定のタイミングの表示名（プランの詳細設定・注記） */
+export const SLIDE_APPLY_LABEL: Record<SlideApply, string> = { next: "前期の実績で判定", current: "当期の累計で判定" };
+
 export function slideApplyOf(settings: unknown): SlideApply {
   const v = settings && typeof settings === "object" ? (settings as Record<string, unknown>).slide_apply : undefined;
   return v === "next" ? "next" : "current";

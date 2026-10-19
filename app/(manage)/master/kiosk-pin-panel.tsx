@@ -60,14 +60,14 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
 
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? id;
 
-  // 操作担当 PIN 対象＝owner/manager/staff(can_register)（set_staff_pin の bad target 条件と同一）。
+  // 操作担当 PIN 対象＝owner/manager/staff（set_staff_pin の bad target 条件と同一・★0173 で staff の can_register 条件を外した＝打刻端末のスタッフ打刻）。
   // memberships→users は2クエリでクライアント側結合（RLS: owner/manager の可視範囲で読める分だけ表示）。
   const loadOpMembers = useCallback(async () => {
     const { data: mems } = await supabase
       .from("memberships")
       .select("id, user_id, store_id, role, can_register, is_active");
     const eligible = (mems ?? []).filter(
-      (m) => m.is_active && (m.role === "owner" || m.role === "manager" || (m.role === "staff" && m.can_register)),
+      (m) => m.is_active && (m.role === "owner" || m.role === "manager" || m.role === "staff"), // ★便 P174 T-6（355・389 追補1 ⑤＝0173）: staff は can_register に関わらず PIN 可（打刻端末の staff_punch 用）
     );
     const userIds = Array.from(new Set(eligible.map((m) => m.user_id as string)));
     const { data: us } = userIds.length

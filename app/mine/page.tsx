@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import { fmtWin } from "@/lib/nox/shift-time";
 import PayslipSlip from "@/components/payslip-slip";
+import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
 import { ATTENDANCE_MONTH_NOTE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
 import { nextPeriodOf } from "@/lib/nox/payroll/attention";
 import { mdLabelOf } from "@/lib/nox/payroll/finalize-guard";
@@ -114,8 +115,9 @@ export default async function MinePage() {
   const { data: guaRows } = meCast
     ? await supabase.from("cast_plan").select("overrides_json, valid_from, valid_to").eq("cast_id", meCast.id as string).lte("valid_from", bizToday).or(`valid_to.is.null,valid_to.gte.${bizToday}`).limit(3)
     : { data: null };
-  const guaRow = ((guaRows ?? []) as { overrides_json: Record<string, unknown> | null; valid_from: string; valid_to: string | null }[]).find((r) => r.overrides_json?.guarantee === true && typeof r.overrides_json?.base === "number");
-  const guaLabel = guaRow ? `保証時給（〜${guaRow.valid_to ? guaRow.valid_to.slice(5).replace("-", "/") : ""}）${yen(guaRow.overrides_json!.base as number)}` : null;
+  // ★便 P174 T-5（GV-55／56・R-11 (c)）: 印は一覧カード・詳細と同じ wageNowOf の guarantee（今日を含む保証行）
+  const guaNow = wageNowOf({ planBase: null, rows: ((guaRows ?? []) as { overrides_json: Record<string, unknown> | null; valid_from: string; valid_to: string | null }[]), today: bizToday }).guarantee;
+  const guaLabel = guaNow ? `保証時給 ${yen(guaNow.amount)}${guaNow.to ? `（${Number(guaNow.to.slice(5, 7))}/${Number(guaNow.to.slice(8, 10))} まで）` : ""}` : null;
 
   // 段M2: 所属店（ヘッダ表示用）。cast の可視 store は自店のみ（RLS）＝先頭行が自店（/mine/ranking と同型）。
   const { data: myStores } = await supabase.from("stores").select("id, name, settings_json, punch_methods").limit(1); // ★裁定269: sys_* は既存の自店読取に列を足すだけ・★0164（便 W5-2b）: punch_methods（本人打刻の出し分け）

@@ -11919,6 +11919,8 @@
   "seat:ACE-TABLE-VIP-2": "0c626657-b509-5587-af09-61ae08850b79",
   "rule:ACE-R-WEEKDAY:set": "40ccbcda-6db4-5e37-8629-8fcad51eb935",
   "rule:ACE-R-WEEKDAY:ext": "8227f859-4501-5787-b3a0-5563bd28f10e",
+  "rule:ACE-R-WEEKDAY:ext60": "39640608-2f3f-5755-83d6-2fc0daa34084",
+  "rule:ACE-R-WEEKDAY:extvip": "66d01cc8-dbf1-598f-a431-50c3427e07d1",
   "rule:ACE-R-WEEKDAY:vip": "393e8c03-ba5b-5541-ae33-bebab782e9e7",
   "rule:ACE-R-WEEKEND:set": "217f3ee6-d736-54e9-a2a1-78b694b64950",
   "rule:ACE-R-WEEKEND:ext": "0e71ae8a-7e43-58d4-af2c-a7134240de10",

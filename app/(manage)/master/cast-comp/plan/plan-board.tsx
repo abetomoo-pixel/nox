@@ -92,7 +92,12 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
       p_jonai_back_rate: (p.jonai_back_mode ?? "per_count") === "rate" ? p.jonai_back_rate ?? 0 : null,
       p_dohan_back_mode: "per_count", p_dohan_back_rate: null, // R-2b まで封印（裁定86-②）
       // ★mig0134（裁定113）: 複製/無効化も product_back 3項を写す（19引数全明示・省略＝default 'product_rule' で戻る事故の封じ）
-      ...productBackArgsOf(p.product_back_mode, p.product_back_rate, p.product_back_fixed),
+      ...productBackArgsOf(p.product_back_mode, p.product_back_rate, p.product_back_fixed,
+        { hon: p.product_back_fixed_hon ?? null, jonai: p.product_back_fixed_jonai ?? null, free: p.product_back_fixed_free ?? null }), // ★便 P174: 区分別 3 欄も写す（省略＝null に戻る）
+      // ★便 P174 T-4: 23〜30 引数目も行の現在値を写す（RPC 既定＝slide_period 'daily'・basis 'sales'・ランク空・目標 null・slide_apply null に戻る事故の封じ＝無効化／複製）
+      p_slide_period: p.slide_period ?? "daily", p_slide_basis: p.slide_basis ?? "sales", p_slide_rank_ids: p.slide_rank_ids ?? [],
+      p_norm_days_target: p.norm_days_target ?? null, p_norm_dohan_target: p.norm_dohan_target ?? null, p_norm_sales_target: p.norm_sales_target ?? null, p_norm_shimei_target: p.norm_shimei_target ?? null,
+      p_slide_apply: p.slide_apply === "next" || p.slide_apply === "current" ? p.slide_apply : null,
     });
     return error;
   }

@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
-import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
@@ -154,7 +154,9 @@ for (const st of STORES) {
     const base = { store_id: storeId, seat_kind: r.seat_type === "vip" ? "VIP" : null, dow_mask: dowMaskOf(r.iso_weekdays), time_from_min: win.p_from, time_to_min: win.p_to, rank_id: null, priority: r.priority, is_active: r.is_active, tax_category: "taxable_10", category_id: null, billing_unit: "person" };
     if (r.set_minutes) push("pricing_rules", { id: uid(`rule:${r.pricing_rule_id}:set`), ...base, fee_kind: "set", amount: r.set_price_yen, duration_min: r.set_minutes, name: `${r.display_group}` });
     else push("pricing_rules", { id: uid(`rule:${r.pricing_rule_id}:set`), ...base, fee_kind: "set", amount: r.set_price_yen, duration_min: 60, name: `${r.display_group}` });
-    if (r.extension_price_yen) push("pricing_rules", { id: uid(`rule:${r.pricing_rule_id}:ext`), ...base, fee_kind: "extension", amount: r.extension_price_yen, duration_min: r.extension_minutes || 30, name: `${r.display_group} 延長` });
+    const EP = EXT_PATTERNS[code]; // ★便 P174 T-7b（裁定385）: 延長パターンの店（ACE＝平日通常に 3 本・既定に印）
+    if (EP && EP.group === r.display_group) for (const x of EP.rows) push("pricing_rules", { id: uid(`rule:${r.pricing_rule_id}:${x.key}`), ...base, fee_kind: "extension", amount: x.amount, duration_min: x.minutes, name: x.name, is_default_ext: x.isDefault });
+    else if (r.extension_price_yen) push("pricing_rules", { id: uid(`rule:${r.pricing_rule_id}:ext`), ...base, fee_kind: "extension", amount: r.extension_price_yen, duration_min: r.extension_minutes || 30, name: `${r.display_group} 延長` });
     if (r.vip_surcharge_yen) push("pricing_rules", { id: uid(`rule:${r.pricing_rule_id}:vip`), ...base, seat_kind: "VIP", fee_kind: "vip_charge", amount: r.vip_surcharge_yen, duration_min: null, name: "VIP 加算" });
   }
   for (const r of ranks) {

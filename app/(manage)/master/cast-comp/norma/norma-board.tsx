@@ -47,7 +47,7 @@ export default function NormaBoard({ storeId, isManagerUp, isOwner, flags, setti
       {/* ③ 未達成時のペナルティ（penalty_config・owner のみ編集） */}
       {isSectionOn(settings, "compPenaltyTab") && (<section className="nox-cardtop" style={card}>{/* ★裁定269-4: compPenaltyTab */}
         <h2 style={secTitle}>遅刻・当欠の検知（閾値）</h2>{/* ★0154 D3（裁定293-3）: 罰金の自動計算は撤去＝閾値は検知として残す・減額は精算調整 */}
-        <PenaltyTab penalty={data.penalty} setPenalty={data.setPenalty} exists={data.penaltyExists}
+        <PenaltyTab settings={settings} penalty={data.penalty} setPenalty={data.setPenalty} exists={data.penaltyExists}
           isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={data.reload} />
       </section>)}
     </div>

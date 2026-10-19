@@ -612,7 +612,7 @@ export default function CastsBoard({
   // ★裁定374（GV-B W-4）: 今期の時給＝プレビューの PayResult から（currentWageOf）・達成状況＝/mine と同じ cardAxesOf（個別＞プラン既定＞なし・採用軸だけ）
   const calToday = new Date().toISOString().slice(0, 10);
   const salesByCast = sumCastSales(w4.sales);
-  const wageOf = (c: CastLogin): CurrentWage | null => { const pv = w4.pay[c.id]; if (!pv) return null; const a = castPlanOf[c.id]; const pl = a ? (plansById[a.planId] as unknown as { slide_period?: unknown } | undefined) : undefined; return currentWageOf(pv.pay as never, { planName: pv.planName || (a ? plansById[a.planId]?.name : null) || null, slidePeriod: pl?.slide_period, today: calToday }); };
+  const wageOf = (c: CastLogin): CurrentWage | null => { const pv = w4.pay[c.id]; if (!pv) return null; const a = castPlanOf[c.id]; const pl = a ? (plansById[a.planId] as unknown as { slide_period?: unknown } | undefined) : undefined; return currentWageOf(pv.pay as never, { planName: pv.planName || (a ? plansById[a.planId]?.name : null) || null, slidePeriod: pl?.slide_period, today: calToday, planBase: a ? plansById[a.planId]?.base ?? null : null, rows: planRowsOf[c.id] ?? [] /* ★便 P174 T-5（GV-55／56）: wageNowOf で時給・接尾・保証を 1 本に */ }); };
   const normAxesOfCast = (c: CastLogin): CardAxis[] => {
     const sj = stores.find((st) => st.id === c.store_id)?.settings_json ?? null;
     const axes = normAxesOf(sj); const scope = shimeiScopeOf(sj);
@@ -865,7 +865,7 @@ export default function CastsBoard({
                 <div className="cstat"><div className="l">今月出勤</div><div className="v num">{attDaysOf[c.id] ?? 0}日</div></div>
                 {(() => { const w = wageOf(c); return w ? (/* ★裁定374（GV-B W-4）: 今期の時給＝給与プレビューと同じ純関数・判定期間併記・保証中／体験入店の印 */
                   <div className="cstat" data-w4-wage={w.hourly}><div className="l">今期の時給</div><div className="v num">¥{w.hourly.toLocaleString()}<small style={{ fontWeight: 400, fontSize: 9.5, marginLeft: 3 }}>{w.basis}</small></div>
-                    <div style={{ fontSize: 9.5, color: "var(--v2-muted)" }}>{w.periodLabel}{w.guarantee ? <span className="nox-stpill warn" style={{ marginLeft: 4 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 4 }}>体験入店</span> : null}</div></div>
+                    <div style={{ fontSize: 9.5, color: "var(--v2-muted)" }}>{w.periodLabel}{w.guarantee && !w.now ? <span className="nox-stpill warn" style={{ marginLeft: 4 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 4 }}>体験入店</span> : null}</div></div>
                 ) : null; })()}
               </div>
               {(() => { const axes = normAxesOfCast(c); return axes.length > 0 ? (/* ★裁定374: ノルマ達成状況＝採用軸ごとの 実績／目標＋進捗バー（/mine と同値） */
@@ -961,7 +961,13 @@ export default function CastsBoard({
                 {w && (
                   <div className="nox-frow" data-w4-detail="wage">
                     <span className="k">今期の時給</span>
-                    <span className="v"><b className="num">¥{w.hourly.toLocaleString()}</b> <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>{w.basis}・{w.periodLabel}</span>{w.guarantee ? <span className="nox-stpill warn" style={{ marginLeft: 6 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 6 }}>体験入店</span> : null}</span>
+                    <span className="v"><b className="num">¥{w.hourly.toLocaleString()}</b> <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>{w.basis}・{w.periodLabel}</span>{w.guarantee && !w.now ? <span className="nox-stpill warn" style={{ marginLeft: 6 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 6 }}>体験入店</span> : null}</span>
+                  </div>
+                )}
+                {w?.now && (/* ★便 P174 T-5（GV-56）: 「基本時給 ¥2,200／保証中 ¥3,200（10/18 まで）」＝基本は非保証行の値・保証は今日を含む保証行 */
+                  <div className="nox-frow" data-wage-now="1">
+                    <span className="k">基本時給／保証</span>
+                    <span className="v num">基本時給 ¥{w.now.base.toLocaleString()}{w.now.guarantee ? `／保証中 ¥${w.now.guarantee.amount.toLocaleString()}${w.now.guarantee.to ? `（${mdOf(w.now.guarantee.to)} まで）` : ""}` : ""}</span>
                   </div>
                 )}
                 {axes.length > 0 && (
@@ -1123,7 +1129,8 @@ export default function CastsBoard({
                 const jonaiLabel = jonaiMode === "rate"
                   ? `${num("jonaiBackRate", p.jonai_back_rate ?? 0)}%（率）`
                   : `¥${num("jonaiBack", p.jonai_back).toLocaleString()}/本`;
-                const ovCount = Object.keys(ov).length;
+                const nowW = wageOf(selCast)?.now ?? null; // ★便 P174 T-5（GV-56）: 保証行の base を「基本時給（個別上書き）」と見せない
+                const ovCount = nowW ? (nowW.overridden ? 1 : 0) : Object.keys(ov).filter((k) => k !== "guarantee").length;
                 return (
                   <>
                     <div className="nox-frow"><span className="k">待遇プラン</span><span className="v" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{p.name}{ovCount > 0 && <span style={{ fontSize: 11, color: "var(--gold2)" }}>個別上書きあり</span>}
@@ -1131,7 +1138,7 @@ export default function CastsBoard({
                     </span></div>
                     {/* ★裁定143（v3.1 K35）: 「保証時給」→「通常時給（プラン基本）」＝comp_plans.base（＋overrides.base）を指す語へ。
                         モックの「入店時給保証」（K33・第2期）と語を衝突させない。値・経路は不変。 */}
-                    <div className="nox-frow"><span className="k">基本時給</span><span className="v num">¥{num("base", p.base).toLocaleString()}</span></div>
+                    <div className="nox-frow"><span className="k">基本時給</span><span className="v num">¥{(nowW ? nowW.base : num("base", p.base)).toLocaleString()}</span></div>
                     <div className="nox-frow"><span className="k">本指名バック</span><span className="v num">{honLabel}</span></div>
                     <div className="nox-frow"><span className="k">場内バック</span><span className="v num">{jonaiLabel}</span></div>
                     <div className="nox-frow"><span className="k">同伴バック</span><span className="v num">¥{num("dohanBack", p.dohan_back).toLocaleString()}/本</span></div>

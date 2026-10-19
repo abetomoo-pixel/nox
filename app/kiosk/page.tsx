@@ -16,7 +16,8 @@ import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メ
 //   あり＝kiosk_punch(p_okuri=true)→kiosk_transport_issue(punch_id)（金額はサーバが店の基本額で決める）。基本額が未設定の店は発行せず注記のみ。一律（flat）の店は口を出さない。
 import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1-4）: 順序検査の拒否 3 語は端末にも同じ和文
-type KRow = { cast_id: string; cast_name: string; has_pin: boolean };
+type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
+type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
 type Phase = "loading" | "login" | "denied" | "select" | "pin" | "okuri" | "result";
 type PunchResult =
   | { kind: "ok"; name: string; type: "in" | "out"; time: string; note?: string }
@@ -37,6 +38,8 @@ export default function KioskPage() {
   const supabase = createClient();
   const [phase, setPhase] = useState<Phase>("loading");
   const [casts, setCasts] = useState<KRow[]>([]);
+  const [staffs, setStaffs] = useState<SRow[]>([]); // ★便 P174 T-6（355）: 打刻端末のスタッフ群（manager／staff・オーナーは対象外）
+  const [group, setGroup] = useState<"cast" | "staff">("cast");
   const [target, setTarget] = useState<KRow | null>(null);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
@@ -53,6 +56,9 @@ export default function KioskPage() {
     const rows = (data ?? []) as KRow[];
     if (error || rows.length === 0) return false;
     setCasts(rows);
+    // ★便 P174 T-6（355）: スタッフ群（打刻端末だけ・読めなければ空＝キャスト群のみ）
+    const { data: sd, error: se } = await supabase.rpc("kiosk_staff_list");
+    setStaffs(se ? [] : ((sd ?? []) as SRow[]));
     return true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -94,6 +100,7 @@ export default function KioskPage() {
   /** 退勤: 実費の店なら先に「送り あり／なし」を聞く（読取に失敗したら聞かずに従来どおり打刻） */
   async function startOut() {
     if (!target || pin.length !== 4 || busy) return;
+    if (target.staff) { void punch("out"); return; } // ★便 P174 T-6: スタッフは送りなし
     setBusy(true);
     const { data, error } = await supabase.rpc("kiosk_punch_state");
     setBusy(false);
@@ -105,9 +112,11 @@ export default function KioskPage() {
   async function punch(type: "in" | "out", okuri?: boolean) {
     if (!target || pin.length !== 4 || busy) return;
     setBusy(true);
-    const { data, error } = await supabase.rpc("kiosk_punch", okuri === undefined
-      ? { p_cast_id: target.cast_id, p_pin: pin, p_type: type }
-      : { p_cast_id: target.cast_id, p_pin: pin, p_type: type, p_okuri: okuri });
+    const { data, error } = target.staff
+      ? await supabase.rpc("staff_punch", { p_membership_id: target.cast_id, p_pin: pin, p_kind: type }) // ★便 P174 T-6（355・0174 ★5）
+      : await supabase.rpc("kiosk_punch", okuri === undefined
+        ? { p_cast_id: target.cast_id, p_pin: pin, p_type: type }
+        : { p_cast_id: target.cast_id, p_pin: pin, p_type: type, p_okuri: okuri });
     // 送り あり: 基本額がある店だけ発行（失敗しても打刻は残る＝店が締めで確定）
     let note: string | undefined;
     const pj = data as { ok?: boolean; punch_id?: string } | null;
@@ -121,7 +130,9 @@ export default function KioskPage() {
     let r: PunchResult;
     if (error) {
       // ★裁定327（0161）: kiosk_punch は順序検査を raise で返す（'already in'／'already out'／'no open punch'）＝rpcErrJa の和文。それ以外は従来の端末文言
-      r = { kind: "ng", message: /already in|already out|no open punch/.test(error.message) ? rpcErrJa(error.message) : "この端末は現在使用できません（店に確認してください）" };
+      r = { kind: "ng", message: /already in|already out|no open punch/.test(error.message) ? rpcErrJa(error.message)
+        : /not in/.test(error.message) ? "出勤の打刻がありません（先に出勤を打刻してください）" // ★便 P174 T-6: staff_punch の順序検査
+        : "この端末は現在使用できません（店に確認してください）" };
     } else {
       const j = data as { ok: boolean; reason?: string; punched_at?: string; locked_until?: string };
       if (j.ok) {
@@ -199,6 +210,27 @@ export default function KioskPage() {
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 16px" }}>
               名前を選んでください
             </p>
+            {staffs.length > 0 && (/* ★便 P174 T-6（355）: キャスト群／スタッフ群の 2 段（スタッフがいる店だけ） */
+              <div role="tablist" aria-label="打刻する人" data-kiosk-group={group} style={{ display: "flex", gap: 8, justifyContent: "center", margin: "0 0 14px" }}>
+                {([["cast", "キャスト"], ["staff", "スタッフ"]] as const).map(([k, label]) => (
+                  <button key={k} role="tab" aria-selected={group === k} onClick={() => setGroup(k)}
+                    style={{ ...bigBtn, fontSize: 16, padding: "10px 22px", borderColor: group === k ? "var(--gold)" : "var(--line2)", color: group === k ? "var(--gold)" : "var(--ink)" }}>{label}</button>
+                ))}
+              </div>
+            )}
+            {group === "staff" && staffs.length > 0 ? (
+              <div className="nox-kioskgrid" data-kiosk-grid="staff">
+                {staffs.map((m) => (
+                  <button key={m.membership_id} onClick={() => pick({ cast_id: m.membership_id, cast_name: m.user_name, has_pin: m.has_pin, staff: true })} disabled={!m.has_pin}
+                    style={{ ...bigBtn, opacity: m.has_pin ? 1 : 0.35, cursor: m.has_pin ? "pointer" : "not-allowed" }}>
+                    {m.user_name}
+                    <div style={{ fontSize: 11, color: "var(--sub)", fontWeight: 600, marginTop: 4 }}>
+                      {m.role === "manager" ? "店長" : "スタッフ"}{!m.has_pin ? "・PIN未設定" : m.last_kind === "in" ? "・出勤中" : m.last_kind === "out" ? "・退勤済み" : ""}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
             <div className="nox-kioskgrid" data-kiosk-grid="1">{/* ★GV-4（便 N1014 A-3）: 名前タイル＝≥900px 4 列・600〜899 3 列・それ未満 2 列（globals.css） */}
               {casts.map((c) => (
                 <button key={c.cast_id} onClick={() => pick(c)} disabled={!c.has_pin}
@@ -208,6 +240,7 @@ export default function KioskPage() {
                 </button>
               ))}
             </div>
+            )}
           </>
         )}
 

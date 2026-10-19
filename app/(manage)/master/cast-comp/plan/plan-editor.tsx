@@ -12,9 +12,10 @@ import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票9
 import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
 import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf } from "@/lib/nox/store/norm-axes"; // ★裁定347（0171・便 P171）: プラン既定の目標 4 軸（採用 OFF の軸は入力口を出さない）
-import { SLIDE_BASIS_LABEL, slideApplyOf, slideBasisOf, slideBasisPillOf, slideDescOf, slidePeriodOf, slidePillOf, type SlideBasis, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）・★裁定338（0168）: 判定期間
+import { SLIDE_APPLY_LABEL, SLIDE_BASIS_LABEL, slideApplyOf, slideBasisOf, slideBasisPillOf, slideDescOf, slidePeriodOf, slidePillOf, type SlideBasis, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）・★裁定338（0168）: 判定期間
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
+import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）
 import {
   SlideInput, compErrJa, secTitle, BackTab, PRODUCT_BACK_OPTIONS, productBackArgsOf, productBackErrOf,
   type Plan, type Slide, type BackModeRow, type CompRow, type BackDef, type ProductBackMode,
@@ -26,6 +27,7 @@ type Draft = {
   honMode: BackModeRow; honRate: number; jonaiMode: BackModeRow; jonaiRate: number;
   salesSlide: Slide[]; pointSlide: Slide[];
   slidePeriod: SlidePeriod; // ★裁定338（0168・便 P168）: 判定期間（新規プランの初期値 monthly・既存は現状値＝旧行 daily）
+  slideApply: "next" | "current" | null; // ★便 P174 T-4（裁定395・0174 ★4）: 判定タイミング（null＝店設定に従う）。395 追補2＝主表示は判定期間（月／半月）・タイミングは「詳細設定」の奥
   slideBasis: SlideBasis; slideRankIds: string[]; // ★裁定343（0170・便 W5-2b）: 判定基準（sales／hon_count／dohan_count・既定 sales）と対象ランク（空＝全員）
   // ★裁定113/123（mig0134）: 商品販売バック3方式。rate/fixed は当該 mode のときだけ送信（他は null＝RPC pair と同条件）。
   //   値は mode 切替中も保持（hon/jonai の円/本値と同じ流儀＝裁定v）。
@@ -39,6 +41,7 @@ const BLANK: Draft = {
   honMode: "per_count", honRate: 0, jonaiMode: "per_count", jonaiRate: 0,
   salesSlide: [], pointSlide: [],
   slidePeriod: "monthly", // ★裁定338: 新規プランの初期値＝月次
+  slideApply: "next", // ★便 P174 T-4（ex_plan R-10）: 新規プランの UI 初期値＝前期の実績（DB の既定は null＝店設定）
   slideBasis: "sales", slideRankIds: [], // ★裁定343: 既定＝売上・全員
   productBackMode: "product_rule", productBackRate: 0, productBackFixed: 0,
   normDays: "", normDohan: "", normSales: "", normShimei: "", // ★裁定347: 既定＝継承なし
@@ -52,6 +55,7 @@ const draftOf = (p: Plan): Draft => ({
   jonaiMode: (p.jonai_back_mode ?? "per_count") as BackModeRow, jonaiRate: p.jonai_back_rate ?? 0,
   salesSlide: p.sales_slide ?? [], pointSlide: p.point_slide ?? [],
   slidePeriod: slidePeriodOf(p.slide_period), // ★裁定338: 既存プランは現状値（旧行＝daily・読み替えなし）
+  slideApply: p.slide_apply === "next" || p.slide_apply === "current" ? p.slide_apply : null, // ★便 P174 T-4: 既存プランは現状値（null＝店設定）
   slideBasis: slideBasisOf(p.slide_basis), slideRankIds: Array.isArray(p.slide_rank_ids) ? (p.slide_rank_ids as string[]) : [], // ★裁定343: 既存プランは sales・全員（0170 の既定）
   productBackMode: p.product_back_mode ?? "product_rule",
   productBackRate: p.product_back_rate ?? 0, productBackFixed: p.product_back_fixed ?? 0,
@@ -254,25 +258,31 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
-  const clean = (s: Slide[]) => s.filter((r) => r.at > 0).map((r) => ({ at: r.at, wage: r.wage }));
+  const effApply: "next" | "current" = draft.slideApply ?? slideApplyOf(settings); // ★便 P174 T-4: 表示（ピル・説明）はプラン→店設定で解決
+  const clean = (s: Slide[]) => slideToSave(s); // ★便 P174 T-1（裁定390）: at=0 の行を除外（従来と同じ）
 
   async function savePlan(section: string) {
     // ★mig0134: フロント検証＝RPC の pair/範囲と同条件（当該 mode の値だけ検査・RPC へ投げる前に節へ赤）
     const pbErr = productBackErrOf(draft.productBackMode, draft.productBackRate, draft.productBackFixed);
     if (pbErr) { setSecErr((e) => ({ ...e, [section]: pbErr })); return; }
+    // ★便 P174 T-1（裁定390）: スライドの段＝RPC（comp_plan_slide_check）と同条件で先に検査（1〜10 段・昇順・整数 ≥0）
+    const slErr = slideErrOf(draft.salesSlide) ?? slideErrOf(draft.pointSlide);
+    if (slErr) { setSecErr((e) => ({ ...e, [section]: slErr })); return; }
     const { data: newId, error } = await supabase.rpc("set_comp_plan", {
       p_id: draft.id, p_store_id: storeId, p_name: draft.name, p_base: draft.base,
       p_hon_back: draft.honBack, p_jonai_back: draft.jonaiBack, p_dohan_back: draft.dohanBack,
       p_sales_slide: clean(draft.salesSlide), p_point_slide: clean(draft.pointSlide),
       p_is_active: draft.active,
       p_slide_period: draft.slidePeriod, // ★裁定338（0168）: 23 引数目（判定期間）
-      p_slide_basis: draft.slideBasis, p_slide_rank_ids: draft.slideRankIds, // ★裁定343（0170）: 24・25 引数目（判定基準・対象ランク＝空は全員）
+      p_slide_basis: draft.slideBasis, p_slide_rank_ids: draft.slideRankIds,
+      p_slide_apply: draft.slideApply, // ★便 P174 T-4（裁定395・0174 ★4）: 30 引数目を常に明示（省略すると更新で null＝店設定に戻る） // ★裁定343（0170）: 24・25 引数目（判定基準・対象ランク＝空は全員）
       p_norm_days_target: normArg(draft.normDays), p_norm_dohan_target: normArg(draft.normDohan), p_norm_sales_target: normArg(draft.normSales), p_norm_shimei_target: normArg(draft.normShimei), // ★裁定347（0171）: 26〜29 引数目（プラン既定の目標・空＝null＝継承なし）
       p_hon_back_mode: draft.honMode, p_hon_back_rate: draft.honMode === "rate" ? draft.honRate : null,
       p_jonai_back_mode: draft.jonaiMode, p_jonai_back_rate: draft.jonaiMode === "rate" ? draft.jonaiRate : null,
       p_dohan_back_mode: "per_count", p_dohan_back_rate: null, // R-2b まで封印（裁定86-②）
       // ★mig0134（裁定113/123）: 19引数全明示（原則7）。rate/fixed は当該 mode のときだけ値・他は null
-      ...productBackArgsOf(draft.productBackMode, draft.productBackRate, draft.productBackFixed),
+      ...productBackArgsOf(draft.productBackMode, draft.productBackRate, draft.productBackFixed,
+        (() => { const cur = plans.find((x) => x.id === draft.id); return cur ? { hon: cur.product_back_fixed_hon ?? null, jonai: cur.product_back_fixed_jonai ?? null, free: cur.product_back_fixed_free ?? null } : null; })()), // ★便 P174: 区分別 3 欄（この画面に欄なし）は行の現在値を写す＝保存で null に戻さない
     });
     if (error) {
       setSecErr((e) => ({ ...e, [section]: compErrJa(error.message) }));
@@ -510,16 +520,27 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
 
       {/* ── ④ スライド・ポイント ── */}
       {on.slides && (<section id="slides" className="nox-cardtop" style={{ ...secCard, display: vis.slides ? undefined : "none" }}>{/* ★裁定269-4: planEditorSlides */}
-        <SecHead title="スライド・ポイント" keys={["salesSlide", "pointSlide", "slidePeriod"]} section="スライド" desc="売上・ポイント実績に応じた時給スライドを設定します。" />
+        <SecHead title="スライド・ポイント" keys={["salesSlide", "pointSlide", "slidePeriod", "slideApply"]} section="スライド" desc="売上・ポイント実績に応じた時給スライドを設定します。" />
         {/* ★裁定338＋追補1（0168・便 P168）: 判定期間＝3 択（月次（既定）／半月／日次）・owner・保存は set_comp_plan 23 引数。青ピルと説明文は期間で切替（翌日反映の語は使わない）。判定基準・対象（C5）は準備中のまま */}
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span>判定期間:</span>
           <select value={draft.slidePeriod} disabled={!isOwner} aria-label="スライドの判定期間" onChange={(e) => d({ slidePeriod: e.target.value as SlidePeriod })} style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12.5 }}>
             <option value="monthly">月次（既定）</option><option value="half">半月</option><option value="daily">日次</option>
           </select>
-          <span className="nox-stpill">{slidePillOf(draft.slidePeriod, slideApplyOf(settings) === "next")}</span>
+          <span className="nox-stpill">{slidePillOf(draft.slidePeriod, effApply === "next")}</span>
           <span>対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）</span>
         </p>
+        {/* ★便 P174 T-4（裁定395・395 追補2）: 判定のタイミング＝詳細設定の奥（主表示は上の判定期間）。null＝店設定に従う・前期の実績（既定）・当期の累計（稀） */}
+        <details data-slide-apply="1" style={{ margin: "0 0 8px", fontSize: 12, color: "var(--sub)" }}>
+          <summary style={{ cursor: "pointer" }}>詳細設定（判定のタイミング: {draft.slideApply === null ? `店の設定に従う＝${SLIDE_APPLY_LABEL[slideApplyOf(settings)]}` : SLIDE_APPLY_LABEL[draft.slideApply]}）</summary>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 6 }}>
+            {([[null, `店の設定に従う（いまは${SLIDE_APPLY_LABEL[slideApplyOf(settings)]}）`], ["next", SLIDE_APPLY_LABEL.next], ["current", SLIDE_APPLY_LABEL.current]] as const).map(([v, label]) => (
+              <label key={String(v)} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                <input type="radio" name="slide-apply" checked={draft.slideApply === v} disabled={!isOwner} onChange={() => d({ slideApply: v })} aria-label={`判定のタイミング ${label}`} />{label}
+              </label>
+            ))}
+          </div>
+        </details>
         {/* ★裁定343（0170・便 W5-2b）: 判定基準（売上／本指名の件数／同伴の件数）と対象ランク（空＝全員）＝プランの属性（set_comp_plan 25 引数）。338 の判定期間とは直交。対象外のキャストは基本率のまま */}
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span>判定基準:</span>
@@ -537,10 +558,10 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         </p>
         {/* ★N2→★X-13-19: 段は 1 段 1 行（[判定] 円 以上 → 時給 [時給] 円・通貨は接尾のみ）＝SlideInput の basis で切替 */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
-          <SlideInput label={draft.slideBasis === "sales" ? "売上スライド（3段）" : `${SLIDE_BASIS_LABEL[draft.slideBasis]}スライド（3段）`}
-            desc={draft.slideBasis === "sales" ? slideDescOf(draft.slidePeriod, "yen", slideApplyOf(settings) === "next") : slideDescOf(draft.slidePeriod, "count", slideApplyOf(settings) === "next", SLIDE_BASIS_LABEL[draft.slideBasis])}
+          <SlideInput label={draft.slideBasis === "sales" ? "売上スライド" : `${SLIDE_BASIS_LABEL[draft.slideBasis]}スライド` /* ★便 P174 T-1（裁定390）: 段数は可変＝見出しから「3段」を外す */}
+            desc={draft.slideBasis === "sales" ? slideDescOf(draft.slidePeriod, "yen", effApply === "next") : slideDescOf(draft.slidePeriod, "count", effApply === "next", SLIDE_BASIS_LABEL[draft.slideBasis])}
             basis={draft.slideBasis === "sales" ? "yen" : "count"} period={draft.slidePeriod} slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
-          <SlideInput label="ポイントスライド（3段）" desc={slideDescOf(draft.slidePeriod, "pt", slideApplyOf(settings) === "next")} basis="pt" period={draft.slidePeriod} slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
+          <SlideInput label="ポイントスライド" desc={slideDescOf(draft.slidePeriod, "pt", effApply === "next")} basis="pt" period={draft.slidePeriod} slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <Prep k="point_rules" /><Prep k="gross_profit_slide" /><Prep k="slide_ratio_col" />

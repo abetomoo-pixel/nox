@@ -74,7 +74,7 @@ const J = (v: unknown) => JSON.stringify(v);
 {
   const co = src("lib/nox/payroll/collect.ts"), core = src("lib/nox/payroll/core.ts"), pe = src("app/(manage)/master/cast-comp/plan/plan-editor.tsx"), cs = src("app/(manage)/master/cast-comp/comp-sections.tsx"), pb = src("app/(manage)/master/cast-comp/plan/plan-board.tsx");
   check("sb(5-1) collect: select +2 列・slideBasisByPlan／slideRankIdsByPlan・casts.rank_id・件数＝slideBasisValueOf（期間累計・daily）・対象外＝planEff（段を空に）・slideScope",
-    co.includes(", slide_period, slide_basis, slide_rank_ids\")") && co.includes("slideBasisByPlan.set(p.id as string, slideBasisOf(p.slide_basis));") && co.includes('select("id, name, employment, joined_on, left_on, rank_id")')
+    co.includes(", slide_period, slide_basis, slide_rank_ids, slide_apply\")") /* ★便 P174 T-4（395）: +slide_apply */ && co.includes("slideBasisByPlan.set(p.id as string, slideBasisOf(p.slide_basis));") && co.includes('select("id, name, employment, joined_on, left_on, rank_id")')
     && co.includes("if (b) rec[k] = { sales: slideBasisValueOf(b, a), pts: castPts(a, a.pt) };") && co.includes("byDay[x.biz_date] = (byDay[x.biz_date] ?? 0) + slideBasisValueOf(b, x);")
     && co.includes("const planEff = plan && excluded ? { ...plan, salesSlide: [], pointSlide: [] } : plan;") && co.includes("slideScope: { basis: basisX, rankIds, castRankId, excluded }"));
   check("sb(5-2) core: slideScopeFreezeOf（basis／scope を凍結形へ・daily＋件数は apply 'daily'）", core.includes("slideScopeFreezeOf(cur ? { apply: c.slidePeriod ?? (c.slideBasis ? \"daily\" : cur.apply)") && core.includes("if (c.slideBasis || c.slideScope) {"));

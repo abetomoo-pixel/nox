@@ -238,7 +238,7 @@ export async function computePayrollDraft(
 
     const pay = payOf(buildPayInput(c, taxMode, masters, periodDays, extrasTotal, arPlan.deduct, advPlan.deduct, okuriPlan.deduct));
     // ★裁定338＋追補1（0168・便 P168）: monthly／half の判定材料を凍結形へ（apply＝期間・provisional＝期首〜今日の暫定・pay.ts は 'next' 形のまま＝ここで写す）
-    if (c.slidePeriod && pay.slideBasis) (pay as { slideBasis?: unknown }).slideBasis = slideBasisForPeriodOf(pay.slideBasis, c.slidePeriod, !!c.slideProvisional, win.slideApply === "next");
+    if (c.slidePeriod && pay.slideBasis) (pay as { slideBasis?: unknown }).slideBasis = slideBasisForPeriodOf(pay.slideBasis, c.slidePeriod, !!c.slideProvisional, c.slideApply === "next") /* ★便 P174 T-4（裁定395）: キャストのプラン→店設定で解決済み（collect） */;
     // ★裁定343（0170・便 W5-2b）: 判定基準（件数）と対象（ランク）を凍結形に足す。daily＋件数は months が営業日ごと（apply 'daily'）・対象外は months 空で scope.excluded＝明細に「対象外」
     if (c.slideBasis || c.slideScope) {
       const cur = (pay as { slideBasis?: { apply: string; provisional: boolean; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[] } }).slideBasis;

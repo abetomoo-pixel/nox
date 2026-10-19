@@ -6,6 +6,8 @@
 //   ノルマ達成状況＝/mine の進捗カードと同じ cardAxesOf（lib/nox/mine/quota）の結果から「達成／進行中／未達」を 1 語に畳む。
 import { SLIDE_PERIOD_LABEL, slidePeriodOf } from "@/lib/nox/payroll/slide";
 import type { CardAxis } from "@/lib/nox/mine/quota";
+import { wageNowOf, type WageNow } from "./wage-now"; // ★便 P174 T-5（GV-55／56）: 今の時給の解決は 1 本
+import type { PlanRowLike } from "./guarantee";
 
 export type WageDayLike = { d?: number; hours?: number; hourly?: number; basis?: string };
 export type PreviewPayLike = {
@@ -14,12 +16,14 @@ export type PreviewPayLike = {
   slideBasis?: { apply?: string } | null;
   plan?: { name?: string } | null;
 };
-export type CurrentWage = { hourly: number; basis: string; periodLabel: string; guarantee: boolean; trial: boolean; hours: number };
+export type CurrentWage = { hourly: number; basis: string; periodLabel: string; guarantee: boolean; trial: boolean; hours: number; now?: WageNow };
 
 export const WAGE_BASIS_LABEL: Record<string, string> = { "保証": "保証", "売上": "売上段", "pt": "pt 段", "基本": "基本", "固定": "固定" };
 
 /** 今期の時給（プレビューの PayResult から）。today＝暦日 YYYY-MM-DD（保証中の判定） */
-export function currentWageOf(pay: PreviewPayLike | null | undefined, opts: { planName?: string | null; slidePeriod?: unknown; today: string }): CurrentWage {
+//   ★便 P174 T-5（GV-55／56）: rows（cast_plan の行）を渡すと wageNowOf で時給・接尾・保証を解決（カード「¥3,200 保証（10/18 まで）」／「¥2,200 基本」）。
+//   rows なし＝従来の読み方（プレビューの最終営業日）＝互換。
+export function currentWageOf(pay: PreviewPayLike | null | undefined, opts: { planName?: string | null; slidePeriod?: unknown; today: string; planBase?: number | null; rows?: readonly PlanRowLike[] }): CurrentWage {
   const wdays = pay?.wdays ?? [];
   const last = wdays.length > 0 ? wdays[wdays.length - 1] : null;
   const hourly = Math.max(0, Math.round(Number(last?.hourly ?? pay?.wage ?? 0)));
@@ -30,6 +34,10 @@ export function currentWageOf(pay: PreviewPayLike | null | undefined, opts: { pl
   const spans = pay?.guarantee?.spans ?? [];
   const guarantee = spans.some((s) => s.from <= opts.today && (s.to === null || s.to >= opts.today));
   const trial = (opts.planName ?? "") === "体験入店";
+  if (opts.rows) {
+    const now = wageNowOf({ planBase: opts.planBase ?? null, rows: opts.rows, today: opts.today, lastDay: last });
+    return { hourly: now.hourly, basis: now.suffixLabel, periodLabel, guarantee: now.guarantee !== null, trial, hours: Number(pay?.wHours ?? 0), now };
+  }
   return { hourly, basis, periodLabel, guarantee, trial, hours: Number(pay?.wHours ?? 0) };
 }
 

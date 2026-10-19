@@ -28,9 +28,12 @@ import { PRODUCT_BACK_OPTIONS, type ProductBackMode } from "@/lib/nox/comp-metho
 import Picker from "@/components/nox/picker";
 import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P168）: 月の選択＝共通 select
 import { bonusParamsOf, bonusTiersLabel, bonusTiersOf } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
+import { SLIDE_ROWS_MAX, slideAddRow, slideErrOf, slideRemoveRow, slideRowsOf, slideToSave, slideWarnOf } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）: 段数可変（1〜10）
+import { Message } from "@/components/ui/toast"; // ★便 P174 T-1: 段の検査・警告
 export { PRODUCT_BACK_OPTIONS, type ProductBackMode };
 export type Plan = {
   slide_period?: string | null; // ★裁定338（0168）: 判定期間（monthly／half／daily・旧行は daily）
+  slide_apply?: string | null; // ★便 P174 T-4（裁定395・0174 ★4）: 判定タイミング（null＝店設定）
   slide_basis?: string | null; slide_rank_ids?: string[] | null; // ★裁定343（0170）: 判定基準（sales／hon_count／dohan_count）・対象ランク（空＝全員）
   norm_days_target?: number | null; norm_dohan_target?: number | null; norm_sales_target?: number | null; norm_shimei_target?: number | null; // ★裁定347（0171）: プラン既定の目標（null＝継承なし）
   id: string; name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
@@ -88,6 +91,8 @@ export type Penalty = {
   fine_absent: number; fine_late: number; hours_per_shift: number; norm_on: boolean;
   norm_days_flat: number; norm_days_per: number; norm_dohan_flat: number; norm_dohan_per: number;
   late_grace_min: number; early_grace_min: number; over_grace_min: number;
+  // ★便 P174 T-3（裁定394・0174 ★3）: 減額 4 軸＝指名・売上（売上は不足 1 単位ごと・単位 既定 10,000 円）
+  norm_shimei_flat: number; norm_shimei_per: number; norm_sales_flat: number; norm_sales_per: number; norm_sales_unit: number;
 };
 
 export const METRICS = ["hon", "jonai", "dohan", "days", "sales", "pt", "champCnt", "bottleCnt"] as const;
@@ -130,6 +135,7 @@ const PENALTY_LABEL_JA: Record<keyof Penalty, string> = {
   late_grace_min: "遅刻猶予",
   early_grace_min: "早退猶予",
   over_grace_min: "残留猶予",
+  norm_shimei_flat: "指名 未達の定額", norm_shimei_per: "指名 不足1回につき", norm_sales_flat: "売上 未達の定額", norm_sales_per: "売上 不足1単位につき", norm_sales_unit: "売上の単位", // ★便 P174 T-3
 };
 const PENALTY_UNIT_JA: Partial<Record<keyof Penalty, string>> = {
   fine_absent: "円/回",
@@ -188,6 +194,7 @@ export const DEFAULT_PENALTY: Penalty = {
   fine_absent: 10000, fine_late: 3000, hours_per_shift: 5, norm_on: true,
   norm_days_flat: 5000, norm_days_per: 2000, norm_dohan_flat: 3000, norm_dohan_per: 1500,
   late_grace_min: 10, early_grace_min: 30, over_grace_min: 90,
+  norm_shimei_flat: 0, norm_shimei_per: 0, norm_sales_flat: 0, norm_sales_per: 0, norm_sales_unit: 10000, // ★便 P174 T-3（0174 の列既定と同値）
 };
 
 /** 旧 CompMaster の load を移設した共通データフック（読みは RLS・書きは各セクションの RPC）。 */
@@ -241,19 +248,19 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthl
   /** ★裁定338（0168・便 P168）: プランの判定期間＝閾値の単位ラベル（monthly／half／daily） */
   period?: SlidePeriod;
 }) {
-  // 3段固定入力（at 昇順 strict は RPC が検証・空段は送信時に除外）
-  // ★X-13-19（便 X-13d-1）: 1 段 1 行「n段 [判定] 円 以上 → 時給 [時給] 円」。通貨は接尾「円」のみ（¥ 接頭と「円 円」の二重を撤去）・
-  //   ≤899 は .nox-sliderow の入力欄が伸縮して折り返さない（globals.css）。値・保存形（at/wage の 3 段）は不変＝表示だけ。
-  const rows: Slide[] = [0, 1, 2].map((i) => slide[i] ?? { at: 0, wage: 0 });
+  // ★便 P174 T-1（裁定390・0174 ★1）: 段数を可変（1〜10 行・追加／削除）・初期 3 行（保存済みが空のとき）。昇順は保存前に検査（slideErrOf＝RPC と同条件）・時給の単調増加は警告のみ（slideWarnOf）。
+  // ★X-13-19（便 X-13d-1）: 1 段 1 行「n段 [判定] 円 以上 → 時給 [時給] 円」。通貨は接尾「円」のみ・≤899 は .nox-sliderow の入力欄が伸縮して折り返さない（globals.css）。保存形 [{at, wage}]（at=0 は送信時に除外）は不変。
+  const rows: Slide[] = slideRowsOf(slide);
   const set = (i: number, key: "at" | "wage", v: number) => {
     const next = rows.map((r, j) => (j === i ? { ...r, [key]: v } : r));
     setSlide(next);
   };
+  const err = slideErrOf(rows); const warn = err ? null : slideWarnOf(rows);
   const atLabel = period ? slideAtLabelOf(period, basis) : basis === "yen" ? (monthly ? "以上（月間売上）" : "以上（1 日の売上）") : (monthly ? "pt 以上（月間）" : "pt 以上（1 日）"); // ★裁定338: period 優先
   return (
     <div style={{ marginTop: 6 }}>
       <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
-      <div style={{ ...note, margin: "2px 0 6px" }}>{desc ?? "3段・昇順・0 の段は無効として除外"}</div>
+      <div style={{ ...note, margin: "2px 0 6px" }}>{desc ?? `1〜${SLIDE_ROWS_MAX}段・昇順・0 の段は無効として除外`}</div>
       <div style={{ display: "grid", gap: 6 }}>
         {rows.map((r, i) => (
           <div key={i} className="nox-sliderow">
@@ -267,9 +274,15 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthl
             <span className="u">{atLabel}</span>
             <span className="u">→ 時給</span>
             <MoneyInput value={r.wage} onChange={(v) => set(i, "wage", Number(v || 0))} style={input} width={118} ariaLabel={`${i + 1}段の時給`} />
+            {rows.length > 1 && <button type="button" style={btnLight} aria-label={`${i + 1}段を削除`} data-slide-del={i} onClick={() => setSlide(slideRemoveRow(rows, i))}>−</button>}
           </div>
         ))}
       </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
+        {rows.length < SLIDE_ROWS_MAX && <button type="button" style={btnLight} data-slide-add="1" onClick={() => setSlide(slideAddRow(rows))}>＋ 段を追加（{rows.length}/{SLIDE_ROWS_MAX}）</button>}
+      </div>
+      {err && <Message kind="error" style={{ marginTop: 6 }}>{err}</Message>}
+      {warn && <Message kind="warn" style={{ marginTop: 6 }}>{warn}</Message>}
     </div>
   );
 }
@@ -479,7 +492,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
             <span>本指名 <b className="num">{honMode === "rate" ? `率${honRate}%` : `¥${honBack.toLocaleString()}/本`}</b></span>
             <span>場内 <b className="num">{jonaiMode === "rate" ? `率${jonaiRate}%` : `¥${jonaiBack.toLocaleString()}/本`}</b></span>
             <span>同伴 <b className="num">¥{dohanBack.toLocaleString()}/本</b>（率は準備中）</span>
-            <span>スライド 売上{salesSlide.length}段・pt{pointSlide.length}段</span>
+            <span>スライド 売上{slideToSave(salesSlide).length}段・pt{slideToSave(pointSlide).length}段</span>
             {comps.filter((c) => c.is_active).map((c) => (
               <span key={c.id}>{COMP_KIND_LABEL[c.kind] ?? c.kind} <b className="num">{c.kind === "guarantee_min" ? `¥${(c.amount ?? 0).toLocaleString()}` : bonusTiersLabel(bonusTiersOf(c.params, c.amount))}</b>{c.kind === "guarantee_min" ? "/月" : "（達成時）"}</span>
             ))}
@@ -799,7 +812,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
 function FragmentRow({ children }: { children: React.ReactNode }) { return <>{children}</>; }
 
 // ── ノルマ（manager 以上・mig0042 で4軸＝日数/同伴＋売上/指名）──
-//   売上・指名の新2軸は表示のみ（payOf/normPenalty 非接続＝/mine の進捗表示用）。
+//   ★便 P174 T-3（裁定394）: 減額は 4 軸（出勤日数・同伴・指名・売上）＝PenaltyTab。payOf の normPenalty は 0 のまま（減額は精算調整＝0154 D3）。
 //   ★0154 D3: 未達の罰金は撤去（検知のみ・減額は精算調整）。日数・同伴の検知は「遅刻・当欠の検知」タブの norm_on 配下。
 export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [], castPlans = [], settings = null }: { casts: CastRow[]; norms: Norm[]; isManagerUp: boolean; setMsg: (m: string) => void; reload: () => Promise<void>; plans?: Plan[]; castPlans?: CastPlan[]; settings?: StoreSettings }) {
   // ★裁定347（0171・便 P171）: 継承値（プラン既定 comp_plans.norm_*_target）を薄く・上書き（cast_norms の非 0）を濃く。採用 OFF の軸（店設定 norm_axes）は列ごと出さない。一括入力は上書きとして保存（RPC 不変）
@@ -883,7 +896,7 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
             <p style={{ ...note, marginTop: 6 }}>空欄の項目は変えません（その人の現在値のまま）。表の行をタップして選択します。</p>
           </div>
           <p style={{ ...note, marginTop: 8 }}>
-            ※売上・指名ノルマは表示のみ（本人のマイページ進捗表示用・報酬には接続されません。減額は給与の精算調整で登録します）。
+            ※未達の減額（4 軸・定額／不足ごと）は下の「遅刻・当欠の検知（閾値）」で設定し、給与の精算調整で登録します（★便 P174 T-3＝裁定394）。
             店として採用する軸と指名のカウント定義は「ノルマ設定（店）」パネルで切り替えます。
           </p>
         </>
@@ -989,7 +1002,28 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
 }
 
 // ── 遅刻・当欠の検知（閾値・owner のみ・D3a・全12引数明示送信＝原則7）。★0154 D3: 罰金額の欄は隠す（値は現値を送る） ──
-export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, reload }: { penalty: Penalty; setPenalty: (p: Penalty) => void; exists: boolean; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+/** ★便 P174 T-3（裁定394）: 減額 4 軸の欄＝[軸, ラベル, 定額キー, 不足ごとキー, 単位] */
+export const PENALTY_AXES = [
+  ["days", "出勤日数", "norm_days_flat", "norm_days_per", "日"],
+  ["dohan", "同伴", "norm_dohan_flat", "norm_dohan_per", "本"],
+  ["shimei", "指名", "norm_shimei_flat", "norm_shimei_per", "回"],
+  ["sales", "売上", "norm_sales_flat", "norm_sales_per", "単位"],
+] as const;
+/** ★便 P174 T-3（0174 ★3）: set_penalty_config 17 引数（常に全部明示） */
+export function penaltyArgsOf(storeId: string, p: Penalty): Record<string, unknown> {
+  return {
+    p_store_id: storeId,
+    p_fine_absent: p.fine_absent, p_fine_late: p.fine_late,
+    p_hours_per_shift: p.hours_per_shift, p_norm_on: p.norm_on,
+    p_norm_days_flat: p.norm_days_flat, p_norm_days_per: p.norm_days_per,
+    p_norm_dohan_flat: p.norm_dohan_flat, p_norm_dohan_per: p.norm_dohan_per,
+    p_late_grace_min: p.late_grace_min, p_early_grace_min: p.early_grace_min, p_over_grace_min: p.over_grace_min,
+    p_norm_shimei_flat: p.norm_shimei_flat ?? 0, p_norm_shimei_per: p.norm_shimei_per ?? 0,
+    p_norm_sales_flat: p.norm_sales_flat ?? 0, p_norm_sales_per: p.norm_sales_per ?? 0, p_norm_sales_unit: p.norm_sales_unit ?? 10000,
+  };
+}
+export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, reload, settings = null }: { penalty: Penalty; setPenalty: (p: Penalty) => void; exists: boolean; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void>; settings?: StoreSettings | null }) {
+  const axesOn = normAxesOf(settings); // ★便 P174 T-3（裁定394）: 採用 OFF の軸は欄ごと出さない（店設定 norm_axes）
   const supabase = createClient();
   // ★表示のみ日本語化（k＝state キー／RPC 引数名は英語のまま save() で明示送信）。
   // ★裁定104: 円系（円/回・円）＝7桁・時間(h)/分＝4桁。スピナー非表示・右寄せ・ホイール無効。
@@ -1000,16 +1034,8 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
       style={numFieldStyle(unit?.includes("円") ? 7 : 4)} /></label>
   );
   async function save() {
-    // 全12引数を明示送信（部分 null で既定値へ黙ってリセットさせない＝原則7・RPC も全引数 null 拒否）
-    const { error } = await supabase.rpc("set_penalty_config", {
-      p_store_id: storeId,
-      p_fine_absent: penalty.fine_absent, p_fine_late: penalty.fine_late,
-      p_hours_per_shift: penalty.hours_per_shift, p_norm_on: penalty.norm_on,
-      p_norm_days_flat: penalty.norm_days_flat, p_norm_days_per: penalty.norm_days_per,
-      p_norm_dohan_flat: penalty.norm_dohan_flat, p_norm_dohan_per: penalty.norm_dohan_per,
-      p_late_grace_min: penalty.late_grace_min, p_early_grace_min: penalty.early_grace_min,
-      p_over_grace_min: penalty.over_grace_min,
-    });
+    // ★便 P174 T-3（0174 ★3）: 全 17 引数を明示送信（新 5 引数は RPC に既定値がある＝省略すると保存のたびに既定へ戻る＝原則7）
+    const { error } = await supabase.rpc("set_penalty_config", penaltyArgsOf(storeId, penalty));
     setMsg(error ? compErrJa(error.message) : "遅刻・当欠の検知（閾値）を保存しました");
     if (!error) await reload();
   }
@@ -1018,10 +1044,14 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
       <p style={note}>{exists ? "現在の設定（店1行）" : "未設定（既定値・保存で作成）"}</p>
       {isOwner ? (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          {/* ★便 P174 GV-51: 遅刻・当欠の検知の 3 欄（遅刻猶予／早退猶予／残留猶予）はパネル先頭の独立した 1 行（減額の軸の右に入り込まない） */}
+          <div data-grace-row="1" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", width: "100%" }}>
+            {num("late_grace_min")}{num("early_grace_min")}{num("over_grace_min")}
+          </div>
           {num("hours_per_shift")}{/* ★0154 D3: fine_absent／fine_late は計算に使わない＝欄を隠す（save は現値を送る） */}
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={penalty.norm_on} onChange={(e) => setPenalty({ ...penalty, norm_on: e.target.checked })} /> {PENALTY_LABEL_JA.norm_on}</label>
           {/* ★裁定373（GV-B W-3）: 軸（出勤日数／同伴）ごとに「定額／不足 1 件ごと」のセグメントで 1 方式・入力は 1 つ・未選択側は 0（RPC が null を拒むため＝0172 で null 許容を同乗・仮決め）。両方入っている既存店は「不足ごと」扱い */}
-          {([["days", "出勤日数", "norm_days_flat", "norm_days_per", "日"], ["dohan", "同伴", "norm_dohan_flat", "norm_dohan_per", "本"]] as const).map(([ax, label, fk, pk, unit]) => {
+          {PENALTY_AXES.filter(([ax]) => axesOn[ax]).map(([ax, label, fk, pk, unit]) => {
             const flat = penalty[fk] as number, per = penalty[pk] as number;
             const mode = normPenaltyModeOf(flat, per);
             const both = flat > 0 && per > 0;
@@ -1036,14 +1066,19 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
                     <input type="number" min={0} value={mode === "per" ? per : flat} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur}
                       aria-label={`${label}ノルマ 未達の減額（${mode === "per" ? `不足 1 ${unit}ごと` : "定額"}）`}
                       onChange={(e) => setPenalty(mode === "per" ? { ...penalty, [pk]: Number(e.target.value), [fk]: 0 } : { ...penalty, [fk]: Number(e.target.value), [pk]: 0 })}
-                      style={numFieldStyle(7)} /> 円{mode === "per" ? `／${unit}` : ""}
+                      style={numFieldStyle(7)} /> 円{mode === "per" ? `／${ax === "sales" ? `${(penalty.norm_sales_unit || 10000).toLocaleString()} 円` : unit}` : ""}
                   </label>
+                  {ax === "sales" && mode === "per" && (
+                    <label style={{ fontSize: 12 }}>単位{" "}
+                      <input type="number" min={1} value={penalty.norm_sales_unit} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} aria-label="売上ノルマ 不足の単位（円）"
+                        onChange={(e) => setPenalty({ ...penalty, norm_sales_unit: Math.max(1, Number(e.target.value) || 1) })} style={numFieldStyle(7)} /> 円ごと
+                    </label>
+                  )}
                 </div>
                 {both && <div className="n" data-penalty-both="1">定額 {flat.toLocaleString()} 円と不足ごと {per.toLocaleString()} 円の両方が入っています＝「不足ごと」扱い（保存で定額は 0 になります）</div>}
               </div>
             );
           })}
-          {num("late_grace_min")}{num("early_grace_min")}{num("over_grace_min")}
           <button style={btnDark} onClick={save}>保存</button>
         </div>
       ) : (

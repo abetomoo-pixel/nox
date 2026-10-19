@@ -25,6 +25,7 @@ export default function StaffWorkPanel({ scope, stores }: { scope: "store" | "me
   const [punches, setPunches] = useState<StaffPunch[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [run, setRun] = useState<{ status: string } | null>(null); // ★便 P174 T-7: staff_payroll_runs（読取のみ・owner／manager）
 
   const load = useCallback(async () => {
     setErr(null);
@@ -43,6 +44,7 @@ export default function StaffWorkPanel({ scope, stores }: { scope: "store" | "me
     setMems(rows); setUsers(map);
     setContracts(Object.fromEntries(((cc.data ?? []) as StaffContract[]).map((c) => [c.membership_id, c])));
     setPunches((pp.data ?? []) as StaffPunch[]);
+    if (scope === "store") { const { data: rr } = await supabase.from("staff_payroll_runs").select("status").eq("period", month).limit(1); setRun(((rr ?? []) as { status: string }[])[0] ?? null); }
     setLoaded(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month]);
@@ -90,7 +92,8 @@ export default function StaffWorkPanel({ scope, stores }: { scope: "store" | "me
       )}
       {scope === "store" && (
         <div style={{ marginTop: 12 }}>
-          <button type="button" style={{ ...t.btnGold, ...t.btnSm, opacity: 0.5 }} disabled title="第 2 期" data-staff-pay-finalize="1">報酬を確定する（準備中）</button>
+          {/* ★便 P174 T-7（356）: 確定（staff_payroll_runs）は書込 RPC が無い＝0175＝押せないボタンは置かず状況だけ（教訓25） */}
+          <p style={{ fontSize: 12.5, margin: "0 0 4px" }} data-staff-pay-run={run ? run.status : "none"}>この月の確定: <b>{run ? (run.status === "finalized" ? "確定済み" : run.status === "paid" ? "支払済み" : run.status) : "未確定（見込み）"}</b></p>
           <p style={{ ...t.sub, margin: "6px 0 0", lineHeight: 1.6 }}>打刻は店の端末（キオスク）から・契約（区分・時給・手当）の登録と確定（staff_payroll_runs）は次のデータ更新で有効になります。委託の源泉率は税理士確認中（T11）のため 0 で見込みを出しています。</p>
         </div>
       )}

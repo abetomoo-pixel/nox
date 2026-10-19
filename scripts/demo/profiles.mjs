@@ -101,3 +101,12 @@ export function backOf(code, row, i) {
 /** ★便 P173 T-2（起票110・0174 ★2）: 達成ボーナスの段＝params.thresholds の {pct, amount}（旧形 {pct} は廃止）。sys.bonus の店（MUSE／LILY 等）の全プランに同じ段。
  *  1 段目の amount＝コンポーネントの amount（一覧の互換）。値は従来どおり 100%＝¥10,000（デモの金額は不変）。 */
 export const BONUS_TIERS = [{ pct: 100, amount: 10000 }];
+/** ★便 P174 T-7b（裁定385 のデモ）: 延長パターン（1 料金ルールに複数・既定に印）。group＝料金ルールの display_group。
+ *  ACE＝平日の通常（メイン）に 3 本（30 分 ¥7,000〈既定〉／60 分 ¥13,000／VIP 延長 30 分 ¥9,000＝席種は限定しない＝レジの延長ボタンで 3 択）。他店は従来どおり 1 本。 */
+export const EXT_PATTERNS = {
+  ace: { group: "平日通常", rows: [
+    { key: "ext", name: "平日通常 延長", minutes: 30, amount: 7000, isDefault: true },
+    { key: "ext60", name: "平日通常 延長 60 分", minutes: 60, amount: 13000, isDefault: false },
+    { key: "extvip", name: "VIP 延長", minutes: 30, amount: 9000, isDefault: false },
+  ] },
+};
