@@ -282,17 +282,25 @@ async function main() {
         && extOf(t7, 2)?.qty === 2 && extOf(t7, 2)?.line_total === 3000
         && extOf(t7, 3)?.qty === 3 && extOf(t7, 3)?.line_total === 4500,
         e7p?.message ?? JSON.stringify(t7));
-      check("段54(7) ★set 行は全遡及のまま（block_no=0・qty=3/15000）",
+      // ★0173（裁定386・便 P173）: セット終了後の＋はセット料金を引き直さない（checks.set_frozen）＝set 行は旧 units のまま・店設定 join_mode 既定 join_set＝合流セット行（kind set・time_auto=false・増えた 1 名×5000）
+      const joinRows = async (cid: string) => ((await admin.from("check_lines").select("id, kind, fee_kind, qty, line_total, time_auto, name_snapshot").eq("check_id", cid).eq("time_auto", false).eq("fee_kind", "set")).data ?? []) as Array<{ qty: number; line_total: number; name_snapshot: string }>;
+      const j7rows = await joinRows(c7);
+      const f7 = (await admin.from("checks").select("set_frozen").eq("id", c7).single()).data as { set_frozen?: boolean } | null;
+      check("段54(7) ★0173 裁定386: set 行は凍結（block_no=0・qty=2/10000 のまま）＋合流セット行 1（qty 1・5000・time_auto=false）・checks.set_frozen=true",
         t7.find((l) => l.fee_kind === "set")?.block_no === 0
-        && t7.find((l) => l.fee_kind === "set")?.qty === 3
-        && t7.find((l) => l.fee_kind === "set")?.line_total === 15000, JSON.stringify(t7));
+        && t7.find((l) => l.fee_kind === "set")?.qty === 2
+        && t7.find((l) => l.fee_kind === "set")?.line_total === 10000
+        && j7rows.length === 1 && j7rows[0].qty === 1 && j7rows[0].line_total === 5000 && j7rows[0].name_snapshot.startsWith("合流セット")
+        && f7?.set_frozen === true, JSON.stringify({ t7, j7rows, f7 }));
       // 総額保存則（新意味論＝確定分+進行分の和）: 再 apply の返り値 total = Σtime_auto 行
       const { data: j7bRaw, error: e7r } = await mgr.rpc("check_time_charge_apply", { p_check_id: c7 });
       const j7b = (j7bRaw ?? {}) as { total?: number; set_c?: number; ext_c?: number };
       const sum7 = (await autoRows(c7)).reduce((a, l) => a + l.line_total, 0);
-      check("段54(7) ★総額保存則（確定分+進行分の和）: total=25500=Σtime_auto 行・set_c+ext_c と一致",
-        !e7r && j7b.total === 25500 && sum7 === 25500 && (j7b.set_c ?? 0) + (j7b.ext_c ?? 0) === 25500,
-        e7r?.message ?? JSON.stringify({ j7b, sum7 }));
+      // ★0173（裁定386）: 総額保存則＝Σ（time_auto 行＋合流セット行）＝25500（set 10000＋合流 5000＋ext 10500）。apply の返り値 total／set_c は現 units（3）で計算した表示値＝25500／15000（凍結後も不変＝表示専用・権威は行）
+      const sum7all = sum7 + (await joinRows(c7)).reduce((a, l) => a + l.line_total, 0);
+      check("段54(7) ★総額保存則（★0173 裁定386）: Σ(time_auto 行＋合流セット行)=25500・apply の返り値 total=25500（set_c+ext_c）",
+        !e7r && j7b.total === 25500 && sum7 === 20500 && sum7all === 25500 && (j7b.set_c ?? 0) + (j7b.ext_c ?? 0) === 25500,
+        e7r?.message ?? JSON.stringify({ j7b, sum7, sum7all }));
 
       // ── (8) 放置伝票: apply 未実行のまま 115分経過 → set_people(3) が2段 apply で旧 units を凍結 ──
       const { data: c8d, error: e8o } = await mgr.rpc("check_open", { p_seat_id: seatE, p_people: 2, p_nom_type: "free" });
@@ -302,11 +310,12 @@ async function main() {
       await rewind(c8, 115);
       const { error: e8p } = await mgr.rpc("check_set_people", { p_check_id: c8, p_people: 3 });
       const t8 = await autoRows(c8);
-      check("段54(8) ★放置伝票でも時点起算: ①事前 apply が旧2で凍結＝#1/#2=qty2・#3=qty3・set=qty3",
+      const j8rows = await joinRows(c8);
+      check("段54(8) ★放置伝票でも時点起算: ①事前 apply が旧2で凍結＝#1/#2=qty2・#3=qty3・set=qty2 のまま＋合流セット 1 行（★0173 裁定386）",
         !e8p
         && extOf(t8, 1)?.qty === 2 && extOf(t8, 2)?.qty === 2 && extOf(t8, 3)?.qty === 3
-        && t8.find((l) => l.fee_kind === "set")?.qty === 3,
-        e8p?.message ?? JSON.stringify(t8));
+        && t8.find((l) => l.fee_kind === "set")?.qty === 2 && j8rows.length === 1 && j8rows[0].line_total === 5000,
+        e8p?.message ?? JSON.stringify({ t8, j8rows }));
 
       // ── (10) check_open の set 行は block_no=0 で入る（★mig0098 R2-7c＝null 再生産の停止）──
       //   0097b 前: check_open が null → apply の 0 行と二重化（実バグ）。0097b で apply が null を吸収し、

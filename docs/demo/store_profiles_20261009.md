@@ -91,3 +91,14 @@
 - 正本（定数）: scripts/demo/profiles.mjs（PROFILES・sysSettingsOf・backOf）。
 - 生成: scripts/demo/gen-demo.mjs（★X-13c の節）。突合: scripts/demo/check-demo.mjs（X-13c の段＝必要人数 7・当週 confirmed・仮・希望 pending・期間 2・スタッフ・バックあり≧ドリンク）。
 - suite: scripts/verify-nox-demo-profiles.ts（53 段）。
+
+## P173 追記（2026-10-16・0173／0174 後の payload＝ex_plan M173-2）
+
+| 店 | 変更 | 根拠 |
+|---|---|---|
+| ACE | comp_plans（源泉 1 本＋体験入店）の slide_apply＝'next'（前期の実績で当期の時給＝ひなの 10 月 ¥3,500）。他 5 店は null＝店設定（current） | 裁定395 追補1（profiles.mjs ace.slideApply） |
+| 6 店 | 体験入店のキャスト（まり／まい／こころ／るな／ゆな／レン）の casts.kind＝'体入'（NEST のレンは保証期限切れでも体入のまま＝本採用は操作で） | GV-57・裁定396 |
+| MUSE・LUNA | staff_contracts 2（雇用＝staff の membership・甲・源泉 0／委託＝manager の membership・源泉 10.21%・時給は profiles.mjs STAFF_DEMO）＋staff_punches 28（2 名×R−7〜R−1×in 18:00／out 翌 02:00・source manual）。users は 4 固定（1 ユーザー 1 アクティブ）のため「staff 2 名」＝staff＋manager の membership | ex_plan M173-2・0172 の器を live で見せる |
+| 6 店 | terms_acceptances 1 行（version 0.9・owner・R−30） | 0172 の開通ゲートの器（デモ org は常に true） |
+| 6 店 | 列カタログ docs/demo/columns_20261002.json を live から再生成（0173／0174 の NOT NULL 既定列＝is_default_ext／set_frozen／penalty_config 5 列を completeRows が埋める＝jsonb_populate_recordset は default を使わない） | 便 P173 |
+| ACE | 店設定 sys_sales_rate は無し（OFF）のまま＝R-5c の collect 側の修正は GV-C | 相談役ブロック P173 Q-8 |

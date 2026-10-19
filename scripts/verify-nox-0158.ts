@@ -41,7 +41,7 @@ const MIG_SHA256 = "7d2901359fd8fb24d075ae31da05e1e634284a48a465229b2cdd325d1fc8
 // md5（CR 除去・先頭 8 桁）＝0158 適用後の live（台帳 0158 適用欄・docs/NOX_課金ゲート対象_v1.md の控えと同値）
 const EXPECTED: Record<string, string> = {
   adv_issue: "f25d845d", adv_issue_bulk: "0e2044cc", daily_pay_issue: "94f989f9" /* ★0172: p_kind（7e9d29d0→94f989f9） */, daily_pays_of_run: "37ff6ed0" /* ★0172: kind 別 3 列（b81e8659→37ff6ed0） */, punch_correction_request: "2588fd86", punch_correction_decide: "e5dc188e",
-  punch_correction_apply: "857dd4cf", payroll_finalize: "e402804d", set_store_profile: "67e96c04" /* ★0164: 白名単 +7 列側（4f2e9f82→2e7b4963）→★0172: 3 キー（2e7b4963→67e96c04） */, kiosk_register_state: "a4426533", bottle_keep_register: "e9028559",
+  punch_correction_apply: "857dd4cf", payroll_finalize: "e402804d", set_store_profile: "45012c75" /* ★0164: 白名単 +7 列側（4f2e9f82→2e7b4963）→★0172: 3 キー（2e7b4963→67e96c04）→★0173: 5 キー（67e96c04→45012c75・便 P173） */, kiosk_register_state: "a4426533", bottle_keep_register: "6cce7d77" /* ★0173（裁定392）: 10 引数 p_status（e9028559→6cce7d77・便 P173） */,
 };
 const EXPECTED_NEW: Record<string, string> = { payroll_attentions_of: "3721bf4e", payroll_attention_resolve: "01b27881", transport_issue_self: "2eebb64f", kiosk_transport_issue: "08c5dbc3", kiosk_punch_state: "48300293" }; // ★0159（起票91）: kiosk_transport_issue のゲート行を v_org 形に＝76412c7e→08c5dbc3・★0161（裁定327）: payroll_attentions_of は run 未作成の open_punch を期間で拾う＝04d88b37→3721bf4e
 const UNTOUCHED: Record<string, string> = {
@@ -88,7 +88,7 @@ async function main() {
     check("s-2", "不触 12 本の live md5＝控え", CTRL.every((n) => live0[n]?.m === UNTOUCHED[n]), CTRL.map((n) => `${n}:${live0[n]?.m}/${UNTOUCHED[n]}`).join(" "));
     // ★0165（裁定336・起票100・便 G2）: cast_sales_aggregate の CTE groups を materialized に（1 語）。本番適用 2026-10-08（時刻不明）＝e232dac8 の 1 値（過渡の 2 値許容は便 P165 で撤去）
     { const m = (await one("select left(md5(replace(prosrc, E'\r', '')), 8) m from pg_proc where proname='cast_sales_aggregate' and pronamespace='public'::regnamespace")).m as string;
-      check("s-2b", "★0165 cast_sales_aggregate の md5＝e232dac8（groups as materialized・本番適用 2026-10-08・便 P165 で 1 値に確定）", m === "e232dac8", m); }
+      check("s-2b", "★0165 cast_sales_aggregate の md5＝34a0bf1e（groups as materialized・★0173 裁定393: 手数料行を除外（e232dac8→34a0bf1e・便 P173））", m === "34a0bf1e", m); }
     // ★0166（X-13-8・便 P166）: set_product_track_stock の md5 控え（本番適用 2026-10-08・時刻不明）
     { const m = (await one("select left(md5(replace(prosrc, E'\\r', '')), 8) m from pg_proc where proname='set_product_track_stock' and pronamespace='public'::regnamespace")).m as string;
       check("s-2c", "★0166 set_product_track_stock の md5＝594c5e98（ゲート内蔵・監査）", m === "594c5e98", m); }
@@ -99,15 +99,15 @@ async function main() {
     { const rows = await q("select proname, left(md5(replace(prosrc, E'\\r', '')), 8) m from pg_proc where pronamespace='public'::regnamespace and proname in ('check_set_nominations','check_close','check_nomination_rate_apply') order by proname");
       const md = Object.fromEntries(rows.map((r) => [r.proname as string, r.m as string]));
       check("s-2e", "★0169 check_set_nominations の md5＝97dd24bb（場内→本指名で prev_kind／kind_changed_at を記録・他の遷移は引継ぎ）", md.check_set_nominations === "97dd24bb", JSON.stringify(md));
-      check("s-2f", "★0169 check_close の md5＝69cf2a19（行の created_at < kind_changed_at なら旧区分で unit4 キーと pt）", md.check_close === "69cf2a19", JSON.stringify(md));
+      check("s-2f", "★0169 check_close の md5＝f94dc8c3（★0173 裁定392: 会計で pending キープ→active（69cf2a19→f94dc8c3・便 P173））", md.check_close === "f94dc8c3", JSON.stringify(md));
       check("s-2g", "★0169 check_nomination_rate_apply の md5＝84f6f80e（店長以上・課金ゲート・open のみ・記録を消す・監査 note）", md.check_nomination_rate_apply === "84f6f80e", JSON.stringify(md)); }
     // ★0170（裁定343・便 W5-2b）: set_comp_plan 25 引数の md5 控え（本番適用 2026-10-13）＋comp_plans の列数（26→28＝slide_basis／slide_rank_ids）
     { const m = (await one("select left(md5(replace(prosrc, E'\r', '')), 8) m from pg_proc where proname='set_comp_plan' and pronamespace='public'::regnamespace")).m as string;
-      check("s-2h", "★0171 set_comp_plan の md5＝4fa34575（29 引数・末尾 p_norm_*_target 4 つ・0170 の 1cddaa0e から 2026-10-14 本番適用で張替え）", m === "4fa34575", m);
+      check("s-2h", "★0174 set_comp_plan の md5＝21afb3f5（30 引数・末尾 p_slide_apply・0171 の 4fa34575 から 2026-10-16 本番適用で張替え＝便 P173）", m === "21afb3f5", m);
       const nc = (await one("select count(*)::int n from information_schema.columns where table_schema='public' and table_name='comp_plans'")).n as number;
-      check("s-2i", "★0171 comp_plans の列数＝32（0170 の 28＋norm_days／dohan／sales／shimei_target）", nc === 32, String(nc)); }
+      check("s-2i", "★0174 comp_plans の列数＝33（0171 の 32＋slide_apply・便 P173）", nc === 33, String(nc)); }
     const fnCount0 = (await one("select count(*)::int n from pg_proc where pronamespace='public'::regnamespace")).n as number;
-    check("s-3", "新設 5 本が存在・payroll_attentions が存在・関数 308（★0159 で +2・★0160 で +7−1・★0161 で +1・★0162 で +5・★0163 で +1・★0166 で +1・★0167 で +1・★0169 で +1・★0171 で +2＝set_store_norm_axes／get_cast_sales_rank）", NEW.every((n) => !!live0[n]) && (await one("select to_regclass('public.payroll_attentions')::text r")).r !== null && fnCount0 === 311, `fn ${fnCount0}`);
+    check("s-3", "新設 5 本が存在・payroll_attentions が存在・関数 308（★0159 で +2・★0160 で +7−1・★0161 で +1・★0162 で +5・★0163 で +1・★0166 で +1・★0167 で +1・★0169 で +1・★0171 で +2＝set_store_norm_axes／get_cast_sales_rank）", NEW.every((n) => !!live0[n]) && (await one("select to_regclass('public.payroll_attentions')::text r")).r !== null && fnCount0 === 314 /* ★0173／0174（便 P173）: 311→314＝check_set_ext_rule／kiosk_staff_list／staff_punch */, `fn ${fnCount0}`);
     const colsOf = async (): Promise<Record<string, number>> => Object.fromEntries((await q("select table_name t, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('daily_pays','bottle_keeps','advances','transport','payroll_attentions') group by 1")).map((r) => [r.t, r.n]));
     const c0 = await colsOf();
     check("s-4", "0158 が列を足していない表は不変: advances 16 列・transport 15 列", c0.advances === 16 && c0.transport === 15, c0);
@@ -429,7 +429,7 @@ async function main() {
       check("t-1", "検証ブロック 8 文: 行数 1／16／3／7／3／1／3／1・md5 16 本＝控え（kiosk_transport_issue は 0159 後の値）・不触 3 本不変・列 3 行とも null 可・RLS t＋policy 1（SELECT）・grant authenticated=SELECT のみ（anon なし）・関数 306・表 83（★0163・★0166・★0167・★0169）",
         JSON.stringify(counts) === JSON.stringify([1, 16, 3, 7, 3, 1, 3, 1]) && Object.keys(expAll).length === 16 && Object.keys(expAll).every((n) => md5Tail[n] === expAll[n])
         && tr[2].every((x) => UNTOUCHED[x.proname] === x.md5) && tr[4].every((x) => x.is_nullable === "YES") && tr[5][0].relrowsecurity === true && tr[5][0].policyname === "payroll_attentions_select" && tr[5][0].cmd === "SELECT"
-        && tg.some((g) => g.grantee === "authenticated" && g.string_agg === "SELECT") && !tg.some((g) => g.grantee === "anon") && Number(tr[7][0].functions) === 311 && Number(tr[7][0].tables) === 87, // ★0172（2026-10-16 10:25 本番適用）: 関数 308→311・表 83→87（便 P172） // ★0171（2026-10-14 本番適用）: 306→308 // ★0167: 305（便 P167）★0159: 関数 290 → ★0160: 296 → ★0161: 297 → ★0162: 302・表 81 → 82 → ★0163: 303・83（demo_entries_purge／demo_entries）・★0164／0165 は本数不動・★0166: 304（set_product_track_stock）
+        && tg.some((g) => g.grantee === "authenticated" && g.string_agg === "SELECT") && !tg.some((g) => g.grantee === "anon") && Number(tr[7][0].functions) === 314 && Number(tr[7][0].tables) === 87, // ★0173／0174（2026-10-16 15:27／15:30 本番適用）: 関数 311→314（便 P173） // ★0172（2026-10-16 10:25 本番適用）: 関数 308→311・表 83→87（便 P172） // ★0171（2026-10-14 本番適用）: 306→308 // ★0167: 305（便 P167）★0159: 関数 290 → ★0160: 296 → ★0161: 297 → ★0162: 302・表 81 → 82 → ★0163: 303・83（demo_entries_purge／demo_entries）・★0164／0165 は本数不動・★0166: 304（set_product_track_stock）
         JSON.stringify(counts) + JSON.stringify(tr[7]) + JSON.stringify(Object.keys(expAll).filter((n) => md5Tail[n] !== expAll[n])));
     } catch (e) {
       check("x-0", "例外なし", false, (e as Error).message);

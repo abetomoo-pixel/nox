@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
-import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
@@ -111,6 +111,20 @@ for (const st of STORES) {
   // memberships は org_id 列なし（demo_org_reset の例外）＝org_id を外す
   memb("owner", users.owner); memb("manager", users.manager); memb("staff", users.staff); memb("cast", users.cast);
   T.memberships = T.memberships.map(({ org_id: _o, ...r }) => r);
+  // ★便 P173（ex_plan M173-2・0174 ★6）: 規約の同意（6 店＝本番 org の開通ゲートは demo で常に true だが器を埋める）
+  push("terms_acceptances", { id: uid(`terms:${code}`), terms_version: "0.9", accepted_at: { $rel: -30, t: "12:00:00" }, accepted_by: users.owner });
+  // ★便 P173（ex_plan M173-2）: スタッフの契約と 7 日の打刻（MUSE・LUNA）＝雇用＝staff の membership（甲・源泉 0）／委託＝manager の membership（源泉 10.21）。biz_date R-7〜R-1・in 18:00／out 翌 02:00・source 'manual'
+  { const SD = STAFF_DEMO[code];
+    if (SD) {
+      const rows = [{ m: uid(`memb:${code}:staff`), kind: "employee", hourly: SD.employee, tax: "甲", wh: 0 }, { m: uid(`memb:${code}:manager`), kind: "contractor", hourly: SD.contractor, tax: null, wh: 10.21 }];
+      for (const r of rows) {
+        push("staff_contracts", { id: uid(`sc:${code}:${r.kind}`), membership_id: r.m, store_id: storeId, contract_kind: r.kind, hourly: r.hourly, fixed_allowance: 0, tax_class: r.tax, withholding_rate: r.wh, invoice: null, reg_no: null, valid_from: { $rel: -60 }, created_at: { $rel: -60, t: "12:00:00" }, updated_at: { $rel: -60, t: "12:00:00" } });
+        for (let d = -7; d <= -1; d++) {
+          push("staff_punches", { id: uid(`sp:${code}:${r.kind}:${d}:in`), membership_id: r.m, store_id: storeId, biz_date: { $rel: d }, kind: "in", punched_at: { $rel: d, t: "18:00:00" }, source: "manual", created_by: users.manager, created_at: { $rel: d, t: "18:00:00" } });
+          push("staff_punches", { id: uid(`sp:${code}:${r.kind}:${d}:out`), membership_id: r.m, store_id: storeId, biz_date: { $rel: d }, kind: "out", punched_at: { $rel: d + 1, t: "02:00:00" }, source: "manual", created_by: users.manager, created_at: { $rel: d + 1, t: "02:00:00" } });
+        }
+      }
+    } }
   for (const r of ranks) push("cast_ranks", { id: uid(`rank:${r.rank_id}`), store_id: storeId, name: r.rank_name === "default" ? "標準" : r.rank_name, sort_order: ranks.indexOf(r) + 1, is_active: true });
   const cats = D("categories").filter((c) => c.store_id === S);
   for (const c of cats) push("product_categories", { id: uid(`cat:${c.category_id}`), store_id: storeId, name: c.display_name, sort_order: c.sort_order, is_active: true });
@@ -154,15 +168,15 @@ for (const st of STORES) {
     norm_days_target: on("days") ? (hi ? 16 : 12) : null, norm_dohan_target: on("dohan") ? (hi ? 6 : 4) : null,
     norm_sales_target: on("sales") ? (hi ? 800000 : 500000) : null, norm_shimei_target: on("shimei") ? (hi ? 30 : 20) : null }; };
   const slide = D("sales_slide_tiers").filter((t) => t.store_id === S && t.tier > 0).map((t) => ({ at: t.daily_sales_threshold_yen, wage: t.hourly_yen }));
-  for (const p of plans) push("comp_plans", { id: uid(`plan:${p.plan_id}`), store_id: storeId, name: p.plan_name, base: p.base_hourly_yen, hon_back: p.main_reward_yen, jonai_back: p.inhouse_reward_yen, dohan_back: p.accompanied_reward_yen,
+  for (const p of plans) push("comp_plans", { id: uid(`plan:${p.plan_id}`), store_id: storeId, name: p.plan_name, base: p.base_hourly_yen, slide_apply: PF.slideApply ?? null, /* ★便 P173（裁定395 追補1・0174） */ hon_back: p.main_reward_yen, jonai_back: p.inhouse_reward_yen, dohan_back: p.accompanied_reward_yen,
     sales_slide: SL.sales ?? (p.sales_slide ? slide : []), point_slide: SL.points ?? [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: PF.sys.sales_rate ? "plan_rate" : "product_rule", product_back_rate: PF.sys.sales_rate ? 10 : null, /* ★裁定348: MUSE 売上歩合＝商品売上の 10% */ product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SL.period ?? "daily", slide_basis: SL.basis ?? "sales", slide_rank_ids: ranks.filter((r) => (SL.ranks ?? []).includes(r.rank_name)).map((r) => uid(`rank:${r.rank_id}`)), ...normDefaultsOf(p.plan_name) /* ★裁定347（0171）: プラン既定の目標 */ }); // ★0168（裁定338・便 P168）: 判定期間
   // ★X-13-21（便 X-13d-1）: 1 本だけの店に 2〜3 本目（EXTRA_PLANS）＝キャストは [源泉のプラン, 追加…] を順番に割り振る（overrides は従来どおり {}）
   const extraPlans = (EXTRA_PLANS[code] ?? []).map((x) => ({ ...x, id: uid(`plan:x:${code}:${x.key}`) }));
-  for (const x of extraPlans) push("comp_plans", { id: x.id, store_id: storeId, name: x.name, base: x.base, hon_back: x.hon, jonai_back: x.jonai, dohan_back: x.dohan,
+  for (const x of extraPlans) push("comp_plans", { id: x.id, store_id: storeId, name: x.name, base: x.base, slide_apply: PF.slideApply ?? null, /* ★便 P173 */ hon_back: x.hon, jonai_back: x.jonai, dohan_back: x.dohan,
     sales_slide: SL.sales ?? [], point_slide: SL.points ?? [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: PF.sys.sales_rate ? "plan_rate" : "product_rule", product_back_rate: PF.sys.sales_rate ? 10 : null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SL.period ?? "daily", slide_basis: SL.basis ?? "sales", slide_rank_ids: ranks.filter((r) => (SL.ranks ?? []).includes(r.rank_name)).map((r) => uid(`rank:${r.rank_id}`)), ...normDefaultsOf(x.name) /* ★裁定347（0171）: 優遇プランは高め */ }); // ★裁定338: 追加プランにも同じ段 // ★0168（裁定338・便 P168）: 判定期間
   // ★裁定348 追補1（便 DM-1 D-2b）: 体験入店＝スライド・バックなし（product_back は plan_fixed 0）・基本時給は店ごと（TRIAL.base）・slide_period は daily 固定
   const TR = TRIAL[code]; const trialPlanId = uid(`plan:trial:${code}`);
-  push("comp_plans", { id: trialPlanId, store_id: storeId, name: "体験入店", base: TR.base, hon_back: 0, jonai_back: 0, dohan_back: 0,
+  push("comp_plans", { id: trialPlanId, store_id: storeId, name: "体験入店", base: TR.base, slide_apply: null, /* ★便 P173: 体験入店はスライドなし＝店設定 */ hon_back: 0, jonai_back: 0, dohan_back: 0,
     sales_slide: [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "plan_fixed", product_back_rate: null, product_back_fixed: 0, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: "daily", slide_basis: "sales", slide_rank_ids: [] });
   let castSeq = 0;
   const people = D("people").filter((p) => p.store_id === S);
@@ -174,7 +188,7 @@ for (const st of STORES) {
   for (const c of castsSrc) {
     const id = uid(`cast:${c.person_id}`);
     const srm = (c === repCast && code === "nest") ? "off_only" : castIdx % 4 === 1 ? "off_only" : castIdx % 4 === 2 ? "shift" : null; castIdx++; // ★裁定337（P168: NEST の代表キャストは off_only＝デモの cast ログインで反転を見せる）
-    push("casts", { id, store_id: storeId, user_id: c === repCast ? users.cast : null, name: c.display_name, kind: c.business_role, employment: PF.employment ?? "委託", /* ★裁定348: LILY＝雇用 */ is_active: true, joined_on: c.joined_on ? M(dayOf(c.joined_on)) : null, left_on: null, rank_id: c.rank_id ? uid(`rank:${c.rank_id}`) : (defRank ? uid(`rank:${defRank.rank_id}`) : null), shift_request_mode: srm });
+    push("casts", { id, store_id: storeId, user_id: c === repCast ? users.cast : null, name: c.display_name, kind: c.display_name === TR.cast ? "体入" : c.business_role, /* ★便 P173（GV-57・裁定396）: 体験入店のキャストは在籍区分「体入」（NEST のレンは期限切れ＝体入のまま＝本採用は操作で） */ employment: PF.employment ?? "委託", /* ★裁定348: LILY＝雇用 */ is_active: true, joined_on: c.joined_on ? M(dayOf(c.joined_on)) : null, left_on: null, rank_id: c.rank_id ? uid(`rank:${c.rank_id}`) : (defRank ? uid(`rank:${defRank.rank_id}`) : null), shift_request_mode: srm });
     const pa = D("person_plan_assignments").filter((a) => a.person_id === c.person_id && !a.valid_to).pop() ?? D("person_plan_assignments").find((a) => a.person_id === c.person_id);
     const srcPlanId = uid(`plan:${pa?.plan_id ?? c.plan_id ?? plans[0].plan_id}`);
     const slot = extraPlans.length ? castSeq++ % (extraPlans.length + 1) : 0; // ★X-13-21: 0＝源泉のプラン・1〜＝追加プラン
@@ -212,8 +226,8 @@ for (const st of STORES) {
   // ★裁定347（0171・便 P171 Q-5）: キャスト別の目標（上書き）は各店 1 名（代表キャスト）だけ＝他はプラン既定を継承（cast_norms／cast_quotas とも）
   if (PF.sys.norms) for (const r of cmt) if (CAST[r.person_id] && r.person_id === repCast.person_id) push("cast_norms", { id: uid(`norm:${r.person_id}:cur`), store_id: storeId, cast_id: CAST[r.person_id].id, period: { $m: 0, d: 1, fmt: "ym" }, days_target: PF.normAxes.includes("days") ? Math.max(1, Math.round((r.hours_target ?? 0) / 6)) : 0, dohan_target: PF.normAxes.includes("dohan") ? (r.accompanied_count_target || 0) : 0, sales_target: PF.normAxes.includes("sales") ? (r.sales_target_yen || 0) : 0, shimei_target: PF.normAxes.includes("shimei") ? (r.main_count_target || 0) + (r.inhouse_count_target || 0) : 0 }); // ★裁定348: 採用軸だけ（他は 0＝目標なし）
   // ★X-13c: 達成ボーナス（1 段・金額）＝達成ボーナスを使う店の全プラン（目標＝cast_norms.sales_target・無ければ不適用）
-  if (PF.sys.bonus) for (const x of extraPlans) push("comp_plan_components", { id: uid(`comp:x:${code}:${x.key}:bonus`), store_id: storeId, plan_id: x.id, kind: "achievement_bonus", mode: "amount", amount: 10000, rate: null, params: { thresholds: [{ pct: 100 }] }, priority: 100, is_active: true }); // ★X-13-21: 追加プランにも達成ボーナス
-  if (PF.sys.bonus) for (const p of plans) push("comp_plan_components", { id: uid(`comp:${p.plan_id}:bonus`), store_id: storeId, plan_id: uid(`plan:${p.plan_id}`), kind: "achievement_bonus", mode: "amount", amount: 10000, rate: null, params: { thresholds: [{ pct: 100 }] }, priority: 100, is_active: true });
+  if (PF.sys.bonus) for (const x of extraPlans) push("comp_plan_components", { id: uid(`comp:x:${code}:${x.key}:bonus`), store_id: storeId, plan_id: x.id, kind: "achievement_bonus", mode: "amount", amount: BONUS_TIERS[0].amount, rate: null, params: { thresholds: BONUS_TIERS.map((t) => ({ ...t })) } /* ★便 P173 T-2 */, priority: 100, is_active: true }); // ★X-13-21: 追加プランにも達成ボーナス
+  if (PF.sys.bonus) for (const p of plans) push("comp_plan_components", { id: uid(`comp:${p.plan_id}:bonus`), store_id: storeId, plan_id: uid(`plan:${p.plan_id}`), kind: "achievement_bonus", mode: "amount", amount: BONUS_TIERS[0].amount, rate: null, params: { thresholds: BONUS_TIERS.map((t) => ({ ...t })) } /* ★便 P173 T-2 */, priority: 100, is_active: true });
   for (const r of cmt) if (CAST[r.person_id] && r.person_id === repCast.person_id) for (const [k, m] of [["prev", -1], ["cur", 0]]) push("cast_quotas", { id: uid(`quota:${r.person_id}:${k}`), store_id: storeId, cast_id: CAST[r.person_id].id, month: { $m: m, d: 1 }, hon: PF.normAxes.includes("shimei") ? (r.main_count_target || null) : null, jonai: PF.normAxes.includes("shimei") ? (r.inhouse_count_target || null) : null, dohan: PF.normAxes.includes("dohan") ? (r.accompanied_count_target || null) : null, sales: PF.normAxes.includes("sales") ? (r.sales_target_yen || null) : null }); // ★裁定348: 採用軸だけ（/mine のカードは目標のある軸だけ出る）
   // ★裁定348（便 DM-1）: 日払い＝LILY（雇用・源泉 0）の 2 名（代表＋体験入店）に先月 10 日・20 日の 2 件＝先月分の確定（finalize hook）で「日払い済み」として天引き
   if (PF.dailyPay) for (const c of castsSrc.filter((x) => x === repCast || x.display_name === TR.cast)) for (const d of [10, 20]) push("daily_pays", { id: uid(`dp:${code}:${c.person_id}:${d}`), store_id: storeId, cast_id: CAST[c.person_id].id, biz_date: { $m: -1, d }, gross: 15000, withholding: 0, withholding_category: PF.employment ?? "委託", net: 15000, paid_by: users.manager, idem_key: uid(`dpk:${code}:${c.person_id}:${d}`), created_at: { $m: -1, d, t: "23:30:00" } });

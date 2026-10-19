@@ -21,7 +21,8 @@ export const PROFILES = {
   ace: { template: "cabaret", scale: "大（キャスト 7・月 485 伝票・客単価 1.9 万＝キャバクラの 2 店目・規模違い）", sys: { hourly: true, backs: true, norms: true, bonus: false, points: false, sales_slide: true }, // ★裁定348: 売上月次＋指名・商品バック＋売上・指名ノルマ＋送り実費（達成ボーナスは LILY へ）
     back: "unit4", u4: { hon: 0.10, jonai: 0.08, dohan: 0.08, free: 0.05 }, u4cast: { hon: 500, jonai: 400, dohan: 400, free: 300 }, food: false, price: "中〜高（セット 7,000〜8,000・指名 3,000・シャンパン 11,000〜110,000）",
     basis: "punch", okuri: 1000, okuriMode: "actual", receivable: "customer_only", reopen: true, confirm: true, normAxes: ["sales", "shimei"], employment: "委託", dailyPay: false, wishMode: "shift",
-    showcase: "月次売上スライド（¥1,295,563→時給 ¥3,500）・指名・商品バック・売上・指名ノルマ・送り実費",
+    slideApply: "next", /* ★便 P173（裁定395 追補1）: ACE のプランは前期の実績で当期の時給（ひなの 10 月＝¥3,500）。他 5 店は null＝店設定（current） */
+    showcase: "月次売上スライド（前期の実績で判定・ひなの 10 月＝時給 ¥3,500）・指名・商品バック・売上・指名ノルマ・送り実費",
     shift: { base: 4, fri_sat: 5, fill: "short", pattern: [3, 4, 4, 2, 5, 3, 4] } },
   lily: { template: "girlsbar", attributeServing: true, scale: "中（キャスト 6・月 594 伝票・客単価 1.0 万）", sys: { hourly: true, backs: true, norms: true, bonus: true, points: false, sales_slide: false }, // ★裁定348: 雇用・確定シフト基準＋達成ボーナス＋日払い＋日数ノルマ＋送り店負担
     back: "rate", rate: { cast: 25, champ: 20, bottle: 15, glass: 15, soft: 10, food: 0 }, price: "低（チャージ 3,300〜3,850・指名なし・シャンパン 8,800〜22,000）",
@@ -56,6 +57,8 @@ export const TRIAL = {
   lily: { base: 1300, gua: 1800, from: 0, to: 2, cast: "ゆな" },
   nest: { base: 1200, gua: 1800, from: -5, to: -3, cast: "レン" },
 };
+/** ★便 P173（ex_plan M173-2）: スタッフの器（0172）を live で見せる店＝staff 2 名（雇用＝staff の membership・委託＝manager の membership。users は 4 固定＝memberships の 1 ユーザー 1 アクティブ）＋7 日の打刻。他 4 店は無し */
+export const STAFF_DEMO = { muse: { employee: 1300, contractor: 2000 }, luna: { employee: 1400, contractor: 2200 } };
 export const ADVANCES = { muse: 50000, luna: 30000, noir: 30000, ace: 30000, lily: 30000, nest: 30000 };
 export const EXTRA_PLANS = {
   muse: [{ key: "senior", name: "MUSE Senior", base: 2000, hon: 500, jonai: 300, dohan: 300 }],
@@ -95,3 +98,6 @@ export function backOf(code, row, i) {
   const m = 1 + ((i % 3) - 1) * 0.1;
   return { back_mode: "unit4", back_value: null, unit4_json: { hon: r100(row.price * p.u4.hon * m), jonai: r100(row.price * p.u4.jonai * m), dohan: r100(row.price * p.u4.dohan * m), free: r100(row.price * p.u4.free * m) } };
 }
+/** ★便 P173 T-2（起票110・0174 ★2）: 達成ボーナスの段＝params.thresholds の {pct, amount}（旧形 {pct} は廃止）。sys.bonus の店（MUSE／LILY 等）の全プランに同じ段。
+ *  1 段目の amount＝コンポーネントの amount（一覧の互換）。値は従来どおり 100%＝¥10,000（デモの金額は不変）。 */
+export const BONUS_TIERS = [{ pct: 100, amount: 10000 }];

@@ -1147,7 +1147,7 @@ async function main() {
       // ★mig0148（裁定272・2026-09-18）: check_add_referral（check_add_line の冒頭〜role 判定を逐語＝kiosk 腕あり）で 18→19・20→21・18→19。
       // ★mig0152（裁定298／299・2026-09-25）: check_add_referral を drop・check_referral_set／remove（同じ冒頭を逐語＝kiosk 腕あり）で 19→20・21→22・19→20。
       check("G31 register helper を使う会計RPC = 20本（0057 の12＋0084 shimei/dohan＋0089 extension＋0090 set_people＋0091 line_set_group＋0131 pricing_categories_for_register＋0152 check_referral_set／remove）",
-        reg.rows[0].n === 22, `got ${reg.rows[0].n}`); // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21 // ★mig0155（裁定309-10）: kiosk_check_keeps（kiosk 腕・読取）で 21→22
+        reg.rows[0].n === 23, `got ${reg.rows[0].n}`); // ★mig0173（裁定385 追補）: check_set_ext_rule（kiosk 腕）で 22→23 // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21 // ★mig0155（裁定309-10）: kiosk_check_keeps（kiosk 腕・読取）で 21→22
       const op = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
@@ -1155,7 +1155,7 @@ async function main() {
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
       check("G31 operator を使う関数 = 22本（write-arm 系 20＝0131 for_register・0152 check_referral_set／remove 込み＋audit_log_write＋drink_claims_on_line_delete）",
-        op.rows[0].n === 24, `got ${op.rows[0].n}`); // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
+        op.rows[0].n === 25, `got ${op.rows[0].n}`); // ★mig0173: check_set_ext_rule で 24→25 // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'
@@ -1168,7 +1168,7 @@ async function main() {
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator() is not null)) is not true then%'`,
       );
       check("G31 ★kiosk ゲート fail-closed = 20本が (OR連鎖) is not true 形（0058・0084・0089・0090・0091・0131・0152 も同形）",
-        fixed.rows[0].n === 22, `got ${fixed.rows[0].n}`); // ★mig0153: bottle_keep_out（同形の OR 連鎖）で 20→21 // ★mig0155: kiosk_check_keeps（同形）で 21→22
+        fixed.rows[0].n === 23, `got ${fixed.rows[0].n}`); // ★mig0173: check_set_ext_rule（同形）で 22→23 // ★mig0153: bottle_keep_out（同形の OR 連鎖）で 20→21 // ★mig0155: kiosk_check_keeps（同形）で 21→22
       const openGate = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
@@ -1388,7 +1388,7 @@ async function main() {
       // ★mig0112（C3）: 末尾に p_tax_category text DEFAULT 'taxable_10' を足して 13→14 引数（旧13引数は drop 済）
       // ★mig0128（裁定116-2）: 末尾に p_category_id uuid DEFAULT NULL を足して 14→15 引数（旧14引数は drop 済）
       // ★mig0130（裁定118）: 末尾に p_billing_unit text DEFAULT NULL を足して 15→16 引数（旧15引数は drop 済）
-      ["set_pricing_rule", "(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean,text,text,uuid,text)", true, "v"],
+      ["set_pricing_rule", "(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean,text,text,uuid,text,boolean)", true, "v"] /* ★0173（裁定385・便 P173）: 17 引数＝+p_is_default_ext */,
       ["delete_pricing_rule", "(uuid)", true, "v"],
       ["pricing_rule_reorder", "(uuid,text,uuid[])", true, "v"],
       ["set_cast_rank", "(uuid,uuid,text,boolean)", true, "v"],
@@ -1425,9 +1425,9 @@ async function main() {
         where p.pronamespace = 'public'::regnamespace and p.proname = 'set_pricing_rule'
         order by 1`,
     );
-    check("G37b set_pricing_rule はオーバーロードなし＝16引数1本のみ（旧15引数 drop 済＝mig0130）",
+    check("G37b set_pricing_rule はオーバーロードなし＝17引数1本のみ（旧16引数 drop 済＝mig0173・旧15引数 drop 済＝mig0130）",
       ov.rowCount === 1
-      && String(ov.rows[0].sig) === "set_pricing_rule(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean,text,text,uuid,text)",
+      && String(ov.rows[0].sig) === "set_pricing_rule(uuid,uuid,text,text,integer,integer,integer,uuid,integer,integer,integer,boolean,text,text,uuid,text,boolean)",
       JSON.stringify(ov.rows.map((r) => r.sig)));
   }
 
@@ -1538,8 +1538,8 @@ async function main() {
     );
     const spr = r.rows.filter((x) => x.proname === "set_pricing_rule");
     const stc = r.rows.filter((x) => x.proname === "set_store_tax_config");
-    check("G42 set_pricing_rule が1本のみ＝16引数（旧15引数署名の残骸なし・overload 罠封じ＝mig0130）",
-      spr.length === 1 && Number(spr[0].pronargs) === 16 && spr[0].prosecdef === true
+    check("G42 set_pricing_rule が1本のみ＝17引数（旧16／15引数署名の残骸なし・overload 罠封じ＝mig0173／0130）",
+      spr.length === 1 && Number(spr[0].pronargs) === 17 && spr[0].prosecdef === true /* ★0173: 16→17 */
       && Array.isArray(spr[0].proconfig) && (spr[0].proconfig as string[]).includes("search_path=public"),
       JSON.stringify(spr.map((x) => ({ sig: x.sig, n: x.pronargs }))));
     check("G42 set_store_tax_config が1本のみ＝7引数・secdef＋search_path 固定",

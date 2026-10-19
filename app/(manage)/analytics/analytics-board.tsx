@@ -29,7 +29,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 // E8-6 後半（mig0096）: T4 集計 RPC 3本の結線。5分類の写像は category-map 純関数（裁定 E8-6-8＝DB に焼かない）
-import { sumCategories, CATEGORY_ORDER, CATEGORY_LABEL, type CategoryLine } from "@/lib/nox/analytics/category-map";
+import { sumCategories, twoClassOf, CATEGORY_ORDER, CATEGORY_LABEL, type CategoryLine } from "@/lib/nox/analytics/category-map"; // ★便 P173（裁定391）: twoClassOf
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 // ★B6-4（2026-09-11）: 人件費式は純関数 labor-cost（旧 :214〜232／:405／:491／:993 の直書きを付け替え・month-report と共用）
 import { finalRunOf, laborCostOf, laborRatePct, castLaborRatePct, type LaborRun, type LaborSlip } from "@/lib/nox/payroll/labor-cost";
@@ -783,6 +783,13 @@ export default function AnalyticsBoard({
                     </div>
                   );
                 })}
+                {/* ★便 P173（裁定391）: 売上内訳の 2 分類（レジの小計 2 行・日報の set_ext_nom／products と同じ境目） */}
+                {(() => { const tc = twoClassOf(catSums); return (
+                  <div data-two-class="1" style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 8, fontSize: 12.5 }}>
+                    <span>セット・延長・指名 <b className="num">{yen(tc.upper)}</b></span>
+                    <span>商品 <b className="num">{yen(tc.products)}</b></span>
+                  </div>
+                ); })()}
                 <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
                   ※会計済み伝票の明細合計（サービス料・丸め前）＝締め済み日報の売上とは一致しません。
                   値引き {yen(catSums.discount)} は別掲（5分類に含めていません）。

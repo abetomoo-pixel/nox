@@ -256,7 +256,7 @@ async function main() {
       check("prc(g3) ★shimei への区分付与＝'bad category kind'（死蔵予防・fail-closed）",
         has({ message: g3?.message }, "bad category kind"), g3?.message ?? "通ってしまった");
       const { error: g4 } = await owner.rpc("set_pricing_rule", {
-        p_id: null, p_store_id: storeA2, p_fee_kind: "extension", p_seat_kind: null, p_dow_mask: null,
+        p_id: null, p_store_id: storeA2, p_fee_kind: "set", /* ★0173（裁定385・便 P173）: extension は 1 店 3 本の上限（'too many extension'）が区分検査より先に効くため set で区分の検査を見る */ p_seat_kind: null, p_dow_mask: null,
         p_time_from_min: null, p_time_to_min: null, p_rank_id: null, p_amount: 500, p_duration_min: null,
         p_priority: 60, p_is_active: true, p_name: null, p_tax_category: "taxable_10", p_category_id: catY,
       });
@@ -329,9 +329,9 @@ async function main() {
            and p.proname in ('check_open','pricing_resolve_core','set_pricing_rule')
          group by p.proname order by p.proname`);
       const pin = Object.fromEntries(rows.map((r) => [r.proname, `${r.n}:${r.a}`]));
-      check("prc(p1) ★旧署名 DROP＝各1本（check_open 6引数・core 6引数・set_pricing_rule 16引数=mig0130）",
+      check("prc(p1) ★旧署名 DROP＝各1本（check_open 6引数・core 6引数・set_pricing_rule 17引数=mig0173（16 引数=mig0130 を drop））",
         pin["check_open"] === "1:6" && pin["pricing_resolve_core"] === "1:6"
-          && pin["set_pricing_rule"] === "1:16",
+          && pin["set_pricing_rule"] === "1:17",
         JSON.stringify(pin));
     }
   } finally {

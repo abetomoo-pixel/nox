@@ -169,7 +169,8 @@ export function buildReceiptXml(input: ReceiptInput): string {
   const gross = lines.filter((l) => l.kind !== "discount").reduce((s, l) => s + l.line_total, 0) + refAmt;
   const discount = lines.filter((l) => l.kind === "discount").reduce((s, l) => s + l.line_total, 0);
   const net = Math.max(0, gross - discount);
-  const service = Math.round((net * serviceRate) / 100);
+  const payFee = lines.filter((l) => l.kind !== "discount" && l.fee_kind === "pay_fee").reduce((s, l) => s + l.line_total, 0); // ★0173（裁定393）
+  const service = Math.round(((net - payFee) * serviceRate) / 100); // ★0173: round((v_net - v_pf) * v_rate / 100.0) と同式（pay_fee 無しなら同値）
   // ★C4 挙動段（mig0113・三面鏡）: 税設定で3分岐。既定（内税×taxable）は従来と1バイト同値。
   //   規則は check_group_due（DB）/ groupDueFull（check-calc.ts）と同一＝
   //   外税: discount は taxable_10 基底へ clamp 適用・サ料は taxable_10 基底・税率ごと taxRound 1回。

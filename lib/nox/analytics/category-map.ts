@@ -50,6 +50,11 @@ export function categoryOf(kind: string, feeKind?: string | null): CategoryKey |
   return "other";
 }
 
+/** ★便 P173（裁定391）: 2 分類＝「セット・延長・指名」（time＋other）／「商品」（drink＋champ＋bottle）＝日報の set_ext_nom／products と同じ境目 */
+export function twoClassOf(sums: CategorySums): { upper: number; products: number } {
+  return { upper: sums.cats.time + sums.cats.other, products: sums.cats.drink + sums.cats.champ + sums.cats.bottle };
+}
+
 export function sumCategories(lines: readonly CategoryLine[]): CategorySums {
   const cats: Record<CategoryKey, number> = { time: 0, drink: 0, champ: 0, bottle: 0, other: 0 };
   const nomFee = { hon: 0, jonai: 0, dohan: 0 };

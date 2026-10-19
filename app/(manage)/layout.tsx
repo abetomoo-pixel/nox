@@ -12,6 +12,7 @@ import BillingBanner from "@/components/ui/billing-banner";
 import DemoBanner from "@/components/ui/demo-banner";
 import { DemoProvider } from "@/lib/nox/demo/context";
 import { TERMS_VERSION, termsGateRedirectOf } from "@/lib/nox/terms"; // ★0172（裁定351・便 P172）: 本番 org の同意ゲート
+import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // ★便 P173（裁定389）: cast の入口＝店端末 or 自分のスマホ
 import * as t from "@/lib/nox/ui/theme";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
@@ -29,11 +30,12 @@ export default async function ManageLayout({ children }: { children: React.React
   // F3g: cast のエリア制御。有効 cast は /register のみ通し、他パスは /mine へ。
   let castReg = false;
   if (role === "cast") {
+    // ★便 P173（裁定389・0173）: ON のキャストは /register（開卓・注文・会計）と /report（日次の締め）だけ。店設定「操作端末」が店端末のみ（登録済みのレジ端末あり）なら本人セッションは通さない（店端末＝kiosk-register）
     const pathname = (await headers()).get("x-pathname") ?? "";
-    const onRegister = pathname === "/register" || pathname.startsWith("/register/");
+    const onRegister = pathname === "/register" || pathname.startsWith("/register/") || pathname === "/report" || pathname.startsWith("/report/");
     if (onRegister) {
-      const { data } = await supabase.rpc("auth_cast_can_register");
-      castReg = data === true;
+      const e = await castRegisterEntryOf(supabase);
+      castReg = e.allowed;
     }
     if (!(onRegister && castReg)) redirect("/mine");
   }
@@ -85,7 +87,7 @@ export default async function ManageLayout({ children }: { children: React.React
   //   群見出しは表示のみ（クリック不可・折り畳みなし）。ホームは群外の先頭。
   //   有効 cast はレジのみ（他タブは踏んでも layout が /mine へ戻す＝混乱を避け1本に絞る）＝従来どおり。
   const groups: NavGroup[] = role === "cast"
-    ? [{ label: null, items: [{ href: "/register", label: "レジ" }] }]
+    ? [{ label: null, items: [{ href: "/register", label: "レジ" }, { href: "/report", label: "日報" }] }] // ★便 P173（裁定389）: 日次の締め
     : [
         { label: null, items: [{ href: "/dashboard", label: "ホーム" }] },
         { label: "営業", items: [

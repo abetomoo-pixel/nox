@@ -115,6 +115,8 @@ mig0088（ゲート挿入87本）の適用範囲を定義する。作業台帳�
   対象 **154 不変**・除外 **148→149**・全数 **302→303**（live 実測 2026-10-08＝総数 303・'billing locked' 154・述語参照 155・md5 3 本一致）。
 - ★**mig0164 追随（2026-10-08・裁定331 C 5 項目＋裁定334・334 追補1・便 P163 で収載）**: 新関数 **0本**。改稿 1 本（`set_store_profile`＝白名単 +7 列側＝invoice_registered_on／pay_day／tax_inclusive_display／use_vip／use_counter／payment_methods／punch_methods・型検査・cash は常に true・打刻は 1 つ以上・before/after 監査・owner 限定と課金ゲートは不変）は名前不変で本数不動。stores +7 列（既定付き・CHECK 3 本）は本数非関与。
   md5 控え（同上）: set_store_profile 4f2e9f82→**2e7b4963**・demo_org_reset a4bd6a18。
+- ★**mig0173／0174 追随（2026-10-16 便 M173 起草／本番適用 2026-10-16 15:27（0173）・15:30（0174）JST（Agoora 手貼り・verify_0173_0174.sql 31 行 ok）／便 P173 で収載）**: 新関数 **3本**＝ゲート内蔵 1 本を A1 へ（`check_set_ext_rule`[K]＝自動延長後の延長パターン切替＝checks.ext_min／ext_fee／ext_unit を ext_menu_snap の別パターンへ・確定済み延長ブロックを新単価で引き直し・kiosk 腕あり・課金ゲート・監査＝裁定385 追補）・非ゲート 2 本を B へ（`kiosk_staff_list`＝打刻端末（purpose 'punch'）から自店の manager／staff と当営業日の最後の打刻・STABLE 読取＝B(d)／`staff_punch`＝打刻端末からのスタッフ打刻（staff_pin の crypt 照合・ロック閾値＝店設定・順序検査・staff_punches 書込・audit_logs 直 insert）＝B(c)）。改稿 27 本（0173: check_group_due 3 引数・pricing_resolve_core・set_pricing_rule 17 引数・check_open・check_time_charge_apply・check_set_people・set_store_profile 白名単 +5・report_can_close・daily_report_reclose・cash_diff_approve・daily_report_close・kiosk_login・kiosk_operator_list・staff_pin_status・set_staff_pin・daily_report_aggregate・bottle_keep_register 10 引数・check_line_set_customer 3 引数・check_close・check_void・customer_summary +pending_bottles・check_pay 8 引数・cast_sales_aggregate／0174: comp_plan_slide_check・set_penalty_config 17 引数・set_comp_plan 30 引数・demo_org_reset）＝ゲートの有無は不変。
+  md5 控え（先頭 8 桁・docs/demo/verify_0173_0174.sql の pin＝live 読取 2026-10-16）: 0173 24 本＝check_group_due 5c667792・pricing_resolve_core 4779acc3・set_pricing_rule d41e22d9・check_open 82dfd091・check_time_charge_apply 8305089f・check_set_people 1f6b9fd8・set_store_profile 45012c75・report_can_close 12b4ad7a・daily_report_reclose a140f36c・cash_diff_approve 12810b5f・daily_report_close f599bd09・kiosk_login 90ab95a4・kiosk_operator_list e9c868bf・staff_pin_status ba37ee08・set_staff_pin 3888295f・daily_report_aggregate ca2dd22d・bottle_keep_register 6cce7d77・check_line_set_customer 644cd7ba・check_close f94dc8c3・check_void 4eb77409・customer_summary c83aa2af・check_pay c11691b8・cast_sales_aggregate 34a0bf1e・check_set_ext_rule 02b145a6／0174 6 本＝comp_plan_slide_check 8aedb6d7・set_penalty_config d6c05607・set_comp_plan 21afb3f5・demo_org_reset 3cdf7a30・kiosk_staff_list 53e9d7a7・staff_punch 250c61b0。対象 **159→160**・除外 **152→154**・全数 **311→314**（live 実測 2026-10-16＝総数 314・'billing locked' 160・述語参照 161・形 160・kiosk 腕 20）。
 - ★**mig0172 追随（2026-10-15 便 GV-B W-11 起草／本番適用 2026-10-16 10:25 JST（Agoora 手貼り・検証 12 項目すべて期待値）／便 P172 で収載）**: 新関数 **3本**＝ゲート内蔵 1 本を A10 へ（`set_cast_dependents_form`＝扶養控除等申告書（雇用の甲／乙）・owner∨manager 自店・税区分の行が先・課金ゲート・監査）・非ゲート 2 本を B へ（`terms_accept`＝店舗向け規約の同意記録・owner のみ・冪等・billing lock を見ない＝開通前の同意＝B(m)／`terms_accepted_version_ok`＝現行版の同意の有無（デモ org は常に true）・STABLE・読取＝B(f)）。改稿 5 本（`daily_pay_issue`＝5 引数 p_kind settlement／advance・`daily_pays_of_run`＝戻りに kind 別 3 列・`set_store_profile`＝白名単 +3（settlement_cycle／mid_pay／shift_auto_confirm_hours）・`staff_create`＝7 引数 p_tel／p_line_id・`staff_update_profile`＝4 引数）は名前不変で本数不動（旧 overload は drop）。表 +4（terms_acceptances／staff_contracts／staff_punches／staff_payroll_runs＝authenticated SELECT のみ・RLS select 1 本）・列 +5。
   md5 控え（先頭 8 桁・live 読取 2026-10-16＝docs/tmp/q1016_p172_q0.mjs）: daily_pay_issue 7e9d29d0→**94f989f9**・daily_pays_of_run b81e8659→**37ff6ed0**・set_store_profile 2e7b4963→**67e96c04**・staff_create e69adbe4→**8c2fef04**・staff_update_profile f6633371→**b710ebae**。対象 **158→159**・除外 **150→152**・全数 **308→311**（live 実測 2026-10-16＝総数 311・'billing locked' 159・述語参照 160・形 159）。
 - ★**mig0171 追随（2026-10-14・便 N1013b 起草／便 V1014 再起草／本番適用 2026-10-14（時刻は Agoora 記入待ち・Success 表示のみ）・便 DM-1 の f0 で収載）**: 新関数 **2本**＝ゲート内蔵 1 本を A8 へ（`set_store_norm_axes`＝ノルマの採用軸・owner∨manager 自店・課金ゲート・監査）・読取 1 本を B(f) へ（`get_cast_sales_rank`＝売上軸の順位・cast は自分の 1 行だけ・STABLE・非ゲート）。改稿 1 本（`set_comp_plan`＝29 引数・末尾 p_norm_days／dohan／sales／shimei_target default null・25 引数版 drop・名前不変で本数不動）。列 +4（comp_plans.norm_*_target integer null）は本数非関与。
@@ -207,7 +209,7 @@ check_open[K] / check_add_line[K] / check_remove_line[K] / check_add_seat[K] / c
 check_move_seat[K] / check_set_nominations[K] / check_time_charge_apply[K] / check_shimei_add[K] /
 check_dohan_add[K] / check_pay[K] / check_close[K] / **check_void**（裁定D1＝金銭記録の改変） /
 **check_nomination_rate_apply**（mig0169＝場内→本指名の切替記録（prev_kind／kind_changed_at）を消す＝この伝票の既出ドリンクも本指名の率・owner∨manager 自店・open のみ・課金ゲート内蔵（v_org 形）・監査 note「指名切替に伴う率変更」・記録なしは no-op・kiosk 腕なし・裁定341） /
-approval_request / approval_direct / approval_decide / bottle_keep_register[K] /
+approval_request / approval_direct / approval_decide / bottle_keep_register[K] / **check_set_ext_rule[K]**（mig0173＝自動延長後の延長パターン切替・確定ブロックの差額引き直し・裁定385 追補） /
 **check_customer_add / check_customer_remove / check_line_set_customer**（mig0153＝伝票の顧客の付け外し（position・remove は行の注文者を null に戻し checks.customer_id を追従）・注文行の顧客（'not on check'）・check_open と同じ腕・kiosk 腕なし・裁定305-1〜3／307-3） /
 **bottle_keep_out[K]**（mig0153＝キープ出し＝kind 'keep_out'・¥0・バック 0・在庫不変・冪等（check_lines.idem_key）・last_used_at 更新・kiosk 腕あり・裁定305-5／305-7） /
 **check_extension_add[K]**（mig0089 新設＝manual 店の延長行の作成・ゲートは mig 本文に内蔵） /
@@ -351,11 +353,11 @@ demo_entries_purge（mig0163＝デモ入場ログ demo_entries の 30 日より�
 ### B(b) トリガ関数（1本）
 touch_updated_at
 
-### B(c) 打刻・出欠の事実記録（5本）
-punch_self / punch_proxy / kiosk_punch / attendance_set / attendance_set_self
+### B(c) 打刻・出欠の事実記録（6本）
+punch_self / punch_proxy / kiosk_punch / attendance_set / attendance_set_self / **staff_punch**（mig0174＝打刻端末からのスタッフ打刻・staff_pin の crypt 照合・順序検査・staff_punches）
 
-### B(d) 打刻導線（3本・B-補2）
-kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解決＝kiosk 打刻の前提ヘルパー）
+### B(d) 打刻導線（4本・B-補2）
+kiosk_login / kiosk_logout / auth_kiosk_operator（operator セッション解決＝kiosk 打刻の前提ヘルパー） / **kiosk_staff_list**（mig0174＝打刻端末から自店の manager／staff と当営業日の最後の打刻・STABLE 読取）
 
 ### B(e) payroll 系一式（9本・給与＝過去労働の清算）
 payroll_run_create / payment_record_add / withholding_payment_record / payroll_adjustment_add / payroll_adjustment_delete / payroll_carryover_sync /
@@ -495,4 +497,5 @@ A **94** ＋ B **94** ＝ **188** ＝ live pg_proc 実列挙（mig0099 後）と
 
 ★**現在値（2026-10-08・mig0165／0166 追随後）**: A **155** ＋ B **149** ＝ **304** ＝ live pg_proc 実列挙と一致（0165＝本数不動（cast_sales_aggregate 改稿 e232dac8）・0166＝A6 +1（set_product_track_stock）。verify:nox-billing 段47-1 の pin＝対象 155／除外 149／ゲート済み 155／述語参照 156／挿入行の形 155）。
 
-★**現在値（2026-10-16・mig0172 追随後）**: A **159** ＋ B **152** ＝ **311** ＝ live pg_proc 実列挙と一致（0172＝A10 +1（set_cast_dependents_form）・B(f) +1（terms_accepted_version_ok）・B(m) +1（terms_accept）。verify:nox-billing 段47-1 の pin＝対象 159／除外 152／ゲート済み 159／述語参照 160／挿入行の形 159）。
+★**現在値（2026-10-16・mig0173／0174 追随後）**: A **160** ＋ B **154** ＝ **314** ＝ live pg_proc 実列挙と一致（0173＝A1 +1（check_set_ext_rule）・0174＝B(c) +1（staff_punch）・B(d) +1（kiosk_staff_list）。verify:nox-billing 段47-1 の pin＝対象 160／除外 154／ゲート済み 160／述語参照 161／挿入行の形 160／kiosk 腕 20）。
+★旧値（2026-10-16・mig0172 追随後）: A 159 ＋ B 152 ＝ 311（0172＝A10 +1（set_cast_dependents_form）・B(f) +1（terms_accepted_version_ok）・B(m) +1（terms_accept））。

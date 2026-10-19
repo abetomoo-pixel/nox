@@ -123,7 +123,7 @@ export function taxRound(n: number, mode: string): number {
 // ★0152（裁定298-8／298-9・2026-09-25）: 0148 の referral 除外（kind 'referral' 行）は撤去＝kind は CHECK からも消えた。
 //   紹介料は check_referrals（1 伝票 1 紹介）で持ち、burden='customer' の amount だけを pay_group 'A' の小計と taxable_10 基底に加算する
 //   ＝DB check_group_due の v_ref と同じ 2 箇所。第 3 引数 referralCustomer（既定 0＝従来と 1 バイト同値）で呼び出し側が渡す。
-export type DueLine = { line_total: number; kind: string; tax_category?: string | null };
+export type DueLine = { line_total: number; kind: string; tax_category?: string | null; fee_kind?: string | null /* ★0173（裁定393）: 'pay_fee'＝サ料の母数から除く */ };
 export type CheckDueSettings = CheckRoundSettings & {
   business_tax_status?: string | null; // checks の凍結値（省略/null=taxable）
   price_display?: string | null;       // 同（省略/null=tax_included）
@@ -135,17 +135,20 @@ export function groupDueFull(lines: DueLine[], s: CheckDueSettings, referralCust
   const disc = lines.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0);
   const net = Math.max(0, bx - disc);
   if (net === 0) return 0;
+  // ★0173（裁定393・便 P173）: 支払手数料の行（fee_kind 'pay_fee'）はサ料の母数から除く＝DB check_group_due の v_pf と同じ（pay_fee 無しなら 1 バイト同値）
+  const payFee = lines.filter((l) => l.kind !== "discount" && l.fee_kind === "pay_fee").reduce((a, l) => a + l.line_total, 0);
   const excluded = (s.price_display ?? "tax_included") === "tax_excluded"
     && (s.business_tax_status ?? "taxable") === "taxable";
   if (excluded) {
     const catOf = (l: DueLine) => l.tax_category ?? "taxable_10";
     const bx10 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_10").reduce((a, l) => a + l.line_total, 0) + referralCustomer; // ★0152: 客負担の紹介料を taxable_10 基底に加算（DB v_bx10）
     const bx8 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_8").reduce((a, l) => a + l.line_total, 0);
-    const sv = roundYen((net * s.service_rate) / 100); // v_sv = round(v_net * v_rate / 100.0) と同式
+    const sv = roundYen(((net - payFee) * s.service_rate) / 100); // v_sv = round((v_net - v_pf) * v_rate / 100.0) と同式（★0173）
     const trnd = s.tax_rounding ?? "floor";
     const base10 = Math.max(0, bx10 - disc) + sv;
     const tax = taxRound((base10 * 10) / 100, trnd) + taxRound((bx8 * 8) / 100, trnd);
     return roundAmount(net + sv + tax, s.round_unit, s.round_mode);
   }
+  if (payFee > 0) return roundAmount(net + roundYen(((net - payFee) * s.service_rate) / 100), s.round_unit, s.round_mode); // ★0173: 手数料行はサ料なし
   return groupDue(net, s); // 内税/exempt＝従来式（1バイト同値）
 }

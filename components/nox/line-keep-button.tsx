@@ -65,12 +65,13 @@ export default function LineKeepButton({ storeId, checkId, lineId, productId, li
     const { error } = await supabase.rpc("bottle_keep_register", {
       p_store_id: storeId, p_customer_id: cust, p_product_id: productId, p_note: null, p_remaining_pct: p,
       p_expires_on: null, p_shelf_no: null, p_bottle_name: name.trim() === "" ? null : name.trim(), p_check_line_id: lineId,
+      p_status: "pending", // ★便 P173（裁定392・0173）: レジで押した時点＝会計前（顧客のキープ一覧に出る）・会計で active・伝票取消で削除
     });
     setBusy(false);
     if (error) { setErr(keepErrJa(error.message)); return; }
     const who = named?.find((r) => r.customer_id === cust)?.name ?? "顧客";
     setOpen(false);
-    await onDone(`${name.trim() || lineName} を ${who} 様のキープに登録しました`);
+    await onDone(`${name.trim() || lineName} を ${who} 様のキープに登録しました（会計前＝会計で確定）`);
   }
 
   return (

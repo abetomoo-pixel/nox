@@ -28,7 +28,7 @@ type CustRow = {
 };
 type Summary = {
   customer_id: string; visits: number; last_visit: string | null; total_spend: number;
-  active_bottles: number; open_receivable: number;
+  active_bottles: number; open_receivable: number; pending_bottles?: number; // ★0173（裁定392）: 会計前のキープ（注記用）
 };
 // ★0153（裁定305-6・D2）: キープ一覧（bottle_name・残量・最終利用日・棚）＝bottle_keeps 直 SELECT（RLS＝can_register 軸・読めなければ空）
 type KeepRow = { id: string; bottle_name: string | null; product_id: string; remaining_pct: number | null; shelf_no: string | null; last_used_at: string | null; opened_at: string; status: string; products: { name: string } | null };
@@ -293,7 +293,7 @@ export default function CustomerDetail({
           <div style={t.kpi}>
             <div style={t.kpiLabel}>キープ / 売掛</div>
             <div style={{ ...t.kpiVal, fontSize: 17 }}>
-              {summary?.active_bottles ?? 0}本
+              {(summary?.active_bottles ?? 0) + (summary?.pending_bottles ?? 0)}本{(summary?.pending_bottles ?? 0) > 0 && <span style={{ fontSize: 11, color: "var(--sub)" }}>（うち会計前 {summary?.pending_bottles}）</span>}{/* ★便 P173（裁定392）: 会計前も含め、会計前は注記 */}
               {summary && summary.open_receivable > 0 && (
                 <span style={{ color: "var(--bad)", fontSize: 14 }}>・{yen(summary.open_receivable)}</span>
               )}
@@ -323,7 +323,7 @@ export default function CustomerDetail({
                     <td className="num" data-label="残量">{k.remaining_pct != null ? `${k.remaining_pct}%` : "—"}</td>
                     <td className="num" data-label="最終利用日">{k.last_used_at ? fmtWhen(k.last_used_at) : "—"}</td>
                     <td data-label="棚">{k.shelf_no ?? "—"}</td>
-                    <td data-label="状態">{k.status === "active" ? "保管中" : k.status === "empty" ? "空" : "終了"}</td>
+                    <td data-label="状態">{k.status === "active" ? "保管中" : k.status === "pending" ? "会計前" : k.status === "empty" ? "空" : "終了"}{/* ★便 P173（裁定392） */}</td>
                   </tr>
                 ))}
               </tbody>

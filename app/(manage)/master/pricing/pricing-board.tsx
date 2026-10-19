@@ -53,6 +53,7 @@ export type PricingRule = {
   tax_category: string; // ★mig0112（C3）: 税区分（enum 4値・NOT NULL default 'taxable_10'）
   category_id: string | null; // ★mig0128（裁定116-2）: 料金区分（null=全区分）
   billing_unit: string | null; // ★mig0130（裁定118）: 課金単位（'person'/'table'/null=店既定 time_per）
+  is_default_ext?: boolean; // ★0173（裁定385・便 P173）: 延長の既定パターン（1 店 1 本・自動延長が自動適用）
 };
 export type CastRank = { id: string; name: string; sort_order: number; is_active: boolean };
 // ★DP-R: 端数処理方法の表示語（pricing-panel の option と同語彙）
@@ -103,6 +104,8 @@ function ruleErrJa(msg: string | undefined): string {
   if (msg.includes("bad category kind")) return "指名料には区分を設定できません";
   if (msg.includes("inactive category")) return "停止中の区分は新しく指定できません";
   if (msg.includes("bad category")) return "区分の指定が不正です（再読込してください）";
+  if (msg.includes("too many extension")) return "延長パターンは 1 店 3 つまでです（既存を停止するか編集してください）"; // ★0173（裁定385）
+  if (msg.includes("bad default_ext")) return "既定にできるのは延長パターンだけです"; // ★0173
   if (msg.includes("bad amount")) return "金額は0以上で入力してください";
   if (msg.includes("bad duration")) return "分数の指定が不正です（1以上・セット/延長のみ）";
   if (msg.includes("bad priority")) return "優先順位が不正です";
@@ -275,6 +278,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                            //   DEFAULT 'taxable_10' が効き既存 exempt 行が黙って課税へ戻る（原則7 の型）。
     category_id: string | null; // ★mig0128: **必須＝常に明示送信**（update は category_id を常に書く＝
                                 //   省略で null 上書きになる tax_category と同じ罠を構造的に排除。shimei は null 固定）。
+    is_default_ext?: boolean;   // ★0173（裁定385・便 P173）: 延長の既定（省略＝false＝常に明示送信・update で既定が外れないよう呼び手は現値を渡す）
   }): Promise<string | null> {
     const { error } = await supabase.rpc("set_pricing_rule", {
       p_id: p.id, p_store_id: storeId, p_fee_kind: p.fee_kind, p_seat_kind: p.seat_kind,
@@ -284,6 +288,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
       p_tax_category: p.tax_category,
       p_category_id: p.category_id,
       p_billing_unit: p.billing_unit,
+      p_is_default_ext: p.is_default_ext ?? false, // ★0173（裁定385）
       // ★mig0107: name を持つ呼び出しだけ p_name を足す。指名料（saveRankRow）は渡さない＝null のまま。
       ...(p.name !== undefined ? { p_name: p.name } : {}),
     });
@@ -528,6 +533,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
         name: mName.trim() === "" ? null : mName.trim(),
         tax_category: mTax, // ★mig0112: 表示名と同じく3行へ同値を配る（bandKeyOf 不変＝税区分で帯を分裂させない）
         category_id: mCat === "" ? null : mCat, // ★mig0128（裁定R4）: 帯単位1値＝3行へ同値を配る（""=全区分）
+        is_default_ext: fk === "extension" ? (existing?.is_default_ext ?? false) : false, // ★0173（裁定385）: 既定は維持（切替は下の「延長パターン」から）
       });
       if (err) { setMErr(`${fk === "set" ? "セット" : fk === "extension" ? "延長" : fk === "dohan" ? "同伴" : "VIPチャージ"}: ${err}`); setBusy(false); await reload(); return; }
     }
@@ -910,6 +916,39 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
       {/* ═══ 料金適用ルール（旧・時間帯料金＝T2 改称） ═══ */}
       {tab === "rules" && (
         <>
+          {/* ★便 P173（裁定385・0173）: 延長パターン＝有効な延長ルール（1 店 3 つまで・RPC 'too many extension'）と既定（is_default_ext＝1 本・自動延長の店は既定を自動適用・手動延長はレジで選択・自動延長後の切替は差額引き直し） */}
+          {(() => {
+            const exts = rules.filter((r) => r.fee_kind === "extension" && r.is_active).sort(ruleOrder);
+            const setDefault = async (r: PricingRule) => {
+              setBusy(true);
+              const err = await upsertRule({ id: r.id, fee_kind: r.fee_kind, seat_kind: r.seat_kind, dow_mask: r.dow_mask, from: r.time_from_min, to: r.time_to_min, rank_id: r.rank_id,
+                amount: r.amount, duration_min: r.duration_min, priority: r.priority, is_active: r.is_active, billing_unit: r.billing_unit, name: r.name, tax_category: r.tax_category, category_id: r.category_id, is_default_ext: true });
+              setBusy(false);
+              setMsg(err ? `既定の切替に失敗: ${err}` : `延長パターンの既定を「${r.name ?? `${r.duration_min ?? "—"}分 ¥${r.amount.toLocaleString()}`}」にしました`);
+              await reload();
+            };
+            return (
+              <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }} data-ext-patterns="1">
+                <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>延長パターン <span className="nox-stpill" style={{ marginLeft: 6 }}>{exts.length}/3</span></h3>
+                <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
+                  延長は 1 店 3 パターンまで（料金ルールの「延長料金」の行）。自動延長の店は<b>既定</b>を自動で当て、手動延長の店はレジで選びます。自動延長後の切替はレジの「延長パターン ▾」（確定済みの延長は新しい単価で引き直し）。
+                </p>
+                {exts.length === 0 ? <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>有効な延長パターンがありません（下の料金適用ルールで「延長料金」を入れると並びます）。</p> : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {exts.map((r) => (
+                      <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5 }}>
+                        <input type="radio" name="ext-default" checked={r.is_default_ext === true} disabled={busy} onChange={() => void setDefault(r)} aria-label={`既定: ${r.name ?? r.id}`} />
+                        <span style={{ fontWeight: 800 }}>{r.name ?? "（名前なし）"}</span>
+                        <span className="num">{r.duration_min ?? "—"}分 ¥{r.amount.toLocaleString()}</span>
+                        <span style={{ fontSize: 11, color: "var(--sub)" }}>{r.seat_kind ?? "全席種"}・{r.time_from_min == null ? "終日" : `${minToHm(r.time_from_min)}–${minToHm(r.time_to_min ?? 0)}`}</span>
+                        {r.is_default_ext && <span className="nox-stpill ok">既定</span>}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })()}
           {/* E8-5 pricing⑥: 今開卓したら適用されるルール（現在時刻・卓既定・pricing_resolve 直呼びの表示専用） */}
           {liveNow && (
             <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 14, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>

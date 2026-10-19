@@ -4,7 +4,7 @@ import ReportBoard from "./report-board";
 
 export const dynamic = "force-dynamic";
 
-// 日報（staff=閲覧・manager 以上=締め/再締め）。
+// 日報（staff=閲覧・manager 以上=締め/再締め・★便 P173（裁定389）: レジ使用 ON のキャスト＝通常の締め）。
 // プレビュー集計はクライアント TS＋biz-date 純関数（daily_report_aggregate は内部専用のまま＝呼ばない）。
 export default async function ReportPage() {
   const supabase = await createClient();
@@ -22,6 +22,7 @@ export default async function ReportPage() {
       cardTaxRate={Number(store?.card_tax_rate ?? 5)}
       isManagerUp={role === "owner" || role === "manager"}
       isOwner={role === "owner"}
+      isCast={role === "cast"} /* ★便 P173（裁定389）: ON のキャスト＝通常の締めだけ（layout が入口を制御・RPC が真の防御） */
       stores={(stores ?? []).map((s) => ({ id: s.id as string, name: s.name as string }))}
     />
   );

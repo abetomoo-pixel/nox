@@ -27,6 +27,7 @@ import LineKeepButton from "@/components/nox/line-keep-button";
 import CustomerPickModal, { customerChipLabelOf, customerChipLineOf, type CustomerPickTarget } from "@/components/nox/customer-pick-modal"; // ★裁定368／370（GV-19・21・便 GV-A）: お客様を選ぶ共通モーダル・商品行の「お客様」チップ // ★裁定314（便 X-8-10）: ボトル明細の「キープ」
 import CheckCustomersCard from "@/components/nox/check-customers-card"; // ★裁定305（mig0153・D1）: 伝票の顧客・誰の注文・キープ出し
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
+import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, setFrozenNoteOf, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（0173 の client＝裁定385／386／389／391／393）
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U／AB）: メッセージ表示の共通部品
@@ -69,7 +70,9 @@ type CheckRow = {
   ext_fee: number;
   time_per: string;
   // R2-a（mig0098）: 開栓時凍結の延長メニュー（null=旧伝票＝既定のみ・2件以上でボタン群表示）
-  ext_menu_snap: { rule_id: string; duration_min: number; amount: number; label: string }[] | null;
+  ext_menu_snap: { rule_id: string; duration_min: number; amount: number; label: string; is_default?: boolean }[] | null; // ★0173（裁定385）: is_default＝既定パターン
+  set_frozen?: boolean; // ★0173（裁定386）: セット終了後に人数が変わった伝票＝セット料金は引き直さない
+  opened_by_membership?: string | null; // ★0173（裁定389）: 操作者の membership（cast 含む）
 };
 // check_time_charge_apply の返値 jsonb（サーバ再計算の内訳・表示専用）
 // mig0089 行分離: 返り値は line_id → set_line_id/ext_line_id（額0/blocks0 の側は null）
@@ -174,6 +177,8 @@ const DETAIL_METHODS = new Set(["card", "other"]);
 // ★0164（便 W5-2b）: 店設定 payment_methods（cash／card／emoney／qr）でレジの入金ボタンを出し分ける。電子マネー・QR は payments.method 'other'＋method_detail（固定語）で記録＝RPC・CHECK 不変。
 const OPS_METHOD_LABEL: Record<"emoney" | "qr", string> = { emoney: "電子マネー", qr: "QR 決済" };
 const rpcMethodOf = (m: string): string => (m === "emoney" || m === "qr" ? "other" : m);
+/** ★便 P173（裁定393）: 手数料キーの和名（入金モーダル・完了文言） */
+const payFeeLabelJa = (k: PayFeeKey): string => (k === "card" ? "カード手数料" : k === "emoney" ? "電子マネー手数料" : "決済手数料");
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
 // R-2a: 指名料の課金行（mig0084・cast_id を持つ2種）。同伴料行（fee_kind='dohan'）は cast_id=null＝ここに含めない。
 const SHIMEI_FEE_KINDS = new Set(["hon_shimei", "jonai_shimei"]);
@@ -562,6 +567,12 @@ export default function RegisterBoard({
   //   挿入後は通常行として再計算に参加（外税店では手数料行にも税が乗る・サ料の母集合にも入る）。
   //   二重取り防止=1 pay_group 1行まで（UI ガード＝下の hasSurcharge）。支払方法との自動連動なし。
   const [surchargeRate, setSurchargeRate] = useState<number | null>(null);
+  // ★便 P173（裁定393）: 店設定 pay_fee_rates（card／emoney／other・欠損＝0）。率＞0 の方法は 0173 の check_pay が手数料行を立てる＝旧 card_surcharge_rate の導線はその方法では出さない
+  const [payFeeRates, setPayFeeRates] = useState<Record<PayFeeKey, number>>({ card: 0, emoney: 0, other: 0 });
+  // ★便 P173（裁定389）: 開卓した操作者（checks.opened_by_membership→memberships.role／users.name・RLS で読めないときは null）
+  const [openedBy, setOpenedBy] = useState<{ name: string; role: string } | null>(null);
+  const [extRuleBusy, setExtRuleBusy] = useState(false); // ★便 P173（裁定385 追補）: 自動延長後の切替
+  const [extAutoMenu, setExtAutoMenu] = useState(false);
   const SURCHARGE_PREFIX = "カード手数料(";
   const hasSurchargeIn = (g: string) =>
     lines.some((l) => l.pay_group === g && l.kind === "charge" && l.name_snapshot.startsWith(SURCHARGE_PREFIX));
@@ -675,6 +686,14 @@ export default function RegisterBoard({
     if (c) {
       const { data: st } = await supabase.from("stores").select("time_mode").eq("id", (c as CheckRow).store_id).single();
       setTimeMode((st?.time_mode as string | undefined) ?? "manual");
+      // ★便 P173（裁定389）: 操作者の表示（owner／manager は memberships→users を RLS で読める・cast は本人行だけ＝読めなければ出さない）
+      const obm = (c as CheckRow).opened_by_membership ?? null;
+      if (obm) {
+        const { data: m } = await supabase.from("memberships").select("role, users(name)").eq("id", obm).maybeSingle();
+        const mm = m as { role?: string; users?: { name?: string } | { name?: string }[] | null } | null;
+        const un = Array.isArray(mm?.users) ? mm?.users[0]?.name : mm?.users?.name;
+        setOpenedBy(mm && un ? { name: un, role: mm.role ?? "" } : null);
+      } else setOpenedBy(null);
     }
     setTimeCalc(null);
     setTimeMsg(null);
@@ -765,6 +784,7 @@ export default function RegisterBoard({
         setCutoffHm(typeof bc === "string" && bc ? bc : "06:00");
         // ★C3 §6-6（裁定90-⑤）: null=無効（既定）＝導線非表示
         setSurchargeRate((data?.card_surcharge_rate as number | null) ?? null);
+        setPayFeeRates(payFeeRatesOf(data?.settings_json)); // ★便 P173（裁定393）
       }
     })();
     return () => { alive = false; };
@@ -1331,6 +1351,25 @@ export default function RegisterBoard({
 
   // E8-1 #9（mig0090）: 開卓後の人数修正。person 制は set 行をサーバが即時追随・
   //   auto 店の延長側は次回 apply が再計算＝autoTimeKeyRef をリセットして会計タブ再入場で再反映させる。
+  // ★便 P173（裁定385 追補・0173 check_set_ext_rule）: 自動延長後の延長パターン切替＝checks の ext_min／ext_fee を snap の別パターンへ・確定済みブロックは新単価で引き直し（RPC）。
+  async function setExtRule(ruleId: string) {
+    if (!check || extRuleBusy) return;
+    if (dayBlocked()) return;
+    if (!(await tb.flush())) return;
+    setExtRuleBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("check_set_ext_rule", { p_check_id: check.id, p_rule_id: ruleId });
+    setExtRuleBusy(false);
+    if (error) {
+      const m = error.message ?? "";
+      setMsg({ to: MSG_DETAIL, kind: "bad", text: m.includes("bad rule") ? "この延長パターンはこの伝票では使えません（開卓時点のメニューのみ）" : m.includes("not open") ? "この伝票は締められています" : isBillingLocked(m) ? BILLING_LOCKED_MSG : rpcErrJaCommon(m) });
+      return;
+    }
+    const label = check.ext_menu_snap?.find((x) => x.rule_id === ruleId)?.label ?? "延長パターン";
+    setMsg({ to: MSG_DETAIL, kind: "ok", text: `延長パターンを「${label}」に切り替えました（確定済みの延長は新しい単価で引き直し）` });
+    autoTimeKeyRef.current = null;
+    await loadCheck(check.id);
+  }
+
   async function setPeopleN(next: number | null) {
     if (!check || peopleBusy) return;
     if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
@@ -1448,11 +1487,13 @@ export default function RegisterBoard({
       p_tendered: payMethod === "cash" && payTendered ? Number(payTendered) : null,
       p_idem_key: crypto.randomUUID(),
       p_method_detail: detail,
+      p_fee_key: payFeeKeyOf(payMethod), // ★便 P173（裁定393）: 手数料率のキー（cash／ar は null＝対象外・率 0 の店は RPC が 0）
     });
+    const feeN = payFeeNoteOf(payMethod, payAmount, payFeeRates); // ★便 P173: 表示用（権威は RPC＝due の増分）
     // R-1a 段2（裁定61）: 入力額をそのまま出す（サーバへ送った額そのもの＝再計算なし・select 不要）
     setMsg(error
       ? { to: MSG_PAY, text: rpcErrJaCommon(error.message), kind: "bad" }
-      : { to: MSG_PAY, text: `${yen(payAmount)} を入金しました`, kind: "ok" });
+      : { to: MSG_PAY, text: `${yen(payAmount)} を入金しました${feeN ? `（${payFeeLabelJa(feeN.key)} ${feeN.rate}%＝${yen(feeN.fee)} を伝票に追加・お客様から ${yen(feeN.receive)}）` : ""}`, kind: "ok" });
     if (!error) { setPayTendered(""); setPayDetail(""); }
     await loadCheck(check.id);
     return !error;
@@ -1930,6 +1971,7 @@ export default function RegisterBoard({
         const tnum = payTendered.trim() === "" ? null : Number(payTendered);
         const change = payMethod === "cash" && tnum != null && Number.isFinite(tnum) && amtValid ? tnum - payAmount : null;
         const insufficient = payMethod === "cash" && tnum != null && Number.isFinite(tnum) && amtValid && tnum < payAmount;
+        const feeNote = payFeeNoteOf(payMethod, amtValid ? payAmount : 0, payFeeRates); // ★便 P173（裁定393）: 1 行表示（率 0 は null）
         const presets = Array.from(new Set([
           amtValid ? payAmount : 0,
           Math.ceil((amtValid ? payAmount : 0) / 1000) * 1000,
@@ -1961,7 +2003,7 @@ export default function RegisterBoard({
                   payments を複数行にすることで既に実現できている（機構は実装済み）。
                   そこで **4値は維持したまま、併用の導線を言葉で見えるようにする**（下の注記＋既存の均等割り）。 */}
             {/* ★C3 §6-6: カード手数料の導線（rate=null は非表示・1 group 1行・card 選択時は強調） */}
-            {surchargeRate !== null && (
+            {surchargeRate !== null && payFeeRates.card === 0 && ( /* ★便 P173: 393 の率がある店は旧導線を出さない（二重課金の封じ） */
               <div style={{ marginBottom: 8 }}>
                 <button type="button"
                   disabled={hasSurchargeIn(g) || due <= 0}
@@ -2029,6 +2071,14 @@ export default function RegisterBoard({
               <span style={{ fontSize: 11, color: "var(--sub)", marginTop: 4, display: "block", lineHeight: 1.6 }}>
                 既定は残額（{yen(balance)}）。一部だけ受け取るときは金額を減らしてください。
               </span>
+              {/* ★便 P173（裁定393）: 支払方法別の手数料（お客様負担）＝入金額×率（1 円未満四捨五入）・伝票に行「カード手数料 n%」・お客様からもらう額＝入金額＋手数料（均等割りも手数料込み）。権威は RPC（due の増分） */}
+              {feeNote && (
+                <div className="nox-inset" data-pay-fee="1" style={{ padding: "8px 12px", marginTop: 8, fontSize: 12.5, display: "flex", flexDirection: "column", gap: 3 }}>
+                  <span style={{ display: "flex", justifyContent: "space-between" }}><span>{payFeeLabelJa(feeNote.key)} {feeNote.rate}%（お客様負担）</span><span className="num">{yen(feeNote.fee)}</span></span>
+                  <span style={{ display: "flex", justifyContent: "space-between", fontWeight: 800 }}><span>お客様からもらう額</span><span className="num">{yen(feeNote.receive)}</span></span>
+                  <span style={{ fontSize: 10.5, color: "var(--sub)" }}>手数料は伝票の行として残り、キャストの売上・ノルマ・歩合には含めません。併用時はこの方法で入金する分だけに掛かります。</span>
+                </div>
+              )}
             </label>
             {payMethod === "cash" && (
               <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
@@ -2437,6 +2487,8 @@ export default function RegisterBoard({
             </span>
           )}
           <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{NOM_LABEL[check.nom_type]}</span>
+          {/* ★便 P173（裁定389）: 操作者（開卓した membership）＝キャストのレジ運用の記録 */}
+          {openedBy && <span style={{ fontSize: 11, color: "var(--sub)" }} data-opened-by="1">開卓: {openedBy.name}{openedBy.role === "cast" ? "（キャスト）" : ""}</span>}
           {/* E8-1 #9（mig0090）: 人数±カウンタ。入金後はサーバ拒否＝ボタンも無効化して意図を明示 */}
           {check.status === "open" && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -2453,6 +2505,8 @@ export default function RegisterBoard({
                 aria-label="人数を増やす">＋</button>
             </span>
           )}
+          {/* ★便 P173（裁定386・0173）: セット終了後の人数変更＝セット料金は引き直さない（＋は店設定 join_mode＝合流セット行／延長のみ・−は不変） */}
+          {check.set_frozen && <span className="nox-stpill" data-set-frozen="1" title={setFrozenNoteOf(true) ?? ""}>セット確定</span>}
           {check.status === "open" && (
             // ★裁定183（v12.1 R13）: 表記をモック「滞在92分」形式へ（値・計算は不変）
             <span className="stay">滞在<span className="num">{elapsedMin(check.started_at, nowMs)}</span>分</span>
@@ -2472,6 +2526,32 @@ export default function RegisterBoard({
           })()}
           {/* ★便 X-8-7 (a)（裁定306 の型）: 2 段目＝延長／合計／伝票取消（／合算）。PC は display: contents＝従来の 1 行の並びのまま・≤899px は 100% 幅の 1 段（横はみ出し 0） */}
           <div className="nox-backbar-row2">
+          {/* ★便 P173（裁定385 追補・0173）: 自動延長の店＝既定パターンを自動適用（選択は出さない）・切替は「延長パターン ▾」（snap 2 件以上）＝check_set_ext_rule（確定ブロックの差額引き直し） */}
+          {timeMode === "auto" && check.status === "open" && (check.ext_menu_snap?.length ?? 0) >= 2 && (() => {
+            const menu = check.ext_menu_snap ?? [];
+            const cur = menu.find((m) => m.duration_min === check.ext_min && m.amount === check.ext_fee);
+            return (
+              <span style={{ position: "relative", display: "inline-flex" }} data-ext-pattern="1">
+                <button type="button" style={{ ...btnLight, opacity: extRuleBusy ? 0.45 : 1 }} disabled={extRuleBusy} aria-expanded={extAutoMenu}
+                  title="自動延長の延長パターン（切替は確定済みの延長を新単価で引き直します）"
+                  onClick={() => setExtAutoMenu((v) => !v)}>
+                  延長パターン: {cur?.label ?? `${check.ext_min}分 ${yen(check.ext_fee)}`} ▾
+                </button>
+                {extAutoMenu && (
+                  <span style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 30, display: "flex", flexDirection: "column", gap: 2, padding: 6,
+                    background: "var(--card)", border: "1px solid var(--line2)", borderRadius: 9, boxShadow: "0 10px 30px rgba(0,0,0,.4)", minWidth: 200 }}>
+                    {menu.map((m) => (
+                      <button key={m.rule_id} type="button" style={{ ...btnLight, justifyContent: "flex-start", whiteSpace: "nowrap", fontWeight: cur?.rule_id === m.rule_id ? 900 : 600 }}
+                        disabled={extRuleBusy || cur?.rule_id === m.rule_id}
+                        onClick={() => { setExtAutoMenu(false); void setExtRule(m.rule_id); }}>
+                        {m.label}{m.is_default ? "（既定）" : ""}{cur?.rule_id === m.rule_id ? " ✓" : ""}
+                      </button>
+                    ))}
+                  </span>
+                )}
+              </span>
+            );
+          })()}
           {/* ★起票#48（裁定112 同乗）: manual 店の延長ボタンを backbar へ複製＝checks スナップ額の表示・
               check_extension_add 呼び（会計タブと同一経路）・入金後 disabled。会計タブ側カードは残置。
               ★#48b: 分割型＝本体は既定延長（現行）・「▾」は ext_menu_snap（開栓時凍結）の一覧から選択
@@ -2504,7 +2584,7 @@ export default function RegisterBoard({
                         {menu.map((m) => (
                           <button key={m.rule_id} type="button" style={{ ...btnLight, justifyContent: "flex-start", whiteSpace: "nowrap" }}
                             onClick={() => { setExtBarMenu(false); void addExtension(m.rule_id, "bar"); }}>
-                            {m.label}
+                            {m.label}{m.is_default ? "（既定）" : ""}{/* ★便 P173（裁定385） */}
                           </button>
                         ))}
                       </span>
@@ -2972,7 +3052,7 @@ export default function RegisterBoard({
                     <button key={m.rule_id} onClick={() => void addExtension(m.rule_id)} style={btnDark}
                       disabled={payments.length > 0}
                       title={payments.length > 0 ? "入金後は追加できません" : ""}>
-                      {m.label}{units > 1 ? `（×${units}名 ${yen(m.amount * units)}）` : ""}
+                      {m.label}{m.is_default ? "（既定）" : ""}{units > 1 ? `（×${units}名 ${yen(m.amount * units)}）` : ""}{/* ★便 P173（裁定385）: 手動延長はパターン選択（既定に印） */}
                     </button>
                   );
                 })}
@@ -3242,7 +3322,7 @@ export default function RegisterBoard({
           })()}
           <table className="nox-olines" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>{/* ★便 X-8-7 (b): ≤899px は 1 行を 2 段に（.nox-olines） */}
             <tbody>
-              {lines.map((l) => {
+              {orderLines(lines).map((l) => { /* ★便 P173（裁定391）: セット→延長→指名群→手数料→商品（注文順）→割引 */
                 const isDisc = l.kind === "discount"; // ★F3c: 承認割引（正の値・表示は −・削除不可＝承認経由のみ）
                 // キャストドリンク（mig0070）: 凍結値で判定＝DB（check_close / proxy）と同じ真実を見る。
                 const isExempt = l.back_snapshot?.back_exempt === true;
@@ -3293,6 +3373,13 @@ export default function RegisterBoard({
                         <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)", marginTop: 2 }}>
                           適用: {check.set_rule_name}
                         </span>
+                      )}
+                      {/* ★便 P173（裁定386）: セット料金の行に「確定」（checks.set_frozen）・（裁定393）手数料行に「お客様負担」 */}
+                      {l.fee_kind === "set" && check?.set_frozen && (
+                        <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)", marginTop: 2 }}>{setFrozenNoteOf(true)}</span>
+                      )}
+                      {l.fee_kind === "pay_fee" && (
+                        <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)", marginTop: 2 }}>お客様負担（サービス料の対象外・キャスト売上に含めない）</span>
                       )}
                     </td>
                     {/* E8-1b F1: person 制の時間行は「×N名」（qty=units=人数の意味を明示） */}
@@ -3377,13 +3464,12 @@ export default function RegisterBoard({
               合計＋内消費税）。サ料は due−net の逆算＝丸め・端数調整込みで会計タブの請求と必ず一致。
               内税は receipt.ts の taxOf（印刷レシートと同式）＝新しい計算は作らない。 */}
           {(() => {
-            const timeSum = lines.filter((l) => l.kind === "time").reduce((a, l) => a + l.line_total, 0);
-            const prodSum = sumBx - timeSum;
+            const twoCls = twoClassSumsOf(lines); // ★便 P173（裁定391）: 小計 2 行＝「セット・延長・指名」「商品」（日報・分析と同じ分類）
             const svcAndRound = sumDue - Math.max(0, sumBx - sumDisc);
             return (
               <>
-                <div className="nox-sumrow"><span>セット・延長</span><span className="num">{yen(timeSum)}</span></div>
-                <div className="nox-sumrow"><span>商品・指名ほか</span><span className="num">{yen(prodSum)}</span></div>
+                <div className="nox-sumrow" data-sum-upper="1"><span>セット・延長・指名</span><span className="num">{yen(twoCls.upper)}</span></div>
+                <div className="nox-sumrow" data-sum-products="1"><span>商品</span><span className="num">{yen(twoCls.products)}</span></div>
                 <div className="nox-sumrow"><span>小計</span><span className="num">{yen(sumBx)}</span></div>
                 <div className="nox-sumrow">
                   <span>割引</span>

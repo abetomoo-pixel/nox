@@ -109,7 +109,7 @@ check("p172(5-2) staff-board: 登録モーダルが tel／lineId を送る・編
 
 // ── (7) 止めた 2 点＝入口を作っていない
 const kiosk = src("app/kiosk/page.tsx"); const gen = src("scripts/demo/gen-demo.mjs");
-check("p172(7-1) kiosk にスタッフ群の入口なし（PIN 照合・打刻 RPC は 0173）・payload に staff_contracts／staff_punches なし（demo_org_reset の c_load 外＝0173）", !kiosk.includes("staff_punches") && !gen.includes("staff_contracts") && !gen.includes("staff_punches"));
+check("p172(7-1) ★便 P173 で反転: 0174＝kiosk_staff_list／staff_punch（RPC）・demo_org_reset の c_load に 4 表→payload に staff_contracts／staff_punches（MUSE／LUNA）。kiosk の打刻 UI（スタッフ群）の入口は次便（client 未着手）", !kiosk.includes("staff_punches") && gen.includes("staff_contracts") && gen.includes("staff_punches"));
 
 // ── (6) live（SELECT のみ）
 async function live() {
@@ -126,9 +126,9 @@ async function live() {
     const { rows: md } = await db.query(`select proname, left(md5(replace(prosrc, E'\\r', '')),8) m from pg_proc where pronamespace='public'::regnamespace and proname in ('daily_pay_issue','daily_pays_of_run','set_store_profile','staff_create','staff_update_profile','terms_accept','terms_accepted_version_ok','set_cast_dependents_form') order by 1`);
     const m = Object.fromEntries(md.map((r) => [r.proname as string, r.m as string]));
     check("p172(6-3) live: md5 pin 5 本（daily_pay_issue 94f989f9／daily_pays_of_run 37ff6ed0／set_store_profile 67e96c04／staff_create 8c2fef04／staff_update_profile b710ebae）・新設 3 本が各 1 定義",
-      m.daily_pay_issue === "94f989f9" && m.daily_pays_of_run === "37ff6ed0" && m.set_store_profile === "67e96c04" && m.staff_create === "8c2fef04" && m.staff_update_profile === "b710ebae" && md.length === 8, JSON.stringify(m));
+      m.daily_pay_issue === "94f989f9" && m.daily_pays_of_run === "37ff6ed0" && m.set_store_profile === "45012c75" /* ★0173: 白名単 +5（67e96c04→45012c75・便 P173） */ && m.staff_create === "8c2fef04" && m.staff_update_profile === "b710ebae" && md.length === 8, JSON.stringify(m));
     const { rows: cnt } = await db.query(`select (select count(*) from pg_proc where pronamespace='public'::regnamespace)::int f, (select count(*) from pg_tables where schemaname='public')::int t, (select count(*) from pg_proc where pronamespace='public'::regnamespace and prosrc like '%billing locked%')::int g`);
-    check("p172(6-4) live: 関数 311・表 87・'billing locked' 159", cnt[0].f === 311 && cnt[0].t === 87 && cnt[0].g === 159, JSON.stringify(cnt[0]));
+    check("p172(6-4) live: 関数 314・表 87・'billing locked' 160（★0173／0174・便 P173: 311→314・159→160）", cnt[0].f === 314 && cnt[0].t === 87 && cnt[0].g === 160, JSON.stringify(cnt[0]));
   } finally { await db.end().catch(() => {}); }
 }
 void live().then(() => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { upperKindOf } from "@/lib/nox/register/p173"; // ★便 P173（裁定391／393）: 2 分類・手数料
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +17,7 @@ import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（
 type Preview = {
   open: number; slips: number; guests: number; dohan: number;
   cash: number; card: number; cardTax: number; uri: number; other: number; drink: number;
+  payFee: number; upper: number; products: number; // ★便 P173（裁定393／391）: 手数料（お客様負担）・セット・延長・指名／商品（daily_report_aggregate の pay_fee_total／set_ext_nom／products と同じ分類）
   // E8-2 #1/#2/#6: 追加集計（すべて既存テーブルの client 集計＝権威は締め時のサーバ再集計）
   kindSums: { time: number; drink: number; champ: number; bottle: number; other: number }; // #1 カテゴリ5分類
   discount: number;        // #2 値引き（kind='discount' の合計・正値）
@@ -38,6 +40,7 @@ type Report = {
   ar_collected_other: number; // ★D45（mig0143）: その他回収（凍結・在高外）
   expense: number; cash_payout: number; cash_float: number; counted_cash: number | null; diff: number | null;
   referral_cash_payout: number; // ★0152（裁定298-10）: 当日現金払いの紹介料（渡した額＝額面−源泉・締めで集計・diff 式に減算）
+  set_ext_nom?: number | null; products?: number | null; pay_fee_total?: number | null; // ★0173（裁定391／393）: 締めの凍結値（旧行は null）
   reclosed_count: number;
   closed_by: string | null; // E8-2 #8: 締め担当（users.name へ表示専用 join）
   // ★C層③（mig0138・設計書 v1 §2）: 解除／再締め／差異承認の列（select * で取得済み＝新規読取 0）。
@@ -119,7 +122,8 @@ const reopenErrJa = (m: string) => REOPEN_ERR_JA.find(([k]) => m.includes(k))?.[
 
 export default function ReportBoard({
   storeId, cutoff, cardTaxRate, isManagerUp, isOwner, stores,
-}: { storeId: string; cutoff: string; cardTaxRate: number; isManagerUp: boolean; isOwner: boolean; stores: { id: string; name: string }[] }) {
+  isCast = false,
+}: { storeId: string; cutoff: string; cardTaxRate: number; isManagerUp: boolean; isOwner: boolean; stores: { id: string; name: string }[]; isCast?: boolean }) {
   const supabase = createClient();
   const [tab, setTab] = useState<"day" | "month" | "ar">("day"); // A4: 日報/月報 タブ＋B6: 売掛タブ（案7-A・owner/manager のみ）
   const [bizDate, setBizDate] = useState(bizDateOf(new Date().toISOString(), cutoff));
@@ -186,7 +190,7 @@ export default function ReportBoard({
       .eq("store_id", storeId).gte("started_at", startIso).lt("started_at", endIso);
     const closed = (checks ?? []).filter((c) => c.status === "closed");
     const ids = closed.map((c) => c.id as string);
-    let cash = 0, cardSum = 0, uri = 0, other = 0, drink = 0, discount = 0;
+    let cash = 0, cardSum = 0, uri = 0, other = 0, drink = 0, discount = 0, payFee = 0, upper = 0, products = 0; // ★便 P173
     const kindSums = { time: 0, drink: 0, champ: 0, bottle: 0, other: 0 };
     if (ids.length) {
       const { data: pays } = await supabase.from("payments").select("method, amount, check_id").in("check_id", ids);
@@ -196,9 +200,11 @@ export default function ReportBoard({
         else if (p.method === "ar") uri += p.amount;
         else other += p.amount;
       }
-      const { data: lines } = await supabase.from("check_lines").select("kind, line_total, check_id").in("check_id", ids);
+      const { data: lines } = await supabase.from("check_lines").select("kind, fee_kind, line_total, check_id").in("check_id", ids);
       for (const l of lines ?? []) {
         if (l.kind === "drink" || l.kind === "champ") drink += l.line_total;
+        if (l.fee_kind === "pay_fee") payFee += l.line_total; // ★便 P173（裁定393）
+        if (l.kind !== "discount") { if (upperKindOf(l.kind)) upper += l.line_total; else products += l.line_total; } // ★便 P173（裁定391）
         // E8-2 #1: カテゴリ5分類（set は kind の実値・time=セット/延長・other=charge/custom 等）
         if (l.kind === "time" || l.kind === "set") kindSums.time += l.line_total;
         else if (l.kind === "drink") kindSums.drink += l.line_total;
@@ -244,6 +250,7 @@ export default function ReportBoard({
       guests: closed.reduce((a, c) => a + (c.people ?? 0), 0),
       dohan: closed.filter((c) => c.nom_type === "dohan").length,
       cash, card: cardSum, cardTax: roundYen((cardSum * cardTaxRate) / 100), uri, other, drink,
+      payFee, upper, products, // ★便 P173
       kindSums, discount,
       hon: closed.filter((c) => c.nom_type === "hon").length,
       newCust, repeatCust, avgStayMin,
@@ -359,7 +366,7 @@ export default function ReportBoard({
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, isManagerUp]);
-  const canClose = isManagerUp || staffPerm.close;   // 再締め・差異承認（report_can_close と同じ判定＝UI は利便・真の防御は RPC）
+  const canClose = isManagerUp || staffPerm.close || isCast;   // 再締め・差異承認（report_can_close と同じ判定＝UI は利便・真の防御は RPC）・★便 P173（裁定389）: ON のキャストは通常の締め（再締め・解除・承認は出さない）
   const canReopen = isManagerUp || staffPerm.reopen; // 解除（report_can_reopen と同じ判定）
   const isReopened = (r: Report) => !!r.reopened_at && !r.reclosed_at; // 解除中＝reopened_at not null and reclosed_at null（C③-1）
   // ★B2-a（裁定202/203/204）: 日報タブの追加 KPI。manager 以上のみ（staff の RLS 0 行を「0 件」と見せない）。
@@ -1105,8 +1112,9 @@ export default function ReportBoard({
               <tr>
                 {[
                   ["伝票", preview.slips], ["組客数", preview.guests], ["同伴", preview.dohan], ["未会計", preview.open],
-                  ["現金", yen(preview.cash)], ["カード", yen(preview.card)], ["カード手数料", yen(preview.cardTax)],
+                  ["現金", yen(preview.cash)], ["カード", yen(preview.card)], ["カード決済手数料（店負担・経費）", yen(preview.cardTax)], ["手数料（お客様負担）", yen(preview.payFee)], /* ★便 P173（裁定393 追補1）: 併存＝ラベルで区別 */
                   ["売掛", yen(preview.uri)], ["その他", yen(preview.other)], ["ドリンク/シャンパン売上", yen(preview.drink)],
+                  ["セット・延長・指名", yen(preview.upper)], ["商品", yen(preview.products)], /* ★便 P173（裁定391）: 2 分類 */
                 ].map(([label, v]) => (
                   <td key={label as string} style={{ padding: "4px 12px", borderRight: "1px solid var(--line)" }}>
                     <div style={{ ...t.sub, fontSize: 11 }}>{label}</div>
@@ -1118,11 +1126,11 @@ export default function ReportBoard({
           </table>
           </div>
         )}
-        {preview && <p style={{ ...t.sub, fontSize: 11, margin: "6px 0 0" }}>カード手数料は日報集計用（店舗設定のカード手数料率で算出）。</p>}{/* ★裁定252（M9）: 短縮したラベルの注記 */}
+        {preview && <p style={{ ...t.sub, fontSize: 11, margin: "6px 0 0" }}>カード決済手数料（店負担）は店舗設定の率で算出した経費の見込み。手数料（お客様負担）は入金時に伝票へ立てた行の合計（キャスト売上には含めません）。</p>}{/* ★裁定252（M9）: 短縮したラベルの注記 */}
       </section>
 
-      {/* 締めは manager 以上のみ（RPC 側も owner/manager 強制＝二重） */}
-      {isManagerUp && (
+      {/* 締めは manager 以上のみ（RPC 側も owner/manager 強制＝二重）・★便 P173（裁定389）: ON のキャストも通常の締め */}
+      {(isManagerUp || isCast) && (
         <>
         {/* ★B4-3（DP-R 監査の欠落解消）: モック nox-daily-report の「営業サマリー」カード。
             ★新規取得はゼロ＝すべて既存 Preview の再形（newCust/repeatCust/hon/dohan/bottlesOpened/
@@ -1384,7 +1392,7 @@ export default function ReportBoard({
         <table className="nox-table cardrows" style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>{/* ★X-13-17（便 X-13d-1）: ≤899 は 1 日 1 カード（19 列を data-label 付きで縦に）・PC は裁定251 の横スクロールのまま */}
           <thead>
             <tr>
-              {["営業日", "伝票", "客数", "現金", "回収現金", "カード回収", "その他回収", "カード", "カード手数料", "売掛", "ドリンク売上", "未会計", "諸経費", "現金支払", "紹介料(現金)", "実査差異", "再締め回数", "締め担当", ""].map((h) => (
+              {["営業日", "伝票", "客数", "現金", "回収現金", "カード回収", "その他回収", "カード", "カード決済手数料（店負担）", "手数料（客負担）", "売掛", "ドリンク売上", "セット・延長・指名", "商品", "未会計", "諸経費", "現金支払", "紹介料(現金)", "実査差異", "再締め回数", "締め担当", ""].map((h) => (
                 // ★裁定251（M1）: 潰れ型（19 列）＝nowrap で自然幅にし .nox-tablewrap 内で横スクロール
                 <th key={h} style={{ ...t.th, whiteSpace: "nowrap" }}>{h}</th>
               ))}
@@ -1402,9 +1410,12 @@ export default function ReportBoard({
                 <td data-label="カード回収" style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.ar_collected_card)}</td>
                 <td data-label="その他回収" style={{ ...t.td, ...t.num, color: "var(--sub)" }}>{yen(r.ar_collected_other)}</td>
                 <td data-label="カード" style={{ ...t.td, ...t.num }}>{yen(r.card_gross)}</td>
-                <td data-label="カード手数料" style={{ ...t.td, ...t.num }}>{yen(r.card_tax)}</td>
+                <td data-label="カード決済手数料（店負担）" style={{ ...t.td, ...t.num }}>{yen(r.card_tax)}</td>
+                <td data-label="手数料（客負担）" style={{ ...t.td, ...t.num }}>{r.pay_fee_total == null ? "—" : yen(r.pay_fee_total)}</td>{/* ★便 P173（裁定393）: 0173 以前の行は null */}
                 <td data-label="売掛" style={{ ...t.td, ...t.num }}>{yen(r.uri)}</td>
                 <td data-label="ドリンク売上" style={{ ...t.td, ...t.num }}>{yen(r.drink_sales)}</td>
+                <td data-label="セット・延長・指名" style={{ ...t.td, ...t.num }}>{r.set_ext_nom == null ? "—" : yen(r.set_ext_nom)}</td>{/* ★便 P173（裁定391） */}
+                <td data-label="商品" style={{ ...t.td, ...t.num }}>{r.products == null ? "—" : yen(r.products)}</td>
                 <td data-label="未会計" style={{ ...t.td, ...t.num }}>{r.open_checks_count}</td>
                 <td data-label="諸経費" style={{ ...t.td, ...t.num }}>{yen(r.expense)}</td>
                 <td data-label="現金支払" style={{ ...t.td, ...t.num }}>{yen(r.cash_payout)}</td>

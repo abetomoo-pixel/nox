@@ -16,6 +16,7 @@ import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセ
 import MoneyInput from "@/components/ui/money-input";
 import SegSelect from "@/components/ui/seg-select";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
+import { JOIN_MODE_LABEL, PAY_FEE_KEYS, PAY_FEE_KEY_LABEL, joinModeOf, payFeeRatesOf, type JoinMode, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（裁定386／393・0173）
 import { PAY_TIME_BASIS_LABEL, payTimeBasisApplyNoteOf, payTimeBasisApplyOf, payTimeBasisViewOf, type PayTimeBasis, type PayTimeBasisView } from "@/lib/nox/payroll/time-basis"; // ★裁定324（0159・便 C-1）: 勤務時間の計算基準 // ★裁定317（0158・便 AB-6）: 送りの基本額（okuri_base_amount・0〜99,999 の整数・空欄＝未設定＝0 を送る）
 type Store = { id: string; name: string };
 // ★0164（裁定331 C 5 項目＋裁定334・便 W5-2a・2026-10-13）: 「会計と運用」節＝stores の列 7 つ（settings_json ではない）を同じ set_store_profile の patch で保存。
@@ -24,8 +25,8 @@ type Store = { id: string; name: string };
 import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsPatchErrorOf, opsPatchOf, opsProfileOf, type OpsProfile } from "@/lib/nox/store/ops-profile"; // 純関数＝lib（setup page（server）と共用）
 import { MID_PAY_OPTIONS, SETTLEMENT_CYCLE_OPTIONS, midPayOf, settlementCycleOf } from "@/lib/nox/payroll/settlement-cycle"; // ★0172（裁定349・便 P172）: 店設定 2 キー
 import { SHIFT_AUTO_CONFIRM_OPTIONS, autoConfirmHoursOf } from "@/lib/nox/shift/auto-confirm"; // ★0172（裁定380・便 P172）: 自動確定時間
-type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string }; // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
-const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT };
+type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
+const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT, join_mode: "join_set", pay_fee: { card: "", emoney: "", other: "" } };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
@@ -70,6 +71,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
       okuri_actual: sj.okuri_mode === "actual",
       ar_enabled: sj.ar_enabled === true, // ★0155（裁定309-1）: 既存店は 0155 で true・新規店はキー無し＝false（サーバの ar_policy_ok と同じ既定）
       settlement_cycle: settlementCycleOf(sj), mid_pay: midPayOf(sj), shift_auto_confirm_hours: String(autoConfirmHoursOf(sj)), // ★0172（裁定349／380）: 欠損＝既定（monthly／none／0）
+      join_mode: joinModeOf(sj), // ★便 P173（裁定386）: 欠損＝join_set
+      pay_fee: (() => { const r = payFeeRatesOf(sj); return { card: r.card ? String(r.card) : "", emoney: r.emoney ? String(r.emoney) : "", other: r.other ? String(r.other) : "" }; })(), // ★便 P173（裁定393）: 欠損＝0（空欄）
     };
     setCur(p); setForm(p); setLoaded(true);
     const v = payTimeBasisViewOf(sj); setTb(v); setTbPick(v.next ?? v.current); setTbMsg(null); // ★324
@@ -93,6 +96,9 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     if (form.settlement_cycle !== cur.settlement_cycle) out.settlement_cycle = form.settlement_cycle;
     if (form.mid_pay !== cur.mid_pay) out.mid_pay = form.mid_pay;
     if (form.shift_auto_confirm_hours !== cur.shift_auto_confirm_hours) out.shift_auto_confirm_hours = Number(form.shift_auto_confirm_hours);
+    // ★便 P173（裁定386／393・0173 set_store_profile 白名単）: join_mode（文字列 2 値）・pay_fee_rates（object・整数 0〜100・空欄＝0）
+    if (form.join_mode !== cur.join_mode) out.join_mode = form.join_mode;
+    if (PAY_FEE_KEYS.some((k) => form.pay_fee[k] !== cur.pay_fee[k])) out.pay_fee_rates = Object.fromEntries(PAY_FEE_KEYS.map((k) => [k, form.pay_fee[k].trim() === "" ? 0 : Number(form.pay_fee[k])]));
     return out;
   };
   const dirty = Object.keys(patchOf()).length > 0;
@@ -193,6 +199,27 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                 {SETTLEMENT_CYCLE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </label>}
+            {/* ★便 P173（裁定386・0173）: 途中合流＝セット終了後の＋は合流セット行（既定）／延長のみ。−は引き直さない */}
+            {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
+              <span style={label}>途中合流<span style={{ fontWeight: 400, marginLeft: 6 }}>セット終了後に人数が増えたとき</span></span>
+              <select value={form.join_mode} disabled={busy || !loaded} onChange={(e) => setForm((f) => ({ ...f, join_mode: e.target.value as JoinMode }))} style={input} aria-label="途中合流" data-join-mode="1">
+                {(Object.keys(JOIN_MODE_LABEL) as JoinMode[]).map((v) => <option key={v} value={v}>{JOIN_MODE_LABEL[v]}</option>)}
+              </select>
+              <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>セット料金は引き直しません（減った場合も同じ）。合流セット＝増えた人数分のセット料金を 1 行追加。</span>
+            </label>}
+            {/* ★便 P173（裁定393・0173）: 支払方法別の手数料（お客様負担）＝入金額×率・伝票に行・日報に合計 1 行・キャスト売上には含めない。既存店は欠損＝0（新規店の初期値はカード 10%） */}
+            {on("profile") && <div style={{ minWidth: 0 }} data-pay-fee-rates="1">
+              <span style={label}>支払方法別の手数料（お客様負担）<span style={{ fontWeight: 400, marginLeft: 6 }}>％・0 は手数料なし（モーダルに出ません）</span></span>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 4 }}>
+                {PAY_FEE_KEYS.map((k) => (
+                  <label key={k} style={{ display: "block", minWidth: 0, fontSize: 12 }}>{PAY_FEE_KEY_LABEL[k]}
+                    <input type="number" min={0} max={100} step={1} inputMode="numeric" value={form.pay_fee[k]} disabled={busy || !loaded} aria-label={`${PAY_FEE_KEY_LABEL[k]}の手数料率`}
+                      onChange={(e) => setForm((f) => ({ ...f, pay_fee: { ...f.pay_fee, [k]: e.target.value.replace(/[^0-9]/g, "").slice(0, 3) } }))} style={{ ...input, marginTop: 2 }} placeholder="0" />
+                  </label>
+                ))}
+              </div>
+              <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>店負担のカード決済手数料（経費の見込み）は「会計ルール」の率で別に集計します。</span>
+            </div>}
             {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>途中払い<span style={{ fontWeight: 400, marginLeft: 6 }}>前払（仮払）は控除なし＝期の精算で控除</span></span>
               <select value={form.mid_pay} disabled={busy || !loaded} onChange={(e) => setForm((f) => ({ ...f, mid_pay: e.target.value }))} style={input} aria-label="途中払い" data-mid-pay="1">

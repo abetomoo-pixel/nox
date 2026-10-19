@@ -103,7 +103,7 @@ export default function CustomerPickModal({ storeId, checkId, target, mode = "li
     }
     if (mode === "add") { setBusy(false); await onPicked(name, customerId); return; }
     if (!target) { setBusy(false); return; }
-    const r2 = await supabase.rpc("check_line_set_customer", { p_line_id: target.lineId, p_customer_id: customerId });
+    const r2 = await supabase.rpc("check_line_set_customer", { p_line_id: target.lineId, p_customer_id: customerId, p_keep: isBottle }) // ★便 P173（裁定392・0173）: ボトルの行＝会計前キープ（pending）を同時に作る（外すと消える・会計で確定・取消で削除）;
     setBusy(false);
     if (r2.error) { setMsg({ kind: "error", text: `お客様の設定: ${errJa(r2.error.message)}` }); return; }
     await onPicked(name, customerId);
