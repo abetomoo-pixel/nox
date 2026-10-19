@@ -7,6 +7,8 @@
 // ★draft/snapshot は PlanEditor が保持し、タブは display 切替（PlanEditor は常時マウント）＝
 //   タブ移動で未保存が消えない（B1 の要件を常時マウントで満たす・set_comp_plan 16引数・c1〜c3 不変）。
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -15,7 +17,6 @@ import type { StoreSimData } from "@/lib/nox/payroll/sim-data";
 import { adoptedMethodsOf, compSummaryOf } from "@/lib/nox/comp-methods";
 import { AssignTab, useCompData, secTitle, productBackArgsOf, type Plan } from "../comp-sections";
 import PlanEditor from "./plan-editor";
-import NormaBoard from "../norma/norma-board";
 import { slideApplyOf, slideBasisOf, slideBasisPillOf } from "@/lib/nox/payroll/slide"; // ★N3b・★裁定343（0170）: 判定基準・対象ランクの印
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
@@ -27,21 +28,29 @@ const TABS = [
   ["base", "基本・保証"],
   ["backs", "歩合・バック"],
   ["slides", "スライド・ポイント"],
-  ["quota", "ノルマ・ボーナス"],
+  ["quota", "ノルマ目標・ボーナス（プラン）"], // ★GV-63（便 P173）: 店のノルマ設定（上段「ノルマ設定（店）」）と区別
   ["sim", "シミュレーション"],
   ["assign", "キャスト割当"],
 ] as const;
 type TabKey = (typeof TABS)[number][0];
 
-export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlags, settings }: {
+export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean; sim: StoreSimData | null;
   settings?: StoreSettings; // ★裁定269: stores.settings_json（sys_*）
-  normFlags: { salesEnabled: boolean; shimeiEnabled: boolean; shimeiScope: "hon" | "hon_jonai" };
+  normFlags?: { salesEnabled: boolean; shimeiEnabled: boolean; shimeiScope: "hon" | "hon_jonai" }; // ★GV-63: 店のノルマ設定は norma の実ページへ移った＝ここでは使わない（呼び出し互換で受けるだけ）
 }) {
   const supabase = createClient();
   const [msg, setMsg] = useState<string | null>(null);
   const data = useCompData(storeId, setMsg); // ★裁定339: 一覧読取の error は赤帯（直前値は保持）
-  const [tab, setTab] = useState<TabKey>("base");
+  // ★GV-63（便 P173）: 下段タブの選択を ?tab= で URL に保持（再読み込み・共有で同じタブ）。不正値・無指定は base
+  const sp = useSearchParams(); const router = useRouter(); const pathname = usePathname();
+  const tabOfQuery = (v: string | null): TabKey => (TABS.some(([k]) => k === v) ? (v as TabKey) : "base");
+  const [tab, setTabState] = useState<TabKey>(() => tabOfQuery(sp?.get("tab") ?? null));
+  const setTab = (k: TabKey) => {
+    setTabState(k);
+    const q = new URLSearchParams(sp?.toString() ?? ""); q.set("tab", k);
+    router.replace(`${pathname}?${q.toString()}`, { scroll: false });
+  };
   const [selId, setSelId] = useState<string | null>(null);
   const [selComps, setSelComps] = useState<{ kind: string; is_active: boolean; amount: number | null }[]>([]);
   // ★裁定106 B1: 右パネル「保存状態」＝PlanEditor からの節別未保存件数
@@ -177,15 +186,15 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
         settings={settings}
         onDirtyCounts={setDirtyCounts} />
 
-      {/* ノルマ・ボーナス タブ下段＝店共通（全プラン）: 現行 norma-board をそのまま搭載（契約区分はプランに置かない） */}
-      {isSectionOn(settings, "planTabQuota") && (<div style={{ display: tab === "quota" ? undefined : "none" }}>{/* ★裁定269-4: planTabQuota */}
+      {/* ★GV-63（便 P173）: 下段「ノルマ目標・ボーナス（プラン）」＝プランごとの目標と達成ボーナス（上の PlanEditor）だけ。
+          店共通のノルマ設定（採用軸・キャスト別目標・未達の減額）は上段「ノルマ設定（店）」の実ページ（旧＝ここに NormaBoard を搭載）→ リンクで案内 */}
+      {isSectionOn(settings, "planTabQuota") && (<div style={{ display: tab === "quota" ? undefined : "none" }} data-quota-link="1">{/* ★裁定269-4: planTabQuota */}
         <div className="nox-cardtop" style={{ ...card, marginBottom: 10 }}>
-          <h2 style={secTitle}>店共通（全プラン）</h2>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 2px" }}>雇用キャスト: 懲戒減給の法定上限（労基法91条）は給与計算側で自動制約されます（罰金の自動計算はありません）。</p>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>委託キャスト: 未達処理には契約上の根拠が必要です（法定上限の自動適用はありません）。</p>
-          {/* ★便 N1013b B-9: 「契約上の根拠を確認した（確認メモ）」の disabled チェックと準備中チップは撤去（器なし＝起票109 第 2 期・押せないものを置かない＝教訓25） */}
+          <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>
+            採用する軸・キャスト別の目標・未達成時の扱いは店の設定です →{" "}
+            <Link href="/master/cast-comp/norma" className="nox-link">ノルマ設定（店）</Link>
+          </p>
         </div>
-        <NormaBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={isOwner} flags={normFlags} settings={settings} />
       </div>)}
 
       {/* シミュレーション タブ（★裁定106 B2: v3 の主入力＋残りは「詳細」で畳む＝compact） */}

@@ -38,8 +38,8 @@ export default async function CastCompHubPage() {
     { href: "/master/cast-comp/deduction", icon: "▽", title: "控除・送りの設定",
       desc: "固定控除の種別と金額、送り実費/一律、前借り・送り実費の発行を管理。",
       status: `● 有効控除 ${dedCount ?? 0}件` },
-    { href: "/master/cast-comp/plan#norma", icon: "◎", title: "ノルマ設定",
-      desc: "採用する軸（売上・指名）、キャスト別目標、未達成時のペナルティを設定（待遇ページへ統合）。",
+    { href: "/master/cast-comp/norma", icon: "◎", title: "ノルマ設定（店）", /* ★GV-63（便 P173）: 店のノルマ設定の実ページ（待遇プランのノルマ節へのリダイレクトを廃止） */
+      desc: "採用する軸（売上・指名）、キャスト別目標、未達成時のペナルティを設定。プランごとの目標と達成ボーナスは待遇プランで。",
       status: salesNorm || shimeiNorm ? "● 採用中" : "● 未採用" },
     { href: "/master/cast-comp/register", icon: "◈", title: "キャスト会計の許可",
       desc: "キャスト本人がレジを使えるようにする設定（店フラグ＋対象キャストの個別許可）。",

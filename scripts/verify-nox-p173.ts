@@ -11,6 +11,7 @@
  *   (8) live: verify_0173_0174.sql の 31 行が全部 ok（適用時点のデータ行 2 は 8-2 で非デモ org に絞る）
  *   (9) ★T-2（起票110・0174 ★2）: 達成ボーナスの多段＝{pct, amount} に一本化（bonus-tiers 純関数・plan-editor の段の追加／削除・試算・テンプレ・gen-demo）
  *   (10) ★GV-62: /shift 今日タブの 5 択チップ＝カード表示（.nox-table.cardrows・<1280）に付ける（≤899 の入れ子を撤去）
+ *        ★GV-63: キャスト・報酬の上段タブ（待遇プラン／控除・送り／ノルマ設定（店））と下段タブの分離・?tab= 保持・準備中チップ 3 つ撤去
  */
 import fs from "node:fs";
 import { Client } from "pg";
@@ -125,6 +126,15 @@ check("p173(7-6) payload の NOT NULL 既定列が埋まる（MUSE: pricing_rule
   const i = css.indexOf(".nox-todaywrap .nox-table.cardrows .nox-attrow > .nox-attseg {"); const blk = css.lastIndexOf("@media (max-width: 1279px) {", i);
   check("p173(10-1) GV-62: 5 択チップ＝カード表示の部品（.nox-table.cardrows）に付く（371 の <1280 ブロック内・≤899 の入れ子なし）・表表示（≥1280）は対象外",
     i > 0 && blk > 0 && !css.slice(blk, i).includes("@media (max-width: 899px)") && css.includes(".nox-todaywrap .nox-table.cardrows .nox-attrow > .nox-attseg > button {") && !css.includes("    .nox-todaywrap .nox-attrow > .nox-attseg {"));
+}
+
+{
+  const nav = src("lib/nox/master/nav.ts"), np = src("app/(manage)/master/cast-comp/norma/page.tsx"), pbd = src("app/(manage)/master/cast-comp/plan/plan-board.tsx"), pe = src("app/(manage)/master/cast-comp/plan/plan-editor.tsx"), ov = src("app/(manage)/master/cast-comp/page.tsx");
+  check("p173(10-2) GV-63: 上段「ノルマ設定（店）」＝/master/cast-comp/norma の実ページ（redirect なし・NormaBoard のみ）・概要カードも norma へ",
+    nav.includes('{ label: "ノルマ設定（店）", href: "/master/cast-comp/norma" }') && !np.includes("redirect(\"/master/cast-comp/plan#norma\")") && np.includes("<NormaBoard ") && !np.includes("PlanBoard") && ov.includes('href: "/master/cast-comp/norma", icon: "◎", title: "ノルマ設定（店）"') && !ov.includes("plan#norma"));
+  check("p173(10-3) GV-63: 下段「ノルマ目標・ボーナス（プラン）」に NormaBoard を載せない・店設定へのリンク・?tab= を URL に保持（router.replace）",
+    pbd.includes('["quota", "ノルマ目標・ボーナス（プラン）"]') && !pbd.includes("<NormaBoard") && pbd.includes('<Link href="/master/cast-comp/norma" className="nox-link">ノルマ設定（店）</Link>') && pbd.includes('q.set("tab", k)') && pbd.includes('tabOfQuery(sp?.get("tab") ?? null)'));
+  check("p173(10-4) GV-63: 基本・保証の準備中チップ 3 つ（daily_wage／guarantee_hours／guarantee_period）を撤去", !pe.includes('<Prep k="daily_wage" />') && !pe.includes('<Prep k="guarantee_hours" />') && !pe.includes('<Prep k="guarantee_period" />'));
 }
 
 // ── (8) live

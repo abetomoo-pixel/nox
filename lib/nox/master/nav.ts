@@ -31,7 +31,7 @@ export const MASTER_NAV: MasterNavGroup[] = [
     desc: "報酬の条件と紹介料",
     pages: [
       { label: "報酬設定", href: "/master/cast-comp/plan", desc: "待遇プラン・控除・送り・ノルマ",
-        tabs: [{ label: "待遇プラン", href: "/master/cast-comp/plan" }, { label: "控除・送り", href: "/master/cast-comp/deduction" }, { label: "ノルマ", href: "/master/cast-comp/norma" }] },
+        tabs: [{ label: "待遇プラン", href: "/master/cast-comp/plan" }, { label: "控除・送り", href: "/master/cast-comp/deduction" }, { label: "ノルマ設定（店）", href: "/master/cast-comp/norma" } /* ★GV-63（便 P173）: 上段＝URL と 1 対 1・店のノルマ設定のみ（下段の「ノルマ目標・ボーナス（プラン）」と区別） */] },
       { label: "紹介者・紹介料", href: "/master/referrers", desc: "紹介者の登録・紹介料の支払" }, // ★0152（裁定280-2／298-5）・便 U-2: 外部への支払を含むため待遇プランに混ぜない
     ],
   },

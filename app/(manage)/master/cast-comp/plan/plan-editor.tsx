@@ -409,9 +409,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         {useGuarantee && (
           <CompRows kind="guarantee_min" section="基本給・保証" comps={comps} isOwner={isOwner} onSave={saveComp} />
         )}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-          <Prep k="daily_wage" /><Prep k="guarantee_hours" /><Prep k="guarantee_period" />
-        </div>
+        {/* ★GV-63（便 P173）: 準備中チップ 3 つ（日給制・保証対象時間帯・保証判定単位）は撤去（押せないものを置かない＝教訓25） */}
       </section>)}
 
       {/* ── ③ 歩合・バック ── */}
