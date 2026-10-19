@@ -146,16 +146,15 @@ async function live() {
   try {
     await db.query("set default_transaction_read_only = on");
     const r = await db.query(src("docs/demo/verify_0173_0174.sql"));
-    // ★便 P173 再開（10/19）: 「thresholds 移行」「slide_apply が null でないプラン」は適用時点の既存データの行＝デモ reset で入れ替わる（ACE は payload で 'next'・LILY の thresholds は gen-demo の旧形）
-    //   → 8-1 から外し、8-2 で非デモ org に絞って同じことを見る
-    const DATA_ROWS = ["thresholds 移行＝migrated/total", "slide_apply が null でないプラン"];
-    const ng = r.rows.filter((x) => !x.ok && !(x.mig === "0174" && DATA_ROWS.includes(x.k)));
-    check("p173(8-1) live: verify_0173_0174.sql 31 行が ok（関数 314・表 87・gated 160・md5 24＋6・適用時点のデータ行 2 は 8-2）", r.rows.length === 31 && ng.length === 0, ng.map((x) => `${x.mig} ${x.k} ${x.v}≠${x.expected}`).join(" / "));
+    // ★便 P173 再開（10/19）: 「適用時点の既存データ」の 6 行は店が使えば変わる（デモ reset・live 確認で ACE の会計前キープ／NOIR の既定の延長が入った）＝構造の行ではない
+    //   → 8-1 から外す（mig を当てた時点の確認は handpaste の verify で済み）。使っても崩れない形だけ 8-2 で見る
+    const DATA_ROWS = ["既存 bottle_keeps＝active 以外", "is_default_ext true の行", "set_frozen true の伝票", "thresholds 移行＝migrated/total", "slide_apply が null でないプラン", "スライド 4 段以上のプラン"];
+    const ng = r.rows.filter((x) => !x.ok && !DATA_ROWS.includes(x.k));
+    check("p173(8-1) live: verify_0173_0174.sql 31 行のうち構造の 25 行が ok（関数 314・表 87・gated 160・md5 24＋6・列・CHECK・index・policy・引数・ACL）＝適用時点のデータ 6 行は対象外", r.rows.length === 31 && r.rows.filter((x) => DATA_ROWS.includes(x.k)).length === 6 && ng.length === 0, ng.map((x) => `${x.mig} ${x.k} ${x.v}≠${x.expected}`).join(" / "));
     const d = (await db.query(`select
         (select count(*) from public.comp_plan_components c join public.orgs o on o.id = c.org_id
-          where not o.is_demo and c.kind = 'achievement_bonus' and exists (select 1 from jsonb_array_elements(c.params->'thresholds') e where not (e ? 'amount')))::int thr_ng,
-        (select count(*) from public.comp_plans p join public.orgs o on o.id = p.org_id where not o.is_demo and p.slide_apply is not null)::int slide_ng`)).rows[0];
-    check("p173(8-2) live 非デモ org: achievement_bonus の thresholds は全要素 amount あり・slide_apply は null のまま（0174 の移行と既定）", d.thr_ng === 0 && d.slide_ng === 0, JSON.stringify(d));
+          where not o.is_demo and c.kind = 'achievement_bonus' and exists (select 1 from jsonb_array_elements(c.params->'thresholds') e where not (e ? 'amount')))::int thr_ng`)).rows[0];
+    check("p173(8-2) live 非デモ org: achievement_bonus の thresholds は全要素 amount あり（0174 の移行＋T-2 以降の書込は {pct, amount}）", d.thr_ng === 0, JSON.stringify(d));
   } finally { await db.end(); }
 }
 void live().then(() => {

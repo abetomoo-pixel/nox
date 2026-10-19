@@ -93,7 +93,6 @@ export function resolveMasterNav(pathname: string, search = "", hash = ""): Mast
   const curTab = new URLSearchParams(search.replace(/^\?/, "")).get("tab") ?? "";
   const okWith = (x: { query: string; hash: string }) => (x.hash === "" || x.hash === curHash) && (tabQ(x) === "" || tabQ(x) === curTab);
   const hitPath = (x: string) => pathname === x || pathname.startsWith(x + "/");
-  const exact = (x: { path: string; query: string; hash: string }) => x.path === pathname && tabQ(x) === curTab && x.hash === curHash;
   type Cand = { path: string; query: string; hash: string; tab: MasterNavTab | null };
   const candsOf = (page: MasterNavPage): Cand[] => [
     { ...splitHref(page.href), tab: null },
@@ -109,8 +108,11 @@ export function resolveMasterNav(pathname: string, search = "", hash = ""): Mast
     }
   }
   if (!best) return null;
-  const tab = best.cands.find((x) => x.tab && exact(x))?.tab
-    ?? (curTab === "" && curHash === "" ? (best.page.tabs ?? []).find((t) => splitHref(t.href).path === pathname) ?? null : null);
+  // ★GV-63（便 P173）: 入口のタブが ?tab を使っていない（報酬設定＝path で分かれる）なら、URL の ?tab はページ内の下段タブ（待遇プランの ?tab=quota 等）＝上段の解決に使わない
+  const ownTab = (best.page.tabs ?? []).some((t) => tabQ(splitHref(t.href)) !== "");
+  const tabNow = ownTab ? curTab : "";
+  const tab = best.cands.find((x) => x.tab && x.path === pathname && tabQ(x) === tabNow && x.hash === curHash)?.tab
+    ?? (tabNow === "" && curHash === "" ? (best.page.tabs ?? []).find((t) => splitHref(t.href).path === pathname) ?? null : null);
   return { group: best.group, page: best.page, tab };
 }
 

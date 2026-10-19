@@ -42,6 +42,10 @@ check("mt(1-3) タブ構成（MC2）: 商品管理 2・料金・会計 3（?tab=
 const r = (href: string) => { const h = href.indexOf("#"); const hash = h >= 0 ? href.slice(h) : ""; const nh = h >= 0 ? href.slice(0, h) : href; const q = nh.indexOf("?"); return resolveMasterNav(q >= 0 ? nh.slice(0, q) : nh, q >= 0 ? nh.slice(q) : "", hash); };
 const lab = (href: string) => { const x = r(href); return x ? `${x.group.label}/${x.page.label}/${x.tab?.label ?? "-"}` : "null"; };
 check("mt(2-1) 旧トップ 17 href: 在庫以外の 16 が入口に解決・在庫は null（営業メニューへ＝ナビ外）", MASTER_OLD_HREFS.length === 17 && MASTER_OLD_HREFS.filter((h) => h !== "/master/stock").every((h) => r(h) !== null) && r("/master/stock") === null, MASTER_OLD_HREFS.map((h) => `${h}→${lab(h)}`).join(" "));
+check("mt(2-5) ★GV-63（便 P173）: 報酬設定（path で分かれるタブ）は下段の ?tab を上段の解決に使わない＝plan?tab=quota／sim→待遇プラン・norma?tab=x→ノルマ設定（店）・?tab で切り替える入口は従来どおり（pricing?tab=rules→料金適用ルール・store-profile?tab=info→店舗情報・pricing?tab=zzz→タブ無し）",
+  lab("/master/cast-comp/plan?tab=quota") === "キャスト・報酬/報酬設定/待遇プラン" && lab("/master/cast-comp/plan?tab=sim") === "キャスト・報酬/報酬設定/待遇プラン" && lab("/master/cast-comp/norma?tab=x") === "キャスト・報酬/報酬設定/ノルマ設定（店）"
+  && lab("/master/pricing?tab=rules") === "商品・料金/料金・会計/料金適用ルール" && lab("/master/store-profile?tab=info") === "店舗・運用/店舗設定/店舗情報" && lab("/master/pricing?tab=zzz").endsWith("/-"),
+  [lab("/master/cast-comp/plan?tab=quota"), lab("/master/pricing?tab=zzz")].join(" | "));
 check("mt(2-2) 解決の形（MC2）: categories→商品管理/商品カテゴリ・pricing?tab=rules→料金適用ルール・pricing（無指定）→料金マスタ・cast-comp/systems（alias）→店舗設定/利用機能・system#features（alias）→店舗設定/利用機能・store-profile（無指定）→店舗設定/利用機能・store-profile?tab=info→店舗情報・store-profile?tab=data→権限・情報管理/データ管理・register→権限・情報管理/キャスト会計の許可・#secrets→権限・情報管理/機密情報・norma→報酬設定/ノルマ・system（無指定）→端末・印刷/打刻・レジ端末",
   lab("/master/categories") === "商品・料金/商品管理/商品カテゴリ" && lab("/master/pricing?tab=rules") === "商品・料金/料金・会計/料金適用ルール" && lab("/master/pricing") === "商品・料金/料金・会計/料金マスタ"
   && lab("/master/cast-comp/systems") === "店舗・運用/店舗設定/利用機能" && lab("/master/system#features") === "店舗・運用/店舗設定/利用機能" && lab("/master/store-profile") === "店舗・運用/店舗設定/利用機能"
