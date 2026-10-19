@@ -191,7 +191,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, normFlag
       {/* シミュレーション タブ（★裁定106 B2: v3 の主入力＋残りは「詳細」で畳む＝compact） */}
       {sim && (
         <div id="sim" style={{ display: tab === "sim" ? undefined : "none" }}>
-          <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" compact slideApply={slideApplyOf(settings)} />{/* ★N3b（裁定288-7） */}
+          <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" compact slideApply={slideApplyOf(settings)} targets={sim.targets} />{/* ★N3b（裁定288-7） */}
         </div>
       )}
 

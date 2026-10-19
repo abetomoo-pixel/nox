@@ -475,7 +475,7 @@ async function main() {
       const { error: eB1 } = await owner.rpc("set_cast_plan", { p_cast_id: cB, p_plan_id: planB97, p_overrides: {}, p_valid_from: `${P97}-10` });
       const { error: eB2 } = await owner.rpc("set_comp_component", {
         p_id: null, p_plan_id: planB97, p_kind: "achievement_bonus", p_mode: "amount",
-        p_amount: 3333, p_rate: null, p_params: { thresholds: [{ pct: 100 }] }, p_priority: 90, p_is_active: true,
+        p_amount: 3333, p_rate: null, p_params: { thresholds: [{ pct: 100, amount: 3333 }] } /* ★便 P173 T-2: {pct, amount} */, p_priority: 90, p_is_active: true,
       });
       const { error: eB3 } = await owner.rpc("set_comp_component", {
         p_id: null, p_plan_id: planB97, p_kind: "guarantee_min", p_mode: "amount",

@@ -27,6 +27,7 @@ export type BackModeRow = "per_count" | "rate";
 import { PRODUCT_BACK_OPTIONS, type ProductBackMode } from "@/lib/nox/comp-methods";
 import Picker from "@/components/nox/picker";
 import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P168）: 月の選択＝共通 select
+import { bonusParamsOf, bonusTiersLabel, bonusTiersOf } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 export { PRODUCT_BACK_OPTIONS, type ProductBackMode };
 export type Plan = {
   slide_period?: string | null; // ★裁定338（0168）: 判定期間（monthly／half／daily・旧行は daily）
@@ -323,12 +324,15 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
   // ★C1 §6-4: set_comp_component へ **9引数全値明示送信**（教訓43 型＝省略で default に戻る事故を封じる）。
   //   params の形（v2.0 UI が書く最小形・台帳へ仮置き記録・挙動段の payOf 実装と同時に確定）:
   //     guarantee_min      → {"period":"month"}（判定単位は月固定＝半月/日は挙動段で解錠）
-  //     achievement_bonus  → {"thresholds":[{"pct":100,"add":N}]}（1段のみ・複数段は挙動段で）
+  //     achievement_bonus  → {"thresholds":[{"pct":100,"amount":N}]}（★便 P173 T-2: {pct, amount} に一本化・多段の編集はプラン編集（plan-editor の BonusRows）。
+  //                           ここで既存の多段行を保存するときは段を保ち、1 段目の金額だけを差し替える＝段を潰さない）
   async function saveComp() {
     if (!id) return;
+    const cur = cId ? comps.find((c) => c.id === cId) : null;
+    const tiers = cur && cur.kind === "achievement_bonus" ? bonusTiersOf(cur.params, cur.amount) : [{ pct: 100, amount: cAmount }];
     const params = cKind === "guarantee_min"
       ? { period: "month" }
-      : { thresholds: [{ pct: 100, add: cAmount }] };
+      : bonusParamsOf(tiers.map((x, i) => (i === 0 ? { ...x, amount: cAmount } : x))).params;
     const { error } = await supabase.rpc("set_comp_component", {
       p_id: cId, p_plan_id: id, p_kind: cKind, p_mode: "amount",
       p_amount: cAmount, p_rate: null, p_params: params,
@@ -440,7 +444,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
                   <td>{COMP_KIND_LABEL[c.kind] ?? c.kind}</td>
                   <td>{c.mode === "rate" ? "率" : "金額"}</td>
                   <td className="num">{c.mode === "rate" ? `${c.rate}%` : `¥${(c.amount ?? 0).toLocaleString()}`}</td>
-                  <td>{c.kind === "guarantee_min" ? "月" : `達成100%で加算`}</td>
+                  <td>{c.kind === "guarantee_min" ? "月" : bonusTiersLabel(bonusTiersOf(c.params, c.amount))}</td>
                   <td className="num">{c.priority}</td>
                   <td style={{ color: c.is_active ? "var(--ok)" : "var(--sub)" }}>{c.is_active ? "有効" : "無効"}</td>
                 </tr>
@@ -456,14 +460,13 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
               <label style={{ fontSize: 12 }}>{cKind === "guarantee_min" ? "保証額(円)" : "加算額(円)"}
                 <MoneyInput value={cAmount} onChange={(v) => setCAmount(Number(v || 0))} style={input} width={120} ariaLabel="金額" /></label>
               {/* ★判定単位は v2.0 UI では月固定（半月/日は挙動段で解錠・params={"period":"month"} を送信） */}
-              <span style={note}>{cKind === "guarantee_min" ? "判定単位: 月（固定）" : "しきい値: ノルマ達成100%・1段（固定）"}</span>
+              <span style={note}>{cKind === "guarantee_min" ? "判定単位: 月（固定）" : "1 段目の加算額（多段の編集はプラン編集の「達成ボーナス」）"}</span>
               <label style={{ fontSize: 12 }}>priority <input type="number" value={cPriority} onChange={(e) => setCPriority(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
               <label style={{ fontSize: 12 }}><input type="checkbox" checked={cActive} onChange={(e) => setCActive(e.target.checked)} /> 有効</label>
               <button style={btnDark} onClick={() => void saveComp()}>{cId ? "更新" : "追加"}</button>
               {cId && <button style={btnLight} onClick={() => { setCId(null); setCAmount(0); setCPriority(100); setCActive(true); }}>追加に戻す</button>}
             </div>
           )}
-          <p style={{ ...note, marginTop: 6 }}>※計算への反映（payOf 結線）は挙動段で入ります。現時点は器＝定義の保存のみ。</p>
         </div>
       )}
 
@@ -478,7 +481,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
             <span>同伴 <b className="num">¥{dohanBack.toLocaleString()}/本</b>（率は準備中）</span>
             <span>スライド 売上{salesSlide.length}段・pt{pointSlide.length}段</span>
             {comps.filter((c) => c.is_active).map((c) => (
-              <span key={c.id}>{COMP_KIND_LABEL[c.kind] ?? c.kind} <b className="num">¥{(c.amount ?? 0).toLocaleString()}</b>{c.kind === "guarantee_min" ? "/月" : "（達成時）"}</span>
+              <span key={c.id}>{COMP_KIND_LABEL[c.kind] ?? c.kind} <b className="num">{c.kind === "guarantee_min" ? `¥${(c.amount ?? 0).toLocaleString()}` : bonusTiersLabel(bonusTiersOf(c.params, c.amount))}</b>{c.kind === "guarantee_min" ? "/月" : "（達成時）"}</span>
             ))}
           </div>
         </div>

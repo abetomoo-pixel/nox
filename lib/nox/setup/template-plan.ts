@@ -371,7 +371,7 @@ export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
     if (pl.bonus.length > 0) {
       const add = Math.max(0, Math.round(pl.bonus[0].add_yen));
       steps.push({ key: `bonus_${i}`, group: "comp", label: `達成ボーナス（${pl.name}）目標達成時 ¥${add}（1 段・目標はキャスト別目標）`, rpc: "set_comp_component", guard: "plans_empty", argsOf: "comp_component", after: `comp_${i}`,
-        args: { p_id: null, p_plan_id: null, p_kind: "achievement_bonus", p_mode: "amount", p_amount: add, p_rate: null, p_params: { thresholds: [{ pct: 100, add }] }, p_priority: 100, p_is_active: true } });
+        args: { p_id: null, p_plan_id: null, p_kind: "achievement_bonus", p_mode: "amount", p_amount: add, p_rate: null, p_params: { thresholds: [{ pct: 100, amount: add }] } /* ★便 P173 T-2（起票110）: {pct, amount} に一本化 */, p_priority: 100, p_is_active: true } });
     }
   });
   // 6) 商品（既存 0 のときだけ）→ 7) back／本指名pt の上書き

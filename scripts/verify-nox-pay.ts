@@ -359,19 +359,33 @@ eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
 
   const AB = (target: never[] | null, amount: number): CompPlan => ({ ...basePlan, components: [
     { kind: "achievement_bonus", mode: "amount", amount, rate: null,
-      params: { thresholds: [{ pct: 100, add: amount }] }, priority: 90 },
+      params: { thresholds: [{ pct: 100, amount }] } /* ★便 P173 T-2: {pct, amount} に一本化 */, priority: 90 },
   ] });
   // 達成（sales 100000 >= target 80000）／未達（target 150000）／target 0 不適用
   eq("C96 ★achievement 達成＝加算", payOf({ ...baseInput, salesTarget: 80_000, plan: AB(null, 30_000) }).achievementBonus, 30_000);
   eq("C96 achievement 未達＝0", payOf({ ...baseInput, salesTarget: 150_000, plan: AB(null, 30_000) }).achievementBonus, 0);
   eq("C96 ★target 0/なしは不適用（sales があっても 0）", payOf({ ...baseInput, salesTarget: 0, plan: AB(null, 30_000) }).achievementBonus, 0);
 
+  // ★便 P173 T-2（起票110・0174 ★2）＋★裁定404: 多段＝目標×pct/100 に届いた段のうち最上段の amount（max＝既定・payOf は max 固定・sales 100,000）。sum は bonus-tiers 単体で assert（p173 9-1）。旧形は amount＝コンポーネントの amount（後方互換）
+  const ABM = (thresholds: unknown[], amount = 10_000): CompPlan => ({ ...basePlan, components: [
+    { kind: "achievement_bonus", mode: "amount", amount, rate: null, params: { thresholds }, priority: 90 },
+  ] });
+  const TIERS3 = [{ pct: 100, amount: 10_000 }, { pct: 120, amount: 20_000 }, { pct: 150, amount: 30_000 }];
+  eq("T2-1 ★多段 max: 目標 80,000＝100%（80,000）と 120%（96,000）に到達・150%（120,000）は未達＝最上段 120% の 20,000", payOf({ ...baseInput, salesTarget: 80_000, plan: ABM(TIERS3) }).achievementBonus, 20_000);
+  eq("T2-2 ★多段 max: 目標 50,000＝3 段とも到達＝最上段 150% の 30,000", payOf({ ...baseInput, salesTarget: 50_000, plan: ABM(TIERS3) }).achievementBonus, 30_000);
+  eq("T2-3 多段: 目標 120,000＝1 段も届かない＝0", payOf({ ...baseInput, salesTarget: 120_000, plan: ABM(TIERS3) }).achievementBonus, 0);
+  eq("T2-4 多段: 段の並びが逆でも同値（pct 昇順に並べ直す）", payOf({ ...baseInput, salesTarget: 80_000, plan: ABM(TIERS3.slice().reverse()) }).achievementBonus, 20_000);
+  eq("T2-5 ★後方互換: 旧形 {pct}＝amount はコンポーネントの amount（30,000）", payOf({ ...baseInput, salesTarget: 80_000, plan: ABM([{ pct: 100 }], 30_000) }).achievementBonus, 30_000);
+  eq("T2-6 後方互換: 旧形 {pct, add}＝add は読まない（amount＝コンポーネントの 30,000）", payOf({ ...baseInput, salesTarget: 80_000, plan: ABM([{ pct: 100, add: 99_999 }], 30_000) }).achievementBonus, 30_000);
+  eq("T2-7 thresholds なし／空＝100% の 1 段（コンポーネントの amount）", payOf({ ...baseInput, salesTarget: 80_000, plan: ABM([], 30_000) }).achievementBonus, 30_000);
+  eq("T2-8 max は金額でなく達成率の最上段（120% 5,000 ＜ 100% 20,000 でも 120% の 5,000）", payOf({ ...baseInput, salesTarget: 80_000, plan: ABM([{ pct: 100, amount: 20_000 }, { pct: 120, amount: 5_000 }]) }).achievementBonus, 5_000);
+
   // ★適用順の直接判別: 保証 100000・bonus 30000・extras 80000。
   //   bonus 込み総額 110000 >= 100000 → guarantee add=0（=bonus 後判定でしか出ない値。
   //   もし bonus 前に床を張る誤実装なら add=20000・gross=130000 になる）
   const order = payOf({ ...baseInput, extrasTotal: 80_000, salesTarget: 80_000, plan: {
     ...basePlan, components: [
-      { kind: "achievement_bonus", mode: "amount", amount: 30_000, rate: null, params: { thresholds: [{ pct: 100, add: 30_000 }] }, priority: 90 },
+      { kind: "achievement_bonus", mode: "amount", amount: 30_000, rate: null, params: { thresholds: [{ pct: 100, amount: 30_000 }] }, priority: 90 },
       { kind: "guarantee_min", mode: "amount", amount: 100_000, rate: null, params: { period: "month" }, priority: 100 },
     ],
   } });

@@ -20,3 +20,4 @@ export function backOf(code: string, row: { type?: string; category?: string | n
 
 /** ★裁定348 追補1（便 DM-1 D-2b）: 体験入店＝基本時給・保証額・保証期間（R からの相対日）・割当キャスト名 */
 export declare const TRIAL: Record<string, { base: number; gua: number; from: number; to: number; cast: string }>;
+export declare const BONUS_TIERS: { pct: number; amount: number }[]; // ★便 P173 T-2（起票110）

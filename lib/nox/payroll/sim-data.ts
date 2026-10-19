@@ -65,10 +65,29 @@ async function loadMasters(sb: SupabaseClient, storeId: string): Promise<StoreMa
   };
 }
 
-const PLAN_COLS = "id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, product_back_mode, product_back_rate, product_back_fixed";
+const PLAN_COLS = "id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, product_back_mode, product_back_rate, product_back_fixed, norm_sales_target";
 
-export type CastSimData = { plans: CompPlan[]; masters: StoreMasters; openAdv: number; openOkuri: number; override?: PlanOverride };
-export type StoreSimData = { plans: CompPlan[]; masters: StoreMasters };
+// ★便 P173 T-2（起票110）: 試算にも行型コンポーネント（達成ボーナスの段・最低保証）を載せる＝確定（collect）と同じ payOf の入力。
+//   プラン既定の売上目標（norm_sales_target）は試算の「売上目標」の初期値（simPlanTargets）。
+async function withComponents(sb: SupabaseClient, rows: Record<string, unknown>[]): Promise<CompPlan[]> {
+  const plans = rows.map(mapPlan);
+  if (plans.length === 0) return plans;
+  const { data, error } = await sb.from("comp_plan_components").select("plan_id, kind, mode, amount, rate, params, priority")
+    .in("plan_id", plans.map((p) => p.id)).eq("is_active", true).order("priority");
+  if (error) throw new Error(`sim components: ${error.message}`);
+  const by = new Map<string, NonNullable<CompPlan["components"]>>();
+  for (const c of (data ?? []) as Record<string, unknown>[]) {
+    const k = c.plan_id as string;
+    if (!by.has(k)) by.set(k, []);
+    by.get(k)!.push({ kind: c.kind as string, mode: c.mode as string, amount: (c.amount ?? null) as number | null, rate: (c.rate ?? null) as number | null, params: (c.params ?? {}) as Record<string, unknown>, priority: Number(c.priority ?? 100) });
+  }
+  return plans.map((p) => ({ ...p, components: by.get(p.id) ?? [] }));
+}
+const targetsOf = (rows: Record<string, unknown>[]): Record<string, number> =>
+  Object.fromEntries(rows.map((r) => [r.id as string, Number(r.norm_sales_target ?? 0) || 0]));
+
+export type CastSimData = { plans: CompPlan[]; masters: StoreMasters; openAdv: number; openOkuri: number; override?: PlanOverride; targets?: Record<string, number> };
+export type StoreSimData = { plans: CompPlan[]; masters: StoreMasters; targets?: Record<string, number> }; // ★便 P173 T-2: targets＝プラン id→プラン既定の売上目標（試算の初期値）
 
 // cast: 自分の割当プラン（pattern1変形）＋override・open 前借り/送り残（pattern1・自分の行のみ）。
 //   masters を store スコープで読むため自分の store_id を先に取る（cast の RLS は単一店だが store_id を明示して締める）。
@@ -78,10 +97,11 @@ export async function loadCastSimData(sb: SupabaseClient): Promise<CastSimData> 
   const masters = await loadMasters(sb, storeId);
   const { data: cp } = await sb.from("cast_plan").select("plan_id, overrides_json").maybeSingle();
   let plans: CompPlan[] = [];
+  let targets: Record<string, number> = {};
   let override: PlanOverride | undefined;
   if (cp?.plan_id) {
     const { data: plan } = await sb.from("comp_plans").select(PLAN_COLS).eq("id", cp.plan_id as string).maybeSingle();
-    if (plan) plans = [mapPlan(plan as Record<string, unknown>)];
+    if (plan) { plans = await withComponents(sb, [plan as Record<string, unknown>]); targets = targetsOf([plan as Record<string, unknown>]); } // ★便 P173 T-2
     override = (cp.overrides_json ?? undefined) as PlanOverride;
   }
   const [advR, trR] = await Promise.all([
@@ -90,7 +110,7 @@ export async function loadCastSimData(sb: SupabaseClient): Promise<CastSimData> 
   ]);
   const sumRem = (rows: unknown) =>
     ((rows ?? []) as Record<string, unknown>[]).reduce((s, r) => s + ((r.amount as number) - ((r.deducted_amount as number) ?? 0)), 0);
-  return { plans, masters, openAdv: sumRem(advR.data), openOkuri: sumRem(trR.data), override };
+  return { plans, masters, openAdv: sumRem(advR.data), openOkuri: sumRem(trR.data), override, targets };
 }
 
 // store: 指定店の active プラン（owner は org 全店 RLS ゆえ store_id 明示必須）・天引きなし。
@@ -98,5 +118,6 @@ export async function loadStoreSimData(sb: SupabaseClient, storeId: string): Pro
   const masters = await loadMasters(sb, storeId);
   const { data: rows, error } = await sb.from("comp_plans").select(PLAN_COLS).eq("store_id", storeId).eq("is_active", true).order("name");
   if (error) throw new Error(`sim plans: ${error.message}`);
-  return { plans: ((rows ?? []) as Record<string, unknown>[]).map(mapPlan), masters };
+  const list = (rows ?? []) as Record<string, unknown>[];
+  return { plans: await withComponents(sb, list), masters, targets: targetsOf(list) }; // ★便 P173 T-2
 }

@@ -2,6 +2,7 @@
 // 「採用する待遇方式」を**値の有無から自動判定**する（保存なし＝トグルは表示専用・裁定101 ①）。
 // export＝verify が DB 非依存で係留する（裁定99-⑨ / allocateCategory と同じ建付け）。
 
+import { bonusTiersLabel, bonusTiersOf } from "./bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 // ★裁定113/123（mig0132〜0134）: 商品販売バック3方式。ラベル正本＝ここ（UI 3面＝plan-editor／simulator／概要が参照・散在リテラルにしない）。
 export type ProductBackMode = "product_rule" | "plan_rate" | "plan_fixed";
 export const PRODUCT_BACK_OPTIONS = [
@@ -44,7 +45,7 @@ export function prepItemOf(key: string): { key: string; label: string; unlock?: 
 export type CompSummaryRow = { label: string; value: string };
 export function compSummaryOf(
   p: AdoptPlanShape & { name?: string },
-  comps: { kind: string; is_active: boolean; amount?: number | null }[],
+  comps: { kind: string; is_active: boolean; amount?: number | null; params?: Record<string, unknown> | null }[],
   headcount: number,
 ): CompSummaryRow[] {
   const yen = (n: number) => `¥${n.toLocaleString()}`;
@@ -61,7 +62,7 @@ export function compSummaryOf(
   for (const c of comps) {
     if (c.is_active === false) continue;
     if (c.kind === "guarantee_min") rows.push({ label: "最低保証", value: `${yen(c.amount ?? 0)}/月` });
-    if (c.kind === "achievement_bonus") rows.push({ label: "達成ボーナス", value: `${yen(c.amount ?? 0)}（達成時）` });
+    if (c.kind === "achievement_bonus") rows.push({ label: "達成ボーナス", value: `${bonusTiersLabel(bonusTiersOf(c.params, c.amount))}（達成時・届いた最上段）` }); // ★便 P173 T-2: 多段
   }
   return rows;
 }

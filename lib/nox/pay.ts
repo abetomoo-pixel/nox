@@ -13,6 +13,7 @@
 
 import { roundYen, roundPt1, floorYen } from "./money";
 import { adjustOf, type AdjustmentRow } from "./payroll/adjust"; // 裁定258／264: run 別調整控除（純関数・roundYen は money.ts）
+import { bonusOf, bonusTiersOf } from "./bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段（純関数）
 
 // ── 型 ────────────────────────────────────────────────────────
 
@@ -687,15 +688,14 @@ export function payOf(input: PayInput): PayResult {
   const compSkipped = comps.filter((c) => c.mode !== "amount" || c.amount === null).map((c) => `${c.kind}:${c.mode}`);
   const amountComps = comps.filter((c) => c.mode === "amount" && c.amount !== null);
   // ② achievement_bonus: 目標 = cast_norms.sales_target（0/なし=不適用）・実績 = 期間売上（cast.sales）。
-  //   しきい値は params.thresholds[0].pct（UI 仮置き＝1段・省略時 100%）。加算額は amount（=UI の add と同値）。
+  //   ★便 P173 T-2（起票110・0174 ★2）: params.thresholds の全段を読む＝目標×pct/100 に届いた段のうち★裁定404＝max（最上段のみ・既定）。店設定 bonus_tier_mode（0175）までは max 固定（lib/nox/bonus-tiers.ts）。
+  //   旧形 {pct}／{pct, add}＝amount はコンポーネントの amount（1 段・100%＝旧実装と同値＝golden 不変）。
   const salesTarget = input.salesTarget ?? 0;
   let achievementBonus = 0;
   if (salesTarget > 0) {
     for (const c of amountComps) {
       if (c.kind !== "achievement_bonus") continue;
-      const th = (c.params?.thresholds as Array<{ pct?: number }> | undefined)?.[0];
-      const pct = typeof th?.pct === "number" ? th.pct : 100;
-      if (cast.sales >= (salesTarget * pct) / 100) achievementBonus += c.amount as number;
+      achievementBonus += bonusOf(bonusTiersOf(c.params, c.amount), cast.sales, salesTarget, "max").total; // ★裁定404: 0175／P175 で店設定 bonus_tier_mode に接続
     }
   }
 

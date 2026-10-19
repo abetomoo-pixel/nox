@@ -14,6 +14,7 @@ import { prepItemOf } from "@/lib/nox/comp-methods";
 import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf } from "@/lib/nox/store/norm-axes"; // ★裁定347（0171・便 P171）: プラン既定の目標 4 軸（採用 OFF の軸は入力口を出さない）
 import { SLIDE_BASIS_LABEL, slideApplyOf, slideBasisOf, slideBasisPillOf, slideDescOf, slidePeriodOf, slidePillOf, type SlideBasis, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）・★裁定338（0168）: 判定期間
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
+import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import {
   SlideInput, compErrJa, secTitle, BackTab, PRODUCT_BACK_OPTIONS, productBackArgsOf, productBackErrOf,
   type Plan, type Slide, type BackModeRow, type CompRow, type BackDef, type ProductBackMode,
@@ -112,6 +113,75 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
             {editId ? "更新" : "追加"}
           </button>
           {editId && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => { setEditId(null); setAmount(0); setActive(true); }}>追加に戻す</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ★便 P173 T-2（起票110・0174 ★2）: 達成ボーナスの多段＝行（コンポーネント）ごとに段 {pct, amount} を 1〜10 段（＋／−・達成率は昇順）。
+//   計算＝売上ノルマ（目標）×達成率に届いた段のうち最上段の加算額（★裁定404 既定 max・合計方式は 0175／P175 の店設定）（lib/nox/bonus-tiers.ts＝pay.ts と同じ純関数）。
+function BonusRows({ comps, isOwner, salesAxisOn, onSave, onErr }: {
+  comps: CompRow[]; isOwner: boolean; salesAxisOn: boolean;
+  onSave: (over: { id: string | null; tiers: BonusTier[]; active: boolean }) => Promise<boolean>; // true＝保存できた（失敗時は節エラーを残すため reset しない）
+  /** 保存前検査のエラー＝親の節エラー（secErr「達成ボーナス」）へ出す（素の <p> で描かない＝messages 規約） */
+  onErr: (m: string) => void;
+}) {
+  const rows = comps.filter((c) => c.kind === "achievement_bonus");
+  const BLANK_TIERS: BonusTier[] = [{ pct: 100, amount: 0 }];
+  const [tiers, setTiers] = useState<BonusTier[]>(BLANK_TIERS);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [active, setActive] = useState(true);
+  const setTier = (i: number, patch: Partial<BonusTier>) => setTiers((v) => v.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const reset = () => { setEditId(null); setTiers(BLANK_TIERS); setActive(true); onErr(""); };
+  return (
+    <div>
+      {!salesAxisOn && <p style={{ fontSize: 12, color: "var(--warn, var(--bad))", margin: "0 0 8px" }}>目標の軸（売上）を採用していません。「ノルマ設定（店）」で売上を ON にすると目標が入り、達成ボーナスが計算されます。</p>}
+      {rows.length > 0 && (
+        <div className="nox-tablewrap plain">
+        <table className="nox-table" style={{ marginBottom: 8 }}>
+          <thead><tr>{["段（達成率 → 加算額）", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+          <tbody>
+            {rows.map((c) => {
+              const ts = bonusTiersOf(c.params, c.amount);
+              return (
+                <tr key={c.id} data-bonus-row={c.id} onClick={() => { if (!isOwner) return; setEditId(c.id); setTiers(ts); setActive(c.is_active); onErr(""); }}
+                  style={{ cursor: isOwner ? "pointer" : "default" }}>
+                  <td className="num">{bonusTiersLabel(ts)}</td>
+                  <td style={{ color: c.is_active ? "var(--ok)" : "var(--sub)" }}>{c.is_active ? "有効" : "無効"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        </div>
+      )}
+      {isOwner && (
+        <div data-bonus-editor="1">
+          <div style={{ fontSize: 12, color: "var(--sub)", marginBottom: 6 }}>{editId ? "編集中" : "追加"}（売上ノルマの何％で、いくら足すか。届いた段のうち一番上の段の金額）</div>
+          {tiers.map((x, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }} data-bonus-tier={i}>
+              <span style={{ fontSize: 12, color: "var(--sub)", minWidth: 36 }}>{i + 1} 段</span>
+              <label style={{ fontSize: 12 }}>達成率{" "}
+                <input inputMode="numeric" value={String(x.pct)} aria-label={`${i + 1} 段の達成率`} style={{ ...t.input, width: 70 }}
+                  onChange={(e) => setTier(i, { pct: Number(e.target.value.replace(/[^0-9]/g, "") || 0) })} /> %</label>
+              <label style={{ fontSize: 12 }}>加算額{" "}
+                <MoneyInput value={x.amount} onChange={(v) => setTier(i, { amount: Number(v || 0) })} style={t.input} width={130} ariaLabel={`${i + 1} 段の加算額`} /></label>
+              {tiers.length > 1 && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} aria-label={`${i + 1} 段を削除`} onClick={() => setTiers((v) => v.filter((_, j) => j !== i))}>−</button>}
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {tiers.length < BONUS_TIER_MAX && (
+              <button type="button" style={{ ...t.btnGhost, ...t.btnSm }}
+                onClick={() => setTiers((v) => [...v, { pct: (v[v.length - 1]?.pct ?? 90) + 10, amount: v[v.length - 1]?.amount ?? 0 }])}>＋ 段を追加</button>
+            )}
+            <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
+            <button type="button" style={{ ...t.btnGhost, ...t.btnSm }}
+              onClick={() => { const e = bonusTiersErrOf(tiers); if (e) { onErr(e); return; } void onSave({ id: editId, tiers, active }).then((ok) => { if (ok) { setEditId(null); setTiers(BLANK_TIERS); setActive(true); } }); }}>
+              {editId ? "更新" : "追加"}
+            </button>
+            {editId && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={reset}>追加に戻す</button>}
+          </div>
         </div>
       )}
     </div>
@@ -217,7 +287,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
 
   async function saveComp(section: string, kind: string, over: { id: string | null; amount: number; priority: number; active: boolean }) {
     if (!draft.id) { setSecErr((e) => ({ ...e, [section]: "先にプランを保存してください（基本給・保証の保存でプランが作成されます）" })); return; }
-    const params = kind === "guarantee_min" ? { period: "month" } : { thresholds: [{ pct: 100, add: over.amount }] };
+    const params = { period: "month" }; // ★便 P173 T-2: 達成ボーナスは saveBonus（多段）
     const { error } = await supabase.rpc("set_comp_component", {
       p_id: over.id, p_plan_id: draft.id, p_kind: kind, p_mode: "amount",
       p_amount: over.amount, p_rate: null, p_params: params, p_priority: over.priority, p_is_active: over.active,
@@ -229,6 +299,25 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       .select("id, kind, mode, amount, rate, params, priority, is_active")
       .eq("plan_id", draft.id).order("priority");
     setComps((data ?? []) as CompRow[]);
+  }
+
+  // ★便 P173 T-2（起票110）: 達成ボーナスの多段＝params {thresholds:[{pct, amount}]}・コンポーネントの amount＝1 段目（一覧の互換）・priority 90 固定（裁定106 B2）
+  async function saveBonus(over: { id: string | null; tiers: BonusTier[]; active: boolean }): Promise<boolean> {
+    const section = "達成ボーナス";
+    if (!draft.id) { setSecErr((e) => ({ ...e, [section]: "先にプランを保存してください（基本給・保証の保存でプランが作成されます）" })); return false; }
+    const { params, amount } = bonusParamsOf(over.tiers);
+    const { error } = await supabase.rpc("set_comp_component", {
+      p_id: over.id, p_plan_id: draft.id, p_kind: "achievement_bonus", p_mode: "amount",
+      p_amount: amount, p_rate: null, p_params: params, p_priority: 90, p_is_active: over.active,
+    });
+    if (error) { setSecErr((e) => ({ ...e, [section]: compErrJa(error.message) })); return false; }
+    setSecErr((e) => ({ ...e, [section]: "" }));
+    setMsg(`${section}を保存しました`);
+    const { data } = await supabase.from("comp_plan_components")
+      .select("id, kind, mode, amount, rate, params, priority, is_active")
+      .eq("plan_id", draft.id).order("priority");
+    setComps((data ?? []) as CompRow[]);
+    return true;
   }
 
   async function savePreset() {
@@ -466,11 +555,11 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           <h2 style={{ ...secTitle, margin: 0, fontSize: 16 }}>
             達成ボーナス<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>
           </h2>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>目標＝キャスト別ノルマの売上目標（0／未設定は不適用）。保存は行単位。</p>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>目標＝売上ノルマ（キャスト別の売上目標・無ければプランの既定。0／未設定は不適用）。段は 1〜{BONUS_TIER_MAX} 段・届いた段のうち一番上の段の加算額を支給します。保存は行単位。</p>
           {secErr["達成ボーナス"] && <p style={{ fontSize: 12, color: "var(--bad)", margin: "4px 0 0" }}>{secErr["達成ボーナス"]}</p>}
         </div>
-        <CompRows kind="achievement_bonus" section="達成ボーナス" comps={comps} isOwner={isOwner} onSave={saveComp} />
-        {/* ★便 N1013b B-9: 達成ボーナスの準備中チップ 2 つ（多段しきい値・他軸）は撤去（器なし＝起票110／111 第 2 期） */}
+        <BonusRows comps={comps} isOwner={isOwner} salesAxisOn={normAxesOf(settings).sales} onSave={saveBonus} onErr={(m) => setSecErr((e) => ({ ...e, 達成ボーナス: m }))} />
+        {/* ★便 N1013b B-9: 達成ボーナスの準備中チップは撤去済み。★便 P173 T-2: 多段（起票110）は実装・他軸（起票111）は第 2 期のまま */}
       </section>)}
 
       {/* ── ⑥ ノルマ（プラン既定の目標）── ★裁定347（0171・便 P171）: 4 軸の既定目標（空＝継承なし）。キャスト別（キャスト詳細「今月のノルマ」／キャスト別ノルマ目標）が上書き。採用 OFF の軸（店設定 norm_axes）は入力口を出さない */}

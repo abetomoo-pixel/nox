@@ -477,7 +477,7 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
 
               {curPlan.bonus.length > 0 && (
                 <>
-                  <div style={h3}>達成ボーナス <span style={hint}>目標達成時に支給（1 段）。目標の額はキャスト別目標（ノルマ）で設定します</span></div>
+                  <div style={h3}>達成ボーナス <span style={hint}>目標達成時に支給（ここでは 1 段。120% などの段はあとで待遇プランの「達成ボーナス」で足せます）。目標の額はキャスト別目標（ノルマ）で設定します</span></div>
                   <NumField label="達成時の支給額" value={curPlan.bonus[0].add_yen} unit="円" onChange={(n) => updPlan({ bonus: [{ ...curPlan.bonus[0], add_yen: n }] })} />
                 </>
               )}

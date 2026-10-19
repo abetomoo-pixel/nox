@@ -37,6 +37,8 @@ export type SimInput = {
   lateN: number; // 遅刻回数
   absentN: number; // 欠勤回数
   norm: { days: number; dohan: number }; // ノルマ目標
+  // ★便 P173 T-2（起票110）: 達成ボーナスの目標（売上ノルマ・円）。0／未指定＝不適用（従来と同値）。段は plan.components の thresholds
+  salesTarget?: number;
   plan: CompPlan; // 報酬プラン（cast=自分の割当・店=選択/編集）
   override?: PlanOverride;
   masters: StoreMasters; // 店共通マスタ（penalty/normConfig/deductions/customBackDefs）
@@ -89,7 +91,7 @@ export function simulate(inp: SimInput): PayResult {
     anomalyCount: 0,
     plan: inp.plan,
     override: inp.override,
-    norm: inp.norm,
+    norm: { ...inp.norm, salesTarget: inp.salesTarget ?? 0 }, // ★便 P173 T-2: 達成ボーナスの目標（assemble→PayInput.salesTarget）
     ...(inp.slideApply === "next" ? { slideApply: "next" as const, prevMonthTotals: { "2000-01": { sales: inp.prevSales ?? 0, pts: inp.prevPts ?? 0 } } } : {}), // ★N3b
     taxProfileMode: inp.taxMode,
     // ★裁定98: sim は employment/平均賃金を持たない＝payOf の sim 経路（sanction は現行式同値・cap なし）。

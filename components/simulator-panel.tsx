@@ -8,6 +8,7 @@ import type { StoreMasters } from "@/lib/nox/payroll/assemble";
 import { simulate, type SimInput } from "@/lib/nox/payroll/sim";
 import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
+import { bonusOf, bonusTiersLabel, bonusTiersOf } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段（payOf と同じ純関数）
 
 // F2f 報酬シミュレーター（cast/店 1画面・役割分岐）。
 //   cast モード＝自分のプラン/店マスタ固定・open 残（前借り/送り）を反映・売掛は確定明細参照の注記誘導。
@@ -27,6 +28,7 @@ export default function SimulatorPanel({
   defaultTaxMode,
   override,
   compact = false,
+  targets,
 }: {
   mode: "cast" | "store";
   plans: CompPlan[];
@@ -39,6 +41,8 @@ export default function SimulatorPanel({
   override?: PlanOverride; // cast の cast_plan.overrides_json（店モードは未使用）
   /** ★裁定106 B2: 主入力（税区分・期間日数・出勤・時間・総売上・指名3・ドリンク）以外を「詳細」で畳む（既定 false＝従来） */
   compact?: boolean;
+  /** ★便 P173 T-2（起票110）: プラン id→プラン既定の売上目標（達成ボーナスの目標の初期値・sim-data の targets） */
+  targets?: Record<string, number>;
 }) {
   const [planId, setPlanId] = useState(plans[0]?.id ?? "");
   const [taxMode, setTaxMode] = useState<TaxMode>(defaultTaxMode);
@@ -67,6 +71,7 @@ export default function SimulatorPanel({
     pointProducts: "0", champCnt: "0", bottleCnt: "0",
     lateN: "0", absentN: "0",
     normDays: "0", normDohan: "0",
+    salesTarget: "", // ★便 P173 T-2: 達成ボーナスの目標（空＝プランの既定）
   });
   // cast は自分の open 残を反映（トグルで外して gross 感を見ることも可）。店は常に天引きなし。
   const [applyDeducts, setApplyDeducts] = useState(mode === "cast");
@@ -114,6 +119,11 @@ export default function SimulatorPanel({
   const periodDaysNum = Number(f.periodDays);
   const periodDaysOk = f.periodDays.trim() !== "" && Number.isFinite(periodDaysNum) && periodDaysNum > 0;
 
+  // ★便 P173 T-2（起票110）: 達成ボーナス（有効な achievement_bonus 行）があるプランだけ「売上目標」を出す。段は lib/nox/bonus-tiers（payOf と同じ）
+  const bonusComps = (effPlan?.components ?? []).filter((c) => c.kind === "achievement_bonus" && c.mode === "amount" && c.amount !== null);
+  const bonusTiers = bonusComps.flatMap((c) => bonusTiersOf(c.params, c.amount));
+  const salesTargetNum = f.salesTarget.trim() !== "" ? num(f.salesTarget) : (targets?.[effPlan?.id ?? ""] ?? 0);
+
   const result = useMemo(() => {
     if (!effPlan) return null;
     if (!periodDaysOk) return null;
@@ -129,6 +139,7 @@ export default function SimulatorPanel({
       pointProducts: num(f.pointProducts), champCnt: num(f.champCnt), bottleCnt: num(f.bottleCnt),
       lateN: num(f.lateN), absentN: num(f.absentN),
       norm: { days: num(f.normDays), dohan: num(f.normDohan) },
+      salesTarget: salesTargetNum, // ★便 P173 T-2
       plan: effPlan, override: mode === "cast" ? override : undefined, masters, taxMode,
       advanceDeduct: applyDeducts ? openAdv : 0,
       okuriDeduct: applyDeducts ? openOkuri : 0,
@@ -136,7 +147,7 @@ export default function SimulatorPanel({
       arDeduct: 0,
     };
     return { pay: simulate(input) };
-  }, [effPlan, f, mode, override, masters, taxMode, applyDeducts, openAdv, openOkuri, periodDaysOk, periodDaysNum]);
+  }, [effPlan, f, mode, override, masters, taxMode, applyDeducts, openAdv, openOkuri, periodDaysOk, periodDaysNum, salesTargetNum, slideApply]);
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   const setV = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: v }); // ★便 X-12-1: MoneyInput（数字列）用
@@ -361,6 +372,16 @@ export default function SimulatorPanel({
       </fieldset>
       )}
 
+      {/* ★便 P173 T-2（起票110）: 達成ボーナス＝売上目標と段（届いた段のうち最上段＝★裁定404 既定 max） */}
+      {bonusTiers.length > 0 && (
+        <fieldset style={s.fs} data-sim-bonus="1"><legend style={s.lg}>達成ボーナス</legend>
+          <div style={s.row}>
+            <label style={s.lbl}>売上目標（ノルマ）<br /><MoneyInput value={f.salesTarget !== "" ? f.salesTarget : String(salesTargetNum)} onChange={setV("salesTarget")} style={s.inpS} ariaLabel="売上目標" /></label>
+          </div>
+          <p style={{ fontSize: 11, color: s.sub, margin: "4px 0 0" }}>段: {bonusTiersLabel(bonusTiers)}（総売上が目標×達成率に届いた段のうち一番上の段を支給・目標 0 は不適用）</p>
+        </fieldset>
+      )}
+
       {/* cast: 天引き反映トグル */}
       {mode === "cast" && (
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, margin: "4px 0 12px", color: s.body }}>
@@ -413,6 +434,8 @@ export default function SimulatorPanel({
                 <Line label={effPbMode === "plan_rate" ? "商品販売バック（売上の割合）" : "商品販売バック（販売数 × 固定額）"} v={yen(result.pay.calculatedBack)} />
               )}
               <Line label="商品・売上・自由バック" v={yen(result.pay.drinkBack + result.pay.champBack + result.pay.bottleBack + result.pay.calculatedBack + result.pay.salesBack + result.pay.customTotal)} />
+              {bonusTiers.length > 0 && <Line label={`達成ボーナス（${bonusOf(bonusTiers, num(f.sales), salesTargetNum, "max").hit.map((x) => `${x.pct}%`).join("・") || "未達"}）`} v={yen(result.pay.achievementBonus)} />}
+              {result.pay.guaranteeAdd > 0 && <Line label="最低保証の補填" v={yen(result.pay.guaranteeAdd)} />}
               <Line label="総支給（gross）" v={yen(result.pay.gross)} bold />
               <Line label="− 固定控除" v={`−${yen(result.pay.fixedDed)}`} minus />
               <Line label={`− 源泉（${taxMode}）`} v={`−${yen(result.pay.withholding)}`} minus />
