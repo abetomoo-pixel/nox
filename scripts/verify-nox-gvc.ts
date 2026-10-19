@@ -17,6 +17,7 @@ import { DAY_STATE_ORDER, dayStateLabelOf, dayStateOf } from "../lib/nox/mine/da
 import { TRIAL_KIND, TRIAL_PLAN_NAME, isTrialCastOf, trialDaysLeftChipOf, trialGuaranteeRangeOf, trialPlanWarnOf, trialSettingsOf } from "../lib/nox/cast/trial-flow";
 import { receiptReissueErrJa } from "../lib/nox/register/receipt-ledger";
 import { buildSetupPlan } from "../lib/nox/setup/template-plan";
+import { breakdownLinesOf } from "../lib/nox/payroll/breakdown-lines";
 
 let pass = 0; const fails: string[] = [];
 function check(label: string, ok: boolean, detail?: string) { if (ok) pass++; else fails.push(`${label}${detail ? `: ${detail}` : ""}`); }
@@ -49,6 +50,12 @@ const bl = src("lib/nox/payroll/breakdown-lines.ts"), col = src("lib/nox/payroll
 {
   check("gvc(2-1) C-3 自動プレビュー: run 読込後（runLoadedKey）だけ・暫定ピル・行ごとの明細 PDF",
     pay.includes("runLoadedKey") && pay.includes('data-payroll-provisional="1"') && pay.includes("data-row-slip"));
+  {
+    const pay = { slideBasis: { apply: "monthly", provisional: false, months: [{ month: "2026-09", prevMonth: "2026-09", sales: 1000, pts: 0, salesWage: 0, ptsWage: 0 }] } } as unknown;
+    const txt = (sys: Record<string, unknown> | null) => (breakdownLinesOf({ pay, systems: sys } as never).earn ?? []).map((l: { label: string }) => l.label).join(" | ");
+    const ptOff = txt({ sys_sales_slide: true, sys_point_slide: false }), both = txt(null);
+    check("gvc(2-3) live 修正（GV-53）: pt スライド OFF の店はスライド行の「／pt n→¥」を出さない・systems なしは従来どおり両方", !ptOff.includes("pt 0→") && ptOff.includes("→時給 ¥0") && both.includes("／pt 0→¥0"), ptOff + " || " + both);
+  }
   check("gvc(2-2) C-10 OFF の制度: breakdownLinesOf に systems・0 円の行は出さない／値があれば「（OFF の制度）」・collect は売上率 OFF で salesBackTable 空",
     bl.includes("systemOfLineKey") && bl.includes("（OFF の制度）") && col.includes('"sys_sales_rate"') && col.includes("salesBackTable: []"));
 }
@@ -123,8 +130,8 @@ const bl = src("lib/nox/payroll/breakdown-lines.ts"), col = src("lib/nox/payroll
   check("gvc(6-0) C-14b 顧客モーダルの検索欄は autofocus なし", /aria-label="お客様を検索"(?![^>]*autoFocus)/.test(cpm) && cpm.includes("data-cust-search=\"1\""));
   const af = ["components/nox/okuri-out-dialog.tsx", "components/nox/payroll-attentions.tsx", "components/nox/punch-correction-modal.tsx"].filter((p) => /\bautoFocus\b/.test(src(p)));
   check("gvc(6-1) C-14b モーダルの autofocus 撤去（送り・給与の注意・打刻修正・日報の諸経費 focus）", af.length === 0 && !rep.includes("expenseRef.current?.focus()"), af.join(","));
-  check("gvc(6-2) C-14h アカウント: 登録名の変更の注記はオーナーだけ・ポップオーバーは右寄せ・/mine もアカウントの部品",
-    hc.includes("isOwner &&") && src("app/(manage)/layout.tsx").includes('isOwner={role === "owner"}') && src("app/mine/layout.tsx").includes("UserChip"));
+  check("gvc(6-2) C-14h アカウント: 登録名の変更の注記はオーナーだけ・ポップオーバーは右寄せ・シートは body へ portal・/mine もアカウントの部品",
+    hc.includes("isOwner &&") && hc.includes("{open && createPortal((") && hc.includes("), document.body)}") /* ★live: ヘッダーの backdrop-filter が fixed の基準になる＝body へ portal */ && src("app/(manage)/layout.tsx").includes('isOwner={role === "owner"}') && src("app/mine/layout.tsx").includes("UserChip"));
   const muse = JSON.parse(src("docs/demo/payload/muse.json")) as { tables: Record<string, Record<string, unknown>[]> } | Record<string, Record<string, unknown>[]>;
   const T = ((muse as { tables?: unknown }).tables ?? muse) as Record<string, Record<string, unknown>[]>;
   const outs = (T.staff_punches ?? []).filter((r) => r.kind === "out");

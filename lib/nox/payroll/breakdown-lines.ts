@@ -113,11 +113,17 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
     const ms = p.slideBasis.months;
     push("slide-daily", `　スライド 日次＝その日の${bLabel}の件数で段（${ms.length} 日・${ms.filter((m) => m.salesWage > 0).length} 日で段あり）${p.slideBasis.scope ? "・対象ランク" : ""}`, Math.max(...ms.map((m) => Math.max(m.salesWage, m.ptsWage))), { keepZero: true, info: true });
   } else if (p.slideBasis?.months?.length) {
+    // ★便 GV-C live（GV-53）: 売上／pt の片方だけ OFF の店は、OFF 側の「→時給」を出さない（段で時給が付いていれば出す）
+    const showSales = sysOn(sysK, "sys_sales_slide"), showPt = sysOn(sysK, "sys_point_slide") && sysOn(sysK, "sys_points");
+    const slidePartsOf = (m: { sales: number; salesWage: number; pts: number; ptsWage: number }) => [
+      showSales || m.salesWage > 0 || (!showPt && m.ptsWage === 0) ? `${bVal(m.sales)}→時給 ${yen(m.salesWage)}` : null,
+      showPt || m.ptsWage > 0 ? `pt ${m.pts}→${yen(m.ptsWage)}` : null,
+    ].filter(Boolean).join("／");
     for (const m of p.slideBasis.months) {
       // ★裁定338＋追補1（0168・便 P168）: monthly／half＝期間の累計（暫定の印）・'next'＝従来の前月表示
       const ap = p.slideBasis.apply;
-      if (ap === "monthly" || ap === "half") push(`slide-${m.month}`, `　スライド ${periodLabelOf(m.month)}＝${ap === "monthly" ? "月" : "半月"}の累計${m.prevMonth !== m.month ? `（${periodLabelOf(m.prevMonth)} 基準）` : ""}${p.slideBasis.provisional ? "・暫定（期首〜今日）" : ""} ${bVal(m.sales)}→時給 ${yen(m.salesWage)}／pt ${m.pts}→${yen(m.ptsWage)}${p.slideBasis.scope ? "・対象ランク" : ""}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
-      else push(`slide-${m.month}`, `　スライド ${Number(m.month.slice(5, 7))}月分＝前月（${Number(m.prevMonth.slice(5, 7))}月）${bVal(m.sales)}→時給 ${yen(m.salesWage)}／pt ${m.pts}→${yen(m.ptsWage)}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
+      if (ap === "monthly" || ap === "half") push(`slide-${m.month}`, `　スライド ${periodLabelOf(m.month)}＝${ap === "monthly" ? "月" : "半月"}の累計${m.prevMonth !== m.month ? `（${periodLabelOf(m.prevMonth)} 基準）` : ""}${p.slideBasis.provisional ? "・暫定（期首〜今日）" : ""} ${slidePartsOf(m)}${p.slideBasis.scope ? "・対象ランク" : ""}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
+      else push(`slide-${m.month}`, `　スライド ${Number(m.month.slice(5, 7))}月分＝前月（${Number(m.prevMonth.slice(5, 7))}月）${slidePartsOf(m)}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
     }
   }
   push("honBack", "本指名バック", z(p.honBack));

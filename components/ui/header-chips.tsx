@@ -5,6 +5,7 @@
 //   UserChip   ＝ 「登録名｜役割」→ 自分の情報（表示のみ）＋ログアウト（form POST /auth/signout＝経路不変）。
 //   ★ルート／URL／権限ゲートは非改変＝表示だけ。既存トークン・既存部品（Modal・NavIcon・.nox-navsheet-*）のみ・ui-tokens 新規 0。
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Modal from "./modal";
@@ -109,7 +110,7 @@ export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhoto
   return (
     <>
       <button type="button" className="nox-hdrbtn nox-userchip" title="自分の情報" onClick={() => setOpen(true)}>{label}</button>
-      {open && (
+      {open && createPortal((/* ★便 GV-C live（X-13-2）: body へ出す＝ヘッダー .nox-tb の backdrop-filter が fixed の基準になり、≤900 の下シートが画面外（上）へ出ていた */
         <Modal onClose={() => setOpen(false)} maxWidth={430} variant="top">{/* ★起票94（便 X-12-3）: 名前・メール行とログアウトが常に viewport 内・★便 GV-C C-14h（X-13-2）: ≥901＝ヘッダー直下の右寄せ（デモ帯の文言に重ねない）／≤900＝下からのシート（中身は同じ） */}
           <div className="nox-navsheet">
             <div className="nox-formmodal-head" style={{ marginBottom: 10 }}>
@@ -145,7 +146,7 @@ export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhoto
             </div>
           </div>
         </Modal>
-      )}
+      ), document.body)}
     </>
   );
 }
