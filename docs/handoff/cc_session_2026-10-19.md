@@ -6,7 +6,7 @@
 
 | 項目 | 値 |
 |---|---|
-| HEAD＝origin/main | 本メモのコミット（直前 87ba69f＝GV-C docs）（GV-C docs）。直前 c09b92a（GV-C live 修正）・1c4c4d8（GV-C 本体）（GV-C feat） |
+| HEAD＝origin/main | 76ac4e0 以降の本メモのコミット。その前＝87ba69f（GV-C docs）・c09b92a（GV-C live 修正）・1c4c4d8（GV-C 本体） |
 | 作業ツリー | 変更 0 の前提（新セッションの最初に `git status` で照合） |
 | 本番 DB（ref hiqbfagmkrdpmlqhkmsu） | 0001〜0174 適用済み。**DB 恒久変更 0**（本日の CC は SELECT のみ・migration の起草なし） |
 | compute | **Small**（2026-10-19 16:30 に Agoora が切替＝16:19 の ECHECKOUTTIMEOUT／DB 不通の後） |
@@ -53,7 +53,7 @@ SH-UI → BZ-R → 0175／0176（起草・手貼り）→ OB（初期設定 v4�
 ## 4. 注意
 
 - **DB 不通（select 1 が 15 秒超）は即停止して報告**（教訓85）。compute は Small。
-- **f0 は 1 走 約 25 分**（124 段）。2 連緑の間は 180 秒以上空ける。単独走（教訓115）＝pin 型・走査型は f0 の前に。
+- **f0 は 1 走 7〜25 分**（124 段・10/19 夕は 7〜9 分・DB が混むと 25 分）。2 連緑の間は 180 秒以上空ける。単独走（教訓115）＝pin 型・走査型は f0 の前に。
 - デモ（6 店）の可変データを live 照合で assert しない（E-21）。
 - 本番で PIN・パスワードを入力しない。Vault の値はログ・ファイル・報告に出さない。
 - 作業ツリーの未コミット分に reset／checkout／stash をしない。
