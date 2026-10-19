@@ -48,8 +48,10 @@ export function HeaderGear({ groups }: { groups: NavGroup[] }) {
   );
 }
 
-export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhotoAt = null, canPhoto = false, isDemo = false }: {
+export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhotoAt = null, canPhoto = false, isDemo = false, isOwner = false }: {
   name: string | null; email: string | null; roleJa: string; storeLabel?: string;
+  /** ★便 GV-C C-14h（X-13-2）: 「登録名・メールの変更は…」の注記はオーナーのときだけ（店長・スタッフ・キャストには出さない） */
+  isOwner?: boolean;
   /** ★0162（便 M5-1）: 自分の users.id・写真の最終更新・写真を触れる役割（owner／manager／staff＝cast は /mine）・デモは導線を隠す */
   meId?: string | null; mePhotoAt?: string | null; canPhoto?: boolean; isDemo?: boolean;
 }) {
@@ -108,7 +110,7 @@ export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhoto
     <>
       <button type="button" className="nox-hdrbtn nox-userchip" title="自分の情報" onClick={() => setOpen(true)}>{label}</button>
       {open && (
-        <Modal onClose={() => setOpen(false)} maxWidth={430} variant="top">{/* ★起票94（便 X-12-3）: 名前・メール行とログアウトが常に viewport 内 */}
+        <Modal onClose={() => setOpen(false)} maxWidth={430} variant="top">{/* ★起票94（便 X-12-3）: 名前・メール行とログアウトが常に viewport 内・★便 GV-C C-14h（X-13-2）: ≥901＝ヘッダー直下の右寄せ（デモ帯の文言に重ねない）／≤900＝下からのシート（中身は同じ） */}
           <div className="nox-navsheet">
             <div className="nox-formmodal-head" style={{ marginBottom: 10 }}>
               <h2 className="nox-navsheet-h" style={{ margin: 0 }}>自分の情報</h2>
@@ -135,7 +137,7 @@ export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhoto
               {storeLabel && <><dt>店舗</dt><dd>{storeLabel}</dd></>}
             </dl>
             {/* ★X-13-2（便 X-13a）: メールは PC・スマホとも非表示（ログイン ID を画面に出さない）。変更の案内 1 行は残す。≤900px は Modal の既存シート（variant top は ≥901 のみ） */}
-            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0" }}>登録名・メールの変更はスタッフ画面（オーナー）から行います。</p>
+            {isOwner && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0" }} data-user-edit-note="1">登録名・メールの変更はスタッフ画面（オーナー）から行います。</p>}
             <div className="nox-navsheet-g nox-actions" style={{ marginTop: 14 }}>
               <form action="/auth/signout" method="post" style={{ display: "flex" }}>
                 <button type="submit" className="nox-btn ghost">ログアウト</button>{/* ★裁定242-(6): ログアウト＝補助（青枠）・POST /auth/signout は不変 */}

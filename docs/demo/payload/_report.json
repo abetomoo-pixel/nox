@@ -1,9 +1,9 @@
 {
  "stores": {
   "muse": {
-   "bytes": 1348125,
-   "rows": 2396,
-   "tables": 43,
+   "bytes": 1348751,
+   "rows": 2398,
+   "tables": 44,
    "checks": 281,
    "lines": 728,
    "monthGross": 3178210,
@@ -120,12 +120,12 @@
      ]
     }
    ],
-   "sha256": "0bc68a19fcfc6a50e2c3519f30abce1405a7348a78f0f092b610e7cca8be47c8"
+   "sha256": "080bbe146461b18c546e94cc43151b11773507dca046980b961949e767335bed"
   },
   "luna": {
-   "bytes": 1939639,
-   "rows": 3295,
-   "tables": 42,
+   "bytes": 1940265,
+   "rows": 3297,
+   "tables": 43,
    "checks": 462,
    "lines": 1322,
    "monthGross": 7845799,
@@ -277,7 +277,7 @@
      ]
     }
    ],
-   "sha256": "9e4d1cf63aae9b6dbe10be325e1c40cf7259d0c7e723116627b27c0f0908c3d9"
+   "sha256": "3c90580a92422744945ddb7ee279d4ec981071cc68be8a4f34f94cc433ac1870"
   },
   "noir": {
    "bytes": 2114299,

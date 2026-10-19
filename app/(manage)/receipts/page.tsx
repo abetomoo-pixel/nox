@@ -12,6 +12,6 @@ export default async function ReceiptsPage() {
   if (!role) redirect("/login");
   if (role !== "owner" && role !== "manager") redirect("/register");
   const supabase = await createClient();
-  const { data: stores } = await supabase.from("stores").select("id, name").order("name");
-  return <ReceiptsBoard stores={(stores ?? []) as { id: string; name: string }[]} />;
+  const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name"); // ★便 GV-C C-13: 印刷の登録番号（invoice_reg_no）
+  return <ReceiptsBoard stores={(stores ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[]} />;
 }

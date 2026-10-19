@@ -5,9 +5,11 @@
 //   ★シフトの営業日判定は shiftHoursStatus（date 直＝cutoff 変換なし・mig0008 決定3）。
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
+import { dayStateLabelOf } from "@/lib/nox/mine/day-state"; // ★便 GV-C C-14（GV-60）: 日の状態の語と色（/mine と同じ）
 import { SHIFT_REQUEST_MODE_LABEL } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: 配置ビューの印
 import { PROXY_CONFIRM_LABEL, WISH_STATE_LABEL, wishStateTextOf } from "@/lib/nox/shift/wish-state"; // ★裁定345: 4 段の語・「代行確定」
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useLiveReload } from "@/lib/nox/ui/use-live-reload"; // ★便 GV-C C-12: focus／visibility／60 秒で再読込
 import SegSelect from "@/components/ui/seg-select";
 import { ResponsiveTable } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）
 import CastPicker from "@/components/nox/cast-picker";
@@ -176,7 +178,7 @@ const SHIFT_ACTION_LABEL: Record<string, string> = {
   shift_wish_submit: "希望提出", shift_wish_withdraw: "希望取下げ",
 };
 
-export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = false, role = "", cutoff, castConfirm: castConfirmLegacy = false, penaltiesOn = true }: { storeId: string; casts: Cast[]; isManagerUp: boolean; isOwner?: boolean; role?: string; cutoff: string; castConfirm?: boolean; penaltiesOn?: boolean }) { // ★GV-3（便 N1013b B-8）: penaltiesOn＝店の制度「精算調整・控除」（sys_penalties）＝OFF の店は今日タブの「減額」を出さない
+export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = false, role = "", cutoff, castConfirm: castConfirmLegacy = false, bonusOn = true, penaltiesOn = true }: { storeId: string; casts: Cast[]; isManagerUp: boolean; isOwner?: boolean; role?: string; cutoff: string; castConfirm?: boolean; bonusOn?: boolean; penaltiesOn?: boolean }) { // ★GV-3（便 N1013b B-8）: penaltiesOn＝店の制度「精算調整・控除」（sys_penalties）＝OFF の店は今日タブの「減額」を出さない
   void castConfirmLegacy; // ★裁定380（GV-B W-9）: 店設定 shift_cast_confirm は UI から廃止＝値は読んでも使わない（自動確定時間は 0172 の店設定キーへ）
   const castConfirm = true; // ★裁定380: 3 本道（希望どおり採用＝即確定／調整して確定／調整して送り返す＝キャスト確認待ち）。送り返し（proposed）の語は常に「キャスト確認待ち」
   const supabase = createClient();
@@ -481,6 +483,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useLiveReload(load); // ★便 GV-C C-12
   useEffect(() => { void loadAtt(attDate); }, [attDate, loadAtt]);
 
   async function decide(wishId: string, accept: boolean) {
@@ -1513,7 +1516,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             )}
           </section>
           {/* ★SC-8 ⑦: ストリップの選択日を初期値として渡す（一方向＝パネル内ピッカーは残す）。 */}
-          {isManagerUp && <IncentivePanel storeId={storeId} casts={casts} initialDate={todayDate} cutoff={cutoff} />}
+          {isManagerUp && bonusOn && <IncentivePanel storeId={storeId} casts={casts} initialDate={todayDate} cutoff={cutoff} />}{/* ★便 GV-C C-5（R-5）: sys_bonus */}
         </div>
       </div>
       </>
@@ -2190,6 +2193,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   const cls = ["nox-cald", list.length > 0 ? "ok" : "", isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : "", unpublished ? "nox-cald--unpub" : ""].filter(Boolean).join(" "); // ★306-5: 未確定＝帯（≤899）
                   return (
                     <button key={ymd} className={cls} style={{ minHeight: 92, alignItems: "stretch", position: "relative" }}
+                      data-day-state={list.length > 0 ? "fixed" : undefined} /* ★便 GV-C C-14（GV-60）: /mine と同じ色規則（確定＝緑塗り） */
                       onClick={() => { setSelDate(ymd); setDayModal("roster"); }}
                       title={`${ymd}${unpublished ? "・未確定（期間が未公開）" : ""}・${list.length === 0 ? "確定なし" : list.map((x) => `${castName(x.cast_id)} ${fmtWin(x.start_hm, x.end_hm)}`).join(" / ")}`}>
                       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
@@ -2212,6 +2216,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 })}
               </div>
 
+              <div className="nox-dslegend" data-day-legend="1"><span className="it"><span className="sw" data-day-state="fixed" />{dayStateLabelOf("fixed")}（/mine のシフト希望と同じ色）</span></div>
               <p className="nox-unpub-legend" style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}><span className="nox-unpub-swatch" aria-hidden="true" />帯＝未確定（期間が未公開）</p>{/* ★306-5: 凡例（≤899 のみ） */}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
                 このカレンダーには<b>確定だけ</b>を出しています（採用・確認待ちは「確定」タブの承認待ち）。

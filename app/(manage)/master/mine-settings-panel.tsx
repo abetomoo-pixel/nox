@@ -5,6 +5,7 @@
 //   保存＝差分キーだけを patch（mineSettingsPatchOf）→ set_store_mine_settings(p_store_id, p_settings) → 再読取。エラーは mineSettingsErrJa。
 //   選択肢はセグメント（教訓27＝7 以下はボタン群）。ranking OFF のとき「他キャスト表示」は不活性（326-1: ranking 'on' のときのみ有効）。
 import { useCallback, useEffect, useState } from "react";
+import OnOffSeg from "@/components/ui/on-off"; // ★便 GV-C C-9（GV-52）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -85,12 +86,12 @@ export default function MineSettingsPanel({ stores, isOwner = false }: { stores:
   }
 
   const onOffRow = (k: OnOffKey, disabled = false) => (
-    <div key={k} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
+    <div key={k} data-onoff-row="1" data-off={form[k] ? "0" : "1"} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
       <div style={{ minWidth: 0, flex: "1 1 240px" }}>
-        <div style={rowLabel}>{MINE_SETTING_LABEL[k]}</div>
-        <p style={rowDesc}>{DESC[k]}</p>
+        <div className="nox-onoff-head" style={rowLabel}>{MINE_SETTING_LABEL[k]}</div>
+        <p className="nox-onoff-body" style={rowDesc}>{DESC[k]}</p>
       </div>
-      <SegSelect value={form[k] ? "on" : "off"} onChange={(v) => setForm((f) => ({ ...f, [k]: v === "on" }))} options={ON_OFF} disabled={busy || !loaded || disabled} ariaLabel={MINE_SETTING_LABEL[k]} />
+      <OnOffSeg value={!!form[k]} onChange={(v) => setForm((f) => ({ ...f, [k]: v === true }))} disabled={busy || !loaded || disabled} ariaLabel={MINE_SETTING_LABEL[k]} />{/* ★便 GV-C C-9（GV-52） */}
     </div>
   );
 

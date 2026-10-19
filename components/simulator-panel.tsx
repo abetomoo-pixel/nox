@@ -8,7 +8,8 @@ import type { StoreMasters } from "@/lib/nox/payroll/assemble";
 import { simulate, type SimInput } from "@/lib/nox/payroll/sim";
 import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
-import { bonusOf, bonusTiersLabel, bonusTiersOf } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段（payOf と同じ純関数）
+import { bonusOf, bonusTiersLabel, bonusTiersOf } from "@/lib/nox/bonus-tiers";
+import { isSystemOn, pointSlideOn, salesSlideOn } from "@/lib/nox/store-systems"; // ★便 GV-C C-5（R-5） // ★便 P173 T-2（起票110）: 達成ボーナスの多段（payOf と同じ純関数）
 
 // F2f 報酬シミュレーター（cast/店 1画面・役割分岐）。
 //   cast モード＝自分のプラン/店マスタ固定・open 残（前借り/送り）を反映・売掛は確定明細参照の注記誘導。
@@ -29,6 +30,7 @@ export default function SimulatorPanel({
   override,
   compact = false,
   targets,
+  systems = null,
 }: {
   mode: "cast" | "store";
   plans: CompPlan[];
@@ -43,7 +45,10 @@ export default function SimulatorPanel({
   compact?: boolean;
   /** ★便 P173 T-2（起票110）: プラン id→プラン既定の売上目標（達成ボーナスの目標の初期値・sim-data の targets） */
   targets?: Record<string, number>;
+  /** ★便 GV-C C-5（R-5 の漏れ 7）: 店の sys_*＝OFF の制度の入力（売上スライド／pt スライド／ポイント制）を出さない。未指定＝全部出す（従来） */
+  systems?: Record<string, unknown> | null;
 }) {
+  const simSalesSlide = salesSlideOn(systems), simPointSlide = pointSlideOn(systems), simPoints = isSystemOn(systems, "sys_points");
   const [planId, setPlanId] = useState(plans[0]?.id ?? "");
   const [taxMode, setTaxMode] = useState<TaxMode>(defaultTaxMode);
   // 店モードのみ base/バック編集（任意プラン試算）。cast は選択プランを固定。
@@ -262,8 +267,8 @@ export default function SimulatorPanel({
           <label style={s.lbl}>1日の時間<br /><input type="number" value={f.hoursPerDay} onChange={set("hoursPerDay")} style={s.inpS} /></label>
           <label style={s.lbl}>総売上<br /><MoneyInput value={f.sales} onChange={setV("sales")} style={s.inp} ariaLabel="総売上" /></label>
           {slideApply === "next" && (<>{/* ★N3b（裁定288-7）: 翌月反映＝段は前月合計で決まる */}
-            <label style={s.lbl}>前月の売上合計<br /><MoneyInput value={f.prevSales} onChange={setV("prevSales")} style={s.inp} ariaLabel="前月の売上合計" /></label>
-            <label style={s.lbl}>前月のポイント合計<br /><input type="number" value={f.prevPts} onChange={set("prevPts")} style={s.inpS} /></label>
+            {simSalesSlide && <label style={s.lbl}>前月の売上合計<br /><MoneyInput value={f.prevSales} onChange={setV("prevSales")} style={s.inp} ariaLabel="前月の売上合計" /></label>}
+            {simPointSlide && <label style={s.lbl}>前月のポイント合計<br /><input type="number" value={f.prevPts} onChange={set("prevPts")} style={s.inpS} /></label>}
           </>)}
         </div>
         {!periodDaysOk && (
@@ -289,7 +294,7 @@ export default function SimulatorPanel({
             <label style={s.lbl}>場内(本)<br /><input type="number" value={f.jonai} onChange={set("jonai")} style={s.inpS} /></label>
           )}
           <label style={s.lbl}>同伴(本)<br /><input type="number" value={f.dohan} onChange={set("dohan")} style={s.inpS} /></label>
-          {!compact && (
+          {!compact && simPoints && (
             <label style={s.lbl}>本指名商品pt<br /><input type="number" value={f.pointProducts} onChange={set("pointProducts")} style={s.inpS} /></label>
           )}
         </div>
@@ -339,7 +344,7 @@ export default function SimulatorPanel({
           <summary style={{ fontSize: 12.5, color: "var(--champ)", cursor: "pointer", fontWeight: 700 }}>詳細（pt・シャンパン/ボトル・罰金・ノルマ）</summary>
           <fieldset style={s.fs}><legend style={s.lg}>追加バック・pt</legend>
             <div style={s.row}>
-              <label style={s.lbl}>本指名商品pt<br /><input type="number" value={f.pointProducts} onChange={set("pointProducts")} style={s.inpS} /></label>
+              {simPoints && <label style={s.lbl}>本指名商品pt<br /><input type="number" value={f.pointProducts} onChange={set("pointProducts")} style={s.inpS} /></label>}
               {effPbMode === "product_rule" && (
                 <>
                   <label style={s.lbl}>シャンパン<br /><MoneyInput value={f.champ} onChange={setV("champ")} style={s.inpS} ariaLabel="シャンパン" /></label>

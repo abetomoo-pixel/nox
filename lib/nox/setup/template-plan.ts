@@ -261,6 +261,8 @@ export type PlanStep = {
 };
 export type ReceivablePolicy = "disabled" | "customer_only" | "cast_liability_allowed";
 export const RECEIVABLE_POLICIES = [["customer_only", "客の売掛のみ"], ["cast_liability_allowed", "キャスト負担も可"], ["disabled", "売掛を使わない"]] as const;
+/** ★便 GV-C C-14g: 初期設定で作るプランの判定期間（新規プランの UI 初期値と同じ＝月次。半月は待遇プランで変える） */
+export const SETUP_PLAN_SLIDE_PERIOD = "monthly";
 export const SYSTEM_DEFAULTS_ON: readonly SystemKey[] = ["sys_hourly", "sys_backs"];
 /** 使う制度（sys_* 9・明示 boolean）＝特徴とスイッチから導く（モックに制度パネルは無い。残りは店舗設定 › 利用機能で） */
 export function systemsOf(f: SetupFeatures, norms: boolean): Record<SystemKey, boolean> {
@@ -367,7 +369,11 @@ export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
     steps.push({ key: `comp_${i}`, group: "comp", label: `待遇プラン「${pl.name}」時給 ¥${pl.base}・本指名 ¥${pl.hon}／場内 ¥${pl.jonai}／同伴 ¥${pl.dohan}${slide.length ? `・売上スライド ${slide.length} 段` : ""}`, rpc: "set_comp_plan", guard: "plans_empty",
       args: { p_id: null, p_store_id: s, p_name: pl.name, p_base: pl.base, p_hon_back: pl.hon, p_jonai_back: pl.jonai, p_dohan_back: pl.dohan,
         p_sales_slide: slide, p_point_slide: [], p_is_active: true, p_hon_back_mode: "per_count", p_hon_back_rate: null, p_jonai_back_mode: "per_count", p_jonai_back_rate: null,
-        p_dohan_back_mode: "per_count", p_dohan_back_rate: null, p_product_back_mode: "product_rule", p_product_back_rate: null, p_product_back_fixed: null } });
+        p_dohan_back_mode: "per_count", p_dohan_back_rate: null, p_product_back_mode: "product_rule", p_product_back_rate: null, p_product_back_fixed: null,
+        // ★便 GV-C C-14g（起票118）: 新規プランも 30 引数を全部送る（RPC 既定＝判定期間 daily に頼らない）。判定期間＝月次（plan-editor の新規と同じ）・基準 売上・全員・目標なし・タイミング＝店設定（null）・区分別固定額なし
+        p_product_back_fixed_hon: null, p_product_back_fixed_jonai: null, p_product_back_fixed_free: null,
+        p_slide_period: SETUP_PLAN_SLIDE_PERIOD, p_slide_basis: "sales", p_slide_rank_ids: [],
+        p_norm_days_target: null, p_norm_dohan_target: null, p_norm_sales_target: null, p_norm_shimei_target: null, p_slide_apply: null } });
     if (pl.bonus.length > 0) {
       const add = Math.max(0, Math.round(pl.bonus[0].add_yen));
       steps.push({ key: `bonus_${i}`, group: "comp", label: `達成ボーナス（${pl.name}）目標達成時 ¥${add}（1 段・目標はキャスト別目標）`, rpc: "set_comp_component", guard: "plans_empty", argsOf: "comp_component", after: `comp_${i}`,

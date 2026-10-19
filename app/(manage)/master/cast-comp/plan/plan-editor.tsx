@@ -13,7 +13,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
 import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf } from "@/lib/nox/store/norm-axes"; // ★裁定347（0171・便 P171）: プラン既定の目標 4 軸（採用 OFF の軸は入力口を出さない）
 import { SLIDE_APPLY_LABEL, SLIDE_BASIS_LABEL, slideApplyOf, slideBasisOf, slideBasisPillOf, slideDescOf, slidePeriodOf, slidePillOf, type SlideBasis, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）・★裁定338（0168）: 判定期間
-import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
+import { isSectionOn, isSystemOn, pointSlideOn, salesSlideOn, slidesTabOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）
 import {
@@ -235,7 +235,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   // ★裁定106 B1: タブごと未保存件数を親へ（achievement/自由バックは行単位保存＝対象外）
   const vis = show ?? { base: true, backs: true, slides: true, achieve: true };
   // ★裁定269-4: 節ごとに isSectionOn 1 条件（4 節＋自由バック表）
-  const on = { base: isSectionOn(settings, "planEditorBase"), backs: isSectionOn(settings, "planEditorBacks"), slides: isSectionOn(settings, "planEditorSlides"), achieve: isSectionOn(settings, "planEditorAchieve"), backTab: isSectionOn(settings, "compBackTab") };
+  const on = { base: isSectionOn(settings, "planEditorBase"), backs: isSectionOn(settings, "planEditorBacks"), slides: slidesTabOn(settings) /* ★便 GV-C C-5（R-5）: OR をやめ節ごと */, achieve: isSectionOn(settings, "planEditorAchieve"), backTab: isSectionOn(settings, "compBackTab") };
   useEffect(() => {
     onDirtyCounts?.({
       base: dirty(["name", "base", "active"]) ? 1 : 0,
@@ -558,10 +558,14 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         </p>
         {/* ★N2→★X-13-19: 段は 1 段 1 行（[判定] 円 以上 → 時給 [時給] 円・通貨は接尾のみ）＝SlideInput の basis で切替 */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+          {salesSlideOn(settings) && (/* ★便 GV-C C-5（GV-43）: 売上スライドの節＝sys_sales_slide 単独 */
           <SlideInput label={draft.slideBasis === "sales" ? "売上スライド" : `${SLIDE_BASIS_LABEL[draft.slideBasis]}スライド` /* ★便 P174 T-1（裁定390）: 段数は可変＝見出しから「3段」を外す */}
             desc={draft.slideBasis === "sales" ? slideDescOf(draft.slidePeriod, "yen", effApply === "next") : slideDescOf(draft.slidePeriod, "count", effApply === "next", SLIDE_BASIS_LABEL[draft.slideBasis])}
             basis={draft.slideBasis === "sales" ? "yen" : "count"} period={draft.slidePeriod} slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
+          )}
+          {pointSlideOn(settings) && (/* ★便 GV-C C-5（GV-43）: pt スライドの節＝sys_point_slide かつ sys_points */
           <SlideInput label="ポイントスライド" desc={slideDescOf(draft.slidePeriod, "pt", effApply === "next")} basis="pt" period={draft.slidePeriod} slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
+          )}
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <Prep k="point_rules" /><Prep k="gross_profit_slide" /><Prep k="slide_ratio_col" />
@@ -582,7 +586,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       </section>)}
 
       {/* ── ⑥ ノルマ（プラン既定の目標）── ★裁定347（0171・便 P171）: 4 軸の既定目標（空＝継承なし）。キャスト別（キャスト詳細「今月のノルマ」／キャスト別ノルマ目標）が上書き。採用 OFF の軸（店設定 norm_axes）は入力口を出さない */}
-      {isSectionOn(settings, "planTabQuota") && (<section id="norm-defaults" className="nox-cardtop" style={secCard} data-section="norm-defaults">
+      {isSystemOn(settings, "sys_norms") && (<section id="norm-defaults" /* ★便 GV-C C-5（R-5 の漏れ 5）: ノルマの既定目標は sys_norms だけで判定（planTabQuota の OR をやめる） */ className="nox-cardtop" style={secCard} data-section="norm-defaults">
         <div style={{ marginBottom: 12 }}>
           <h2 style={{ ...secTitle, margin: 0, fontSize: 16 }}>
             ノルマ（プラン既定の目標）<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>

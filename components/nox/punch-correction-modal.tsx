@@ -76,7 +76,7 @@ export function PunchCorrectionForm({ castId, castName, biz, kind, punchId, punc
       </p>
       <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>
         {label}時刻（例 2000・20:00／翌日は 24:00〜47:59）
-        <HmInput value={hm} onChange={setHm} placeholder={kind === "in" ? "20:00" : "26:00"} autoFocus style={{ ...t.input, width: "100%", marginTop: 4 }} />
+        <HmInput value={hm} onChange={setHm} placeholder={kind === "in" ? "20:00" : "26:00"} /* ★便 GV-C C-14b（GV-61）: 既定値あり＝autofocus なし */ style={{ ...t.input, width: "100%", marginTop: 4 }} />
       </label>
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }}>理由は必須です（200 字まで・本人に表示され、監査に残ります）</p>
       <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="例: 打刻忘れ（本人申告）" style={{ ...t.input, width: "100%" }} />

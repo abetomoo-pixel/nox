@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: 支払い方法の出し分け
 import { groupDueFull, timeStatusOf } from "@/lib/nox/check-calc";
 import { bizDateOf } from "@/lib/nox/biz-date"; // ★B3 裁定209: attendance の営業日判定（純関数）
+import ReceiptPrintSheet from "@/components/nox/receipt-print"; // ★便 GV-C C-13: 領収書の印字実体（共用）
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
 import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
@@ -24,7 +25,8 @@ import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
 import { keptLineIdsOf } from "@/lib/nox/register/kept-lines"; // ★裁定314（便 AB-7）: キープ済みの行の判定（check_line_id の一致）
 import LineKeepButton from "@/components/nox/line-keep-button";
-import CustomerPickModal, { customerChipLabelOf, customerChipLineOf, type CustomerPickTarget } from "@/components/nox/customer-pick-modal"; // ★裁定368／370（GV-19・21・便 GV-A）: お客様を選ぶ共通モーダル・商品行の「お客様」チップ // ★裁定314（便 X-8-10）: ボトル明細の「キープ」
+import CustomerPickModal, { customerChipLabelOf, customerChipLineOf, type CustomerPickTarget } from "@/components/nox/customer-pick-modal";
+import { customerChipVisibleOf, groupLines, recentProductIdsOf } from "@/lib/nox/register/line-groups"; // ★便 GV-C C-4（370 追補1） // ★裁定368／370（GV-19・21・便 GV-A）: お客様を選ぶ共通モーダル・商品行の「お客様」チップ // ★裁定314（便 X-8-10）: ボトル明細の「キープ」
 import CheckCustomersCard from "@/components/nox/check-customers-card"; // ★裁定305（mig0153・D1）: 伝票の顧客・誰の注文・キープ出し
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, setFrozenNoteOf, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（0173 の client＝裁定385／386／389／391／393）
@@ -328,6 +330,9 @@ export default function RegisterBoard({
   // レジ時間UX R1: 開卓モーダル（フリー卓タップ→即 open を廃止・人数は任意＝空欄なら null 送信）
   const [openSeatTarget, setOpenSeatTarget] = useState<Seat | null>(null);
   const [openPeople, setOpenPeople] = useState("");
+  // ★便 GV-C C-2（352 追補1）: 開卓時のお客様（任意）＝377 の共通顧客選択（select＝選ぶだけ）→開卓直後に check_customer_add で来店名義へ
+  const [openCust, setOpenCust] = useState<{ id: string; name: string } | null>(null);
+  const [openCustPick, setOpenCustPick] = useState(false);
   const [openBusy, setOpenBusy] = useState(false);
   // R2-a（mig0098 R2-5）: 開卓時ルール手動選択。""=自動（優先順位で決定）＝p_set_rule_id 省略。
   //   候補は当該店の有効 set ルール（pricing_rules 直読・owner/manager のみ取得＝staff/cast は既定固定）。
@@ -934,6 +939,7 @@ export default function RegisterBoard({
     setOpenRuleSel(""); // R2-a: 卓を替えたら常に「自動」へ戻す（前回選択の持ち越し事故防止）
     setOpenCatSel(openCats[0]?.id ?? ""); // ★116-UI（D2）: 既定=sort 最小の active 区分（0件は ""=無送信）
     setOpenPeople("1"); // ★裁定352: ステッパーの既定 1
+    setOpenCust(null); // ★便 GV-C C-2: 卓を替えたらお客様も空へ
     setOpenSeatTarget(seat);
   }
 
@@ -959,9 +965,16 @@ export default function RegisterBoard({
         : error.message });
       return;
     }
+    // ★便 GV-C C-2（352 追補1）: 選んだお客様を伝票の来店名義に（失敗しても開卓は残す＝伝票の顧客欄から付け直せる）
+    let custNote: string | null = null;
+    if (openCust) {
+      const { error: eC } = await supabase.rpc("check_customer_add", { p_check_id: data as string, p_customer_id: openCust.id });
+      if (eC && !eC.message.includes("exists")) custNote = `お客様（${openCust.name}）を伝票に付けられませんでした。伝票のお客様欄から付けてください`;
+    }
     setOpenSeatTarget(null);
+    setOpenCust(null);
     // R-1a 段2-2: 開卓から詳細へ**入る時**のクリア（前の伝票の floor 文言・fee 文言を持ち越さない）
-    setMsg(null);
+    setMsg(custNote ? { to: MSG_FLOOR, kind: "bad", text: custNote } : null);
     setFeeMsg(null);
     await loadOpenMap();
     await loadCheck(data as string);
@@ -1473,7 +1486,7 @@ export default function RegisterBoard({
   }
 
   // E8-1 ④: モーダルから呼ぶため成功可否を返す（送る引数は不変・失敗時はモーダルを閉じない）
-  async function pay(): Promise<boolean> {
+  async function pay(over?: { amount: number; tendered: number | null }): Promise<boolean> { // ★便 GV-C C-1（裁定387）: 1 欄の入金（額は残額まで・現金はお預かり）
     if (!check) return false;
     if (dayBlocked()) return false; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return false; // money 系: 保留を先に確定（失敗＝中止・入金前提）
@@ -1482,18 +1495,19 @@ export default function RegisterBoard({
     // ★0164（便 W5-2b）: 電子マネー／QR は 'other'＋固定の method_detail（店設定の出し分け・記録の語彙は不変）
     const detail = payMethod === "emoney" || payMethod === "qr" ? OPS_METHOD_LABEL[payMethod] : (DETAIL_METHODS.has(payMethod) && payDetail.trim() ? payDetail.trim() : null);
     const { error } = await supabase.rpc("check_pay", {
-      p_check_id: check.id, p_method: rpcMethodOf(payMethod), p_amount: payAmount,
+      p_check_id: check.id, p_method: rpcMethodOf(payMethod), p_amount: over ? over.amount : payAmount,
       p_pay_group: payGroup || "A",
-      p_tendered: payMethod === "cash" && payTendered ? Number(payTendered) : null,
+      p_tendered: over ? over.tendered : (payMethod === "cash" && payTendered ? Number(payTendered) : null),
       p_idem_key: crypto.randomUUID(),
       p_method_detail: detail,
       p_fee_key: payFeeKeyOf(payMethod), // ★便 P173（裁定393）: 手数料率のキー（cash／ar は null＝対象外・率 0 の店は RPC が 0）
     });
-    const feeN = payFeeNoteOf(payMethod, payAmount, payFeeRates); // ★便 P173: 表示用（権威は RPC＝due の増分）
+    const paidAmt = over ? over.amount : payAmount;
+    const feeN = payFeeNoteOf(payMethod, paidAmt, payFeeRates); // ★便 P173: 表示用（権威は RPC＝due の増分）
     // R-1a 段2（裁定61）: 入力額をそのまま出す（サーバへ送った額そのもの＝再計算なし・select 不要）
     setMsg(error
       ? { to: MSG_PAY, text: rpcErrJaCommon(error.message), kind: "bad" }
-      : { to: MSG_PAY, text: `${yen(payAmount)} を入金しました${feeN ? `（${payFeeLabelJa(feeN.key)} ${feeN.rate}%＝${yen(feeN.fee)} を伝票に追加・お客様から ${yen(feeN.receive)}）` : ""}`, kind: "ok" });
+      : { to: MSG_PAY, text: `${yen(paidAmt)} を入金しました${feeN ? `（${payFeeLabelJa(feeN.key)} ${feeN.rate}%＝${yen(feeN.fee)} を伝票に追加・お客様から ${yen(feeN.receive)}）` : ""}`, kind: "ok" });
     if (!error) { setPayTendered(""); setPayDetail(""); }
     await loadCheck(check.id);
     return !error;
@@ -1760,6 +1774,21 @@ export default function RegisterBoard({
               </span>
             </label>
           )}
+          {/* ★便 GV-C C-2（352 追補1）: お客様（任意）＝既存客優先・新規登録可・検索（377 の共通モーダル）。352 の既定（人数ステッパー・ルールの横並び・中央の開卓ボタン）は不変 */}
+          <div style={{ marginBottom: 20 }} data-open-cust="1">
+            <span style={{ ...t.fieldLabel, fontSize: 15, display: "block", marginBottom: 10 }}>お客様（任意）</span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              {openCust ? (
+                <>
+                  <span className="nox-custchip on" style={{ fontSize: 14 }}>{openCust.name}</span>
+                  <button type="button" style={btnLight} disabled={openBusy} onClick={() => setOpenCustPick(true)}>変更</button>
+                  <button type="button" style={btnLight} disabled={openBusy} onClick={() => setOpenCust(null)}>外す</button>
+                </>
+              ) : (
+                <button type="button" style={{ ...btnLight, minHeight: 44, padding: "8px 16px", fontSize: 15 }} disabled={openBusy} onClick={() => setOpenCustPick(true)}>お客様を選ぶ</button>
+              )}
+            </div>
+          </div>
           {/* R2-a（mig0098 R2-5）: 開卓時ルール選択（owner/manager・有効 set ルール2件以上の店のみ表示＝0〜1件は非表示）。選び直しは不可（void→再開卓）＝RPC 側の裁定どおり。
               ★裁定352 改訂: プルダウン廃止→横並びのセグメント（自動／各ルール名・選択中は金塗り・既定は自動） */}
           {isManagerUp && setRules.length >= 2 && (
@@ -1799,6 +1828,10 @@ export default function RegisterBoard({
         </Modal>
       )}
       {/* ★裁定368／370（便 GV-A）: お客様を選ぶ共通モーダル（ボトル投入直後・お客様チップ・キープ登録の未付与） */}
+      {openCustPick && openSeatTarget && (/* ★便 GV-C C-2: 開卓前＝伝票なし＝select（選ぶだけ・新規登録はこのモーダルで customer_register）。伝票 id はまだ無い＝空の uuid（この伝票のお客様＝0 件） */
+        <CustomerPickModal storeId={storeId} checkId="00000000-0000-0000-0000-000000000000" mode="select" onClose={() => setOpenCustPick(false)}
+          onPicked={(name, customerId) => { if (customerId && name) setOpenCust({ id: customerId, name }); setOpenCustPick(false); }} />
+      )}
       {custPick && check && (
         <CustomerPickModal storeId={check.store_id} checkId={check.id} target={custPick} castIds={nomSelected.map((c) => c.id)}
           onClose={() => setCustPick(null)}
@@ -1967,17 +2000,18 @@ export default function RegisterBoard({
         const due = gi?.due ?? 0;
         const paid = gi?.paid ?? 0;
         const balance = gi?.remaining ?? 0;
-        const amtValid = Number.isInteger(payAmount) && payAmount > 0;
-        const tnum = payTendered.trim() === "" ? null : Number(payTendered);
-        const change = payMethod === "cash" && tnum != null && Number.isFinite(tnum) && amtValid ? tnum - payAmount : null;
-        const insufficient = payMethod === "cash" && tnum != null && Number.isFinite(tnum) && amtValid && tnum < payAmount;
-        const feeNote = payFeeNoteOf(payMethod, amtValid ? payAmount : 0, payFeeRates); // ★便 P173（裁定393）: 1 行表示（率 0 は null）
-        const presets = Array.from(new Set([
-          amtValid ? payAmount : 0,
-          Math.ceil((amtValid ? payAmount : 0) / 1000) * 1000,
-          Math.ceil((amtValid ? payAmount : 0) / 5000) * 5000,
-          10000,
-        ])).filter((v) => amtValid && v >= payAmount).sort((a, b) => a - b).slice(0, 4);
+        // ★便 GV-C C-1（裁定387）: 入金は 1 欄＝現金は「お預かり」（入金額は残額まで自動・差額はお釣り）／現金以外は「入金額」（既定＝残額・超えた分は入金しない）。
+        //   送る p_amount は常に残額まで（check_pay の 'exceeds balance' に当てない＝超過エラーを出さない）・p_tendered は現金のお預かり。手数料（393）は入金額に掛かる。
+        const isCash = payMethod === "cash";
+        const entered = isCash ? (payTendered.trim() === "" ? balance : Number(payTendered)) : payAmount;
+        const enteredN = Number.isFinite(entered) ? Math.max(0, Math.trunc(entered)) : 0;
+        const effAmount = Math.min(enteredN, balance);
+        const amtValid = Number.isInteger(effAmount) && effAmount > 0;
+        const change = isCash ? Math.max(0, enteredN - balance) : 0;
+        const feeNote = payFeeNoteOf(payMethod, amtValid ? effAmount : 0, payFeeRates); // ★便 P173（裁定393）: 1 行表示（率 0 は null）
+        const presets = Array.from(new Set([balance, Math.ceil(balance / 1000) * 1000, Math.ceil(balance / 5000) * 5000, Math.ceil(balance / 10000) * 10000]))
+          .filter((v) => v >= balance && v > 0).sort((a, b) => a - b).slice(0, 4);
+        const setEntered = (n: number) => (isCash ? setPayTendered(n > 0 ? String(n) : "") : setPayAmount(n));
         return (
           <Modal onClose={() => setPayModal(false)} scroll>
             <h3 style={{ ...t.cardTitle, margin: "0 0 10px" }}>入金{splitOn ? `（会計${g}）` : ""}</h3>
@@ -2046,7 +2080,7 @@ export default function RegisterBoard({
               <span style={{ fontSize: 12, color: "var(--sub)", fontWeight: 700 }}>均等割り</span>
               {[2, 3, 4, 5, 6].map((n) => (
                 <button key={n} type="button" style={{ ...btnLight }} disabled={balance <= 0}
-                  onClick={() => setPayAmount(Math.ceil(balance / n))}>
+                  onClick={() => setEntered(Math.ceil(balance / n))}>
                   {n}分割
                 </button>
               ))}
@@ -2054,22 +2088,30 @@ export default function RegisterBoard({
                 1人分＝残額÷人数（切り上げ）をセット。最後の人は残額のまま（端数は最後が少なく）。
               </span>
             </div>
-            {/* 入金額（既定＝残額・部分入金は減らす） */}
-            <label style={{ ...t.fieldLabel, display: "block", marginBottom: 10 }}>
-              入金額
-              <input type="number" min={1} step={1} value={payAmount}
-                onChange={(e) => setPayAmount(Number(e.target.value))}
+            {/* ★便 GV-C C-1（裁定387）: 入金は 1 欄（現金＝お預かり・現金以外＝入金額）＋数字キーパッド。送る額は残額まで・お釣りは大きく */}
+            <label style={{ ...t.fieldLabel, display: "block", marginBottom: 10 }} data-pay-one="1">
+              {isCash ? "お預かり" : "入金額"}
+              <input type="number" min={0} step={1} value={isCash ? payTendered : payAmount}
+                placeholder={isCash ? String(balance) : undefined}
+                onChange={(e) => (isCash ? setPayTendered(e.target.value) : setPayAmount(Number(e.target.value)))}
                 style={{ ...t.input, display: "block", marginTop: 5, fontSize: 18, textAlign: "right" }} inputMode="numeric" />
-              {/* ★裁定375（GV-B W-5）: 数字キーパッド（0〜9・00・⌫・C）＝入金額だけを編集。送る引数は不変 */}
+              {/* ★裁定375（GV-B W-5）: 数字キーパッド（0〜9・00・⌫・C）＝この 1 欄だけを編集 */}
               <div data-pay-keypad="1" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 8 }}>
                 {(["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0", "⌫"] as const).map((k) => (
                   <button key={k} type="button" style={{ ...btnLight, minHeight: 44, fontSize: 18, fontWeight: 800, justifyContent: "center" }}
-                    onClick={() => { const cur = String(payAmount > 0 ? payAmount : ""); const next = k === "⌫" ? cur.slice(0, -1) : (cur + k).slice(0, 8); setPayAmount(Number(next || 0)); }}>{k}</button>
+                    onClick={() => { const cur = isCash ? payTendered : String(payAmount > 0 ? payAmount : ""); const next = k === "⌫" ? cur.slice(0, -1) : (cur + k).slice(0, 8); setEntered(Number(next || 0)); }}>{k}</button>
                 ))}
-                <button type="button" style={{ ...btnLight, minHeight: 44, fontWeight: 800, justifyContent: "center", gridColumn: "1 / -1" }} onClick={() => setPayAmount(balance)}>C（残額に戻す）</button>
+                <button type="button" style={{ ...btnLight, minHeight: 44, fontWeight: 800, justifyContent: "center", gridColumn: "1 / -1" }} onClick={() => setEntered(balance)}>C（残額に戻す）</button>
               </div>
+              {isCash && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                  {presets.map((v) => (
+                    <button key={v} type="button" style={btnLight} onClick={() => setEntered(v)}>{v === balance ? "ちょうど" : yen(v)}</button>
+                  ))}
+                </div>
+              )}
               <span style={{ fontSize: 11, color: "var(--sub)", marginTop: 4, display: "block", lineHeight: 1.6 }}>
-                既定は残額（{yen(balance)}）。一部だけ受け取るときは金額を減らしてください。
+                {isCash ? `入金額は残額（${yen(balance)}）まで自動。多くお預かりした分はお釣りです。` : `既定は残額（${yen(balance)}）。一部だけ受け取るときは減らしてください（残額を超える分は入金しません）。`}
               </span>
               {/* ★便 P173（裁定393）: 支払方法別の手数料（お客様負担）＝入金額×率（1 円未満四捨五入）・伝票に行「カード手数料 n%」・お客様からもらう額＝入金額＋手数料（均等割りも手数料込み）。権威は RPC（due の増分） */}
               {feeNote && (
@@ -2080,27 +2122,14 @@ export default function RegisterBoard({
                 </div>
               )}
             </label>
-            {payMethod === "cash" && (
-              <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
-                <label style={{ ...t.fieldLabel, display: "block", marginBottom: 8 }}>
-                  お預かり
-                  <input type="number" min={0} step={1} value={payTendered}
-                    onChange={(e) => setPayTendered(e.target.value)}
-                    placeholder={amtValid ? String(payAmount) : ""}
-                    style={{ ...t.input, display: "block", marginTop: 5 }} inputMode="numeric" />
-                </label>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                  {presets.map((p) => (
-                    <button key={p} type="button" style={btnLight} onClick={() => setPayTendered(String(p))}>
-                      {amtValid && p === payAmount ? "ちょうど" : yen(p)}
-                    </button>
-                  ))}
+            {isCash && (
+              <div className="nox-inset" data-pay-change="1" style={{ padding: "12px 14px", marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 13 }}>
+                  <span style={{ color: "var(--sub)" }}>入金額</span><span className="num" style={{ fontWeight: 800 }}>{yen(effAmount)}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span style={{ fontSize: 13, color: "var(--sub)" }}>お釣り</span>
-                  <span style={{ ...t.num, fontSize: 20, fontWeight: 800, color: insufficient ? "var(--bad)" : "var(--ok)" }}>
-                    {change == null ? "—" : insufficient ? "不足" : yen(change)}
-                  </span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
+                  <span style={{ fontSize: 14, color: "var(--sub)" }}>お釣り</span>
+                  <span style={{ ...t.num, fontSize: 30, fontWeight: 900, color: "var(--ok)" }}>{yen(change)}</span>
                 </div>
               </div>
             )}
@@ -2116,9 +2145,9 @@ export default function RegisterBoard({
             )}{/* ★裁定281（便 AB）: routed msg も共通部品（kind は既存の ok／bad に従う） */}
             <button
               style={t.btnPrimary56} data-pay-submit="1"
-              disabled={!amtValid || insufficient}
-              onClick={async () => { const ok = await pay(); if (ok) setPayModal(false); }}>
-              入金する（{amtValid ? yen(payAmount) : "—"}）
+              disabled={!amtValid}
+              onClick={async () => { const ok = await pay({ amount: effAmount, tendered: isCash ? enteredN : null }); if (ok) setPayModal(false); }}>
+              入金する（{amtValid ? yen(effAmount) : "—"}）
             </button>
           </Modal>
         );
@@ -2429,44 +2458,8 @@ export default function RegisterBoard({
       {/* R2-c: 正式領収書の印字実体（画面非表示・印刷時のみ＝.nox-print-only。白地黒字は帳票専用）。
           発行済み（rcptIssued）を1枚=1ページで印字。R-番号・発行日＋取引日併記（R2-12）・
           適格請求書事項（登録番号・内税10%＝ePOS 既在項目と同型）・公開 URL の QR。 */}
-      {closeInfo && rcptIssued.length > 0 && (
-        <div className="nox-print nox-print-only" style={{ background: "#fff", color: "#000" }}>
-          {rcptIssued.map((r, i) => (
-            <div key={r.id} style={{
-              padding: "24mm 18mm", fontSize: 14, lineHeight: 1.9,
-              pageBreakAfter: i < rcptIssued.length - 1 ? "always" : "auto",
-            }}>
-              <div style={{ textAlign: "center", fontSize: 22, fontWeight: 800, letterSpacing: 6, marginBottom: 6 }}>領　収　書</div>
-              <div style={{ textAlign: "right", fontSize: 12 }}>No. R-{String(r.serial).padStart(6, "0")}</div>
-              <div style={{ fontSize: 16, borderBottom: "1px solid #000", paddingBottom: 4, margin: "10px 0 14px" }}>
-                {(r.name || "上") + " 様"}
-              </div>
-              <div style={{ textAlign: "center", fontSize: 26, fontWeight: 900, margin: "18px 0 6px" }}>
-                ￥{r.amount.toLocaleString()}−
-              </div>
-              <div style={{ textAlign: "center", fontSize: 11 }}>
-                （内消費税10% ￥{Math.floor((r.amount * 10) / 110).toLocaleString()}）
-              </div>
-              <div style={{ marginTop: 12 }}>但し {r.note || "ご飲食代として"}</div>
-              <div>上記正に領収いたしました。</div>
-              <div style={{ marginTop: 18, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-                <div>
-                  <div>発行日 {new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}</div>
-                  <div style={{ fontSize: 12 }}>取引日 {r.biz_date}</div>
-                </div>
-                {/* 確認用 QR（公開 URL /r/{token}・掲載期限90日） */}
-                <span style={{ width: "22mm", height: "22mm", display: "inline-block" }}
-                  dangerouslySetInnerHTML={{ __html: renderSVG(`${typeof window !== "undefined" ? window.location.origin : ""}/r/${r.token}`, { border: 0 }) }} />
-              </div>
-              <div style={{ marginTop: 8, textAlign: "right", fontWeight: 700 }}>{r.store_name || storeName}</div>
-              {invoiceRegNo && <div style={{ textAlign: "right", fontSize: 12 }}>登録番号 {invoiceRegNo}</div>}
-              <div style={{ fontSize: 10, color: "#555", marginTop: 4, textAlign: "right" }}>
-                QR から内容を確認できます（掲載期限: 発行から90日）
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* ★便 GV-C C-13: 印字実体は共用部品（/receipts の行ごとの印刷と同じ） */}
+      {closeInfo && rcptIssued.length > 0 && <ReceiptPrintSheet items={rcptIssued} storeName={storeName} invoiceRegNo={invoiceRegNo} />}
       {check ? (
       /* ── 伝票ビュー（全面）── */
       <div className="nox-checkview">
@@ -3110,7 +3103,8 @@ export default function RegisterBoard({
           {/* ★B3 裁定217（R28）: 「最近使った」列＝端末ローカルの商品 id を products で解決（無い id は捨てる）。
               タップ経路は下のタイルと同一（キャストドリンク指定／連打束ね）＝送る引数は 1 文字も変えない。 */}
           {(() => {
-            const recent = recentIds.map((id) => products.find((p) => p.id === id)).filter((p): p is Product => !!p);
+            // ★便 GV-C C-6（GV-44）: この伝票の注文履歴（新しい順・重複除去・最大 8・セット等の料金行を除く・0 件なら節を出さない）。端末ローカルの履歴（recentIds）は使わない
+            const recent = recentProductIdsOf(lines).map((id) => products.find((p) => p.id === id)).filter((p): p is Product => !!p);
             if (recent.length === 0) return null;
             return (
               <div style={{ marginBottom: 10 }}>
@@ -3322,7 +3316,8 @@ export default function RegisterBoard({
           })()}
           <table className="nox-olines" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>{/* ★便 X-8-7 (b): ≤899px は 1 行を 2 段に（.nox-olines） */}
             <tbody>
-              {orderLines(lines).map((l) => { /* ★便 P173（裁定391）: セット→延長→指名群→手数料→商品（注文順）→割引 */
+              {groupLines(orderLines(lines)).map((grp) => { /* ★便 P173（裁定391）: セット→延長→指名群→手数料→商品（注文順）→割引・★便 GV-C C-4（370 追補1）: 同一商品の連続行は ×N（代表＝最後の行＝削除は 1 ずつ） */
+                const l = grp.rep;
                 const isDisc = l.kind === "discount"; // ★F3c: 承認割引（正の値・表示は −・削除不可＝承認経由のみ）
                 // キャストドリンク（mig0070）: 凍結値で判定＝DB（check_close / proxy）と同じ真実を見る。
                 const isExempt = l.back_snapshot?.back_exempt === true;
@@ -3384,15 +3379,15 @@ export default function RegisterBoard({
                     </td>
                     {/* E8-1b F1: person 制の時間行は「×N名」（qty=units=人数の意味を明示） */}
                     <td className="up" style={{ ...t.num, padding: 6, textAlign: "right", color: "var(--sub)" }}>
-                      {isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}${l.kind === "time" && check?.time_per === "person" ? "名" : ""}`}
+                      {isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${grp.qty}${l.kind === "time" && check?.time_per === "person" ? "名" : ""}`}
                     </td>
                     <td className="am" style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
-                      {isDisc ? `−${yen(l.line_total)}` : yen(l.line_total)}
+                      {isDisc ? `−${yen(grp.total)}` : yen(grp.total)}
                     </td>
                     {/* キャストドリンク列＝除外指定の行だけに出す（非除外は空セル＝既存行の見え方は不変） */}
                     <td className="cd" style={{ padding: 6 }}>
                       {/* ★裁定370（GV-21・便 GV-A）: 商品行の「お客様」チップ（未指定＝灰／指定済み＝金枠）→タップで 368 と同じモーダル。料金行（セット・延長・指名料・サービス料）には出さない。保存先＝注文行の customer_id（不変） */}
-                      {check && check.status === "open" && customerChipLineOf(l) && (
+                      {check && check.status === "open" && customerChipLineOf(l) && customerChipVisibleOf(l, { checkCustomers: custNames.size, splitOn }) && ( /* ★便 GV-C C-4（370 追補1）: ボトル・複数のお客様・会計分割のときだけ */
                         <button type="button" className={`nox-custchip${l.customer_id ? " on" : ""}`} data-cust-chip={l.customer_id ? "1" : "0"} disabled={claimBusy}
                           onClick={() => setCustPick({ lineId: l.id, lineName: l.name_snapshot, isBottle: l.kind === "bottle", currentCustomerId: l.customer_id ?? null })}>
                           {customerChipLabelOf(l.customer_id ? custNames.get(l.customer_id) ?? "お客様" : null)}
@@ -3440,7 +3435,7 @@ export default function RegisterBoard({
                         </span>
                       ) : (
                         <button
-                          onClick={() => removeLine(l.id)}
+                          onClick={() => removeLine(l.id) /* ★便 GV-C C-4: 集約行は最後の 1 行を消す（×N→×N−1） */}
                           disabled={payments.length > 0}
                           title={payments.length > 0 ? "入金後の訂正は取消（void）で" : ""}
                           style={{ ...btnLight, padding: "2px 8px", fontSize: 12 }}

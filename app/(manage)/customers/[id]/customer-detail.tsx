@@ -11,6 +11,7 @@
 // ボトルは件数のみ（bottle_keeps の SELECT は can_register 軸＝crm 軸の明細経路が現状無い）。
 // churn tier の再判定はしない（しきい値は RPC 側の責務）＝詳細は days_since 数値のみ。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { lastVisitRelOf } from "@/lib/nox/register/customer-candidates"; // ★便 GV-C C-8（GV-50）
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -53,9 +54,7 @@ function fmtWhen(iso: string): string {
     timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
-function daysSince(iso: string): number {
-  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
-}
+// ★便 GV-C C-8（GV-50）: 最終来店の相対表示は営業日基準（lastVisitRelOf＝当営業日は「今日」・未来は相対なし）。旧 daysSince（暦の経過時間÷24h）は撤去
 
 export default function CustomerDetail({
   customerId, casts, canAssign, isOwner = false,
@@ -287,7 +286,7 @@ export default function CustomerDetail({
           <div style={t.kpi}>
             <div style={t.kpiLabel}>最終来店</div>
             <div style={{ ...t.kpiVal, fontSize: 17 }}>
-              {last ? <>{fmtWhen(last)}<span style={{ fontSize: 12, color: "var(--sub)" }}>（{daysSince(last)}日前）</span></> : "来店なし"}
+              {last ? <>{fmtWhen(last)}{(() => { const rel = lastVisitRelOf(last, new Date().toISOString()); return rel ? <span style={{ fontSize: 12, color: "var(--sub)" }}>（{rel}）</span> : null; })()}</> : "来店なし"}
             </div>
           </div>
           <div style={t.kpi}>

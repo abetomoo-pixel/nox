@@ -14,6 +14,7 @@
 //   ★cast ロールは page.tsx が /mine へ戻すため本ボードに到達しない（対象外）。
 import { NavIcon } from "@/components/ui/nav-icons"; // ★306-16
 import { useCallback, useEffect, useState } from "react";
+import { useLiveReload } from "@/lib/nox/ui/use-live-reload"; // ★便 GV-C C-12: focus／visibility／60 秒で再読込
 import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -140,6 +141,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   }, [bizToday, month, curStoreId]);
 
   useEffect(() => { void load(); }, [load]);
+  useLiveReload(load); // ★便 GV-C C-12
 
   // 段P: キャスト写真の署名 URL（写真ありの行だけ 1 リクエスト）。失敗しても頭文字に落ちるだけ。
   useEffect(() => {

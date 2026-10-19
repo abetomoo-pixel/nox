@@ -8,7 +8,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { periodCalendarDays, type PayrollWindow } from "./window";
 import { sumCastSales } from "./cast-sales"; // ★裁定346: cast 別合算の純関数（ランキング・/mine ノルマ進捗と共用）
 import { normAxesOf, normTargetsOf, resolveNormTargetsOf, type NormTargets, type QuotaSource } from "../store/norm-axes"; // ★裁定347 追補2（便 N1014 A-4）: 達成ボーナスの目標＝/mine と同じ純関数
-import type { CastRaw, StoreMasters, DeductionOverride } from "./assemble"; // ★0156: DeductionOverride（run 別控除上書き）
+import type { CastRaw, StoreMasters, DeductionOverride } from "./assemble";
+import { isSystemOn } from "../store-systems"; // ★便 GV-C C-10（R-5c） // ★0156: DeductionOverride（run 別控除上書き）
 import { calcPeriodOf } from "./assemble"; // ★0154 D6
 import { baseOverrideOf } from "./base-override"; // ★便 P174 T-5（R-11 (d)）
 import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）
@@ -185,6 +186,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
   const pen = penR.data as Record<string, unknown> | null;
   const basis = payTimeBasisOf(((stR.data?.settings_json ?? null) as Record<string, unknown> | null), runPeriodStart ?? `${period}-01`); // ★324-2: run の期の初日 ≥ next_from なら next
   const masters: StoreMasters = {
+    ...(isSystemOn((stR.data?.settings_json ?? null) as Record<string, unknown> | null, "sys_sales_rate") ? {} : { salesBackTable: [] }), // ★便 GV-C C-10（R-5c）: 売上歩合 OFF の店は売上率テーブルを効かせない（ON／欠損＝従来の既定＝golden 不変）
     ...(basis === "shift" ? { payTimeBasis: "shift" as const } : {}), // ★324（便 L-2-3）: 'punch'／未設定はキーを足さない（従来と 1 バイト同値）
     penalty: {
       fineAbsent: (pen?.fine_absent as number) ?? 0,

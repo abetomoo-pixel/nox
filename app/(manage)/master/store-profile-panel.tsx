@@ -8,6 +8,7 @@
 //   保存後は同じ select で再取得して現値を表示。エラーは storeProfileErrJa で日本語へ。
 //   配置＝保存ボタンは .nox-actions で中央（裁定244）・トグルは切替＝例外。
 import { useCallback, useEffect, useState } from "react";
+import OnOffSeg from "@/components/ui/on-off"; // ★便 GV-C C-9（GV-52）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import StoreFlagToggle, { storeProfileErrJa } from "./store-flag-toggle";
@@ -134,7 +135,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     await load();
   }
   const onOff = (v: boolean, lbl: string, onChange: (b: boolean) => void) => (
-    <SegSelect value={v ? "on" : "off"} onChange={(x) => onChange(x === "on")} options={[["off", "OFF"], ["on", "ON"]]} aria-label={lbl} />
+    <OnOffSeg value={v} onChange={(x) => onChange(x === true)} ariaLabel={lbl} />/* ★便 GV-C C-9（GV-52） */
   );
 
   // ★裁定324（0159・便 C-1）: set_store_pay_time_basis(p_store_id, p_value, p_apply)＝runs 0 行は 'now'・1 行以上は 'next'（次の暦月の 1 日から）

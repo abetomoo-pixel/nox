@@ -47,6 +47,7 @@ export function compSummaryOf(
   p: AdoptPlanShape & { name?: string },
   comps: { kind: string; is_active: boolean; amount?: number | null; params?: Record<string, unknown> | null }[],
   headcount: number,
+  settings: Record<string, unknown> | null = null, // ★便 GV-C C-5（GV-43）: スライドの段表示は節ごとのフラグ（OFF の側を省く・両方 OFF なら行ごと省く）
 ): CompSummaryRow[] {
   const yen = (n: number) => `¥${n.toLocaleString()}`;
   const rows: CompSummaryRow[] = [
@@ -57,7 +58,12 @@ export function compSummaryOf(
     { label: "同伴", value: `${yen(p.dohan_back)}/本` },
     // ★裁定113: 一覧＝自然語（規約 §5）。旧行（列なし／null）は product_rule 表記
     { label: "商品バック", value: productBackLabelOf(p.product_back_mode, p.product_back_rate, p.product_back_fixed) },
-    { label: "スライド", value: `売上${(p.sales_slide ?? []).length}段・pt${(p.point_slide ?? []).length}段` },
+    ...(() => {
+      const sOn = !settings || settings.sys_sales_slide !== false;
+      const pOn = !settings || (settings.sys_point_slide !== false && settings.sys_points !== false);
+      const parts = [sOn ? `売上${(p.sales_slide ?? []).length}段` : null, pOn ? `pt${(p.point_slide ?? []).length}段` : null].filter(Boolean);
+      return parts.length ? [{ label: "スライド", value: parts.join("・") }] : [];
+    })(),
   ];
   for (const c of comps) {
     if (c.is_active === false) continue;

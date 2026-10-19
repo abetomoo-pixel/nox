@@ -42,7 +42,20 @@ export type BreakdownInput = {
   /** payslip 用: 渡されたら breakdown の ar／adv／okuri（deducted 合計）を優先（旧 slip と同じ出所・pa(7-6) の fixture は pay.arDeduct 0 で ar 400）。無ければ pay の arDeduct 等（給与右パネル） */
   deducted?: { ar?: number; adv?: number; okuri?: number };
   employment?: "委託" | "雇用" | null;
+  /** ★便 GV-C C-10（GV-53）: 店の利用機能（settings_json の sys_*）。渡すと OFF の制度の行は金額 0 なら省き・0 でなければ「（OFF の制度）」を付けて残す。未指定＝従来どおり */
+  systems?: Record<string, unknown> | null;
 };
+/** ★便 GV-C C-10: 行キー → 制度（sys_*）。ここに無い行（時間・控除の多く・調整）は制度に依らない */
+export function systemOfLineKey(key: string): string | null {
+  if (["honBack", "jonaiBack", "dohanBack", "drinkBack", "champBack", "bottleBack", "calculatedBack", "customTotal", "customRest"].includes(key) || key.startsWith("cback-")) return "sys_backs";
+  if (key === "salesBack") return "sys_sales_rate";
+  if (key === "achievementBonus") return "sys_bonus";
+  if (key === "guaranteeAdd") return "sys_hourly";
+  if (key === "normPenalty") return "sys_norms";
+  if (key === "fine") return "sys_penalties";
+  return null;
+}
+const sysOn = (systems: Record<string, unknown> | null | undefined, k: string | null): boolean => !systems || !k || systems[k] !== false;
 export type Breakdown = { earn: BreakdownLine[]; ded: BreakdownLine[]; earnTotal: number; dedTotal: number; net: number; whLabel: string; overflow: number };
 
 const yen = (n: number) => "¥" + n.toLocaleString("en-US");
@@ -76,9 +89,14 @@ export function timeLineOf(pay: BreakdownPayLike): BreakdownLine {
 export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   const p = input.pay;
   const earn: BreakdownLine[] = [];
+  const sysK = input.systems ?? null;
+  const slidesOff = !!sysK && sysK.sys_sales_slide === false && sysK.sys_point_slide === false;
   const push = (key: string, label: string, amount: number, opts: { keepZero?: boolean; sub?: boolean; info?: boolean } = {}) => {
     if (amount === 0 && !opts.keepZero) return;
-    earn.push({ key, label, amount, ...(opts.sub ? { sub: true } : {}), ...(opts.info ? { info: true } : {}) });
+    if (key.startsWith("slide") && slidesOff && amount === 0) return; // ★便 GV-C C-10: スライドの情報行＝売上／pt スライドが両方 OFF なら出さない
+    const on = sysOn(sysK, systemOfLineKey(key));
+    if (!on && amount === 0) return; // ★便 GV-C C-10: OFF の制度は 0 の行を出さない（keepZero でも）
+    earn.push({ key, label: on ? label : `${label}（OFF の制度）`, amount, ...(opts.sub ? { sub: true } : {}), ...(opts.info ? { info: true } : {}) });
   };
   // 時間（303-2＝常に出す）
   earn.push(timeLineOf(p));
@@ -122,7 +140,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   for (const [i, e] of (input.extras ?? []).entries()) push(`extra-${i}`, e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind), z(e.amount));
 
   const ded: BreakdownLine[] = [];
-  const dpush = (key: string, label: string, amount: number) => { if (amount > 0) ded.push({ key, label, amount }); };
+  const dpush = (key: string, label: string, amount: number) => { if (amount > 0) ded.push({ key, label: sysOn(sysK, systemOfLineKey(key)) ? label : `${label}（OFF の制度）`, amount }); }; // ★便 GV-C C-10: 控除は 0 の行は従来どおり出さない・OFF の制度は印
   const applied = z(p.sanction?.applied), original = z(p.sanction?.original);
   dpush("fixedDed", "固定控除", z(p.fixedDed) - applied);
   dpush("sanction", original > applied ? `懲戒減給（原額 ${yen(original)} → 法定上限適用）` : "懲戒減給", applied);

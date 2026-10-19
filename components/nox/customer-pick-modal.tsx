@@ -141,7 +141,7 @@ export default function CustomerPickModal({ storeId, checkId, target, mode = "li
         </div>
         <div style={{ position: "sticky", top: 36, background: "var(--card)", zIndex: 2, paddingBottom: 6 }}>
           {target && <p style={{ fontSize: 12.5, margin: "0 0 6px" }}>{target.lineName}{currentName ? <span style={{ marginLeft: 8, color: "var(--sub)" }}>いま: <b style={{ color: "var(--champ)" }}>{currentName}</b></span> : null}</p>}
-          <input value={q} onChange={(e) => { setQ(e.target.value); setShown(PICK_PAGE); }} placeholder="名前・ふりがな・電話で検索" aria-label="お客様を検索" autoFocus
+          <input value={q} onChange={(e) => { setQ(e.target.value); setShown(PICK_PAGE); }} placeholder="名前・ふりがな・電話で検索" aria-label="お客様を検索" /* ★便 GV-C C-14b（GV-61）: 任意の欄＝autofocus なし（スマホでキーボードが候補を隠す） */
             style={{ ...t.input, width: "100%" }} data-cust-search="1" />
         </div>
         {!searching && (

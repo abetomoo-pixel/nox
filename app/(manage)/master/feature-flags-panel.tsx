@@ -9,6 +9,7 @@
 //   店舗行の削除 RPC は設計外（v1 §4）＝「既定に戻す」は置かず、注記「店舗の上書きは ON/OFF のみ」。
 // ★flag_enabled の解決（店舗行→org 行→false）は RPC 側が正＝ここは行の有無と enabled を表示するだけ。
 import { useCallback, useEffect, useState } from "react";
+import OnOffSeg from "@/components/ui/on-off"; // ★便 GV-C C-9（GV-52）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import SegSelect from "@/components/ui/seg-select";
@@ -97,10 +98,8 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
                     <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>{k.desc}</div>
                   </td>
                   <td>
-                    <SegSelect value={orgOn ? "on" : "off"} ariaLabel={`${k.label} 会社の既定`}
-                      disabled={busy}
-                      onChange={(v) => void setFlag(k.key, null, v === "on", `${k.label}（会社の既定）`)}
-                      options={[["off", "OFF"], ["on", "ON"]] as const} />
+                    <OnOffSeg value={orgOn} ariaLabel={`${k.label} 会社の既定`} disabled={busy}
+                      onChange={(v) => void setFlag(k.key, null, v === true, `${k.label}（会社の既定）`)} />{/* ★便 GV-C C-9（GV-52） */}
                     {!o && <div style={{ fontSize: 10.5, color: "var(--v2-muted)", marginTop: 2 }}>未設定＝OFF</div>}
                   </td>
                   {stores.map((s) => {
@@ -108,10 +107,8 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
                     const val = r === null ? "inherit" : r.enabled ? "on" : "off";
                     return (
                       <td key={s.id}>
-                        <SegSelect value={val} ariaLabel={`${k.label} ${s.name}`}
-                          disabled={busy}
-                          onChange={(v) => { if (v !== "inherit") void setFlag(k.key, s.id, v === "on", `${k.label}（${s.name}）`); }}
-                          options={[["inherit", "既定に従う"], ["on", "ON"], ["off", "OFF"]] as const} />
+                        <OnOffSeg threeWay inherited={orgOn} value={val === "inherit" ? "inherit" : val === "on"} ariaLabel={`${k.label} ${s.name}`} disabled={busy}
+                          onChange={(v) => { if (v !== "inherit") void setFlag(k.key, s.id, v === true, `${k.label}（${s.name}）`); }} />{/* ★便 GV-C C-9（GV-52）: 3 値も同じ塗り */}
                         {r !== null && (
                           <div style={{ fontSize: 10.5, color: "var(--v2-muted)", marginTop: 2 }}>
                             上書き中（既定 {orgOn ? "ON" : "OFF"}）

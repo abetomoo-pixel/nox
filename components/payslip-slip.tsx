@@ -37,7 +37,7 @@ const deductTotal = (bj: unknown, key: "ar" | "adv" | "okuri"): number => {
 // castName を渡すと見出しに併記（manage 全員分で誰の明細か明示）。/mine は period のみ（従来と一字一致）。
 // ★裁定326-1（便 M2-4・2026-10-01）: compact＝payslip_visibility 'net_only'（手取りと期のみ）。期ヘッダー（期・区分バッジ）＋手取り 1 行だけ・支給／控除／総支給の行は描かない。
 //   印刷（PDF）は同じ DOM を @media print が白地反転するだけ＝簡易版 PDF も同じ部品（新しい印刷 CSS は書かない）。
-export default function PayslipSlip({ slip, castName, compact = false }: { slip: PayslipRow; castName?: string; compact?: boolean }) {
+export default function PayslipSlip({ slip, castName, compact = false, systems = null }: { slip: PayslipRow; castName?: string; compact?: boolean; /** ★便 GV-C C-10（GV-53）: 店の sys_*（OFF の制度の行を省く・0 以外は印） */ systems?: Record<string, unknown> | null }) {
   const pay = payOf(slip.breakdown_json);
   const extras = extrasOf(slip.breakdown_json);
   const ar = deductTotal(slip.breakdown_json, "ar");
@@ -45,7 +45,7 @@ export default function PayslipSlip({ slip, castName, compact = false }: { slip:
   const okuri = deductTotal(slip.breakdown_json, "okuri");
   // ★裁定303-1: 行は breakdownLinesOf（給与右パネルと同じ関数）。旧 payslip は pay に arDeduct 等が無いので breakdown の ar／adv／okuri（deducted）を渡す
   const adj = readFrozenAdjustments(slip.breakdown_json);
-  const bd = breakdownLinesOf({ pay: pay as BreakdownPayLike, extras, adjustments: { before: adj.before, after: adj.after }, deducted: { ar, adv, okuri } });
+  const bd = breakdownLinesOf({ pay: pay as BreakdownPayLike, extras, adjustments: { before: adj.before, after: adj.after }, deducted: { ar, adv, okuri }, systems });
   const taxMode = pay.taxMode === "委託" || pay.taxMode === "雇用" ? pay.taxMode : null;
   const hasDed = bd.ded.length > 0;
   if (compact) {

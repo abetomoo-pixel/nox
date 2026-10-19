@@ -5,6 +5,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { createClient } from "@/lib/supabase/server";
 // ★夜間便 N7-2（裁定273-6）: cast のマイページにもデモの帯を出し、写真アップロードの導線を隠す
 import DemoBanner from "@/components/ui/demo-banner";
+import { UserChip } from "@/components/ui/header-chips"; // ★便 GV-C C-14h（X-13-2）
 import { DemoProvider } from "@/lib/nox/demo/context";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: ranking OFF の店はナビ項目を出さない
 import { noticeNavLabelOf, unreadCountOf } from "@/lib/nox/mine/notice-unread"; // ★裁定326-6（便 M2-3）: お知らせ未読数「お知らせ（N）」
@@ -21,7 +22,10 @@ export default async function MineLayout({ children }: { children: React.ReactNo
   const { data: orgRow } = await supabase.from("orgs").select("is_demo").limit(1).maybeSingle(); // ★N7-2
   const isDemo = orgRow?.is_demo === true;
   // ★326-8: 自店の settings_json（cast の RLS で自店 1 行が読める＝mig0106）→ mine_settings。ranking OFF ならナビからランキングを外す（ページ側は /mine へ redirect）
-  const { data: storeRow } = await supabase.from("stores").select("settings_json").limit(1).maybeSingle();
+  const { data: storeRow } = await supabase.from("stores").select("settings_json, name").limit(1).maybeSingle(); // ★便 GV-C C-14h: name＝自分の情報の「店舗」
+  // ★便 GV-C C-14h（X-13-2）: ヘッダーのアカウント＝管理画面と同じ UserChip（登録名・役割・店舗＋ログアウト・≤900 は下からのシート）。users は RLS で自分の行
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const { data: meRow } = await supabase.from("users").select("name").eq("auth_user_id", authUser?.id ?? "").maybeSingle();
   const ms = mineSettingsOf(storeRow?.settings_json);
   // ★裁定337（0167・便 X-13d-2b）: 自分の cast 行（auth_cast_id＝photo-card と同じ引き方・登録権限のある cast でも他人の行を拾わない）→「キャスト個別→店の既定」で解決
   const { data: myCastId } = await supabase.rpc("auth_cast_id");
@@ -51,10 +55,9 @@ export default async function MineLayout({ children }: { children: React.ReactNo
       <div style={t.wrap}>
         <header className="nox-topbar">
           <span style={t.brand}>NOX</span>
-          <span style={{ marginLeft: "auto", ...t.rolePill }}>{t.roleLabelJa(role as string)}</span>
-          <form action="/auth/signout" method="post" style={{ display: "flex" }}>
-            <button type="submit" style={{ ...t.btnGhost, ...t.btnSm }}>ログアウト</button>
-          </form>
+          <span style={{ marginLeft: "auto" }}>
+            <UserChip name={(meRow?.name as string | null) ?? null} email={null} roleJa={t.roleLabelJa(role as string)} storeLabel={(storeRow?.name as string | undefined) ?? undefined} isDemo={isDemo} />
+          </span>
         </header>
         <main className="nox-main">
           {isDemo && <DemoBanner />}{/* ★N7-2 ① */}

@@ -38,7 +38,7 @@ export default function OkuriOutDialog({ castName, def, busy, error, onConfirm, 
       <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>
         金額
         <span style={{ display: "block", marginTop: 4 }}>
-          <MoneyInput value={raw} onChange={setRaw} autoFocus disabled={busy} placeholder="例: 1,500" ariaLabel="送りの金額" width="100%" />
+          <MoneyInput value={raw} onChange={setRaw} disabled={busy} /* ★便 GV-C C-14b（GV-61）: 既定値あり＝autofocus なし（キーボードで「送りを発行して退勤」が隠れる） */ placeholder="例: 1,500" ariaLabel="送りの金額" width="100%" />
         </span>
       </label>
       <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 6px", lineHeight: 1.7 }}>

@@ -61,3 +61,14 @@ export const lastVisitLabelOf = (iso: string | null): string => {
   const j = new Date(d.getTime() + 9 * 3600 * 1000);
   return `最終 ${j.getUTCFullYear()}/${j.getUTCMonth() + 1}/${j.getUTCDate()}`;
 };
+
+/** ★便 GV-C C-8（GV-50）: 最終来店の相対表示＝営業日基準（cutoff＝店の営業日の切替時刻・既定 06:00）。
+ *  当営業日＝「今日」・n 営業日前＝「n日前」・未来（予約や時計ずれ）＝相対を出さない（"-n日前" を作らない） */
+export function lastVisitRelOf(iso: string, nowIso: string, cutoffHm = "06:00"): string | null {
+  const t = Date.parse(iso), n = Date.parse(nowIso);
+  if (!Number.isFinite(t) || !Number.isFinite(n)) return null;
+  const bd = (ms: number) => { const j = new Date(ms + 9 * 3600 * 1000); const hm = `${String(j.getUTCHours()).padStart(2, "0")}:${String(j.getUTCMinutes()).padStart(2, "0")}`; const day = Date.UTC(j.getUTCFullYear(), j.getUTCMonth(), j.getUTCDate()); return hm < cutoffHm ? day - 86_400_000 : day; };
+  const days = Math.round((bd(n) - bd(t)) / 86_400_000);
+  if (days < 0) return null;
+  return days === 0 ? "今日" : `${days}日前`;
+}

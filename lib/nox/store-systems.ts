@@ -131,3 +131,9 @@ export function systemUsageOf(rows: { castPlans: CastPlanRow[]; castNorms: CastN
   }
   return Object.fromEntries(SYSTEM_KEYS.map((k) => [k, sets[k].size])) as Record<SystemKey, number>;
 }
+
+/** ★便 GV-C C-5（GV-43・R-5 の漏れ 1〜3）: スライドは節ごとの単独判定（OR をやめる）。
+ *  売上スライドの節＝sys_sales_slide／pt スライドの節＝sys_point_slide かつ sys_points（ポイント制 OFF の店で pt スライドは無意味）／タブ＝どちらかが出るとき */
+export const salesSlideOn = (s: StoreSettings): boolean => isSystemOn(s, "sys_sales_slide");
+export const pointSlideOn = (s: StoreSettings): boolean => isSystemOn(s, "sys_point_slide") && isSystemOn(s, "sys_points");
+export const slidesTabOn = (s: StoreSettings): boolean => salesSlideOn(s) || pointSlideOn(s);

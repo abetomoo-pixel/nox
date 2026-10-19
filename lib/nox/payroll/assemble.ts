@@ -4,7 +4,7 @@
 // net = pay.net（B: サーバが net の責務）。★extras は gross に内在化され源泉対象＝外側加算は行わない（裁定26）。
 
 import { periodKeyOf } from "./slide"; // ★裁定338（0168）
-import { castPts, employeeTaxClassOf } from "../pay"; // ★裁定343（0170・便 W5-2b）: daily＋件数基準の dayPts（pay.ts と同じ式）
+import { castPts, employeeTaxClassOf, type SalesBackStep } from "../pay"; // ★裁定343（0170・便 W5-2b）: daily＋件数基準の dayPts（pay.ts と同じ式）
 import { roundPt1 } from "../money";
 import type {
   PayInput,
@@ -107,6 +107,8 @@ export type StoreMasters = {
   normConfig: NormPenaltyConfig;
   deductions: Deduction[];
   customBackDefs: BackDef[];
+  /** ★便 GV-C C-10（R-5c）: 店の sys_sales_rate が OFF のとき []（売上率テーブルを効かせない）。未指定＝pay.ts の既定（従来どおり・golden 不変） */
+  salesBackTable?: SalesBackStep[];
 };
 
 // 'YYYY-MM-DD' → 日（payOf の DailyRecord.d は日次表示用の識別子・期間は単月なので日で一意）。
@@ -198,6 +200,7 @@ export function buildPayInput(
     metrics: { champCnt: raw.champCnt, bottleCnt: raw.bottleCnt }, // 論点1: check_lines kind から集計
     deductions: applyDeductionOverrides(masters.deductions, raw.deductionOverrides).deductions, // ★0156（309-8）: cast 別の上書き（無ければ店の控除そのまま）
     penalty: masters.penalty,
+    ...(masters.salesBackTable ? { salesBackTable: masters.salesBackTable } : {}), // ★便 GV-C C-10（R-5c）: OFF の店だけ []
     normConfig: masters.normConfig,
     norm: raw.norm,
     // ★裁定96-②③: components（plan 由来）は payOf が input.plan.components を読む。

@@ -6,6 +6,7 @@
 //   owner 以外は現在値のみ（RPC も auth_role()<>'owner' で forbidden＝表示ゲートは二重防御の外側）。
 //   配置＝切替（.nox-seg）は裁定244 の例外（中央化しない）。
 import { useState } from "react";
+import OnOffSeg from "@/components/ui/on-off"; // ★便 GV-C C-9（GV-52）
 import { createClient } from "@/lib/supabase/client";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
@@ -58,17 +59,14 @@ export default function StoreFlagToggle({
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+    <div data-onoff-row="1" data-off={on ? "0" : "1"} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
       <div style={{ minWidth: 0, flex: "1 1 240px" }}>
-        <div style={{ fontSize: 13, fontWeight: 800 }}>{label}</div>
-        {desc && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "2px 0 0", lineHeight: 1.6 }}>{desc}</p>}
+        <div className="nox-onoff-head" style={{ fontSize: 13, fontWeight: 800 }}>{label}</div>
+        {desc && <p className="nox-onoff-body" style={{ fontSize: 11.5, color: "var(--sub)", margin: "2px 0 0", lineHeight: 1.6 }}>{desc}</p>}
         {msg && <Toast msg={msg} style={{ margin: "6px 0 0" }} />}
       </div>
       {isOwner ? (
-        <div className="nox-seg" role="group" aria-label={label}>
-          <button type="button" className={!on ? "on" : ""} disabled={busy} onClick={() => void switchTo(false)}>OFF</button>
-          <button type="button" className={on ? "on" : ""} disabled={busy} onClick={() => void switchTo(true)}>ON</button>
-        </div>
+        <OnOffSeg value={on} ariaLabel={label} disabled={busy} onChange={(v) => void switchTo(v === true)} /* ★便 GV-C C-9（GV-52） */ />
       ) : (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <b style={{ color: on ? "var(--ok)" : "var(--sub)" }}>{on ? "ON" : "OFF"}</b>

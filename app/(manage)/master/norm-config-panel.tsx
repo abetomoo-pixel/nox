@@ -3,7 +3,7 @@
 // ノルマ設定（店）: ★GV-2／裁定347 追補1（0171・便 P171・2026-10-14）: 採用を 4 軸（出勤日数・同伴・売上・指名）に＝settings_json.norm_axes を set_store_norm_axes で書く（owner のみ・4 キー boolean を常に明示＝原則7）。
 //   指名のカウント定義（shimei_norm_scope）は従来の set_store_norm_config（3 引数）で保存＝旧 2 キー（sales_norm_enabled／shimei_norm_enabled）は 4 軸の sales／shimei と同じ値で同期して送る（旧キーを読む箇所が残っても食い違わない）。
 //   採用 OFF の軸は 3 画面（/mine ノルマカード・キャスト別ノルマ目標・キャスト詳細「今月のノルマ」）とプラン既定の入力口から消える（lib/nox/store/norm-axes.ts）。
-//   裁定: ノルマ未達は表示のみ（報酬非接続＝★0154 D3 で罰金撤去）。
+//   裁定: ノルマ未達は表示のみ（報酬非接続＝★0154 D3 で罰金撤去）→★裁定394（4 軸の減額）で注記を撤去（便 GV-C）。
 import { useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
@@ -56,7 +56,7 @@ export default function NormConfigPanel({
       <section className="nox-cardtop" style={card} data-norm-axes={NORM_AXES.filter((k) => axes[k]).join(",")}>
         <h3 style={h3}>採用する軸（出勤日数・同伴・売上・指名）</h3>
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
-          採用した軸だけが、待遇プランの既定目標・キャスト別ノルマ目標・キャスト詳細「今月のノルマ」・キャスト本人のマイページ（進捗）に出ます（未達は表示のみ・報酬には接続されません）。
+          採用した軸だけが、待遇プランの既定目標・キャスト別ノルマ目標・キャスト詳細「今月のノルマ」・キャスト本人のマイページ（進捗）に出ます。未達の減額は「ノルマ・罰金」の減額設定で決めます（裁定394）。
           目標値はプランの既定（待遇プラン）とキャスト個別（キャスト詳細）で設定します。
         </p>
         {isOwner ? (

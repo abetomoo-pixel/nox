@@ -247,7 +247,7 @@ export default async function MinePage() {
         {(slips ?? []).length === 0 && <p style={{ ...noneP, marginTop: 11 }}>確定分なし</p>}
         <div style={{ marginTop: 11 }}>
           {(slips ?? []).map((s, i) => (
-            <PayslipSlip
+            <PayslipSlip systems={(myStore?.settings_json ?? null) as Record<string, unknown> | null} /* ★便 GV-C C-10（GV-53） */
               key={i}
               compact={ms.payslip_visibility === "net_only"}
               slip={{ period: s.period as string, net: s.net as number, breakdown_json: s.breakdown_json }}

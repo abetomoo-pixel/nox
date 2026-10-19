@@ -19,7 +19,7 @@ import { AssignTab, useCompData, secTitle, productBackArgsOf, type Plan } from "
 import PlanEditor from "./plan-editor";
 import { slideApplyOf, slideBasisOf, slideBasisPillOf } from "@/lib/nox/payroll/slide"; // ★N3b・★裁定343（0170）: 判定基準・対象ランクの印
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
-import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
+import { isSectionOn, slidesTabOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 
 const card: React.CSSProperties = t.card;
 
@@ -118,7 +118,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
   // ★裁定269-4: タブの出し分け＝isSectionOn 1 条件（4 タブ）。sim／assign は制度に依らない。OFF のタブは描画しない。
   const tabOn = (k: TabKey) => k === "base" ? isSectionOn(settings, "planTabBase")
     : k === "backs" ? isSectionOn(settings, "planTabBacks")
-    : k === "slides" ? isSectionOn(settings, "planTabSlides")
+    : k === "slides" ? slidesTabOn(settings) /* ★便 GV-C C-5（R-5）: 売上／pt の節ごとの単独判定（両方 OFF でタブ非表示） */
     : k === "quota" ? isSectionOn(settings, "planTabQuota") : true;
   useEffect(() => { if (!tabOn(tab)) setTab(TABS.map(([k]) => k).find(tabOn) ?? "assign"); }, [tab, settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -205,7 +205,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
       {/* シミュレーション タブ（★裁定106 B2: v3 の主入力＋残りは「詳細」で畳む＝compact） */}
       {sim && (
         <div id="sim" style={{ display: tab === "sim" ? undefined : "none" }}>
-          <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" compact slideApply={slideApplyOf(settings)} targets={sim.targets} />{/* ★N3b（裁定288-7） */}
+          <SimulatorPanel mode="store" plans={sim.plans} masters={sim.masters} openAdv={0} openOkuri={0} defaultTaxMode="委託" compact slideApply={slideApplyOf(settings)} targets={sim.targets} systems={(settings ?? null) as Record<string, unknown> | null} />{/* ★N3b（裁定288-7） */}
         </div>
       )}
 
@@ -230,7 +230,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
               <p style={{ fontSize: 13, fontWeight: 800, color: "var(--champ)", margin: "0 0 6px" }}>
                 {sel.name}{!sel.is_active && "（無効）"}
               </p>
-              {compSummaryOf(sel, selComps, headOf(sel.id)).map((r) => (
+              {compSummaryOf(sel, selComps, headOf(sel.id), (settings ?? null) as Record<string, unknown> | null).map((r) => (
                 <div key={r.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0" }}>
                   <span style={{ color: "var(--sub)" }}>{r.label}</span>
                   <span className="num">{r.value}</span>

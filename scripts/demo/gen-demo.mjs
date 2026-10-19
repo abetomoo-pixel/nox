@@ -121,8 +121,10 @@ for (const st of STORES) {
         push("staff_contracts", { id: uid(`sc:${code}:${r.kind}`), membership_id: r.m, store_id: storeId, contract_kind: r.kind, hourly: r.hourly, fixed_allowance: 0, tax_class: r.tax, withholding_rate: r.wh, invoice: null, reg_no: null, valid_from: { $rel: -60 }, created_at: { $rel: -60, t: "12:00:00" }, updated_at: { $rel: -60, t: "12:00:00" } });
         for (let d = -7; d <= -1; d++) {
           push("staff_punches", { id: uid(`sp:${code}:${r.kind}:${d}:in`), membership_id: r.m, store_id: storeId, biz_date: { $rel: d }, kind: "in", punched_at: { $rel: d, t: "18:00:00" }, source: "manual", created_by: users.manager, created_at: { $rel: d, t: "18:00:00" } });
-          push("staff_punches", { id: uid(`sp:${code}:${r.kind}:${d}:out`), membership_id: r.m, store_id: storeId, biz_date: { $rel: d }, kind: "out", punched_at: { $rel: d + 1, t: "02:00:00" }, source: "manual", created_by: users.manager, created_at: { $rel: d + 1, t: "02:00:00" } });
+          push("staff_punches", { id: uid(`sp:${code}:${r.kind}:${d}:out`), membership_id: r.m, store_id: storeId, biz_date: { $rel: d }, kind: "out", punched_at: { $rel: d, t: "02:00:00" }, source: "manual", created_by: users.manager, created_at: { $rel: d, t: "02:00:00" } }); // ★便 GV-C（P174 live ⑥）: $rel は営業日・cutoff 前の時刻は翌暦日へ自動で繰り上がる＝d+1 だと 1 日余分（224 時間）
         }
+        // ★便 GV-C（P174 live ⑤・裁定355）: kiosk のスタッフ群で打刻できるよう PIN（cast_pin と同じデモ用ハッシュ）
+        push("staff_pin", { membership_id: r.m, store_id: storeId, pin_hash: "$2a$06$es6a5JEXahHwq41iFe.f9OWukggPKCQgYnB32ozpl.8mpEOK1EJh2", fail_count: 0, locked_until: null, updated_at: { $rel: -1, t: "12:00:00" } });
       }
     } }
   for (const r of ranks) push("cast_ranks", { id: uid(`rank:${r.rank_id}`), store_id: storeId, name: r.rank_name === "default" ? "標準" : r.rank_name, sort_order: ranks.indexOf(r) + 1, is_active: true });

@@ -498,8 +498,10 @@ body {
 
 /* ★起票94（便 X-12-3・2026-09-30）: variant="top"＝ヘッダー直下に固定（歯車・自分の情報）。上端＝.nox-tb 64px＋8px・高さ上限＝100vh−(64+8×2)＝内部スクロール（modal.tsx が overflow:auto を inline で当てる）。
    ≤900px は既存のシート分岐へ素通し（この節は min-width:901px の中だけ）。数値は lib/nox/ui/popover.ts（HEADER_H／POP_GAP）と同値＝ms(2-25) が pin。 */
+/* ★便 GV-C C-14h（X-13-2）: ヘッダー直下の右寄せ（中央だとデモ帯の文言に重なる）。歯車・自分の情報の 2 つが使う＝2 本目の規則で足す（ms(2-25) の pin 文字列は不変） */
 @media (min-width: 901px) {
   .nox-modal-top { align-items: flex-start; padding-top: 72px; }
+  .nox-modal-top { justify-content: flex-end; padding-right: 16px; }
   .nox-modal-top .nox-modal-card { max-height: calc(100vh - 80px); }
 }
 @media (max-width: 900px) {
@@ -2561,4 +2563,53 @@ button:disabled, .nox-btn:disabled { opacity: .45; cursor: not-allowed; }
    各画面の inline の fontSize 13（theme t.input）を上書きするため !important。チェック・ラジオ・レンジ・色・ファイルは対象外。PC（≥900）は不変 */
 @media (max-width: 899px) {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]), select, textarea { font-size: 16px !important; }
+}
+
+/* ★便 GV-C C-9（GV-52）: OFF／ON セグメント（components/ui/on-off.tsx）＝選択側を塗る（ON 青・OFF グレー・既定に従う＝薄い塗り）・非選択は枠のみ・
+   状態文字は右（≤899 は下）・OFF の行（[data-onoff-row][data-off="1"]）は見出し以外（.nox-onoff-body）を減光 */
+.nox-onoffwrap { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nox-onoff { display: inline-flex; gap: 6px; }
+.nox-onoff > button { min-height: 36px; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line2); background: transparent; color: var(--sub); font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; }
+.nox-onoff > button:disabled { cursor: default; }
+.nox-onoff > button.on[data-v="on"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+.nox-onoff > button.on[data-v="off"] { background: #5a5750; border-color: #5a5750; color: #fff; }
+.nox-onoff > button.on[data-v="inherit"] { background: var(--card2); border-color: var(--primary); color: var(--ink); }
+.nox-onoff-state { font-size: 12px; color: var(--sub); }
+.nox-onoffwrap[data-onoff-state="on"] .nox-onoff-state { color: var(--primary); font-weight: 700; }
+@media (max-width: 899px) { .nox-onoff-state { flex-basis: 100%; } }
+[data-onoff-row][data-off="1"] .nox-onoff-body { opacity: .55; }
+
+/* ★便 GV-C C-11（GV-54）: 日報の締めの 4 欄＝2×2（≤899 は 1 列）・ラベル上入力下・¥ 接頭（report-board の YenField） */
+.nox-close4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+@media (max-width: 899px) { .nox-close4 { grid-template-columns: 1fr; } }
+.nox-yenfield { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.nox-yenfield .l { font-size: 13px; color: var(--sub); font-weight: 700; }
+.nox-yenfield .f { display: flex; align-items: center; border: 1px solid var(--line2); border-radius: 10px; background: var(--bg); overflow: hidden; }
+.nox-yenfield .pre { padding: 0 10px; color: var(--sub); font-size: 15px; border-right: 1px solid var(--line); align-self: stretch; display: flex; align-items: center; }
+.nox-yenfield input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ink); font-size: 16px; padding: 10px 12px; text-align: right; font-variant-numeric: tabular-nums; font-family: inherit; }
+
+/* ★便 GV-C C-14（GV-60・裁定403）: 日の状態 7 種（/mine 希望カレンダー・/shift 月表示・凡例で同じ規則）。
+   確定＝緑塗り／確認待ち＝緑枠／審査中＝黄枠／休み希望＝グレー塗り／見送り＝灰字／募集中＝点線枠／定休・期間外＝減光 */
+[data-day-state="fixed"]    { background: rgba(127, 199, 155, .28) !important; border: 1px solid var(--ok) !important; }
+[data-day-state="wait"]     { border: 2px solid var(--ok) !important; }
+[data-day-state="pending"]  { border: 2px solid var(--gold) !important; }
+[data-day-state="off"]      { background: rgba(140, 140, 150, .30) !important; border-color: var(--line2) !important; }
+[data-day-state="rejected"] { color: var(--sub) !important; }
+[data-day-state="open"]     { border: 1.5px dashed var(--line2) !important; }
+[data-day-state="dim"]      { opacity: .35; }
+.nox-cald[data-day-state="fixed"], .nox-cald[data-day-state="wait"], .nox-cald[data-day-state="off"], .nox-cald[data-day-state="rejected"], .nox-cald[data-day-state="pending"] { opacity: 1 !important; filter: none !important; }
+.nox-dstext { font-size: 9px; line-height: 1.2; color: var(--ink); }
+[data-day-state="rejected"] .nox-dstext { color: var(--sub); }
+.nox-dslegend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 11.5px; color: var(--sub); }
+.nox-dslegend .it { display: inline-flex; align-items: center; gap: 5px; }
+.nox-dslegend .sw { width: 16px; height: 12px; border-radius: 3px; border: 1px solid var(--line); display: inline-block; }
+
+/* ★便 GV-C C-14e（GV-64）: 今日タブの表表示（≥1280）＝5 択を潰さず（容器内スクロールに逃がさない）・出勤記録の列に最小幅・
+   送り／退勤は右寄せのまま、収まらない幅では次の行の右端へ折り返す（重ならない）。 */
+@media (min-width: 1280px) {
+  .nox-todaywrap td.wide { min-width: 470px; }
+  .nox-todaywrap .nox-attrow { flex-wrap: wrap; row-gap: 6px; }
+  .nox-todaywrap .nox-attrow > .nox-seg { flex: 0 0 auto; overflow: visible; }
+  .nox-todaywrap .nox-attrow > .nox-seg > button { white-space: nowrap; }
+  .nox-todaywrap .nox-attrow .out { margin-left: auto; }
 }

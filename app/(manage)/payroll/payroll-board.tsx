@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -248,9 +248,22 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         setPrevNet(((pps ?? []) as { net: number }[]).reduce((a, r) => a + r.net, 0));
       }
     }
+    setRunLoadedKey(`${storeId}|${period}`); // ★便 GV-C C-3: 読み終わった印（自動計算はこの後）
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, period]);
+  const [runLoadedKey, setRunLoadedKey] = useState("");
   useEffect(() => { void loadRun(); }, [loadRun, finalized]);
+  // ★便 GV-C C-3（裁定388）: 当期の支払予定を自動表示＝確定前（run なし／draft）は開いた時点で計算（プレビューボタンは廃止）。確定済み・支払済みは凍結値（loadRun）
+  const autoKey = useRef("");
+  useEffect(() => {
+    if (!storeId || !period || busy || runLoadedKey !== `${storeId}|${period}`) return; // run を読み終わってから（確定済みの凍結値を上書きしない）
+    const k = `${storeId}|${period}|${runInfo?.status ?? "none"}`;
+    if (autoKey.current === k) return;
+    if (runInfo && (runInfo.status === "finalized" || runInfo.status === "paid")) { autoKey.current = k; return; }
+    autoKey.current = k;
+    void preview();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, period, runInfo?.status, runLoadedKey]);
 
   // ★裁定315（便 AB-2）: 「翌期の調整へ」＝翌期へ切り替え→プレビュー→当該 cast の明細を開き、調整入力に種別（定額）と備考を入れる（金額は人が決める）
   const [carry, setCarry] = useState<AttentionCarry | null>(null);
@@ -569,9 +582,10 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
         <span className="nox-tag" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="締め日（月末固定）と支払日（店舗設定 › 会計と運用）・金額表記">締め 月末・支払日 翌月 {storeOps.pay_day} 日{storeOps.tax_inclusive_display ? "・金額表記 内税" : ""}</span>
         {/* ★裁定324（0159・便 C-3）: 計算基準（実打刻／確定シフト）＝店設定を run の期の初日で解決（pay.ts と同じ payTimeBasisOf） */}
         {(() => { const b: PayTimeBasis = payTimeBasisOf(storeSettings, `${period}-01`); return <span className="nox-tag" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="勤務時間の計算基準（店舗設定）">計算基準: {PAY_TIME_BASIS_SHORT[b]}</span>; })()}
-        <button onClick={preview} disabled={busy || !storeId} style={t.btnGold}>
-          プレビュー
-        </button>
+        {/* ★便 GV-C C-3（裁定388）: プレビューボタンは廃止（確定前は自動で計算）。確定前は「暫定」の帯 */}
+        {!(runInfo && (runInfo.status === "finalized" || runInfo.status === "paid")) && (
+          <span className="nox-stpill warn" data-payroll-provisional="1" style={{ alignSelf: "flex-end" }}>暫定（確定前の見込み・{busy ? "計算中…" : "開くたびに再計算"}）</span>
+        )}
       </section>
 
       {/* 段Y2: run バー＝期間・確定バッジ・確定日時を1行に集約（モック）。
@@ -878,7 +892,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     const cell = payStatusCellOf(runInfo?.status, castPaid && cp ? cp : null);
                     const col = cell.tone === "ok" ? "var(--ok)" : cell.tone === "part" ? "var(--gold)" : cell.tone === "bad" ? "var(--bad)" : "var(--sub)";
                     const payable = runInfo?.status === "finalized" && !!cp && cell.tone !== "ok" && cell.tone !== "mute"; // ★裁定340-①: 未払／一部を押すと支払ダイアログ
-                    return <td style={{ ...t.td, fontWeight: 700, color: col, whiteSpace: "nowrap" }} title={cp ? `支払済 ¥${cp.paid.toLocaleString()}／差引支給 ¥${cp.net.toLocaleString()}` : undefined}>{payable ? <button type="button" className="nox-link" style={{ fontWeight: 700, color: col, padding: 0 }} title="押して支払を記録" onClick={(e) => { e.stopPropagation(); setPayDlg({ castId: r.castId, castName: r.castName, net: cp!.net, paid: cp!.paid }); }}>{cell.label}</button> : cell.label}</td>;
+                    return <td style={{ ...t.td, fontWeight: 700, color: col, whiteSpace: "nowrap" }} title={cp ? `支払済 ¥${cp.paid.toLocaleString()}／差引支給 ¥${cp.net.toLocaleString()}` : undefined}>{payable ? <button type="button" className="nox-link" style={{ fontWeight: 700, color: col, padding: 0 }} title="押して支払を記録" onClick={(e) => { e.stopPropagation(); setPayDlg({ castId: r.castId, castName: r.castName, net: cp!.net, paid: cp!.paid }); }}>{cell.label}</button> : cell.label}
+                      {/* ★便 GV-C C-3（裁定388）: 行の操作＝「明細 PDF」（右パネルの明細を開く＝そこから印刷／PDF）・「支払済み」は左の状態（確定済みの未払／一部で支払ダイアログ＝裁定340） */}
+                      <button type="button" className="nox-link" data-row-slip={r.castId} style={{ fontWeight: 600, padding: 0, marginLeft: 10, fontSize: 12 }}
+                        onClick={(e) => { e.stopPropagation(); setDetailCast(r.castId); setSlipPreview(true); }}>明細 PDF</button>
+                    </td>;
                   })()}
                 </tr>
                 );
@@ -927,7 +945,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 const z = (v: number | undefined) => v ?? 0;
                 // ★裁定303-1／303-2: 支給／控除の行＝PayslipSlip と同じ単一関数（同じ行・同じ順・同じ値）。残り物の行（旧「その他」系の合算行）は作らない。
                 //   preview は凍結前＝調整控除の理由行は breakdown.adjustmentsShown（264-10）・extras は gross に内在（裁定26＝二重加算しない）
-                const bd = breakdownLinesOf({
+                const bd = breakdownLinesOf({ systems: storeSettings as Record<string, unknown> | null, /* ★便 GV-C C-10（GV-53） */
                   pay, extras: r.breakdown?.extras ?? [],
                   adjustments: { before: (r.adjustmentsShown ?? []).filter((a) => a.before_withholding), after: (r.adjustmentsShown ?? []).filter((a) => !a.before_withholding) }, // 264-10: preview が行に載せる凍結形
                 });
@@ -1100,7 +1118,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     </div>
                     {slipPreview && (
                       <div style={{ marginTop: 10 }}>
-                        <PayslipSlip
+                        <PayslipSlip systems={storeSettings} /* ★便 GV-C C-10 */
                           castName={r.castName}
                           slip={{
                             period,
@@ -1267,7 +1285,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
             <div style={{ marginTop: 12 }}>
               {printRows.map((r, i) => (
                 <div key={i} className="nox-print-page">
-                  <PayslipSlip slip={r.slip} castName={r.castName} />
+                  <PayslipSlip slip={r.slip} castName={r.castName} systems={storeSettings} />
                 </div>
               ))}
             </div>

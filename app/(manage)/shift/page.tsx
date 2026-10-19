@@ -39,6 +39,7 @@ export default async function ShiftPage() {
       castConfirm={((stores?.[0]?.settings_json ?? {}) as Record<string, unknown>).shift_cast_confirm === true}
       // ★GV-3（便 N1013b B-8）: 店の制度「精算調整・控除」（sys_penalties）が OFF の店は今日タブの「減額」を出さない（欠損＝ON）
       penaltiesOn={isSystemOn((stores?.[0]?.settings_json ?? null) as Record<string, unknown> | null, "sys_penalties")}
+      bonusOn={isSystemOn((stores?.[0]?.settings_json ?? null) as Record<string, unknown> | null, "sys_bonus")} /* ★便 GV-C C-5（R-5 の漏れ 6）: 出勤ボーナスは sys_bonus OFF の店では出さない */
     />
   );
 }

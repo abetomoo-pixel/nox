@@ -4,6 +4,7 @@
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
 import { useCallback, useEffect, useState } from "react";
+import { useLiveReload } from "@/lib/nox/ui/use-live-reload"; // ★便 GV-C C-12: focus／visibility／60 秒で再読込
 import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -33,6 +34,7 @@ import { bizDateOf } from "@/lib/nox/biz-date";
 import { NORM_STATUS_LABEL, castNormStatusOf, currentWageOf, monthElapsedOf, normRateOf, wageTiersOf, type CurrentWage, type NormStatus } from "@/lib/nox/cast/current-wage"; // ★裁定374（GV-B W-4）: 今期の時給（プレビューと同じ純関数）・達成状況
 import { sumCastSales, type CastSalesRow } from "@/lib/nox/payroll/cast-sales"; // ★裁定374: 実績＝/mine と同じ合算（get_cast_sales 月レンジ）
 import { NORM_AXIS_LABEL, hasOverride, normAxesOf, normTargetsOf, planDefaultQuotaOf, quotaKeysOfAxes, resolveQuotaOf, shimeiScopeOf, resolveNormTargetsOf } from "@/lib/nox/store/norm-axes"; // ★裁定347／GV-2（0171・便 P171）: 継承・上書き・採用軸 // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
+import { TRIAL_KIND, TRIAL_PLAN_NAME, isTrialCastOf, trialDaysLeftChipOf, trialGuaranteeRangeOf, trialPlanWarnOf, trialSettingsOf } from "@/lib/nox/cast/trial-flow"; // ★便 GV-C C-14f（GV-65・裁定396）: 体入の一括操作
 import { SHIFT_REQUEST_MODE_LABEL, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: シフト希望の方式のラベルと店の既定
 import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
 import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm, cardAxesOf, cardFmt, type CardAxis } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
@@ -114,6 +116,8 @@ export default function CastsBoard({
   //   ★機微情報（本名・生年月日・マイナンバー等）はこの画面に持ち込まない＝現行の分離設計を維持。
   const [filter, setFilter] = useState<"active" | "trial" | "left" | "today">("active"); // ★裁定353: 「今日出勤」フィルタ
   const [todayOf, setTodayOf] = useState<Record<string, TodayState>>({}); // ★裁定353: cast → 今日の状態
+  const [liveTick, setLiveTick] = useState(0); // ★便 GV-C C-12: 今日の状態を再読込する合図
+  useLiveReload(() => setLiveTick((n) => n + 1));
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<{ kind: "cast" | "trial"; id: string } | null>(null);
   const [dtab, setDtab] = useState<"basic" | "comp" | "account">("basic");
@@ -326,7 +330,7 @@ export default function CastsBoard({
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stores]);
+  }, [stores, liveTick]);
   const todayStateOfCast = (cid: string): TodayState => todayOf[cid] ?? { key: "none", label: "予定なし" };
   // ★N4-1: set_cast_guarantee の有無を 1 回だけ探る（引数 null＝RPC は 'bad amount' を raise・書込なし。未適用なら PostgREST が「関数が無い」を返す）
   useEffect(() => {
@@ -429,6 +433,46 @@ export default function CastsBoard({
     return !error;
   }
 
+  // ★便 GV-C C-14f（GV-65・裁定396）: 「体入を追加」＝cast_create（区分 体入）→ set_cast_plan（体験入店・今日から）→ set_cast_guarantee（店設定の日数・体験入店の基本時給）。
+  //   新 RPC なし・非原子＝途中で失敗したら、どこまで済んだかを出して止める（キャストは登録済み＝詳細から続きを設定できる）。
+  const trialPlanOf = () => activePlans.find((p) => p.name === TRIAL_PLAN_NAME) ?? null;
+  async function addTrialCast(args: Record<string, unknown>): Promise<boolean> {
+    const plan = trialPlanOf();
+    if (!plan) { setMsg(`「${TRIAL_PLAN_NAME}」プランが見つかりません（マスタ ▸ 待遇プランで作成してください）`); return false; }
+    const sid = (args.p_store_id as string) || myStoreId || stores[0]?.id || "";
+    const ts = trialSettingsOf(stores.find((st) => st.id === sid)?.settings_json ?? null);
+    setBusy(true); setMsg(null);
+    const done: string[] = [];
+    const stop = async (step: string, m: string) => { setMsg(`体入の追加を途中で止めました（${done.length ? `済み: ${done.join("・")}／` : ""}失敗: ${step}＝${rpcErrJa(m)}）`); setBusy(false); await reloadLoginCasts(); await loadPlans(); return false; };
+    const c = await supabase.rpc("cast_create", { ...args, p_kind: TRIAL_KIND });
+    if (c.error || !c.data) return stop("キャスト登録", c.error?.message ?? "no id");
+    const castId = c.data as string; done.push("キャスト登録（在籍区分 体入）");
+    const p = await supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: plan.id, p_overrides: {}, p_valid_from: today });
+    if (p.error) return stop(`プラン「${TRIAL_PLAN_NAME}」`, p.error.message);
+    done.push(`プラン「${TRIAL_PLAN_NAME}」`);
+    const r = trialGuaranteeRangeOf(today, ts.days);
+    const amount = plansById[plan.id]?.base ?? 0;
+    if (amount > 0) {
+      const g = await supabase.rpc("set_cast_guarantee", { p_cast_id: castId, p_amount: amount, p_start: r.start, p_end: r.end });
+      if (g.error) return stop("期限付き保証", g.error.message);
+      done.push(`保証 ¥${amount.toLocaleString()}（${mdOf(r.start)}〜${mdOf(r.end)}）`);
+    }
+    setMsg(`体入を追加しました（${done.join("・")}）`);
+    setBusy(false);
+    await reloadLoginCasts(); await loadPlans();
+    return true;
+  }
+  // 本採用＝店の既定プランへ切替（確認なし・今日から・上書きは引き継がない）。★在籍区分の更新は RPC が無い＝0175
+  async function hireTrialCast(c: CastLogin, planId: string) {
+    setBusy(true); setPlanMsg(null);
+    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: planId, p_overrides: {}, p_valid_from: today });
+    setBusy(false);
+    if (error) { setPlanMsg({ kind: "error", text: planSwitchErrJa(error.message) }); return; }
+    setPlanMsg({ kind: "success", text: `本採用しました（待遇プラン「${activePlans.find((p) => p.id === planId)?.name ?? ""}」・${today} から・詳細から変更できます）` });
+    await loadPlans();
+  }
+  const [hirePick, setHirePick] = useState<string | null>(null);
+
   // ── mig0074 入退店（cast_leave / cast_rejoin・owner∨manager自店＝RPC 側が最終防御）──
   //   本ページは page.tsx が owner/manager 以外を redirect 済み＝ボタンの出し分けは role ではなく状態で行う。
   const LEAVE_MSG: Record<string, string> = {
@@ -527,7 +571,7 @@ export default function CastsBoard({
   // ── F3g' castログイン招待（招待=未結線 / PW再発行=結線済み・POST /api/cast/invite） ──
   const reloadLoginCasts = useCallback(async () => {
     // mig0074: left_on を含め、page.tsx と同一の取得にする（.eq(is_active,true) を外す＝段C2 の在籍/退店タブ前提）。
-    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, employment, employment_valid_from, shift_request_mode").order("name"); // ★0154 D2／D6
+    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode").order("name"); // ★0154 D2／D6・★GV-C C-14f: 在籍区分
     setLoginCasts((data ?? []) as CastLogin[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -628,7 +672,8 @@ export default function CastsBoard({
   const w4Hit = (c: CastLogin) => (planFilter === "" || (castPlanOf[c.id] ? plansById[castPlanOf[c.id].planId]?.name === planFilter : false))
     && (normFilter === "" || normStatusOf(c) === normFilter)
     && (wageFilter === "" || String(wageOf(c)?.hourly ?? 0) === wageFilter);
-  const shownCasts = loginCasts.filter((c) => (filter === "today" ? c.is_active && isTodayWorking(todayStateOfCast(c.id)) : c.is_active === (filter === "active")) && hit(c.name) && rankHit(c) && w4Hit(c))
+  const isTrialCast = (c: CastLogin) => isTrialCastOf(c, castPlanOf[c.id] ? plansById[castPlanOf[c.id].planId]?.name ?? null : null); // ★GV-C C-14f（裁定396）: 体入タブ＝在籍区分で絞る
+  const shownCasts = loginCasts.filter((c) => (filter === "trial" ? isTrialCast(c) : filter === "today" ? c.is_active && isTodayWorking(todayStateOfCast(c.id)) : c.is_active === (filter === "active")) && hit(c.name) && (filter === "trial" || (rankHit(c) && w4Hit(c))))
     .sort((a, b) => sortKey === "wage" ? (wageOf(b)?.hourly ?? 0) - (wageOf(a)?.hourly ?? 0) || a.name.localeCompare(b.name, "ja")
       : sortKey === "rate" ? normRateOf(normAxesOfCast(b)) - normRateOf(normAxesOfCast(a)) || a.name.localeCompare(b.name, "ja")
       : a.name.localeCompare(b.name, "ja")); // ★裁定374: 並び替え＝名前・時給・達成率 // ★裁定353: 今日出勤＝確定シフトあり／出勤中／退勤
@@ -664,7 +709,7 @@ export default function CastsBoard({
       {/* E8-5 casts#1（T1）: KPI 帯4枚＝既存 state の再形のみ（新規取得ゼロ） */}
       <div className="nox-repsum">
         <div className="nox-rs"><div className="l">在籍</div><div className="v num">{kpiActive}名</div></div>
-        <div className="nox-rs"><div className="l">体入中</div><div className="v num">{trials.length}名</div></div>
+        <div className="nox-rs"><div className="l">体入中</div><div className="v num">{trials.length + loginCasts.filter(isTrialCast).length}名</div></div>{/* ★GV-C C-14f: 在籍区分 体入を足す */}
         <div className="nox-rs"><div className="l">未招待</div><div className="v num">{kpiUninvited}名</div></div>
         <div className="nox-rs"><div className="l">今月出勤者</div><div className="v num">{kpiWorked}名</div></div>
         {/* ★裁定193（B1・K7）: モック KPI「メール未登録」（在籍のうち未招待 or email 未登録） */}
@@ -777,15 +822,18 @@ export default function CastsBoard({
           <div className="nox-modalbody">
             <p style={{ ...t.sub, margin: "0 0 14px", lineHeight: 1.7 }}>
               {filter === "trial"
-                ? "体入として登録します（本採用でキャストに登録されます）。"
+                ? "在籍区分「体入」で登録し、待遇プラン「体験入店」と期限付き保証（店設定の日数）を一度に設定します。本採用は詳細から（店の既定プランへ切り替わります）。"
                 : "体入を経ずに直接登録します（実績はゼロから）。"}
             </p>
             <RegisterForm
               key={filter} stores={stores} isOwner={isOwner} myStoreId={myStoreId} busy={busy}
-              withTrialFields={filter === "trial"}
-              onSubmit={(a) => filter === "trial"
-                ? rpc("体入を登録", "trial_register", a)
-                : rpc("キャストを登録", "cast_create", a)}
+              fixedKind={filter === "trial" ? TRIAL_KIND : undefined}
+              onSubmit={async (a) => {
+                if (filter === "trial") return addTrialCast(a); // ★GV-C C-14f（裁定396）: 一括設定
+                const ok = await rpc("キャストを登録", "cast_create", a);
+                if (ok) await reloadLoginCasts();
+                return ok;
+              }}
             />
             {/* ★登録後にやること＝モックが同じフォームに置いている3項目の「行き先」を同じ面に集約する。
                 ここでは**何も送らない**（案内のみ）。実行は登録後に一覧からそのキャストを選んで行う。 */}
@@ -809,9 +857,8 @@ export default function CastsBoard({
       )}
 
       {/* カードグリッド（モック .cards）＝写真・名前・状態・月次2数値だけ。機微情報は出さない。 */}
-      {filter === "trial" ? (
-        <div className="nox-cardgrid">
-          {shownTrials.length === 0 && <p style={{ ...t.sub, margin: 0 }}>体入中のキャストはいません。</p>}
+      {filter === "trial" && shownTrials.length > 0 && (
+        <div className="nox-cardgrid" data-legacy-trials="1" style={{ marginBottom: 12 }}>{/* ★GV-C C-14f: 旧・体入台帳（trials）は残っている間だけ出す */}
           {shownTrials.map((tr) => (
             <button key={tr.id} className={`nox-ccard ${sel?.kind === "trial" && sel.id === tr.id ? "sel" : ""}`}
               onClick={() => { setSel({ kind: "trial", id: tr.id }); setDtab("basic"); }}>
@@ -831,17 +878,19 @@ export default function CastsBoard({
             </button>
           ))}
         </div>
-      ) : (
+      )}
+      {(
         <div className="nox-cardgrid">
           {shownCasts.length === 0 && (
             <p style={{ ...t.sub, margin: 0 }}>
-              {filter === "active" ? "在籍キャストがいません。" : filter === "today" ? "今日の出勤（確定シフト・出勤中・退勤）はいません。" : "退店済みのキャストはいません。"}
+              {filter === "trial" ? "体入中のキャストはいません。" : filter === "active" ? "在籍キャストがいません。" : filter === "today" ? "今日の出勤（確定シフト・出勤中・退勤）はいません。" : "退店済みのキャストはいません。"}
             </p>
           )}
           {shownCasts.map((c) => (
             <button key={c.id} className={`nox-ccard ${sel?.kind === "cast" && sel.id === c.id ? "sel" : ""}`}
               onClick={() => { setSel({ kind: "cast", id: c.id }); setDtab("basic"); }}>
               {!c.is_active && <span className="nox-ctag off">{c.left_on ? `退店 ${c.left_on}` : "退店"}</span>}
+              {c.is_active && isTrialCast(c) && <span className="nox-ctag">体入</span>}
               <div className="chead">
                 <CastAvatar name={c.name} url={photoUrls.get(c.id)} size={44} />
                 <div>
@@ -850,12 +899,13 @@ export default function CastsBoard({
                   {c.is_active && <div className="csub" data-today-state={todayStateOfCast(c.id).key} style={{ color: todayStateOfCast(c.id).key === "working" ? "var(--ok)" : todayStateOfCast(c.id).key === "absent" ? "var(--bad)" : undefined }}>今日: {todayStateOfCast(c.id).label}</div>}{/* ★裁定353: 今日の状態 1 行 */}
                   {/* E8-5 casts#3: 副次情報（ランク・プラン名）。LINE 連携は T3 後送り＝出さない */}
                   {/* ★裁定196'（B1・K16）: ランク名／プラン名をモックのバッジ形（nox-stpill）へ＝表示スタイルのみ・値は不変・意味名トークン */}
-                  {(rankNameOf(c) || planNameOf(c.id) || guaBadgeOf(c.id)) && (
+                  {(rankNameOf(c) || planNameOf(c.id) || guaBadgeOf(c.id) || isTrialCast(c)) && (
                     <div className="csub" style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
                       {rankNameOf(c) && <span className="nox-stpill" style={{ color: "var(--v2-text)" }}>{rankNameOf(c)}</span>}
                       {planNameOf(c.id) && <span className="nox-stpill" style={{ color: "var(--v2-muted)" }}>{planNameOf(c.id)}</span>}
                       {/* ★夜間便 N4-2（裁定282-3）: 保証時給の期限が 7 日以内＝「保証 あと n 日」（warn 色・期限切れ当日以降は出さない） */}
-                      {guaBadgeOf(c.id) && <span className="nox-stpill warn">保証 あと{guaBadgeOf(c.id)!.daysLeft}日</span>}
+                      {guaBadgeOf(c.id) && !isTrialCast(c) && <span className="nox-stpill warn">保証 あと{guaBadgeOf(c.id)!.daysLeft}日</span>}
+                      {isTrialCast(c) && trialDaysLeftChipOf(guaranteeStateOf(planRowsOf[c.id] ?? [], today).daysLeft) && <span className="nox-stpill warn" data-trial-days="1">{trialDaysLeftChipOf(guaranteeStateOf(planRowsOf[c.id] ?? [], today).daysLeft)}</span>}{/* ★GV-C C-14f（裁定396）: 体入カードは保証の残日数を常に */}
                     </div>
                   )}
                 </div>
@@ -901,8 +951,29 @@ export default function CastsBoard({
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: "var(--v2-text)" }}>{selCast.name}</div>
               <div style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
-                {selCast.is_active ? "在籍" : "退店"} / {selCast.user_id ? "ログイン済み" : "未招待"}
+                {selCast.is_active ? (isTrialCast(selCast) ? "体入" : "在籍") : "退店"} / {selCast.user_id ? "ログイン済み" : "未招待"}
               </div>
+              {isTrialCast(selCast) && (() => { /* ★GV-C C-14f（裁定396）: 本採用＝店の既定プランへ切替（確認なし）。既定が未設定なら候補から選ぶ */
+                const dp = trialSettingsOf(stores.find((st) => st.id === selCast.store_id)?.settings_json ?? null).defaultPlanId;
+                const dpOk = !!dp && activePlans.some((p) => p.id === dp);
+                const cands = activePlans.filter((p) => p.name !== TRIAL_PLAN_NAME);
+                return (
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 6 }} data-trial-hire="1">
+                    {dpOk ? (
+                      <button type="button" style={btnGold} disabled={busy} onClick={() => void hireTrialCast(selCast, dp!)}>本採用（{activePlans.find((p) => p.id === dp)?.name}）</button>
+                    ) : (
+                      <>
+                        <select value={hirePick ?? ""} onChange={(e) => setHirePick(e.target.value || null)} disabled={busy} style={{ ...input, width: "auto" }} aria-label="本採用後のプラン">
+                          <option value="">本採用後のプラン…</option>
+                          {cands.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        <button type="button" style={btnGold} disabled={busy || !hirePick} onClick={() => hirePick && void hireTrialCast(selCast, hirePick)}>本採用</button>
+                        <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>店の既定プランが未設定です</span>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <span style={{ marginLeft: "auto" }}><button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !busy && setSel(null)}>×</button></span>
           </div>
@@ -1150,6 +1221,7 @@ export default function CastsBoard({
                 <div className="nox-inset" style={{ padding: "10px 14px", margin: "6px 0 10px" }}>
                   <div style={{ fontSize: 12, color: "var(--sub)", marginBottom: 6 }}>待遇プラン</div>
                   <Picker dense items={activePlans.map((p) => ({ id: p.id, label: p.name }))} value={planForm.planId} onPick={(id) => setPlanForm({ ...planForm, planId: id })} disabled={busy} placeholder="プランを検索" empty="（有効なプランがありません）" />
+                  {(() => { const w = trialPlanWarnOf(selCast.kind, activePlans.find((p) => p.id === planForm.planId)?.name); return w ? <Message kind="warn" style={{ margin: "8px 0 0" }}>{w}</Message> : null; })()}{/* ★GV-C C-14f（裁定396）: 在籍キャストへの体験入店は警告 */}
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12 }}>
                     <label style={lbl}>適用開始日（既定＝次の給与期の初日）<br /><input type="date" value={planForm.from} min={today} disabled={busy} onChange={(e) => setPlanForm({ ...planForm, from: e.target.value })} style={{ ...input, width: 160 }} /></label>
                     <button style={btnGold} disabled={busy} onClick={() => void savePlan(selCast)}>切り替える</button>
@@ -1467,17 +1539,19 @@ function MemoField({ tr, busy, onSave }: { tr: Trial; busy: boolean; onSave: (m:
 
 // 体入登録（withTrialFields=true）と直接キャスト登録の共用フォーム。
 function RegisterForm({
-  stores, isOwner, myStoreId, busy, withTrialFields, onSubmit,
+  stores, isOwner, myStoreId, busy, withTrialFields, fixedKind, onSubmit,
 }: {
   stores: Store[]; isOwner: boolean; myStoreId: string; busy: boolean;
   withTrialFields?: boolean;
+  /** ★GV-C C-14f: 区分を固定（体入の追加＝「体入」）＝区分の選択を出さない */
+  fixedKind?: string;
   onSubmit: (args: Record<string, unknown>) => Promise<boolean>;
 }) {
   const [storeId, setStoreId] = useState(myStoreId || stores[0]?.id || "");
   const [name, setName] = useState("");
   const [realName, setRealName] = useState("");
   const [birthday, setBirthday] = useState("");
-  const [tier, setTier] = useState<string>("体入");
+  const [tier, setTier] = useState<string>(fixedKind ?? "レギュラー"); // ★GV-C C-14f: 直接登録の既定は「レギュラー」（体入は体入タブから＝在籍区分で絞るため）
   const [trialDate, setTrialDate] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
@@ -1493,9 +1567,9 @@ function RegisterForm({
     };
     const args = withTrialFields
       ? { ...base, p_tier: tier, p_trial_date: trialDate || null }
-      : { ...base, p_kind: tier };
+      : { ...base, p_kind: fixedKind ?? tier };
     const ok = await onSubmit(args);
-    if (ok) { setName(""); setRealName(""); setBirthday(""); setTrialDate(""); setTier("体入"); }
+    if (ok) { setName(""); setRealName(""); setBirthday(""); setTrialDate(""); setTier(fixedKind ?? "レギュラー"); }
   }
 
   // ★DP1 P3（裁定 DP1-⑨）: モック castDialog の `.formgrid`（2カラム・`.field` / `.field.full`）へ。
@@ -1526,12 +1600,12 @@ function RegisterForm({
           <span className="lab">生年月日<span className="req">*</span></span>
           <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} style={{ ...input, width: "100%" }} />
         </div>
-        <div className="nox-field">
+        {!fixedKind && <div className="nox-field">
           <span className="lab">区分</span>
           <select value={tier} onChange={(e) => setTier(e.target.value)} style={{ ...input, width: "100%" }}>
             {TIERS.map((x) => <option key={x} value={x}>{x}</option>)}
           </select>
-        </div>
+        </div>}
         {withTrialFields && (
           <div className="nox-field">
             <span className="lab">体入日</span>

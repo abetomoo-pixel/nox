@@ -52,7 +52,7 @@ export default function PayrollAttentions({ runId, runPeriod, onCarry }: { runId
           <div style={{ overflowWrap: "anywhere" }}>{attentionLineOf(r)}</div>
           {target === r.id ? (
             <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="理由（任意・200 字まで）" style={{ ...t.input, width: "100%" }} autoFocus />
+              <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="理由（任意・200 字まで）" style={{ ...t.input, width: "100%" }} /* ★便 GV-C C-14b（GV-61）: 任意の欄＝autofocus なし */ />
               <div className="nox-actions" style={{ justifyContent: "flex-start", gap: 8 }}>
                 <button type="button" onClick={() => void resolve(r.id)} disabled={busy} style={{ ...t.btnGold, ...t.btnSm, opacity: busy ? 0.5 : 1 }}>{busy ? "記録中…" : "解決済みにする"}</button>
                 <button type="button" onClick={() => { setTarget(null); setReason(""); }} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm }}>キャンセル</button>

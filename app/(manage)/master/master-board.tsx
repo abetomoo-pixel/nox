@@ -118,10 +118,8 @@ export default function MasterBoard() {
                       {p.ownerOnly && <span className="status mute">オーナー</span>}
                     </div>
                     <h3><span className="nox-cardtitle">{p.label}</span><span className="nox-cardchev" aria-hidden="true" style={{ color: "var(--primary)" }}>›</span></h3>{/* ★306-15: 「タイトル ›」1 行（nowrap） */}
-                    <p className="nox-carddesc">{p.desc}</p>{/* ★306-15: 説明 1 行 */}
-                    {(p.tabs?.length ?? 0) > 1 && (
-                      <p className="nox-carddesc" style={{ color: "var(--sub)" }}>{p.tabs!.map((tb) => tb.label).join(" / ")}</p>
-                    )}
+                    {/* ★306-15: 説明 1 行 → ★便 GV-C C-7（GV-48）: タブのある入口はタブ一覧の 1 行だけ（説明と 2 行重複していた）・タブが 1 つ以下は説明 1 行 */}
+                    <p className="nox-carddesc" data-hub-desc="1">{(p.tabs?.length ?? 0) > 1 ? p.tabs!.map((tb) => tb.label).join(" / ") : p.desc}</p>
                     <div className="foot">
                       <span className={`status ${m.tone}`}>{m.status}</span>
                       <span className="link">管理する →</span>

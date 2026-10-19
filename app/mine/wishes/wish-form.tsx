@@ -28,6 +28,7 @@ import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定3
 import { outOfPeriodNoteOf, ymFromSearch } from "@/lib/nox/ui/month-nav";
 // ★裁定326-7／追補2-4（0160・便 M4-1）: 店設定 shift_request_mode。'off_only'＝休み希望（kind 'off'・時刻なし＝時間欄を出さない）。'shift'＝従来（kind 'work'）
 import { wishNeedsTimes, wishPageTextOf, wishRowLabelOf, wishSubmitArgsOf, type WishMode } from "@/lib/nox/mine/wish-mode";
+import { DAY_STATE_ORDER, dayStateLabelOf, dayStateOf, type DayShift } from "@/lib/nox/mine/day-state"; // ★便 GV-C C-14（GV-60・裁定403）: 日の状態 7 種
 
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
@@ -40,6 +41,7 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
   const [month, setMonth] = useState(today.slice(0, 7));
   useYmQuery(month, setMonth); // ★306-1／306-4: ?ym と同期
   const [wishes, setWishes] = useState<WishLike[]>([]);
+  const [monthShifts, setMonthShifts] = useState<Map<string, NonNullable<DayShift>>>(new Map()); // ★GV-60: 表示月の自分のシフト（過去月も＝確定実績）
   const [sel, setSel] = useState<Selection>({});
   const [defStart, setDefStart] = useState(DEFAULT_START);
   const [defEnd, setDefEnd] = useState(DEFAULT_END);
@@ -76,9 +78,16 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
   // 表示月の自分の希望（RLS＝自分の行のみ）＝提出済みの印と活性日の判定
   const loadWishes = useCallback(async () => {
     const supabase = createClient();
-    const { data } = await supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status, kind")
-      .gte("date", `${month}-01`).lt("date", `${monthAfterOf(month, 1)}-01`).order("date");
+    const [{ data }, { data: sh }] = await Promise.all([
+      supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status, kind")
+        .gte("date", `${month}-01`).lt("date", `${monthAfterOf(month, 1)}-01`).order("date"),
+      supabase.from("shifts").select("date, start_hm, end_hm, status") // ★GV-60: 自分の行（RLS）
+        .gte("date", `${month}-01`).lt("date", `${monthAfterOf(month, 1)}-01`),
+    ]);
     setWishes((data ?? []) as WishLike[]);
+    const m = new Map<string, NonNullable<DayShift>>();
+    for (const r of ((sh ?? []) as { date: string; start_hm: string; end_hm: string; status: string }[])) { const cur = m.get(r.date); if (!cur || r.status === "confirmed") m.set(r.date, r); }
+    setMonthShifts(m);
   }, [month]);
   useEffect(() => { void loadWishes(); }, [loadWishes]);
 
@@ -162,18 +171,25 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
           const isActive = active.has(ymd);
           const err = failed[ymd];
           const disabled = !isActive && !(w && isLiveWish(w.status));
+          const ds = dayStateOf({ wish: w as { status: string; kind?: string | null; start_hm?: string | null; end_hm?: string | null } | null, shift: monthShifts.get(ymd), open: isActive, closed: closedDates.has(ymd) }); // ★GV-60
           const cls = ["nox-cald", on ? "sel" : "", ymd < today ? "past" : "", ymd === today ? "today" : "", err ? "ng" : "", w && isLiveWish(w.status) ? "ok" : ""].filter(Boolean).join(" ");
           return (
-            <button key={ymd} type="button" className={cls} disabled={disabled || busy} onClick={() => void tap(ymd)}
+            <button key={ymd} type="button" className={cls} data-day-state={ds.key} disabled={disabled || busy} onClick={() => void tap(ymd)}
               style={{ minHeight: 56, ...(err ? { outline: "2px solid var(--bad)", outlineOffset: -2 } : {}), ...(focus === ymd ? { outline: "2px solid var(--gold)", outlineOffset: -2 } : {}) }}
-              title={err ? `${mdDowOf(ymd)}: ${err}` : mark ? `${mdDowOf(ymd)}: ${mark}` : isActive ? `${mdDowOf(ymd)}: 募集中` : `${mdDowOf(ymd)}: 募集期間外`}>
+              title={err ? `${mdDowOf(ymd)}: ${err}` : `${mdDowOf(ymd)}: ${dayStateLabelOf(ds.key, mode)}${ds.mark ? `（${ds.mark}）` : ""}${mark ? `・${mark}` : ""}`}>
               <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
-              {mark && <span style={{ fontSize: 8.5, color: w?.status === "accepted" ? "var(--ok)" : w?.status === "rejected" ? "var(--sub)" : "var(--champ)" }}>{mark}</span>}
+              {!on && ds.mark && <span className="nox-dstext num">{ds.mark}</span>}{/* ★GV-60: 確定／確認待ち＝時刻・審査中＝「希望」・休み希望＝「休み」・見送り */}
               {on && <span className="num" style={{ fontSize: 8.5, color: "var(--champ)" }}>{needsTimes && sel[ymd] ? `${sel[ymd]!.start}-` : needsTimes ? "選択" : "休み"}</span>}
               {err && <span style={{ fontSize: 8.5, color: "var(--bad)" }}>失敗</span>}
             </button>
           );
         })}
+      </div>
+      {/* ★便 GV-C C-14（GV-60・裁定403）: 凡例＝345 の語（/shift 月表示と同じ色規則） */}
+      <div className="nox-dslegend" data-day-legend="1">
+        {DAY_STATE_ORDER.map((k) => (
+          <span key={k} className="it"><span className="sw" data-day-state={k} />{dayStateLabelOf(k, mode)}</span>
+        ))}
       </div>
       <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>{wishPageTextOf(mode).markNote}</p>
 

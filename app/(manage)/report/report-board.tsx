@@ -514,7 +514,7 @@ export default function ReportBoard({
     setBizDate(biz);
     window.setTimeout(() => {
       closeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      expenseRef.current?.focus();
+      // ★便 GV-C C-14b（GV-61）: 値の入った欄へ自動フォーカスしない（スクロールだけ）
     }, 50);
   }
 
@@ -1273,32 +1273,37 @@ export default function ReportBoard({
             const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout;
             const diffLive = counted === "" ? null : Number(counted) - expected;
             return (
-              <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 10, fontSize: 12.5 }}>
-                <span style={{ fontSize: 11, color: "var(--sub)" }}>レジ内 現金予定額（ライブ）</span>
-                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "baseline", marginTop: 2 }}>
-                  <b className="num" style={{ fontSize: 17, color: "var(--ink)" }}>{yen(expected)}</b>
-                  <span style={{ color: "var(--sub)", fontSize: 11.5 }}>
+              <div className="nox-inset" data-close-expected="1" style={{ padding: "12px 16px", marginBottom: 12, fontSize: 14 }}>{/* ★便 GV-C C-11（GV-54）: 予定額は見出し級・式は 1 段大きく・差額 ¥± は予定額の横 */}
+                <span style={{ fontSize: 13, color: "var(--sub)" }}>レジ内 現金予定額（ライブ）</span>
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "baseline", marginTop: 4 }}>
+                  <b className="num" style={{ fontSize: 28, color: "var(--ink)" }}>{yen(expected)}</b>
+                  {diffLive != null && (
+                    <b className="num" data-close-diff="1" style={{ fontSize: 18, color: diffLive === 0 ? "var(--ok)" : "var(--bad)" }}>
+                      差額 {diffLive === 0 ? "¥±0" : `${diffLive > 0 ? "+" : "−"}${yen(Math.abs(diffLive))}`}
+                    </b>
+                  )}
+                </div>
+                <div style={{ marginTop: 4 }}>
+                  <span style={{ color: "var(--sub)", fontSize: 13.5 }}>
                     ＝ 釣銭 {yen(cashFloat)} ＋ 現金売上 {yen(preview.cash)} ＋ 回収現金 {yen(preview.arCollectedToday)}
                     − 諸経費 {yen(expense)} − 現金支払 {yen(payout)}
                   </span>
-                  {diffLive != null && (
-                    <b className="num" style={{ color: diffLive === 0 ? "var(--ok)" : "var(--bad)" }}>
-                      実査差異 {diffLive === 0 ? "±0" : `${diffLive > 0 ? "+" : "−"}${yen(Math.abs(diffLive))}`}
-                    </b>
-                  )}
                 </div>
               </div>
             );
           })()}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <label style={{ ...t.fieldLabel, fontSize: 12 }}>諸経費 <input ref={expenseRef} type="number" min={0} value={expense} onChange={(e) => setExpense(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
-            <label style={{ ...t.fieldLabel, fontSize: 12 }}>現金支払（送り・日払い等） <input type="number" min={0} value={payout} onChange={(e) => setPayout(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
-            <label style={{ ...t.fieldLabel, fontSize: 12 }}>釣銭準備金 <input type="number" min={0} value={cashFloat} onChange={(e) => setCashFloat(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
-            <label style={{ ...t.fieldLabel, fontSize: 12 }}>実査（数えた現金） <input type="number" min={0} value={counted} onChange={(e) => setCounted(e.target.value)} placeholder="未入力可" style={{ ...input, width: 110 }} /></label>
+          {/* ★便 GV-C C-11（GV-54）: 4 欄＝¥ 接頭＋3 桁区切り・ラベル上入力下の 2×2（スマホ 1 列＝.nox-close4）。送る値は従来どおり数値（実査は空＝null） */}
+          <div className="nox-close4" data-close-grid="1">
+            <YenField label="諸経費" value={String(expense)} onChange={(v) => setExpense(Number(v || 0))} inputRef={expenseRef} />
+            <YenField label="現金支払（送り・日払い等）" value={String(payout)} onChange={(v) => setPayout(Number(v || 0))} />
+            <YenField label="釣銭準備金" value={String(cashFloat)} onChange={(v) => setCashFloat(Number(v || 0))} />
+            <YenField label="実査（数えた現金）" value={counted} onChange={(v) => setCounted(v)} placeholder="未入力可" />
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
             {/* E8-2 #5: 金種カウンタ（合計を実査へ反映＝入力補助・DB は counted_cash 1列のまま） */}
             <button type="button" style={btnLight} onClick={() => setDenomOpen(true)}>金種で数える</button>
-            <input placeholder="メモ" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...input, width: 160 }} />
-            <label style={{ ...t.fieldLabel, fontSize: 12 }}>
+            <input placeholder="メモ" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...input, width: 180 }} />
+            <label style={{ ...t.fieldLabel, fontSize: 13 }}>
               <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} /> 未会計があっても強行
             </label>
           </div>
@@ -1327,7 +1332,7 @@ export default function ReportBoard({
           <div className="nox-actions" style={{ marginTop: 10 }}>
             {recloseTarget
               ? <button style={btnDark} onClick={() => void recloseFromForm(recloseTarget.id)}>再締め</button>
-              : <button style={btnDark} onClick={closeDay} disabled={!!closedReport && reopenFlag}
+              : <button style={t.btnPrimary56} data-close-submit="1" onClick={closeDay} disabled={!!closedReport && reopenFlag} /* ★便 GV-C C-11（GV-54）: 375 の主ボタン規格 */
                   title={closedReport && reopenFlag ? "締め済み（表の「解除」で解除すると再締めできます）" : undefined}>締め確定</button>}
           </div>
         </section>
@@ -1389,7 +1394,7 @@ export default function ReportBoard({
         ))}
         <p style={{ ...t.sub, fontSize: 11, margin: "10px 0 6px" }}>全列（実査差異・再締め等）は下の表で確認できます。</p>
         <div className="nox-tablewrap plain">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし） */}
-        <table className="nox-table cardrows" style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>{/* ★X-13-17（便 X-13d-1）: ≤899 は 1 日 1 カード（19 列を data-label 付きで縦に）・PC は裁定251 の横スクロールのまま */}
+        <table className="nox-table cardrows" data-close-rows="1" style={{ borderCollapse: "collapse", width: "100%", fontSize: 14 /* ★便 GV-C C-11（GV-54）: 締め済み日報の行も締め欄と同じ文字基準（本文 14） */ }}>{/* ★X-13-17（便 X-13d-1）: ≤899 は 1 日 1 カード（19 列を data-label 付きで縦に）・PC は裁定251 の横スクロールのまま */}
           <thead>
             <tr>
               {["営業日", "伝票", "客数", "現金", "回収現金", "カード回収", "その他回収", "カード", "カード決済手数料（店負担）", "手数料（客負担）", "売掛", "ドリンク売上", "セット・延長・指名", "商品", "未会計", "諸経費", "現金支払", "紹介料(現金)", "実査差異", "再締め回数", "締め担当", ""].map((h) => (
@@ -1461,5 +1466,20 @@ export default function ReportBoard({
       </section>
       </>)}
     </div>
+  );
+}
+
+
+// ★便 GV-C C-11（GV-54）: 日報の締めの金額欄＝ラベル上・入力下・¥ 接頭＋3 桁区切り（表示だけ・値は数字列のまま親へ）
+function YenField({ label, value, onChange, placeholder, inputRef }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; inputRef?: React.Ref<HTMLInputElement> }) {
+  const digits = value.replace(/[^0-9]/g, "");
+  return (
+    <label className="nox-yenfield">
+      <span className="l">{label}</span>
+      <span className="f"><span className="pre">¥</span>
+        <input ref={inputRef} inputMode="numeric" value={digits === "" ? "" : Number(digits).toLocaleString("ja-JP")} placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ""))} aria-label={label} />
+      </span>
+    </label>
   );
 }
