@@ -35,6 +35,17 @@ export default function SystemsBoard({ storeId, storeName, isOwner, initialSetti
     setMsg(`${SYSTEM_LABELS[key]}を「${next ? "ON" : "OFF"}」にしました`);
   }
 
+  // ★便 X13-H H-7（裁定412）: 報酬の軸の切替＝複数キーを 1 回の set_store_profile で（他キーは触らない）
+  async function onPatch(patch: Partial<Record<SystemKey, boolean>>, label: string) {
+    if (busyKey || !storeId) return;
+    setBusyKey("sys_backs"); setMsg(null);
+    const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeId, p_patch: patch });
+    setBusyKey(null);
+    if (error) { setMsg(`保存に失敗: ${storeProfileErrJa(error.message)}`); return; }
+    setSettings((s) => ({ ...s, ...patch }));
+    setMsg(`${label}にしました`);
+  }
+
   return (
     <div>
       <Toast msg={msg} />
@@ -52,10 +63,10 @@ export default function SystemsBoard({ storeId, storeName, isOwner, initialSetti
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>
           未設定の制度は ON として扱います。キャスト個別の設定（上書き・ノルマ目標）がある制度は OFF にできません。
         </p>
-        <StoreSystemsPanel settings={settings} onChange={onChange} usage={usage} readOnly={!isOwner} busyKey={busyKey} />
+        <StoreSystemsPanel settings={settings} onChange={onChange} onPatch={onPatch} usage={usage} readOnly={!isOwner} busyKey={busyKey} />
       </section>
       {/* ★0154 D4（裁定293 追補1-1／294-7）: 精算調整のひな形（settings_json.settlement_presets・owner のみ編集） */}
-      <section className="nox-cardtop" style={card}>
+      <section className="nox-cardtop" style={card} id="settlement-presets">{/* ★便 X13-H H-15: 閾値パネルの「ひな形を開く」の飛び先 */}
         <h2 style={{ ...secTitle, margin: "0 0 4px" }}>精算調整のひな形（委託）</h2>
         <SettlementPresetsEditor storeId={storeId} settings={settings} readOnly={!isOwner} onSaved={(list) => setSettings((s) => ({ ...s, settlement_presets: list }))} />
       </section>

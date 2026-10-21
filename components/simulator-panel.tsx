@@ -23,7 +23,8 @@ export default function SimulatorPanel({
   mode,
   plans,
   masters,
-  slideApply = "current",
+  slideApply: slideApplyProp = "current",
+  slideApplyByPlanName,
   openAdv,
   openOkuri,
   defaultTaxMode,
@@ -37,6 +38,8 @@ export default function SimulatorPanel({
   masters: StoreMasters;
   /** ★N3b（裁定288-7）: 店の slide_apply。'next' なら段の判定入力を「前月の売上合計・ポイント合計」に切り替える */
   slideApply?: "next" | "current";
+  /** ★便 X13-G→X13-H H-8: プランごとの判定タイミング（プラン名→値）。あれば選択中のプランの値を使う（無ければ slideApply） */
+  slideApplyByPlanName?: Record<string, "next" | "current">;
   openAdv: number; // cast の open 前借り残（店=0）
   openOkuri: number; // cast の open 送り実費残（店=0）
   defaultTaxMode: TaxMode;
@@ -87,6 +90,7 @@ export default function SimulatorPanel({
     return Number.isFinite(n) ? n : 0;
   };
 
+  const slideApply: "next" | "current" = (selectedPlan ? slideApplyByPlanName?.[selectedPlan.name] : undefined) ?? slideApplyProp; // ★便 X13-H H-8
   // 実効プラン: 店モードで編集中なら base/バックを上書き（slide は元プランのまま）。
   const effPlan: CompPlan | undefined = useMemo(() => {
     if (!selectedPlan) return undefined;

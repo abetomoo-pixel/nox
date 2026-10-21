@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { ResponsiveTable } from "@/components/ui/responsive-kit";
 import { Message } from "@/components/ui/toast";
-import { STAFF_CONTRACT_LABEL, hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay";
+import { staffContractLineOf, hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay";
 
 type Mem = { id: string; user_id: string; store_id: string; role: string; is_active: boolean };
 type UserRow = { id: string; name: string | null };
@@ -78,7 +78,7 @@ export default function StaffWorkPanel({ scope, stores }: { scope: "store" | "me
               <tr key={r.m.id} data-staff-work-row={r.m.id}>
                 <td>{r.name}<span style={{ ...t.sub, marginLeft: 6 }}>{t.roleLabelJa(r.m.role)}</span></td>
                 {scope === "store" && <td>{r.store}</td>}
-                <td>{r.contract ? `${STAFF_CONTRACT_LABEL[r.contract.contract_kind]}・時給 ${yen(r.contract.hourly)}${r.contract.fixed_allowance ? `・手当 ${yen(r.contract.fixed_allowance)}` : ""}` : <span style={t.sub}>契約未登録（次のデータ更新で設定）</span>}</td>
+                <td>{r.contract ? staffContractLineOf(r.contract) : <span style={t.sub}>契約未登録</span>}</td>
                 <td className="num">{r.days.length}</td>
                 <td className="num">{hmOf(r.days.reduce((s, d) => s + d.minutes, 0))}{r.days.some((d) => d.open) && <span style={{ ...t.sub, marginLeft: 4 }}>（退勤待ち）</span>}</td>
                 <td className="num">{r.pay ? yen(r.pay.gross) : "—"}</td>
@@ -94,7 +94,7 @@ export default function StaffWorkPanel({ scope, stores }: { scope: "store" | "me
         <div style={{ marginTop: 12 }}>
           {/* ★便 P174 T-7（356）: 確定（staff_payroll_runs）は書込 RPC が無い＝0175＝押せないボタンは置かず状況だけ（教訓25） */}
           <p style={{ fontSize: 12.5, margin: "0 0 4px" }} data-staff-pay-run={run ? run.status : "none"}>この月の確定: <b>{run ? (run.status === "finalized" ? "確定済み" : run.status === "paid" ? "支払済み" : run.status) : "未確定（見込み）"}</b></p>
-          <p style={{ ...t.sub, margin: "6px 0 0", lineHeight: 1.6 }}>打刻は店の端末（キオスク）から・契約（区分・時給・手当）の登録と確定は準備中です。委託の源泉率は税理士に確認中のため 0 で見込みを出しています。</p>
+          <p style={{ ...t.sub, margin: "6px 0 0", lineHeight: 1.6 }}>打刻は店の端末（キオスク）から。支給見込みは雇用＝時給×実働（月給は月額）、委託＝源泉 10.21% を引いた額です。</p>
         </div>
       )}
     </section>

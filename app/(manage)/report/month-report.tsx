@@ -14,6 +14,7 @@ import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P
 import { finalRunOf, laborCostOf, laborRatePct, type LaborRun, type LaborSlip } from "@/lib/nox/payroll/labor-cost";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 type Store = { id: string; name: string };
 type DR = { biz_date: string; cash: number; card_gross: number; uri: number; other: number; slips: number; guests: number; dohan_checks: number; drink_sales: number };
 type Split = { sales: number; groups: number; guests: number; dohan: number; drink: number; shimei: number };
@@ -94,7 +95,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
     const py = `${Number(period.slice(0, 4)) - 1}${period.slice(4)}`;
     const { data: pdrs } = await supabase.from("daily_reports")
       .select("cash, card_gross, uri, other").eq("store_id", storeId)
-      .gte("biz_date", `${py}-01`).lte("biz_date", `${py}-31`);
+      .gte("biz_date", `${py}-01`).lte("biz_date", monthLastDayOf(py)); // ★便 X13-H H-9: 「-31」は 30 日の月で不正な日付（22008）→ 前年同月が 0 件だった
     setPrevYearSales((pdrs ?? []).length
       ? ((pdrs ?? []) as Array<{ cash: number; card_gross: number; uri: number; other: number }>)
           .reduce((a, r) => a + r.cash + r.card_gross + r.uri + r.other, 0)

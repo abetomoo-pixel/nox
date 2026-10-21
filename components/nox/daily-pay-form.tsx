@@ -15,6 +15,7 @@ import { withholdingOf } from "@/lib/nox/pay";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { carriedNoteOf, dailyPayPeriodNoteOf, dailyPayOverNoteOf } from "@/lib/nox/payroll/advance-okuri";
 import { Message } from "@/components/ui/toast";
+import { monthRangeOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 
 type Paid = { id: string; biz_date: string; gross: number; withholding: number; net: number; withholding_category: string; kind: string | null }; // ★0172: +kind
 const yen = (n: number) => "¥" + n.toLocaleString();
@@ -41,8 +42,7 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId, o
 
   const load = useCallback(async () => {
     const month = date.slice(0, 7);
-    const [y, m] = month.split("-").map(Number);
-    const nextMonth = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}-01`; // ★便 X13-G live: 「-31」は 30 日の月で不正な日付（エラー→0 件）＝翌月 1 日の未満で
+    const nextMonth = monthRangeOf(month).next; // ★便 X13-G live: 「-31」は 30 日の月で不正な日付（エラー→0 件）＝翌月 1 日の未満で
     const [{ data: tp }, { data: cs }, { data: dp }] = await Promise.all([ // ★便 X13-G live ㉓: 受け順を Promise の順（税区分→期の状態→日払い）に（逆で「発行済み」が常に空だった）
       supabase.from("cast_tax_profiles").select("mode").eq("cast_id", castId).maybeSingle(),
       supabase.from("casts").select("store_id").eq("id", castId).maybeSingle().then(async (c) => c.data?.store_id ? supabase.from("payroll_runs").select("status").eq("store_id", c.data.store_id as string).eq("period", month).maybeSingle() : { data: null }),

@@ -621,7 +621,8 @@ export default function RegisterBoard({
     await loadCheck(check.id);
   }
   const [payAmount, setPayAmount] = useState(0);
-  const [payCardGross, setPayCardGross] = useState<number | null>(null); // ★便 X13-G W-25 ①: カード（加算あり）の手数料込み入金額・null＝既定（残額＋手数料）
+  const [payCardGross, setPayCardGross] = useState<number | null>(null);
+  const [paySplitN, setPaySplitN] = useState<number | null>(null); // ★便 X13-H H-14: 押した均等割りの人数（入金額がその 1 人分のときだけ「1 人分」を出す） // ★便 X13-G W-25 ①: カード（加算あり）の手数料込み入金額・null＝既定（残額＋手数料）
   const [payTendered, setPayTendered] = useState("");
   const [payDetail, setPayDetail] = useState(""); // F4c: 手段内訳メモ（card/other のみ・50字・空は null 送信）
   // F3c: 割引/無料 申請・適用フォーム
@@ -2091,7 +2092,13 @@ export default function RegisterBoard({
                 <span style={{ fontWeight: 800 }}>残額</span>
                 <span style={{ ...t.num, fontSize: 20, fontWeight: 900, color: balance > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(balance)}</span>
               </div>
-              {feeNote && <div data-pay-fee-line="1" style={{ fontSize: 13, color: "var(--gold2)", marginTop: 4, textAlign: "right" }}>{payFeeLabelJa(feeNote.key)} {feeNote.rate}%＋{yen(feeNote.fee)}（伝票に加算）</div>}{/* ★便 X13-G W-17 ④: 加算が有効な店でカード等を選んだときだけ・残額の下 */}
+              {grossMode && balance > 0 && (/* ★便 X13-H H-14: カード（お客様へ加算あり）＝残額の直下に太字 1 行（旧「カード手数料 n%＋¥…」を統合・現金／その他では出さない・残額の定義は不変）。均等割りの 1 人分のときは同じ場所に */
+                <div data-pay-card-total="1" className="num" style={{ fontSize: 14, fontWeight: 800, marginTop: 6, textAlign: "right", overflowWrap: "anywhere", lineHeight: 1.5 }}>
+                  {paySplitN && grossN === Math.ceil(grossDefault / paySplitN)
+                    ? <>1 人分 {yen(grossN)}（手数料込み）</>
+                    : <>カードでのお支払額 {yen(grossDefault)}（残額 {yen(balance)}＋手数料 {yen(grossDefault - balance)}）</>}
+                </div>
+              )}
             </div>
             {/* 支払方法（NOX 4値・台帳#36）
                 ★DP1 P2 b#39（裁定 DP1-⑧）: モックは「現金／カード／併用」の3択だが、
@@ -2128,7 +2135,7 @@ export default function RegisterBoard({
                 ...(payMethodsOn.emoney ? [["emoney", OPS_METHOD_LABEL.emoney]] : []), ...(payMethodsOn.qr ? [["qr", OPS_METHOD_LABEL.qr]] : []), ["other", METHOD_LABEL.other]] as [string, string][]).map(([v, l]) => (
                 <button key={v} type="button"
                   style={payMethod === v ? { ...t.btnGold, justifyContent: "center", padding: "12px" } : { ...t.btnGhost, justifyContent: "center", padding: "12px" }}
-                  onClick={() => { setPayMethod(v); setPayCardGross(null); if (!DETAIL_METHODS.has(v)) setPayDetail(""); }}>
+                  onClick={() => { setPayMethod(v); setPayCardGross(null); setPaySplitN(null); if (!DETAIL_METHODS.has(v)) setPayDetail(""); }}>
                   {l}
                 </button>
               ))}
@@ -2145,7 +2152,7 @@ export default function RegisterBoard({
               <span style={{ fontSize: 12, color: "var(--sub)", fontWeight: 700 }}>均等割り</span>
               {[2, 3, 4, 5, 6].map((n) => (
                 <button key={n} type="button" style={{ ...btnLight }} disabled={balance <= 0}
-                  onClick={() => setEntered(Math.ceil((grossMode ? grossDefault : balance) / n))}>
+                  onClick={() => { setEntered(Math.ceil((grossMode ? grossDefault : balance) / n)); setPaySplitN(n); }}>
                   {n}分割
                 </button>
               ))}
@@ -3631,7 +3638,7 @@ export default function RegisterBoard({
                 const remaining = gi?.remaining ?? 0;
                 return (
                   <button type="button" style={t.btnPrimary56} data-pay-next="1" disabled={check.status !== "open" || remaining <= 0}
-                    onClick={() => { setPayAmount(remaining); setPayCardGross(null); setPayTendered(""); setPayDetail(""); setPayModal(true); }}>
+                    onClick={() => { setPayAmount(remaining); setPayCardGross(null); setPaySplitN(null); setPayTendered(""); setPayDetail(""); setPayModal(true); }}>
                     入金へ進む{splitOn ? `（会計${payGroup || "A"}）` : ""}
                   </button>
                 );

@@ -13,7 +13,7 @@ import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票9
 import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
 import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf } from "@/lib/nox/store/norm-axes"; // ★裁定347（0171・便 P171）: プラン既定の目標 4 軸（採用 OFF の軸は入力口を出さない）
-import { SLIDE_APPLY_LABEL, SLIDE_BASIS_LABEL, slideApplyOf, slideBasisOf, slideBasisPillOf, slideDescOf, slidePeriodOf, slidePillOf, type SlideBasis, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）・★裁定338（0168）: 判定期間
+import { SLIDE_APPLY_LABEL, SLIDE_BASIS_LABEL, slideBasisOf, slideBasisPillOf, slideDescOf, slidePeriodOf, slidePillOf, type SlideBasis, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）・★裁定338（0168）: 判定期間
 import { isSectionOn, isSystemOn, pointSlideOn, salesSlideOn, slidesTabOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）
@@ -259,7 +259,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
-  const effApply: "next" | "current" = draft.slideApply ?? slideApplyOf(settings); // ★便 P174 T-4: 表示（ピル・説明）はプラン→店設定で解決
+  const effApply: "next" | "current" = draft.slideApply ?? "current"; // ★便 X13-H H-8: 判定タイミングはプランだけ（null＝当期の累計・店の slide_apply は読まない）
   const clean = (s: Slide[]) => slideToSave(s); // ★便 P174 T-1（裁定390）: at=0 の行を除外（従来と同じ）
 
   async function savePlan(section: string) {
@@ -533,11 +533,11 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         </p>
         {/* ★便 P174 T-4（裁定395・395 追補2）: 判定のタイミング＝詳細設定の奥（主表示は上の判定期間）。null＝店設定に従う・前期の実績（既定）・当期の累計（稀） */}
         <details data-slide-apply="1" style={{ margin: "0 0 8px", fontSize: 12, color: "var(--sub)" }}>
-          <summary style={{ cursor: "pointer" }}>詳細設定（判定のタイミング: {draft.slideApply === null ? `店の設定に従う＝${SLIDE_APPLY_LABEL[slideApplyOf(settings)]}` : SLIDE_APPLY_LABEL[draft.slideApply]}）</summary>
+          <summary style={{ cursor: "pointer" }}>詳細設定（判定のタイミング: {SLIDE_APPLY_LABEL[effApply]}）</summary>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 6 }}>
-            {([[null, `店の設定に従う（いまは${SLIDE_APPLY_LABEL[slideApplyOf(settings)]}）`], ["next", SLIDE_APPLY_LABEL.next], ["current", SLIDE_APPLY_LABEL.current]] as const).map(([v, label]) => (
+            {([["next", SLIDE_APPLY_LABEL.next], ["current", SLIDE_APPLY_LABEL.current]] as const).map(([v, label]) => (
               <label key={String(v)} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-                <input type="radio" name="slide-apply" checked={draft.slideApply === v} disabled={!isOwner} onChange={() => d({ slideApply: v })} aria-label={`判定のタイミング ${label}`} />{label}
+                <input type="radio" name="slide-apply" checked={effApply === v} disabled={!isOwner} onChange={() => d({ slideApply: v })} aria-label={`判定のタイミング ${label}`} />{label}
               </label>
             ))}
           </div>

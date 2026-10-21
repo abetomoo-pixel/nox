@@ -35,6 +35,7 @@ import PayrollAttentions from "@/components/nox/payroll-attentions"; // ★裁�
 import type { AttentionCarry } from "@/lib/nox/payroll/attention";
 import { PAY_TIME_BASIS_SHORT, payTimeBasisOf, type PayTimeBasis } from "@/lib/nox/payroll/time-basis"; // ★裁定324（0159・便 C-3）: 期ヘッダーの「計算基準」
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0156（便 V-3）: 控除上書き RPC の raise 語（run not draft／bad deduction／bad enabled）の日本語化
+import { monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 
 type Store = { id: string; name: string };
 // D3: payslips.breakdown_json（finalize が凍結）の CSV が使う部分。back 内訳の生値は CSV に出さず合算のみ。
@@ -516,7 +517,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
     await loadRun(); await preview();
   }
   // ★裁定300-2: 発行日の既定＝今日を期（YYYY-MM）の範囲に丸める（期固定）
-  const periodEndOf = (p: string) => { const [y, m] = p.split("-").map(Number); return `${p}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`; };
+  const periodEndOf = (p: string) => monthLastDayOf(p); // ★便 X13-H H-9
 
   // 段Y2: 確定日時の表示整形（値は payroll_runs.finalized_at そのまま・判定には使わない）
   const runFinalizedAt = runInfo?.finalized_at

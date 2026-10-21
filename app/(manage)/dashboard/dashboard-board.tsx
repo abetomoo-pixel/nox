@@ -31,6 +31,7 @@ import { guaranteeNoticesOf, type PlanRowLike } from "@/lib/nox/cast/guarantee";
 import { Message } from "@/components/ui/toast";
 import SegSelect from "@/components/ui/seg-select"; // ★裁定363（GV-11・便 GV-A）: ランキングの軸切替
 import { castSalesRankingOf, RANK_AXIS_LABEL, type CastSalesRank, type CastSalesRow, type RankAxis } from "@/lib/nox/payroll/cast-sales"; // ★裁定363: 既定＝売上（按分＝給与の collect と同じ純関数）
+import { monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 
 type Cast = { id: string; name: string; photo_updated_at: string | null; store_id?: string };
 type Att = { cast_id: string; status: string; eta: string | null };
@@ -101,7 +102,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
       .select("cast_id, status, eta").eq("date", bizToday).match(storeFilter);
     const { data: rs } = await supabase.from("daily_reports")
       .select("biz_date, cash, card_gross, uri, other")
-      .gte("biz_date", `${month}-01`).lte("biz_date", `${month}-31`).match(storeFilter);
+      .gte("biz_date", `${month}-01`).lte("biz_date", monthLastDayOf(month)).match(storeFilter); // ★便 X13-H H-9: 「-31」は 30 日の月で不正な日付（22008）→ 0 件だった
     const { data: rk } = sid
       ? await supabase.rpc("get_cast_ranking", { p_store_id: sid, p_period: month })
       : { data: null };

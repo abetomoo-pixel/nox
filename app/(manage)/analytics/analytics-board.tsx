@@ -41,6 +41,7 @@ import { castSalesRankingOf, RANK_AXIS_LABEL, type RankAxis } from "@/lib/nox/pa
 import Picker from "@/components/nox/picker";
 
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean; photo_updated_at: string | null };
 // 段A2: 締め済み日報の日別行（dashboard / month-report と同じ列・同じ売上式）
@@ -84,8 +85,7 @@ const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
 const COMING = "集計機能の提供開始後に表示されます。";
 
 function lastDayOf(period: string): string {
-  const [y, m] = period.split("-").map(Number);
-  return `${period}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+  return monthLastDayOf(period);
 }
 /** 前月の 'YYYY-MM'（前月同期比の対象）。 */
 function prevPeriodOf(period: string): string {

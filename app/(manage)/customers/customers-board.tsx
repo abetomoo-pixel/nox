@@ -771,10 +771,11 @@ export default function CustomersBoard({
               )}
               </>)}
 
-              <Link href={`/customers/${selRow.customer_id}`}
-                className="nox-link" style={{ display: "inline-block", marginTop: 12, fontSize: 12 }}>
-                詳細・編集を開く ›
-              </Link>
+              <div className="nox-actions" data-cust-open="1" style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>{/* ★便 X13-H H-6: テキストリンク→枠ボタン・下部中央（44px 以上・390px でも中央） */}
+                <Link href={`/customers/${selRow.customer_id}`} style={{ ...t.btnSecondary48, display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", minWidth: 200 }}>
+                  詳細・編集を開く
+                </Link>
+              </div>
             </div>
             </Modal>
           )}

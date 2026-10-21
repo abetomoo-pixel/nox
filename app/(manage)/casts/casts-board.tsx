@@ -280,7 +280,7 @@ export default function CastsBoard({
   const loadPlans = useCallback(async () => {
       const [{ data: cp }, { data: pl }] = await Promise.all([
         supabase.from("cast_plan").select("cast_id, plan_id, overrides_json, valid_from, valid_to"),
-        supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, is_active, norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target, slide_period") /* ★裁定374: 判定期間 */, // ★裁定347（0171）: 既定目標 4 列 // ★306-13: is_active（同じ取得に同乗）
+        supabase.from("comp_plans").select("id, name, base, hon_back, jonai_back, dohan_back, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, is_active, norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target, slide_period, slide_apply") /* ★裁定374: 判定期間・★便 X13-H H-8: 判定タイミング */, // ★裁定347（0171）: 既定目標 4 列 // ★306-13: is_active（同じ取得に同乗）
       ]);
       const m: Record<string, { planId: string; ov: Record<string, number | string> }> = {};
       const rowsOf: Record<string, PlanRowLike[]> = {};
@@ -466,8 +466,14 @@ export default function CastsBoard({
   async function hireTrialCast(c: CastLogin, planId: string) {
     setBusy(true); setPlanMsg(null);
     const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: planId, p_overrides: {}, p_valid_from: today });
+    if (error) { setBusy(false); setPlanMsg({ kind: "error", text: planSwitchErrJa(error.message) }); return; }
+    // ★便 X13-H H-11 ③: 本入店日が空なら当日（体入開始日は別の値のまま）
+    if (!c.joined_on) {
+      const pf = await supabase.rpc("set_cast_profile", { p_cast_id: c.id, p_name: c.name, p_joined_on: today });
+      if (pf.error) { setBusy(false); setPlanMsg({ kind: "error", text: `本採用しました。本入店日の設定に失敗しました（詳細の「編集」から入れてください）: ${rpcErrJa(pf.error.message)}` }); await loadPlans(); await reloadLoginCasts(); return; }
+      await reloadLoginCasts();
+    }
     setBusy(false);
-    if (error) { setPlanMsg({ kind: "error", text: planSwitchErrJa(error.message) }); return; }
     setPlanMsg({ kind: "success", text: `本採用しました（待遇プラン「${activePlans.find((p) => p.id === planId)?.name ?? ""}」・${today} から・詳細から変更できます）` });
     await loadPlans();
   }
@@ -656,7 +662,7 @@ export default function CastsBoard({
   // ★裁定374（GV-B W-4）: 今期の時給＝プレビューの PayResult から（currentWageOf）・達成状況＝/mine と同じ cardAxesOf（個別＞プラン既定＞なし・採用軸だけ）
   const calToday = new Date().toISOString().slice(0, 10);
   const salesByCast = sumCastSales(w4.sales);
-  const wageOf = (c: CastLogin): CurrentWage | null => { const pv = w4.pay[c.id]; if (!pv) return null; const a = castPlanOf[c.id]; const pl = a ? (plansById[a.planId] as unknown as { slide_period?: unknown } | undefined) : undefined; return currentWageOf(pv.pay as never, { planName: pv.planName || (a ? plansById[a.planId]?.name : null) || null, slidePeriod: pl?.slide_period, today: calToday, planBase: a ? plansById[a.planId]?.base ?? null : null, rows: planRowsOf[c.id] ?? [] /* ★便 P174 T-5（GV-55／56）: wageNowOf で時給・接尾・保証を 1 本に */ }); };
+  const wageOf = (c: CastLogin): CurrentWage | null => { const pv = w4.pay[c.id]; if (!pv) return null; const a = castPlanOf[c.id]; const pl = a ? (plansById[a.planId] as unknown as { slide_period?: unknown; slide_apply?: unknown } | undefined) : undefined; return currentWageOf(pv.pay as never, { planName: pv.planName || (a ? plansById[a.planId]?.name : null) || null, slidePeriod: pl?.slide_period, slideApply: pl?.slide_apply ?? null, today: calToday, planBase: a ? plansById[a.planId]?.base ?? null : null, rows: planRowsOf[c.id] ?? [] /* ★便 P174 T-5（GV-55／56）: wageNowOf で時給・接尾・保証を 1 本に */ }); };
   const normAxesOfCast = (c: CastLogin): CardAxis[] => {
     const sj = stores.find((st) => st.id === c.store_id)?.settings_json ?? null;
     const axes = normAxesOf(sj); const scope = shimeiScopeOf(sj);
@@ -830,9 +836,18 @@ export default function CastsBoard({
               fixedKind={filter === "trial" ? TRIAL_KIND : undefined}
               onSubmit={async (a) => {
                 if (filter === "trial") return addTrialCast(a); // ★GV-C C-14f（裁定396）: 一括設定
-                const ok = await rpc("キャストを登録", "cast_create", a);
-                if (ok) await reloadLoginCasts();
-                return ok;
+                // ★便 X13-H H-11: cast_create は本入店日を持たない＝登録の直後に set_cast_profile（源氏名＋本入店日・audit あり）を続けて呼ぶ
+                const { _joined_on: jo, ...ca } = a as Record<string, unknown> & { _joined_on?: string };
+                setBusy(true); setMsg(null);
+                const c = await supabase.rpc("cast_create", ca);
+                if (c.error || !c.data) { setBusy(false); setMsg(`キャストを登録に失敗: ${rpcErrJa(c.error?.message ?? "no id")}`); return false; }
+                if (jo) {
+                  const pf = await supabase.rpc("set_cast_profile", { p_cast_id: c.data as string, p_name: String(ca.p_name ?? ""), p_joined_on: jo });
+                  if (pf.error) { setBusy(false); setMsg(`キャストは登録しました。本入店日の設定に失敗しました（詳細の「編集」から入れてください）: ${rpcErrJa(pf.error.message)}`); await reloadLoginCasts(); return true; }
+                }
+                setBusy(false); setMsg(`キャストを登録しました${jo ? `（本入店日 ${jo}）` : ""}`);
+                await reloadLoginCasts();
+                return true;
               }}
             />
             {/* ★登録後にやること＝モックが同じフォームに置いている3項目の「行き先」を同じ面に集約する。
@@ -915,7 +930,8 @@ export default function CastsBoard({
                 <div className="cstat"><div className="l">今月出勤</div><div className="v num">{attDaysOf[c.id] ?? 0}日</div></div>
                 {(() => { const w = wageOf(c); return w ? (/* ★裁定374（GV-B W-4）: 今期の時給＝給与プレビューと同じ純関数・判定期間併記・保証中／体験入店の印 */
                   <div className="cstat" data-w4-wage={w.hourly}><div className="l">今期の時給</div><div className="v num">¥{w.hourly.toLocaleString()}<small style={{ fontWeight: 400, fontSize: 9.5, marginLeft: 3 }}>{w.basis}</small></div>
-                    <div style={{ fontSize: 9.5, color: "var(--v2-muted)" }}>{w.periodLabel}{w.guarantee && !w.now ? <span className="nox-stpill warn" style={{ marginLeft: 4 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 4 }}>体験入店</span> : null}</div></div>
+                    <div style={{ fontSize: 9.5, color: "var(--v2-muted)" }}>{w.periodLabel}{w.guarantee && !w.now ? <span className="nox-stpill warn" style={{ marginLeft: 4 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 4 }}>体験入店</span> : null}</div>
+                    {w.basisLine && <div data-wage-basis="1" style={{ fontSize: 9.5, color: "var(--v2-muted)" }}>{w.basisLine}</div>}{/* ★便 X13-H H-8: 根拠 1 行 */}</div>
                 ) : null; })()}
               </div>
               {(() => { const axes = normAxesOfCast(c); return axes.length > 0 ? (/* ★裁定374: ノルマ達成状況＝採用軸ごとの 実績／目標＋進捗バー（/mine と同値） */
@@ -999,7 +1015,8 @@ export default function CastsBoard({
                     </span>
                   </div>
                   {/* ★裁定142（v3.1 K27）: 「入店日」→「本入店日」（体験入店との対比語・値は joined_on のまま） */}
-                  <div className="nox-frow"><span className="k">本入店日</span><span className="v num">{selCast.joined_on ?? "—"}</span></div>
+                  <div className="nox-frow" data-joined-row="1"><span className="k">本入店日</span><span className="v num" style={{ display: "flex", gap: 8, alignItems: "center" }}>{selCast.joined_on ?? "—"}
+                    <button style={btnGhost} disabled={busy} onClick={() => { setProfName(selCast.name); setProfJoined(selCast.joined_on ?? today); setProfEdit(true); }}>編集</button>{/* ★便 X13-H H-11 ②: 源氏名と同じ編集（set_cast_profile・audit） */}</span></div>
                 </>
               ) : (
                 <div className="nox-frow"><span className="k">源氏名・本入店日</span>
@@ -1032,7 +1049,8 @@ export default function CastsBoard({
                 {w && (
                   <div className="nox-frow" data-w4-detail="wage">
                     <span className="k">今期の時給</span>
-                    <span className="v"><b className="num">¥{w.hourly.toLocaleString()}</b> <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>{w.basis}・{w.periodLabel}</span>{w.guarantee && !w.now ? <span className="nox-stpill warn" style={{ marginLeft: 6 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 6 }}>体験入店</span> : null}</span>
+                    <span className="v"><b className="num">¥{w.hourly.toLocaleString()}</b> <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>{w.basis}・{w.periodLabel}</span>{w.guarantee && !w.now ? <span className="nox-stpill warn" style={{ marginLeft: 6 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 6 }}>体験入店</span> : null}
+                      {w.basisLine && <span data-wage-basis="1" style={{ display: "block", fontSize: 11, color: "var(--v2-muted)" }}>{w.basisLine}</span>}{/* ★便 X13-H H-8: 根拠 1 行 */}</span>
                   </div>
                 )}
                 {w?.now && (/* ★便 P174 T-5（GV-56）: 「基本時給 ¥2,200／保証中 ¥3,200（10/18 まで）」＝基本は非保証行の値・保証は今日を含む保証行 */
@@ -1553,11 +1571,14 @@ function RegisterForm({
   const [birthday, setBirthday] = useState("");
   const [tier, setTier] = useState<string>(fixedKind ?? "レギュラー"); // ★GV-C C-14f: 直接登録の既定は「レギュラー」（体入は体入タブから＝在籍区分で絞るため）
   const [trialDate, setTrialDate] = useState("");
+  const todayJst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  const [joinedOn, setJoinedOn] = useState(todayJst); // ★便 X13-H H-11: 入店日（直接登録だけ・必須・既定＝今日）＝登録後に set_cast_profile で本入店日へ
   const [err, setErr] = useState<string | null>(null);
 
   async function submit() {
     if (!name.trim()) { setErr("源氏名を入力してください"); return; }
     if (!birthday) { setErr("生年月日を入力してください"); return; }
+    if (!fixedKind && !withTrialFields && !joinedOn) { setErr("入店日を入力してください"); return; }
     setErr(null);
     const base: Record<string, unknown> = {
       p_store_id: isOwner ? storeId : myStoreId,
@@ -1567,9 +1588,9 @@ function RegisterForm({
     };
     const args = withTrialFields
       ? { ...base, p_tier: tier, p_trial_date: trialDate || null }
-      : { ...base, p_kind: fixedKind ?? tier };
+      : { ...base, p_kind: fixedKind ?? tier, ...(!fixedKind ? { _joined_on: joinedOn } : {}) };
     const ok = await onSubmit(args);
-    if (ok) { setName(""); setRealName(""); setBirthday(""); setTrialDate(""); setTier(fixedKind ?? "レギュラー"); }
+    if (ok) { setName(""); setRealName(""); setBirthday(""); setTrialDate(""); setTier(fixedKind ?? "レギュラー"); setJoinedOn(todayJst); }
   }
 
   // ★DP1 P3（裁定 DP1-⑨）: モック castDialog の `.formgrid`（2カラム・`.field` / `.field.full`）へ。
@@ -1600,6 +1621,12 @@ function RegisterForm({
           <span className="lab">生年月日<span className="req">*</span></span>
           <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} style={{ ...input, width: "100%" }} />
         </div>
+        {!fixedKind && !withTrialFields && (/* ★便 X13-H H-11 ①: 入店日（必須・既定＝今日）＝本入店日 */
+          <div className="nox-field" data-joined-on="1">
+            <span className="lab">入店日<span className="req">*</span></span>
+            <input type="date" value={joinedOn} onChange={(e) => setJoinedOn(e.target.value)} style={{ ...input, width: "100%" }} aria-label="入店日" />
+          </div>
+        )}
         {!fixedKind && <div className="nox-field">
           <span className="lab">区分</span>
           <select value={tier} onChange={(e) => setTier(e.target.value)} style={{ ...input, width: "100%" }}>

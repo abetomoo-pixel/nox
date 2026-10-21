@@ -13,7 +13,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import PhotoEdit from "@/components/ui/photo-edit"; // ★X-13-4: 名前の横に写真（現在・変更・削除）＝キャスト詳細と同じ部品
 import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
-import { FieldStack, SegmentTabs, TelLink } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B W-10）・★0172: TelLink（スタッフの電話）
+import { FieldStack, TelLink } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B W-10）・★0172: TelLink（スタッフの電話）
 
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
@@ -89,7 +89,6 @@ export default function StaffBoard({
   // ★裁定381（GV-B W-10）→★0172（便 P172）: 電話・LINE ID は memberships.tel／line_id へ保存（staff_create 7 引数）。契約区分（staff_contracts）は器のみ＝書込 RPC は次便＝注記
   const [aTel, setATel] = useState("");
   const [aLine, setALine] = useState("");
-  const [aContract, setAContract] = useState<"employee" | "parttime" | "contractor">("parttime");
   const [aErr, setAErr] = useState<string | null>(null);
   const [aResult, setAResult] = useState<CreateResult | null>(null);
   const [copied, setCopied] = useState(false);
@@ -192,7 +191,7 @@ export default function StaffBoard({
   }
 
   function openAdd() {
-    setAName(""); setAEmail(""); setATel(""); setALine(""); setAContract("parttime"); setAStore(isOwner ? (stores[0]?.id ?? "") : myStoreId); // ★裁定381
+    setAName(""); setAEmail(""); setATel(""); setALine(""); setAStore(isOwner ? (stores[0]?.id ?? "") : myStoreId); // ★裁定381
     setARole("staff"); setAErr(null); setAResult(null); setCopied(false);
     setAIdemKey(crypto.randomUUID()); // 送信意図ごとに1つ＝リトライは同キー（route が二重作成を止める）
     setAddOpen(true);
@@ -459,12 +458,16 @@ export default function StaffBoard({
                       <span style={{ ...t.input, display: "block", color: "var(--sub)" }}>スタッフ（staff）</span>
                     )}
                   </label>
-                  <div style={{ display: "grid", gap: 4 }}>
-                    <span style={t.fieldLabel}>契約区分</span>
-                    <SegmentTabs value={aContract} onChange={(v) => setAContract(v)} ariaLabel="契約区分"
-                      options={[["employee", "正社員"], ["parttime", "アルバイト"], ["contractor", "業務委託"]] as const} />
+                  <p style={{ ...t.sub, margin: 0, lineHeight: 1.6 }}>電話番号・LINE ID は登録時に保存されます。</p>
+                  <div className="nox-inset" data-staff-after="1" style={{ padding: "12px 14px" }}>{/* ★便 X13-H H-12 ①: キャストと同じ形の案内 */}
+                    <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>登録した後に設定する項目</p>
+                    <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, color: "var(--sub)", lineHeight: 1.9 }}>
+                      <li><b style={{ color: "var(--v2-text)" }}>写真</b>：一覧でそのスタッフを選び「写真」から設定します（任意）。</li>
+                      <li><b style={{ color: "var(--v2-text)" }}>権限</b>：一覧の行の権限チップで、できる操作を選びます。</li>
+                      <li><b style={{ color: "var(--v2-text)" }}>ログイン</b>：登録したメールアドレスでログインします（初期パスワードは登録直後に 1 回だけ表示）。</li>
+                      <li><b style={{ color: "var(--v2-text)" }}>契約</b>：「勤怠・報酬」タブで区分・時給（月給）と支給見込みを確認できます。</li>
+                    </ol>
                   </div>
-                  <p style={{ ...t.sub, margin: 0, lineHeight: 1.6 }}>電話番号・LINE ID は登録時に保存されます。契約区分（時給・手当）は「勤怠・報酬」タブで次のデータ更新から設定します。写真は登録後に一覧の行から追加できます。</p>
                   {aErr && <Message kind="error" style={{ margin: 0 }}>{aErr}</Message>}
                   <button type="button" style={t.btnPrimary56} disabled={busy} data-staff-register="1" onClick={() => void submitAdd()}>{busy ? "登録中…" : "登録する"}</button>
                   <div style={t.btnRow48}>

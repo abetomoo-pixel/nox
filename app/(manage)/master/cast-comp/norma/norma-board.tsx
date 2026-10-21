@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link"; // ★便 X13-H H-15
 
 // ノルマ設定（D2-2・モック norma.html 準拠の実ページ化＝3実体の統合）。
 //   ① 店の採用フラグ（stores.settings_json・owner 限定）＝NormConfigPanel 移設
@@ -50,7 +51,11 @@ export default function NormaBoard({ storeId, isManagerUp, isOwner, flags, setti
 
       {/* ③ 未達成時のペナルティ（penalty_config・owner のみ編集） */}
       {isSectionOn(settings, "compPenaltyTab") && (<section className="nox-cardtop" style={card}>{/* ★裁定269-4: compPenaltyTab */}
-        <h2 style={secTitle}>遅刻・当欠の検知（閾値）</h2>{/* ★0154 D3（裁定293-3）: 罰金の自動計算は撤去＝閾値は検知として残す・減額は精算調整 */}
+        <h2 style={secTitle}>遅刻・当欠の検知（閾値）</h2>
+        <div data-penalty-link="1" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "0 0 10px" }}>{/* ★便 X13-H H-15 ①（裁定410）: 金額欄はここに作らない＝ひな形へ */}
+          <span style={{ fontSize: 12.5, color: "var(--sub)", flex: "1 1 240px" }}>遅刻・当欠の罰金（委託キャスト）の既定額は「報酬制度 → 精算調整のひな形（委託）」で設定します</span>
+          <Link href="/master/cast-comp/systems#settlement-presets" style={{ ...t.btnSecondary48, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>ひな形を開く</Link>
+        </div>{/* ★0154 D3（裁定293-3）: 罰金の自動計算は撤去＝閾値は検知として残す・減額は精算調整 */}
         <PenaltyTab settings={settings} penalty={data.penalty} setPenalty={data.setPenalty} exists={data.penaltyExists}
           isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={data.reload} />
       </section>)}

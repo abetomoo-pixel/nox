@@ -120,7 +120,7 @@ const bl = src("lib/nox/payroll/breakdown-lines.ts"), col = src("lib/nox/payroll
   const tp = src("lib/nox/setup/template-plan.ts");
   check("gvc(5-6) C-14g 初期設定の新規プランも 30 引数（判定期間 月次・基準・ランク・目標・slide_apply・区分別 3 欄）",
     typeof plan === "function" && tp.includes("p_slide_period: SETUP_PLAN_SLIDE_PERIOD, p_slide_basis: \"sales\", p_slide_rank_ids: [],") && tp.includes("p_product_back_fixed_hon: null, p_product_back_fixed_jonai: null, p_product_back_fixed_free: null,")
-    && tp.includes("p_norm_days_target: null, p_norm_dohan_target: null, p_norm_sales_target: null, p_norm_shimei_target: null, p_slide_apply: null") && tp.includes('SETUP_PLAN_SLIDE_PERIOD = "monthly"'));
+    && tp.includes("p_norm_days_target: null, p_norm_dohan_target: null, p_norm_sales_target: null, p_norm_shimei_target: null, p_slide_apply: \"next\" } });") /* ★便 X13-H H-8: 判定タイミングはプランに書く */ && tp.includes('SETUP_PLAN_SLIDE_PERIOD = "monthly"'));
 }
 
 // ── (6) autofocus・アカウント・payload

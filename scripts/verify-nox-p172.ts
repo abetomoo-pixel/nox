@@ -79,7 +79,7 @@ check("p172(3-1) /staff: ?tab=work＝勤怠・報酬（StaffWorkPanel scope stor
   sp.includes('import { STAFF_TABS, staffTabOf } from "@/lib/nox/staff/tabs";') && !sp.includes("export const staffTabOf") && sp.includes('<StaffWorkPanel scope="store"') && sp.includes('data-staff-tabs="1"') && sme.includes('<StaffWorkPanel scope="me"') && sme.includes('if (role === "cast") redirect("/mine");')
   && lay.includes('...(role === "staff" ? [{ href: "/staff/me", label: "勤怠" }] : []),') && staffTabOf("work") === "work" && staffTabOf(undefined) === "list");
 check("p172(3-2) staff-work-panel: staff_contracts／staff_punches を直 SELECT（RLS）・月切替・★便 P174 T-7 で確定ボタン（無効）を撤去→確定状況（staff_payroll_runs の読取）＝確定の RPC は 0175（教訓25）・契約未登録の注記",
-  sw.includes('supabase.from("staff_contracts").select("membership_id, contract_kind, hourly, fixed_allowance, tax_class, withholding_rate")') && sw.includes('supabase.from("staff_punches").select("membership_id, biz_date, kind, punched_at")') && !sw.includes('data-staff-pay-finalize="1"') && sw.includes("data-staff-pay-run=") && sw.includes('supabase.from("staff_payroll_runs").select("status")') && sw.includes("契約未登録（次のデータ更新で設定）"));
+  sw.includes('supabase.from("staff_contracts").select("membership_id, contract_kind, hourly, fixed_allowance, tax_class, withholding_rate")') && sw.includes('supabase.from("staff_punches").select("membership_id, biz_date, kind, punched_at")') && !sw.includes('data-staff-pay-finalize="1"') && sw.includes("data-staff-pay-run=") && sw.includes('supabase.from("staff_payroll_runs").select("status")') && sw.includes("<span style={t.sub}>契約未登録</span>") /* ★便 X13-H H-12 ③ */);
 { const P = (bd: string, kind: "in" | "out", hm: string) => ({ membership_id: "m", biz_date: bd, kind, punched_at: `${bd}T${hm}:00+09:00` });
   const days = staffHoursOf([P("2026-10-01", "in", "18:00"), P("2026-10-01", "out", "23:30"), P("2026-10-02", "in", "19:00"), P("2026-10-03", "out", "02:00"), P("2026-10-03", "in", "20:00")]);
   check("p172(3-3) staffHoursOf: 営業日ごとに in→out を対にする（5.5h＝330 分）・out だけの日は 0・in だけの日は open", days.length === 3 && days[0].minutes === 330 && !days[0].open && days[1].minutes === 0 && days[1].open && days[2].minutes === 0 && days[2].open, JSON.stringify(days));
@@ -87,7 +87,7 @@ check("p172(3-2) staff-work-panel: staff_contracts／staff_punches を直 SELECT
   const con = staffPayOf({ membership_id: "m", contract_kind: "contractor", hourly: 0, fixed_allowance: 12000, tax_class: null, withholding_rate: 0 }, days);
   const conH = staffPayOf({ membership_id: "m", contract_kind: "contractor", hourly: 2000, fixed_allowance: 0, tax_class: null, withholding_rate: 10.21 }, days);
   check("p172(3-4) staffPayOf: 雇用＝1500×5.5h＋手当 10000＝18250・源泉 0（甲欄・税額表なし）／委託 日額＝12000×3 日＝36000／委託 時給＝2000×5.5h＝11000・率 10.21%＝1123・手取り 9877",
-    emp.gross === 18250 && emp.withholding === 0 && emp.net === 18250 && emp.days === 3 && emp.withholdingNote.includes("甲欄") && con.gross === 36000 && con.withholding === 0 && conH.gross === 11000 && conH.withholding === 1123 && conH.net === 9877,
+    emp.gross === 18250 && emp.withholding === 0 && emp.net === 18250 && emp.days === 3 && emp.withholdingNote.includes("甲欄") && con.gross === 36000 && con.withholding === 3675 /* ★便 X13-H H-12 ③: 率 0 の委託も 10.21% で見込み */ && conH.gross === 11000 && conH.withholding === 1123 && conH.net === 9877,
     JSON.stringify({ emp, con, conH }));
   check("p172(3-5) staffMonthRangeOf／hmOf", staffMonthRangeOf("2026-02").to === "2026-02-28" && staffMonthRangeOf("2026-10").to === "2026-10-31" && hmOf(330) === "5:30" && hmOf(0) === "0:00"); }
 

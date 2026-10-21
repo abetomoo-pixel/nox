@@ -33,7 +33,7 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
       p_eta: etaN,
       p_reason: reason || null,
     });
-    setMsg(error ? "送信に失敗しました。時刻の形式を確認してください（例 2000・20:00）" : "連絡を送信しました");
+    setMsg(error ? "送信に失敗しました。時刻の形式を確認してください（例 2000・20:00）" : "店に届きました");
     setBusy(false);
     router.refresh();
   }

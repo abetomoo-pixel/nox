@@ -5,6 +5,7 @@
 //   staff_payroll_runs への確定は器のみ（第 2 期）。丸め＝円未満切捨（floorYen）。
 
 import { floorYen } from "../money";
+import { monthRangeOf } from "../month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で
 
 export type StaffContractKind = "employee" | "parttime" | "contractor";
 export type StaffContract = {
@@ -51,6 +52,15 @@ export type StaffPayResult = {
   net: number;
   withholdingNote: string;
 };
+/** ★便 X13-H H-12: 委託の源泉率（報酬・料金＝10.21%） */
+export const STAFF_CONTRACTOR_RATE = 10.21;
+/** 契約の 1 行表示（雇用で時給 0・手当あり＝月給） */
+export function staffContractLineOf(c: StaffContract): string {
+  const yen = (n: number) => "¥" + n.toLocaleString();
+  const head = STAFF_CONTRACT_LABEL[c.contract_kind];
+  if (isStaffEmployment(c.contract_kind) && c.hourly === 0 && c.fixed_allowance > 0) return `${head}・月給 ${yen(c.fixed_allowance)}`;
+  return `${head}・時給 ${yen(c.hourly)}${c.fixed_allowance ? `・手当 ${yen(c.fixed_allowance)}` : ""}`;
+}
 export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours[]): StaffPayResult {
   const minutes = days.reduce((s, d) => s + d.minutes, 0);
   const workDays = days.length;
@@ -58,17 +68,16 @@ export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours
   const employment = isStaffEmployment(contract.contract_kind);
   const fixed = employment ? contract.fixed_allowance : contract.hourly > 0 ? 0 : contract.fixed_allowance * workDays;
   const gross = timePay + fixed;
-  const withholding = employment ? 0 : floorYen((gross * contract.withholding_rate) / 100);
-  const withholdingNote = employment
-    ? `給与所得（${contract.tax_class ?? "乙"}欄・税額表は次のデータ更新＝源泉 0）`
-    : contract.withholding_rate > 0 ? `委託（${contract.withholding_rate}%）` : "委託（源泉率は税理士に確認中のため 0）";
+  // ★便 X13-H H-12 ③: 委託＝源泉 10.21%（率が未設定＝0 の契約も 10.21% で見込み）・雇用＝甲欄／乙欄（見込みは源泉 0＝確定時に計算）
+  const rate = employment ? 0 : contract.withholding_rate > 0 ? contract.withholding_rate : STAFF_CONTRACTOR_RATE;
+  const withholding = employment ? 0 : floorYen((gross * rate) / 100);
+  const withholdingNote = employment ? `給与所得（${contract.tax_class ?? "乙"}欄・見込みは源泉 0）` : `委託（${rate}%）`;
   return { kind: contract.contract_kind, days: workDays, minutes, timePay, fixed, gross, withholding, net: gross - withholding, withholdingNote };
 }
 
 /** 'YYYY-MM' → 営業日の範囲（暦月・両端） */
 export function staffMonthRangeOf(month: string): { from: string; to: string } {
-  const [y, m] = month.split("-").map(Number);
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
+  const r = monthRangeOf(month);
+  return { from: r.from, to: r.to };
 }
 export const hmOf = (minutes: number): string => `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;

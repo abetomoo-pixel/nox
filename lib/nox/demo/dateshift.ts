@@ -8,6 +8,7 @@
 //   ★裁定328（便 D1・2026-10-02）: 月相対 { $m: 月オフセット, d: 日 }（＋ t）を追加＝「先月＝R の前月の同じ日」（固定日付を持たない・gen_plan §2）。
 //     d が写像先の月に無い（2 月の 29／30／31）ときは末日に畳む（仮決め）。
 import { addDays, bizDateOf } from "@/lib/nox/biz-date";
+import { daysInMonthOf } from "../month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で
 
 export type RelDate = { $rel: number };
 export type RelTs = { $rel: number; t: string };
@@ -29,7 +30,7 @@ export const relToDate = (v: RelDate, targetBiz: string): string => addDays(targ
 export function relMonthToDate(v: RelMonth, targetBiz: string): string {
   const [y, m] = targetBiz.split("-").map(Number);
   const first = new Date(Date.UTC(y, m - 1 + v.$m, 1));
-  const dim = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  const dim = daysInMonthOf(`${first.getUTCFullYear()}-${pad(first.getUTCMonth() + 1)}`);
   const d = Math.min(Math.max(1, Math.round(v.d)), dim);
   return `${first.getUTCFullYear()}-${pad(first.getUTCMonth() + 1)}-${pad(d)}`;
 }
@@ -77,7 +78,7 @@ function mirrorKeep(raw: Record<string, unknown>, shifted: Record<string, unknow
   const v = raw[f];
   if (isRelMonth(v)) { // 月の末日に畳んだ行（その月に無い日）は落とす
     const [y, m] = relMonthToDate({ ...v, d: 1 }, targetBiz).split("-").map(Number);
-    const dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const dim = daysInMonthOf(`${y}-${pad(m)}`);
     if (v.d > dim) return false;
   }
   const day = dayOfVal(shifted[f], cutoffHm);

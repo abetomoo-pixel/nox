@@ -39,8 +39,8 @@ function pureChecks() {
   const secs = Object.keys(SECTION_KEYS);
   check("ss(2-1) 出し分けの節は 17（plan-board 4・plan-editor 4・comp-sections 4・norm-config／deduction／products back／products pt／mine）", secs.length === 17, secs.join(","));
   check("ss(2-2) 各節のキーは SYSTEM_KEYS の要素のみ・空なし", secs.every((s) => { const ks = SECTION_KEYS[s as keyof typeof SECTION_KEYS]; return ks.length > 0 && ks.every((k) => (SYSTEM_KEYS as readonly string[]).includes(k)); }));
-  check("ss(2-3) 9 キーとも少なくとも 1 節に現れる（隠す口の無い制度が無い）", SYSTEM_KEYS.every((k) => secs.some((s) => (SECTION_KEYS[s as keyof typeof SECTION_KEYS] as readonly string[]).includes(k))));
-  check("ss(2-4) ★歩合・バック節＝各種バック OFF でも売上歩合 ON なら描く", isSectionOn({ sys_backs: false }, "planEditorBacks") === true && isSectionOn({ sys_backs: false, sys_sales_rate: false }, "planEditorBacks") === false);
+  check("ss(2-3) 9 キーとも少なくとも 1 節に現れる（隠す口の無い制度が無い）・★便 X13-H H-7（裁定412）: 売上歩合は各種バックに統一＝節の出し分けに使わない", SYSTEM_KEYS.filter((k) => k !== "sys_sales_rate").every((k) => secs.some((s) => (SECTION_KEYS[s as keyof typeof SECTION_KEYS] as readonly string[]).includes(k))));
+  check("ss(2-4) ★歩合・バック節＝各種バックだけで出し分け（★便 X13-H H-7・裁定412: 売上歩合は読まない）", isSectionOn({ sys_backs: false }, "planEditorBacks") === false && isSectionOn({ sys_backs: true, sys_sales_rate: false }, "planEditorBacks") === true);
   check("ss(2-5) ★スライド節＝3 キー全 OFF で消える・1 つ ON で残る", isSectionOn({ sys_sales_slide: false, sys_point_slide: false, sys_points: false }, "planTabSlides") === false && isSectionOn({ sys_sales_slide: false, sys_point_slide: false }, "planTabSlides") === true);
   check("ss(2-6) 単キー節（mine ノルマ）＝sys_norms false で消える", isSectionOn({ sys_norms: false }, "mineNormCard") === false && isSectionOn({}, "mineNormCard") === true);
   check("ss(2-7) 全 ON（{}）で 17 節すべて描く", secs.every((s) => isSectionOn({}, s as keyof typeof SECTION_KEYS)));

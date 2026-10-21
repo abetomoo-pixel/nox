@@ -1,14 +1,14 @@
 "use client";
 
 // ★0154 D4（2026-09-24・裁定293 追補1-1／294-7）: 精算調整のひな形（settings_json.settlement_presets）の編集＝owner のみ・set_store_profile の 1 キー patch。
-//   既定 3 件「遅刻／当欠／早退」（額 0・文は編集可）・最大 10 件・RPC の 'bad type' は和文。メッセージは裁定281 の型（同じカード内）。
+//   既定 2 件「遅刻／当欠」（★便 X13-H H-15＝早退は対象外・額 0・文は編集可）・最大 10 件・RPC の 'bad type' は和文。メッセージは裁定281 の型（同じカード内）。
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Message } from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
-import { DEFAULT_SETTLEMENT_PRESETS, TARGET_LABEL, presetsOf, validatePresets, type SettlementPreset, type SettlementTarget } from "@/lib/nox/payroll/settlement";
+import { DEFAULT_SETTLEMENT_PRESETS, SELECTABLE_TARGETS, TARGET_LABEL, presetsOf, validatePresets, type SettlementPreset, type SettlementTarget } from "@/lib/nox/payroll/settlement";
 
 export default function SettlementPresetsEditor({ storeId, settings, readOnly, onSaved }: {
   storeId: string; settings: Record<string, unknown>; readOnly?: boolean; onSaved?: (list: SettlementPreset[]) => void;
@@ -34,8 +34,12 @@ export default function SettlementPresetsEditor({ storeId, settings, readOnly, o
   return (
     <div>
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
-        委託キャストの遅刻・当欠・早退に対する減額のひな形です（契約に根拠がある場合のみ・額の既定は 0＝店が決めます）。
+        委託キャストの遅刻・当欠に対する減額のひな形です（契約に根拠がある場合のみ・額の既定は 0＝店が決めます）。
         雇用キャストには使いません（懲戒減給は給与画面・労基法 91 条の上限つき）。
+      </p>
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }} data-preset-notes="1">{/* ★便 X13-H H-15（裁定410） */}
+        早退は罰金の対象外です（実働の減少、または不足分の自動起票で扱います）。<br />
+        適用は今日タブの遅刻・当欠の記録から（委託キャストに既定額のダイアログが出ます）。
       </p>
       <div className="nox-tablewrap plain">
         <table className="nox-presettable" data-preset-table="1" style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>{/* ★便 X13-G W-16: 900px 未満は 1 ひな形 1 カード（名称・対象・既定額・根拠を縦積み・削除は右上） */}
@@ -46,7 +50,7 @@ export default function SettlementPresetsEditor({ storeId, settings, readOnly, o
                 <td style={t.td} className="c-name" data-label="名称"><input value={p.name} disabled={readOnly || busy} onChange={(e) => set(i, { name: e.target.value })} style={{ ...t.input, width: 110, maxWidth: "100%" }} /></td>
                 <td style={t.td} data-label="対象">
                   <select value={p.target} disabled={readOnly || busy} onChange={(e) => set(i, { target: e.target.value as SettlementTarget })} style={{ ...t.input, width: "auto" }}>
-                    {(Object.keys(TARGET_LABEL) as SettlementTarget[]).map((k) => <option key={k} value={k}>{TARGET_LABEL[k]}</option>)}
+                    {(p.target === "early" ? [...SELECTABLE_TARGETS, "early" as SettlementTarget] : SELECTABLE_TARGETS).map((k) => <option key={k} value={k} disabled={k === "early"}>{TARGET_LABEL[k]}{k === "early" ? "（対象外）" : ""}</option>)}
                   </select>
                 </td>
                 <td style={{ ...t.td, textAlign: "right" }} data-label="既定額"><MoneyInput value={p.amount} disabled={readOnly || busy} onChange={(v) => set(i, { amount: Number(v || 0) })} style={{ ...t.input, textAlign: "right" }} width={120} ariaLabel="既定額" /></td>
@@ -60,7 +64,7 @@ export default function SettlementPresetsEditor({ storeId, settings, readOnly, o
       {!readOnly && (
         <div className="nox-actions" style={{ marginTop: 8 }}>
           <button type="button" className="nox-btn small ghost" disabled={busy || list.length >= 10} onClick={() => setList((l) => [...l, { code: `c${Date.now().toString(36)}`, name: "その他", amount: 0, basis: "", target: "other" }])}>＋ ひな形を追加</button>
-          <button type="button" className="nox-btn small ghost" disabled={busy} onClick={() => setList(DEFAULT_SETTLEMENT_PRESETS.map((p) => ({ ...p })))}>既定の 3 件に戻す</button>
+          <button type="button" className="nox-btn small ghost" disabled={busy} onClick={() => setList(DEFAULT_SETTLEMENT_PRESETS.map((p) => ({ ...p })))}>既定の 2 件に戻す</button>
           <button type="button" className="nox-btn small gold" disabled={busy} onClick={() => void save()}>{busy ? "保存中…" : "保存する"}</button>
         </div>
       )}

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import PayslipSlip from "@/components/payslip-slip";
 import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
+import { mineCurrentWageOf } from "@/lib/nox/mine/wage-server"; // ★便 X13-H H-8: 今期の時給（一覧・詳細と同じ値・文言・根拠）
 import { ATTENDANCE_MONTH_NOTE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
 import { nextPeriodOf } from "@/lib/nox/payroll/attention";
 import { mdLabelOf } from "@/lib/nox/payroll/finalize-guard";
@@ -20,6 +21,7 @@ import PhotoCard from "./photo-card";
 import ContractAckGate from "./contract-ack-gate"; // ★0162 ★4（裁定326 追補7-6・便 M5-2）: 契約確認（店 ON かつ未記録のときだけ最上部）
 import { contractAckGateOf } from "@/lib/nox/mine/contract-ack";
 import AttendanceForm from "./attendance-form";
+import { mineReportStateOf } from "@/lib/nox/shift/cast-report"; // ★便 X13-H H-17 ③
 import NormCard from "./norm-card";
 import DrinkClaimForm from "./drink-claim-form";
 import PrintPayslipButton from "./print-payslip-button";
@@ -85,7 +87,7 @@ export default async function MinePage() {
   // 今月の勤怠
   const { data: att } = await supabase
     .from("attendance")
-    .select("date, status, eta")
+    .select("date, status, eta, source") // ★便 X13-H H-17 ③: 連絡の状態（本人＝self／店が記録）
     .gte("date", `${month}-01`)
     .order("date", { ascending: false })
     .limit(10);
@@ -118,6 +120,7 @@ export default async function MinePage() {
   // 段M2: 所属店（ヘッダ表示用）。cast の可視 store は自店のみ（RLS）＝先頭行が自店（/mine/ranking と同型）。
   const { data: myStores } = await supabase.from("stores").select("id, name, settings_json, punch_methods").limit(1); // ★裁定269: sys_* は既存の自店読取に列を足すだけ・★0164（便 W5-2b）: punch_methods（本人打刻の出し分け）
   const myStore = myStores?.[0];
+  const mineWage = meCast && myStore ? await mineCurrentWageOf(supabase, meCast.id as string, myStore.id as string, bizToday.slice(0, 7), bizToday) : null; // ★便 X13-H H-8
   const ms = mineSettingsOf(myStore?.settings_json); // ★326-8: drink_claim／punch_correction_request／ranking の出し分け（reservation_request の申請カードは M3）
   // ★0162 ★4（便 M5-2）: 契約確認の要否＝店の contract_ack が ON のときだけ cast_contract_ack_needed()（cast セルフ・非ゲート）。読めなければ出さない（止めない）
   const { data: ackNeeded } = ms.contract_ack ? await supabase.rpc("cast_contract_ack_needed") : { data: null };
@@ -243,6 +246,7 @@ export default async function MinePage() {
 
       <section className="nox-panel">
         <h3>遅刻・当欠の連絡</h3>
+        {(() => { const st = mineReportStateOf((((att ?? []) as { date: string; status: string; eta: string | null; source: string | null }[]).find((a) => a.date === bizToday) ?? null) ? { cast_id: "", ...(((att ?? []) as { date: string; status: string; eta: string | null; source: string | null }[]).find((a) => a.date === bizToday)!) } : null); return st ? <p className="nox-pstate" data-mine-report="1" style={{ margin: "0 0 8px" }}>{st}</p> : null; })()}{/* ★便 X13-H H-17 ③ */}
         <AttendanceForm defaultDate={bizToday} />
       </section>
 
@@ -255,6 +259,12 @@ export default async function MinePage() {
 
       {/* 印刷隔離の対象マーカーは維持（器だけ差し替え・明細スリップ部品は非改変）
           ★裁定326-1（便 M2-1／M2-4）: payslip_visibility 'off'＝カードごと出さない（PDF ボタンも無し）／'net_only'＝期ヘッダー＋手取り 1 行（compact・PDF は同じ DOM）／'detail'＝現状 */}
+      {mineWage && ms.payslip_visibility !== "off" && (/* ★便 X13-H H-8: 今期の時給＝キャスト一覧・詳細と同じ（判定期間とタイミング・根拠 1 行） */
+        <p style={{ fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }} data-mine-wage="1">
+          <b>今期の時給</b> <b className="num">¥{mineWage.hourly.toLocaleString()}</b> <span style={{ color: "var(--sub)" }}>{mineWage.basis}・{mineWage.periodLabel}</span>
+          {mineWage.basisLine && <span data-wage-basis="1" style={{ display: "block", color: "var(--sub)", fontSize: 11.5 }}>{mineWage.basisLine}</span>}
+        </p>
+      )}
       {guaLabel && (/* ★裁定348 追補1: 期限付き保証時給の印（期間中だけ） */
         <p style={{ fontSize: 12.5, margin: "0 0 10px" }} data-guarantee="1">
           <span className="nox-stpill ok">{guaLabel}</span><span style={{ color: "var(--sub)", marginLeft: 8 }}>期間中は時給の下限がこの額になります（期限後は基本時給）</span>

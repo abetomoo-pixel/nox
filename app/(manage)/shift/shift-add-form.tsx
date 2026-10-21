@@ -32,6 +32,7 @@ import { hm2min } from "@/lib/nox/shift-time";
 import { gapOf } from "@/lib/nox/shift/gap";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { daysInMonthOf, monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 type Cast = { id: string; name: string };
 type ExistRow = { id: string; date: string; start_hm: string; end_hm: string; status: string };
 type WishRow = { id: string; date: string; start_hm: string; end_hm: string };
@@ -130,8 +131,7 @@ export default function ShiftAddForm({
   const [unavail, setUnavail] = useState<Map<string, string | null>>(new Map());
 
   const monthDays = (() => {
-    const [y, m] = monthStr.split("-").map(Number);
-    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const last = daysInMonthOf(monthStr);
     return Array.from({ length: last }, (_, i) => `${monthStr}-${String(i + 1).padStart(2, "0")}`);
   })();
   const firstDow = new Date(Date.UTC(Number(monthStr.slice(0, 4)), Number(monthStr.slice(5, 7)) - 1, 1)).getUTCDay();
@@ -157,8 +157,7 @@ export default function ShiftAddForm({
 
   const loadCastMonth = useCallback(async (castId: string, m: string) => {
     const from = `${m}-01`;
-    const [y, mo] = m.split("-").map(Number);
-    const to = `${m}-${String(new Date(Date.UTC(y, mo, 0)).getUTCDate()).padStart(2, "0")}`;
+    const to = monthLastDayOf(m);
     const [sRes, wRes, uRes] = await Promise.all([
       supabase.from("shifts").select("id, date, start_hm, end_hm, status")
         .eq("cast_id", castId).gte("date", from).lte("date", to).order("date"),

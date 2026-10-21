@@ -14,6 +14,7 @@ import { effectivePatterns, fmtEnd30, staffShiftErrJa } from "../master/staff-sh
 import StaffShiftManage from "./staff-shift-manage";
 
 import { Message, useClearOn } from "@/components/ui/toast"; // ★裁定281（便 U／AB）
+import { daysInMonthOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 export type Pattern = { id: string; name: string; start_hm: string; end_hm: string; effective_from: string; sort_order: number };
 export type Deadline = { id: string; days_before: number; deadline_hm: string; effective_from: string };
 export type Wish = { id: string; staff_id: string; biz_date: string; pattern_id: string; available: boolean; note: string | null };
@@ -32,7 +33,7 @@ export function deadlineMsOf(day: string, deadlines: Deadline[]): number {
 export const monthCells = (month: string): (string | null)[] => {
   const [y, m] = month.split("-").map(Number);
   const first = new Date(Date.UTC(y, m - 1, 1));
-  const n = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const n = daysInMonthOf(month);
   const cells: (string | null)[] = Array.from({ length: first.getUTCDay() }, () => null);
   for (let d = 1; d <= n; d++) cells.push(`${month}-${String(d).padStart(2, "0")}`);
   return cells;

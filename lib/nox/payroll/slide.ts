@@ -1,3 +1,4 @@
+import { monthAfterOf, monthLastDayOf } from "../month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で
 // ★夜間便 N3b（裁定288・2026-09-18）: スライドの基準と適用月＝純関数（DB を知らない）。
 //   slide_apply='next'（翌月反映）: 段の判定に使う実績＝「その営業日が属する暦月の前月」の売上合計／ポイント合計（閾値は月間合計）。
 //   'current' または欠損・不正値: 現行どおり（営業日ごとの売上・ポイント＝閾値は 1 日あたり）。既存店と golden は不変。
@@ -24,9 +25,7 @@ export function prevMonthOf(ym: string): string {
 
 /** 'YYYY-MM' の末日 'YYYY-MM-DD'（暦月） */
 export function lastDayOf(ym: string): string {
-  const [y, m] = ym.split("-").map(Number);
-  const d = new Date(Date.UTC(y, m, 0));
-  return `${ym}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  return monthLastDayOf(ym);
 }
 
 /** 期（start〜end・'YYYY-MM-DD'）に含まれる暦月の一覧（昇順・重複なし）＝期が月をまたげば 2 つ以上 */
@@ -38,9 +37,7 @@ export function monthsInRange(start: string, end: string): string[] {
   return out;
 }
 export function nextMonthOf(ym: string): string {
-  const [y, m] = ym.split("-").map(Number);
-  const d = new Date(Date.UTC(y, m, 1));
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  return monthAfterOf(ym);
 }
 
 // ★裁定338＋追補1（0168・便 P168・2026-10-09）: スライドの判定期間（プラン列 comp_plans.slide_period）。

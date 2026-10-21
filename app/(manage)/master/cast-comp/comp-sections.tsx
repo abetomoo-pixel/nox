@@ -31,6 +31,7 @@ import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P
 import { bonusParamsOf, bonusTiersLabel, bonusTiersOf } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import { SLIDE_ROWS_MAX, slideAddRow, slideErrOf, slideRemoveRow, slideRowsOf, slideToSave, slideWarnOf } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）: 段数可変（1〜10）
 import { Message } from "@/components/ui/toast"; // ★便 P174 T-1: 段の検査・警告
+import { daysInMonthOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 export { PRODUCT_BACK_OPTIONS, type ProductBackMode };
 export type Plan = {
   slide_period?: string | null; // ★裁定338（0168）: 判定期間（monthly／half／daily・旧行は daily）
@@ -557,7 +558,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
   useEffect(() => {
     if (!storeId) return;
     void (async () => {
-      const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const last = daysInMonthOf(ym); // ★便 X13-H H-9: 末日は ym の月で（今月の日数を使っていた）
       const { data: gs } = await supabase.rpc("get_cast_sales", {
         p_store_id: storeId, p_from: `${ym}-01`, p_to: `${ym}-${String(last).padStart(2, "0")}`,
       });

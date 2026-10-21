@@ -20,6 +20,7 @@ export type PayrollWindow = {
 // ★裁定98: core の periodDays 写像（'YYYY-MM-DD' 両端含む暦日数・UTC 起点差分＝DST/TZ 非依存）を関数化。
 //   当期は core（win の両端）・過去期の平均賃金算定（collect）も同じ写像を通す。
 import { slideApplyOf } from "./slide"; // ★N3b（裁定288）
+import { monthRangeOf } from "../month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で
 
 export function periodDaysBetween(periodStart: string, periodEnd: string): number {
   return Math.round((Date.parse(`${periodEnd}T00:00:00Z`) - Date.parse(`${periodStart}T00:00:00Z`)) / 86_400_000) + 1;
@@ -27,9 +28,8 @@ export function periodDaysBetween(periodStart: string, periodEnd: string): numbe
 
 // 'YYYY-MM' → 暦日数（月初〜月末＝period_bounds と同じ月末写像を UTC で算出・28〜31）。
 export function periodCalendarDays(period: string): number {
-  const [y, m] = period.split("-").map(Number);
-  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate(); // 翌月0日＝当月末日（UTC 純粋）
-  return periodDaysBetween(`${period}-01`, `${period}-${String(lastDay).padStart(2, "0")}`);
+  const r = monthRangeOf(period); // ★便 X13-H H-9: 月末＝その月の日数（lib/nox/month）
+  return periodDaysBetween(r.from, r.to);
 }
 
 export async function resolvePayrollWindow(

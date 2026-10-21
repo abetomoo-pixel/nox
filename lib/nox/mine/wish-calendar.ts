@@ -3,6 +3,7 @@
 //   時間＝一括既定（店の営業時間は cast から読めない＝RLS パターン2・未設定なら 20:00〜26:00）＋日別の上書き。提出＝選択日を昇順に逐次 shift_wish_submit（非原子）。
 import { isDateSelectable, type OpenPeriod } from "../shift/open-periods";
 import { WISH_STATE_LABEL } from "../shift/wish-state"; // ★裁定345: 4 段の語
+import { daysInMonthOf } from "../month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で
 
 export const DEFAULT_START = "20:00";
 export const DEFAULT_END = "26:00";
@@ -16,7 +17,7 @@ export type Selection = Record<string, Times | null>;
 export function monthCellsOf(month: string): (string | null)[] {
   const [y, m] = month.split("-").map(Number);
   const first = new Date(Date.UTC(y, m - 1, 1));
-  const n = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const n = daysInMonthOf(month);
   const cells: (string | null)[] = Array.from({ length: first.getUTCDay() }, () => null);
   for (let d = 1; d <= n; d++) cells.push(`${month}-${String(d).padStart(2, "0")}`);
   return cells;

@@ -1,15 +1,17 @@
+import { monthRangeOf } from "../month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で
 // ★0154 D4（2026-09-24・裁定293 追補1・294-6／294-7）: 精算調整（委託の遅刻／当欠／早退の減額＝契約根拠つき）の純関数（DB を知らない）。
 //   ひな形＝stores.settings_json.settlement_presets（配列 ≤10・{code,name,amount,basis,target}・set_store_profile の白名単）。
 //   登録＝payroll_adjustment_add(source='settlement'・basis＝ひな形の文・target_shift_id＝当日の shift・当期 draft run)。
 export type SettlementTarget = "late" | "absent" | "early" | "other";
 export type SettlementPreset = { code: string; name: string; amount: number; basis: string; target: SettlementTarget };
 
-/** 既定 3 件（額 0・文は店が編集＝裁定293 追補1-1） */
+/** 既定 2 件（額 0・文は店が編集＝裁定293 追補1-1）。★便 X13-H H-15（裁定410）: 早退は罰金の対象外（裁定324＝実働の減少か不足分の自動起票）＝既定から外す */
 export const DEFAULT_SETTLEMENT_PRESETS: SettlementPreset[] = [
   { code: "late", name: "遅刻", amount: 0, basis: "契約書の遅刻精算条項に基づく減額", target: "late" },
   { code: "absent", name: "当欠", amount: 0, basis: "契約書の当日欠勤精算条項に基づく減額", target: "absent" },
-  { code: "early", name: "早退", amount: 0, basis: "契約書の早退精算条項に基づく減額", target: "early" },
 ];
+/** ★便 X13-H H-15: ひな形の対象として選べるもの（早退は外す・既存データの早退行は表示だけ残す） */
+export const SELECTABLE_TARGETS: readonly SettlementTarget[] = ["late", "absent", "other"];
 export const TARGET_LABEL: Record<SettlementTarget, string> = { late: "遅刻", absent: "当欠", early: "早退", other: "その他" };
 export const isSettlementTarget = (v: unknown): v is SettlementTarget => v === "late" || v === "absent" || v === "early" || v === "other";
 
@@ -66,6 +68,23 @@ export function settlementArgsOf(input: { runId: string; castId: string; preset:
   } };
 }
 
+/** ★便 X13-H H-16（裁定410）: 罰金ダイアログの金額検査＝増額不可・0 以上の整数・既定額から変えたら理由必須 */
+export function penaltyAmountErrOf(defaultAmount: number, amount: number, reason: string): string | null {
+  if (!Number.isInteger(amount) || amount < 0) return "金額は 0 円以上の整数で入力してください";
+  if (amount > defaultAmount && defaultAmount > 0) return `既定額（¥${defaultAmount.toLocaleString()}）より多くはできません`;
+  if (amount !== defaultAmount && reason.trim() === "") return "既定額から変えたときは理由を入れてください";
+  return null;
+}
+/** 罰金の登録引数（settlementArgsOf と同じ形・理由はひな形の名前と日付の後ろへ）。既定額 0 の店は 0 円の確定も可 */
+export function penaltyArgsOf(input: { runId: string; castId: string; preset: SettlementPreset; amount: number; biz: string; shiftId: string | null; reason: string }): { ok: true; args: Record<string, unknown> } | { ok: false; err: string } {
+  const e = penaltyAmountErrOf(input.preset.amount, input.amount, input.reason);
+  if (e) return { ok: false, err: e };
+  const a = settlementArgsOf({ runId: input.runId, castId: input.castId, preset: input.preset, amount: input.amount, biz: input.biz, shiftId: input.shiftId });
+  if (!a.ok) return a;
+  const r = input.reason.trim();
+  return { ok: true, args: { ...a.args, p_reason: r ? `${a.args.p_reason as string}・${r}`.slice(0, 200) : a.args.p_reason } };
+}
+
 /** 月次一覧「精算調整の未登録候補: n 件」＝期間内の遅刻／当欠（attendance）の件数 − 登録済み settlement 行（0 未満は 0） */
 export function settlementCandidatesOf(input: { attendance: readonly { status: string }[]; settlements: number }): number {
   const detected = input.attendance.filter((a) => a.status === "late" || a.status === "absent").length;
@@ -73,7 +92,6 @@ export function settlementCandidatesOf(input: { attendance: readonly { status: s
 }
 /** 期 'YYYY-MM' の暦日範囲 */
 export function periodRangeOf(period: string): { from: string; to: string } {
-  const [y, m] = period.split("-").map(Number);
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return { from: `${period}-01`, to: `${period}-${String(last).padStart(2, "0")}` };
+  const r = monthRangeOf(period);
+  return { from: r.from, to: r.to };
 }

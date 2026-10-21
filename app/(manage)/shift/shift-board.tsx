@@ -46,7 +46,9 @@ import { nextPeriodDefaults, overlappingPeriods, mdOf } from "@/lib/nox/shift/pe
 import Modal from "@/components/ui/modal";
 import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
-import OkuriOutDialog from "@/components/nox/okuri-out-dialog"; // ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ
+import OkuriOutDialog from "@/components/nox/okuri-out-dialog";
+import PenaltyDialog, { type PenaltyTarget } from "@/components/nox/penalty-dialog";
+import { castReportOf, castReportLineOf, keepReportArgsOf } from "@/lib/nox/shift/cast-report"; // ★便 X13-H H-17: 本人の遅刻・当欠の連絡 // ★便 X13-H H-16（裁定410）: 遅刻・当欠の罰金（委託のみ） // ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ
 import { okuriDefaultAmountOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default";
 import StaffShiftBoard from "./staff-shift-board"; // ★C層② 面 b/c（スタッフ）
 import CastAvatar from "@/components/ui/cast-avatar";
@@ -58,6 +60,7 @@ import IncentivePanel from "./incentive-panel";
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
+import { daysInMonthOf, monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 type Cast = { id: string; name: string; photo_updated_at: string | null; employment?: string | null; shift_request_mode?: "shift" | "off_only" | null }; // ★0154 D1: employment（用語の出し分け）・★裁定337（0167）: 個別の方式（null＝店の既定）
 type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string };
 // ★SD V2-2（mig0101）: status 3値（planned→proposed→confirmed）＋wish_id（原型対比）＋source/period_id（自動配置）
@@ -65,7 +68,7 @@ type Shift = { id: string; cast_id: string; date: string; start_hm: string; end_
 type Period = { id: string; start_date: string; end_date: string; wish_deadline: string | null; status: string };
 // ★0125（裁定112-A）: Rules 型は配置ルールカード撤去に伴い削除（shift_rules 器は残置）。
 // ★SC-8 ⑥: date を持つ（面4 が7日ぶんを読むため）。今日タブ本体は date === bizToday で絞って使う。
-type Att = { cast_id: string; date: string; status: string; eta: string | null };
+type Att = { cast_id: string; date: string; status: string; eta: string | null; reason?: string | null; source?: string | null; updated_at?: string | null }; // ★便 X13-H H-17: 連絡の理由・送り元・時刻
 // E8-4（mig0095）: staffing_needs は時間帯バンド化＝(store_id, dow, from_min) UNIQUE。
 //   from_min/to_min は 0..1440（分）・0/1440=終日（既存行は mig0095 backfill で終日バンド化済み）。
 type Need = { id: string; dow: number; required: number; from_min: number; to_min: number };
@@ -405,9 +408,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     // 段S-1: 月カレンダー化に伴い取得範囲を「今日から30件」→「表示月の全日」へ変更。
     //   ★client 直 SELECT の範囲変更のみ（shifts の SELECT RLS はそのまま＝店スコープ）。
     //   今日を含む月以外を見ているときも「今日」タブの KPI が出せるよう、当月と表示月の和を取る。
-    const [my, mm] = month.split("-").map(Number);
     const monthFrom = `${month}-01`;
-    const monthTo = ymdOf(new Date(my, mm, 0)); // 当月末日（翌月0日）
+    const monthTo = monthLastDayOf(month); // 当月末日（★便 X13-H H-9）
     // ★SC-7（裁定54）: to を「今日+6日」まで伸ばす。
     //   直近7日ストリップ（裁定50'）が月末を跨ぐと、翌月分の shifts が範囲外になり
     //   assigned=0 のまま「不足」と誤表示するため（required は曜日ベースで範囲に依らない）。
@@ -476,7 +478,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★SC-8 ⑥: 単日 eq から範囲 gte/lte へ（引数 d を起点に7日＝裁定54 の stripEnd と同式）。
   //   date を select に足したので、今日タブ本体は date === bizToday で絞って従来どおり使う。
   const loadAtt = useCallback(async (d: string) => {
-    const { data } = await supabase.from("attendance").select("cast_id, date, status, eta")
+    const { data } = await supabase.from("attendance").select("cast_id, date, status, eta, reason, source, updated_at")
       .gte("date", d).lte("date", addDays(d, 6));
     setAtts((data ?? []) as Att[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -697,10 +699,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     if (!status) return;
     setMsg(null);
     const { error } = await supabase.rpc("attendance_set", {
-      p_cast_id: castId, p_date: attDate, p_status: status, p_eta: null, p_reason: null,
+      p_cast_id: castId, p_date: attDate, p_status: status, ...keepReportArgsOf(attOf(castId, attDate), status), // ★便 X13-H H-17: 本人の連絡（見込み・理由）を残して記録
     });
     setMsg(error ? rpcErrJaCommon(error.message) : null);
     await loadAtt(attDate);
+    // ★便 X13-H H-16（裁定410）: 遅刻／当欠を記録したら、委託キャストにだけ罰金ダイアログ（雇用・早退・キオスク・/mine には出さない・精算調整 OFF の店は出さない）
+    if (!error && (status === "late" || status === "absent") && penaltiesOn && attDate === todayDate && casts.find((c) => c.id === castId)?.employment !== "雇用") {
+      const sh = shifts.find((x) => x.cast_id === castId && x.date === attDate) ?? null;
+      setPenaltyDlg({ castId, target: status, shiftId: sh ? sh.id : null });
+    }
     // ★便 AY1（2026-09-24・裁定291 追補1 A-3）: 出勤区分（出勤・遅刻・同伴）を記録できたら in 打刻も残す（punch_proxy 'in'＝時刻は RPC の now()）。
     //   同営業日に in が既にあれば呼ばない（punch_proxy は盲目記録＝in-in を拒まないため UI で止める）・休み／当欠は呼ばない・区分の変更で増やさない。
     //   失敗しても attendance は戻さない（区分の記録は成立・打刻だけ失敗＝裁定281 の型で同じ枠に警告）。
@@ -831,7 +838,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
 
   // 月グリッド（前後の空白セル込み・7列）
   const [my, mm] = month.split("-").map(Number);
-  const monthDays = new Date(my, mm, 0).getDate();
+  const monthDays = daysInMonthOf(month);
   const leadBlanks = new Date(Date.UTC(my, mm - 1, 1)).getUTCDay();
   const calCells: (string | null)[] = [
     ...Array.from({ length: leadBlanks }, () => null),
@@ -986,6 +993,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [okuriDlg, setOkuriDlg] = useState<{ castId: string; def: OkuriDefault; mode: "outAndIssue" | "issueOnly"; fromOut: boolean } | null>(null); // ★裁定357: mode＝退勤＋送り／送りのみ・fromOut＝「退勤」から開いた（2 択）
   const [okuriIssued, setOkuriIssued] = useState<Set<string>>(new Set()); // ★裁定357: 当日発行済みの cast（transport・cancelled 以外）＝1 クエリ
   const [okuriBusy, setOkuriBusy] = useState(false);
+  const [reportsOnly, setReportsOnly] = useState(false); // ★便 X13-H H-17 ②: 連絡のある行だけ
+  const [penaltyDlg, setPenaltyDlg] = useState<{ castId: string; target: PenaltyTarget; shiftId: string | null } | null>(null); // ★便 X13-H H-16
   const [okuriErr, setOkuriErr] = useState<string | null>(null);
   useEffect(() => {
     if (!storeId) return;
@@ -1116,6 +1125,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       {settle && (
         <SettlementModal storeId={storeId} castId={settle.castId} castName={castName(settle.castId)} biz={todayDate} shiftId={settle.shiftId} target={settle.target}
           onClose={() => setSettle(null)} onDone={(text) => setMsg(text)} />
+      )}
+      {/* ★便 X13-H H-16（裁定410）: 遅刻・当欠の罰金（委託のみ・送りと同じ形） */}
+      {penaltyDlg && (
+        <PenaltyDialog storeId={storeId} castId={penaltyDlg.castId} castName={castName(penaltyDlg.castId)} biz={todayDate} shiftId={penaltyDlg.shiftId} target={penaltyDlg.target}
+          onClose={() => setPenaltyDlg(null)} onDone={(text) => setMsg(text)} />
       )}
       {/* ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ */}
       {okuriDlg && (
@@ -1336,6 +1350,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               ))}
             </div>
           )}
+          {(() => { const n = shiftsOn(todayDate).filter((s) => castReportOf(attOf(s.cast_id, todayDate))).length; return n > 0 || reportsOnly ? (/* ★便 X13-H H-17 ②: 連絡 n 件（確認済みの列は 0176＝本人の連絡は全部「未確認」） */
+            <div style={{ margin: "0 0 8px" }}>
+              <button type="button" className={`nox-chip${reportsOnly ? " on" : ""}`} data-report-chip={n} aria-pressed={reportsOnly} style={{ minHeight: 40, padding: "0 14px", fontWeight: 800, color: n > 0 ? "var(--bad)" : undefined }}
+                onClick={() => setReportsOnly((v) => !v)}>連絡 {n} 件（未確認 {n}）{reportsOnly ? "・絞り込み中" : ""}</button>
+            </div>
+          ) : null; })()}
           {shiftsOn(todayDate).length === 0 ? (
             <p style={{ fontSize: 13, color: "var(--sub)" }}>本日のシフトはありません</p>
           ) : (
@@ -1345,7 +1365,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   <tr><th>スタッフ</th><th>申請時間</th><th>確定時間</th><th>出勤記録</th><th>状態</th>{isManagerUp && <th>操作</th>}</tr>{/* ★裁定313／X-8-3: 操作列は owner／manager だけ（staff は列ごと未描画） */}
                 </thead>
                 <tbody>
-                  {shiftsOn(todayDate).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((s) => {
+                  {shiftsOn(todayDate).filter((s) => !reportsOnly || !!castReportOf(attOf(s.cast_id, todayDate))).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((s) => {
                     const w = s.wish_id ? wishAll.find((x) => x.id === s.wish_id) : undefined;
                     const sClosed = closedOf(s.date, s.start_hm, s.end_hm);
                     // ★SC-8 ⑦（未来日ガード）: 出勤記録の書き込みは todayDate === bizToday のときだけ。
@@ -1357,7 +1377,18 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             <CastAvatar name={castName(s.cast_id)} url={photoUrls.get(s.cast_id)} variant="flat" />
                             {castName(s.cast_id)}
                           </span>
-                        </td>
+                        
+                          {(() => { const rp = castReportOf(attOf(s.cast_id, todayDate)); return rp ? (/* ★便 X13-H H-17 ①: 本人の連絡（未確認＝目立つ色）＋記録の 2 ボタン（既存の記録→委託は罰金ダイアログ） */
+                            <div data-cast-report={rp.kind} style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: "var(--bad)", lineHeight: 1.5, whiteSpace: "normal", maxWidth: 260 }}>
+                              {castReportLineOf(rp)}
+                              {canRecord && (
+                                <span style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                                  <button type="button" className="nox-rowbtn" data-report-rec="late" onClick={() => void setAtt(s.cast_id, "late")}>遅刻として記録</button>
+                                  <button type="button" className="nox-rowbtn" data-report-rec="absent" onClick={() => void setAtt(s.cast_id, "absent")}>当欠として記録</button>
+                                </span>
+                              )}
+                            </div>
+                          ) : null; })()}</td>
                         <td className="num c-req" data-label="申請" data-empty={w ? undefined : "1"} style={{ color: "var(--v2-muted)" }}>{/* ★371: カードでは値がある時だけ */}
                           {w ? fmtWin(w.start_hm, w.end_hm) : "—"}
                         </td>

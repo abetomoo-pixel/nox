@@ -16,6 +16,7 @@ import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
 import MasterPageHead from "../master-page-head";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
+import { daysInMonthOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 
 export type Referrer = { id: string; kind: string; membership_id: string | null; name: string; contact: string | null; withholding_category: string; is_active: boolean };
 export type MemberOpt = { id: string; role: string; name: string };
@@ -29,8 +30,8 @@ const yen = (n: number) => "¥" + n.toLocaleString("en-US");
 const monthRange = () => {
   const d = new Date(Date.now() + 9 * 3600_000);
   const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const p = (n: number) => String(n).padStart(2, "0");
+  const last = daysInMonthOf(`${y}-${p(m)}`);
   return { from: `${y}-${p(m)}-01`, to: `${y}-${p(m)}-${p(last)}` };
 };
 

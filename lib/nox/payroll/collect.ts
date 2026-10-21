@@ -660,8 +660,8 @@ export async function collectPeriod(
   //   'next'（店設定 slide_apply）は「前の期間の累計」。期の外や半月の窓は get_cast_sales／loadAccounting を窓ごとに引く（pt は窓単位）。daily のプランは従来どおり（slideByDay なし）。
   //   プレビュー＝期の末日が今日より後なら暫定（provisional）。確定（finalize）は期末後に走る＝期間全体の累計で段確定。
   const slideTodayBiz = bizDateOf(new Date().toISOString(), win.cutoffHm);
-  // ★便 P174 T-4（裁定395・0174 ★4）: キャストごとの判定タイミング＝有効プランの slide_apply → 店設定（PayrollWindow の slideApply・欠損＝current）
-  const applyOf = (cid: string): "next" | "current" => { const cpx = castPlanByCast.get(cid); return (cpx ? slideApplyByPlan.get(cpx.planId) : undefined) ?? (win.slideApply === "next" ? "next" : "current"); };
+  // ★便 P174 T-4（裁定395・0174 ★4）→★便 X13-H H-8: キャストごとの判定タイミング＝有効プランの slide_apply だけ（null＝当期の累計）。店の slide_apply は読まない（保存先を 1 か所＝プラン）
+  const applyOf = (cid: string): "next" | "current" => { const cpx = castPlanByCast.get(cid); return (cpx ? slideApplyByPlan.get(cpx.planId) : undefined) ?? "current"; };
   const anyNext = [...targetIds].some((cid) => applyOf(cid) === "next");
   // ★夜間便 N3b（裁定288-1／288-6）: slide_apply='next' の店でだけ、期に含まれる各暦月の「前月の窓」を同じ式（get_cast_sales＋loadAccounting）で集計。
   //   'current'／欠損の店は fetch 0（従来と同一）。cast 別に { 営業日の暦月 → 前月の合計（sales／pts） } を持つ。

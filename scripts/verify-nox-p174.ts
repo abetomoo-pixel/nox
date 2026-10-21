@@ -47,9 +47,9 @@ check("p174(2-2) set_penalty_config は 17 引数を常に明示（penaltyArgsOf
 check("p174(2-3) GV-51: 猶予 3 欄（遅刻／早退／残留）はパネル先頭の独立行（data-grace-row）・保存ボタンの直前には無い・「売上・指名ノルマは表示のみ」の注記なし",
   cs.includes('<div data-grace-row="1"') && !cs.includes('{num("late_grace_min")}{num("early_grace_min")}{num("over_grace_min")}\n          <button style={btnDark} onClick={save}>保存</button>') && !cs.includes("売上・指名ノルマは表示のみ"));
 // ── (3) 395
-check("p174(3-1) collect: comp_plans.slide_apply を読む・キャストごとに applyOf（プラン→店設定）・前期窓／期間キー／暫定／'next' 入力の 5 か所が applyOf・core は c.slideApply",
+check("p174(3-1) collect: comp_plans.slide_apply を読む・キャストごとに applyOf（プランだけ・★便 X13-H H-8＝null は当期の累計・店設定は読まない）・前期窓／期間キー／暫定／'next' 入力の 5 か所が applyOf・core は c.slideApply",
   col.includes("slide_rank_ids, slide_apply\")") && col.includes("const applyOf = (cid: string)") && col.includes("if (anyNext) {") && col.includes("needKeys.add(applyOf(cid0) === \"next\"") && col.includes("const src = applyOf(cid) === \"next\"")
-  && col.includes("slideProvisionalOf(slidePeriodByCast.get(cid) as SlidePeriod, applyOf(cid))") && col.includes("...(applyOf(cid) === \"next\" ? { slideApply: \"next\" as const") && (col.match(/win\.slideApply/g) ?? []).length === 1 /* applyOf の店設定フォールバックの 1 か所だけ */
+  && col.includes("slideProvisionalOf(slidePeriodByCast.get(cid) as SlidePeriod, applyOf(cid))") && col.includes("...(applyOf(cid) === \"next\" ? { slideApply: \"next\" as const") && (col.match(/win\.slideApply/g) ?? []).length === 0 /* ★便 X13-H H-8: 店設定のフォールバックを撤去 */
   && core.includes('!!c.slideProvisional, c.slideApply === "next")'));
 check("p174(3-2) plan-editor: p_slide_apply を常に明示・詳細設定（店の設定に従う／前期の実績／当期の累計）・新規の初期値 next・表示は effApply",
   pe.includes("p_slide_apply: draft.slideApply,") && pe.includes('data-slide-apply="1"') && pe.includes('slideApply: "next", // ★便 P174 T-4') && pe.includes("const effApply") && !pe.includes('slideApplyOf(settings) === "next"'));

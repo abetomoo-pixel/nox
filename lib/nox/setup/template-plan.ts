@@ -373,7 +373,7 @@ export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
         // ★便 GV-C C-14g（起票118）: 新規プランも 30 引数を全部送る（RPC 既定＝判定期間 daily に頼らない）。判定期間＝月次（plan-editor の新規と同じ）・基準 売上・全員・目標なし・タイミング＝店設定（null）・区分別固定額なし
         p_product_back_fixed_hon: null, p_product_back_fixed_jonai: null, p_product_back_fixed_free: null,
         p_slide_period: SETUP_PLAN_SLIDE_PERIOD, p_slide_basis: "sales", p_slide_rank_ids: [],
-        p_norm_days_target: null, p_norm_dohan_target: null, p_norm_sales_target: null, p_norm_shimei_target: null, p_slide_apply: null } });
+        p_norm_days_target: null, p_norm_dohan_target: null, p_norm_sales_target: null, p_norm_shimei_target: null, p_slide_apply: "next" } }); // ★便 X13-H H-8: 判定タイミングはプランに書く（店の slide_apply は計算で読まない）
     if (pl.bonus.length > 0) {
       const add = Math.max(0, Math.round(pl.bonus[0].add_yen));
       steps.push({ key: `bonus_${i}`, group: "comp", label: `達成ボーナス（${pl.name}）目標達成時 ¥${add}（1 段・目標はキャスト別目標）`, rpc: "set_comp_component", guard: "plans_empty", argsOf: "comp_component", after: `comp_${i}`,
@@ -390,7 +390,7 @@ export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
   // 8) 機能スイッチ（変更分だけ・org 既定行）
   for (const f of sel.flags ?? []) steps.push({ key: `flag_${f.key}`, group: "flags", label: `機能 ${f.key} を ${f.enabled ? "ON" : "OFF"}`, rpc: "flag_set", args: { p_key: f.key, p_store_id: null, p_enabled: f.enabled, p_reason: null } });
   // 9) 最後に setup_done（★裁定285／287-4: slide_apply='next'・★0154 D4: 精算調整のひな形 既定 3 件）
-  steps.push({ key: "done", group: "done", label: "初期設定の完了（スライドは前期の実績で判定・精算調整のひな形 3 件）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next", settlement_presets: DEFAULT_SETTLEMENT_PRESETS } } });
+  steps.push({ key: "done", group: "done", label: "初期設定の完了（スライドは前期の実績で判定・精算調整のひな形 2 件）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next", settlement_presets: DEFAULT_SETTLEMENT_PRESETS } } });
   return steps;
 }
 

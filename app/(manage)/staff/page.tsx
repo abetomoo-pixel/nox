@@ -36,7 +36,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
   if (tab === "work") {
     return (
       <div className="nox-mv1 nox-mv1-m">
-        <PageHead eyebrow="STAFF WORK" title="スタッフ › 勤怠・報酬" desc="店の端末で打刻した出勤・退勤と、契約にもとづく報酬の見込み（確定は次のデータ更新で有効）。" />
+        <PageHead eyebrow="STAFF WORK" title="スタッフ › 勤怠・報酬" desc="店の端末で打刻した出勤・退勤と、契約にもとづく報酬の見込み。" />
         {tabs}
         <StaffWorkPanel scope="store" stores={(stores ?? []) as { id: string; name: string }[]} />
       </div>

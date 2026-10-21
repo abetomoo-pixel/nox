@@ -33,6 +33,27 @@ export const SYSTEM_KEYS = [
 ] as const;
 export type SystemKey = (typeof SYSTEM_KEYS)[number];
 
+// ★便 X13-H H-7（裁定412・2026-10-21）: 報酬の軸＝店で 1 つ。既存フラグからの導出＝ポイント制 or ポイントスライドが ON なら pt・それ以外は売上。
+//   保存＝軸に合わせて sys_* を書く（売上→sys_points／sys_point_slide を false・pt→sys_sales_slide を false）。各種バック（sys_backs）とスライドの ON／OFF は軸の下の 2 行で別に持つ。
+//   sys_sales_rate は表示で読まない（残すだけ・計算は collect の R-5c のまま）＝使用中の人数は各種バックに合算。
+export type RewardAxis = "sales" | "pts";
+export const REWARD_AXIS_LABEL: Record<RewardAxis, string> = { sales: "売上（円）", pts: "ポイント（pt）" };
+export const rewardAxisOf = (s: StoreSettings): RewardAxis => (isSystemOn(s, "sys_points") || isSystemOn(s, "sys_point_slide") ? "pts" : "sales");
+/** 軸のスライド（売上軸＝売上スライド／pt 軸＝ポイントスライド） */
+export const axisSlideKeyOf = (axis: RewardAxis): SystemKey => (axis === "pts" ? "sys_point_slide" : "sys_sales_slide");
+export const axisSlideOnOf = (s: StoreSettings): boolean => isSystemOn(s, axisSlideKeyOf(rewardAxisOf(s)));
+/** 軸の保存 patch（スライドの ON／OFF は今の値を軸のスライドへ写す） */
+export function rewardAxisPatchOf(axis: RewardAxis, slideOn: boolean): Partial<Record<SystemKey, boolean>> {
+  return axis === "pts" ? { sys_points: true, sys_point_slide: slideOn, sys_sales_slide: false } : { sys_points: false, sys_point_slide: false, sys_sales_slide: slideOn };
+}
+/** 軸の切替を止める人数（相手の軸にキャスト個別の設定がある）＝売上へ＝pt 系の使用中・pt へ＝売上スライドの使用中 */
+export const axisSwitchLockOf = (to: RewardAxis, usage: Partial<Record<SystemKey, number>>): number =>
+  to === "sales" ? (usage.sys_points ?? 0) + (usage.sys_point_slide ?? 0) : (usage.sys_sales_slide ?? 0);
+/** 各種バックの使用中＝各種バック＋（旧）売上歩合 */
+export const backsUsageOf = (usage: Partial<Record<SystemKey, number>>): number => (usage.sys_backs ?? 0) + (usage.sys_sales_rate ?? 0);
+/** 報酬の軸ブロックが受け持つキー（パネルの通常行から外す） */
+export const REWARD_AXIS_KEYS: readonly SystemKey[] = ["sys_backs", "sys_sales_rate", "sys_points", "sys_sales_slide", "sys_point_slide"];
+
 /** 表示ラベル（初期設定 STEP 3 と同じ 9 語・順序固定） */
 export const SYSTEM_LABELS: Record<SystemKey, string> = {
   sys_hourly: "時給・最低保証",
@@ -70,17 +91,17 @@ export function isSystemOn(settings: StoreSettings, key: string): boolean {
 /** 出し分け 16 箇所（裁定269-4）。各節が「要る制度」＝いずれかが ON なら描く。 */
 export const SECTION_KEYS = {
   planTabBase: ["sys_hourly"],
-  planTabBacks: ["sys_backs", "sys_sales_rate"],
+  planTabBacks: ["sys_backs"], // ★便 X13-H H-7（裁定412）: 売上歩合は各種バックに統一（sys_sales_rate は表示で読まない）
   planTabSlides: ["sys_sales_slide", "sys_point_slide", "sys_points"],
   planTabQuota: ["sys_norms", "sys_bonus", "sys_penalties"],
   planEditorBase: ["sys_hourly"],
-  planEditorBacks: ["sys_backs", "sys_sales_rate"],
+  planEditorBacks: ["sys_backs"],
   planEditorSlides: ["sys_sales_slide", "sys_point_slide", "sys_points"],
   planEditorAchieve: ["sys_bonus"],
   compNormTab: ["sys_norms"],
   compDeductionTab: ["sys_penalties"],
   compPenaltyTab: ["sys_penalties", "sys_norms"],
-  compBackTab: ["sys_backs", "sys_sales_rate", "sys_points"],
+  compBackTab: ["sys_backs", "sys_points"],
   normConfigPanel: ["sys_norms"],
   deductionPanel: ["sys_penalties"],
   productsBack: ["sys_backs"],

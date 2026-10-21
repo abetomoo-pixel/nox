@@ -15,6 +15,7 @@ import Modal from "@/components/ui/modal";
 import MonthReport from "./month-report";
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
+import { monthAfterOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 type Preview = {
   open: number; slips: number; guests: number; dohan: number;
   cash: number; card: number; cardTax: number; uri: number; other: number; drink: number;
@@ -96,7 +97,7 @@ const fmtCloseHm = (open: string, close: string) => {
 type BizHour = { dow: number; is_closed: boolean; open_hm: string | null; close_hm: string | null };
 // ★#66（2026-09-09）: 月の上限は「翌月 1 日 lt」で切る（`${ym}-31` の lte は 30 日月／2 月で Postgres 22008＝KPI が 0 に落ちる）。
 //   受ける ym（YYYY-MM）の決め方＝集計式は不触・境界だけ差し替え。
-const monthAfter = (ym: string) => { const [y, m] = ym.split("-").map(Number); return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`; };
+const monthAfter = monthAfterOf; // ★便 X13-H H-9: lib/nox/month に寄せた
 // ★B2-a（裁定202・D12）: 「取消・巻き戻し」系 action＝audit-board の VIEW_DEFS「取消・巻き戻し」と同じ明示リスト
 //   （audit-board.tsx:53-58 と同期して保つ・owner のときだけ count する＝RLS は owner 限定のまま）。
 const CANCEL_ACTIONS = [

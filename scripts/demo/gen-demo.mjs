@@ -102,7 +102,7 @@ for (const st of STORES) {
       ...sysSettingsOf(code), pay_time_basis: PF.basis, shift_cast_confirm: PF.confirm, // ★X-13c: 報酬制度の ON/OFF・勤務時間の計算基準・キャスト確認＝プロファイル
       slide_apply: "current", receipt_address: "東京都新宿区歌舞伎町 1-1-1（デモ）", receipt_tel: "03-0000-0000", receipt_footer: "飲食代", okuri_base_amount: PF.okuri, /* ★X-13c: 送り（0＝なし） */ ...(PF.okuriMode ? { okuri_mode: PF.okuriMode } : {}), /* ★裁定348: 送りの方式 flat／actual（0158・無しはキー無し） */
       payslip_visibility: "detail", reservation_request: "on", drink_claim: "on", ranking: "on", shift_request_mode: PF.wishMode ?? "shift" /* ★裁定348: NEST＝休み希望のみ */,
-      ...(code === "ace" ? { pay_fee_rates: { card: 10, emoney: 0, other: 0 }, contract_ack: true } : {}) /* ★便 X13-G W-18 ①: ACE はお客様へ加算＝カード 10%（Agoora 決定・加盟店契約の確認は記録済み扱い） */ },
+      ...(code === "ace" ? { pay_fee_rates: { card: 10, emoney: 0, other: 0 }, contract_ack: true, settlement_presets: [{ code: "late", name: "遅刻", amount: 2000, basis: "契約書の遅刻精算条項に基づく減額", target: "late" }, { code: "absent", name: "当欠", amount: 5000, basis: "契約書の当日欠勤精算条項に基づく減額", target: "absent" }] /* ★便 X13-H H-15 ④（裁定410） */ } : {}) /* ★便 X13-G W-18 ①: ACE はお客様へ加算＝カード 10%（Agoora 決定・加盟店契約の確認は記録済み扱い） */ },
     hon_fee: defRank?.main_charge_yen ?? 0, jonai_fee: defRank?.inhouse_charge_yen ?? 0, dohan_fee: defRank?.accompanied_charge_yen ?? 0, service_rate: tax.service_rate, card_tax_rate: 0,
     round_unit: 1, round_mode: "down", set_min: mainRule.set_minutes || 60, set_fee: mainRule.set_price_yen, ext_min: mainRule.extension_minutes || 30, ext_fee: mainRule.extension_price_yen,
     time_mode: "manual", time_per: "person", business_tax_status: "taxable", price_display: "tax_excluded", invoice_status: "unregistered" /* ★便 X13-G W-18 ②: 6 店とも未登録（架空の T 番号が実在の事業者と一致するのを避ける・Agoora 決定） */, invoice_reg_no: null, tax_rounding: "floor", card_surcharge_rate: null,
@@ -117,9 +117,11 @@ for (const st of STORES) {
   // ★便 P173（ex_plan M173-2）: スタッフの契約と 7 日の打刻（MUSE・LUNA）＝雇用＝staff の membership（甲・源泉 0）／委託＝manager の membership（源泉 10.21）。biz_date R-7〜R-1・in 18:00／out 翌 02:00・source 'manual'
   { const SD = STAFF_DEMO[code];
     if (SD) {
-      const rows = [{ m: uid(`memb:${code}:staff`), kind: "employee", hourly: SD.employee, tax: "甲", wh: 0 }, { m: uid(`memb:${code}:manager`), kind: "contractor", hourly: SD.contractor, tax: null, wh: 10.21 }];
+      const rows = SD.monthly // ★便 X13-H H-12 ④: 月給の店長（雇用・時給 0＋月額）＋時給のスタッフ
+        ? [{ m: uid(`memb:${code}:staff`), kind: "parttime", hourly: SD.parttime, tax: "甲", wh: 0, fixed: 0 }, { m: uid(`memb:${code}:manager`), kind: "employee", hourly: 0, tax: "甲", wh: 0, fixed: SD.monthly }]
+        : [{ m: uid(`memb:${code}:staff`), kind: "employee", hourly: SD.employee, tax: "甲", wh: 0, fixed: 0 }, { m: uid(`memb:${code}:manager`), kind: "contractor", hourly: SD.contractor, tax: null, wh: 10.21, fixed: 0 }];
       for (const r of rows) {
-        push("staff_contracts", { id: uid(`sc:${code}:${r.kind}`), membership_id: r.m, store_id: storeId, contract_kind: r.kind, hourly: r.hourly, fixed_allowance: 0, tax_class: r.tax, withholding_rate: r.wh, invoice: null, reg_no: null, valid_from: { $rel: -60 }, created_at: { $rel: -60, t: "12:00:00" }, updated_at: { $rel: -60, t: "12:00:00" } });
+        push("staff_contracts", { id: uid(`sc:${code}:${r.kind}`), membership_id: r.m, store_id: storeId, contract_kind: r.kind, hourly: r.hourly, fixed_allowance: r.fixed ?? 0, tax_class: r.tax, withholding_rate: r.wh, invoice: null, reg_no: null, valid_from: { $rel: -60 }, created_at: { $rel: -60, t: "12:00:00" }, updated_at: { $rel: -60, t: "12:00:00" } });
         for (let d = -7; d <= -1; d++) {
           push("staff_punches", { id: uid(`sp:${code}:${r.kind}:${d}:in`), membership_id: r.m, store_id: storeId, biz_date: { $rel: d }, kind: "in", punched_at: { $rel: d, t: "18:00:00" }, source: "manual", created_by: users.manager, created_at: { $rel: d, t: "18:00:00" } });
           push("staff_punches", { id: uid(`sp:${code}:${r.kind}:${d}:out`), membership_id: r.m, store_id: storeId, biz_date: { $rel: d }, kind: "out", punched_at: { $rel: d, t: "02:00:00" }, source: "manual", created_by: users.manager, created_at: { $rel: d, t: "02:00:00" } }); // ★便 GV-C（P174 live ⑥）: $rel は営業日・cutoff 前の時刻は翌暦日へ自動で繰り上がる＝d+1 だと 1 日余分（224 時間）
@@ -193,7 +195,7 @@ for (const st of STORES) {
   for (const c of castsSrc) {
     const id = uid(`cast:${c.person_id}`);
     const srm = (c === repCast && code === "nest") ? "off_only" : castIdx % 4 === 1 ? "off_only" : castIdx % 4 === 2 ? "shift" : null; castIdx++; // ★裁定337（P168: NEST の代表キャストは off_only＝デモの cast ログインで反転を見せる）
-    push("casts", { id, store_id: storeId, user_id: c === repCast ? users.cast : null, name: c.display_name, kind: c.display_name === TR.cast ? "体入" : c.business_role, /* ★便 P173（GV-57・裁定396）: 体験入店のキャストは在籍区分「体入」（NEST のレンは期限切れ＝体入のまま＝本採用は操作で） */ employment: PF.employment ?? "委託", /* ★裁定348: LILY＝雇用 */ is_active: true, joined_on: c.joined_on ? M(dayOf(c.joined_on)) : null, left_on: null, rank_id: c.rank_id ? uid(`rank:${c.rank_id}`) : (defRank ? uid(`rank:${defRank.rank_id}`) : null), shift_request_mode: srm });
+    push("casts", { id, store_id: storeId, user_id: c === repCast ? users.cast : null, name: c.display_name, kind: c.display_name === TR.cast ? "体入" : c.business_role, /* ★便 P173（GV-57・裁定396）: 体験入店のキャストは在籍区分「体入」（NEST のレンは期限切れ＝体入のまま＝本採用は操作で） */ employment: PF.employment ?? "委託", /* ★裁定348: LILY＝雇用 */ is_active: true, joined_on: c.joined_on ? M(dayOf(c.joined_on)) : (c.display_name === TR.cast ? null : { $m: -(2 + (castIdx % 9)), d: 1 + ((castIdx * 7) % 27) }) /* ★便 X13-H H-11 ④: 体入以外は本入店日あり（「—」は体入中だけ） */, left_on: null, rank_id: c.rank_id ? uid(`rank:${c.rank_id}`) : (defRank ? uid(`rank:${defRank.rank_id}`) : null), shift_request_mode: srm });
     const pa = D("person_plan_assignments").filter((a) => a.person_id === c.person_id && !a.valid_to).pop() ?? D("person_plan_assignments").find((a) => a.person_id === c.person_id);
     const srcPlanId = uid(`plan:${pa?.plan_id ?? c.plan_id ?? plans[0].plan_id}`);
     const slot = extraPlans.length ? castSeq++ % (extraPlans.length + 1) : 0; // ★X-13-21: 0＝源泉のプラン・1〜＝追加プラン
@@ -545,7 +547,9 @@ for (const st of STORES) {
   // ★便 X13-G W-18 ⑦: 利用機能（裁定348 の店の組合せ）と食い違うデータは payload 側を合わせる＝pt を使わない店は商品の本指名 pt 0・売上スライドを使わない店はプランの売上スライドを空
   { const sy = sysSettingsOf(code);
     if (!sy.sys_points) for (const pr of T.products ?? []) pr.hon_pt = 0;
-    if (!sy.sys_sales_slide) for (const pl of T.comp_plans ?? []) pl.sales_slide = []; /* ノルマ OFF の店のノルマ目標は残す＝OFF で隠れることの確認用（norm-axes na(4-2)） */ }
+    if (!sy.sys_sales_slide) for (const pl of T.comp_plans ?? []) pl.sales_slide = [];
+    if (!sy.sys_point_slide) for (const pl of T.comp_plans ?? []) pl.point_slide = []; // ★便 X13-H H-7: pt スライドを使わない店はプランの pt 段も空（MUSE＝売上軸）
+/* ノルマ OFF の店のノルマ目標は残す＝OFF で隠れることの確認用（norm-axes na(4-2)） */ }
   // ★便 X13-G W-18 ③: 今月の勤務・伝票＝先月（{$m:-1}）の勤務と伝票を同じ日付で今月（{$m:0}）へ写す。reset した日より前の日だけ残す（dateshift の $onlyBefore）。
   //   写すのは shifts／attendance／punches／checks と伝票の子（明細・指名・バック・入金）・日報。ID は uid("cur:"+元 ID) で決定的・入金の冪等キーも別値。
   //   先月の行は 1 行も変えない（確定済みの先月給与＝afterResetHooks の凍結値は不変）。既存の $rel 行（当日・体入・スタッフ）と重なる日は dateshift が写しのほうを落とす。
@@ -595,6 +599,25 @@ for (const st of STORES) {
   { const ck = (T.checks ?? []).find((c) => c.status === "closed" && !c.merged_into && c.started_at && c.started_at.$m === -1 && Number(c.total) > 0);
     if (ck) push("receipt_issues", { id: uid(`rcpt:${code}:1`), store_id: storeId, check_id: ck.id, serial: 1, amount: ck.total, recipient: "デモ商事", proviso: "ご飲食代として", store_name_snap: T.stores[0].name,
       biz_date: { $m: -1, d: ck.started_at.d }, issued_at: { $m: -1, d: ck.started_at.d, t: "23:30:00" }, issued_by: users.owner, token: uid(`rcpt-token:${code}:1`), expires_on: { $rel: 60 }, voided: false, void_note: null, voided_at: null, voided_by: null }); }
+  // ★便 X13-H H-10: 在庫を追う商品に期首在庫＝今月・前月の伝票（payload の明細の数量の合計＝今月の写しを含む上限）を引いても残る量（＋発注点×2 か 10 の大きいほう）。
+  //   「在庫少」を見せるため 1 品だけ少量（販売 0・発注点ありの商品＝残 2 以下で発注点以下）。payload は販売の stock_logs を持たない＝残＝Σdelta。
+  { const bal = {}, sold = {};
+    for (const l of T.stock_logs ?? []) bal[l.product_id] = (bal[l.product_id] ?? 0) + l.delta;
+    for (const l of T.check_lines ?? []) if (l.product_id) sold[l.product_id] = (sold[l.product_id] ?? 0) + (l.qty ?? 0);
+    const tracked = (T.products ?? []).filter((pr) => pr.track_stock !== false);
+    const low = tracked.find((pr) => (pr.reorder_point ?? 0) >= 2 && !(sold[pr.id] > 0) && !(bal[pr.id] > 0)) ?? null;
+    for (const pr of tracked) {
+      const have = bal[pr.id] ?? 0;
+      const want = pr === low ? Math.min(2, pr.reorder_point) : (sold[pr.id] ?? 0) + Math.max(10, (pr.reorder_point ?? 0) * 2);
+      if (pr !== low && have >= want) continue;
+      if (pr === low && have === want) continue;
+      T.stock_logs = T.stock_logs ?? [];
+      T.stock_logs.push(completeRows("stock_logs", [{ org_id: orgId, id: uid(`stock:h10:${pr.id}`), store_id: pr.store_id, product_id: pr.id, delta: want - have, reason: "入荷", by_user_id: T.stock_logs[0]?.by_user_id ?? null, at: { $m: -1, d: 1, t: "11:00:00" } }], (r) => r.id)[0]);
+    } }   // ★便 X13-H H-17 ⑤: ACE のめいに今日の遅刻の連絡（本人＝source self・見込み 21:30・未確認）
+  if (code === "ace") { const mei = (T.casts ?? []).find((c) => c.name === "めい");
+    if (mei) { T.attendance = (T.attendance ?? []).filter((r) => !(r.cast_id === mei.id && r.date && r.date.$rel === 0));
+      if (!(T.shifts ?? []).some((r) => r.cast_id === mei.id && r.date && r.date.$rel === 0)) { const tpl = (T.shifts ?? []).find((r) => r.date && r.date.$rel === 0); if (tpl) T.shifts.push({ ...tpl, id: uid("shift:ace:mei:today"), cast_id: mei.id, start_hm: "20:00", end_hm: "26:00", status: "confirmed", wish_id: null }); }
+      T.attendance.push(completeRows("attendance", [{ org_id: orgId, id: uid("att:ace:mei:report"), store_id: storeId, cast_id: mei.id, date: { $rel: 0 }, status: "late", eta: "21:30", reason: "電車遅延", source: "self", created_at: { $rel: 0, t: "15:42:00" }, updated_at: { $rel: 0, t: "15:42:00" } }], (r) => r.id)[0]); } }
   const payload = { meta, tables: T };
   const json = JSON.stringify(payload);
   fs.writeFileSync(path.join(OUT_DIR, `${code}.json`), JSON.stringify(payload, null, 0) + "\n");
