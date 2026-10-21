@@ -26,7 +26,9 @@ import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセ
 import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: CSV 出力と凍結名解決は月次一覧と共用
 import { missingOutSummaryOf, frozenRowsOf, runSummaryOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
 import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
-import SanctionModal from "@/components/nox/sanction-modal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
+import SanctionModal from "@/components/nox/sanction-modal";
+import NormProposals from "@/components/nox/norm-proposals"; // ★便 X13-I I-5: ノルマ未達の減額の提案
+import type { NormProposal } from "@/lib/nox/payroll/norm-proposal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import { finalizeGuardOf, notEndedMessageOf, PERIOD_NOT_ENDED } from "@/lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）: 確定は期間終了の翌営業日から
@@ -45,6 +47,7 @@ type BreakdownExtra = { amount: number };
 type BreakdownJson = { pay: BreakdownPay; extras?: BreakdownExtra[]; cast_name?: string };
 // 明細に出す名前の解決（slipCastName）は export-csv.ts へ移設（B5・実装不変＝凍結名 → 現在名 → "(不明)"）。
 type Row = {
+  normProposal?: NormProposal & { applied?: number }; // ★便 X13-I I-5（preview が返す・提案がある行だけ）
   castId: string; castName: string; net: number; taxMode: string; anomalyCount: number;
   missingOutDates?: string[]; // ★N3 AV-4: 退勤の記録が無い勤務の営業日（preview が返す・表示のみ）
   frozen?: true; // ★N3 AV-2: 確定済み run の凍結値（payslips）から作った行＝プレビュー（再計算）ではない
@@ -726,6 +729,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                   </li>
                 ))}
               </ul>
+            )}
+            {rows && !rows.some((r) => r.frozen) && (/* ★便 X13-I I-5: ノルマ未達の減額の提案（確定前のプレビューだけ） */
+              <NormProposals rows={rows.filter((r) => !!r.normProposal).map((r) => ({ castId: r.castId, castName: r.castName, normProposal: r.normProposal! }))}
+                runId={runInfo && runInfo.status === "draft" ? runInfo.id : null} period={period}
+                onDone={async (text) => { setMsg(text); await loadRun(); await preview(); }} />
             )}
           </div>
         </section>

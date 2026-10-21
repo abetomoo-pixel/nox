@@ -4,7 +4,7 @@
 //   HeaderGear ＝ 歯車 → ★X-13-22（便 X-13d-1）: /master（マスタトップ）への直リンク（旧: gear 群の一覧型 Modal／≤899 はメニューシートの「設定」節＝重複のため撤去）。
 //   UserChip   ＝ 「登録名｜役割」→ 自分の情報（表示のみ）＋ログアウト（form POST /auth/signout＝経路不変）。
 //   ★ルート／URL／権限ゲートは非改変＝表示だけ。既存トークン・既存部品（Modal・NavIcon・.nox-navsheet-*）のみ・ui-tokens 新規 0。
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -57,6 +57,7 @@ export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhoto
   meId?: string | null; mePhotoAt?: string | null; canPhoto?: boolean; isDemo?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const chipRef = useRef<HTMLButtonElement | null>(null); // ★便 X13-H H-20: ポータルの出し先＝最寄りの .nox-dark
   const [supabase] = useState(() => createClient());
   const [photoAt, setPhotoAt] = useState<string | null>(mePhotoAt);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -109,7 +110,7 @@ export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhoto
   const label = userChipLabelOf({ name, email, roleJa });
   return (
     <>
-      <button type="button" className="nox-hdrbtn nox-userchip" title="自分の情報" onClick={() => setOpen(true)}>{label}</button>
+      <button ref={chipRef} type="button" className="nox-hdrbtn nox-userchip" title="自分の情報" onClick={() => setOpen(true)}>{label}</button>
       {open && createPortal((/* ★便 GV-C live（X-13-2）: body へ出す＝ヘッダー .nox-tb の backdrop-filter が fixed の基準になり、≤900 の下シートが画面外（上）へ出ていた */
         <Modal onClose={() => setOpen(false)} maxWidth={430} variant="top">{/* ★起票94（便 X-12-3）: 名前・メール行とログアウトが常に viewport 内・★便 GV-C C-14h（X-13-2）: ≥901＝ヘッダー直下の右寄せ（デモ帯の文言に重ねない）／≤900＝下からのシート（中身は同じ） */}
           <div className="nox-navsheet">
@@ -146,7 +147,7 @@ export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhoto
             </div>
           </div>
         </Modal>
-      ), document.body)}
+      ), (chipRef.current?.closest(".nox-dark") as HTMLElement | null) ?? document.body)}{/* ★便 X13-H H-20: body 直下はテーマ（.nox-dark のトークン）の外＝文字が暗色で見えなかった→最寄りの .nox-dark へ出す（.nox-dark は backdrop-filter／transform を持たない＝fixed の基準にならない） */}
     </>
   );
 }

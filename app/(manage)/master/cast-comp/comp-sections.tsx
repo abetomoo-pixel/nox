@@ -129,7 +129,7 @@ const PENALTY_LABEL_JA: Record<keyof Penalty, string> = {
   fine_absent: "（旧）当欠罰金・計算に使いません",
   fine_late: "（旧）遅刻罰金・計算に使いません",
   hours_per_shift: "試算用 1シフト時間",
-  norm_on: "ノルマ未達の検知を有効にする（減額は精算調整で登録）",
+  norm_on: "ノルマ未達の検知を有効にする（給与の確定前に提案として出し、店が適用を選びます）",
   norm_days_flat: "出勤日数 未達の定額",
   norm_days_per: "出勤日数 不足1日につき",
   norm_dohan_flat: "同伴 未達の定額",
@@ -1024,7 +1024,8 @@ export function penaltyArgsOf(storeId: string, p: Penalty): Record<string, unkno
     p_norm_sales_flat: p.norm_sales_flat ?? 0, p_norm_sales_per: p.norm_sales_per ?? 0, p_norm_sales_unit: p.norm_sales_unit ?? 10000,
   };
 }
-export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, reload, settings = null }: { penalty: Penalty; setPenalty: (p: Penalty) => void; exists: boolean; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void>; settings?: StoreSettings | null }) {
+export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, reload, settings = null, part }: { penalty: Penalty; setPenalty: (p: Penalty) => void; exists: boolean; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void>; settings?: StoreSettings | null; /** ★便 X13-I I-5: detect＝遅刻・当欠の検知だけ／norm＝ノルマ未達の減額だけ（保存先と値は同じ set_penalty_config・全引数を送る）・未指定＝両方 */ part?: "detect" | "norm" }) {
+  const showDetect = part !== "norm", showNorm = part !== "detect";
   const axesOn = normAxesOf(settings); // ★便 P174 T-3（裁定394）: 採用 OFF の軸は欄ごと出さない（店設定 norm_axes）
   // ★便 X13-G W-19 ②: 金額が両方 0 のとき、選んだ方式を画面で覚える（値から方式を導くと 0 円のまま切り替えても「定額」に戻っていた）
   const [modeSel, setModeSel] = useState<Record<string, NormPenaltyMode>>({});
@@ -1040,7 +1041,7 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
   async function save() {
     // ★便 P174 T-3（0174 ★3）: 全 17 引数を明示送信（新 5 引数は RPC に既定値がある＝省略すると保存のたびに既定へ戻る＝原則7）
     const { error } = await supabase.rpc("set_penalty_config", penaltyArgsOf(storeId, penalty));
-    setMsg(error ? compErrJa(error.message) : "遅刻・当欠の検知（閾値）を保存しました");
+    setMsg(error ? compErrJa(error.message) : part === "norm" ? "ノルマ未達の減額を保存しました" : "遅刻・当欠の検知（閾値）を保存しました");
     if (!error) await reload();
   }
   return (
@@ -1049,13 +1050,13 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
       {isOwner ? (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           {/* ★便 P174 GV-51: 遅刻・当欠の検知の 3 欄（遅刻猶予／早退猶予／残留猶予）はパネル先頭の独立した 1 行（減額の軸の右に入り込まない） */}
-          <div data-grace-row="1" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", width: "100%" }}>
+          {showDetect && <div data-grace-row="1" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", width: "100%" }}>
             {num("late_grace_min")}{num("early_grace_min")}{num("over_grace_min")}
-          </div>
-          {num("hours_per_shift")}{/* ★0154 D3: fine_absent／fine_late は計算に使わない＝欄を隠す（save は現値を送る） */}
-          <label style={{ fontSize: 12 }}><input type="checkbox" checked={penalty.norm_on} onChange={(e) => setPenalty({ ...penalty, norm_on: e.target.checked })} /> {PENALTY_LABEL_JA.norm_on}</label>
+          </div>}
+          {showDetect && num("hours_per_shift")}{/* ★0154 D3: fine_absent／fine_late は計算に使わない＝欄を隠す（save は現値を送る） */}
+          {showNorm && <label style={{ fontSize: 12 }}><input type="checkbox" checked={penalty.norm_on} onChange={(e) => setPenalty({ ...penalty, norm_on: e.target.checked })} /> {PENALTY_LABEL_JA.norm_on}</label>}
           {/* ★裁定373（GV-B W-3）: 軸（出勤日数／同伴）ごとに「定額／不足 1 件ごと」のセグメントで 1 方式・入力は 1 つ・未選択側は 0（RPC が null を拒むため＝0172 で null 許容を同乗・仮決め）。両方入っている既存店は「不足ごと」扱い */}
-          {PENALTY_AXES.filter(([ax]) => axesOn[ax]).map(([ax, label, fk, pk, unit]) => {
+          {showNorm && PENALTY_AXES.filter(([ax]) => axesOn[ax]).map(([ax, label, fk, pk, unit]) => {
             const flat = penalty[fk] as number, per = penalty[pk] as number;
             const mode: NormPenaltyMode = flat === 0 && per === 0 ? (modeSel[ax] ?? "flat") : normPenaltyModeOf(flat, per);
             const both = flat > 0 && per > 0;

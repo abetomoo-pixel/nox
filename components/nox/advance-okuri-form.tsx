@@ -94,7 +94,7 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
       {!fixed && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 12, color: "var(--sub)", marginBottom: 6 }}>キャスト</div>
-          <Picker dense items={casts.map((c) => ({ id: c.id, label: c.name }))} value={pick} onPick={setPick} disabled={disabled} placeholder="キャストを検索" empty="（対象なし）" />
+          <Picker fullList items={casts.map((c) => ({ id: c.id, label: c.name }))} value={pick} onPick={setPick} disabled={disabled} placeholder="キャストを検索" empty="（対象なし）" />{/* ★便 X13-H H-19: 日払い側と同じ全行表示 */}
         </div>
       )}
       <div className="nox-issue-row">
@@ -104,10 +104,10 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
         <label style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>{ISSUE_DATE_LABEL[kind]}</span>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
         </label>
-        <label style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>メモ</span>
+        <button type="button" className="nox-btn nox-issue-go" data-issue-go={kind} onClick={() => void submit()} disabled={busy || disabled}>{busy ? "発行中…" : `${label}を発行`}</button>{/* 実行＝青塗り（裁定242）・★便 X13-H H-19: 1 行目の右端（日払いと同じ組み） */}
+        <label className="nox-issue-memo" style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>メモ</span>
           <input type="text" value={note} onChange={(e) => setNote(e.target.value)} disabled={disabled} maxLength={200} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
         </label>
-        <button type="button" className="nox-btn" onClick={() => void submit()} disabled={busy || disabled} style={{ alignSelf: "end" }}>{busy ? "発行中…" : "発行"}</button>{/* 実行＝青塗り（裁定242） */}
       </div>
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "8px 0 0" }}>{hint}</p>
       {msg && <Message kind={msg.kind} onDismiss={() => setMsg(null)}>{msg.text}</Message>}

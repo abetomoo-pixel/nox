@@ -71,7 +71,7 @@ export default function CashPayoutIssue({ kind, storeId, bizDate, casts, okuriBa
       ) : (
         <>
           <p style={{ fontSize: 12.5, margin: "0 0 6px", fontWeight: 700 }}>キャスト</p>
-          <Picker items={items} value={pick} onPick={(id) => (kind === "okuri" ? void pickOkuri(id) : setPick(id))} onClear={() => setPick(null)} />
+          <Picker fullList items={items} value={pick} onPick={(id) => (kind === "okuri" ? void pickOkuri(id) : setPick(id))} onClear={() => setPick(null)} />
           {kind === "daily" && pick && (
             <div style={{ marginTop: 12 }}>
               <DailyPayForm key={pick} castId={pick} castName={nameOf(pick)} storeId={storeId} dateDefault={bizDate} onIssued={() => onIssued()} />

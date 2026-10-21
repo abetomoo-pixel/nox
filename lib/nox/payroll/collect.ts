@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { periodCalendarDays, type PayrollWindow } from "./window";
 import { sumCastSales } from "./cast-sales"; // ★裁定346: cast 別合算の純関数（ランキング・/mine ノルマ進捗と共用）
-import { normAxesOf, normTargetsOf, resolveNormTargetsOf, type NormTargets, type QuotaSource } from "../store/norm-axes"; // ★裁定347 追補2（便 N1014 A-4）: 達成ボーナスの目標＝/mine と同じ純関数
+import { normAxesOf, normTargetsOf, resolveNormTargetsOf, shimeiScopeOf, type NormTargets, type QuotaSource } from "../store/norm-axes"; // ★裁定347 追補2（便 N1014 A-4）: 達成ボーナスの目標＝/mine と同じ純関数
 import type { CastRaw, StoreMasters, DeductionOverride } from "./assemble";
 import { isSystemOn } from "../store-systems"; // ★便 GV-C C-10（R-5c） // ★0156: DeductionOverride（run 別控除上書き）
 import { calcPeriodOf } from "./assemble"; // ★0154 D6
@@ -192,6 +192,14 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
       fineAbsent: (pen?.fine_absent as number) ?? 0,
       fineLate: (pen?.fine_late as number) ?? 0,
       hoursPerShift: Number(pen?.hours_per_shift ?? 5),
+    },
+    // ★便 X13-I I-5: ノルマ未達の減額の提案（4 軸）＝penalty_config の norm_* と採用軸（norm_axes）・指名の範囲（shimei_norm_scope）。就業規則の定め＝店設定キー（保存先は 0176＝今は読むだけ・未設定＝なし）
+    normPenalty4: {
+      cfg: { on: (pen?.norm_on as boolean) ?? false,
+        days: { flat: Number(pen?.norm_days_flat ?? 0), per: Number(pen?.norm_days_per ?? 0) }, dohan: { flat: Number(pen?.norm_dohan_flat ?? 0), per: Number(pen?.norm_dohan_per ?? 0) },
+        shimei: { flat: Number(pen?.norm_shimei_flat ?? 0), per: Number(pen?.norm_shimei_per ?? 0) }, sales: { flat: Number(pen?.norm_sales_flat ?? 0), per: Number(pen?.norm_sales_per ?? 0), unit: Number(pen?.norm_sales_unit ?? 10000) } },
+      axes: normAxesOf(stR.data?.settings_json ?? null), shimeiScope: shimeiScopeOf(stR.data?.settings_json ?? null),
+      hasWorkRule: ((stR.data?.settings_json ?? {}) as Record<string, unknown>).sanction_work_rule === true,
     },
     normConfig: {
       on: (pen?.norm_on as boolean) ?? false,
@@ -814,6 +822,11 @@ export async function collectPeriod(
         const planT = cp ? planNormById.get(cp.planId) ?? null : null;
         const r = resolveNormTargetsOf(planT ?? { days: null, dohan: null, sales: null, shimei: null }, { days: n.days, dohan: n.dohan, sales: n.salesTarget, shimei: n.shimei }, normAxes);
         return { days: n.days, dohan: n.dohan, salesTarget: r.value.sales ?? 0, salesTargetSource: (r.source.sales ?? null) as QuotaSource };
+      })(),
+      normTargets4: (() => { // ★便 X13-I I-5: 提案の目標（採用軸で解決済み）
+        const n = normByCast.get(cid) ?? { days: 0, dohan: 0, salesTarget: 0, shimei: 0 };
+        const planT = cp ? planNormById.get(cp.planId) ?? null : null;
+        return resolveNormTargetsOf(planT ?? { days: null, dohan: null, sales: null, shimei: null }, { days: n.days, dohan: n.dohan, sales: n.salesTarget, shimei: n.shimei }, normAxes).value;
       })(),
       taxProfileMode: taxByCast.get(cid) ?? null,
       dependentsForm: depByCast.get(cid) ?? null, // ★0172（裁定349）: 雇用の甲／乙の入力（assemble が employeeTaxClassOf で区分に）

@@ -130,8 +130,8 @@ const bl = src("lib/nox/payroll/breakdown-lines.ts"), col = src("lib/nox/payroll
   check("gvc(6-0) C-14b 顧客モーダルの検索欄は autofocus なし", /aria-label="お客様を検索"(?![^>]*autoFocus)/.test(cpm) && cpm.includes("data-cust-search=\"1\""));
   const af = ["components/nox/okuri-out-dialog.tsx", "components/nox/payroll-attentions.tsx", "components/nox/punch-correction-modal.tsx"].filter((p) => /\bautoFocus\b/.test(src(p)));
   check("gvc(6-1) C-14b モーダルの autofocus 撤去（送り・給与の注意・打刻修正・日報の諸経費 focus）", af.length === 0 && !rep.includes("expenseRef.current?.focus()"), af.join(","));
-  check("gvc(6-2) C-14h アカウント: 登録名の変更の注記はオーナーだけ・ポップオーバーは右寄せ・シートは body へ portal・/mine もアカウントの部品",
-    hc.includes("isOwner &&") && hc.includes("{open && createPortal((") && hc.includes("), document.body)}") /* ★live: ヘッダーの backdrop-filter が fixed の基準になる＝body へ portal */ && src("app/(manage)/layout.tsx").includes('isOwner={role === "owner"}') && src("app/mine/layout.tsx").includes("UserChip"));
+  check("gvc(6-2) C-14h アカウント: 登録名の変更の注記はオーナーだけ・ポップオーバーは右寄せ・シートは最寄りの .nox-dark へ portal（★便 X13-H H-20: body 直下はテーマの外で文字が見えなかった）・/mine もアカウントの部品",
+    hc.includes("isOwner &&") && hc.includes("{open && createPortal((") && hc.includes('(chipRef.current?.closest(".nox-dark") as HTMLElement | null) ?? document.body)}') /* ★live: ヘッダーの backdrop-filter が fixed の基準になる＝ヘッダーの外へ portal・★H-20: テーマの内側（.nox-dark） */ && src("app/(manage)/layout.tsx").includes('isOwner={role === "owner"}') && src("app/mine/layout.tsx").includes("UserChip"));
   const muse = JSON.parse(src("docs/demo/payload/muse.json")) as { tables: Record<string, Record<string, unknown>[]> } | Record<string, Record<string, unknown>[]>;
   const T = ((muse as { tables?: unknown }).tables ?? muse) as Record<string, Record<string, unknown>[]>;
   const outs = (T.staff_punches ?? []).filter((r) => r.kind === "out");

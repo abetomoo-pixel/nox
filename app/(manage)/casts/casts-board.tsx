@@ -299,6 +299,7 @@ export default function CastsBoard({
           hon_back_mode: (r.hon_back_mode as string) ?? "per_count", hon_back_rate: r.hon_back_rate as number | null,
           jonai_back_mode: (r.jonai_back_mode as string) ?? "per_count", jonai_back_rate: r.jonai_back_rate as number | null,
           norm_days_target: r.norm_days_target as number | null, norm_dohan_target: r.norm_dohan_target as number | null, norm_sales_target: r.norm_sales_target as number | null, norm_shimei_target: r.norm_shimei_target as number | null, // ★裁定347
+          ...({ slide_period: r.slide_period ?? null, slide_apply: r.slide_apply ?? null } as object), // ★便 X13-H live ②: 判定期間とタイミングを写す（select はしていたが詰めていなかった＝裁定374 の文言が常に「日次」だった）
         };
       }
       setActivePlans(((pl ?? []) as Record<string, unknown>[]).filter((r) => r.is_active !== false).map((r) => ({ id: r.id as string, name: r.name as string }))); // ★306-13: 候補＝有効プランのみ

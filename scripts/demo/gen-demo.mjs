@@ -613,7 +613,12 @@ for (const st of STORES) {
       if (pr === low && have === want) continue;
       T.stock_logs = T.stock_logs ?? [];
       T.stock_logs.push(completeRows("stock_logs", [{ org_id: orgId, id: uid(`stock:h10:${pr.id}`), store_id: pr.store_id, product_id: pr.id, delta: want - have, reason: "入荷", by_user_id: T.stock_logs[0]?.by_user_id ?? null, at: { $m: -1, d: 1, t: "11:00:00" } }], (r) => r.id)[0]);
-    } }   // ★便 X13-H H-17 ⑤: ACE のめいに今日の遅刻の連絡（本人＝source self・見込み 21:30・未確認）
+    } }   // ★便 X13-I I-5: ACE のノルマ未達の減額（検知 ON・指名 不足 1 回ごと ¥1,000・売上 ¥100,000 ごと ¥2,000）＝給与の要対応に提案が出る
+  if (code === "ace" && !(T.penalty_config ?? []).length) {
+    T.penalty_config = completeRows("penalty_config", [{ org_id: orgId, store_id: storeId, fine_absent: 0, fine_late: 0, hours_per_shift: 6, norm_on: true, norm_days_flat: 0, norm_days_per: 0, norm_dohan_flat: 0, norm_dohan_per: 0,
+      late_grace_min: 10, early_grace_min: 10, over_grace_min: 30, norm_shimei_flat: 0, norm_shimei_per: 1000, norm_sales_flat: 0, norm_sales_per: 2000, norm_sales_unit: 100000, updated_at: { $rel: -30, t: "12:00:00" } }], (r) => r.store_id);
+  }
+  // ★便 X13-H H-17 ⑤: ACE のめいに今日の遅刻の連絡（本人＝source self・見込み 21:30・未確認）
   if (code === "ace") { const mei = (T.casts ?? []).find((c) => c.name === "めい");
     if (mei) { T.attendance = (T.attendance ?? []).filter((r) => !(r.cast_id === mei.id && r.date && r.date.$rel === 0));
       if (!(T.shifts ?? []).some((r) => r.cast_id === mei.id && r.date && r.date.$rel === 0)) { const tpl = (T.shifts ?? []).find((r) => r.date && r.date.$rel === 0); if (tpl) T.shifts.push({ ...tpl, id: uid("shift:ace:mei:today"), cast_id: mei.id, start_hm: "20:00", end_hm: "26:00", status: "confirmed", wish_id: null }); }

@@ -4,6 +4,7 @@
 //   プレビューは既定 '委託' で試算しつつ blocker を警告返し。確定は blocker があれば route が 422（論点2）。
 
 import { slideBasisForPeriodOf, slideScopeFreezeOf } from "./slide"; // ★裁定338（0168・便 P168）・★裁定343（0170・便 W5-2b）
+import { normProposalOf, NORM_REASON_PREFIX, type NormProposal } from "./norm-proposal"; // ★便 X13-I I-5
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { payOf, type PayResult, type TaxMode } from "../pay";
 import { allocDue } from "../sales-alloc"; // #32 pooled の最大剰余法（sales 按分と同一の整数分配・純関数）
@@ -26,6 +27,8 @@ export type AdvCarried = { advance_id: string };
 export type OkuriDeducted = { transport_id: string; amount: number };
 
 export type PreviewRow = {
+  /** ★便 X13-I I-5: ノルマ未達の減額の提案（無い行はキーなし＝凍結形・golden は従来どおり） */
+  normProposal?: NormProposal & { applied?: number };
   castId: string;
   castName: string;
   net: number;
@@ -274,7 +277,15 @@ export async function computePayrollDraft(
       const sfRows = shortfallRowsOf({ days: c.shortfallDays, hourlyByDate, lateGraceMin: masters.lateGraceMin ?? LATE_GRACE_MIN_DEFAULT, employment: c.employment ?? null });
       shortfall.push({ castId: c.castId, rows: sfRows });
     }
+    // ★便 X13-I I-5（裁定410 追補）: ノルマ未達の減額の提案（検知が有効・採用軸・未達だけ）。委託＝提案額／雇用＝91 条キャップ（平均賃金なし＝算定不能・就業規則の定めなし＝出さない）。既に適用済み（理由が「ノルマ未達（」の調整行）なら applied
+    const np4 = masters.normPenalty4 && c.normTargets4 ? normProposalOf({
+      cfg: masters.normPenalty4.cfg, axes: masters.normPenalty4.axes, targets: c.normTargets4,
+      actual: { days: c.days, dohan: c.dohan, shimei: masters.normPenalty4.shimeiScope === "hon_jonai" ? c.hon + c.jonai : c.hon, sales: c.sales },
+      employment: c.employment ?? null, avgDailyWage: c.avgDailyWage, gross: pay.gross, sanctionSoFar: pay.sanction?.applied ?? 0, hasWorkRule: masters.normPenalty4.hasWorkRule,
+    }) : null;
+    const npApplied = (c.adjustments ?? []).filter((a) => a.reason.startsWith(NORM_REASON_PREFIX)).reduce((s, a) => s + (a.amount ?? 0), 0);
     rows.push({
+      ...(np4 ? { normProposal: { ...np4, ...(npApplied > 0 ? { applied: npApplied } : {}) } } : {}),
       castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, missingOutDates: c.missingOutDates ?? [], taxMode,
       ...(c.calcPeriod ? { calcPeriodStart: c.calcPeriod.start, calcPeriodEnd: c.calcPeriod.end } : {}), // ★0154 D6
       arDeducted, arCarried, arDeductTotal: arPlan.deduct, arCarriedTotal: arPlan.carriedTotal,

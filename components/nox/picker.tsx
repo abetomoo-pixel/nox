@@ -27,7 +27,7 @@ export type PickerItem = {
 };
 
 export default function Picker({
-  items, value, onPick, onClear, disabled = false, placeholder = "検索", empty = "該当がありません", limit = 30, dense = false,
+  items, value, onPick, onClear, disabled = false, placeholder = "検索", empty = "該当がありません", limit = 30, dense = false, fullList = false,
 }: {
   items: PickerItem[];
   /** 選択中の id（未選択は null） */
@@ -43,6 +43,8 @@ export default function Picker({
   /** 未入力時に出す先頭件数（入力で絞り込んだときは全件） */
   limit?: number;
   dense?: boolean;
+  /** ★便 X13-H H-19: 展開した一覧を内側スクロールにしない（数人の店は全員を並べる・多い店は検索で絞る） */
+  fullList?: boolean;
 }) {
   const [q, setQ] = useState("");
   // ★301: 折りたたみ型の開閉と ↑↓ の位置（全展開のときは使わない）
@@ -184,7 +186,7 @@ export default function Picker({
           {clearBtn}
         </div>
       )}
-      <div style={{ display: "grid", gap: 6, maxHeight: dense ? 220 : 300, overflowY: "auto" }}>
+      <div style={{ display: "grid", gap: 6, ...(fullList ? {} : { maxHeight: dense ? 220 : 300, overflowY: "auto" as const }) }}>
         {shown.map((it, i) => itemButton(it, i === active))}
         {shown.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>{empty}</p>}
       </div>

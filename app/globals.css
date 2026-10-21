@@ -1136,8 +1136,12 @@ body {
 .nox-2col.nox-2col--side { gap: 12px; }
 @media (min-width: 900px) { .nox-2col.nox-2col--side { grid-template-columns: 230px minmax(0, 1fr); } }
 /* ★裁定300-1／301-4（2026-09-25）: 前借り／送り実費の発行フォーム行＝1 段（金額／日付／メモ／発行の 4 列・picker は行の上に独立）。≤899 は 1 列に積む（M5 の型＝mobile-first） */
-.nox-issue-row { display: grid; grid-template-columns: 1fr; gap: 8px; align-items: end; }
-@media (min-width: 900px) { .nox-issue-row { grid-template-columns: 120px 170px minmax(140px, 1fr) auto; } }
+/* ★便 X13-H H-19: 日払いと同じ組み＝1 行目 金額｜日付｜主ボタン・2 行目 メモ（全幅）。390px＝金額｜日付の 2 列＋主ボタン全幅＋メモ（枠外に出ない） */
+.nox-issue-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: end; }
+.nox-issue-row > label { min-width: 0; }
+.nox-issue-row > .nox-issue-go { grid-column: 1 / -1; min-height: 44px; white-space: nowrap; }
+.nox-issue-row > .nox-issue-memo { grid-column: 1 / -1; }
+@media (min-width: 900px) { .nox-issue-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; } .nox-issue-row > .nox-issue-go { grid-column: auto; } }
 /* 分析モック .cols＝左 1.2fr（日別バー＋支払構成）／右 1fr（貢献ランキング＋内訳） */
 .nox-acols { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
 @media (min-width: 900px) { .nox-acols { grid-template-columns: 1.2fr 1fr; } }

@@ -57,7 +57,14 @@ export default function NormaBoard({ storeId, isManagerUp, isOwner, flags, setti
           <Link href="/master/cast-comp/systems#settlement-presets" style={{ ...t.btnSecondary48, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>ひな形を開く</Link>
         </div>{/* ★0154 D3（裁定293-3）: 罰金の自動計算は撤去＝閾値は検知として残す・減額は精算調整 */}
         <PenaltyTab settings={settings} penalty={data.penalty} setPenalty={data.setPenalty} exists={data.penaltyExists}
-          isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={data.reload} />
+          isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={data.reload} part="detect" />
+      </section>)}
+      {/* ★便 X13-I I-5（裁定410 追補）: ノルマ未達の減額＝独立パネル（保存先・値は同じ penalty_config） */}
+      {isSectionOn(settings, "compPenaltyTab") && (<section className="nox-cardtop" style={{ ...card, marginTop: 14 }} data-norm-penalty-panel="1">
+        <h2 style={secTitle}>ノルマ未達の減額</h2>
+        <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>給与の確定前に提案として出し、店が適用を選びます。委託キャストは精算調整、雇用キャストは懲戒減給（労基法 91 条の上限内・就業規則に定めがある店のみ）です。</p>
+        <PenaltyTab settings={settings} penalty={data.penalty} setPenalty={data.setPenalty} exists={data.penaltyExists}
+          isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={data.reload} part="norm" />
       </section>)}
     </div>
   );

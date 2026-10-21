@@ -63,7 +63,7 @@ async function main() {
     && currentWageOf(payNext, { today: "2026-10-21", slidePeriod: "monthly", slideApply: null }).periodLabel === "月次・当月の累計で判定");
   const cb = src("app/(manage)/casts/casts-board.tsx"), mine = src("app/mine/page.tsx");
   check("x13h(2-4) 3 か所＝一覧カード・詳細（プランの slide_apply を渡す・根拠 1 行）と /mine（同じ core＝computePayrollDraft→currentWageOf）",
-    cb.includes("slideApply: pl?.slide_apply ?? null") && cb.includes("slide_period, slide_apply\")") && (cb.match(/data-wage-basis="1"/g) ?? []).length === 2
+    cb.includes("slideApply: pl?.slide_apply ?? null") && cb.includes("...({ slide_period: r.slide_period ?? null, slide_apply: r.slide_apply ?? null } as object)") && cb.includes("slide_period, slide_apply\")") && (cb.match(/data-wage-basis="1"/g) ?? []).length === 2
     && mine.includes("mineCurrentWageOf(supabase,") && mine.includes('data-mine-wage="1"') && src("lib/nox/mine/wage-server.ts").includes("computePayrollDraft(admin, castSession, storeId, period, { previewDefaults: true })"));
 
   // ── H-7

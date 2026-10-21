@@ -48,6 +48,7 @@ export async function POST(req: Request) {
         adjustmentsHiddenTotal: r.adjustmentsHiddenTotal,
         dailyPaidGross: r.dailyPaidGross, dailyWithheld: r.dailyWithheld, dailyN: r.dailyN, // ★0156（309-6）: 右パネル「日払い済み ¥n（源泉既徴収 ¥m・k 件）」
         deductionOverridesApplied: r.deductionOverridesApplied, // ★0156（309-8）: 右パネル「固定控除」節の現在値
+        ...(r.normProposal ? { normProposal: r.normProposal } : {}), // ★便 X13-I I-5: ノルマ未達の減額の提案
 
       })),
       blockers: draft.blockers,

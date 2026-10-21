@@ -62,6 +62,8 @@ export type CastRaw = {
   slideBasis?: "hon_count" | "dohan_count";
   slideDailyBasis?: Record<string, number>;
   slideScope?: { basis: "sales" | "hon_count" | "dohan_count"; rankIds: string[]; castRankId: string | null; excluded: boolean };
+  /** ★便 X13-I I-5: 提案の目標（採用軸で解決済み・個別＞プラン既定）。未指定＝提案なし */
+  normTargets4?: Partial<Record<import("./norm-proposal").NormAxis4, number | null>>;
   norm: { days: number; dohan: number; salesTarget?: number; salesTargetSource?: "override" | "plan" | null }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）・★裁定347 追補2（便 N1014 A-4）: 出所（個別／プラン既定）＝core が凍結形へ
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
   dependentsForm?: boolean | null; // ★0172（裁定349）: 扶養控除等申告書の提出（雇用の甲／乙・fixture は省略＝乙）
@@ -105,6 +107,8 @@ export type StoreMasters = {
   lateGraceMin?: number; // ★裁定324-3（便 L-2-4）: 遅刻の猶予（penalty_config.late_grace_min・未設定＝punch-match の既定 10）: 店の勤務時間の計算基準（run の期の初日で解決済み・未指定＝'punch'）
   penalty: PenaltyConfig;
   normConfig: NormPenaltyConfig;
+  /** ★便 X13-I I-5: ノルマ未達の減額の提案（4 軸の設定・採用軸・就業規則の定め）。未指定＝提案なし（fixture／golden は従来どおり） */
+  normPenalty4?: { cfg: import("./norm-proposal").NormPenalty4; axes: Record<import("./norm-proposal").NormAxis4, boolean>; shimeiScope: "hon" | "hon_jonai"; hasWorkRule: boolean };
   deductions: Deduction[];
   customBackDefs: BackDef[];
   /** ★便 GV-C C-10（R-5c）: 店の sys_sales_rate が OFF のとき []（売上率テーブルを効かせない）。未指定＝pay.ts の既定（従来どおり・golden 不変） */
