@@ -15,7 +15,7 @@ import { normApplyErrOf, normReasonOf, type NormProposal } from "@/lib/nox/payro
 export type NormProposalRow = { castId: string; castName: string; normProposal: NormProposal & { applied?: number } };
 const yen = (n: number) => `¥${n.toLocaleString("ja-JP")}`;
 
-export default function NormProposals({ rows, runId, period, onDone }: { rows: NormProposalRow[]; runId: string | null; period: string; onDone: (text: string) => void | Promise<void> }) {
+export default function NormProposals({ rows, runId, period, storeId, onDone }: { rows: NormProposalRow[]; runId: string | null; period: string; storeId: string; onDone: (text: string) => void | Promise<void> }) {
   const contractor = rows.filter((r) => r.normProposal.employment === "委託");
   const employee = rows.filter((r) => r.normProposal.employment === "雇用");
   if (rows.length === 0) return null;
@@ -26,20 +26,20 @@ export default function NormProposals({ rows, runId, period, onDone }: { rows: N
         <div>
           <strong style={{ color: "var(--champ)" }} data-norm-summary="1">ノルマ未達 {contractor.length} 名・提案額 合計 {yen(sum(contractor))}</strong>
           <span style={{ ...t.sub, marginLeft: 8 }}>委託キャストのみ。適用した分だけ精算調整の行になります（確定前の提案）。</span>
-          <div style={{ display: "grid", gap: 6, marginTop: 6 }}>{contractor.map((r) => <ProposalRow key={r.castId} r={r} runId={runId} period={period} onDone={onDone} />)}</div>
+          <div style={{ display: "grid", gap: 6, marginTop: 6 }}>{contractor.map((r) => <ProposalRow key={r.castId} r={r} runId={runId} period={period} storeId={storeId} onDone={onDone} />)}</div>
         </div>
       )}
       {employee.length > 0 && (
         <div>
           <strong style={{ color: "var(--champ)" }}>ノルマ未達の懲戒減給（雇用・労基法 91 条の上限内）</strong>
-          <div style={{ display: "grid", gap: 6, marginTop: 6 }}>{employee.map((r) => <ProposalRow key={r.castId} r={r} runId={runId} period={period} onDone={onDone} />)}</div>
+          <div style={{ display: "grid", gap: 6, marginTop: 6 }}>{employee.map((r) => <ProposalRow key={r.castId} r={r} runId={runId} period={period} storeId={storeId} onDone={onDone} />)}</div>
         </div>
       )}
     </div>
   );
 }
 
-function ProposalRow({ r, runId, period, onDone }: { r: NormProposalRow; runId: string | null; period: string; onDone: (text: string) => void | Promise<void> }) {
+function ProposalRow({ r, runId, period, storeId, onDone }: { r: NormProposalRow; runId: string | null; period: string; storeId: string; onDone: (text: string) => void | Promise<void> }) {
   const supabase = createClient();
   const p = r.normProposal;
   const [open, setOpen] = useState(false);
@@ -54,11 +54,20 @@ function ProposalRow({ r, runId, period, onDone }: { r: NormProposalRow; runId: 
   const usable = p.status === "ok";
 
   async function apply() {
-    if (!runId || busy || amtErr) return;
+    if (busy || amtErr) return;
     setBusy(true); setErr(null);
     const isEmp = p.employment === "雇用";
+    // 当期の draft run が無ければ作る（調整控除の追加 route と同じ payroll_run_create＝既存なら同じ run・確定済みなら止める）
+    let rid = runId;
+    if (!rid) {
+      const { data: rc, error: eRc } = await supabase.rpc("payroll_run_create", { p_store_id: storeId, p_period: period });
+      const run = ((rc ?? []) as { id: string; status: string }[])[0];
+      if (eRc || !run) { setBusy(false); setErr(rpcErrJa(eRc?.message ?? "run_create failed")); return; }
+      if (run.status !== "draft") { setBusy(false); setErr("当期の給与は確定済みのため適用できません"); return; }
+      rid = run.id;
+    }
     const { error } = await supabase.rpc("payroll_adjustment_add", {
-      p_run_id: runId, p_cast_id: r.castId, p_mode: "fixed", p_amount: n, p_rate_bp: null, p_before_withholding: true, p_show_detail: true,
+      p_run_id: rid, p_cast_id: r.castId, p_mode: "fixed", p_amount: n, p_rate_bp: null, p_before_withholding: true, p_show_detail: true,
       p_reason: normReasonOf(period, p.items), p_source: isEmp ? "sanction" : "settlement",
       p_basis: isEmp ? "就業規則の減給の定め（ノルマ未達）・労基法 91 条の上限内" : "店のノルマ設定（ノルマ未達の減額）", p_target_shift_id: null,
     });
@@ -85,7 +94,7 @@ function ProposalRow({ r, runId, period, onDone }: { r: NormProposalRow; runId: 
           {!excluding ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <MoneyInput value={amount} onChange={setAmount} disabled={busy} width={140} ariaLabel="適用する額" invalid={!!amtErr} />
-              <button type="button" style={t.btnGold} disabled={busy || !!amtErr || !runId} onClick={() => void apply()} data-norm-apply={r.castId}>適用</button>
+              <button type="button" style={t.btnGold} disabled={busy || !!amtErr} onClick={() => void apply()} data-norm-apply={r.castId}>適用</button>
               <button type="button" style={t.btnGhost} disabled={busy} onClick={() => setExcluding(true)} data-norm-exclude={r.castId}>除外</button>
             </div>
           ) : (
@@ -96,7 +105,6 @@ function ProposalRow({ r, runId, period, onDone }: { r: NormProposalRow; runId: 
             </div>
           )}
           {amtErr && <Message kind="error">{amtErr}</Message>}
-          {!runId && <Message kind="warn">当期の給与が未作成です（プレビューのあと給与の下書きが作られると適用できます）</Message>}
           {err && <Message kind="error">{err}</Message>}
         </div>
       )}

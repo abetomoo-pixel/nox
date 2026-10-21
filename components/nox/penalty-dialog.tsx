@@ -53,11 +53,19 @@ export default function PenaltyDialog({ storeId, castId, castName, biz, shiftId,
   const md = `${Number(biz.slice(5, 7))}/${Number(biz.slice(8, 10))}`;
   const n = Number(amount.replace(/[,，¥￥\s]/g, "") || 0);
   const amountErr = preset ? penaltyAmountErrOf(preset.amount, n, reason) : null;
-  const runNg = run === null ? "当期の給与が未作成です（給与画面でプレビューを 1 回押すと作成されます）" : run && run.status !== "draft" ? "当期の給与は確定済みのため登録できません" : null;
+  const runNg = run && run.status !== "draft" ? "当期の給与は確定済みのため登録できません" : null; // ★便 X13-I live: run が無いときは確定時に payroll_run_create で作る
 
   async function confirm() {
-    if (busy || !preset || !run || runNg || amountErr) return;
-    const a = penaltyArgsOf({ runId: run.id, castId, preset, amount: n, biz, shiftId, reason });
+    if (busy || !preset || run === undefined || runNg || amountErr) return;
+    let rid = run?.id ?? null;
+    if (!rid) {
+      const { data: rc, error: eRc } = await supabase.rpc("payroll_run_create", { p_store_id: storeId, p_period: biz.slice(0, 7) });
+      const r0 = ((rc ?? []) as { id: string; status: string }[])[0];
+      if (eRc || !r0) { setErr(rpcErrJa(eRc?.message ?? "run_create failed")); return; }
+      if (r0.status !== "draft") { setErr("当期の給与は確定済みのため登録できません"); return; }
+      rid = r0.id;
+    }
+    const a = penaltyArgsOf({ runId: rid, castId, preset, amount: n, biz, shiftId, reason });
     if (!a.ok) { setErr(a.err); return; }
     setBusy(true); setErr(null);
     const { error } = await supabase.rpc("payroll_adjustment_add", a.args);

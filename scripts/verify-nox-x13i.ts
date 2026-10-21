@@ -46,6 +46,10 @@ const ao = src("components/nox/advance-okuri-form.tsx"), css = src("app/globals.
 check("x13i(4-1) H-19 前借り／送り実費＝1 行目 金額・日付・主ボタン「◯◯を発行」／2 行目 メモ全幅・キャスト一覧は全行（内側スクロールなし）",
   ao.includes("{busy ? \"発行中…\" : `${label}を発行`}") && ao.includes('className="nox-issue-memo"') && ao.includes("<Picker fullList") && css.includes(".nox-issue-row > .nox-issue-memo { grid-column: 1 / -1; }")
   && src("components/nox/picker.tsx").includes("...(fullList ? {} : { maxHeight: dense ? 220 : 300, overflowY: \"auto\" as const })"));
+// live ③⑤: 当期の draft run が無いときは payroll_run_create（調整控除の追加 route と同じ・自然冪等）で作ってから登録
+check("x13i(4-2) 提案の適用と罰金の確定＝run が無ければ payroll_run_create で作る（確定済みなら止める）",
+  np.includes('supabase.rpc("payroll_run_create", { p_store_id: storeId, p_period: period })') && src("components/nox/penalty-dialog.tsx").includes('supabase.rpc("payroll_run_create", { p_store_id: storeId, p_period: biz.slice(0, 7) })')
+  && !np.includes("当期の給与が未作成です") && !src("components/nox/penalty-dialog.tsx").includes("給与画面でプレビューを 1 回押すと作成されます"));
 // live ②
 check("x13i(5-1) 一覧カード／詳細の判定期間＝loadPlans が slide_period／slide_apply を詰める", src("app/(manage)/casts/casts-board.tsx").includes("...({ slide_period: r.slide_period ?? null, slide_apply: r.slide_apply ?? null } as object)"));
 
