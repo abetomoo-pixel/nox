@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: 支払い方法の出し分け
 import { groupDueFull, timeStatusOf } from "@/lib/nox/check-calc";
 import { bizDateOf } from "@/lib/nox/biz-date"; // ★B3 裁定209: attendance の営業日判定（純関数）
-import { checkCustLineOf } from "@/lib/nox/register/line-groups"; // ★便 X13-G W-3
+import { checkCustHeadOf } from "@/lib/nox/register/line-groups"; // ★便 X13-G W-3
 import { openEstimateOf, taxMarkOf, type EstimateRule, type EstimateStore } from "@/lib/nox/register/open-estimate"; // ★便 X13-G W-14／W-15
 import { dueBreakdownOf } from "@/lib/nox/check-calc"; // ★便 X13-G W-15: 合計の内訳（表示だけ）
 import ReceiptPrintSheet from "@/components/nox/receipt-print"; // ★便 GV-C C-13: 領収書の印字実体（共用）
@@ -21,6 +21,7 @@ import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
 import { defaultWeights, redistribute, renormalizeKeepZeros } from "@/lib/nox/nom-shares";
+import { activeIdsOf, endedPayloadOf, moveConfirmTextOf, seatRowsOf, seatRowTextOf, servingSeatMapOf, shareCardIdsOf } from "@/lib/nox/register/seat-roster"; // ★便 S（S-6）: 一覧常時表示・フリーの席の節・他卓からの付け回し
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { fetchStockTotals } from "@/lib/nox/master/queries";
@@ -158,7 +159,7 @@ type Payment = { id: string; pay_group: string; method: string; amount: number; 
 // ★R-2b（裁定100・mig0118/0119）: 種別と同伴はキャスト別の行属性（checks.nom_type は派生サマリ）。
 // ★0169（裁定341・便 P169）: prev_kind／kind_changed_at＝場内→本指名に切り替えた記録（非 null＝切替前に出た行は場内の率のまま＝非遡及）。
 //   check_nomination_rate_apply で消える（＝全行が本指名の率）。
-type Nom = { cast_id: string; ratio_weight: number; nom_kind: "hon" | "jonai" | "free"; is_dohan: boolean; prev_kind: string | null; kind_changed_at: string | null };
+type Nom = { cast_id: string; ratio_weight: number; nom_kind: "hon" | "jonai" | "free"; is_dohan: boolean; prev_kind: string | null; kind_changed_at: string | null; created_at?: string | null; ended_at?: string | null }; // ★便 S（S-6 ②）: 着席ログ＝created_at（着席）／ended_at（離席）
 // F3c 二重承認（approvals・mig0035/0036）
 type Approval = {
   id: string; pay_group: string; type: string; amount: number; status: string;
@@ -297,6 +298,7 @@ export default function RegisterBoard({
   // 段R2: 席タイルの会計金額・着卓キャスト・低在庫（いずれも既存テーブルの読取＝presentation）
   const [openTotal, setOpenTotal] = useState<Record<string, number>>({});
   const [openNoms, setOpenNoms] = useState<Record<string, string[]>>({});
+  const [openCusts, setOpenCusts] = useState<Record<string, string[]>>({}); // ★便 S（S-5）: checkId → お客様名[]（position 順・卓タイルの 1 行）
   const [stockOf, setStockOf] = useState<Record<string, number>>({});
   // ★B3 裁定217（R28）: この端末で直近にタップした商品 id（localStorage・店ごと・最大 8・金額や顧客は保存しない）
   const recentKey = `nox.register.recent.${storeId}`;
@@ -653,13 +655,25 @@ export default function RegisterBoard({
     const nm: Record<string, string[]> = {};    // checkId → cast_id[]（position 順）
     if (openIds.length > 0) {
       const { data: noms } = await supabase
-        .from("check_nominations").select("check_id, cast_id").in("check_id", openIds).order("position");
+        .from("check_nominations").select("check_id, cast_id, ended_at").in("check_id", openIds).order("position");
       for (const r of noms ?? []) {
+        if (r.ended_at) continue; // ★便 S（S-6）: 離席済みは他卓の「着卓中」に数えない
         const k = r.check_id as string;
         (nm[k] ??= []).push(r.cast_id as string);
       }
     }
     setOpenTotal(tt); setOpenNoms(nm);
+    // ★便 S（S-5）: 卓タイルのお客様＝open 伝票の check_customers（RLS owner／manager／register の staff・cast 0 行）＋customers.name の埋め込み（1 クエリ・N+1 なし）。
+    //   名前が読めない行（customers の RLS で null）は飛ばす＝出さない
+    const cm: Record<string, string[]> = {};
+    if (openIds.length > 0) {
+      const { data: ccs } = await supabase.from("check_customers").select("check_id, position, customers(name)").in("check_id", openIds).order("position");
+      for (const r of (ccs ?? []) as unknown as { check_id: string; customers: { name: string } | { name: string }[] | null }[]) {
+        const c = Array.isArray(r.customers) ? r.customers[0] : r.customers;
+        if (c?.name) (cm[r.check_id] ??= []).push(c.name);
+      }
+    }
+    setOpenCusts(cm);
     // B1/B2: 追加席の占有（check_seats は transient＝open 伝票分のみ・RLS で自店/自 org 可視＝G27 検証済み）
     const { data: cs } = await supabase.from("check_seats").select("seat_id, check_id");
     const am: Record<string, string> = {};
@@ -705,7 +719,7 @@ export default function RegisterBoard({
     const { data: ps } = await supabase
       .from("payments").select("id, pay_group, method, amount, tendered, method_detail").eq("check_id", checkId).order("paid_at");
     const { data: ns } = await supabase
-      .from("check_nominations").select("cast_id, ratio_weight, nom_kind, is_dohan, prev_kind, kind_changed_at").eq("check_id", checkId).order("position"); // ★0169（裁定341）: 切替記録の 2 列
+      .from("check_nominations").select("cast_id, ratio_weight, nom_kind, is_dohan, prev_kind, kind_changed_at, created_at, ended_at").eq("check_id", checkId).order("position"); // ★便 S（S-6 ②）: 着席ログの 2 列 // ★0169（裁定341）: 切替記録の 2 列
     const { data: aps } = await supabase
       .from("approvals").select("id, pay_group, type, amount, status, reason, requested_by, created_at")
       .eq("check_id", checkId).order("created_at", { ascending: false });
@@ -1041,6 +1055,7 @@ export default function RegisterBoard({
     setFeeBusy(false);
     if (error) setMsg({ to: MSG_DETAIL, text: chargeErrJa(error.message), kind: "bad" });
     await loadCheck(check.id); // 失敗時も DB の姿へ巻き戻す（派生は RPC 内で原子＝中途半端は残らない）
+    await loadOpenMap(); // ★便 S（S-6）: 名簿の保存＝他卓から見た「着卓中（卓名）」とフロアの顔チップも更新
     return !error; // ★0169（裁定341）: 切替ダイアログが「保存成功のときだけ率変更を続ける」ために返す
   }
 
@@ -1189,6 +1204,47 @@ export default function RegisterBoard({
       return true;
     }
     return false;
+  }
+
+  // ★便 S（S-6 ①）: 名簿へ追加＝既定分配を適用（本 100% 等分→場内→フリー・手動値はここでリセット＝裁定110 A2-(1)(3)）→即時保存
+  function addToRoster(id: string) {
+    const members = [...Object.keys(nomWeights), id];
+    const kinds = { ...nomKinds, [id]: nomKinds[id] ?? ("free" as const) };
+    const weights = defaultWeights(members, kinds);
+    setNomKinds(kinds);
+    setNomWeights(weights);
+    return autoSaveNoms(weights, kinds, nomDohan, nomDohanN);
+  }
+  // ★便 S（S-6 ②）: フリーの離席／再着席＝着席ログ（ended_at）だけ動かす。payload は DB 行（noms）からの全置換（weight そのまま・当該 cast だけ ended 明示＝他は既存値保持）
+  async function setSeatEnded(castId: string, ended: boolean) {
+    if (!check || feeBusy) return;
+    if (dayBlocked()) return;
+    if (!(await tb.flush())) return;
+    setFeeBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("check_set_nominations", { p_check_id: check.id, p_nominations: endedPayloadOf(noms, castId, ended) });
+    setFeeBusy(false);
+    if (error) setMsg({ to: MSG_DETAIL, text: `${ended ? "離席" : "再着席"}に失敗: ${chargeErrJa(error.message)}`, kind: "bad" });
+    await loadCheck(check.id);
+    await loadOpenMap();
+  }
+  // ★便 S（S-6 ①）: 他卓に着いている人を押す＝確認 1 回→その卓の名簿で当該 cast だけ ended（着席ログは残る・他の行は既存値保持）→この卓の名簿へ追加
+  async function moveFromOtherSeat(castId: string) {
+    if (!check || feeBusy) return;
+    const fromSeat = servingSeat.get(castId) ?? null;
+    const toSeat = seats.find((s) => s.id === check.seat_id)?.name ?? null;
+    if (!window.confirm(moveConfirmTextOf(castName(castId), fromSeat, toSeat))) return;
+    if (dayBlocked()) return;
+    const otherId = Object.entries(openNoms).find(([cid, ids]) => cid !== check.id && ids.includes(castId))?.[0];
+    if (otherId) {
+      const { data: rows, error: eR } = await supabase.from("check_nominations").select("cast_id, ratio_weight").eq("check_id", otherId).order("position");
+      if (eR) { setMsg({ to: MSG_DETAIL, text: `${fromSeat ?? "他卓"} の名簿を読めませんでした: ${eR.message}`, kind: "bad" }); return; }
+      setFeeBusy(true);
+      const { error } = await supabase.rpc("check_set_nominations", { p_check_id: otherId, p_nominations: endedPayloadOf((rows ?? []) as { cast_id: string; ratio_weight: number }[], castId, true) });
+      setFeeBusy(false);
+      if (error) { setMsg({ to: MSG_DETAIL, text: `${fromSeat ?? "他卓"} からの離席に失敗: ${chargeErrJa(error.message)}`, kind: "bad" }); return; }
+    }
+    await addToRoster(castId); // 保存を待ってから他卓の名簿を読み直す（待たないと「着卓中（A3）」が古いまま＝live で発覚）
+    await loadOpenMap();
   }
 
   // R-2a-2（分配率カードの × ボタン）: 名簿からキャストを1人外す＝上と同じ全置換経路。
@@ -1695,12 +1751,15 @@ export default function RegisterBoard({
   );
 
   // E8-1 ⑤: 着卓中（この伝票の按分重み>0）＝CastPicker の先頭グループ＋バッジ
-  // ★裁定110: 名簿＝キーの存在（w=0 も在籍＝按分なし）
-  const seatedIds = new Set(Object.keys(nomWeights));
+  // ★裁定110: 名簿＝キーの存在（w=0 も在籍＝按分なし）。★便 S（S-6 ②）: 離席済み（ended_at）は着卓中に数えない（名簿の行＝着席ログとして残る）
+  const activeNomIds = activeIdsOf(noms);
+  const seatedIds = new Set(Object.keys(nomWeights).filter((id) => activeNomIds.has(id) || !noms.some((n) => n.cast_id === id)));
   // ★B3 裁定211（#64）: 「接客中」＝他卓の open 伝票の名簿（loadOpenMap の openNoms を再利用＝新規クエリ 0）。自伝票は着卓中が優先。
   const servingIds = new Set(
     Object.entries(openNoms).filter(([cid]) => cid !== check?.id).flatMap(([, ids]) => ids),
   );
+  // ★便 S（S-6 ①）: 他卓に着いている人の卓名（「着卓中（B2）」・移す確認文）
+  const servingSeat = servingSeatMapOf(openNoms, primaryOf, (sid) => seats.find((s) => s.id === sid)?.name ?? null, check?.id ?? null);
   // E8-1d: 指名種別の判定（表示専用・金額に一切関与しない）。
   //   課金行の凍結 fee_kind のみを見る（hon_shimei > jonai_shimei > dohan・mig0084 の cast_id 付き行）。
   //   ★R-2a-2: 旧「優先2＝伝票の nom_type へフォールバック」は廃止（下の nomKindOf を参照）。
@@ -1733,7 +1792,9 @@ export default function RegisterBoard({
     return m;
   })();
   // E8-1 #14: 分配プレビュー（表示計算のみ・按分の権威は check_set_nominations→payOf 側で不変）
-  const nomSelected = casts.filter((ca) => nomWeights[ca.id] !== undefined); // ★裁定110: w=0 も名簿
+  // ★便 S（S-6 ②）: 分配率の節＝着席中かつフリー以外（フリーは席の節へ）。名簿（nomWeights）にはフリーも残る＝保存は全置換のまま
+  const shareIds = new Set(shareCardIdsOf(Object.keys(nomWeights), nomKinds, seatedIds));
+  const nomSelected = casts.filter((ca) => shareIds.has(ca.id)); // ★裁定110: w=0 も名簿
   const nomTotalW = nomSelected.reduce((a, ca) => a + (nomWeights[ca.id] ?? 0), 0);
 
   // タブセグメント（E5a: inline 再発明 segBtn を共通部品 .nox-seg へ。POS のタップ標的維持で
@@ -2543,6 +2604,14 @@ export default function RegisterBoard({
         <div className="nox-backbar">
           <button type="button" className="nox-backbtn" onClick={() => void closeDetail()}>← フロア</button>
           <span className="t">{seats.find((s) => s.id === check.seat_id)?.name}</span>
+          {/* ★便 S（S-5）: 卓名の直後＝伝票の最初のお客様（併存）を太字「やまだ様」・2 人目以降「やまだ様 ＋1」・未登録は出さない（「フリー」は指名の有無の印＝別物）。
+              押すと「指名・席」の顧客の節へ（付け替えはそこ）。390px では卓名の次の行に落ちる（globals.css .nox-backbar .cust） */}
+          {custNames.size > 0 && (
+            <button type="button" className="cust" data-check-cust-head="1" title="お客様（指名・席の顧客の節へ）"
+              onClick={() => { setDtab("nom"); window.setTimeout(() => document.getElementById("check-customers")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60); }}>
+              {checkCustHeadOf([...custNames.values()])}
+            </button>
+          )}
           {/* E8-1 #11: 席種バッジ（モック seatbadge・seats.kind は取得済み） */}
           {(() => {
             const kind = seats.find((s) => s.id === check.seat_id)?.kind;
@@ -2678,13 +2747,7 @@ export default function RegisterBoard({
           )}
           </div>
         </div>
-        {/* ★便 X13-G W-3: 伝票のお客様（卓名の帯の直下・タブより上）＝1 人「K様」／2 人以上「K様 ほか n 名」／0 人は出さない。押すと「指名・席」の顧客へ */}
-        {custNames.size > 0 && (() => { const first = [...custNames.values()][0]; return (
-          <button type="button" className="nox-checkcust" data-check-cust-line="1"
-            onClick={() => { setDtab("nom"); window.setTimeout(() => document.getElementById("check-customers")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60); }}>
-            {checkCustLineOf([...custNames.values()])}
-          </button>
-        ); })()}
+        {/* ★便 S（S-5）: 旧 W-3 の「K様 ほか n 名」の行は上段（卓名の直後）へ統合＝ここには出さない */}
         {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。
             ★裁定360（GV-8・便 GV-A）: 3 分割セグメント（等幅・高さ 1.5 倍・アイコン・選択中 金塗り・会計は右端で主ボタン色）＝伝票上部に sticky（裁定367 の器） */}
         <div className="nox-dtabs nox-dtabs--seg" data-dtabs-seg="1">
@@ -2731,10 +2794,14 @@ export default function RegisterBoard({
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
             attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} grouped shiftIds={shiftIds}
-            selectedIds={seatedIds} badges={nomBadges} dense
-            defaultChip={pickerDefaultChipOf({ seated: seatedIds.size, working: attendIds.size + todayIds.size })} /* ★裁定384: 分配率カードの追加も同じ既定順 */
+            selectedIds={seatedIds} badges={nomKindBadgesOf(nomKinds, seatedIds)} dense /* ★便 S（S-6 ①）: 名簿の人＝本／場内／フリーの印（名簿の種別・課金行に依らない） */
+            chips chipSet="two" defaultChip="working" servingSeat={servingSeat} /* ★便 S（S-6 ①）: 一覧は常に出す・チップ＝出勤中（既定）／全員・他卓＝「着卓中（B2）」。旧 pickerDefaultChipOf は R34 帰属モーダル側に残す */
             onPick={(id) => {
               const on = nomWeights[id] !== undefined; // ★裁定110: 名簿＝キー存在
+              // ★便 S（S-6 ②）: 離席済み（着席ログが閉じている）人を押す＝再着席（ended false）
+              if (on && noms.some((n) => n.cast_id === id && n.ended_at)) { void setSeatEnded(id, false); return; }
+              // ★便 S（S-6 ①）: 他卓に着いている人を押す＝確認 1 回→その卓で離席→この卓へ
+              if (!on && servingIds.has(id)) { void moveFromOtherSeat(id); return; }
               // ★0121（裁定107 段1-(3)）: 再タップ（選択解除）も課金行が残るキャストは拒否＝× と同じ関所
               if (on && castFeeLines(id).length > 0) {
                 setFeeMsg({ to: FEE_SHIMEI, kind: "bad", text: "先に指名料を取り消してください" });
@@ -2743,13 +2810,7 @@ export default function RegisterBoard({
               // ★0124（裁定111-3）: タップ＝名簿の増減も自動保存。
               //   解除＝× と同じ RPC 経路（removeShareCast＝0121 の関所込み）。
               if (on) { void removeShareCast(id); return; }
-              // 追加＝既定分配を適用（本 100% 等分→場内→フリー・手動値はここでリセット＝裁定110 A2-(1)(3)）
-              const members = [...Object.keys(nomWeights), id];
-              const kinds = { ...nomKinds, [id]: nomKinds[id] ?? ("free" as const) };
-              const weights = defaultWeights(members, kinds);
-              setNomKinds(kinds);
-              setNomWeights(weights);
-              void autoSaveNoms(weights, kinds, nomDohan, nomDohanN);
+              addToRoster(id);
             }}
           />
           {payments.length > 0 && check.status === "open" && (
@@ -2767,7 +2828,32 @@ export default function RegisterBoard({
           )}
         </div>
 
-        {/* ★X-13-1（便 X-13a）: 並び＝指名 → 指名の分配率 → 顧客 → 紹介 → 席 */}
+        {/* ★便 S（S-6 ②）: 席＝フリーの着席ログ（分配率の上・分配率の対象外）。「離席」＝ended_at・本／場内に変えると分配率の節へ移る（逆も） */}
+        {(() => { const rows = seatRowsOf(noms, nomKinds, castName); if (rows.length === 0) return null; const lockDerive = feeBusy || check.status !== "open" || payments.length > 0; return (
+          <div className="nox-cardtop" style={card} data-seat-rows="1">
+            <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>席</h3>
+            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 6px" }}>フリーは指名料が無いため分配率に入れず、着席の記録だけ残します（本／場内に変えると分配率へ移ります）。</p>
+            {rows.map((r) => (
+              <div key={r.castId} className="nox-seatrow" data-active={r.active ? "1" : undefined}>
+                <span className="tx">{seatRowTextOf(r)}</span>
+                {r.active && (
+                  <span className="nox-seg gold" style={{ display: "inline-flex" }}>
+                    {([["hon", "本"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([v, l]) => (
+                      <button key={v} type="button" className={v === "free" ? "on" : ""} disabled={lockDerive || v === "free"} style={{ fontWeight: 700, fontSize: 11, padding: "5px 9px" }}
+                        onClick={() => { const kinds = { ...nomKinds, [r.castId]: v }; const weights = defaultWeights(Object.keys(nomWeights), kinds); setNomKinds(kinds); setNomWeights(weights); void autoSaveNoms(weights, kinds, nomDohan, nomDohanN); }}>
+                        {l}
+                      </button>
+                    ))}
+                  </span>
+                )}
+                {r.active
+                  ? <button type="button" style={{ ...btnLight, padding: "4px 10px" }} disabled={feeBusy || check.status !== "open"} data-seat-leave="1" onClick={() => void setSeatEnded(r.castId, true)}>離席</button>
+                  : <button type="button" style={{ ...btnLight, padding: "4px 10px" }} disabled={feeBusy || check.status !== "open"} data-seat-reseat="1" onClick={() => void setSeatEnded(r.castId, false)}>再着席</button>}
+              </div>
+            ))}
+          </div>
+        ); })()}
+        {/* ★X-13-1（便 X-13a）: 並び＝指名 → 席（フリー） → 指名の分配率 → 顧客 → 紹介 → 席 */}
         {/* R-2a-2（モック nox-register-pos `assignmentView` / renderShares）: 指名の分配率カード。
             旧 <details>「按分の重みを微調整」を独立カードへ。入力は **%**（1〜100 の整数）＝
             ratio_weight は integer の相対重みで分母は Σ なので、合計100 の % はそのまま重みとして
@@ -3741,6 +3827,8 @@ export default function RegisterBoard({
                 className={["nox-seat", busy ? "busy" : ""].filter(Boolean).join(" ")}
               >
                 <div className="nm">{s.name}</div>
+                {/* ★便 S（S-5）: 伝票の最初のお客様を 1 行（長い名前は省略記号・未登録は出さない） */}
+                {cid && (openCusts[cid]?.length ?? 0) > 0 && <div className="cust" data-seat-cust="1">{checkCustHeadOf(openCusts[cid])}</div>}
                 <div className="kind">{s.kind ?? " "}</div>
                 {cid ? (
                   <>

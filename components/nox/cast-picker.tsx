@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 import CastAvatar from "@/components/ui/cast-avatar";
 import * as t from "@/lib/nox/ui/theme";
 import { castPickerOrder, offDutyToggleLabelOf, type CastPickGroup } from "@/lib/nox/register/cast-picker-order";
+import { ROSTER_CHIPS, servingLabelOf } from "@/lib/nox/register/seat-roster"; // ★便 S（S-6 ①）: チップ 出勤中／全員・他卓の「着卓中（B2）」
 
 export type PickerCast = { id: string; name: string };
 
@@ -44,8 +45,12 @@ export function pickerDefaultChipOf(i: { seated: number; working: number }): "se
 
 export default function CastPicker({
   casts, photoUrls, seatedIds, todayIds, attendIds, servingIds, shiftIds, rankNames, chips = false, grouped = false,
-  selectedIds, badges, seatedBadges, onPick, size = 44, dense = false, defaultChip,
+  selectedIds, badges, seatedBadges, onPick, size = 44, dense = false, defaultChip, servingSeat, chipSet,
 }: {
+  /** ★便 S（S-6 ①）: 他卓に着いている人の卓名（cast_id → 「B2」）＝ラベル「着卓中（B2）」。無い id は「着卓中」 */
+  servingSeat?: Map<string, string>;
+  /** ★便 S（S-6 ①）: "two"＝チップを「出勤中（既定）／全員」の 2 つにする（レジの指名・席） */
+  chipSet?: "two";
   /** ★便 X13-G W-4: 「担当中」タブでだけ出す区分チップ（本指名／場内／フリー）＝着卓中の代わり。他のタブは状態チップのまま */
   seatedBadges?: Map<string, PickerBadge>;
   /** ★裁定384: 既定チップ（pickerDefaultChipOf）。省略＝従来（grouped＆chips なら出勤中） */
@@ -112,7 +117,7 @@ export default function CastPicker({
     const off = grouped && !c.working;
     // ★B3 裁定209/211: 状態語の優先＝着卓中（自伝票）＞接客中（他卓）＞出勤中＞打刻。★裁定322: grouped では in 打刻あり＝「出勤中」・③④＝「未出勤」
     // ★便 X13-G W-4: grouped（レジ）では「接客中」も「着卓中」に統一
-    const stateLabel = seated ? "着卓中" : serving ? (grouped ? "着卓中" : "接客中") : grouped ? (today ? "出勤中" : off ? "未出勤" : attend ? "出勤中" : null) : attend ? "出勤中" : today ? "打刻" : null;
+    const stateLabel = seated ? "着卓中" : serving ? (grouped ? servingLabelOf(servingSeat?.get(c.id)) : "接客中") : grouped ? (today ? "出勤中" : off ? "未出勤" : attend ? "出勤中" : null) : attend ? "出勤中" : today ? "打刻" : null; // ★便 S（S-6 ①）: 他卓＝「着卓中（B2）」
     const badge = badges?.get(c.id) ?? (chip === "seated" ? seatedBadges?.get(c.id) ?? null : null);
     return (
       <button
@@ -153,8 +158,8 @@ export default function CastPicker({
       </button>
     );
   };
-  const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${dense ? 78 : 94}px, 1fr))`, gap: 8 };
-  const chipOptions = grouped
+  // ★便 S（S-6 ④）: 格子は globals.css .nox-castgrid（auto-fill 94／dense 78・≤430px は 3 列）
+  const chipOptions = chipSet === "two" ? ROSTER_CHIPS : grouped
     ? ([["working", "出勤中"], ["seated", "担当中"], ["", "すべて"]] as const)
     : ([["", "すべて"], ["attend", "出勤中"], ["seated", "担当中"]] as const);
 
@@ -174,7 +179,7 @@ export default function CastPicker({
           ))}
         </div>
       )}
-      <div style={grid}>
+      <div className="nox-castgrid" data-dense={dense ? "1" : undefined}>
         {working.map(card)}
         {working.length === 0 && !offVisible && (
           <p style={{ fontSize: 12, color: "var(--sub)", gridColumn: "1 / -1", margin: 0 }}>
@@ -190,7 +195,7 @@ export default function CastPicker({
               {offDutyToggleLabelOf(offDuty.length, offOpen)}
             </button>
           )}
-          {offVisible && <div style={{ ...grid, marginTop: 8 }}>{offDuty.map(card)}</div>}
+          {offVisible && <div className="nox-castgrid" data-dense={dense ? "1" : undefined} style={{ marginTop: 8 }}>{offDuty.map(card)}</div>}
         </div>
       )}
     </div>

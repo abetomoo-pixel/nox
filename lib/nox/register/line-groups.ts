@@ -35,9 +35,10 @@ export function recentProductIdsOf(lines: readonly { product_id?: string | null;
   return out;
 }
 
-/** ★便 X13-G W-3: 伝票上部のお客様の 1 行＝1 人「K様」／2 人以上「K様 ほか n 名」／0 人は空 */
-export function checkCustLineOf(names: readonly string[]): string {
+/** ★便 S（S-5）: 伝票の上段（卓名の直後）とフロアの卓タイルのお客様＝最初のお客様（併存）を「やまだ様」・2 人目以降は「やまだ様 ＋1」・0 人は空。
+ *  旧 W-3 の「K様 ほか n 名」（1 段下の行）は S-5 で上段へ統合＝行は消した（顧客の付け替えは「指名・席」の顧客の節のまま） */
+export function checkCustHeadOf(names: readonly string[]): string {
   if (names.length === 0) return "";
   const head = /様$/.test(names[0]) ? names[0] : `${names[0]}様`; // ★live: 顧客名がすでに「様」で終わる（デモの「H様」など）ときは足さない
-  return names.length === 1 ? head : `${head} ほか ${names.length - 1} 名`;
+  return names.length === 1 ? head : `${head} ＋${names.length - 1}`;
 }

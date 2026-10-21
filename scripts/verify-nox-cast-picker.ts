@@ -15,8 +15,8 @@ check("cp(1) pickerDefaultChipOf＝担当中→出勤中→すべて", pickerDef
 const cp = src("components/nox/cast-picker.tsx");
 check("cp(2) CastPicker: defaultChip prop＝初期チップ（useState の初期値・未指定は従来）", cp.includes('defaultChip?: "" | "working" | "seated";') && cp.includes('useState<"" | "attend" | "seated" | "working">(defaultChip ?? (grouped && chips ? "working" : ""))'));
 const rb = src("app/(manage)/register/register-board.tsx");
-check("cp(3) register: ドリンク帰属と分配率カードの CastPicker に defaultChip＝pickerDefaultChipOf({seated, working})・担当中 1 人なら selectedIds＋「に追加」主 56（data-pick-single）",
-  (rb.match(/defaultChip=\{pickerDefaultChipOf\(\{ seated: seatedIds\.size, working: attendIds\.size \+ todayIds\.size \}\)\}/g) || []).length === 2 && rb.includes("selectedIds={seatedIds.size === 1 ? seatedIds : undefined}") && rb.includes("data-pick-single") && rb.includes('import CastPicker, { pickerDefaultChipOf, nomKindBadgesOf } from "@/components/nox/cast-picker";') /* ★便 X13-G W-4 */);
+check("cp(3) register: ドリンク帰属の CastPicker に defaultChip＝pickerDefaultChipOf({seated, working})・分配率側は S-6 の 出勤中（既定）／全員の固定チップ・担当中 1 人なら selectedIds＋「に追加」主 56（data-pick-single）",
+  (rb.match(/defaultChip=\{pickerDefaultChipOf\(\{ seated: seatedIds\.size, working: attendIds\.size \+ todayIds\.size \}\)\}/g) || []).length === 1 /* ★便 S（S-6 ①）: 分配率側は chipSet two */ && rb.includes('chips chipSet="two" defaultChip="working"') && rb.includes("selectedIds={seatedIds.size === 1 ? seatedIds : undefined}") && rb.includes("data-pick-single") && rb.includes('import CastPicker, { pickerDefaultChipOf, nomKindBadgesOf } from "@/components/nox/cast-picker";') /* ★便 X13-G W-4 */);
 
 if (fails.length) { console.error(`✗ verify:nox-cast-picker 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }
 console.log(`verify:nox-cast-picker OK (${pass} checks)`);

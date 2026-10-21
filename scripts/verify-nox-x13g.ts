@@ -4,7 +4,7 @@
  *   W-11 今日タブ・W-12 タブ 2 段と 3 桁区切り・W-13 控除・送り・W-14 VIP の見込み・W-15 外税の明示・W-16 ひな形・W-17 カード加算・W-18 payload・W-19 残
  */
 import fs from "node:fs";
-import { checkCustLineOf } from "../lib/nox/register/line-groups";
+import { checkCustHeadOf } from "../lib/nox/register/line-groups"; // ★便 S（S-5）: W-3 の行は上段へ統合＝checkCustHeadOf
 import { NIL_CHECK_ID } from "../components/nox/customer-pick-modal";
 import { NOM_KIND_BADGE, nomKindBadgesOf } from "../components/nox/cast-picker";
 import { groupedDigitsOf } from "../components/ui/grouped-number-input";
@@ -31,9 +31,9 @@ check("x13g(1) W-1 ぼかしは暗幕の擬似要素・カードはその上の�
 // W-2〜W-4
 const cpm = src("components/nox/customer-pick-modal.tsx");
 check("x13g(2) W-2 伝票なし（開卓）／お客様 0 人は「この伝票のお客様」を出さない", NIL_CHECK_ID === "00000000-0000-0000-0000-000000000000" && cpm.includes("const showCheckTab = checkId !== NIL_CHECK_ID && checkList.length > 0;") && cpm.includes('.filter((k) => k !== "check" || showCheckTab)'));
-check("x13g(3) W-3 伝票上部のお客様＝K様／K様 ほか n 名／0 人は空・押すと顧客の節へ・顧客カードの変更で即反映",
-  checkCustLineOf([]) === "" && checkCustLineOf(["K"]) === "K様" && checkCustLineOf(["K", "M", "N"]) === "K様 ほか 2 名" && checkCustLineOf(["H様", "K様"]) === "H様 ほか 1 名"
-  && reg.includes('data-check-cust-line="1"') && reg.includes('document.getElementById("check-customers")') && reg.includes("await loadCustNames(check.id); /* ★便 X13-G W-3"));
+check("x13g(3) W-3→S-5 伝票のお客様＝上段（卓名の直後）に「K様」／「K様 ＋n」・0 人は空・押すと顧客の節へ・顧客カードの変更で即反映・1 段下の行は無い",
+  checkCustHeadOf([]) === "" && checkCustHeadOf(["K"]) === "K様" && checkCustHeadOf(["K", "M", "N"]) === "K様 ＋2" && checkCustHeadOf(["H様", "K様"]) === "H様 ＋1"
+  && reg.includes('data-check-cust-head="1"') && !reg.includes('data-check-cust-line="1"') && reg.includes('document.getElementById("check-customers")') && reg.includes("await loadCustNames(check.id); /* ★便 X13-G W-3"));
 const kb = nomKindBadgesOf({ a: "hon", b: "jonai", c: "free" }, ["a", "b", "c", "d"]);
 check("x13g(4) W-4 担当中タブ＝本指名／場内／フリー（色は既存トークン 3 種）・レジの他タブは着卓中に統一",
   kb.get("a")?.label === "本指名" && kb.get("b")?.label === "場内" && kb.get("c")?.label === "フリー" && !kb.has("d") && NOM_KIND_BADGE.hon.tone === "gold"

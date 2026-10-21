@@ -57,7 +57,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     rb.includes('supabase.rpc("check_nomination_rate_apply", { p_check_id: check.id, p_cast_id: castId })') && rb.includes("率変更に失敗:") && rb.includes("監査: 指名切替に伴う率変更"));
   check("r341(5-3) 切替記録のある本指名キャスト（店長以上・open）にチェック「既出ドリンクも本指名の率にする（切替前の N 行は場内の率）」・名簿 select に prev_kind, kind_changed_at・行 select に created_at",
     rb.includes('kind === "hon" && nomRow?.kind_changed_at && isManagerUp && check.status === "open"') && rb.includes("この伝票の既出ドリンクも本指名の率にする（切替前の {preN} 行は場内の率）")
-    && rb.includes('select("cast_id, ratio_weight, nom_kind, is_dohan, prev_kind, kind_changed_at")') && rb.includes("customer_id, product_id, created_at\")"));
+    && rb.includes('select("cast_id, ratio_weight, nom_kind, is_dohan, prev_kind, kind_changed_at, created_at, ended_at")') /* ★便 S（S-6 ②）: 着席ログの 2 列を足した */ && rb.includes("customer_id, product_id, created_at\")"));
   check("r341(5-4) 行の区分表示: 切替前の行に「{キャスト} 場内の率（切替前）」の印（created_at < kind_changed_at）・P168 の無効「（準備中）」は 0",
     rb.includes("の率（切替前）") && rb.includes("l.created_at! < n.kind_changed_at") && !rb.includes("（準備中）\" />") && !rb.includes("本指名の率にする（準備中）"));
 }

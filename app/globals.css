@@ -767,6 +767,7 @@ body {
 .nox-seat.sel { outline: 2px solid var(--gold); outline-offset: -2px; }
 .nox-seat .nm { font-size: 14px; font-weight: 700; color: var(--v2-text); }
 .nox-seat .kind { font-size: 10px; color: var(--v2-muted); }
+.nox-seat .cust { font-size: 12px; font-weight: 700; color: var(--v2-text); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* ★便 S（S-5）: 卓タイルのお客様 1 行（長い名前は省略記号） */
 .nox-seat .stay { font-size: 11px; color: var(--v2-muted); margin-top: 4px; }
 .nox-seat .empty { font-size: 11px; color: var(--v2-muted); margin-top: 12px; opacity: .65; }
 /* 会計金額＝読む情報ゆえ白・太（金にしない） */
@@ -1617,6 +1618,9 @@ body {
 .nox-print-only { display: none; }
 @media print { .nox-print-only { display: block; } }
 .nox-backbar .t { font-size: 16px; font-weight: 700; color: var(--ink); }
+/* ★便 S（S-5）: 卓名の直後のお客様（太字・押すと顧客の節へ）。390px では卓名の次の行に落として同じ太字（下の @media） */
+.nox-backbar .cust { background: transparent; border: 0; padding: 0; font: inherit; font-size: 16px; font-weight: 700; color: var(--ink); cursor: pointer; max-width: 60vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nox-backbar .cust:hover { color: var(--gold); }
 .nox-backbar .stay { font-size: 11px; color: var(--sub); }
 .nox-backbar .total { margin-left: auto; font-size: 24px; font-weight: 700; color: var(--ink); }
 .nox-backbar .total small { font-size: 12px; color: var(--sub); font-weight: 400; margin-right: 4px; }
@@ -2388,6 +2392,7 @@ body {
   .nox-checkview { padding: 10px; }
   .nox-backbar { gap: 6px 8px; }
   .nox-backbtn { padding: 8px 12px; font-size: 13px; }
+  .nox-backbar .cust { flex: 0 0 100%; max-width: 100%; text-align: left; } /* ★便 S（S-5）: 390px＝卓名の次の行に落として同じ太字 */
   .nox-backbar .stay { white-space: normal; }
   .nox-backbar-row2 { display: flex; flex: 0 0 100%; min-width: 0; align-items: center; gap: 8px; flex-wrap: wrap; }
   .nox-backbar-row2 button { white-space: normal; text-align: left; min-width: 0; }
@@ -2512,6 +2517,15 @@ body {
 /* 359: 指名の分配率＝キャスト 1 人 1 カード（左帯＝区分色・写真＋名前 左・区分セグメント 中・同伴チップ＋% 右端・行の高さ 1/2） */
 .nox-nomcard { display: grid; grid-template-columns: auto 1fr auto auto; grid-template-areas: "av nm kind right" "ra ra ra ra" "dlg dlg dlg dlg"; align-items: center; gap: 2px 10px; padding: 5px 8px 5px 12px; border: 1px solid var(--line); border-left-width: 4px; border-left-color: var(--line2); border-radius: 10px; margin-bottom: 6px; background: var(--card2); }
 .nox-nomcard[data-kind="hon"] { border-left-color: var(--gold); }
+/* ★便 S（S-6 ④）: キャスト選択の格子（CastPicker）＝auto-fill 94（dense 78）・390px（≤430）は横スクロールでなく 3 列の格子 */
+.nox-castgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 8px; }
+.nox-castgrid[data-dense] { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); }
+@media (max-width: 430px) { .nox-castgrid, .nox-castgrid[data-dense] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* ★便 S（S-6 ②）: 席の節＝フリーの着席ログの行（着卓中は太字・離席済みは薄く） */
+.nox-seatrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.nox-seatrow:last-child { border-bottom: 0; }
+.nox-seatrow .tx { flex: 1 1 auto; min-width: 0; font-weight: 700; }
+.nox-seatrow:not([data-active]) .tx { color: var(--sub); font-weight: 400; }
 .nox-nomcard[data-kind="jonai"] { border-left-color: var(--primary); }
 .nox-nomcard > .nox-avatar, .nox-nomcard > span:first-child, .nox-nomcard > div:first-child { grid-area: av; }
 .nox-nomcard .nm { grid-area: nm; display: flex; align-items: baseline; gap: 6px; min-width: 0; flex-wrap: wrap; }
@@ -2684,7 +2698,6 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 }
 
 /* ★便 X13-G W-3: 伝票上部のお客様（卓名の帯の直下・1 行・押すと顧客の節へ） */
-.nox-checkcust { display: block; width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--line); color: var(--champ); font: inherit; font-size: 14px; font-weight: 700; padding: 6px 2px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ★便 X13-G W-10: 設定行（ラベル＋説明｜値・操作）は 900px 未満で縦積み＝見出し→説明（小さめ・全幅）→値・操作（左寄せ）。値の文字は本文と同じ大きさの太字 */
 @media (max-width: 899px) {
