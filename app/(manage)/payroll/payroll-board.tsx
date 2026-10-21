@@ -732,7 +732,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
             )}
             {rows && !rows.some((r) => r.frozen) && (/* ★便 X13-I I-5: ノルマ未達の減額の提案（確定前のプレビューだけ） */
               <NormProposals rows={rows.filter((r) => !!r.normProposal).map((r) => ({ castId: r.castId, castName: r.castName, normProposal: r.normProposal! }))}
-                runId={runInfo && runInfo.status === "draft" ? runInfo.id : null} period={period}
+                runId={runInfo && runInfo.status === "draft" ? runInfo.id : null} period={period} storeId={storeId}
                 onDone={async (text) => { setMsg(text); await loadRun(); await preview(); }} />
             )}
           </div>
