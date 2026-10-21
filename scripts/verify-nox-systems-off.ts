@@ -29,7 +29,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const sb = src("app/(manage)/shift/shift-board.tsx");
   const sp = src("app/(manage)/shift/page.tsx");
   check("so(2-1) shift-board: 減額は penaltiesOn（既定 true）で出し分け・page が isSystemOn(sys_penalties) を渡す", sb.includes("penaltiesOn = true }") && sb.includes("{!io?.outHm && penaltiesOn && (/* ★GV-3: sys_penalties OFF の店は減額の口を出さない。★裁定383: 退勤後は「時刻修正」だけ */") && sp.includes('penaltiesOn={isSystemOn((stores?.[0]?.settings_json ?? null) as Record<string, unknown> | null, "sys_penalties")}'));
-  check("so(2-2) sys_penalties OFF: compDeductionTab が消える・deductionPanel（送り・前借り）は残る＝便 X13-G W-13（compPenaltyTab は norms が ON なら残る）", !isSectionOn({ sys_penalties: false }, "compDeductionTab") && isSectionOn({ sys_penalties: false }, "deductionPanel") && isSectionOn({ sys_hourly: false, sys_backs: false, sys_sales_rate: false, sys_points: false, sys_sales_slide: false, sys_point_slide: false, sys_norms: false, sys_penalties: false, sys_bonus: false }, "deductionPanel") && isSectionOn({ sys_penalties: false }, "compPenaltyTab") && !isSectionOn({ sys_penalties: false, sys_norms: false }, "compPenaltyTab"));
+  check("so(2-2) sys_penalties OFF: compDeductionTab／deductionPanel が消える（compPenaltyTab は norms が ON なら残る）", !isSectionOn({ sys_penalties: false }, "compDeductionTab") && !isSectionOn({ sys_penalties: false }, "deductionPanel") && isSectionOn({ sys_penalties: false }, "compPenaltyTab") && !isSectionOn({ sys_penalties: false, sys_norms: false }, "compPenaltyTab"));
   check("so(2-3) SECTION_KEYS 17 節・isSystemOn は false のみ OFF", Object.keys(SECTION_KEYS).length === 17 && isSystemOn({ sys_norms: false }, "sys_norms") === false && isSystemOn({ sys_norms: "off" }, "sys_norms") === true);
 }
 
@@ -37,7 +37,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 {
   const mp = src("app/mine/page.tsx");
   check("so(3-1) /mine: drink_claim／punch_correction_request／reservation_request／payslip_visibility の出し分け", mp.includes("{ms.drink_claim && <DrinkClaimForm month={month} />}") && mp.includes("{ms.punch_correction_request && meCast?.id && (") && mp.includes("{ms.reservation_request && myStore && <ReservationRequestCard") && mp.includes('{ms.payslip_visibility !== "off" && ('));
-  check("so(3-2) /mine: ランキングは castRankingModeOf（off で消える）", mp.includes('{castRankingModeOf(ms) !== "off" && myRank && ('));
+  check("so(3-2) /mine: ランキングは castRankingModeOf（off で消える）", mp.includes('{castRankingModeOf(ms) !== "off" && (mySales || myRank) && (' /* ★便 X13-G W-22 ④: 売上が既定 */));
   const ml = src("app/mine/layout.tsx");
   check("so(3-3) /mine layout: ranking OFF はナビから外す（mineSettingsOf）", ml.includes("mineSettingsOf") && /ranking/.test(ml));
 }

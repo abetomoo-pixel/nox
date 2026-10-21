@@ -32,7 +32,7 @@ export default function NormaBoard({ storeId, isManagerUp, isOwner, flags, setti
       {/* ① 店として採用する軸（settings_json・owner のみ切替＝panel 内で出し分け） */}
       {/* ★便 X13-G W-13 ②: 節が全部隠れる店（ノルマ・罰金とも OFF）は空にせず案内 */}
       {!isSectionOn(settings, "normConfigPanel") && !isSectionOn(settings, "compNormTab") && !isSectionOn(settings, "compPenaltyTab") && (
-        <section className="nox-cardtop" style={card} data-systems-off-note="1"><p style={{ fontSize: 13, color: "var(--sub)", margin: 0, lineHeight: 1.8 }}>この店ではノルマ・罰金の制度を使っていません（店舗設定 › 利用機能で ON にできます）。</p></section>
+        <section className="nox-cardtop" style={card} data-systems-off-note="1"><p style={{ fontSize: 13.5, margin: "0 0 10px", lineHeight: 1.8 }}>この店ではノルマ・精算調整の制度を使っていません。利用機能で ON にできます。</p><a href="/master/store-profile?tab=features" className="nox-rowbtn" data-open-features="1">利用機能を開く</a></section>
       )}
       {isSectionOn(settings, "normConfigPanel") && (<NormConfigPanel
         storeId={storeId}

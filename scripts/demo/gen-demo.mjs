@@ -542,6 +542,10 @@ for (const st of STORES) {
     for (let i = 7; i <= 13; i++) { if (i % 7 !== 0 && i % 7 !== 3) pushStaff(mStaff, i, i % 2 ? "late" : "early", "proposed"); if (mStaff) push("staff_shift_wishes", { id: uid(`ssw:${code}:${i}`), store_id: storeId, staff_id: mStaff.id, biz_date: { $rel: i }, pattern_id: i % 2 ? patLate : patEarly, available: i % 7 !== 3, note: i % 7 === 3 ? "私用で休み希望" : null, created_at: { $rel: -2, t: "13:00:00" }, updated_at: { $rel: -2, t: "13:00:00" } }); }
   }
   for (const t of Object.keys(T)) T[t] = completeRows(t, T[t], (r) => r.id ?? `${r.cast_id ?? ""}:${r.product_id ?? ""}:${r.store_id ?? ""}`);
+  // ★便 X13-G W-18 ⑦: 利用機能（裁定348 の店の組合せ）と食い違うデータは payload 側を合わせる＝pt を使わない店は商品の本指名 pt 0・売上スライドを使わない店はプランの売上スライドを空
+  { const sy = sysSettingsOf(code);
+    if (!sy.sys_points) for (const pr of T.products ?? []) pr.hon_pt = 0;
+    if (!sy.sys_sales_slide) for (const pl of T.comp_plans ?? []) pl.sales_slide = []; /* ノルマ OFF の店のノルマ目標は残す＝OFF で隠れることの確認用（norm-axes na(4-2)） */ }
   // ★便 X13-G W-18 ③: 今月の勤務・伝票＝先月（{$m:-1}）の勤務と伝票を同じ日付で今月（{$m:0}）へ写す。reset した日より前の日だけ残す（dateshift の $onlyBefore）。
   //   写すのは shifts／attendance／punches／checks と伝票の子（明細・指名・バック・入金）・日報。ID は uid("cur:"+元 ID) で決定的・入金の冪等キーも別値。
   //   先月の行は 1 行も変えない（確定済みの先月給与＝afterResetHooks の凍結値は不変）。既存の $rel 行（当日・体入・スタッフ）と重なる日は dateshift が写しのほうを落とす。

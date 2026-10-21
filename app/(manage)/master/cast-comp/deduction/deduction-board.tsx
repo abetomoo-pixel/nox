@@ -34,9 +34,13 @@ export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, o
           setMsg={setMsg} reload={data.reload} />
       </section>)}
 
-      {!isSectionOn(settings, "compDeductionTab") && (
-        <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }} data-systems-off-note="1">固定の控除ルール（寮費・制裁など）は「罰金・減額」の制度が ON のときに使えます（店舗設定 › 利用機能で ON にできます）。</p>
-      )}{/* ★便 X13-G W-13 ②: 隠した節の案内 */}
+      {/* ★便 X13-G W-13（差し替え）①: 「精算調整・控除」が OFF の店はタブを空にせず案内＋利用機能へのボタン（出し分けは C-5 どおり） */}
+      {!isSectionOn(settings, "compDeductionTab") && !isSectionOn(settings, "deductionPanel") && (
+        <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }} data-systems-off-note="1">
+          <p style={{ fontSize: 13.5, margin: "0 0 10px", lineHeight: 1.8 }}>この店では精算調整・控除の制度を使っていません。利用機能で ON にできます。</p>
+          <a href="/master/store-profile?tab=features" className="nox-rowbtn" data-open-features="1">利用機能を開く</a>
+        </section>
+      )}
       {/* ② 送り設定・前借り・送り実費（既存パネル移設＝RPC/引数 不変） */}
       {isSectionOn(settings, "deductionPanel") && (<DeductionPanel
         storeId={storeId}

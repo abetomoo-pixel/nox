@@ -14,6 +14,8 @@ import { openEstimateOf, resolveRuleOf, bizClockOf, type EstimateRule } from "..
 import { todayRowViewOf } from "../lib/nox/shift/today-row";
 import { shiftPayload } from "../lib/nox/demo/dateshift";
 import { DATED_TABLES } from "../lib/nox/demo/seed";
+import { scheduleOf, daysNormLineOf, daysCountOf } from "../lib/nox/mine/schedule";
+import { castPunchOffOf, castPunchMethodsOf } from "../lib/nox/store/ops-profile";
 
 let pass = 0; const fails: string[] = [];
 function check(label: string, ok: boolean, detail?: string) { if (ok) pass++; else fails.push(`${label}${detail ? `: ${detail}` : ""}`); }
@@ -65,7 +67,7 @@ check("x13g(12) W-12 待遇プランの 6 タブ＝900px 未満は 2 列×3 段�
   src("app/(manage)/master/cast-comp/plan/plan-board.tsx").includes('className="nox-seg nox-segtabs nox-segtabs--grid2"') && /\.nox-segtabs\.nox-segtabs--grid2 \{ display: grid; grid-template-columns: repeat\(2/.test(css)
   && groupedDigitsOf("800000") === "800,000" && groupedDigitsOf("") === "" && groupedDigitsOf(14520) === "14,520" && reg.includes("<GroupedNumberInput value={isCash ? payTendered : payAmount}"));
 // W-13
-check("x13g(13) W-13 送り・前借りの節は制度に関係なく出す・節が全部隠れる店は案内", isSectionOn({ sys_penalties: false }, "deductionPanel") && !isSectionOn({ sys_penalties: false }, "compDeductionTab")
+check("x13g(13) W-13（差し替え）精算調整・控除が OFF の店はタブに案内＋「利用機能を開く」（出し分けは C-5 どおり）", !isSectionOn({ sys_penalties: false }, "deductionPanel") && isSectionOn({ sys_penalties: true }, "deductionPanel") && src("app/(manage)/master/cast-comp/deduction/deduction-board.tsx").includes('data-open-features="1"')
   && src("app/(manage)/master/cast-comp/norma/norma-board.tsx").includes('data-systems-off-note="1"') && src("app/(manage)/master/cast-comp/deduction/deduction-board.tsx").includes('data-systems-off-note="1"'));
 // W-14
 {
@@ -121,6 +123,33 @@ check("x13g(17) W-17 お客様に請求するカード手数料＝pay_fee_rates.
 check("x13g(20) W-19 ① customers-keep の snapshot は検証 org の範囲・② 0 円のまま方式を切り替えても戻らない",
   src("scripts/verify-nox-customers-keep.ts").includes("from public.check_lines where org_id=$2") && src("app/(manage)/master/cast-comp/comp-sections.tsx").includes('flat === 0 && per === 0 ? (modeSel[ax] ?? "flat")'));
 
+// W-22
+{
+  const mp = src("app/mine/page.tsx");
+  const order = ["<h3>打刻{", "<h3>遅刻・当欠の連絡</h3>", "<ScheduleCard tabs={scheduleTabs} />", "<NormCard />", "確定給与明細", "<DrinkClaimForm month={month} />", "<h3>今月の出勤ボーナス", "<h3>売上ランキング（{month}）</h3>", "<ReservationRequestCard storeId", "<h3>指名予約（今日以降）</h3>", "<h3>今月の勤怠</h3>"].map((k) => mp.indexOf(k));
+  check("x13g(21) W-22 ① /mine の節の順（打刻→遅刻・当欠→出勤予定→ノルマ→明細→ドリンク→ボーナス→ランキング→予約申請→指名予約→勤怠）", order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), JSON.stringify(order));
+  const sc = scheduleOf({ shifts: [{ id: "a", date: "2026-10-22", start_hm: "20:00", end_hm: "26:00", status: "confirmed" }, { id: "b", date: "2026-10-23", start_hm: "20:00", end_hm: "25:00", status: "proposed" }, { id: "c", date: "2026-10-20", start_hm: "20:00", end_hm: "25:00", status: "confirmed" }, { id: "n", date: "2026-11-02", start_hm: "20:00", end_hm: "25:00", status: "confirmed" }],
+    wishes: [{ id: "w1", date: "2026-10-24", start_hm: "20:00", end_hm: "24:00", status: "pending", kind: "work" }, { id: "w2", date: "2026-10-22", start_hm: "20:00", end_hm: "24:00", status: "pending", kind: "work" }, { id: "w3", date: "2026-10-25", start_hm: null, end_hm: null, status: "pending", kind: "off" }], month: "2026-10", today: "2026-10-21" });
+  check("x13g(22) W-22 ② 出勤予定＝今日以降・確定と確認待ち（提出済みの希望を含む・確定のある日は出さない・休み希望と来月は出さない）・翌表記",
+    sc.fixed.map((x) => x.id).join(",") === "a" && sc.pending.map((x) => x.id).join(",") === "b,w1" && sc.fixed[0].time.includes("翌") && sc.fixed[0].dow === "木", JSON.stringify(sc));
+  const cnt = daysCountOf({ workedDates: new Set(["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"]), schedule: { fixed: Array.from({ length: 6 }, (_, i) => ({ id: "f" + i, date: `2026-10-${22 + i}`, dow: "", time: "", kind: "fixed" as const, source: "shift" as const, proposed: false })), pending: Array.from({ length: 3 }, (_, i) => ({ id: "p" + i, date: `2026-10-${28 + i}`, dow: "", time: "", kind: "pending" as const, source: "wish" as const, proposed: false })) } });
+  const ln = daysNormLineOf({ target: 20, worked: cnt.worked, fixedDays: cnt.fixedDays, pendingDays: cnt.pendingDays });
+  check("x13g(23) W-22 ⑤ 出勤ノルマ 20 日｜出勤済み 8 日＋確定 6 日＝14 日｜あと 6 日不足・確認待ち 3 日を含めると あと 3 日・ノルマなしは出さない・達成見込み",
+    ln?.label === "出勤ノルマ 20 日｜出勤済み 8 日＋確定 6 日＝14 日｜あと 6 日不足" && ln?.pendingLabel === "確認待ち 3 日を含めると あと 3 日" && daysNormLineOf({ target: null, worked: 1, fixedDays: 0, pendingDays: 0 }) === null
+    && daysNormLineOf({ target: 5, worked: 3, fixedDays: 2, pendingDays: 1 })?.achieved === true && src("app/mine/wishes/page.tsx").includes('data-wish-days-norm="1"'), JSON.stringify(ln));
+  const af = src("app/mine/attendance-form.tsx");
+  check("x13g(24) W-22 ③④ 送信は中央・placeholder「見込み 21:30」・/mine のランキングは売上が既定（get_cast_sales_rank・指名は切替）", af.includes('placeholder="見込み 21:30"') && af.includes('margin: "4px auto 0"') && mp.includes('rpc("get_cast_sales_rank"') && mp.includes('href="/mine/ranking?axis=nom"'));
+}
+// W-23／W-18 ⑦
+{
+  const off = castPunchMethodsOf(false, { self: true, proxy: false, kiosk: true }), on = castPunchMethodsOf(true, off);
+  check("x13g(25) W-23 キャストの打刻＝使わない（self／kiosk OFF・proxy ON）／使う（self／kiosk ON・proxy は今のまま）・/mine と /kiosk の出し分け・店舗設定と初期設定に同じ項目",
+    castPunchOffOf(off) && off.proxy && !castPunchOffOf(on) && on.self && on.kiosk && on.proxy && !castPunchOffOf({ self: false, proxy: true, kiosk: true })
+    && src("app/mine/page.tsx").includes('data-cast-punch-off="1"') && src("app/kiosk/page.tsx").includes('data-kiosk-cast-off="1"') && src("app/api/kiosk/punch-methods/route.ts").includes('rpc("auth_kiosk_store_id")')
+    && src("app/(manage)/master/store-profile-panel.tsx").includes('data-cast-punch="1"') && src("app/(manage)/setup/setup-wizard.tsx").includes('<Row title="キャストの打刻" sub={CAST_PUNCH_OFF_NOTE}>'));
+  const sys = ["muse", "luna", "noir", "ace", "lily", "nest"].map((c) => (JSON.parse(src(`docs/demo/payload/${c}.json`)).tables.stores[0] as Record<string, unknown>).settings_json as Record<string, unknown>);
+  check("x13g(26) W-18 ⑦ 6 店とも精算調整・控除 ON（送り・前借りを使う）・LUNA pt・NOIR 売上スライド・NEST ノルマはデータ側を合わせる", sys.every((x) => x.sys_penalties === true) && sys[1].sys_points === false && sys[2].sys_sales_slide === false && sys[5].sys_norms === false /* 裁定348 の組合せは保つ＝データ側を合わせた */);
+}
 if (fails.length) { console.log(`✗ verify:nox-x13g 失敗 ${fails.length}（成功 ${pass}）`); for (const x of fails) console.log(" - " + x); process.exit(1); }
 console.log(`verify:nox-x13g OK (${pass} checks)`);
 console.log("便 X13-G: 下シートの重なり順・お客様と指名区分・給与の操作・390px・金種・日付・注記・縦積み・今日タブ・タブ 2 段・控除送り・VIP 見込み・外税・ひな形・カード加算・payload");

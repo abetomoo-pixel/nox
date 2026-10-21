@@ -45,7 +45,7 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
       <SegSelect value={status} onChange={(v) => setStatus(v as "late" | "absent")}
             options={[["late", "遅刻"], ["absent", "当欠"]] as const} />
       {status === "late" && (
-        <HmInput placeholder="出勤見込み（例 2530・25:30）" value={eta} onChange={setEta} ariaLabel="出勤見込み" style={{ ...input, width: 170 }} />
+        <HmInput placeholder="見込み 21:30" value={eta} onChange={setEta} ariaLabel="出勤見込み" style={{ ...input, width: 170 }} />
       )}
       <input
         placeholder="理由（任意）"
@@ -53,7 +53,7 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
         onChange={(e) => setReason(e.target.value)}
         style={{ ...input, width: 160 }}
       />
-      <button type="submit" disabled={busy || (status === "late" && hmRangeErrorOf(eta) !== null)} style={{ ...t.btnGold, padding: "8px 16px", opacity: busy || (status === "late" && hmRangeErrorOf(eta) !== null) ? 0.7 : 1 }}>{/* ★318 追補 */}
+      <button type="submit" data-att-submit="1" disabled={busy || (status === "late" && hmRangeErrorOf(eta) !== null)} style={{ ...t.btnGold, padding: "8px 28px", minHeight: 44, flexBasis: "100%", maxWidth: 240, margin: "4px auto 0", justifyContent: "center", opacity: busy || (status === "late" && hmRangeErrorOf(eta) !== null) ? 0.7 : 1 }}>{/* ★318 追補 */}
         送信
       </button>
       {msg && <Toast msg={msg} />}

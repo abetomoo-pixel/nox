@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
-import { fmtWin } from "@/lib/nox/shift-time";
 import PayslipSlip from "@/components/payslip-slip";
 import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
 import { ATTENDANCE_MONTH_NOTE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
 import { nextPeriodOf } from "@/lib/nox/payroll/attention";
 import { mdLabelOf } from "@/lib/nox/payroll/finalize-guard";
 import ReservationRequestCard from "./reservation-request-card"; // ★裁定326-4（便 M3-2）: 予約申請（店設定 reservation_request ON のときだけ）
-import ShiftConfirmButton from "./shift-confirm-button";
-import { MINE_RECENT_SHIFT_LIMIT, WISH_STATE_COLOR, wishStateDetailOf, wishStateOf, type ShiftStatusLike } from "@/lib/nox/shift/wish-state"; // ★裁定345: 4 段の語・直近 14 件
+import ScheduleCard, { type ScheduleTab } from "./schedule-card"; // ★便 X13-G W-22: 出勤予定（今月／来月・確定と確認待ち）
+import { daysCountOf, daysNormLineOf, scheduleOf, type ScheduleShift, type ScheduleWish } from "@/lib/nox/mine/schedule";
+import { daysNormTargetsOf } from "@/lib/nox/mine/days-norm-server";
 import { castRankingModeOf } from "@/lib/nox/payroll/cast-sales"; // ★裁定346: off／self／top
 import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
@@ -26,7 +26,7 @@ import PrintPayslipButton from "./print-payslip-button";
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: mine_settings の出し分け（既存の自店読取に相乗り＝新規 fetch 0）
 import { punchHeadOf, punchStateOf } from "@/lib/nox/shift/punch-state";
-import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.self の出し分け // ★裁定326 追補3（便 M1-4）: 打刻カードの 3 状態（todayPunches から＝新規 fetch 0）
+import { castPunchOffOf, opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.self の出し分け // ★裁定326 追補3（便 M1-4）: 打刻カードの 3 状態（todayPunches から＝新規 fetch 0）
 
 export const dynamic = "force-dynamic";
 
@@ -80,10 +80,6 @@ export default async function MinePage() {
     .gte("date", `${month}-01`)
     .order("date");
   type ShiftLite = { id: string; date: string; start_hm: string; end_hm: string; status: string; wish_id: string | null };
-  // ★裁定345: 直近＝今日以降の先頭 14 件（旧 7 件＝8 件目以降が切れて「採用なのに直近に無い」に見えた GV-1）。残りは /mine/wishes#shifts「すべて見る」
-  const upcoming = ((shiftsAll ?? []) as ShiftLite[]).filter((s) => s.date >= bizToday);
-  const shifts = upcoming.slice(0, MINE_RECENT_SHIFT_LIMIT);
-  const moreShifts = upcoming.length - shifts.length;
   const monthConfirmedShifts = ((shiftsAll ?? []) as ShiftLite[]).filter((s) => s.status === "confirmed" && s.date < `${nextMonth}-01`);
 
   // 今月の勤怠
@@ -170,6 +166,20 @@ export default async function MinePage() {
     });
   const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
 
+  // ★便 X13-G W-22: 出勤予定（今月／来月）＝自分のシフト（shiftsAll＝今月初から）と提出済みの希望（自分の行＝RLS）・出勤ノルマ（店が出勤日数の軸を採用＋ノルマがあるときだけ）
+  const nextNext = nextPeriodOf(nextMonth);
+  const { data: wishRows } = await supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status, kind").gte("date", `${month}-01`).lt("date", `${nextNext}-01`);
+  const workedThisMonth = new Set(((monthPunches ?? []) as { type: string; punched_at: string }[]).filter((x) => x.type === "in").map((x) => bizDateOf(x.punched_at, cutoff)).filter((d) => d.slice(0, 7) === month));
+  const daysTargets = meCast?.id && myStores?.[0]?.id ? await daysNormTargetsOf(meCast.id as string, myStores[0].id as string, [month, nextMonth], bizToday) : { [month]: null, [nextMonth]: null };
+  const scheduleTabs: ScheduleTab[] = ([[month, "今月"], [nextMonth, "来月"]] as const).map(([m, label]) => {
+    const sc = scheduleOf({ shifts: (shiftsAll ?? []) as ScheduleShift[], wishes: (wishRows ?? []) as ScheduleWish[], month: m, today: bizToday });
+    const cnt = daysCountOf({ workedDates: m === month ? workedThisMonth : new Set<string>(), schedule: sc });
+    return { month: m, label, fixed: sc.fixed, pending: sc.pending, norm: daysNormLineOf({ target: daysTargets[m], worked: cnt.worked, fixedDays: cnt.fixedDays, pendingDays: cnt.pendingDays }) };
+  });
+  // ★便 X13-G W-22 ④: 売上の自分の順位（get_cast_sales_rank＝cast は自分の 1 行だけ・他人の金額と順位は返らない）
+  const { data: salesRank } = myStore ? await supabase.rpc("get_cast_sales_rank", { p_store_id: myStore.id as string, p_period: month }) : { data: null };
+  const mySales = ((salesRank ?? []) as { rank: number; sales: number; is_self: boolean }[]).find((r) => r.is_self) ?? null;
+
   const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
   const noteP: React.CSSProperties = { fontSize: 12, color: "var(--sub)", margin: 0 };
   const thL: React.CSSProperties = { textAlign: "left", fontWeight: 700, color: "var(--sub)", padding: "3px 0", borderBottom: "1px solid var(--line2)" };
@@ -189,6 +199,9 @@ export default async function MinePage() {
 
       {/* 段M2: 打刻はスマホで一番使うのでヘッダ直後へ（section の中身・PunchActions・最終打刻の
           文言はそのまま＝移設のみ）。 */}
+      {castPunchOffOf(opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods) ? (
+        <p className="nox-pstate" data-cast-punch-off="1" style={{ margin: "0 0 12px" }}>出勤・退勤は店が記録します</p>
+      ) : (/* ★便 X13-G W-23 ①: キャストの打刻を使わない店は打刻カードを出さない */
       <section className="nox-panel">
         <h3>打刻{punchHeadOf(ps.state, ps.inAt) && <span className="num" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--ok)" }}>{punchHeadOf(ps.state, ps.inAt)}</span>}</h3>{/* ★326 追補3: 出勤中は見出し横に「出勤中 HH:MM〜」 */}
         {/* ★0164（便 W5-2b）: 店設定 punch_methods.self が OFF の店は本人打刻のボタンを出さない（RPC punch_self は拒否しない＝UI の出し分けだけ・裁定要） */}
@@ -226,6 +239,15 @@ export default async function MinePage() {
           <p style={{ ...noteP, marginTop: 4 }}>{ATTENDANCE_MONTH_NOTE}</p>
         </details>
       </section>
+      )}
+
+      <section className="nox-panel">
+        <h3>遅刻・当欠の連絡</h3>
+        <AttendanceForm defaultDate={bizToday} />
+      </section>
+
+      {/* ★便 X13-G W-22 ②⑤: 出勤予定（今月／来月・確定と確認待ち・募集中は出さない）＋出勤ノルマの不足（旧・直近の節は廃止） */}
+      <ScheduleCard tabs={scheduleTabs} />
 
       {/* ノルマ進捗（mig0042・表示のみ）: 採用軸かつ目標>0 の軸だけ・全非表示ならカード自体出ない
           ★店が採用している軸のときだけ出る現行条件はそのまま（部品側の判定に一切触れていない）。 */}
@@ -284,74 +306,25 @@ export default async function MinePage() {
       </section>
 
 
-      <section className="nox-panel">
-        <h3>遅刻・当欠の連絡</h3>
-        <AttendanceForm defaultDate={bizToday} />
-      </section>
-
-      {/* ★0154 D1（裁定294-2／294-4／295-1）: 出退勤の修正申請（本人）＝店の承認後に punches へ反映・承認分は本人が確認／異議あり */}
-      {ms.punch_correction_request && meCast?.id && (/* ★326-8: punch_correction_request OFF＝修正申請カード非表示 */
-        <section className="nox-panel">
-          <h3>{term}の修正申請</h3>
-          <PunchCorrectionForm castId={meCast.id as string} bizToday={bizToday} punches={(todayPunches ?? []) as { id: string; type: string; punched_at: string }[]} term={term}
-            finalizedPeriods={((slips ?? []) as { period: string }[]).map((s) => s.period)} />{/* ★裁定315（便 AB-3）: 明細がある期＝確定済み */}
-          <div style={{ marginTop: 10 }}>
-            <PunchCorrectionList rows={(corrRows ?? []) as CorrectionRow[]} term={term} />
-          </div>
-        </section>
-      )}
-
-      <section className="nox-panel">
-        <h3>
-          直近のシフト
-          {/* 段M2: 希望提出への導線（既存 /mine/wishes へのリンクのみ＝新しい提出 UI は作らない） */}
-          <Link href="/mine/wishes" className="nox-link" style={{ marginLeft: "auto", fontSize: 12 }}>
-            ＋ 希望を提出
-          </Link>
-        </h3>
-        {(shifts ?? []).length === 0 && <p style={noneP}>予定なし</p>}
-        <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
-          {(shifts ?? []).map((s, i) => {
-            // ★裁定345: 語は 4 段の純関数（審査中／採用・確認待ち／採用・確定）＝/mine 希望・管理側と同じ。proposed は「確認する」ボタン（shift_cast_confirm＝本人のみ・一方向）
-            const k = wishStateOf(s.wish_id ? "accepted" : null, s.status as ShiftStatusLike);
-            const d = wishStateDetailOf(k, s.status as ShiftStatusLike, true); // ★裁定380（GV-B W-9）: 店設定 shift_cast_confirm は廃止＝送り返しは常に「キャスト確認待ち」
-            return (
-            <li key={i} style={{ padding: "3px 0" }} data-state={k}>
-              {s.date} {fmtWin(s.start_hm as string, s.end_hm as string)}{" "}
-              <span style={{ color: WISH_STATE_COLOR[k] }}>
-                （{k === "accepted_fixed" ? "採用・確定" : "採用・確認待ち"}{d ? `・${d}` : ""}）
-              </span>
-              {s.status === "proposed" && <ShiftConfirmButton shiftId={s.id as string} />}
-            </li>
-            );
-          })}
-        </ul>
-        {moreShifts > 0 && (
-          <p style={{ fontSize: 12, margin: "6px 0 0" }}>
-            <Link href="/mine/wishes#shifts" className="nox-link">すべて見る（あと {moreShifts} 件）</Link>
-          </p>
-        )}
-      </section>
-
-      {/* 段M2: 指名ランキング＝★自分の順位のみ。順位・母数・自分の件数だけを出し、
-          他キャストの名前も数字も描画しない（1位との差のような他人由来の値も出さない）。
-          値は /mine/ranking が既に使っている get_cast_ranking の自分の行そのもの＝情報は増えない。 */}
-      {castRankingModeOf(ms) !== "off" && myRank && (/* ★326-8: ranking OFF＝カードもナビもページも出さない（直 URL は /mine へ）・★裁定346: self／top とも自分の順位カードは出す（他人の名前は /mine/ranking 側で出し分け） */
-        <section className="nox-panel">
-          <h3>指名ランキング（{month}）</h3>
+      {/* ★便 X13-G W-22 ④: ランキングの既定＝売上（伝票の請求額（サ料込・カード手数料を除く）を指名の割合で按分＝給与・店の集計と同じ）。
+          表示は自分の順位・人数・自分の値だけ（他のキャストの金額は出さない＝裁定346 の店設定 top／self は /mine/ranking 側）。指名は切替（?axis=nom） */}
+      {castRankingModeOf(ms) !== "off" && (mySales || myRank) && (
+        <section className="nox-panel" data-mine-rank="sales">
+          <h3>売上ランキング（{month}）</h3>
           <div className="nox-myrank">
-            <span className={`nox-medal ${myRank.rank === 1 ? "g1" : myRank.rank === 2 ? "g2" : myRank.rank === 3 ? "g3" : "gx"}`}>
-              {myRank.rank}
+            {mySales ? (
+              <>
+                <span className={`nox-medal ${mySales.rank === 1 ? "g1" : mySales.rank === 2 ? "g2" : mySales.rank === 3 ? "g3" : "gx"}`}>{mySales.rank}</span>
+                <div>
+                  <div className="t num">{mySales.rank}位 / {Math.max(rankRows.length, mySales.rank)}人中</div>
+                  <div className="n num">自分の売上 {yen(mySales.sales)}</div>
+                </div>
+              </>
+            ) : <div className="n" style={{ color: "var(--sub)" }}>今月の売上はまだありません</div>}
+            <span style={{ marginLeft: "auto", display: "inline-flex", gap: 10 }}>
+              <Link href="/mine/ranking?axis=nom" className="nox-link" style={{ fontSize: 12 }}>指名で見る</Link>
+              <Link href="/mine/ranking" className="nox-link" style={{ fontSize: 12 }}>一覧 ›</Link>
             </span>
-            <div>
-              <div className="t num">{myRank.rank}位 / {rankRows.length}人中</div>
-              <div className="n num">
-                本指名 {myRank.hon_count}件・場内 {myRank.jonai_count}件・同伴 {myRank.dohan_count}件
-              </div>
-            </div>
-            <Link href="/mine/ranking" className="nox-link" style={{ marginLeft: "auto", fontSize: 12 }}>
-              一覧 ›
-            </Link>
           </div>
         </section>
       )}
@@ -395,6 +368,18 @@ export default async function MinePage() {
           ))}
         </ul>
       </section>
+      {/* ★0154 D1（裁定294-2／294-4／295-1）: 出退勤の修正申請（本人）＝店の承認後に punches へ反映・承認分は本人が確認／異議あり */}
+      {ms.punch_correction_request && meCast?.id && (/* ★326-8: punch_correction_request OFF＝修正申請カード非表示 */
+        <section className="nox-panel">
+          <h3>{term}の修正申請</h3>
+          <PunchCorrectionForm castId={meCast.id as string} bizToday={bizToday} punches={(todayPunches ?? []) as { id: string; type: string; punched_at: string }[]} term={term}
+            finalizedPeriods={((slips ?? []) as { period: string }[]).map((s) => s.period)} />{/* ★裁定315（便 AB-3）: 明細がある期＝確定済み */}
+          <div style={{ marginTop: 10 }}>
+            <PunchCorrectionList rows={(corrRows ?? []) as CorrectionRow[]} term={term} />
+          </div>
+        </section>
+      )}
+
     </div>
   );
 }

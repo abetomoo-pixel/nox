@@ -49,6 +49,7 @@ const ALLOW = new Set<string>([
   "advance/issue-bulk", "transport/issue-bulk", // ★mig0157（裁定302／304・2026-09-25）: 一括発行＝単発と同じ C（RPC が二重防御・デモ org も可）
   "mine/norm-progress", "store/okuri-mode", // ★便 M2-1（裁定326-3）: mine/norm-set は削除（set_cast_norm_self は 0160 で drop＝cast の自己設定は廃止）
   "demo/enter", "demo/reset",
+  "kiosk/punch-methods", // ★便 X13-G W-23: 端末の店の打刻設定を読むだけ（書込なし・デモ org も可）
 ]);
 
 function walk(dir: string, out: string[]) {

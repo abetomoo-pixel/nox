@@ -3,7 +3,11 @@ import * as t from "@/lib/nox/ui/theme";
 import WishForm from "./wish-form";
 import WithdrawButton from "./withdraw-button";
 import { fmtWin } from "@/lib/nox/shift-time";
-import { bizDateOf } from "@/lib/nox/biz-date";
+import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
+import { nextPeriodOf } from "@/lib/nox/payroll/attention";
+import { DaysNormNote } from "../schedule-card"; // ★便 X13-G W-22 ⑤
+import { daysCountOf, daysNormLineOf, scheduleOf, type ScheduleShift, type ScheduleWish } from "@/lib/nox/mine/schedule";
+import { daysNormTargetsOf } from "@/lib/nox/mine/days-norm-server";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-7（便 M4-1）: 店設定 shift_request_mode（'shift'／'off_only'）
 import { resolveWishMode, wishPageTextOf, wishRowLabelOf } from "@/lib/nox/mine/wish-mode";
 import { WISH_STATE_COLOR, WISH_STATE_LABEL, wishStateDetailOf, wishStateOf, type ShiftStatusLike, type WishStatusLike } from "@/lib/nox/shift/wish-state"; // ★裁定345
@@ -31,6 +35,22 @@ export default async function WishesPage() {
     supabase.from("shifts").select("id, date, start_hm, end_hm, status, wish_id").gte("date", bizToday).order("date"), // 自分の行（RLS）・今日以降
   ]);
   type ShiftLite = { id: string; date: string; start_hm: string; end_hm: string; status: ShiftStatusLike; wish_id: string | null };
+  // ★便 X13-G W-22 ⑤: 出勤ノルマの不足（/mine の出勤予定と同じ純関数・同じ読取）＝今月と来月のうちノルマがある月だけ
+  const month = bizToday.slice(0, 7), nextMonth = nextPeriodOf(month), nextNext = nextPeriodOf(nextMonth);
+  const [{ data: myStoreRow }, { data: monthShifts }, { data: monthWishes }, { data: inPunches }] = await Promise.all([
+    supabase.from("stores").select("id").limit(1).maybeSingle(),
+    supabase.from("shifts").select("id, date, start_hm, end_hm, status, wish_id").gte("date", `${month}-01`).lt("date", `${nextNext}-01`),
+    supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status, kind").gte("date", `${month}-01`).lt("date", `${nextNext}-01`),
+    supabase.from("punches").select("punched_at").eq("type", "in").gte("punched_at", bizDateRange(`${month}-01`, cutoff).startIso).lt("punched_at", bizDateRange(`${nextMonth}-01`, cutoff).startIso),
+  ]);
+  const worked = new Set(((inPunches ?? []) as { punched_at: string }[]).map((x) => bizDateOf(x.punched_at, cutoff)).filter((d) => d.slice(0, 7) === month));
+  const targets = typeof myCastId === "string" && myStoreRow?.id ? await daysNormTargetsOf(myCastId, myStoreRow.id as string, [month, nextMonth], bizToday) : {} as Record<string, number | null>;
+  const normLines = ([[month, "今月"], [nextMonth, "来月"]] as const).map(([m, label]) => {
+    const sc = scheduleOf({ shifts: (monthShifts ?? []) as ScheduleShift[], wishes: (monthWishes ?? []) as ScheduleWish[], month: m, today: bizToday });
+    const cnt = daysCountOf({ workedDates: m === month ? worked : new Set<string>(), schedule: sc });
+    const line = daysNormLineOf({ target: targets[m], worked: cnt.worked, fixedDays: cnt.fixedDays, pendingDays: cnt.pendingDays });
+    return line ? { label, line } : null;
+  }).filter((x): x is { label: "今月" | "来月"; line: NonNullable<ReturnType<typeof daysNormLineOf>> } => !!x);
   const shifts = (shiftRows ?? []) as ShiftLite[];
   const shiftByWish = new Map<string, ShiftLite>();
   for (const s of shifts) if (s.wish_id) shiftByWish.set(s.wish_id, s);
@@ -53,6 +73,11 @@ export default async function WishesPage() {
         <p style={t.pheadP}>{text.sub}</p>
       </div>
 
+      {normLines.length > 0 && (
+        <section className="nox-cardtop" style={t.card} data-wish-days-norm="1">
+          {normLines.map((x) => <div key={x.label}><b style={{ fontSize: 12.5 }}>{x.label}</b><DaysNormNote norm={x.line} /></div>)}
+        </section>
+      )}
       <section className="nox-cardtop" style={t.card}>
         <h2 style={title}>{text.submitHeading}</h2>
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>{text.note}</p>

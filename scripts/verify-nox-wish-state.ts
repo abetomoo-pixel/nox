@@ -40,9 +40,13 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     wp.includes('supabase.from("shifts").select("id, date, start_hm, end_hm, status, wish_id").gte("date", bizToday).order("date")') && wp.includes("shiftByWish.get(w.id as string)?.status ?? null") && wp.includes("const k = wishStateOf(wish, shift);") && !wp.includes("const STATUS_LABEL"));
   check("ws(3-2) /mine/wishes: 今日以降のシフト節（id=shifts）＝「すべて見る」の先・希望由来は accepted として段を決める", wp.includes('<section id="shifts" className="nox-cardtop"') && wp.includes('{stateCell(s.wish_id ? "accepted" : null, s.status)}'));
   const mp = src("app/mine/page.tsx");
-  check("ws(3-3) /mine 直近: wish_id を select・今日以降の先頭 MINE_RECENT_SHIFT_LIMIT 件・残りは「すべて見る（あと n 件）」→/mine/wishes#shifts",
-    mp.includes('.select("id, date, start_hm, end_hm, status, wish_id")') && mp.includes("const shifts = upcoming.slice(0, MINE_RECENT_SHIFT_LIMIT);") && mp.includes("const moreShifts = upcoming.length - shifts.length;") && mp.includes('<Link href="/mine/wishes#shifts" className="nox-link">すべて見る（あと {moreShifts} 件）</Link>') && !mp.includes("s.date >= bizToday).slice(0, 7)"));
-  check("ws(3-4) /mine 直近: 語＝wishStateOf（採用・確定／採用・確認待ち＋内訳）・proposed は「確認する」ボタンのまま", mp.includes('const k = wishStateOf(s.wish_id ? "accepted" : null, s.status as ShiftStatusLike);') && mp.includes('（{k === "accepted_fixed" ? "採用・確定" : "採用・確認待ち"}{d ? `・${d}` : ""}）') && mp.includes('{s.status === "proposed" && <ShiftConfirmButton shiftId={s.id as string} />}') && !mp.includes('"確認待ち" : "予定"'));
+  // ★便 X13-G W-22 ②: /mine の「直近のシフト」は廃止＝「出勤予定」（今月／来月・確定と確認待ち・募集中は出さない）
+  check("ws(3-3) /mine 出勤予定: shifts は wish_id を select・scheduleOf（確定＝confirmed／確認待ち＝planned・proposed と提出済みの希望）・「直近のシフト」なし",
+    mp.includes('.select("id, date, start_hm, end_hm, status, wish_id")') && mp.includes("<ScheduleCard tabs={scheduleTabs} />") && !mp.includes("直近のシフト") && !mp.includes("MINE_RECENT_SHIFT_LIMIT"));
+  {
+    const sc = fs.readFileSync("app/mine/schedule-card.tsx", "utf8");
+    check("ws(3-4) /mine 出勤予定: proposed は「確認する」ボタンのまま・確認待ちは薄い色と印", sc.includes("{x.proposed && <ShiftConfirmButton shiftId={x.id} />}") && sc.includes('className={`nox-schedrow${x.kind === "pending" ? " pending" : ""}`}'));
+  }
   check("ws(3-5) wish-calendar: accepted 採用・rejected 見送り（旧 承認／却下は無い）", wishMarkOf("accepted") === "採用" && wishMarkOf("rejected") === "見送り" && wishMarkOf("pending") === "審査中");
 }
 

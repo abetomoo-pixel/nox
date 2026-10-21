@@ -19,7 +19,7 @@ import {
   laterDefaultsOf, nextActionsOf, planSummaryOf, previewLinesOf, pricingOf, productCategoriesOf, productOverrideArgs, productsPlanOf, seatsOf, templateOf, to30h,
   type BizType, type DraftPlan, type NomMode, type PlanStep, type PricingInput, type ProductRow, type ReceivablePolicy, type SeatCounts, type SetupCurrent, type SetupFeatures, type VipMode,
 } from "@/lib/nox/setup/template-plan";
-import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsSummaryOf, type OpsProfile } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2a）: STEP 5「会計と運用」＝stores の列 7 つ
+import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsSummaryOf, type OpsProfile, castPunchOffOf, castPunchMethodsOf, CAST_PUNCH_OFF_NOTE } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2a）: STEP 5「会計と運用」＝stores の列 7 つ
 
 const FLAG_LABELS: Record<string, { label: string; desc: string }> = {
   staff_shift: { label: "スタッフシフト", desc: "スタッフのシフトと勤務パターン" },
@@ -551,6 +551,10 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
                 </label>
               ))}
             </span>
+          </Row>
+          <Row title="キャストの打刻" sub={CAST_PUNCH_OFF_NOTE}>{/* ★便 X13-G W-23 ⑤: 店舗設定と同じ項目（punch_methods の組合せ） */}
+            <SegSelect value={castPunchOffOf(ops.punch_methods) ? "off" : "on"} onChange={(v) => setOps({ ...ops, punch_methods: castPunchMethodsOf(v === "on", ops.punch_methods) })}
+              options={[["on", "使う"], ["off", "使わない（店が勤怠を記録）"]] as const} ariaLabel="キャストの打刻" />
           </Row>
           <Row title="出退勤の打刻" sub="使う方法を 1 つ以上・OFF は導線を出しません">
             <span style={{ display: "inline-flex", gap: 12, flexWrap: "wrap", fontSize: 12.5 }}>

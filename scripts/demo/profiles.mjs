@@ -70,7 +70,7 @@ export const EXTRA_PLANS = {
 /** sys_* 9 キー（stores.settings_json）＝PROFILES.sys から。penalties は全店 false（裁定348: sales_rate は MUSE・point_slide は NOIR／MUSE） */
 export function sysSettingsOf(code) {
   const s = PROFILES[code].sys;
-  return { sys_hourly: !!s.hourly, sys_backs: !!s.backs, sys_sales_rate: !!s.sales_rate, sys_points: !!s.points, sys_sales_slide: !!s.sales_slide, sys_point_slide: !!s.point_slide, sys_norms: !!s.norms, sys_penalties: false, sys_bonus: !!s.bonus }; // ★裁定348: sales_rate もプロファイル（MUSE）
+  return { sys_hourly: !!s.hourly, sys_backs: !!s.backs, sys_sales_rate: !!s.sales_rate, sys_points: !!s.points, sys_sales_slide: !!s.sales_slide, sys_point_slide: !!s.point_slide, sys_norms: !!s.norms, sys_penalties: s.penalties !== false /* ★便 X13-G W-18 ⑦: 6 店とも送り・前借りを使う＝精算調整・控除は ON（旧 false 固定＝控除・送りタブが空） */, sys_bonus: !!s.bonus }; // ★裁定348: sales_rate もプロファイル（MUSE）
 }
 /** 商品の分類（gen-demo の行＝type／category）→ バック表の鍵 */
 export function backKeyOf(row) {

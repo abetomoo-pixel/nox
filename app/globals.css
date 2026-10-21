@@ -2730,3 +2730,14 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
   .nox-presettable td input, .nox-presettable td select { width: 100% !important; }
   .nox-presettable td .nox-money { width: 100% !important; }
 }
+
+/* ★便 X13-G W-22: /mine 出勤予定（確定／確認待ち＝薄い色と印）と出勤ノルマの不足の行 */
+.nox-schedh { font-size: 12px; font-weight: 800; color: var(--sub); margin: 8px 0 4px; }
+.nox-schedlist { list-style: none; padding: 0; margin: 0 0 6px; }
+.nox-schedrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line2); font-size: 14px; }
+.nox-schedrow .d { min-width: 74px; font-weight: 700; }
+.nox-schedrow.pending { color: var(--sub); }
+.nox-schedrow.pending .d { font-weight: 400; }
+.nox-daysnorm { font-size: 13.5px; margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--line2); border-radius: 10px; background: var(--card2); line-height: 1.7; }
+.nox-daysnorm[data-days-norm="short"] { border-color: rgba(201, 162, 74, .55); }
+.nox-daysnorm[data-days-norm="ok"] { border-color: rgba(127, 199, 155, .55); }

@@ -23,7 +23,7 @@ type Store = { id: string; name: string };
 // ★0164（裁定331 C 5 項目＋裁定334・便 W5-2a・2026-10-13）: 「会計と運用」節＝stores の列 7 つ（settings_json ではない）を同じ set_store_profile の patch で保存。
 //   invoice_registered_on（'YYYY-MM-DD'／null）・pay_day（1〜31・表示と案内用）・tax_inclusive_display（表示だけ）・use_vip／use_counter（フロアの種別表示）・
 //   payment_methods {cash,card,emoney,qr}（cash は常に true）・punch_methods {self,proxy,kiosk}（1 つ以上 true）。RPC の型検査（'bad pay_day'／'bad payment_methods'／'bad punch_methods'）が本体。
-import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsPatchErrorOf, opsPatchOf, opsProfileOf, type OpsProfile } from "@/lib/nox/store/ops-profile"; // 純関数＝lib（setup page（server）と共用）
+import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsPatchErrorOf, opsPatchOf, opsProfileOf, type OpsProfile, castPunchOffOf, castPunchMethodsOf, CAST_PUNCH_OFF_NOTE } from "@/lib/nox/store/ops-profile"; // 純関数＝lib（setup page（server）と共用）
 import { MID_PAY_OPTIONS, SETTLEMENT_CYCLE_OPTIONS, midPayOf, settlementCycleOf } from "@/lib/nox/payroll/settlement-cycle"; // ★0172（裁定349・便 P172）: 店設定 2 キー
 import { SHIFT_AUTO_CONFIRM_OPTIONS, autoConfirmHoursOf } from "@/lib/nox/shift/auto-confirm"; // ★0172（裁定380・便 P172）: 自動確定時間
 type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
@@ -284,6 +284,12 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                 </div>
               </div>
               <div style={{ minWidth: 0 }}>
+                <span style={label}>キャストの打刻</span>{/* ★便 X13-G W-23: 使う／使わない（店が勤怠を記録）＝下の打刻方法（punch_methods）の組合せ */}
+                <div style={{ margin: "0 0 8px" }} data-cast-punch="1">
+                  <SegSelect value={castPunchOffOf(form.ops.punch_methods) ? "off" : "on"} onChange={(v) => setOps({ punch_methods: castPunchMethodsOf(v === "on", form.ops.punch_methods) })}
+                    options={[["on", "使う"], ["off", "使わない（店が勤怠を記録）"]] as const} disabled={busy} ariaLabel="キャストの打刻" />
+                  <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4, lineHeight: 1.7 }}>{CAST_PUNCH_OFF_NOTE}</span>
+                </div>
                 <span style={label}>出退勤の打刻<span style={{ fontWeight: 400, marginLeft: 6 }}>使う方法を 1 つ以上・OFF は導線を出しません</span></span>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12.5 }}>
                   {PUNCH_METHOD_LABEL.map(([k, l]) => (

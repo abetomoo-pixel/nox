@@ -19,6 +19,11 @@ export const OPS_DEFAULT: OpsProfile = {
 };
 export const PAYMENT_METHOD_LABEL: ReadonlyArray<readonly [keyof PaymentMethods, string]> = [["cash", "現金"], ["card", "カード"], ["emoney", "電子マネー"], ["qr", "QR 決済"]];
 export const PUNCH_METHOD_LABEL: ReadonlyArray<readonly [keyof PunchMethods, string]> = [["self", "本人のスマホ"], ["proxy", "店の代行"], ["kiosk", "打刻端末"]];
+/** ★便 X13-G W-23: キャストの打刻を使わない店＝本人のスマホも打刻端末も OFF（店が今日タブで勤怠を記録＝代行は ON） */
+export const castPunchOffOf = (pm: PunchMethods): boolean => !pm.self && !pm.kiosk;
+/** 「キャストの打刻」の 2 択 → punch_methods（使わない＝self／kiosk OFF・proxy ON／使う＝self／kiosk ON・proxy は今のまま） */
+export const castPunchMethodsOf = (useCastPunch: boolean, cur: PunchMethods): PunchMethods => (useCastPunch ? { self: true, kiosk: true, proxy: cur.proxy } : { self: false, kiosk: false, proxy: true });
+export const CAST_PUNCH_OFF_NOTE = "使わない店は、出勤・退勤を店が今日タブで記録します（キャストのマイページと打刻端末に打刻ボタンを出しません）。勤務時間の計算基準が「実打刻」の店では、店が記録した時刻を実打刻として扱い、遅刻・当欠の判定も店の記録時刻で行います。";
 
 /** stores 行（列 7 つ）→ OpsProfile（欠損は 0164 の既定） */
 export function opsProfileOf(row: Record<string, unknown> | null | undefined): OpsProfile {

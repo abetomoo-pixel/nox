@@ -49,6 +49,7 @@ export default function KioskPage() {
   const [loginErr, setLoginErr] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [okuriPlan, setOkuriPlan] = useState<OkuriSelfPlan | null>(null);
+  const [castPunchOff, setCastPunchOff] = useState(false); // ★便 X13-G W-23 ①: キャストの打刻を使わない店＝キャスト群を出さない（スタッフ群は今のまま）
 
   // kiosk_cast_list が唯一の読み口: 1行以上=キオスク端末（他ロール/非端末は 0行＝fail-closed）
   const loadList = useCallback(async (): Promise<boolean> => {
@@ -59,6 +60,7 @@ export default function KioskPage() {
     // ★便 P174 T-6（355）: スタッフ群（打刻端末だけ・読めなければ空＝キャスト群のみ）
     const { data: sd, error: se } = await supabase.rpc("kiosk_staff_list");
     setStaffs(se ? [] : ((sd ?? []) as SRow[]));
+    void fetch("/api/kiosk/punch-methods").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.castPunchOff === true) { setCastPunchOff(true); setGroup("staff"); } }).catch(() => {});
     return true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -210,9 +212,12 @@ export default function KioskPage() {
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 16px" }}>
               名前を選んでください
             </p>
+            {castPunchOff && (
+              <p data-kiosk-cast-off="1" style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: "0 0 12px" }}>この店ではキャストの出勤・退勤は店が記録します（キャストの打刻はありません）</p>
+            )}
             {staffs.length > 0 && (/* ★便 P174 T-6（355）: キャスト群／スタッフ群の 2 段（スタッフがいる店だけ） */
               <div role="tablist" aria-label="打刻する人" data-kiosk-group={group} style={{ display: "flex", gap: 8, justifyContent: "center", margin: "0 0 14px" }}>
-                {([["cast", "キャスト"], ["staff", "スタッフ"]] as const).map(([k, label]) => (
+                {([["cast", "キャスト"], ["staff", "スタッフ"]] as const).filter(([k]) => !(castPunchOff && k === "cast")).map(([k, label]) => (
                   <button key={k} role="tab" aria-selected={group === k} onClick={() => setGroup(k)}
                     style={{ ...bigBtn, fontSize: 16, padding: "10px 22px", borderColor: group === k ? "var(--gold)" : "var(--line2)", color: group === k ? "var(--gold)" : "var(--ink)" }}>{label}</button>
                 ))}
@@ -232,7 +237,7 @@ export default function KioskPage() {
               </div>
             ) : (
             <div className="nox-kioskgrid" data-kiosk-grid="1">{/* ★GV-4（便 N1014 A-3）: 名前タイル＝≥900px 4 列・600〜899 3 列・それ未満 2 列（globals.css） */}
-              {casts.map((c) => (
+              {(castPunchOff ? [] : casts).map((c) => ( /* ★便 X13-G W-23: キャストの打刻を使わない店はキャストの名前を出さない */
                 <button key={c.cast_id} onClick={() => pick(c)} disabled={!c.has_pin}
                   style={{ ...bigBtn, opacity: c.has_pin ? 1 : 0.35, cursor: c.has_pin ? "pointer" : "not-allowed" }}>
                   {c.cast_name}
