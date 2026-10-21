@@ -177,6 +177,12 @@ check("x13g(20) W-19 ① customers-keep の snapshot は検証 org の範囲・�
     && ci.includes("<DailyPayForm key={pick}") && ci.includes('only="advance"') && ci.includes('mode="issueOnly"') && ci.includes('"transport_issue_bulk"')
     && css.includes(".nox-payoutrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 84px;"));
 }
+{
+  const dpf = src("components/nox/daily-pay-form.tsx");
+  check("x13g(30) live ㉓: 日払いの発行済み一覧＝受け順が Promise の順・月末は翌月 1 日の未満・/mine の指名予約は「様」を重ねない",
+    dpf.includes("const [{ data: tp }, { data: cs }, { data: dp }] = await Promise.all([") && dpf.includes('.lt("biz_date", nextMonth)') && !dpf.includes("-31`)")
+    && src("app/mine/page.tsx").includes('return name ? (/様$/.test(name) ? name : `${name} 様`) : "お客様";'));
+}
 if (fails.length) { console.log(`✗ verify:nox-x13g 失敗 ${fails.length}（成功 ${pass}）`); for (const x of fails) console.log(" - " + x); process.exit(1); }
 console.log(`verify:nox-x13g OK (${pass} checks)`);
 console.log("便 X13-G: 下シートの重なり順・お客様と指名区分・給与の操作・390px・金種・日付・注記・縦積み・今日タブ・タブ 2 段・控除送り・VIP 見込み・外税・ひな形・カード加算・payload");

@@ -158,7 +158,7 @@ export default async function MinePage() {
   const rsvName = (customers: RsvCustomer, guest: string | null): string => {
     const c = Array.isArray(customers) ? customers[0] : customers;
     const name = c?.name ?? guest;
-    return name ? `${name} 様` : "お客様";
+    return name ? (/様$/.test(name) ? name : `${name} 様`) : "お客様"; // ★便 X13-G live: 顧客名が「様」で終わるときは足さない（「M様 様」）
   };
   const rsvWhen = (iso: string): string =>
     new Date(iso).toLocaleString("ja-JP", {

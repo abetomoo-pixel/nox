@@ -41,11 +41,13 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId, o
 
   const load = useCallback(async () => {
     const month = date.slice(0, 7);
-    const [{ data: tp }, { data: dp }, { data: cs }] = await Promise.all([
+    const [y, m] = month.split("-").map(Number);
+    const nextMonth = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}-01`; // ★便 X13-G live: 「-31」は 30 日の月で不正な日付（エラー→0 件）＝翌月 1 日の未満で
+    const [{ data: tp }, { data: cs }, { data: dp }] = await Promise.all([ // ★便 X13-G live ㉓: 受け順を Promise の順（税区分→期の状態→日払い）に（逆で「発行済み」が常に空だった）
       supabase.from("cast_tax_profiles").select("mode").eq("cast_id", castId).maybeSingle(),
       supabase.from("casts").select("store_id").eq("id", castId).maybeSingle().then(async (c) => c.data?.store_id ? supabase.from("payroll_runs").select("status").eq("store_id", c.data.store_id as string).eq("period", month).maybeSingle() : { data: null }),
       supabase.from("daily_pays").select("id, biz_date, gross, withholding, net, withholding_category, kind").eq("cast_id", castId)
-        .gte("biz_date", `${month}-01`).lte("biz_date", `${month}-31`).order("biz_date", { ascending: false }),
+        .gte("biz_date", `${month}-01`).lt("biz_date", nextMonth).order("biz_date", { ascending: false }),
     ]);
     setTaxMode((tp?.mode as "委託" | "雇用" | undefined) ?? "委託");
     setPaid((dp ?? []) as Paid[]);
