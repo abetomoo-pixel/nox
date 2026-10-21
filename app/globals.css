@@ -2741,3 +2741,15 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .nox-daysnorm { font-size: 13.5px; margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--line2); border-radius: 10px; background: var(--card2); line-height: 1.7; }
 .nox-daysnorm[data-days-norm="short"] { border-color: rgba(201, 162, 74, .55); }
 .nox-daysnorm[data-days-norm="ok"] { border-color: rgba(127, 199, 155, .55); }
+
+/* ★便 X13-G live（W-12 ①）: 待遇プランのタブ＝900px 未満は短い名前（1 行で全部見せる） */
+.nox-segtabs--grid2 > button > .sm { display: none; }
+@media (max-width: 899px) { .nox-segtabs--grid2 > button > .lg { display: none; } .nox-segtabs--grid2 > button > .sm { display: inline; } }
+
+/* ★便 X13-G W-24 ⑤: 日報の現金支払の内訳＝1 行に 名称｜金額｜＋発行（390px でも 1 行）・その他は 名称｜金額｜メモ */
+.nox-payoutrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 84px; align-items: center; gap: 8px; padding: 3px 0; min-height: 44px; }
+.nox-payoutrow > .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nox-payoutrow > .amt { text-align: right; font-weight: 800; }
+.nox-payoutrow > .nox-rowbtn { justify-self: end; min-height: 40px; white-space: nowrap; }
+.nox-payoutrow--other { grid-template-columns: minmax(0, 1fr) 120px; }
+.nox-payoutrow--other > input { grid-column: 1 / -1; }

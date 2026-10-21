@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export type IssueCast = { id: string; name: string };
 
-export default function AdvanceOkuriForm({ storeId, casts, castId, castName, dateDefault, okuriMode, okuriBase = 0, readOnly = false, readOnlyNote, onIssued }: {
+export default function AdvanceOkuriForm({ storeId, casts, castId, castName, dateDefault, okuriMode, okuriBase = 0, readOnly = false, readOnlyNote, onIssued, only }: {
   storeId: string;
   /** picker の候補（castId 固定のときは未使用可） */
   casts: IssueCast[];
@@ -31,6 +31,8 @@ export default function AdvanceOkuriForm({ storeId, casts, castId, castName, dat
   readOnly?: boolean;
   readOnlyNote?: string;
   onIssued?: (kind: IssueKind, id: string) => void | Promise<void>;
+  /** ★便 X13-G W-24 ②: 片方の行だけ（日報の内訳の ＋発行＝前借り） */
+  only?: IssueKind;
 }) {
   if (readOnly) {
     return <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>{readOnlyNote ?? "確定済みのため、前借り／送り実費の発行はできません（読取のみ）。"}</p>;
@@ -38,10 +40,10 @@ export default function AdvanceOkuriForm({ storeId, casts, castId, castName, dat
   const okuriOn = okuriEnabledOf(okuriMode);
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      <IssueRow kind="advance" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={false}
-        hint="給与から天引きされます（手取りが足りないときは翌月へ繰越）。残高は給与の前借り列で確認できます。" onIssued={onIssued} />
-      <IssueRow kind="transport" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={!okuriOn} defaultAmount={okuriBase}
-        hint={okuriOn ? "当月精算（繰越なし）。手取り不足で引き切れない残は再回収されません。" : "※送り方式が「実費」の店のみ発行できます（控除・送りで切替）。"} onIssued={onIssued} />
+      {only !== "transport" && <IssueRow kind="advance" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={false}
+        hint="給与から天引きされます（手取りが足りないときは翌月へ繰越）。残高は給与の前借り列で確認できます。" onIssued={onIssued} />}
+      {only !== "advance" && <IssueRow kind="transport" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={!okuriOn} defaultAmount={okuriBase}
+        hint={okuriOn ? "当月精算（繰越なし）。手取り不足で引き切れない残は再回収されません。" : "※送り方式が「実費」の店のみ発行できます（控除・送りで切替）。"} onIssued={onIssued} />}
     </div>
   );
 }

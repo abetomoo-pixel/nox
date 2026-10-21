@@ -6,7 +6,8 @@ import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額�
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
-import { cashPayoutRowsOf, cashPayoutTotalOf, payoutDiffNoteOf, type CashPayoutParts } from "@/lib/nox/report/cash-payout"; // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
+import { cashPayoutRowsOf, cashPayoutTotalOf, cashPayoutWithOtherOf, otherPayoutMemoMissing, noteWithOtherPayoutOf, otherPayoutFromNoteOf, manualPayoutDiffLineOf, type CashPayoutParts } from "@/lib/nox/report/cash-payout";
+import CashPayoutIssue, { type PayoutIssueKind } from "@/components/nox/cash-payout-issue"; // ★便 X13-G W-24 ②: 内訳の ＋発行 // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
 import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -402,29 +403,48 @@ export default function ReportBoard({
   //   ＝org＋自店（owner は全店）・cast は本人分のみ＝締める側の owner／manager／staff は自店全行）。合計＝既定値（再締め＝#70 の日報の値が優先）。
   //   手入力で変えたら「集計 ¥n と差 ¥m」を注記。保存は現行どおり daily_report_close の p_cash_payout（入力値）。
   const [payoutParts, setPayoutParts] = useState<CashPayoutParts | null>(null);
+  // ★便 X13-G W-24: 内訳の明細（誰に幾ら）・その他の現金支払（唯一の手入力＝金額＋メモ必須）・＋発行のダイアログ・読み直し
+  type PayoutRow = { cast_id: string | null; amount: number };
+  const [payoutRows, setPayoutRows] = useState<Record<keyof CashPayoutParts, PayoutRow[]> | null>(null);
+  const [payoutCasts, setPayoutCasts] = useState<{ id: string; name: string }[]>([]);
+  const [okuriBaseAmt, setOkuriBaseAmt] = useState<unknown>(null);
+  const [okuriActualStore, setOkuriActualStore] = useState(false);
+  const [payoutTick, setPayoutTick] = useState(0);
+  const [otherPay, setOtherPay] = useState(0);
+  const [otherMemo, setOtherMemo] = useState("");
+  const [issueKind, setIssueKind] = useState<PayoutIssueKind | null>(null);
+  const [payoutDetail, setPayoutDetail] = useState<keyof CashPayoutParts | null>(null);
   useEffect(() => {
-    if (!storeId || !canClose) { setPayoutParts(null); return; }
+    if (!storeId || !canClose) { setPayoutParts(null); setPayoutRows(null); return; }
     let alive = true;
     void (async () => {
       const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
-      const actual = ((st?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual";
-      const [tr, adv, dp, pr] = await Promise.all([
+      const sj = (st?.settings_json ?? {}) as Record<string, unknown>;
+      const actual = sj.okuri_mode === "actual";
+      const [tr, adv, dp, pr, cs] = await Promise.all([
         actual
-          ? supabase.from("transport").select("amount").eq("store_id", storeId).eq("biz_date", bizDate).neq("status", "cancelled")
-          : Promise.resolve({ data: [] as { amount: number }[] }),
-        supabase.from("advances").select("amount").eq("store_id", storeId).eq("advanced_on", bizDate).neq("status", "cancelled"),
-        supabase.from("daily_pays").select("net").eq("store_id", storeId).eq("biz_date", bizDate),
-        supabase.from("payment_records").select("paid_amount").eq("store_id", storeId).eq("paid_at", bizDate).eq("method", "cash"),
+          ? supabase.from("transport").select("cast_id, amount").eq("store_id", storeId).eq("biz_date", bizDate).neq("status", "cancelled")
+          : Promise.resolve({ data: [] as { cast_id: string; amount: number }[] }),
+        supabase.from("advances").select("cast_id, amount").eq("store_id", storeId).eq("advanced_on", bizDate).neq("status", "cancelled"),
+        supabase.from("daily_pays").select("cast_id, net").eq("store_id", storeId).eq("biz_date", bizDate),
+        supabase.from("payment_records").select("cast_id, paid_amount").eq("store_id", storeId).eq("paid_at", bizDate).eq("method", "cash"),
+        supabase.from("casts").select("id, name, is_active").eq("store_id", storeId).order("name"),
       ]);
       if (!alive) return;
-      const sum = (rows: unknown, k: string) => ((rows ?? []) as Record<string, number>[]).reduce((a, r) => a + (r[k] ?? 0), 0);
-      const parts: CashPayoutParts = { okuri: sum(tr.data, "amount"), advance: sum(adv.data, "amount"), daily: sum(dp.data, "net"), salary: sum(pr.data, "paid_amount") };
+      const rowsOf = (rows: unknown, k: string): PayoutRow[] => ((rows ?? []) as Record<string, unknown>[]).map((r) => ({ cast_id: (r.cast_id as string | null) ?? null, amount: Number(r[k] ?? 0) }));
+      const rows = { okuri: rowsOf(tr.data, "amount"), advance: rowsOf(adv.data, "amount"), daily: rowsOf(dp.data, "net"), salary: rowsOf(pr.data, "paid_amount") };
+      const sum = (rs: PayoutRow[]) => rs.reduce((a, r) => a + r.amount, 0);
+      const parts: CashPayoutParts = { okuri: sum(rows.okuri), advance: sum(rows.advance), daily: sum(rows.daily), salary: sum(rows.salary) };
+      setPayoutRows(rows);
+      setPayoutCasts(((cs.data ?? []) as { id: string; name: string; is_active?: boolean }[]).map((c) => ({ id: c.id, name: c.name, active: c.is_active !== false })).filter((c) => c.active).map(({ id, name }) => ({ id, name })));
+      setPayoutNames(Object.fromEntries(((cs.data ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name])));
+      setOkuriBaseAmt(sj.okuri_base_amount ?? null); setOkuriActualStore(actual);
       setPayoutParts(parts);
-      if (!recloseTarget) setPayout(cashPayoutTotalOf(parts));
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId, bizDate, canClose]);
+  }, [storeId, bizDate, canClose, payoutTick]);
+  const [payoutNames, setPayoutNames] = useState<Record<string, string>>({});
 
   // 段L2: 表示中の営業日が締め済みか（既に取得済みの reports から引くだけ＝新規取得なし）
   const closedReport = reports.find((r) => r.biz_date === bizDate) ?? null;
@@ -435,9 +455,15 @@ export default function ReportBoard({
     if (!recloseTarget) return;
     setExpense(recloseTarget.expense); setPayout(recloseTarget.cash_payout); setCashFloat(recloseTarget.cash_float);
     setCounted(recloseTarget.counted_cash == null ? "" : String(recloseTarget.counted_cash));
-    setNote(recloseTarget.note ?? "");
+    { const o = otherPayoutFromNoteOf(recloseTarget.note); setOtherPay(o.amount); setOtherMemo(o.memo); setNote(o.rest); } // ★便 X13-G W-24: メモ先頭の「その他の現金支払」を欄へ戻す
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recloseTarget?.id, recloseTarget?.reopened_at, recloseTarget?.reclosed_at]);
+  // ★便 X13-G W-24 ①／④: 現金支払＝内訳の合計＋その他（手入力しない）。再締めでも内訳が優先（日報の値は「手入力との差」に 1 行で出す）
+  useEffect(() => {
+    if (payoutParts) setPayout(cashPayoutWithOtherOf(payoutParts, otherPay));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payoutParts, otherPay, recloseTarget?.id, recloseTarget?.reopened_at, recloseTarget?.reclosed_at]);
+  useEffect(() => { setOtherPay(0); setOtherMemo(""); }, [bizDate]);
   // 当日サマリの「売上（暫定）」＝現金＋カード＋売掛＋その他（締め済み日報の売上式と同じ組み立て）
   const previewSales = preview ? preview.cash + preview.card + preview.uri + preview.other : 0;
 
@@ -452,6 +478,7 @@ export default function ReportBoard({
   const [okuriIssued, setOkuriIssued] = useState<{ n: number; sum: number }>({ n: 0, sum: 0 });
   async function closeDay() {
     setMsg(null);
+    if (otherPayoutMemoMissing(otherPay, otherMemo)) { setMsg("「その他の現金支払」のメモを入れてください（何に払ったか）"); return; } // ★便 X13-G W-24 ①
     // 送り方式が actual なら未発行の送りを確認してから締める（stores 読取 +1・0 件なら即締め）
     const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
     if (((st?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual") {
@@ -489,7 +516,7 @@ export default function ReportBoard({
       p_store_id: storeId, p_biz_date: bizDate,
       p_expense: expense, p_cash_payout: payout, p_cash_float: cashFloat,
       p_counted_cash: counted === "" ? null : Number(counted),
-      p_note: note || null, p_force: force, p_idem_key: crypto.randomUUID(),
+      p_note: noteWithOtherPayoutOf(note, otherPay, otherMemo), p_force: force, p_idem_key: crypto.randomUUID(), // ★便 X13-G W-24: その他の現金支払はメモの先頭 1 行に残す
     });
     setMsg(error ? rpcErrJaCommon(error.message) : "締めを確定しました");
     await loadReports();
@@ -500,11 +527,12 @@ export default function ReportBoard({
   //   RPC 側は coalesce(p_x, 既存値)＝ここでは常に明示値を送る（規約 7 と同じ流儀・実査は空欄＝null＝既存値のまま）。
   async function recloseFromForm(reportId: string) {
     setMsg(null);
+    if (otherPayoutMemoMissing(otherPay, otherMemo)) { setMsg("「その他の現金支払」のメモを入れてください（何に払ったか）"); return; } // ★便 X13-G W-24 ①
     const { error } = await supabase.rpc("daily_report_reclose", {
       p_report_id: reportId,
       p_expense: expense, p_cash_payout: payout, p_cash_float: cashFloat,
       p_counted_cash: counted === "" ? null : Number(counted),
-      p_note: note || null, p_force: force, p_idem_key: crypto.randomUUID(),
+      p_note: noteWithOtherPayoutOf(note, otherPay, otherMemo), p_force: force, p_idem_key: crypto.randomUUID(),
     });
     setMsg(error ? reopenErrJa(error.message) : "再締めしました（締め欄の値で再集計しました）");
     await loadReports();
@@ -1295,7 +1323,10 @@ export default function ReportBoard({
           {/* ★便 GV-C C-11（GV-54）: 4 欄＝¥ 接頭＋3 桁区切り・ラベル上入力下の 2×2（スマホ 1 列＝.nox-close4）。送る値は従来どおり数値（実査は空＝null） */}
           <div className="nox-close4" data-close-grid="1">
             <YenField label="諸経費" value={String(expense)} onChange={(v) => setExpense(Number(v || 0))} inputRef={expenseRef} />
-            <YenField label="現金支払（送り・日払い等）" value={String(payout)} onChange={(v) => setPayout(Number(v || 0))} />
+            <label className="nox-yenfield" data-payout-readonly="1">{/* ★便 X13-G W-24 ①: 手入力しない＝下の内訳の合計＋その他の現金支払 */}
+              <span className="l">現金支払（送り・日払い等）</span>
+              <span className="f"><span className="pre">¥</span><input value={payout.toLocaleString("ja-JP")} readOnly tabIndex={-1} aria-label="現金支払（送り・日払い等）・内訳の合計" style={{ background: "var(--panel2, transparent)", cursor: "default" }} /></span>
+            </label>
             <YenField label="釣銭準備金" value={String(cashFloat)} onChange={(v) => setCashFloat(Number(v || 0))} />
             <YenField label="実査（数えた現金）" value={counted} onChange={(v) => setCounted(v)} placeholder="未入力可" />
           </div>
@@ -1307,24 +1338,38 @@ export default function ReportBoard({
               <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} /> 未会計があっても強行
             </label>
           </div>
-          {/* ★裁定311-④（便 Y-4）: 現金支払の内訳 4 行（送り実費／前借り／日払い／給与支払（現金））＝集計の元。合計＝既定値。手入力で違えば注記 */}
+          {/* ★裁定311-④（便 Y-4）→★便 X13-G W-24: 現金支払の内訳＝送り実費／前借り／日払い／給与支払（現金）＋その他の現金支払（唯一の手入力）。
+               各行＝名称｜金額（押すとその日の明細）｜＋ 発行（日払い・前借り＝キャスト詳細と同じ部品／送り実費＝今日タブと同じダイアログ）。締め確定後は発行・入力なし（解除のある店は解除後に可） */}
           {payoutParts && (() => {
-            const total = cashPayoutTotalOf(payoutParts);
-            const note = payoutDiffNoteOf(total, payout);
+            const locked = !!closedReport && !recloseTarget;
+            const total = cashPayoutWithOtherOf(payoutParts, otherPay);
+            const diffLine = manualPayoutDiffLineOf(closedReport?.cash_payout, total);
+            const issueOf = (k: keyof CashPayoutParts): PayoutIssueKind | null => (k === "daily" ? "daily" : k === "advance" ? "advance" : k === "okuri" && okuriActualStore ? "okuri" : null);
             return (
-              <div className="nox-inset" style={{ padding: "8px 12px", marginTop: 8, fontSize: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", color: "var(--sub)", marginBottom: 2 }}>
-                  <span style={{ fontWeight: 800, color: "var(--champ)" }}>現金支払の内訳（{bizDate}・集計）</span>
-                  <span>合計 <b className="num" style={{ color: "var(--v2-text)" }}>¥{total.toLocaleString()}</b>
-                    {note && <> ・<span style={{ color: "var(--gold2)", fontWeight: 700 }}>{note}</span>
-                      <button type="button" className="nox-link" style={{ fontSize: 11.5, marginLeft: 6 }} onClick={() => setPayout(total)}>集計値に戻す</button></>}
-                  </span>
+              <div className="nox-inset nox-payoutbd" data-payout-bd="1" style={{ padding: "8px 12px", marginTop: 8, fontSize: 13 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", color: "var(--sub)", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 800, color: "var(--champ)" }}>現金支払の内訳（{bizDate}）</span>
+                  <span>合計 <b className="num" data-payout-total="1" style={{ color: "var(--v2-text)" }}>¥{total.toLocaleString()}</b></span>
                 </div>
-                {cashPayoutRowsOf(payoutParts).map((r) => (
-                  <div key={r.key} className="nox-listrow" style={{ padding: "2px 0" }}>
-                    <span style={{ flex: 1 }}>{r.label}</span><b className="num" style={{ color: r.amount ? undefined : "var(--sub)" }}>¥{r.amount.toLocaleString()}</b>
-                  </div>
-                ))}
+                {cashPayoutRowsOf(payoutParts).map((r) => {
+                  const ik = issueOf(r.key);
+                  return (
+                    <div key={r.key} className="nox-payoutrow" data-payout-row={r.key}>
+                      <span className="nm">{r.label}</span>
+                      <button type="button" className="nox-link num amt" data-payout-amt={r.key} onClick={() => setPayoutDetail(r.key)} style={{ color: r.amount ? undefined : "var(--sub)" }}>¥{r.amount.toLocaleString()}</button>
+                      {!locked && ik ? <button type="button" className="nox-rowbtn" data-payout-issue={r.key} onClick={() => setIssueKind(ik)}>＋ 発行</button> : <span className="nox-payoutrow-sp" />}
+                    </div>
+                  );
+                })}
+                <div className="nox-payoutrow nox-payoutrow--other" data-payout-row="other">
+                  <span className="nm">その他の現金支払</span>
+                  <span className="amt"><MoneyInput value={otherPay > 0 ? String(otherPay) : ""} onChange={(v) => setOtherPay(Number(String(v).replace(/[^0-9]/g, "") || 0))} disabled={locked} placeholder="0" ariaLabel="その他の現金支払の金額" /></span>
+                  <input className="nox-input" value={otherMemo} onChange={(e) => setOtherMemo(e.target.value)} disabled={locked} maxLength={60}
+                    placeholder={otherPay > 0 ? "メモ（必須）例: 備品の立替" : "メモ"} aria-label="その他の現金支払のメモ" data-payout-other-memo="1"
+                    style={otherPayoutMemoMissing(otherPay, otherMemo) ? { borderColor: "var(--bad)" } : undefined} />
+                </div>
+                {diffLine && <div data-payout-diff="1" style={{ marginTop: 4, fontSize: 12, color: "var(--gold2)", fontWeight: 700 }}>{diffLine}（内訳の合計で締めます）</div>}
+                {locked && <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--sub)" }}>締め確定済みのため、発行と入力はできません{reopenFlag ? "（表の「解除」で解除すると再締めの前に直せます）" : ""}。</div>}
               </div>
             );
           })()}
@@ -1339,6 +1384,25 @@ export default function ReportBoard({
         </>
       )}
 
+      {/* ★便 X13-G W-24 ②: 内訳の ＋発行（発行の後に内訳を読み直す＝合計と予定額が同時に変わる） */}
+      {issueKind && storeId && (
+        <CashPayoutIssue kind={issueKind} storeId={storeId} bizDate={bizDate} casts={payoutCasts} okuriBase={okuriBaseAmt}
+          onIssued={(text) => { setPayoutTick((v) => v + 1); if (text) setMsg(text); }} onClose={() => { setIssueKind(null); setPayoutTick((v) => v + 1); }} />
+      )}
+      {/* ★便 X13-G W-24 ②: 金額を押す＝その日の明細（誰に幾ら） */}
+      {payoutDetail && payoutRows && (
+        <Modal onClose={() => setPayoutDetail(null)} maxWidth={430}>
+          <div className="nox-formmodal-head" data-payout-detail={payoutDetail}>
+            <strong>{cashPayoutRowsOf(payoutParts ?? { okuri: 0, advance: 0, daily: 0, salary: 0 }).find((r) => r.key === payoutDetail)?.label}（{bizDate}）</strong>
+            <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => setPayoutDetail(null)}>×</button>
+          </div>
+          {payoutRows[payoutDetail].length === 0
+            ? <p style={{ fontSize: 13, color: "var(--sub)" }}>この日の記録はありません。</p>
+            : payoutRows[payoutDetail].map((r, i) => (
+              <div key={i} className="nox-listrow"><span style={{ flex: 1 }}>{(r.cast_id && payoutNames[r.cast_id]) || "（キャスト不明）"}</span><b className="num">¥{r.amount.toLocaleString()}</b></div>
+            ))}
+        </Modal>
+      )}
       {/* E8-2 #5: 金種カウンタ・モーダル（9金種＝2千円札は除外・合計→実査欄へ反映） */}
       {denomOpen && (() => {
         const DENOMS = [10000, 5000, 1000, 500, 100, 50, 10, 5, 1];

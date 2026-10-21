@@ -63,6 +63,7 @@ export default async function MasterPricingPage() {
           invoice_reg_no: typeof store?.invoice_reg_no === "string" ? store.invoice_reg_no : null,
           tax_rounding: typeof store?.tax_rounding === "string" ? store.tax_rounding : "floor",
           card_surcharge_rate: store?.card_surcharge_rate == null ? null : Number(store.card_surcharge_rate),
+          settings_json: store?.settings_json ?? null, // ★便 X13-G live: お客様への加算（pay_fee_rates）と契約確認の記録（contract_ack）を読む＝渡していなかったため常に既定（無効・未記録）に見えた
         },
         rules: (rules ?? []) as never[],
         ranks: (ranks ?? []) as never[],

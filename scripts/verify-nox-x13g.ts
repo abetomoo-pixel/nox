@@ -16,6 +16,8 @@ import { shiftPayload } from "../lib/nox/demo/dateshift";
 import { DATED_TABLES } from "../lib/nox/demo/seed";
 import { scheduleOf, daysNormLineOf, daysCountOf } from "../lib/nox/mine/schedule";
 import { castPunchOffOf, castPunchMethodsOf } from "../lib/nox/store/ops-profile";
+import { cardGrossSplitOf, cardGrossDefaultOf } from "../lib/nox/register/p173";
+import { cashPayoutWithOtherOf, otherPayoutMemoMissing, noteWithOtherPayoutOf, otherPayoutFromNoteOf, manualPayoutDiffLineOf } from "../lib/nox/report/cash-payout";
 
 let pass = 0; const fails: string[] = [];
 function check(label: string, ok: boolean, detail?: string) { if (ok) pass++; else fails.push(`${label}${detail ? `: ${detail}` : ""}`); }
@@ -30,7 +32,7 @@ check("x13g(1) W-1 ぼかしは暗幕の擬似要素・カードはその上の�
 const cpm = src("components/nox/customer-pick-modal.tsx");
 check("x13g(2) W-2 伝票なし（開卓）／お客様 0 人は「この伝票のお客様」を出さない", NIL_CHECK_ID === "00000000-0000-0000-0000-000000000000" && cpm.includes("const showCheckTab = checkId !== NIL_CHECK_ID && checkList.length > 0;") && cpm.includes('.filter((k) => k !== "check" || showCheckTab)'));
 check("x13g(3) W-3 伝票上部のお客様＝K様／K様 ほか n 名／0 人は空・押すと顧客の節へ・顧客カードの変更で即反映",
-  checkCustLineOf([]) === "" && checkCustLineOf(["K"]) === "K様" && checkCustLineOf(["K", "M", "N"]) === "K様 ほか 2 名"
+  checkCustLineOf([]) === "" && checkCustLineOf(["K"]) === "K様" && checkCustLineOf(["K", "M", "N"]) === "K様 ほか 2 名" && checkCustLineOf(["H様", "K様"]) === "H様 ほか 1 名"
   && reg.includes('data-check-cust-line="1"') && reg.includes('document.getElementById("check-customers")') && reg.includes("await loadCustNames(check.id); /* ★便 X13-G W-3"));
 const kb = nomKindBadgesOf({ a: "hon", b: "jonai", c: "free" }, ["a", "b", "c", "d"]);
 check("x13g(4) W-4 担当中タブ＝本指名／場内／フリー（色は既存トークン 3 種）・レジの他タブは着卓中に統一",
@@ -65,7 +67,7 @@ check("x13g(11) W-11 今日タブ＝出勤前（出勤＋4 択）／出勤後／
 // W-12
 check("x13g(12) W-12 待遇プランの 6 タブ＝900px 未満は 2 列×3 段・タブ切替で本文の先頭へ・金額は 3 桁区切り",
   src("app/(manage)/master/cast-comp/plan/plan-board.tsx").includes('className="nox-seg nox-segtabs nox-segtabs--grid2"') && /\.nox-segtabs\.nox-segtabs--grid2 \{ display: grid; grid-template-columns: repeat\(2/.test(css)
-  && groupedDigitsOf("800000") === "800,000" && groupedDigitsOf("") === "" && groupedDigitsOf(14520) === "14,520" && reg.includes("<GroupedNumberInput value={isCash ? payTendered : payAmount}"));
+  && groupedDigitsOf("800000") === "800,000" && groupedDigitsOf("") === "" && groupedDigitsOf(14520) === "14,520" && reg.includes("<GroupedNumberInput value={isCash ? payTendered : grossMode ? grossN : payAmount}"));
 // W-13
 check("x13g(13) W-13（差し替え）精算調整・控除が OFF の店はタブに案内＋「利用機能を開く」（出し分けは C-5 どおり）", !isSectionOn({ sys_penalties: false }, "deductionPanel") && isSectionOn({ sys_penalties: true }, "deductionPanel") && src("app/(manage)/master/cast-comp/deduction/deduction-board.tsx").includes('data-open-features="1"')
   && src("app/(manage)/master/cast-comp/norma/norma-board.tsx").includes('data-systems-off-note="1"') && src("app/(manage)/master/cast-comp/deduction/deduction-board.tsx").includes('data-systems-off-note="1"'));
@@ -149,6 +151,31 @@ check("x13g(20) W-19 ① customers-keep の snapshot は検証 org の範囲・�
     && src("app/(manage)/master/store-profile-panel.tsx").includes('data-cast-punch="1"') && src("app/(manage)/setup/setup-wizard.tsx").includes('<Row title="キャストの打刻" sub={CAST_PUNCH_OFF_NOTE}>'));
   const sys = ["muse", "luna", "noir", "ace", "lily", "nest"].map((c) => (JSON.parse(src(`docs/demo/payload/${c}.json`)).tables.stores[0] as Record<string, unknown>).settings_json as Record<string, unknown>);
   check("x13g(26) W-18 ⑦ 6 店とも精算調整・控除 ON（送り・前借りを使う）・LUNA pt・NOIR 売上スライド・NEST ノルマはデータ側を合わせる", sys.every((x) => x.sys_penalties === true) && sys[1].sys_points === false && sys[2].sys_sales_slide === false && sys[5].sys_norms === false /* 裁定348 の組合せは保つ＝データ側を合わせた */);
+}
+{
+  const sd = src("lib/nox/demo/seed.ts"), pp = src("app/(manage)/master/pricing/page.tsx"), pbd = src("app/(manage)/master/cast-comp/plan/plan-board.tsx");
+  check("x13g(27) live 修正: 店設定の中の ID も org ごとに写像・料金マスタに settings_json を渡す・長いタブ名は 900px 未満で短い名前",
+    sd.includes('k === "settings_json" && v && typeof v === "object"') && pp.includes("settings_json: store?.settings_json ?? null,") && pbd.includes('const TAB_SHORT: Partial<Record<TabKey, string>> = { quota: "ノルマ・ボーナス" };') && src("app/globals.css").includes(".nox-segtabs--grid2 > button > .sm { display: none; }"));
+}
+{
+  const rb = src("app/(manage)/register/register-board.tsx");
+  const d = cardGrossDefaultOf(30993, 10), s1 = cardGrossSplitOf(d, 30993, 10), s2 = cardGrossSplitOf(11000, 30993, 10);
+  check("x13g(28) W-25 ①: カード（加算あり）の入金額は手数料込み＝既定 34,092・充当 30,993／手数料 3,099・一部 11,000＝充当 10,000／手数料 1,000・入金ボタンも受取額",
+    d === 34092 && s1.applied === 30993 && s1.fee === 3099 && s2.applied === 10000 && s2.fee === 1000 && cardGrossSplitOf(0, 100, 10).applied === 0
+    && rb.includes("うち 残額への充当 {yen(grossSplit.applied)}／カード手数料 {yen(grossSplit.fee)}") && rb.includes("入金する（{amtValid ? yen(grossMode ? grossN : effAmount)")
+    && rb.includes("setEntered(Math.ceil((grossMode ? grossDefault : balance) / n))"));
+}
+{
+  const rp = src("app/(manage)/report/report-board.tsx"), ci = src("components/nox/cash-payout-issue.tsx");
+  const parts = { okuri: 3000, advance: 10000, daily: 8979, salary: 0 };
+  const n1 = noteWithOtherPayoutOf("雨", 1200, "備品"), back = otherPayoutFromNoteOf(n1);
+  check("x13g(29) W-24: 現金支払＝内訳の合計＋その他（読取専用）・その他はメモ必須・メモ先頭 1 行に残して再締めで戻す・手入力との差は 1 行・＋発行は日払い／前借り＝キャスト詳細の部品・送り＝今日タブのダイアログ・締め後はロック",
+    cashPayoutWithOtherOf(parts, 1200) === 23179 && otherPayoutMemoMissing(1200, " ") && !otherPayoutMemoMissing(0, "")
+    && n1 === "【その他の現金支払 ¥1,200：備品】 雨" && back.amount === 1200 && back.memo === "備品" && back.rest === "雨" && noteWithOtherPayoutOf("", 0, "") === null
+    && manualPayoutDiffLineOf(25000, 23179) === "手入力との差 +¥1,821" && manualPayoutDiffLineOf(23179, 23179) === null
+    && rp.includes('data-payout-readonly="1"') && !rp.includes('<YenField label="現金支払（送り・日払い等）"') && rp.includes("const locked = !!closedReport && !recloseTarget;")
+    && ci.includes("<DailyPayForm key={pick}") && ci.includes('only="advance"') && ci.includes('mode="issueOnly"') && ci.includes('"transport_issue_bulk"')
+    && css.includes(".nox-payoutrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 84px;"));
 }
 if (fails.length) { console.log(`✗ verify:nox-x13g 失敗 ${fails.length}（成功 ${pass}）`); for (const x of fails) console.log(" - " + x); process.exit(1); }
 console.log(`verify:nox-x13g OK (${pass} checks)`);

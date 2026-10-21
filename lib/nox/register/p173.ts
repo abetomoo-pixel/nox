@@ -65,6 +65,19 @@ export function payFeeOf(amount: number, rate: number): number {
   return Math.round((amount * rate) / 100);
 }
 
+/** ★便 X13-G W-25 ①: カードの手数料込み入金額（受取額）→ 残額への充当と手数料。
+ *  充当＝受取額÷(1＋率)（check_pay の手数料と同じ四捨五入で「充当＋round(充当×率)＝受取額」になる額を優先）・残額まで・手数料＝受取額−充当。 */
+export function cardGrossSplitOf(gross: number, balance: number, rate: number): { applied: number; fee: number } {
+  const g = Math.max(0, Math.trunc(gross));
+  if (!(rate > 0) || g <= 0) return { applied: Math.min(g, Math.max(0, balance)), fee: 0 };
+  const c0 = Math.round((g * 100) / (100 + rate));
+  const hit = [c0, c0 - 1, c0 + 1].find((c) => c > 0 && c + payFeeOf(c, rate) === g);
+  const applied = Math.max(0, Math.min(hit ?? c0, Math.max(0, balance)));
+  return { applied, fee: Math.max(0, g - applied) };
+}
+/** カードの手数料込み入金額の既定＝残額＋手数料 */
+export const cardGrossDefaultOf = (balance: number, rate: number): number => (balance > 0 ? balance + payFeeOf(balance, rate) : 0);
+
 /** 伝票行の印字名（check_pay と同じ） */
 export function payFeeLineNameOf(key: PayFeeKey, rate: number): string {
   return `${key === "card" ? "カード手数料 " : key === "emoney" ? "電子マネー手数料 " : "決済手数料 "}${rate}%`;

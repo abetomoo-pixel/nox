@@ -102,6 +102,8 @@ export function buildPayloadFromRecording(orgId: string, bizDate: string, rec: R
         else if (typeof v === "string" && UUID_RE.test(v)) o[k] = mapId(v);
         // ★裁定343（0170・便 W5-2b）: uuid[] 列（comp_plans.slide_rank_ids＝cast_ranks.id の配列）も同じ写像で付け替える（素通しだと reset 後に誰も対象にならない）
         else if (Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "string" && UUID_RE.test(x))) o[k] = (v as string[]).map((x) => mapId(x));
+        // ★便 X13-G live: 店設定（settings_json）の中の ID（default_plan_id 等＝1 段目の文字列）も同じ写像（素通しだと reset 後に既定プランが見つからない）
+        else if (k === "settings_json" && v && typeof v === "object" && !Array.isArray(v)) o[k] = Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([kk, vv]) => [kk, typeof vv === "string" && UUID_RE.test(vv) ? mapId(vv) : vv]));
         else o[k] = v;
       }
       return o;

@@ -11,7 +11,7 @@ import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
 import { okuriAmountOf, okuriDefaultNoteOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default";
 
-export default function OkuriOutDialog({ castName, def, busy, error, onConfirm, onClose, mode = "outAndIssue", onOutOnly }: {
+export default function OkuriOutDialog({ castName, def, busy, error, onConfirm, onClose, mode = "outAndIssue", onOutOnly, lead }: {
   castName: string;
   /** 既定値（呼び出し側が店設定と直近の送りから決める） */
   def: OkuriDefault;
@@ -23,6 +23,8 @@ export default function OkuriOutDialog({ castName, def, busy, error, onConfirm, 
   mode?: "outAndIssue" | "issueOnly";
   /** ★裁定357: 「退勤」から開いたとき（実費の店・当日未発行）＝「退勤のみ」の 2 択を出す */
   onOutOnly?: () => void;
+  /** ★便 X13-G W-24 ②: 説明文の差し替え（日報の内訳から開いたとき＝退勤とは無関係） */
+  lead?: string;
 }) {
   const [raw, setRaw] = useState(def.amount != null ? String(def.amount) : "");
   const amount = okuriAmountOf(raw);
@@ -33,7 +35,7 @@ export default function OkuriOutDialog({ castName, def, busy, error, onConfirm, 
         <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={onClose}>×</button>
       </div>
       <p style={{ fontSize: 12.5, margin: "0 0 10px" }} data-okuri-mode={mode}>
-        {mode === "issueOnly" ? `${castName} の送り実費を発行します（退勤は記録済み）。` : onOutOnly ? `${castName} の退勤を記録します。本日の送りは未発行です＝送りを発行して退勤しますか？` : `${castName} の退勤を記録し、送り実費を発行します。`}
+        {lead ?? (mode === "issueOnly" ? `${castName} の送り実費を発行します（退勤は記録済み）。` : onOutOnly ? `${castName} の退勤を記録します。本日の送りは未発行です＝送りを発行して退勤しますか？` : `${castName} の退勤を記録し、送り実費を発行します。`)}
       </p>
       <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>
         金額

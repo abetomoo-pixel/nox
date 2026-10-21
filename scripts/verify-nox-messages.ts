@@ -112,7 +112,7 @@ check("ms(2-6) 裁定311: paymentMethodLabelOf／payoutDiffNoteOf の文言・pa
   paymentMethodLabelOf(null) === "その他" && paymentMethodLabelOf("other") === "その他" && paymentMethodLabelOf("cash") === "現金" && paymentMethodLabelOf("transfer") === "振込" && paymentMethodLabelOf("振込済") === "振込済"
   && payoutDiffNoteOf(1000, 1000) === null && payoutDiffNoteOf(1000, 800) === "集計 ¥1,000 と差 −¥200" && payoutDiffNoteOf(1000, 1500) === "集計 ¥1,000 と差 +¥500"
   && paySrc.includes('<select value={pmethod[l.castId] ?? "cash"}') && !paySrc.includes("方法(振込等)") && paySrc.includes("支払履歴（{period}）") && paySrc.includes("paymentMethodLabelOf(h.method)")
-  && reportSrc.includes("payoutDiffNoteOf(total, payout)") && reportSrc.includes("cashPayoutRowsOf(payoutParts)") && ["送り実費", "前借り", "日払い", "給与支払（現金）"].every((w) => Object.values(CASH_PAYOUT_LABELS).includes(w)));
+  && reportSrc.includes("manualPayoutDiffLineOf(closedReport?.cash_payout, total)") && reportSrc.includes("cashPayoutRowsOf(payoutParts)") /* ★便 X13-G W-24: 手入力をやめた＝「集計と差」→「手入力との差」 */ && ["送り実費", "前借り", "日払い", "給与支払（現金）"].every((w) => Object.values(CASH_PAYOUT_LABELS).includes(w)));
 
 // ★裁定313（2026-09-29・便 X-8-2）: 今日タブの行＝1 段。操作列は「時刻修正」「減額」・行内テキストリンク 0（精算調整を登録／を修正）・出勤記録は .nox-attrow
 check("ms(2-7) 裁定313: shift-board 今日タブ＝時刻修正／減額ボタン・行内リンク 0・nox-attrow・退勤は同段・操作列は isManagerUp のときだけ",

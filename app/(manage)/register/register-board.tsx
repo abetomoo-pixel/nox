@@ -33,7 +33,7 @@ import CustomerPickModal, { customerChipLabelOf, customerChipLineOf, type Custom
 import { customerChipVisibleOf, groupLines, recentProductIdsOf } from "@/lib/nox/register/line-groups"; // ★便 GV-C C-4（370 追補1） // ★裁定368／370（GV-19・21・便 GV-A）: お客様を選ぶ共通モーダル・商品行の「お客様」チップ // ★裁定314（便 X-8-10）: ボトル明細の「キープ」
 import CheckCustomersCard from "@/components/nox/check-customers-card"; // ★裁定305（mig0153・D1）: 伝票の顧客・誰の注文・キープ出し
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
-import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, setFrozenNoteOf, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（0173 の client＝裁定385／386／389／391／393）
+import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, setFrozenNoteOf, cardGrossSplitOf, cardGrossDefaultOf, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（0173 の client＝裁定385／386／389／391／393）
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U／AB）: メッセージ表示の共通部品
@@ -621,6 +621,7 @@ export default function RegisterBoard({
     await loadCheck(check.id);
   }
   const [payAmount, setPayAmount] = useState(0);
+  const [payCardGross, setPayCardGross] = useState<number | null>(null); // ★便 X13-G W-25 ①: カード（加算あり）の手数料込み入金額・null＝既定（残額＋手数料）
   const [payTendered, setPayTendered] = useState("");
   const [payDetail, setPayDetail] = useState(""); // F4c: 手段内訳メモ（card/other のみ・50字・空は null 送信）
   // F3c: 割引/無料 申請・適用フォーム
@@ -2053,15 +2054,21 @@ export default function RegisterBoard({
         // ★便 GV-C C-1（裁定387）: 入金は 1 欄＝現金は「お預かり」（入金額は残額まで自動・差額はお釣り）／現金以外は「入金額」（既定＝残額・超えた分は入金しない）。
         //   送る p_amount は常に残額まで（check_pay の 'exceeds balance' に当てない＝超過エラーを出さない）・p_tendered は現金のお預かり。手数料（393）は入金額に掛かる。
         const isCash = payMethod === "cash";
+        // ★便 X13-G W-25 ①: お客様へ加算が有効の店でカード＝入金額は手数料込み（受取額）。送る p_amount は残額への充当（計算・RPC は不変）
+        const cardRate = payMethod === "card" ? payFeeRates.card : 0;
+        const grossMode = cardRate > 0;
+        const grossDefault = grossMode ? cardGrossDefaultOf(balance, cardRate) : 0;
+        const grossN = grossMode ? Math.max(0, Math.min(payCardGross ?? grossDefault, grossDefault)) : 0;
+        const grossSplit = grossMode ? cardGrossSplitOf(grossN, balance, cardRate) : null;
         const entered = isCash ? (payTendered.trim() === "" ? balance : Number(payTendered)) : payAmount;
         const enteredN = Number.isFinite(entered) ? Math.max(0, Math.trunc(entered)) : 0;
-        const effAmount = Math.min(enteredN, balance);
+        const effAmount = grossSplit ? grossSplit.applied : Math.min(enteredN, balance);
         const amtValid = Number.isInteger(effAmount) && effAmount > 0;
         const change = isCash ? Math.max(0, enteredN - balance) : 0;
         const feeNote = payFeeNoteOf(payMethod, amtValid ? effAmount : 0, payFeeRates); // ★便 P173（裁定393）: 1 行表示（率 0 は null）
         const presets = Array.from(new Set([balance, Math.ceil(balance / 1000) * 1000, Math.ceil(balance / 5000) * 5000, Math.ceil(balance / 10000) * 10000]))
           .filter((v) => v >= balance && v > 0).sort((a, b) => a - b).slice(0, 4);
-        const setEntered = (n: number) => (isCash ? setPayTendered(n > 0 ? String(n) : "") : setPayAmount(n));
+        const setEntered = (n: number) => (isCash ? setPayTendered(n > 0 ? String(n) : "") : grossMode ? setPayCardGross(n) : setPayAmount(n));
         return (
           <Modal onClose={() => setPayModal(false)} scroll>
             <h3 style={{ ...t.cardTitle, margin: "0 0 10px" }}>入金{splitOn ? `（会計${g}）` : ""}</h3>
@@ -2121,7 +2128,7 @@ export default function RegisterBoard({
                 ...(payMethodsOn.emoney ? [["emoney", OPS_METHOD_LABEL.emoney]] : []), ...(payMethodsOn.qr ? [["qr", OPS_METHOD_LABEL.qr]] : []), ["other", METHOD_LABEL.other]] as [string, string][]).map(([v, l]) => (
                 <button key={v} type="button"
                   style={payMethod === v ? { ...t.btnGold, justifyContent: "center", padding: "12px" } : { ...t.btnGhost, justifyContent: "center", padding: "12px" }}
-                  onClick={() => { setPayMethod(v); if (!DETAIL_METHODS.has(v)) setPayDetail(""); }}>
+                  onClick={() => { setPayMethod(v); setPayCardGross(null); if (!DETAIL_METHODS.has(v)) setPayDetail(""); }}>
                   {l}
                 </button>
               ))}
@@ -2138,7 +2145,7 @@ export default function RegisterBoard({
               <span style={{ fontSize: 12, color: "var(--sub)", fontWeight: 700 }}>均等割り</span>
               {[2, 3, 4, 5, 6].map((n) => (
                 <button key={n} type="button" style={{ ...btnLight }} disabled={balance <= 0}
-                  onClick={() => setEntered(Math.ceil(balance / n))}>
+                  onClick={() => setEntered(Math.ceil((grossMode ? grossDefault : balance) / n))}>
                   {n}分割
                 </button>
               ))}
@@ -2149,16 +2156,16 @@ export default function RegisterBoard({
             {/* ★便 GV-C C-1（裁定387）: 入金は 1 欄（現金＝お預かり・現金以外＝入金額）＋数字キーパッド。送る額は残額まで・お釣りは大きく */}
             <label style={{ ...t.fieldLabel, display: "block", marginBottom: 10 }} data-pay-one="1">
               {isCash ? "お預かり" : "入金額"}
-              <GroupedNumberInput value={isCash ? payTendered : payAmount} placeholder={isCash ? balance.toLocaleString("ja-JP") : undefined} ariaLabel={isCash ? "お預かり" : "入金額"}
-                onChange={(v) => (isCash ? setPayTendered(v) : setPayAmount(Number(v || 0)))}
+              <GroupedNumberInput value={isCash ? payTendered : grossMode ? grossN : payAmount} placeholder={isCash ? balance.toLocaleString("ja-JP") : undefined} ariaLabel={isCash ? "お預かり" : "入金額"}
+                onChange={(v) => (isCash ? setPayTendered(v) : grossMode ? setPayCardGross(Number(v || 0)) : setPayAmount(Number(v || 0)))}
                 style={{ display: "block", marginTop: 5, fontSize: 18, width: "100%" }} />
               {/* ★裁定375（GV-B W-5）: 数字キーパッド（0〜9・00・⌫・C）＝この 1 欄だけを編集 */}
               <div data-pay-keypad="1" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 8 }}>
                 {(["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0", "⌫"] as const).map((k) => (
                   <button key={k} type="button" style={{ ...btnLight, minHeight: 44, fontSize: 18, fontWeight: 800, justifyContent: "center" }}
-                    onClick={() => { const cur = isCash ? payTendered : String(payAmount > 0 ? payAmount : ""); const next = k === "⌫" ? cur.slice(0, -1) : (cur + k).slice(0, 8); setEntered(Number(next || 0)); }}>{k}</button>
+                    onClick={() => { const cur = isCash ? payTendered : grossMode ? String(grossN > 0 ? grossN : "") : String(payAmount > 0 ? payAmount : ""); const next = k === "⌫" ? cur.slice(0, -1) : (cur + k).slice(0, 8); setEntered(Number(next || 0)); }}>{k}</button>
                 ))}
-                <button type="button" style={{ ...btnLight, minHeight: 44, fontWeight: 800, justifyContent: "center", gridColumn: "1 / -1" }} onClick={() => setEntered(balance)}>C（残額に戻す）</button>
+                <button type="button" style={{ ...btnLight, minHeight: 44, fontWeight: 800, justifyContent: "center", gridColumn: "1 / -1" }} onClick={() => (grossMode ? setPayCardGross(null) : setEntered(balance))}>C（残額に戻す）</button>
               </div>
               {isCash && (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
@@ -2168,10 +2175,15 @@ export default function RegisterBoard({
                 </div>
               )}
               <span style={{ fontSize: 11, color: "var(--sub)", marginTop: 4, display: "block", lineHeight: 1.6 }}>
-                {isCash ? `入金額は残額（${yen(balance)}）まで自動。多くお預かりした分はお釣りです。` : `既定は残額（${yen(balance)}）。一部だけ受け取るときは減らしてください（残額を超える分は入金しません）。`}
+                {isCash ? `入金額は残額（${yen(balance)}）まで自動。多くお預かりした分はお釣りです。` : grossMode ? `既定は残額＋カード手数料（${yen(grossDefault)}）。一部だけ受け取るときは減らしてください。` : `既定は残額（${yen(balance)}）。一部だけ受け取るときは減らしてください（残額を超える分は入金しません）。`}
               </span>
+              {grossSplit && (
+                <span data-pay-gross-split="1" className="num" style={{ fontSize: 13, fontWeight: 700, marginTop: 4, display: "block" }}>
+                  うち 残額への充当 {yen(grossSplit.applied)}／カード手数料 {yen(grossSplit.fee)}
+                </span>
+              )}
               {/* ★便 P173（裁定393）: 支払方法別の手数料（お客様負担）＝入金額×率（1 円未満四捨五入）・伝票に行「カード手数料 n%」・お客様からもらう額＝入金額＋手数料（均等割りも手数料込み）。権威は RPC（due の増分） */}
-              {feeNote && (
+              {feeNote && !grossMode && (
                 <div className="nox-inset" data-pay-fee="1" style={{ padding: "8px 12px", marginTop: 8, fontSize: 12.5, display: "flex", flexDirection: "column", gap: 3 }}>
                   <span style={{ display: "flex", justifyContent: "space-between" }}><span>{payFeeLabelJa(feeNote.key)} {feeNote.rate}%（お客様負担）</span><span className="num">{yen(feeNote.fee)}</span></span>
                   <span style={{ display: "flex", justifyContent: "space-between", fontWeight: 800 }}><span>お客様からもらう額</span><span className="num">{yen(feeNote.receive)}</span></span>
@@ -2204,7 +2216,7 @@ export default function RegisterBoard({
               style={t.btnPrimary56} data-pay-submit="1"
               disabled={!amtValid}
               onClick={async () => { const ok = await pay({ amount: effAmount, tendered: isCash ? enteredN : null }); if (ok) setPayModal(false); }}>
-              入金する（{amtValid ? yen(effAmount) : "—"}）
+              入金する（{amtValid ? yen(grossMode ? grossN : effAmount) : "—"}）
             </button>
           </Modal>
         );
@@ -3619,7 +3631,7 @@ export default function RegisterBoard({
                 const remaining = gi?.remaining ?? 0;
                 return (
                   <button type="button" style={t.btnPrimary56} data-pay-next="1" disabled={check.status !== "open" || remaining <= 0}
-                    onClick={() => { setPayAmount(remaining); setPayTendered(""); setPayDetail(""); setPayModal(true); }}>
+                    onClick={() => { setPayAmount(remaining); setPayCardGross(null); setPayTendered(""); setPayDetail(""); setPayModal(true); }}>
                     入金へ進む{splitOn ? `（会計${payGroup || "A"}）` : ""}
                   </button>
                 );

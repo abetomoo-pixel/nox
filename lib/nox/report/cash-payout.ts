@@ -19,6 +19,29 @@ export const cashPayoutRowsOf = (p: CashPayoutParts): { key: keyof CashPayoutPar
   (["okuri", "advance", "daily", "salary"] as const).map((key) => ({ key, label: CASH_PAYOUT_LABELS[key], amount: p[key] }));
 
 const yen = (n: number) => `¥${Math.abs(n).toLocaleString()}`;
+/** ★便 X13-G W-24 ①: 現金支払＝内訳の合計＋その他の現金支払（手入力はその他だけ） */
+export const cashPayoutWithOtherOf = (p: CashPayoutParts, other: number): number => cashPayoutTotalOf(p) + Math.max(0, Math.trunc(other || 0));
+/** ★W-24 ①: その他の現金支払はメモ必須（金額 0 はメモ不要） */
+export const otherPayoutMemoMissing = (other: number, memo: string): boolean => (other || 0) > 0 && memo.trim() === "";
+/** ★W-24 ①: その他の現金支払を日報のメモへ残す（新しい列は作らない＝daily_reports.note の先頭に 1 行） */
+export function noteWithOtherPayoutOf(note: string, other: number, memo: string): string | null {
+  const o = Math.max(0, Math.trunc(other || 0));
+  const head = o > 0 ? `【その他の現金支払 ${yen(o)}：${memo.trim()}】` : "";
+  const body = note.replace(/^【その他の現金支払 [^】]*】\s?/, "");
+  const out = head ? (body ? `${head} ${body}` : head) : body;
+  return out === "" ? null : out;
+}
+/** ★W-24 ①: 再締めで日報のメモから「その他の現金支払」を取り出す（無ければ 0） */
+export function otherPayoutFromNoteOf(note: string | null | undefined): { amount: number; memo: string; rest: string } {
+  const m = /^【その他の現金支払 ¥([0-9,]+)：([^】]*)】\s?([\s\S]*)$/.exec(note ?? "");
+  return m ? { amount: Number(m[1].replace(/,/g, "")), memo: m[2], rest: m[3] } : { amount: 0, memo: "", rest: note ?? "" };
+}
+/** ★W-24 ④: 既存の手入力（締め済みの日報の現金支払）と内訳＋その他が違えば 1 行（同じなら null）。内訳が優先 */
+export function manualPayoutDiffLineOf(stored: number | null | undefined, computed: number): string | null {
+  if (stored == null || stored === computed) return null;
+  const d = stored - computed;
+  return `手入力との差 ${d > 0 ? "+" : "−"}${yen(d)}`;
+}
 /** 入力値が集計と違うときだけ注記（同じなら null）。差＝入力 − 集計（符号つき）。 */
 export function payoutDiffNoteOf(total: number, input: number): string | null {
   const diff = input - total;

@@ -33,6 +33,8 @@ const TABS = [
   ["assign", "キャスト割当"],
 ] as const;
 type TabKey = (typeof TABS)[number][0];
+/** ★便 X13-G live（W-12 ①）: 900px 未満の 2 列で 1 行に収まらない長いタブ名の短い形 */
+const TAB_SHORT: Partial<Record<TabKey, string>> = { quota: "ノルマ・ボーナス" };
 
 export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean; sim: StoreSimData | null;
@@ -176,7 +178,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
             <button key={k} className={tab === k ? "on" : ""}
               style={{ flex: "1 1 120px", fontWeight: 800, fontSize: 12.5, padding: "8px 6px", borderTop: "1px solid var(--line)", marginTop: -1,
                 boxShadow: tab === k ? "inset 0 -2px 0 var(--primary)" : undefined }}
-              onClick={() => { setTab(k); window.setTimeout(() => { const body = bodyRef.current, head = stickyRef.current; if (!body || !head) return; const y = body.getBoundingClientRect().top + window.scrollY - head.getBoundingClientRect().height; if (window.scrollY > y) window.scrollTo({ top: Math.max(0, y), behavior: "auto" }); }, 0); /* ★便 X13-G W-12 ②: 本文の先頭をタブの直下へ */ }}>{label}</button>
+              data-tab={k} onClick={() => { setTab(k); window.setTimeout(() => { const body = bodyRef.current, head = stickyRef.current; if (!body || !head) return; const y = body.getBoundingClientRect().top + window.scrollY - head.getBoundingClientRect().height; if (window.scrollY > y) window.scrollTo({ top: Math.max(0, y), behavior: "auto" }); }, 0); /* ★便 X13-G W-12 ②: 本文の先頭をタブの直下へ */ }}><span className="lg">{label}</span><span className="sm">{TAB_SHORT[k] ?? label}</span></button>
           ))}
         </div>
       </div>

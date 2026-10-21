@@ -19,12 +19,14 @@ import { Message } from "@/components/ui/toast";
 type Paid = { id: string; biz_date: string; gross: number; withholding: number; net: number; withholding_category: string; kind: string | null }; // ★0172: +kind
 const yen = (n: number) => "¥" + n.toLocaleString();
 
-export default function DailyPayForm({ castId, castName, dateDefault, storeId }: {
+export default function DailyPayForm({ castId, castName, dateDefault, storeId, onIssued }: {
   castId: string; castName: string;
   /** ★便 L-3-2: 当期プレビュー（/api/payroll/preview）で見込み手取りを読むための店（無ければ過徴収 warn を出さない） */
   storeId?: string;
   /** 営業日の既定（YYYY-MM-DD・呼び出し側が決める） */
   dateDefault: string;
+  /** ★便 X13-G W-24 ②: 発行の後（日報の内訳の読み直し） */
+  onIssued?: () => void | Promise<void>;
 }) {
   const supabase = createClient();
   const [amount, setAmount] = useState("");
@@ -82,6 +84,7 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId }:
     setMsg(`${castName} に${DAILY_PAY_KIND_LABEL[kind]} ${yen(gross)} を発行しました（源泉 ${yen(r.withholding)}・手取り ${yen(r.net)}）${carried ? `・${carried}` : ""}${r.warn ? "※雇用のため源泉 0（税理士確認中）" : ""}`);
     setAmount("");
     await load();
+    await onIssued?.();
   }
 
   const periodNote = dailyPayPeriodNoteOf(runStatus, date.slice(0, 7));
